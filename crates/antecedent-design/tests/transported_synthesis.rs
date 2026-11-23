@@ -111,7 +111,7 @@ fn native_and_transported_claims_pool_with_the_transport_variance_counted_once()
     // Each observation once: 100 native rows plus 100 rows behind the claim.
     assert_eq!(out.mass.distinct_observations, 200);
     assert_eq!(out.mass.repeated_slots, 0);
-    // A point and a model variance; the ledger licenses nothing further.
+    // A point and a model variance; the ledger supports nothing further.
     assert_eq!(out.claim_class, ClaimClass::PointOnly);
     let record = ledger.result(out.result).unwrap();
     assert_eq!(record.transport_identities, vec![transport(1).digest()]);
@@ -217,7 +217,10 @@ fn the_same_observations_cannot_count_as_native_and_as_transported() {
         &pool(),
     )
     .unwrap_err();
-    assert_eq!(err.detail(), "evidence_ledger.native_and_transported");
+    assert_eq!(
+        err.detail(),
+        antecedent_core::reason_details::evidence_ledger::NATIVE_AND_TRANSPORTED
+    );
     // Atomic: nothing was registered.
     assert_eq!(ledger.state_digest(), before);
     assert!(ledger.results().is_empty());
@@ -365,7 +368,10 @@ fn a_transported_claim_is_the_prior_of_a_native_likelihood() {
     )
     .unwrap_err();
     assert_eq!(err.code(), "evidence_double_counted");
-    assert_eq!(err.detail(), "evidence_ledger.reentry_prior_plus_likelihood");
+    assert_eq!(
+        err.detail(),
+        antecedent_core::reason_details::evidence_ledger::REENTRY_PRIOR_PLUS_LIKELIHOOD
+    );
     assert!(reused.results().is_empty());
 }
 
@@ -435,7 +441,11 @@ fn a_changed_input_at_unchanged_shape_changes_the_registered_result() {
         &pool(),
     )
     .unwrap();
-    assert!(second.variance > first.variance);
+    // Precisions: 1 + 1/1.5 for the first pool (variance 0.6), 1 + 1/3 for the second
+    // (variance 0.75, mean (1 + 2/3) / (4/3) = 1.25).
+    near(first.variance, 0.6);
+    near(second.variance, 0.75);
+    near(second.estimate, 1.25);
     assert_ne!(first.result, second.result);
 }
 
@@ -526,7 +536,7 @@ fn a_transport_with_no_assumption_or_a_self_target_is_refused_at_the_ledger() {
     };
     let err = add(&mut ledger, 1_000, TransportIdentity { assumptions: vec![], ..transport(3) })
         .unwrap_err();
-    assert_eq!(err.detail, "evidence_ledger.invalid_declaration");
+    assert_eq!(err.detail, antecedent_core::reason_details::evidence_ledger::INVALID_DECLARATION);
     // The design-level guard stays for identities that reach synthesis.
     assert!(add(&mut ledger, 1_000, transport(3)).is_ok());
 }

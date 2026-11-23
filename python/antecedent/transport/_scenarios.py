@@ -8,7 +8,7 @@ identified and bound to evidence independently; the report keeps every scenario
 whatever its status, gives a structural envelope over the identified ones, and,
 only for declared weights, a report that never renormalizes over survivors. This
 is not equivalence-class (CPDAG/PAG) transport, and no inferential statement
-across scenarios is licensed.
+across scenarios is supported.
 
 With ``conditioned_on`` the question is the conditional ``P*(y | do(x), w)`` of
 the bounded ADMG conditional transport row: every scenario is decided by that
@@ -25,14 +25,18 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from .._artifact_protocol import artifact_consumer, container_bytes
 from .._columns import coerce_fields
 from .._native import (
     consume_transport_scenarios_artifact as _consume_transport_scenarios_artifact,
 )
 from .._native import prepare_transport_scenarios_stage as _prepare_transport_scenarios_stage
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ..execution import Execution
 from ..graph import Admg, Cpdag, Pag
-from ._impl import EvidenceCatalog, VariableCoordinate, _non_negative, _optional_non_negative
+from ._consumption import TransportConsumption
+from ._controls import call_native
+from ._impl import EvidenceCatalog, VariableCoordinate, _non_negative
 from ._temporal import _wire
 
 MAX_SCENARIOS = 64
@@ -68,7 +72,7 @@ class TransportScenario:
         if isinstance(self.graph, Cpdag | Pag):
             raise CausalUnsupportedError(
                 "scenarios.equivalence_class_input: supply an explicit list of fixed "
-                "graphs; CPDAG/PAG-native transport is not licensed",
+                "graphs; CPDAG/PAG-native transport is not supported",
                 reason_code="route_not_supported",
             )
         if not isinstance(self.graph, Admg):
@@ -148,8 +152,7 @@ def prepare_transport_scenarios(
     max_operations: int = 10_000_000,
     max_evaluation_depth: int = 256,
     max_support_rows: int = 1_000_000,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> Any:
     """Decide every scenario once and compile each identified one.
 
@@ -195,7 +198,7 @@ def prepare_transport_scenarios(
     with an inspection-only candidate, and ``structurally_unidentified`` only
     when the route's witness stage finds an exactly verified two-model witness.
     Exact laws only: ``StatisticalTransportData`` or counted laws refuse with
-    ``cell_not_licensed``. Its artifact is format version 2; a classical
+    ``not_supported``. Its artifact is format version 2; a classical
     question still exports version 1.
     """
     if not isinstance(scenarios, TransportScenarioSet):
@@ -204,7 +207,9 @@ def prepare_transport_scenarios(
         raise CausalTypeError("catalog must be an EvidenceCatalog")
     if isinstance(conditioned_on, str):
         raise CausalTypeError("conditioned_on must be a sequence of variable names")
-    return _prepare_transport_scenarios_stage(
+    return call_native(
+        execution,
+        _prepare_transport_scenarios_stage,
         [
             (
                 s.name,
@@ -229,11 +234,16 @@ def prepare_transport_scenarios(
         max_operations=_non_negative("max_operations", max_operations),
         max_evaluation_depth=_non_negative("max_evaluation_depth", max_evaluation_depth),
         max_support_rows=_non_negative("max_support_rows", max_support_rows),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+        cancel="cancel",
+        memory="memory_bytes",
     )
 
 
+@artifact_consumer(
+    proof="TransportScenarioArtifactWire::consume_with_limits: redecides every scenario and compares the complete retained report",
+    replayable=True,
+    identity=(),
+)
 def consume_transport_scenarios_artifact(
     artifact: bytes,
     *,
@@ -243,9 +253,8 @@ def consume_transport_scenarios_artifact(
     max_evaluation_depth: int = 256,
     max_support_rows: int = 1_000_000,
     max_laws: int = 256,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
-) -> str:
+    execution: Execution | None = None,
+) -> TransportConsumption:
     """Independently replay an exported scenario report.
 
     Every scenario is re-decided under the producer's recorded limits (refused if
@@ -256,18 +265,24 @@ def consume_transport_scenarios_artifact(
     data-identity digest, so a changed snapshot label is refused as a data
     identity mismatch.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
-    return _consume_transport_scenarios_artifact(
-        artifact,
-        max_steps=_non_negative("max_steps", max_steps),
-        max_depth=_non_negative("max_depth", max_depth),
-        max_operations=_non_negative("max_operations", max_operations),
-        max_evaluation_depth=_non_negative("max_evaluation_depth", max_evaluation_depth),
-        max_support_rows=_non_negative("max_support_rows", max_support_rows),
-        max_laws=_non_negative("max_laws", max_laws),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+    return TransportConsumption.from_checked_json(
+        "consume_transport_scenarios_artifact",
+        call_native(
+            execution,
+            _consume_transport_scenarios_artifact,
+            artifact,
+            max_steps=_non_negative("max_steps", max_steps),
+            max_depth=_non_negative("max_depth", max_depth),
+            max_operations=_non_negative("max_operations", max_operations),
+            max_evaluation_depth=_non_negative("max_evaluation_depth", max_evaluation_depth),
+            max_support_rows=_non_negative("max_support_rows", max_support_rows),
+            max_laws=_non_negative("max_laws", max_laws),
+            cancel="cancel",
+            memory="memory_bytes",
+        ),
     )
 
 

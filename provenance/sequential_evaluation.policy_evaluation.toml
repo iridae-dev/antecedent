@@ -8,23 +8,71 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "A new approach to causal inference in mortality studies with a sustained exposure period: application to control of the healthy worker survivor effect (Robins, Mathematical Modelling 7:1393-1512)", doi = "10.1016/0270-0255(86)90088-6", sections = ["The g-computation algorithm formula for time-varying treatments"] },
- { title = "Marginal Mean Models for Dynamic Regimes (Murphy, van der Laan and Robins, J Am Stat Assoc 96:1410-1423)", doi = "10.1198/016214501753382327", sections = ["Dynamic regimes and the value of a regime"] },
- { title = "Planning and acting in partially observable stochastic domains (Kaelbling, Littman and Cassandra, Artif Intell 101:99-134)", doi = "10.1016/S0004-3702(98)00023-X", sections = ["Belief states and the Bayesian belief update"] },
- { title = "A Generalization of Sampling Without Replacement from a Finite Universe (Horvitz and Thompson, J Am Stat Assoc 47:663-685)", doi = "10.1080/01621459.1952.10483446", sections = ["The inverse-probability weighted estimator"] },
+ { title = "A new approach to causal inference in mortality studies with a sustained exposure period—application to control of the healthy worker survivor effect", citation_note = "Previously recorded title and bibliographic detail: A new approach to causal inference in mortality studies with a sustained exposure period: application to control of the healthy worker survivor effect (Robins, Mathematical Modelling 7:1393-1512)", doi = "10.1016/0270-0255(86)90088-6", sections = ["The g-computation algorithm formula for time-varying treatments"] },
+ { title = "Marginal Mean Models for Dynamic Regimes", citation_note = "Previously recorded title and bibliographic detail: Marginal Mean Models for Dynamic Regimes (Murphy, van der Laan and Robins, J Am Stat Assoc 96:1410-1423)", doi = "10.1198/016214501753382327", sections = ["Dynamic regimes and the value of a regime"] },
+ { title = "Planning and acting in partially observable stochastic domains", citation_note = "Previously recorded title and bibliographic detail: Planning and acting in partially observable stochastic domains (Kaelbling, Littman and Cassandra, Artif Intell 101:99-134)", doi = "10.1016/S0004-3702(98)00023-X", sections = ["Belief states and the Bayesian belief update"] },
+ { title = "A Generalization of Sampling Without Replacement from a Finite Universe", citation_note = "Previously recorded title and bibliographic detail: A Generalization of Sampling Without Replacement from a Finite Universe (Horvitz and Thompson, J Am Stat Assoc 47:663-685)", doi = "10.1080/01621459.1952.10483446", sections = ["The inverse-probability weighted estimator"] },
 ]
 
 implementation_deviations = [
  "Evaluates a supplied finite-horizon policy on a declared finite model by exact enumeration of observed histories; it does not estimate nuisance models, learn or optimize a policy, or implement a planner.",
  "The sequential importance-weighting estimator applies the Horvitz-Thompson identity along the policy steps with the logged assignment probabilities; it is the ordinary and self-normalized estimator only, with no doubly robust or marginalized weights.",
  "Belief updates use the measurement model's declared parameters as exact; their estimation uncertainty is not propagated.",
- "Only a point value is produced; the importance-weighting standard error and the rollout error are uncalibrated diagnostics and no interval is licensed.",
+ "A point value and an uncalibrated Wald interval are produced; the importance-weighting standard error, the interval and the rollout error carry no measured calibration.",
 ]
 
 upstream_implementations_observed = []
 
+modules = [
+ "crates/antecedent-design/src/sequential_evaluation/gformula.rs",
+ "crates/antecedent-design/src/sequential_evaluation/belief.rs",
+ "crates/antecedent-design/src/sequential_evaluation/offpolicy.rs",
+]
+
 test_sources = [
+ "crates/antecedent-design/tests/sequential_evaluation.rs (exact_values_match_hand_computation_and_the_independent_oracle, off_policy_weighting_recovers_the_enumerated_value_and_the_log_is_counted_once)",
  "hand-solved finite decision tree with delayed outcomes and a stopping boundary",
  "independent forward joint-probability enumeration written in the test",
  "enumerated finite logged population under a dyadic logging policy",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "evaluate_policy (the sequential g-formula walk in gformula.rs: due-outcome credits, stopping boundaries, per-action immediate and delayed utilities, commit tails, terminal utility, censoring), the Bayes belief update of belief.rs (predictive law, observation likelihood, posterior) and evaluate_off_policy (offpolicy.rs: the Wald interval of the ordinary estimate from the sample variance of the weighted returns, and the sequential product of target-over-logging assignment probabilities, the ordinary and self-normalized estimates, the Kish effective size and the positivity check on every reachable history) on one finite inspection model with two latent states, five actions of continue and commit roles, a confusion-matrix observation channel, a resource budget and two stopping boundaries. Not the rollout Monte Carlo cross-check, the comparison and value-of-evidence routes, the artifact encoding, the measurement-model validation that constructs the channels, or any model with more than two latent states."
+assumptions = ["The declared per-action transition and observation laws are the interventional laws of the model, the exchangeability, consistency and positivity premises the module states are taken as given, and the measurement parameters are exact.", "The independent oracle accumulates joint probabilities of latent paths and observed symbols forward and divides only at the end; it never forms a posterior belief inside the walk, and it is written in the test file, not imported from the product."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared the product with an executing forward joint-probability enumeration and a logged-data generator written for the test, plus hand values worked in the test comments; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review (nothing downloaded): the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The oracle and the generator are repository-authored (MIT OR Apache-2.0) and live in the bound assertion file; no external library is used for them."
+limitations = "Ten policies on one two-state inspection model (variants: with and without stopping boundaries, forfeit versus refuse for outcomes beyond the horizon, states relabelled) are compared with the oracle at 1e-12 and with hand values; the dyadic constants make the arithmetic exact in binary, which also means rounding behaviour with non-dyadic probabilities is not exercised. The off-policy estimator is checked against the whole 65,536-trajectory logged population, so its unbiasedness and the weight 8 and effective size N/8 of the target policy are verified exactly, but a finite random log, the sampling spread of the self-normalized estimate (the ordinary estimate's standard error and Wald interval are checked on one four-trajectory design), and extremely small logging probabilities (weights near the overflow refusal) are exercised only by the refusal tests, not by a reference value. There is no reference for models with three or more latent states, long horizons or continuous observations, and the estimation uncertainty of the measurement model is by design not propagated. The reference lives in the same Rust test file as the assertions rather than in a frozen JSON, so this review binds that file once. Calibration of the standard error and of the Wald interval is not measured (the interval carries a not-measured calibration slot). The standard error and the 95% Wald interval are checked on one single-decision, four-trajectory design by a hand construction (weighted returns 16/5, 32/5, 12/5, 4; mean 4; s^2 = 224/75; literal z = 1.959963984540054) to 1e-12, and one trajectory gives no standard error and no interval; multi-step weight products are checked through the enumerated-population test, not through the interval. Scoped 2026-11-07 source re-review compared ledger staging with its previously bound implementation: duplicate and partial-overlap refusals, sorted record identities, chunked sources and reuse behavior remain unchanged, and the ledger is still committed only after finite estimate checks. Four focused off-policy tests passed; no new independent reference or calibration was generated."
+sources = ["https://doi.org/10.1016/0270-0255(86)90088-6", "https://doi.org/10.1198/016214501753382327", "https://doi.org/10.1016/S0004-3702(98)00023-X", "https://doi.org/10.1080/01621459.1952.10483446"]
+findings_resolved = ["No defect found: the product agrees with the forward oracle and the hand values on every policy (including delayed outcomes evolved under a commit action's transition, forced stops from the boundaries and pending outcomes forfeited at the horizon), is invariant to relabelling the latent states, and the importance-weighted mean over the complete logged population equals the enumerated value to 1e-9."]
+record_sha256 = "cba15a7b0802f436b5d5468d277d4c860ef59ea7e1edd8ea3ebe53ee9046f96e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/sequential_evaluation/gformula.rs"
+items = ["const DECLARED", "const RECEIPT_BLOCK", "enum Entered", "enum NodeKind", "fn admit_receipt", "fn check_support", "fn commit_tail", "fn default", "fn delayed_utility", "fn enter", "fn evaluate_policy", "fn incomplete", "fn visit", "fn walk", "struct ActionFrame", "struct DecisionReceipt", "struct EvaluationLimits", "struct Frame", "struct HistoryReceipt", "struct Node", "struct Pending", "struct PolicyEvaluation", "struct SequentialAssumptions", "struct Walker"]
+sha256 = "3429dd7e020f4e8d478780f6c28ca2db60d1a39de3b6eafcb62493380f18c5cc"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/sequential_evaluation/belief.rs"
+items = ["const RECORD_DOMAIN", "fn belief", "fn history", "fn new", "fn receipts", "fn record_id", "fn resource_used", "fn time", "struct ObservationReceipt"]
+sha256 = "cbaedb73f3c8b47c78cc04b4ac2ed96df35018498a898b0d3533fb986bbd37cb"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/sequential_evaluation/offpolicy.rs"
+items = ["const OFF_POLICY_INTERVAL_LEVEL", "fn calibration_slot", "fn evaluate_off_policy", "fn inconsistent", "fn ledger_records", "fn stage_logged_records", "fn self_normalized_is_finite", "fn wald", "fn weigh", "struct LoggedStep", "struct LoggedTrajectory", "struct OffPolicyEstimate", "struct OffPolicyInterval", "struct Weighted"]
+sha256 = "7a1a2466710f48a5ca2e0c8c4be5959f3e5ab752ef357c76c6ecde2f5ca3766d"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/sequential_evaluation.rs"
+items = ["const ALARM", "const IDENTITY", "const INSPECT", "const LOG_SIZE", "const NEGATIVE", "const PILOT", "const REPAIR", "const SHIP", "const WAIT", "fn act_now_repair", "fn act_now_ship", "fn base_spec", "fn behaviour_policy", "fn build", "fn confusion", "fn ctx", "fn det", "fn emit", "fn exact_values_match_hand_computation_and_the_independent_oracle", "fn expand", "fn inspect_then_act", "fn inspect_twice", "fn key", "fn log_under", "fn measurement", "fn mu", "fn off_policy_weighting_recovers_the_enumerated_value_and_the_log_is_counted_once", "fn oracle", "fn pilot_inspect_act", "fn policy_of", "fn state_names", "fn stochastic_root", "fn value", "fn wait_three", "fn walk", "struct Act", "struct Boundary", "struct Spec", "type History", "type Step", "type Table"]
+sha256 = "9a1bf2b2cfcb949ae2039730ff599cc0d25bd6f7e14d64e0635dd5a2418a0700"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/sequential_evaluation_interval_construction.rs"
+items = ["const LEFT", "const RIGHT", "const TOLERANCE", "const Z_975", "fn evaluate", "fn model", "fn one_trajectory_has_no_standard_error_and_so_no_interval", "fn policy", "fn the_interval_is_the_wald_interval_of_the_weighted_returns", "fn trajectory"]
+sha256 = "df6ae69b452dd5f2aea629dbd75123066ef6d2bcfa05f0fba3a734ae05468801"

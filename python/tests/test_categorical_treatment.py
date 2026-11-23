@@ -12,8 +12,10 @@ from __future__ import annotations
 
 import math
 
+import antecedent
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import categorical_treatment
 from antecedent.categorical_treatment import (
     CategoricalTreatmentRefusal,
@@ -22,11 +24,13 @@ from antecedent.categorical_treatment import (
     consume_categorical_effects,
 )
 from antecedent.errors import (
+    CausalCancelledError,
     CausalSerializationError,
     CausalTypeError,
     CausalUnsupportedError,
     CausalValueError,
 )
+from antecedent.state import CancellationToken
 
 from _refusal import assert_registered_refusal
 
@@ -64,6 +68,13 @@ def monotone(**kwargs):
     kwargs.setdefault("reference", "lo")
     kwargs.setdefault("monotonicity", "non_decreasing")
     return categorical_effects(MONO_OUTCOME, MONO_LEVELS, **kwargs)
+
+
+def test_categorical_fit_runs_under_the_callers_execution() -> None:
+    token = CancellationToken()
+    token.cancel()
+    with pytest.raises((CategoricalTreatmentRefusal, CausalCancelledError)):
+        abc(execution=antecedent.Execution(cancel=token))
 
 
 def test_categorical_dummy_regression_matches_group_mean_algebra() -> None:
@@ -148,7 +159,7 @@ def test_categorical_monotonicity_test_and_its_null() -> None:
     # p = min(1, 2 Phi(-sqrt(3/2))) = erfc(sqrt(3/4)): conservative union-intersection bound.
     assert mono.p_value == pytest.approx(math.erfc(math.sqrt(0.75)), abs=1e-9)
     assert mono.conservative is True
-    assert mono.calibration == "unmeasured"
+    assert mono.calibration == "not_measured"
     assert any("failing to reject does not prove" in c for c in result.caveats)
     flipped = monotone(monotonicity=Direction.NON_INCREASING).monotonicity
     assert flipped is not None
@@ -158,13 +169,13 @@ def test_categorical_monotonicity_test_and_its_null() -> None:
     assert flipped.p_value == pytest.approx(1.0, abs=1e-9)
 
 
-def test_categorical_calibration_is_unmeasured_and_says_so() -> None:
+def test_categorical_calibration_is_not_measured_and_says_so() -> None:
     result = abc()
-    assert result.calibration == "unmeasured"
-    assert result.inference_claim == "asymptotic_wald_calibration_unmeasured"
-    assert any("calibration is unmeasured" in c for c in result.caveats)
+    assert result.calibration == "not_measured"
+    assert result.inference_claim == "asymptotic_wald_calibration_not_measured"
+    assert any("calibration is not_measured" in c for c in result.caveats)
     summary = result.to_dict()
-    assert summary["calibration"] == "unmeasured"
+    assert summary["calibration"] == "not_measured"
     assert summary["table"][0]["level"] == "a"
     assert summary["table"][0]["estimate"] == 0.0
     assert [row["rows"] for row in summary["table"]] == [2, 3, 4]
@@ -176,32 +187,34 @@ def test_categorical_sparse_absent_and_undeclared_levels_refuse() -> None:
         abc(categories=["a", "b", "c", "d"])
     assert isinstance(absent.value, CausalUnsupportedError)
     assert absent.value.reason_code == "arm_not_populated"
-    assert absent.value.detail == "categorical_treatment.absent_level"
+    assert absent.value.detail == reason_details.categorical_treatment.ABSENT_LEVEL
     assert "`d`" in str(absent.value)
     assert_registered_refusal(absent.value)
 
     with pytest.raises(CategoricalTreatmentRefusal) as sparse:
         abc(min_level_rows=3)
-    assert sparse.value.detail == "categorical_treatment.sparse_level"
+    assert sparse.value.detail == reason_details.categorical_treatment.SPARSE_LEVEL
     assert "`a`" in str(sparse.value)
 
     with pytest.raises(CategoricalTreatmentRefusal) as undeclared:
         abc(categories=["a", "b"], reference="a")
     assert undeclared.value.reason_code == "invalid_argument"
-    assert undeclared.value.detail == "categorical_treatment.undeclared_level"
+    assert undeclared.value.detail == reason_details.categorical_treatment.UNDECLARED_LEVEL
 
     with pytest.raises(CategoricalTreatmentRefusal) as reference:
         abc(reference="q")
-    assert reference.value.detail == "categorical_treatment.unknown_reference"
+    assert reference.value.detail == reason_details.categorical_treatment.UNKNOWN_REFERENCE
 
     with pytest.raises(CategoricalTreatmentRefusal) as unordered:
         abc(monotonicity="non_decreasing")
     assert unordered.value.reason_code == "route_not_supported"
-    assert unordered.value.detail == "categorical_treatment.monotonicity_requires_ordered"
+    assert (
+        unordered.value.detail == reason_details.categorical_treatment.MONOTONICITY_REQUIRES_ORDERED
+    )
 
     with pytest.raises(CategoricalTreatmentRefusal) as pair:
         abc(pairs=[("a", "zzz")])
-    assert pair.value.detail == "categorical_treatment.unknown_level"
+    assert pair.value.detail == reason_details.categorical_treatment.UNKNOWN_LEVEL
 
 
 def test_categorical_input_validation_is_typed() -> None:
@@ -219,7 +232,7 @@ def test_categorical_input_validation_is_typed() -> None:
 
 def test_categorical_artifact_round_trip_recomputes_everything() -> None:
     result = monotone(pairs=[("lo", "hi")])
-    again = consume_categorical_effects(result.export(), expected_identity=result.identity)
+    again = consume_categorical_effects(bytes(result.export()), expected_identity=result.identity)
     assert again.effects == result.effects
     assert again.pairs == result.pairs
     assert again.omnibus == result.omnibus
@@ -228,7 +241,7 @@ def test_categorical_artifact_round_trip_recomputes_everything() -> None:
     assert np.array_equal(again.covariance, result.covariance)
     assert again.identity == result.identity
     mapped = consume_categorical_effects(
-        result.export(), expected_identity=result.to_dict()["identity"]
+        bytes(result.export()), expected_identity=result.to_dict()["identity"]
     )
     assert mapped.identity == result.identity
 
@@ -238,8 +251,14 @@ def test_categorical_robust_covariance_embeds_a_summary_and_replays() -> None:
     robust = abc(covariance="hc1")
     assert robust.replay == "robust_summary"
     assert not np.allclose(robust.covariance, model.covariance)
+    # HC1 against the independent sandwich on the frozen design (intercept, b, c).
+    design = np.array([[1.0, lv == "b", lv == "c"] for lv in LEVELS], dtype=float)
+    expected = sandwich(design, np.asarray(OUTCOME), "hc1")[1:, 1:]
+    assert robust.covariance == pytest.approx(expected, rel=1e-9, abs=1e-12)
+    wrong = sandwich(design, np.asarray(OUTCOME), "hc0")[1:, 1:]
+    assert not np.allclose(robust.covariance, wrong, rtol=1e-6)
     assert robust.effect("c").estimate == pytest.approx(7.0, abs=1e-9)
-    again = consume_categorical_effects(robust.export(), expected_identity=robust.identity)
+    again = consume_categorical_effects(bytes(robust.export()), expected_identity=robust.identity)
     assert np.array_equal(again.covariance, robust.covariance)
 
 
@@ -275,19 +294,23 @@ def test_categorical_robust_fit_has_no_row_ceiling_and_matches_an_independent_sa
     expected = sandwich(design, outcome, kind)[1:, 1:]
     assert result.covariance == pytest.approx(expected, rel=1e-8, abs=1e-14)
     # The artifact is a summary of fixed size, and a fresh consumer replays it bit for bit.
-    assert len(result.export()) < 64 * 1024
-    again = consume_categorical_effects(result.export(), expected_identity=result.identity)
+    assert len(bytes(result.export())) < 64 * 1024
+    again = consume_categorical_effects(bytes(result.export()), expected_identity=result.identity)
     assert np.array_equal(again.covariance, result.covariance)
 
 
 def test_categorical_consume_respects_the_memory_limit() -> None:
     result = abc(covariance="hc1")
-    assert consume_categorical_effects(result.export(), memory_limit_bytes=10_000_000).identity == (
-        result.identity
-    )
+    assert consume_categorical_effects(
+        bytes(result.export()),
+        execution=antecedent.Execution(limits=antecedent.ResourceLimits(memory_bytes=10_000_000)),
+    ).identity == (result.identity)
     with pytest.raises(CategoricalTreatmentRefusal) as refused:
-        consume_categorical_effects(result.export(), memory_limit_bytes=1)
-    assert refused.value.detail == "categorical_treatment.memory_budget_exceeded"
+        consume_categorical_effects(
+            bytes(result.export()),
+            execution=antecedent.Execution(limits=antecedent.ResourceLimits(memory_bytes=1)),
+        )
+    assert refused.value.detail == reason_details.categorical_treatment.MEMORY_BUDGET_EXCEEDED
 
 
 def test_categorical_resealed_change_is_refused_against_the_retained_identity() -> None:
@@ -298,19 +321,132 @@ def test_categorical_resealed_change_is_refused_against_the_retained_identity() 
         "design": monotone(covariance="hc0"),
     }
     for offending, changed in cases.items():
-        assert consume_categorical_effects(changed.export()).identity == changed.identity
+        assert consume_categorical_effects(bytes(changed.export())).identity == changed.identity
         with pytest.raises(CategoricalTreatmentRefusal) as refused:
-            consume_categorical_effects(changed.export(), expected_identity=original.identity)
+            consume_categorical_effects(
+                bytes(changed.export()), expected_identity=original.identity
+            )
         assert refused.value.reason_code == "route_not_supported"
-        assert refused.value.detail == "categorical_treatment.wrong_contract"
+        assert refused.value.detail == reason_details.categorical_treatment.WRONG_CONTRACT
         assert refused.value.offending == offending
         assert_registered_refusal(refused.value)
 
 
 def test_categorical_corrupt_artifact_raises_a_serialization_error() -> None:
-    data = bytearray(abc().export())
+    data = bytearray(bytes(abc().export()))
     data[len(data) // 2] ^= 0xFF
     with pytest.raises(CausalSerializationError):
         consume_categorical_effects(bytes(data))
     with pytest.raises(CausalSerializationError):
         consume_categorical_effects(b"")
+
+
+# ------------------------------------------------------------------------ posterior section
+#
+# The Bayesian counterpart under a declared prior, against a pure-numpy normal-equations
+# reference computed here: Lambda_n = Lambda_0 + X'X, m_n = Lambda_n^-1 X'y, a_n = a_0 + n/2,
+# b_n = b_0 + (y'y - X'y . m_n) / 2, and w'beta is Student-t with 2 a_n degrees of freedom,
+# location w'm_n and squared scale (b_n / a_n) w' Lambda_n^-1 w.
+
+from antecedent.categorical_treatment import CategoricalPosteriorPrior  # noqa: E402
+
+PRIOR = CategoricalPosteriorPrior(
+    level_precision=1.0, nuisance_precision=0.5, variance_shape=2.0, variance_scale=1.0
+)
+
+
+def _posterior_reference(levels, outcome, order, reference, weights):
+    y = np.asarray(outcome)
+    x = np.array(
+        [[1.0] + [float(lv == name) for name in order if name != reference] for lv in levels]
+    )
+    lam = np.diag([0.5] + [1.0] * (len(order) - 1))
+    ln = lam + x.T @ x
+    m = np.linalg.solve(ln, x.T @ y)
+    a_n = 2.0 + len(y) / 2
+    b_n = 1.0 + 0.5 * (y @ y - (x.T @ y) @ m)
+    w = np.asarray(weights, dtype=float)
+    return w @ m, math.sqrt(b_n / a_n * (w @ np.linalg.inv(ln) @ w)), 2 * a_n
+
+
+def _student_t_mass(location: float, scale: float, df: float, lower: float, upper: float) -> float:
+    """Mass of ``location + scale * T(df)`` on ``[lower, upper]`` by Simpson's rule on the density."""
+    log_norm = math.lgamma((df + 1.0) / 2.0) - math.lgamma(df / 2.0) - 0.5 * math.log(df * math.pi)
+
+    def density(x: float) -> float:
+        z = (x - location) / scale
+        return math.exp(log_norm - (df + 1.0) / 2.0 * math.log1p(z * z / df)) / scale
+
+    steps = 20_000
+    h = (upper - lower) / steps
+    total = density(lower) + density(upper)
+    total += 4.0 * sum(density(lower + (2 * i - 1) * h) for i in range(1, steps // 2 + 1))
+    total += 2.0 * sum(density(lower + 2 * i * h) for i in range(1, steps // 2))
+    return total * h / 3.0
+
+
+def test_the_posterior_section_matches_the_normal_equations_reference() -> None:
+    result = abc(pairs=[("b", "c")], posterior=PRIOR)
+    posterior = result.posterior
+    assert posterior is not None
+    for level, weights in (("b", [0, 1, 0]), ("c", [0, 0, 1])):
+        location, scale, df = _posterior_reference(LEVELS, OUTCOME, ["a", "b", "c"], "a", weights)
+        got = posterior.effect(level)
+        assert got.location == pytest.approx(location, abs=1e-9)
+        assert got.scale == pytest.approx(scale, abs=1e-9)
+        assert got.degrees_of_freedom == pytest.approx(df)
+        assert got.mean == pytest.approx(location, abs=1e-9)
+        assert _student_t_mass(location, scale, df, *got.interval) == pytest.approx(0.95, abs=1e-9)
+    location, scale, _ = _posterior_reference(LEVELS, OUTCOME, ["a", "b", "c"], "a", [0, -1, 1])
+    pair = posterior.pair("b", "c")
+    assert pair.location == pytest.approx(location, abs=1e-9)
+    assert pair.scale == pytest.approx(scale, abs=1e-9)
+
+
+def test_the_posterior_states_its_estimand_prior_and_standing() -> None:
+    posterior = abc(posterior=PRIOR).posterior
+    assert posterior is not None
+    assert posterior.estimand.startswith("superpopulation_dummy_coefficient_contrast")
+    assert posterior.calibration == "not_measured"
+    assert posterior.supported is False
+    assert posterior.prior == PRIOR
+    assert abc().posterior is None
+
+
+def test_the_posterior_interval_is_reported_with_its_calibration_status() -> None:
+    result = abc(posterior=PRIOR)
+    posterior = result.posterior
+    assert posterior is not None
+    assert posterior.calibration == "not_measured"
+    for level in ("b", "c"):
+        effect = posterior.effect(level)
+        lower, upper = effect.interval
+        # The equal-tailed interval of a Student-t law is symmetric about its location.
+        assert 0.5 * (lower + upper) == pytest.approx(effect.location, abs=1e-9)
+        assert lower < effect.location < upper
+    assert [e["interval"] for e in result.to_dict()["posterior"]["effects"]] == [
+        list(posterior.effect(level).interval) for level in ("b", "c")
+    ]
+
+
+def test_the_ordered_posterior_reports_monotonicity_bounds_and_round_trips() -> None:
+    result = monotone(posterior=PRIOR)
+    mono = result.posterior.monotonicity
+    assert mono is not None and mono.direction is Direction.NON_DECREASING
+    assert mono.step_probabilities == pytest.approx((0.326276314774, 0.141277992926), abs=1e-9)
+    assert mono.lower_bound == pytest.approx(0.0, abs=1e-12)
+    assert mono.upper_bound == pytest.approx(0.141277992926, abs=1e-9)
+    again = consume_categorical_effects(bytes(result.export()), expected_identity=result.identity)
+    assert again.posterior == result.posterior
+
+
+def test_an_invalid_posterior_prior_is_a_typed_refusal() -> None:
+    bad = CategoricalPosteriorPrior(
+        level_precision=0.0, nuisance_precision=0.5, variance_shape=2.0, variance_scale=1.0
+    )
+    with pytest.raises(CategoricalTreatmentRefusal) as caught:
+        abc(posterior=bad)
+    assert_registered_refusal(caught.value)
+    assert caught.value.reason_code == "invalid_argument"
+    with pytest.raises(CausalTypeError):
+        abc(posterior={"level_precision": 1.0})

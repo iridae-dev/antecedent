@@ -1,7 +1,8 @@
 //! Model-assisted population intervals for linear-outcome AIPW scores.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::arm::TreatmentArm;
 use crate::propensity::PreparedPropensityProblem;
 use crate::{EffectEstimate, EstimationError};
 
@@ -65,7 +66,7 @@ pub(crate) fn point_coefficients(
     let mut h: Vec<f64> = (0..n)
         .map(|i| {
             weights[i] / total
-                * if treatment[i] > 0.5 {
+                * if TreatmentArm::is_treated_indicator(treatment[i]) {
                     1.0 / propensity[i]
                 } else {
                     -1.0 / (1.0 - propensity[i])
@@ -77,19 +78,27 @@ pub(crate) fn point_coefficients(
     labels.dedup();
     for fold in labels {
         for active in [false, true] {
-            let rows: Vec<usize> =
-                (0..n).filter(|&i| folds[i] != fold && (treatment[i] > 0.5) == active).collect();
+            let rows: Vec<usize> = (0..n)
+                .filter(|&i| {
+                    folds[i] != fold && (TreatmentArm::is_treated_indicator(treatment[i])) == active
+                })
+                .collect();
             if rows.len() <= p {
                 return Err(EstimationError::data_msg("insufficient linear AIPW training arm"));
             }
             let m = rows.len();
+            let unscaled: Vec<f64> =
+                (0..p).flat_map(|c| rows.iter().map(move |&i| x[c * n + i])).collect();
             let design: Vec<f64> = (0..p)
                 .flat_map(|c| rows.iter().map(move |&i| x[c * n + i] * weights[i].sqrt()))
                 .collect();
-            // Use the actual learner's penalty/intercept rule after prior-weight scaling.
-            let inverse = antecedent_stats::ridge_gram_inverse(&design, m, p, ridge)
-                .map_err(crate::util::stats_err)?
-                .ok_or_else(|| EstimationError::stats_msg("singular AIPW training design"))?;
+            // The learner judges the intercept on the design before prior-weight scaling (the
+            // scaling would make a ones column non-constant) and then penalizes the rest.
+            let intercept = antecedent_stats::RidgeIntercept::sniff(&unscaled, m, p);
+            let inverse =
+                antecedent_stats::ridge_gram_inverse_with(&design, m, p, ridge, intercept)
+                    .map_err(crate::error::EstimationError::from)?
+                    .ok_or_else(|| EstimationError::stats_msg("singular AIPW training design"))?;
             let mut load = vec![0.0; p];
             for i in (0..n).filter(|&i| folds[i] == fold) {
                 let u = if active {
@@ -129,7 +138,9 @@ fn correct_mean(
                 / total
                 * if active { 1.0 } else { -1.0 };
             rhs[c] = target;
-            for i in (0..n).filter(|&i| (problem.treatment[i] > 0.5) == active) {
+            for i in (0..n)
+                .filter(|&i| (TreatmentArm::is_treated_indicator(problem.treatment[i])) == active)
+            {
                 rhs[c] -= x[c * n + i] * h[i];
                 for d in 0..p {
                     gram[c * p + d] += x[c * n + i] * x[d * n + i];
@@ -138,7 +149,9 @@ fn correct_mean(
         }
         let beta = crate::util::solve_spd(&gram, &rhs, p)
             .ok_or_else(|| EstimationError::stats_msg("singular AIPW mean correction"))?;
-        for i in (0..n).filter(|&i| (problem.treatment[i] > 0.5) == active) {
+        for i in
+            (0..n).filter(|&i| (TreatmentArm::is_treated_indicator(problem.treatment[i])) == active)
+        {
             h[i] += (0..p).map(|c| x[c * n + i] * beta[c]).sum::<f64>();
         }
     }
@@ -217,7 +230,7 @@ pub(crate) fn linear_interval(
                 / total
                 * if active { 1.0 } else { -1.0 };
             let actual = (0..n)
-                .filter(|&i| (problem.treatment[i] > 0.5) == active)
+                .filter(|&i| (TreatmentArm::is_treated_indicator(problem.treatment[i])) == active)
                 .map(|i| h[i] * problem.design_matrix[c * n + i])
                 .sum::<f64>();
             if !actual.is_finite() || (actual - target).abs() > 1e-7 * (1.0 + target.abs()) {
@@ -244,7 +257,7 @@ pub(crate) fn linear_interval(
     let mass_variance = sample_cov(&mass, &mass);
     let covariance = sample_cov(&signal, &mass);
     let variance = noise.variance + target_variance;
-    let z2 = antecedent_stats::normal_ppf((1.0 + level) / 2.0).powi(2);
+    let z2 = antecedent_stats::normal_ppf(f64::midpoint(1.0, level)).powi(2);
     let denominator = 1.0 - z2 * mass_variance;
     if !variance.is_finite() || denominator <= 0.0 {
         return Err(EstimationError::stats_msg("unbounded population AIPW confidence set"));
@@ -275,7 +288,6 @@ pub(crate) fn linear_interval(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
 
     #[test]
     #[allow(
@@ -319,14 +331,18 @@ mod tests {
                             .iter()
                             .map(|&i| if i == basis { w[i].sqrt() } else { 0.0 })
                             .collect();
-                        let fit = antecedent_stats::fit_ridge(
+                        // The learner's rule: the intercept is judged before weight scaling.
+                        let columns = &x;
+                        let unscaled: Vec<f64> = (0..p)
+                            .flat_map(|c| rows.iter().map(move |&i| columns[c * n + i]))
+                            .collect();
+                        let fit = antecedent_stats::fit_ridge_with(
                             &design,
                             m,
                             p,
                             &y,
                             ridge,
-                            &FaerBackend,
-                            &mut LeastSquaresWorkspace::default(),
+                            antecedent_stats::RidgeIntercept::sniff(&unscaled, m, p),
                         )
                         .unwrap();
                         for i in (0..n).filter(|&i| folds[i] == fold) {

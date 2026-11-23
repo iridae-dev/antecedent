@@ -1,7 +1,7 @@
 //! Typed conversions from the estimate-crate claim types into decision atoms.
 //!
 //! The design crate cannot depend on the estimate crate, so the conversions live
-//! here, beside [`BoundDecisionContract`]. Each reads a real estimate-crate result and
+//! here, beside [`super::BoundDecisionContract`]. Each reads a real estimate-crate result and
 //! produces what the design adapters consume:
 //!
 //! - a [`ScenarioSetReport`] becomes one structural atom per scenario, keeping
@@ -27,7 +27,7 @@
 //! and data digests the caller retained. A conversion given an expected
 //! [`ClaimSource`] refuses when any of them changed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::result_large_err,
@@ -40,7 +40,8 @@ use antecedent_contract::{ExternalRefusal, ScientificQuantity};
 use antecedent_core::{CanonicalWriter, IdentifiedSet, SupportStatus, VariableId};
 use antecedent_design::decision_adapters::{
     AdaptedClaims, AdaptedDecision, AdapterError, ClaimKind, ClaimProbability, IdentifiedUtility,
-    SuppliedClaim, adapt_finite_scenarios, adapt_graph_dependent_claims, utility_interval,
+    SuppliedClaim, adapt_finite_scenarios, adapt_graph_dependent_claims, evaluate_adapted,
+    utility_interval,
 };
 pub use antecedent_design::decision_contract::StructuralPolicy as DecisionStructuralPolicy;
 use antecedent_design::decision_contract::{AdmissibleDecisionContract, StructuralPolicy};
@@ -60,7 +61,7 @@ use antecedent_io::distribution_artifact::{
 };
 use antecedent_io::quantity_wire::DistributionMeaningWire;
 
-use super::decision_contract_facade::{BoundDecisionContract, DecisionFacadeRefusal};
+use super::decision_contract_facade::DecisionFacadeRefusal;
 
 /// Atom identity of the completions a stop never enumerated.
 pub const NOT_ENUMERATED_ATOM: &str = "cpdag.not_enumerated";
@@ -119,11 +120,16 @@ impl ClaimError {
         match self {
             Self::UnsupportedClaimShape(why) => ExternalRefusal {
                 expected: Some((*why).to_owned()),
-                ..build(invalid, "decision_claims.unsupported_claim_shape", None, None)
+                ..build(
+                    invalid,
+                    antecedent_core::reason_details::decision_claims::UNSUPPORTED_CLAIM_SHAPE,
+                    None,
+                    None,
+                )
             },
             Self::MissingScenarioUtility { action, input } => build(
                 unsatisfied,
-                "decision_claims.missing_scenario_utility",
+                antecedent_core::reason_details::decision_claims::MISSING_SCENARIO_UTILITY,
                 Some(format!("{action}.inputs[{input}]")),
                 Some("bind every action input to an outcome the scenarios evaluate"),
             ),
@@ -139,7 +145,7 @@ impl ClaimError {
                 ),
                 ..build(
                     unsatisfied,
-                    "decision_claims.probabilities_not_declared",
+                    antecedent_core::reason_details::decision_claims::PROBABILITIES_NOT_DECLARED,
                     None,
                     Some(
                         "declare weights for the scenario set, or use a worst-case or invariance policy",
@@ -148,19 +154,19 @@ impl ClaimError {
             },
             Self::IdentityMismatch(part) => build(
                 invalid,
-                "decision_claims.identity_mismatch",
+                antecedent_core::reason_details::decision_claims::IDENTITY_MISMATCH,
                 Some(part.clone()),
                 Some("convert the same scenario report the identity was recorded from"),
             ),
             Self::RangeUnavailable => build(
                 unsatisfied,
-                "decision_claims.range_unavailable",
+                antecedent_core::reason_details::decision_claims::RANGE_UNAVAILABLE,
                 None,
                 Some("declare a finite outcome domain or weights that account for every scenario"),
             ),
             Self::UnresolvedScenarios(count) => build(
                 unsatisfied,
-                "decision_claims.unresolved_scenarios",
+                antecedent_core::reason_details::decision_claims::UNRESOLVED_SCENARIOS,
                 Some(count.to_string()),
                 Some(
                     "an identified set covers identified scenarios only; resolve the rest or use atoms",
@@ -188,7 +194,7 @@ pub struct ScenarioClaimBinding {
     pub outcomes: Vec<OutcomeBinding>,
     /// Meaning of the scenario laws.
     pub semantic: DistributionMeaningWire,
-    /// Calibration of the laws: `Exact` for supplied exact laws, `Unmeasured`
+    /// Calibration of the laws: `Exact` for supplied exact laws, `NotMeasured`
     /// (or `PointOnly`) for an empirical plug-in.
     pub calibration: DistributionCalibration,
     /// Stable source or study identity.
@@ -771,41 +777,44 @@ pub fn cpdag_claims(
 }
 
 fn finish(
-    bound: &BoundDecisionContract,
+    contract: &AdmissibleDecisionContract,
     claims: ScenarioClaims,
 ) -> Result<ScenarioDecision, DecisionFacadeRefusal> {
-    let decision = bound.evaluate_claims(&claims.adapted)?;
+    let decision = evaluate_adapted(contract, &claims.adapted).map_err(|e| e.to_refusal())?;
     let leaders = atom_leaders(&decision);
     Ok(ScenarioDecision { claims, decision, leaders })
 }
 
 fn check_causal(
-    bound: &BoundDecisionContract,
+    causal_identification: &str,
     binding: &ScenarioClaimBinding,
 ) -> Result<(), DecisionFacadeRefusal> {
-    if binding.causal_contract_id == bound.causal_identification() {
+    if binding.causal_contract_id == causal_identification {
         return Ok(());
     }
     Err(ClaimError::IdentityMismatch("causal_contract_id".to_owned()).to_refusal())
 }
 
-/// Read a scenario report under a bound decision contract, end to end: convert
+/// Read a scenario report under an admissible decision contract, end to end: convert
 /// to atoms, then evaluate them under the contract's structural policy.
+/// `causal_identification` is the identification identity the decision consumes (a bound
+/// contract's [`super::BoundDecisionContract::causal_identification`]).
 ///
 /// # Errors
-/// A binding whose causal identity is not the bound contract's, any refusal of
+/// A binding whose causal identity is not `causal_identification`, any refusal of
 /// [`scenario_claims`], and any refusal of the structural evaluation or the
 /// robustness assessment (including a `policy` different from the contract's).
 pub fn evaluate_scenario_decision(
-    bound: &BoundDecisionContract,
+    contract: &AdmissibleDecisionContract,
+    causal_identification: &str,
     report: &ScenarioSetReport,
     binding: &ScenarioClaimBinding,
     policy: StructuralPolicy,
     expected: Option<&ClaimSource>,
 ) -> Result<ScenarioDecision, DecisionFacadeRefusal> {
-    check_causal(bound, binding)?;
+    check_causal(causal_identification, binding)?;
     let claims = scenario_claims(report, binding, policy, expected).map_err(|e| e.to_refusal())?;
-    finish(bound, claims)
+    finish(contract, claims)
 }
 
 /// As [`evaluate_scenario_decision`], over the completions of a CPDAG.
@@ -813,15 +822,16 @@ pub fn evaluate_scenario_decision(
 /// # Errors
 /// As [`evaluate_scenario_decision`], with [`cpdag_claims`].
 pub fn evaluate_cpdag_decision(
-    bound: &BoundDecisionContract,
+    contract: &AdmissibleDecisionContract,
+    causal_identification: &str,
     report: &CpdagScenarioReport,
     binding: &ScenarioClaimBinding,
     policy: StructuralPolicy,
     expected: Option<&ClaimSource>,
 ) -> Result<ScenarioDecision, DecisionFacadeRefusal> {
-    check_causal(bound, binding)?;
+    check_causal(causal_identification, binding)?;
     let claims = cpdag_claims(report, binding, policy, expected).map_err(|e| e.to_refusal())?;
-    finish(bound, claims)
+    finish(contract, claims)
 }
 
 /// One interval per action from a lookup of each input's range. Hard
@@ -971,12 +981,12 @@ pub fn interval_identified_utilities(
 ) -> Result<Vec<IdentifiedUtility>, ClaimError> {
     if reading == IntervalReading::CoverageInterval {
         let mut quantities = contract.contract.actions.iter().flat_map(|action| &action.inputs);
-        if let Some(first) = quantities.next() {
-            if quantities.any(|quantity| first.require_same_coordinate(quantity).is_err()) {
-                return Err(ClaimError::UnsupportedClaimShape(
-                    "separate input intervals supply no joint coverage contract",
-                ));
-            }
+        if let Some(first) = quantities.next()
+            && quantities.any(|quantity| first.require_same_coordinate(quantity).is_err())
+        {
+            return Err(ClaimError::UnsupportedClaimShape(
+                "separate input intervals supply no joint coverage contract",
+            ));
         }
     }
     for (index, (quantity, _)) in intervals.iter().enumerate() {

@@ -11,22 +11,39 @@
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
-//! Sales spreadsheet E2E: Bayesian ATE → path → ITE + temporal pulse.
+//! One accepted graph, several questions: a Bayesian effect, a path decomposition, unit-level
+//! effects and a temporal pulse.
 //!
-//! Mirrors the interactive UX spine (ADR 0011):
-//!   accepted DAG → Bayesian ATE → path-specific decompose → unit ITE
-//!   plus a temporal pulse Bayesian block on a held `TemporalDag`.
+//! Question: what is the effect of a campaign on revenue, how much of it passes through a
+//! mediator, what is it for each unit, and what does a promotion pulse do one step later?
+//!
+//! Data and truth: 400 static rows from `t = 0.7 z + e`, `m = 0.6 t + 0.3 z + e`,
+//! `y = 1.2 t + 0.8 m + 0.5 z + e`, so a unit change in the campaign `t` moves revenue `y` by
+//! `1.2 + 0.8 * 0.6 = 1.68`, of which 0.48 passes through `m`. The temporal series has 350
+//! points with `returns[t] = 0.85 promo[t - 1]` plus noise.
+//!
+//! Steps: a Laplace-approximated Bayesian average effect on the accepted DAG; a path-specific
+//! decomposition as an `Attribute` query; unit effects as a `Simulate` query; a second,
+//! conjugate Bayesian estimate on the same graph; and a Bayesian pulse effect on a `TemporalDag`.
+//! The path decomposition and the unit effects are compiled study routes on the same DAG.
+//!
+//! Asserted: every static result is finite, a posterior is returned, and 400 unit effects come
+//! back; the temporal pulse effect is within 0.25 of 0.85.
+//!
+//! What this establishes: one supplied graph serves each query without a structure search. Only
+//! the temporal estimate is compared with its truth; the static estimates are checked for
+//! shape, not accuracy.
 //!
 //! Run: `cargo run -p antecedent --example sales_spreadsheet_e2e`
+//! Source: `examples/rust/sales_spreadsheet_e2e.rs`
 
 use std::sync::Arc;
 
-use antecedent::RefuteSuite;
-use antecedent::gcm::{attribute_path_specific, counterfactual_ite, fit_gcm};
 use antecedent::prelude::*;
+use antecedent::{AttributionOutcome, CompiledExecution, RefuteSuite, SimulationOutcome};
 use antecedent_core::{
-    CausalRng, Lag, MeasurementSpec, PathSpecificEffectQuery, RoleHint, SmallRoleSet,
-    TemporalPolicy, ValueType,
+    AttributeQuery, AttributeTarget, CausalQuery, CausalRng, Lag, MeasurementSpec, RoleHint,
+    SimulateQuery, SimulationTarget, SmallRoleSet, TemporalPolicy, ValueType,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex, ValidityBitmap,
@@ -177,17 +194,30 @@ pub fn run() -> Result<(), CausalError> {
         .build()?
         .run(&ExecutionContext::for_tests(3))?;
     assert!(
-        bayes.estimate.as_effect().unwrap().ate.is_finite(),
+        bayes.estimate().as_effect().unwrap().ate.is_finite(),
         "ate={}",
-        bayes.estimate.as_effect().unwrap().ate
+        bayes.estimate().as_effect().unwrap().ate
     );
     assert!(bayes.posterior.is_some());
-    println!("Bayesian ATE={:.4} (campaign → revenue)", bayes.estimate.as_effect().unwrap().ate);
+    println!("Bayesian ATE={:.4} (campaign → revenue)", bayes.estimate().as_effect().unwrap().ate);
 
-    let fitted = fit_gcm(dag.clone(), &data)?;
-    let path_q = PathSpecificEffectQuery::binary(VariableId::from_raw(1), VariableId::from_raw(3))
-        .with_path_nodes([VariableId::from_raw(2)]);
-    let path = attribute_path_specific(&fitted.model, &path_q, &ExecutionContext::for_tests(5))?;
+    // Path-specific decomposition of campaign → revenue through the mediator.
+    let path_query = CausalQuery::Attribute(AttributeQuery::new(AttributeTarget::Paths {
+        sources: Arc::from([VariableId::from_raw(1)]),
+        outcome: VariableId::from_raw(3),
+        max_paths: 16,
+        max_len: 4,
+        through: Arc::from([VariableId::from_raw(2)]),
+    }));
+    let path_study = Study::tabular(data.clone()).graph(dag.clone()).query(path_query).build()?;
+    let path_run = CompiledExecution::run(&path_study, &ExecutionContext::for_tests(5))?;
+    let Some(AttributionOutcome::Change(path)) =
+        path_run.result().attribution().map(|payload| payload.outcome.clone())
+    else {
+        return Err(CausalError::Compile {
+            message: "a paths target returns a change attribution".into(),
+        });
+    };
     assert!(path.total_change.is_finite());
     println!(
         "Path decompose total_change={:.4} paths={}",
@@ -195,20 +225,28 @@ pub fn run() -> Result<(), CausalError> {
         path.path_breakdown.len()
     );
 
-    let ite = counterfactual_ite(
-        fitted.model,
-        &data,
-        VariableId::from_raw(1),
-        VariableId::from_raw(3),
-        1.0,
-        0.0,
-        &ExecutionContext::for_tests(7),
-    )?;
+    // Unit-level effects of the campaign on revenue.
+    let ite_query = CausalQuery::Simulate(SimulateQuery::new(SimulationTarget::UnitEffects {
+        treatment: VariableId::from_raw(1),
+        outcome: VariableId::from_raw(3),
+        active: 1.0,
+        control: 0.0,
+    }));
+    let ite_study = Study::tabular(data.clone()).graph(dag.clone()).query(ite_query).build()?;
+    let ite_run = CompiledExecution::run(&ite_study, &ExecutionContext::for_tests(7))?;
+    let Some(SimulationOutcome::UnitEffects(ite)) =
+        ite_run.result().simulation().map(|payload| payload.outcome.clone())
+    else {
+        return Err(CausalError::Compile {
+            message: "a unit-effects target returns the effects".into(),
+        });
+    };
     assert_eq!(ite.unit_effects.len(), 400);
     assert!(ite.mean_ite.is_finite());
     println!("ITE mean={:.4} n={}", ite.mean_ite, ite.unit_effects.len());
 
-    // Second estimate click — still no discovery (graph supplied).
+    // A second estimate on the supplied graph, with the conjugate posterior. A supplied graph
+    // never triggers a structure search.
     let _ = Study::tabular(data)
         .graph(dag)
         .query(query)
@@ -228,18 +266,18 @@ pub fn run() -> Result<(), CausalError> {
         .build()?
         .run(&ExecutionContext::for_tests(13))?;
     assert!(
-        pulse.estimate.as_effect().unwrap().ate.is_finite(),
+        pulse.estimate().as_effect().unwrap().ate.is_finite(),
         "pulse={}",
-        pulse.estimate.as_effect().unwrap().ate
+        pulse.estimate().as_effect().unwrap().ate
     );
     println!(
         "Temporal pulse Bayesian ATE={:.4} (promo → returns)",
-        pulse.estimate.as_effect().unwrap().ate
+        pulse.estimate().as_effect().unwrap().ate
     );
     assert!(
-        (pulse.estimate.as_effect().unwrap().ate - 0.85).abs() < 0.25,
+        (pulse.estimate().as_effect().unwrap().ate - 0.85).abs() < 0.25,
         "pulse={}",
-        pulse.estimate.as_effect().unwrap().ate
+        pulse.estimate().as_effect().unwrap().ate
     );
 
     println!("sales_spreadsheet_e2e: ok");

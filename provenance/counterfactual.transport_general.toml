@@ -36,4 +36,51 @@ test_sources = [
  "crates/antecedent-identify/tests/counterfactual_transport_decisions.rs",
  "crates/antecedent-estimate/tests/counterfactual_transport_execution.rs",
  "crates/antecedent/tests/counterfactual_transport_lifecycle.rs",
+ "crates/antecedent-estimate/tests/counterfactual_transport_general_sweep.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The identified-value path of general finite counterfactual transport: identify_counterfactual_transport (crates/antecedent-identify/src/sid/counterfactual_transport.rs) deriving, for the supplied evidence, a stored derivation of a nested counterfactual, a joint counterfactual and a conditional (effect-on-the-treated) query, and evaluate_counterfactual_transport (crates/antecedent-estimate/src/counterfactual_transport.rs) computing its value on exact finite laws, for three structures: a Markovian ternary-mediator model with a selection node on the covariate, the confounded covariate model with a selection node on the covariate, and the front-door district with a selection node on the mediator. Each structure is run on 16 probability sets, including probabilities 2^-20 from the boundary and unbalanced source and target covariate laws; the expected value of every target is enumerated by the independent finite-SCM oracle from the target population's own structural model. Not a review of the obstruction decisions, the non-transportability witnesses, the search bounds and budgets, the replay and verification of stored derivations, the mixed-source search or the artifact layers; the named-fixture decision tests are the existing evidence for those. Validation definitions moved to counterfactual_transport/validation.rs; every named bound item and all other bound artifacts were compared unchanged apart from visibility and formatting. Catalog validation was extracted at its original point after query and conditioning validation; regime iteration, refusals, sorting and output were compared with the previously bound source. Query derivation and conditioning reduction moved to counterfactual_transport/derivation.rs; all bound definitions and other artifacts were compared unchanged apart from visibility and formatting."
+assumptions = ["Finite discrete acyclic semi-Markovian models in which every latent term is read by a bidirected clique of the declared graph; a selection node flags a variable whose mechanism may differ between source and target while the laws of the exogenous terms are shared (the class the record states).", "The supplied regime laws are exact finite laws of the declared populations; the derivation only reads those laws and never the structural model, while the oracle reads only the structural model.", "Every positive probability in the sweep is strictly inside (0, 1), so every conditioning event has positive mass and every needed regime law is supplied."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The oracle and the sweep are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked and are not redistributed."
+limitations = "No paper was retrieved or re-read (no downloads were made and no copy is available from this environment); the record already states that the procedure is not the published algorithm, and this review checks only that the numbers the module derives equal exact finite-SCM enumeration on the structures swept, not that the module decides the same set of queries as the cited results. The sweep covers three structures; the other fixtures (recanting witness, selection on the outcome mechanism, zero-support conditioning, missing interventional evidence) are only in the older named-case tests, and their obstruction witnesses are re-verified by the module's own exact enumeration, so a defect shared by the witness search and its verifier is outside this check. Only identified targets are swept, so a structure that the module wrongly refuses is detected only for the three swept (it must identify at every parameter set) and not elsewhere. Models larger than three observed variables with up to four levels, more than two worlds in a joint query and tables with many structural zeros are not swept. The oracle is hand-written in the repository and shares the repository's reading of counterfactual semantics (shared exogenous terms, consistency by substitution). Calibration is not part of this route; the sampled route is a separate record."
+sources = ["https://doi.org/10.1515/jci-2012-0004"]
+findings_resolved = ["Over 16 parameter sets of each of three structures (112 targets: four nested natural effects, a joint counterfactual and an effect on the treated, and a front-door interventional query) the identifier derives a formula at every parameter set (identification does not depend on the numbers, including probabilities 2^-20 from the boundary) and the derivation's value equals the enumerated truth to a worst absolute error of 5.6e-16.", "No defect was found and no product code changed. The existing named-case tests were not rerun by this review."]
+record_sha256 = "ddca060ab4c8fee03971de96df92421a8e2cf7e05c2417e5cd82847b08299d60"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs"
+items = ["const BOUNDS_EXCEEDED", "const COUNTERFACTUAL_TRANSPORT_CONTRACT", "const COUNTERFACTUAL_TRANSPORT_MASK_VARIABLES", "const COUNTERFACTUAL_TRANSPORT_MAX_LIMITS", "const COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES", "const COUPLING_UNSUPPORTED", "const GRAPH_OUTSIDE_CONTRACT", "const INITIAL_COMPLEMENT_DEPTH", "const INVALID_WITNESS", "const NO_FACTOR_DERIVATION", "const SELECTED_SAMPLE", "enum Abort", "enum CounterfactualFunctional", "enum CounterfactualItemSource", "enum CounterfactualLevel", "enum CounterfactualTransportDecision", "fn admit_summation", "fn assemble", "fn bidirected", "fn bounds_exceeded", "fn candidate_seeds", "fn canonical", "fn charge", "fn decide_bounded", "fn derivation", "fn directed", "fn directed_edge_ids", "fn fmt", "fn from", "fn full_mask", "fn get", "fn identify_counterfactual_transport", "fn index_of", "fn invalid_catalog", "fn invalid_query", "fn lease_storage", "fn level_index", "fn levels", "fn mask_variables", "fn new", "fn not_certified", "fn note", "fn operations_remaining", "fn refuse_transport_cycle", "fn run_stages", "fn stage", "fn supplied_seeds", "fn variables", "fn work", "struct CounterfactualCitedRegime", "struct CounterfactualFactor", "struct CounterfactualItem", "struct CounterfactualMissingRegime", "struct CounterfactualMovedAtom", "struct CounterfactualSum", "struct CounterfactualSymbol", "struct CounterfactualTransportDerivation", "struct CounterfactualTransportInspection", "struct CounterfactualTransportMissing", "struct CounterfactualTransportObstruction", "struct CounterfactualTransportProblem", "struct CounterfactualTransportQuery", "struct CounterfactualTransportSearchRecord", "struct CounterfactualTransportSource", "struct CounterfactualTransportUnsupported", "struct Search"]
+sha256 = "36b61fe55ccc85c2a6383a55c6ee7268bdb35625f0ee74d461c579768d424ac0"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/sid/counterfactual_transport/derivation.rs"
+items = ["fn collect_items", "fn derive_conjunction", "fn derive_query", "fn derive_query_within", "fn lift_level", "fn mask_text", "fn merged", "fn new", "fn one", "fn reduce_conditioning", "fn remap_items", "struct DeriveCtx", "struct QueryPlan", "type ReducedConditioning"]
+sha256 = "f2bf007216600ff2ed0a3ed2cd3f5ae1b428fee68d616ae93b40286d6cbf1c1a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/sid/counterfactual_transport/validation.rs"
+items = ["enum Rejection", "fn atoms_map", "fn from", "fn validate", "fn validate_catalog", "struct UsableRegime", "struct Validated", "type ClassifiedCatalog"]
+sha256 = "3da60e1ecfad25e6f53370839568e12bc296b4aa62032a119465a99fb1be3e0a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/counterfactual_transport.rs"
+items = ["const AGREEMENT", "const BLOCK", "const DETAIL_BUDGET", "const DETAIL_COUNTED", "const DETAIL_INCOMPATIBLE", "const DETAIL_INVALID", "const DETAIL_MISSING", "const DETAIL_SUPPORT", "const DETAIL_ZERO_MASS", "const MISSING", "const UNSET", "const ZERO_MASS", "enum Failure", "enum Frame", "enum FreeCoordinatePolicy", "enum ItemFrame", "fn as_ref", "fn averaged_factor", "fn charge", "fn charge_catalog_validation", "fn checked_evidence_text_cmp", "fn checked_evidence_text_copy", "fn describe", "fn ensure_item_cache", "fn evaluate_counterfactual_transport", "fn evaluate_with_policy", "fn extract_of", "fn factor_value", "fn functional", "fn into_error", "fn invalid", "fn level_at", "fn new", "fn push", "fn refused", "fn reserve", "fn retain_factor", "fn sum_over", "fn sum_value", "fn tick", "fn validate_execution_shape", "fn value", "fn view_of", "fn with_level", "struct CounterfactualTransportEvidence", "struct CounterfactualTransportPoint", "struct Engine", "struct EvaluationRepairs", "struct ItemExtract", "struct ItemStack", "struct ItemSum", "struct LawView", "struct RetainedSlice", "struct RetainedSliceInner", "struct SetupBudget"]
+sha256 = "a41efa223bdfb0c89306f493fbbc1ed04c5807ddac414cdba3057c6280d11f6f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/counterfactual_transport_general_sweep.rs"
+items = ["const TOLERANCE", "fn confounded", "fn confounded_case", "fn front_door", "fn front_door_case", "fn identification_does_not_depend_on_the_numbers_and_values_equal_enumeration", "fn mediation", "fn mediation_case", "fn nested", "fn next", "fn pmf3", "fn pops", "fn target_of", "struct Dyadic"]
+sha256 = "ec40249eda1894fa3c3790b69bd1909e4f16175ddb4dfcd96cd0c596897f89e1"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-identify/tests/support/finite_scm_oracle.rs"
+sha256 = "47aa369169afe507f5fc0de0da3b3151e451212a380a11240930819bd171fd21"

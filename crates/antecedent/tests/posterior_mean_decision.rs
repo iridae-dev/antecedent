@@ -138,7 +138,10 @@ fn decision_posterior_refuses_a_mapped_prior() {
         .unwrap_err(),
     );
     assert!(message.contains("route_not_supported"), "{message}");
-    assert!(message.contains("decision_posterior.mapped_prior"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::decision_posterior::MAPPED_PRIOR),
+        "{message}"
+    );
 }
 
 #[test]
@@ -205,7 +208,12 @@ fn functional_inverse_posterior_refuses_an_external_power_prior() {
         )
         .unwrap_err(),
     );
-    assert!(message.contains("functional_inverse_posterior.external_power_prior"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::functional_inverse_posterior::EXTERNAL_POWER_PRIOR
+        ),
+        "{message}"
+    );
 }
 
 #[test]
@@ -234,16 +242,21 @@ fn finite_action_inverse_posterior_uses_the_dirichlet_mean() {
 }
 
 #[test]
-fn finite_action_inverse_posterior_refuses_an_unmeasured_band() {
+fn finite_action_inverse_posterior_refuses_an_not_measured_band() {
     let message = refusal(
         dirichlet_posterior_mean(
             &[1.0, 3.0],
-            PosteriorRequest::UnmeasuredBand,
+            PosteriorRequest::CredibleBand,
             DirichletNamespace::FiniteActionInverse,
         )
         .unwrap_err(),
     );
-    assert!(message.contains("finite_action_posterior.unmeasured_band"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::finite_action_posterior::BAND_NOT_CONSTRUCTED
+        ),
+        "{message}"
+    );
 }
 
 #[test]

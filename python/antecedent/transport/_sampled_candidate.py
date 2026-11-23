@@ -1,4 +1,4 @@
-"""Whole-row recovery acceptance lifecycle; candidate inference stays unmeasured."""
+"""Whole-row recovery acceptance lifecycle; candidate inference stays not_measured."""
 
 from __future__ import annotations
 
@@ -9,9 +9,19 @@ from types import BuiltinFunctionType
 from typing import Any, Literal, cast
 
 from .. import _native
+from .._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .._columns import coerce_fields
+from .._scientific import ScientificResult
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ..execution import Execution
 from ._candidate_data import detached, freeze
+from ._controls import call_native
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,10 +42,10 @@ class SampledRecoveryIdentity:
 
 
 @dataclass(frozen=True, slots=True, init=False)
-class SampledRecoveryCandidate:
-    """Checked whole-row bootstrap candidate, with no measured coverage license.
+class SampledRecoveryCandidate(ScientificResult):
+    """Checked whole-row bootstrap candidate, with no measured coverage support.
 
-    Created through the private candidate hook in a calibration-internal build.
+    Created through the private candidate hook.
     The standard public producer returns native-authorized measured inference.
     Export/load reruns original recovery and every replicate under retained identity.
     """
@@ -48,6 +58,7 @@ class SampledRecoveryCandidate:
 
     @classmethod
     def _from_native(cls, payload: str, artifact: bytes) -> SampledRecoveryCandidate:
+        artifact = container_bytes(artifact)
         consume = getattr(_native, "consume_sampled_recovery_candidate", None)
         if (
             not isinstance(consume, BuiltinFunctionType)
@@ -55,13 +66,13 @@ class SampledRecoveryCandidate:
             or consume.__name__ != "consume_sampled_recovery_candidate"
         ):
             raise CausalUnsupportedError(
-                "sampled_recovery.route_frozen: private candidate factory requires "
-                "the original calibration-internal native hook",
-                reason_code="cell_not_licensed",
+                "sampled_recovery.native_hook_unavailable: private candidate factory requires "
+                "the original native hook",
+                reason_code="not_supported",
             )
         decoded = json.loads(payload)
-        if decoded.get("calibration") != "unmeasured":
-            raise CausalValueError("sampled recovery candidate must remain unmeasured")
+        if decoded.get("calibration") != "not_measured":
+            raise CausalValueError("sampled recovery candidate must remain not_measured")
         result = object.__new__(cls)
         coerce_fields(result, _body=freeze(decoded))
         coerce_fields(result, _artifact=bytes(artifact))
@@ -69,7 +80,7 @@ class SampledRecoveryCandidate:
 
     @property
     def calibration(self) -> str:
-        return "unmeasured"
+        return "not_measured"
 
     @property
     def interval_method(self) -> Literal["bootstrap_bca"]:
@@ -103,10 +114,17 @@ class SampledRecoveryCandidate:
         """Detached original law, covariance, interval, diagnostics and work receipt."""
         return dict(detached(self._body))
 
-    def export(self) -> bytes:
-        return self._artifact
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
+        return artifact_from_receipt(self, self._artifact)
 
     @classmethod
+    @artifact_consumer(
+        proof="native sampled recovery consumer re-identifies and reruns the whole-row bootstrap under the independent model/data expectation",
+        replayable=True,
+        resumable=False,
+        identity=("expected",),
+    )
     def load(
         cls,
         artifact: bytes,
@@ -114,41 +132,33 @@ class SampledRecoveryCandidate:
         expected: SampledRecoveryIdentity,
         max_rows: int = 100_000,
         max_replicates: int = 2000,
-        memory_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> SampledRecoveryCandidate:
         """Independently re-identify and rerun whole-row bootstrap under expectations."""
+        artifact = container_bytes(artifact)
         if not isinstance(artifact, bytes):
             raise CausalTypeError("artifact must be bytes")
         if not isinstance(expected, SampledRecoveryIdentity):
             raise CausalTypeError("expected must be a retained SampledRecoveryIdentity")
-        for name, value, ceiling in (
-            ("max_rows", max_rows, 100_000),
-            ("max_replicates", max_replicates, 2000),
-        ):
-            if isinstance(value, bool) or not isinstance(value, int) or not 0 < value <= ceiling:
-                raise CausalValueError(f"{name} must be an integer in 1..={ceiling}")
-        if memory_bytes is not None and (
-            isinstance(memory_bytes, bool)
-            or not isinstance(memory_bytes, int)
-            or not 0 <= memory_bytes <= 2**64 - 1
-        ):
-            raise CausalValueError("memory_bytes must fit an unsigned 64-bit integer")
-        if cancel is not None and not isinstance(cancel, _native.CancellationToken):
-            raise CausalTypeError("cancel must be a CancellationToken")
+        rows_ok = isinstance(max_rows, int) and not isinstance(max_rows, bool)
+        if not rows_ok or not 0 < max_rows <= 100_000:
+            raise CausalValueError("max_rows must be an integer in 1..=100000")
+        replicates_ok = isinstance(max_replicates, int) and not isinstance(max_replicates, bool)
+        if not replicates_ok or max_replicates < 1:
+            raise CausalValueError("max_replicates must be a positive integer")
         consume = getattr(_native, "consume_sampled_recovery_candidate", None)
         if consume is None:
             raise CausalUnsupportedError(
-                "sampled_recovery.route_frozen: private candidate replay requires calibration-internal",
-                reason_code="cell_not_licensed",
+                "sampled_recovery.native_hook_unavailable: private candidate replay requires the native hook",
+                reason_code="not_supported",
             )
-        payload = consume(
+        payload = call_native(
+            execution,
+            consume,
             artifact,
             expected.premises_digest,
             expected.data_digest,
             max_rows=max_rows,
             max_replicates=max_replicates,
-            memory_bytes=memory_bytes,
-            cancel=cancel,
         )
         return cls._from_native(payload, artifact)

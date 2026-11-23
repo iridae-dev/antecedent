@@ -19,7 +19,7 @@ implementation_deviations = [
   "Public native_claim composition forwards explicitly declared response coordinates through the existing Rust program-binding checker before constructing a native decision source. Units, population and transform are retained, not regenerated from an incompatible program; absent declarations retain the legacy explicitly supplied ProgramBinding behavior.",
   "analyze(outcome_units=..., quantity_population=..., quantity_transform=...) populates response quantities using the native getter. Absent units leave coordinates undeclared; non-response results or undescribed response shapes refuse rather than fabricating descriptors.",
   "Contracted response export derives the same descriptors natively and seals them into the result-body digest before computing the claim identity. Python forwards the full descriptor vector; wrong variable, role, regime, horizon, functional or conditioning is refused against the executed native response. A fresh independent artifact consumer checks the same contract and retains units, population and transform; editing stored units invalidates the original sealed contract.",
-  "Claim policy: no estimate, interval or coverage claim is added. The getter names coordinates and the point labels describe support; both are point_only bookkeeping and grant no causal or interval license.",
+  "Claim policy: no estimate, interval or coverage claim is added. The getter names coordinates and the point labels describe support; both are point_only bookkeeping and grant no causal or interval support.",
   "Units, population and scale are DECLARED by the caller and never inferred or converted: response_coordinates labels the derived skeletons with them and refuses blank declarations (coordinate_support.units_required).",
   "Only a mean curve or a static intervention response is given scientific coordinates. Derivative, directional-derivative and Jacobian functionals refuse (coordinate_support.functional_not_described); a stochastic, soft, sequenced, categorical or symbolic intervention refuses (coordinate_support.regime_not_describable); a horizon-indexed intervention path refuses (coordinate_support.temporal_path_not_described); a variable the caller cannot name refuses (coordinate_support.unknown_variable) and an invalid dose grid refuses (coordinate_support.invalid_grid). A response is never scalarized or relabeled to fit a coordinate.",
   "Standalone response_result encoding preserves existing optional scientific descriptors rather than losing them in domain conversion. Analysis-result repacking may retain an explicit original contract; the encoder reuses independent contract verification and refuses changed coordinates under that contract before publishing a replacement artifact.",
@@ -34,3 +34,28 @@ test_sources = [
   "crates/antecedent/tests/native_coordinate_parity.rs",
   "python/tests/test_native_response_coordinates.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Scientific coordinates and support labels of a native response read from the response itself."
+no_independent_algorithm = "Derivation of coordinate skeletons and consistency of labels; no sample size, range or support statistic is computed."
+record_sha256 = "3dcc5ac204620cda2723ba6dd07a93f82b6f76f25826bf365db620dc032b8708"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/response_coordinates.rs"
+items = ["fn functional_name", "fn intervention_skeleton", "fn label", "fn label_coordinates", "fn mean_curve_skeleton", "fn named", "fn not_describable", "fn numeric_level", "fn refuse", "fn regime_part", "fn response_coordinate_skeleton", "fn response_coordinates", "struct ResponseCoordinateLabels", "struct ResponseCoordinateSkeleton"]
+sha256 = "6c30e6731e3ed177b15450bae4df05d3dfdcdf66ea3527a2b82f3346052e4f81"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/support_labels.rs"
+items = ["module"]
+sha256 = "109a3f5ef4a7656f353e851936558ef27e986ffc605a7d34fc2a02a55daead36"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/native_response_coordinates.rs"
+items = ["const A", "const B", "const Y", "fn a_variable_the_caller_cannot_name_refuses", "fn curve", "fn derivative_functionals_and_temporal_paths_refuse_with_their_own_detail", "fn intervention", "fn joint_set_and_shift_response_has_one_coordinate_naming_every_intervention", "fn labels", "fn name_of", "fn refusal_of", "fn response", "fn static_curve_coordinates_are_hand_derived_and_match_the_program_binding", "fn surface", "fn temporal_surface_coordinates_are_dose_major", "fn units_are_required_and_never_inferred", "fn v", "fn what_has_no_exact_regime_refuses_instead_of_being_scalarized"]
+sha256 = "3d23c318662f937493071d907a14bb2a809047798a7730ff1c7fa587e42b325a"

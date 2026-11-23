@@ -2,7 +2,7 @@
 //!
 //! The oracle below is written out in closed-form matrix algebra (Gauss-Jordan inverse of
 //! the posterior precision) and never calls the code under test. Calibration is
-//! unmeasured in this wave; nothing here asserts coverage.
+//! `not_measured` in this wave; nothing here asserts coverage.
 #![allow(
     clippy::cast_precision_loss,
     clippy::similar_names,
@@ -14,13 +14,12 @@ use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::joint_bayesian_transport::{
     DETAIL_CANCELLED, DETAIL_FEATURE_MISMATCH, DETAIL_INVALID_PRIOR, DETAIL_MISSING_LAW,
-    DETAIL_PRIOR_DATA_OVERLAP, DETAIL_PRIOR_DIMENSION, DETAIL_ROUTE_FROZEN, DETAIL_SINGULAR_FIT,
+    DETAIL_PRIOR_DATA_OVERLAP, DETAIL_PRIOR_DIMENSION, DETAIL_SINGULAR_FIT,
     DETAIL_SOURCE_DEPENDENCE, DETAIL_TOO_MANY_DRAWS, DETAIL_TOO_MANY_PARAMETERS,
     DETAIL_UNSUPPORTED_GRAPH, DETAIL_WEAK_OVERLAP, DataIdentity, GaussianPrior, JointDraws,
     JointPriors, JointTransportCalibration, JointTransportFit, JointTransportModel,
     JointTransportOptions, JointTransportRefusal, PriorProvenance, SourceData, SourceDependence,
     SourceSharing, TargetData, TransportGraphClass, VaryingBlock, fit_joint_bayesian_transport,
-    route_frozen_refusal,
 };
 use antecedent_identify::{
     MissingEvidenceCertificate, NotCertifiedCertificate, PopulationFactor, TransportCertificate,
@@ -494,7 +493,7 @@ fn joint_posterior_oracle_draws_are_seeded_and_bounded() {
     assert!((a.diagnostics.effective_sample_size - 500.0).abs() < 1e-12);
     assert_eq!(a.diagnostics.draw_count, 500);
     assert!(a.diagnostics.r_hat.is_none());
-    assert_eq!(a.diagnostics.calibration, JointTransportCalibration::Unmeasured);
+    assert_eq!(a.diagnostics.calibration, JointTransportCalibration::NotMeasured);
     assert_eq!(a.model_identity, b.model_identity);
     let top = fit(&model(), &sources, &JointTransportOptions { draws: 100_000, seed: 1 }).unwrap();
     assert_eq!(top.draws.n_draws, 100_000);
@@ -607,10 +606,6 @@ fn prior_data_overlap_unsupported_graph_and_uncertified_derivation_refuse() {
     )
     .unwrap_err();
     assert_eq!(refusal.code, "transport_missing_evidence");
-    // The route-level refusal of the closed interval route.
-    let frozen = route_frozen_refusal();
-    assert_eq!(frozen.code, "cell_not_licensed");
-    assert_eq!(frozen.detail, DETAIL_ROUTE_FROZEN);
     // Covariates that are not the certified standardizers are refused.
     let mut m = model();
     m.features = vec![FEATURE + 1];
@@ -683,6 +678,87 @@ fn prior_data_overlap_weak_overlap_and_missing_law_refuse() {
     assert_eq!(refusal.detail, DETAIL_MISSING_LAW);
     let empty = TargetData { rows: 0, covariates: vec![vec![]], ..target() };
     assert_eq!(refusal_of(&model(), &sources, Some(&empty)).detail, DETAIL_MISSING_LAW);
+}
+
+/// Two source clusters (`x` near 0 and near 10) with the treatment independent of the cluster.
+fn clustered_source() -> SourceData {
+    let mut r1 = raw(40, 0, 1.0, 2.0, 1.5, 0.09);
+    r1.x = (0..40_i32).map(|i| 10.0 * f64::from((i / 2) % 2) + 0.01 * f64::from(i)).collect();
+    to_source("s1", &r1, "snap-s1", "s1")
+}
+
+/// Half of the target sits in the gap between the clusters, inside the source bounding box.
+fn gap_target() -> TargetData {
+    let x = (0..40).map(|j| if j % 2 == 0 { 5.0 } else { 0.085 }).collect();
+    TargetData { covariates: vec![x], ..target() }
+}
+
+#[test]
+fn weak_overlap_is_a_support_test_not_a_bounding_box_test() {
+    let sources = [clustered_source()];
+    let gap = gap_target();
+    // The target lies inside the source covariate box [0, 10.4], but half of it sits where the
+    // source covariate law has no mass: that mass is unsupported.
+    let refusal = refusal_of(&model(), &sources, Some(&gap));
+    assert_eq!(refusal.code, "transport_support_failure");
+    assert_eq!(refusal.detail, DETAIL_WEAK_OVERLAP);
+    assert!(refusal.failure.unsupported_mass.is_some_and(|m| (m - 0.5).abs() < 1e-12));
+    // A tolerance above the unsupported mass admits the target and reports the same mass.
+    let mut lenient = model();
+    lenient.max_unsupported_mass = 0.6;
+    let ctx = ExecutionContext::for_tests(1);
+    let fit = fit_joint_bayesian_transport(
+        &identified(),
+        &lenient,
+        &sources,
+        Some(&gap),
+        &JointTransportOptions { draws: 10, seed: 1 },
+        &ctx,
+    )
+    .unwrap();
+    assert!((fit.diagnostics.overlap.unsupported_mass - 0.5).abs() < 1e-12);
+    // A target on the observed clusters is fully supported at zero tolerance.
+    let on_support = TargetData { covariates: vec![vec![0.085; 40]], ..target() };
+    let fit = fit_joint_bayesian_transport(
+        &identified(),
+        &model(),
+        &sources,
+        Some(&on_support),
+        &JointTransportOptions { draws: 10, seed: 1 },
+        &ctx,
+    )
+    .unwrap();
+    assert!(fit.diagnostics.overlap.unsupported_mass.abs() < 1e-12);
+}
+
+#[test]
+fn weak_overlap_discrete_covariate_is_supported_only_on_its_atoms() {
+    // A binary source covariate: 0.5 lies inside [0, 1] but is not an observed atom.
+    let mut r1 = raw(40, 0, 1.0, 2.0, 1.5, 0.09);
+    r1.x = (0..40_i32).map(|i| f64::from((i / 2) % 2)).collect();
+    let sources = [to_source("s1", &r1, "snap-s1", "s1")];
+    let between = TargetData { covariates: vec![vec![0.5; 40]], ..target() };
+    let refusal = refusal_of(&model(), &sources, Some(&between));
+    assert_eq!(refusal.code, "transport_support_failure");
+    assert!(refusal.failure.unsupported_mass.is_some_and(|m| (m - 1.0).abs() < 1e-12));
+}
+
+#[test]
+fn weak_overlap_support_test_polls_cancellation_not_a_verdict() {
+    let sources = [clustered_source()];
+    let ctx = ExecutionContext::for_tests(1);
+    ctx.cancellation.cancel();
+    let refusal = fit_joint_bayesian_transport(
+        &identified(),
+        &model(),
+        &sources,
+        Some(&gap_target()),
+        &options(),
+        &ctx,
+    )
+    .unwrap_err();
+    assert_eq!(refusal.code, "transport_budget_cancel");
+    assert_ne!(refusal.detail, DETAIL_WEAK_OVERLAP);
 }
 
 #[test]

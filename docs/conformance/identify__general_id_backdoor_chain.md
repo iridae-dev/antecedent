@@ -13,4 +13,4 @@ same graph.
 
 ## Expected summary
 
-Top-level keys: `case, expected_status_family, generation, graph_dot, notes, oracle, outcome, reference, tolerance_class, treatment` (10 fields).
+Top-level keys: `case, expected_status_family, generation, graph_dot, historical_generation, historical_oracle, historical_reference, notes, oracle, outcome, reference, tolerance_class, treatment` (13 fields).

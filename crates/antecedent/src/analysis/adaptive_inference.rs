@@ -16,9 +16,9 @@
 //!    inferential paradigm for the contract's procedure cell and runs it: a
 //!    Bayesian posterior, a decision-theoretic stopping decision, adaptively
 //!    weighted scores, an anytime-valid confidence sequence or group-sequential
-//!    boundaries. Every result is point-only; the interval and guarantee
-//!    routes refuse with `cell_not_licensed` until whole-procedure coverage of
-//!    the exact procedure is measured.
+//!    boundaries. Every result is point-only; an interval is reported with
+//!    its calibration status, which is `calibrated` only where whole-procedure
+//!    coverage of the exact procedure is measured.
 //! 3. **Export** ([`AdaptiveInferenceSession::export_contract`] and
 //!    [`AdaptiveInferenceSession::export_result`]) writes the monitoring
 //!    contract (`adaptive_monitoring_contract_v1`) or a result bound to it
@@ -27,7 +27,7 @@
 //!    [`consume_adaptive_inference_result_artifact`]) replays the contract and
 //!    recomputes the stored values, refusing any edit.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_contract::adaptive_design::{
     AdaptiveDesignContract, AdaptiveDesignDeclaration, InferenceParadigm, InterimEvidence,
@@ -36,7 +36,7 @@ pub use antecedent_contract::adaptive_design::{
 pub use antecedent_contract::adaptive_design::{
     AssignmentFamily, BoundarySidedness, CellStatus, DelayMechanism, InterimAnalysis,
     MonitoringStrategy, OutcomeAvailability, OutcomeStructure, PolicyEpoch, SpendingKind,
-    StoppingRuleKind, StoppingSpec, licensed_routes, procedure_cells,
+    StoppingRuleKind, StoppingSpec, procedure_cells, supported_routes,
 };
 use antecedent_core::ExecutionContext;
 pub use antecedent_io::adaptive_inference_result_artifact::AdaptiveResultSpec as AdaptiveRequest;
@@ -52,14 +52,14 @@ use super::adaptive_participant_procedure::ParticipantProcedure;
 use super::adaptive_procedure_declaration::{AdaptiveProcedure, ProcedureElements};
 
 /// One refusal as plain data: registered reason code, namespaced
-/// `adaptive_inference.*` detail, and what would license the request.
+/// `adaptive_inference.*` detail, and what would support the request.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AdaptiveInferenceRefusal {
     /// Registered runtime reason code.
     pub code: &'static str,
     /// Namespaced detail, `adaptive_inference.<slot>`.
     pub detail: String,
-    /// What was refused and what would license it.
+    /// What was refused and what would support it.
     pub message: String,
 }
 
@@ -188,8 +188,12 @@ impl AdaptiveInferenceSession {
 
     /// Run the inferential paradigm a request names.
     ///
+    /// This is a specialized checked path outside the central compiler: the session validates
+    /// the procedure contract (paradigm support, exposure authorization, probability floors,
+    /// outcome range) before it executes, and does not lower the procedure as a program.
+    ///
     /// # Errors
-    /// A paradigm the cell is not licensed for, an exposure or delay that
+    /// A paradigm the cell is not supported for, an exposure or delay that
     /// fails the authorization, a probability floor failure, an outcome
     /// outside the route's range, or cancellation.
     pub fn analyse(
@@ -212,17 +216,18 @@ impl AdaptiveInferenceSession {
     /// whole procedure without naming a result.
     ///
     /// # Errors
-    /// Always `cell_not_licensed`: a coverage statement belongs to one
-    /// measured procedure cell and one named result, so the unqualified request
-    /// is refused. Ask for a result's interval with
-    /// [`Self::measured_interval`]; a guarantee for components never licenses
+    /// Always `quantity_semantics_mismatch`: a coverage statement belongs to one
+    /// procedure cell and one named result, so an interval of the whole procedure
+    /// names no scientific quantity and is refused. Ask for a result's interval with
+    /// [`Self::measured_interval`]; a guarantee for components never supports
     /// their pairing.
     pub fn interval(&self) -> Result<(), AdaptiveInferenceRefusal> {
         Err(AdaptiveInferenceRefusal {
-            code: antecedent_core::reason_code!("cell_not_licensed"),
-            detail: "adaptive_inference.interval_closed".to_owned(),
+            code: antecedent_core::reason_code!("quantity_semantics_mismatch"),
+            detail: antecedent_core::reason_details::adaptive_inference::INTERVAL_NAMES_NO_QUANTITY
+                .to_owned(),
             message: format!(
-                "no interval, credible interval or coverage statement is licensed for the procedure {} as an unqualified request: a coverage statement belongs to one measured procedure cell and one named result; request the interval of a result with measured_interval, which is licensed only for the measured cells and refuses every other procedure; the point values and uncalibrated diagnostics are the result",
+                "an interval, credible interval or coverage statement of the procedure {} as an unqualified request names no scientific quantity: an interval belongs to one named result; request the interval of a result with measured_interval, which reports it with its calibration status; the point values and uncalibrated diagnostics are the result",
                 self.contract.cell().identifier()
             ),
         })
@@ -241,10 +246,11 @@ impl AdaptiveInferenceSession {
     /// confidence interval).
     ///
     /// # Errors
-    /// A result the contract cannot produce, a procedure, prior, threshold,
-    /// exploration mass, outcome structure or look schedule outside the
-    /// measured cells (`cell_not_licensed`), or coverage evidence that is
-    /// absent or no longer attesting.
+    /// A result the contract cannot produce or an interval of a kind the replayed
+    /// result does not carry (`route_not_supported`). A procedure, prior,
+    /// threshold, exploration mass, outcome structure or look schedule outside the
+    /// measured cells still reports its interval, with its calibration annotated
+    /// `outside_measured_scope` or `not_measured`.
     pub fn measured_interval(
         &self,
         request: &AdaptiveResultSpec,
@@ -257,7 +263,7 @@ impl AdaptiveInferenceSession {
             |error| match error {
                 antecedent_io::IoError::Refused { code, message } => {
                     let (detail, text) = message.split_once(": ").map_or(
-                        ("adaptive_inference.interval_closed", message.as_str()),
+                        (antecedent_core::reason_details::adaptive_inference::INTERVAL_NAMES_NO_QUANTITY, message.as_str()),
                         |(d, t)| (d, t),
                     );
                     AdaptiveInferenceRefusal {
@@ -268,7 +274,7 @@ impl AdaptiveInferenceSession {
                 }
                 other => AdaptiveInferenceRefusal {
                     code: antecedent_core::reason_code!("invalid_argument"),
-                    detail: "adaptive_inference.input_invalid".to_owned(),
+                    detail: antecedent_core::reason_details::adaptive_inference::INPUT_INVALID.to_owned(),
                     message: other.to_string(),
                 },
             },
@@ -278,7 +284,7 @@ impl AdaptiveInferenceSession {
     /// Export the monitoring contract for a paradigm.
     ///
     /// # Errors
-    /// A paradigm the cell is not licensed for, or a contract that does not seal.
+    /// A paradigm the cell is not supported for, or a contract that does not seal.
     pub fn export_contract(
         &self,
         paradigm: InferenceParadigm,
@@ -296,7 +302,7 @@ impl AdaptiveInferenceSession {
     /// look.
     ///
     /// # Errors
-    /// A paradigm the cell is not licensed for, a contract that does not seal,
+    /// A paradigm the cell is not supported for, a contract that does not seal,
     /// or a history the procedure does not replay (its retained allocation
     /// probabilities, decisions or outcome availability).
     pub fn export_contract_with_procedure(
@@ -362,7 +368,7 @@ fn artifact_refusal(
         Some((code, detail, message)) => AdaptiveInferenceRefusal { code, detail, message },
         None => AdaptiveInferenceRefusal {
             code: antecedent_core::reason_code!("invalid_argument"),
-            detail: "adaptive_inference.input_invalid".to_owned(),
+            detail: antecedent_core::reason_details::adaptive_inference::INPUT_INVALID.to_owned(),
             message: text.to_owned(),
         },
     }
@@ -420,7 +426,7 @@ impl ConsumedMonitoringContract {
 ///
 /// # Errors
 /// Corruption, a missing or inconsistent contract element, a paradigm the
-/// procedure cell is not licensed for, a stored value that does not replay, or
+/// procedure cell is not supported for, a stored value that does not replay, or
 /// an identity that does not match.
 pub fn consume_adaptive_monitoring_contract_artifact(
     bytes: &[u8],

@@ -1,7 +1,7 @@
 //! Whole-procedure calibration designs for inference from adaptive
 //! experiments. Nothing here is measured at implementation time: every test is
 //! `#[ignore]`d and runs only at the final measurement step, and no interval,
-//! posterior or error-control claim is licensed until its record exists.
+//! posterior or error-control claim is supported until its record exists.
 //!
 //! A guarantee here is a statement about the *procedure*: the assignment
 //! policy, the outcome structure, the interim monitoring and the stopping
@@ -43,7 +43,7 @@
 //! interval method, dependence) is declared here and must be agreed with the
 //! calibration key schema before any measurement.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg(feature = "calibration-internal")]
 #![allow(
@@ -107,6 +107,7 @@ fn basis(
         None,
         0.0,
     )
+    .with_validation("not_applicable")
 }
 
 /// Looks at half of the sample and at all of it.
@@ -173,7 +174,7 @@ fn thompson_design(
                 "posterior_quantile",
                 "Bayesian",
                 // A fixed-truth design is not the public interval's key: the
-                // credible interval is licensed by its prior-predictive records,
+                // credible interval is supported by its prior-predictive records,
                 // and the equal-arms boundary stays off that key.
                 adaptive_measured_interval::THOMPSON_FIXED_TRUTH_FUNCTIONAL,
                 adaptive_measured_interval::STOPPED_DEPENDENCE,
@@ -560,11 +561,7 @@ fn anytime_valid_sequence_covers_the_arm_mean_at_every_look_l95() {
         tally.record(Some(if missed { (1.0, 2.0) } else { (-1.0, 1.0) }), 0.0);
     }
     // A confidence sequence is conservative by construction, so the claim is a floor.
-    assert!(
-        calibration::passes_one_sided(tally.attempts(), 0.95, tally.rate()),
-        "the anytime-valid sequence under-covers: {}",
-        tally.rate()
-    );
+    tally.assert_at_least();
 }
 
 /// The time-uniform interval of an arm mean or of the contrast, scored at ten

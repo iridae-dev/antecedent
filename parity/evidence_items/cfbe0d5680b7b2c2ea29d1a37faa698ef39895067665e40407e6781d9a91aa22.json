@@ -1,0 +1,1 @@
+["use:std::fmt;#0","use:antecedent_core::{CanonicalWriter,SemanticDigest};#0","const:LEDGER_IDENTITY_VERSION#0","macro_rules:ledger_id#0","macro:ledger_id#0","macro:ledger_id#1","macro:ledger_id#2","macro:ledger_id#3","impl:ObservationId#0","impl:ObservationId#0/fn:from_key#0","fn:parse_digest_hex#0","fn:finish#0","fn:digest_word#0"]

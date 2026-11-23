@@ -1,6 +1,6 @@
 //! Identifier contract.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{AssumptionSet, CausalQuery};
 use antecedent_graph::{Admg, DSeparationWorkspace, Dag, GraphWorkspace};

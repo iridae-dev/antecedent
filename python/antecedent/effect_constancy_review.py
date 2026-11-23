@@ -1,7 +1,7 @@
 """Downstream advisory consumers of independently verified effect-constancy evidence.
 
 Transport still needs identification. Prior preferences are data dependent and do not
-license pooling. Policy agreement is a point comparison with no generalization guarantee.
+support pooling. Policy agreement is a point comparison with no generalization guarantee.
 """
 
 from __future__ import annotations
@@ -30,7 +30,8 @@ __all__ = [
 
 
 def _review(source: EffectConstancyResult, request: Mapping[str, Any]) -> dict[str, Any]:
-    if len(source.export()) > 64 * 1024 * 1024:
+    artifact = bytes(source.export())
+    if len(artifact) > 64 * 1024 * 1024:
         raise CausalValueError(
             "effect_constancy_consumer.invalid_request: artifact exceeds bounds",
             reason_code="invalid_argument",
@@ -43,9 +44,7 @@ def _review(source: EffectConstancyResult, request: Mapping[str, Any]) -> dict[s
         )
     return dict(
         json.loads(
-            _native.review_effect_constancy(
-                source.export(), json.dumps(source.identity._wire()), text
-            )
+            _native.review_effect_constancy(artifact, json.dumps(source.identity._wire()), text)
         )
     )
 
@@ -70,7 +69,7 @@ class PriorSourceRanking:
     inference_claim: str
     caveats: tuple[str, ...]
     data_dependent_selection: bool
-    posterior_transfer_licensed: bool
+    posterior_transfer_supported: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,7 +164,7 @@ def rank_prior_sources(
         ev["inference_claim"],
         tuple(ev["caveats"]),
         out["data_dependent_selection"],
-        out["posterior_transfer_licensed"],
+        out["posterior_transfer_supported"],
     )
 
 

@@ -70,7 +70,7 @@ group = "data_processing"
 description = "Bootstrap generation"
 status = "done"
 evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent-data/src/resample.rs"
+evidence_test = "crates/antecedent-data/src/resample/tests.rs"
 evidence_assertion = "moving_block_indexes_are_consecutive_runs_and_replay"
 limitations = "This test covers the moving-block plan (consecutive runs, seed replay); IID, circular, stationary and cluster plans are covered by sibling tests in the same module, not by this one."
 owner = "discovery"
@@ -84,6 +84,9 @@ status = "done"
 evidence_kind = "internal_known_truth"
 evidence_test = "crates/antecedent-stats/src/ci/calibration.rs"
 evidence_assertion = "parcorr_calibration_type_i_near_alpha_and_power"
+limitations = "Statistical smoke: the cited assertion parcorr_calibration_type_i_near_alpha_and_power is a seeded stochastic check, not a calibrated test; it supplies no independent coverage or calibration."
+known_truth_reference = { kind = "closed_form", source = "crates/antecedent-stats/src/ci/calibration.rs::parcorr_calibration_type_i_near_alpha_and_power", proposition = "Independent Gaussian null has rejection probability alpha=0.05; the declared confounded Gaussian alternative has positive power.", tolerance = "800 trials at n=250: two binomial Monte Carlo SE around alpha; power > 0.50", limitations = "Ordinary stochastic smoke; it is not a scoped/attested branch calibration record." }
+evidence_activity = "statistical_smoke"
 owner = "discovery"
 
 [[capabilities]]
@@ -94,7 +97,9 @@ status = "done"
 evidence_kind = "internal_known_truth"
 evidence_test = "crates/antecedent-stats/src/ci/calibration.rs"
 evidence_assertion = "multivariate_block_calibration_smoke"
-limitations = "Type-I calibration gate is #[ignore]d and runs locally via gate_calibration.sh, not in CI."
+known_truth_reference = { kind = "closed_form", source = "crates/antecedent-stats/src/ci/calibration.rs::multivariate_block_calibration_smoke", proposition = "Independent Gaussian blocks form the declared null at alpha=0.05; the alternative shares dependence.", tolerance = "150 trials at n=150, blocks 2 by 2: null rejection fraction < 0.16 and power > 0.80", limitations = "Loose stochastic regression bound, not a claim of nominal type-I calibration." }
+evidence_activity = "statistical_smoke"
+limitations = "Type-I calibration gate is #[ignore]d and runs locally via scripts/measure_calibration.sh, not in CI."
 owner = "ci"
 notes = "Block residualization; significance via Bartlett chi-square on Wilks' Lambda over all canonical correlations (BlockShuffle recomputes Lambda per replicate). Scalar blocks reduce to ParCorr. Type I calibration: ci::calibration::multivariate_block_calibration_gate."
 
@@ -106,6 +111,8 @@ status = "done"
 evidence_kind = "internal_known_truth"
 evidence_test = "crates/antecedent-stats/src/ci/calibration.rs"
 evidence_assertion = "weighted_parcorr_calibration_smoke"
+known_truth_reference = { kind = "closed_form", source = "crates/antecedent-stats/src/ci/calibration.rs::weighted_parcorr_calibration_smoke", proposition = "Unit-weight Gaussian partial correlation null has nominal rejection probability alpha=0.05.", tolerance = "60 trials: null rejection fraction <= alpha+3*sqrt(alpha*(1-alpha)/60); power > 0.30", limitations = "Stochastic smoke with unit weights only; general weighted-procedure calibration is separate." }
+evidence_activity = "statistical_smoke"
 limitations = "Locally measured Type-I calibration only; the upstream oracle errored on this pin, so no external reference value exists."
 owner = "ci"
 notes = "Python discover_pcmci(_plus) accepts weights= when ci=weighted_parcorr; the facade aligns full-series weights to the trailing rows of lagged frames, while the Rust constructor requires one weight per row."
@@ -118,6 +125,7 @@ status = "done"
 evidence_kind = "internal_known_truth"
 evidence_test = "crates/antecedent-stats/src/ci/parcorr_variants.rs"
 evidence_assertion = "robust_uses_van_der_waerden_normal_scores"
+known_truth_reference = { kind = "closed_form", source = "crates/antecedent-stats/src/ci/parcorr_variants.rs::robust_uses_van_der_waerden_normal_scores", proposition = "Normal-score ranks r/(n+1): ranks [3,1,2] give [+Phi^-1(0.75),-Phi^-1(0.75),0]; ties use midranks.", tolerance = "absolute 1e-9 for nonzero scores, 1e-12 at zero, 1e-15 tie equality", limitations = "Fixed rank-transform examples only; does not establish robustness or type-I calibration." }
 limitations = "Locally measured Type-I calibration only. Tigramite robust_parcorr reference values exist in conformance/discovery/ci_stats but no test consumes them."
 owner = "ci"
 notes = "Van der Waerden normal scores of the ranks, then partial correlation; block-preserving nulls residualise on Z first."
@@ -201,6 +209,7 @@ status = "done"
 evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent-discovery/src/pc.rs"
 evidence_assertion = "oracle_chain_recovers_skeleton"
+limitations = "Implementation-exists evidence: the cited assertion oracle_chain_recovers_skeleton shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 owner = "ci"
 
 [[capabilities]]
@@ -224,6 +233,7 @@ status = "done"
 evidence_kind = "internal_known_truth"
 evidence_test = "crates/antecedent-discovery/src/pc.rs"
 evidence_assertion = "oracle_collider_orients"
+known_truth_reference = { kind = "enumeration", source = "crates/antecedent-discovery/src/pc.rs::oracle_collider_orients", proposition = "The declared three-node CI oracle has edges 0-1 and 1-2, with 0 independent of 2; the unshielded collider must orient 0->1<-2.", tolerance = "exact parent/child node identities", limitations = "Checks PC orientation against a prescribed CI oracle, not estimation of CI from sampled observations." }
 limitations = "No external oracle: the static_oracle_matrix covers FCI/GES/DirectLiNGAM but has no PC case. Evidence is OracleCi skeleton tests on hand-built DAGs plus a locally measured null-FPR calibration gate."
 owner = "discovery"
 notes = "Order-dependent (not PC-stable; deterministic order) undirected skeleton + Meek on static Cpdag; retained-edge p is the maximum over every CI test of the edge, optional BH runs over edges (one hypothesis per edge), and constraint-required edges are reported without a fabricated test statistic; Rust discover_pc / Python antecedent.discovery.PC(...).run(...). Static FCI/RFCI, GES, and DirectLiNGAM ship. Class-path composition: composition_pc_and_ges_accepted_class_stays_cpdag (implementation_exists; does not inherit this row's evidence kind)."
@@ -261,11 +271,11 @@ id = "discovery.notears"
 group = "discovery"
 description = "Static NOTEARS continuous SEM (DAG)"
 status = "done"
-evidence_kind = "internal_known_truth"
+evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent-discovery/tests/discovery_notears_chain.rs"
 evidence_assertion = "discovery_notears_chain_required_directed_edges"
-known_truth_fixture = "conformance/discovery/notears_chain"
-limitations = "Expected edges are the synthetic SCM ground truth, not an external solver dump; the fixture's reference block is self-referential by design."
+smoke_fixture = "conformance/discovery/notears_chain"
+limitations = "Recovery of the generating edges of one synthetic chain by a non-convex, threshold-sensitive optimiser: the edges are the construction of the data, but no solver value is derived, orientation after standardisation is not guaranteed by theory, and no reference solver is compared, so this is a software recovery check, not independent known truth."
 owner = "discovery"
 notes = "Crate Notears + threshold Dag/DagReview + soft W; Rust discover_notears / Python antecedent.discovery.NOTEARS(...).run(...) + GraphInput::DiscoverNotears / analyze builder; conformance/discovery/notears_chain (RequiredDirectedEdges)"
 
@@ -297,6 +307,8 @@ known_truth_fixture = "conformance/discovery/lpcmci_matrix"
 owner = "pag"
 notes = "antecedent-discovery Lpcmci → TemporalPag; conformance/pag/lpcmci_chain; facade temporal estimate via PAG completion→DAG when fully oriented"
 
+limitations = "The six-motif executing assertion checks canonical temporal skeletons and relabelling only. PAG endpoints/middle marks, CI statistics, p values, FDR behavior, weighted/missing/categorical inputs and calibration are not established by this comparator. Full regenerated upstream matrices are retained as reference context."
+
 [[capabilities]]
 id = "discovery.jpcmci_plus"
 group = "discovery"
@@ -310,6 +322,8 @@ known_truth_fixture = "conformance/discovery/jpcmci_plus_matrix"
 owner = "context"
 notes = "JpcmciPlus; structure jpcmci_plus_two_env + edge-set jpcmci_plus_two_env_edges + MV space-dummy jpcmci_plus_two_env_space_dummy_mv; SpaceDummyCiMode; TimeDummyEncoding OneHot + TimeDummyCiMode; PanelFrame also supports pooled PCMCI/Plus/Lpcmci (not multi-env JPCMCI+ semantics); python_facade=full (EventFrame PCMCI-family + panel pooled)"
 
+limitations = "The five fixed multiple-environment cases compare canonical skeletons with space/time dummies disabled and FDR disabled. Endpoint marks, CI statistics/p values, context/dummy-node tests, weighted/missing/categorical inputs and calibration are not established by this matrix."
+
 [[capabilities]]
 id = "discovery.rpcmci"
 group = "discovery"
@@ -320,7 +334,7 @@ evidence_test = "crates/antecedent-discovery/tests/rpcmci_fixed_regime_oracle.rs
 evidence_assertion = "fixed_label_rpcmci_matches_independent_per_regime_tigramite"
 external_oracle = "Tigramite 5.2.9.7"
 known_truth_fixture = "conformance/discovery/rpcmci_fixed_regime_matrix"
-limitations = "Per-regime comparison with caller-supplied regimes. The rpcmci_two_regime fixture's reference records a failed oracle attempt (available=false) and is not external evidence."
+limitations = "Per-regime canonical-skeleton comparison with caller-supplied regimes and alternating_iters=0; this is not regime inference or endpoint/statistic parity. The rpcmci_two_regime fixture's reference records a failed oracle attempt (available=false) and is not external evidence."
 owner = "context"
 notes = "Rpcmci; conformance/discovery/rpcmci_two_regime"
 
@@ -332,6 +346,7 @@ status = "done"
 evidence_kind = "implementation_exists"
 evidence_test = "python/tests/test_discovery_provenance.py"
 evidence_assertion = "test_conditioning_set_nonempty_and_correct_for_retained_pcmci_link"
+limitations = "Implementation-exists evidence: the cited assertion test_conditioning_set_nonempty_and_correct_for_retained_pcmci_link shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 owner = "pag"
 python_facade = "full"
 notes = """
@@ -342,7 +357,7 @@ algorithm-specific honesty split: PC/GES/FCI/RFCI/PCMCI+/J-PCMCI+ retention and
 separating-set recording are mutually exclusive (a retained link's set is always
 empty); plain PCMCI's PC1 phase decouples conditioning-set pruning from the final MCI
 retention test, so a retained plain-PCMCI link can carry a non-empty set. Harness:
-python/tests/test_discovery_provenance.py (gate_pag.sh runs it).
+python/tests/test_discovery_provenance.py (the engineering lane runs it).
 """
 
 [[capabilities]]
@@ -353,6 +368,7 @@ status = "done"
 evidence_kind = "implementation_exists"
 evidence_test = "python/tests/test_discovery_provenance.py"
 evidence_assertion = "test_max_cond_size_honored_by_native_functions"
+limitations = "Implementation-exists evidence: the cited assertion test_max_cond_size_honored_by_native_functions shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 owner = "ci"
 python_facade = "full"
 notes = """
@@ -365,7 +381,7 @@ plumbing, no new algorithmic cap. discover_pcmci/discover_pcmci_plus/discover_lp
 discover_jpcmci_plus/discover_rpcmci PyO3 signatures and the discovery_algorithm()
 serialization helper carry it too. Harness: python/tests/test_discovery_provenance.py
 (test_max_cond_size_honored_by_native_functions asserts the cap changes ci_tests, not
-merely accepted; gate_estimate_ci.sh runs it).
+merely accepted; the engineering lane runs it).
 """
 
 [[capabilities]]
@@ -388,6 +404,7 @@ status = "done"
 evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent-validate/src/stability/pcmci_grid.rs"
 evidence_assertion = "alpha_threshold_retains_true_link"
+limitations = "Implementation-exists evidence: the cited assertion alpha_threshold_retains_true_link shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 owner = "discovery"
 notes = "antecedent-validate AlphaThresholdSensitivity; DiscoveryStabilityReport"
 
@@ -399,6 +416,7 @@ status = "done"
 evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent-validate/src/stability/pcmci_grid.rs"
 evidence_assertion = "lag_window_retains_true_link"
+limitations = "Implementation-exists evidence: the cited assertion lag_window_retains_true_link shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 owner = "discovery"
 notes = "antecedent-validate LagWindowSensitivity; DiscoveryStabilityReport"
 
@@ -410,6 +428,7 @@ status = "done"
 evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent-validate/src/stability/pcmci_grid.rs"
 evidence_assertion = "ci_test_retains_true_link"
+limitations = "Implementation-exists evidence: the cited assertion ci_test_retains_true_link shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 owner = "discovery"
 notes = "antecedent-validate CiTestSensitivity; DiscoveryStabilityReport"
 
@@ -445,6 +464,7 @@ status = "done"
 evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent-validate/src/stability/env_holdout.rs"
 evidence_assertion = "env_holdout_runs_two_envs"
+limitations = "Implementation-exists evidence: the cited assertion env_holdout_runs_two_envs shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 owner = "discovery"
 notes = "antecedent-validate EnvironmentHoldout; EnvHoldoutSplit"
 
@@ -456,9 +476,11 @@ status = "done"
 evidence_kind = "internal_known_truth"
 evidence_test = "crates/antecedent-validate/src/stability/null_calibration.rs"
 evidence_assertion = "synthetic_null_fpr_near_alpha_gate"
+known_truth_reference = { kind = "closed_form", source = "crates/antecedent-validate/src/stability/null_calibration.rs::synthetic_null_fpr_near_alpha_gate", proposition = "The synthetic independent null has nominal edge rejection probability alpha=0.05.", tolerance = "40 trials, 200 observations, 3 variables; empirical FPR within four reported Monte Carlo SE of alpha", limitations = "Ordinary stochastic smoke, not a whole-procedure branch measurement or a release calibration support." }
+evidence_activity = "statistical_smoke"
 limitations = "Seed-fixed check of 40 simulations x 200 rows x 3 variables with a widened band (band_tol 4.0); it detects gross miscalibration, not tight nominal coverage."
 owner = "discovery"
-notes = "antecedent-validate SyntheticNullCalibration; local gate via gate_calibration.sh"
+notes = "antecedent-validate SyntheticNullCalibration; local gate via scripts/measure_calibration.sh"
 
 [[capabilities]]
 id = "discovery.validate.false_positive_permute_phase"
@@ -508,7 +530,7 @@ evidence_test = "crates/antecedent-graph/tests/oracle_closure.rs"
 evidence_assertion = "pag_endpoint_and_definite_status_oracles"
 known_truth_fixture = "conformance/graph/definite_status_separation"
 owner = "pag"
-notes = "d-separation (P1) + ADMG/PAG m-separation (P8); gate_pag.sh"
+notes = "d-separation (P1) + ADMG/PAG m-separation (P8)"
 
 [[capabilities]]
 id = "discovery.graphs.endpoints"
@@ -518,6 +540,7 @@ status = "done"
 evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent-graph/tests/oracle_closure.rs"
 evidence_assertion = "cpdag_endpoint_oracle"
+limitations = "Implementation-exists evidence: the cited assertion cpdag_endpoint_oracle shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 owner = "ci"
 
 [[capabilities]]
@@ -525,13 +548,13 @@ id = "discovery.effects"
 group = "effects_and_models"
 description = "Causal effects, mediation, prediction"
 status = "done"
-evidence_kind = "internal_known_truth"
+evidence_kind = "internal_cross_check"
 evidence_test = "python/tests/test_temporal_mediation.py"
 evidence_assertion = "test_temporal_mediation_decomposition"
-limitations = "Mediated-only DGP with true mediated effect 0.8*0.5=0.4; the assertions are loose (mediated > 0.1 and total-direct-mediated within 0.15), and temporal prediction is not covered by this test."
+limitations = "Mediated-only DGP with true mediated effect 0.8*0.5=0.4; the assertions are loose (mediated > 0.1 and total-direct-mediated within 0.15), so this is a sign and internal-consistency check, not independent known truth; temporal prediction is not covered by this test."
 known_truth_fixture = "conformance/context/temporal_mediation"
 owner = "context"
-notes = "temporal mediation/effects/prediction; gate_context.sh"
+notes = "temporal mediation/effects/prediction"
 
 [[capabilities]]
 id = "discovery.ux.artifact_first"

@@ -1,5 +1,5 @@
 //! General finite counterfactual transport end to end: prepare once, evaluate
-//! and refresh on exact laws, export the `counterfactual_transport_v1`
+//! and refresh on exact laws, export the `counterfactual_transport_v2`
 //! artifact, replay it from bytes and an expected identity in this process and
 //! in a fresh one, and refuse every negative gate by name.
 //!
@@ -8,7 +8,7 @@
 //! the supplied regime laws. The fixtures live with the identifier's tests and
 //! are included by path so one oracle serves every layer.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -25,6 +25,9 @@ mod counterfactual_transport_cases;
 #[path = "../../antecedent-identify/tests/support/finite_scm_oracle.rs"]
 mod finite_scm_oracle;
 
+use antecedent::analysis::temporal_path_transport::{
+    TemporalPathSpec, compile_temporal_path_transport, consume_temporal_path_transport,
+};
 use antecedent::{
     CounterfactualTransportConsumption, CounterfactualTransportOptions,
     CounterfactualTransportPreparation, PreparedCounterfactualTransport,
@@ -43,8 +46,71 @@ use antecedent_io::counterfactual_transport_wire::{
 };
 use counterfactual_transport_adapter as adapter;
 use counterfactual_transport_cases::{Case, ExpectedClass, Target, all_cases};
+use std::sync::Arc;
 
 const TOLERANCE: f64 = 1e-12;
+
+#[test]
+fn time_ordered_direct_path_transport_matches_independent_oracle() {
+    let case = case_named("nonlinear_mediation_covariate_shift");
+    let problem = adapter::problem(&case);
+    let adapted = adapter::catalog(&case);
+    let sources = Arc::from(adapter::sources(&case, &controllable_for(&case)));
+    let data = adapter::laws(&case, &adapted);
+    let id = |name: &str| adapter::variable_id(&case, name).raw();
+    let spec = TemporalPathSpec {
+        treatment: id("X"),
+        outcome: id("Y"),
+        control_bits: 0.0_f64.to_bits(),
+        active_bits: 1.0_f64.to_bits(),
+        outcome_level_bits: 1.0_f64.to_bits(),
+        times: [("Z", 0), ("X", 1), ("M", 2), ("Y", 3)]
+            .into_iter()
+            .map(|(name, time)| (id(name), time))
+            .collect(),
+        active_edges: vec![(id("X"), id("Y"))],
+    };
+    let plan = compile_temporal_path_transport(
+        problem,
+        Arc::from("target"),
+        sources,
+        adapted.catalog,
+        data,
+        spec.clone(),
+        options_of(&case),
+        &ctx(),
+    )
+    .expect("time-ordered path transport compiler");
+    assert_eq!(plan.plan_view().route().as_str(), "TemporalPathTransport");
+    let result = plan.execute(&ctx()).expect("two identified target worlds");
+    let active = target_labelled(&case, "Y_{x1,M_{x0}}").expected_value.unwrap();
+    let baseline = target_labelled(&case, "Y_{x0,M_{x0}}").expected_value.unwrap();
+    assert!((result.active.probability() - active).abs() <= TOLERANCE);
+    assert!((result.baseline.probability() - baseline).abs() <= TOLERANCE);
+    assert!((result.contrast - (active - baseline)).abs() <= TOLERANCE);
+    let bytes = plan.export(&result, &ctx()).expect("path artifact");
+    let replay = consume_temporal_path_transport(&bytes, plan.lowered().identity(), &ctx())
+        .expect("independent path transport replay");
+    assert_eq!(replay.contrast.to_bits(), result.contrast.to_bits());
+
+    let mut invalid = spec;
+    invalid.times[2].1 = 1;
+    let adapted = adapter::catalog(&case);
+    let invalid_data = adapter::laws(&case, &adapted);
+    assert!(
+        compile_temporal_path_transport(
+            adapter::problem(&case),
+            Arc::from("target"),
+            Arc::from(adapter::sources(&case, &controllable_for(&case))),
+            adapted.catalog,
+            invalid_data,
+            invalid,
+            options_of(&case),
+            &ctx(),
+        )
+        .is_err()
+    );
+}
 
 fn ctx() -> ExecutionContext {
     ExecutionContext::for_tests(1)
@@ -362,7 +428,7 @@ fn prepare_once_then_refresh_rebuilds_the_numbers_and_a_refused_refresh_keeps_st
     .unwrap();
     let counted = ExactTransportData::try_new(laws, 1 << 16).unwrap();
     let error = second.refresh(counted, &ctx()).unwrap_err();
-    assert_eq!(refusal(&error).0, "cell_not_licensed");
+    assert_eq!(refusal(&error).0, "route_not_supported");
     let cancelled = ctx();
     cancelled.cancellation.cancel();
     let error = second.refresh(original, &cancelled).unwrap_err();
@@ -422,7 +488,7 @@ fn obstructions_export_and_replay_their_two_model_witness_from_bytes() {
         )
         .unwrap_or_else(|e| panic!("{name}: {e}"));
         assert!(oracle.gap > 1e-6, "{name}");
-        let check = report.verify().unwrap();
+        let check = report.verify(&ctx()).unwrap();
         assert_ne!(check.first_value, check.second_value, "{name}");
         assert!(check.cells_compared > 0, "{name}");
 
@@ -448,7 +514,7 @@ fn obstructions_export_and_replay_their_two_model_witness_from_bytes() {
         else {
             panic!("{name}: expected an obstruction consumption");
         };
-        assert_eq!(again.verify().unwrap(), check, "{name}");
+        assert_eq!(again.verify(&ctx()).unwrap(), check, "{name}");
 
         // A tampered witness, resealed, is refused in the obstruction slot.
         let mut tampered = wire.clone();
@@ -464,7 +530,12 @@ fn obstructions_export_and_replay_their_two_model_witness_from_bytes() {
         assert_eq!(error.slot(), "obstruction");
         let (code, message) = error.refusal();
         assert_eq!(code, "transport_not_certified");
-        assert!(message.starts_with("counterfactual_transport.invalid_witness"), "{message}");
+        assert!(
+            message.starts_with(
+                antecedent_core::reason_details::counterfactual_transport::INVALID_WITNESS
+            ),
+            "{message}"
+        );
 
         // Stored values that the witness does not establish are refused too.
         let mut tampered = wire;
@@ -484,14 +555,18 @@ fn obstructions_export_and_replay_their_two_model_witness_from_bytes() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn refusals_name_what_would_license_the_request() {
+fn refusals_name_what_would_support_the_request() {
     // Missing factors: the source experiment is declared available but not
     // supplied. Identification is possible if it were: it is named.
     let case = case_named("missing_interventional_evidence");
     let error = prepare(&case, &case.targets[0], false, &options_of(&case), &ctx()).unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "transport_missing_evidence");
-    assert!(message.starts_with("counterfactual_transport.missing_regime"), "{message}");
+    assert!(
+        message
+            .starts_with(antecedent_core::reason_details::counterfactual_transport::MISSING_REGIME),
+        "{message}"
+    );
     assert!(message.contains("experiment on"), "{message}");
     assert!(message.contains("source"), "{message}");
 
@@ -502,7 +577,12 @@ fn refusals_name_what_would_license_the_request() {
     let error = prepare(&case, target, true, &options_of(&case), &ctx()).unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "transport_support_failure");
-    assert!(message.contains("counterfactual_transport.zero_conditioning_mass"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::counterfactual_transport::ZERO_CONDITIONING_MASS
+        ),
+        "{message}"
+    );
     // The same query is defined, and enumerated, in the source population.
     let mut in_source = case.clone();
     in_source.target_population = "source";
@@ -522,7 +602,10 @@ fn refusals_name_what_would_license_the_request() {
     let error = prepare(&case, target, false, &starved, &ctx()).unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "transport_budget_cancel");
-    assert!(message.starts_with("counterfactual_transport.budget"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::counterfactual_transport::BUDGET),
+        "{message}"
+    );
     let cancelled = ctx();
     cancelled.cancellation.cancel();
     let error = prepare(&case, target, false, &options_of(&case), &cancelled).unwrap_err();
@@ -535,7 +618,12 @@ fn refusals_name_what_would_license_the_request() {
     let error = prepare(&case, target, false, &oversized, &ctx()).unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "route_not_supported");
-    assert!(message.starts_with("counterfactual_transport.bounds_exceeded"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::counterfactual_transport::BOUNDS_EXCEEDED
+        ),
+        "{message}"
+    );
     // Names that do not cover the variables are refused, not truncated.
     let misnamed = CounterfactualTransportOptions {
         variable_names: vec!["only".into()],
@@ -589,7 +677,7 @@ fn absent_mislabelled_and_counted_evidence_is_refused_before_a_number() {
     let swapped = ExactTransportData::try_new(laws, 1 << 16).unwrap();
     assert!(prepared.evaluate(&swapped, &ctx()).is_err());
 
-    // An empirical plug-in is not licensed: sampled inference is another route.
+    // An empirical plug-in is not supported: sampled inference is another route.
     let mut laws = data.laws().to_vec();
     let law = &laws[0];
     laws[0] = ExactDiscreteLaw::try_empirical(
@@ -605,8 +693,13 @@ fn absent_mislabelled_and_counted_evidence_is_refused_before_a_number() {
     let empirical = ExactTransportData::try_new(laws, 1 << 16).unwrap();
     let error = prepared.evaluate(&empirical, &ctx()).unwrap_err();
     let (code, message) = refusal(&error);
-    assert_eq!(code, "cell_not_licensed");
-    assert!(message.contains("counterfactual_transport.sampled_inference_closed"), "{message}");
+    assert_eq!(code, "route_not_supported");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::counterfactual_transport::NO_SAMPLED_INFERENCE
+        ),
+        "{message}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -654,7 +747,12 @@ fn resealed_query_selection_table_and_derivation_mutations_are_refused_by_slot()
     assert_eq!(error.slot(), "derivation");
     let (code, message) = error.refusal();
     assert_eq!(code, "transport_not_certified");
-    assert!(message.starts_with("counterfactual_transport.invalid_derivation"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::counterfactual_transport::INVALID_DERIVATION
+        ),
+        "{message}"
+    );
 
     // Selection removed: the target marginal is no longer needed, so the
     // derivation differs (or the declaration is refused by name).
@@ -719,8 +817,11 @@ fn resealed_query_selection_table_and_derivation_mutations_are_refused_by_slot()
     let (code, message) = error.refusal();
     assert_eq!(code, "invalid_argument");
     assert!(
-        message.contains("counterfactual_transport.invalid_catalog")
-            || message.contains("counterfactual_transport.invalid_artifact"),
+        message
+            .contains(antecedent_core::reason_details::counterfactual_transport::INVALID_CATALOG)
+            || message.contains(
+                antecedent_core::reason_details::counterfactual_transport::INVALID_ARTIFACT
+            ),
         "{message}"
     );
     let mut mutated = wire.clone();
@@ -768,12 +869,12 @@ fn edits_that_are_not_resealed_identity_versions_and_limits_are_refused() {
 
     // Another version and another required feature are refused, not guessed.
     let mut future = wire.clone();
-    future.version = 2;
+    future.version = 3;
     let error =
         consume_typed(&antecedent_io::to_cbor(&future).unwrap(), &none, &ctx()).unwrap_err();
-    assert_eq!(error, E::UnsupportedVersion { version: 2 });
+    assert_eq!(error, E::UnsupportedVersion { version: 3 });
     let mut foreign = wire.clone();
-    foreign.required_features = vec!["counterfactual_transport_v2".into()];
+    foreign.required_features = vec!["counterfactual_transport_v3".into()];
     let error =
         consume_typed(&antecedent_io::to_cbor(&foreign).unwrap(), &none, &ctx()).unwrap_err();
     assert_eq!(error, E::UnsupportedSemantics("required_features"));
@@ -873,9 +974,13 @@ fn a_fresh_process_consumes_only_the_bytes_and_matches_the_oracle() {
     let path = std::env::temp_dir()
         .join(format!("antecedent-counterfactual-transport-{}-{unique}.bin", std::process::id()));
     std::fs::write(&path, &export.bytes).unwrap();
+    let prefix =
+        module_path!().split_once("::").map_or(String::new(), |(_, rest)| format!("{rest}::"));
+    let test_name =
+        format!("{prefix}a_fresh_process_consumes_only_the_bytes_and_matches_the_oracle");
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .arg("--exact")
-        .arg("a_fresh_process_consumes_only_the_bytes_and_matches_the_oracle")
+        .arg(&test_name)
         .env(PATH, &path)
         .env(PREMISES, export.identity.premises_digest.clone().unwrap())
         .env(DATA, export.identity.data_digest.clone().unwrap())
@@ -883,6 +988,11 @@ fn a_fresh_process_consumes_only_the_bytes_and_matches_the_oracle() {
         .output()
         .unwrap();
     std::fs::remove_file(path).unwrap();
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("running 1 test"),
+        "the child selected no test: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
     assert!(
         output.status.success(),
         "{}{}",

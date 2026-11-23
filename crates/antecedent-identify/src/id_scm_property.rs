@@ -6,7 +6,7 @@
 //! does not depend on `antecedent-model` / `antecedent-estimate`, so Monte Carlo
 //! sampling from a fitted SCM is out of scope here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{AverageEffectQuery, CausalQuery, ToleranceClass, Value, VariableId};
 use antecedent_expr::{
@@ -174,7 +174,7 @@ fn id_scm_random_confounding_pattern_recovers_z() {
     let mut ws = IdentificationWorkspace::default();
     let mut hits = 0u32;
     for _ in 0..25 {
-        let n = if rng.next_u64() % 2 == 0 { 3u32 } else { 4u32 };
+        let n = if rng.next_u64().is_multiple_of(2) { 3u32 } else { 4u32 };
         let mut g = Dag::with_variables(n);
         let t = DenseNodeId::from_raw(0);
         let y = DenseNodeId::from_raw(1);
@@ -182,7 +182,7 @@ fn id_scm_random_confounding_pattern_recovers_z() {
         g.insert_directed(z, t).unwrap();
         g.insert_directed(z, y).unwrap();
         g.insert_directed(t, y).unwrap();
-        if n == 4 && rng.next_u64() % 2 == 0 {
+        if n == 4 && rng.next_u64().is_multiple_of(2) {
             let _ = g.insert_directed(DenseNodeId::from_raw(3), y);
         }
         let prep = id.prepare(&g).unwrap();
@@ -217,7 +217,7 @@ fn id_scm_nonbinary_levels_still_identify() {
     assert!(res.estimands.iter().any(|e| e.adjustment_set.as_ref() == [v(2)]));
 }
 
-/// P0 regression (Shpitser–Pearl line 7): the front-door **ADMG** functional.
+/// Regression (Shpitser–Pearl line 7): the front-door **ADMG** functional.
 ///
 /// `t → m → y` with `t ↔ y` routes through general ID line 7: the recursion
 /// must carry `Q[{T,Y}]`, whose Y-factor conditions on the topological
@@ -247,7 +247,7 @@ fn id_scm_frontdoor_admg_functional_matches_true_intervention() {
         fixture["reference"]["outputs"]["estimand"]
             .as_str()
             .unwrap()
-            .contains("Estimand name: frontdoor"),
+            .contains("Estimand name: frontdoor\nEstimand expression:"),
         "oracle must certify the front-door estimand for this graph"
     );
 

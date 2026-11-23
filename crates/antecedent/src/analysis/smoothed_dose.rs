@@ -8,12 +8,11 @@
 //! certificate. The result is the grid of points with their quadrature, smoothing-bias
 //! and support records and the interval status.
 //!
-//! The interval route is registered closed (`cell_not_licensed`) until its coverage
-//! records are measured: an estimate reports the interval withheld, and
-//! [`PreparedSmoothedDose::interval`] refuses. The internal estimator the calibration
-//! harness measures is `antecedent_estimate::smoothed_dose_interval_internal`, compiled
-//! only under the `calibration-internal` feature that the facade's dev-dependencies
-//! enable.
+//! [`PreparedSmoothedDose::interval`] reports the pointwise joint outer-refit
+//! percentile-bootstrap interval of `antecedent_estimate::smoothed_dose_interval_internal`
+//! with the calibration slot of the smoothed-dose coverage records; calibration annotates
+//! the interval and never withholds it. A replicate that fails withholds every interval
+//! for that stated reason.
 use super::StudyBuilder;
 use super::transport_common::{err, estimate_err};
 use antecedent_core::{ExecutionContext, SmoothedDoseTransportQuery};
@@ -33,10 +32,51 @@ pub struct PreparedSmoothedDose {
     diagram: SelectionDiagram,
     query: SmoothedDoseTransportQuery,
     identification: TransportIdentification,
-    input: SmoothedDoseInput,
+    input: std::sync::Arc<SmoothedDoseInput>,
     options: SmoothedDoseOptions,
     variable_names: Vec<String>,
     seed: u64,
+    zero_weight_rows: u64,
+}
+
+/// The pointwise bootstrap interval of a smoothed dose-response grid with its calibration.
+#[derive(Clone, Debug)]
+pub struct SmoothedDoseInterval {
+    run: antecedent_estimate::SmoothedDoseIntervalRun,
+    calibration: antecedent_io_core::contract_section::CalibrationSlotWire,
+}
+
+impl SmoothedDoseInterval {
+    /// The point run the interval is built around.
+    #[must_use]
+    pub const fn point(&self) -> &SmoothedDoseEstimate {
+        &self.run.point
+    }
+
+    /// Pointwise percentile interval per grid dose; `None` for every dose when a replicate
+    /// failed (see [`Self::uncertainty_reason`]).
+    #[must_use]
+    pub fn intervals(&self) -> &[Option<(f64, f64)>] {
+        &self.run.intervals
+    }
+
+    /// Why no interval was produced, when none was.
+    #[must_use]
+    pub fn uncertainty_reason(&self) -> Option<&str> {
+        self.run.uncertainty_reason.as_deref()
+    }
+
+    /// Successful replicate estimates, one per grid dose, in replicate order.
+    #[must_use]
+    pub fn replicates(&self) -> &[(u32, Vec<f64>)] {
+        &self.run.replicates
+    }
+
+    /// Calibration of the reported interval.
+    #[must_use]
+    pub const fn calibration(&self) -> &antecedent_io_core::contract_section::CalibrationSlotWire {
+        &self.calibration
+    }
 }
 
 /// One execution: the verified artifact wire that carries the grid and its evidence.
@@ -107,6 +147,10 @@ impl StudyBuilder {
     /// # Errors
     /// A malformed query, an uncertified graph, a request outside the frozen bounds, an
     /// estimated density, invalid or thin dose support, invalid rows or cancellation.
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "the operation accepts owned input as part of its interface"
+    )]
     pub fn smoothed_dose_transport(
         diagram: SelectionDiagram,
         query: SmoothedDoseTransportQuery,
@@ -123,18 +167,25 @@ impl StudyBuilder {
         {
             return Err(err("variable names must cover every graph coordinate"));
         }
-        let identification =
-            TransportIdentifier::new().identify(&diagram, &query.transport_query())?;
+        let identification = TransportIdentifier::new().identify_with_context(
+            &diagram,
+            &query.transport_query(),
+            ctx,
+        )?;
+        // Rows of sampling weight zero stand for no population: they are deleted before anything
+        // else, and the artifact binds the rows that were analysed.
+        let (input, zero_weight_rows) = input.without_zero_weight_rows().map_err(estimate_err)?;
         antecedent_estimate::validate_smoothed_dose(&identification, &query, &input, &options)
             .map_err(estimate_err)?;
         Ok(PreparedSmoothedDose {
             diagram,
             query,
             identification,
-            input,
+            input: std::sync::Arc::new(input),
             options,
             variable_names,
             seed: ctx.rng.master_seed(),
+            zero_weight_rows,
         })
     }
 
@@ -189,15 +240,61 @@ impl PreparedSmoothedDose {
         Ok(SmoothedDoseResult { wire, identity })
     }
 
-    /// The closed interval route: the point is retained by [`Self::estimate`] and the
-    /// interval is withheld until this cell's coverage records are measured.
+    /// The pointwise joint outer-refit percentile-bootstrap interval of the grid, built
+    /// on the frozen seed, with its calibration slot.
     ///
     /// # Errors
-    /// Always `cell_not_licensed` (`dose_response.interval_withheld`), or cancellation.
-    pub fn interval(&self, ctx: &ExecutionContext) -> Result<SmoothedDoseResult, IoError> {
+    /// The refusals of the estimate, a bootstrap below the replicate floor
+    /// (`dose_response.bootstrap_below_floor`), a workspace above the memory cap, or
+    /// cancellation.
+    pub fn interval(&self, ctx: &ExecutionContext) -> Result<SmoothedDoseInterval, IoError> {
         antecedent_estimate::refuse_cancelled(ctx, "smoothed dose interval")
             .map_err(estimate_err)?;
-        Err(estimate_err(antecedent_estimate::smoothed_dose::refuse_smoothed_dose_interval()))
+        let mut ctx = ctx.clone();
+        ctx.rng = antecedent_core::RngFactory::from_seed(self.seed);
+        let run = antecedent_estimate::smoothed_dose_interval_internal(
+            &self.identification,
+            &self.query,
+            &self.input,
+            &self.options,
+            &ctx,
+        )
+        .map_err(estimate_err)?;
+        let calibration = if run.intervals.iter().all(Option::is_some) && !run.intervals.is_empty()
+        {
+            use antecedent_io_core::calibration::{
+                CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire, calibration_slot,
+            };
+            calibration_slot(&CalibrationBasisWire {
+                key: CalibrationKeyWire {
+                    validation: "not_applicable".into(),
+                    query: "ClassicalTransport".into(),
+                    graph_class: "Admg".into(),
+                    structure: "fixed".into(),
+                    modality: "tabular".into(),
+                    inference: "Frequentist".into(),
+                    estimator: "transport.smoothed_dose_transport_aipw".into(),
+                    interval_method: "percentile_bootstrap".into(),
+                    se_kind: "percentile".into(),
+                    dependence: "iid".into(),
+                    posterior: String::new(),
+                    functional: "smoothed_dose_response".into(),
+                    level: self.options.coverage_level,
+                    identification: "point".into(),
+                },
+                scope: CalibrationScopeWire {
+                    row_count: self.input.outcome.len() as u64,
+                    replicates_ok: Some(u32::try_from(run.replicates.len()).unwrap_or(u32::MAX)),
+                    posterior_draws: None,
+                    unidentified_mass: 0.0,
+                },
+            })
+        } else {
+            antecedent_io_core::contract_section::CalibrationSlotWire::not_measured(
+                antecedent_io_core::calibration::NO_INTERVAL_REPORTED,
+            )
+        };
+        Ok(SmoothedDoseInterval { run, calibration })
     }
 
     /// Replace the rows with a compatible snapshot after validation; the certificate,
@@ -206,6 +303,10 @@ impl PreparedSmoothedDose {
     /// # Errors
     /// A changed feature schema or sampling design (`transport.reprepare_required`),
     /// invalid rows, an invalid or thin dose support, or cancellation.
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "the operation accepts owned input as part of its interface"
+    )]
     pub fn refresh(
         &self,
         input: SmoothedDoseInput,
@@ -216,6 +317,7 @@ impl PreparedSmoothedDose {
         if input.features != self.input.features || input.sampling != self.input.sampling {
             return Err(err("transport.reprepare_required"));
         }
+        let (input, zero_weight_rows) = input.without_zero_weight_rows().map_err(estimate_err)?;
         antecedent_estimate::validate_smoothed_dose(
             &self.identification,
             &self.query,
@@ -223,7 +325,39 @@ impl PreparedSmoothedDose {
             &self.options,
         )
         .map_err(estimate_err)?;
-        Ok(Self { input, ..self.clone() })
+        Ok(Self { input: std::sync::Arc::new(input), zero_weight_rows, ..self.clone() })
+    }
+
+    /// Rows of declared sampling weight zero that were deleted before preparation (they stand
+    /// for no population; the artifact binds the rows that remain).
+    #[must_use]
+    pub const fn zero_weight_rows(&self) -> u64 {
+        self.zero_weight_rows
+    }
+
+    /// Reconfigure the execution stream while sharing the immutable input and checked certificate.
+    /// # Errors
+    /// Cancellation or physical workspace refusal under the caller's policy.
+    pub fn with_seed(&self, seed: u64, ctx: &ExecutionContext) -> Result<Self, IoError> {
+        antecedent_estimate::refuse_cancelled(ctx, "transport execution reconfiguration")
+            .map_err(estimate_err)?;
+        let bytes = antecedent_estimate::smoothed_dose::smoothed_dose_workspace_bytes(
+            self.query.grid.len(),
+            &self.input,
+            &self.options,
+            ctx,
+            true,
+        );
+        let cap = antecedent_estimate::smoothed_dose::smoothed_dose_memory_cap(ctx);
+        if bytes.is_none_or(|bytes| bytes > cap) {
+            return Err(IoError::Refused {
+                code: antecedent_core::reason_code!("transport_budget_cancel"),
+                message: "smoothed dose workspace budget during execution reconfiguration".into(),
+            });
+        }
+        let mut branch = self.clone();
+        branch.seed = seed;
+        Ok(branch)
     }
 
     /// The estimator menu for this prepared graph, query and options.
@@ -253,5 +387,125 @@ impl PreparedSmoothedDose {
     #[must_use]
     pub const fn identification(&self) -> &TransportIdentification {
         &self.identification
+    }
+}
+
+use antecedent_io::bayesian_posterior_row_artifact::{
+    PosteriorRowConsumeLimits, PosteriorRowResultWire,
+};
+use antecedent_io::smoothed_dose_posterior_artifact::{
+    SmoothedDosePosteriorArtifactInput, SmoothedDosePosteriorArtifactWire,
+    SmoothedDosePosteriorModelWire,
+};
+
+/// One posterior execution: the verified artifact wire that carries the joint posterior of
+/// `psi_h` over the grid and the evidence it replays from.
+///
+/// The posterior is the Bayesian counterpart of the point estimate of
+/// [`PreparedSmoothedDose::estimate`] on the same coordinate (the smoothed dose response at
+/// each grid dose under the same certificate). It is explicitly unsupported with calibration
+/// `not_measured`; the interval route of the point estimate stays closed.
+#[derive(Clone, Debug)]
+pub struct SmoothedDosePosteriorResult {
+    wire: SmoothedDosePosteriorArtifactWire,
+}
+
+impl SmoothedDosePosteriorResult {
+    /// The retained posterior: per-dose summaries, joint covariance across the grid and the
+    /// exact Gaussian moments when the residual variance is known.
+    #[must_use]
+    pub const fn result(&self) -> &PosteriorRowResultWire {
+        &self.wire.result
+    }
+
+    /// The verified artifact wire.
+    #[must_use]
+    pub const fn wire(&self) -> &SmoothedDosePosteriorArtifactWire {
+        &self.wire
+    }
+
+    /// Export the posterior with its certificate, rows and model; a consumer replays it.
+    ///
+    /// # Errors
+    /// Encoding failure.
+    pub fn export(&self) -> Result<Vec<u8>, IoError> {
+        self.wire.export()
+    }
+}
+
+/// Independently consume a smoothed-dose posterior artifact: re-derive the certificate from
+/// the stored graph and query, recompute the posterior from the stored rows and seed, and
+/// accept only a bit-identical result.
+///
+/// # Errors
+/// Any decoding or verification failure, with its typed reason.
+pub fn consume_smoothed_dose_posterior_artifact(
+    bytes: &[u8],
+    limits: PosteriorRowConsumeLimits,
+) -> Result<SmoothedDosePosteriorResult, IoError> {
+    let wire = SmoothedDosePosteriorArtifactWire::consume_typed(bytes, limits)?;
+    Ok(SmoothedDosePosteriorResult { wire })
+}
+
+/// Consume a smoothed-dose posterior artifact under caller execution authority.
+///
+/// # Errors
+/// Any decoding or verification failure, including cancellation or admission refusal.
+pub fn consume_smoothed_dose_posterior_artifact_with_context(
+    bytes: &[u8],
+    limits: PosteriorRowConsumeLimits,
+    ctx: &ExecutionContext,
+) -> Result<SmoothedDosePosteriorResult, IoError> {
+    let wire = SmoothedDosePosteriorArtifactWire::consume_typed_with_context(bytes, limits, ctx)?;
+    Ok(SmoothedDosePosteriorResult { wire })
+}
+
+impl PreparedSmoothedDose {
+    /// The unsupported Bayesian posterior of the smoothed dose response over the grid, under
+    /// the declared outcome model, on the retained rows and certificate.
+    ///
+    /// # Errors
+    /// A typed refusal: an uncertified graph, a grid window outside the declared dose
+    /// support, fewer than `min_local_rows` source rows in a window, no target rows, or an
+    /// invalid prior or draw count.
+    pub fn posterior_with_context(
+        &self,
+        model: SmoothedDosePosteriorModelWire,
+        ctx: &ExecutionContext,
+    ) -> Result<SmoothedDosePosteriorResult, IoError> {
+        let wire = SmoothedDosePosteriorArtifactWire::checked_with_context(
+            SmoothedDosePosteriorArtifactInput {
+                graph: self.diagram.causal_graph(),
+                selections: self.diagram.selection_targets().iter().map(|v| v.raw()).collect(),
+                query: &self.query,
+                variable_names: &self.variable_names,
+                identification: &self.identification,
+                input: &self.input,
+                model,
+            },
+            ctx,
+        )?;
+        Ok(SmoothedDosePosteriorResult { wire })
+    }
+
+    /// The unsupported posterior under the context-free native workspace cap.
+    ///
+    /// # Errors
+    /// Invalid premises or posterior inputs.
+    pub fn posterior(
+        &self,
+        model: SmoothedDosePosteriorModelWire,
+    ) -> Result<SmoothedDosePosteriorResult, IoError> {
+        let wire =
+            SmoothedDosePosteriorArtifactWire::checked(SmoothedDosePosteriorArtifactInput {
+                graph: self.diagram.causal_graph(),
+                selections: self.diagram.selection_targets().iter().map(|v| v.raw()).collect(),
+                query: &self.query,
+                variable_names: &self.variable_names,
+                identification: &self.identification,
+                input: &self.input,
+                model,
+            })?;
+        Ok(SmoothedDosePosteriorResult { wire })
     }
 }

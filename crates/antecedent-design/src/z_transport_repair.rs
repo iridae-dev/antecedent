@@ -1,6 +1,6 @@
 //! Checked single-source z-transport evidence repair through the generic search.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::EvidenceObligation;
 use antecedent_core::{EvidenceRegime, ExecutionContext, reason_code};
@@ -38,7 +38,7 @@ impl ZTransportRepairFamily {
     ) -> Result<Self, RepairError> {
         let invalid = |message: String| RepairError {
             code: reason_code!("invalid_argument"),
-            detail: "identification_repair.invalid_request",
+            detail: antecedent_core::reason_details::identification_repair::INVALID_REQUEST,
             message,
             receipt: None,
         };
@@ -59,17 +59,6 @@ impl ZTransportRepairFamily {
     #[must_use]
     pub const fn sid_limits(&self) -> SidLimits {
         self.limits
-    }
-
-    /// Proposed regimes delivered by these study declarations.
-    ///
-    /// # Errors
-    /// Invalid study declarations.
-    pub fn hypothetical_regimes(
-        &self,
-        studies: &[&DurableStudyCandidate],
-    ) -> Result<Vec<EvidenceRegime>, Vec<String>> {
-        crate::repair::hypothetical_regimes(self.snapshot.catalog(), studies)
     }
 
     /// Recheck a stored hypothetical delta against this frozen proof.
@@ -163,6 +152,13 @@ impl RepairFamily for ZTransportRepairFamily {
     }
     fn unresolved_obligations(&self) -> Vec<EvidenceObligation> {
         self.obligations.clone()
+    }
+
+    fn hypothetical_regimes(
+        &self,
+        studies: &[&DurableStudyCandidate],
+    ) -> Result<Vec<EvidenceRegime>, Vec<String>> {
+        crate::repair::hypothetical_regimes(self.snapshot.catalog(), studies)
     }
 
     fn check(

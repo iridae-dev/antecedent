@@ -1,7 +1,7 @@
 //! Overflow pins for the GAC candidate cap. These live off the calibration
 //! surface so a test-only 16-vs-40 pin cannot owe a coverage remasurement.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -11,9 +11,8 @@ use antecedent_core::{
 };
 use antecedent_graph::{Admg, DenseNodeId, Pag};
 use antecedent_identify::{
-    CAPPED_COMPLETION_DIAGNOSTIC_CODE, GeneralizedAdjustmentConfig,
-    GeneralizedAdjustmentIdentifier, JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
-    MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
+    GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier,
+    JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE, MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
 };
 
 fn n(i: u32) -> DenseNodeId {
@@ -30,8 +29,11 @@ fn joint(t1: VariableId, t2: VariableId, y: VariableId) -> ResponseQuery {
     })
 }
 
+/// A declared ceiling skips the search for a smaller joint set, not the decision: one test on
+/// the maximal candidate set already certified it, so it is returned, flagged as the result
+/// of a bounded search.
 #[test]
-fn joint_candidate_cap_is_execution_not_scientific() {
+fn joint_candidate_cap_keeps_the_certified_set_and_is_execution_not_scientific() {
     let mut admg = Admg::with_variables(20);
     let t1 = n(0);
     let t2 = n(1);
@@ -52,13 +54,14 @@ fn joint_candidate_cap_is_execution_not_scientific() {
     .unwrap();
     assert_eq!(
         id.status,
-        IdentificationStatus::NotIdentified,
-        "cap keeps NotIdentified: {:?}",
+        IdentificationStatus::NonparametricallyIdentified,
+        "the ceiling does not withdraw the certified set: {:?}",
         id.derivation
     );
+    assert_eq!(id.estimands[0].adjustment_set.len(), 17);
     assert!(
         id.diagnostics.iter().any(|d| {
-            d.code.as_ref() == CAPPED_COMPLETION_DIAGNOSTIC_CODE
+            d.code.as_ref() == JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE
                 && d.kind == DiagnosticKind::Execution
         }),
         "cap must be an execution diagnostic: {:?}",
@@ -72,8 +75,8 @@ fn joint_candidate_cap_is_execution_not_scientific() {
 }
 
 /// The joint search's budget is the configured `max_examinations`: three separation tests
-/// cannot reach the only valid joint set (all seventeen common causes), so the result is an
-/// undecided search that the envelope counts as truncated, never a proof.
+/// cannot reach a smaller set than all seventeen common causes, so the result is the maximal
+/// set one test already certified, flagged as a bounded search the envelope counts as truncated.
 #[test]
 fn joint_search_budget_comes_from_the_config() {
     let mut admg = Admg::with_variables(20);
@@ -94,7 +97,7 @@ fn joint_search_budget_comes_from_the_config() {
     }
     .identify_joint_admg_response(&admg, &query)
     .unwrap();
-    assert_eq!(id.status, IdentificationStatus::NotIdentified);
+    assert_eq!(id.status, IdentificationStatus::NonparametricallyIdentified);
     assert_eq!(id.performance.candidates_examined, 3);
     assert!(
         id.diagnostics.iter().any(|d| {
@@ -162,4 +165,43 @@ fn mag_search_budget_keeps_the_certified_ancestral_set() {
     let adjustment: Vec<_> = case.estimands[0].adjustment_set.iter().map(|v| v.raw()).collect();
     assert_eq!(adjustment, vec![0]);
     assert!(case.diagnostics.is_empty());
+}
+
+/// A PAG is a class of MAGs, not a DAG: tails and arrowheads fix ancestry, not the absence of a
+/// latent confounder. In the complete directed triangle z -> t, z -> y, t -> y every pair is
+/// adjacent, so t -> y is not visible (no node outside y's neighbourhood points into t), the
+/// class contains the latent-confounded t <-> y world, and no adjustment set identifies the
+/// effect. Adding r -> t with r not adjacent to y makes the edge visible and {z} identifies.
+#[test]
+fn a_complete_directed_triangle_refuses_and_the_visible_edge_version_identifies() {
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(2));
+    let (z, t, y, r) = (n(0), n(1), n(2), n(3));
+    let mut triangle = Pag::with_variables(3);
+    triangle.insert_directed(z, t).unwrap();
+    triangle.insert_directed(z, y).unwrap();
+    triangle.insert_directed(t, y).unwrap();
+    let refused =
+        GeneralizedAdjustmentIdentifier::new().identify_pag_envelope(&triangle, &query).unwrap();
+    assert_eq!(refused.status, IdentificationStatus::NotIdentified);
+    assert!(refused.identified_weight.0 <= 0.0);
+    assert!(
+        refused.cases[0]
+            .result
+            .derivation
+            .steps
+            .iter()
+            .any(|step| step.detail.contains("invisible edge")),
+        "the refusal names the invisible edge"
+    );
+
+    let mut visible = Pag::with_variables(4);
+    visible.insert_directed(z, t).unwrap();
+    visible.insert_directed(z, y).unwrap();
+    visible.insert_directed(t, y).unwrap();
+    visible.insert_directed(r, t).unwrap();
+    let found =
+        GeneralizedAdjustmentIdentifier::new().identify_pag_envelope(&visible, &query).unwrap();
+    assert_eq!(found.status, IdentificationStatus::NonparametricallyIdentified);
+    let set = &found.cases[0].result.estimands[0].adjustment_set;
+    assert!(set.contains(&VariableId::from_raw(0)), "{set:?}");
 }

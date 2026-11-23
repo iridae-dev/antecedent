@@ -23,6 +23,11 @@ estimates under every permutation of the ordering with a flag where they disagre
 that cannot be evaluated is refused alone (``status == "unsupported"`` with its reason code)
 and the rest of the family is kept. The claim is ``point_only``.
 
+This is a specialized checked path outside the central compiler: it checks the construction,
+the cell support and the normalization, but not the adjustment set against a graph. The
+adjustment is the caller's declaration, and ``plan.adjustment_basis`` is
+``"declared"``; the cells are not an identified effect.
+
 ``nuisance="random_forest"`` or ``"gradient_boosted_trees"`` replaces the ridge-logistic
 conditionals and the per-cell OLS outcome models with that learner, cross-fitted over the same
 folds (a model never predicts a row it was fit on), with the learner identity, implementation
@@ -32,10 +37,10 @@ still ``point_only``.
 
 Refused, with a registered reason code:
 
-* an interval (``level=...``): ``penalized_interval_not_licensed``;
+* an interval (``level=...``): ``penalized_interval_not_supported``;
 * an interval over a learner-supplied family (``nuisance="random_forest"`` with ``level=...``)
   and a machine-learning name that is not a declared learner (``"ml"``, ``"neural_network"``,
-  ...): ``ml_nuisance_not_licensed``; ``"lasso"``: ``selection_inference_not_licensed``;
+  ...): ``ml_nuisance_not_supported``; ``"lasso"``: ``selection_inference_not_supported``;
 * an inconsistent declaration, leakage, illegal values: ``derived_treatment_invalid``;
 * a rank-deficient adjustment design: ``design_rank_deficient``.
 """
@@ -49,7 +54,9 @@ from typing import Any
 
 from . import _native
 from ._data import ingest_columns
-from .errors import CausalValueError
+from ._penalty import bounded_penalty_list
+from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, native_controls
 from .preflight import PreflightReport
 from .preflight import _report as _preflight_report
 
@@ -148,6 +155,10 @@ class DerivedTreatmentPlan:
     observed_levels: tuple[float, ...]
     rows_complete: int
     report: PreflightReport
+    #: ``"declared"``: the adjustment set is the caller's declaration, screened for
+    #: constituents, descendants and copies, but not checked against a graph. The plan is not an
+    #: identification of the derived treatment's effect.
+    adjustment_basis: str = "declared"
 
 
 @dataclass(frozen=True, slots=True)
@@ -268,6 +279,7 @@ def _plan(raw: Mapping[str, Any]) -> DerivedTreatmentPlan:
         observed_levels=tuple(raw["observed_levels"]),
         rows_complete=raw["rows_complete"],
         report=_preflight_report(raw["report"]),
+        adjustment_basis=raw["adjustment_basis"],
     )
 
 
@@ -339,31 +351,38 @@ def _result(raw: Mapping[str, Any]) -> JointCellsResult:
     )
 
 
+def _policy(execution: Execution | None) -> Execution:
+    policy = Execution() if execution is None else execution
+    if not isinstance(policy, Execution):
+        raise CausalTypeError("execution must be an antecedent.Execution")
+    return policy
+
+
 def check_derived_treatment(
     data: Mapping[str, Any] | Any,
     declaration: DerivedTreatment,
     *,
     outcome: str,
     adjustment: Sequence[str],
-    seed: int = 1,
-    threads: int | None = None,
-    cancel: _native.CancellationToken | None = None,
+    execution: Execution | None = None,
 ) -> DerivedTreatmentPlan:
     """Check a declaration against the table and the proposed adjustment set.
 
     Returns the accepted plan; raises ``CausalUnsupportedError`` (with
     ``refusal_fields.implicated_columns``) for every refusal listed in the module docstring.
     """
+    if isinstance(adjustment, str):
+        raise CausalTypeError("adjustment must be a sequence of column names, not a string")
     names, columns = ingest_columns(data)
-    raw = _native.derived_treatment_check_json(
+    policy = _policy(execution)
+    raw = policy._call(
+        _native.derived_treatment_check_json,
         names,
         columns,
         declaration.to_json(),
         outcome,
         list(adjustment),
-        seed=seed,
-        threads=threads,
-        cancel=cancel,
+        **native_controls(policy, seed="seed", threads="threads", cancel="cancel"),
     )
     return _plan(json.loads(raw))
 
@@ -380,15 +399,13 @@ def factorized_joint_cells(
     penalties: Sequence[float] | None = None,
     inner_folds: int = 5,
     folds: int = 5,
-    seed: int = 1,
     clip: float = 0.01,
     min_cell_ess: float = 10.0,
     normalization_tolerance: float = 1e-9,
     ordering_tolerance_sd: float = 0.05,
     contrasts: Sequence[str] = (),
     level: float | None = None,
-    threads: int | None = None,
-    cancel: _native.CancellationToken | None = None,
+    execution: Execution | None = None,
 ) -> JointCellsResult:
     """Estimate the cells of a declared joint-cell treatment (point only).
 
@@ -402,6 +419,13 @@ def factorized_joint_cells(
     passing ``penalties`` with a learner is an error. At most three binary components are
     supported.
     """
+    for name, value in (
+        ("adjustment", adjustment),
+        ("ordering", ordering),
+        ("contrasts", contrasts),
+    ):
+        if isinstance(value, str):
+            raise CausalTypeError(f"{name} must be a sequence of names, not a string")
     if not isinstance(nuisance, str):
         raise CausalValueError("nuisance must be a provider name string")
     if penalties is not None and nuisance != "ridge_logistic":
@@ -409,7 +433,9 @@ def factorized_joint_cells(
             "penalties tune the ridge_logistic nuisance only; a declared learner takes none"
         )
     names, columns = ingest_columns(data)
-    raw = _native.factorized_joint_cells_json(
+    policy = _policy(execution)
+    raw = policy._call(
+        _native.factorized_joint_cells_json,
         names,
         columns,
         declaration.to_json(),
@@ -418,18 +444,18 @@ def factorized_joint_cells(
         ordering=None if ordering is None else list(ordering),
         all_orderings=all_orderings,
         nuisance=nuisance,
-        penalties=None if penalties is None else [float(p) for p in penalties],
+        penalties=None
+        if penalties is None
+        else [float(p) for p in bounded_penalty_list(penalties)],
         inner_folds=inner_folds,
         folds=folds,
-        seed=seed,
         clip=clip,
         min_cell_ess=min_cell_ess,
         normalization_tolerance=normalization_tolerance,
         ordering_tolerance_sd=ordering_tolerance_sd,
         contrasts=list(contrasts),
         interval=level is not None,
-        threads=threads,
-        cancel=cancel,
+        **native_controls(policy, seed="seed", threads="threads", cancel="cancel"),
     )
     return _result(json.loads(raw))
 
@@ -487,7 +513,9 @@ def estimate_joint_cell_cost(
             ordering=None if ordering is None else [int(i) for i in ordering],
             all_orderings=all_orderings,
             nuisance=nuisance,
-            penalties=None if penalties is None else [float(p) for p in penalties],
+            penalties=None
+            if penalties is None
+            else [float(p) for p in bounded_penalty_list(penalties)],
             inner_folds=inner_folds,
             folds=folds,
             rows=rows,

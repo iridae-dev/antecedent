@@ -1,6 +1,6 @@
 //! Contracts-first: identities, inspection, transformation preview, claims.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -31,14 +31,14 @@ use antecedent_contract::{
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
     AverageEffectQuery, CacheBudget, CausalQuery, CausalRng, CausalSchemaBuilder,
-    ConditionalEffectQuery, ContinuousDomain, CounterfactualQuery, ExecutionContext,
-    ExecutionReceipt, ExecutionRequestState, GridSpec, IdentificationStatus, Intervention,
-    InterventionSequence, InterventionalDistributionQuery, Lag, MeasurementSpec, MediationContrast,
-    MediationQuery, ObservationAssumption, ObservationSpec, PathSpecificEffectQuery, ProgressSink,
-    QueryId, RequestIdentity, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseValue, RoleHint, SemanticDigest, SequencedIntervention, SmallRoleSet,
-    TEMPORAL_OBSERVATION_UNLICENSED, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec,
-    Value, ValueType, VariableId,
+    ChangeAttributionQuery, ConditionalEffectQuery, ContinuousDomain, CounterfactualQuery,
+    ExecutionContext, ExecutionReceipt, ExecutionRequestState, GridSpec, IdentificationStatus,
+    Intervention, InterventionSequence, InterventionalDistributionQuery, Lag, MeasurementSpec,
+    MediationContrast, MediationQuery, ObservationAssumption, ObservationSpec,
+    PathSpecificEffectQuery, PopulationSelector, ProgressSink, QueryId, RequestIdentity,
+    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseValue, RoleHint,
+    SemanticDigest, SequencedIntervention, SmallRoleSet, TEMPORAL_OBSERVATION_UNSUPPORTED,
+    TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, Value, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TableView, TabularData,
@@ -56,8 +56,8 @@ use antecedent_io::query_wire::{
 use antecedent_io::{
     DesignVariableRole, DesignVariableSummary, EstimandFingerprint, PriorCatalog, PriorMapping,
     PriorSourceMeta, PriorSourceRef, TargetDesign, TemporalCoordinates, accept_claim,
-    causal_query_to_wire, consume_analysis_result, executed_functional_labels, project_claim_host,
-    project_lossy_scalar,
+    causal_query_to_wire, executed_functional_labels, project_claim_host, project_lossy_scalar,
+    replay_analysis_result,
 };
 use antecedent_prob::InferenceDiagnostics;
 
@@ -136,7 +136,7 @@ fn inspect_does_not_identify() {
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     assert!(inspected.identities.identification_product.is_none());
     assert!(matches!(inspected.reasoning.uncertainty, SlotAvailability::Unavailable { .. }));
-    assert_eq!(inspected.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "supported");
 }
 
 #[test]
@@ -326,7 +326,7 @@ fn refresh_same_shape_changes_snapshot_and_expires_preview() {
             outcome.iter().zip(treatment).map(|(y, t)| y + t).collect::<Vec<_>>().into(),
         )
         .unwrap();
-    let refreshed = prepared.refresh(changed.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, changed.clone(), &ctx).unwrap();
     let after = prepared.contract().unwrap();
     assert_eq!(before.identities.target, after.identities.target);
     assert_eq!(before.identities.identification, after.identities.identification);
@@ -340,8 +340,8 @@ fn refresh_same_shape_changes_snapshot_and_expires_preview() {
     let fresh_result = fresh.estimate(&changed, &ctx).unwrap();
     assert!((refreshed.effect() - fresh_result.effect()).abs() < 1e-12);
     assert!(
-        (refreshed.estimate.as_effect().unwrap().se_analytic()
-            - fresh_result.estimate.as_effect().unwrap().se_analytic())
+        (refreshed.estimate().as_effect().unwrap().se_analytic()
+            - fresh_result.estimate().as_effect().unwrap().se_analytic())
         .abs()
             < 1e-12
     );
@@ -349,7 +349,8 @@ fn refresh_same_shape_changes_snapshot_and_expires_preview() {
     assert!((refreshed.effect() - original.effect() - 1.0).abs() < 1e-10);
     assert!((refreshed.effect() - 3.0).abs() < 0.2);
     let failure = data.with_replaced_float(VariableId::from_raw(0), vec![0.0; 256].into()).unwrap();
-    assert!(prepared.refresh(failure, &ctx).is_err());
+    let refused = rebind_estimate(&mut prepared, failure, &ctx).expect_err("a constant treatment");
+    assert!(refused.to_string().contains("reason=arm_not_populated"), "{refused}");
     assert_eq!(after.identities, prepared.contract().unwrap().identities);
 }
 
@@ -386,14 +387,24 @@ fn same_shape_inspection_distinguishes_masks_and_weights() {
         let contract = study(changed.clone(), dag.clone(), query.clone()).inspect().unwrap();
         assert_eq!(baseline.identities.identification, contract.identities.identification);
         assert_ne!(baseline.identities.data_snapshot, contract.identities.data_snapshot);
-        let changed_program = program(changed).program;
         if label == "mask" {
             // The checked physical design is bound to the complete-case row
             // count, so masking changes this executable program identity while
             // leaving the causal target and identification stable.
+            let changed_program = program(changed).program;
             assert_ne!(baseline_program, changed_program, "changed={label}");
         } else {
-            assert_eq!(baseline_program, changed_program, "changed={label}");
+            // Observation weights are visible to inspection, but a static average-effect
+            // route never reads them, so preparing it refuses rather than publishing the
+            // unweighted number for the weighted population.
+            let refused = study(changed, dag.clone(), query.clone())
+                .prepare(&ctx)
+                .expect_err("table weights must be refused on a route that never reads them");
+            assert!(
+                format!("{refused:?}")
+                    .contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+                "{refused:?}"
+            );
         }
     }
 }
@@ -402,7 +413,13 @@ fn same_shape_inspection_distinguishes_masks_and_weights() {
 fn dag_average_effect_vertical_path_is_independently_accepted() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, dag, query) = confounded_scm(80, 41);
-    let built = study(data.clone(), dag, query);
+    let built = Study::tabular(data.clone())
+        .graph(dag)
+        .query(query)
+        .bootstrap_replicates(0)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
     let inspected = built.inspect().unwrap();
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     let prepared = built.prepare(&ctx).unwrap();
@@ -424,10 +441,10 @@ fn dag_average_effect_vertical_path_is_independently_accepted() {
     let claim = result.claim(&contract, &ctx).unwrap();
     assert!(claim.value.is_some_and(|value| (value - 2.0).abs() < 0.2));
     let bytes = prepared.encode_contracted_result(&result, "dag-ate", &ctx).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
     // The checked OLS adjustment replays from the portable design moments.
     assert!(
-        consumed.acceptance.accepts_as_verified_program(),
+        consumed.acceptance.accepts_as_replayed_program(),
         "{:?}",
         consumed.acceptance.unresolved
     );
@@ -443,9 +460,9 @@ fn dag_average_effect_vertical_path_is_independently_accepted() {
     assert_eq!(section.target.query, consumed.body.query);
     assert_eq!(section.target.query, consumed.body.identification.query);
     assert_eq!(section.target.schema.variable_names(), names);
-    assert!(result.estimate.as_effect().unwrap().se_analytic().is_finite());
+    assert!(result.estimate().as_effect().unwrap().se_analytic().is_finite());
     assert!(
-        (result.effect() - 2.0).abs() < 1.96 * result.estimate.as_effect().unwrap().se_analytic()
+        (result.effect() - 2.0).abs() < 1.96 * result.estimate().as_effect().unwrap().se_analytic()
     );
     let body = result.analysis_result_wire(prepared.query()).unwrap();
     let mut legacy = Vec::new();
@@ -453,9 +470,9 @@ fn dag_average_effect_vertical_path_is_independently_accepted() {
         .unwrap()
         .write_to(&mut legacy)
         .unwrap();
-    let old = antecedent_io::consume_analysis_result(&legacy).unwrap();
+    let old = antecedent_io::replay_analysis_result(&legacy).unwrap();
     assert_eq!(old.body.estimate, consumed.body.estimate);
-    assert!(!old.acceptance.accepts_as_verified_program());
+    assert!(!old.acceptance.accepts_as_replayed_program());
 }
 
 #[test]
@@ -482,12 +499,12 @@ fn dag_average_effect_vertical_path_binds_functional_after_retarget() {
         prepared.contract().unwrap().identities.identification_product
     );
     assert!(retargeted.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
-    assert!(retargeted.estimate.as_effect().unwrap().se_analytic().is_finite());
-    assert!((retargeted.effect() - 2.0).abs() < 0.35);
+    assert!(retargeted.estimate().as_effect().unwrap().se_analytic().is_finite());
+    assert!((retargeted.effect() - 2.0).abs() < 0.1);
     assert!((retargeted.effect() - estimated.effect()).abs() < 1e-10);
     let bytes = prepared.encode_contracted_result(&retargeted, "dag-ate-retarget", &ctx).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
-    assert!(consumed.acceptance.accepts_as_verified_program());
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
+    assert!(consumed.acceptance.accepts_as_replayed_program());
     let names: Vec<String> =
         data.schema().variables().iter().map(|variable| variable.name.to_string()).collect();
     let section = consumed.contract.as_ref().expect("verified contract");
@@ -522,7 +539,7 @@ fn dag_average_effect_vertical_path_counts_identify_compute() {
             data.float64_slice(VariableId::from_raw(1)).unwrap().to_vec().into(),
         )
         .unwrap();
-    let refreshed = prepared.refresh(compatible.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, compatible.clone(), &ctx).unwrap();
     assert_eq!(identify_computations(&sink), 1, "compatible refresh must not re-identify");
     let second = prepared.estimate(&compatible, &ctx).unwrap();
     assert_eq!(identify_computations(&sink), 1);
@@ -665,11 +682,12 @@ fn consume_rehashes_identification_product_from_stored_payloads() {
     let prepared = study(data.clone(), dag, query).prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "rehash", &ctx).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
-    assert!(
-        consumed.acceptance.accepts_as_verified_program(),
-        "{:?}",
-        consumed.acceptance.unresolved
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
+    assert!(!consumed.body.refutations.is_empty());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
+    assert_eq!(
+        consumed.acceptance.unresolved.as_ref(),
+        &[std::sync::Arc::<str>::from("dependencies.refutation_replay")]
     );
     assert!(consumed.contract.as_ref().unwrap().identification_product.is_some());
     assert_eq!(
@@ -703,12 +721,20 @@ fn execution_identity_follows_the_estimate_context() {
 fn execution_identity_is_advertised_and_bound() {
     let ctx = ExecutionContext::for_tests(3);
     let (data, dag, query) = confounded_scm(48, 63);
-    let prepared = study(data.clone(), dag, query).prepare(&ctx).unwrap();
+    let prepared = Study::tabular(data.clone())
+        .graph(dag)
+        .query(query)
+        .bootstrap_replicates(0)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "execution", &ctx).unwrap();
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     assert!(
-        consumed.acceptance.accepts_as_verified_program(),
+        consumed.acceptance.accepts_as_replayed_program(),
         "{:?}",
         consumed.acceptance.unresolved
     );
@@ -724,14 +750,14 @@ fn execution_identity_is_advertised_and_bound() {
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     let mut tampered = section.clone();
     tampered.identities.execution.as_mut().unwrap()[0] ^= 0xff;
-    let consumed = consume_analysis_result(&rewrite_contract_section(
+    let consumed = replay_analysis_result(&rewrite_contract_section(
         &body,
         header.variable_names.clone(),
         "tampered",
         &tampered,
     ))
     .unwrap();
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert!(consumed.acceptance.unresolved.iter().any(|item| &**item == "identities.execution"));
 }
 
@@ -742,7 +768,11 @@ fn apply_refresh_requires_a_bound_preview() {
     let mut prepared = study(data.clone(), dag, query).prepare(&ctx).unwrap();
     let preview = prepared.preview_transform(TransformIntent::CompatibleDataReplace).unwrap();
     let stale = prepared.preview_transform(TransformIntent::ChangeGraph).unwrap();
-    assert!(prepared.apply_refresh(&stale, data.clone(), &ctx).is_err());
+    let refused = prepared.apply_refresh(&stale, data.clone(), &ctx).expect_err("a stale preview");
+    assert!(
+        refused.to_string().contains("refresh preview does not bind the current prepared contract"),
+        "{refused}"
+    );
     let refreshed = prepared.apply_refresh(&preview, data, &ctx).unwrap();
     assert!(refreshed.effect().is_finite());
 }
@@ -828,7 +858,7 @@ fn schema_names(data: &TabularData) -> Vec<String> {
     data.schema().variables().iter().map(|variable| variable.name.to_string()).collect()
 }
 
-fn consume_licensed_family(
+fn consume_supported_family(
     built: &Study,
     estimate: impl FnOnce(&antecedent::PreparedStudy) -> StudyResult,
     artifact_id: &str,
@@ -836,7 +866,7 @@ fn consume_licensed_family(
 ) -> (StudyResult, antecedent_io::AnalysisResultConsumption) {
     let inspected = built.inspect().unwrap();
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
-    assert_eq!(inspected.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "supported");
     let prepared = built.prepare(ctx).unwrap();
     let contract = prepared.contract().unwrap();
     assert_eq!(inspected.identities.target, contract.identities.target);
@@ -848,7 +878,7 @@ fn consume_licensed_family(
     assert_eq!(claim.identities.program, contract.identities.program);
     assert_eq!(claim.identities.target, contract.identities.target);
     let bytes = prepared.encode_contracted_result(&result, artifact_id, ctx).unwrap();
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     let named_nonportable_dependency = |reason: &std::sync::Arc<str>| {
         // Every sealed route executes on a retained checked operation that an
         // independent consumer cannot resolve from the bytes alone.
@@ -858,6 +888,7 @@ fn consume_licensed_family(
         sealed_operation
             || matches!(
                 reason.as_ref(),
+                "dependencies.refutation_replay" | "dependencies.scoped_refutation_replay" |
                 "dependencies.fitted_counterfactual_mechanisms"
                     // The portable result is readable and preserves the posterior
                     // claim, but does not carry joint factor draws for replay.
@@ -866,15 +897,32 @@ fn consume_licensed_family(
                     // The plan records fitted design roles, but no independent
                     // consumer can recompute the numeric fit without replay rows.
                     | "dependencies.linear_fit_sufficient_statistics"
+                    // Names an identification the consumer cannot re-derive
+                    // (non-DAG graph, effect modifiers, or a query outside the
+                    // criterion check): not replayable, which limits nothing.
+                    | "dependencies.identification_estimand_criterion"
             )
     };
+    let has_unscoped = consumed.body.refutations.iter().any(|report| report.scope.is_none());
+    let has_scoped = consumed.body.refutations.iter().any(|report| report.scope.is_some());
+    for (present, reason) in [
+        (has_unscoped, "dependencies.refutation_replay"),
+        (has_scoped, "dependencies.scoped_refutation_replay"),
+    ] {
+        assert_eq!(
+            consumed.acceptance.unresolved.iter().any(|item| item.as_ref() == reason),
+            present,
+            "unexpected replay obligation: {:?}",
+            consumed.acceptance.unresolved
+        );
+    }
     let known_nonportable_dependency =
         consumed.acceptance.unresolved.iter().any(named_nonportable_dependency);
     if known_nonportable_dependency {
-        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert!(!consumed.acceptance.accepts_as_replayed_program());
         assert!(consumed.acceptance.unresolved.iter().all(named_nonportable_dependency));
     } else {
-        assert!(consumed.acceptance.accepts_as_verified_program());
+        assert!(consumed.acceptance.accepts_as_replayed_program());
     }
     let section = consumed.contract.as_ref().expect("readable contract");
     let expected = executed_functional_labels(&causal_query_to_wire(prepared.query()).unwrap());
@@ -906,7 +954,7 @@ fn conditional_effect_fixture() -> (TabularData, Dag, ConditionalEffectQuery) {
 }
 
 #[test]
-fn licensed_family_conditional_effect_frequentist_consumes() {
+fn supported_family_conditional_effect_frequentist_consumes() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, dag, query) = conditional_effect_fixture();
     let built = Study::tabular(data.clone())
@@ -915,7 +963,7 @@ fn licensed_family_conditional_effect_frequentist_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "ce-f",
@@ -925,7 +973,11 @@ fn licensed_family_conditional_effect_frequentist_consumes() {
     assert_eq!(consumed.body.estimate, Some(result.effect()));
     assert_eq!(
         consumed.acceptance.unresolved.as_ref(),
-        &[std::sync::Arc::<str>::from("dependencies.checked_conditional_effect_operation")]
+        &[
+            std::sync::Arc::<str>::from("dependencies.refutation_replay"),
+            std::sync::Arc::<str>::from("dependencies.checked_conditional_effect_operation"),
+            std::sync::Arc::<str>::from("dependencies.identification_estimand_criterion"),
+        ]
     );
     let labels: std::collections::HashMap<_, _> =
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
@@ -938,7 +990,7 @@ fn licensed_family_conditional_effect_frequentist_consumes() {
 }
 
 #[test]
-fn licensed_family_conditional_effect_bayesian_consumes() {
+fn supported_family_conditional_effect_bayesian_consumes() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, dag, query) = conditional_effect_fixture();
     let built = Study::tabular(data.clone())
@@ -948,13 +1000,13 @@ fn licensed_family_conditional_effect_bayesian_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "ce-b",
         &ctx,
     );
-    assert!((result.effect() - 3.0).abs() < 0.15);
+    assert!((result.effect() - 3.0).abs() < 0.04);
     assert!(result.posterior.is_some());
     assert_eq!(consumed.body.estimate, Some(result.effect()));
 }
@@ -987,7 +1039,7 @@ fn staged_static_kinds() -> (TabularData, Dag, serde_json::Value) {
 }
 
 #[test]
-fn licensed_family_mediation_frequentist_consumes() {
+fn supported_family_mediation_frequentist_consumes() {
     let ctx = ExecutionContext::for_tests(13);
     let (data, dag, pin) = staged_static_kinds();
     let mut query = MediationQuery::binary(
@@ -1005,20 +1057,24 @@ fn licensed_family_mediation_frequentist_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "med-f",
         &ctx,
     );
     assert!(
-        (result.estimate.as_effect().unwrap().ate - pin["direct"].as_f64().unwrap()).abs()
+        (result.estimate().as_effect().unwrap().ate - pin["direct"].as_f64().unwrap()).abs()
             < pin["tolerance"].as_f64().unwrap()
     );
-    assert_eq!(consumed.body.estimate, Some(result.estimate.as_effect().unwrap().ate));
+    assert_eq!(consumed.body.estimate, Some(result.estimate().as_effect().unwrap().ate));
     assert_eq!(
         consumed.acceptance.unresolved.as_ref(),
-        &[std::sync::Arc::<str>::from("dependencies.checked_mediation_operation")]
+        &[
+            std::sync::Arc::<str>::from("dependencies.refutation_replay"),
+            std::sync::Arc::<str>::from("dependencies.checked_mediation_operation"),
+            std::sync::Arc::<str>::from("dependencies.identification_estimand_criterion"),
+        ]
     );
     let labels: std::collections::HashMap<_, _> =
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
@@ -1030,7 +1086,7 @@ fn licensed_family_mediation_frequentist_consumes() {
 }
 
 #[test]
-fn licensed_family_counterfactual_frequentist_consumes() {
+fn supported_family_counterfactual_frequentist_consumes() {
     let ctx = ExecutionContext::for_tests(13);
     let (data, dag, pin) = staged_static_kinds();
     let query = CounterfactualQuery::new(
@@ -1047,7 +1103,7 @@ fn licensed_family_counterfactual_frequentist_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "cf-f",
@@ -1098,8 +1154,34 @@ fn path_specific_fixture() -> (TabularData, Dag, PathSpecificEffectQuery) {
     (data, dag, query)
 }
 
+/// Full validation of a mixed-graph change attribution is currently refused:
+/// it does not support the underlying operation or allow a prepared claim.
+fn refused_admg_cell() -> antecedent::StudyBuilder {
+    let (data, _, _) = path_specific_fixture();
+    let mut admg = Admg::with_variables(3);
+    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    admg.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+    let query = ChangeAttributionQuery::new(
+        VariableId::from_raw(2),
+        PopulationSelector::TimeRange { start: 0, end: 100 },
+        PopulationSelector::TimeRange { start: 100, end: 200 },
+    );
+    Study::tabular(data)
+        .graph(admg)
+        .query(CausalQuery::ChangeAttribution(query))
+        .refute(RefuteSuite::Full)
+        .bootstrap_replicates(0)
+}
+
+fn assert_refused_build(builder: antecedent::StudyBuilder) {
+    assert!(matches!(
+        builder.build(),
+        Err(antecedent::CausalError::Support { id: antecedent::SupportRefusal::NotSupported, .. })
+    ));
+}
+
 #[test]
-fn licensed_family_path_specific_frequentist_consumes() {
+fn supported_family_path_specific_frequentist_consumes() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, dag, query) = path_specific_fixture();
     let built = Study::tabular(data.clone())
@@ -1110,13 +1192,15 @@ fn licensed_family_path_specific_frequentist_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "path-f",
         &ctx,
     );
-    assert!(result.effect().is_finite());
+    // t has no parent, so the path through m carries the whole effect: P(y | t = 1) - P(y | t = 0)
+    // = 80/100 - 50/100.
+    assert!((result.effect() - 0.3).abs() < 1e-9, "{}", result.effect());
     assert_eq!(consumed.body.estimate, Some(result.effect()));
     let labels: std::collections::HashMap<_, _> =
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
@@ -1165,9 +1249,9 @@ fn distribution_fixture() -> (TabularData, Dag, InterventionalDistributionQuery)
 #[test]
 #[allow(
     clippy::too_many_lines,
-    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for licensed family distribution frequentist consumes"
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for supported family distribution frequentist consumes"
 )]
-fn licensed_family_distribution_frequentist_consumes() {
+fn supported_family_distribution_frequentist_consumes() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, dag, query) = distribution_fixture();
     let built = Study::tabular(data.clone())
@@ -1178,14 +1262,14 @@ fn licensed_family_distribution_frequentist_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "dist-f",
         &ctx,
     );
     let dist = result.distribution().expect("distribution payload");
-    assert!((dist.mean - 0.7).abs() < 0.08);
+    assert!((dist.mean - 0.7).abs() < 1e-9);
     assert_eq!(consumed.body.estimate, Some(result.effect()));
     let contract = consumed.contract.as_ref().unwrap();
     let retained = contract.program.as_ref().unwrap().functional_program.as_ref().unwrap();
@@ -1220,7 +1304,7 @@ fn licensed_family_distribution_frequentist_consumes() {
         "dist-f-tampered-program",
         &forged,
     );
-    let forged = consume_analysis_result(&forged_bytes).unwrap();
+    let forged = replay_analysis_result(&forged_bytes).unwrap();
     assert!(
         forged
             .acceptance
@@ -1261,7 +1345,7 @@ fn licensed_family_distribution_frequentist_consumes() {
         "dist-f-valid-wrong-program",
         &forged,
     );
-    let forged = consume_analysis_result(&forged_bytes).unwrap();
+    let forged = replay_analysis_result(&forged_bytes).unwrap();
     assert!(
         forged
             .acceptance
@@ -1278,7 +1362,7 @@ fn licensed_family_distribution_frequentist_consumes() {
 }
 
 #[test]
-fn licensed_family_distribution_bayesian_consumes() {
+fn supported_family_distribution_bayesian_consumes() {
     let ctx = ExecutionContext::for_tests(18);
     let (data, dag, query) = distribution_fixture();
     let built = Study::tabular(data.clone())
@@ -1290,14 +1374,14 @@ fn licensed_family_distribution_bayesian_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "dist-b",
         &ctx,
     );
     let dist = result.distribution().expect("distribution payload");
-    assert!((dist.mean - 0.7).abs() < 0.08);
+    assert!((dist.mean - 0.7).abs() < 0.01);
     assert!(result.posterior.is_some());
     assert_eq!(consumed.body.estimate, Some(result.effect()));
 }
@@ -1331,7 +1415,7 @@ fn response_curve_fixture() -> (TabularData, Dag, ResponseQuery) {
 }
 
 #[test]
-fn licensed_family_response_curve_frequentist_consumes() {
+fn supported_family_response_curve_frequentist_consumes() {
     let ctx = ExecutionContext::for_tests(50);
     let (data, dag, query) = response_curve_fixture();
     let built = Study::tabular(data.clone())
@@ -1340,7 +1424,7 @@ fn licensed_family_response_curve_frequentist_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "resp-f",
@@ -1386,7 +1470,7 @@ fn mixture_data() -> TabularData {
 }
 
 #[test]
-fn licensed_family_conditional_graph_posterior_preserves_mass() {
+fn supported_family_conditional_graph_posterior_preserves_mass() {
     let ctx = ExecutionContext::for_tests(18);
     let data = mixture_data();
     let query = ConditionalEffectQuery::try_new(
@@ -1400,7 +1484,7 @@ fn licensed_family_conditional_graph_posterior_preserves_mass() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "ce-gp",
@@ -1438,7 +1522,7 @@ fn licensed_family_conditional_graph_posterior_preserves_mass() {
 }
 
 #[test]
-fn licensed_family_cpdag_conditional_refuses_unweighted_average() {
+fn supported_family_cpdag_conditional_refuses_unweighted_average() {
     let ctx = ExecutionContext::for_tests(4);
     let (data, dag, query) = conditional_effect_fixture();
     let cpdag = Cpdag::from_dag(&dag);
@@ -1450,13 +1534,13 @@ fn licensed_family_cpdag_conditional_refuses_unweighted_average() {
         .unwrap();
     let inspected = built.inspect().unwrap();
     assert_eq!(inspected.graph_class.as_str(), "Cpdag");
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "ce-cpdag",
         &ctx,
     );
-    assert!((result.effect() - 3.0).abs() < 0.2);
+    assert!((result.effect() - 3.0).abs() < 1e-8);
     let prepared = built.prepare(&ctx).unwrap();
     let preview = prepared.preview_transform(TransformIntent::AverageUnweightedClass).unwrap();
     assert!(preview.refused);
@@ -1531,7 +1615,7 @@ fn consume_series_family_refute(
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    consume_licensed_family(
+    consume_supported_family(
         &built,
         |prepared| prepared.estimate_series(series, &ctx).unwrap(),
         artifact_id,
@@ -1540,12 +1624,11 @@ fn consume_series_family_refute(
 }
 
 #[test]
-fn licensed_family_pulse_temporal_consumes() {
+fn supported_family_pulse_temporal_consumes() {
     let (series, graph) = lag1_series();
     let (result, consumed) =
         consume_series_family(&series, graph, pulse_query(), "pulse-f", InferenceMode::Frequentist);
-    assert!(result.effect().is_finite());
-    assert!((result.effect() - 0.5).abs() < 0.15);
+    assert!((result.effect() - 0.5).abs() < 1e-9);
     assert_eq!(
         consumed.acceptance.unresolved.as_ref(),
         &[std::sync::Arc::<str>::from("dependencies.checked_temporal_dag_effect_operation")]
@@ -1559,14 +1642,14 @@ fn licensed_family_pulse_temporal_consumes() {
 }
 
 #[test]
-fn licensed_family_sustained_temporal_consumes() {
+fn supported_family_sustained_temporal_consumes() {
     let (series, graph) = lag1_series();
     let query = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
         .with_policy(TemporalPolicy::sustained(-1, -1))
         .with_horizon_steps(1);
     let (result, consumed) =
         consume_series_family(&series, graph, query, "sustained-f", InferenceMode::Frequentist);
-    assert!((result.effect() - 0.5).abs() < 0.15);
+    assert!((result.effect() - 0.5).abs() < 1e-9);
     assert_eq!(
         consumed.acceptance.unresolved.as_ref(),
         &[std::sync::Arc::<str>::from("dependencies.checked_temporal_dag_effect_operation")]
@@ -1622,6 +1705,110 @@ fn accept_temporal_class(mut review: TemporalCpdagReview) -> AcceptedGraph {
     AcceptedGraph::accept(review).expect("undirected marks stay on the TemporalCpdag class")
 }
 
+/// Least-squares coefficient of the first regressor in `y ~ 1 + regressors`, by
+/// normal equations and Gauss-Jordan elimination: an independent calculation
+/// of a completion's regression-adjustment effect.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
+fn ols_first_coefficient(y: &[f64], regressors: &[&[f64]]) -> f64 {
+    let p = regressors.len() + 1;
+    let column = |j: usize, i: usize| if j == 0 { 1.0 } else { regressors[j - 1][i] };
+    let mut m = vec![vec![0.0; p + 1]; p];
+    for i in 0..y.len() {
+        for a in 0..p {
+            for b in 0..p {
+                m[a][b] += column(a, i) * column(b, i);
+            }
+            m[a][p] += column(a, i) * y[i];
+        }
+    }
+    for pivot in 0..p {
+        let best = (pivot..p).max_by(|&a, &b| m[a][pivot].abs().total_cmp(&m[b][pivot].abs()));
+        m.swap(pivot, best.unwrap());
+        let d = m[pivot][pivot];
+        for c in 0..=p {
+            m[pivot][c] /= d;
+        }
+        for r in 0..p {
+            if r != pivot {
+                let f = m[r][pivot];
+                for c in 0..=p {
+                    m[r][c] -= f * m[pivot][c];
+                }
+            }
+        }
+    }
+    m[1][p]
+}
+
+fn tabular_f64_column(data: &TabularData, index: usize) -> Vec<f64> {
+    tabular_f64_column_of(data.storage(), index)
+}
+
+fn tabular_f64_column_of(storage: &OwnedColumnarStorage, index: usize) -> Vec<f64> {
+    match &storage.columns()[index] {
+        OwnedColumn::Float64(column) => column.values.as_slice().to_vec(),
+        _ => panic!("fixture columns are Float64"),
+    }
+}
+
+/// The identified set a disagreeing static class publishes, read from the result.
+fn assert_class_publishes_envelope_not_a_bare_point(
+    result: &StudyResult,
+    completion_values: &[f64],
+    unidentified: usize,
+) {
+    let mixture = result
+        .structural_response
+        .as_ref()
+        .expect("a class whose completions disagree publishes its structural mixture");
+    let identified: Vec<f64> = mixture
+        .atoms
+        .iter()
+        .filter_map(|atom| match atom.value {
+            Some(antecedent_core::ResponseValue::Scalar(value)) => Some(value),
+            _ => None,
+        })
+        .collect();
+    let mut expected = completion_values.to_vec();
+    let mut observed = identified.clone();
+    expected.sort_by(f64::total_cmp);
+    observed.sort_by(f64::total_cmp);
+    assert_eq!(observed.len(), expected.len());
+    for (got, want) in observed.iter().zip(&expected) {
+        assert!((got - want).abs() < 1e-9, "completion value {got} vs independent OLS {want}");
+    }
+    assert_eq!(mixture.atoms.len(), expected.len() + unidentified);
+    assert_eq!(
+        mixture.atoms.iter().filter(|atom| atom.value.is_none()).count(),
+        unidentified,
+        "unidentified completions carry no value"
+    );
+    let set = mixture.identified_set.as_ref().expect("identified set");
+    assert!((set.lower[0] - expected[0]).abs() < 1e-9);
+    assert!((set.upper[0] - expected[expected.len() - 1]).abs() < 1e-9);
+    assert!(set.upper[0] - set.lower[0] > 0.5, "the completions genuinely disagree");
+    // The scalar the accessor returns is the enumeration-weighted summary of the
+    // identified completions, never one completion's effect, and the result says so.
+    let summary = expected.iter().sum::<f64>() / expected.len() as f64;
+    assert!((result.effect() - summary).abs() < 1e-9);
+    assert!(
+        expected.iter().all(|value| (result.effect() - value).abs() > 0.3),
+        "the summary is not any single completion's effect"
+    );
+    assert!(set.lower[0] < result.effect() && result.effect() < set.upper[0]);
+    let label = result
+        .diagnostics
+        .iter()
+        .find(|d| d.code.contains("identified_set"))
+        .expect("the identified-set label travels with the scalar");
+    assert!(label.message.contains("identified set over identified completions"));
+    assert!(label.message.contains("frozen-weight mixture"));
+    assert!(label.message.contains("enumeration weights, not posterior probabilities"));
+}
+
 #[test]
 fn composition_pc_and_ges_accepted_class_stays_cpdag() {
     let ctx = ExecutionContext::for_tests(7);
@@ -1651,13 +1838,30 @@ fn composition_pc_and_ges_accepted_class_stays_cpdag() {
     let prepared = built.prepare(&ctx).unwrap();
     let unweighted = prepared.preview_transform(TransformIntent::AverageUnweightedClass).unwrap();
     assert!(unweighted.refused, "class path must not average over completions");
-    let (result, _) = consume_licensed_family(
+    let (result, _) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "pc-class",
         &ctx,
     );
-    assert!(result.effect().is_finite());
+    // The three variables are pairwise dependent with no collider, so the class
+    // is the fully undirected triangle: six completions (the orderings), of
+    // which three keep t -> y identified and three orient y before t.
+    assert_eq!(undirected, 3);
+    let t = tabular_f64_column(&data, 0);
+    let y = tabular_f64_column(&data, 1);
+    let z = tabular_f64_column(&data, 2);
+    // t is a source (t,z,y / t,y,z): empty adjustment set. z precedes t
+    // (z,t,y): adjust for z. Independent least squares for each.
+    let unadjusted = ols_first_coefficient(&y, &[&t]);
+    let adjusted = ols_first_coefficient(&y, &[&t, &z]);
+    assert!((adjusted - 2.0).abs() < 0.2, "the adjusted completion recovers the truth 2");
+    assert!(unadjusted - adjusted > 0.5, "the unadjusted completion absorbs the confounding");
+    assert_class_publishes_envelope_not_a_bare_point(
+        &result,
+        &[unadjusted, unadjusted, adjusted],
+        3,
+    );
 
     let dag_built = Study::tabular(data.clone())
         .graph(AcceptedGraph::dag(dag))
@@ -1670,13 +1874,21 @@ fn composition_pc_and_ges_accepted_class_stays_cpdag() {
     let dag_ids = dag_built.prepare(&ctx).unwrap().contract().unwrap().identities;
     assert_eq!(class_ids.target, dag_ids.target);
     assert_ne!(class_ids.program, dag_ids.program);
-    let (dag_result, _) = consume_licensed_family(
+    let (dag_result, _) = consume_supported_family(
         &dag_built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "pc-dag",
         &ctx,
     );
     assert!((dag_result.effect() - 2.0).abs() < 0.2);
+    assert!(
+        (dag_result.effect() - adjusted).abs() < 1e-9,
+        "the generating DAG's effect is the adjusted completion's effect"
+    );
+    assert!(
+        dag_result.structural_response.is_none(),
+        "a DAG is one graph: a point, with no identified set"
+    );
 
     let ges = discover_ges(&data, &vars, &params, &ctx).unwrap();
     let ges_class = accept_static_class(ges.review);
@@ -1691,13 +1903,19 @@ fn composition_pc_and_ges_accepted_class_stays_cpdag() {
     let ges_inspected = ges_built.inspect().unwrap();
     assert_eq!(ges_inspected.graph_class.as_str(), "Cpdag");
     assert_eq!(ges_inspected.discovery_algorithm.as_deref(), Some("ges"));
-    let (ges_result, _) = consume_licensed_family(
+    let (ges_result, _) = consume_supported_family(
         &ges_built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "ges-class",
         &ctx,
     );
-    assert!(ges_result.effect().is_finite());
+    // GES recovers the same equivalence class, hence the same completions.
+    assert_class_publishes_envelope_not_a_bare_point(
+        &ges_result,
+        &[unadjusted, unadjusted, adjusted],
+        3,
+    );
+    assert!((ges_result.effect() - result.effect()).abs() < 1e-9);
 }
 
 fn lag1_discoverable_series() -> (TimeSeriesData, TemporalDag) {
@@ -1754,13 +1972,34 @@ fn composition_pcmci_plus_accepted_temporal_cpdag_retains_class() {
     assert_eq!(inspected.graph_class.as_str(), "TemporalCpdag");
     assert_eq!(inspected.structure_source, StructureSource::Accepted);
     assert_eq!(inspected.discovery_algorithm.as_deref(), Some("pcmci_plus"));
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate_series(&series, &ctx).unwrap(),
         "pcmci-plus-class",
         &ctx,
     );
-    assert!(result.effect().is_finite());
+    // The discovered class here has no undirected mark: one completion, so the
+    // class answer is a single effect (the identified set is a point), not a
+    // disagreement to be enumerated.
+    assert_eq!(undirected, 0);
+    let mixture = result.structural_response.as_ref().expect("class mixture");
+    assert_eq!(mixture.atoms.len(), 1);
+    assert!((mixture.identified_mass - 1.0).abs() < 1e-12);
+    let set = mixture.identified_set.as_ref().expect("identified set");
+    assert_eq!(set.lower, set.upper, "a single completion is a point identified set");
+    assert!((set.lower[0] - result.effect()).abs() < 1e-12);
+    // Independent calculation of that completion's effect: y_t on x_{t-1}
+    // (generating coefficient 0.8) by least squares.
+    let x_col = tabular_f64_column_of(series.storage(), 0);
+    let y_col = tabular_f64_column_of(series.storage(), 1);
+    let n = x_col.len();
+    let lagged = ols_first_coefficient(&y_col[1..], &[&x_col[..n - 1]]);
+    assert!(
+        (result.effect() - lagged).abs() < 1e-6,
+        "class effect {} vs independent lag-1 regression {lagged}",
+        result.effect()
+    );
+    assert!((lagged - 0.8).abs() < 0.05);
     let labels: std::collections::HashMap<_, _> =
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
             .into_iter()
@@ -1843,7 +2082,7 @@ fn composition_two_programs_compare_only_on_shared_data() {
     }
     match compose_claims(&[&left, &right], ClaimOperation::Pool, None, None) {
         DerivedClaimOutcome::Refused { restriction, .. } => {
-            assert_eq!(&*restriction, "unlicensed_synthesis");
+            assert_eq!(&*restriction, "unsupported_synthesis");
         }
         other => panic!("expected pool refusal, got {other:?}"),
     }
@@ -1860,7 +2099,7 @@ fn composition_score_table_retarget_reuses_scores_and_refuses_illegal_weights() 
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    assert_eq!(built.inspect().unwrap().support_status.unwrap().as_str(), "licensed");
+    assert_eq!(built.inspect().unwrap().support_status.unwrap().as_str(), "supported");
     let mut prepared = built.prepare(&ctx).unwrap();
     let before = prepared.contract().unwrap();
     let score_before = prepared.score_reuse_identity().unwrap().expect("score key");
@@ -1875,13 +2114,17 @@ fn composition_score_table_retarget_reuses_scores_and_refuses_illegal_weights() 
     );
     assert_eq!(prepared.score_reuse_identity().unwrap().expect("score key"), score_before);
     assert!(retargeted.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
-    assert!((retargeted.effect() - 2.0).abs() < 0.35);
+    assert!((retargeted.effect() - 2.0).abs() < 0.12);
     let illegal = prepared.retarget(&weights, &[VariableId::from_raw(0)], &ctx);
-    assert!(illegal.is_err(), "treatment-dependent weights must refuse");
+    let illegal = illegal.expect_err("treatment-dependent weights must refuse");
+    assert!(
+        illegal.to_string().contains("retarget depends_on must not include the treatment"),
+        "{illegal}"
+    );
 
     let (other, _, _) = confounded_scm(256, 42);
     assert_eq!(other.row_count(), data.row_count());
-    prepared.refresh(other, &ctx).unwrap();
+    rebind_estimate(&mut prepared, other, &ctx).unwrap();
     let after = prepared.contract().unwrap();
     assert_eq!(before.identities.identification, after.identities.identification);
     assert_eq!(before.identities.program, after.identities.program);
@@ -1894,9 +2137,9 @@ fn composition_artifact_reload_in_separate_process() {
     const FLAG: &str = "ANTECEDENT_I6_RELOAD";
     if let Ok(path) = std::env::var(FLAG) {
         let bytes = std::fs::read(path).unwrap();
-        let consumed = consume_analysis_result(&bytes).unwrap();
+        let consumed = replay_analysis_result(&bytes).unwrap();
         assert!(
-            consumed.acceptance.accepts_as_verified_program(),
+            consumed.acceptance.accepts_as_replayed_program(),
             "{:?}",
             consumed.acceptance.unresolved
         );
@@ -1912,7 +2155,13 @@ fn composition_artifact_reload_in_separate_process() {
 
     let ctx = ExecutionContext::for_tests(41);
     let (data, dag, query) = confounded_scm(80, 41);
-    let built = study(data.clone(), dag, query);
+    let built = Study::tabular(data.clone())
+        .graph(dag)
+        .query(query)
+        .bootstrap_replicates(0)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
     let prepared = built.prepare(&ctx).unwrap();
     let contract = prepared.contract().unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
@@ -1920,9 +2169,12 @@ fn composition_artifact_reload_in_separate_process() {
     let path = std::env::temp_dir().join(format!("antecedent-i6-{}.bin", std::process::id()));
     std::fs::write(&path, bytes).unwrap();
 
+    let prefix =
+        module_path!().split_once("::").map_or(String::new(), |(_, rest)| format!("{rest}::"));
+    let test_name = format!("{prefix}composition_artifact_reload_in_separate_process");
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .env(FLAG, &path)
-        .args(["composition_artifact_reload_in_separate_process", "--exact", "--nocapture"])
+        .args([test_name.as_str(), "--exact", "--nocapture"])
         .output()
         .unwrap();
     let _ = std::fs::remove_file(&path);
@@ -1933,8 +2185,9 @@ fn composition_artifact_reload_in_separate_process() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("running 1 test"), "the child selected no test: {stdout}");
     assert!(stdout.contains("I6_RELOAD_OK"), "{stdout}");
-    let consumed = consume_analysis_result(
+    let consumed = replay_analysis_result(
         &prepared.encode_contracted_result(&result, "i6-parent", &ctx).unwrap(),
     )
     .unwrap();
@@ -1993,7 +2246,7 @@ fn composition_prior_transfer_keeps_identification_and_refuses_mismatch() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    assert_eq!(transferred.inspect().unwrap().support_status.unwrap().as_str(), "licensed");
+    assert_eq!(transferred.inspect().unwrap().support_status.unwrap().as_str(), "supported");
     let iso = isotropic.prepare(&ctx).unwrap();
     let xfer = transferred.prepare(&ctx).unwrap();
     let iso_ids = iso.contract().unwrap().identities;
@@ -2032,7 +2285,8 @@ fn composition_prior_transfer_keeps_identification_and_refuses_mismatch() {
         .expect("same-design ATE catalog");
     let wrong_outcome = catalog
         .require_usable(&TargetDesign::new(EstimandFingerprint::new("ate", "t", "z"), ["t", "z"]));
-    assert!(wrong_outcome.is_err(), "outcome mismatch must refuse");
+    let wrong_outcome = wrong_outcome.expect_err("outcome mismatch must refuse").to_string();
+    assert!(wrong_outcome.contains("EstimandMismatch"), "{wrong_outcome}");
 
     let (series, graph) = lag1_series();
     let pulse_bytes = pulse_prior_bytes(&series, &graph, &ctx);
@@ -2053,7 +2307,8 @@ fn composition_prior_transfer_keeps_identification_and_refuses_mismatch() {
         EstimandFingerprint::new("pulse", "x", "y").with_temporal(TemporalCoordinates::new([2], 2)),
         ["x", "y"],
     ));
-    assert!(lag_mismatch.is_err(), "lag mismatch must refuse");
+    let lag_mismatch = lag_mismatch.expect_err("lag mismatch must refuse").to_string();
+    assert!(lag_mismatch.contains("TemporalCoordinatesMismatch"), "{lag_mismatch}");
 
     let bad_map = Study::series(series.clone())
         .graph(graph.clone())
@@ -2105,10 +2360,11 @@ fn composition_prior_transfer_keeps_identification_and_refuses_mismatch() {
         .graph(graph)
         .temporal_query(pulse_query())
         .inference(InferenceMode::Bayesian(
-            BayesianConfig::conjugate().n_draws(32).prior_from_composed(
+            BayesianConfig::conjugate().n_draws(32).prior_from_composed_with_baseline(
                 sources,
                 composed,
                 Some(ConflictPolicy::try_new(0.05, 1.0).unwrap()),
+                PriorSet::weakly_informative(2),
             ),
         ))
         .bootstrap_replicates(0)
@@ -2148,7 +2404,7 @@ fn composition_adversarial_boundaries_refuse_stronger_claims() {
         )
         .unwrap()
     };
-    prepared.refresh(changed.clone(), &ctx).unwrap();
+    rebind_estimate(&mut prepared, changed.clone(), &ctx).unwrap();
     let stale = prepared.apply_refresh(&preview, changed, &ctx);
     assert!(
         stale.is_err_and(|err| err.to_string().contains("does not bind")),
@@ -2226,46 +2482,23 @@ fn composition_adversarial_boundaries_refuse_stronger_claims() {
         })
     );
 
-    let (refused_data, _, refused_query) = conditional_effect_fixture();
-    let mut admg = Admg::with_variables(3);
-    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    admg.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
-    let refused = Study::tabular(refused_data)
-        .graph(admg)
-        .query(CausalQuery::ConditionalEffect(refused_query))
-        .bootstrap_replicates(0)
-        .inspect()
-        .unwrap();
-    assert_eq!(refused.support_status.unwrap().as_str(), "refused");
-    assert!(!matches!(refused.support_status.unwrap().as_str(), "licensed"));
+    let refused = refused_admg_cell().inspect().unwrap();
+    assert_eq!(refused.support_status.unwrap().as_str(), "not_supported");
+    assert!(!matches!(refused.support_status.unwrap().as_str(), "supported"));
 }
 
 #[test]
-fn licensed_family_refused_cell_inspects_as_structured_refusal() {
-    let (data, _, query) = conditional_effect_fixture();
-    let mut admg = Admg::with_variables(3);
-    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    admg.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
-    let inspected = Study::tabular(data.clone())
-        .graph(admg.clone())
-        .query(CausalQuery::ConditionalEffect(query.clone()))
-        .bootstrap_replicates(0)
-        .inspect()
-        .unwrap();
-    assert_eq!(inspected.support_status.unwrap().as_str(), "refused");
+fn supported_family_refused_cell_inspects_as_structured_refusal() {
+    let builder = refused_admg_cell();
+    let inspected = builder.clone().inspect().unwrap();
+    assert_eq!(inspected.support_status.unwrap().as_str(), "not_supported");
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     assert!(inspected.identities.identification_product.is_none());
-    let err = Study::tabular(data)
-        .graph(admg)
-        .query(CausalQuery::ConditionalEffect(query))
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap_err();
-    assert!(matches!(err, antecedent::CausalError::Support { .. }), "{err}");
+    assert_refused_build(builder);
 }
 
 #[test]
-fn licensed_family_na_cell_inspects_as_incomplete_contract() {
+fn supported_family_na_cell_inspects_as_incomplete_contract() {
     let (data, dag, _) = confounded_scm(32, 3);
     let inspected = Study::tabular(data.clone())
         .graph(dag.clone())
@@ -2297,16 +2530,9 @@ fn licensed_family_na_cell_inspects_as_incomplete_contract() {
 
 #[test]
 fn capability_preflight_and_build_agree_on_refused_blockers() {
-    let (data, _, query) = conditional_effect_fixture();
-    let mut admg = Admg::with_variables(3);
-    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    admg.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
-    let builder = Study::tabular(data)
-        .graph(admg)
-        .query(CausalQuery::ConditionalEffect(query))
-        .bootstrap_replicates(0);
+    let builder = refused_admg_cell();
     let preflight = builder.capability().unwrap();
-    assert_eq!(preflight.applicability, SemanticApplicability::Unlicensed);
+    assert_eq!(preflight.applicability, SemanticApplicability::Unsupported);
     assert!(!preflight.is_executable());
     assert_eq!(preflight.primary_blocker_id(), Some("support.refused"));
     assert!(preflight.blockers.iter().all(|blocker| blocker.scientific));
@@ -2320,14 +2546,11 @@ fn capability_preflight_and_build_agree_on_refused_blockers() {
     );
     assert!(preflight.neighbors.iter().all(|n| !n.coordinate.as_ref().contains(":Dag:")));
     let inspected = builder.clone().inspect().unwrap();
-    assert_eq!(inspected.support_status.unwrap().as_str(), "refused");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "not_supported");
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     assert_eq!(inspected.capability().primary_blocker_id(), preflight.primary_blocker_id());
-    let err = builder.build().unwrap_err();
-    assert_eq!(
-        err.blocker_id().as_ref().map(|blocker| blocker.id.as_ref()),
-        preflight.primary_blocker_id()
-    );
+    // The preflight blocker also prevents constructing a supported study.
+    assert_refused_build(builder);
 }
 
 #[test]
@@ -2357,29 +2580,14 @@ fn capability_preflight_and_build_agree_on_na_blockers() {
 
 #[test]
 fn capability_inspect_cannot_open_a_refused_cell() {
-    let (data, _, query) = conditional_effect_fixture();
-    let mut admg = Admg::with_variables(3);
-    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    admg.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
-    let inspected = Study::tabular(data.clone())
-        .graph(admg.clone())
-        .query(CausalQuery::ConditionalEffect(query.clone()))
-        .bootstrap_replicates(0)
-        .inspect()
-        .unwrap();
+    let builder = refused_admg_cell();
+    let inspected = builder.clone().inspect().unwrap();
     let report = inspected.capability();
-    assert_eq!(report.applicability, SemanticApplicability::Unlicensed);
+    assert_eq!(report.applicability, SemanticApplicability::Unsupported);
     assert!(!report.is_executable());
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     assert!(inspected.identities.identification_product.is_none());
-    assert!(
-        Study::tabular(data)
-            .graph(admg)
-            .query(CausalQuery::ConditionalEffect(query))
-            .bootstrap_replicates(0)
-            .build()
-            .is_err()
-    );
+    assert_refused_build(builder);
 }
 
 #[test]
@@ -2413,18 +2621,18 @@ fn capability_cpdag_does_not_recommend_dag_relabel() {
 }
 
 #[test]
-fn capability_licensed_cell_is_executable_and_agrees_with_prepare() {
+fn capability_supported_cell_is_executable_and_agrees_with_prepare() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, dag, query) = confounded_scm(32, 17);
     let builder = Study::tabular(data).graph(dag).query(query).bootstrap_replicates(0);
     let preflight = builder.capability().unwrap();
-    assert_eq!(preflight.applicability, SemanticApplicability::Licensed);
+    assert_eq!(preflight.applicability, SemanticApplicability::Supported);
     assert_eq!(preflight.readiness, Some(OperationReadiness::Executable));
     assert!(preflight.is_executable());
     assert!(preflight.neighbors.is_empty());
     let prepared = builder.build().unwrap().prepare(&ctx).unwrap();
     let prepared_report = prepared.capability().unwrap();
-    assert_eq!(prepared_report.applicability, SemanticApplicability::Licensed);
+    assert_eq!(prepared_report.applicability, SemanticApplicability::Supported);
     assert!(prepared_report.is_executable());
     assert_eq!(prepared_report.coordinate, preflight.coordinate);
 }
@@ -2451,23 +2659,14 @@ fn capability_rank_designs_uses_scoped_operation_not_matrix_row() {
         rank_preflight.coordinate
     );
 
-    let (data, _, cond) = conditional_effect_fixture();
-    let mut admg = Admg::with_variables(3);
-    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    admg.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
-    let refused = Study::tabular(data)
-        .graph(admg)
-        .query(CausalQuery::ConditionalEffect(cond))
-        .bootstrap_replicates(0)
-        .inspect()
-        .unwrap();
+    let refused = refused_admg_cell().inspect().unwrap();
     let refused_rank = refused.capability_for(OperationKind::RankDesigns);
-    assert_eq!(refused_rank.primary_blocker_id(), Some("operation.unlicensed"));
+    assert_eq!(refused_rank.primary_blocker_id(), Some("operation.unsupported"));
     assert!(
         refused_rank
             .coordinate
             .as_deref()
-            .is_some_and(|coord| coord.starts_with("ConditionalEffect:Admg:")),
+            .is_some_and(|coord| coord.starts_with("ChangeAttribution:Admg:")),
         "scoped ops keep the real matrix coordinate, got {:?}",
         refused_rank.coordinate
     );
@@ -2554,7 +2753,7 @@ fn consume_temporal_response(
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    consume_licensed_family(
+    consume_supported_family(
         &built,
         |prepared| prepared.estimate_series(series, &ctx).unwrap(),
         artifact_id,
@@ -2563,7 +2762,7 @@ fn consume_temporal_response(
 }
 
 #[test]
-fn licensed_family_temporal_response_curve_consumes() {
+fn supported_family_temporal_response_curve_consumes() {
     let (series, graph, pin) = temporal_dose_horizon();
     let doses = pin_f64s(&pin, &["contract", "dose_grid"]);
     let expected = pin_f64s(&pin, &["contract", "surface", "mean"]);
@@ -2577,9 +2776,16 @@ fn licensed_family_temporal_response_curve_consumes() {
     })
     .with_temporal(temporal_spec(&pin));
     let (result, consumed) = consume_temporal_response(&series, graph, query, "tresp-f");
+    // The study keeps its default validation suite, which the curve cell now supports, so the
+    // result carries curve refutation reports and a consumer must replay them besides the
+    // sealed temporal response operation.
+    assert!(result.refutations.iter().any(|report| report.refuter.starts_with("curve.")));
     assert_eq!(
         consumed.acceptance.unresolved.as_ref(),
-        &[std::sync::Arc::<str>::from("dependencies.checked_temporal_response_operation")]
+        &[
+            std::sync::Arc::<str>::from("dependencies.refutation_replay"),
+            std::sync::Arc::<str>::from("dependencies.checked_temporal_response_operation"),
+        ]
     );
     let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
         &result.response().expect("temporal response").estimate
@@ -2599,7 +2805,7 @@ fn licensed_family_temporal_response_curve_consumes() {
 }
 
 #[test]
-fn licensed_family_temporal_sequence_consumes() {
+fn supported_family_temporal_sequence_consumes() {
     let (series, graph, pin) = temporal_dose_horizon();
     let expected = pin_f64s(&pin, &["contract", "intervention_paths", "sequence_two_step_set_1"]);
     let last_step = pin_f64s(&pin, &["contract", "intervention_paths", "set_1"]);
@@ -2637,7 +2843,7 @@ fn licensed_family_temporal_sequence_consumes() {
 }
 
 #[test]
-fn licensed_family_mediation_bayesian_consumes() {
+fn supported_family_mediation_bayesian_consumes() {
     let ctx = ExecutionContext::for_tests(13);
     let (data, dag, pin) = staged_static_kinds();
     let mut query = MediationQuery::binary(
@@ -2656,7 +2862,7 @@ fn licensed_family_mediation_bayesian_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "med-b",
@@ -2664,14 +2870,14 @@ fn licensed_family_mediation_bayesian_consumes() {
     );
     assert!(result.posterior.is_some());
     assert!(
-        (result.estimate.as_effect().unwrap().ate - pin["direct"].as_f64().unwrap()).abs()
+        (result.estimate().as_effect().unwrap().ate - pin["direct"].as_f64().unwrap()).abs()
             < pin["tolerance"].as_f64().unwrap() + 0.15
     );
-    assert_eq!(consumed.body.estimate, Some(result.estimate.as_effect().unwrap().ate));
+    assert_eq!(consumed.body.estimate, Some(result.estimate().as_effect().unwrap().ate));
 }
 
 #[test]
-fn licensed_family_response_curve_bayesian_consumes() {
+fn supported_family_response_curve_bayesian_consumes() {
     let ctx = ExecutionContext::for_tests(50);
     let (data, dag, query) = response_curve_fixture();
     let built = Study::tabular(data.clone())
@@ -2681,7 +2887,7 @@ fn licensed_family_response_curve_bayesian_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "resp-b",
@@ -2694,7 +2900,7 @@ fn licensed_family_response_curve_bayesian_consumes() {
         panic!("expected a point-identified Bayesian response surface");
     };
     for (got, truth) in mean.iter().zip([0.0, 1.0, 2.0]) {
-        assert!((got - truth).abs() < 0.35, "grid point {got} vs {truth}");
+        assert!((got - truth).abs() < 0.15, "grid point {got} vs {truth}");
     }
     let uncertainty = consumed
         .contract
@@ -2718,7 +2924,7 @@ fn licensed_family_response_curve_bayesian_consumes() {
 }
 
 #[test]
-fn licensed_family_counterfactual_bayesian_consumes() {
+fn supported_family_counterfactual_bayesian_consumes() {
     let ctx = ExecutionContext::for_tests(13);
     let (data, dag, pin) = staged_static_kinds();
     let query = CounterfactualQuery::new(
@@ -2736,7 +2942,7 @@ fn licensed_family_counterfactual_bayesian_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "cf-b",
@@ -2744,7 +2950,7 @@ fn licensed_family_counterfactual_bayesian_consumes() {
     );
     assert!(result.posterior.is_some());
     let cf = result.counterfactual().expect("counterfactual payload");
-    assert!((cf.mean_ite - pin["counterfactual_mean"].as_f64().unwrap()).abs() < 0.15);
+    assert!((cf.mean_ite - pin["counterfactual_mean"].as_f64().unwrap()).abs() < 0.09);
     assert_eq!(consumed.body.estimate, Some(result.effect()));
     assert!(
         consumed
@@ -2756,7 +2962,7 @@ fn licensed_family_counterfactual_bayesian_consumes() {
 }
 
 #[test]
-fn licensed_family_conditional_effect_cheap_validation_consumes() {
+fn supported_family_conditional_effect_cheap_validation_consumes() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, dag, query) = conditional_effect_fixture();
     let built = Study::tabular(data.clone())
@@ -2772,7 +2978,7 @@ fn licensed_family_conditional_effect_cheap_validation_consumes() {
         other => panic!("inspect must publish support, got {other:?}"),
     };
     assert!(coordinate.contains("cheap"), "cheap validation must appear on {coordinate}");
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "ce-cheap",
@@ -2827,7 +3033,7 @@ fn pag_from_pin(pin: &serde_json::Value) -> (TabularData, Pag) {
 }
 
 #[test]
-fn licensed_family_pag_conditional_refuses_unweighted_average() {
+fn supported_family_pag_conditional_refuses_unweighted_average() {
     let ctx = ExecutionContext::for_tests(1);
     let pin = pag_pin();
     let (data, pag) = pag_from_pin(&pin);
@@ -2876,7 +3082,7 @@ fn licensed_family_pag_conditional_refuses_unweighted_average() {
         .unwrap();
     let inspected = built.inspect().unwrap();
     assert_eq!(inspected.graph_class.as_str(), "Pag");
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "ce-pag",
@@ -2910,7 +3116,7 @@ fn licensed_family_pag_conditional_refuses_unweighted_average() {
 }
 
 #[test]
-fn licensed_family_response_observation_obligations_inspect() {
+fn supported_family_response_observation_obligations_inspect() {
     let ctx = ExecutionContext::for_tests(50);
     let n = 240;
     let confounder: Vec<f64> = (0..n).map(|i| (i as f64 / 17.0).sin()).collect();
@@ -2971,7 +3177,7 @@ fn licensed_family_response_observation_obligations_inspect() {
         other => panic!("inspect must publish assumption obligations, got {other:?}"),
     }
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&observed, &ctx).unwrap(),
         "resp-obs",
@@ -3003,7 +3209,7 @@ fn licensed_family_response_observation_obligations_inspect() {
 }
 
 #[test]
-fn licensed_family_prior_bank_does_not_create_identification() {
+fn supported_family_prior_bank_does_not_create_identification() {
     let ctx = ExecutionContext::for_tests(1);
     let (series, graph) = lag1_series();
     let source = Study::series(series.clone())
@@ -3039,7 +3245,7 @@ fn licensed_family_prior_bank_does_not_create_identification() {
         .build()
         .unwrap();
     let inspected = transferred.inspect().unwrap();
-    assert_eq!(inspected.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "supported");
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     let iso = isotropic.prepare(&ctx).unwrap();
     let xfer = transferred.prepare(&ctx).unwrap();
@@ -3058,7 +3264,7 @@ fn licensed_family_prior_bank_does_not_create_identification() {
         }
         other => panic!("prepared identification must stay available, got {other:?}"),
     }
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &transferred,
         |prepared| prepared.estimate_series(&series, &ctx).unwrap(),
         "pulse-prior",
@@ -3102,7 +3308,7 @@ fn lag1_gp_posterior() -> GraphPosterior {
     GraphPosterior::from_atoms(
         2,
         vec![1.0],
-        vec![0],
+        vec![0_u64],
         vec![0.0; 4],
         vec![0.0; 4],
         SamplingSummary {
@@ -3114,7 +3320,7 @@ fn lag1_gp_posterior() -> GraphPosterior {
     .unwrap()
     .with_lagged_marginals(1, vec![0.0, 1.0, 0.0, 0.0])
     .unwrap()
-    .with_lag_masks(vec![2])
+    .with_lag_masks(vec![2_u64])
     .unwrap()
 }
 
@@ -3178,7 +3384,7 @@ fn consume_gp_series(
         .build()
         .unwrap();
     let inspected = built.inspect().unwrap();
-    assert_eq!(inspected.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "supported");
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     let prepared = built.prepare(&ctx).unwrap();
     let contract = prepared.contract().unwrap();
@@ -3191,16 +3397,23 @@ fn consume_gp_series(
     let bytes = prepared
         .encode_contracted_result(&result, artifact_id, &ctx)
         .expect("GP temporal encode must consume lagged-node products through the DBN namespace");
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     // The artifact is readable, but an independent consumer cannot replay the
     // sealed temporal graph-posterior operation without its retained atom proofs.
-    assert_eq!(
-        consumed.acceptance.unresolved.as_ref(),
-        &[std::sync::Arc::<str>::from(
-            "dependencies.checked_temporal_graph_posterior_effect_operation"
-        )]
-    );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    let mut expected = vec![std::sync::Arc::<str>::from(
+        "dependencies.checked_temporal_graph_posterior_effect_operation",
+    )];
+    if consumed.body.refutations.iter().any(|report| report.scope.is_none()) {
+        expected.push(std::sync::Arc::from("dependencies.refutation_replay"));
+    }
+    if consumed.body.refutations.iter().any(|report| report.scope.is_some()) {
+        expected.push(std::sync::Arc::from("dependencies.scoped_refutation_replay"));
+    }
+    let mut unresolved = consumed.acceptance.unresolved.to_vec();
+    expected.sort();
+    unresolved.sort();
+    assert_eq!(unresolved, expected);
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert_eq!(consumed.contract.as_ref().unwrap().graph_class.as_str(), "TemporalDag");
     result
 }
@@ -3247,7 +3460,7 @@ fn class_envelope_pag() -> TemporalPag {
 }
 
 #[test]
-fn licensed_family_pulse_bayesian_consumes() {
+fn supported_family_pulse_bayesian_consumes() {
     let (series, graph) = lag1_series();
     let (result, consumed) = consume_series_family(
         &series,
@@ -3257,7 +3470,7 @@ fn licensed_family_pulse_bayesian_consumes() {
         InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)),
     );
     assert!(result.posterior.is_some());
-    assert!((result.effect() - 0.5).abs() < 0.2);
+    assert!((result.effect() - 0.5).abs() < 0.005);
     let labels: std::collections::HashMap<_, _> =
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
             .into_iter()
@@ -3267,7 +3480,7 @@ fn licensed_family_pulse_bayesian_consumes() {
 }
 
 #[test]
-fn licensed_family_sustained_bayesian_consumes() {
+fn supported_family_sustained_bayesian_consumes() {
     let (series, graph) = lag1_series();
     let query = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
         .with_policy(TemporalPolicy::sustained(-1, -1))
@@ -3280,7 +3493,7 @@ fn licensed_family_sustained_bayesian_consumes() {
         InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)),
     );
     assert!(result.posterior.is_some());
-    assert!((result.effect() - 0.5).abs() < 0.2);
+    assert!((result.effect() - 0.5).abs() < 0.005);
     let labels: std::collections::HashMap<_, _> =
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
             .into_iter()
@@ -3289,7 +3502,7 @@ fn licensed_family_sustained_bayesian_consumes() {
 }
 
 #[test]
-fn licensed_family_pulse_cheap_validation_consumes() {
+fn supported_family_pulse_cheap_validation_consumes() {
     let (series, graph) = lag1_series();
     let built = Study::series(series.clone())
         .graph(graph.clone())
@@ -3308,12 +3521,12 @@ fn licensed_family_pulse_cheap_validation_consumes() {
         RefuteSuite::Cheap,
     );
     assert!(!result.refutations.is_empty());
-    assert!((result.effect() - 0.5).abs() < 0.15);
+    assert!((result.effect() - 0.5).abs() < 1e-9);
     assert_eq!(consumed.body.estimate, Some(result.effect()));
 }
 
 #[test]
-fn licensed_family_pulse_full_validation_consumes() {
+fn supported_family_pulse_full_validation_consumes() {
     let (series, graph) = lag1_series();
     let built = Study::series(series.clone())
         .graph(graph.clone())
@@ -3332,12 +3545,12 @@ fn licensed_family_pulse_full_validation_consumes() {
         RefuteSuite::Full,
     );
     assert!(!result.refutations.is_empty());
-    assert!((result.effect() - 0.5).abs() < 0.15);
+    assert!((result.effect() - 0.5).abs() < 1e-9);
     assert_eq!(consumed.body.estimate, Some(result.effect()));
 }
 
 #[test]
-fn licensed_family_intervention_response_static_consumes() {
+fn supported_family_intervention_response_static_consumes() {
     let ctx = ExecutionContext::for_tests(52);
     let (data, dag, query, truth, tolerance) = intervention_response_fixture();
     let built = Study::tabular(data.clone())
@@ -3346,7 +3559,7 @@ fn licensed_family_intervention_response_static_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "ir-f",
@@ -3367,7 +3580,7 @@ fn licensed_family_intervention_response_static_consumes() {
 }
 
 #[test]
-fn licensed_family_intervention_response_cheap_validation_consumes() {
+fn supported_family_intervention_response_cheap_validation_consumes() {
     let ctx = ExecutionContext::for_tests(52);
     let (data, dag, query, truth, tolerance) = intervention_response_fixture();
     let built = Study::tabular(data.clone())
@@ -3378,7 +3591,7 @@ fn licensed_family_intervention_response_cheap_validation_consumes() {
         .build()
         .unwrap();
     assert!(inspect_coordinate(&built).contains("cheap"));
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "ir-cheap",
@@ -3401,7 +3614,7 @@ fn licensed_family_intervention_response_cheap_validation_consumes() {
 }
 
 #[test]
-fn licensed_family_path_specific_bayesian_consumes() {
+fn supported_family_path_specific_bayesian_consumes() {
     let ctx = ExecutionContext::for_tests(18);
     let (data, dag, query) = path_specific_fixture();
     let built = Study::tabular(data.clone())
@@ -3413,14 +3626,14 @@ fn licensed_family_path_specific_bayesian_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "path-b",
         &ctx,
     );
     assert!(result.posterior.is_some());
-    assert!(result.effect().is_finite());
+    assert!((result.effect() - 0.3).abs() < 0.02, "{}", result.effect());
     assert_eq!(consumed.body.estimate, Some(result.effect()));
     let labels: std::collections::HashMap<_, _> =
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
@@ -3430,7 +3643,7 @@ fn licensed_family_path_specific_bayesian_consumes() {
 }
 
 #[test]
-fn licensed_family_path_specific_cheap_validation_consumes() {
+fn supported_family_path_specific_cheap_validation_consumes() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, dag, query) = path_specific_fixture();
     let built = Study::tabular(data.clone())
@@ -3443,19 +3656,19 @@ fn licensed_family_path_specific_cheap_validation_consumes() {
         .build()
         .unwrap();
     assert!(inspect_coordinate(&built).contains("cheap"));
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate(&data, &ctx).unwrap(),
         "path-cheap",
         &ctx,
     );
     assert!(!result.refutations.is_empty());
-    assert!(result.effect().is_finite());
+    assert!((result.effect() - 0.3).abs() < 1e-9, "{}", result.effect());
     assert_eq!(consumed.body.estimate, Some(result.effect()));
 }
 
 #[test]
-fn licensed_family_temporal_cpdag_pulse_consumes() {
+fn supported_family_temporal_cpdag_pulse_consumes() {
     let (series, _) = lag1_series();
     let (result, consumed) = consume_series_family(
         &series,
@@ -3464,7 +3677,7 @@ fn licensed_family_temporal_cpdag_pulse_consumes() {
         "pulse-tcpdag",
         InferenceMode::Frequentist,
     );
-    assert!((result.effect() - 0.5).abs() < 0.15);
+    assert!((result.effect() - 0.5).abs() < 1e-9);
     assert_eq!(consumed.contract.as_ref().unwrap().graph_class.as_str(), "TemporalCpdag");
     let labels: std::collections::HashMap<_, _> =
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
@@ -3474,7 +3687,7 @@ fn licensed_family_temporal_cpdag_pulse_consumes() {
 }
 
 #[test]
-fn licensed_family_temporal_pag_pulse_inspects_without_identified_mass() {
+fn supported_family_temporal_pag_pulse_inspects_without_identified_mass() {
     let (series, _) = lag1_series();
     let built = Study::series(series.clone())
         .graph(lag1_temporal_pag())
@@ -3483,7 +3696,7 @@ fn licensed_family_temporal_pag_pulse_inspects_without_identified_mass() {
         .build()
         .unwrap();
     let inspected = built.inspect().unwrap();
-    assert_eq!(inspected.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "supported");
     assert_eq!(inspected.graph_class.as_str(), "TemporalPag");
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     let ctx = ExecutionContext::for_tests(1);
@@ -3502,7 +3715,7 @@ fn licensed_family_temporal_pag_pulse_inspects_without_identified_mass() {
 }
 
 #[test]
-fn licensed_family_temporal_cpdag_response_curve_consumes() {
+fn supported_family_temporal_cpdag_response_curve_consumes() {
     let series = class_envelope_series();
     let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
         outcome: VariableId::from_raw(1),
@@ -3520,21 +3733,21 @@ fn licensed_family_temporal_cpdag_response_curve_consumes() {
         .build()
         .unwrap();
     let inspected = built.inspect().unwrap();
-    assert_eq!(inspected.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "supported");
     assert_eq!(inspected.graph_class.as_str(), "TemporalCpdag");
     let prepared = built.prepare(&ctx).unwrap();
     let result = prepared.estimate_series(&series, &ctx).unwrap();
     assert!(result.response().is_some());
     match prepared.encode_contracted_result(&result, "tresp-tcpdag", &ctx) {
         Ok(bytes) => {
-            let consumed = consume_analysis_result(&bytes).unwrap();
+            let consumed = replay_analysis_result(&bytes).unwrap();
             // The class response executes from a retained completion proof that
             // the portable artifact does not carry; an independent consumer must
             // name that missing operation rather than accept a program-less replay.
             assert!(consumed.acceptance.unresolved.iter().any(|dependency| {
                 dependency.as_ref() == "dependencies.checked_temporal_class_response_operation"
             }));
-            assert!(!consumed.acceptance.accepts_as_verified_program());
+            assert!(!consumed.acceptance.accepts_as_replayed_program());
             assert_eq!(consumed.contract.as_ref().unwrap().graph_class.as_str(), "TemporalCpdag");
         }
         Err(err) => {
@@ -3548,7 +3761,7 @@ fn licensed_family_temporal_cpdag_response_curve_consumes() {
 }
 
 #[test]
-fn licensed_family_temporal_pag_response_curve_inspects() {
+fn supported_family_temporal_pag_response_curve_inspects() {
     let series = class_envelope_series();
     let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
         outcome: VariableId::from_raw(1),
@@ -3566,7 +3779,7 @@ fn licensed_family_temporal_pag_response_curve_inspects() {
         .build()
         .unwrap();
     let inspected = built.inspect().unwrap();
-    assert_eq!(inspected.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "supported");
     assert_eq!(inspected.graph_class.as_str(), "TemporalPag");
     match built.prepare(&ctx).and_then(|prepared| prepared.estimate_series(&series, &ctx)) {
         Ok(result) => assert!(result.response().is_some()),
@@ -3589,7 +3802,7 @@ fn identified_pag_pin() -> serde_json::Value {
 }
 
 #[test]
-fn licensed_family_temporal_pag_pulse_consumes() {
+fn supported_family_temporal_pag_pulse_consumes() {
     let pin = identified_pag_pin();
     let series = identified_pag_series(&pin);
     let expected = pin["pulse_ate"].as_f64().unwrap();
@@ -3625,7 +3838,7 @@ fn licensed_family_temporal_pag_pulse_consumes() {
 }
 
 #[test]
-fn licensed_family_temporal_pag_response_curve_consumes() {
+fn supported_family_temporal_pag_response_curve_consumes() {
     let pin = identified_pag_pin();
     let series = identified_pag_series(&pin);
     let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
@@ -3643,7 +3856,7 @@ fn licensed_family_temporal_pag_response_curve_consumes() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate_series(&series, &ctx).unwrap(),
         "tresp-tpag",
@@ -3654,7 +3867,7 @@ fn licensed_family_temporal_pag_response_curve_consumes() {
 }
 
 #[test]
-fn licensed_family_gp_pulse_temporal_consumes() {
+fn supported_family_gp_pulse_temporal_consumes() {
     let (series, _) = lag1_series();
     let result = consume_gp_series(
         &series,
@@ -3663,11 +3876,11 @@ fn licensed_family_gp_pulse_temporal_consumes() {
         "pulse-gp",
         InferenceMode::Frequentist,
     );
-    assert!((result.effect() - 0.5).abs() < 0.15);
+    assert!((result.effect() - 0.5).abs() < 1e-9);
 }
 
 #[test]
-fn licensed_family_gp_pulse_bayesian_consumes() {
+fn supported_family_gp_pulse_bayesian_consumes() {
     let (series, _) = lag1_series();
     let result = consume_gp_series(
         &series,
@@ -3677,11 +3890,11 @@ fn licensed_family_gp_pulse_bayesian_consumes() {
         InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)),
     );
     assert!(result.posterior.is_some());
-    assert!((result.effect() - 0.5).abs() < 0.2);
+    assert!((result.effect() - 0.5).abs() < 0.005);
 }
 
 #[test]
-fn licensed_family_response_independent_given_observation_inspect() {
+fn supported_family_response_independent_given_observation_inspect() {
     let ctx = ExecutionContext::for_tests(50);
     let n = 240;
     let confounder: Vec<f64> = (0..n).map(|i| (i as f64 / 17.0).sin()).collect();
@@ -3741,7 +3954,7 @@ fn licensed_family_response_independent_given_observation_inspect() {
         }
         other => panic!("inspect must publish assumption obligations, got {other:?}"),
     }
-    assert_eq!(inspected.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "supported");
     let err =
         built.prepare(&ctx).and_then(|prepared| prepared.estimate(&observed, &ctx)).unwrap_err();
     assert!(
@@ -3751,7 +3964,7 @@ fn licensed_family_response_independent_given_observation_inspect() {
 }
 
 #[test]
-fn licensed_family_response_structural_observation_inspect() {
+fn supported_family_response_structural_observation_inspect() {
     let ctx = ExecutionContext::for_tests(50);
     let (data, dag, query) = response_curve_fixture();
     let query = query.with_observation(
@@ -3765,7 +3978,7 @@ fn licensed_family_response_structural_observation_inspect() {
         .build()
         .unwrap();
     let inspected = built.inspect().unwrap();
-    assert_eq!(inspected.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "supported");
     match &inspected.reasoning.assumptions {
         SlotAvailability::Available(slot) => {
             assert!(
@@ -3780,7 +3993,7 @@ fn licensed_family_response_structural_observation_inspect() {
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     match built.prepare(&ctx).and_then(|prepared| prepared.estimate(&data, &ctx)) {
         Ok(_) => {
-            let (_, consumed) = consume_licensed_family(
+            let (_, consumed) = consume_supported_family(
                 &built,
                 |prepared| prepared.estimate(&data, &ctx).unwrap(),
                 "resp-struct",
@@ -3811,7 +4024,7 @@ fn licensed_family_response_structural_observation_inspect() {
 }
 
 #[test]
-fn licensed_family_temporal_response_observation_independent_given() {
+fn supported_family_temporal_response_observation_independent_given() {
     let ctx = ExecutionContext::for_tests(21);
     let (series, graph, pin) = temporal_dose_horizon();
     let n = series.row_count();
@@ -3866,7 +4079,7 @@ fn licensed_family_temporal_response_observation_independent_given() {
         .build()
         .unwrap();
     let inspected = built.inspect().unwrap();
-    assert_eq!(inspected.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "supported");
     match &inspected.reasoning.assumptions {
         SlotAvailability::Available(slot) => {
             assert!(slot.obligations.iter().any(|obligation| {
@@ -3875,7 +4088,7 @@ fn licensed_family_temporal_response_observation_independent_given() {
         }
         other => panic!("inspect must publish temporal observation obligations, got {other:?}"),
     }
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate_series(&observed, &ctx).unwrap(),
         "tresp-obs",
@@ -3946,7 +4159,7 @@ fn consume_mapped_prior(
     let xfer = transferred.prepare(&ctx).unwrap().contract().unwrap();
     assert_eq!(iso.identities.identification, xfer.identities.identification);
     assert_ne!(iso.identities.inference_binding, xfer.identities.inference_binding);
-    let (_, consumed) = consume_licensed_family(
+    let (_, consumed) = consume_supported_family(
         &transferred,
         |prepared| prepared.estimate_series(series, &ctx).unwrap(),
         artifact_id,
@@ -3965,7 +4178,7 @@ fn consume_mapped_prior(
 }
 
 #[test]
-fn licensed_family_prior_mapping_identical_subspace_does_not_create_identification() {
+fn supported_family_prior_mapping_identical_subspace_does_not_create_identification() {
     let (series, graph) = lag1_series();
     consume_mapped_prior(
         &series,
@@ -3976,7 +4189,7 @@ fn licensed_family_prior_mapping_identical_subspace_does_not_create_identificati
 }
 
 #[test]
-fn licensed_family_prior_mapping_effect_functional_does_not_create_identification() {
+fn supported_family_prior_mapping_effect_functional_does_not_create_identification() {
     let (series, graph) = lag1_series();
     consume_mapped_prior(
         &series,
@@ -3987,7 +4200,7 @@ fn licensed_family_prior_mapping_effect_functional_does_not_create_identificatio
 }
 
 #[test]
-fn licensed_family_prior_mapping_named_parameters_does_not_create_identification() {
+fn supported_family_prior_mapping_named_parameters_does_not_create_identification() {
     let (series, graph) = lag1_series();
     consume_mapped_prior(
         &series,
@@ -4109,7 +4322,7 @@ fn inspect_observation_pair(
 }
 
 #[test]
-fn licensed_family_response_right_censored_observation_consumes() {
+fn supported_family_response_right_censored_observation_consumes() {
     let ctx = ExecutionContext::for_tests(21);
     let (series, graph, query) = right_censored_temporal_curve();
     let built = Study::series(series.clone())
@@ -4134,7 +4347,7 @@ fn licensed_family_response_right_censored_observation_consumes() {
         }
         other => panic!("inspect must publish right-censored obligations, got {other:?}"),
     }
-    let (result, consumed) = consume_licensed_family(
+    let (result, consumed) = consume_supported_family(
         &built,
         |prepared| prepared.estimate_series(&series, &ctx).unwrap(),
         "tresp-rc",
@@ -4155,7 +4368,7 @@ fn licensed_family_response_right_censored_observation_consumes() {
 }
 
 #[test]
-fn licensed_family_response_interval_censored_observation_inspects() {
+fn supported_family_response_interval_censored_observation_inspects() {
     let (built, series) = inspect_observation_pair(
         ObservationSpec::IntervalCensored {
             latent: VariableId::from_raw(1),
@@ -4172,7 +4385,7 @@ fn licensed_family_response_interval_censored_observation_inspects() {
         .and_then(|prepared| prepared.estimate_series(&series, &ctx))
         .unwrap_err();
     assert!(
-        err.to_string().contains(TEMPORAL_OBSERVATION_UNLICENSED)
+        err.to_string().contains(TEMPORAL_OBSERVATION_UNSUPPORTED)
             || err.to_string().contains("interval")
             || matches!(err, antecedent::CausalError::Unsupported { .. }),
         "IntervalCensored must refuse without treating bounds as MAR, got {err}"
@@ -4180,7 +4393,7 @@ fn licensed_family_response_interval_censored_observation_inspects() {
 }
 
 #[test]
-fn licensed_family_response_truncated_observation_inspects() {
+fn supported_family_response_truncated_observation_inspects() {
     let (built, series) = inspect_observation_pair(
         ObservationSpec::Truncated {
             latent: VariableId::from_raw(1),
@@ -4198,7 +4411,7 @@ fn licensed_family_response_truncated_observation_inspects() {
         .and_then(|prepared| prepared.estimate_series(&series, &ctx))
         .unwrap_err();
     assert!(
-        err.to_string().contains(TEMPORAL_OBSERVATION_UNLICENSED)
+        err.to_string().contains(TEMPORAL_OBSERVATION_UNSUPPORTED)
             || err.to_string().contains("truncat")
             || matches!(err, antecedent::CausalError::Unsupported { .. }),
         "Truncated must refuse without treating bounds as MAR, got {err}"
@@ -4206,7 +4419,7 @@ fn licensed_family_response_truncated_observation_inspects() {
 }
 
 #[test]
-fn licensed_family_prior_catalog_does_not_create_identification() {
+fn supported_family_prior_catalog_does_not_create_identification() {
     let ctx = ExecutionContext::for_tests(1);
     let (series, graph) = lag1_series();
     let bytes = pulse_prior_bytes(&series, &graph, &ctx);
@@ -4247,13 +4460,13 @@ fn licensed_family_prior_catalog_does_not_create_identification() {
         .build()
         .unwrap();
     let inspected = transferred.inspect().unwrap();
-    assert_eq!(inspected.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(inspected.support_status.unwrap().as_str(), "supported");
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     let iso = isotropic.prepare(&ctx).unwrap().contract().unwrap();
     let xfer = transferred.prepare(&ctx).unwrap().contract().unwrap();
     assert_eq!(iso.identities.identification, xfer.identities.identification);
     assert_ne!(iso.identities.inference_binding, xfer.identities.inference_binding);
-    let (_, consumed) = consume_licensed_family(
+    let (_, consumed) = consume_supported_family(
         &transferred,
         |prepared| prepared.estimate_series(&series, &ctx).unwrap(),
         "pulse-catalog",
@@ -4321,8 +4534,9 @@ fn failed_series_refresh_then_estimate_on_old_data() {
         .unwrap();
     let before = prepared.contract().unwrap().identities;
     let first = prepared.estimate_series(&series, &ctx).unwrap();
-    assert!((first.effect() - 0.5).abs() < 0.15);
-    assert!(prepared.refresh_series(xy_series_len(2), &ctx).is_err());
+    assert!((first.effect() - 0.5).abs() < 1e-9);
+    let refused = prepared.refresh_series(xy_series_len(2), &ctx).expect_err("a two-row series");
+    assert!(refused.to_string().contains("reason=positivity_violated"), "{refused}");
     assert_eq!(before, prepared.contract().unwrap().identities);
     let recovered = prepared.estimate_series(&series, &ctx).unwrap();
     assert!((recovered.effect() - first.effect()).abs() < 1e-12);
@@ -4360,7 +4574,7 @@ fn temporal_state_events_keep_lineage_and_refuse_stale_publish() {
     let curve_id = curve.contract().unwrap().identities;
     let pulse_est = pulse.estimate_series(&pulse_series, &ctx).unwrap();
     let curve_est = curve.estimate_series(&curve_series, &ctx).unwrap();
-    assert!(pulse_est.effect().is_finite());
+    assert!((pulse_est.effect() - 0.5).abs() < 1e-9, "{}", pulse_est.effect());
     assert!(curve_est.response().is_some());
 
     let mut state = new_antecedent_state(CacheBudget::new(1 << 20));
@@ -4399,7 +4613,8 @@ fn temporal_state_events_keep_lineage_and_refuse_stale_publish() {
     assert!(stale_publish.to_string().contains("stale commit"));
     assert!(state.is_stale(pulse_q));
 
-    assert!(pulse.refresh_series(xy_series_len(2), &ctx).is_err());
+    let refused = pulse.refresh_series(xy_series_len(2), &ctx).expect_err("a two-row series");
+    assert!(refused.to_string().contains("rank deficient"), "{refused}");
     assert_eq!(pulse.contract().unwrap().identities, pulse_id);
     assert!(state.is_stale(pulse_q), "failed recompute must not publish freshness");
 
@@ -4462,7 +4677,7 @@ fn temporal_state_events_keep_lineage_and_refuse_stale_publish() {
     assert!(format!("{not_recomputed}").contains("before the latest data event"));
     assert!(state.is_stale(pulse_q) && state.is_stale(curve_q));
     let recomputed = pulse.refresh_series(xy_series_len(90), &ctx).unwrap();
-    assert!(recomputed.effect().is_finite());
+    assert!((recomputed.effect() - 0.5).abs() < 1e-9, "{}", recomputed.effect());
     let pulse_recomputed = pulse.contract().unwrap().identities;
     publish_recomputed_results(&mut state, after_replace, &[(pulse_q, &pulse_recomputed, 32)])
         .unwrap();
@@ -4520,10 +4735,17 @@ fn rewrite_contract_section(
 fn claim_handoff_sender_restricted_forward_preserves_losses() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, dag, query) = confounded_scm(80, 41);
-    let prepared = study(data.clone(), dag, query).prepare(&ctx).unwrap();
-    let contract = prepared.contract().unwrap();
+    let prepared = Study::tabular(data.clone())
+        .graph(dag)
+        .query(query)
+        .bootstrap_replicates(0)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let claim = result.claim(&contract, &ctx).unwrap();
+    let (_, claim) = prepared.execution_contract(&result, &ctx).unwrap();
     assert_eq!(claim.kind, ClaimKind::Point);
     assert_eq!(claim.domain(ClaimDomainAxis::Identification), DomainStatus::Identified);
     assert_eq!(claim.domain(ClaimDomainAxis::Evaluated), DomainStatus::Evaluated);
@@ -4632,7 +4854,7 @@ fn derived_claim_compare_is_not_synthesis() {
     }
     match compose_claims(&[&left, &right], ClaimOperation::Pool, None, None) {
         DerivedClaimOutcome::Refused { restriction, parents, .. } => {
-            assert_eq!(&*restriction, "unlicensed_synthesis");
+            assert_eq!(&*restriction, "unsupported_synthesis");
             assert_eq!(parents.as_ref(), [left.claim_id, right.claim_id]);
         }
         other => panic!("expected pool refusal, got {other:?}"),
@@ -4735,7 +4957,7 @@ fn design_rank_pulse_bayesian_pins_synthetic_width_order() {
     assert!(!preview.unresolved);
     assert_eq!(preview.violations.len(), 1);
     assert_eq!(preview.violations[0].candidate_index, 2);
-    assert_eq!(preview.violations[0].constraint.as_ref(), "unlicensed_candidate");
+    assert_eq!(preview.violations[0].constraint.as_ref(), "unsupported_candidate");
     assert!(preview.obligations.iter().any(|item| item.id.as_ref() == "design.update_rule"));
 
     let ranking = prepared
@@ -4756,7 +4978,7 @@ fn design_rank_pulse_bayesian_pins_synthetic_width_order() {
 
 /// `ReduceDecisionRegret` through a prepared study scores the conjugate-normal
 /// expected value of sample information of each candidate's sample size, and
-/// records a candidate without a sample size as unlicensed instead of scoring it.
+/// records a candidate without a sample size as unsupported instead of scoring it.
 #[test]
 fn design_rank_decision_regret_scores_value_of_sample_information() {
     use antecedent::design::{
@@ -4821,7 +5043,7 @@ fn design_rank_decision_regret_scores_value_of_sample_information() {
     assert!(!preview.unresolved);
     assert_eq!(preview.violations.len(), 1);
     assert_eq!(preview.violations[0].candidate_index, 2);
-    assert_eq!(preview.violations[0].constraint.as_ref(), "unlicensed_candidate");
+    assert_eq!(preview.violations[0].constraint.as_ref(), "unsupported_candidate");
 
     let ranking =
         prepared.rank_designs(&tiny_ranker(), &objective, &candidates, &eval, &ctx).unwrap();
@@ -4994,7 +5216,7 @@ fn design_rank_graph_posterior_ate_preserves_unidentified_mass() {
     assert_eq!(ranking.ranked.len(), 1);
     assert_eq!(ranking.ranked[0].candidate_index, 1);
     assert!((graphs.unidentified_mass() - 0.4).abs() < 1e-12);
-    assert_eq!(ranking.violations[0].constraint.as_ref(), "unlicensed_candidate");
+    assert_eq!(ranking.violations[0].constraint.as_ref(), "unsupported_candidate");
 }
 
 #[test]
@@ -5085,8 +5307,19 @@ fn composition_prepared_estimate_matches_fresh() {
         study(data.clone(), dag, query).prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
     assert!((prepared_result.effect() - fresh.effect()).abs() < 1e-12);
     assert!(
-        (prepared_result.estimate.as_effect().unwrap().se_analytic()
-            - fresh.estimate.as_effect().unwrap().se_analytic())
+        (prepared_result.estimate().as_effect().unwrap().se_analytic()
+            - fresh.estimate().as_effect().unwrap().se_analytic())
+        .abs()
+            < 1e-12
+    );
+    // The one-shot `run` is the third route to the same estimate: neither a prepared handle nor
+    // the retained operation may differ from it.
+    let (data_again, dag_again, query_again) = confounded_scm(128, 59);
+    let one_shot = study(data_again, dag_again, query_again).run(&ctx).unwrap();
+    assert!((prepared_result.effect() - one_shot.effect()).abs() < 1e-12);
+    assert!(
+        (prepared_result.estimate().as_effect().unwrap().se_analytic()
+            - one_shot.estimate().as_effect().unwrap().se_analytic())
         .abs()
             < 1e-12
     );
@@ -5124,7 +5357,7 @@ fn assert_measured_record_status(
     if antecedent_io::calibration::record_attests_current_code(record) {
         assert_eq!(status, "calibrated");
     } else {
-        assert_eq!(status, "scope_not_assessed");
+        assert_eq!(status, "outside_measured_scope");
         assert_eq!(reason, Some("coverage_record_not_attesting"));
     }
 }
@@ -5165,6 +5398,54 @@ fn gcomp_measured_study(
 }
 
 #[test]
+fn calibration_validation_requires_the_executed_contract_coordinate() {
+    let ctx = ExecutionContext::for_tests(21);
+    let (prepared, data) = gcomp_measured_study(500, 400, 21);
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let contract = prepared.contract().unwrap();
+    let bases = result.calibration_bases(&contract).unwrap();
+    assert!(!bases.is_empty());
+    assert!(bases.iter().all(|b| b.key.validation == "none"));
+    let inspected = prepared.inspect().unwrap();
+    assert!(inspected.identities.program.is_none());
+    assert!(
+        result.calibration_bases(&inspected).unwrap().iter().all(|b| b.key.validation == "none")
+    );
+
+    let claim = result.claim(&contract, &ctx).unwrap();
+    assert_eq!(claim.calibration.basis.as_ref().unwrap().validation.as_ref(), "none");
+    let encoded = prepared.encode_contracted_result(&result, "validation-roundtrip", &ctx).unwrap();
+    let consumed = replay_analysis_result(&encoded).unwrap();
+    let slot = &consumed.contract.as_ref().unwrap().claim.as_ref().unwrap().calibration;
+    assert_eq!(slot.basis.as_ref().unwrap().key.validation, "none");
+}
+
+#[test]
+fn executed_modes_survive_cheap_inspection_and_claim_roundtrip() {
+    let ctx = ExecutionContext::for_tests(53);
+    let (data, dag, query) = confounded_scm(400, 53);
+    for (suite, expected) in
+        [(RefuteSuite::None, "none"), (RefuteSuite::Cheap, "cheap"), (RefuteSuite::Full, "full")]
+    {
+        let study = Study::tabular(data.clone())
+            .graph(dag.clone())
+            .query(query.clone())
+            .refute(suite)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        let inspected = study.inspect().unwrap();
+        let prepared = study.prepare(&ctx).unwrap();
+        let result = prepared.estimate(&data, &ctx).unwrap();
+        let bases = result.calibration_bases(&inspected).unwrap();
+        assert!(!bases.is_empty(), "{expected}");
+        assert!(bases.iter().all(|basis| basis.key.validation == expected), "{expected}");
+        let claim = result.claim(&prepared.contract().unwrap(), &ctx).unwrap();
+        assert_eq!(claim.calibration.basis.as_ref().unwrap().validation.as_ref(), expected);
+    }
+}
+
+#[test]
 fn calibration_slot_is_calibrated_inside_record_scope() {
     let ctx = ExecutionContext::for_tests(21);
     let (prepared, data) = gcomp_measured_study(500, 400, 21);
@@ -5182,12 +5463,12 @@ fn calibration_slot_is_calibrated_inside_record_scope() {
 }
 
 #[test]
-fn calibration_slot_is_scope_not_assessed_outside_the_measured_sample_size() {
+fn calibration_slot_is_outside_measured_scope_outside_the_measured_sample_size() {
     let ctx = ExecutionContext::for_tests(22);
     let (prepared, data) = gcomp_measured_study(50, 400, 22);
     let result = prepared.estimate(&data, &ctx).unwrap();
     let claim = calibration_of(&prepared, &result, &ctx);
-    assert_eq!(claim.status.as_ref(), "scope_not_assessed", "{claim:#?}");
+    assert_eq!(claim.status.as_ref(), "outside_measured_scope", "{claim:#?}");
     assert_eq!(claim.reason.as_deref(), Some("sample_size_outside_measured_range"));
     assert!(claim.record_id.is_some());
 }
@@ -5204,8 +5485,8 @@ fn missing_row_padding_does_not_upgrade_calibration() {
     let run = |pad: usize| {
         let mut tp = t.clone();
         let mut yp = y.clone();
-        tp.extend(std::iter::repeat(f64::NAN).take(pad));
-        yp.extend(std::iter::repeat(f64::NAN).take(pad));
+        tp.extend(std::iter::repeat_n(f64::NAN, pad));
+        yp.extend(std::iter::repeat_n(f64::NAN, pad));
         let data =
             TabularData::from_f64_columns([("t", tp.as_slice()), ("y", yp.as_slice())]).unwrap();
         let mut dag = Dag::with_variables(2);
@@ -5231,9 +5512,9 @@ fn missing_row_padding_does_not_upgrade_calibration() {
         assert_eq!(artifact_analysis_n(&prepared, &result, &ctx), 100);
         (
             result.effect(),
-            result.estimate.as_effect().unwrap().se_analytic(),
+            result.estimate().as_effect().unwrap().se_analytic(),
             claim.status.to_string(),
-            result.estimate.as_effect().unwrap().provenance.n_obs,
+            result.estimate().as_effect().unwrap().provenance.n_obs,
         )
     };
     let (e0, se0, status0, n0) = run(0);
@@ -5254,7 +5535,7 @@ fn artifact_analysis_n(
     ctx: &ExecutionContext,
 ) -> u64 {
     let bytes = prepared.encode_contracted_result(result, "r11-n", ctx).unwrap();
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     consumed
         .contract
         .as_ref()
@@ -5279,9 +5560,9 @@ fn matching_missing_row_padding_does_not_upgrade_calibration() {
         let mut tp = t.clone();
         let mut yp = y.clone();
         let mut zp = z.clone();
-        tp.extend(std::iter::repeat(f64::NAN).take(pad));
-        yp.extend(std::iter::repeat(f64::NAN).take(pad));
-        zp.extend(std::iter::repeat(f64::NAN).take(pad));
+        tp.extend(std::iter::repeat_n(f64::NAN, pad));
+        yp.extend(std::iter::repeat_n(f64::NAN, pad));
+        zp.extend(std::iter::repeat_n(f64::NAN, pad));
         let data = TabularData::from_f64_columns([
             ("t", tp.as_slice()),
             ("y", yp.as_slice()),
@@ -5298,11 +5579,11 @@ fn matching_missing_row_padding_does_not_upgrade_calibration() {
                 VariableId::from_raw(0),
                 VariableId::from_raw(1),
             )))
-            .estimator(antecedent_estimate::PropensityMatching {
-                bootstrap_replicates: 0,
-                se_kind: antecedent_estimate::AnalyticSeKind::Homoskedastic,
-                ..antecedent_estimate::PropensityMatching::new()
-            })
+            .estimator(
+                antecedent_estimate::PropensityMatching::new()
+                    .with_bootstrap_replicates(0)
+                    .with_se_kind(antecedent_estimate::AnalyticSeKind::Homoskedastic),
+            )
             .refute(RefuteSuite::None)
             .build()
             .unwrap()
@@ -5314,12 +5595,12 @@ fn matching_missing_row_padding_does_not_upgrade_calibration() {
         assert!(basis.scope.row_count < contract.row_count || pad == 0);
         assert_eq!(
             basis.scope.row_count,
-            result.estimate.as_effect().unwrap().provenance.n_obs.unwrap()
+            result.estimate().as_effect().unwrap().provenance.n_obs.unwrap()
         );
         assert_eq!(artifact_analysis_n(&prepared, &result, &ctx), basis.scope.row_count);
         (
             result.effect(),
-            result.estimate.as_effect().unwrap().provenance.n_obs,
+            result.estimate().as_effect().unwrap().provenance.n_obs,
             basis.scope.row_count,
         )
     };
@@ -5351,7 +5632,7 @@ fn temporal_calibration_scope_uses_lag_aligned_n() {
     let result = prepared.estimate_series(&series, &ctx).unwrap();
     let contract = prepared.contract().unwrap();
     let analysis_n = result
-        .estimate
+        .estimate()
         .as_effect()
         .unwrap()
         .provenance
@@ -5461,7 +5742,7 @@ fn calibration_slot_is_not_calibrated_with_fewer_bootstrap_replicates_than_measu
 }
 
 #[test]
-fn an_unmeasured_bootstrap_construction_is_unavailable() {
+fn an_not_measured_bootstrap_construction_is_unavailable() {
     // The review's reproducer: AIPW with two bootstrap replicates reported
     // `calibrated` against a record whose cited test never ran AIPW.
     let ctx = ExecutionContext::for_tests(28);
@@ -5500,7 +5781,7 @@ fn calibration_slot_is_unavailable_with_code_when_no_record() {
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let claim = calibration_of(&prepared, &result, &ctx);
-    assert_eq!(claim.status.as_ref(), "unavailable");
+    assert_eq!(claim.status.as_ref(), "not_measured");
     assert!(claim.reason.is_some());
     assert!(claim.record_id.is_none());
 }
@@ -5573,7 +5854,7 @@ fn calibration_slot_is_covered_by_claim_id() {
     let (prepared, data) = gcomp_measured_study(500, 400, 8);
     let result = prepared.estimate(&data, &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "cal-slot", &ctx).unwrap();
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     assert_eq!(
         consumed.acceptance.unresolved.as_ref(),
         &[std::sync::Arc::<str>::from("dependencies.checked_bayesian_dag_ate_operation")]
@@ -5586,7 +5867,7 @@ fn calibration_slot_is_covered_by_claim_id() {
     let mut contract = antecedent_io::decode_analysis_result_contract(&artifact).unwrap().unwrap();
     let claim = contract.claim.as_mut().unwrap();
     claim.calibration.status = if original.status == "calibrated" {
-        "scope_not_assessed".into()
+        "outside_measured_scope".into()
     } else {
         "calibrated".into()
     };
@@ -5605,13 +5886,13 @@ fn calibration_slot_is_covered_by_claim_id() {
     forged.sections.push(section);
     let mut forged_bytes = Vec::new();
     forged.write_to(&mut forged_bytes).unwrap();
-    match consume_analysis_result(&forged_bytes) {
+    match replay_analysis_result(&forged_bytes) {
         // The claim digest covers the slot, so the edited artifact either fails
         // to decode as a contract at all or is refused as a verified program.
         Err(err) => assert!(format!("{err}").contains("claim"), "{err}"),
         Ok(consumed) => {
             assert!(
-                !consumed.acceptance.accepts_as_verified_program(),
+                !consumed.acceptance.accepts_as_replayed_program(),
                 "an edited calibration status must not verify: {:?}",
                 consumed.acceptance.unresolved
             );
@@ -5666,7 +5947,7 @@ fn producer_and_consumer_agree_on_the_calibration_slot() {
         }),
     ];
     for (label, bytes) in cases {
-        let consumed = consume_analysis_result(&bytes).unwrap();
+        let consumed = replay_analysis_result(&bytes).unwrap();
         let claim = consumed.contract.as_ref().unwrap().claim.as_ref().unwrap();
         assert_eq!(
             antecedent_io::calibration::rederive_calibration(&claim.calibration),
@@ -5686,10 +5967,10 @@ fn producer_and_consumer_agree_on_the_calibration_slot() {
                 )]
             );
         } else {
-            assert!(
-                consumed.acceptance.accepts_as_verified_program(),
-                "{label}: {:?}",
-                consumed.acceptance.unresolved
+            assert_eq!(
+                consumed.acceptance.unresolved.as_ref(),
+                &[std::sync::Arc::<str>::from("dependencies.checked_estimator_operation")],
+                "{label}: a calibration slot does not supply the missing portable panel replay"
             );
         }
     }
@@ -5724,10 +6005,10 @@ fn lag1_panel() -> (antecedent_data::PanelData, TemporalDag) {
 }
 
 #[test]
-fn every_licensed_cell_has_a_calibration_record_or_code() {
-    let licensed = include_str!("../../../parity/support_licensed.toml");
+fn every_supported_cell_has_a_calibration_record_or_code() {
+    let supported = include_str!("../../../parity/support_cells.toml");
     let mut missing = Vec::new();
-    for block in licensed.split("[[cell]]").skip(1) {
+    for block in supported.split("[[cell]]").skip(1) {
         let has_record = block.contains("calibration =");
         let has_reason = block.contains("calibration_reason =");
         // A record list beside `boundary_record` says what was measured and that none
@@ -5857,7 +6138,7 @@ fn aipw_prepared(
 }
 
 fn contract_of(bytes: &[u8]) -> antecedent_io::AnalysisResultContractWire {
-    consume_analysis_result(bytes).unwrap().contract.expect("contract section")
+    replay_analysis_result(bytes).unwrap().contract.expect("contract section")
 }
 
 fn z_weights(data: &TabularData, scale: f64) -> Vec<f64> {
@@ -5882,7 +6163,13 @@ fn encoder_refuses_result_population_mismatch() {
     // A genuine retarget does not become the target of another handle.
     let retargeted =
         average.retarget(&z_weights(&data, 3.0), &[VariableId::from_raw(2)], &ctx).unwrap();
-    assert!(treated.encode_contracted_result(&retargeted, "mismatch", &ctx).is_err());
+    let refused = treated
+        .encode_contracted_result(&retargeted, "mismatch", &ctx)
+        .expect_err("a retargeted result is not the treated handle's");
+    assert!(
+        refused.to_string().contains("row-weight target requires a prepared score table"),
+        "{refused}"
+    );
     assert!(treated.encode_contracted_result(&treated_result, "ok", &ctx).is_ok());
 }
 
@@ -5908,11 +6195,6 @@ fn encoder_refuses_a_result_from_another_program() {
         "{err}"
     );
     assert!(confounded.encode_contracted_result(&own, "own", &ctx).is_ok());
-    // A result no prepared handle executed cannot be certified either.
-    let mut detached = own.clone();
-    detached.executed_contract = None;
-    let err = confounded.encode_contracted_result(&detached, "detached", &ctx).unwrap_err();
-    assert!(format!("{err}").contains("prepared handle"), "{err}");
 }
 
 #[test]
@@ -5924,7 +6206,7 @@ fn encoder_refuses_a_result_computed_on_another_snapshot() {
     let other = prepared.estimate(&small, &ctx).unwrap();
     let err = prepared.encode_contracted_result(&other, "other-data", &ctx).unwrap_err();
     assert!(format!("{err}").contains("data snapshot"), "{err}");
-    let consumed = consume_analysis_result(
+    let consumed = replay_analysis_result(
         &prepared
             .encode_contracted_result(&prepared.estimate(&data, &ctx).unwrap(), "own", &ctx)
             .unwrap(),
@@ -5947,13 +6229,13 @@ fn nonconstant_retarget_exports_with_target_weights_identity() {
     let preview = prepared.preview_transform(TransformIntent::Retarget).unwrap();
     let weights = z_weights(&data, 3.0);
     let retargeted = prepared.apply_retarget(&preview, &weights, &z, &ctx).unwrap();
-    let binding = retargeted.row_weights.clone().expect("row-weight binding");
+    let binding = retargeted.row_weights().clone().expect("row-weight binding");
     let bytes = prepared.encode_contracted_result(&retargeted, "reweight", &ctx).unwrap();
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     // The row-weight retarget is a separate composition without a checked
     // lowering. The artifact remains readable and its weight
     // identity is verifiable, but consumption must not upgrade the AIPW program.
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert!(
         consumed
             .acceptance
@@ -5998,7 +6280,7 @@ fn nonconstant_retarget_exports_with_target_weights_identity() {
     let estimated = prepared.estimate(&data, &ctx).unwrap();
     let plain = contract_of(&prepared.encode_contracted_result(&estimated, "plain", &ctx).unwrap());
     let constant = prepared.retarget(&vec![7.0; weights.len()], &[], &ctx).unwrap();
-    assert!(constant.row_weights.is_none());
+    assert!(constant.row_weights().is_none());
     let constant =
         contract_of(&prepared.encode_contracted_result(&constant, "constant", &ctx).unwrap());
     assert!(constant.identities.target_weights.is_none());
@@ -6020,9 +6302,9 @@ fn consume_rederives_target_weights_and_refuses_substitutions() {
     let section = contract_of(&bytes);
     let refused = |contract: &antecedent_io::AnalysisResultContractWire, label: &str| {
         let consumed =
-            consume_analysis_result(&rewrite_contract_section(&body, names.clone(), "t", contract))
+            replay_analysis_result(&rewrite_contract_section(&body, names.clone(), "t", contract))
                 .unwrap();
-        assert!(!consumed.acceptance.accepts_as_verified_program(), "{label}");
+        assert!(!consumed.acceptance.accepts_as_replayed_program(), "{label}");
         assert!(
             consumed.acceptance.unresolved.iter().any(|item| &**item == label),
             "{label}: {:?}",
@@ -6064,6 +6346,41 @@ fn consume_rederives_target_weights_and_refuses_substitutions() {
 }
 
 #[test]
+fn row_weights_retarget_cancellation_never_publishes_a_partial_result() {
+    let ctx = ExecutionContext::for_tests(17);
+    let (data, dag, query) = confounded_scm(96, 17);
+    let prepared = aipw_prepared(&data, dag, query);
+    let z = [VariableId::from_raw(2)];
+    let weights = z_weights(&data, 3.0);
+    let original = prepared.retarget(&weights, &z, &ctx).unwrap();
+    let bytes = prepared.encode_contracted_result(&original, "reweight", &ctx).unwrap();
+    let carried = contract_of(&bytes).target_weights.expect("weights travel");
+
+    // Exercise cancellation before work and between every scalar retarget phase.
+    // No thread sleeps or timing races are needed to stop after numerical work.
+    for checks in 0..4 {
+        let mut cancelled = ExecutionContext::for_tests(17);
+        cancelled.cancellation = antecedent_core::CancellationToken::cancel_after_checks(checks);
+        assert!(matches!(
+            prepared.retarget(&weights, &z, &cancelled),
+            Err(antecedent::CausalError::Cancelled { stage: "retarget" })
+        ));
+    }
+    let cancelled = ExecutionContext::for_tests(17);
+    cancelled.cancellation.cancel();
+    let mut mismatched = carried.clone();
+    mismatched.identity.data_snapshot[0] ^= 0xff;
+    assert!(matches!(
+        prepared.reexecute_retarget(&mismatched, &cancelled),
+        Err(antecedent::CausalError::Cancelled { stage: "reexecute_retarget" })
+    ));
+    // Cancelled attempts leave the retained scores and exact replay unchanged.
+    let again = prepared.reexecute_retarget(&carried, &ctx).unwrap();
+    assert_eq!(again.effect().to_bits(), original.effect().to_bits());
+    assert_eq!(again.row_weights(), original.row_weights());
+}
+
+#[test]
 fn row_weights_reexecute_only_on_their_own_snapshot() {
     let ctx = ExecutionContext::for_tests(17);
     let (data, dag, query) = confounded_scm(96, 17);
@@ -6077,16 +6394,81 @@ fn row_weights_reexecute_only_on_their_own_snapshot() {
 
     let again = prepared.reexecute_retarget(&carried, &ctx).unwrap();
     assert_eq!(again.effect().to_bits(), retargeted.effect().to_bits());
-    assert_eq!(again.row_weights, retargeted.row_weights);
+    assert_eq!(again.row_weights(), retargeted.row_weights());
 
     let mut refreshed = prepared.clone();
-    refreshed.refresh(other_data, &ctx).unwrap();
+    rebind_estimate(&mut refreshed, other_data, &ctx).unwrap();
     let err = refreshed.reexecute_retarget(&carried, &ctx).unwrap_err();
     assert!(format!("{err}").contains("reason=row_weights_bound_to_snapshot"), "{err}");
     // A retarget computed on one snapshot cannot be exported through a handle
     // holding another snapshot of the same shape.
     let err = refreshed.encode_contracted_result(&retargeted, "stale", &ctx).unwrap_err();
     assert!(format!("{err}").contains("reason=row_weights_bound_to_snapshot"), "{err}");
+}
+
+#[test]
+fn replay_dependency_buffers_are_admitted_and_released_on_identity_refusal() {
+    let ctx = ExecutionContext::for_tests(17);
+    let (data, dag, query) = confounded_scm(96, 17);
+    let prepared = aipw_prepared(&data, dag, query);
+    let dependencies = [VariableId::from_raw(2)];
+    let weights = z_weights(&data, 3.0);
+    let result = prepared.retarget(&weights, &dependencies, &ctx).unwrap();
+    let bytes = prepared.encode_contracted_result(&result, "reweight", &ctx).unwrap();
+    let mut carried = contract_of(&bytes).target_weights.unwrap();
+    carried.identity.data_snapshot[0] ^= 0xff;
+    let required = u64::try_from(size_of::<VariableId>() + size_of::<u32>()).unwrap();
+    let short = ExecutionContext::for_tests(17).with_memory_limit(Some(required - 1));
+    assert!(matches!(
+        prepared.reexecute_retarget(&carried, &short),
+        Err(antecedent::CausalError::Resource { .. })
+    ));
+    assert_eq!(short.admission().available().bytes(), required - 1);
+    // Exactly enough for these two transient dependency representations reaches
+    // the real identity check; this is not an assertion about whole replay memory.
+    let exact = ExecutionContext::for_tests(17).with_memory_limit(Some(required));
+    let refusal = prepared.reexecute_retarget(&carried, &exact).unwrap_err();
+    assert!(refusal.to_string().contains("reason=row_weights_bound_to_snapshot"));
+    assert_eq!(exact.admission().available().bytes(), required);
+}
+
+#[test]
+fn retarget_output_admission_follows_the_shared_native_result_owner() {
+    let (data, dag, query) = confounded_scm(96, 17);
+    let prepared = aipw_prepared(&data, dag, query);
+    let dependencies = [VariableId::from_raw(2)];
+    let weights = z_weights(&data, 3.0);
+    let limit = 1_000_000;
+    let ctx = ExecutionContext::for_tests(17).with_memory_limit(Some(limit));
+    let result = std::sync::Arc::new(prepared.retarget(&weights, &dependencies, &ctx).unwrap());
+    let effect = result.estimate().as_effect().unwrap();
+    let inference = effect.scores.inference.as_ref().unwrap();
+    let real_buffers =
+        [&inference.raw_means, &inference.lower, &inference.upper, &inference.event_n_eff];
+    assert!(real_buffers.iter().all(|buffer| buffer.len() == buffer.capacity()));
+    assert_eq!(inference.threshold_supported.capacity(), inference.threshold_supported.len());
+    assert_eq!(inference.support.n_eff_by_arm.capacity(), inference.support.n_eff_by_arm.len());
+    let inference_bytes =
+        real_buffers.iter().map(|buffer| buffer.capacity() * size_of::<f64>()).sum::<usize>()
+            + inference.threshold_supported.capacity() * size_of::<bool>()
+            + inference.support.n_eff_by_arm.capacity() * size_of::<f64>();
+    let covariance_bytes =
+        effect.joint.covariance.as_ref().unwrap().values.len() * size_of::<f64>();
+    let binding = result.row_weights().as_ref().unwrap();
+    let weight_bytes = binding.weights.len() * size_of::<f64>()
+        + binding.depends_on.len() * size_of::<VariableId>()
+        + binding.identity.depends_on.capacity() * size_of::<u32>();
+    // Only these named output payloads are accounted here, not a claim that
+    // every metadata, support, quantile or cluster allocation is yet admitted.
+    let retained = u64::try_from(inference_bytes + covariance_bytes + weight_bytes).unwrap();
+    assert_eq!(result.retained_admitted_bytes(), Some(retained));
+    assert_eq!(ctx.admission().available().bytes(), limit - retained);
+    let view_owner = std::sync::Arc::clone(&result);
+    drop(result);
+    assert_eq!(ctx.admission().available().bytes(), limit - retained);
+    assert!(view_owner.effect().is_finite());
+    drop(view_owner);
+    assert_eq!(ctx.admission().available().bytes(), limit);
 }
 
 #[test]
@@ -6127,23 +6509,29 @@ fn retarget_report_matches_identity_deltas() {
     let estimated = prepared.estimate(&data, &ctx).unwrap();
     let before_bytes =
         prepared.encode_contracted_result(&estimated, "before-retarget", &ctx).unwrap();
-    let before = consume_analysis_result(&before_bytes).unwrap().contract.unwrap();
+    let before = replay_analysis_result(&before_bytes).unwrap().contract.unwrap();
     let preview = prepared.preview_transform(TransformIntent::Retarget).unwrap();
-    assert!(preview.layer(SemanticLayer::Identification).is_some_and(|layer| {
-        layer.effects.iter().any(|effect| *effect == TransformEffect::Preserves)
-    }));
-    assert!(preview.layer(SemanticLayer::Data).is_some_and(|layer| {
-        layer.effects.iter().any(|effect| *effect == TransformEffect::Preserves)
-    }));
-    assert!(preview.layer(SemanticLayer::Inference).is_some_and(|layer| {
-        layer.effects.iter().any(|effect| *effect == TransformEffect::Preserves)
-    }));
+    assert!(
+        preview
+            .layer(SemanticLayer::Identification)
+            .is_some_and(|layer| { layer.effects.contains(&TransformEffect::Preserves) })
+    );
+    assert!(
+        preview
+            .layer(SemanticLayer::Data)
+            .is_some_and(|layer| { layer.effects.contains(&TransformEffect::Preserves) })
+    );
+    assert!(
+        preview
+            .layer(SemanticLayer::Inference)
+            .is_some_and(|layer| { layer.effects.contains(&TransformEffect::Preserves) })
+    );
     let mut weights = vec![1.0; data.row_count()];
     weights[0] = 2.0;
     let retargeted =
         prepared.apply_retarget(&preview, &weights, &[VariableId::from_raw(2)], &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&retargeted, "retarget-report", &ctx).unwrap();
-    let after = consume_analysis_result(&bytes).unwrap().contract.unwrap();
+    let after = replay_analysis_result(&bytes).unwrap().contract.unwrap();
     match &after.target.query {
         CausalQueryWire::AverageEffect { target_population, .. } => {
             assert!(matches!(target_population, TargetPopulationWire::RowWeights { .. }));
@@ -6226,8 +6614,16 @@ fn multi_env_prepares_and_exports() {
     .unwrap();
     let result = prepared.estimate_multi_env(&again_multi, &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "multi-env", &ctx).unwrap();
-    let consumed = consume_analysis_result(&bytes).unwrap();
-    assert!(consumed.acceptance.accepts_as_verified_program());
+    let consumed = replay_analysis_result(&bytes).unwrap();
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
+    assert!(
+        consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| { reason.as_ref() == "dependencies.checked_estimator_operation" })
+    );
+    assert_eq!(consumed.body.estimate, Some(result.estimate().as_effect().unwrap().ate));
 }
 
 /// Weighted posterior over the same three graphs, for identity comparisons.
@@ -6330,7 +6726,7 @@ fn graph_posterior_weights_and_atoms_enter_identification() {
     };
     assert_ne!(weights(&first), weights(&second), "reweighting changes the structural result");
     let claim_id = |prepared: &antecedent::PreparedStudy, result: &StudyResult| {
-        let consumed = consume_analysis_result(
+        let consumed = replay_analysis_result(
             &prepared.encode_contracted_result(result, "mix", &ctx).unwrap(),
         )
         .unwrap();
@@ -6338,9 +6734,13 @@ fn graph_posterior_weights_and_atoms_enter_identification() {
         // independent consumer cannot replay; its claim stays readable.
         assert_eq!(
             consumed.acceptance.unresolved.as_ref(),
-            &[std::sync::Arc::<str>::from(
-                "dependencies.checked_bayesian_graph_posterior_ate_operation"
-            )]
+            &[
+                std::sync::Arc::<str>::from(
+                    "dependencies.checked_bayesian_graph_posterior_ate_operation"
+                ),
+                // The carried estimands name graphs the consumer cannot re-derive.
+                std::sync::Arc::<str>::from("dependencies.identification_estimand_criterion"),
+            ]
         );
         assert!(!consumed.acceptance.accepts_as_claim());
         consumed.contract.unwrap().claim.unwrap().claim_id
@@ -6363,12 +6763,16 @@ fn claim_id_binds_the_data_snapshot_and_the_whole_result() {
             .unwrap();
         let result = prepared.estimate(data, &ctx).unwrap();
         let bytes = prepared.encode_contracted_result(&result, "snapshot", &ctx).unwrap();
-        let consumed = consume_analysis_result(&bytes).unwrap();
+        let consumed = replay_analysis_result(&bytes).unwrap();
         assert_eq!(
             consumed.acceptance.unresolved.as_ref(),
-            &[std::sync::Arc::<str>::from(
-                "dependencies.checked_bayesian_graph_posterior_ate_operation"
-            )]
+            &[
+                std::sync::Arc::<str>::from(
+                    "dependencies.checked_bayesian_graph_posterior_ate_operation"
+                ),
+                // The carried estimands name graphs the consumer cannot re-derive.
+                std::sync::Arc::<str>::from("dependencies.identification_estimand_criterion"),
+            ]
         );
         assert!(!consumed.acceptance.accepts_as_claim());
         let contract = consumed.contract.unwrap();
@@ -6395,13 +6799,15 @@ fn claim_id_binds_the_data_snapshot_and_the_whole_result() {
     assert!(body.estimate.is_none());
     let mut forged_se = body.clone();
     forged_se.standard_error = Some(0.01);
+    let forged = antecedent_io::encode_analysis_result_artifact(
+        &forged_se,
+        header.variable_names.clone(),
+        "tampered",
+    )
+    .expect_err("a standard error without its estimate");
     assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &forged_se,
-            header.variable_names.clone(),
-            "tampered"
-        )
-        .is_err()
+        forged.to_string().contains("analysis standard error requires the estimate it describes"),
+        "{forged}"
     );
     let edits: [fn(&mut antecedent_io::AnalysisResultWire); 3] = [
         |body| {
@@ -6416,7 +6822,7 @@ fn claim_id_binds_the_data_snapshot_and_the_whole_result() {
     for edit in edits {
         let mut tampered = body.clone();
         edit(&mut tampered);
-        let consumed = consume_analysis_result(&rewrite_contract_section(
+        let consumed = replay_analysis_result(&rewrite_contract_section(
             &tampered,
             header.variable_names.clone(),
             "tampered",
@@ -6443,14 +6849,15 @@ fn a_tampered_verified_artifact_is_refused() {
         .query(query)
         .estimator(EstimatorId::Aipw)
         .bootstrap_replicates(0)
-        .refute(RefuteSuite::Full)
+        .refute(RefuteSuite::None)
         .build()
         .unwrap()
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "orig", &ctx).unwrap();
-    let original = consume_analysis_result(&bytes).unwrap();
+    let original = replay_analysis_result(&bytes).unwrap();
+    assert!(original.body.refutations.is_empty());
     assert!(original.acceptance.accepts_as_claim(), "{:?}", original.acceptance.unresolved);
     let section = original.contract.clone().unwrap();
     let names = original.header.variable_names.clone();
@@ -6475,7 +6882,7 @@ fn a_tampered_verified_artifact_is_refused() {
     for edit in edits {
         let mut tampered = section.clone();
         edit(&mut tampered);
-        let consumed = consume_analysis_result(&rewrite_contract_section(
+        let consumed = replay_analysis_result(&rewrite_contract_section(
             &original.body,
             names.clone(),
             "tampered",
@@ -6498,14 +6905,16 @@ fn a_tampered_verified_artifact_is_refused() {
     // Re-encoding a tampered section through the writer is refused too.
     let mut tampered = section;
     tampered.claim.as_mut().unwrap().support_domain = "supported".into();
+    let rewritten = antecedent_io::encode_analysis_result_artifact_with_contract(
+        &original.body,
+        names,
+        "tampered",
+        Some(&tampered),
+    )
+    .expect_err("a tampered section");
     assert!(
-        antecedent_io::encode_analysis_result_artifact_with_contract(
-            &original.body,
-            names,
-            "tampered",
-            Some(&tampered)
-        )
-        .is_err()
+        rewritten.to_string().contains("contract does not verify against analysis_result body"),
+        "{rewritten}"
     );
 }
 
@@ -6583,7 +6992,7 @@ fn bayesian_backend_prior_and_budgets_move_the_layer_that_owns_them() {
         "the posterior backend is an inference binding"
     );
     assert_eq!(conjugate.identification, laplace.identification);
-    assert_eq!(conjugate.program, laplace.program, "a backend is not a licensed commitment");
+    assert_eq!(conjugate.program, laplace.program, "a backend is not a supported commitment");
     let scaled = bayes(BayesianConfig::conjugate().n_draws(64).prior_scale(0.01));
     assert_ne!(conjugate.inference_binding, scaled.inference_binding);
     let drawn = bayes(BayesianConfig::conjugate().n_draws(65));
@@ -6647,28 +7056,19 @@ fn response_bandwidth_moves_the_inference_binding_not_the_program() {
     let wide = curve(Some(0.75));
     assert_ne!(narrow.inference_binding, wide.inference_binding, "bandwidth is a numeric knob");
     assert_ne!(default.inference_binding, narrow.inference_binding);
-    assert_eq!(narrow.program, wide.program, "a bandwidth is not a licensed commitment");
+    assert_eq!(narrow.program, wide.program, "a bandwidth is not a supported commitment");
     assert_eq!(narrow.identification, wide.identification);
     assert_eq!(narrow.target, wide.target);
 }
 
 #[test]
-fn unlicensed_operation_blocker_ids_come_from_constants_not_prose() {
-    let (data, _, query) = conditional_effect_fixture();
-    let mut admg = Admg::with_variables(3);
-    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    admg.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
-    let inspected = Study::tabular(data)
-        .graph(admg)
-        .query(CausalQuery::ConditionalEffect(query))
-        .bootstrap_replicates(0)
-        .inspect()
-        .unwrap();
+fn unsupported_operation_blocker_ids_come_from_constants_not_prose() {
+    let inspected = refused_admg_cell().inspect().unwrap();
     for operation in [OperationKind::Retarget, OperationKind::Export, OperationKind::RankDesigns] {
         let report = inspected.capability_for(operation);
         assert_eq!(
             report.primary_blocker_id(),
-            Some("operation.unlicensed"),
+            Some("operation.unsupported"),
             "{operation:?} on a refused cell"
         );
         let message = report.blockers.first().map(|blocker| blocker.reason.to_string()).unwrap();
@@ -6676,13 +7076,287 @@ fn unlicensed_operation_blocker_ids_come_from_constants_not_prose() {
             antecedent::CausalError::Unsupported { message: Box::leak(message.into_boxed_str()) }
                 .blocker_id()
                 .map(|blocker| blocker.id.to_string()),
-            Some("operation.unlicensed".into()),
+            Some("operation.unsupported".into()),
             "the refusal a capability report prints maps back to the same id"
         );
     }
     // A message that merely mentions the same words is a different refusal.
     let reworded = antecedent::CausalError::Unsupported {
-        message: "this retarget would need a licensed prepared contract first",
+        message: "this retarget would need a supported prepared contract first",
     };
     assert_eq!(reworded.blocker_id().map(|blocker| blocker.id.to_string()), None);
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
+}
+
+#[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
+fn cheap_validation_uses_the_executed_base_snapshot_without_losing_full_identity() {
+    let ctx = ExecutionContext::for_tests(141);
+    let (data, dag, query) = confounded_scm(400, 141);
+    let build = |data: TabularData, suite: RefuteSuite, bootstrap: u32| {
+        Study::tabular(data)
+            .graph(dag.clone())
+            .query(query.clone())
+            .refute(suite)
+            .bootstrap_replicates(bootstrap)
+            .build()
+            .unwrap()
+    };
+    let study = build(data.clone(), RefuteSuite::None, 0);
+    let inspected = study.inspect().unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let executed = result.executed_contract().unwrap();
+    assert_eq!(executed.inspection_data_snapshot, inspected.identities.data_snapshot);
+    assert_ne!(
+        executed.identities.data_snapshot, inspected.identities.data_snapshot,
+        "prepared-only linear replay moments contribute to the full snapshot"
+    );
+    assert!(
+        result.calibration_bases(&inspected).unwrap().iter().all(|b| b.key.validation == "none")
+    );
+    assert_eq!(prepared.contract_for_result(&result).unwrap().identities, executed.identities);
+
+    let (foreign_data, _, _) = confounded_scm(400, 142);
+    let other_snapshot = build(foreign_data, RefuteSuite::None, 0).inspect().unwrap();
+    assert_ne!(other_snapshot.identities.data_snapshot, inspected.identities.data_snapshot);
+    assert!(
+        result
+            .calibration_bases(&other_snapshot)
+            .unwrap()
+            .iter()
+            .all(|b| b.key.validation.is_empty())
+    );
+
+    let other_suite = build(data.clone(), RefuteSuite::Cheap, 0).inspect().unwrap();
+    assert_ne!(other_suite.identities.inference_binding, inspected.identities.inference_binding);
+    assert!(
+        result.calibration_bases(&other_suite).unwrap().iter().all(|b| b.key.validation.is_empty())
+    );
+
+    let other_bootstrap = build(data.clone(), RefuteSuite::None, 8).inspect().unwrap();
+    assert_ne!(
+        other_bootstrap.identities.inference_binding,
+        inspected.identities.inference_binding
+    );
+    assert!(
+        result
+            .calibration_bases(&other_bootstrap)
+            .unwrap()
+            .iter()
+            .all(|b| b.key.validation.is_empty())
+    );
+
+    let mut other_graph = Dag::with_variables(3);
+    other_graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let other_identification = Study::tabular(data.clone())
+        .graph(other_graph)
+        .query(query.clone())
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .inspect()
+        .unwrap();
+    assert_ne!(other_identification.identities.identification, inspected.identities.identification);
+    assert!(
+        result
+            .calibration_bases(&other_identification)
+            .unwrap()
+            .iter()
+            .all(|b| b.key.validation.is_empty())
+    );
+
+    let other_target = Study::tabular(data.clone())
+        .graph(dag.clone())
+        .query(AverageEffectQuery::with_levels(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            0.0,
+            2.0,
+        ))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .inspect()
+        .unwrap();
+    assert_ne!(other_target.identities.target, inspected.identities.target);
+    assert!(
+        result
+            .calibration_bases(&other_target)
+            .unwrap()
+            .iter()
+            .all(|b| b.key.validation.is_empty())
+    );
+
+    let other_estimator = Study::tabular(data)
+        .graph(dag)
+        .query(query)
+        .estimator(antecedent_estimate::AipwAte::new().with_bootstrap_replicates(0))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .inspect()
+        .unwrap();
+    assert_ne!(
+        other_estimator.identities.inference_binding,
+        inspected.identities.inference_binding
+    );
+    assert!(
+        result
+            .calibration_bases(&other_estimator)
+            .unwrap()
+            .iter()
+            .all(|b| b.key.validation.is_empty())
+    );
+}
+
+#[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
+fn resealed_scope_erasure_cannot_promote_a_completion_report_to_checked_support() {
+    use antecedent_io_core::analysis_wire::{RefutationScopeWire, RefutationTargetWire};
+    let ctx = ExecutionContext::for_tests(7);
+    let (data, dag, query) = confounded_scm(200, 7);
+    let prepared = Study::tabular(data.clone())
+        .graph(dag)
+        .query(query)
+        .estimator(EstimatorId::Aipw)
+        .bootstrap_replicates(0)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let bytes = prepared.encode_contracted_result(&result, "report-free", &ctx).unwrap();
+    let original = replay_analysis_result(&bytes).unwrap();
+    assert!(original.body.refutations.is_empty());
+    assert!(original.acceptance.accepts_as_claim(), "{:?}", original.acceptance.unresolved);
+    let names = original.header.variable_names.clone();
+    let mut body = original.body.clone();
+    let mut section = original.contract.clone().unwrap();
+    let digest = [9_u8; 32];
+    let source = section.identities.program;
+    let labels = vec![format!(
+        "scope:v1:static_class_completion:3:{}|level",
+        antecedent_core::identity::to_hex(&digest)
+    )];
+    let mut writer =
+        antecedent_core::identity::CanonicalWriter::new("antecedent.refutation_target");
+    writer.text("world_valued").text("static.frequentist").texts(&labels).bytes(&source);
+    body.refutations.push(antecedent_io::RefutationReportWire {
+        refuter: "overlap.assessment".into(),
+        original_ate: 2.0,
+        refuted_ate: 2.0,
+        comparison: 0.0,
+        informative: true,
+        passed: true,
+        failure_condition: None,
+        replicates: 0,
+        scope: Some(RefutationScopeWire::StaticClassCompletion {
+            outer_atom: 3,
+            completion_digest: digest,
+            target: RefutationTargetWire {
+                version: 1,
+                family: "world_valued".into(),
+                temporal: false,
+                bayesian: false,
+                labels,
+                source,
+                identity: writer.finish(),
+            },
+        }),
+    });
+    // The source report has valid descriptive metadata, but is not independent replay.
+    antecedent_io_core::analysis_wire::validate_refutation_scope(
+        body.refutations[0].scope.as_ref().unwrap(),
+    )
+    .unwrap();
+    let reseal = |section: &mut antecedent_io::AnalysisResultContractWire,
+                  body: &antecedent_io::AnalysisResultWire| {
+        let empirical = antecedent_io::support_empirical(&body.refutations, &body.diagnostics)
+            .unwrap_or_else(|| "unavailable:not_evaluated".into());
+        if let Some(slot) = section.reasoning.support.value.as_mut() {
+            slot.empirical = empirical;
+        }
+        let domains = antecedent_io::claim_domains_of_section(
+            section.reasoning.support.value.as_ref(),
+            &section.reasoning.identification,
+        );
+        let claim = section.claim.as_mut().unwrap();
+        claim.identification_domain = domains.identification;
+        claim.support_domain = domains.support;
+        claim.evaluated_domain = domains.evaluated;
+        section.seal = antecedent_io::contract_seal(
+            &section.identities,
+            &section.reasoning,
+            &section.graph_class,
+            &section.structure_source,
+            section.identifier.as_deref(),
+            section.estimator.as_deref(),
+        )
+        .unwrap();
+        let claim = section.claim.as_mut().unwrap();
+        claim.claim_id = *antecedent_io::claim_digest(&antecedent_io::ClaimIdentityWire::new(
+            section.seal,
+            claim,
+            antecedent_io::result_digest(body).unwrap(),
+        ))
+        .unwrap()
+        .as_bytes();
+    };
+    reseal(&mut section, &body);
+    let scoped =
+        replay_analysis_result(&rewrite_contract_section(&body, names.clone(), "scoped", &section))
+            .unwrap();
+    assert!(!scoped.acceptance.accepts_as_claim());
+    assert!(
+        scoped
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|r| r.as_ref() == "dependencies.scoped_refutation_replay")
+    );
+
+    // Rehash every public claim/contract field after deleting the scope and
+    // recomputing the now-apparent whole-result support and claim domains.
+    body.refutations[0].scope = None;
+    reseal(&mut section, &body);
+    let legacy_shape = rewrite_contract_section(&body, names, "scope-erased", &section);
+    let consumed = replay_analysis_result(&legacy_shape).unwrap();
+    assert!(!consumed.acceptance.accepts_as_claim());
+    assert!(
+        consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|r| r.as_ref() == "dependencies.refutation_replay"),
+        "{:?}",
+        consumed.acceptance.unresolved
+    );
+    assert!(!consumed.acceptance.unresolved.iter().any(|r| matches!(
+        r.as_ref(),
+        "contract.seal" | "claim.id" | "reasoning.support.empirical" | "claim.domains"
+    )));
+    assert_eq!(consumed.body.refutations[0].scope, None);
+    assert!(consumed.acceptance.supported_operations.iter().any(|op| op.as_ref() == "read_body"));
 }

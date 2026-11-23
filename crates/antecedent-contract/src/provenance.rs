@@ -5,7 +5,7 @@
 //! identities, no cycles, and parent binding. A nonempty id or a
 //! syntactically valid parent link is not a complete lineage.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;

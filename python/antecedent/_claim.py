@@ -21,6 +21,9 @@ def query_phrase(query: object) -> str:
         if mediators:
             via = ", ".join(str(item) for item in mediators)
             return f"{name} of {outcome} from {treatment} via {via}"
+        modifiers = getattr(query, "modifiers", None)
+        if modifiers:
+            return f"{name} of {outcome} from {treatment} given {', '.join(modifiers)}"
         modifier = getattr(query, "modifier", None)
         if isinstance(modifier, str):
             return f"{name} of {outcome} from {treatment} given {modifier}"
@@ -39,6 +42,8 @@ def identification_statement(
     verdict = verdict_for(status)
     if verdict == "not identified":
         return f"{query_text} is not identified."
+    if verdict == "not claimed":
+        return f"{query_text} is a noncausal association; identification is not claimed."
     if verdict == "graph-dependent":
         phrase = f"{query_text} is graph-dependent, not a single identified effect"
     else:
@@ -70,6 +75,8 @@ def result_claim(
     elif kind == "bounds" and getattr(answer, "bounds", None) is not None:
         lo, hi = answer.bounds
         bits.append(f"answer is the identified set [{lo:g}, {hi:g}]")
+    elif kind == "associational":
+        bits.append("answer is a noncausal association, not an effect of any intervention")
     elif kind == "response":
         bits.append("answer is a function-valued response")
     elif kind == "structured":

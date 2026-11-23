@@ -1,6 +1,6 @@
 //! Bayesian temporal-class envelope pins.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -13,9 +13,7 @@ use std::sync::Arc;
 
 use common::lagged_ols::{Eval, lagged_ols_level};
 
-use antecedent::{
-    BayesianConfig, ClassPrior, InferenceMode, PreparedStudy, RefuteSuite, Study, identify,
-};
+use antecedent::{BayesianConfig, ClassPrior, InferenceMode, PreparedStudy, RefuteSuite, Study};
 use antecedent_core::{
     Assumption, AssumptionSet, CausalQuery, CausalSchemaBuilder, ContinuousDomain,
     ExecutionContext, GridSpec, IdentificationStatus, Intervention, InterventionSequence, Lag,
@@ -99,6 +97,18 @@ fn series_from_law(n: usize, two_lag: bool) -> TimeSeriesData {
     .unwrap()
 }
 
+/// The identification the compiled study derives for `graph` and `query`, over a series that
+/// names the fixture's three variables and holds no rows.
+fn identify(
+    graph: &antecedent::AcceptedGraph,
+    query: &CausalQuery,
+) -> Result<antecedent::Identification, antecedent::CausalError> {
+    let empty: &[f64] = &[];
+    let data =
+        TimeSeriesData::from_f64_columns([("t", empty), ("y", empty), ("z", empty)], 1).unwrap();
+    Study::series(data).graph(graph.clone()).query(query.clone()).identify_structure()
+}
+
 fn cpdag() -> TemporalCpdag {
     let mut g = TemporalCpdag::empty();
     let t1 = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
@@ -158,7 +168,7 @@ fn temporal_class_bayesian_pulse_without_prior_is_identified_set() {
         .run(&ExecutionContext::for_tests(7))
         .unwrap();
     assert!(result.posterior.is_none());
-    assert!(!result.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(!result.estimate().as_effect().unwrap().ate.is_finite());
     let structural = result.structural_response.as_ref().expect("structural envelope");
     assert_eq!(
         structural.weight_basis,
@@ -194,7 +204,7 @@ fn class_study(
     }
 }
 
-/// Every licensed Bayesian `TemporalCpdag` Pulse coordinate (explicit and accepted
+/// Every supported Bayesian `TemporalCpdag` Pulse coordinate (explicit and accepted
 /// structure × none / cheap / full) mixes the completions under the fixture's
 /// `ClassPrior` and recovers the prior-weighted mixture of the completions' exact
 /// effects on the noise-free law (`with_class_prior.pulse_effect`, within
@@ -229,9 +239,9 @@ fn temporal_class_bayesian_pulse_with_class_prior_mixes() {
                 .unwrap();
             assert!(result.posterior.is_some(), "{case}");
             assert!(
-                (result.estimate.as_effect().unwrap().ate - effect).abs() < tol,
+                (result.estimate().as_effect().unwrap().ate - effect).abs() < tol,
                 "{case}: mixed pulse effect {} vs known truth {effect}",
-                result.estimate.as_effect().unwrap().ate
+                result.estimate().as_effect().unwrap().ate
             );
             let structural = result.structural_response.as_ref().expect("structural envelope");
             assert_eq!(
@@ -262,13 +272,13 @@ fn temporal_class_bayesian_pulse_with_class_prior_mixes() {
     let click = prepared.estimate_series(&data, &ctx).unwrap();
     assert!(click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     assert!(
-        (click.estimate.as_effect().unwrap().ate - effect).abs() < tol,
+        (click.estimate().as_effect().unwrap().ate - effect).abs() < tol,
         "prepared click {}",
-        click.estimate.as_effect().unwrap().ate
+        click.estimate().as_effect().unwrap().ate
     );
 }
 
-/// Every licensed Bayesian `TemporalCpdag` multi-step Sustained coordinate
+/// Every supported Bayesian `TemporalCpdag` multi-step Sustained coordinate
 /// (explicit and accepted structure × none / cheap / full) recovers the full-window
 /// effect of the two-lag law (`multi_step.full_window_effect`) and does not collapse
 /// to the last step; cheap / full run refuters and none runs none.
@@ -298,14 +308,14 @@ fn temporal_class_multi_step_is_not_last_step_collapse() {
                 .run(&ExecutionContext::for_tests(3))
                 .unwrap();
             assert!(
-                (result.estimate.as_effect().unwrap().ate - last_step).abs() > 1.0,
+                (result.estimate().as_effect().unwrap().ate - last_step).abs() > 1.0,
                 "{case}: multi-step {} collapsed toward last-step {last_step}",
-                result.estimate.as_effect().unwrap().ate
+                result.estimate().as_effect().unwrap().ate
             );
             assert!(
-                (result.estimate.as_effect().unwrap().ate - full).abs() < tol,
+                (result.estimate().as_effect().unwrap().ate - full).abs() < tol,
                 "{case}: multi-step {} vs window {full}",
-                result.estimate.as_effect().unwrap().ate
+                result.estimate().as_effect().unwrap().ate
             );
             if suite == RefuteSuite::None {
                 assert!(result.refutations.is_empty(), "{case}: none runs no refuter");
@@ -548,7 +558,27 @@ fn temporal_pag_directed_bayesian_pulse_identifies() {
         .unwrap()
         .run(&ExecutionContext::for_tests(5))
         .unwrap();
-    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+    let ate = result.estimate().as_effect().unwrap().ate;
+    // The drawn graph has z -> t -> y and no z -> y edge, so the empty adjustment set is supported
+    // and the estimand is the simple regression slope of y_i on t_{i-1} (the data also carry
+    // 0.5 z_{i-1}, with z = (t - 0.3) / 0.4 up to the sine wiggle, so the slope sits near 3.25,
+    // not the coefficient 2). Closed-form OLS slope over the rows i = 1..n-1:
+    let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
+    let t: Vec<f64> = (0..n)
+        .map(|i| {
+            let z = if i % 2 == 0 { 0.0 } else { 1.0 };
+            0.3 + 0.4 * z + 0.05 * ((i as f64) * 0.017).sin()
+        })
+        .collect();
+    let xs: Vec<f64> = (1..n).map(|i| t[i - 1]).collect();
+    let ys: Vec<f64> = (1..n)
+        .map(|i| 1.0 + 2.0 * t[i - 1] + 0.5 * if (i - 1) % 2 == 0 { 0.0 } else { 1.0 })
+        .collect();
+    let (mx, my) =
+        (xs.iter().sum::<f64>() / xs.len() as f64, ys.iter().sum::<f64>() / ys.len() as f64);
+    let slope = xs.iter().zip(&ys).map(|(x, y)| (x - mx) * (y - my)).sum::<f64>()
+        / xs.iter().map(|x| (x - mx) * (x - mx)).sum::<f64>();
+    assert!((ate - slope).abs() < 0.005, "directed-PAG pulse effect {ate} vs OLS slope {slope}");
     let structural = result.structural_response.as_ref().expect("pag envelope");
     assert!(structural.unidentified_mass.abs() < 1e-9);
 }
@@ -582,6 +612,16 @@ fn temporal_class_sequence_unidentified_coordinate_keeps_class() {
         .unwrap();
     let structural = result.structural_response.as_ref().expect("sequence set");
     assert!(structural.atoms.iter().any(|atom| atom.value.is_some()));
+    // y = 1 + 2 t_{-1} + 0.5 z_{-1}; set t@-1 := 1 with z adjusted gives 3 + 0.5 mean(z) = 3.25
+    // (z alternates 0/1 over 800 rows, so its mean is 0.5).
+    let level = |atom: &antecedent::result::StructuralResponseAtom| match atom.value.as_ref() {
+        Some(antecedent_core::ResponseValue::Scalar(v)) => Some(*v),
+        _ => None,
+    };
+    assert!(
+        structural.atoms.iter().filter_map(level).any(|v| (v - 3.25).abs() < 0.05),
+        "the z-adjusting completion must land on the structural level 3.25"
+    );
     assert!(
         result.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.temporal.sequence_overlay")
     );
@@ -725,20 +765,17 @@ fn temporal_class_prior_transfer_conflict_does_not_flip_identification() {
         .build()
         .unwrap()
         .run(&ExecutionContext::for_tests(seed.wrapping_add(1)));
-    // A mapping/filter conflict may refuse or attach a conflict diagnostic.
-    // Identification status must not become NotIdentified solely from the prior.
-    match target {
-        Ok(result) => {
-            assert_ne!(format!("{:?}", result.identification.status), "NotIdentified");
-        }
-        Err(error) => {
-            let message = error.to_string();
-            assert!(
-                !message.contains("NotIdentified"),
-                "prior transfer must not flip identification: {message}"
-            );
-        }
-    }
+    // The source posterior carries no coefficient at the target's treatment lag, so the mapping is
+    // refused with its typed message; the refusal is not an identification failure.
+    let error =
+        target.expect_err("a source without the target's treatment-lag coefficient refuses");
+    let message = error.to_string();
+    assert!(message.contains("temporal prior transfer refused"), "{message}");
+    assert!(message.contains("declare PriorMapping::NamedParameters"), "{message}");
+    assert!(
+        !message.contains("NotIdentified"),
+        "prior transfer must not flip identification: {message}"
+    );
 }
 
 #[test]
@@ -793,7 +830,12 @@ fn temporal_class_sequence_refuses_prior_transfer() {
         .run(&ExecutionContext::for_tests(seed))
         .unwrap_err();
     let needle = pin["sequence_refuses"]["message_contains"].as_str().unwrap();
-    assert!(err.to_string().contains(needle) || err.to_string().contains("transfer"), "{err}");
+    let _ = needle;
+    assert!(
+        err.to_string()
+            .contains("multi-step Sequence transfer stays refused on incomplete classes"),
+        "{err}"
+    );
 }
 
 #[test]
@@ -835,6 +877,20 @@ fn class_curve_prior_is_used_and_atom_uncertainty_survives() {
         panic!("missing class-prior curve")
     };
     assert_eq!(mean.len(), 4);
+    // The caller's masses (0.2, 0.8) are what the atoms carry, in the order given, at each horizon.
+    for horizon in 0..2u64 {
+        let weights: Vec<f64> = structural
+            .atoms
+            .iter()
+            .filter(|atom| atom.graph_key >> 32 == horizon)
+            .map(|atom| atom.weight)
+            .collect();
+        assert_eq!(weights.len(), 2);
+        assert!(
+            (weights[0] - 0.2).abs() < 1e-12 && (weights[1] - 0.8).abs() < 1e-12,
+            "horizon {horizon}: atom weights {weights:?} are not the supplied (0.2, 0.8)"
+        );
+    }
     for horizon in 0..2 {
         for cell in 0..2 {
             let expected: f64 = structural
@@ -856,7 +912,7 @@ fn class_curve_prior_is_used_and_atom_uncertainty_survives() {
     for masses in [[2e-100, 8e-100], [2e307, 8e307]] {
         let scaled = run(masses);
         let Some(antecedent_core::ResponseValue::Surface { mean: scaled_mean, .. }) =
-            scaled.structural_response.unwrap().conditional_on_identified
+            scaled.structural_response.as_ref().unwrap().conditional_on_identified.as_ref()
         else {
             panic!("scaled class prior lost conditional surface")
         };
@@ -913,7 +969,7 @@ fn bayesian_class_selection_matches_directed_observation_likelihood() {
     let Some(antecedent_core::ResponseValue::Surface { mean, .. }) = &atom.value else {
         panic!("missing curve")
     };
-    assert!((mean[1] - mean[0] - 2.0).abs() < 0.25, "{mean:?}");
+    assert!((mean[1] - mean[0] - 2.0).abs() < 0.01, "{mean:?}");
     let mut sequence_query = query;
     sequence_query.functional = ResponseFunctional::InterventionResponse {
         outcome: VariableId::from_raw(1),
@@ -942,7 +998,7 @@ fn bayesian_class_selection_matches_directed_observation_likelihood() {
     let Some(antecedent_core::ResponseValue::Scalar(mean)) = atom.value else {
         panic!("missing sequence response")
     };
-    assert!((mean - 3.0).abs() < 0.25, "{mean}");
+    assert!((mean - 3.0).abs() < 0.01, "{mean}");
     assert!(atom.posterior.is_some());
 }
 
@@ -992,7 +1048,7 @@ fn validation_without_class_prior_uses_finite_atom_baselines() {
         .unwrap()
         .run(&ExecutionContext::for_tests(7))
         .unwrap();
-    assert!(!result.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(!result.estimate().as_effect().unwrap().ate.is_finite());
     assert!(!result.refutations.is_empty());
     assert!(result.refutations.iter().all(|report| report.original_ate.is_finite()));
     assert!(result.refutations.iter().all(|report| report.refuter.starts_with("completion.")));
@@ -1169,6 +1225,14 @@ fn class_curve_ordered_and_pair_priors_bind_the_same_completions() {
             .collect::<Vec<_>>()
     };
     assert_eq!(weights(&ordered), weights(&paired));
+    let w = weights(&ordered);
+    assert_eq!(w.len(), 4);
+    for pair in w.chunks(2) {
+        assert!(
+            (pair[0] - 0.2).abs() < 1e-12 && (pair[1] - 0.8).abs() < 1e-12,
+            "atom weights {w:?} are not the supplied (0.2, 0.8) per horizon"
+        );
+    }
 }
 
 #[test]
@@ -1215,12 +1279,12 @@ fn frequentist_multi_step_class_mixture_declares_its_missing_se() {
     let full = pin["multi_step"]["full_window_effect"].as_f64().unwrap();
     let tol = pin["multi_step"]["absolute_tolerance"].as_f64().unwrap();
     assert!(
-        (result.estimate.as_effect().unwrap().ate - full).abs() < tol,
+        (result.estimate().as_effect().unwrap().ate - full).abs() < tol,
         "{}",
-        result.estimate.as_effect().unwrap().ate
+        result.estimate().as_effect().unwrap().ate
     );
     assert!(
-        result.estimate.as_effect().unwrap().se_analytic().is_nan(),
+        result.estimate().as_effect().unwrap().se_analytic().is_nan(),
         "two atoms share observations; no mixture SE"
     );
     assert!(
@@ -1230,7 +1294,7 @@ fn frequentist_multi_step_class_mixture_declares_its_missing_se() {
             .any(|d| d.code.as_ref() == "estimate.envelope.se_omits_between_atom_variance"),
         "the missing mixture SE must be declared, as on the Pulse envelope"
     );
-    assert!(!result.estimate.as_effect().unwrap().provenance.assumptions.entries.is_empty());
+    assert!(!result.estimate().as_effect().unwrap().provenance.assumptions.entries.is_empty());
 }
 
 fn oriented_dag() -> antecedent_graph::TemporalDag {
@@ -1286,7 +1350,7 @@ fn bayesian_temporal_pulse_reports_one_estimator_id_on_dag_and_class() {
             estimator(&class).as_deref(),
             Some("bayesian.temporal.gcomp"),
             "a Bayesian fit must not report the Frequentist estimator whether or not a class \
-             prior licenses a mixture"
+             prior supports a mixture"
         );
     }
     let class_freq = Study::series(series_from_law(400, false))
@@ -1460,7 +1524,7 @@ fn temporal_class_bayesian_pulse_mixes_with_unidentified_mass() {
     assert!(structural.unidentified_mass > 0.0, "{}", structural.unidentified_mass);
     assert!((structural.identified_mass + structural.unidentified_mass - 1.0).abs() < 1e-9);
     assert!(result.posterior.is_some());
-    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(result.estimate().as_effect().unwrap().ate.is_finite());
     let mixed = result.posterior.as_ref().unwrap();
     assert!(mixed.unidentified_mass > 0.0, "unidentified mass must not be renormalized away");
     assert_eq!(
@@ -1650,7 +1714,10 @@ fn series_xyw(n: usize) -> TimeSeriesData {
 
 fn series_tmy(n: usize) -> TimeSeriesData {
     let t: Vec<f64> = (0..n).map(|i| ((i as f64) * 0.04).sin()).collect();
-    let m: Vec<f64> = (0..n).map(|i| if i == 0 { 0.0 } else { 0.6 * t[i - 1] }).collect();
+    // The mediator carries its own variation, so it is not collinear with the lagged treatment.
+    let m: Vec<f64> = (0..n)
+        .map(|i| if i == 0 { 0.0 } else { 0.6 * t[i - 1] + 0.3 * ((i as f64) * 0.11).cos() })
+        .collect();
     let y: Vec<f64> =
         (0..n).map(|i| if i == 0 { 0.0 } else { 0.4 * t[i - 1] + 0.5 * m[i] }).collect();
     TimeSeriesData::from_f64_columns(
@@ -1814,21 +1881,19 @@ fn mapped_transfer_onto_temporal_cpdag_cells() {
         .build()
         .unwrap()
         .run(&ExecutionContext::for_tests(seed.wrapping_add(3)));
-    match mapped {
-        Ok(result) => {
-            assert_ne!(result.identification.status, IdentificationStatus::NotIdentified);
-            assert_eq!(
-                result.certificate.as_ref().expect("certificate").graph_class,
-                antecedent::GraphClass::TemporalCpdag
-            );
-        }
-        Err(error) => {
-            assert!(
-                !error.to_string().contains("NotIdentified"),
-                "mapped transfer must fail closed without flipping ID: {error}"
-            );
-        }
-    }
+    let result = mapped.expect("an effect-functional mapping onto a same-lag source executes");
+    assert_eq!(result.identification.status, IdentificationStatus::NonparametricallyIdentified);
+    assert_eq!(
+        result.certificate.as_ref().expect("certificate").graph_class,
+        antecedent::GraphClass::TemporalCpdag
+    );
+    assert!(
+        result
+            .structural_response
+            .as_ref()
+            .is_some_and(|s| !s.atoms.is_empty() && s.atoms.iter().all(|a| a.posterior.is_some())),
+        "every completion atom of the transferred fit publishes its posterior"
+    );
 
     let mediation = Study::series(series_tmy(n))
         .graph(mediation_cpdag())
@@ -1855,25 +1920,16 @@ fn mapped_transfer_onto_temporal_cpdag_cells() {
         .build()
         .unwrap()
         .run(&ExecutionContext::for_tests(seed.wrapping_add(4)));
-    match mediation {
-        Ok(result) => {
-            assert_ne!(result.identification.status, IdentificationStatus::NotIdentified);
-            assert_eq!(
-                result.certificate.as_ref().expect("certificate").graph_class,
-                antecedent::GraphClass::TemporalCpdag
-            );
-            assert!(result.mediation().is_some() || result.mediation_grid().is_some());
-        }
-        Err(error) => {
-            assert!(
-                !error.to_string().contains("NotIdentified"),
-                "mediation transfer must fail closed without flipping ID: {error}"
-            );
-        }
-    }
+    let mediation = mediation.expect("a mediation transfer from a same-lag source executes");
+    assert_eq!(mediation.identification.status, IdentificationStatus::PartiallyIdentified);
+    assert_eq!(
+        mediation.certificate.as_ref().expect("certificate").graph_class,
+        antecedent::GraphClass::TemporalCpdag
+    );
+    assert!(mediation.mediation().is_some() || mediation.mediation_grid().is_some());
 }
 
-/// Every licensed Bayesian `TemporalPag` Pulse and single-step Sustained
+/// Every supported Bayesian `TemporalPag` Pulse and single-step Sustained
 /// coordinate (explicit and accepted structure × none / cheap / full) runs on the
 /// mixed-identification PAG under the fixture's `ClassPrior` and must reproduce the
 /// fixture's known truth (`temporal_class_envelope` →
@@ -1937,11 +1993,11 @@ fn temporal_pag_bayesian_pulse_and_sustained_all_structures_and_suites() {
                     .run(&ExecutionContext::for_tests(seed))
                     .unwrap();
                 let case = format!("{label} accepted={accepted} {suite:?}");
-                assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{case}");
+                assert_eq!(result.support_status().unwrap().as_str(), "supported", "{case}");
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate - effect).abs() < tol,
+                    (result.estimate().as_effect().unwrap().ate - effect).abs() < tol,
                     "{case}: effect {} vs known truth {effect}",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
                 let structural = result.structural_response.as_ref().expect("structural envelope");
                 assert!((structural.identified_mass - identified_mass).abs() < 1e-9, "{case}");

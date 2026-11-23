@@ -10,12 +10,12 @@
 //! so `NDE(z) = 4.5 + 1.125 z`. Target law `{0: 0.25, 1: 0.75}` gives `5.34375`, source law
 //! `{0: 0.4, 1: 0.4, 2: 0.2}` gives `5.4`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_io::transported_counterfactual_artifact::{
-    AffineWire, AssignmentWire, EvidenceWire, LawWire, MAX_COVARIATES, ModelWire, PremisesWire,
-    SelectionWire, SupportPointWire, TransportedCounterfactualArtifact,
-    TransportedCounterfactualArtifactError, TransportedCounterfactualMechanismWire,
+    AffineWire, AssignmentWire, EvidenceWire, LawWire, ModelWire, PremisesWire, SelectionWire,
+    SupportPointWire, TransportedCounterfactualArtifact, TransportedCounterfactualArtifactError,
+    TransportedCounterfactualLimits, TransportedCounterfactualMechanismWire,
     TransportedCounterfactualMeta, TransportedCounterfactualRefusalWire,
     TransportedCounterfactualRequestWire, decode_parts, encode_parts,
 };
@@ -127,7 +127,7 @@ fn refusal_of(
 }
 
 #[test]
-fn x8t_artifact_hand_values_survive_the_container_round_trip() {
+fn artifact_hand_values_survive_the_container_round_trip() {
     let sealed = seal(&request());
     close(sealed.result().target_contrast, 5.34375);
     close(sealed.result().source_contrast, 5.4);
@@ -144,7 +144,7 @@ fn x8t_artifact_hand_values_survive_the_container_round_trip() {
             .iter()
             .any(|c| c == "no_selection_on_mediator_or_outcome")
     );
-    let bytes = sealed.to_bytes("x8t-artifact").unwrap();
+    let bytes = sealed.to_bytes("artifact").unwrap();
     let consumed = TransportedCounterfactualArtifact::from_bytes(&bytes, Some(sealed.identity()))
         .expect("replays");
     assert_eq!(consumed.result(), sealed.result());
@@ -158,7 +158,7 @@ fn x8t_artifact_hand_values_survive_the_container_round_trip() {
 }
 
 #[test]
-fn x8t_artifact_identity_and_answer_do_not_depend_on_supply_order() {
+fn artifact_identity_and_answer_do_not_depend_on_supply_order() {
     let base = seal(&request());
     let mut shuffled = request();
     shuffled.model.mechanisms.reverse();
@@ -176,7 +176,7 @@ fn x8t_artifact_identity_and_answer_do_not_depend_on_supply_order() {
 }
 
 #[test]
-fn x8t_artifact_resealed_changes_are_refused_against_the_retained_identity() {
+fn artifact_resealed_changes_are_refused_against_the_retained_identity() {
     let retained = seal(&request()).identity().clone();
     let mut by_field: Vec<(&str, TransportedCounterfactualRequestWire)> = Vec::new();
     // A coefficient: the A coefficient of M.
@@ -214,14 +214,17 @@ fn x8t_artifact_resealed_changes_are_refused_against_the_retained_identity() {
             TransportedCounterfactualArtifact::from_bytes(&bytes, Some(&retained)).unwrap_err();
         assert_eq!(error, TransportedCounterfactualArtifactError::IdentityMismatch { field });
         let refusal = error.refusal().unwrap();
-        assert_eq!(refusal.detail, "transported_counterfactual.artifact_changed");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::transported_counterfactual::ARTIFACT_CHANGED
+        );
         assert_eq!(refusal.code, "route_not_supported");
         assert_eq!(refusal.offending.as_deref(), Some(field));
     }
 }
 
 #[test]
-fn x8t_artifact_stale_identity_after_an_unresealed_edit_is_refused() {
+fn artifact_stale_identity_after_an_unresealed_edit_is_refused() {
     let sealed = seal(&request());
     let mut meta = decode_parts(&sealed.to_bytes("x").unwrap()).unwrap();
     // Edit a coefficient and a law in place without updating the stored identity or result.
@@ -246,12 +249,15 @@ fn x8t_artifact_stale_identity_after_an_unresealed_edit_is_refused() {
 }
 
 #[test]
-fn x8t_artifact_false_labelled_premises_are_refused_even_when_resealed() {
+fn artifact_false_labelled_premises_are_refused_even_when_resealed() {
     let sealed = seal(&request());
     for (flip, detail) in [
-        (0, "transported_counterfactual.nonadditive_mechanism"),
-        (1, "transported_counterfactual.noise_law_not_shared"),
-        (2, "transported_counterfactual.cross_world_independence_missing"),
+        (0, antecedent_core::reason_details::transported_counterfactual::NONADDITIVE_MECHANISM),
+        (1, antecedent_core::reason_details::transported_counterfactual::NOISE_LAW_NOT_SHARED),
+        (
+            2,
+            antecedent_core::reason_details::transported_counterfactual::CROSS_WORLD_INDEPENDENCE_MISSING,
+        ),
     ] {
         let mut meta = decode_parts(&sealed.to_bytes("x").unwrap()).unwrap();
         // Relabel one premise false (earlier premises stay true so the named one is first).
@@ -267,13 +273,13 @@ fn x8t_artifact_false_labelled_premises_are_refused_even_when_resealed() {
                 .refusal()
                 .expect("the core refusal");
             assert_eq!(refusal.detail, detail);
-            assert_eq!(refusal.code, "cell_not_licensed");
+            assert_eq!(refusal.code, "route_not_supported");
         }
     }
 }
 
 #[test]
-fn x8t_artifact_a_selection_resealed_onto_a_mechanism_is_refused_with_its_witness() {
+fn artifact_a_selection_resealed_onto_a_mechanism_is_refused_with_its_witness() {
     let sealed = seal(&request());
     let mut meta = decode_parts(&sealed.to_bytes("x").unwrap()).unwrap();
     meta.request.selections = selection("y");
@@ -289,7 +295,7 @@ fn x8t_artifact_a_selection_resealed_onto_a_mechanism_is_refused_with_its_witnes
 }
 
 #[test]
-fn x8t_artifact_a_tampered_stored_answer_does_not_replay() {
+fn artifact_a_tampered_stored_answer_does_not_replay() {
     let sealed = seal(&request());
     let tampered = |edit: &dyn Fn(&mut TransportedCounterfactualMeta)| {
         let mut meta = decode_parts(&sealed.to_bytes("x").unwrap()).unwrap();
@@ -316,7 +322,7 @@ fn x8t_artifact_a_tampered_stored_answer_does_not_replay() {
 }
 
 #[test]
-fn x8t_artifact_a_changed_stored_identity_field_is_named() {
+fn artifact_a_changed_stored_identity_field_is_named() {
     let sealed = seal(&request());
     let mut meta = decode_parts(&sealed.to_bytes("x").unwrap()).unwrap();
     meta.identity.premises_digest = "0".repeat(64);
@@ -330,12 +336,15 @@ fn x8t_artifact_a_changed_stored_identity_field_is_named() {
 }
 
 #[test]
-fn x8t_artifact_refusals_are_never_stored_and_keep_the_two_model_witness() {
+fn artifact_refusals_are_never_stored_and_keep_the_two_model_witness() {
     let mut on_outcome = request();
     on_outcome.selections = selection("y");
     let refusal = refusal_of(&on_outcome);
     assert_eq!(refusal.code, "transport_proven_non_transportable");
-    assert_eq!(refusal.detail, "transported_counterfactual.selection_on_mechanism");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::SELECTION_ON_MECHANISM
+    );
     let witness = refusal.witness.expect("the NDE is sensitive to the outcome mechanism");
     assert_eq!(witness.selected_node, "y");
     assert_eq!(witness.perturbed_parent, "a");
@@ -350,31 +359,43 @@ fn x8t_artifact_refusals_are_never_stored_and_keep_the_two_model_witness() {
     let mut on_mediator = request();
     on_mediator.selections = selection("m");
     let refusal = refusal_of(&on_mediator);
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "route_not_supported");
     assert!(refusal.witness.is_none());
     // Undeclared premises refuse with the core's own detail.
     let mut undeclared = request();
     undeclared.premises = PremisesWire::default();
-    assert_eq!(refusal_of(&undeclared).detail, "transported_counterfactual.nonadditive_mechanism");
+    assert_eq!(
+        refusal_of(&undeclared).detail,
+        antecedent_core::reason_details::transported_counterfactual::NONADDITIVE_MECHANISM
+    );
     // Missing evidence names the missing factor; overlap names the point.
     let mut withheld = request();
     withheld.evidence.retain(|e| e.role == "source");
     let refusal = refusal_of(&withheld);
-    assert_eq!(refusal.detail, "transported_counterfactual.factor_missing");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::FACTOR_MISSING
+    );
     assert_eq!(refusal.missing_factors, ["target:observational"]);
     let mut outside = request();
     outside.target_law = law(&[(0.0, 0.5), (3.0, 0.5)]);
     let refusal = refusal_of(&outside);
-    assert_eq!(refusal.detail, "transported_counterfactual.overlap_failure");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::OVERLAP_FAILURE
+    );
     assert_eq!(refusal.offending.as_deref(), Some("z=3"));
     // A repeated evidence factor or an unknown role is an invalid factor.
     let mut repeated = request();
     repeated.evidence.push(repeated.evidence[0].clone());
-    assert_eq!(refusal_of(&repeated).detail, "transported_counterfactual.invalid_factor");
+    assert_eq!(
+        refusal_of(&repeated).detail,
+        antecedent_core::reason_details::transported_counterfactual::INVALID_FACTOR
+    );
 }
 
 #[test]
-fn x8t_artifact_unknown_versions_features_and_corruption_are_refused() {
+fn artifact_unknown_versions_features_and_corruption_are_refused() {
     let sealed = seal(&request());
     let bytes = sealed.to_bytes("x").unwrap();
     let mut meta = decode_parts(&bytes).unwrap();
@@ -417,11 +438,42 @@ fn x8t_artifact_unknown_versions_features_and_corruption_are_refused() {
 }
 
 #[test]
-fn x8t_artifact_bounds_are_enforced_on_the_request() {
+fn artifact_bounds_are_enforced_on_the_request() {
+    // There is no covariate-count cap: a wide model is refused for what it declares, never for
+    // how many covariates it names.
     let mut wide = request();
-    wide.model.covariates = (0..=MAX_COVARIATES).map(|i| format!("c{i}")).collect();
-    assert_eq!(
+    wide.model.covariates = (0..=64).map(|i| format!("c{i}")).collect();
+    assert!(!matches!(
         TransportedCounterfactualArtifact::seal(&wide).unwrap_err(),
-        TransportedCounterfactualArtifactError::LimitsExceeded("covariates")
+        TransportedCounterfactualArtifactError::LimitsExceeded(_)
+    ));
+}
+
+#[test]
+fn caller_limits_refuse_what_the_defaults_admit() {
+    let defaults = TransportedCounterfactualLimits::default();
+    let sealed = TransportedCounterfactualArtifact::seal_within(&request(), &defaults).unwrap();
+    let bytes = sealed.to_bytes("limits").unwrap();
+    TransportedCounterfactualArtifact::from_bytes_with_limits(&bytes, None, &defaults).unwrap();
+
+    for (limits, what) in [
+        (TransportedCounterfactualLimits { max_mechanisms: 0, ..defaults }, "mechanisms"),
+        (TransportedCounterfactualLimits { max_support_points: 2, ..defaults }, "support points"),
+        (TransportedCounterfactualLimits { max_declarations: 0, ..defaults }, "declarations"),
+    ] {
+        assert_eq!(
+            TransportedCounterfactualArtifact::seal_within(&request(), &limits).unwrap_err(),
+            TransportedCounterfactualArtifactError::LimitsExceeded(what)
+        );
+        assert_eq!(
+            TransportedCounterfactualArtifact::from_bytes_with_limits(&bytes, None, &limits)
+                .unwrap_err(),
+            TransportedCounterfactualArtifactError::LimitsExceeded(what)
+        );
+    }
+    let tight = TransportedCounterfactualLimits { max_bytes: bytes.len() - 1, ..defaults };
+    assert!(
+        TransportedCounterfactualArtifact::from_bytes_with_limits(&bytes, None, &tight).is_err()
     );
+    assert!(sealed.to_bytes_within("limits", bytes.len() - 1).is_err());
 }

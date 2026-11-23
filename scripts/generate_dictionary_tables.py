@@ -14,6 +14,7 @@ import tomllib
 from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
+from _repo import load_toml
 
 IDENTITY = ROOT / "parity" / "identity.toml"
 MATRIX = ROOT / "parity" / "producer_consumer.toml"
@@ -35,10 +36,26 @@ STATUSES = ("DIRECT", "ADAPTER", "REFUSED")
 IDENTITY_BEGIN = "<!-- generated:identity-dictionary:begin -->"
 IDENTITY_END = "<!-- generated:identity-dictionary:end -->"
 MATRIX_BLOCKS = (
-    ("producers", "<!-- generated:producer-consumer:producers:begin -->", "<!-- generated:producer-consumer:producers:end -->"),
-    ("consumers", "<!-- generated:producer-consumer:consumers:begin -->", "<!-- generated:producer-consumer:consumers:end -->"),
-    ("matrix", "<!-- generated:producer-consumer:matrix:begin -->", "<!-- generated:producer-consumer:matrix:end -->"),
-    ("refusals", "<!-- generated:producer-consumer:refusals:begin -->", "<!-- generated:producer-consumer:refusals:end -->"),
+    (
+        "producers",
+        "<!-- generated:producer-consumer:producers:begin -->",
+        "<!-- generated:producer-consumer:producers:end -->",
+    ),
+    (
+        "consumers",
+        "<!-- generated:producer-consumer:consumers:begin -->",
+        "<!-- generated:producer-consumer:consumers:end -->",
+    ),
+    (
+        "matrix",
+        "<!-- generated:producer-consumer:matrix:begin -->",
+        "<!-- generated:producer-consumer:matrix:end -->",
+    ),
+    (
+        "refusals",
+        "<!-- generated:producer-consumer:refusals:begin -->",
+        "<!-- generated:producer-consumer:refusals:end -->",
+    ),
 )
 
 
@@ -49,7 +66,7 @@ def _cell(text: object, label: str) -> str:
 
 
 def load_identity() -> list[dict]:
-    rows = tomllib.loads(IDENTITY.read_text(encoding="utf-8")).get("identity", [])
+    rows = load_toml(IDENTITY).get("identity", [])
     if not rows:
         raise ValueError("parity/identity.toml has no [[identity]] rows")
     seen: set[str] = set()
@@ -75,7 +92,7 @@ def load_identity() -> list[dict]:
 
 
 def load_matrix() -> dict:
-    data = tomllib.loads(MATRIX.read_text(encoding="utf-8"))
+    data = load_toml(MATRIX)
     producers = data.get("producer", [])
     consumers = data.get("consumer", [])
     cells = data.get("cell", [])
@@ -94,7 +111,10 @@ def load_matrix() -> dict:
         _cell(row.get("rust"), f"consumer {row.get('key')} rust")
     seen: set[tuple[str, str]] = set()
     for row in cells:
-        pair = (_cell(row.get("producer"), "cell producer"), _cell(row.get("consumer"), "cell consumer"))
+        pair = (
+            _cell(row.get("producer"), "cell producer"),
+            _cell(row.get("consumer"), "cell consumer"),
+        )
         if pair in seen:
             raise ValueError(f"duplicate cell {pair}")
         seen.add(pair)
@@ -121,9 +141,7 @@ def render_identity(rows: list[dict]) -> str:
         "| --- | --- | --- |",
     ]
     for row in rows:
-        lines.append(
-            f"| {row['naming_row']} | {row['doc_rust']} | {row['doc_python']} |"
-        )
+        lines.append(f"| {row['naming_row']} | {row['doc_rust']} | {row['doc_python']} |")
     return "\n".join(lines)
 
 

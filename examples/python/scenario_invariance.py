@@ -12,7 +12,13 @@ the experiment ``do(x)`` over ``(z, y)`` and the target its observational joint 
 * selection on ``z``: standardize, ``sum_z P_s(y | do(x), z) P*(z)``: one source factor and one
   target factor;
 * no selection: ``P_s(y | do(x))``, one source factor, rule ``transport.direct``;
-* selection on ``y``: the outcome's own mechanism differs (an s-hedge), so an obstruction."""
+* selection on ``y``: the outcome's own mechanism differs (an s-hedge), so an obstruction.
+
+The script asserts each scenario's rule, factors and obstruction kind. The laws are exact
+fixtures, so the report explains the stated graphs; it does not test whether the selection
+targets are right for a real source and target.
+
+Run: ``python examples/python/scenario_invariance.py``."""
 
 from __future__ import annotations
 

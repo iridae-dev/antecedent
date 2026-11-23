@@ -1,6 +1,6 @@
 //! Shpitser & Pearl (2006) IDC for conditional interventional distributions.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -105,6 +105,9 @@ impl IdcIdentifier {
 
     /// Identify `P(Y | do(X), Z)` via IDC.
     ///
+    /// The intervened variables stay symbolic: the emitted functional reads their
+    /// level from the evaluation environment.
+    ///
     /// # Errors
     ///
     /// Unknown variables or ID failure plumbing.
@@ -116,6 +119,46 @@ impl IdcIdentifier {
         conditioning: &[VariableId],
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
+        self.identify_conditional_with(
+            prepared,
+            ConditionalRequest { outcomes, interventions, conditioning, bake_levels: false },
+            workspace,
+        )
+    }
+
+    /// Identify `P(Y | do(X = x), Z)` with the hard-set levels of `interventions` baked
+    /// into the emitted factors, so two calls at different levels give two different
+    /// functionals of the same observed law (the arms of a conditional contrast).
+    ///
+    /// A conditioning variable that rule 2 moves into the intervention set keeps no
+    /// level: it stays a free variable of the functional, bound to each observed value
+    /// of that variable by the evaluator, never to a stand-in constant.
+    ///
+    /// # Errors
+    ///
+    /// Unknown variables or ID failure plumbing.
+    pub fn identify_conditional_at_levels(
+        &self,
+        prepared: &PreparedAdmg,
+        outcomes: &[VariableId],
+        interventions: &[Intervention],
+        conditioning: &[VariableId],
+        workspace: &mut IdentificationWorkspace,
+    ) -> Result<IdentificationResult, IdentificationError> {
+        self.identify_conditional_with(
+            prepared,
+            ConditionalRequest { outcomes, interventions, conditioning, bake_levels: true },
+            workspace,
+        )
+    }
+
+    fn identify_conditional_with(
+        &self,
+        prepared: &PreparedAdmg,
+        request: ConditionalRequest<'_>,
+        workspace: &mut IdentificationWorkspace,
+    ) -> Result<IdentificationResult, IdentificationError> {
+        let ConditionalRequest { outcomes, interventions, conditioning, bake_levels } = request;
         crate::intervention_support::require_hard_set_interventions(interventions, "IDC")?;
         // Y, X and Z must be pairwise disjoint: an overlap is not a
         // conditional interventional law and the rule-2 search below would
@@ -151,7 +194,8 @@ impl IdcIdentifier {
         derivation.push("general.idc", "Shpitser–Pearl IDC");
         let mut perf = IdentificationPerformanceRecord::default();
 
-        let problem = IdcProblem { id: &self.inner, prepared, known_values: &known_values };
+        let problem =
+            IdcProblem { id: &self.inner, prepared, known_values: &known_values, bake_levels };
         let surgical = mutilate_bar_x(prepared.admg(), &x)?;
         let expr_result = idc_recurse(
             &problem,
@@ -203,12 +247,23 @@ enum IdcOk {
     NotIdentified(IdentificationResult),
 }
 
+/// One conditional interventional law to identify.
+#[derive(Clone, Copy)]
+struct ConditionalRequest<'a> {
+    outcomes: &'a [VariableId],
+    interventions: &'a [Intervention],
+    conditioning: &'a [VariableId],
+    /// Bake the caller's hard-set levels into the emitted factors.
+    bake_levels: bool,
+}
+
 /// The ID engine, prepared graph and caller-supplied intervention levels an IDC recursion
 /// reads.
 struct IdcProblem<'a> {
     id: &'a IdIdentifier,
     prepared: &'a PreparedAdmg,
     known_values: &'a std::collections::BTreeMap<VariableId, Value>,
+    bake_levels: bool,
 }
 
 /// Mutable workspaces and diagnostics shared by every step of one IDC search.
@@ -226,7 +281,7 @@ fn idc_recurse(
     surgical: &Admg,
     run: &mut IdcRun<'_>,
 ) -> Result<IdcOk, IdentificationError> {
-    let IdcProblem { id, prepared, known_values } = *problem;
+    let IdcProblem { id, prepared, known_values, bake_levels } = *problem;
     run.perf.candidates_examined = run.perf.candidates_examined.saturating_add(1);
 
     // Line 1: move Z∈Z into intervention when Y ⊥ Z | X, Z\{Z} in G_{\bar X \underline Z}.
@@ -262,7 +317,20 @@ fn idc_recurse(
     let mut yz = y.clone();
     yz.union_with(z);
     let q = distribution_query_from_sets(prepared, &yz, x, known_values)?;
-    let id_res = id.identify(prepared, &q, run.workspace)?;
+    let id_res = if bake_levels {
+        // Only the caller's own interventions have a level. A conditioning variable moved
+        // into the intervention set by line 1 has none and stays free.
+        let mut assignments = Vec::new();
+        for dense in x.iter() {
+            let variable = prepared.dense_to_var(dense)?;
+            if let Some(value) = known_values.get(&variable) {
+                assignments.push((dense, value.clone()));
+            }
+        }
+        IdIdentifier::identify_sets(prepared, &yz, x, q, run.workspace, Arc::from(assignments))?
+    } else {
+        id.identify(prepared, &q, run.workspace)?
+    };
     if id_res.status != IdentificationStatus::NonparametricallyIdentified {
         return Ok(IdcOk::NotIdentified(id_res));
     }
@@ -271,7 +339,7 @@ fn idc_recurse(
     let y_vars = intern_bitset_vars(prepared, y, &mut arena)?;
     let denom = arena.intern(ExprNode::SumOut { variables: y_vars, expr: functional });
     let ratio = arena.intern(ExprNode::Ratio { numerator: functional, denominator: denom });
-    let functional = arena.simplify(ratio).map_err(|e| IdentificationError::msg(e.to_string()))?;
+    let functional = arena.simplify(ratio).map_err(IdentificationError::expression)?;
     Ok(IdcOk::Identified { functional, arena })
 }
 
@@ -536,6 +604,70 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    /// Every case of the retained fixture drives the identifier: the graph, outcomes,
+    /// `do(.)` interventions and conditioning set are read from the fixture's strings and the
+    /// reported status is compared with the fixture's, so the second (conditioned) case is
+    /// exercised and a fixture/graph disagreement cannot pass unnoticed.
+    #[test]
+    fn idc_fixture_cases_drive_the_identifier() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("../../../conformance/identify/idc/expected.json"))
+                .unwrap();
+        let cases = fixture["cases"].as_array().unwrap();
+        assert_eq!(cases.len(), 2);
+        for case in cases {
+            let id = case["id"].as_str().unwrap();
+            let strings = |key: &str| -> Vec<String> {
+                case[key].as_array().unwrap().iter().map(|v| v.as_str().unwrap().into()).collect()
+            };
+            let edges = strings("edges");
+            let mut names: Vec<String> = Vec::new();
+            let mut index = |name: &str| -> u32 {
+                let position = names.iter().position(|n| n == name).unwrap_or_else(|| {
+                    names.push(name.into());
+                    names.len() - 1
+                });
+                u32::try_from(position).unwrap()
+            };
+            let pairs: Vec<(u32, u32)> = edges
+                .iter()
+                .map(|e| {
+                    let (parent, child) = e.split_once("->").unwrap();
+                    (index(parent), index(child))
+                })
+                .collect();
+            let mut dag = Dag::with_variables(u32::try_from(names.len()).unwrap());
+            for (parent, child) in pairs {
+                dag.insert_directed(DenseNodeId::from_raw(parent), DenseNodeId::from_raw(child))
+                    .unwrap();
+            }
+            let var = |name: &str| {
+                let position = names.iter().position(|n| n == name).unwrap();
+                VariableId::from_raw(u32::try_from(position).unwrap())
+            };
+            let outcomes: Vec<VariableId> = strings("outcomes").iter().map(|n| var(n)).collect();
+            let conditioning: Vec<VariableId> =
+                strings("conditioning").iter().map(|n| var(n)).collect();
+            let interventions: Vec<Intervention> = strings("interventions")
+                .iter()
+                .map(|text| {
+                    let body = text.strip_prefix("do(").unwrap().strip_suffix(')').unwrap();
+                    let (name, value) = body.split_once('=').unwrap();
+                    Intervention::set(var(name), Value::f64(value.parse().unwrap()))
+                })
+                .collect();
+            let idc = IdcIdentifier::new();
+            let prep = idc.prepare_dag(&dag).unwrap();
+            let mut ws = IdentificationWorkspace::default();
+            let res = idc
+                .identify_conditional(&prep, &outcomes, &interventions, &conditioning, &mut ws)
+                .unwrap();
+            let expected = case["status"].as_str().unwrap();
+            assert_eq!(expected, "identified", "{id}: the fixture's positive cases");
+            assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified, "{id}");
         }
     }
 

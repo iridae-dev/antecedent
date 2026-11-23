@@ -4,18 +4,26 @@
 //! prior scale, treatment levels, or latency never re-runs discovery — only an
 //! explicit new discover / review → prepare cycle may replace the graph.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+mod adjusted_retarget;
 mod cached;
 mod estimate;
 mod execute_checked;
 mod execution;
 mod execution_accessors;
+mod identification_view;
 mod info;
+pub use identification_view::PreparedIdentificationView;
+mod joint_response;
+pub use joint_response::{JointResponseResult, PreparedJointResponse};
 mod lifecycle;
 mod operations;
+mod period_refresh_entry;
 mod prepare;
 mod prepare_identification;
+mod propensity_nuisance_entry;
+mod retained_refresh_entry;
 mod retarget;
 mod seal;
 mod sealed;
@@ -28,6 +36,7 @@ mod tests;
 pub(in crate::analysis) use cached::conditional_class_proof_is_complete;
 pub(crate) use cached::{
     CachedCpdagIdentification, CachedPagIdentification, CachedTemporalClassIdentification,
+    IdentificationCache,
 };
 pub use cached::{
     CachedStaticIdentification, CachedTemporalHorizonIdentification, CachedTemporalIdentification,
@@ -46,7 +55,12 @@ pub use info::{
     CheckedTemporalClassEffectInfo, CheckedTemporalClassMediationInfo,
     CheckedTemporalClassResponseInfo, CheckedTemporalDagEffectInfo, CheckedTemporalDagResponseInfo,
     CheckedTemporalGraphPosteriorEffectInfo, CheckedTemporalGraphPosteriorResponseInfo,
-    CheckedTemporalMediationInfo,
+    CheckedTemporalMediationInfo, CheckedTemporalMediationProofMass,
+    CheckedTemporalMediationTargetInfo, TemporalMediationProofMassBasis,
+};
+pub use info::{
+    CheckedDerivativeResponseInfo, CheckedPropensityInfo, CheckedStaticDagResponseInfo,
+    RetainedOperation,
 };
 pub(crate) use operations::{
     CheckedAdmgResponseCurveOperation, CheckedAipwOperation, CheckedDistributionOperation,
@@ -71,7 +85,7 @@ pub(crate) use crate::analysis::identification_cache::{
     build_admg_graph_posterior_response_identification_cache,
     build_dbn_posterior_identification_cache, build_dbn_posterior_mediation_identification_cache,
     build_dbn_posterior_response_identification_cache, build_graph_posterior_identification_cache,
-    build_temporal_class_posterior_identification_cache, temporal_dag_from_dbn_atom,
+    build_temporal_class_posterior_identification_cache,
 };
 #[cfg(test)]
 pub(crate) use crate::analysis::identification_cache::{
@@ -81,6 +95,25 @@ use crate::planner::PhysicalExecutionPlan;
 use antecedent_core::CausalSchema;
 
 use std::sync::Arc;
+
+/// Test instrument: bind `data` on a new branch, materialize it and estimate, then adopt the
+/// branch as the handle. A failure leaves the handle unchanged, as the immutable lifecycle does.
+#[cfg(test)]
+pub(crate) fn rebind_estimate(
+    prepared: &mut PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<crate::result::StudyResult, crate::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    // A native estimator may return a usable partial result after cancellation; a cancelled
+    // click must not be adopted as the new handle.
+    if ctx.cancellation.is_cancelled() {
+        return Err(crate::CausalError::Cancelled { stage: "refresh" });
+    }
+    *prepared = branch;
+    Ok(result)
+}
 
 /// Data modality a [`PreparedStudy`] was compiled for.
 ///
@@ -147,14 +180,45 @@ pub struct PreparedStudy<S = SampledPreparedState> {
     pub(crate) state: S,
 }
 
+/// Scientific target and per-atom products compiled together at preparation.
+/// Keeping the query beside its products makes an accidental internal retarget
+/// a typed refusal instead of publication of a stale atom program.
+#[derive(Clone, Debug)]
+struct RetainedPosteriorPrograms {
+    query: Arc<[u8]>,
+    runtime_query: Option<antecedent_core::CausalQuery>,
+    programs: antecedent_io::GraphPosteriorProgramsWire,
+}
+
+/// The sealed operation of a materialized branch, offered to the branch rebound from it.
+#[derive(Clone, Debug)]
+struct RetainedBranch {
+    execution: PreparedExecution,
+    /// For a checked mean ATE that retained a cross-fitted score table, whether that table
+    /// was read from a batch's shared design; `None` when it retained none.
+    scored: Option<bool>,
+}
+
 /// Retained state for sampled-data modalities of the common prepared handle.
 #[derive(Clone, Debug)]
 pub struct SampledPreparedState {
+    pub(crate) temporal_namespace: Option<super::contract::AdmittedWindowNamespace>,
+    pub(super) data_diagnostics: Option<Arc<crate::DataDiagnosticsReport>>,
     /// Frozen analysis config (data slot replaced only by checked refresh).
     analysis: Study,
+    /// Whether data-dependent statistical operations have been materialized.
+    materialized: bool,
     /// Data-independent contract layers, compiled once per handle state.
     program_cache: std::sync::OnceLock<Arc<crate::analysis::contract::ProgramPayloads>>,
-    /// Ready physical plan from the prepare-time compile (never recompiled on refresh).
+    /// Immutable base contract; execution claims and reasoning are rebound per result.
+    contract_cache: std::sync::OnceLock<Arc<crate::analysis::contract::CompiledContract>>,
+    /// Bounded metadata sealed before a prepared state becomes visible.
+    inspection_header: std::sync::OnceLock<Arc<crate::analysis::contract::PreparedInspection>>,
+    /// Per-atom scientific programs compiled under the prepare caller's resource
+    /// and cancellation context. Contract inspection only reads these products.
+    posterior_programs: Option<Arc<RetainedPosteriorPrograms>>,
+    /// Caller-admitted physical plan. A compatible estimator-configuration refresh
+    /// re-lowers its numerical work and requotes admission against the new options.
     plan: std::sync::Arc<PhysicalExecutionPlan>,
     /// Schema fingerprint from prepare-time data.
     schema: CausalSchema,
@@ -168,6 +232,12 @@ pub struct SampledPreparedState {
     /// Sealed route selection and its checked operation, or the ordinary dispatcher
     /// for a configuration no sealed operation admits.
     execution: PreparedExecution,
+    /// The materialized operation of the branch this one was rebound from. Materialization
+    /// rebinds its checked receipt to the new rows; it is dropped once this branch owns one.
+    retained: Option<Arc<RetainedBranch>>,
+    /// What each refreshed series period invalidated (see
+    /// [`antecedent_state::TemporalProduct`]); empty until a period is applied.
+    temporal_log: antecedent_state::InvalidationLog,
 }
 
 impl std::ops::Deref for PreparedStudy {
@@ -181,3 +251,15 @@ impl std::ops::DerefMut for PreparedStudy {
         &mut self.state
     }
 }
+
+impl PreparedStudy {
+    /// Retained scientific/identification/operator program of a checked linear operation.
+    #[must_use]
+    pub fn compiled_linear_program(
+        &self,
+    ) -> Option<&crate::analysis::compiled_linear::CompiledLinearProgram> {
+        self.execution.linear_operation().map(|operation| operation.compiled.as_ref())
+    }
+}
+
+pub(crate) use joint_response::joint_target_admission;

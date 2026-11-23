@@ -4,7 +4,7 @@
 //! a second artifact cannot reuse a discriminator, and so encode paths name
 //! one static word.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub(crate) const ADAPTIVE_MONITORING_CONTRACT: &str = "adaptive_monitoring_contract_v1";
 pub(crate) const ANALYSIS_RESULT: &str = "analysis_result";
@@ -13,7 +13,7 @@ pub(crate) const CAUSAL_PAYLOAD: &str = "causal_payload";
 pub(crate) const COHORT_DECISION_SOURCE: &str = "cohort_decision_source_v1";
 pub(crate) const COMPACT_RUNTIME_EXPORT: &str = "compact_runtime_export_v1";
 pub(crate) const COMPOSITION_VERIFICATION: &str = "composition_verification_v1";
-pub(crate) const COUNTERFACTUAL_TRANSPORT: &str = "counterfactual_transport_v1";
+pub(crate) const COUNTERFACTUAL_TRANSPORT: &str = "counterfactual_transport_v2";
 pub(crate) const CROSS_WORLD_EXECUTION: &str = "cross_world_execution_v1";
 pub(crate) const EVIDENCE_LEDGER: &str = "evidence_ledger_v1";
 pub(crate) const EXTERNAL_CALLBACK: &str = "external_callback_v1";
@@ -30,7 +30,9 @@ pub(crate) const RECALC_RECEIPT: &str = "recalc_receipt_v1";
 pub(crate) const SCIENTIFIC_BRIDGE: &str = "scientific_bridge_v1";
 pub(crate) const SELECTIVE_DISCOVERY: &str = "selective_discovery_v1";
 pub(crate) const SENSITIVITY_DECISION: &str = "sensitivity_decision_v1";
+pub(crate) const STALENESS_BASELINE: &str = "staleness_baseline_v1";
 pub(crate) const TEMPORAL_COUNTERFACTUAL: &str = "temporal_counterfactual_v1";
+pub(crate) const GENERAL_TEMPORAL_COUNTERFACTUAL: &str = "temporal_counterfactual_general_v1";
 pub(crate) const TRANSPORT_CERTIFICATE: &str = "transport_certificate";
 pub(crate) const TRANSPORTED_COUNTERFACTUAL: &str = "transported_counterfactual_v1";
 
@@ -40,11 +42,11 @@ mod tests {
         ADAPTIVE_MONITORING_CONTRACT, ANALYSIS_RESULT, CALLBACK_RESULT, CAUSAL_PAYLOAD,
         COHORT_DECISION_SOURCE, COMPACT_RUNTIME_EXPORT, COMPOSITION_VERIFICATION,
         COUNTERFACTUAL_TRANSPORT, EVIDENCE_LEDGER, EXTERNAL_CALLBACK, EXTERNAL_COLUMN_CLAIM,
-        EXTERNAL_RESPONSE_CLAIM, FROZEN_SCORES, INTERFACE_CONTRACT, JOINT_DISTRIBUTION,
-        JOINT_MECHANISM_SENSITIVITY, MEASUREMENT_MODEL, PROVIDER_RESULT,
-        PROVIDER_VERIFICATION_RECEIPT, RECALC_RECEIPT, SCIENTIFIC_BRIDGE, SELECTIVE_DISCOVERY,
-        SENSITIVITY_DECISION, TEMPORAL_COUNTERFACTUAL, TRANSPORT_CERTIFICATE,
-        TRANSPORTED_COUNTERFACTUAL,
+        EXTERNAL_RESPONSE_CLAIM, FROZEN_SCORES, GENERAL_TEMPORAL_COUNTERFACTUAL,
+        INTERFACE_CONTRACT, JOINT_DISTRIBUTION, JOINT_MECHANISM_SENSITIVITY, MEASUREMENT_MODEL,
+        PROVIDER_RESULT, PROVIDER_VERIFICATION_RECEIPT, RECALC_RECEIPT, SCIENTIFIC_BRIDGE,
+        SELECTIVE_DISCOVERY, SENSITIVITY_DECISION, STALENESS_BASELINE, TEMPORAL_COUNTERFACTUAL,
+        TRANSPORT_CERTIFICATE, TRANSPORTED_COUNTERFACTUAL,
     };
 
     #[test]
@@ -73,7 +75,9 @@ mod tests {
             SCIENTIFIC_BRIDGE,
             SELECTIVE_DISCOVERY,
             SENSITIVITY_DECISION,
+            STALENESS_BASELINE,
             TEMPORAL_COUNTERFACTUAL,
+            GENERAL_TEMPORAL_COUNTERFACTUAL,
             TRANSPORT_CERTIFICATE,
             TRANSPORTED_COUNTERFACTUAL,
             "adaptive_inference_result_v1",

@@ -10,8 +10,9 @@
 
 use crate::bridge::{artifact_refusal_json, check_declared_size};
 use antecedent::analysis::categorical_treatment::{
-    CategoricalSpecWire, CategoricalTreatment, CategoricalTreatmentArtifactError,
-    CategoricalTreatmentIdentity, CategoricalTreatmentRequest,
+    CategoricalPosteriorDeclaration, CategoricalRowsRequest, CategoricalSpecWire,
+    CategoricalTreatment, CategoricalTreatmentArtifactError, CategoricalTreatmentIdentity,
+    CategoricalTreatmentRequest,
 };
 use antecedent::analysis::vector_treatment::AdjustmentColumnRequest;
 use pyo3::prelude::*;
@@ -30,6 +31,9 @@ struct Declaration {
     row_snapshot: String,
     adjustment: Vec<String>,
     spec: CategoricalSpecWire,
+    /// The declared prior of the optional Bayesian counterpart; absent attaches none.
+    #[serde(default)]
+    posterior: Option<CategoricalPosteriorDeclaration>,
 }
 
 fn refusal_json(error: &CategoricalTreatmentArtifactError, stage: &'static str) -> Option<String> {
@@ -45,7 +49,7 @@ fn failure(error: &CategoricalTreatmentArtifactError) -> PyErr {
     match error {
         CategoricalTreatmentArtifactError::LimitsExceeded(what) => with_reason_code(
             value_err(format!("categorical_treatment.limits_exceeded: {what}")),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ),
         other => crate::serialization_err(other.to_string()),
     }
@@ -58,8 +62,12 @@ fn check_size(text: &str) -> PyResult<()> {
 /// Fit the categorical regime: `(report json, artifact bytes, refusal json)`; an export over its
 /// byte budget returns the report and the refusal with no artifact.
 ///
-/// `adjustment_columns[j]` is the column of `declaration.adjustment[j]`.
+/// `adjustment_columns[j]` is the column of `declaration.adjustment[j]`. `sampling_weights` and
+/// `cluster` (one entry per row) and `serial_lag` declare the rows' weights and dependence; each
+/// is read by the matching covariance kind or refused, and is bound by the artifact digests.
 #[pyfunction]
+#[pyo3(signature = (outcome, adjustment_columns, levels, declaration_json, artifact_id, *, sampling_weights=None, cluster=None, serial_lag=None, memory_bytes=None, cancel=None))]
+#[allow(clippy::too_many_arguments, reason = "the rows, their declarations and the artifact id")]
 fn evaluate_categorical_treatment(
     py: Python<'_>,
     outcome: Vec<f64>,
@@ -67,6 +75,11 @@ fn evaluate_categorical_treatment(
     levels: Vec<String>,
     declaration_json: &str,
     artifact_id: &str,
+    sampling_weights: Option<Vec<f64>>,
+    cluster: Option<Vec<u32>>,
+    serial_lag: Option<u64>,
+    memory_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<EvaluatePayload> {
     check_size(declaration_json)?;
     let declared: Declaration = serde_json::from_str(declaration_json)
@@ -76,9 +89,10 @@ fn evaluate_categorical_treatment(
             value_err(
                 "categorical_treatment.invalid_request: a column is missing for a declared name",
             ),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ));
     }
+    let posterior = declared.posterior;
     let request = CategoricalTreatmentRequest {
         outcome,
         row_snapshot: declared.row_snapshot,
@@ -92,24 +106,36 @@ fn evaluate_categorical_treatment(
         spec: declared.spec,
     };
     let artifact_id = artifact_id.to_owned();
-    detach_catch(py, move || match CategoricalTreatment::evaluate(&request) {
-        Ok(done) => {
-            let report = serde_json::to_string(&done.report())
-                .map_err(|e| crate::serialization_err(e.to_string()))?;
-            // An export over its byte budget refuses on its own: the fit is complete and its
-            // report returns with the refusal in place of the artifact.
-            match done.export(&artifact_id) {
-                Ok(bytes) => Ok((Some(report), Some(bytes), None)),
-                Err(error) => match refusal_json(&error, "export") {
-                    Some(json) => Ok((Some(report), None, Some(json))),
-                    None => Err(failure(&error)),
-                },
+    let rows = CategoricalRowsRequest { sampling_weights, cluster, serial_lag };
+    detach_catch(py, move || {
+        let ctx = crate::transport_common::execution_context(0, memory_bytes, cancel);
+        let fitted = if rows.is_plain() {
+            CategoricalTreatment::evaluate_with(&request, &ctx)
+        } else {
+            CategoricalTreatment::evaluate_declared(&request, &rows, &ctx)
+        };
+        match fitted.and_then(|done| match &posterior {
+            Some(declaration) => done.with_posterior(declaration),
+            None => Ok(done),
+        }) {
+            Ok(done) => {
+                let report = serde_json::to_string(&done.report())
+                    .map_err(|e| crate::serialization_err(e.to_string()))?;
+                // An export over its byte budget refuses on its own: the fit is complete and its
+                // report returns with the refusal in place of the artifact.
+                match done.export(&artifact_id) {
+                    Ok(bytes) => Ok((Some(report), Some(bytes), None)),
+                    Err(error) => match refusal_json(&error, "export") {
+                        Some(json) => Ok((Some(report), None, Some(json))),
+                        None => Err(failure(&error)),
+                    },
+                }
             }
+            Err(error) => match refusal_json(&error, "fit") {
+                Some(json) => Ok((None, None, Some(json))),
+                None => Err(failure(&error)),
+            },
         }
-        Err(error) => match refusal_json(&error, "fit") {
-            Some(json) => Ok((None, None, Some(json))),
-            None => Err(failure(&error)),
-        },
     })
 }
 
@@ -122,7 +148,7 @@ fn evaluate_categorical_treatment(
 #[pyo3(signature = (artifact, expected_identity_json=None, *, memory_limit_bytes=None))]
 fn consume_categorical_treatment_artifact(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expected_identity_json: Option<String>,
     memory_limit_bytes: Option<u64>,
 ) -> PyResult<ConsumePayload> {
@@ -132,7 +158,7 @@ fn consume_categorical_treatment_artifact(
             Some(serde_json::from_str(&text).map_err(|e| {
                 with_reason_code(
                     value_err(format!("categorical_treatment.invalid_identity: {e}")),
-                    antecedent_core::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_code!("invalid_argument"),
                 )
             })?)
         }
@@ -140,7 +166,7 @@ fn consume_categorical_treatment_artifact(
     };
     let ctx = crate::measured_inference_api::context(0, memory_limit_bytes, None);
     detach_catch(py, move || {
-        match CategoricalTreatment::consume_with(&artifact, expected.as_ref(), &ctx) {
+        match CategoricalTreatment::consume_with(artifact, expected.as_ref(), &ctx) {
             Ok(done) => {
                 let report = serde_json::to_string(&done.report())
                     .map_err(|e| crate::serialization_err(e.to_string()))?;
@@ -156,5 +182,6 @@ fn consume_categorical_treatment_artifact(
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evaluate_categorical_treatment, m)?)?;
-    m.add_function(wrap_pyfunction!(consume_categorical_treatment_artifact, m)?)
+    m.add_function(wrap_pyfunction!(consume_categorical_treatment_artifact, m)?)?;
+    Ok(())
 }

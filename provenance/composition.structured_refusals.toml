@@ -15,3 +15,22 @@ test_sources = [
   "crates/antecedent-design/tests/structured_refusals.rs",
   "python/tests/test_structured_refusals.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "A typed refusal envelope and its validator: a registered runtime reason code, a stage and a detail of the form namespace.snake_case; four different mistakes stay four distinguishable refusals."
+no_independent_algorithm = "external_refusal.rs checks strings, registered codes and field presence and builds the envelope; it has no floating-point computation."
+record_sha256 = "5192fb0e35aca3e25fbd1fdb9e150e96c090b25bafb48fadb35d8ac6ff1fab47"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/external_refusal.rs"
+items = ["fn capability_name", "fn new", "fn refusal", "fn snake_case", "fn to_refusal", "fn validate", "struct ExternalRefusal"]
+sha256 = "1955da8c28be37c896f49b55933573c9ff8fdee3268704701a7fb7dac9fa5467"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/structured_refusals.rs"
+items = ["fn action", "fn contract", "fn decision_refusal_carries_stage_action_reason_supplied_meaning_and_remedy", "fn independent_marginals", "fn json_declared_contract_keeps_its_typed_refusal", "fn malformed_refusal_envelopes_are_themselves_refused", "fn pair", "fn quantity", "fn wire_contract", "fn wire_response", "fn wrong_population_action_unit_and_capability_stay_four_distinct_refusals"]
+sha256 = "1d71b540cc4ba5ffcca450c06daca379b18b6b51d38f82c564126459c8ec292c"

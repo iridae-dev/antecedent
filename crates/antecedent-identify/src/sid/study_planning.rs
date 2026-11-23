@@ -1,10 +1,11 @@
 //! Study planning over the mz-transport and mixed-source catalogs.
 //!
-//! A planner receives a failed mz-transport or mixed-source decision and a declared universe of at
-//! most [`STUDY_PLAN_MAX_CANDIDATES`] candidate studies, each already compiled
-//! to a typed [`EvidenceCatalogDelta`] with an integer cost. It enumerates every
-//! feasible subset of at most [`STUDY_PLAN_MAX_SUBSET`] candidates in cost
-//! order and re-runs the same route's decision on each subset's preview
+//! A planner receives a failed mz-transport or mixed-source decision and a declared universe of
+//! candidate studies, each already compiled
+//! to a typed [`EvidenceCatalogDelta`] with an integer cost. It enumerates the
+//! feasible subsets in cost order, by increasing subset size as far as the plan's operation
+//! budget can pay for (all of them when the budget covers the whole power set, otherwise the
+//! plan ends with a budget receipt naming the sizes left unexamined) and re-runs the same route's decision on each subset's preview
 //! catalog, all under ONE shared [`SearchBudget`]: the base decision, every
 //! subset entry and every step of every re-run decision charge it, with the
 //! live bytes of the proposals already kept retained under every later charge.
@@ -27,10 +28,11 @@
 //!   population or a wider controllable set is outside this universe.
 //! - Minimality is claimed only when every feasible subset strictly cheaper
 //!   than the top proposal was evaluated to a conclusive outcome without a stop:
-//!   "cost-minimal among the verified-derivable subsets of at most three
-//!   candidates of this declared universe, under this search and rule set",
-//!   never "minimal sufficient evidence". A cheaper subset of four or more
-//!   candidates is never examined, and a cheaper subset the route refuses (for
+//!   "cost-minimal among the verified-derivable subsets of this declared
+//!   universe, under this search and rule set", never "minimal sufficient
+//!   evidence". When the subset sizes were truncated by the budget, minimality is
+//!   claimed only if no unexamined subset can be cheaper than the top proposal,
+//!   and a cheaper subset the route refuses (for
 //!   example over the mixed-source usable-distribution bound) or leaves underivable keeps
 //!   the claim: it is only not sufficient under this search.
 //! - Supersets of a sufficient subset are not evaluated and are listed
@@ -44,7 +46,12 @@
 //! strictly cheaper and is evaluated first; ties rank by sample budget, subset
 //! size and sorted candidate ids ([`STUDY_PLAN_RANKING`]).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+mod preview;
+mod subsets;
+use preview::{Preview, decide_preview, proposal};
+use subsets::{infeasible, subset_label, subset_size_limit, subsets, validate_candidates};
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -55,7 +62,7 @@ use antecedent_core::{
     SearchBudget, SearchLimits, SearchReceipt, SearchStop, VariableId, reason_code,
 };
 use antecedent_expr::{CausalExprArena, ExprId, ExprNode};
-use antecedent_graph::{Admg, SelectionDiagram};
+use antecedent_graph::{Admg, BitSet, DenseNodeId, SelectionDiagram};
 
 use super::meta::{MetaSource, MetaTransportQuery, identify_meta_catalog_metered};
 use super::mixed_source::decide_mixed_source_shared;
@@ -70,11 +77,15 @@ use super::{
     bind_z_transport_catalog, identify_catalog_transport_metered,
 };
 
-/// Candidate studies in one declared universe.
+/// Candidate studies a plan accepts whatever its operation budget (the floor of
+/// [`StudyPlanLimits::max_candidates`]); a larger budget admits as many candidates as it has
+/// operations.
 pub const STUDY_PLAN_MAX_CANDIDATES: usize = 16;
-/// Regimes one candidate study may propose (one per declared level combination).
+/// Regimes one candidate study could propose under the earlier fixed ceiling. Not enforced.
 pub const STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE: usize = 8;
-/// Largest subset of candidates evaluated together.
+/// Largest subset size under the earlier fixed ceiling. Not enforced: subsets are enumerated
+/// by increasing size as far as the operation budget pays for them, and a truncation is a
+/// budget stop with a receipt.
 pub const STUDY_PLAN_MAX_SUBSET: usize = 3;
 /// Sufficient proposals one plan retains; evaluation ends after the last one.
 pub const STUDY_PLAN_MAX_PROPOSALS: usize = 32;
@@ -90,19 +101,19 @@ pub(crate) const STUDY_PLAN_MAX_COST_UNITS: u64 = u64::MAX / 4;
 pub const STUDY_PLAN_RANKING: &str = "study_plan_ranking.v1";
 
 /// Candidates, regimes, subset size or limits beyond a declared bound.
-const BOUNDS_EXCEEDED: &str = "study_plan.bounds_exceeded";
+const BOUNDS_EXCEEDED: &str = antecedent_core::reason_details::study_plan::BOUNDS_EXCEEDED;
 /// A candidate declaration the route cannot accept.
-const INVALID_CANDIDATE: &str = "study_plan.invalid_candidate";
+const INVALID_CANDIDATE: &str = antecedent_core::reason_details::study_plan::INVALID_CANDIDATE;
 /// The route refuses the base query or catalog.
-const INVALID_QUERY: &str = "study_plan.invalid_query";
+const INVALID_QUERY: &str = antecedent_core::reason_details::study_plan::INVALID_QUERY;
 /// The base decision already identifies.
-const NO_FAILURE: &str = "study_plan.no_failure_to_repair";
+const NO_FAILURE: &str = antecedent_core::reason_details::study_plan::NO_FAILURE_TO_REPAIR;
 /// A replayed mz-transport obstruction over the declared controllable sets.
-const THEOREM_LIMITED: &str = "study_plan.theorem_limited";
+const THEOREM_LIMITED: &str = antecedent_core::reason_details::study_plan::THEOREM_LIMITED;
 /// No subset of the universe is sufficient; not an impossibility claim.
-const NONE_CERTIFIED: &str = "study_plan.none_certified";
+const NONE_CERTIFIED: &str = antecedent_core::reason_details::study_plan::NONE_CERTIFIED;
 /// A plan budget stop.
-const BUDGET: &str = "study_plan.budget";
+const BUDGET: &str = antecedent_core::reason_details::study_plan::BUDGET;
 
 /// A refused plan: a registered top-level reason code, a `study_plan.*` detail
 /// and, for a budget stop before any subset was decided, the receipt.
@@ -278,9 +289,9 @@ impl StudyPlanLimits {
     /// Check a request against the declared bounds before any work: these
     /// limits against the route's maxima (at most
     /// [`STUDY_PLAN_DEFAULT_LIMITS`] operations, the route's depth and
-    /// [`STUDY_PLAN_MEMORY_BYTES`]), at most [`STUDY_PLAN_MAX_CANDIDATES`]
-    /// candidates (one entry of `regimes_per_candidate` each) and at most
-    /// [`STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE`] regimes in any one.
+    /// [`STUDY_PLAN_MEMORY_BYTES`]), and the number of candidates against
+    /// [`Self::max_candidates`], the universe the operation budget can enter. The regimes per
+    /// candidate are not bounded here: the plan charges their preview bytes to its budget.
     ///
     /// # Errors
     /// `study_plan.bounds_exceeded` naming the first bound exceeded.
@@ -300,21 +311,29 @@ impl StudyPlanLimits {
                 route.max_depth()
             )));
         }
-        if regimes_per_candidate.len() > STUDY_PLAN_MAX_CANDIDATES {
+        if regimes_per_candidate.len() > self.max_candidates() {
             return Err(StudyPlanRefusal::bounds_exceeded(format!(
-                "{} candidates exceed the bound of {STUDY_PLAN_MAX_CANDIDATES}",
+                "a plan under {} operations admits at most {} candidates, got {}: every subset \
+                 entered charges an operation, and validation and enumeration run before the \
+                 budget is entered",
+                self.search.operations,
+                self.max_candidates(),
                 regimes_per_candidate.len()
             )));
         }
-        if let Some(count) =
-            regimes_per_candidate.iter().find(|&&n| n > STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE)
-        {
-            return Err(StudyPlanRefusal::bounds_exceeded(format!(
-                "a candidate proposes {count} regimes, above the bound of \
-                 {STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE}"
-            )));
-        }
         Ok(())
+    }
+
+    /// The most candidates a plan under these limits accepts: as many as its operations (each
+    /// singleton subset charges one), and never fewer than [`STUDY_PLAN_MAX_CANDIDATES`], so a
+    /// small budget still names the subsets it could not afford in its receipt.
+    #[must_use]
+    pub const fn max_candidates(&self) -> usize {
+        if self.search.operations > STUDY_PLAN_MAX_CANDIDATES {
+            self.search.operations
+        } else {
+            STUDY_PLAN_MAX_CANDIDATES
+        }
     }
 }
 
@@ -350,10 +369,10 @@ pub enum StudySubsetOutcome {
         /// The route's refusal.
         message: String,
     },
-    /// The decision spent more than the route's public per-decision cap:
-    /// inconclusive, never sufficient.
+    /// The decision spent more than the route's public per-decision cap and was cut off
+    /// at the charge that crossed it: inconclusive, never sufficient.
     OverDecisionCap {
-        /// Operations the decision charged.
+        /// Operations the decision charged, the crossing charge included.
         operations: usize,
     },
     /// A superset of a sufficient subset; not evaluated (ranking only).
@@ -511,9 +530,8 @@ pub struct StudyPlan {
     /// Why the plan ended early, if it did.
     pub stop: Option<StudyPlanStop>,
     /// Whether the top proposal is certified cost-minimal among the feasible
-    /// subsets of at most [`STUDY_PLAN_MAX_SUBSET`] candidates (every strictly
-    /// cheaper one decided without a stop or an over-cap decision); a cheaper
-    /// subset of four or more candidates is never examined.
+    /// subsets (every strictly cheaper one decided without a stop or an over-cap
+    /// decision, and no subset left unexamined by a size truncation can be cheaper).
     pub minimal: bool,
     /// Operations the plan budget charged in total.
     pub operations_consumed: usize,
@@ -543,184 +561,6 @@ impl StudyPlan {
             _ => None,
         }
     }
-}
-
-fn subset_label(ids: &[Arc<str>]) -> String {
-    format!("subset:[{}]", ids.iter().map(AsRef::as_ref).collect::<Vec<_>>().join(","))
-}
-
-fn valid_id(id: &str) -> bool {
-    !id.is_empty()
-        && id.len() <= 64
-        && id.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | ':' | '-'))
-}
-
-/// Check a candidate universe against the bounds, the base catalog and the
-/// route's population semantics. Candidates are returned sorted by id.
-#[allow(clippy::too_many_lines, reason = "One linear pass over every declared candidate rule")]
-fn validate_candidates(
-    route: &StudyPlanRoute,
-    catalog: &EvidenceCatalog,
-    candidates: &[StudyPlanCandidate],
-) -> Result<Vec<StudyPlanCandidate>, StudyPlanRefusal> {
-    use StudyPlanRefusal as R;
-    if candidates.is_empty() {
-        return Err(R::invalid_candidate("a plan needs at least one candidate study"));
-    }
-    let mut sorted = candidates.to_vec();
-    sorted.sort_by(|a, b| a.id.cmp(&b.id));
-    let ids = sorted.iter().map(|c| Arc::clone(&c.id)).collect::<BTreeSet<_>>();
-    if ids.len() != sorted.len() {
-        return Err(R::invalid_candidate("candidate ids must be unique"));
-    }
-    let mut regimes = catalog.regimes.iter().map(|r| r.id).collect::<BTreeSet<_>>();
-    // Labels are unique per catalog: a label two candidates share would make
-    // their joint preview fail after the plan started, so it is refused here.
-    let mut labels =
-        catalog.regimes.iter().filter_map(|r| r.label.clone()).collect::<BTreeSet<_>>();
-    let target = route.target();
-    for candidate in &sorted {
-        let who = &candidate.id;
-        if !valid_id(who) {
-            return Err(R::invalid_candidate(format!(
-                "candidate id {who:?} must be 1-64 characters of [A-Za-z0-9_.:-]"
-            )));
-        }
-        if candidate.cost_units == 0 || candidate.cost_units > STUDY_PLAN_MAX_COST_UNITS {
-            return Err(R::invalid_candidate(format!(
-                "candidate {who} must cost 1 to {STUDY_PLAN_MAX_COST_UNITS} units"
-            )));
-        }
-        if candidate.sample_budget > STUDY_PLAN_MAX_COST_UNITS {
-            return Err(R::invalid_candidate(format!(
-                "candidate {who} sample budget is too large"
-            )));
-        }
-        if candidate.delta.proposed_regimes.is_empty() {
-            return Err(R::invalid_candidate(format!("candidate {who} proposes no regime")));
-        }
-        for other in candidate.requires.iter().chain(candidate.conflicts.iter()) {
-            if !ids.contains(other) || other == who {
-                return Err(R::invalid_candidate(format!(
-                    "candidate {who} names unknown or self constraint {other}"
-                )));
-            }
-        }
-        if candidate.requires.iter().any(|r| candidate.conflicts.contains(r)) {
-            return Err(R::invalid_candidate(format!(
-                "candidate {who} both requires and conflicts with a candidate"
-            )));
-        }
-        candidate.delta.preview_catalog(catalog).map_err(|error| {
-            R::invalid_candidate(format!("candidate {who} does not preview on the base: {error}"))
-        })?;
-        for regime in candidate.delta.proposed_regimes.iter() {
-            if !regimes.insert(regime.id) {
-                return Err(R::invalid_candidate(format!(
-                    "regime {} of candidate {who} repeats a base or candidate regime id",
-                    regime.id.raw()
-                )));
-            }
-            if let Some(label) = &regime.label {
-                if !labels.insert(Arc::clone(label)) {
-                    return Err(R::invalid_candidate(format!(
-                        "regime {} of candidate {who} repeats the label {label:?} of a base or \
-                         candidate regime",
-                        regime.id.raw()
-                    )));
-                }
-            }
-            if regime.measured.is_empty()
-                || !regime.conditioned_on.is_empty()
-                || regime.distribution != DistributionAvailability::Joint
-                || regime.selection != SamplingSelection::Population
-                || regime.origin != LawOrigin::Measured
-            {
-                return Err(R::invalid_candidate(format!(
-                    "regime {} of candidate {who} must be a measured, unconditioned, \
-                     whole-population joint law with a non-empty margin",
-                    regime.id.raw()
-                )));
-            }
-            if regime.population.as_ref() == target {
-                if matches!(route, StudyPlanRoute::Mz(_)) && regime.kind == RegimeKind::Experimental
-                {
-                    return Err(R::invalid_candidate(format!(
-                        "candidate {who} experiments in the target; the mz route's target \
-                         supplies observational evidence only"
-                    )));
-                }
-            } else {
-                let Some(source) =
-                    route.sources().iter().find(|s| s.population == regime.population)
-                else {
-                    return Err(R::invalid_candidate(format!(
-                        "candidate {who} studies population {} that is neither the target nor a \
-                         declared source (new populations are not planned)",
-                        regime.population
-                    )));
-                };
-                if regime.interventions.iter().any(|v| !source.controllable.contains(v)) {
-                    return Err(R::invalid_candidate(format!(
-                        "candidate {who} intervenes outside source {}'s declared controllable set",
-                        source.population
-                    )));
-                }
-            }
-            if matches!(route, StudyPlanRoute::Mixed(_)) && !regime.intervention_values.is_empty() {
-                return Err(R::invalid_candidate(format!(
-                    "candidate {who} restricts its levels; the mixed route states \
-                     identification for every level and never cites a value-restricted study"
-                )));
-            }
-        }
-    }
-    Ok(sorted)
-}
-
-/// Every non-empty subset of at most [`STUDY_PLAN_MAX_SUBSET`] candidates, as
-/// sorted index lists, in ranking order.
-fn subsets(candidates: &[StudyPlanCandidate]) -> Vec<(Vec<usize>, u64, u64)> {
-    let n = candidates.len();
-    let mut out = Vec::new();
-    for a in 0..n {
-        out.push(vec![a]);
-        for b in a + 1..n {
-            out.push(vec![a, b]);
-            for c in b + 1..n {
-                out.push(vec![a, b, c]);
-            }
-        }
-    }
-    let mut keyed = out
-        .into_iter()
-        .map(|members| {
-            let cost = members.iter().map(|&i| candidates[i].cost_units).sum::<u64>();
-            let samples = members.iter().map(|&i| candidates[i].sample_budget).sum::<u64>();
-            (members, cost, samples)
-        })
-        .collect::<Vec<_>>();
-    keyed.sort_by(|a, b| {
-        a.1.cmp(&b.1).then(a.2.cmp(&b.2)).then(a.0.len().cmp(&b.0.len())).then_with(|| {
-            let ids =
-                |m: &[usize]| m.iter().map(|&i| Arc::clone(&candidates[i].id)).collect::<Vec<_>>();
-            ids(&a.0).cmp(&ids(&b.0))
-        })
-    });
-    keyed
-}
-
-fn infeasible(candidates: &[StudyPlanCandidate], members: &[usize]) -> Option<&'static str> {
-    let ids = members.iter().map(|&i| &candidates[i].id).collect::<BTreeSet<_>>();
-    for &i in members {
-        if candidates[i].requires.iter().any(|r| !ids.contains(r)) {
-            return Some("requires");
-        }
-        if candidates[i].conflicts.iter().any(|c| ids.contains(c)) {
-            return Some("conflicts");
-        }
-    }
-    None
 }
 
 /// The snapshot namespace of the planner's placeholder bindings
@@ -814,7 +654,8 @@ fn plan_with_caps(
     require_base_lineage(catalog)?;
     let route = route.canonical();
     let candidates = validate_candidates(&route, catalog, candidates)?;
-    let order = subsets(&candidates);
+    let max_size = subset_size_limit(candidates.len(), limits.search.operations);
+    let order = subsets(&candidates, max_size)?;
     let ids_of = |members: &[usize]| {
         members.iter().map(|&i| Arc::clone(&candidates[i].id)).collect::<Vec<_>>()
     };
@@ -845,7 +686,8 @@ fn plan_with_caps(
 
     let mut records = Vec::with_capacity(order.len());
     let mut proposals: Vec<StudyProposal> = Vec::new();
-    let mut sufficient: Vec<BTreeSet<usize>> = Vec::new();
+    // Each sufficient subset as a word-wise mask over the candidates, with its members.
+    let mut sufficient: Vec<(BitSet, Vec<usize>)> = Vec::new();
     let mut explored = vec!["stage:base".to_owned()];
     let mut stop = None;
     let mut retained = search.peak_bytes();
@@ -866,8 +708,11 @@ fn plan_with_caps(
             records.push(record(StudySubsetOutcome::Infeasible { reason }));
             continue;
         }
-        let set = members.iter().copied().collect::<BTreeSet<_>>();
-        if let Some(by) = sufficient.iter().find(|s| s.is_subset(&set)) {
+        let mut mask = BitSet::with_len(candidates.len());
+        for &i in members {
+            mask.insert(DenseNodeId::from_index(i));
+        }
+        if let Some((_, by)) = sufficient.iter().find(|(prev, _)| prev.is_subset_of(&mask)) {
             let by = by.iter().map(|&i| Arc::clone(&candidates[i].id)).collect();
             records.push(record(StudySubsetOutcome::Dominated { by }));
             continue;
@@ -900,8 +745,11 @@ fn plan_with_caps(
             continue;
         }
         let decision_cap = (caps.decision_cap)(&label, route.decision_operations());
-        let before = search.operations();
-        let outcome = match decide_preview(graph, &route, &preview, &mut search, ctx, before) {
+        let outcome = match decide_preview(graph, &route, &preview, &mut search, ctx, decision_cap)
+        {
+            Ok(Preview::OverCap { operations }) => {
+                StudySubsetOutcome::OverDecisionCap { operations }
+            }
             Ok(Preview::Identified(found)) => {
                 let operations = found.operations;
                 let proposed = delta.proposed_regimes.iter().map(|r| r.id).collect::<BTreeSet<_>>();
@@ -916,7 +764,7 @@ fn plan_with_caps(
                             *sample_budget,
                             found,
                         ));
-                        sufficient.push(set);
+                        sufficient.push((mask, members.clone()));
                         retained = retained.saturating_add(search.peak_bytes());
                         StudySubsetOutcome::Sufficient { proposal: proposals.len() - 1 }
                     }
@@ -925,12 +773,8 @@ fn plan_with_caps(
                     },
                 }
             }
-            Ok(Preview::NotIdentified { code, detail, operations }) => {
-                if operations > decision_cap {
-                    StudySubsetOutcome::OverDecisionCap { operations }
-                } else {
-                    StudySubsetOutcome::Insufficient { code, detail }
-                }
+            Ok(Preview::NotIdentified { code, detail, .. }) => {
+                StudySubsetOutcome::Insufficient { code, detail }
             }
             Ok(Preview::Exhausted(inner)) => {
                 stop = Some(StudyPlanStop::Budget(search.receipt(
@@ -957,7 +801,21 @@ fn plan_with_caps(
             progress.report((index + 1) as f64 / total as f64, "study planning");
         }
     }
-    let minimal = certified_minimal(&records, proposals.first());
+    // Subsets larger than `max_size` were not enumerated: say so as a budget stop, and
+    // withhold minimality unless even the cheapest unexamined subset cannot undercut the top.
+    let unexamined_floor = (max_size < candidates.len()).then(|| {
+        let mut costs = candidates.iter().map(|c| c.cost_units).collect::<Vec<_>>();
+        costs.sort_unstable();
+        costs.iter().take(max_size + 1).fold(0u64, |acc, c| acc.saturating_add(*c))
+    });
+    if unexamined_floor.is_some() && stop.is_none() {
+        stop = Some(StudyPlanStop::Budget(search.receipt(
+            SearchStop::Operations,
+            explored.clone(),
+            vec![format!("subsets:size>{max_size}")],
+        )));
+    }
+    let minimal = certified_minimal(&records, proposals.first(), unexamined_floor);
     Ok(StudyPlan {
         route,
         limits: effective,
@@ -1011,16 +869,26 @@ fn recheck_mz_citations(bound: &[RegimeId], cited: &[RegimeId]) -> Result<(), Id
     if bound == cited {
         Ok(())
     } else {
-        Err(IdentificationError::invalid_derivation("mz_transport.invalid_derivation"))
+        Err(IdentificationError::invalid_derivation(
+            antecedent_core::reason_details::mz_transport::INVALID_DERIVATION,
+        ))
     }
 }
 
 /// The minimality claim of the top proposal: every feasible subset strictly
 /// cheaper than it was decided to a conclusive outcome (no stop, no decision
 /// over its cap). Infeasible subsets are outside the universe.
-fn certified_minimal(records: &[StudySubsetRecord], top: Option<&StudyProposal>) -> bool {
+fn certified_minimal(
+    records: &[StudySubsetRecord],
+    top: Option<&StudyProposal>,
+    unexamined_floor: Option<u64>,
+) -> bool {
     top.is_some_and(|top| {
-        records.iter().filter(|r| r.cost_units < top.cost_units).all(|r| r.outcome.conclusive())
+        unexamined_floor.is_none_or(|floor| floor >= top.cost_units)
+            && records
+                .iter()
+                .filter(|r| r.cost_units < top.cost_units)
+                .all(|r| r.outcome.conclusive())
     })
 }
 
@@ -1150,398 +1018,6 @@ fn stage_facts<'a>(stages: impl IntoIterator<Item = (&'a str, &'a str)>) -> Vec<
     stages.into_iter().map(|(stage, outcome)| format!("stage:{stage}={outcome}")).collect()
 }
 
-/// A re-run decision on a preview catalog that identified and re-checked.
-struct Found {
-    stage: String,
-    arena: CausalExprArena,
-    root: ExprId,
-    cited: Vec<RegimeId>,
-    /// `(proof step, regime)` of each mixed-source input step.
-    steps: Vec<(usize, RegimeId)>,
-    derivation: StudyProposalDerivation,
-    operations: usize,
-}
-
-enum Preview {
-    Identified(Box<Found>),
-    NotIdentified { code: &'static str, detail: &'static str, operations: usize },
-    Exhausted(SearchReceipt),
-}
-
-/// Re-run the route's decision on a preview catalog and re-check a derivation
-/// against it.
-fn decide_preview(
-    graph: &Admg,
-    route: &StudyPlanRoute,
-    preview: &EvidenceCatalog,
-    search: &mut SharedSearch<'_>,
-    ctx: &ExecutionContext,
-    before: usize,
-) -> Result<Preview, IdentificationError> {
-    match route {
-        StudyPlanRoute::Mz(query) => {
-            let decision = decide_mz_transport_shared(graph, query, preview, search, ctx)?;
-            let operations = search.operations() - before;
-            match decision {
-                MzTransportDecision::Identified { derivation, cited } => {
-                    let bound = bind_mz_transport_catalog(graph, &derivation, preview)?;
-                    recheck_mz_citations(bound.cited_regimes(), &cited)?;
-                    let stage = match derivation.route() {
-                        MzTransportRoute::TargetOnly => "mz_transport:target_only".to_owned(),
-                        MzTransportRoute::SingleSource { population } => {
-                            format!("mz_transport:single_source:{population}")
-                        }
-                        MzTransportRoute::Combined { .. } => "mz_transport:combined".to_owned(),
-                    };
-                    Ok(Preview::Identified(Box::new(Found {
-                        stage,
-                        arena: bound.arena().clone(),
-                        root: bound.root(),
-                        cited: cited.to_vec(),
-                        steps: Vec::new(),
-                        derivation: StudyProposalDerivation::Mz(Box::new(derivation.to_record())),
-                        operations,
-                    })))
-                }
-                MzTransportDecision::Exhausted(receipt) => Ok(Preview::Exhausted(receipt)),
-                other => Ok(Preview::NotIdentified {
-                    code: other.reason_code().unwrap_or_default(),
-                    detail: other.detail_code().unwrap_or_default(),
-                    operations,
-                }),
-            }
-        }
-        StudyPlanRoute::Mixed(query) => {
-            let decision = decide_mixed_source_shared(graph, query, preview, search, ctx)?;
-            let operations = search.operations() - before;
-            match decision {
-                MixedSourceDecision::Identified { derivation, cited, .. } => {
-                    // Binding replays every step through the independent checker.
-                    let bound = bind_mixed_source_catalog(graph, &derivation, preview)?;
-                    Ok(Preview::Identified(Box::new(Found {
-                        stage: "mixed_source:rule_search".to_owned(),
-                        arena: bound.arena().clone(),
-                        root: bound.root(),
-                        cited: cited.to_vec(),
-                        steps: derivation.leaves().iter().map(|(i, l)| (*i, l.regime)).collect(),
-                        derivation: StudyProposalDerivation::Mixed(Box::new(
-                            derivation.to_record(),
-                        )),
-                        operations,
-                    })))
-                }
-                MixedSourceDecision::NamedRoute { route: named, .. } => {
-                    match rerun_named(graph, query, named, preview, search, ctx)? {
-                        Some((arena, root)) => {
-                            let cited = leaf_regimes(&arena, root);
-                            Ok(Preview::Identified(Box::new(Found {
-                                stage: format!("mixed_source:named:{named}"),
-                                arena,
-                                root,
-                                cited,
-                                steps: Vec::new(),
-                                derivation: StudyProposalDerivation::Named { route: named },
-                                operations,
-                            })))
-                        }
-                        None => Ok(Preview::NotIdentified {
-                            code: reason_code!("transport_not_certified"),
-                            detail: "mixed_search.invalid_derivation",
-                            operations,
-                        }),
-                    }
-                }
-                MixedSourceDecision::Exhausted(receipt) => Ok(Preview::Exhausted(receipt)),
-                other => Ok(Preview::NotIdentified {
-                    code: other.reason_code().unwrap_or_default(),
-                    detail: other.detail_code().unwrap_or_default(),
-                    operations,
-                }),
-            }
-        }
-    }
-}
-
-/// Re-run the mixed-source named route that identified the preview on the shared budget
-/// and bind its derivation to the preview (`NamedRoute` carries no derivation).
-/// `None` when the re-run does not identify.
-fn rerun_named(
-    graph: &Admg,
-    query: &MixedSourceQuery,
-    named: &'static str,
-    preview: &EvidenceCatalog,
-    search: &mut SharedSearch<'_>,
-    ctx: &ExecutionContext,
-) -> Result<Option<(CausalExprArena, ExprId)>, IdentificationError> {
-    // `query` is the plan's canonical route (sources by population), the form
-    // the mixed decision ran its named stage on.
-    let shared = SelectionDiagram::try_new(graph.clone(), Arc::<[VariableId]>::from([]))
-        .map_err(|error| IdentificationError::invalid_input(error.to_string()))?;
-    let bound = |result: CatalogTransportResult| match result {
-        CatalogTransportResult::Identified(bound) => Some((bound.arena().clone(), bound.root())),
-        _ => None,
-    };
-    Ok(match named {
-        "target_first_sid" => {
-            let classical = ClassicalTransportQuery {
-                outcomes: Arc::clone(&query.outcomes),
-                treatments: Arc::clone(&query.treatments),
-                source: Arc::from("<no source>"),
-                target: Arc::clone(&query.target),
-            };
-            bound(identify_catalog_transport_metered(
-                &shared,
-                &classical,
-                preview,
-                search.meter(),
-                ctx,
-            )?)
-        }
-        "z_transport" => {
-            let Some(source) = query.sources.first() else { return Ok(None) };
-            let diagram =
-                SelectionDiagram::try_new(graph.clone(), Arc::clone(&source.selection_targets))
-                    .map_err(|error| IdentificationError::invalid_input(error.to_string()))?;
-            let single = ZTransportQuery {
-                outcomes: Arc::clone(&query.outcomes),
-                treatments: Arc::clone(&query.treatments),
-                controllable: Arc::clone(&source.controllable),
-                experiment_assignment: Arc::clone(&source.experiment_assignment),
-                source: Arc::clone(&source.population),
-                target: Arc::clone(&query.target),
-            };
-            match decide_z_transport_reporting(
-                &diagram,
-                &single,
-                preview,
-                search.meter(),
-                ctx,
-                &mut None,
-            )? {
-                ZTransportDecision::Identified(z) => {
-                    let bound = bind_z_transport_catalog(&diagram, &single, &z, preview)?;
-                    Some((bound.arena().clone(), bound.root()))
-                }
-                _ => None,
-            }
-        }
-        "mz_transport" => {
-            let mz = MzTransportQuery {
-                outcomes: Arc::clone(&query.outcomes),
-                treatments: Arc::clone(&query.treatments),
-                target: Arc::clone(&query.target),
-                sources: Arc::clone(&query.sources),
-            };
-            match decide_mz_transport_shared(graph, &mz, preview, search, ctx)? {
-                MzTransportDecision::Identified { derivation, .. } => {
-                    let bound = bind_mz_transport_catalog(graph, &derivation, preview)?;
-                    Some((bound.arena().clone(), bound.root()))
-                }
-                MzTransportDecision::Exhausted(receipt) => {
-                    return Err(stop_error(receipt.stop));
-                }
-                _ => None,
-            }
-        }
-        "meta_transport" => {
-            let meta = MetaTransportQuery {
-                outcomes: Arc::clone(&query.outcomes),
-                treatments: Arc::clone(&query.treatments),
-                target: Arc::clone(&query.target),
-                sources: query
-                    .sources
-                    .iter()
-                    .map(|source| MetaSource {
-                        population: source.population.to_string(),
-                        selections: source.selection_targets.iter().map(|v| v.raw()).collect(),
-                    })
-                    .collect(),
-            };
-            bound(identify_meta_catalog_metered(graph, &meta, preview, search.meter(), ctx)?)
-        }
-        _ => None,
-    })
-}
-
-const fn stop_error(stop: SearchStop) -> IdentificationError {
-    match stop {
-        SearchStop::Cancelled => IdentificationError::Cancelled,
-        SearchStop::Memory => IdentificationError::budget(crate::IdentificationBudget::Memory),
-        SearchStop::Operations | SearchStop::Depth => {
-            IdentificationError::budget(crate::IdentificationBudget::Steps)
-        }
-    }
-}
-
-/// One distribution leaf of a formula: its regime when the binding tagged it
-/// (a leaf bound to several per-level regimes stays untagged), population and
-/// intervention set.
-struct BoundLeaf {
-    regime: Option<RegimeId>,
-    population: Arc<str>,
-    intervened: Vec<VariableId>,
-    variables: Vec<VariableId>,
-    conditioned: Vec<VariableId>,
-}
-
-impl BoundLeaf {
-    /// Whether this leaf reads `regime`: tagged with it, or untagged with the
-    /// regime's population and intervention set while the formula cites it.
-    fn reads(&self, regime: &antecedent_core::EvidenceRegime, cited: &[RegimeId]) -> bool {
-        if let Some(id) = self.regime {
-            return id == regime.id;
-        }
-        let mut intervened = regime.interventions.to_vec();
-        intervened.sort_unstable();
-        cited.contains(&regime.id)
-            && self.population == regime.population
-            && self.intervened == intervened
-    }
-}
-
-/// Every distribution leaf reachable from `root`.
-fn bound_leaves(arena: &CausalExprArena, root: ExprId) -> Vec<BoundLeaf> {
-    let mut out = Vec::new();
-    let mut seen = BTreeSet::new();
-    let mut pending = vec![root];
-    while let Some(id) = pending.pop() {
-        if !seen.insert(id.raw()) {
-            continue;
-        }
-        match arena.node(id) {
-            ExprNode::Distribution {
-                variables,
-                conditioned_on,
-                intervention,
-                population,
-                regime,
-                ..
-            } => {
-                let sorted = |v: &[VariableId]| {
-                    let mut v = v.to_vec();
-                    v.sort_unstable();
-                    v
-                };
-                out.push(BoundLeaf {
-                    regime: *regime,
-                    population: Arc::from(arena.population(*population)),
-                    intervened: sorted(
-                        &arena
-                            .intervention_assignments(*intervention)
-                            .iter()
-                            .map(|a| a.variable)
-                            .collect::<Vec<_>>(),
-                    ),
-                    variables: sorted(arena.var_set(*variables)),
-                    conditioned: sorted(arena.var_set(*conditioned_on)),
-                });
-            }
-            ExprNode::Kernel { body, .. } => pending.push(*body),
-            ExprNode::Product(list) => pending.extend(arena.list(*list).iter().copied()),
-            ExprNode::SumOut { expr, .. } | ExprNode::IntegralOut { expr, .. } => {
-                pending.push(*expr);
-            }
-            ExprNode::Ratio { numerator, denominator } => {
-                pending.extend([*numerator, *denominator]);
-            }
-            ExprNode::Expectation { distribution, .. } => pending.push(*distribution),
-            ExprNode::Contrast { left, right, .. } => pending.extend([*left, *right]),
-        }
-    }
-    out
-}
-
-fn leaf_regimes(arena: &CausalExprArena, root: ExprId) -> Vec<RegimeId> {
-    let mut cited =
-        bound_leaves(arena, root).into_iter().filter_map(|leaf| leaf.regime).collect::<Vec<_>>();
-    cited.sort_unstable();
-    cited.dedup();
-    cited
-}
-
-/// Package a sufficient subset: every cited proposed regime with the factors
-/// that read it and the margin the proof actually needs from it.
-fn proposal(
-    candidates: &[StudyPlanCandidate],
-    members: &[usize],
-    delta: &EvidenceCatalogDelta,
-    cost_units: u64,
-    sample_budget: u64,
-    found: Box<Found>,
-) -> StudyProposal {
-    let leaves = bound_leaves(&found.arena, found.root);
-    let mut cited = found.cited.clone();
-    cited.sort_unstable();
-    cited.dedup();
-    let mut repairs = Vec::new();
-    let mut used = BTreeSet::new();
-    for regime in delta.proposed_regimes.iter() {
-        let cites_leaf = leaves.iter().any(|leaf| leaf.regime == Some(regime.id));
-        if !cited.contains(&regime.id) && !cites_leaf {
-            continue;
-        }
-        let Some(&owner) = members
-            .iter()
-            .find(|&&i| candidates[i].delta.proposed_regimes.iter().any(|r| r.id == regime.id))
-        else {
-            continue;
-        };
-        used.insert(owner);
-        let mut factors = Vec::new();
-        let mut required = BTreeSet::new();
-        for leaf in leaves.iter().filter(|leaf| leaf.reads(regime, &cited)) {
-            required.extend(leaf.variables.iter().copied());
-            required.extend(leaf.conditioned.iter().copied());
-            let factor = StudyFactor {
-                variables: leaf.variables.clone(),
-                conditioned_on: leaf.conditioned.clone(),
-            };
-            if !factors.contains(&factor) {
-                factors.push(factor);
-            }
-        }
-        let proof_steps = found
-            .steps
-            .iter()
-            .filter(|(_, r)| *r == regime.id)
-            .map(|(step, _)| *step)
-            .collect::<Vec<_>>();
-        if factors.is_empty() {
-            // A mixed-source input step reads the whole declared joint.
-            required.extend(regime.measured.iter().copied());
-        }
-        let mut intervened = regime.interventions.to_vec();
-        intervened.sort_unstable();
-        let mut declared = regime.measured.to_vec();
-        declared.sort_unstable();
-        repairs.push(StudyRepair {
-            candidate: Arc::clone(&candidates[owner].id),
-            regime: regime.id,
-            population: Arc::clone(&regime.population),
-            intervened,
-            factors,
-            required_margin: required.into_iter().collect(),
-            declared_margin: declared,
-            proof_steps,
-        });
-    }
-    StudyProposal {
-        candidates: members.iter().map(|&i| Arc::clone(&candidates[i].id)).collect(),
-        cost_units,
-        sample_budget,
-        stage: found.stage,
-        cited_regimes: cited,
-        repairs,
-        uncited_candidates: members
-            .iter()
-            .filter(|i| !used.contains(i))
-            .map(|&i| Arc::clone(&candidates[i].id))
-            .collect(),
-        derivation: found.derivation,
-        decision_operations: found.operations,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1558,9 +1034,23 @@ mod tests {
     }
 
     #[test]
+    fn subset_totals_overflow_is_refused_before_ranking() {
+        let cost = STUDY_PLAN_MAX_COST_UNITS;
+        let costs: Vec<_> = (0..5).map(|i| candidate(&format!("c{i}"), cost, 0)).collect();
+        let error = subsets(&costs, 5).unwrap_err();
+        assert_eq!(error.detail, INVALID_CANDIDATE);
+        assert!(error.message.contains("total cost"));
+        let samples: Vec<_> = (0..5).map(|i| candidate(&format!("s{i}"), 1, cost)).collect();
+        let error = subsets(&samples, 5).unwrap_err();
+        assert_eq!(error.detail, INVALID_CANDIDATE);
+        assert!(error.message.contains("sample budget"));
+    }
+
+    #[test]
     fn subsets_are_ranked_by_cost_then_samples_then_size_then_ids() {
         let candidates = vec![candidate("a", 2, 0), candidate("b", 1, 5), candidate("c", 1, 0)];
-        let order = subsets(&candidates)
+        let order = subsets(&candidates, usize::MAX)
+            .unwrap()
             .into_iter()
             .map(|(m, cost, samples)| {
                 (m.iter().map(|&i| candidates[i].id.to_string()).collect::<Vec<_>>(), cost, samples)
@@ -1593,7 +1083,26 @@ mod tests {
     #[test]
     fn a_universe_of_sixteen_has_six_hundred_ninety_six_subsets_of_at_most_three() {
         let candidates = (0..16).map(|i| candidate(&format!("c{i:02}"), 1, 0)).collect::<Vec<_>>();
-        assert_eq!(subsets(&candidates).len(), 16 + 120 + 560);
+        assert_eq!(subsets(&candidates, 3).unwrap().len(), 16 + 120 + 560);
+        assert_eq!(subsets(&candidates, usize::MAX).unwrap().len(), (1 << 16) - 1);
+    }
+
+    #[test]
+    fn the_subset_size_limit_follows_the_operation_budget() {
+        // 16 + 120 + 560 = 696 subsets of size at most three; 4: 2516.
+        assert_eq!(subset_size_limit(16, 696), 3);
+        assert_eq!(subset_size_limit(16, 695), 2);
+        assert_eq!(subset_size_limit(16, 200_000), 16);
+        assert_eq!(subset_size_limit(16, 0), 1);
+        assert_eq!(subset_size_limit(500, 200_000), 2);
+        assert_eq!(subset_size_limit(0, 10), 0);
+    }
+
+    #[test]
+    fn a_size_truncation_withholds_minimality_unless_the_floor_clears_the_top() {
+        let decided = [record(1, StudySubsetOutcome::Insufficient { code: "c", detail: "d" })];
+        assert!(!certified_minimal(&decided, Some(&top(2)), Some(1)));
+        assert!(certified_minimal(&decided, Some(&top(2)), Some(2)));
     }
 
     fn record(cost: u64, outcome: StudySubsetOutcome) -> StudySubsetRecord {
@@ -1628,19 +1137,19 @@ mod tests {
             record(2, StudySubsetOutcome::Sufficient { proposal: 0 }),
             record(3, StudySubsetOutcome::Unevaluated),
         ];
-        assert!(certified_minimal(&decided, Some(&top(2))));
-        assert!(!certified_minimal(&decided, None));
+        assert!(certified_minimal(&decided, Some(&top(2)), None));
+        assert!(!certified_minimal(&decided, None, None));
         // An inconclusive decision below the top withdraws the claim ...
         let mut over = decided.clone();
         over[0].outcome = StudySubsetOutcome::OverDecisionCap { operations: 4097 };
-        assert!(!certified_minimal(&over, Some(&top(2))));
+        assert!(!certified_minimal(&over, Some(&top(2)), None));
         // ... as does an unevaluated cheaper subset; an equal-cost one does not.
         let mut left = decided.clone();
         left[0].outcome = StudySubsetOutcome::Unevaluated;
-        assert!(!certified_minimal(&left, Some(&top(2))));
+        assert!(!certified_minimal(&left, Some(&top(2)), None));
         let mut tie = decided.to_vec();
         tie.push(record(2, StudySubsetOutcome::Unevaluated));
-        assert!(certified_minimal(&tie, Some(&top(2))));
+        assert!(certified_minimal(&tie, Some(&top(2)), None));
     }
 
     #[test]
@@ -1872,7 +1381,13 @@ mod tests {
         // Cap zero everywhere: every decided subset is over the cap, never sufficient.
         let zero = fig1_plan(PlanCaps { decision_cap: |_, _| 0, ..PUBLIC });
         assert!(zero.proposals.is_empty() && !zero.minimal);
-        assert_eq!(zero.status(), Some(("transport_not_certified", "study_plan.none_certified")));
+        assert_eq!(
+            zero.status(),
+            Some((
+                "transport_not_certified",
+                antecedent_core::reason_details::study_plan::NONE_CERTIFIED
+            ))
+        );
         assert!(zero.subsets.iter().all(|s| matches!(
             s.outcome,
             StudySubsetOutcome::OverDecisionCap { operations } if operations > 0
@@ -1916,6 +1431,47 @@ mod tests {
         assert_eq!(record.cost_units, top.cost_units);
         assert!(matches!(record.outcome, StudySubsetOutcome::OverDecisionCap { .. }));
         assert!(tie.minimal);
+    }
+
+    #[test]
+    fn a_decision_is_cut_off_at_its_cap_instead_of_running_on_the_plan_budget() {
+        let public = fig1_plan(PUBLIC);
+        let capped = fig1_plan(PlanCaps { decision_cap: |_, _| 1, ..PUBLIC });
+        assert!(capped.proposals.is_empty());
+        assert!(capped.stop.is_none(), "an over-cap decision is not a plan budget stop");
+        let cut = capped
+            .subsets
+            .iter()
+            .filter_map(|s| match s.outcome {
+                StudySubsetOutcome::OverDecisionCap { operations } => Some(operations),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert!(!cut.is_empty());
+        assert!(cut.iter().all(|&operations| operations == 2), "{cut:?}");
+        assert!(
+            capped.operations_consumed < public.operations_consumed,
+            "{} < {}",
+            capped.operations_consumed,
+            public.operations_consumed
+        );
+    }
+
+    #[test]
+    fn the_candidate_universe_is_bounded_by_the_operation_budget() {
+        let route = fig1::route();
+        let limits = |operations| StudyPlanLimits {
+            search: SearchLimits { operations, depth: 24 },
+            ..StudyPlanLimits::default()
+        };
+        let counts = |n: usize| vec![1; n];
+        assert!(limits(1).check_bounds(&route, &counts(STUDY_PLAN_MAX_CANDIDATES)).is_ok());
+        assert!(limits(1).check_bounds(&route, &counts(STUDY_PLAN_MAX_CANDIDATES + 1)).is_err());
+        assert!(limits(100).check_bounds(&route, &counts(100)).is_ok());
+        let refused = limits(100).check_bounds(&route, &counts(101)).unwrap_err();
+        assert_eq!(refused.detail, BOUNDS_EXCEEDED);
+        assert_eq!(limits(100).max_candidates(), 100);
+        assert_eq!(limits(1).max_candidates(), STUDY_PLAN_MAX_CANDIDATES);
     }
 
     #[test]

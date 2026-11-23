@@ -1,9 +1,9 @@
-//! Dependence-preserving sampling interval for the finite two-step sequence.
+//! Dependence-preserving sampling interval for the finite action sequence.
 //!
 //! Observations of one repeated unit share that unit's dependence, so the
 //! interval resamples whole units: every complete history of a drawn unit moves
 //! together, unit and time identities stay stable and are recorded, and the
-//! entire prepared two-step estimator is re-run on each replicate (no row-IID
+//! entire prepared sequence estimator is re-run on each replicate (no row-IID
 //! fallback). Replicate ids and unit-selection digests are deterministic
 //! functions of the seed and the panel identity so a consumer can replay them.
 //!
@@ -20,11 +20,12 @@
 //! higher-order claim nor a finite-sample guarantee; lattice, degenerate,
 //! unbalanced and unsupported designs need their own methods/evidence.
 //!
-//! Calibration of this interval is **unmeasured**: it is implemented and
-//! reproducible but makes no coverage claim, and the public route stays closed
-//! (see [`route_frozen_refusal`]) until the whole-method grid has been measured.
+//! The interval is reported with a calibration annotation resolved from
+//! [`DependentInterval::calibration_basis`]; calibration never withholds it. Its
+//! bootstrap-t scores, standard errors, pivots and endpoints are checked against a
+//! multiprecision construction in `temporal_dependent_interval_reference.rs`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -33,7 +34,7 @@ use antecedent_core::{CanonicalWriter, ExecutionContext, reason_code};
 use crate::error::EstimationError;
 use crate::splitmix::{seed_mix, splitmix64};
 
-/// Most replicates one interval may use.
+/// Most replicates a dependent interval may use; `validate_config` refuses a larger request.
 pub const INTERVAL_MAX_REPLICATES: usize = 2000;
 /// Fewest replicates an interval may use.
 pub const INTERVAL_MIN_REPLICATES: usize = 20;
@@ -41,66 +42,98 @@ pub const INTERVAL_MIN_REPLICATES: usize = 20;
 pub const INTERVAL_MAX_UNITS: usize = 100_000;
 /// Fewest repeated units an interval is attempted with by default.
 pub(crate) const DEFAULT_MIN_UNITS: usize = 20;
-/// Maximum units for the separately bounded original-score bootstrap-t candidate.
+/// Units up to which the bootstrap-t candidate's exact balanced-unit scores are built; a larger
+/// panel is read off the percentile route instead (its method is recorded on the interval).
 pub(crate) const STUDENTIZED_MAX_UNITS: usize = 4096;
 /// Inference claim of this engine: dependence is preserved, coverage is not measured.
-pub const INTERVAL_CLAIM: &str = "dependence_preserving_calibration_unmeasured";
+pub const INTERVAL_CLAIM: &str = "dependence_preserving_calibration_not_measured";
 /// Calibration status of this engine.
-pub const INTERVAL_CALIBRATION_STATUS: &str = "unmeasured";
+pub const INTERVAL_CALIBRATION_STATUS: &str = "not_measured";
 
-/// Detail: the public interval route is closed.
-pub(crate) const TEMPORAL_INTERVAL_ROUTE_FROZEN: &str = "temporal_interval.route_frozen";
 /// Detail: unit ownership, time order or dependence is absent or incompatible.
-pub(crate) const TEMPORAL_INTERVAL_UNKNOWN_UNITS: &str = "temporal_interval.unknown_units";
+pub(crate) const TEMPORAL_INTERVAL_UNKNOWN_UNITS: &str =
+    antecedent_core::reason_details::temporal_interval::UNKNOWN_UNITS;
 /// Detail: too few repeated units for a dependent interval.
-pub const TEMPORAL_INTERVAL_TOO_FEW_UNITS: &str = "temporal_interval.too_few_units";
+pub const TEMPORAL_INTERVAL_TOO_FEW_UNITS: &str =
+    antecedent_core::reason_details::temporal_interval::TOO_FEW_UNITS;
 /// Detail: a history the estimator needs has no support.
-pub const TEMPORAL_INTERVAL_UNSUPPORTED_HISTORY: &str = "temporal_interval.unsupported_history";
-/// Detail: more replicates than the hard cap.
-pub const TEMPORAL_INTERVAL_TOO_MANY_REPLICATES: &str = "temporal_interval.too_many_replicates";
-
-/// The refusal of the public interval route while its calibration is unmeasured.
-#[must_use]
-pub fn route_frozen_refusal() -> EstimationError {
-    EstimationError::refused(
-        reason_code!("cell_not_licensed"),
-        format!(
-            "{TEMPORAL_INTERVAL_ROUTE_FROZEN}: a dependent-sampling interval is requested \
-             before its whole-method grid and artifact gate pass"
-        ),
-    )
-}
+pub const TEMPORAL_INTERVAL_UNSUPPORTED_HISTORY: &str =
+    antecedent_core::reason_details::temporal_interval::UNSUPPORTED_HISTORY;
+/// Detail: more replicates than the cap.
+pub const TEMPORAL_INTERVAL_TOO_MANY_REPLICATES: &str =
+    antecedent_core::reason_details::temporal_interval::TOO_MANY_REPLICATES;
+/// Refusal detail: more units than the bootstrap-t is certified for.
+pub(crate) const TEMPORAL_INTERVAL_STUDENTIZED_BOUNDS_EXCEEDED: &str =
+    antecedent_core::reason_details::temporal_interval::STUDENTIZED_BOUNDS_EXCEEDED;
 
 fn unknown_units(message: impl AsRef<str>) -> EstimationError {
-    EstimationError::refused(
+    EstimationError::refused_detail(
         reason_code!("route_not_supported"),
-        format!("{TEMPORAL_INTERVAL_UNKNOWN_UNITS}: {}", message.as_ref()),
+        TEMPORAL_INTERVAL_UNKNOWN_UNITS,
+        message,
     )
 }
 
 fn unsupported_history(message: impl AsRef<str>) -> EstimationError {
-    EstimationError::refused(
+    EstimationError::refused_detail(
         reason_code!("route_not_supported"),
-        format!("{TEMPORAL_INTERVAL_UNSUPPORTED_HISTORY}: {}", message.as_ref()),
+        TEMPORAL_INTERVAL_UNSUPPORTED_HISTORY,
+        message,
     )
 }
 
-/// One complete two-step history of a unit: initial state, first action, the
-/// step-2 covariate, second action and outcome, observed at `time_id`.
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// One complete history of a unit over `H` steps: the initial state, the first
+/// action, then for every later step its covariate and action, and the outcome
+/// after the last action, observed at `time_id`. With two steps the coordinates
+/// in time order are `s0, a1, l2, a2, y`.
+#[derive(Clone, Debug, PartialEq)]
 pub struct SequenceHistory {
     /// Stable id of the period (window) the history starts at.
     pub time_id: u64,
     /// Pre-action state level.
     pub s0: u32,
-    /// First action level.
-    pub a1: u32,
-    /// Step-2 covariate level.
-    pub l2: u32,
-    /// Second action level.
-    pub a2: u32,
+    /// Action level of each step, in time order; one per step.
+    pub actions: Vec<u32>,
+    /// Covariate level observed before the action of each step after the first:
+    /// one fewer than the actions.
+    pub covariates: Vec<u32>,
     /// Outcome after the last action.
     pub y: f64,
+}
+
+impl SequenceHistory {
+    /// A complete history of the two-step sequence.
+    #[must_use]
+    pub fn two_step(time_id: u64, s0: u32, a1: u32, l2: u32, a2: u32, y: f64) -> Self {
+        Self { time_id, s0, actions: vec![a1, a2], covariates: vec![l2], y }
+    }
+
+    /// The number of steps.
+    #[must_use]
+    pub fn horizon(&self) -> usize {
+        self.actions.len()
+    }
+
+    /// Whether the history has at least one step and one covariate per step after
+    /// the first.
+    #[must_use]
+    pub fn is_well_formed(&self) -> bool {
+        !self.actions.is_empty() && self.covariates.len() + 1 == self.actions.len()
+    }
+
+    /// The levels before the outcome in time order: the state, the first action,
+    /// then each later step's covariate and action.
+    pub fn coordinates(&self) -> impl Iterator<Item = u32> + '_ {
+        std::iter::once(self.s0).chain(self.actions.iter().enumerate().flat_map(
+            move |(step, &action)| {
+                step.checked_sub(1)
+                    .and_then(|later| self.covariates.get(later))
+                    .copied()
+                    .into_iter()
+                    .chain(std::iter::once(action))
+            },
+        ))
+    }
 }
 
 /// Every complete history of one repeated unit; they are resampled together.
@@ -151,16 +184,14 @@ impl TemporalUnitPanel {
             return Err(unknown_units("the panel has no snapshot id"));
         }
         if units.len() > INTERVAL_MAX_UNITS {
-            return Err(EstimationError::refused(
+            return Err(EstimationError::refused_detail(
                 reason_code!("route_not_supported"),
-                format!(
-                    "{}: {} units exceed the cap of {INTERVAL_MAX_UNITS}",
-                    antecedent_identify::sid::temporal_sequence::TEMPORAL_BOUNDS_EXCEEDED,
-                    units.len()
-                ),
+                antecedent_identify::sid::temporal_sequence::TEMPORAL_BOUNDS_EXCEEDED,
+                format!("{} units exceed the cap of {INTERVAL_MAX_UNITS}", units.len()),
             ));
         }
         let mut seen = BTreeSet::new();
+        let mut horizon: Option<usize> = None;
         let mut digest = CanonicalWriter::new(PANEL_DIGEST_TAG);
         digest.text(&snapshot_id);
         for unit in &units {
@@ -182,6 +213,15 @@ impl TemporalUnitPanel {
                         unit.unit_id
                     )));
                 }
+                if !history.is_well_formed()
+                    || *horizon.get_or_insert(history.horizon()) != history.horizon()
+                {
+                    return Err(unknown_units(format!(
+                        "unit {} has a history whose steps are malformed or differ from the \
+                         panel's other histories",
+                        unit.unit_id
+                    )));
+                }
                 if !history.y.is_finite() {
                     return Err(unknown_units(format!(
                         "unit {} has a non-finite outcome",
@@ -189,16 +229,11 @@ impl TemporalUnitPanel {
                     )));
                 }
                 previous = Some(history.time_id);
-                for word in [
-                    history.time_id,
-                    u64::from(history.s0),
-                    u64::from(history.a1),
-                    u64::from(history.l2),
-                    u64::from(history.a2),
-                    history.y.to_bits(),
-                ] {
-                    digest.word(word);
+                digest.word(history.time_id);
+                for coordinate in history.coordinates() {
+                    digest.word(u64::from(coordinate));
                 }
+                digest.word(history.y.to_bits());
             }
         }
         Ok(Self { snapshot_id, units, digest: crate::util::canonical_word(&digest) })
@@ -222,6 +257,13 @@ impl TemporalUnitPanel {
         self.units.len()
     }
 
+    /// The number of steps every history of the panel has, or `None` for a panel
+    /// without histories.
+    #[must_use]
+    pub fn horizon(&self) -> Option<usize> {
+        self.units.iter().find_map(|u| u.histories.first()).map(SequenceHistory::horizon)
+    }
+
     /// Number of complete histories over all units.
     #[must_use]
     pub fn history_count(&self) -> usize {
@@ -240,52 +282,101 @@ impl TemporalUnitPanel {
 pub(crate) enum ResponseGap {
     /// No history has this initial state with the first action.
     NoState,
-    /// The cell of this step-2 covariate level has no history with the second action.
-    NoCell { l2: u32 },
+    /// The cell of this covariate level, observed before the action of `step`,
+    /// has no history that follows the sequence through that step.
+    NoCell { step: usize, covariate: u32 },
 }
 
-/// One pass of counts over histories for a fixed two-step sequence.
+/// One pass of counts over histories for a fixed action sequence.
+///
+/// For step `k` (indexed from one) the counts are keyed by the path
+/// `(s0, l_2, ..., l_k)` of the state and the covariates before the step's action.
+/// `reached[k - 1]` counts the histories whose first `k - 1` actions follow the
+/// sequence (every history at step one); `followed[k - 1]` counts those whose
+/// first `k` actions follow it, with the sum of their outcomes.
 #[derive(Debug, Default)]
 pub(crate) struct SequenceTallies {
-    state_all: BTreeMap<u32, u64>,
-    state_first: BTreeMap<u32, u64>,
-    covariate: BTreeMap<(u32, u32), u64>,
-    cell: BTreeMap<(u32, u32), (u64, f64)>,
+    reached: Vec<BTreeMap<Vec<u32>, u64>>,
+    followed: Vec<BTreeMap<Vec<u32>, (u64, f64)>>,
     total: u64,
 }
 
+fn bump(counts: &mut BTreeMap<Vec<u32>, u64>, path: &[u32]) {
+    if let Some(n) = counts.get_mut(path) {
+        *n += 1;
+    } else {
+        counts.insert(path.to_vec(), 1);
+    }
+}
+
+fn bump_outcome(counts: &mut BTreeMap<Vec<u32>, (u64, f64)>, path: &[u32], y: f64) {
+    if let Some(entry) = counts.get_mut(path) {
+        entry.0 += 1;
+        entry.1 += y;
+    } else {
+        // A first outcome is added to zero, as an accumulating entry would.
+        counts.insert(path.to_vec(), (1, 0. + y));
+    }
+}
+
 impl SequenceTallies {
-    pub(crate) fn of(units: &[&UnitHistories], sequence: [u32; 2]) -> Self {
-        let mut tallies = Self::default();
+    fn with_steps(steps: usize) -> Self {
+        Self {
+            reached: (0..steps).map(|_| BTreeMap::new()).collect(),
+            followed: (0..steps).map(|_| BTreeMap::new()).collect(),
+            total: 0,
+        }
+    }
+
+    pub(crate) fn of(units: &[&UnitHistories], sequence: &[u32]) -> Self {
+        let mut tallies = Self::with_steps(sequence.len());
+        let mut path = Vec::new();
         for history in units.iter().flat_map(|u| u.histories.iter()) {
-            tallies.observe(history, sequence);
+            path_of(history, &mut path);
+            tallies.observe(history, sequence, &path);
         }
         tallies
     }
 
-    fn observe(&mut self, history: &SequenceHistory, sequence: [u32; 2]) {
-        self.total += 1;
-        *self.state_all.entry(history.s0).or_insert(0) += 1;
-        if history.a1 != sequence[0] {
+    fn observe(&mut self, history: &SequenceHistory, sequence: &[u32], path: &[u32]) {
+        let steps = sequence.len();
+        // A history of another horizon is not a history of this sequence.
+        if steps == 0 || history.actions.len() != steps || path.len() != steps {
             return;
         }
-        *self.state_first.entry(history.s0).or_insert(0) += 1;
-        *self.covariate.entry((history.s0, history.l2)).or_insert(0) += 1;
-        if history.a2 == sequence[1] {
-            let entry = self.cell.entry((history.s0, history.l2)).or_insert((0, 0.));
-            entry.0 += 1;
-            entry.1 += history.y;
+        self.total += 1;
+        // How many leading actions of the history follow the sequence.
+        let following = history
+            .actions
+            .iter()
+            .zip(sequence)
+            .take_while(|(taken, wanted)| taken == wanted)
+            .count();
+        for step in 0..steps {
+            let key = &path[..=step];
+            if following >= step {
+                bump(&mut self.reached[step], key);
+            }
+            if following > step {
+                if step + 1 == steps {
+                    bump_outcome(&mut self.followed[step], key, history.y);
+                } else {
+                    bump_outcome(&mut self.followed[step], key, 0.);
+                }
+            }
         }
     }
 
-    pub(crate) fn of_many(units: &[&UnitHistories], sequences: &[[u32; 2]]) -> Vec<Self> {
+    pub(crate) fn of_many(units: &[&UnitHistories], sequences: &[Vec<u32>]) -> Vec<Self> {
         if sequences.is_empty() {
             return Vec::new();
         }
-        let mut tallies = sequences.iter().map(|_| Self::default()).collect::<Vec<_>>();
+        let mut tallies = sequences.iter().map(|s| Self::with_steps(s.len())).collect::<Vec<_>>();
+        let mut path = Vec::new();
         for history in units.iter().flat_map(|u| &u.histories) {
-            for (tally, &sequence) in tallies.iter_mut().zip(sequences) {
-                tally.observe(history, sequence);
+            path_of(history, &mut path);
+            for (tally, sequence) in tallies.iter_mut().zip(sequences) {
+                tally.observe(history, sequence, &path);
             }
         }
         tallies
@@ -297,35 +388,81 @@ impl SequenceTallies {
         if self.total == 0 {
             return 0.0;
         }
-        self.state_all.get(&s0).copied().unwrap_or(0) as f64 / self.total as f64
+        let at_state = self.reached.first().and_then(|states| states.get(&[s0][..]));
+        at_state.copied().unwrap_or(0) as f64 / self.total as f64
     }
 
     /// Observed initial states, ascending.
     pub(crate) fn observed_states(&self) -> Vec<u32> {
-        self.state_all.keys().copied().collect()
+        self.reached.first().map_or_else(Vec::new, |states| {
+            states.keys().filter_map(|path| path.first().copied()).collect()
+        })
     }
 
     /// Response of the whole sequence given the initial state `s0`:
-    /// `sum_l P(l | s0, a1) E[y | s0, a1, l, a2]`, read from the histories.
-    #[allow(clippy::cast_precision_loss, reason = "counts are far below 2^53")]
+    /// `sum_l P(l_2 | s0, a_1) ... sum_l P(l_H | ..., a_{H-1}) E[y | ..., l_H, a_H]`,
+    /// read from the histories. With two steps this is
+    /// `sum_l P(l | s0, a_1) E[y | s0, a_1, l, a_2]`.
     pub(crate) fn response(&self, s0: u32) -> Result<f64, ResponseGap> {
-        let n_state = match self.state_first.get(&s0) {
-            Some(n) if *n > 0 => *n,
-            _ => return Err(ResponseGap::NoState),
-        };
-        let mut total = 0.0;
-        for (&(_, l2), &n_cov) in self.covariate.range((s0, 0)..=(s0, u32::MAX)) {
-            let (n_cell, sum) = match self.cell.get(&(s0, l2)) {
-                Some(c) if c.0 > 0 => *c,
-                _ => return Err(ResponseGap::NoCell { l2 }),
+        let started = self
+            .followed
+            .first()
+            .and_then(|states| states.get(&[s0][..]))
+            .is_some_and(|(n, _)| *n > 0);
+        if !started {
+            return Err(ResponseGap::NoState);
+        }
+        self.conditional(&mut vec![s0])
+    }
+
+    /// The response given the path `(s0, l_2, ..., l_k)`, whose first `k` actions follow
+    /// the sequence.
+    #[allow(clippy::cast_precision_loss, reason = "counts are far below 2^53")]
+    fn conditional(&self, path: &mut Vec<u32>) -> Result<f64, ResponseGap> {
+        let step = path.len() - 1;
+        if step + 1 == self.followed.len() {
+            return match self.followed[step].get(path.as_slice()) {
+                Some(&(n, sum)) if n > 0 => Ok(sum / n as f64),
+                _ => Err(ResponseGap::NoCell {
+                    step: step + 1,
+                    covariate: path.last().copied().unwrap_or(0),
+                }),
             };
-            total += (n_cov as f64 / n_state as f64) * (sum / n_cell as f64);
+        }
+        let parent = self.followed[step].get(path.as_slice()).map_or(0, |(n, _)| *n);
+        if parent == 0 {
+            return Err(ResponseGap::NoCell {
+                step: step + 1,
+                covariate: path.last().copied().unwrap_or(0),
+            });
+        }
+        let mut lower = path.clone();
+        lower.push(0);
+        let mut upper = path.clone();
+        upper.push(u32::MAX);
+        let children = self.reached[step + 1]
+            .range(lower..=upper)
+            .map(|(child, &n)| (child[step + 1], n))
+            .collect::<Vec<_>>();
+        let mut total = 0.0;
+        for (covariate, n_covariate) in children {
+            path.push(covariate);
+            let response = self.conditional(path);
+            path.pop();
+            total += (n_covariate as f64 / parent as f64) * response?;
         }
         Ok(total)
     }
 }
 
-/// One prepared whole estimator of a scalar two-step sequence quantity, re-run
+/// The path `(s0, l_2, ..., l_H)` of a history: its state then its covariates.
+fn path_of(history: &SequenceHistory, path: &mut Vec<u32>) {
+    path.clear();
+    path.push(history.s0);
+    path.extend(&history.covariates);
+}
+
+/// One prepared whole estimator of a scalar sequence quantity, re-run
 /// unchanged on every unit-resampled replicate.
 pub trait TemporalEstimator {
     /// Typed estimand label; an interval carries it so it cannot be relabeled.
@@ -339,7 +476,7 @@ pub trait TemporalEstimator {
 
     /// Checked estimator-specific exact unit scores for a balanced binary panel.
     /// The default declines studentization. Advanced Rust implementations may
-    /// override this hook, but the result remains unmeasured; an override does
+    /// override this hook, but the result remains `not_measured`; an override does
     /// not grant the closed checked-adapter or replay-artifact scope.
     /// # Errors
     /// A certified implementation refuses incompatible balance/support.
@@ -352,11 +489,11 @@ pub trait TemporalEstimator {
     }
 }
 
-/// The two-step response averaged over the panel's own observed initial-state law.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The sequence response averaged over the panel's own observed initial-state law.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ObservedStateSequence {
-    /// Actions of the two steps.
-    pub sequence: [u32; 2],
+    /// The action of each step.
+    pub sequence: Vec<u32>,
 }
 
 impl ObservedStateSequence {
@@ -378,7 +515,7 @@ impl TemporalEstimator for ObservedStateSequence {
     }
 
     fn estimate(&self, units: &[&UnitHistories]) -> Result<f64, EstimationError> {
-        let tallies = SequenceTallies::of(units, self.sequence);
+        let tallies = SequenceTallies::of(units, &self.sequence);
         let mut total = 0.0;
         for s0 in tallies.observed_states() {
             let response = tallies.response(s0).map_err(|gap| {
@@ -426,8 +563,9 @@ impl TemporalEstimator for BalancedTemporalEstimator {
 }
 
 /// Exact linear scores for the original finite-history estimators only.
-/// Every unit must contain the same positive multiplicity of all sixteen binary
-/// histories. Then fixed target weights, covariate probabilities and denominators
+/// Every unit must contain the same positive multiplicity of all `4^H` binary
+/// histories of `H` steps (sixteen with two). Then fixed target weights, covariate
+/// probabilities and denominators
 /// are invariant to unit resampling, and the estimator is the mean of unit scores.
 /// This public helper does not establish the score derivation for an arbitrary
 /// callback. The checked adapter and artifact consumer use original native
@@ -442,7 +580,7 @@ pub fn balanced_linear_unit_scores<E: TemporalEstimator + ?Sized>(
     let histogram = |unit: &UnitHistories| {
         let mut cells = BTreeMap::new();
         for h in &unit.histories {
-            *cells.entry([h.s0, h.a1, h.l2, h.a2]).or_insert(0_usize) += 1;
+            *cells.entry(h.coordinates().collect::<Vec<_>>()).or_insert(0_usize) += 1;
         }
         cells
     };
@@ -450,13 +588,21 @@ pub fn balanced_linear_unit_scores<E: TemporalEstimator + ?Sized>(
         return Err(unsupported_history("empty unit-score panel"));
     };
     let expected = histogram(first);
-    if expected.len() != 16
+    // Every binary assignment of the state, the actions and the covariates.
+    let complete = expected.keys().next().is_some_and(|cell| {
+        u32::try_from(cell.len())
+            .ok()
+            .and_then(|width| 1_usize.checked_shl(width))
+            .is_some_and(|cells| cells == expected.len())
+    });
+    if !complete
         || expected.keys().flatten().any(|&level| level > 1)
         || units.iter().any(|unit| histogram(unit) != expected)
     {
-        return Err(EstimationError::refused(
+        return Err(EstimationError::refused_detail(
             reason_code!("route_not_supported"),
-            "temporal_interval.studentized_unbalanced: exact unit scores require identical complete binary history multiplicities",
+            antecedent_core::reason_details::temporal_interval::STUDENTIZED_UNBALANCED,
+            "exact unit scores require identical complete binary history multiplicities",
         ));
     }
     units
@@ -484,7 +630,7 @@ pub enum IntervalMethod {
 /// Resampling design and bounds of one dependent interval.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DependentIntervalConfig {
-    /// Replicates, within [`INTERVAL_MIN_REPLICATES`]..=[`INTERVAL_MAX_REPLICATES`].
+    /// Replicates, at least [`INTERVAL_MIN_REPLICATES`].
     pub replicates: usize,
     /// Seed of the replicate stream.
     pub seed: u64,
@@ -616,6 +762,7 @@ impl DependentInterval {
             None,
             0.,
         )
+        .with_validation("not_applicable")
     }
 
     /// Upper minus lower.
@@ -648,15 +795,17 @@ fn replicate_set_digest(seed: u64, panel_digest: u64, replicates: &[ReplicateRec
     crate::util::canonical_word(&digest)
 }
 
-fn validate_config(config: &DependentIntervalConfig) -> Result<(), EstimationError> {
+/// Check an interval configuration: the replicate count within the minimum and the cap, the
+/// level, and the failed-replicate fraction.
+///
+/// # Errors
+/// A coded refusal naming the first violated bound.
+pub fn validate_config(config: &DependentIntervalConfig) -> Result<(), EstimationError> {
     if config.replicates > INTERVAL_MAX_REPLICATES {
-        return Err(EstimationError::refused(
+        return Err(EstimationError::refused_detail(
             reason_code!("route_not_supported"),
-            format!(
-                "{TEMPORAL_INTERVAL_TOO_MANY_REPLICATES}: {} replicates exceed the cap of \
-                 {INTERVAL_MAX_REPLICATES}",
-                config.replicates
-            ),
+            TEMPORAL_INTERVAL_TOO_MANY_REPLICATES,
+            format!("{} replicates exceed the cap of {INTERVAL_MAX_REPLICATES}", config.replicates),
         ));
     }
     let bad = |message: &str| EstimationError::refused(reason_code!("invalid_argument"), message);
@@ -682,6 +831,7 @@ fn quantile(sorted: &[f64], p: f64) -> f64 {
 /// acceleration is the skewness of the complete delete-one-unit jackknife. `None` when
 /// a leave-one-out estimate is unsupported or the constants are not finite, so the
 /// plain percentile endpoints stand.
+#[cfg(test)]
 fn bias_corrected_accelerated<E: TemporalEstimator + ?Sized>(
     all: &[&UnitHistories],
     estimator: &E,
@@ -752,6 +902,7 @@ fn run_replicates<E: TemporalEstimator + ?Sized>(
 ) -> Result<Vec<ReplicateRecord>, EstimationError> {
     let mut base = CanonicalWriter::new(REPLICATE_ID_TAG);
     base.word(config.seed).word(panel.digest);
+    let _admitted = crate::util::admit_array::<ReplicateRecord>(ctx, config.replicates, 1)?;
     let mut records = Vec::with_capacity(config.replicates);
     for index in 0..config.replicates {
         crate::transport::refuse_cancelled(ctx, "temporal dependent interval replicate")?;
@@ -779,9 +930,10 @@ fn prepare_studentization<E: TemporalEstimator + ?Sized>(
 ) -> Result<StudentizationReceipt, EstimationError> {
     let all = panel.units.iter().collect::<Vec<_>>();
     let scores = estimator.balanced_unit_scores(&all, ctx)?.ok_or_else(|| {
-        EstimationError::refused(
+        EstimationError::refused_detail(
             reason_code!("route_not_supported"),
-            "temporal_interval.studentized_estimator_not_certified",
+            antecedent_core::reason_details::temporal_interval::STUDENTIZED_ESTIMATOR_NOT_CERTIFIED,
+            "",
         )
     })?;
     let (mean, standard_error) = mean_se(&scores).ok_or_else(|| {
@@ -790,7 +942,9 @@ fn prepare_studentization<E: TemporalEstimator + ?Sized>(
     })?;
     let close = |a: f64, b: f64| (a - b).abs() <= 1e-10 * (1.0 + a.abs() + b.abs());
     if scores.len() != all.len() || !close(mean, point) {
-        return Err(unsupported_history("temporal_interval.studentized_score_mismatch"));
+        return Err(unsupported_history(
+            antecedent_core::reason_details::temporal_interval::STUDENTIZED_SCORE_MISMATCH,
+        ));
     }
     Ok(StudentizationReceipt {
         standard_error,
@@ -821,10 +975,12 @@ fn studentize_replicates(
         let (selected, _) = draw_units(panel, record.replicate_id);
         let selected_scores = selected.iter().map(|unit| lookup[&unit.unit_id]).collect::<Vec<_>>();
         let variance = mean_se(&selected_scores);
-        if let (Some(estimate), Some((mean, _))) = (record.point, variance) {
-            if !close(mean, estimate) {
-                return Err(unsupported_history("temporal_interval.studentized_score_mismatch"));
-            }
+        if let (Some(estimate), Some((mean, _))) = (record.point, variance)
+            && !close(mean, estimate)
+        {
+            return Err(unsupported_history(
+                antecedent_core::reason_details::temporal_interval::STUDENTIZED_SCORE_MISMATCH,
+            ));
         }
         let pair = record
             .point
@@ -841,14 +997,14 @@ fn studentize_replicates(
 
 /// Resample whole units and construct the balanced-unit studentized interval.
 ///
-/// This receipt retains unmeasured standing. A separate source-bound measured
+/// This receipt retains `not_measured` standing. A separate source-bound measured
 /// adapter resolves evidence for its exact validated protocol.
 ///
 /// # Errors
 /// `too_few_clusters` / `temporal_interval.too_few_units` below the minimum unit
-/// count; `route_not_supported` with `temporal_interval.too_many_replicates` above
-/// the cap and `temporal_interval.unsupported_history` when the original panel (or
+/// count; `route_not_supported` with `temporal_interval.unsupported_history` when the original panel (or
 /// too large a fraction of replicates) leaves a needed history unsupported;
+/// `route_not_supported` with `temporal_interval.studentized_bounds_exceeded` above 4096 units;
 /// `transport_budget_cancel` on cancellation.
 pub fn dependent_unit_interval<E: TemporalEstimator + ?Sized>(
     panel: &TemporalUnitPanel,
@@ -858,22 +1014,31 @@ pub fn dependent_unit_interval<E: TemporalEstimator + ?Sized>(
 ) -> Result<DependentInterval, EstimationError> {
     validate_config(config)?;
     if config.method != IntervalMethod::Studentized {
-        return Err(EstimationError::refused(
+        return Err(EstimationError::refused_detail(
             reason_code!("route_not_supported"),
-            "temporal_interval.retired_method: direct intervals require studentized",
+            antecedent_core::reason_details::temporal_interval::RETIRED_METHOD,
+            "direct intervals require studentized",
         ));
     }
     if panel.units.len() > STUDENTIZED_MAX_UNITS {
-        return Err(EstimationError::refused(
+        // The studentization needs a score per original unit and a per-draw SE. Beyond the
+        // certified range the request is refused: answering it with the retired percentile
+        // construction would return another interval than the one declared.
+        return Err(EstimationError::refused_detail(
             reason_code!("route_not_supported"),
-            "temporal_interval.studentized_bounds_exceeded: at most 4096 original unit scores",
+            TEMPORAL_INTERVAL_STUDENTIZED_BOUNDS_EXCEEDED,
+            format!(
+                "{} units exceed the {STUDENTIZED_MAX_UNITS} the bootstrap-t is certified for",
+                panel.units.len()
+            ),
         ));
     }
     if panel.units.len() < config.min_units.max(2) {
-        return Err(EstimationError::refused(
+        return Err(EstimationError::refused_detail(
             reason_code!("too_few_clusters"),
+            TEMPORAL_INTERVAL_TOO_FEW_UNITS,
             format!(
-                "{TEMPORAL_INTERVAL_TOO_FEW_UNITS}: {} repeated units, at least {} required",
+                "{} repeated units, at least {} required",
                 panel.units.len(),
                 config.min_units.max(2)
             ),
@@ -925,7 +1090,7 @@ pub fn dependent_unit_interval<E: TemporalEstimator + ?Sized>(
 }
 
 /// Percentile/basic resampling of a checked paired effect, sharing each unit draw.
-/// This helper returns an unmeasured receipt; public authority additionally requires
+/// This helper returns a `not_measured` receipt; public authority additionally requires
 /// the original checked source/proof and the exact calibrated effect protocol.
 /// # Errors
 /// Invalid configuration, unsupported resampled histories or cancellation.
@@ -941,10 +1106,11 @@ pub fn checked_paired_effect_interval<E: TemporalEstimator + ?Sized>(
         return dependent_unit_interval(panel, estimator, config, ctx);
     }
     if panel.units.len() < config.min_units.max(2) {
-        return Err(EstimationError::refused(
+        return Err(EstimationError::refused_detail(
             reason_code!("too_few_clusters"),
+            TEMPORAL_INTERVAL_TOO_FEW_UNITS,
             format!(
-                "{TEMPORAL_INTERVAL_TOO_FEW_UNITS}: {} repeated units, at least {} required",
+                "{} repeated units, at least {} required",
                 panel.units.len(),
                 config.min_units.max(2)
             ),
@@ -971,9 +1137,7 @@ pub fn checked_paired_effect_interval<E: TemporalEstimator + ?Sized>(
     let tail = (1.0 - config.level) / 2.0;
     let (low, high) = (quantile(&points, tail), quantile(&points, 1.0 - tail));
     let (lower, upper) = match config.method {
-        IntervalMethod::Percentile => {
-            bias_corrected_accelerated(&all, estimator, point, &points, tail).unwrap_or((low, high))
-        }
+        IntervalMethod::Percentile => (low, high),
         IntervalMethod::Basic => (2.0_f64.mul_add(point, -high), 2.0_f64.mul_add(point, -low)),
         IntervalMethod::Studentized => {
             return Err(EstimationError::unsupported(
@@ -1019,7 +1183,7 @@ mod digest_tests {
     }
 
     fn history(time_id: u64, s0: u32, a1: u32, l2: u32, a2: u32, y: f64) -> SequenceHistory {
-        SequenceHistory { time_id, s0, a1, l2, a2, y }
+        SequenceHistory::two_step(time_id, s0, a1, l2, a2, y)
     }
 
     fn panel() -> TemporalUnitPanel {
@@ -1065,6 +1229,32 @@ mod digest_tests {
     }
 
     #[test]
+    fn percentile_is_equal_tailed_even_when_bca_differs() {
+        let panel = panel();
+        let ctx = ExecutionContext::for_tests(1);
+        let config = DependentIntervalConfig {
+            replicates: 200,
+            seed: 7,
+            level: 0.8,
+            method: IntervalMethod::Percentile,
+            min_units: 2,
+            ..Default::default()
+        };
+        let interval = checked_paired_effect_interval(&panel, &MeanOutcome, &config, &ctx).unwrap();
+        let mut points: Vec<_> =
+            interval.replicates.iter().filter_map(|record| record.point).collect();
+        points.sort_by(f64::total_cmp);
+        let tail = (1.0 - config.level) / 2.0;
+        let expected = (quantile(&points, tail), quantile(&points, 1.0 - tail));
+        assert_eq!((interval.lower, interval.upper), expected);
+        let all: Vec<_> = panel.units.iter().collect();
+        let bca =
+            bias_corrected_accelerated(&all, &MeanOutcome, interval.point, &points, tail).unwrap();
+        assert!((bca.0 - expected.0).abs() > 1e-12 || (bca.1 - expected.1).abs() > 1e-12);
+        assert_eq!(interval.calibration_basis().interval_method.as_ref(), "bootstrap_percentile");
+    }
+
+    #[test]
     fn calibration_basis_keeps_counts_that_fit() {
         let interval = DependentInterval {
             estimand: "mean",
@@ -1091,5 +1281,108 @@ mod digest_tests {
         let basis = interval.calibration_basis();
         assert_eq!(basis.row_count, 3);
         assert_eq!(basis.replicates_ok, Some(1));
+    }
+}
+
+#[cfg(test)]
+mod longer_horizon_tests {
+    use super::*;
+
+    fn three_steps(rows: &[(u32, [u32; 3], [u32; 2], f64)]) -> Vec<UnitHistories> {
+        rows.iter()
+            .enumerate()
+            .map(|(index, &(s0, actions, covariates, y))| UnitHistories {
+                unit_id: index as u64,
+                histories: vec![SequenceHistory {
+                    time_id: 0,
+                    s0,
+                    actions: actions.to_vec(),
+                    covariates: covariates.to_vec(),
+                    y,
+                }],
+            })
+            .collect()
+    }
+
+    #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
+    fn the_response_of_three_steps_nests_the_covariate_laws() {
+        // State 0, sequence (1, 1, 1). Four histories follow the first action; two have
+        // l2 = 0 and two l2 = 1. Of the l2 = 1 pair only one takes the second action.
+        let units = three_steps(&[
+            (0, [1, 1, 1], [0, 0], 1.0),
+            (0, [1, 1, 1], [0, 1], 3.0),
+            (0, [1, 1, 1], [1, 0], 5.0),
+            (0, [1, 0, 1], [1, 1], 100.0),
+            (0, [0, 1, 1], [0, 0], 50.0),
+        ]);
+        let refs = units.iter().collect::<Vec<_>>();
+        let tallies = SequenceTallies::of(&refs, &[1, 1, 1]);
+        // P(l2 = 0) = 1/2 with E[y | l3] = (1 + 3) / 2, P(l2 = 1) = 1/2 with y = 5.
+        assert_eq!(tallies.response(0), Ok(0.5 * 2.0 + 0.5 * 5.0));
+        assert_eq!(tallies.response(7), Err(ResponseGap::NoState));
+        assert_eq!(tallies.observed_states(), vec![0]);
+        assert_eq!(tallies.observed_state_mass(0), 1.0);
+        // A history of another horizon belongs to no tally of this sequence.
+        let two = [UnitHistories {
+            unit_id: 9,
+            histories: vec![SequenceHistory::two_step(0, 0, 1, 0, 1, 2.0)],
+        }];
+        let mixed = two.iter().chain(&units).collect::<Vec<_>>();
+        assert_eq!(SequenceTallies::of(&mixed, &[1, 1, 1]).response(0), tallies.response(0));
+    }
+
+    #[test]
+    fn a_covariate_path_without_the_following_action_is_a_support_gap() {
+        // The only history takes the third action 0, so the cell of l3 = 0 has no history
+        // that follows the sequence.
+        let units = three_steps(&[(0, [1, 1, 0], [0, 0], 1.0)]);
+        let refs = units.iter().collect::<Vec<_>>();
+        let gap = SequenceTallies::of(&refs, &[1, 1, 1]).response(0);
+        assert_eq!(gap, Err(ResponseGap::NoCell { step: 3, covariate: 0 }));
+        // The l2 = 1 history never takes the second action, so nothing follows it there.
+        let units = three_steps(&[(0, [1, 1, 1], [0, 0], 1.0), (0, [1, 0, 0], [1, 0], 2.0)]);
+        let refs = units.iter().collect::<Vec<_>>();
+        let gap = SequenceTallies::of(&refs, &[1, 1, 1]).response(0);
+        assert_eq!(gap, Err(ResponseGap::NoCell { step: 2, covariate: 1 }));
+    }
+
+    #[test]
+    fn the_panel_requires_one_horizon_and_hashes_the_two_step_coordinates_unchanged() {
+        let mixed = vec![
+            UnitHistories {
+                unit_id: 1,
+                histories: vec![SequenceHistory::two_step(0, 0, 1, 0, 1, 2.0)],
+            },
+            UnitHistories {
+                unit_id: 2,
+                histories: three_steps(&[(0, [1, 1, 1], [0, 0], 1.0)]).remove(0).histories,
+            },
+        ];
+        assert!(TemporalUnitPanel::new("snap", Some(mixed)).is_err());
+        let malformed = vec![UnitHistories {
+            unit_id: 1,
+            histories: vec![SequenceHistory {
+                time_id: 0,
+                s0: 0,
+                actions: vec![1, 1],
+                covariates: vec![],
+                y: 0.0,
+            }],
+        }];
+        assert!(TemporalUnitPanel::new("snap", Some(malformed)).is_err());
+        let history = SequenceHistory::two_step(3, 1, 0, 1, 1, 0.5);
+        assert_eq!(history.coordinates().collect::<Vec<_>>(), vec![1, 0, 1, 1]);
+        let long = SequenceHistory {
+            time_id: 0,
+            s0: 1,
+            actions: vec![0, 1, 0],
+            covariates: vec![1, 0],
+            y: 0.0,
+        };
+        assert_eq!(long.coordinates().collect::<Vec<_>>(), vec![1, 0, 1, 1, 0, 0]);
     }
 }

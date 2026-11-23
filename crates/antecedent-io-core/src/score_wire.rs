@@ -6,7 +6,7 @@
 //! `analysis_wire::ScoreTableWire` of the result body is a separate, defaulting
 //! form with its own bytes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use serde::{Deserialize, Serialize};
 
@@ -45,7 +45,7 @@ pub struct ScoreTableWire {
     /// Complete-case row count.
     pub n_rows: u64,
     /// Original data-frame row index of each complete-case row (the row ids).
-    pub row_index: Vec<u32>,
+    pub row_index: Vec<u64>,
     /// Fold id of each row.
     pub fold_ids: Vec<u32>,
     /// Fold count.

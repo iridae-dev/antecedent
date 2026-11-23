@@ -2,34 +2,36 @@
 //!
 //! Each estimate family converts to its portable wire section here, so the
 //! result body is assembled by dispatch rather than by inline conversion. An
-//! estimate whose section carries the graphless license the executing result
-//! resolved converts through [`LicensedWire`]; the rest are plain `From`.
+//! estimate whose section carries the graphless support the executing result
+//! resolved converts through [`SupportedWire`]; the rest are plain `From`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_io::analysis_result_artifact::{
     ContinuousDosePointWire, ContinuousDoseResponseWire, DosePolicyValueWire,
     FixedCandidateRegretWire, MultiActionCateWire,
 };
 use antecedent_io::{
-    DistributionAtomWire, InterferenceInferenceWire, InterferencePointwiseIntervalWire,
-    InterventionalDistributionWire, LocalPolynomialRatioWire, LongitudinalRegimeWire, PanelDidWire,
-    PolicyValueWire, RandomizedEffectWire, SurvivalDifferenceBandWire, SurvivalWire,
-    SyntheticControlWire, SyntheticDidWire, UpliftBinWire, ValueWire,
+    DistributionAtomWire, HistoryMatchWire, InterferenceInferenceWire,
+    InterferencePointwiseIntervalWire, InterventionalDistributionWire, LocalPolynomialRatioWire,
+    LongitudinalRegimeWire, PanelDidWire, PolicyValueWire, RandomizedEffectWire,
+    SequentialContrastWire, SurvivalDifferenceBandWire, SurvivalWire, SyntheticControlWire,
+    SyntheticDidWire, UpliftBinWire, ValueWire,
 };
 
 use antecedent_estimate::InterventionalDistributionEstimate;
 
 use crate::result::{
-    ContinuousDoseResponseEstimate, InterferenceInference, LocalPolynomialRatioEstimate,
-    LongitudinalRegimeEstimate, PanelDidEstimate, PolicyValueEstimate, RandomizedEffectEstimate,
-    SurvivalEstimate, SyntheticControlEstimate, SyntheticDidEstimate,
+    ContinuousDoseResponseEstimate, HistoryMatchEstimate, InterferenceInference,
+    LocalPolynomialRatioEstimate, LongitudinalRegimeEstimate, PanelDidEstimate,
+    PolicyValueEstimate, RandomizedEffectEstimate, SequentialContrastEstimate, SurvivalEstimate,
+    SyntheticControlEstimate, SyntheticDidEstimate,
 };
 use crate::support::CellStatus;
 
-/// Wire section of an estimate whose graphless license is decided by the
+/// Wire section of an estimate whose graphless support is decided by the
 /// executing result rather than by the estimate itself.
-pub(super) trait LicensedWire {
+pub(super) trait SupportedWire {
     type Wire;
 
     /// `support` is the result's graphless support status.
@@ -44,7 +46,7 @@ fn unit_values(values: &[(impl ToString, f64)]) -> Vec<(String, f64)> {
     values.iter().map(|(unit, value)| (unit.to_string(), *value)).collect()
 }
 
-impl LicensedWire for PolicyValueEstimate {
+impl SupportedWire for PolicyValueEstimate {
     type Wire = PolicyValueWire;
 
     fn to_wire(&self, support: Option<CellStatus>) -> PolicyValueWire {
@@ -101,7 +103,7 @@ impl LicensedWire for PolicyValueEstimate {
     }
 }
 
-impl LicensedWire for ContinuousDoseResponseEstimate {
+impl SupportedWire for ContinuousDoseResponseEstimate {
     type Wire = ContinuousDoseResponseWire;
 
     fn to_wire(&self, support: Option<CellStatus>) -> ContinuousDoseResponseWire {
@@ -145,13 +147,19 @@ impl LicensedWire for ContinuousDoseResponseEstimate {
     }
 }
 
-impl LicensedWire for PanelDidEstimate {
+impl SupportedWire for PanelDidEstimate {
     type Wire = PanelDidWire;
 
     fn to_wire(&self, support: Option<CellStatus>) -> PanelDidWire {
         PanelDidWire {
             effect: self.effect,
-            standard_error: if self.augmented.is_some() { None } else { Some(self.standard_error) },
+            // An augmented panel has a standard error only when its whole-cluster resample
+            // published an interval; otherwise the field is a placeholder.
+            standard_error: if self.augmented.is_some() && self.interval_95.is_none() {
+                None
+            } else {
+                Some(self.standard_error)
+            },
             interval_95: self.interval_95,
             treated_subjects: self.treated_subjects,
             comparison_subjects: self.comparison_subjects,
@@ -176,11 +184,12 @@ impl LicensedWire for PanelDidEstimate {
                 .collect(),
             event_time_intervals_95: self.event_time_intervals_95.to_vec(),
             augmented: self.augmented,
+            replicates_ok: self.replicates_ok,
         }
     }
 }
 
-impl LicensedWire for LocalPolynomialRatioEstimate {
+impl SupportedWire for LocalPolynomialRatioEstimate {
     type Wire = LocalPolynomialRatioWire;
 
     fn to_wire(&self, support: Option<CellStatus>) -> LocalPolynomialRatioWire {
@@ -204,7 +213,7 @@ impl LicensedWire for LocalPolynomialRatioEstimate {
     }
 }
 
-impl LicensedWire for RandomizedEffectEstimate {
+impl SupportedWire for RandomizedEffectEstimate {
     type Wire = RandomizedEffectWire;
 
     fn to_wire(&self, support: Option<CellStatus>) -> RandomizedEffectWire {
@@ -248,7 +257,7 @@ impl LicensedWire for RandomizedEffectEstimate {
     }
 }
 
-impl LicensedWire for SurvivalEstimate {
+impl SupportedWire for SurvivalEstimate {
     type Wire = SurvivalWire;
 
     fn to_wire(&self, support: Option<CellStatus>) -> SurvivalWire {
@@ -303,8 +312,21 @@ impl From<&SyntheticControlEstimate> for SyntheticControlWire {
             unadjusted_effect: fit.unadjusted_effect,
             outcome_model_correction: fit.outcome_model_correction,
             augmentation_ridge: fit.augmentation_ridge,
+            observed_window: fit.observed_window.as_ref().map(|window| {
+                antecedent_io::analysis_result_artifact::ObservedWindowWire {
+                    pre_periods: window.pre_periods.to_vec(),
+                    post_periods: window.post_periods.to_vec(),
+                    donors_used: window.donors_used,
+                    donors_dropped: unit_counts(&window.donors_dropped),
+                    unread_rows: window.unread_rows,
+                }
+            }),
         }
     }
+}
+
+fn unit_counts(values: &[(std::sync::Arc<str>, usize)]) -> Vec<(String, usize)> {
+    values.iter().map(|(unit, count)| (unit.to_string(), *count)).collect()
 }
 
 impl From<&SyntheticDidEstimate> for SyntheticDidWire {
@@ -321,6 +343,7 @@ impl From<&SyntheticDidEstimate> for SyntheticDidWire {
             randomization_p_value: fit.randomization_p_value,
             randomization_null_effect: fit.randomization_null_effect,
             randomization_statistics: unit_values(&fit.randomization_statistics),
+            randomization_ranking_tolerance: fit.randomization_ranking_tolerance,
         }
     }
 }
@@ -357,6 +380,58 @@ impl From<&LongitudinalRegimeEstimate> for LongitudinalRegimeWire {
                 &regime.stabilizing_numerator_probabilities,
             ),
             observed_subjects: regime.observed_subjects.unwrap_or(0),
+        }
+    }
+}
+
+impl From<&HistoryMatchEstimate> for HistoryMatchWire {
+    fn from(fit: &HistoryMatchEstimate) -> Self {
+        Self {
+            contrast: fit.contrast,
+            standard_error: fit.standard_error,
+            weight_total: fit.weight_total,
+            matched_queries: fit.matched_queries.to_vec(),
+            matched_donors: fit.matched_donors.to_vec(),
+            differences: fit.differences.to_vec(),
+            pair_weights: fit.pair_weights.to_vec(),
+            query_variances: fit.query_variances.to_vec(),
+            donor_variances: fit.donor_variances.to_vec(),
+            unmatched_treated: fit.unmatched_treated.to_vec(),
+            periods_matched: fit.periods_matched,
+            pair_periods: fit.pair_periods.to_vec(),
+            serial_standard_error: fit.serial_standard_error,
+            interval_lower: fit.interval_lower,
+            interval_upper: fit.interval_upper,
+            serial_bandwidth: fit.serial_bandwidth,
+            caliper: fit.caliper,
+            uncertainty: fit.uncertainty.to_string(),
+            calibration: "not_measured".to_owned(),
+            supported: false,
+        }
+    }
+}
+
+impl From<&SequentialContrastEstimate> for SequentialContrastWire {
+    fn from(fit: &SequentialContrastEstimate) -> Self {
+        Self {
+            active_regime: fit.active_regime,
+            control_regime: fit.control_regime,
+            contrast: fit.contrast,
+            active_mean: fit.active_mean,
+            control_mean: fit.control_mean,
+            evaluated_rows: fit.evaluated_rows,
+            minimum_action_probability: fit.minimum_action_probability,
+            min_probability: fit.min_probability,
+            standard_error: fit.standard_error,
+            interval: fit.interval,
+            coverage: fit.coverage,
+            active_scores: fit.active_scores.to_vec(),
+            control_scores: fit.control_scores.to_vec(),
+            posterior_symmetric_interval: fit.posterior_symmetric_interval,
+            contrast_scores: fit.contrast_scores.to_vec(),
+            uncertainty: fit.uncertainty.to_string(),
+            calibration: "not_measured".to_owned(),
+            supported: false,
         }
     }
 }
@@ -406,5 +481,211 @@ pub(super) fn distribution_wire(
                 probability: atom.probability,
             })
             .collect(),
+    }
+}
+
+impl From<&crate::QuasiRolloutEstimate>
+    for antecedent_io::analysis_result_artifact::QuasiRolloutWire
+{
+    fn from(fit: &crate::QuasiRolloutEstimate) -> Self {
+        Self {
+            design: fit.design.to_string(),
+            method: fit.method.to_string(),
+            effects: fit
+                .effects
+                .iter()
+                .map(|effect| antecedent_io::analysis_result_artifact::DesignEffectWire {
+                    kind: effect.kind.as_str().to_string(),
+                    group: effect.group,
+                    period: effect.period,
+                    event_time: effect.event_time,
+                    unit: effect.unit.clone(),
+                    estimate: effect.estimate,
+                    standard_error: effect.standard_error,
+                    interval: effect.interval,
+                    band: effect.band,
+                    treated: effect.treated,
+                    comparison: effect.comparison,
+                })
+                .collect(),
+            uncertainty: fit.uncertainty.to_string(),
+            calibration: fit.calibration.to_string(),
+            replicates_requested: fit.replicates_requested,
+            replicates_ok: fit.replicates_ok,
+            replicates_failed: fit.replicates_failed,
+            critical_value: fit.critical_value,
+            // The artifact carries finite numbers only; a diagnostic that is undefined for the
+            // fit (a standard error that could not be formed) stays on the in-memory result.
+            diagnostics: fit
+                .diagnostics
+                .iter()
+                .filter(|(_, value)| value.is_finite())
+                .map(|(name, value)| (name.to_string(), *value))
+                .collect(),
+            supported: fit.supported,
+        }
+    }
+}
+
+impl From<&crate::TemporalDesignEstimate>
+    for antecedent_io::analysis_result_artifact::TemporalDesignWire
+{
+    fn from(fit: &crate::TemporalDesignEstimate) -> Self {
+        Self {
+            design: fit.design.to_string(),
+            functional: fit.functional.to_string(),
+            coordinates: fit.coordinates.iter().map(ToString::to_string).collect(),
+            estimate: fit.estimate.to_vec(),
+            standard_error: fit.standard_error.to_vec(),
+            lower: fit.lower.to_vec(),
+            upper: fit.upper.to_vec(),
+            covariance: fit.covariance.as_ref().map(|values| values.to_vec()),
+            band_coordinates: fit.band_coordinates.iter().map(|index| *index as u64).collect(),
+            band_critical_value: fit.band_critical_value,
+            band_lower: fit.band_lower.as_ref().map(|values| values.to_vec()),
+            band_upper: fit.band_upper.as_ref().map(|values| values.to_vec()),
+            holm_adjusted_p: fit.holm_adjusted_p.as_ref().map(|values| values.to_vec()),
+            smoothing_bias_bound: fit.smoothing_bias_bound.as_ref().map(|values| values.to_vec()),
+            pairs: fit.pairs,
+            clusters: fit.clusters,
+            unpaired: fit.unpaired,
+            minimum_probability: fit
+                .minimum_probability
+                .is_finite()
+                .then_some(fit.minimum_probability),
+            replicates: fit.replicates.map(|(ok, failed)| [ok, failed]),
+            draws: fit.draws,
+            uncertainty: fit.uncertainty.to_string(),
+            calibration: fit.calibration.to_string(),
+            supported: fit.supported,
+        }
+    }
+}
+
+/// The artifact section of a compiled instrumental-variable bounds estimate.
+pub(crate) fn iv_bounds_wire(
+    fit: &antecedent_estimate::IvBoundsEstimate,
+) -> antecedent_io::analysis_result_artifact::IvBoundsWire {
+    {
+        use antecedent_io::analysis_result_artifact::{
+            IV_BOUNDS_POINT_UNCERTAINTY, IvBoundsIntervalWire, IvBoundsPosteriorWire,
+        };
+        let interval = fit.interval.map(|interval| IvBoundsIntervalWire {
+            level: interval.level,
+            lower: interval.lower,
+            upper: interval.upper,
+            lower_se: interval.lower_se,
+            upper_se: interval.upper_se,
+            critical_value: interval.critical_value,
+            width_retained: interval.width_retained,
+            replicates: interval.replicates as u64,
+            infeasible: interval.infeasible as u64,
+            method: interval.method.as_str().to_owned(),
+        });
+        let uncertainty = interval
+            .as_ref()
+            .map_or_else(|| IV_BOUNDS_POINT_UNCERTAINTY.to_owned(), |i| i.method.clone());
+        antecedent_io::analysis_result_artifact::IvBoundsWire {
+            lower: fit.lower,
+            upper: fit.upper,
+            cells: fit.law.cells.iter().flatten().copied().collect(),
+            arm_weights: fit.arm_weights.to_vec(),
+            rows: fit.rows as u64,
+            rows_dropped: fit.rows_dropped as u64,
+            interval,
+            posterior: fit.posterior.map(|posterior| IvBoundsPosteriorWire {
+                n_draws: posterior.n_draws as u64,
+                infeasible_draws: posterior.infeasible_draws as u64,
+                lower_mean: posterior.lower_mean,
+                upper_mean: posterior.upper_mean,
+                lower_sd: posterior.lower_sd,
+                upper_sd: posterior.upper_sd,
+            }),
+            uncertainty,
+            calibration: "not_measured".to_owned(),
+            supported: false,
+        }
+    }
+}
+
+/// The artifact section of a compiled noncausal association.
+pub(crate) fn association_wire(
+    payload: &crate::analysis::association::AssociationPayload,
+) -> antecedent_io::analysis_result_artifact::AssociationWire {
+    use antecedent_io::analysis_result_artifact::{
+        AssociationConjugateWire, AssociationPosteriorWire, AssociationPredictionWire,
+        AssociationResamplingWire, AssociationTermWire, AssociationWire,
+    };
+    let estimate = &payload.estimate;
+    let terms = estimate
+        .terms
+        .iter()
+        .map(|term| AssociationTermWire {
+            label: term.label.clone(),
+            scale: term.scale.to_owned(),
+            estimate: term.estimate,
+            standard_error: term.standard_error,
+            standard_error_method: term.standard_error_method.map(str::to_owned),
+            spread_lower: term.spread.map(|(lower, _)| lower),
+            spread_upper: term.spread.map(|(_, upper)| upper),
+            posterior_mean: term.posterior.map(|posterior| posterior.mean),
+            posterior_sd: term.posterior.map(|posterior| posterior.sd),
+            posterior_lower: term.posterior.map(|posterior| posterior.lower),
+            posterior_upper: term.posterior.map(|posterior| posterior.upper),
+            conjugate: term.conjugate.map(|cell| AssociationConjugateWire {
+                family: cell.family.to_owned(),
+                prior: cell.prior,
+                posterior: cell.posterior,
+                count: cell.count,
+                exposure: cell.exposure,
+                log_marginal_likelihood: cell.log_marginal_likelihood,
+                predictive_mean: cell.predictive_mean,
+                predictive_variance: cell.predictive_variance,
+            }),
+            rows: term.rows as u64,
+        })
+        .collect();
+    let uncertainty = payload.uncertainty_label();
+    AssociationWire {
+        analysis: estimate.selection.analysis.as_str().to_owned(),
+        rule: estimate.selection.rule.to_owned(),
+        requested: estimate.selection.requested.to_owned(),
+        outcome_kind: estimate.selection.outcome_kind.as_str().to_owned(),
+        modality: estimate.selection.modality.as_str().to_owned(),
+        terms,
+        rows: estimate.rows as u64,
+        rows_dropped: estimate.rows_dropped as u64,
+        resampling: estimate.resampling.map(|record| AssociationResamplingWire {
+            method: record.method.to_owned(),
+            unit: record.unit.to_owned(),
+            replicates_requested: u64::from(record.replicates_requested),
+            replicates_ok: u64::from(record.replicates_ok),
+            block_length: record.block_length.map(|length| length as u64),
+            spread_level: antecedent_estimate::SPREAD_LEVEL,
+        }),
+        posterior: estimate.posterior.map(|record| AssociationPosteriorWire {
+            method: record.method.to_owned(),
+            draws: record.draws as u64,
+            level: antecedent_estimate::SPREAD_LEVEL,
+        }),
+        prediction: payload.scores.as_ref().zip(estimate.prediction.as_ref()).map(
+            |(scores, fit)| AssociationPredictionWire {
+                folds: u64::from(fit.folds),
+                fold_design: fit.fold_design.to_owned(),
+                cases: scores.cases as u64,
+                score: scores.score.to_owned(),
+                mean_score: scores.mean_score,
+                baseline_score: scores.baseline_score,
+                mean_crps: scores.mean_crps,
+                calibration: crate::analysis::association::ASSOCIATION_CALIBRATION.to_owned(),
+            },
+        ),
+        assumptions: estimate.assumptions.iter().map(|premise| (*premise).to_owned()).collect(),
+        refused_after: payload.refused_after.as_deref().map(str::to_owned),
+        uncertainty: uncertainty.to_owned(),
+        calibration: crate::analysis::association::ASSOCIATION_CALIBRATION.to_owned(),
+        supported: false,
+        ranks_actions: false,
+        is_intervention_effect: false,
     }
 }

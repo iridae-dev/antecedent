@@ -10,7 +10,7 @@
 //! 1,200 and 2,400 participants run on every simulation route, single outcome and repeated
 //! measures, and cancellation stops each.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CancellationToken;
 use antecedent_stats::adaptive_inference::{
@@ -65,6 +65,9 @@ fn weighting(replications: u32) -> SimulationRequest {
 
 #[test]
 fn planned_single_outcome_procedures_run_with_a_receipt() {
+    // The contrast of arm 1 over arm 0 is 0.45 - 0.3 = 0.15; replicate estimates scatter by
+    // about 0.07 at 600 participants and by 0.005 at 2,400, and their pooled mean must sit on it.
+    let mut estimates = Vec::new();
     for units in PLANNED {
         let spec = thompson(units, 12);
         let law = simulate_procedure(&spec, &[0.3, 0.45, 0.6], &weighting(3), &never)
@@ -73,7 +76,12 @@ fn planned_single_outcome_procedures_run_with_a_receipt() {
         for replicate in &law.replicates {
             assert_eq!(replicate.enrolled, units);
             assert_eq!(replicate.analysed_units, units as usize);
-            assert!(replicate.estimate.is_some());
+            let estimate = replicate.estimate.expect("an estimate");
+            assert!((estimate - 0.15).abs() < 0.2, "{units} participants: {estimate}");
+            estimates.push(estimate);
+            if units == 2_400 {
+                assert!((estimate - 0.15).abs() < 0.03, "{units} participants: {estimate}");
+            }
         }
         let receipt = law.receipt;
         assert_eq!(receipt.replications, 3);
@@ -82,6 +90,8 @@ fn planned_single_outcome_procedures_run_with_a_receipt() {
         assert_eq!(receipt.peak_units, units);
         assert!(receipt.estimated_peak_bytes > 0);
     }
+    let pooled = estimates.iter().sum::<f64>() / estimates.len() as f64;
+    assert!((pooled - 0.15).abs() < 0.07, "pooled contrast {pooled}");
 }
 
 // -- repeated measures ----------------------------------------------------------------------------
@@ -117,6 +127,8 @@ fn repeated(units: u32, batches: u32, measurements: u32) -> RepeatedMeasuresSpec
 
 #[test]
 fn planned_repeated_measures_procedures_run_with_a_receipt() {
+    // Arm means 0.0 and 0.3: the contrast is 0.3.
+    let mut estimates = Vec::new();
     for units in PLANNED {
         let spec = repeated(units, 12, 3);
         let request = RepeatedMeasuresRequest { replications: 3, seed: 5 };
@@ -124,6 +136,11 @@ fn planned_repeated_measures_procedures_run_with_a_receipt() {
             .unwrap_or_else(|e| panic!("{units} participants: {e}"));
         assert_eq!(law.replicates.len(), 3);
         assert!(law.replicates.iter().all(|r| r.enrolled == units && r.estimate.is_some()));
+        for replicate in &law.replicates {
+            let estimate = replicate.estimate.expect("an estimate");
+            assert!((estimate - 0.3).abs() < 0.2, "{units} participants: {estimate}");
+            estimates.push(estimate);
+        }
         // One batch of follow-up has not completed when the analysis is made.
         assert!(law.replicates.iter().all(|r| r.analysed_units == (units / 12 * 11) as usize));
         let receipt = law.receipt;
@@ -132,6 +149,8 @@ fn planned_repeated_measures_procedures_run_with_a_receipt() {
         assert_eq!(receipt.work_done, receipt.work_planned);
         assert_eq!(receipt.peak_units, units);
     }
+    let pooled = estimates.iter().sum::<f64>() / estimates.len() as f64;
+    assert!((pooled - 0.3).abs() < 0.07, "pooled contrast {pooled}");
 }
 
 #[test]
@@ -235,7 +254,9 @@ fn declaration_capacity_is_separate_from_ordering() {
     unordered.enrolment = Some(vec![5, 0, 5]);
     assert_eq!(
         units_over(unordered),
-        vec![ContractGap::Invalid("adaptive_inference.looks_not_ordered")]
+        vec![ContractGap::Invalid(
+            antecedent_core::reason_details::adaptive_inference::LOOKS_NOT_ORDERED
+        )]
     );
 
     // Repeated measures: zero-unit follow-up batches past the batch bound.
@@ -297,7 +318,10 @@ fn each_capacity_class_has_its_own_detail_and_remedy() {
     assert_eq!(remedies.len(), classes.len(), "no two classes share a remedy");
     for class in classes {
         assert!(class.detail().starts_with("adaptive_inference."));
-        assert_ne!(class.detail(), "adaptive_inference.looks_not_ordered");
+        assert_ne!(
+            class.detail(),
+            antecedent_core::reason_details::adaptive_inference::LOOKS_NOT_ORDERED
+        );
         assert_eq!((class.limit(), class.requested()), (1, 2));
         assert!(class.to_string().contains(&class.class().replace('_', " ")));
     }
@@ -333,7 +357,10 @@ fn the_exact_law_refuses_too_many_live_states_with_its_own_detail() {
     // Eight cells and one batch of thirty: the compositions of the batch alone pass a million.
     let refused = law_error(&fixed_law_spec(4, 2, 30));
     assert!(matches!(refused, CapacityError::LawStates { limit: 1_000_000, .. }), "{refused:?}");
-    assert_eq!(refused.detail(), "adaptive_inference.exact_law_states_exceeded");
+    assert_eq!(
+        refused.detail(),
+        antecedent_core::reason_details::adaptive_inference::EXACT_LAW_STATES_EXCEEDED
+    );
     assert!(refused.remedy().contains("simulate"));
 }
 
@@ -411,7 +438,10 @@ fn a_work_budget_refusal_names_the_work_class_before_any_replicate_runs() {
         Error::Capacity(CapacityError::SimulationWork { limit: 1_000, requested: 36_000 })
     );
     let Error::Capacity(capacity) = refused else { unreachable!() };
-    assert_eq!(capacity.detail(), "adaptive_inference.simulation_work_exceeded");
+    assert_eq!(
+        capacity.detail(),
+        antecedent_core::reason_details::adaptive_inference::SIMULATION_WORK_EXCEEDED
+    );
 }
 
 #[test]
@@ -506,7 +536,10 @@ fn a_memory_budget_refusal_names_the_memory_class() {
     )
     .unwrap_err();
     let Error::Capacity(capacity) = refused else { panic!("{refused:?}") };
-    assert_eq!(capacity.detail(), "adaptive_inference.simulation_memory_exceeded");
+    assert_eq!(
+        capacity.detail(),
+        antecedent_core::reason_details::adaptive_inference::SIMULATION_MEMORY_EXCEEDED
+    );
     assert!(capacity.requested() > 1_000);
 }
 
@@ -607,12 +640,16 @@ fn adaptive_declared_capacity_separate_from_exact_law_limits() {
     let refused = law_error(&spec);
     assert!(matches!(refused, CapacityError::LawStates { limit: 1_000_000, .. }), "{refused:?}");
     assert_eq!(refused.class(), "exact_law_states");
-    assert_eq!(refused.detail(), "adaptive_inference.exact_law_states_exceeded");
+    assert_eq!(
+        refused.detail(),
+        antecedent_core::reason_details::adaptive_inference::EXACT_LAW_STATES_EXCEEDED
+    );
     assert!(refused.requested() > refused.limit());
     assert!(refused.remedy().contains("simulate"));
-    for declared in
-        ["adaptive_inference.declared_units_exceeded", "adaptive_inference.declared_looks_exceeded"]
-    {
+    for declared in [
+        antecedent_core::reason_details::adaptive_inference::DECLARED_UNITS_EXCEEDED,
+        antecedent_core::reason_details::adaptive_inference::DECLARED_LOOKS_EXCEEDED,
+    ] {
         assert_ne!(refused.detail(), declared);
     }
     // The simulation route runs the same declaration.
@@ -662,7 +699,10 @@ fn adaptive_simulation_work_and_memory_limits_refuse() {
         })
     );
     let Error::Capacity(work) = refused else { unreachable!() };
-    assert_eq!(work.detail(), "adaptive_inference.simulation_work_exceeded");
+    assert_eq!(
+        work.detail(),
+        antecedent_core::reason_details::adaptive_inference::SIMULATION_WORK_EXCEEDED
+    );
     assert!(work.to_string().contains("4000000000") && work.to_string().contains("4320000000"));
     assert!(work.remedy().contains("work budget"));
     // Just inside the bound is admitted (checked on the budget, not run).
@@ -701,7 +741,10 @@ fn adaptive_simulation_work_and_memory_limits_refuse() {
     .unwrap_err();
     let Error::Capacity(memory) = refused else { panic!("{refused:?}") };
     assert!(matches!(memory, CapacityError::SimulationMemory { limit: 100_000, .. }));
-    assert_eq!(memory.detail(), "adaptive_inference.simulation_memory_exceeded");
+    assert_eq!(
+        memory.detail(),
+        antecedent_core::reason_details::adaptive_inference::SIMULATION_MEMORY_EXCEEDED
+    );
     assert!(memory.requested() > 100_000);
     assert!(memory.to_string().contains("100000"));
     assert_ne!(memory.detail(), work.detail());

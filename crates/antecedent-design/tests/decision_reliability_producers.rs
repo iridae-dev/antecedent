@@ -7,7 +7,7 @@
 //! mean `7.4` and sample variance `16 * 0.0875 / 3`, standard error `0.34157`; `wait` is
 //! identically zero.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_design::decision_reliability::{
@@ -99,7 +99,10 @@ fn a_point_only_cohort_mean_refuses_for_want_of_a_joint_law() {
     ));
     let refusal = error.to_refusal();
     assert_eq!(refusal.code, "joint_law_required");
-    assert_eq!(refusal.detail, "decision_reliability.producer_point_only");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_reliability::PRODUCER_POINT_ONLY
+    );
     assert!(refusal.offending.unwrap().contains("an_affine_mean_contrast_without_a_law"));
     assert!(refusal.remedy.unwrap().contains("aligned joint law"));
 }
@@ -117,7 +120,10 @@ fn point_only_sequential_estimates_refuse_because_no_per_draw_utilities_were_kep
         .unwrap_err();
         let refusal = error.to_refusal();
         assert_eq!(refusal.code, "diagnostic_not_available");
-        assert_eq!(refusal.detail, "decision_reliability.producer_point_only");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::decision_reliability::PRODUCER_POINT_ONLY
+        );
         assert!(refusal.offending.unwrap().contains(held));
         assert!(refusal.remedy.is_some());
     }
@@ -153,7 +159,10 @@ fn cohort_utilities_from_one_law_reach_the_carrier_and_reproduce_the_reported_me
             &ctx(),
         )
         .unwrap_err();
-    assert_eq!(refused.to_refusal().detail, "decision_reliability.effective_sample_size_too_small");
+    assert_eq!(
+        refused.to_refusal().detail,
+        antecedent_core::reason_details::decision_reliability::EFFECTIVE_SAMPLE_SIZE_TOO_SMALL
+    );
 }
 
 #[test]
@@ -196,7 +205,11 @@ fn cohort_utilities_without_a_declared_shared_law_or_with_a_known_law_are_refuse
     assert!(matches!(error, ReliabilityError::InvalidInput { slot: "source", .. }));
     let mut blank = cohort_input();
     blank.source_identity = " ".into();
-    assert!(reach_carrier(ProducerOutput::Cohort(blank)).is_err());
+    let error = reach_carrier(ProducerOutput::Cohort(blank)).unwrap_err();
+    assert!(matches!(
+        &error,
+        ReliabilityError::InvalidInput { slot: "source_identity", message } if message == "must be named"
+    ));
 }
 
 #[test]
@@ -235,11 +248,12 @@ fn implementation_keyed_rollouts_report_functionals_but_refuse_ranking() {
     let error = carrier.assess(None, &with_ranking(), &ctx()).unwrap_err();
     assert!(matches!(error, ReliabilityError::JointLawRequired { .. }));
     assert_eq!(error.reason_code(), "joint_law_required");
-    assert!(carrier.rank(&RankingRequest::default(), &ctx()).is_err());
+    let direct = carrier.rank(&RankingRequest::default(), &ctx()).unwrap_err();
+    assert!(matches!(direct, ReliabilityError::JointLawRequired { .. }));
 }
 
 #[test]
-fn structurally_shared_rollout_noise_licenses_ranking_to_the_carrier() {
+fn structurally_shared_rollout_noise_supports_ranking_to_the_carrier() {
     let carrier =
         reach_carrier(ProducerOutput::Rollout(rollout_input(RolloutNoise::StructuralExogenous)))
             .unwrap();

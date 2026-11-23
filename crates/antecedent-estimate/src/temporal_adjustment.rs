@@ -1,6 +1,6 @@
 //! Temporal linear adjustment estimator.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -14,20 +14,25 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AssumptionSet, ExecutionContext, KernelPolicy, Lag, TargetPopulation, TemporalEffectQuery,
-    VariableId,
+    AssumptionSet, ExecutionContext, HistoryWindow, InitialLaw, KernelPolicy, Lag,
+    TargetPopulation, TemporalEffectQuery, VariableId,
 };
 use antecedent_data::{
-    DiscoveryEstimationSplit, LaggedColumn, LaggedSampleWorkspace, TemporalIndexer, TimeSeriesData,
+    DiscoveryEstimationSplit, LaggedColumn, SamplingRegularity, TableView, TemporalIndexer,
+    TimeIndex, TimeSeriesData,
 };
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_stats::{CompiledDesign, DenseLinearAlgebra};
+use antecedent_model::history_operators::{
+    ActionTiming, CensoringAssignmentWeight, HistoryConstruction, HistoryOperatorError,
+    HistoryScan, Horizon, SequentialRegression,
+};
+use antecedent_stats::CompiledDesign;
 
 use crate::adjustment::{
     EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, PreparedEstimationProblem,
     intervention_f64,
 };
-use crate::error::EstimationError;
+use crate::error::{EstimationError, HistoryOperatorFault};
 use crate::overlap::OverlapPolicy;
 use crate::se::AnalyticSeKind;
 
@@ -153,10 +158,11 @@ impl GapSelection {
 /// Apply the series' sampling weights to a lag-aligned design: window `r` is weighted by the
 /// weight of the observation it ends at, series time `first_time + r`.
 ///
-/// A window of weight zero stays in the design, scaled to nothing, so the windows keep their
-/// consecutive times (the block bootstrap and the HAC lags need them) and contribute no score.
-/// The weights are normalized to mean one over the windows of positive weight. A series with
-/// gaps, whose windows are not consecutive, refuses.
+/// The weights are the weight operator's: [`CensoringAssignmentWeight::window_weights`]
+/// admits them on the query's frame and normalizes them to mean one over the windows of
+/// positive weight. A window of weight zero stays in the design, scaled to nothing, so the
+/// windows keep their consecutive times (the block bootstrap and the HAC lags need them) and
+/// contribute no score. A series with gaps, whose windows are not consecutive, refuses.
 ///
 /// # Errors
 ///
@@ -165,6 +171,7 @@ impl GapSelection {
 fn weight_windows(
     design: CompiledDesign,
     data: &TimeSeriesData,
+    query: &TemporalEffectQuery,
     first_time: usize,
     windows: usize,
     allow_gaps: bool,
@@ -183,20 +190,25 @@ fn weight_windows(
             "the series' sampling weights do not cover its lag-aligned windows",
         ));
     };
-    let positive: Vec<f64> = window_weights.iter().copied().filter(|w| *w > 0.0).collect();
-    if positive.is_empty() {
-        return Err(crate::sampling_weights::invalid(
-            "no lag window has a positive sampling weight; the weighted population is empty",
-        ));
-    }
-    let zero_weight_windows = (window_weights.len() - positive.len()) as u64;
-    let retained = crate::sampling_weights::RetainedSamplingWeights::from_positive(
-        &positive,
-        zero_weight_windows,
-    );
-    let scale = positive.len() as f64 / positive.iter().sum::<f64>();
-    let normalized: Vec<f64> = window_weights.iter().map(|w| w * scale).collect();
-    Ok((crate::sampling_weights::root_weight_design(design, &normalized), Some(retained.record)))
+    let cadence = data.time_index();
+    let operator = CensoringAssignmentWeight::try_new(
+        cadence.clone(),
+        query_horizon_end(cadence, query.horizon_steps)?,
+        InitialLaw::contemporaneous_observed(),
+        1.0,
+        1.0,
+    )
+    .map_err(|error| history_operator_refusal(&error))?;
+    let windowed = operator
+        .window_weights(window_weights)
+        .map_err(|error| crate::sampling_weights::invalid(&error.to_string()))?;
+    let record = crate::sampling_weights::SamplingWeightRecord {
+        rows_used: windowed.rows_used as u64,
+        zero_weight_rows: windowed.zero_weight_windows as u64,
+        effective_sample_size: windowed.effective_sample_size,
+        weight_sum: windowed.weight_sum,
+    };
+    Ok((crate::sampling_weights::root_weight_design(design, &windowed.weights), Some(record)))
 }
 
 /// Temporal linear adjustment for unfolded backdoor estimands.
@@ -369,19 +381,23 @@ impl TemporalLinearAdjustment {
                 message: "temporal linear adjustment requires ExplicitOverride overlap policy",
             });
         }
+        // A window adjustment set from the generalized adjustment criterion (a latent-confounded
+        // template whose adjustment set blocks the open paths) is read exactly as a backdoor set.
         if !matches!(
             estimand.method_kind().ok(),
             Some(
                 antecedent_expr::EstimandMethod::TemporalBackdoorUnfolded
                     | antecedent_expr::EstimandMethod::BackdoorAdjustment
             )
-        ) {
+        ) && !estimand.is_adjustment_shaped()
+        {
             return Err(EstimationError::IncompatibleEstimand {
                 message: "TemporalLinearAdjustment expects temporal.backdoor.unfolded",
             });
         }
         query.validate()?;
 
+        let modifiers = checked_effect_modifiers(query, data)?;
         refuse_multi_step_schedule(&query.policy)?;
         if query.target_population != TargetPopulation::AllObserved {
             return Err(EstimationError::TargetPopulation);
@@ -390,9 +406,16 @@ impl TemporalLinearAdjustment {
         // query offsets are absolute around the policy origin, so horizons > 1
         // otherwise appear as unsupported positive ("future") lags even though
         // the same design is representable by shifting every column together.
-        let sample_anchor = query.outcome_offset().max(0);
-        let t_lag = offset_to_lag(query.try_treatment_offset()? - sample_anchor)?;
-        let y_lag = offset_to_lag(query.outcome_offset() - sample_anchor)?;
+        // The anchor is the history operator's admitted horizon, not the query's
+        // step count.
+        let sample_anchor = outcome_sample_anchor(data.time_index(), query)?.max(0);
+        let t_lag =
+            offset_to_lag(query.try_treatment_offset()?.checked_sub(sample_anchor).ok_or_else(
+                || EstimationError::unsupported("treatment offset exceeds the temporal lag range"),
+            )?)?;
+        let y_lag = offset_to_lag(query.outcome_offset()?.checked_sub(sample_anchor).ok_or_else(
+            || EstimationError::unsupported("outcome offset exceeds the temporal lag range"),
+        )?)?;
 
         let mut cols =
             Vec::with_capacity(2 + estimand.adjustment_set.len() + extra_contemporaneous.len());
@@ -400,16 +423,23 @@ impl TemporalLinearAdjustment {
         cols.push(LaggedColumn { variable: query.outcome, lag: y_lag });
 
         let mut adj_keys = Vec::new();
+        // A declared modifier is read at the outcome's lag, ahead of the adjustment nodes; an
+        // adjustment node that is the modifier itself is the same column and is read once.
+        for &modifier in modifiers {
+            cols.push(LaggedColumn { variable: modifier, lag: y_lag });
+            adj_keys.push(modifier);
+        }
         for &dense_var in estimand.adjustment_set.iter() {
-            let key = indexer
-                .key_of(dense_var.raw())
-                .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+            let key = indexer.key_of(dense_var.raw())?;
             let lag = offset_to_lag(key.offset - sample_anchor).map_err(|_| {
                 EstimationError::unsupported(
                     "adjustment node sits after this horizon's sample anchor and \
                      cannot be lag-aligned",
                 )
             })?;
+            if modifiers.contains(&key.variable) && lag == y_lag {
+                continue;
+            }
             cols.push(LaggedColumn { variable: key.variable, lag });
             adj_keys.push(key.variable);
         }
@@ -420,19 +450,30 @@ impl TemporalLinearAdjustment {
         }
 
         let max_lag = cols.iter().map(|c| c.lag.raw()).max().unwrap_or(0);
-        let plan = data
-            .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
+        let mut scan = HistoryScan::plan(data, max_lag, Arc::<[LaggedColumn]>::from(cols))
             .map_err(EstimationError::from)?;
-        let mut sample_ws = LaggedSampleWorkspace::default();
         let (prep, complete) = if allow_gaps {
-            let gapped = plan
-                .prepare_with_gaps(data, &mut sample_ws, policy)
-                .map_err(EstimationError::from)?;
+            let gapped = scan.with_gaps(data, policy).map_err(EstimationError::from)?;
             (gapped.sample, Some(gapped.complete))
         } else {
-            (plan.prepare(data, &mut sample_ws, policy).map_err(EstimationError::from)?, None)
+            (scan.complete(data, policy).map_err(EstimationError::from)?, None)
         };
 
+        let split = match split {
+            Some(split) => {
+                split.ensure_series_len(data.row_count()).map_err(EstimationError::from)?;
+                Some(
+                    split
+                        .bind_embargo(
+                            antecedent_core::DeclaredSamplingDesign::DependentTimeSeries,
+                            max_lag,
+                        )
+                        .map_err(EstimationError::from)?,
+                )
+            }
+            None => None,
+        };
+        let split = split.as_ref();
         let n = prep.n;
         let (row_start, row_end) = if let Some(s) = split {
             // Prepared row `r` is the lag window `[r, r + max_lag]`. A row belongs to the
@@ -476,10 +517,14 @@ impl TemporalLinearAdjustment {
             cov_refs.iter().map(|(id, values)| (*id, gather(values))).collect();
         let cov_sel_refs: Vec<(VariableId, &[f64])> =
             cov_sel.iter().map(|(id, values)| (*id, values.as_slice())).collect();
-        let design = CompiledDesign::linear_adjustment(&t_sel, &cov_sel_refs, &y_sel, &selected)
-            .map_err(EstimationError::from)?;
+        let design = if modifiers.is_empty() {
+            CompiledDesign::linear_adjustment(&t_sel, &cov_sel_refs, &y_sel, &selected)
+        } else {
+            conditional_design(&t_sel, &cov_sel, modifiers.len(), &y_sel, &selected)
+        }
+        .map_err(EstimationError::from)?;
         let (design, sampling_weights) =
-            weight_windows(design, data, max_lag as usize + row_start, nrows, allow_gaps)?;
+            weight_windows(design, data, query, max_lag as usize + row_start, nrows, allow_gaps)?;
         let selection = complete.as_ref().map(|intact| GapSelection {
             first_time: max_lag as usize + row_start,
             complete: intact[row_start..row_end].to_vec(),
@@ -501,7 +546,11 @@ impl TemporalLinearAdjustment {
         Ok((
             PreparedEstimationProblem {
                 design,
-                method: Arc::from("temporal.linear.adjustment"),
+                method: if modifiers.is_empty() {
+                    Arc::from("temporal.linear.adjustment")
+                } else {
+                    conditional_method(modifiers.len())
+                },
                 adjustment_set: Arc::from(adj_keys),
                 overlap: self.inner.overlap,
                 treatment_delta,
@@ -509,7 +558,11 @@ impl TemporalLinearAdjustment {
                 treatment: selected.iter().map(|&r| t[r]).collect(),
                 active,
                 control,
+                treatment_levels: None,
                 sampling_weights,
+                preparation: antecedent_data::materialize::PreparationReceipt::composed_finite(
+                    selected.len(),
+                )?,
             },
             aligned,
             selection,
@@ -625,8 +678,16 @@ impl TemporalLinearAdjustment {
         let cov_refs: Vec<(VariableId, &[f64])> =
             all_covs.iter().map(|(id, v)| (*id, v.as_slice())).collect();
         let selected: Vec<usize> = (0..all_t.len()).collect();
-        let design = CompiledDesign::linear_adjustment(&all_t, &cov_refs, &all_y, &selected)
+        let mut design = CompiledDesign::linear_adjustment(&all_t, &cov_refs, &all_y, &selected)
             .map_err(EstimationError::from)?;
+        let rows = all_t.len();
+        // A weighted unit's design is rooted (every column and the outcome scaled by the square
+        // root of the row weight, intercept and treatment included), so restacking its raw
+        // treatment next to rooted covariates would fit a different model. When any unit
+        // carries sampling weights, the rooted blocks are stacked column by column instead
+        // (an unweighted unit is the weight-one block of the same design).
+        let sampling_weights =
+            stack_sampling_weighted_design(units, &mut design, rows, first.design.ncols);
 
         Ok((
             PreparedEstimationProblem {
@@ -639,7 +700,11 @@ impl TemporalLinearAdjustment {
                 treatment: Arc::from(all_t),
                 active: first.active,
                 control: first.control,
-                sampling_weights: None,
+                treatment_levels: None,
+                sampling_weights,
+                preparation: antecedent_data::materialize::PreparationReceipt::composed_finite(
+                    rows,
+                )?,
             },
             row_clusters,
             panel_times,
@@ -684,13 +749,16 @@ impl TemporalLinearAdjustment {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<(EffectEstimate, TemporalDependenceSe), EstimationError> {
+        if conditional_modifier_count(&prep.method).is_some() {
+            return Err(refuse_conditional_bootstrap());
+        }
         let rows = prep.design.nrows;
         let fitter = self.point_fitter();
         let mut workspace = EstimationWorkspace::default();
         let mut point = fitter.fit_point(prep, &mut workspace, assumptions)?;
         point.uncertainty.analytic.se = f64::NAN;
 
-        let replicates = self.inner.bootstrap_replicates;
+        let replicates = self.inner.inference.bootstrap_replicates;
         // The dependence-aware length refits the design for its normal-equation
         // scores and runs a Politis–White scan on each; without replicates no
         // interval is published, so the rule length stands in (the diagnostic
@@ -703,10 +771,13 @@ impl TemporalLinearAdjustment {
         };
         let target: Vec<&[f64]> = point.scores.influence.as_deref().into_iter().collect();
         let kernel_bias = crate::temporal_block::kernel_bias_scale(&target, block_length);
-        let boot = (replicates > 0).then(|| {
+        let boot = if replicates > 0 {
+            // The gather buffers hold the design and outcome of one resample.
+            let _gather =
+                crate::util::admit_gather_scratch(ctx, rows, prep.design.ncols + 1, replicates)?;
             let mut x_boot = vec![0.0; rows * prep.design.ncols];
             let mut y_boot = vec![0.0; rows];
-            crate::temporal_block::row_block_bootstrap_vec(
+            let draws = crate::temporal_block::row_block_bootstrap_vec(
                 rows,
                 block_length,
                 replicates,
@@ -724,8 +795,12 @@ impl TemporalLinearAdjustment {
                         .ok()
                         .map(|ate| vec![ate])
                 },
-            )
-        });
+            );
+            draws.ensure_admitted()?;
+            Some(draws)
+        } else {
+            None
+        };
         let info = TemporalDependenceSe {
             block_length,
             rows,
@@ -768,6 +843,9 @@ impl TemporalLinearAdjustment {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<(EffectEstimate, TemporalDependenceSe), EstimationError> {
+        if conditional_modifier_count(&prep.method).is_some() {
+            return Err(refuse_conditional_bootstrap());
+        }
         let rows = prep.design.nrows;
         let windows = selection.complete.len();
         let fitter = self.point_fitter();
@@ -776,10 +854,12 @@ impl TemporalLinearAdjustment {
         point.uncertainty.analytic.se = f64::NAN;
         let structural_span = (indexer.history() as usize + indexer.horizon() as usize).max(1);
         let block_length = antecedent_data::circular_block_length(structural_span, windows);
-        let replicates = self.inner.bootstrap_replicates;
+        let replicates = self.inner.inference.bootstrap_replicates;
         let p = prep.design.ncols;
-        let boot = (replicates > 0).then(|| {
-            crate::temporal_block::gapped_row_block_bootstrap(
+        let boot = if replicates > 0 {
+            // A resample keeps at most every window, so one gather holds `windows` rows.
+            let _gather = crate::util::admit_gather_scratch(ctx, windows, p + 1, replicates)?;
+            let draws = crate::temporal_block::gapped_row_block_bootstrap(
                 &selection.complete,
                 block_length,
                 replicates,
@@ -802,8 +882,12 @@ impl TemporalLinearAdjustment {
                         .ok()
                         .map(|ate| vec![ate])
                 },
-            )
-        });
+            );
+            draws.ensure_admitted()?;
+            Some(draws)
+        } else {
+            None
+        };
         let info = TemporalDependenceSe {
             block_length,
             rows,
@@ -847,14 +931,13 @@ impl TemporalLinearAdjustment {
     /// The OLS point fitter of [`Self::fit_dependence_honest`] (no iid bootstrap or
     /// cluster SEs).
     fn point_fitter(&self) -> LinearAdjustmentAte {
-        LinearAdjustmentAte {
-            bootstrap_replicates: 0,
-            se_kind: AnalyticSeKind::Homoskedastic,
-            cluster_ids: None,
-            multiway_ids: None,
-            panel_times: None,
-            ..self.inner.clone()
-        }
+        let mut fitter = self.inner.clone();
+        fitter.inference.bootstrap_replicates = 0;
+        fitter.inference.se_kind = AnalyticSeKind::Homoskedastic;
+        fitter.inference.cluster_ids = None;
+        fitter.inference.multiway_ids = None;
+        fitter.inference.panel_times = None;
+        fitter
     }
 
     /// Fit using the shared linear-adjustment path.
@@ -873,8 +956,214 @@ impl TemporalLinearAdjustment {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
-        self.inner.fit(problem, workspace, ctx, assumptions)
+        if conditional_modifier_count(&problem.method).is_none() {
+            return self.inner.fit(problem, workspace, ctx, assumptions);
+        }
+        if self.inner.inference.bootstrap_replicates > 0 {
+            return Err(refuse_conditional_bootstrap());
+        }
+        self.fit_conditional_point(problem, workspace, assumptions)
     }
+
+    /// The conditional effect of a design built with declared modifiers and its delta-method
+    /// standard error.
+    ///
+    /// The treatment coefficient of the centred interaction design is the conditional effect; its
+    /// analytic variance carries the modifier-mean term the plain coefficient variance omits.
+    fn fit_conditional_point(
+        &self,
+        problem: &PreparedEstimationProblem,
+        workspace: &mut EstimationWorkspace,
+        assumptions: AssumptionSet,
+    ) -> Result<EffectEstimate, EstimationError> {
+        let modifiers =
+            conditional_modifier_count(&problem.method).ok_or(EstimationError::Unsupported {
+                message: "a conditional fit needs a design built with declared effect modifiers",
+            })?;
+        let kind = self.inner.inference.se_kind;
+        let mut point = self.point_fitter_with(kind).fit_point(problem, workspace, assumptions)?;
+        let variance = conditional_effect_variance(&problem.design, modifiers, kind)?;
+        point.uncertainty.analytic.se = variance.max(0.0).sqrt() * problem.treatment_delta.abs();
+        Ok(point)
+    }
+
+    fn point_fitter_with(&self, kind: AnalyticSeKind) -> LinearAdjustmentAte {
+        let mut fitter = self.point_fitter();
+        fitter.inference.se_kind = kind;
+        fitter
+    }
+}
+
+fn refuse_conditional_bootstrap() -> EstimationError {
+    EstimationError::refused_detail(
+        antecedent_core::reason_code!("route_not_supported"),
+        "temporal_adjustment.conditional_bootstrap",
+        "the conditional effect over declared modifiers resamples the modifier mean with the \
+         regression, which the iid row bootstrap of this fit does not; the one-series interval is \
+         the block bootstrap of the temporal conditional effect, and this fit reports the \
+         analytic delta-method standard error only",
+    )
+}
+
+/// Method tag of a design that carries the conditional (marginal over the modifier set) effect;
+/// the number of declared modifiers follows the marker.
+const CONDITIONAL_METHOD: &str = "temporal.linear.adjustment.conditional";
+const CONDITIONAL_MARKER: &str = "/modifiers=";
+
+fn conditional_method(modifiers: usize) -> Arc<str> {
+    Arc::from(format!("{CONDITIONAL_METHOD}{CONDITIONAL_MARKER}{modifiers}"))
+}
+
+/// The number of declared modifiers of a conditional design, `None` for the average-effect design.
+fn conditional_modifier_count(method: &str) -> Option<usize> {
+    method
+        .strip_prefix(CONDITIONAL_METHOD)
+        .and_then(|rest| rest.strip_prefix(CONDITIONAL_MARKER))
+        .and_then(|count| count.parse().ok())
+}
+
+/// The effect modifiers a query declares, checked.
+///
+/// A modifier set asks for the conditional effect (the marginal effect over the modifier
+/// distribution on the lag-aligned windows), which is the treatment coefficient of the
+/// interaction regression with the modifiers centred at their window means. Each modifier is
+/// named once and is neither the treatment nor the outcome. Sampling weights are not read by
+/// the interaction design (its centring would have to be the weighted mean), so a weighted
+/// series is refused rather than answered unweighted.
+///
+/// # Errors
+///
+/// `route_not_supported` for a repeated, treatment or outcome modifier; `route_unsupported`
+/// sampling-weights refusal for a weighted series.
+fn checked_effect_modifiers<'q>(
+    query: &'q TemporalEffectQuery,
+    data: &TimeSeriesData,
+) -> Result<&'q [VariableId], EstimationError> {
+    let modifiers: &[VariableId] = query.effect_modifiers.as_ref();
+    if modifiers.is_empty() {
+        return Ok(modifiers);
+    }
+    let repeated = modifiers.iter().enumerate().any(|(i, m)| modifiers[..i].contains(m));
+    if repeated || modifiers.contains(&query.treatment) || modifiers.contains(&query.outcome) {
+        return Err(EstimationError::refused_detail(
+            antecedent_core::reason_code!("route_not_supported"),
+            "temporal_adjustment.effect_modifiers_invalid",
+            "an effect modifier must be named once and be neither the treatment nor the outcome",
+        ));
+    }
+    if data.storage().weights().is_some() {
+        return Err(crate::sampling_weights::unsupported_route(
+            "the conditional effect over declared modifiers centres each modifier at its window \
+             mean, which a weighted series would have to centre at the weighted mean; the \
+             interaction design does not read the series' sampling weights",
+        ));
+    }
+    Ok(modifiers)
+}
+
+/// `[1 | T | W_c | T x W_c | Z]` with the modifiers centred at their mean over the retained
+/// windows.
+///
+/// `covariates` holds the `q` modifiers first, then the adjustment columns. The coefficient of
+/// `T` in this regression is `beta_T + sum_j beta_{T x W_j} mean(W_j)` of the uncentred
+/// regression, the marginal conditional effect per unit of treatment.
+fn conditional_design(
+    treatment: &[f64],
+    covariates: &[(VariableId, Vec<f64>)],
+    q: usize,
+    outcome: &[f64],
+    selected: &[usize],
+) -> Result<CompiledDesign, antecedent_stats::StatsError> {
+    let rows = treatment.len();
+    let mut columns: Vec<(VariableId, Vec<f64>)> = Vec::with_capacity(covariates.len() + q);
+    let centred: Vec<(VariableId, Vec<f64>)> = covariates[..q]
+        .iter()
+        .map(|(id, values)| {
+            let mean = values.iter().sum::<f64>() / rows.max(1) as f64;
+            (*id, values.iter().map(|v| v - mean).collect())
+        })
+        .collect();
+    columns.extend(centred.iter().cloned());
+    for (id, values) in &centred {
+        columns.push((*id, treatment.iter().zip(values).map(|(t, w)| t * w).collect()));
+    }
+    columns.extend(covariates[q..].iter().cloned());
+    let refs: Vec<(VariableId, &[f64])> =
+        columns.iter().map(|(id, values)| (*id, values.as_slice())).collect();
+    CompiledDesign::linear_adjustment(treatment, &refs, outcome, selected)
+}
+
+/// Coefficient-scale variance of the marginal conditional effect of a conditional design.
+///
+/// The effect is `theta = beta_T + beta_{TW}' mu_W`, estimated at the window mean of the
+/// modifiers. The regression is centred at that mean, so `theta_hat` is the treatment
+/// coefficient and its influence function is
+/// `[(X'X)^-1 x_i]_T e_i + beta_{TW}' (W_i - W_bar) / n`: the regression part plus the
+/// estimation of the modifier mean. Rows are treated as independent, so serial dependence is
+/// not in this variance; the dependence-aware interval of the one-series conditional effect is
+/// the block bootstrap of the facade.
+///
+/// `Homoskedastic` uses the classical `sigma^2 = RSS / (n - p)` for the regression part (the
+/// two parts are uncorrelated under `E[e | x] = 0`); `Hc0` is `sum u_i^2` and `Hc1` rescales by
+/// `n / (n - p)`.
+///
+/// # Errors
+///
+/// A singular design, fewer rows than coefficients, or an unsupported covariance kind.
+fn conditional_effect_variance(
+    design: &CompiledDesign,
+    modifiers: usize,
+    kind: AnalyticSeKind,
+) -> Result<f64, EstimationError> {
+    let n = design.nrows;
+    let p = design.ncols;
+    if n <= p {
+        return Err(EstimationError::data_msg(
+            "too few aligned rows for the variance of a temporal conditional effect",
+        ));
+    }
+    let x = &design.matrix;
+    let mut workspace = antecedent_stats::LeastSquaresWorkspace::default();
+    let fit = SequentialRegression::solve_design(x, n, p, &design.outcome, None, &mut workspace)
+        .map_err(EstimationError::from)?;
+    let coefficients = fit.coefficients;
+    let residuals: Vec<f64> = (0..n)
+        .map(|i| design.outcome[i] - (0..p).map(|c| x[c * n + i] * coefficients[c]).sum::<f64>())
+        .collect();
+    let inverse = crate::util::xtx_inverse(x, n, p).ok_or_else(|| {
+        EstimationError::data_msg("the temporal conditional design is rank deficient")
+    })?;
+    let nf = n as f64;
+    // Treatment row of (X'X)^-1 applied to x_i, and the centred-modifier term of the mean.
+    let a_i = |i: usize| -> f64 { (0..p).map(|c| inverse[p + c] * x[c * n + i]).sum::<f64>() };
+    let mean_term = |i: usize| -> f64 {
+        (0..modifiers).map(|j| coefficients[2 + modifiers + j] * x[(2 + j) * n + i]).sum::<f64>()
+            / nf
+    };
+    let rss: f64 = residuals.iter().map(|e| e * e).sum();
+    let variance = match kind {
+        AnalyticSeKind::Homoskedastic => {
+            // The regression and the modifier mean are uncorrelated under `E[e | x] = 0`.
+            let mean_part: f64 = (0..n).map(|i| mean_term(i).powi(2)).sum();
+            rss / (nf - p as f64) * inverse[p + 1] + mean_part
+        }
+        AnalyticSeKind::Hc0 | AnalyticSeKind::Hc1 => {
+            let sum: f64 = (0..n).map(|i| (a_i(i) * residuals[i] + mean_term(i)).powi(2)).sum();
+            if kind == AnalyticSeKind::Hc1 { sum * nf / (nf - p as f64) } else { sum }
+        }
+        _ => {
+            return Err(EstimationError::refused_detail(
+                antecedent_core::reason_code!("route_not_supported"),
+                "temporal_adjustment.conditional_covariance_kind",
+                format!(
+                    "the conditional effect over declared modifiers reports a homoskedastic, \
+                     HC0 or HC1 delta-method variance; `{}` is not read",
+                    kind.as_str()
+                ),
+            ));
+        }
+    };
+    Ok(variance)
 }
 
 /// Multi-step schedules identify a contrast over *every* treatment-time node;
@@ -885,13 +1174,15 @@ fn refuse_multi_step_schedule(
 ) -> Result<(), EstimationError> {
     match policy {
         antecedent_core::TemporalPolicy::Dynamic { active_at, .. } if active_at.len() != 1 => {
-            Err(EstimationError::unsupported(
+            Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "TemporalPolicy::Dynamic with multiple active steps is not supported by \
                  temporal linear adjustment (use a single-step schedule)",
             ))
         }
         antecedent_core::TemporalPolicy::Sustained { from, until } if until > from => {
-            Err(EstimationError::unsupported(
+            Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "TemporalPolicy::Sustained spanning multiple steps is not supported by \
                  temporal linear adjustment: the identified estimand contrasts every \
                  treatment-time node, and a single-column regression would silently \
@@ -931,8 +1222,11 @@ pub fn temporal_coefficient_names(
     let name = |id: VariableId| {
         schema.get(id).map_or_else(|_| format!("var_{}", id.raw()), |v| v.name.as_ref().to_string())
     };
-    let sample_anchor = query.outcome_offset().max(0);
-    let t_lag = offset_to_lag(query.try_treatment_offset()? - sample_anchor)?;
+    let sample_anchor = outcome_sample_anchor(data.time_index(), query)?.max(0);
+    let t_lag =
+        offset_to_lag(query.try_treatment_offset()?.checked_sub(sample_anchor).ok_or_else(
+            || EstimationError::unsupported("treatment offset exceeds the temporal lag range"),
+        )?)?;
     let mut names: Vec<Arc<str>> = vec![
         Arc::from("intercept"),
         Arc::from(format!(
@@ -942,9 +1236,7 @@ pub fn temporal_coefficient_names(
         )),
     ];
     for &dense_var in estimand.adjustment_set.iter() {
-        let key = indexer
-            .key_of(dense_var.raw())
-            .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+        let key = indexer.key_of(dense_var.raw())?;
         let lag = offset_to_lag(key.offset - sample_anchor)?;
         names.push(Arc::from(format!(
             "coef_{}{TEMPORAL_COEF_LAG_MARKER}{}",
@@ -955,9 +1247,147 @@ pub fn temporal_coefficient_names(
     Ok(Arc::from(names))
 }
 
-fn offset_to_lag(offset: i32) -> Result<Lag, EstimationError> {
+/// History, action time, censoring and assignment weights, and horizon admitted
+/// together. The horizon is the operator's; a step count is only what that
+/// horizon covers after the cadence check.
+#[allow(
+    dead_code,
+    reason = "the adjustment reads the horizon steps; action time and weights are admitted with it"
+)]
+struct AdmittedTemporalHistory {
+    history: HistoryConstruction,
+    action: ActionTiming,
+    weights: CensoringAssignmentWeight,
+}
+
+#[allow(
+    dead_code,
+    reason = "tests read the admitted history, action time, and weights beside the horizon"
+)]
+impl AdmittedTemporalHistory {
+    const fn horizon(&self) -> Horizon {
+        self.history.frame().horizon()
+    }
+
+    const fn history(&self) -> HistoryWindow {
+        self.history.history()
+    }
+
+    const fn action_ns(&self) -> u64 {
+        self.action.at_ns()
+    }
+
+    const fn censoring(&self) -> f64 {
+        self.weights.censoring()
+    }
+
+    const fn assignment(&self) -> f64 {
+        self.weights.assignment()
+    }
+
+    /// Ticks from the origin to the admitted horizon end.
+    ///
+    /// # Errors
+    ///
+    /// The tick count does not fit in `u32`.
+    fn horizon_steps(&self) -> Result<u32, EstimationError> {
+        let ticks = self.horizon().end_ns() / self.history.frame().interval_ns();
+        u32::try_from(ticks)
+            .map_err(|_| EstimationError::unsupported("admitted horizon does not fit in u32 steps"))
+    }
+}
+
+/// Admit `horizon` with the history, action time, and weights the operators record.
+///
+/// # Errors
+///
+/// The history operators refuse the cadence, the horizon, the initial law, the
+/// action time, or a weight.
+#[must_use = "a refused history is not a horizon"]
+fn admit_temporal_history(
+    cadence: &TimeIndex,
+    horizon: Horizon,
+    initial_law: InitialLaw,
+    history: HistoryWindow,
+    action_ns: u64,
+    censoring: f64,
+    assignment: f64,
+) -> Result<AdmittedTemporalHistory, EstimationError> {
+    let history =
+        HistoryConstruction::try_new(cadence.clone(), horizon, initial_law.clone(), history)
+            .map_err(|error| history_operator_refusal(&error))?;
+    let action = ActionTiming::try_new(cadence.clone(), horizon, initial_law.clone(), action_ns)
+        .map_err(|error| history_operator_refusal(&error))?;
+    let weights = CensoringAssignmentWeight::try_new(
+        cadence.clone(),
+        horizon,
+        initial_law,
+        censoring,
+        assignment,
+    )
+    .map_err(|error| history_operator_refusal(&error))?;
+    Ok(AdmittedTemporalHistory { history, action, weights })
+}
+
+fn history_operator_refusal(error: &HistoryOperatorError) -> EstimationError {
+    EstimationError::HistoryOperator(HistoryOperatorFault(error.clone()))
+}
+
+/// Nanosecond end of `horizon_steps` on `cadence`.
+///
+/// An irregular cadence has no tick the end can land on. The end passed to the
+/// operator is then off the cadence, and the operator refuses it.
+///
+/// # Errors
+///
+/// `horizon_steps` times the regular interval does not fit in `u64`.
+fn query_horizon_end(cadence: &TimeIndex, horizon_steps: u32) -> Result<Horizon, EstimationError> {
+    let SamplingRegularity::Regular { interval_ns } = cadence.regularity else {
+        return Ok(Horizon::ending_at(1));
+    };
+    let end_ns = u64::from(horizon_steps)
+        .checked_mul(interval_ns)
+        .ok_or(EstimationError::unsupported("horizon end in nanoseconds does not fit in u64"))?;
+    Ok(Horizon::ending_at(end_ns))
+}
+
+/// Sample anchor of `query`: one less than the horizon the operators admitted.
+///
+/// # Errors
+///
+/// The operators refuse the query horizon on `cadence`.
+fn outcome_sample_anchor(
+    cadence: &TimeIndex,
+    query: &TemporalEffectQuery,
+) -> Result<i32, EstimationError> {
+    let history = match query.max_history_lag {
+        Some(lag) => HistoryWindow::max_lag(lag),
+        // With no declared cap the planner retains every tick the series has.
+        None => HistoryWindow::planner_default().resolve(u32::try_from(cadence.length).map_err(
+            |_| EstimationError::unsupported("series length exceeds temporal history range"),
+        )?),
+    };
+    let admitted = admit_temporal_history(
+        cadence,
+        query_horizon_end(cadence, query.horizon_steps)?,
+        InitialLaw::contemporaneous_observed(),
+        history,
+        0,
+        1.0,
+        1.0,
+    )?;
+    let steps = admitted.horizon_steps()?;
+    let offset = steps
+        .checked_sub(1)
+        .ok_or_else(|| EstimationError::unsupported("empty temporal history"))?;
+    i32::try_from(offset)
+        .map_err(|_| EstimationError::unsupported("temporal history offset exceeds i32"))
+}
+
+pub(crate) fn offset_to_lag(offset: i32) -> Result<Lag, EstimationError> {
     if offset > 0 {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "positive offsets (future treatment/outcome) unsupported for temporal adjustment",
         ));
     }
@@ -970,415 +1400,70 @@ fn offset_to_lag(offset: i32) -> Result<Lag, EstimationError> {
 /// deviation `scale` on every non-intercept column, using the least-squares
 /// residual variance of `ols_coef` as a plug-in. Solved as the ridge-augmented
 /// least-squares problem; the intercept column (the first) is unpenalized.
-fn slope_ridge_coefficients(
-    design: &[f64],
-    n: usize,
+#[path = "temporal_adjustment_slopes.rs"]
+mod slopes;
+#[cfg(test)]
+use slopes::slope_ridge_coefficients;
+pub use slopes::{
+    NestedDirectFitMoments, TemporalConditionalFit, TemporalSlopeSpec, nested_direct_fit_moments,
+    temporal_conditional_marginal_effect, temporal_conditional_marginal_effect_with_gaps,
+    temporal_conditional_marginal_fit, temporal_linear_slopes,
+};
+
+/// Stack already rooted unit designs when any unit carries sampling weights.
+/// Raw treatment columns must not be mixed with rooted covariates.
+fn stack_sampling_weighted_design(
+    units: &[&PreparedEstimationProblem],
+    design: &mut CompiledDesign,
+    rows: usize,
     ncols: usize,
-    y: &[f64],
-    ols_coef: &[f64],
-    scale: f64,
-    invalid_scale: &'static str,
-) -> Result<Vec<f64>, EstimationError> {
-    if !(scale.is_finite() && scale > 0.0) {
-        return Err(EstimationError::unsupported(invalid_scale));
-    }
-    let sigma2 = crate::util::ols_sigma2(design, n, ncols, y, ols_coef).max(1e-12);
-    let penalty = sigma2 / (scale * scale);
-    let aug_n = n + (ncols - 1);
-    let mut aug_x = vec![0.0; aug_n * ncols];
-    let mut aug_y = vec![0.0; aug_n];
-    for col in 0..ncols {
-        aug_x[col * aug_n..col * aug_n + n].copy_from_slice(&design[col * n..(col + 1) * n]);
-    }
-    aug_y[..n].copy_from_slice(y);
-    let root = penalty.sqrt();
-    for col in 1..ncols {
-        let row = n + col - 1;
-        aug_x[col * aug_n + row] = root;
-    }
-    let mut aug_ws = antecedent_stats::LeastSquaresWorkspace::default();
-    Ok(antecedent_stats::FaerBackend
-        .least_squares(&aug_x, aug_n, ncols, &aug_y, &mut aug_ws)
-        .map_err(crate::util::stats_err)?
-        .coefficients)
-}
-
-/// Marginal temporal conditional effect for one modifier.
-///
-/// The unfolded regression is `Y ~ 1 + T + W + T×W + Z`. The published point is
-/// `(β_T + β_{T×W} · mean(W)) · (active − control)`, the same functional as the
-/// static one-modifier conditional effect, on the lag-aligned rows of the
-/// temporal backdoor design. `prior_scale` is the isotropic Gaussian prior
-/// standard deviation on the slope coefficients. `None` is ordinary least
-/// squares. `Some` replaces that point with the posterior mean under that
-/// prior, using the least-squares residual variance as a plug-in. No interval
-/// is returned.
-///
-/// # Errors
-///
-/// The query is not a single-modifier conditional effect, the design is
-/// singular or too small, or the temporal sample cannot be aligned.
-pub fn temporal_conditional_marginal_effect(
-    data: &TimeSeriesData,
-    estimand: &IdentifiedEstimand,
-    query: &TemporalEffectQuery,
-    indexer: &TemporalIndexer,
-    policy: &antecedent_core::KernelPolicy,
-    prior_scale: Option<f64>,
-) -> Result<f64, EstimationError> {
-    temporal_conditional_marginal_effect_with_gaps(
-        data,
-        estimand,
-        query,
-        indexer,
-        policy,
-        prior_scale,
-        false,
-    )
-    .map(|(effect, _)| effect)
-}
-
-/// [`temporal_conditional_marginal_effect`] on a series that may have missing time points.
-///
-/// With `allow_gaps` the windows that read a missing value are dropped and the surviving
-/// windows keep their own times and lags (nothing is concatenated across a gap); without it a
-/// missing value refuses as before.
-///
-/// # Errors
-///
-/// As [`temporal_conditional_marginal_effect`]. Also returns, with `allow_gaps`, which windows
-/// were intact.
-pub fn temporal_conditional_marginal_effect_with_gaps(
-    data: &TimeSeriesData,
-    estimand: &IdentifiedEstimand,
-    query: &TemporalEffectQuery,
-    indexer: &TemporalIndexer,
-    policy: &antecedent_core::KernelPolicy,
-    prior_scale: Option<f64>,
-    allow_gaps: bool,
-) -> Result<(f64, Option<GapSelection>), EstimationError> {
-    if query.effect_modifiers.len() != 1 {
-        return Err(EstimationError::unsupported(
-            "temporal conditional effect fits exactly one modifier",
-        ));
-    }
-    query.validate()?;
-    if query.target_population != TargetPopulation::AllObserved {
-        return Err(EstimationError::TargetPopulation);
-    }
-    let active = intervention_f64(&query.active)?;
-    let control = intervention_f64(&query.control)?;
-    let delta = active - control;
-    if delta == 0.0 {
-        return Err(EstimationError::unsupported(
-            "active and control treatment levels must differ",
-        ));
-    }
-    let sample_anchor = query.outcome_offset().max(0);
-    let t_lag = offset_to_lag(query.try_treatment_offset()? - sample_anchor)?;
-    let y_lag = offset_to_lag(query.outcome_offset() - sample_anchor)?;
-    let modifier = query.effect_modifiers[0];
-    let mut cols = vec![
-        LaggedColumn { variable: query.treatment, lag: t_lag },
-        LaggedColumn { variable: query.outcome, lag: y_lag },
-        LaggedColumn { variable: modifier, lag: y_lag },
-    ];
-    let mut adjustment = Vec::new();
-    for &dense_var in estimand.adjustment_set.iter() {
-        let key = indexer
-            .key_of(dense_var.raw())
-            .map_err(|e| EstimationError::data_msg(e.to_string()))?;
-        if key.variable == modifier
-            || key.variable == query.treatment
-            || key.variable == query.outcome
-        {
-            continue;
-        }
-        let lag = offset_to_lag(key.offset - sample_anchor).map_err(|_| {
-            EstimationError::unsupported(
-                "adjustment node sits after this horizon's sample anchor and cannot be lag-aligned",
-            )
-        })?;
-        cols.push(LaggedColumn { variable: key.variable, lag });
-        adjustment.push(key.variable);
-    }
-    let max_lag = cols.iter().map(|c| c.lag.raw()).max().unwrap_or(0);
-    let plan = data
-        .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
-        .map_err(EstimationError::from)?;
-    let mut sample_ws = LaggedSampleWorkspace::default();
-    let (prep, selection) = if allow_gaps {
-        let (prep, complete) = plan
-            .prepare_complete_windows(data, &mut sample_ws, policy)
-            .map_err(EstimationError::from)?;
-        (prep, Some(GapSelection { first_time: max_lag as usize, complete }))
-    } else {
-        (plan.prepare(data, &mut sample_ws, policy).map_err(EstimationError::from)?, None)
-    };
-    let n = prep.n;
-    if n < 8 {
-        return Err(EstimationError::data_msg(
-            "too few aligned rows for a temporal conditional effect",
-        ));
-    }
-    let t = prep.column(0);
-    let y = prep.column(1);
-    let w = prep.column(2);
-    let n_z = adjustment.len();
-    let ncols = 4 + n_z;
-    let mut design = vec![0.0; n * ncols];
-    for i in 0..n {
-        design[i] = 1.0;
-        design[n + i] = t[i];
-        design[2 * n + i] = w[i];
-        design[3 * n + i] = t[i] * w[i];
-    }
-    for k in 0..n_z {
-        let column = prep.column(3 + k);
-        let base = (4 + k) * n;
-        design[base..base + n].copy_from_slice(column);
-    }
-    let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
-    let fit = antecedent_stats::FaerBackend
-        .least_squares(&design, n, ncols, y, &mut ws)
-        .map_err(crate::util::stats_err)?;
-    let mut coef = fit.coefficients;
-    if let Some(scale) = prior_scale {
-        coef = slope_ridge_coefficients(
-            &design,
-            n,
-            ncols,
-            y,
-            &coef,
-            scale,
-            "temporal conditional prior scale must be finite and positive",
-        )?;
-    }
-    let w_bar = w.iter().sum::<f64>() / n as f64;
-    Ok(((coef[1] + coef[3] * w_bar) * delta, selection))
-}
-
-/// The outcome, treatments and their time offsets of a [`temporal_linear_slopes`] fit.
-#[derive(Clone, Copy, Debug)]
-pub struct TemporalSlopeSpec<'a> {
-    /// Outcome variable (at the outcome offset).
-    pub outcome: VariableId,
-    /// Treatments regressed on, none equal to the outcome.
-    pub treatments: &'a [VariableId],
-    /// Offset of the treatments from the policy origin.
-    pub treatment_offset: i32,
-    /// Offset of the outcome from the policy origin.
-    pub outcome_offset: i32,
-    /// Treatments read at the outcome's own lag rather than the treatment offset.
-    pub contemporaneous: &'a [VariableId],
-}
-
-/// Intercept and partial slopes of one outcome on the named treatments.
-///
-/// The design is the unfolded temporal back-door regression: intercept, each
-/// treatment at the policy origin, then the identified adjustment nodes.
-/// `prior_scale` replaces the slope coefficients with their posterior means
-/// under independent `N(0, scale²)` priors and the OLS residual variance; the
-/// intercept stays unpenalized. No interval is computed.
-///
-/// # Errors
-///
-/// Refuses an empty treatment list, a treatment equal to the outcome, a
-/// non-positive prior scale, fewer than eight aligned rows, or a lag the
-/// sample cannot place.
-pub fn temporal_linear_slopes(
-    data: &TimeSeriesData,
-    estimand: &IdentifiedEstimand,
-    indexer: &TemporalIndexer,
-    spec: &TemporalSlopeSpec<'_>,
-    policy: &antecedent_core::KernelPolicy,
-    prior_scale: Option<f64>,
-) -> Result<(f64, Vec<f64>), EstimationError> {
-    let TemporalSlopeSpec {
-        outcome,
-        treatments,
-        treatment_offset,
-        outcome_offset,
-        contemporaneous,
-    } = *spec;
-    if treatments.is_empty() || treatments.contains(&outcome) {
-        return Err(EstimationError::unsupported(
-            "temporal linear slope needs treatments distinct from the outcome",
-        ));
-    }
-    let sample_anchor = outcome_offset.max(0);
-    let t_lag = offset_to_lag(treatment_offset - sample_anchor)?;
-    let y_lag = offset_to_lag(outcome_offset - sample_anchor)?;
-    let mut cols = Vec::with_capacity(treatments.len() + 1);
-    for &treatment in treatments {
-        let lag = if contemporaneous.contains(&treatment) { y_lag } else { t_lag };
-        cols.push(LaggedColumn { variable: treatment, lag });
-    }
-    cols.push(LaggedColumn { variable: outcome, lag: y_lag });
-    let treatment_count = treatments.len();
-    let mut adjustment = Vec::new();
-    for &dense_var in estimand.adjustment_set.iter() {
-        let key = indexer
-            .key_of(dense_var.raw())
-            .map_err(|e| EstimationError::data_msg(e.to_string()))?;
-        if key.variable == outcome || treatments.contains(&key.variable) {
-            continue;
-        }
-        let lag = offset_to_lag(key.offset - sample_anchor).map_err(|_| {
-            EstimationError::unsupported(
-                "adjustment node sits after this horizon's sample anchor and cannot be lag-aligned",
-            )
-        })?;
-        cols.push(LaggedColumn { variable: key.variable, lag });
-        adjustment.push(key.variable);
-    }
-    let max_lag = cols.iter().map(|c| c.lag.raw()).max().unwrap_or(0);
-    let plan = data
-        .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
-        .map_err(EstimationError::from)?;
-    let mut sample_ws = LaggedSampleWorkspace::default();
-    let prep = plan.prepare(data, &mut sample_ws, policy).map_err(EstimationError::from)?;
-    let n = prep.n;
-    if n < 8 {
-        return Err(EstimationError::data_msg("too few aligned rows for a temporal linear slope"));
-    }
-    let y = prep.column(treatment_count);
-    let n_z = adjustment.len();
-    let ncols = 1 + treatment_count + n_z;
-    let mut design = vec![0.0; n * ncols];
-    design[..n].fill(1.0);
-    for k in 0..treatment_count {
-        let column = prep.column(k);
-        design[(1 + k) * n..(2 + k) * n].copy_from_slice(column);
-    }
-    for k in 0..n_z {
-        let column = prep.column(treatment_count + 1 + k);
-        let base = (1 + treatment_count + k) * n;
-        design[base..base + n].copy_from_slice(column);
-    }
-    let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
-    let fit = antecedent_stats::FaerBackend
-        .least_squares(&design, n, ncols, y, &mut ws)
-        .map_err(crate::util::stats_err)?;
-    let mut coef = fit.coefficients;
-    if let Some(scale) = prior_scale {
-        coef = slope_ridge_coefficients(
-            &design,
-            n,
-            ncols,
-            y,
-            &coef,
-            scale,
-            "temporal slope prior scale must be finite and positive",
-        )?;
-    }
-    Ok((coef[0], coef[1..=treatment_count].to_vec()))
-}
-
-/// Moments of the nested natural-direct-effect regression on a time series.
-///
-/// The design is the same empty-adjustment regression
-/// [`temporal_linear_slopes`] fits for a nested point: intercept, treatment
-/// one step before the outcome, and the mediator at the outcome time. A
-/// positive `prior_scale` adds the slope-only ridge that function uses, so
-/// the intercept moment stays the aligned row count.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct NestedDirectFitMoments {
-    /// Aligned rows that entered the gram.
-    pub complete_case_rows: u64,
-    /// Row-major gram of `[1, treatment, mediator]`.
-    pub gram: [f64; 9],
-    /// Cross product of that design with the outcome.
-    pub outcome_cross: [f64; 3],
-}
-
-/// Outcome-regression moments behind a temporal nested natural direct effect.
-///
-/// # Errors
-///
-/// Same row, lag, and prior-scale refusals as [`temporal_linear_slopes`] for
-/// this two-treatment design, plus a non-finite aligned column.
-pub fn nested_direct_fit_moments(
-    data: &TimeSeriesData,
-    treatment: VariableId,
-    mediator: VariableId,
-    outcome: VariableId,
-    policy: &KernelPolicy,
-    prior_scale: Option<f64>,
-) -> Result<NestedDirectFitMoments, EstimationError> {
-    if treatment == outcome || mediator == outcome || treatment == mediator {
-        return Err(EstimationError::unsupported(
-            "temporal nested moments need distinct treatment, mediator, and outcome",
-        ));
-    }
-    let t_lag = offset_to_lag(-1)?;
-    let y_lag = offset_to_lag(0)?;
-    let cols = [
-        LaggedColumn { variable: treatment, lag: t_lag },
-        LaggedColumn { variable: mediator, lag: y_lag },
-        LaggedColumn { variable: outcome, lag: y_lag },
-    ];
-    let plan = data
-        .plan_lagged_sample(1, Arc::<[LaggedColumn]>::from(cols))
-        .map_err(EstimationError::from)?;
-    let mut sample_ws = LaggedSampleWorkspace::default();
-    let prep = plan.prepare(data, &mut sample_ws, policy).map_err(EstimationError::from)?;
-    let n = prep.n;
-    if n < 8 {
-        return Err(EstimationError::data_msg("too few aligned rows for a temporal linear slope"));
-    }
-    let y = prep.column(2);
-    let treatment_column = prep.column(0);
-    let mediator_column = prep.column(1);
-    if y.iter().chain(treatment_column).chain(mediator_column).any(|value| !value.is_finite()) {
-        return Err(EstimationError::data_msg(
-            "temporal nested moments require finite treatment, mediator, and outcome rows",
-        ));
-    }
-    let ncols = 3;
-    let mut design = vec![0.0; n * ncols];
-    design[..n].fill(1.0);
-    design[n..2 * n].copy_from_slice(treatment_column);
-    design[2 * n..3 * n].copy_from_slice(mediator_column);
-    let mut gram = [0.0_f64; 9];
-    let mut outcome_cross = [0.0_f64; 3];
-    for i in 0..n {
-        let row = [design[i], design[n + i], design[2 * n + i]];
-        for left in 0..3 {
-            outcome_cross[left] += row[left] * y[i];
-            for right in 0..3 {
-                gram[left * 3 + right] += row[left] * row[right];
+) -> Option<crate::sampling_weights::SamplingWeightRecord> {
+    if units.iter().any(|unit| unit.sampling_weights.is_some()) {
+        let mut matrix = vec![0.0; rows * ncols];
+        let mut outcome = Vec::with_capacity(rows);
+        let mut offset = 0;
+        for unit in units {
+            let nrows = unit.design.nrows;
+            for column in 0..ncols {
+                matrix[column * rows + offset..column * rows + offset + nrows]
+                    .copy_from_slice(&unit.design.matrix[column * nrows..(column + 1) * nrows]);
             }
+            outcome.extend_from_slice(&unit.design.outcome);
+            offset += nrows;
         }
-    }
-    if let Some(scale) = prior_scale {
-        if !(scale.is_finite() && scale > 0.0) {
-            return Err(EstimationError::unsupported(
-                "temporal slope prior scale must be finite and positive",
-            ));
+        design.matrix = Arc::from(matrix);
+        design.outcome = Arc::from(outcome);
+        let mut record = crate::sampling_weights::SamplingWeightRecord {
+            rows_used: 0,
+            zero_weight_rows: 0,
+            effective_sample_size: 0.0,
+            weight_sum: 0.0,
+        };
+        for unit in units {
+            let unit_record =
+                unit.sampling_weights.unwrap_or(crate::sampling_weights::SamplingWeightRecord {
+                    rows_used: unit.design.nrows as u64,
+                    zero_weight_rows: 0,
+                    effective_sample_size: unit.design.nrows as f64,
+                    weight_sum: unit.design.nrows as f64,
+                });
+            record.rows_used += unit_record.rows_used;
+            record.zero_weight_rows += unit_record.zero_weight_rows;
+            record.effective_sample_size += unit_record.effective_sample_size;
+            record.weight_sum += unit_record.weight_sum;
         }
-        let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
-        let coef = antecedent_stats::FaerBackend
-            .least_squares(&design, n, ncols, y, &mut ws)
-            .map_err(crate::util::stats_err)?
-            .coefficients;
-        let sigma2 = crate::util::ols_sigma2(&design, n, ncols, y, &coef).max(1e-12);
-        let penalty = sigma2 / (scale * scale);
-        gram[4] += penalty;
-        gram[8] += penalty;
+        Some(record)
+    } else {
+        None
     }
-    let Ok(complete_case_rows) = u64::try_from(n) else {
-        return Err(EstimationError::data_msg("aligned row count does not fit the moment record"));
-    };
-    Ok(NestedDirectFitMoments { complete_case_rows, gram, outcome_cross })
 }
 
 #[cfg(test)]
 mod tests {
     use antecedent_core::{
-        CausalSchemaBuilder, DistributionRef, ExecutionContext, Lag, MeasurementSpec,
-        PredicateExpr, RoleHint, SmallRoleSet, TargetPopulation, TemporalEffectQuery,
-        TemporalPolicy, ValueType, VariableId,
+        CausalSchemaBuilder, DistributionRef, ExecutionContext, HistoryWindow, InitialLaw, Lag,
+        MeasurementSpec, PredicateExpr, RoleHint, SmallRoleSet, TargetPopulation,
+        TemporalEffectQuery, TemporalPolicy, ValueType, VariableId,
     };
     use antecedent_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
@@ -1386,8 +1471,28 @@ mod tests {
     };
     use antecedent_graph::{TemporalDag, ensure_lagged};
     use antecedent_identify::TemporalBackdoorIdentifier;
+    use antecedent_model::history_operators::Horizon;
 
     use super::*;
+
+    #[test]
+    fn ridge_coefficients_refuse_saturated_residual_variance() {
+        let mut saturated = vec![0.0; 64];
+        for i in 0..8 {
+            saturated[i * 8 + i] = 1.0;
+        }
+        assert!(
+            slope_ridge_coefficients(&saturated, 8, 8, &[1.0; 8], &[1.0; 8], 1.0, "invalid")
+                .is_err()
+        );
+        let mut identified = vec![0.0; 72];
+        for i in 0..8 {
+            identified[i * 9 + i] = 1.0;
+        }
+        let mut y = [0.0; 9];
+        y[8] = 1.0;
+        assert!(slope_ridge_coefficients(&identified, 9, 8, &y, &[0.0; 8], 1.0, "invalid").is_ok());
+    }
 
     fn series() -> (TimeSeriesData, TemporalDag) {
         let n = 240usize;
@@ -1449,6 +1554,99 @@ mod tests {
     }
 
     #[test]
+    fn the_adjustment_horizon_is_the_operator_horizon() {
+        let cadence =
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 10 }, length: 4 };
+        let horizon = Horizon::ending_at(40);
+        let admitted = admit_temporal_history(
+            &cadence,
+            horizon,
+            InitialLaw::contemporaneous_observed(),
+            HistoryWindow::max_lag(2),
+            20,
+            1.0,
+            0.5,
+        )
+        .unwrap();
+        assert_eq!(admitted.horizon(), horizon);
+        assert_eq!(admitted.horizon().end_ns(), 40);
+        assert_eq!(admitted.horizon_steps().unwrap(), 4);
+        assert_eq!(admitted.history(), HistoryWindow::max_lag(2));
+        assert_eq!(admitted.action_ns(), 20);
+        assert_eq!(admitted.censoring().to_bits(), 1.0f64.to_bits());
+        assert_eq!(admitted.assignment().to_bits(), 0.5f64.to_bits());
+
+        let (data, g) = series();
+        let query =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                .with_policy(TemporalPolicy::pulse(-1))
+                .with_horizon_steps(1)
+                .with_max_history_lag(Some(1));
+        let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &query).unwrap();
+        let steps = outcome_sample_anchor(data.time_index(), &query).unwrap();
+        assert_eq!(steps, query.outcome_offset().unwrap());
+        let estimand = id_res.result.estimands.first().unwrap();
+        TemporalLinearAdjustment::new()
+            .prepare(
+                &data,
+                estimand,
+                &query,
+                &id_res.indexer,
+                None,
+                &ExecutionContext::for_tests(1).kernel_policy,
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn an_off_cadence_horizon_is_refused() {
+        let cadence =
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 10 }, length: 4 };
+        let Err(error) = admit_temporal_history(
+            &cadence,
+            Horizon::ending_at(25),
+            InitialLaw::contemporaneous_observed(),
+            HistoryWindow::planner_default(),
+            0,
+            1.0,
+            1.0,
+        ) else {
+            panic!("an off-cadence horizon was admitted");
+        };
+        let message = error.to_string();
+        assert!(message.contains("crosses the cadence"), "{message}");
+        assert!(message.contains("25"), "{message}");
+
+        let (data, g) = series();
+        let irregular = TimeSeriesData::try_new(
+            data.storage().clone(),
+            TimeIndex {
+                regularity: SamplingRegularity::Irregular,
+                length: data.time_index().length,
+            },
+        )
+        .unwrap();
+        let query =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                .with_policy(TemporalPolicy::pulse(-1))
+                .with_horizon_steps(1)
+                .with_max_history_lag(Some(1));
+        let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &query).unwrap();
+        let route_error = TemporalLinearAdjustment::new()
+            .prepare(
+                &irregular,
+                id_res.result.estimands.first().unwrap(),
+                &query,
+                &id_res.indexer,
+                None,
+                &ExecutionContext::for_tests(1).kernel_policy,
+            )
+            .unwrap_err();
+        let route_message = route_error.to_string();
+        assert!(route_message.contains("crosses the cadence"), "{route_message}");
+    }
+
+    #[test]
     fn recovers_lagged_effect() {
         let (data, g) = series();
         let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
@@ -1471,7 +1669,7 @@ mod tests {
         let mut ws = EstimationWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
         let mut est2 = TemporalLinearAdjustment::new();
-        est2.inner.bootstrap_replicates = 0;
+        est2.inner.inference.bootstrap_replicates = 0;
         let effect = est2.fit(&prep, &mut ws, &ctx, id_res.result.required_assumptions).unwrap();
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
             "../../../conformance/estimate/temporal_adjustment/expected.json"
@@ -1497,13 +1695,13 @@ mod tests {
         let estimand = id_res.result.estimands.first().unwrap();
         let ctx = ExecutionContext::for_tests(3);
         let mut est = TemporalLinearAdjustment::new();
-        est.inner.bootstrap_replicates = 8;
+        est.inner.inference.bootstrap_replicates = 8;
         let prep =
             est.prepare(&data, estimand, &q, &id_res.indexer, None, &ctx.kernel_policy).unwrap();
         let (_, info) =
             est.fit_dependence_honest(&prep, &id_res.indexer, &ctx, AssumptionSet::new()).unwrap();
         // A check of the interval (no replicates of its own) resamples the same blocks.
-        est.inner.bootstrap_replicates = 0;
+        est.inner.inference.bootstrap_replicates = 0;
         let block = est.dependence_block_length(&prep, &id_res.indexer).unwrap();
         assert_eq!(block, info.block_length);
         // The smooth residual is persistent, so its normal-equation score lengthens
@@ -1522,9 +1720,14 @@ mod tests {
         let estimand = id_res.result.estimands.first().unwrap();
         let est = TemporalLinearAdjustment::new();
         let policy = &ExecutionContext::for_tests(1).kernel_policy;
-        // Discovery [0, 100), estimation [100, 240); the treatment sits one lag back, so
-        // max_lag = 1 and prepared row r spans series times [r, r + 1].
-        let split = DiscoveryEstimationSplit::from_sizes(240, 100, 0, 140).unwrap();
+        // Discovery [0, 99), embargo [99, 100), estimation [100, 240). max_lag = 1, so a
+        // gap of 0 would leak across that embargo. Prepared row r spans [r, r + 1].
+        let split = DiscoveryEstimationSplit::from_sizes(240, 99, 1, 140).unwrap();
+        let leaked = DiscoveryEstimationSplit::from_sizes(240, 100, 0, 140).unwrap();
+        let error = est
+            .prepare_aligned(&data, estimand, &q, &id_res.indexer, Some(&leaked), policy)
+            .expect_err("a zero gap leaks across the lag embargo");
+        assert!(error.to_string().contains("embargo"), "{error}");
         let (prep, aligned) = est
             .prepare_aligned(&data, estimand, &q, &id_res.indexer, Some(&split), policy)
             .unwrap();
@@ -1534,6 +1737,24 @@ mod tests {
         assert_eq!(aligned.rows, 139);
         assert_eq!(aligned.first_time + aligned.rows, 240);
         assert_eq!(prep.design.nrows, 139);
+    }
+
+    #[test]
+    fn a_split_declared_for_another_series_length_is_refused() {
+        let (data, g) = series();
+        let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+            .with_policy(TemporalPolicy::pulse(-1))
+            .with_horizon_steps(1)
+            .with_max_history_lag(Some(1));
+        let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
+        let estimand = id_res.result.estimands.first().unwrap();
+        let est = TemporalLinearAdjustment::new();
+        let policy = &ExecutionContext::for_tests(1).kernel_policy;
+        let stale = DiscoveryEstimationSplit::from_sizes(120, 49, 1, 70).unwrap();
+        let error = est
+            .prepare_aligned(&data, estimand, &q, &id_res.indexer, Some(&stale), policy)
+            .expect_err("a split of 120 rows cannot separate a 240-row series");
+        assert!(error.to_string().contains("series_len"), "{error}");
     }
 
     #[test]

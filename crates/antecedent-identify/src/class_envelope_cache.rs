@@ -12,7 +12,7 @@
 //! and holds successes only. A hit returns a clone of the stored envelope, identical to a
 //! recomputation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
@@ -79,12 +79,12 @@ fn memoized<E>(
 ) -> Result<TemporalClassEnvelope, E> {
     {
         let mut held = entries();
-        if let Some(at) = held.iter().position(|(stored, _)| *stored == key) {
-            if let Some(hit) = held.remove(at) {
-                let envelope = hit.1.as_ref().clone();
-                held.push_front(hit);
-                return Ok(envelope);
-            }
+        if let Some(at) = held.iter().position(|(stored, _)| *stored == key)
+            && let Some(hit) = held.remove(at)
+        {
+            let envelope = hit.1.as_ref().clone();
+            held.push_front(hit);
+            return Ok(envelope);
         }
     }
     // The lock is not held across the enumeration: concurrent first calls both compute the
@@ -109,6 +109,10 @@ pub(crate) fn memoized_cpdag<E>(
     config: &GeneralizedAdjustmentConfig,
     compute: impl FnOnce() -> Result<TemporalClassEnvelope, E>,
 ) -> Result<TemporalClassEnvelope, E> {
+    if config.context.is_some() || config.temporal_budget.is_some() {
+        // An envelope computed under one caller's pool and cancellation is never another's.
+        return compute();
+    }
     memoized(Key::new(SourceGraph::Cpdag(cpdag.clone()), query, config), compute)
 }
 
@@ -119,6 +123,9 @@ pub(crate) fn memoized_pag<E>(
     config: &GeneralizedAdjustmentConfig,
     compute: impl FnOnce() -> Result<TemporalClassEnvelope, E>,
 ) -> Result<TemporalClassEnvelope, E> {
+    if config.context.is_some() || config.temporal_budget.is_some() {
+        return compute();
+    }
     memoized(Key::new(SourceGraph::Pag(pag.clone()), query, config), compute)
 }
 
@@ -186,5 +193,40 @@ mod tests {
         other.horizon_steps += 1;
         id.identify_temporal_pag_envelope(&pag, &other).unwrap();
         assert_eq!(computations(), before + 2);
+    }
+    #[test]
+    fn a_warm_envelope_cannot_bypass_the_callers_cancellation_memory_or_cache_policy() {
+        let pag = chain_pag();
+        let query = pulse();
+        let mut config = GeneralizedAdjustmentConfig::default();
+        config.completion_operations -= 83;
+        let warm = GeneralizedAdjustmentIdentifier { config: config.clone() }
+            .identify_temporal_pag_envelope(&pag, &query)
+            .unwrap();
+        let before = computations();
+
+        let cancelled = antecedent_core::ExecutionContext::for_tests(83);
+        cancelled.cancellation.cancel();
+        config.context = Some(cancelled);
+        assert!(matches!(
+            GeneralizedAdjustmentIdentifier { config: config.clone() }
+                .identify_temporal_pag_envelope(&pag, &query),
+            Err(crate::IdentificationError::Cancelled)
+        ));
+        config.context =
+            Some(antecedent_core::ExecutionContext::for_tests(83).with_memory_limit(Some(1)));
+        assert!(matches!(
+            GeneralizedAdjustmentIdentifier { config: config.clone() }
+                .identify_temporal_pag_envelope(&pag, &query),
+            Err(crate::IdentificationError::Budget { budget: crate::IdentificationBudget::Memory })
+        ));
+        let mut disabled = antecedent_core::ExecutionContext::for_tests(83);
+        disabled.cache_policy = antecedent_core::CachePolicy::disabled();
+        config.context = Some(disabled);
+        let recomputed = GeneralizedAdjustmentIdentifier { config }
+            .identify_temporal_pag_envelope(&pag, &query)
+            .unwrap();
+        assert_eq!(format!("{warm:?}"), format!("{recomputed:?}"));
+        assert_eq!(computations(), before, "caller-context attempts never enter the process memo");
     }
 }

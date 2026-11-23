@@ -26,7 +26,7 @@
 //! * [`check_connection`] decides one connection and [`check_composition`] a
 //!   whole set, refusing a cycle with its path named. Every refusal is a
 //!   registered reason code with an `interface_contract.*` detail and the
-//!   declaration that would license the connection.
+//!   declaration that would support the connection.
 //!
 //! Algorithm inputs stay in their owning lower crates: the contract names a
 //! measurement model by identity, a calibration record by identity and an
@@ -41,9 +41,9 @@
 //! claims of the artifacts the declarations describe. A connection never
 //! raises a label: the calibration label a connection carries is the
 //! producer's, a point-only producer stays point-only, and nothing here
-//! licenses an interval or a posterior.
+//! supports an interval or a posterior.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::result_large_err,
@@ -56,8 +56,9 @@ mod declaration;
 mod refusal;
 
 pub use composition::{
-    ComponentConnection, ComposedInterfaces, MAX_COMPOSITION_COMPONENTS,
-    MAX_COMPOSITION_CONNECTIONS, check_composition, check_composition_with_ledger,
+    ComponentConnection, ComposedInterfaces, CyclicComponentDeclaration,
+    MAX_COMPOSITION_COMPONENTS, MAX_COMPOSITION_CONNECTIONS, check_composition,
+    check_composition_with_cyclic_components, check_composition_with_ledger,
     disjoint_requirements_without_ledger,
 };
 pub use connection::{Connection, check_connection};

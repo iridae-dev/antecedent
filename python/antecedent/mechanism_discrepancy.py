@@ -29,8 +29,8 @@ What a result does **not** say:
   excluded; non-rejection leaves it open and says nothing about selection nodes on other
   variables.
 * It is a linear-Gaussian-mean diagnostic: a shift in a nonlinear or higher-moment feature of the
-  mechanism may go undetected, and its Type I error and power are **unmeasured**
-  (``calibration == "unmeasured"``).
+  mechanism may go undetected, and its Type I error and power are **not_measured**
+  (``calibration == "not_measured"``).
 
 Rust owns the fits, the statistic, the artifact and every refusal; this module builds
 declarations and raises each refusal as :class:`MechanismDiscrepancyRefusal`, a
@@ -48,6 +48,12 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any, Protocol
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._native import mechanism_discrepancy_consume as _consume
 from ._native import mechanism_discrepancy_run as _run
@@ -447,6 +453,7 @@ class MechanismDiscrepancyResult:
 
     @classmethod
     def _from_report(cls, report: Mapping[str, Any], artifact: bytes) -> MechanismDiscrepancyResult:
+        artifact = container_bytes(artifact)
         body = report["result"]
         measurement = report["measurement"]
         return cls(
@@ -514,9 +521,10 @@ class MechanismDiscrepancyResult:
 
     # -- artifact --------------------------------------------------------------
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The result as a bounded, checksummed artifact (recompute with :meth:`consume`)."""
-        return self._artifact
+        return artifact_from_receipt(self, self._artifact)
 
     @classmethod
     def consume(
@@ -532,6 +540,7 @@ class MechanismDiscrepancyResult:
         measurement contract, summary statistic, level or null is refused even when the artifact
         was resealed consistently (``mechanism_discrepancy.wrong_contract``).
         """
+        data = container_bytes(data)
         if not isinstance(data, bytes):
             raise CausalTypeError("artifact must be bytes")
         text, refusal = _consume(

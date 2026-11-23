@@ -7,7 +7,7 @@
 //! repeated use as one ledger result. The ledger then counts each observation
 //! once, and refuses to pool the looks as independent evidence.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::declaration::AdaptiveDesignContract;
 use crate::ExternalRefusal;
@@ -37,7 +37,7 @@ fn ledger_refusal(error: &LedgerError) -> ExternalRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("invalid_argument"),
         "bind",
-        "adaptive_inference.ledger_limit",
+        antecedent_core::reason_details::adaptive_inference::LEDGER_LIMIT,
     )
     .with_supplied(error.detail)
     .with_remedy("reduce the number of units or interim analyses so the evidence ledger can account for them")
@@ -46,13 +46,27 @@ fn ledger_refusal(error: &LedgerError) -> ExternalRefusal {
 impl AdaptiveDesignContract {
     /// Identity of the observation behind `unit` in the evidence ledger.
     ///
-    /// # Panics
-    /// When `unit` does not fit in `u32`; a validated contract has at most
-    /// 2^20 units.
-    #[must_use]
-    pub fn observation_id(&self, unit: usize) -> ObservationId {
-        let key = u32::try_from(unit).expect("a validated contract has at most 2^20 units");
-        ObservationId::from_key(&self.identity().to_hex(), &key.to_le_bytes())
+    /// # Errors
+    /// `adaptive_inference.unit_out_of_range` if `unit >= self.units()`.
+    #[allow(
+        clippy::result_large_err,
+        reason = "a structured refusal preserves the requested index"
+    )]
+    pub fn observation_id(&self, unit: usize) -> Result<ObservationId, ExternalRefusal> {
+        let invalid_unit = || {
+            ExternalRefusal::new(
+                antecedent_core::reason_code!("invalid_argument"),
+                "bind",
+                antecedent_core::reason_details::adaptive_inference::UNIT_OUT_OF_RANGE,
+            )
+            .with_offending(format!("unit {unit}"))
+            .with_remedy("select a unit index below the number of declared units")
+        };
+        if unit >= self.units() {
+            return Err(invalid_unit());
+        }
+        let key = u32::try_from(unit).map_err(|_| invalid_unit())?;
+        Ok(ObservationId::from_key(&self.identity().to_hex(), &key.to_le_bytes()))
     }
 
     /// Register the data behind each interim analysis and the repeated use.
@@ -70,8 +84,11 @@ impl AdaptiveDesignContract {
         // Registered from the last look backwards so that each look is a
         // declared subset of the one after it.
         for look in (0..looks).rev() {
-            let mut rows: Vec<ObservationId> =
-                self.analysis_units(look).into_iter().map(|u| self.observation_id(u)).collect();
+            let mut rows: Vec<ObservationId> = self
+                .analysis_units(look)?
+                .into_iter()
+                .map(|u| self.observation_id(u))
+                .collect::<Result<_, _>>()?;
             rows.sort_unstable();
             let lineage = match look_sources.get(look + 1).copied().flatten() {
                 Some(of) => Lineage::Subset { of },
@@ -136,13 +153,13 @@ impl AdaptiveDesignContract {
                 RefusalKind::OverlapUnknown => ExternalRefusal::new(
                     antecedent_core::reason_code!("evidence_overlap_unknown"),
                     "bind",
-                    "adaptive_inference.looks_overlap_unknown",
+                    antecedent_core::reason_details::adaptive_inference::LOOKS_OVERLAP_UNKNOWN,
                 )
                 .with_remedy("declare the observations behind each interim analysis"),
                 _ => ExternalRefusal::new(
                     antecedent_core::reason_code!("evidence_double_counted"),
                     "bind",
-                    "adaptive_inference.looks_share_observations",
+                    antecedent_core::reason_details::adaptive_inference::LOOKS_SHARE_OBSERVATIONS,
                 )
                 .with_supplied(error.detail)
                 .with_remedy(

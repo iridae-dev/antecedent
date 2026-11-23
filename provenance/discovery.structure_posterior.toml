@@ -1,0 +1,67 @@
+feature_id = "discovery.structure_posterior"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+
+# `papers = []` is deliberate, not an oversight (see provenance/README.md).
+#
+# Capability `discovery.structure_posterior`: the uncertainty a structure search publishes. A
+# frequentist search publishes its decision rule's structure and no interval; wrapped by
+# bootstrap_stability it publishes selection frequencies over resamples; a Bayesian search
+# publishes a posterior over DAGs, Markov equivalence classes, PAG classes or bounded-lag
+# templates under a declared prior and the Gaussian BIC score, from which the smallest set of
+# atoms holding a stated mass is read off the published atoms and weights.
+#
+# Why no paper is cited here: this record is a composition. Every numerical step is the work of
+# an engine with its own reviewed record, and the facade functions of crates/antecedent/src/discovery.rs
+# that this record maps only construct the engine from the declared parameters, run it, and label
+# the posterior with the algorithm that produced it. The primary sources (Chickering, Spirtes,
+# Zhang, Friedman and Koller, Kuipers and Moffa, Schwarz, Verma and Pearl, Efron, Politis and
+# Romano, and the others each engine follows) are cited in those records and are not repeated
+# here, where they would claim a source for code that this record does not contain.
+#
+# The credible set is not computed by a function of this crate: it is the smallest set of atoms of
+# GraphPosterior (see discovery.class_posterior and discovery.dbn_posterior for the atoms) whose
+# weights sum to at least the stated mass, read by the consumer from the published atoms and
+# weights; the measurement of its coverage is in crates/antecedent/tests/fitted_model_calibration.rs
+# and is not part of this record's review.
+
+implementation_deviations = [
+ "A frequentist search publishes its structure and no interval, posterior or recovery statement; bootstrap_stability tabulates a bootstrap distribution of the search with no nominal level, not a posterior and not stability selection with an error bound (see discovery.bootstrap_stability).",
+ "A Bayesian structure posterior is a pseudo-posterior under the Gaussian BIC score and a declared graph prior; it is exact for the exact engines up to six variables (and for the bounded-lag template up to its enumeration budget), a Markov chain approximation above, and a routed fallback is labelled with the algorithm that produced it (order_mcmc_via_structure_mcmc, structure_mcmc, ci_screened_posterior, dbn_posterior).",
+ "The credible-set statement holds only for the exact DAG posterior collapsed onto equivalence classes and the bounded-lag template posterior within their measured conditions; no recovery or error-rate statement is made about one discovered graph, and no statement is made for the other posterior searches (order and structure MCMC, the CI-screened posterior, the PAG posteriors, exact edge marginals).",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/tests/structure_uncertainty_routes.rs (a compiled class posterior equals the engine collapse bit for bit; a compiled stability search tabulates the resamples of its engine; a bounded-lag template posterior collapses onto temporal equivalence classes)",
+ "crates/antecedent/tests/structure_compiler_routes.rs (a structure posterior declares Bayesian inference and equals its engine)",
+ "crates/antecedent-discovery/tests/dag_posterior_conformance.rs (the exact engine against an independent BIC enumeration)",
+ "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs (class partition of every labelled DAG on three and four variables; brute-force enumeration of the template posterior)",
+ "crates/antecedent-discovery/tests/bootstrap_stability_reference.rs (exact counting of stability frequencies)",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "The structure-uncertainty routes of the facade run a declared search or posterior engine over the data and publish what it returns: the frequentist searches (PC, FCI, RFCI, GES, LiNGAM, NOTEARS) return their structure with no interval; the exact DAG posterior, order MCMC, structure MCMC and the CI-screened posterior return a graph posterior over DAGs; the exact and sampled PAG posteriors return one over PAG classes; the bounded-lag DBN posterior returns one over templates. The equivalence-class collapse, the stability tabulation and the credible set are read from those results."
+no_independent_algorithm = "Every function mapped constructs its engine from the declared parameters (constraints, FDR adjustment, CI test, prior, score family, chain schedule), runs it on a fresh workspace and labels the posterior with the producing algorithm; none contains a score, a sampler, a resample, a summation of posterior mass or a decision rule of its own. The scores and samplers, the class collapse, the stability tabulation and the template posterior are the engines of the records it is covered by, and the credible set is a reading of their published atoms and weights, with coverage measured outside this record."
+covered_by = ["discovery.exact_enumeration", "discovery.exact_marginals", "discovery.graph_mcmc", "discovery.order_mcmc", "discovery.structure_mcmc", "discovery.ci_screened_posterior", "discovery.exact_pag_posterior", "discovery.class_posterior", "discovery.dbn_posterior", "discovery.bootstrap_stability", "discovery.pc", "discovery.fci", "discovery.rfci", "discovery.ges"]
+record_sha256 = "8ceb2041d04c83a9a81af17326b294d47d94674be1924e438484de06e3183b59"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/discovery.rs"
+items = ["fn dbn_posterior_for", "fn discover_ci_screened_posterior", "fn discover_dbn_posterior", "fn discover_dbn_posterior_panel", "fn discover_exact_dag_marginals", "fn discover_exact_dag_posterior", "fn discover_exact_pag_posterior", "fn discover_fci", "fn discover_ges", "fn discover_order_mcmc", "fn discover_pag_mcmc", "fn discover_pc", "fn discover_rfci", "fn discover_structure_mcmc", "fn static_constraints", "fn static_fdr"]
+sha256 = "b2325c02bfa7f5449fce3433890b8fd369e177165c9cbd4ee683205ff75ac0b3"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/structure_uncertainty_routes.rs"
+items = ["fn v", "fn ctx", "fn on_large_stack", "fn chain_table", "fn lag1_series", "fn static_params", "fn temporal_params", "fn three", "fn compiled", "fn node", "fn a_class_posterior_collapses_the_dag_posterior_it_wraps", "fn a_stability_search_tabulates_the_resamples_of_its_engine", "fn a_template_posterior_collapses_onto_temporal_equivalence_classes"]
+sha256 = "4c0989b13ab7259e561ab16b25511b963fc73bd0e603fcfd6fe93c67868f0998"

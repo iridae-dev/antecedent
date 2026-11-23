@@ -14,11 +14,21 @@ from typing import Any, Literal
 import numpy as np
 
 from .. import _native
+from .._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .._columns import coerce_fields
 from .._data import to_f64
-from .._measured_inference import MeasuredInference, _level, _production_limits
+from .._measured_inference import MeasuredInference, _level
+from .._scientific import ScientificResult
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ..execution import Execution
 from ._candidate_data import detached, freeze
+from ._controls import call_native
 from ._impl import TransportIdentification
 
 
@@ -115,11 +125,11 @@ class JointTransportTarget:
 
 
 @dataclass(frozen=True, slots=True, init=False)
-class JointTransportPosterior:
-    """Numerically replayable candidate posterior; calibration is unmeasured.
+class JointTransportPosterior(ScientificResult):
+    """Numerically replayable candidate posterior; calibration is not_measured.
 
     All rows are aligned across the original complete joint parameter/effect law.
-    A successful internal feature build is not a released interval license.
+    A successful internal feature build is not a released interval support.
     """
 
     kind: Literal["gaussian", "learned_gaussian"]
@@ -134,6 +144,7 @@ class JointTransportPosterior:
     def _from_native(
         cls, kind: Literal["gaussian", "learned_gaussian"], payload: str, artifact: bytes
     ) -> JointTransportPosterior:
+        artifact = container_bytes(artifact)
         result = object.__new__(cls)
 
         coerce_fields(result, kind=kind)
@@ -143,8 +154,8 @@ class JointTransportPosterior:
         return result
 
     @property
-    def calibration(self) -> Literal["unmeasured"]:
-        return "unmeasured"
+    def calibration(self) -> Literal["not_measured"]:
+        return "not_measured"
 
     @property
     def release_status(self) -> Literal["candidate_only"]:
@@ -194,14 +205,21 @@ class JointTransportPosterior:
 
         return dict(detached(self._body))
 
-    def export(self) -> bytes:
-        return self._bytes
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
+        return artifact_from_receipt(self, self._bytes)
 
     def expectation(self) -> dict[str, str]:
         body = self._body
         return {"premises_digest": body["premises_digest"], "data_digest": body["data_digest"]}
 
 
+@artifact_consumer(
+    proof="native joint posterior consumer refits the retained model/data under independent identities",
+    replayable=True,
+    resumable=False,
+    input="data",
+)
 def consume_joint_transport_posterior(
     data: bytes,
     *,
@@ -209,11 +227,12 @@ def consume_joint_transport_posterior(
     expected_identity: Mapping[str, str],
 ) -> JointTransportPosterior:
     """Fresh native re-fit under retained independent model/data identity expectations."""
+    data = container_bytes(data)
     consumer = getattr(_native, "consume_joint_transport_candidate", None)
     if consumer is None:
         raise CausalUnsupportedError(
-            "joint_transport.route_frozen: candidate lifecycle requires internal feature build",
-            reason_code="cell_not_licensed",
+            "joint_transport.native_hook_unavailable: candidate lifecycle requires the internal feature build",
+            reason_code="not_supported",
         )
     if kind not in ("gaussian", "learned_gaussian"):
         raise CausalValueError("kind must be gaussian or learned_gaussian")
@@ -352,7 +371,7 @@ def _request_json(
 
 
 def _candidate(**kwargs: Any) -> JointTransportPosterior:
-    """Explicit internal candidate; retains its original unmeasured wire standing."""
+    """Explicit internal candidate; retains its original not_measured wire standing."""
     text = _request_json(**kwargs)
     body, artifact = _native.joint_transport_candidate(
         kwargs["identification"]._native, text, kwargs["learned"]
@@ -365,26 +384,25 @@ def _candidate(**kwargs: Any) -> JointTransportPosterior:
 def _measured(
     *,
     level: float = 0.95,
-    memory_limit_bytes: int | None = None,
-    cancel: _native.CancellationToken | None = None,
+    execution: Execution | None = None,
     **kwargs: Any,
 ) -> MeasuredInference:
-    _production_limits(memory_limit_bytes, cancel)
     _level(level)
     text = _request_json(**kwargs)
     producer = getattr(_native, "joint_transport_measured", None)
     if producer is None:
         raise CausalUnsupportedError(
-            "joint_transport.route_frozen: measured native authority unavailable",
-            reason_code="cell_not_licensed",
+            "joint_transport.native_hook_unavailable: measured native authority unavailable",
+            reason_code="not_supported",
         )
-    native = producer(
+    native = call_native(
+        execution,
+        producer,
         kwargs["identification"]._native,
         text,
         kwargs["learned"],
         level=level,
-        memory_limit_bytes=memory_limit_bytes,
-        cancel=cancel,
+        memory="memory_limit_bytes",
     )
     return MeasuredInference._from_native(native)
 

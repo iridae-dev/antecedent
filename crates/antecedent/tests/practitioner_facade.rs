@@ -1,6 +1,6 @@
 //! The practitioner suite depends only on `antecedent`, not its component crates.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -69,7 +69,7 @@ fn response_and_temporal_queries_are_constructible_through_facade() {
     })
     .validate()
     .unwrap();
-    let mut posterior = GraphPosterior::new(
+    let posterior = GraphPosterior::new(
         2,
         vec![1.0],
         vec![2],
@@ -81,7 +81,7 @@ fn response_and_temporal_queries_are_constructible_through_facade() {
             rejected_invalid: 0,
         },
     )
-    .unwrap();
-    posterior.atom_kind = GraphPosteriorAtomKind::Cpdag;
-    assert_eq!(posterior.n_graphs, 1);
+    .unwrap()
+    .with_atom_kind(GraphPosteriorAtomKind::Cpdag);
+    assert_eq!(posterior.n_graphs(), 1);
 }

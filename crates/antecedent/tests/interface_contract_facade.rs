@@ -6,7 +6,7 @@
 //! two quantities differ, which operations a producer lacks, which path closes
 //! the cycle.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::interface_contract::{
     CalibrationRequirement, CalibrationStatus, ComponentConnection, ConsumedPort,
@@ -44,7 +44,7 @@ fn estimator(population: &str, operations: &[ContractOperation]) -> InterfaceCon
     if operations.contains(&ContractOperation::Interval) {
         port = port
             .with_uncertainty(DistributionMeaning::EstimatorSampling)
-            .with_calibration(CalibrationStatus::Unmeasured);
+            .with_calibration(CalibrationStatus::NotMeasured);
     }
     InterfaceContract { component: "estimator".into(), produces: vec![port], consumes: vec![] }
 }
@@ -69,7 +69,7 @@ fn a_compatible_pair_is_connected_and_keeps_the_producers_label() {
     let consumer = decision("adults", &[ContractOperation::Mean]);
     let connection =
         check_interface_connection(&producer, "effect", &consumer, "effect").expect("connects");
-    assert_eq!(connection.calibration, CalibrationStatus::Unmeasured);
+    assert_eq!(connection.calibration, CalibrationStatus::NotMeasured);
     assert_eq!(connection.operations.len(), 1);
 }
 
@@ -84,9 +84,9 @@ fn a_pair_that_matches_syntactically_fails_scientifically() {
     assert_eq!(
         details,
         [
-            "interface_contract.population_mismatch",
-            "interface_contract.operation_unavailable",
-            "interface_contract.uncertainty_meaning_missing",
+            antecedent_core::reason_details::interface_contract::POPULATION_MISMATCH,
+            antecedent_core::reason_details::interface_contract::OPERATION_UNAVAILABLE,
+            antecedent_core::reason_details::interface_contract::UNCERTAINTY_MEANING_MISSING,
         ]
     );
     assert!(refusals.iter().all(|r| r.remedy.is_some()));
@@ -141,7 +141,7 @@ fn an_exported_contract_is_inspected_and_consumed_against_a_retained_identity() 
     let meta = inspect_interface_contract_artifact(&exported.bytes).expect("inspects");
     assert_eq!(meta.feature, "interface_contract_v1");
     assert_eq!(meta.contract.component, "estimator");
-    assert_eq!(meta.contract.produces[0].calibration.status, "unmeasured");
+    assert_eq!(meta.contract.produces[0].calibration.status, "not_measured");
     assert_eq!(meta.identity, exported.identity);
 
     let consumed = consume_interface_contract_artifact(&exported.bytes, Some(&exported.identity))
@@ -157,6 +157,9 @@ fn an_exported_contract_is_inspected_and_consumed_against_a_retained_identity() 
     .expect("exports");
     let refusal = consume_interface_contract_artifact(&other.bytes, Some(&exported.identity))
         .expect_err("another contract");
-    assert_eq!(refusal.detail, "interface_contract.identity_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::interface_contract::IDENTITY_MISMATCH
+    );
     assert!(refusal.remedy.is_some());
 }

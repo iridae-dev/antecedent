@@ -17,6 +17,8 @@ import itertools
 
 import numpy as np
 import pytest
+from antecedent import Execution
+from antecedent import _reason_details as reason_details
 from antecedent import selective_discovery as sd
 from antecedent.errors import CausalTypeError, CausalValueError
 
@@ -146,7 +148,7 @@ def test_a_linear_study_reports_the_total_effect_and_the_unresolved_edges() -> N
         outcome="y",
         transformation="linear",
         split_seed=SPLIT_SEED,
-        seed=SEED,
+        execution=Execution(seed=SEED),
     )
     assert estimate.scalar == "total_effect"
     assert estimate.transformation == "linear"
@@ -178,7 +180,7 @@ def test_a_log_linear_study_reports_an_intervention_mean_ratio() -> None:
         outcome="y",
         transformation="log_linear",
         split_seed=SPLIT_SEED,
-        seed=SEED,
+        execution=Execution(seed=SEED),
     )
     assert estimate.scalar == "intervention_mean_ratio"
     assert set(estimate.treatment_parents) == {"h", "p"}
@@ -219,7 +221,7 @@ def test_the_basis_is_keyed_under_its_own_structure_and_never_the_directed_route
         outcome="y",
         transformation="linear",
         split_seed=SPLIT_SEED,
-        seed=SEED,
+        execution=Execution(seed=SEED),
     )
     basis = estimate.basis
     assert basis["structure"] == "discovered_sample_split.treatment_parent_set"
@@ -242,11 +244,11 @@ def test_an_undirected_edge_at_the_treatment_is_refused_by_name() -> None:
             outcome="y",
             transformation="linear",
             split_seed=SPLIT_SEED,
-            seed=SEED,
+            execution=Execution(seed=SEED),
         )
     assert_registered_refusal(info.value)
-    assert info.value.reason_code == "cell_not_licensed"
-    assert info.value.detail == "parent_set_effect.treatment_parents_ambiguous"
+    assert info.value.reason_code == "discovered_structure_unresolved"
+    assert info.value.detail == reason_details.parent_set_effect.TREATMENT_PARENTS_AMBIGUOUS
     assert "h - n0" in info.value.message
     assert "no completion is chosen" in info.value.message
 
@@ -262,10 +264,10 @@ def test_log_linear_inputs_must_be_positive() -> None:
             outcome="y",
             transformation="log_linear",
             split_seed=SPLIT_SEED,
-            seed=SEED,
+            execution=Execution(seed=SEED),
         )
     assert info.value.reason_code == "invalid_argument"
-    assert info.value.detail == "parent_set_effect.log_linear_input_not_positive"
+    assert info.value.detail == reason_details.parent_set_effect.LOG_LINEAR_INPUT_NOT_POSITIVE
     assert "column `m` has 5 non-positive value(s)" in info.value.message
     assert isinstance(info.value, CausalValueError)
 
@@ -280,10 +282,10 @@ def test_the_transformation_must_be_declared_before_the_data_are_touched(declare
             outcome="y",
             transformation=declared,
             split_seed=SPLIT_SEED,
-            seed=SEED,
+            execution=Execution(seed=SEED),
         )
     assert info.value.reason_code == "invalid_argument"
-    assert info.value.detail == "parent_set_effect.transformation_undeclared"
+    assert info.value.detail == reason_details.parent_set_effect.TRANSFORMATION_UNDECLARED
     assert "before any data are read" in info.value.message
 
 
@@ -308,12 +310,14 @@ def test_a_log_shift_is_declared_only_by_a_log_linear_study() -> None:
             log_shift=1.0,
             split_seed=SPLIT_SEED,
         )
-    assert info.value.detail == "parent_set_effect.source_invalid"
+    assert info.value.detail == reason_details.parent_set_effect.SOURCE_INVALID
 
 
-def test_a_maximum_degree_above_four_is_refused_with_both_degrees_named() -> None:
-    with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
-        sd.sample_split_parent_set_effect(
+def test_a_maximum_degree_above_four_is_computed_and_not_measured() -> None:
+    # Calibration annotates the interval; a degree no record measured never refuses it. Another
+    # refusal (for instance an unresolved structure) is allowed, the removed detail is not.
+    try:
+        result = sd.sample_split_parent_set_effect(
             hub_table(10, rows=600),
             treatment="x",
             outcome="y",
@@ -321,22 +325,28 @@ def test_a_maximum_degree_above_four_is_refused_with_both_degrees_named() -> Non
             max_degree=5,
             split_seed=SPLIT_SEED,
         )
-    assert_registered_refusal(info.value)
-    assert info.value.reason_code == "cell_not_licensed"
-    assert info.value.detail == "parent_set_effect.degree_above_supported"
-    assert "declared maximum graph degree is 5" in info.value.message
-    assert "supported maximum is 4" in info.value.message
+    except sd.SelectiveDiscoveryRefusal as refusal:
+        assert refusal.detail != "parent_set_effect.degree_above_supported"
+    else:
+        scalar = result.measure().scalars[0]
+        assert scalar.interval[0] <= scalar.point <= scalar.interval[1]
+        assert scalar.calibration != "calibrated"
 
 
-def test_a_table_outside_ten_to_twenty_variables_is_refused() -> None:
+def test_a_table_outside_ten_to_twenty_variables_is_not_refused_for_its_count() -> None:
     rng = np.random.default_rng(11)
     data = {name: rng.normal(size=60) for name in ("a", "b", "c")}
-    with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
+    try:
         sd.sample_split_parent_set_effect(
-            data, treatment="a", outcome="b", transformation="linear", split_seed=1, seed=SEED
+            data,
+            treatment="a",
+            outcome="b",
+            transformation="linear",
+            split_seed=1,
+            execution=Execution(seed=SEED),
         )
-    assert info.value.reason_code == "cell_not_licensed"
-    assert info.value.detail == "parent_set_effect.variable_count_not_measured"
+    except sd.SelectiveDiscoveryRefusal as refusal:
+        assert refusal.detail != "parent_set_effect.variable_count_not_measured"
 
 
 def test_unknown_roles_are_rejected_before_any_native_work() -> None:
@@ -353,10 +363,20 @@ def test_unknown_roles_are_rejected_before_any_native_work() -> None:
 def test_the_same_seeds_give_the_same_estimate_and_another_split_seed_another_split() -> None:
     data = hub_table(13, rows=2000)
     first = sd.sample_split_parent_set_effect(
-        data, treatment="x", outcome="y", transformation="linear", split_seed=SPLIT_SEED, seed=SEED
+        data,
+        treatment="x",
+        outcome="y",
+        transformation="linear",
+        split_seed=SPLIT_SEED,
+        execution=Execution(seed=SEED),
     )
     again = sd.sample_split_parent_set_effect(
-        data, treatment="x", outcome="y", transformation="linear", split_seed=SPLIT_SEED, seed=SEED
+        data,
+        treatment="x",
+        outcome="y",
+        transformation="linear",
+        split_seed=SPLIT_SEED,
+        execution=Execution(seed=SEED),
     )
     assert first == again
     other = sd.sample_split_parent_set_effect(
@@ -365,30 +385,30 @@ def test_the_same_seeds_give_the_same_estimate_and_another_split_seed_another_sp
         outcome="y",
         transformation="linear",
         split_seed=SPLIT_SEED + 1,
-        seed=SEED,
+        execution=Execution(seed=SEED),
     )
     assert other.receipt_identity != first.receipt_identity
 
 
-def test_an_unmeasured_variable_count_is_computed_and_never_attested() -> None:
-    # Twelve variables lie between measured counts: the estimate is computed, and attesting it
-    # is refused rather than borrowing another count's record.
+def test_an_not_measured_variable_count_is_computed_and_reported_uncalibrated() -> None:
+    # Twelve variables lie between measured counts: the interval is reported, annotated as not
+    # calibrated rather than borrowing another count's record.
     estimate = sd.sample_split_parent_set_effect(
         hub_table(14, rows=2000, chains=7),
         treatment="x",
         outcome="y",
         transformation="linear",
         split_seed=SPLIT_SEED,
-        seed=SEED,
+        execution=Execution(seed=SEED),
     )
     assert (
         estimate.basis["functional"]
         == "total_effect.variables_12.max_degree_4.discovery_fraction_0_75.topology_hub_confounded_multi_path"
     )
-    with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
-        estimate.measure()
-    assert_registered_refusal(info.value)
-    assert info.value.reason_code == "cell_not_licensed"
+    measured = estimate.measure()
+    scalar = measured.scalars[0]
+    assert scalar.interval[0] <= scalar.point <= scalar.interval[1]
+    assert scalar.calibration != "calibrated"
 
 
 def test_background_knowledge_that_is_true_of_the_law_enters_the_key_and_is_honoured() -> None:

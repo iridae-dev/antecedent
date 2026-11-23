@@ -7,6 +7,7 @@ import math
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -80,17 +81,18 @@ def _summary_only_artifact_bytes(*, ate_mean: float = 2.0, ate_sd: float = 0.2) 
 
 def test_catalog_filter_accept_reject_partial():
     data, edges = _confounded()
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(n_draws=48),
-        refute=False,
-        seed=11,
-        return_posterior_artifact=True,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(n_draws=48),
+            refute=False,
+            execution=antecedent.Execution(seed=11),
+        )
     )
     assert result.posterior is not None
-    artifact = bytes(result.posterior.artifact)
+    artifact = bytes(result.export(quantity="posterior"))
     names = list(antecedent.inference.decode_posterior_artifact(artifact).quantity_names)
     assert any(n == "intercept" or n.startswith("coef_") for n in names)
     assert "ate" in names
@@ -156,17 +158,18 @@ def test_effect_prior_transfer_shrinks_toward_source():
     data_a = {"z": z, "t": t, "y": y}
     edges_a = [("z", "t"), ("z", "y"), ("t", "y")]
 
-    source = antecedent.analyze(
-        data_a,
-        graph=edges_a,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
-        refute=False,
-        seed=3,
-        return_posterior_artifact=True,
+    source = require_success(
+        antecedent.analyze(
+            data_a,
+            graph=edges_a,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
+            refute=False,
+            execution=antecedent.Execution(seed=3),
+        )
     )
     assert source.posterior is not None
-    artifact = bytes(source.posterior.artifact)
+    artifact = bytes(source.export(quantity="posterior"))
     source_mean = float(source.posterior.effect_mean)
 
     w = rng.normal(size=n)
@@ -177,31 +180,33 @@ def test_effect_prior_transfer_shrinks_toward_source():
     data_b = {"z": z, "w": w, "t": t_b, "y": y_b}
     edges_b = [("z", "t"), ("z", "y"), ("w", "t"), ("w", "y"), ("t", "y")]
 
-    baseline = antecedent.analyze(
-        data_b,
-        graph=edges_b,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
-        refute=False,
-        seed=5,
-        return_posterior_artifact=True,
+    baseline = require_success(
+        antecedent.analyze(
+            data_b,
+            graph=edges_b,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
+            refute=False,
+            execution=antecedent.Execution(seed=5),
+        )
     )
     assert baseline.posterior is not None
     baseline_mean = float(baseline.posterior.effect_mean)
 
-    mapped = antecedent.analyze(
-        data_b,
-        graph=edges_b,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(
-            n_draws=64,
-            backend="conjugate",
-            prior_from=artifact,
-            mapping=antecedent.priors.PriorMapping.effect_functional("ate"),
-        ),
-        refute=False,
-        seed=5,
-        return_posterior_artifact=True,
+    mapped = require_success(
+        antecedent.analyze(
+            data_b,
+            graph=edges_b,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(
+                n_draws=64,
+                backend="conjugate",
+                prior_from=artifact,
+                mapping=antecedent.priors.PriorMapping.effect_functional("ate"),
+            ),
+            refute=False,
+            execution=antecedent.Execution(seed=5),
+        )
     )
     assert mapped.posterior is not None
     mapped_mean = float(mapped.posterior.effect_mean)
@@ -210,37 +215,39 @@ def test_effect_prior_transfer_shrinks_toward_source():
     assert abs(mapped_mean - source_mean) < abs(baseline_mean - source_mean)
 
     # Unset mapping must auto-pick EffectFunctional (not silent coef_i→coef_i).
-    auto = antecedent.analyze(
-        data_b,
-        graph=edges_b,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(
-            n_draws=64,
-            backend="conjugate",
-            prior_from=artifact,
-        ),
-        refute=False,
-        seed=5,
-        return_posterior_artifact=True,
+    auto = require_success(
+        antecedent.analyze(
+            data_b,
+            graph=edges_b,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(
+                n_draws=64,
+                backend="conjugate",
+                prior_from=artifact,
+            ),
+            refute=False,
+            execution=antecedent.Execution(seed=5),
+        )
     )
     assert auto.posterior is not None
     auto_mean = float(auto.posterior.effect_mean)
     assert abs(auto_mean - source_mean) < abs(baseline_mean - source_mean)
 
     with pytest.raises(antecedent.CausalError) as caught:
-        antecedent.analyze(
-            data_b,
-            graph=edges_b,
-            query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            inference=antecedent.Bayesian(
-                n_draws=32,
-                backend="conjugate",
-                prior_from=artifact,
-                mapping=antecedent.priors.PriorMapping.identical(),
-            ),
-            refute=False,
-            seed=5,
-            return_posterior_artifact=True,
+        require_success(
+            antecedent.analyze(
+                data_b,
+                graph=edges_b,
+                query=antecedent.AverageEffect(treatment="t", outcome="y"),
+                inference=antecedent.Bayesian(
+                    n_draws=32,
+                    backend="conjugate",
+                    prior_from=artifact,
+                    mapping=antecedent.priors.PriorMapping.identical(),
+                ),
+                refute=False,
+                execution=antecedent.Execution(seed=5),
+            )
         )
     assert_registered_refusal(caught.value)
 
@@ -273,26 +280,30 @@ def test_summary_only_artifact_round_trips_and_hydrates_prior():
     data = {"z": z, "t": t, "y": y}
     edges = [("z", "t"), ("z", "y"), ("t", "y")]
 
-    baseline = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
-        refute=False,
-        seed=9,
+    baseline = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(n_draws=64, backend="conjugate", prior_scale=10.0),
+            refute=False,
+            execution=antecedent.Execution(seed=9),
+        )
     )
-    mapped = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(
-            n_draws=64,
-            backend="conjugate",
-            prior_from=artifact_bytes,
-            mapping=antecedent.priors.PriorMapping.effect_functional("ate"),
-        ),
-        refute=False,
-        seed=9,
+    mapped = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(
+                n_draws=64,
+                backend="conjugate",
+                prior_from=artifact_bytes,
+                mapping=antecedent.priors.PriorMapping.effect_functional("ate"),
+            ),
+            refute=False,
+            execution=antecedent.Execution(seed=9),
+        )
     )
     assert baseline.posterior is not None
     assert mapped.posterior is not None
@@ -371,32 +382,37 @@ def test_compose_weight_and_conflict():
         alphas_applied=composed2.alphas_applied,
         mixture_weights=composed2.mixture_weights,
         sources=composed2.sources,
+        baseline_mean=composed2.baseline_mean,
+        baseline_variance=composed2.baseline_variance,
         conflict=None,
     )
-    result = antecedent.analyze(
-        {"t": t, "y": y},
-        graph=[("t", "y")],
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(
-            n_draws=64,
-            backend="conjugate",
-            prior_from=prior_for_fit,
-        ),
-        refute=False,
-        seed=7,
-        return_posterior_artifact=True,
+    result = require_success(
+        antecedent.analyze(
+            {"t": t, "y": y},
+            graph=[("t", "y")],
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(
+                n_draws=64,
+                backend="conjugate",
+                prior_from=prior_for_fit,
+            ),
+            refute=False,
+            execution=antecedent.Execution(seed=7),
+        )
     )
     assert result.posterior is not None
     assert composed2.alphas_applied[0] == 1.0
     assert composed2.alphas_applied[1] == 0.0
-    # Assumption restriction id from composition is recorded on the estimate.
-    assert (
-        any(
-            "external_composed_prior" in str(a) or "external" in str(a).lower()
-            for a in getattr(result, "assumptions", []) or []
-        )
-        or result.posterior is not None
-    )
+    # Exact mixture moments. Coordinate 1: components N(0.5, 1) (weight 0.7) and, with the
+    # conflicting source's alpha at 0, the baseline N(0, 100) (weight 0.3):
+    # mean = 0.7*0.5 = 0.35; var = 0.7*1 + 0.3*100 + 0.7*(0.15)^2 + 0.3*(0.35)^2 = 30.7525.
+    # Coordinate 0 has identical components N(0, 100).
+    assert composed2.mean == pytest.approx((0.0, 0.35), abs=1e-12)
+    assert composed2.variance == pytest.approx((100.0, 30.7525), abs=1e-9)
+    # One-dimensional case: components N(0.5, 1) and baseline N(0, 4): 0.35 and 1.9525.
+    assert composed.mean == pytest.approx((0.35,), abs=1e-12)
+    assert composed.variance == pytest.approx((1.9525,), abs=1e-9)
+    assert "external_composed_prior" in composed2.assumption_ids
 
 
 def test_transport_required_when_populations_differ():
@@ -474,8 +490,10 @@ def test_transport_with_policy_records_assumption():
         target_population="eu",
         transport=antecedent.priors.TransportPolicy.invariant_conditional_outcome(),
     )
-    assert all(math.isfinite(x) for x in composed.mean)
-    assert all(x > 0 and math.isfinite(x) for x in composed.variance)
+    # Precision-weighted product with the baseline N(0, 4): precision 1/4 + 1 = 1.25, so
+    # variance 0.8 and mean (0*0.25 + 2*1)/1.25 = 1.6.
+    assert composed.mean == pytest.approx((1.6,), abs=1e-12)
+    assert composed.variance == pytest.approx((0.8,), abs=1e-12)
     assert "external_transport_prior" in composed.assumption_ids
     assert composed.alphas_applied == (1.0,)
 
@@ -604,7 +622,57 @@ def test_ess_accounting_no_ess_declared_reports_none_but_kish_present():
     composed = antecedent.priors.compose_external_priors([src_a, src_b], baseline=([0.0], [4.0]))
     assert composed.effective_ess == (None, None)
     assert composed.composed_ess is None
-    assert composed.kish_ess is not None and composed.kish_ess > 0.0
+    # Kish ESS of the applied alphas (0.5, 0.3): 0.8^2 / (0.25 + 0.09) = 32/17.
+    assert composed.kish_ess == pytest.approx(32.0 / 17.0, abs=1e-12)
+    # Precision-weighted product with baseline N(0, 4): precision 0.25 + 0.5 + 0.3 = 1.05.
+    assert composed.mean == pytest.approx((1.9 / 1.05,), abs=1e-12)
+    assert composed.variance == pytest.approx((1.0 / 1.05,), abs=1e-12)
+
+
+def test_composed_prior_retains_nondefault_baseline_and_rejects_legacy_missing():
+    from dataclasses import replace
+
+    source = antecedent.priors.ExternalPriorSourceSpec(
+        id="baseline-check",
+        mean=(0.0, 0.0),
+        variance=(1.0, 1.0),
+        weight=antecedent.priors.ExternalPriorWeight(alpha=0.0),
+    )
+    composed = antecedent.priors.compose_external_priors(
+        [source], baseline=([1.0, 2.0], [4.0, 4.0])
+    )
+    assert composed.mean == (1.0, 2.0)
+    assert composed.variance == (4.0, 4.0)
+    assert composed.to_native_dict()["baseline_mean"] == [1.0, 2.0]
+    assert composed.to_native_dict()["baseline_variance"] == [4.0, 4.0]
+    data = {"t": np.arange(20, dtype=float), "y": np.arange(20, dtype=float)}
+
+    def run(prior):
+        return antecedent.analyze(
+            data,
+            graph=[("t", "y")],
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(n_draws=32, backend="conjugate", prior_from=prior),
+        )
+
+    without_conflict = require_success(run(composed))
+    with_policy = antecedent.priors.compose_external_priors(
+        [source],
+        baseline=([1.0, 2.0], [4.0, 4.0]),
+        conflict=antecedent.priors.ConflictPolicy(p_min=0.05, kl_scale=1.0),
+    )
+    with_conflict = require_success(run(with_policy))
+    # With alpha zero, re-shrink must still use the declared baseline; it must
+    # agree with the no-conflict path rather than silently reverting to V0=100.
+    assert with_conflict.posterior.effect_mean == pytest.approx(
+        without_conflict.posterior.effect_mean, abs=1e-12
+    )
+    with pytest.raises(Exception, match="baseline|recompose"):
+        run(replace(composed, baseline_mean=None, baseline_variance=None))
+    with pytest.raises(Exception, match="baseline|recompose"):
+        run(replace(composed, baseline_variance=None))
+    with pytest.raises(Exception, match="moments|recompose"):
+        run(replace(composed, mean=(1.0, 3.0)))
 
 
 def test_alpha_prior_sensitivity_on_composed_prior():
@@ -628,18 +696,19 @@ def test_alpha_prior_sensitivity_on_composed_prior():
         [src],
         baseline=([0.0, 0.0, 0.0], [100.0, 100.0, 100.0]),
     )
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        inference=antecedent.Bayesian(
-            n_draws=64,
-            backend="conjugate",
-            prior_from=composed,
-        ),
-        refute="full",
-        seed=31,
-        return_posterior_artifact=True,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(
+                n_draws=64,
+                backend="conjugate",
+                prior_from=composed,
+            ),
+            refute="full",
+            execution=antecedent.Execution(seed=31),
+        )
     )
     assert result.posterior is not None
     sens = result.validation.prior_sensitivity
@@ -804,16 +873,17 @@ def test_gamma_from_mean_and_ess_rejects_negative_ess():
 def test_posterior_round_trip_preserves_named_schema_and_source_contrast(contrast):
     data, edges = _confounded()
     query = antecedent.AverageEffect("t", "y", control_level=0.0, active_level=contrast)
-    source = antecedent.analyze(
-        data,
-        graph=edges,
-        query=query,
-        inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
-        refute=False,
-        seed=13,
-        return_posterior_artifact=True,
+    source = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=query,
+            inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
+            refute=False,
+            execution=antecedent.Execution(seed=13),
+        )
     )
-    original = source.posterior.artifact
+    original = bytes(source.export(quantity="posterior"))
     decoded = antecedent.inference.decode_posterior_artifact(original)
     assert decoded.treatment_contrast == contrast
     reencoded = bytes(antecedent.inference.encode_posterior_artifact(decoded))
@@ -827,18 +897,338 @@ def test_posterior_round_trip_preserves_named_schema_and_source_contrast(contras
     ]:
         estimates = []
         for artifact in [original, reencoded]:
-            result = antecedent.analyze(
-                data,
-                graph=edges,
-                query=antecedent.AverageEffect("t", "y"),
-                inference=antecedent.Bayesian(
-                    n_draws=64,
-                    backend="conjugate",
-                    prior_from=artifact,
-                    mapping=mapping,
-                ),
-                refute=False,
-                seed=17,
+            result = require_success(
+                antecedent.analyze(
+                    data,
+                    graph=edges,
+                    query=antecedent.AverageEffect("t", "y"),
+                    inference=antecedent.Bayesian(
+                        n_draws=64,
+                        backend="conjugate",
+                        prior_from=artifact,
+                        mapping=mapping,
+                    ),
+                    refute=False,
+                    execution=antecedent.Execution(seed=17),
+                )
             )
             estimates.append(result.effect)
         assert estimates[0] == estimates[1]
+
+
+# -- mapped posterior transfer ----------------------------------------------------------------
+
+
+def _coefficient(name: str, *, units: str = "dimensionless", functional: str = "coefficient"):
+    return antecedent.artifacts.ScientificQuantity(
+        variable_id=name,
+        variable_name=name.split(":")[1],
+        role="covariate",
+        units=units,
+        population_id="population-1",
+        regime_id="observed",
+        horizon=0,
+        functional_id=functional,
+    )
+
+
+def _exact_gaussian_draws(mean, covariance, sigma2, n=400, seed=3):
+    """Finite draws whose population mean and covariance are exactly ``mean``/``covariance``."""
+    rng = np.random.default_rng(seed)
+    z = rng.normal(size=(n, len(mean)))
+    z -= z.mean(axis=0)
+    z = z @ np.linalg.inv(np.linalg.cholesky(z.T @ z / n)).T
+    coefficients = np.asarray(mean) + z @ np.linalg.cholesky(covariance).T
+    return np.column_stack([coefficients, np.full(n, sigma2)])
+
+
+def _source_identity(semantic="parameter_posterior", snapshot="batch-a-snapshot"):
+    return antecedent.artifacts.DistributionIdentity(
+        semantic=semantic,
+        quantities=(
+            _coefficient("source:x"),
+            _coefficient("source:y"),
+            _coefficient("source:sigma2", functional="residual_variance"),
+        ),
+        alignment="joint",
+        source_id="batch-a",
+        provider_id="conjugate-gaussian",
+        rng_id="deterministic-exact-quadrature",
+        snapshot_id=snapshot,
+        causal_contract_id="fixed-gaussian-contract",
+    )
+
+
+def _transfer(data, expected, **overrides):
+    arguments = {
+        "expected_source": expected,
+        "source_to_target": {"source:x": "target:x", "source:y": "target:y"},
+        "target_quantities": (_coefficient("target:y"), _coefficient("target:x")),
+        "target_snapshot_id": "batch-b-snapshot",
+        "target_contract_id": "fixed-gaussian-contract",
+        "known_residual_variance": 1.0,
+    }
+    arguments.update(overrides)
+    return antecedent.priors.mapped_posterior_transfer(data, **arguments)
+
+
+def test_mapped_posterior_transfer_permutes_the_exact_conjugate_posterior_into_the_target_order():
+    # Batch A: one row x = (1, 2), y = 1, prior N(0, I), sigma^2 = 1. The exact conjugate
+    # posterior is Sigma = (I + x'x)^-1 = [[5, -2], [-2, 2]] / 6 and mean Sigma x' y = (1/6, 1/3).
+    x = np.array([1.0, 2.0])
+    sigma = np.linalg.inv(np.eye(2) + np.outer(x, x))
+    mean = sigma @ x
+    np.testing.assert_allclose(mean, [1 / 6, 1 / 3], atol=1e-15)
+    expected = _source_identity()
+    source = antecedent.artifacts.JointDistributionArtifact(
+        expected, _exact_gaussian_draws(mean, sigma, 1.0)
+    )
+    data = bytes(source.export("batch-a-posterior"))
+    prior = _transfer(data, expected)
+    # The target lists (y, x): means and the full covariance follow the stable-id bijection.
+    assert prior.target_ids == ("target:y", "target:x")
+    swap = [1, 0]
+    np.testing.assert_allclose(prior.mean, mean[swap], atol=1e-10)
+    np.testing.assert_allclose(prior.covariance, sigma[np.ix_(swap, swap)], atol=1e-10)
+    assert prior.known_residual_variance == 1.0
+    assert prior.correlation is not None
+    assert prior.correlation[0][1] == pytest.approx(
+        sigma[0, 1] / math.sqrt(sigma[0, 0] * sigma[1, 1]), abs=1e-10
+    )
+    (receipt,) = [text for name, text in prior.assumptions if name == "mapped_posterior_transfer"]
+    assert "batch-a-snapshot" in receipt and "batch-b-snapshot" in receipt
+    # The covariance scales with the known residual variance of the target's baseline: a source
+    # whose residual-variance coordinate is 4 transfers to a prior with sigma^2 = 4 and V0 = Sigma.
+    scaled = antecedent.artifacts.JointDistributionArtifact(
+        expected, _exact_gaussian_draws(mean, 4.0 * sigma, 4.0)
+    )
+    scaled_prior = _transfer(
+        bytes(scaled.export("batch-a-scaled")), expected, known_residual_variance=4.0
+    )
+    np.testing.assert_allclose(scaled_prior.covariance, 4.0 * sigma[np.ix_(swap, swap)], atol=1e-9)
+    np.testing.assert_allclose(scaled_prior.scale_variance, np.diag(sigma)[swap], atol=1e-9)
+
+
+def test_mapped_posterior_transfer_refuses_identity_meaning_map_scale_and_coordinates():
+    sigma = np.array([[5.0, -2.0], [-2.0, 2.0]]) / 6.0
+    expected = _source_identity()
+    draws = _exact_gaussian_draws([1 / 6, 1 / 3], sigma, 1.0)
+    data = bytes(antecedent.artifacts.JointDistributionArtifact(expected, draws).export("a"))
+    assert _transfer(data, expected).mean[0] == pytest.approx(1 / 3, abs=1e-10)
+    errors = antecedent.errors
+    # The identity is the consumer's, not the artifact's.
+    with pytest.raises(errors.CausalError, match="identity"):
+        _transfer(data, _source_identity(snapshot="other"))
+    # Only complete joint parameter-posterior draws transfer.
+    boot = _source_identity(semantic="bootstrap")
+    boot_data = bytes(antecedent.artifacts.JointDistributionArtifact(boot, draws).export("b"))
+    with pytest.raises(errors.CausalError, match="parameter_posterior") as meaning:
+        _transfer(boot_data, boot)
+    assert meaning.value.reason_code == "distribution_meaning_mismatch"
+    # The map must be a complete bijection with unique stable ids and identical coordinates.
+    reused = {"source:x": "target:x", "source:y": "target:x"}
+    partial = {"source:x": "target:x"}
+    for bad_map in (reused, partial):
+        with pytest.raises(errors.CausalError, match="coefficient_map") as mapped:
+            _transfer(data, expected, source_to_target=bad_map)
+        assert mapped.value.reason_code == "quantity_semantics_mismatch"
+    with pytest.raises(errors.CausalError, match="coefficient_map"):
+        _transfer(
+            data,
+            expected,
+            target_quantities=(_coefficient("target:y", units="meters"), _coefficient("target:x")),
+        )
+    with pytest.raises(errors.CausalError, match="snapshot"):
+        _transfer(data, expected, target_snapshot_id="")
+    # The source's residual variance must equal the target's known variance.
+    with pytest.raises(errors.CausalError, match="residual_variance") as scale:
+        _transfer(data, expected, known_residual_variance=2.0)
+    assert scale.value.reason_code == "prior_transfer_not_hydrated"
+
+
+def _single_source() -> antecedent.priors.ExternalPriorSourceSpec:
+    return antecedent.priors.ExternalPriorSourceSpec(
+        id="only",
+        mean=(1.0,),
+        variance=(1.0,),
+        weight=antecedent.priors.ExternalPriorWeight(alpha=1.0),
+    )
+
+
+def test_conflict_signals_without_policy_refused():
+    with pytest.raises(ValueError, match="conflict_signals"):
+        antecedent.priors.compose_external_priors(
+            [_single_source()],
+            baseline=([0.0], [4.0]),
+            conflict_signals=[{"p_value": 1e-9}],
+        )
+
+
+def test_conflict_signals_length_must_match_sources():
+    with pytest.raises(ValueError, match="conflict_signals"):
+        antecedent.priors.compose_external_priors(
+            [_single_source()],
+            baseline=([0.0], [4.0]),
+            conflict=antecedent.priors.ConflictPolicy(p_min=0.05, kl_scale=1.0),
+            conflict_signals=[{"p_value": 0.4}, {"p_value": 1e-9}],
+        )
+
+
+def test_beta_binomial_posterior_is_the_closed_form():
+    prior = antecedent.priors.BetaHyperparameters(alpha=2.0, beta=3.0)
+    post = antecedent.priors.beta_binomial_posterior(
+        7, 20, prior=prior, level=0.9, predictive_trials=4
+    )
+    assert (post.alpha, post.beta) == (9.0, 16.0)
+    assert post.mean == pytest.approx(9.0 / 25.0, rel=1e-14)
+    assert post.lower < post.mean < post.upper
+    assert post.predictive is not None
+    assert sum(post.predictive.pmf) == pytest.approx(1.0, abs=1e-12)
+    assert post.predictive.mean == pytest.approx(4 * 9.0 / 25.0, rel=1e-12)
+
+
+def test_exceedance_counts_strictly_above_the_threshold():
+    prior = antecedent.priors.BetaHyperparameters(alpha=1.0, beta=1.0)
+    post = antecedent.priors.exceedance_posterior([1.0, 2.0, 2.0, 3.0, 5.0], 2.0, prior=prior)
+    assert (post.successes, post.trials) == (2, 5)
+    assert (post.alpha, post.beta) == (3.0, 4.0)
+    with pytest.raises(ValueError, match="finite"):
+        antecedent.priors.exceedance_posterior([1.0, float("nan")], 2.0, prior=prior)
+
+
+def test_gamma_poisson_posterior_is_the_closed_form():
+    prior = antecedent.priors.GammaHyperparameters(shape=2.0, rate=1.0)
+    post = antecedent.priors.gamma_poisson_posterior(
+        [3, 0, 4, 2], prior=prior, predictive_exposure=1.0
+    )
+    assert (post.shape, post.rate) == (11.0, 5.0)
+    assert post.mean == pytest.approx(2.2, rel=1e-14)
+    assert post.predictive is not None
+    assert sum(post.predictive.pmf) == pytest.approx(1.0, abs=1e-6)
+
+
+def test_selected_alpha_discounts_a_conflicting_source_and_reports_the_table():
+    base = antecedent.priors.BetaHyperparameters(alpha=1.0, beta=1.0)
+    outcomes = [i < 12 for i in range(60)]
+    selected = antecedent.priors.select_alpha_beta_binomial(90, 100, outcomes, base=base, seed=3)
+    assert selected.selected_alpha < 0.2
+    assert len(selected.sensitivity) == 21
+    assert selected.sensitivity[0].alpha == 0.0
+    assert selected.interval[0] <= selected.estimate <= selected.interval[1]
+    assert selected.interval == selected.uniform_interval
+    assert selected.discrepancy_bound is None
+    bounded = antecedent.priors.select_alpha_beta_binomial(
+        300, 1000, [i < 30 for i in range(100)], base=base, discrepancy_bound=0.02
+    )
+    assert bounded.discrepancy_bound == 0.02
+    assert (bounded.interval[1] - bounded.interval[0]) < (
+        bounded.uniform_interval[1] - bounded.uniform_interval[0]
+    )
+
+
+def test_selected_alpha_refuses_a_mixture_source_and_a_grid_without_zero():
+    base = antecedent.priors.BetaHyperparameters(alpha=1.0, beta=1.0)
+    with pytest.raises(ValueError, match="start at 0"):
+        antecedent.priors.select_alpha_beta_binomial(
+            3, 10, [True, False, True], base=base, grid=[0.5, 1.0]
+        )
+    source = antecedent.priors.ExternalPriorSourceSpec(
+        id="s",
+        mean=(1.0,),
+        variance=(1.0,),
+        weight=antecedent.priors.ExternalPriorWeight(alpha=1.0, mixture_weight=0.5),
+    )
+    with pytest.raises(ValueError, match="power path"):
+        antecedent.priors.select_alpha_linear(
+            [source],
+            [0.0],
+            [4.0],
+            [[1.0]] * 6,
+            [1.0, 2.0, 1.5, 0.5, 1.0, 1.2],
+            [1.0],
+            known_residual_variance=1.0,
+        )
+
+
+def _neighbourhood_rows(n: int = 400):
+    xs = [-2.0 + 4.0 * i / n for i in range(n)]
+    effects = [2.0 if abs(x) < 0.5 else 5.0 for x in xs]
+    return xs, effects
+
+
+def test_kernel_weights_equal_hand_values():
+    w = antecedent.priors.TransportKernel("epanechnikov", 2.0).weights([0.0, 1.0, 2.0])
+    assert w == pytest.approx([1.0, 0.75, 0.0], abs=1e-15)
+    g = antecedent.priors.TransportKernel("gaussian", 2.0).weights([2.0])
+    assert g[0] == pytest.approx(math.exp(-0.5), abs=1e-15)
+    t = antecedent.priors.TransportKernel("tricube", 2.0).weights([1.0])
+    assert t[0] == pytest.approx((1.0 - 0.125) ** 3, abs=1e-15)
+
+
+def test_weighted_target_recovers_the_planted_neighbourhood_effect():
+    xs, effects = _neighbourhood_rows()
+    weights = [1.0 if abs(x) < 0.5 else 0.0 for x in xs]
+    composed = antecedent.priors.compose_external_priors_for_target(
+        [_single_source()],
+        transport=antecedent.priors.TransportPolicy.invariant_conditional_outcome(),
+        unit_effects=effects,
+        target_weights=weights,
+        baseline=([0.0], [100.0]),
+    )
+    assert composed.target_overlap is not None
+    assert composed.target_overlap.n_support == sum(1 for w in weights if w > 0)
+    assert composed.target_overlap.kish_ess == pytest.approx(composed.target_overlap.n_support)
+    assert "external_transport_target_weighting" in composed.assumption_ids
+
+
+def test_kernel_identity_enters_the_composed_prior_assumptions():
+    xs, effects = _neighbourhood_rows()
+    distances = [abs(x) for x in xs]
+    policy = antecedent.priors.TransportPolicy.invariant_conditional_outcome()
+
+    def ids(family: str, bandwidth: float) -> tuple[str, ...]:
+        return antecedent.priors.compose_external_priors_for_target(
+            [_single_source()],
+            transport=policy,
+            unit_effects=effects,
+            kernel=antecedent.priors.TransportKernel(family, bandwidth),  # type: ignore[arg-type]
+            unit_distances=distances,
+            baseline=([0.0], [100.0]),
+        ).assumption_ids
+
+    base = ids("gaussian", 0.4)
+    assert base == ids("gaussian", 0.4)
+    assert base != ids("gaussian", 0.5)
+    assert base != ids("tricube", 0.4)
+
+
+def test_thin_overlap_is_refused_with_a_next_attempt():
+    xs, effects = _neighbourhood_rows()
+    with pytest.raises(ValueError, match="Next attempt"):
+        antecedent.priors.compose_external_priors_for_target(
+            [_single_source()],
+            transport=antecedent.priors.TransportPolicy.invariant_conditional_outcome(),
+            unit_effects=effects,
+            kernel=antecedent.priors.TransportKernel("gaussian", 0.001),
+            unit_distances=[abs(x) for x in xs],
+            baseline=([0.0], [100.0]),
+        )
+
+
+def test_bandwidth_sensitivity_lists_the_unsupported_bandwidth():
+    xs, effects = _neighbourhood_rows()
+    rows = antecedent.priors.transport_bandwidth_sensitivity(
+        "epanechnikov", [0.01, 0.5, 1.0], [abs(x) for x in xs], effects
+    )
+    assert [r.overlap_ok for r in rows] == [False, True, True]
+    assert rows[0].refusal is not None and "Next attempt" in rows[0].refusal
+    assert rows[1].weighted_mean == pytest.approx(2.0, abs=0.05)
+
+
+def test_target_declaration_must_be_exactly_one_of_weights_or_kernel():
+    with pytest.raises(ValueError, match="exactly one"):
+        antecedent.priors.compose_external_priors_for_target(
+            [_single_source()],
+            transport=antecedent.priors.TransportPolicy.invariant_conditional_outcome(),
+            unit_effects=[1.0, 2.0],
+        )

@@ -1,24 +1,24 @@
-//! Click controls for one estimate or refresh.
+//! Click controls for one estimate.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
 use antecedent::PreparedStudy;
-use antecedent_core::ExecutionContext;
+use antecedent::prelude::ExecutionContext;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
 use crate::{AteAnalysisResult, ate_result_from_analysis, py_execution_context_ext};
 
-/// Execution controls for one estimate or refresh click.
+/// Execution controls for one estimate click.
 ///
 /// Cancellation and progress ride on the execution context. A stage sink is
 /// set on a private clone of the prepared study for this click only, so it is
 /// never retained by the handle, a snapshot, or an exported claim.
 pub(super) struct ClickControls {
-    cancel: Option<antecedent_core::CancellationToken>,
-    progress: Option<Arc<dyn antecedent_core::ProgressSink>>,
+    cancel: Option<antecedent::execution::CancellationToken>,
+    progress: Option<Arc<dyn antecedent::execution::ProgressSink>>,
     stage: Option<Arc<dyn antecedent::StageResultSink>>,
 }
 
@@ -35,7 +35,11 @@ impl ClickControls {
         })
     }
 
-    pub(super) fn ctx(&self, seed: u64, threads: Option<u32>) -> antecedent_core::ExecutionContext {
+    pub(super) fn ctx(
+        &self,
+        seed: u64,
+        threads: Option<u32>,
+    ) -> antecedent::prelude::ExecutionContext {
         py_execution_context_ext(
             seed,
             crate::resolve_user_threads(threads),
@@ -52,7 +56,7 @@ impl ClickControls {
             Some(sink) => {
                 refuse_unstaged(inner)?;
                 let mut staged = (**inner).clone();
-                staged.set_stage_sink(Some(Arc::clone(sink)));
+                staged.set_stage_sink(Some(crate::interrupt::bind_stage_sink(Arc::clone(sink))));
                 Ok(Arc::new(staged))
             }
         }
@@ -63,7 +67,7 @@ impl ClickControls {
         let mut owned = (**inner).clone();
         if let Some(sink) = &self.stage {
             refuse_unstaged(inner)?;
-            owned.set_stage_sink(Some(Arc::clone(sink)));
+            owned.set_stage_sink(Some(crate::interrupt::bind_stage_sink(Arc::clone(sink))));
         }
         Ok(owned)
     }
@@ -73,9 +77,9 @@ pub(super) fn map_ate(
     names: &[String],
     result: &antecedent::StudyResult,
     _prepared: &PreparedStudy,
-    _ctx: &ExecutionContext,
+    ctx: &ExecutionContext,
 ) -> PyResult<AteAnalysisResult> {
-    ate_result_from_analysis(names, result.clone(), false)
+    ate_result_from_analysis(names, result, false, ctx)
 }
 
 pub(super) fn refuse_unstaged(inner: &PreparedStudy) -> PyResult<()> {
@@ -83,7 +87,7 @@ pub(super) fn refuse_unstaged(inner: &PreparedStudy) -> PyResult<()> {
         return Ok(());
     }
     Err(crate::refusal(
-        antecedent_core::reason_code!("stage_stream_unavailable"),
+        antecedent::reason::reason_code!("stage_stream_unavailable"),
         "on_stage streams identify, estimate_point, \
          uncertainty and validate for one identification and one scalar effect whose point is \
          fitted before its uncertainty; this route fits its point and uncertainty together or \

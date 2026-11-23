@@ -1,9 +1,7 @@
 //! Exact finite SCM, two real attested providers and one measured shared workflow.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::analysis::recalc_composite::*;
-use antecedent::analysis::recalc_external::{
-    CallbackPolicy, ExternalMeanProvider, count_external_invocations,
-};
+use antecedent::analysis::recalc_external::{CallbackPolicy, ExternalMeanProvider};
 use antecedent::analysis::recalc_receipt::UtilitySpec;
 use antecedent::analysis::recalc_static::{
     StaticResponseRequest, StaticResponseSession, execute_static_response_with_receipt,
@@ -37,7 +35,7 @@ fn fixture() -> (CompositeSession, CompositeRequest, reference::Provider, refere
     graph.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
     graph.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
     let request = StaticResponseRequest {
-        columns,
+        columns: columns.into(),
         graph,
         treatment: VariableId::from_raw(0),
         outcome: VariableId::from_raw(2),
@@ -54,7 +52,7 @@ fn fixture() -> (CompositeSession, CompositeRequest, reference::Provider, refere
     }
     assert!(native.producing_receipt().unwrap().totals().factor_builds > 0);
     let result = native.result().unwrap();
-    let contract = result.executed_contract.as_ref().unwrap();
+    let contract = result.executed_contract().unwrap();
     let graph_id = format!("graph:{}", contract.identities.identification);
     let binding = ProgramBinding {
         contract_id: antecedent_io::external_binding_wire::native_contract_identity(
@@ -110,21 +108,22 @@ fn execute(
     p1: &mut reference::Provider,
     p2: &mut reference::Provider,
 ) -> CompositeOutcome {
+    let before = p1.calls + p2.calls;
     let mut providers: BTreeMap<Branch, &mut dyn ExternalMeanProvider> = BTreeMap::new();
-    providers.insert(request.externals[0].branch, p1);
-    providers.insert(request.externals[1].branch, p2);
-    let ((((out, fits), calls), work), ids) =
+    providers.insert(request.externals[0].branch, &mut *p1);
+    providers.insert(request.externals[1].branch, &mut *p2);
+    let (((out, fits), work), ids) =
         antecedent_identify::execution_counts::count_checked_identifications(|| {
             antecedent_expr::execution_counts::count_static_work(|| {
-                count_external_invocations(|| {
-                    observe_resolved_fits(|| {
-                        session
-                            .execute(request, &mut providers, &ExecutionContext::for_tests(7))
-                            .unwrap()
-                    })
+                observe_resolved_fits(|| {
+                    session
+                        .execute(request, &mut providers, &ExecutionContext::for_tests(7))
+                        .unwrap()
                 })
             })
         });
+    drop(providers);
+    let calls = p1.calls + p2.calls - before;
     assert_eq!(fits, 0);
     assert_eq!(calls, out.receipt.totals().external_invocations);
     assert_eq!(work.factor_builds, out.receipt.totals().factor_builds);
@@ -193,13 +192,13 @@ fn callback_failure_preserves_combined_native_and_foreign_success() {
     let native_receipt = session.native().producing_receipt().unwrap().identity();
     request.externals[0].columns[0].1 = vec![0.0, 2.0];
     p1.fail = true;
+    let before = p1.calls + p2.calls;
     let mut providers: BTreeMap<Branch, &mut dyn ExternalMeanProvider> = BTreeMap::new();
     providers.insert(request.externals[0].branch, &mut p1);
     providers.insert(request.externals[1].branch, &mut p2);
-    let (failure, calls) = count_external_invocations(|| {
-        session.execute(&request, &mut providers, &ExecutionContext::for_tests(7))
-    });
-    assert_eq!(calls, 1);
+    let failure = session.execute(&request, &mut providers, &ExecutionContext::for_tests(7));
+    drop(providers);
+    assert_eq!(p1.calls + p2.calls - before, 1);
     assert!(matches!(failure, Err(CompositeError::External { .. })));
     assert_eq!(native_pointer, std::ptr::from_ref(session.native().result().unwrap()));
     assert_eq!(native_receipt, session.native().producing_receipt().unwrap().identity());
@@ -222,7 +221,9 @@ fn native_proof_substitution_refuses_purely_and_preserves_shared_state() {
     }
     assert!(matches!(
         session.plan(&request),
-        Err(CompositeError::Request("composite_recalc.native_state_mismatch"))
+        Err(CompositeError::Request(
+            antecedent_core::reason_details::composite_recalc::NATIVE_STATE_MISMATCH
+        ))
     ));
     assert_eq!((p1.calls, p2.calls), (1, 1));
     let out = execute(&mut session, &old, &mut p1, &mut p2);
@@ -233,15 +234,8 @@ fn native_proof_substitution_refuses_purely_and_preserves_shared_state() {
 fn native_data_refresh_counts_real_factors_and_retains_both_providers() {
     let (mut session, mut request, mut p1, mut p2) = fixture();
     execute(&mut session, &request, &mut p1, &mut p2);
-    let old_snapshot = session
-        .native()
-        .result()
-        .unwrap()
-        .executed_contract
-        .as_ref()
-        .unwrap()
-        .identities
-        .data_snapshot;
+    let old_snapshot =
+        session.native().result().unwrap().executed_contract().unwrap().identities.data_snapshot;
     for value in &mut request.native.columns[2].1 {
         *value += 1.0;
     }
@@ -253,15 +247,7 @@ fn native_data_refresh_counts_real_factors_and_retains_both_providers() {
     assert_eq!((p1.calls, p2.calls), (1, 1));
     assert_ne!(
         old_snapshot,
-        session
-            .native()
-            .result()
-            .unwrap()
-            .executed_contract
-            .as_ref()
-            .unwrap()
-            .identities
-            .data_snapshot
+        session.native().result().unwrap().executed_contract().unwrap().identities.data_snapshot
     );
     let response = session.native().result().unwrap().response().unwrap();
     let antecedent_core::ResponseIdentification::PointIdentified(
@@ -407,7 +393,9 @@ fn declared_source_preference_selects_all_three_actual_sources_and_is_terminal_o
     request.input_order = vec!["native".into(); 3];
     assert!(matches!(
         session.plan(&request),
-        Err(CompositeError::Request("composite_recalc.request_unsupported"))
+        Err(CompositeError::Request(
+            antecedent_core::reason_details::composite_recalc::REQUEST_UNSUPPORTED
+        ))
     ));
     let out = execute(&mut session, &published, &mut p1, &mut p2);
     assert_eq!(out.receipt.totals().total(), 0);
@@ -417,11 +405,10 @@ fn declared_source_preference_selects_all_three_actual_sources_and_is_terminal_o
     absent.dose_grid = vec![99.0];
     request.decision_contract.actions[0].inputs = absent.expected_quantities();
     let mut providers: BTreeMap<Branch, &mut dyn ExternalMeanProvider> = BTreeMap::new();
-    let (refused, calls) = count_external_invocations(|| {
-        session.execute(&request, &mut providers, &ExecutionContext::for_tests(7))
-    });
+    let before = p1.calls + p2.calls;
+    let refused = session.execute(&request, &mut providers, &ExecutionContext::for_tests(7));
     assert!(matches!(refused, Err(CompositeError::Binding(_))));
-    assert_eq!(calls, 0);
+    assert_eq!(p1.calls + p2.calls, before);
     assert_eq!(execute(&mut session, &published, &mut p1, &mut p2).receipt.totals().total(), 0);
 }
 
@@ -476,7 +463,10 @@ fn actual_combined_decision_routes_original_structural_ranking_and_fresh_source_
         SupportStatus::Supported,
     ];
     let no_source = ConditionalStudyRanking::execute(&session, conditional_policy());
-    assert_eq!(no_source.err().unwrap().detail, "conditional_study_ranking.source_unavailable");
+    assert_eq!(
+        no_source.err().unwrap().detail,
+        antecedent_core::reason_details::conditional_study_ranking::SOURCE_UNAVAILABLE
+    );
     execute(&mut session, &request, &mut p1, &mut p2);
     let before_calls = (p1.calls, p2.calls);
     let before = ConditionalStudyRanking::execute(&session, conditional_policy()).unwrap();
@@ -506,7 +496,7 @@ fn actual_combined_decision_routes_original_structural_ranking_and_fresh_source_
     assert_ne!(after.identity(), before.identity());
     assert_eq!(
         ConditionalStudyRanking::consume(&bytes, &session, None).err().unwrap().detail,
-        "conditional_study_ranking.source_mismatch"
+        antecedent_core::reason_details::conditional_study_ranking::SOURCE_MISMATCH
     );
     // Resealing altered scientific source fields still cannot match issued current state.
     let mut mutated: serde_json::Value =
@@ -524,7 +514,7 @@ fn actual_combined_decision_routes_original_structural_ranking_and_fresh_source_
     incomplete.branches.pop();
     assert_eq!(
         ConditionalStudyRanking::execute(&session, incomplete).err().unwrap().detail,
-        "conditional_study_ranking.invalid_policy"
+        antecedent_core::reason_details::conditional_study_ranking::INVALID_POLICY
     );
     let mut policy = conditional_policy();
     policy.policy_id = "conditional-study-v2".into();

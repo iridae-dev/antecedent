@@ -42,22 +42,30 @@
 //! decision probability read from a model fitted to a sample is a point value,
 //! labelled so by the caller; no interval or calibration is produced here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 
 use antecedent_core::ExecutionContext;
 
-use crate::compose::{ComposedFinite, CompositionError, FiniteLaw};
+use crate::compose::{
+    ComposedFinite, ComposedLinearGaussian, CompositionError, FiniteLaw, GaussianConditioningError,
+};
+use antecedent_core::named_variants;
 
 /// Largest observation count an evidence-requirement solve may search or return.
 pub const MAX_REQUIRED_OBSERVATIONS: u64 = 1 << 24;
 /// Most hypotheses a declared finite Bayes model may hold.
-pub const MAX_BAYES_HYPOTHESES: usize = 256;
+pub const MAX_BAYES_HYPOTHESES: usize = 4096;
 /// Most observation levels a declared finite Bayes model may hold.
-pub const MAX_BAYES_OBSERVATION_LEVELS: usize = 256;
-/// Most observations one posterior update may consume.
-pub const MAX_BAYES_SEQUENCE: usize = 1 << 20;
+pub const MAX_BAYES_OBSERVATION_LEVELS: usize = 4096;
+/// Most likelihood-table cells (`hypotheses x observation levels`) a declared finite Bayes
+/// model may hold: the work and memory budget that bounds the two counts jointly.
+pub const MAX_BAYES_TABLE_CELLS: usize = 1 << 22;
+/// Most work units one posterior update may spend: observations tallied plus likelihood-table
+/// cells folded. A budget on cost rather than on the count of observations, so a long stream
+/// over a small model is accepted while a huge model still refuses.
+pub const MAX_BAYES_UPDATE_WORK: u64 = 1 << 32;
 /// Slack, in log-odds (or probability for the conjugate solve), within which a
 /// level counts as reached. The boundary itself is reached.
 pub const LEVEL_TOLERANCE: f64 = 1e-12;
@@ -73,24 +81,10 @@ pub enum Direction {
     Lower,
 }
 
-impl Direction {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Raise => "raise",
-            Self::Lower => "lower",
-        }
-    }
-
-    /// Parse a stable name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        match name {
-            "raise" => Some(Self::Raise),
-            "lower" => Some(Self::Lower),
-            _ => None,
-        }
+named_variants! {
+    Direction {
+        Raise => "raise",
+        Lower => "lower",
     }
 }
 
@@ -159,6 +153,15 @@ pub enum ObservationQueryError {
         /// Why the level is out of reach.
         bound: UnreachableBound,
     },
+    /// A variable is both observed and intervened on; the observation of a
+    /// variable whose mechanism was removed carries no information about the
+    /// rest of the model.
+    #[error("variable `{0}` is both observed and intervened on")]
+    ObservedAndIntervened(String),
+    /// The observed real values have a singular joint covariance under the
+    /// model, so no conditional law is defined for them.
+    #[error("the observed values have a singular covariance under the model")]
+    EvidenceSingular,
     /// Cancellation was observed at a work boundary.
     #[error("observation query cancelled")]
     Cancelled,
@@ -370,6 +373,141 @@ pub fn conditioning_and_intervention(
         .map(|((_, a), (_, b))| (a - b).abs())
         .fold(0.0_f64, f64::max);
     Ok(ConditioningInterventionPair { conditioning, intervention, max_abs_difference })
+}
+
+// ------------------------------------------- observation after intervention
+
+/// The exact joint law under `do(interventions)`, for conditioning on values
+/// observed afterwards.
+///
+/// The composition of the truncated factorization with [`condition`] is the
+/// law `P(y | do(s), z)`: the mechanism of every intervened variable is removed
+/// and the remaining model is then conditioned on the recorded values `z`. It
+/// is sound when no recorded variable is itself intervened on (a variable whose
+/// mechanism was cut is set, not observed). Recorded descendants of the
+/// intervention are informative about the unobserved causes of the outcome;
+/// recorded ancestors are not changed by the intervention.
+///
+/// # Errors
+/// An unknown variable or level, a variable intervened on twice, a variable
+/// that is both recorded and intervened on
+/// ([`ObservationQueryError::ObservedAndIntervened`]), or cancellation.
+pub fn intervened_law(
+    model: &ComposedFinite,
+    interventions: &[(&str, &str)],
+    observed: &[(&str, &str)],
+    ctx: &ExecutionContext,
+) -> Result<FiniteLaw, ObservationQueryError> {
+    let observational = model.law(&[], ctx).map_err(composition)?;
+    resolve_assignments(&observational, interventions)?;
+    resolve_assignments(&observational, observed)?;
+    if let Some(&(variable, _)) =
+        observed.iter().find(|(v, _)| interventions.iter().any(|(i, _)| i == v))
+    {
+        return Err(ObservationQueryError::ObservedAndIntervened(variable.to_owned()));
+    }
+    model.law(interventions, ctx).map_err(composition)
+}
+
+/// `P(outcome | do(interventions), observed values)` on a composed finite
+/// model: the interventional law, conditioned on the recorded values.
+///
+/// # Errors
+/// As [`intervened_law`] and [`condition`].
+pub fn condition_after_intervention(
+    model: &ComposedFinite,
+    outcome: &str,
+    interventions: &[(&str, &str)],
+    observed: &[(&str, &str)],
+    ctx: &ExecutionContext,
+) -> Result<ConditionalDistribution, ObservationQueryError> {
+    let law = intervened_law(model, interventions, observed, ctx)?;
+    condition(&law, outcome, observed, ctx)
+}
+
+// ------------------------------------------------- continuous (Gaussian)
+
+/// The Gaussian conditional law of one outcome given observed real values.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GaussianConditional {
+    /// The outcome variable.
+    pub outcome: String,
+    /// Conditional mean of the outcome.
+    pub mean: f64,
+    /// Conditional variance of the outcome.
+    pub variance: f64,
+    /// Log density of the observed values under their marginal law; `None`
+    /// when nothing was observed.
+    pub evidence_log_density: Option<f64>,
+}
+
+/// `P(outcome | do(interventions), observed values)` on a composed
+/// linear-Gaussian model: the interventional joint Gaussian conditioned on the
+/// observed real values by the Schur complement of the observed block.
+///
+/// An empty `interventions` is plain conditioning and an empty `observed` is
+/// the interventional law; both may be empty. A recorded variable must not be
+/// intervened on.
+///
+/// # Errors
+/// An unknown variable, a repeated variable, the outcome among the observed or
+/// intervened variables, a variable both observed and intervened on, a value
+/// that is not finite or outside the domain a consumer was fitted on (for an
+/// intervention), observed values of singular covariance, or cancellation.
+pub fn condition_gaussian(
+    model: &ComposedLinearGaussian,
+    outcome: &str,
+    interventions: &[(&str, f64)],
+    observed: &[(&str, f64)],
+    ctx: &ExecutionContext,
+) -> Result<GaussianConditional, ObservationQueryError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(ObservationQueryError::Cancelled);
+    }
+    if !model.variables().iter().any(|v| v == outcome) {
+        return Err(ObservationQueryError::UnknownVariable(outcome.to_owned()));
+    }
+    if observed.iter().chain(interventions).any(|&(v, _)| v == outcome) {
+        return Err(ObservationQueryError::OutcomeObserved(outcome.to_owned()));
+    }
+    for &(variable, _) in observed {
+        if !model.variables().iter().any(|v| v == variable) {
+            return Err(ObservationQueryError::UnknownVariable(variable.to_owned()));
+        }
+        if interventions.iter().any(|&(i, _)| i == variable) {
+            return Err(ObservationQueryError::ObservedAndIntervened(variable.to_owned()));
+        }
+    }
+    let law = model.law(interventions).map_err(composition)?;
+    let conditioned = law.condition(observed).map_err(|error| match error {
+        GaussianConditioningError::UnknownVariable(name) => {
+            ObservationQueryError::UnknownVariable(name)
+        }
+        GaussianConditioningError::RepeatedVariable(name) => {
+            ObservationQueryError::RepeatedVariable(name)
+        }
+        GaussianConditioningError::NotFinite(_) => {
+            ObservationQueryError::Invalid("an observed value must be finite")
+        }
+        GaussianConditioningError::SingularEvidence => ObservationQueryError::EvidenceSingular,
+        GaussianConditioningError::Unrepresentable => {
+            ObservationQueryError::Composition(CompositionError::Numerical {
+                message: "the Gaussian conditional output is not representable as a finite number"
+                    .into(),
+            })
+        }
+    })?;
+    let (Some(mean), Some(variance)) =
+        (conditioned.mean_of(outcome), conditioned.variance_of(outcome))
+    else {
+        return Err(ObservationQueryError::UnknownVariable(outcome.to_owned()));
+    };
+    Ok(GaussianConditional {
+        outcome: outcome.to_owned(),
+        mean,
+        variance: variance.max(0.0),
+        evidence_log_density: (!observed.is_empty()).then(|| conditioned.evidence_log_density()),
+    })
 }
 
 // ------------------------------------------------------- measured signals
@@ -634,6 +772,7 @@ impl FiniteBayesModel {
         distinct_names(&observation_levels, "observation levels must be distinct non-blank names")?;
         if hypotheses.len() > MAX_BAYES_HYPOTHESES
             || observation_levels.len() > MAX_BAYES_OBSERVATION_LEVELS
+            || hypotheses.len().saturating_mul(observation_levels.len()) > MAX_BAYES_TABLE_CELLS
         {
             return Err(ObservationQueryError::Invalid("the Bayes model exceeds its size bound"));
         }
@@ -681,23 +820,36 @@ impl FiniteBayesModel {
         &self.likelihood
     }
 
+    /// Refuse an update whose tally (`observations` items) plus table fold exceeds the budget.
+    fn check_update_work(&self, observations: u64) -> Result<(), ObservationQueryError> {
+        let cells =
+            (self.hypotheses.len() as u64).saturating_mul(self.observation_levels.len() as u64);
+        if observations.saturating_add(cells) > MAX_BAYES_UPDATE_WORK {
+            return Err(ObservationQueryError::Invalid("the Bayes update exceeds its work budget"));
+        }
+        Ok(())
+    }
+
     /// The posterior after `observations` (level names; any order).
     ///
     /// # Errors
-    /// An unknown observation level, more than [`MAX_BAYES_SEQUENCE`]
-    /// observations, or observations of probability zero under every
-    /// hypothesis.
+    /// An unknown observation level, a tally plus table fold above
+    /// [`MAX_BAYES_UPDATE_WORK`], or observations of probability zero under
+    /// every hypothesis.
     pub fn posterior(
         &self,
         observations: &[&str],
     ) -> Result<BayesPosterior, ObservationQueryError> {
-        if observations.len() > MAX_BAYES_SEQUENCE {
-            return Err(ObservationQueryError::Invalid("too many observations"));
-        }
-        let o = self.observation_levels.len();
-        let mut counts = vec![0_u64; o];
+        self.check_update_work(observations.len() as u64)?;
+        let index: HashMap<&str, usize> = self
+            .observation_levels
+            .iter()
+            .enumerate()
+            .map(|(i, level)| (level.as_str(), i))
+            .collect();
+        let mut counts = vec![0_u64; self.observation_levels.len()];
         for level in observations {
-            let Some(i) = self.observation_levels.iter().position(|l| l == level) else {
+            let Some(&i) = index.get(level) else {
                 return Err(ObservationQueryError::UnknownLevel {
                     variable: "observation".to_owned(),
                     level: (*level).to_owned(),
@@ -705,6 +857,28 @@ impl FiniteBayesModel {
             };
             counts[i] += 1;
         }
+        self.posterior_from_counts(&counts)
+    }
+
+    /// The posterior after observing level `i` exactly `counts[i]` times (the sufficient
+    /// statistic of [`Self::posterior`]); the stream itself is never materialised, so the
+    /// sequence length is bounded only by `u64` arithmetic.
+    ///
+    /// # Errors
+    /// A count slice that does not match the observation levels, a table fold above
+    /// [`MAX_BAYES_UPDATE_WORK`], or observations of probability zero under every
+    /// hypothesis.
+    pub fn posterior_from_counts(
+        &self,
+        counts: &[u64],
+    ) -> Result<BayesPosterior, ObservationQueryError> {
+        let o = self.observation_levels.len();
+        if counts.len() != o {
+            return Err(ObservationQueryError::Invalid(
+                "one count per observation level is required",
+            ));
+        }
+        self.check_update_work(0)?;
         let log_weights: Vec<f64> = (0..self.hypotheses.len())
             .map(|h| {
                 let mut w = self.prior[h].ln();

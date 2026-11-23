@@ -9,7 +9,7 @@
 //! against the independent numpy reference committed next to the fixture;
 //! the Bayesian envelope mean and SD are seeded output pins.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -18,6 +18,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, PreparedStudy, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, VariableId,
@@ -139,7 +140,7 @@ fn run_prepared(
     if matches!(prepared.query(), CausalQuery::AverageEffect(_))
         && prepared.plan().logical.record.estimator.as_deref() == Some("linear.adjustment.ate")
     {
-        assert!(prepared.has_checked_static_class_effect_operation());
+        assert!(matches!(prepared.retained_operation(), RetainedOperation::StaticClassEffect(..)));
     }
     let click = prepared.estimate(data, &ctx).unwrap();
     if matches!(prepared.query(), CausalQuery::AverageEffect(_))
@@ -147,11 +148,11 @@ fn run_prepared(
     {
         let artifact =
             prepared.encode_contracted_result(&click, "checked-static-class-effect", &ctx).unwrap();
-        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+        let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
         assert!(consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_static_class_effect_operation"
         }));
-        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert!(!consumed.acceptance.accepts_as_replayed_program());
     }
     // The Bayesian average-effect class route executes its retained envelope
     // from the one-shot facade too; every other one-shot still identifies inline.
@@ -160,12 +161,13 @@ fn run_prepared(
     assert_eq!(cached_count(&fresh), usize::from(one_shot_sealed));
     assert_eq!(cached_count(&click), 1);
     assert!(
-        (click.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate).abs()
+        (click.estimate().as_effect().unwrap().ate - fresh.estimate().as_effect().unwrap().ate)
+            .abs()
             < 1e-12
     );
     let mut out = vec![fresh, click];
     if suite != RefuteSuite::Full {
-        let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+        let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
         assert_eq!(cached_count(&refreshed), 1, "same-schema refresh must reuse the envelope");
         out.push(refreshed);
     }
@@ -188,7 +190,7 @@ fn assert_envelope(result: &antecedent::StudyResult, pin: &serde_json::Value) {
             .any(|d| d.code.as_ref() == "identify.pag.envelope" && d.message.contains(&expected)),
         "PAG envelope diagnostic must report the pinned completion masses ({expected})"
     );
-    assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(result.support_status().unwrap().as_str(), "supported");
     assert_eq!(format!("{:?}", result.identification.status), id["status"].as_str().unwrap());
 }
 
@@ -297,22 +299,22 @@ fn pag_effect_executes_from_retained_plan_after_builder_is_dropped() {
         RefuteSuite::None,
     );
     let prepared = builder.prepare(&context).unwrap();
-    assert!(prepared.has_checked_static_class_effect_operation());
+    assert!(matches!(prepared.retained_operation(), RetainedOperation::StaticClassEffect(..)));
     drop(builder);
 
     let result = prepared.estimate(&data, &context).unwrap();
-    assert!((result.estimate.as_effect().unwrap().ate - expected).abs() < 1e-10);
+    assert!((result.estimate().as_effect().unwrap().ate - expected).abs() < 1e-10);
     assert!(result.diagnostics.iter().any(|item| item.code.as_ref() == "exec.identify.cached"));
     let artifact = prepared
         .encode_contracted_result(&result, "checked-static-class-effect", &context)
         .unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
     assert!(
         consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_static_class_effect_operation"
         })
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 }
 
 #[test]
@@ -335,20 +337,20 @@ fn pag_identified_envelope_average_effect_pins() {
                 assert_validation(result, suite, false);
                 assert_eq!(result.logical_plan.estimator.as_deref(), freq["estimator"].as_str());
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate
+                    (result.estimate().as_effect().unwrap().ate
                         - freq["expected_ate"].as_f64().unwrap())
                     .abs()
                         < tol,
                     "PAG envelope ATE {}",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
                 assert!(
-                    (result.estimate.as_effect().unwrap().se_analytic()
+                    (result.estimate().as_effect().unwrap().se_analytic()
                         - freq["expected_se"].as_f64().unwrap())
                     .abs()
                         < tol,
                     "PAG envelope joint-IF SE {} vs numpy reference",
-                    result.estimate.as_effect().unwrap().se_analytic()
+                    result.estimate().as_effect().unwrap().se_analytic()
                 );
                 assert!(
                     !result
@@ -382,7 +384,7 @@ fn pag_identified_envelope_average_effect_pins() {
                 // estimation are unchanged. Only this rank-coupled Bayesian mixture (which
                 // couples each completion's posterior via the *cross-completion* correlation of
                 // their influence functions on shared rows, `static_envelope_atom_correlation`)
-                // moved. 6890a67 (decide adjustment existence by one test) can license a
+                // moved. 6890a67 (decide adjustment existence by one test) can support a
                 // different, still-valid, non-minimal adjustment set per completion; two sets
                 // that give the same marginal point estimate and SE for their own completion can
                 // still give a different per-unit influence-function *shape*, which changes how
@@ -390,13 +392,26 @@ fn pag_identified_envelope_average_effect_pins() {
                 // coupling even though neither completion's own moments move. That reproduces
                 // deterministically under the fixture's frozen seed, so this re-pins to the
                 // current, verified output rather than the fixture's stale mean/SD.
-                let sd = result.estimate.as_effect().unwrap().se_analytic();
+                let sd = result.estimate().as_effect().unwrap().se_analytic();
+                // Independent bound on the pinned output: under the flat prior the Bayesian
+                // envelope mean is the frequentist mass-weighted ATE of the numpy reference,
+                // and its sd the reference joint-IF SE, to a fraction of that SE (observed
+                // 0.08 and 7%). The completion effects themselves differ by 0.072 (3.3 SE).
+                let reference_ate = freq["expected_ate"].as_f64().unwrap();
+                let reference_se = freq["expected_se"].as_f64().unwrap();
+                assert!(
+                    (result.estimate().as_effect().unwrap().ate - reference_ate).abs()
+                        < 0.2 * reference_se,
+                    "Bayesian envelope mean {} vs reference {reference_ate}",
+                    result.estimate().as_effect().unwrap().ate
+                );
+                assert!((sd / reference_se - 1.0).abs() < 0.15, "sd {sd} vs {reference_se}");
                 let expected_mean = 0.376_238_176_353_573;
                 let expected_sd = 0.023_106_965_314_873_36;
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate - expected_mean).abs() < 1e-9,
+                    (result.estimate().as_effect().unwrap().ate - expected_mean).abs() < 1e-9,
                     "Bayesian PAG envelope mean {}",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
                 assert!((sd - expected_sd).abs() < 1e-9, "Bayesian PAG envelope SD {sd}");
                 if suite == RefuteSuite::Full {
@@ -427,20 +442,20 @@ fn pag_identified_envelope_conditional_effect_pins() {
                 assert_validation(result, suite, false);
                 assert_eq!(result.logical_plan.estimator.as_deref(), freq["estimator"].as_str());
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate
+                    (result.estimate().as_effect().unwrap().ate
                         - freq["expected_ate"].as_f64().unwrap())
                     .abs()
                         < tol,
                     "PAG envelope CATE {}",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
                 assert!(
-                    (result.estimate.as_effect().unwrap().se_analytic()
+                    (result.estimate().as_effect().unwrap().se_analytic()
                         - freq["expected_se"].as_f64().unwrap())
                     .abs()
                         < tol,
                     "PAG envelope CATE joint-IF SE {} vs numpy reference",
-                    result.estimate.as_effect().unwrap().se_analytic()
+                    result.estimate().as_effect().unwrap().se_analytic()
                 );
             }
 
@@ -456,19 +471,35 @@ fn pag_identified_envelope_conditional_effect_pins() {
                 // See the average-effect pin above: the frequentist CATE/SE just above
                 // reproduce the fixture bit-for-bit, so only the rank-coupled Bayesian mixture
                 // moved, for the same cross-completion influence-function-correlation reason
-                // (6890a67 can license a different, still-valid, non-minimal per-completion
+                // (6890a67 can support a different, still-valid, non-minimal per-completion
                 // adjustment set). Re-pinned to the current, verified, deterministic output.
+                // Independent bound on the pinned output, as for the average effect above
+                // (observed gap 0.1 SE, sd ratio 1.03).
+                let reference_ate = freq["expected_ate"].as_f64().unwrap();
+                let reference_se = freq["expected_se"].as_f64().unwrap();
+                let bayes_effect = result.estimate().as_effect().unwrap();
+                assert!(
+                    (bayes_effect.ate - reference_ate).abs() < 0.2 * reference_se,
+                    "Bayesian CATE envelope mean {} vs reference {reference_ate}",
+                    bayes_effect.ate
+                );
+                assert!(
+                    (bayes_effect.se_analytic() / reference_se - 1.0).abs() < 0.15,
+                    "Bayesian CATE envelope sd {} vs {reference_se}",
+                    bayes_effect.se_analytic()
+                );
                 let expected_mean = 0.372_057_989_220_976_1;
                 let expected_sd = 0.021_957_536_176_990_86;
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate - expected_mean).abs() < 1e-9,
+                    (result.estimate().as_effect().unwrap().ate - expected_mean).abs() < 1e-9,
                     "Bayesian PAG CATE envelope mean {}",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
                 assert!(
-                    (result.estimate.as_effect().unwrap().se_analytic() - expected_sd).abs() < 1e-9,
+                    (result.estimate().as_effect().unwrap().se_analytic() - expected_sd).abs()
+                        < 1e-9,
                     "Bayesian PAG CATE envelope SD {}",
-                    result.estimate.as_effect().unwrap().se_analytic()
+                    result.estimate().as_effect().unwrap().se_analytic()
                 );
             }
         }
@@ -594,7 +625,7 @@ fn pag_identified_envelope_intervention_response_matches_completion_effects() {
             let low = run(0.0);
             for (hi, lo) in high.iter().zip(&low) {
                 for result in [hi, lo] {
-                    assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{label}");
+                    assert_eq!(result.support_status().unwrap().as_str(), "supported", "{label}");
                     assert_eq!(result.logical_plan.estimator.as_deref(), Some(estimator));
                     assert_eq!(format!("{:?}", result.identification.status), "GraphDependent");
                     assert!(
@@ -744,14 +775,14 @@ fn pag_identified_envelope_response_curve_pins_structural_contrast() {
             )
             .run(&ExecutionContext::for_tests(1))
             .unwrap()
-            .estimate
+            .estimate()
             .as_effect()
             .unwrap()
             .ate;
             let study =
                 build(&data, &pag, accepted, curve.clone(), inference.clone(), RefuteSuite::None);
             for result in fresh_and_click(&study, &data, 1) {
-                assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{label}");
+                assert_eq!(result.support_status().unwrap().as_str(), "supported", "{label}");
                 assert_eq!(
                     result.logical_plan.estimator.as_deref(),
                     block["estimator"].as_str(),
@@ -793,4 +824,17 @@ fn pag_identified_envelope_response_curve_pins_structural_contrast() {
             }
         }
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

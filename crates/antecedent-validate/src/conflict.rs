@@ -1,6 +1,6 @@
 //! Conflict policy: shrink external prior α from prior-PPC / KL signals.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -60,24 +60,43 @@ impl ConflictPolicy {
         Ok(Self { p_min, kl_scale })
     }
 
+    /// Validate fields, including values supplied directly through the public fields.
+    /// # Errors
+    /// A non-finite or out-of-range threshold or a non-finite negative KL scale.
+    pub fn validate(self) -> Result<(), ValidationError> {
+        Self::try_new(self.p_min, self.kl_scale).map(|_| ())
+    }
+
     /// Shrink one alpha given optional conflict signals.
     ///
-    /// Missing `p` / `kl` skip that factor (treated as no evidence of conflict).
+    /// Missing `p` / `kl` skip that factor (treated as no evidence of conflict). A present
+    /// but invalid signal (NaN, infinite, `p` outside `[0, 1]`, negative `kl`) zeroes alpha.
+    /// An invalid directly constructed policy also returns zero; fallible composition
+    /// entry points refuse it explicitly before estimation or composition.
     #[must_use]
     pub fn shrink_alpha(self, alpha: f64, p: Option<f64>, kl: Option<f64>) -> f64 {
-        if !(0.0..=1.0).contains(&alpha) || !alpha.is_finite() {
+        if self.validate().is_err() || !(0.0..=1.0).contains(&alpha) || !alpha.is_finite() {
+            return 0.0;
+        }
+        // A signal that is present but not a valid p-value (non-finite, outside [0, 1]) or
+        // not a valid divergence (non-finite, negative) is a failed diagnostic, not an
+        // absent one: it carries no evidence of agreement, so the source is dropped.
+        if p.is_some_and(|v| !(0.0..=1.0).contains(&v))
+            || kl.is_some_and(|v| !(v >= 0.0 && v.is_finite()))
+        {
             return 0.0;
         }
         let mut factor = 1.0;
-        if let Some(pval) = p {
-            if pval.is_finite() && pval <= self.p_min {
-                factor = 0.0;
-            }
+        if let Some(pval) = p
+            && pval <= self.p_min
+        {
+            factor = 0.0;
         }
-        if let Some(k) = kl {
-            if k.is_finite() && k > 0.0 && self.kl_scale > 0.0 {
-                factor *= (-self.kl_scale * k).exp();
-            }
+        if let Some(k) = kl
+            && k > 0.0
+            && self.kl_scale > 0.0
+        {
+            factor *= (-self.kl_scale * k).exp();
         }
         (alpha * factor).clamp(0.0, alpha)
     }
@@ -109,13 +128,14 @@ pub fn with_conflict_summary(
 ///
 /// # Errors
 ///
-/// Composition failures from `antecedent-prob`.
+/// Invalid conflict policy or composition failures from `antecedent-prob`.
 pub fn apply_conflict_and_compose(
     sources: &[ExternalPriorSource],
     baseline: &PriorSet,
     policy: &ConflictPolicy,
     signals: &[ConflictSignals],
 ) -> Result<(ComposedPrior, ConflictSummary), ValidationError> {
+    policy.validate()?;
     let requested: Vec<f64> = sources.iter().map(|s| s.weight.alpha).collect();
     let mut applied = Vec::with_capacity(sources.len());
     let mut p_values = Vec::with_capacity(sources.len());
@@ -179,7 +199,7 @@ fn estimate_conflict_signals(
 ///
 /// # Errors
 ///
-/// PPC or composition failures.
+/// Invalid conflict policy, PPC or composition failures.
 pub fn compose_with_conflict_policy(
     sources: &[ExternalPriorSource],
     baseline: &PriorSet,
@@ -188,6 +208,7 @@ pub fn compose_with_conflict_policy(
     ctx: &ExecutionContext,
     ppc: &PriorPredictiveCheck,
 ) -> Result<(ComposedPrior, ConflictSummary), ValidationError> {
+    policy.validate()?;
     let signals = estimate_conflict_signals(sources, baseline, problem, ctx, ppc)?;
     apply_conflict_and_compose(sources, baseline, policy, &signals)
 }
@@ -238,5 +259,88 @@ mod tests {
                 .unwrap();
         assert!(summary.alphas_applied[0] < summary.alphas_requested[0]);
         assert!((summary.alphas_applied[0] - composed.alphas_applied[0]).abs() < 1e-12);
+    }
+}
+
+#[cfg(test)]
+mod invalid_public_policy_tests {
+    use super::*;
+    #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
+    fn invalid_public_policy_is_rejected_before_composition_and_fails_closed_for_scalar() {
+        for policy in [
+            ConflictPolicy { p_min: f64::NAN, kl_scale: 1.0 },
+            ConflictPolicy { p_min: 1.1, kl_scale: 1.0 },
+            ConflictPolicy { p_min: 0.05, kl_scale: f64::NAN },
+            ConflictPolicy { p_min: 0.05, kl_scale: -1.0 },
+        ] {
+            assert!(policy.validate().is_err());
+            assert_eq!(policy.shrink_alpha(0.8, Some(0.5), Some(0.0)), 0.0);
+            assert!(apply_conflict_and_compose(&[], &PriorSet::new(), &policy, &[]).is_err());
+        }
+        assert_eq!(
+            ConflictPolicy::try_new(0.0, 0.0).unwrap().shrink_alpha(0.8, Some(0.5), None),
+            0.8
+        );
+    }
+
+    #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
+    fn valid_policy_boundary_values_follow_the_documented_rule() {
+        let zero = ConflictPolicy::try_new(0.0, 0.0).unwrap();
+        assert_eq!(zero.shrink_alpha(0.8, Some(0.0), Some(100.0)), 0.0);
+        assert_eq!(zero.shrink_alpha(0.8, Some(0.5), Some(100.0)), 0.8);
+        let one = ConflictPolicy::try_new(1.0, 0.0).unwrap();
+        assert_eq!(one.shrink_alpha(0.8, Some(1.0), Some(100.0)), 0.0);
+        assert_eq!(one.shrink_alpha(0.8, None, Some(100.0)), 0.8);
+    }
+
+    #[test]
+    fn full_composition_checks_policy_before_predictive_work() {
+        use antecedent_estimate::{OverlapPolicy, SerialDependence};
+        let treatment = [0.0, 1.0, 0.0, 1.0];
+        let outcomes = [0.0, 1.0, 0.2, 1.2];
+        let problem = PreparedBayesianProblem {
+            target_moments: None,
+            design: antecedent_stats::CompiledDesign::linear_adjustment(
+                &treatment,
+                &[],
+                &outcomes,
+                &[],
+            )
+            .unwrap(),
+            method: Arc::from("backdoor.adjustment"),
+            adjustment_set: Arc::from([]),
+            active: 1.0,
+            control: 0.0,
+            overlap: OverlapPolicy::ExplicitOverride,
+            coef_names: None,
+            unit_ids: None,
+            serial_dependence: SerialDependence::Iid,
+            preparation: None,
+        };
+        let source = ExternalPriorSource {
+            id: Arc::from("source"),
+            prior: PriorSet::new(),
+            weight: antecedent_prob::ExternalPriorWeight::power(1.0).unwrap(),
+            ess: None,
+        };
+        let invalid = ConflictPolicy { p_min: f64::NAN, kl_scale: 1.0 };
+        let error = compose_with_conflict_policy(
+            &[source],
+            &PriorSet::new(),
+            &invalid,
+            &problem,
+            &ExecutionContext::for_tests(1),
+            &PriorPredictiveCheck::new(),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("ConflictPolicy p_min"), "{error}");
     }
 }

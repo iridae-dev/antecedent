@@ -5,7 +5,7 @@
 //! local means, so superlinear regressions — like the O(n²) pseudo-outcome
 //! loop — fail the gate instead of shipping.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     missing_docs,
@@ -23,6 +23,9 @@ use antecedent_core::{
 use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 use antecedent_estimate::{ContinuousResponseEstimator, estimate_interference};
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
+
+#[path = "../../../benches/soft_budget.rs"]
+mod soft_budget;
 
 fn curve_data(n: usize) -> TabularData {
     let mut a = Vec::with_capacity(n);
@@ -90,11 +93,11 @@ fn interference_fixture(n: usize) -> (NetworkData, Vec<bool>, InterferenceQuery)
     for i in 0..n {
         for step in [1usize, 7, 31, 101] {
             let j = (i + step) % n;
-            edges.push(NetworkEdge {
-                from: u32::try_from(i).unwrap(),
-                to: u32::try_from(j).unwrap(),
-                weight: 1.0,
-            });
+            edges.push(NetworkEdge::new(
+                u64::try_from(i).expect("row id"),
+                u64::try_from(j).expect("row id"),
+                1.0,
+            ));
         }
     }
     let network = NetworkData::try_new(data, edges).unwrap();
@@ -147,24 +150,21 @@ fn bench_response_interference(c: &mut Criterion) {
     let t0 = Instant::now();
     run_curve(&curve);
     let elapsed = t0.elapsed();
-    assert!(
-        elapsed < Duration::from_secs(3),
-        "kennedy_curve_n4k_grid5 exceeded soft budget: {elapsed:?}"
-    );
+    soft_budget::check(elapsed < Duration::from_secs(3), || {
+        format!("kennedy_curve_n4k_grid5 exceeded soft budget: {elapsed:?}")
+    });
     let t0 = Instant::now();
     run_curve_simultaneous(&curve);
     let elapsed = t0.elapsed();
-    assert!(
-        elapsed < Duration::from_secs(3),
-        "kennedy_curve_n4k_grid5_simultaneous exceeded soft budget: {elapsed:?}"
-    );
+    soft_budget::check(elapsed < Duration::from_secs(3), || {
+        format!("kennedy_curve_n4k_grid5_simultaneous exceeded soft budget: {elapsed:?}")
+    });
     let t0 = Instant::now();
     black_box(estimate_interference(&query, &network, &assignment, 7).unwrap());
     let elapsed = t0.elapsed();
-    assert!(
-        elapsed < Duration::from_secs(1),
-        "interference_cluster_n10k_2kdraws exceeded soft budget: {elapsed:?}"
-    );
+    soft_budget::check(elapsed < Duration::from_secs(1), || {
+        format!("interference_cluster_n10k_2kdraws exceeded soft budget: {elapsed:?}")
+    });
 }
 
 criterion_group!(benches, bench_response_interference);

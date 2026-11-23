@@ -2,7 +2,7 @@
 //!
 //! Assignment returns candidates and scores; there is no silent default family.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -14,7 +14,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::VariableId;
+use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::DenseNodeId;
 use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
@@ -22,6 +22,10 @@ use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
 use crate::compile::{CompiledCausalModel, CompiledMechanismStore, MechanismSlot};
 use crate::error::ModelError;
 use crate::mechanism::NoiseInferenceMode;
+
+/// Seed of the context the entry points that take no [`ExecutionContext`] fit under. It
+/// reaches no fit: the ensemble fits seed their own fixed streams.
+const AMBIENT_FIT_SEED: u64 = 0;
 
 /// Candidate mechanism family known to the registry.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -458,9 +462,45 @@ impl MechanismRegistry {
         weights: &[f64],
         cancelled: &dyn Fn() -> bool,
     ) -> Result<CompiledMechanismStore, ModelError> {
+        Self::refit_with_weights(model, data, assignments, weights, false, cancelled)
+    }
+
+    /// Refit standard mechanisms under frequency weights (bootstrap counts),
+    /// conditional on the originally selected families.
+    ///
+    /// A count of zero drops that row from the refit; this is the multinomial
+    /// row bootstrap expressed on the original table, so the original units,
+    /// their order and the discrete support are kept (a support value no
+    /// resampled row carries keeps probability zero). A replicate whose refit
+    /// fails is the caller's to count as failed, not to drop.
+    ///
+    /// # Errors
+    /// Negative or non-finite counts, an all-zero count vector, nonstandard
+    /// assignments, weighted fitting failures, or [`ModelError::Cancelled`].
+    pub fn refit_frequency_weighted_polled(
+        &self,
+        model: &CompiledCausalModel,
+        data: &TabularData,
+        assignments: &[MechanismAssignment],
+        counts: &[f64],
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<CompiledMechanismStore, ModelError> {
+        Self::refit_with_weights(model, data, assignments, counts, true, cancelled)
+    }
+
+    fn refit_with_weights(
+        model: &CompiledCausalModel,
+        data: &TabularData,
+        assignments: &[MechanismAssignment],
+        weights: &[f64],
+        allow_zero: bool,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<CompiledMechanismStore, ModelError> {
         let total: f64 = weights.iter().sum();
+        let invalid_weight =
+            |w: &f64| !w.is_finite() || if allow_zero { *w < 0.0 } else { *w <= 0.0 };
         if weights.len() != data.row_count()
-            || weights.iter().any(|w| !w.is_finite() || *w <= 0.0)
+            || weights.iter().any(invalid_weight)
             || !total.is_finite()
             || total <= 0.0
             || assignments.len() != model.n_nodes()
@@ -567,19 +607,64 @@ impl MechanismRegistry {
     /// [`Self::assign_and_fit_with`] that polls `cancelled` as
     /// [`Self::assign_and_fit_polled`] does.
     ///
+    /// This entry point takes no [`ExecutionContext`], so a tree-ensemble family fits under a
+    /// private serial context with an unbounded memory pool and no host cancellation. A host
+    /// that owns a memory budget or a cancellation token calls
+    /// [`Self::assign_and_fit_with_in`] instead.
+    ///
     /// # Errors
     ///
     /// As [`Self::assign_and_fit_with`], and [`ModelError::Cancelled`].
-    #[allow(
-        clippy::too_many_lines,
-        reason = "one pass per node: resolve candidates, score each, select, record provenance"
-    )]
     pub fn assign_and_fit_with_polled(
         &self,
         model: &CompiledCausalModel,
         data: &TabularData,
         policy: SelectionPolicy,
         options: &SelectionOptions,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<(CompiledMechanismStore, Vec<MechanismAssignment>), ModelError> {
+        let ambient = ExecutionContext::production(AMBIENT_FIT_SEED, 1);
+        self.assign_and_fit_inner(model, data, policy, options, &ambient, cancelled)
+    }
+
+    /// [`Self::assign_and_fit_with`] under the caller's [`ExecutionContext`].
+    ///
+    /// Cancellation is polled from `ctx.cancellation` before every node, candidate family and
+    /// cross-validation fold. A tree-ensemble family is admitted against `ctx`'s memory pool
+    /// before its fit starts, and the admission or input-limit refusal ends the whole
+    /// selection as [`ModelError::ResourceLimit`] rather than dropping the family from the
+    /// candidates. A boosted-tree fit cannot be interrupted once it has started (see
+    /// `antecedent_learn::GbtSpec`); cancellation takes effect at the next fold or family.
+    /// Fitted mechanisms do not depend on `ctx`'s seed: the ensemble fits use fixed streams.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::assign_and_fit_with`], [`ModelError::Cancelled`], and
+    /// [`ModelError::ResourceLimit`].
+    pub fn assign_and_fit_with_in(
+        &self,
+        model: &CompiledCausalModel,
+        data: &TabularData,
+        policy: SelectionPolicy,
+        options: &SelectionOptions,
+        ctx: &ExecutionContext,
+    ) -> Result<(CompiledMechanismStore, Vec<MechanismAssignment>), ModelError> {
+        self.assign_and_fit_inner(model, data, policy, options, ctx, &|| {
+            ctx.cancellation.is_cancelled()
+        })
+    }
+
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one pass per node: resolve candidates, score each, select, record provenance"
+    )]
+    fn assign_and_fit_inner(
+        &self,
+        model: &CompiledCausalModel,
+        data: &TabularData,
+        policy: SelectionPolicy,
+        options: &SelectionOptions,
+        ctx: &ExecutionContext,
         cancelled: &dyn Fn() -> bool,
     ) -> Result<(CompiledMechanismStore, Vec<MechanismAssignment>), ModelError> {
         let n = model.n_nodes();
@@ -606,8 +691,9 @@ impl MechanismRegistry {
             };
             let constraint = options.constraint_for(var);
             let families = resolve_candidates(registry_list, typing, constraint, var)?;
-            let frame =
-                FitFrame::from_data(gather, model, data, y.len())?.with_splits(options.splits);
+            let frame = FitFrame::from_data(gather, model, data, y.len())?
+                .with_splits(options.splits)
+                .with_execution(ctx);
             let plan = frame.split_plan()?;
 
             let mut candidates = Vec::new();
@@ -629,6 +715,9 @@ impl MechanismRegistry {
                     }
                     // Cancellation is not a family failure: it must stop the whole fit.
                     Err(ModelError::Cancelled) => return Err(ModelError::Cancelled),
+                    // A budget the host set too small is not a family failure either: the
+                    // family may be the best one, so the selection cannot proceed without it.
+                    Err(error @ ModelError::ResourceLimit { .. }) => return Err(error),
                     Err(e) => failed.push((family, e.to_string())),
                 }
             }
@@ -767,7 +856,7 @@ use select::classify_node;
 use selection::resolve_candidates;
 
 #[cfg(feature = "gaussian-process")]
-pub use fit::GP_FAMILY_MAX_ROWS;
+pub use fit::{GP_EXACT_MAX_ROWS, GP_INDUCING_POINTS};
 
 #[cfg(test)]
 use cv::*;
@@ -986,11 +1075,11 @@ mod tests {
 
     #[test]
     fn is_low_cardinality_matches_sort_dedup_reference() {
+        #[allow(clippy::float_cmp, reason = "the test checks exact values and boundary behavior")]
         fn reference(y: &[f64], max_levels: usize) -> bool {
-            let mut vals: Vec<i64> =
-                y.iter().filter(|v| v.is_finite()).map(|v| (v * 1e6).round() as i64).collect();
-            vals.sort_unstable();
-            vals.dedup();
+            let mut vals: Vec<f64> = y.iter().copied().filter(|v| v.is_finite()).collect();
+            vals.sort_by(f64::total_cmp);
+            vals.dedup_by(|a, b| *a == *b);
             !vals.is_empty() && vals.len() <= max_levels
         }
         let cases: [&[f64]; 8] = [
@@ -998,7 +1087,7 @@ mod tests {
             &[f64::NAN, f64::INFINITY, f64::NEG_INFINITY],
             &[1.0, 1.0, 1.0, 1.0],
             &[-3.0, -3.0, 2.0, 2.0, f64::NAN, -3.0],
-            &[0.0, -0.0, 1e-7, 2e-7, 5e-7], // all quantize to the same level
+            &[0.0, -0.0, 1e-7, 2e-7, 5e-7], // signed zeroes compare equal; small positive values remain distinct
             &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0],
             &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
             &[-1.5, 1.5, -1.5, 1.5, 0.25, f64::NAN, -8.75],
@@ -1014,13 +1103,25 @@ mod tests {
         }
     }
 
-    /// Above [`GP_FAMILY_MAX_ROWS`] the GP family must refuse (recorded in
-    /// `failed_families`) instead of running the multi-minute O(n³) grid, and
-    /// selection must still pick another family.
+    #[test]
+    fn tiny_and_extreme_scale_continuous_outcomes_do_not_collapse_to_discrete_levels() {
+        for values in [
+            (0..40).map(|i| f64::from(i) * 1e-8).collect::<Vec<_>>(),
+            (0..40).map(|i| 1e15 + f64::from(i)).collect::<Vec<_>>(),
+        ] {
+            let (data, var) = typed_table(ValueType::Continuous, &values);
+            assert_eq!(classify_node(&data, var, &values), MechanismTyping::Continuous);
+        }
+        assert_eq!(super::select::distinct_level_count(&[0.0, -0.0, 1e-8], 8), Some(2));
+    }
+
+    /// Above [`GP_EXACT_MAX_ROWS`] the GP family is fit with inducing points instead of the
+    /// O(n³) exact grid and stays a scored candidate (the sparse fit keeps at most
+    /// [`GP_INDUCING_POINTS`] training rows in its slot).
     #[cfg(feature = "gaussian-process")]
     #[test]
-    fn gp_family_refuses_above_row_cap_and_selection_falls_back() {
-        let n = GP_FAMILY_MAX_ROWS + 1;
+    fn gp_family_uses_inducing_points_above_the_exact_row_limit() {
+        let n = GP_EXACT_MAX_ROWS + 1;
         let mut b = CausalSchemaBuilder::new();
         for name in ["x", "y"] {
             b.add_variable(
@@ -1055,14 +1156,12 @@ mod tests {
             .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
             .unwrap();
         let child = assigns.iter().find(|a| a.node == DenseNodeId::from_raw(1)).unwrap();
-        let gp_failure = child
-            .failed_families
-            .iter()
-            .find(|(f, _)| *f == MechanismFamily::GaussianProcess)
-            .expect("GP refusal must be recorded, not silently absent");
-        assert!(gp_failure.1.contains("limited to"), "message: {}", gp_failure.1);
-        assert_ne!(child.selected, MechanismFamily::GaussianProcess);
-        assert!(!child.candidates.iter().any(|c| c.family == MechanismFamily::GaussianProcess));
+        assert!(
+            !child.failed_families.iter().any(|(f, _)| *f == MechanismFamily::GaussianProcess),
+            "failed: {:?}",
+            child.failed_families
+        );
+        assert!(child.candidates.iter().any(|c| c.family == MechanismFamily::GaussianProcess));
     }
 
     #[test]
@@ -1073,10 +1172,17 @@ mod tests {
         let (store, assigns) =
             reg.assign_and_fit(&compiled, &data, SelectionPolicy::BestScore).unwrap();
         assert_eq!(assigns.len(), 2);
-        assert!(matches!(
-            store.get(DenseNodeId::from_raw(1)),
-            MechanismSlot::LinearGaussian { .. }
-        ));
+        // The data is exactly y = 1 + 2x, so the selected mechanism must be the linear-Gaussian
+        // one carrying the generating intercept and slope (ordinary least squares on a noiseless
+        // line), not merely a slot of that family.
+        let MechanismSlot::LinearGaussian { intercept, coeffs, .. } =
+            store.get(DenseNodeId::from_raw(1))
+        else {
+            panic!("a linear chain must be assigned the linear-Gaussian family");
+        };
+        assert!((intercept - 1.0).abs() < 1e-6, "intercept {intercept}");
+        assert_eq!(coeffs.len(), 1);
+        assert!((coeffs[0] - 2.0).abs() < 1e-6, "slope {}", coeffs[0]);
     }
 
     #[test]
@@ -1216,7 +1322,7 @@ mod tests {
 
     /// The GP hyperparameters are the exact-Cholesky NLML argmin over the data-scaled
     /// grid, checked against a frozen `SciPy` oracle (`conformance/gcm/gaussian_process`).
-    /// The diagonal-proxy determinant the old code used (MM-015) picks a different cell.
+    /// The diagonal-proxy determinant the old code used picks a different cell.
     #[cfg(feature = "gaussian-process")]
     #[test]
     fn gaussian_process_matches_exact_logdet_oracle() {

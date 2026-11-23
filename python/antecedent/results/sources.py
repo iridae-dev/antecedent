@@ -44,7 +44,7 @@ class MeanSource(ScientificResult):
         if len(self.coordinates) != len(self.means) or not self.coordinates:
             raise CausalValueError("a mean source needs one mean per scientific coordinate")
         ScientificResult.__post_init__(self)
-        if self.trust in ("native_licensed", "verified_extension"):
+        if self.trust in ("native_supported", "verified_extension"):
             from .. import _native
 
             native_authority = isinstance(
@@ -68,9 +68,9 @@ class MeanSource(ScientificResult):
                     json.loads(external_native.metadata_json)["identity"]["trust"]
                     == "verified_extension"
                 )
-            if not (native_authority if self.trust == "native_licensed" else verified_authority):
+            if not (native_authority if self.trust == "native_supported" else verified_authority):
                 raise CausalValueError(
-                    "a mean declaration cannot issue native_licensed or verified_extension trust; use the checked native or verified-source adapter that retains its authority"
+                    "a mean declaration cannot issue native_supported or verified_extension trust; use the checked native or verified-source adapter that retains its authority"
                 )
 
     def _wire(self) -> dict[str, Any]:
@@ -85,6 +85,9 @@ class MeanSource(ScientificResult):
 
     @classmethod
     def from_external(cls, claim: Any) -> MeanSource:
+        from ..outcomes import require_success
+
+        claim = require_success(claim)
         identity = claim.identity_fields
         return cls(
             tuple(claim.quantities),
@@ -187,6 +190,12 @@ _MEAN_PRODUCERS = {
 
 
 def is_mean_producer(source: Any) -> bool:
+    from ..outcomes import Outcome
+
+    if isinstance(source, Outcome):
+        if not source.accepted:
+            return False
+        source = source.value
     return isinstance(source, ScientificResult) and type(source).__name__ in _MEAN_PRODUCERS
 
 
@@ -202,6 +211,9 @@ def adapt_mean_source(
     Missing units, population, regime or functional semantics must be declared by the caller.
     The adapter does not turn a declaration into native authority or carry an interval.
     """
+    from ..outcomes import require_success
+
+    source = require_success(source)
     if not is_mean_producer(source):
         raise CausalTypeError("this object has no supported mean-source adapter")
     from .._mean_binding import check_mean_reading
@@ -216,7 +228,7 @@ def adapt_mean_source(
     source_name = type(source).__name__
     if source_name in ("PropagationClaim", "ConsumedJointLawPropagation") and source.is_envelope:
         raise CausalUnsupportedError(
-            "a dependence envelope is not a mean source", reason_code="cell_not_licensed"
+            "a dependence envelope is not a mean source", reason_code="not_supported"
         )
     if source_name == "SynthesisOutcome" and not (
         hasattr(source.value, "estimate") or hasattr(source.value, "mean")
@@ -266,11 +278,11 @@ def adapt_mean_source(
             )
         if quantity.variable_id != contrast.outcome:
             raise CausalValueError("mean-source outcome differs from the composed contrast")
-        value = source.mean_contrast(contrast)
+        value = require_success(source.mean_contrast(contrast))
     elif name in ("PropagationClaim", "ConsumedJointLawPropagation"):
         if source.is_envelope:
             raise CausalUnsupportedError(
-                "a dependence envelope is not a mean source", reason_code="cell_not_licensed"
+                "a dependence envelope is not a mean source", reason_code="not_supported"
             )
         key = field or "mean"
         if key not in source.values or key != "mean":

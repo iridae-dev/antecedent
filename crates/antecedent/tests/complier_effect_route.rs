@@ -1,5 +1,5 @@
 //! Focused coverage for the graphless complier-effect (CACE/LATE and one-sided
-//! treatment-on-treated) interval license and its retained artifact route.
+//! treatment-on-treated) interval support and its retained artifact route.
 #![allow(
     clippy::float_cmp,
     clippy::too_many_lines,
@@ -13,19 +13,33 @@ use antecedent::{RandomizedEffectQuery, Study};
 use antecedent_core::VariableId;
 use antecedent_data::TabularData;
 
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
+
+fn assert_refused<T, E: std::fmt::Debug>(result: Result<T, E>, expected: &str) {
+    let text = format!("{:?}", result.err().expect("the request must be refused"));
+    assert!(text.contains(expected), "expected {expected}: {text}");
+}
+
 #[test]
-fn licensed_complier_and_tot_intervals_round_trip_and_refuse_forgery() {
+fn supported_complier_and_tot_intervals_round_trip_and_refuse_forgery() {
     fn run_case(query: RandomizedEffectQuery, outcomes: &[f64], design: &str, estimand: &str) {
         let data = TabularData::from_f64_columns([("outcome", outcomes)]).unwrap();
         let ctx = ExecutionContext::for_tests(0xC0FF_EE42);
         let prepared =
             Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
         let result = prepared.estimate(&data, &ctx).unwrap();
+        retained_graphless::assert_retained_graphless_program(
+            "supported_complier_and_tot_intervals_roun",
+            &prepared,
+            &result,
+            &ctx,
+        );
         let fit = result.randomized_effect().unwrap();
         let [lower, upper] = fit.interval_95.expect("supported complier interval");
         assert_eq!(fit.assignment_design.as_ref(), "bernoulli");
         assert_eq!(fit.estimand.as_ref(), estimand);
-        assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+        assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
         assert!(lower <= fit.effect && fit.effect <= upper);
         assert!(fit.standard_error.unwrap() > 0.0);
         // The published interval is exactly point +/- z_{0.975} * SE.
@@ -41,9 +55,9 @@ fn licensed_complier_and_tot_intervals_round_trip_and_refuse_forgery() {
         );
 
         let executed_contract = prepared.contract_for_result(&result).unwrap();
-        assert_eq!(executed_contract.support_status, result.support_status);
+        assert_eq!(executed_contract.support_status, result.support_status());
         let support = executed_contract.reasoning.support.as_ref().unwrap();
-        assert_eq!(support.matrix_status.as_ref(), "licensed");
+        assert_eq!(support.matrix_status.as_ref(), "supported");
         assert_eq!(support.matrix_coordinate.as_deref(),
             Some(format!("graphless:complier_effect/{design}/wald_ratio_influence/pointwise_95_normal_interval").as_str()));
 
@@ -52,56 +66,56 @@ fn licensed_complier_and_tot_intervals_round_trip_and_refuse_forgery() {
         assert_eq!(artifact.randomized_effect.as_ref().unwrap().interval_95, Some([lower, upper]));
         assert_eq!(
             artifact.randomized_effect.as_ref().unwrap().graphless_support_status.as_deref(),
-            Some("licensed")
+            Some("supported")
         );
 
         // A forged support status is rejected by the artifact validator.
-        let mut forged_license = artifact.clone();
-        forged_license.randomized_effect.as_mut().unwrap().graphless_support_status =
-            Some("refused".into());
-        assert!(
+        let mut forged_support = artifact.clone();
+        forged_support.randomized_effect.as_mut().unwrap().graphless_support_status =
+            Some("not_supported".into());
+        assert_refused(
             antecedent_io::encode_analysis_result_artifact(
-                &forged_license,
+                &forged_support,
                 header.variable_names.clone(),
-                "forged-license"
-            )
-            .is_err()
+                "forged-support",
+            ),
+            "invalid randomized payload or fabricated interval",
         );
 
         // A dropped status must be restamped by a new encoder.
         let mut legacy_body = artifact.clone();
         legacy_body.randomized_effect.as_mut().unwrap().graphless_support_status = None;
-        assert!(
+        assert_refused(
             antecedent_io::encode_analysis_result_artifact(
                 &legacy_body,
                 header.variable_names.clone(),
-                "legacy-new-encode"
-            )
-            .is_err()
+                "legacy-new-encode",
+            ),
+            "invalid randomized payload or fabricated interval",
         );
 
         // A widened interval no longer matches point +/- z * SE.
         let mut tampered = artifact.clone();
         tampered.randomized_effect.as_mut().unwrap().interval_95.as_mut().unwrap()[1] += 0.5;
-        assert!(
+        assert_refused(
             antecedent_io::encode_analysis_result_artifact(
                 &tampered,
                 header.variable_names.clone(),
-                "forged-interval"
-            )
-            .is_err()
+                "forged-interval",
+            ),
+            "invalid randomized payload or fabricated interval",
         );
 
         // A fabricated top-level standard error is rejected.
         let mut tampered = artifact;
         tampered.standard_error = Some(0.1);
-        assert!(
+        assert_refused(
             antecedent_io::encode_analysis_result_artifact(
                 &tampered,
                 header.variable_names,
-                "forged-se"
-            )
-            .is_err()
+                "forged-se",
+            ),
+            "invalid randomized payload or fabricated interval",
         );
     }
 
@@ -175,5 +189,5 @@ fn complier_interval_withheld_below_support_threshold() {
     let ctx = ExecutionContext::for_tests(0x51CE_1234);
     let result = Study::tabular(data).query(query).build().unwrap().run(&ctx).unwrap();
     assert_eq!(result.randomized_effect().unwrap().interval_95, None);
-    assert_eq!(result.support_status, None);
+    assert_eq!(result.support_status(), None);
 }

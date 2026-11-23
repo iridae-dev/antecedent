@@ -8,7 +8,7 @@ use antecedent_contract::{
 };
 use antecedent_core::ExecutionContext;
 use antecedent_io_core::joint_law_propagation_artifact::{
-    JointLawPropagationArtifactError, JointLawPropagationArtifactWire,
+    JointLawPropagationArtifactError, JointLawPropagationArtifactWire, JointLawPropagationLimits,
     MAX_JOINT_LAW_PROPAGATION_ARTIFACT_BYTES, MAX_JOINT_LAW_PROPAGATION_SHARED_EVIDENCE,
     MAX_JOINT_LAW_PROPAGATION_TEXT_BYTES, PropagationRequestWire, float_bits,
 };
@@ -78,5 +78,33 @@ fn shared_evidence_is_bounded() {
     assert_eq!(
         JointLawPropagationArtifactWire::decode(&bytes).expect_err("too many"),
         JointLawPropagationArtifactError::LimitsExceeded("shared evidence")
+    );
+}
+
+#[test]
+fn caller_limits_refuse_what_the_defaults_admit() {
+    let wire = sealed();
+    let ok = to_cbor(&wire).expect("encodes");
+    let defaults = JointLawPropagationLimits::default();
+    JointLawPropagationArtifactWire::decode_within(&ok, &defaults).expect("default bounds");
+    let ctx = ExecutionContext::for_tests(11);
+    wire.consume_within(None, &ctx, &defaults).expect("default consume");
+
+    let tight_bytes = JointLawPropagationLimits { max_bytes: ok.len() - 1, ..defaults };
+    assert_eq!(
+        JointLawPropagationArtifactWire::decode_within(&ok, &tight_bytes).expect_err("bytes"),
+        JointLawPropagationArtifactError::LimitsExceeded("artifact bytes")
+    );
+    let one_input = JointLawPropagationLimits { max_inputs: 1, ..defaults };
+    assert_eq!(
+        JointLawPropagationArtifactWire::decode_within(&ok, &one_input).expect_err("inputs"),
+        JointLawPropagationArtifactError::LimitsExceeded("inputs")
+    );
+    assert!(wire.consume_within(None, &ctx, &one_input).is_err());
+    assert!(wire.export_within(&one_input).is_err());
+    let short_text = JointLawPropagationLimits { max_text_bytes: 1, ..defaults };
+    assert_eq!(
+        JointLawPropagationArtifactWire::decode_within(&ok, &short_text).expect_err("text"),
+        JointLawPropagationArtifactError::LimitsExceeded("text")
     );
 }

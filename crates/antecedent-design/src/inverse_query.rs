@@ -57,7 +57,7 @@
 //! The finite-enumeration baseline stays available as
 //! [`finite_enumeration_baseline`], independent of the engine.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashSet;
 
@@ -75,9 +75,7 @@ use crate::decision_eval::{
     evaluate_functional,
 };
 use crate::decision_structural::{AtomEvidence, StructuralAtom};
-
-/// Most actions one query may enumerate.
-pub const MAX_INVERSE_GRID: usize = 4096;
+use crate::structure_aggregator::{probability_sum, unassigned_probability};
 
 /// What a result is and is not, carried on every report.
 pub const INVERSE_QUERY_SCOPE_NOTE: &str = "Feasibility is relative to the declared finite action grid and the supplied forward claims; an action outside the grid is unresolved, not excluded. Point, interval-region, identified-set, all-scenario and posterior-probability feasibility are separate fields and none is derived from another. No coverage or calibration claim is made, and one found point is never a global feasibility claim over a continuous domain.";
@@ -229,7 +227,7 @@ pub enum SelectionRule {
 pub enum GridScope {
     /// The declared finite set is the whole question.
     FiniteEnumeration,
-    /// Points sampled from a continuous action space; no global claim is licensed.
+    /// Points sampled from a continuous action space; no global claim is supported.
     ContinuousSample,
 }
 
@@ -238,6 +236,8 @@ pub enum GridScope {
 pub enum ForwardClaim {
     /// An aligned joint distribution artifact.
     Law(Box<DistributionArtifact>),
+    /// Analytic conditional Gaussian outcome law, with no parameter posterior.
+    Gaussian(Box<crate::gaussian_forward_law::GaussianForwardLaw>),
     /// Means only: answers an affine target mean and nothing else.
     Means(MeanSource),
 }
@@ -433,7 +433,7 @@ pub struct InverseResult {
 /// Why an inverse query refused.
 #[derive(Clone, Debug, PartialEq)]
 pub enum InverseQueryError {
-    /// The grid is empty, too large, repeats an action or names an undeclared one.
+    /// The grid is empty, repeats an action or names an undeclared one.
     InvalidGrid(&'static str),
     /// No constraint was declared.
     NoConstraints,
@@ -544,6 +544,7 @@ pub fn finite_enumeration_baseline(
 #[derive(Clone, Copy)]
 enum Source<'a> {
     Law(&'a DistributionArtifact),
+    Gaussian(&'a crate::gaussian_forward_law::GaussianForwardLaw),
     Means(&'a MeanSource),
 }
 
@@ -576,6 +577,12 @@ impl Source<'_> {
                     }
                 }
             }
+            Self::Gaussian(law) => {
+                missing = action
+                    .inputs
+                    .iter()
+                    .any(|q| law.coordinate.require_same_coordinate(q).is_err());
+            }
             Self::Means(means) => {
                 for wanted in &action.inputs {
                     if !means.coordinates.iter().any(|c| c.require_same_coordinate(wanted).is_ok())
@@ -586,9 +593,15 @@ impl Source<'_> {
             }
         }
         if masked {
-            Some((FeasibilityStatus::Unsupported, "decision_evaluation.unsupported_coordinate"))
+            Some((
+                FeasibilityStatus::Unsupported,
+                antecedent_core::reason_details::decision_evaluation::UNSUPPORTED_COORDINATE,
+            ))
         } else if missing {
-            Some((FeasibilityStatus::Unevaluated, "decision_evaluation.quantity_not_found"))
+            Some((
+                FeasibilityStatus::Unevaluated,
+                antecedent_core::reason_details::decision_evaluation::QUANTITY_NOT_FOUND,
+            ))
         } else {
             None
         }
@@ -599,6 +612,7 @@ impl ForwardClaim {
     fn source(&self) -> Source<'_> {
         match self {
             Self::Law(artifact) => Source::Law(artifact),
+            Self::Gaussian(law) => Source::Gaussian(law),
             Self::Means(means) => Source::Means(means),
         }
     }
@@ -614,6 +628,7 @@ impl ForwardClaim {
                     causal_contract_id: identity.causal_contract_id.clone(),
                 }
             }
+            Self::Gaussian(law) => law.receipt(),
             Self::Means(means) => SourceReceipt {
                 provider_id: means.provider_id.clone(),
                 snapshot_id: means.snapshot_id.clone(),
@@ -685,6 +700,7 @@ enum Prepared {
 impl Prepared {
     fn new(contract: &DecisionContract, action_id: &str, source: Source<'_>) -> Self {
         match source {
+            Source::Gaussian(_) => Self::None,
             Source::Law(artifact) => {
                 ActionLaw::of_action(contract, action_id, artifact).map_or(Self::None, Self::Law)
             }
@@ -736,6 +752,7 @@ fn engine_value(
     prepared: &Prepared,
 ) -> Result<(f64, Option<f64>), DecisionEvalError> {
     match (source, prepared) {
+        (Source::Gaussian(law), _) => law.evaluate(contract, action_id, functional),
         (Source::Law(_), Prepared::Law(law)) => {
             law.functional(contract, functional).map(|value| (value.value, value.standard_error))
         }
@@ -937,19 +954,33 @@ fn posterior(atoms: &[StructuralAtom], members: &[MemberStatus]) -> Option<Poste
         return None;
     }
     let mass = |wanted: FeasibilityStatus| -> f64 {
-        atoms
-            .iter()
-            .zip(members)
-            .filter(|(_, member)| member.status == wanted)
-            .filter_map(|(atom, _)| atom.probability)
-            .sum()
+        probability_sum(
+            atoms
+                .iter()
+                .zip(members)
+                .filter(|(_, member)| member.status == wanted)
+                .filter_map(|(atom, _)| atom.probability),
+        )
     };
     let feasible_mass = mass(FeasibilityStatus::Feasible);
     let infeasible_mass = mass(FeasibilityStatus::Infeasible);
     Some(PosteriorFeasibility {
         feasible_mass,
         infeasible_mass,
-        unresolved_mass: (1.0 - feasible_mass - infeasible_mass).max(0.0),
+        unresolved_mass: probability_sum(
+            atoms
+                .iter()
+                .zip(members)
+                .filter(|(_, member)| {
+                    !matches!(
+                        member.status,
+                        FeasibilityStatus::Feasible | FeasibilityStatus::Infeasible
+                    )
+                })
+                .filter_map(|(atom, _)| atom.probability),
+        ) + unassigned_probability(
+            atoms.iter().filter_map(|atom| atom.probability),
+        ),
     })
 }
 
@@ -1004,9 +1035,6 @@ fn validate_grid(query: &InverseQuery) -> Result<(), InverseQueryError> {
     if grid.is_empty() {
         return Err(InverseQueryError::InvalidGrid("the action grid is empty"));
     }
-    if grid.len() > MAX_INVERSE_GRID {
-        return Err(InverseQueryError::InvalidGrid("the action grid exceeds the bound"));
-    }
     let mut seen = HashSet::new();
     for id in grid {
         if !seen.insert(id.as_str()) {
@@ -1034,7 +1062,7 @@ fn validate_probabilities(atoms: &[StructuralAtom]) -> Result<(), InverseQueryEr
     if with == 0 {
         return Ok(());
     }
-    let total: f64 = atoms.iter().filter_map(|a| a.probability).sum();
+    let total = probability_sum(atoms.iter().filter_map(|a| a.probability));
     if with != atoms.len()
         || atoms.iter().any(|a| a.probability.is_some_and(|p| !p.is_finite() || p < 0.0))
         || total > 1.0 + 1e-9
@@ -1262,5 +1290,43 @@ fn assemble_result(
         feasible_actions,
         actions,
         scope_note: INVERSE_QUERY_SCOPE_NOTE,
+    }
+}
+
+#[cfg(test)]
+mod posterior_mass_roundoff_tests {
+    use super::*;
+
+    #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the calculation or fixture checks exact discrete or boundary values"
+    )]
+    fn inverse_retains_explicit_unresolved_mass_and_real_unassigned_mass() {
+        let atom = |id: &str, p| StructuralAtom {
+            id: id.into(),
+            probability: Some(p),
+            evidence: AtomEvidence::Unidentified,
+        };
+        let status = |id: &str, status| MemberStatus { id: id.into(), status, reason: None };
+        for probs in [[0.7, 0.2, 0.1], [0.1, 0.2, 0.7]] {
+            let atoms = [atom("a", probs[0]), atom("b", probs[1]), atom("c", probs[2])];
+            let members = [
+                status("a", FeasibilityStatus::Feasible),
+                status("b", FeasibilityStatus::Infeasible),
+                status("c", FeasibilityStatus::Feasible),
+            ];
+            assert_eq!(posterior(&atoms, &members).unwrap().unresolved_mass, 0.0);
+        }
+        let atoms = [atom("a", 1.0 - 1e-16), atom("b", 1e-16)];
+        let members = [
+            status("a", FeasibilityStatus::Feasible),
+            status("b", FeasibilityStatus::Unidentified),
+        ];
+        assert_eq!(posterior(&atoms, &members).unwrap().unresolved_mass, 1e-16);
+        let atoms = [atom("a", 1.0 - 1e-12)];
+        let members = [status("a", FeasibilityStatus::Feasible)];
+        let unresolved = posterior(&atoms, &members).unwrap().unresolved_mass;
+        assert!((unresolved - 1e-12).abs() < 1e-16 && unresolved > 0.0);
     }
 }

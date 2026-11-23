@@ -1,0 +1,481 @@
+[
+ {
+  "name": "six_graphs_four_labels",
+  "weights": [
+   0.8,
+   0.2,
+   0.5,
+   0.1,
+   0.3,
+   0.1
+  ],
+  "features": [
+   0,
+   1,
+   1,
+   2,
+   3,
+   3
+  ],
+  "cases": [
+   {
+    "kind": "measure",
+    "amount": 1,
+    "reliability": 0.5276334472589853,
+    "information_gain": 0.30268938608399226
+   },
+   {
+    "kind": "measure",
+    "amount": 2,
+    "reliability": 0.7768698398515702,
+    "information_gain": 0.6494631665242541
+   },
+   {
+    "kind": "measure",
+    "amount": 10,
+    "reliability": 0.99,
+    "information_gain": 1.1575480217238496
+   },
+   {
+    "kind": "intervene",
+    "amount": 1,
+    "reliability": 0.6321205588285577,
+    "information_gain": 0.4292362252773826
+   },
+   {
+    "kind": "intervene",
+    "amount": 3,
+    "reliability": 0.950212931632136,
+    "information_gain": 1.0259221994405021
+   },
+   {
+    "kind": "observe",
+    "amount": 0,
+    "reliability": 0.0,
+    "information_gain": 0.0
+   },
+   {
+    "kind": "observe",
+    "amount": 1,
+    "reliability": 0.0196078431372549,
+    "information_gain": 0.0005116657388344888
+   },
+   {
+    "kind": "observe",
+    "amount": 50,
+    "reliability": 0.5,
+    "information_gain": 0.273116621309156
+   },
+   {
+    "kind": "observe",
+    "amount": 1000000,
+    "reliability": 0.95,
+    "information_gain": 1.025312447347779
+   },
+   {
+    "kind": "sample",
+    "amount": 1,
+    "reliability": 0.0196078431372549,
+    "information_gain": 0.0005116657388344888
+   },
+   {
+    "kind": "sample",
+    "amount": 100,
+    "reliability": 0.6666666666666666,
+    "information_gain": 0.4766059373239079
+   },
+   {
+    "kind": "sample",
+    "amount": 3,
+    "reliability": 0.05660377358490566,
+    "information_gain": 0.004158489031164285
+   },
+   {
+    "kind": "sample",
+    "amount": 1000000,
+    "reliability": 0.95,
+    "information_gain": 1.025312447347779
+   }
+  ]
+ },
+ {
+  "name": "near_degenerate_prior",
+  "weights": [
+   1.0,
+   1e-09,
+   1e-12
+  ],
+  "features": [
+   0,
+   1,
+   2
+  ],
+  "cases": [
+   {
+    "kind": "measure",
+    "amount": 1,
+    "reliability": 0.5276334472589853,
+    "information_gain": 7.766110697479061e-10
+   },
+   {
+    "kind": "measure",
+    "amount": 2,
+    "reliability": 0.7768698398515702,
+    "information_gain": 1.8955595943377422e-09
+   },
+   {
+    "kind": "measure",
+    "amount": 10,
+    "reliability": 0.99,
+    "information_gain": 5.645762521031124e-09
+   },
+   {
+    "kind": "intervene",
+    "amount": 1,
+    "reliability": 0.6321205588285577,
+    "information_gain": 1.14986325799918e-09
+   },
+   {
+    "kind": "intervene",
+    "amount": 3,
+    "reliability": 0.950212931632136,
+    "information_gain": 3.866342682282413e-09
+   },
+   {
+    "kind": "observe",
+    "amount": 0,
+    "reliability": 0.0,
+    "information_gain": 1.5557538194652854e-61
+   },
+   {
+    "kind": "observe",
+    "amount": 1,
+    "reliability": 0.0196078431372549,
+    "information_gain": 1.1436701355952098e-12
+   },
+   {
+    "kind": "observe",
+    "amount": 50,
+    "reliability": 0.5,
+    "information_gain": 6.938403261080952e-10
+   },
+   {
+    "kind": "observe",
+    "amount": 1000000,
+    "reliability": 0.95,
+    "information_gain": 3.861278249471207e-09
+   },
+   {
+    "kind": "sample",
+    "amount": 1,
+    "reliability": 0.0196078431372549,
+    "information_gain": 1.1436701355952098e-12
+   },
+   {
+    "kind": "sample",
+    "amount": 100,
+    "reliability": 0.6666666666666666,
+    "information_gain": 1.2985707025500887e-09
+   },
+   {
+    "kind": "sample",
+    "amount": 3,
+    "reliability": 0.05660377358490566,
+    "information_gain": 9.37811052361027e-12
+   },
+   {
+    "kind": "sample",
+    "amount": 1000000,
+    "reliability": 0.95,
+    "information_gain": 3.861278249471207e-09
+   }
+  ]
+ },
+ {
+  "name": "uniform_eight_labels",
+  "weights": [
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ],
+  "features": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7
+  ],
+  "cases": [
+   {
+    "kind": "measure",
+    "amount": 1,
+    "reliability": 0.5276334472589853,
+    "information_gain": 0.5971121269089977
+   },
+   {
+    "kind": "measure",
+    "amount": 2,
+    "reliability": 0.7768698398515702,
+    "information_gain": 1.205793345233831
+   },
+   {
+    "kind": "measure",
+    "amount": 10,
+    "reliability": 0.99,
+    "information_gain": 2.0122395824574517
+   },
+   {
+    "kind": "intervene",
+    "amount": 1,
+    "reliability": 0.6321205588285577,
+    "information_gain": 0.8247744977867439
+   },
+   {
+    "kind": "intervene",
+    "amount": 3,
+    "reliability": 0.950212931632136,
+    "information_gain": 1.815561651152776
+   },
+   {
+    "kind": "observe",
+    "amount": 0,
+    "reliability": 0.0,
+    "information_gain": 0.0
+   },
+   {
+    "kind": "observe",
+    "amount": 1,
+    "reliability": 0.0196078431372549,
+    "information_gain": 0.00129629500004541
+   },
+   {
+    "kind": "observe",
+    "amount": 50,
+    "reliability": 0.5,
+    "information_gain": 0.5427916441916781
+   },
+   {
+    "kind": "observe",
+    "amount": 1000000,
+    "reliability": 0.95,
+    "information_gain": 1.8146239887775255
+   },
+   {
+    "kind": "sample",
+    "amount": 1,
+    "reliability": 0.0196078431372549,
+    "information_gain": 0.00129629500004541
+   },
+   {
+    "kind": "sample",
+    "amount": 100,
+    "reliability": 0.6666666666666666,
+    "information_gain": 0.9082471633717101
+   },
+   {
+    "kind": "sample",
+    "amount": 3,
+    "reliability": 0.05660377358490566,
+    "information_gain": 0.010153531723726473
+   },
+   {
+    "kind": "sample",
+    "amount": 1000000,
+    "reliability": 0.95,
+    "information_gain": 1.8146239887775255
+   }
+  ]
+ },
+ {
+  "name": "single_label",
+  "weights": [
+   0.3,
+   0.7
+  ],
+  "features": [
+   4,
+   4
+  ],
+  "cases": [
+   {
+    "kind": "measure",
+    "amount": 1,
+    "reliability": 0.5276334472589853,
+    "information_gain": 0.0
+   },
+   {
+    "kind": "measure",
+    "amount": 2,
+    "reliability": 0.7768698398515702,
+    "information_gain": 0.0
+   },
+   {
+    "kind": "measure",
+    "amount": 10,
+    "reliability": 0.99,
+    "information_gain": 0.0
+   },
+   {
+    "kind": "intervene",
+    "amount": 1,
+    "reliability": 0.6321205588285577,
+    "information_gain": 0.0
+   },
+   {
+    "kind": "intervene",
+    "amount": 3,
+    "reliability": 0.950212931632136,
+    "information_gain": 0.0
+   },
+   {
+    "kind": "observe",
+    "amount": 0,
+    "reliability": 0.0,
+    "information_gain": 0.0
+   },
+   {
+    "kind": "observe",
+    "amount": 1,
+    "reliability": 0.0196078431372549,
+    "information_gain": 0.0
+   },
+   {
+    "kind": "observe",
+    "amount": 50,
+    "reliability": 0.5,
+    "information_gain": 0.0
+   },
+   {
+    "kind": "observe",
+    "amount": 1000000,
+    "reliability": 0.95,
+    "information_gain": 0.0
+   },
+   {
+    "kind": "sample",
+    "amount": 1,
+    "reliability": 0.0196078431372549,
+    "information_gain": 0.0
+   },
+   {
+    "kind": "sample",
+    "amount": 100,
+    "reliability": 0.6666666666666666,
+    "information_gain": 0.0
+   },
+   {
+    "kind": "sample",
+    "amount": 3,
+    "reliability": 0.05660377358490566,
+    "information_gain": 0.0
+   },
+   {
+    "kind": "sample",
+    "amount": 1000000,
+    "reliability": 0.95,
+    "information_gain": 0.0
+   }
+  ]
+ },
+ {
+  "name": "two_labels_skewed",
+  "weights": [
+   0.95,
+   0.04,
+   0.01
+  ],
+  "features": [
+   0,
+   1,
+   1
+  ],
+  "cases": [
+   {
+    "kind": "measure",
+    "amount": 1,
+    "reliability": 0.5276334472589853,
+    "information_gain": 0.02908232172493171
+   },
+   {
+    "kind": "measure",
+    "amount": 2,
+    "reliability": 0.7768698398515702,
+    "information_gain": 0.07364208751647275
+   },
+   {
+    "kind": "measure",
+    "amount": 10,
+    "reliability": 0.99,
+    "information_gain": 0.18007879359685575
+   },
+   {
+    "kind": "intervene",
+    "amount": 1,
+    "reliability": 0.6321205588285577,
+    "information_gain": 0.043897082999578764
+   },
+   {
+    "kind": "intervene",
+    "amount": 3,
+    "reliability": 0.950212931632136,
+    "information_gain": 0.14329731160224066
+   },
+   {
+    "kind": "observe",
+    "amount": 0,
+    "reliability": 0.0,
+    "information_gain": 0.0
+   },
+   {
+    "kind": "observe",
+    "amount": 1,
+    "reliability": 0.0196078431372549,
+    "information_gain": 3.652865071410209e-05
+   },
+   {
+    "kind": "observe",
+    "amount": 50,
+    "reliability": 0.5,
+    "information_gain": 0.025833632735382386
+   },
+   {
+    "kind": "observe",
+    "amount": 1000000,
+    "reliability": 0.95,
+    "information_gain": 0.1431513372280355
+   },
+   {
+    "kind": "sample",
+    "amount": 1,
+    "reliability": 0.0196078431372549,
+    "information_gain": 3.652865071410209e-05
+   },
+   {
+    "kind": "sample",
+    "amount": 100,
+    "reliability": 0.6666666666666666,
+    "information_gain": 0.0498412146718832
+   },
+   {
+    "kind": "sample",
+    "amount": 3,
+    "reliability": 0.05660377358490566,
+    "information_gain": 0.000304673490357551
+   },
+   {
+    "kind": "sample",
+    "amount": 1000000,
+    "reliability": 0.95,
+    "information_gain": 0.1431513372280355
+   }
+  ]
+ }
+]

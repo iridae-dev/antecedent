@@ -7,8 +7,11 @@ candidate studies, singly or in bounded subsets, against the contract's own iden
 theorem. Antecedent never conducts a study: candidates are declarations with cost semantics.
 
 Two registries that each measure one confounder do not combine into a joint law, so only the
-cohort that measures both is verified sufficient. The result is a portable artifact that an
-independent consumer replays."""
+cohort that measures both is classified ``verified_sufficient``. The result is a portable
+artifact that an independent consumer replays. No data are used: a repair plan is a
+declaration about a study, not new observed evidence.
+
+Run: ``python examples/python/repair_obligations.py``."""
 
 from __future__ import annotations
 

@@ -6,9 +6,9 @@
     clippy::empty_line_after_doc_comments
 )]
 
+use crate::NumericColumn;
 use crate::*;
 use antecedent::StudyBuilder;
-use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 
 #[pyfunction]
@@ -16,14 +16,14 @@ use pyo3::prelude::*;
 fn mediation_effects_summary(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     treatment: String,
     mediator: String,
     outcome: String,
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<MediationEffectsSummary> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
         let (series, _) = series_from_batch(&batch)?;
@@ -60,13 +60,13 @@ fn mediation_effects_summary(
 fn predict_conditional_summary(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     target: String,
     parent: String,
     parent_lag: u32,
     level: f64,
 ) -> PyResult<PredictSummary> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
         let (series, _) = series_from_batch(&batch)?;
@@ -76,7 +76,7 @@ fn predict_conditional_summary(
         let pred = TemporalLinearPredictor::fit(
             &series,
             y,
-            [antecedent_data::LaggedColumn { variable: x, lag: Lag::from_raw(parent_lag) }],
+            [antecedent::data::LaggedColumn { variable: x, lag: Lag::from_raw(parent_lag) }],
             &policy,
         )
         .map_err(py_err)?;
@@ -209,11 +209,11 @@ pub(crate) struct AnalysisResult {
     #[pyo3(get)]
     pub(crate) mediation_effects: Vec<f64>,
     #[pyo3(get)]
-    pub(crate) mediation_totals: Vec<f64>,
+    pub(crate) mediation_totals: Vec<Option<f64>>,
     #[pyo3(get)]
-    pub(crate) mediation_directs: Vec<f64>,
+    pub(crate) mediation_directs: Vec<Option<f64>>,
     #[pyo3(get)]
-    pub(crate) mediation_mediated_effects: Vec<f64>,
+    pub(crate) mediation_mediated_effects: Vec<Option<f64>>,
     #[pyo3(get)]
     pub(crate) mediation_identification_statuses: Vec<String>,
     #[pyo3(get)]
@@ -257,13 +257,9 @@ pub(crate) struct AnalysisResult {
     /// read from the same `StudyResult.performance` record the static DTO uses.
     #[pyo3(get)]
     pub(crate) performance: PerformanceSection,
-    /// Support-matrix evidence contract (`licensed` or `allowed_unlicensed`).
+    /// Support-matrix evidence contract (`supported` or `not_supported`).
     #[pyo3(get)]
     pub(crate) evidence_status: Option<String>,
-    #[pyo3(get)]
-    pub(crate) allowlist_reason: Option<String>,
-    #[pyo3(get)]
-    pub(crate) allowlist_parent: Option<String>,
     #[pyo3(get)]
     pub(crate) structural_weight_basis: Option<String>,
     #[pyo3(get)]
@@ -290,9 +286,13 @@ pub(crate) struct AnalysisResult {
     pub(crate) structural_identified_set_interval_truncated: Option<bool>,
 }
 
+/// A supplied temporal structure that is not a `TemporalDag`: an equivalence class, or a
+/// temporal ADMG whose pulse, sustained and conditional contrasts are identified on its unrolled
+/// window.
 pub(crate) enum TemporalClassGraph {
-    Cpdag(antecedent_graph::TemporalCpdag),
-    Pag(antecedent_graph::TemporalPag),
+    Cpdag(antecedent::graph::TemporalCpdag),
+    Pag(antecedent::graph::TemporalPag),
+    Admg(antecedent::graph::TemporalAdmg),
 }
 
 pub(crate) fn temporal_query_from_policy(
@@ -303,7 +303,12 @@ pub(crate) fn temporal_query_from_policy(
     horizon_steps: u32,
     active_level: f64,
 ) -> PyResult<TemporalEffectQuery> {
-    let parsed = crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
+    crate::bridge::check_count(
+        "horizon_steps",
+        u64::from(horizon_steps),
+        crate::bridge::MAX_HORIZON_STEPS,
+    )?;
+    let parsed = crate::temporal_support::policy_at_lag(policy, treatment_lag)?;
     let query = match &parsed {
         TemporalPolicy::Pulse { .. } => TemporalEffectQuery::pulse(t_id, y_id, active_level),
         TemporalPolicy::Sustained { .. } => {
@@ -332,6 +337,34 @@ pub(crate) struct GcmIteResult {
     /// Per-unit treatment effects (float64 NumPy array).
     #[pyo3(get)]
     pub(crate) unit_effects: Py<PyArray1<f64>>,
+    /// The compiled simulation route the effects came from.
+    pub(crate) route: Option<crate::compiled_route_api::RouteRecord>,
+}
+
+#[pymethods]
+impl GcmIteResult {
+    /// The compiled unit-effect simulation route this result came from.
+    #[getter]
+    fn route(&self, py: Python<'_>) -> PyResult<crate::compiled_route_api::RouteHandle> {
+        crate::compiled_route_api::route_object(py, self.route.as_ref())
+    }
+
+    /// The contract the unit-effect simulation executed under (`query_kind="Simulate"`).
+    #[getter]
+    fn contract(&self) -> PyResult<std::collections::HashMap<String, String>> {
+        crate::compiled_route_api::require_route(self.route.as_ref())?.contract()
+    }
+
+    /// The claim sealed over the unit-effect simulation.
+    #[getter]
+    fn claim(&self) -> PyResult<std::collections::HashMap<String, String>> {
+        crate::compiled_route_api::require_route(self.route.as_ref())?.claim()
+    }
+
+    /// Cheap inspection record of the compiled unit-effect simulation study.
+    fn inspect(&self) -> PyResult<std::collections::HashMap<String, String>> {
+        crate::compiled_route_api::require_route(self.route.as_ref())?.inspect()
+    }
 }
 
 /// Interventional samples under hard `do` (means + full draws).
@@ -346,6 +379,34 @@ pub(crate) struct GcmSampleResult {
     /// Column-major draws shaped `(n_nodes, n_draws)`.
     #[pyo3(get)]
     pub(crate) draws: Py<PyArray2<f64>>,
+    /// The compiled simulation route the draws came from.
+    pub(crate) route: Option<crate::compiled_route_api::RouteRecord>,
+}
+
+#[pymethods]
+impl GcmSampleResult {
+    /// The compiled interventional sample route this result came from.
+    #[getter]
+    fn route(&self, py: Python<'_>) -> PyResult<crate::compiled_route_api::RouteHandle> {
+        crate::compiled_route_api::route_object(py, self.route.as_ref())
+    }
+
+    /// The contract the interventional sample executed under (`query_kind="Simulate"`).
+    #[getter]
+    fn contract(&self) -> PyResult<std::collections::HashMap<String, String>> {
+        crate::compiled_route_api::require_route(self.route.as_ref())?.contract()
+    }
+
+    /// The claim sealed over the interventional sample.
+    #[getter]
+    fn claim(&self) -> PyResult<std::collections::HashMap<String, String>> {
+        crate::compiled_route_api::require_route(self.route.as_ref())?.claim()
+    }
+
+    /// Cheap inspection record of the compiled interventional sample study.
+    fn inspect(&self) -> PyResult<std::collections::HashMap<String, String>> {
+        crate::compiled_route_api::require_route(self.route.as_ref())?.inspect()
+    }
 }
 
 /// Fit a linear-Gaussian GCM and return mean ITE under hard interventions.
@@ -381,15 +442,26 @@ pub(crate) fn apply_class_prior(
     }
 }
 
+pub(crate) fn apply_class_completion_options(
+    builder: StudyBuilder,
+    ordered: Option<Vec<f64>>,
+    pairs: Option<Vec<(u64, f64)>>,
+    max_completions: Option<usize>,
+) -> PyResult<StudyBuilder> {
+    let builder = apply_class_prior(builder, ordered, pairs)?;
+    Ok(apply_max_completions(builder, max_completions))
+}
+
 pub(crate) fn apply_temporal_inference_transfer(
     builder: antecedent::StudyBuilder,
     inference: Option<&str>,
     n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<&[u8]>,
-    prior_mapping: Option<antecedent_io::PriorMapping>,
+    prior_mapping: Option<antecedent::io::PriorMapping>,
     composed_prior: Option<crate::prior_bank::OwnedComposedPrior>,
-    likelihood: antecedent_prob::BayesLikelihood,
+    count_prior: Option<antecedent::inference::PriorSet>,
+    likelihood: antecedent::inference::BayesLikelihood,
 ) -> PyResult<antecedent::StudyBuilder> {
     let Some(mode) = inference else {
         return Ok(builder);
@@ -419,6 +491,8 @@ pub(crate) fn apply_temporal_inference_transfer(
         cfg = crate::prior_bank::apply_owned_composed_prior(cfg, comp)?;
     } else if let Some(bytes) = prior_artifact {
         cfg = cfg.prior_from_artifact(bytes.to_vec(), prior_mapping);
+    } else if let Some(prior) = count_prior {
+        cfg = cfg.prior(prior);
     }
     let builder = builder.inference(InferenceMode::Bayesian(cfg));
     if let Some(n) = n_draws {

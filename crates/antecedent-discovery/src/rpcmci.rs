@@ -5,7 +5,7 @@
 //! Optional alternating assignment refines labels by residual fit under each
 //! regime's discovered lagged parents.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -207,6 +207,7 @@ impl Rpcmci {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<RpcmciDiscoveryResult, DiscoveryError> {
+        self.pcmci_plus.engine().constraints.validate_temporal_ci_options()?;
         if assignments.len() != data.row_count() {
             return Err(DiscoveryError::data_msg(format!(
                 "regime assignment length {} != series length {}",
@@ -311,7 +312,9 @@ impl Rpcmci {
         }
 
         let max_lag = self.pcmci_plus.engine().constraints.temporal.max_lag.raw();
-        let frame_depth = 2 * max_lag;
+        let frame_depth = max_lag
+            .checked_mul(2)
+            .ok_or_else(|| DiscoveryError::unsupported("discovery doubled max_lag exceeds u32"))?;
         let full_frame = LaggedFrame::from_series(data, variables, frame_depth, &ctx.kernel_policy)
             .map_err(DiscoveryError::from)?;
 
@@ -346,7 +349,7 @@ impl Rpcmci {
                 continue;
             }
             let masked = full_frame
-                .retain_effective(&keep)
+                .retain_effective(&antecedent_data::ValidityBitmap::from_bools(&keep))
                 .map_err(|e| DiscoveryError::data_msg(format!("regime mask: {e}")))?;
             let mut result = self.pcmci_plus.run_on_frame(&masked, variables, workspace, ctx)?;
             // Each regime graph assumes stationarity within its regime only.
@@ -473,38 +476,7 @@ fn reassign_by_lagged_residual(
         cols.push(col);
     }
 
-    // Retained lagged parents per regime and target variable.
-    let mut regime_parents: Vec<(RegimeId, LaggedParents)> = Vec::new();
-    for (regime, g) in graphs.graphs.iter() {
-        let mut by_target: LaggedParents = vec![Vec::new(); variables.len()];
-        for (i, node) in g.nodes().iter().enumerate() {
-            let antecedent_graph::NodeRef::Lagged { variable: tgt, lag: tlag } = node else {
-                continue;
-            };
-            if !tlag.is_contemporaneous() {
-                continue;
-            }
-            let Some(ti) = variables.iter().position(|v| v == tgt) else {
-                continue;
-            };
-            let from = antecedent_graph::DenseNodeId::from_raw(crate::indexing::dense_u32(i));
-            for p in g.parents(from) {
-                if let Some(antecedent_graph::NodeRef::Lagged { variable: src, lag: slag }) =
-                    g.nodes().get(p.as_usize())
-                {
-                    if slag.raw() >= 1 {
-                        if let Some(si) = variables.iter().position(|v| v == src) {
-                            let parent = (si, slag.raw() as usize);
-                            if !by_target[ti].contains(&parent) {
-                                by_target[ti].push(parent);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        regime_parents.push((*regime, by_target));
-    }
+    let regime_parents = retained_regime_parents(graphs, variables);
     if regime_parents.iter().all(|(_, by_target)| by_target.iter().all(Vec::is_empty)) {
         return Ok(None);
     }
@@ -545,13 +517,101 @@ fn reassign_by_lagged_residual(
         })
         .collect();
 
+    let models = fit_regime_models(&regime_parents, &cols, first_row, n, current);
+    if models.len() < 2 {
+        return Ok(None);
+    }
+
+    // Minimum-cost label path: cost of a step under a regime is the variance-standardised
+    // one-step squared error summed over all variables; each switch costs `switch_penalty`.
+    let penalty = switch_penalty.max(0.0);
+    let k = models.len();
+    let step_cost = |t: usize, m: &RegimeModel| -> f64 {
+        let mut err = 0.0;
+        for (ti, eq) in m.equations.iter().enumerate() {
+            if scale[ti] <= f64::MIN_POSITIVE {
+                continue; // constant column: nothing to explain
+            }
+            if !cols[ti][t].is_finite() {
+                return f64::INFINITY;
+            }
+            let mut pred = eq.coefficients[0];
+            for (j, &(si, lag)) in eq.parents.iter().enumerate() {
+                let parent = cols[si][t - lag];
+                if !parent.is_finite() {
+                    return f64::INFINITY;
+                }
+                pred += eq.coefficients[j + 1] * parent;
+            }
+            let resid = cols[ti][t] - pred;
+            err += resid * resid / scale[ti];
+        }
+        err
+    };
+    let steps = n - first_row;
+    let path =
+        min_cost_label_path(steps, k, penalty, |s, ri| step_cost(first_row + s, &models[ri]));
+    let mut out = current.regimes.to_vec();
+    for (s, &state) in path.iter().enumerate() {
+        out[first_row + s] = models[state].regime;
+    }
+    for t in 0..first_row {
+        out[t] = out[first_row];
+    }
+    Ok(Some(RegimeAssignment { regimes: Arc::from(out) }))
+}
+
+fn retained_regime_parents(
+    graphs: &RegimeGraphCollection,
+    variables: &[VariableId],
+) -> Vec<(RegimeId, LaggedParents)> {
+    // Retained lagged parents per regime and target variable.
+    let mut regime_parents: Vec<(RegimeId, LaggedParents)> = Vec::new();
+    for (regime, g) in graphs.graphs.iter() {
+        let mut by_target: LaggedParents = vec![Vec::new(); variables.len()];
+        for (i, node) in g.nodes().iter().enumerate() {
+            let antecedent_graph::NodeRef::Lagged { variable: tgt, lag: tlag } = node else {
+                continue;
+            };
+            if !tlag.is_contemporaneous() {
+                continue;
+            }
+            let Some(ti) = variables.iter().position(|v| v == tgt) else {
+                continue;
+            };
+            let from = antecedent_graph::DenseNodeId::from_raw(crate::indexing::dense_u32(i));
+            for p in g.parents(from) {
+                if let Some(antecedent_graph::NodeRef::Lagged { variable: src, lag: slag }) =
+                    g.nodes().get(p.as_usize())
+                    && slag.raw() >= 1
+                    && let Some(si) = variables.iter().position(|v| v == src)
+                {
+                    let parent = (si, slag.raw() as usize);
+                    if !by_target[ti].contains(&parent) {
+                        by_target[ti].push(parent);
+                    }
+                }
+            }
+        }
+        regime_parents.push((*regime, by_target));
+    }
+    regime_parents
+}
+
+fn fit_regime_models(
+    regime_parents: &[(RegimeId, LaggedParents)],
+    cols: &[Vec<f64>],
+    first_row: usize,
+    n: usize,
+    current: &RegimeAssignment,
+) -> Vec<RegimeModel> {
     // Fit each regime's equations on the rows currently assigned to it.
     let backend = FaerBackend;
     let mut models: Vec<RegimeModel> = Vec::with_capacity(regime_parents.len());
-    'regimes: for (regime, by_target) in &regime_parents {
+    'regimes: for (regime, by_target) in regime_parents {
         let regime_rows: Vec<usize> =
             (first_row..n).filter(|&t| current.regimes[t] == *regime).collect();
-        let mut equations = Vec::with_capacity(variables.len());
+        let mut equations = Vec::with_capacity(cols.len());
         for (ti, parents) in by_target.iter().enumerate() {
             // A missing cell is not a residual. Fit only on a full finite window.
             let rows: Vec<usize> = regime_rows
@@ -590,57 +650,37 @@ fn reassign_by_lagged_residual(
         }
         models.push(RegimeModel { regime: *regime, equations });
     }
-    if models.len() < 2 {
-        return Ok(None);
-    }
+    models
+}
 
-    // Minimum-cost label path: cost of a step under a regime is the variance-standardised
-    // one-step squared error summed over all variables; each switch costs `switch_penalty`.
-    let penalty = switch_penalty.max(0.0);
-    let k = models.len();
-    let step_cost = |t: usize, m: &RegimeModel| -> f64 {
-        let mut err = 0.0;
-        for (ti, eq) in m.equations.iter().enumerate() {
-            if scale[ti] <= f64::MIN_POSITIVE {
-                continue; // constant column: nothing to explain
-            }
-            if !cols[ti][t].is_finite() {
-                return f64::INFINITY;
-            }
-            let mut pred = eq.coefficients[0];
-            for (j, &(si, lag)) in eq.parents.iter().enumerate() {
-                let parent = cols[si][t - lag];
-                if !parent.is_finite() {
-                    return f64::INFINITY;
-                }
-                pred += eq.coefficients[j + 1] * parent;
-            }
-            let resid = cols[ti][t] - pred;
-            err += resid * resid / scale[ti];
-        }
-        err
-    };
-    let steps = n - first_row;
+/// Minimum-cost label path over `steps` time points and `k` regimes by Viterbi.
+///
+/// `step_cost(s, r)` is the cost of regime `r` at step `s`; a non-finite cost is a window
+/// that could not be scored and contributes nothing, so later finite rows stay comparable.
+/// Each change of label between consecutive steps costs `penalty`. Staying is preferred on a
+/// tie, and the earliest regime wins a tie at the last step.
+fn min_cost_label_path(
+    steps: usize,
+    k: usize,
+    penalty: f64,
+    step_cost: impl Fn(usize, usize) -> f64,
+) -> Vec<usize> {
+    let finite = |cost: f64| if cost.is_finite() { cost } else { 0.0 };
     let mut cost = vec![0.0f64; steps * k];
     let mut back = vec![0usize; steps * k];
-    for (ri, m) in models.iter().enumerate() {
-        let step = step_cost(first_row, m);
-        // A non-finite window is not a residual. Leaving it out of the path cost
-        // keeps later finite rows comparable; adding infinity would freeze the path.
-        cost[ri] = if step.is_finite() { step } else { 0.0 };
+    for (ri, value) in cost.iter_mut().take(k).enumerate() {
+        *value = finite(step_cost(0, ri));
     }
     for s in 1..steps {
-        let t = first_row + s;
         // Best predecessor for a switch; staying is preferred on ties.
         let (best_prev, best_prev_cost) = (0..k)
             .map(|r| (r, cost[(s - 1) * k + r]))
             .fold((0usize, f64::INFINITY), |acc, x| if x.1 < acc.1 { x } else { acc });
-        for (ri, m) in models.iter().enumerate() {
+        for ri in 0..k {
             let stay = cost[(s - 1) * k + ri];
             let switch = best_prev_cost + penalty;
             let (prev, base) = if stay <= switch { (ri, stay) } else { (best_prev, switch) };
-            let step = step_cost(t, m);
-            cost[s * k + ri] = base + if step.is_finite() { step } else { 0.0 };
+            cost[s * k + ri] = base + finite(step_cost(s, ri));
             back[s * k + ri] = prev;
         }
     }
@@ -648,15 +688,12 @@ fn reassign_by_lagged_residual(
         .map(|r| (r, cost[(steps - 1) * k + r]))
         .fold((0usize, f64::INFINITY), |acc, x| if x.1 < acc.1 { x } else { acc })
         .0;
-    let mut out = current.regimes.to_vec();
+    let mut path = vec![0usize; steps];
     for s in (0..steps).rev() {
-        out[first_row + s] = models[state].regime;
+        path[s] = state;
         state = back[s * k + state];
     }
-    for t in 0..first_row {
-        out[t] = out[first_row];
-    }
-    Ok(Some(RegimeAssignment { regimes: Arc::from(out) }))
+    path
 }
 
 /// Seed helper for regime discovery benches: build a two-regime assignment map.
@@ -738,6 +775,30 @@ mod tests {
             TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
         )
         .unwrap()
+    }
+
+    #[test]
+    fn rpcmci_refuses_invalid_alpha_and_overflowing_lag_before_regime_frames() {
+        let data = two_regime_series(100);
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let assignment = two_regime_half_split(100);
+        for (alpha, max_lag) in [(f64::NAN, 1), (0.05, u32::MAX)] {
+            let constraints = DiscoveryConstraints {
+                alpha,
+                temporal: TemporalConstraints {
+                    max_lag: Lag::from_raw(max_lag),
+                    min_lag: Lag::CONTEMPORANEOUS,
+                },
+                ..DiscoveryConstraints::default()
+            };
+            let algo =
+                Rpcmci::new().with_pcmci_plus(PcmciPlus::new().with_constraints(constraints));
+            let mut ws = DiscoveryWorkspace::default();
+            assert!(
+                algo.run(&data, &vars, &assignment, &mut ws, &ExecutionContext::for_tests(7))
+                    .is_err()
+            );
+        }
     }
 
     #[test]
@@ -1023,6 +1084,88 @@ mod tests {
             .expect("one missing row must not drop both regimes");
         let agree = (1..n).filter(|&t| t != 40 && refined.regimes[t] == current.regimes[t]).count();
         assert!(agree * 100 >= (n - 2) * 85, "only {agree} finite rows kept their regime");
+    }
+
+    /// Cost of a label path: its per-step costs plus `penalty` per change of label.
+    fn path_cost(path: &[usize], costs: &[Vec<f64>], penalty: f64) -> f64 {
+        let steps: f64 = path.iter().enumerate().map(|(s, &r)| costs[s][r]).sum();
+        let switches = path.windows(2).filter(|w| w[0] != w[1]).count();
+        steps + penalty * switches as f64
+    }
+
+    /// Viterbi against exhaustive enumeration of every label path: for random step costs,
+    /// two to four regimes, up to seven steps and several switch penalties the returned
+    /// path costs exactly the minimum over all `k^steps` paths. Non-finite step costs are
+    /// scored as zero, as in the reassignment sweep.
+    #[test]
+    fn label_path_is_the_exhaustive_minimum_cost_path() {
+        let mut state = 0x2545_F491_4F6C_DD1Du64;
+        let mut next = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let mut switching_optimum = 0;
+        for trial in 0..300 {
+            let k = 2 + trial % 3;
+            let steps = 1 + (trial / 3) % 7;
+            let penalty = [0.0, 0.3, 1.0, 3.0][trial % 4];
+            let costs: Vec<Vec<f64>> = (0..steps)
+                .map(|_| {
+                    (0..k)
+                        .map(|_| if next() < 0.05 { f64::INFINITY } else { 4.0 * next() })
+                        .collect()
+                })
+                .collect();
+            let scored: Vec<Vec<f64>> = costs
+                .iter()
+                .map(|row| row.iter().map(|c| if c.is_finite() { *c } else { 0.0 }).collect())
+                .collect();
+            let path = min_cost_label_path(steps, k, penalty, |s, r| costs[s][r]);
+            assert_eq!(path.len(), steps);
+            assert!(path.iter().all(|&r| r < k));
+            let got = path_cost(&path, &scored, penalty);
+            let mut best = f64::INFINITY;
+            let mut candidate = vec![0usize; steps];
+            for code in 0..k.pow(steps as u32) {
+                let mut rest = code;
+                for slot in &mut candidate {
+                    *slot = rest % k;
+                    rest /= k;
+                }
+                best = best.min(path_cost(&candidate, &scored, penalty));
+            }
+            assert!(
+                (got - best).abs() < 1e-12,
+                "trial {trial}: viterbi {got} vs exhaustive {best}"
+            );
+            if path.windows(2).any(|w| w[0] != w[1]) {
+                switching_optimum += 1;
+            }
+        }
+        assert!(switching_optimum >= 30, "only {switching_optimum} optimal paths switch label");
+    }
+
+    /// With every regime equally good the path never switches, and a one-step blip that a
+    /// switch would cost more than it saves is smoothed over, while a larger saving is kept.
+    #[test]
+    #[allow(clippy::match_same_arms, reason = "the arms name distinct fixture cases")]
+    fn label_path_stays_on_ties_and_switches_only_when_it_pays() {
+        let flat = min_cost_label_path(6, 3, 0.5, |_, _| 1.0);
+        assert_eq!(flat, vec![0; 6]);
+
+        // Regime 1 is better by 0.8 for one step only; two switches cost 2 * penalty.
+        let blip = |penalty: f64| {
+            min_cost_label_path(5, 2, penalty, |s, r| match (s, r) {
+                (2, 0) => 1.0,
+                (2, 1) => 0.2,
+                (_, 0) => 0.2,
+                _ => 1.0,
+            })
+        };
+        assert_eq!(blip(1.0), vec![0; 5], "two switches (2.0) outweigh the 0.8 saving");
+        assert_eq!(blip(0.3), vec![0, 0, 1, 0, 0], "two switches (0.6) are cheaper than 0.8");
     }
 
     /// Without a switch penalty labels chatter; with one they stay contiguous.

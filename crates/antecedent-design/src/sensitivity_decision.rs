@@ -14,8 +14,8 @@
 //!   refused;
 //! * a sampling interval is never composed into the range. It is reported next to the
 //!   decision ([`SamplingReport::SeparateNotComposed`]) and a request to compose it is
-//!   refused unless the method is licensed
-//!   ([`LICENSED_SAMPLING_COMPOSITIONS`], empty today);
+//!   refused unless the method is supported
+//!   ([`SUPPORTED_SAMPLING_COMPOSITIONS`], empty today);
 //! * an unsupported grid point refuses the evaluation; an unevaluated one leaves the
 //!   atom unevaluated, so the decision is reported unresolved instead of invariant.
 //!
@@ -36,7 +36,7 @@ use antecedent_io_core::error::IoError;
 use antecedent_io_core::quantity_wire::DistributionMeaningWire;
 pub use antecedent_io_core::sensitivity_artifact::{
     ASSUMPTION_RANGE_STATEMENT, ActionUtility, AssumptionCoordinate, AssumptionRangeStatement,
-    DecisionSwitch, IdentifiedBound, LICENSED_SAMPLING_COMPOSITIONS, NoRobustReason, PointSupport,
+    DecisionSwitch, IdentifiedBound, NoRobustReason, PointSupport, SUPPORTED_SAMPLING_COMPOSITIONS,
     SamplingInterval, SamplingStatus, SensitivityArtifact, SensitivityIdentity, SensitivityOutcome,
     SensitivityParts, SensitivityProvenance, SourceTipping, SurfaceQuantity,
     UncertaintyRelationship, UtilityTerm,
@@ -67,7 +67,7 @@ pub struct SensitivityDecisionSpec {
     /// required by `BayesOverStructures`.
     pub weights: Option<Vec<f64>>,
     /// A requested composition of the sampling interval with the assumption range;
-    /// refused unless the method is in [`LICENSED_SAMPLING_COMPOSITIONS`].
+    /// refused unless the method is in [`SUPPORTED_SAMPLING_COMPOSITIONS`].
     pub sampling_composition: Option<String>,
 }
 
@@ -167,15 +167,15 @@ impl std::error::Error for SensitivityDecisionError {}
 fn wrong_contract(message: impl Into<String>) -> SensitivityDecisionError {
     SensitivityDecisionError {
         code: antecedent_core::reason_code!("decision_contract_unsatisfied"),
-        detail: "sensitivity_decision_composition.wrong_contract",
+        detail: antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT,
         message: message.into(),
     }
 }
 
-fn not_licensed(message: impl Into<String>) -> SensitivityDecisionError {
+fn not_supported(message: impl Into<String>) -> SensitivityDecisionError {
     SensitivityDecisionError {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
-        detail: "sensitivity_decision_composition.composition_not_licensed",
+        code: antecedent_core::reason_code!("route_not_supported"),
+        detail: antecedent_core::reason_details::sensitivity_decision_composition::COMPOSITION_NOT_SUPPORTED,
         message: message.into(),
     }
 }
@@ -183,7 +183,7 @@ fn not_licensed(message: impl Into<String>) -> SensitivityDecisionError {
 fn invalid_surface(message: impl Into<String>) -> SensitivityDecisionError {
     SensitivityDecisionError {
         code: antecedent_core::reason_code!("invalid_argument"),
-        detail: "sensitivity_decision_composition.invalid_surface",
+        detail: antecedent_core::reason_details::sensitivity_decision_composition::INVALID_SURFACE,
         message: message.into(),
     }
 }
@@ -194,22 +194,22 @@ fn from_io(error: &IoError) -> SensitivityDecisionError {
         return invalid_surface(error.to_string());
     };
     let detail = match message.split_once(": ").map_or("", |(detail, _)| detail) {
-        "sensitivity_decision_composition.unsupported_coordinate" => {
-            "sensitivity_decision_composition.unsupported_coordinate"
+        antecedent_core::reason_details::sensitivity_decision_composition::UNSUPPORTED_COORDINATE => {
+            antecedent_core::reason_details::sensitivity_decision_composition::UNSUPPORTED_COORDINATE
         }
-        "sensitivity_decision_composition.composition_not_licensed" => {
-            "sensitivity_decision_composition.composition_not_licensed"
+        antecedent_core::reason_details::sensitivity_decision_composition::COMPOSITION_NOT_SUPPORTED => {
+            antecedent_core::reason_details::sensitivity_decision_composition::COMPOSITION_NOT_SUPPORTED
         }
-        "sensitivity_decision_composition.bounds_exceeded" => {
-            "sensitivity_decision_composition.bounds_exceeded"
+        antecedent_core::reason_details::sensitivity_decision_composition::BOUNDS_EXCEEDED => {
+            antecedent_core::reason_details::sensitivity_decision_composition::BOUNDS_EXCEEDED
         }
-        "sensitivity_decision_composition.unsupported_adaptation" => {
-            "sensitivity_decision_composition.unsupported_adaptation"
+        antecedent_core::reason_details::sensitivity_decision_composition::UNSUPPORTED_ADAPTATION => {
+            antecedent_core::reason_details::sensitivity_decision_composition::UNSUPPORTED_ADAPTATION
         }
-        "sensitivity_decision_composition.invalid_surface" => {
-            "sensitivity_decision_composition.invalid_surface"
+        antecedent_core::reason_details::sensitivity_decision_composition::INVALID_SURFACE => {
+            antecedent_core::reason_details::sensitivity_decision_composition::INVALID_SURFACE
         }
-        _ => "sensitivity_decision_composition.wrong_contract",
+        _ => antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT,
     };
     SensitivityDecisionError { code, detail, message: message.clone() }
 }
@@ -217,7 +217,7 @@ fn from_io(error: &IoError) -> SensitivityDecisionError {
 fn from_structural(error: &StructuralError) -> SensitivityDecisionError {
     SensitivityDecisionError {
         code: error.reason_code(),
-        detail: "sensitivity_decision_composition.wrong_contract",
+        detail: antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT,
         message: format!("{error:?}"),
     }
 }
@@ -547,8 +547,8 @@ fn point_probabilities(
 /// coordinate (see [`SensitivityOutcome`]).
 ///
 /// # Errors
-/// Refuses (a) a requested sampling composition that is not licensed
-/// (`composition_not_licensed`, code `cell_not_licensed`); (b) an invalid contract, an
+/// Refuses (a) a requested sampling composition that is not supported
+/// (`composition_not_supported`, code `route_not_supported`); (b) an invalid contract, an
 /// unsupported criterion, unlike units or an input the surface does not carry, weights on
 /// a ranged surface, a weight count that does not match the grid, and `Bayes` without
 /// genuine weights (`wrong_contract`, code `decision_contract_unsatisfied`); (c) an
@@ -560,8 +560,8 @@ pub fn evaluate_sensitivity_decision(
     spec: &SensitivityDecisionSpec,
 ) -> Result<SensitivityDecisionResult, SensitivityDecisionError> {
     if let Some(method) = &spec.sampling_composition {
-        return Err(not_licensed(format!(
-            "composing a sampling interval with an assumption range by `{method}` is not licensed; licensed methods: {LICENSED_SAMPLING_COMPOSITIONS:?}"
+        return Err(not_supported(format!(
+            "composing a sampling interval with an assumption range by `{method}` is not supported; supported methods: {SUPPORTED_SAMPLING_COMPOSITIONS:?}"
         )));
     }
     check_contract(contract, artifact)?;

@@ -6,6 +6,7 @@ from typing import Any, Literal, TypedDict
 
 import numpy as np
 
+from ..._artifact_protocol import artifact_consumer, container_bytes
 from ..._columns import coerce_fields
 from ..._native import (
     consume_z_transport_artifact as _consume_z_transport_artifact,
@@ -15,6 +16,9 @@ from ..._native import (
 )
 from ..._native import (
     estimate_trial_transport as _estimate_trial_transport,
+)
+from ..._native import (
+    estimate_trial_weighted_target as _estimate_trial_weighted_target,
 )
 from ..._native import (
     identify_transport as _identify_transport,
@@ -29,6 +33,7 @@ from ..._native import (
     roundtrip_expr_arena as _roundtrip_expr_arena,
 )
 from ...errors import CausalTypeError, CausalValueError
+from ...execution import Execution
 from ...graph import Admg
 from ...query import (
     AverageDerivative,
@@ -39,13 +44,14 @@ from ...query import (
     ResponseJacobian,
     SemiElasticity,
 )
+from .._consumption import TransportConsumption
+from .._controls import call_native
 from .._status import identification_status as _canonical_status
 from .catalog import (
     EvidenceCatalog,
     SelectionDiagram,
     ZTransportCandidate,
     ZTransportQuery,
-    ZTransportSensitivityResult,
 )
 from .limits import _non_negative, _optional_non_negative
 
@@ -58,7 +64,7 @@ class TransportQuery:
     the selection diagram's populations and mechanism-selection targets, and
     ``source_experiments`` the variables randomized in the source.
 
-    :func:`antecedent.analyze` estimates the licensed cell (explicit ``Admg``,
+    :func:`antecedent.analyze` estimates the supported cell (explicit ``Admg``,
     Frequentist, validation ``none``): a mean :class:`antecedent.ResponseCurve`
     transported from trial to target by binary trial-to-target IPW. It reads
     three data columns named by the keyword-only fields: ``trial`` (source-trial
@@ -76,6 +82,11 @@ class TransportQuery:
     trial: str | None = None
     selection_probability: str | None = None
     treatment_probability: str | None = None
+    #: A weighted target population (:func:`antecedent.population.target_kernel` or
+    #: :func:`antecedent.population.target_row_weights`) over covariate columns of the analysed
+    #: table. The target is then the non-participant rows reweighted by it, behind the overlap
+    #: gates of the weighted target; ``None`` keeps the labelled target population.
+    target: object | None = None
     kind: Literal["transport"] = field(default="transport", init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -92,6 +103,16 @@ class TransportQuery:
                 raise CausalValueError("source_experiments disagree with the evidence catalog")
             if not explicit:
                 coerce_fields(self, source_experiments=tuple(derived))
+        if self.target is not None:
+            from ...population import WeightedPopulation
+
+            if not isinstance(self.target, WeightedPopulation):
+                raise CausalTypeError("target= takes target_kernel(...) or target_row_weights(...)")
+            if self.trial is None:
+                raise CausalValueError(
+                    "a weighted target reads the trial columns: pass trial=, "
+                    "selection_probability= and treatment_probability="
+                )
         columns = (self.trial, self.selection_probability, self.treatment_probability)
         if any(column is not None for column in columns):
             if any(column is None for column in columns):
@@ -231,6 +252,15 @@ class TrialTransportEstimate:
     provenance: Mapping[str, Any] = field(
         default_factory=lambda: {"operation_ids": ["estimate.trial_to_target"]}
     )
+    #: Delta-method standard errors of the IPW and AIPW contrasts for a weighted target;
+    #: ``None`` for the unweighted target.
+    ipw_se: float | None = None
+    aipw_se: float | None = None
+    #: The weighted target population the estimate is about, with its overlap diagnostics
+    #: (:class:`antecedent.population.WeightedTargetReport`) and the overlap of the trial rows
+    #: with it in ``trial_overlap``; ``None`` for the unweighted target.
+    weighted_target: Any = None
+    trial_overlap: Any = None
 
 
 def _response_args(query: object) -> dict[str, Any]:
@@ -370,8 +400,7 @@ def identify_z_transport(
     max_steps: int = 100_000,
     max_depth: int = 256,
     max_support_rows: int = 1_000_000,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> Any:
     """Create a native stage for bounded single-source z-transport search.
 
@@ -388,7 +417,9 @@ def identify_z_transport(
         raise CausalTypeError("transport.identify_z_transport requires graph=Admg(...)")
     if not isinstance(query, ZTransportQuery):
         raise CausalTypeError("query must be a ZTransportQuery")
-    return _identify_z_transport_stage(
+    return call_native(
+        execution,
+        _identify_z_transport_stage,
         graph,
         list(query.diagram.selections),
         query.diagram.source,
@@ -400,8 +431,8 @@ def identify_z_transport(
         max_steps=_non_negative("max_steps", max_steps),
         max_depth=_non_negative("max_depth", max_depth),
         max_support_rows=_non_negative("max_support_rows", max_support_rows),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+        cancel="cancel",
+        memory="memory_bytes",
     )
 
 
@@ -413,7 +444,6 @@ class _ReplayLimits(TypedDict):
     max_support_rows: int | None
     max_laws: int | None
     max_law_cells: int | None
-    memory_bytes: int | None
 
 
 def _consume_limits(
@@ -422,7 +452,6 @@ def _consume_limits(
     max_support_rows: int | None,
     max_laws: int | None,
     max_law_cells: int | None,
-    memory_bytes: int | None,
 ) -> _ReplayLimits:
     """Validated consumer-side replay limits; ``None`` keeps the native default."""
     return {
@@ -431,10 +460,14 @@ def _consume_limits(
         "max_support_rows": _optional_non_negative("max_support_rows", max_support_rows),
         "max_laws": _optional_non_negative("max_laws", max_laws),
         "max_law_cells": _optional_non_negative("max_law_cells", max_law_cells),
-        "memory_bytes": _optional_non_negative("memory_bytes", memory_bytes),
     }
 
 
+@artifact_consumer(
+    proof="ZTransportArtifactWire consumer: checks proof and provider bindings then replays the retained point",
+    replayable=True,
+    identity=(),
+)
 def consume_z_transport_artifact(
     artifact: bytes,
     *,
@@ -443,9 +476,8 @@ def consume_z_transport_artifact(
     max_support_rows: int | None = None,
     max_laws: int | None = None,
     max_law_cells: int | None = None,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
-) -> str:
+    execution: Execution | None = None,
+) -> TransportConsumption:
     """Independently verify and recompute an exported point-only zTR result.
 
     The replay runs under the consumer's own limits (``max_operations``,
@@ -453,14 +485,19 @@ def consume_z_transport_artifact(
     nothing the artifact recorded raises them, and an artifact whose stored
     laws or recorded limits exceed them is refused.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
-    return _consume_z_transport_artifact(
-        artifact,
-        **_consume_limits(
-            max_operations, max_depth, max_support_rows, max_laws, max_law_cells, memory_bytes
+    return TransportConsumption.from_checked_json(
+        "consume_z_transport_artifact",
+        call_native(
+            execution,
+            _consume_z_transport_artifact,
+            artifact,
+            **_consume_limits(max_operations, max_depth, max_support_rows, max_laws, max_law_cells),
+            cancel="cancel",
+            memory="memory_bytes",
         ),
-        cancel=cancel,
     )
 
 
@@ -471,7 +508,7 @@ def plan_z_transport_evidence(
     *,
     failure_snapshot: bytes | None = None,
     max_evaluated: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> tuple[dict[str, Any], tuple[Any, ...]]:
     """Assess candidates against a stage's frozen failure and catalog.
 
@@ -489,16 +526,25 @@ def plan_z_transport_evidence(
         raise CausalTypeError("failure_snapshot must be bytes")
     if max_evaluated is not None and _non_negative("max_evaluated", max_evaluated) == 0:
         raise CausalValueError("max_evaluated must be at least one")
-    report, proposals = stage.plan_evidence(
+    report, proposals = call_native(
+        execution,
+        stage.plan_evidence,
         catalog,
         list(candidates),
         failure_snapshot,
         max_evaluated=max_evaluated,
-        cancel=cancel,
+        cancel="cancel",
+        memory=None,
     )
     return json.loads(report), tuple(proposals)
 
 
+@artifact_consumer(
+    proof="native sensitivity consumer replays the independently checked baseline and recomputes the discrete contamination assumption range",
+    replayable=True,
+    resumable=False,
+    identity=(),
+)
 def consume_z_transport_sensitivity_artifact(
     artifact: bytes,
     *,
@@ -507,47 +553,63 @@ def consume_z_transport_sensitivity_artifact(
     max_support_rows: int | None = None,
     max_laws: int | None = None,
     max_law_cells: int | None = None,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
-) -> ZTransportSensitivityResult:
+    execution: Execution | None = None,
+) -> TransportConsumption:
     """Independently verify and recompute a portable zTR sensitivity range.
 
     The embedded baseline replays under the consumer's own limits, as in
     :func:`consume_z_transport_artifact`.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
-    return _consume_z_transport_sensitivity_artifact(
-        artifact,
-        **_consume_limits(
-            max_operations, max_depth, max_support_rows, max_laws, max_law_cells, memory_bytes
+    return TransportConsumption.from_checked_mapping(
+        "z_transport_sensitivity",
+        call_native(
+            execution,
+            _consume_z_transport_sensitivity_artifact,
+            artifact,
+            **_consume_limits(max_operations, max_depth, max_support_rows, max_laws, max_law_cells),
+            cancel="cancel",
+            memory="memory_bytes",
         ),
-        cancel=cancel,
     )
 
 
+@artifact_consumer(
+    proof="native Z proposal replay re-derives the original failure and verifies the hypothetical proof/catalog binding",
+    replayable=True,
+    resumable=False,
+    identity=(),
+    unresolved=(
+        "hypothetical proof replay establishes no numerical effect or arriving-data acceptance",
+    ),
+)
 def replay_z_transport_proposal(
     artifact: bytes,
     *,
     max_steps: int = 100_000,
     max_depth: int = 256,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
-) -> None:
+    execution: Execution | None = None,
+) -> TransportConsumption:
     """Independently replay a portable hypothetical zTR study proposal.
 
     The frozen failure is re-derived under the caller's identification limits
     before the hypothetical proof is rebound.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("proposal artifact must be bytes")
-    _replay_z_transport_proposal(
+    call_native(
+        execution,
+        _replay_z_transport_proposal,
         artifact,
         max_steps=_non_negative("max_steps", max_steps),
         max_depth=_non_negative("max_depth", max_depth),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+        cancel="cancel",
+        memory="memory_bytes",
     )
+    return TransportConsumption.from_checked_mapping("z_transport_proposal", {})
 
 
 def reload_lowered_expression(
@@ -597,14 +659,22 @@ def estimate_trial_effect(
     *,
     mu0: Sequence[float] | None = None,
     mu1: Sequence[float] | None = None,
+    target: Any = None,
+    covariates: Mapping[str, Sequence[float]] | None = None,
+    execution: Execution | None = None,
 ) -> TrialTransportEstimate:
     """Estimate a trial-to-target binary-treatment contrast by IPW and optional AIPW.
 
-    This is an unlicensed utility: it calls the
-    trial-to-target estimator directly and returns bare numbers, with no study,
-    contract, export or calibration slot. ``antecedent.analyze(data, graph=Admg,
-    query=TransportQuery(..., trial=, selection_probability=,
-    treatment_probability=))`` is the licensed, study-retaining path.
+    Specialized transport operation outside the central compiler, kept as a documented
+    low-level exception: it computes IPW and, from the caller's own outcome regressions
+    ``mu0`` and ``mu1``, AIPW, which the compiled path does not accept. It returns bare
+    numbers with their overlap diagnostics and carries no study, contract, export,
+    interval, calibration slot or support claim; the only thing it checks is the
+    identification certificate and the input shapes and ranges. ``execution`` supplies the
+    memory, work and cancellation policy the numerical kernels obey.
+    ``antecedent.analyze(data, graph=Admg, query=TransportQuery(..., trial=,
+    selection_probability=, treatment_probability=))`` is the compiled, study-retaining
+    path and the one to use for a claim.
 
     ``identification`` must be the result of :func:`identify` for this query.
     Identification and estimation stay separate operations, but the estimator
@@ -617,6 +687,15 @@ def estimate_trial_effect(
 
     The positional order is ``(treatment, outcome)``, matching Antecedent's
     scalar causal-query convention.
+
+    ``target`` makes the target population a weighted target
+    (:func:`antecedent.population.target_kernel` or
+    :func:`antecedent.population.target_row_weights`): the non-participant rows reweighted by
+    a kernel over covariate distance, or by declared row weights. ``covariates`` names the
+    columns (one value per row, trial and target rows alike) the declaration reads. The
+    estimate carries delta-method standard errors, the weighted target's overlap diagnostics
+    and the overlap of the trial rows with it; a target with no overlap is refused with
+    ``transport_target_overlap_failed`` and a next attempt.
     """
 
     if not isinstance(identification, TransportIdentification):
@@ -625,13 +704,33 @@ def estimate_trial_effect(
         )
     if (mu0 is None) != (mu1 is None):
         raise CausalValueError("mu0 and mu1 must be supplied together")
-    raw = _estimate_trial_transport(
+    if target is not None:
+        return _weighted_target_estimate(
+            identification,
+            target,
+            covariates,
+            treatment=treatment,
+            outcome=outcome,
+            trial=trial,
+            selection_probability=selection_probability,
+            treatment_probability=treatment_probability,
+            mu0=mu0,
+            mu1=mu1,
+            execution=execution,
+        )
+    if covariates is not None:
+        raise CausalValueError("covariates are read only with a weighted target=")
+    raw = call_native(
+        execution,
+        _estimate_trial_transport,
         identification._native,
         np.asarray(outcome, dtype=np.float64),
         list(treatment),
         list(trial),
         np.asarray(selection_probability, dtype=np.float64),
         np.asarray(treatment_probability, dtype=np.float64),
+        memory=None,
+        seed="seed",
         mu0=None if mu0 is None else np.asarray(mu0, dtype=np.float64),
         mu1=None if mu1 is None else np.asarray(mu1, dtype=np.float64),
     )
@@ -653,4 +752,72 @@ def estimate_trial_effect(
                 raw.treatment_extreme_weight_count,
             ),
         ),
+    )
+
+
+def _weighted_target_estimate(
+    identification: TransportIdentification,
+    target: Any,
+    covariates: Mapping[str, Sequence[float]] | None,
+    *,
+    treatment: Sequence[bool],
+    outcome: Sequence[float],
+    trial: Sequence[bool],
+    selection_probability: Sequence[float],
+    treatment_probability: Sequence[float],
+    mu0: Sequence[float] | None,
+    mu1: Sequence[float] | None,
+    execution: Execution | None,
+) -> TrialTransportEstimate:
+    """The trial contrast for a weighted target; the native facade owns every number."""
+    from ...population import WeightedPopulation, WeightedTargetReport
+
+    if not isinstance(target, WeightedPopulation):
+        raise CausalTypeError("target= takes target_kernel(...) or target_row_weights(...)")
+    if not covariates:
+        raise CausalValueError("a weighted target needs covariates= naming the columns it reads")
+    names = [str(name) for name in covariates]
+    arrays = [np.asarray(covariates[name], dtype=np.float64) for name in covariates]
+    raw = call_native(
+        execution,
+        _estimate_trial_weighted_target,
+        identification._native,
+        np.asarray(outcome, dtype=np.float64),
+        list(treatment),
+        list(trial),
+        np.asarray(selection_probability, dtype=np.float64),
+        np.asarray(treatment_probability, dtype=np.float64),
+        names,
+        arrays,
+        target._declaration(names),
+        memory=None,
+        cancel=None,
+        mu0=None if mu0 is None else np.asarray(mu0, dtype=np.float64),
+        mu1=None if mu1 is None else np.asarray(mu1, dtype=np.float64),
+    )
+    report = WeightedTargetReport._from_native(raw["report"], names)
+    from ...priors import TargetOverlap
+
+    return TrialTransportEstimate(
+        raw["rule"],
+        raw["ipw"],
+        raw["aipw"],
+        TransportOverlapReport(
+            OverlapDiagnostic(
+                raw["selection_probability_min"],
+                raw["selection_probability_max"],
+                raw["selection_effective_sample_size"],
+                raw["selection_extreme_weight_count"],
+            ),
+            OverlapDiagnostic(
+                raw["treatment_probability_min"],
+                raw["treatment_probability_max"],
+                raw["treatment_effective_sample_size"],
+                raw["treatment_extreme_weight_count"],
+            ),
+        ),
+        ipw_se=raw["ipw_se"],
+        aipw_se=raw["aipw_se"],
+        weighted_target=report,
+        trial_overlap=TargetOverlap._from_native(raw["report"]["trial_overlap"]),
     )

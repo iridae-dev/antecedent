@@ -1,6 +1,6 @@
 //! Assumption and derivation wire types for analysis artifacts.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -11,6 +11,9 @@ use antecedent_core::{
 use serde::{Deserialize, Serialize};
 
 use crate::error::IoError;
+
+mod borrowed;
+pub use borrowed::BorrowedAssumptionsWire;
 
 /// Wire form of an assumption tag .
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -104,15 +107,9 @@ pub struct AnalysisTraceWire {
     pub method: String,
     /// Adjustment set as dense variable indices.
     pub adjustment_set: Vec<u32>,
-    /// `licensed` or `allowed_unlicensed` when the producing study was classified.
+    /// `supported` when the producing study was classified.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub support_status: Option<String>,
-    /// Allowlist reason when `support_status` is `allowed_unlicensed`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub allowlist_reason: Option<String>,
-    /// Allowlist parent family when `support_status` is `allowed_unlicensed`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub allowlist_parent: Option<String>,
 }
 
 /// Convert an [`AssumptionSet`] to wire records.
@@ -235,11 +232,19 @@ pub fn assumptions_from_wire(records: &[AssumptionRecordWire]) -> Result<Assumpt
                 } else {
                     raw.split(',')
                         .map(|id| {
-                            id.parse::<u32>().map(VariableId::from_raw).map_err(|error| {
+                            let parsed = id.parse::<u32>().map_err(|error| {
                                 IoError::Convert(format!(
                                     "invalid variable assumption scope `{values}`: {error}"
                                 ))
-                            })
+                            })?;
+                            // `+3` and `03` parse to 3 but re-encode as `3`: one value, one text.
+                            if parsed.to_string() != id {
+                                return Err(IoError::Convert(format!(
+                                    "variable assumption scope `{values}` is not in canonical \
+                                     decimal form"
+                                )));
+                            }
+                            Ok(VariableId::from_raw(parsed))
                         })
                         .collect::<Result<Vec<_>, _>>()?
                 };
@@ -291,5 +296,28 @@ fn status_label(s: AssumptionStatus) -> String {
         AssumptionStatus::Supported => "supported".into(),
         AssumptionStatus::Contradicted => "contradicted".into(),
         AssumptionStatus::Untestable => "untestable".into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn record(scope: &str) -> AssumptionRecordWire {
+        AssumptionRecordWire {
+            assumption: AssumptionTagWire::CausalMarkov,
+            source: "user_declared".into(),
+            scope: scope.into(),
+            status: "declared".into(),
+        }
+    }
+
+    #[test]
+    fn variable_scope_ids_are_canonical_decimal() {
+        let set = assumptions_from_wire(&[record("variables:[3,10]")]).unwrap();
+        assert_eq!(assumptions_to_wire(&set)[0].scope, "variables:[3,10]");
+        for scope in ["variables:[+3]", "variables:[03]", "variables:[3,010]"] {
+            assert!(assumptions_from_wire(&[record(scope)]).is_err(), "{scope}");
+        }
     }
 }

@@ -27,14 +27,14 @@
 //!   Diebold-Mariano style standard error under the declared dependence.
 //! * **The diagnostics.** PIT histogram, reliability, interval coverage and
 //!   sharpness, and a separate drift route; all labelled `diagnostic` with
-//!   `calibration = "unmeasured"`.
+//!   `calibration = "not_measured"`.
 //!
 //! # What it does not claim
 //!
 //! * No interval for a score or a score difference outside a measured design: the
 //!   interval of an expected score ([`expected_score_interval`]) is published only for a
 //!   held-out or unfitted predictor, under a declared dependence, where a current
-//!   coverage record measured the construction (`cell_not_licensed` elsewhere).
+//!   coverage record measured the construction (`not_supported` elsewhere).
 //!   An exact finite-law expected score has no sampling interval to report.
 //! * No calibration guarantee for the assessed law and no causal validity: a good
 //!   score says the law predicted these observations well, not that any model
@@ -42,7 +42,7 @@
 //! * No law callbacks: a law that exists only as a callback is refused by name
 //!   (`predictive_assessment.law_callback_not_built`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod assess;
 mod bayesian;
@@ -61,7 +61,7 @@ pub use assess::{
     ASSESSMENT_CAUSAL_VALIDITY, ASSESSMENT_FAMILY, ASSESSMENT_INFERENCE_CLAIM,
     AssessmentUncertainty, FoldScore, MAX_ASSESSMENT_WORK, PredictiveAssessmentReport,
     PredictiveAssessmentSpec, PredictorAssessment, REPLAY_TOLERANCE, ScoreIntervalRequest,
-    ScoreSummary, assess_predictive_laws,
+    ScoreSummary, admit_comparisons, assess_predictive_laws, legacy_assessment_identity,
 };
 pub use bayesian::PredictiveReplicates;
 pub use calibration::{

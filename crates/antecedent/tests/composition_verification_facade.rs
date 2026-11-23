@@ -2,12 +2,12 @@
 //! on the stage planner, the invalidation log, claim freshness and the evidence
 //! ledger, and a fresh consumer replays the exported verification.
 //!
-//! Hand oracles (planner dependency rules, retarget licensed): replacing the
+//! Hand oracles (planner dependency rules, retarget supported): replacing the
 //! data snapshot recomputes the score artifact, the law and the decision and
 //! leaves identification reused; changing the target population recomputes the
 //! law and the decision and leaves the score artifact reused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
@@ -67,7 +67,7 @@ fn plan(previous: &StageIdentities, requested: &StageIdentities) -> RecalcPlan {
     RecalcPlan::plan(
         previous,
         requested,
-        &RecalcCapabilities::in_process(RetargetSupport::Licensed),
+        &RecalcCapabilities::in_process(RetargetSupport::Supported),
     )
 }
 
@@ -162,7 +162,10 @@ fn replacing_the_data_snapshot_recomputes_the_fit_and_keeps_no_old_authority() {
     assert!(fit.numerical.iter().any(|n| n.cause == NumericalCause::StructureReusedFitNotRetained));
     let refusal = verification.require_valid("decision").expect_err("stale");
     assert_eq!(refusal.code, "claim_revalidation_required");
-    assert_eq!(refusal.detail, "composition_verification.recompute_required");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_verification::RECOMPUTE_REQUIRED
+    );
     assert!(refusal.remedy.is_some());
     assert!(verification.require_valid("identification").is_ok());
 }
@@ -195,7 +198,11 @@ fn a_target_change_recomputes_the_law_and_never_inherits_its_calibration() {
     assert!(law.calibration.newly_required);
     assert!(law.withdrawn_for(WithdrawalKind::Calibration));
     let refusal = verification.require_valid("law").expect_err("refused");
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "claim_revalidation_required");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_verification::RECOMPUTE_REQUIRED
+    );
     // the score artifact and identification do not depend on the target
     assert_eq!(verification.classify("score_fit").expect("c").class, Revalidation::StillValid);
     // the decision rests on a law that must be recomputed; its point value is not withdrawn
@@ -265,11 +272,29 @@ fn a_fresh_consumer_replays_the_export_and_refuses_tampering() {
     let mut flipped = bytes.clone();
     let middle = flipped.len() / 2;
     flipped[middle] ^= 0xff;
-    assert!(consume_composition_verification_artifact(&flipped, None).is_err());
+    let tampered = consume_composition_verification_artifact(&flipped, None).expect_err("tampered");
+    assert_eq!(tampered.code, "invalid_argument");
+    assert_eq!(
+        tampered.detail,
+        antecedent_core::reason_details::composition_verification::ARTIFACT_INVALID
+    );
+    for offset in [0, bytes.len() / 4, 3 * bytes.len() / 4, bytes.len() - 1] {
+        let mut other = bytes.clone();
+        other[offset] ^= 0x01;
+        assert!(consume_composition_verification_artifact(&other, None).is_err(), "byte {offset}");
+    }
+    let stale = consumed.require_valid("decision").expect_err("recompute");
+    assert_eq!(
+        stale.detail,
+        antecedent_core::reason_details::composition_verification::RECOMPUTE_REQUIRED
+    );
     let other_identity = "0".repeat(64);
     let wrong = consume_composition_verification_artifact(&bytes, Some(other_identity.as_str()))
         .expect_err("retained identity");
-    assert_eq!(wrong.detail, "composition_verification.identity_mismatch");
+    assert_eq!(
+        wrong.detail,
+        antecedent_core::reason_details::composition_verification::IDENTITY_MISMATCH
+    );
     assert!(wrong.remedy.is_some());
 }
 
@@ -332,8 +357,39 @@ fn invalidation_log_and_claim_freshness_drive_the_classification() {
     assert_eq!(verification.classify("other_report").expect("c").class, Revalidation::Withdrawn);
     assert_eq!(verification.classify("report").expect("c").class, Revalidation::StillValid);
     let refusal = verification.require_valid("other_report").expect_err("withdrawn");
-    assert_eq!(refusal.code, "claim_license_withdrawn");
-    assert_eq!(refusal.detail, "composition_verification.input_retired");
+    assert_eq!(refusal.code, "claim_support_withdrawn");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_verification::INPUT_RETIRED
+    );
+}
+
+#[test]
+fn a_claim_older_than_the_trimmed_audit_trail_is_refused_not_reported_unchanged() {
+    let target = InvalidationTarget::QueryResult(QueryId::from_raw(7));
+    let mut log = InvalidationLog::new();
+    for version in 1..=200 {
+        log.push(StateVersion::from_raw(version), target.clone(), "new rows arrived");
+    }
+    log.trim_audit(50);
+    let through = log.pruned_through().expect("the trail was trimmed");
+    let bindings = [("query_result", target.clone())];
+
+    let refused = invalidation_effects(&log, StateVersion::from_raw(1), &bindings);
+    match refused.get("query_result") {
+        Some(ObservedEffect::Refused { detail }) => {
+            assert!(detail.contains(&log.pruned_head().to_hex()), "{detail}");
+        }
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+
+    let answered = invalidation_effects(&log, through, &bindings);
+    assert!(matches!(answered.get("query_result"), Some(ObservedEffect::Recomputed { .. })));
+    assert_eq!(
+        query_revalidation(&log, QueryId::from_raw(7), StateVersion::from_raw(1)),
+        Revalidation::Recompute,
+        "the staleness index still answers for any version"
+    );
 }
 
 fn obs(range: std::ops::Range<u32>) -> Vec<ObservationId> {
@@ -402,7 +458,10 @@ fn the_ledger_supplies_standings_overlap_and_a_state_the_consumer_checks() {
     // after a withdrawal the consumer's ledger is at another state than the one declared
     ledger.withdraw_source(s1, "consent withdrawn").expect("withdraw");
     let refusal = consumed.verify_ledger(&ledger, &cancel).expect_err("moved");
-    assert_eq!(refusal.detail, "composition_verification.ledger_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_verification::LEDGER_MISMATCH
+    );
     // classification of the new standing: the pooled result of two now has one member
     let effects = ledger_effects(&ledger, &[("pooled_13", r_13)]).expect("effects");
     let moved = CompositionVerification::verify(Some(&g), &g, &effects, Some((&ledger, &cancel)))

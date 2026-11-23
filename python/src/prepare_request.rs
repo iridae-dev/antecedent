@@ -4,9 +4,9 @@
 //! work — parse `options`, load columns or a frame, leave the `GIL`, then build
 //! and `prepare` — lives here once.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_data::{TabularData, TimeSeriesData};
+use antecedent::prelude::{TabularData, TimeSeriesData};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
@@ -22,8 +22,10 @@ pub(super) struct PrepareRequest {
     pub(super) seed: u64,
     /// Prepare-time thread budget; `None` is the resolver's default.
     pub(super) threads: Option<u32>,
-    /// Arrow bytes borrowed by [`Self::load_columns_recording`].
-    borrowed_bytes: Option<u64>,
+    /// The structure posterior a graph-posterior route searched under a declared per-edge
+    /// prior, accepted with its provenance, for the study to read it with the prior stated.
+    pub(super) accepted_posterior:
+        std::cell::Cell<Option<antecedent::analysis::structure_route::AcceptedPosterior>>,
 }
 
 impl PrepareRequest {
@@ -39,7 +41,7 @@ impl PrepareRequest {
             opts: PrepareOptions::parse(options)?,
             seed,
             threads,
-            borrowed_bytes: None,
+            accepted_posterior: std::cell::Cell::new(None),
         })
     }
 
@@ -59,27 +61,56 @@ impl PrepareRequest {
         self.refuse_population(route)
     }
 
+    /// [`Self::refuse_design`] for a route that consumes a count prior.
+    pub(super) fn refuse_design_except_count(&self, route: &str) -> PyResult<()> {
+        self.opts.refuse_prior_transfer_except_count(route, true)?;
+        self.refuse_population(route)
+    }
+
+    /// Refuse a selection in the options that contradicts the one named as an argument.
+    pub(super) fn refuse_conflicting_selection(
+        &self,
+        identifier: Option<antecedent::IdentifierId>,
+        estimator: Option<antecedent::EstimatorId>,
+    ) -> PyResult<()> {
+        if let (Some(named), Some(declared)) = (identifier, self.opts.identifier)
+            && named != declared
+        {
+            return Err(crate::value_err(format!(
+                "identifier {named:?} contradicts the identifier {declared:?} in options"
+            )));
+        }
+        if let (Some(named), Some(declared)) = (estimator, self.opts.estimator)
+            && named != declared
+        {
+            return Err(crate::value_err(format!(
+                "estimator {named:?} contradicts the estimator {declared:?} in options"
+            )));
+        }
+        Ok(())
+    }
+
     /// Refuse declared sampling weights on a route that reads none of them.
     fn refuse_sampling_weights(&self) -> PyResult<()> {
         if self.opts.sampling_weights.is_none() {
             return Ok(());
         }
         Err(crate::estimator_config::coded_refusal(
-            antecedent_estimate::sampling_weights::unsupported_route(
+            antecedent::refusal::sampling_weights_unsupported_route(
                 "this route reads no sampling weights; declare them on an estimator \
                  (weights=) or on a randomized trial or balanced two-period panel DiD",
             ),
         ))
     }
 
-    /// Load tabular columns. Borrowed Arrow bytes are not retained.
+    /// Load tabular columns into library-owned storage; Arrow buffers are copied, not borrowed.
     pub(super) fn load_columns(
         &self,
         _py: Python<'_>,
         columns: Vec<Bound<'_, PyAny>>,
     ) -> PyResult<TabularData> {
         self.refuse_sampling_weights()?;
-        Ok(crate::tabular_from_py_columns(self.names.clone(), columns)?.0)
+        crate::tabular_from_py_columns(self.names.clone(), columns)
     }
 
     /// Attach the declared sampling weights to `data` as its observation weights.
@@ -89,10 +120,10 @@ impl PrepareRequest {
         let Some(weights) = &self.opts.sampling_weights else {
             return Ok(data);
         };
-        antecedent_estimate::SamplingWeights::new(weights.to_vec())
+        antecedent::estimate::SamplingWeights::new(weights.to_vec())
             .map_err(crate::estimator_config::coded_refusal)?;
         data.with_weights(std::sync::Arc::clone(weights)).map_err(|error| {
-            crate::estimator_config::coded_refusal(antecedent_estimate::sampling_weights::invalid(
+            crate::estimator_config::coded_refusal(antecedent::refusal::sampling_weights_invalid(
                 &error.to_string(),
             ))
         })
@@ -105,7 +136,7 @@ impl PrepareRequest {
         _py: Python<'_>,
         columns: Vec<Bound<'_, PyAny>>,
     ) -> PyResult<TabularData> {
-        self.attach_sampling_weights(crate::tabular_from_py_columns(self.names.clone(), columns)?.0)
+        self.attach_sampling_weights(crate::tabular_from_py_columns(self.names.clone(), columns)?)
     }
 
     /// Load a single series and attach the declared sampling weights to it; a panel,
@@ -125,27 +156,12 @@ impl PrepareRequest {
                 Ok(super::FrameInput::Series(self.attach_sampling_weights(data)?))
             }
             _ => Err(crate::estimator_config::coded_refusal(
-                antecedent_estimate::sampling_weights::unsupported_route(
+                antecedent::refusal::sampling_weights_unsupported_route(
                     "sampling weights are read by a single series; panel, multi-environment and \
                      event frames have no sampling-weighted construction",
                 ),
             )),
         }
-    }
-
-    /// Load tabular columns and remember borrowed Arrow bytes.
-    ///
-    /// Only the static average-effect `prepare` records them; every other route
-    /// drops the count, and a later bound estimate clears `bytes_borrowed`.
-    pub(super) fn load_columns_recording(
-        &mut self,
-        _py: Python<'_>,
-        columns: Vec<Bound<'_, PyAny>>,
-    ) -> PyResult<TabularData> {
-        self.refuse_sampling_weights()?;
-        let (data, borrowed) = crate::tabular_from_py_columns(self.names.clone(), columns)?;
-        self.borrowed_bytes = borrowed;
-        Ok(data)
     }
 
     /// Load series columns, or a panel / multi-environment / event frame.
@@ -170,12 +186,24 @@ impl PrepareRequest {
 
     /// `apply_inference`, build, prepare, and wrap the handle.
     pub(super) fn finish(
-        mut self,
+        self,
         builder: antecedent::StudyBuilder,
         series: bool,
     ) -> PyResult<super::PyPreparedAnalysis> {
+        let ctx = self.opts.ctx(self.seed, self.threads);
+        self.finish_with(builder, series, &ctx)
+    }
+
+    /// Apply scientific declarations and compile on the caller's existing context.
+    pub(super) fn finish_with(
+        mut self,
+        builder: antecedent::StudyBuilder,
+        series: bool,
+        ctx: &antecedent::prelude::ExecutionContext,
+    ) -> PyResult<super::PyPreparedAnalysis> {
         let builder = self.opts.apply_inference(builder)?;
-        self.compile(builder, series)
+        let builder = self.opts.apply_selection(builder);
+        self.compile_with(builder, series, ctx)
     }
 
     /// Write the caller's budget onto `builder`, then [`Self::finish`].
@@ -203,29 +231,55 @@ impl PrepareRequest {
         self,
         builder: antecedent::StudyBuilder,
         series: bool,
-        ctx: &antecedent_core::ExecutionContext,
+        ctx: &antecedent::prelude::ExecutionContext,
     ) -> PyResult<super::PyPreparedAnalysis> {
+        let builder = match &self.opts.data_diagnostics {
+            Some(policy) => builder.data_diagnostics(policy.clone()),
+            None => builder,
+        };
+        // A selection the caller declared in the options is part of the study on every route;
+        // applying it again where `finish_with` already did is a no-op.
+        let builder = self.opts.apply_selection(builder);
         let analysis = builder.build().map_err(crate::py_err)?;
-        let prepared = analysis.prepare(ctx).map_err(crate::py_err)?;
-        let mut out = super::finished_prepared(prepared, self.names, series);
-        out.borrowed_bytes = self.borrowed_bytes;
-        Ok(out)
+        let prepared = match analysis.prepare_deferred(ctx) {
+            Ok(prepared) => prepared,
+            // A refused study the caller asked to have described keeps its refusal and, beside
+            // it, Rust's descriptive fallback of that same study.
+            Err(refusal) => {
+                return Err(match &self.opts.fallback {
+                    Some(declaration) => crate::fallback_stage_api::describe_refusal(
+                        &analysis,
+                        declaration,
+                        &self.names,
+                        self.seed,
+                        crate::resolve_user_threads(self.threads),
+                        ctx,
+                        refusal,
+                    ),
+                    None => crate::py_err(refusal),
+                });
+            }
+        };
+        Ok(super::finished_prepared(prepared, self.names, series))
     }
 }
 
 /// One series, or one event stream aligned onto a grid.
 ///
-/// A `DBN` graph-posterior mixture is licensed only on those two inputs.
-pub(super) fn one_series(input: super::FrameInput) -> PyResult<TimeSeriesData> {
+/// A `DBN` graph-posterior mixture is supported only on those two inputs.
+pub(super) fn one_series(
+    input: super::FrameInput,
+    ctx: &antecedent::prelude::ExecutionContext,
+) -> PyResult<TimeSeriesData> {
     match input.materialize()? {
         super::FrameData::Series(series) => Ok(series),
-        super::FrameData::Events(events, align) => events
-            .align_to_grid(align)
+        super::FrameData::Events(events, align, _retention) => events
+            .align_to_grid_in(align, ctx)
             .map_err(|e| crate::py_msg(format!("event align_to_grid: {e}"))),
         _ => Err(crate::refusal(
-            antecedent_core::reason_code!("data_modality_not_licensed"),
+            antecedent::reason::reason_code!("data_modality_not_supported"),
             "a DBN graph-posterior mixture is \
-             licensed on one series or one event stream",
+             supported on one series or one event stream",
         )),
     }
 }

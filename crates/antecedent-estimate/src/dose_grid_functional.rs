@@ -15,7 +15,7 @@
 //!   `m_h - m` is not estimated and not included in any interval.
 //!   [`estimate_dose_grid_quadratic_mean`] adds a caller-attested exact quadratic mean
 //!   premise: polynomial reproduction derives zero smoothing bias at fixed bandwidth.
-//!   Its sampling calibration remains unmeasured.
+//!   Its sampling calibration remains `not_measured`.
 //! * **Graph certificate.** [`DoseDesign::RandomizedDose`]: the dose is assigned
 //!   independently of the potential-outcome process (no parent of the dose is an
 //!   ancestor of the outcome and no backdoor path is open), so the empty adjustment
@@ -26,8 +26,20 @@
 //! * **Nuisance fits.** None beyond the fixed-bandwidth local quadratic itself. The
 //!   bandwidth is declared by the caller and must lie in a caller-declared range; it
 //!   is never data-selected here, so no selection variability is hidden.
-//! * **Dependence.** Independent rows. Clustered, serial or linked rows are outside
-//!   this row; the clustered DML AIPW cell does not license them.
+//! * **Dependence and weights.** Independent rows by default. A declaration
+//!   ([`RowDeclaration`]) names sampling weights, clusters, or serial dependence, and each is
+//!   read or refused. *Sampling weights* `s_i` multiply the Gaussian kernel weights, so the
+//!   fit solves the weighted estimating equation and the standard error is the Taylor
+//!   (sandwich) linearization of the weighted scores; the weights are normalized to mean one
+//!   by the shared [`crate::sampling_weights`] contract, and a zero-weight row is deleted.
+//!   *Clusters*: the linearized scores are summed within each declared cluster and the
+//!   variance is `G / (G - 1)` times the sum of squared cluster sums (one-way cluster
+//!   robust, the scalar case of `stats.robust_covariance`), with the `t_{G-1}` reference
+//!   for the interval. *Serial dependence*: the rows are in time order at unit spacing and
+//!   the variance is the Newey-West (Bartlett, declared lag) long-run variance of the
+//!   linearized score series. Clusters and weights compose; clusters and a lag do not (a
+//!   panel needs both a unit and a time, which this row does not take) and are refused.
+//!   The clustered DML AIPW cell does not support any of these elsewhere.
 //! * **Support.** Per requested dose: `OutsideEmpiricalSupport` when the dose lies
 //!   outside the observed dose range, `WeakOverlap` when the Kish effective sample
 //!   size of the Gaussian local weights is below the declared minimum, else
@@ -39,14 +51,20 @@
 //!   local solve. It is a measured residual, not a bound on estimation error.
 //! * **Inference claim.** A pointwise normal interval (heteroskedasticity-robust
 //!   sandwich standard error from the linearized influences) at one dose or for one
-//!   contrast, with calibration [`IntervalCalibration::Unmeasured`]: no coverage
-//!   claim is made and the public route stays closed while calibration is
-//!   unmeasured. Level, derivative and contrast claims are separate typed
+//!   contrast, with calibration [`IntervalCalibration::NotMeasured`]: no coverage
+//!   claim is made and the public route is not supported while calibration is
+//!   `not_measured`. Level, derivative and contrast claims are separate typed
 //!   fields, enabled separately through [`ClaimSet`]. A simultaneous band is a
-//!   different claim: requesting it is refused (`dose_grid.simultaneous_band_closed`)
+//!   different claim: requesting it is refused (`dose_grid.no_simultaneous_band_method`)
 //!   and [`DoseGridRow::simultaneous_band`] is always `None`.
+//! * **Bias-aware intervals and band.** [`estimate_dose_grid_bias_aware`] builds both
+//!   claims the row leaves out on the same fit: under a declared bound on the absolute third
+//!   derivative of the dose response, each interval is the bias-aware (folded-normal)
+//!   interval at the worst-case smoothing bias bound of the linear smoother, and the
+//!   simultaneous band over the grid adds that bias to a Gaussian multiplier sup-t half-width.
+//!   Calibration stays `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -55,7 +73,8 @@ use antecedent_core::{
     SupportRegion, SupportReport, SupportStatus,
 };
 use antecedent_stats::{
-    LocalPolynomialInfluence, LocalQuadraticWorkspace, gaussian_local_quadratic_influence_with,
+    LocalPolynomialInfluence, LocalQuadraticWorkspace,
+    gaussian_local_quadratic_influence_weighted_with, gaussian_local_quadratic_influence_with,
 };
 
 use crate::error::{EstimationError, RefusalFields};
@@ -65,7 +84,7 @@ const Z_95: f64 = antecedent_stats::NORMAL_Q975;
 /// Fewest effective rows a local quadratic can be asked to stand on.
 const MINIMUM_ESS_FLOOR: f64 = 3.0;
 
-/// What licenses reading the fitted conditional mean as the dose response.
+/// What supports reading the fitted conditional mean as the dose response.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DoseDesign {
     /// The dose is randomized (independent of the potential-outcome process).
@@ -97,15 +116,15 @@ pub struct ClaimSet {
     pub pointwise_level: bool,
     /// A pointwise claim about `m'(d)`.
     pub derivative: bool,
-    /// A simultaneous band over the grid. Always refused: the route is closed.
+    /// A simultaneous band over the grid. Always refused: the route is not supported.
     pub simultaneous_band: bool,
 }
 
-/// Calibration status of an interval. Only `Unmeasured` exists.
+/// Calibration status of an interval. Only `NotMeasured` exists.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IntervalCalibration {
     /// Coverage has not been measured; no coverage claim is made.
-    Unmeasured,
+    NotMeasured,
 }
 
 /// A pointwise normal interval for one functional value.
@@ -117,7 +136,7 @@ pub struct PointwiseInterval {
     pub upper: f64,
     /// Nominal level the normal quantile was taken at; not a coverage claim.
     pub nominal_level: f64,
-    /// Calibration status (always unmeasured here).
+    /// Calibration status (always `not_measured` here).
     pub calibration: IntervalCalibration,
     /// Whether smoothing bias is accounted for (only under the exact-quadratic premise).
     pub smoothing_bias_included: bool,
@@ -186,13 +205,64 @@ pub struct NumericalReport {
     pub max_abs_influence_sum: f64,
 }
 
-/// A simultaneous band. Uninhabited in effect: the route is closed, so no value is built.
+/// A simultaneous band. Uninhabited in effect: the route is not supported, so no value is built.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SimultaneousBand {
     /// Lower envelope per grid dose.
     pub lower: Vec<f64>,
     /// Upper envelope per grid dose.
     pub upper: Vec<f64>,
+}
+
+/// How the rows of a request depend on one another.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum RowDependence<'a> {
+    /// Independent rows (the heteroskedasticity-robust sandwich).
+    #[default]
+    Independent,
+    /// Rows grouped into independent clusters; one id per row.
+    Clustered(&'a [u32]),
+    /// Rows in time order at unit spacing with serial dependence up to `lag` (Newey-West).
+    Serial {
+        /// Bartlett truncation lag, at least one and below the number of rows.
+        lag: usize,
+    },
+}
+
+/// Declarations about the rows of a request that the plain request does not carry.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct RowDeclaration<'a> {
+    /// Sampling weights, one per row (finite, non-negative, at least one positive).
+    pub sampling_weights: Option<&'a [f64]>,
+    /// Dependence between rows.
+    pub dependence: RowDependence<'a>,
+}
+
+impl RowDeclaration<'_> {
+    /// Whether the declaration is the plain independent unweighted rows.
+    #[must_use]
+    pub fn is_plain(&self) -> bool {
+        self.sampling_weights.is_none() && self.dependence == RowDependence::Independent
+    }
+}
+
+/// What a declaration did to a row evaluation.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct DeclaredRows {
+    /// Sampling-weight accounting, when weights were declared.
+    pub weights: Option<crate::sampling_weights::SamplingWeightRecord>,
+    /// Number of clusters, when rows were clustered.
+    pub clusters: Option<usize>,
+    /// Newey-West lag, when rows were serially dependent.
+    pub lag: Option<usize>,
+}
+
+impl DeclaredRows {
+    /// Whether the rows were analysed as plain independent unweighted rows.
+    #[must_use]
+    pub fn is_plain(&self) -> bool {
+        self.weights.is_none() && self.clusters.is_none() && self.lag.is_none()
+    }
 }
 
 /// Inputs of one row evaluation.
@@ -237,12 +307,14 @@ pub struct DoseGridRow {
     pub derivatives: Vec<DoseDerivative>,
     /// Contrast (contrast functional only).
     pub contrast: Option<DoseContrast>,
-    /// Simultaneous band; always `None` (closed).
+    /// Simultaneous band; always `None` (not supported).
     pub simultaneous_band: Option<SimultaneousBand>,
     /// Per-dose support report.
     pub support: SupportReport,
     /// Numerical residual of the local solves.
     pub numerical: NumericalReport,
+    /// What the declared weights, clusters or lag did to this evaluation.
+    pub declared: DeclaredRows,
 }
 
 impl DoseGridRow {
@@ -271,41 +343,48 @@ impl DoseGridRow {
             ),
             DoseFunctional::Contrast { .. } => return None,
         };
-        if self.design != DoseDesign::RandomizedDose || !interval.smoothing_bias_included {
+        if self.design != DoseDesign::RandomizedDose
+            || !interval.smoothing_bias_included
+            || !self.declared.is_plain()
+        {
             return None;
         }
         let functional =
             format!("{coordinate}.bandwidth:{:016x}.exact_quadratic", self.bandwidth.to_bits());
         let rows = u64::try_from(self.n_rows).ok()?;
-        Some(antecedent_core::CalibrationBasis::new(
-            [
-                "DoseResponse",
-                "Dag",
-                "fixed",
-                "tabular",
-                "Frequentist",
-                "dose_grid_quadratic",
-                "analytic_se",
-                "local_quadratic_HC0",
-                "iid",
-                "",
-                &functional,
-            ]
-            .map(Arc::from),
-            interval.nominal_level,
-            Arc::from("point"),
-            rows,
-            None,
-            None,
-            0.,
-        ))
+        Some(
+            antecedent_core::CalibrationBasis::new(
+                [
+                    "DoseResponse",
+                    "Dag",
+                    "fixed",
+                    "tabular",
+                    "Frequentist",
+                    "dose_grid_quadratic",
+                    "analytic_se",
+                    "local_quadratic_HC0",
+                    "iid",
+                    "",
+                    &functional,
+                ]
+                .map(Arc::from),
+                interval.nominal_level,
+                Arc::from("point"),
+                rows,
+                None,
+                None,
+                0.,
+            )
+            .with_validation("not_applicable"),
+        )
     }
 }
 
-fn refuse(code: &'static str, detail: &'static str, message: &str) -> EstimationError {
-    EstimationError::refused_with_fields(
+pub(crate) fn refuse(code: &'static str, detail: &'static str, message: &str) -> EstimationError {
+    EstimationError::refused_detail_with_fields(
         code,
-        format!("{detail}: {message}"),
+        detail,
+        message,
         RefusalFields {
             stage: Some("dose_grid".to_owned()),
             reason: Some(detail.to_owned()),
@@ -325,21 +404,23 @@ fn validate_claims(request: &DoseGridRequest<'_>) -> Result<(), EstimationError>
     if request.design == DoseDesign::Observational {
         return Err(refuse(
             antecedent_core::reason_code!("effect_not_identified"),
-            "dose_grid.graph_not_certified",
+            antecedent_core::reason_details::dose_grid::GRAPH_NOT_CERTIFIED,
             "this row does not adjust; it requires a randomized dose",
         ));
     }
     if request.claims.simultaneous_band {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "dose_grid.simultaneous_band_closed",
-            "a simultaneous band is a separate claim whose calibration is unmeasured",
+            antecedent_core::reason_details::dose_grid::NO_SIMULTANEOUS_BAND_METHOD,
+            "a simultaneous band is a separate claim: without a smoothing-bias bound it would \
+             exclude the bias. Next attempt: estimate_dose_grid_bias_aware, or a sealed \
+             request that declares bias_aware with a curvature bound",
         ));
     }
     match request.functional {
         DoseFunctional::Derivative if !request.claims.derivative => Err(refuse(
             antecedent_core::reason_code!("option_not_applicable"),
-            "dose_grid.derivative_without_claim",
+            antecedent_core::reason_details::dose_grid::DERIVATIVE_WITHOUT_CLAIM,
             "a derivative was requested without declaring a derivative claim",
         )),
         DoseFunctional::Level | DoseFunctional::Contrast { .. }
@@ -347,7 +428,7 @@ fn validate_claims(request: &DoseGridRequest<'_>) -> Result<(), EstimationError>
         {
             Err(refuse(
                 antecedent_core::reason_code!("option_not_applicable"),
-                "dose_grid.level_without_claim",
+                antecedent_core::reason_details::dose_grid::LEVEL_WITHOUT_CLAIM,
                 "a level or contrast was requested without declaring a pointwise level claim",
             ))
         }
@@ -360,7 +441,7 @@ fn validate_inputs(request: &DoseGridRequest<'_>, points: &[f64]) -> Result<(), 
     let invalid = |message: &str| {
         refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "dose_grid.invalid_request",
+            antecedent_core::reason_details::dose_grid::INVALID_REQUEST,
             message,
         )
     };
@@ -385,7 +466,7 @@ fn validate_inputs(request: &DoseGridRequest<'_>, points: &[f64]) -> Result<(), 
     if !request.bandwidth.is_finite() || request.bandwidth < low || request.bandwidth > high {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "dose_grid.bandwidth_outside_range",
+            antecedent_core::reason_details::dose_grid::BANDWIDTH_OUTSIDE_RANGE,
             "the bandwidth is not inside the declared bandwidth range",
         ));
     }
@@ -393,12 +474,13 @@ fn validate_inputs(request: &DoseGridRequest<'_>, points: &[f64]) -> Result<(), 
 }
 
 /// Kish effective sample size of the Gaussian kernel weights of `dose` around `at`.
-fn kernel_ess(dose: &[f64], at: f64, bandwidth: f64) -> f64 {
+fn kernel_ess(dose: &[f64], at: f64, bandwidth: f64, sampling: Option<&[f64]>) -> f64 {
     let weights: Vec<f64> = dose
         .iter()
-        .map(|&d| {
+        .enumerate()
+        .map(|(i, &d)| {
             let z = (d - at) / bandwidth;
-            (-0.5 * z * z).exp()
+            (-0.5 * z * z).exp() * sampling.map_or(1.0, |s| s[i])
         })
         .collect();
     antecedent_kernels::kish_ess(&weights)
@@ -413,9 +495,11 @@ fn label_points(
     points: &[f64],
     bandwidth: f64,
     minimum_ess: f64,
+    sampling: Option<&[f64]>,
 ) -> (Vec<SupportStatus>, Vec<f64>) {
     let (minimum, maximum) = observed_range(dose);
-    let ess: Vec<f64> = points.iter().map(|&at| kernel_ess(dose, at, bandwidth)).collect();
+    let ess: Vec<f64> =
+        points.iter().map(|&at| kernel_ess(dose, at, bandwidth, sampling)).collect();
     let labels = points
         .iter()
         .zip(&ess)
@@ -505,7 +589,7 @@ pub fn dose_support_report(
     let invalid = |message: &str| {
         refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "dose_grid.invalid_request",
+            antecedent_core::reason_details::dose_grid::INVALID_REQUEST,
             message,
         )
     };
@@ -524,7 +608,7 @@ pub fn dose_support_report(
             "bandwidth must be positive and minimum effective sample size at least 3",
         ));
     }
-    let (labels, ess) = label_points(dose, points, bandwidth, minimum_local_ess);
+    let (labels, ess) = label_points(dose, points, bandwidth, minimum_local_ess, None);
     Ok(build_report(dose, points, &labels, ess))
 }
 
@@ -534,8 +618,8 @@ fn refuse_unsupported(points: &[f64], labels: &[SupportStatus]) -> Result<(), Es
             SupportStatus::Supported => {}
             SupportStatus::WeakOverlap => {
                 return Err(refuse(
-                    antecedent_core::reason_code!("cell_not_licensed"),
-                    "dose_grid.insufficient_local_weight",
+                    antecedent_core::reason_code!("positivity_violated"),
+                    antecedent_core::reason_details::dose_grid::INSUFFICIENT_LOCAL_WEIGHT,
                     &format!(
                         "dose {at} has local effective sample size below the declared minimum"
                     ),
@@ -543,8 +627,8 @@ fn refuse_unsupported(points: &[f64], labels: &[SupportStatus]) -> Result<(), Es
             }
             _ => {
                 return Err(refuse(
-                    antecedent_core::reason_code!("cell_not_licensed"),
-                    "dose_grid.unsupported_dose",
+                    antecedent_core::reason_code!("positivity_violated"),
+                    antecedent_core::reason_details::dose_grid::UNSUPPORTED_DOSE,
                     &format!("dose {at} is outside the observed dose support"),
                 ));
             }
@@ -553,12 +637,20 @@ fn refuse_unsupported(points: &[f64], labels: &[SupportStatus]) -> Result<(), Es
     Ok(())
 }
 
-fn interval(estimate: f64, standard_error: f64) -> PointwiseInterval {
+/// The quantile of the pointwise interval: normal, or `t_{G-1}` for `G` declared clusters.
+fn interval_quantile(clusters: Option<usize>) -> f64 {
+    match clusters {
+        Some(groups) => Z_95 * antecedent_stats::few_cluster_t_ratio(groups, 0.95),
+        None => Z_95,
+    }
+}
+
+fn interval(estimate: f64, standard_error: f64, quantile: f64) -> PointwiseInterval {
     PointwiseInterval {
-        lower: estimate - Z_95 * standard_error,
-        upper: estimate + Z_95 * standard_error,
+        lower: estimate - quantile * standard_error,
+        upper: estimate + quantile * standard_error,
         nominal_level: 0.95,
-        calibration: IntervalCalibration::Unmeasured,
+        calibration: IntervalCalibration::NotMeasured,
         smoothing_bias_included: false,
     }
 }
@@ -566,47 +658,91 @@ fn interval(estimate: f64, standard_error: f64) -> PointwiseInterval {
 fn fit_at(
     workspace: &mut LocalQuadraticWorkspace,
     request: &DoseGridRequest<'_>,
+    declared: &RowDeclaration<'_>,
     at: f64,
 ) -> Result<LocalPolynomialInfluence, EstimationError> {
-    gaussian_local_quadratic_influence_with(
-        workspace,
-        request.dose,
-        request.outcome,
-        at,
-        request.bandwidth,
-    )
+    match declared.sampling_weights {
+        Some(weights) => gaussian_local_quadratic_influence_weighted_with(
+            workspace,
+            request.dose,
+            request.outcome,
+            at,
+            request.bandwidth,
+            weights,
+        ),
+        None => gaussian_local_quadratic_influence_with(
+            workspace,
+            request.dose,
+            request.outcome,
+            at,
+            request.bandwidth,
+        ),
+    }
     .map_err(|error| {
         refuse(
-            antecedent_core::reason_code!("cell_not_licensed"),
-            "dose_grid.insufficient_local_weight",
+            antecedent_core::reason_code!("positivity_violated"),
+            antecedent_core::reason_details::dose_grid::INSUFFICIENT_LOCAL_WEIGHT,
             &format!("the local quadratic could not be fitted at dose {at}: {error}"),
         )
     })
 }
 
+/// Standard error of a linearized score series `scores` (summing to zero) under the declared
+/// dependence: the plain root sum of squares, the one-way cluster-robust form with the
+/// `G / (G - 1)` factor, or the Newey-West long-run variance.
+fn score_standard_error(
+    scores: &[f64],
+    dependence: RowDependence<'_>,
+) -> Result<f64, EstimationError> {
+    let variance = match dependence {
+        RowDependence::Independent => scores.iter().map(|v| v * v).sum::<f64>(),
+        RowDependence::Clustered(groups) => {
+            let (meat, clusters) = antecedent_stats::cluster_meat_scalar(scores, groups, 0.0)
+                .map_err(EstimationError::from)?;
+            meat * clusters as f64 / (clusters as f64 - 1.0)
+        }
+        RowDependence::Serial { lag } => antecedent_stats::newey_west_meat_scalar(scores, lag),
+    };
+    if !(variance.is_finite() && variance >= 0.0) {
+        return Err(refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            antecedent_core::reason_details::dose_grid::NON_FINITE_RESULT,
+            "the declared-dependence variance of the local scores is not finite and non-negative",
+        ));
+    }
+    Ok(variance.sqrt())
+}
+
+#[allow(clippy::too_many_arguments, reason = "the inputs describe one estimation procedure")]
 fn contrast_row(
     request: &DoseGridRequest<'_>,
+    declared: &RowDeclaration<'_>,
+    quantile: f64,
     from: f64,
     to: f64,
     labels: &[SupportStatus],
     numerical: &mut NumericalReport,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<DoseContrast, EstimationError> {
     let mut workspace = LocalQuadraticWorkspace::default();
-    let fit_from = fit_at(&mut workspace, request, from)?;
-    let fit_to = fit_at(&mut workspace, request, to)?;
+    let fit_from = fit_at(&mut workspace, request, declared, from)?;
+    if ctx.cancellation.is_cancelled() {
+        return Err(antecedent_stats::StatsError::Cancelled.into());
+    }
+    let fit_to = fit_at(&mut workspace, request, declared, to)?;
     for fit in [&fit_from, &fit_to] {
         numerical.fits += 1;
         numerical.max_abs_influence_sum =
             numerical.max_abs_influence_sum.max(fit.influences.iter().sum::<f64>().abs());
     }
     let estimate = fit_to.point.value - fit_from.point.value;
-    let standard_error = fit_to
+    let difference: Vec<f64> = fit_to
         .influences
         .iter()
         .zip(&fit_from.influences)
-        .map(|(upper, lower)| (upper - lower).powi(2))
-        .sum::<f64>()
-        .sqrt();
+        .map(|(upper, lower)| upper - lower)
+        .collect();
+    let standard_error = score_standard_error(&difference, declared.dependence)?;
     Ok(DoseContrast {
         from,
         to,
@@ -614,46 +750,110 @@ fn contrast_row(
         to_support: labels[1],
         estimate,
         standard_error,
-        interval: interval(estimate, standard_error),
+        interval: interval(estimate, standard_error, quantile),
     })
 }
 
 fn grid_rows(
     request: &DoseGridRequest<'_>,
+    declared: &RowDeclaration<'_>,
+    quantile: f64,
     labels: &[SupportStatus],
     ess: &[f64],
     numerical: &mut NumericalReport,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<(Vec<DoseLevel>, Vec<DoseDerivative>), EstimationError> {
-    let mut workspace = LocalQuadraticWorkspace::default();
+    if ctx.cancellation.is_cancelled() {
+        return Err(antecedent_stats::StatsError::Cancelled.into());
+    }
+    let per_worker = request.dose.len().saturating_mul(128).saturating_add(8192) as u64;
+    let limit = ctx.memory_limit_bytes().unwrap_or(u64::MAX).min(ctx.admission.available().bytes());
+    if per_worker > limit {
+        return Err(antecedent_stats::StatsError::ResourceLimit {
+            message: "dose grid fit workspace",
+            required_bytes: per_worker,
+            limit_bytes: limit,
+        }
+        .into());
+    }
+    let parallel =
+        request.grid.len() >= 8 && request.grid.len().saturating_mul(request.dose.len()) >= 65_536;
+    let workers = if parallel {
+        (ctx.parallelism.max_threads.get() as usize)
+            .min(request.grid.len())
+            .min(ctx.admission.thread_budget() as usize)
+            .min(usize::try_from(limit / per_worker).unwrap_or(usize::MAX))
+            .max(1)
+    } else {
+        1
+    };
+    let mut execution = ctx.clone();
+    execution.parallelism = antecedent_core::Parallelism::bounded(
+        antecedent_core::NonZeroThreadCount::new(u32::try_from(workers).unwrap_or(u32::MAX))
+            .unwrap_or(antecedent_core::NonZeroThreadCount::MIN),
+    );
+    let _lease = ctx
+        .acquire_admission(0, per_worker * workers as u64)
+        .map_err(EstimationError::Admission)?;
     let mut levels = Vec::new();
     let mut derivatives = Vec::new();
-    for (index, &at) in request.grid.iter().enumerate() {
-        let fit = fit_at(&mut workspace, request, at)?;
-        numerical.fits += 1;
-        numerical.max_abs_influence_sum =
-            numerical.max_abs_influence_sum.max(fit.influences.iter().sum::<f64>().abs());
-        if request.functional == DoseFunctional::Derivative {
-            let standard_error = fit.robust_first_derivative_standard_error;
-            derivatives.push(DoseDerivative {
-                dose: at,
-                support: labels[index],
-                derivative: fit.point.first_derivative,
-                standard_error,
-                local_ess: ess[index],
-                interval: interval(fit.point.first_derivative, standard_error),
-            });
-        } else {
-            let standard_error = fit.robust_standard_error;
-            levels.push(DoseLevel {
-                dose: at,
-                support: labels[index],
-                level: fit.point.value,
-                standard_error,
-                local_ess: ess[index],
-                interval: interval(fit.point.value, standard_error),
-            });
-        }
-    }
+    // Grid points are fitted ahead of the row assembly by at most `2 * workers` results, so a
+    // slow consumer holds a bounded number of fits instead of one per grid point.
+    execution
+        .pipeline_indexed_with_scratch(
+            request.grid.len(),
+            workers.saturating_mul(2),
+            LocalQuadraticWorkspace::default,
+            |index, inner, workspace| {
+                if inner.cancellation.is_cancelled() {
+                    return Err(antecedent_stats::StatsError::Cancelled.into());
+                }
+                let at = request.grid[index];
+                let fit = fit_at(workspace, request, declared, at)?;
+                let residual = fit.influences.iter().sum::<f64>().abs();
+                let (level_se, derivative_se) = match declared.dependence {
+                    RowDependence::Independent => {
+                        (fit.robust_standard_error, fit.robust_first_derivative_standard_error)
+                    }
+                    dependence => (
+                        score_standard_error(&fit.influences, dependence)?,
+                        score_standard_error(&fit.first_derivative_influences, dependence)?,
+                    ),
+                };
+                Ok::<_, EstimationError>((fit.point, level_se, derivative_se, residual))
+            },
+            |index, (point, level_se, derivative_se, residual)| {
+                let at = request.grid[index];
+                numerical.fits += 1;
+                numerical.max_abs_influence_sum = numerical.max_abs_influence_sum.max(residual);
+                if request.functional == DoseFunctional::Derivative {
+                    derivatives.push(DoseDerivative {
+                        dose: at,
+                        support: labels[index],
+                        derivative: point.first_derivative,
+                        standard_error: derivative_se,
+                        local_ess: ess[index],
+                        interval: interval(point.first_derivative, derivative_se, quantile),
+                    });
+                } else {
+                    levels.push(DoseLevel {
+                        dose: at,
+                        support: labels[index],
+                        level: point.value,
+                        standard_error: level_se,
+                        local_ess: ess[index],
+                        interval: interval(point.value, level_se, quantile),
+                    });
+                }
+                Ok(antecedent_core::execution::PipelineStep::Continue)
+            },
+        )
+        .map_err(|error| match error {
+            antecedent_core::execution::MapExecutionError::Work(error) => error,
+            antecedent_core::execution::MapExecutionError::Admission(error) => {
+                EstimationError::Admission(error)
+            }
+        })?;
     Ok((levels, derivatives))
 }
 
@@ -667,28 +867,235 @@ fn grid_rows(
 /// # Errors
 ///
 /// A typed refusal whose detail is one of `dose_grid.graph_not_certified`,
-/// `dose_grid.simultaneous_band_closed`, `dose_grid.derivative_without_claim`,
+/// `dose_grid.no_simultaneous_band_method`, `dose_grid.derivative_without_claim`,
 /// `dose_grid.level_without_claim`, `dose_grid.invalid_request`,
 /// `dose_grid.bandwidth_outside_range`, `dose_grid.unsupported_dose` or
 /// `dose_grid.insufficient_local_weight`.
 pub fn estimate_dose_grid_functional(
     request: &DoseGridRequest<'_>,
 ) -> Result<DoseGridRow, EstimationError> {
+    estimate_dose_grid_functional_with_context(
+        request,
+        &antecedent_core::ExecutionContext::for_tests(0),
+    )
+}
+
+/// Evaluate a grid under bounded execution and cancellation controls.
+///
+/// # Errors
+/// The ordinary scientific refusals, cancellation, or insufficient working memory.
+pub fn estimate_dose_grid_functional_with_context(
+    request: &DoseGridRequest<'_>,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<DoseGridRow, EstimationError> {
+    estimate_dose_grid_functional_declared(request, &RowDeclaration::default(), ctx)
+}
+
+/// Rows after a declaration is applied: zero-weight rows deleted, weights normalized to mean
+/// one, and every per-row vector aligned.
+struct PreparedRows {
+    dose: Vec<f64>,
+    outcome: Vec<f64>,
+    weights: Option<Vec<f64>>,
+    clusters: Option<Vec<u32>>,
+    record: Option<crate::sampling_weights::SamplingWeightRecord>,
+}
+
+fn declaration_refusal(detail: &'static str, message: &str) -> EstimationError {
+    refuse(antecedent_core::reason_code!("invalid_argument"), detail, message)
+}
+
+/// Align a declaration to the request's rows. Sampling weights follow the shared contract
+/// (validated, zero-weight rows deleted, mean-one normalization); clusters and the lag are
+/// checked against the rows that remain.
+fn prepare_rows(
+    request: &DoseGridRequest<'_>,
+    declared: &RowDeclaration<'_>,
+) -> Result<PreparedRows, EstimationError> {
+    let n = request.dose.len();
+    if request.outcome.len() != n {
+        return Err(declaration_refusal(
+            antecedent_core::reason_details::dose_grid::INVALID_REQUEST,
+            "rows must be aligned, finite and at least three",
+        ));
+    }
+    if let Some(weights) = declared.sampling_weights
+        && weights.len() != n
+    {
+        return Err(declaration_refusal(
+            antecedent_core::reason_details::dose_grid::INVALID_REQUEST,
+            &format!("{} sampling weights were declared for {n} rows", weights.len()),
+        ));
+    }
+    if let RowDependence::Clustered(groups) = declared.dependence
+        && groups.len() != n
+    {
+        return Err(declaration_refusal(
+            antecedent_core::reason_details::dose_grid::INVALID_REQUEST,
+            &format!("{} cluster ids were declared for {n} rows", groups.len()),
+        ));
+    }
+    let mut keep = vec![true; n];
+    let (weights, record) = match declared.sampling_weights {
+        Some(declared_weights) => {
+            let weights = crate::sampling_weights::SamplingWeights::new(declared_weights)?;
+            let retained = weights.restrict(&mut keep)?;
+            (Some(retained.weights.to_vec()), Some(retained.record))
+        }
+        None => (None, None),
+    };
+    let pick = |values: &[f64]| -> Vec<f64> {
+        values.iter().zip(&keep).filter(|(_, kept)| **kept).map(|(v, _)| *v).collect()
+    };
+    let clusters = match declared.dependence {
+        RowDependence::Clustered(groups) => Some(
+            groups
+                .iter()
+                .zip(&keep)
+                .filter(|(_, kept)| **kept)
+                .map(|(g, _)| *g)
+                .collect::<Vec<_>>(),
+        ),
+        _ => None,
+    };
+    Ok(PreparedRows {
+        dose: pick(request.dose),
+        outcome: pick(request.outcome),
+        weights,
+        clusters,
+        record,
+    })
+}
+
+fn count_clusters(groups: &[u32]) -> usize {
+    let mut ids = groups.to_vec();
+    ids.sort_unstable();
+    ids.dedup();
+    ids.len()
+}
+
+/// Check the dependence declaration against the analysed rows and report what it did.
+fn declared_rows(
+    prepared: &PreparedRows,
+    dependence: RowDependence<'_>,
+) -> Result<DeclaredRows, EstimationError> {
+    let rows = prepared.dose.len();
+    let (clusters, lag) = match dependence {
+        RowDependence::Independent => (None, None),
+        RowDependence::Clustered(_) => {
+            let groups = count_clusters(prepared.clusters.as_deref().unwrap_or(&[]));
+            if groups < 2 {
+                return Err(refuse(
+                    antecedent_core::reason_code!("invalid_argument"),
+                    antecedent_core::reason_details::dose_grid::TOO_FEW_CLUSTERS,
+                    "a cluster-robust variance needs at least two clusters among the analysed rows",
+                ));
+            }
+            (Some(groups), None)
+        }
+        RowDependence::Serial { lag } => {
+            if lag == 0 || lag >= rows {
+                return Err(refuse(
+                    antecedent_core::reason_code!("invalid_argument"),
+                    antecedent_core::reason_details::dose_grid::INVALID_LAG,
+                    &format!(
+                        "the serial-dependence lag must be at least one and below the {rows} \
+                         analysed rows; it is never silently capped"
+                    ),
+                ));
+            }
+            (None, Some(lag))
+        }
+    };
+    Ok(DeclaredRows { weights: prepared.record, clusters, lag })
+}
+
+/// Evaluate a grid under declared sampling weights and row dependence.
+///
+/// A plain declaration is exactly [`estimate_dose_grid_functional_with_context`]. See the
+/// module documentation for how weights, clusters and a serial lag enter the fit and the
+/// standard error. Rows with weight zero are deleted before anything is computed.
+///
+/// # Errors
+/// The ordinary refusals; `sampling_weights_invalid` for a malformed weight declaration;
+/// `dose_grid.invalid_request` for a declaration whose length differs from the rows;
+/// `dose_grid.too_few_clusters`; `dose_grid.invalid_lag`.
+pub fn estimate_dose_grid_functional_declared(
+    request: &DoseGridRequest<'_>,
+    declared: &RowDeclaration<'_>,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<DoseGridRow, EstimationError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(antecedent_stats::StatsError::Cancelled.into());
+    }
     validate_claims(request)?;
+    if declared.is_plain() {
+        return evaluate_prepared(
+            request,
+            &RowDeclaration::default(),
+            DeclaredRows::default(),
+            ctx,
+        );
+    }
+    let prepared = prepare_rows(request, declared)?;
+    let record = declared_rows(&prepared, declared.dependence)?;
+    let aligned = DoseGridRequest { dose: &prepared.dose, outcome: &prepared.outcome, ..*request };
+    let rows = RowDeclaration {
+        sampling_weights: prepared.weights.as_deref(),
+        dependence: match declared.dependence {
+            RowDependence::Independent => RowDependence::Independent,
+            RowDependence::Clustered(_) => {
+                RowDependence::Clustered(prepared.clusters.as_deref().unwrap_or(&[]))
+            }
+            RowDependence::Serial { lag } => RowDependence::Serial { lag },
+        },
+    };
+    evaluate_prepared(&aligned, &rows, record, ctx)
+}
+
+fn evaluate_prepared(
+    request: &DoseGridRequest<'_>,
+    declared: &RowDeclaration<'_>,
+    record: DeclaredRows,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<DoseGridRow, EstimationError> {
     let points = evaluation_points(request);
     validate_inputs(request, &points)?;
-    let (labels, ess) =
-        label_points(request.dose, &points, request.bandwidth, request.minimum_local_ess);
+    let quantile = interval_quantile(record.clusters);
+    let (labels, ess) = label_points(
+        request.dose,
+        &points,
+        request.bandwidth,
+        request.minimum_local_ess,
+        declared.sampling_weights,
+    );
     refuse_unsupported(&points, &labels)?;
     let support = build_report(request.dose, &points, &labels, ess.clone());
     let mut numerical = NumericalReport { fits: 0, max_abs_influence_sum: 0.0 };
     let (levels, derivatives, contrast) = match request.functional {
         DoseFunctional::Contrast { from, to } => {
-            let row = contrast_row(request, from, to, &labels, &mut numerical)?;
+            if ctx.cancellation.is_cancelled() {
+                return Err(antecedent_stats::StatsError::Cancelled.into());
+            }
+            let bytes = request.dose.len().saturating_mul(128).saturating_add(8192) as u64;
+            let limit =
+                ctx.memory_limit_bytes().unwrap_or(u64::MAX).min(ctx.admission.available().bytes());
+            if bytes > limit {
+                return Err(antecedent_stats::StatsError::ResourceLimit {
+                    message: "dose contrast workspace",
+                    required_bytes: bytes,
+                    limit_bytes: limit,
+                }
+                .into());
+            }
+            let _lease = ctx.acquire_admission(0, bytes).map_err(EstimationError::Admission)?;
+            let row =
+                contrast_row(request, declared, quantile, from, to, &labels, &mut numerical, ctx)?;
             (Vec::new(), Vec::new(), Some(row))
         }
         DoseFunctional::Level | DoseFunctional::Derivative => {
-            let (levels, derivatives) = grid_rows(request, &labels, &ess, &mut numerical)?;
+            let (levels, derivatives) =
+                grid_rows(request, declared, quantile, &labels, &ess, &mut numerical, ctx)?;
             (levels, derivatives, None)
         }
     };
@@ -703,6 +1110,7 @@ pub fn estimate_dose_grid_functional(
         simultaneous_band: None,
         support,
         numerical,
+        declared: record,
     })
 }
 
@@ -720,7 +1128,36 @@ pub fn estimate_dose_grid_functional(
 pub fn estimate_dose_grid_quadratic_mean(
     request: &DoseGridRequest<'_>,
 ) -> Result<DoseGridRow, EstimationError> {
-    let mut row = estimate_dose_grid_functional(request)?;
+    estimate_dose_grid_quadratic_mean_with_context(
+        request,
+        &antecedent_core::ExecutionContext::for_tests(0),
+    )
+}
+
+/// Quadratic-mean evaluation with bounded execution controls.
+///
+/// # Errors
+/// As [`estimate_dose_grid_functional_with_context`].
+pub fn estimate_dose_grid_quadratic_mean_with_context(
+    request: &DoseGridRequest<'_>,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<DoseGridRow, EstimationError> {
+    estimate_dose_grid_quadratic_mean_declared(request, &RowDeclaration::default(), ctx)
+}
+
+/// Quadratic-mean evaluation under declared sampling weights and row dependence.
+///
+/// The exact-quadratic premise is about the conditional mean, so it holds for a weighted
+/// local quadratic as well: a weighted nonsingular quadratic solve reproduces a quadratic mean.
+///
+/// # Errors
+/// As [`estimate_dose_grid_functional_declared`].
+pub fn estimate_dose_grid_quadratic_mean_declared(
+    request: &DoseGridRequest<'_>,
+    declared: &RowDeclaration<'_>,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<DoseGridRow, EstimationError> {
+    let mut row = estimate_dose_grid_functional_declared(request, declared, ctx)?;
     for point in &mut row.levels {
         point.interval.smoothing_bias_included = true;
     }
@@ -731,4 +1168,462 @@ pub fn estimate_dose_grid_quadratic_mean(
         contrast.interval.smoothing_bias_included = true;
     }
     Ok(row)
+}
+
+/// A dose-grid row whose intervals account for the smoothing bias, with a simultaneous band.
+///
+/// The row's own intervals exclude the smoothing bias `m_h - m`. Under a declared bound `M` on
+/// the absolute third derivative of the dose response, the worst-case bias of the linear
+/// smoother `sum_i l_i Y_i` at dose `d` is at most `M / 6 * sum_i |l_i| |D_i - d|^3` (the local
+/// quadratic reproduces quadratics, so only the third-order Taylor remainder is left; the bound
+/// treats the remainders at the rows as independent, so it is conservative, not attained). Each
+/// coordinate's interval is the bias-aware interval of Armstrong and Kolesar (the folded-normal
+/// critical value at the standardized worst-case bias), and the simultaneous band adds the
+/// worst-case bias to the Gaussian multiplier sup-t half-width over the grid. A bound of zero
+/// is the exact-quadratic premise. No coverage is claimed: calibration stays `not_measured`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BiasAwareDoseGrid {
+    /// The unrestricted row the bias-aware claims are built on.
+    pub row: DoseGridRow,
+    /// Declared bound on the absolute third derivative of the dose response.
+    pub curvature_bound: f64,
+    /// Worst-case smoothing bias of each reported coordinate under the bound.
+    pub smoothing_bias_bound: Vec<f64>,
+    /// Bias-aware pointwise interval of each coordinate (grid doses, or the one contrast).
+    pub intervals: Vec<PointwiseInterval>,
+    /// Simultaneous band over the grid; `None` for a contrast or a one-dose grid.
+    pub band: Option<SimultaneousBand>,
+    /// Critical value of the centered sup-t statistic of the band.
+    pub band_critical_value: Option<f64>,
+    /// Gaussian multiplier replicates behind the band.
+    pub band_replicates: usize,
+}
+
+/// Linear smoother weights and local residuals of the Gaussian local quadratic at `at`.
+fn smoother_at(
+    dose: &[f64],
+    outcome: &[f64],
+    at: f64,
+    bandwidth: f64,
+    derivative: bool,
+    sampling: Option<&[f64]>,
+) -> Option<(Vec<f64>, Vec<f64>)> {
+    let mut information = [0.0; 9];
+    let mut moment = [0.0; 3];
+    let mut kernel = Vec::with_capacity(dose.len());
+    for (i, (&d, &y)) in dose.iter().zip(outcome).enumerate() {
+        let u = d - at;
+        let z = u / bandwidth;
+        let w = (-0.5 * z * z).exp() * sampling.map_or(1.0, |s| s[i]);
+        let x = [1.0, u, u * u];
+        for a in 0..3 {
+            moment[a] += w * x[a] * y;
+            for b in 0..3 {
+                information[a * 3 + b] += w * x[a] * x[b];
+            }
+        }
+        kernel.push(w);
+    }
+    let factor = crate::temporal_design::cholesky_factor(&information, 3)?;
+    let beta = crate::temporal_design::cholesky_apply(&factor, 3, &moment);
+    let coordinate = usize::from(derivative);
+    let mut weights = Vec::with_capacity(dose.len());
+    let mut residuals = Vec::with_capacity(dose.len());
+    for ((&d, &y), w) in dose.iter().zip(outcome).zip(&kernel) {
+        let u = d - at;
+        let row = crate::temporal_design::cholesky_apply(&factor, 3, &[1.0, u, u * u]);
+        weights.push(row[coordinate] * w);
+        residuals.push(y - (beta[0] + beta[1] * u + beta[2] * u * u));
+    }
+    Some((weights, residuals))
+}
+
+/// The reported coordinates of a bias-aware row: estimates, standard errors, influence columns
+/// and worst-case biases.
+type BiasAwareColumns = (Vec<f64>, Vec<f64>, Vec<Vec<f64>>, Vec<f64>);
+
+/// Evaluate the row with bias-aware intervals and, for a grid, a simultaneous band.
+///
+/// # Errors
+/// The ordinary refusals of the row; a curvature bound that is negative or not finite; fewer
+/// than two band replicates for a grid; a singular local fit; admission or cancellation.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one pipeline from the local fits to pointwise intervals and the band, all sharing the same influence columns"
+)]
+pub fn estimate_dose_grid_bias_aware(
+    request: &DoseGridRequest<'_>,
+    curvature_bound: f64,
+    band_replicates: usize,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<BiasAwareDoseGrid, EstimationError> {
+    estimate_dose_grid_bias_aware_declared(
+        request,
+        &RowDeclaration::default(),
+        curvature_bound,
+        band_replicates,
+        ctx,
+    )
+}
+
+/// Units the Gaussian multipliers of the band are drawn for: every row when independent, every
+/// cluster when clustered (one multiplier per cluster), and consecutive blocks of `lag + 1`
+/// rows when serially dependent (a block multiplier, so the band keeps the within-block
+/// dependence that the Newey-West standard error allows).
+fn band_units(n: usize, dependence: RowDependence<'_>) -> Vec<usize> {
+    match dependence {
+        RowDependence::Independent => (0..n).collect(),
+        RowDependence::Clustered(groups) => {
+            let mut ids = groups.to_vec();
+            ids.sort_unstable();
+            ids.dedup();
+            groups.iter().map(|g| ids.binary_search(g).unwrap_or(0)).collect()
+        }
+        RowDependence::Serial { lag } => (0..n).map(|i| i / (lag + 1)).collect(),
+    }
+}
+
+/// Bias-aware intervals and band under declared sampling weights and row dependence.
+///
+/// The pointwise intervals use the declared-dependence standard error of the row. The band's
+/// Gaussian multipliers are drawn per cluster (clustered rows) or per block of `lag + 1`
+/// consecutive rows (serial rows) instead of per row, so a band never assumes more independence
+/// than the pointwise intervals do. Calibration stays `not_measured`.
+///
+/// # Errors
+/// As [`estimate_dose_grid_bias_aware`] and [`estimate_dose_grid_functional_declared`].
+#[allow(
+    clippy::too_many_lines,
+    reason = "one pipeline from the local fits to pointwise intervals and the band, all sharing the same influence columns"
+)]
+pub fn estimate_dose_grid_bias_aware_declared(
+    request: &DoseGridRequest<'_>,
+    declared: &RowDeclaration<'_>,
+    curvature_bound: f64,
+    band_replicates: usize,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<BiasAwareDoseGrid, EstimationError> {
+    if !(curvature_bound.is_finite() && curvature_bound >= 0.0) {
+        return Err(refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            antecedent_core::reason_details::dose_grid::INVALID_REQUEST,
+            "the curvature bound must be finite and non-negative",
+        ));
+    }
+    let prepared = prepare_rows(request, declared)?;
+    let record = declared_rows(&prepared, declared.dependence)?;
+    let rows = RowDeclaration {
+        sampling_weights: prepared.weights.as_deref(),
+        dependence: match declared.dependence {
+            RowDependence::Independent => RowDependence::Independent,
+            RowDependence::Clustered(_) => {
+                RowDependence::Clustered(prepared.clusters.as_deref().unwrap_or(&[]))
+            }
+            RowDependence::Serial { lag } => RowDependence::Serial { lag },
+        },
+    };
+    let mut base = DoseGridRequest { dose: &prepared.dose, outcome: &prepared.outcome, ..*request };
+    base.claims.simultaneous_band = false;
+    if ctx.cancellation.is_cancelled() {
+        return Err(antecedent_stats::StatsError::Cancelled.into());
+    }
+    validate_claims(&base)?;
+    let row = evaluate_prepared(&base, &rows, record, ctx)?;
+    let request = &DoseGridRequest {
+        claims: ClaimSet { simultaneous_band: request.claims.simultaneous_band, ..base.claims },
+        ..base
+    };
+    let derivative = request.functional == DoseFunctional::Derivative;
+    let (points, contrast) = match request.functional {
+        DoseFunctional::Contrast { from, to } => (vec![to, from], true),
+        DoseFunctional::Level | DoseFunctional::Derivative => (request.grid.to_vec(), false),
+    };
+    if request.claims.simultaneous_band && (contrast || points.len() < 2) {
+        return Err(refuse(
+            antecedent_core::reason_code!("route_not_supported"),
+            antecedent_core::reason_details::dose_grid::NO_SIMULTANEOUS_BAND_METHOD,
+            "a simultaneous band covers a level or derivative grid of two or more doses. Next \
+             attempt: request a grid, or drop the band claim",
+        ));
+    }
+    let n = request.dose.len();
+    // Per grid dose: its influence column, the copy handed to the coordinates, and (at most) its
+    // column of the band's per-unit residual matrix; plus the smoother's three row vectors.
+    let _lease = crate::util::admit_array::<f64>(ctx, n, 3 * points.len() + 3)?;
+    let columns =
+        bias_aware_influence_columns(request, &rows, &points, derivative, curvature_bound, ctx)?;
+    // Coordinates: every grid dose, or the one contrast `to - from`.
+    let (estimates, standard_errors, influences, bias): BiasAwareColumns = if contrast {
+        let point = row
+            .contrast
+            .as_ref()
+            .ok_or_else(|| EstimationError::stats_msg("the contrast row reported no contrast"))?;
+        let influence: Vec<f64> =
+            columns[0].0.iter().zip(&columns[1].0).map(|(to, from)| to - from).collect();
+        (
+            vec![point.estimate],
+            vec![point.standard_error],
+            vec![influence],
+            vec![columns[0].1 + columns[1].1],
+        )
+    } else if derivative {
+        (
+            row.derivatives.iter().map(|point| point.derivative).collect(),
+            row.derivatives.iter().map(|point| point.standard_error).collect(),
+            columns.iter().map(|(influence, _)| influence.clone()).collect(),
+            columns.iter().map(|(_, bias)| *bias).collect(),
+        )
+    } else {
+        (
+            row.levels.iter().map(|point| point.level).collect(),
+            row.levels.iter().map(|point| point.standard_error).collect(),
+            columns.iter().map(|(influence, _)| influence.clone()).collect(),
+            columns.iter().map(|(_, bias)| *bias).collect(),
+        )
+    };
+    let k = estimates.len();
+    let intervals: Vec<PointwiseInterval> = (0..k)
+        .map(|j| {
+            let se = standard_errors[j];
+            let half = if se > 0.0 {
+                crate::temporal_design::folded_normal_critical(bias[j] / se, 0.95) * se
+            } else {
+                bias[j]
+            };
+            PointwiseInterval {
+                lower: estimates[j] - half,
+                upper: estimates[j] + half,
+                nominal_level: 0.95,
+                calibration: IntervalCalibration::NotMeasured,
+                smoothing_bias_included: true,
+            }
+        })
+        .collect();
+    let (band, band_critical_value) = if !contrast && k > 1 {
+        if band_replicates < 2 {
+            return Err(refuse(
+                antecedent_core::reason_code!("invalid_argument"),
+                antecedent_core::reason_details::dose_grid::INVALID_REQUEST,
+                "a simultaneous band needs at least two multiplier replicates",
+            ));
+        }
+        // One multiplier per resampling unit: a row, a declared cluster, or a block of rows.
+        let unit_of = band_units(n, rows.dependence);
+        let units = unit_of.iter().copied().max().map_or(0, |last| last + 1);
+        let mut residuals = vec![0.0; units * k];
+        for (j, influence) in influences.iter().enumerate() {
+            for (i, value) in influence.iter().enumerate() {
+                residuals[unit_of[i] * k + j] += *value;
+            }
+        }
+        let own_se: Vec<f64> = (0..k)
+            .map(|j| (0..units).map(|u| residuals[u * k + j].powi(2)).sum::<f64>().sqrt())
+            .collect();
+        let coordinates: Vec<usize> = (0..k).collect();
+        let critical = crate::temporal_design::sup_t_critical(
+            &residuals,
+            k,
+            1.0,
+            &own_se,
+            &coordinates,
+            band_replicates,
+            ctx,
+        )?;
+        let lower =
+            (0..k).map(|j| estimates[j] - critical * standard_errors[j] - bias[j]).collect();
+        let upper =
+            (0..k).map(|j| estimates[j] + critical * standard_errors[j] + bias[j]).collect();
+        (Some(SimultaneousBand { lower, upper }), Some(critical))
+    } else {
+        (None, None)
+    };
+    Ok(BiasAwareDoseGrid {
+        row,
+        curvature_bound,
+        smoothing_bias_bound: bias,
+        intervals,
+        band,
+        band_critical_value,
+        band_replicates: if band_critical_value.is_some() { band_replicates } else { 0 },
+    })
+}
+
+fn bias_aware_influence_columns(
+    request: &DoseGridRequest<'_>,
+    rows: &RowDeclaration<'_>,
+    points: &[f64],
+    derivative: bool,
+    curvature_bound: f64,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<Vec<(Vec<f64>, f64)>, EstimationError> {
+    let mut columns: Vec<(Vec<f64>, f64)> = Vec::with_capacity(points.len());
+    for &at in points {
+        if ctx.cancellation.is_cancelled() {
+            return Err(antecedent_stats::StatsError::Cancelled.into());
+        }
+        let (weights, residuals) = smoother_at(
+            request.dose,
+            request.outcome,
+            at,
+            request.bandwidth,
+            derivative,
+            rows.sampling_weights,
+        )
+        .ok_or_else(|| {
+            refuse(
+                antecedent_core::reason_code!("positivity_violated"),
+                antecedent_core::reason_details::dose_grid::INSUFFICIENT_LOCAL_WEIGHT,
+                &format!("the local quadratic is singular at dose {at}"),
+            )
+        })?;
+        let influence: Vec<f64> = weights.iter().zip(&residuals).map(|(l, e)| l * e).collect();
+        let worst: f64 =
+            weights.iter().zip(request.dose).map(|(l, d)| l.abs() * (d - at).abs().powi(3)).sum();
+        columns.push((influence, curvature_bound / 6.0 * worst));
+    }
+    Ok(columns)
+}
+
+#[cfg(test)]
+mod bias_aware_tests {
+    use super::*;
+    use antecedent_core::ExecutionContext;
+
+    fn request<'a>(
+        dose: &'a [f64],
+        outcome: &'a [f64],
+        grid: &'a [f64],
+        functional: DoseFunctional,
+    ) -> DoseGridRequest<'a> {
+        DoseGridRequest {
+            dose,
+            outcome,
+            grid,
+            bandwidth: 0.4,
+            bandwidth_range: (0.1, 1.0),
+            minimum_local_ess: 10.0,
+            functional,
+            claims: ClaimSet { pointwise_level: true, derivative: true, simultaneous_band: false },
+            design: DoseDesign::RandomizedDose,
+        }
+    }
+
+    #[test]
+    fn influence_columns_refuse_cancelled_before_smoothing() {
+        let dose = [0.0, 1.0];
+        let outcome = [0.0, 1.0];
+        let grid = [0.5];
+        let request = request(&dose, &outcome, &grid, DoseFunctional::Level);
+        let rows =
+            RowDeclaration { sampling_weights: None, dependence: RowDependence::Independent };
+        let ctx = ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        assert!(matches!(
+            bias_aware_influence_columns(&request, &rows, &grid, false, 0.0, &ctx),
+            Err(EstimationError::Stats(antecedent_stats::StatsError::Cancelled))
+        ));
+    }
+
+    #[test]
+    fn the_band_covers_a_cubic_curve_only_with_its_bias_inside() {
+        // m(d) = d^3 has m''' = 6: the local quadratic is biased, and the bound accounts for it.
+        let dose: Vec<f64> = (0..3001).map(|i| 3.0 * f64::from(i) / 3000.0).collect();
+        let outcome: Vec<f64> = dose
+            .iter()
+            .enumerate()
+            .map(|(i, d)| d * d * d + if i % 2 == 0 { 0.05 } else { -0.05 })
+            .collect();
+        let grid = [0.6, 1.2, 1.8, 2.4];
+        let ctx = ExecutionContext::for_tests(3);
+        let fit = estimate_dose_grid_bias_aware(
+            &request(&dose, &outcome, &grid, DoseFunctional::Level),
+            6.0,
+            500,
+            &ctx,
+        )
+        .unwrap();
+        let band = fit.band.as_ref().unwrap();
+        for (j, d) in grid.iter().enumerate() {
+            let truth = d * d * d;
+            assert!(fit.intervals[j].smoothing_bias_included);
+            assert!(fit.intervals[j].lower <= truth && truth <= fit.intervals[j].upper, "{j}");
+            assert!(band.lower[j] <= truth && truth <= band.upper[j], "{j}");
+            assert!(fit.smoothing_bias_bound[j] > 0.0);
+        }
+        assert!(fit.band_critical_value.unwrap() > antecedent_stats::NORMAL_Q975);
+        let exact = estimate_dose_grid_bias_aware(
+            &request(&dose, &outcome, &grid, DoseFunctional::Contrast { from: 0.6, to: 2.4 }),
+            0.0,
+            0,
+            &ctx,
+        )
+        .unwrap();
+        assert!(exact.band.is_none());
+        assert!(exact.smoothing_bias_bound[0].abs() < 1e-12);
+        assert!(
+            estimate_dose_grid_bias_aware(
+                &request(&dose, &outcome, &grid, DoseFunctional::Level),
+                -1.0,
+                500,
+                &ctx
+            )
+            .is_err()
+        );
+    }
+}
+
+#[cfg(test)]
+mod execution_tests {
+    use super::*;
+    use antecedent_core::ExecutionContext;
+    #[test]
+    fn parallel_grids_and_memory_fallback_preserve_every_output_bit() {
+        let dose: Vec<_> = (0..2049).map(|i| 4.0 * f64::from(i) / 2048.0).collect();
+        let outcome: Vec<_> = dose
+            .iter()
+            .enumerate()
+            .map(|(i, &d)| 1.0 + d + d * d + if i % 2 == 0 { 0.01 } else { -0.01 })
+            .collect();
+        let grid: Vec<_> = (0..33).map(|i| 0.5 + 3.0 * f64::from(i) / 32.0).collect();
+        for functional in [
+            DoseFunctional::Level,
+            DoseFunctional::Derivative,
+            DoseFunctional::Contrast { from: 1.0, to: 3.0 },
+        ] {
+            let request = DoseGridRequest {
+                dose: &dose,
+                outcome: &outcome,
+                grid: &grid,
+                bandwidth: 0.4,
+                bandwidth_range: (0.1, 1.0),
+                minimum_local_ess: 10.0,
+                functional,
+                claims: ClaimSet {
+                    pointwise_level: true,
+                    derivative: true,
+                    simultaneous_band: false,
+                },
+                design: DoseDesign::RandomizedDose,
+            };
+            let expected = estimate_dose_grid_functional(&request).unwrap();
+            let mut ctx = ExecutionContext::production(1, 4);
+            for cap in [None, Some(dose.len() as u64 * 128 + 8192)] {
+                ctx.set_memory_limit(cap);
+                let before = ctx.admission.available();
+                let actual = estimate_dose_grid_functional_with_context(&request, &ctx).unwrap();
+                assert_eq!(actual, expected);
+                assert_eq!(ctx.admission.available(), before);
+            }
+            ctx.set_memory_limit(Some(1));
+            assert!(matches!(
+                estimate_dose_grid_functional_with_context(&request, &ctx),
+                Err(EstimationError::Stats(antecedent_stats::StatsError::ResourceLimit { .. }))
+            ));
+            ctx.cancellation.cancel();
+            assert!(matches!(
+                estimate_dose_grid_functional_with_context(&request, &ctx),
+                Err(EstimationError::Stats(antecedent_stats::StatsError::Cancelled))
+            ));
+        }
+    }
 }

@@ -12,8 +12,9 @@ a previous and a requested workflow and says, per stage, whether it is ``reused`
     print(plan.explain())
 
     session = recalc.RecalcSession()
-    first = session.execute(request, seed=7)                    # (plan, receipt, law, decision)
-    again = session.execute(replace(request, utility=Utility(3.0, 0.1)), seed=7)
+    run = Execution(seed=7)
+    first = session.execute(request, execution=run)             # (plan, receipt, law, decision)
+    again = session.execute(replace(request, utility=Utility(3.0, 0.1)), execution=run)
     again.plan.recomputed_computations                          # (Stage.DECISION,)
     again.receipt.totals.fold_fits                              # 0: nothing was refit
     blob = again.receipt.export()                               # portable recalc_receipt_v1
@@ -53,22 +54,32 @@ from typing import Any, Literal, NamedTuple
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
+from antecedent import _reason_details
+
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._refusal import StructuredRefusal, raise_refusal
-from .errors import CausalSerializationError, CausalValueError
+from .errors import CausalSerializationError, CausalTypeError, CausalValueError
+from .execution import Execution, native_controls
+from .outcomes import outcome_operation, require_success
 
 ARTIFACT_KIND = "recalc_receipt_v1"
 MAX_EXTERNAL_BRANCHES = 8
 
-Retarget = Literal["licensed", "not_declared", "incompatible"]
-"""Whether a target-population change is a licensed reweighting of retained scores
-(``licensed``), has no declared reweighting (``not_declared``) or is incompatible with them."""
+Retarget = Literal["supported", "not_declared", "incompatible"]
+"""Whether a target-population change is a supported reweighting of retained scores
+(``supported``), has no declared reweighting (``not_declared``) or is incompatible with them."""
 RequestKind = Literal["on_grid", "off_grid", "unsupported"]
-"""How a request relates to the licensed grid of changes: ``on_grid`` (a licensed route),
+"""How a request relates to the supported grid of changes: ``on_grid`` (a supported route),
 ``off_grid`` (a refit is needed) or ``unsupported`` (no route)."""
 StatusKind = Literal["reused", "recomputed", "refused"]
 
-_RETARGETS = ("licensed", "not_declared", "incompatible")
+_RETARGETS = ("supported", "not_declared", "incompatible")
 _REQUESTS = ("on_grid", "off_grid", "unsupported")
 
 
@@ -183,6 +194,94 @@ def stage_identity(stage: Stage | str, *parts: bytes | str) -> str:
     return _native.recalc_stage_identity(label, raw)
 
 
+SessionKind = Literal[
+    "receipt",
+    "adjusted",
+    "cell",
+    "design",
+    "doubly_robust",
+    "static",
+    "temporal",
+    "bayesian",
+    "joint_bayesian",
+    "external",
+    "composite",
+]
+"""The recalculation session families, each with its own standing declarations."""
+
+_SESSION_KINDS = (
+    "receipt",
+    "adjusted",
+    "cell",
+    "design",
+    "doubly_robust",
+    "static",
+    "temporal",
+    "bayesian",
+    "joint_bayesian",
+    "external",
+    "composite",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class StandingInput:
+    """How a session states one standing input in its stage identities.
+
+    ``status`` is ``declared`` (a change in the input moves the law and the decision and nothing
+    that reads only data), ``not_applicable`` (the claim does not rest on it; ``reason`` says why)
+    or ``undeclared`` (the session does not hold what the input names; ``finding`` names what is
+    missing and ``remedy`` what would make it declarable, so a claim that needs it is not
+    supported by this session's identities alone).
+    """
+
+    status: Literal["declared", "not_applicable", "undeclared"]
+    reason: str | None = None
+    finding: str | None = None
+    remedy: str | None = None
+
+    @classmethod
+    def from_wire(cls, wire: Mapping[str, Any]) -> StandingInput:
+        status = wire["status"]
+        if status not in ("declared", "not_applicable", "undeclared"):
+            raise CausalSerializationError(f"unrecognized standing declaration {status!r}")
+        return cls(status, wire.get("reason"), wire.get("finding"), wire.get("remedy"))
+
+
+@dataclass(frozen=True, slots=True)
+class SessionStanding:
+    """The three standing inputs of a session family's stage identities.
+
+    ``calibration`` is the calibration record behind an interval or posterior statement,
+    ``representation`` the model family and version a score artifact was built with and
+    ``coupling`` the coupling between streams a joint statement relies on.
+    """
+
+    kind: SessionKind
+    calibration: StandingInput
+    representation: StandingInput
+    coupling: StandingInput
+
+
+def session_standing(kind: SessionKind) -> SessionStanding:
+    """The standing inputs the recalculation session family ``kind`` declares, and why each other is not.
+
+    Rust owns the declarations. The Bayesian families declare their calibration and coupling;
+    point-valued families state that their law is a point and form no joint statement; the
+    external and composite families, whose providers' calibration and coupling the session does
+    not hold, say so with a finding and a remedy. No family declares a representation.
+    """
+    if kind not in _SESSION_KINDS:
+        raise CausalValueError(f"kind must be one of {', '.join(_SESSION_KINDS)}")
+    wire = json.loads(_native.recalc_session_standing(kind))
+    return SessionStanding(
+        kind=kind,
+        calibration=StandingInput.from_wire(wire["calibration"]),
+        representation=StandingInput.from_wire(wire["representation"]),
+        coupling=StandingInput.from_wire(wire["coupling"]),
+    )
+
+
 def _stage(value: Stage | str) -> Stage:
     try:
         return Stage(value)
@@ -211,7 +310,7 @@ class ResumeContext:
 
     An ordinary loaded result supplies none of these (all ``False``): ``ant.load`` does not
     recreate a prepared study. Only a portable fit or score, a supplied compatible data
-    snapshot or a supplied compatible provider can resume its licensed operation.
+    snapshot or a supplied compatible provider can resume its supported operation.
     """
 
     portable_fit: bool = False
@@ -238,18 +337,18 @@ class ResumeContext:
 class Capabilities:
     """The declared capabilities a plan is made under.
 
-    ``retarget`` says whether the estimator's frozen-score row-weight retarget is licensed
-    (``"licensed"``: a compatible target change reweights frozen scores without a refit;
+    ``retarget`` says whether the estimator's frozen-score row-weight retarget is supported
+    (``"supported"``: a compatible target change reweights frozen scores without a refit;
     ``"not_declared"``: it recomputes the score artifact; ``"incompatible"``: the weights are
-    not a licensed function of the adjustment set, so a target change is refused).
+    not a supported function of the adjustment set, so a target change is refused).
     ``request`` says whether the requested treatment grid or operation is inside the declared
-    route, with the separately ``licensed_route`` that serves it when it is not. ``resume`` is
+    route, with the separately ``supported_route`` that serves it when it is not. ``resume`` is
     ``None`` in process and a :class:`ResumeContext` across a process boundary.
     """
 
-    retarget: Retarget = "licensed"
+    retarget: Retarget = "supported"
     request: RequestKind = "on_grid"
-    licensed_route: str | None = None
+    supported_route: str | None = None
     resume: ResumeContext | None = None
 
     def __post_init__(self) -> None:
@@ -257,8 +356,8 @@ class Capabilities:
             raise CausalValueError(f"retarget must be one of {_RETARGETS}, got {self.retarget!r}")
         if self.request not in _REQUESTS:
             raise CausalValueError(f"request must be one of {_REQUESTS}, got {self.request!r}")
-        if self.request == "on_grid" and self.licensed_route is not None:
-            raise CausalValueError("an on-grid request names no licensed route")
+        if self.request == "on_grid" and self.supported_route is not None:
+            raise CausalValueError("an on-grid request names no supported route")
 
     @property
     def boundary(self) -> Literal["in_process", "fresh_process"]:
@@ -270,7 +369,7 @@ class Capabilities:
         return {
             "retarget": self.retarget,
             "request": self.request,
-            "licensed_route": self.licensed_route,
+            "supported_route": self.supported_route,
             "boundary": self.boundary,
             "resume": None if self.resume is None else self.resume.to_wire(),
         }
@@ -282,7 +381,7 @@ class Capabilities:
         return cls(
             retarget=wire["retarget"],
             request=wire["request"],
-            licensed_route=wire.get("licensed_route"),
+            supported_route=wire.get("supported_route"),
             resume=None if resume is None else ResumeContext(**resume),
         )
 
@@ -295,7 +394,7 @@ class StageStatus:
     """Per-stage outcome: ``reused``, ``recomputed`` or ``refused``, and what determined it.
 
     ``detail`` is the determining dependency: for ``reused`` the dependency whose unchanged
-    identity licensed reuse (the stage itself for an input); for ``recomputed`` the changed
+    identity supported reuse (the stage itself for an input); for ``recomputed`` the changed
     input (``own:<stage>:<change>``), the changed upstream stage
     (``upstream:<via><-<origin>:<change>``) or ``fresh_process``; for ``refused`` the
     ``recalc.*`` detail (with a ``[route]`` or ``[stage]`` suffix where one applies).
@@ -518,12 +617,12 @@ class RecalcReceiptRefusal(RecalcRefusal):
 def _refusal_type(wire: Mapping[str, Any]) -> type[RecalcRefusal]:
     detail = str(wire["detail"])
     if detail in {
-        "recalc.unavailable_fit",
-        "recalc.unavailable_data",
-        "recalc.unavailable_provider",
+        _reason_details.recalc.UNAVAILABLE_FIT,
+        _reason_details.recalc.UNAVAILABLE_DATA,
+        _reason_details.recalc.UNAVAILABLE_PROVIDER,
     }:
         return RecalcUnavailable
-    if detail == "recalc.no_live_state":
+    if detail == _reason_details.recalc.NO_LIVE_STATE:
         return RecalcNoLiveState
     if detail.partition(".")[0] == "recalc_receipt":
         return RecalcReceiptRefusal
@@ -626,6 +725,7 @@ class RecalcReceipt:
     def _from_wire(
         cls, meta: Mapping[str, Any], plan: Mapping[str, Any], artifact: bytes, *, loaded: bool
     ) -> RecalcReceipt:
+        artifact = container_bytes(artifact)
         return cls(
             entries=tuple(
                 ReceiptEntry(
@@ -683,11 +783,13 @@ class RecalcReceipt:
         """Whether any derived stage is stored as reused (never true in a fresh process)."""
         return any(e.status.reused and not e.stage.is_input for e in self.entries)
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The portable ``recalc_receipt_v1`` artifact bytes."""
-        return self._artifact
+        return artifact_from_receipt(self, self._artifact)
 
     @classmethod
+    @outcome_operation
     def consume(cls, data: bytes, *, expected_identity: str | None = None) -> RecalcReceipt:
         """Consume an artifact by recomputing its plan from the stored declarations.
 
@@ -697,6 +799,7 @@ class RecalcReceipt:
         and, when ``expected_identity`` was retained independently, a consistently resealed
         receipt of another run is refused too. Corruption raises ``CausalSerializationError``.
         """
+        data = container_bytes(data)
         report, refusal = _native.consume_recalc_receipt(bytes(data), expected_identity)
         raise_refusal(refusal, _refusal_type)
         if report is None:  # pragma: no cover - the native call returns one or the other
@@ -781,7 +884,7 @@ class Utility:
 class TargetWeights:
     """Row weights declaring a target population and the columns they depend on.
 
-    ``depends_on`` must lie in the adjustment set for the route to be licensed.
+    ``depends_on`` must lie in the adjustment set for the route to be supported.
     """
 
     weights: ArrayLike
@@ -859,6 +962,28 @@ def _seed(seed: int) -> int:
     return seed
 
 
+def _execution(execution: Execution | None) -> Execution:
+    """The execution a session entry runs under; ``None`` is the default ``Execution()``."""
+    execution = Execution() if execution is None else execution
+    if not isinstance(execution, Execution):
+        raise CausalTypeError("execution must be an antecedent.Execution")
+    return execution
+
+
+def _native_controls(execution: Execution, *, resources: bool = True) -> dict[str, Any]:
+    """The native seed and thread keywords an ``Execution`` carries.
+
+    With ``resources`` the memory limit and cancellation token are included; a native entry
+    that takes neither is given the seed and threads only and sees the rest through the
+    execution's ambient policy.
+    """
+    if not resources:
+        return native_controls(execution, seed="seed", threads="threads")
+    return native_controls(
+        execution, seed="seed", threads="threads", cancel="cancel", memory="memory_limit_bytes"
+    )
+
+
 @dataclass(frozen=True, slots=True, eq=False)
 class _Arguments:
     names: list[str]
@@ -918,7 +1043,7 @@ class RecalcSession:
 
     __slots__ = ("_handle",)
 
-    def __init__(self, *, retarget: Retarget = "licensed") -> None:
+    def __init__(self, *, retarget: Retarget = "supported") -> None:
         self._handle = _native.RecalcSessionHandle(retarget)
 
     @classmethod
@@ -927,7 +1052,7 @@ class RecalcSession:
         previous: Mapping[Stage, str] | RecalcReceipt,
         context: ResumeContext | None = None,
         *,
-        retarget: Retarget = "licensed",
+        retarget: Retarget = "supported",
     ) -> RecalcSession:
         """A fresh-process session that knows ``previous`` and holds only what ``context`` names.
 
@@ -943,17 +1068,22 @@ class RecalcSession:
         return session
 
     def set_retarget_support(self, retarget: Retarget) -> None:
-        """Declare the estimator's retarget license for later plans."""
+        """Declare the estimator's retarget support for later plans."""
         self._handle.set_retarget_support(retarget)
 
-    def set_request_support(self, request: RequestKind, licensed_route: str | None = None) -> None:
+    def set_request_support(self, request: RequestKind, supported_route: str | None = None) -> None:
         """Declare whether the next request is on the declared grid, off it or unsupported."""
-        self._handle.set_request_support(request, licensed_route)
+        self._handle.set_request_support(request, supported_route)
 
     @property
     def is_live(self) -> bool:
         """Whether the session holds a live prepared study."""
         return self._handle.is_live()
+
+    @property
+    def standing(self) -> SessionStanding:
+        """The standing inputs this session's stage identities declare."""
+        return session_standing("receipt")
 
     @property
     def identities(self) -> dict[Stage, str]:
@@ -978,14 +1108,14 @@ class RecalcSession:
         self,
         request: RecalcRequest,
         *,
-        seed: int = 1,
-        threads: int | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> RecalcPlan:
         """The plan ``request`` would run under, without running it."""
-        a = _arguments(request, memory_limit_bytes=memory_limit_bytes, cancel=cancel)
-        wire = self._handle.plan(
+        run = _execution(execution)
+        ctl = _native_controls(run)
+        a = _arguments(request, memory_limit_bytes=ctl["memory_limit_bytes"], cancel=ctl["cancel"])
+        wire = run._call(
+            self._handle.plan,
             a.names,
             a.columns,
             a.edges,
@@ -995,36 +1125,30 @@ class RecalcSession:
             a.cost,
             target_weights=a.target_weights,
             target_depends_on=a.target_depends_on,
-            seed=_seed(seed),
-            threads=threads,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
+            **ctl,
         )
         return RecalcPlan.from_wire(json.loads(wire))
 
-    def prepare(
-        self, request: RecalcRequest, *, seed: int = 1, threads: int | None = None
-    ) -> RecalcPlan:
+    def prepare(self, request: RecalcRequest, *, execution: Execution | None = None) -> RecalcPlan:
         """Name the plan ``request`` would run under; an alias of :meth:`plan`.
 
         Identification and the frozen score table are built by :meth:`execute` exactly when
         this plan says they must be, so there is no separate prepare-only run.
         """
-        return self.plan(request, seed=seed, threads=threads)
+        return self.plan(request, execution=execution)
 
+    @outcome_operation
     def execute(
         self,
         request: RecalcRequest,
         *,
-        seed: int = 1,
-        threads: int | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> RecalcResult:
         """Plan, run only what the plan says must run, count the work and seal the receipt.
 
-        ``memory_limit_bytes`` refuses an input copy above the limit with
-        ``recalc.memory_budget_exceeded`` before it is allocated, and ``cancel`` stops the run.
+        The execution's memory limit refuses an input copy above it with
+        ``recalc.memory_budget_exceeded`` before it is allocated, and its cancellation token
+        stops the run.
 
         Raises:
             RecalcRefusal: the plan holds a refused stage (an off-grid or unsupported request,
@@ -1033,8 +1157,11 @@ class RecalcSession:
             RecalcNoLiveState: the plan reuses a derived stage this session cannot back with a
                 live artifact (for example declared portable scores no loader supplies).
         """
-        a = _arguments(request, memory_limit_bytes=memory_limit_bytes, cancel=cancel)
-        result, artifact, refusal = self._handle.execute(
+        run = _execution(execution)
+        ctl = _native_controls(run)
+        a = _arguments(request, memory_limit_bytes=ctl["memory_limit_bytes"], cancel=ctl["cancel"])
+        result, artifact, refusal = run._call(
+            self._handle.execute,
             a.names,
             a.columns,
             a.edges,
@@ -1044,10 +1171,7 @@ class RecalcSession:
             a.cost,
             target_weights=a.target_weights,
             target_depends_on=a.target_depends_on,
-            seed=_seed(seed),
-            threads=threads,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
+            **ctl,
         )
         raise_refusal(refusal, _refusal_type)
         if result is None or artifact is None:  # pragma: no cover - one of the two is set
@@ -1062,9 +1186,11 @@ class RecalcSession:
         )
 
 
+@outcome_operation
 def consume(data: bytes, *, expected_identity: str | None = None) -> RecalcReceipt:
     """Consume a ``recalc_receipt_v1`` artifact; see :meth:`RecalcReceipt.consume`."""
-    return RecalcReceipt.consume(data, expected_identity=expected_identity)
+    data = container_bytes(data)
+    return require_success(RecalcReceipt.consume(data, expected_identity=expected_identity))
 
 
 __all__ = [
@@ -1087,12 +1213,16 @@ __all__ = [
     "RequestKind",
     "ResumeContext",
     "Retarget",
+    "SessionKind",
+    "SessionStanding",
     "Stage",
     "StageCounts",
     "StageStatus",
+    "StandingInput",
     "TargetWeights",
     "Utility",
     "consume",
     "plan_recalculation",
+    "session_standing",
     "stage_identity",
 ]

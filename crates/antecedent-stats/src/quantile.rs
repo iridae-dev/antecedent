@@ -4,7 +4,7 @@
 //! (Hyndman–Fan type 6) for posterior draws and interpolated (type 7) for resampling
 //! percentiles and descriptive summaries.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Consistency constant turning a median absolute deviation into a Gaussian σ.
 pub(crate) const MAD_TO_SIGMA: f64 = 1.4826;
@@ -27,7 +27,8 @@ pub enum QuantileRule {
 }
 
 /// `p`-quantile of an ascending-sorted sample under `rule`; `NaN` for an empty sample.
-/// `p` is clamped to `[0, 1]`.
+/// `p` is clamped to `[0, 1]`; a NaN probability or a sample containing NaN yields NaN.
+/// The sample must be ordered by [`f64::total_cmp`].
 #[must_use]
 #[allow(
     clippy::cast_possible_truncation,
@@ -36,7 +37,7 @@ pub enum QuantileRule {
 )]
 pub fn quantile_sorted(sorted: &[f64], p: f64, rule: QuantileRule) -> f64 {
     let d = sorted.len();
-    if d == 0 {
+    if d == 0 || p.is_nan() || sorted[0].is_nan() || sorted[d - 1].is_nan() {
         return f64::NAN;
     }
     let p = p.clamp(0.0, 1.0);
@@ -48,8 +49,36 @@ pub fn quantile_sorted(sorted: &[f64], p: f64, rule: QuantileRule) -> f64 {
     };
     let lo = zero_based.floor() as usize;
     let hi = zero_based.ceil() as usize;
+    if lo == hi {
+        return sorted[lo];
+    }
     let frac = zero_based - lo as f64;
-    sorted[lo] + (sorted[hi] - sorted[lo]) * frac
+    let difference = sorted[hi] - sorted[lo];
+    if difference.is_finite() {
+        sorted[lo] + difference * frac
+    } else {
+        // Opposite-sign finite extremes can overflow their difference even though
+        // the interpolated quantile is finite. Weight each endpoint instead.
+        sorted[lo] * (1.0 - frac) + sorted[hi] * frac
+    }
+}
+
+/// Symmetric credible interval about a specified posterior centre. Its radius is the
+/// requested posterior quantile of absolute distance from that centre. This avoids
+/// shifting the interval midpoint when a few influential scores skew the draws.
+#[must_use]
+pub fn posterior_radius_interval(draws: &[f64], centre: f64, level: f64) -> Option<[f64; 2]> {
+    if draws.len() < 2 || !centre.is_finite() || !(0.0 < level && level < 1.0) {
+        return None;
+    }
+    let mut distances: Vec<_> = draws.iter().map(|draw| (draw - centre).abs()).collect();
+    if distances.iter().any(|r| !r.is_finite()) {
+        return None;
+    }
+    distances.sort_unstable_by(f64::total_cmp);
+    let radius = quantile_sorted(&distances, level, QuantileRule::ExchangeableRank);
+    let bounds = [centre - radius, centre + radius];
+    bounds.iter().all(|x| x.is_finite()).then_some(bounds)
 }
 
 /// Equal-tailed interval `[q((1 − level)/2), q((1 + level)/2)]` of an ascending-sorted sample.
@@ -57,7 +86,7 @@ pub fn quantile_sorted(sorted: &[f64], p: f64, rule: QuantileRule) -> f64 {
 pub fn equal_tail_interval_sorted(sorted: &[f64], level: f64, rule: QuantileRule) -> (f64, f64) {
     (
         quantile_sorted(sorted, (1.0 - level) / 2.0, rule),
-        quantile_sorted(sorted, (1.0 + level) / 2.0, rule),
+        quantile_sorted(sorted, f64::midpoint(1.0, level), rule),
     )
 }
 
@@ -83,6 +112,25 @@ pub fn mad_sigma(values: &[f64]) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn exchangeable_rank_rejects_nan_samples_and_probabilities() {
+        for mut sample in [[1.0, 2.0, f64::NAN], [-f64::NAN, 1.0, 2.0]] {
+            sample.sort_by(f64::total_cmp);
+            assert!(quantile_sorted(&sample, 0.5, QuantileRule::ExchangeableRank).is_nan());
+        }
+        assert!(quantile_sorted(&[1.0, 2.0], f64::NAN, QuantileRule::ExchangeableRank).is_nan());
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp, reason = "singleton quantiles return the exact stored endpoint")]
+    fn exchangeable_rank_interpolation_handles_extreme_values_and_endpoints() {
+        let sample = [-f64::MAX, f64::MAX];
+        assert!(quantile_sorted(&sample, 0.5, QuantileRule::ExchangeableRank).abs() < f64::EPSILON);
+        for value in [f64::NEG_INFINITY, 1.0, f64::INFINITY] {
+            assert_eq!(quantile_sorted(&[value], 0.5, QuantileRule::ExchangeableRank), value);
+        }
+    }
 
     #[test]
     #[allow(

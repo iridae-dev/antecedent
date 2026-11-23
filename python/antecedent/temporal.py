@@ -20,8 +20,8 @@ What the answer is **not**:
 
 * Failing to reject (:attr:`ConstancyConclusion.NOT_REJECTED`) never proves the effect is
   constant. It is the absence of evidence against the null at the stated level.
-* The test's Type I error and power are **unmeasured** (``calibration == "unmeasured"``): no
-  false-positive or power claim is made, and the result grants no causal or interval license.
+* The test's Type I error and power are **not_measured** (``calibration == "not_measured"``): no
+  false-positive or power claim is made, and the result grants no causal or interval support.
   The claim is a point (``inference_claim == "point_only"``).
 * The null (the effect is equal across all declared partitions) is frozen; it is not a
   parameter.
@@ -46,22 +46,53 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from functools import partial
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
+from antecedent import _reason_details
+
+from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._native import consume_effect_constancy_artifact as _consume
 from ._native import evaluate_effect_constancy as _evaluate
 from ._refusal import raise_refusal
 from ._scientific import ScientificResult
 from ._validate import non_finite_refusal, real
+from ._validate import nonempty_name as _name
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
 
+
+def require_ordinary_temporal_curve_posterior(
+    serial_error_model: Literal["unmodeled", "independent_innovations"] = "unmodeled",
+) -> None:
+    """Require the ordinary-likelihood reading of a temporal response-curve posterior.
+
+    The temporal curve posterior is a tempered generalized posterior: each horizon's Gaussian
+    working likelihood is divided by a long-run-variance factor so serially dependent
+    innovations do not make the interval too narrow. It is not the posterior of a joint law of
+    the series. With ``"unmodeled"`` serial dependence this refuses
+    (``distribution_meaning_mismatch``, ``temporal_curve.ordinary_posterior_not_supported``) and names the
+    next attempt: attest independent innovations given the modelled history, add an explicit
+    autoregressive innovation law to the likelihood, or read the tempered posterior as a
+    generalized posterior. ``"independent_innovations"`` is the caller's attestation that
+    supports the ordinary reading; it is never inferred.
+    """
+    _native.require_ordinary_temporal_curve_posterior_native(serial_error_model)
+
+
 __all__ = [
+    "require_ordinary_temporal_curve_posterior",
     "ConstancyConclusion",
     "Contrast",
     "EffectConstancyIdentity",
@@ -87,23 +118,17 @@ class TemporalRefusal(StructuredRefusal):
     namespaced ``family.slot`` slot (for example ``effect_constancy.incompatible_partitions``
     or ``temporal_counterfactual.unpaired_histories``). ``witness`` is the refusing witness
     the evaluator retained (unit, history, world, node, residual, bound) and
-    ``missing_gates`` / ``missing_factors`` list what a closed transported route lacks.
+    ``missing_gates`` / ``missing_factors`` list what a unsupported transported route lacks.
     """
 
     def __init__(self, refusal: Mapping[str, Any]) -> None:
         super().__init__(refusal)
         #: The refusing witness as a mapping, when the evaluator retained one.
         self.witness: Mapping[str, Any] | None = refusal.get("witness")
-        #: Prerequisite gates a closed route lacks, in a fixed order.
+        #: Prerequisite gates a unsupported route lacks, in a fixed order.
         self.missing_gates: tuple[str, ...] = tuple(refusal.get("missing_gates", ()))
         #: Regime factors (``source:<regime>`` / ``target:<regime>``) the evidence map lacks.
         self.missing_factors: tuple[str, ...] = tuple(refusal.get("missing_factors", ()))
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value:
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
 
 
 class ConstancyConclusion(StrEnum):
@@ -176,7 +201,7 @@ _finite_estimate = partial(
     real,
     finite=True,
     non_finite=non_finite_refusal(
-        TemporalRefusal, stage="test", detail="effect_constancy.non_finite_estimate"
+        TemporalRefusal, stage="test", detail=_reason_details.effect_constancy.NON_FINITE_ESTIMATE
     ),
 )
 
@@ -258,7 +283,7 @@ class EffectConstancyResult(ScientificResult):
 
     ``partitions`` carries each partition's effect (canonical label order) so transport
     diagnostics, prior transfer and policy generalization can consume them directly.
-    ``conclusion`` is never a proof of constancy and ``calibration`` is ``"unmeasured"``;
+    ``conclusion`` is never a proof of constancy and ``calibration`` is ``"not_measured"``;
     read :attr:`caveats`. ``pooled_effect`` is the inverse-variance pooled effect and exists
     only for independent partitions.
     """
@@ -283,15 +308,10 @@ class EffectConstancyResult(ScientificResult):
     identity: EffectConstancyIdentity
     _artifact_bytes: bytes
 
-    def artifact(self) -> ExportedArtifact[EffectConstancyResult]:
-        """Typed bytes envelope for shared scientific consumption."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self)
-
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[EffectConstancyResult]:
         """The checksummed ``effect_constancy_v1`` artifact."""
-        return self._artifact_bytes
+        return artifact_from_receipt(self, self._artifact_bytes)
 
     def table(self) -> list[dict[str, Any]]:
         """The per-partition table: label, coordinate, support, effect and standard error."""
@@ -338,6 +358,7 @@ class EffectConstancyResult(ScientificResult):
 
 
 def _result(report_json: str, artifact: bytes) -> EffectConstancyResult:
+    artifact = container_bytes(artifact)
     report = json.loads(report_json)
     result = report["result"]
     family = report["family"]
@@ -398,7 +419,7 @@ def _covariance(covariance: Any) -> list[float]:
             {
                 "code": "invalid_argument",
                 "stage": "test",
-                "detail": "effect_constancy.invalid_covariance",
+                "detail": _reason_details.effect_constancy.INVALID_COVARIANCE,
                 "message": "the covariance has a non-finite entry",
             }
         )
@@ -483,7 +504,7 @@ def effect_constancy(
             "alpha",
             finite=True,
             non_finite=non_finite_refusal(
-                TemporalRefusal, stage="test", detail="effect_constancy.invalid_alpha"
+                TemporalRefusal, stage="test", detail=_reason_details.effect_constancy.INVALID_ALPHA
             ),
         ),
     }
@@ -496,6 +517,10 @@ def effect_constancy(
     return _result(report, bytes(artifact))
 
 
+@artifact_consumer(
+    proof="temporal.consume_effect_constancy_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def consume_effect_constancy_artifact(
     artifact: bytes,
     *,
@@ -512,6 +537,7 @@ def consume_effect_constancy_artifact(
     Corruption and unknown major versions raise
     :class:`~antecedent.errors.CausalSerializationError`.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     if expected_identity is None:

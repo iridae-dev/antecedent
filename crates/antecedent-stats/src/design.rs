@@ -1,7 +1,8 @@
 //! Compiled design matrices for repeated estimator fits.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::execution_attempt::{PhysicalEvent, record_physical};
 use std::sync::Arc;
 
 use antecedent_core::{KernelPolicy, VariableId};
@@ -312,18 +313,28 @@ impl CompiledDesign {
         };
         let ncols = 2 + covariates.len();
         let mut matrix = vec![0.0; nrows * ncols];
+        record_physical(PhysicalEvent::Allocation, 1);
+        record_physical(PhysicalEvent::AllocatedBytes, (nrows * ncols * 8) as u64);
         // col 0: intercept
         for r in 0..nrows {
             matrix[r] = 1.0;
         }
         // col 1: treatment
         matrix[nrows..2 * nrows].copy_from_slice(&treatment[..nrows]);
+        record_physical(PhysicalEvent::Copy, (2 + covariates.len()) as u64);
+        record_physical(PhysicalEvent::CopiedBytes, (nrows * (2 + covariates.len()) * 8) as u64);
         let mut roles = vec![DesignColumnRole::Intercept, DesignColumnRole::Treatment];
         for (i, (id, col)) in covariates.iter().enumerate() {
             let base = (2 + i) * nrows;
             matrix[base..base + nrows].copy_from_slice(&col[..nrows]);
             roles.push(DesignColumnRole::Covariate(*id));
         }
+        // Shared ownership copies the matrix/outcome buffers; source row indices
+        // are copied into a Vec and then the retained Arc allocation above.
+        record_physical(PhysicalEvent::Copy, 4);
+        record_physical(PhysicalEvent::CopiedBytes, (nrows * (ncols + 3) * 8) as u64);
+        record_physical(PhysicalEvent::Allocation, 4);
+        record_physical(PhysicalEvent::AllocatedBytes, (nrows * (ncols + 3) * 8) as u64);
         Ok(Self {
             nrows,
             ncols,

@@ -1,7 +1,8 @@
 //! Row selection and column transform helpers shared by estimators / refuters.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::execution_attempt::{PhysicalEvent, record_physical};
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -11,7 +12,6 @@ use antecedent_core::{
 use crate::column::{ColumnView, Float64Column, OwnedColumn, ValidityBitmap};
 use crate::dataset::TabularData;
 use crate::error::DataError;
-use crate::storage::OwnedColumnarStorage;
 use crate::table::TableView;
 
 impl TabularData {
@@ -41,13 +41,18 @@ impl TabularData {
         out.clear();
         out.resize(n, true);
         let keep = out;
-        if let Some(mask) = self.storage().analysis_mask() {
+        if let Some(mask) = self.storage().analysis_mask().filter(|mask| !mask.is_all_valid()) {
+            record_physical(PhysicalEvent::Scan, 1);
             for (i, slot) in keep.iter_mut().enumerate() {
                 *slot = mask.is_valid(i);
             }
         }
         for &id in ids {
             let validity = self.column(id)?.validity();
+            if validity.is_all_valid() {
+                continue;
+            }
+            record_physical(PhysicalEvent::Scan, 1);
             for (i, slot) in keep.iter_mut().enumerate() {
                 if *slot && !validity.is_valid(i) {
                     *slot = false;
@@ -143,7 +148,7 @@ impl TabularData {
                 ValidityBitmap::all_valid(n),
             )?);
         }
-        let storage = OwnedColumnarStorage::try_new(
+        let storage = storage.derive(
             storage.schema().clone(),
             cols,
             storage.analysis_mask().cloned(),
@@ -180,7 +185,7 @@ impl TabularData {
             }
             None => mask,
         };
-        let new_storage = OwnedColumnarStorage::try_new(
+        let new_storage = storage.derive(
             storage.schema().clone(),
             storage.columns().to_vec(),
             Some(combined),
@@ -207,7 +212,7 @@ impl TabularData {
                 context: "observation weights",
             });
         }
-        let new_storage = OwnedColumnarStorage::try_new(
+        let new_storage = storage.derive(
             storage.schema().clone(),
             storage.columns().to_vec(),
             storage.analysis_mask().cloned(),
@@ -259,16 +264,17 @@ impl TabularData {
             )
             .map_err(DataError::from)?;
         let schema = builder.build().map_err(DataError::from)?;
-        let new_id = VariableId::from_raw(u32::try_from(schema.len() - 1).map_err(|_| {
-            DataError::InvalidArgument { message: "schema exceeds VariableId range".into() }
-        })?);
+        let new_id = VariableId::from_raw(
+            u32::try_from(schema.len() - 1)
+                .map_err(|_| DataError::overflow("schema variable count as VariableId"))?,
+        );
         let mut cols: Vec<OwnedColumn> = storage.columns().to_vec();
         cols.push(OwnedColumn::Float64(Float64Column::new(
             new_id,
             values,
             ValidityBitmap::all_valid(n),
         )?));
-        let storage = OwnedColumnarStorage::try_new(
+        let storage = storage.derive(
             schema,
             cols,
             storage.analysis_mask().cloned(),

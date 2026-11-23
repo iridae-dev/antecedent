@@ -1,0 +1,518 @@
+//! A prior on the outcome-regression nuisance of the cross-fitted AIPW score.
+//!
+//! The prior is a Gaussian coefficient prior hydrated from a posterior artifact. It
+//! regularizes the per-arm outcome regressions inside every cross-fit fold: each fold fits the
+//! posterior mode of the arm's linear outcome model centred on the prior mean (see
+//! [`antecedent_learn::GaussianPriorRegression`]). The doubly robust correction, the
+//! cross-fitting and the influence-function interval are those of the unregularized score, so
+//! the prior shapes the efficiency of the estimate and never its identification: a consistent
+//! propensity keeps the estimate consistent whatever the prior.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::sync::Arc;
+
+use antecedent_core::{
+    Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
+    PriorAssumption,
+};
+use antecedent_prob::{
+    AlphaSelectionOptions, ExternalPriorSource, PosteriorQuantityKind, PriorSet,
+};
+
+use crate::bayesian::{HydrateMapping, HydrateSource, HydrateTarget, hydrate_prior};
+use crate::error::EstimationError;
+
+/// Learner name recorded on a score table and in an estimator identity.
+pub(crate) const OUTCOME_PRIOR_LEARNER: &str = "gaussian_prior_linear";
+
+/// Restriction id of the prior in the assumptions of a result.
+pub const OUTCOME_PRIOR_ASSUMPTION_ID: &str = "aipw_outcome_nuisance_prior";
+
+/// A posterior artifact's coefficient summaries, as the outcome-nuisance prior of a
+/// cross-fitted AIPW estimate.
+///
+/// The source is decoded once by the facade; the target design is known only when the problem
+/// is prepared, so hydration into the design's coefficient coordinates happens at fit time.
+#[derive(Clone, Debug, PartialEq)]
+pub struct OutcomePriorSource {
+    /// Source posterior quantity kinds (artifact column schema).
+    pub quantities: Vec<PosteriorQuantityKind>,
+    /// Source posterior means, aligned to [`Self::quantities`].
+    pub mean: Vec<f64>,
+    /// Source posterior SDs, aligned to [`Self::quantities`].
+    pub sd: Vec<f64>,
+    /// Source's absolute coefficient covariance (row-major `p²`), when its draws were
+    /// retained. `None` hydrates the diagonal prior.
+    pub coefficient_covariance: Option<Vec<f64>>,
+    /// How the source coefficients map onto the outcome design: identical coefficient
+    /// subspace or explicit named pairs. An effect-functional mapping is refused.
+    pub mapping: HydrateMapping,
+    /// Content identity of the source artifact (a digest of its bytes).
+    pub identity: Arc<str>,
+    /// A composed external prior (sources, transport and alpha already applied) in place of a
+    /// posterior artifact; see [`NamedOutcomePrior`]. When set, `quantities`, `mean`, `sd`,
+    /// `coefficient_covariance` and `mapping` are unused.
+    pub composed: Option<NamedOutcomePrior>,
+    /// A power-prior discount still to be selected from the analysed table (see
+    /// [`AlphaSelectionRequest`]). A source that carries one is a declaration, not a prior:
+    /// the study resolves it against its own table when it is built, and no estimator fits
+    /// with an unresolved one.
+    pub selection: Option<AlphaSelectionRequest>,
+}
+
+/// External sources for the outcome regression and the rule that selects their common
+/// power-prior discount from the table a study analyses.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AlphaSelectionRequest {
+    /// The external sources; every one takes the selected discount.
+    pub sources: Vec<ExternalPriorSource>,
+    /// The prior the sources compose onto.
+    pub baseline: PriorSet,
+    /// Coefficient names of the composed prior: `intercept`, then `coef_<column>` per adjusted
+    /// column.
+    pub coefficient_names: Vec<Arc<str>>,
+    /// The selection rule, grid, level, discrepancy bound and seed.
+    pub options: AlphaSelectionOptions,
+}
+
+/// A Gaussian coefficient prior on the conjugate scale `V0` whose coordinates may be named.
+///
+/// Named coordinates map by name onto the outcome-regression columns: a column with a
+/// coordinate of its name takes that coordinate, a column without one takes the outcome
+/// regression's own baseline prior (the one an unnamed prior resolves against), and a coordinate with no column (the treatment coefficient of a
+/// Bayesian g-computation design, which the per-arm regression does not carry) is dropped. An
+/// unnamed prior is positional over a design of the same width.
+#[derive(Clone, Debug, PartialEq)]
+pub struct NamedOutcomePrior {
+    /// Coordinate names in coordinate order; `None` is positional.
+    pub names: Option<Arc<[Arc<str>]>>,
+    /// The Gaussian coefficient prior (with its provenance restrictions).
+    pub prior: PriorSet,
+}
+
+impl OutcomePriorSource {
+    /// A source from decoded posterior summaries.
+    ///
+    /// # Errors
+    ///
+    /// Summaries whose lengths disagree, or an effect-functional mapping, which has no
+    /// coordinate in the outcome regression to land on.
+    pub fn new(
+        quantities: Vec<PosteriorQuantityKind>,
+        mean: Vec<f64>,
+        sd: Vec<f64>,
+        coefficient_covariance: Option<Vec<f64>>,
+        mapping: HydrateMapping,
+        identity: impl Into<Arc<str>>,
+    ) -> Result<Self, EstimationError> {
+        if mean.len() != quantities.len() || sd.len() != quantities.len() {
+            return Err(EstimationError::refused(
+                antecedent_core::reason_code!("quantity_semantics_mismatch"),
+                "the outcome-nuisance prior source has mean/sd summaries that do not match its \
+                 quantity schema; supply the artifact of a fitted posterior",
+            ));
+        }
+        if matches!(mapping, HydrateMapping::EffectFunctional { .. }) {
+            return Err(effect_functional_refusal());
+        }
+        Ok(Self {
+            quantities,
+            mean,
+            sd,
+            coefficient_covariance,
+            mapping,
+            identity: identity.into(),
+            composed: None,
+            selection: None,
+        })
+    }
+
+    /// A declaration of a power-prior discount to be selected from the analysed table: the
+    /// study resolves it against its own table (see [`AlphaSelectionRequest`]).
+    #[must_use]
+    pub fn from_alpha_selection(request: AlphaSelectionRequest) -> Self {
+        let identity = format!(
+            "alpha_selection:blake3:{}",
+            antecedent_core::identity::blake3_hex(format!("{request:?}").as_bytes())
+        );
+        Self {
+            quantities: Vec::new(),
+            mean: Vec::new(),
+            sd: Vec::new(),
+            coefficient_covariance: None,
+            mapping: HydrateMapping::IdenticalCoefficientSubspace,
+            identity: Arc::from(identity),
+            composed: None,
+            selection: Some(request),
+        }
+    }
+
+    /// A source from a composed prior whose coordinates are named (or positional).
+    ///
+    /// # Errors
+    ///
+    /// A prior without a Gaussian coefficient block, one with absolute-scale coefficient
+    /// variances (it does not carry the conjugate scale the outcome regression resolves), or a
+    /// name count that differs from the coefficient count.
+    pub fn from_composed(
+        names: Option<Arc<[Arc<str>]>>,
+        prior: PriorSet,
+        identity: impl Into<Arc<str>>,
+    ) -> Result<Self, EstimationError> {
+        let width =
+            prior.gaussian_coefficients().map(antecedent_prob::GaussianCoefficientPrior::len);
+        let refuse = |detail: &str| {
+            crate::util::refuse(
+                antecedent_core::reason_code!("quantity_semantics_mismatch"),
+                antecedent_core::reason_details::mapped_posterior_transfer::COEFFICIENT_MAP,
+                detail,
+            )
+        };
+        let Some(width) = width else {
+            return Err(refuse(
+                "the composed outcome-nuisance prior carries no Gaussian coefficient block",
+            ));
+        };
+        if prior.absolute_coefficient_scale().is_some() {
+            return Err(refuse(
+                "the composed outcome-nuisance prior has absolute-scale coefficient variances; \
+                 compose priors on the conjugate scale",
+            ));
+        }
+        if names.as_ref().is_some_and(|n| n.len() != width) {
+            return Err(refuse(
+                "the composed outcome-nuisance prior's coordinate names are not one per \
+                 coefficient",
+            ));
+        }
+        Ok(Self {
+            quantities: Vec::new(),
+            mean: Vec::new(),
+            sd: Vec::new(),
+            coefficient_covariance: None,
+            mapping: HydrateMapping::IdenticalCoefficientSubspace,
+            identity: identity.into(),
+            composed: Some(NamedOutcomePrior { names, prior }),
+            selection: None,
+        })
+    }
+
+    /// Stable identity of the prior: the source digest and the declared mapping.
+    #[must_use]
+    pub fn identity_key(&self) -> String {
+        if let Some(composed) = &self.composed {
+            let names = composed.names.as_ref().map_or_else(
+                || "positional".to_owned(),
+                |names| names.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(","),
+            );
+            return format!(
+                "{OUTCOME_PRIOR_LEARNER};prior={};mapping=composed:{names}",
+                self.identity
+            );
+        }
+        let mapping = match &self.mapping {
+            HydrateMapping::IdenticalCoefficientSubspace => "identical".to_owned(),
+            HydrateMapping::EffectFunctional { source_quantity } => {
+                format!("effect_functional:{source_quantity}")
+            }
+            HydrateMapping::NamedParameters { pairs } => {
+                let pairs: Vec<String> = pairs.iter().map(|(a, b)| format!("{a}->{b}")).collect();
+                format!("named:{}", pairs.join(","))
+            }
+        };
+        format!("{OUTCOME_PRIOR_LEARNER};prior={};mapping={mapping}", self.identity)
+    }
+
+    /// Source coefficient names in coefficient-index order (`None` for an unnamed one).
+    fn source_coefficient_names(&self) -> Vec<Option<&str>> {
+        let mut coefficients: Vec<(usize, Option<&str>)> = self
+            .quantities
+            .iter()
+            .filter_map(|q| match q {
+                PosteriorQuantityKind::Coefficient { index, name } => {
+                    Some((*index, name.as_deref()))
+                }
+                _ => None,
+            })
+            .collect();
+        coefficients.sort_by_key(|(index, _)| *index);
+        coefficients.into_iter().map(|(_, name)| name).collect()
+    }
+
+    /// Hydrate the source into a Gaussian coefficient prior over `design_names`, the design
+    /// columns of the outcome regression (`intercept`, then `coef_<covariate>` per adjustment
+    /// variable).
+    ///
+    /// # Errors
+    ///
+    /// A prior whose coordinates do not map onto the design: a coefficient count that differs
+    /// from the design width (identical mapping), source names that disagree with the design
+    /// names, or a named pair naming a coefficient the source or the design does not have. The
+    /// refusal names the declaration that would map them.
+    pub(crate) fn hydrate(&self, design_names: &[Arc<str>]) -> Result<PriorSet, EstimationError> {
+        if self.selection.is_some() {
+            return Err(crate::util::refuse(
+                antecedent_core::reason_code!("quantity_semantics_mismatch"),
+                antecedent_core::reason_details::mapped_posterior_transfer::COEFFICIENT_MAP,
+                "the outcome-nuisance prior is a declared alpha selection that no study has \
+                 resolved against its table; build the study (it selects the discount on the \
+                 analysed table) or resolve the selection first",
+            ));
+        }
+        if let Some(composed) = &self.composed {
+            return composed.hydrate(design_names);
+        }
+        let design_list = design_names.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(", ");
+        let source_names = self.source_coefficient_names();
+        let source_list = source_names
+            .iter()
+            .enumerate()
+            .map(|(i, name)| name.map_or_else(|| format!("#{i}"), str::to_owned))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let remedy = format!(
+            "declare PriorMapping.named_parameters([...]) pairing source coefficients [{source_list}] \
+             with outcome-regression columns [{design_list}] (the outcome regression carries no \
+             treatment coefficient), or supply a prior fitted on exactly those columns"
+        );
+        let unmapped = |detail: String| {
+            crate::util::refuse(
+                antecedent_core::reason_code!("quantity_semantics_mismatch"),
+                antecedent_core::reason_details::mapped_posterior_transfer::COEFFICIENT_MAP,
+                &format!(
+                    "the outcome-nuisance prior does not map onto the outcome regression: \
+                     {detail}; {remedy}"
+                ),
+            )
+        };
+        match &self.mapping {
+            HydrateMapping::EffectFunctional { .. } => return Err(effect_functional_refusal()),
+            HydrateMapping::IdenticalCoefficientSubspace => {
+                if source_names.len() != design_names.len() {
+                    return Err(unmapped(format!(
+                        "the source has {} coefficients and the design {}",
+                        source_names.len(),
+                        design_names.len()
+                    )));
+                }
+                if source_names.iter().all(Option::is_some)
+                    && source_names
+                        .iter()
+                        .zip(design_names)
+                        .any(|(source, design)| source.is_some_and(|s| s != &**design))
+                {
+                    return Err(unmapped(
+                        "the source coefficient names differ from the design column names"
+                            .to_owned(),
+                    ));
+                }
+            }
+            HydrateMapping::NamedParameters { pairs } => {
+                for (source, target) in pairs {
+                    if !design_names.iter().any(|name| &**name == target.as_str()) {
+                        return Err(unmapped(format!(
+                            "`{target}` is not a column of the outcome regression"
+                        )));
+                    }
+                    if !source_names.contains(&Some(source.as_str())) {
+                        return Err(unmapped(format!(
+                            "`{source}` is not a named coefficient of the source"
+                        )));
+                    }
+                }
+            }
+        }
+        let baseline = PriorSet::weakly_informative(design_names.len());
+        hydrate_prior(
+            &self.mapping,
+            &HydrateSource::summaries(&self.quantities, &self.mean, &self.sd)
+                .with_coefficient_covariance(self.coefficient_covariance.as_deref()),
+            &HydrateTarget { baseline: &baseline, coef_names: design_names, treatment_col: None },
+        )
+        .map_err(|error| unmapped(error.to_string()))
+    }
+
+    /// The assumption records a result that used `prior` carries: the prior and its source, and
+    /// every restriction the hydration recorded.
+    pub(crate) fn assumptions(
+        &self,
+        prior: &PriorSet,
+        design_names: &[Arc<str>],
+    ) -> Vec<AssumptionRecord> {
+        let design_list = design_names.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(", ");
+        let mut records = vec![AssumptionRecord {
+            assumption: Assumption::PriorRestriction(PriorAssumption {
+                id: Arc::from(OUTCOME_PRIOR_ASSUMPTION_ID),
+                description: Arc::from(format!(
+                    "a Gaussian coefficient prior (source {}; mapping onto [{design_list}]) \
+                     regularizes the per-arm outcome-regression nuisance of the cross-fitted \
+                     AIPW score as a posterior-mode fit centred on the prior mean in every \
+                     fold; the doubly robust correction, the propensity nuisance and the \
+                     influence-function interval are unchanged, so the prior shapes the \
+                     efficiency of the estimate and never its identification",
+                    self.identity_key()
+                )),
+            }),
+            source: AssumptionSource::Artifact,
+            scope: AssumptionScope::Estimation,
+            status: AssumptionStatus::Untestable,
+        }];
+        records.extend(prior.restrictions.iter().map(|restriction| AssumptionRecord {
+            assumption: Assumption::PriorRestriction(restriction.clone()),
+            source: AssumptionSource::Artifact,
+            scope: AssumptionScope::Estimation,
+            status: AssumptionStatus::Untestable,
+        }));
+        records
+    }
+}
+
+impl NamedOutcomePrior {
+    /// The prior over `design_names`, the design columns of the outcome regression.
+    ///
+    /// # Errors
+    ///
+    /// A named prior none of whose coordinates names a design column, or a positional prior
+    /// whose width differs from the design's.
+    fn hydrate(&self, design_names: &[Arc<str>]) -> Result<PriorSet, EstimationError> {
+        let design_list = design_names.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(", ");
+        let unmapped = |detail: String| {
+            crate::util::refuse(
+                antecedent_core::reason_code!("quantity_semantics_mismatch"),
+                antecedent_core::reason_details::mapped_posterior_transfer::COEFFICIENT_MAP,
+                &format!(
+                    "the composed outcome-nuisance prior does not map onto the outcome \
+                     regression: {detail}; name the composed sources' coefficients as the \
+                     outcome-regression columns [{design_list}] \
+                     (ExternalPriorSourceSpec.coefficient_names)"
+                ),
+            )
+        };
+        let Some(names) = &self.names else {
+            let width = self
+                .prior
+                .gaussian_coefficients()
+                .map_or(0, antecedent_prob::GaussianCoefficientPrior::len);
+            if width != design_names.len() {
+                return Err(unmapped(format!(
+                    "the unnamed prior has {width} coordinates and the design {}",
+                    design_names.len()
+                )));
+            }
+            return Ok(self.prior.clone());
+        };
+        // Columns the prior has no coordinate for take the outcome regression's own baseline,
+        // the one an unnamed prior resolves against.
+        let baseline = PriorSet::weakly_informative(design_names.len());
+        let selection = antecedent_prob::select_coordinates_by_name(
+            &self.prior,
+            names,
+            design_names,
+            &baseline,
+        )
+        .map_err(|error| unmapped(error.to_string()))?;
+        if selection.mapped.is_empty() {
+            let source_list = names.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(", ");
+            return Err(unmapped(format!(
+                "none of the prior's coordinates [{source_list}] names an outcome-regression column"
+            )));
+        }
+        Ok(selection.prior)
+    }
+}
+
+fn effect_functional_refusal() -> EstimationError {
+    crate::util::refuse(
+        antecedent_core::reason_code!("quantity_semantics_mismatch"),
+        antecedent_core::reason_details::mapped_posterior_transfer::COEFFICIENT_MAP,
+        "an effect-functional mapping has no coordinate in the outcome regression to land on \
+         (the per-arm outcome regression carries no treatment coefficient); declare \
+         PriorMapping.named_parameters([...]) onto the outcome-regression columns or use \
+         the identical coefficient subspace",
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn names(items: &[&str]) -> Vec<Arc<str>> {
+        items.iter().map(|n| Arc::from(*n)).collect()
+    }
+
+    fn source(mapping: HydrateMapping) -> OutcomePriorSource {
+        let quantities = vec![
+            PosteriorQuantityKind::Coefficient { index: 0, name: Some(Arc::from("intercept")) },
+            PosteriorQuantityKind::Coefficient { index: 1, name: Some(Arc::from("coef_t")) },
+            PosteriorQuantityKind::Coefficient { index: 2, name: Some(Arc::from("coef_z")) },
+            PosteriorQuantityKind::ResidualVariance,
+        ];
+        OutcomePriorSource::new(
+            quantities,
+            vec![0.5, 2.0, 1.5, 4.0],
+            vec![0.1, 0.2, 0.3, 0.0],
+            None,
+            mapping,
+            "blake3:test",
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn named_pairs_hydrate_the_design_coordinates_on_the_conjugate_scale() {
+        let mapping = HydrateMapping::NamedParameters {
+            pairs: vec![
+                ("intercept".into(), "intercept".into()),
+                ("coef_z".into(), "coef_z".into()),
+            ],
+        };
+        let prior = source(mapping).hydrate(&names(&["intercept", "coef_z"])).unwrap();
+        let coef = prior.gaussian_coefficients().unwrap();
+        assert_eq!(coef.mean.as_ref(), &[0.5, 1.5]);
+        // Absolute variance sd^2 over the source residual variance 4.
+        assert!((coef.variance[0] - 0.01 / 4.0).abs() <= 1e-15);
+        assert!((coef.variance[1] - 0.09 / 4.0).abs() <= 1e-15);
+    }
+
+    #[test]
+    fn coordinates_that_do_not_map_are_refused_with_the_next_attempt() {
+        let design = names(&["intercept", "coef_z"]);
+        let identical = source(HydrateMapping::IdenticalCoefficientSubspace);
+        let refused = identical.hydrate(&design).unwrap_err().to_string();
+        assert!(refused.contains("3 coefficients and the design 2"), "{refused}");
+        assert!(refused.contains("PriorMapping.named_parameters"), "{refused}");
+        let unknown = source(HydrateMapping::NamedParameters {
+            pairs: vec![("coef_z".into(), "coef_w".into())],
+        });
+        let refused = unknown.hydrate(&design).unwrap_err().to_string();
+        assert!(
+            refused.contains("`coef_w` is not a column of the outcome regression"),
+            "{refused}"
+        );
+        let missing = source(HydrateMapping::NamedParameters {
+            pairs: vec![("coef_q".into(), "coef_z".into())],
+        });
+        let refused = missing.hydrate(&design).unwrap_err().to_string();
+        assert!(refused.contains("`coef_q` is not a named coefficient"), "{refused}");
+    }
+
+    #[test]
+    fn an_effect_functional_mapping_is_refused_at_construction() {
+        let refused = OutcomePriorSource::new(
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            None,
+            HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
+            "blake3:test",
+        );
+        assert!(refused.is_err());
+    }
+
+    #[test]
+    fn the_identity_key_names_the_source_and_the_mapping() {
+        let key = source(HydrateMapping::IdenticalCoefficientSubspace).identity_key();
+        assert_eq!(key, "gaussian_prior_linear;prior=blake3:test;mapping=identical");
+    }
+}

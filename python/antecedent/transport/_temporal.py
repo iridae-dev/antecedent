@@ -9,7 +9,7 @@ that coordinate's slice; every coordinate without one is assumed invariant at it
 slice, and each assumption is reported per slice. Time step 1 and time step 2 are
 never transported separately and multiplied. The claim is exact and point-only:
 temporal sampling intervals, initial-state uncertainty and new-period refresh are
-not licensed, and an interval request refuses.
+not supported, and an interval request refuses.
 """
 
 from __future__ import annotations
@@ -18,14 +18,18 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from .._artifact_protocol import artifact_consumer, container_bytes
 from .._columns import coerce_fields
 from .._native import (
     consume_temporal_transport_artifact as _consume_temporal_transport_artifact,
 )
 from .._native import prepare_temporal_transport_stage as _prepare_temporal_transport_stage
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ..execution import Execution
 from ..graph import Admg, Cpdag, Pag
-from ._impl import EvidenceCatalog, VariableCoordinate, _non_negative, _optional_non_negative
+from ._consumption import TransportConsumption
+from ._controls import call_native
+from ._impl import EvidenceCatalog, VariableCoordinate, _non_negative
 
 HORIZON = 2
 
@@ -64,7 +68,7 @@ class TemporalSequenceSpec:
         if isinstance(self.graph, Cpdag | Pag):
             raise CausalUnsupportedError(
                 "temporal_transport.invalid_spec: supply the explicit unrolled ADMG; "
-                "CPDAG/PAG-native temporal transport is not licensed",
+                "CPDAG/PAG-native temporal transport is not supported",
                 reason_code="invalid_argument",
             )
         if not isinstance(self.graph, Admg):
@@ -72,7 +76,7 @@ class TemporalSequenceSpec:
         if self.horizon != HORIZON:
             raise CausalUnsupportedError(
                 f"temporal_transport.horizon: horizon {self.horizon} is outside the "
-                f"licensed horizon of {HORIZON}",
+                f"supported horizon of {HORIZON}",
                 reason_code="route_not_supported",
             )
         covariates = tuple(tuple(step) for step in self.covariates)
@@ -209,8 +213,7 @@ def prepare_temporal_transport_sequence(
     max_operations: int = 10_000_000,
     max_evaluation_depth: int = 256,
     max_support_rows: int = 1_000_000,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> Any:
     """Decide the whole sequence once, as one longitudinal intervention, and compile it.
 
@@ -237,7 +240,9 @@ def prepare_temporal_transport_sequence(
         raise CausalTypeError("spec must be a TemporalSequenceSpec")
     if not isinstance(catalog, EvidenceCatalog):
         raise CausalTypeError("catalog must be an EvidenceCatalog")
-    return _prepare_temporal_transport_stage(
+    return call_native(
+        execution,
+        _prepare_temporal_transport_stage,
         spec.graph,
         list(spec.selections),
         (
@@ -258,11 +263,16 @@ def prepare_temporal_transport_sequence(
         max_operations=_non_negative("max_operations", max_operations),
         max_evaluation_depth=_non_negative("max_evaluation_depth", max_evaluation_depth),
         max_support_rows=_non_negative("max_support_rows", max_support_rows),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+        cancel="cancel",
+        memory="memory_bytes",
     )
 
 
+@artifact_consumer(
+    proof="TemporalSequenceArtifactWire::consume_with_limits: redecides and replays the declared ordered sequence",
+    replayable=True,
+    identity=(),
+)
 def consume_temporal_transport_artifact(
     artifact: bytes,
     *,
@@ -272,9 +282,8 @@ def consume_temporal_transport_artifact(
     max_evaluation_depth: int = 256,
     max_support_rows: int = 1_000_000,
     max_laws: int = 256,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
-) -> str:
+    execution: Execution | None = None,
+) -> TransportConsumption:
     """Independently replay an exported two-step sequence report.
 
     The sequence is re-decided under the producer's recorded limits (refused if
@@ -282,18 +291,24 @@ def consume_temporal_transport_artifact(
     match exactly. The horizon, the ordered sequence and the variable names the
     report is read with are bound into the artifact's identity.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
-    return _consume_temporal_transport_artifact(
-        artifact,
-        max_steps=_non_negative("max_steps", max_steps),
-        max_depth=_non_negative("max_depth", max_depth),
-        max_operations=_non_negative("max_operations", max_operations),
-        max_evaluation_depth=_non_negative("max_evaluation_depth", max_evaluation_depth),
-        max_support_rows=_non_negative("max_support_rows", max_support_rows),
-        max_laws=_non_negative("max_laws", max_laws),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+    return TransportConsumption.from_checked_json(
+        "consume_temporal_transport_artifact",
+        call_native(
+            execution,
+            _consume_temporal_transport_artifact,
+            artifact,
+            max_steps=_non_negative("max_steps", max_steps),
+            max_depth=_non_negative("max_depth", max_depth),
+            max_operations=_non_negative("max_operations", max_operations),
+            max_evaluation_depth=_non_negative("max_evaluation_depth", max_evaluation_depth),
+            max_support_rows=_non_negative("max_support_rows", max_support_rows),
+            max_laws=_non_negative("max_laws", max_laws),
+            cancel="cancel",
+            memory="memory_bytes",
+        ),
     )
 
 

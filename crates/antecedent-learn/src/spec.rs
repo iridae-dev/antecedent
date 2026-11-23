@@ -1,6 +1,6 @@
 //! Public learner specification. Provider resolution is internal.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::LearnError;
 #[cfg(not(all(feature = "ml-gbdt", feature = "ml-forest", feature = "ml-neural")))]
@@ -67,7 +67,18 @@ impl Default for ElasticNetSpec {
     }
 }
 
+/// Most trees a gradient-boosted spec admits. Forust cannot be interrupted mid-fit, so the
+/// work a started fit does is bounded by refusing larger specs before it starts.
+pub const MAX_GBT_TREES: u32 = 10_000;
+
+/// Deepest tree a gradient-boosted spec admits. A tree holds up to `2^(depth + 1)` nodes, so
+/// the depth bounds the memory one tree can take.
+pub const MAX_GBT_DEPTH: u32 = 20;
+
 /// Gradient-boosted trees (Forust in F). Public name is not the provider.
+///
+/// `trees` is at most [`MAX_GBT_TREES`] and `depth` at most [`MAX_GBT_DEPTH`];
+/// [`LearnerSpec::validate`] refuses a larger spec as [`LearnError::ResourceLimit`].
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct GbtSpec {
@@ -121,6 +132,32 @@ impl ForestSpec {
     }
 }
 
+/// Where the neural fit runs.
+///
+/// `Cpu` is the default and never touches a device. `Gpu` requires a device distribution and
+/// a usable adapter and is refused, with the reason, otherwise. `Auto` uses the device when
+/// every check passes and the work is large enough to pay for the copies, and otherwise runs
+/// on the CPU and records why in the learner provenance.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DevicePolicy {
+    /// Host CPU.
+    #[default]
+    Cpu,
+    /// Device, or refuse.
+    Gpu,
+    /// Device when it applies, else CPU with a recorded reason.
+    Auto,
+}
+
+impl DevicePolicy {
+    /// Whether this is the CPU default.
+    #[must_use]
+    pub const fn is_cpu(&self) -> bool {
+        matches!(self, Self::Cpu)
+    }
+}
+
 /// Neural net (Burn in L). Public name is not the provider.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -131,11 +168,15 @@ pub struct NeuralSpec {
     pub epochs: u32,
     /// Adam step size.
     pub learning_rate: f64,
+    /// Where the fit runs. Omitted from the serialized form when it is the CPU default, so
+    /// existing specs and their digests are unchanged.
+    #[serde(skip_serializing_if = "DevicePolicy::is_cpu")]
+    pub device: DevicePolicy,
 }
 
 impl Default for NeuralSpec {
     fn default() -> Self {
-        Self { hidden: 32, epochs: 40, learning_rate: 0.05 }
+        Self { hidden: 32, epochs: 40, learning_rate: 0.05, device: DevicePolicy::Cpu }
     }
 }
 
@@ -161,6 +202,27 @@ pub enum LearnerSpec {
     NeuralNet(NeuralSpec),
 }
 
+#[allow(clippy::cast_possible_truncation, reason = "the backend stores the rate as f32")]
+fn valid_f32_rate(rate: f64) -> bool {
+    let rate32 = rate as f32;
+    rate.is_finite() && rate32.is_finite() && rate32 > 0.0
+}
+
+/// Refuse a boosted-tree spec above the declared tree or depth limit.
+fn check_gbt_limits(spec: GbtSpec) -> Result<(), LearnError> {
+    if spec.trees > MAX_GBT_TREES {
+        return Err(LearnError::ResourceLimit {
+            message: "gradient-boosted trees above the tree limit",
+        });
+    }
+    if spec.depth > MAX_GBT_DEPTH {
+        return Err(LearnError::ResourceLimit {
+            message: "gradient-boosted trees above the depth limit",
+        });
+    }
+    Ok(())
+}
+
 impl LearnerSpec {
     /// Stable exact-parameter identity, shared by compilation and provider caches.
     #[must_use]
@@ -184,15 +246,25 @@ impl LearnerSpec {
                 s.min_samples_leaf.map_or_else(|| "task".to_string(), |leaf| leaf.to_string())
             ),
             Self::NeuralNet(s) => {
-                format!("neural:{}:{}:{}", s.hidden, s.epochs, s.learning_rate.to_bits())
+                let base =
+                    format!("neural:{}:{}:{}", s.hidden, s.epochs, s.learning_rate.to_bits());
+                match s.device {
+                    DevicePolicy::Cpu => base,
+                    DevicePolicy::Gpu => format!("{base}:gpu"),
+                    DevicePolicy::Auto => format!("{base}:auto"),
+                }
             }
         }
     }
 
     /// Validate configuration independently of feature availability or task coercion.
     /// # Errors
-    /// Nonfinite, negative, or otherwise invalid hyperparameters.
+    /// Nonfinite, negative, or otherwise invalid hyperparameters; a boosted-tree spec above
+    /// [`MAX_GBT_TREES`] trees or [`MAX_GBT_DEPTH`] levels is [`LearnError::ResourceLimit`].
     pub fn validate(self) -> Result<(), LearnError> {
+        if let Self::GradientBoostedTrees(s) = self {
+            check_gbt_limits(s)?;
+        }
         let valid = match self {
             Self::Ridge(s) => s.lambda.is_finite() && s.lambda >= 0.0,
             Self::Logistic(s) => s.ridge_lambda.is_finite() && s.ridge_lambda >= 0.0,
@@ -204,11 +276,9 @@ impl LearnerSpec {
                     && (0.0..=1.0).contains(&s.l1_ratio)
             }
             Self::GradientBoostedTrees(s) => {
-                s.trees > 0 && s.depth > 0 && s.learning_rate.is_finite() && s.learning_rate > 0.0
+                s.trees > 0 && s.depth > 0 && valid_f32_rate(s.learning_rate)
             }
-            Self::NeuralNet(s) => {
-                s.hidden > 0 && s.epochs > 0 && s.learning_rate.is_finite() && s.learning_rate > 0.0
-            }
+            Self::NeuralNet(s) => s.hidden > 0 && s.epochs > 0 && valid_f32_rate(s.learning_rate),
             _ => true,
         };
         if valid {
@@ -299,12 +369,29 @@ pub fn resolve_for(
     spec: LearnerSpec,
     task: PredictionTask,
 ) -> Result<Box<dyn LearnerFactory>, LearnError> {
-    resolve_uninstrumented(spec, task).map(crate::fit_counts::instrument)
+    resolve_uninstrumented(spec, task, false).map(crate::fit_counts::instrument)
+}
+
+/// [`resolve_for`] for a propensity nuisance whose declared overlap policy governs scores at
+/// the boundary: a logistic learner then accepts a converged, unseparated fit whose
+/// probabilities reach within `1e-8` of 0 or 1, and the caller's clip or trim applies. Every
+/// other learner resolves exactly as [`resolve_for`].
+///
+/// # Errors
+///
+/// Task mismatch, or [`LearnError::ProviderUnavailable`].
+pub fn resolve_propensity_for(
+    spec: LearnerSpec,
+    task: PredictionTask,
+    admit_boundary_saturation: bool,
+) -> Result<Box<dyn LearnerFactory>, LearnError> {
+    resolve_uninstrumented(spec, task, admit_boundary_saturation).map(crate::fit_counts::instrument)
 }
 
 fn resolve_uninstrumented(
     spec: LearnerSpec,
     task: PredictionTask,
+    admit_boundary_saturation: bool,
 ) -> Result<Box<dyn LearnerFactory>, LearnError> {
     spec.validate()?;
     match spec {
@@ -319,9 +406,12 @@ fn resolve_uninstrumented(
         LearnerSpec::Logistic(logistic) => {
             require_resolved_task(task, PredictionTask::BinaryProbability)?;
             if logistic.ridge_lambda > 0.0 {
-                Ok(Box::new(RidgeLogisticLearner::new(logistic.ridge_lambda)?))
+                Ok(Box::new(
+                    RidgeLogisticLearner::new(logistic.ridge_lambda)?
+                        .admitting_boundary_saturation(admit_boundary_saturation),
+                ))
             } else {
-                Ok(Box::new(LogisticLearner))
+                Ok(Box::new(LogisticLearner { admit_boundary_saturation }))
             }
         }
         LearnerSpec::ElasticNet(elastic) => {
@@ -454,4 +544,25 @@ fn required_capabilities(spec: LearnerSpec) -> LearnerCapabilities {
         _ => cap.regression = true,
     }
     cap
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gbt_spec_refuses_one_past_the_tree_and_depth_limits() {
+        let at_limit = GbtSpec { trees: MAX_GBT_TREES, depth: MAX_GBT_DEPTH, learning_rate: 0.1 };
+        assert!(LearnerSpec::GradientBoostedTrees(at_limit).validate().is_ok());
+        let too_many = GbtSpec { trees: MAX_GBT_TREES + 1, ..at_limit };
+        let too_deep = GbtSpec { depth: MAX_GBT_DEPTH + 1, ..at_limit };
+        for spec in [too_many, too_deep] {
+            let error = LearnerSpec::GradientBoostedTrees(spec).validate().unwrap_err();
+            assert!(matches!(error, LearnError::ResourceLimit { .. }), "{error:?}");
+            assert!(error.is_resource_limit());
+        }
+        let zero = GbtSpec { trees: 0, ..at_limit };
+        let error = LearnerSpec::GradientBoostedTrees(zero).validate().unwrap_err();
+        assert!(!error.is_resource_limit());
+    }
 }

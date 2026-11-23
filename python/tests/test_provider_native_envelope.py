@@ -16,6 +16,7 @@ from antecedent.extensibility import (
     ProviderTrust,
     ProviderVerificationFixture,
 )
+from antecedent.outcomes import require_success
 
 
 class External:
@@ -53,7 +54,7 @@ def test_native_envelope_retains_opaque_artifact_and_refuses_tampering():
 
     registry = ProviderRegistry()
     registry.register("external", External())
-    result = registry.execute("external", {"effect": 2.0})
+    result = require_success(registry.execute("external", {"effect": 2.0}))
     assert result.trust is ProviderTrust.EXTERNALLY_ATTESTED
     header_json, external = _native.open_provider_result(result.host_artifact)
     header = json.loads(header_json)
@@ -91,7 +92,7 @@ def test_verified_envelope_requires_host_receipt_for_exact_request():
         ],
         evidence_origin="independent-known-effect/v1",
     )
-    exact = registry.execute("external", {"effect": 2.0})
+    exact = require_success(registry.execute("external", {"effect": 2.0}))
     assert exact.trust is ProviderTrust.VERIFIED_EXTENSION
     with pytest.raises(ValueError, match="host verification"):
         _native.open_provider_result(exact.host_artifact)
@@ -110,7 +111,7 @@ def test_verified_envelope_requires_host_receipt_for_exact_request():
             verified_request_digest="0" * 64,
             verified_evidence_digest=report.evidence_digest,
         )
-    unseen = registry.execute("external", {"effect": 3.0})
+    unseen = require_success(registry.execute("external", {"effect": 3.0}))
     assert unseen.trust is ProviderTrust.EXTERNALLY_ATTESTED
     assert (
         json.loads(_native.open_provider_result(unseen.host_artifact)[0])["trust"]
@@ -135,12 +136,14 @@ def test_installed_entry_point_provider_analyze_needs_no_rebuild(monkeypatch):
     monkeypatch.setattr(extension.metadata, "entry_points", lambda: EntryPoints())
     name = "external-native"
     extension.providers.load_entry_point(name)
-    analyzed = antecedent.analyze(
-        {"y": np.asarray([0.0, 1.0])}, query=ProviderQuery(name, {"effect": 2.0})
+    analyzed = require_success(
+        antecedent.analyze(
+            {"y": np.asarray([0.0, 1.0])}, query=ProviderQuery(name, {"effect": 2.0})
+        )
     )
     assert analyzed.provider_result.artifact == b"external:2.0"
-    assert analyzed.export() == b"external:2.0"
-    host = analyzed.export_host()
+    assert bytes(analyzed.export()) == b"external:2.0"
+    host = bytes(analyzed.export(quantity="host"))
     assert (
         json.loads(antecedent._native.open_provider_result(host)[0])["provenance"]["entry_point"]
         == EntryPoint.value

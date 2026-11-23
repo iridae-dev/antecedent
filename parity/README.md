@@ -3,7 +3,11 @@
 Domain capability inventories and pinned external baseline oracles. See ADR 0009
 and [docs/development.md](../docs/development.md).
 
-**Inventories** (status: `pending` | `in_progress` | `done`):
+[How Antecedent checks its scientific methods](../docs/guides/scientific-verification.md)
+follows these evidence distinctions through AIPW and arrow-strength examples,
+from independent references to executing assertions and calibration requirements.
+
+**Inventories** (status: `pending` | `done`):
 
 - [estimate.toml](estimate.toml) — identify / estimate / refute
 - [discovery.toml](discovery.toml) — temporal discovery / CI / graphs / effects
@@ -14,22 +18,44 @@ and [docs/development.md](../docs/development.md).
 - [attribution.toml](attribution.toml) — Attribution
 - [design_state.toml](design_state.toml) — Design / incremental-state
 - [release.toml](release.toml) — Release-prep / parity-closure
-- [response.toml](response.toml) — 0.5.0 response / observation / transport / interference
+- [response.toml](response.toml) — response / observation / transport / interference
 - [compiler.toml](compiler.toml) — inspect / claim / reuse / handoff compositions (not analysis-matrix cells)
 
-**Support matrix** (license, not an inventory; see ADR 0020):
+**Supported units** (one notion of support, one count; see ADR 0020):
+
+A supported unit is one scientific combination, from exactly one source: a
+support-matrix cell (`support_cells.toml`), a graphless row
+(`support_graphless.toml`), or a capability with no matrix axes described by a
+capability record (`capability_records.toml`: transport stages, adaptive
+procedures, decisions, bridges). One rule decides support for every unit: a
+provenance record plus an executed independent scientific check (known truth, an
+analytic or enumerated value, or an external reference implementation; never
+internal consistency or a frozen output of this library). A capability record
+whose combination is already a matrix cell or graphless row names it with
+`matrix_units` or `graphless_units` and is not counted again.
+
+API and stage routes listed under a record are **entry points**. They have no
+support status of their own: a route is open only as an entry point of a
+supported unit and otherwise refuses with `not_supported`, so a route count is
+never the support count. `python3 scripts/gate_support.py` applies the rule to
+every unit, prints the one headline (`Supported units: N (matrix cells a,
+graphless rows b, capabilities outside the matrix c); not supported: M`) and
+lists each unit that lacks a provenance record or an independent check;
+`--report` prints the same and exits 0.
+
+**Support matrix** (support, not an inventory; see ADR 0020):
 
 - [support_axes.toml](support_axes.toml)
 - [support_n_a.toml](support_n_a.toml)
-- [support_closed.toml](support_closed.toml)
-- [support_licensed.toml](support_licensed.toml)
+- [support_refusal_reasons.toml](support_refusal_reasons.toml)
+- [support_cells.toml](support_cells.toml)
 - [support_graphless.toml](support_graphless.toml) — exact graphless design,
-  method, and inference licenses with assignment-unit support gates. It is
+  method, and inference supports with assignment-unit support gates. It is
   generated into a separate Rust lookup and
   [graphless support page](../docs/graphless-support-matrix.md); absent keys
   default to refusal and cannot inherit a geometric cell. Run
-  `bash scripts/gate_graphless_support.sh` to check generated output and that
-  each cited calibration and retained-route test is still in its harness.
+  `python3 scripts/gate_support.py` to check generated output, and add `--cited-tests` to check that
+  each cited known-truth and retained-route test is still in its harness.
 
 Cross-language names: [docs/api_naming.md](../docs/api_naming.md).
 
@@ -51,7 +77,7 @@ Each `[[capabilities]]` row uses:
 | Field | Required | Values |
 |-------|----------|--------|
 | `id` | yes | Dotted capability id, unique within the manifest |
-| `status` | yes | `pending` \| `in_progress` \| `done` |
+| `status` | yes | `pending` \| `done` |
 | `group` | see below | Grouping key |
 | `description` | see below | One-line capability description |
 | `owner` | see below | Owning domain |
@@ -64,11 +90,14 @@ Each `[[capabilities]]` row uses:
 | `evidence_test` | on support-matrix cross-check rows | Repository-relative Rust/Python test file |
 | `evidence_assertion` | on support-matrix cross-check rows | Executing test-function name |
 | `limitations` | no | What the evidence does **not** demonstrate |
+| `known_truth_reference` | inline analytic/enumerated truth | Origin `kind`, exact `source` (`path::assertion`), `proposition`, `tolerance` and `limitations`; source identity is checked, independence still requires review |
+| `evidence_activity` | no | `statistical_smoke` distinguishes an ordinary stochastic check from scientific conformance and measured calibration |
+| `calibration_evidence` | no | Explicit measurement test/assertion, group, phase and status; ordinary point conformance cannot stand in for this measurement |
 
 **`evidence_kind`** states exactly what proposition the row's evidence
 demonstrates, so wording in `notes` cannot outrun it. Required on every `done`
 row except in `release.toml` (infrastructure rows; evidence map lives in
-`gate_release.sh`). Values, weakest to strongest:
+`gate_release.sh`). Values (different propositions, not a scientific sufficiency ranking):
 
 | Value | Demonstrated proposition |
 |-------|--------------------------|
@@ -86,10 +115,9 @@ required. The gate also requires a matching project/version record under
 conformance test that names the fixture. It enforces the fixture-authoritative
 rule too: the named project must literally appear in the frozen fixture. A
 clean-room enumeration is `internal_known_truth` no matter what the row's prose
-says — the 2026-08 audit found fourteen ledger rows that had drifted the other
-way.
+says.
 
-Licensed support-matrix rows use a stricter truth condition. Every row names the
+Supported support-matrix rows use a stricter truth condition. Every row names the
 executing test function that carries its evidence, and that function itself
 (with the helpers it calls) must build the row's axis values; known-truth and
 external-oracle rows must also name a fixture that same function parses and
@@ -109,16 +137,39 @@ always states where its truth comes from. A pinned upstream run is
 `release.toml`, for a release-process fact no test can execute; its notes name the
 gate or workflow that enforces it.
 
-A licensed row labelled `frozen_external_oracle` compares **the cell's own
-output** with a pinned upstream run. Most licensed routes instead rest on
+A fixture mixing independently generated and product-generated fields names its
+`oracle.independent_fields`. A known-truth row must explicitly select a nonempty
+subset as `evidence_fields`; regression outputs cannot borrow another field's
+independence. Retained `oracle.reference_review` records bind the generator,
+transitive comparison helper, environment lock, assertion source and fixture
+payload by digest. Gates reject stale reviews. These receipts preserve the
+scope and limitations of an actual reference review; hashes and source scanning
+alone cannot establish scientific sufficiency, historical exposure or theorem
+correspondence.
+
+Fixtures serving only software checks may declare `evidence_roles = ["software"]`
+with `evidence_kind`, exact `evidence_source` (`path::assertion`),
+`evidence_proposition` and `limitations`. They need no invented numerical oracle.
+Known-truth claims cannot cite such a fixture, even if it also carries an
+external-origin tag. The audit lists these software propositions separately.
+
+An explicit provenance `method_review` records bounded primary-source
+correspondence, assumptions, resolved findings, exposure uncertainty and limits.
+It binds the provenance content and implementation/assertion/reference artifacts
+by digest. Stale reviews fail the provenance gate. Structural provenance/API
+links, bounded primary reviews and measured calibration remain separate report
+counts; none substitutes for another.
+
+A supported row labelled `frozen_external_oracle` compares **the cell's own
+output** with a pinned upstream run. Most supported units instead rest on
 external oracles at the **component** level: the identifier and estimator each
-licensed cell ran are recorded in `licensed_routes.toml` (generated by the
-licensed compiler test from executed plans), and a capability row with an
+supported cell ran are recorded in `supported_routes.toml` (generated by the
+supported compiler test from executed plans), and a capability row with an
 external kind names the components its oracle test exercises in
 `oracle_components`. `scripts/generate_support_matrix_docs.py` joins the two
 into the support matrix's *external oracles* column, and
 `scripts/external_evidence.py` (run by `gate_parity_schema.sh`) keeps the join
-honest: components only on external rows, and only components a licensed cell
+honest: components only on external rows, and only components a supported cell
 runs. A component link never means the cell's own output was compared.
 
 What these fields do **not** mean, stated once so readers do not infer it:
@@ -154,13 +205,24 @@ may still embed `python_facade=full` inside `notes`; prefer the dedicated key
 for new / updated rows.
 
 Recorded black-box outputs live under `conformance/**/expected.json` in a
-`reference` block (`project`, pin, command, `outputs`). Runtime and CI never
-install upstream packages. Regeneration is out-of-repo; keep the frozen
-`reference.command` as the audit trail.
+`reference` block (`project`, pin, command, `outputs`). Runtime and ordinary CI never install upstream packages. Retain independently
+authored black-box generation scripts and locked comparator environments; execute
+them in isolated tooling, outside the runtime environment. Keep the frozen
+`reference.command` and environment pins as the audit trail. Historical deleted
+generators remain reproducibility gaps until their replacements are checked.
+
+`python3 scripts/evidence_audit.py report` joins existing claims, test sources,
+fixtures, method specifications and provenance. `--json` retains the complete
+links, source hashes and review limitations. This is a source inventory, not
+proof that tests ran or that citations/algorithms are scientifically sufficient.
+`python3 scripts/verify_provenance_citations.py --check` checks DOI/title identity
+offline against retained Crossref/DataCite metadata; `--fetch` explicitly refreshes
+unresolved public metadata. Exact theorem/algorithm correspondence is a separate
+review. Coverage measurement is the separate calibration workflow, run on
+development machines (`docs/development.md`).
 
 Permanent product contracts are marked `done` with an inline note. There is no
-waiver / deviation status. Required chapters are closed in the inventories
-below.
+waiver / deviation status.
 
 Do not mark a capability `done` without conformance fixtures under
 `conformance/` **or** a named calibration/unit harness recorded in the
@@ -171,67 +233,67 @@ command where black-box comparison applies.
 
 ```bash
 bash scripts/gate_parity_schema.sh
-bash scripts/gate_estimate_ci.sh
-bash scripts/gate_bayesian.sh
-bash scripts/gate_gcm.sh
-bash scripts/gate_pag.sh
-bash scripts/gate_context.sh
-bash scripts/gate_attribution.sh
-bash scripts/gate_design_state.sh
+python3 scripts/check_parity_inventories.py
 bash scripts/gate_composition.sh
 bash scripts/gate_transport.sh
 bash scripts/gate_gcm_conformance.sh
 bash scripts/gate_upstream_names.sh
 bash scripts/gate_metadata_consistency.sh
 bash scripts/gate_evidence_reachability.sh
-bash scripts/gate_calibration.sh
-bash scripts/gate_response_calibration.sh
+python3 scripts/calibration_status.py --check
 bash scripts/gate_release.sh
 ```
 
-`gate_calibration.sh` is the statistical calibration suite (SE coverage, CI
-Type I / permutation uniformity, discovery null FPR). It never runs in CI: a
-change to statistical code is measured on a development machine before upload
-with `bash scripts/measure_calibration.sh`, which runs only the groups behind
-records that owe a re-measurement and collects them. Its coverage records stand
-until the statistical surface they measured changes
-(`scripts/calibration_surface.list`), and CI fails any PR or push whose records
-do not match the code (`scripts/gate_calibration_attestation.sh`). A reviewed
-change that cannot move a number may instead be covered by a replay waiver in
-`calibration_waivers.toml`, whose records are reported as `attested_by_replay`
-(see `docs/development.md`).
+`scripts/measure_calibration.sh` measures the statistical calibration suite (SE
+coverage, CI Type I / permutation uniformity, discovery null FPR). It never runs
+in CI, but CI fails while any coverage record is owed
+(`python3 scripts/calibration_status.py --check`); calibration status never
+changes support. A change to statistical code is measured on
+a development machine with `bash scripts/measure_calibration.sh`, which runs only
+the groups behind records that are not current and collects them. A record is
+current while the dependency fingerprint of its test (`scripts/evidence_fingerprint.py`,
+stored as the record's `fingerprint`) equals the tree's, or while a passing probe
+(`scripts/calibration_probe.py`: re-running the record's first replicates
+reproduces its stored digests bit for bit, recorded in
+`calibration_probe_attestations.toml`) was made at a tree with that fingerprint.
+`python3 scripts/calibration_status.py status` prints the result (see
+`docs/development.md`).
 
 PAG: inventory (`pag.toml`), LPCMCI / latent-projection / envelope /
 DAG-only-reject conformance; static FCI/RFCI `done`. Permanent: PAG-native
 ID is generalized adjustment only; full ID/IDC needs MAG/ADMG completion.
 
-Context: J/RPCMCI, effects, conditional ATE gated by `gate_context.sh`.
-RPCMCI uses caller-supplied regime labels; unsupervised regime search is OOS.
+Context: J/RPCMCI, effects, conditional ATE gated by `check_parity_inventories.py`.
+RPCMCI uses caller-supplied regime labels; unsupervised regime search is out of scope.
 
 Release: artifact format freeze, wheel matrix, conformance docs, hot-path
 baselines, security review (`release.toml`, ADR 0017). Package version is
 whatever `[workspace.package].version` in `Cargo.toml` says — do not restate it
-here; a hardcoded copy in this file sat five minor releases behind for months.
+here.
 
-Promotion: `promotion.toml` freezes each cell (theorem, graph class,
+Capability: `capability_records.toml` states each capability outside the matrix
+(a supported unit; `scripts/gate_support.py` counts it once; theorem, graph class,
 population semantics, evidence family, provider, estimand, inference claim,
-bounds, refusal codes, identity inputs, wire changes, fixture ids, coverage-record
-ids) before implementation. Its routes stay closed until the record is
-`promoted` with executed positive, negative and artifact fixtures (budget for a
-search, calibration for an interval); while a record is `in_progress` it may
-license only a non-uncertainty route claiming `point_only` or `none`, and only
-once those same fixture roles cite executed evidence. `gate_promotion.sh`
-enforces this (`check_promotion_records.py` resolves every cited test, then
-`run_evidence_rows.py` executes each one and requires it to pass: exactly one
-Rust test, at least one collected Python test, none failing), and no
-interval may cite `estimator_grid_not_measured`. Every new bounded search
-runs under `antecedent_core::SearchBudget` (operation and depth limits, plus the
-context's cancellation and hard memory limit on every charge), charged inside a
-loop or recursion that live code reaches, and a promoted search's budget fixture
-must exercise it.
-
-A cell is frozen in `promotion.toml` before implementation, under the same
-contract. The promotion and release gates validate the registry and each CI
-evidence shard checks it before running its cited tests. A frozen route
-is visible in its owning stage registry but remains closed; its planned fixture
-IDs do not count as executed evidence.
+bounds, refusal codes, identity inputs, wire changes, fixture ids, optional
+coverage-record ids). A record is `supported` or `not_supported`. A supported
+record cites executed positive, negative and artifact fixtures (a budget fixture
+for a search, an independent construction fixture for an `interval` claim); to be
+a supported unit it also needs a provenance record and a `truth` or `parity`
+fixture (an independent check). Its routes are entry points that run, and every route it keeps closed cites an executed runtime-refusal
+test. A `not_supported` record may cite planned fixtures, and every one of its
+routes stays refused in release builds; planned fixture ids do not count as
+executed evidence. `inference_claim` is `none`, `point_only`, `interval`,
+`assumption_range` or `structural_envelope`. Calibration is an annotation, not a
+gate: listed coverage-record ids must exist, but support never waits on a
+measurement. `gate_capability_records.sh` enforces this by reading source
+(`check_capability_records.py` resolves every cited test, then
+`run_evidence_rows.py --static` resolves each cited Rust test to its exact,
+non-ignored test and each Python test to its exact node); it executes nothing. The cited tests run in the
+engineering lane (CI and locally) or, for scientific assertions, in the scientific
+lane on development machines; CI's `cited-tests` shards check that each one
+compiles and is not ignored. Every new bounded
+search runs under `antecedent_core::SearchBudget` (operation and depth limits,
+plus the context's cancellation and hard memory limit on every charge), charged
+inside a loop or recursion that live code reaches, and a supported search's
+budget fixture must exercise it. The capability and release gates validate the
+registry.

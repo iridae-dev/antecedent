@@ -1,0 +1,1 @@
+[{"digest":"89b4015533408065ca50a875dd29751ad823b336d43690e9d27ead23f0b5a76b","file":"1a3ace7f5923b7c6d0db23219df18b38a7635e1bb88396761a638d66f498102f","kind":"rust_items","path":"crates/antecedent/tests/randomized_interval_calibration.rs","role":"compile","scopes":[[[],true]],"select":{"full":[40,42]},"table":"d1c83485f125400cd324471a3dfab2f5b1700c399cea4c3400d71faa6245a850"}]

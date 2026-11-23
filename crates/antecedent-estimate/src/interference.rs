@@ -1,9 +1,10 @@
 //! Design-based estimation under network interference.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
-    EXPOSURE_LEVEL_TOLERANCE, ExposureLevel, InterferenceFunctional, InterferenceQuery,
+    EXPOSURE_LEVEL_TOLERANCE, ExecutionContext, ExposureLevel, InterferenceFunctional,
+    InterferenceQuery,
 };
 use antecedent_data::{NetworkData, TableView};
 use antecedent_prob::{LaplaceWorkspace, sample_gaussian_mvn};
@@ -14,6 +15,9 @@ use antecedent_stats::{
 use std::collections::BTreeMap;
 
 use crate::EstimationError;
+use crate::score_posterior::{
+    ScorePosterior, ScorePosteriorOptions, bayesian_bootstrap_score_posteriors, summarize,
+};
 
 /// Closed exposure match at [`EXPOSURE_LEVEL_TOLERANCE`] (`1e-12`).
 ///
@@ -73,6 +77,10 @@ pub struct BayesianInterferenceEstimate {
 /// reweight that prior and move the posterior mean, so σ² stays deferred.
 /// A full-rank observed design and empirical support for both requested exposure
 /// levels are required.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
 pub fn estimate_interference_bayesian(
     query: &InterferenceQuery,
     data: &NetworkData,
@@ -93,8 +101,23 @@ pub fn estimate_interference_bayesian(
     if !matches!(query.assignment, antecedent_core::AssignmentDesign::Bernoulli { .. })
         || query.exposure != antecedent_core::ExposureMapping::NeighborCount
     {
-        return Err(EstimationError::unsupported(
-            "Bayesian interference is licensed only for Bernoulli assignment with NeighborCount exposure",
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
+            "Bayesian interference is supported only for Bernoulli assignment with NeighborCount exposure",
+        ));
+    }
+    // The posterior conditions on the realised assignment, so the declared probabilities do not
+    // enter it; a vector that is neither scalar nor one per unit does not describe this network's
+    // design, which the design-based cell refuses alike.
+    let per_unit_mismatch = matches!(
+        &query.assignment,
+        antecedent_core::AssignmentDesign::Bernoulli { probabilities }
+            if probabilities.len() != 1 && probabilities.len() != assignment.len()
+    );
+    if per_unit_mismatch {
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("invalid_argument"),
+            "Bernoulli assignment needs one probability or one per unit of the network",
         ));
     }
     let InterferenceFunctional::ExposureContrast { outcome, from, to } = query.functional;
@@ -102,8 +125,12 @@ pub fn estimate_interference_bayesian(
     let outcomes = data.units().float64_values(outcome)?;
     let incoming = (0..n)
         .map(|unit| {
-            data.incoming(unit)
-                .map(|edges| edges.iter().map(|e| (e.from as usize, e.weight)).collect::<Vec<_>>())
+            data.incoming(unit).map(|edges| {
+                edges
+                    .iter()
+                    .map(|e| (usize::try_from(e.from.get()).expect("row id"), e.weight))
+                    .collect::<Vec<_>>()
+            })
         })
         .collect::<Result<Vec<_>, _>>()?;
     let observed = exposures(assignment, &incoming, &query.exposure)?;
@@ -115,7 +142,8 @@ pub fn estimate_interference_bayesian(
         })
     };
     if !level_supported(from) || !level_supported(to) {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("positivity_violated"),
             "Bayesian interference refuses an exposure level absent from the realized assignment",
         ));
     }
@@ -174,8 +202,7 @@ pub fn estimate_interference_bayesian(
         n_draws,
         seed,
         &mut LaplaceWorkspace::default(),
-    )
-    .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
+    )?;
     let contrast_draws = (0..n_draws).map(|i| draws[i]).collect::<Vec<_>>();
     let mean = contrast_draws.iter().sum::<f64>() / n_draws as f64;
     Ok(BayesianInterferenceEstimate { contrast_draws, mean })
@@ -191,16 +218,129 @@ pub fn estimate_interference(
     assignment: &[bool],
     seed: u64,
 ) -> Result<InterferenceEstimate, EstimationError> {
+    if !antecedent_core::numerical_admission::has_context() {
+        let ctx = ExecutionContext::production_default(seed)
+            .with_memory_limit(Some(2 * 1024 * 1024 * 1024));
+        return estimate_interference_with_context(query, data, assignment, seed, &ctx);
+    }
+    if antecedent_core::numerical_admission::is_cancelled() {
+        return Err(antecedent_stats::StatsError::Cancelled.into());
+    }
+    // Reserve the complete peak before constructing adjacency, outcomes, observed
+    // exposures, cluster validation tables and the two probability buffers. The
+    // numerical kernel draws its scratch from this same parent lease.
+    let n = u64::try_from(assignment.len()).unwrap_or(u64::MAX);
+    let edges = u64::try_from(data.edges().len()).unwrap_or(u64::MAX);
+    let bytes = n
+        .checked_mul(320)
+        .and_then(|b| edges.checked_mul(16).and_then(|e| b.checked_add(e)))
+        .ok_or(antecedent_stats::StatsError::ResourceLimit {
+            message: "interference workspace",
+            required_bytes: u64::MAX,
+            limit_bytes: 0,
+        })?;
+    let lease = match antecedent_core::numerical_admission::acquire(bytes) {
+        Some(Ok(lease)) => std::sync::Arc::new(lease),
+        Some(Err(antecedent_core::execution::AdmissionError::Cancelled)) => {
+            return Err(antecedent_stats::StatsError::Cancelled.into());
+        }
+        Some(Err(antecedent_core::execution::AdmissionError::ExceedsRemainder {
+            remaining_bytes,
+            ..
+        })) => {
+            return Err(antecedent_stats::StatsError::ResourceLimit {
+                message: "interference workspace",
+                required_bytes: bytes,
+                limit_bytes: remaining_bytes,
+            }
+            .into());
+        }
+        Some(Err(_)) | None => {
+            return Err(antecedent_stats::StatsError::ResourceLimit {
+                message: "interference workspace",
+                required_bytes: bytes,
+                limit_bytes: 0,
+            }
+            .into());
+        }
+    };
+    antecedent_core::numerical_admission::with_reservation(lease, || {
+        estimate_interference_admitted(query, data, assignment, seed)
+    })
+}
+
+/// Run the direct estimator with the caller's memory, work and cancellation policy.
+/// The full requested Monte Carlo draw count is used or the operation is refused.
+pub fn estimate_interference_with_context(
+    query: &InterferenceQuery,
+    data: &NetworkData,
+    assignment: &[bool],
+    seed: u64,
+    ctx: &ExecutionContext,
+) -> Result<InterferenceEstimate, EstimationError> {
+    antecedent_core::numerical_admission::with_context(ctx, || {
+        estimate_interference(query, data, assignment, seed)
+    })
+}
+
+fn estimate_interference_admitted(
+    query: &InterferenceQuery,
+    data: &NetworkData,
+    assignment: &[bool],
+    seed: u64,
+) -> Result<InterferenceEstimate, EstimationError> {
     query.validate()?;
+    antecedent_stats::interference::admit_exposure_probability_work_for_shape(
+        &query.assignment,
+        assignment.len(),
+        u64::try_from(data.edges().len()).unwrap_or(u64::MAX),
+        query.probability_draws,
+        2,
+        antecedent_core::numerical_admission::exposure_probability_work_limit(),
+    )?;
     if assignment.len() != data.units().row_count() {
         return Err(EstimationError::data_msg("assignment/network row count mismatch"));
+    }
+    match &query.assignment {
+        antecedent_core::AssignmentDesign::CompleteRandomization { treated } => {
+            if assignment.iter().filter(|&&assigned| assigned).count() != *treated {
+                return Err(EstimationError::data_msg(
+                    "realized assignment does not match the declared treated-unit count",
+                ));
+            }
+        }
+        antecedent_core::AssignmentDesign::ClusterRandomization { clusters, treated_clusters } => {
+            if clusters.len() != assignment.len() {
+                return Err(EstimationError::data_msg("cluster/assignment length mismatch"));
+            }
+            let mut assigned_clusters = BTreeMap::new();
+            for (&cluster, &assigned) in clusters.iter().zip(assignment) {
+                if let Some(previous) = assigned_clusters.insert(cluster, assigned)
+                    && previous != assigned
+                {
+                    return Err(EstimationError::data_msg(
+                        "cluster randomized assignment must be constant within each cluster",
+                    ));
+                }
+            }
+            if assigned_clusters.values().filter(|&&assigned| assigned).count() != *treated_clusters
+            {
+                return Err(EstimationError::data_msg(
+                    "realized assignment does not match the declared treated-cluster count",
+                ));
+            }
+        }
+        _ => {}
     }
     let InterferenceFunctional::ExposureContrast { outcome, from, to } = query.functional;
     let outcomes = data.units().float64_values(outcome)?;
     let incoming = (0..assignment.len())
         .map(|unit| {
             data.incoming(unit).map(|edges| {
-                edges.iter().map(|edge| (edge.from as usize, edge.weight)).collect::<Vec<_>>()
+                edges
+                    .iter()
+                    .map(|edge| (usize::try_from(edge.from.get()).expect("row id"), edge.weight))
+                    .collect::<Vec<_>>()
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -271,7 +411,8 @@ pub fn estimate_cluster_interference_total_with_inference(
     let antecedent_core::AssignmentDesign::ClusterRandomization { clusters, treated_clusters } =
         &query.assignment
     else {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "cluster total-effect estimator requires cluster randomization",
         ));
     };
@@ -280,7 +421,8 @@ pub fn estimate_cluster_interference_total_with_inference(
         return Err(EstimationError::data_msg("assignment/network row count mismatch"));
     }
     if clusters.len() != n || query.exposure != ExposureMapping::NeighborFraction {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "cluster partial interference requires one cluster per unit and NeighborFraction exposure",
         ));
     }
@@ -290,7 +432,8 @@ pub fn estimate_cluster_interference_total_with_inference(
     let forward = from == untreated && to == treated;
     let reverse = from == treated && to == untreated;
     if !forward && !reverse {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "cluster partial interference supports only the total-effect contrast between (0,0) and (1,1)",
         ));
     }
@@ -310,9 +453,12 @@ pub fn estimate_cluster_interference_total_with_inference(
         entry.2 += 1;
         let incoming = data.incoming(i)?;
         if incoming.is_empty()
-            || incoming.iter().any(|edge| clusters[edge.from as usize] != cluster)
+            || incoming
+                .iter()
+                .any(|edge| clusters[usize::try_from(edge.from.get()).expect("row id")] != cluster)
         {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "partial interference requires a nonempty within-cluster neighborhood for every unit and no cross-cluster edges",
             ));
         }
@@ -413,6 +559,77 @@ pub(crate) fn estimate_cluster_interference_total_pointwise(
     Ok((estimate, interval))
 }
 
+/// Cluster-level Bayesian-bootstrap posterior of the total-effect contrast under complete
+/// cluster randomization.
+///
+/// The clusters are the units of inference and carry a Dirichlet-process prior of vanishing
+/// concentration, so one Dirichlet(1, ..., 1) weight vector over all clusters restricted to an
+/// arm is that arm's Dirichlet posterior. Each draw is the contrast of the two arms'
+/// weighted means of the scaled cluster totals, on the same totals as
+/// [`estimate_cluster_interference_total`]. The declared complete cluster allocation identifies
+/// the contrast; the prior on the cluster law does not. All design refusals of the
+/// design-based estimator apply, and the posterior carries no calibration.
+///
+/// # Errors
+/// Every refusal of [`estimate_cluster_interference_total`], and the option refusals of
+/// [`bayesian_bootstrap_score_posteriors`].
+pub fn estimate_cluster_interference_bayesian_bootstrap(
+    query: &InterferenceQuery,
+    data: &NetworkData,
+    assignment: &[bool],
+    options: ScorePosteriorOptions,
+    ctx: &ExecutionContext,
+) -> Result<(InterferenceEstimate, ScorePosterior), EstimationError> {
+    // Validates the design, the neighborhoods and the arm sizes, and gives the point estimate.
+    let estimate = estimate_cluster_interference_total(query, data, assignment)?;
+    let antecedent_core::AssignmentDesign::ClusterRandomization { clusters, .. } =
+        &query.assignment
+    else {
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
+            "cluster total-effect posterior requires cluster randomization",
+        ));
+    };
+    let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, from, .. } =
+        query.functional;
+    let outcomes = data.units().float64_values(outcome)?;
+    let mut by_cluster: BTreeMap<u32, (bool, f64)> = BTreeMap::new();
+    for ((&cluster, &assigned), value) in clusters.iter().zip(assignment).zip(outcomes) {
+        by_cluster.entry(cluster).or_insert((assigned, 0.0)).1 += value;
+    }
+    let scale = by_cluster.len() as f64 / assignment.len() as f64;
+    let (mut treated_total, mut treated_flag) = (Vec::new(), Vec::new());
+    let (mut control_total, mut control_flag) = (Vec::new(), Vec::new());
+    for &(assigned, total) in by_cluster.values() {
+        let (t, c) = if assigned { (1.0, 0.0) } else { (0.0, 1.0) };
+        treated_total.push(t * total * scale);
+        treated_flag.push(t);
+        control_total.push(c * total * scale);
+        control_flag.push(c);
+    }
+    let direction = if from == (ExposureLevel { own: 0.0, neighbors: 0.0 }) { 1.0 } else { -1.0 };
+    let posteriors = bayesian_bootstrap_score_posteriors(
+        &[&treated_total, &treated_flag, &control_total, &control_flag],
+        options,
+        ctx,
+    )?;
+    let [treated, treated_mass, control, control_mass] = posteriors.as_slice() else {
+        return Err(EstimationError::stats_msg("cluster posterior lost a score column"));
+    };
+    let draws = (0..options.draws)
+        .map(|k| {
+            direction
+                * (treated.draws[k] / treated_mass.draws[k]
+                    - control.draws[k] / control_mass.draws[k])
+        })
+        .collect::<Vec<_>>();
+    if draws.iter().any(|draw| !draw.is_finite()) {
+        return Err(EstimationError::stats_msg("cluster posterior produced a non-finite draw"));
+    }
+    let posterior = summarize(draws, estimate.contrast.horvitz_thompson, options.coverage);
+    Ok((estimate, posterior))
+}
+
 /// Convenience exposure level for an own-treatment contrast on an empty network.
 #[must_use]
 pub const fn own_treatment_level(treated: bool) -> ExposureLevel {
@@ -442,7 +659,7 @@ mod tests {
         // additive total effect (the unit-level effect variance is zero), so the
         // conservative cluster Neyman variance is unbiased and the pointwise 95%
         // Welch interval covers at the nominal rate. Only the complete cluster
-        // allocation is re-randomized. Eight clusters per arm is the licensed
+        // allocation is re-randomized. Eight clusters per arm is the supported
         // support boundary.
         const REPLICATES: usize = 2_000;
         const K: usize = 16;
@@ -455,8 +672,8 @@ mod tests {
             .flat_map(|cluster| {
                 let first = (cluster * 2) as u32;
                 [
-                    antecedent_data::NetworkEdge { from: first, to: first + 1, weight: 1.0 },
-                    antecedent_data::NetworkEdge { from: first + 1, to: first, weight: 1.0 },
+                    antecedent_data::NetworkEdge::new(u64::from(first), u64::from(first + 1), 1.0),
+                    antecedent_data::NetworkEdge::new(u64::from(first + 1), u64::from(first), 1.0),
                 ]
             })
             .collect::<Vec<_>>();
@@ -513,15 +730,178 @@ mod tests {
     }
 
     #[test]
+    fn cluster_neyman_enumeration_is_unbiased_and_conservative_by_effect_heterogeneity() {
+        // Exact finite-population enumeration of every complete allocation of 3 of 6 unequal
+        // clusters. Potential outcomes are fixed and heterogeneous, so the unit-weighted total
+        // effect is known and the exact sampling variance of the estimator is computable.
+        // Theory (Neyman): E[estimate] = tau and E[variance estimate] - Var(estimate) =
+        // S_tau^2 / K with S_tau^2 the (K-1)-divisor variance of the scaled cluster effects.
+        let y0: [&[f64]; 6] = [
+            &[1.0, 2.0],
+            &[3.0, 2.0, 4.0],
+            &[0.0, 1.0],
+            &[5.0, 4.0, 6.0],
+            &[2.0, 2.0],
+            &[7.0, 1.0],
+        ];
+        let y1: [&[f64]; 6] = [
+            &[4.0, 3.0],
+            &[9.0, 4.0, 5.0],
+            &[2.0, 2.0],
+            &[6.0, 9.0, 7.0],
+            &[3.0, 5.0],
+            &[8.0, 6.0],
+        ];
+        let k = y0.len();
+        let sizes = y0.iter().map(|c| c.len()).collect::<Vec<_>>();
+        let n = sizes.iter().sum::<usize>();
+        let mut clusters = Vec::new();
+        let mut edges = Vec::new();
+        let mut first = 0_u64;
+        for (c, &size) in sizes.iter().enumerate() {
+            for j in 0..size {
+                clusters.push(u32::try_from(c).unwrap());
+                // A two-unit ring would emit the same pair twice.
+                if size == 2 && j == 1 {
+                    continue;
+                }
+                let from = first + j as u64;
+                let to = first + ((j + 1) % size) as u64;
+                edges.push(antecedent_data::NetworkEdge::new(from, to, 1.0));
+                edges.push(antecedent_data::NetworkEdge::new(to, from, 1.0));
+            }
+            first += size as u64;
+        }
+        let scale = k as f64 / n as f64;
+        let totals0 = y0.iter().map(|c| c.iter().sum::<f64>() * scale).collect::<Vec<_>>();
+        let totals1 = y1.iter().map(|c| c.iter().sum::<f64>() * scale).collect::<Vec<_>>();
+        let sv = |v: &[f64]| {
+            let m = v.iter().sum::<f64>() / v.len() as f64;
+            v.iter().map(|x| (x - m).powi(2)).sum::<f64>() / (v.len() - 1) as f64
+        };
+        let effects = totals1.iter().zip(&totals0).map(|(a, b)| a - b).collect::<Vec<_>>();
+        let tau = effects.iter().sum::<f64>() / k as f64;
+        let treated_count = 3_usize;
+        let exact_variance = sv(&totals1) / 3.0 + sv(&totals0) / 3.0 - sv(&effects) / k as f64;
+        let query = InterferenceQuery::new(
+            AssignmentDesign::ClusterRandomization {
+                clusters: Arc::from(clusters.clone()),
+                treated_clusters: treated_count,
+            },
+            ExposureMapping::NeighborFraction,
+            InterferenceFunctional::ExposureContrast {
+                outcome: VariableId::from_raw(0),
+                from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+                to: ExposureLevel { own: 1.0, neighbors: 1.0 },
+            },
+        );
+        let (mut count, mut mean_estimate, mut mean_square, mut mean_variance) =
+            (0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64);
+        for mask in 0_u32..(1 << k) {
+            if mask.count_ones() as usize != treated_count {
+                continue;
+            }
+            let treated = |c: u32| (mask >> c) & 1 == 1;
+            let assignment = clusters.iter().map(|&c| treated(c)).collect::<Vec<_>>();
+            let outcomes = clusters
+                .iter()
+                .scan([0_usize; 6], |seen, &c| {
+                    let slot = seen[c as usize];
+                    seen[c as usize] += 1;
+                    Some(if treated(c) { y1[c as usize][slot] } else { y0[c as usize][slot] })
+                })
+                .collect::<Vec<_>>();
+            let table = TabularData::from_f64_columns([("y", &outcomes[..])]).unwrap();
+            let network = NetworkData::try_new(table, edges.clone()).unwrap();
+            let estimate =
+                estimate_cluster_interference_total(&query, &network, &assignment).unwrap();
+            count += 1.0;
+            mean_estimate += estimate.contrast.horvitz_thompson;
+            mean_square += (estimate.contrast.horvitz_thompson - tau).powi(2);
+            mean_variance += estimate.contrast.conservative_variance;
+        }
+        assert!((count - 20.0).abs() < 1e-12);
+        assert!((mean_estimate / count - tau).abs() < 1e-12, "HT is unbiased for the total effect");
+        assert!(
+            (mean_square / count - exact_variance).abs() < 1e-10,
+            "enumerated variance matches theory"
+        );
+        let gap = mean_variance / count - mean_square / count;
+        assert!(gap > 0.0, "variance estimator is conservative under heterogeneous effects");
+        assert!((gap - sv(&effects) / k as f64).abs() < 1e-10, "gap equals S_tau^2 / K exactly");
+    }
+
+    #[test]
+    fn cluster_bayesian_bootstrap_spread_matches_the_dirichlet_moment_of_each_arm() {
+        // With m clusters in an arm, Dirichlet(1..1) weights give the arm mean of the scaled
+        // cluster totals the exact variance (biased variance of the totals) / (m + 1); the two
+        // arms are independent, so the contrast variance is the sum over arms.
+        let outcomes =
+            [3.0, 4.0, 1.0, 2.0, 8.0, 6.0, 2.0, 2.0, 5.0, 9.0, 0.0, 1.0, 7.0, 3.0, 4.0, 4.0];
+        let k = 8_usize;
+        let clusters = (0..k).flat_map(|c| [u32::try_from(c).unwrap(); 2]).collect::<Vec<_>>();
+        let assignment = (0..16).map(|unit| (unit / 2) % 2 == 0).collect::<Vec<_>>();
+        let edges = (0..k as u64)
+            .flat_map(|c| {
+                [
+                    antecedent_data::NetworkEdge::new(2 * c, 2 * c + 1, 1.0),
+                    antecedent_data::NetworkEdge::new(2 * c + 1, 2 * c, 1.0),
+                ]
+            })
+            .collect::<Vec<_>>();
+        let table = TabularData::from_f64_columns([("y", &outcomes[..])]).unwrap();
+        let network = NetworkData::try_new(table, edges).unwrap();
+        let query = InterferenceQuery::new(
+            AssignmentDesign::ClusterRandomization {
+                clusters: Arc::from(clusters),
+                treated_clusters: 4,
+            },
+            ExposureMapping::NeighborFraction,
+            InterferenceFunctional::ExposureContrast {
+                outcome: VariableId::from_raw(0),
+                from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+                to: ExposureLevel { own: 1.0, neighbors: 1.0 },
+            },
+        );
+        let options = ScorePosteriorOptions { draws: 8_000, coverage: 0.95 };
+        let ctx = ExecutionContext::for_tests(41);
+        let (estimate, posterior) = estimate_cluster_interference_bayesian_bootstrap(
+            &query,
+            &network,
+            &assignment,
+            options,
+            &ctx,
+        )
+        .unwrap();
+        let scale = k as f64 / 16.0;
+        let totals = |treated: bool| {
+            (0..k)
+                .filter(|c| (c % 2 == 0) == treated)
+                .map(|c| (outcomes[2 * c] + outcomes[2 * c + 1]) * scale)
+                .collect::<Vec<_>>()
+        };
+        let spread = |v: &[f64]| {
+            let m = v.iter().sum::<f64>() / v.len() as f64;
+            v.iter().map(|x| (x - m).powi(2)).sum::<f64>() / v.len() as f64
+        };
+        let (treated, control) = (totals(true), totals(false));
+        let expected_sd = (spread(&treated) / 5.0 + spread(&control) / 5.0).sqrt();
+        let relative = (posterior.standard_deviation - expected_sd).abs() / expected_sd;
+        assert!(relative < 0.05, "sd {} expected {expected_sd}", posterior.standard_deviation);
+        let tolerance = 5.0 * expected_sd / 8_000.0_f64.sqrt();
+        assert!((posterior.posterior_mean - estimate.contrast.horvitz_thompson).abs() < tolerance);
+    }
+
+    #[test]
     fn cluster_total_pointwise_refuses_thin_assignment_arms() {
         let outcomes = [1.0, 2.0, 2.0, 3.0, 8.0, 9.0, 9.0, 10.0];
         let table = TabularData::from_f64_columns([("y", &outcomes[..])]).unwrap();
-        let edges = (0..4)
+        let edges = (0..4u64)
             .flat_map(|cluster| {
                 let first = cluster * 2;
                 [
-                    antecedent_data::NetworkEdge { from: first, to: first + 1, weight: 1.0 },
-                    antecedent_data::NetworkEdge { from: first + 1, to: first, weight: 1.0 },
+                    antecedent_data::NetworkEdge::new(first, first + 1, 1.0),
+                    antecedent_data::NetworkEdge::new(first + 1, first, 1.0),
                 ]
             })
             .collect::<Vec<_>>();
@@ -546,6 +926,51 @@ mod tests {
     }
 
     #[test]
+    fn direct_interference_admits_both_probability_runs_and_preserves_draws() {
+        let outcomes = vec![1.0; 21];
+        let table = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
+        let data = NetworkData::try_new(table, []).unwrap();
+        let mut query = InterferenceQuery::new(
+            AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) },
+            ExposureMapping::OwnTreatment,
+            InterferenceFunctional::ExposureContrast {
+                outcome: VariableId::from_raw(0),
+                from: own_treatment_level(false),
+                to: own_treatment_level(true),
+            },
+        );
+        query.probability_draws = 100;
+        let assignment = (0..21).map(|i| i % 2 == 0).collect::<Vec<_>>();
+        let base = ExecutionContext::for_tests(1);
+        let low_work = base.with_exposure_probability_work_limit(1);
+        assert!(matches!(
+            estimate_interference_with_context(&query, &data, &assignment, 7, &low_work),
+            Err(EstimationError::Stats(antecedent_stats::StatsError::WorkLimit { .. }))
+        ));
+        let low_memory = base.clone().with_memory_limit(Some(1));
+        assert!(matches!(
+            estimate_interference_with_context(&query, &data, &assignment, 7, &low_memory),
+            Err(EstimationError::Stats(antecedent_stats::StatsError::ResourceLimit { .. }))
+        ));
+        let cancelled = ExecutionContext::for_tests(1);
+        cancelled.cancellation.cancel();
+        assert!(matches!(
+            estimate_interference_with_context(&query, &data, &assignment, 7, &cancelled),
+            Err(EstimationError::Stats(antecedent_stats::StatsError::Cancelled))
+        ));
+        let success =
+            estimate_interference_with_context(&query, &data, &assignment, 7, &base).unwrap();
+        assert_eq!(
+            success.from_probability_method,
+            ExposureProbabilityMethod::MonteCarlo { draws: 100, seed: 7 }
+        );
+        assert_eq!(
+            success.to_probability_method,
+            ExposureProbabilityMethod::MonteCarlo { draws: 100, seed: 8 }
+        );
+    }
+
+    #[test]
     fn empty_network_matches_ordinary_randomized_difference() {
         let table = TabularData::from_f64_columns([("y", &[1.0, 3.0, 2.0, 4.0][..])]).unwrap();
         let data = NetworkData::try_new(table, []).unwrap();
@@ -565,13 +990,63 @@ mod tests {
     }
 
     #[test]
+    fn generic_estimator_refuses_assignments_outside_randomization_support() {
+        let table =
+            TabularData::from_f64_columns([("y", &[1.0, 3.0, 2.0, 4.0, 5.0, 6.0][..])]).unwrap();
+        let data = NetworkData::try_new(table, []).unwrap();
+        let query = |assignment| {
+            InterferenceQuery::new(
+                assignment,
+                ExposureMapping::OwnTreatment,
+                InterferenceFunctional::ExposureContrast {
+                    outcome: VariableId::from_raw(0),
+                    from: own_treatment_level(false),
+                    to: own_treatment_level(true),
+                },
+            )
+        };
+        let complete = query(AssignmentDesign::CompleteRandomization { treated: 2 });
+        let error =
+            estimate_interference(&complete, &data, &[true, false, false, false, false, false], 1)
+                .unwrap_err();
+        assert!(error.to_string().contains("treated-unit count"));
+        assert!(
+            estimate_interference(&complete, &data, &[true, true, false, false, false, false], 1)
+                .is_ok()
+        );
+
+        let cluster = query(AssignmentDesign::ClusterRandomization {
+            clusters: Arc::from([0, 0, 1, 1, 2, 2]),
+            treated_clusters: 1,
+        });
+        let error =
+            estimate_interference(&cluster, &data, &[true, false, false, false, false, false], 1)
+                .unwrap_err();
+        assert!(error.to_string().contains("constant within each cluster"));
+        let error =
+            estimate_interference(&cluster, &data, &[true, true, true, true, false, false], 1)
+                .unwrap_err();
+        assert!(error.to_string().contains("treated-cluster count"));
+        assert!(
+            estimate_interference(&cluster, &data, &[true, true, false, false, false, false], 1)
+                .is_ok()
+        );
+
+        let bernoulli = query(AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) });
+        assert!(
+            estimate_interference(&bernoulli, &data, &[true, false, false, false, false, false], 1)
+                .is_ok()
+        );
+    }
+
+    #[test]
     fn network_exposure_contrast_uses_known_design() {
         let table = TabularData::from_f64_columns([("y", &[1.0, 4.0][..])]).unwrap();
         let data = NetworkData::try_new(
             table,
             [
-                antecedent_data::NetworkEdge { from: 0, to: 1, weight: 1.0 },
-                antecedent_data::NetworkEdge { from: 1, to: 0, weight: 1.0 },
+                antecedent_data::NetworkEdge::new(0, 1, 1.0),
+                antecedent_data::NetworkEdge::new(1, 0, 1.0),
             ],
         )
         .unwrap();
@@ -597,7 +1072,13 @@ mod tests {
         let edges =
             [(0, 1), (1, 0), (2, 3), (3, 4), (4, 2), (5, 6), (6, 5), (7, 8), (8, 9), (9, 7)]
                 .into_iter()
-                .map(|(from, to)| antecedent_data::NetworkEdge { from, to, weight: 1.0 })
+                .map(|(from, to)| {
+                    antecedent_data::NetworkEdge::new(
+                        u64::try_from(from).expect("row id"),
+                        u64::try_from(to).expect("row id"),
+                        1.0,
+                    )
+                })
                 .collect::<Vec<_>>();
         let network = NetworkData::try_new(table, edges).unwrap();
         let query = InterferenceQuery::new(
@@ -663,8 +1144,8 @@ mod tests {
         let data = NetworkData::try_new(
             table,
             [
-                antecedent_data::NetworkEdge { from: 0, to: 1, weight: 1.0 },
-                antecedent_data::NetworkEdge { from: 1, to: 0, weight: 1.0 },
+                antecedent_data::NetworkEdge::new(0, 1, 1.0),
+                antecedent_data::NetworkEdge::new(1, 0, 1.0),
             ],
         )
         .unwrap();
@@ -711,10 +1192,10 @@ mod tests {
         let data = NetworkData::try_new(
             table,
             [
-                antecedent_data::NetworkEdge { from: 0, to: 1, weight: 1.0 },
-                antecedent_data::NetworkEdge { from: 0, to: 2, weight: 1.0 },
-                antecedent_data::NetworkEdge { from: 0, to: 3, weight: 1.0 },
-                antecedent_data::NetworkEdge { from: 2, to: 3, weight: 1.0 },
+                antecedent_data::NetworkEdge::new(0, 1, 1.0),
+                antecedent_data::NetworkEdge::new(0, 2, 1.0),
+                antecedent_data::NetworkEdge::new(0, 3, 1.0),
+                antecedent_data::NetworkEdge::new(2, 3, 1.0),
             ],
         )
         .unwrap();
@@ -746,11 +1227,8 @@ mod tests {
     #[test]
     fn bayesian_interference_refuses_absent_exposure_support() {
         let table = TabularData::from_f64_columns([("y", &[1.0, 2.0][..])]).unwrap();
-        let data = NetworkData::try_new(
-            table,
-            [antecedent_data::NetworkEdge { from: 0, to: 1, weight: 1.0 }],
-        )
-        .unwrap();
+        let data =
+            NetworkData::try_new(table, [antecedent_data::NetworkEdge::new(0, 1, 1.0)]).unwrap();
         let query = InterferenceQuery::new(
             AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) },
             ExposureMapping::NeighborCount,
@@ -771,8 +1249,8 @@ mod tests {
         let data = NetworkData::try_new(
             table,
             [
-                antecedent_data::NetworkEdge { from: 0, to: 1, weight: 1.0 },
-                antecedent_data::NetworkEdge { from: 1, to: 0, weight: 1.0 },
+                antecedent_data::NetworkEdge::new(0, 1, 1.0),
+                antecedent_data::NetworkEdge::new(1, 0, 1.0),
             ],
         )
         .unwrap();

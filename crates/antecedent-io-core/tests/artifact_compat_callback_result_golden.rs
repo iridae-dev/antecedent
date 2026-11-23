@@ -10,7 +10,7 @@
 //! Generate or refresh it with
 //! `cargo test -p antecedent-io-core --test artifact_compat_callback_result_golden -- --ignored write_`
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::path::PathBuf;

@@ -1,7 +1,7 @@
 //! Whole-route calibration designs for the observational survival and policy-value
 //! standard errors. Nothing here is measured at implementation time: every test is
 //! `#[ignore]`d and runs only at the final measurement step, and the routes report their
-//! standard errors as `unmeasured` and publish no interval until a record exists.
+//! standard errors as `not_measured` and publish no interval until a record exists.
 //!
 //! The scored statement is the Wald interval `estimate +- 1.96 se` built from the reported
 //! influence-function standard error, against a truth computed from the generating process
@@ -22,7 +22,7 @@
 //!   fed four fifths of the data, against its expectation over independent training sets
 //!   simulated with the same greedy rule.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
@@ -230,8 +230,12 @@ fn policy_prespecified_design(name: &'static str, base: usize) {
 
 /// The threshold `c` and direction of a learned rule `treat iff z > c` (or `z < c`), read off
 /// the actions the policy took on the scored rows; `None` when it is not a threshold rule.
-fn learned_rule_value(data: &BinaryStudy, rows: &[u32], actions: &[f64]) -> Option<f64> {
-    let z = |i: usize| data.z[rows[i] as usize];
+fn learned_rule_value(
+    data: &BinaryStudy,
+    rows: &[antecedent_data::GlobalId],
+    actions: &[f64],
+) -> Option<f64> {
+    let z = |i: usize| data.z[usize::try_from(rows[i].get()).expect("row")];
     let treated: Vec<f64> =
         (0..rows.len()).filter(|&i| (actions[i] - 1.0).abs() < f64::EPSILON).map(z).collect();
     let untreated: Vec<f64> = (0..rows.len()).filter(|&i| actions[i] == 0.0).map(z).collect();

@@ -1,6 +1,6 @@
 //! Shared analytic SE policy for ATE estimators.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -12,9 +12,9 @@
 )]
 
 use antecedent_stats::{
-    MAX_CLUSTER_DIMENSIONS, SandwichKind, StatsError, bartlett_weight, cluster_meat_scalar,
+    MAX_MULTIWAY_WORK, SandwichKind, StatsError, bartlett_weight, cluster_meat_scalar,
     coefficient_covariance, combine_inclusion_exclusion, effective_nw_lag, intern_cluster_tuples,
-    multiway_subset_masks, newey_west_meat_scalar, panel_hac_meat_scalar,
+    multiway_subset_masks, multiway_work, newey_west_meat_scalar, panel_hac_meat_scalar,
     score_coefficient_covariance,
 };
 
@@ -53,6 +53,13 @@ pub enum AnalyticSeKind {
         /// Temporal HAC lag within clusters.
         lag: usize,
     },
+    /// Equal-weighted cosine long-run variance of one series' influence, referred to Student-t
+    /// on `terms` degrees of freedom. Reported by the trial-to-target series route, which sizes
+    /// `terms` itself; it is not a declarable estimator kind.
+    SeriesEwc {
+        /// Cosine terms, and the Student-t degrees of freedom of the interval.
+        terms: usize,
+    },
 }
 
 impl AnalyticSeKind {
@@ -69,6 +76,7 @@ impl AnalyticSeKind {
             Self::Multiway => "multiway",
             Self::NeweyWest { .. } => "newey_west",
             Self::PanelClusterHac { .. } => "panel_cluster_hac",
+            Self::SeriesEwc { .. } => "series_ewc",
         }
     }
 }
@@ -85,7 +93,8 @@ pub use antecedent_stats::DEFAULT_RIDGE_ON_SEPARATION;
 /// Missing ids or length mismatch.
 pub(crate) fn require_clusters(ids: Option<&[u32]>, n: usize) -> Result<&[u32], EstimationError> {
     let Some(ids) = ids else {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("required_option_missing"),
             "AnalyticSeKind::Cluster/PanelClusterHac requires estimator.cluster_ids",
         ));
     };
@@ -178,7 +187,8 @@ pub(crate) fn require_panel_times(
     n: usize,
 ) -> Result<&[i64], EstimationError> {
     let Some(times) = times else {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("required_option_missing"),
             "AnalyticSeKind::PanelClusterHac requires estimator.panel_times",
         ));
     };
@@ -201,7 +211,8 @@ pub(crate) fn require_multiway(
     n: usize,
 ) -> Result<&[Vec<u32>], EstimationError> {
     let Some(ids) = ids else {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("required_option_missing"),
             "AnalyticSeKind::Multiway requires estimator.multiway_ids",
         ));
     };
@@ -210,9 +221,9 @@ pub(crate) fn require_multiway(
             "AnalyticSeKind::Multiway requires at least one clustering dimension",
         ));
     }
-    if ids.len() > MAX_CLUSTER_DIMENSIONS {
+    if multiway_work(ids.len(), n).is_none_or(|work| work > MAX_MULTIWAY_WORK) {
         return Err(EstimationError::unsupported(
-            "AnalyticSeKind::Multiway supports at most 4 clustering dimensions",
+            "AnalyticSeKind::Multiway inclusion-exclusion work (2^d - 1) * n exceeds the multiway work budget",
         ));
     }
     for (i, dim) in ids.iter().enumerate() {
@@ -320,6 +331,7 @@ pub(crate) fn with_resolved_sandwich<T>(
             let time = require_panel_times(panel_times, nrows)?;
             use_kind(Some(SandwichKind::PanelClusterHac { groups, time, lag }))
         }
+        AnalyticSeKind::SeriesEwc { .. } => Err(series_ewc_not_declarable()),
     }
 }
 
@@ -491,12 +503,12 @@ pub(crate) fn multiway_influence_se(
         return Err(EstimationError::data_msg("multiway influence SE requires n >= 2"));
     }
     let d = dimensions.len();
-    if d > MAX_CLUSTER_DIMENSIONS {
+    let n = psi.len();
+    if multiway_work(d, n).is_none_or(|work| work > MAX_MULTIWAY_WORK) {
         return Err(EstimationError::unsupported(
-            "multiway influence SE supports at most 4 clustering dimensions",
+            "multiway influence SE inclusion-exclusion work (2^d - 1) * n exceeds the multiway work budget",
         ));
     }
-    let n = psi.len();
     for dim in dimensions {
         if dim.len() != n {
             return Err(EstimationError::data_msg(format!(
@@ -510,8 +522,7 @@ pub(crate) fn multiway_influence_se(
     let mut combined = vec![0u32; n];
     let mut terms = Vec::with_capacity((1 << d) - 1);
     for (mask, sign) in multiway_subset_masks(d) {
-        let _g = intern_cluster_tuples(&refs, mask, &mut combined)
-            .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
+        let _g = intern_cluster_tuples(&refs, mask, &mut combined)?;
         let (m_s, g_s) = cluster_meat_scalar(psi, &combined, mean)
             .map_err(|_| EstimationError::data_msg("multiway influence SE failed to form meat"))?;
         if g_s < 2 {
@@ -521,8 +532,7 @@ pub(crate) fn multiway_influence_se(
         // Accumulate signed `c_S M_S`; divide by `n²` after IE.
         terms.push(sign * c_s * m_s);
     }
-    let meat = combine_inclusion_exclusion(&terms)
-        .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
+    let meat = combine_inclusion_exclusion(&terms)?;
     Ok((meat.max(0.0) / (n as f64).powi(2)).sqrt())
 }
 
@@ -607,13 +617,37 @@ pub(crate) fn panel_cluster_hac_influence_se(
     }
     let mean = psi.iter().sum::<f64>() / n as f64;
     let u: Vec<f64> = psi.iter().map(|v| v - mean).collect();
-    let (meat, g) = panel_hac_meat_scalar(&u, groups, time, lag)
-        .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
+    let (meat, g) = panel_hac_meat_scalar(&u, groups, time, lag)?;
     if g < 2 {
         return Err(few_clusters(g));
     }
     let c_g = g as f64 / (g as f64 - 1.0);
     Ok((c_g * meat).max(0.0).sqrt() / n as f64)
+}
+
+/// Standard error of the mean of influence values `psi` (one per source row, mean-zero up to
+/// the estimate) under the dependence `inference` declares: the heteroskedasticity-robust form
+/// for an independent-rows kind, the cluster, multiway or panel sums for a clustered kind, and
+/// the Bartlett long-run variance for a serial kind. Labels are read as aligned to `psi`, so a
+/// source-table label vector is used when no prepared-row vector is declared.
+///
+/// # Errors
+///
+/// Missing or misaligned labels, fewer than two clusters, or an HC2/HC3 kind (no leverage
+/// correction exists for influence values).
+pub fn influence_se_under(
+    inference: &crate::inference::InferenceSpec,
+    psi: &[f64],
+) -> Result<f64, EstimationError> {
+    influence_se_kind(
+        inference.se_kind,
+        psi,
+        psi.len(),
+        inference.cluster_ids.as_deref().or(inference.source_cluster_ids.as_deref()),
+        inference.multiway_ids.as_deref(),
+        inference.panel_times.as_deref(),
+        None,
+    )
 }
 
 /// Dispatch IF-based analytic SE kinds shared by AIPW / Wald / matching.
@@ -650,7 +684,8 @@ pub(crate) fn influence_se_kind(
             hetero_influence_se(psi) * ((n - 1.0) / n).sqrt()
         }
         AnalyticSeKind::Hc2 | AnalyticSeKind::Hc3 => {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("estimator_inference_mismatch"),
                 "Hc2/Hc3 leverage corrections are not implemented for influence-function SEs; \
                  use Hc0 (√(Σ(ψ−ψ̄)²)/n) or Hc1 (√(Σ(ψ−ψ̄)²/(n(n−1))))",
             ));
@@ -676,7 +711,8 @@ pub(crate) fn influence_se_kind(
                         )));
                     }
                     None => {
-                        return Err(EstimationError::unsupported(
+                        return Err(EstimationError::unsupported_coded(
+                            antecedent_core::reason_code!("required_option_missing"),
                             "AnalyticSeKind::NeweyWest with retained/matched rows requires estimator.panel_times; consecutive IF indices are not calendar time",
                         ));
                     }
@@ -694,7 +730,18 @@ pub(crate) fn influence_se_kind(
             let t = gather_times(times_full);
             panel_cluster_hac_influence_se(psi, &g, &t, lag)?
         }
+        AnalyticSeKind::SeriesEwc { .. } => return Err(series_ewc_not_declarable()),
     })
+}
+
+/// The refusal for declaring [`AnalyticSeKind::SeriesEwc`] on an estimator: only the
+/// trial-to-target series route computes it.
+fn series_ewc_not_declarable() -> EstimationError {
+    EstimationError::unsupported_coded(
+        antecedent_core::reason_code!("estimator_inference_mismatch"),
+        "AnalyticSeKind::SeriesEwc is reported by the trial-to-target series route and cannot be \
+         declared on an estimator; declare Newey-West with a lag for a serial error",
+    )
 }
 
 #[cfg(test)]

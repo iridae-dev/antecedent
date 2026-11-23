@@ -7,7 +7,7 @@
 //! expected units), the route does not refuse, and the plug-in lies within five
 //! delta-method standard errors of the truth.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "../../antecedent-identify/tests/support/counterfactual_transport_adapter.rs"]
 mod counterfactual_transport_adapter;

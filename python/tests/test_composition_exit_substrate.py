@@ -8,7 +8,7 @@ Native results exercised
 ------------------------
 * ``program_claims.native_claim`` (over the response path): typed coordinates, per-coordinate
   support (the dose-2 coordinate is outside empirical support and is *withheld*), trust
-  ``native_licensed``, calibration ``point_only`` and a provenance id. Consumed downstream by the
+  ``native_supported``, calibration ``point_only`` and a provenance id. Consumed downstream by the
   support-aware decision evaluation (``composition.evaluate_with_support``).
 * The joint-draw artifact, committed as ``conformance/cross_surface/py_joint_law.bin``:
   typed quantities, trust ``unverified``, calibration ``exact``, identity provenance
@@ -48,6 +48,7 @@ from antecedent import Cpdag
 from antecedent import composition as comp
 from antecedent.extensibility import ProviderTrust
 from antecedent.joint_distribution import JointDistributionArtifact
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 import _multi_source_fixtures as fx
@@ -150,8 +151,8 @@ def test_substrate_native_claim_carries_quantities_support_trust_and_provenance(
     assert claim.support == ("supported", "supported", fx.OUTSIDE)
     assert claim.support_status == fx.OUTSIDE
     # Trust and provenance.
-    assert claim.trust is ProviderTrust.NATIVE_LICENSED
-    assert claim.calibration in {"point_only", "unmeasured"}
+    assert claim.trust is ProviderTrust.NATIVE_SUPPORTED
+    assert claim.calibration in {"point_only", "not_measured"}
     assert claim.provenance_id == fx.native_view().provenance["operation_id"]
     assert claim.program_identity == fx.program().identity
     assert len(claim.program_identity) == 64
@@ -161,9 +162,9 @@ def test_substrate_native_claim_carries_quantities_support_trust_and_provenance(
     assert source.withheld[0].coordinate == expected[2]
     assert source.withheld[0].status == fx.OUTSIDE
     assert source.point_status == ("supported", "supported")
-    assert source.trust is ProviderTrust.NATIVE_LICENSED
+    assert source.trust is ProviderTrust.NATIVE_SUPPORTED
     # And into the decision: wait 2, treat 4 - 1 = 3, extend has no supported coordinate.
-    decided = comp.evaluate_with_support(fx.mean_contract(), [fx.native_input()])
+    decided = require_success(comp.evaluate_with_support(fx.mean_contract(), [fx.native_input()]))
     assert fx.near(decided.outcome("wait").expected_utility, 2.0)
     assert fx.near(decided.outcome("treat").expected_utility, 3.0)
     assert decided.verdict.selected == "treat"
@@ -239,7 +240,7 @@ def test_substrate_native_cpdag_report_is_consumed_in_a_fresh_process(
 ) -> None:
     produced = _chain_completions()
     artifact = tmp_path / "cpdag.bin"
-    artifact.write_bytes(produced.export())
+    artifact.write_bytes(bytes(produced.export()))
     report = fresh(CPDAG_SCRIPT, str(artifact))
     # By hand: a->b->c and a<-b->c give P(c=1 | b=1) = 0.8 (c is independent of a given b);
     # a<-b<-c gives P(c=1) = P(b=0) * 0.1 + P(b=1) * 0.8 = 0.6 * 0.1 + 0.4 * 0.8 = 0.38, with

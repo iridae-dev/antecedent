@@ -4,13 +4,14 @@
 //! Orientation conflicts use [`Endpoint::Conflict`](crate::Endpoint::Conflict)–conflict (`x-x`).
 //! [`Endpoint::Circle`](crate::Endpoint::Circle) is rejected (reserved for PAG/LPCMCI).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
 use antecedent_core::{Lag, TemporalNodeKey, VariableId};
 
 use crate::dag::Dag;
+use crate::directed::StaticLabels;
 use crate::error::GraphError;
 use crate::marked_storage::{self, AdjEntry};
 use crate::temporal::TemporalDag;
@@ -20,10 +21,14 @@ use crate::workspace::GraphWorkspace;
 /// Static CPDAG over variables .
 ///
 /// Distinct from [`TemporalCpdag`]: accepts only [`NodeRef::Static`].
+///
+/// The node and adjacency storage is shared copy-on-write, so cloning a CPDAG (to keep one as
+/// evidence beside the review built from it) copies nothing until one of the two is edited.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Cpdag {
-    nodes: Vec<NodeRef>,
-    adj: Vec<Vec<AdjEntry>>,
+    nodes: Arc<Vec<NodeRef>>,
+    static_labels: StaticLabels,
+    adj: Arc<Vec<Vec<AdjEntry>>>,
 }
 
 impl Cpdag {
@@ -32,7 +37,7 @@ impl Cpdag {
     /// Empty static CPDAG.
     #[must_use]
     pub fn empty() -> Self {
-        Self { nodes: Vec::new(), adj: Vec::new() }
+        Self { nodes: Arc::default(), static_labels: StaticLabels::default(), adj: Arc::default() }
     }
 
     /// One static node per variable `0..n`.
@@ -67,7 +72,7 @@ impl Cpdag {
     ///
     /// # Errors
     ///
-    /// Non-static refs or capacity overflow.
+    /// Non-static refs, a `Static` label an earlier node carries, or capacity overflow.
     pub fn add_node(&mut self, node: NodeRef) -> Result<DenseNodeId, GraphError> {
         if !node.is_static_graph_node() {
             return Err(GraphError::InvalidEndpoints {
@@ -75,8 +80,9 @@ impl Cpdag {
             });
         }
         let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
-        self.nodes.push(node);
-        self.adj.push(Vec::new());
+        self.static_labels.claim(node)?;
+        Arc::make_mut(&mut self.nodes).push(node);
+        Arc::make_mut(&mut self.adj).push(Vec::new());
         Ok(DenseNodeId::from_raw(id))
     }
 
@@ -96,7 +102,7 @@ impl Cpdag {
         if edge.a == edge.b {
             return Err(GraphError::Cycle { from: edge.a.raw(), to: edge.b.raw() });
         }
-        marked_storage::insert_marked_finish(&mut self.adj, edge)
+        marked_storage::insert_marked_finish(Arc::make_mut(&mut self.adj).as_mut_slice(), edge)
     }
 
     /// Insert directed edge `from -> to`.
@@ -129,7 +135,7 @@ impl Cpdag {
     pub fn remove_edge(&mut self, a: DenseNodeId, b: DenseNodeId) -> Result<(), GraphError> {
         self.validate_node(a)?;
         self.validate_node(b)?;
-        marked_storage::remove_edge(&mut self.adj, a, b);
+        marked_storage::remove_edge(Arc::make_mut(&mut self.adj).as_mut_slice(), a, b);
         Ok(())
     }
 
@@ -145,7 +151,11 @@ impl Cpdag {
     ) -> Result<(), GraphError> {
         self.validate_node(from)?;
         self.validate_node(to)?;
-        marked_storage::orient_undirected_finish(&mut self.adj, from, to)
+        marked_storage::orient_undirected_finish(
+            Arc::make_mut(&mut self.adj).as_mut_slice(),
+            from,
+            to,
+        )
     }
 
     /// Mark an existing edge as an `x-x` conflict.
@@ -156,7 +166,7 @@ impl Cpdag {
     pub fn mark_conflict(&mut self, a: DenseNodeId, b: DenseNodeId) -> Result<(), GraphError> {
         self.validate_node(a)?;
         self.validate_node(b)?;
-        marked_storage::mark_conflict_finish(&mut self.adj, a, b)
+        marked_storage::mark_conflict_finish(Arc::make_mut(&mut self.adj).as_mut_slice(), a, b)
     }
 
     /// All adjacency neighbors (any mark).
@@ -190,7 +200,7 @@ impl Cpdag {
     /// Propagates insert failures.
     pub fn to_directed_skeleton(&self) -> Result<Dag, GraphError> {
         let mut dag = Dag::empty();
-        for node in &self.nodes {
+        for node in self.nodes.iter() {
             dag.add_node(*node)?;
         }
         for e in self.edges() {
@@ -256,13 +266,13 @@ impl CpdagReview {
                 if let (Some(fv), Some(tv)) = (graph.variable_id(from), graph.variable_id(to)) {
                     pending.push((fv, tv));
                 }
-            } else if e.is_undirected() {
-                if let (Some(av), Some(bv)) = (graph.variable_id(e.a), graph.variable_id(e.b)) {
-                    if av.raw() <= bv.raw() {
-                        undirected.push((av, bv));
-                    } else {
-                        undirected.push((bv, av));
-                    }
+            } else if e.is_undirected()
+                && let (Some(av), Some(bv)) = (graph.variable_id(e.a), graph.variable_id(e.b))
+            {
+                if av.raw() <= bv.raw() {
+                    undirected.push((av, bv));
+                } else {
+                    undirected.push((bv, av));
                 }
             }
         }
@@ -344,7 +354,8 @@ impl TemporalCpdag {
 
     /// Add a lagged or context node.
     ///
-    /// Context nodes are allowed for J-PCMCI+ / multi-dataset graphs .
+    /// Context nodes are allowed for J-PCMCI+ / multi-dataset graphs. A context is exogenous:
+    /// edges into it from a system node are refused ([`GraphError::ContextCaused`]).
     /// Static nodes remain rejected (use a static CPDAG / DAG).
     ///
     /// # Errors
@@ -397,7 +408,8 @@ impl TemporalCpdag {
     ///
     /// Unknown nodes, duplicates, illegal marks, contemporaneous self-edges,
     /// lagged self-loops (reported as [`GraphError::Cycle`]), directed cycles,
-    /// or future→past directed edges ([`GraphError::FutureToPast`]).
+    /// future→past directed edges ([`GraphError::FutureToPast`]), or a directed edge from a
+    /// lagged node into a context ([`GraphError::ContextCaused`]).
     pub fn insert_marked(&mut self, edge: MarkedEdge) -> Result<(), GraphError> {
         if !edge.is_cpdag_legal() {
             return Err(GraphError::InvalidEndpoints {
@@ -412,10 +424,11 @@ impl TemporalCpdag {
             NodeRef::Lagged { variable: v1, lag: l1 },
             NodeRef::Lagged { variable: v2, lag: l2 },
         ) = (self.nodes[edge.a.as_usize()], self.nodes[edge.b.as_usize()])
+            && v1 == v2
+            && l1 == l2
+            && l1.is_contemporaneous()
         {
-            if v1 == v2 && l1 == l2 && l1.is_contemporaneous() {
-                return Err(GraphError::ContemporaneousSelfEdge { variable: v1 });
-            }
+            return Err(GraphError::ContemporaneousSelfEdge { variable: v1 });
         }
         if edge.a == edge.b {
             // A lagged self-loop on a single node is a cycle once oriented,
@@ -423,9 +436,81 @@ impl TemporalCpdag {
             return Err(GraphError::Cycle { from: edge.a.raw(), to: edge.b.raw() });
         }
         if let Some((from, to)) = edge.parent_child() {
-            crate::types::reject_future_to_past(&self.nodes, from, to)?;
+            self.reject_invalid_orientation(from, to)?;
         }
         marked_storage::insert_marked_finish(&mut self.adj, edge)
+    }
+
+    /// Refuse an orientation `from -> to` that violates time order or context exogeneity.
+    ///
+    /// A context node is an exogenous regime indicator at the present: no lagged (system)
+    /// node may cause it ([`GraphError::ContextCaused`]), and it may not cause a node of the
+    /// past ([`GraphError::FutureToPast`], the context counted as contemporaneous). A context
+    /// may cause a contemporaneous system node, another context, or a time-context slice at
+    /// lag zero.
+    fn reject_invalid_orientation(
+        &self,
+        from: DenseNodeId,
+        to: DenseNodeId,
+    ) -> Result<(), GraphError> {
+        match (self.nodes[from.as_usize()], self.nodes[to.as_usize()]) {
+            (NodeRef::Lagged { .. }, NodeRef::Context { .. }) => {
+                Err(GraphError::ContextCaused { from: from.raw(), to: to.raw() })
+            }
+            (NodeRef::Context { .. }, NodeRef::Lagged { lag, .. }) if !lag.is_contemporaneous() => {
+                Err(GraphError::FutureToPast {
+                    from: from.raw(),
+                    to: to.raw(),
+                    from_lag: Lag::CONTEMPORANEOUS,
+                    to_lag: lag,
+                })
+            }
+            _ => crate::types::reject_future_to_past(&self.nodes, from, to),
+        }
+    }
+
+    /// The lagged node a [`TemporalDag`] holds in place of `node`.
+    ///
+    /// A lagged node is itself. An untagged context is the contemporaneous node of its
+    /// variable, a root (a context is never caused by a system node).
+    fn dag_node(&self, id: usize) -> Result<NodeRef, GraphError> {
+        match self.nodes[id] {
+            node @ NodeRef::Lagged { .. } => Ok(node),
+            NodeRef::Context { variable, environment } => {
+                let node = u32::try_from(id).map_err(|_| GraphError::TooManyNodes)?;
+                if environment.is_some() {
+                    return Err(GraphError::ContextNotRepresentable {
+                        node,
+                        reason: "the context carries an environment tag and a lagged node has none",
+                    });
+                }
+                let slot = NodeRef::Lagged { variable, lag: Lag::CONTEMPORANEOUS };
+                let taken = self.nodes.iter().enumerate().any(|(i, other)| {
+                    i != id
+                        && (*other == slot
+                            || matches!(other, NodeRef::Context { variable: v, .. } if *v == variable && i < id))
+                });
+                if taken {
+                    return Err(GraphError::ContextNotRepresentable {
+                        node,
+                        reason: "the contemporaneous slot of the context variable is already occupied",
+                    });
+                }
+                Ok(slot)
+            }
+            _ => Err(GraphError::InvalidEndpoints {
+                message: "TemporalCpdag holds only Lagged or Context nodes",
+            }),
+        }
+    }
+
+    /// The node labels of the [`TemporalDag`] this graph converts to, in node order.
+    ///
+    /// # Errors
+    ///
+    /// [`GraphError::ContextNotRepresentable`] for a context node a lagged node cannot stand for.
+    pub(crate) fn dag_nodes(&self) -> Result<Vec<NodeRef>, GraphError> {
+        (0..self.nodes.len()).map(|i| self.dag_node(i)).collect()
     }
 
     /// Insert directed edge `from -> to`.
@@ -463,7 +548,7 @@ impl TemporalCpdag {
     ) -> Result<(), GraphError> {
         self.validate_node(from)?;
         self.validate_node(to)?;
-        crate::types::reject_future_to_past(&self.nodes, from, to)?;
+        self.reject_invalid_orientation(from, to)?;
         marked_storage::orient_undirected_finish(&mut self.adj, from, to)
     }
     ///
@@ -498,8 +583,8 @@ impl TemporalCpdag {
     /// Propagates insert failures (should not happen for a valid CPDAG's directed subset).
     pub fn to_directed_skeleton(&self) -> Result<TemporalDag, GraphError> {
         let mut dag = TemporalDag::empty();
-        for node in &self.nodes {
-            dag.add_node(*node)?;
+        for node in self.dag_nodes()? {
+            dag.add_node(node)?;
         }
         for e in self.edges() {
             if let Some((from, to)) = e.parent_child() {
@@ -511,10 +596,15 @@ impl TemporalCpdag {
 
     /// Convert to a [`TemporalDag`] only when no undirected or conflict edges remain.
     ///
+    /// A [`TemporalDag`] holds lagged nodes only, so an untagged context node becomes the
+    /// contemporaneous node of its variable: an exogenous root, since no system node may
+    /// cause a context. Node order, and so every dense id, is kept.
+    ///
     /// # Errors
     ///
     /// [`GraphError::InvalidEndpoints`] if any Tail–Tail or Conflict–Conflict edge remains,
-    /// or insert failure.
+    /// [`GraphError::ContextNotRepresentable`] for a context node that carries an environment
+    /// tag or whose variable already occupies the contemporaneous slot, or insert failure.
     pub fn try_into_temporal_dag(&self) -> Result<TemporalDag, GraphError> {
         for e in self.edges() {
             if e.is_undirected() {
@@ -548,6 +638,22 @@ impl TemporalCpdag {
 mod tests {
     use super::*;
     use crate::types::Endpoint;
+
+    #[test]
+    fn cpdag_refuses_a_second_node_with_the_same_static_label() {
+        let label = |raw: u32| NodeRef::Static(antecedent_core::VariableId::from_raw(raw));
+        let mut g = Cpdag::empty();
+        let first = g.add_node(label(7)).unwrap();
+        assert!(matches!(g.add_node(label(7)), Err(GraphError::InvalidEndpoints { .. })));
+        assert_eq!(g.node_count(), 1, "a refused node leaves no trace");
+        let other = g.add_node(label(8)).unwrap();
+        assert_eq!((first.raw(), other.raw()), (0, 1));
+        // A copy claims independently of the graph it came from.
+        let mut copy = g.clone();
+        assert!(copy.add_node(label(7)).is_err());
+        copy.add_node(label(9)).unwrap();
+        g.add_node(label(9)).unwrap();
+    }
 
     #[test]
     fn static_undirected_then_orient() {

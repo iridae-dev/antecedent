@@ -1,0 +1,1 @@
+["use:antecedent_core::diagnostic::RouteNativeDiagnostic;#0","use:thiserror::Error;#0","enum:ProbError#0","impl:ProbError#0","impl:ProbError#0/fn:route_diagnostics#0","impl:<E>From<antecedent_core::execution::MapExecutionError<E>>for ProbError where Self:From<E>,#0","impl:<E>From<antecedent_core::execution::MapExecutionError<E>>for ProbError where Self:From<E>,#0/fn:from#0"]

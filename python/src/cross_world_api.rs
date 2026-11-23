@@ -4,14 +4,15 @@
 //! abduction-action-prediction operation and the artifact consumer are the Rust
 //! route's, so a Python answer is the Rust answer bit for bit.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::cross_world::{
-    CrossWorldEffect, CrossWorldOptions, consume_cross_world_artifact, evaluate_cross_world_effect,
+    CrossWorldEffect, CrossWorldOptions, consume_cross_world_artifact,
+    consume_cross_world_artifact_for_data, evaluate_cross_world_effect,
 };
+use antecedent::data::TableView;
 use antecedent::gcm::NestedOutcomeMechanism;
-use antecedent_core::CrossWorldQuery;
-use antecedent_data::TableView;
+use antecedent::query::CrossWorldQuery;
 use pyo3::prelude::*;
 
 use crate::{
@@ -23,19 +24,19 @@ use crate::{
 /// and `variable <id>` is spelled with the variable's name.
 fn refused(error: antecedent::CausalError, names: &[String]) -> PyErr {
     let text = error.to_string();
-    let Some((code, rest)) = antecedent_core::reason_code::split_prefix(&text) else {
+    let Some((code, rest)) = antecedent::reason::reason_code::split_prefix(&text) else {
         return py_err(error);
     };
     let mut words: Vec<String> = rest.split(' ').map(str::to_string).collect();
     for i in 1..words.len() {
-        if words[i - 1] == "variable" {
-            if let Some(name) = words[i].parse::<usize>().ok().and_then(|k| names.get(k)) {
-                words[i].clone_from(name);
-            }
+        if words[i - 1] == "variable"
+            && let Some(name) = words[i].parse::<usize>().ok().and_then(|k| names.get(k))
+        {
+            words[i].clone_from(name);
         }
     }
     let message = words.join(" ");
-    if !antecedent_core::reason_code::is_runtime_refusal(code) {
+    if !antecedent::reason::reason_code::is_runtime_refusal(code) {
         return py_err(error);
     }
     if code == "invalid_argument" {
@@ -103,7 +104,7 @@ fn evaluate_cross_world_edge_contrast(
     seed: u64,
 ) -> PyResult<(String, Vec<u8>)> {
     let mechanism = mechanism_of(mechanism)?;
-    let (data, _) = tabular_from_py_columns(names.clone(), columns)?;
+    let data = tabular_from_py_columns(names.clone(), columns)?;
     detach_catch(py, move || {
         let id = |name: &str| {
             data.schema()
@@ -141,15 +142,20 @@ fn evaluate_cross_world_edge_contrast(
 
 /// Consume a cross-world artifact by recomputing it: `(json, artifact bytes)`.
 #[pyfunction]
-#[pyo3(signature = (artifact, *, seed=0))]
+#[pyo3(signature = (artifact, *, seed=0, expected_data_digest=None))]
 fn consume_cross_world_edge_contrast_artifact(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     seed: u64,
+    expected_data_digest: Option<String>,
 ) -> PyResult<(String, Vec<u8>)> {
     detach_catch(py, move || {
-        let effect = consume_cross_world_artifact(&artifact, &py_execution_context(seed, 1))
-            .map_err(|e| crate::serialization_err(e.to_string()))?;
+        let ctx = py_execution_context(seed, 1);
+        let effect = match expected_data_digest {
+            Some(digest) => consume_cross_world_artifact_for_data(artifact, &digest, &ctx),
+            None => consume_cross_world_artifact(artifact, &ctx),
+        }
+        .map_err(|e| crate::serialization_err(e.to_string()))?;
         payload(&effect)
     })
 }

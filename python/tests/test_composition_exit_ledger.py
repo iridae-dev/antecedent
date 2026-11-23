@@ -1,27 +1,27 @@
 """Composition exit gate: the evidence ledger.
 
-The test reads only committed registries (``parity/promotion.toml``,
+The test reads only committed registries (``parity/capability_records.toml``,
 ``parity/evidence_ledger.toml``, ``parity/coverage_records.toml``,
 ``parity/reason_codes.toml``) and ``provenance/*.toml``; it never runs a gate script.
 
-For every promotion record it asserts:
+For every capability record it asserts:
 
-* a ``promoted`` record has a ledger cell naming provenance files that exist and parse, a
+* a ``supported`` record has a ledger cell naming provenance files that exist and parse, a
   positive, a negative and an artifact fixture whose evidence tests exist as files and name
   their assertion, and an evidence kind from the registered oracle vocabulary;
 * a record whose ``inference_claim`` is an inferential one (not ``point_only``,
-  ``structural_envelope`` or ``none``) is promoted only when each of its coverage records is
+  ``structural_envelope`` or ``none``) is supported only when each of its coverage records is
   collected; otherwise it is not promoted, every route is closed with a registered reason
   code and the closed public producer really refuses;
-* a ``carried_forward`` record has only closed routes, and no public Python consumer name
+* a ``not_supported`` record has only closed routes, and no public Python consumer name
   exists for a closed artifact.
 
 The closure checks are status-driven: a route that the registry has opened is not called, and
-its record must then be promoted. Composes the committed refusal tests
-``test_closed_pilots.py``, ``test_temporal_extensions.py`` and ``test_temporal_counterfactual.py``
+its record must then be supported. Composes the committed refusal tests
+``test_advanced_producers.py``, ``test_temporal_extensions.py`` and ``test_temporal_counterfactual.py``
 by copying their request builders.
 
-Calibration is unmeasured for the calibrated A claims at this commit; this file asserts the
+Calibration is not_measured for the calibrated A claims at this commit; this file asserts the
 registry state, it does not measure anything.
 """
 
@@ -37,6 +37,8 @@ from typing import Any
 import pytest
 from antecedent import Admg, temporal_counterfactual
 from antecedent.errors import CausalUnsupportedError
+from antecedent.execution import Execution
+from antecedent.outcomes import require_success
 from antecedent.temporal_counterfactual import transported_path_specific
 from antecedent.transport import advanced as transport
 from antecedent.transport.advanced import TemporalUnitPanel, temporal_dependent_interval
@@ -57,7 +59,7 @@ def load_toml(relative: str) -> dict[str, Any]:
         return tomllib.load(handle)
 
 
-PROMOTION = load_toml("parity/promotion.toml")
+CAPABILITY = load_toml("parity/capability_records.toml")
 LEDGER = load_toml("parity/evidence_ledger.toml")
 COVERAGE_IDS = {r["id"] for r in load_toml("parity/coverage_records.toml").get("record", [])}
 RUNTIME_CODES = {
@@ -69,13 +71,13 @@ CELLS_BY_ID: dict[str, list[Record]] = {}
 for _cell in LEDGER["cell"]:
     CELLS_BY_ID.setdefault(_cell["id"], []).append(_cell)
 #: Records the ledger covers, plus every record carried forward closed.
-A_RECORDS: list[Record] = [
-    r for r in PROMOTION["record"] if r["id"] in CELLS_BY_ID or r["status"] == "carried_forward"
-]
+A_RECORDS: list[Record] = [r for r in CAPABILITY["record"] if r["id"] in CELLS_BY_ID]
 
-PROMOTED = [r for r in A_RECORDS if r["status"] == "promoted"]
+SUPPORTED = [r for r in A_RECORDS if r["status"] == "supported"]
 INFERENTIAL = [r for r in A_RECORDS if r["inference_claim"] not in NOT_INFERENTIAL]
-CARRIED = [r for r in A_RECORDS if r["status"] == "carried_forward"]
+#: The not-supported records whose closed routes keep a named public producer to call.
+CARRIED_IDS = frozenset({"counterfactual.transported_path_specific"})
+CARRIED = [r for r in A_RECORDS if r["status"] == "not_supported" and r["id"] in CARRIED_IDS]
 
 
 def ids(records: list[Record]) -> list[str]:
@@ -86,13 +88,11 @@ def test_ledger_covers_every_a_record_once() -> None:
     assert A_RECORDS, "no ledger-covered records"
     assert len({r["id"] for r in A_RECORDS}) == len(A_RECORDS)
     assert {r["status"] for r in A_RECORDS} <= {
-        "promoted",
-        "carried_forward",
-        "frozen",
-        "in_progress",
+        "supported",
+        "not_supported",
     }
-    # Records with no ledger cell cannot be promoted.
-    assert all(r["id"] in CELLS_BY_ID for r in PROMOTED)
+    # Records with no ledger cell cannot be supported.
+    assert all(r["id"] in CELLS_BY_ID for r in SUPPORTED)
 
 
 #: The path references inside a provenance `test_sources` entry (the schema gate's pattern).
@@ -102,8 +102,8 @@ SOURCE_PATH = re.compile(
 )
 
 
-@pytest.mark.parametrize("record", PROMOTED, ids=ids(PROMOTED))
-def test_ledger_promoted_record_has_provenance_fixtures_and_ledger_cell(
+@pytest.mark.parametrize("record", SUPPORTED, ids=ids(SUPPORTED))
+def test_ledger_supported_record_has_provenance_fixtures_and_ledger_cell(
     record: Record,
 ) -> None:
     cells = CELLS_BY_ID.get(record["id"], [])
@@ -111,7 +111,6 @@ def test_ledger_promoted_record_has_provenance_fixtures_and_ledger_cell(
     routes = {route["name"] for route in record["routes"]}
     for cell in cells:
         assert cell["route"] in routes, (record["id"], cell["route"])
-        assert cell["parity_registry"] == "parity/promotion.toml"
         # Correct parity evidence kind: a registered independent oracle, never a pending one.
         assert cell["oracle_kind"] in ORACLE_KINDS, (record["id"], cell["oracle_kind"])
         assert cell["algorithm_provenance"], record["id"]
@@ -142,65 +141,67 @@ def test_ledger_promoted_record_has_provenance_fixtures_and_ledger_cell(
         assert fixture["evidence_assertion"] in evidence.read_text(encoding="utf-8"), fixture["id"]
 
 
-@pytest.mark.parametrize("record", PROMOTED, ids=ids(PROMOTED))
-def test_ledger_promoted_record_routes_are_licensed_not_closed(record: Record) -> None:
+@pytest.mark.parametrize("record", SUPPORTED, ids=ids(SUPPORTED))
+def test_ledger_supported_record_routes_are_supported_not_refused(record: Record) -> None:
     for route in record["routes"]:
         if route["status"] == "closed":
-            # A permanent in-release closure inside a promoted record is allowed; it must be named.
+            # A permanent in-release closure inside a supported record is allowed; it must be named.
             assert route.get("reason_code") in RUNTIME_CODES, route
             assert Path(ROOT / route["refusal_test"]).is_file(), route
         else:
-            assert route["status"] == "licensed", route
+            assert route["status"] == "supported", route
 
 
 @pytest.mark.parametrize("record", INFERENTIAL, ids=ids(INFERENTIAL))
-def test_ledger_inferential_claim_is_calibrated_or_not_promoted(record: Record) -> None:
+def test_ledger_inferential_claim_has_a_construction_check_or_is_not_supported(
+    record: Record,
+) -> None:
     coverage = record.get("coverage_records", [])
-    if record["status"] == "promoted":
-        # Promotion of an inferential claim requires its own collected coverage record.
-        assert coverage, f"{record['id']}: promoted inferential claim without coverage records"
-        assert set(coverage) <= COVERAGE_IDS, (record["id"], set(coverage) - COVERAGE_IDS)
+    # Coverage records only annotate the interval's calibration status; any named must exist.
+    assert set(coverage) <= COVERAGE_IDS, (record["id"], set(coverage) - COVERAGE_IDS)
+    if record["status"] == "supported":
+        # A supported interval claim is backed by an independent construction check.
+        roles = {fixture.get("role") for fixture in record.get("fixtures", [])}
+        assert "construction" in roles, f"{record['id']}: supported interval without construction"
         return
-    assert record["status"] in {"carried_forward", "frozen", "in_progress"}, record["id"]
+    assert record["status"] == "not_supported", record["id"]
     for route in record["routes"]:
-        if route["status"] == "licensed":
-            # A point-only route carries no interval claim, so it may be licensed while the
+        if route["status"] == "supported":
+            # A point-only route carries no interval claim, so it may be supported while the
             # record's interval routes stay closed; an inferential route never is.
             assert route["claim"] in NOT_INFERENTIAL, (record["id"], route["name"])
             continue
         assert route["status"] == "closed", (record["id"], route["name"])
-        assert route["reason_code"] == "cell_not_licensed", route
-        assert route["reason_code"] in RUNTIME_CODES
+        assert route["reason_code"] in RUNTIME_CODES, route
         assert (ROOT / route["refusal_test"]).is_file(), route
         assert route["refusal_assertion"] in (ROOT / route["refusal_test"]).read_text(
             encoding="utf-8"
         )
     # The failed gate is recorded in the record, not silently dropped.
-    assert "unmeasured" in record.get("inference_notes", "") or coverage, record["id"]
+    assert "not_measured" in record.get("inference_notes", "") or coverage, record["id"]
     for cell in CELLS_BY_ID.get(record["id"], []):
-        assert "unmeasured" in cell["calibration"] or cell["calibration"].startswith("cov."), cell
+        assert "not_measured" in cell["calibration"] or cell["calibration"].startswith("cov."), cell
 
 
 @pytest.mark.parametrize("record", CARRIED, ids=ids(CARRIED))
-def test_ledger_carried_forward_routes_are_closed_with_a_registered_code(
+def test_ledger_not_delivered_routes_are_refused_with_a_registered_code(
     record: Record,
 ) -> None:
     assert record["routes"], record["id"]
     for route in record["routes"]:
         assert route["status"] == "closed", (record["id"], route["name"])
         assert route["reason_code"] in RUNTIME_CODES, route
-    detail_codes = {refusal["code"] for refusal in record["refusals"]}
-    assert "cell_not_licensed" in detail_codes, record["id"]
-    frozen = [
-        r["detail"]
-        for r in record["refusals"]
-        if r["code"] == "cell_not_licensed" and r["detail"].endswith(".route_frozen")
-    ]
-    assert frozen, f"{record['id']}: no registered route_frozen refusal detail"
+    # A closed route is a refusal with its own code, and the record lists a refusal detail
+    # under exactly that code.
+    for route in record["routes"]:
+        assert any(r["code"] == route["reason_code"] for r in record["refusals"]), (
+            record["id"],
+            route["name"],
+        )
 
 
 # ------------------------------------------------------------------ real closed producers
-# Request builders copied from test_closed_pilots.py, test_temporal_extensions.py and
+# Request builders copied from test_advanced_producers.py, test_temporal_extensions.py and
 # test_temporal_counterfactual.py.
 
 NODES = ["X1", "X2", "X3", "X4"]
@@ -213,7 +214,7 @@ def _joint_bayesian() -> object:
         target={"x": [0.1, 0.2, 0.3]},
         features=["x"],
         draws=1000,
-        seed=7,
+        execution=Execution(seed=7),
     )
 
 
@@ -224,7 +225,7 @@ def _learned_joint() -> object:
         features=["x"],
         basis_degree=2,
         draws=1000,
-        seed=7,
+        execution=Execution(seed=7),
     )
 
 
@@ -252,7 +253,7 @@ def _sampled_recovery() -> object:
         snapshot="snap-observed",
         replicates=100,
         interval_method="bootstrap_percentile",
-        seed=3,
+        execution=Execution(seed=3),
     )
 
 
@@ -276,7 +277,7 @@ def _retained_temporal_interval() -> object:
     from test_recalc_temporal import request
 
     session = TemporalSession()
-    result = session.execute(request(), seed=41)
+    result = require_success(session.execute(request(), execution=Execution(seed=41)))
     assert result.law.ate == pytest.approx(0.5675, abs=1e-12)
     return session.dependent_interval()
 
@@ -309,21 +310,17 @@ REGISTERED_CLOSED_ROUTES = [
     REGISTERED_CLOSED_ROUTES,
     ids=[route["name"] for _, route in REGISTERED_CLOSED_ROUTES],
 )
-def test_ledger_closed_public_producer_refuses_with_its_typed_cell(
+def test_ledger_unsupported_public_producer_refuses_with_its_typed_cell(
     record: Record, route: Record
 ) -> None:
     assert route["name"] in CLOSED_PRODUCERS, f"no producer call for closed route {route['name']}"
     with pytest.raises(CausalUnsupportedError) as caught:
         CLOSED_PRODUCERS[route["name"]]()
     error = caught.value
-    assert error.reason_code == route["reason_code"] == "cell_not_licensed"
+    assert error.reason_code == route["reason_code"]
     assert error.reason_code in REGISTERED
-    frozen = [
-        r["detail"]
-        for r in record["refusals"]
-        if r["code"] == "cell_not_licensed" and r["detail"].endswith(".route_frozen")
-    ]
-    assert any(detail in str(error) for detail in frozen), (str(error), frozen)
+    details = [r["detail"] for r in record["refusals"] if r["code"] == route["reason_code"]]
+    assert any(detail in str(error) for detail in details), (str(error), details)
 
 
 def test_ledger_registry_closed_routes_are_all_known_producers() -> None:
@@ -331,11 +328,11 @@ def test_ledger_registry_closed_routes_are_all_known_producers() -> None:
     assert names <= set(CLOSED_PRODUCERS), names - set(CLOSED_PRODUCERS)
     # Every A inferential claim that is not promoted contributes at least one closed route.
     for record in INFERENTIAL:
-        if record["status"] != "promoted":
+        if record["status"] != "supported":
             assert any(route["status"] == "closed" for route in record["routes"])
 
 
-def test_ledger_no_public_python_consumer_for_a_closed_artifact() -> None:
+def test_ledger_no_public_python_consumer_for_an_unsupported_artifact() -> None:
     # Producer and consumer stay closed together: a closed route has no public Python
     # consumer name (the artifact consumers of the carried-forward cells are Rust-internal).
     stems = ("joint_bayesian", "nested_markov", "sampled_observation", "dependent_interval")

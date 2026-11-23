@@ -4,7 +4,7 @@
 //! This is the one place that decides whether the draws or moments of several
 //! inputs may be combined. Unrelated posterior or bootstrap draws are never
 //! paired by index; a row pairing is a statement that the rows are
-//! realizations of one joint law, and it is licensed only by an alignment
+//! realizations of one joint law, and it is supported only by an alignment
 //! identity that every input shares.
 //!
 //! The rule, by operation:
@@ -37,27 +37,35 @@
 //!
 //! A composed quantity has three readings besides the envelope:
 //!
-//! * the **point** value under a licensed dependence route;
+//! * the **point** value under a supported dependence route;
 //! * the **spread** (variance or standard error, and the draw-based summaries
 //!   built on aligned draws) at the composed coordinate, labelled
-//!   `uncalibrated_spread`: it is what the licensed dependence route
+//!   `uncalibrated_spread`: it is what the supported dependence route
 //!   determines and carries no coverage statement;
 //! * an **interval** only through [`check_composed_interval`], which needs a
 //!   measured coverage record for the composed coordinate (operation, route,
 //!   input roles and construction). A component interval does not cover the
-//!   composition; without a record the interval reading is closed. A
-//!   posterior statement about a composed quantity is closed in the same way.
+//!   composition; without a record the interval reading is not supported. A
+//!   posterior statement about a composed quantity is not supported in the same way.
 //!
 //! Every refusal carries a registered reason code, a namespaced
 //! `joint_law_propagation.*` detail and a remedy that names the dependence
-//! information that would license the request.
+//! information that would support the request.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+mod composed_interval;
+
+pub use composed_interval::{
+    COMPOSED_DEFAULT_LEVEL, ComposedCoordinate, ComposedIntervalPlan, CoverageRecord,
+    check_composed_interval, check_horizon_composition, horizon_inputs,
+};
 
 use std::collections::BTreeSet;
 
 use crate::ExternalRefusal;
-use crate::evidence_ledger::{EvidenceLedger, Overlap, SourceId};
+use crate::evidence_ledger::{EvidenceKey, EvidenceLedger, Overlap, evidence_key};
+use antecedent_core::named_variants;
 
 /// Stage reported by every refusal of this module.
 pub const JOINT_LAW_STAGE: &str = "propagate";
@@ -65,9 +73,9 @@ pub const JOINT_LAW_STAGE: &str = "propagate";
 pub use antecedent_core::STRUCTURAL_ENVELOPE_LABEL;
 /// Label of a range implied by a declared correlation range.
 pub const ASSUMPTION_RANGE_LABEL: &str = "assumption_range";
-/// Label of a value computed under a licensed dependence route.
+/// Label of a value computed under a supported dependence route.
 pub const POINT_ONLY_LABEL: &str = "point_only";
-/// Label of a spread computed under a licensed dependence route, with no
+/// Label of a spread computed under a supported dependence route, with no
 /// coverage statement.
 pub const UNCALIBRATED_SPREAD_LABEL: &str = "uncalibrated_spread";
 /// Label of an interval backed by a measured coverage record at its composed
@@ -113,41 +121,21 @@ pub enum PropagationClass {
     Transported,
 }
 
+named_variants! {
+    PropagationOperation {
+        LinearTransform => "linear_transform",
+        Contrast => "contrast",
+        Sum => "sum",
+        WeightedSum => "weighted_sum",
+        Product => "product",
+        NonlinearFunctional => "nonlinear_functional",
+        ChainedSampling => "chained_sampling",
+        Mixture => "mixture",
+        TransportedComposition => "transported_composition",
+    }
+}
+
 impl PropagationOperation {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::LinearTransform => "linear_transform",
-            Self::Contrast => "contrast",
-            Self::Sum => "sum",
-            Self::WeightedSum => "weighted_sum",
-            Self::Product => "product",
-            Self::NonlinearFunctional => "nonlinear_functional",
-            Self::ChainedSampling => "chained_sampling",
-            Self::Mixture => "mixture",
-            Self::TransportedComposition => "transported_composition",
-        }
-    }
-
-    /// Parse a stable name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [
-            Self::LinearTransform,
-            Self::Contrast,
-            Self::Sum,
-            Self::WeightedSum,
-            Self::Product,
-            Self::NonlinearFunctional,
-            Self::ChainedSampling,
-            Self::Mixture,
-            Self::TransportedComposition,
-        ]
-        .into_iter()
-        .find(|op| op.as_str() == name)
-    }
-
     /// The dependence class the operation needs.
     #[must_use]
     pub const fn class(self) -> PropagationClass {
@@ -187,33 +175,17 @@ pub enum InputRole {
     TransportFunctional,
 }
 
+named_variants! {
+    InputRole {
+        Estimate => "estimate",
+        TransportedInterval => "transported_interval",
+        SourceSampling => "source_sampling",
+        TargetSampling => "target_sampling",
+        TransportFunctional => "transport_functional",
+    }
+}
+
 impl InputRole {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Estimate => "estimate",
-            Self::TransportedInterval => "transported_interval",
-            Self::SourceSampling => "source_sampling",
-            Self::TargetSampling => "target_sampling",
-            Self::TransportFunctional => "transport_functional",
-        }
-    }
-
-    /// Parse a stable name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [
-            Self::Estimate,
-            Self::TransportedInterval,
-            Self::SourceSampling,
-            Self::TargetSampling,
-            Self::TransportFunctional,
-        ]
-        .into_iter()
-        .find(|role| role.as_str() == name)
-    }
-
     const fn is_transported(self) -> bool {
         !matches!(self, Self::Estimate)
     }
@@ -288,38 +260,26 @@ pub enum PropagationDependence {
 pub enum RequestedReading {
     /// A point value.
     Point,
-    /// The spread of the composed quantity under the licensed dependence
+    /// The spread of the composed quantity under the supported dependence
     /// route: a variance, a standard error or a draw-based summary, with no
     /// coverage statement.
     Spread,
     /// An interval. Closed unless a measured coverage record for the composed
     /// coordinate is supplied to [`check_composed_interval`].
     Interval,
-    /// A posterior or posterior-probability statement. Closed.
+    /// A posterior or posterior-probability statement. Not supported.
     Posterior,
     /// A labelled envelope.
     Envelope,
 }
 
-impl RequestedReading {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Point => "point",
-            Self::Spread => "spread",
-            Self::Interval => "interval",
-            Self::Posterior => "posterior",
-            Self::Envelope => "envelope",
-        }
-    }
-
-    /// Parse a stable name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::Point, Self::Spread, Self::Interval, Self::Posterior, Self::Envelope]
-            .into_iter()
-            .find(|reading| reading.as_str() == name)
+named_variants! {
+    RequestedReading {
+        Point => "point",
+        Spread => "spread",
+        Interval => "interval",
+        Posterior => "posterior",
+        Envelope => "envelope",
     }
 }
 
@@ -336,7 +296,7 @@ pub struct PropagationRequest {
     pub reading: RequestedReading,
 }
 
-/// The computation a licensed request runs. Each route is its own support row.
+/// The computation a supported request runs. Each route is its own support row.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum PropagationRoute {
     /// Delta method for a linear map under a covariance (or no cross term for
@@ -352,33 +312,17 @@ pub enum PropagationRoute {
     CorrelationRangeEnvelope,
 }
 
+named_variants! {
+    PropagationRoute {
+        LinearMoments => "linear_moments",
+        AlignedJointLaw => "aligned_joint_law",
+        KnownWeightMixture => "known_weight_mixture",
+        FrechetEnvelope => "frechet_envelope",
+        CorrelationRangeEnvelope => "correlation_range_envelope",
+    }
+}
+
 impl PropagationRoute {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::LinearMoments => "linear_moments",
-            Self::AlignedJointLaw => "aligned_joint_law",
-            Self::KnownWeightMixture => "known_weight_mixture",
-            Self::FrechetEnvelope => "frechet_envelope",
-            Self::CorrelationRangeEnvelope => "correlation_range_envelope",
-        }
-    }
-
-    /// Parse a stable name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [
-            Self::LinearMoments,
-            Self::AlignedJointLaw,
-            Self::KnownWeightMixture,
-            Self::FrechetEnvelope,
-            Self::CorrelationRangeEnvelope,
-        ]
-        .into_iter()
-        .find(|route| route.as_str() == name)
-    }
-
     /// The label the route's result carries.
     #[must_use]
     pub const fn label(self) -> &'static str {
@@ -460,34 +404,51 @@ fn validate(request: &PropagationRequest) -> Result<(), ExternalRefusal> {
         if !seen.insert(input.id.as_str()) {
             return Err(invalid(input.id.clone(), "list each input once"));
         }
-        if let InputAlignment::Aligned { alignment_id } = &input.alignment {
-            if blank(alignment_id) {
-                return Err(invalid(
-                    input.id.clone(),
-                    "an aligned input names its alignment identity",
-                ));
-            }
+        if let InputAlignment::Aligned { alignment_id } = &input.alignment
+            && blank(alignment_id)
+        {
+            return Err(invalid(input.id.clone(), "an aligned input names its alignment identity"));
         }
     }
-    if let PropagationDependence::Covariance { id } = &request.dependence {
-        if blank(id) {
-            return Err(invalid(
-                "covariance",
-                "name the covariance declaration or the shared evidence that supplies it",
-            ));
-        }
+    if let PropagationDependence::Covariance { id } = &request.dependence
+        && blank(id)
+    {
+        return Err(invalid(
+            "covariance",
+            "name the covariance declaration or the shared evidence that supplies it",
+        ));
     }
     Ok(())
 }
 
+fn remember_shared<'a>(
+    shared: &mut std::collections::BTreeMap<EvidenceKey<'a>, &'a str>,
+    label: &'a str,
+) {
+    shared
+        .entry(evidence_key(label))
+        .and_modify(|first| *first = (*first).min(label))
+        .or_insert(label);
+}
 fn shared_evidence(inputs: &[PropagationInput]) -> Vec<String> {
-    let mut shared = BTreeSet::new();
-    for (position, input) in inputs.iter().enumerate() {
-        if inputs[position + 1..].iter().any(|other| other.evidence_id == input.evidence_id) {
-            shared.insert(input.evidence_id.clone());
-        }
+    let mut groups = std::collections::BTreeMap::<EvidenceKey<'_>, (&str, bool)>::new();
+    for input in inputs {
+        let label = input.evidence_id.as_str();
+        groups
+            .entry(evidence_key(label))
+            .and_modify(|(first, duplicate)| {
+                *first = (*first).min(label);
+                *duplicate = true;
+            })
+            .or_insert((label, false));
     }
-    shared.into_iter().collect()
+    let mut shared: Vec<_> = groups
+        .into_values()
+        .filter(|(_, duplicate)| *duplicate)
+        .map(|(label, _)| label.to_owned())
+        .collect();
+    shared.sort();
+    shared
 }
 
 /// The alignment identity every input shares, or the refusal that says why
@@ -549,19 +510,19 @@ fn plan(
 }
 
 fn closed_reading(reading: RequestedReading) -> Option<ExternalRefusal> {
-    let code = antecedent_core::reason_code!("cell_not_licensed");
+    let code = antecedent_core::reason_code!("uncertainty_representation_insufficient");
     match reading {
         RequestedReading::Interval => Some(refuse(
             code,
-            "joint_law_propagation.interval_route_closed",
+            "joint_law_propagation.no_interval_construction",
             "interval",
-            "no interval for a composed quantity has a measured coverage record at its composed coordinate, and a component interval does not cover the composition; the labelled point value under a licensed dependence route, or the dependence envelope, is the result",
+            "a composed quantity carries no interval until a construction is named: a component interval does not cover the composition. Ask for check_composed_interval with the construction and the declared evidence size, which reports the interval with its calibration status; or take the labelled point value under a supported dependence route, or the dependence envelope",
         )),
         RequestedReading::Posterior => Some(refuse(
             code,
-            "joint_law_propagation.posterior_route_closed",
+            "joint_law_propagation.no_posterior_for_fixed_law_inputs",
             "posterior",
-            "no posterior statement for a composed quantity has a measured calibration at its composed coordinate; the labelled point value under a licensed dependence route is the result",
+            "a composed quantity of fixed-law inputs carries no posterior: a posterior statement needs the posterior draws of the inputs under one alignment identity; the labelled point value under a supported dependence route is the result",
         )),
         RequestedReading::Point | RequestedReading::Spread | RequestedReading::Envelope => None,
     }
@@ -645,18 +606,17 @@ fn check_envelope(
     shared: Vec<String>,
 ) -> Result<PropagationPlan, ExternalRefusal> {
     use PropagationOperation as Op;
-    if let PropagationDependence::CorrelationRange { rho_lo, rho_hi } = request.dependence {
-        if !(rho_lo.is_finite()
+    if let PropagationDependence::CorrelationRange { rho_lo, rho_hi } = request.dependence
+        && !(rho_lo.is_finite()
             && rho_hi.is_finite()
             && -1.0 <= rho_lo
             && rho_lo < rho_hi
             && rho_hi <= 1.0)
-        {
-            return Err(invalid(
-                "correlation_range",
-                "declare finite correlation bounds with -1 <= lower < upper <= 1",
-            ));
-        }
+    {
+        return Err(invalid(
+            "correlation_range",
+            "declare finite correlation bounds with -1 <= lower < upper <= 1",
+        ));
     }
     let route = match request.dependence {
         PropagationDependence::CorrelationRange { .. } => {
@@ -683,7 +643,7 @@ fn check_envelope(
     }
     if request.reading != RequestedReading::Envelope {
         return Err(refuse(
-            antecedent_core::reason_code!("cell_not_licensed"),
+            antecedent_core::reason_code!("uncertainty_representation_insufficient"),
             "joint_law_propagation.envelope_is_not_a_point",
             request.reading.as_str(),
             "the dependence envelope is the set of values no dependence could exceed; it is not a point, an interval or a posterior and does not stand in for an aligned joint law; request the envelope reading, or supply the aligned joint law for a point value",
@@ -746,22 +706,24 @@ fn ledger_shared_evidence(
     inputs: &[PropagationInput],
     ledger: &EvidenceLedger,
 ) -> (Vec<String>, Option<String>) {
-    let mut shared = BTreeSet::new();
+    let mut shared = std::collections::BTreeMap::new();
     let mut unresolved: Option<String> = None;
     for (position, input) in inputs.iter().enumerate() {
         for other in &inputs[position + 1..] {
-            if other.evidence_id == input.evidence_id {
-                shared.insert(input.evidence_id.clone());
+            let a = evidence_key(&input.evidence_id);
+            let b = evidence_key(&other.evidence_id);
+            if a == b {
+                remember_shared(&mut shared, &input.evidence_id);
+                remember_shared(&mut shared, &other.evidence_id);
                 continue;
             }
-            let ids =
-                SourceId::from_hex(&input.evidence_id).zip(SourceId::from_hex(&other.evidence_id));
+            let ids = a.source().zip(b.source());
             let overlap = ids.and_then(|(a, b)| ledger.overlap(a, b).ok());
             match overlap {
                 Some(Overlap::Independent) => {}
                 Some(Overlap::SharedObservations { .. }) => {
-                    shared.insert(input.evidence_id.clone());
-                    shared.insert(other.evidence_id.clone());
+                    remember_shared(&mut shared, &input.evidence_id);
+                    remember_shared(&mut shared, &other.evidence_id);
                 }
                 Some(Overlap::Unknown { .. }) | None => {
                     unresolved.get_or_insert_with(|| format!("{}|{}", input.id, other.id));
@@ -769,7 +731,9 @@ fn ledger_shared_evidence(
             }
         }
     }
-    (shared.into_iter().collect(), unresolved)
+    let mut labels: Vec<_> = shared.into_values().map(str::to_owned).collect();
+    labels.sort();
+    (labels, unresolved)
 }
 
 #[allow(
@@ -816,8 +780,8 @@ fn check_core(
     );
     if request.reading == RequestedReading::Spread && envelope_dependence {
         return Err(refuse(
-            antecedent_core::reason_code!("cell_not_licensed"),
-            "joint_law_propagation.spread_needs_licensed_dependence",
+            antecedent_core::reason_code!("uncertainty_representation_insufficient"),
+            "joint_law_propagation.spread_needs_supported_dependence",
             "spread",
             "a spread of a composed quantity is determined by a covariance, an aligned joint law, known mixture weights or a declared independence of distinct evidence; a correlation range or the marginals alone give only the labelled envelope, so request the envelope reading",
         ));
@@ -825,7 +789,7 @@ fn check_core(
     if request.reading == RequestedReading::Envelope && !envelope_dependence {
         return Err(invalid(
             "reading",
-            "an envelope reading needs a declared correlation range or the marginals-only declaration; with a licensed dependence route ask for the point value",
+            "an envelope reading needs a declared correlation range or the marginals-only declaration; with a supported dependence route ask for the point value",
         ));
     }
     let transported = request.operation == PropagationOperation::TransportedComposition
@@ -942,164 +906,6 @@ fn check_nonlinear(
             Err(dependence_unknown(request.operation))
         }
     }
-}
-
-/// The coordinate at which a composed interval's coverage is a property: the
-/// operation, the route, whether any input is transported and the sorted
-/// multiset of input roles. A coverage record is about one coordinate and says
-/// nothing about another; a component interval's record is never a composed
-/// coordinate's.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ComposedCoordinate {
-    /// The operation.
-    pub operation: PropagationOperation,
-    /// The licensed route.
-    pub route: PropagationRoute,
-    /// Sorted role names of the inputs (one entry per input).
-    pub roles: Vec<&'static str>,
-}
-
-impl ComposedCoordinate {
-    /// The coordinate of a checked composition.
-    #[must_use]
-    pub fn of(request: &PropagationRequest, plan: &PropagationPlan) -> Self {
-        let mut roles: Vec<&'static str> =
-            request.inputs.iter().map(|input| input.role.as_str()).collect();
-        roles.sort_unstable();
-        Self { operation: plan.operation, route: plan.route, roles }
-    }
-
-    /// Stable identity string: `operation|route|role,role,...`.
-    #[must_use]
-    pub fn id(&self) -> String {
-        format!("{}|{}|{}", self.operation.as_str(), self.route.as_str(), self.roles.join(","))
-    }
-}
-
-/// A coverage record offered for a composed coordinate.
-#[derive(Clone, Debug, PartialEq)]
-pub struct CoverageRecord {
-    /// Identity of the record (the attested measurement).
-    pub record_id: String,
-    /// The [`ComposedCoordinate::id`] the record was measured at.
-    pub coordinate_id: String,
-    /// The interval construction the record was measured for (a percentile
-    /// interval of aligned draws, a normal approximation to the propagated
-    /// variance, ...). A record for one construction is not another's.
-    pub construction: String,
-    /// The nominal level the record was measured at.
-    pub nominal_level: f64,
-    /// Whether the record is a completed, attested measurement (as opposed to
-    /// a wired but unmeasured placeholder).
-    pub measured: bool,
-}
-
-/// What a passed composed-interval check records.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ComposedIntervalPlan {
-    /// The propagation plan of the composition (with its dependence route).
-    pub propagation: PropagationPlan,
-    /// The coordinate the coverage record was matched against.
-    pub coordinate: ComposedCoordinate,
-    /// The record that licensed the interval.
-    pub record_id: String,
-    /// The construction the interval must be built with.
-    pub construction: String,
-    /// The nominal level.
-    pub nominal_level: f64,
-    /// The label of the result.
-    pub label: &'static str,
-}
-
-/// Check a composed interval: the composition's dependence route must license
-/// its spread, and a measured coverage record must exist for exactly this
-/// composed coordinate and construction.
-///
-/// Without a record the interval reading is closed (the component intervals do
-/// not cover the composition). With one, the interval is licensed only at the
-/// recorded nominal level; the record, not this function, carries the coverage
-/// evidence.
-///
-/// # Errors
-/// An invalid request, an unlicensed dependence route (the refusals of
-/// [`check_propagation`] under the spread reading), a request whose reading is
-/// not an interval, a missing, unmeasured or mismatched coverage record, or a
-/// nominal level outside `(0, 1)`.
-#[allow(
-    clippy::result_large_err,
-    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
-)]
-pub fn check_composed_interval(
-    request: &PropagationRequest,
-    record: Option<&CoverageRecord>,
-    construction: &str,
-) -> Result<ComposedIntervalPlan, ExternalRefusal> {
-    if request.reading != RequestedReading::Interval {
-        return Err(invalid(
-            request.reading.as_str(),
-            "ask for the interval reading, or use check_propagation for the point, spread or envelope",
-        ));
-    }
-    if blank(construction) {
-        return Err(invalid("construction", "name the interval construction the record covers"));
-    }
-    let spread = PropagationRequest { reading: RequestedReading::Spread, ..request.clone() };
-    let propagation = check_propagation(&spread)?;
-    let coordinate = ComposedCoordinate::of(request, &propagation);
-    let closed = || {
-        closed_reading(RequestedReading::Interval).unwrap_or_else(|| {
-            invalid("interval", "ask for the point or spread reading of the composition")
-        })
-    };
-    let Some(record) = record else {
-        return Err(closed());
-    };
-    let code = antecedent_core::reason_code!("cell_not_licensed");
-    if !record.measured {
-        return Err(refuse(
-            code,
-            "joint_law_propagation.coverage_record_unmeasured",
-            record.record_id.clone(),
-            "the coverage record is wired but not measured; run the whole-method coverage measurement at the composed coordinate and attest it, or report the labelled spread",
-        ));
-    }
-    if record.coordinate_id != coordinate.id() {
-        return Err(refuse(
-            code,
-            "joint_law_propagation.coverage_record_coordinate_mismatch",
-            record.record_id.clone(),
-            "a coverage record is about one composed coordinate (operation, route and input roles); measure coverage at this coordinate, or report the labelled spread",
-        )
-        .with_expected(coordinate.id())
-        .with_supplied(record.coordinate_id.clone()));
-    }
-    if record.construction != construction {
-        return Err(refuse(
-            code,
-            "joint_law_propagation.coverage_record_construction_mismatch",
-            record.record_id.clone(),
-            "a coverage record is about one interval construction; build the interval with the construction the record was measured for",
-        )
-        .with_expected(record.construction.clone())
-        .with_supplied(construction.to_owned()));
-    }
-    if !(record.nominal_level.is_finite()
-        && 0.0 < record.nominal_level
-        && record.nominal_level < 1.0)
-    {
-        return Err(invalid(
-            "nominal_level",
-            "the record's nominal level is a probability strictly between zero and one",
-        ));
-    }
-    Ok(ComposedIntervalPlan {
-        propagation,
-        coordinate,
-        record_id: record.record_id.clone(),
-        construction: construction.to_owned(),
-        nominal_level: record.nominal_level,
-        label: MEASURED_INTERVAL_LABEL,
-    })
 }
 
 /// Whether one input's rows may enter a row pairing at all.
@@ -1223,8 +1029,74 @@ mod tests {
     fn detail(request: &PropagationRequest) -> (&'static str, String) {
         let refusal = check_propagation(request).expect_err("refusal");
         refusal.validate().expect("well-formed refusal");
-        assert!(refusal.remedy.is_some(), "every refusal states what would license it");
+        assert!(refusal.remedy.is_some(), "every refusal states what would support it");
         (refusal.code, refusal.detail)
+    }
+
+    #[test]
+    fn horizons_of_one_joint_law_compose_and_independent_marginals_do_not() {
+        let (plan, coordinate) = check_horizon_composition(
+            PropagationOperation::NonlinearFunctional,
+            &[3, 1, 2],
+            "series_snapshot",
+            "replicates:7",
+            RequestedReading::Spread,
+        )
+        .expect("horizons coupled by one joint law compose");
+        assert_eq!(plan.route, PropagationRoute::AlignedJointLaw);
+        assert_eq!(plan.alignment_id.as_deref(), Some("replicates:7"));
+        assert_eq!(coordinate.horizons, vec![1, 2, 3]);
+        assert!(coordinate.id().ends_with("|horizons=1,2,3"), "{}", coordinate.id());
+        // A coordinate without the axis keeps its identity, and a different horizon set is a
+        // different coordinate.
+        let plain = ComposedCoordinate { horizons: Vec::new(), ..coordinate.clone() };
+        assert!(!plain.id().contains("horizons"));
+        assert_ne!(coordinate.id(), coordinate.clone().over_horizons(&[1, 2]).id());
+
+        // Horizons fit one by one carry no common alignment: pairing them is refused.
+        let marginals = request(
+            PropagationOperation::NonlinearFunctional,
+            (1..=3)
+                .map(|h| {
+                    input(
+                        &format!("horizon:{h}"),
+                        "series_snapshot",
+                        InputAlignment::IndependentMarginals,
+                    )
+                })
+                .collect(),
+            PropagationDependence::AlignedJointLaw,
+            RequestedReading::Spread,
+        );
+        assert!(check_propagation(&marginals).is_err());
+        let declared_independent = request(
+            PropagationOperation::Sum,
+            (1..=3)
+                .map(|h| {
+                    input(
+                        &format!("horizon:{h}"),
+                        "series_snapshot",
+                        InputAlignment::IndependentMarginals,
+                    )
+                })
+                .collect(),
+            PropagationDependence::DeclaredIndependent,
+            RequestedReading::Spread,
+        );
+        let (code, _) = detail(&declared_independent);
+        assert_eq!(code, "evidence_double_counted", "one series' horizons are not independent");
+
+        for bad in [&[][..], &[1, 1][..]] {
+            let error = check_horizon_composition(
+                PropagationOperation::Sum,
+                bad,
+                "e",
+                "a",
+                RequestedReading::Point,
+            )
+            .expect_err("a horizon set names each horizon once");
+            error.validate().expect("well-formed refusal");
+        }
     }
 
     #[test]
@@ -1239,7 +1111,7 @@ mod tests {
             PropagationDependence::Covariance { id: "cov_ab".into() },
             RequestedReading::Point,
         );
-        let plan = check_propagation(&with_covariance).expect("covariance licenses a contrast");
+        let plan = check_propagation(&with_covariance).expect("covariance supports a contrast");
         assert_eq!(plan.route, PropagationRoute::LinearMoments);
         assert_eq!(plan.shared_evidence, vec!["snapshot_1".to_owned()]);
         assert_eq!(plan.label, "point_only");
@@ -1252,7 +1124,10 @@ mod tests {
         );
         let (code, reason) = detail(&independent_but_shared);
         assert_eq!(code, "evidence_double_counted");
-        assert_eq!(reason, "joint_law_propagation.shared_evidence_declared_independent");
+        assert_eq!(
+            reason,
+            antecedent_core::reason_details::joint_law_propagation::SHARED_EVIDENCE_DECLARED_INDEPENDENT
+        );
 
         let distinct = request(
             PropagationOperation::WeightedSum,
@@ -1275,6 +1150,71 @@ mod tests {
     }
 
     #[test]
+    fn evidence_aliases_cannot_support_independence_and_reports_are_stable() {
+        let lower = "ab".repeat(32);
+        let upper = lower.to_uppercase();
+        for aliases in [
+            vec!["snapshot_1".to_owned(), " snapshot_1 ".to_owned()],
+            vec![lower.clone(), upper.clone(), format!(" {upper} ")],
+        ] {
+            let inputs: Vec<_> = aliases
+                .iter()
+                .enumerate()
+                .map(|(i, label)| input(&format!("input:{i}"), label, InputAlignment::MomentsOnly))
+                .collect();
+            let independent = request(
+                PropagationOperation::Sum,
+                inputs.clone(),
+                PropagationDependence::DeclaredIndependent,
+                RequestedReading::Point,
+            );
+            assert_eq!(
+                detail(&independent).1,
+                antecedent_core::reason_details::joint_law_propagation::SHARED_EVIDENCE_DECLARED_INDEPENDENT
+            );
+            let ledger = EvidenceLedger::new();
+            let refusal = check_propagation_with_ledger(&independent, &ledger).unwrap_err();
+            assert_eq!(
+                refusal.detail,
+                antecedent_core::reason_details::joint_law_propagation::SHARED_EVIDENCE_DECLARED_INDEPENDENT
+            );
+            let mut covariance = request(
+                PropagationOperation::Sum,
+                inputs,
+                PropagationDependence::Covariance { id: "cov".into() },
+                RequestedReading::Point,
+            );
+            let expected = vec![aliases.iter().min().unwrap().clone()];
+            assert_eq!(check_propagation(&covariance).unwrap().shared_evidence, expected);
+            covariance.inputs.reverse();
+            assert_eq!(check_propagation(&covariance).unwrap().shared_evidence, expected);
+            assert_eq!(
+                check_propagation_with_ledger(&covariance, &ledger).unwrap().shared_evidence,
+                expected
+            );
+        }
+        for (left, right) in [("Site", "site"), ("site x", "site  x"), ("deadbeef", "DEADBEEF")] {
+            let distinct = request(
+                PropagationOperation::Sum,
+                vec![
+                    input("a", left, InputAlignment::MomentsOnly),
+                    input("b", right, InputAlignment::MomentsOnly),
+                ],
+                PropagationDependence::DeclaredIndependent,
+                RequestedReading::Point,
+            );
+            assert!(
+                check_propagation(&distinct).is_ok(),
+                "opaque names remain case and internal-space sensitive"
+            );
+            assert!(
+                check_propagation_with_ledger(&distinct, &EvidenceLedger::new()).is_err(),
+                "unregistered sources remain unknown to a ledger"
+            );
+        }
+    }
+
+    #[test]
     fn nonlinear_operations_need_one_alignment_identity() {
         let paired = request(
             PropagationOperation::Product,
@@ -1282,7 +1222,7 @@ mod tests {
             PropagationDependence::AlignedJointLaw,
             RequestedReading::Point,
         );
-        let plan = check_propagation(&paired).expect("aligned draws license a product");
+        let plan = check_propagation(&paired).expect("aligned draws support a product");
         assert_eq!(plan.route, PropagationRoute::AlignedJointLaw);
         assert_eq!(plan.alignment_id.as_deref(), Some("joint_17"));
 
@@ -1293,7 +1233,10 @@ mod tests {
             PropagationDependence::AlignedJointLaw,
             RequestedReading::Point,
         );
-        assert_eq!(detail(&mismatched).1, "joint_law_propagation.alignment_mismatch");
+        assert_eq!(
+            detail(&mismatched).1,
+            antecedent_core::reason_details::joint_law_propagation::ALIGNMENT_MISMATCH
+        );
 
         // Unrelated marginal draws asked to be paired by index.
         let index_paired = request(
@@ -1307,7 +1250,10 @@ mod tests {
         );
         let (code, name) = detail(&index_paired);
         assert_eq!(code, "joint_law_required");
-        assert_eq!(name, "joint_law_propagation.index_pairing_refused");
+        assert_eq!(
+            name,
+            antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED
+        );
 
         // The same inputs with nothing declared name the index pairing too.
         let undeclared = request(
@@ -1316,7 +1262,10 @@ mod tests {
             PropagationDependence::Unknown,
             RequestedReading::Point,
         );
-        assert_eq!(detail(&undeclared).1, "joint_law_propagation.index_pairing_refused");
+        assert_eq!(
+            detail(&undeclared).1,
+            antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED
+        );
 
         // A covariance does not determine a nonlinear functional.
         let covariance_only = request(
@@ -1327,7 +1276,7 @@ mod tests {
         );
         assert_eq!(
             detail(&covariance_only).1,
-            "joint_law_propagation.covariance_insufficient_for_nonlinear"
+            antecedent_core::reason_details::joint_law_propagation::COVARIANCE_INSUFFICIENT_FOR_NONLINEAR
         );
 
         let summaries = request(
@@ -1366,7 +1315,10 @@ mod tests {
         );
         let (code, name) = detail(&unknown);
         assert_eq!(code, "invalid_argument");
-        assert_eq!(name, "joint_law_propagation.mixture_weights_unknown");
+        assert_eq!(
+            name,
+            antecedent_core::reason_details::joint_law_propagation::MIXTURE_WEIGHTS_UNKNOWN
+        );
     }
 
     #[test]
@@ -1400,7 +1352,10 @@ mod tests {
             );
             let (code, reason) = detail(&malformed);
             assert_eq!(code, "invalid_argument");
-            assert_eq!(reason, "joint_law_propagation.invalid_request");
+            assert_eq!(
+                reason,
+                antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST
+            );
         }
         let as_point = request(
             PropagationOperation::Sum,
@@ -1409,8 +1364,11 @@ mod tests {
             RequestedReading::Point,
         );
         let (code, name) = detail(&as_point);
-        assert_eq!(code, "cell_not_licensed");
-        assert_eq!(name, "joint_law_propagation.envelope_is_not_a_point");
+        assert_eq!(code, "uncertainty_representation_insufficient");
+        assert_eq!(
+            name,
+            antecedent_core::reason_details::joint_law_propagation::ENVELOPE_IS_NOT_A_POINT
+        );
         let mixture = request(
             PropagationOperation::Mixture,
             marginals,
@@ -1419,14 +1377,23 @@ mod tests {
         );
         let (code, name) = detail(&mixture);
         assert_eq!(code, "route_not_supported");
-        assert_eq!(name, "joint_law_propagation.envelope_not_available");
+        assert_eq!(
+            name,
+            antecedent_core::reason_details::joint_law_propagation::ENVELOPE_NOT_AVAILABLE
+        );
     }
 
     #[test]
-    fn interval_and_posterior_readings_are_closed() {
+    fn interval_and_posterior_readings_are_not_supported() {
         for (reading, expected) in [
-            (RequestedReading::Interval, "joint_law_propagation.interval_route_closed"),
-            (RequestedReading::Posterior, "joint_law_propagation.posterior_route_closed"),
+            (
+                RequestedReading::Interval,
+                antecedent_core::reason_details::joint_law_propagation::NO_INTERVAL_CONSTRUCTION,
+            ),
+            (
+                RequestedReading::Posterior,
+                antecedent_core::reason_details::joint_law_propagation::NO_POSTERIOR_FOR_FIXED_LAW_INPUTS,
+            ),
         ] {
             let closed = request(
                 PropagationOperation::Sum,
@@ -1435,7 +1402,7 @@ mod tests {
                 reading,
             );
             let (code, name) = detail(&closed);
-            assert_eq!(code, "cell_not_licensed");
+            assert_eq!(code, "uncertainty_representation_insufficient");
             assert_eq!(name, expected);
         }
     }
@@ -1464,7 +1431,10 @@ mod tests {
             let composed = PropagationRequest { reading, ..composed };
             let (code, name) = detail(&composed);
             assert_eq!(code, "joint_law_required");
-            assert_eq!(name, "joint_law_propagation.transported_dependence_required");
+            assert_eq!(
+                name,
+                antecedent_core::reason_details::joint_law_propagation::TRANSPORTED_DEPENDENCE_REQUIRED
+            );
         }
         let with_covariance = request(
             PropagationOperation::Sum,
@@ -1493,21 +1463,30 @@ mod tests {
             PropagationDependence::AlignedJointLaw,
             RequestedReading::Point,
         );
-        assert_eq!(detail(&single).1, "joint_law_propagation.invalid_request");
+        assert_eq!(
+            detail(&single).1,
+            antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST
+        );
         let duplicate = request(
             PropagationOperation::Sum,
             vec![aligned("x", "s", "j"), aligned("x", "t", "j")],
             PropagationDependence::AlignedJointLaw,
             RequestedReading::Point,
         );
-        assert_eq!(detail(&duplicate).1, "joint_law_propagation.invalid_request");
+        assert_eq!(
+            detail(&duplicate).1,
+            antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST
+        );
         let blank_cov = request(
             PropagationOperation::Sum,
             vec![aligned("x", "s", "j"), aligned("y", "t", "j")],
             PropagationDependence::Covariance { id: " ".into() },
             RequestedReading::Point,
         );
-        assert_eq!(detail(&blank_cov).1, "joint_law_propagation.invalid_request");
+        assert_eq!(
+            detail(&blank_cov).1,
+            antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST
+        );
     }
 
     #[test]
@@ -1551,7 +1530,10 @@ mod tests {
             PropagationDependence::AlignedJointLaw,
             RequestedReading::Spread,
         );
-        assert_eq!(detail(&unpaired).1, "joint_law_propagation.index_pairing_refused");
+        assert_eq!(
+            detail(&unpaired).1,
+            antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED
+        );
 
         // An envelope dependence is not a spread.
         let envelope = request(
@@ -1564,8 +1546,11 @@ mod tests {
             RequestedReading::Spread,
         );
         let (code, name) = detail(&envelope);
-        assert_eq!(code, "cell_not_licensed");
-        assert_eq!(name, "joint_law_propagation.spread_needs_licensed_dependence");
+        assert_eq!(code, "uncertainty_representation_insufficient");
+        assert_eq!(
+            name,
+            antecedent_core::reason_details::joint_law_propagation::SPREAD_NEEDS_SUPPORTED_DEPENDENCE
+        );
     }
 
     #[test]
@@ -1589,7 +1574,10 @@ mod tests {
         let refusal = check_propagation(&incomplete).expect_err("incomplete");
         refusal.validate().expect("well-formed refusal");
         assert_eq!(refusal.code, "joint_law_required");
-        assert_eq!(refusal.detail, "joint_law_propagation.transport_pieces_incomplete");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::joint_law_propagation::TRANSPORT_PIECES_INCOMPLETE
+        );
         assert_eq!(refusal.offending.as_deref(), Some("transport_functional"));
         // The point value of the same pieces is not a spread claim.
         let point = PropagationRequest { reading: RequestedReading::Point, ..incomplete.clone() };
@@ -1608,14 +1596,20 @@ mod tests {
         // Pieces whose draws carry different alignment identities are not paired.
         three[2] = piece("functional", InputRole::TransportFunctional, "joint_10");
         let unpaired = PropagationRequest { inputs: three, ..complete.clone() };
-        assert_eq!(detail(&unpaired).1, "joint_law_propagation.alignment_mismatch");
+        assert_eq!(
+            detail(&unpaired).1,
+            antecedent_core::reason_details::joint_law_propagation::ALIGNMENT_MISMATCH
+        );
 
         // Independence is never assumed for the pieces.
         let independent = PropagationRequest {
             dependence: PropagationDependence::DeclaredIndependent,
             ..complete
         };
-        assert_eq!(detail(&independent).1, "joint_law_propagation.transported_dependence_required");
+        assert_eq!(
+            detail(&independent).1,
+            antecedent_core::reason_details::joint_law_propagation::TRANSPORTED_DEPENDENCE_REQUIRED
+        );
     }
 
     #[test]
@@ -1652,7 +1646,10 @@ mod tests {
             PropagationDependence::Unknown,
             RequestedReading::Spread,
         );
-        assert_eq!(detail(&sum).1, "joint_law_propagation.transported_dependence_required");
+        assert_eq!(
+            detail(&sum).1,
+            antecedent_core::reason_details::joint_law_propagation::TRANSPORTED_DEPENDENCE_REQUIRED
+        );
     }
 
     #[test]
@@ -1665,14 +1662,10 @@ mod tests {
             RequestedReading::Interval,
         );
         let construction = "aligned_draw_percentile";
-        let (code, name) = {
-            let refusal = check_composed_interval(&composed, None, construction)
-                .expect_err("closed without a record");
-            refusal.validate().expect("well-formed refusal");
-            (refusal.code, refusal.detail)
-        };
-        assert_eq!(code, "cell_not_licensed");
-        assert_eq!(name, "joint_law_propagation.interval_route_closed");
+        // Without a record the interval is planned and annotated, never refused.
+        let unrecorded = check_composed_interval(&composed, None, construction).expect("plan");
+        assert_eq!(unrecorded.record_id, None);
+        assert!((unrecorded.nominal_level - COMPOSED_DEFAULT_LEVEL).abs() < 1e-12);
 
         let spread = PropagationRequest { reading: RequestedReading::Spread, ..composed.clone() };
         let coordinate =
@@ -1695,25 +1688,27 @@ mod tests {
                 .expect_err("refusal")
                 .detail
         };
-        let unmeasured = CoverageRecord { measured: false, ..record.clone() };
-        assert_eq!(
-            reason(&unmeasured, construction),
-            "joint_law_propagation.coverage_record_unmeasured"
-        );
+        let not_measured = CoverageRecord { measured: false, ..record.clone() };
+        let plan = check_composed_interval(&composed, Some(&not_measured), construction)
+            .expect("a not_measured record annotates, never refuses");
+        assert_eq!(plan.record_id.as_deref(), Some("record_1"));
         let wrong_coordinate = CoverageRecord {
             coordinate_id: "sum|linear_moments|estimate,estimate".into(),
             ..record.clone()
         };
         assert_eq!(
             reason(&wrong_coordinate, construction),
-            "joint_law_propagation.coverage_record_coordinate_mismatch"
+            antecedent_core::reason_details::joint_law_propagation::COVERAGE_RECORD_COORDINATE_MISMATCH
         );
         assert_eq!(
             reason(&record, "normal_approximation"),
-            "joint_law_propagation.coverage_record_construction_mismatch"
+            antecedent_core::reason_details::joint_law_propagation::COVERAGE_RECORD_CONSTRUCTION_MISMATCH
         );
         let bad_level = CoverageRecord { nominal_level: 1.0, ..record };
-        assert_eq!(reason(&bad_level, construction), "joint_law_propagation.invalid_request");
+        assert_eq!(
+            reason(&bad_level, construction),
+            antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST
+        );
 
         // The dependence route is checked before any record is consulted.
         let unpaired = request(
@@ -1726,12 +1721,15 @@ mod tests {
             RequestedReading::Interval,
         );
         let refusal = check_composed_interval(&unpaired, None, construction).expect_err("refusal");
-        assert_eq!(refusal.detail, "joint_law_propagation.index_pairing_refused");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED
+        );
         // A non-interval reading is not this function's.
         let point = PropagationRequest { reading: RequestedReading::Point, ..composed };
         assert_eq!(
             check_composed_interval(&point, None, construction).expect_err("reading").detail,
-            "joint_law_propagation.invalid_request"
+            antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST
         );
     }
 

@@ -5,7 +5,7 @@
 //! quantity in the named worlds under the shared exogenous state, and the
 //! normal interval built on the unit values under a declared unit sampling.
 //! The data are generated from the declared model, so the measurement is
-//! conditional on model adequacy, exactly as the licence states.
+//! conditional on model adequacy, exactly as the support states.
 //!
 //! Model: `X ~ Bernoulli(0.4)`, `Y = f(X, U)` with response types
 //! `U in {never, complier, defier, always}`; evidence is the observed `(X, Y)`
@@ -20,9 +20,9 @@
 //! not records here: they are properties of the declared model that would sit
 //! on the same key as the gated designs.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh`.
+//! Ignored tests run via `scripts/measure_calibration.sh`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,
@@ -145,7 +145,7 @@ fn design(test: &'static str, dgp: &'static str, q: [f64; 4], sampling: UnitSamp
         (interval, basis, truth)
     });
     for (interval, basis, truth) in results {
-        tally.bind(
+        tally.bind_validation(
             &Construction {
                 query: basis.query.to_string(),
                 graph_class: basis.graph_class.to_string(),
@@ -167,6 +167,7 @@ fn design(test: &'static str, dgp: &'static str, q: [f64; 4], sampling: UnitSamp
                 posterior_draws: basis.posterior_draws,
                 unidentified_mass: basis.unidentified_mass,
             },
+            "not_applicable",
         );
         tally.record(interval, truth);
     }

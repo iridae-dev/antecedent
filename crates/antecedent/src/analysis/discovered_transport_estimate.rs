@@ -37,7 +37,7 @@
 //! claim until a complete-procedure calibration record is bound to it; its calibration status
 //! is `not_bound_to_this_execution`. A structural range has no interval.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![expect(
     clippy::result_large_err,
@@ -76,9 +76,11 @@ use super::{
     TransportGridResult, TransportGridState,
 };
 
-/// Most levels one variable may take. Larger domains are refused: the empirical joint of the
-/// factors a formula reads grows with the product of their domains.
-pub const MAX_LEVELS_PER_VARIABLE: u32 = 32;
+/// Most cells the joint domain of the measured variables may have. The empirical joint the
+/// formula reads is a dense table over the product of the domains, so this product, not the
+/// level count of any one variable, is what is held in memory: one variable may take any
+/// number of levels so long as the joint stays within this many cells (`2^25`).
+pub const MAX_JOINT_CELLS: u64 = 1 << 25;
 
 const ESTIMATE_FORMAT: &str = "antecedent.discovered_transport_estimate.v1";
 const IDENTITY_TAG: &str = "antecedent.discovered_transport.estimate.v1";
@@ -189,7 +191,7 @@ pub struct TransportAnswer {
     pub contrast: Option<(f64, f64)>,
     /// Whether every member derived the same expression.
     pub expressions_agree: bool,
-    /// The interval on the contrast of a point answer, when requested and licensed.
+    /// The interval on the contrast of a point answer, when requested and supported.
     pub interval: Option<ContrastInterval>,
     /// Why there is no interval, when there is none.
     pub interval_reason: Option<&'static str>,
@@ -222,7 +224,7 @@ pub struct MemberEstimate {
     pub means: Vec<f64>,
     /// `last - first` mean, when there are two levels or more.
     pub contrast: Option<f64>,
-    /// The pointwise interval on the contrast, when requested and licensed.
+    /// The pointwise interval on the contrast, when requested and supported.
     pub contrast_interval: Option<(f64, f64)>,
     /// The retained transport grid of this member as a durable artifact.
     pub artifact: Vec<u8>,
@@ -330,105 +332,10 @@ struct EstimateWire {
     identity: Vec<u8>,
 }
 
-/// What replaying an exported estimate established.
-#[derive(Clone, Debug, PartialEq)]
-pub struct VerifiedEstimate {
-    /// The answer recomputed from the consumed member artifacts.
-    pub answer: TransportAnswer,
-    /// Identity of the structural report the estimate was made over.
-    pub report_identity: [u8; 32],
-    /// Members that were consumed, by their index in the report's envelope.
-    pub members: Vec<usize>,
-}
+mod verify;
 
-/// Replay an exported estimate: consume every member's transport grid with its embedded proof
-/// and tables, recompute the mean at every level, check the stored means, expression-free
-/// summary and identity, and return the recomputed answer.
-///
-/// # Errors
-///
-/// A malformed artifact, a member grid that does not consume, a mean or an answer that does not
-/// replay, or an identity that does not match.
-pub fn verify_discovered_transport_estimate(
-    bytes: &[u8],
-    limits: ExactEvaluationLimits,
-    ctx: &ExecutionContext,
-) -> Result<VerifiedEstimate, IoError> {
-    verify_estimate_with_member_count(bytes, limits, ctx, None)
-}
-
-pub(crate) fn verify_trial_member_estimate(
-    bytes: &[u8],
-    limits: ExactEvaluationLimits,
-    ctx: &ExecutionContext,
-    expected_members: usize,
-) -> Result<VerifiedEstimate, IoError> {
-    verify_estimate_with_member_count(bytes, limits, ctx, Some(expected_members))
-}
-
-fn verify_estimate_with_member_count(
-    bytes: &[u8],
-    limits: ExactEvaluationLimits,
-    ctx: &ExecutionContext,
-    expected_members: Option<usize>,
-) -> Result<VerifiedEstimate, IoError> {
-    let mismatch = |what: &str| IoError::Convert(format!("discovered transport estimate: {what}"));
-    let wire: EstimateWire = antecedent_io::from_cbor(bytes)?;
-    if wire.format != ESTIMATE_FORMAT {
-        return Err(mismatch("unsupported format"));
-    }
-    if expected_members.is_some_and(|expected| wire.members.len() != expected) {
-        return Err(mismatch("trial refinement member count differs before replay"));
-    }
-    let report_identity: [u8; 32] =
-        wire.report_identity.as_slice().try_into().map_err(|_| mismatch("report identity"))?;
-    let stored: [u8; 32] =
-        wire.identity.as_slice().try_into().map_err(|_| mismatch("estimate identity"))?;
-    let mut outcomes = Vec::with_capacity(wire.members.len());
-    for member in &wire.members {
-        let (_, result) =
-            PreparedStudy::<TransportGridState>::consume(&member.artifact, limits, ctx)?;
-        let outcome = VariableId::from_raw(member.outcome);
-        let means = result
-            .points()
-            .iter()
-            .map(|point| {
-                point
-                    .distribution()
-                    .ok_or_else(|| mismatch("a member grid has an unavailable point"))?
-                    .mean(outcome)
-                    .map_err(|e| mismatch(&e.to_string()))
-            })
-            .collect::<Result<Vec<f64>, _>>()?;
-        if means != member.means {
-            return Err(mismatch("a member mean does not replay"));
-        }
-        outcomes.push(MemberOutcome::Estimated(MemberEstimate {
-            expression: member.expression.clone(),
-            contrast: contrast_of(&means),
-            means,
-            contrast_interval: None,
-            artifact: Vec::new(),
-            outcome,
-        }));
-    }
-    let answer = summarise(&wire.levels, &outcomes, None)
-        .map_err(|_| mismatch("the members do not summarise"))?;
-    if answer.kind.label() != wire.kind {
-        return Err(mismatch("the answer kind does not replay"));
-    }
-    let targets: Vec<VariableId> =
-        wire.selection_targets.iter().copied().map(VariableId::from_raw).collect();
-    let rebuilt = identity_of(&report_identity, &wire.levels, &targets, &wire, &answer);
-    if rebuilt != stored {
-        return Err(mismatch("the identity does not replay"));
-    }
-    Ok(VerifiedEstimate {
-        answer,
-        report_identity,
-        members: wire.members.iter().map(|m| m.index as usize).collect(),
-    })
-}
+pub(crate) use verify::verify_trial_member_estimate;
+pub use verify::{VerifiedEstimate, verify_discovered_transport_estimate};
 
 fn contrast_of(means: &[f64]) -> Option<f64> {
     (means.len() >= 2).then(|| means[means.len() - 1] - means[0])
@@ -572,7 +479,7 @@ pub(crate) fn columns_of(
 fn invalid_evidence(message: String) -> DiscoveredTransportError {
     DiscoveredTransportError::Refused(DiscoveredTransportRefusal {
         code: antecedent_core::reason_code!("invalid_argument"),
-        detail: "discovered_transport.evidence_invalid",
+        detail: antecedent_core::reason_details::discovered_transport::EVIDENCE_INVALID,
         unresolved: Vec::new(),
         exhausted_search_bounds: 0,
         unknown_selection_targets: Vec::new(),
@@ -626,6 +533,7 @@ fn domain_cardinalities(
     variables: &BTreeSet<VariableId>,
 ) -> Result<BTreeMap<VariableId, u32>, DiscoveredTransportError> {
     let mut out = BTreeMap::new();
+    let mut joint_cells = 1_u64;
     for variable in variables {
         let mut max = 0.0_f64;
         for (name, table) in [("source", &columns.source), ("target", &columns.target)] {
@@ -653,17 +561,25 @@ fn domain_cardinalities(
                 max = max.max(value);
             }
         }
-        // Domains are at most `MAX_LEVELS_PER_VARIABLE`, which fits a `u32` exactly.
+        // A level count must fit the categorical domain's `u32` cardinality.
+        if max >= f64::from(u32::MAX) {
+            return Err(invalid_evidence(format!(
+                "variable v{} has an integer code too large for a categorical domain",
+                variable.raw()
+            )));
+        }
         #[allow(
             clippy::cast_possible_truncation,
             clippy::cast_sign_loss,
-            reason = "validated finite non-negative integer codes are bounded by the supported domain"
+            reason = "validated finite non-negative integer codes below `u32::MAX`"
         )]
         let levels = max as u32 + 1;
-        if levels > MAX_LEVELS_PER_VARIABLE {
+        joint_cells = joint_cells.saturating_mul(u64::from(levels.max(2)));
+        if joint_cells > MAX_JOINT_CELLS {
             return Err(invalid_evidence(format!(
-                "variable v{} takes {levels} levels; at most {MAX_LEVELS_PER_VARIABLE} are \
-                 supported",
+                "the joint domain of the measured variables exceeds {MAX_JOINT_CELLS} cells at \
+                 variable v{} ({levels} levels); the empirical joint is a dense table over the \
+                 product of the domains",
                 variable.raw()
             )));
         }
@@ -872,6 +788,54 @@ fn samples_of(
     Ok(samples)
 }
 
+/// Preserve typed operational failures at the discovered transport IO boundary.
+#[must_use]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the operation accepts owned input as part of its interface"
+)]
+#[doc(hidden)]
+pub fn discovered_transport_io_failure(error: IoError) -> DiscoveredTransportError {
+    use antecedent_core::execution::AdmissionError;
+    use antecedent_identify::discovered_transport::{
+        DiscoveredTransportOperational, DiscoveredTransportOperationalKind as K,
+    };
+    let (kind, code) = match &error {
+        IoError::Admission(AdmissionError::Cancelled) | IoError::StreamCancelled => {
+            (K::Cancelled, None)
+        }
+        IoError::Admission(
+            AdmissionError::ExceedsRemainder { .. }
+            | AdmissionError::Overflow
+            | AdmissionError::WaitBoundExceeded { .. },
+        )
+        | IoError::StreamBudgetRefused { .. } => (K::Resource, None),
+        IoError::Refused { code, .. } => (K::OtherRefused, Some(*code)),
+        _ => return DiscoveredTransportError::Estimation(error.to_string()),
+    };
+    DiscoveredTransportError::Operational(DiscoveredTransportOperational {
+        kind,
+        code,
+        message: error.to_string(),
+    })
+}
+
+/// A graph failure, keeping an exhausted search budget a resource refusal rather than an
+/// anonymous estimation message.
+pub(crate) fn graph_failure(error: &antecedent_graph::GraphError) -> DiscoveredTransportError {
+    use antecedent_identify::discovered_transport::{
+        DiscoveredTransportOperational, DiscoveredTransportOperationalKind as K,
+    };
+    if matches!(error, antecedent_graph::GraphError::SearchBudgetExhausted { .. }) {
+        return DiscoveredTransportError::Operational(DiscoveredTransportOperational {
+            kind: K::Resource,
+            code: None,
+            message: error.to_string(),
+        });
+    }
+    estimation_failure(error)
+}
+
 fn estimation_failure(error: &impl std::fmt::Display) -> DiscoveredTransportError {
     DiscoveredTransportError::Estimation(error.to_string())
 }
@@ -896,7 +860,7 @@ fn identify_member(
     settings: &Settings<'_>,
     ctx: &ExecutionContext,
 ) -> Result<Result<Identified, MemberOutcome>, DiscoveredTransportError> {
-    let invalid = |error: antecedent_graph::GraphError| estimation_failure(&error);
+    let invalid = |error: antecedent_graph::GraphError| graph_failure(&error);
     let diagram = SelectionDiagram::try_new(problem.graph.clone(), problem.selection.to_vec())
         .map_err(invalid)?;
     let query = ClassicalTransportQuery {
@@ -907,7 +871,7 @@ fn identify_member(
     };
     Ok(
         match identify_classical_transport(&diagram, &query, settings.evidence.sid_limits, ctx)
-            .map_err(|e| estimation_failure(&e))?
+            .map_err(DiscoveredTransportError::Identification)?
         {
             ClassicalTransportResult::Identified(_) => {
                 Ok(Identified { diagram, chosen_derivation: RefCell::new(None) })
@@ -982,7 +946,7 @@ fn evaluate_member(
             identify_catalog_transport_standardization_first
         };
         identify(diagram, &query, &catalog, settings.evidence.sid_limits, ctx)
-            .map_err(|error| estimation_failure(&error))?
+            .map_err(DiscoveredTransportError::Identification)?
     };
     drop(cached);
     let functional = match selected {
@@ -1044,7 +1008,7 @@ fn evaluate_member(
         Err(error) if is_evidence_gap(&error) => {
             return Ok(MemberOutcome::Unestimable { detail: error.to_string() });
         }
-        Err(error) => return Err(estimation_failure(&error)),
+        Err(error) => return Err(discovered_transport_io_failure(error)),
     };
     member_estimate(&result, problem.outcome, expression, export)
 }
@@ -1080,7 +1044,7 @@ fn member_estimate(
         None
     };
     let artifact =
-        if export { result.export().map_err(|e| estimation_failure(&e))? } else { Vec::new() };
+        if export { result.export().map_err(discovered_transport_io_failure)? } else { Vec::new() };
     Ok(MemberOutcome::Estimated(MemberEstimate {
         expression,
         contrast: contrast_of(&means),
@@ -1092,11 +1056,17 @@ fn member_estimate(
 }
 
 /// Rows of every column at the drawn time indices.
-fn gathered(table: &Columns, times: &[u32]) -> Columns {
+fn gathered(table: &Columns, times: &[antecedent_data::GlobalId]) -> Columns {
     table
         .iter()
         .map(|(variable, column)| {
-            (*variable, times.iter().map(|t| column[*t as usize]).collect::<Vec<_>>())
+            (
+                *variable,
+                times
+                    .iter()
+                    .map(|t| column[usize::try_from(t.get()).expect("row id")])
+                    .collect::<Vec<_>>(),
+            )
         })
         .collect()
 }
@@ -1128,19 +1098,25 @@ fn blocked_contrast_interval(
     let requested = settings.evidence.bootstrap_replicates;
     let rows = |table: &Columns| table.values().next().map_or(0, Vec::len);
     let plan = antecedent_data::ResamplingPlan::CircularBlock { length: length as usize };
-    let draw = |population: u64, replicate: u32, n: usize| -> Option<Vec<u32>> {
-        let mut rng = ctx.rng.stream_for(
-            antecedent_core::StreamDomain::Transport,
-            (0x626c_6f63_u64 << 32) | (population << 24) | u64::from(replicate),
-        );
-        let mut times = Vec::new();
-        antecedent_data::fill_resample_indexes(plan, n, &mut rng, &mut times).ok()?;
-        Some(times)
-    };
+    let draw =
+        |population: u64, replicate: u32, n: usize| -> Option<Vec<antecedent_data::GlobalId>> {
+            let mut rng = ctx.rng.stream_for(
+                antecedent_core::StreamDomain::Transport,
+                (0x626c_6f63_u64 << 32) | (population << 24) | u64::from(replicate),
+            );
+            let mut times = Vec::new();
+            antecedent_data::fill_resample_indexes(plan, n, &mut rng, &mut times).ok()?;
+            Some(times)
+        };
     let mut contrasts = Vec::new();
     for replicate in 0..requested {
         if ctx.cancellation.is_cancelled() {
-            return Err(DiscoveredTransportError::Estimation("cancelled".to_owned()));
+            return Err(DiscoveredTransportError::Operational(
+                antecedent_identify::discovered_transport::DiscoveredTransportOperational {
+                    kind: antecedent_identify::discovered_transport::DiscoveredTransportOperationalKind::Cancelled,
+                    code: None, message: "cancelled".into(),
+                },
+            ));
         }
         let (Some(source_times), Some(target_times)) =
             (draw(0, replicate, rows(&columns.source)), draw(1, replicate, rows(&columns.target)))
@@ -1153,10 +1129,9 @@ fn blocked_contrast_interval(
         };
         if let MemberOutcome::Estimated(estimate) =
             evaluate_member(identified, problem, &resampled, settings, 0, false, ctx)?
+            && let Some(contrast) = estimate.contrast.filter(|c| c.is_finite())
         {
-            if let Some(contrast) = estimate.contrast.filter(|c| c.is_finite()) {
-                contrasts.push(contrast);
-            }
+            contrasts.push(contrast);
         }
     }
     let ok = u32::try_from(contrasts.len()).unwrap_or(u32::MAX);
@@ -1203,7 +1178,7 @@ pub(crate) fn estimate_class(
     };
     if status == EnvelopeStatus::Partial {
         return Err(refuse(
-            "discovered_transport.class_enumeration_partial",
+            antecedent_core::reason_details::discovered_transport::CLASS_ENUMERATION_PARTIAL,
             Vec::new(),
             "the enumeration of the class did not finish, so no class-wide answer is made"
                 .to_owned(),
@@ -1265,20 +1240,20 @@ pub(crate) fn estimate_class(
             .collect();
         let agree = estimated.len() == members.len()
             && estimated.windows(2).all(|w| w[0].1.expression == w[1].1.expression);
-        if settings.evidence.bootstrap_replicates > 0 && agree {
-            if let Some((index, _)) = estimated.first() {
-                if let Ok(identified) = identify_member(&problems[*index], settings, ctx)? {
-                    interval = blocked_contrast_interval(
-                        &identified,
-                        &problems[*index],
-                        columns,
-                        settings,
-                        length,
-                        ctx,
-                    )?
-                    .map(|(low, high, _)| (low, high));
-                }
-            }
+        if settings.evidence.bootstrap_replicates > 0
+            && agree
+            && let Some((index, _)) = estimated.first()
+            && let Ok(identified) = identify_member(&problems[*index], settings, ctx)?
+        {
+            interval = blocked_contrast_interval(
+                &identified,
+                &problems[*index],
+                columns,
+                settings,
+                length,
+                ctx,
+            )?
+            .map(|(low, high, _)| (low, high));
         }
     }
     let coverage = EmpiricalTableOptions::default().coverage_level;
@@ -1293,13 +1268,13 @@ pub(crate) fn estimate_class(
                 members.iter().any(|m| matches!(m, MemberOutcome::Unidentified { .. }));
             let (detail, remedy) = if unidentified {
                 (
-                    "discovered_transport.class_not_identified",
+                    antecedent_core::reason_details::discovered_transport::CLASS_NOT_IDENTIFIED,
                     "the effect is not identified in every member of the class; the members it \
                      is not identified in are named, and no point or range is offered",
                 )
             } else {
                 (
-                    "discovered_transport.member_not_estimable",
+                    antecedent_core::reason_details::discovered_transport::MEMBER_NOT_ESTIMABLE,
                     "a member is identified but the evidence cannot supply a factor its formula \
                      needs",
                 )
@@ -1434,7 +1409,7 @@ pub(crate) fn estimate_selected_discovered_transport(
             report.selection_targets(),
             refined_identity.is_some(),
         )
-        .map_err(|e| estimation_failure(&e))?;
+        .map_err(|e| graph_failure(&e))?;
         let selection: Arc<[VariableId]> = report
             .selection_targets()
             .iter()
@@ -1609,8 +1584,20 @@ mod tests {
         for offset in [0, 1] {
             // A non-permutation resample changes source empirical probabilities; no fitted
             // laws or row snapshots may be reused merely because the causal graph is fixed.
-            let source_indices: Vec<u32> = (0..40).map(|i| (2 * i + offset) % 40).collect();
-            let target_indices: Vec<u32> = (0..10).map(|i| (2 * i + offset) % 10).collect();
+            let source_indices: Vec<antecedent_data::GlobalId> = (0..40u64)
+                .map(|i| {
+                    antecedent_data::GlobalId::new(
+                        (2 * i + u64::try_from(offset).expect("offset")) % 40,
+                    )
+                })
+                .collect();
+            let target_indices: Vec<antecedent_data::GlobalId> = (0..10u64)
+                .map(|i| {
+                    antecedent_data::GlobalId::new(
+                        (2 * i + u64::try_from(offset).expect("offset")) % 10,
+                    )
+                })
+                .collect();
             let resampled = EvidenceColumns {
                 source: gathered(&columns.source, &source_indices),
                 target: gathered(&columns.target, &target_indices),

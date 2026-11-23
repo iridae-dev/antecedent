@@ -1,0 +1,9 @@
+# Upstream packages that dependency manifests must not declare.
+# scripts/gate_upstream_names.py reads Cargo.toml and pyproject.toml dependency
+# tables and requirements*.txt package names only; it reads no comments, docs or
+# free-text fields.
+
+names = ["dowhy", "tigramite"]
+
+# Manifests that may declare a package in `names`.
+exact = []

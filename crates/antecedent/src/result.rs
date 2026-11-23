@@ -1,6 +1,30 @@
-//! Analysis result artifact.
+//! [`StudyResult`], what [`crate::Study::run`] returns, and the typed estimates of each query
+//! family.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+//! A result carries the identification, the estimand, the primary estimate and its
+//! uncertainty, the family-specific payload ([`ResultPayload`]), refutation and predictive-check
+//! reports, diagnostics, the support status of the cell that ran, and the provenance of the
+//! method. Read the support status and the interval's calibration status before using a
+//! number.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+mod bindings;
+mod missing_data;
+mod structural;
+mod uncertainty;
+pub use missing_data::{
+    ImputationExtra, ImputationReport, ImputationVectorReport, ImputationWald, MissingDataReport,
+};
+pub use structural::{
+    StructuralAggregationPolicy, StructuralResponseAtom, StructuralResponseMixture,
+    StructuralWeightBasis,
+};
+pub(crate) use uncertainty::RESPONSE_BOOTSTRAP_SE;
+pub use uncertainty::{
+    IntervalBinding, PERCENTILE_95_MIN_REPLICATES, PublishedScalarUncertainty,
+    REPORTED_SE_INTERVAL_LEVEL, circular_block_dependence, reported_se_interval_z,
+};
 
 use antecedent_attribution::{
     AnomalyScores, ChangeAttributionResult, MechanismChangeDetection, UnitChangeResult,
@@ -69,9 +93,13 @@ pub struct RandomizedEffectEstimate {
     pub first_stage_effect: Option<f64>,
     /// Row-aligned treatment receipt when estimating CACE/LATE.
     pub received_treatment: Option<Arc<[bool]>>,
-    /// Exact two-sided Fisher sharp-null p-value for a complete design.
+    /// Two-sided Fisher sharp-null p-value for a complete design: exact when every fixed-count
+    /// assignment was enumerated, a Monte Carlo permutation p-value otherwise (see
+    /// [`Self::randomization_allocations`]).
     pub randomization_p_value: Option<f64>,
-    /// Number of fixed-count assignments exhaustively enumerated.
+    /// Number of fixed-count assignments the p-value averages over: all `C(n, treated)` of them
+    /// when they were exhaustively enumerated, otherwise the sampled assignments plus the
+    /// observed one.
     pub randomization_allocations: Option<u64>,
     /// Second-factor marginal assignment effect in a fixed 2×2 factorial design.
     pub second_factor_effect: Option<f64>,
@@ -88,7 +116,9 @@ pub struct RandomizedEffectEstimate {
     )]
     pub multi_arm_values: Arc<[(Arc<str>, f64, f64, usize)]>,
     /// Design variance or conservative bound as labeled by `uncertainty`;
-    /// switchback uses an independent-sequence sandwich estimate.
+    /// for Bernoulli HT this observed-arm estimator is conservative in randomization
+    /// expectation and need not exceed the true variance for every assignment.
+    /// Switchback uses an independent-sequence sandwich estimate.
     pub variance_upper_bound: f64,
     /// Primary contrast SE when a calibrated pointwise interval is reported.
     pub standard_error: Option<f64>,
@@ -147,6 +177,8 @@ pub struct PanelDidEstimate {
     pub event_time_intervals_95: Arc<[Option<[f64; 2]>]>,
     /// Propensity range, effective control count, and caller cross-fit declaration.
     pub augmented: Option<(f64, f64, f64, bool)>,
+    /// Completed whole-cluster refits behind a resample interval; `None` without a resample.
+    pub replicates_ok: Option<u32>,
 }
 
 /// Balanced-panel synthetic-control point result and donor-support diagnostics.
@@ -182,6 +214,24 @@ pub struct SyntheticControlEstimate {
     pub outcome_model_correction: Option<f64>,
     /// Positive ridge penalty used for the donor outcome model.
     pub augmentation_ridge: Option<f64>,
+    /// What an unbalanced panel supplied, when it was read over the treated unit's observed
+    /// window.
+    pub observed_window: Option<ObservedWindowReport>,
+}
+
+/// The support an observed-window synthetic control read of an unbalanced panel.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ObservedWindowReport {
+    /// Pre-intervention periods the treated unit is observed in; the weights are fitted here.
+    pub pre_periods: Arc<[i64]>,
+    /// Post-intervention periods the treated unit is observed in; the effect averages these.
+    pub post_periods: Arc<[i64]>,
+    /// Donors observed in every window period.
+    pub donors_used: usize,
+    /// Units excluded for missing part of the window, with the number of window periods missed.
+    pub donors_dropped: Arc<[(Arc<str>, usize)]>,
+    /// Observed unit-periods no estimate read.
+    pub unread_rows: usize,
 }
 
 /// Conditional response grid and optional fixed kernel-smoothed dose-policy value.
@@ -224,6 +274,9 @@ pub struct SyntheticDidEstimate {
     pub randomization_null_effect: Option<f64>,
     /// Absolute synthetic-DiD contrast for every candidate treated unit.
     pub randomization_statistics: Arc<[(Arc<str>, f64)]>,
+    /// Rounding tolerance within which a candidate ties the observed statistic; absent means
+    /// strict ranking.
+    pub randomization_ranking_tolerance: Option<f64>,
 }
 
 /// Local fuzzy-discontinuity or regression-kink ratio with fixed-bandwidth inference.
@@ -259,12 +312,226 @@ pub struct LocalPolynomialRatioEstimate {
     pub uncertainty: Arc<str>,
 }
 
+/// Excursion contrasts of a sequentially randomized unit-period design, or static-regime
+/// survival on subject trajectories (unsupported, uncalibrated).
+///
+/// One entry per named coordinate. Frequentist results carry standard errors and pointwise
+/// intervals (and, for several contrasts or a dose grid, a simultaneous band); Bayesian results
+/// carry equal-tailed credible intervals of the retained draws, which ride on the result's
+/// posterior. No coverage of any interval has been measured, and the route is not supported.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TemporalDesignEstimate {
+    /// Design: `two_arm`, `multi_arm`, `categorical`, `factorial`, `interference`, `dose`,
+    /// `regime_survival` or `observational_excursion`.
+    pub design: Arc<str>,
+    /// Outcome functional: `mean`, `quantile:<level>`, the dose target, or `survival`.
+    pub functional: Arc<str>,
+    /// Coordinate names.
+    pub coordinates: Arc<[Arc<str>]>,
+    /// Point estimate (frequentist) or posterior mean (Bayesian) per coordinate.
+    pub estimate: Arc<[f64]>,
+    /// Standard error (frequentist) or posterior standard deviation (Bayesian).
+    pub standard_error: Arc<[f64]>,
+    /// Lower endpoint of each pointwise 95% interval.
+    pub lower: Arc<[f64]>,
+    /// Upper endpoint of each pointwise 95% interval.
+    pub upper: Arc<[f64]>,
+    /// Row-major covariance across coordinates, when the procedure produced one.
+    pub covariance: Option<Arc<[f64]>>,
+    /// Coordinates a simultaneous band covers (empty when there is none).
+    pub band_coordinates: Arc<[usize]>,
+    /// Sup-t critical value of the band.
+    pub band_critical_value: Option<f64>,
+    /// Lower band envelope, one per band coordinate.
+    pub band_lower: Option<Arc<[f64]>>,
+    /// Upper band envelope, one per band coordinate.
+    pub band_upper: Option<Arc<[f64]>>,
+    /// Holm-adjusted two-sided p-values of the contrast family, when the design has one.
+    pub holm_adjusted_p: Option<Arc<[f64]>>,
+    /// Worst-case smoothing bias per coordinate under the declared curvature bound.
+    pub smoothing_bias_bound: Option<Arc<[f64]>>,
+    /// Decision-outcome pairs (person-periods for regime survival).
+    pub pairs: u64,
+    /// Independent units or clusters.
+    pub clusters: u64,
+    /// Decisions whose outcome period was not observed.
+    pub unpaired: u64,
+    /// Smallest realized assignment (or regime-consistent) probability.
+    pub minimum_probability: f64,
+    /// Successful and failed whole-procedure bootstrap replicates, when the interval is a
+    /// bootstrap interval.
+    pub replicates: Option<(u64, u64)>,
+    /// Posterior draws, for a Bayesian result.
+    pub draws: Option<u64>,
+    /// How the uncertainty was computed.
+    pub uncertainty: Arc<str>,
+    /// Calibration status of every interval: always `not_measured`.
+    pub calibration: Arc<str>,
+    /// Always `false`: a fit that meets a graphless support row states it in the result's
+    /// `estimate.temporal_design.graphless_support` diagnostic.
+    pub supported: bool,
+}
+
+/// Effects of a rollout design with the uncertainty of its whole-procedure path
+/// (calibration `not_measured`; supported only where a support row admits the fit).
+///
+/// Carries a heterogeneity-robust or covariate-adjusted difference in differences (group-time,
+/// aggregated and pre-trend effects), a conformal or multi-unit synthetic control (per-period
+/// or per-unit effects), or a local ratio with a selected bandwidth or a calendar-time running
+/// variable. The first effect is the scalar summary. Pointwise intervals and simultaneous bands
+/// come from the design's own procedure (whole-unit resample, conformal test inversion,
+/// placebo variance or block bootstrap), each refitting the whole estimator. A local-ratio
+/// design states support when a `local_polynomial_ratio` support row admits it; the other
+/// designs are not supported.
+#[derive(Clone, Debug, PartialEq)]
+pub struct QuasiRolloutEstimate {
+    /// Design: `staggered_did`, `covariate_adjusted_did`, `conformal_synthetic_control`,
+    /// `multi_unit_synthetic_control`, `multi_unit_synthetic_did`, `fuzzy_rd`,
+    /// `regression_kink`, `temporal_fuzzy_rd` or `temporal_regression_kink`.
+    pub design: Arc<str>,
+    /// Estimator, comparison, adjustment and aggregation, as `snake_case` words.
+    pub method: Arc<str>,
+    /// Reported effects; the first is the scalar summary.
+    pub effects: Arc<[antecedent_estimate::rollout_resampling::DesignEffect]>,
+    /// How the uncertainty was computed.
+    pub uncertainty: Arc<str>,
+    /// Calibration status of every interval: always `not_measured`.
+    pub calibration: Arc<str>,
+    /// Requested replicates (zero for a conformal inversion).
+    pub replicates_requested: u32,
+    /// Replicates whose refit produced every summarized quantity.
+    pub replicates_ok: u32,
+    /// Replicates whose refit did not.
+    pub replicates_failed: u32,
+    /// Sup-t critical value of the simultaneous band, when one was formed.
+    pub critical_value: Option<f64>,
+    /// Named numeric diagnostics (pre-trend statistic, two-way fixed-effects comparison,
+    /// density test, covariate balance, selected bandwidth).
+    pub diagnostics: Arc<[(Arc<str>, f64)]>,
+    /// Whether a support row admits the design, interval procedure and observed support.
+    /// A design without a row, and a Bayesian section (whose row is stated in a diagnostic),
+    /// reports `false`.
+    pub supported: bool,
+}
+
+impl QuasiRolloutEstimate {
+    /// The scalar summary.
+    #[must_use]
+    pub fn overall(&self) -> Option<&antecedent_estimate::rollout_resampling::DesignEffect> {
+        self.effects.first()
+    }
+
+    /// The named numeric diagnostic, when present.
+    #[must_use]
+    pub fn diagnostic(&self, name: &str) -> Option<f64> {
+        self.diagnostics.iter().find(|(key, _)| key.as_ref() == name).map(|(_, value)| *value)
+    }
+}
+
+/// Within-period history-matched contrast (calibration `not_measured`). A fit whose period
+/// interval meets its support row states it in the result's
+/// `estimate.history_match.graphless_support` diagnostic.
+///
+/// The matched pairs are retained so a loader recomputes every summary.
+#[derive(Clone, Debug, PartialEq)]
+pub struct HistoryMatchEstimate {
+    /// Sampling-weighted mean of treated-minus-matched-control outcomes.
+    pub contrast: f64,
+    /// Abadie-Imbens standard error; absent when a matched unit or donor has no same-arm
+    /// neighbour in its period.
+    pub standard_error: Option<f64>,
+    /// Sum of sampling weights on the matched treated units.
+    pub weight_total: f64,
+    /// Row indices of matched treated units.
+    pub matched_queries: Arc<[usize]>,
+    /// Row index of the control each matched query used.
+    pub matched_donors: Arc<[usize]>,
+    /// Outcome difference of each matched pair.
+    pub differences: Arc<[f64]>,
+    /// Sampling weight of each matched treated unit.
+    pub pair_weights: Arc<[f64]>,
+    /// Within-arm outcome variance estimate of each matched treated unit, in pair order; empty
+    /// exactly when `standard_error` is absent.
+    pub query_variances: Arc<[f64]>,
+    /// Within-arm outcome variance estimate of the control each matched query used, in pair
+    /// order; empty exactly when `standard_error` is absent.
+    pub donor_variances: Arc<[f64]>,
+    /// Treated rows with no control inside their period and the caliper.
+    pub unmatched_treated: Arc<[usize]>,
+    /// Periods in which at least one treated unit matched.
+    pub periods_matched: usize,
+    /// Calendar period of each matched treated unit, in pair order.
+    pub pair_periods: Arc<[i64]>,
+    /// Newey-West standard error of the contrast over the matched periods, which allows serial
+    /// dependence between periods; absent when fewer than two periods hold a match or a matched
+    /// weight is not positive.
+    pub serial_standard_error: Option<f64>,
+    /// Lower endpoint of the 95% fixed-b interval around the contrast with
+    /// `serial_standard_error` (Kiefer-Vogelsang critical value at the bandwidth's share of the
+    /// matched periods).
+    pub interval_lower: Option<f64>,
+    /// Upper endpoint of that interval.
+    pub interval_upper: Option<f64>,
+    /// Bartlett truncation lag of the Newey-West estimate; zero when it is absent.
+    pub serial_bandwidth: usize,
+    /// The caliper, when one was declared.
+    pub caliper: Option<f64>,
+    /// Uncertainty semantics.
+    pub uncertainty: Arc<str>,
+}
+
+/// Observational two-decision contrast of two static regimes (calibration `not_measured`). A
+/// fit whose normal interval meets its support row states it in the result's
+/// `estimate.sequential_contrast.graphless_support` diagnostic; a posterior states its row in
+/// the design-posterior diagnostic.
+///
+/// The cross-fit scores are retained so a loader recomputes every summary.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SequentialContrastEstimate {
+    /// Active regime actions.
+    pub active_regime: [u8; 2],
+    /// Control regime actions.
+    pub control_regime: [u8; 2],
+    /// Cross-fit active minus control.
+    pub contrast: f64,
+    /// Cross-fit active-regime mean.
+    pub active_mean: f64,
+    /// Cross-fit control-regime mean.
+    pub control_mean: f64,
+    /// Subjects scored.
+    pub evaluated_rows: u64,
+    /// Smallest regime-action probability used in a score.
+    pub minimum_action_probability: f64,
+    /// Declared positivity floor.
+    pub min_probability: f64,
+    /// Standard error of the mean contrast score (normal-interval report).
+    pub standard_error: Option<f64>,
+    /// Normal interval (normal-interval report).
+    pub interval: Option<[f64; 2]>,
+    /// Symmetric posterior interval centered on the cross-fit contrast.
+    pub posterior_symmetric_interval: Option<[f64; 2]>,
+    /// Nominal central coverage of the interval.
+    pub coverage: f64,
+    /// Cross-fit active score of each subject.
+    pub active_scores: Arc<[f64]>,
+    /// Cross-fit control score of each subject.
+    pub control_scores: Arc<[f64]>,
+    /// Active minus control score of each subject.
+    pub contrast_scores: Arc<[f64]>,
+    /// Uncertainty semantics.
+    pub uncertainty: Arc<str>,
+    /// Nuisance fits computed.
+    pub fits_computed: u64,
+    /// Nuisance fits reused.
+    pub fits_reused: u64,
+}
+
 /// Longitudinal regime value or additive MSM summary over subject histories.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LongitudinalRegimeEstimate {
     /// Named method: IPW, g-formula, sequential DR, or additive MSM.
     pub method: Arc<str>,
-    /// Exact graphless longitudinal license after observed support and interval checks.
+    /// Exact graphless longitudinal support after observed support and interval checks.
     pub graphless_support_status: Option<crate::support::CellStatus>,
     /// Identity of the caller rule whose actions were frozen in the query.
     pub rule_id: Option<Arc<str>>,
@@ -362,8 +629,8 @@ pub struct SurvivalDifferenceBand {
     pub upper: Arc<[f64]>,
     /// Bootstrap replicates satisfying the original estimator support contract.
     pub replicates_ok: u32,
-    /// Exact graphless simultaneous-band license, when the published band and
-    /// arm support match a licensed band row. Absent for off-axis bands.
+    /// Exact graphless simultaneous-band support, when the published band and
+    /// arm support match a supported band row. Absent for off-axis bands.
     pub support_status: Option<crate::support::CellStatus>,
 }
 
@@ -396,7 +663,7 @@ pub struct SurvivalEstimate {
     pub bootstrap_replicates_requested: Option<u32>,
     /// Draws satisfying the estimator's original support contract.
     pub bootstrap_replicates_ok: Option<u32>,
-    /// Realized control and treated subject counts for an exact graphless license.
+    /// Realized control and treated subject counts for an exact graphless support.
     pub assignment_counts: [usize; 2],
     /// Caller-supplied fixed censoring function, when the IPCW route was used.
     pub censoring_survival_provenance: Option<Arc<str>>,
@@ -438,11 +705,58 @@ pub struct RowWeightsBinding {
 }
 
 impl StudyResult {
+    pub(crate) fn invalidate_authority(&mut self) {
+        if matches!(&self.authority, RuntimeRefutationAuthority::Sealed { .. }) {
+            self.authority = RuntimeRefutationAuthority::Invalidated;
+        }
+    }
+
+    /// Record bytes borrowed from host-owned input buffers during ingestion.
+    ///
+    /// This is host performance accounting; it does not alter the executed target,
+    /// scientific result, or checked refutation authority.
+    pub fn set_borrowed_input_bytes(&mut self, bytes: Option<u64>) {
+        self.view.performance.bytes_borrowed = bytes;
+    }
+
+    /// Whether the response's retained checks describe individual completions
+    /// rather than establishing a verdict for the whole response.
+    #[must_use]
+    pub fn response_checks_are_scoped(&self) -> bool {
+        use RuntimeRefutationAuthority::Sealed;
+        use RuntimeRefutationOrigin::{Route, ScopedCompletion};
+        if self.refutations.is_empty() || self.response().is_none() {
+            return false;
+        }
+        matches!(&self.authority, Sealed { origin: ScopedCompletion, .. })
+            || (matches!(&self.authority, Sealed { origin: Route, .. })
+                && self.structural_response.is_some())
+    }
+
+    /// Reservation held with this result's retained output, when accounted by its engine.
+    /// This is admitted capacity, not a measurement of process resident memory.
+    #[must_use]
+    pub fn retained_admitted_bytes(&self) -> Option<u64> {
+        if self.retained_resources.is_empty() {
+            return None;
+        }
+        self.retained_resources
+            .iter()
+            .try_fold(0_u64, |bytes, lease| bytes.checked_add(lease.remainder().bytes()))
+    }
+
+    /// The posterior predictive replicates the study retained at fit time, when it declared
+    /// bounds for them with [`crate::StudyBuilder::bayesian_predictive_replicates`].
+    #[must_use]
+    pub fn predictive_replicates(&self) -> Option<&crate::analysis::RetainedPredictiveReplicates> {
+        self.predictive_replicates.as_deref()
+    }
+
     /// Target population a row-weight retarget recorded, when it differs from
     /// the prepared query.
     #[must_use]
     pub fn retarget_population(&self) -> Option<antecedent_core::TargetPopulation> {
-        self.row_weights.as_ref().map(RowWeightsBinding::population)
+        self.extras.row_weights.as_ref().map(RowWeightsBinding::population)
     }
 }
 
@@ -455,161 +769,6 @@ impl RowWeightsBinding {
             depends_on: std::sync::Arc::clone(&self.depends_on),
         }
     }
-}
-
-/// How an execution treated missing values: the policy, the assumption that policy needs,
-/// and the row accounting.
-///
-/// Present on every result whose route reads rows of a table, including results that dropped
-/// nothing, so a reader never has to infer that no row was removed.
-#[derive(Clone, Debug, Eq, PartialEq)]
-#[non_exhaustive]
-pub struct MissingDataReport {
-    /// Rows total, kept and dropped, per variable and per reason, with the dropped-row digest.
-    pub accounting: antecedent_data::RowAccounting,
-    /// Whether the caller declared the policy; `false` when the route's own default applied.
-    pub declared: bool,
-    /// Names of the covariates of the observation model, for responder weighting.
-    pub covariates: std::sync::Arc<[std::sync::Arc<str>]>,
-    /// The missingness assumption the policy needs, as published in the missing-data guide.
-    pub assumption: std::sync::Arc<str>,
-    /// Whether the policy differs from the route's default. Only then does a claim over the
-    /// result carry the policy, its assumption and the dropped-row digest, so default claims
-    /// keep their identity.
-    pub non_default: bool,
-}
-
-impl MissingDataReport {
-    /// The policy the accounting was produced under.
-    #[must_use]
-    pub fn policy(&self) -> antecedent_data::MissingPolicy {
-        self.accounting.policy
-    }
-}
-
-/// Meaning of structural atom weights retained on a response result.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[non_exhaustive]
-pub enum StructuralWeightBasis {
-    /// Probabilities supplied by a graph posterior.
-    PosteriorProbability,
-    /// Enumeration weights over CPDAG/PAG completions; not posterior probabilities.
-    CompletionEnumeration,
-    /// Caller-declared mass over class members. Not a graph posterior and not
-    /// completion enumeration.
-    CallerSuppliedClassPrior,
-}
-
-impl StructuralWeightBasis {
-    /// Snake-case name used by the bindings and the result artifact wire format.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::PosteriorProbability => "posterior_probability",
-            Self::CompletionEnumeration => "completion_enumeration",
-            Self::CallerSuppliedClassPrior => "caller_supplied_class_prior",
-        }
-    }
-}
-
-impl From<StructuralWeightBasis> for antecedent_io::StructuralWeightBasisWire {
-    fn from(basis: StructuralWeightBasis) -> Self {
-        match basis {
-            StructuralWeightBasis::PosteriorProbability => Self::PosteriorProbability,
-            StructuralWeightBasis::CompletionEnumeration => Self::CompletionEnumeration,
-            StructuralWeightBasis::CallerSuppliedClassPrior => Self::CallerSuppliedClassPrior,
-        }
-    }
-}
-
-/// How identified structural atoms may be combined.
-///
-/// Mass-weighting is licensed only when every contributing atom names the same
-/// estimand. Completion enumeration is a [`StructuralWeightBasis`], not a
-/// reason to treat class members as posterior probability.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[non_exhaustive]
-pub enum StructuralAggregationPolicy {
-    /// Identified atoms share one estimand identity; a probability-weighted
-    /// mean of their values is the same functional.
-    SameEstimandWeightedMean,
-    /// Identified atoms share one partially identified estimand; publish the
-    /// identified set, not a fake scalar mixture.
-    IdentifiedSetEnvelope,
-    /// Identified atoms name different estimands. No scalar mixture.
-    GraphDependentAtoms,
-}
-
-impl StructuralAggregationPolicy {
-    /// Snake-case name used in diagnostics.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::SameEstimandWeightedMean => "same_estimand_weighted_mean",
-            Self::IdentifiedSetEnvelope => "identified_set_envelope",
-            Self::GraphDependentAtoms => "graph_dependent_atoms",
-        }
-    }
-}
-
-/// One structural atom in a graph-dependent response.
-#[derive(Clone, Debug)]
-pub struct StructuralResponseAtom {
-    /// Stable key within this result.
-    pub graph_key: u64,
-    /// Raw atom weight in the declared basis.
-    pub weight: f64,
-    /// Structural identification/evaluation status.
-    pub status: IdentificationStatus,
-    /// Numerical response when identified and evaluable.
-    pub value: Option<ResponseValue>,
-    /// Completion-conditional posterior, without assigning structural probabilities.
-    pub posterior: Option<CausalPosterior>,
-    /// Full function-valued atom, including its conditional sampling uncertainty.
-    pub response: Option<CausalResponse>,
-}
-
-/// Structural uncertainty retained separately from sampling uncertainty.
-#[derive(Clone, Debug)]
-pub struct StructuralResponseMixture {
-    /// Interpretation of [`StructuralResponseAtom::weight`].
-    pub weight_basis: StructuralWeightBasis,
-    /// Every examined structural atom, including nonidentified/unevaluable atoms.
-    pub atoms: Vec<StructuralResponseAtom>,
-    /// Fraction of total weight with an evaluable identified response.
-    pub identified_mass: f64,
-    /// Fraction proved or conservatively treated as structurally unidentified.
-    pub unidentified_mass: f64,
-    /// Fraction identified in theory but not evaluable by the selected estimator.
-    pub unevaluable_mass: f64,
-    /// Fraction on identified atoms that were never evaluated because the
-    /// Interactive latency tier's graph budget left them out of the stratified
-    /// subsample. Neither unidentified nor a failed estimate; the four masses
-    /// sum to one. Zero outside the Interactive tier.
-    pub subsampled_out_mass: f64,
-    /// Pointwise range over identified atom point responses.
-    pub identified_set: Option<ResponseEnvelope>,
-    /// Interval for a scalar [`Self::identified_set`] that adds sampling
-    /// uncertainty to the point bounds. Published on class-aware
-    /// temporal Pulse / Sustained effects. Frequentist: an Imbens–Manski interval
-    /// with per-completion endpoints from the shared circular-block replicates,
-    /// covering the true effect with asymptotic probability at least the stated
-    /// level whenever it is one retained identified completion's effect.
-    /// Bayesian: product-posterior envelope quantiles from independently seeded
-    /// per-completion posterior draws (every retained completion's posterior puts
-    /// at most `1 − Φ(c)` of its mass outside each endpoint). When the completion
-    /// enumeration was capped the interval is still published, flagged
-    /// `truncated`, with a warning diagnostic.
-    pub identified_set_interval: Option<antecedent_estimate::IdentifiedSetInterval>,
-    /// Probability-weighted summary when a scalar `SameEstimandWeightedMean` mix is
-    /// published (`E[τ | identified]`). Retained unidentified mass does not
-    /// suppress this field; consumers should read `identification.status` and
-    /// `unidentified_mass` alongside it.
-    pub conditional_on_identified: Option<ResponseValue>,
-    /// Whether reported mass covers the full class rather than a capped subset.
-    pub full_mass_scope: bool,
-    /// Atoms whose identification search was capped before a determination.
-    pub truncated_atoms: usize,
 }
 
 /// One 95% pointwise interval for a declared interference exposure contrast.
@@ -632,9 +791,9 @@ pub struct InterferencePointwiseInterval {
 pub struct InterferenceInference {
     /// Construction identifier.
     pub method: &'static str,
-    /// Exact graphless interference license after observed cluster support and
+    /// Exact graphless interference support after observed cluster support and
     /// a published pointwise interval pass; `None` when the interval is withheld
-    /// or the design/exposure support does not match a licensed row.
+    /// or the design/exposure support does not match a supported row.
     pub graphless_support_status: Option<crate::support::CellStatus>,
     /// Pointwise interval, when its support conditions pass.
     pub interval: Option<InterferencePointwiseInterval>,
@@ -649,6 +808,11 @@ pub struct InterferenceInference {
     /// Clusters observed at the active exposure.
     pub to_exposed_clusters: usize,
 }
+
+/// The retained posterior of an unsupported Bayesian randomized-design row: coordinates, means,
+/// equal-tailed 95% credible intervals, the covariance of the joint draws and named summaries.
+/// Its uncertainty is `posterior` and its calibration `not_measured`; it is never supported.
+pub type PosteriorRowEstimate = antecedent_io::PosteriorRowWire;
 
 /// The typed answer of one query family, published beside a result's scalar
 /// estimate.
@@ -685,6 +849,9 @@ pub enum ResultPayload {
     },
     /// Unit-level ITE for a counterfactual query.
     Counterfactual(IteResult),
+    /// Unit-level contrasts of a counterfactual query with several outcomes, a joint baseline
+    /// or nested interventions.
+    CounterfactualContrasts(Box<crate::gcm::CounterfactualContrasts>),
     /// Anomaly scores for an anomaly-attribution query.
     Anomaly(Vec<AnomalyScores>),
     /// Change-attribution result.
@@ -718,8 +885,32 @@ pub enum ResultPayload {
     ContinuousDoseResponse(ContinuousDoseResponseEstimate),
     /// Randomized right-censored survival or competing-risk curve.
     Survival(SurvivalEstimate),
+    /// Unsupported Bayesian posterior of a randomized-design row (survival contrast, fixed
+    /// group-dose policy value): means, credible intervals and the joint covariance of the
+    /// retained draws, with calibration `not_measured`.
+    PosteriorRow(PosteriorRowEstimate),
     /// Prespecified longitudinal regime value.
     LongitudinalRegime(LongitudinalRegimeEstimate),
+    /// Observational two-decision regime contrast.
+    SequentialContrast(SequentialContrastEstimate),
+    /// Within-period history-matched contrast.
+    HistoryMatch(HistoryMatchEstimate),
+    /// Excursion contrasts of a sequentially randomized design, or regime survival.
+    TemporalDesign(Box<TemporalDesignEstimate>),
+    /// Sharp bounds on the average effect under a binary instrument: an identified set, never a
+    /// point.
+    IvBounds(Box<antecedent_estimate::IvBoundsEstimate>),
+    /// Noncausal association of the observed data: never an intervention effect, never a
+    /// ranking of actions.
+    Association(Box<crate::analysis::association::AssociationPayload>),
+    /// Rollout design effects with whole-procedure uncertainty.
+    QuasiRollout(Box<QuasiRolloutEstimate>),
+    /// Structure, structure class or structure posterior a compiled search returned.
+    Discovery(Box<crate::analysis::structure_route::DiscoveryPayload>),
+    /// Attribution on fitted mechanisms, with their selection record.
+    Attribution(Box<crate::analysis::structure_route::AttributionPayload>),
+    /// Simulation of fitted mechanisms, with their selection record.
+    Simulation(Box<crate::analysis::structure_route::SimulationPayload>),
 }
 
 impl ResultPayload {
@@ -761,150 +952,6 @@ impl ResultPayload {
         payload
     }
 
-    /// Function-valued response.
-    #[must_use]
-    pub const fn response(&self) -> Option<&CausalResponse> {
-        match self {
-            Self::Response(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The function-valued response, consuming the payload.
-    #[must_use]
-    pub fn into_response(self) -> Option<CausalResponse> {
-        match self {
-            Self::Response(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `distribution` payload by value.
-    #[must_use]
-    pub fn into_distribution(self) -> Option<InterventionalDistributionEstimate> {
-        match self {
-            Self::Distribution(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `counterfactual` payload by value.
-    #[must_use]
-    pub fn into_counterfactual(self) -> Option<IteResult> {
-        match self {
-            Self::Counterfactual(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `change_attribution` payload by value.
-    #[must_use]
-    pub fn into_change_attribution(self) -> Option<ChangeAttributionResult> {
-        match self {
-            Self::ChangeAttribution(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `unit_change` payload by value.
-    #[must_use]
-    pub fn into_unit_change(self) -> Option<UnitChangeResult> {
-        match self {
-            Self::UnitChange(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `transport` payload by value.
-    #[must_use]
-    pub fn into_transport(self) -> Option<TransportEffectEstimate> {
-        match self {
-            Self::Transport(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `randomized_effect` payload by value.
-    #[must_use]
-    pub fn into_randomized_effect(self) -> Option<RandomizedEffectEstimate> {
-        match self {
-            Self::RandomizedEffect(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `panel_did` payload by value.
-    #[must_use]
-    pub fn into_panel_did(self) -> Option<PanelDidEstimate> {
-        match self {
-            Self::PanelDid(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `synthetic_control` payload by value.
-    #[must_use]
-    pub fn into_synthetic_control(self) -> Option<SyntheticControlEstimate> {
-        match self {
-            Self::SyntheticControl(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `synthetic_did` payload by value.
-    #[must_use]
-    pub fn into_synthetic_did(self) -> Option<SyntheticDidEstimate> {
-        match self {
-            Self::SyntheticDid(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `local_polynomial_ratio` payload by value.
-    #[must_use]
-    pub fn into_local_polynomial_ratio(self) -> Option<LocalPolynomialRatioEstimate> {
-        match self {
-            Self::LocalPolynomialRatio(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `policy_value` payload by value.
-    #[must_use]
-    pub fn into_policy_value(self) -> Option<PolicyValueEstimate> {
-        match self {
-            Self::PolicyValue(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `continuous_dose_response` payload by value.
-    #[must_use]
-    pub fn into_continuous_dose_response(self) -> Option<ContinuousDoseResponseEstimate> {
-        match self {
-            Self::ContinuousDoseResponse(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `survival` payload by value.
-    #[must_use]
-    pub fn into_survival(self) -> Option<SurvivalEstimate> {
-        match self {
-            Self::Survival(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// The `longitudinal_regime` payload by value.
-    #[must_use]
-    pub fn into_longitudinal_regime(self) -> Option<LongitudinalRegimeEstimate> {
-        match self {
-            Self::LongitudinalRegime(value) => Some(value),
-            _ => None,
-        }
-    }
-
     /// The mediation decomposition by value.
     #[must_use]
     pub fn into_mediation(self) -> Option<TemporalMediationEstimate> {
@@ -939,15 +986,6 @@ impl ResultPayload {
         }
     }
 
-    /// Interventional distribution.
-    #[must_use]
-    pub const fn distribution(&self) -> Option<&InterventionalDistributionEstimate> {
-        match self {
-            Self::Distribution(value) => Some(value),
-            _ => None,
-        }
-    }
-
     /// Mediation decomposition.
     #[must_use]
     pub const fn mediation(&self) -> Option<&TemporalMediationEstimate> {
@@ -966,15 +1004,6 @@ impl ResultPayload {
         }
     }
 
-    /// Unit-level ITE.
-    #[must_use]
-    pub const fn counterfactual(&self) -> Option<&IteResult> {
-        match self {
-            Self::Counterfactual(value) => Some(value),
-            _ => None,
-        }
-    }
-
     /// Anomaly scores.
     #[must_use]
     pub fn anomaly(&self) -> Option<&[AnomalyScores]> {
@@ -984,38 +1013,11 @@ impl ResultPayload {
         }
     }
 
-    /// Change-attribution result.
-    #[must_use]
-    pub const fn change_attribution(&self) -> Option<&ChangeAttributionResult> {
-        match self {
-            Self::ChangeAttribution(value) => Some(value),
-            _ => None,
-        }
-    }
-
     /// Mechanism-change detections.
     #[must_use]
     pub fn mechanism_change(&self) -> Option<&[MechanismChangeDetection]> {
         match self {
             Self::MechanismChange(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Unit-change attribution.
-    #[must_use]
-    pub const fn unit_change(&self) -> Option<&UnitChangeResult> {
-        match self {
-            Self::UnitChange(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Transport estimate.
-    #[must_use]
-    pub const fn transport(&self) -> Option<&TransportEffectEstimate> {
-        match self {
-            Self::Transport(value) => Some(value),
             _ => None,
         }
     }
@@ -1037,103 +1039,139 @@ impl ResultPayload {
             _ => None,
         }
     }
+}
 
-    /// Randomized-experiment result.
-    #[must_use]
-    pub const fn randomized_effect(&self) -> Option<&RandomizedEffectEstimate> {
-        match self {
-            Self::RandomizedEffect(value) => Some(value),
-            _ => None,
-        }
+// A point-time completion witness. `atom_index` addresses the actual structural
+// response produced by this fit; its full digest is independent of enumeration order.
+#[derive(Clone, Debug)]
+pub(crate) struct TemporalResponseWitness {
+    pub(crate) horizon_index: usize,
+    pub(crate) horizon: u32,
+    pub(crate) atom_index: usize,
+    pub(crate) weight: f64,
+    pub(crate) completion_digest: [u8; 32],
+}
+
+#[derive(Debug)]
+pub(crate) struct TemporalResponseWitnessSet {
+    pub(crate) entries: Vec<TemporalResponseWitness>,
+    pub(crate) _leases: Vec<antecedent_core::execution::AdmissionLease>,
+}
+
+#[derive(Debug)]
+pub(crate) struct TemporalPosteriorWitnessMember {
+    pub(crate) outer_atom: u64,
+    pub(crate) outer_weight: f64,
+    pub(crate) witnesses: Arc<TemporalResponseWitnessSet>,
+    pub(crate) structural: StructuralResponseMixture,
+    pub(crate) _resources: Vec<Arc<antecedent_core::execution::AdmissionLease>>,
+}
+
+#[derive(Debug)]
+pub(crate) struct TemporalPosteriorWitnessSet {
+    pub(crate) members: Vec<TemporalPosteriorWitnessMember>,
+    pub(crate) _lease: antecedent_core::execution::AdmissionLease,
+}
+
+/// The immutable graph source used by an executed posterior response.
+#[derive(Debug)]
+pub(crate) struct StaticPosteriorSourceWitness {
+    pub(crate) source: std::sync::Weak<[antecedent_discovery::AdjacencyMask]>,
+    pub(crate) _lease: antecedent_core::execution::AdmissionLease,
+}
+
+/// Actual fitted completions retained for same-prepared class refits.
+#[derive(Debug)]
+pub(crate) struct StaticFittedCompletions {
+    pub(crate) entries: Vec<([u8; 32], u64, antecedent_core::IdentificationStatus)>,
+    pub(crate) _lease: antecedent_core::execution::AdmissionLease,
+}
+
+#[derive(Debug)]
+pub(crate) struct StaticClassAtomWitness {
+    pub(crate) graph_key: u64,
+    pub(crate) outer_weight: u64,
+    pub(crate) completions: StaticFittedCompletions,
+}
+
+#[derive(Debug)]
+pub(crate) struct StaticClassWitnessSet {
+    pub(crate) atom_kind: antecedent_discovery::GraphPosteriorAtomKind,
+    pub(crate) n_vars: usize,
+    pub(crate) identification_cache:
+        std::sync::Weak<dyn std::fmt::Debug + Send + Sync + std::panic::RefUnwindSafe>,
+    pub(crate) source_atoms: std::sync::Weak<[antecedent_discovery::AdjacencyMask]>,
+    pub(crate) source_marks: Option<std::sync::Weak<[antecedent_discovery::AdjacencyMask]>>,
+    pub(crate) atoms: Vec<StaticClassAtomWitness>,
+    pub(crate) samples: Vec<(u64, u64)>,
+    pub(crate) _lease: antecedent_core::execution::AdmissionLease,
+}
+
+// Private runtime evidence, installed only by the scoped target operation after it
+// has completed its own refits. The selector and original result binding are part
+// of the digest, so editing a public report invalidates the marker.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RuntimeRefutationOrigin {
+    Route,
+    WholeTarget,
+    ScopedCompletion,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum RuntimeRefutationAuthority {
+    Fresh,
+    Sealed { origin: RuntimeRefutationOrigin, owner: Arc<()> },
+    Invalidated,
+}
+
+/// Caller-readable result fields. Mutable access invalidates checked authority.
+#[derive(Clone, Debug)]
+pub struct StudyResultView {
+    /// Logical program and data classification.
+    pub logical_plan: LogicalAnalysisPlanRecord,
+    /// Physical plan record.
+    pub physical_plan: PhysicalExecutionPlanRecord,
+    /// Execution performance and backend facts.
+    pub performance: ExecutionPerformanceRecord,
+    /// Full identification result.
+    pub identification: IdentificationResult,
+    /// Complete identification certificate, when supplied.
+    pub certificate: Option<AnalysisIdentification>,
+    /// The estimand used for the fit.
+    pub estimand: IdentifiedEstimand,
+    /// Structural atom and mass result.
+    pub structural_response: Option<StructuralResponseMixture>,
+    /// Bayesian posterior, when present.
+    pub posterior: Option<CausalPosterior>,
+    /// Refutation reports.
+    pub refutations: Vec<RefutationReport>,
+    /// Predictive check reports.
+    pub predictive_checks: Vec<PredictiveCheckReport>,
+    /// Diagnostics.
+    pub diagnostics: Vec<Diagnostic>,
+    /// Scientific provenance.
+    pub provenance: ProvenanceGraph,
+    /// Declared structure source.
+    pub structure_source: crate::support::StructureSource,
+    /// Treatment variable, if applicable.
+    pub treatment: Option<VariableId>,
+    /// Outcome variable.
+    pub outcome: VariableId,
+    /// Population bindings.
+    pub population_registry: Option<antecedent_core::PopulationRegistry>,
+}
+
+impl std::ops::Deref for StudyResult {
+    type Target = StudyResultView;
+    fn deref(&self) -> &Self::Target {
+        &self.view
     }
+}
 
-    /// Panel difference-in-differences result.
-    #[must_use]
-    pub const fn panel_did(&self) -> Option<&PanelDidEstimate> {
-        match self {
-            Self::PanelDid(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Synthetic-control result.
-    #[must_use]
-    pub const fn synthetic_control(&self) -> Option<&SyntheticControlEstimate> {
-        match self {
-            Self::SyntheticControl(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Synthetic `DiD` result.
-    #[must_use]
-    pub const fn synthetic_did(&self) -> Option<&SyntheticDidEstimate> {
-        match self {
-            Self::SyntheticDid(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Fuzzy RD or regression-kink result.
-    #[must_use]
-    pub const fn local_polynomial_ratio(&self) -> Option<&LocalPolynomialRatioEstimate> {
-        match self {
-            Self::LocalPolynomialRatio(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Held-out policy value.
-    #[must_use]
-    pub const fn policy_value(&self) -> Option<&PolicyValueEstimate> {
-        match self {
-            Self::PolicyValue(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Continuous-dose response grid.
-    #[must_use]
-    pub const fn continuous_dose_response(&self) -> Option<&ContinuousDoseResponseEstimate> {
-        match self {
-            Self::ContinuousDoseResponse(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Survival or competing-risk curve.
-    #[must_use]
-    pub const fn survival(&self) -> Option<&SurvivalEstimate> {
-        match self {
-            Self::Survival(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Longitudinal regime value.
-    #[must_use]
-    pub const fn longitudinal_regime(&self) -> Option<&LongitudinalRegimeEstimate> {
-        match self {
-            Self::LongitudinalRegime(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Whether the family reports no calibrated scalar effect interval: its
-    /// uncertainty lives in a dedicated result section.
-    #[must_use]
-    pub const fn has_dedicated_uncertainty_section(&self) -> bool {
-        matches!(
-            self,
-            Self::RandomizedEffect(_)
-                | Self::SyntheticControl(_)
-                | Self::SyntheticDid(_)
-                | Self::LocalPolynomialRatio(_)
-                | Self::PolicyValue(_)
-                | Self::ContinuousDoseResponse(_)
-                | Self::Survival(_)
-                | Self::LongitudinalRegime(_)
-        )
+impl std::ops::DerefMut for StudyResult {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.invalidate_authority();
+        &mut self.view
     }
 }
 
@@ -1141,16 +1179,20 @@ impl ResultPayload {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct StudyResult {
-    /// Logical plan record.
-    pub logical_plan: LogicalAnalysisPlanRecord,
-    /// Physical plan record.
-    pub physical_plan: PhysicalExecutionPlanRecord,
-    /// Full identification artifact.
-    pub identification: IdentificationResult,
-    /// Complete identification certificate, when supplied by the execution path.
-    pub certificate: Option<AnalysisIdentification>,
-    /// Primary estimand used for estimation.
-    pub estimand: IdentifiedEstimand,
+    pub(crate) retained_resources: Vec<Arc<antecedent_core::execution::AdmissionLease>>,
+    // The actual immutable input passed to the executed operation, not a caller's later declaration.
+    pub(crate) executed_input: Option<crate::analysis::target_validation::ExecutedInputIdentity>,
+    pub(crate) temporal_response_witnesses: Option<Arc<TemporalResponseWitnessSet>>,
+    pub(crate) temporal_posterior_witnesses: Option<Arc<TemporalPosteriorWitnessSet>>,
+    pub(crate) static_class_witnesses: Option<Arc<StaticClassWitnessSet>>,
+    pub(crate) static_posterior_source: Option<Arc<StaticPosteriorSourceWitness>>,
+    /// Complete target-native reports retained as descriptive diagnostics only.
+    pub(crate) full_target_diagnostics:
+        Option<Arc<antecedent_validate::target_native::RetainedTargetReports>>,
+    // An operation-issued digest of the checked scope, target and report body. This
+    // private marker must never be reconstructed from portable descriptors.
+    pub(crate) authority: RuntimeRefutationAuthority,
+    pub(crate) view: StudyResultView,
     /// Point estimate + uncertainty (frequentist, or Bayesian posterior mean summary).
     ///
     /// For [`CausalQuery::Distribution`](antecedent_core::CausalQuery::Distribution) this holds the
@@ -1159,75 +1201,286 @@ pub struct StudyResult {
     /// probability — the bounded per-atom intervals are
     /// [`InterventionalDistributionEstimate::atom_uncertainty`], and a binary outcome's
     /// mean interval is [`InterventionalDistributionEstimate::mean_interval`].
-    pub estimate: PrimaryEstimate,
-    /// Structural atom/mass result for class-aware or graph-posterior responses.
-    pub structural_response: Option<StructuralResponseMixture>,
+    pub(crate) estimate: PrimaryEstimate,
     /// The typed answer the query family published beside the scalar estimate.
     ///
     /// Read it through [`Self::response`], [`Self::distribution`] and the other
     /// accessors, or match on it directly. The Bayesian [`Self::posterior`] and
     /// the atom [`Self::structural_response`] accompany any family and stay
     /// outside it.
-    pub payload: ResultPayload,
-    /// Bayesian posterior when `InferenceMode::Bayesian` was used.
-    pub posterior: Option<CausalPosterior>,
-    /// Refutation reports (may be empty).
-    pub refutations: Vec<RefutationReport>,
-    /// Prior/posterior predictive check reports (Bayesian path; may be empty).
-    pub predictive_checks: Vec<PredictiveCheckReport>,
-    /// Diagnostics.
-    pub diagnostics: Vec<Diagnostic>,
-    /// Provenance.
-    pub provenance: ProvenanceGraph,
+    pub(crate) payload: ResultPayload,
+    /// Posterior predictive replicates retained at fit time when the study declared bounds
+    /// for them; read through [`Self::predictive_replicates`].
+    pub(crate) predictive_replicates: Option<Arc<crate::analysis::RetainedPredictiveReplicates>>,
     /// Support-matrix evidence contract that produced this result.
     ///
-    /// `licensed` and `allowed_unlicensed` both yield a successful study.
-    /// Downstream consumers must not treat a number as licensed unless this is
-    /// [`crate::support::CellStatus::Licensed`]. `None` when the query is not on
+    /// A `not_supported` cell refuses the build in a release build; a development build
+    /// runs it, carries `not_supported` and lists it in [`Self::would_refuse`]. Downstream consumers must not treat a number as supported unless this is
+    /// [`crate::support::CellStatus::Supported`]. `None` when the query is not on
     /// the public axis.
-    pub support_status: Option<crate::support::CellStatus>,
-    /// How the caller supplied structure. Graph-posterior mixtures are never a
-    /// single adjustment set, even when every identified atom happens to agree.
-    pub structure_source: crate::support::StructureSource,
-    /// Performance record.
-    pub performance: ExecutionPerformanceRecord,
-    /// Treatment variable.
-    pub treatment: Option<VariableId>,
-    /// Outcome variable.
-    pub outcome: VariableId,
-    /// Candidate-selection screen recorded for a prepared batch family.
-    pub candidate_selection: Option<crate::analysis::CandidateSelection>,
-    /// How this execution formed its reported interval.
-    pub interval: Option<IntervalBinding>,
-    /// Row-weight population recorded by a nonconstant retarget.
-    pub row_weights: Option<RowWeightsBinding>,
-    /// Missing-data policy, assumption and row accounting of this execution.
-    pub missing_data: Option<MissingDataReport>,
-    /// Names of caller-supplied custom validators that ran on this execution.
-    pub custom_validator_names: Vec<std::sync::Arc<str>>,
+    pub(crate) support_status: Option<crate::support::CellStatus>,
     /// Prepared contract this result was executed under, stamped by the
     /// [`crate::PreparedStudy`] entry point that produced it. `None` for
     /// results no prepared handle executed; those cannot be exported as claims.
-    pub executed_contract: Option<ExecutedContract>,
-    /// Population bindings in force, when the query names a predicate or a
-    /// custom target distribution. Encoding the query needs them.
-    pub population_registry: Option<antecedent_core::PopulationRegistry>,
+    pub(crate) executed_contract: Option<ExecutedContract>,
+    /// Identity of the lowered program whose dispatch produced this result.
+    pub(crate) lowered_identity: Option<antecedent_core::SemanticDigest>,
+    /// The producing program's scientific data and uncertainty classification.
+    /// Dedicated response posteriors need not occupy the scalar posterior slot.
+    pub(crate) lowered_quadrant: Option<antecedent_validate::target_native::TargetQuadrant>,
+    /// The optional report layers of this result.
+    pub(crate) extras: ResultExtras,
 }
 
+/// The optional report layers of a [`StudyResult`], held together.
+#[derive(Clone, Debug)]
+pub(crate) struct ResultExtras {
+    /// Candidate-selection screen recorded for a prepared batch family.
+    pub(crate) candidate_selection: Option<crate::analysis::CandidateSelection>,
+    /// How this execution formed its reported interval.
+    pub(crate) interval: Option<IntervalBinding>,
+    /// Row-weight population recorded by a nonconstant retarget.
+    pub(crate) row_weights: Option<RowWeightsBinding>,
+    /// Missing-data policy, assumption and row accounting of this execution.
+    pub(crate) missing_data: Option<MissingDataReport>,
+    /// Names of caller-supplied custom validators that ran on this execution.
+    pub(crate) custom_validator_names: Vec<std::sync::Arc<str>>,
+    /// What a development build ran although a release build would have refused it. Always
+    /// empty in a release build.
+    pub(crate) would_refuse: Vec<antecedent_core::WouldRefuse>,
+}
+
+impl StudyResult {
+    /// What a development build ran although a release build would have refused it, as
+    /// `{code, detail, missing}` entries; empty when the route is supported and always empty in
+    /// a release build.
+    #[must_use]
+    pub fn would_refuse(&self) -> &[antecedent_core::WouldRefuse] {
+        &self.extras.would_refuse
+    }
+
+    /// Record the entries the build and this execution collected (development builds only).
+    pub(crate) fn stamp_would_refuse(
+        &mut self,
+        build: &[antecedent_core::WouldRefuse],
+        ctx: &antecedent_core::ExecutionContext,
+    ) {
+        for entry in build.iter().cloned().chain(ctx.would_refuse()) {
+            if !self.extras.would_refuse.contains(&entry) {
+                self.extras.would_refuse.push(entry);
+            }
+        }
+    }
+
+    /// The execution contract attached by the engine, when present.
+    ///
+    /// The stamp is read-only: callers cannot replace an execution's validation suite.
+    ///
+    /// ```compile_fail
+    /// fn replace_stamp(result: &mut antecedent::StudyResult) {
+    ///     result.executed_contract = None;
+    /// }
+    /// ```
+    #[must_use]
+    pub const fn executed_contract(&self) -> Option<&ExecutedContract> {
+        self.executed_contract.as_ref()
+    }
+
+    /// The primary estimate; it always agrees with [`Self::payload`].
+    #[must_use]
+    pub const fn estimate(&self) -> &PrimaryEstimate {
+        &self.estimate
+    }
+
+    /// Mutable estimate, for tests that deliberately construct a tampered or edge-case result.
+    #[doc(hidden)]
+    pub fn estimate_mut(&mut self) -> &mut PrimaryEstimate {
+        self.invalidate_authority();
+        &mut self.estimate
+    }
+
+    /// Candidate-selection record, when the study selected among candidates.
+    #[must_use]
+    pub const fn candidate_selection(&self) -> &Option<crate::analysis::CandidateSelection> {
+        &self.extras.candidate_selection
+    }
+
+    /// How the reported interval was formed, when the execution reported one.
+    #[must_use]
+    pub const fn interval(&self) -> &Option<IntervalBinding> {
+        &self.extras.interval
+    }
+
+    /// Row-weight binding, when the analysis was weighted.
+    #[must_use]
+    pub const fn row_weights(&self) -> &Option<RowWeightsBinding> {
+        &self.extras.row_weights
+    }
+
+    /// Missing-data report, when the analysis handled missing values.
+    #[must_use]
+    pub const fn missing_data(&self) -> &Option<MissingDataReport> {
+        &self.extras.missing_data
+    }
+
+    /// Names of the custom validators that ran.
+    #[must_use]
+    pub fn custom_validator_names(&self) -> &[std::sync::Arc<str>] {
+        &self.extras.custom_validator_names
+    }
+
+    /// The route-specific result payload the estimate was drawn from.
+    #[must_use]
+    pub const fn payload(&self) -> &ResultPayload {
+        &self.payload
+    }
+
+    /// Support standing of the estimand's cell, when the route reports one.
+    #[must_use]
+    pub const fn support_status(&self) -> Option<crate::support::CellStatus> {
+        self.support_status
+    }
+
+    /// The provenance records behind the route this result executed: the identifier and
+    /// estimator of [`StudyResultView::logical_plan`], each with its published sources, the
+    /// deviations its record documents, what its bounded review leaves out, and its id and
+    /// digest. Ids that name no record are listed as unlinked.
+    ///
+    /// Descriptive only, like the calibration slot: it changes no number or support status.
+    /// [`StudyResultView::provenance`] is the execution's provenance graph, a different thing.
+    #[must_use = "the provenance is computed on each call"]
+    pub fn method_provenance(&self) -> antecedent_io::method_provenance::MethodProvenanceWire {
+        antecedent_io::method_provenance::method_provenance(
+            self.logical_plan.identifier.as_deref(),
+            self.logical_plan.estimator.as_deref(),
+        )
+    }
+
+    /// The sources to cite for this result, de-duplicated, each with the caveats of the
+    /// records citing it (see [`Self::method_provenance`]).
+    #[must_use = "the citations are computed on each call"]
+    pub fn citations(&self) -> Vec<antecedent_io::method_provenance::CitationWire> {
+        self.method_provenance().citations()
+    }
+
+    pub(crate) fn stamp_lowered_program(
+        &mut self,
+        program: &crate::planner::lowered::LoweredProgram,
+    ) {
+        self.lowered_identity = program.semantic_identity();
+        self.lowered_quadrant = Some(program.refutation_quadrant());
+    }
+
+    /// Route-native diagnostic records the result carries, in diagnostic order.
+    ///
+    /// Passed and failed checks are both included, each with its measured or unreported
+    /// unevaluable mass, so the records match what a refusal of the same route reports.
+    #[must_use = "dropped records are not on the result"]
+    pub fn route_diagnostics(&self) -> Vec<antecedent_core::diagnostic::RouteNativeDiagnostic> {
+        self.diagnostics
+            .iter()
+            .filter_map(antecedent_core::diagnostic::RouteNativeDiagnostic::from_diagnostic)
+            .collect()
+    }
+
+    /// Identity of the lowered program whose dispatch produced this result.
+    ///
+    /// `None` for a result that no lowered dispatch produced or whose runtime
+    /// callback declaration cannot identify its live implementation.
+    #[must_use]
+    pub const fn lowered_program_identity(&self) -> Option<antecedent_core::SemanticDigest> {
+        self.lowered_identity
+    }
+}
+
+/// The bibliography of a study: the sources of every result, de-duplicated across results.
+///
+/// A source cited by several results appears once, with every record that cites it and every
+/// caveat those records document. See [`StudyResult::method_provenance`].
+#[must_use = "the bibliography is computed on each call"]
+pub fn bibliography<'a, I>(results: I) -> Vec<antecedent_io::method_provenance::CitationWire>
+where
+    I: IntoIterator<Item = &'a StudyResult>,
+{
+    let provenances: Vec<_> = results.into_iter().map(StudyResult::method_provenance).collect();
+    antecedent_io::method_provenance::bibliography(&provenances)
+}
+
+/// Reference and by-value accessors of every single-variant payload on [`ResultPayload`], and
+/// the matching delegates on [`StudyResult`], from one list.
+///
+/// `plain` variants hold the value directly; `boxed` variants hold it behind a `Box`.
 macro_rules! payload_accessors {
-    ($($name:ident, $into:ident: $ty:ty),* $(,)?) => {
-        impl StudyResult {
+    (
+        plain: [$($pvariant:ident => $pname:ident, $pinto:ident: $pty:ty;)*]
+        boxed: [$($bvariant:ident => $bname:ident, $binto:ident: $bty:ty;)*]
+    ) => {
+        impl ResultPayload {
             $(
-                #[doc = concat!("The `", stringify!($name), "` payload, when the query produced one.")]
+                #[doc = concat!("The `", stringify!($pname), "` payload, when the answer is one.")]
                 #[must_use]
-                pub fn $name(&self) -> Option<&$ty> {
-                    self.payload.$name()
+                pub const fn $pname(&self) -> Option<&$pty> {
+                    match self {
+                        Self::$pvariant(value) => Some(value),
+                        _ => None,
+                    }
                 }
 
-                #[doc = concat!("The `", stringify!($name), "` payload by value, consuming the result.")]
+                #[doc = concat!("The `", stringify!($pname), "` payload by value.")]
                 #[must_use]
-                pub fn $into(self) -> Option<$ty> {
-                    self.payload.$into()
+                pub fn $pinto(self) -> Option<$pty> {
+                    match self {
+                        Self::$pvariant(value) => Some(value),
+                        _ => None,
+                    }
+                }
+            )*
+            $(
+                #[doc = concat!("The `", stringify!($bname), "` payload, when the answer is one.")]
+                #[must_use]
+                pub fn $bname(&self) -> Option<&$bty> {
+                    match self {
+                        Self::$bvariant(value) => Some(value),
+                        _ => None,
+                    }
+                }
+
+                #[doc = concat!("The `", stringify!($bname), "` payload by value.")]
+                #[must_use]
+                pub fn $binto(self) -> Option<$bty> {
+                    match self {
+                        Self::$bvariant(value) => Some(*value),
+                        _ => None,
+                    }
+                }
+            )*
+        }
+
+        impl StudyResult {
+            $(
+                #[doc = concat!("The `", stringify!($pname), "` payload, when the query produced one.")]
+                #[must_use]
+                pub fn $pname(&self) -> Option<&$pty> {
+                    self.payload.$pname()
+                }
+
+                #[doc = concat!("The `", stringify!($pname), "` payload by value, consuming the result.")]
+                #[must_use]
+                pub fn $pinto(self) -> Option<$pty> {
+                    self.payload.$pinto()
+                }
+            )*
+            $(
+                #[doc = concat!("The `", stringify!($bname), "` payload, when the query produced one.")]
+                #[must_use]
+                pub fn $bname(&self) -> Option<&$bty> {
+                    self.payload.$bname()
+                }
+
+                #[doc = concat!("The `", stringify!($bname), "` payload by value, consuming the result.")]
+                #[must_use]
+                pub fn $binto(self) -> Option<$bty> {
+                    self.payload.$binto()
                 }
             )*
         }
@@ -1235,26 +1488,70 @@ macro_rules! payload_accessors {
 }
 
 payload_accessors! {
-    response, into_response: CausalResponse,
-    distribution, into_distribution: InterventionalDistributionEstimate,
-    mediation, into_mediation: TemporalMediationEstimate,
-    mediation_grid, into_mediation_grid: TemporalMediationGrid,
-    counterfactual, into_counterfactual: IteResult,
-    change_attribution, into_change_attribution: ChangeAttributionResult,
-    unit_change, into_unit_change: UnitChangeResult,
-    transport, into_transport: TransportEffectEstimate,
-    randomized_effect, into_randomized_effect: RandomizedEffectEstimate,
-    panel_did, into_panel_did: PanelDidEstimate,
-    synthetic_control, into_synthetic_control: SyntheticControlEstimate,
-    synthetic_did, into_synthetic_did: SyntheticDidEstimate,
-    local_polynomial_ratio, into_local_polynomial_ratio: LocalPolynomialRatioEstimate,
-    policy_value, into_policy_value: PolicyValueEstimate,
-    continuous_dose_response, into_continuous_dose_response: ContinuousDoseResponseEstimate,
-    survival, into_survival: SurvivalEstimate,
-    longitudinal_regime, into_longitudinal_regime: LongitudinalRegimeEstimate,
+    plain: [
+    Response => response, into_response: CausalResponse;
+    Distribution => distribution, into_distribution: InterventionalDistributionEstimate;
+    Counterfactual => counterfactual, into_counterfactual: IteResult;
+    ChangeAttribution => change_attribution, into_change_attribution: ChangeAttributionResult;
+    UnitChange => unit_change, into_unit_change: UnitChangeResult;
+    Transport => transport, into_transport: TransportEffectEstimate;
+    RandomizedEffect => randomized_effect, into_randomized_effect: RandomizedEffectEstimate;
+    PanelDid => panel_did, into_panel_did: PanelDidEstimate;
+    SyntheticControl => synthetic_control, into_synthetic_control: SyntheticControlEstimate;
+    SyntheticDid => synthetic_did, into_synthetic_did: SyntheticDidEstimate;
+    LocalPolynomialRatio => local_polynomial_ratio, into_local_polynomial_ratio:
+        LocalPolynomialRatioEstimate;
+    PolicyValue => policy_value, into_policy_value: PolicyValueEstimate;
+    ContinuousDoseResponse => continuous_dose_response, into_continuous_dose_response:
+        ContinuousDoseResponseEstimate;
+    Survival => survival, into_survival: SurvivalEstimate;
+    PosteriorRow => posterior_row, into_posterior_row: PosteriorRowEstimate;
+    LongitudinalRegime => longitudinal_regime, into_longitudinal_regime:
+        LongitudinalRegimeEstimate;
+    SequentialContrast => sequential_contrast, into_sequential_contrast:
+        SequentialContrastEstimate;
+    HistoryMatch => history_match, into_history_match: HistoryMatchEstimate;
+    ]
+    boxed: [
+    CounterfactualContrasts => counterfactual_contrasts, into_counterfactual_contrasts:
+        crate::gcm::CounterfactualContrasts;
+    TemporalDesign => temporal_design, into_temporal_design: TemporalDesignEstimate;
+    IvBounds => iv_bounds, into_iv_bounds: antecedent_estimate::IvBoundsEstimate;
+    Association => association, into_association:
+        crate::analysis::association::AssociationPayload;
+    QuasiRollout => quasi_rollout, into_quasi_rollout: QuasiRolloutEstimate;
+    Discovery => discovery, into_discovery: crate::analysis::structure_route::DiscoveryPayload;
+    Attribution => attribution, into_attribution:
+        crate::analysis::structure_route::AttributionPayload;
+    Simulation => simulation, into_simulation: crate::analysis::structure_route::SimulationPayload;
+    ]
 }
 
 impl StudyResult {
+    /// The mediation decomposition, when the query produced one.
+    #[must_use]
+    pub fn mediation(&self) -> Option<&TemporalMediationEstimate> {
+        self.payload.mediation()
+    }
+
+    /// The mediation decomposition by value, consuming the result.
+    #[must_use]
+    pub fn into_mediation(self) -> Option<TemporalMediationEstimate> {
+        self.payload.into_mediation()
+    }
+
+    /// The horizon-indexed mediation grid, when the query produced one.
+    #[must_use]
+    pub fn mediation_grid(&self) -> Option<&TemporalMediationGrid> {
+        self.payload.mediation_grid()
+    }
+
+    /// The mediation grid by value, consuming the result.
+    #[must_use]
+    pub fn into_mediation_grid(self) -> Option<TemporalMediationGrid> {
+        self.payload.into_mediation_grid()
+    }
+
     /// Anomaly scores when the query was anomaly attribution.
     #[must_use]
     pub fn anomaly(&self) -> Option<&[AnomalyScores]> {
@@ -1284,633 +1581,31 @@ impl StudyResult {
 ///
 /// Export recompiles the contract on the handle and refuses unless every
 /// identity layer — including the data snapshot the result was computed on —
-/// matches this stamp.
+/// matches this stamp. The engine records the identity scope privately; callers
+/// inspect it with [`Self::identity_scope`] rather than constructing a stamp.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ExecutedContract {
     /// Every contract identity layer, including the executed data snapshot.
     pub identities: antecedent_core::ContractIdentities,
+    /// Snapshot identity before execution-only replay evidence is attached.
+    /// This is computed from the same input at execution and permits a cheap
+    /// inspection to be compared without replacing the full snapshot identity.
+    pub inspection_data_snapshot: antecedent_core::SemanticDigest,
+    /// Scope stamped by the prepared execution, independent of mutable result fields.
+    pub(crate) identity_scope: crate::planner::lowered::ProgramIdentityScope,
     /// Validation suite whose refutations the result carries.
     pub refute: crate::RefuteSuite,
 }
 
-/// Nominal level of the interval a standard-error result reports.
-///
-/// An [`EffectEstimate`] carries a standard error, not endpoints; every
-/// rendering of it (Python views, HTML, the analysis-result artifact's
-/// `standard_error`) forms the two-sided `estimate ± 1.96·SE` interval (a Student-t
-/// reference where the estimate declares `se_reference_df`, see
-/// [`PublishedScalarUncertainty::interval`]).
-/// Posterior summaries report the equal-tailed `q025` / `q975` interval at the
-/// same level.
-pub const REPORTED_SE_INTERVAL_LEVEL: f64 = 0.95;
-
-/// Support diagnostic marking a function-valued response whose interval is a
-/// normal interval from the plug-in bootstrap SE (the general-ID
-/// `functional.effect` route resamples the whole front-door plug-in each
-/// replicate). Its values are `[requested replicates, successful replicates]`.
-/// A response carrying it reports [`IntervalMethod::BootstrapSe`] rather than the
-/// analytic-SE default; every other response band stays analytic.
-pub(crate) const RESPONSE_BOOTSTRAP_SE: &str = "response.bootstrap_se";
-
-/// Fewest successful replicates that earn a nominal 0.95 percentile band or a
-/// normal interval from a bootstrap SE.
-///
-/// Under the (B+1) rule each tail holds `(B+1)·α/2` order statistics. At
-/// `α = 0.05` that count exceeds one only for `B ≥ 40` (`B = 39` is exactly
-/// one). Statistical transport and the tuple/block bootstrap floor both read
-/// this constant.
-pub const PERCENTILE_95_MIN_REPLICATES: u32 = 40;
-
-/// Two-sided normal critical value of [`REPORTED_SE_INTERVAL_LEVEL`].
-///
-/// Every path that forms `estimate ± z·SE` at the published level reads this
-/// one quantile rather than writing `normal_ppf(0.975)` again:
-/// `0.5 + 0.95 / 2.0` is exactly `0.975` in binary64, so the value is
-/// bit-identical to the literal it replaces.
-#[must_use]
-pub fn reported_se_interval_z() -> f64 {
-    antecedent_stats::normal_ppf(0.5 + REPORTED_SE_INTERVAL_LEVEL / 2.0)
-}
-
-/// How one reported interval was formed: the construction the calibration
-/// match key describes.
-///
-/// Derived from the result's own content by
-/// [`StudyResult::primary_interval_binding`] and
-/// [`StudyResult::identified_set_interval_binding`], so it always describes
-/// what the execution reported, never what was requested.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct IntervalBinding {
-    /// Interval method.
-    pub method: antecedent_core::IntervalMethod,
-    /// Analytic SE kind recorded by the estimator, when the method is analytic.
-    pub se_kind: Option<antecedent_estimate::AnalyticSeKind>,
-    /// Nominal coverage level of the reported interval.
-    pub level: f64,
-    /// Dependence rule of the construction: `iid`, `panel_cluster`, or
-    /// `circular_block:<family>` ([`antecedent_estimate::CircularBlockFamily::tag`]).
-    pub dependence: &'static str,
-    /// Resampling replicates that succeeded (bootstrap, circular block, or
-    /// simultaneous-band multipliers), when the interval is resampling-based.
-    pub replicates_ok: Option<u32>,
-    /// Resampling replicates that failed, when reported.
-    pub replicates_failed: Option<u32>,
-    /// Posterior draws behind a posterior interval.
-    pub posterior_draws: Option<u32>,
-}
-
-impl IntervalBinding {
-    const fn new(
-        method: antecedent_core::IntervalMethod,
-        level: f64,
-        dependence: &'static str,
-    ) -> Self {
-        Self {
-            method,
-            se_kind: None,
-            level,
-            dependence,
-            replicates_ok: None,
-            replicates_failed: None,
-            posterior_draws: None,
-        }
-    }
-
-    /// Binding of an execution that reported no interval.
+impl ExecutedContract {
+    /// Scope recorded by the engine at execution, independent of mutable result fields.
     #[must_use]
-    pub const fn none(dependence: &'static str) -> Self {
-        Self::new(antecedent_core::IntervalMethod::None, f64::NAN, dependence)
+    pub const fn identity_scope(&self) -> crate::planner::lowered::ProgramIdentityScope {
+        self.identity_scope
     }
-}
-
-/// Dependence label of a circular-block family.
-#[must_use]
-pub const fn circular_block_dependence(
-    family: antecedent_estimate::CircularBlockFamily,
-) -> &'static str {
-    match family {
-        antecedent_estimate::CircularBlockFamily::SingleWindow => "circular_block:single_window",
-        antecedent_estimate::CircularBlockFamily::Mediation => "circular_block:mediation",
-        antecedent_estimate::CircularBlockFamily::Sequential => "circular_block:sequential",
-        antecedent_estimate::CircularBlockFamily::Mixture => "circular_block:mixture",
-    }
-}
-
-fn positive_finite(value: f64) -> bool {
-    value.is_finite() && value > 0.0
-}
-
-/// Published scalar standard error and the label of its normal interval.
-///
-/// One owner of the facade's SE / `± z·SE` rule. Wire `standard_error`,
-/// [`StudyResult::primary_interval_binding`], the Uncertainty slot, and the
-/// Python copies all read this; they do not prefer `se_bootstrap` on their own.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PublishedScalarUncertainty {
-    /// The one scalar SE the facade publishes, when licensed and positive-finite.
-    pub standard_error: Option<f64>,
-    /// Interval method for what was published: a normal interval from
-    /// [`Self::standard_error`] ([`antecedent_core::IntervalMethod::AnalyticSe`] or
-    /// [`antecedent_core::IntervalMethod::BootstrapSe`]), an Anderson–Rubin set
-    /// ([`antecedent_core::IntervalMethod::AndersonRubin`], endpoints in [`Self::lower`] /
-    /// [`Self::upper`], no standard error), or [`antecedent_core::IntervalMethod::None`].
-    /// Circular-block labeling is applied by
-    /// [`StudyResult::primary_interval_binding`] when a block family is recorded.
-    pub method: antecedent_core::IntervalMethod,
-    /// Nominal level of the published interval, or `NaN` when nothing was published.
-    pub level: f64,
-    /// Why a scalar SE was withheld, when the estimate is an IV result that
-    /// cannot publish a Wald or bootstrap SE and has no Anderson–Rubin set.
-    pub withheld_reason: Option<&'static str>,
-    /// Lower endpoint of a published Anderson–Rubin set. May be infinite.
-    pub lower: Option<f64>,
-    /// Upper endpoint of a published Anderson–Rubin set. May be infinite.
-    pub upper: Option<f64>,
-}
-
-impl PublishedScalarUncertainty {
-    /// Select the one published scalar SE for an [`EffectEstimate`].
-    ///
-    /// Rules:
-    /// 1. Only a positive-finite SE is published (`Some` alone is not enough).
-    /// 2. When first-stage diagnostics carry an Anderson–Rubin set, publish
-    ///    those endpoints and no standard error. Do not fall through to
-    ///    `se_bootstrap` or a Wald SE.
-    /// 3. When first-stage diagnostics are present and no Anderson–Rubin set
-    ///    was formed, do not fall through to `se_bootstrap`. A positive-finite
-    ///    analytic SE is still published; otherwise withhold, keeping the
-    ///    estimator's reason when it recorded one.
-    /// 4. Otherwise prefer a positive-finite bootstrap SE over a positive-finite
-    ///    analytic SE (AIPW and peers keep today's preference). IV and NN
-    ///    matching do not emit a competing finite pair.
-    #[must_use]
-    pub fn select(estimate: &EffectEstimate) -> Self {
-        use antecedent_core::IntervalMethod as M;
-
-        if let Some(diagnostics) = &estimate.diagnostics.first_stage {
-            if let Some((lower, upper, level)) = diagnostics.anderson_rubin {
-                if !lower.is_nan()
-                    && !upper.is_nan()
-                    && level.is_finite()
-                    && (0.0..1.0).contains(&level)
-                {
-                    return Self {
-                        standard_error: None,
-                        method: M::AndersonRubin,
-                        level,
-                        withheld_reason: None,
-                        lower: Some(lower),
-                        upper: Some(upper),
-                    };
-                }
-            }
-            if positive_finite(estimate.se_analytic()) {
-                return Self {
-                    standard_error: Some(estimate.se_analytic()),
-                    method: M::AnalyticSe,
-                    level: REPORTED_SE_INTERVAL_LEVEL,
-                    withheld_reason: None,
-                    lower: None,
-                    upper: None,
-                };
-            }
-            return Self::withhold_iv(diagnostics.uncertainty_withheld);
-        }
-
-        if estimate.se_bootstrap().is_some_and(positive_finite) {
-            return Self {
-                standard_error: estimate.se_bootstrap(),
-                method: M::BootstrapSe,
-                level: REPORTED_SE_INTERVAL_LEVEL,
-                withheld_reason: None,
-                lower: None,
-                upper: None,
-            };
-        }
-        if positive_finite(estimate.se_analytic()) {
-            return Self {
-                standard_error: Some(estimate.se_analytic()),
-                method: M::AnalyticSe,
-                level: REPORTED_SE_INTERVAL_LEVEL,
-                withheld_reason: None,
-                lower: None,
-                upper: None,
-            };
-        }
-        Self {
-            standard_error: None,
-            method: M::None,
-            level: f64::NAN,
-            withheld_reason: None,
-            lower: None,
-            upper: None,
-        }
-    }
-
-    /// Two-sided critical value of the published interval for `estimate`: Student-t with
-    /// `se_reference_df` degrees of freedom for an analytic SE that declares one (the
-    /// cluster-DML few-cluster reference), the normal quantile otherwise.
-    #[must_use]
-    pub fn critical_value(&self, estimate: &EffectEstimate) -> f64 {
-        match (self.method, estimate.uncertainty.analytic.reference_df) {
-            (antecedent_core::IntervalMethod::AnalyticSe, Some(df)) if df > 0.0 => {
-                antecedent_stats::student_t_ppf(0.5 + self.level / 2.0, df)
-            }
-            _ => reported_se_interval_z(),
-        }
-    }
-
-    /// The published `estimate ± critical_value · SE` interval, when a scalar SE was
-    /// published.
-    #[must_use]
-    pub fn interval(&self, estimate: &EffectEstimate) -> Option<(f64, f64)> {
-        let se = self.standard_error?;
-        let half = self.critical_value(estimate) * se;
-        Some((estimate.ate - half, estimate.ate + half))
-    }
-
-    fn withhold_iv(reason: Option<&'static str>) -> Self {
-        Self {
-            standard_error: None,
-            method: antecedent_core::IntervalMethod::None,
-            level: f64::NAN,
-            withheld_reason: Some(reason.unwrap_or(
-                "Wald/bootstrap SE not licensed (weak instrument or IV uncertainty withheld)",
-            )),
-            lower: None,
-            upper: None,
-        }
-    }
-}
-
-fn draws_u32(n: usize) -> Option<u32> {
-    u32::try_from(n).ok()
-}
-
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    reason = "the guard admits only finite values in [0, u32::MAX], so the cast neither wraps nor loses sign (fractions truncate by design)"
-)]
-fn count_u32(value: f64) -> Option<u32> {
-    (value.is_finite() && value >= 0.0 && value <= f64::from(u32::MAX)).then_some(value as u32)
-}
-
-fn support_values<'a>(response: &'a CausalResponse, id: &str) -> Option<&'a [f64]> {
-    response
-        .support
-        .diagnostics
-        .iter()
-        .find(|diagnostic| diagnostic.id.as_ref() == id)
-        .map(|diagnostic| diagnostic.values.as_ref())
-}
-
-/// A Frequentist temporal response band built from circular-block replicates
-/// of the lag-aligned surface (support diagnostic `response.temporal.block_length`).
-fn temporal_response_band(response: &CausalResponse, level: f64) -> Option<IntervalBinding> {
-    support_values(response, antecedent_estimate::TEMPORAL_RESPONSE_BLOCK_LENGTH)?;
-    let mut binding = IntervalBinding::new(
-        antecedent_core::IntervalMethod::CircularBlockSe,
-        level,
-        "circular_block:response",
-    );
-    if let Some(counts) = support_values(response, "response.observation_block_bootstrap") {
-        binding.replicates_ok = counts.get(1).and_then(|n| count_u32(*n));
-    }
-    Some(binding)
 }
 
 impl StudyResult {
-    /// The diagnostics that describe whether the data support the estimand (overlap, positivity,
-    /// coordinates outside the observed support): exactly those emitted as
-    /// [`DiagnosticKind::Support`], whatever their code. The one owner of the Support slot's
-    /// diagnostic selection.
-    pub fn support_diagnostics(&self) -> impl Iterator<Item = &Diagnostic> {
-        self.diagnostics.iter().filter(|d| d.kind == DiagnosticKind::Support)
-    }
-
-    /// Dependence rule the execution's data imposes before any circular-block
-    /// family: panel executions cluster by unit, every other modality is `iid`
-    /// unless a circular-block construction names its family.
-    fn base_dependence(&self) -> &'static str {
-        if self.logical_plan.data_classification == antecedent_contract::DataClassification::Panel {
-            "panel_cluster"
-        } else {
-            "iid"
-        }
-    }
-
-    /// Dependence of a frequentist standard-error interval that names no circular-block
-    /// family.
-    ///
-    /// On time-ordered rows (a series or an event log) an SE that models no serial
-    /// correlation is not the `iid` construction of exchangeable rows: its variance ignores
-    /// the dependence the data have, and a calibration measured for `iid` rows says nothing
-    /// about it. It is labelled `serial_unmodelled`; a Newey-West kernel SE models the serial
-    /// correlation and is labelled `serial_hac`. Every other modality keeps
-    /// [`Self::base_dependence`]. The posterior bindings keep the base label too: a temporal
-    /// posterior's serial-dependence handling (long-run tempering) is part of its construction
-    /// and named by its posterior key, not by this dimension.
-    fn se_dependence(&self, se_kind: Option<antecedent_estimate::AnalyticSeKind>) -> &'static str {
-        use antecedent_contract::DataClassification as C;
-        match self.logical_plan.data_classification {
-            C::Temporal | C::Event => match se_kind {
-                Some(antecedent_estimate::AnalyticSeKind::NeweyWest { .. }) => "serial_hac",
-                _ => "serial_unmodelled",
-            },
-            _ => self.base_dependence(),
-        }
-    }
-
-    fn posterior_draw_count(&self) -> Option<u32> {
-        self.posterior.as_ref().and_then(|posterior| draws_u32(posterior.draws.n_draws))
-    }
-
-    /// A frequentist response band formed as a normal interval from the plug-in
-    /// bootstrap SE (support diagnostic [`RESPONSE_BOOTSTRAP_SE`]): the general-ID
-    /// `functional.effect` route has no exposed influence function, so its
-    /// interval is the 199-replicate front-door resample, not an analytic SE.
-    fn bootstrap_response_band(
-        &self,
-        response: &CausalResponse,
-        level: f64,
-    ) -> Option<IntervalBinding> {
-        let values = support_values(response, RESPONSE_BOOTSTRAP_SE)?;
-        let mut binding = IntervalBinding::new(
-            antecedent_core::IntervalMethod::BootstrapSe,
-            level,
-            self.se_dependence(None),
-        );
-        binding.replicates_ok = values.get(1).and_then(|n| count_u32(*n));
-        Some(binding)
-    }
-
-    /// Construction of the primary interval this execution reported.
-    ///
-    /// `bayesian` is the program's inference family: a Bayesian response's
-    /// band is a posterior band even when the draws live in a referenced
-    /// artifact rather than on the result.
-    ///
-    /// One owner of the rule, read by the claim's calibration match key:
-    ///
-    /// 1. A function-valued response reports its `ResponseUncertainty`
-    ///    (`None` → [`IntervalMethod::None`](antecedent_core::IntervalMethod::None);
-    ///    simultaneous band; identified-envelope band; posterior; a temporal
-    ///    circular-block band; otherwise the influence-function band).
-    /// 2. An interventional distribution with a binary outcome reports its
-    ///    bounded mean interval.
-    /// 3. A posterior reports its `q025` / `q975` interval.
-    /// 4. A standard error reports `estimate ± 1.96·SE` from
-    ///    [`PublishedScalarUncertainty::select`]: the published bootstrap SE
-    ///    when that is the selected SE (circular-block when a family is
-    ///    recorded), else the published analytic SE with the estimator's
-    ///    recorded kind. A bootstrap interval here is a normal interval from
-    ///    the bootstrap SE, not a percentile interval (replicates are not
-    ///    retained). A requested bootstrap that reported no positive-finite SE
-    ///    is not a bootstrap interval; an IV result that withheld Wald/bootstrap
-    ///    uncertainty is [`IntervalMethod::None`](antecedent_core::IntervalMethod::None).
-    /// 5. When no finite scalar interval exists, a withheld unknown-orientation
-    ///    effect reports its scenario max-t band as a simultaneous interval.
-    /// 6. Otherwise a reported identified-set interval is the primary interval,
-    ///    or nothing was reported.
-    #[allow(
-        clippy::too_many_lines,
-        reason = "the primary-interval choice is one ordered precedence list (cluster and panel intervals, response bands, a withheld unknown-orientation band, the identified set); splitting it would hide the ranking"
-    )]
-    #[must_use]
-    pub fn primary_interval_binding(&self, bayesian: bool) -> IntervalBinding {
-        use antecedent_core::{IntervalMethod as M, ResponseUncertainty as U};
-        let panel_interval = self.panel_did().is_some_and(|did| did.interval_95.is_some());
-        let randomized_cluster_interval = self.randomized_effect().is_some_and(|fit| {
-            fit.interval_95.is_some() && fit.assignment_design.as_ref() == "cluster"
-        });
-        let base = if panel_interval || randomized_cluster_interval {
-            "cluster"
-        } else if self.panel_did().is_some() {
-            "iid"
-        } else {
-            self.base_dependence()
-        };
-        if let Some(response) = self.response() {
-            // A Bayesian response publishes credible bands; the draws behind a
-            // band are in the referenced posterior artifact, not on the result.
-            let posterior = bayesian || self.posterior.is_some();
-            let mut binding = match &response.uncertainty {
-                U::None => return IntervalBinding::none(base),
-                U::Posterior { .. } => {
-                    IntervalBinding::new(M::PosteriorQuantile, REPORTED_SE_INTERVAL_LEVEL, base)
-                }
-                U::Scalar { level, .. } | U::PointwiseBand { level, .. } if posterior => {
-                    IntervalBinding::new(M::PosteriorQuantile, *level, base)
-                }
-                U::Scalar { level, .. } | U::PointwiseBand { level, .. } => self
-                    .bootstrap_response_band(response, *level)
-                    .or_else(|| temporal_response_band(response, *level))
-                    .unwrap_or_else(|| {
-                        IntervalBinding::new(M::AnalyticSe, *level, self.se_dependence(None))
-                    }),
-                U::SimultaneousBand { level, replicates, .. } => {
-                    let mut binding = IntervalBinding::new(M::SimultaneousBand, *level, base);
-                    binding.replicates_ok = Some(*replicates);
-                    binding
-                }
-                U::IdentifiedEnvelopeBand { level, .. } => {
-                    IntervalBinding::new(M::IdentifiedSet, *level, base)
-                }
-            };
-            if binding.method == M::PosteriorQuantile {
-                binding.posterior_draws = self.posterior_draw_count();
-            }
-            return binding;
-        }
-        if let Some(distribution) = self.distribution() {
-            if self.posterior.is_none() {
-                match distribution.mean_interval {
-                    Some(antecedent_estimate::ProbabilityInterval::Bounded { level, .. }) => {
-                        let mut binding = IntervalBinding::new(M::BootstrapSe, level, base);
-                        binding.replicates_ok = distribution.bootstrap_replicates_ok;
-                        binding.replicates_failed = distribution.bootstrap_replicates_failed;
-                        return binding;
-                    }
-                    Some(antecedent_estimate::ProbabilityInterval::Unavailable(_)) => {
-                        return IntervalBinding::none(base);
-                    }
-                    None => {}
-                }
-            }
-        }
-        if self.posterior.is_some() {
-            let mut binding =
-                IntervalBinding::new(M::PosteriorQuantile, REPORTED_SE_INTERVAL_LEVEL, base);
-            binding.posterior_draws = self.posterior_draw_count();
-            return binding;
-        }
-        let Some(estimate) = self.estimate.as_effect() else {
-            return IntervalBinding::none(base);
-        };
-        if estimate.ate.is_finite() {
-            let published = PublishedScalarUncertainty::select(estimate);
-            match published.method {
-                M::BootstrapSe => {
-                    let (method, dependence) = match estimate.uncertainty.block.family {
-                        Some(family) => (M::CircularBlockSe, circular_block_dependence(family)),
-                        None => (M::BootstrapSe, self.se_dependence(None)),
-                    };
-                    let mut binding = IntervalBinding::new(method, published.level, dependence);
-                    binding.replicates_ok = estimate.uncertainty.bootstrap.replicates_ok;
-                    binding.replicates_failed = estimate.uncertainty.bootstrap.replicates_failed;
-                    return binding;
-                }
-                M::AnalyticSe => {
-                    let mut binding = IntervalBinding::new(
-                        M::AnalyticSe,
-                        published.level,
-                        if panel_interval || randomized_cluster_interval {
-                            "cluster"
-                        } else {
-                            self.se_dependence(estimate.uncertainty.analytic.kind)
-                        },
-                    );
-                    binding.se_kind = estimate.uncertainty.analytic.kind;
-                    return binding;
-                }
-                M::AndersonRubin => {
-                    return IntervalBinding::new(M::AndersonRubin, published.level, base);
-                }
-                M::None if published.withheld_reason.is_some() => {
-                    return IntervalBinding::none(base);
-                }
-                _ => {}
-            }
-        }
-        let Some(effect_estimate) = self.estimate.as_effect() else {
-            return IntervalBinding::none(base);
-        };
-        if !effect_estimate.ate.is_finite() {
-            if let Some(bands) = effect_estimate.scenarios.intervals.as_deref() {
-                if !bands.is_empty() {
-                    return IntervalBinding::new(
-                        M::SimultaneousBand,
-                        REPORTED_SE_INTERVAL_LEVEL,
-                        base,
-                    );
-                }
-            }
-        }
-        self.identified_set_interval_binding().unwrap_or_else(|| IntervalBinding::none(base))
-    }
-
-    /// Construction of a reported identified-set interval
-    /// (`structural_response.identified_set_interval`), when one was reported.
-    ///
-    /// A class-aware scalar can report both a frozen-weight point with its
-    /// shared-block SE and an Imbens–Manski interval for the identified set;
-    /// each states its own calibration.
-    #[must_use]
-    pub fn identified_set_interval_binding(&self) -> Option<IntervalBinding> {
-        use antecedent_estimate::IdentifiedSetIntervalMethod as Method;
-        let structural = self.structural_response.as_ref()?;
-        let interval = structural.identified_set_interval.as_ref()?;
-        let mut binding = IntervalBinding::new(
-            antecedent_core::IntervalMethod::IdentifiedSet,
-            interval.level,
-            self.base_dependence(),
-        );
-        match interval.method {
-            Method::ImbensManskiSharedBlock => {
-                binding.dependence =
-                    circular_block_dependence(antecedent_estimate::CircularBlockFamily::Mixture);
-                binding.replicates_ok = self
-                    .estimate
-                    .as_effect()
-                    .and_then(|effect| effect.uncertainty.bootstrap.replicates_ok);
-                binding.replicates_failed = self
-                    .estimate
-                    .as_effect()
-                    .and_then(|effect| effect.uncertainty.bootstrap.replicates_failed);
-            }
-            Method::ProductPosteriorEnvelopeQuantile => {
-                binding.posterior_draws = structural
-                    .atoms
-                    .iter()
-                    .filter_map(|atom| atom.posterior.as_ref())
-                    .filter_map(|posterior| draws_u32(posterior.draws.n_draws))
-                    .min()
-                    .or_else(|| self.posterior_draw_count());
-            }
-            _ => {}
-        }
-        Some(binding)
-    }
-
-    /// Construction of a counterfactual's published per-unit intervals
-    /// (`counterfactual.unit_effect_intervals`), when the execution formed them.
-    #[must_use]
-    pub fn unit_effect_interval_binding(&self) -> Option<IntervalBinding> {
-        let intervals = self.counterfactual()?.unit_effect_intervals.as_ref()?;
-        let mut binding = IntervalBinding::new(
-            antecedent_core::IntervalMethod::UnitPosteriorQuantile,
-            intervals.level,
-            self.base_dependence(),
-        );
-        binding.posterior_draws = self.posterior_draw_count();
-        Some(binding)
-    }
-
-    /// Construction of a temporal response's published simultaneous band
-    /// (support diagnostic `response.simultaneous_band.critical`), when one
-    /// accompanies a pointwise band.
-    #[must_use]
-    pub fn simultaneous_band_binding(&self, bayesian: bool) -> Option<IntervalBinding> {
-        let response = self.response()?;
-        if matches!(
-            response.uncertainty,
-            antecedent_core::ResponseUncertainty::SimultaneousBand { .. }
-        ) {
-            return None;
-        }
-        let critical = support_values(response, antecedent_estimate::SIMULTANEOUS_BAND_CRITICAL)?;
-        let level = *critical.first()?;
-        let mut binding = IntervalBinding::new(
-            antecedent_core::IntervalMethod::SimultaneousBand,
-            level,
-            self.primary_interval_binding(bayesian).dependence,
-        );
-        binding.replicates_ok = critical.get(2).and_then(|n| count_u32(*n));
-        if bayesian || self.posterior.is_some() {
-            binding.posterior_draws = binding.replicates_ok.take();
-        }
-        Some(binding)
-    }
-
-    /// Every interval this execution reported: the primary interval first,
-    /// then an identified-set interval and a simultaneous band when they are
-    /// reported beside it. Each states its own calibration on the claim.
-    #[must_use]
-    pub fn reported_interval_bindings(&self, bayesian: bool) -> Vec<IntervalBinding> {
-        let primary = self.primary_interval_binding(bayesian);
-        let mut out = vec![primary];
-        for extra in [
-            self.identified_set_interval_binding(),
-            self.simultaneous_band_binding(bayesian),
-            self.unit_effect_interval_binding(),
-        ]
-        .into_iter()
-        .flatten()
-        {
-            if out.iter().all(|seen| seen.method != extra.method) {
-                out.push(extra);
-            }
-        }
-        out
-    }
-
-    /// Re-derive [`Self::interval`] from the reported content.
-    pub(crate) fn rebind_interval(&mut self, bayesian: bool) {
-        self.interval = Some(self.primary_interval_binding(bayesian));
-    }
-
     /// Primary scalar effect for display and tests.
     ///
     /// Prefer this over reading [`EffectEstimate::ate`] directly when the query may be a
@@ -1925,6 +1620,9 @@ impl StudyResult {
         }
         if let Some(cf) = self.counterfactual() {
             return cf.mean_ite;
+        }
+        if let Some(set) = self.counterfactual_contrasts() {
+            return set.primary().mean_ite;
         }
         self.estimate.as_effect().map_or(f64::NAN, |estimate| estimate.ate)
     }
@@ -1967,14 +1665,6 @@ impl StudyResult {
             support_status: self
                 .support_status
                 .map(crate::support::CellStatus::as_str)
-                .map(str::to_string),
-            allowlist_reason: self
-                .support_status
-                .and_then(crate::support::CellStatus::allowlist_reason)
-                .map(str::to_string),
-            allowlist_parent: self
-                .support_status
-                .and_then(crate::support::CellStatus::allowlist_parent)
                 .map(str::to_string),
         }
     }

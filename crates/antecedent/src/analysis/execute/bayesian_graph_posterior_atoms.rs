@@ -4,7 +4,7 @@
 //! any interactive selection, then passes the same resolved prior to every fit.
 //! Atom order and posterior draw columns remain explicit for the envelope mixer.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, BayesianConfig, BayesianGCompWorkspace, BayesianGComputationAte, CausalError,

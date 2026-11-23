@@ -7,7 +7,7 @@
 //! receipt written before they existed is consumed unchanged; a decision whose own digest
 //! moved is an ordinary recomputation, not a refusal.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
@@ -65,7 +65,7 @@ fn a_receipt_that_predates_standing_inputs_is_consumed_unchanged() {
     let artifact = RecalcReceiptArtifact::seal(
         &workflow(previous),
         &workflow(requested),
-        &RecalcCapabilities::in_process(RetargetSupport::Licensed),
+        &RecalcCapabilities::in_process(RetargetSupport::Supported),
         &decided(),
     )
     .expect("a moved decision identity is a recomputation, not a refusal");

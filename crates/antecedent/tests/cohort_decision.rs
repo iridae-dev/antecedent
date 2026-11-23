@@ -9,7 +9,7 @@
 //! `0.2 * 1.5 + 0.3 * 2.25 + 0.5 * 2.5 = 2.225`; the utility `4 x - 1.5` has expected
 //! utility `7.4` and `10 x - 25` has `-2.75`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::cohort_decision::{
     CATE_FUNCTIONAL_ID, CohortBinding, CohortColumn, CohortExpectation, CohortOptions,
@@ -56,8 +56,15 @@ fn columns(effect: f64) -> Vec<(String, Vec<f64>)> {
     vec![("t".into(), t), ("y".into(), y), ("z".into(), z)]
 }
 
-/// The exported analysis result and the in-process fitted effect of a DR-learner fit.
+/// The exported analysis result and the in-process fitted effect of a DR-learner fit. The
+/// export carries the full source table, so a consumer replays the fit and verifies the
+/// parent claim.
 fn fit(effect: f64) -> (Vec<u8>, antecedent_estimate::FittedEffect) {
+    fit_exported(effect, true)
+}
+
+/// The same fit, exported with the full source table or compact.
+fn fit_exported(effect: f64, with_source: bool) -> (Vec<u8>, antecedent_estimate::FittedEffect) {
     let columns = columns(effect);
     let borrowed: Vec<(&str, &[f64])> =
         columns.iter().map(|(name, values)| (name.as_str(), values.as_slice())).collect();
@@ -78,7 +85,7 @@ fn fit(effect: f64) -> (Vec<u8>, antecedent_estimate::FittedEffect) {
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&data, &ctx()).unwrap();
     let fitted = result
-        .estimate
+        .estimate()
         .as_effect()
         .unwrap()
         .heterogeneity
@@ -87,7 +94,11 @@ fn fit(effect: f64) -> (Vec<u8>, antecedent_estimate::FittedEffect) {
         .expect("a DR-learner fit retains its portable CATE map")
         .as_ref()
         .clone();
-    let bytes = prepared.encode_contracted_result(&result, "dr-fit", &ctx()).unwrap();
+    let bytes = if with_source {
+        prepared.encode_contracted_result_with_source(&result, &data, "dr-fit", &ctx()).unwrap()
+    } else {
+        prepared.encode_contracted_result(&result, "dr-fit", &ctx()).unwrap()
+    };
     (bytes, fitted)
 }
 
@@ -164,6 +175,34 @@ fn producer_to_cohort_to_affine_contract_matches_the_hand_calculation() {
 }
 
 #[test]
+fn a_compact_export_of_the_same_fit_is_not_a_verified_parent() {
+    let (compact, _) = fit_exported(2.0, false);
+    let consumed = antecedent_io::replay_analysis_result(&compact).unwrap();
+    assert!(!consumed.acceptance.accepts_as_claim());
+    assert!(
+        consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| reason.as_ref() == "dependencies.checked_estimator_operation"),
+        "{:?}",
+        consumed.acceptance.unresolved
+    );
+    match FittedEffectModel::load(&compact) {
+        Err(refusal) => assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::cohort_decision::PARENT_NOT_VERIFIED
+        ),
+        Ok(_) => panic!("a compact export must not be a verified parent"),
+    }
+    // The full-source export of the same fit is.
+    let (sourced, _) = fit_exported(2.0, true);
+    let consumed = antecedent_io::replay_analysis_result(&sourced).unwrap();
+    assert!(consumed.acceptance.accepts_as_claim(), "{:?}", consumed.acceptance.unresolved);
+    assert!(FittedEffectModel::load(&sourced).is_ok());
+}
+
+#[test]
 fn affine_contracts_on_the_cohort_source_match_hand_calculated_utilities() {
     let (bytes, _) = fit(2.0);
     let model = FittedEffectModel::load(&bytes).unwrap();
@@ -228,7 +267,7 @@ fn negative_gates_are_typed_and_actionable() {
     // Outside the fitted support.
     let outside = cohort_of("target", &[0.0, 1.5], &[0.5, 0.5]);
     let error = build(&outside, "mmHg", &default).unwrap_err();
-    assert_eq!(error.detail, "cohort_decision.outside_support");
+    assert_eq!(error.detail, antecedent_core::reason_details::cohort_decision::OUTSIDE_SUPPORT);
     assert!(error.subject.contains("patient-1"), "{}", error.subject);
     error.to_refusal().validate().unwrap();
 
@@ -244,16 +283,19 @@ fn negative_gates_are_typed_and_actionable() {
     .unwrap();
     assert_eq!(
         build(&renamed, "mmHg", &default).unwrap_err().detail,
-        "cohort_decision.feature_schema_mismatch"
+        antecedent_core::reason_details::cohort_decision::FEATURE_SCHEMA_MISMATCH
     );
     assert_eq!(
         build(&cohort(), "", &default).unwrap_err().detail,
-        "cohort_decision.outcome_units_required"
+        antecedent_core::reason_details::cohort_decision::OUTCOME_UNITS_REQUIRED
     );
     let foreign = cohort_of("clinic_b", &[0.0], &[1.0]);
     let refusal = build(&foreign, "mmHg", &default).unwrap_err();
     assert_eq!(refusal.code, "transport_missing_evidence");
-    assert_eq!(refusal.detail, "cohort_decision.shift_declaration_required");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::cohort_decision::SHIFT_DECLARATION_REQUIRED
+    );
 
     // A declared shift is point-only evidence under an assumption, never `Supported`.
     let shifted = CohortOptions {
@@ -286,7 +328,7 @@ fn negative_gates_are_typed_and_actionable() {
     };
     assert_eq!(
         build(&cohort(), "mmHg", &other_contrast).unwrap_err().detail,
-        "cohort_decision.contrast_mismatch"
+        antecedent_core::reason_details::cohort_decision::CONTRAST_MISMATCH
     );
 
     // Law-valued requests are refused with a remedy.
@@ -299,7 +341,7 @@ fn negative_gates_are_typed_and_actionable() {
     ] {
         assert!(!source.law_refusal(request).remedy.is_empty());
     }
-    assert_eq!(source.interval_refusal().code, "cell_not_licensed");
+    assert_eq!(source.interval_refusal().code, "route_not_supported");
 }
 
 #[test]
@@ -326,10 +368,13 @@ fn changed_rows_weights_cohort_and_parent_are_refused() {
         },
     )
     .unwrap_err();
-    assert_eq!(wrong.detail, "cohort_decision.wrong_parent_identity");
+    assert_eq!(
+        wrong.detail,
+        antecedent_core::reason_details::cohort_decision::WRONG_PARENT_IDENTITY
+    );
     assert_eq!(
         FittedEffectModel::load_expecting(&other_bytes, model.parent_claim()).unwrap_err().detail,
-        "cohort_decision.wrong_parent_identity"
+        antecedent_core::reason_details::cohort_decision::WRONG_PARENT_IDENTITY
     );
 
     // A changed weight, a changed row, a changed identity: different cohort, different source.
@@ -345,9 +390,12 @@ fn changed_rows_weights_cohort_and_parent_are_refused() {
             &CohortExpectation { cohort_digest: Some(cohort().digest()), ..retained.clone() },
         )
         .unwrap_err();
-        assert_eq!(error.detail, "cohort_decision.cohort_changed");
+        assert_eq!(error.detail, antecedent_core::reason_details::cohort_decision::COHORT_CHANGED);
         let error = consume_cohort_decision_source(&bytes2, &retained).unwrap_err();
-        assert_eq!(error.detail, "cohort_decision.identity_unexpected");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::cohort_decision::IDENTITY_UNEXPECTED
+        );
     }
 
     // A corrupted parent result and a corrupted source are refused.
@@ -403,11 +451,18 @@ fn a_compact_linear_model_carries_the_uncalibrated_variance_diagnostic_only() {
     let diagnostic = source.uncalibrated_standard_error().unwrap();
     // phibar = (1, 0.45): 0.04 - 2 * 0.01 * 0.45 + 0.09 * 0.45^2 = 0.049225.
     close(diagnostic.value, 0.049_225_f64.sqrt(), 1e-12);
-    assert_eq!(diagnostic.calibration, "calibration unmeasured");
+    assert_eq!(diagnostic.calibration, "calibration not_measured");
     // A declared model is attested, never native, and exposes no interval.
     assert!(!source.is_native());
-    assert!(cohort_decision_input("c", &source, TrustRequirement::Native).is_err());
-    assert_eq!(source.interval_refusal().detail, "cohort_decision.interval_requires_native_fit");
+    let refused = cohort_decision_input("c", &source, TrustRequirement::Native).err().unwrap();
+    assert!(
+        format!("{refused:?}").contains("NativeRequired"),
+        "a declared model is refused as non-native: {refused:?}"
+    );
+    assert_eq!(
+        source.interval_refusal().detail,
+        antecedent_core::reason_details::cohort_decision::INTERVAL_REQUIRES_NATIVE_FIT
+    );
     // The decision result inherits no standard error from the diagnostic.
     let decision = evaluate_cohort_decision(
         &contract(source.quantity(), linear_utility(4.0, -1.5)),

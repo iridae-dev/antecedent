@@ -549,7 +549,10 @@ fn forfeited_and_refused_outcomes_beyond_the_horizon() {
     )
     .unwrap_err();
     assert_eq!(err.code, "invalid_argument");
-    assert_eq!(err.detail, "sequential_evaluation.delayed_outcome_beyond_horizon");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::DELAYED_OUTCOME_BEYOND_HORIZON
+    );
 
     spec.forfeit = true;
     let evaluation = evaluate_policy(
@@ -666,7 +669,10 @@ fn policy_that_takes_an_unsupported_action_is_refused() {
     )
     .unwrap_err();
     assert_eq!(err.code, "history_support_violated");
-    assert_eq!(err.detail, "sequential_evaluation.action_not_supported");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::ACTION_NOT_SUPPORTED
+    );
     assert!(err.message.contains("repair"));
     // a supported action in the same history is evaluated
     assert!(
@@ -692,7 +698,10 @@ fn incomplete_policy_and_resource_budget_are_refused() {
     let err =
         evaluate_policy(&model, &policy_of("v", &incomplete), EvaluationLimits::default(), &ctx())
             .unwrap_err();
-    assert_eq!(err.detail, "sequential_evaluation.policy_incomplete");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::POLICY_INCOMPLETE
+    );
 
     // a third inspection exceeds the budget of two (boundary-forced histories
     // never reach it; the mixed ones do)
@@ -702,7 +711,10 @@ fn incomplete_policy_and_resource_budget_are_refused() {
     let err =
         evaluate_policy(&model, &policy_of("v", &greedy), EvaluationLimits::default(), &ctx())
             .unwrap_err();
-    assert_eq!(err.detail, "sequential_evaluation.resource_budget_exceeded");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::RESOURCE_BUDGET_EXCEEDED
+    );
 }
 
 #[test]
@@ -713,11 +725,17 @@ fn static_score_tables_and_policy_learning_are_not_evaluation() {
     };
     let err = table.into_contingent().unwrap_err();
     assert_eq!(err.code, "route_not_supported");
-    assert_eq!(err.detail, "sequential_evaluation.static_score_table");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::STATIC_SCORE_TABLE
+    );
     let learned = PolicySpec::LearnedFromEvaluationData { rule: "fitted_q_iteration".into() };
     let err = learned.into_contingent().unwrap_err();
     assert_eq!(err.code, "route_not_supported");
-    assert_eq!(err.detail, "sequential_evaluation.policy_change_refused");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::POLICY_CHANGE_REFUSED
+    );
     // a fixed policy passes through unchanged
     let fixed = PolicySpec::Contingent(policy_of("v", &act_now_ship()));
     assert_eq!(fixed.into_contingent().unwrap().version(), "v");
@@ -737,7 +755,10 @@ fn static_score_tables_and_policy_learning_are_not_evaluation() {
         &ctx(),
     )
     .unwrap_err();
-    assert_eq!(err.detail, "sequential_evaluation.static_score_table");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::STATIC_SCORE_TABLE
+    );
 }
 
 #[test]
@@ -753,16 +774,25 @@ fn transport_and_intervals_are_typed_refusals() {
         SequentialRequest { target_population: Some("plant_b".into()), target_period: None };
     let err = other_population.check(&model).unwrap_err();
     assert_eq!(err.code, "transport_missing_evidence");
-    assert_eq!(err.detail, "sequential_evaluation.transported_policy_contract_missing");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::TRANSPORTED_POLICY_CONTRACT_MISSING
+    );
     assert!(err.remedy.contains("selection diagram"));
     let other_period =
         SequentialRequest { target_population: None, target_period: Some("2027".into()) };
     let err = other_period.check(&model).unwrap_err();
-    assert_eq!(err.detail, "sequential_evaluation.temporal_transport_contract_missing");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::TEMPORAL_TRANSPORT_CONTRACT_MISSING
+    );
 
     let err = request_interval().unwrap_err();
-    assert_eq!(err.code, "cell_not_licensed");
-    assert_eq!(err.detail, "sequential_evaluation.interval_not_licensed");
+    assert_eq!(err.code, "uncertainty_representation_insufficient");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::INTERVAL_NOT_SUPPORTED
+    );
 }
 
 #[test]
@@ -777,7 +807,10 @@ fn observation_channels_pass_through_the_measurement_model_checks() {
     // a different construct
     let err = check(&|m| m.construct.id = "something_else".into());
     assert_eq!(err.code, "measurement_binding_mismatch");
-    assert_eq!(err.detail, "sequential_evaluation.channel_construct_mismatch");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::CHANNEL_CONSTRUCT_MISMATCH
+    );
     // the measured column offered as the state variable
     let mut model = build(&spec);
     model.state_variable = "alarm".into();
@@ -787,7 +820,10 @@ fn observation_channels_pass_through_the_measurement_model_checks() {
     let err = check(&|m| m.binding.population_id = "plant_b".into());
     assert_eq!(err.code, "measurement_binding_mismatch");
     let err = check(&|m| m.binding.regime_id = "trial".into());
-    assert_eq!(err.detail, "sequential_evaluation.channel_binding_mismatch");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::CHANNEL_BINDING_MISMATCH
+    );
     // differential error is never pooled
     let err = check(&|m| {
         m.structure = ErrorStructure::Differential(DifferentialAxis::Arm);
@@ -807,7 +843,10 @@ fn observation_channels_pass_through_the_measurement_model_checks() {
             levels.swap(0, 1);
         }
     });
-    assert_eq!(err.detail, "sequential_evaluation.channel_levels_mismatch");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::CHANNEL_LEVELS_MISMATCH
+    );
     // a route without a finite likelihood
     let err = check(&|m| {
         m.route = MeasurementRoute::ClassicalContinuousError;
@@ -818,7 +857,7 @@ fn observation_channels_pass_through_the_measurement_model_checks() {
             min_reliability: 0.1,
         };
     });
-    assert_eq!(err.detail, "sequential_evaluation.channel_route");
+    assert_eq!(err.detail, antecedent_core::reason_details::sequential_evaluation::CHANNEL_ROUTE);
 }
 
 // ---------------------------------------------------------------------------
@@ -853,14 +892,23 @@ fn belief_updates_record_each_observation_and_action_once() {
     assert!((receipt.belief[1] - 0.5).abs() < 1e-15);
     // the budget of two inspections is exhausted
     let err = tracker.observe(&mut ledger, INSPECT, ALARM, "inspection_3").unwrap_err();
-    assert_eq!(err.detail, "sequential_evaluation.resource_budget_exceeded");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::RESOURCE_BUDGET_EXCEEDED
+    );
     // a commit action ends the episode and has no observation
     let err = tracker.observe(&mut ledger, SHIP, 0, "ship_1").unwrap_err();
-    assert_eq!(err.detail, "sequential_evaluation.commit_has_no_observation");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::COMMIT_HAS_NO_OBSERVATION
+    );
     // a symbol outside the channel
     let mut other = BeliefTracker::new(&model, "unit_18").unwrap();
     let err = other.observe(&mut ledger, INSPECT, 5, "inspection_1").unwrap_err();
-    assert_eq!(err.detail, "sequential_evaluation.observation_impossible");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::OBSERVATION_IMPOSSIBLE
+    );
     // the same record identity in another session is a different record
     other.observe(&mut ledger, INSPECT, ALARM, "inspection_1").unwrap();
     assert_eq!(ledger.sources().len(), 3);
@@ -876,7 +924,10 @@ fn an_observation_the_model_forbids_is_refused_not_conditioned_on() {
     let mut ledger = EvidenceLedger::new();
     let mut tracker = BeliefTracker::new(&model, "s").unwrap();
     let err = tracker.observe(&mut ledger, INSPECT, ALARM, "r1").unwrap_err();
-    assert_eq!(err.detail, "sequential_evaluation.observation_impossible");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::OBSERVATION_IMPOSSIBLE
+    );
     assert!(ledger.sources().is_empty());
     assert_eq!(tracker.time(), 0);
     // the possible observation updates the belief (and keeps it on sound)
@@ -990,7 +1041,10 @@ fn a_comparison_must_implement_its_declared_kind() {
         &ctx(),
     )
     .unwrap_err();
-    assert_eq!(mismatched.detail, "sequential_evaluation.comparison_kind_mismatch");
+    assert_eq!(
+        mismatched.detail,
+        antecedent_core::reason_details::sequential_evaluation::COMPARISON_KIND_MISMATCH
+    );
     // "choose differently" with the same decision after both observations
     let same = compare_policies(
         &model,
@@ -1012,7 +1066,10 @@ fn a_comparison_must_implement_its_declared_kind() {
         &ctx(),
     )
     .unwrap_err();
-    assert_eq!(same.detail, "sequential_evaluation.comparison_kind_mismatch");
+    assert_eq!(
+        same.detail,
+        antecedent_core::reason_details::sequential_evaluation::COMPARISON_KIND_MISMATCH
+    );
     // the cross-check does not cover a model with boundaries
     let bounded = build(&base_spec(true));
     let err = value_of_collecting_evidence(
@@ -1023,7 +1080,7 @@ fn a_comparison_must_implement_its_declared_kind() {
     )
     .unwrap_err();
     assert_eq!(err.code, "route_not_supported");
-    assert_eq!(err.detail, "sequential_evaluation.voi_scope");
+    assert_eq!(err.detail, antecedent_core::reason_details::sequential_evaluation::VOI_SCOPE);
     // an action with its own utility is not pure information
     let err = value_of_collecting_evidence(
         &model,
@@ -1032,7 +1089,10 @@ fn a_comparison_must_implement_its_declared_kind() {
         &ctx(),
     )
     .unwrap_err();
-    assert_eq!(err.detail, "sequential_evaluation.voi_collect_action");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::VOI_COLLECT_ACTION
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1095,11 +1155,28 @@ fn stream_identities_are_semantic_and_policies_share_them() {
     let config = RolloutConfig { seed: 5, rollouts: 2_000 };
     let a = rollout_policy(&model, &base, config, &ctx()).unwrap();
     let b = rollout_policy(&model, &extended, config, &ctx()).unwrap();
+    assert_eq!(a.utilities, b.utilities);
+    assert_eq!(a.utilities.len(), config.rollouts as usize);
     assert_eq!(a.mean.to_bits(), b.mean.to_bits());
     assert_eq!(a.monte_carlo_standard_error.to_bits(), b.monte_carlo_standard_error.to_bits());
     // a different policy on the same streams gives a different estimate
     let c = rollout_policy(&model, &policy_of("c", &act_now_repair()), config, &ctx()).unwrap();
     assert_ne!(a.mean.to_bits(), c.mean.to_bits());
+    let draws = antecedent_design::sequential_evaluation::rollout_decision_draws(
+        &[a.clone(), c.clone()],
+        "utility",
+    )
+    .unwrap();
+    assert_eq!(draws.n_draws(), config.rollouts as usize);
+    let mut wrong_stream = c;
+    wrong_stream.seed += 1;
+    assert!(
+        antecedent_design::sequential_evaluation::rollout_decision_draws(
+            &[a, wrong_stream],
+            "utility"
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -1121,7 +1198,7 @@ fn rollouts_observe_cancellation_and_bounds() {
         &ctx(),
     )
     .unwrap_err();
-    assert_eq!(err.detail, "sequential_evaluation.limit_exceeded");
+    assert_eq!(err.detail, antecedent_core::reason_details::sequential_evaluation::LIMIT_EXCEEDED);
 }
 
 // ---------------------------------------------------------------------------
@@ -1347,6 +1424,13 @@ fn off_policy_weighting_recovers_the_enumerated_value_and_the_log_is_counted_onc
     assert!((estimate.effective_sample_size - LOG_SIZE / 8.0).abs() < 1e-6);
     assert_eq!(estimate.inference, "point_only");
     assert!(estimate.uncalibrated_standard_error.unwrap() > 0.0);
+    let interval = estimate.interval.as_ref().expect("an interval above one trajectory");
+    assert_eq!(interval.level, 0.95);
+    assert!(interval.lower < estimate.ordinary && estimate.ordinary < interval.upper);
+    assert_eq!(
+        interval.calibration.status,
+        antecedent_io_core::contract_section::CalibrationStatus::NotMeasured
+    );
     assert_eq!(estimate.trajectories, 65_536);
     assert!(!estimate.reused_recorded_log);
     assert!(estimate.records_counted > 65_536);
@@ -1418,7 +1502,10 @@ fn off_policy_refusals_positivity_duplicates_and_inconsistent_logs() {
     let pilot_target = policy_of("pilot_first", &det(&[(&[], PILOT), (&[(PILOT, 0)], SHIP)]));
     let err = run(&model, &pilot_target, &behaviour, &log, &mut EvidenceLedger::new()).unwrap_err();
     assert_eq!(err.code, "history_support_violated");
-    assert_eq!(err.detail, "sequential_evaluation.behaviour_support_missing");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::BEHAVIOUR_SUPPORT_MISSING
+    );
 
     // a trajectory identity repeated
     let mut duplicated = log.clone();
@@ -1426,7 +1513,10 @@ fn off_policy_refusals_positivity_duplicates_and_inconsistent_logs() {
     let err =
         run(&model, &target, &behaviour, &duplicated, &mut EvidenceLedger::new()).unwrap_err();
     assert_eq!(err.code, "evidence_double_counted");
-    assert_eq!(err.detail, "sequential_evaluation.trajectory_recorded_twice");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::TRAJECTORY_RECORDED_TWICE
+    );
 
     // a log whose records partly overlap what the ledger already holds
     let mut ledger = EvidenceLedger::new();
@@ -1435,14 +1525,20 @@ fn off_policy_refusals_positivity_duplicates_and_inconsistent_logs() {
     let mut revised = log.clone();
     revised[0].outcome_utility += 1.0;
     let err = run(&model, &target, &behaviour, &revised, &mut ledger).unwrap_err();
-    assert_eq!(err.detail, "sequential_evaluation.log_partially_counted");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::LOG_PARTIALLY_COUNTED
+    );
     assert_eq!(ledger.state_digest(), before);
 
     // a logged probability that is not the logging policy's
     let mut wrong = log.clone();
     wrong[0].steps[0].assignment_probability = 0.25;
     let err = run(&model, &target, &behaviour, &wrong, &mut EvidenceLedger::new()).unwrap_err();
-    assert_eq!(err.detail, "sequential_evaluation.logged_trajectory_inconsistent");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::LOGGED_TRAJECTORY_INCONSISTENT
+    );
 
     // a trajectory that keeps inspecting after a declared boundary was crossed
     let mut ignoring = log[0].clone();
@@ -1454,13 +1550,46 @@ fn off_policy_refusals_positivity_duplicates_and_inconsistent_logs() {
     ];
     let err =
         run(&model, &target, &behaviour, &[ignoring], &mut EvidenceLedger::new()).unwrap_err();
-    assert_eq!(err.detail, "sequential_evaluation.logged_trajectory_inconsistent");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::sequential_evaluation::LOGGED_TRAJECTORY_INCONSISTENT
+    );
 
     // no logged trajectory is consistent with the target: no overlap
     let nothing: Vec<LoggedTrajectory> =
         full.iter().filter(|t| t.steps[0].action == SHIP).take(10).cloned().collect();
     let err = run(&model, &target, &behaviour, &nothing, &mut EvidenceLedger::new()).unwrap_err();
-    assert_eq!(err.detail, "sequential_evaluation.no_overlap");
+    assert_eq!(err.detail, antecedent_core::reason_details::sequential_evaluation::NO_OVERLAP);
+}
+
+#[test]
+fn off_policy_standard_error_preserves_small_spread_at_large_location() {
+    let model = build(&base_spec(false));
+    let policy = policy_of("ship_only", &act_now_ship());
+    let log: Vec<LoggedTrajectory> = [1e9 - 1.0, 1e9 + 1.0]
+        .iter()
+        .enumerate()
+        .map(|(i, &outcome)| LoggedTrajectory {
+            id: format!("row_{i}"),
+            steps: vec![LoggedStep {
+                action: SHIP,
+                observation: None,
+                assignment_probability: 1.0,
+            }],
+            outcome_utility: outcome,
+        })
+        .collect();
+    let estimate = evaluate_off_policy(
+        &model,
+        &policy,
+        &policy,
+        &log,
+        &mut EvidenceLedger::new(),
+        EvaluationLimits::default(),
+        &ctx(),
+    )
+    .unwrap();
+    assert!((estimate.uncalibrated_standard_error.unwrap() - 1.0).abs() < 1e-12);
 }
 
 #[test]
@@ -1486,7 +1615,10 @@ fn off_policy_refuses_overflowed_returns_without_recording_the_log() {
         &ctx(),
     )
     .expect_err("a finite-input net return that overflows must be refused");
-    assert_eq!(error.detail, "sequential_evaluation.return_overflow");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::sequential_evaluation::RETURN_OVERFLOW
+    );
     assert_eq!(ledger.state_digest(), initial_state);
 }
 
@@ -1655,11 +1787,120 @@ fn a_retained_identity_refuses_another_evaluation_and_corruption_is_refused() {
     let mut corrupted = bytes.clone();
     let middle = corrupted.len() / 2;
     corrupted[middle] ^= 0x5a;
-    assert!(consume(&corrupted, None, &ctx()).is_err());
+    assert_eq!(
+        consume(&corrupted, None, &ctx()).unwrap_err().to_string(),
+        "checksum mismatch for section `policy_evaluation.body`"
+    );
     // not an artifact at all
-    assert!(consume(b"not an artifact", None, &ctx()).is_err());
+    assert_eq!(
+        consume(b"not an artifact", None, &ctx()).unwrap_err().to_string(),
+        "bad artifact magic"
+    );
     // an edit that was not resealed cannot be written
     let mut unsealed = SequentialEvaluationArtifact::from_bytes(&bytes).unwrap();
     unsealed.body.exact.value_bits ^= 1;
-    assert!(unsealed.to_bytes("unsealed").is_err());
+    assert_eq!(
+        unsealed.to_bytes("unsealed").unwrap_err().to_string(),
+        "reason=route_not_supported: sequential_evaluation.identity_mismatch: body digest changed"
+    );
+}
+
+#[test]
+fn deep_single_branch_horizon_uses_bounded_native_stack() {
+    let mut spec = base_spec(false);
+    spec.horizon = 1_024;
+    spec.acts[WAIT].trans = IDENTITY;
+    spec.acts[WAIT].imm = [1.0, 1.0];
+    spec.terminal = [2.0, 2.0];
+    let model = build(&spec);
+    let mut policy = ContingentPolicy::new("deep_wait");
+    let mut history = HistoryKey::root();
+    for _ in 0..spec.horizon {
+        policy = policy.decide(history.clone(), WAIT);
+        history = history.extended(WAIT, 0);
+    }
+    let evaluation = std::thread::Builder::new()
+        .stack_size(128 * 1024)
+        .spawn(move || {
+            evaluate_policy(&model, &policy, EvaluationLimits::default(), &ctx()).unwrap()
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+    assert_eq!(evaluation.value, 1_026.0);
+    assert_eq!(evaluation.nodes_visited, 1_025);
+    assert_eq!(evaluation.histories.len(), 1_025);
+    assert_eq!(evaluation.decisions.len(), 1_024);
+    assert_eq!(evaluation.accounting_residual, 0.0);
+    for (time, receipt) in evaluation.histories.iter().enumerate() {
+        assert_eq!(receipt.time, time);
+        assert_eq!(receipt.continuation_value, (1_026 - time) as f64);
+    }
+}
+
+#[test]
+fn history_receipts_are_admitted_against_the_memory_limit() {
+    let model = build(&base_spec(true));
+    let policy = policy_of("v", &inspect_twice());
+    let tight = ctx().with_memory_limit(Some(64));
+    let err = evaluate_policy(&model, &policy, EvaluationLimits::default(), &tight).unwrap_err();
+    assert_eq!(err.detail, antecedent_core::reason_details::sequential_evaluation::LIMIT_EXCEEDED);
+    let roomy = ctx().with_memory_limit(Some(1 << 30));
+    assert!(evaluate_policy(&model, &policy, EvaluationLimits::default(), &roomy).is_ok());
+}
+
+#[test]
+fn paired_bootstrap_replays_and_rejects_low_support() {
+    use antecedent_design::sequential_evaluation::bootstrap_off_policy;
+    let spec = base_spec(true);
+    let model = build(&spec);
+    let log = log_under(&spec);
+    let target = policy_of("fixed", &inspect_then_act());
+    let targets = vec![target.clone(), target];
+    let mut ledger = EvidenceLedger::new();
+    let result = bootstrap_off_policy(
+        &model,
+        &targets,
+        &behaviour_policy(),
+        &log,
+        &mut ledger,
+        EvaluationLimits::default(),
+        17,
+        8,
+        2.0,
+        &ctx(),
+    )
+    .unwrap();
+    assert_eq!(result.replicates[0], result.replicates[1]);
+    assert_eq!(result.source_paradigm, "sampling_distribution");
+    assert_eq!(result.calibration, "not_measured");
+    let again = bootstrap_off_policy(
+        &model,
+        &targets,
+        &behaviour_policy(),
+        &log,
+        &mut ledger,
+        EvaluationLimits::default(),
+        17,
+        8,
+        2.0,
+        &ctx(),
+    )
+    .unwrap();
+    assert_eq!(result.replicates, again.replicates);
+    assert!(
+        bootstrap_off_policy(
+            &model,
+            &targets,
+            &behaviour_policy(),
+            &log,
+            &mut EvidenceLedger::new(),
+            EvaluationLimits::default(),
+            17,
+            8,
+            log.len() as f64 + 1.0,
+            &ctx()
+        )
+        .is_err()
+    );
 }

@@ -8,7 +8,7 @@
 //! min-of-`ANTECEDENT_BENCH_REPEATS` wall times for `ANTECEDENT_BENCH_CELLS`
 //! (comma-separated `pulse_n2000|B0`-style names; every cell by default).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(missing_docs, reason = "bench binaries are not public API")]
 
@@ -18,6 +18,9 @@ use antecedent::{LatencyMode, RefuteSuite, Study};
 use antecedent_core::{ExecutionContext, Lag, TemporalEffectQuery, TemporalPolicy, VariableId};
 use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalDag, ensure_lagged};
+
+#[path = "../../../benches/soft_budget.rs"]
+mod soft_budget;
 
 /// Soft budget for the guarded Interactive cells at n = 20 000 (release build,
 /// Apple M1 Max): a few times the fixed values, and well under what an eager
@@ -106,7 +109,7 @@ fn time_min(study: &Study, ctx: &ExecutionContext, repeats: usize) -> Duration {
         let started = Instant::now();
         let result = study.clone().run(ctx).unwrap();
         let elapsed = started.elapsed();
-        assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+        assert!(result.estimate().as_effect().unwrap().ate.is_finite());
         best = best.min(elapsed);
     }
     best
@@ -159,10 +162,9 @@ fn main() {
                      --test` (or another build with debug_assertions off)"
                 );
             } else {
-                assert!(
-                    !guarded || best < INTERACTIVE_BUDGET,
-                    "{cell} exceeded soft budget {INTERACTIVE_BUDGET:?}: {best:?}"
-                );
+                soft_budget::check(!guarded || best < INTERACTIVE_BUDGET, || {
+                    format!("{cell} exceeded soft budget {INTERACTIVE_BUDGET:?}: {best:?}")
+                });
             }
         }
     }

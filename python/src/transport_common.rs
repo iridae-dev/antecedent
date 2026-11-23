@@ -1,11 +1,12 @@
 //! Helpers shared by the transport bindings: one error mapper, one variable
 //! resolver, one law parser, and one execution-context builder.
 use crate::graphs::Admg;
-use antecedent_core::{ExecutionContext, Value, VariableId, reason_code};
-use antecedent_expr::{
+use antecedent::estimate::{
     Assignment, DiscreteAxis, ExactDiscreteLaw, ExactTransportData, InterventionAssignment,
     LawTolerance,
 };
+use antecedent::prelude::{ExecutionContext, Value, VariableId};
+use antecedent::reason::reason_code;
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
 
@@ -28,7 +29,7 @@ pub(crate) trait TransportPyErr {
 }
 
 /// An exhausted identification budget is a resource refusal, never a finding.
-fn budget_error(budget: antecedent_identify::IdentificationBudget) -> PyErr {
+fn budget_error(budget: antecedent::identify::IdentificationBudget) -> PyErr {
     crate::CausalResourceError::new_err(budget.code().to_string())
 }
 
@@ -42,9 +43,9 @@ fn coded_refusal(code: &'static str, message: String) -> PyErr {
     let lower = message.to_ascii_lowercase();
     if code == reason_code!("transport_budget_cancel") {
         if lower.contains("cancel") {
-            return crate::CausalCancelledError::new_err(message);
+            return crate::with_reason_code(crate::CausalCancelledError::new_err(message), code);
         }
-        return crate::CausalResourceError::new_err(message);
+        return crate::with_reason_code(crate::CausalResourceError::new_err(message), code);
     }
     if code == reason_code!("transport_missing_provider") && lower.contains("budget exceeded") {
         return crate::CausalResourceError::new_err(message);
@@ -52,9 +53,9 @@ fn coded_refusal(code: &'static str, message: String) -> PyErr {
     crate::refusal(code, message)
 }
 
-impl TransportPyErr for antecedent_identify::IdentificationError {
+impl TransportPyErr for antecedent::identify::IdentificationError {
     fn into_transport_py_err(self) -> PyErr {
-        use antecedent_identify::IdentificationError as E;
+        use antecedent::identify::IdentificationError as E;
         match self {
             E::Cancelled => crate::CausalCancelledError::new_err(self.to_string()),
             E::Budget { budget } => budget_error(budget),
@@ -73,8 +74,7 @@ impl TransportPyErr for antecedent_identify::IdentificationError {
             | E::SustainedPolicyUnsupported
             | E::NotCertified { .. }
             | E::ResultLimitExceeded { .. }
-            | E::InvariantViolated { .. }
-            | E::Message(_) => {
+            | E::InvariantViolated { .. } => {
                 crate::refusal(reason_code!("transport_not_certified"), self.to_string())
             }
             // `IdentificationError` is `#[non_exhaustive]`; a new variant lands on
@@ -84,19 +84,19 @@ impl TransportPyErr for antecedent_identify::IdentificationError {
     }
 }
 
-impl TransportPyErr for antecedent_estimate::EstimationError {
+impl TransportPyErr for antecedent::estimate::EstimationError {
     fn into_transport_py_err(self) -> PyErr {
-        use antecedent_estimate::EstimationError as E;
+        use antecedent::estimate::EstimationError as E;
         match self {
-            E::Refused { code, message } => coded_refusal(code, message),
+            E::Refused { code, message } => coded_refusal(code, message.into_string()),
             other => crate::py_err(other),
         }
     }
 }
 
-impl TransportPyErr for antecedent_io::z_transport_artifact::ZTransportArtifactError {
+impl TransportPyErr for antecedent::io::z_transport_artifact::ZTransportArtifactError {
     fn into_transport_py_err(self) -> PyErr {
-        use antecedent_io::z_transport_artifact::ZTransportArtifactError as E;
+        use antecedent::io::z_transport_artifact::ZTransportArtifactError as E;
         match self {
             E::LimitsExceeded(_) => crate::CausalResourceError::new_err(self.to_string()),
             E::ProofMismatch(inner) | E::CatalogBinding(inner) if inner.is_budget_or_cancel() => {
@@ -108,7 +108,8 @@ impl TransportPyErr for antecedent_io::z_transport_artifact::ZTransportArtifactE
             | E::LawInvalid(_)
             | E::ProgramMismatch(_)
             | E::PointMismatch
-            | E::PremisesMismatch => serialization_error(self),
+            | E::PremisesMismatch
+            | E::NamesMismatch => serialization_error(self),
             // `#[non_exhaustive]`: a new consumer check is a consistency failure
             // until its class is decided.
             other => serialization_error(other),
@@ -116,9 +117,9 @@ impl TransportPyErr for antecedent_io::z_transport_artifact::ZTransportArtifactE
     }
 }
 
-impl TransportPyErr for antecedent_io::mixed_source_artifact::MixedSourceArtifactError {
+impl TransportPyErr for antecedent::io::mixed_source_artifact::MixedSourceArtifactError {
     fn into_transport_py_err(self) -> PyErr {
-        use antecedent_io::mixed_source_artifact::MixedSourceArtifactError as E;
+        use antecedent::io::mixed_source_artifact::MixedSourceArtifactError as E;
         match self {
             E::LimitsExceeded(_) => crate::CausalResourceError::new_err(self.to_string()),
             E::ProofMismatch(inner) | E::CatalogBinding(inner) if inner.is_budget_or_cancel() => {
@@ -130,9 +131,9 @@ impl TransportPyErr for antecedent_io::mixed_source_artifact::MixedSourceArtifac
     }
 }
 
-impl TransportPyErr for antecedent_io::mz_transport_artifact::MzTransportArtifactError {
+impl TransportPyErr for antecedent::io::mz_transport_artifact::MzTransportArtifactError {
     fn into_transport_py_err(self) -> PyErr {
-        use antecedent_io::mz_transport_artifact::MzTransportArtifactError as E;
+        use antecedent::io::mz_transport_artifact::MzTransportArtifactError as E;
         match self {
             E::LimitsExceeded(_) => crate::CausalResourceError::new_err(self.to_string()),
             E::ProofMismatch(inner) | E::CatalogBinding(inner) if inner.is_budget_or_cancel() => {
@@ -151,9 +152,11 @@ impl TransportPyErr for antecedent_io::mz_transport_artifact::MzTransportArtifac
     }
 }
 
-impl TransportPyErr for antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactError {
+impl TransportPyErr
+    for antecedent::io::learned_continuous_artifact::LearnedContinuousArtifactError
+{
     fn into_transport_py_err(self) -> PyErr {
-        use antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactError as E;
+        use antecedent::io::learned_continuous_artifact::LearnedContinuousArtifactError as E;
         match self {
             E::LimitsExceeded(_) => crate::CausalResourceError::new_err(self.to_string()),
             // Every other consumer check is a consistency failure of the artifact.
@@ -162,9 +165,9 @@ impl TransportPyErr for antecedent_io::learned_continuous_artifact::LearnedConti
     }
 }
 
-impl TransportPyErr for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactError {
+impl TransportPyErr for antecedent::io::smoothed_dose_artifact::SmoothedDoseArtifactError {
     fn into_transport_py_err(self) -> PyErr {
-        use antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactError as E;
+        use antecedent::io::smoothed_dose_artifact::SmoothedDoseArtifactError as E;
         match self {
             E::LimitsExceeded(_) => crate::CausalResourceError::new_err(self.to_string()),
             // A replay the consumer cancelled is a cancellation, still reason-coded.
@@ -182,9 +185,11 @@ impl TransportPyErr for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtif
     }
 }
 
-impl TransportPyErr for antecedent_io::transport_scenario_artifact::TransportScenarioArtifactError {
+impl TransportPyErr
+    for antecedent::io::transport_scenario_artifact::TransportScenarioArtifactError
+{
     fn into_transport_py_err(self) -> PyErr {
-        use antecedent_io::transport_scenario_artifact::TransportScenarioArtifactError as E;
+        use antecedent::io::transport_scenario_artifact::TransportScenarioArtifactError as E;
         match self {
             E::LimitsExceeded(_) => crate::CausalResourceError::new_err(self.to_string()),
             other => serialization_error(other),
@@ -192,9 +197,11 @@ impl TransportPyErr for antecedent_io::transport_scenario_artifact::TransportSce
     }
 }
 
-impl TransportPyErr for antecedent_io::temporal_transport_artifact::TemporalTransportArtifactError {
+impl TransportPyErr
+    for antecedent::io::temporal_transport_artifact::TemporalTransportArtifactError
+{
     fn into_transport_py_err(self) -> PyErr {
-        use antecedent_io::temporal_transport_artifact::TemporalTransportArtifactError as E;
+        use antecedent::io::temporal_transport_artifact::TemporalTransportArtifactError as E;
         match self {
             E::LimitsExceeded(_) => crate::CausalResourceError::new_err(self.to_string()),
             other => serialization_error(other),
@@ -202,9 +209,9 @@ impl TransportPyErr for antecedent_io::temporal_transport_artifact::TemporalTran
     }
 }
 
-impl TransportPyErr for antecedent_io::IoError {
+impl TransportPyErr for antecedent::io::IoError {
     fn into_transport_py_err(self) -> PyErr {
-        use antecedent_io::IoError as E;
+        use antecedent::io::IoError as E;
         match self {
             E::Refused { code, message } => coded_refusal(code, message),
             E::ZTransport(inner) => inner.into_transport_py_err(),
@@ -222,9 +229,9 @@ impl TransportPyErr for antecedent_io::IoError {
     }
 }
 
-impl TransportPyErr for antecedent_design::ZTransportPlanningError {
+impl TransportPyErr for antecedent::design::ZTransportPlanningError {
     fn into_transport_py_err(self) -> PyErr {
-        use antecedent_design::ZTransportPlanningError as E;
+        use antecedent::design::ZTransportPlanningError as E;
         match self {
             E::Invalid(_) | E::InvalidSpec(_) | E::Catalog(_) => crate::value_err(self.to_string()),
             E::UnsupportedVersion { .. } | E::DigestMismatch => serialization_error(self),
@@ -234,9 +241,9 @@ impl TransportPyErr for antecedent_design::ZTransportPlanningError {
     }
 }
 
-impl TransportPyErr for antecedent_validate::ZTransportSensitivityError {
+impl TransportPyErr for antecedent::validate::ZTransportSensitivityError {
     fn into_transport_py_err(self) -> PyErr {
-        use antecedent_validate::ZTransportSensitivityError as E;
+        use antecedent::validate::ZTransportSensitivityError as E;
         match self {
             E::Cancelled => {
                 crate::CausalCancelledError::new_err("z-transport sensitivity cancelled")
@@ -250,9 +257,9 @@ impl TransportPyErr for antecedent_validate::ZTransportSensitivityError {
     }
 }
 
-impl TransportPyErr for antecedent_validate::FixedGraphSensitivityError {
+impl TransportPyErr for antecedent::validate::FixedGraphSensitivityError {
     fn into_transport_py_err(self) -> PyErr {
-        use antecedent_validate::FixedGraphSensitivityError as E;
+        use antecedent::validate::FixedGraphSensitivityError as E;
         match self {
             E::InvalidTransportProof | E::SnapshotMismatch => serialization_error(self),
             E::UnsupportedGraph | E::UnboundOutcomeFactor => {
@@ -277,19 +284,19 @@ impl TransportPyErr for antecedent::CausalError {
     }
 }
 
-impl TransportPyErr for antecedent_expr::ExactLawError {
+impl TransportPyErr for antecedent::estimate::ExactLawError {
     fn into_transport_py_err(self) -> PyErr {
         crate::value_err(self.to_string())
     }
 }
 
-impl TransportPyErr for antecedent_core::QueryError {
+impl TransportPyErr for antecedent::query::QueryError {
     fn into_transport_py_err(self) -> PyErr {
         crate::value_err(self.to_string())
     }
 }
 
-impl TransportPyErr for antecedent_graph::GraphError {
+impl TransportPyErr for antecedent::graph::GraphError {
     fn into_transport_py_err(self) -> PyErr {
         crate::value_err(self.to_string())
     }
@@ -320,80 +327,108 @@ impl TransportPyErr for &str {
     }
 }
 
-/// How a dotted `transport.` / `z_transport.` detail is raised.
+/// How an exact structured transport detail is raised.
 enum Kind {
-    /// An artifact, proof or record failed its own consistency check.
     Serialization,
-    /// A refusal carrying a registered runtime reason code.
     Refusal(&'static str),
+    Cancelled,
+    Resource,
 }
 
-/// Classify one plain message: the fallback for failures the crates still
-/// report as strings (`IoError::Convert` from the facade and the bindings'
-/// own formatted refusals). Cancellation and budgets win over any dotted
-/// detail because the budget message may itself be spelled
-/// `transport.<x>_budget`.
+/// Classify recognized transport details without interpreting user-supplied text.
+/// Untyped messages keep the generic value error; typed errors use their own mappings.
 pub(crate) fn classify(message: &str) -> PyErr {
-    let lower = message.to_ascii_lowercase();
-    if lower.contains("cancel") {
-        return crate::CausalCancelledError::new_err(message.to_string());
-    }
-    if lower.contains("memory")
-        || lower.contains("budget")
-        || lower.contains("exhausted_computation")
-    {
-        return crate::CausalResourceError::new_err(message.to_string());
-    }
-    // A record that no longer agrees with itself (digest, identity, replayed
-    // result) is a serialization failure whatever spelling the crate chose.
-    if lower.contains("mismatch") || lower.contains("digest") || lower.contains("identity changed")
-    {
+    // Legacy sensitivity consumers emit these complete, fixed messages with no
+    // user text. Preserve their serialization category without substring matching.
+    if matches!(
+        message,
+        "z-transport sensitivity baseline digest mismatch"
+            | "z-transport sensitivity baseline premises digest mismatch"
+            | "z-transport sensitivity result or provider binding mismatch"
+    ) {
         return serialization_error(message);
     }
-    if let Some(token) = dotted_token(message) {
-        return match refusal_kind(token) {
+    // The exact evaluator's budget and cancellation errors are complete fixed messages.
+    if message == "exact evaluation cancelled" {
+        return crate::CausalCancelledError::new_err(message.to_owned());
+    }
+    if matches!(
+        message,
+        "exact domain budget exceeded"
+            | "exact cache memory/operation budget exceeded"
+            | "exact intervention coverage budget exceeded"
+            | "exact memory budget exceeded"
+            | "exact operation budget exceeded"
+            | "exact preflight budget exceeded"
+            | "exact recursion budget exceeded"
+    ) {
+        return crate::CausalResourceError::new_err(message.to_owned());
+    }
+    if let Some(kind) = dotted_token(message).and_then(refusal_kind) {
+        return match kind {
             Kind::Serialization => serialization_error(message),
             Kind::Refusal(code) => crate::refusal(code, message),
+            Kind::Cancelled => crate::CausalCancelledError::new_err(message.to_owned()),
+            Kind::Resource => crate::CausalResourceError::new_err(message.to_owned()),
         };
     }
     crate::value_err(message)
 }
 
-/// The first `transport.<detail>` or `z_transport.<detail>` token in a message.
+/// A structured transport detail is recognized only at the start of a message.
 fn dotted_token(message: &str) -> Option<&str> {
     message
         .split(|c: char| c.is_whitespace() || matches!(c, ',' | ';' | '(' | ')' | '"' | '\''))
         .map(|word| word.trim_end_matches(':'))
-        .find(|word| word.starts_with("transport.") || word.starts_with("z_transport."))
+        .find(|word| !word.is_empty())
+        .filter(|word| word.starts_with("transport.") || word.starts_with("z_transport."))
 }
 
-/// The registered reason code (or serialization class) for one dotted detail.
-fn refusal_kind(token: &str) -> Kind {
-    let detail = token.split_once('.').map_or(token, |(_, rest)| rest);
-    let consistency = detail.ends_with("_mismatch")
-        || detail.starts_with("proof_")
-        || detail.starts_with("functional_program")
-        || detail.starts_with("invalid_derivation")
-        || detail.starts_with("invalid_s_hedge")
-        || matches!(detail, "obstruction_not_reproduced" | "obstruction_replay_mismatch");
-    if consistency {
-        return Kind::Serialization;
+/// Only known stable detail spellings carry a classification.
+fn refusal_kind(token: &str) -> Option<Kind> {
+    match token {
+        "transport.cancelled" => return Some(Kind::Cancelled),
+        "transport.identification_budget"
+        | "transport.identification_memory_budget"
+        | "transport.binding_budget"
+        | "transport.memory_budget"
+        | "z_transport.exhausted_computation" => return Some(Kind::Resource),
+        _ => {}
     }
-    Kind::Refusal(match detail {
+    let detail = token.split_once('.').map_or(token, |(_, rest)| rest);
+    Some(match detail {
+        "obstruction_assignment_mismatch"
+        | "obstruction_input_mismatch"
+        | "obstruction_record_mismatch"
+        | "obstruction_replay_mismatch"
+        | "obstruction_not_reproduced"
+        | "proof_formula_mismatch"
+        | "proof_graph_mismatch"
+        | "proof_input_mismatch"
+        | "proof_rule_mismatch"
+        | "invalid_derivation"
+        | "invalid_derivation_record"
+        | "invalid_s_hedge"
+        | "invalid_s_hedge_evidence" => Kind::Serialization,
         "missing_evidence"
         | "obstruction_missing_evidence"
         | "source_experiment_missing"
         | "target_joint_observational_law_required"
-        | "experiment_assignment_required" => reason_code!("transport_missing_evidence"),
-        "empirical_counts_required" | "samples_not_embedded" => {
-            reason_code!("transport_missing_provider")
+        | "experiment_assignment_required" => {
+            Kind::Refusal(reason_code!("transport_missing_evidence"))
         }
-        "no_execution_claim" => reason_code!("not_executed"),
-        "unsupported_dependence" => reason_code!("transport_unsupported_evaluator"),
-        "bootstrap_failure_fraction" => reason_code!("transport_numerical_failure"),
-        "stale_request" | "stale_result" | "reprepare_required" => reason_code!("invalid_argument"),
-        "unknown_variable" => reason_code!("unknown_variable"),
-        _ => reason_code!("transport_not_certified"),
+        "empirical_counts_required" | "samples_not_embedded" => {
+            Kind::Refusal(reason_code!("transport_missing_provider"))
+        }
+        "no_execution_claim" => Kind::Refusal(reason_code!("not_executed")),
+        "unsupported_dependence" => Kind::Refusal(reason_code!("transport_unsupported_evaluator")),
+        "bootstrap_failure_fraction" => Kind::Refusal(reason_code!("transport_numerical_failure")),
+        "stale_request" | "stale_result" | "reprepare_required" => {
+            Kind::Refusal(reason_code!("invalid_argument"))
+        }
+        "unknown_variable" => Kind::Refusal(reason_code!("unknown_variable")),
+        "not_certified" => Kind::Refusal(reason_code!("transport_not_certified")),
+        _ => return None,
     })
 }
 
@@ -431,7 +466,7 @@ pub(crate) enum RegimeCheck {
 /// Parse one Python `ExactDiscreteLaw` against the catalog it cites.
 pub(crate) fn parse_law_table(
     table: &Bound<'_, PyAny>,
-    catalog: &antecedent_core::EvidenceCatalog,
+    catalog: &antecedent::query::EvidenceCatalog,
     graph: &Admg,
     check: RegimeCheck,
 ) -> PyResult<ExactDiscreteLaw> {
@@ -483,18 +518,25 @@ pub(crate) fn parse_law_table(
         LawTolerance { absolute, relative },
     )
     .map_err(error)?;
-    if let Ok(counts) = table.getattr("empirical_counts") {
-        if !counts.is_none() {
-            let counts: Vec<i64> = counts.extract()?;
-            let counts = counts
-                .into_iter()
-                .map(|count| {
-                    u64::try_from(count)
-                        .map_err(|_| crate::value_err("empirical counts must be non-negative"))
-                })
-                .collect::<PyResult<Vec<_>>>()?;
-            law = law.with_empirical_counts(counts).map_err(error)?;
+    let counts = match table.getattr("empirical_counts") {
+        Ok(counts) => Some(counts),
+        Err(error) if error.is_instance_of::<pyo3::exceptions::PyAttributeError>(table.py()) => {
+            None
         }
+        Err(error) => return Err(error),
+    };
+    if let Some(counts) = counts
+        && !counts.is_none()
+    {
+        let counts: Vec<i64> = counts.extract()?;
+        let counts = counts
+            .into_iter()
+            .map(|count| {
+                u64::try_from(count)
+                    .map_err(|_| crate::value_err("empirical counts must be non-negative"))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        law = law.with_empirical_counts(counts).map_err(error)?;
     }
     Ok(law)
 }
@@ -502,7 +544,7 @@ pub(crate) fn parse_law_table(
 /// Parse an iterable of Python laws into validated exact transport data.
 pub(crate) fn parse_laws(
     laws: &Bound<'_, PyAny>,
-    catalog: &antecedent_core::EvidenceCatalog,
+    catalog: &antecedent::query::EvidenceCatalog,
     graph: &Admg,
     max_support_rows: usize,
     check: RegimeCheck,
@@ -521,8 +563,9 @@ pub(crate) fn execution_context(
     cancel: Option<crate::PyCancellationToken>,
 ) -> ExecutionContext {
     let mut ctx = ExecutionContext::production_default(seed);
-    ctx.memory.hard_limit_bytes = memory_bytes;
+    ctx.set_memory_limit(memory_bytes);
     crate::apply_cancel(&mut ctx, cancel);
+    crate::execution_api::apply(&mut ctx);
     ctx
 }
 
@@ -557,10 +600,10 @@ pub(crate) fn resolve_variable_ids(text: &str, names: &[String]) -> String {
 /// searched and their obligations are rendered in prose with variable names,
 /// never as a debug dump.
 pub(crate) fn catalog_search_refusal(
-    result: &antecedent_identify::CatalogTransportResult,
+    result: &antecedent::identify::CatalogTransportResult,
     names: &[String],
 ) -> PyErr {
-    use antecedent_identify::CatalogTransportResult;
+    use antecedent::identify::CatalogTransportResult;
     let (code, searched, obligations) = match result {
         CatalogTransportResult::Identified(_) => {
             return crate::value_err("bounded catalog search identified the formula");
@@ -591,7 +634,7 @@ pub(crate) fn frame_named_artifact(
     artifact: Vec<u8>,
 ) -> PyResult<Vec<u8>> {
     let mut framed = prefix.to_vec();
-    framed.extend(antecedent_io::to_cbor(&(names.to_vec(), artifact)).map_err(error)?);
+    framed.extend(antecedent::io::to_cbor(&(names.to_vec(), artifact)).map_err(error)?);
     Ok(framed)
 }
 
@@ -604,13 +647,13 @@ pub(crate) fn unframe_named_artifact(
     let payload = bytes
         .strip_prefix(prefix)
         .ok_or_else(|| serialization_error(format!("invalid {what} artifact format")))?;
-    antecedent_io::from_cbor(payload).map_err(serialization_error)
+    antecedent::io::from_cbor(payload).map_err(serialization_error)
 }
 
 /// A native support slot for an inspection payload: its matrix status and
 /// coordinate and its empirical support, or the reason it is unavailable.
 pub(crate) fn support_slot_json(
-    slot: &antecedent_contract::SlotAvailability<antecedent_contract::SupportSlot>,
+    slot: &antecedent::contract::SlotAvailability<antecedent::contract::SupportSlot>,
 ) -> serde_json::Value {
     match slot.as_ref() {
         Some(support) => serde_json::json!({
@@ -624,9 +667,75 @@ pub(crate) fn support_slot_json(
 
 /// Obligation ids of a native assumption slot, empty when it is unavailable.
 pub(crate) fn obligation_ids(
-    slot: &antecedent_contract::SlotAvailability<antecedent_contract::AssumptionSlot>,
+    slot: &antecedent::contract::SlotAvailability<antecedent::contract::AssumptionSlot>,
 ) -> Vec<String> {
     slot.as_ref().map_or_else(Vec::new, |assumptions| {
         assumptions.obligations.iter().map(|obligation| obligation.id.to_string()).collect()
     })
+}
+
+#[cfg(test)]
+mod structured_classification_tests {
+    use super::{classify, coded_refusal};
+    use pyo3::prelude::*;
+
+    #[test]
+    fn budget_and_cancellation_refusals_keep_their_reason_code() {
+        Python::initialize();
+        Python::attach(|py| {
+            let code = antecedent::reason::reason_code!("transport_budget_cancel");
+            let budget = coded_refusal(code, "retained result exceeds memory budget".into());
+            let cancelled = coded_refusal(code, "posterior execution cancelled".into());
+            assert!(budget.is_instance_of::<crate::CausalResourceError>(py));
+            assert!(cancelled.is_instance_of::<crate::CausalCancelledError>(py));
+            for error in [budget, cancelled] {
+                let actual: String =
+                    error.value(py).getattr("reason_code").unwrap().extract().unwrap();
+                assert_eq!(actual, code);
+            }
+        });
+    }
+
+    #[test]
+    fn user_names_cannot_turn_structured_refusals_into_resource_or_cancel_errors() {
+        Python::initialize();
+        Python::attach(|py| {
+            for name in ["ad_budget", "memory_use", "digest_score", "cancel_flag"] {
+                let error = classify(&format!("transport.missing_evidence: variable {name}"));
+                assert!(error.is_instance_of::<crate::CausalUnsupportedError>(py));
+            }
+            for text in [
+                "unknown memory_budget",
+                "unknown cancel_flag",
+                "unknown digest_score",
+                "unknown variable transport.cancelled",
+                "unknown variable transport.identification_budget",
+            ] {
+                let error = classify(text);
+                assert!(!error.is_instance_of::<crate::CausalResourceError>(py));
+                assert!(!error.is_instance_of::<crate::CausalCancelledError>(py));
+                assert!(!error.is_instance_of::<crate::CausalSerializationError>(py));
+            }
+            for message in [
+                "z-transport sensitivity baseline digest mismatch",
+                "z-transport sensitivity baseline premises digest mismatch",
+                "z-transport sensitivity result or provider binding mismatch",
+            ] {
+                assert!(classify(message).is_instance_of::<crate::CausalSerializationError>(py));
+                let named = format!("unknown variable {message}");
+                assert!(!classify(&named).is_instance_of::<crate::CausalSerializationError>(py));
+            }
+            assert!(
+                classify("transport.cancelled").is_instance_of::<crate::CausalCancelledError>(py)
+            );
+            assert!(
+                classify("transport.identification_budget")
+                    .is_instance_of::<crate::CausalResourceError>(py)
+            );
+            assert!(
+                classify("z_transport.proof_graph_mismatch")
+                    .is_instance_of::<crate::CausalSerializationError>(py)
+            );
+        });
+    }
 }

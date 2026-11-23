@@ -7,7 +7,7 @@
 //! alternative model families through the oracle, so a witness the identifier
 //! reports is never the only evidence for non-transportability.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "support/counterfactual_transport_adapter.rs"]
 mod counterfactual_transport_adapter;
@@ -92,7 +92,9 @@ fn named_cases_decide_as_the_theory_says() {
                     else {
                         panic!("{label}: expected an obstruction, got {decision:?}");
                     };
-                    let check = obstruction.verify().unwrap_or_else(|e| panic!("{label}: {e}"));
+                    let check = obstruction
+                        .verify(&ExecutionContext::for_tests(1))
+                        .unwrap_or_else(|e| panic!("{label}: {e}"));
                     assert_ne!(check.first_value, check.second_value, "{label}");
                     assert_eq!(decision.reason_code(), Some("transport_proven_non_transportable"));
                 }
@@ -132,15 +134,22 @@ fn obstructions_agree_with_the_fixtures_own_alternative_models() {
         // The identifier does not claim an obstruction the fixture does not have:
         // it either proves one or reports missing evidence.
         let decision = decide(&case, target);
-        assert!(
-            matches!(
-                decision,
-                CounterfactualTransportDecision::ProvenNonTransportable(_)
-                    | CounterfactualTransportDecision::MissingEvidence(_)
+        // and the kind of verdict is the fixture's own declared class for that query.
+        match target.class {
+            ExpectedClass::NotIdentifiable | ExpectedClass::NotTransportable => assert!(
+                matches!(decision, CounterfactualTransportDecision::ProvenNonTransportable(_)),
+                "{}: {decision:?}",
+                case.name
             ),
-            "{}: {decision:?}",
-            case.name
-        );
+            ExpectedClass::EvidenceInsufficient => assert!(
+                matches!(decision, CounterfactualTransportDecision::MissingEvidence(_)),
+                "{}: {decision:?}",
+                case.name
+            ),
+            other => {
+                panic!("{}: a fixture with an alternative family cannot be {other:?}", case.name)
+            }
+        }
     }
 }
 
@@ -282,30 +291,62 @@ fn a_mutated_derivation_or_witness_does_not_replay() {
     let CounterfactualTransportDecision::ProvenNonTransportable(obstruction) = decision else {
         panic!("expected an obstruction");
     };
-    obstruction.verify().unwrap();
+    obstruction.verify(&ctx).unwrap();
     // A witness whose law is changed no longer agrees on the declared family.
     let mut tampered = (*obstruction).clone();
     tampered.witness.second = tampered.witness.first.clone();
-    assert!(tampered.verify().is_err(), "two equal models do not separate the query");
+    assert!(tampered.verify(&ctx).is_err(), "two equal models do not separate the query");
     let mut tampered = (*obstruction).clone();
     tampered.witness.second_value = tampered.witness.first_value.clone();
-    assert!(tampered.verify().is_err(), "equal recorded values do not separate the query");
+    assert!(tampered.verify(&ctx).is_err(), "equal recorded values do not separate the query");
     let mut tampered = (*obstruction).clone();
     tampered.witness.clique.reverse();
     if tampered.witness.clique.len() > 1 {
-        assert!(tampered.verify().is_err());
+        assert!(tampered.verify(&ctx).is_err());
     }
-    let error = tampered_error_code(&obstruction);
-    assert_eq!(error, ("transport_not_certified", "counterfactual_transport.invalid_witness"));
+    let error = tampered_error_code(&obstruction, &ctx);
+    assert_eq!(
+        error,
+        (
+            "transport_not_certified",
+            antecedent_core::reason_details::counterfactual_transport::INVALID_WITNESS
+        )
+    );
 }
 
 fn tampered_error_code(
     obstruction: &antecedent_identify::CounterfactualTransportObstruction,
+    ctx: &ExecutionContext,
 ) -> (&'static str, &'static str) {
     let mut tampered = obstruction.clone();
     "not_a_baseline".clone_into(&mut tampered.witness.baseline);
-    let error = tampered.verify().unwrap_err();
+    let error = tampered.verify(ctx).unwrap_err();
     counterfactual_transport_refusal(&error).expect("an owned refusal")
+}
+
+#[test]
+fn a_stopped_witness_verification_is_a_budget_stop_never_an_invalid_witness() {
+    let cases = all_cases();
+    let case = cases.iter().find(|c| c.name == "selection_on_outcome_mechanism").unwrap();
+    let decision = decide(case, &case.targets[0]);
+    let CounterfactualTransportDecision::ProvenNonTransportable(obstruction) = decision else {
+        panic!("expected an obstruction");
+    };
+    obstruction.verify(&ExecutionContext::for_tests(1)).unwrap();
+
+    let cancelled = ExecutionContext::for_tests(1);
+    cancelled.cancellation.cancel();
+    let error = obstruction.verify(&cancelled).unwrap_err();
+    assert!(error.is_budget_or_cancel(), "{error}");
+    assert_eq!(
+        counterfactual_transport_refusal(&error).map(|(code, _)| code),
+        Some("transport_budget_cancel")
+    );
+
+    // A pool that cannot fund the verification's storage refuses it as a memory stop.
+    let starved = ExecutionContext::for_tests(1).with_memory_limit(Some(1));
+    let error = obstruction.verify(&starved).unwrap_err();
+    assert!(error.is_budget_or_cancel(), "{error}");
 }
 
 #[test]
@@ -346,7 +387,7 @@ fn selection_missing_factors_and_wrong_labels_never_identify() {
     let CounterfactualTransportDecision::MissingEvidence(missing) = decision else {
         panic!("expected missing evidence, got {decision:?}");
     };
-    // The declared observational law of either population licenses the factor
+    // The declared observational law of either population supports the factor
     // P(X, Y | Z); the target has no selection target on {X, Y}, so the first
     // derivation found cites the target's full observational law. Both are
     // sound; what must be named is an observational regime, never a do(.) one.
@@ -361,7 +402,10 @@ fn selection_missing_factors_and_wrong_labels_never_identify() {
         .unwrap_err();
     assert_eq!(
         counterfactual_transport_refusal(&error),
-        Some(("invalid_argument", "counterfactual_transport.invalid_catalog"))
+        Some((
+            "invalid_argument",
+            antecedent_core::reason_details::counterfactual_transport::INVALID_CATALOG
+        ))
     );
 
     // A coupling this contract does not model is out of scope, not an error.
@@ -381,7 +425,10 @@ fn selection_missing_factors_and_wrong_labels_never_identify() {
         identify_counterfactual_transport(&problem, &query, &adapted.catalog, limits, &ctx)
             .unwrap();
     assert!(matches!(decision, CounterfactualTransportDecision::UnsupportedScope(_)));
-    assert_eq!(decision.detail_code(), Some("counterfactual_transport.coupling_unsupported"));
+    assert_eq!(
+        decision.detail_code(),
+        Some(antecedent_core::reason_details::counterfactual_transport::COUPLING_UNSUPPORTED)
+    );
 }
 
 #[test]
@@ -403,7 +450,10 @@ fn budget_cancellation_and_bounds_are_typed_stops_not_verdicts() {
     };
     assert_eq!(receipt.stop, SearchStop::Operations);
     assert_eq!(starved.reason_code(), Some("transport_budget_cancel"));
-    assert_eq!(starved.detail_code(), Some("counterfactual_transport.budget"));
+    assert_eq!(
+        starved.detail_code(),
+        Some(antecedent_core::reason_details::counterfactual_transport::BUDGET)
+    );
     // Cancellation before the search is a stop with a receipt.
     let cancelled_ctx = ExecutionContext::for_tests(1);
     cancelled_ctx.cancellation.cancel();
@@ -432,15 +482,25 @@ fn budget_cancellation_and_bounds_are_typed_stops_not_verdicts() {
     .unwrap_err();
     assert_eq!(
         counterfactual_transport_refusal(&error),
-        Some(("route_not_supported", "counterfactual_transport.bounds_exceeded"))
+        Some((
+            "route_not_supported",
+            antecedent_core::reason_details::counterfactual_transport::BOUNDS_EXCEEDED
+        ))
     );
-    // Nine variables are outside the frozen contract.
+    // Nine variables and five levels are declarable: the search budget, not a count, pays for them.
     let nine: Vec<(VariableId, Vec<f64>)> =
-        (0..9).map(|i| (VariableId::from_raw(i), vec![0.0, 1.0])).collect();
-    let error = CounterfactualTransportProblem::new(&nine, &[], &[]).unwrap_err();
+        (0..9).map(|i| (VariableId::from_raw(i), vec![0.0, 1.0, 2.0, 3.0, 4.0])).collect();
+    assert!(CounterfactualTransportProblem::new(&nine, &[], &[]).is_ok());
+    // Past the width of the variable sets the problem cannot be represented.
+    let wide: Vec<(VariableId, Vec<f64>)> =
+        (0..32).map(|i| (VariableId::from_raw(i), vec![0.0, 1.0])).collect();
+    let error = CounterfactualTransportProblem::new(&wide, &[], &[]).unwrap_err();
     assert_eq!(
         counterfactual_transport_refusal(&error),
-        Some(("route_not_supported", "counterfactual_transport.bounds_exceeded"))
+        Some((
+            "route_not_supported",
+            antecedent_core::reason_details::counterfactual_transport::BOUNDS_EXCEEDED
+        ))
     );
     // A directed cycle is outside the acyclic contract.
     let two: Vec<(VariableId, Vec<f64>)> =
@@ -449,6 +509,15 @@ fn budget_cancellation_and_bounds_are_typed_stops_not_verdicts() {
     let error = CounterfactualTransportProblem::new(&two, &[(a, b), (b, a)], &[]).unwrap_err();
     assert_eq!(
         counterfactual_transport_refusal(&error),
-        Some(("route_not_supported", "counterfactual_transport.graph_outside_contract"))
+        Some((
+            "route_not_supported",
+            antecedent_core::reason_details::counterfactual_transport::GRAPH_OUTSIDE_CONTRACT
+        ))
     );
+    let text = error.to_string();
+    assert!(text.contains("condensation"), "{text}");
+    assert!(text.contains("sigma_separates"), "{text}");
+    assert!(text.contains("no cyclic identification evidence"), "{text}");
+    let chain = CounterfactualTransportProblem::new(&two, &[(a, b)], &[]).unwrap();
+    assert_eq!(chain.topological_order(), &[0, 1]);
 }

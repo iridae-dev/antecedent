@@ -1,7 +1,7 @@
 //! Checking a cross-world query on a fixed Markovian DAG (stage one of three).
 //!
 //! The cross-world estimand is evaluated in three separable stages: this check
-//! decides whether the graph and the query license it and returns a
+//! decides whether the graph and the query support it and returns a
 //! machine-checkable witness; a coupled operation abducts, acts and predicts over
 //! shared exogenous terms; and a result carries the point beside the witness. A
 //! later counterfactual-identification route on latent-variable graphs replaces
@@ -41,7 +41,7 @@
 //! counterfactual graph of the query restricted to what the estimand needs, and
 //! the consumer recomputes it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -49,7 +49,9 @@ use antecedent_core::{CrossWorldQuery, ExogenousCoupling, WorldId, WorldObservat
 use antecedent_graph::Dag;
 use serde::{Deserialize, Serialize};
 
-/// Most variables a graph may have under this contract.
+/// Most variables a stored witness artifact may carry for the exact two-world evidence
+/// stage. The graph-level check ([`check_cross_world_edges`]) is polynomial in the graph and
+/// does not apply it.
 pub const CROSS_WORLD_MAX_NODES: usize = 8;
 /// The contract the witness attests.
 pub(crate) const CROSS_WORLD_CONTRACT: &str = "path_specific_two_world_markovian_dag";
@@ -83,7 +85,7 @@ impl CrossWorldRefusal {
     fn outside_contract(message: impl Into<String>) -> Self {
         Self {
             code: antecedent_core::reason_code!("route_not_supported"),
-            detail: "cross_world.query_outside_contract",
+            detail: antecedent_core::reason_details::cross_world::QUERY_OUTSIDE_CONTRACT,
             message: message.into(),
         }
     }
@@ -91,15 +93,15 @@ impl CrossWorldRefusal {
     fn recanting(variable: u32, message: impl Into<String>) -> Self {
         Self {
             code: antecedent_core::reason_code!("cross_world_not_identified"),
-            detail: "cross_world.recanting_witness",
+            detail: antecedent_core::reason_details::cross_world::RECANTING_WITNESS,
             message: format!("variable {variable} {}", message.into()),
         }
     }
 
     fn graph(message: impl Into<String>) -> Self {
         Self {
-            code: antecedent_core::reason_code!("cell_not_licensed"),
-            detail: "cross_world.graph_outside_contract",
+            code: antecedent_core::reason_code!("route_not_supported"),
+            detail: antecedent_core::reason_details::cross_world::GRAPH_OUTSIDE_CONTRACT,
             message: message.into(),
         }
     }
@@ -107,7 +109,7 @@ impl CrossWorldRefusal {
     fn invalid(message: impl Into<String>) -> Self {
         Self {
             code: antecedent_core::reason_code!("invalid_argument"),
-            detail: "cross_world.invalid_query",
+            detail: antecedent_core::reason_details::cross_world::INVALID_QUERY,
             message: message.into(),
         }
     }
@@ -201,18 +203,26 @@ pub fn check_cross_world_edges(
     edges: &[(u32, u32)],
     query: &CrossWorldQuery,
 ) -> Result<CrossWorldWitness, CrossWorldRefusal> {
-    if node_count == 0 || node_count > CROSS_WORLD_MAX_NODES {
-        return Err(CrossWorldRefusal::graph(format!(
-            "the graph has {node_count} variables; the contract covers 1 to {CROSS_WORLD_MAX_NODES}"
-        )));
+    if node_count == 0 {
+        return Err(CrossWorldRefusal::graph("the graph has no variables"));
     }
     let n = u32::try_from(node_count).unwrap_or(u32::MAX);
-    if edges.iter().any(|&(a, b)| a >= n || b >= n || a == b) {
-        return Err(CrossWorldRefusal::graph("the edge list is not a DAG over the variables"));
+    if edges.iter().any(|&(a, b)| a >= n || b >= n) {
+        return Err(CrossWorldRefusal::graph("an edge names a variable outside the graph"));
     }
-    let Some(order) = topological_order(node_count, edges) else {
-        return Err(CrossWorldRefusal::graph("the edge list is not a DAG over the variables"));
-    };
+    if let Err(refusal) = antecedent_graph::error::refuse_directed_cycle(
+        antecedent_graph::error::DagOperation::Identification,
+        antecedent_graph::error::CyclicNextAttempt::Unsupported {
+            consumer: "cross_world",
+            attempt: "hold the edges as a CyclicDigraph and read feedback from condensation; \
+                      this cell does not identify a cyclic contrast",
+        },
+        node_count,
+        edges,
+    ) {
+        return Err(CrossWorldRefusal::graph(refusal.to_string()));
+    }
+    let order = topological_order(node_count, edges).expect("a directed cycle was already refused");
     let mut sorted = edges.to_vec();
     sorted.sort_unstable();
     sorted.dedup();
@@ -409,7 +419,7 @@ mod tests {
         .unwrap();
         let refusal = check_cross_world_edges(4, &edges, &query).unwrap_err();
         assert_eq!(refusal.code, "cross_world_not_identified");
-        assert_eq!(refusal.detail, "cross_world.recanting_witness");
+        assert_eq!(refusal.detail, antecedent_core::reason_details::cross_world::RECANTING_WITNESS);
     }
 
     #[test]
@@ -428,7 +438,10 @@ mod tests {
         .unwrap();
         let refusal = check_cross_world_edges(3, &MEDIATION, &query).unwrap_err();
         assert_eq!(refusal.code, "route_not_supported");
-        assert_eq!(refusal.detail, "cross_world.query_outside_contract");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::cross_world::QUERY_OUTSIDE_CONTRACT
+        );
         // The latent coupling (marginalized, not abducted) is outside
         // this fixed-DAG contract too: refused as a shape, never as a verdict.
         let direct = CrossWorldQuery::natural_direct(v(0), v(1), v(2), 0.0, 1.0).unwrap();
@@ -441,7 +454,10 @@ mod tests {
         .unwrap();
         let refusal = check_cross_world_edges(3, &MEDIATION, &latent).unwrap_err();
         assert_eq!(refusal.code, "route_not_supported");
-        assert_eq!(refusal.detail, "cross_world.query_outside_contract");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::cross_world::QUERY_OUTSIDE_CONTRACT
+        );
     }
 
     /// A contrast that reads different outcomes per world is another shape, not
@@ -461,7 +477,10 @@ mod tests {
         let refusal = check_cross_world_edges(3, &MEDIATION, &mixed).unwrap_err();
         assert_eq!(
             (refusal.code, refusal.detail),
-            ("route_not_supported", "cross_world.query_outside_contract")
+            (
+                "route_not_supported",
+                antecedent_core::reason_details::cross_world::QUERY_OUTSIDE_CONTRACT
+            )
         );
 
         let direct = CrossWorldQuery::natural_direct(v(0), v(1), v(2), 0.0, 1.0).unwrap();
@@ -473,5 +492,23 @@ mod tests {
         let mut node = serde_json::to_value(&witness.counterfactual_nodes[0]).unwrap();
         node["unexpected"] = serde_json::json!(1);
         assert!(serde_json::from_value::<CounterfactualNode>(node).is_err());
+    }
+
+    #[test]
+    fn a_two_cycle_is_not_ordered_and_the_acyclic_chain_still_is() {
+        let query = CrossWorldQuery::natural_direct(v(0), v(1), v(2), 0.0, 1.0).unwrap();
+        let refusal = check_cross_world_edges(2, &[(0, 1), (1, 0)], &query).unwrap_err();
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::cross_world::GRAPH_OUTSIDE_CONTRACT
+        );
+        assert!(
+            refusal.message.contains("cross_world has no cyclic support"),
+            "{}",
+            refusal.message
+        );
+        assert!(refusal.message.contains("condensation"), "{}", refusal.message);
+        let witness = check_cross_world_edges(3, &MEDIATION, &query).unwrap();
+        assert_eq!(witness.graph_edges.as_slice(), MEDIATION.as_slice());
     }
 }

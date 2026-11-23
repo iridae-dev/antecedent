@@ -1,9 +1,90 @@
 {
   "schema_version": 1,
-  "oracle": {"kind": "enumeration", "method": "exhaustive small-DAG MEC enumeration", "generator": "temporary clean-room harness (deleted after artifact import)"},
+  "oracle": {
+    "kind": "enumeration",
+    "method": "exhaustive small-DAG MEC enumeration",
+    "generator": "conformance/graph/cpdag_operations/reference.py",
+    "independence_basis": "The generator enumerates every orientation of the declared skeleton, keeps the acyclic ones whose unshielded colliders equal the CPDAG's (here none), and counts them; the orient and insert cases are evaluated as plain edge-set operations with a depth-first reachability test for the cycle. It imports no Antecedent code and calls no completion or orientation routine. The class definition (acyclic orientations with the same skeleton and unshielded colliders) is the shared theorem; the fixture's no-Meek-propagation reading of 'orient' is a statement of the product operation, not derived.",
+    "generation_location": "conformance/graph/cpdag_operations/reference.py (retained; replaces a deleted clean-room harness)",
+    "asserted_outputs": [
+      "MEC size of the undirected three-node chain, equal to the number of streamed completions",
+      "orient 0->1 leaves 1--2 undirected",
+      "a directed edge closing a directed path is a cycle"
+    ],
+    "context_only_outputs": [],
+    "historical_exposure": "The original clean-room harness was deleted; this replacement was written during this review from the fixture's three cases and the Markov-equivalence definition. No product implementation source was consulted.",
+    "command": "uv run --frozen --script conformance/graph/cpdag_operations/reference.py --check",
+    "environment_lock": "conformance/graph/cpdag_operations/reference.py.lock",
+    "generator_retained": true,
+    "reference_review": {
+      "scope": "Three cases: class size 3 for the undirected chain 0--1--2, a single-edge orientation and a cycle-closing insertion; the consuming test now reads every case from the fixture and compares the streamed completion count with the class size.",
+      "independence_basis": "The generator enumerates every orientation of the declared skeleton, keeps the acyclic ones whose unshielded colliders equal the CPDAG's (here none), and counts them; the orient and insert cases are evaluated as plain edge-set operations with a depth-first reachability test for the cycle. It imports no Antecedent code and calls no completion or orientation routine. The class definition (acyclic orientations with the same skeleton and unshielded colliders) is the shared theorem; the fixture's no-Meek-propagation reading of 'orient' is a statement of the product operation, not derived.",
+      "historical_exposure": "The original clean-room harness was deleted; this replacement was written during this review from the fixture's three cases and the Markov-equivalence definition. No product implementation source was consulted.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Three-node motifs only. The orientation case records a raw edge orientation: Meek propagation would additionally orient 1--2 (0->1--2 with 0 and 2 non-adjacent), so the case documents the container operation, not a Markov equivalence class inference. The class size is the only value derived from a definition; the other two cases are operation semantics. Calibration not_measured.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/graph/cpdag_operations/reference.py",
+          "sha256": "af14285ca0507bdd9aca2f15dd7a9b1373645bca6cf58ef83e834b3dfcd3ea8b"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/graph/cpdag_operations/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-graph/tests/oracle_closure.rs",
+          "items": [
+            "fn completion_edge_strings",
+            "fn cpdag_edge",
+            "fn cpdag_endpoint_oracle",
+            "fn cpdag_from_edges",
+            "fn fixture",
+            "fn fixture_strings",
+            "fn latent_projection_oracle",
+            "fn pag_completion_oracle",
+            "fn pag_endpoint_and_definite_status_oracles",
+            "fn pag_from_edge_strings",
+            "fn pag_from_marked_edges"
+          ],
+          "sha256": "f3e557dd33c933eb50365bdddbb32b252028f36b85e60c47c04746df130af9d1"
+        }
+      ],
+      "fixture_payload_sha256": "91cfeb981a4fc408dbb954cea517f0f1f6967775f2ef64952cd7474135565d87"
+    }
+  },
   "cases": [
-    {"id": "three_node_undirected_chain", "edges": ["0--1", "1--2"], "mec_size": 3},
-    {"id": "orient_first_edge", "input": ["0--1", "1--2"], "operation": "orient 0->1", "output": ["0->1", "1--2"]},
-    {"id": "cycle_rejected", "input": ["0->1", "1->2"], "operation": "insert 2->0", "error": "cycle"}
+    {
+      "id": "three_node_undirected_chain",
+      "edges": [
+        "0--1",
+        "1--2"
+      ],
+      "mec_size": 3
+    },
+    {
+      "id": "orient_first_edge",
+      "input": [
+        "0--1",
+        "1--2"
+      ],
+      "operation": "orient 0->1",
+      "output": [
+        "0->1",
+        "1--2"
+      ]
+    },
+    {
+      "id": "cycle_rejected",
+      "input": [
+        "0->1",
+        "1->2"
+      ],
+      "operation": "insert 2->0",
+      "error": "cycle"
+    }
   ]
 }

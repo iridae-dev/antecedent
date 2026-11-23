@@ -2,9 +2,10 @@
 
 One cell: ``P(Y_x = y | X = x')`` with ``x != x'``, its distribution over every
 level of ``Y`` and the contrast ``E[Y_x | X = x'] - E[Y | X = x']``, on a
-supplied explicit ``Admg`` (or ``Dag``) of at most six finite-discrete
-variables with at most four levels each, from the observational joint: an exact
-law (``probabilities``) or an empirical count table (``counts``).
+supplied explicit ``Admg`` (or ``Dag``) of finite-discrete variables, from the
+observational joint: an exact law (``probabilities``) or an empirical count
+table (``counts``). Identification has no fixed count of variables or levels:
+the search budget and memory bound it, and it stops with a budget refusal.
 
 ``prepare_effect_on_treated`` decides the query once (ID* on the conjunction
 ``{Y_x = y, X = x'}``, each district term identified from the joint by ID, under
@@ -28,7 +29,7 @@ This is not general counterfactual identification.
 
 This module builds only the effect-on-the-treated query, so the Rust route's
 ``counterfactual_id.query_outside_contract`` (other conjunctions),
-``counterfactual_id.path_specific_deferred`` (worlds that route edges) and
+``counterfactual_id.path_specific_not_supported`` (worlds that route edges) and
 ``counterfactual_id.counterfactual_hedge`` (unreached on this shape) refusals
 are not reachable from Python; they are tested in Rust only.
 """
@@ -41,10 +42,12 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from ._artifact_protocol import container_bytes
 from ._native import NativePreparedCounterfactualId as _NativePrepared
 from ._native import consume_counterfactual_id_artifact_native as _consume
 from ._native import prepare_counterfactual_id_native as _prepare
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .execution import Execution, resolve_execution
 from .graph import Admg, Dag
 
 __all__ = [
@@ -134,13 +137,14 @@ class PreparedEffectOnTreated:
         *,
         probabilities: Sequence[float] | None = None,
         counts: Sequence[int] | None = None,
-        seed: int = 1,
+        execution: Execution | None = None,
     ) -> EffectOnTreated:
         """Evaluate on a law: ``probabilities`` (exact) or ``counts`` (empirical).
 
         The cells are row-major over ``names`` (last fastest), each variable's
         levels in the prepared order. Exactly one of the two is given.
         """
+        execution = resolve_execution(execution)
         if (probabilities is None) == (counts is None):
             raise CausalValueError(
                 "counterfactual_id.invalid_query: give exactly one of probabilities or counts",
@@ -150,7 +154,7 @@ class PreparedEffectOnTreated:
             self._native.evaluate(
                 probabilities=None if probabilities is None else [float(p) for p in probabilities],
                 counts=None if counts is None else [int(c) for c in counts],
-                seed=seed,
+                seed=execution.seed,
             )
         )
 
@@ -171,9 +175,9 @@ def _graph_edges(graph: object) -> tuple[list[str], list[tuple[str, str]], list[
     if hasattr(graph, "nodes"):
         raise CausalUnsupportedError(
             "counterfactual_id.graph_outside_contract: only a supplied explicit Admg or Dag "
-            "is licensed; accepted, uncertain, equivalence-class and temporal structures "
+            "is supported; accepted, uncertain, equivalence-class and temporal structures "
             "are refused",
-            reason_code="cell_not_licensed",
+            reason_code="route_not_supported",
         )
     raise CausalTypeError("graph must be an Admg or a Dag")
 
@@ -190,8 +194,7 @@ def prepare_effect_on_treated(
     uncertainty: str | None = None,
     operations: int = 20_000,
     depth: int = 48,
-    seed: int = 1,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PreparedEffectOnTreated:
     """Decide ``P(outcome_{treatment = active} = outcome_level | treatment = observed)``.
 
@@ -202,6 +205,7 @@ def prepare_effect_on_treated(
     ``transport_budget_cancel`` (``counterfactual_id.budget``) and its receipt,
     never a verdict.
     """
+    execution = resolve_execution(execution)
     names, directed, bidirected = _graph_edges(graph)
     if not isinstance(levels, Mapping):
         raise CausalTypeError("levels must map each variable name to its levels")
@@ -232,14 +236,20 @@ def prepare_effect_on_treated(
         operations=operations,
         depth=depth,
         interval_requested=uncertainty is not None,
-        seed=seed,
-        cancel=cancel,
+        seed=execution.seed,
+        cancel=execution.cancel,
     )
     return PreparedEffectOnTreated(native, names, level_lists)
 
 
-def consume_counterfactual_id_artifact(artifact: bytes, *, seed: int = 1) -> EffectOnTreated:
+def consume_counterfactual_id_artifact(
+    artifact: bytes, *, expected_data_digest: str | None = None, execution: Execution | None = None
+) -> EffectOnTreated:
     """Replay an exported artifact and accept only an identical derivation and point.
+
+    ``expected_data_digest`` is the digest of the law the consumer holds independently of the
+    bytes (an ``EffectOnTreated.data_digest``); an artifact computed on another law is refused
+    with ``invalid_argument``.
 
     It detects corruption and re-sealed edits that change the derivation or the
     point, and recomputes the point with a separate direct-sum evaluator; it does
@@ -247,6 +257,12 @@ def consume_counterfactual_id_artifact(artifact: bytes, *, seed: int = 1) -> Eff
     a bug shared by the engine and the consumer (which re-derives with the same
     engine, so such a bug replays identically).
     """
+    execution = resolve_execution(execution)
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
-    return _effect(_consume(bytes(artifact), seed=seed))
+    if expected_data_digest is not None and not isinstance(expected_data_digest, str):
+        raise CausalTypeError("expected_data_digest must be a string or None")
+    return _effect(
+        _consume(bytes(artifact), seed=execution.seed, expected_data_digest=expected_data_digest)
+    )

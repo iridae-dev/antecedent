@@ -2,11 +2,12 @@
 use crate::transport_common::{
     error, execution_context, frame_named_artifact, serialization_error, unframe_named_artifact,
 };
-use antecedent_core::{
-    ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TransportQuery, VariableId,
+use antecedent::estimate::{LearnedContinuousOptions, LearnerSpec, TrialAipwInput};
+use antecedent::io::learned_continuous_artifact::LearnedContinuousConsumeLimits;
+use antecedent::prelude::VariableId;
+use antecedent::query::{
+    ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TransportQuery,
 };
-use antecedent_estimate::{LearnedContinuousOptions, LearnerSpec, TrialAipwInput};
-use antecedent_io::learned_continuous_artifact::LearnedContinuousConsumeLimits;
 use pyo3::{prelude::*, types::PyBytes};
 use std::sync::Arc;
 
@@ -24,11 +25,14 @@ fn value_error(e: impl std::fmt::Display) -> PyErr {
 /// Parse the rows; the sampling design is checked first so clustered or undeclared
 /// designs refuse by name (`learned_transport.non_iid_design`).
 fn parse_input(data: &Bound<'_, PyAny>, names: &[String]) -> PyResult<TrialAipwInput> {
+    if data.hasattr("_buffers")? {
+        return crate::transport_buffers::trial(data, names, true);
+    }
     let wire: String = data.call_method1("_json", (names.to_vec(),))?.extract()?;
     let mut value: serde_json::Value = serde_json::from_str(&wire).map_err(serialization_error)?;
     let sampling =
         value.get("sampling").and_then(serde_json::Value::as_str).unwrap_or_default().to_owned();
-    antecedent_estimate::parse_learned_continuous_sampling(&sampling).map_err(error)?;
+    antecedent::declared::IidSampling::parse_learned_continuous(&sampling).map_err(error)?;
     value["sampling"] = sampling.into();
     serde_json::from_value(value).map_err(value_error)
 }
@@ -50,14 +54,14 @@ fn build(
     target: String,
     treatment: &str,
     outcome: &str,
-) -> PyResult<(antecedent_graph::SelectionDiagram, TransportQuery)> {
+) -> PyResult<(antecedent::graph::SelectionDiagram, TransportQuery)> {
     let treatment = resolve(graph, treatment)?;
     let response = ResponseQuery::new(ResponseFunctional::MeanCurve {
         outcome: resolve(graph, outcome)?,
         treatment: ContinuousDomain::new(treatment, GridSpec::Values(Arc::from([0.0, 1.0]))),
     });
     let query = TransportQuery::new(response, source, target, [treatment]);
-    let diagram = antecedent_graph::SelectionDiagram::try_new(
+    let diagram = antecedent::graph::SelectionDiagram::try_new(
         graph.admg.clone(),
         selections.iter().map(|s| resolve(graph, s)).collect::<PyResult<Vec<_>>>()?,
     )
@@ -104,58 +108,99 @@ struct PreparedLearnedContinuousNative {
 
 #[pymethods]
 impl PreparedLearnedContinuousNative {
+    #[pyo3(signature=(seed=None))]
+    fn fork(&self, seed: Option<u64>) -> PyResult<Self> {
+        let seed = seed.unwrap_or(self.seed);
+        let ctx = execution_context(seed, self.memory_bytes, None);
+        let inner = self.inner.with_seed(seed, &ctx).map_err(error)?;
+        Ok(Self { inner, seed, last: None, ..self.clone() })
+    }
     /// Cross-fit every nuisance on the retained rows and report the point. The
     /// certificate derived at preparation is reused.
     #[pyo3(signature=(cancel=None))]
     fn estimate(
-        &mut self,
-        py: Python<'_>,
+        slf: &Bound<'_, Self>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
-        let ctx = execution_context(self.seed, self.memory_bytes, cancel);
-        let inner = self.inner.clone();
-        let result = crate::detach_catch(py, move || inner.estimate(&ctx).map_err(error))?;
-        let payload = estimate_json(&result, &self.names);
-        self.last = Some(result);
+        // Borrow only to snapshot and to store: the run itself holds no borrow.
+        let (inner, ctx) = {
+            let this = slf.borrow();
+            (this.inner.clone(), execution_context(this.seed, this.memory_bytes, cancel))
+        };
+        let result = crate::detach_catch(slf.py(), move || inner.estimate(&ctx).map_err(error))?;
+        let mut this = slf.borrow_mut();
+        let payload = estimate_json(&result, &this.names);
+        this.last = Some(result);
         Ok(payload)
     }
 
-    /// Compute the design-specific analytic influence interval.
+    /// Compute the design-specific analytic influence interval (bootstrap = 0).
     #[pyo3(signature=(cancel=None))]
     fn interval(
-        &mut self,
+        slf: &Bound<'_, Self>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<String> {
+        // Borrow only to snapshot and to store: the run itself holds no borrow.
+        let (inner, ctx) = {
+            let this = slf.borrow();
+            (this.inner.clone(), execution_context(this.seed, this.memory_bytes, cancel))
+        };
+        let result = crate::detach_catch(slf.py(), move || inner.interval(&ctx).map_err(error))?;
+        let mut this = slf.borrow_mut();
+        let payload = estimate_json(&result, &this.names);
+        this.last = Some(result);
+        Ok(payload)
+    }
+
+    /// Whether the prepared options request a bootstrap interval.
+    fn bootstrap_requested(&self) -> bool {
+        self.inner.bootstrap_requested()
+    }
+
+    /// The joint outer-refit percentile-bootstrap interval with its calibration slot, as JSON.
+    #[pyo3(signature=(cancel=None))]
+    fn bootstrap_interval(
+        &self,
         py: Python<'_>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
         let ctx = execution_context(self.seed, self.memory_bytes, cancel);
         let inner = self.inner.clone();
-        let result = crate::detach_catch(py, move || inner.interval(&ctx).map_err(error))?;
-        let payload = estimate_json(&result, &self.names);
-        self.last = Some(result);
-        Ok(payload)
+        crate::detach_catch(py, move || {
+            let run = inner.bootstrap_interval(&ctx).map_err(error)?;
+            Ok(serde_json::json!({
+                "scope": SCOPE,
+                "estimate": run.point().estimate,
+                "interval": run.interval().map(|(lo, hi)| [lo, hi]),
+                "reason": run.uncertainty_reason(),
+                "replicates_ok": run.replicates().len(),
+                "failures": run.point().failures,
+                "calibration": run.calibration(),
+            })
+            .to_string())
+        })
     }
 
     /// Replace the rows with a compatible snapshot; clears the last claim.
     #[pyo3(signature=(data,cancel=None))]
-    fn refresh(
-        &mut self,
+    fn bind_snapshot(
+        &self,
         py: Python<'_>,
         data: &Bound<'_, PyAny>,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<()> {
+    ) -> PyResult<Self> {
         let input = parse_input(data, &self.names)?;
         let ctx = execution_context(self.seed, self.memory_bytes, cancel);
         let inner = self.inner.clone();
-        self.inner = crate::detach_catch(py, move || inner.refresh(input, &ctx).map_err(error))?;
-        self.last = None;
-        Ok(())
+        let inner = crate::detach_catch(py, move || inner.refresh(input, &ctx).map_err(error))?;
+        Ok(Self { inner, last: None, ..self.clone() })
     }
 
     /// The last execution as a framed, independently consumable artifact.
     fn export(&self, py: Python<'_>) -> PyResult<Py<PyBytes>> {
         let result = self.last.as_ref().ok_or_else(|| {
             crate::refusal(
-                antecedent_core::reason_code!("not_executed"),
+                antecedent::reason::reason_code!("not_executed"),
                 "transport.no_execution_claim: estimate before exporting a learned continuous artifact",
             )
         })?;
@@ -172,7 +217,7 @@ impl PreparedLearnedContinuousNative {
     fn last_result(&self) -> PyResult<String> {
         let result = self.last.as_ref().ok_or_else(|| {
             crate::refusal(
-                antecedent_core::reason_code!("not_executed"),
+                antecedent::reason::reason_code!("not_executed"),
                 "transport.no_execution_claim: estimate before reading a result",
             )
         })?;
@@ -198,7 +243,7 @@ fn prepare_learned_continuous(
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<PreparedLearnedContinuousNative> {
-    antecedent_estimate::parse_learned_continuous_target(&target_name).map_err(error)?;
+    target_name.parse::<antecedent::declared::LearnedContinuousTarget>().map_err(error)?;
     let (diagram, query) = build(graph, &selections, source, target, &treatment, &outcome)?;
     let input = parse_input(data, &graph.names)?;
     let options: LearnedContinuousOptions = serde_json::from_str(&options).map_err(value_error)?;
@@ -264,6 +309,15 @@ fn consume_learned_continuous(
 ) -> PyResult<String> {
     let (names, bytes) = unframe_named_artifact(PREFIX, artifact, "learned continuous")?;
     let defaults = LearnedContinuousConsumeLimits::default();
+    // A caller may raise the replay limits, never past what a sealed artifact can hold.
+    let (rows_ceiling, features_ceiling) = (16 * 1024 * 1024, 4096);
+    if max_rows.is_some_and(|n| n > rows_ceiling)
+        || max_features.is_some_and(|n| n > features_ceiling)
+    {
+        return Err(crate::value_err(format!(
+            "max_rows is capped at {rows_ceiling} and max_features at {features_ceiling}"
+        )));
+    }
     let limits = LearnedContinuousConsumeLimits {
         max_rows: max_rows.unwrap_or(defaults.max_rows),
         max_features: max_features.unwrap_or(defaults.max_features),

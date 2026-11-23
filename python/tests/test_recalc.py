@@ -14,8 +14,11 @@ from dataclasses import replace
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import recalc
 from antecedent.errors import CausalSerializationError, CausalValueError
+from antecedent.execution import Execution
+from antecedent.outcomes import require_success
 from antecedent.recalc import (
     Capabilities,
     RecalcNoLiveState,
@@ -104,7 +107,7 @@ def expected(overrides: dict[Stage, str]) -> tuple[tuple[str, str], ...]:
 
 def rerun(req: RecalcRequest, seed: int = SEED) -> RecalcResult:
     """An independent rerun: a brand-new session, so no frozen score or fit is shared."""
-    out = RecalcSession().execute(req, seed=seed)
+    out = require_success(RecalcSession().execute(req, execution=Execution(seed=seed)))
     assert out.receipt.totals.fold_fits == FIRST_RUN_FOLD_FITS, "a rerun fits afresh"
     return out
 
@@ -128,7 +131,7 @@ def assert_reused_identities_equal(a: RecalcResult, b: RecalcResult) -> None:
 def test_first_run_fits_and_a_rerun_in_a_fresh_session_fits_again() -> None:
     req = request()
     session = RecalcSession()
-    first = session.execute(req, seed=SEED)
+    first = require_success(session.execute(req, execution=Execution(seed=SEED)))
     # Nothing is previously known: every stage is recomputed and none reused.
     assert first.plan.reused == ()
     assert len(first.plan.recomputed) == len(STAGES)
@@ -147,10 +150,10 @@ def test_first_run_fits_and_a_rerun_in_a_fresh_session_fits_again() -> None:
 def test_utility_only_change_recomputes_the_decision_with_zero_fit_work() -> None:
     base = request()
     session = RecalcSession()
-    first = session.execute(base, seed=SEED)
+    first = require_success(session.execute(base, execution=Execution(seed=SEED)))
 
     changed = replace(base, utility=Utility(3.0, 0.1))
-    second = session.execute(changed, seed=SEED)
+    second = require_success(session.execute(changed, execution=Execution(seed=SEED)))
 
     assert second.plan.table == expected(
         {
@@ -173,10 +176,10 @@ def test_utility_only_change_recomputes_the_decision_with_zero_fit_work() -> Non
 def test_compatible_target_weight_change_reuses_frozen_scores_with_equal_value() -> None:
     base = request()
     session = RecalcSession()
-    first = session.execute(base, seed=SEED)
+    first = require_success(session.execute(base, execution=Execution(seed=SEED)))
 
     changed = replace(base, target=z_weights(base))
-    second = session.execute(changed, seed=SEED)
+    second = require_success(session.execute(changed, execution=Execution(seed=SEED)))
 
     assert second.plan.table == expected(
         {
@@ -201,11 +204,11 @@ def test_compatible_target_weight_change_reuses_frozen_scores_with_equal_value()
 def test_changed_folds_and_new_outcomes_refit_without_reidentifying() -> None:
     base = request()
     session = RecalcSession()
-    first = session.execute(base, seed=SEED)
+    first = require_success(session.execute(base, execution=Execution(seed=SEED)))
 
     # Changed folds/RNG: the same data under another master seed.
     seed = SEED + 1
-    folds = session.execute(base, seed=seed)
+    folds = require_success(session.execute(base, execution=Execution(seed=seed)))
     assert folds.plan.table == expected(
         {
             Stage.LEARNER_FOLDS_RNG: "recomputed(own:learner_folds_rng:modified)",
@@ -224,7 +227,7 @@ def test_changed_folds_and_new_outcomes_refit_without_reidentifying() -> None:
 
     # New outcomes: same seed, different outcome column.
     fresh = request(1.5)
-    outcomes = session.execute(fresh, seed=seed)
+    outcomes = require_success(session.execute(fresh, execution=Execution(seed=seed)))
     assert outcomes.plan.table == expected(
         {
             Stage.DATA_SNAPSHOT: "recomputed(own:data_snapshot:modified)",
@@ -243,11 +246,11 @@ def test_changed_folds_and_new_outcomes_refit_without_reidentifying() -> None:
 def test_graph_or_query_change_reidentifies() -> None:
     base = request()
     session = RecalcSession()
-    first = session.execute(base, seed=SEED)
+    first = require_success(session.execute(base, execution=Execution(seed=SEED)))
 
     # Graph change: an extra edge from the independent column.
     graph = replace(base, edges=(*BASE_EDGES, ("w", "y")))
-    regraphed = session.execute(graph, seed=SEED)
+    regraphed = require_success(session.execute(graph, execution=Execution(seed=SEED)))
     assert regraphed.plan.table == expected(
         {
             Stage.GRAPH: "recomputed(own:graph:modified)",
@@ -264,7 +267,7 @@ def test_graph_or_query_change_reidentifies() -> None:
 
     # Query change: the second outcome on the same graph and data.
     query = replace(graph, outcome="y2")
-    requeried = session.execute(query, seed=SEED)
+    requeried = require_success(session.execute(query, execution=Execution(seed=SEED)))
     assert requeried.plan.table == expected(
         {
             Stage.QUERY: "recomputed(own:query:modified)",
@@ -282,10 +285,10 @@ def test_graph_or_query_change_reidentifies() -> None:
 def test_an_undeclared_retarget_refits_instead_of_reusing_scores() -> None:
     base = request()
     session = RecalcSession(retarget="not_declared")
-    session.execute(base, seed=SEED)
+    require_success(session.execute(base, execution=Execution(seed=SEED)))
 
     changed = replace(base, target=z_weights(base))
-    second = session.execute(changed, seed=SEED)
+    second = require_success(session.execute(changed, execution=Execution(seed=SEED)))
     assert second.plan.table == expected(
         {
             Stage.TARGET_POPULATION: "recomputed(own:target_population:modified)",
@@ -366,6 +369,39 @@ def test_external_study_change_leaves_unrelated_branches_reused() -> None:
         Stage.external_study(8)
 
 
+def test_many_dynamic_route_names_round_trip_without_process_exhaustion() -> None:
+    session = RecalcSession()
+    declared = {stage: recalc.stage_identity(stage, "custom-route") for stage in STAGES}
+
+    for i in range(80):
+        name = f"custom.route_{i}"
+        session.set_request_support("off_grid", name)
+        capabilities = session.capabilities
+        assert capabilities.supported_route == name
+        assert Capabilities.from_wire(capabilities.to_wire()) == capabilities
+        plan = recalc.plan_recalculation(declared, declared, capabilities)
+        assert plan.status(Stage.TREATMENT_GRID).text == (
+            f"refused(recalc.off_grid_request[{name}])"
+        )
+        replay = recalc.plan_recalculation(declared, declared, capabilities)
+        assert replay.identity == plan.identity
+        assert replay.table == plan.table
+
+    # Invalid on-grid declarations used to intern a name before refusing it.
+    for i in range(80):
+        with pytest.raises(CausalValueError):
+            session.set_request_support("on_grid", f"rejected.route_{i}")
+
+    session.set_request_support("unsupported", "custom.after_rejections")
+    capabilities = session.capabilities
+    assert capabilities.supported_route == "custom.after_rejections"
+    plan = recalc.plan_recalculation(declared, declared, capabilities)
+    assert plan.status(Stage.TREATMENT_GRID).text == (
+        "refused(recalc.unsupported_request[custom.after_rejections])"
+    )
+    assert recalc.plan_recalculation(declared, declared, capabilities).identity == plan.identity
+
+
 def test_refusals_run_no_work_and_leave_the_session_untouched() -> None:
     base = request()
     session = RecalcSession()
@@ -373,10 +409,13 @@ def test_refusals_run_no_work_and_leave_the_session_untouched() -> None:
     # Off-grid on a cold session: nothing runs and nothing becomes live.
     session.set_request_support("off_grid", "transport.smoothed_dose")
     with pytest.raises(RecalcRefusal) as caught:
-        session.execute(base, seed=SEED)
+        require_success(session.execute(base, execution=Execution(seed=SEED)))
     refusal = caught.value
     assert_registered_refusal(refusal)
-    assert (refusal.stage, refusal.detail) == ("treatment_grid", "recalc.off_grid_request")
+    assert (refusal.stage, refusal.detail) == (
+        "treatment_grid",
+        reason_details.recalc.OFF_GRID_REQUEST,
+    )
     assert refusal.reason_code == "route_not_supported"
     assert refusal.remedy is not None and "transport.smoothed_dose" in refusal.remedy
     assert refusal.plan is not None
@@ -385,33 +424,35 @@ def test_refusals_run_no_work_and_leave_the_session_untouched() -> None:
     )
     for stage in (Stage.SCORE_ARTIFACT, Stage.LAW, Stage.DECISION):
         status = refusal.plan.status(stage)
-        assert status.refused and status.detail.startswith("recalc.blocked_by_refused_dependency")
+        assert status.refused and status.detail.startswith(
+            reason_details.recalc.BLOCKED_BY_REFUSED_DEPENDENCY
+        )
     assert not session.is_live
     assert session.identities == {}
 
     # A good run, then an unsupported request, then the good request again.
     session.set_request_support("on_grid")
-    first = session.execute(base, seed=SEED)
+    first = require_success(session.execute(base, execution=Execution(seed=SEED)))
     known = session.identities
     session.set_request_support("unsupported")
     with pytest.raises(RecalcRefusal) as caught:
-        session.execute(base, seed=SEED)
-    assert caught.value.detail == "recalc.unsupported_request"
+        require_success(session.execute(base, execution=Execution(seed=SEED)))
+    assert caught.value.detail == reason_details.recalc.UNSUPPORTED_REQUEST
     assert_registered_refusal(caught.value)
     assert session.is_live and session.identities == known
     session.set_request_support("on_grid")
-    again = session.execute(base, seed=SEED)
+    again = require_success(session.execute(base, execution=Execution(seed=SEED)))
     assert again.plan.table == expected({})
     assert work(again) == (0, 0, 0, 0, 0)
     assert again.law == first.law
 
-    # Weights that are not a licensed function of the adjustment set refuse at the law.
+    # Weights that are not a supported function of the adjustment set refuse at the law.
     session.set_retarget_support("incompatible")
     changed = replace(base, target=z_weights(base))
     with pytest.raises(RecalcRefusal) as caught:
-        session.execute(changed, seed=SEED)
-    assert caught.value.detail == "recalc.retarget_incompatible"
-    assert caught.value.reason_code == "construction_not_licensed"
+        require_success(session.execute(changed, execution=Execution(seed=SEED)))
+    assert caught.value.detail == reason_details.recalc.RETARGET_INCOMPATIBLE
+    assert caught.value.reason_code == "construction_not_supported"
     assert caught.value.plan is not None
     assert caught.value.plan.status(Stage.LAW).text == "refused(recalc.retarget_incompatible)"
     assert session.identities == known, "a refusal changes nothing"
@@ -424,16 +465,16 @@ def test_refusals_run_no_work_and_leave_the_session_untouched() -> None:
 def test_a_loaded_result_cannot_claim_cache_reuse_in_a_fresh_process() -> None:
     base = request()
     original = RecalcSession()
-    first = original.execute(base, seed=SEED)
+    first = require_success(original.execute(base, execution=Execution(seed=SEED)))
     # What an ordinary loaded result keeps: the identities, with no prepared study.
     loaded = original.identities
 
     # Nothing supplied: the missing data snapshot is the specific unavailable result.
-    bare = RecalcSession.resume(loaded)
+    bare = require_success(RecalcSession.resume(loaded))
     assert not bare.is_live
     assert bare.capabilities.boundary == "fresh_process"
     with pytest.raises(RecalcUnavailable) as caught:
-        bare.execute(base, seed=SEED)
+        require_success(bare.execute(base, execution=Execution(seed=SEED)))
     assert_registered_refusal(caught.value)
     assert (caught.value.stage, caught.value.missing) == ("data_snapshot", "data")
     assert caught.value.reason_code == "score_table_unavailable"
@@ -444,20 +485,28 @@ def test_a_loaded_result_cannot_claim_cache_reuse_in_a_fresh_process() -> None:
     )
     # Resuming from a loaded receipt behaves the same.
     with pytest.raises(RecalcUnavailable):
-        RecalcSession.resume(first.receipt).execute(base, seed=SEED)
+        require_success(
+            require_success(RecalcSession.resume(first.receipt)).execute(
+                base, execution=Execution(seed=SEED)
+            )
+        )
 
     # Portable scores are declared but nothing loads them: no reuse is claimed.
     claimed = ResumeContext(portable_scores=True, supplied_data=True)
     with pytest.raises(RecalcNoLiveState) as caught_live:
-        RecalcSession.resume(loaded, claimed).execute(base, seed=SEED)
-    assert caught_live.value.detail == "recalc.no_live_state"
+        require_success(
+            require_success(RecalcSession.resume(loaded, claimed)).execute(
+                base, execution=Execution(seed=SEED)
+            )
+        )
+    assert caught_live.value.detail == reason_details.recalc.NO_LIVE_STATE
     assert caught_live.value.stage == "score_artifact"
     assert_registered_refusal(caught_live.value)
 
     # Supplied data resumes by recomputing every derived stage, with the same fit work as the
     # first run, and never by reuse.
-    resumed = RecalcSession.resume(loaded, ResumeContext(supplied_data=True))
-    second = resumed.execute(base, seed=SEED)
+    resumed = require_success(RecalcSession.resume(loaded, ResumeContext(supplied_data=True)))
+    second = require_success(resumed.execute(base, execution=Execution(seed=SEED)))
     for entry in second.plan.entries:
         if not entry.stage.is_input:
             assert entry.status.text == "recomputed(fresh_process)", entry.stage
@@ -466,7 +515,9 @@ def test_a_loaded_result_cannot_claim_cache_reuse_in_a_fresh_process() -> None:
     assert second.receipt.capabilities.boundary == "fresh_process"
     assert not second.receipt.claims_derived_reuse
     # Once live, the resumed session reuses like any in-process one.
-    third = resumed.execute(replace(base, utility=Utility(1.0, 0.0)), seed=SEED)
+    third = require_success(
+        resumed.execute(replace(base, utility=Utility(1.0, 0.0)), execution=Execution(seed=SEED))
+    )
     assert work(third) == (0, 0, 0, 0, 1)
     assert third.receipt.capabilities.boundary == "in_process"
 
@@ -491,11 +542,13 @@ def test_a_loaded_result_cannot_claim_cache_reuse_in_a_fresh_process() -> None:
 def test_the_receipt_is_portable_canonical_and_refuses_edits() -> None:
     base = request()
     session = RecalcSession()
-    first = session.execute(base, seed=SEED)
-    second = session.execute(replace(base, utility=Utility(3.0, 0.1)), seed=SEED)
+    first = require_success(session.execute(base, execution=Execution(seed=SEED)))
+    second = require_success(
+        session.execute(replace(base, utility=Utility(3.0, 0.1)), execution=Execution(seed=SEED))
+    )
 
-    blob = second.receipt.export()
-    loaded = RecalcReceipt.consume(blob, expected_identity=second.receipt.identity)
+    blob = bytes(second.receipt.export())
+    loaded = require_success(RecalcReceipt.consume(blob, expected_identity=second.receipt.identity))
     assert loaded.loaded and not second.receipt.loaded
     assert loaded.identity == second.receipt.identity
     assert loaded.plan_identity == second.plan.identity
@@ -504,29 +557,35 @@ def test_the_receipt_is_portable_canonical_and_refuses_edits() -> None:
     assert loaded.plan == second.plan
     assert loaded.capabilities == Capabilities()
     assert loaded.requested == session.identities
-    assert loaded.export() == blob
-    assert recalc.consume(blob).identity == loaded.identity
+    assert bytes(loaded.export()) == blob
+    assert require_success(recalc.consume(blob)).identity == loaded.identity
     assert "recomputed(own:utility:modified)" in loaded.explain()
 
     # A receipt of another run, however consistent, is refused against the retained identity.
     assert first.receipt.identity != second.receipt.identity
     with pytest.raises(RecalcReceiptRefusal) as caught:
-        RecalcReceipt.consume(first.receipt.export(), expected_identity=second.receipt.identity)
-    assert caught.value.detail == "recalc_receipt.identity_mismatch"
+        require_success(
+            RecalcReceipt.consume(
+                bytes(first.receipt.export()), expected_identity=second.receipt.identity
+            )
+        )
+    assert caught.value.detail == reason_details.recalc_receipt.IDENTITY_MISMATCH
     assert_registered_refusal(caught.value)
 
     # Corruption is a serialization error, never a refusal or a receipt.
     damaged = bytearray(blob)
     damaged[len(damaged) // 2] ^= 0xFF
     with pytest.raises(CausalSerializationError):
-        RecalcReceipt.consume(bytes(damaged))
+        require_success(RecalcReceipt.consume(bytes(damaged)))
     with pytest.raises(CausalSerializationError):
-        RecalcReceipt.consume(blob[: len(blob) // 2])
+        require_success(RecalcReceipt.consume(blob[: len(blob) // 2]))
 
     # A fresh-process receipt records the boundary and claims no derived reuse.
-    resumed = RecalcSession.resume(session.identities, ResumeContext(supplied_data=True))
-    out = resumed.execute(base, seed=SEED)
-    fresh = RecalcReceipt.consume(out.receipt.export())
+    resumed = require_success(
+        RecalcSession.resume(session.identities, ResumeContext(supplied_data=True))
+    )
+    out = require_success(resumed.execute(base, execution=Execution(seed=SEED)))
+    fresh = require_success(RecalcReceipt.consume(bytes(out.receipt.export())))
     assert fresh.capabilities.boundary == "fresh_process"
     assert fresh.capabilities.resume == ResumeContext(supplied_data=True)
     assert not fresh.claims_derived_reuse
@@ -537,10 +596,12 @@ def test_the_receipt_is_portable_canonical_and_refuses_edits() -> None:
 def test_the_plan_explains_each_status_with_its_determining_dependency() -> None:
     base = request()
     session = RecalcSession()
-    session.execute(base, seed=SEED)
+    require_success(session.execute(base, execution=Execution(seed=SEED)))
     known = session.identities
-    plan = session.prepare(replace(base, target=z_weights(base)), seed=SEED)
-    assert plan == session.plan(replace(base, target=z_weights(base)), seed=SEED)
+    plan = session.prepare(replace(base, target=z_weights(base)), execution=Execution(seed=SEED))
+    assert plan == session.plan(
+        replace(base, target=z_weights(base)), execution=Execution(seed=SEED)
+    )
     assert plan.recomputed_computations == (Stage.LAW, Stage.DECISION)
     assert plan.status(Stage.SCORE_ARTIFACT).reused
     assert plan.is_executable and plan.first_refusal is None
@@ -552,3 +613,111 @@ def test_the_plan_explains_each_status_with_its_determining_dependency() -> None
     # Planning ran nothing: the session still reuses against its last run.
     assert session.identities == known
     assert session.is_live
+
+
+def test_each_session_family_declares_its_standing_inputs_and_says_why_it_does_not() -> None:
+    from antecedent.recalc import SessionStanding, StandingInput, session_standing
+
+    # Bayesian families rest their claim on a calibration record and a coupling, so both enter
+    # the stage identities; the representation is declared by no family.
+    representation = StandingInput(
+        "undeclared",
+        finding="recalc.standing_undeclared.representation_version_not_held",
+        remedy=session_standing("bayesian").representation.remedy,
+    )
+    assert representation.remedy is not None
+    assert "score artifact identity then moves" in representation.remedy
+    for kind in ("bayesian", "joint_bayesian"):
+        standing = session_standing(kind)
+        assert isinstance(standing, SessionStanding) and standing.kind == kind
+        assert standing.calibration == StandingInput("declared")
+        assert standing.coupling == StandingInput("declared")
+        assert standing.representation == representation
+
+    # A point-valued law has no calibration to declare and forms no joint statement.
+    for kind in ("receipt", "adjusted", "cell", "design", "doubly_robust", "static", "temporal"):
+        standing = session_standing(kind)
+        assert standing.calibration.status == "not_applicable"
+        assert standing.calibration.reason is not None
+        assert "point value" in standing.calibration.reason
+        assert standing.coupling.status == "not_applicable"
+        assert standing.coupling.reason is not None
+        assert "more than one sampled stream" in standing.coupling.reason
+        assert standing.representation == representation
+
+    # Providers' output carries no calibration or coupling the session holds: findings, not silence.
+    for kind in ("external", "composite"):
+        standing = session_standing(kind)
+        assert standing.calibration.status == "undeclared"
+        assert standing.calibration.finding == (
+            "recalc.standing_undeclared.calibration_folded_into_decision"
+        )
+        assert standing.coupling.status == "undeclared"
+        assert standing.coupling.finding == (
+            "recalc.standing_undeclared.callback_metadata_establishes_no_coupling"
+        )
+        assert standing.coupling.remedy is not None and "coupling" in standing.coupling.remedy
+
+    with pytest.raises(CausalValueError, match="kind must be one of"):
+        session_standing("not_a_family")  # type: ignore[arg-type]
+
+
+def test_live_sessions_report_the_standing_of_their_family() -> None:
+    from antecedent.recalc import session_standing
+    from antecedent.recalc_adjusted import AdjustedSession
+    from antecedent.recalc_bayesian import BayesianSession
+    from antecedent.recalc_cell import CellSession, CrossfitSession
+    from antecedent.recalc_design import DesignSession
+    from antecedent.recalc_dr import DrSession
+    from antecedent.recalc_static import MultiSourceSession, StaticResponseSession
+    from antecedent.recalc_temporal import TemporalSession
+
+    expected = {
+        RecalcSession: "receipt",
+        CrossfitSession: "receipt",
+        AdjustedSession: "adjusted",
+        CellSession: "cell",
+        DesignSession: "design",
+        DrSession: "doubly_robust",
+        StaticResponseSession: "static",
+        MultiSourceSession: "static",
+        TemporalSession: "temporal",
+        BayesianSession: "bayesian",
+    }
+    for session_type, kind in expected.items():
+        session = session_type()
+        assert session.standing == session_standing(kind), session_type.__name__
+        assert session.standing.kind == kind
+    # A declared family differs from a point-valued one: the Bayesian session declares its
+    # calibration where the AIPW session reports a point law.
+    assert BayesianSession().standing.calibration.status == "declared"
+    assert RecalcSession().standing.calibration.status == "not_applicable"
+
+
+def test_session_controls_live_on_the_execution_alone():
+    from antecedent import _native
+    from antecedent.errors import CausalTypeError
+    from antecedent.recalc_adjusted import AdjustedSession
+    from antecedent.recalc_cell import CellSession, CrossfitSession
+    from antecedent.recalc_static import StaticResponseSession
+
+    req = request()
+    session = RecalcSession()
+    loose = ({"seed": 1}, {"threads": 1}, {"memory_limit_bytes": 1 << 30}, {"cancel": None})
+    for entry in (session.plan, session.prepare, session.execute, CrossfitSession().execute):
+        for keyword in loose:
+            with pytest.raises(TypeError, match="unexpected keyword"):
+                entry(req, **keyword)
+    for owner in (AdjustedSession, CellSession, StaticResponseSession):
+        for entry in (owner().plan, owner().execute):
+            with pytest.raises(TypeError, match="unexpected keyword"):
+                entry(req, seed=1)
+    with pytest.raises(CausalTypeError):
+        session.execute(req, execution={"seed": 1})
+    # The execution's seed and token are what reach native: a fired token stops the run.
+    token = _native.CancellationToken()
+    token.cancel()
+    with pytest.raises(RecalcRefusal) as stopped:
+        require_success(session.execute(req, execution=Execution(cancel=token)))
+    assert stopped.value.detail == reason_details.recalc.CANCELLED
+    assert not session.is_live

@@ -1,6 +1,6 @@
 //! conformance: LPCMCI, latent projection, envelope mass, DAG-only reject.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,
@@ -17,8 +17,8 @@ use antecedent::discovery::Lpcmci;
 use antecedent::identify::GeneralizedAdjustmentIdentifier;
 use antecedent::planner::reject_dag_only_on_pag;
 use antecedent_core::{
-    AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint,
-    SmallRoleSet, ValueType, VariableId,
+    AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, IdentificationStatus, Lag,
+    MeasurementSpec, RoleHint, SmallRoleSet, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
@@ -275,6 +275,10 @@ fn latent_projection_msep() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn envelope_unidentified_mass() {
     let expected = load_expected_json(&fixture_dir("envelope_unidentified_mass"));
     let mut pag = Pag::with_variables(2);
@@ -284,7 +288,62 @@ fn envelope_unidentified_mass() {
     let env = id.identify_pag_envelope(&pag, &q).unwrap();
     let total = env.identified_weight.0 + env.unidentified_weight.0;
     assert!(expected["require_mass_accounted"].as_bool().unwrap());
-    assert!((total - env.cases.len() as f64).abs() < 1e-9);
+    // `x o-> y` completes to `x -> y` or `x <-> y`: two completions were examined, each of
+    // weight one. Two cases do not mean either supplies an adjustment certificate.
+    assert_eq!(env.cases.len(), 2);
+    assert!((total - 2.0).abs() < 1e-9, "{total}");
+    // The conservative refusal: no completion carries an adjustment certificate, so the effect
+    // is not identified by the implemented adjustment method (identified weight 0,
+    // unidentified weight 2). That is a statement about the method, not a claim that the
+    // effect is unidentifiable, and not a claim of a zero or any other effect: a directed edge
+    // in a MAG/PAG can stand for influence together with latent confounding.
+    assert_eq!(env.identified_weight.0, 0.0);
+    assert_eq!(env.unidentified_weight.0, 2.0);
+    assert_eq!(env.status, IdentificationStatus::NotIdentified);
+    assert!(env.invariant.is_none(), "no estimand is shared: none was identified");
+    for case in &env.cases {
+        assert_eq!(case.weight.0, 1.0);
+        assert_eq!(case.result.status, IdentificationStatus::NotIdentified);
+        assert!(case.result.estimands.is_empty(), "no adjustment certificate on any completion");
+    }
+    let marks = |case: &antecedent_identify::GraphIdentificationCase<Pag>| {
+        let edge = case
+            .graph
+            .edge_between(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
+            .expect("the x - y edge");
+        (edge.at_a, edge.at_b)
+    };
+    let reason = |case: &antecedent_identify::GraphIdentificationCase<Pag>| {
+        case.result.derivation.steps.iter().map(|step| step.detail.to_string()).collect::<Vec<_>>()
+    };
+    // Completion `x -> y`: the edge is invisible in the MAG (a latent common cause could
+    // explain it), so the generalized adjustment criterion refuses by amenability.
+    let directed = env
+        .cases
+        .iter()
+        .find(|case| marks(case) == (Endpoint::Tail, Endpoint::Arrow))
+        .expect("the x -> y completion");
+    assert_eq!(
+        reason(directed),
+        ["MAG is not adjustment amenable: a causal path starts with an invisible edge; no \
+          adjustment set identifies this effect"]
+    );
+    // Completion `x <-> y`: no adjustment set satisfies the criterion on that completion.
+    let bidirected = env
+        .cases
+        .iter()
+        .find(|case| marks(case) == (Endpoint::Arrow, Endpoint::Arrow))
+        .expect("the x <-> y completion");
+    assert_eq!(
+        reason(bidirected),
+        ["no generalized adjustment set on completion: the ancestral candidate set does not \
+          m-separate treatment from outcome in the proper back-door graph"]
+    );
+    // The envelope names the refusal in the same terms.
+    assert!(env.critical_graph_features.iter().any(|feature| {
+        &*feature.kind == "unidentified_completions"
+            && feature.detail.contains("2 completion(s) not identified")
+    }));
 }
 
 #[test]
@@ -294,7 +353,7 @@ fn dag_only_pag_reject() {
     let id = expected["identifier"].as_str().unwrap();
     let err = reject_dag_only_on_pag(&AcceptedGraph::pag(pag), id.parse().unwrap());
     assert!(expected["expect_compile_error"].as_bool().unwrap());
-    assert!(err.is_err());
+    assert!(matches!(err, Err(antecedent::CausalError::Compile { .. })));
 }
 
 #[test]
@@ -305,8 +364,12 @@ fn completion_sampler_respects_bound() {
     let max = 3usize;
     // The bound truncates the enumeration exactly: with the cap lifted the sampler yields
     // every completion, and the capped run yields min(total, max) of them (never zero).
+    // By hand: `0 o-o 1` takes `->`, `<-` or `<->`; `1 o-> 2` takes `->` or `<->`. A completion
+    // may not make an arrowhead at 1 from both edges (an unshielded collider the PAG lacks), which
+    // excludes `{->, <->}` and `{<->, <->}`: 3 + 1 = 4 completions.
     let total = CompletionSampler::new(pag.clone(), 1_000).unwrap().count();
-    assert!(total >= 1, "the PAG has at least one completion");
+    assert_eq!(total, 4);
     let n = CompletionSampler::new(pag, max).unwrap().count();
-    assert_eq!(n, total.min(max));
+    assert_eq!(n, max);
+    assert_eq!(CompletionSampler::new(Pag::with_variables(1), max).unwrap().count(), 1);
 }

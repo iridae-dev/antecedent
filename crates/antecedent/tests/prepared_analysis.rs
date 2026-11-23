@@ -1,6 +1,6 @@
 //! Prepared analysis re-estimate conformance (backlog B).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -9,6 +9,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, LatencyMode,
     PreparedStudy, RefuteSuite, Study,
@@ -25,13 +26,74 @@ use antecedent_data::{
     TimeSeriesData, ValidityBitmap,
 };
 use antecedent_graph::{Admg, Dag, DenseNodeId, Pag, TemporalDag, ensure_lagged};
-use antecedent_io::{causal_query_to_wire, consume_analysis_result, executed_functional_labels};
+use antecedent_io::{causal_query_to_wire, executed_functional_labels, replay_analysis_result};
 
 #[path = "fixtures_common/mod.rs"]
 mod common;
 
 // The confounded static ATE study five suites run, in one owner.
 use common::fixtures::confounded_scm;
+
+/// Independent reference for the confounded fixture: the coefficient on `t` in the ordinary
+/// least-squares fit of `y` on `[1, t, z]`, solved from the normal equations in-test. `adjusted =
+/// false` drops `z`, giving the naive difference of means that the confounding biases.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
+fn ols_treatment_coefficient(data: &TabularData, adjusted: bool) -> f64 {
+    use antecedent_data::TableView;
+    let col = |i: u32| data.float64_slice(VariableId::from_raw(i)).unwrap().to_vec();
+    let (t, y, z) = (col(0), col(1), col(2));
+    let k = if adjusted { 3 } else { 2 };
+    let row = |i: usize| if adjusted { vec![1.0, t[i], z[i]] } else { vec![1.0, t[i]] };
+    let mut a = vec![vec![0.0; k + 1]; k];
+    for i in 0..t.len() {
+        let x = row(i);
+        for r in 0..k {
+            for c in 0..k {
+                a[r][c] += x[r] * x[c];
+            }
+            a[r][k] += x[r] * y[i];
+        }
+    }
+    for p in 0..k {
+        let piv = (p..k).max_by(|&u, &v| a[u][p].abs().total_cmp(&a[v][p].abs())).unwrap();
+        a.swap(p, piv);
+        for r in 0..k {
+            if r != p {
+                let f = a[r][p] / a[p][p];
+                for c in p..=k {
+                    let v = a[p][c];
+                    a[r][c] -= f * v;
+                }
+            }
+        }
+    }
+    a[1][k] / a[1][1]
+}
+
+/// Front-door functional `E[Y | do(T = level)] = sum_m P(m | t = level) sum_t' P(t') E[Y | t', m]`
+/// computed by exact counting over the observed rows, independent of the product's estimators.
+fn frontdoor_do_mean(t: &[f64], m: &[f64], y: &[f64], level: f64) -> f64 {
+    let n = t.len() as f64;
+    let mut total = 0.0;
+    for mv in [0.0, 1.0] {
+        let (in_level, with_m) = (
+            t.iter().filter(|&&x| x == level).count() as f64,
+            t.iter().zip(m).filter(|&(&x, &mi)| x == level && mi == mv).count() as f64,
+        );
+        let mut inner = 0.0;
+        for tv in [0.0, 1.0] {
+            let p_t = t.iter().filter(|&&x| x == tv).count() as f64 / n;
+            let cell: Vec<f64> =
+                (0..t.len()).filter(|&i| t[i] == tv && m[i] == mv).map(|i| y[i]).collect();
+            inner += p_t * cell.iter().sum::<f64>() / cell.len() as f64;
+        }
+        total += with_m / in_level * inner;
+    }
+    total
+}
 
 fn build_analysis(data: TabularData, dag: Dag, query: AverageEffectQuery) -> Study {
     Study::tabular(data)
@@ -52,24 +114,30 @@ fn prepared_reestimate_matches_fresh_analyze() {
 
     let prepared = build_analysis(data.clone(), dag, query).prepare(&ctx).unwrap();
     assert!(
-        prepared.checked_bayesian_gcomp_operation().is_none(),
+        !matches!(prepared.retained_operation(), RetainedOperation::BayesianGcomp { .. }),
         "frequentist mean ATE must not claim the Bayesian g-computation route"
     );
     let first = prepared.estimate(&data, &ctx).unwrap();
     let second = prepared.estimate(&data, &ctx).unwrap();
 
-    assert!(first.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(first.estimate().as_effect().unwrap().ate.is_finite());
+    // Independent z-adjusted OLS reference; the confounded naive contrast is far from it, so a
+    // dropped adjustment cannot pass.
+    let reference = ols_treatment_coefficient(&data, true);
+    assert!((ols_treatment_coefficient(&data, false) - reference).abs() > 0.2);
     assert!(
-        (first.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.5,
-        "ate={}",
-        first.estimate.as_effect().unwrap().ate
+        (first.estimate().as_effect().unwrap().ate - reference).abs() < 1e-8,
+        "ate={} reference={reference}",
+        first.estimate().as_effect().unwrap().ate
     );
     assert!(
-        (first.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate).abs()
+        (first.estimate().as_effect().unwrap().ate - fresh.estimate().as_effect().unwrap().ate)
+            .abs()
             < 1e-12
     );
     assert!(
-        (second.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate).abs()
+        (second.estimate().as_effect().unwrap().ate - fresh.estimate().as_effect().unwrap().ate)
+            .abs()
             < 1e-12
     );
     assert_eq!(
@@ -105,13 +173,14 @@ fn prepared_accepted_graph_and_cheap_validation_reuse_identification() {
     let prepared = analysis.prepare(&ctx).unwrap();
     let click = prepared.estimate(&data, &ctx).unwrap();
     assert!(
-        (click.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate).abs()
+        (click.estimate().as_effect().unwrap().ate - fresh.estimate().as_effect().unwrap().ate)
+            .abs()
             < 1e-12
     );
     assert!(click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     assert!(!click.refutations.is_empty(), "cheap suite must still run on a prepared click");
     assert_eq!(analysis.structure_source(), antecedent::StructureSource::Accepted);
-    assert_eq!(analysis.support_status().unwrap().as_str(), "licensed");
+    assert_eq!(analysis.support_status().unwrap().as_str(), "supported");
 }
 
 #[test]
@@ -119,7 +188,7 @@ fn supplied_dag_is_explicit_structure_source() {
     let (data, dag, query) = confounded_scm(80, 11);
     let analysis = build_analysis(data, dag, query);
     assert_eq!(analysis.structure_source(), antecedent::StructureSource::Explicit);
-    assert_eq!(analysis.support_status().unwrap().as_str(), "licensed");
+    assert_eq!(analysis.support_status().unwrap().as_str(), "supported");
 }
 
 #[test]
@@ -170,12 +239,12 @@ fn prepared_refresh_rejects_schema_mismatch() {
         ),
     ];
     let bad = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
-    let err = prepared.refresh(bad, &ctx).unwrap_err();
+    let err = rebind_estimate(&mut prepared, bad, &ctx).unwrap_err();
     let msg = err.to_string();
     assert!(msg.contains("same schema"), "unexpected: {msg}");
     // Original data still works after failed refresh.
     let ok = prepared.estimate(&data, &ctx).unwrap();
-    assert!(ok.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(ok.estimate().as_effect().unwrap().ate.is_finite());
     let _ = other;
 }
 
@@ -208,7 +277,7 @@ fn prepared_second_shot_reuses_identification() {
     assert_eq!(identify_computations(&sink), 1, "prepare computes identification once");
     let first = prepared.estimate(&data, &ctx).unwrap();
     let _ = prepared.refute(&first, &data, RefuteSuite::Cheap, &ctx).unwrap();
-    let _ = prepared.refresh(data.clone(), &ctx).unwrap();
+    let _ = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     let third = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(prepared.plan().record.plan_id.as_ref(), third.physical_plan.plan_id.as_ref());
     assert!(
@@ -243,25 +312,28 @@ fn prepared_bayesian_reestimate_matches_fresh_analyze() {
     let study = build_bayesian_analysis(data.clone(), dag, query.clone());
     let prepared = study.prepare(&ctx).unwrap();
     drop(study);
-    let checked = prepared
-        .checked_bayesian_gcomp_operation()
-        .expect("static Bayesian mean ATE retains its checked route receipt");
+    let RetainedOperation::BayesianGcomp { operation: checked, .. } = prepared.retained_operation()
+    else {
+        panic!("static Bayesian mean ATE retains its checked route receipt")
+    };
     assert_eq!(checked.query(), &query);
     let first = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(checked.estimand().adjustment_set, first.estimand.adjustment_set);
 
-    assert!(first.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(first.estimate().as_effect().unwrap().ate.is_finite());
+    let reference = ols_treatment_coefficient(&data, true);
     assert!(
-        (first.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.5,
-        "ate={}",
-        first.estimate.as_effect().unwrap().ate
+        // Conjugate-prior shrinkage and draw noise move the posterior mean by < 0.01 here.
+        (first.estimate().as_effect().unwrap().ate - reference).abs() < 0.03,
+        "ate={} reference={reference}",
+        first.estimate().as_effect().unwrap().ate
     );
     // Bit-identical ATE and posterior summaries between the prepared click and
     // a fresh, un-prepared run: identification caching must not perturb the
     // downstream Bayesian fit (same prep, prior, draws, seed).
     assert_eq!(
-        first.estimate.as_effect().unwrap().ate.to_bits(),
-        fresh.estimate.as_effect().unwrap().ate.to_bits()
+        first.estimate().as_effect().unwrap().ate.to_bits(),
+        fresh.estimate().as_effect().unwrap().ate.to_bits()
     );
     assert_eq!(first.estimand.adjustment_set, fresh.estimand.adjustment_set);
     assert_eq!(
@@ -298,8 +370,8 @@ fn prepared_bayesian_two_clicks_agree_exactly() {
     let second = prepared.estimate(&data, &ctx).unwrap();
 
     assert_eq!(
-        first.estimate.as_effect().unwrap().ate.to_bits(),
-        second.estimate.as_effect().unwrap().ate.to_bits()
+        first.estimate().as_effect().unwrap().ate.to_bits(),
+        second.estimate().as_effect().unwrap().ate.to_bits()
     );
     let first_post = first.posterior.as_ref().expect("posterior");
     let second_post = second.posterior.as_ref().expect("posterior");
@@ -385,12 +457,12 @@ fn prepare_accepts_temporal_effect_query_and_reuses_identification() {
         click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
         "prepared TemporalEffect estimate_series must reuse identification"
     );
-    assert!(click.estimate.as_effect().unwrap().ate.is_finite());
-    assert!((click.effect() - 0.5).abs() < 0.15);
+    assert!(click.estimate().as_effect().unwrap().ate.is_finite());
+    assert!((click.effect() - 0.5).abs() < 1e-8, "effect={}", click.effect());
     let contract = prepared.contract().unwrap();
     assert!(contract.identities.identification_product.is_some());
     let bytes = prepared.encode_contracted_result(&click, "prepared-pulse", &ctx).unwrap();
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     assert_eq!(
         consumed.acceptance.unresolved.as_ref(),
         &[std::sync::Arc::<str>::from("dependencies.checked_temporal_dag_effect_operation")]
@@ -409,14 +481,18 @@ fn refresh_updates_retained_data() {
     let (data1, dag, query) = confounded_scm(400, 41);
     let (data2, _, _) = confounded_scm(400, 43);
     let ctx = ExecutionContext::for_tests(1);
+    let (data1_ref, data2_ref) = (data1.clone(), data2.clone());
     let mut prepared: PreparedStudy =
         build_analysis(data1.clone(), dag, query).prepare(&ctx).unwrap();
-    let a = prepared.refresh(data1, &ctx).unwrap().estimate.as_effect().unwrap().ate;
-    let b = prepared.refresh(data2, &ctx).unwrap().estimate.as_effect().unwrap().ate;
-    // Different seeds → different finite ATEs (not identical bit-for-bit).
-    assert!(a.is_finite() && b.is_finite());
-    assert!((a - 2.0).abs() < 0.6);
-    assert!((b - 2.0).abs() < 0.6);
+    let a =
+        rebind_estimate(&mut prepared, data1, &ctx).unwrap().estimate().as_effect().unwrap().ate;
+    let b =
+        rebind_estimate(&mut prepared, data2, &ctx).unwrap().estimate().as_effect().unwrap().ate;
+    // Each refresh estimates its own data: both match the independent adjusted OLS reference of
+    // the data bound at that moment, and the two differ.
+    assert!((a - ols_treatment_coefficient(&data1_ref, true)).abs() < 1e-8, "a={a}");
+    assert!((b - ols_treatment_coefficient(&data2_ref, true)).abs() < 1e-8, "b={b}");
+    assert!((a - b).abs() > 1e-6);
 }
 
 // -- ConditionalEffect / PathSpecific / InterventionalDistribution staging -----------------
@@ -626,15 +702,18 @@ fn assert_prepared_contract_consume(
     let claim = result.claim(&contract, ctx).unwrap();
     assert_eq!(claim.identities.program, contract.identities.program);
     let bytes = prepared.encode_contracted_result(result, artifact_id, ctx).unwrap();
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     if let Some(dependency) = expected_dependency {
-        assert_eq!(
-            consumed.acceptance.unresolved.as_ref(),
-            &[std::sync::Arc::<str>::from(dependency)]
-        );
+        // A conditional target also leaves the estimand-criterion check unevaluated: the
+        // consumer's criterion check covers the marginal average effect only.
+        let mut expected = vec![std::sync::Arc::<str>::from(dependency)];
+        if query_kind == "conditional_effect" {
+            expected.push("dependencies.identification_estimand_criterion".into());
+        }
+        assert_eq!(consumed.acceptance.unresolved.as_ref(), expected.as_slice());
     } else {
         assert!(
-            consumed.acceptance.accepts_as_verified_program(),
+            consumed.acceptance.accepts_as_replayed_program(),
             "{query_kind} artifact unresolved: {:?}",
             consumed.acceptance.unresolved
         );
@@ -695,14 +774,14 @@ fn prepared_conditional_effect_reestimate_matches_fresh() {
     let first = prepared.estimate(&data, &ctx).unwrap();
     let second = prepared.estimate(&data, &ctx).unwrap();
 
-    assert!(first.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(first.estimate().as_effect().unwrap().ate.is_finite());
     assert_eq!(
-        first.estimate.as_effect().unwrap().ate.to_bits(),
-        fresh.estimate.as_effect().unwrap().ate.to_bits()
+        first.estimate().as_effect().unwrap().ate.to_bits(),
+        fresh.estimate().as_effect().unwrap().ate.to_bits()
     );
     assert_eq!(
-        second.estimate.as_effect().unwrap().ate.to_bits(),
-        fresh.estimate.as_effect().unwrap().ate.to_bits()
+        second.estimate().as_effect().unwrap().ate.to_bits(),
+        fresh.estimate().as_effect().unwrap().ate.to_bits()
     );
     assert_eq!(first.estimand.adjustment_set, fresh.estimand.adjustment_set);
     for result in [&fresh, &first, &second] {
@@ -737,11 +816,11 @@ fn prepared_conditional_bayesian_records_bayesian_estimator() {
     assert!(click.posterior.is_some());
     assert_eq!(click.logical_plan.estimator.as_deref(), Some("conditional.bayesian"));
     assert_eq!(
-        click.estimate.as_effect().unwrap().ate.to_bits(),
-        fresh.estimate.as_effect().unwrap().ate.to_bits()
+        click.estimate().as_effect().unwrap().ate.to_bits(),
+        fresh.estimate().as_effect().unwrap().ate.to_bits()
     );
     assert_cached_only_on_prepared(&fresh, &[&click]);
-    assert!((click.effect() - 3.0).abs() < 0.15);
+    assert!((click.effect() - 3.0).abs() < 0.03, "effect={}", click.effect());
     assert_prepared_contract_consume(
         &prepared,
         &click,
@@ -771,14 +850,14 @@ fn prepared_path_specific_reestimate_matches_fresh() {
     let first = prepared.estimate(&data, &ctx).unwrap();
     let second = prepared.estimate(&data, &ctx).unwrap();
 
-    assert!(first.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(first.estimate().as_effect().unwrap().ate.is_finite());
     assert_eq!(
-        first.estimate.as_effect().unwrap().ate.to_bits(),
-        fresh.estimate.as_effect().unwrap().ate.to_bits()
+        first.estimate().as_effect().unwrap().ate.to_bits(),
+        fresh.estimate().as_effect().unwrap().ate.to_bits()
     );
     assert_eq!(
-        second.estimate.as_effect().unwrap().ate.to_bits(),
-        fresh.estimate.as_effect().unwrap().ate.to_bits()
+        second.estimate().as_effect().unwrap().ate.to_bits(),
+        fresh.estimate().as_effect().unwrap().ate.to_bits()
     );
     assert_eq!(first.estimand.method.as_ref(), fresh.estimand.method.as_ref());
     assert!(fresh.refutations.is_empty(), "path-specific must not wrap ATE refuters");
@@ -836,13 +915,15 @@ fn test_interventional_distribution_dag_explicit_frequentist_none_executes_check
         }
         other => panic!("prepared distribution has no identification product: {other:?}"),
     }
-    let plan = prepared.checked_distribution_program().expect("retained distribution program");
+    let RetainedOperation::Distribution(plan) = prepared.retained_operation() else {
+        panic!("retained distribution program")
+    };
     assert_eq!(plan.mapping().source, plan.mapping().executable);
     assert!(!plan.factor_requirements().is_empty());
     let first = prepared.estimate(&data, &ctx).unwrap();
     let second = prepared.estimate(&data, &ctx).unwrap();
 
-    assert!(first.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(first.estimate().as_effect().unwrap().ate.is_finite());
     let first_dist = first.distribution().expect("prepared distribution payload");
     let fresh_dist = fresh.distribution().expect("fresh distribution payload");
     assert_eq!(first_dist.mean.to_bits(), fresh_dist.mean.to_bits());
@@ -865,10 +946,10 @@ fn test_interventional_distribution_dag_explicit_frequentist_none_executes_check
         })
         .expect("true outcome atom");
     assert!((true_atom.probability - 0.7).abs() < 1e-12);
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert!((refreshed.distribution().unwrap().mean - 0.7).abs() < 1e-12);
     let (incompatible, _, _) = confounded_scm(64, 91);
-    assert!(prepared.refresh(incompatible, &ctx).is_err());
+    assert!(rebind_estimate(&mut prepared, incompatible, &ctx).is_err());
     assert!(
         (prepared.estimate(&data, &ctx).unwrap().distribution().unwrap().mean - 0.7).abs() < 1e-12
     );
@@ -885,9 +966,9 @@ fn test_interventional_distribution_dag_explicit_frequentist_none_executes_check
     // factor laws, so the consumer can verify both atom probabilities.
     let bytes =
         prepared.encode_contracted_result(&first, "prepared-dist-independent", &ctx).unwrap();
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     assert!(
-        consumed.acceptance.accepts_as_verified_program(),
+        consumed.acceptance.accepts_as_replayed_program(),
         "{:?}",
         consumed.acceptance.unresolved
     );
@@ -953,43 +1034,37 @@ fn test_interventional_distribution_dag_explicit_frequentist_none_executes_check
     assert!(rejected.is_err(), "rehashed factor-law tampering must be refused");
 }
 
-/// Non-Dag explicit structure (a bidirected-free ADMG, class `Admg`) refuses
-/// `ConditionalEffect` / `PathSpecificEffect` at `.build()`. Unconditional
-/// `InterventionalDistribution` on Admg is licensed separately.
+/// The mixed-graph conditional and path-specific routes have separate supported cells.
 #[test]
-fn prepare_refuses_conditional_path_on_non_dag_graph() {
+fn prepare_supports_path_specific_and_conditional_on_admg() {
+    let (data, _dag, cq) = conditional_effect_fixture();
     let mut admg = Admg::with_variables(3);
     admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     admg.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
-
-    let (data, _dag, cq) = conditional_effect_fixture();
-    let err = Study::tabular(data)
-        .graph(admg.clone())
+    Study::tabular(data)
+        .graph(admg)
         .query(CausalQuery::ConditionalEffect(cq))
         .refute(RefuteSuite::None)
         .build()
-        .unwrap_err();
-    assert!(err.to_string().contains("Dag"), "{err}");
+        .expect("the mixed-graph conditional effect is a supported cell");
 
     let mut admg2 = Admg::with_variables(3);
     admg2.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     admg2.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
     let (data, _dag, pq) = path_specific_fixture();
-    let err = Study::tabular(data)
+    let study = Study::tabular(data)
         .graph(admg2)
         .query(CausalQuery::PathSpecific(pq))
         .identifier(IdentifierId::PathSpecificNatural)
         .estimator(EstimatorId::FunctionalEffect)
         .refute(RefuteSuite::None)
         .build()
-        .unwrap_err();
-    assert!(err.to_string().contains("Dag"), "{err}");
-
-    let _ = admg;
+        .expect("the path-specific effect on this mixed graph is supported");
+    assert_eq!(study.support_status().unwrap().as_str(), "supported");
 }
 
-/// `PreparedStudy::refute` is licensed for `AverageEffect` only; a prepared
-/// `ConditionalEffect` handle must refuse cleanly (stable `Support` id), not panic.
+/// `PreparedStudy::refute` is supported for `AverageEffect` only; a prepared
+/// `ConditionalEffect` handle must refuse cleanly (`route_not_supported`), not panic.
 #[test]
 fn refute_on_prepared_conditional_effect_refuses_cleanly() {
     let (data, dag, query) = conditional_effect_fixture();
@@ -1005,11 +1080,11 @@ fn refute_on_prepared_conditional_effect_refuses_cleanly() {
     let first = prepared.estimate(&data, &ctx).unwrap();
     let err = prepared.refute(&first, &data, RefuteSuite::Cheap, &ctx).unwrap_err();
     match err {
-        antecedent::CausalError::Support { id, message } => {
-            assert_eq!(id, antecedent::SupportRefusal::Refused);
+        antecedent::CausalError::Unsupported { message } => {
+            assert!(message.starts_with("reason=route_not_supported: "), "{message}");
             assert!(message.contains("AverageEffect"), "{message}");
         }
-        other => panic!("expected Support::Refused, got {other:?}"),
+        other => panic!("expected Unsupported, got {other:?}"),
     }
 }
 
@@ -1105,15 +1180,16 @@ fn prepared_temporal_mediation_reuses_identification() {
     );
     assert!(fresh.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
     assert!(
-        (click.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate).abs()
+        (click.estimate().as_effect().unwrap().ate - fresh.estimate().as_effect().unwrap().ate)
+            .abs()
             < 1e-12
     );
     // Known-truth check: contrast is Mediated, so `estimate.ate` is the
     // path-product a*b*delta the statsmodels oracle also reports.
     assert!(
-        (click.estimate.as_effect().unwrap().ate - expected_mediated).abs() < 1e-6,
+        (click.estimate().as_effect().unwrap().ate - expected_mediated).abs() < 1e-6,
         "mediated estimate {} vs statsmodels oracle {}",
-        click.estimate.as_effect().unwrap().ate,
+        click.estimate().as_effect().unwrap().ate,
         expected_mediated
     );
     for accepted in [false, true] {
@@ -1133,7 +1209,7 @@ fn prepared_temporal_mediation_reuses_identification() {
                 .unwrap()
                 .estimate_series(&data, &ctx)
                 .unwrap();
-            assert!((result.estimate.as_effect().unwrap().ate - expected_mediated).abs() < 1e-6);
+            assert!((result.estimate().as_effect().unwrap().ate - expected_mediated).abs() < 1e-6);
             let expected_reports = match suite {
                 RefuteSuite::Full => 3,
                 RefuteSuite::Cheap => 2,
@@ -1178,14 +1254,14 @@ fn prepared_temporal_mediation_reuses_identification() {
                 .unwrap();
             let post = result.posterior.as_ref().unwrap();
             assert!(
-                (result.estimate.as_effect().unwrap().ate
+                (result.estimate().as_effect().unwrap().ate
                     - bayes_pin["mediated"].as_f64().unwrap())
                 .abs()
                     < bayes_pin["tolerance"].as_f64().unwrap()
             );
             assert_ne!(
-                result.estimate.as_effect().unwrap().ate.to_bits(),
-                click.estimate.as_effect().unwrap().ate.to_bits()
+                result.estimate().as_effect().unwrap().ate.to_bits(),
+                click.estimate().as_effect().unwrap().ate.to_bits()
             );
             for ((total, direct), indirect) in post
                 .draws
@@ -1275,6 +1351,14 @@ fn prepared_pag_ate_reuses_identification_envelope() {
             .count(),
         0
     );
+    // y = 2 t + z exactly, so the {z}-adjusted contrast is 2.
+    for result in [&fresh, &first, &second] {
+        assert!(
+            (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 1e-9,
+            "pag ate={}",
+            result.estimate().as_effect().unwrap().ate
+        );
+    }
     for click in [&first, &second] {
         assert_eq!(
             click
@@ -1286,11 +1370,11 @@ fn prepared_pag_ate_reuses_identification_envelope() {
             "prepared PAG click must report its generalized-adjustment cache exactly once"
         );
         assert!(
-            (click.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate)
+            (click.estimate().as_effect().unwrap().ate - fresh.estimate().as_effect().unwrap().ate)
                 .abs()
                 < 1e-12
         );
-        assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+        assert_eq!(click.support_status().unwrap().as_str(), "supported");
     }
 
     // The Bayesian/accepted coordinate takes the same cached envelope through
@@ -1308,8 +1392,8 @@ fn prepared_pag_ate_reuses_identification_envelope() {
     assert_eq!(bayesian_prepared.structure_source(), antecedent::StructureSource::Accepted);
     let bayesian_click = bayesian_prepared.estimate(&data, &ctx).unwrap();
     assert!(
-        (bayesian_click.estimate.as_effect().unwrap().ate
-            - bayesian_fresh.estimate.as_effect().unwrap().ate)
+        (bayesian_click.estimate().as_effect().unwrap().ate
+            - bayesian_fresh.estimate().as_effect().unwrap().ate)
             .abs()
             < 1e-12
     );
@@ -1374,6 +1458,7 @@ fn prepared_admg_ate_reuses_general_id_result() {
         m.push(f64::from(mi));
         y.push(f64::from(yi));
     }
+    let (t_ref, m_ref, y_ref) = (t.clone(), m.clone(), y.clone());
     let mut b = CausalSchemaBuilder::new();
     for name in nodes.observed() {
         b.add_variable(
@@ -1443,14 +1528,21 @@ fn prepared_admg_ate_reuses_general_id_result() {
             1,
             "prepared bidirected ADMG click must report its general-ID cache exactly once"
         );
-        assert!(click.estimate.as_effect().unwrap().ate.is_finite());
+        assert!(click.estimate().as_effect().unwrap().ate.is_finite());
         assert!(
-            (click.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate)
+            (click.estimate().as_effect().unwrap().ate - fresh.estimate().as_effect().unwrap().ate)
                 .abs()
                 < 1e-12
         );
-        assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+        assert_eq!(click.support_status().unwrap().as_str(), "supported");
     }
+    let frontdoor_ate = frontdoor_do_mean(&t_ref, &m_ref, &y_ref, 1.0)
+        - frontdoor_do_mean(&t_ref, &m_ref, &y_ref, 0.0);
+    assert!(
+        (fresh.estimate().as_effect().unwrap().ate - frontdoor_ate).abs() < 1e-9,
+        "ate={} front-door counts={frontdoor_ate}",
+        fresh.estimate().as_effect().unwrap().ate
+    );
 
     let accepted = Study::tabular(data.clone())
         .graph(AcceptedGraph::from(admg))
@@ -1463,8 +1555,8 @@ fn prepared_admg_ate_reuses_general_id_result() {
     assert_eq!(accepted_prepared.structure_source(), antecedent::StructureSource::Accepted);
     let accepted_click = accepted_prepared.estimate(&data, &ctx).unwrap();
     assert!(
-        (accepted_click.estimate.as_effect().unwrap().ate
-            - fresh.estimate.as_effect().unwrap().ate)
+        (accepted_click.estimate().as_effect().unwrap().ate
+            - fresh.estimate().as_effect().unwrap().ate)
             .abs()
             < 1e-12
     );
@@ -1478,8 +1570,79 @@ fn prepared_admg_ate_reuses_general_id_result() {
     );
 }
 
+/// Prepared-and-estimated results of the frozen path-specific and distribution fixtures for one
+/// graph provenance and validation suite.
+fn functional_validation_results(
+    accepted: bool,
+    suite: RefuteSuite,
+    ctx: &ExecutionContext,
+) -> (antecedent::StudyResult, antecedent::StudyResult) {
+    let (data, dag, query) = path_specific_fixture();
+    let builder = Study::tabular(data.clone());
+    let builder =
+        if accepted { builder.graph(AcceptedGraph::dag(dag)) } else { builder.graph(dag) };
+    let path = builder
+        .query(CausalQuery::PathSpecific(query))
+        .refute(suite)
+        .build()
+        .unwrap()
+        .prepare(ctx)
+        .unwrap()
+        .estimate(&data, ctx)
+        .unwrap();
+    let (data, dag, query) = distribution_fixture();
+    let builder = Study::tabular(data.clone());
+    let builder =
+        if accepted { builder.graph(AcceptedGraph::dag(dag)) } else { builder.graph(dag) };
+    let distribution = builder
+        .query(CausalQuery::Distribution(query))
+        .refute(suite)
+        .build()
+        .unwrap()
+        .prepare(ctx)
+        .unwrap()
+        .estimate(&data, ctx)
+        .unwrap();
+    (path, distribution)
+}
+
+/// Numeric pins only: the staged path effect and intervention mean equal the closed-form table
+/// values to the fixture tolerance whatever the graph provenance or validation suite (validation
+/// never moves the answer). Report counts are a separate contract below.
 #[test]
 fn functional_validation_staged_known_truth() {
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/functional_validation/expected.json"
+    ))
+    .unwrap();
+    let (path_truth, mean_truth, tolerance) = (
+        pin["path_effect"].as_f64().unwrap(),
+        pin["distribution_mean"].as_f64().unwrap(),
+        pin["tolerance"].as_f64().unwrap(),
+    );
+    let ctx = ExecutionContext::for_tests(1);
+    for accepted in [false, true] {
+        for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+            let (path, distribution) = functional_validation_results(accepted, suite, &ctx);
+            let ate = path.estimate().as_effect().unwrap().ate;
+            assert!(
+                (ate - path_truth).abs() < tolerance,
+                "path-specific ate={ate} expected={path_truth} suite={suite:?} accepted={accepted}"
+            );
+            let mean = distribution.distribution().unwrap().mean;
+            assert!(
+                (mean - mean_truth).abs() < tolerance,
+                "distribution mean={mean} expected={mean_truth} suite={suite:?} accepted={accepted}"
+            );
+        }
+    }
+}
+
+/// Report-count contract: how many validation reports each suite publishes for the two staged
+/// functional queries, that each carries its own family prefix, and that all pass on the frozen
+/// tables. These counts are design choices of the suites, not numerical truth.
+#[test]
+fn functional_validation_report_count_contract() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/estimate/functional_validation/expected.json"
     ))
@@ -1487,58 +1650,27 @@ fn functional_validation_staged_known_truth() {
     let ctx = ExecutionContext::for_tests(1);
     for accepted in [false, true] {
         for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
-            let (data, dag, query) = path_specific_fixture();
-            let builder = Study::tabular(data.clone());
-            let builder =
-                if accepted { builder.graph(AcceptedGraph::dag(dag)) } else { builder.graph(dag) };
-            let prepared = builder
-                .query(CausalQuery::PathSpecific(query))
-                .refute(suite)
-                .build()
-                .unwrap()
-                .prepare(&ctx)
-                .unwrap();
-            let result = prepared.estimate(&data, &ctx).unwrap();
-            assert!(
-                (result.estimate.as_effect().unwrap().ate - pin["path_effect"].as_f64().unwrap())
-                    .abs()
-                    < pin["tolerance"].as_f64().unwrap(),
-                "path-specific ate={} expected={} suite={suite:?} accepted={accepted}",
-                result.estimate.as_effect().unwrap().ate,
-                pin["path_effect"].as_f64().unwrap()
-            );
-            let count = match suite {
-                RefuteSuite::None => 0,
-                RefuteSuite::Cheap => pin["cheap_path_reports"].as_u64().unwrap(),
-                _ => pin["full_path_reports"].as_u64().unwrap(),
+            let (path, distribution) = functional_validation_results(accepted, suite, &ctx);
+            let (path_count, distribution_count) = match suite {
+                RefuteSuite::None => (0, 0),
+                RefuteSuite::Cheap => (
+                    pin["cheap_path_reports"].as_u64().unwrap(),
+                    pin["cheap_distribution_reports"].as_u64().unwrap(),
+                ),
+                _ => (
+                    pin["full_path_reports"].as_u64().unwrap(),
+                    pin["full_distribution_reports"].as_u64().unwrap(),
+                ),
             };
-            assert_eq!(result.refutations.len() as u64, count);
-            assert!(result.refutations.iter().all(|r| r.refuter.starts_with("path.") && r.passed));
-            let (data, dag, query) = distribution_fixture();
-            let builder = Study::tabular(data.clone());
-            let builder =
-                if accepted { builder.graph(AcceptedGraph::dag(dag)) } else { builder.graph(dag) };
-            let prepared = builder
-                .query(CausalQuery::Distribution(query))
-                .refute(suite)
-                .build()
-                .unwrap()
-                .prepare(&ctx)
-                .unwrap();
-            let result = prepared.estimate(&data, &ctx).unwrap();
-            assert!(
-                (result.distribution().unwrap().mean - pin["distribution_mean"].as_f64().unwrap())
-                    .abs()
-                    < pin["tolerance"].as_f64().unwrap()
+            assert_eq!(path.refutations.len() as u64, path_count, "{suite:?} accepted={accepted}");
+            assert!(path.refutations.iter().all(|r| r.refuter.starts_with("path.") && r.passed));
+            assert_eq!(
+                distribution.refutations.len() as u64,
+                distribution_count,
+                "{suite:?} accepted={accepted}"
             );
-            let count = match suite {
-                RefuteSuite::None => 0,
-                RefuteSuite::Cheap => pin["cheap_distribution_reports"].as_u64().unwrap(),
-                _ => pin["full_distribution_reports"].as_u64().unwrap(),
-            };
-            assert_eq!(result.refutations.len() as u64, count);
             assert!(
-                result
+                distribution
                     .refutations
                     .iter()
                     .all(|r| r.refuter.starts_with("distribution.") && r.passed)
@@ -1578,13 +1710,15 @@ fn bayesian_conditional_staged_known_truth() {
                 .unwrap()
                 .estimate(&data, &ctx)
                 .unwrap();
-            assert!(
-                (result.estimate.as_effect().unwrap().ate - pin["effect"].as_f64().unwrap()).abs()
-                    < pin["tolerance"].as_f64().unwrap()
-            );
+            let deviation = (result.estimate().as_effect().unwrap().ate
+                - pin["effect"].as_f64().unwrap())
+            .abs();
+            assert!(deviation < pin["tolerance"].as_f64().unwrap());
+            // The fixture is noise-free, so only prior shrinkage and draw noise remain (< 0.02).
+            assert!(deviation < 0.03, "deviation {deviation}");
             assert_ne!(
-                result.estimate.as_effect().unwrap().ate.to_bits(),
-                frequentist.estimate.as_effect().unwrap().ate.to_bits()
+                result.estimate().as_effect().unwrap().ate.to_bits(),
+                frequentist.estimate().as_effect().unwrap().ate.to_bits()
             );
             assert!(result.posterior.is_some());
             if suite == RefuteSuite::None {
@@ -1598,7 +1732,7 @@ fn bayesian_conditional_staged_known_truth() {
                 assert!(!result.predictive_checks.is_empty());
             }
             if suite == RefuteSuite::Full {
-                assert!(result.posterior.unwrap().prior_sensitivity.is_some());
+                assert!(result.posterior.as_ref().unwrap().prior_sensitivity.is_some());
             }
         }
     }
@@ -1628,6 +1762,7 @@ fn prepared_admg_distribution_reuses_identification() {
         m.push(f64::from(mi));
         y.push(f64::from(yi));
     }
+    let (t_ref, m_ref, y_ref) = (t.clone(), m.clone(), y.clone());
     let mut b = CausalSchemaBuilder::new();
     for name in nodes.observed() {
         b.add_variable(
@@ -1675,7 +1810,9 @@ fn prepared_admg_distribution_reuses_identification() {
     let fresh_dist = fresh.distribution().expect("fresh ADMG distribution");
     let first_dist = first.distribution().expect("prepared ADMG distribution");
     assert!((first_dist.mean - fresh_dist.mean).abs() < 1e-12);
-    assert_eq!(first.support_status.unwrap().as_str(), "licensed");
+    let truth = frontdoor_do_mean(&t_ref, &m_ref, &y_ref, 1.0);
+    assert!((fresh_dist.mean - truth).abs() < 1e-9, "mean={} counts={truth}", fresh_dist.mean);
+    assert_eq!(first.support_status().unwrap().as_str(), "supported");
     assert!(fresh.refutations.is_empty());
 
     for accepted_structure in [false, true] {
@@ -1743,11 +1880,14 @@ fn admg_distribution_nonidentified_bidirected_pair_refuses() {
         .unwrap()
         .run(&ExecutionContext::for_tests(1))
         .unwrap_err();
-    let text = err.to_string();
-    assert!(
-        text.contains("identif") || text.contains("NotIdentified") || text.contains("Unsupported"),
-        "{text}"
-    );
+    match err {
+        antecedent::CausalError::NotIdentified { status, search_capped, message } => {
+            assert_eq!(status, antecedent_core::IdentificationStatus::NotIdentified);
+            assert!(!search_capped, "the search must complete, not be capped");
+            assert!(message.contains("effect_not_identified"), "{message}");
+        }
+        other => panic!("a t <-> y bidirected pair must refuse as NotIdentified, got {other:?}"),
+    }
 }
 
 /// Unconditional ADMG `InterventionalDistribution` against a known SCM truth.
@@ -1891,7 +2031,7 @@ fn admg_frontdoor_distribution_known_truth() {
                 let fresh = study.clone().run(&ctx).unwrap();
                 let click = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
                 for (stage, result) in [("fresh", &fresh), ("prepared", &click)] {
-                    assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{label}");
+                    assert_eq!(result.support_status().unwrap().as_str(), "supported", "{label}");
                     assert_eq!(
                         result.identification.status,
                         antecedent_core::IdentificationStatus::NonparametricallyIdentified,
@@ -1946,7 +2086,7 @@ fn admg_frontdoor_distribution_known_truth() {
                             dist.mean
                         );
                         let se = result
-                            .estimate
+                            .estimate()
                             .as_effect()
                             .unwrap()
                             .se_bootstrap()
@@ -1983,4 +2123,325 @@ fn claim_refuses_a_result_that_carries_no_execution_stamp() {
     // The prepared handle's own execution still seals.
     let stamped = prepared.estimate(&data, &ctx).unwrap();
     assert!(stamped.claim(&contract, &ctx).is_ok());
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
+}
+
+/// Every case of the generalized-adjustment fixture is run through the identifier, not only the
+/// two the other tests happen to read: the stored edge strings build the PAG, treatment is `T`
+/// and outcome `Y`, and the envelope status, adjustment set and mass accounting must match.
+#[test]
+fn generalized_adjustment_fixture_cases_all_match_the_pag_envelope() {
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/identify/generalized_adjustment/expected.json"
+    ))
+    .unwrap();
+    let cases = expected["cases"].as_array().unwrap();
+    assert_eq!(cases.len(), 4);
+    for case in cases {
+        let id = case["id"].as_str().unwrap();
+        let edges: Vec<(String, bool, String)> = case["pag"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| {
+                let (from, to) = e.as_str().unwrap().split_once("->").unwrap();
+                match from.strip_suffix('o') {
+                    Some(tail) => (tail.to_owned(), true, to.to_owned()),
+                    None => (from.to_owned(), false, to.to_owned()),
+                }
+            })
+            .collect();
+        // T and Y first so the query ids are fixed; the rest in order of appearance.
+        let mut names: Vec<String> = vec!["T".into(), "Y".into()];
+        for (from, _, to) in &edges {
+            for name in [from, to] {
+                if !names.contains(name) {
+                    names.push(name.clone());
+                }
+            }
+        }
+        let node = |name: &String| {
+            DenseNodeId::from_raw(
+                u32::try_from(names.iter().position(|n| n == name).unwrap()).unwrap(),
+            )
+        };
+        let mut pag = Pag::with_variables(u32::try_from(names.len()).unwrap());
+        for (from, circle, to) in &edges {
+            if *circle {
+                pag.insert_circle_arrow(node(from), node(to)).unwrap();
+            } else {
+                pag.insert_directed(node(from), node(to)).unwrap();
+            }
+        }
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let env = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
+            .identify_pag_envelope(&pag, &query)
+            .unwrap();
+        match case["status"].as_str() {
+            Some("not_identified_by_adjustment") => {
+                assert_eq!(
+                    env.status,
+                    antecedent_core::IdentificationStatus::NotIdentified,
+                    "{id}"
+                );
+                assert_eq!(env.identified_weight.0, 0.0, "{id}");
+                assert!(case["adjustment_set"].is_null(), "{id}");
+            }
+            Some("identified") => {
+                assert_eq!(
+                    env.status,
+                    antecedent_core::IdentificationStatus::NonparametricallyIdentified,
+                    "{id}"
+                );
+                let found: Vec<&str> = env
+                    .invariant
+                    .as_ref()
+                    .unwrap()
+                    .adjustment_set
+                    .iter()
+                    .map(|v| names[v.raw() as usize].as_str())
+                    .collect();
+                let declared: Vec<&str> = case["adjustment_set"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|v| v.as_str().unwrap())
+                    .collect();
+                assert_eq!(found, declared, "{id}");
+            }
+            None => {
+                assert_eq!(
+                    case["invariant"].as_str(),
+                    Some("identified_weight+unidentified_weight=completion_count"),
+                    "{id}"
+                );
+                let total = env.identified_weight.0 + env.unidentified_weight.0;
+                assert!(total > 0.0, "{id}");
+                assert!((total - env.cases.len() as f64).abs() < 1e-9, "{id}");
+            }
+            Some(other) => panic!("{id}: unknown status {other}"),
+        }
+    }
+}
+
+/// A declared participant binding labels the rows it was declared for; a replacement with
+/// another row count is refused before any state changes.
+mod participant_binding {
+    use antecedent::{CausalError, RefuteSuite, Study};
+    use antecedent_core::{AverageEffectQuery, ExecutionContext, StreamDomain, VariableId};
+    use antecedent_data::{TabularData, UnitKey};
+    use antecedent_graph::{Dag, DenseNodeId};
+    use antecedent_io::ParticipantBindingWire;
+    use antecedent_kernels::standard_normal;
+
+    const ROWS: usize = 120;
+
+    fn table(rows: usize, seed: u64) -> TabularData {
+        let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x37);
+        let (mut t, mut y, mut z) = (vec![0.0; rows], vec![0.0; rows], vec![0.0; rows]);
+        for i in 0..rows {
+            z[i] = standard_normal(&mut rng);
+            t[i] = f64::from(rng.next_f64() < 1.0 / (1.0 + (-0.6 * z[i]).exp()));
+            y[i] = 2.0 * t[i] + z[i] + 0.5 * standard_normal(&mut rng);
+        }
+        let columns = [("t", t), ("y", y), ("z", z)];
+        let borrowed: Vec<(&str, &[f64])> =
+            columns.iter().map(|(name, v)| (*name, v.as_slice())).collect();
+        TabularData::from_f64_columns(borrowed).unwrap()
+    }
+
+    fn study(binding: Option<ParticipantBindingWire>) -> Study {
+        let mut graph = Dag::with_variables(3);
+        for (from, to) in [(2, 0), (2, 1), (0, 1)] {
+            graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+        }
+        let mut builder = Study::tabular(table(ROWS, 1))
+            .graph(graph)
+            .query(AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)))
+            .refute(RefuteSuite::None);
+        if let Some(binding) = binding {
+            builder = builder.participants(binding);
+        }
+        builder.build().unwrap()
+    }
+
+    fn binding(rows: usize) -> ParticipantBindingWire {
+        ParticipantBindingWire {
+            rows: u64::try_from(rows).unwrap(),
+            labels: "0".repeat(64),
+            codes: "1".repeat(64),
+        }
+    }
+
+    #[test]
+    fn a_rebind_onto_other_rows_than_the_declared_participants_is_refused() {
+        let ctx = ExecutionContext::for_tests(37);
+        let prepared = study(Some(binding(ROWS))).prepare(&ctx).unwrap();
+        assert!(prepared.rebind_data(table(ROWS, 2), &ctx).is_ok());
+        let error = prepared.rebind_data(table(ROWS - 1, 3), &ctx).unwrap_err();
+        assert!(
+            matches!(&error, CausalError::Compile { message } if message.contains("participants")),
+            "{error:?}"
+        );
+    }
+
+    fn keyed(table: TabularData, label: &str) -> TabularData {
+        let units = (0..ROWS).map(|row| format!("{label}{row}")).collect::<Vec<_>>();
+        table.with_unit_key(UnitKey::from_row_labels(units).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn a_replacement_of_the_same_rows_for_other_participants_is_refused() {
+        let ctx = ExecutionContext::for_tests(39);
+        let declared = UnitKey::from_row_labels((0..ROWS).map(|row| format!("p{row}"))).unwrap();
+        let prepared =
+            study(Some(ParticipantBindingWire::from_unit_key(&declared))).prepare(&ctx).unwrap();
+
+        assert!(prepared.rebind_data(keyed(table(ROWS, 2), "p"), &ctx).is_ok());
+        assert!(prepared.rebind_data(table(ROWS, 2), &ctx).is_ok(), "an unkeyed table inherits");
+
+        let error = prepared.rebind_data(keyed(table(ROWS, 2), "q"), &ctx).unwrap_err();
+        assert!(
+            matches!(&error, CausalError::Compile { message } if message.contains("other participants")),
+            "{error:?}"
+        );
+
+        let mut order = (0..ROWS).map(|row| format!("p{row}")).collect::<Vec<_>>();
+        order.swap(0, 1);
+        let reordered =
+            table(ROWS, 2).with_unit_key(UnitKey::from_row_labels(order).unwrap()).unwrap();
+        assert!(prepared.rebind_data(reordered, &ctx).is_err());
+    }
+
+    #[test]
+    fn a_study_without_participants_rebinds_onto_any_row_count() {
+        let ctx = ExecutionContext::for_tests(38);
+        let prepared = study(None).prepare(&ctx).unwrap();
+        assert!(prepared.rebind_data(table(ROWS - 1, 3), &ctx).is_ok());
+    }
+}
+
+/// Post-identification projection renumbers the used columns; every id a result, score table
+/// or portable model names is the caller's original id. The unused column sits first, so each
+/// used column's projected id differs from its own.
+mod projected_ids {
+    use antecedent::{EstimatorSpec, RefuteSuite, Study};
+    use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
+    use antecedent_data::TabularData;
+    use antecedent_estimate::{AipwAte, CausalForest, DmlAte, DrLearner};
+    use antecedent_graph::{Dag, DenseNodeId};
+    use antecedent_learn::{LearnerSpec, LinearSpec};
+
+    const UNUSED: u32 = 0;
+    const T: u32 = 1;
+    const Y: u32 = 2;
+    const Z: u32 = 3;
+
+    /// Every (T, Z) cell occurs 40 times, so the outcome regressions are exact:
+    /// `tau(Z) = 2 + 0.5 Z`. Column 0 is read by no identified role.
+    fn study(estimator: impl Into<EstimatorSpec>) -> Study {
+        let (mut unused, mut t, mut z, mut y) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        for rep in 0..40_u32 {
+            for treatment in [0.0, 1.0] {
+                for confounder in [-1.0, 1.0] {
+                    unused.push(f64::from(rep) * 0.1 + treatment);
+                    t.push(treatment);
+                    z.push(confounder);
+                    y.push(1.0 + confounder + treatment * (2.0 + 0.5 * confounder));
+                }
+            }
+        }
+        let columns = [("unused", unused), ("t", t), ("y", y), ("z", z)];
+        let borrowed: Vec<(&str, &[f64])> =
+            columns.iter().map(|(name, v)| (*name, v.as_slice())).collect();
+        let data = TabularData::from_f64_columns(borrowed).unwrap();
+        let mut graph = Dag::with_variables(4);
+        for (from, to) in [(Z, T), (Z, Y), (T, Y)] {
+            graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+        }
+        Study::tabular(data)
+            .graph(graph)
+            .query(AverageEffectQuery::binary_ate(VariableId::from_raw(T), VariableId::from_raw(Y)))
+            .estimator(estimator)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+    }
+
+    fn linear() -> LearnerSpec {
+        LearnerSpec::Linear(LinearSpec::default())
+    }
+
+    fn assert_table_ids(table: &antecedent_estimate::ScoreTable) {
+        assert_eq!(table.treatment, VariableId::from_raw(T));
+        assert_ne!(table.treatment, VariableId::from_raw(UNUSED));
+        assert_eq!(&*table.adjustment_set, &[VariableId::from_raw(Z)]);
+        assert!(table.intervened.is_empty());
+    }
+
+    #[test]
+    fn an_aipw_score_table_names_original_ids_with_an_unused_column() {
+        let ctx = ExecutionContext::for_tests(11);
+        let result = study(AipwAte::new().with_bootstrap_replicates(0)).run(&ctx).unwrap();
+        assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.project.columns"));
+        let effect = result.estimate().as_effect().unwrap();
+        assert_table_ids(effect.scores.table.as_ref().expect("AIPW exports its score table"));
+    }
+
+    #[test]
+    fn a_dml_score_table_names_original_ids_with_an_unused_column() {
+        let ctx = ExecutionContext::for_tests(12);
+        let result = study(DmlAte::new().with_outcome(linear()).with_folds(4)).run(&ctx).unwrap();
+        assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.project.columns"));
+        let effect = result.estimate().as_effect().unwrap();
+        assert_table_ids(effect.scores.table.as_ref().expect("DML exports its score table"));
+    }
+
+    #[test]
+    fn a_dr_learner_table_and_portable_model_name_original_ids_with_an_unused_column() {
+        let ctx = ExecutionContext::for_tests(13);
+        let result =
+            study(DrLearner::new().with_outcome(linear()).with_folds(4)).run(&ctx).unwrap();
+        assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.project.columns"));
+        let effect = result.estimate().as_effect().unwrap();
+        assert_table_ids(effect.scores.table.as_ref().expect("DR-learner exports its score table"));
+        let model = effect.heterogeneity.fitted_effect.as_ref().expect("a portable CATE map");
+        assert_eq!(model.features, vec![Z], "the model must name the original covariate id");
+    }
+
+    #[test]
+    fn a_causal_forest_table_and_portable_model_name_original_ids_with_an_unused_column() {
+        let ctx = ExecutionContext::for_tests(15);
+        let result = study(CausalForest::new().with_n_trees(20)).run(&ctx).unwrap();
+        assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.project.columns"));
+        let effect = result.estimate().as_effect().unwrap();
+        assert_table_ids(effect.scores.table.as_ref().expect("the forest keeps its DML scores"));
+        let model = effect.heterogeneity.fitted_effect.as_ref().expect("a portable forest");
+        assert_eq!(model.features, vec![Z], "the forest must name the original covariate id");
+    }
+
+    #[test]
+    fn a_prepared_retarget_reads_the_original_treatment_column_with_an_unused_column() {
+        let ctx = ExecutionContext::for_tests(14);
+        let prepared = study(AipwAte::new().with_bootstrap_replicates(0)).prepare(&ctx).unwrap();
+        let table = prepared.score_table().expect("prepare keeps the AIPW table");
+        assert_table_ids(table);
+        let weights = vec![1.0; table.n_rows];
+        let retargeted = prepared.retarget(&weights, &[VariableId::from_raw(Z)], &ctx).unwrap();
+        let got = retargeted.estimate().as_effect().unwrap().ate;
+        assert!((got - 2.0).abs() < 0.2, "uniform retarget of the exact-structure table: {got}");
+    }
 }

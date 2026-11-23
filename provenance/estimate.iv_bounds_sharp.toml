@@ -1,0 +1,47 @@
+feature_id = "estimate.iv_bounds_sharp"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Sampling intervals of the binary-instrument bounds
+# (crates/antecedent-estimate/src/iv_bounds.rs, executed by
+# crates/antecedent/src/analysis/execute/checked_iv_bounds.rs; plan ids
+# iv_bounds.balke_pearl and bayesian.iv_bounds.endpoint_bootstrap).
+#
+# The bounds on an exactly known law are the record identify.binary_iv_bounds.
+# This record covers what the estimator adds: the observed law read from rows,
+# the row bootstrap and the Bayesian bootstrap of both endpoints, and the
+# interval formed from them. The interval arithmetic is the record
+# estimate.identified_set; its use for two endpoints of one identified set,
+# with infeasible resamples left out, is the repository's own construction.
+modules = [
+ "crates/antecedent-estimate/src/iv_bounds.rs",
+ "crates/antecedent/src/analysis/execute/checked_iv_bounds.rs",
+]
+
+papers = [
+ { title = "Bounds on Treatment Effects from Studies with Imperfect Compliance", doi = "10.1080/01621459.1997.10474074", sections = ["sharp bounds on the average effect of a binary treatment under a binary instrument, as the optima of a linear program over the response types"] },
+ { title = "Confidence Intervals for Partially Identified Parameters", doi = "10.1111/j.1468-0262.2004.00555.x", sections = ["interval that covers the true parameter rather than the whole identified set, with the critical value solving Phi(c + width / sd) - Phi(-c) = level"] },
+ { title = "Bootstrap Methods: Another Look at the Jackknife", doi = "10.1214/aos/1176344552", sections = ["resampling rows with replacement to estimate the sampling deviation of a statistic"] },
+ { title = "The Bayesian Bootstrap", doi = "10.1214/aos/1176345338", sections = ["Dirichlet posterior weights on the observed rows, drawn here as exponential weights normalized within each instrument arm"] },
+]
+
+implementation_deviations = [
+ "The two completions of the cited interval are the lower and the upper Balke-Pearl bound of one observed law, refit on every row resample; the endpoint deviations and the deviation of the width come from those shared resamples with no fixed-b scaling.",
+ "The estimated width replaces the population width only when it exceeds sqrt(ln n) times its bootstrap deviation; otherwise the critical value is the two-sided one. This threshold is the repository's rule, not a procedure of the cited papers.",
+ "A resample or a posterior draw whose law violates the instrumental inequality has no bounds: it is counted and left out, never replaced. A fit that left any out states no support.",
+ "The posterior interval reads exchangeable-rank quantiles of the endpoint draws at the tail probability 1 - Phi(c), with c from the posterior means and deviations of the endpoints. It is a Bayesian-bootstrap construction and inherits no coverage theorem; its repeated-sampling coverage is measured, not derived.",
+ "The claim is one-sided coverage of each sharp endpoint of the identified set. No statement is made about a point effect, and instrument independence and exclusion are declared, not tested.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/iv_bounds.rs (unit tests: the bounds of the observed law, weights as repeated rows, the refused inequality violation, stream separation)",
+ "crates/antecedent-estimate/tests/iv_bounds_interval_reference.rs (both intervals rebuilt from the estimator's regenerated resamples with closed-form bounds, an independent normal distribution function and critical-value root, and hand-ranked tail quantiles)",
+ "crates/antecedent-stats/tests/identified_set_reference.rs (the critical value and the shared-replicate interval against 40-digit references)",
+ "crates/antecedent/tests/bounds_association_support.rs (the sharp bounds of a known mixture law through the retained route, the support statement, the artifact round trip and the forged-support refusals)",
+ "crates/antecedent/tests/bounds_association_calibration.rs (repeated-sampling coverage of each endpoint: calibration evidence, not an independent check)",
+]

@@ -6,7 +6,7 @@
 //! `σ(η)`, `η = −2 + c Σₖ zₖ`, so treatment is confounded by the covariates. The outcome is
 //! `0.5·T + 0.5 Σₖ zₖ + N(0, 1)`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

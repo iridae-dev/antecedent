@@ -1,0 +1,20 @@
+feature_id = "estimate.preflight_rank_drop"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+
+implementation_deviations = [
+ "Derived in-repo (docs/guides/preflight-diagnostics.md): a dropped column that is an exact linear combination of the intercept and the retained columns leaves the design's column space unchanged, so ordinary least squares and unpenalized logistic maximum likelihood depend on the design only through that space and the treatment coefficient is unchanged. No published procedure is reproduced.",
+ "The route runs the existing study path on the projected table; it adds no second estimator and does not apply to penalized fits.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "python/tests/test_preflight.py",
+ "crates/antecedent/tests/rank_drop_estimate.rs",
+]

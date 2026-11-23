@@ -34,7 +34,7 @@
 //! comparison. A consumer that holds an expected identity passes it so a
 //! self-consistent artifact for a different composition is refused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
@@ -55,18 +55,24 @@ pub const DISCRETIZED_SCM_ARTIFACT_VERSION: u32 = 1;
 
 /// The bytes are not a well-formed artifact (truncated, trailing bytes, invalid
 /// text, a count larger than the bytes remaining, an unknown tag).
-pub const DETAIL_MALFORMED: &str = "discretized_scm_artifact.malformed";
+pub const DETAIL_MALFORMED: &str =
+    antecedent_core::reason_details::discretized_scm_artifact::MALFORMED;
 /// The artifact's version is not one this build reads.
-pub const DETAIL_VERSION_UNSUPPORTED: &str = "discretized_scm_artifact.version_unsupported";
+pub const DETAIL_VERSION_UNSUPPORTED: &str =
+    antecedent_core::reason_details::discretized_scm_artifact::VERSION_UNSUPPORTED;
 /// The source composition is not exportable (not additive-noise linear-Gaussian).
-pub const DETAIL_NOT_EXPORTABLE: &str = "discretized_scm_artifact.not_exportable";
+pub const DETAIL_NOT_EXPORTABLE: &str =
+    antecedent_core::reason_details::discretized_scm_artifact::NOT_EXPORTABLE;
 /// The carried premises no longer discretize (the composition or plan is refused).
-pub const DETAIL_REDERIVATION_REFUSED: &str = "discretized_scm_artifact.rederivation_refused";
+pub const DETAIL_REDERIVATION_REFUSED: &str =
+    antecedent_core::reason_details::discretized_scm_artifact::REDERIVATION_REFUSED;
 /// The re-derived identity is not the identity the artifact claims or the consumer
 /// expects.
-pub const DETAIL_IDENTITY_MISMATCH: &str = "discretized_scm_artifact.identity_mismatch";
+pub const DETAIL_IDENTITY_MISMATCH: &str =
+    antecedent_core::reason_details::discretized_scm_artifact::IDENTITY_MISMATCH;
 /// A re-derived cell edge, cell value or mean error differs from the claimed one.
-pub const DETAIL_CLAIM_MISMATCH: &str = "discretized_scm_artifact.claimed_numbers_differ";
+pub const DETAIL_CLAIM_MISMATCH: &str =
+    antecedent_core::reason_details::discretized_scm_artifact::CLAIMED_NUMBERS_DIFFER;
 
 const TAG: &str = "antecedent.model.discretized_scm_artifact";
 /// Fewest bytes any section can occupy; bounds counts before allocation.
@@ -81,7 +87,7 @@ pub struct ArtifactRefusal {
     pub detail: &'static str,
     /// What the refusal is about (a section, a variable, a detail of the inner refusal).
     pub subject: String,
-    /// What would license the request.
+    /// What would support the request.
     pub remedy: &'static str,
 }
 
@@ -120,6 +126,7 @@ impl std::error::Error for ArtifactRefusal {}
 #[derive(Default)]
 struct Writer {
     bytes: Vec<u8>,
+    canonical_reals: bool,
 }
 
 impl Writer {
@@ -136,6 +143,7 @@ impl Writer {
     }
 
     fn real(&mut self, value: f64) {
+        let value = if self.canonical_reals && value == 0.0 { 0.0 } else { value };
         self.bytes.extend_from_slice(&value.to_bits().to_le_bytes());
     }
 
@@ -303,27 +311,13 @@ fn write_dependence(w: &mut Writer, dependence: &PosteriorDependence) {
     }
 }
 
-/// Serialize a discretization: its source premises, its plan and the numbers it
-/// claims.
-///
-/// # Errors
-/// [`ArtifactRefusal`] with [`DETAIL_NOT_EXPORTABLE`] when a source mechanism is
-/// not additive-noise linear-Gaussian or the declared dependence is a form this
-/// version cannot carry.
-pub fn export_discretized_scm(
-    model: &DiscretizedLinearGaussian,
-) -> Result<Vec<u8>, ArtifactRefusal> {
-    let spec = model.source_model().spec();
-    let mut w = Writer::default();
-    w.text(TAG);
-    w.bytes.extend_from_slice(&DISCRETIZED_SCM_ARTIFACT_VERSION.to_le_bytes());
-
-    // Premises.
+// One canonical, prefix-framed encoding is used by both identity and artifact export.
+fn write_spec(w: &mut Writer, spec: &ComposedModelSpec) -> Result<(), ArtifactRefusal> {
     w.text(&spec.target.population);
     w.text(&spec.target.regime);
     w.count(spec.mechanisms.len());
     for d in &spec.mechanisms {
-        write_mechanism(&mut w, d)?;
+        write_mechanism(w, d)?;
     }
     w.count(spec.edges.len());
     for (parent, child) in &spec.edges {
@@ -351,8 +345,35 @@ pub fn export_discretized_scm(
             w.texts(&node.points_into);
         }
     }
-    write_dependence(&mut w, &spec.dependence);
+    write_dependence(w, &spec.dependence);
     w.tag(u8::from(spec.admit_declared_mechanisms));
+
+    Ok(())
+}
+
+pub(crate) fn identity_premises(spec: &ComposedModelSpec) -> Result<Vec<u8>, ArtifactRefusal> {
+    let mut w = Writer { canonical_reals: true, ..Writer::default() };
+    write_spec(&mut w, spec)?;
+    Ok(w.bytes)
+}
+
+/// Serialize a discretization: its source premises, its plan and the numbers it
+/// claims.
+///
+/// # Errors
+/// [`ArtifactRefusal`] with [`DETAIL_NOT_EXPORTABLE`] when a source mechanism is
+/// not additive-noise linear-Gaussian or the declared dependence is a form this
+/// version cannot carry.
+pub fn export_discretized_scm(
+    model: &DiscretizedLinearGaussian,
+) -> Result<Vec<u8>, ArtifactRefusal> {
+    let spec = model.source_model().spec();
+    let mut w = Writer::default();
+    w.text(TAG);
+    w.bytes.extend_from_slice(&DISCRETIZED_SCM_ARTIFACT_VERSION.to_le_bytes());
+
+    // Premises use the same canonical encoding as the bridge identity.
+    write_spec(&mut w, spec)?;
 
     // Plan.
     w.tag(match model.method() {
@@ -431,12 +452,23 @@ impl<'a> Reader<'a> {
 
     fn texts(&mut self, what: &'static str) -> Decoded<Vec<String>> {
         let n = self.count(what)?;
-        (0..n).map(|_| self.text(what)).collect()
+        let mut values = Vec::new();
+        for _ in 0..n {
+            values.push(self.text(what)?);
+        }
+        Ok(values)
     }
 
     fn reals(&mut self, what: &'static str) -> Decoded<Vec<f64>> {
         let n = self.count(what)?;
-        (0..n).map(|_| self.real(what)).collect()
+        if n > (self.bytes.len() - self.at) / std::mem::size_of::<f64>() {
+            return Err(ArtifactRefusal::malformed(what));
+        }
+        let mut values = Vec::with_capacity(n);
+        for _ in 0..n {
+            values.push(self.real(what)?);
+        }
+        Ok(values)
     }
 
     fn opt_real(&mut self, what: &'static str) -> Decoded<Option<f64>> {
@@ -466,7 +498,11 @@ impl<'a> Reader<'a> {
 
     fn terms(&mut self) -> Decoded<Vec<ParameterTerm>> {
         let n = self.count("parameters")?;
-        (0..n).map(|_| self.term()).collect()
+        let mut terms = Vec::new();
+        for _ in 0..n {
+            terms.push(self.term()?);
+        }
+        Ok(terms)
     }
 
     fn meaning(&mut self) -> Decoded<UncertaintyMeaning> {
@@ -485,7 +521,7 @@ fn read_mechanism(r: &mut Reader<'_>) -> Decoded<MechanismDescriptor> {
             let intercept = r.real("form")?;
             let sigma = r.real("form")?;
             let n = r.count("coefficients")?;
-            let mut coefficients = Vec::with_capacity(n);
+            let mut coefficients = Vec::new();
             for _ in 0..n {
                 coefficients.push((r.text("coefficients")?, r.real("coefficients")?));
             }
@@ -494,7 +530,7 @@ fn read_mechanism(r: &mut Reader<'_>) -> Decoded<MechanismDescriptor> {
         _ => return Err(ArtifactRefusal::malformed("form")),
     };
     let n = r.count("parents")?;
-    let mut parents = Vec::with_capacity(n);
+    let mut parents = Vec::new();
     for _ in 0..n {
         parents.push(ParentBinding {
             variable: r.text("parents")?,
@@ -520,7 +556,7 @@ fn read_mechanism(r: &mut Reader<'_>) -> Decoded<MechanismDescriptor> {
         evidence_id: r.text("provenance")?,
     };
     let n = r.count("latents")?;
-    let mut latents = Vec::with_capacity(n);
+    let mut latents = Vec::new();
     for _ in 0..n {
         latents.push(LatentDependence {
             latent: r.text("latents")?,
@@ -559,7 +595,7 @@ fn read_dependence(r: &mut Reader<'_>) -> Decoded<PosteriorDependence> {
         2 => {
             let meaning = r.meaning()?;
             let n = r.count("dependence")?;
-            let mut parameters = Vec::with_capacity(n);
+            let mut parameters = Vec::new();
             for _ in 0..n {
                 parameters.push(ParameterId { mechanism: r.text("dependence")?, term: r.term()? });
             }
@@ -571,7 +607,7 @@ fn read_dependence(r: &mut Reader<'_>) -> Decoded<PosteriorDependence> {
         }
         3 => {
             let n = r.count("dependence")?;
-            let mut blocks = Vec::with_capacity(n);
+            let mut blocks = Vec::new();
             for _ in 0..n {
                 blocks.push(CrossCovarianceBlock {
                     first: r.text("dependence")?,
@@ -601,17 +637,17 @@ fn same_bits(a: &[f64], b: &[f64]) -> bool {
 fn read_spec(r: &mut Reader<'_>) -> Decoded<ComposedModelSpec> {
     let target = MechanismContext { population: r.text("target")?, regime: r.text("target")? };
     let n = r.count("mechanisms")?;
-    let mut mechanisms = Vec::with_capacity(n);
+    let mut mechanisms = Vec::new();
     for _ in 0..n {
         mechanisms.push(read_mechanism(r)?);
     }
     let n = r.count("edges")?;
-    let mut edges = Vec::with_capacity(n);
+    let mut edges = Vec::new();
     for _ in 0..n {
         edges.push((r.text("edges")?, r.text("edges")?));
     }
     let n = r.count("invariances")?;
-    let mut invariances = Vec::with_capacity(n);
+    let mut invariances = Vec::new();
     for _ in 0..n {
         let variable = r.text("invariances")?;
         let coordinate = match r.tag("invariances")? {
@@ -628,12 +664,12 @@ fn read_spec(r: &mut Reader<'_>) -> Decoded<ComposedModelSpec> {
         });
     }
     let n = r.count("selection_diagrams")?;
-    let mut selection_diagrams = Vec::with_capacity(n);
+    let mut selection_diagrams = Vec::new();
     for _ in 0..n {
         let source_population = r.text("selection_diagrams")?;
         let target_population = r.text("selection_diagrams")?;
         let k = r.count("selection_nodes")?;
-        let mut selection_nodes = Vec::with_capacity(k);
+        let mut selection_nodes = Vec::new();
         for _ in 0..k {
             selection_nodes.push(SelectionNodeDeclaration {
                 name: r.text("selection_nodes")?,
@@ -671,7 +707,7 @@ fn read_plan(r: &mut Reader<'_>) -> Decoded<(DiscretizationPlan, Vec<String>)> {
     };
     let n = r.count("levels")?;
     let mut levels = BTreeMap::new();
-    let mut order = Vec::with_capacity(n);
+    let mut order = Vec::new();
     for _ in 0..n {
         let name = r.text("levels")?;
         order.push(name.clone());
@@ -775,4 +811,35 @@ pub fn consume_discretized_scm(
         }
     }
     Ok(derived)
+}
+
+#[cfg(test)]
+mod bounded_reader_tests {
+    use super::*;
+
+    #[test]
+    fn malformed_record_counts_do_not_preallocate_record_arrays() {
+        let mut w = Writer::default();
+        w.text("");
+        w.text("");
+        w.word(1_000_000);
+        w.bytes.resize(w.bytes.len() + 1_000_000, 0);
+        let mut reader = Reader { bytes: &w.bytes, at: 0 };
+        assert!(matches!(
+            read_spec(&mut reader),
+            Err(ArtifactRefusal { detail: DETAIL_MALFORMED, .. })
+        ));
+        // The first record's invalid form is reached immediately.
+        assert!(reader.at < 64);
+    }
+
+    #[test]
+    fn real_count_must_fit_remaining_fixed_width_payload() {
+        let mut w = Writer::default();
+        w.word(16);
+        w.bytes.resize(24, 0);
+        let mut reader = Reader { bytes: &w.bytes, at: 0 };
+        assert!(reader.reals("covariance").is_err());
+        assert_eq!(reader.at, 8);
+    }
 }

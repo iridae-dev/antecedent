@@ -45,6 +45,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from ._artifact_protocol import container_bytes
 from ._native import CpdagScenarioRun as _NativeCpdagRun
 from ._native import PreparedTransportScenariosStage as _NativeScenarioStage
 from ._native import decide_scenario_claims as _decide
@@ -62,8 +63,8 @@ from .errors import CausalTypeError, CausalValueError
 from .joint_distribution import ScientificQuantity
 
 _POLICIES = ("require_invariant_best_action", "maximin", "bayes_over_structures", "report_only")
-_CALIBRATIONS = ("exact", "point_only", "measured", "unmeasured")
-Calibration = Literal["exact", "point_only", "measured", "unmeasured"]
+_CALIBRATIONS = ("exact", "point_only", "not_measured")
+Calibration = Literal["exact", "point_only", "not_measured"]
 #: What the structural analysis of a scenario decision can claim.
 StructuralVerdictKind = Literal[
     "invariant_best",
@@ -366,6 +367,7 @@ def _binding(
 
 
 def _digest(data: bytes) -> str:
+    data = container_bytes(data)
     return hashlib.sha256(bytes(data)).hexdigest()
 
 
@@ -427,7 +429,7 @@ def decide_from_scenarios(
     ``premises_digest`` and ``data_digest`` are the identities the caller retains for
     the scenario set; by default each is the SHA-256 of the exported scenario
     artifact. ``calibration`` is ``exact`` for supplied exact laws and
-    ``unmeasured`` for an empirical plug-in. ``support`` maps a scenario to the
+    ``not_measured`` for an empirical plug-in. ``support`` maps a scenario to the
     empirical support of its evidence and ``default_support`` covers the rest
     (unassessed support is ``missing_evidence``).
     """
@@ -437,7 +439,7 @@ def decide_from_scenarios(
         )
     exported = ""
     if not (premises_digest and data_digest):
-        exported = _digest(scenario_result.export())
+        exported = _digest(bytes(scenario_result.export()))
     binding = _binding(
         outcomes,
         calibration=calibration,
@@ -506,7 +508,7 @@ def decide_from_cpdag_completions(
     retained_data = data_digest or getattr(completions, "data_digest", None)
     exported = ""
     if not (retained_premises and retained_data):
-        exported = _digest(completions.export())
+        exported = _digest(bytes(completions.export()))
     binding = _binding(
         outcomes,
         calibration=calibration,
@@ -628,7 +630,7 @@ def identified_utilities_from_scenarios(
         )
     exported = ""
     if not (premises_digest and data_digest):
-        exported = _digest(scenario_result.export())
+        exported = _digest(bytes(scenario_result.export()))
     binding = _binding(
         outcomes,
         calibration=calibration,
@@ -680,7 +682,7 @@ def identified_utilities_from_cpdag_completions(
     retained_data = data_digest or getattr(completions, "data_digest", None)
     exported = ""
     if not (retained_premises and retained_data):
-        exported = _digest(completions.export())
+        exported = _digest(bytes(completions.export()))
     binding = _binding(
         outcomes,
         calibration=calibration,

@@ -32,3 +32,53 @@ test_sources = [
   "crates/antecedent/tests/z_transport_repair.rs",
   "python/tests/test_z_transport_repair.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Identification repair: apply hypothetical evidence from candidate studies and ask the identifier's own theorem whether the contract then identifies. Inline tests moved to identification_repair/tests.rs; previously bound same-named definitions were compared unchanged. Sensitivity repair definitions moved to identification_repair/sensitivity.rs; all bound definitions were compared unchanged apart from formatting. Hedge repair definitions moved to identification_repair/hedge.rs; all bound definitions were compared unchanged apart from formatting."
+no_independent_algorithm = "A finite search over declared candidates that delegates the identification decision to the existing identifiers."
+covered_by = ["identify.backdoor", "identify.frontdoor", "identify.id", "identify.iv"]
+record_sha256 = "51dd26813fa335ff2c48e04f05ff6d4c8a7982738c3058d5e25754cc267399af"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/identification_repair.rs"
+items = ["const MAX_CANDIDATES", "const MEDIATOR_SEARCH_SUBSETS", "fn assumption", "fn base_law", "fn candidates", "fn checker", "fn contract", "fn cut_outgoing", "fn dag", "fn dag_children", "fn derive", "fn experiment", "fn invalid", "fn joint_law", "fn max_mediator_set_size", "fn name", "fn outcome", "fn population", "fn provenance", "fn reaches_avoiding", "fn treatment", "fn try_new", "fn unresolved_obligations", "fn verify_frontdoor", "fn verify_instrument", "struct Build", "struct Failure"]
+sha256 = "83207882f08ae9c95623559546e861c41b03acc6ede470e4b89f63f6ad1994fc"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/identification_repair/hedge.rs"
+items = ["fn base_law", "fn outcome", "fn population", "fn treatment", "fn try_new", "fn unresolved_obligations"]
+sha256 = "0e98f9f6b668155a66509841d96db5e30bb0f6bb86dbc00fa5ac45b5e91293e9"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/identification_repair/sensitivity.rs"
+items = ["fn as_str", "fn base_law", "fn dag", "fn outcome", "fn population", "fn treatment", "fn try_new", "fn unresolved_obligations"]
+sha256 = "8459ca09204cef0add617a55b9709f3ffb2cab5b4721f63a20bc3c4cff27075c"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/src/identification_repair/tests.rs"
+items = ["fn dag"]
+sha256 = "3b6a50822ae404bfabdd009a797e6f4e61e64e54c21a736368017876e66c29bc"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/repair.rs"
+items = ["const REPAIR_MAX_MEMORY_BYTES", "const REPAIR_MAX_OPERATIONS", "const REPAIR_RECEIPT_REGIONS", "enum FamilyVerdict", "enum RepairClassification", "enum RepairObjective", "fn as_str", "fn base_law", "fn best", "fn bounds", "fn budget", "fn check", "fn check_bounds", "fn check_regimes", "fn classify", "fn contract_id", "fn covered", "fn dag", "fn default", "fn delta_of_regimes", "fn diagram", "fn evaluate", "fn family_id", "fn from_identification", "fn hypothetical_regimes", "fn invalid_request", "fn new", "fn next", "fn not_a_failure", "fn outcome", "fn population", "fn prepare", "fn query", "fn rank", "fn repair", "fn screen", "fn status", "fn subset_cost", "fn subset_label", "fn treatment", "fn try_new", "fn unresolved_obligations", "fn verify", "fn walk", "struct BackdoorRepairFamily", "struct LexCombinations", "struct RepairCancelled", "struct RepairDerivation", "struct RepairError", "struct RepairLimits", "struct RepairOutcome", "struct RepairReceipt", "struct RepairReport", "struct Searcher", "struct Subsets", "struct TransportRepairFamily", "struct Walk", "trait RepairFamily", "type Item"]
+sha256 = "caf07d67df6d433e13e0a585507b0aa4ae09e921af1e3b38cc0180bffc055046"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/repair_artifact.rs"
+items = ["const T", "const TY", "const W1", "const W2", "const W3", "const X", "const Y", "const Z1", "const Z2", "fn a_report_for_another_contract_cannot_be_exported_under_this_family", "fn artifact_keeps_obligation_ids_kinds_and_the_source_proof_step", "fn assumption_obligations_survive_the_artifact_and_block_certification", "fn backdoor_artifact", "fn backdoor_artifact_round_trips_through_the_container_and_replays_identically", "fn backdoor_candidates", "fn backdoor_family", "fn beyond_depth_is_stored_as_not_examined", "fn consume", "fn ctx", "fn dag7", "fn detail", "fn observation", "fn replay_recomputes_the_verdict_from_the_stored_delta", "fn resealed_mutation_of_candidate_obligation_classification_or_receipt_is_refused", "fn run", "fn separate_studies_cannot_meet_the_joint_regime_in_the_stored_report", "fn study", "fn transport_artifact", "fn transport_artifact_round_trips_and_stores_the_hypothetical_delta", "fn transport_catalog", "fn transport_family", "fn truncated_search_is_retained_as_unevaluated_never_as_impossible", "fn unknown_version_and_kind_are_refused_and_stored_limits_are_bounded", "fn v", "fn vars"]
+sha256 = "50742d7cec30e4069e719b3e6d76a778f0445867546c1a145bfb088eb6bce5b0"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/repair_facade.rs"
+items = ["const T", "const TY", "const W1", "const W2", "const W3", "const X", "const Y", "const Z1", "const Z2", "fn a_contract_that_already_identifies_is_not_a_repair_target", "fn a_variable_name_match_without_population_or_regime_stays_insufficient", "fn backdoor_family", "fn backdoor_two_separate_studies_cannot_meet_the_joint_regime_but_one_study_can", "fn bounds_and_cancellation_are_refusals_or_reports_not_verdicts", "fn budget_truncated_search_keeps_explored_and_unevaluated_and_never_says_impossible", "fn candidate_order_does_not_change_the_report", "fn ctx", "fn dag7", "fn defaults", "fn establish_assumption_is_never_marked_satisfied_by_a_study", "fn failed_backdoor_contract_exposes_a_joint_law_obligation_with_its_proof_step", "fn failed_transport_contract_exposes_the_source_factor_and_its_search_stage", "fn ids", "fn insufficient_candidate_keeps_its_failure_reasons_and_the_report_is_wrong_contract", "fn invalid_candidates_are_reported_and_never_searched", "fn leveled_experiment_is_a_restricted_domain_and_does_not_supply_an_unrestricted_response", "fn objective_ranks_sufficient_subsets_and_cost_units_must_agree", "fn observation", "fn outcome", "fn run", "fn sample_increase_has_no_transport_checker_and_is_not_certified", "fn study", "fn subsets_larger_than_the_declared_depth_are_not_examined_and_say_so", "fn transport_catalog", "fn transport_catalog_with_experiment", "fn transport_factors_support_and_planner_deltas_become_obligations", "fn transport_family", "fn transport_family_is_repaired_only_by_the_source_experiment_that_binds_the_factor", "fn two_distinct_families_are_repaired_by_their_own_verified_candidates", "fn v", "fn vars"]
+sha256 = "609a70b5b4903de7b38a30d5c16585943bb6bf0f41b558df4e6d492c5e0206a6"

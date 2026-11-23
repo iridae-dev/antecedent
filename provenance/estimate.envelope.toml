@@ -42,7 +42,7 @@ copied_tests = false
 # Sampling intervals on a scalar identified set are estimate.identified_set;
 # frequentist multi-atom SEs are estimate.graph_posterior.joint_if.
 papers = [
- { title = "Bayesian Model Averaging: A Tutorial", doi = "10.1214/ss/1009212519", sections = ["model-weight semantics: sample a model, then that model's posterior"] },
+ { title = "Bayesian model averaging: a tutorial (with comments by M. Clyde, David Draper and E. I. George, and a rejoinder by the authors", citation_note = "Previously recorded title and bibliographic detail: Bayesian Model Averaging: A Tutorial", doi = "10.1214/ss/1009212519", sections = ["model-weight semantics: sample a model, then that model's posterior"] },
  { title = "Bayesian Inference in a Class of Partially Identified Models", doi = "10.3982/QE399", sections = ["retaining posterior mass on the non-identified region instead of collapsing to a point estimate"] },
 ]
 
@@ -61,4 +61,38 @@ test_sources = [
  "conformance/bayesian/graph_effect_envelope (clean-room fixture: known unidentified fraction and exact identified-conditional mixture mean)",
  "conformance/bayesian/known_truth_mixtures (frozen analytic DAG-posterior ATE and DBN-posterior Pulse / single-step Sustained mixtures consumed from the staged path: identified atoms pin E[tau | identified], a structurally unidentified atom keeps its posterior weight as unidentified_mass, and the parameter prior does not upgrade it)",
  "crates/antecedent/tests/class_posterior_ate.rs (StructuralAggregationPolicy: scalar only when estimands agree)",
+ "crates/antecedent-estimate/tests/envelope_reference.rs (exact rational mixture mean and sd, repeated keys, zero weights, retained unidentified mass, order invariance and the renormalization refusal)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "aggregate_effect_envelope of crates/antecedent-estimate/src/envelope.rs: pooling of atoms that share a graph key, dropping of zero-weight and unidentified atoms from the mixture, the exact identified-conditional mixture mean and standard deviation of the supplied empirical component laws (within-component population variance plus between-component disagreement), the retained unidentified mass fraction and the identification status that follows it, the refusal to renormalize over positive unidentified mass, and invariance to the atom order. Not aggregate_mixture_functional_envelope (its Gaussian-copula coupling), the Monte Carlo mixture quantiles (reproducible draws, not exact quantiles), the structural aggregation policy in the facade, or the choice of graph weights."
+assumptions = ["Weights are the caller's graph posterior or a frozen enumeration; nothing here updates them.", "Component draws are treated as the empirical law of that graph's effect with equal draw counts; moments are exact for those laws and quantiles are Monte Carlo.", "Unidentified mass is a separate axis that is never redistributed into the effect mixture."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with exact rational arithmetic on the binary draws written for this review; no upstream implementation or test source was consulted or copied. The record cites no publication for this construction, so there is no page-level correspondence to attest."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Two ensembles (three identified components of 64 draws with 12.5% unidentified mass; five atoms over three keys including repeated keys, a zero-weight atom and pooled weights, 40 draws each), moments to 1e-12 (mean) and 1e-9 relative (sd). The published draws are an affine moment-matched correction of the Monte Carlo sample, so their quantiles are a reproducible approximation and are not compared to exact quantiles. A draw count of one per component, extreme weight ratios and a very large offset (the centring that guards against cancellation) are not exercised here."
+sources = ["https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["The published mean and sd equal the exact rational mixture moments, including the between-graph variance and the pooling of repeated keys; zero-weight atoms contribute nothing and the unidentified mass fraction (0.125) and status follow the retained mass.", "Reversing the atom order leaves the draws and summaries identical, and renormalize_identified_only is refused when positive unidentified mass exists.", "No product defect was found in this record."]
+record_sha256 = "a46aee4107e9fb42007cb2b4319f0ea7c1594fc12a2cc277adadc0921c1ad23a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/envelope.rs"
+items = ["const PSD_TOLERANCE", "fn aggregate_effect_envelope", "fn aggregate_mixture_functional_envelope", "fn couple_mixture_functional_draws", "fn moment_matched", "struct EnvelopeOptions", "struct GraphEffectDraws"]
+sha256 = "a75503c59293d17e3c9e4db218e0053bfd5997ac8c8e84be89597f9289271efb"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/envelope_reference.rs"
+items = ["fn cases", "fn renormalizing_over_positive_unidentified_mass_is_refused", "fn run", "fn the_envelope_does_not_depend_on_the_atom_order", "fn the_published_moments_are_the_exact_mixture_moments"]
+sha256 = "982c0d6ed2789a781df2f290f5c045f55027eca6c481a34e1d216c637c254ba9"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/envelope_reference.py"
+sha256 = "23b94ccb5cf466dc0a257b901c78efaa78f74d4fb0a7711c0136e5e09f8ccfae"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/envelope_reference.json"
+sha256 = "1d18e71ec31576201179e2ee198df79c236144fd0a0d4bc3e7af2b53ee144f70"

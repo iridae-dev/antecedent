@@ -1,14 +1,13 @@
-# Composing sources, recalculating and exporting a decision
+# Compose sources into one decision
 
-Composition joins [decisions, design and repair](decisions-breadth.md) and the
-external claims of [external scientific objects](external-science.md) into
-one decision, recalculates it selectively, and exports it as one portable
-bundle. Every route here is **point-only**. Nothing on this page is an interval,
-a coverage statement or a probability license. Uncertainty carried inside a composed artifact keeps its source standing.
+Combine native results, external claims and independently fitted mechanisms into one decision, recalculate only what a change affects, and export the result as one portable bundle. The routes join [decisions, design and repair](decisions.md#routes-at-a-glance) with the
+external claims of [external scientific objects](guides/build/scientific-interfaces.md). Every route here is **point-only**, except that a mechanism-composition contrast also reports a Wald
+interval with its calibration status. Nothing here is a coverage statement or probability support. Uncertainty carried inside a composed artifact keeps its source standing.
 Composition supplies no additional calibration or interval guarantee.
 
-For each route: the question it answers, its scope bounds, claim label, Python
-entry point and refusal namespace.
+Each route below gives the question it answers, its scope bounds, claim label, Python
+entry point and refusal namespace. The measured-spread routes are in
+[composed uncertainty](guides/composed-uncertainty.md); to check which downstream claims survive a change see [composition verification](composition-verification.md).
 
 ## Program binding
 
@@ -33,7 +32,7 @@ entry point and refusal namespace.
   claim whose coordinates, support, trust and calibration travel with it,
   without a mean ever becoming an outcome law?
 - **Scope.** One coordinate per dose with a support label, native provider trust
-  and an unmeasured calibration. A coordinate outside empirical support or
+  and a not_measured calibration. A coordinate outside empirical support or
   lacking evidence is withheld and reported, not used. A caller cannot assert a
   calibrated status. The joint law a Rust response can supply is a posterior
   over the mean curve, not an interventional outcome law.
@@ -58,7 +57,7 @@ entry point and refusal namespace.
   compared; all actions unsupported is a state, not an error. Independent
   pooling and paired draws are refused when inputs share data, a prior or a
   fitted model, when dependence is unknown, or when inputs declared independent
-  carry one snapshot, unless a licensed covariance or joint-law route names one
+  carry one snapshot, unless a supported covariance or joint-law route names one
   of the pair. Conflicting atoms are not averaged.
 - **Claim.** Point-only. Relations and dependence routes are caller declarations
   the checks read; nothing is estimated or pooled.
@@ -77,7 +76,7 @@ entry point and refusal namespace.
   that determined it. Reuse is proven by counted cross-fitted fold fits: a first
   run does 10 fold fits (5 folds, 2 nuisance sets), a utility-only change does
   0, and a compatible target-weight change under a declared retarget does 0.
-  Without a declared retarget licence the change refits. In a fresh process no
+  Without a declared retarget support the change refits. In a fresh process no
   derived stage is reused unless the caller supplies a portable artifact. The
   per-call cache is not a persistent fit cache, and a second session fits
   again. The `RecalcSession` example uses cross-fitted AIPW with a net-benefit
@@ -87,7 +86,7 @@ entry point and refusal namespace.
   [recalculation capabilities](recalculation-capabilities.md).
 - **Claim.** Point-only: the plan table, the counted work, and the point law and
   net benefit of that route. Its law standard error is a diagnostic with
-  calibration unmeasured.
+  calibration not_measured.
 - **Python.** `antecedent.recalc`: `plan_recalculation`, `RecalcSession`,
   `RecalcRequest`, `Declaration`, `Capabilities`.
 - **Refusals.** `recalc.*`.
@@ -106,13 +105,13 @@ not a certificate that a cache exists.
 ## Composition bundle and verifiers
 
 - **Question.** Can a composed decision be exported as one portable bundle that
-  an independent consumer verifies node by node?
+  an independent consumer checks node by node?
 - **Scope.** A typed directed acyclic graph of nodes, with each edge carrying the
   Merkle digest of its upstream node, so a changed upstream identity changes
   every dependent digest and the bundle identity. Declaration order does not
-  change the identity. Each embedded node is verified through its artifact's own
+  change the identity. Each embedded node is replayed by its artifact's own
   consumer, with binding facts read from the decoded fields and never from text
-  a producer wrote beside it. A reference node is verified only as matched a
+  a producer wrote beside it. A reference node is only matched against a
   supplied source and is never replayed. A kind with no verifier (causal
   contract, attestation, quantity coordinates, transformation) fails and must
   travel as a reference. A consumer that retains the bundle identity
@@ -120,12 +119,65 @@ not a certificate that a cache exists.
   consistency.
 - **Claim labels.** A decision over an aligned joint law is labelled `joint_draw`.
   A decision resting on an external mean is labelled `point_only_attested`, its
-  declared mean is shown but is not a verified value, and a decision that needs
+  declared mean is shown but is not recomputed, and a decision that needs
   a joint law over a mean-only claim fails `unsupported_law`.
-- **Claim.** Point-only: the bundle certifies decoding, identities and bindings.
+- **Claim.** Point-only: the bundle checks decoding, identities and bindings.
 - **Python.** `antecedent.composition_bundle`: `BundleBuilder`, `Bundle`,
   `consume_bundle`, `describe_artifact`.
 - **Refusals.** `composition_bundle.*` (shared by the bundle and the verifiers).
+
+Build, export and consume a bundle:
+
+```python
+from antecedent import composition_bundle as cb
+from antecedent.outcomes import require_success
+
+result_bytes = cb.mean_decision(contract, claim)     # point-only attested result
+builder = cb.Bundle.builder()
+builder.add_artifact("external_claim", claim, node_id="claim")
+builder.add_artifact("decision_contract", contract.export(artifact_id="contract"), node_id="contract")
+builder.add_artifact("decision_result", result_bytes, node_id="result")
+bundle = builder.connect("claim", "result").connect("contract", "result").build()
+
+data, identity = bytes(bundle.export(artifact_id="my-bundle")), bundle.identity
+
+# In another process, under the identity retained independently of the bytes:
+consumed = require_success(cb.consume_bundle(data, expected_identity=identity))
+consumed.require_verified()
+consumed.claim_label                      # "point_only_attested"
+consumed.value("result", "treat.expected_utility")   # 9.0
+```
+
+`contract` and `claim` are the decision contract and bound external claim of
+[evaluating actions with a decision contract](decisions.md). `consume_bundle` returns an
+`Outcome`; `require_success` raises its refusal, and `require_verified()` raises unless every
+node verified. `add_artifact(artifact)`
+infers the node kind from the container when you do not name it, and an artifact
+object whose `export(artifact_id=...)` returns container bytes may be passed instead
+of bytes. A bundle never claims that a serialized result recreates an executable study.
+The runnable version is
+[`composition_bundle.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/composition_bundle.py).
+
+## Read where an imported source came from
+
+A decision input that carries an imported claim keeps the original evidence behind it. `input.source_evidence` (and `Contract.evaluate(...)` results' `source_evidence`) returns an `antecedent.source_evidence.SourceEvidence`, or `None` for a metadata-only source. It exposes what the producer reported and nothing it could mint: imported evidence keeps its original claim and supplies no executable state, no provider trust upgrade, no transformed local support value and no calibration support.
+
+```python
+evidence = claim.source_evidence      # `claim` is a bound native claim from the steps above
+evidence.coordinates                  # the scientific quantities the source answers
+evidence.diagnostics                  # the producer's diagnostics, with their original scope
+evidence.original_acceptance          # the acceptance record, including unresolved dependencies
+for quantity in evidence.coordinates:
+    for scoped in evidence.diagnostics_at(quantity):
+        scoped.scope, scoped.local_value, scoped.global_values
+loaded = require_success(SourceEvidence.consume(bytes(evidence.export())))
+```
+
+`diagnostics_at(quantity)` re-reads each diagnostic at one coordinate: a per-coordinate diagnostic gives the `local_value` for that coordinate and a global one gives its `global_values`; equal global values at two coordinates remain distinct semantic coordinates. `lineage` lists the original derivation links and `stages_behind("claim")` the stages upstream of one, so you can see which parts of a chain were checked and which are unresolved. `project(contract, actions)` restricts the evidence to the actions of a decision contract and keeps each action's contributing coordinates. `SourceEvidence.consume(...)` replays the source bytes independently, and a changed native source or corrupted envelope is refused.
+
+When a decision functional is taken over a joint-law source, the original request travels as a `functional_source.LawFunctionalArtifact`: the complete original law and functional request. `LawFunctionalArtifact.consume(data, expected_identity=...)` replays the derivation independently, and `resolve_with(actual)` compares the full rows and original source to a freshly issued native claim. Replay issues no native authority; it shows the number follows from the retained law.
+
+`source_projection.SourceProjectionArtifact` carries the original source together with a replayed projection of it: its semantic contract, its attestation, exact quantity coordinates or an affine utility transformation (utility units are declared by you). `consume_source_projection(data, expected_identity=...)` replays it. Numerical replay supplies no native authority, and native source dependencies stay unresolved until a bundle consumer supplies an actual issued native claim.
 
 ## A multi-source example
 
@@ -188,3 +240,120 @@ boundary or recalculates only the stages that depend on it.
   must be rebound and executed under its provider's replay policy.
 - A ranking and a joint-law decision retain their source identities. Binding
   them together does not validate the utility or the generating model.
+
+## Compose independently fitted mechanisms
+
+Individually valid conditional mechanisms do not imply a valid joint model. Composition compiles *declared* mechanisms into one executable joint law and refuses, with a structured finding, whenever the declarations do not establish a coherent one. Nothing is inferred from names or fits.
+
+### Boundary
+
+| Item | Supported | Refused |
+| --- | --- | --- |
+| Structure | explicitly mapped acyclic graphs | any directed cycle (before execution) |
+| Family | additive-noise linear-Gaussian with declared parents and declared unit-variance Gaussian shared latents; or finite conditional tables | mixed families, nonlinear or non-additive mechanisms |
+| Execution | closed-form joint mean/covariance and `do()` law; exact enumeration and truncated factorization; structural sampling | conditioning on observations (a separate query) |
+| Uncertainty | first-order delta-method variance of a linear contrast of interventional means, from a declared parameter law, and its Wald interval with calibration status | posteriors, variance functionals, any claim over several mechanisms with unknown dependence |
+
+Residual `sigma` of a linear-Gaussian mechanism is the *idiosyncratic* part;
+a declared latent adds `loading^2` to the total residual variance and
+`loading_i * loading_j` to the covariance of the mechanisms that share it.
+
+### What is checked
+
+Each defect is a finding with a closed kind, a `mechanism_composition.<slot>`
+detail, the offending subject, expected and supplied semantics, and the
+declaration that would support the composition.
+
+- **Variable identity**: one mechanism per variable; every parent has a mechanism.
+- **Causal parents / conditioning set**: a mechanism's parents equal the declared
+  graph's parents, and the fit conditioned on exactly its parents.
+- **Units / transforms**: a consumer's parent units and transform equal the
+  producer's output; no implicit conversion.
+- **Population / regime**: a mechanism fitted elsewhere is admitted only through a
+  declared selection diagram with no arrow into its variable, or an explicit
+  invariance assumption (regime: invariance only). The transport theory itself is
+  owned elsewhere; here only the declaration is represented.
+- **Support / overlap**: the producer's output support lies inside the domain
+  the consumer was fitted on (finite tables: level sets and complete rows);
+  interventions must lie inside every consumer's domain.
+- **Shared latents**: a latent shared with a mechanism that is absent,
+  unreciprocated, undeclared by its peers or without a loading is refused. It is
+  never silently treated as independent.
+- **Provenance**: owning fit or binding identity and evidence identity; a
+  mechanism that was declared rather than estimated needs acknowledgement.
+- **Uncertainty alignment**: one meaning (posterior or sampling), matching
+  parameter sets, symmetric positive semidefinite covariances.
+- **Posterior dependence**: separately fitted mechanisms are *not* independent by
+  default. An uncertainty claim over more than one mechanism needs an aligned
+  joint law, an explicit cross-mechanism covariance block for every pair (a zero
+  block is a declared independence for that pair), or independence by design with
+  a justification and distinct evidence identities. Otherwise the refusal is
+  `joint_law_required`. Point execution is unaffected.
+
+### Claim labels
+
+Composition is exact given the declared mechanisms. The delta-method variance is
+a parameter-covariance variance only: it omits second-order terms, holds residual
+scales fixed and carries no coverage claim. Its Wald interval (`interval`) is reported
+with its calibration status.
+
+### Prepare, refresh and export
+
+In Rust, `StudyBuilder::mechanism_composition` takes the semantic declarations and the
+numbers together: `check_mechanism_composition` checks the coordinates, the
+plan is bound to the numbers (`lower_plan`) and the result is compiled under
+the coherence checker, so every defect of a request is returned with its
+code, detail and remedy before anything executes. A mechanism built from a
+fitted registry slot is labelled `fitted`; coefficients or tables written down
+by the analyst are labelled `declared`, need the acknowledgement above and are
+listed by `declared_mechanisms()`. The facade sets the label from the source
+of the numbers. The prepared composition answers an intervention law, a mean
+contrast with its delta-method variance and explicit cross-covariance label,
+structural samples, or an exact finite law, and exports one query as
+`mechanism_composition_v1`.
+
+`refresh_mechanisms` takes mechanisms refitted on new outcome-only data:
+
+| | |
+|---|---|
+| keeps | the declared graph, units, transforms, populations, regimes, admissions, latent declarations, fitted domains and supports, the kind of declared dependence |
+| recomputes | the refitted numbers, their fit and evidence identities (so the plan identity), the reported marginal covariances, the joint model |
+| refuses | a refit of an unknown variable, of another family or with other parents; a joint law or cross-covariance declared for the earlier fit (it is `unknown` again until redeclared); any prepare refusal on the new numbers |
+
+The call takes `&self` and returns a new value; a refusal leaves the prepared
+composition unchanged.
+
+### Python surface
+
+`antecedent.mechanism_composition` exposes the same route with typed
+declarations: `Quantity`, `MechanismDeclaration`, `Mechanism.declared_linear`,
+`Mechanism.declared_table` and `Mechanism.fitted_linear` (which reads the plain
+linear-Gaussian slot of a fitted `FittedGcm`; written-down numbers are labelled
+declared and need `admit_declared_mechanisms=True`), `Dependence` and
+`Admission`, then `compose_mechanisms`. The prepared object answers
+`intervention_law`, `mean_contrast`, `mean_contrast_uncertainty`, `sample` and
+`finite_law`, refreshes with `refresh_mechanisms`, exports one query with
+`export` and is consumed by `consume_mechanism_composition_artifact`. A refusal
+is a `MechanismCompositionRefusal` listing every defect (`refusals`,
+`details`); the details and their remedies are listed under
+[mechanism composition refusals](reference/refusal-codes.md#mechanism-composition).
+`interval(contrast, level)` returns the first-order Wald interval with
+its calibration slot.
+
+The `composed_model` producer is a row of
+[the producer and consumer matrix](producer-consumer-matrix.md): a composed model
+is a point mean source for the declared-adapter consumers and is refused by the
+rest with typed errors. The design composition-bundle has no node kind for a composed model.
+
+#### Checked Python handoffs
+
+`prepared.as_mean_source(quantity=..., contrast=...)` selects a checked interventional
+mean contrast and requires its compatible scientific coordinate. The canonical
+`results.MeanSource` carries the point, identity and lineage into decision and inverse
+queries. It does not carry the model's law or independent marginal variances as joint
+decision uncertainty.
+
+`prepared.export(query, ...)` returns a typed `ExportedArtifact` with the query-selected
+bytes, expectation and immutable export metadata. Shared
+`ant.load(...)` invokes `consume_mechanism_composition_artifact`, preserving its checks
+and typed consumed result.

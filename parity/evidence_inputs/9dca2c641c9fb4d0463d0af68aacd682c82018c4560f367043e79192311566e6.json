@@ -1,0 +1,1 @@
+[{"digest":"c047eab40c2619282fcf41b97f50039bd224fee10ec1bbe11c8c1c854ef363e7","file":"2896a453868b0e4ff9b0df17a7a8059f0ede1312fd61e0da6aa2b9b688dd6212","kind":"rust_items","path":"crates/antecedent-estimate/src/serial_dependence/segmented.rs","role":"compile","scopes":[[[],false]],"select":{"sig":[2,4]},"table":"2fd7f65b4ba7c0877480194a57a56faf4da23aaf4d88bea2a2d298f9c52647a2"}]

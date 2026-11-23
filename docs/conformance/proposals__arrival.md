@@ -15,9 +15,9 @@ checked transport/z-transport formula binders, and the original finite compiled
 evaluator. Its artifact retains every original artifact and complete base/arrived
 provider, counts, actual population/intervention/snapshot binding, full atom law,
 proof, expression and measured work. Fresh Python consumption independently
-reconstructs these inputs. Sampling uncertainty remains unmeasured; these tests
+reconstructs these inputs. Sampling uncertainty remains not_measured; these tests
 are acceptance examples, not calibration or interval validation.
 
 ## Expected summary
 
-Top-level keys: `active_mean, active_probabilities, arm0_counts, arm1_counts, calibration, contrast, control_mean, inference, python_sample_size, rust_sample_size, schema_version, scm` (12 fields).
+Top-level keys: `active_mean, active_probabilities, arm0_counts, arm1_counts, calibration, contrast, control_mean, evidence_kind, evidence_proposition, evidence_roles, evidence_source, inference, limitations, oracle, python_sample_size, rust_sample_size, schema_version, scm` (18 fields).

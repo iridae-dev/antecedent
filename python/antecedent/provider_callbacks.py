@@ -33,8 +33,8 @@ What each part means
   its declared idempotent contract.
 * An answer is accepted only as a well-formed law of the declared quantity (finite, in support,
   a distribution function in [0, 1] and non-decreasing). A malformed law is refused whole.
-* A result is ``diagnostic`` or ``licensed_external``; neither is native. Metadata cannot mint
-  native trust, a joint law or an identification licence, and a callback supplies no interval or
+* A result is ``diagnostic`` or ``supported_external``; neither is native. Metadata cannot mint
+  native trust, a joint law or an identification evidence, and a callback supplies no interval or
   posterior guarantee (:func:`refuse_interval` and the other ``refuse_*`` functions).
 
 Code execution
@@ -56,23 +56,34 @@ from __future__ import annotations
 
 import json
 import random
-import struct
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
 from . import _native
-from ._artifact_protocol import bytes_export
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
+from ._float_bits import float_bits as _bits
 from ._freeze import thaw
 from ._refusal import StructuredRefusal
 from ._scientific import ScientificResult
 from ._validate import count as _count
+from ._validate import name as _name
+from ._validate import named_choice as _choice
 from .errors import CausalTypeError, CausalValueError
+from .outcomes import outcome_operation, require_success
 from .scientific_bridge import _quantity_wire
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
     from .evidence_ledger import EvidenceLedger
+    from .extensibility import ProviderVerificationReceipt
+    from .external import VerificationProbe
     from .interface_contract import Connection, InterfaceContract
     from .predictive_assessment import EmpiricalSample, LawSource
 
@@ -87,6 +98,7 @@ __all__ = [
     "CallbackResume",
     "CallbackSession",
     "CallbackToken",
+    "ConsumerExecution",
     "Dependencies",
     "Dependency",
     "ExecutionPolicy",
@@ -104,7 +116,7 @@ __all__ = [
     "check_claim_to_callback",
     "consume_callback_result",
     "inspect_callback_result",
-    "refuse_identification_licence",
+    "refuse_identification_evidence",
     "refuse_interval",
     "refuse_joint_law",
     "refuse_native_trust",
@@ -194,24 +206,6 @@ def _raise(payload: str | None) -> None:
             request_attempts=int(wire["request_attempts"]),
         )
     raise CallbackRefusal(wire)
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
-
-
-def _choice(value: object, what: str, allowed: Iterable[str]) -> str:
-    text = _name(value, what)
-    options = tuple(allowed)
-    if text not in options:
-        raise CausalValueError(f"{what} must be one of {options}, got {text!r}")
-    return text
-
-
-def _bits(value: float) -> int:
-    return int(struct.unpack("<Q", struct.pack("<d", float(value)))[0])
 
 
 def _dumps(value: object) -> str:
@@ -542,22 +536,53 @@ class CallbackDeclaration:
         """
         return self.identity
 
-    def predictive_law_source(self, *, verification_confirmed: bool = False) -> LawSource:
+    def verify(self, probes: Sequence[VerificationProbe]) -> ProviderVerificationReceipt:
+        """Verify this declaration's exact provider object against independent probes.
+
+        The probe values must be computed independently of the provider (known truth, moments,
+        normalization, support, shape, seeded behaviour as the declared operations require). The
+        library decides whether they pass and issues the receipt; a declaration claims
+        :meth:`Trust.verified_extension` with ``receipt.digest``. Nothing runs.
+
+        Raises:
+            CallbackRefusal: a malformed declaration, a missing required probe or a probe outside
+                its predeclared tolerance.
+        """
+        from .extensibility import ProviderVerificationReceipt
+        from .external import VerificationProbe
+
+        probes = tuple(probes)
+        if any(not isinstance(probe, VerificationProbe) for probe in probes):
+            raise CausalTypeError("probes must be VerificationProbe values")
+        receipt, refusal = _native.callback_verify_provider(
+            _dumps(self._wire()), _dumps([probe._wire() for probe in probes])
+        )
+        _raise(refusal)
+        assert receipt is not None
+        return ProviderVerificationReceipt(receipt)
+
+    def predictive_law_source(
+        self, *, verification: ProviderVerificationReceipt | None = None
+    ) -> LawSource:
         """The predictive-assessment law source of this callback.
 
         The result is a provider source for
         :class:`~antecedent.predictive_assessment.Predictor`. Its trust is ``verified_extension``
-        only when the declaration claims an exact-request verification *and*
-        ``verification_confirmed`` says the host confirmed it; otherwise the supplier's word is
-        all there is and the trust is ``externally_attested``. Nothing runs.
+        only when the declaration claims an exact-request verification *and* ``verification`` is
+        the receipt :meth:`verify` issued for this exact provider object, with the digest the
+        declaration names; otherwise the supplier's word is all there is and the trust is
+        ``externally_attested``, and a claim without a matching receipt is refused. Nothing runs.
 
         Raises:
             CallbackRefusal: a malformed declaration, or a standing that cannot back a law.
         """
+        from .extensibility import ProviderVerificationReceipt
         from .predictive_assessment import LawSource
 
+        if verification is not None and not isinstance(verification, ProviderVerificationReceipt):
+            raise CausalTypeError("verification must be a ProviderVerificationReceipt")
         wire, refusal = _native.callback_predictive_law_source(
-            _dumps(self._wire()), bool(verification_confirmed)
+            _dumps(self._wire()), None if verification is None else verification._native_value
         )
         _raise(refusal)
         assert wire is not None
@@ -805,16 +830,11 @@ class CallbackExecution(ScientificResult):
     _session: Any = field(default=None, repr=False, compare=False)
     _owner_token: Any = field(default=None, repr=False, compare=False)
 
-    @bytes_export
-    def export(self, artifact_id: str = "callback-result") -> bytes:
+    @artifact_export
+    def export(self, artifact_id: str = "callback-result") -> ExportedArtifact[CallbackConsumed]:
         if self._session is None:
             raise CausalValueError("this execution has no owning session; use artifact resume")
-        return self._session.export(self, artifact_id)
-
-    def artifact(self, artifact_id: str = "callback-result") -> ExportedArtifact[CallbackConsumed]:
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self._session, self, artifact_id=artifact_id)
+        return artifact_from_receipt(self, self._session.export(self, artifact_id))
 
 
 @dataclass(frozen=True, slots=True)
@@ -824,6 +844,14 @@ class CallbackPlanDecision:
     plan: str
     reason: str | None = None
     refusal: CallbackRefusal | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ConsumerExecution:
+    """An execution whose declared callback was first connected to a consumer's port."""
+
+    connection: Connection
+    execution: CallbackExecution
 
 
 @dataclass(frozen=True, slots=True)
@@ -970,6 +998,7 @@ class CallbackSession:
             CallbackRefusal(decoded["refusal"]) if "refusal" in decoded else None,
         )
 
+    @outcome_operation
     def execute(
         self,
         provider: ProviderCallback,
@@ -1004,6 +1033,64 @@ class CallbackSession:
         assert wire is not None
         return _execution(json.loads(wire), self)
 
+    @outcome_operation
+    def execute_for_consumer(
+        self,
+        provider: ProviderCallback,
+        declaration: CallbackDeclaration,
+        request: Request,
+        consumer: InterfaceContract,
+        consumed_port: str,
+        *,
+        inputs: Mapping[str, CallbackExecution] | None = None,
+        policy: ExecutionPolicy | None = None,
+        token: Any = None,
+    ) -> ConsumerExecution:
+        """Check the callback's connection to ``consumer``, then execute it.
+
+        The declared callback is checked through the interface contract against the consumer's
+        port before ``provider`` is ever invoked: a callback whose declared quantity is not what
+        the consumer needs (another population, regime, support or operation) is refused with
+        every defect listed. Once the connection holds this is :meth:`execute`.
+
+        Raises:
+            CallbackRefusal: the connection is refused; ``refusals`` lists every defect and the
+                provider was never invoked.
+            CallbackExecutionRefusal: the connection held and the execution was refused or failed.
+        """
+        from .interface_contract import InterfaceContract, _connection
+
+        if not isinstance(consumer, InterfaceContract):
+            raise CausalTypeError("consumer must be an interface_contract.InterfaceContract")
+        identity_json, invoke, state_fn = _provider_parts(provider)
+        wire, refusal = self._handle.execute_for_consumer(
+            identity_json,
+            invoke,
+            state_fn,
+            _dumps(declaration._wire()),
+            _dumps(consumer._wire()),
+            _name(consumed_port, "consumed_port"),
+            _dumps(request._wire()),
+            _dumps(self._input_indices(inputs)),
+            _dumps((policy or ExecutionPolicy())._wire()),
+            token if token is not None else CallbackToken(),
+        )
+        if refusal is not None:
+            found = json.loads(refusal)
+            if isinstance(found, dict) and "connection_refusals" in found:
+                items = found["connection_refusals"]
+                error = CallbackRefusal(items[0])
+                error.refusals = tuple(CallbackRefusal(item) for item in items)
+                raise error
+            _raise(refusal)
+        assert wire is not None
+        decoded = json.loads(wire)
+        return ConsumerExecution(
+            connection=_connection(decoded["connection"]),
+            execution=_execution(decoded["execution"], self),
+        )
+
+    @outcome_operation
     def resume(
         self,
         artifact: bytes,
@@ -1024,6 +1111,7 @@ class CallbackSession:
         Raises:
             CallbackExecutionRefusal: the artifact or the provider is refused.
         """
+        artifact = container_bytes(artifact)
         identity_json = invoke = state_fn = None
         if provider is not None:
             identity_json, invoke, state_fn = _provider_parts(provider)
@@ -1049,6 +1137,7 @@ class CallbackSession:
         )
 
     def _check_execution(self, execution: CallbackExecution) -> int:
+        execution = require_success(execution)
         if (
             execution._session is not self
             or execution._owner_token is not self._owner_token
@@ -1093,6 +1182,7 @@ class CallbackSession:
             name: self._check_execution(execution) for name, execution in (inputs or {}).items()
         }
 
+    @outcome_operation
     def forecast_law(self, result: CallbackExecution) -> EmpiricalSample:
         """Lift the sample output of an accepted execution to a forecast law.
 
@@ -1110,8 +1200,10 @@ class CallbackSession:
         assert wire is not None
         return EmpiricalSample(tuple(float(v) for v in json.loads(wire)["draws"]))
 
-    @bytes_export
-    def export(self, result: CallbackExecution | int, artifact_id: str) -> ExportedCallbackResult:
+    @artifact_export
+    def export(
+        self, result: CallbackExecution | int, artifact_id: str
+    ) -> ExportedArtifact[CallbackConsumed]:
         """Seal one history record as ``callback_result_v1``.
 
         A declaration and a portable output, not a promise that a callable runs elsewhere.
@@ -1126,12 +1218,20 @@ class CallbackSession:
         done, refusal = self._handle.export_record(int(index), artifact_id)
         _raise(refusal)
         assert done is not None
-        return ExportedCallbackResult(bytes(done[0]), done[1])
+        return artifact_from_receipt(self, ExportedCallbackResult(bytes(done[0]), done[1]))
 
 
-# -- artifacts and closed routes ---------------------------------------------------------------
+# -- artifacts and unsupported routes ---------------------------------------------------------------
 
 
+@outcome_operation
+@artifact_consumer(
+    proof="provider_callbacks.consume_callback_result: recompute stored identity and bounds; no callback execution",
+    replayable=False,
+    resumable=True,
+    status="loaded",
+    unresolved=("callback_provider",),
+)
 def consume_callback_result(
     artifact: bytes, expected_identity: str | None = None
 ) -> CallbackConsumed:
@@ -1144,6 +1244,7 @@ def consume_callback_result(
         CallbackRefusal: corruption, a bound, a refused declaration or output, a native trust
             claim or an identity mismatch.
     """
+    artifact = container_bytes(artifact)
     wire, refusal = _native.callback_result_consume(bytes(artifact), expected_identity)
     _raise(refusal)
     assert wire is not None
@@ -1164,6 +1265,7 @@ def consume_callback_result(
 
 def inspect_callback_result(artifact: bytes) -> dict[str, Any]:
     """Read the stored metadata without replaying or executing anything."""
+    artifact = container_bytes(artifact)
     wire, refusal = _native.callback_result_inspect(bytes(artifact))
     _raise(refusal)
     assert wire is not None
@@ -1285,7 +1387,7 @@ def _closed(route: str) -> None:
 
 
 def refuse_interval() -> None:
-    """An interval from a callback law: closed (``cell_not_licensed``).
+    """An interval from a callback law: closed (``not_supported``).
 
     Raises:
         CallbackRefusal: always.
@@ -1311,13 +1413,13 @@ def refuse_native_trust() -> None:
     _closed("native_trust")
 
 
-def refuse_identification_licence() -> None:
-    """An identification licence from a callback: closed.
+def refuse_identification_evidence() -> None:
+    """An identification evidence from a callback: closed.
 
     Raises:
         CallbackRefusal: always.
     """
-    _closed("identification_licence")
+    _closed("identification_evidence")
 
 
 def refuse_joint_law() -> None:

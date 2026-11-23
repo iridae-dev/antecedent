@@ -23,9 +23,9 @@
 //! binary-treatment adjustment law `common::static_dgp::linear_ate_data`, the
 //! same law the default Bayesian record is measured on.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -115,7 +115,7 @@ fn run(data: TabularData, bootstrap: Option<u32>, seed: u64) -> Option<(Study, S
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn glm_adjustment_binary_outcome_nominal_coverage() {
     const TEST: &str = "glm_adjustment_binary_outcome_nominal_coverage";
     let truth = glm_truth();
@@ -123,9 +123,12 @@ fn glm_adjustment_binary_outcome_nominal_coverage() {
         keyed(TEST, "glm_data", "bootstrap_se", REPORTED_LEVEL),
         keyed(TEST, "glm_data", "bootstrap_se", GATE_LEVEL),
     ];
+    // Both methods are scored at both levels in this one test; the analytic tallies are named
+    // apart so each tally's state is stored under its own key.
+    let analytic_name = format!("{TEST} [analytic_se]");
     let mut analytic = [
-        keyed(TEST, "glm_data", "analytic_se", REPORTED_LEVEL),
-        keyed(TEST, "glm_data", "analytic_se", GATE_LEVEL),
+        keyed(TEST, "glm_data", "analytic_se", REPORTED_LEVEL).named(analytic_name.clone()),
+        keyed(TEST, "glm_data", "analytic_se", GATE_LEVEL).named(analytic_name),
     ];
     let runs = map_replicates(n_sim(), |rep| {
         let seed = stream_seed(0x110_0301, rep);
@@ -135,7 +138,7 @@ fn glm_adjustment_binary_outcome_nominal_coverage() {
         // is scored on that execution and keyed by it.
         let (bare_study, bare) = run(data, Some(0), seed)?;
         if rep == 0 {
-            let est = &result.estimate;
+            let est = &result.estimate();
             assert_eq!(result.logical_plan.estimator.as_deref(), Some("glm.adjustment"));
             assert_eq!(
                 est.as_effect().unwrap().uncertainty.bootstrap.replicates_ok,
@@ -143,12 +146,12 @@ fn glm_adjustment_binary_outcome_nominal_coverage() {
                 "the Study default bootstrap"
             );
             assert_eq!(
-                bare.estimate.as_effect().unwrap().ate,
+                bare.estimate().as_effect().unwrap().ate,
                 est.as_effect().unwrap().ate,
                 "same point without bootstrap"
             );
             assert_eq!(
-                bare.estimate.as_effect().unwrap().se_analytic(),
+                bare.estimate().as_effect().unwrap().se_analytic(),
                 est.as_effect().unwrap().se_analytic(),
                 "same analytic SE"
             );
@@ -161,7 +164,7 @@ fn glm_adjustment_binary_outcome_nominal_coverage() {
             skip_pair(&mut analytic);
             continue;
         };
-        let est = &result.estimate;
+        let est = &result.estimate();
         {
             let [reported, gated] = &mut bootstrap;
             bind_all(&mut [reported, gated], study, result);
@@ -181,13 +184,13 @@ fn glm_adjustment_binary_outcome_nominal_coverage() {
             &mut analytic,
             [
                 normal_at(
-                    bare.estimate.as_effect().unwrap().ate,
-                    bare.estimate.as_effect().unwrap().se_analytic(),
+                    bare.estimate().as_effect().unwrap().ate,
+                    bare.estimate().as_effect().unwrap().se_analytic(),
                     REPORTED_LEVEL,
                 ),
                 normal_at(
-                    bare.estimate.as_effect().unwrap().ate,
-                    bare.estimate.as_effect().unwrap().se_analytic(),
+                    bare.estimate().as_effect().unwrap().ate,
+                    bare.estimate().as_effect().unwrap().se_analytic(),
                     GATE_LEVEL,
                 ),
             ],
@@ -211,7 +214,7 @@ const N_DEFAULT_ATE: usize = 500;
 /// study resolves `linear.adjustment.ate` and reports the bootstrap-SE
 /// interval at its default replicate count. Scored at 0.95 (reported) and 0.90.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn average_effect_dag_frequentist_default_nominal_coverage() {
     const TEST: &str = "average_effect_dag_frequentist_default_nominal_coverage";
     let mut tallies = [
@@ -234,7 +237,7 @@ fn average_effect_dag_frequentist_default_nominal_coverage() {
         if rep == 0 {
             assert_eq!(result.logical_plan.estimator.as_deref(), Some("linear.adjustment.ate"));
             assert_eq!(
-                result.estimate.as_effect().unwrap().uncertainty.bootstrap.replicates_ok,
+                result.estimate().as_effect().unwrap().uncertainty.bootstrap.replicates_ok,
                 Some(StudyBuilder::OMITTED_BOOTSTRAP),
                 "the Study default bootstrap"
             );

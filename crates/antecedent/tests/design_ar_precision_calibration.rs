@@ -1,7 +1,7 @@
 //! Original checked IV recalculation: finite-F AR diagnostics and full run accounting.
 //! Independent observed-confounder SCM and finite-F pins; unions are never replaced
 //! with a finite scalar confidence interval. Public standing remains unchanged.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(clippy::cast_precision_loss, reason = "bounded diagnostic sample dimensions")]
 #[path = "common/calibration.rs"]
 mod calibration;
@@ -35,7 +35,7 @@ fn request(n: usize, seed: u64, strength: f64) -> DesignRequest {
         y.push(outcome);
     }
     DesignRequest {
-        columns: vec![("t".into(), t), ("y".into(), y), ("z".into(), z), ("u".into(), u)],
+        columns: vec![("t".into(), t), ("y".into(), y), ("z".into(), z), ("u".into(), u)].into(),
         edges: vec![(2, 0), (3, 0), (3, 1), (0, 1)],
         treatment: 0,
         outcome: 1,
@@ -135,7 +135,7 @@ fn execute_one(r: &DesignRequest, seed: u64, critical: f64, check_replay: bool) 
             let diagnostic = session
                 .result()
                 .unwrap()
-                .estimate
+                .estimate()
                 .as_effect()
                 .unwrap()
                 .diagnostics
@@ -159,7 +159,7 @@ fn execute_one(r: &DesignRequest, seed: u64, critical: f64, check_replay: bool) 
                         .session
                         .result()
                         .unwrap()
-                        .estimate
+                        .estimate()
                         .as_effect()
                         .unwrap()
                         .diagnostics
@@ -240,7 +240,7 @@ fn checked_design_iv_ar_full_method_error_rate_and_weak_boundaries() {
             assert!(finite > 0.9, "strong DGP must execute finite decisions");
         }
         println!(
-            "diagnostic-precision checked_design_iv_ar_full_method_error_rate_and_weak_boundaries n={n} strength={strength} repetitions={count} known_effect=2 ar_truth_acceptance={accepted} finite_decision_fraction={finite} withheld_union_fraction={unions} actual_model_solves={} no_failed_runs_discarded; no_new_calibration_license",
+            "diagnostic-precision checked_design_iv_ar_full_method_error_rate_and_weak_boundaries n={n} strength={strength} repetitions={count} known_effect=2 ar_truth_acceptance={accepted} finite_decision_fraction={finite} withheld_union_fraction={unions} actual_model_solves={} no_failed_runs_discarded; no_new_calibration_support",
             runs.iter().map(|r| r.model_fits).sum::<u64>()
         );
     }

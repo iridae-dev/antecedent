@@ -27,7 +27,7 @@ fn nested_bayesian_refuses_malformed_counts_priors_requests_budget_and_cancellat
         Err(BayesianRefusal::Budget(_))
     ));
     let mut small = ExecutionContext::for_tests(0);
-    small.memory.hard_limit_bytes = Some(0);
+    small.set_memory_limit(Some(0));
     assert!(matches!(fit(&[1; 16], &prior, &options, &small), Err(BayesianRefusal::Budget(_))));
     assert!(matches!(
         fit(&[1; 16], &prior, &Options { warmup: 128, draws: 256, ..options.clone() }, &ctx),

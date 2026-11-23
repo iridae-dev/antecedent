@@ -6,7 +6,7 @@
 //! for the static mediation SE, the same number, so what users get is what the
 //! gates measured.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -155,18 +155,18 @@ fn assert_full(result: &StudyResult, requested: u32, label: &str) {
         "{label}: requested"
     );
     assert_eq!(
-        result.estimate.as_effect().unwrap().uncertainty.bootstrap.replicates_ok,
+        result.estimate().as_effect().unwrap().uncertainty.bootstrap.replicates_ok,
         Some(requested),
         "{label}: ok count"
     );
     assert!(!result.performance.early_stopped, "{label}: early_stopped");
     assert!(
-        !result.estimate.as_effect().unwrap().uncertainty.bootstrap.early_stopped,
+        !result.estimate().as_effect().unwrap().uncertainty.bootstrap.early_stopped,
         "{label}: estimate early_stopped"
     );
     assert!(
         result
-            .estimate
+            .estimate()
             .as_effect()
             .unwrap()
             .se_bootstrap()
@@ -190,6 +190,11 @@ fn production_static_ate_evaluates_all_199_replicates() {
     let ctx = ExecutionContext::production(5, 1);
     let result = static_run(&data, &dag, CausalQuery::AverageEffect(query), 199, &ctx);
     assert_full(&result, 199, "static ATE");
+    // Structural ATE is 2; adjusting for z removes the confounding (the naive contrast is
+    // biased upward by about 0.4), and the bootstrap SE scores the estimate.
+    let effect = result.estimate().as_effect().unwrap();
+    let se = effect.se_bootstrap().unwrap();
+    assert!((effect.ate - 2.0).abs() < 4.0 * se, "ate {} se {se}", effect.ate);
 }
 
 #[test]
@@ -200,6 +205,14 @@ fn production_static_mediation_evaluates_all_199_replicates() {
         let result = static_run(&data, &dag, mediation_query(contrast), 199, &ctx);
         assert_eq!(result.logical_plan.estimator.as_deref(), Some("mediation.linear"));
         assert_full(&result, 199, "static mediation");
+        // m = 0.8 a + e, y = a + 0.6 m + e': total 1 + 0.6 * 0.8 = 1.48, mediated 0.48.
+        let truth = match contrast {
+            MediationContrast::Total => 1.48,
+            _ => 0.48,
+        };
+        let effect = result.estimate().as_effect().unwrap();
+        let se = effect.se_bootstrap().unwrap();
+        assert!((effect.ate - truth).abs() < 4.0 * se, "{contrast:?}: {} se {se}", effect.ate);
     }
 }
 
@@ -233,13 +246,13 @@ fn production_static_mediation_se_matches_calibration_context_at_b800() {
         assert_full(&p, 800, "production mediation");
         assert_full(&c, 800, "calibration mediation");
         let (se_p, se_c) = (
-            p.estimate.as_effect().unwrap().se_bootstrap().unwrap(),
-            c.estimate.as_effect().unwrap().se_bootstrap().unwrap(),
+            p.estimate().as_effect().unwrap().se_bootstrap().unwrap(),
+            c.estimate().as_effect().unwrap().se_bootstrap().unwrap(),
         );
         assert!(
             (se_p - se_c).abs() <= 1e-9 * se_c.abs().max(1.0),
             "{contrast:?}: production SE {se_p} vs calibration SE {se_c}"
         );
-        assert_eq!(p.estimate.as_effect().unwrap().ate, c.estimate.as_effect().unwrap().ate);
+        assert_eq!(p.estimate().as_effect().unwrap().ate, c.estimate().as_effect().unwrap().ate);
     }
 }

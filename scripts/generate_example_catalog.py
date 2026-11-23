@@ -3,35 +3,66 @@
 
 import argparse
 import html
-import tomllib
 from pathlib import Path
+
+from _repo import load_toml
 
 ROOT = Path(__file__).resolve().parents[1]
 BEGIN = "<!-- generated:example-catalog:begin -->"
 END = "<!-- generated:example-catalog:end -->"
 
+# Topic order follows the documentation: the front door first, then the task guides.
+TOPIC_ORDER = [
+    "Start here",
+    "Tutorials",
+    "Data and inputs",
+    "Estimate effects",
+    "Experiments and study designs",
+    "Structure and discovery",
+    "Structural models and feedback",
+    "Joint interventions and search",
+    "Transport",
+    "Decisions and study planning",
+    "Evidence and composition",
+    "Prepare, branch and reuse",
+    "Build with Antecedent",
+]
+
 
 def version():
     prep = ROOT / "docs/release-notes/preparation.toml"
     if prep.exists():
-        target = tomllib.loads(prep.read_text(encoding="utf-8")).get("target_version")
+        target = load_toml(prep).get("target_version")
         if target:
             return target
-    return tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]["package"]["version"]
+    return load_toml(ROOT / "Cargo.toml")[
+        "workspace"
+    ]["package"]["version"]
 
 
 def entries():
-    return tomllib.loads((ROOT / "examples/catalog.toml").read_text(encoding="utf-8"))["example"]
+    return load_toml(ROOT / "examples/catalog.toml")[
+        "example"
+    ]
 
 
 def render(site):
     rows = entries()
-    topics = list(dict.fromkeys(row["topic"] for row in rows))
-    topics.sort(key=lambda topic: (topic != "Start and reuse", topic == "Performance", topic))
+    present = {row["topic"] for row in rows}
+    unknown = present - set(TOPIC_ORDER)
+    if unknown:
+        raise SystemExit(
+            f"Unknown example topics (add to TOPIC_ORDER): {sorted(unknown)}"
+        )
+    topics = [topic for topic in TOPIC_ORDER if topic in present]
     out = [
         BEGIN,
         "",
-        "All datasets are simulated. Runtime estimates assume a warm installed environment and exclude installation and Rust's first compilation. First native imports and notebook-kernel setup can add substantial time; machine, workload and optional dependencies affect elapsed time. Assertions check these examples, not your causal assumptions.",
+        "Each row names the question, the level, an estimated runtime, any dependencies beyond Antecedent and where to run it. Open **Claim scope** for exactly what the example establishes.",
+        "",
+        "Most examples simulate their data from a declared mechanism, so each asserts its answer against a known truth. That truth belongs to the stated model, not to any real system, and the assertions check the example against it, not your causal assumptions. Two tutorials read a real public dataset on request and fall back to a labelled synthetic stand-in offline; each prints which table it used.",
+        "",
+        "Runtimes assume a warm installed environment and exclude installation and Rust's first compilation. The first native import and notebook-kernel setup can add substantial time.",
         "",
     ]
     for topic in topics:
@@ -49,25 +80,28 @@ def render(site):
                 if kind not in row:
                     continue
                 path = row[kind]
+                ref = f"v{version()}"
                 target = (
-                    f"https://github.com/iridae-dev/antecedent/blob/v{version()}/{path}"
+                    f"https://github.com/iridae-dev/antecedent/blob/{ref}/{path}"
                     if site
                     else path.removeprefix("examples/")
                 )
                 links.append(f"[{kind}]({target})")
                 if kind == "notebook":
                     links.append(
-                        f"[Colab](https://colab.research.google.com/github/iridae-dev/antecedent/blob/v{version()}/{path})"
+                        f"[Colab](https://colab.research.google.com/github/iridae-dev/antecedent/blob/{ref}/{path})"
                     )
                     if site:
-                        links.append(f"[preview](notebook-previews/{Path(path).stem}.html)")
+                        links.append(
+                            f"[preview](notebook-previews/{Path(path).stem}.html)"
+                        )
             deps = ", ".join(row["dependencies"]) or "none"
             out.append(
                 f"| **{row['title']}** — {row['summary']} <details><summary>Claim scope</summary>{html.escape(row['claim'])}</details> | {row['level']} / {row['runtime']} | {deps} | {' · '.join(links)} |"
             )
         out.append("")
     out += [
-        "For exact claim settings, inspect each result and check the support matrix. Optional handoff dependencies are needed to exercise their external half; an absent dependency prints a skip.",
+        "For the exact settings behind a claim, inspect the result and look up its route in the support matrix. Handoff examples need their optional dependency to run the external half; without it they print a skip.",
         "",
         END,
     ]
@@ -79,9 +113,9 @@ def expected_page(site):
     major, minor, _ = map(int, release.split("."))
     next_minor = f"{major}.{minor + 1}"
     prefix = (
-        f"# Choose an example\n\nInstall [the matching package](installation.md), then start with [your first Python analysis](python-workflow.md) or [the Rust quickstart](rust-quickstart.md). For the complete workflow, follow [notebook to system](guides/notebook-to-system.md).\n\n```bash\npython examples/python/<name>.py\ncargo run -p antecedent --example <name>\n```\n\nNotebook previews show executed outputs; source downloads and Colab links are beside each notebook. See [the repository setup](https://github.com/iridae-dev/antecedent/blob/v{release}/examples/README.md#python-environment) for the local environment. See [DoWhy interoperability](interop_dowhy.md) for the reviewed graph handoff.\n\n"
+        f"# Choose an example\n\nEach example asks one question and checks one property of the answer. Start with the tutorials: each pairs with a page that explains the science step by step. Install [the matching package](start/installation.md), then run an example from a repository checkout.\n\n```bash\npython examples/python/<name>.py\ncargo run -p antecedent --example <name>\n```\n\nNotebook previews show executed outputs; source downloads and Colab links are beside each notebook. See [the repository setup](https://github.com/iridae-dev/antecedent/blob/v{release}/examples/README.md#python-environment) for the local environment. For your own data, see [your first analysis](start/first-analysis.md); for a graph handoff to another library, see [DoWhy interoperability](interop_dowhy.md).\n\n"
         if site
-        else f'# Examples\n\n## Python environment\n\nUse Python 3.11 or later. Released-package setup:\n\n<!-- generated:release:python-pin:begin -->\n```bash\npython -m pip install "antecedent>={release},<{next_minor}" pandas matplotlib ipykernel jupyterlab\n```\n<!-- generated:release:python-pin:end -->\n\nFor a source build, follow [installation](../docs/installation.md#build-from-source). Select the notebook kernel for your installed environment and restart after upgrading an imported native extension.\n\n```bash\npython examples/python/analysis_workflow.py\npython examples/python/notebook_to_system.py\njupyter lab examples/notebooks\ncargo run -p antecedent --example ate_quickstart\n```\n\nFollow [the notebook-to-system tutorial](../docs/guides/notebook-to-system.md), [bring your own data](../docs/guides/your-data.md), or [measurement to decision](../docs/tutorials/measurement-to-decision.md). The published site includes executed notebook previews; the source notebooks remain free of saved outputs.\n\n'
+        else f'# Examples\n\n## Python environment\n\nUse Python 3.11 or later. Released-package setup:\n\n<!-- generated:release:python-pin:begin -->\n```bash\npython -m pip install "antecedent>={release},<{next_minor}" pandas matplotlib ipykernel jupyterlab\n```\n<!-- generated:release:python-pin:end -->\n\nFor a source build, follow [installation](../docs/start/installation.md#build-from-source). Select the notebook kernel for your installed environment and restart after upgrading an imported native extension.\n\n## Run an example\n\n```bash\npython examples/python/feedback_three_questions.py\ncargo run -p antecedent --example feedback_three_questions\njupyter lab examples/notebooks\n```\n\nThe tutorials are the front door. Each follows one scientific task and pairs with an example in the Tutorials table below; the [documentation home](../docs/index.md#tutorials) lists them by task. Start with [an observational study](../docs/tutorials/observational-study.md) or [one feedback system and three questions](../docs/tutorials/feedback-three-questions.md).\n\n## Datasets\n\nMost examples simulate their data from a declared mechanism so the known answer can be checked. Examples that read a real public dataset describe its origin, licence, version and checksums in [`data/`](data/README.md), and run offline on a labelled synthetic stand-in. The published site includes executed notebook previews; the source notebooks remain free of saved outputs.\n\n'
     )
     return prefix + render(site)
 

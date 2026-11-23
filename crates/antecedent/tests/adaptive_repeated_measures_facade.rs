@@ -9,7 +9,7 @@
 //! enumerated binomial mixture of a two-unit fixed allocation, and the
 //! martingale property of the adaptively weighted score.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::adaptive_inference::AdaptiveInferenceRefusal;
 use antecedent::analysis::adaptive_procedure_report::{
@@ -18,7 +18,7 @@ use antecedent::analysis::adaptive_procedure_report::{
 };
 use antecedent_core::ExecutionContext;
 use antecedent_stats::adaptive_inference::{
-    AnalysisEstimator, DERIVED_UNMEASURED, FinalAnalysis, OutcomeModelPrior, OutcomeStructure,
+    AnalysisEstimator, DERIVED_NOT_MEASURED, FinalAnalysis, OutcomeModelPrior, OutcomeStructure,
     RepeatedMeasuresDeclaration, RepeatedMeasuresRequest, StoppingRule, UncertaintyParadigm,
     UnitAssignment, UnitSummary, WeightScheme, WithinUnitCorrelation,
 };
@@ -115,7 +115,10 @@ fn a_missing_within_unit_correlation_is_refused_with_its_own_detail_and_remedy()
     .expect_err("the correlation is not declared");
     assert_eq!(refusals.len(), 1);
     assert_eq!(refusals[0].code, antecedent_core::reason_code!("adaptive_contract_incomplete"));
-    assert_eq!(refusals[0].detail, "adaptive_inference.within_unit_correlation_missing");
+    assert_eq!(
+        refusals[0].detail,
+        antecedent_core::reason_details::adaptive_inference::WITHIN_UNIT_CORRELATION_MISSING
+    );
     assert!(refusals[0].message.contains("within-unit correlation"));
 }
 
@@ -129,7 +132,10 @@ fn an_invalid_element_is_refused_as_invalid_argument() {
     ))
     .expect_err("rho = 1 is singular");
     assert_eq!(refusals[0].code, antecedent_core::reason_code!("invalid_argument"));
-    assert_eq!(refusals[0].detail, "adaptive_inference.correlation_invalid");
+    assert_eq!(
+        refusals[0].detail,
+        antecedent_core::reason_details::adaptive_inference::CORRELATION_INVALID
+    );
 }
 
 #[test]
@@ -175,7 +181,7 @@ fn the_closed_forms_are_the_design_effect_and_the_enumerated_mixture() {
         &procedure,
         &RepeatedMeasuresReportRequest::ClosedForm { arm_means: vec![0.0, 0.5] },
     );
-    assert_eq!(report.calibration, DERIVED_UNMEASURED);
+    assert_eq!(report.calibration, DERIVED_NOT_MEASURED);
     assert_eq!(report.route, "cluster_robust_unit_summaries");
     assert_eq!(
         report.cell.id(),
@@ -219,7 +225,7 @@ fn the_derived_fixed_sample_report_separates_exact_values_from_monte_carlo_error
     let RepeatedMeasuresReportBody::Derived(derived) = report.body else {
         panic!("a derived body");
     };
-    assert_eq!(derived.calibration, DERIVED_UNMEASURED);
+    assert_eq!(derived.calibration, DERIVED_NOT_MEASURED);
     assert_eq!(derived.paradigm, UncertaintyParadigm::FrequentistFixedSample);
     assert!((derived.unit_summary_variance - 4.0 / 3.0).abs() < TOL);
     assert!((derived.design_effect - 2.0).abs() < TOL);
@@ -233,7 +239,10 @@ fn the_derived_fixed_sample_report_separates_exact_values_from_monte_carlo_error
         simulated.monte_carlo_standard_error
     );
     assert!(
-        (simulated.variance / exact.variance() - 1.0).abs() < 0.1,
+        // 4,000 replications: Monte Carlo relative error of a variance is about 2 percent and the
+        // fixed seed observes 1.1 percent, so 4 percent replaces the former 10 percent that
+        // admitted a variance off by a tenth (e.g. a design effect of 1.8 for 2.0).
+        (simulated.variance / exact.variance() - 1.0).abs() < 0.04,
         "simulated {} exact {}",
         simulated.variance,
         exact.variance()
@@ -250,7 +259,7 @@ fn the_adaptive_weighting_route_is_labelled_and_unbiased() {
     );
     let report = report_of(&procedure, &derive(&[0.0, 0.5], 2_000));
     assert_eq!(report.route, "adaptively_weighted_unit_scores");
-    assert_eq!(report.calibration, DERIVED_UNMEASURED);
+    assert_eq!(report.calibration, DERIVED_NOT_MEASURED);
     let RepeatedMeasuresReportBody::Derived(derived) = report.body else {
         panic!("a derived body");
     };
@@ -283,8 +292,11 @@ fn a_fixed_sample_analysis_after_adaptive_assignment_is_refused_by_the_facade() 
         },
     ] {
         let refusal = refused(&procedure, &request);
-        assert_eq!(refusal.code, antecedent_core::reason_code!("cell_not_licensed"));
-        assert_eq!(refusal.detail, "adaptive_inference.fixed_sample_design_adaptive");
+        assert_eq!(refusal.code, antecedent_core::reason_code!("adaptive_assumption_violated"));
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_DESIGN_ADAPTIVE
+        );
         assert!(refusal.message.contains("remedy"), "{}", refusal.message);
     }
 }
@@ -298,10 +310,10 @@ fn an_independence_assumption_for_dependent_measurements_is_refused() {
         AnalysisEstimator::PooledIndependent,
     ));
     let refusal = refused(&procedure, &derive(&[0.0, 0.0], 10));
-    assert_eq!(refusal.code, antecedent_core::reason_code!("cell_not_licensed"));
+    assert_eq!(refusal.code, antecedent_core::reason_code!("adaptive_assumption_violated"));
     assert_eq!(
         refusal.detail,
-        "adaptive_inference.independence_assumed_for_dependent_measurements"
+        antecedent_core::reason_details::adaptive_inference::INDEPENDENCE_ASSUMED_FOR_DEPENDENT_MEASUREMENTS
     );
 }
 
@@ -318,8 +330,11 @@ fn a_paradigm_that_is_not_derived_for_this_cell_is_refused() {
             z: 1.96,
         },
     );
-    assert_eq!(refusal.code, antecedent_core::reason_code!("cell_not_licensed"));
-    assert_eq!(refusal.detail, "adaptive_inference.repeated_measures_paradigm_not_derived");
+    assert_eq!(refusal.code, antecedent_core::reason_code!("adaptive_assumption_violated"));
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::REPEATED_MEASURES_PARADIGM_NOT_DERIVED
+    );
 }
 
 #[test]
@@ -357,8 +372,12 @@ fn a_guarantee_is_not_paired_across_cells() {
                 paradigm: paradigm.to_owned(),
             },
         );
-        assert_eq!(refusal.code, antecedent_core::reason_code!("cell_not_licensed"));
-        assert_eq!(refusal.detail, "adaptive_inference.guarantee_not_transferable", "{cell_id}");
+        assert_eq!(refusal.code, antecedent_core::reason_code!("adaptive_assumption_violated"));
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::adaptive_inference::GUARANTEE_NOT_TRANSFERABLE,
+            "{cell_id}"
+        );
     }
 }
 

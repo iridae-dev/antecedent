@@ -59,7 +59,7 @@ pub(crate) struct CheckedPropensityLowering {
     pub(crate) procedure: CheckedPropensityProcedure,
     pub(crate) uncertainty: CheckedPropensityUncertainty,
     pub(crate) overlap: antecedent_estimate::OverlapPolicy,
-    pub(crate) source_rows: Arc<[u32]>,
+    pub(crate) source_rows: Arc<[antecedent_data::GlobalId]>,
 }
 
 /// Frozen semantic and analysis context used to construct a checked propensity operation.
@@ -103,8 +103,8 @@ pub(crate) struct CheckedPropensityOperation {
     fit: CheckedPropensityFit,
 }
 
-/// Refuses a context outside the licensed DAG, frequentist, mean-effect propensity contract.
-fn refuse_unlicensed_premises(
+/// Refuses a context outside the supported DAG, frequentist, mean-effect propensity contract.
+fn refuse_unsupported_premises(
     context: &CheckedPropensityContext,
     query: &AverageEffectQuery,
 ) -> Result<(), CausalError> {
@@ -121,7 +121,7 @@ fn refuse_unlicensed_premises(
         || !matches!(query.outcome_functional, OutcomeFunctional::Mean)
     {
         return Err(compile_error(
-            "checked propensity route premises are outside the licensed DAG frequentist mean-effect contract",
+            "checked propensity route premises are outside the supported DAG frequentist mean-effect contract",
         ));
     }
     Ok(())
@@ -194,7 +194,7 @@ impl CheckedPropensityOperation {
             CausalQuery::AverageEffect(query) => query.clone(),
             _ => return Err(compile_error("checked propensity requires an AverageEffect query")),
         };
-        refuse_unlicensed_premises(&context, &query)?;
+        refuse_unsupported_premises(&context, &query)?;
         let (target, required_assumptions) = backdoor_target(&context)?;
         let (active, control) = binary_backdoor_arms(&target, &query)?;
         let fitter = fitter.into();
@@ -256,12 +256,14 @@ impl CheckedPropensityOperation {
             CheckedPropensityFit::Weighting { fitter, .. } => (
                 CheckedPropensityProcedure::HajekWeighting,
                 CheckedPropensityUncertainty::HajekAnalyticAndBootstrap {
-                    bootstrap_replicates: fitter.bootstrap_replicates,
+                    bootstrap_replicates: fitter.inference.bootstrap_replicates,
                 },
             ),
             CheckedPropensityFit::Matching { fitter, .. } => (
                 CheckedPropensityProcedure::AbadieImbensMatching,
-                CheckedPropensityUncertainty::AbadieImbensAnalytic { se_kind: fitter.se_kind },
+                CheckedPropensityUncertainty::AbadieImbensAnalytic {
+                    se_kind: fitter.inference.se_kind,
+                },
             ),
         };
         let lowering = CheckedPropensityLowering {
@@ -441,7 +443,7 @@ pub struct CheckedPropensityInfo {
     /// Population targeted by the bound design.
     pub population: antecedent_core::TargetPopulation,
     /// Source rows retained by the propensity preparation.
-    pub source_rows: std::sync::Arc<[u32]>,
+    pub source_rows: std::sync::Arc<[antecedent_data::GlobalId]>,
     /// Named uncertainty procedure.
     pub uncertainty: std::sync::Arc<str>,
     /// Bootstrap count only when the weighting procedure can use it.

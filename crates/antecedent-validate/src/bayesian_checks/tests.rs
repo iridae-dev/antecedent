@@ -1,6 +1,6 @@
 //! Tests for predictive checks, prior sensitivity, MCMC diagnostics, and SBC.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[test]
 fn review_prior_sensitivity_verdict_is_unit_invariant() {
@@ -236,6 +236,15 @@ fn posterior_predictive_replicates_are_the_replicates_the_check_summarizes() {
         count += draws.len();
     }
     assert!((total / count as f64 - report.predictive_mean).abs() < 1e-9);
+    // The toy outcome is exactly linear in the design, so the predictive mean is the data mean.
+    let data_mean =
+        (0..60).map(|i| 1.0 + 2.0 * f64::from(i % 2) + 0.3 * (f64::from(i) * 0.05)).sum::<f64>()
+            / 60.0;
+    assert!(
+        (report.predictive_mean - data_mean).abs() < 0.01,
+        "{} vs {data_mean}",
+        report.predictive_mean
+    );
 }
 
 #[test]
@@ -288,6 +297,13 @@ fn prior_sensitivity_grid() {
     let (summary, posts) = sens
         .evaluate(&bayes, &prep, IdentificationStatus::NonparametricallyIdentified, &mut ws, &ctx)
         .unwrap();
+    // The toy data have an exact effect of 2. A unit-scale prior shrinks the posterior mean a
+    // little toward zero; the diffuse priors recover the exact effect.
+    let means = &summary.effect_means;
+    assert!((1.80..1.95).contains(&means[0]), "scale 1 mean {}", means[0]);
+    assert!((means[1] - 2.0).abs() < 0.01, "scale 10 mean {}", means[1]);
+    assert!((means[2] - 2.0).abs() < 0.01, "scale 50 mean {}", means[2]);
+    assert!((means[2] - 2.0).abs() < (means[1] - 2.0).abs() + 1e-3);
     assert_eq!(summary.prior_scales.len(), 3);
     assert!(summary.alphas.is_empty());
     assert_eq!(posts.len(), 3);
@@ -346,6 +362,15 @@ fn prior_sensitivity_external_alpha_pulls_toward_source() {
     assert_eq!(summary.alphas.len(), 5);
     assert!(summary.prior_scales.is_empty());
     assert!(summary.effect_means.iter().all(|m| m.is_finite()));
+    // Weight 0 is the weakly informative baseline, which recovers the data effect of 2; the
+    // posterior mean then rises monotonically toward the source's 8 as the weight grows.
+    assert!((summary.effect_means[0] - 2.0).abs() < 0.02, "{:?}", summary.effect_means);
+    assert!(
+        summary.effect_means.windows(2).all(|pair| pair[1] > pair[0] + 0.3),
+        "{:?}",
+        summary.effect_means
+    );
+    assert!(summary.effect_means.last().is_some_and(|m| (5.0..8.0).contains(m)));
     let m0 = summary.effect_means[0];
     let m1 = *summary.effect_means.last().unwrap();
     // Full trust (m=1) should sit closer to the banked treatment mean than baseline (m=0).
@@ -405,7 +430,9 @@ fn ppc_catches_variance_misspecification_mean_ok() {
     let z: Vec<f64> = (0..n).map(|_| 0.0).collect();
     let mut y: Vec<f64> = (0..n).map(|_| 5.0 * standard_normal(&mut rng)).collect();
     let centre = y.iter().sum::<f64>() / n as f64;
-    y.iter_mut().for_each(|v| *v -= centre);
+    for v in &mut y {
+        *v -= centre;
+    }
     let cols = vec![
         OwnedColumn::Float64(
             Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
@@ -532,7 +559,17 @@ fn sbc_hmc_rank_uses_one_draw_per_independent_chain() {
     ];
     assert_eq!(sbc_rank_draws(&states, &diagnostics).unwrap(), [1.0, 11.0, 21.0, 31.0]);
     diagnostics.n_chains = None;
-    assert!(sbc_rank_draws(&states, &diagnostics).is_err());
+    // Without a chain count the draws must be independent: bulk ESS 5 < 16 draws is refused.
+    assert!(matches!(
+        sbc_rank_draws(&states, &diagnostics),
+        Err(ValidationError::NotApplicable { message }) if message.contains("bulk ESS")
+    ));
+    // Three chains is not the four-chain scheme the rank theorem is applied to.
+    diagnostics.n_chains = Some(3);
+    assert!(matches!(
+        sbc_rank_draws(&states, &diagnostics),
+        Err(ValidationError::NotApplicable { message }) if message.contains("four independent chains")
+    ));
 }
 
 /// Calibration-gate tests for [`SimulationBasedCalibration`]. The slow gate is
@@ -544,7 +581,7 @@ mod calibration_gate {
     use super::*;
 
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn sbc_conjugate_gaussian_ranks_are_uniform() {
         use antecedent_prob::InvGammaPrior;
         let (data, estimand, query) = toy();
@@ -654,6 +691,7 @@ mod predictive_null_calibration {
 
     fn problem(t: &[f64], x: &[f64], y: &[f64]) -> PreparedBayesianProblem {
         PreparedBayesianProblem {
+            target_moments: None,
             design: CompiledDesign::linear_adjustment(t, &[(VariableId::from_raw(2), x)], y, &[])
                 .unwrap(),
             method: Arc::from("backdoor.adjustment"),
@@ -664,6 +702,7 @@ mod predictive_null_calibration {
             coef_names: None,
             unit_ids: None,
             serial_dependence: SerialDependence::Iid,
+            preparation: None,
         }
     }
 
@@ -761,8 +800,9 @@ mod predictive_null_calibration {
         for rep in 0..DATASETS {
             let mut rng = CausalRng::from_seed(0x9A10_0000 + rep);
             let (t, x) = covariates(n, &mut rng);
-            let beta: Vec<f64> = (0..3).map(|_| standard_normal(&mut rng)).collect();
+            // The conjugate prior the checks assume: sigma^2 first, then beta | sigma^2 ~ N(0, sigma^2 V0).
             let sigma = sample_inv_gamma(residual.shape, residual.scale, &mut rng).sqrt();
+            let beta: Vec<f64> = (0..3).map(|_| sigma * standard_normal(&mut rng)).collect();
             let y: Vec<f64> = t
                 .iter()
                 .zip(&x)
@@ -1172,9 +1212,8 @@ mod predictive_null_calibration {
 
     #[test]
     fn mcmc_publication_gate_checks_numeric_boundaries_and_missing_values() {
-        // The pinned oracle contract is a looser diagnostics-routing check
-        // (R-hat 1.05 / ESS 10); publication uses the library's documented
-        // stricter floor (R-hat 1.01 / ESS 100 per chain). Exercise the
+        // Publication uses the library's documented boundary
+        // (R-hat 1.01 / ESS 100 per chain). Exercise the
         // actual publication boundary numerically so a missing metric cannot
         // silently become a pass.
         let mut d = InferenceDiagnostics::analytic("hmc");
@@ -1235,26 +1274,6 @@ mod predictive_null_calibration {
     }
 
     #[test]
-    fn pinned_external_diagnostics_thresholds_are_distinct_from_publication() {
-        let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../../conformance/validate/bayesian_checks/expected.json"
-        ))
-        .unwrap();
-        let oracle = &fixture["contracts"];
-        let oracle_rhat = oracle["mcmc_max_rhat"].as_f64().unwrap();
-        let oracle_ess = oracle["mcmc_min_bulk_ess"].as_f64().unwrap();
-        assert!((oracle_rhat - 1.05).abs() < f64::EPSILON);
-        assert!((oracle_ess - 10.0).abs() < f64::EPSILON);
-        // These oracle bounds define only whether ArviZ-style diagnostic
-        // values agree with the pinned external contract. The production
-        // publication gate remains 1.01 and 100 effective draws per chain.
-        let publication_rhat_limit = 1.01;
-        let publication_ess_limit_per_chain = 100.0;
-        assert!(oracle_rhat > publication_rhat_limit);
-        assert!(oracle_ess < publication_ess_limit_per_chain);
-    }
-
-    #[test]
     fn prior_sensitivity_grid_follows_the_prior_in_force() {
         let (data, estimand, query) = toy();
         let plain = BayesianGComputationAte {
@@ -1286,16 +1305,18 @@ mod predictive_null_calibration {
             .unwrap();
         assert_eq!(summary.family, PriorSensitivityFamily::ResolvedPriorVariance);
         // ...and the isotropic grid refuses to replace it.
+        let refused = PriorSensitivity::standard_grid()
+            .evaluate(
+                &supplied,
+                &prep,
+                IdentificationStatus::NonparametricallyIdentified,
+                &mut ws,
+                &ctx,
+            )
+            .unwrap_err();
         assert!(
-            PriorSensitivity::standard_grid()
-                .evaluate(
-                    &supplied,
-                    &prep,
-                    IdentificationStatus::NonparametricallyIdentified,
-                    &mut ws,
-                    &ctx,
-                )
-                .is_err()
+            matches!(&refused, ValidationError::Refused { message } if message.contains("supplied prior")),
+            "{refused:?}"
         );
     }
 
@@ -1312,6 +1333,7 @@ mod predictive_null_calibration {
             antecedent_stats::CompiledDesign::linear_adjustment(&treatment, &[], &outcome, &[])
                 .unwrap();
         let problem = PreparedBayesianProblem {
+            target_moments: None,
             design,
             method: Arc::from("backdoor.adjustment"),
             adjustment_set: Arc::from([]),
@@ -1321,6 +1343,7 @@ mod predictive_null_calibration {
             coef_names: None,
             unit_ids: None,
             serial_dependence: SerialDependence::Iid,
+            preparation: None,
         };
         let mut prior = PriorSet::new();
         prior.push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(2, 0.1)));
@@ -1347,7 +1370,7 @@ mod predictive_null_calibration {
         {
             let variance = 0.01 * multiplier;
             let expected = 400.0 / (100.0 + 1.0 / variance);
-            assert!((observed - expected).abs() < 0.12, "{multiplier}: {observed} vs {expected}");
+            assert!((observed - expected).abs() < 0.03, "{multiplier}: {observed} vs {expected}");
         }
     }
 }

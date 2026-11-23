@@ -2,7 +2,7 @@
 //! which mapping, for which population and regime, and with which
 //! transportability premise.
 //!
-//! [`BridgeContract::check_licensing`] runs the checks in a fixed order, so the
+//! [`BridgeContract::check_support`] runs the checks in a fixed order, so the
 //! refusal a request receives is the first defect it has:
 //!
 //! 1. the declaration is well formed;
@@ -18,12 +18,18 @@
 //! 6. the mapping's own binding (the measurement model's variables, identity
 //!    and population) agrees with the contract;
 //! 7. the source and target agree in population, regime (where it may not
-//!    change), horizon and conditioning;
+//!    change), horizon and conditioning. An explicit experimental estimand
+//!    translation may change population/horizon under its target transport premise;
 //! 8. a bridge whose evidence was established for another population or regime
 //!    than the claim's carries a transportability premise for exactly that
-//!    transport.
+//!    transport;
+//! 9. an estimand bridge, when one is declared, names the evidence scope and
+//!    the target quantity on population and exposure regime. Mapping
+//!    uncertainty, source dependence and the estimand translation are part of
+//!    the declaration checked in step 1, and part of the identity when any of
+//!    them is present.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 
@@ -37,22 +43,49 @@ use super::refusal::{
     invalid_quantity, mapping_not_allowed, mapping_scope_mismatch, measurement_model_mismatch,
     missing_principal, model_identity_mismatch, model_score_as_probability, population_mismatch,
     predictive_importance_as_causal_effect, proxy_as_construct, regime_mismatch,
-    scientific_endpoint_as_utility, too_many_assumptions, transport_premise_mismatch,
-    transport_premise_missing, transport_premise_unused, value_kind_not_carried, wrong_value_kind,
+    scientific_endpoint_as_utility, transport_premise_mismatch, transport_premise_missing,
+    transport_premise_unused, value_kind_not_carried, wrong_value_kind,
 };
 use crate::ScientificQuantity;
+
+#[path = "draws.rs"]
+mod draws;
+#[path = "point_propagation.rs"]
+mod point_propagation;
+#[path = "propagation.rs"]
+mod propagation;
+
 use crate::interface_contract::{
     CalibrationStatus, ContractOperation, DependenceRequirement, EvidenceBasis, InterfaceContract,
     PortFacts,
+};
+pub use draws::{
+    AffineDrawLaw, AffineInnovation, BridgeDrawsSource, BridgedDistributionClaim,
+    CorrectionDrawLaw, DrawMapping, DrawsPlan, MappedDrawsSummary, bridged_distribution_claim_id,
+};
+pub(super) use point_propagation::propagate_point;
+pub use point_propagation::{
+    NonlinearPropagation, POINT_PROPAGATION_CALIBRATION, POINT_PROPAGATION_LABEL, PointPropagation,
+    point_propagation_unavailable,
+};
+pub use propagation::{
+    AnalyticLaw, EstimandBridge, ExperimentalPrior, ExposureSetting, ImportedExperimentalPrior,
+    MappingUncertainty, NonlinearMap, NonlinearMoment, PreservedSupport, PropagatedUncertainty,
+    SourceMappingDependence, SupportMap, ValueInterval, nonlinear_expectation, preserved_support,
+    support_image,
+};
+pub use propagation::{
+    ContractNonlinearPropagation, JointLaw, JointPropagation, MAX_JOINT_LAW_DIMENSION,
+    MAX_PROPAGATION_WORK, MAX_SIMULATION_DRAWS, PropagationMethod, propagate_joint,
+    propagate_nonlinear,
 };
 
 /// Version word written into every bridge contract identity. Bump only when
 /// the canonical encoding below changes.
 pub const BRIDGE_IDENTITY_VERSION: u64 = 1;
-/// Most declared assumptions one contract may carry.
+/// Default bound on declared assumptions per contract that a decoder of untrusted input applies.
+/// Validating a contract is linear in its assumptions, so the contract itself carries no bound.
 pub const MAX_BRIDGE_ASSUMPTIONS: usize = 64;
-/// Longest identity or statement, in bytes.
-pub const MAX_BRIDGE_TEXT_BYTES: usize = 4096;
 
 const TAG_CONTRACT: &str = "antecedent.scientific_bridge.contract";
 
@@ -68,7 +101,7 @@ pub const BRIDGE_TARGET_PORT: &str = "target";
 /// The operations of the two ports come from the declared value kinds. A
 /// value kind that names no operation (an identified set, a joint outcome
 /// law) projects to a port with none and is refused by the connection check
-/// as a port with no operations, as the licensing check refuses it as not
+/// as a port with no operations, as the support check refuses it as not
 /// carried.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BridgeInterfaceBasis {
@@ -76,7 +109,7 @@ pub struct BridgeInterfaceBasis {
     pub source: PortFacts,
     /// Facts of the target quantity the bridge produces.
     pub target: PortFacts,
-    /// The calibration the target holds; `None` is unmeasured when the target
+    /// The calibration the target holds; `None` is `not_measured` when the target
     /// value carries uncertainty and point-only otherwise. A bridge never
     /// raises a calibration the source did not hold.
     pub calibration: Option<CalibrationStatus>,
@@ -128,7 +161,7 @@ pub struct BridgeAssumption {
 impl BridgeAssumption {
     /// The measurement-model assumption of a bridge through `model`: it names
     /// the model's own six-part identity as its evidence, so the bridge's
-    /// licensing check can require that the mapping uses exactly that model.
+    /// support check can require that the mapping uses exactly that model.
     #[must_use]
     pub fn for_measurement_model(
         id: impl Into<String>,
@@ -192,11 +225,20 @@ pub struct BridgeContract {
     /// Transportability premise, when the claim is not about the scope the
     /// evidence was established for.
     pub transport: Option<TransportabilityPremise>,
+    /// Variance of a declared affine map. Absent when the map's uncertainty
+    /// is not part of this contract.
+    pub mapping_uncertainty: Option<MappingUncertainty>,
+    /// Dependence of the source estimate and the mapping. Absent is not a
+    /// declaration of independence.
+    pub source_dependence: Option<SourceMappingDependence>,
+    /// Translation of an experiment into this contract's target, when the
+    /// bridge uses one.
+    pub estimand_bridge: Option<EstimandBridge>,
 }
 
-/// What a licensed contract determined.
+/// What a supported contract determined.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Licensing {
+pub struct Support {
     /// The bridge carries evidence established elsewhere than the claim's
     /// population or regime, under a declared premise.
     pub transported: bool,
@@ -205,7 +247,7 @@ pub struct Licensing {
 }
 
 fn check_text(field: &str, text: &str) -> Result<(), BridgeRefusal> {
-    if text.trim().is_empty() || text.len() > MAX_BRIDGE_TEXT_BYTES {
+    if text.trim().is_empty() {
         return Err(blank_field(field));
     }
     Ok(())
@@ -218,7 +260,9 @@ fn check_scope(prefix: &str, scope: &BridgeScope) -> Result<(), BridgeRefusal> {
 
 impl BridgeContract {
     /// Check the declaration is well formed: quantities, identities,
-    /// statements, unique assumption ids, the mapping and the premise.
+    /// statements, unique assumption ids, the mapping, the premise and, when
+    /// declared, the mapping uncertainty, the source dependence and the
+    /// estimand bridge.
     ///
     /// # Errors
     /// A malformed declaration, as a `scientific_bridge_invalid` refusal.
@@ -227,9 +271,6 @@ impl BridgeContract {
             endpoint.quantity.validate().map_err(|_| invalid_quantity(name))?;
         }
         check_scope("evidence_scope", &self.evidence_scope)?;
-        if self.assumptions.len() > MAX_BRIDGE_ASSUMPTIONS {
-            return Err(too_many_assumptions());
-        }
         let mut seen = BTreeSet::new();
         for assumption in &self.assumptions {
             check_text("assumption.id", &assumption.id)?;
@@ -250,15 +291,49 @@ impl BridgeContract {
                 check_text("transport.evidence", evidence)?;
             }
         }
-        self.mapping.validate()
+        self.mapping.validate()?;
+        if let Some(uncertainty) = &self.mapping_uncertainty {
+            uncertainty.validate()?;
+        }
+        if let Some(dependence) = &self.source_dependence {
+            dependence.validate()?;
+        }
+        if let Some(bridge) = &self.estimand_bridge {
+            bridge.validate()?;
+        }
+        Ok(())
     }
 
-    /// Check the contract licenses its bridge, without a source claim.
+    /// Check the contract supports its bridge, without a source claim.
     ///
     /// # Errors
     /// The first defect, in the order described in the module documentation,
-    /// as a coded refusal with the declaration that would license it.
-    pub fn check_licensing(&self) -> Result<Licensing, BridgeRefusal> {
+    /// as a coded refusal with the declaration that would support it.
+    pub fn check_support(&self) -> Result<Support, BridgeRefusal> {
+        self.check_support_carrying(false)
+    }
+
+    /// Check the contract supports its bridge when the source value is a
+    /// distribution carried as aligned draws.
+    ///
+    /// The checks are those of [`Self::check_support`] in the same order,
+    /// except that the value kinds may be a posterior or a predictive law (and
+    /// then must agree), and that the declaration of the mapping's uncertainty
+    /// and of its dependence on the source is checked for the draws it
+    /// propagates: an uncertain map declares how it depends on the source
+    /// estimate, a trial-level line or a measurement correction does not
+    /// declare its uncertainty a second time, and an identified set or a joint
+    /// outcome law is still not carried.
+    ///
+    /// # Errors
+    /// As [`Self::check_support`], and the refusals of the draws declaration.
+    pub fn check_draws_support(&self) -> Result<Support, BridgeRefusal> {
+        let support = self.check_support_carrying(true)?;
+        draws::check_draws_declaration(self)?;
+        Ok(support)
+    }
+
+    fn check_support_carrying(&self, draws: bool) -> Result<Support, BridgeRefusal> {
         self.validate()?;
         let pair = (self.source.class, self.target.class);
         if !self.kind.endpoint_pairs().contains(&pair) {
@@ -276,7 +351,10 @@ impl BridgeContract {
         if self.source_value != self.target_value {
             return Err(wrong_value_kind(self.target_value, self.source_value));
         }
-        if self.source_value != ValueKind::Mean {
+        let carried = self.source_value == ValueKind::Mean
+            || (draws
+                && matches!(self.source_value, ValueKind::Posterior | ValueKind::PredictiveLaw));
+        if !carried {
             return Err(value_kind_not_carried(self.source_value));
         }
         let principal_kind = self.kind.principal_assumption();
@@ -304,12 +382,13 @@ impl BridgeContract {
         self.mapping.check_ready()?;
         self.check_coordinates()?;
         let transported = self.check_transport()?;
+        self.check_estimand_binding()?;
         let direction = if self.source.class == QuantityClass::LatentConstruct {
             MeasurementDirection::LatentToMeasured
         } else {
             MeasurementDirection::MeasuredToLatent
         };
-        Ok(Licensing { transported, direction })
+        Ok(Support { transported, direction })
     }
 
     fn check_mapping_binding(&self, principal: &BridgeAssumption) -> Result<(), BridgeRefusal> {
@@ -364,7 +443,13 @@ impl BridgeContract {
 
     fn check_coordinates(&self) -> Result<(), BridgeRefusal> {
         let (source, target) = (&self.source.quantity, &self.target.quantity);
-        if source.population_id != target.population_id {
+        if source.population_id != target.population_id
+            && !self.estimand_bridge.as_ref().is_some_and(|translation| {
+                self.kind == BridgeKind::ParameterInterventionResponse
+                    && translation.experiment.population_id == source.population_id
+                    && translation.target.population_id == target.population_id
+            })
+        {
             return Err(population_mismatch(
                 source.population_id.clone(),
                 target.population_id.clone(),
@@ -373,7 +458,10 @@ impl BridgeContract {
         if !self.kind.regime_may_change() && source.regime_id != target.regime_id {
             return Err(regime_mismatch(source.regime_id.clone(), target.regime_id.clone()));
         }
-        if source.horizon != target.horizon {
+        if source.horizon != target.horizon
+            && !(self.kind == BridgeKind::ParameterInterventionResponse
+                && self.estimand_bridge.is_some())
+        {
             return Err(horizon_mismatch(source.horizon.to_string(), target.horizon.to_string()));
         }
         if source.conditioning != target.conditioning {
@@ -386,11 +474,24 @@ impl BridgeContract {
     }
 
     fn check_transport(&self) -> Result<bool, BridgeRefusal> {
-        let claim_scope = BridgeScope {
-            population_id: self.source.quantity.population_id.clone(),
-            regime_id: self.source.quantity.regime_id.clone(),
+        // An explicit experimental translation maps the source experimental
+        // estimand into the target response. Its transport premise therefore
+        // applies to the target scope, including a changed time horizon. The
+        // ordinary six bridge families retain their original coordinate checks.
+        let experimental_endpoint_change = self.kind == BridgeKind::ParameterInterventionResponse
+            && self.estimand_bridge.is_some()
+            && (self.source.quantity.population_id != self.target.quantity.population_id
+                || self.source.quantity.horizon != self.target.quantity.horizon);
+        let claim = if experimental_endpoint_change {
+            &self.target.quantity
+        } else {
+            &self.source.quantity
         };
-        let moved = claim_scope != self.evidence_scope;
+        let claim_scope = BridgeScope {
+            population_id: claim.population_id.clone(),
+            regime_id: claim.regime_id.clone(),
+        };
+        let moved = claim_scope != self.evidence_scope || experimental_endpoint_change;
         let described = format!(
             "the {} relation established in population `{}` under regime `{}` holds in population `{}` under regime `{}`",
             self.kind.as_str(),
@@ -415,14 +516,94 @@ impl BridgeContract {
         }
     }
 
+    fn check_estimand_binding(&self) -> Result<(), BridgeRefusal> {
+        if let Some(bridge) = &self.estimand_bridge {
+            propagation::estimand_matches(self, bridge)?;
+        }
+        Ok(())
+    }
+
+    /// Check an explicitly finite joint law of affine mapping and source draws.
+    ///
+    /// Every original slot is retained; the declared finite-law moments and dependence
+    /// must agree. This check grants no posterior or causal permission beyond support.
+    /// # Errors
+    /// Native support, missing/failed slots, unsupported mapping or conflicting moments.
+    pub fn validate_finite_affine_mapping(
+        &self,
+        intercepts: &[f64],
+        slopes: &[f64],
+        source: &[f64],
+    ) -> Result<(), BridgeRefusal> {
+        self.check_support()?;
+        propagation::validate_finite_affine_mapping(self, intercepts, slopes, source)
+    }
+
+    /// Delta-method mean and variance of this contract's affine map.
+    ///
+    /// # Errors
+    /// The mapping is not affine or identity; mapping uncertainty or source
+    /// dependence is missing or not well formed; the source moments are not
+    /// usable; the covariance is not feasible.
+    pub fn propagate_affine_uncertainty(
+        &self,
+        source_mean: f64,
+        source_variance: f64,
+    ) -> Result<PropagatedUncertainty, BridgeRefusal> {
+        self.check_support()?;
+        propagation::propagate_affine(self, source_mean, source_variance)
+    }
+
+    /// Image of `source` under `map`, with this contract's assumptions attached
+    /// in identity order.
+    ///
+    /// # Errors
+    /// The source interval or the map does not determine a finite image.
+    pub fn map_support(
+        &self,
+        map: SupportMap,
+        source: ValueInterval,
+    ) -> Result<PreservedSupport, BridgeRefusal> {
+        self.check_support()?;
+        preserved_support(self, map, source)
+    }
+
+    /// Store an experimental prior's estimand bridge, and its mapping
+    /// uncertainty and source dependence when the prior declares them.
+    ///
+    /// A prior with no estimand bridge is refused and leaves the contract
+    /// unchanged. Uncertainty or dependence already on the contract is kept
+    /// when the prior does not declare its own.
+    ///
+    /// # Errors
+    /// The prior has no estimand bridge, the translation is not well formed,
+    /// or it does not name this contract's evidence scope and target.
+    pub fn import_experimental_prior(
+        &mut self,
+        prior: &ExperimentalPrior,
+    ) -> Result<ImportedExperimentalPrior, BridgeRefusal> {
+        let imported = propagation::import_prior(self, prior)?;
+        let mut candidate = self.clone();
+        candidate.estimand_bridge = Some(imported.estimand_bridge.clone());
+        if imported.mapping_uncertainty.is_some() {
+            candidate.mapping_uncertainty.clone_from(&imported.mapping_uncertainty);
+        }
+        if imported.source_dependence.is_some() {
+            candidate.source_dependence.clone_from(&imported.source_dependence);
+        }
+        candidate.check_support()?;
+        *self = candidate;
+        Ok(imported)
+    }
+
     /// The bridge as one instance of the interface-contract schema: the source
     /// quantity as the consumed port and the target quantity as the produced
     /// port, so the one connection check decides what feeds and what is fed by
     /// a bridge.
     ///
-    /// Licensing stays [`Self::check_licensing`] (the principal assumption,
+    /// Support stays [`Self::check_support`] (the principal assumption,
     /// the mapping, the transportability premise); the projection states only
-    /// the two ports and licenses nothing a connection does not.
+    /// the two ports and supports nothing a connection does not.
     #[must_use]
     pub fn interface_contract(
         &self,
@@ -456,8 +637,10 @@ impl BridgeContract {
 
     /// The identity of the contract: kind, both quantities and classes, value
     /// kinds, evidence scope, mapping (every number as its bit pattern),
-    /// assumptions (sorted by identity, so listing order is not identity) and
-    /// the transportability premise.
+    /// assumptions (sorted by identity, so listing order is not identity),
+    /// the transportability premise and, when any is declared, the mapping
+    /// uncertainty, the source dependence and the estimand bridge. A contract
+    /// that declares none of those three keeps the version-1 byte stream.
     #[must_use]
     pub fn identity(&self) -> SemanticDigest {
         let mut out = CanonicalWriter::new(TAG_CONTRACT);
@@ -493,6 +676,12 @@ impl BridgeContract {
                     .opt_text(premise.evidence.as_deref());
             }
         }
+        propagation::write_extension(
+            &mut out,
+            self.mapping_uncertainty.as_ref(),
+            self.source_dependence.as_ref(),
+            self.estimand_bridge.as_ref(),
+        );
         SemanticDigest::from_bytes(out.finish())
     }
 }

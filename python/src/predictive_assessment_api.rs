@@ -11,19 +11,18 @@
 //! and is published only inside a measured design, and every other request comes
 //! back as the typed refusals of the contract.
 
+use antecedent::analysis::evidence_ledger::SourceId;
 use antecedent::analysis::predictive_assessment::{
-    PredictiveAssessmentConsumeLimits, PredictiveAssessmentRefusal, PreparedPredictiveAssessment,
-    ScoreIntervalQuery, consume_predictive_assessment_artifact, fit_declaration_from_ledger,
-    observation_keys_from_ledger,
-};
-use antecedent_contract::evidence_ledger::SourceId;
-use antecedent_validate::predictive_assessment::{
     AssessmentIdentity, DependenceDeclaration, EnsembleCrpsForm, FiniteTruth, FitDeclaration,
     ForecastLaw, Horizon, LawSource, ObservationKey, Outcome, OverlapPolicy, OverlapStatus,
-    PredictiveAssessmentReport, PredictiveAssessmentSpec, PredictiveTarget, PredictorLaws,
-    ProviderIdentity, ProviderTrustLabel, RealizedObservations, ScoreIntervalRequest, ScoreKind,
-    ValidationDesign, distribution_drift, exact_expected_score, score_case,
+    PredictiveAssessmentConsumeLimits, PredictiveAssessmentRefusal, PredictiveAssessmentReport,
+    PredictiveAssessmentSpec, PredictiveTarget, PredictorLaws, PreparedPredictiveAssessment,
+    ProviderIdentity, ProviderTrustLabel, RealizedObservations, ScoreIntervalQuery,
+    ScoreIntervalRequest, ScoreKind, ValidationDesign, consume_predictive_assessment_artifact,
+    distribution_drift, exact_expected_score, fit_declaration_from_ledger,
+    observation_keys_from_ledger,
 };
+use antecedent::validate::predictive_assessment::score_case;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
@@ -41,29 +40,25 @@ use crate::transport_common::execution_context;
 type Refused<T> = (Option<T>, Option<String>);
 
 fn refusal_json(refusal: &PredictiveAssessmentRefusal) -> String {
-    json!({
-        "code": refusal.code,
-        "stage": "predictive_assessment",
-        "detail": refusal.detail,
-        "message": refusal.message,
-        "offending": Json::Null,
-        "remedy": Json::Null,
-    })
-    .to_string()
+    crate::bridge::compact_refusal_json(
+        refusal.code,
+        "predictive_assessment",
+        &refusal.detail,
+        &refusal.message,
+        None,
+    )
 }
 
 fn contract_refusal(
-    error: &antecedent_validate::predictive_assessment::PredictiveAssessmentError,
+    error: &antecedent::validate::predictive_assessment::PredictiveAssessmentError,
 ) -> String {
-    json!({
-        "code": error.code,
-        "stage": "predictive_assessment",
-        "detail": error.detail,
-        "message": error.message,
-        "offending": Json::Null,
-        "remedy": Json::Null,
-    })
-    .to_string()
+    crate::bridge::compact_refusal_json(
+        error.code,
+        "predictive_assessment",
+        error.detail,
+        &error.message,
+        None,
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -246,6 +241,10 @@ fn parse_source(value: &Json) -> PyResult<LawSource> {
 }
 
 fn parse_fit(value: &Json) -> PyResult<FitDeclaration> {
+    parse_fit_at(value, false)
+}
+
+fn parse_fit_at(value: &Json, nested: bool) -> PyResult<FitDeclaration> {
     let map = object(value, "fit declaration")?;
     Ok(match text(map, "kind")?.as_str() {
         "fitted_on" => FitDeclaration::FittedOn(keys(map, "keys")?),
@@ -253,6 +252,14 @@ fn parse_fit(value: &Json) -> PyResult<FitDeclaration> {
         "undeclared" => FitDeclaration::Undeclared {
             reason: opt_text(map, "reason")?.unwrap_or_else(|| "not declared".to_owned()),
         },
+        "per_case" if !nested => FitDeclaration::PerCase(
+            member(map, "cases")?
+                .as_array()
+                .ok_or_else(|| crate::value_err("per-case fits must be a list"))?
+                .iter()
+                .map(|item| parse_fit_at(item, true))
+                .collect::<PyResult<Vec<_>>>()?,
+        ),
         other => return Err(crate::value_err(format!("unknown fit declaration `{other}`"))),
     })
 }
@@ -434,7 +441,7 @@ fn overlap_json(status: &OverlapStatus) -> Json {
     }
 }
 
-fn drift_json(drift: &antecedent_validate::predictive_assessment::DistributionDrift) -> Json {
+fn drift_json(drift: &antecedent::analysis::predictive_assessment::DistributionDrift) -> Json {
     json!({
         "label": drift.label,
         "calibration": drift.calibration,
@@ -568,7 +575,7 @@ impl PredictiveAssessmentHandle {
     }
 
     /// The interval of one predictor's expected score (or of the expected difference to
-    /// `reference`) as JSON, or the typed refusal. Published only inside a measured design.
+    /// `reference`) as JSON with its calibration status, or the typed refusal.
     fn score_interval(
         &self,
         predictor: &str,
@@ -576,40 +583,43 @@ impl PredictiveAssessmentHandle {
         score: &str,
         level: f64,
     ) -> PyResult<Refused<String>> {
-        let Some(kind) = ScoreKind::from_name(score) else {
-            return Err(crate::value_err(format!("unknown score `{score}`")));
-        };
-        let query = ScoreIntervalQuery {
-            predictor: predictor.to_owned(),
-            reference: reference.map(str::to_owned),
-            score: kind,
-            level,
-        };
-        Ok(match self.inner.expected_score_interval(&query) {
-            Ok(interval) => (
-                Some(
-                    json!({
-                        "predictor": interval.predictor,
-                        "reference": interval.reference,
-                        "score": interval.score.name(),
-                        "mean": interval.mean,
-                        "standard_error": interval.standard_error,
-                        "degrees_of_freedom": interval.degrees_of_freedom,
-                        "lower": interval.lower,
-                        "upper": interval.upper,
-                        "level": interval.level,
-                        "cases": interval.cases,
-                        "dependence": interval.dependence,
-                        "construction": interval.construction,
-                        "coverage_record": interval.coverage_record,
-                        "calibration_sha": interval.calibration_sha,
-                        "assumptions": interval.assumptions,
-                    })
-                    .to_string(),
+        crate::catch_ffi(|| {
+            let Some(kind) = ScoreKind::from_name(score) else {
+                return Err(crate::value_err(format!("unknown score `{score}`")));
+            };
+            let query = ScoreIntervalQuery {
+                predictor: predictor.to_owned(),
+                reference: reference.map(str::to_owned),
+                score: kind,
+                level,
+            };
+            Ok(match self.inner.expected_score_interval(&query) {
+                Ok(interval) => (
+                    Some(
+                        json!({
+                            "predictor": interval.predictor,
+                            "reference": interval.reference,
+                            "score": interval.score.name(),
+                            "mean": interval.mean,
+                            "standard_error": interval.standard_error,
+                            "degrees_of_freedom": interval.degrees_of_freedom,
+                            "lower": interval.lower,
+                            "upper": interval.upper,
+                            "level": interval.level,
+                            "cases": interval.cases,
+                            "dependence": interval.dependence,
+                            "construction": interval.construction,
+                            "coverage_record": interval.coverage_record,
+                            "calibration": interval.calibration.status.as_str(),
+                            "calibration_sha": interval.calibration_sha,
+                            "assumptions": interval.assumptions,
+                        })
+                        .to_string(),
+                    ),
+                    None,
                 ),
-                None,
-            ),
-            Err(refusal) => (None, Some(refusal_json(&refusal))),
+                Err(refusal) => (None, Some(refusal_json(&refusal))),
+            })
         })
     }
 
@@ -650,11 +660,13 @@ fn predictive_assessment_assess(
     seed: u64,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Refused<PredictiveAssessmentHandle>> {
-    let spec = parse_spec(&parse(spec_json, "predictive assessment")?)?;
-    let ctx = execution_context(seed, None, cancel);
-    Ok(match PreparedPredictiveAssessment::assess(&spec, &ctx) {
-        Ok(inner) => (Some(PredictiveAssessmentHandle { inner }), None),
-        Err(refusal) => (None, Some(refusal_json(&refusal))),
+    crate::catch_ffi(|| {
+        let spec = parse_spec(&parse(spec_json, "predictive assessment")?)?;
+        let ctx = execution_context(seed, None, cancel);
+        Ok(match PreparedPredictiveAssessment::assess(&spec, &ctx) {
+            Ok(inner) => (Some(PredictiveAssessmentHandle { inner }), None),
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        })
     })
 }
 
@@ -668,17 +680,22 @@ fn predictive_assessment_consume(
     max_cases: Option<usize>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Refused<PredictiveAssessmentHandle>> {
-    let expected = expected_identity_json
-        .map(|text| parse(text, "assessment identity").and_then(|v| parse_identity(&v)))
-        .transpose()?;
-    let mut limits = PredictiveAssessmentConsumeLimits::default();
-    if let Some(max_cases) = max_cases {
-        limits.max_cases = max_cases;
-    }
-    let ctx = execution_context(0, None, cancel);
-    Ok(match consume_predictive_assessment_artifact(artifact, expected.as_ref(), limits, &ctx) {
-        Ok(inner) => (Some(PredictiveAssessmentHandle { inner }), None),
-        Err(refusal) => (None, Some(refusal_json(&refusal))),
+    crate::catch_ffi(|| {
+        let expected = expected_identity_json
+            .map(|text| parse(text, "assessment identity").and_then(|v| parse_identity(&v)))
+            .transpose()?;
+        let mut limits = PredictiveAssessmentConsumeLimits::default();
+        if let Some(max_cases) = max_cases {
+            limits.max_cases = max_cases;
+        }
+        let ctx = execution_context(0, None, cancel);
+        Ok(
+            match consume_predictive_assessment_artifact(artifact, expected.as_ref(), limits, &ctx)
+            {
+                Ok(inner) => (Some(PredictiveAssessmentHandle { inner }), None),
+                Err(refusal) => (None, Some(refusal_json(&refusal))),
+            },
+        )
     })
 }
 
@@ -690,16 +707,18 @@ fn predictive_assessment_score_case(
     law_json: &str,
     outcome_json: &str,
 ) -> PyResult<Refused<f64>> {
-    let kind = parse_score(kind)?;
-    let form = parse_form(form)?;
-    let law = parse_law(&parse(law_json, "predictive law")?)?;
-    let outcomes = parse_outcomes(&parse(outcome_json, "outcome")?)?;
-    let [outcome] = outcomes.as_slice() else {
-        return Err(crate::value_err("score_case takes exactly one outcome"));
-    };
-    Ok(match law.validate().and_then(|()| score_case(kind, form, &law, outcome)) {
-        Ok(value) => (Some(value), None),
-        Err(error) => (None, Some(contract_refusal(&error))),
+    crate::catch_ffi(|| {
+        let kind = parse_score(kind)?;
+        let form = parse_form(form)?;
+        let law = parse_law(&parse(law_json, "predictive law")?)?;
+        let outcomes = parse_outcomes(&parse(outcome_json, "outcome")?)?;
+        let [outcome] = outcomes.as_slice() else {
+            return Err(crate::value_err("score_case takes exactly one outcome"));
+        };
+        Ok(match law.validate().and_then(|()| score_case(kind, form, &law, outcome)) {
+            Ok(value) => (Some(value), None),
+            Err(error) => (None, Some(contract_refusal(&error))),
+        })
     })
 }
 
@@ -710,27 +729,29 @@ fn predictive_assessment_exact_expected_score(
     law_json: &str,
     truth_json: &str,
 ) -> PyResult<Refused<f64>> {
-    let kind = parse_score(kind)?;
-    let law = parse_law(&parse(law_json, "predictive law")?)?;
-    let truth = parse(truth_json, "finite truth")?;
-    let map = object(&truth, "finite truth")?;
-    let truth = match text(map, "kind")?.as_str() {
-        "real" => FiniteTruth::Real {
-            support: reals(map, "support")?,
-            probabilities: reals(map, "probabilities")?,
-        },
-        "category" => FiniteTruth::Category { probabilities: reals(map, "probabilities")? },
-        "vector" => FiniteTruth::Vector {
-            dimension: usize::try_from(unsigned(map, "dimension")?)
-                .map_err(|_| crate::value_err("`dimension` does not fit"))?,
-            atoms: reals(map, "atoms")?,
-            probabilities: reals(map, "probabilities")?,
-        },
-        other => return Err(crate::value_err(format!("unknown finite truth `{other}`"))),
-    };
-    Ok(match exact_expected_score(kind, &law, &truth) {
-        Ok(value) => (Some(value), None),
-        Err(error) => (None, Some(contract_refusal(&error))),
+    crate::catch_ffi(|| {
+        let kind = parse_score(kind)?;
+        let law = parse_law(&parse(law_json, "predictive law")?)?;
+        let truth = parse(truth_json, "finite truth")?;
+        let map = object(&truth, "finite truth")?;
+        let truth = match text(map, "kind")?.as_str() {
+            "real" => FiniteTruth::Real {
+                support: reals(map, "support")?,
+                probabilities: reals(map, "probabilities")?,
+            },
+            "category" => FiniteTruth::Category { probabilities: reals(map, "probabilities")? },
+            "vector" => FiniteTruth::Vector {
+                dimension: usize::try_from(unsigned(map, "dimension")?)
+                    .map_err(|_| crate::value_err("`dimension` does not fit"))?,
+                atoms: reals(map, "atoms")?,
+                probabilities: reals(map, "probabilities")?,
+            },
+            other => return Err(crate::value_err(format!("unknown finite truth `{other}`"))),
+        };
+        Ok(match exact_expected_score(kind, &law, &truth) {
+            Ok(value) => (Some(value), None),
+            Err(error) => (None, Some(contract_refusal(&error))),
+        })
     })
 }
 
@@ -773,27 +794,33 @@ fn predictive_assessment_ledger_fit(
     ledger: PyRef<'_, EvidenceLedgerHandle>,
     sources_json: &str,
 ) -> PyResult<Refused<String>> {
-    let sources = source_ids(sources_json)?;
-    Ok(match fit_declaration_from_ledger(ledger.ledger(), &sources) {
-        Ok(FitDeclaration::FittedOn(found)) => (
-            Some(
-                json!({
-                    "kind": "fitted_on",
-                    "keys": found.iter().map(ObservationKey::to_hex).collect::<Vec<_>>(),
-                    "reason": Json::Null,
-                })
-                .to_string(),
+    crate::catch_ffi(|| {
+        let sources = source_ids(sources_json)?;
+        Ok(match fit_declaration_from_ledger(ledger.ledger(), &sources) {
+            Ok(FitDeclaration::FittedOn(found)) => (
+                Some(
+                    json!({
+                        "kind": "fitted_on",
+                        "keys": found.iter().map(ObservationKey::to_hex).collect::<Vec<_>>(),
+                        "reason": Json::Null,
+                    })
+                    .to_string(),
+                ),
+                None,
             ),
-            None,
-        ),
-        Ok(FitDeclaration::Undeclared { reason }) => {
-            (Some(json!({"kind": "undeclared", "keys": [], "reason": reason}).to_string()), None)
-        }
-        Ok(FitDeclaration::NotFitted) => (
-            Some(json!({"kind": "not_fitted", "keys": [], "reason": Json::Null}).to_string()),
-            None,
-        ),
-        Err(refusal) => (None, Some(refusal_json(&refusal))),
+            Ok(FitDeclaration::Undeclared { reason }) => (
+                Some(json!({"kind": "undeclared", "keys": [], "reason": reason}).to_string()),
+                None,
+            ),
+            Ok(FitDeclaration::NotFitted) => (
+                Some(json!({"kind": "not_fitted", "keys": [], "reason": Json::Null}).to_string()),
+                None,
+            ),
+            Ok(FitDeclaration::PerCase(_)) => {
+                return Err(crate::value_err("ledger returned an unexpected per-case fit"));
+            }
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        })
     })
 }
 
@@ -803,16 +830,72 @@ fn predictive_assessment_ledger_observations(
     ledger: PyRef<'_, EvidenceLedgerHandle>,
     source: &str,
 ) -> PyResult<Refused<Vec<String>>> {
-    let id = SourceId::from_hex(source)
-        .ok_or_else(|| crate::value_err("a source identity is 64 hexadecimal characters"))?;
-    Ok(match observation_keys_from_ledger(ledger.ledger(), id) {
-        Ok(found) => (Some(found.iter().map(ObservationKey::to_hex).collect()), None),
-        Err(refusal) => (None, Some(refusal_json(&refusal))),
+    crate::catch_ffi(|| {
+        let id = SourceId::from_hex(source)
+            .ok_or_else(|| crate::value_err("a source identity is 64 hexadecimal characters"))?;
+        Ok(match observation_keys_from_ledger(ledger.ledger(), id) {
+            Ok(found) => (Some(found.iter().map(ObservationKey::to_hex).collect()), None),
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        })
     })
+}
+
+/// The posterior predictive replicates a Bayesian study retained at fit time: the sample law
+/// of every design row, the outcomes they are laws of, and the source row of each.
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone)]
+pub struct PredictiveReplicateLaws {
+    /// Outcome variable the laws are laws of.
+    pub quantity: String,
+    /// Population the laws are defined for.
+    pub population: String,
+    /// Units of the quantity.
+    pub units: String,
+    /// Native model that produced the replicates.
+    pub model: String,
+    /// Replicate draws of each design row.
+    pub laws: Vec<Vec<f64>>,
+    /// Observed outcome of each design row.
+    pub outcomes: Vec<f64>,
+    /// Source-table row of each design row.
+    pub rows: Vec<usize>,
+}
+
+impl From<&antecedent::RetainedPredictiveReplicates> for PredictiveReplicateLaws {
+    fn from(retained: &antecedent::RetainedPredictiveReplicates) -> Self {
+        let predictor = retained.predictor();
+        Self {
+            quantity: predictor.target.quantity.clone(),
+            population: predictor.target.population.clone(),
+            units: predictor.target.units.clone(),
+            model: match &predictor.source {
+                LawSource::Native { model } => model.clone(),
+                _ => String::new(),
+            },
+            laws: predictor
+                .laws
+                .iter()
+                .map(|law| match law {
+                    ForecastLaw::EmpiricalSample { draws } => draws.clone(),
+                    _ => Vec::new(),
+                })
+                .collect(),
+            outcomes: retained
+                .outcomes()
+                .iter()
+                .map(|outcome| match outcome {
+                    Outcome::Real(value) => *value,
+                    _ => f64::NAN,
+                })
+                .collect(),
+            rows: retained.rows().to_vec(),
+        }
+    }
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PredictiveAssessmentHandle>()?;
+    module.add_class::<PredictiveReplicateLaws>()?;
     module.add_function(wrap_pyfunction!(predictive_assessment_assess, module)?)?;
     module.add_function(wrap_pyfunction!(predictive_assessment_consume, module)?)?;
     module.add_function(wrap_pyfunction!(predictive_assessment_score_case, module)?)?;
@@ -822,4 +905,33 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(predictive_assessment_ledger_fit, module)?)?;
     module.add_function(wrap_pyfunction!(predictive_assessment_ledger_observations, module)?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod compact_refusal_tests {
+    use super::*;
+
+    #[test]
+    fn predictive_refusals_keep_all_six_fields() {
+        let refusal = PredictiveAssessmentRefusal {
+            code: "invalid_argument",
+            detail: "predictive_assessment.example".to_owned(),
+            message: "bad \"value\"\nretry".to_owned(),
+        };
+        let error = antecedent::validate::predictive_assessment::PredictiveAssessmentError {
+            code: "invalid_argument",
+            detail: "predictive_assessment.example",
+            message: refusal.message.clone(),
+        };
+        let expected = json!({
+            "code": "invalid_argument",
+            "stage": "predictive_assessment",
+            "detail": "predictive_assessment.example",
+            "message": "bad \"value\"\nretry",
+            "offending": null,
+            "remedy": null,
+        });
+        assert_eq!(serde_json::from_str::<Json>(&refusal_json(&refusal)).unwrap(), expected);
+        assert_eq!(serde_json::from_str::<Json>(&contract_refusal(&error)).unwrap(), expected);
+    }
 }

@@ -31,12 +31,13 @@
 //!
 //! A ranking probability or interval is published only where a current coverage record
 //! measured it at the coordinate (candidate-set size, Monte Carlo budget, selection
-//! rule, coupling, serial dependence): [`calibration::license_route_at`] resolves the
-//! record. Every other request is refused with a typed `cell_not_licensed`. The
-//! simulation design that measures the routes lives in [`calibration`] and
+//! rule, coupling, serial dependence): [`calibration::support_route_at`] resolves the
+//! record. Every other request is published with a calibration status
+//! (`outside_measured_scope`, `measured_below_nominal` or `not_measured`), never
+//! refused. The simulation design that measures the routes lives in [`calibration`] and
 //! [`coverage_design`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub mod artifact;
 pub mod calibration;
@@ -47,8 +48,10 @@ pub mod mc_error;
 pub mod producer;
 pub mod ranking;
 pub mod report;
+pub mod selected_value;
 pub mod selection;
 pub mod stream;
+mod workspace;
 
 use antecedent_contract::ExternalRefusal;
 
@@ -59,11 +62,11 @@ pub use artifact::{
     MAX_DECISION_RELIABILITY_BYTES, consume,
 };
 pub use calibration::{
-    CANDIDATE_COUNT_BANDS, CalibrationCoordinate, ClosedRoute, DEFAULT_LICENSE_LEVEL,
-    KnownOptimumDesign, NoiseCoupling, PublishedRoute, RECORD_QUERY, ReplicateOutcome,
-    banded_record_functional, calibration_basis, candidate_count_band, closed_routes,
-    license_route, license_route_at, record_functional, simulate_replicate,
-    simulate_selection_draws,
+    CANDIDATE_COUNT_BANDS, CalibrationCoordinate, DEFAULT_SUPPORT_LEVEL, KnownOptimumDesign,
+    NoiseCoupling, PublishedRoute, RECORD_QUERY, ReplicateOutcome, SELECTED_VALUE_ESTIMATOR,
+    SELECTED_VALUE_INTERVAL_METHOD, banded_record_functional, calibration_basis,
+    candidate_count_band, record_functional, selected_value_basis, selected_value_calibration,
+    simulate_replicate, simulate_selection_draws, support_route, support_route_at,
 };
 pub use coverage_design::{CoverageCell, TruthKind, coverage_design};
 pub use draws::{
@@ -95,6 +98,7 @@ pub use report::{
     SelectionUncertainty, SourceSpread, SourceUncertainty, StreamAccounting, UncertaintyReporting,
     ValidationPlan, assess,
 };
+pub use selected_value::{SelectedValueInterval, selected_value_interval};
 pub use selection::{
     BoundKind, CandidateEstimate, HeldOutAssessment, InSampleSelection, NoiseDependence,
     SelectionStatus, ValidationKind, ValidationRecord, ValueLabel, WinnersCurseBound,
@@ -102,10 +106,6 @@ pub use selection::{
 };
 pub use stream::{DECISION_RELIABILITY_STREAM_DOMAIN, DrawSegment, StreamId, StreamPurpose};
 
-/// Most candidates one carrier may hold.
-pub const MAX_CANDIDATES: usize = 65_536;
-/// Most candidate-by-draw cells one carrier may hold (bounds memory and work).
-pub const MAX_CELLS: usize = 1 << 26;
 /// Fewest draws any estimate needs; below this no standard error is defined.
 pub const MIN_DRAWS: usize = 4;
 
@@ -139,7 +139,7 @@ pub enum ReliabilityError {
     },
     /// Candidates are compared by draw index without an aligned joint law.
     JointLawRequired {
-        /// Why the pairing is not licensed.
+        /// Why the pairing is not supported.
         reason: &'static str,
     },
     /// Dependence between candidates, draws or repeated evaluations is unknown.
@@ -149,13 +149,6 @@ pub enum ReliabilityError {
     },
     /// One combined uncertainty number was requested.
     CombinedUncertainty,
-    /// A published probability or interval route is closed pending measurement.
-    CellNotLicensed {
-        /// Route name.
-        route: &'static str,
-        /// Coordinate the route would be calibrated at.
-        coordinate: String,
-    },
     /// A producer handed over a point-only output: there is no law and no draws to take.
     ProducerPointOnly {
         /// The producing route.
@@ -195,6 +188,11 @@ pub enum ReliabilityError {
     },
     /// Cancellation was observed at a work boundary.
     Cancelled,
+    /// A concrete numerical buffer could not be admitted by the caller's pool.
+    Admission {
+        /// The original pool refusal, retained separately from scientific refusals.
+        error: antecedent_core::execution::AdmissionError,
+    },
 }
 
 impl std::fmt::Display for ReliabilityError {
@@ -219,7 +217,7 @@ fn producer_point_only_refusal(producer: ProducerKind, held: &str) -> ExternalRe
     match producer {
         ProducerKind::CohortMeanDecision => builder(
             antecedent_core::reason_code!("joint_law_required"),
-            "decision_reliability.producer_point_only",
+            antecedent_core::reason_details::decision_reliability::PRODUCER_POINT_ONLY,
         )
         .offending(format!("{}: holds {held}", producer.as_str()))
         .remedy(
@@ -230,7 +228,7 @@ fn producer_point_only_refusal(producer: ProducerKind, held: &str) -> ExternalRe
         .build(),
         ProducerKind::SequentialRollout | ProducerKind::SequentialOffPolicy => builder(
             antecedent_core::reason_code!("diagnostic_not_available"),
-            "decision_reliability.producer_point_only",
+            antecedent_core::reason_details::decision_reliability::PRODUCER_POINT_ONLY,
         )
         .offending(format!("{}: holds {held}", producer.as_str()))
         .remedy(
@@ -250,7 +248,7 @@ fn producer_mean_disagrees_refusal(
 ) -> ExternalRefusal {
     builder(
         antecedent_core::reason_code!("distribution_meaning_mismatch"),
-        "decision_reliability.producer_mean_disagrees",
+        antecedent_core::reason_details::decision_reliability::PRODUCER_MEAN_DISAGREES,
     )
     .offending(format!(
         "{id}: reported {reported} but the supplied draws average {draws_mean} \
@@ -267,7 +265,7 @@ fn effective_sample_size_refusal(
 ) -> ExternalRefusal {
     builder(
         antecedent_core::reason_code!("route_not_supported"),
-        "decision_reliability.effective_sample_size_too_small",
+        antecedent_core::reason_details::decision_reliability::EFFECTIVE_SAMPLE_SIZE_TOO_SMALL,
     )
     .offending(format!("{what}: effective sample size {effective_sample_size:.1}"))
     .expected(format!("effective sample size of at least {minimum}"))
@@ -286,13 +284,13 @@ impl ReliabilityError {
         let invalid = antecedent_core::reason_code!("invalid_argument");
         match self {
             Self::InvalidInput { slot, message } => {
-                builder(invalid, "decision_reliability.invalid_input")
+                builder(invalid, antecedent_core::reason_details::decision_reliability::INVALID_INPUT)
                     .offending(format!("{slot}: {message}"))
                     .build()
             }
             Self::SearchRecordRequired { candidates } => builder(
                 antecedent_core::reason_code!("candidate_search_record_required"),
-                "decision_reliability.search_record_required",
+                antecedent_core::reason_details::decision_reliability::SEARCH_RECORD_REQUIRED,
             )
             .offending(format!("{candidates} adaptively generated candidates"))
             .remedy(
@@ -301,14 +299,14 @@ impl ReliabilityError {
             )
             .build(),
             Self::SearchRecordInconsistent { message } => {
-                builder(invalid, "decision_reliability.search_record_inconsistent")
+                builder(invalid, antecedent_core::reason_details::decision_reliability::SEARCH_RECORD_INCONSISTENT)
                     .offending(message.clone())
                     .remedy("the record must cover every retained candidate within its budget")
                     .build()
             }
             Self::ValidationNotIndependent { selection, validation } => builder(
                 antecedent_core::reason_code!("validation_stream_not_independent"),
-                "decision_reliability.validation_not_independent",
+                antecedent_core::reason_details::decision_reliability::VALIDATION_NOT_INDEPENDENT,
             )
             .expected(format!("a stream or draw range disjoint from {selection}"))
             .supplied(validation.clone())
@@ -319,7 +317,7 @@ impl ReliabilityError {
             .build(),
             Self::JointLawRequired { reason } => builder(
                 antecedent_core::reason_code!("joint_law_required"),
-                "decision_reliability.joint_law_required",
+                antecedent_core::reason_details::decision_reliability::JOINT_LAW_REQUIRED,
             )
             .offending(*reason)
             .remedy(
@@ -329,28 +327,18 @@ impl ReliabilityError {
             .build(),
             Self::DependenceUnknown { what } => builder(
                 antecedent_core::reason_code!("sampling_dependence_unknown"),
-                "decision_reliability.dependence_unknown",
+                antecedent_core::reason_details::decision_reliability::DEPENDENCE_UNKNOWN,
             )
             .offending(*what)
             .remedy("declare the dependence; unknown dependence is never taken as independence")
             .build(),
             Self::CombinedUncertainty => builder(
                 antecedent_core::reason_code!("uncertainty_components_not_combined"),
-                "decision_reliability.combined_uncertainty",
+                antecedent_core::reason_details::decision_reliability::COMBINED_UNCERTAINTY,
             )
             .remedy(
                 "read the three components separately; a combined statement needs a whole-procedure \
                  calibration at the coordinate (candidate-set size, Monte Carlo budget, selection rule)",
-            )
-            .build(),
-            Self::CellNotLicensed { route, coordinate } => builder(
-                antecedent_core::reason_code!("cell_not_licensed"),
-                "decision_reliability.cell_not_licensed",
-            )
-            .offending(format!("{route} at {coordinate}"))
-            .remedy(
-                "the route is point-only until a coverage record measures it at this \
-                 coordinate; use the diagnostic fields",
             )
             .build(),
             Self::ProducerPointOnly { producer, held } => {
@@ -364,17 +352,23 @@ impl ReliabilityError {
             }
             Self::RouteNotSupported { message } => builder(
                 antecedent_core::reason_code!("route_not_supported"),
-                "decision_reliability.route_not_supported",
+                antecedent_core::reason_details::decision_reliability::ROUTE_NOT_SUPPORTED,
             )
             .offending(message.clone())
             .build(),
-            Self::Numerical { message } => builder(invalid, "decision_reliability.numerical")
+            Self::Numerical { message } => builder(invalid, antecedent_core::reason_details::decision_reliability::NUMERICAL)
                 .offending(message.clone())
                 .build(),
             Self::Cancelled => builder(
                 antecedent_core::reason_code!("cancelled_no_claim"),
-                "decision_reliability.cancelled",
+                antecedent_core::reason_details::decision_reliability::CANCELLED,
             )
+            .build(),
+            Self::Admission { error } => builder(
+                antecedent_core::reason_code!("invalid_argument"),
+                antecedent_core::reason_details::decision_reliability::MEMORY_BUDGET_EXCEEDED,
+            )
+            .offending(error.to_string())
             .build(),
         }
     }

@@ -14,7 +14,7 @@
 //!    model-level coherence checker (acyclicity, parents equal conditioning
 //!    set, support overlap, shared latents, provenance, aligned uncertainty).
 //!    Every defect is returned, each with a registered code, a namespaced
-//!    detail and the declaration that would license the composition.
+//!    detail and the declaration that would support the composition.
 //! 2. **Execute** runs the closed-form joint law and `do()` law, structural
 //!    sampling and the first-order delta-method variance of a linear contrast
 //!    of interventional means (linear-Gaussian), or exact enumeration and
@@ -62,7 +62,7 @@
 //! the caller declares the new one. The call takes `&self` and returns a new
 //! value, so a refused refresh leaves the prepared composition unchanged.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
@@ -174,20 +174,20 @@ fn model_refusal(error: CompositionError) -> MechanismCompositionRefusal {
         CompositionError::Unsupported { message } => MechanismCompositionRefusal::of(
             antecedent_core::reason_code!("route_not_supported"),
             "compose",
-            "mechanism_composition.request_unsupported",
+            antecedent_core::reason_details::mechanism_composition::REQUEST_UNSUPPORTED,
             message,
         ),
         CompositionError::Cancelled => cancelled(),
         CompositionError::Numerical { message } => MechanismCompositionRefusal::of(
             antecedent_core::reason_code!("invalid_argument"),
             "compose",
-            "mechanism_composition.numerical_failure",
+            antecedent_core::reason_details::mechanism_composition::NUMERICAL_FAILURE,
             message,
         ),
         other => MechanismCompositionRefusal::of(
             antecedent_core::reason_code!("route_not_supported"),
             "compose",
-            "mechanism_composition.request_unsupported",
+            antecedent_core::reason_details::mechanism_composition::REQUEST_UNSUPPORTED,
             other.to_string(),
         ),
     }
@@ -197,7 +197,7 @@ fn cancelled() -> MechanismCompositionRefusal {
     MechanismCompositionRefusal::of(
         antecedent_core::reason_code!("cancelled_no_claim"),
         "compose",
-        "mechanism_composition.cancelled",
+        antecedent_core::reason_details::mechanism_composition::CANCELLED,
         "cancelled before a composed result was formed; this is not a verdict on the mechanisms",
     )
 }
@@ -210,13 +210,13 @@ fn artifact_refusal(error: MechanismCompositionArtifactError) -> MechanismCompos
         MechanismCompositionArtifactError::PremisesMismatch => MechanismCompositionRefusal::of(
             antecedent_core::reason_code!("mechanism_composition_incoherent"),
             "consume",
-            "mechanism_composition.premises_mismatch",
+            antecedent_core::reason_details::mechanism_composition::PREMISES_MISMATCH,
             "the premises and query do not hash to the stored or the retained identity",
         ),
         MechanismCompositionArtifactError::ResultMismatch => MechanismCompositionRefusal::of(
             antecedent_core::reason_code!("mechanism_composition_incoherent"),
             "consume",
-            "mechanism_composition.result_mismatch",
+            antecedent_core::reason_details::mechanism_composition::RESULT_MISMATCH,
             "the stored result is not the replay of the stored premises and query",
         ),
         MechanismCompositionArtifactError::Replay(text)
@@ -227,7 +227,7 @@ fn artifact_refusal(error: MechanismCompositionArtifactError) -> MechanismCompos
         other => MechanismCompositionRefusal::of(
             antecedent_core::reason_code!("invalid_argument"),
             "consume",
-            "mechanism_composition.artifact_invalid",
+            antecedent_core::reason_details::mechanism_composition::ARTIFACT_INVALID,
             other.to_string(),
         ),
     }
@@ -287,7 +287,7 @@ impl MechanismSource {
                     return Err(MechanismCompositionRefusal::of(
                         antecedent_core::reason_code!("invalid_argument"),
                         "compose",
-                        "mechanism_composition.shape_coefficient_parent_mismatch",
+                        antecedent_core::reason_details::mechanism_composition::SHAPE_COEFFICIENT_PARENT_MISMATCH,
                         format!(
                             "the slot has {} coefficients and {} parents were named",
                             coeffs.len(),
@@ -308,7 +308,7 @@ impl MechanismSource {
             _ => Err(MechanismCompositionRefusal::of(
                 antecedent_core::reason_code!("mechanism_composition_incoherent"),
                 "compose",
-                "mechanism_composition.slot_not_linear_gaussian",
+                antecedent_core::reason_details::mechanism_composition::SLOT_NOT_LINEAR_GAUSSIAN,
                 "only a plain linear-Gaussian slot composes; a basis expansion, discrete, \
                  constant, vacant or pending slot is outside the bounded family",
             )),
@@ -541,7 +541,7 @@ fn build(
         MechanismCompositionRefusal::of(
             antecedent_core::reason_code!("invalid_argument"),
             "compose",
-            "mechanism_composition.numbers_unbound",
+            antecedent_core::reason_details::mechanism_composition::NUMBERS_UNBOUND,
             error.to_string(),
         )
     })?;
@@ -581,6 +581,58 @@ impl StudyBuilder {
     }
 }
 
+/// The first-order (delta-method) Wald interval of a mechanism-composition contrast.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FirstOrderInterval {
+    /// The contrast at the fitted parameters.
+    pub point: f64,
+    /// Square root of the first-order parameter variance `g' Sigma g`.
+    pub standard_error: f64,
+    /// Lower end.
+    pub lower: f64,
+    /// Upper end.
+    pub upper: f64,
+    /// Nominal level.
+    pub level: f64,
+    /// Calibration of this interval: no coverage record measures the first-order
+    /// construction, so it is `not_measured` until one does.
+    pub calibration: antecedent_io_core::contract_section::CalibrationSlotWire,
+}
+
+impl FirstOrderInterval {
+    /// The Wald interval of `point` with first-order `variance` at `level`.
+    ///
+    /// # Errors
+    /// `invalid_argument` for a level outside `(0, 1)` or a variance that is not finite and
+    /// non-negative.
+    pub(super) fn wald(
+        point: f64,
+        variance: f64,
+        level: f64,
+    ) -> Result<Self, MechanismCompositionRefusal> {
+        if !(level > 0.0 && level < 1.0 && variance.is_finite() && variance >= 0.0) {
+            return Err(MechanismCompositionRefusal::of(
+                antecedent_core::reason_code!("invalid_argument"),
+                "uncertainty",
+                antecedent_core::reason_details::mechanism_composition::INTERVAL_INVALID,
+                "the interval needs a level strictly between 0 and 1 and a finite non-negative variance",
+            ));
+        }
+        let standard_error = variance.sqrt();
+        let half = antecedent_stats::special::normal_ppf(0.5 + level / 2.0) * standard_error;
+        Ok(Self {
+            point,
+            standard_error,
+            lower: point - half,
+            upper: point + half,
+            level,
+            calibration: antecedent_io_core::contract_section::CalibrationSlotWire::not_measured(
+                antecedent_io_core::calibration::CONSTRUCTION_NOT_MEASURED,
+            ),
+        })
+    }
+}
+
 impl PreparedMechanismComposition {
     /// The semantically checked plan, in canonical order.
     #[must_use]
@@ -598,6 +650,12 @@ impl PreparedMechanismComposition {
     #[must_use]
     pub fn plan_identity_hex(&self) -> String {
         self.plan.identity_hex()
+    }
+
+    /// Version of the semantic plan identity encoding.
+    #[must_use]
+    pub const fn plan_identity_version(&self) -> u64 {
+        antecedent_contract::mechanism_composition::MECHANISM_PLAN_IDENTITY_VERSION
     }
 
     /// The family the composition executes in.
@@ -630,19 +688,21 @@ impl PreparedMechanismComposition {
             .collect()
     }
 
-    /// An interval for any functional of this composition.
+    /// The equal-tailed first-order interval of a contrast of interventional means:
+    /// `point -/+ z * sqrt(g' Sigma g)` at `level`, with its calibration slot
+    /// (`not_measured` while no record covers the delta-method construction).
     ///
     /// # Errors
-    /// Always `cell_not_licensed` with `mechanism_composition.interval_route_closed`:
-    /// the delta-method variance carries no measured coverage.
-    pub fn interval(&self) -> Result<std::convert::Infallible, MechanismCompositionRefusal> {
-        Err(MechanismCompositionRefusal::of(
-            antecedent_core::reason_code!("cell_not_licensed"),
-            "uncertainty",
-            "mechanism_composition.interval_route_closed",
-            "the first-order parameter-covariance variance has no measured coverage; the point \
-             and the labelled variance are the result",
-        ))
+    /// The refusals of [`Self::mean_contrast_uncertainty`] (an unknown or incomplete
+    /// parameter dependence is `joint_law_required`, never an independence default) and
+    /// `invalid_argument` for a level outside `(0, 1)`.
+    pub fn interval(
+        &self,
+        contrast: &MeanContrast,
+        level: f64,
+    ) -> Result<FirstOrderInterval, MechanismCompositionRefusal> {
+        let uncertainty = self.mean_contrast_uncertainty(contrast)?;
+        FirstOrderInterval::wald(uncertainty.point, uncertainty.variance, level)
     }
 
     /// Variables whose mechanism was fitted in another population or regime and
@@ -658,7 +718,7 @@ impl PreparedMechanismComposition {
             Executable::Finite(_) => Err(MechanismCompositionRefusal::of(
                 antecedent_core::reason_code!("route_not_supported"),
                 "compose",
-                "mechanism_composition.request_unsupported",
+                antecedent_core::reason_details::mechanism_composition::REQUEST_UNSUPPORTED,
                 "a Gaussian query was asked of a finite-table composition",
             )),
         }
@@ -670,7 +730,7 @@ impl PreparedMechanismComposition {
             Executable::Gaussian(_) => Err(MechanismCompositionRefusal::of(
                 antecedent_core::reason_code!("route_not_supported"),
                 "compose",
-                "mechanism_composition.request_unsupported",
+                antecedent_core::reason_details::mechanism_composition::REQUEST_UNSUPPORTED,
                 "a finite-law query was asked of a linear-Gaussian composition",
             )),
         }
@@ -703,7 +763,7 @@ impl PreparedMechanismComposition {
 
     /// The first-order delta-method variance of a contrast of interventional
     /// means from the declared parameter law, with the gradient and how the
-    /// dependence between mechanisms was licensed.
+    /// dependence between mechanisms was supported.
     ///
     /// # Errors
     /// `joint_law_required` when the dependence between more than one
@@ -797,7 +857,7 @@ impl PreparedMechanismComposition {
                 return Err(MechanismCompositionRefusal::of(
                     antecedent_core::reason_code!("quantity_semantics_mismatch"),
                     "compose",
-                    "mechanism_composition.identity_declaration_unknown_variable",
+                    antecedent_core::reason_details::mechanism_composition::IDENTITY_DECLARATION_UNKNOWN_VARIABLE,
                     format!("`{}` has no mechanism in this composition", refit.variable_id),
                 ));
             };
@@ -805,7 +865,7 @@ impl PreparedMechanismComposition {
                 return Err(MechanismCompositionRefusal::of(
                     antecedent_core::reason_code!("mechanism_composition_incoherent"),
                     "compose",
-                    "mechanism_composition.family_mixed",
+                    antecedent_core::reason_details::mechanism_composition::FAMILY_MIXED,
                     format!("the refit of `{}` changes its mechanism family", refit.variable_id),
                 ));
             }
@@ -828,7 +888,7 @@ impl PreparedMechanismComposition {
                         ExternalRefusal::new(
                             antecedent_core::reason_code!("joint_law_required"),
                             "compose",
-                            "mechanism_composition.posterior_dependence_unknown",
+                            antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_UNKNOWN,
                         )
                         .with_offending("composition")
                         .with_expected("a dependence law for the refitted estimates")
@@ -963,7 +1023,7 @@ pub fn consume_mechanism_composition_artifact(
             ExternalRefusal::new(
                 antecedent_core::reason_code!("invalid_argument"),
                 "consume",
-                "mechanism_composition.artifact_kind_mismatch",
+                antecedent_core::reason_details::mechanism_composition::ARTIFACT_KIND_MISMATCH,
             )
             .with_offending(format!("expected {expected}, supplied {kind}"))
             .with_expected(expected)

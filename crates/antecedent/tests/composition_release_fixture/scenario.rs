@@ -2,7 +2,7 @@
 //!
 //! One uncertain measured exposure (a binary indicator with a declared confusion
 //! model) enters a finite causal model; two study summaries are pooled through
-//! the evidence ledger; the licensed mean of the resulting attributable excess
+//! the evidence ledger; the supported mean of the resulting attributable excess
 //! risk feeds an affine decision through a caller-declared mean source; a claim
 //! graph revalidates what a revision of the evidence touches.
 //!
@@ -11,7 +11,7 @@
 //! it holds no producer object, and its oracle is a closed form written here,
 //! not a library call.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(dead_code, reason = "two test binaries share this module and each uses a subset")]
 #![allow(clippy::too_many_lines, reason = "scenario builders list declarations in order")]
@@ -53,7 +53,7 @@ use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy, UtilityExpr,
 };
 use antecedent_design::decision_eval::{
-    DecisionResult, MeanSource, Verdict, evaluate_contract_on_means,
+    DecisionResult, MeanEstimate, MeanSource, Verdict, evaluate_contract_on_means,
 };
 use antecedent_model::compose::{Domain, TabularRow};
 use serde_json::Value;
@@ -458,7 +458,7 @@ pub fn decision_contract(d: &DecisionDeclaration) -> DecisionContract {
     }
 }
 
-/// A mean the caller declares from a licensed mean, bound to the evidence state
+/// A mean the caller declares from a supported mean, bound to the evidence state
 /// (`snapshot`) and to the composition it was computed from (`plan`).
 pub fn mean_source(units: &str, mean: f64, snapshot: &str, plan: &str) -> MeanSource {
     MeanSource {
@@ -468,6 +468,7 @@ pub fn mean_source(units: &str, mean: f64, snapshot: &str, plan: &str) -> MeanSo
         snapshot_id: snapshot.into(),
         causal_contract_id: plan.into(),
         rng_id: "none:mean_grid".into(),
+        estimate: MeanEstimate::Frequentist,
     }
 }
 
@@ -610,7 +611,7 @@ pub fn check_interfaces(
         .map_err(|refusals| {
             // Report the defects in order; the stage is the first one.
             let first = &refusals[0];
-            Refused::of("interface", first.code.to_string(), first.detail.to_string())
+            Refused::of("interface", first.code.to_string(), first.detail.clone())
         })
 }
 
@@ -622,9 +623,7 @@ pub fn interface_pair_details(
     let (components, _) = interface_components(model_identity, options);
     match check_interface_connection(&components[0], "prevalence", &components[1], "prevalence") {
         Ok(_) => Vec::new(),
-        Err(refusals) => {
-            refusals.iter().map(|r| (r.code.to_string(), r.detail.to_string())).collect()
-        }
+        Err(refusals) => refusals.iter().map(|r| (r.code.to_string(), r.detail.clone())).collect(),
     }
 }
 

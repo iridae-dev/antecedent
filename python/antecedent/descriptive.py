@@ -18,8 +18,22 @@ decompose a causal effect.
   transformed points are returned and the covariance is ``None`` with the typed reason in
   ``covariance_unavailable`` (independence is never assumed for arms that share data).
   :func:`raw_reporting_transform` does this for the raw arm means of a sample, whose
-  independent-groups covariance it can form itself. No interval is reported on a transformed
-  scale: ``level=...`` is refused with ``cell_not_licensed``.
+  independent-groups covariance it can form itself. ``level=...`` adds the equal-tailed delta-method Wald interval of each
+  scale when the pair carries a covariance, with its calibration slot.
+
+* :class:`Association` is the compiled noncausal route: an outcome against predictors, stated as a
+  query to :func:`antecedent.analyze`. A declared selection rule picks a stratified mean or
+  probability, linear, logistic or Poisson regression, a Pearson or distance correlation, or a
+  predictive model scored on held-out folds, from the outcome scale and the functional. The
+  answer (``result.answer.kind == "associational"``, ``result.association``) describes the
+  observed law: identification is not claimed, it is never the effect of an intervention, it ranks
+  no action. ``result.association.supported`` is ``True`` only for the configurations the
+  graphless support table lists (family ``association``): the slope of a linear regression of a
+  real outcome on one numeric predictor; every other uncertainty it reports is unsupported.
+  Rows are independent units (``temporal=False``) or the consecutive points of one series
+  (``temporal=True``, resampled in circular blocks under the declared dependent-series design).
+  After a causal query was refused, ``refused_after=`` keeps the refusal's reason code beside the
+  description; the description answers none of what the refusal declined to claim.
 
 ``DescriptiveComparison.export()`` writes a JSON artifact carrying the arm sufficient
 statistics and a digest; :func:`replay_descriptive_comparison` recomputes the raw contrast, its
@@ -31,24 +45,39 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, NoReturn
 
+from antecedent import _reason_details
+
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._digest import canonical_digest
-from ._native import CancellationToken
 from ._native import attribute_gap_to_columns as _attribute_gap_to_columns
 from ._native import raw_vs_adjusted as _raw_vs_adjusted
 from ._native import transform_mean_pair as _transform_mean_pair
 from ._native import transform_raw_arms as _transform_raw_arms
 from ._scientific import ScientificResult
-from .errors import CausalSerializationError, CausalTypeError
+from .errors import CausalSerializationError, CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
 
 __all__ = [
     "ArmSummary",
+    "Association",
+    "AssociationEstimate",
+    "AssociationPosterior",
+    "AssociationPrediction",
+    "AssociationResampling",
+    "AssociationTerm",
     "DescriptiveComparison",
     "ReportingTransform",
     "attribute_gap_to_columns",
@@ -63,10 +92,13 @@ _SCALES = ("mean_difference", "risk_difference", "log_risk_ratio", "log_odds_rat
 _INTERPRETATION = "descriptive_not_causal_decomposition"
 
 # (registered reason code, detail) of the typed absences carried as data.
-_GAP_INTERVAL_UNAVAILABLE = ("cell_not_licensed", "descriptive_comparison.gap_interval_unavailable")
+_GAP_INTERVAL_UNAVAILABLE = (
+    "route_not_supported",
+    _reason_details.descriptive_comparison.GAP_INTERVAL_UNAVAILABLE,
+)
 _JOINT_COVARIANCE_UNAVAILABLE = (
     "required_option_missing",
-    "descriptive_comparison.joint_covariance_unavailable",
+    _reason_details.descriptive_comparison.JOINT_COVARIANCE_UNAVAILABLE,
 )
 
 
@@ -127,7 +159,13 @@ class DescriptiveComparison(ScientificResult):
         )
 
     def to_dict(self) -> dict[str, Any]:
-        """JSON-safe form (the export body without its digest)."""
+        """JSON-safe read form of the comparison.
+
+        It is a summary, not the exported artifact: the groups are nested ``{n, mean}``
+        objects, ``gap_interval_unavailable`` is included as ``[reason_code, detail]``, and the
+        artifact's ``format``, ``digest`` and group ``sum_squares`` are omitted. Only the
+        export body is digest-covered and replayable.
+        """
         return {
             "scale": self.scale,
             "claim": self.claim,
@@ -151,15 +189,13 @@ class DescriptiveComparison(ScientificResult):
     @property
     def identity(self) -> str:
         """Content identity retained independently for artifact consumption."""
-        return str(json.loads(self.export())["digest"])
+        return str(json.loads(self._export_bytes())["digest"])
 
-    def artifact(self) -> ExportedArtifact[DescriptiveComparison]:
-        """Typed bytes envelope for shared scientific consumption."""
-        from ._artifact_protocol import exported_artifact
+    @artifact_export
+    def export(self) -> ExportedArtifact[DescriptiveComparison]:
+        return artifact_from_receipt(self, self._export_bytes())
 
-        return exported_artifact(self)
-
-    def export(self) -> bytes:
+    def _export_bytes(self) -> bytes:
         """A self-describing JSON artifact that :func:`replay_descriptive_comparison` re-derives."""
         body: dict[str, Any] = {
             "format": _FORMAT,
@@ -179,7 +215,12 @@ class DescriptiveComparison(ScientificResult):
 
 @dataclass(frozen=True, slots=True)
 class ReportingTransform:
-    """A mean pair on declared scales; ``claim`` is ``point_only`` and no interval exists.
+    """A mean pair on declared scales; ``claim`` is ``point_only``.
+
+    When a ``level`` was requested and the pair carries a covariance, ``intervals[i]`` is the
+    equal-tailed delta-method Wald interval of ``scales[i]`` on its declared scale (``None``
+    without a covariance), and ``interval_calibration`` is the calibration slot that annotates
+    it (never a gate).
 
     ``values[i]`` and ``gradients[i]`` (the row of the Jacobian with respect to the active
     and control means) belong to ``scales[i]``. ``covariance`` is the first-order delta-method
@@ -193,6 +234,8 @@ class ReportingTransform:
     gradients: tuple[tuple[float, float], ...]
     covariance: tuple[tuple[float, ...], ...] | None
     covariance_unavailable: tuple[str, str] | None
+    intervals: tuple[tuple[float, float] | None, ...] = ()
+    interval_calibration: Mapping[str, Any] | None = None
     claim: Literal["point_only"] = "point_only"
 
     def explain(self) -> str:
@@ -203,7 +246,7 @@ class ReportingTransform:
             tail = f"No covariance is available ({reason}); independence is never assumed."
         else:
             tail = "First-order delta-method covariance is available."
-        return f"Reporting transform of a mean pair: {pairs}. Point only, no interval. {tail}"
+        return f"Reporting transform of a mean pair: {pairs}. Point estimate. {tail}"
 
     def to_dict(self) -> dict[str, Any]:
         """JSON-safe form of this transform."""
@@ -215,6 +258,10 @@ class ReportingTransform:
             "covariance_unavailable": None
             if self.covariance_unavailable is None
             else list(self.covariance_unavailable),
+            "intervals": [None if i is None else list(i) for i in self.intervals],
+            "interval_calibration": None
+            if self.interval_calibration is None
+            else dict(self.interval_calibration),
             "claim": self.claim,
         }
 
@@ -250,15 +297,16 @@ def raw_vs_adjusted(
     active: float = 1.0,
     control: float = 0.0,
     population: str = "all_observed",
-    cancel: CancellationToken | None = None,
+    execution: Execution | None = None,
 ) -> DescriptiveComparison:
     """Set the unadjusted contrast beside an adjusted estimate of the same estimand coding.
 
     ``treatment`` is coded exactly 0/1. The adjusted estimate must be a difference of means
     (``adjusted_scale="mean_difference"``) at ``active=1`` versus ``control=0`` on the
     ``population="all_observed"``; any other coding is refused rather than compared. A cancelled
-    ``cancel`` token stops the pass over the rows with ``cancelled_no_claim`` and no comparison.
+    ``Execution(cancel=...)`` token stops the pass over the rows with ``cancelled_no_claim`` and no comparison.
     """
+    execution = resolve_execution(execution)
     (n1, mean1, m2_1), (n0, mean0, m2_0), difference, se, gap = _raw_vs_adjusted(
         _floats("outcome", outcome),
         _floats("treatment", treatment),
@@ -268,7 +316,7 @@ def raw_vs_adjusted(
         active=float(active),
         control=float(control),
         all_observed=population == "all_observed",
-        cancel=cancel,
+        cancel=execution.cancel,
     )
     return DescriptiveComparison(
         active=ArmSummary(n=n1, mean=mean1, sum_squares=m2_1),
@@ -302,10 +350,16 @@ def _scales(scales: Sequence[str]) -> list[str]:
 
 def _transform(
     scales: list[str],
-    raw: tuple[list[float], list[tuple[float, float]], list[float] | None],
+    raw: tuple[
+        list[float],
+        list[tuple[float, float]],
+        list[float] | None,
+        list[tuple[float, float] | None],
+        str | None,
+    ],
     unavailable: tuple[str, str] | None,
 ) -> ReportingTransform:
-    values, gradients, covariance = raw
+    values, gradients, covariance, intervals, slot = raw
     k = len(values)
     rows = (
         None
@@ -318,6 +372,8 @@ def _transform(
         gradients=tuple((g[0], g[1]) for g in gradients),
         covariance=rows,
         covariance_unavailable=unavailable if rows is None else None,
+        intervals=tuple(None if i is None else (i[0], i[1]) for i in intervals),
+        interval_calibration=None if slot is None else json.loads(slot),
     )
 
 
@@ -346,8 +402,9 @@ def transform_mean_pair(
     """Put a pair of arm means on declared scales, with the delta-method covariance if carried.
 
     ``covariance`` is the ``2 x 2`` joint covariance of ``(mean_active, mean_control)`` exactly
-    as the source estimate published it; ``None`` is not read as independence. ``level`` exists
-    only so that asking for an interval is a typed refusal (``cell_not_licensed``).
+    as the source estimate published it; ``None`` is not read as independence. ``level`` asks for
+    the delta-method Wald interval of each scale (``intervals``) with its calibration slot; it
+    needs a covariance.
 
     ``risk_difference`` needs both means in ``[0, 1]``, ``log_risk_ratio`` both means positive and
     ``log_odds_ratio`` both inside ``(0, 1)``; outside that the call is refused.
@@ -358,7 +415,7 @@ def transform_mean_pair(
         float(mean_control),
         names,
         covariance=_covariance_triple(covariance),
-        interval=level is not None,
+        level=None if level is None else float(level),
     )
     return _transform(names, raw, _JOINT_COVARIANCE_UNAVAILABLE)
 
@@ -369,7 +426,7 @@ def raw_reporting_transform(
     treatment: Iterable[Any],
     scales: Sequence[str] = _SCALES[1:],
     level: float | None = None,
-    cancel: CancellationToken | None = None,
+    execution: Execution | None = None,
 ) -> ReportingTransform:
     """Put the raw arm means of a 0/1-treatment sample on declared scales.
 
@@ -377,15 +434,18 @@ def raw_reporting_transform(
     covariance is ``diag(s1^2/n1, s0^2/n0)``; an arm of fewer than two rows has no sample
     variance and the covariance is then unavailable. Descriptive, like the raw contrast.
     """
+    execution = resolve_execution(execution)
     names = _scales(scales)
     _, _, raw = _transform_raw_arms(
         _floats("outcome", outcome),
         _floats("treatment", treatment),
         names,
-        interval=level is not None,
-        cancel=cancel,
+        level=None if level is None else float(level),
+        cancel=execution.cancel,
     )
-    return _transform(names, raw, ("invalid_argument", "descriptive_comparison.arm_too_small"))
+    return _transform(
+        names, raw, ("invalid_argument", _reason_details.descriptive_comparison.ARM_TOO_SMALL)
+    )
 
 
 def _bad(why: str) -> CausalSerializationError:
@@ -407,6 +467,10 @@ def _arm_stats(name: str, value: object) -> ArmSummary:
     return ArmSummary(n=value[0], mean=float(value[1]), sum_squares=float(value[2]))
 
 
+@artifact_consumer(
+    proof="descriptive.replay_descriptive_comparison: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def replay_descriptive_comparison(
     artifact: bytes | str, *, expected_identity: str | None = None
 ) -> DescriptiveComparison:
@@ -417,6 +481,11 @@ def replay_descriptive_comparison(
     with the stored values. A tampered, unknown-format, non-reproducing or differently-claimed
     artifact is refused with :class:`~antecedent.errors.CausalSerializationError`.
     """
+    artifact = (
+        container_bytes(artifact)
+        if isinstance(artifact, (bytes, bytearray, memoryview, ExportedArtifact))
+        else artifact
+    )
     try:
         body = json.loads(artifact)
     except (TypeError, ValueError) as error:
@@ -475,4 +544,375 @@ def replay_descriptive_comparison(
         adjusted_estimate=float(adjusted),
         adjusted_standard_error=None if adjusted_se is None else float(adjusted_se),
         gap=difference - float(adjusted),
+    )
+
+
+# --- the compiled associational route ---------------------------------------------------------
+
+_ASSOCIATION_FUNCTIONALS = (
+    "auto",
+    "conditional",
+    "coefficients",
+    "pearson_correlation",
+    "distance_correlation",
+    "predictive",
+    "exceedance",
+)
+_ASSOCIATION_SCALES = ("schema", "continuous", "binary", "count")
+
+
+def _names(value: str | Iterable[str], what: str) -> tuple[str, ...]:
+    names = (value,) if isinstance(value, str) else tuple(value)
+    if any(not isinstance(name, str) or not name.strip() for name in names):
+        raise CausalValueError(f"declare non-empty {what} names")
+    return names
+
+
+@dataclass(frozen=True, slots=True)
+class Association:
+    """A noncausal association of an outcome with predictors in the observed data.
+
+    ``outcome`` and ``predictors`` name table columns (or the columns of one series when
+    ``temporal=True``); ``conditioning`` names columns held fixed arithmetically (adjusted for in
+    a regression, crossed into the strata of a conditional law). ``functional`` is ``"auto"`` (the
+    declared selection rule picks from the outcome scale and the predictor scales),
+    ``"conditional"`` (the mean of a real or count outcome, or the probability of a 0/1 outcome,
+    in each stratum), ``"coefficients"`` (linear, logistic or Poisson regression by the outcome
+    scale), ``"pearson_correlation"`` or ``"distance_correlation"`` (one predictor, nothing held
+    fixed), or ``"predictive"`` (a model scored on ``folds`` held-out folds), or
+    ``"exceedance"`` (the probability ``P(outcome > threshold)`` in each stratum, the conditional
+    law of the indicator; ``threshold`` is required). ``outcome_scale`` declares the scale the
+    schema does not (``"binary"`` for a 0/1 float column, ``"count"``).
+
+    Under ``Bayesian(prior_from=<Beta prior>)`` a conditional probability of a 0/1 outcome or an
+    exceedance probability gets, in each stratum, the closed-form Beta-Binomial posterior with
+    its credible interval and posterior predictive of one further unit; under
+    ``Bayesian(prior_from=<Gamma prior>)`` a conditional mean of a ``"count"`` outcome gets the
+    Gamma-Poisson posterior of the rate per unit. A prior composed from sources
+    (:func:`~antecedent.priors.compose_count_priors`) or at a power-prior discount selected from
+    the data (:func:`~antecedent.priors.select_alpha_prior_beta_binomial`) is used the same way.
+    These cell posteriors take unweighted independent rows.
+
+    The answer describes the observed law: ``result.answer.kind == "associational"``, identification
+    is not claimed, and it is never the effect of an intervention or a ranking of actions. Pass
+    ``refused_after=`` the reason code (or the error) of a refused causal query to keep the
+    refusal beside the description. The result states ``supported`` only when the fit met a row
+    of the graphless support table (the slope of a linear regression of a real outcome on one
+    numeric predictor, unweighted, at 100 rows or steps or more); otherwise it is unsupported.
+    """
+
+    outcome: str
+    predictors: tuple[str, ...] = ()
+    conditioning: tuple[str, ...] = ()
+    functional: Literal[
+        "auto",
+        "conditional",
+        "coefficients",
+        "pearson_correlation",
+        "distance_correlation",
+        "predictive",
+        "exceedance",
+    ] = "auto"
+    folds: int = 5
+    threshold: float | None = None
+    outcome_scale: Literal["schema", "continuous", "binary", "count"] = "schema"
+    weight: str | None = None
+    temporal: bool = False
+    refused_after: str | None = None
+    kind: Literal["association"] = field(default="association", init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.outcome, str) or not self.outcome.strip():
+            raise CausalValueError("declare a non-empty outcome name")
+        predictors = _names(self.predictors, "predictor")
+        conditioning = _names(self.conditioning, "conditioning")
+        object.__setattr__(self, "predictors", predictors)
+        object.__setattr__(self, "conditioning", conditioning)
+        columns = [self.outcome, *predictors, *conditioning]
+        if self.weight is not None:
+            columns.append(self.weight)
+        if len(set(columns)) != len(columns):
+            raise CausalValueError(
+                "outcome, predictors, conditioning and weight must be distinct columns"
+            )
+        if self.functional not in _ASSOCIATION_FUNCTIONALS:
+            raise CausalValueError(
+                f"unknown association functional {self.functional!r}; use one of "
+                f"{', '.join(_ASSOCIATION_FUNCTIONALS)}"
+            )
+        if self.outcome_scale not in _ASSOCIATION_SCALES:
+            raise CausalValueError(
+                f"unknown outcome scale {self.outcome_scale!r}; use one of "
+                f"{', '.join(_ASSOCIATION_SCALES)}"
+            )
+        if self.functional in ("coefficients", "predictive") and not predictors:
+            raise CausalValueError(f"{self.functional} needs at least one predictor")
+        if self.functional in ("pearson_correlation", "distance_correlation") and (
+            len(predictors) != 1 or conditioning
+        ):
+            raise CausalValueError(
+                "a correlation relates the outcome to exactly one predictor and holds nothing "
+                "fixed; use functional='coefficients' to adjust for conditioning columns"
+            )
+        if self.functional == "exceedance":
+            if (
+                isinstance(self.threshold, bool)
+                or not isinstance(self.threshold, (int, float))
+                or not math.isfinite(self.threshold)
+            ):
+                raise CausalValueError("exceedance needs a finite threshold of P(outcome > t)")
+            object.__setattr__(self, "threshold", float(self.threshold))
+        elif self.threshold is not None:
+            raise CausalValueError("threshold applies only to the exceedance functional")
+        if self.functional != "predictive" and self.folds != 5:
+            raise CausalValueError("folds applies only to predictive association")
+        if self.functional == "predictive" and not 2 <= self.folds <= 20:
+            raise CausalValueError("a predictive model is scored over 2 to 20 folds")
+        refused = self.refused_after
+        if refused is not None and not isinstance(refused, str):
+            code = getattr(refused, "reason_code", None)
+            if not isinstance(code, str) or not code:
+                raise CausalValueError(
+                    "refused_after is the reason code of the refused causal query, or the error"
+                )
+            object.__setattr__(self, "refused_after", code)
+        if self.refused_after is not None and not 1 <= len(self.refused_after) <= 256:
+            raise CausalValueError("refused_after must be 1 to 256 characters")
+
+
+@dataclass(frozen=True, slots=True)
+class AssociationConjugate:
+    """The closed-form conjugate count posterior of one cell of a Bayesian association.
+
+    ``family`` is ``"beta_binomial"`` (the posterior is ``Beta(posterior_a, posterior_b)`` of the
+    cell's proportion, after ``count`` successes in ``exposure`` trials) or ``"gamma_poisson"`` (the
+    posterior is ``Gamma(shape=posterior_a, rate=posterior_b)`` of the rate per unit of exposure,
+    after total count ``count`` over total ``exposure``). ``prior_a`` / ``prior_b`` are the prior
+    in the same order. ``predictive_mean`` / ``predictive_variance`` are those of one further
+    unit of the cell (a success indicator, or a count over one unit of exposure).
+    """
+
+    family: str
+    prior_a: float
+    prior_b: float
+    posterior_a: float
+    posterior_b: float
+    count: int
+    exposure: float
+    log_marginal_likelihood: float
+    predictive_mean: float
+    predictive_variance: float
+
+
+@dataclass(frozen=True, slots=True)
+class AssociationTerm:
+    """One reported quantity: a stratum value, a coefficient, a correlation.
+
+    ``standard_error`` is the construction named by ``standard_error_method``;
+    ``spread_lower`` / ``spread_upper`` are the resampling spread (the studentized interval of a
+    regression coefficient under a row bootstrap, the percentile range of the replicates
+    otherwise, widened for the block length of a series) and the ``posterior_*`` fields the
+    summary of a posterior. None is a coverage claim.
+    """
+
+    label: str
+    scale: str
+    estimate: float
+    rows: int
+    standard_error: float | None = None
+    standard_error_method: str | None = None
+    spread_lower: float | None = None
+    spread_upper: float | None = None
+    posterior_mean: float | None = None
+    posterior_sd: float | None = None
+    posterior_lower: float | None = None
+    posterior_upper: float | None = None
+    conjugate: AssociationConjugate | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AssociationResampling:
+    """Resampling behind the standard errors and spreads of a frequentist association."""
+
+    method: str
+    unit: str
+    replicates_requested: int
+    replicates_ok: int
+    spread_level: float
+    block_length: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AssociationPosterior:
+    """Posterior behind the summaries of a Bayesian association."""
+
+    method: str
+    draws: int
+    level: float
+
+
+@dataclass(frozen=True, slots=True)
+class AssociationPrediction:
+    """Held-out proper scores of a predictive model beside the training-mean baseline."""
+
+    folds: int
+    fold_design: str
+    cases: int
+    score: str
+    mean_score: float
+    baseline_score: float
+    calibration: str = "not_measured"
+    mean_crps: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AssociationEstimate:
+    """A noncausal association and the evidence behind it.
+
+    ``supported`` is ``True`` when the fit met a row of the graphless support table (family
+    ``association``); the claim then covers the slope term only.
+
+    ``analysis`` is what the declared selection rule (``rule``) picked for the ``outcome_kind``
+    and ``modality``; ``requested`` is the functional the query asked for. The result is never an
+    intervention effect (``is_intervention_effect`` is ``False``) and ranks no action
+    (``ranks_actions`` is ``False``); ``assumptions`` states what the description rests on.
+    """
+
+    analysis: str
+    rule: str
+    requested: str
+    outcome_kind: str
+    modality: str
+    terms: tuple[AssociationTerm, ...]
+    rows: int
+    rows_dropped: int
+    assumptions: tuple[str, ...]
+    uncertainty: str
+    resampling: AssociationResampling | None = None
+    posterior: AssociationPosterior | None = None
+    prediction: AssociationPrediction | None = None
+    refused_after: str | None = None
+    calibration: str = "not_measured"
+    supported: bool = False
+    ranks_actions: bool = False
+    is_intervention_effect: bool = False
+
+
+def _conjugate_of(cell: Any) -> AssociationConjugate | None:
+    if cell is None:
+        return None
+    return AssociationConjugate(
+        family=cell.family,
+        prior_a=cell.prior[0],
+        prior_b=cell.prior[1],
+        posterior_a=cell.posterior[0],
+        posterior_b=cell.posterior[1],
+        count=cell.count,
+        exposure=cell.exposure,
+        log_marginal_likelihood=cell.log_marginal_likelihood,
+        predictive_mean=cell.predictive_mean,
+        predictive_variance=cell.predictive_variance,
+    )
+
+
+def association_from_raw(raw: Any) -> AssociationEstimate | None:
+    """The :class:`AssociationEstimate` of a native result, or ``None`` for another route."""
+    section = getattr(raw, "association", None)
+    if section is None:
+        return None
+    resampling = section.resampling
+    posterior = section.posterior
+    prediction = section.prediction
+    return AssociationEstimate(
+        analysis=section.analysis,
+        rule=section.rule,
+        requested=section.requested,
+        outcome_kind=section.outcome_kind,
+        modality=section.modality,
+        terms=tuple(
+            AssociationTerm(
+                label=term.label,
+                scale=term.scale,
+                estimate=term.estimate,
+                rows=term.rows,
+                standard_error=term.standard_error,
+                standard_error_method=term.standard_error_method,
+                spread_lower=term.spread_lower,
+                spread_upper=term.spread_upper,
+                posterior_mean=term.posterior_mean,
+                posterior_sd=term.posterior_sd,
+                posterior_lower=term.posterior_lower,
+                posterior_upper=term.posterior_upper,
+                conjugate=_conjugate_of(term.conjugate),
+            )
+            for term in section.terms
+        ),
+        rows=section.rows,
+        rows_dropped=section.rows_dropped,
+        assumptions=tuple(section.assumptions),
+        uncertainty=section.uncertainty,
+        resampling=None
+        if resampling is None
+        else AssociationResampling(
+            method=resampling.method,
+            unit=resampling.unit,
+            replicates_requested=resampling.replicates_requested,
+            replicates_ok=resampling.replicates_ok,
+            spread_level=resampling.spread_level,
+            block_length=resampling.block_length,
+        ),
+        posterior=None
+        if posterior is None
+        else AssociationPosterior(
+            method=posterior.method, draws=posterior.draws, level=posterior.level
+        ),
+        prediction=None
+        if prediction is None
+        else AssociationPrediction(
+            folds=prediction.folds,
+            fold_design=prediction.fold_design,
+            cases=prediction.cases,
+            score=prediction.score,
+            mean_score=prediction.mean_score,
+            baseline_score=prediction.baseline_score,
+            calibration=prediction.calibration,
+            mean_crps=prediction.mean_crps,
+        ),
+        refused_after=section.refused_after,
+        calibration=section.calibration,
+        supported=section.supported,
+        ranks_actions=section.ranks_actions,
+        is_intervention_effect=section.is_intervention_effect,
+    )
+
+
+def describe_association(association: AssociationEstimate) -> str:
+    """One sentence stating what an association says, and what it does not."""
+    first = association.terms[0]
+    head = (
+        f"Noncausal {association.analysis.replace('_', ' ')} of the observed data "
+        f"({association.rows} rows, {association.modality.replace('_', ' ')}): "
+        f"{first.label} = {first.estimate:g}"
+    )
+    if len(association.terms) > 1:
+        head += f" and {len(association.terms) - 1} more quantit"
+        head += "ies" if len(association.terms) > 2 else "y"
+    spread = {
+        "posterior": " with a posterior",
+        "resampling_standard_error": " with resampling standard errors",
+        "analytic_standard_error": " with analytic standard errors",
+    }.get(association.uncertainty, " with no uncertainty")
+    follows = (
+        f" It follows a causal query refused with {association.refused_after}."
+        if association.refused_after
+        else ""
+    )
+    return (
+        f"{head}{spread}. Identification is not claimed: this is not the effect of changing any "
+        f"variable and ranks no action.{follows} "
+        + (
+            "Supported for the slope's uncertainty (graphless row of family association)."
+            if association.supported
+            else "Unsupported, calibration not_measured."
+        )
     )

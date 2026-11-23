@@ -1,0 +1,21 @@
+# Prepare isolated upstream tooling only; never used by the product or ordinary CI.
+# SPDX-License-Identifier: MIT OR Apache-2.0
+file_arg <- grep("^--file=", commandArgs(), value=TRUE)
+here <- dirname(normalizePath(sub("^--file=", "", file_arg[[1]])))
+root <- normalizePath(file.path(here, "../../.."))
+library_path <- Sys.getenv("ANTECEDENT_R_ORACLE_LIBRARY", file.path(root, "target/reference-environments/r-oracles/library"))
+project <- dirname(library_path)
+bootstrap <- file.path(project, "bootstrap")
+dir.create(bootstrap, recursive=TRUE, showWarnings=FALSE)
+Sys.setenv(RENV_PATHS_ROOT=Sys.getenv("RENV_PATHS_ROOT", file.path(project, "renv-root")), RENV_PATHS_CACHE=Sys.getenv("RENV_PATHS_CACHE", file.path(project, "cache")))
+stopifnot(as.character(getRversion()) == "4.6.1")
+tarball <- file.path(project, "renv_1.3.1.tar.gz")
+if (!file.exists(tarball)) download.file("https://cloud.r-project.org/src/contrib/renv_1.3.1.tar.gz", tarball, quiet=TRUE)
+# Published CRAN source-archive identity retained at environment preparation.
+stopifnot(unname(tools::md5sum(tarball)) == "e50cf391271f5864c528b1953aad3d84")
+if (!file.exists(file.path(bootstrap, "renv"))) install.packages(tarball, lib=bootstrap, repos=NULL, type="source", quiet=TRUE)
+.libPaths(c(bootstrap, .Library), include.site=FALSE)
+stopifnot(as.character(packageVersion("renv")) == "1.3.1")
+dir.create(library_path, recursive=TRUE, showWarnings=FALSE)
+renv::restore(project=project, lockfile=file.path(here, "renv.lock"), library=library_path, prompt=FALSE, clean=TRUE)
+cat("Pinned isolated R reference library restored:", normalizePath(library_path), "\n")

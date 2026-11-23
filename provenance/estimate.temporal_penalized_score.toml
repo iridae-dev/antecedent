@@ -1,0 +1,60 @@
+feature_id = "estimate.temporal_penalized_score"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-estimate/src/temporal_penalized_score.rs"]
+
+papers = [
+ { title = "Ridge Regression: Biased Estimation for Nonorthogonal Problems (Hoerl and Kennard, Technometrics 12:55-67)", sections = ["the ridge estimator"] },
+ { title = "Pattern Recognition and Machine Learning (Bishop, 2006)", sections = ["Section 4.4: the Laplace approximation", "Section 4.5: Bayesian logistic regression"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent-estimate/src/temporal_penalized_score.rs. It states: The frequentist object maximises the Bernoulli log likelihood minus (penalty / 2) times the squared Euclidean norm of the slopes, on the column scale as supplied (slopes are not standardized).",
+  "This is the deliberate ridge fit, not a separation rescue and not the standardized penalty inside cross-fitted AIPW.",
+  "A prior standard deviation is not a penalty, and that posterior mean is not the penalized mode.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/tests/temporal_treatment_score_product.rs",
+ "crates/antecedent-estimate/tests/temporal_propensity_reference.rs (40-digit ridge logistic mode and score on a mixed-scale design, Laplace mode and covariance, exact Gaussian posterior-mean score)",
+ "crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs (subject-level influence-function sandwich standard errors and Wald interval of the ridge mode against a two-parameter Newton solve and explicit 2x2 algebra; a dependent series refused)",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "FrequentistTemporalPropensity::fit and BayesianTemporalPropensity::fit of crates/antecedent-estimate/src/temporal_penalized_score.rs for a logistic propensity of treatment on an intercept and lag columns: the ridge mode that maximises the Bernoulli log likelihood minus (penalty / 2) times the squared slopes on the supplied column scale with the intercept unpenalised, the score sigmoid(b'x) at that mode, the Laplace posterior under independent Gaussian priors with separate intercept and slope scales (mode, observed-information covariance, draws), and the posterior-mean score over the draws. Not the standardised penalty inside cross-fitted AIPW, the underlying ridge and Laplace solvers beyond their agreement with the references, the dependent-series refusal, or coverage."
+assumptions = ["Rows are independent subjects at one decision time each; the penalty acts on the columns as supplied, so it depends on their scale.", "A prior standard deviation is not a penalty: the Bayesian score is the posterior mean of the propensity over a Gaussian approximation, not the penalised mode.", "The Laplace posterior is a Gaussian approximation at the log-posterior mode with the observed information."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with a 40-digit multiprecision penalised-Newton and Laplace reference written for this review (temporal_propensity_reference.py); no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath, where used, only produces the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "One 220-row design with an intercept and two lag columns on different scales (standard normal and about N(5, 3^2)); penalties 0.5, 8 and 400 and prior scale pairs (5, 2), (0.5, 0.5) and (1, 0.1). Ridge coefficients agree to a relative 1e-7 and scores to 1e-8; the Laplace mode agrees to 1e-6, the sample covariance of 60,000 draws within five Monte Carlo standard errors per entry, and the posterior-mean score within the Monte Carlo bound. Not exercised: separated data, more than two lag columns, very large penalties beyond 400, and any coverage. The cited publications were not retrieved."
+sources = ["https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No numerical defect was found: the intercept is unpenalised and the slopes are penalised on the supplied scale, the Laplace covariance uses the prior precisions 1/sd^2 per coordinate, and the posterior-mean score agrees with the exact Gaussian expectation of the sigmoid.", "The ridge convention (penalty / 2 times the squared slopes, not scaled by the row count) is fixed by the reference and agrees with the module documentation."]
+record_sha256 = "90cb935103300686274124f8047e848bef71333000a55ccaa459c0d935906e8e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/temporal_penalized_score.rs"
+items = ["enum TrajectoryDependence", "fn as_ref", "fn at", "fn at_mode", "fn binary_outcomes", "fn column_is_ones", "fn finite_column", "fn fit", "fn fit_borrowed", "fn linear_predictor", "fn new", "fn positive_finite", "fn refuse_series", "fn shape", "fn try_new", "struct BayesianTemporalPropensity", "struct FrequentistTemporalPropensity", "struct PenalizedPropensityScore", "struct TemporalPropensityDesign", "struct TemporalPropensityDesignRef"]
+sha256 = "e63e86243f5a6233fdc4d86d6b09406bb5078c2b3d6f20402be7be689e163c37"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/temporal_propensity_reference.rs"
+items = ["fn close", "fn design", "fn fixture", "fn floats", "fn histories", "fn laplace_mode_covariance_and_posterior_mean_score_match_the_gaussian_integral", "fn ridge_mode_and_score_match_the_multiprecision_penalised_fit", "fn texts"]
+sha256 = "fb0a463b30588e61cb61ef2f82c9bc86b127f29168d65df9bebce4d93dd5d3e7"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/temporal_propensity_reference.py"
+sha256 = "eaaa2a6b67abeb044a9b34e6c4f160458afd00b240366678308b539a14353cbc"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/temporal_propensity_reference.json"
+sha256 = "d50941116c9d8e280dbfc0b2888ceb94440a9038ed1d19a64ee51098ba8e234c"

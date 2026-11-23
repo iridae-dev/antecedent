@@ -46,9 +46,7 @@
 //! are the adjustment search and the completion enumeration, which report an exhausted
 //! budget as a bounded-search diagnostic on an `Ok` result, not as an error.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
-
-use std::sync::Arc;
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity,
@@ -60,11 +58,14 @@ use crate::envelope::IdentificationEnvelope;
 use crate::error::IdentificationError;
 use crate::generalized::{
     AdjustmentBudget, GeneralizedAdjustmentIdentifier, MagTarget, identify_on_mag_completion,
-    identify_on_mag_completion_mean, invisible_directed_edges, mag_dense_to_var,
+    identify_on_mag_completion_response, invisible_directed_edges, mag_dense_to_var,
     mag_to_confounded_admg, pag_var_to_dense,
 };
 use crate::id::IdIdentifier;
 use crate::identifier::IdentificationWorkspace;
+use crate::response_intervention::{
+    RESPONSE_POLICY_NEEDS_ADJUSTMENT, ResponseIntervention, express_on_result,
+};
 use crate::result::IdentificationResult;
 
 /// Diagnostic code on a MAG completion that neither generalized adjustment nor
@@ -88,20 +89,27 @@ pub(crate) fn response_ate_witness(
     Ok(AverageEffectQuery::binary_ate(treatment, outcome))
 }
 
-/// Requested Set level for a single-treatment `InterventionResponse`.
-pub(crate) fn intervention_response_set(
+/// The declared intervention of a single-treatment `InterventionResponse`, classified: its
+/// treatment, outcome and what it asks for (a hard level, or a declared Shift / stochastic
+/// policy). `None` for any other functional.
+///
+/// # Errors
+///
+/// An intervention identification cannot state (see [`crate::response_intervention`]).
+pub(crate) fn single_response_intervention(
     query: &ResponseQuery,
-) -> Option<(antecedent_core::VariableId, antecedent_core::VariableId, Value)> {
+) -> Result<
+    Option<(antecedent_core::VariableId, antecedent_core::VariableId, ResponseIntervention)>,
+    IdentificationError,
+> {
     match &query.functional {
         antecedent_core::ResponseFunctional::InterventionResponse { outcome, interventions }
             if interventions.len() == 1 =>
         {
-            match &interventions[0] {
-                Intervention::Set { variable, value } => Some((*variable, *outcome, value.clone())),
-                _ => None,
-            }
+            let answered = ResponseIntervention::classify(&interventions[0])?;
+            Ok(interventions[0].primary_variable().map(|variable| (variable, *outcome, answered)))
         }
-        _ => None,
+        _ => Ok(None),
     }
 }
 
@@ -111,18 +119,23 @@ pub(crate) fn identify_mag_response(
     query: &ResponseQuery,
     max_candidates: usize,
     max_examinations: u64,
+    context: Option<&antecedent_core::ExecutionContext>,
 ) -> Result<IdentificationResult, IdentificationError> {
-    if let Some((t, y, level)) = intervention_response_set(query) {
+    if let Some((t, y, answered)) = single_response_intervention(query)? {
         let t_d = pag_var_to_dense(mag, t)?;
         let y_d = pag_var_to_dense(mag, y)?;
-        let mut result = identify_on_mag_completion_mean(
+        let mut result = identify_on_mag_completion_response(
             mag,
             MagTarget { t, y, t_d, y_d },
-            level,
-            AdjustmentBudget { max_candidates, max_examinations },
+            AdjustmentBudget { max_candidates, max_examinations, context },
             query,
+            |arena, adjustment| answered.backdoor_functional(arena, t, y, adjustment),
         )?;
-        if !is_identified(&result) {
+        if is_identified(&result) {
+            answered.record(t, &mut result.derivation, &mut result.required_assumptions);
+        } else if answered.is_policy() {
+            return Err(IdentificationError::unsupported(RESPONSE_POLICY_NEEDS_ADJUSTMENT));
+        } else {
             result = identify_admg_response(mag, query)?;
         }
         return Ok(result);
@@ -138,7 +151,7 @@ pub(crate) fn identify_mag_response(
         MagTarget { t, y, t_d, y_d },
         active.clone(),
         control.clone(),
-        AdjustmentBudget { max_candidates, max_examinations },
+        AdjustmentBudget { max_candidates, max_examinations, context },
     )?;
     if !is_identified(&result) {
         result = identify_admg_response(mag, query)?;
@@ -277,10 +290,7 @@ pub fn identify_pag_response_general(
     pag: &Pag,
     query: &ResponseQuery,
 ) -> Result<IdentificationEnvelope<Pag>, IdentificationError> {
-    let id = GeneralizedAdjustmentIdentifier::new();
-    id.pag_envelope_with(pag, |mag| {
-        identify_mag_response(mag, query, id.config.max_candidates, id.config.max_examinations)
-    })
+    GeneralizedAdjustmentIdentifier::new().identify_pag_response_general(pag, query)
 }
 
 /// Identify a single-treatment CPDAG response by back-door, then general ID.
@@ -292,26 +302,60 @@ pub fn identify_cpdag_response_general(
     cpdag: &Cpdag,
     query: &ResponseQuery,
 ) -> Result<IdentificationEnvelope<Dag>, IdentificationError> {
-    let witness = response_ate_witness(query)?;
-    let cq = CausalQuery::AverageEffect(witness.clone());
-    let backdoor = crate::BackdoorIdentifier::new();
-    let mut workspace = IdentificationWorkspace::default();
-    let id = GeneralizedAdjustmentIdentifier::new();
-    id.cpdag_envelope_with(cpdag, |dag| {
-        let prepared = backdoor.prepare(dag)?;
-        let mut result = backdoor.identify(&prepared, &cq, &mut workspace)?;
-        if !is_identified(&result) {
-            result = identify_dag_via_id(dag, query)?;
-        } else if let Some((t, y, level)) = intervention_response_set(query) {
-            if let Some(first) = result.estimands.first() {
-                let z = Arc::clone(&first.adjustment_set);
-                let functional = result.arena.backdoor_mean(t, y, &z, level);
-                result.estimands[0].functional = functional;
+    GeneralizedAdjustmentIdentifier::new().identify_cpdag_response_general(cpdag, query)
+}
+
+impl GeneralizedAdjustmentIdentifier {
+    /// Identify under this identifier's configured completion and adjustment context.
+    ///
+    /// # Errors
+    /// Invalid graph/query, caller cancellation or resource exhaustion.
+    pub fn identify_pag_response_general(
+        &self,
+        pag: &Pag,
+        query: &ResponseQuery,
+    ) -> Result<IdentificationEnvelope<Pag>, IdentificationError> {
+        self.pag_envelope_with(pag, |mag| {
+            identify_mag_response(
+                mag,
+                query,
+                self.config.max_candidates,
+                self.config.max_examinations,
+                self.config.context.as_ref(),
+            )
+        })
+    }
+
+    /// Identify under this identifier's configured completion and adjustment context.
+    ///
+    /// # Errors
+    /// Invalid graph/query, caller cancellation or resource exhaustion.
+    pub fn identify_cpdag_response_general(
+        &self,
+        cpdag: &Cpdag,
+        query: &ResponseQuery,
+    ) -> Result<IdentificationEnvelope<Dag>, IdentificationError> {
+        let declared = single_response_intervention(query)?;
+        let witness = response_ate_witness(query)?;
+        let cq = CausalQuery::AverageEffect(witness.clone());
+        let mut backdoor = crate::BackdoorIdentifier::new();
+        backdoor.config.context.clone_from(&self.config.context);
+        let mut workspace = IdentificationWorkspace::default();
+        self.cpdag_envelope_with(cpdag, |dag| {
+            let prepared = backdoor.prepare(dag)?;
+            let mut result = backdoor.identify(&prepared, &cq, &mut workspace)?;
+            if !is_identified(&result) {
+                if declared.as_ref().is_some_and(|(_, _, answered)| answered.is_policy()) {
+                    return Err(IdentificationError::unsupported(RESPONSE_POLICY_NEEDS_ADJUSTMENT));
+                }
+                result = identify_dag_via_id(dag, query)?;
+            } else if let Some((t, y, answered)) = &declared {
+                express_on_result(&mut result, *t, *y, answered)?;
             }
-        }
-        result.query = CausalQuery::Response(query.clone());
-        Ok(result)
-    })
+            result.query = CausalQuery::Response(query.clone());
+            Ok(result)
+        })
+    }
 }
 
 #[cfg(test)]
@@ -338,6 +382,27 @@ mod tests {
         DenseNodeId::from_raw(i)
     }
 
+    #[test]
+    fn cpdag_response_rewrites_each_backdoor_adjustment_functional() {
+        let mut cpdag = Cpdag::with_variables(5);
+        for (a, b) in [(1, 0), (1, 2), (2, 4), (0, 4)] {
+            cpdag.insert_directed(n(a), n(b)).unwrap();
+        }
+        let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: VariableId::from_raw(4),
+            interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
+        });
+        let envelope = identify_cpdag_response_general(&cpdag, &query).unwrap();
+        assert!(!envelope.cases.is_empty());
+        for case in &envelope.cases {
+            assert!(case.result.estimands.len() >= 2);
+            for estimand in &case.result.estimands {
+                let node = case.result.arena.node(estimand.functional);
+                assert!(matches!(node, antecedent_expr::ExprNode::Expectation { .. }), "{node:?}");
+            }
+        }
+    }
+
     fn response() -> ResponseQuery {
         ResponseQuery::new(ResponseFunctional::InterventionResponse {
             outcome: VariableId::from_raw(2),
@@ -357,7 +422,7 @@ mod tests {
         let env = identify_pag_response_general(&pag, &response()).unwrap();
         assert!(env.cases.is_empty());
         assert_eq!(env.status, IdentificationStatus::NotIdentified);
-        assert!(env.identified_weight.0 == 0.0);
+        assert_eq!(env.identified_weight.0, 0.0);
         assert!(
             env.critical_graph_features.iter().any(|f| {
                 f.kind.as_ref() == "pag_completion_validation"
@@ -388,7 +453,7 @@ mod tests {
             },
             Value::f64(1.0),
             Value::f64(0.0),
-            AdjustmentBudget { max_candidates: 16, max_examinations: 1_000_000 },
+            AdjustmentBudget { max_candidates: 16, max_examinations: 1_000_000, context: None },
         )
         .unwrap();
         assert_eq!(adj.status, IdentificationStatus::NotIdentified, "{:?}", adj.derivation);
@@ -433,7 +498,7 @@ mod tests {
         });
         let env = identify_pag_response_general(&mag, &query).unwrap();
         assert_eq!(env.status, IdentificationStatus::NotIdentified, "{:?}", env.cases[0].result);
-        assert!(env.identified_weight.0 == 0.0);
+        assert_eq!(env.identified_weight.0, 0.0);
         assert!(
             env.cases[0]
                 .result

@@ -1,6 +1,6 @@
 //! Owned tabular storage implementing [`TableView`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::{Arc, OnceLock};
 
@@ -23,6 +23,11 @@ pub struct OwnedColumnarStorage {
     /// Memoised on first read. Shared across clones: every clone views the same
     /// immutable columns, mask, and weights, so one computation serves all.
     content_digest: Arc<OnceLock<[u8; 32]>>,
+    /// Lifetime guard: the admission that funded the bytes this table retains, held until
+    /// the last clone of the storage (and of every table derived from it by
+    /// [`Self::derive`]) drops. Not part of the table's value: no identity, digest or
+    /// comparison reads it.
+    retention: Option<Arc<antecedent_core::execution::AdmissionLease>>,
 }
 
 impl OwnedColumnarStorage {
@@ -32,6 +37,7 @@ impl OwnedColumnarStorage {
     ///
     /// Length mismatches, missing schema variables, duplicate columns, or weights that
     /// are not finite and non-negative with positive total over the analysis rows.
+    /// The row count is the column length. It is not capped at `2^32 - 1`.
     pub fn try_new(
         schema: CausalSchema,
         columns: Vec<OwnedColumn>,
@@ -46,15 +52,11 @@ impl OwnedColumnarStorage {
             });
         }
         let row_count = columns.first().map_or(0, OwnedColumn::len);
-        if row_count > u32::MAX as usize {
-            return Err(DataError::InvalidArgument {
-                message: "a dataset may have at most 2^32 - 1 rows".into(),
-            });
-        }
         for (i, col) in columns.iter().enumerate() {
-            let expected_id = VariableId::from_raw(u32::try_from(i).map_err(|_| {
-                DataError::InvalidArgument { message: "schema exceeds VariableId range".into() }
-            })?);
+            let expected_id = VariableId::from_raw(
+                u32::try_from(i)
+                    .map_err(|_| DataError::overflow("schema variable count as VariableId"))?,
+            );
             if col.id() != expected_id {
                 return Err(DataError::UnknownVariable { id: col.id() });
             }
@@ -66,14 +68,14 @@ impl OwnedColumnarStorage {
                 });
             }
         }
-        if let Some(mask) = &analysis_mask {
-            if mask.len() != row_count {
-                return Err(DataError::LengthMismatch {
-                    expected: row_count,
-                    actual: mask.len(),
-                    context: "analysis mask",
-                });
-            }
+        if let Some(mask) = &analysis_mask
+            && mask.len() != row_count
+        {
+            return Err(DataError::LengthMismatch {
+                expected: row_count,
+                actual: mask.len(),
+                context: "analysis mask",
+            });
         }
         if let Some(w) = &weights {
             if w.len() != row_count {
@@ -92,7 +94,56 @@ impl OwnedColumnarStorage {
             analysis_mask,
             weights,
             content_digest: Arc::new(OnceLock::new()),
+            retention: None,
         })
+    }
+
+    /// This table holding `lease` until it, its clones and the tables [`Self::derive`]d from
+    /// it have all dropped, whatever the column types. Attach before publishing the table:
+    /// an alias made earlier does not hold the lease.
+    #[must_use]
+    pub fn with_retention(
+        mut self,
+        lease: Arc<antecedent_core::execution::AdmissionLease>,
+    ) -> Self {
+        self.retention = Some(lease);
+        self
+    }
+
+    /// Whether an admission lease is held for this table's retained bytes.
+    #[must_use]
+    pub const fn is_retained(&self) -> bool {
+        self.retention.is_some()
+    }
+
+    /// A table built from this one's columns, mask or weights (a reweighting, a mask, a
+    /// projection of the same buffers). As [`Self::try_new`], and the result holds this
+    /// table's retention lease, so the bytes stay funded while any derived view shares them.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::try_new`].
+    pub fn derive(
+        &self,
+        schema: CausalSchema,
+        columns: Vec<OwnedColumn>,
+        analysis_mask: Option<crate::column::ValidityBitmap>,
+        weights: Option<Arc<[f64]>>,
+    ) -> Result<Self, DataError> {
+        let mut derived = Self::try_new(schema, columns, analysis_mask, weights)?;
+        derived.retention.clone_from(&self.retention);
+        Ok(derived)
+    }
+
+    /// The same columns, mask and weights under another schema (a rename, a role or a unit
+    /// change). The content digest does not cover the schema, so a source snapshot binds it
+    /// separately.
+    ///
+    /// # Errors
+    ///
+    /// A schema whose variable count is not the column count.
+    pub fn with_schema(&self, schema: CausalSchema) -> Result<Self, DataError> {
+        self.derive(schema, self.columns.to_vec(), self.analysis_mask.clone(), self.weights.clone())
     }
 
     /// Version-1 BLAKE3 digest of typed column contents, validity, mask, and weights.
@@ -117,6 +168,31 @@ impl OwnedColumnarStorage {
                 self.weights.as_deref(),
             )
         })
+    }
+
+    /// Compute or reuse the content identity with the caller's admission and cancellation.
+    ///
+    /// # Errors
+    /// Cancellation while streaming the storage contents.
+    pub fn content_digest_with_context(
+        &self,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<[u8; 32], antecedent_core::execution::AdmissionError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(antecedent_core::execution::AdmissionError::Cancelled);
+        }
+        if let Some(digest) = self.content_digest.get() {
+            return Ok(*digest);
+        }
+        let digest = crate::content_identity::storage_digest_with_context(
+            &self.columns,
+            self.row_count,
+            self.analysis_mask.as_ref(),
+            self.weights.as_deref(),
+            ctx,
+        )?;
+        let _ = self.content_digest.set(digest);
+        Ok(digest)
     }
 
     /// Whether the digest has been computed yet (laziness probe).
@@ -260,5 +336,28 @@ mod tests {
         ));
         // Zero weights on some rows are legitimate (Bayesian-bootstrap draws).
         assert!(build(vec![0.0, 1.0, 3.0], None).is_ok());
+    }
+
+    #[test]
+    fn a_retention_guard_lives_exactly_as_long_as_the_storage_and_its_derivations() {
+        use antecedent_core::ExecutionContext;
+        use antecedent_core::execution::AdmissionPool;
+
+        let pool = AdmissionPool::fixed(1, 64);
+        let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let lease = Arc::new(ctx.acquire_admission(0, 16).unwrap());
+        let storage = build(vec![1.0; 3], None).unwrap().with_retention(lease);
+        assert!(storage.is_retained());
+        assert_eq!(pool.available().bytes(), 48);
+
+        // A rebuild that shares the columns keeps the guard; a plain `try_new` does not.
+        let derived = storage
+            .derive(storage.schema().clone(), storage.columns().to_vec(), None, None)
+            .unwrap();
+        assert!(derived.is_retained());
+        drop(storage);
+        assert_eq!(pool.available().bytes(), 48);
+        drop(derived);
+        assert_eq!(pool.available().bytes(), 64);
     }
 }

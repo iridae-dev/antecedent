@@ -1,8 +1,8 @@
 //! Coverage of the T6 empirical-table outer bootstrap against known binary SCMs.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 
@@ -142,7 +142,7 @@ fn mean_interval(
     ) {
         Ok(estimate) => {
             let ok = estimate.uncertainty.as_ref().map(|row| row.replicates_ok);
-            tally.bind(
+            tally.bind_validation(
                 &construction(),
                 ScopeFacts {
                     row_count: n,
@@ -150,6 +150,7 @@ fn mean_interval(
                     posterior_draws: None,
                     unidentified_mass: 0.0,
                 },
+                "not_applicable",
             );
             let interval = estimate.mean_intervals.as_ref().and_then(|rows| {
                 rows.iter().find(|(var, _, _)| *var == outcome).map(|(_, lo, hi)| (*lo, *hi))

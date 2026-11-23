@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12,<3.13"
+# dependencies = ["numpy==2.1.3"]
+# ///
 """Independent numpy reference for the CPDAG envelope ATE and its joint-IF SE.
 
 Each identified completion is an OLS fit of ``y ~ 1 + t + Z_g`` on the expanded

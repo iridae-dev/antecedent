@@ -3,16 +3,19 @@
 //! The words match the manifests already shipped. `antecedent-io-core` lists
 //! the same words in its uniqueness check.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub(crate) const ADAPTIVE_INFERENCE_RESULT: &str = "adaptive_inference_result_v1";
 pub(crate) const CATEGORICAL_TREATMENT: &str = "categorical_treatment_v1";
+pub(crate) const CHOICE_INFERENCE_RESULT: &str = "choice_inference_result_v1";
 pub(crate) const EFFECT_CONSTANCY: &str = "effect_constancy_v1";
 pub(crate) const LATENT_CLASS_EFFECTS: &str = "latent_class_effects_v1";
 pub(crate) const LEARNED_TRIAL: &str = "learned_trial";
 pub(crate) const MARGINAL_SENSITIVITY_MODEL: &str = "marginal_sensitivity_model";
 pub(crate) const MECHANISM_DISCREPANCY: &str = "mechanism_discrepancy_v1";
 pub(crate) const NONLINEAR_MEDIATION: &str = "nonlinear_mediation_v1";
+pub(crate) const PERIOD_REFRESH_LEDGER: &str = "period_refresh_ledger_v1";
+pub(crate) const PERIOD_REFRESH_SUMMARY: &str = "period_refresh_summary_v1";
 pub(crate) const PREDICTIVE_ASSESSMENT: &str = "predictive_assessment_v1";
 pub(crate) const SAMPLED_COUNTERFACTUAL_TRANSPORT: &str = "sampled_counterfactual_transport_v1";
 pub(crate) const TEMPORAL_DEPENDENT_INTERVAL: &str = "temporal_dependent_interval_internal";
@@ -23,8 +26,9 @@ pub(crate) const VECTOR_TREATMENT: &str = "vector_treatment_v1";
 #[cfg(test)]
 mod tests {
     use super::{
-        ADAPTIVE_INFERENCE_RESULT, CATEGORICAL_TREATMENT, EFFECT_CONSTANCY, LATENT_CLASS_EFFECTS,
-        LEARNED_TRIAL, MARGINAL_SENSITIVITY_MODEL, MECHANISM_DISCREPANCY, NONLINEAR_MEDIATION,
+        ADAPTIVE_INFERENCE_RESULT, CATEGORICAL_TREATMENT, CHOICE_INFERENCE_RESULT,
+        EFFECT_CONSTANCY, LATENT_CLASS_EFFECTS, LEARNED_TRIAL, MARGINAL_SENSITIVITY_MODEL,
+        MECHANISM_DISCREPANCY, NONLINEAR_MEDIATION, PERIOD_REFRESH_LEDGER, PERIOD_REFRESH_SUMMARY,
         PREDICTIVE_ASSESSMENT, SAMPLED_COUNTERFACTUAL_TRANSPORT, TEMPORAL_DEPENDENT_INTERVAL,
         TEMPORAL_INITIAL_STATE, TEMPORAL_NEW_PERIOD_REFRESH, VECTOR_TREATMENT,
     };
@@ -34,12 +38,15 @@ mod tests {
         let mut kinds = vec![
             ADAPTIVE_INFERENCE_RESULT,
             CATEGORICAL_TREATMENT,
+            CHOICE_INFERENCE_RESULT,
             EFFECT_CONSTANCY,
             LATENT_CLASS_EFFECTS,
             LEARNED_TRIAL,
             MARGINAL_SENSITIVITY_MODEL,
             MECHANISM_DISCREPANCY,
             NONLINEAR_MEDIATION,
+            PERIOD_REFRESH_LEDGER,
+            PERIOD_REFRESH_SUMMARY,
             PREDICTIVE_ASSESSMENT,
             SAMPLED_COUNTERFACTUAL_TRANSPORT,
             TEMPORAL_DEPENDENT_INTERVAL,

@@ -24,6 +24,7 @@ use crate::decision_contract::{
 use crate::decision_eval::{DecisionEvalError, DecisionResult, Verdict, evaluate_contract};
 use crate::structure_aggregator::{
     AggregateChoice, AggregateDecision, AggregateFacts, AggregateKind, StructureAggregator,
+    probability_sum, unassigned_probability,
 };
 
 /// What is known about one structure.
@@ -200,7 +201,7 @@ fn validate_atoms(atoms: &[StructuralAtom]) -> Result<bool, StructuralError> {
     if with != atoms.len() {
         return Err(StructuralError::InvalidProbabilities);
     }
-    let total: f64 = atoms.iter().filter_map(|a| a.probability).sum();
+    let total = probability_sum(atoms.iter().filter_map(|a| a.probability));
     if atoms.iter().any(|a| a.probability.is_some_and(|p| !p.is_finite() || p < 0.0))
         || total > 1.0 + 1e-9
     {
@@ -209,43 +210,16 @@ fn validate_atoms(atoms: &[StructuralAtom]) -> Result<bool, StructuralError> {
     Ok(true)
 }
 
-/// Evaluate `contract` over structures and combine under its policy.
-///
-/// # Errors
-/// Refuses an invalid contract, malformed atoms or probabilities, and Bayes
-/// weighting without genuine probabilities.
-#[allow(
-    clippy::too_many_lines,
-    reason = "one contract evaluated in order: bind, score each action under each structure, aggregate"
-)]
-pub fn evaluate_structural(
-    contract: &DecisionContract,
+fn evaluate_structural_atoms(
+    inner: &DecisionContract,
     atoms: &[StructuralAtom],
-) -> Result<StructuralDecisionResult, StructuralError> {
-    let identity = contract.identity().map_err(StructuralError::Contract)?;
-    let has_probabilities = validate_atoms(atoms)?;
-    let aggregator = StructureAggregator::new(contract.criterion, contract.structural_policy);
-    let inner = per_atom_contract(contract);
-    if aggregator.kind() == AggregateKind::Bayes && !has_probabilities {
-        return Err(StructuralError::ProbabilitiesRequired);
-    }
-    if aggregator.kind() == AggregateKind::Bayes
-        && matches!(inner.criterion, DecisionCriterion::Quantile { .. } | DecisionCriterion::Regret)
-    {
-        // Quantiles and suprema of a mixture are not weighted averages of the
-        // component functionals. No mixture-law evaluator is licensed here.
-        return Err(StructuralError::Contract(DecisionContractError::InvalidParameter(
-            "structural_criterion",
-        )));
-    }
-    let sign = aggregator.sign();
-
+) -> Result<Vec<AtomSummary>, StructuralError> {
     let mut summaries = Vec::with_capacity(atoms.len());
     for atom in atoms {
         let status = match &atom.evidence {
             AtomEvidence::Unidentified => AtomStatus::Unidentified,
             AtomEvidence::Unevaluated(reason) => AtomStatus::Unevaluated(reason.clone()),
-            AtomEvidence::Evaluated(source) => match evaluate_contract(&inner, source) {
+            AtomEvidence::Evaluated(source) => match evaluate_contract(inner, source) {
                 Ok(result) => AtomStatus::Evaluated(Box::new(result)),
                 Err(DecisionEvalError::Contract(error)) => {
                     return Err(StructuralError::Contract(error));
@@ -258,22 +232,17 @@ pub fn evaluate_structural(
         summaries.push(AtomSummary { id: atom.id.clone(), probability: atom.probability, status });
     }
 
-    let mass = |wanted: fn(&AtomStatus) -> bool| -> Option<f64> {
-        has_probabilities.then(|| {
-            summaries.iter().filter(|s| wanted(&s.status)).filter_map(|s| s.probability).sum()
-        })
-    };
-    let evaluated_mass = mass(|s| matches!(s, AtomStatus::Evaluated(_)));
-    let unidentified_mass = mass(|s| matches!(s, AtomStatus::Unidentified));
-    let unassigned_mass = if has_probabilities {
-        (1.0 - summaries.iter().filter_map(|s| s.probability).sum::<f64>()).max(0.0)
-    } else {
-        0.0
-    };
-    let unevaluated_mass =
-        mass(|s| matches!(s, AtomStatus::Unevaluated(_))).map(|m| m + unassigned_mass);
+    Ok(summaries)
+}
 
-    let n_actions = contract.actions.len();
+type StructuralLeaders = Vec<(String, Vec<String>)>;
+
+fn collect_structural_actions(
+    contract: &DecisionContract,
+    summaries: &[AtomSummary],
+    has_probabilities: bool,
+    aggregator: StructureAggregator,
+) -> (Vec<ActionStructure>, StructuralLeaders) {
     let mut actions: Vec<ActionStructure> = contract
         .actions
         .iter()
@@ -337,6 +306,63 @@ pub fn evaluate_structural(
             action.weighted_value = (!values.is_empty()).then_some(weighted);
         }
     }
+
+    (actions, leaders)
+}
+
+/// Evaluate `contract` over structures and combine under its policy.
+///
+/// # Errors
+/// Refuses an invalid contract, malformed atoms or probabilities, and Bayes
+/// weighting without genuine probabilities.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one contract evaluated in order: bind, score each action under each structure, aggregate"
+)]
+pub fn evaluate_structural(
+    contract: &DecisionContract,
+    atoms: &[StructuralAtom],
+) -> Result<StructuralDecisionResult, StructuralError> {
+    let identity = contract.identity().map_err(StructuralError::Contract)?;
+    let has_probabilities = validate_atoms(atoms)?;
+    let aggregator = StructureAggregator::new(contract.criterion, contract.structural_policy);
+    let inner = per_atom_contract(contract);
+    if aggregator.kind() == AggregateKind::Bayes && !has_probabilities {
+        return Err(StructuralError::ProbabilitiesRequired);
+    }
+    if aggregator.kind() == AggregateKind::Bayes
+        && matches!(inner.criterion, DecisionCriterion::Quantile { .. } | DecisionCriterion::Regret)
+    {
+        // Quantiles and suprema of a mixture are not weighted averages of the
+        // component functionals. No mixture-law evaluator is supported here.
+        return Err(StructuralError::Contract(DecisionContractError::InvalidParameter(
+            "structural_criterion",
+        )));
+    }
+    let sign = aggregator.sign();
+
+    let summaries = evaluate_structural_atoms(&inner, atoms)?;
+
+    let mass = |wanted: fn(&AtomStatus) -> bool| -> Option<f64> {
+        has_probabilities.then(|| {
+            probability_sum(
+                summaries.iter().filter(|s| wanted(&s.status)).filter_map(|s| s.probability),
+            )
+        })
+    };
+    let evaluated_mass = mass(|s| matches!(s, AtomStatus::Evaluated(_)));
+    let unidentified_mass = mass(|s| matches!(s, AtomStatus::Unidentified));
+    let unassigned_mass = if has_probabilities {
+        unassigned_probability(summaries.iter().filter_map(|s| s.probability))
+    } else {
+        0.0
+    };
+    let unevaluated_mass =
+        mass(|s| matches!(s, AtomStatus::Unevaluated(_))).map(|m| m + unassigned_mass);
+
+    let n_actions = contract.actions.len();
+    let (actions, leaders) =
+        collect_structural_actions(contract, &summaries, has_probabilities, aggregator);
 
     let any_evaluated = summaries.iter().any(|s| matches!(s.status, AtomStatus::Evaluated(_)));
     let all_evaluated = summaries.iter().all(|s| matches!(s.status, AtomStatus::Evaluated(_)));

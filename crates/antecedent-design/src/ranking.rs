@@ -6,11 +6,11 @@
 //! distribution digests, RNG and error, and the cost mapping to a deterministic
 //! canonical order. Its [`RankingRecord::identity`] is invariant to the order the
 //! candidates were supplied in and changes with any altered signal, update, source,
-//! cost mapping, value or order. When no probabilistic model is licensed the structural
+//! cost mapping, value or order. When no probabilistic model is supported the structural
 //! ordering is preserved: verified structural sufficiency first, then lower cost
 //! units, then lower sample budget, then semantic id.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
@@ -171,6 +171,14 @@ pub enum RankingError {
     ContractMismatch,
 }
 
+impl std::fmt::Display for RankingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        crate::evsi::write_refusal(f, &self.to_refusal())
+    }
+}
+
+impl std::error::Error for RankingError {}
+
 impl RankingError {
     /// Structured refusal under the `design_ranking` namespace.
     #[must_use]
@@ -178,26 +186,35 @@ impl RankingError {
         let signal = antecedent_core::reason_code!("design_signal_invalid");
         let at = |code, detail: &str| RefusalBuilder::new(code, "consume", detail);
         match self {
-            Self::Empty => {
-                at(antecedent_core::reason_code!("invalid_argument"), "design_ranking.empty")
+            Self::Empty => at(
+                antecedent_core::reason_code!("invalid_argument"),
+                antecedent_core::reason_details::design_ranking::EMPTY,
+            )
+            .build(),
+            Self::DuplicateCandidate(id) => {
+                at(signal, antecedent_core::reason_details::design_ranking::DUPLICATE_CANDIDATE)
+                    .offending(id.clone())
                     .build()
             }
-            Self::DuplicateCandidate(id) => {
-                at(signal, "design_ranking.duplicate_candidate").offending(id.clone()).build()
-            }
             Self::SignalMismatch(id) => {
-                at(signal, "design_ranking.signal_mismatch").offending(id.clone()).build()
+                at(signal, antecedent_core::reason_details::design_ranking::SIGNAL_MISMATCH)
+                    .offending(id.clone())
+                    .build()
             }
             Self::SourceDigestMismatch => {
-                at(signal, "design_ranking.source_digest_mismatch").build()
+                at(signal, antecedent_core::reason_details::design_ranking::SOURCE_DIGEST_MISMATCH)
+                    .build()
             }
             Self::CostMappingMismatch => at(
                 antecedent_core::reason_code!("design_cost_units_mismatch"),
-                "design_ranking.cost_units_mismatch",
+                antecedent_core::reason_details::design_ranking::COST_UNITS_MISMATCH,
             )
             .remedy("replay with the cost mapping the ranking was computed under")
             .build(),
-            Self::ContractMismatch => at(signal, "design_ranking.contract_mismatch").build(),
+            Self::ContractMismatch => {
+                at(signal, antecedent_core::reason_details::design_ranking::CONTRACT_MISMATCH)
+                    .build()
+            }
         }
     }
 }
@@ -285,7 +302,7 @@ impl RankingRecord {
         })
     }
 
-    /// The probabilistic ranking when a licensed model produced `probabilistic`,
+    /// The probabilistic ranking when a supported model produced `probabilistic`,
     /// otherwise the preserved structural ranking.
     ///
     /// # Errors

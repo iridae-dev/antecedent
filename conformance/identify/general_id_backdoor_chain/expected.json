@@ -6,9 +6,9 @@
   "graph_dot": "digraph { z -> t; z -> y; t -> y; }",
   "expected_status_family": "identified",
   "generation": {
-    "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
+    "script": "conformance/identify/general_id_backdoor_chain/reference.py",
     "baseline_pin": "parity/baselines/dowhy.toml",
-    "env": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py"
+    "env": "uv run --frozen --script conformance/identify/general_id_backdoor_chain/reference.py --check --self-test"
   },
   "notes": "Consumed by antecedent-identify::backdoor::tests::confounding_requires_z and antecedent-identify::id::tests::backdoor_chain_identified, which compare the frozen status, graph, and backdoor estimand family.",
   "reference": {
@@ -16,14 +16,41 @@
     "available": true,
     "version": "0.14",
     "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
-    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py", "generator_retained": false,
+    "command": "uv run --frozen --script conformance/identify/general_id_backdoor_chain/reference.py --check --self-test",
+    "generator_retained": true,
+    "note": "Retained independent public CausalModel.identify_effect invocation; original verbatim output preserved and reproduced exactly. Identification only; no estimated causal effect.",
+    "outputs": {
+      "estimand": "Estimand type: EstimandType.NONPARAMETRIC_ATE\n\n### Estimand : 1\nEstimand name: backdoor\nEstimand expression:\n d          \n────(E[y|z])\nd[t]        \nEstimand assumption 1, Unconfoundedness: If U→{t} and U→y then P(y|t,z,U) = P(y|t,z)\n\n### Estimand : 2\nEstimand name: iv\nNo such variable(s) found!\n\n### Estimand : 3\nEstimand name: frontdoor\nNo such variable(s) found!\n\n### Estimand : 4\nEstimand name: general_adjustment\nEstimand expression:\n d          \n────(E[y|z])\nd[t]        \nEstimand assumption 1, Unconfoundedness: If U→{t} and U→y then P(y|t,z,U) = P(y|t,z)\n",
+      "estimand_type": "EstimandType.NONPARAMETRIC_ATE"
+    },
+    "generator": "conformance/identify/general_id_backdoor_chain/reference.py",
+    "environment_lock": "conformance/identify/general_id_backdoor_chain/reference.py.lock"
+  },
+  "oracle": {
+    "kind": "external_package",
+    "project": "DoWhy",
+    "version": "0.14",
+    "source": "Retained public DoWhy 0.14 identification generator reproduces reference.outputs verbatim on the declared graph; historical deleted-generator metadata is retained separately."
+  },
+  "historical_reference": {
+    "project": "dowhy",
+    "available": true,
+    "version": "0.14",
+    "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
+    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py",
+    "generator_retained": false,
     "note": "black-box execution only; no source translation",
     "outputs": {
-      "estimand": "Estimand type: EstimandType.NONPARAMETRIC_ATE\n\n### Estimand : 1\nEstimand name: backdoor\nEstimand expression:\n d          \n\u2500\u2500\u2500\u2500(E[y|z])\nd[t]        \nEstimand assumption 1, Unconfoundedness: If U\u2192{t} and U\u2192y then P(y|t,z,U) = P(y|t,z)\n\n### Estimand : 2\nEstimand name: iv\nNo such variable(s) found!\n\n### Estimand : 3\nEstimand name: frontdoor\nNo such variable(s) found!\n\n### Estimand : 4\nEstimand name: general_adjustment\nEstimand expression:\n d          \n\u2500\u2500\u2500\u2500(E[y|z])\nd[t]        \nEstimand assumption 1, Unconfoundedness: If U\u2192{t} and U\u2192y then P(y|t,z,U) = P(y|t,z)\n",
+      "estimand": "Estimand type: EstimandType.NONPARAMETRIC_ATE\n\n### Estimand : 1\nEstimand name: backdoor\nEstimand expression:\n d          \n────(E[y|z])\nd[t]        \nEstimand assumption 1, Unconfoundedness: If U→{t} and U→y then P(y|t,z,U) = P(y|t,z)\n\n### Estimand : 2\nEstimand name: iv\nNo such variable(s) found!\n\n### Estimand : 3\nEstimand name: frontdoor\nNo such variable(s) found!\n\n### Estimand : 4\nEstimand name: general_adjustment\nEstimand expression:\n d          \n────(E[y|z])\nd[t]        \nEstimand assumption 1, Unconfoundedness: If U→{t} and U→y then P(y|t,z,U) = P(y|t,z)\n",
       "estimand_type": "EstimandType.NONPARAMETRIC_ATE"
     }
   },
-  "oracle": {
+  "historical_generation": {
+    "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
+    "baseline_pin": "parity/baselines/dowhy.toml",
+    "env": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py"
+  },
+  "historical_oracle": {
     "kind": "external_package",
     "project": "DoWhy",
     "version": "0.14",

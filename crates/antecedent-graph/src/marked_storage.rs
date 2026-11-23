@@ -3,7 +3,7 @@
 //! Graph types remain distinct; only adjacency entry layout and directed
 //! reachability scratch reuse are shared.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::GraphError;
 use crate::types::{DenseNodeId, Endpoint, MarkedEdge, MiddleMark};
@@ -127,6 +127,23 @@ pub(crate) fn all_marked_edges(adj: &[Vec<AdjEntry>]) -> Vec<MarkedEdge> {
     out
 }
 
+/// Every marked pair once, lazily and without allocating: each adjacency entry seen from its
+/// lower dense id. Order is dense-adjacency order; [`all_marked_edges`] is the sorted collection.
+pub(crate) fn marked_edges_lazy(
+    adj: &[Vec<AdjEntry>],
+) -> impl Iterator<Item = MarkedEdge> + Clone + '_ {
+    adj.iter().enumerate().flat_map(|(i, nbrs)| {
+        let a = DenseNodeId::from_index(i);
+        nbrs.iter().filter(move |e| a.raw() < e.neighbor.raw()).map(move |e| MarkedEdge {
+            a,
+            b: e.neighbor,
+            at_a: e.at_self,
+            at_b: e.at_neighbor,
+            middle: e.middle,
+        })
+    })
+}
+
 /// Neighbors with marks at `(self, neighbor)` from `id`'s perspective (PAG marks).
 pub(crate) fn neighbors(
     adj: &[Vec<AdjEntry>],
@@ -146,10 +163,10 @@ pub(crate) fn insert_marked_finish(
     if edge_between(adj, edge.a, edge.b).is_some() {
         return Err(GraphError::DuplicateEdge { from: edge.a.raw(), to: edge.b.raw() });
     }
-    if let Some((from, to)) = edge.parent_child() {
-        if reaches_directed_scratch(adj, to, from) {
-            return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
-        }
+    if let Some((from, to)) = edge.parent_child()
+        && reaches_directed_scratch(adj, to, from)
+    {
+        return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
     }
     push_marked_pair(adj, edge);
     Ok(())

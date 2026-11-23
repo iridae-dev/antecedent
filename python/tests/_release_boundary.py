@@ -2,7 +2,7 @@
 
 A binary exposure with a declared confusion model is corrected by the measurement-model route and
 enters a finite causal model; two study summaries are pooled through the evidence ledger; the
-licensed mean of the attributable excess risk feeds an affine decision through a caller-declared
+supported mean of the attributable excess risk feeds an affine decision through a caller-declared
 mean source; a claim graph revalidates what a revision of the evidence touches.
 
 Shared by ``test_composition_release_fixture.py`` and the exit-gate story. The declared inputs and
@@ -25,6 +25,7 @@ from antecedent import interface_contract as ic
 from antecedent import measurement_models as mm
 from antecedent import mechanism_composition as mc
 from antecedent.joint_distribution import ScientificQuantity
+from antecedent.outcomes import Outcome, require_success
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 FIXTURE_DIR = ROOT / "conformance" / "composition" / "release_boundary"
@@ -56,11 +57,16 @@ def pool(
     covariance: list[float] | None = None,
     replaces: str | None = None,
 ) -> SimpleNamespace:
-    outcome = ledger.pool_summaries(
-        label,
-        [el.StudySummary(source, estimate, variance) for source, estimate, variance in summaries],
-        covariance=covariance,
-        replaces=replaces,
+    outcome = require_success(
+        ledger.pool_summaries(
+            label,
+            [
+                el.StudySummary(source, estimate, variance)
+                for source, estimate, variance in summaries
+            ],
+            covariance=covariance,
+            replaces=replaces,
+        )
     )
     assert isinstance(outcome.value, el.FixedEffect)
     return SimpleNamespace(
@@ -104,12 +110,12 @@ def measure(sc: dict[str, Any] = SCENARIO, construct: str = CONSTRUCT) -> Simple
     prepared = mm.prepare_measurement_model(
         measurement_model(sc), binding, mm.BinaryPrevalenceData(m["events"], m["total"])
     )
-    estimate = prepared.estimate()
+    estimate = require_success(prepared.estimate())
     return SimpleNamespace(
         point=estimate.point,
         naive=estimate.naive_point,
         standard_error=estimate.standard_error,
-        artifact=estimate.export("release-boundary-measurement"),
+        artifact=bytes(estimate.export("release-boundary-measurement")),
         identity=prepared.model_identity,
     )
 
@@ -173,7 +179,7 @@ def compose(prevalence: float, baseline: float, effect: float) -> mc.PreparedMec
 def outcome_risk(
     composition: mc.PreparedMechanismComposition, do: dict[str, str] | None = None
 ) -> float:
-    return composition.finite_law(do or {}).probability({"Y": "1"})
+    return require_success(composition.finite_law(do or {})).probability({"Y": "1"})
 
 
 def excess_risk(composition: mc.PreparedMechanismComposition) -> float:
@@ -227,8 +233,8 @@ def contract(d: dict[str, Any]) -> decision.Contract:
     )
 
 
-def decide(d: dict[str, Any], mean: float, snapshot: str, plan: str) -> decision.Decision:
-    """Evaluate through a caller-declared mean source built from the licensed mean."""
+def decide(d: dict[str, Any], mean: float, snapshot: str, plan: str) -> Outcome[decision.Decision]:
+    """Evaluate through a caller-declared mean source built from the supported mean."""
     source = decision.MeanSource(
         coordinates=(excess_quantity(d["mean_units"]),),
         means=(mean,),
@@ -239,7 +245,8 @@ def decide(d: dict[str, Any], mean: float, snapshot: str, plan: str) -> decision
     return contract(d).evaluate(source)
 
 
-def value_of(result: decision.Decision, action: str) -> float:
+def value_of(result: decision.Decision | Outcome[decision.Decision], action: str) -> float:
+    result = require_success(result)
     return next(a.expected_utility for a in result.actions if a.id == action)
 
 
@@ -445,9 +452,11 @@ class World:
     def revise(self) -> SimpleNamespace:
         """Study B grows; returns the successor source and the revised summary."""
         revision = self.sc["revision"]
-        report = self.ledger.revise_source(
-            el.SourceRevision.update(
-                self.study_b, study("study_b_grown", "cohort", revision["rows"])
+        report = require_success(
+            self.ledger.revise_source(
+                el.SourceRevision.update(
+                    self.study_b, study("study_b_grown", "cohort", revision["rows"])
+                )
             )
         )
         assert report.created_source is not None
@@ -479,10 +488,10 @@ class World:
         The consumer reads only these files.
         """
         directory.mkdir(parents=True, exist_ok=True)
-        exported = self.ledger.artifact("release-boundary-ledger")
-        exposed = self.composition.artifact({"X": "1"}, outcome="Y")
-        unexposed = self.composition.artifact({"X": "0"}, outcome="Y")
-        verification = verify(self.graph, self.graph, self.ledger, self.pooled.result).artifact(
+        exported = self.ledger.export("release-boundary-ledger")
+        exposed = self.composition.export({"X": "1"}, outcome="Y")
+        unexposed = self.composition.export({"X": "0"}, outcome="Y")
+        verification = verify(self.graph, self.graph, self.ledger, self.pooled.result).export(
             "release-boundary-verification"
         )
         files = {
@@ -507,7 +516,7 @@ class World:
             "reported": {
                 "act": value_of(self.result, "act"),
                 "hold": value_of(self.result, "hold"),
-                "selected": self.result.selected[0],
+                "selected": require_success(self.result).selected[0],
             },
             "studies": studies if studies is not None else self.studies(),
             "decision": self.declaration,

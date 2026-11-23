@@ -170,7 +170,10 @@ fn artifact_unpaired_histories_refuse_with_a_witness() {
     let error = TemporalCounterfactualArtifact::seal(&unpaired, &ctx()).unwrap_err();
     let refusal = error.refusal().expect("a typed refusal");
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "temporal_counterfactual.unpaired_histories");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::temporal_counterfactual::UNPAIRED_HISTORIES
+    );
     let witness = refusal.witness.expect("a retained witness");
     assert_eq!(witness.unit.as_deref(), Some("unit-3"));
     assert_eq!(witness.world.as_deref(), Some("always_treat"));
@@ -185,7 +188,10 @@ fn artifact_refuting_history_retains_node_residual_and_bound() {
     // Unit 0's outcome noise is 0.5 > 0.45; unit 3's covariate-0 noise 1.1 is larger still.
     let refusal =
         TemporalCounterfactualArtifact::seal(&bounded, &ctx()).unwrap_err().refusal().unwrap();
-    assert_eq!(refusal.detail, "temporal_counterfactual.refuting_history");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::temporal_counterfactual::REFUTING_HISTORY
+    );
     let witness = refusal.witness.unwrap();
     assert_eq!(witness.unit.as_deref(), Some("unit-0"));
     assert_eq!(witness.node.as_deref(), Some("outcome"));
@@ -207,7 +213,10 @@ fn resealed_mutation_refuses(mutated: &TemporalCounterfactualRequestWire, field:
     .unwrap_err();
     assert_eq!(error, TemporalCounterfactualArtifactError::IdentityMismatch { field }, "{field}");
     let refusal = error.refusal().unwrap();
-    assert_eq!(refusal.detail, "temporal_counterfactual.artifact_changed");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::temporal_counterfactual::ARTIFACT_CHANGED
+    );
     assert_eq!(refusal.offending.as_deref(), Some(field));
 }
 
@@ -335,7 +344,10 @@ fn artifact_unresealed_tampering_does_not_replay() {
         .unwrap_err()
         .refusal()
         .unwrap();
-    assert_eq!(refusal.detail, "temporal_counterfactual.time_misaligned");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::temporal_counterfactual::TIME_MISALIGNED
+    );
 
     // A tampered per-unit draw digest in the receipt.
     let mut forged_meta = meta.clone();

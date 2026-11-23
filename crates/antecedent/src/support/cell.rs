@@ -1,7 +1,7 @@
 //! Support-matrix cell types: the coordinate, its classification and the
 //! structure-source axis.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_graph::{
     Admg, Cpdag, Dag, Pag, TemporalAdmg, TemporalCpdag, TemporalDag, TemporalPag,
@@ -15,17 +15,17 @@ use crate::accepted::AcceptedGraph;
 pub enum SupportRefusal {
     /// Cell is typed-impossible (`parity/support_n_a.toml`).
     NotApplicable,
-    /// Cell is in the cartesian product and is not licensed (default).
-    Refused,
+    /// Cell is in the cartesian product and is not supported (default).
+    NotSupported,
 }
 
 impl SupportRefusal {
-    /// Wire id (`not_applicable`, `refused`).
+    /// Wire id (`not_applicable`, `not_supported`).
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::NotApplicable => "not_applicable",
-            Self::Refused => "refused",
+            Self::NotSupported => "not_supported",
         }
     }
 }
@@ -47,6 +47,9 @@ pub enum StructureSource {
     GraphPosterior,
     /// Randomization itself supplies identification; no graph was supplied.
     RandomizedTrial,
+    /// The study searches for structure; no graph was supplied and the
+    /// discovered structure is the answer, not an input.
+    Discovered,
 }
 
 /// Convert a caller-supplied structure into a graph plus its matrix axis.
@@ -88,6 +91,7 @@ impl StructureSource {
             Self::Accepted => "accepted",
             Self::GraphPosterior => "graph_posterior",
             Self::RandomizedTrial => "randomized_trial",
+            Self::Discovered => "discovered",
         }
     }
 }
@@ -306,6 +310,8 @@ pub enum SupportStructure {
     GraphPosterior,
     /// Randomized trial, off the geometric graph axis.
     RandomizedTrial,
+    /// Structure search, off the geometric graph axis.
+    Discovered,
 }
 
 impl SupportStructure {
@@ -317,6 +323,7 @@ impl SupportStructure {
             Self::Accepted => "accepted",
             Self::GraphPosterior => "graph_posterior",
             Self::RandomizedTrial => "randomized_trial",
+            Self::Discovered => "discovered",
         }
     }
 
@@ -328,6 +335,7 @@ impl SupportStructure {
             "accepted" => Self::Accepted,
             "graph_posterior" => Self::GraphPosterior,
             "randomized_trial" => Self::RandomizedTrial,
+            "discovered" => Self::Discovered,
             _ => return None,
         })
     }
@@ -340,6 +348,7 @@ impl From<StructureSource> for SupportStructure {
             StructureSource::Accepted => Self::Accepted,
             StructureSource::GraphPosterior => Self::GraphPosterior,
             StructureSource::RandomizedTrial => Self::RandomizedTrial,
+            StructureSource::Discovered => Self::Discovered,
         }
     }
 }
@@ -466,54 +475,25 @@ impl SupportCell {
 /// Classification of a [`SupportCell`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CellStatus {
-    /// Listed in `support_licensed.toml`.
-    Licensed,
+    /// Listed in `support_cells.toml`.
+    Supported,
     /// Matches an n/a predicate. `reason` is the rule text.
     NotApplicable {
         /// Why the cell is typed-impossible.
         reason: &'static str,
     },
-    /// Retained `allowed_unlicensed` compatibility status.
-    ///
-    /// No matrix cell produces this status; the variant remains for wire
-    /// compatibility with older artifacts and clients.
-    Allowlisted {
-        /// Historical reason this cell ran without a license.
-        reason: &'static str,
-        /// Historical licensed or keep-running family this row rode.
-        parent: &'static str,
-    },
-    /// Default: in the product, not licensed, and not n/a.
-    Refused,
+    /// Default: in the product, not supported, and not n/a.
+    NotSupported,
 }
 
 impl CellStatus {
-    /// Wire / Python id (`licensed`, `allowed_unlicensed`, `not_applicable`, `refused`).
+    /// Wire / Python id (`supported`, `not_applicable`, `not_supported`).
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::Licensed => "licensed",
-            Self::Allowlisted { .. } => "allowed_unlicensed",
+            Self::Supported => "supported",
             Self::NotApplicable { .. } => "not_applicable",
-            Self::Refused => "refused",
-        }
-    }
-
-    /// Historical compatibility `reason`, when this status is [`Self::Allowlisted`].
-    #[must_use]
-    pub const fn allowlist_reason(self) -> Option<&'static str> {
-        match self {
-            Self::Allowlisted { reason, .. } => Some(reason),
-            _ => None,
-        }
-    }
-
-    /// Historical compatibility `parent`, when this status is [`Self::Allowlisted`].
-    #[must_use]
-    pub const fn allowlist_parent(self) -> Option<&'static str> {
-        match self {
-            Self::Allowlisted { parent, .. } => Some(parent),
-            _ => None,
+            Self::NotSupported => "not_supported",
         }
     }
 }

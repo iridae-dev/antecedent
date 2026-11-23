@@ -14,38 +14,48 @@
 //! `theta(a, a') = mean_x ∫ E[Y | a, m, x] dN(m; mu_M(a', x), sigma^2)`.
 //!
 //! The interventional (randomized-draw) direct and indirect effects, which drop the
-//! cross-world assumption and tolerate treatment-induced confounders, are a closed route: asking
-//! for them is refused with `nonlinear_mediation.interventional_effects_closed`.
+//! cross-world assumption and tolerate treatment-induced confounders, are a unsupported route: asking
+//! for them is refused with `nonlinear_mediation.interventional_effects_not_supported`.
 //!
 //! Models: the mediator is linear-Gaussian in `(A, X)` with a homoscedastic normal residual;
 //! the outcome is a polynomial of declared degree in the standardized mediator with treatment
 //! by mediator interaction, linear in `A` and `X`. The integral over `M | a', x` is computed by
 //! deterministic Gauss-Hermite quadrature with a declared node count `n`; the estimate is
 //! evaluated at `n` and `2n` nodes, the difference is the reported integration error, and an
-//! error above the declared tolerance is refused. Standard errors come from a nonparametric
-//! bootstrap with a fixed seed and replicate ids. Calibration is `unmeasured`: no coverage
-//! claim is made and no public interval is produced.
+//! error above the declared tolerance is refused. Standard errors and equal-tailed percentile
+//! intervals (level [`NONLINEAR_MEDIATION_INTERVAL_LEVEL`]) come from a nonparametric
+//! bootstrap with a fixed seed and replicate ids. The intervals carry a calibration basis
+//! ([`NonlinearMediationEstimate::calibration_basis`]); their calibration status is an
+//! annotation resolved from the coverage records and never withholds them.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::needless_range_loop,
     reason = "dense numeric kernels index several parallel columns by row"
 )]
+use antecedent_core::ExecutionContext;
+use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
+
 use crate::EstimationError;
+use crate::arm::TreatmentArm;
 use crate::splitmix::{mix64, seed_mix, splitmix64};
 use crate::util::mean;
 use crate::util::{count, refuse};
 use crate::vector_treatment::DesignSummary;
 use std::f64::consts::{PI, SQRT_2};
 
-/// Calibration status of the estimator's inference. Coverage is unmeasured.
-pub const NONLINEAR_MEDIATION_CALIBRATION: &str = "unmeasured";
-/// Interval status: standard errors are reported, public intervals are closed.
-pub const NONLINEAR_MEDIATION_INTERVAL_STATUS: &str = "closed_calibration_unmeasured";
+/// Calibration slot placeholder of the estimator itself; the reported status of an interval is
+/// resolved from its calibration basis against the coverage records.
+pub const NONLINEAR_MEDIATION_CALIBRATION: &str = "resolved_from_basis";
+/// Interval method: equal-tailed percentile intervals of the row bootstrap.
+pub const NONLINEAR_MEDIATION_INTERVAL_STATUS: &str = "percentile_bootstrap_interval";
+/// Nominal level of the percentile intervals.
+pub const NONLINEAR_MEDIATION_INTERVAL_LEVEL: f64 = 0.95;
 /// Replicate-id scheme of the bootstrap.
 pub(crate) const NONLINEAR_MEDIATION_REPLICATE_SCHEME: &str = "splitmix64 stream seeded by seed_mix(seed ^ mix64(replicate_id + 1)); n row draws with replacement";
-/// Largest outcome polynomial degree.
+/// Largest outcome polynomial degree; a larger declaration is refused.
 pub const NONLINEAR_MEDIATION_MAX_DEGREE: usize = 4;
-/// Largest declared Gauss-Hermite node count (the check evaluates `2n` nodes).
+/// Largest Gauss-Hermite node count (the rule costs quadratic work in it); a larger declaration
+/// is refused.
 pub const NONLINEAR_MEDIATION_MAX_NODES: usize = 64;
 
 /// Which mediation estimand is requested.
@@ -54,7 +64,7 @@ pub enum NonlinearMediationEstimand {
     /// Natural direct and indirect effects (cross-world independence + sequential
     /// ignorability). The one open route.
     NaturalEffects,
-    /// Interventional (randomized-draw) effects. Closed: refused.
+    /// Interventional (randomized-draw) effects. Not supported: refused.
     InterventionalEffects,
 }
 
@@ -99,9 +109,10 @@ impl NonlinearMediationPremises {
 pub struct NonlinearMediationConfig {
     /// Requested estimand.
     pub estimand: NonlinearMediationEstimand,
-    /// Degree of the outcome polynomial in the standardized mediator (1 ..= 4).
+    /// Degree of the outcome polynomial in the standardized mediator (at least 1).
     pub outcome_degree: usize,
-    /// Declared Gauss-Hermite node count `n` (1 ..= 64); the check also runs `2n`.
+    /// Declared Gauss-Hermite node count `n` (at least 1, raised to what the degree needs); the
+    /// check also runs `2n`.
     pub quadrature_nodes: usize,
     /// Largest accepted integration error, as a fraction of the outcome standard deviation.
     pub integration_tolerance: f64,
@@ -184,6 +195,8 @@ pub struct NonlinearMediationBootstrap {
     pub failed_replicate_ids: Vec<u64>,
     /// Id scheme.
     pub id_scheme: &'static str,
+    /// Successful replicate effects `[direct, indirect, total]`, in replicate order.
+    pub replicate_effects: Vec<[f64; 3]>,
 }
 
 /// Nonlinear mediation estimate.
@@ -201,6 +214,16 @@ pub struct NonlinearMediationEstimate {
     pub natural_indirect_se: Option<f64>,
     /// Bootstrap standard error of the total effect.
     pub total_se: Option<f64>,
+    /// Nominal level of the intervals, [`NONLINEAR_MEDIATION_INTERVAL_LEVEL`].
+    pub interval_level: f64,
+    /// Percentile bootstrap interval of the natural direct effect.
+    pub natural_direct_interval: Option<(f64, f64)>,
+    /// Percentile bootstrap interval of the natural indirect effect.
+    pub natural_indirect_interval: Option<(f64, f64)>,
+    /// Percentile bootstrap interval of the total effect.
+    pub total_interval: Option<(f64, f64)>,
+    /// Why the intervals are absent: too few successful replicates.
+    pub interval_unavailable_reason: Option<&'static str>,
     /// `|total_rowwise - (NDE + NIE)|`, the identity check.
     pub identity_residual: f64,
     /// Largest `n` versus `2n` node disagreement over the three effects, as a fraction of the
@@ -220,7 +243,7 @@ pub struct NonlinearMediationEstimate {
     pub bootstrap: NonlinearMediationBootstrap,
     /// Always [`NONLINEAR_MEDIATION_CALIBRATION`].
     pub calibration: &'static str,
-    /// Always [`NONLINEAR_MEDIATION_INTERVAL_STATUS`]: no public interval is produced.
+    /// Always [`NONLINEAR_MEDIATION_INTERVAL_STATUS`], the interval method.
     pub interval_status: &'static str,
     /// Assumption identifiers the estimate relies on.
     pub assumptions: Vec<&'static str>,
@@ -276,7 +299,7 @@ fn check_premises(
     if config.estimand == NonlinearMediationEstimand::InterventionalEffects {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "nonlinear_mediation.interventional_effects_closed",
+            antecedent_core::reason_details::nonlinear_mediation::INTERVENTIONAL_EFFECTS_NOT_SUPPORTED,
             "only natural direct and indirect effects are open for the nonlinear continuous mediator",
         ));
     }
@@ -286,14 +309,14 @@ fn check_premises(
     {
         return Err(refuse(
             not_identified,
-            "nonlinear_mediation.confounding",
+            antecedent_core::reason_details::nonlinear_mediation::CONFOUNDING,
             "an unmeasured treatment-outcome, treatment-mediator or mediator-outcome confounder is declared; sequential ignorability fails",
         ));
     }
     if !premises.treatment_induced_mediator_outcome_confounders.is_empty() {
         return Err(refuse(
             cross_world,
-            "nonlinear_mediation.treatment_induced_confounding",
+            antecedent_core::reason_details::nonlinear_mediation::TREATMENT_INDUCED_CONFOUNDING,
             &format!(
                 "mediator-outcome confounders affected by treatment ({}) break natural-effect identification",
                 premises.treatment_induced_mediator_outcome_confounders.join(", ")
@@ -303,7 +326,7 @@ fn check_premises(
     if !premises.cross_world_independence {
         return Err(refuse(
             cross_world,
-            "nonlinear_mediation.cross_world_independence_not_declared",
+            antecedent_core::reason_details::nonlinear_mediation::CROSS_WORLD_INDEPENDENCE_NOT_DECLARED,
             "natural effects need the cross-world independence declared",
         ));
     }
@@ -322,35 +345,49 @@ fn validate(
     {
         return Err(refuse(
             invalid,
-            "nonlinear_mediation.length_mismatch",
+            antecedent_core::reason_details::nonlinear_mediation::LENGTH_MISMATCH,
             "columns differ in length",
         ));
     }
-    if config.outcome_degree == 0 || config.outcome_degree > NONLINEAR_MEDIATION_MAX_DEGREE {
+    if config.outcome_degree == 0 {
         return Err(refuse(
             invalid,
-            "nonlinear_mediation.invalid_degree",
-            "outcome degree must lie in 1..=4",
+            antecedent_core::reason_details::nonlinear_mediation::INVALID_DEGREE,
+            "outcome degree must be at least 1",
         ));
     }
-    if config.quadrature_nodes == 0 || config.quadrature_nodes > NONLINEAR_MEDIATION_MAX_NODES {
+    if config.quadrature_nodes == 0 {
         return Err(refuse(
             invalid,
-            "nonlinear_mediation.invalid_nodes",
-            "node count must lie in 1..=64",
+            antecedent_core::reason_details::nonlinear_mediation::INVALID_NODES,
+            "node count must be at least 1",
+        ));
+    }
+    if config.outcome_degree > NONLINEAR_MEDIATION_MAX_DEGREE {
+        return Err(refuse(
+            invalid,
+            antecedent_core::reason_details::nonlinear_mediation::DEGREE_ABOVE_LIMIT,
+            "outcome degree exceeds the supported maximum",
+        ));
+    }
+    if config.quadrature_nodes > NONLINEAR_MEDIATION_MAX_NODES {
+        return Err(refuse(
+            invalid,
+            antecedent_core::reason_details::nonlinear_mediation::NODES_ABOVE_LIMIT,
+            "node count exceeds the supported maximum",
         ));
     }
     if !(config.integration_tolerance.is_finite() && config.integration_tolerance > 0.0) {
         return Err(refuse(
             invalid,
-            "nonlinear_mediation.invalid_tolerance",
+            antecedent_core::reason_details::nonlinear_mediation::INVALID_TOLERANCE,
             "tolerance must be positive and finite",
         ));
     }
     if !(config.max_support_violation > 0.0 && config.max_support_violation <= 1.0) {
         return Err(refuse(
             invalid,
-            "nonlinear_mediation.invalid_support_bound",
+            antecedent_core::reason_details::nonlinear_mediation::INVALID_SUPPORT_BOUND,
             "support bound must lie in (0, 1]",
         ));
     }
@@ -362,19 +399,23 @@ fn validate(
     {
         return Err(refuse(
             invalid,
-            "nonlinear_mediation.non_finite_input",
+            antecedent_core::reason_details::nonlinear_mediation::NON_FINITE_INPUT,
             "columns must be finite",
         ));
     }
     if !input.treatment.iter().all(|&v| v.abs() < 1e-12 || (v - 1.0).abs() < 1e-12) {
         return Err(refuse(
             invalid,
-            "nonlinear_mediation.treatment_not_binary",
+            antecedent_core::reason_details::nonlinear_mediation::TREATMENT_NOT_BINARY,
             "treatment must be coded 0 or 1",
         ));
     }
     Ok(Columns {
-        a: input.treatment.iter().map(|&v| if v > 0.5 { 1.0 } else { 0.0 }).collect(),
+        a: input
+            .treatment
+            .iter()
+            .map(|&v| if TreatmentArm::is_treated_indicator(v) { 1.0 } else { 0.0 })
+            .collect(),
         m: input.mediator.to_vec(),
         y: input.outcome.to_vec(),
         x: input.covariates.iter().map(|c| c.to_vec()).collect(),
@@ -385,12 +426,12 @@ fn check_arms(
     cols: &Columns,
     config: &NonlinearMediationConfig,
 ) -> Result<(usize, usize), EstimationError> {
-    let treated = cols.a.iter().filter(|&&v| v > 0.5).count();
+    let treated = cols.a.iter().filter(|&&v| TreatmentArm::is_treated_indicator(v)).count();
     let control = cols.len() - treated;
     if treated < config.min_arm_count.max(1) || control < config.min_arm_count.max(1) {
         return Err(refuse(
             antecedent_core::reason_code!("arm_not_populated"),
-            "nonlinear_mediation.overlap",
+            antecedent_core::reason_details::nonlinear_mediation::OVERLAP,
             &format!(
                 "treatment arms hold {treated} treated and {control} control rows, below the required {}",
                 config.min_arm_count.max(1)
@@ -400,7 +441,8 @@ fn check_arms(
     Ok((treated, control))
 }
 
-/// Least squares by Jacobi-scaled normal equations with partial-pivot elimination.
+/// Least squares on unit-RMS columns by the backend's column-pivoted QR (the design is never
+/// squared into normal equations), with its numerical rank deciding rank deficiency.
 struct Ols {
     beta: Vec<f64>,
     residuals: Vec<f64>,
@@ -414,7 +456,7 @@ fn ols(cols: &[Vec<f64>], y: &[f64]) -> Result<Ols, EstimationError> {
     if n <= p {
         return Err(refuse(
             rank_code,
-            "nonlinear_mediation.too_few_rows",
+            antecedent_core::reason_details::nonlinear_mediation::TOO_FEW_ROWS,
             "fewer rows than regression columns",
         ));
     }
@@ -422,36 +464,30 @@ fn ols(cols: &[Vec<f64>], y: &[f64]) -> Result<Ols, EstimationError> {
     let mut scales = Vec::with_capacity(p);
     for c in cols {
         let s = (c.iter().map(|v| v * v).sum::<f64>() / nf).sqrt();
-        if !(s.is_finite() && s > 1e-12) {
+        if !(s.is_finite() && s > 0.0) {
             return Err(refuse(
                 rank_code,
-                "nonlinear_mediation.rank_deficient",
+                antecedent_core::reason_details::nonlinear_mediation::RANK_DEFICIENT,
                 "a regression column is identically zero",
             ));
         }
         scales.push(s);
     }
-    // Jacobi-scaled normal equations (unit-RMS columns): symmetric positive definite.
-    let mut gram = vec![0.0; p * p];
-    let mut rhs = vec![0.0; p];
-    for j in 0..p {
-        for k in j..p {
-            let dot: f64 = cols[j].iter().zip(&cols[k]).map(|(u, v)| u * v).sum();
-            let v = dot / (scales[j] * scales[k]);
-            gram[j * p + k] = v;
-            gram[k * p + j] = v;
-        }
-        let r: f64 = cols[j].iter().zip(y).map(|(u, v)| u * v).sum();
-        rhs[j] = r / scales[j];
+    // Unit-RMS columns, column-major, so the rank rule does not depend on the units.
+    let mut design = Vec::with_capacity(n * p);
+    for (c, s) in cols.iter().zip(&scales) {
+        design.extend(c.iter().map(|v| v / s));
     }
-    let sol = crate::util::solve_spd(&gram, &rhs, p).ok_or_else(|| {
-        refuse(
+    let mut workspace = LeastSquaresWorkspace::default();
+    let fit = crate::util::ls_fit(FaerBackend, &design, n, p, y, &mut workspace)?;
+    if fit.rank() < p {
+        return Err(refuse(
             rank_code,
-            "nonlinear_mediation.rank_deficient",
+            antecedent_core::reason_details::nonlinear_mediation::RANK_DEFICIENT,
             "regression design is rank deficient",
-        )
-    })?;
-    let beta: Vec<f64> = sol.iter().zip(&scales).map(|(b, s)| b / s).collect();
+        ));
+    }
+    let beta: Vec<f64> = fit.coefficients().iter().zip(&scales).map(|(b, s)| b / s).collect();
     let mut residuals = Vec::with_capacity(n);
     let mut rss = 0.0;
     for i in 0..n {
@@ -508,7 +544,7 @@ fn fit_model(cols: &Columns, degree: usize) -> Result<Fit, EstimationError> {
     if !(scale.is_finite() && scale > 1e-12) {
         return Err(refuse(
             invalid,
-            "nonlinear_mediation.degenerate_mediator",
+            antecedent_core::reason_details::nonlinear_mediation::DEGENERATE_MEDIATOR,
             "the mediator has no spread",
         ));
     }
@@ -518,7 +554,7 @@ fn fit_model(cols: &Columns, degree: usize) -> Result<Fit, EstimationError> {
     if !(sigma2.is_finite() && sigma2 > 1e-12 * scale * scale) {
         return Err(refuse(
             invalid,
-            "nonlinear_mediation.degenerate_mediator_residual",
+            antecedent_core::reason_details::nonlinear_mediation::DEGENERATE_MEDIATOR_RESIDUAL,
             "the mediator residual has no spread",
         ));
     }
@@ -596,6 +632,12 @@ fn hermite_eval(n: usize, z: f64) -> (f64, f64) {
     (p1, (2.0 * count(n)).sqrt() * p2)
 }
 
+/// Declared node count, raised to the least that integrates the degree-`d` outcome polynomial
+/// of the mediator exactly (`n` Gauss-Hermite nodes are exact to degree `2n - 1`).
+fn effective_nodes(config: &NonlinearMediationConfig) -> usize {
+    config.quadrature_nodes.max(config.outcome_degree.div_ceil(2) + 1)
+}
+
 fn gauss_hermite(n: usize) -> Result<Quadrature, EstimationError> {
     let nf = count(n);
     let mut x = vec![0.0; n];
@@ -623,7 +665,7 @@ fn gauss_hermite(n: usize) -> Result<Quadrature, EstimationError> {
         if !converged || !z.is_finite() {
             return Err(refuse(
                 antecedent_core::reason_code!("mechanism_fit_not_converged"),
-                "nonlinear_mediation.quadrature_nodes_not_converged",
+                antecedent_core::reason_details::nonlinear_mediation::QUADRATURE_NODES_NOT_CONVERGED,
                 "Gauss-Hermite node iteration did not converge",
             ));
         }
@@ -644,7 +686,7 @@ fn gauss_hermite(n: usize) -> Result<Quadrature, EstimationError> {
     if (total - 1.0).abs().partial_cmp(&1e-9) != Some(std::cmp::Ordering::Less) {
         return Err(refuse(
             antecedent_core::reason_code!("mechanism_fit_not_converged"),
-            "nonlinear_mediation.quadrature_weights_invalid",
+            antecedent_core::reason_details::nonlinear_mediation::QUADRATURE_WEIGHTS_INVALID,
             "Gauss-Hermite weights do not sum to one",
         ));
     }
@@ -734,7 +776,7 @@ fn treated_range(cols: &Columns) -> (f64, f64) {
     let mut lo = f64::INFINITY;
     let mut hi = f64::NEG_INFINITY;
     for (m, a) in cols.m.iter().zip(&cols.a) {
-        if *a > 0.5 {
+        if TreatmentArm::is_treated_indicator(*a) {
             lo = lo.min(*m);
             hi = hi.max(*m);
         }
@@ -768,13 +810,23 @@ fn residual_shape(fit: &Fit) -> (f64, f64) {
 struct BootstrapOutcome {
     record: NonlinearMediationBootstrap,
     se: Option<(f64, f64, f64)>,
+    intervals: Option<[(f64, f64); 3]>,
+}
+
+fn cancelled() -> EstimationError {
+    refuse(
+        antecedent_core::reason_code!("cancelled_no_claim"),
+        antecedent_core::reason_details::nonlinear_mediation::CANCELLED,
+        "the nonlinear mediation estimate was cancelled; no estimate is reported",
+    )
 }
 
 fn run_bootstrap(
     cols: &Columns,
     config: &NonlinearMediationConfig,
     q: &Quadrature,
-) -> BootstrapOutcome {
+    ctx: &ExecutionContext,
+) -> Result<BootstrapOutcome, EstimationError> {
     let n = cols.len();
     let n64 = u64::try_from(n).unwrap_or(u64::MAX).max(1);
     let (mut d, mut i_, mut t) = (Vec::new(), Vec::new(), Vec::new());
@@ -782,6 +834,9 @@ fn run_bootstrap(
     let mut idx = vec![0usize; n];
     let mut sample = Columns { a: Vec::new(), m: Vec::new(), y: Vec::new(), x: Vec::new() };
     for r in 0..config.bootstrap_replicates {
+        if ctx.cancellation.is_cancelled() {
+            return Err(cancelled());
+        }
         let id = u64::from(r);
         let mut state = seed_mix(config.seed ^ mix64(id.wrapping_add(1)));
         for slot in &mut idx {
@@ -815,15 +870,62 @@ fn run_bootstrap(
     } else {
         None
     };
-    BootstrapOutcome {
+    let intervals = if enough {
+        match (
+            crate::percentile_interval(&d, NONLINEAR_MEDIATION_INTERVAL_LEVEL),
+            crate::percentile_interval(&i_, NONLINEAR_MEDIATION_INTERVAL_LEVEL),
+            crate::percentile_interval(&t, NONLINEAR_MEDIATION_INTERVAL_LEVEL),
+        ) {
+            (Some(a), Some(b), Some(c)) => Some([a, b, c]),
+            _ => None,
+        }
+    } else {
+        None
+    };
+    let replicate_effects = d.iter().zip(&i_).zip(&t).map(|((a, b), c)| [*a, *b, *c]).collect();
+    Ok(BootstrapOutcome {
         record: NonlinearMediationBootstrap {
             seed: config.seed,
             replicates_requested: config.bootstrap_replicates,
             replicates_succeeded: ok,
             failed_replicate_ids: failed,
             id_scheme: NONLINEAR_MEDIATION_REPLICATE_SCHEME,
+            replicate_effects,
         },
         se,
+        intervals,
+    })
+}
+
+impl NonlinearMediationEstimate {
+    /// Calibration basis of the interval of one effect (`natural_direct`, `natural_indirect`
+    /// or `total`), at the executed row count and successful replicate count.
+    #[must_use]
+    pub fn calibration_basis(&self, effect: &str) -> antecedent_core::CalibrationBasis {
+        use std::sync::Arc;
+        let a = |text: &str| Arc::<str>::from(text);
+        antecedent_core::CalibrationBasis::new(
+            [
+                a("NonlinearMediation"),
+                a("Dag"),
+                a("fixed"),
+                a("iid_rows"),
+                a("Frequentist"),
+                a("nonlinear_mediation_polynomial_gauss_hermite"),
+                a("bootstrap_percentile"),
+                a(""),
+                a("iid_rows"),
+                a(""),
+                a(effect),
+            ],
+            self.interval_level,
+            a("point"),
+            u64::try_from(self.n_rows).unwrap_or(u64::MAX),
+            Some(self.bootstrap.replicates_succeeded),
+            None,
+            0.0,
+        )
+        .with_validation("not_applicable")
     }
 }
 
@@ -831,16 +933,17 @@ fn run_bootstrap(
 /// continuous mediator with a nonlinear outcome model.
 ///
 /// The returned point estimates use `2n` Gauss-Hermite nodes; `integration_error` is the
-/// disagreement with the `n`-node evaluation. Calibration is `unmeasured` and no public
-/// interval is produced.
+/// disagreement with the `n`-node evaluation. Percentile intervals of the row bootstrap are
+/// reported with a calibration basis.
 ///
 /// # Errors
 /// Refuses with `nonlinear_mediation.confounding`,
 /// `nonlinear_mediation.treatment_induced_confounding`,
 /// `nonlinear_mediation.cross_world_independence_not_declared`,
-/// `nonlinear_mediation.interventional_effects_closed`, `nonlinear_mediation.overlap`,
+/// `nonlinear_mediation.interventional_effects_not_supported`, `nonlinear_mediation.overlap`,
 /// `nonlinear_mediation.integration_error`, `nonlinear_mediation.identity_violation`,
-/// `nonlinear_mediation.rank_deficient` or an input-validation detail.
+/// `nonlinear_mediation.rank_deficient` or an input-validation detail, or with
+/// `nonlinear_mediation.cancelled` when `ctx` is cancelled before the estimate completes.
 #[allow(
     clippy::too_many_lines,
     reason = "validation, the design summaries, the fit and the integration checks of one estimate"
@@ -849,19 +952,24 @@ pub fn estimate_nonlinear_mediation(
     input: &NonlinearMediationInput<'_>,
     premises: &NonlinearMediationPremises,
     config: &NonlinearMediationConfig,
+    ctx: &ExecutionContext,
 ) -> Result<NonlinearMediationEstimate, EstimationError> {
     check_premises(premises, config)?;
     let cols = validate(input, config)?;
     let (treated_count, control_count) = check_arms(&cols, config)?;
+    if ctx.cancellation.is_cancelled() {
+        return Err(cancelled());
+    }
     let fit = fit_model(&cols, config.outcome_degree)?;
-    let coarse_q = gauss_hermite(config.quadrature_nodes)?;
-    let fine_q = gauss_hermite(2 * config.quadrature_nodes)?;
+    let nodes = effective_nodes(config);
+    let coarse_q = gauss_hermite(nodes)?;
+    let fine_q = gauss_hermite(2 * nodes)?;
     let range = treated_range(&cols);
     let violation = support_violation(&cols, &fit, &fine_q, range);
     if violation > config.max_support_violation {
         return Err(refuse(
             antecedent_core::reason_code!("effect_not_identified"),
-            "nonlinear_mediation.overlap",
+            antecedent_core::reason_details::nonlinear_mediation::OVERLAP,
             &format!(
                 "{violation:.4} of the cross-world mediator law lies outside the treated arm's observed mediator range, above {}",
                 config.max_support_violation
@@ -875,7 +983,7 @@ pub fn estimate_nonlinear_mediation(
     if !(sd_y.is_finite() && sd_y > 1e-12) {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "nonlinear_mediation.degenerate_outcome",
+            antecedent_core::reason_details::nonlinear_mediation::DEGENERATE_OUTCOME,
             "the outcome has no spread",
         ));
     }
@@ -890,11 +998,11 @@ pub fn estimate_nonlinear_mediation(
     ) {
         return Err(refuse(
             antecedent_core::reason_code!("mechanism_fit_not_converged"),
-            "nonlinear_mediation.integration_error",
+            antecedent_core::reason_details::nonlinear_mediation::INTEGRATION_ERROR,
             &format!(
                 "{} versus {} node effects differ by {integration_error:.3e} of the outcome sd, above {}",
-                config.quadrature_nodes,
-                2 * config.quadrature_nodes,
+                nodes,
+                2 * nodes,
                 config.integration_tolerance
             ),
         ));
@@ -906,11 +1014,11 @@ pub fn estimate_nonlinear_mediation(
     ) {
         return Err(refuse(
             antecedent_core::reason_code!("mechanism_fit_not_converged"),
-            "nonlinear_mediation.identity_violation",
+            antecedent_core::reason_details::nonlinear_mediation::IDENTITY_VIOLATION,
             "total effect differs from direct plus indirect",
         ));
     }
-    let boot = run_bootstrap(&cols, config, &fine_q);
+    let boot = run_bootstrap(&cols, config, &fine_q, ctx)?;
     let (mediator_design, outcome_design) = design_summaries(&cols, &fit);
     let (skew, kurt) = residual_shape(&fit);
     Ok(NonlinearMediationEstimate {
@@ -920,9 +1028,18 @@ pub fn estimate_nonlinear_mediation(
         natural_direct_se: boot.se.map(|s| s.0),
         natural_indirect_se: boot.se.map(|s| s.1),
         total_se: boot.se.map(|s| s.2),
+        interval_level: NONLINEAR_MEDIATION_INTERVAL_LEVEL,
+        natural_direct_interval: boot.intervals.map(|i| i[0]),
+        natural_indirect_interval: boot.intervals.map(|i| i[1]),
+        total_interval: boot.intervals.map(|i| i[2]),
+        interval_unavailable_reason: if boot.intervals.is_some() {
+            None
+        } else {
+            Some("insufficient_bootstrap_replicates")
+        },
         identity_residual,
         integration_error,
-        quadrature_nodes: config.quadrature_nodes,
+        quadrature_nodes: nodes,
         outcome_degree: config.outcome_degree,
         n_rows: cols.len(),
         overlap: NonlinearMediationOverlap {

@@ -9,7 +9,7 @@
 //! closed-form value `6.5 (v_top - v_bottom)` at the cells' own values. After `M` is refit
 //! as `1 + 3 X`, `E[Y | do(X = v)] = 2 + 9.5 v`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -134,6 +134,20 @@ fn a_discretized_contrast_carries_its_closed_form_and_a_computed_bound() {
 
     let result = bridged.mean_contrast(&top_minus_bottom(), &ctx()).unwrap();
     near(result.closed_form, 6.5 * (values[3] - values[0]));
+    // Each arm is the closed-form mean 0.5 + 6.5 v at its own cell value (the module oracle),
+    // the contrast is the signed sum of the arms, and the reported error is the actual gap.
+    near(result.arms[0].closed_form_mean, 0.5 + 6.5 * values[3]);
+    near(result.arms[1].closed_form_mean, 0.5 + 6.5 * values[0]);
+    near(
+        result.value,
+        result.arms[0].discretized_mean * result.arms[0].weight
+            + result.arms[1].discretized_mean * result.arms[1].weight,
+    );
+    near(result.absolute_error, (result.value - result.closed_form).abs());
+    // The four-cell grid is genuinely coarse (observed gap 0.62 of 33.05, bound 0.76) but close.
+    assert!(
+        result.absolute_error > 1e-3 && result.absolute_error < 0.05 * result.closed_form.abs()
+    );
     assert!(result.error_bound.is_finite() && result.error_bound >= 0.0);
     assert!(result.absolute_error <= result.error_bound + 1e-9);
     assert_eq!(result.inference, BRIDGE_INFERENCE);
@@ -143,8 +157,8 @@ fn a_discretized_contrast_carries_its_closed_form_and_a_computed_bound() {
     // An interval, posterior or law reading of a point is refused for both paradigms.
     for paradigm in [InferenceParadigm::Frequentist, InferenceParadigm::Bayesian] {
         let refusal = bridged.uncertainty(paradigm).unwrap_err();
-        assert_eq!(refusal.code(), "cell_not_licensed");
-        assert_eq!(refusal.detail(), "discretized_scm.point_only");
+        assert_eq!(refusal.code(), "uncertainty_representation_insufficient");
+        assert_eq!(refusal.detail(), antecedent_core::reason_details::discretized_scm::POINT_ONLY);
         assert!(refusal.remedy().is_some());
     }
 
@@ -153,6 +167,7 @@ fn a_discretized_contrast_carries_its_closed_form_and_a_computed_bound() {
     assert_eq!(inspection.variables.len(), 3);
     assert!(inspection.variables.iter().all(|(_, levels, _)| *levels == 4));
     assert_eq!(inspection.source_plan_identity, prepared.plan_identity_hex());
+    assert_eq!(inspection.source_plan_identity_version, prepared.plan_identity_version());
 }
 
 #[test]

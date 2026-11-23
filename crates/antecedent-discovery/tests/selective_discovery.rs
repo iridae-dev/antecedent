@@ -471,11 +471,19 @@ fn failed_or_cancelled_update_leaves_the_retained_state_untouched() {
     changed.constraints.alpha = 0.001;
     let mut cancelled = ctx();
     cancelled.cancellation = CancellationToken::cancel_after_checks(1);
-    assert!(adapter.run(&changed, &data, &cancelled).is_err());
+    assert!(matches!(
+        adapter.run(&changed, &data, &cancelled),
+        Err(antecedent_discovery::selective::SelectiveDiscoveryError::Discovery(
+            antecedent_discovery::DiscoveryError::Cancelled
+        ))
+    ));
     // A refusal before any work: the context's seed is not the contract's.
     let wrong_seed = ExecutionContext::for_tests(SEED + 1);
     let refusal = adapter.run(&contract, &data, &wrong_seed).unwrap_err();
-    assert_eq!(refusal.detail(), Some("selective_discovery.rng_mismatch"));
+    assert_eq!(
+        refusal.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::RNG_MISMATCH)
+    );
 
     assert_eq!(adapter.outcome().unwrap().result_identity, identity);
     assert_eq!(adapter.inputs().unwrap(), &inputs);
@@ -485,31 +493,45 @@ fn failed_or_cancelled_update_leaves_the_retained_state_untouched() {
 }
 
 #[test]
-fn closed_routes_are_refused_with_a_remedy() {
+fn unsupported_routes_are_refused_with_a_remedy() {
     let data = collider_table(50, 23);
     let mut multi = pc_contract(&[0, 1, 2, 3], "parcorr");
     multi.additional_populations = vec!["second_site".to_owned()];
     let err = StaticSelectiveDiscovery::new().run(&multi, &data, &ctx()).unwrap_err();
     assert_eq!(err.code(), Some("route_not_supported"));
-    assert_eq!(err.detail(), Some("selective_discovery.multi_population"));
+    assert_eq!(
+        err.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::MULTI_POPULATION)
+    );
     assert!(err.to_string().contains("one declared population"));
 }
 
 #[test]
-fn closed_claims_are_refused_with_cell_not_licensed_and_a_remedy() {
+fn unsupported_claims_are_refused_with_not_supported_and_a_remedy() {
     let data = collider_table(40, 71);
     let (outcome, _) = full_static(&oracle_contract(&[0, 1, 2, 3]), &data);
     let recovery = request_recovery_claim(&outcome).unwrap_err();
-    assert_eq!(recovery.code(), Some("cell_not_licensed"));
-    assert_eq!(recovery.detail(), Some("selective_discovery.recovery_claim_not_licensed"));
+    assert_eq!(recovery.code(), Some("discovered_structure_unresolved"));
+    assert_eq!(
+        recovery.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::RECOVERY_CLAIM_NOT_SUPPORTED)
+    );
     assert!(recovery.to_string().contains("not testable"));
     let interval = request_downstream_interval(&outcome).unwrap_err();
-    assert_eq!(interval.code(), Some("cell_not_licensed"));
-    assert_eq!(interval.detail(), Some("selective_discovery.downstream_interval_not_licensed"));
+    assert_eq!(interval.code(), Some("selection_inference_not_supported"));
+    assert_eq!(
+        interval.detail(),
+        Some(
+            antecedent_core::reason_details::selective_discovery::DOWNSTREAM_INTERVAL_NOT_SUPPORTED
+        )
+    );
     assert!(interval.to_string().contains("disjoint discovery and analysis rows"));
     let score = request_score_search_reuse().unwrap_err();
     assert_eq!(score.code(), Some("route_not_supported"));
-    assert_eq!(score.detail(), Some("selective_discovery.score_search_closed"));
+    assert_eq!(
+        score.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::SCORE_SEARCH_NOT_SUPPORTED)
+    );
 }
 
 // -- transport under graph uncertainty ----------------------------------------------------------
@@ -529,14 +551,20 @@ fn a_discovered_structure_never_supplies_a_selection_diagram() {
     let (class, _) = full_static(&chain, &data);
     let refusal = request_selection_diagram(&class, &[VariableId::from_raw(1)]).unwrap_err();
     assert_eq!(refusal.code, "discovered_structure_unresolved");
-    assert_eq!(refusal.detail, "selective_discovery.unresolved_structure");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::selective_discovery::UNRESOLVED_STRUCTURE
+    );
     assert_eq!(refusal.unresolved_edges.len(), 2);
     assert!(refusal.remedy.contains("not computed across the class"));
 
     // Fully directed and search-complete: still a discovered estimate, still refused.
     let (directed, _) = full_static(&oracle_contract(&[0, 1, 2, 3]), &data);
     let refusal = request_selection_diagram(&directed, &[VariableId::from_raw(2)]).unwrap_err();
-    assert_eq!(refusal.detail, "selective_discovery.unaccepted_discovery");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::selective_discovery::UNACCEPTED_DISCOVERY
+    );
     assert!(refusal.unresolved_edges.is_empty());
 
     // A target that is not in the structure is named.
@@ -549,7 +577,10 @@ fn a_discovered_structure_never_supplies_a_selection_diagram() {
     bounded.bounded_search_receipts =
         vec![("fci.discriminating_path_budget".to_owned(), "exhausted".to_owned())];
     let refusal = request_selection_diagram(&bounded, &[VariableId::from_raw(2)]).unwrap_err();
-    assert_eq!(refusal.detail, "selective_discovery.search_incomplete");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::selective_discovery::SEARCH_INCOMPLETE
+    );
     assert_eq!(refusal.bounded_search_receipts.len(), 1);
 }
 
@@ -582,6 +613,181 @@ fn resume_replays_over_receipts_only_and_reproduces_the_result() {
 }
 
 #[test]
+fn resume_checks_recorded_semantics_and_retains_only_consumed_receipts() {
+    let data = collider_table(250, 41);
+    let contract = pc_contract(&[0, 1, 2, 3], "parcorr");
+    let state = exported(&contract, &data);
+    let mut variants = Vec::new();
+    let mut edited = state.clone();
+    edited.search_incomplete = !edited.search_incomplete;
+    variants.push(edited);
+    let mut edited = state.clone();
+    edited.orientation_conflict = !edited.orientation_conflict;
+    variants.push(edited);
+    let mut edited = state.clone();
+    edited.bounded_search_receipts.push(("forged".into(), "receipt".into()));
+    variants.push(edited);
+    let mut edited = state.clone();
+    edited.work.ci_tests_consumed += 1;
+    variants.push(edited);
+    let mut edited = state.clone();
+    edited.work.algorithm_executions = 0;
+    variants.push(edited);
+    for edited in variants {
+        let err =
+            StaticSelectiveDiscovery::resume(&contract, Some(&data), &edited, &ctx()).unwrap_err();
+        assert_eq!(
+            err.detail(),
+            Some(antecedent_core::reason_details::selective_discovery::REPLAY_DIVERGED)
+        );
+    }
+    let mut impossible = state.clone();
+    impossible.work.ci_tests_completed = impossible.work.ci_tests_attempted + 1;
+    assert_eq!(
+        StaticSelectiveDiscovery::resume(&contract, Some(&data), &impossible, &ctx())
+            .unwrap_err()
+            .detail(),
+        Some(antecedent_core::reason_details::selective_discovery::WORK_INCONSISTENT)
+    );
+    let mut wrong_rows = state.clone();
+    wrong_rows.rows += 1;
+    assert_eq!(
+        StaticSelectiveDiscovery::resume(&contract, Some(&data), &wrong_rows, &ctx())
+            .unwrap_err()
+            .detail(),
+        Some(antecedent_core::reason_details::selective_discovery::DATA_MISMATCH)
+    );
+
+    let mut extra = state.clone();
+    let mut forged = extra.receipts[0];
+    // A coordinate outside this replay, but otherwise a valid receipt.
+    loop {
+        forged.coordinate[0] = forged.coordinate[0].wrapping_add(1);
+        if !extra.receipts.iter().any(|r| r.coordinate == forged.coordinate) {
+            break;
+        }
+    }
+    extra.receipts.push(forged);
+    extra.receipts.sort_unstable_by_key(|r| r.coordinate);
+    extra.reseal();
+    let (mut resumed, _) =
+        StaticSelectiveDiscovery::resume(&contract, Some(&data), &extra, &ctx()).unwrap();
+    assert!(resumed.run(&contract, &data, &ctx()).unwrap().work.is_pure_reuse());
+    let reexport = resumed.export_state().unwrap();
+    assert!(!reexport.receipts.iter().any(|r| r.coordinate == forged.coordinate));
+    assert_eq!(reexport.work, state.work);
+    StaticSelectiveDiscovery::resume(&contract, Some(&data), &reexport, &ctx()).unwrap();
+}
+
+#[test]
+fn resume_recomputes_untestable_queries_but_not_missing_statistics() {
+    let x = [1.0; 50];
+    let y: Vec<f64> = (0..50).map(|i| f64::from(i)).collect();
+    let z: Vec<f64> = (0..50).map(|i| f64::from(i).sin()).collect();
+    let data = TabularData::from_f64_columns([
+        ("a", x.as_slice()),
+        ("b", y.as_slice()),
+        ("c", z.as_slice()),
+    ])
+    .unwrap();
+    let contract = pc_contract(&[0, 1, 2], "parcorr");
+    let state = exported(&contract, &data);
+    let (mut resumed, report) =
+        StaticSelectiveDiscovery::resume(&contract, Some(&data), &state, &ctx()).unwrap();
+    assert!(report.work.ci_tests_attempted > 0);
+    assert_eq!(resumed.outcome().unwrap().result_identity, state.result_identity);
+    assert!(resumed.run(&contract, &data, &ctx()).unwrap().work.is_pure_reuse());
+    let exported_again = resumed.export_state().unwrap();
+    assert_eq!(exported_again.work, state.work);
+    StaticSelectiveDiscovery::resume(&contract, Some(&data), &exported_again, &ctx()).unwrap();
+
+    let good = collider_table(250, 44);
+    let good_contract = pc_contract(&[0, 1, 2, 3], "parcorr");
+    let mut missing = exported(&good_contract, &good);
+    missing.receipts.clear();
+    missing.reseal();
+    let err = StaticSelectiveDiscovery::resume(&good_contract, Some(&good), &missing, &ctx())
+        .unwrap_err();
+    assert_eq!(
+        err.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::REPLAY_MISS)
+    );
+    let cancelled = ctx();
+    cancelled.cancellation.cancel();
+    assert!(StaticSelectiveDiscovery::resume(&contract, Some(&data), &state, &cancelled).is_err());
+}
+
+#[test]
+fn unused_forged_receipts_cannot_poison_a_later_warm_search() {
+    let data = collider_table(250, 41);
+    let mut initial = pc_contract(&[0, 1, 2, 3], "parcorr");
+    initial.constraints.max_cond_size = 0;
+    let mut later = initial.clone();
+    later.constraints.max_cond_size = 2;
+    let mut state = exported(&initial, &data);
+    let later_state = exported(&later, &data);
+    let mut added = 0;
+    for receipt in &later_state.receipts {
+        if !state.receipts.iter().any(|r| r.coordinate == receipt.coordinate) {
+            let mut forged = *receipt;
+            forged.p_value = 1.0;
+            state.receipts.push(forged);
+            added += 1;
+        }
+    }
+    assert!(added > 0, "the later search must introduce conditioning queries");
+    state.receipts.sort_unstable_by_key(|r| r.coordinate);
+    state.reseal();
+    let (mut resumed, _) =
+        StaticSelectiveDiscovery::resume(&initial, Some(&data), &state, &ctx()).unwrap();
+    let report = resumed.run(&later, &data, &ctx()).unwrap();
+    assert!(report.work.ci_tests_attempted > 0, "unread receipts must be recomputed");
+    assert_eq!(resumed.outcome().unwrap().result_identity, later_state.result_identity);
+}
+
+#[test]
+fn temporal_style_orientation_conflict_diagnostic_is_reported() {
+    let data = collider_table(250, 41);
+    let contract = pc_contract(&[0, 1, 2, 3], "parcorr");
+    let mut adapter = StaticSelectiveDiscovery::new();
+    adapter.run(&contract, &data, &ctx()).unwrap();
+    let NativeResult::StaticCpdag(result) = &adapter.outcome().unwrap().native else {
+        panic!("PC result expected")
+    };
+    assert!(!adapter.outcome().unwrap().orientation_conflict);
+    let mut result = result.clone();
+    // PCMCI+ emits this code even when an ambiguous majority leaves no Conflict mark.
+    result.diagnostics.push(antecedent_discovery::result::DiscoveryDiagnostic {
+        code: Arc::from("orientation.conflicts"),
+        message: Arc::from("ambiguous majority"),
+    });
+    assert!(DiscoveryOutcome::from_static_cpdag(&result).orientation_conflict);
+}
+
+#[test]
+fn parent_limit_removal_marks_selective_search_incomplete() {
+    let data = collider_table(250, 41);
+    let mut contract = pc_contract(&[0, 1, 2, 3], "parcorr");
+    contract.constraints.max_parents = Some(0);
+    let mut adapter = StaticSelectiveDiscovery::new();
+    adapter.run(&contract, &data, &ctx()).unwrap();
+    let outcome = adapter.outcome().unwrap();
+    assert!(outcome.search_incomplete);
+    assert!(
+        outcome
+            .bounded_search_receipts
+            .iter()
+            .any(|(code, _)| code == "pc.parent_limit_removed_adjacencies")
+    );
+    assert_eq!(
+        request_selection_diagram(outcome, &[VariableId::from_raw(2)]).unwrap_err().detail,
+        antecedent_core::reason_details::selective_discovery::SEARCH_INCOMPLETE
+    );
+    let exported = adapter.export_state().unwrap();
+    StaticSelectiveDiscovery::resume(&contract, Some(&data), &exported, &ctx()).unwrap();
+}
+
+#[test]
 fn resume_refuses_missing_data_other_data_and_another_contract() {
     let data = collider_table(250, 42);
     let contract = pc_contract(&[0, 1, 2, 3], "parcorr");
@@ -589,17 +795,26 @@ fn resume_refuses_missing_data_other_data_and_another_contract() {
 
     let err = StaticSelectiveDiscovery::resume(&contract, None, &state, &ctx()).unwrap_err();
     assert_eq!(err.code(), Some("discovery_statistics_invalid"));
-    assert_eq!(err.detail(), Some("selective_discovery.raw_data_missing"));
+    assert_eq!(
+        err.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::RAW_DATA_MISSING)
+    );
 
     let other = collider_table(250, 43);
     let err =
         StaticSelectiveDiscovery::resume(&contract, Some(&other), &state, &ctx()).unwrap_err();
-    assert_eq!(err.detail(), Some("selective_discovery.data_mismatch"));
+    assert_eq!(
+        err.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::DATA_MISMATCH)
+    );
 
     let mut changed = contract.clone();
     changed.constraints.alpha = 0.01;
     let err = StaticSelectiveDiscovery::resume(&changed, Some(&data), &state, &ctx()).unwrap_err();
-    assert_eq!(err.detail(), Some("selective_discovery.contract_mismatch"));
+    assert_eq!(
+        err.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::CONTRACT_MISMATCH)
+    );
 }
 
 #[test]
@@ -613,7 +828,10 @@ fn resume_refuses_invalid_receipts_and_a_resealed_semantic_mutation() {
     invalid.receipts[0].p_value = 1.5;
     let err =
         StaticSelectiveDiscovery::resume(&contract, Some(&data), &invalid, &ctx()).unwrap_err();
-    assert_eq!(err.detail(), Some("selective_discovery.receipt_invalid"));
+    assert_eq!(
+        err.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::RECEIPT_INVALID)
+    );
 
     // A receipt dropped: the replay needs a statistic the state does not hold.
     let mut dropped = state.clone();
@@ -622,7 +840,10 @@ fn resume_refuses_invalid_receipts_and_a_resealed_semantic_mutation() {
         antecedent_discovery::selective::StatisticStore::receipts_identity(&dropped.receipts);
     let err =
         StaticSelectiveDiscovery::resume(&contract, Some(&data), &dropped, &ctx()).unwrap_err();
-    assert_eq!(err.detail(), Some("selective_discovery.replay_miss"));
+    assert_eq!(
+        err.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::REPLAY_MISS)
+    );
 
     // Every statistic rewritten to "independent" and the receipt identity resealed: each
     // value is a valid statistic, the container is consistent, and the replay reaches a
@@ -635,7 +856,10 @@ fn resume_refuses_invalid_receipts_and_a_resealed_semantic_mutation() {
         antecedent_discovery::selective::StatisticStore::receipts_identity(&mutated.receipts);
     let err =
         StaticSelectiveDiscovery::resume(&contract, Some(&data), &mutated, &ctx()).unwrap_err();
-    assert_eq!(err.detail(), Some("selective_discovery.replay_diverged"));
+    assert_eq!(
+        err.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::REPLAY_DIVERGED)
+    );
 
     // The same edit without resealing is caught by the receipt identity.
     let mut unsealed = state;
@@ -644,7 +868,10 @@ fn resume_refuses_invalid_receipts_and_a_resealed_semantic_mutation() {
     }
     let err =
         StaticSelectiveDiscovery::resume(&contract, Some(&data), &unsealed, &ctx()).unwrap_err();
-    assert_eq!(err.detail(), Some("selective_discovery.receipts_identity"));
+    assert_eq!(
+        err.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::RECEIPTS_IDENTITY)
+    );
 }
 
 // -- temporal ---------------------------------------------------------------------------------------
@@ -778,9 +1005,15 @@ fn temporal_resume_and_data_change_follow_the_static_rules() {
     let other = temporal_series(300, 54, &[]);
     let err =
         TemporalSelectiveDiscovery::resume(&contract, Some(&other), &state, &ctx()).unwrap_err();
-    assert_eq!(err.detail(), Some("selective_discovery.data_mismatch"));
+    assert_eq!(
+        err.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::DATA_MISMATCH)
+    );
     let err = TemporalSelectiveDiscovery::resume(&contract, None, &state, &ctx()).unwrap_err();
-    assert_eq!(err.detail(), Some("selective_discovery.raw_data_missing"));
+    assert_eq!(
+        err.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::RAW_DATA_MISSING)
+    );
 
     // New data: the retained statistics are not used and the result is a fresh run's.
     let report = adapter.run(&contract, &other, &ctx()).unwrap();
@@ -823,7 +1056,10 @@ fn exhausted_search_bound_is_preserved_identically_by_selective_and_full_runs() 
             // The bound's exhaustion is a recorded fact, and a transport request sees it.
             if outcome.search_incomplete {
                 let refusal = request_selection_diagram(outcome, &[]).unwrap_err();
-                assert_eq!(refusal.detail, "selective_discovery.search_incomplete");
+                assert_eq!(
+                    refusal.detail,
+                    antecedent_core::reason_details::selective_discovery::SEARCH_INCOMPLETE
+                );
             }
         }
         (Err(a), Err(b)) => assert_eq!(a, b),
@@ -919,13 +1155,23 @@ fn refused_knowledge_names_its_reason_and_detail() {
     contradictory.constraints.required = Arc::from([contemp(0, 1)]);
     contradictory.constraints.forbidden = Arc::from([contemp(0, 1)]);
     let error = refusal(&contradictory);
-    assert_eq!(error.detail(), Some("selective_discovery.background_knowledge_contradictory"));
+    assert_eq!(
+        error.detail(),
+        Some(
+            antecedent_core::reason_details::selective_discovery::BACKGROUND_KNOWLEDGE_CONTRADICTORY
+        )
+    );
     assert_eq!(error.code(), Some("invalid_argument"));
 
     let mut unknown = chain_contract(StaticAlgorithm::Pc);
     unknown.constraints.forbidden = Arc::from([contemp(0, 9)]);
     let error = refusal(&unknown);
-    assert_eq!(error.detail(), Some("selective_discovery.background_knowledge_unknown_variable"));
+    assert_eq!(
+        error.detail(),
+        Some(
+            antecedent_core::reason_details::selective_discovery::BACKGROUND_KNOWLEDGE_UNKNOWN_VARIABLE
+        )
+    );
     assert_eq!(error.code(), Some("unknown_variable"));
 
     // A static contract with a lagged link has nothing to search it in.
@@ -933,7 +1179,12 @@ fn refused_knowledge_names_its_reason_and_detail() {
     lagged.constraints.forbidden =
         Arc::from([LaggedLink { source_lag: Lag::from_raw(1), ..contemp(0, 1) }]);
     let error = refusal(&lagged);
-    assert_eq!(error.detail(), Some("selective_discovery.background_knowledge_not_applicable"));
+    assert_eq!(
+        error.detail(),
+        Some(
+            antecedent_core::reason_details::selective_discovery::BACKGROUND_KNOWLEDGE_NOT_APPLICABLE
+        )
+    );
     assert_eq!(error.code(), Some("option_not_applicable"));
     // The parent limit is enforced by PC and FCI, so their contracts accept it.
     for algorithm in [StaticAlgorithm::Pc, StaticAlgorithm::Fci] {
@@ -953,7 +1204,12 @@ fn refused_knowledge_names_its_reason_and_detail() {
     series.validate().unwrap();
     series.constraints.required = Arc::from([contemp(0, 1)]);
     let error = series.validate().unwrap_err();
-    assert_eq!(error.detail(), Some("selective_discovery.background_knowledge_not_applicable"));
+    assert_eq!(
+        error.detail(),
+        Some(
+            antecedent_core::reason_details::selective_discovery::BACKGROUND_KNOWLEDGE_NOT_APPLICABLE
+        )
+    );
 }
 
 #[test]
@@ -1076,5 +1332,10 @@ fn contradictory_knowledge_is_refused_by_pcmci_plus() {
     contract.constraints.required = Arc::from([contemp(0, 1)]);
     contract.constraints.tiers = tiers(&[&[1], &[0]]);
     let error = contract.validate().unwrap_err();
-    assert_eq!(error.detail(), Some("selective_discovery.background_knowledge_contradictory"));
+    assert_eq!(
+        error.detail(),
+        Some(
+            antecedent_core::reason_details::selective_discovery::BACKGROUND_KNOWLEDGE_CONTRADICTORY
+        )
+    );
 }

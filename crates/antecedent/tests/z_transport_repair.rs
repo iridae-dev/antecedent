@@ -1,13 +1,13 @@
 //! Surrogate experiments repair a z-transport contract only as a joint law
 //! at the checked population and intervention level.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::repair::{
     DurableStudyCandidate, ExpectedEvidence, RepairClassification, RepairConsumeLimits,
-    RepairFamily, RepairFamilyRef, RepairLimits, RepairObjective, StudyCostDeclaration, StudyKind,
-    UnitRules, ZTransportRepairFamily, consume_repair_artifact, repair_contract,
-    repair_with_artifact, unresolved_obligations,
+    RepairFamily, RepairFamilyRef, RepairLimits, RepairObjective, RepairReportArtifact,
+    StudyCostDeclaration, StudyKind, UnitRules, ZTransportRepairFamily, consume_repair_artifact,
+    repair_contract, unresolved_obligations,
 };
 use antecedent_core::{
     DistributionAvailability, Environment, EvidenceCatalog, ExecutionContext,
@@ -186,7 +186,10 @@ fn portable_failure_replay_reproduces_obligations_and_repair() {
     assert_eq!(run(&a), run(&b));
     let mut edited = wire;
     edited.catalog_digest = "changed".into();
-    assert!(ZTransportFailureSnapshot::from_wire(&edited, SidLimits::default(), &ctx()).is_err());
+    assert!(matches!(
+        ZTransportFailureSnapshot::from_wire(&edited, SidLimits::default(), &ctx()),
+        Err(antecedent_design::ZTransportPlanningError::DigestMismatch)
+    ));
 }
 
 #[test]
@@ -234,7 +237,7 @@ fn cancelled_z_transport_repair_never_certifies_a_candidate() {
         &cancelled,
     )
     .unwrap_err();
-    assert_eq!(error.detail, "identification_repair.budget");
+    assert_eq!(error.detail, antecedent_core::reason_details::identification_repair::BUDGET);
     let candidate = experiment("correct", "source", false, true);
     assert!(family.check(&[&candidate], &cancelled).is_err());
 }
@@ -245,8 +248,8 @@ fn z_transport_repair_artifact_replays_full_and_stopped_searches_and_refuses_for
     let candidates =
         [experiment("correct", "source", false, true), experiment("wrong", "source", true, true)];
     for operations in [1, 100] {
-        let (report, artifact) = repair_with_artifact(
-            RepairFamilyRef::ZTransport(&family),
+        let report = repair_contract(
+            &family,
             &candidates,
             RepairObjective::MinimizeCost,
             RepairLimits {
@@ -256,6 +259,9 @@ fn z_transport_repair_artifact_replays_full_and_stopped_searches_and_refuses_for
             &ctx(),
         )
         .unwrap();
+        let artifact =
+            RepairReportArtifact::build(RepairFamilyRef::ZTransport(&family), &candidates, &report)
+                .unwrap();
         let bytes = artifact.to_bytes("z-repair").unwrap();
         let (_, replay) =
             consume_repair_artifact(&bytes, RepairConsumeLimits::default(), &ctx()).unwrap();
@@ -276,7 +282,10 @@ fn z_transport_repair_artifact_replays_full_and_stopped_searches_and_refuses_for
                 .unwrap()
                 .consume(RepairConsumeLimits::default(), &ctx())
                 .unwrap_err();
-            assert_eq!(error.detail, "repair_artifact.replay_mismatch");
+            assert_eq!(
+                error.detail,
+                antecedent_core::reason_details::repair_artifact::REPLAY_MISMATCH
+            );
         }
     }
 }

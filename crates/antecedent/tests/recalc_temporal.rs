@@ -1,7 +1,7 @@
 //! Checked whole-history recalculation against an independently enumerated longitudinal SCM.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent::analysis::recalc_receipt::RecalcRunError;
+use antecedent::analysis::recalc_receipt::{RecalcRequestCode, RecalcRunError};
 use antecedent::analysis::recalc_temporal::{
     TemporalFunctional, TemporalHistoryWire, TemporalOutcome, TemporalRequest, TemporalRunError,
     TemporalSession, TemporalUnitWire, consume_temporal_recalc_artifact,
@@ -34,7 +34,7 @@ fn request(functional: TemporalFunctional) -> TemporalRequest {
                     for uy in 0..20 {
                         let l2 = u32::from(ul < s0 + a1 + 1);
                         let y = f64::from(uy < 2 + 4 * a1 + 3 * l2 + 5 * a2 + 2 * s0 + 2 * s0 * a1);
-                        let history = TemporalHistoryWire { time_id: 0, s0, a1, l2, a2, y };
+                        let history = TemporalHistoryWire::two_step(0, s0, a1, l2, a2, y);
                         units.push(TemporalUnitWire {
                             unit_id: u64::try_from(units.len()).unwrap(),
                             histories: vec![
@@ -52,7 +52,7 @@ fn request(functional: TemporalFunctional) -> TemporalRequest {
         bidirected: vec![],
         selection_targets: vec![0],
         horizon: 2,
-        lag_alignment: [0, 1, 2, 2, 2],
+        lag_alignment: vec![0, 1, 2, 2, 2],
         period: (0, 5),
         units,
         snapshot_id: "enumerated-dependent-source".into(),
@@ -64,7 +64,7 @@ fn request(functional: TemporalFunctional) -> TemporalRequest {
     }
 }
 fn effect() -> TemporalRequest {
-    request(TemporalFunctional::Effect { active: [1, 1], control: [0, 0] })
+    request(TemporalFunctional::Effect { active: vec![1, 1], control: vec![0, 0] })
 }
 // Integrate the structural conditional probabilities, without invoking either engine.
 fn mean(a1: f64, a2: f64, p1: f64) -> f64 {
@@ -94,7 +94,7 @@ fn run(session: &mut TemporalSession, request: &TemporalRequest) -> TemporalOutc
 #[test]
 fn temporal_history_response_and_effect_match_enumerated_longitudinal_truth() {
     for sequence in [[0, 0], [0, 1], [1, 0], [1, 1]] {
-        let r = request(TemporalFunctional::Response { sequence });
+        let r = request(TemporalFunctional::Response { sequence: sequence.to_vec() });
         let result = run(&mut TemporalSession::new(), &r);
         close(result.means[0], mean(f64::from(sequence[0]), f64::from(sequence[1]), 0.8));
         close(
@@ -118,7 +118,7 @@ fn temporal_history_unchanged_utility_and_initial_law_reuse_actual_source_fits()
     let mut session = TemporalSession::new();
     run(&mut session, &r);
     let source = std::ptr::from_ref(session.source_factor().unwrap());
-    let active = std::ptr::from_ref(session.sequence_fit([1, 1]).unwrap());
+    let active = std::ptr::from_ref(session.sequence_fit(&[1, 1]).unwrap());
     let unchanged = run(&mut session, &r);
     assert_eq!(unchanged.recalc.receipt.totals().total(), 0);
     let mut utility = r.clone();
@@ -138,7 +138,7 @@ fn temporal_history_unchanged_utility_and_initial_law_reuse_actual_source_fits()
     assert_eq!(updated.recalc.receipt.totals().factor_builds, 0);
     assert!(updated.recalc.receipt.totals().integrations > 0);
     assert_eq!(source, std::ptr::from_ref(session.source_factor().unwrap()));
-    assert_eq!(active, std::ptr::from_ref(session.sequence_fit([1, 1]).unwrap()));
+    assert_eq!(active, std::ptr::from_ref(session.sequence_fit(&[1, 1]).unwrap()));
 }
 
 #[test]
@@ -147,7 +147,7 @@ fn temporal_history_new_sequence_and_new_raw_histories_invalidate_only_real_work
     let mut session = TemporalSession::new();
     run(&mut session, &r);
     let source = std::ptr::from_ref(session.source_factor().unwrap());
-    r.functional = TemporalFunctional::Effect { active: [1, 0], control: [0, 1] };
+    r.functional = TemporalFunctional::Effect { active: vec![1, 0], control: vec![0, 1] };
     let changed = run(&mut session, &r);
     close(changed.recalc.law.ate, 0.0675);
     assert_eq!(changed.recalc.receipt.totals().factor_builds, 2);
@@ -211,11 +211,19 @@ fn temporal_history_empirical_artifact_is_independently_checked_from_raw_units()
     close(result.recalc.law.ate, expected.recalc.law.ate);
     assert_eq!(measured.factor_builds, 3);
     assert_eq!(result.recalc.receipt.totals().factor_builds, measured.factor_builds);
-    assert!(consume_temporal_recalc_artifact(&bytes[..bytes.len() / 2], &ctx()).is_err());
+    assert!(matches!(
+        consume_temporal_recalc_artifact(&bytes[..bytes.len() / 2], &ctx()),
+        Err(TemporalRunError::Io(_))
+    ));
     let (wrong_seed, measured) = count_static_work(|| {
         consume_temporal_recalc_artifact(&bytes, &ExecutionContext::for_tests(732))
     });
-    assert!(wrong_seed.is_err());
+    assert!(matches!(
+        wrong_seed,
+        Err(TemporalRunError::Recalc(RecalcRunError::Request(
+            RecalcRequestCode::TemporalArtifactSeedMismatch
+        )))
+    ));
     assert_eq!(measured.factor_builds, 0);
 }
 
@@ -231,16 +239,21 @@ fn temporal_history_resource_window_and_support_refusals_preserve_previous_fit()
         count_static_work(|| execute_temporal_with_receipt(&mut session, &r, &cancelled));
     assert!(matches!(
         result,
-        Err(TemporalRunError::Recalc(RecalcRunError::Request("recalc.cancelled")))
+        Err(TemporalRunError::Recalc(RecalcRunError::Request(RecalcRequestCode::Cancelled)))
     ));
     assert_eq!(work.factor_builds, 0);
     let mut changed = r.clone();
     changed.units[0].histories[0].y = 0.;
     let mut small = ctx();
-    small.memory.hard_limit_bytes = Some(1);
+    small.set_memory_limit(Some(1));
     let (result, work) =
         count_static_work(|| execute_temporal_with_receipt(&mut session, &changed, &small));
-    assert!(result.is_err());
+    assert!(matches!(
+        result,
+        Err(TemporalRunError::Recalc(RecalcRunError::Request(
+            RecalcRequestCode::MemoryBudgetExceeded
+        )))
+    ));
     assert_eq!(work.factor_builds, 0);
     let mut horizon = r.clone();
     horizon.horizon = 3;
@@ -256,16 +269,19 @@ fn temporal_history_resource_window_and_support_refusals_preserve_previous_fit()
     missing_state.units.retain(|u| u.histories[0].s0 == 0);
     let mut wrong_selection = r.clone();
     wrong_selection.selection_targets = vec![2];
-    for invalid in [
-        horizon,
-        lag,
-        incomplete_window,
-        missing_units,
-        unsupported,
-        missing_state,
-        wrong_selection,
+    for (invalid, refusal) in [
+        (horizon, antecedent_core::reason_details::temporal_refresh::LAG_ALIGNMENT_CHANGED),
+        (lag, antecedent_core::reason_details::temporal_refresh::LAG_ALIGNMENT_CHANGED),
+        (incomplete_window, "InvalidTemporalWindow"),
+        (missing_units, "InvalidTemporalWindow"),
+        (unsupported, "temporal_recalc.binary_history_scope"),
+        (missing_state, antecedent_core::reason_details::initial_state::SUPPORT_GAP),
+        (wrong_selection, "temporal_initial_shift.source_scope"),
     ] {
-        assert!(execute_temporal_with_receipt(&mut session, &invalid, &ctx()).is_err());
+        let error = execute_temporal_with_receipt(&mut session, &invalid, &ctx())
+            .err()
+            .expect("an invalid request is refused");
+        assert!(format!("{error:?}").contains(refusal), "{refusal}: {error:?}");
         assert_eq!(source, std::ptr::from_ref(session.source_factor().unwrap()));
         assert_eq!(run(&mut session, &r).recalc.receipt.totals().total(), 0);
     }
@@ -279,7 +295,14 @@ fn temporal_history_artifact_rechecks_resealed_data_and_binds_unit_ownership() {
     let wire = TemporalRecalcArtifactWire::decode(&session.export_result().unwrap()).unwrap();
     let mut ownership = wire.clone();
     ownership.request.units[0].unit_id = 10000;
-    assert!(ownership.export().is_err(), "unit ownership is bound by the data digest");
+    assert!(
+        matches!(
+            ownership.export(),
+            Err(antecedent_io_core::IoError::Refused { code: "invalid_argument", message })
+                if message == "temporal_recalc.artifact_invalid: premise/data identity mismatch"
+        ),
+        "unit ownership is bound by the data digest"
+    );
     let mut changed = wire.request.clone();
     for history in &mut changed.units[0].histories {
         history.y = 0.;
@@ -292,7 +315,9 @@ fn temporal_history_artifact_rechecks_resealed_data_and_binds_unit_ownership() {
     let (result, work) = count_static_work(|| consume_temporal_recalc_artifact(&forged, &ctx()));
     assert!(matches!(
         result,
-        Err(TemporalRunError::Recalc(RecalcRunError::Request("recalc.temporal_artifact_mismatch")))
+        Err(TemporalRunError::Recalc(RecalcRunError::Request(
+            RecalcRequestCode::TemporalArtifactMismatch
+        )))
     ));
     assert_eq!(
         work.factor_builds, 3,
@@ -305,13 +330,28 @@ fn temporal_history_artifact_rechecks_resealed_data_and_binds_unit_ownership() {
             .unwrap()
             .export()
             .unwrap();
-    assert!(consume_temporal_recalc_artifact(&graph_forgery, &ctx()).is_err());
+    assert!(matches!(
+        consume_temporal_recalc_artifact(&graph_forgery, &ctx()),
+        Err(TemporalRunError::Recalc(RecalcRunError::Request(
+            RecalcRequestCode::TemporalArtifactMismatch
+        )))
+    ));
     let mut wrong_program = wire.clone();
     wrong_program.reports[0].source_proof.executable_root = 0;
-    assert!(consume_temporal_recalc_artifact(&wrong_program.export().unwrap(), &ctx()).is_err());
+    assert!(matches!(
+        consume_temporal_recalc_artifact(&wrong_program.export().unwrap(), &ctx()),
+        Err(TemporalRunError::Recalc(RecalcRunError::Request(
+            RecalcRequestCode::TemporalArtifactMismatch
+        )))
+    ));
     let mut wrong_trace = wire.clone();
     wrong_trace.reports[0].source_proof.derivation.clear();
-    assert!(consume_temporal_recalc_artifact(&wrong_trace.export().unwrap(), &ctx()).is_err());
+    assert!(matches!(
+        consume_temporal_recalc_artifact(&wrong_trace.export().unwrap(), &ctx()),
+        Err(TemporalRunError::Recalc(RecalcRunError::Request(
+            RecalcRequestCode::TemporalArtifactMismatch
+        )))
+    ));
 }
 
 #[test]
@@ -362,25 +402,44 @@ fn temporal_history_source_program_uses_only_reachable_actual_observational_sour
 }
 
 #[test]
-fn temporal_history_uncertainty_rejects_unmeasured_scope_and_checks_graph() {
-    use antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig;
+fn temporal_history_uncertainty_rejects_not_measured_scope_and_checks_graph() {
+    use antecedent_estimate::temporal_dependent_interval::{
+        DependentIntervalConfig, IntervalMethod,
+    };
     let r = effect();
     let mut session = TemporalSession::new();
     run(&mut session, &r);
-    let error = session
+    // The default studentized interval needs exact balanced unit scores, which this panel does
+    // not have: that is a refusal of the construction, not of its calibration.
+    let unbalanced = session
         .dependent_interval(&DependentIntervalConfig {
             replicates: 20,
             ..DependentIntervalConfig::default()
         })
         .unwrap_err();
-    assert!(error.to_string().contains("only the measured complete binary-history"));
+    assert!(
+        unbalanced.to_string().contains("exact unit scores require identical complete binary"),
+        "{unbalanced}"
+    );
+    // A request outside the measured protocol is reported, annotated `not_measured`.
+    let reported = session
+        .dependent_interval(&DependentIntervalConfig {
+            replicates: 20,
+            method: IntervalMethod::Percentile,
+            ..DependentIntervalConfig::default()
+        })
+        .expect("the interval is reported");
+    assert_eq!(reported.report().calibration, "not_measured");
     let mut confounded = r.clone();
     confounded.bidirected.push((1, 4));
     let (result, work) =
         count_static_work(|| execute_temporal_with_receipt(&mut session, &confounded, &ctx()));
     assert!(
-        result.is_err(),
-        "the actual checked whole-sequence proof must reject latent action/outcome confounding"
+        format!("{:?}", result.as_ref().err()).contains(
+            "temporal_initial_shift.source_scope: requires a DAG with selection only at root S0"
+        ),
+        "the actual checked whole-sequence proof must reject latent action/outcome confounding: {:?}",
+        result.as_ref().err()
     );
     assert_eq!(
         work.factor_builds, 0,
@@ -391,6 +450,12 @@ fn temporal_history_uncertainty_rejects_unmeasured_scope_and_checks_graph() {
 
 #[cfg(feature = "calibration-internal")]
 #[test]
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "percentile indices are bounded by the 20 retained draws"
+)]
 fn temporal_history_closed_candidate_replays_whole_unit_identities_without_coverage_claim() {
     use antecedent_estimate::temporal_dependent_interval::{
         DependentIntervalConfig, IntervalMethod,
@@ -408,15 +473,29 @@ fn temporal_history_closed_candidate_replays_whole_unit_identities_without_cover
     let result = result.unwrap();
     close(result.point, 0.5675);
     assert_eq!(result.units, 640);
-    assert_eq!(result.calibration, "unmeasured");
+    assert_eq!(result.calibration, "not_measured");
     assert_eq!(result.replicates.len(), 20);
-    // The point, each bootstrap draw and each delete-one jackknife unit (the acceleration of
-    // the percentile endpoints) rebuild one source joint and two sequence mechanisms.
+    // A percentile interval uses the original panel and each paired whole-unit draw;
+    // unlike BCa, it does not fit delete-one jackknife panels.
     assert_eq!(
         work.factor_builds,
-        3 * (1 + 20 + 640),
-        "one actual source joint and two sequence mechanisms for the point, each paired unit draw and each jackknife unit"
+        3 * (1 + u64::try_from(config.replicates).unwrap()),
+        "one source joint and two sequence mechanisms for the point and each paired unit draw"
     );
+    let mut points = result.replicates.iter().filter_map(|r| r.point).collect::<Vec<_>>();
+    assert_eq!(points.len() + result.failed, config.replicates);
+    assert!(points.len() >= 2);
+    points.sort_by(f64::total_cmp);
+    // Type-7 percentile endpoints, evaluated directly from the retained draws.
+    let percentile = |p: f64| {
+        let position = p * (points.len() - 1) as f64;
+        let lo = position.floor() as usize;
+        let hi = position.ceil() as usize;
+        points[lo] + (points[hi] - points[lo]) * (position - lo as f64)
+    };
+    let tail = (1.0 - config.level) / 2.0;
+    close(result.lower, percentile(tail));
+    close(result.upper, percentile(1.0 - tail));
     let replay = session.candidate_interval_internal(&config, &ctx()).unwrap();
     assert_eq!(result, replay);
     let mut relabeled = r.clone();
@@ -427,7 +506,8 @@ fn temporal_history_closed_candidate_replays_whole_unit_identities_without_cover
     close(changed.point, result.point);
     assert_ne!(changed.panel_digest, result.panel_digest);
     assert_ne!(changed.replicate_digest(), result.replicate_digest());
-    assert!(session.dependent_interval(&config).is_err());
+    let reported = session.dependent_interval(&config).expect("the interval is reported");
+    assert_eq!(reported.report().calibration, "not_measured");
 }
 
 #[cfg(feature = "calibration-internal")]
@@ -437,7 +517,7 @@ fn checked_response_retired_intervals_refuse_before_resampling() {
         DependentIntervalConfig, IntervalMethod,
     };
     let mut session = TemporalSession::new();
-    run(&mut session, &request(TemporalFunctional::Response { sequence: [0, 0] }));
+    run(&mut session, &request(TemporalFunctional::Response { sequence: vec![0, 0] }));
     for method in [IntervalMethod::Percentile, IntervalMethod::Basic] {
         let config = DependentIntervalConfig {
             method,
@@ -448,7 +528,9 @@ fn checked_response_retired_intervals_refuse_before_resampling() {
         let (result, work) =
             count_static_work(|| session.candidate_interval_internal(&config, &ctx()));
         assert!(
-            result.unwrap_err().to_string().contains("temporal_interval.retired_response_method")
+            result.unwrap_err().to_string().contains(
+                antecedent_core::reason_details::temporal_interval::RETIRED_RESPONSE_METHOD
+            )
         );
         assert_eq!(work.factor_builds, 0);
         assert_eq!(work.factor_evaluations, 0);

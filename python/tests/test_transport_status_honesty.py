@@ -14,8 +14,9 @@ import json
 import math
 
 import pytest
-from antecedent import Admg, AverageEffect, analyze, identify, prepare, transport
+from antecedent import Admg, AverageEffect, Execution, analyze, identify, prepare, transport
 from antecedent.errors import CausalResourceError
+from antecedent.outcomes import require_success
 from antecedent.results import AnalysisResult
 from antecedent.transport import advanced
 from antecedent.transport._wrap import _RehydratedStudy, wrap_transport_result
@@ -166,11 +167,10 @@ def _statistical_specialist():
     data = advanced.StatisticalTransportData(samples=(sample,))
     study = prepare(
         data,
-        query=advanced.StatisticalTransportQuery(
-            identified, catalog, {"x": 1.0}, bootstrap=39, seed=7
-        ),
+        query=advanced.StatisticalTransportQuery(identified, catalog, {"x": 1.0}, bootstrap=39),
+        execution=Execution(seed=7),
     )
-    return identified, study.estimate()
+    return identified, require_success(study.estimate())
 
 
 def test_exact_scalar_never_reports_a_fabricated_analytic_se():
@@ -181,6 +181,8 @@ def test_exact_scalar_never_reports_a_fabricated_analytic_se():
     # 0.0 is a real, finite, wrong standard error; a complete exact law makes
     # no sampling claim at all, so nothing may be reported as computed.
     assert not math.isfinite(result.estimate.se_analytic)
+    # E[y | do(x=1)] from the supplied law is P(y=1, x=1) / P(x=1) = 0.35 / 0.5.
+    assert result.estimate.ate == pytest.approx(0.35 / 0.5, abs=1e-12)
     assert result.estimate.se_bootstrap is None
     assert result.transport.uncertainty_reason == "exact_supplied_law_no_sampling_uncertainty"
     report = result.inspect()
@@ -193,6 +195,8 @@ def test_statistical_scalar_reports_native_interval_not_a_fabricated_se():
     result = wrap_transport_result(study, specialist)
     assert isinstance(result, AnalysisResult)
     assert not math.isfinite(result.estimate.se_analytic)
+    # The regime's sample at do(x=1) has 80 ones out of 100.
+    assert result.estimate.ate == pytest.approx(0.8, abs=1e-12)
     # Either the bootstrap-inferred interval survives, or the native reason
     # it was withheld does (e.g. too few replicates survived resampling);
     # either way this is real native uncertainty reasoning, never a fake SE.
@@ -203,9 +207,12 @@ def test_statistical_scalar_reports_native_interval_not_a_fabricated_se():
 
 
 def test_exact_contrast_never_reports_a_fabricated_analytic_se():
-    result = analyze(_exact(), graph=_graph(), query=_ate())
+    result = require_success(analyze(_exact(), graph=_graph(), query=_ate()))
     assert isinstance(result, AnalysisResult)
     assert result.answer.kind == "point"
+    # ATE of the supplied interventional laws: E[y|do(x=1)] - E[y|do(x=0)] = 0.8 - 0.5.
+    assert result.answer.value == pytest.approx(0.8 - 0.5, abs=1e-12)
+    assert result.estimate.ate == pytest.approx(0.3, abs=1e-12)
     assert not math.isfinite(result.estimate.se_analytic)
 
 
@@ -213,7 +220,7 @@ def test_exact_contrast_never_reports_a_fabricated_analytic_se():
 
 
 def test_transport_validation_never_claims_passed_when_nothing_ran():
-    result = analyze(_exact(), graph=_graph(), query=_ate())
+    result = require_success(analyze(_exact(), graph=_graph(), query=_ate()))
     assert result.validation.ran is False
     assert result.validation.passed is False
 
@@ -281,8 +288,8 @@ def test_transport_export_is_verified_natively_not_a_bare_json_blob():
     # ``AverageEffect`` round-trips through ``_query_to_dict``/``_query_from_dict``
     # (unlike ``PointDerivative``, which those helpers do not reconstruct);
     # its contrast shape exercises the ``TransportResponseGrid`` export path.
-    result = analyze(_exact(), graph=_graph(), query=_ate())
-    blob = result.export()
+    result = require_success(analyze(_exact(), graph=_graph(), query=_ate()))
+    blob = bytes(result.export())
     assert blob.startswith(b"ANTECEDENT-TRANSPORT-VIEW\x01")
     prefix = b"ANTECEDENT-TRANSPORT-VIEW\x01"
     payload = json.loads(blob[len(prefix) :])
@@ -296,7 +303,7 @@ def test_transport_export_is_verified_natively_not_a_bare_json_blob():
 
     # Hand-editing the lineage metadata (never a scientific claim) is fine.
     payload["provider"] = "tampered_but_harmless"
-    loaded = load(prefix + json.dumps(payload).encode())
+    loaded = require_success(load(prefix + json.dumps(payload).encode()))
     assert loaded.answer.value == pytest.approx(result.answer.value)
     assert loaded.identification.status == result.identification.status
 
@@ -305,11 +312,11 @@ def test_transport_export_is_verified_natively_not_a_bare_json_blob():
     corrupt = dict(payload)
     corrupt["identification_artifact"] = base64.b64encode(b"not a real certificate").decode("ascii")
     with pytest.raises(ValueError, match="invalid certificate framing"):
-        load(prefix + json.dumps(corrupt).encode())
+        require_success(load(prefix + json.dumps(corrupt).encode()))
 
     # Dropping the certificate entirely must fail closed (unidentified),
     # never keep reporting the original identified status.
     dropped = dict(payload)
     del dropped["identification_artifact"]
-    reloaded = load(prefix + json.dumps(dropped).encode())
+    reloaded = require_success(load(prefix + json.dumps(dropped).encode()))
     assert reloaded.identification.status == "NotIdentified"

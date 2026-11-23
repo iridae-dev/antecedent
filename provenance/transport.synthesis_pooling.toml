@@ -1,0 +1,22 @@
+feature_id = "transport.synthesis_pooling"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Introduction to Meta-Analysis (Borenstein, Hedges, Higgins, Rothstein, 2009)", sections = ["chapter 11: fixed-effect model, inverse-variance weights", "chapter 13: random-effects model (hierarchical normal borrowing across exchangeable studies)"] },
+ { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl, Bareinboim, 2014)", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
+]
+
+implementation_deviations = [
+ "The transport error b_t of variance tau_t^2 shared by every summary that passed through one transport identity, and its addition to the summaries' covariance as diag(v) + sum_t tau_t^2 1_t 1_t', is an original construction of this repository; the cited fixed-effect generalized least squares itself is standard.",
+ "Cross terms from a shared transport with overlapping or unknown observations are refused unless a sampling covariance is supplied; the claim is a pooled estimate and variance only, with no coverage claim.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-design/tests/transported_synthesis.rs",
+]

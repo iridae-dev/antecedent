@@ -14,11 +14,11 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent.errors import CausalUnsupportedError
-from antecedent.estimation import PreparedAnalysis
 from antecedent.graph import TemporalCpdag, TieredBackground, WithinTier
 from antecedent.intervention import Set
+from antecedent.outcomes import require_success
 
-_BAND_WITHHELD = "no pointwise or simultaneous band"
+_NO_BAND_METHOD = "no pointwise or simultaneous band"
 
 
 def _static_data(n: int = 300, seed: int = 5) -> dict[str, np.ndarray]:
@@ -56,13 +56,11 @@ _TEMPORAL_PATH = antecedent.InterventionResponse(
     "y", intervention=Set("t", 1.0), horizons=[1, 2], policy="pulse", treatment_lag=1
 )
 _JOINT = antecedent.InterventionResponse("y", intervention=[Set("t1", 1.0), Set("t2", 1.0)])
-_BAYES = antecedent.Bayesian(backend="conjugate", n_draws=256)
 
 
 def _refusing_routes() -> list[tuple[str, dict[str, Any], type[Exception], str]]:
     static = _static_data()
     binary = _binary_data()
-    temporal = _temporal_data()
     cpdag = antecedent.Cpdag.from_directed_undirected(
         ["z", "t", "y"], [("z", "t"), ("z", "y")], [("t", "y")]
     )
@@ -129,23 +127,6 @@ def _refusing_routes() -> list[tuple[str, dict[str, Any], type[Exception], str]]
             CausalUnsupportedError,
             static_msg,
         ),
-        (
-            "bayesian_static_curve",
-            {"data": static, "graph": _STATIC_EDGES, "query": _CURVE, "inference": _BAYES},
-            CausalUnsupportedError,
-            "posterior intervals",
-        ),
-        (
-            "bayesian_temporal_curve",
-            {
-                "data": temporal,
-                "graph": _TEMPORAL_EDGES,
-                "query": _TEMPORAL_CURVE,
-                "inference": _BAYES,
-            },
-            CausalUnsupportedError,
-            "posterior intervals",
-        ),
     ]
 
 
@@ -156,7 +137,11 @@ def test_analyze_refuses_bootstrap_where_it_does_not_apply(route) -> None:
     _, kwargs, error, match = route
     data = kwargs.pop("data")
     with pytest.raises(error, match=match):
-        antecedent.analyze(data, refute=False, bootstrap=60, **kwargs)
+        require_success(
+            antecedent.analyze(
+                data, refute=False, inference=antecedent.Frequentist(bootstrap=60), **kwargs
+            )
+        )
 
 
 @pytest.mark.parametrize(
@@ -166,49 +151,102 @@ def test_prepare_refuses_bootstrap_where_it_does_not_apply(route) -> None:
     _, kwargs, _, _ = route
     data = kwargs.pop("data")
     with pytest.raises(CausalUnsupportedError, match="bootstrap"):
-        PreparedAnalysis.prepare(data, refute="none", bootstrap=60, **kwargs)
+        require_success(
+            antecedent.estimate(
+                antecedent.prepare(
+                    data,
+                    refute="none",
+                    inference=antecedent.Frequentist(bootstrap=60),
+                    **kwargs,
+                )
+            )
+        )
+
+
+def test_a_bayesian_inference_cannot_declare_a_bootstrap() -> None:
+    """Posterior intervals replace replicate bands: the declaration has no bootstrap budget."""
+    with pytest.raises(TypeError, match="bootstrap"):
+        antecedent.Bayesian(bootstrap=60)  # type: ignore[call-arg]
 
 
 @pytest.mark.parametrize("query", [_TEMPORAL_CURVE, _TEMPORAL_PATH], ids=["curve", "path"])
 def test_temporal_dag_bootstrap_takes_effect(query) -> None:
     data = _temporal_data()
-    withheld = antecedent.analyze(
-        data, graph=_TEMPORAL_EDGES, query=query, refute=False, bootstrap=0
+    withheld = require_success(
+        antecedent.analyze(
+            data,
+            graph=_TEMPORAL_EDGES,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
-    banded = antecedent.analyze(
-        data, graph=_TEMPORAL_EDGES, query=query, refute=False, bootstrap=60
+    banded = require_success(
+        antecedent.analyze(
+            data,
+            graph=_TEMPORAL_EDGES,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=60),
+        )
     )
     assert withheld.uncertainty.kind == "none"
-    assert any(_BAND_WITHHELD in warning for warning in withheld.support.warnings)
+    assert any(_NO_BAND_METHOD in warning for warning in withheld.support.warnings)
     assert banded.uncertainty.kind == "pointwise"
     assert banded.simultaneous_band is not None
     assert banded.simultaneous_band.replicates == 60
     for bootstrap, kind in ((0, "none"), (60, "pointwise")):
-        prepared = PreparedAnalysis.prepare(
-            data, graph=_TEMPORAL_EDGES, query=query, refute="none", bootstrap=bootstrap
+        prepared = antecedent.prepare(
+            data,
+            graph=_TEMPORAL_EDGES,
+            query=query,
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=bootstrap),
         )
-        assert prepared.estimate(data).uncertainty.kind == kind
+        assert require_success(antecedent.estimate(prepared)).uncertainty.kind == kind
 
 
 def test_temporal_class_bootstrap_takes_effect() -> None:
     """Replicates ride each completion atom of the TemporalCpdag identified set."""
     data = _temporal_data()
     graph = TemporalCpdag.from_lagged_edges(["t", "y"], _TEMPORAL_EDGES, [])
-    withheld = antecedent.analyze(
-        data, graph=graph, query=_TEMPORAL_CURVE, refute=False, bootstrap=0
+    withheld = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=_TEMPORAL_CURVE,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
-    banded = antecedent.analyze(
-        data, graph=graph, query=_TEMPORAL_CURVE, refute=False, bootstrap=60
+    banded = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=_TEMPORAL_CURVE,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=60),
+        )
     )
     assert withheld.uncertainty.kind == banded.uncertainty.kind == "identified_set"
-    assert any(_BAND_WITHHELD in warning for warning in withheld.support.warnings)
-    assert not any(_BAND_WITHHELD in warning for warning in banded.support.warnings)
+    assert any(_NO_BAND_METHOD in warning for warning in withheld.support.warnings)
+    assert not any(_NO_BAND_METHOD in warning for warning in banded.support.warnings)
 
 
 def test_temporal_bootstrap_rejects_invalid_counts() -> None:
     data = _temporal_data()
-    for bad in (-1, 2.5, True):
-        with pytest.raises(antecedent.errors.CausalValueError, match="non-negative integer"):
-            PreparedAnalysis.prepare(
-                data, graph=_TEMPORAL_EDGES, query=_TEMPORAL_CURVE, refute="none", bootstrap=bad
-            )
+    # The replicate count is validated when the inference is declared, before any
+    # route sees it: a negative count is out of range, a non-integer is the wrong type.
+    with pytest.raises(antecedent.errors.CausalValueError, match="supported range"):
+        antecedent.Frequentist(bootstrap=-1)
+    for bad in (2.5, True):
+        with pytest.raises(antecedent.errors.CausalTypeError, match="must be an integer"):
+            antecedent.Frequentist(bootstrap=bad)
+    # A valid declaration still prepares the same temporal curve.
+    antecedent.prepare(
+        data,
+        graph=_TEMPORAL_EDGES,
+        query=_TEMPORAL_CURVE,
+        refute="none",
+        inference=antecedent.Frequentist(bootstrap=0),
+    )

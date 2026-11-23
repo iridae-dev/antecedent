@@ -13,7 +13,7 @@
 //! observation model, so estimating the observation probabilities is accounted for rather
 //! than treated as known. No interval is published from it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::fit_observation_logistic;
 
@@ -231,16 +231,30 @@ fn observation_probabilities(
         covariates_colmajor,
         ncov,
         OBSERVATION_PROBABILITY_FLOOR,
-    )?;
-    let at_floor = (0..n).any(|i| {
-        observed[i] && fit.probabilities[i] <= OBSERVATION_PROBABILITY_FLOOR * (1.0 + 1e-9)
-    });
+    )
+    .map_err(crate::observation::observation_fit_error)?;
+    // The fitted probabilities are used unclipped: the stats fit clips them to
+    // `[floor, 1 - floor]`, and a clip at the upper end would move the weights of the most
+    // likely responders (a probability of 0.99 becoming 0.98) for no positivity reason. The
+    // lower end is refused below, never clipped, because clipping changes the estimand.
+    let probabilities: Vec<f64> = (0..n)
+        .map(|i| {
+            let eta = fit.coefficients[0]
+                + (0..ncov)
+                    .map(|c| fit.coefficients[c + 1] * covariates_colmajor[c * n + i])
+                    .sum::<f64>();
+            1.0 / (1.0 + (-eta).exp())
+        })
+        .collect();
+    let at_floor = (0..n)
+        .any(|i| observed[i] && probabilities[i] <= OBSERVATION_PROBABILITY_FLOOR * (1.0 + 1e-9));
     if at_floor {
-        return Err(EstimationError::Unsupported {
-            message: "responder weighting has an observation probability at the positivity floor",
-        });
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("positivity_violated"),
+            "responder weighting has an observation probability at the positivity floor",
+        ));
     }
-    Ok(fit.probabilities)
+    Ok(probabilities)
 }
 
 /// Inverse-probability-of-observation pseudo-outcomes `R Y / pi` for designs whose own
@@ -392,7 +406,7 @@ mod tests {
             // -0.233 (control) and -0.406 (treated), so the complete-case effect is biased by
             // 2 * (-0.406 + 0.233) = -0.35, far outside any sampling error at the sizes used here.
             let eta = 0.8 - (0.8 + 0.8 * f64::from(u8::from(arm))) * x;
-            let p = 1.0 / (1.0 + (-eta).exp());
+            let p = crate::util::sigmoid(eta);
             outcome.push(y);
             observed.push(rng.next() < p);
             treated.push(arm);

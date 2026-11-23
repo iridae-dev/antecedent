@@ -1,5 +1,5 @@
 //! Original component attempts on native failures, reuse, and cancellation.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::analysis::recalc_adjusted::{
     AdjustedContrast, AdjustedModel, AdjustedRequest, AdjustedSession,
     execute_adjusted_with_receipt,
@@ -31,7 +31,7 @@ fn adjusted(logit: bool) -> AdjustedRequest {
         }
     }
     AdjustedRequest {
-        columns: vec![("t".into(), t), ("y".into(), y), ("z".into(), z)],
+        columns: vec![("t".into(), t), ("y".into(), y), ("z".into(), z)].into(),
         edges: vec![(2, 0), (2, 1), (0, 1)],
         treatments: vec![0],
         outcome: 1,
@@ -139,7 +139,7 @@ fn response() -> antecedent::analysis::recalc_static::StaticResponseRequest {
     graph.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
     graph.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
     antecedent::analysis::recalc_static::StaticResponseRequest {
-        columns,
+        columns: columns.into(),
         graph,
         treatment: VariableId::from_raw(0),
         outcome: VariableId::from_raw(2),
@@ -160,6 +160,17 @@ fn original_static_mid_execution_cancellation_preserves_completed_work_and_old_s
     let ctx = ExecutionContext::for_tests(7);
     let mut session = StaticResponseSession::new();
     let first = execute_static_response_with_receipt(&mut session, &request, &ctx).unwrap();
+    // Independent truth: the front-door contrast of the fixture's contingency table (benefit 1,
+    // cost 0 makes the utility contrast the ATE).
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/admg_frontdoor_functional/expected.json"
+    ))
+    .unwrap();
+    assert!(
+        (first.contrast - pin["frequentist"]["expected_ate"].as_f64().unwrap()).abs() < 1e-12,
+        "contrast {}",
+        first.contrast
+    );
     let result = std::ptr::from_ref(session.result().unwrap());
     let mut changed = request.clone();
     changed.columns[2].1[0] = 1.0 - changed.columns[2].1[0];
@@ -275,7 +286,7 @@ mod external_reference;
 #[test]
 fn original_provider_failure_and_post_callback_cancellation_preserve_exact_attempts() {
     use antecedent::analysis::recalc_external::{
-        CallbackPolicy, ExternalCallbackError, ExternalCallbackSession, count_external_invocations,
+        CallbackPolicy, ExternalCallbackError, ExternalCallbackSession,
     };
     let request = external_reference::request(0, CallbackPolicy::Deterministic);
     let mut provider = external_reference::Provider::new(&request);
@@ -286,24 +297,25 @@ fn original_provider_failure_and_post_callback_cancellation_preserve_exact_attem
     let mut changed = request.clone();
     changed.columns[0].1 = vec![0.0, 2.0];
     provider.fail = true;
-    let (failed, calls) = count_external_invocations(|| {
-        execute_with_attempt(|| session.execute(&changed, Some(&mut provider), &ctx))
-    });
-    assert_eq!(calls, 1);
+    let before = provider.calls;
+    let failed = execute_with_attempt(|| session.execute(&changed, Some(&mut provider), &ctx));
+    assert_eq!(provider.calls - before, 1);
     assert!(matches!(failed.result, Err(ExternalCallbackError::Attempt { .. })));
     let work = failed.report.counts(Operation::ProviderInvocation);
     assert_eq!((work.attempted, work.completed, work.failed), (1, 0, 1));
     assert_eq!(std::ptr::from_ref(session.issued_claim().unwrap()), claim);
     provider.fail = false;
     provider.cancel = true;
-    let (cancelled, calls) = count_external_invocations(|| {
-        execute_with_attempt(|| session.execute(&changed, Some(&mut provider), &ctx))
-    });
-    assert_eq!(calls, 1);
+    let before = provider.calls;
+    let cancelled = execute_with_attempt(|| session.execute(&changed, Some(&mut provider), &ctx));
+    assert_eq!(provider.calls - before, 1);
     assert!(ctx.cancellation.is_cancelled());
     assert!(matches!(
         cancelled.result,
-        Err(ExternalCallbackError::Attempt { detail: "recalc.cancelled", .. })
+        Err(ExternalCallbackError::Attempt {
+            detail: antecedent_core::reason_details::recalc::CANCELLED,
+            ..
+        })
     ));
     let work = cancelled.report.counts(Operation::ProviderInvocation);
     assert_eq!(
@@ -329,14 +341,14 @@ fn original_adjusted_law_summary_failure_does_not_modify_the_fit() {
     let snapshot = "attempt.adjusted.summary".to_string();
     let fit = AdjustedFit::linear(
         &VectorTreatmentInput {
-            outcome: r.columns[1].1.clone(),
-            row_snapshot: snapshot.clone(),
-            adjustment: vec![NamedColumn { name: "z".into(), values: r.columns[2].1.clone() }],
+            outcome: r.columns[1].1.as_slice().into(),
+            row_snapshot: snapshot.as_str().into(),
+            adjustment: vec![NamedColumn::new("z", r.columns[2].1.as_slice())],
             treatments: vec![TreatmentColumn {
                 name: "t".into(),
-                values: r.columns[0].1.clone(),
+                values: r.columns[0].1.as_slice().into(),
                 adjustment_set: vec!["z".into()],
-                row_snapshot: snapshot,
+                row_snapshot: snapshot.as_str().into(),
             }],
         },
         &VectorTreatmentOptions { covariance: VectorCovariance::ModelBased, contrasts: vec![] },
@@ -423,7 +435,8 @@ fn configurable_aipw_request() -> RecalcRequest {
         }
     }
     RecalcRequest {
-        columns: vec![("t".into(), treatment), ("y".into(), outcome), ("z".into(), confounder)],
+        columns: vec![("t".into(), treatment), ("y".into(), outcome), ("z".into(), confounder)]
+            .into(),
         edges: vec![(2, 0), (2, 1), (0, 1)],
         treatment: 0,
         outcome: 1,
@@ -450,6 +463,10 @@ fn recalc_warm_aipw_configuration_refresh_matches_fresh_fit() {
     let mut fresh_session = RecalcSession::new();
     let fresh = execute_with_receipt(&mut fresh_session, &changed, &ctx).unwrap();
 
+    // Independent truth: y = 1 + 2t + 0.6z + 0.5tz + 0.3z^2 with z uniform on {-1, 0, 1} gives
+    // ATE = 2 + 0.5 E[z] = 2 (observed 1.9983, finite-fold nuisance error).
+    assert!((warm.law.ate - 2.0).abs() < 0.01, "warm ate {}", warm.law.ate);
+    assert!((fresh.law.ate - 2.0).abs() < 0.01, "fresh ate {}", fresh.law.ate);
     assert_ne!(original_scores, *warm_session.score_table().unwrap());
     assert!(matches!(warm.plan.status(Stage::Identification), Some(StageStatus::Reused { .. })));
     assert!(matches!(warm.plan.status(Stage::ScoreArtifact), Some(StageStatus::Recomputed { .. })));
@@ -475,10 +492,14 @@ fn recalc_rejects_unrepresentable_aipw_uncertainty_and_preserves_live_state() {
     let original_scores = session.score_table().unwrap().clone();
 
     let mut robust = request.clone();
-    robust.estimator.se_kind = AnalyticSeKind::Hc3;
+    robust.estimator.inference.se_kind = AnalyticSeKind::Hc3;
     let warm_error = execute_with_receipt(&mut session, &robust, &ctx).unwrap_err();
     let fresh_error = execute_with_receipt(&mut RecalcSession::new(), &robust, &ctx).unwrap_err();
-    assert!(warm_error.to_string().contains("recalc.unsupported_aipw_score_configuration"));
+    assert!(
+        warm_error.to_string().contains(
+            antecedent_core::reason_details::recalc::UNSUPPORTED_AIPW_SCORE_CONFIGURATION
+        )
+    );
     assert_eq!(warm_error.to_string(), fresh_error.to_string());
 
     let mut explicit_overlap = request.clone();
@@ -486,7 +507,11 @@ fn recalc_rejects_unrepresentable_aipw_uncertainty_and_preserves_live_state() {
     let warm_error = execute_with_receipt(&mut session, &explicit_overlap, &ctx).unwrap_err();
     let fresh_error =
         execute_with_receipt(&mut RecalcSession::new(), &explicit_overlap, &ctx).unwrap_err();
-    assert!(warm_error.to_string().contains("recalc.aipw_requires_overlap_diagnostics"));
+    assert!(
+        warm_error
+            .to_string()
+            .contains(antecedent_core::reason_details::recalc::AIPW_REQUIRES_OVERLAP_DIAGNOSTICS)
+    );
     assert_eq!(warm_error.to_string(), fresh_error.to_string());
 
     let mut trimmed = request.clone();
@@ -494,13 +519,21 @@ fn recalc_rejects_unrepresentable_aipw_uncertainty_and_preserves_live_state() {
         OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: Some(0.1) };
     let warm_error = execute_with_receipt(&mut session, &trimmed, &ctx).unwrap_err();
     let fresh_error = execute_with_receipt(&mut RecalcSession::new(), &trimmed, &ctx).unwrap_err();
-    assert!(warm_error.to_string().contains("recalc.unsupported_aipw_score_configuration"));
+    assert!(
+        warm_error.to_string().contains(
+            antecedent_core::reason_details::recalc::UNSUPPORTED_AIPW_SCORE_CONFIGURATION
+        )
+    );
     assert_eq!(warm_error.to_string(), fresh_error.to_string());
 
     let mut bootstrapped = request.clone();
-    bootstrapped.estimator.bootstrap_replicates = 10;
+    bootstrapped.estimator.inference.bootstrap_replicates = 10;
     let bootstrap_error = execute_with_receipt(&mut session, &bootstrapped, &ctx).unwrap_err();
-    assert!(bootstrap_error.to_string().contains("recalc.bootstrap_replicates_unsupported"));
+    assert!(
+        bootstrap_error
+            .to_string()
+            .contains(antecedent_core::reason_details::recalc::BOOTSTRAP_REPLICATES_UNSUPPORTED)
+    );
 
     let mut invalid = request.clone();
     invalid.estimator.glm_options.max_iter = 0;

@@ -1,0 +1,31 @@
+{
+  "scope": "Four hand cases of a derived decision margin: cluster and complete designs with separate arm covariances (one with a fixed cost input), and matched-pair and switchback designs with one covariance of both arms' means. Contrast, first-order standard error and 95% interval are recomputed from the closed-form delta method and compared at a relative 1e-10.",
+  "independence_basis": "The generator differentiates the margin expression forward-mode over exact Fractions at each arm's means, sums the quadratic form h' S h exactly (separate arm covariances, or the joint 2K-by-2K covariance with the control gradient negated), and takes one square root in 60-digit Decimal. The normal critical value is the standard library's inverse normal CDF; the Student critical value with 29 degrees of freedom is the root of the closed finite-sum CDF for odd degrees of freedom, found by bisection. It imports no Antecedent code, draws nothing and calls no decision routine. The executing assertion builds the same evidence and derived quantity through the public constructors and compares what derive reports.",
+  "historical_exposure": "Authored for this fixture from the closed-form delta-method and linear-moment definitions; no product implementation source or product output was consulted to derive the values, and no earlier harness exists.",
+  "redistribution": "Repository-authored MIT OR Apache-2.0 generator and hand-constructed inputs; Python standard library only, no upstream code or data is stored.",
+  "limitations": "Hand-constructed positive definite covariances and four expressions; the interval is the first-order sampling interval with no coverage claim (calibration is a separate measured question). Student quantiles are checked at 29 degrees of freedom only, the least the interval's independent-unit floor allows for pair and sequence designs.",
+  "sources": [],
+  "artifacts": [
+    {
+      "role": "generator",
+      "path": "conformance/design/decision_margin_interval/reference.py",
+      "sha256": "641ea806d34b5ea7fcf6c310a6b7a22879f123c2c3a84de85ecef17f0559dd9f"
+    },
+    {
+      "role": "environment_lock",
+      "path": "conformance/design/decision_margin_interval/reference.py.lock",
+      "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+    },
+    {
+      "role": "assertion_source",
+      "path": "crates/antecedent/tests/decision_evidence_workflow.rs",
+      "items": [
+        "fn pinned_numbers",
+        "fn pinned_expression",
+        "fn the_margin_interval_equals_the_independent_delta_method_truth"
+      ],
+      "sha256": "f6f25ec346ba86fbf349c4f63216102d6f35c4d0c9a3992d359b5bebd135a5b3"
+    }
+  ],
+  "fixture_payload_sha256": "7695e9458f9874dbee63a122d2ec33413073ebbf398227779cb582fe80e6a4da"
+}

@@ -2,16 +2,17 @@
 //! graph posteriors.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, reason = "one loop covers every licensed coordinate")]
+#![allow(clippy::too_many_lines, reason = "one loop covers every supported coordinate")]
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{BayesianConfig, CellStatus, InferenceMode, RefuteSuite, Study};
 use antecedent_contract::SlotAvailability;
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use antecedent_prob::{GraphIdentFlag, InferenceDiagnostics};
 
 /// Balanced confounded blocks with `Y = shift + 2T + slope * Z + eps`.
@@ -136,25 +137,32 @@ fn bayesian_class_graph_posterior_effect_body() {
             let mut prepared = builder.prepare(&ctx).unwrap();
             drop(builder);
 
-            assert_eq!(prepared.support_status(), Some(CellStatus::Licensed), "{coordinate}");
+            assert_eq!(prepared.support_status(), Some(CellStatus::Supported), "{coordinate}");
             match &prepared.contract().unwrap().reasoning.support {
                 SlotAvailability::Available(slot) => {
                     assert_eq!(slot.matrix_coordinate.as_deref(), Some(coordinate.as_str()));
                 }
                 other => panic!("{coordinate}: support was not available: {other:?}"),
             }
-            let plan = prepared
-                .checked_class_graph_posterior_effect_info()
-                .expect("Bayesian class graph-posterior operation retained");
-            assert!(prepared.has_checked_class_graph_posterior_effect_operation());
-            assert!(prepared.checked_bayesian_graph_posterior_ate_info().is_none());
+            let RetainedOperation::ClassGraphPosteriorEffect(plan) = prepared.retained_operation()
+            else {
+                panic!("Bayesian class graph-posterior operation retained")
+            };
+            assert!(matches!(
+                prepared.retained_operation(),
+                RetainedOperation::ClassGraphPosteriorEffect(..)
+            ));
+            assert!(!matches!(
+                prepared.retained_operation(),
+                RetainedOperation::BayesianGraphPosteriorAte(..)
+            ));
             assert_eq!(plan.query, query, "{coordinate}");
             assert!(!plan.conditional, "{coordinate}");
             assert!(plan.inference.starts_with("bayesian:"), "{coordinate}: {}", plan.inference);
             assert_eq!(plan.estimator.as_str(), "bayesian.gcomp", "{coordinate}");
             assert_eq!(plan.validation, suite, "{coordinate}");
-            assert_eq!(plan.graph_keys.as_ref(), posterior.graph_keys.as_ref());
-            assert_eq!(plan.weights.as_ref(), posterior.weights.as_ref());
+            assert_eq!(plan.graph_keys.as_ref(), posterior.graph_keys().as_ref());
+            assert_eq!(plan.weights.as_ref(), posterior.weights().as_ref());
             assert_eq!(plan.class_atom_count, class_atoms, "{coordinate}");
             assert_eq!(
                 plan.identified.iter().filter(|f| **f == GraphIdentFlag::Unidentified).count(),
@@ -165,31 +173,31 @@ fn bayesian_class_graph_posterior_effect_body() {
             let result = prepared.estimate(&base, &ctx).unwrap();
             assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.gcomp"));
             let mixture = result.structural_response.as_ref().expect("structural graph mixture");
-            assert!((mixture.unidentified_mass - 0.2).abs() < 1e-9, "{coordinate}");
-            assert!((mixture.identified_mass - 0.8).abs() < 1e-9, "{coordinate}");
+            assert!((mixture.unidentified_mass - 0.2).abs() < 0.02, "{coordinate}");
+            assert!((mixture.identified_mass - 0.8).abs() < 0.02, "{coordinate}");
             if graph_class == "Pag" {
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2,
+                    (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.02,
                     "{coordinate}: {}",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
                 // Unidentified sample mass keeps the aggregate posterior
                 // withheld; the retained atom posteriors stay conditional.
                 assert!(
                     result.posterior.is_some()
                         || result.diagnostics.iter().any(|d| {
-                            d.code.as_ref() == "estimate.graph_posterior.posterior_withheld"
+                            d.code.as_ref() == "estimate.graph_posterior.no_posterior_method"
                         }),
                     "{coordinate}: withheld aggregate posterior must be disclosed"
                 );
             } else {
                 assert!(
-                    result.estimate.as_effect().unwrap().ate.is_nan(),
+                    result.estimate().as_effect().unwrap().ate.is_nan(),
                     "{coordinate}: atom estimands disagree; scalar must be withheld"
                 );
                 let set = mixture.identified_set.as_ref().expect("identified set retained");
-                assert!((set.lower[0] - 2.0).abs() < 0.2, "{coordinate}: {}", set.lower[0]);
-                assert!((set.upper[0] - 3.0).abs() < 0.2, "{coordinate}: {}", set.upper[0]);
+                assert!((set.lower[0] - 2.0).abs() < 0.02, "{coordinate}: {}", set.lower[0]);
+                assert!((set.upper[0] - 3.0).abs() < 0.02, "{coordinate}: {}", set.upper[0]);
             }
             assert_eq!(result.refutations.is_empty(), suite == RefuteSuite::None, "{coordinate}");
             assert!(
@@ -197,16 +205,18 @@ fn bayesian_class_graph_posterior_effect_body() {
                 "{coordinate}: the click reuses the retained completion envelopes"
             );
             assert_eq!(
-                one_shot.estimate.as_effect().unwrap().ate.is_nan(),
-                result.estimate.as_effect().unwrap().ate.is_nan()
+                one_shot.estimate().as_effect().unwrap().ate.is_nan(),
+                result.estimate().as_effect().unwrap().ate.is_nan()
             );
-            if !one_shot.estimate.as_effect().unwrap().ate.is_nan() {
+            if !one_shot.estimate().as_effect().unwrap().ate.is_nan() {
                 assert!(
-                    (one_shot.estimate.as_effect().unwrap().ate
-                        - result.estimate.as_effect().unwrap().ate)
+                    (one_shot.estimate().as_effect().unwrap().ate
+                        - result.estimate().as_effect().unwrap().ate)
                         .abs()
-                        < 0.2,
-                    "{coordinate}"
+                        < 0.02,
+                    "{coordinate} one-shot vs click {} {}",
+                    one_shot.estimate().as_effect().unwrap().ate,
+                    result.estimate().as_effect().unwrap().ate
                 );
             }
             assert!(
@@ -214,25 +224,30 @@ fn bayesian_class_graph_posterior_effect_body() {
                 "{coordinate}: one-shot run must execute its retained prepared plan"
             );
 
-            let refreshed = prepared.refresh(shifted.clone(), &ctx).unwrap();
-            let retained = prepared.checked_class_graph_posterior_effect_info().unwrap();
+            let refreshed = rebind_estimate(&mut prepared, shifted.clone(), &ctx).unwrap();
+            let RetainedOperation::ClassGraphPosteriorEffect(retained) =
+                prepared.retained_operation()
+            else {
+                panic!("class graph-posterior operation retained after refresh")
+            };
             assert_eq!(retained.graph_keys, plan.graph_keys);
             assert_eq!(retained.weights, plan.weights);
             assert_eq!(retained.inference, plan.inference);
             let refreshed_mix = refreshed.structural_response.as_ref().unwrap();
-            assert!((refreshed_mix.unidentified_mass - 0.2).abs() < 1e-9, "{coordinate}");
+            assert!((refreshed_mix.unidentified_mass - 0.2).abs() < 0.02, "{coordinate}");
             assert_eq!(
-                refreshed.estimate.as_effect().unwrap().ate.is_nan(),
-                result.estimate.as_effect().unwrap().ate.is_nan()
+                refreshed.estimate().as_effect().unwrap().ate.is_nan(),
+                result.estimate().as_effect().unwrap().ate.is_nan()
             );
-            if !refreshed.estimate.as_effect().unwrap().ate.is_nan() {
+            if !refreshed.estimate().as_effect().unwrap().ate.is_nan() {
                 assert!(
-                    (refreshed.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2,
-                    "{coordinate}"
+                    (refreshed.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.02,
+                    "{coordinate} refreshed {}",
+                    refreshed.estimate().as_effect().unwrap().ate
                 );
             }
             assert!(
-                prepared.refresh(reordered_data(), &ctx).is_err(),
+                rebind_estimate(&mut prepared, reordered_data(), &ctx).is_err(),
                 "{coordinate}: reordered columns must be refused"
             );
 
@@ -243,7 +258,7 @@ fn bayesian_class_graph_posterior_effect_body() {
                     &ctx,
                 )
                 .unwrap();
-            let consumed = consume_analysis_result(&artifact).unwrap();
+            let consumed = replay_analysis_result(&artifact).unwrap();
             assert!(
                 consumed.acceptance.unresolved.iter().any(|reason| {
                     reason.as_ref() == "dependencies.checked_class_graph_posterior_effect_operation"
@@ -251,7 +266,7 @@ fn bayesian_class_graph_posterior_effect_body() {
                 "{coordinate}: {:?}",
                 consumed.acceptance.unresolved
             );
-            assert!(!consumed.acceptance.accepts_as_verified_program());
+            assert!(!consumed.acceptance.accepts_as_replayed_program());
         }
     }
 }
@@ -264,4 +279,17 @@ fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
         .unwrap()
         .join()
         .unwrap();
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

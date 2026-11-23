@@ -10,10 +10,10 @@
 //! publishes it only once a coverage record of this construction exists, so the design scores
 //! the candidate and the plain tests pin that the route keys the same construction.
 //!
-//! `multilevel_generalized_propensity_interval` is registered in `scripts/gate_calibration.sh`
-//! (`run_ml`) and its coverage is unmeasured: the coverage record is the only missing piece.
+//! `multilevel_generalized_propensity_interval` is registered in `parity/calibration_groups.toml`
+//! (`run_ml`) and its coverage is `not_measured`: the coverage record is the only missing piece.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -24,7 +24,7 @@
 mod common;
 
 use antecedent::analysis::multi_level_treatment::{
-    AdjustmentColumn, MULTI_LEVEL_INTERVAL_WITHHELD, MULTI_LEVEL_TREATMENT_CALIBRATION,
+    AdjustmentColumn, MULTI_LEVEL_INTERVAL_NOT_MEASURED, MULTI_LEVEL_TREATMENT_CALIBRATION,
     MultiLevelReportWire, MultiLevelSpecWire, MultiLevelTargetWire, MultiLevelTreatment,
     MultiLevelTreatmentRequest, multi_level_interval_basis, multi_level_normal_interval,
 };
@@ -32,8 +32,8 @@ use antecedent::result::{REPORTED_SE_INTERVAL_LEVEL, reported_se_interval_z};
 use antecedent_core::{ExecutionContext, StreamDomain};
 use antecedent_kernels::standard_normal;
 use common::calibration::{
-    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n, map_replicates,
-    n_sim,
+    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n, grid_seed,
+    map_replicates, n_sim,
 };
 
 const INTERVAL: &str = "analytic_se";
@@ -72,19 +72,22 @@ fn simulate(n: usize, seed: u64) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
 /// Fit the full-population contrast of level 2 against level 0 through the facade.
 fn fit(n: usize, seed: u64) -> Option<MultiLevelReportWire> {
     let (treatment, outcome, z) = simulate(n, seed);
-    MultiLevelTreatment::evaluate(&MultiLevelTreatmentRequest {
-        outcome,
-        treatment,
-        adjustment: vec![AdjustmentColumn { name: "z".into(), values: z }],
-        spec: MultiLevelSpecWire {
-            target: MultiLevelTargetWire::FullPopulation,
-            active: 2.0,
-            control: 0.0,
-            levels: Some(LEVELS.to_vec()),
-            folds: None,
-            seed,
+    MultiLevelTreatment::evaluate(
+        &MultiLevelTreatmentRequest {
+            outcome,
+            treatment,
+            adjustment: vec![AdjustmentColumn { name: "z".into(), values: z }],
+            spec: MultiLevelSpecWire {
+                target: MultiLevelTargetWire::FullPopulation,
+                active: 2.0,
+                control: 0.0,
+                levels: Some(LEVELS.to_vec()),
+                folds: None,
+                seed,
+            },
         },
-    })
+        &antecedent::prelude::ExecutionContext::production_default(seed),
+    )
     .ok()
 }
 
@@ -139,7 +142,7 @@ fn the_design_construction_is_the_one_the_route_keys() {
 }
 
 /// A published interval is `effect ± z · se` of the report; without a covering record the
-/// interval is withheld as `scope_not_assessed` and the standard error stays unmeasured.
+/// interval is withheld with its calibration status and the standard error stays `not_measured`.
 #[test]
 fn a_published_interval_is_the_estimate_plus_or_minus_z_standard_errors_or_withheld() {
     let report = fit(3000, BASE_SEED).expect("a full-population fit");
@@ -147,44 +150,55 @@ fn a_published_interval_is_the_estimate_plus_or_minus_z_standard_errors_or_withh
     let half = reported_se_interval_z() * report.se_analytic;
     let candidate = multi_level_normal_interval(report.effect, report.se_analytic).unwrap();
     assert_eq!(candidate, (report.effect - half, report.effect + half));
-    assert!(
-        candidate.0 < TRUTH + 4.0 * report.se_analytic
-            && candidate.1 > TRUTH - 4.0 * report.se_analytic
-    );
-    if let Some(interval) = &report.interval {
-        assert_eq!((interval.lower, interval.upper), candidate);
-        assert_eq!(interval.level, REPORTED_SE_INTERVAL_LEVEL);
-        assert!(!interval.coverage_record.is_empty());
-        assert_eq!(report.interval_status, "calibrated");
+    // The normal quantile of the reported level, and an effect within four standard errors of
+    // the generating contrast 0.9.
+    assert!((reported_se_interval_z() - 1.959_963_984_540_054).abs() < 1e-12);
+    assert!((report.effect - TRUTH).abs() < 4.0 * report.se_analytic, "{}", report.effect);
+    // The interval is always reported; calibration annotates it.
+    let interval = report.interval.as_ref().expect("the interval is always reported");
+    assert_eq!((interval.lower, interval.upper), candidate);
+    assert_eq!(interval.level, REPORTED_SE_INTERVAL_LEVEL);
+    if report.interval_status == "calibrated" {
+        assert!(interval.coverage_record.as_deref().is_some_and(|id| !id.is_empty()));
         assert_eq!(report.calibration, "calibrated");
         assert!(report.interval_reason.is_none());
     } else {
-        assert_eq!(report.interval_status, MULTI_LEVEL_INTERVAL_WITHHELD);
+        assert!(
+            ["outside_measured_scope", "measured_below_nominal", "not_measured"]
+                .contains(&report.interval_status.as_str()),
+            "{}",
+            report.interval_status
+        );
         assert_eq!(report.calibration, MULTI_LEVEL_TREATMENT_CALIBRATION);
         assert!(report.interval_reason.is_some());
     }
 }
 
-/// The pairwise subpopulation target has no measurement design, so its interval stays withheld.
+/// The pairwise subpopulation target has no measurement design: its interval is reported and
+/// annotated `not_measured`.
 #[test]
-fn the_pairwise_target_publishes_no_interval() {
+fn the_pairwise_target_reports_its_interval_as_not_measured() {
     let (treatment, outcome, z) = simulate(1500, BASE_SEED);
-    let report = MultiLevelTreatment::evaluate(&MultiLevelTreatmentRequest {
-        outcome,
-        treatment,
-        adjustment: vec![AdjustmentColumn { name: "z".into(), values: z }],
-        spec: MultiLevelSpecWire {
-            target: MultiLevelTargetWire::PairwiseSubpopulation,
-            active: 2.0,
-            control: 0.0,
-            levels: None,
-            folds: None,
-            seed: 1,
+    let report = MultiLevelTreatment::evaluate(
+        &MultiLevelTreatmentRequest {
+            outcome,
+            treatment,
+            adjustment: vec![AdjustmentColumn { name: "z".into(), values: z }],
+            spec: MultiLevelSpecWire {
+                target: MultiLevelTargetWire::PairwiseSubpopulation,
+                active: 2.0,
+                control: 0.0,
+                levels: None,
+                folds: None,
+                seed: 1,
+            },
         },
-    })
+        &antecedent::prelude::ExecutionContext::production_default(1),
+    )
     .expect("a pairwise fit");
-    assert!(report.interval.is_none());
-    assert_eq!(report.interval_status, MULTI_LEVEL_INTERVAL_WITHHELD);
+    assert_eq!(report.adjustment_basis, "declared");
+    assert!(report.interval.is_some());
+    assert_eq!(report.interval_status, MULTI_LEVEL_INTERVAL_NOT_MEASURED);
     assert_eq!(report.calibration, MULTI_LEVEL_TREATMENT_CALIBRATION);
 }
 
@@ -200,12 +214,12 @@ fn multilevel_generalized_propensity_interval() {
         },
         REPORTED_LEVEL,
     );
-    for row in map_replicates(n_sim(), |rep| replicate(n, BASE_SEED + rep)) {
+    for row in map_replicates(n_sim(), |rep| replicate(n, grid_seed(BASE_SEED + rep))) {
         let Some((interval, rows)) = row else {
             tally.skip();
             continue;
         };
-        tally.bind(
+        tally.bind_validation(
             &construction(),
             ScopeFacts {
                 row_count: rows,
@@ -213,6 +227,7 @@ fn multilevel_generalized_propensity_interval() {
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         tally.record(Some(interval), TRUTH);
     }

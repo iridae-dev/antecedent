@@ -37,9 +37,9 @@
 //!
 //! The harness also prints a recovery table (`info recovery`): the share of replicates whose
 //! discovered graph equals the true graph. It is a measured property of the method over the
-//! family and is never a license.
+//! family and is never support.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::single_match_else,
@@ -76,7 +76,7 @@ use common::calibration::{
 const BASE_ROWS: usize = 1200;
 const MIN_REPORTED_SHARE: f64 = 0.9;
 const INTERVAL: &str = "analytic_se";
-/// Smallest population partial correlation of any true edge the licensed family admits.
+/// Smallest population partial correlation of any true edge the supported family admits.
 const MIN_MARGIN: f64 = 0.22;
 
 /// Edge weights of one replicate's DAG.
@@ -93,7 +93,7 @@ struct Edges {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Family {
-    Licensed,
+    Supported,
     WeakEdges,
     CancellingEdge,
     MisspecifiedTest,
@@ -120,7 +120,7 @@ fn variable_count(rep: u64) -> usize {
 /// Smallest absolute population partial correlation of an adjacent pair over every
 /// conditioning set of the other variables. A value near zero means PC can separate a true
 /// edge on some tested set (a collider child cancelling a confounder's direct dependence),
-/// which is a near-unfaithful law the licensed family excludes.
+/// which is a near-unfaithful law the supported family excludes.
 fn faithfulness_margin(shape: Layout, edges: &Edges) -> f64 {
     let p = shape.variables;
     let at = |i: usize| u32::try_from(i).expect("small index");
@@ -240,7 +240,7 @@ fn draw_edges(family: Family, seed: u64, shape: Layout) -> Edges {
                 edges.wy = -edges.wx * edges.xy;
                 return edges;
             }
-            Family::Licensed if faithfulness_margin(shape, &edges) < MIN_MARGIN => {}
+            Family::Supported if faithfulness_margin(shape, &edges) < MIN_MARGIN => {}
             _ => return edges,
         }
     }
@@ -300,8 +300,8 @@ fn family_data(family: Family, rep: u64, n: usize) -> (TabularData, Edges, Layou
     (data, edges, shape)
 }
 
-fn licensed_family_data(rep: u64, n: usize) -> (TabularData, Edges, Layout) {
-    family_data(Family::Licensed, rep, n)
+fn supported_family_data(rep: u64, n: usize) -> (TabularData, Edges, Layout) {
+    family_data(Family::Supported, rep, n)
 }
 fn weak_edge_family_data(rep: u64, n: usize) -> (TabularData, Edges, Layout) {
     family_data(Family::WeakEdges, rep, n)
@@ -442,7 +442,7 @@ fn split_replicate(
 
 /// Discovery and estimation on the same rows (the post-selection construction).
 fn reuse_replicate(rep: u64) -> Option<Scored> {
-    let (data, edges, shape) = licensed_family_data(rep, grid_n(BASE_ROWS));
+    let (data, edges, shape) = supported_family_data(rep, grid_n(BASE_ROWS));
     let seed = stream_seed(0x000A_11CE, rep);
     let ctx = ExecutionContext::for_tests(seed);
     let mut adapter = StaticSelectiveDiscovery::new();
@@ -483,7 +483,11 @@ fn score(
             Some(scored) => {
                 reported.record(Some((0.0, 1.0)), 0.5);
                 recovery.record(scored.recovered.then_some((0.0, 1.0)), 0.5);
-                tally.bind(&scored.construction.0, scored.construction.1);
+                tally.bind_validation(
+                    &scored.construction.0,
+                    scored.construction.1,
+                    "not_applicable",
+                );
                 tally.record(Some(scored.interval), scored.truth);
             }
             None => {
@@ -535,17 +539,17 @@ fn named_boundary(test: &'static str, dgp: &'static str, runs: &[Option<Scored>]
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn sample_split_discovered_effect_nominal_95_coverage() {
     const TEST: &str = "sample_split_discovered_effect_nominal_95_coverage";
-    let runs = map_replicates(n_sim(), |rep| split_replicate(licensed_family_data, None, rep));
-    let key = RecordKey { test: TEST, dgp: "licensed_family_data", interval: INTERVAL };
+    let runs = map_replicates(n_sim(), |rep| split_replicate(supported_family_data, None, rep));
+    let key = RecordKey { test: TEST, dgp: "supported_family_data", interval: INTERVAL };
     let (tally, ..) = score(key, &runs, true);
     tally.assert();
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn sample_split_weak_edges_boundary_95() {
     let runs = map_replicates(n_sim(), |rep| {
         split_replicate(weak_edge_family_data, Some("weak_edges"), rep)
@@ -554,7 +558,7 @@ fn sample_split_weak_edges_boundary_95() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn sample_split_cancelling_edge_boundary_95() {
     let runs = map_replicates(n_sim(), |rep| {
         split_replicate(cancelling_edge_family_data, Some("cancelling_edge"), rep)
@@ -567,7 +571,7 @@ fn sample_split_cancelling_edge_boundary_95() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn sample_split_misspecified_test_boundary_95() {
     let runs = map_replicates(n_sim(), |rep| {
         split_replicate(misspecified_test_family_data, Some("misspecified_test"), rep)
@@ -580,8 +584,8 @@ fn sample_split_misspecified_test_boundary_95() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn sample_split_full_row_reuse_boundary_95() {
     let runs = map_replicates(n_sim(), reuse_replicate);
-    named_boundary("sample_split_full_row_reuse_boundary_95", "licensed_family_data", &runs);
+    named_boundary("sample_split_full_row_reuse_boundary_95", "supported_family_data", &runs);
 }

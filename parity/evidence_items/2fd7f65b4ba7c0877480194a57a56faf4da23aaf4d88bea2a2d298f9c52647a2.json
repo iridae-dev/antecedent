@@ -1,0 +1,1 @@
+["use:std::sync::Arc;#0","use:super::{CompiledDesign,DependenceScope,EstimationError,MIN_ROWS,TemperingFactor,dot,newey_west_bandwidth,scope_directions,};#0","fn:window_segments#0","fn:segmented_long_run_variance#0","fn:segmented_tempering_factor#0"]

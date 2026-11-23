@@ -12,9 +12,9 @@
 //! the between-unit band `mean ± t_(N−1)·sd/√N`; it is calibrated for the
 //! unit-population mean level with heterogeneous unit slopes at N = 3 and 10.
 //!
-//! Ignored coverage tests run via `scripts/gate_calibration.sh`.
+//! Ignored coverage tests run via `scripts/measure_calibration.sh`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 
@@ -57,7 +57,7 @@ fn panel_pulse_study(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn panel_pulse_cluster_se_ar09_nominal_95_coverage() {
     let mut analytic = CoverageTally::for_record(
         RecordKey {
@@ -71,7 +71,7 @@ fn panel_pulse_cluster_se_ar09_nominal_95_coverage() {
         panel_pulse_study(PERSISTENT, UNITS, u32::try_from(rep).unwrap(), 0, 610_000)
     });
     for (study, result) in &runs {
-        let est = &result.estimate;
+        let est = &result.estimate();
         bind(&mut analytic, study, result);
         analytic.record(
             normal_interval(
@@ -86,7 +86,7 @@ fn panel_pulse_cluster_se_ar09_nominal_95_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn panel_pulse_unit_bootstrap_ar09_nominal_95_coverage() {
     let mut boot = CoverageTally::for_record(
         RecordKey {
@@ -100,7 +100,7 @@ fn panel_pulse_unit_bootstrap_ar09_nominal_95_coverage() {
         panel_pulse_study(PERSISTENT, UNITS, u32::try_from(rep).unwrap(), 99, 620_000)
     });
     for (study, result) in &runs {
-        let est = &result.estimate;
+        let est = &result.estimate();
         assert_eq!(est.as_effect().unwrap().uncertainty.bootstrap.replicates_failed, Some(0));
         bind(&mut boot, study, result);
         boot.record(
@@ -161,7 +161,7 @@ fn between_unit_band_coverage(test: &'static str, units: usize, seed: u64) {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn panel_response_between_unit_band_n3_nominal_95_coverage() {
     between_unit_band_coverage(
         "panel_response_between_unit_band_n3_nominal_95_coverage",
@@ -171,7 +171,7 @@ fn panel_response_between_unit_band_n3_nominal_95_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn panel_response_between_unit_band_n10_nominal_95_coverage() {
     between_unit_band_coverage(
         "panel_response_between_unit_band_n10_nominal_95_coverage",

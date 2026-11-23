@@ -9,7 +9,7 @@ papers = []
 
 implementation_deviations = [
   "Dirichlet posterior mean of the supplied target initial-state law, then the same finite sum the frequentist record evaluates. A tiny concentration stays at 0.421. This is not a reuse of recalculation.bayesian. No interval.",
-  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+  "A mapped coefficient prior, an external power prior, and a request for a not-measured band refuse.",
 ]
 
 upstream_implementations_observed = []
@@ -17,3 +17,30 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-estimate/tests/temporal_initial_state.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Dirichlet posterior mean of the supplied finite law (InitialState namespace), then the same finite sum over the initial-state law that the frequentist record evaluates."
+no_independent_algorithm = "dirichlet_posterior_mean / dirichlet_supported_mean return (w_i + c)/(sum w + k c) and the downstream evaluation is the covered route's existing finite computation. posterior_mean.rs also holds the normal and ridge routes and the Gaussian-kernel local-quadratic route, which belong to other records."
+covered_by = ["estimate.posterior_mean_kernel", "temporal.uncertain_initial_state"]
+derivation = "Dirichlet(c,...,c) prior and weights w on k atoms give posterior mean (w_i + c) / (sum w + k c); structural zeros are held at zero and updated as a (k-1)-atom law; checked against exact rationals in posterior_mean_reference.rs and in the route's own test."
+record_sha256 = "35b60b5b15a30466c3c2b8ea56aeb220bb4c64b498416f50fcc0475009d3cc85"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/posterior_mean.rs"
+items = ["enum DirichletNamespace", "enum PosteriorRequest", "enum ScalarNamespace", "enum ScoreNamespace", "fn covariance_entry_posterior", "fn details", "fn dirichlet_posterior_mean", "fn dirichlet_supported_mean", "fn known_variance_posterior", "fn normal_mean_posterior", "fn refuse", "fn scale_of", "fn score_contrast_posterior", "fn shrink"]
+sha256 = "4d92ec840144292fc528750bee65061fc89dca05b4e2cb417d05c4db01db6fa1"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
+items = ["fn close", "fn dirichlet_means_equal_the_exact_pseudo_count_update_and_keep_structural_zeros", "fn fixture", "fn floats", "fn known_variance_and_covariance_entries_equal_the_exact_update", "fn normal", "fn normal_mean_and_score_contrast_equal_the_exact_conjugate_update", "fn num", "fn ridge_coefficient_posterior_equals_the_exact_penalized_normal_equations", "fn the_updates_have_the_prior_and_flat_limits_and_refuse_invalid_scales"]
+sha256 = "797f8cafc3029d0e15baeff295478c1e44048060c621667045881e97d823a09f"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/temporal_initial_state.rs"
+items = ["const M10", "const P_L1", "const SEQUENCE", "fn initial_state_posterior_consumer_replays_the_weighted_responses", "fn initial_state_posterior_mean_stays_at_the_hand_sum", "fn initial_state_posterior_refuses_a_mapped_prior", "fn initial_state_sum_differs_from_fixing_the_state_at_its_mode", "fn initial_state_sum_equals_the_hand_enumerated_target_sum", "fn initial_state_sum_follows_the_law_snapshot_and_zero_mass_states", "fn initial_state_sum_results_are_typed_and_labelled_distinctly", "fn law", "fn panel", "fn refused", "fn source_state_only_refuses_a_source_law_and_a_point_state", "fn source_state_only_refuses_support_gaps_bounds_and_malformed_laws", "fn target_query", "fn truth_given_state"]
+sha256 = "6ffdc926456ad0bd9deb50256e7f538f1e18ca955bd2795aa8ad0883a95af9ba"

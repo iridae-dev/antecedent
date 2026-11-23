@@ -114,7 +114,7 @@ pub(super) fn fit_frame_family(
             // orders of magnitude (a raw year column beside a 0–1 axis) the
             // Fisher step is ill-conditioned and the iteration stalls short of
             // the tolerance. Standardizing removes a numerical property of the
-            // optimizer from the list of things that decide whether a licensed
+            // optimizer from the list of things that decide whether a supported
             // cell can run at all. The stored coefficients are on the original
             // parent scale, so nothing downstream changes shape.
             let refs: Vec<&[f64]> = frame.parents.iter().map(|c| &c[..n]).collect();
@@ -357,4 +357,4 @@ pub(super) fn fit_ar1(series: &[f64]) -> (f64, f64) {
 }
 
 #[cfg(feature = "gaussian-process")]
-pub use gp::GP_FAMILY_MAX_ROWS;
+pub use gp::{GP_EXACT_MAX_ROWS, GP_INDUCING_POINTS};

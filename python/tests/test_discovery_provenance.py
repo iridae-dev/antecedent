@@ -33,6 +33,7 @@ from antecedent.discovery import (
     PCMCIPlus,
     run_temporal_discovery,
 )
+from antecedent.outcomes import require_success
 from antecedent.query import PulseEffect
 
 
@@ -82,10 +83,16 @@ def _assert_conditioning_set_shape(links, names):
 
 def test_conditioning_set_present_and_well_typed_across_family():
     names, cols = _chain_series()
-    pc = PC(alpha=0.1, fdr=False).run((names, cols), seed=9)
-    pcmci = PCMCI(max_lag=2, alpha=0.1, fdr=False).run((names, cols), seed=9)
-    pcmci_plus = PCMCIPlus(max_lag=2, alpha=0.1, fdr=False).run((names, cols), seed=9)
-    lpcmci = LPCMCI(max_lag=2, alpha=0.1, fdr=False).run((names, cols), seed=9)
+    pc = PC(alpha=0.1, fdr=False).run((names, cols), execution=antecedent.Execution(seed=9))
+    pcmci = PCMCI(max_lag=2, alpha=0.1, fdr=False).run(
+        (names, cols), execution=antecedent.Execution(seed=9)
+    )
+    pcmci_plus = PCMCIPlus(max_lag=2, alpha=0.1, fdr=False).run(
+        (names, cols), execution=antecedent.Execution(seed=9)
+    )
+    lpcmci = LPCMCI(max_lag=2, alpha=0.1, fdr=False).run(
+        (names, cols), execution=antecedent.Execution(seed=9)
+    )
     for result in (pc, pcmci, pcmci_plus, lpcmci):
         assert result.links, "expected at least one retained link for this chain"
         _assert_conditioning_set_shape(result.links, names)
@@ -97,7 +104,7 @@ def test_conditioning_set_empty_on_retained_pc_links():
     empty conditioning set — this is the documented invariant, not an omission.
     """
     names, cols = _chain_series()
-    result = PC(alpha=0.1, fdr=False).run((names, cols), seed=9)
+    result = PC(alpha=0.1, fdr=False).run((names, cols), execution=antecedent.Execution(seed=9))
     assert result.links
     assert all(link.conditioning_set == [] for link in result.links)
 
@@ -108,7 +115,9 @@ def test_conditioning_set_nonempty_and_correct_for_retained_pcmci_link():
     legitimately carries a non-empty conditioning set (see module docstring).
     """
     names, cols = _pruned_conditioning_series()
-    result = PCMCI(max_lag=1, alpha=0.05, fdr=True).run((names, cols), seed=1)
+    result = PCMCI(max_lag=1, alpha=0.05, fdr=True).run(
+        (names, cols), execution=antecedent.Execution(seed=1)
+    )
     by_key = {
         (link.source, link.source_lag, link.target, link.target_lag): link for link in result.links
     }
@@ -133,7 +142,9 @@ def test_lpcmci_links_all_correspond_to_final_pag_edges():
     orientation.
     """
     names, cols = _chain_series()
-    result = LPCMCI(max_lag=2, alpha=0.1, fdr=False).run((names, cols), seed=9)
+    result = LPCMCI(max_lag=2, alpha=0.1, fdr=False).run(
+        (names, cols), execution=antecedent.Execution(seed=9)
+    )
     assert result.links, "expected at least one retained link for this chain"
 
     edge_pairs = {
@@ -171,7 +182,7 @@ def test_max_cond_size_honored_by_native_functions(discover_cls):
 
 def test_max_cond_size_flows_through_dataclass_dispatch():
     """PCMCI(max_cond_size=...) reaches the native call via run_temporal_discovery, the
-    same dispatcher `analyze(discovery=PCMCI(...))` and GCM compose helpers use.
+    same dispatcher `discover(method=PCMCI(...))` and GCM compose helpers use.
     """
     names, cols = _pruned_conditioning_series()
     data = dict(zip(names, cols, strict=True))
@@ -182,10 +193,10 @@ def test_max_cond_size_flows_through_dataclass_dispatch():
 
 
 def test_max_cond_size_reaches_analyze_temporal_discover_path():
-    """`analyze(discovery=PCMCIPlus(max_cond_size=...))` must not silently drop the cap.
+    """`discover(method=PCMCIPlus(max_cond_size=...))` must not silently drop the cap.
 
     `run_temporal_discovery` (tested above) is the free-function dispatcher used by
-    `AcceptedGraph` and GCM compose helpers; `analyze(..., discovery=...)` for
+    `AcceptedGraph` and GCM compose helpers; `analyze(..., graph=discover(...))` for
     PulseEffect/SustainedEffect goes through a completely separate call path
     (the prepared-analysis compile route), so it needs its own coverage — a prior bug had exactly this path silently ignoring `max_cond_size`
     while `run_temporal_discovery` already forwarded it correctly.
@@ -207,30 +218,50 @@ def test_max_cond_size_reaches_analyze_temporal_discover_path():
     query = PulseEffect(treatment="v1", outcome="v2", treatment_lag=1, horizon_steps=1)
 
     with pytest.raises(antecedent.errors.CausalIdentifyError, match="history cap"):
+        require_success(
+            antecedent.analyze(
+                data,
+                query=query,
+                graph=antecedent.discovery.discover(
+                    data,
+                    method=PCMCIPlus(max_lag=1, alpha=0.05, max_cond_size=0),
+                    execution=antecedent.Execution(seed=1, threads=1),
+                    accept_discovered=True,
+                ),
+                execution=antecedent.Execution(seed=1, threads=1),
+            )
+        )
+
+    capped_result = require_success(
         antecedent.analyze(
             data,
             query=query,
-            discovery=PCMCIPlus(max_lag=1, alpha=0.05, max_cond_size=0),
-            seed=1,
-            threads=1,
+            graph=antecedent.discovery.discover(
+                data,
+                method=PCMCIPlus(max_lag=1, alpha=0.05, max_cond_size=2),
+                execution=antecedent.Execution(seed=1, threads=1),
+                accept_discovered=True,
+            ),
+            execution=antecedent.Execution(seed=1, threads=1),
         )
-
-    capped_result = antecedent.analyze(
-        data,
-        query=query,
-        discovery=PCMCIPlus(max_lag=1, alpha=0.05, max_cond_size=2),
-        seed=1,
-        threads=1,
     )
-    assert np.isfinite(capped_result.estimate.ate)
+    # DGP: v2[t] = 0.5 v1[t-1] + ..., so a unit pulse of v1 at lag 1 moves v2 one step later by
+    # 0.5; n=300 with noise 0.3 gives a standard error near 0.03 (observed deviation 0.051).
+    assert capped_result.estimate.ate == pytest.approx(0.5, abs=0.1)
 
     # The library default (max_cond_size=2) must behave identically to an explicit 2 —
     # this is a plumbing fix, not a behavior change for existing callers.
-    default_result = antecedent.analyze(
-        data,
-        query=query,
-        discovery=PCMCIPlus(max_lag=1, alpha=0.05),
-        seed=1,
-        threads=1,
+    default_result = require_success(
+        antecedent.analyze(
+            data,
+            query=query,
+            graph=antecedent.discovery.discover(
+                data,
+                method=PCMCIPlus(max_lag=1, alpha=0.05),
+                execution=antecedent.Execution(seed=1, threads=1),
+                accept_discovered=True,
+            ),
+            execution=antecedent.Execution(seed=1, threads=1),
+        )
     )
     assert default_result.estimate.ate == capped_result.estimate.ate

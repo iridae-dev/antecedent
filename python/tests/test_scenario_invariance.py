@@ -17,7 +17,9 @@ import json
 
 import pytest
 from antecedent import Admg
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalUnsupportedError
+from antecedent.outcomes import require_success
 from antecedent.scenario_invariance import (
     InvarianceReport,
     ScenarioInvarianceRefusal,
@@ -100,7 +102,7 @@ def estimated(sets=None, data=None):
     stage = prepare(
         sets or scenarios(("standardize", ["z"]), ("direct", []), ("outcome_shift", ["y"])), data
     )
-    stage.estimate()
+    require_success(stage.estimate())
     return stage
 
 
@@ -172,6 +174,11 @@ def test_invariance_envelope_extremes_carry_the_report_of_the_scenario_behind_th
     assert lower is not None and upper is not None
     assert (lower.scenario, upper.scenario) == ("standardize", "direct")
     assert lower.value < upper.value
+    # By hand: P_s(y | do(x), z) = (0.08/0.4, 0.48/0.6) = (0.2, 0.8) and P*(z) = (0.75, 0.25),
+    # so the standardized value is 0.2 * 0.75 + 0.8 * 0.25 = 0.35; with no selection it is
+    # P_s(y = 1 | do(x)) = 0.08 + 0.48 = 0.56.
+    assert lower.value == pytest.approx(0.35, abs=1e-12)
+    assert upper.value == pytest.approx(0.56, abs=1e-12)
     # 0.35 from the scenario selecting on z (it relies on P_s(y | do(x), z) and P*(z)),
     # and the larger value from the scenario with no selection (P_s(y | do(x))).
     assert lower.report == report_of(result, "standardize")
@@ -214,27 +221,27 @@ def test_invariance_identity_ignores_edge_order_and_scenario_name():
 
 def test_invariance_is_derived_and_leaves_the_stage_and_artifact_unchanged():
     stage = estimated()
-    before = stage.export()
+    before = bytes(stage.export())
     first = invariance_report(stage)
-    assert stage.export() == before
+    assert bytes(stage.export()) == before
     assert invariance_report(stage) == first
     # A refresh with the same decisions reports the same invariances.
-    stage.refresh(laws())
-    stage.estimate()
+    require_success(stage.refresh(laws()))
+    require_success(stage.estimate())
     assert invariance_report(stage) == first
     # The report is not part of the scenario report payload.
-    assert "invariance" not in json.dumps(json.loads(stage.estimate()))
+    assert "invariance" not in json.dumps(json.loads(require_success(stage.estimate())))
 
 
 def test_invariance_requires_an_estimated_scenario_stage():
     stage = prepare(scenarios(("direct", [])))
     with pytest.raises(ScenarioInvarianceRefusal) as raised:
         invariance_report(stage)
-    assert raised.value.detail == "scenario_invariance.not_estimated"
+    assert raised.value.detail == reason_details.scenario_invariance.NOT_ESTIMATED
     assert raised.value.reason_code == "not_executed"
     assert isinstance(raised.value, CausalUnsupportedError)
     assert_registered_refusal(raised.value)
     with pytest.raises(ScenarioInvarianceRefusal) as wrong:
         invariance_report(object())
-    assert wrong.value.detail == "scenario_invariance.wrong_result_type"
+    assert wrong.value.detail == reason_details.scenario_invariance.WRONG_RESULT_TYPE
     assert_registered_refusal(wrong.value)

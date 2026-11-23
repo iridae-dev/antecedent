@@ -1,0 +1,1 @@
+[{"digest":"603d796db9982a70f99ecb00474b28c81dd55699f6fd5b5e40041ac8c55e3244","file":"04e1347b187da9004be91cbdbbb2aa668263a76691c4c6e22654572182dd9165","kind":"rust_items","path":"crates/antecedent-expr/src/exact/transport.rs","role":"compile","scopes":[[[],true]],"select":{"full":[5,6,7,10],"head":[8]},"table":"0a9e669aa4d9f2c704279ab89c87a2c304c33c5f4168bfa4b7f102341cf4c923"}]

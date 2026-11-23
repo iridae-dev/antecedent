@@ -2,7 +2,7 @@
 
 - An estimator never runs under an inference mode it does not implement; the
   request is refused with a registered code instead of executing the other mode
-  under the requested license coordinate.
+  under the requested support coordinate.
 - A refusal reaching Python carries a registered reason code.
 - A not-identified question is a typed refusal carrying its identification
   outcome.
@@ -24,9 +24,11 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent import _native
+from antecedent import _reason_details as reason_details
 from antecedent.ids import Estimator
+from antecedent.outcomes import require_success
 
-from _sealed_loads import assert_answer_kept
+from _loaded_results import assert_refutation_replay_withheld
 
 REGISTERED = frozenset(_native.runtime_refusal_codes())
 GRAPH = [("z", "treatment"), ("z", "outcome"), ("treatment", "outcome")]
@@ -100,20 +102,28 @@ def test_prepared_aipw_refresh_and_independent_artifact_consumption() -> None:
         query=ant.AverageEffect("treatment", "outcome"),
         estimator="aipw",
         refute="none",
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
     )
-    first = prepared.estimate(data)
+    original = prepared.inspect()
+    first = require_success(prepared.estimate())
     assert first.effect == pytest.approx(1.5, abs=0.3)
-    accepted = ant.artifacts.accept(first.export())
-    assert accepted["accepts_as_verified_program"] == "true"
+    accepted = ant.artifacts.accept(bytes(first.export()), replay=True)
+    assert accepted["replayed"] == "true"
 
     changed = {**data, "outcome": data["outcome"] + 0.75 * data["treatment"]}
-    refreshed = prepared.refresh(changed)
+    refreshed = require_success(prepared.rebind(data=changed).estimate())
+    assert prepared.inspect() == original
     assert refreshed.effect == pytest.approx(first.effect + 0.75, abs=0.05)
-    accepted_refresh = ant.artifacts.accept(refreshed.export())
-    assert accepted_refresh["accepts_as_verified_program"] == "true"
+    accepted_refresh = ant.artifacts.accept(bytes(refreshed.export()), replay=True)
+    assert accepted_refresh["replayed"] == "true"
     assert accepted_refresh["program"] == accepted["program"]
     assert refreshed.data_snapshot_id != first.data_snapshot_id
+
+
+def _assert_sealed_estimator(accepted: Any) -> None:
+    """A checked estimator operation replays from its retained inputs."""
+    assert accepted["replayed"] == "true"
+    assert accepted["not_replayable"] == ""
 
 
 def test_prepared_frontdoor_refresh_and_independent_artifact_consumption() -> None:
@@ -126,18 +136,20 @@ def test_prepared_frontdoor_refresh_and_independent_artifact_consumption() -> No
         identifier="frontdoor",
         estimator="frontdoor.linear_two_stage",
         refute="none",
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
     )
-    first = prepared.estimate(data)
+    original = prepared.inspect()
+    first = require_success(prepared.estimate())
     assert first.effect == pytest.approx(1.0, abs=0.15)
-    accepted = ant.artifacts.accept(first.export())
-    assert accepted["accepts_as_verified_program"] == "true"
+    accepted = ant.artifacts.accept(bytes(first.export()), replay=True)
+    _assert_sealed_estimator(accepted)
 
     changed = {**data, "y": data["y"] + 0.4}
-    refreshed = prepared.refresh(changed)
+    refreshed = require_success(prepared.rebind(data=changed).estimate())
+    assert prepared.inspect() == original
     assert refreshed.effect == pytest.approx(first.effect, abs=1e-10)
-    accepted_refresh = ant.artifacts.accept(refreshed.export())
-    assert accepted_refresh["accepts_as_verified_program"] == "true"
+    accepted_refresh = ant.artifacts.accept(bytes(refreshed.export()), replay=True)
+    _assert_sealed_estimator(accepted_refresh)
     assert accepted_refresh["program"] == accepted["program"]
     assert refreshed.data_snapshot_id != first.data_snapshot_id
 
@@ -155,18 +167,20 @@ def test_prepared_binary_iv_refresh_and_independent_artifact_consumption(
         identifier="iv",
         estimator=estimator,
         refute="none",
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
     )
-    first = prepared.estimate(data)
+    original = prepared.inspect()
+    first = require_success(prepared.estimate())
     assert first.effect == pytest.approx(1.5, abs=0.35)
-    accepted = ant.artifacts.accept(first.export())
-    assert accepted["accepts_as_verified_program"] == "true"
+    accepted = ant.artifacts.accept(bytes(first.export()), replay=True)
+    _assert_sealed_estimator(accepted)
 
     changed = {**data, "y": data["y"] + 0.5}
-    refreshed = prepared.refresh(changed)
+    refreshed = require_success(prepared.rebind(data=changed).estimate())
+    assert prepared.inspect() == original
     assert refreshed.effect == pytest.approx(first.effect, abs=1e-10)
-    accepted_refresh = ant.artifacts.accept(refreshed.export())
-    assert accepted_refresh["accepts_as_verified_program"] == "true"
+    accepted_refresh = ant.artifacts.accept(bytes(refreshed.export()), replay=True)
+    _assert_sealed_estimator(accepted_refresh)
     assert accepted_refresh["program"] == accepted["program"]
     assert refreshed.data_snapshot_id != first.data_snapshot_id
 
@@ -242,15 +256,17 @@ def test_no_estimator_runs_under_an_inference_mode_it_does_not_implement(
             try:
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
-                    result = ant.analyze(
-                        data,
-                        graph=graph,
-                        query=query,
-                        inference=inference,
-                        estimator=estimator,
-                        refute="none",
-                        seed=1,
-                        **extra,
+                    result = require_success(
+                        ant.analyze(
+                            data,
+                            graph=graph,
+                            query=query,
+                            inference=inference,
+                            estimator=estimator,
+                            refute="none",
+                            execution=ant.Execution(seed=1),
+                            **extra,
+                        )
                     )
             except Exception as error:  # noqa: BLE001 - every refusal is acceptable here
                 code = getattr(error, "reason_code", None)
@@ -272,26 +288,37 @@ def test_no_estimator_runs_under_an_inference_mode_it_does_not_implement(
 def test_bayesian_request_with_a_frequentist_estimator_is_refused_by_code() -> None:
     for estimator in ("aipw", "linear.adjustment.ate", "propensity.weighting"):
         with pytest.raises(ant.errors.CausalUnsupportedError) as caught:
+            require_success(
+                ant.analyze(
+                    _static(3),
+                    graph=GRAPH,
+                    query=ant.AverageEffect("treatment", "outcome"),
+                    inference=ant.Bayesian(n_draws=32),
+                    estimator=estimator,
+                    refute="none",
+                )
+            )
+        message = str(caught.value)
+        if estimator == "propensity.weighting":
+            # A propensity posterior is not an effect posterior, so the boundary names the
+            # missing outcome law and its next attempt instead of the generic mismatch.
+            assert caught.value.reason_code == "route_not_supported"
+            assert reason_details.penalized_propensity.EFFECT_POSTERIOR in message
+            assert "Next attempt" in message
+        else:
+            assert caught.value.reason_code == "estimator_inference_mismatch"
+            # The refusal names the estimator and both ways forward; nothing is lost:
+            # the estimator still runs under the inference it implements.
+            assert f"estimator {estimator} is Frequentist" in message
+            assert "Omit estimator=" in message and "inference=Frequentist" in message
+        frequentist = require_success(
             ant.analyze(
                 _static(3),
                 graph=GRAPH,
                 query=ant.AverageEffect("treatment", "outcome"),
-                inference=ant.Bayesian(n_draws=32),
                 estimator=estimator,
                 refute="none",
             )
-        assert caught.value.reason_code == "estimator_inference_mismatch"
-        message = str(caught.value)
-        # The refusal names the estimator and both ways forward; nothing is lost:
-        # the estimator still runs under the inference it implements.
-        assert f"estimator {estimator} is Frequentist" in message
-        assert "Omit estimator=" in message and "inference=Frequentist" in message
-        frequentist = ant.analyze(
-            _static(3),
-            graph=GRAPH,
-            query=ant.AverageEffect("treatment", "outcome"),
-            estimator=estimator,
-            refute="none",
         )
         assert frequentist.answer.kind == "point"
     with pytest.raises(ant.errors.CausalUnsupportedError) as caught:
@@ -315,87 +342,149 @@ def _refusals() -> list[tuple[str, Callable[[], Any]]]:
     return [
         (
             "ResponseCurve refute=full",
-            lambda: ant.analyze(
-                data,
-                graph=GRAPH,
-                query=ant.ResponseCurve("z", "outcome", grid=[0.0, 1.0]),
-                refute="full",
-            ),
-        ),
-        (
-            "Counterfactual refute=cheap",
-            lambda: ant.analyze(
-                data, graph=GRAPH, query=ant.Counterfactual("treatment", "outcome"), refute="cheap"
+            lambda: require_success(
+                ant.analyze(
+                    data,
+                    graph=GRAPH,
+                    query=ant.ResponseCurve("z", "outcome", grid=[0.0, 1.0]),
+                    refute="full",
+                )
             ),
         ),
         (
             "unknown estimator",
-            lambda: ant.analyze(data, graph=GRAPH, query=query, estimator="bogus"),
+            lambda: require_success(ant.analyze(data, graph=GRAPH, query=query, estimator="bogus")),
         ),
         (
             "sharp RD estimator off route",
-            lambda: ant.analyze(data, graph=GRAPH, query=query, estimator="rd.sharp"),
+            lambda: require_success(
+                ant.analyze(data, graph=GRAPH, query=query, estimator="rd.sharp")
+            ),
         ),
         (
             "regimes without RPCMCI",
-            lambda: ant.analyze(data, graph=GRAPH, query=query, regimes=[0] * n),
+            lambda: require_success(ant.analyze(data, graph=GRAPH, query=query, regimes=[0] * n)),
         ),
         (
             "unknown variable",
-            lambda: ant.analyze(data, graph=GRAPH, query=ant.AverageEffect("treatment", "zz")),
+            lambda: require_success(
+                ant.analyze(data, graph=GRAPH, query=ant.AverageEffect("treatment", "zz"))
+            ),
         ),
         (
             "graph cycle",
-            lambda: ant.analyze(data, graph=GRAPH + [("outcome", "z")], query=query),
+            lambda: require_success(
+                ant.analyze(data, graph=GRAPH + [("outcome", "z")], query=query)
+            ),
         ),
-        ("unknown keyword", lambda: ant.analyze(data, graph=GRAPH, query=query, estimater="aipw")),
-        ("refute=True", lambda: ant.analyze(data, graph=GRAPH, query=query, refute=True)),
+        (
+            "unknown keyword",
+            lambda: require_success(ant.analyze(data, graph=GRAPH, query=query, estimater="aipw")),
+        ),
+        (
+            "refute=True",
+            lambda: require_success(ant.analyze(data, graph=GRAPH, query=query, refute=True)),
+        ),
         (
             "Pulse on static edges",
-            lambda: ant.analyze(
-                data, graph=GRAPH, query=ant.PulseEffect("treatment", "outcome", horizon_steps=1)
+            lambda: require_success(
+                ant.analyze(
+                    data,
+                    graph=GRAPH,
+                    query=ant.PulseEffect("treatment", "outcome", horizon_steps=1),
+                )
             ),
         ),
         (
             "retarget on Bayesian",
-            lambda: ant.prepare(
-                data, graph=GRAPH, query=query, inference=ant.Bayesian(n_draws=32)
-            ).retarget(np.ones(n), []),
+            lambda: require_success(
+                ant.prepare(
+                    data, graph=GRAPH, query=query, inference=ant.Bayesian(n_draws=32)
+                ).retarget(np.ones(n), depends_on=[])
+            ),
         ),
-        ("retarget without scores", lambda: linear.retarget(np.linspace(1, 2, n), [])),
         (
-            "refresh with a missing column",
-            lambda: linear.refresh({"z": data["z"], "treatment": data["treatment"]}),
+            "retarget without scores",
+            lambda: require_success(linear.retarget(np.linspace(1, 2, n), depends_on=[])),
         ),
-        ("estimator ipw", lambda: ant.analyze(data, graph=GRAPH, query=query, estimator="ipw")),
+        (
+            "rebind with a missing column",
+            lambda: require_success(
+                linear.rebind(data={"z": data["z"], "treatment": data["treatment"]})
+            ),
+        ),
+        (
+            "estimator ipw",
+            lambda: require_success(ant.analyze(data, graph=GRAPH, query=query, estimator="ipw")),
+        ),
         (
             "identifier frontdoor",
-            lambda: ant.analyze(data, graph=GRAPH, query=query, identifier="frontdoor"),
+            lambda: require_success(
+                ant.analyze(data, graph=GRAPH, query=query, identifier="frontdoor")
+            ),
         ),
         (
             "unknown estimator_config key",
-            lambda: ant.analyze(data, graph=GRAPH, query=query, estimator_config={"nonsense": 1}),
+            lambda: require_success(
+                ant.analyze(data, graph=GRAPH, query=query, estimator_config={"nonsense": 1})
+            ),
         ),
         (
             "interactive discovery",
-            lambda: ant.analyze(
-                data, discovery=ant.discovery.PC(), query=query, latency="interactive"
+            lambda: require_success(
+                ant.analyze(data, discovery=ant.discovery.PC(), query=query, latency="interactive")
             ),
         ),
     ]
+
+
+# The typed error class and the exact registered code each probed misuse is refused with.
+EXPECTED_REFUSALS = {
+    "ResponseCurve refute=full": ("CausalUnsupportedError", "refutation_not_applicable"),
+    "unknown estimator": ("CausalValueError", "unknown_strategy"),
+    "sharp RD estimator off route": ("CausalUnsupportedError", "option_not_applicable"),
+    "regimes without RPCMCI": ("CausalUnsupportedError", "option_not_applicable"),
+    "unknown variable": ("CausalDataError", "unknown_variable"),
+    "graph cycle": ("CausalGraphError", "graph_invalid"),
+    "refute=True": ("CausalTypeError", "invalid_argument"),
+    "Pulse on static edges": ("CausalValueError", "invalid_argument"),
+    "retarget on Bayesian": ("CausalUnsupportedError", "score_table_unavailable"),
+    "retarget without scores": ("CausalUnsupportedError", "score_table_unavailable"),
+    "rebind with a missing column": ("CausalValueError", "invalid_argument"),
+    "estimator ipw": ("CausalValueError", "unknown_strategy"),
+    "identifier frontdoor": ("CausalCompileError", "strategy_incompatible"),
+    "unknown estimator_config key": ("CausalValueError", "invalid_argument"),
+}
 
 
 @pytest.mark.parametrize("label, call", _refusals(), ids=[label for label, _ in _refusals()])
 def test_every_probed_refusal_carries_a_registered_reason_code(
     label: str, call: Callable[[], Any]
 ) -> None:
-    with pytest.raises((ant.errors.CausalError, ValueError, TypeError)) as caught:
+    if label in ("unknown keyword", "interactive discovery"):
+        # Root Python call-shape errors precede the native scientific boundary.
+        with pytest.raises(TypeError, match="unexpected keyword argument") as caught:
+            call()
+        assert type(caught.value) is TypeError
+        return
+    with pytest.raises(ant.errors.CausalError) as caught:
         call()
     error = caught.value
     assert error.reason_code in REGISTERED, (label, error.reason_code, str(error))
+    assert (type(error).__name__, error.reason_code) == EXPECTED_REFUSALS[label], label
     report = getattr(error, "report", None)
     if report is not None:
         assert report.code == error.reason_code
+
+
+@pytest.mark.parametrize("field", ["estimator", "identifier"])
+def test_an_unknown_strategy_name_is_refused_with_its_accepted_names(field: str) -> None:
+    data = _static(0, 400)
+    query = ant.AverageEffect("treatment", "outcome")
+    with pytest.raises(ant.errors.CausalError) as caught:
+        require_success(ant.analyze(data, graph=GRAPH, query=query, **{field: "bogus"}))
+    assert caught.value.reason_code == "unknown_strategy"
+    assert "bogus" in str(caught.value) and "expected one of" in str(caught.value)
 
 
 def test_refusal_report_code_falls_back_when_the_attribute_is_none() -> None:
@@ -419,7 +508,7 @@ def test_unidentified_question_is_a_typed_refusal_with_its_outcome() -> None:
     rng = np.random.default_rng(0)
     data = {"t": rng.normal(size=300), "y": rng.normal(size=300)}
     with pytest.raises(ant.errors.EffectNotIdentified) as caught:
-        ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y"))
+        require_success(ant.analyze(data, graph=bow, query=ant.AverageEffect("t", "y")))
     error = caught.value
     assert isinstance(error, ant.errors.CausalUnsupportedError)
     assert isinstance(error, ant.errors.CausalCompileError)
@@ -434,9 +523,14 @@ def test_unidentified_question_is_a_typed_refusal_with_its_outcome() -> None:
 
 def test_preflight_reports_no_program_it_has_not_compiled() -> None:
     study = ant.prepare(_static(0), graph=GRAPH, query=ant.AverageEffect("treatment", "outcome"))
-    assert study.inspect().program_id is not None
+    original = study.inspect()
+    assert original.program_id is not None
     assert study.preflight().program_id is None
-    assert study.estimate().program_id == study.inspect().program_id
+    result = require_success(study.estimate())
+    assert study.inspect() == original
+    assert result.study.inspect().program_id == result.program_id
+    loaded = require_success(ant.load(bytes(result.export())))
+    assert loaded.inspect().program_id == result.program_id
 
 
 def _failing(*, ate: float, se_analytic: float, method: str, adjustment_set: Any) -> dict[str, Any]:
@@ -458,20 +552,21 @@ def _evidence(report: dict[str, Any]) -> dict[str, Any]:
 
 
 def test_a_failed_validation_survives_export_and_load() -> None:
-    result = ant.analyze(
-        _static(4),
-        graph=GRAPH,
-        query=ant.AverageEffect("treatment", "outcome"),
-        refute="none",
-        validators=[_failing],
+    result = require_success(
+        ant.analyze(
+            _static(4),
+            graph=GRAPH,
+            query=ant.AverageEffect("treatment", "outcome"),
+            refute="none",
+            validators=[_failing],
+        )
     )
     live = result.inspect().to_dict()
-    loaded_result = ant.load(result.export())
+    loaded_result = require_success(ant.load(bytes(result.export())))
     loaded = loaded_result.inspect().to_dict()
     assert live["support"]["payload"]["validation"]["passed"] is False
-    assert_answer_kept(loaded_result)
-    assert loaded_result.acceptance.verified is False
-    assert loaded_result.answer == result.answer
+    # The body carries validation reports with no checked replay: recognized, withheld.
+    assert_refutation_replay_withheld(loaded_result)
     assert loaded["support"]["payload"]["validation"]["passed"] is False
     assert loaded["support"]["payload"]["validation"]["count"] == 1
     assert _evidence(live) == _evidence(loaded)
@@ -483,15 +578,17 @@ def test_a_failed_validation_survives_export_and_load() -> None:
     "inference", [ant.Frequentist(), ant.Bayesian(n_draws=64)], ids=["freq", "bayes"]
 )
 def test_counterfactual_unit_effects_survive_export_and_load(inference: Any) -> None:
-    result = ant.analyze(
-        _static(5, 200),
-        graph=GRAPH,
-        query=ant.Counterfactual("treatment", "outcome"),
-        inference=inference,
-        refute="none",
+    result = require_success(
+        ant.analyze(
+            _static(5, 200),
+            graph=GRAPH,
+            query=ant.Counterfactual("treatment", "outcome"),
+            inference=inference,
+            refute="none",
+        )
     )
     live = result.inspect().to_dict()
-    loaded = ant.load(result.export()).inspect().to_dict()
+    loaded = require_success(ant.load(bytes(result.export()))).inspect().to_dict()
     units = loaded["uncertainty"]["payload"]["unit_effects"]
     assert units["effects"] == pytest.approx(list(result.unit_effects))
     assert units["homogeneous"] == result.estimate.unit_effects_homogeneous
@@ -499,16 +596,20 @@ def test_counterfactual_unit_effects_survive_export_and_load(inference: Any) -> 
 
 
 def test_live_and_loaded_reports_share_one_contract_shape() -> None:
-    result = ant.analyze(
-        _static(6), graph=GRAPH, query=ant.AverageEffect("treatment", "outcome"), refute="placebo"
+    result = require_success(
+        ant.analyze(
+            _static(6),
+            graph=GRAPH,
+            query=ant.AverageEffect("treatment", "outcome"),
+            refute="placebo",
+        )
     )
     live = result.inspect().to_dict()
-    loaded_result = ant.load(result.export())
+    loaded_result = require_success(ant.load(bytes(result.export())))
     loaded = loaded_result.inspect().to_dict()
     json.dumps(live, allow_nan=False)
-    assert_answer_kept(loaded_result)
-    assert loaded_result.acceptance.verified is False
-    assert loaded_result.answer == result.answer
+    # The body carries validation reports with no checked replay: recognized, withheld.
+    assert_refutation_replay_withheld(loaded_result)
     assert isinstance(live["contract"], dict) and isinstance(loaded["contract"], dict)
     assert live["contract"] == loaded["contract"]
     assert live["inference_binding"] == loaded["inference_binding"]
@@ -518,15 +619,21 @@ def test_live_and_loaded_reports_share_one_contract_shape() -> None:
 # --- sharp RD and previews --------------------------------------------------------
 
 
-def test_sharp_rd_contract_names_per_execution_identification() -> None:
+def test_sharp_rd_identifies_at_prepare() -> None:
+    # Sharp RD identifies at compile and prepare (a design whose running variable does not
+    # assign treatment is refused at prepare), so a prepared design no longer defers
+    # identification to each execution.
     study = ant.prepare(
         _rd(0),
         query=ant.quasi.SharpRegressionDiscontinuity("y", "t", "x", 0.0, 0.3),
     )
     identification = study.inspect().identification
-    assert identification.available is False
-    assert identification.reason == "identified_per_execution"
-    assert study.estimate().inspect().identification.summary == "nonparametrically_identified"
+    assert identification.available is True
+    assert identification.summary == "nonparametrically_identified"
+    assert (
+        require_success(study.estimate()).inspect().identification.summary
+        == "nonparametrically_identified"
+    )
 
 
 def test_retarget_preview_reports_the_refusal_the_retarget_raises() -> None:
@@ -538,12 +645,51 @@ def test_retarget_preview_reports_the_refusal_the_retarget_raises() -> None:
     assert preview["refused"] == "true"
     assert preview["refusal_code"] == "score_table_unavailable"
     with pytest.raises(ant.errors.CausalUnsupportedError) as caught:
-        linear.retarget(np.ones(n), [])
+        require_success(linear.retarget(np.ones(n), depends_on=[]))
     assert caught.value.reason_code == preview["refusal_code"]
     assert str(caught.value) == preview["refusal"]
 
-    aipw = ant.prepare(data, graph=GRAPH, query=query, estimator="aipw")
+    aipw = require_success(
+        ant.prepare(data, graph=GRAPH, query=query, estimator="aipw").estimate()
+    ).study
     preview = aipw.preview_transform("retarget")
     assert preview["refused"] == "false"
     assert "refusal" not in preview
-    aipw.retarget(np.ones(n), [])
+    require_success(aipw.retarget(np.ones(n), depends_on=[]))
+
+
+@pytest.mark.parametrize("counterfactual", [False, True])
+def test_execution_inspection_uses_metadata_captured_before_display(monkeypatch, counterfactual):
+    query = (
+        ant.Counterfactual("treatment", "outcome")
+        if counterfactual
+        else ant.AverageEffect("treatment", "outcome")
+    )
+    result = require_success(
+        ant.analyze(
+            _static(9, 200),
+            graph=GRAPH,
+            query=query,
+            inference=ant.Bayesian(n_draws=64),
+            refute="none",
+        )
+    )
+
+    class NoNativeReads:
+        def execution_record_json(self):
+            pytest.fail("inspection materialized native execution metadata")
+
+        def export_contracted_artifact(self, **kwargs):
+            pytest.fail("inspection exported an artifact")
+
+        def export_artifact(self, **kwargs):
+            pytest.fail("inspection exported a result payload")
+
+    monkeypatch.setattr(result, "_execution", NoNativeReads())
+    report = result.inspect()
+    assert report.contract["format"] == 2
+    assert report.inference_binding["bayesian"]["n_draws"] == 64
+    assert result.inspect().contract == report.contract
+    if counterfactual:
+        assert report.uncertainty.payload["unit_effects"]["effects"] == tuple(result.unit_effects)
+    assert len(repr(result)) < 1000

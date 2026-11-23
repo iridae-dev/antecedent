@@ -11,7 +11,7 @@
 //!
 //! What the range is: an assumption range at the declared grid points only. The
 //! bound is the caller's declaration of how far the premise may fail; nothing in
-//! the data licenses it. It is never a confidence interval, a credible interval
+//! the data supports it. It is never a confidence interval, a credible interval
 //! or a posterior, no probability attaches to a shift, and a sampling interval is
 //! withheld with its registered reason.
 //!
@@ -33,7 +33,7 @@
 //!   [`super::sensitivity_decision::consume`]; consumption recomputes identity
 //!   digests and the decision outcome and refuses a resealed mutation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use super::design_exports::design_crate::transport_sensitivity::{
     REFERENCE_ACTION_ID, TRANSPORT_ASSUMPTION_RANGE_INTERPRETATION, TRANSPORT_SENSITIVITY_VERSION,
@@ -49,11 +49,14 @@ use antecedent_design::decision_transported_source::{
 use super::sensitivity_decision::SensitivityArtifact;
 
 /// Detail: the response is a law, so it has no single point value to shift.
-pub const DETAIL_LAW_RESPONSE: &str = "transport_sensitivity.law_response_not_scalar";
+pub const DETAIL_LAW_RESPONSE: &str =
+    antecedent_core::reason_details::transport_sensitivity::LAW_RESPONSE_NOT_SCALAR;
 /// Detail: the response's route does not name a sensitivity route and none was declared.
-pub const DETAIL_ROUTE_UNDECLARED: &str = "transport_sensitivity.route_undeclared";
+pub const DETAIL_ROUTE_UNDECLARED: &str =
+    antecedent_core::reason_details::transport_sensitivity::ROUTE_UNDECLARED;
 /// Detail: the coordinate index is outside the response.
-pub const DETAIL_COORDINATE_RANGE: &str = "transport_sensitivity.coordinate_out_of_range";
+pub const DETAIL_COORDINATE_RANGE: &str =
+    antecedent_core::reason_details::transport_sensitivity::COORDINATE_OUT_OF_RANGE;
 
 /// Why a transported response was not given an assumption range.
 #[derive(Clone, Debug, PartialEq)]

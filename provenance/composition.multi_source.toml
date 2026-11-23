@@ -7,14 +7,14 @@ copied_tests = false
 
 # An acceptance composition, not an algorithm: a hand-derived three-action story (a native response
 # claim and two external studies over one program, a two-row joint law, a design ranking and a
-# composed bundle) exercised only through routes the earlier C and B records already license.
+# composed bundle) exercised only through routes the earlier C and B records already support.
 # papers = [] is an explicit judgment: no paper introduces this composition, every expected value is
 # enumerated by hand from the stated means and law rows, and each composed route carries its own
 # citations in its own record.
 papers = []
 
 implementation_deviations = [
-  "Claim policy: point-only. The acceptance composes licensed routes and checks their hand-derived values and refusals; it adds no source, no estimator and no interval or coverage claim. Every standard error, p-value, interval and Monte Carlo error inside a composed artifact is a diagnostic with calibration unmeasured.",
+  "Claim policy: point-only. The acceptance composes supported routes and checks their hand-derived values and refusals; it adds no source, no estimator and no interval or coverage claim. Every standard error, p-value, interval and Monte Carlo error inside a composed artifact is a diagnostic with calibration not_measured.",
   "The Python native input is obtained through an actual checked fit and opaque producer-issued claim. The direct composition adapter uses the retained execution record; reconstructed metadata and manually copied means cannot issue native authority.",
   "A native response retains no draws, so only an external aligned joint law answers a probability or quantile; a mean never stands in for the law.",
   "The recalculation stage model binds provider requests and priors to graph, query, regime, evidence, source and target populations and treatment grid. These external branches remain planning-only; the acceptance does not execute or count external provider refreshes. An external-study change preserves unrelated branches.",
@@ -29,3 +29,23 @@ test_sources = [
   "python/tests/test_multi_source_acceptance.py",
   "python/tests/test_multi_source_mutations.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "A hand-derived three-action acceptance story (a native response claim and two external studies over one program, a joint law, a design ranking and a bundle) exercised only through routes the composition records already support, over the composition facade in composition.rs. The facade builds, exports and consumes bundles. It embeds native fitted-producer and predictive chain-decision nodes only after their verifiers replay them, and registers those verifiers in a consumer bound to an execution context. It lowers a bundle whose terminal is a propagation chain, a predictive scientific bridge, a fitted producer feeding a chain, or a fitted producer, chain and predictive decision into one six-layer compiler program. Execution consumes every embedded dependency, re-executes the terminal and requires the live identities, chain facts and decision fingerprint to equal the retained ones. A portable form carries the bundle bytes and the receipt and is consumed against independently retained bundle and program identities."
+no_independent_algorithm = "composition.rs constructs nodes, canonical digests and lowered programs, maps refusals to bundle stages, and compares identities, facts and receipts; it computes no estimate, interval, density or draw. Its only arithmetic is node and stage counts and the byte quotes of declared physical operators. Each fitted node verifier and terminal dispatches to its producer's own consumer or compiled route: the trial IPW transport and predictive decisions (trial-to-target Bayesian bootstrap), the joint source-target effect and predictive decisions (joint Bayesian transport), the cyclic posterior action and target-feedback decisions (cyclic likelihood and equilibrium), the graph-imputation transport and world decisions (compiled graph imputation), the chain decision compiler (decision evaluation) and the predictive scientific bridge (bridged draws). The acceptance story's expected values are written by hand in the acceptance test from the stated means and law rows, and the numbers come from the covered routes."
+covered_by = ["composition.bundle", "composition.native_response_claims", "composition.source_evidence", "composition.verifiers", "estimate.transport.trial_bayesian_bootstrap", "transport.joint_bayesian", "cyclic.general_systems", "graph_imputation.compiled_candidate", "decision.functionals", "scientific_bridge.distribution_bridges"]
+record_sha256 = "e0e3b3489f34977fd69607ecf6a83a92a22964985ecf29c85ed49287dddee313"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/composition.rs"
+items = ["module"]
+sha256 = "46824404e51a41dc858f73829f2284f075a4cb294e501628b89bcfc7faf13470"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/multi_source_acceptance.rs"
+items = ["const CONTRACT", "const IDS", "const LAW_ROWS", "const NATIVE_DIGEST", "const NATIVE_SNAPSHOT", "fn acceptance_all_actions_unsupported_is_a_state_not_an_error", "fn acceptance_an_unsupported_action_is_reported_and_the_rest_are_compared", "fn acceptance_another_source_answers_the_action_the_native_claim_cannot", "fn acceptance_native_claim_is_native_and_withholds_the_unsupported_dose", "fn acceptance_overlapping_evidence_fails_the_declared_independence", "fn acceptance_probability_and_quantile_come_only_from_the_joint_law", "fn acceptance_shared_data_refuses_pooling_and_a_supported_route_lifts_it", "fn acceptance_the_composed_bundle_is_consumed_independently_with_the_hand_values", "fn acceptance_the_joint_law_decision_matches_the_hand_derived_values", "fn acceptance_the_point_only_decision_is_an_attested_result_with_the_hand_values", "fn acceptance_the_ranking_matches_the_hand_derived_evsi_and_net_values", "fn action", "fn add", "fn attested", "fn candidates_json", "fn claim", "fn close", "fn compare", "fn composed_builder", "fn consumed", "fn contract", "fn contract_of", "fn failed_stage", "fn independent", "fn lab_one_claim", "fn lab_one_input", "fn lab_two_claim", "fn lab_two_law_input", "fn lab_two_mean_input", "fn law", "fn law_columns", "fn law_contract", "fn mean_input", "fn mean_source", "fn native_context", "fn native_input", "fn native_response", "fn observation_quantity", "fn program", "fn quantity", "fn quantity_json", "fn ranking_request", "fn rollout_contract", "fn schema", "fn shared", "fn signal_json", "fn state_quantity", "struct ClaimSpec"]
+sha256 = "3c6f5aa172d1694fa575fa89b35eb489c1c94002f69be541665f8743d991a812"

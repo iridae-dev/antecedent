@@ -1,0 +1,68 @@
+feature_id = "estimate.temporal_regime_survival"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Intervening on risk factors for coronary heart disease: an application of the parametric g-formula", doi = "10.1093/ije/dyp192", sections = ["Parametric g-formula: simulate time-varying confounders under a regime and multiply the period hazards"] },
+]
+
+upstream_implementations_observed = []
+
+implementation_deviations = [
+  "A pooled logistic hazard (uncensored person-periods) and a Gaussian linear confounder transition are fitted by maximum likelihood; survival under each regime carries every subject's observed baseline confounders through the fitted transition law on 16 fixed innovation paths shared by both regimes, the point fit and every bootstrap replicate, and averages the product of one minus the fitted hazards. The pooled treatment model is fitted on the point fit only to report the smallest regime probability and to hold it to the floor.",
+  "The interval is a whole-procedure subject bootstrap percentile interval that refits both outcome models in every replicate; replicates whose models cannot be refitted are counted and more than five percent refuse the interval. Coverage is measured by the temporal-design calibration suites.",
+]
+
+test_sources = [
+  "crates/antecedent-estimate/src/temporal_design/survival.rs",
+  "crates/antecedent/tests/temporal_design_routes.rs",
+  "crates/antecedent-estimate/tests/temporal_regime_survival_reference.rs (50-digit hazard, transition and treatment fits with a quadrature-exact g-formula integral: truncation, censoring, no censoring, strong confounding)",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "fit_outcome_models, gformula_procedure_on and regime_positivity through fit_regime_survival in crates/antecedent-estimate/src/temporal_design/survival.rs for static always-treat and never-treat regimes: the person-period feature rows, the pooled hazard logistic fit on uncensored rows, the weighted least-squares confounder transition with its maximum-likelihood residual scale, the g-formula averaging of the fitted hazard products over fixed Monte Carlo innovation paths, the horizon truncation, and the smallest regime-consistent action probability of the treatment model. Not the subject bootstrap interval (its draws come from a seeded stream; only its shape is asserted), the Bayesian g-formula in the same file, or the observational and trajectory survival modules."
+assumptions = ["Sequential exchangeability of treatment and censoring given the measured history, positivity of both regimes and consistency are declared, not checked.", "The hazard model P(Y_k | L_k, A_k, k/K) is a correctly specified pooled logistic model and each confounder follows a Gaussian linear transition in the previous confounders, the previous treatment and k/K; their fit is the unpenalised maximum likelihood (plus a precision of 1e-10 the module adds to the logistic fit for numerical definiteness). The treatment and censoring laws do not enter the estimate.", "A subject censored in period k contributes no hazard row of period k; events are observed only in uncensored periods."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath and numpy (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Four simulated designs verified against the reference: 70 subjects with up to six periods truncated at a horizon of four and censoring, 60 subjects with no censoring at all, 140 subjects with strong confounding and a positivity floor of 0.005 (smallest regime probability 0.058), and 36 subjects. The product evaluates the g-formula expectation by Monte Carlo on 16 fixed innovation paths per subject, so the survival difference and both arm survivals are asserted against the Gauss-Hermite quadrature value within five standard deviations of the Monte Carlo error that the reference measures for exactly that scheme over 400 independent draws (absolute 2e-4 to 5e-3 for the difference and 4e-3 to 1.2e-2 for an arm survival); the smallest regime-consistent probability is asserted to 1e-6 relative. The thin 36-subject design is admitted to refuse when more than five percent of its bootstrap replicates cannot be refitted, so its point may not be compared. The public entry point couples the point to the bootstrap, so the point was checked through the whole fit; the bootstrap standard error and percentile interval are asserted only to be finite, ordered and inside the range of a survival difference. The reference is a 50-digit maximum likelihood fit, so a design with separated covariates (no finite fit) is not representable; the product refuses it. One confounder, static regimes. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test. At a horizon of two, the single transition time is absorbed by the intercept. The transition regression drops its constant period column while the hazard regression retains the full design. The dedicated two-period test checks the identifiable coefficient count and residual scale."
+sources = ["https://doi.org/10.1093/ije/dyp192", "https://mpmath.org/"]
+findings_resolved = ["No defect found: the always-treat and never-treat survivals and their difference equal the quadrature-exact g-formula of the 50-digit hazard and transition fits within the measured Monte Carlo tolerance on the designs the product fits, and the smallest regime probability equals the 50-digit value.", "The hazard is fitted on uncensored rows only and the transition on rows from the second period with the previous confounder and previous treatment, and the residual scale is the maximum-likelihood root mean square; all match the definition.", "A later source review compared the replaced subject-bootstrap traversal and interval reduction with their shared helpers: the stream key, unit draws, cancellation point, ordered successful values, failure count, sample standard deviations and exchangeable-rank intervals are unchanged. This comparison does not extend the scientific scope to bootstrap coverage."]
+record_sha256 = "3833bb9b85f3102c6897eba8b442e99a8e892b91a82ba7be8269bb425eeaaf76"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/temporal_design/survival.rs"
+items = ["const BOOTSTRAP_STREAM", "const GFORMULA_PATHS", "const GFORMULA_STREAM", "const MAX_FAILED_SHARE", "const MIN_REPLICATES", "fn current_features", "fn fit_outcome_models", "fn fit_regime_survival", "fn gformula_procedure_on", "fn new", "fn period_feature", "fn person_periods", "fn probability_of", "fn regime_positivity", "fn subjects", "fn treatment_features", "fn width", "struct OutcomeModels", "struct PathNoise", "struct ProcedureDesign", "struct Subject", "struct SurvivalFit", "struct Trajectories", "struct TrajectoryRows"]
+sha256 = "4c0c5e89e06a52c6871a03484a518325ad43ed08267e9fc0b8696c9a3b8489f1"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/temporal_design/mod.rs"
+items = ["fn bootstrap_intervals", "fn bootstrap_unit_draws"]
+sha256 = "c9129e5de19d635fcaf9c1909050ca28df91e3fcb5dded7a62ec75b8b589c672"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/temporal_design/linalg.rs"
+items = ["module"]
+sha256 = "b981c92ab883668e27ddaaa569d28e1311cede0fee399ebab9cc5a935923a26f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/temporal_regime_survival_reference.rs"
+items = ["fn close", "fn regime_survival_matches_the_multiprecision_reference"]
+sha256 = "5c572cbcaa092dbe70cbe0da1dfa2fe7341713d5802ad69bcb82a0280e7f720d"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/temporal_regime_survival_reference.py"
+sha256 = "d1eda238be830cfcdae0a680d1ca7d1c7d593df8a149fdf7da19d3b076ff509f"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/temporal_regime_survival_reference.json"
+sha256 = "2d4f650b6fae7a2442dab1265c9fa86a1e7fca1e6e8f50a7a9c46b5948b04770"

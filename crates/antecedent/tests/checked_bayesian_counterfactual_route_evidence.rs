@@ -1,6 +1,7 @@
 //! Builder-independent checked Bayesian GCM counterfactual lifecycle.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, CounterfactualQuery, ExecutionContext, IntervalMethod, Intervention, Value,
@@ -53,9 +54,9 @@ fn bayesian_counterfactual_accepted_and_explicit_lifecycle_exposes_dependency_bo
 
         let mut prepared = builder.prepare(&ctx).unwrap();
         drop(builder);
-        let plan = prepared
-            .checked_counterfactual_operation()
-            .expect("prepared Bayesian route retains its typed operation");
+        let RetainedOperation::Counterfactual(plan) = prepared.retained_operation() else {
+            panic!("prepared Bayesian route retains its typed operation")
+        };
         assert_eq!(plan.query().outcomes.as_ref(), &[VariableId::from_raw(1)]);
         assert_eq!(plan.query().interventions.len(), 1);
         assert_eq!(plan.graph().edges().count(), 1);
@@ -63,7 +64,7 @@ fn bayesian_counterfactual_accepted_and_explicit_lifecycle_exposes_dependency_bo
         let result = prepared.estimate(&data, &ctx).unwrap();
         let counterfactual = result.counterfactual().unwrap();
         assert!(
-            (counterfactual.mean_ite - 2.0).abs() < 0.12,
+            (counterfactual.mean_ite - 2.0).abs() < 5e-4,
             "accepted={accepted}: {counterfactual:?}"
         );
         assert_eq!(counterfactual.unit_effects.len(), 120);
@@ -81,20 +82,33 @@ fn bayesian_counterfactual_accepted_and_explicit_lifecycle_exposes_dependency_bo
         }));
 
         let (refreshed_data, _) = fixture(2.5);
-        let refreshed = prepared.refresh(refreshed_data, &ctx).unwrap();
+        let refreshed = rebind_estimate(&mut prepared, refreshed_data, &ctx).unwrap();
         let refreshed_mean = refreshed.counterfactual().unwrap().mean_ite;
-        assert!((refreshed_mean - 2.5).abs() < 0.12, "mean_ite={refreshed_mean}");
-        assert!(prepared.checked_counterfactual_operation().is_some());
+        assert!((refreshed_mean - 2.5).abs() < 5e-4, "mean_ite={refreshed_mean}");
+        assert!(matches!(prepared.retained_operation(), RetainedOperation::Counterfactual(..)));
 
         let artifact = prepared
             .encode_contracted_result(&refreshed, "checked-bayesian-counterfactual", &ctx)
             .unwrap();
-        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
-        assert!(!consumed.acceptance.accepts_as_verified_program());
+        let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
+        assert!(!consumed.acceptance.accepts_as_replayed_program());
         assert!(
             consumed.acceptance.unresolved.iter().any(|reason| {
                 reason.as_ref() == "dependencies.fitted_counterfactual_mechanisms"
             })
         );
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

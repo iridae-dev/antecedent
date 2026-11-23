@@ -1,6 +1,6 @@
 //! Temporal observation pairs on `ResponseCurve` / `InterventionResponse`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -9,7 +9,7 @@ use antecedent_core::{
     CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention, InterventionSequence,
     ObservationAssumption, ObservationSpec, ResponseFunctional, ResponseIdentification,
     ResponseQuery, ResponseUncertainty, ResponseValue, SequencedIntervention, StreamDomain,
-    TEMPORAL_OBSERVATION_UNLICENSED, TemporalPolicy, TemporalResponseSpec, Value, VariableId,
+    TEMPORAL_OBSERVATION_UNSUPPORTED, TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalDag, ensure_lagged};
@@ -87,6 +87,14 @@ fn surface_of(result: &antecedent::result::StudyResult) -> Vec<f64> {
     mean.to_vec()
 }
 
+/// The tolerance the corrected surfaces are held to: about twice the largest error observed on
+/// the pinned data (0.076), against the fixture's declared 0.35 ceiling.
+const SURFACE_ATOL: f64 = 0.15;
+
+/// The smallest margin by which a complete-on-proxy surface must miss the truth beyond the
+/// corrected one (observed at least 1.19).
+const NAIVE_MISS: f64 = 1.0;
+
 fn max_abs(got: &[f64], truth: &[f64]) -> f64 {
     got.iter().zip(truth).map(|(a, b)| (a - b).abs()).fold(0.0, f64::max)
 }
@@ -141,8 +149,8 @@ fn temporal_observation_pairs_match_fixture_and_beat_complete_proxy() {
     }
     let truth: Vec<f64> =
         pin["surface"]["mean"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
-    let atol = pin["atol"].as_f64().unwrap();
-    let naive_gap = pin["naive_gap_min"].as_f64().unwrap();
+    let atol = SURFACE_ATOL.min(pin["atol"].as_f64().unwrap());
+    let naive_gap = NAIVE_MISS.max(pin["naive_gap_min"].as_f64().unwrap());
     let id = VariableId::from_raw;
 
     let cases: Vec<(&str, Vec<f64>, ObservationSpec, ObservationAssumption)> = vec![
@@ -298,7 +306,7 @@ fn temporal_observation_pairs_match_fixture_and_beat_complete_proxy() {
     let km_error = max_abs(&surface_of(&km_on_cox), &truth);
     let cox_error = right_cox_error.unwrap();
     assert!(
-        km_error > cox_error + 0.05,
+        km_error > cox_error + 0.3,
         "temporal Cox must beat marginal KM: cox={cox_error} km={km_error}"
     );
 }
@@ -344,7 +352,7 @@ fn temporal_right_censor_intervention_matches_fixture_path() {
         .map(|v| v.as_f64().unwrap())
         .collect();
     let error = max_abs(&got, &truth);
-    assert!(error <= pin["atol"].as_f64().unwrap(), "Set(0.5) {got:?} vs {truth:?}");
+    assert!(error <= SURFACE_ATOL, "Set(0.5) {got:?} vs {truth:?} error={error}");
     assert_eq!(
         result.response().unwrap().provenance_id.as_ref(),
         "estimate.temporal_response.observation_adjusted"
@@ -396,7 +404,7 @@ fn temporal_observation_outer_block_bootstrap_refits_and_returns_pointwise_bands
     // The inner fit runs without replicates; its withholding note must not survive the
     // outer band. The band discloses the response family's block rule, and twelve
     // replicates are flagged as too few for a stable SD.
-    assert!(!warns("estimate.temporal_response.band_withheld"));
+    assert!(!warns("estimate.temporal_response.no_band_method"));
     assert!(warns("response.temporal.block.persistence_boundary"));
     assert!(warns("response.temporal.pointwise_band_few_replicates"));
     assert!(
@@ -407,10 +415,11 @@ fn temporal_observation_outer_block_bootstrap_refits_and_returns_pointwise_bands
             .any(|d| d.id.as_ref() == "response.temporal.block_length")
     );
     let mut limited = ExecutionContext::for_tests(37);
-    // Enough for the output alone, but not twelve retained bootstrap surfaces.
-    limited.memory.hard_limit_bytes = Some((lower.len() * 40) as u64);
+    // Enough for the output alone, but not twelve retained bootstrap surfaces: the planner
+    // counts the retained surfaces and refuses against the pool limit.
+    limited.set_memory_limit(Some((lower.len() * 40) as u64));
     let error = study.run(&limited).unwrap_err();
-    assert!(error.to_string().contains("output bytes"), "{error}");
+    assert!(error.to_string().contains("exceeds memory limit"), "{error}");
 }
 
 /// Observation-adjusted Sequence overlays resample lag-aligned outcome-time tuples,
@@ -497,7 +506,7 @@ fn temporal_sequence_observation_outer_block_bootstrap_returns_bands() {
     for code in [
         "response.observation_sequence_band_withheld",
         "response.observation_joint_uncertainty_unavailable",
-        "response.simultaneous_band_withheld",
+        "response.no_simultaneous_band_method",
         "response.temporal.pointwise_band_few_replicates",
     ] {
         assert!(
@@ -520,7 +529,7 @@ fn temporal_sequence_observation_outer_block_bootstrap_returns_bands() {
 }
 
 #[test]
-fn compile_refuses_unlicensed_temporal_observation() {
+fn compile_refuses_unsupported_temporal_observation() {
     let pin = fixture();
     let (t, y, _, _, _, _) = generate(&pin);
     let lo = vec![-1.0; t.len()];
@@ -556,15 +565,16 @@ fn compile_refuses_unlicensed_temporal_observation() {
         .unwrap()
         .run(&ctx)
         .unwrap_err();
-    assert!(err.to_string().contains(TEMPORAL_OBSERVATION_UNLICENSED), "stable refuse, got {err}");
+    assert!(err.to_string().contains(TEMPORAL_OBSERVATION_UNSUPPORTED), "stable refuse, got {err}");
 }
 
-/// An observation-adjusted Sequence whose unfolded design carries the outcome at a
-/// nonzero lag is refused: the correction replaces the outcome column, so the lagged
-/// outcome regressor would be a pseudo-outcome (errors in variables), both in the
-/// full-sample fit and in every tuple-bootstrap replicate.
+/// A lag-two autoregressive outcome would give the unfolded design a lagged outcome
+/// regressor, but its ancestry (`Y@-2`, `Y@-4`, ...) never closes, so the window-growth
+/// certificate refuses the graph before the observation layer sees it, in the full-sample
+/// fit and in every tuple-bootstrap replicate. The observation layer's own refusal of a
+/// lagged outcome regressor is exercised directly on the estimator and its design helpers.
 #[test]
-fn observation_adjusted_sequence_refuses_a_lagged_outcome_regressor() {
+fn observation_adjusted_sequence_refuses_an_autoregressive_outcome() {
     let pin = fixture();
     let (t, latent, selected, _, _, _) = generate(&pin);
     let observed =
@@ -621,8 +631,7 @@ fn observation_adjusted_sequence_refuses_a_lagged_outcome_regressor() {
             .run(&ExecutionContext::for_tests(41))
             .unwrap_err();
         assert!(
-            err.to_string()
-                .contains("outcome to enter the unfolded design only at the outcome time"),
+            err.to_string().contains("history cap while confounder ancestry still crossed"),
             "replicates={replicates}: {err}"
         );
     }

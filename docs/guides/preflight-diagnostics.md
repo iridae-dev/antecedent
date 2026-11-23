@@ -1,11 +1,35 @@
-# Preflight diagnostics, rank-drop plans and estimates, and cost counts
+# Check a table before estimating: preflight, rank drops and cost counts
 
-Before a nuisance fit refuses a table, `antecedent` can say what is wrong with it.
-The diagnostics and the plan add no inferential claim; they are a diagnostic and
-planning layer over existing cells. The one entry point that estimates after a rank
-drop (`estimate_with_rank_drop`) does change what is computed, so it carries its own
-promotion record, `estimate.preflight_rank_drop`, `point_only`. Two kinds
-of check are kept in separate types so one is never read as the other.
+Use this page when a table might make a nuisance fit refuse (duplicate or linearly
+dependent adjustment columns, an empty treatment arm, a propensity model that separates) and
+you want to know what is wrong before you estimate, or how much work a prepared plan will
+do. You need either a prepared study (`ant.prepare(...)`) or, for a table that cannot be
+prepared, the treatment, outcome and adjustment column names of a binary contrast.
+
+```python
+import antecedent as ant
+from antecedent import preflight
+
+# A table that cannot be prepared: declare the design and read it without fitting.
+report = preflight.preflight(data, treatment="t", outcome="y", adjustment=["a", "b", "combo"])
+report.rows_complete, report.arms            # complete-case rows, rows per arm
+report.rank                                  # numerical rank and each dependent column's relation
+report.is_blocked                            # True when a regression-based fit would refuse
+for finding in report.findings:              # severity is "blocking" or "review"
+    print(finding.code, finding.severity, finding.columns, finding.detail)
+
+# A prepared study carries its certified adjustment set; nothing is declared again.
+study = ant.prepare(data, graph=graph, query=ant.AverageEffect("t", "y"))
+study.diagnose()                             # the same fit-free report
+study.diagnose_fit()                         # an Outcome holding propensity-fit diagnostics
+study.estimate_cost()                        # counts of fits, folds, replicates and bytes
+```
+
+The diagnostics and the cost counts add no inferential claim; they are a diagnostic and
+planning layer over existing estimators. The one entry point that estimates after a rank
+drop (`estimate_with_rank_drop`) does change what is computed, so its claim is stated
+separately and is `point_only`. Fit-free and fit-requiring checks are kept in separate
+types so one is never read as the other.
 
 | Check | Rust | Python | Fits a model? |
 | --- | --- | --- | --- |
@@ -15,8 +39,11 @@ of check are kept in separate types so one is never read as the other.
 | Estimate after a rank drop | `estimate_with_rank_drop` | `antecedent.preflight.estimate_with_rank_drop(...)` | Yes (the estimator) |
 | Cost counts and, with a benchmark file, seconds | `estimate_cost` | `prepared.estimate_cost()` | No |
 
-`prepared.preflight()` (Python) is the older, structural-only inspection of the plan;
-`diagnose` reads the data.
+`prepared.preflight()` (Python) inspects the structure of the plan only; `diagnose` reads the data.
+
+For automatic bounded quality profiling and structured advisory findings, see
+[data quality diagnostics](data-diagnostics.md). The preflight calls below keep their own
+execution-specific interpretation.
 
 ## Fit-free preflight
 
@@ -33,7 +60,10 @@ of check are kept in separate types so one is never read as the other.
 
 Only a numerically rank-deficient design (`design_rank_deficient`) and an unpopulated arm
 (`arm_not_populated`) are **blocking**, because regression-based nuisance fits refuse them.
-`report.refusal()` turns the first blocking finding into the typed refusal below.
+In Rust, `report.refusal()` turns the first blocking finding into the typed refusal below.
+In Python, read `report.is_blocked` and `report.blocking`; the refusal itself is raised when
+you prepare or estimate. Both codes are listed in the
+[refusal code reference](../reference/refusal-codes.md#other-registered-refusal-codes).
 
 ### Review flags
 
@@ -61,7 +91,11 @@ min/max, nearest-rank quantiles (0.01 ... 0.99) and the Kish effective sample si
 inverse-propensity weights in each arm. A fit that fails before any score exists comes
 back as `status == "absent"` with the reason (and the numerical rank when that was the
 cause); no fitted quantity is reconstructed. A fit that produced scores but is separated,
-unconverged or saturated is returned with those flags set.
+unconverged or saturated is returned with those flags set (`fit.separated`,
+`fit.converged`, `fit.boundary_saturated`). On a prepared study, `diagnose_fit()` returns an
+`Outcome`: a scientific refusal is held on `outcome.refusal`, and the diagnostics are
+`outcome.value`. The scores describe this diagnostic model on this table; they are not the
+cross-fitted scores an estimator uses.
 
 ## Structured refusal fields
 
@@ -73,17 +107,17 @@ iterations, nearest fitted-probability margin and the count of rows within `1e-8
 Every entry is absent (`None`, or an empty list) unless the failing step measured it; a fit
 that failed before it produced scores never has a propensity range reconstructed for it.
 
-Fields ride beside the refusal and never change it: every existing reason code, message and
-exception class is preserved (the tests pin the message strings). The rendered text of a
+Fields ride beside the refusal and never change it: the reason code, message and exception
+class stay those of the refusal. The rendered text of a
 refusal never includes the fields.
 
 Sites that populate the fields:
 
 | Site | Stage | Reasons | Numbers carried |
 | --- | --- | --- | --- |
-| Preflight (`design_rank_deficient`, `arm_not_populated`, `rank_drop_not_licensed`), derived treatment, rank-drop estimate | `preflight`, `rank_drop`, ... | the finding | rank, columns, implicated columns, arm rows |
+| Preflight (`design_rank_deficient`, `arm_not_populated`, `rank_drop_not_supported`), derived treatment, rank-drop estimate | `preflight`, `rank_drop`, ... | the finding | rank, columns, implicated columns, arm rows |
 | GLM refused by an estimation path (`GlmFit::require_ok`: propensity, GLM adjustment, cross-fitted AIPW folds) | `glm_fit` | `non_converged`, `separated`, `boundary_saturated` | iterations, nearest margin, rows within `1e-8` |
-| Rank-deficient design from the QR backend (the real AIPW refusal at rank 174 of 175) | `design_rank` | `rank_deficient` | numerical rank, design columns; subject and implicated columns from the facade (below) |
+| Rank-deficient design from the QR backend (for example an AIPW design of rank 174 with 175 columns) | `design_rank` | `rank_deficient` | numerical rank, design columns; subject and implicated columns from the facade (below) |
 | Cluster-robust variance with fewer than two clusters (GLM cluster and multiway sandwiches, influence-function cluster, multiway and panel SEs) | `cluster_variance` | `too_few_clusters` | clusters found, minimum |
 | Cluster-DML cluster, component and dyadic-giant-component refusals | `cluster_dml` | `too_few_clusters`, `too_few_components_per_fold`, `dyadic_giant_component` | found, declared minimum |
 | Positivity refusal on fitted scores (propensity of exactly 0 or 1 with no clip: propensity estimators, cross-fitted AIPW, cell AIPW) | `positivity` | `propensity_not_interior` | extrema and nearest-rank quantiles of the finite scores |
@@ -131,14 +165,14 @@ has them absent.
 
 ## Opt-in rank-deficiency drop
 
-`plan_rank_drop` declares a deterministic column priority first (`AdjustmentOrder`, or an
+`plan_rank_drop` declares a deterministic column priority first (`ColumnPriority::AdjustmentOrder`, Python `priority=None`, or an
 explicit list covering every adjustment column once, highest priority first) and returns a
 plan: the dropped columns, the exact relation that makes each redundant, the kept
 adjustment set, and a canonical design identity (`adjustment=[a,c];dropped=[b];priority=[a,b,c]`).
 A dropped column is a numerically exact linear function of the kept ones on this table, so
 it carries no information they do not.
 
-It refuses with `rank_drop_not_licensed` (nothing dropped) when the priority does not cover
+It refuses with `rank_drop_not_supported` (nothing dropped) when the priority does not cover
 the adjustment set, when a dependent column is a treatment, outcome or effect modifier the
 query needs, or when an adjustment column is an exact copy of a treatment or the outcome.
 
@@ -150,7 +184,7 @@ separate, explicit entry point below.
 
 `estimate_with_rank_drop(input, policy, estimator, ctx)` (Rust) and
 `antecedent.preflight.estimate_with_rank_drop(data, treatment=, outcome=, adjustment=,
-estimator=, priority=)` (Python) re-run a licensed estimator on the design with the plan's
+estimator=, priority=)` (Python) re-run a supported estimator on the design with the plan's
 dependent columns removed. It works on a declared binary-contrast design, the same input
 as `preflight_design`, because a rank-deficient table cannot be prepared (the cross-fitted
 AIPW fits its scores at prepare time, and a prepared handle with the original set keeps it).
@@ -160,17 +194,17 @@ the exact relation behind each, the declared priority, the original and reduced 
 sets and the design identity), the numerical `span_check` and the estimator's invariance
 label. It never drops silently and it refuses, with nothing estimated, when:
 
-- the plan refuses (`rank_drop_not_licensed`: the priority does not cover the set, a
+- the plan refuses (`rank_drop_not_supported`: the priority does not cover the set, a
   dependent column is a protected effect modifier, or an adjustment column is an exact
   copy of the treatment or outcome, a treatment alias that a drop would not resolve);
-- the independent span check fails (`rank_drop_not_licensed`, detail
+- the independent span check fails (`rank_drop_not_supported`, detail
   `rank_drop_estimate.span_not_preserved`): the retained `[1 | Z_kept]` must have full
   numerical rank equal to the original's, and every dropped column must lie in its span
   within the scan tolerance (ten times, for rounding);
 - the estimator is not one of the two below, or the design is not a binary contrast of one
   treatment (`route_not_supported`);
 - for cross-fitted AIPW, the diagnostic propensity fit on the reduced design separates,
-  saturates, fails or does not converge (`rank_drop_not_licensed`, detail
+  saturates, fails or does not converge (`rank_drop_not_supported`, detail
   `rank_drop_estimate.propensity_separates`).
 
 **Why a span-preserving drop cannot change the fitted nuisances.** A dropped column is an
@@ -186,7 +220,7 @@ declared design's, not a graph search's. (The estimator itself is run through th
 study path on the reduced table with a declared confounder graph over the retained columns;
 that graph only carries the retained set into the estimator.)
 
-Licensed estimators and their invariance label:
+Supported estimators and their invariance label:
 
 | Estimator | `projection_invariance` | Notes |
 | --- | --- | --- |
@@ -197,11 +231,23 @@ Penalized, lasso, matching and stratification nuisances are refused: a penalty d
 the parametrization, not only the column space. The result is point only: the bootstrap is
 forced to zero and no standard error or interval is returned or requestable.
 
-Tests: the reduced estimate equals the estimate on a hand-built reduced design bit for bit,
-and a NumPy / normal-equations OLS to 1e-8; a different declared priority drops a different
-column and changes the design identity but not the estimate; a treatment alias, an
-unlicensed estimator, a joint cell, a separating propensity and a span violation each
-refuse.
+The repository tests check that the reduced estimate equals the estimate on a hand-built
+reduced design bit for bit, and a NumPy / normal-equations OLS to 1e-8; that a different
+declared priority drops a different column and changes the design identity but not the
+estimate; and that a treatment alias, an unsupported estimator, a joint cell, a separating
+propensity and a span violation each refuse.
+
+```python
+estimate = preflight.estimate_with_rank_drop(
+    data, treatment="t", outcome="y", adjustment=["a", "b", "combo"],
+    estimator="linear.adjustment.ate", priority=["a", "b", "combo"],
+)
+estimate.ate                     # point estimate on the reduced design; no interval
+estimate.plan.dropped            # each dropped column and the relation that makes it redundant
+estimate.plan.kept_adjustment, estimate.plan.design_identity
+estimate.span_check              # original and retained rank, largest dropped residual ratio
+estimate.projection_invariance   # "exact" or "unpenalized_logistic_no_separation"
+```
 
 ## Cost counts and time estimates
 
@@ -241,7 +287,7 @@ Outside a prepared plan:
 - `BatchScores::estimate_retarget_cost(request)` counts a batch retarget: **zero nuisance
   fits** (the retained scores are reweighted), the claims, the contrasts and the snapshot rows,
   `claims * rows` weighted score reads and `claims * (claims + 1) / 2 * rows` covariance
-  products. The unpublished max-t evaluator polls once per 1024 draws.
+  products. The max-t evaluator polls once per 1024 draws.
 - `estimate_joint_cell_cost(config, components, orderings, rows)` counts a factorized joint
   cell from `FactorizedJointConfig::planned_fits`: per fold the distinct prefix-stratum
   conditionals over every ordering (shared between orderings), `folds * strata` conditional
@@ -253,8 +299,9 @@ Outside a prepared plan:
   matched case-control, the descriptive comparison and the tier diagnostics fit no nuisance
   model.
 
-It is a planning hint, not a runtime guarantee. **Seconds** are reported only when a named
-local benchmark file backs them:
+It is a planning hint, not a runtime guarantee. **Seconds** are reported only when a cost
+model backs them: a `CostModel` you declare and pass to
+`antecedent.preflight.estimate_cost(study, cost_model=...)`, or a named local benchmark file:
 
 ```
 python3 scripts/bench_cost_model.py        # one command, writes parity/cost_model.toml
@@ -300,11 +347,9 @@ and 16 columns on that machine, which a quadratic term cannot follow. Treat `sec
 order-of-magnitude upper bound for bootstrap plans, not a prediction, and regenerate the file
 on the machine you plan for.
 
-## Current behavior (E0 reproducers)
+## What a refusal looks like on hard tables
 
-Recorded by the synthetic, bounded tests in
-`crates/antecedent/tests/preflight_reproducers.rs` and `python/tests/test_preflight.py`,
-from reading the code paths they exercise.
+The synthetic tests in `crates/antecedent/tests/preflight_reproducers.rs` and `python/tests/test_preflight.py` exercise these cases.
 
 - **Rank 174 of 175, and duplicate columns.** The QR backend refuses a rank-deficient
   design with `StatsError::RankDeficient { rank, ncols }`: the rank and column count, not
@@ -321,8 +366,8 @@ from reading the code paths they exercise.
 - **Retargeted overlap refusal.** A row-weight retarget onto rows the treated arm never
   reaches refuses with `CausalError::Support` (wrapped in `CausalError::Diagnosed`), and its
   fields carry the per-arm ESS and the propensity range under the target.
-- **Configured estimator in a batch.** `BatchStudy::estimator_spec` now takes a configured
-  estimator, so that limit is gone; combining it with an explicit `bootstrap_replicates` is
-  refused when the study is built, with the setting named as the refusal's subject.
-- **Not reproduced here:** joint-cell instability and repeated-entity or dyad dependence
-  (no bounded public workload was added); those stay with their own cells.
+- **Configured estimator in a batch.** `BatchStudy::estimator_spec` takes a configured
+  estimator; combining it with an explicit `bootstrap_replicates` is refused when the study
+  is built, with the setting named as the refusal's subject.
+- **Not reproduced here:** joint-cell instability and repeated-entity or dyad dependence,
+  which have no bounded public workload; those stay with their own cells.

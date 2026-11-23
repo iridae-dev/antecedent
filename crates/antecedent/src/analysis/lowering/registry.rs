@@ -1,0 +1,563 @@
+//! Route cells and the table that maps each to its family's lowering.
+//!
+//! One row per `RouteInput` variant. The table generates the cell enum, the
+//! classifier from a parsed route, the dispatch to a family lowering, and the
+//! public [`PlanRoute`] a plan view names the cell by, with the cell's family. A
+//! route added to `RouteInput` without a row here does not compile, and a row
+//! always has a plan route.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+use antecedent_core::CausalQuery;
+
+use super::{
+    LoweringContext, associational, design_based, discovery, graph_posterior, static_effect,
+    static_response, structural, temporal,
+};
+use crate::Study;
+use crate::analysis::builder::DataInput;
+use crate::analysis::execute::{RouteInput, is_class_atom};
+use crate::error::CausalError;
+use crate::planner::lowered::LoweredProgram;
+use crate::planner::plan_view::RouteFamily;
+
+/// One compiled graph-posterior cell, mirroring the compile-time classification of
+/// a study that carries a graph posterior instead of one graph.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum GraphPosteriorCell {
+    /// Static response curve or intervention response over the atoms.
+    StaticResponse,
+    /// Static average effect over the atoms.
+    AverageEffect,
+    /// Static conditional effect over the atoms.
+    ConditionalEffect,
+    /// Temporal pulse or sustained effect over the atoms.
+    TemporalEffect,
+    /// Temporal response over the atoms.
+    TemporalResponse,
+    /// Temporal mediation over the atoms.
+    TemporalMediation,
+    /// A cross-world or attribution query whose answer is a functional of the atoms' own
+    /// mechanisms rather than of one observed contrast: over the atoms of a temporal class
+    /// posterior, or a mediation, path-restricted, natural direct or attribution query over the
+    /// atoms of a tabular posterior.
+    CrossWorld,
+    /// A trial-to-target transport over the atoms of a posterior, each a selection diagram.
+    Transport,
+    /// An exposure contrast over a fixed network, reported over the atoms of a posterior.
+    Interference,
+}
+
+impl GraphPosteriorCell {
+    #[cfg(test)]
+    pub(crate) const ALL: [Self; 9] = [
+        Self::StaticResponse,
+        Self::AverageEffect,
+        Self::ConditionalEffect,
+        Self::TemporalEffect,
+        Self::TemporalResponse,
+        Self::TemporalMediation,
+        Self::CrossWorld,
+        Self::Transport,
+        Self::Interference,
+    ];
+
+    /// Stable name, written to the supported-route record.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::StaticResponse => "GraphPosteriorStaticResponse",
+            Self::AverageEffect => "GraphPosteriorAverageEffect",
+            Self::ConditionalEffect => "GraphPosteriorConditionalEffect",
+            Self::TemporalEffect => "GraphPosteriorTemporalEffect",
+            Self::TemporalResponse => "GraphPosteriorTemporalResponse",
+            Self::TemporalMediation => "GraphPosteriorTemporalMediation",
+            Self::CrossWorld => "GraphPosteriorCrossWorld",
+            Self::Transport => "GraphPosteriorTransport",
+            Self::Interference => "GraphPosteriorInterference",
+        }
+    }
+
+    /// The cell a graph-posterior study compiles as; `None` for a study without a
+    /// graph posterior or a data and query pair graph-posterior compile refuses.
+    pub(crate) fn classify(study: &Study) -> Option<Self> {
+        let posterior = study.graph_posterior.as_ref()?;
+        Some(match (&study.data, &study.query) {
+            (DataInput::Tabular(_), CausalQuery::Response(_)) => Self::StaticResponse,
+            (DataInput::Tabular(_), CausalQuery::AverageEffect(_)) => Self::AverageEffect,
+            (DataInput::Tabular(_), CausalQuery::ConditionalEffect(_)) => Self::ConditionalEffect,
+            (DataInput::Tabular(_), CausalQuery::Transport(_)) => Self::Transport,
+            (DataInput::Tabular(_), CausalQuery::Interference(_)) => Self::Interference,
+            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::TemporalEffect(_)) => {
+                Self::TemporalEffect
+            }
+            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Response(_)) => {
+                Self::TemporalResponse
+            }
+            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_)) => {
+                Self::TemporalMediation
+            }
+            (
+                DataInput::Temporal(_) | DataInput::Event(_),
+                CausalQuery::NestedCounterfactual(_)
+                | CausalQuery::PathSpecific(_)
+                | CausalQuery::Counterfactual(_)
+                | CausalQuery::Distribution(_),
+            ) if is_class_atom(posterior.atom_kind())
+                || crate::analysis::execute::dbn_atoms(posterior) =>
+            {
+                Self::CrossWorld
+            }
+            (
+                DataInput::Tabular(_),
+                CausalQuery::Mediation(_)
+                | CausalQuery::NestedCounterfactual(_)
+                | CausalQuery::PathSpecific(_)
+                | CausalQuery::Counterfactual(_)
+                | CausalQuery::Distribution(_)
+                | CausalQuery::AnomalyAttribution(_)
+                | CausalQuery::ChangeAttribution(_),
+            )
+            | (
+                DataInput::Temporal(_) | DataInput::Event(_),
+                CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_),
+            ) => Self::CrossWorld,
+            _ => return None,
+        })
+    }
+}
+
+macro_rules! route_lowerings {
+    ($($cell:ident => $family:ident as $kind:ident),+ $(,)?) => {
+        /// One compiled route cell: a `RouteInput` variant, or a graph-posterior cell.
+        #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+        pub(crate) enum RouteCell {
+            $($cell,)+
+            GraphPosterior(GraphPosteriorCell),
+        }
+
+        impl RouteCell {
+            /// The cell a parsed route compiles as.
+            pub(crate) fn of(input: &RouteInput<'_>) -> Self {
+                match input {
+                    $(RouteInput::$cell { .. } => Self::$cell,)+
+                }
+            }
+
+            /// Stable name, written to the supported-route record.
+            pub(crate) const fn as_str(self) -> &'static str {
+                match self {
+                    $(Self::$cell => stringify!($cell),)+
+                    Self::GraphPosterior(cell) => cell.as_str(),
+                }
+            }
+
+            /// The family that lowers this cell.
+            #[cfg(test)]
+            #[allow(
+                clippy::match_same_arms,
+                reason = "one arm per route cell so the table reads cell by cell"
+            )]
+            pub(crate) const fn family(self) -> RouteFamily {
+                match self {
+                    $(Self::$cell => RouteFamily::$kind,)+
+                    Self::GraphPosterior(_) => RouteFamily::GraphPosterior,
+                }
+            }
+
+            /// The route a plan view names this cell by.
+            pub(crate) const fn plan_route(self) -> PlanRoute {
+                match self {
+                    $(Self::$cell => PlanRoute::$cell,)+
+                    Self::GraphPosterior(cell) => PlanRoute::GraphPosterior(cell),
+                }
+            }
+        }
+
+        /// One compiled route a plan view describes: every registered route cell,
+        /// every graph-posterior cell, a cyclic family and a standalone experiment
+        /// plan. Generated from the route table, so a registered cell always has a
+        /// route here.
+        #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+        #[non_exhaustive]
+        pub enum PlanRoute {
+            $(
+                #[doc = concat!("The `", stringify!($cell), "` route cell.")]
+                $cell,
+            )+
+            /// A graph-posterior cell.
+            GraphPosterior(GraphPosteriorCell),
+            /// A cyclic family, by its stable family name.
+            CyclicFamily(&'static str),
+            /// A standalone experiment plan, by its design name.
+            Planning(&'static str),
+            /// A chain of transformations, by the reading it answers.
+            PropagationChain(&'static str),
+            /// Complete observational policy learning and scoring.
+            ObservationalPolicy,
+            /// Joint measured-signal observation of a composed finite model.
+            JointMeasuredObservation,
+            /// Dependent-error measurement of one finite construct.
+            DependentMeasuredObservation,
+            /// Fitted dependent-error measurement with posterior draws.
+            FittedDependentMeasuredObservation,
+            /// Model-derived paired intervention worlds and a decision.
+            CyclicActionWorldDecision,
+            /// Joint fitted-mechanism posterior predictive action worlds.
+            CyclicPosteriorActionDecision,
+            /// Target-population feedback standardization over a cyclic fit and a decision.
+            CyclicTargetFeedbackDecision,
+            /// Checked bridge transport and predictive utility.
+            BridgeTransportDecision,
+            /// Premise assessment of a checked bridge transport.
+            BridgeTransportPremiseAssessment,
+            /// Matched bridge validation and conditional predictive utility.
+            AssessedBridgeTransportDecision,
+            /// Fitted source-target effect posterior and utility.
+            JointTransportEffectDecision,
+            /// Trial inverse-probability-weighted transport and a decision.
+            TrialIpwTransportDecision,
+            /// Trial inverse-probability-weighted predictive transport and a decision.
+            TrialIpwPredictiveDecision,
+            /// Joint source-target predictive transport and a decision.
+            JointTransportPredictiveDecision,
+            /// Target-population time-ordered path-specific transport.
+            TemporalPathTransport,
+            /// Whole-chain resampling union around an assumption envelope.
+            SamplingAssumptionUnion,
+            /// Whole-chain resampling union with independent and identically distributed units.
+            IidSamplingAssumptionUnion,
+            /// Compiler-generated whole-cluster bootstrap assumption union.
+            ClusterSamplingAssumptionUnion,
+            /// Whole-chain resampling union with moving-block resampling.
+            MovingBlockSamplingAssumptionUnion,
+            /// An observational policy value under m-out-of-n full-refit subsampling.
+            PolicySubsampling,
+            /// Sequential policy evaluation with a reliability diagnostic.
+            SequentialPolicyReliability,
+            /// Replay a bundle with a compiler-executed terminal.
+            BundleRecomputation,
+            /// Bundle replay with a live scientific bridge terminal.
+            BridgeBundleRecomputation,
+            /// Bundle replay with a refitted cyclic posterior producer.
+            CyclicPosteriorBundleRecomputation,
+            /// Bundle replay with an embedded cyclic posterior fit node.
+            CyclicPosteriorNodeBundleRecomputation,
+            /// Bundle replay with an embedded trial-IPW fit node.
+            TrialIpwNodeBundleRecomputation,
+            /// Bundle replay with a graph-imputation transport fit.
+            GraphImputationTransportNodeBundleRecomputation,
+            /// Bundle replay with a joint source-target effect fit.
+            JointTransportEffectNodeBundleRecomputation,
+            /// Bundle replay with an embedded joint predictive transport fit and decision.
+            JointTransportPredictiveNodeDecisionBundleRecomputation,
+            /// Bundle replay with an embedded trial-IPW predictive fit and decision.
+            TrialIpwPredictiveNodeDecisionBundleRecomputation,
+            /// Fit the cyclic posterior, standardize over the target frame and score the decision.
+            ///
+            /// # Errors
+            /// A changed execution seed, a source or model refusal, or an invalid target frame.
+            CyclicTargetFeedbackNodeDecisionBundleRecomputation,
+            /// Bundle replay with an embedded graph-imputation predictive fit and decision.
+            GraphImputationPredictiveNodeDecisionBundleRecomputation,
+            /// Bundle replay with an embedded assessed-bridge posterior fit and decision.
+            AssessedBridgePosteriorNodeDecisionBundleRecomputation,
+            /// Bundle replay with an embedded sequential policy reliability fit.
+            SequentialPolicyReliabilityNodeBundleRecomputation,
+            /// Checked connected components and a joint posterior decision.
+            JointComponentPosteriorDecision,
+            /// Checked connected components with a bounded-component posterior decision.
+            BoundedComponentPosteriorDecision,
+            /// Bundle replay with a parameter-posterior decision terminal.
+            PosteriorDecisionBundleRecomputation,
+            /// A graph-selection imputation composite.
+            GraphImputation,
+            /// Graph-imputation effect posterior and downstream utility.
+            GraphImputationEffectDecision,
+            /// Graph-imputation Bernoulli predictive-world draws and a decision.
+            GraphImputationBernoulliPredictiveWorldDecision,
+            /// Graph-imputation Gaussian target predictive-world draws and a decision.
+            GraphImputationGaussianTargetPredictiveWorldDecision,
+            /// Graph-imputation Bernoulli predictive decision with a whole-cluster bootstrap.
+            GraphImputationBernoulliPredictiveClusterBootstrapDecision,
+            /// Graph-imputation Gaussian predictive decision with a whole-cluster bootstrap.
+            GraphImputationGaussianPredictiveClusterBootstrapDecision,
+            /// Graph-imputation target standardization and downstream utility.
+            GraphImputationTransportDecision,
+            /// Graph-imputation transport with a whole-cluster bootstrap.
+            GraphImputationTransportClusterBootstrapDecision,
+            /// Graph-imputation transport with a confounded target.
+            GraphImputationConfoundedTransportDecision,
+            /// Graph-imputation confounded transport with a whole-cluster bootstrap.
+            GraphImputationConfoundedTransportClusterBootstrapDecision,
+            /// Graph-imputation transport over mixed target covariates.
+            GraphImputationKernelTransportDecision,
+            /// Graph-imputation mixed-covariate kernel transport with a whole-cluster bootstrap.
+            GraphImputationKernelTransportClusterBootstrapDecision,
+            /// Graph-imputation confounded kernel transport with a whole-cluster bootstrap.
+            GraphImputationConfoundedKernelTransportClusterBootstrapDecision,
+            /// Graph-imputation transport under a missing-at-random target.
+            GraphImputationMarTransportDecision,
+            /// A scientifically closed categorical posterior candidate.
+            CategoricalPosteriorCandidate,
+            /// A bounded fixed-shift MNAR operation.
+            MnarFixedShift,
+            /// Latent additive soft-intervention discovery and prediction.
+            LatentSoftIntervention,
+            /// Forecasts of timestamped events and their composed world responses.
+            EventProcess,
+            /// A fitted joint multi-channel panel response over its declared program worlds.
+            JointPanelResponse,
+            /// A fitted joint panel response under a piecewise or smooth time-varying mechanism.
+            JointPanelTimeVarying,
+            /// A joint panel response pooled over multiply imputed completed panels.
+            JointPanelImputation,
+            /// A search for the best program over a fitted joint panel response.
+            JointPanelProgramSearch,
+            /// Held-out selection of a program from randomized or instrumented candidates.
+            JointPanelProgramSelection,
+            /// An independent experiment conditioning a joint panel or design law, and the
+            /// decision and next-study value read from the conditioned law.
+            JointPanelExperiment,
+            /// A design-native joint functional with its retained design proof.
+            JointDesign,
+        }
+
+        impl PlanRoute {
+            /// Stable name; for a route cell, the `lowering` column of the
+            /// supported-route record.
+            #[must_use]
+            pub const fn as_str(self) -> &'static str {
+                match self {
+                    $(Self::$cell => stringify!($cell),)+
+                    Self::GraphPosterior(cell) => cell.as_str(),
+                    Self::CyclicFamily(_) => "CyclicFamily",
+                    Self::Planning(_) => "ExperimentPlanning",
+                    Self::PropagationChain(_) => "PropagationChain",
+                    Self::ObservationalPolicy => "ObservationalPolicy",
+                    Self::JointMeasuredObservation => "JointMeasuredObservation",
+                    Self::DependentMeasuredObservation => "DependentMeasuredObservation",
+                    Self::FittedDependentMeasuredObservation => "FittedDependentMeasuredObservation",
+                    Self::CyclicActionWorldDecision => "CyclicActionWorldDecision",
+                    Self::CyclicPosteriorActionDecision => "CyclicPosteriorActionDecision",
+                    Self::CyclicTargetFeedbackDecision => "CyclicTargetFeedbackDecision",
+                    Self::BridgeTransportDecision => "BridgeTransportDecision",
+                    Self::BridgeTransportPremiseAssessment => "BridgeTransportPremiseAssessment",
+                    Self::AssessedBridgeTransportDecision => "AssessedBridgeTransportDecision",
+                    Self::JointTransportEffectDecision => "JointTransportEffectDecision",
+                    Self::TrialIpwTransportDecision => "TrialIpwTransportDecision",
+                    Self::TrialIpwPredictiveDecision => "TrialIpwPredictiveDecision",
+                    Self::JointTransportPredictiveDecision => "JointTransportPredictiveDecision",
+                    Self::TemporalPathTransport => "TemporalPathTransport",
+                    Self::SamplingAssumptionUnion => "SamplingAssumptionUnion",
+                    Self::IidSamplingAssumptionUnion => "IidSamplingAssumptionUnion",
+                    Self::ClusterSamplingAssumptionUnion => "ClusterSamplingAssumptionUnion",
+                    Self::MovingBlockSamplingAssumptionUnion => "MovingBlockSamplingAssumptionUnion",
+                    Self::PolicySubsampling => "PolicySubsampling",
+                    Self::SequentialPolicyReliability => "SequentialPolicyReliability",
+                    Self::BundleRecomputation => "BundleRecomputation",
+                    Self::BridgeBundleRecomputation => "BridgeBundleRecomputation",
+                    Self::CyclicPosteriorBundleRecomputation => "CyclicPosteriorBundleRecomputation",
+                    Self::CyclicPosteriorNodeBundleRecomputation => "CyclicPosteriorNodeBundleRecomputation",
+                    Self::TrialIpwNodeBundleRecomputation => "TrialIpwNodeBundleRecomputation",
+                    Self::GraphImputationTransportNodeBundleRecomputation => "GraphImputationTransportNodeBundleRecomputation",
+                    Self::JointTransportEffectNodeBundleRecomputation => "JointTransportEffectNodeBundleRecomputation",
+                    Self::JointTransportPredictiveNodeDecisionBundleRecomputation => "JointTransportPredictiveNodeDecisionBundleRecomputation",
+                    Self::TrialIpwPredictiveNodeDecisionBundleRecomputation => "TrialIpwPredictiveNodeDecisionBundleRecomputation",
+                    Self::CyclicTargetFeedbackNodeDecisionBundleRecomputation => "CyclicTargetFeedbackNodeDecisionBundleRecomputation",
+                    Self::GraphImputationPredictiveNodeDecisionBundleRecomputation => "GraphImputationPredictiveNodeDecisionBundleRecomputation",
+                    Self::AssessedBridgePosteriorNodeDecisionBundleRecomputation => "AssessedBridgePosteriorNodeDecisionBundleRecomputation",
+                    Self::SequentialPolicyReliabilityNodeBundleRecomputation => "SequentialPolicyReliabilityNodeBundleRecomputation",
+                    Self::JointComponentPosteriorDecision => "JointComponentPosteriorDecision",
+                    Self::BoundedComponentPosteriorDecision => "BoundedComponentPosteriorDecision",
+                    Self::PosteriorDecisionBundleRecomputation => "PosteriorDecisionBundleRecomputation",
+                    Self::GraphImputation => "GraphImputation",
+                    Self::GraphImputationEffectDecision => "GraphImputationEffectDecision",
+                    Self::GraphImputationBernoulliPredictiveWorldDecision => "GraphImputationBernoulliPredictiveWorldDecision",
+                    Self::GraphImputationGaussianTargetPredictiveWorldDecision => "GraphImputationGaussianTargetPredictiveWorldDecision",
+                    Self::GraphImputationBernoulliPredictiveClusterBootstrapDecision => "GraphImputationBernoulliPredictiveClusterBootstrapDecision",
+                    Self::GraphImputationGaussianPredictiveClusterBootstrapDecision => "GraphImputationGaussianPredictiveClusterBootstrapDecision",
+                    Self::GraphImputationTransportDecision => "GraphImputationTransportDecision",
+                    Self::GraphImputationTransportClusterBootstrapDecision => "GraphImputationTransportClusterBootstrapDecision",
+                    Self::GraphImputationConfoundedTransportDecision => "GraphImputationConfoundedTransportDecision",
+                    Self::GraphImputationConfoundedTransportClusterBootstrapDecision => "GraphImputationConfoundedTransportClusterBootstrapDecision",
+                    Self::GraphImputationKernelTransportDecision => "GraphImputationKernelTransportDecision",
+                    Self::GraphImputationKernelTransportClusterBootstrapDecision => "GraphImputationKernelTransportClusterBootstrapDecision",
+                    Self::GraphImputationConfoundedKernelTransportClusterBootstrapDecision => "GraphImputationConfoundedKernelTransportClusterBootstrapDecision",
+                    Self::GraphImputationMarTransportDecision => "GraphImputationMarTransportDecision",
+                    Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
+                    Self::MnarFixedShift => "MnarFixedShift",
+                    Self::LatentSoftIntervention => "LatentSoftIntervention",
+                    Self::EventProcess => "EventProcess",
+                    Self::JointPanelResponse => "JointPanelResponse",
+                    Self::JointPanelTimeVarying => "JointPanelTimeVarying",
+                    Self::JointPanelImputation => "JointPanelImputation",
+                    Self::JointPanelProgramSearch => "JointPanelProgramSearch",
+                    Self::JointPanelProgramSelection => "JointPanelProgramSelection",
+                    Self::JointPanelExperiment => "JointPanelExperiment",
+                    Self::JointDesign => "JointDesign",
+                }
+            }
+
+            /// The family that lowered the route.
+            #[must_use]
+            #[allow(
+                clippy::match_same_arms,
+                reason = "one arm per route cell so the table reads cell by cell"
+            )]
+            pub const fn family(self) -> RouteFamily {
+                match self {
+                    $(Self::$cell => RouteFamily::$kind,)+
+                    Self::GraphPosterior(_) => RouteFamily::GraphPosterior,
+                    Self::CyclicFamily(_) => RouteFamily::Cyclic,
+                    Self::Planning(_) => RouteFamily::Planning,
+                    Self::PropagationChain(_) => RouteFamily::PropagationChain,
+                    Self::ObservationalPolicy => RouteFamily::DesignBased,
+                    Self::JointMeasuredObservation => RouteFamily::Structural,
+                    Self::DependentMeasuredObservation => RouteFamily::Structural,
+                    Self::FittedDependentMeasuredObservation => RouteFamily::Structural,
+                    Self::CyclicActionWorldDecision => RouteFamily::Cyclic,
+                    Self::CyclicPosteriorActionDecision => RouteFamily::Cyclic,
+                    Self::CyclicTargetFeedbackDecision => RouteFamily::Cyclic,
+                    Self::BridgeTransportDecision => RouteFamily::Structural,
+                    Self::BridgeTransportPremiseAssessment => RouteFamily::Structural,
+                    Self::AssessedBridgeTransportDecision => RouteFamily::Structural,
+                    Self::JointTransportEffectDecision => RouteFamily::Structural,
+                    Self::TrialIpwTransportDecision => RouteFamily::Structural,
+                    Self::TrialIpwPredictiveDecision => RouteFamily::Structural,
+                    Self::JointTransportPredictiveDecision => RouteFamily::Structural,
+                    Self::TemporalPathTransport => RouteFamily::Temporal,
+                    Self::SamplingAssumptionUnion => RouteFamily::PropagationChain,
+                    Self::IidSamplingAssumptionUnion => RouteFamily::PropagationChain,
+                    Self::ClusterSamplingAssumptionUnion => RouteFamily::PropagationChain,
+                    Self::MovingBlockSamplingAssumptionUnion => RouteFamily::PropagationChain,
+                    Self::PolicySubsampling => RouteFamily::DesignBased,
+                    Self::SequentialPolicyReliability => RouteFamily::DesignBased,
+                    Self::BundleRecomputation => RouteFamily::PropagationChain,
+                    Self::BridgeBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::CyclicPosteriorBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::CyclicPosteriorNodeBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::TrialIpwNodeBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::GraphImputationTransportNodeBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::JointTransportEffectNodeBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::JointTransportPredictiveNodeDecisionBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::TrialIpwPredictiveNodeDecisionBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::CyclicTargetFeedbackNodeDecisionBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::GraphImputationPredictiveNodeDecisionBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::AssessedBridgePosteriorNodeDecisionBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::SequentialPolicyReliabilityNodeBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::JointComponentPosteriorDecision => RouteFamily::PropagationChain,
+                    Self::BoundedComponentPosteriorDecision => RouteFamily::PropagationChain,
+                    Self::PosteriorDecisionBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::GraphImputation => RouteFamily::GraphImputation,
+                    Self::GraphImputationEffectDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationBernoulliPredictiveWorldDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationGaussianTargetPredictiveWorldDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationBernoulliPredictiveClusterBootstrapDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationGaussianPredictiveClusterBootstrapDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationTransportDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationTransportClusterBootstrapDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationConfoundedTransportDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationConfoundedTransportClusterBootstrapDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationKernelTransportDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationKernelTransportClusterBootstrapDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationConfoundedKernelTransportClusterBootstrapDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationMarTransportDecision => RouteFamily::GraphImputation,
+                    Self::CategoricalPosteriorCandidate => RouteFamily::CategoricalPosteriorCandidate,
+                    Self::MnarFixedShift => RouteFamily::DesignBased,
+                    Self::LatentSoftIntervention => RouteFamily::Structural,
+                    Self::EventProcess => RouteFamily::Structural,
+                    Self::JointPanelResponse => RouteFamily::JointPanel,
+                    Self::JointPanelTimeVarying => RouteFamily::JointPanel,
+                    Self::JointPanelImputation => RouteFamily::JointPanel,
+                    Self::JointPanelProgramSearch => RouteFamily::JointPanel,
+                    Self::JointPanelProgramSelection => RouteFamily::JointPanel,
+                    Self::JointPanelExperiment => RouteFamily::JointPanel,
+                    Self::JointDesign => RouteFamily::JointPanel,
+                }
+            }
+        }
+
+        /// Lower `cx` with the lowering its cell is registered to.
+        #[allow(
+            clippy::match_same_arms,
+            reason = "one row per route cell so the table reads cell by cell; a family lowers several cells"
+        )]
+        pub(super) fn lower_cell(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalError> {
+            match cx.cell {
+                $(RouteCell::$cell => $family::lower(cx),)+
+                RouteCell::GraphPosterior(_) => graph_posterior::lower(cx),
+            }
+        }
+
+        /// Every registered route cell with the family that lowers it.
+        #[cfg(test)]
+        pub(crate) const REGISTERED: &[(RouteCell, &str)] =
+            &[$((RouteCell::$cell, stringify!($family)),)+];
+    };
+}
+
+route_lowerings! {
+    StaticAteDag => static_effect as StaticEffect,
+    StaticAtePag => static_effect as StaticEffect,
+    StaticAteCpdag => static_effect as StaticEffect,
+    StaticAteMixed => static_effect as StaticEffect,
+    ConditionalDag => static_effect as StaticEffect,
+    ConditionalCpdag => static_effect as StaticEffect,
+    ConditionalPag => static_effect as StaticEffect,
+    ConditionalMixed => static_effect as StaticEffect,
+    DistributionDag => static_effect as StaticEffect,
+    DistributionMixed => static_effect as StaticEffect,
+    PathSpecificDag => static_effect as StaticEffect,
+    PathSpecificMixed => static_effect as StaticEffect,
+    PathSpecificCpdag => static_effect as StaticEffect,
+    CounterfactualClass => static_effect as StaticEffect,
+    PathSpecificPag => static_effect as StaticEffect,
+    StaticResponseDag => static_response as StaticResponse,
+    StaticResponsePag => static_response as StaticResponse,
+    StaticResponseCpdag => static_response as StaticResponse,
+    CodeterminedJoint => static_response as StaticResponse,
+    MixedAdmgResponse => static_response as StaticResponse,
+    StaticMediationDag => structural as Structural,
+    GcmDag => structural as Structural,
+    GcmTemporal => structural as Structural,
+    GcmClass => structural as Structural,
+    GcmTemporalClass => structural as Structural,
+    TemporalEffectDag => temporal as Temporal,
+    TemporalEffectClass => temporal as Temporal,
+    TemporalEffectAdmg => temporal as Temporal,
+    TemporalResponseDag => temporal as Temporal,
+    TemporalResponseClass => temporal as Temporal,
+    TemporalResponseAdmg => temporal as Temporal,
+    TemporalMediationDag => temporal as Temporal,
+    TemporalMediationPag => temporal as Temporal,
+    TemporalMediationCpdag => temporal as Temporal,
+    TemporalMediationAdmg => temporal as Temporal,
+    TemporalCrossWorldDag => temporal as Temporal,
+    TemporalCrossWorldClass => temporal as Temporal,
+    MultiEnvTemporalEffect => temporal as Temporal,
+    PanelTemporalEffectDag => temporal as Temporal,
+    PanelTemporalEffectClass => temporal as Temporal,
+    PanelTemporalResponseDag => temporal as Temporal,
+    PanelTemporalResponseClass => temporal as Temporal,
+    TransportMixed => design_based as DesignBased,
+    InterferenceDag => design_based as DesignBased,
+    RandomizedEffect => design_based as DesignBased,
+    PolicyValue => design_based as DesignBased,
+    PanelDid => design_based as DesignBased,
+    SyntheticControl => design_based as DesignBased,
+    ContinuousDoseResponse => design_based as DesignBased,
+    LocalPolynomialRatio => design_based as DesignBased,
+    Survival => design_based as DesignBased,
+    LongitudinalRegime => design_based as DesignBased,
+    SequentialContrast => design_based as DesignBased,
+    HistoryMatch => design_based as DesignBased,
+    TemporalDesign => design_based as DesignBased,
+    IvBounds => design_based as DesignBased,
+    DiscoverStatic => discovery as Discovery,
+    DiscoverTemporal => discovery as Discovery,
+    GcmAttributeDag => structural as Structural,
+    GcmSimulateDag => structural as Structural,
+    AssociationStatic => associational as Associational,
+    AssociationTemporal => associational as Associational,
+}

@@ -7,21 +7,26 @@
 
 use antecedent::{EstimatorId, RefuteSuite, Study, StudyBuilder};
 use antecedent_core::ExecutionContext;
-use antecedent_io::{AnalysisResultConsumption, consume_analysis_result};
+use antecedent_io::{AnalysisResultConsumption, replay_analysis_result};
 
 #[path = "fixtures_common/mod.rs"]
 mod common;
 use common::fixtures::confounded_scm;
 
-fn refresh_and_export(builder: StudyBuilder, rows: usize) -> AnalysisResultConsumption {
+fn refresh_and_export(
+    builder: StudyBuilder,
+    rows: usize,
+    expect_verified: bool,
+) -> AnalysisResultConsumption {
     let context = ExecutionContext::for_tests(73);
     let (replacement, _, _) = confounded_scm(rows, 91);
     let mut prepared = builder.build().unwrap().prepare(&context).unwrap();
-    let refreshed = prepared.refresh(replacement, &context).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, replacement, &context).unwrap();
     let artifact = prepared.encode_contracted_result(&refreshed, "refresh", &context).unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
-    assert!(
-        consumed.acceptance.accepts_as_verified_program(),
+    let consumed = replay_analysis_result(&artifact).unwrap();
+    assert_eq!(
+        consumed.acceptance.accepts_as_replayed_program(),
+        expect_verified,
         "rows={rows}: unresolved={:?}",
         consumed.acceptance.unresolved
     );
@@ -38,7 +43,7 @@ fn refreshed_linear_adjustment_publishes_the_refreshed_rows() {
             .estimator(EstimatorId::LinearAdjustmentAte)
             .refute(RefuteSuite::None)
             .bootstrap_replicates(0);
-        let consumed = refresh_and_export(builder, rows);
+        let consumed = refresh_and_export(builder, rows, true);
         let published = consumed
             .contract
             .as_ref()
@@ -57,13 +62,39 @@ fn refreshed_trimmed_aipw_exports_a_verified_row_binding() {
         trim: Some(0.02),
     };
     for rows in [300_usize, 900] {
-        let fitter =
-            antecedent_estimate::AipwAte::new().with_bootstrap_replicates(0).with_overlap(overlap);
-        let builder = Study::tabular(data.clone())
-            .graph(dag.clone())
-            .query(query.clone())
-            .estimator(fitter)
-            .refute(RefuteSuite::Cheap);
-        refresh_and_export(builder, rows);
+        for suite in [RefuteSuite::None, RefuteSuite::Cheap] {
+            let fitter = antecedent_estimate::AipwAte::new()
+                .with_bootstrap_replicates(0)
+                .with_overlap(overlap);
+            let builder = Study::tabular(data.clone())
+                .graph(dag.clone())
+                .query(query.clone())
+                .estimator(fitter)
+                .refute(suite);
+            // The row binding can replay; the cheap report has a separate replay obligation.
+            let consumed = refresh_and_export(builder, rows, suite == RefuteSuite::None);
+            if suite == RefuteSuite::Cheap {
+                assert!(
+                    consumed
+                        .acceptance
+                        .unresolved
+                        .iter()
+                        .any(|reason| { reason.as_ref() == "dependencies.refutation_replay" })
+                );
+            }
+        }
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

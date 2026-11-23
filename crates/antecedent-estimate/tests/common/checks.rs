@@ -1,6 +1,6 @@
 //! Shared absolute comparisons and coded-refusal unpacking for estimate integration tests.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::EstimationError;
 
@@ -19,5 +19,5 @@ pub fn coded_refusal(error: EstimationError) -> (&'static str, String) {
     let EstimationError::Refused { code, message } = error else {
         panic!("expected a coded refusal, got {error:?}");
     };
-    (code, message)
+    (code, message.into_string())
 }

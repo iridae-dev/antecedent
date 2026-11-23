@@ -7,12 +7,12 @@
 )]
 
 use crate::*;
-use antecedent_graph::Dag;
+use antecedent::graph::Dag;
 use pyo3::prelude::*;
 
 fn dag_from_node_edges(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<Dag> {
-    let wire = antecedent_io::DagWire { node_count, edges };
-    antecedent_io::dag_from_wire(&wire).map_err(py_err)
+    let wire = antecedent::io::DagWire { node_count, edges };
+    antecedent::io::dag_from_wire(&wire).map_err(py_err)
 }
 
 /// Encode a minimal SCM model bundle (schema names + edges + mechanism slots).
@@ -27,10 +27,9 @@ fn encode_model_bundle(
 ) -> PyResult<Vec<u8>> {
     catch_ffi(|| {
         use antecedent::gcm::{CompiledMechanismStore, MechanismSlot};
-        use antecedent_core::{CausalSchemaBuilder, MeasurementSpec, SmallRoleSet, ValueType};
-        use antecedent_io::{
-            ModelBundleEncode, ModelBundleHeaderWire, ModelKindWire, encode_model_bundle as enc,
-        };
+        use antecedent::io::{ModelBundleEncode, ModelBundleHeaderWire, ModelKindWire};
+        use antecedent::prelude::CausalSchemaBuilder;
+        use antecedent::schema::{MeasurementSpec, SmallRoleSet, ValueType};
         use std::sync::Arc;
 
         let mut b = CausalSchemaBuilder::new();
@@ -46,21 +45,76 @@ fn encode_model_bundle(
             .map_err(|e| py_err(IoError::Convert(e.to_string())))?;
         }
         let schema = b.build().map_err(|e| py_err(IoError::Convert(e.to_string())))?;
-        let dag = dag_from_node_edges(u32::try_from(variable_names.len()).unwrap_or(0), edges)?;
-        let slots: Vec<MechanismSlot> = mechanisms
+        let node_count = u32::try_from(variable_names.len())
+            .map_err(|_| crate::value_err("too many variables for a model bundle"))?;
+        if mechanisms.len() != variable_names.len() {
+            return Err(crate::value_err(format!(
+                "{} mechanisms for {} variables; give one slot per variable",
+                mechanisms.len(),
+                variable_names.len()
+            )));
+        }
+        let mut parent_counts = vec![0_usize; variable_names.len()];
+        for (_, child) in &edges {
+            if let Some(count) = parent_counts.get_mut(*child as usize) {
+                *count += 1;
+            }
+        }
+        let dag = dag_from_node_edges(node_count, edges)?;
+        let finite = |value: f64, what: &str, node: usize| {
+            if value.is_finite() {
+                Ok(value)
+            } else {
+                Err(crate::value_err(format!("mechanism {node}: {what} must be finite")))
+            }
+        };
+        let slots = mechanisms
             .into_iter()
-            .map(|(kind, constant, coeffs, sigma)| match kind.as_str() {
-                "constant" => MechanismSlot::Constant { value: constant.unwrap_or(0.0) },
-                "linear_gaussian" => MechanismSlot::LinearGaussian {
-                    intercept: constant.unwrap_or(0.0),
-                    coeffs: Arc::from(coeffs.unwrap_or_default()),
-                    sigma: sigma.unwrap_or(1.0),
-                },
-                _ => MechanismSlot::Vacant,
+            .enumerate()
+            .map(|(node, (kind, constant, coeffs, sigma))| match kind.as_str() {
+                "vacant" => Ok(MechanismSlot::Vacant),
+                "constant" => {
+                    let value = constant.ok_or_else(|| {
+                        crate::value_err(format!("mechanism {node}: a constant needs its value"))
+                    })?;
+                    Ok(MechanismSlot::Constant { value: finite(value, "the value", node)? })
+                }
+                "linear_gaussian" => {
+                    let intercept = constant.ok_or_else(|| {
+                        crate::value_err(format!("mechanism {node}: an intercept is required"))
+                    })?;
+                    let coeffs = coeffs.unwrap_or_default();
+                    if coeffs.len() != parent_counts[node] {
+                        return Err(crate::value_err(format!(
+                            "mechanism {node}: {} coefficients for {} parents",
+                            coeffs.len(),
+                            parent_counts[node]
+                        )));
+                    }
+                    for coefficient in &coeffs {
+                        finite(*coefficient, "every coefficient", node)?;
+                    }
+                    let sigma = sigma.ok_or_else(|| {
+                        crate::value_err(format!("mechanism {node}: sigma is required"))
+                    })?;
+                    if !(sigma.is_finite() && sigma > 0.0) {
+                        return Err(crate::value_err(format!(
+                            "mechanism {node}: sigma must be finite and positive"
+                        )));
+                    }
+                    Ok(MechanismSlot::LinearGaussian {
+                        intercept: finite(intercept, "the intercept", node)?,
+                        coeffs: Arc::from(coeffs),
+                        sigma,
+                    })
+                }
+                other => Err(crate::value_err(format!(
+                    "mechanism {node}: unknown kind {other:?}; use vacant|constant|linear_gaussian"
+                ))),
             })
-            .collect();
+            .collect::<PyResult<Vec<MechanismSlot>>>()?;
         let store = CompiledMechanismStore { slots: slots.into() };
-        let art = enc(&ModelBundleEncode {
+        antecedent::io::encode_model_bundle_bytes(&ModelBundleEncode {
             header: ModelBundleHeaderWire { model_kind: ModelKindWire::Scm, label: None },
             schema: &schema,
             dag: &dag,
@@ -80,10 +134,7 @@ fn encode_model_bundle(
             posterior: None,
             discovery: None,
         })
-        .map_err(py_err)?;
-        let mut buf = Vec::new();
-        art.write_to(&mut buf).map_err(py_err)?;
-        Ok(buf)
+        .map_err(py_err)
     })
 }
 
@@ -93,7 +144,7 @@ fn decode_model_bundle(bytes: &[u8]) -> PyResult<ModelBundleSummary> {
     catch_ffi(|| {
         let bundle = antecedent::io::decode_model_bundle_bytes(bytes).map_err(py_err)?;
         let names = bundle.schema.variables().iter().map(|v| v.name.to_string()).collect();
-        let wire = antecedent_io::dag_to_wire(&bundle.dag).map_err(py_err)?;
+        let wire = antecedent::io::dag_to_wire(&bundle.dag).map_err(py_err)?;
         Ok((names, wire.edges, bundle.mechanisms.slots.len()))
     })
 }

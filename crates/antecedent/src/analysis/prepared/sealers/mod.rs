@@ -23,14 +23,16 @@
 //! studies from an existing one fails the first prepare that exercises it
 //! instead of silently changing which operation runs.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod adjustment;
 mod bayesian;
 mod design;
+mod estimator;
 mod posterior;
 mod program;
 mod response;
+mod route;
 mod static_query;
 mod temporal;
 
@@ -73,6 +75,9 @@ pub(super) struct SealContext<'a> {
     pub(super) counterfactual: Option<&'a crate::gcm::CheckedCounterfactualOperation>,
     /// The compiled cross-world operation of a nested counterfactual query.
     pub(super) nested_counterfactual: Option<&'a crate::gcm::NestedCounterfactualOperation>,
+    /// The operation of the branch this one was rebound from, offered so a sealer may rebind
+    /// its checked receipt to the new rows instead of compiling the same program again.
+    pub(super) previous: Option<&'a PreparedExecution>,
 }
 
 impl<'a> SealContext<'a> {
@@ -227,6 +232,10 @@ pub(super) const SEALERS: [Sealer; ExecutionKind::SEALED_COUNT] = [
     sealer(ExecutionKind::LocalPolynomialRatio, design::local_polynomial_ratio),
     sealer(ExecutionKind::Survival, design::survival),
     sealer(ExecutionKind::LongitudinalRegime, design::longitudinal_regime),
+    sealer(ExecutionKind::SequentialContrast, design::sequential_contrast),
+    sealer(ExecutionKind::HistoryMatch, design::history_match),
+    sealer(ExecutionKind::TemporalDesign, design::temporal_design),
+    sealer(ExecutionKind::IvBounds, design::iv_bounds),
     sealer(ExecutionKind::TemporalMediation, temporal::temporal_mediation),
     sealer(ExecutionKind::TemporalDagEffect, temporal::temporal_dag_effect),
     sealer(ExecutionKind::BayesianTemporalDagEffect, temporal::bayesian_temporal_dag_effect),
@@ -261,10 +270,41 @@ pub(super) const SEALERS: [Sealer; ExecutionKind::SEALED_COUNT] = [
     sealer(ExecutionKind::GraphPosteriorResponse, posterior::graph_posterior_response),
     sealer(ExecutionKind::BayesianSpecialist, posterior::bayesian_specialist),
     sealer(ExecutionKind::TransportTrial, posterior::transport_trial),
+    sealer(ExecutionKind::Discovery, route::discovery),
+    sealer(ExecutionKind::PanelTemporal, route::panel_temporal),
+    sealer(ExecutionKind::MultiEnvTemporal, route::multi_env_temporal),
+    sealer(ExecutionKind::TemporalCrossWorld, route::temporal_cross_world),
+    sealer(ExecutionKind::TemporalAdmgEffect, route::temporal_admg_effect),
+    sealer(ExecutionKind::ClassAttribution, route::class_attribution),
+    sealer(ExecutionKind::Association, route::association),
+    sealer(ExecutionKind::StaticCrossWorld, route::static_cross_world),
+    // Last: the estimator families the route-cell sealers above decline.
+    sealer(ExecutionKind::EstimatorRoute, estimator::estimator_route),
+    sealer(ExecutionKind::FreshRun, estimator::fresh_run),
 ];
 
-/// Select the sealed operation for `cx`, or `OrdinaryDispatch` when no sealer
-/// admits it.
+/// Retain declaration-only operation metadata without materializing statistical work.
+///
+/// The static DAG response checker reads only the frozen graph, query, cached
+/// identification and procedure. Its fitter is an unfitted declaration: checking
+/// it invokes no estimator or user callback and reads no observation values.
+/// Checked Bayesian DAG ATE likewise binds only the graph, query, proof and inference
+/// declaration. It holds no row-derived design; fitting remains deferred until a click.
+/// Other routes keep their lowered-program guard until explicit materialization.
+pub(super) fn seal_deferred_execution(
+    cx: &SealContext<'_>,
+) -> Result<PreparedExecution, CausalError> {
+    if let Some(operation) = response::static_dag_response(cx)? {
+        return Ok(operation);
+    }
+    if let Some(operation) = bayesian::bayesian_gcomp(cx)? {
+        return Ok(operation);
+    }
+    estimator::estimator_route_operation(cx)
+}
+
+/// Select the sealed operation for `cx`. The estimator-family sealer admits what the
+/// route-cell sealers decline; a study none admits is refused, not dispatched.
 pub(super) fn seal_execution(cx: &SealContext<'_>) -> Result<PreparedExecution, CausalError> {
     for entry in SEALERS.iter().enumerate() {
         let sealer = entry.1;
@@ -283,7 +323,19 @@ pub(super) fn seal_execution(cx: &SealContext<'_>) -> Result<PreparedExecution, 
         }
         return Ok(execution);
     }
-    Ok(PreparedExecution::OrdinaryDispatch)
+    let estimator = cx
+        .source
+        .declared
+        .estimator
+        .or_else(|| cx.source.declared.estimator_spec.as_deref().map(crate::EstimatorSpec::id))
+        .or_else(|| cx.binding.estimator.named());
+    Err(CausalError::Compile {
+        message: format!(
+            "no sealer admits this study; it names an estimator or route outside the sealer \
+             table (estimator {estimator:?}, route parsed: {})",
+            cx.route.is_some(),
+        ),
+    })
 }
 
 /// Offer the study to every sealer after `winner` and refuse an admission its
@@ -291,6 +343,10 @@ pub(super) fn seal_execution(cx: &SealContext<'_>) -> Result<PreparedExecution, 
 #[cfg(debug_assertions)]
 fn assert_no_undeclared_overlap(cx: &SealContext<'_>, winner: &Sealer, rest: &[Sealer]) {
     for later in rest {
+        // The lowered-dispatch sealer admits every study by design.
+        if later.kind == ExecutionKind::EstimatorRoute {
+            continue;
+        }
         match (later.seal)(cx) {
             Ok(None) => {}
             Ok(Some(_)) => assert!(
@@ -351,6 +407,10 @@ mod tests {
         ExecutionKind::LocalPolynomialRatio,
         ExecutionKind::Survival,
         ExecutionKind::LongitudinalRegime,
+        ExecutionKind::SequentialContrast,
+        ExecutionKind::HistoryMatch,
+        ExecutionKind::TemporalDesign,
+        ExecutionKind::IvBounds,
         ExecutionKind::TemporalMediation,
         ExecutionKind::TemporalDagEffect,
         ExecutionKind::BayesianTemporalDagEffect,
@@ -376,6 +436,16 @@ mod tests {
         ExecutionKind::GraphPosteriorResponse,
         ExecutionKind::BayesianSpecialist,
         ExecutionKind::TransportTrial,
+        ExecutionKind::Discovery,
+        ExecutionKind::PanelTemporal,
+        ExecutionKind::MultiEnvTemporal,
+        ExecutionKind::TemporalCrossWorld,
+        ExecutionKind::TemporalAdmgEffect,
+        ExecutionKind::ClassAttribution,
+        ExecutionKind::Association,
+        ExecutionKind::StaticCrossWorld,
+        ExecutionKind::EstimatorRoute,
+        ExecutionKind::FreshRun,
     ];
 
     #[test]
@@ -388,11 +458,7 @@ mod tests {
     fn every_sealed_kind_has_exactly_one_sealer() {
         let sealed: HashSet<_> = SEALERS.iter().map(|sealer| sealer.kind).collect();
         assert_eq!(sealed.len(), SEALERS.len(), "a kind has two sealers");
-        let expected: HashSet<_> = ExecutionKind::ALL
-            .iter()
-            .copied()
-            .filter(|kind| *kind != ExecutionKind::OrdinaryDispatch)
-            .collect();
+        let expected: HashSet<_> = ExecutionKind::ALL.iter().copied().collect();
         assert_eq!(sealed, expected);
     }
 

@@ -2,19 +2,27 @@
 
 from typing import TypeAlias
 
+from ..outcomes import Outcome, Refusal, Refused
 from . import _html  # noqa: F401 — side effect: attaches _repr_html_ to the views below
 from ._execution import Answer, CalibrationInfo
+from ._plan_view import ProgramPlanView
 from ._report import InspectionReport
 from ._slots import ReasoningSlots, SlotView
 from ._views import (
     AnalysisResult,
     ConflictSummaryView,
+    CounterfactualContrastView,
     DistributionAtomView,
     DropReasonView,
     EffectEnvelope,
     EstimateView,
     GroupAccountingView,
     IdentificationView,
+    ImputationExtraView,
+    ImputationVectorView,
+    ImputationView,
+    ImputationWaldView,
+    IntervalBindingView,
     MediationView,
     MissingDataView,
     MissingVariableView,
@@ -58,6 +66,9 @@ __all__ = [
     "MeanSource",
     "Analysis",
     "Answer",
+    "Outcome",
+    "Refusal",
+    "Refused",
     "CalibrationInfo",
     "InspectionReport",
     "ReasoningSlots",
@@ -66,6 +77,7 @@ __all__ = [
     "MediationView",
     "TemporalMediationGridView",
     "TemporalMediationSliceView",
+    "CounterfactualContrastView",
     "EstimateView",
     "SamplingWeightsView",
     "ProbabilityIntervalView",
@@ -80,10 +92,16 @@ __all__ = [
     "PerformanceView",
     "PlanView",
     "PhysicalPlanView",
+    "ProgramPlanView",
     "MissingVariableView",
     "DropReasonView",
     "GroupAccountingView",
     "RowAccountingView",
+    "ImputationWaldView",
+    "ImputationExtraView",
+    "ImputationVectorView",
+    "ImputationView",
+    "IntervalBindingView",
     "MissingDataView",
     "AnalysisResult",
     "ProviderAnalysisResult",

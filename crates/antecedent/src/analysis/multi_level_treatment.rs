@@ -12,14 +12,15 @@
 //!
 //! No graph is identified or checked: the caller owns that the declared adjustment columns are
 //! a valid adjustment set. The point estimate and the influence-function standard error are
-//! always reported. The 95% normal interval `effect ± z · se_analytic` is published only when a
-//! current attesting coverage record measured this construction (the target, the number of
-//! declared levels, the folds and the row count are part of the key); otherwise it is withheld
-//! with status `scope_not_assessed` and the standard error is labelled **unmeasured**. Only the
-//! full-population target has a measurement design; the pairwise subpopulation target has none
-//! and stays withheld.
+//! always reported. The 95% normal interval `effect ± z · se_analytic` is always reported
+//! when the standard error is positive and finite, with the calibration status of the slot: it
+//! is `calibrated` when a current attesting coverage record measured this construction (the
+//! target, the number of declared levels, the folds and the row count are part of the key),
+//! and otherwise `outside_measured_scope`, `measured_below_nominal` or `not_measured`, in
+//! which case the standard error is labelled **`not_measured`**. Only the full-population target
+//! has a measurement design; the pairwise subpopulation target is reported `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_estimate::{LevelMean, LevelRows, MultiLevelPopulation, MultiLevelTarget};
 
@@ -37,15 +38,22 @@ use serde::{Deserialize, Serialize};
 use crate::error::CausalError;
 
 /// Calibration standing of the reported standard error while no coverage record governs it.
-pub const MULTI_LEVEL_TREATMENT_CALIBRATION: &str = "unmeasured";
+pub const MULTI_LEVEL_TREATMENT_CALIBRATION: &str = "not_measured";
 /// Calibration standing once a current attesting coverage record governs the interval.
 pub const MULTI_LEVEL_TREATMENT_CALIBRATED: &str = "calibrated";
 /// Interval status when a governing coverage record measured the construction at this scope.
 pub const MULTI_LEVEL_INTERVAL_CALIBRATED: &str = "calibrated";
-/// Interval status when no current attesting record covers this construction and scope.
-pub const MULTI_LEVEL_INTERVAL_WITHHELD: &str = "scope_not_assessed";
+/// Interval status when no record measured this construction (also the default of an absent status).
+pub const MULTI_LEVEL_INTERVAL_NOT_MEASURED: &str = "not_measured";
 /// Reason when the contrast has no positive finite standard error to build an interval from.
 pub const MULTI_LEVEL_NO_STANDARD_ERROR: &str = "no_positive_standard_error";
+
+/// How the adjustment set behind every report was established: the caller declared it and no
+/// graph was checked, so the contrast is not a graph-identified effect.
+pub const MULTI_LEVEL_ADJUSTMENT_BASIS: &str = "declared";
+/// Estimand tag of the declared adjustment; the adjustment-shaped estimators accept it, and it
+/// never claims a back-door check.
+const DECLARED_ADJUSTMENT_METHOD: &str = "generalized.adjustment.declared";
 
 /// Query axis of the multi-level contrast coverage records.
 pub const MULTI_LEVEL_QUERY: &str = "MultiLevelContrast";
@@ -80,7 +88,8 @@ pub struct MultiLevelSpecWire {
     /// Cross-fit folds of the full-population fit; `None` uses the library default.
     #[serde(default)]
     pub folds: Option<usize>,
-    /// Seed of the cross-fit fold plan.
+    /// Seed of the cross-fit fold plan. `evaluate` runs under the caller's context and its
+    /// seed; bindings that build the context from this declaration use this value.
     #[serde(default)]
     pub seed: u64,
 }
@@ -140,12 +149,13 @@ pub struct MultiLevelIntervalWire {
     pub upper: f64,
     /// Nominal level.
     pub level: f64,
-    /// Identity of the governing coverage record.
-    pub coverage_record: String,
+    /// Identity of the governing coverage record, when one matched.
+    #[serde(default)]
+    pub coverage_record: Option<String>,
 }
 
 fn interval_status_default() -> String {
-    MULTI_LEVEL_INTERVAL_WITHHELD.into()
+    MULTI_LEVEL_INTERVAL_NOT_MEASURED.into()
 }
 
 /// The self-describing result.
@@ -172,18 +182,28 @@ pub struct MultiLevelReportWire {
     /// Standardized mean per declared level (full-population target only).
     pub level_means: Vec<LevelMeanWire>,
     /// Calibration standing of the standard error: `calibrated` when a coverage record governs
-    /// the interval, `unmeasured` otherwise.
+    /// the interval, `not_measured` otherwise.
     pub calibration: String,
-    /// The 95% interval `effect ± z · se_analytic`; present only when a current attesting
-    /// coverage record measured this construction at this row count.
+    /// The 95% interval `effect ± z · se_analytic`; present whenever the standard error is
+    /// positive and finite, annotated by `interval_status`.
     #[serde(default)]
     pub interval: Option<MultiLevelIntervalWire>,
-    /// `calibrated` when the interval is published, `scope_not_assessed` when it is withheld.
+    /// The calibration status of the interval: `calibrated`, `outside_measured_scope`,
+    /// `measured_below_nominal` or `not_measured`.
     #[serde(default = "interval_status_default")]
     pub interval_status: String,
-    /// Why the interval is withheld (the matcher's reason code), when it is.
+    /// Why the interval is not calibrated (the matcher's reason code), or that it has no
+    /// positive standard error.
     #[serde(default)]
     pub interval_reason: Option<String>,
+    /// How the adjustment set was established: `declared` (the caller's columns, no
+    /// graph check), so the contrast is not reported as identified.
+    #[serde(default = "adjustment_basis_default")]
+    pub adjustment_basis: String,
+}
+
+fn adjustment_basis_default() -> String {
+    MULTI_LEVEL_ADJUSTMENT_BASIS.into()
 }
 
 /// Calibration match key and scope of the interval a request would publish.
@@ -208,6 +228,7 @@ pub fn multi_level_interval_basis(
     };
     CalibrationBasisWire {
         key: CalibrationKeyWire {
+            validation: "not_applicable".into(),
             query: MULTI_LEVEL_QUERY.to_owned(),
             graph_class: "NotApplicable".to_owned(),
             structure: "fixed".to_owned(),
@@ -235,7 +256,13 @@ pub fn multi_level_interval_basis(
 pub struct MultiLevelTreatment;
 
 impl MultiLevelTreatment {
-    /// Estimate the declared contrast.
+    /// Estimate the declared contrast under the caller's `ctx`.
+    ///
+    /// This is a specialized checked path outside the central compiler. It checks the columns,
+    /// the declared levels, the population semantics and overlap, and refuses on sparse
+    /// levels. It does not check the adjustment columns against a graph: they are the caller's
+    /// declared adjustment, and the report says so in `adjustment_basis`. The cross-fit
+    /// seed, cancellation and admission pool are `ctx`'s.
     ///
     /// # Errors
     /// `invalid_argument` for malformed columns or levels; `treatment_level_undeclared` for a full-population
@@ -243,17 +270,19 @@ impl MultiLevelTreatment {
     /// estimator's overlap, GLM and regression refusals.
     pub fn evaluate(
         request: &MultiLevelTreatmentRequest,
+        ctx: &ExecutionContext,
     ) -> Result<MultiLevelReportWire, CausalError> {
         let invalid = |detail: &str, message: &str| {
-            CausalError::Estimate(EstimationError::refused(
+            CausalError::Estimate(EstimationError::refused_detail(
                 antecedent_core::reason_code!("invalid_argument"),
-                format!("{detail}: {message}"),
+                detail,
+                message,
             ))
         };
         let rows = request.outcome.len();
         if rows == 0 || request.treatment.len() != rows {
             return Err(invalid(
-                "treatment_levels.invalid_data",
+                antecedent_core::reason_details::treatment_levels::INVALID_DATA,
                 "outcome and treatment must be non-empty and of equal length",
             ));
         }
@@ -263,7 +292,7 @@ impl MultiLevelTreatment {
             || columns.flat_map(|c| &c.values).any(|v| v.is_infinite())
         {
             return Err(invalid(
-                "treatment_levels.invalid_data",
+                antecedent_core::reason_details::treatment_levels::INVALID_DATA,
                 "adjustment columns must match the rows and no value may be infinite",
             ));
         }
@@ -273,7 +302,7 @@ impl MultiLevelTreatment {
             || names.windows(2).any(|pair| pair[0] == pair[1])
         {
             return Err(invalid(
-                "treatment_levels.invalid_data",
+                antecedent_core::reason_details::treatment_levels::INVALID_DATA,
                 "adjustment names must be distinct, non-empty and not 'treatment' or 'outcome'",
             ));
         }
@@ -287,7 +316,7 @@ impl MultiLevelTreatment {
             .map(|j| VariableId::from_raw(2 + u32::try_from(j).unwrap_or(u32::MAX)))
             .collect();
         let estimand = IdentifiedEstimand::backdoor(
-            "backdoor.adjustment",
+            DECLARED_ADJUSTMENT_METHOD,
             Arc::from(adjustment),
             ExprId::from_raw(0),
         );
@@ -303,7 +332,7 @@ impl MultiLevelTreatment {
             MultiLevelTargetWire::FullPopulation => {
                 let levels = spec.levels.clone().ok_or_else(|| {
                     invalid(
-                        "treatment_levels.levels_missing",
+                        antecedent_core::reason_details::treatment_levels::LEVELS_MISSING,
                         "the full-population target declares its levels",
                     )
                 })?;
@@ -314,9 +343,8 @@ impl MultiLevelTreatment {
             Some(folds) => estimator.with_folds(folds),
             None => estimator,
         };
-        let ctx = ExecutionContext::production_default(spec.seed);
         let estimate = estimator
-            .fit(&table, &estimand, &query, &ctx, AssumptionSet::new())
+            .fit(&table, &estimand, &query, ctx, AssumptionSet::new())
             .map_err(CausalError::from)?;
         Ok(report(&estimate, spec, estimator.folds))
     }
@@ -345,16 +373,20 @@ fn publish_interval(
     let levels = spec.levels.as_ref().map_or(0, Vec::len);
     let slot = calibration_slot(&multi_level_interval_basis(spec.target, levels, folds, n_obs));
     let interval = multi_level_normal_interval(estimate.effect.ate, estimate.effect.se_analytic());
-    match (slot.record_id, interval) {
-        (Some(record), Some((lower, upper))) if slot.status == "calibrated" => {
+    let status = slot.status.as_str();
+    match interval {
+        Some((lower, upper)) => {
             let level = crate::result::REPORTED_SE_INTERVAL_LEVEL;
-            let wire = MultiLevelIntervalWire { lower, upper, level, coverage_record: record };
-            (Some(wire), MULTI_LEVEL_INTERVAL_CALIBRATED, None)
+            let wire = MultiLevelIntervalWire {
+                lower,
+                upper,
+                level,
+                coverage_record: slot.record_id.clone(),
+            };
+            let reason = if slot.status == "calibrated" { None } else { slot.reason };
+            (Some(wire), status, reason)
         }
-        (Some(_), None) if slot.status == "calibrated" => {
-            (None, MULTI_LEVEL_INTERVAL_WITHHELD, Some(MULTI_LEVEL_NO_STANDARD_ERROR.into()))
-        }
-        _ => (None, MULTI_LEVEL_INTERVAL_WITHHELD, slot.reason),
+        None => (None, status, Some(MULTI_LEVEL_NO_STANDARD_ERROR.into())),
     }
 }
 
@@ -391,7 +423,7 @@ fn report(
                 propensity_max: m.propensity_range.1,
             })
             .collect(),
-        calibration: if interval.is_some() {
+        calibration: if interval_status == MULTI_LEVEL_INTERVAL_CALIBRATED {
             MULTI_LEVEL_TREATMENT_CALIBRATED
         } else {
             MULTI_LEVEL_TREATMENT_CALIBRATION
@@ -400,5 +432,6 @@ fn report(
         interval,
         interval_status: interval_status.into(),
         interval_reason,
+        adjustment_basis: MULTI_LEVEL_ADJUSTMENT_BASIS.into(),
     }
 }

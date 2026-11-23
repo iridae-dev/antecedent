@@ -1,12 +1,11 @@
-//! Graph review interaction surface for discovery outputs.
+//! Edits that resolve a discovered structure before it is accepted.
 //!
-//! Discovery is a separate, explicit step (see [`crate::discovery`]); the review gate
-//! itself now lives in [`crate::accepted::AcceptedGraph`] construction. This module
-//! keeps the interactive edit surface (`accept_edge`, `orient_edge`, `require_edge`,
+//! Discovery is a separate, explicit step (see [`crate::discovery`]), and acceptance is
+//! [`crate::accepted::AcceptedGraph`] construction. This module holds the edits (`accept_edge`, `orient_edge`, `require_edge`,
 //! `accept_all`) callers use to resolve a review artifact before handing it to
 //! [`AcceptedGraph::accept`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -53,7 +52,7 @@ impl PendingGraphReview {
         from: TemporalNodeKey,
         to: TemporalNodeKey,
     ) -> Result<Self, CausalError> {
-        let pending = self.review.pending_edges.iter().any(|e| *e == (from, to));
+        let pending = self.review.pending_edges.contains(&(from, to));
         if pending {
             return Ok(self.accept_edge(from, to));
         }
@@ -174,7 +173,7 @@ fn edge_in_graph(graph: &TemporalDag, from: TemporalNodeKey, to: TemporalNodeKey
         }
     }
     match (from_id, to_id) {
-        (Some(f), Some(t)) => graph.children(f).iter().any(|c| *c == t),
+        (Some(f), Some(t)) => graph.children(f).contains(&t),
         _ => false,
     }
 }

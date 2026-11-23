@@ -20,16 +20,19 @@ gate script (`scripts/gate_*.sh`).
 
 from __future__ import annotations
 
+import ast
+import io
 import json
 import math
 import re
 import sys
-import tomllib
+import textwrap
+import tokenize
 from pathlib import Path
 from typing import Any
 
 from _repo import REPO_ROOT as ROOT
-from _repo import test_target
+from _repo import load_toml, test_target
 
 MANIFEST = ROOT / "parity/acceptance_manifest.toml"
 
@@ -84,9 +87,9 @@ AREAS = frozenset(
         "release_conformance",
     ]
 )
-CALIBRATED_KINDS = frozenset({"calibrated_interval", "calibrated_statistical_test"})
-KINDS = frozenset({"value", "refusal", "interval", "receipt"}) | CALIBRATED_KINDS
-INTERVAL_KINDS = frozenset({"interval", "calibrated_interval"})
+REPLICATED_KINDS = frozenset({"replicated_interval", "replicated_statistical_test"})
+KINDS = frozenset({"value", "refusal", "interval", "receipt"}) | REPLICATED_KINDS
+INTERVAL_KINDS = frozenset({"interval", "replicated_interval"})
 STATUSES = frozenset({"planned", "bound"})
 CASE_FIELDS = (
     "id",
@@ -133,11 +136,36 @@ DEFERRED_TEST = re.compile(
     r"\btodo!|\bunimplemented!|pytest\.(?:skip|xfail)|mark\.(?:skip|xfail)|unittest\.skip"
     r"|\bskipTest\b|\bexpectedFailure\b|#\[should_panic"
 )
-# An assertion, or a helper whose job is to assert (the calibration gate, `expect_*`, `check_*`).
+# Only actual assertion operations count; helper names are resolved to their
+# bodies below, never treated as assertions merely by their spelling.
 ASSERTS = re.compile(
-    r"\b(?:assert\w*|expect\w*|verify\w*|require\w*|gate)\s*[!(]|\bassert\b|\.raises\(|\bpanic!"
-    r"|unwrap_err|is_err\(\)|\bself\.assert"
+    r"\b(?:assert|assert_eq|assert_ne|debug_assert|debug_assert_eq|debug_assert_ne|panic)!\s*\("
+    r"|\bassert\b|\.raises\s*\(|\bself\.assert[A-Z]\w*\s*\(|\bnp\.testing\.assert_\w+\s*\(|\.unwrap_err\s*\("
 )
+
+
+def assertion_code(text: str, suffix: str) -> str:
+    """Remove comments and string literals before following calls or assertions."""
+    if suffix == ".rs":
+        from _rust_source import lex
+        return lex(text).skeleton
+    text = textwrap.dedent(text)
+    lines = text.splitlines(keepends=True)
+    try:
+        for token in tokenize.generate_tokens(io.StringIO(text).readline):
+            if token.type not in (tokenize.COMMENT, tokenize.STRING):
+                continue
+            (start_line, start_col), (end_line, end_col) = token.start, token.end
+            for index in range(start_line - 1, end_line):
+                line = lines[index]
+                lo = start_col if index == start_line - 1 else 0
+                hi = end_col if index == end_line - 1 else len(line.rstrip("\r\n"))
+                lines[index] = line[:lo] + " " * (hi - lo) + line[hi:]
+    except (tokenize.TokenError, IndentationError):
+        return ""
+    return "".join(lines)
+
+
 RUST_TEST_ATTRIBUTE = re.compile(r"#\[(?:tokio::)?test\b|#\[rstest|#\[test_case")
 
 
@@ -188,8 +216,10 @@ def case_problems(case: dict[str, Any]) -> list[str]:
     config = case["configuration"]
     if isinstance(config, dict) and "calibration_grid_point" in config:
         point = config["calibration_grid_point"]
-        if type(point) is not int or point not in (0, 1, 2) or kind not in CALIBRATED_KINDS:
-            errors.append(f"{prefix}: calibration_grid_point must bind a calibrated case to integer 0, 1 or 2")
+        if type(point) is not int or point not in (0, 1, 2) or kind not in REPLICATED_KINDS:
+            errors.append(
+                f"{prefix}: calibration_grid_point must bind a calibrated case to integer 0, 1 or 2"
+            )
     if kind not in KINDS:
         errors.append(f"{prefix}: expected.kind must be one of {sorted(KINDS)}")
     else:
@@ -228,7 +258,7 @@ def case_problems(case: dict[str, Any]) -> list[str]:
                 and 0 < targets[key] <= 1
             ):
                 errors.append(f"{prefix}: targets.{key} must be in (0, 1]")
-        if kind in INTERVAL_KINDS or kind == "calibrated_statistical_test":
+        if kind in INTERVAL_KINDS or kind == "replicated_statistical_test":
             nominal = targets.get("nominal_coverage")
             floor = targets.get("coverage_floor")
             if not isinstance(nominal, (int, float)) or not 0.5 < nominal < 1:
@@ -237,29 +267,44 @@ def case_problems(case: dict[str, Any]) -> list[str]:
                 errors.append(
                     f"{prefix}: interval cases need targets.coverage_floor in (0.5, nominal_coverage]"
                 )
-        if kind in CALIBRATED_KINDS:
+        if kind in REPLICATED_KINDS:
             reps = targets.get("min_replicates")
             if not isinstance(reps, int) or isinstance(reps, bool) or reps < MIN_REPLICATES:
                 errors.append(
-                    f"{prefix}: calibrated cases need targets.min_replicates >= {MIN_REPLICATES}"
+                    f"{prefix}: replicated cases need targets.min_replicates >= {MIN_REPLICATES}"
                 )
             rate = targets.get("min_reporting_rate")
             if not isinstance(rate, (int, float)) or rate < MIN_REPORTING_RATE:
                 errors.append(
-                    f"{prefix}: calibrated cases need targets.min_reporting_rate >= {MIN_REPORTING_RATE}"
+                    f"{prefix}: replicated cases need targets.min_reporting_rate >= {MIN_REPORTING_RATE}"
                 )
-            if kind == "calibrated_interval" and not any(key.startswith("max_median") for key in targets):
-                errors.append(f"{prefix}: calibrated cases need a precision target (max_median_*)")
-            if kind == "calibrated_statistical_test":
-                if (case["configuration"].get("calibration_target") != "conditional_null_rejection_rate"
-                        or not isinstance(targets.get("type_i_alpha"), (int, float))
-                        or not math.isclose(targets["type_i_alpha"], 1 - targets.get("nominal_coverage", 0), abs_tol=1e-12)):
-                    errors.append(f"{prefix}: statistical-test calibration needs its explicit conditional Type-I target")
-                if (targets.get("precision_target") != "not_applicable"
-                        or not isinstance(targets.get("precision_reason"), str)
-                        or not targets["precision_reason"].strip()
-                        or any(key.startswith("max_median") for key in targets)):
-                    errors.append(f"{prefix}: statistical-test width must be explicitly inapplicable, never an interval precision claim")
+            if kind == "replicated_interval" and not any(
+                key.startswith("max_median") for key in targets
+            ):
+                errors.append(f"{prefix}: replicated cases need a precision target (max_median_*)")
+            if kind == "replicated_statistical_test":
+                if (
+                    case["configuration"].get("calibration_target")
+                    != "conditional_null_rejection_rate"
+                    or not isinstance(targets.get("type_i_alpha"), (int, float))
+                    or not math.isclose(
+                        targets["type_i_alpha"],
+                        1 - targets.get("nominal_coverage", 0),
+                        abs_tol=1e-12,
+                    )
+                ):
+                    errors.append(
+                        f"{prefix}: statistical-test replication needs its explicit conditional Type-I target"
+                    )
+                if (
+                    targets.get("precision_target") != "not_applicable"
+                    or not isinstance(targets.get("precision_reason"), str)
+                    or not targets["precision_reason"].strip()
+                    or any(key.startswith("max_median") for key in targets)
+                ):
+                    errors.append(
+                        f"{prefix}: statistical-test width must be explicitly inapplicable, never an interval precision claim"
+                    )
 
     dataset = case["dataset"]
     if not isinstance(dataset, dict):
@@ -312,6 +357,17 @@ def _attributes_above(lines: list[str], index: int) -> str:
 def test_source(text: str, suffix: str, name: str) -> tuple[str, str] | None:
     """The attributes above `name` and its source (signature included); `None` if undefined."""
     lines = text.splitlines()
+    if suffix == ".py":
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            return None
+        definitions = [node for node in ast.walk(tree)
+                       if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name]
+        if not definitions:
+            return None
+        node = min(definitions, key=lambda item: item.lineno)
+        return _attributes_above(lines, node.lineno - 1), "\n".join(lines[node.lineno - 1:node.end_lineno])
     pattern = re.compile(_DEFINITION[suffix].format(name=re.escape(name)))
     for index, line in enumerate(lines):
         match = pattern.match(line)
@@ -382,9 +438,9 @@ def macro_test_source(text: str, name: str) -> tuple[str, str] | None:
 def with_helpers(text: str, suffix: str, source: str, depth: int = 3) -> str:
     """`source` followed by the same-file helpers it calls, to `depth` levels."""
     if depth == 0:
-        return source
-    expanded = [source]
-    for helper in sorted(set(_CALLED[suffix].findall(source))):
+        return assertion_code(source, suffix)
+    expanded = [assertion_code(source, suffix)]
+    for helper in sorted(set(_CALLED[suffix].findall(assertion_code(source, suffix)))):
         found = test_source(text, suffix, helper)
         if found is not None and found[1] != source:
             expanded.append(with_helpers(text, suffix, found[1], depth - 1))
@@ -406,7 +462,7 @@ def scale_cases(data: dict[str, Any], root: Path = ROOT) -> list[dict[str, Any]]
     cases = []
     for case in data.get("case", []):
         evidence = case.get("evidence", {})
-        if evidence.get("status") != "bound" or case["expected"]["kind"] in CALIBRATED_KINDS:
+        if evidence.get("status") != "bound" or case["expected"]["kind"] in REPLICATED_KINDS:
             continue
         path, name = evidence["test"].split("::", 1)[0], evidence["test"].rsplit("::", 1)[1]
         target = SCALE_TARGET.match(path)
@@ -416,9 +472,7 @@ def scale_cases(data: dict[str, Any], root: Path = ROOT) -> list[dict[str, Any]]
         found = test_source(source.read_text(encoding="utf-8"), ".rs", name)
         if found is None or "#[ignore" not in found[0]:
             continue
-        manifest = tomllib.loads(
-            (root / "crates" / target["crate"] / "Cargo.toml").read_text(encoding="utf-8")
-        )
+        manifest = load_toml(root / "crates" / target["crate"] / "Cargo.toml")
         cargo_target = target["target"]
         if cargo_target is not None:
             cargo_target, prefix = test_target(target["crate"], cargo_target, root)
@@ -475,8 +529,11 @@ def closure_problems(
         errors.append(f"{prefix}: {where} is not a test function")
     if suffix == ".py" and not checker and not name.startswith("test"):
         errors.append(f"{prefix}: {where} is not a test function")
-    if ("#[ignore" in decoration and kind not in CALIBRATED_KINDS
-            and (SCALE_TARGET.match(path) is None or not scale_gate_wired(root))):
+    if (
+        "#[ignore" in decoration
+        and kind not in REPLICATED_KINDS
+        and (SCALE_TARGET.match(path) is None or not scale_gate_wired(root))
+    ):
         errors.append(
             f"{prefix}: {where} is #[ignore]d and {SCALE_GATE} does not run it in the "
             "release-candidate gate; only a calibrated construction case or a release-only "
@@ -485,7 +542,7 @@ def closure_problems(
     if DEFERRED_TEST.search(decoration + "\n" + source):
         errors.append(f"{prefix}: {where} skips or defers its check")
     if (
-        kind != "calibrated_interval"
+        kind != "replicated_interval"
         and not checker
         and not ASSERTS.search(with_helpers(text, suffix, source))
     ):
@@ -611,7 +668,7 @@ def self_test() -> int:
     )
     expect(
         "calibrated needs replicates",
-        mutate(lambda c, d: c["expected"].update(kind="calibrated_interval")),
+        mutate(lambda c, d: c["expected"].update(kind="replicated_interval")),
         "nominal_coverage",
     )
     expect(
@@ -668,13 +725,13 @@ def main(argv: list[str] | None = None) -> int:
     if "--self-test" in args:
         return self_test()
     if "--scale-cases" in args:
-        print(json.dumps(scale_cases(tomllib.loads(MANIFEST.read_text(encoding="utf-8")))))
+        print(json.dumps(scale_cases(load_toml(MANIFEST))))
         return 0
     unknown = [a for a in args if a != "--require-bound"]
     if unknown:
         print(f"unknown arguments: {unknown}", file=sys.stderr)
         return 2
-    data = tomllib.loads(MANIFEST.read_text(encoding="utf-8"))
+    data = load_toml(MANIFEST)
     errors = problems(data, require_bound="--require-bound" in args)
     if errors:
         print("acceptance manifest check FAILED:")

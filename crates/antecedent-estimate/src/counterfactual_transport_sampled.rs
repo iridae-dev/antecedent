@@ -1,7 +1,7 @@
 //! Sampled inference for general counterfactual transport.
 //!
 //! The exact route ([`crate::counterfactual_transport`]) evaluates a stored
-//! derivation on supplied finite laws and licenses no sampling uncertainty. This
+//! derivation on supplied finite laws and supports no sampling uncertainty. This
 //! route evaluates the same stored derivation, without re-identifying, on finite
 //! laws estimated from sampled counts, and reports four distinct claims:
 //!
@@ -14,10 +14,13 @@
 //! 3. *Point estimate*: the plug-in value is an estimate of the population
 //!    probability. Smoothed tables are labelled smoothed; an envelope request
 //!    reports a structural range and no point.
-//! 4. *Statistical inference*: withheld. No coordinate of this route has
-//!    measured whole-method coverage, so no interval is published; the delta
-//!    method standard error is reported only as `uncalibrated_standard_error`,
-//!    and the interval request carries `cell_not_licensed`.
+//! 4. *Statistical inference*: the delta-method standard error
+//!    (`uncalibrated_standard_error`) and the clamped Wald interval of
+//!    [`sampled_transport_interval`], reported with a calibration annotation
+//!    resolved from the interval's basis. The `inference.interval` slot states whether
+//!    that interval is computable; when it is not (a partial identification, an
+//!    undefined observed formula, a non-finite variance) the slot carries the
+//!    scientific reason code and the reason.
 //!
 //! # Evidence
 //!
@@ -60,7 +63,7 @@
 //! declared independent that hold identical observations are refused as double
 //! counting (`evidence_double_counted`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod counts;
 mod envelope;
@@ -68,10 +71,11 @@ mod inference;
 mod interval;
 mod overlap;
 
+use crate::counterfactual_transport::RetainedSlice;
 use std::sync::Arc;
 
 use antecedent_core::{CanonicalWriter, ExecutionContext, RegimeId};
-use antecedent_expr::{ExactEvaluationLimits, ExactTransportData};
+use antecedent_expr::ExactTransportData;
 use antecedent_identify::CounterfactualTransportDerivation;
 
 use crate::counterfactual_transport::{
@@ -93,10 +97,10 @@ pub use interval::{
 pub use overlap::{DatasetOverlap, OverlapDeclaration, OverlapPair};
 
 use counts::{LawFlavor, law_of, table_probabilities};
-use inference::{DeltaOutcome, delta_standard_error};
-use overlap::{DatasetGroups, resolve_overlap};
+use inference::{DeltaOutcome, delta_contrast_standard_error, delta_standard_error};
+use overlap::{DatasetGroups, resolve_overlap_checked};
 
-/// Most count tables of one request.
+/// Reference table count of a request; not enforced.
 pub const SAMPLED_TRANSPORT_MAX_TABLES: usize = 64;
 /// Most cells of one count table.
 pub const SAMPLED_TRANSPORT_MAX_TABLE_CELLS: usize = 1 << 16;
@@ -110,8 +114,6 @@ pub const SAMPLED_TRANSPORT_UNCERTAINTY_METHOD: &str =
     "delta_method_multinomial_central_difference";
 /// Label of a reported standard error.
 pub const UNCALIBRATED_STANDARD_ERROR: &str = "uncalibrated_standard_error";
-/// The contract of the sampled route.
-pub const SAMPLED_TRANSPORT_CONTRACT: &str = "sampled_counterfactual_transport_v1";
 /// Domain tag of the evidence identity.
 pub const SAMPLED_TRANSPORT_IDENTITY_TAG: &str =
     "antecedent.estimate.counterfactual_transport_sampled.evidence.v1";
@@ -136,16 +138,16 @@ pub(crate) const DETAIL_ENVELOPE_BUDGET: &str = "counterfactual_transport_sample
 pub(crate) const DETAIL_CANCELLED: &str = "counterfactual_transport_sampled.cancelled";
 pub(crate) const DETAIL_ENVELOPE_EMPTY: &str =
     "counterfactual_transport_sampled.envelope_undefined";
-/// Detail of the withheld interval.
-pub const DETAIL_INTERVAL_NOT_LICENSED: &str =
-    "counterfactual_transport_sampled.interval_not_licensed";
+/// Detail of an interval that cannot be computed.
+pub const DETAIL_INTERVAL_NOT_COMPUTABLE: &str =
+    "counterfactual_transport_sampled.interval_not_computable";
 
 pub(crate) fn refused(
     code: &'static str,
     detail: &str,
     message: impl AsRef<str>,
 ) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {}", message.as_ref()))
+    EstimationError::refused_detail(code, detail, message)
 }
 
 pub(crate) fn invalid_counts(message: impl AsRef<str>) -> EstimationError {
@@ -174,7 +176,7 @@ pub struct SampledClaimLabels {
     pub exact_finite_law_evaluation: &'static str,
     /// What kind of number the value is.
     pub point_estimate: &'static str,
-    /// What statistical inference is licensed.
+    /// What statistical inference is supported.
     pub statistical_inference: &'static str,
 }
 
@@ -188,8 +190,11 @@ pub const LABEL_PLUG_IN: &str = "plug_in_point_estimate";
 pub const LABEL_SMOOTHED_PLUG_IN: &str = "smoothed_plug_in_point_estimate";
 /// No point estimate: a structural envelope only.
 pub const LABEL_ENVELOPE_ONLY: &str = "structural_envelope_no_point_estimate";
-/// Inference withheld: no coordinate has measured coverage.
-pub const LABEL_INFERENCE_WITHHELD: &str = "withheld_cell_not_licensed";
+/// Inference: the delta standard error is uncalibrated and the Wald interval of
+/// [`sampled_transport_interval`] carries a calibration status.
+pub const LABEL_INFERENCE_INTERVAL: &str = "delta_wald_interval_calibration_annotated";
+/// Inference: no interval can be computed for this estimate, a scientific outcome.
+pub const LABEL_INFERENCE_NOT_COMPUTABLE: &str = "interval_not_computable";
 
 /// A plug-in value and its parts.
 #[derive(Clone, Debug, PartialEq)]
@@ -225,18 +230,28 @@ pub struct UncalibratedStandardError {
     pub datasets: usize,
 }
 
-/// An interval route that is closed.
+/// Whether the delta Wald interval of a sampled result can be computed.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct WithheldUncertainty {
-    /// Always `cell_not_licensed`.
-    pub code: &'static str,
-    /// Always [`DETAIL_INTERVAL_NOT_LICENSED`].
-    pub detail: &'static str,
-    /// Calibration reason: `estimator_grid_not_measured`.
-    pub reason: &'static str,
+pub enum SampledIntervalOutcome {
+    /// The point and the standard error exist: [`sampled_transport_interval`] returns the
+    /// interval and its calibration annotation is resolved from the interval's basis.
+    Reported,
+    /// No interval exists for this estimate: a scientific outcome, not a calibration gap.
+    NotComputable {
+        /// Registered reason code: `effect_not_identified` for a partial identification,
+        /// `transport_support_failure` when the observed shares leave the formula undefined,
+        /// `transport_numerical_failure` for an undefined perturbed evaluation or a
+        /// non-finite variance.
+        code: &'static str,
+        /// Always [`DETAIL_INTERVAL_NOT_COMPUTABLE`].
+        detail: &'static str,
+        /// The stable reason the point or the standard error is absent.
+        reason: &'static str,
+    },
 }
 
-/// Statistical inference of a sampled result: no interval is ever published.
+/// Statistical inference of a sampled result: the standard error; the interval is
+/// [`sampled_transport_interval`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct SampledInference {
     /// Method that produced the standard error.
@@ -245,8 +260,8 @@ pub struct SampledInference {
     pub standard_error: Option<UncalibratedStandardError>,
     /// Why no standard error is reported, when it is not.
     pub standard_error_withheld_reason: Option<&'static str>,
-    /// The closed interval route.
-    pub interval: WithheldUncertainty,
+    /// Whether the interval of [`sampled_transport_interval`] exists.
+    pub interval: SampledIntervalOutcome,
 }
 
 /// Per-table accounting of how its law was produced.
@@ -272,6 +287,8 @@ pub struct SampledTableReport {
     pub pseudo_count: Option<f64>,
     /// Dataset index (tables of one shared dataset share it).
     pub dataset: usize,
+    /// Whether the table's strata totals were fixed by design.
+    pub stratified: bool,
 }
 
 /// Tolerance repairs applied while evaluating on estimated tables.
@@ -302,17 +319,237 @@ pub struct SampledCounterfactualTransportEstimate {
     /// The structural envelope, for an unseen-mass request with unseen cells.
     pub envelope: Option<StructuralEnvelope>,
     /// How each table's law was produced.
-    pub tables: Vec<SampledTableReport>,
+    pub tables: RetainedSlice<SampledTableReport>,
     /// Dataset groups of the overlap resolution, as table keys.
-    pub datasets: Vec<Vec<SampledTableKey>>,
+    pub datasets: RetainedSlice<Vec<SampledTableKey>>,
     /// The declared unseen-cell rule.
     pub unseen_rule: UnseenCellRule,
     /// Tolerance repairs.
     pub repairs: SampledRepairs,
     /// Regime-law cells read by the point evaluation.
     pub cells_read: u64,
-    /// Statistical inference: standard error uncalibrated, interval withheld.
+    /// Statistical inference: the uncalibrated standard error and whether the interval exists.
     pub inference: SampledInference,
+}
+
+/// A paired path-world contrast on one sampled evidence stack. Its standard
+/// error differentiates the difference of the two functionals, retaining the
+/// covariance induced by shared source and target observations. It has no
+/// measured coverage or interval claim.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SampledTransportContrastEstimate {
+    /// Active-world plug-in probability.
+    pub active: f64,
+    /// Baseline-world plug-in probability.
+    pub baseline: f64,
+    /// Active minus baseline on the same estimated tables.
+    pub contrast: f64,
+    /// Paired delta-method standard error, when all perturbations are defined.
+    pub standard_error: Option<UncalibratedStandardError>,
+    /// Stable reason for withholding the standard error.
+    pub standard_error_withheld_reason: Option<&'static str>,
+    /// Common count, overlap, unseen-cell and limit identity.
+    pub evidence_identity: String,
+    /// Distinct sampled units across overlap groups; duplicate table labels
+    /// for the same physical dataset contribute their total once.
+    pub sampled_units: u64,
+    /// No whole-contrast repeated-sampling calibration has been earned.
+    pub calibration: &'static str,
+}
+
+// A single checked allowance for point preparation, engine work and gradients.
+pub(crate) struct SampledWork<'a> {
+    remaining: usize,
+    ctx: &'a ExecutionContext,
+}
+
+impl SampledWork<'_> {
+    fn charge(&mut self, amount: usize) -> Result<(), EstimationError> {
+        if self.ctx.cancellation.is_cancelled() || amount == usize::MAX || amount > self.remaining {
+            return Err(refused(
+                antecedent_core::reason_code!("transport_budget_cancel"),
+                "counterfactual_transport.budget",
+                "the sampled evaluation operation budget is exhausted or cancelled",
+            ));
+        }
+        self.remaining -= amount;
+        Ok(())
+    }
+}
+
+// Refusal messages need not copy an unbounded caller-supplied label.
+fn name_preview(name: &str) -> &str {
+    let mut end = name.len().min(256);
+    while !name.is_char_boundary(end) {
+        end -= 1;
+    }
+    &name[..end]
+}
+
+// Conservative precharge for external provider constructors and catalog/view
+// validation. Constructors do not expose per-row metering, so their scans are
+// charged before entering them. Saturation always refuses through `charge`.
+fn table_work(
+    table: &SampledRegimeCounts,
+    work: &mut SampledWork<'_>,
+) -> Result<usize, EstimationError> {
+    work.charge(0)?;
+    let mut units = table
+        .counts()
+        .len()
+        .saturating_mul(12)
+        .saturating_add(table.interventions().len().saturating_mul(64))
+        .saturating_add(table.population().len())
+        .saturating_add(table.snapshot_identity().len())
+        .saturating_add(table.structural_zeros().len().saturating_mul(4))
+        .saturating_add(32);
+    for axis in table.axes() {
+        work.charge(1)?;
+        units = units.saturating_add(axis.levels.len().saturating_mul(64)).saturating_add(8);
+    }
+    Ok(units)
+}
+
+fn provider_work(
+    derivation: &CounterfactualTransportDerivation,
+    table: &SampledRegimeCounts,
+    table_count: usize,
+    work: &mut SampledWork<'_>,
+) -> Result<usize, EstimationError> {
+    work.charge(0)?;
+    let catalog = &derivation.catalog;
+    let mut coordinates = 0usize;
+    for e in catalog.environments.iter() {
+        work.charge(1)?;
+        coordinates = coordinates.saturating_add(e.variables.len());
+    }
+    let mut regimes = 0usize;
+    for r in catalog.regimes.iter() {
+        work.charge(1)?;
+        regimes = regimes
+            .saturating_add(r.measured.len())
+            .saturating_add(r.interventions.len())
+            .saturating_add(r.intervention_values.len())
+            .saturating_add(1);
+    }
+    // Catalog validation visits even environments with no coordinates once
+    // per law axis, so their count must enter the prepaid quote as well.
+    // Worst case: every provider binding shares a digest bucket. Exact
+    // comparisons must be accounted again for each provider reconstruction.
+    let dimensions = regimes
+        .saturating_add(table_count)
+        .saturating_add(catalog.environments.len())
+        .saturating_add(coordinates)
+        .saturating_add(catalog.bindings.len())
+        .saturating_add(derivation.items.len())
+        .saturating_add(1);
+    let mut units = table_work(table, work)?.saturating_mul(dimensions);
+    for axis in table.axes() {
+        work.charge(1)?;
+        let levels = axis.levels.len();
+        // Domain validation may compare every declared level with every axis value.
+        units = units.saturating_add(
+            coordinates.saturating_mul(levels.saturating_mul(levels).saturating_add(1)),
+        );
+        units = units.saturating_add(
+            derivation.items.len().saturating_mul(levels.saturating_mul(levels).saturating_add(1)),
+        );
+    }
+    Ok(units)
+}
+
+// Fallible stable merge sort: std sorting cannot abort while a large key is compared.
+fn checked_key_cmp(
+    a: &SampledTableKey,
+    b: &SampledTableKey,
+    work: &mut SampledWork<'_>,
+) -> Result<std::cmp::Ordering, EstimationError> {
+    use std::cmp::Ordering;
+    let left = a.population.as_bytes();
+    let right = b.population.as_bytes();
+    let common = left.len().min(right.len());
+    for offset in (0..common).step_by(512) {
+        work.charge(0)?;
+        let end = (offset + 512).min(common);
+        let order = left[offset..end].cmp(&right[offset..end]);
+        if order != Ordering::Equal {
+            return Ok(order);
+        }
+    }
+    let order = left.len().cmp(&right.len()).then_with(|| a.regime.cmp(&b.regime));
+    if order != Ordering::Equal {
+        return Ok(order);
+    }
+    let common = a.interventions.len().min(b.interventions.len());
+    for offset in (0..common).step_by(512) {
+        work.charge(0)?;
+        let end = (offset + 512).min(common);
+        let order = a.interventions[offset..end].cmp(&b.interventions[offset..end]);
+        if order != Ordering::Equal {
+            return Ok(order);
+        }
+    }
+    work.charge(0)?;
+    Ok(a.interventions.len().cmp(&b.interventions.len()))
+}
+
+fn checked_sort_tables(
+    mut entries: Vec<(SampledTableKey, String, SampledRegimeCounts)>,
+    work: &mut SampledWork<'_>,
+) -> Result<Vec<(SampledTableKey, String, SampledRegimeCounts)>, EstimationError> {
+    let n = entries.len();
+    let mut order = Vec::with_capacity(n);
+    for i in 0..n {
+        if i % 512 == 0 {
+            work.charge(0)?;
+        }
+        order.push(i);
+    }
+    let mut next = Vec::with_capacity(n);
+    let mut width = 1usize;
+    while width < n {
+        next.clear();
+        for start in (0..n).step_by(width.saturating_mul(2)) {
+            let mid = start.saturating_add(width).min(n);
+            let end = mid.saturating_add(width).min(n);
+            let (mut left, mut right) = (start, mid);
+            while left < mid && right < end {
+                let a = &entries[order[left]];
+                let b = &entries[order[right]];
+                let cmp = checked_key_cmp(&a.0, &b.0, work)?.then_with(|| a.1.cmp(&b.1));
+                if cmp == std::cmp::Ordering::Greater {
+                    next.push(order[right]);
+                    right += 1;
+                } else {
+                    next.push(order[left]);
+                    left += 1;
+                }
+            }
+            for &i in &order[left..mid] {
+                work.charge(0)?;
+                next.push(i);
+            }
+            for &i in &order[right..end] {
+                work.charge(0)?;
+                next.push(i);
+            }
+        }
+        std::mem::swap(&mut order, &mut next);
+        width = width.saturating_mul(2);
+    }
+    let mut slots = Vec::with_capacity(n);
+    for (index, entry) in entries.drain(..).enumerate() {
+        if index % 512 == 0 {
+            work.charge(0)?;
+        }
+        slots.push(Some(entry));
+    }
+    let mut sorted = Vec::with_capacity(n);
+    for index in order {
+        work.charge(0)?;
+        sorted.push(slots[index].take().expect("unique merge-sort index"));
+    }
+    Ok(sorted)
 }
 
 /// Evaluate the stored derivation on laws built from counts and return the
@@ -324,27 +561,23 @@ pub(crate) fn evaluate_detailed(
     flavors: &[LawFlavor],
     limits: &SampledTransportLimits,
     ctx: &ExecutionContext,
+    work: &mut SampledWork<'_>,
 ) -> Result<(CounterfactualTransportPoint, EvaluationRepairs), EstimationError> {
-    let mut laws = Vec::with_capacity(tables.len());
-    for ((table, p), flavor) in tables.iter().zip(probabilities).zip(flavors) {
-        laws.push(law_of(table, p, *flavor)?);
-    }
-    let data = ExactTransportData::try_new(laws, SAMPLED_TRANSPORT_MAX_TABLE_CELLS)
-        .map_err(|e| invalid_counts(format!("the estimated laws are not a provider set: {e}")))?;
-    evaluate_estimated_tables(derivation, &data, limits.evaluation, ctx)
-}
-
-/// The probability of the stored derivation on the given estimated tables.
-pub(crate) fn evaluate_probability(
-    derivation: &CounterfactualTransportDerivation,
-    tables: &[SampledRegimeCounts],
-    probabilities: &[Vec<f64>],
-    flavors: &[LawFlavor],
-    limits: &SampledTransportLimits,
-    ctx: &ExecutionContext,
-) -> Result<f64, EstimationError> {
-    evaluate_detailed(derivation, tables, probabilities, flavors, limits, ctx)
-        .map(|(point, _)| point.probability)
+    antecedent_core::numerical_admission::with_context(ctx, || {
+        let mut laws = Vec::with_capacity(tables.len());
+        for ((table, p), flavor) in tables.iter().zip(probabilities).zip(flavors) {
+            let units = provider_work(derivation, table, tables.len(), work)?;
+            work.charge(units)?;
+            laws.push(law_of(table, p, *flavor, work)?);
+        }
+        let data = ExactTransportData::try_new(laws, SAMPLED_TRANSPORT_MAX_TABLE_CELLS)
+            .map_err(|e| counts::map_law_error(e, "the estimated laws are not a provider set"))?;
+        let mut evaluation = limits.evaluation;
+        evaluation.operations = work.remaining;
+        let (point, repairs) = evaluate_estimated_tables(derivation, &data, evaluation, ctx)?;
+        work.charge(usize::try_from(repairs.operations).unwrap_or(usize::MAX))?;
+        Ok((point, repairs))
+    })
 }
 
 fn validate_request(request: &SampledTransportRequest) -> Result<(), EstimationError> {
@@ -361,28 +594,31 @@ fn validate_request(request: &SampledTransportRequest) -> Result<(), EstimationE
              envelope budget between one and the contract's maximum",
         ));
     }
-    if request.tables.is_empty() || request.tables.len() > SAMPLED_TRANSPORT_MAX_TABLES {
-        return Err(invalid_counts(format!(
-            "a request supplies between one and {SAMPLED_TRANSPORT_MAX_TABLES} count tables"
-        )));
+    if request.tables.is_empty() {
+        return Err(invalid_counts("a request supplies at least one count table"));
     }
     Ok(())
 }
 
 /// Digest of everything a plug-in estimate depends on besides the derivation.
-fn evidence_identity(request: &SampledTransportRequest, sorted: &[SampledRegimeCounts]) -> String {
+fn evidence_identity(
+    request: &SampledTransportRequest,
+    sorted: &[SampledRegimeCounts],
+    work: &mut SampledWork<'_>,
+) -> Result<String, EstimationError> {
     let mut w = CanonicalWriter::new(SAMPLED_TRANSPORT_IDENTITY_TAG);
     w.word(sorted.len() as u64);
     for table in sorted {
-        table.write_identity(&mut w);
+        table.write_identity_checked(&mut w, work)?;
     }
-    request.overlap.write_identity(&mut w);
+    request.overlap.write_identity_checked(&mut w, work)?;
     w.text(request.unseen_rule.name()).opt_real(request.unseen_rule.parameter());
     let limits = &request.limits;
     w.word(limits.min_table_total).real(limits.max_unseen_fraction);
     w.word(u64::from(limits.max_envelope_evaluations));
     w.word(limits.evaluation.operations as u64).word(limits.evaluation.depth as u64);
-    w.finish_hex()
+    work.charge(1)?;
+    Ok(w.finish_hex())
 }
 
 /// Estimate a stored counterfactual transport derivation from sampled counts.
@@ -424,71 +660,112 @@ pub fn estimate_sampled_counterfactual_transport(
         ));
     }
     validate_request(request)?;
-    let mut tables: Vec<SampledRegimeCounts> = request.tables.clone();
-    tables.sort_by_key(|a| (a.key(), a.content_identity()));
-    if tables.windows(2).any(|w| w[0].key() == w[1].key()) {
+    let mut work = SampledWork { remaining: request.limits.evaluation.operations, ctx };
+    // Precharge each table before cloning or hashing it; cached keys avoid
+    // re-hashing all counts during comparison sort.
+    let mut scratch_bytes = request.tables.len().saturating_mul(4096).saturating_add(4096);
+    let mut retained_bytes = request
+        .tables
+        .len()
+        .saturating_mul(
+            std::mem::size_of::<SampledTableReport>()
+                + std::mem::size_of::<Vec<SampledTableKey>>()
+                + std::mem::size_of::<SampledTableKey>()
+                + 512,
+        )
+        .saturating_add(1024);
+    for table in &request.tables {
+        let per_table = table_work(table, &mut work)?;
+        scratch_bytes = scratch_bytes.saturating_add(per_table.saturating_mul(16));
+        retained_bytes = retained_bytes.saturating_add(
+            table
+                .interventions()
+                .len()
+                .saturating_mul(std::mem::size_of::<(antecedent_core::VariableId, u64)>())
+                .saturating_mul(2),
+        );
+        let units = per_table.saturating_mul(
+            request.tables.len().saturating_add(derivation.cited.len()).saturating_add(2),
+        );
+        work.charge(units)?;
+    }
+    let admit = |bytes: usize| -> Result<_, EstimationError> {
+        let bytes = u64::try_from(bytes).ok().filter(|n| *n != u64::MAX).ok_or_else(|| {
+            refused(
+                antecedent_core::reason_code!("transport_budget_cancel"),
+                "counterfactual_transport.budget",
+                "the sampled memory quote overflows",
+            )
+        })?;
+        ctx.acquire_admission(0, bytes).map_err(|_| {
+            refused(
+                antecedent_core::reason_code!("transport_budget_cancel"),
+                "counterfactual_transport.budget",
+                "the sampled evaluation exceeds memory admission",
+            )
+        })
+    };
+    let _scratch = admit(scratch_bytes)?;
+    let retained = Arc::new(admit(retained_bytes)?);
+    // Every declared pair is scanned by overlap resolution for each table
+    // pair, and is later encoded in the evidence identity.
+    let table_pairs = request.tables.len().saturating_mul(request.tables.len());
+    for pair in request.overlap.pairs() {
+        let key_work = [&pair.a, &pair.b].iter().fold(1usize, |n, key| {
+            n.saturating_add(key.population.len())
+                .saturating_add(key.interventions.len().saturating_mul(2))
+        });
+        work.charge(key_work.saturating_mul(table_pairs.saturating_add(2)))?;
+    }
+    let mut keyed = Vec::with_capacity(request.tables.len());
+    for table in &request.tables {
+        let key = table.checked_key(&mut work)?;
+        let identity = table.checked_content_identity(&mut work)?;
+        let units = table_work(table, &mut work)?;
+        work.charge(units)?;
+        keyed.push((key, identity, table.checked_clone(&mut work)?));
+    }
+    let keyed = checked_sort_tables(keyed, &mut work)?;
+    let mut duplicate = false;
+    for pair in keyed.windows(2) {
+        if checked_key_cmp(&pair[0].0, &pair[1].0, &mut work)? == std::cmp::Ordering::Equal {
+            duplicate = true;
+            break;
+        }
+    }
+    if duplicate {
         return Err(invalid_counts(
             "two count tables name one population, regime and intervention world",
         ));
     }
-    for table in &tables {
-        let cited = derivation
-            .cited
-            .iter()
-            .any(|c| c.regime == table.regime() && c.population.as_ref() == table.population());
-        if !cited {
-            return Err(refused(
-                antecedent_core::reason_code!("invalid_argument"),
-                DETAIL_NOT_CITED,
-                format!(
-                    "population {} regime {} is not cited by the stored derivation; evidence the \
-                     derivation does not read is refused rather than ignored",
-                    table.population(),
-                    table.regime().raw()
-                ),
-            ));
-        }
+    let mut keys = Vec::with_capacity(keyed.len());
+    let mut identities = Vec::with_capacity(keyed.len());
+    let mut tables = Vec::with_capacity(keyed.len());
+    for (key, identity, table) in keyed {
+        work.charge(0)?;
+        keys.push(key);
+        identities.push(identity);
+        tables.push(table);
     }
-    for cited in &derivation.cited {
-        let supplied = tables
-            .iter()
-            .any(|t| t.regime() == cited.regime && t.population() == cited.population.as_ref());
-        if !supplied {
-            return Err(refused(
-                antecedent_core::reason_code!("transport_missing_provider"),
-                DETAIL_MISSING_TABLE,
-                format!(
-                    "the derivation cites population {} regime {} and no count table was supplied",
-                    cited.population,
-                    cited.regime.raw()
-                ),
-            ));
-        }
-    }
-    let groups: DatasetGroups = resolve_overlap(&tables, &request.overlap)?;
-    let mut probabilities: Vec<Vec<f64>> = Vec::with_capacity(tables.len());
-    let mut smoothed: Vec<bool> = Vec::with_capacity(tables.len());
-    for table in &tables {
-        let (p, was_smoothed) = table_probabilities(table, request.unseen_rule, &request.limits)?;
-        probabilities.push(p);
-        smoothed.push(was_smoothed);
-    }
-    let flavors: Vec<LawFlavor> =
-        smoothed.iter().map(|s| if *s { LawFlavor::Model } else { LawFlavor::Empirical }).collect();
-    let any_smoothed = smoothed.iter().any(|s| *s);
-    let any_unseen = tables.iter().any(|t| !t.unseen_cells().is_empty());
-    let envelope_mass = match request.unseen_rule {
-        UnseenCellRule::UnseenMassEnvelope { unseen_mass } if any_unseen => Some(unseen_mass),
-        _ => None,
-    };
+    validate_cited_tables(&tables, derivation, &mut work)?;
+    let groups: DatasetGroups = resolve_overlap_checked(&tables, &request.overlap, &mut work)?;
+    let PreparedSampledTables { probabilities, smoothed, flavors, any_smoothed, envelope_mass } =
+        prepare_sampled_tables(&tables, request, &mut work)?;
 
     let mut repairs = SampledRepairs::default();
     let mut point: Option<SampledPointEstimate> = None;
     let mut point_withheld_reason: Option<&'static str> = None;
     let mut cells_read = 0u64;
     let mut envelope: Option<StructuralEnvelope> = None;
-    let evaluated =
-        evaluate_detailed(derivation, &tables, &probabilities, &flavors, &request.limits, ctx);
+    let evaluated = evaluate_detailed(
+        derivation,
+        &tables,
+        &probabilities,
+        &flavors,
+        &request.limits,
+        ctx,
+        &mut work,
+    );
     match (evaluated, envelope_mass) {
         (Ok((value, applied)), _) => {
             repairs = SampledRepairs {
@@ -522,6 +799,7 @@ pub fn estimate_sampled_counterfactual_transport(
             mass,
             &request.limits,
             ctx,
+            &mut work,
         )?);
     }
 
@@ -536,6 +814,7 @@ pub fn estimate_sampled_counterfactual_transport(
             &groups,
             &request.limits,
             ctx,
+            &mut work,
         )? {
             DeltaOutcome::Computed { standard_error, evaluations } => (
                 Some(UncalibratedStandardError {
@@ -552,33 +831,68 @@ pub fn estimate_sampled_counterfactual_transport(
         }
     };
 
-    let mut dataset_of = vec![0usize; tables.len()];
+    let interval = if point.is_some() && standard_error.is_some() {
+        SampledIntervalOutcome::Reported
+    } else {
+        {
+            let (code, reason) = if envelope.is_some() {
+                (
+                    antecedent_core::reason_code!("effect_not_identified"),
+                    standard_error_withheld_reason,
+                )
+            } else if point.is_none() {
+                (antecedent_core::reason_code!("transport_support_failure"), point_withheld_reason)
+            } else {
+                (
+                    antecedent_core::reason_code!("transport_numerical_failure"),
+                    standard_error_withheld_reason,
+                )
+            };
+            SampledIntervalOutcome::NotComputable {
+                code,
+                detail: DETAIL_INTERVAL_NOT_COMPUTABLE,
+                reason: reason.unwrap_or("no_standard_error"),
+            }
+        }
+    };
+
+    let mut dataset_of = Vec::with_capacity(tables.len());
+    while dataset_of.len() < tables.len() {
+        work.charge(0)?;
+        dataset_of.resize(dataset_of.len().saturating_add(512).min(tables.len()), 0);
+    }
     for (g, members) in groups.groups.iter().enumerate() {
         for &m in members {
+            work.charge(0)?;
             dataset_of[m] = g;
         }
     }
-    let table_reports: Vec<SampledTableReport> = tables
-        .iter()
-        .enumerate()
-        .map(|(i, t)| SampledTableReport {
-            key: t.key(),
-            content_identity: t.content_identity(),
-            total: t.total(),
+    let mut table_reports = Vec::with_capacity(tables.len());
+    for (i, t) in tables.iter().enumerate() {
+        let (total, observed_cells, unseen_cells) = t.checked_report_counts(&mut work)?;
+        table_reports.push(SampledTableReport {
+            key: keys[i].checked_clone(&mut work)?,
+            content_identity: identities[i].clone(),
+            total,
             cells: t.cell_count(),
-            observed_cells: t.observed_cells(),
-            unseen_cells: t.unseen_cells().len(),
+            observed_cells,
+            unseen_cells,
             structural_zeros: t.structural_zeros().len(),
             smoothed: smoothed[i],
             pseudo_count: if smoothed[i] { request.unseen_rule.parameter() } else { None },
             dataset: dataset_of[i],
-        })
-        .collect();
-    let dataset_keys: Vec<Vec<SampledTableKey>> = groups
-        .groups
-        .iter()
-        .map(|members| members.iter().map(|m| tables[*m].key()).collect())
-        .collect();
+            stratified: matches!(t.design(), SamplingDesign::Stratified { .. }),
+        });
+    }
+    let mut dataset_keys = Vec::with_capacity(groups.groups.len());
+    for members in &groups.groups {
+        work.charge(0)?;
+        let mut group = Vec::with_capacity(members.len());
+        for &m in members {
+            group.push(keys[m].checked_clone(&mut work)?);
+        }
+        dataset_keys.push(group);
+    }
     let point_label = if envelope.is_some() && point.is_none() {
         LABEL_ENVELOPE_ONLY
     } else if any_smoothed {
@@ -586,23 +900,59 @@ pub fn estimate_sampled_counterfactual_transport(
     } else {
         LABEL_PLUG_IN
     };
+    work.charge(1)?;
+    let mut text_leases = Vec::new();
+    let mut text_bytes = 0usize;
+    let mut text_reserved = 0usize;
+    let derivation_text =
+        derivation.try_canonical_text(|amount| -> Result<(), EstimationError> {
+            work.charge(amount)?;
+            text_bytes = text_bytes.checked_add(amount).ok_or_else(|| {
+                refused(
+                    antecedent_core::reason_code!("transport_budget_cancel"),
+                    "counterfactual_transport.budget",
+                    "the derivation text size overflows",
+                )
+            })?;
+            // The callback also charges source-index sorting and deduplication, not
+            // just text bytes. Cover their word-sized buffers and String growth;
+            // aggregate fragments to avoid one lease per formatter write.
+            let needed = text_bytes.checked_mul(32).ok_or_else(|| {
+                refused(
+                    antecedent_core::reason_code!("transport_budget_cancel"),
+                    "counterfactual_transport.budget",
+                    "the derivation text size overflows",
+                )
+            })?;
+            if needed > text_reserved {
+                let additional = needed.saturating_sub(text_reserved).max(4096);
+                text_leases.push(admit(additional)?);
+                text_reserved = text_reserved.saturating_add(additional);
+            }
+            Ok(())
+        })?;
+    let mut derivation_writer = CanonicalWriter::new(SAMPLED_TRANSPORT_DERIVATION_TAG);
+    derivation_writer.try_bytes(derivation_text.as_bytes(), || work.charge(0))?;
+    let derivation_identity = derivation_writer.finish_hex();
+    let evidence_identity = evidence_identity(request, &tables, &mut work)?;
     Ok(SampledCounterfactualTransportEstimate {
         labels: SampledClaimLabels {
             structural_identification: LABEL_IDENTIFIED,
             exact_finite_law_evaluation: LABEL_EXACT_ON_ESTIMATED_TABLES,
             point_estimate: point_label,
-            statistical_inference: LABEL_INFERENCE_WITHHELD,
+            statistical_inference: if matches!(interval, SampledIntervalOutcome::Reported) {
+                LABEL_INFERENCE_INTERVAL
+            } else {
+                LABEL_INFERENCE_NOT_COMPUTABLE
+            },
         },
-        derivation_identity: CanonicalWriter::digest_bytes_hex(
-            SAMPLED_TRANSPORT_DERIVATION_TAG,
-            derivation.canonical_text().as_bytes(),
-        ),
-        evidence_identity: evidence_identity(request, &tables),
+        derivation_identity,
+        evidence_identity,
         point,
         point_withheld_reason,
         envelope,
-        tables: table_reports,
-        datasets: dataset_keys,
+        tables: RetainedSlice::new(table_reports, vec![Arc::clone(&retained)]),
+        datasets: RetainedSlice::new(dataset_keys, vec![retained]),
         unseen_rule: request.unseen_rule,
         repairs,
         cells_read,
@@ -610,12 +960,140 @@ pub fn estimate_sampled_counterfactual_transport(
             method: SAMPLED_TRANSPORT_UNCERTAINTY_METHOD,
             standard_error,
             standard_error_withheld_reason,
-            interval: WithheldUncertainty {
-                code: antecedent_core::reason_code!("cell_not_licensed"),
-                detail: DETAIL_INTERVAL_NOT_LICENSED,
-                reason: antecedent_core::reason_code!("estimator_grid_not_measured"),
-            },
+            interval,
         },
+    })
+}
+
+/// Estimate two identified worlds and the delta uncertainty of their
+/// difference from one declared sampled evidence stack. The same physical
+/// dataset is perturbed in both worlds, so its covariance is retained. A
+/// structural unseen-mass envelope is refused because it has no point
+/// functional to differentiate. The reported standard error is uncalibrated.
+///
+/// # Errors
+/// Invalid or uncited count evidence, undeclared unit overlap, unsupported
+/// unseen-cell rules, missing providers, evaluation failure or budget refusal.
+#[allow(clippy::too_many_lines, reason = "one pass from validation through both worlds")]
+pub fn estimate_sampled_counterfactual_transport_contrast(
+    active: &CounterfactualTransportDerivation,
+    baseline: &CounterfactualTransportDerivation,
+    request: &SampledTransportRequest,
+    ctx: &ExecutionContext,
+) -> Result<SampledTransportContrastEstimate, EstimationError> {
+    validate_request(request)?;
+    if matches!(request.unseen_rule, UnseenCellRule::UnseenMassEnvelope { .. }) {
+        return Err(refused(
+            antecedent_core::reason_code!("route_not_supported"),
+            antecedent_core::reason_details::counterfactual_transport_sampled::CONTRAST_ENVELOPE,
+            "a structural unseen-mass envelope has no differentiable point contrast",
+        ));
+    }
+    let mut work = SampledWork { remaining: request.limits.evaluation.operations, ctx };
+    let cells = request
+        .tables
+        .iter()
+        .try_fold(0usize, |n, table| n.checked_add(table.cell_count()))
+        .ok_or_else(|| invalid_counts("the sampled contrast table size overflows"))?;
+    let memory = cells
+        .checked_mul(128)
+        .and_then(|n| n.checked_add(8192))
+        .and_then(|n| u64::try_from(n).ok())
+        .ok_or_else(|| invalid_counts("the sampled contrast memory quote overflows"))?;
+    let _admission = ctx.acquire_admission(0, memory).map_err(|_| {
+        refused(
+            antecedent_core::reason_code!("transport_budget_cancel"),
+            antecedent_core::reason_details::counterfactual_transport::BUDGET,
+            "the sampled contrast exceeds memory admission",
+        )
+    })?;
+    let mut keyed = Vec::with_capacity(request.tables.len());
+    for table in &request.tables {
+        let table_units = table_work(table, &mut work)?;
+        work.charge(table_units)?;
+        keyed.push((
+            table.checked_key(&mut work)?,
+            table.checked_content_identity(&mut work)?,
+            table.checked_clone(&mut work)?,
+        ));
+    }
+    let keyed = checked_sort_tables(keyed, &mut work)?;
+    for pair in keyed.windows(2) {
+        if checked_key_cmp(&pair[0].0, &pair[1].0, &mut work)? == std::cmp::Ordering::Equal {
+            return Err(invalid_counts(
+                "two count tables name one population, regime and intervention world",
+            ));
+        }
+    }
+    let tables: Vec<_> = keyed.into_iter().map(|(_, _, table)| table).collect();
+    let mut union = active.clone();
+    union.cited.extend(baseline.cited.iter().cloned());
+    validate_cited_tables(&tables, &union, &mut work)?;
+    let groups = resolve_overlap_checked(&tables, &request.overlap, &mut work)?;
+    let sampled_units = groups
+        .groups
+        .iter()
+        .try_fold(0u64, |total, group| total.checked_add(tables[group[0]].total()))
+        .ok_or_else(|| invalid_counts("the sampled contrast unit total overflows"))?;
+    let prepared = prepare_sampled_tables(&tables, request, &mut work)?;
+    let (active_point, _) = evaluate_detailed(
+        active,
+        &tables,
+        &prepared.probabilities,
+        &prepared.flavors,
+        &request.limits,
+        ctx,
+        &mut work,
+    )?;
+    let (baseline_point, _) = evaluate_detailed(
+        baseline,
+        &tables,
+        &prepared.probabilities,
+        &prepared.flavors,
+        &request.limits,
+        ctx,
+        &mut work,
+    )?;
+    let contrast = active_point.probability - baseline_point.probability;
+    if !contrast.is_finite() {
+        return Err(refused(
+            antecedent_core::reason_code!("transport_numerical_failure"),
+            antecedent_core::reason_details::counterfactual_transport_sampled::CONTRAST_NONFINITE,
+            "the paired path contrast is nonfinite",
+        ));
+    }
+    let (standard_error, standard_error_withheld_reason) = match delta_contrast_standard_error(
+        active,
+        baseline,
+        &tables,
+        &prepared.probabilities,
+        &groups,
+        &request.limits,
+        ctx,
+        &mut work,
+    )? {
+        DeltaOutcome::Computed { standard_error, evaluations } => (
+            Some(UncalibratedStandardError {
+                value: standard_error,
+                label: UNCALIBRATED_STANDARD_ERROR,
+                method: SAMPLED_TRANSPORT_UNCERTAINTY_METHOD,
+                gradient_relative_step: SAMPLED_TRANSPORT_GRADIENT_RELATIVE_STEP,
+                gradient_evaluations: evaluations,
+                datasets: groups.groups.len(),
+            }),
+            None,
+        ),
+        DeltaOutcome::Withheld { reason } => (None, Some(reason)),
+    };
+    Ok(SampledTransportContrastEstimate {
+        active: active_point.probability,
+        baseline: baseline_point.probability,
+        contrast,
+        standard_error,
+        standard_error_withheld_reason,
+        evidence_identity: evidence_identity(request, &tables, &mut work)?,
+        sampled_units,
+        calibration: "not_measured",
     })
 }
 
@@ -681,8 +1159,170 @@ pub fn cited_identities(
     derivation.cited.iter().map(|c| (Arc::clone(&c.population), c.regime)).collect()
 }
 
-/// Default exact-evaluation limits used by a sampled request.
-#[must_use]
-pub fn default_evaluation_limits() -> ExactEvaluationLimits {
-    ExactEvaluationLimits::default()
+struct PreparedSampledTables {
+    probabilities: Vec<Vec<f64>>,
+    smoothed: Vec<bool>,
+    flavors: Vec<LawFlavor>,
+    any_smoothed: bool,
+    envelope_mass: Option<f64>,
 }
+
+fn prepare_sampled_tables(
+    tables: &[SampledRegimeCounts],
+    request: &SampledTransportRequest,
+    work: &mut SampledWork<'_>,
+) -> Result<PreparedSampledTables, EstimationError> {
+    let mut probabilities: Vec<Vec<f64>> = Vec::with_capacity(tables.len());
+    let mut smoothed: Vec<bool> = Vec::with_capacity(tables.len());
+    for table in tables {
+        let (p, was_smoothed) =
+            table_probabilities(table, request.unseen_rule, &request.limits, work)?;
+        probabilities.push(p);
+        smoothed.push(was_smoothed);
+    }
+    let mut flavors = Vec::with_capacity(smoothed.len());
+    let mut any_smoothed = false;
+    for chunk in smoothed.chunks(512) {
+        work.charge(0)?;
+        for &s in chunk {
+            any_smoothed |= s;
+            flavors.push(if s { LawFlavor::Model } else { LawFlavor::Empirical });
+        }
+    }
+    let mut any_unseen = false;
+    for table in tables {
+        if !table.checked_unseen_cells(work)?.is_empty() {
+            any_unseen = true;
+            break;
+        }
+    }
+    let envelope_mass = match request.unseen_rule {
+        UnseenCellRule::UnseenMassEnvelope { unseen_mass } if any_unseen => Some(unseen_mass),
+        _ => None,
+    };
+
+    Ok(PreparedSampledTables { probabilities, smoothed, flavors, any_smoothed, envelope_mass })
+}
+
+fn validate_cited_tables(
+    tables: &[SampledRegimeCounts],
+    derivation: &CounterfactualTransportDerivation,
+    work: &mut SampledWork<'_>,
+) -> Result<(), EstimationError> {
+    #[allow(
+        clippy::items_after_statements,
+        reason = "the local helper belongs to this bounded calculation"
+    )]
+    fn same_population(
+        a: &str,
+        b: &str,
+        work: &mut SampledWork<'_>,
+    ) -> Result<bool, EstimationError> {
+        work.charge(0)?;
+        if a.len() != b.len() {
+            return Ok(false);
+        }
+        for (left, right) in a.as_bytes().chunks(512).zip(b.as_bytes().chunks(512)) {
+            work.charge(0)?;
+            if left != right {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+    for table in tables {
+        let mut cited = false;
+        for c in &derivation.cited {
+            work.charge(0)?;
+            if c.regime == table.regime()
+                && same_population(c.population.as_ref(), table.population(), work)?
+            {
+                cited = true;
+                break;
+            }
+        }
+        if !cited {
+            return Err(refused(
+                antecedent_core::reason_code!("invalid_argument"),
+                DETAIL_NOT_CITED,
+                format!(
+                    "population {} regime {} is not cited by the stored derivation; evidence the \
+                     derivation does not read is refused rather than ignored",
+                    name_preview(table.population()),
+                    table.regime().raw()
+                ),
+            ));
+        }
+    }
+    for cited in &derivation.cited {
+        let mut supplied = false;
+        for table in tables {
+            work.charge(0)?;
+            if table.regime() == cited.regime
+                && same_population(table.population(), cited.population.as_ref(), work)?
+            {
+                supplied = true;
+                break;
+            }
+        }
+        if !supplied {
+            return Err(refused(
+                antecedent_core::reason_code!("transport_missing_provider"),
+                DETAIL_MISSING_TABLE,
+                format!(
+                    "the derivation cites population {} regime {} and no count table was supplied",
+                    name_preview(&cited.population),
+                    cited.regime.raw()
+                ),
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod prepared_table_tests {
+    use super::*;
+    use antecedent_core::VariableId;
+
+    #[test]
+    fn preparation_labels_smoothing_and_preserves_unseen_envelope() {
+        let table = SampledRegimeCounts::try_new(SampledRegimeCountsParts {
+            population: Arc::from("source"),
+            regime: RegimeId::from_raw(0),
+            interventions: vec![],
+            axes: vec![SampledAxis { variable: VariableId::from_raw(0), levels: vec![0.0, 1.0] }],
+            counts: vec![100, 0],
+            snapshot_identity: Arc::from("sample"),
+            design: SamplingDesign::IndependentUnits,
+            structural_zeros: vec![],
+        })
+        .unwrap();
+        let limits = SampledTransportLimits {
+            max_unseen_fraction: 1.0,
+            ..SampledTransportLimits::default()
+        };
+        let mut request = SampledTransportRequest {
+            tables: vec![],
+            overlap: OverlapDeclaration::all_independent(),
+            unseen_rule: UnseenCellRule::AdditiveSmoothing { pseudo_count: 1.0 },
+            limits,
+        };
+        let ctx = ExecutionContext::for_tests(1);
+        let mut work = SampledWork { remaining: 100_000, ctx: &ctx };
+        let smooth =
+            prepare_sampled_tables(std::slice::from_ref(&table), &request, &mut work).unwrap();
+        assert_eq!(smooth.probabilities[0], vec![101.0 / 102.0, 1.0 / 102.0]);
+        assert_eq!(smooth.smoothed, vec![true]);
+        assert!(smooth.any_smoothed && smooth.envelope_mass.is_none());
+        request.unseen_rule = UnseenCellRule::UnseenMassEnvelope { unseen_mass: 0.1 };
+        let envelope = prepare_sampled_tables(&[table], &request, &mut work).unwrap();
+        assert_eq!(envelope.probabilities[0], vec![1.0, 0.0]);
+        assert_eq!(envelope.envelope_mass, Some(0.1));
+        assert!(!envelope.any_smoothed);
+    }
+}
+
+#[cfg(test)]
+#[path = "counterfactual_transport_sampled/budget_tests.rs"]
+mod budget_tests;

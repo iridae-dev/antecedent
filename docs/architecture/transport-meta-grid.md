@@ -1,9 +1,14 @@
 # Complementary sources and retained finite transport responses
 
+This page describes transport from several sources and the retained grid of finite responses:
+how identification is checked, how providers and responses execute, what the durable artifact
+binds, and which tests and coverage records back it. It is for a contributor to the transport
+engine and a reviewer; it extends [exact single-source transport](transport-exact.md).
+
 The theoretical contract is Bareinboim and Pearl (2013),
 [*Meta-Transportability of Causal Effects: A Formal Approach*](https://proceedings.mlr.press/v31/bareinboim13a.pdf),
 Figure 5 (μsID) and its μs-hedge obstruction theorem. Only the paper's unrestricted
-source-experiment setting licenses completeness. The
+source-experiment setting supports completeness. The
 [limited-experiment setting](https://ftp.cs.ucla.edu/pub/stat_ser/r419.pdf) is
 distinct. Arbitrary finite catalogs and general limited-experiment completeness
 remain outside this claim.
@@ -78,12 +83,12 @@ aliases fail validation. Unknown, linked or clustered dependence retains point
 estimates and withholds IID uncertainty. Alternative formulas are never averaged
 and disagreeing sources are never silently pooled.
 
-T6's outer bootstrap uses the same successful replicate IDs across executable
+The outer bootstrap uses the same successful replicate IDs across executable
 points. A support failure invalidates the entire replicate family. A contrast
 references two points and the parent grid identity and uses paired draws.
 Requested coordinates and the executable family are both identity inputs.
-Intervals are pointwise and nominal. Quantile inference, derivatives,
-simultaneous bands, and new calibrated-coverage claims remain closed.
+Intervals are pointwise and nominal, and each carries its calibration status.
+Quantile inference, derivatives and simultaneous bands are not supported.
 
 ## Durable authority and migration
 
@@ -129,10 +134,5 @@ That Python file also supplies reproducible unequal-size sampling fixtures,
 provider aliases, partial grids, missing joint regimes, support failures,
 artifact consumption and mutation, atomic refresh and resource controls.
 `test_bounded_multisource_calibration_fixture` checks deterministic execution and
-paired bookkeeping only. It is **not a coverage measurement**.
-
-No coverage measurement of the multi-source grid exists: an env-gated hit-count
-script that printed counts without asserting a band was removed rather than kept
-as evidence. No hours-long calibration
-was run for T7–T9 implementation, and the calibration-dependent T7
-and T8 completion gates remain open.
+paired bookkeeping only. It is **not a coverage measurement**: the grid's
+pointwise intervals report their calibration status like every other interval.

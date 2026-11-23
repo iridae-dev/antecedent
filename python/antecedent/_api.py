@@ -48,6 +48,52 @@ def _binds(fn: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]
     return True
 
 
+def attach_refusal_report(
+    fn: Callable[..., Any],
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    error: BaseException,
+) -> None:
+    """Attach the machine-readable operation context of a refused call to ``error``.
+
+    The same bookkeeping :func:`describe_refusal` applies to an exception that leaves ``fn``;
+    a workflow that keeps the refusal beside another result (the opt-in descriptive fallback)
+    calls it so the kept refusal carries exactly the report the raised one would.
+    """
+    message = str(error)
+    if (
+        getattr(error, "reason_code", None) is None
+        and isinstance(error, TypeError)
+        and not _binds(fn, args, kwargs)
+    ):
+        # The call itself did not match the signature (an unknown or
+        # missing keyword): the argument, not the analysis, is refused.
+        cast(Any, error).reason_code = "invalid_argument"
+    names = _caller_names(args, kwargs)
+    raw_edges = pending_edges(error)
+    existing = getattr(error, "report", None)
+    # Inner @describe_refusal wraps attach first (often on `self`).
+    # Rebuild when this frame has names so V3 resolves at analyze().
+    if existing is None or names:
+        edges = named_pending_edges(raw_edges, names) if names else raw_edges
+        report = RefusalReport(
+            operation=fn.__name__,
+            # An attribute that exists but is ``None`` falls through to
+            # the next source rather than becoming the code.
+            code=getattr(error, "reason_code", None)
+            or getattr(error, "reason", None)
+            or type(error).__name__,
+            message=message,
+            query=kwargs.get("query", getattr(args[0], "_query", None) if args else None),
+            hint=getattr(error, "hint", None),
+            pending_edges=edges,
+            next=next_action(error, edges),
+        )
+        cast(Any, error).report = report
+    if args and hasattr(args[0], "_native"):
+        cast(Any, error).study = args[0]
+
+
 def describe_refusal(fn: Callable[P, R]) -> Callable[P, R]:
     """Keep original exceptions and attach machine-readable operation context."""
 
@@ -56,38 +102,7 @@ def describe_refusal(fn: Callable[P, R]) -> Callable[P, R]:
         try:
             result = fn(*args, **kwargs)
         except (CausalError, ValueError, TypeError) as error:
-            message = str(error)
-            if (
-                getattr(error, "reason_code", None) is None
-                and isinstance(error, TypeError)
-                and not _binds(fn, args, kwargs)
-            ):
-                # The call itself did not match the signature (an unknown or
-                # missing keyword): the argument, not the analysis, is refused.
-                cast(Any, error).reason_code = "invalid_argument"
-            names = _caller_names(args, kwargs)
-            raw_edges = pending_edges(error)
-            existing = getattr(error, "report", None)
-            # Inner @describe_refusal wraps attach first (often on `self`).
-            # Rebuild when this frame has names so V3 resolves at analyze().
-            if existing is None or names:
-                edges = named_pending_edges(raw_edges, names) if names else raw_edges
-                report = RefusalReport(
-                    operation=fn.__name__,
-                    # An attribute that exists but is ``None`` falls through to
-                    # the next source rather than becoming the code.
-                    code=getattr(error, "reason_code", None)
-                    or getattr(error, "reason", None)
-                    or type(error).__name__,
-                    message=message,
-                    query=kwargs.get("query", getattr(args[0], "_query", None) if args else None),
-                    hint=getattr(error, "hint", None),
-                    pending_edges=edges,
-                    next=next_action(error, edges),
-                )
-                cast(Any, error).report = report
-            if args and hasattr(args[0], "_native"):
-                cast(Any, error).study = args[0]
+            attach_refusal_report(fn, args, kwargs, error)
             raise
         return result
 

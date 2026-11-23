@@ -8,8 +8,7 @@ use crate::temporal_block::{AlignedRows, normal_equation_scores_of_residuals};
 use crate::temporal_response_dispersion::CellDispersion;
 use antecedent_core::{
     AssumptionSet, Diagnostic, DiagnosticKind, DiagnosticSeverity, HorizonIdentification,
-    IdentificationStatus, MAX_TEMPORAL_RESPONSE_CELLS, ResponseUncertainty, SupportReport,
-    TemporalNodeKey, VariableId,
+    IdentificationStatus, ResponseUncertainty, SupportReport, TemporalNodeKey, VariableId,
 };
 use antecedent_data::TemporalIndexer;
 use antecedent_expr::IdentifiedEstimand;
@@ -17,11 +16,37 @@ use antecedent_stats::{CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSqu
 
 use super::{
     assumptions::BLOCK_BOOTSTRAP_CONSTRUCTION, assumptions::SURFACE_REFIT,
-    band::TEMPORAL_RESPONSE_BAND_WITHHELD, band::max_deviation_band,
+    band::TEMPORAL_RESPONSE_NO_BAND_METHOD, band::max_deviation_band,
     band::publish_simultaneous_band, block::ResponseBlockLength, block::block_dispersion_inflation,
     block::disclose_response_block_bootstrap, block::inflate_replicates,
     bootstrap::SurfaceBootstrap, bootstrap::sample_std_cell,
 };
+
+/// Support-diagnostic id carrying the joint replicates of the whole dose × horizon surface,
+/// replicate-major: `values[r * cells + c]` is cell `c` of replicate `r`, in the cell layout of
+/// the mean surface. Each replicate refits every horizon on the same time-aligned blocks (or
+/// under one block-weight vector), so a row is one realization coupled across horizons. Published
+/// only when the estimator is asked to retain them.
+pub const JOINT_HORIZON_REPLICATES: &str = "response.joint_horizon.replicates";
+
+/// Support-diagnostic id carrying `[replicates, cells, horizon index of cell 0, …]`: the shape
+/// of [`JOINT_HORIZON_REPLICATES`] and, for each cell, the index (into the requested horizons)
+/// of the horizon it reads. Its detail names the resampling that drew the replicates.
+pub const JOINT_HORIZON_LAYOUT: &str = "response.joint_horizon.layout";
+
+/// Support-diagnostic id carrying the dispersion readings behind the joint replicates:
+/// `[block length, resampled rows, replicate dispersion factor, circular fixed-b scale,
+/// block-weight draws (1) or bootstrap counts (0), effective blocks, kernel-bias factor of each
+/// cell …]`. The effective block count is `rows² / Σ block sizes²` over the consecutive blocks
+/// that carry one weight each. A composition across cells reads these to replace the per-cell
+/// kernel-bias factors by the factor of its own influence.
+pub const JOINT_HORIZON_DISPERSION: &str = "response.joint_horizon.dispersion";
+
+/// Support-diagnostic id carrying each cell's level influence over the series times every
+/// horizon fits, cell-major: `values[c * rows + t]` is cell `c` at the `t`-th such time, `rows`
+/// the resampled rows of [`JOINT_HORIZON_DISPERSION`]. Published with the joint replicates of a
+/// series without missing time points.
+pub const JOINT_HORIZON_INFLUENCE: &str = "response.joint_horizon.influence";
 
 /// Index of the treatment column in the compiled design (col0 = intercept, col1 = treatment).
 /// Verified against `CompiledDesign::linear_adjustment`.
@@ -43,6 +68,11 @@ pub(super) struct FittedSurface {
     pub(super) bootstrap: Option<SurfaceBootstrap>,
     pub(super) se_provenance: SeProvenance,
     pub(super) block: ResponseBlockLength,
+    /// The replicates are Dirichlet block-weight draws (the posterior over the surface), not
+    /// bootstrap counts.
+    pub(super) weighted: bool,
+    /// Publish the joint replicates behind the band as support diagnostics.
+    pub(super) retain_joint: bool,
 }
 
 /// Where a surface's pointwise SEs came from, so the band can say so.
@@ -97,6 +127,10 @@ pub(super) enum CellEval {
 pub(super) struct SurfaceCells {
     pub(super) mean: Vec<f64>,
     pub(super) band: Option<CellBand>,
+    /// Index of the horizon each cell reads.
+    pub(super) cell_horizon: Vec<usize>,
+    /// What each cell evaluates at its horizon.
+    pub(super) evals: Vec<CellEval>,
 }
 
 /// Pointwise band and the joint replicate draws behind it.
@@ -107,6 +141,9 @@ pub(super) struct CellBand {
     pub(super) draws: Vec<Vec<f64>>,
     /// Each cell's kernel-bias factor and effective rows.
     pub(super) dispersion: CellDispersion,
+    /// What the band's level means: sampling coverage of a bootstrap, or posterior mass of the
+    /// block-weight draws.
+    pub(super) interpretation: antecedent_core::IntervalInterpretation,
 }
 
 impl SurfaceCells {
@@ -122,7 +159,7 @@ impl SurfaceCells {
                 level: 0.95,
                 lower: Arc::from(band.lower.as_slice()),
                 upper: Arc::from(band.upper.as_slice()),
-                interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                interpretation: band.interpretation,
                 draws: None,
             }
         })
@@ -179,9 +216,19 @@ impl FittedSurface {
                 upper: mean.iter().zip(&se).map(|(m, s)| m + z * s).collect(),
                 draws,
                 dispersion,
+                interpretation: if self.weighted {
+                    antecedent_core::IntervalInterpretation::Credible
+                } else {
+                    antecedent_core::IntervalInterpretation::Confidence
+                },
             }
         });
-        SurfaceCells { mean, band }
+        SurfaceCells {
+            mean,
+            band,
+            cell_horizon: cells.iter().map(|&(h, _)| h).collect(),
+            evals: cells.iter().map(|&(_, eval)| eval).collect(),
+        }
     }
 
     /// Record how the band was built and publish (or withhold) the simultaneous band.
@@ -208,10 +255,13 @@ impl FittedSurface {
                 max_deviation_band(&cells.mean, &band.draws, 0.95),
                 BLOCK_BOOTSTRAP_CONSTRUCTION,
             );
+            if self.retain_joint {
+                self.publish_joint_replicates(support, cells, band);
+            }
         } else {
             if replicates == 0 {
                 support.warnings.push(Diagnostic::new(
-                    TEMPORAL_RESPONSE_BAND_WITHHELD,
+                    TEMPORAL_RESPONSE_NO_BAND_METHOD,
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Warning,
                     "no pointwise or simultaneous band: an analytic OLS band would treat \
@@ -231,6 +281,99 @@ impl FittedSurface {
             );
         }
         assumptions
+    }
+}
+
+impl FittedSurface {
+    /// Publish the joint replicates of the surface (see [`JOINT_HORIZON_REPLICATES`]).
+    fn publish_joint_replicates(
+        &self,
+        support: &mut SupportReport,
+        cells: &SurfaceCells,
+        band: &CellBand,
+    ) {
+        use antecedent_core::{DiagnosticScope, SupportDiagnostic};
+        let n_cells = cells.mean.len();
+        let mut layout = vec![band.draws.len() as f64, n_cells as f64];
+        layout.extend(cells.cell_horizon.iter().map(|&h| h as f64));
+        let values: Vec<f64> = band.draws.iter().flat_map(|draw| draw.iter().copied()).collect();
+        let resampling = if self.weighted {
+            "Dirichlet block weights: one Exp(1) weight per block of consecutive series times, \
+             shared by every horizon, with a weighted least-squares refit of each horizon (draws \
+             of the posterior over the surface given the empirical law of the lag windows)"
+        } else {
+            "circular-block bootstrap: every horizon refit on the same resampled series times \
+             (replicates of the estimator's sampling law)"
+        };
+        support.diagnostics.push(SupportDiagnostic {
+            id: Arc::from(JOINT_HORIZON_LAYOUT),
+            values: Arc::from(layout),
+            detail: Arc::from(format!(
+                "[replicates, cells, horizon index of each cell] of the joint replicates; drawn \
+                 by a {resampling}; replicate deviations carry the published dispersion factors"
+            )),
+            scope: DiagnosticScope::Global,
+        });
+        support.diagnostics.push(SupportDiagnostic {
+            id: Arc::from(JOINT_HORIZON_REPLICATES),
+            values: Arc::from(values),
+            detail: Arc::from(
+                "replicate-major joint replicates of the whole dose × horizon surface in the cell \
+                 layout of the mean surface; a row is one realization coupled across horizons",
+            ),
+            scope: DiagnosticScope::Global,
+        });
+        let rows = self.rows();
+        let block = self.block.length.clamp(1, rows.max(1));
+        let (full, rest) = (rows / block, rows % block);
+        let squares = (full * block * block + rest * rest) as f64;
+        let effective_blocks = if squares > 0.0 { (rows * rows) as f64 / squares } else { 0.0 };
+        let mut dispersion = vec![
+            self.block.length as f64,
+            rows as f64,
+            self.inflation(),
+            crate::temporal_block::circular_fixed_b_scale(self.block.length, rows),
+            f64::from(u8::from(self.weighted)),
+            effective_blocks,
+        ];
+        dispersion.extend_from_slice(&band.dispersion.kernel_factors);
+        support.diagnostics.push(SupportDiagnostic {
+            id: Arc::from(JOINT_HORIZON_DISPERSION),
+            values: Arc::from(dispersion),
+            detail: Arc::from(
+                "[block length, resampled rows, replicate dispersion factor, circular fixed-b \
+                 scale, 1 for block-weight draws and 0 for bootstrap counts, effective blocks \
+                 rows²/Σ block sizes², kernel-bias factor of each cell]",
+            ),
+            scope: DiagnosticScope::Global,
+        });
+        if let Some(influence) = self.cell_influence_window(cells, rows) {
+            support.diagnostics.push(SupportDiagnostic {
+                id: Arc::from(JOINT_HORIZON_INFLUENCE),
+                values: Arc::from(influence),
+                detail: Arc::from(
+                    "cell-major level influence of every cell over the series times every \
+                     horizon fits (the resampled rows); a composition across cells reads the \
+                     kernel-bias factor of its own influence from these",
+                ),
+                scope: DiagnosticScope::Global,
+            });
+        }
+    }
+
+    /// Each cell's level influence over the last `rows` series times (the window every horizon
+    /// fits), cell-major. `None` on a series with missing time points, whose rows are not
+    /// consecutive, or when a horizon's influence is unavailable.
+    fn cell_influence_window(&self, cells: &SurfaceCells, rows: usize) -> Option<Vec<f64>> {
+        if rows == 0 || self.horizons.iter().any(|fitted| fitted.selection.is_some()) {
+            return None;
+        }
+        let mut values = Vec::with_capacity(cells.evals.len() * rows);
+        for (&h, &eval) in cells.cell_horizon.iter().zip(&cells.evals) {
+            let influence = self.horizons[h].level_influence(eval)?;
+            values.extend_from_slice(influence.get(influence.len().checked_sub(rows)?..)?);
+        }
+        Some(values)
     }
 }
 
@@ -547,12 +690,14 @@ pub(super) fn checked_surface_cells(
 ) -> Result<usize, EstimationError> {
     let cells = doses
         .checked_mul(horizons)
-        .filter(|cells| *cells <= MAX_TEMPORAL_RESPONSE_CELLS)
+        .filter(|cells| {
+            cells.checked_mul(2 * size_of::<f64>()).is_some_and(|b| isize::try_from(b).is_ok())
+        })
         .ok_or_else(|| {
-        EstimationError::data_msg(
-            "temporal response dose-by-horizon cell count exceeds the materialization limit",
-        )
-    })?;
+            EstimationError::data_msg(
+                "temporal response dose-by-horizon cell count is not addressable",
+            )
+        })?;
     Ok(cells)
 }
 
@@ -581,9 +726,7 @@ fn named_adjustment(
     estimand
         .adjustment_set
         .iter()
-        .map(|&dense| {
-            indexer.key_of(dense.raw()).map_err(|e| EstimationError::data_msg(e.to_string()))
-        })
+        .map(|&dense| indexer.key_of(dense.raw()).map_err(EstimationError::from))
         .collect()
 }
 

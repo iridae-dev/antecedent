@@ -11,14 +11,15 @@
 //! no consumer accepts the earlier spellings, so a consumer that re-decides the
 //! derivation refuses them. The stored wire still decodes, so the content (laws, rows,
 //! plan, options) can be read and the artifact re-exported by the current producer from
-//! the same inputs.
+//! the same inputs. Catalog descriptor v1 bindings can now refuse before the
+//! historical rule-version check, because their identities require reissue too.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::consume_mixed_source_artifact;
 use antecedent::design::{StudyPlanArtifactWire, StudyPlanConsumeLimits};
 use antecedent_core::ExecutionContext;
-use antecedent_io::mixed_source_artifact::{MixedSourceArtifactWire, MixedSourceConsumeLimits};
+use antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits;
 use antecedent_io::recovery_artifact::{RecoveryArtifactWire, RecoveryConsumeLimits};
 use antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire;
 use antecedent_io::sampled_recovery_artifact::{
@@ -52,20 +53,30 @@ fn an_earlier_observation_recovery_artifact_is_inspectable_and_refused() {
         RecoveryConsumeLimits::default(),
         &ctx(),
     );
-    assert!(outcome.is_err(), "the earlier rule spelling is not accepted");
+    let error = format!(
+        "{:?}",
+        match outcome {
+            Ok(_) => panic!("the earlier rule spelling is not accepted"),
+            Err(error) => error,
+        }
+    );
+    assert!(error.contains("ProofMismatch(RecoveryError { detail: InvalidDerivation"), "{error}");
 }
 
 #[test]
-fn an_earlier_sampled_recovery_artifact_is_inspectable_and_refused() {
-    let wire = SampledRecoveryArtifactWire::decode(SAMPLED_RECOVERY)
-        .expect("the stored wire is still readable");
-    assert_eq!(wire.derivation.rule_version, "x10.recovery.v1");
+fn an_earlier_sampled_recovery_artifact_with_the_old_calibration_label_is_malformed() {
+    // The stored wire carries the calibration label `unmeasured`, which was renamed to
+    // `not_measured` with no alias: the artifact is malformed and decoding refuses it.
+    let error = SampledRecoveryArtifactWire::decode(SAMPLED_RECOVERY)
+        .expect_err("the old calibration label is not accepted");
+    let error = format!("{error:?}");
+    assert!(error.contains("interval calibration is not_measured"), "{error}");
     let outcome = SampledRecoveryArtifactWire::consume_with_limits(
         SAMPLED_RECOVERY,
         SampledRecoveryConsumeLimits::default(),
         &ctx(),
     );
-    assert!(outcome.is_err(), "the earlier rule spelling is not accepted");
+    assert!(outcome.is_err(), "a malformed artifact is not consumed");
 }
 
 #[test]
@@ -74,20 +85,21 @@ fn an_earlier_recovery_chain_artifact_is_inspectable_and_refused() {
         .expect("the stored wire is still readable");
     assert_eq!(wire.plan.as_ref().expect("a plan").rule_version, "b2.recovery_chain.v1");
     let outcome = RecoveryChainArtifactWire::consume_typed(RECOVERY_CHAIN, &ctx());
-    assert!(outcome.is_err(), "the earlier rule spelling is not accepted");
+    let error = format!("{:?}", outcome.expect_err("the earlier rule spelling is not accepted"));
+    assert!(error.contains(r#"DecisionMismatch("plan")"#), "{error}");
 }
 
 #[test]
 fn an_earlier_mixed_source_artifact_is_inspectable_and_refused() {
-    let wire =
-        MixedSourceArtifactWire::decode(MIXED_SOURCE).expect("the stored wire is still readable");
-    assert_eq!(wire.proof.rule_set, "x9.rules.v1");
+    // The artifact predates the evidence digest, so its format version is no longer current:
+    // it is refused by version before its payload is read.
     let outcome = consume_mixed_source_artifact(
         MIXED_SOURCE,
         MixedSourceConsumeLimits::default(),
         &ExecutionContext::for_tests(3),
     );
-    assert!(outcome.is_err(), "the earlier rule-set spelling is not accepted");
+    let error = format!("{:?}", outcome.expect_err("the earlier format is not accepted"));
+    assert!(error.contains("UnsupportedVersion"), "{error}");
 }
 
 #[test]
@@ -103,6 +115,11 @@ fn earlier_study_plans_are_inspectable_and_refused() {
             StudyPlanConsumeLimits::default(),
             &ExecutionContext::for_tests(9),
         );
-        assert!(outcome.is_err(), "{name}: the earlier ranking spelling is not accepted");
+        let error = format!("{:?}", outcome.err().unwrap_or_else(|| panic!("{name}: accepted")));
+        assert!(
+            error.contains(antecedent_core::reason_details::study_plan::INVALID_ARTIFACT)
+                && error.contains("another rule set or ranking version"),
+            "{name}: {error}"
+        );
     }
 }

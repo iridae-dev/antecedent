@@ -11,7 +11,7 @@ use antecedent_contract::RequestedReading;
 use antecedent_core::ExecutionContext;
 use antecedent_counterfactual::selective::{
     ExogenousInference, ExogenousVariable, FactualUnit, FiniteExecutionRequest, FiniteQuantity,
-    FiniteScm, FiniteVariable, FiniteWorld, NoiseCoupling, WorldAtom,
+    FiniteScm, FiniteVariable, FiniteWorld, NoiseCoupling, WorldAtom, WorldRoute,
 };
 use antecedent_io_core::cross_world_execution_artifact::{
     CrossWorldExecutionArtifact, CrossWorldExecutionArtifactError,
@@ -110,6 +110,20 @@ fn sealing_and_consuming_replays_the_enumerated_truth() {
 }
 
 #[test]
+fn sealing_refuses_duplicate_world_routes() {
+    let mut req = necessity();
+    let route = WorldRoute { parent: 0, child: 1, source: 1 };
+    req.worlds[0].routes = vec![route, route];
+    let error = CrossWorldExecutionArtifact::seal(&req, &ctx()).unwrap_err();
+    let refusal = error.refusal().unwrap();
+    assert_eq!(refusal.code, "invalid_argument");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::cross_world_execution::INVALID_WORLD
+    );
+}
+
+#[test]
 fn the_consumer_resumes_an_action_only_change_from_the_verified_abduction() {
     let sealed = CrossWorldExecutionArtifact::seal(&joint(), &ctx()).unwrap();
     let bytes = sealed.to_bytes("joint").unwrap();
@@ -138,7 +152,10 @@ fn a_different_declared_identity_is_refused_even_for_a_valid_artifact() {
         error,
         CrossWorldExecutionArtifactError::IdentityMismatch { field: "mechanism_digest" }
     ));
-    assert_eq!(error.refusal().unwrap().detail, "cross_world_execution.artifact_changed");
+    assert_eq!(
+        error.refusal().unwrap().detail,
+        antecedent_core::reason_details::cross_world_execution::ARTIFACT_CHANGED
+    );
 }
 
 #[test]
@@ -147,8 +164,8 @@ fn unsupported_requests_cannot_be_sealed() {
     transported.target_population = Some("pop-b".to_owned());
     let error = CrossWorldExecutionArtifact::seal(&transported, &ctx()).expect_err("closed");
     let refusal = error.refusal().unwrap();
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert!(refusal.missing.iter().any(|m| m == "transport_license_missing"));
+    assert_eq!(refusal.code, "route_not_supported");
+    assert!(refusal.missing.iter().any(|m| m == "transport_support_missing"));
 
     let mut independent = joint();
     independent.coupling = NoiseCoupling::IndependentWorldNoise;
@@ -158,7 +175,7 @@ fn unsupported_requests_cannot_be_sealed() {
     let mut interval = joint();
     interval.reading = RequestedReading::Interval;
     let error = CrossWorldExecutionArtifact::seal(&interval, &ctx()).expect_err("closed");
-    assert_eq!(error.refusal().unwrap().code, "cell_not_licensed");
+    assert_eq!(error.refusal().unwrap().code, "uncertainty_representation_insufficient");
 }
 
 #[test]
@@ -167,10 +184,14 @@ fn corrupted_bytes_and_cancellation_are_refused() {
     let mut bytes = sealed.to_bytes("necessity").unwrap();
     let last = bytes.len() - 1;
     bytes[last] ^= 0x5a;
-    assert!(CrossWorldExecutionArtifact::from_bytes(&bytes, None, &ctx()).is_err());
-    assert!(
-        CrossWorldExecutionArtifact::from_bytes(&bytes[..bytes.len() / 2], None, &ctx()).is_err()
-    );
+    assert!(matches!(
+        CrossWorldExecutionArtifact::from_bytes(&bytes, None, &ctx()),
+        Err(CrossWorldExecutionArtifactError::Container(antecedent_io_core::IoError::ChecksumMismatch { section })) if section == "cross_world_execution_values"
+    ));
+    assert!(matches!(
+        CrossWorldExecutionArtifact::from_bytes(&bytes[..bytes.len() / 2], None, &ctx()),
+        Err(CrossWorldExecutionArtifactError::Decode(m)) if m.contains("failed to fill whole buffer")
+    ));
     let cancelled = ExecutionContext::for_tests(1);
     cancelled.cancellation.cancel();
     let good = sealed.to_bytes("necessity").unwrap();
@@ -289,6 +310,21 @@ mod resealed {
             CrossWorldExecutionArtifactError::IdentityMismatch { .. }
                 | CrossWorldExecutionArtifactError::ResultMismatch(_)
         ));
+
+        // Duplicate parent-child routes are refused before replay or identity checks.
+        let duplicate = reseal(&good, |meta, _| {
+            use antecedent_io_core::cross_world_execution_artifact::RouteWire;
+            meta.request.worlds[0].routes = vec![
+                RouteWire { parent: 0, child: 1, source: 1 },
+                RouteWire { parent: 0, child: 1, source: 1 },
+            ];
+        });
+        let refusal = refused(&duplicate).refusal().unwrap();
+        assert_eq!(refusal.code, "invalid_argument");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::cross_world_execution::INVALID_WORLD
+        );
 
         // The shared exogenous states edited.
         let draws = reseal(&good, |meta, _| meta.shared_draws[0].states = vec![5, 6]);

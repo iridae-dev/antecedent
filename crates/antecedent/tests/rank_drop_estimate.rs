@@ -4,7 +4,7 @@
 //! reduced study over a table written out column by column, and a normal-equations OLS that
 //! shares no code with the library's fits.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -90,7 +90,7 @@ fn hand_estimate(f: &Fixture, covariates: &[(&str, &Vec<f64>)], estimator: Estim
         .unwrap()
         .run(&ExecutionContext::for_tests(3))
         .unwrap()
-        .estimate
+        .estimate()
         .as_effect()
         .unwrap()
         .ate
@@ -259,7 +259,7 @@ fn refusals_leave_nothing_estimated() {
         &ctx,
     )
     .unwrap_err();
-    assert_eq!(refusal.reason_code(), Some("rank_drop_not_licensed"));
+    assert_eq!(refusal.reason_code(), Some("rank_drop_not_supported"));
     assert!(refusal.refusal_fields().unwrap().implicated_columns.contains(&"alias".to_string()));
 
     let data = named(&[("t", &f.t), ("y", &f.y), ("a", &f.a), ("b", &f.b), ("c", &f.c)]);
@@ -281,7 +281,7 @@ fn refusals_leave_nothing_estimated() {
     let partial = policy(ColumnPriority::Declared(vec![ia, ib]));
     let refusal = estimate_with_rank_drop(&input, &partial, EstimatorId::LinearAdjustmentAte, &ctx)
         .unwrap_err();
-    assert_eq!(refusal.reason_code(), Some("rank_drop_not_licensed"));
+    assert_eq!(refusal.reason_code(), Some("rank_drop_not_supported"));
 
     // An effect modifier the drop would remove is protected.
     let mut protected = input.clone();
@@ -289,7 +289,7 @@ fn refusals_leave_nothing_estimated() {
     let refusal =
         estimate_with_rank_drop(&protected, &order, EstimatorId::LinearAdjustmentAte, &ctx)
             .unwrap_err();
-    assert_eq!(refusal.reason_code(), Some("rank_drop_not_licensed"));
+    assert_eq!(refusal.reason_code(), Some("rank_drop_not_supported"));
 
     ctx.cancellation.cancel();
     let cancelled = estimate_with_rank_drop(&input, &order, EstimatorId::LinearAdjustmentAte, &ctx)
@@ -332,12 +332,18 @@ fn a_separating_propensity_refuses_the_cross_fitted_route_only() {
     let ctx = ExecutionContext::for_tests(3);
     let order = policy(ColumnPriority::AdjustmentOrder);
     let refusal = estimate_with_rank_drop(&input, &order, EstimatorId::Aipw, &ctx).unwrap_err();
-    assert_eq!(refusal.reason_code(), Some("rank_drop_not_licensed"));
+    assert_eq!(refusal.reason_code(), Some("rank_drop_not_supported"));
     let reason = refusal.refusal_fields().unwrap().reason.clone().unwrap();
-    assert!(reason.starts_with("rank_drop_estimate.propensity_separates"), "{reason}");
+    assert!(
+        reason
+            .starts_with(antecedent_core::reason_details::rank_drop_estimate::PROPENSITY_SEPARATES),
+        "{reason}"
+    );
     let linear =
         estimate_with_rank_drop(&input, &order, EstimatorId::LinearAdjustmentAte, &ctx).unwrap();
-    assert!(linear.ate.is_finite());
+    // The least-squares route estimates the reduced design, equal to the normal-equations oracle.
+    let oracle = ols_treatment_coefficient(&f, &[&f.a, &f.b]);
+    assert!((linear.ate - oracle).abs() < 1e-8, "{} vs {oracle}", linear.ate);
 }
 
 /// The result carries its whole drop record on the wire form: original and reduced sets, the

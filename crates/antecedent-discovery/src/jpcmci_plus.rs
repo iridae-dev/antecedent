@@ -7,13 +7,15 @@
 //! Reference: Günther, Ninad, Runge — *Causal discovery for time series from multiple
 //! datasets with latent contexts*, UAI 2023 (arXiv:2306.12896); pinned baseline `JPCMCIplus`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
-use antecedent_data::{DummyOptions, MultiEnvironmentData, pool_multi_env_lagged_frame};
+use antecedent_data::{
+    DummyOptions, LaggedFrame, MultiEnvironmentData, pool_multi_env_lagged_frame,
+};
 use antecedent_graph::{DenseNodeId, TemporalCpdag, TemporalCpdagReview};
 use antecedent_stats::{ConditionalIndependence, FdrAdjustment, PairwiseMultivariateCi};
 
@@ -38,6 +40,27 @@ use crate::result::{
     CpdagDiscoveryResult, DiscoveryIteration, DiscoveryPerformanceRecord, LaggedLink, ScoredLink,
     discovery_assumptions,
 };
+
+type PreparedDummyCi = (Arc<dyn ConditionalIndependence + Send + Sync>, Arc<[Arc<[usize]>]>);
+
+fn prepare_dummy_ci(
+    base_ci: &Arc<dyn ConditionalIndependence + Send + Sync>,
+    frame: &LaggedFrame,
+    mv_groups: Vec<Arc<[VariableId]>>,
+) -> Result<PreparedDummyCi, DiscoveryError> {
+    let (ci, column_blocks): (Arc<dyn ConditionalIndependence + Send + Sync>, _) =
+        if mv_groups.is_empty() {
+            (Arc::clone(base_ci), Arc::from([]) as Arc<[Arc<[usize]>]>)
+        } else {
+            let groups = antecedent_data::VectorVariableGroups::try_new(Arc::from(mv_groups))
+                .map_err(DiscoveryError::from)?;
+            let blocks = antecedent_data::column_blocks_for_frame(&groups, frame)
+                .map_err(DiscoveryError::from)?;
+            (Arc::new(PairwiseMultivariateCi::with_column_blocks(Arc::clone(&blocks))), blocks)
+        };
+
+    Ok((ci, column_blocks))
+}
 
 /// Alias for J-PCMCI+ discovery output (context-augmented temporal CPDAG).
 pub(crate) type JpcmciPlusDiscoveryResult = CpdagDiscoveryResult;
@@ -75,6 +98,34 @@ impl JpcmciPlus {
 
     pcmci_family_builders!();
 
+    fn admit_inputs(
+        &self,
+        data: &MultiEnvironmentData,
+        variables: &[VariableId],
+    ) -> Result<(), DiscoveryError> {
+        if data.env_count() == 0 {
+            return Err(DiscoveryError::Unsupported { message: "J-PCMCI+ needs ≥1 environment" });
+        }
+        if variables.is_empty() {
+            return Err(DiscoveryError::Unsupported {
+                message: "J-PCMCI+ needs ≥1 system variable",
+            });
+        }
+        self.engine.constraints.validate_temporal_ci_options()?;
+        self.engine.constraints.validate()?;
+
+        let md = &self.engine.constraints.multi_dataset;
+        for &c in md.context_variables.iter() {
+            if variables.contains(&c) {
+                return Err(DiscoveryError::data_msg(format!(
+                    "context variable {c} must not also appear in the system variable list"
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
     /// Run J-PCMCI+ on multi-environment data.
     ///
     /// `variables` are **system** nodes. Observed context comes from
@@ -94,27 +145,13 @@ impl JpcmciPlus {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<JpcmciPlusDiscoveryResult, DiscoveryError> {
-        if data.env_count() == 0 {
-            return Err(DiscoveryError::Unsupported { message: "J-PCMCI+ needs ≥1 environment" });
-        }
-        if variables.is_empty() {
-            return Err(DiscoveryError::Unsupported {
-                message: "J-PCMCI+ needs ≥1 system variable",
-            });
-        }
-        self.engine.constraints.validate()?;
-
+        self.admit_inputs(data, variables)?;
         let md = &self.engine.constraints.multi_dataset;
-        for &c in md.context_variables.iter() {
-            if variables.contains(&c) {
-                return Err(DiscoveryError::data_msg(format!(
-                    "context variable {c} must not also appear in the system variable list"
-                )));
-            }
-        }
 
         let max_lag = self.engine.constraints.temporal.max_lag.raw();
-        let frame_depth = 2 * max_lag;
+        let frame_depth = max_lag
+            .checked_mul(2)
+            .ok_or_else(|| DiscoveryError::unsupported("discovery doubled max_lag exceeds u32"))?;
         let mut observed = variables.to_vec();
         observed.extend_from_slice(&md.context_variables);
 
@@ -177,12 +214,12 @@ impl JpcmciPlus {
         all_vars.extend_from_slice(&logical_time_dummies);
         let frame = &pooled.frame;
 
-        if let Some(hard) = ctx.memory.hard_limit_bytes {
-            if frame.values_bytes() > hard {
-                return Err(DiscoveryError::Unsupported {
-                    message: "pooled lagged frame exceeds ExecutionContext memory hard limit",
-                });
-            }
+        if let Some(hard) = ctx.memory_limit_bytes()
+            && frame.values_bytes() > hard
+        {
+            return Err(DiscoveryError::Unsupported {
+                message: "pooled lagged frame exceeds ExecutionContext memory hard limit",
+            });
         }
 
         let mut mv_groups: Vec<Arc<[VariableId]>> = Vec::new();
@@ -192,25 +229,18 @@ impl JpcmciPlus {
         if use_mv_time_dummy {
             mv_groups.push(Arc::from(time_ids_full.to_vec()));
         }
-        let (ci, column_blocks): (Arc<dyn ConditionalIndependence + Send + Sync>, _) =
-            if mv_groups.is_empty() {
-                (Arc::clone(&self.engine.ci), Arc::from([]) as Arc<[Arc<[usize]>]>)
-            } else {
-                let groups = antecedent_data::VectorVariableGroups::try_new(Arc::from(mv_groups))
-                    .map_err(DiscoveryError::from)?;
-                let blocks = antecedent_data::column_blocks_for_frame(&groups, frame)
-                    .map_err(DiscoveryError::from)?;
-                (Arc::new(PairwiseMultivariateCi::with_column_blocks(Arc::clone(&blocks))), blocks)
-            };
+        let (ci, column_blocks) = prepare_dummy_ci(&self.engine.ci, frame, mv_groups)?;
 
         crate::ci::ensure_ci_decisions_meaningful(
             &*ci,
             constraints.significance,
+            frame.n_effective(),
             constraints.alpha,
             self.fdr.is_some(),
         )?;
         crate::ci::ensure_ci_fits_frame(&*ci, frame)?;
         let threads = ctx.parallelism.max_threads.get().max(1);
+        workspace.keep_cache.clear();
         {
             let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
             workspace.prepared_ci =
@@ -275,6 +305,7 @@ impl JpcmciPlus {
             workspace,
             ctx,
             Some(&search_context),
+            self.fdr.is_some(),
         )?;
         ci_tests += ctx_tests;
         iterations.push(DiscoveryIteration {
@@ -319,6 +350,7 @@ impl JpcmciPlus {
                 workspace,
                 ctx,
                 Some(&search_dummy),
+                self.fdr.is_some(),
             )?;
             trunc_b = t;
             ci_tests += dum_tests;
@@ -360,6 +392,7 @@ impl JpcmciPlus {
             workspace,
             ctx,
             Some(&search_system),
+            self.fdr.is_some(),
         )?;
         ci_tests += sys_tests;
         iterations.push(DiscoveryIteration {
@@ -385,13 +418,12 @@ impl JpcmciPlus {
         diagnostics.extend(crate::ci::fdr_resolution_diagnostic(
             &*ci,
             constraints.significance,
+            frame.n_effective(),
             constraints.alpha,
             crate::evidence::fdr_family_size(&scored, self.fdr),
         ));
         scored = threshold_scored_links(scored, self.fdr, constraints.alpha);
-        scored = symmetrize_contemporaneous_links(scored);
-        // Exogenous → system: force directed (no undirected symmetrize residue).
-        scored = orient_exogenous_links(scored, &constraints);
+        scored = orient_phase_scores(scored, &constraints);
 
         let logical_exog =
             logical_exogenous_ids(&context, &logical_space_dummies, &logical_time_dummies);
@@ -477,6 +509,25 @@ impl JpcmciPlus {
     }
 }
 
+fn orient_phase_scores(
+    scored: Vec<ScoredLink>,
+    constraints: &DiscoveryConstraints,
+) -> Vec<ScoredLink> {
+    // A contemporaneous system link survives only when both directed tests do. An exogenous
+    // link (observed context or dummy to system) is tested in the one direction the link
+    // assumptions allow, so intersecting it with a direction that is never tested would
+    // drop every one of them from the graph; it bypasses the intersection.
+    let (exogenous, system_links): (Vec<ScoredLink>, Vec<ScoredLink>) =
+        scored.into_iter().partition(|s| {
+            constraints.multi_dataset.role_of(s.link.source).is_exogenous()
+                || constraints.multi_dataset.role_of(s.link.target).is_exogenous()
+        });
+    let mut scored = symmetrize_contemporaneous_links(system_links);
+    scored.extend(exogenous);
+    // Exogenous → system: force directed (no undirected symmetrize residue).
+    orient_exogenous_links(scored, constraints)
+}
+
 fn logical_exogenous_ids(
     context: &[VariableId],
     space_dummies: &[VariableId],
@@ -496,6 +547,11 @@ fn exogenous_parents_from_scored(
 ) -> HashMap<VariableId, Vec<(VariableId, Lag)>> {
     let mut map: HashMap<VariableId, Vec<(VariableId, Lag)>> = HashMap::new();
     for s in scored {
+        // Family completion supplies rejected/missing hypotheses for multiplicity only.
+        // Later phases condition on the same raw-MCI survivors as before completion.
+        if s.p_value > constraints.alpha && !constraints.required.contains(&s.link) {
+            continue;
+        }
         let sr = constraints.multi_dataset.role_of(s.link.source);
         let tr = constraints.multi_dataset.role_of(s.link.target);
         let src_ok = (want_context && sr.is_observed_context()) || (want_dummy && sr.is_dummy());
@@ -514,8 +570,11 @@ fn exogenous_parents_from_scored(
 fn directed_exogenous_links(
     parents: &HashMap<VariableId, Vec<(VariableId, Lag)>>,
 ) -> Vec<LaggedLink> {
+    // Targets in ascending id order, so the required-link order does not depend on hashing.
+    let mut targets: Vec<_> = parents.iter().collect();
+    targets.sort_unstable_by_key(|(target, _)| target.raw());
     let mut out = Vec::new();
-    for (&target, list) in parents {
+    for (&target, list) in targets {
         for &(source, source_lag) in list {
             out.push(LaggedLink { source, source_lag, target, target_lag: Lag::CONTEMPORANEOUS });
         }
@@ -783,6 +842,29 @@ mod tests {
     }
 
     #[test]
+    fn jpcmci_refuses_invalid_alpha_and_overflowing_lag_before_pooling() {
+        let multi = MultiEnvironmentData::try_new(Arc::from([toy_env(20, 0.0)])).unwrap();
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        for (alpha, max_lag) in [(f64::NAN, 1), (0.05, u32::MAX)] {
+            let constraints = DiscoveryConstraints {
+                alpha,
+                temporal: TemporalConstraints {
+                    max_lag: Lag::from_raw(max_lag),
+                    min_lag: Lag::CONTEMPORANEOUS,
+                },
+                ..DiscoveryConstraints::default()
+            };
+            let mut ws = DiscoveryWorkspace::default();
+            assert!(
+                JpcmciPlus::new()
+                    .with_constraints(constraints)
+                    .run(&multi, &vars, &mut ws, &ExecutionContext::for_tests(7))
+                    .is_err()
+            );
+        }
+    }
+
+    #[test]
     fn jpcmci_plus_two_env_toy() {
         let a = toy_env(120, 0.0);
         let b = toy_env(120, 1.0);
@@ -810,7 +892,7 @@ mod tests {
         );
     }
 
-    /// P1 regression: lagged time-context edges were silently dropped from the
+    /// Regression: lagged time-context edges were silently dropped from the
     /// CPDAG (`evidence.links` listed them; `evidence.graph` did not), and the
     /// exogenous flip zeroed the *system* endpoint's lag.
     #[test]

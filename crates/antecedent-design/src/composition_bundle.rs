@@ -31,10 +31,17 @@
 //! node-level failure is reported on that node and the rest of the bundle keeps its
 //! inspected result.
 
+mod vocabulary;
+
+pub use vocabulary::{
+    BundleEdge, BundleLimits, BundleNode, EvidenceRelationship, NodeKind, NodeSource,
+    ProviderOrData,
+};
+
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use antecedent_contract::{
-    CompositionLink, CompositionStage, ExternalRefusal, ProvenanceChain, ProvenanceChainError,
+    CompositionLink, ExternalRefusal, ProvenanceChain, ProvenanceChainError,
 };
 
 use crate::signal::RefusalBuilder;
@@ -110,11 +117,15 @@ pub enum BundleStage {
     EdgeDigestMismatch,
     /// The bundle identity differs from the consumer's retained identity.
     ExpectedIdentityMismatch,
+    /// Execution stopped because the shared cancellation token was set.
+    ExecutionCancelled,
+    /// An execution or artifact admission budget refused the operation.
+    ResourceRefused,
 }
 
 impl BundleStage {
     /// Every stage.
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 13] = [
         Self::TamperedQuantity,
         Self::SwappedEvidence,
         Self::GraphOrSnapshotMismatch,
@@ -126,6 +137,8 @@ impl BundleStage {
         Self::UnknownNodeKind,
         Self::EdgeDigestMismatch,
         Self::ExpectedIdentityMismatch,
+        Self::ExecutionCancelled,
+        Self::ResourceRefused,
     ];
 
     /// Stable `snake_case` name.
@@ -143,6 +156,8 @@ impl BundleStage {
             Self::UnknownNodeKind => "unknown_node_kind",
             Self::EdgeDigestMismatch => "edge_digest_mismatch",
             Self::ExpectedIdentityMismatch => "expected_identity_mismatch",
+            Self::ExecutionCancelled => "execution_cancelled",
+            Self::ResourceRefused => "resource_refused",
         }
     }
 
@@ -150,17 +165,43 @@ impl BundleStage {
     #[must_use]
     pub const fn detail(self) -> &'static str {
         match self {
-            Self::TamperedQuantity => "composition_bundle.tampered_quantity",
-            Self::SwappedEvidence => "composition_bundle.swapped_evidence",
-            Self::GraphOrSnapshotMismatch => "composition_bundle.graph_or_snapshot_mismatch",
-            Self::UnsupportedLaw => "composition_bundle.unsupported_law",
-            Self::ProviderRequestChanged => "composition_bundle.provider_request_changed",
-            Self::CallbackUnavailable => "composition_bundle.callback_unavailable",
-            Self::IncompatibleVersion => "composition_bundle.incompatible_version",
-            Self::Oversized => "composition_bundle.oversized",
-            Self::UnknownNodeKind => "composition_bundle.unknown_node_kind",
-            Self::EdgeDigestMismatch => "composition_bundle.edge_digest_mismatch",
-            Self::ExpectedIdentityMismatch => "composition_bundle.expected_identity_mismatch",
+            Self::TamperedQuantity => {
+                antecedent_core::reason_details::composition_bundle::TAMPERED_QUANTITY
+            }
+            Self::SwappedEvidence => {
+                antecedent_core::reason_details::composition_bundle::SWAPPED_EVIDENCE
+            }
+            Self::GraphOrSnapshotMismatch => {
+                antecedent_core::reason_details::composition_bundle::GRAPH_OR_SNAPSHOT_MISMATCH
+            }
+            Self::UnsupportedLaw => {
+                antecedent_core::reason_details::composition_bundle::UNSUPPORTED_LAW
+            }
+            Self::ProviderRequestChanged => {
+                antecedent_core::reason_details::composition_bundle::PROVIDER_REQUEST_CHANGED
+            }
+            Self::CallbackUnavailable => {
+                antecedent_core::reason_details::composition_bundle::CALLBACK_UNAVAILABLE
+            }
+            Self::IncompatibleVersion => {
+                antecedent_core::reason_details::composition_bundle::INCOMPATIBLE_VERSION
+            }
+            Self::Oversized => antecedent_core::reason_details::composition_bundle::OVERSIZED,
+            Self::UnknownNodeKind => {
+                antecedent_core::reason_details::composition_bundle::UNKNOWN_NODE_KIND
+            }
+            Self::EdgeDigestMismatch => {
+                antecedent_core::reason_details::composition_bundle::EDGE_DIGEST_MISMATCH
+            }
+            Self::ExpectedIdentityMismatch => {
+                antecedent_core::reason_details::composition_bundle::EXPECTED_IDENTITY_MISMATCH
+            }
+            Self::ExecutionCancelled => {
+                antecedent_core::reason_details::composition_bundle::EXECUTION_CANCELLED
+            }
+            Self::ResourceRefused => {
+                antecedent_core::reason_details::composition_bundle::RESOURCE_REFUSED
+            }
         }
     }
 
@@ -168,6 +209,8 @@ impl BundleStage {
     #[must_use]
     pub fn code(self) -> &'static str {
         match self {
+            Self::ExecutionCancelled => antecedent_core::reason_code!("cancelled_no_claim"),
+            Self::ResourceRefused => antecedent_core::reason_code!("execution_resource_limit"),
             Self::TamperedQuantity => antecedent_core::reason_code!("quantity_semantics_mismatch"),
             Self::UnsupportedLaw => antecedent_core::reason_code!("joint_law_required"),
             Self::CallbackUnavailable => {
@@ -275,338 +318,6 @@ fn chain_refusal(error: &ProvenanceChainError) -> BundleError {
         stage: BundleStage::EdgeDigestMismatch,
         reason: format!("{error:?}"),
         offending,
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Vocabulary
-// ---------------------------------------------------------------------------
-
-/// What a node stands for.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum NodeKind {
-    /// A causal contract or identified program.
-    CausalContract,
-    /// A native execution or a portable fit.
-    ExecutionOrFit,
-    /// An external claim.
-    ExternalClaim,
-    /// An attestation of an external claim.
-    Attestation,
-    /// An evidence-relationship declaration ([`EvidenceRelationship`]).
-    EvidenceRelationship,
-    /// Quantity coordinates.
-    QuantityCoordinates,
-    /// Support, trust and calibration statements.
-    SupportTrustCalibration,
-    /// A portable distribution artifact.
-    Distribution,
-    /// A named transformation.
-    Transformation,
-    /// A decision contract.
-    DecisionContract,
-    /// A decision result.
-    DecisionResult,
-    /// A sensitivity artifact.
-    Sensitivity,
-    /// A study ranking.
-    StudyRanking,
-    /// A source-law binding to terminal decision state and study ranking.
-    Rollout,
-    /// An inverse functional query with its forward evidence and result table.
-    InverseQuery,
-    /// An identification-repair search report.
-    RepairReport,
-    /// Independently checked historical selective execution receipt; no live state.
-    RecalculationReceipt,
-    /// Independently checked frozen same-row scores for their licensed retarget operation.
-    FrozenScores,
-}
-
-impl NodeKind {
-    /// Every kind.
-    pub const ALL: [Self; 18] = [
-        Self::CausalContract,
-        Self::ExecutionOrFit,
-        Self::ExternalClaim,
-        Self::Attestation,
-        Self::EvidenceRelationship,
-        Self::QuantityCoordinates,
-        Self::SupportTrustCalibration,
-        Self::Distribution,
-        Self::Transformation,
-        Self::DecisionContract,
-        Self::DecisionResult,
-        Self::Sensitivity,
-        Self::StudyRanking,
-        Self::Rollout,
-        Self::InverseQuery,
-        Self::RepairReport,
-        Self::RecalculationReceipt,
-        Self::FrozenScores,
-    ];
-
-    /// Stable `snake_case` wire name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::CausalContract => "causal_contract",
-            Self::ExecutionOrFit => "execution_or_fit",
-            Self::ExternalClaim => "external_claim",
-            Self::Attestation => "attestation",
-            Self::EvidenceRelationship => "evidence_relationship",
-            Self::QuantityCoordinates => "quantity_coordinates",
-            Self::SupportTrustCalibration => "support_trust_calibration",
-            Self::Distribution => "distribution",
-            Self::Transformation => "transformation",
-            Self::DecisionContract => "decision_contract",
-            Self::DecisionResult => "decision_result",
-            Self::Sensitivity => "sensitivity",
-            Self::StudyRanking => "study_ranking",
-            Self::Rollout => "rollout",
-            Self::InverseQuery => "inverse_query",
-            Self::RepairReport => "repair_report",
-            Self::RecalculationReceipt => "recalculation_receipt",
-            Self::FrozenScores => "frozen_scores",
-        }
-    }
-
-    /// Parse the wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
-    }
-
-    /// The lineage stage the kind occupies in the bundle's Merkle chain.
-    #[must_use]
-    pub const fn stage(self) -> CompositionStage {
-        match self {
-            Self::CausalContract => CompositionStage::CausalContract,
-            Self::ExecutionOrFit | Self::Distribution | Self::FrozenScores => {
-                CompositionStage::DistributionArtifact
-            }
-            Self::ExternalClaim | Self::Attestation => CompositionStage::ExternalProvider,
-            Self::EvidenceRelationship
-            | Self::QuantityCoordinates
-            | Self::SupportTrustCalibration
-            | Self::RepairReport
-            | Self::RecalculationReceipt => CompositionStage::Evidence,
-            Self::Transformation | Self::Rollout => CompositionStage::Transformation,
-            Self::DecisionContract => CompositionStage::DecisionContract,
-            Self::DecisionResult | Self::InverseQuery => CompositionStage::Claim,
-            Self::Sensitivity => CompositionStage::SensitivityInput,
-            Self::StudyRanking => CompositionStage::StudyRankingProvider,
-        }
-    }
-
-    /// Stage a recomputed identity that differs from the declared one fails at:
-    /// a value-bearing artifact was altered, any other was swapped.
-    const fn identity_mismatch_stage(self) -> BundleStage {
-        match self {
-            Self::QuantityCoordinates
-            | Self::DecisionResult
-            | Self::Sensitivity
-            | Self::StudyRanking
-            | Self::Rollout
-            | Self::InverseQuery => BundleStage::TamperedQuantity,
-            _ => BundleStage::SwappedEvidence,
-        }
-    }
-}
-
-/// How two pieces of evidence depend on each other (the C1 vocabulary, declared
-/// locally until that module is shared).
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum EvidenceRelationship {
-    /// Both rest on the same data.
-    SharedData,
-    /// Both rest on the same prior.
-    SharedPrior,
-    /// Both rest on the same fitted model.
-    SharedFittedModel,
-    /// The dependence is not known.
-    UnknownDependence,
-    /// The evidence is independent.
-    Independent,
-}
-
-impl EvidenceRelationship {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::SharedData => "shared_data",
-            Self::SharedPrior => "shared_prior",
-            Self::SharedFittedModel => "shared_fitted_model",
-            Self::UnknownDependence => "unknown_dependence",
-            Self::Independent => "independent",
-        }
-    }
-
-    /// Parse the wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [
-            Self::SharedData,
-            Self::SharedPrior,
-            Self::SharedFittedModel,
-            Self::UnknownDependence,
-            Self::Independent,
-        ]
-        .into_iter()
-        .find(|relationship| relationship.as_str() == name)
-    }
-}
-
-/// What a reference node needs the consumer to supply.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ProviderOrData {
-    /// A provider or callback at an exact request.
-    Provider {
-        /// Provider service identity.
-        provider_id: String,
-        /// Provider input or model snapshot.
-        snapshot_id: String,
-        /// Exact request fingerprint the provider must answer.
-        request_fingerprint: String,
-    },
-    /// A data snapshot with the digest it must have.
-    Data {
-        /// Snapshot identity.
-        snapshot_id: String,
-        /// Expected content digest.
-        digest: String,
-    },
-}
-
-impl ProviderOrData {
-    fn canonical(&self) -> String {
-        match self {
-            Self::Provider { provider_id, snapshot_id, request_fingerprint } => {
-                format!("provider|{provider_id}|{snapshot_id}|{request_fingerprint}")
-            }
-            Self::Data { snapshot_id, digest } => format!("data|{snapshot_id}|{digest}"),
-        }
-    }
-}
-
-/// Where a node's content lives.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum NodeSource {
-    /// An artifact the consumer can decode and verify independently.
-    Embedded {
-        /// The artifact's container bytes.
-        bytes: Vec<u8>,
-    },
-    /// An artifact held elsewhere: it needs a supplied provider or data source
-    /// and is never claimed replayed.
-    Reference {
-        /// Identity of the referenced artifact.
-        identity: String,
-        /// What must be supplied to resolve it.
-        requires: ProviderOrData,
-    },
-}
-
-/// One node of the composed result.
-#[derive(Clone, Debug, PartialEq)]
-pub struct BundleNode {
-    /// Identity within the bundle.
-    pub id: String,
-    /// What the node stands for.
-    pub kind: NodeKind,
-    /// Declared identity of the node's artifact (for an embedded node, the
-    /// identity its verifier must recompute; for a reference, the referenced one).
-    pub identity: String,
-    /// Embedded bytes or an external reference.
-    pub source: NodeSource,
-    /// Declared facts of a reference node (embedded nodes publish theirs through
-    /// their verifier). Unverified.
-    pub facts: BTreeMap<String, String>,
-    /// Declared, unverified values of a reference node, kept so an inspected
-    /// result survives when execution is unavailable.
-    pub inspected: Vec<(String, f64)>,
-}
-
-impl BundleNode {
-    /// An embedded node.
-    #[must_use]
-    pub fn embedded(id: &str, kind: NodeKind, identity: &str, bytes: Vec<u8>) -> Self {
-        Self {
-            id: id.to_owned(),
-            kind,
-            identity: identity.to_owned(),
-            source: NodeSource::Embedded { bytes },
-            facts: BTreeMap::new(),
-            inspected: Vec::new(),
-        }
-    }
-
-    /// A reference node.
-    #[must_use]
-    pub fn reference(id: &str, kind: NodeKind, identity: &str, requires: ProviderOrData) -> Self {
-        Self {
-            id: id.to_owned(),
-            kind,
-            identity: identity.to_owned(),
-            source: NodeSource::Reference { identity: identity.to_owned(), requires },
-            facts: BTreeMap::new(),
-            inspected: Vec::new(),
-        }
-    }
-
-    /// Declare a fact on a reference node (ignored on an embedded node).
-    #[must_use]
-    pub fn with_fact(mut self, key: &str, value: &str) -> Self {
-        if matches!(self.source, NodeSource::Reference { .. }) {
-            self.facts.insert(key.to_owned(), value.to_owned());
-        }
-        self
-    }
-
-    /// Declare an inspected value on a reference node (ignored on an embedded node).
-    #[must_use]
-    pub fn with_inspected(mut self, key: &str, value: f64) -> Self {
-        if matches!(self.source, NodeSource::Reference { .. }) {
-            self.inspected.push((key.to_owned(), value));
-        }
-        self
-    }
-}
-
-/// A dependency carrying the upstream node's Merkle digest.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct BundleEdge {
-    /// Upstream node.
-    pub from: String,
-    /// Dependent node.
-    pub to: String,
-    /// Merkle digest of the upstream node (lowercase hex).
-    pub upstream_digest: String,
-}
-
-/// Bounds on a bundle, checked before any decode allocation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct BundleLimits {
-    /// Most container bytes.
-    pub max_bundle_bytes: usize,
-    /// Most nodes.
-    pub max_nodes: usize,
-    /// Most edges.
-    pub max_edges: usize,
-    /// Most bytes in one embedded artifact.
-    pub max_embedded_bytes: usize,
-}
-
-impl Default for BundleLimits {
-    fn default() -> Self {
-        Self {
-            max_bundle_bytes: 64 * 1024 * 1024,
-            max_nodes: 1_024,
-            max_edges: 8_192,
-            max_embedded_bytes: 16 * 1024 * 1024,
-        }
     }
 }
 
@@ -720,10 +431,10 @@ fn derive(
             .map(|e| ((e.from.as_str(), e.to.as_str()), e.upstream_digest.as_str()))
             .collect()
     });
-    if let Some(edges) = declared {
-        if edges.len() != deps.len() {
-            return Err(graph_error("an edge is repeated", None));
-        }
+    if let Some(edges) = declared
+        && edges.len() != deps.len()
+    {
+        return Err(graph_error("an edge is repeated", None));
     }
     let mut link_ids = vec![String::new(); nodes.len()];
     let mut links = Vec::with_capacity(nodes.len());
@@ -807,6 +518,34 @@ pub struct CompositionBundle {
 }
 
 impl CompositionBundle {
+    /// Reconstruct a bundle from its portable container, verifying its
+    /// complete Merkle graph against an independently retained identity.
+    /// Embedded node consumers run separately when the bundle is consumed.
+    ///
+    /// # Errors
+    /// A malformed container, graph, edge digest or changed identity.
+    pub fn from_bytes(
+        bytes: &[u8],
+        expected_identity: &str,
+        limits: &BundleLimits,
+    ) -> Result<Self, BundleError> {
+        let decoded = decode(bytes, limits)?;
+        let dependencies: Vec<_> =
+            decoded.edges.iter().map(|edge| (edge.from.clone(), edge.to.clone())).collect();
+        let bundle = Self::new(decoded.nodes, &dependencies, limits)?;
+        if bundle.edges != decoded.edges
+            || bundle.identity != decoded.stored_identity
+            || bundle.identity != expected_identity
+        {
+            return Err(refused(
+                BundleStage::ExpectedIdentityMismatch,
+                "the reconstructed bundle graph differs from the retained identity or edges",
+                None,
+            ));
+        }
+        Ok(bundle)
+    }
+
     /// Build a bundle from nodes and dependencies `(upstream, dependent)`. Node
     /// and edge declaration order does not affect the identity.
     ///
@@ -823,14 +562,14 @@ impl CompositionBundle {
             return Err(refused(BundleStage::Oversized, "too many nodes or edges", None));
         }
         for node in &nodes {
-            if let NodeSource::Embedded { bytes } = &node.source {
-                if bytes.len() > limits.max_embedded_bytes {
-                    return Err(refused(
-                        BundleStage::Oversized,
-                        "an embedded artifact exceeds its bound",
-                        Some(node.id.clone()),
-                    ));
-                }
+            if let NodeSource::Embedded { bytes } = &node.source
+                && bytes.len() > limits.max_embedded_bytes
+            {
+                return Err(refused(
+                    BundleStage::Oversized,
+                    "an embedded artifact exceeds its bound",
+                    Some(node.id.clone()),
+                ));
             }
         }
         for node in &mut nodes {
@@ -1288,6 +1027,9 @@ pub struct ConsumedBundle {
     identity: String,
     nodes: Vec<ConsumedNode>,
     edges: Vec<BundleEdge>,
+    // Runtime receipt only: encoded bundles and their canonical identities do not
+    // contain this set. Resolved references have no embedded consumer to replay.
+    replayed: BTreeSet<String>,
 }
 
 impl ConsumedBundle {
@@ -1329,6 +1071,22 @@ impl ConsumedBundle {
     #[must_use]
     pub fn all_verified(&self) -> bool {
         self.nodes.iter().all(|n| n.status == NodeStatus::Verified)
+    }
+
+    /// Whether an embedded node passed its own independent artifact consumer.
+    ///
+    /// A supplied reference can verify its binding without replaying an artifact.
+    /// Replay here concerns the represented artifact, not refitting its source model
+    /// or regenerating observations or draws that the artifact carries as inputs.
+    #[must_use]
+    pub fn node_replayed(&self, id: &str) -> bool {
+        self.replayed.contains(id)
+    }
+
+    /// Whether every node passed an embedded artifact consumer, with no reference.
+    #[must_use]
+    pub fn all_replayed(&self) -> bool {
+        self.replayed.len() == self.nodes.len()
     }
 
     /// Require every node to have verified.
@@ -1453,23 +1211,19 @@ fn find_conflict(
 ) -> Option<(BundleStage, String)> {
     for up in upstream {
         for (key, stage) in BINDING_FACTS {
-            if let (Some(a), Some(b)) = (up.facts.get(key), facts.get(key)) {
-                if a != b {
-                    return Some((
-                        stage,
-                        format!("`{key}` differs from upstream node `{}`", up.id),
-                    ));
-                }
+            if let (Some(a), Some(b)) = (up.facts.get(key), facts.get(key))
+                && a != b
+            {
+                return Some((stage, format!("`{key}` differs from upstream node `{}`", up.id)));
             }
         }
         if let (Some(required), Some(law)) = (facts.get(FACT_REQUIRES_LAW), up.facts.get(FACT_LAW))
+            && required != law
         {
-            if required != law {
-                return Some((
-                    BundleStage::UnsupportedLaw,
-                    format!("upstream node `{}` supplies `{law}`, not `{required}`", up.id),
-                ));
-            }
+            return Some((
+                BundleStage::UnsupportedLaw,
+                format!("upstream node `{}` supplies `{law}`, not `{required}`", up.id),
+            ));
         }
     }
     None
@@ -1560,6 +1314,16 @@ impl BundleConsumer {
             ));
         }
         let states = self.evaluate(&decoded.nodes, &derived, supplied);
+        let replayed = decoded
+            .nodes
+            .iter()
+            .zip(&states)
+            .filter(|(node, state)| {
+                matches!(node.source, NodeSource::Embedded { .. })
+                    && state.status == NodeStatus::Verified
+            })
+            .map(|(node, _)| node.id.clone())
+            .collect();
         let nodes = decoded
             .nodes
             .iter()
@@ -1577,7 +1341,7 @@ impl BundleConsumer {
                 claim_label: state.label,
             })
             .collect();
-        Ok(ConsumedBundle { identity, nodes, edges: derived.edges })
+        Ok(ConsumedBundle { identity, nodes, edges: derived.edges, replayed })
     }
 
     fn evaluate(
@@ -1610,10 +1374,10 @@ impl BundleConsumer {
                         resolve_reference(node, requires, supplied)
                     }
                 };
-                if !state.is_failed() {
-                    if let Some((stage, reason)) = find_conflict(&state.facts, &upstream) {
-                        state = NodeState::failed(stage, reason);
-                    }
+                if !state.is_failed()
+                    && let Some((stage, reason)) = find_conflict(&state.facts, &upstream)
+                {
+                    state = NodeState::failed(stage, reason);
                 }
                 state
             };
@@ -1626,5 +1390,118 @@ impl BundleConsumer {
             }
         }
         states
+    }
+}
+
+#[cfg(test)]
+mod replay_receipt_tests {
+    use super::*;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct EmbeddedVerifier(Arc<AtomicUsize>);
+
+    impl NodeVerifier for EmbeddedVerifier {
+        fn kind(&self) -> NodeKind {
+            NodeKind::Distribution
+        }
+
+        fn verify(
+            &self,
+            _node_id: &str,
+            bytes: &[u8],
+            _upstream: &[UpstreamNode<'_>],
+        ) -> Result<VerifiedNode, NodeFailure> {
+            self.0.fetch_add(1, Ordering::Relaxed);
+            if bytes != b"verified embedded" {
+                return Err(NodeFailure {
+                    stage: BundleStage::TamperedQuantity,
+                    reason: "the represented embedded input changed".to_owned(),
+                });
+            }
+            Ok(VerifiedNode {
+                identity: "embedded-identity".to_owned(),
+                facts: BTreeMap::new(),
+                values: vec![("mean".to_owned(), 3.0)],
+            })
+        }
+    }
+
+    fn bundle(embedded: &[u8], reference: bool) -> CompositionBundle {
+        let mut nodes = vec![BundleNode::embedded(
+            "embedded",
+            NodeKind::Distribution,
+            "embedded-identity",
+            embedded.to_vec(),
+        )];
+        if reference {
+            nodes.push(BundleNode::reference(
+                "provider",
+                NodeKind::ExternalClaim,
+                "provider-identity",
+                ProviderOrData::Provider {
+                    provider_id: "service".to_owned(),
+                    snapshot_id: "snapshot".to_owned(),
+                    request_fingerprint: "request".to_owned(),
+                },
+            ));
+        }
+        CompositionBundle::new(nodes, &[], &BundleLimits::default()).unwrap()
+    }
+
+    #[test]
+    fn a_resolved_reference_verifies_without_becoming_a_replayed_artifact() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let consumer =
+            BundleConsumer::new().register(Box::new(EmbeddedVerifier(Arc::clone(&calls))));
+        let bundle = bundle(b"verified embedded", true);
+        let limits = BundleLimits::default();
+        let bytes = bundle.to_bytes("receipt", &limits).unwrap();
+        let unresolved = consumer
+            .consume(&bytes, &limits, bundle.identity(), &SuppliedSources::default())
+            .unwrap();
+        assert!(unresolved.node_replayed("embedded"));
+        assert!(!unresolved.node_replayed("provider"));
+        assert!(!unresolved.all_verified());
+        assert!(!unresolved.all_replayed());
+        // Supplying provider metadata cannot call it: this structure contains
+        // identities only, and only the embedded artifact's verifier executes.
+        let supplied = SuppliedSources::default().with_provider("service", "snapshot", "request");
+        let resolved = consumer.consume(&bytes, &limits, bundle.identity(), &supplied).unwrap();
+        assert!(resolved.all_verified());
+        assert!(!resolved.all_replayed());
+        assert!(resolved.node_replayed("embedded"));
+        assert!(!resolved.node_replayed("provider"));
+        assert!(!resolved.node_replayed("unknown"));
+        assert_eq!(resolved.value("embedded", "mean").map(f64::to_bits), Some(3.0_f64.to_bits()));
+        assert_eq!(calls.load(Ordering::Relaxed), 2);
+    }
+
+    #[test]
+    fn only_successful_embedded_consumption_issues_a_replay_receipt() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let consumer =
+            BundleConsumer::new().register(Box::new(EmbeddedVerifier(Arc::clone(&calls))));
+        let limits = BundleLimits::default();
+        let supplied = SuppliedSources::default();
+        let original = bundle(b"verified embedded", false);
+        let bytes = original.to_bytes("receipt", &limits).unwrap();
+        let accepted = consumer.consume(&bytes, &limits, original.identity(), &supplied).unwrap();
+        assert!(accepted.all_verified());
+        assert!(accepted.all_replayed());
+        assert_eq!(bytes, original.to_bytes("receipt", &limits).unwrap());
+        assert_eq!(accepted.identity(), original.identity());
+        let mut corrupt = bytes;
+        *corrupt.last_mut().unwrap() ^= 1;
+        assert!(consumer.consume(&corrupt, &limits, original.identity(), &supplied).is_err());
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+        let changed = bundle(b"mutated embedded", false);
+        let resealed = changed.to_bytes("receipt", &limits).unwrap();
+        let refused = consumer.consume(&resealed, &limits, changed.identity(), &supplied).unwrap();
+        assert!(matches!(refused.node("embedded").unwrap().status, NodeStatus::Failed { .. }));
+        assert!(!refused.node_replayed("embedded"));
+        assert!(!refused.all_verified());
+        assert!(!refused.all_replayed());
+        assert_eq!(calls.load(Ordering::Relaxed), 2);
     }
 }

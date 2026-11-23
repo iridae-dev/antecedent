@@ -15,13 +15,32 @@ from typing import Any, Literal, cast
 
 import numpy as np
 
+from antecedent import _reason_details
+
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._measured_inference import MeasuredInference
 from ._recalc_bounds import _admit, _check_resources
 from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
-from .recalc import Decision, Law, RecalcPlan, RecalcReceipt, Utility, _refusal_type, _seed
+from .execution import Execution
+from .outcomes import outcome_operation
+from .recalc import (
+    Decision,
+    Law,
+    RecalcPlan,
+    RecalcReceipt,
+    Utility,
+    _execution,
+    _native_controls,
+    _refusal_type,
+)
 from .recalc_static import _Session
 from .transport._candidate_data import detached, freeze
 
@@ -161,6 +180,8 @@ def _result(payload: tuple[str | None, bytes | None, str | None]) -> TemporalRes
 class TemporalSession(_Session):
     __slots__ = ()
 
+    _standing_kind = "temporal"
+
     @staticmethod
     def _native_type() -> Any:
         return _native.TemporalSessionHandle
@@ -169,44 +190,39 @@ class TemporalSession(_Session):
         self,
         request: TemporalRequest,
         *,
-        seed: int = 1,
-        threads: int | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> RecalcPlan:
-        _admit_histories(request, memory_limit_bytes, cancel)
+        run = _execution(execution)
+        ctl = _native_controls(run)
+        _admit_histories(request, ctl["memory_limit_bytes"], ctl["cancel"])
         return RecalcPlan.from_wire(
             json.loads(
-                self._handle.plan(
+                run._call(
+                    self._handle.plan,
                     json.dumps(request._declaration()),
                     request._history_columns(),
-                    seed=_seed(seed),
-                    threads=threads,
-                    memory_limit_bytes=memory_limit_bytes,
-                    cancel=cancel,
+                    **ctl,
                 )
             )
         )
 
+    @outcome_operation
     def execute(
         self,
         request: TemporalRequest,
         *,
-        seed: int = 1,
-        threads: int | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> TemporalResult:
-        """Run the invalidated stages under an optional memory limit and cancellation token."""
-        _admit_histories(request, memory_limit_bytes, cancel)
+        """Run the invalidated stages under the execution's memory limit and cancellation."""
+        run = _execution(execution)
+        ctl = _native_controls(run)
+        _admit_histories(request, ctl["memory_limit_bytes"], ctl["cancel"])
         return _result(
-            self._handle.execute(
+            run._call(
+                self._handle.execute,
                 json.dumps(request._declaration()),
                 request._history_columns(),
-                seed=_seed(seed),
-                threads=threads,
-                memory_limit_bytes=memory_limit_bytes,
-                cancel=cancel,
+                **ctl,
             )
         )
 
@@ -214,10 +230,11 @@ class TemporalSession(_Session):
         self,
         *,
         config: CheckedTemporalIntervalConfig,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> CheckedTemporalIntervalCandidate:
-        """Original checked source/proof whole-unit interval; unmeasured and feature-only."""
+        """Original checked source/proof whole-unit interval; not_measured and feature-only."""
+        run = _execution(execution)
+        memory_limit_bytes, cancel = run.limits.memory_bytes, run.cancel
         if not isinstance(config, CheckedTemporalIntervalConfig):
             raise CausalTypeError("config must be a CheckedTemporalIntervalConfig")
         _check_resources(memory_limit_bytes, cancel)
@@ -227,7 +244,8 @@ class TemporalSession(_Session):
         if native is None:
             raise_refusal(self._handle.dependent_interval(), _refusal_type)
             raise CausalSerializationError("closed interval route returned without a refusal")
-        result, error = native(
+        result, error = run._call(
+            native,
             json.dumps(config._wire(), allow_nan=False),
             memory_limit_bytes=memory_limit_bytes,
             cancel=cancel,
@@ -239,15 +257,18 @@ class TemporalSession(_Session):
         self,
         *,
         config: CheckedTemporalIntervalConfig | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> MeasuredInference:
         """Measured whole-unit interval from the original causal source and both effect arms.
 
-        Defaults to 500 studentized draws at 95%. The native producer enforces
-        the measured binary two-step protocol and current evidence; it refuses
-        every adjacent unmeasured method, target law or functional.
+        Defaults to 500 studentized draws at 95%. A request outside the measured binary
+        two-step protocol is reported with a ``not_measured`` calibration slot, never refused
+        for that reason. The default studentized interval refuses a panel without identical
+        complete binary histories (``route_not_supported``,
+        ``temporal_interval.studentized_unbalanced``); percentile and basic do not.
         """
+        run = _execution(execution)
+        memory_limit_bytes, cancel = run.limits.memory_bytes, run.cancel
         if config is None:
             config = CheckedTemporalIntervalConfig(method="studentized")
         if not isinstance(config, CheckedTemporalIntervalConfig):
@@ -255,7 +276,8 @@ class TemporalSession(_Session):
         _check_resources(memory_limit_bytes, cancel)
         if not isinstance(self._handle, _native.TemporalSessionHandle):
             raise CausalTypeError("interval requires original checked temporal session")
-        native, error = self._handle.measured_interval(
+        native, error = run._call(
+            self._handle.measured_interval,
             json.dumps(config._wire(), allow_nan=False),
             memory_limit_bytes=memory_limit_bytes,
             cancel=cancel,
@@ -270,12 +292,17 @@ class TemporalReplay:
     result: TemporalResult
 
 
+@outcome_operation
 def consume_temporal_result(
-    artifact: bytes, *, seed: int = 1, threads: int | None = None
+    artifact: bytes, *, execution: Execution | None = None
 ) -> TemporalReplay:
     """Fresh actual checked execution from full source-bound histories, not a receipt."""
-    native, result, receipt, error = _native.TemporalSessionHandle.consume(
-        artifact, seed=_seed(seed), threads=threads
+    run = _execution(execution)
+    artifact = container_bytes(artifact)
+    native, result, receipt, error = run._call(
+        _native.TemporalSessionHandle.consume,
+        artifact,
+        **_native_controls(run, resources=False),
     )
     raise_refusal(error, _refusal_type)
     if native is None:
@@ -461,7 +488,7 @@ class CheckedTemporalIntervalIdentity:
 
 @dataclass(frozen=True, slots=True, init=False)
 class CheckedTemporalIntervalCandidate:
-    """Immutable original checked source/proof candidate; calibration is unmeasured.
+    """Immutable original checked source/proof candidate; calibration is not_measured.
 
     Constructed by TemporalSession.interval_candidate or independent load. Both arms
     of an effect retain their original declarations and share every whole-unit draw.
@@ -484,10 +511,10 @@ class CheckedTemporalIntervalCandidate:
         if (
             body.get("version") != 1
             or body.get("required_features") != ["checked_temporal_interval_candidate_v1"]
-            or body.get("calibration") != "unmeasured"
-            or body["result"].get("calibration") != "unmeasured"
-            or body.get("claim") != "dependence_preserving_calibration_unmeasured"
-            or body["result"].get("claim") != "dependence_preserving_calibration_unmeasured"
+            or body.get("calibration") != "not_measured"
+            or body["result"].get("calibration") != "not_measured"
+            or body.get("claim") != "dependence_preserving_calibration_not_measured"
+            or body["result"].get("claim") != "dependence_preserving_calibration_not_measured"
         ):
             raise CausalSerializationError("unsupported checked temporal interval standing")
         identity = CheckedTemporalIntervalIdentity._from_wire(body["identity"])
@@ -502,8 +529,8 @@ class CheckedTemporalIntervalCandidate:
         return result
 
     @property
-    def calibration(self) -> Literal["unmeasured"]:
-        return "unmeasured"
+    def calibration(self) -> Literal["not_measured"]:
+        return "not_measured"
 
     @property
     def expected_identity(self) -> CheckedTemporalIntervalIdentity:
@@ -548,8 +575,9 @@ class CheckedTemporalIntervalCandidate:
         """Detached original source identities and complete interval draw/SE/pivot receipt."""
         return cast(dict[str, Any], detached(self._body))
 
-    def export(self) -> bytes:
-        return bytes(self._native.export())
+    @artifact_export
+    def export(self) -> ExportedArtifact:
+        return artifact_from_receipt(self, bytes(self._native.export()))
 
     @classmethod
     def load(
@@ -560,10 +588,12 @@ class CheckedTemporalIntervalCandidate:
         max_units: int = 4096,
         max_histories: int = 100_000,
         max_replicates: int = 2000,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> CheckedTemporalIntervalCandidate:
         """Fresh original proof/mechanism reconstruction and paired whole-unit replay."""
+        run = _execution(execution)
+        memory_limit_bytes, cancel = run.limits.memory_bytes, run.cancel
+        artifact = container_bytes(artifact)
         if not isinstance(artifact, bytes):
             raise CausalTypeError("artifact must be bytes")
         if len(artifact) > 24 * 1024 * 1024:
@@ -583,13 +613,14 @@ class CheckedTemporalIntervalCandidate:
 
             raise RecalcRefusal(
                 {
-                    "code": "cell_not_licensed",
-                    "detail": "temporal_interval.route_frozen",
+                    "code": "route_not_supported",
+                    "detail": _reason_details.temporal_interval.CONSUMER_UNAVAILABLE,
                     "stage": "inference",
-                    "message": "checked temporal interval calibration is unmeasured",
+                    "message": "the checked temporal interval consumer is unavailable in this build",
                 }
             )
-        native, error = consume(
+        native, error = run._call(
+            consume,
             artifact,
             json.dumps(expected._wire(), allow_nan=False),
             max_units=max_units,

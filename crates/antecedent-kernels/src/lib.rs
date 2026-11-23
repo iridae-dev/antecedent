@@ -3,7 +3,7 @@
 //! Scalar kernels are the correctness reference. Portable-optimized and
 //! architecture-specific paths must pass the same differential tests
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![deny(missing_docs)]
 // Unsafe is confined to validated unchecked view indexing in hot loops.
@@ -12,6 +12,7 @@
 pub mod cholesky;
 pub mod dispatch;
 pub mod gram;
+pub mod native_probe;
 pub mod numeric;
 pub mod parcorr;
 pub mod portable;
@@ -24,7 +25,7 @@ pub mod welford;
 
 pub use cholesky::{
     CholeskyError, back_solve_into, chol_inverse, chol_solve_into, cholesky_condition_lower_bound,
-    cholesky_spd_into, forward_solve_into,
+    cholesky_spd_into, design_gram_cholesky, forward_solve_into,
 };
 pub use dispatch::{
     KernelImpl, accumulate_contingency, gather, select_impl, standardize_inplace, weighted_mean,
@@ -39,17 +40,18 @@ pub use numeric::{
 pub use parcorr::{ParCorrMode, ParCorrQuery, ParCorrWorkspace, partial_correlation_batch};
 pub use posterior_reduce::{PosteriorReduceOp, quantile_type7_sorted, reduce_posterior_draws};
 pub use rng::{
-    bayesian_bootstrap_weights, categorical_from_u, fill_standard_normal, sample_categorical,
-    sample_gamma, sample_inv_gamma, shuffle, shuffled_fold_assignment, standard_normal,
-    unbiased_index,
+    CategoricalSampler, bayesian_bootstrap_weights, categorical_from_u,
+    fill_bayesian_bootstrap_weights, fill_standard_normal, sample_categorical, sample_gamma,
+    sample_inv_gamma, shuffle, shuffled_fold_assignment, standard_normal, unbiased_index,
 };
 pub use scalar::{kish_ess, sanitize_weight};
 pub use special::{
-    NORMAL_Q975, erf, erfc, log_norm_cdf, log_norm_pdf, log_norm_sf, mills_left_tail, norm_cdf,
-    norm_inv, norm_pdf, norm_sf,
+    GaussianDensityError, NORMAL_Q975, erf, erfc, gaussian_log_density,
+    gaussian_log_density_common_mean, log_norm_cdf, log_norm_pdf, log_norm_sf, mills_left_tail,
+    norm_cdf, norm_inv, norm_pdf, norm_sf,
 };
 pub use view::{BitMaskView, F64MatrixView, F64VectorView, ViewError};
-pub use welford::{Welford, update_scatter};
+pub use welford::{ScatterError, Welford, WelfordError, try_update_scatter, update_scatter};
 
 #[cfg(test)]
 mod tests {
@@ -121,6 +123,19 @@ mod tests {
         scalar::pairwise_l1_fill(&x, &mut out_s).unwrap();
         portable::pairwise_l1_fill(&x, &mut out_p).unwrap();
         assert_eq!(out_s, out_p);
+    }
+
+    #[test]
+    fn pairwise_l1_preserves_invalid_diagonals_in_both_kernels() {
+        let x = [1.0, f64::INFINITY, f64::NEG_INFINITY, f64::NAN];
+        for fill in [scalar::pairwise_l1_fill, portable::pairwise_l1_fill] {
+            let mut out = [0.0; 16];
+            fill(&x, &mut out).unwrap();
+            assert_eq!(out[0].to_bits(), 0.0_f64.to_bits());
+            assert!(out[5].is_nan());
+            assert!(out[10].is_nan());
+            assert!(out[15].is_nan());
+        }
     }
 
     #[test]
@@ -240,14 +255,14 @@ mod tests {
                 // Mix finite values with occasional NaNs (inject into logical slots).
                 let u = rng.next_u64();
                 let base = ((u % 1000) as f64) * 0.01 - 5.0;
-                x_buf[i] = if u % 17 == 0 { f64::NAN } else { base };
-                y_buf[i] = if (u / 17) % 19 == 0 { f64::NAN } else { base * 0.3 + 1.0 };
+                x_buf[i] = if u.is_multiple_of(17) { f64::NAN } else { base };
+                y_buf[i] = if (u / 17).is_multiple_of(19) { f64::NAN } else { base * 0.3 + 1.0 };
             }
             let x = F64VectorView::strided(&x_buf, len, stride).unwrap();
             let y = F64VectorView::strided(&y_buf, len, stride).unwrap();
 
             let mut bits = vec![0u8; len.div_ceil(8)];
-            let use_mask = rng.next_u64() % 3 != 0;
+            let use_mask = !rng.next_u64().is_multiple_of(3);
             if use_mask {
                 for i in 0..len {
                     if rng.next_u64() & 1 == 1 {

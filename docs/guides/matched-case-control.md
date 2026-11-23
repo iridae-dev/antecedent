@@ -1,15 +1,15 @@
-# Matched case-control odds ratio
+# Estimate a conditional odds ratio from matched case-control sets
 
-`antecedent.matched.matched_case_control_odds_ratio` (Rust:
-`antecedent_estimate::conditional_odds_ratio`) estimates one quantity from matched
-sets sampled on the outcome: the **conditional odds ratio** of a binary exposure,
-by exact conditional likelihood (conditional logistic regression). It is a new
-design row, not a conversion of the AIPW result, and its claim is `point_only`.
-The record is `estimate.matched_case_control_odds_ratio` in
-`parity/promotion.toml`.
+Use this route when your rows are matched sets sampled on the outcome (each case matched
+to one or more controls) and you want the association of a binary exposure with case
+status within sets. `antecedent.matched.matched_case_control_odds_ratio` (Rust:
+`antecedent_estimate::conditional_odds_ratio`) estimates one quantity: the
+**conditional odds ratio**, by exact conditional likelihood (conditional logistic
+regression). It is a separate design, not a conversion of the AIPW result. It takes no
+graph, and its claim is `point_only`.
 
-The safeguarded solve takes at most {{bound:estimate.matched_case_control_odds_ratio.max_iterations}} Newton iterations. Artifact replay expands at
-most {{bound:estimate.matched_case_control_odds_ratio.replay_max_rows}} reconstructed rows from the stored sufficient statistics.
+You need three parallel row sequences (the matched-set label, the case indicator and the
+exposure indicator) and an explicit declaration of the sampling design.
 
 ```python
 from antecedent.matched import matched_case_control_odds_ratio
@@ -23,15 +23,38 @@ result = matched_case_control_odds_ratio(
 result.odds_ratio, result.counts
 ```
 
+These are three discordant 1:1 pairs: the case is the exposed member in two and the
+control in one, so `result.odds_ratio` is `2 / 1 = 2.0` (the closed form in
+[Derivation](#derivation)) and `result.counts` reports three sets, all `informative`.
+
+## Read the result
+
+| Field | Meaning |
+| --- | --- |
+| `odds_ratio`, `log_odds_ratio` | the conditional odds ratio `theta` and `beta = log(theta)` |
+| `counts` | how many sets were informative and how many carried no information (see [below](#strata-that-carry-no-information)) |
+| `set_types` | the sufficient statistic: one `(members, cases, exposed, exposed_cases, sets)` row per distinct set shape |
+| `claim` | `point_only` |
+| `interval`, `interval_level`, `interval_calibration` | present only when you pass `level=`; see [The Wald interval](#the-wald-interval) |
+
+`result.export()` writes the point, the counts and `set_types`;
+`antecedent.matched.replay_matched_case_control(artifact)` rebuilds the sets from
+`set_types`, recomputes the odds ratio and every count, and refuses an artifact that does
+not reproduce them with `CausalSerializationError`.
+
+The safeguarded solve takes at most {{bound:estimate.matched_case_control_odds_ratio.max_iterations}} Newton iterations. Artifact replay expands at
+most {{bound:estimate.matched_case_control_odds_ratio.replay_max_rows}} reconstructed rows from the stored sufficient statistics.
+
 ## Estimand and population
 
 Within matched set `i`, `logit P(case | x) = alpha_i + beta x` with an unrestricted
 `alpha_i`. The conditional odds ratio is `theta = exp(beta)`. Sampling on the outcome
 changes only the `alpha_i`, so `theta` is the same in the sampled sets and in the
 population they were drawn from, **provided** the sets are matched on the declared
-stratum and the model's odds-ratio-is-common assumption holds. The cell checks neither
-(it takes no graph, so it makes no identification claim about confounders beyond the
-matching the caller declares).
+stratum and the odds ratio is common to every set. The route checks neither assumption.
+It takes no graph, so it makes no identification claim about confounders beyond the
+matching you declare: `theta` is a causal odds ratio only if exposure is unconfounded
+within matched sets.
 
 ## Derivation
 
@@ -65,7 +88,8 @@ lies strictly between the smallest and largest totals the informative sets allow
 
 ## Strata that carry no information
 
-Never dropped silently; `result.counts` reports each class, and they sum to `total`:
+A set that cannot contribute to the likelihood is counted, never dropped silently.
+`result.counts` reports each class, and the three classes sum to `total`:
 
 | class | meaning |
 | --- | --- |
@@ -82,18 +106,23 @@ Adding any number of the first two classes leaves the estimate bit-for-bit uncha
 | population risk, absolute risk, risk difference, risk ratio | `effect_not_identified` | `matched_case_control.absolute_risk_not_identified` |
 | any other estimand | `route_not_supported` | `matched_case_control.estimand_not_supported` |
 | a sampling design other than `matched_case_control` | `invalid_argument` | `matched_case_control.sampling_design` |
-| an interval (`level=`) | `cell_not_licensed` | `matched_case_control.interval_withheld` |
 | every set concordant or outcome-degenerate | `effect_not_identified` | `matched_case_control.no_informative_sets` |
 | the conditional likelihood has no finite maximizer | `route_not_supported` | `matched_case_control.estimate_not_finite` |
 | non-0/1, missing or unequal-length rows | `invalid_argument` | `matched_case_control.invalid_data` |
+| a `level` outside `(0, 1)` | `invalid_argument` | `matched_case_control.invalid_level` |
 | cancelled solve (a stop, never a verdict) | `transport_budget_cancel` | `matched_case_control.budget` |
 
 Risk-scale quantities are refused because the case fraction is fixed by the sampling
 design: an absolute risk needs the outcome prevalence or the selection fractions, and
-this cell takes neither.
+this route takes neither. Each refusal carries the fields described in
+[refusal codes and remedies](../reference/refusal-codes.md#structured-refusals-and-their-remedies).
 
-No interval is reported. A Wald interval `beta_hat +- z / sqrt(I(beta_hat))` rests on
-asymptotics (many informative sets, bounded set size, a fixed `beta`, independent sets)
-that no coverage record measures, so the route stays closed until one does.
+## The Wald interval
+
+`level=` adds the Wald interval `beta_hat +- z / sqrt(I(beta_hat))` on the log scale,
+exponentiated for the odds ratio, with its calibration status. It rests on asymptotics (many
+informative sets, bounded set size, a fixed `beta`, independent sets), and its status
+(`result.interval_calibration`) is `not_measured` unless a coverage record measures the
+construction. The interval is reported either way and is not part of the exported artifact.
 
 Implementation limits are listed in [supported input bounds](../supported-bounds.md).

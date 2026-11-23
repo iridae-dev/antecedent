@@ -1,7 +1,7 @@
 //! Durable study candidates: validation, joint-law honesty, canonical
 //! order-independent identity and the hypothetical regimes a study proposes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -118,7 +118,8 @@ fn joint_candidate_validates_and_matches_the_joint_obligation() {
 
 #[test]
 fn candidate_observing_separate_regimes_cannot_claim_the_joint_factor() {
-    let wrong = ("design_signal_invalid", "study_candidate.wrong_contract");
+    let wrong =
+        ("design_signal_invalid", antecedent_core::reason_details::study_candidate::WRONG_CONTRACT);
     // The study does not observe (Y, Z) together yet claims one joint law.
     let mut separate = candidate_c();
     separate.joint_measurement = false;
@@ -138,7 +139,8 @@ fn candidate_observing_separate_regimes_cannot_claim_the_joint_factor() {
 
 #[test]
 fn missing_unit_timing_or_cost_semantics_refuse() {
-    let wrong = ("design_signal_invalid", "study_candidate.wrong_contract");
+    let wrong =
+        ("design_signal_invalid", antecedent_core::reason_details::study_candidate::WRONG_CONTRACT);
     let mut free = candidate_c();
     free.cost.units = 0;
     assert_eq!(refusal(&free), wrong);
@@ -233,5 +235,95 @@ fn design_action_bridges_to_the_existing_planners() {
     assert!(increase.proposed_regimes(0).unwrap().is_empty());
     // A sample increase delivers no new regime and so claims none.
     increase.expected_evidence = Arc::from([evidence(1.0, &[Y, Z], true)]);
-    assert!(increase.validate().is_err());
+    let error = increase.validate().unwrap_err();
+    assert_eq!(error.code, "design_signal_invalid");
+    assert_eq!(error.detail, antecedent_core::reason_details::study_candidate::WRONG_CONTRACT);
+    assert_eq!(error.message, "a sample increase delivers no new regime");
+}
+
+fn observational(kind: StudyKind, measured: &[u32], joint: bool) -> DurableStudyCandidate {
+    DurableStudyCandidate {
+        kind,
+        interventions: Arc::from([]),
+        measured: vars(measured),
+        joint_measurement: joint,
+        expected_evidence: Arc::from([ExpectedEvidence {
+            population: Arc::from("T"),
+            interventions: Arc::from([]),
+            intervention_values: Arc::from([]),
+            conditioned_on: Arc::from([]),
+            measured: vars(measured),
+            distribution: if joint {
+                DistributionAvailability::Joint
+            } else {
+                DistributionAvailability::SeparateMarginals { variables: vars(measured) }
+            },
+        }]),
+        ..candidate_c()
+    }
+}
+
+#[test]
+fn instrument_natural_experiment_and_panel_studies_validate_their_own_shapes() {
+    // An instrument study measures the instrument, the treatment and the outcome jointly.
+    observational(StudyKind::Instrument, &[A, Y, Z], true).validate().unwrap();
+    let wrong =
+        ("design_signal_invalid", antecedent_core::reason_details::study_candidate::WRONG_CONTRACT);
+    assert_eq!(refusal(&observational(StudyKind::Instrument, &[A, Y], true)), wrong);
+    assert_eq!(refusal(&observational(StudyKind::Instrument, &[A, Y, Z], false)), wrong);
+    // A natural experiment sets nothing and measures at least the exposure and outcome.
+    observational(StudyKind::NaturalExperiment, &[A, Y], false).validate().unwrap();
+    assert_eq!(refusal(&observational(StudyKind::NaturalExperiment, &[Y], false)), wrong);
+    let mut setting = observational(StudyKind::NaturalExperiment, &[Y, Z], false);
+    setting.interventions = vars(&[A]);
+    assert_eq!(refusal(&setting), wrong);
+    // A panel jointly measures the same units.
+    observational(StudyKind::Panel, &[A, Y], true).validate().unwrap();
+    assert_eq!(refusal(&observational(StudyKind::Panel, &[A, Y], false)), wrong);
+    assert_eq!(refusal(&observational(StudyKind::Panel, &[Y], true)), wrong);
+}
+
+#[test]
+fn the_new_kinds_deliver_observational_laws_and_plan_as_measurements() {
+    for (kind, measured) in [
+        (StudyKind::Instrument, vec![A, Y, Z]),
+        (StudyKind::NaturalExperiment, vec![A, Y]),
+        (StudyKind::Panel, vec![A, Y]),
+    ] {
+        let c = observational(kind, &measured, true);
+        c.validate().unwrap();
+        assert!(c.semantic_id().starts_with("sc1:"));
+        let offers = c.offers();
+        assert_eq!(offers.len(), 1);
+        assert!(offers[0].interventions.is_empty() && offers[0].joint);
+        let regimes = c.proposed_regimes(0).unwrap();
+        assert_eq!(regimes[0].kind, RegimeKind::Observational);
+        assert_eq!(regimes[0].evidence_kind, EvidenceKind::Proposed);
+        match c.design_action() {
+            CandidateDesign::Measure(plan) => assert_eq!(plan.variables.len(), measured.len()),
+            other => panic!("expected a measurement plan, got {other:?}"),
+        }
+        assert_eq!(StudyKind::from_name(kind.as_str()), Some(kind));
+        assert!(kind.is_observational());
+    }
+    assert!(!StudyKind::Experiment.is_observational());
+}
+
+#[test]
+fn the_kind_is_part_of_the_semantic_identity_and_existing_names_are_unchanged() {
+    let observation = observational(StudyKind::Observation, &[A, Y], true);
+    let natural = observational(StudyKind::NaturalExperiment, &[A, Y], true);
+    assert_ne!(observation.semantic_id(), natural.semantic_id());
+    assert_eq!(
+        StudyKind::ALL.map(StudyKind::as_str),
+        [
+            "experiment",
+            "observation",
+            "sample_increase",
+            "instrument",
+            "natural_experiment",
+            "panel"
+        ]
+    );
+    assert_eq!(candidate_c().semantic_id(), candidate_c().semantic_id());
 }

@@ -31,7 +31,7 @@ covariates (pass ``within_class_randomization=True``; without it the fit refuses
 weights hold, and ``K`` is the true number of classes. Weak or degenerate classes refuse
 (``latent_class.weak_class``, ``latent_class.degenerate_class``).
 
-Standard errors are a seeded, label-aligned bootstrap with calibration ``"unmeasured"``: no
+Standard errors are a seeded, label-aligned bootstrap with calibration ``"not_measured"``: no
 coverage claim and no interval is made. :func:`consume_latent_class_artifact` refits from the
 artifact's embedded dataset under the stored seed and configuration and refuses unless the
 canonical output reproduces bit for bit; with ``expected_identity`` (the
@@ -49,11 +49,20 @@ from typing import Any, Literal
 
 import numpy as np
 
+from antecedent import _reason_details
+
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._native import consume_latent_class_artifact as _consume
 from ._native import evaluate_latent_class_effects as _evaluate
 from ._refusal import raise_refusal
 from ._validate import count, non_finite_refusal, real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+from .execution import Execution, resolve_execution
 
 __all__ = [
     "LatentClass",
@@ -171,7 +180,7 @@ class LatentClassEffects:
     ``classes`` are in canonical order; ``mixture_effect`` is ``sum_k pi_k tau_k``.
     ``responsibilities`` is the ``(n, K)`` matrix of posterior class probabilities (canonical
     columns) and ``hard_assignment`` each unit's most probable canonical class. Bootstrap
-    standard errors have ``calibration == "unmeasured"``: they carry no coverage claim.
+    standard errors have ``calibration == "not_measured"``: they carry no coverage claim.
     """
 
     classes_declared: int
@@ -203,7 +212,8 @@ class LatentClassEffects:
     artifact: bytes | None
     _export_refusal: str | None = field(default=None, repr=False, compare=False)
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The checksummed ``latent_class_effects_v1`` artifact.
 
         Raises :class:`LatentClassRefusal` (``route_not_supported``,
@@ -213,7 +223,7 @@ class LatentClassEffects:
         if self.artifact is None:
             raise_refusal(self._export_refusal, LatentClassRefusal)
         assert self.artifact is not None
-        return self.artifact
+        return artifact_from_receipt(self, self.artifact)
 
     @property
     def separation(self) -> float:
@@ -275,6 +285,7 @@ def _optional(value: float | None) -> float | None:
 def _result(
     report_json: str, artifact: bytes | None, export_refusal: str | None = None
 ) -> LatentClassEffects:
+    artifact = container_bytes(artifact) if artifact is not None else None
     report = json.loads(report_json)
     meta = report["meta"]
     names = meta["covariate_names"]
@@ -383,7 +394,7 @@ _real = partial(
     real,
     finite=True,
     non_finite=non_finite_refusal(
-        LatentClassRefusal, stage="fit", detail="latent_class.invalid_config"
+        LatentClassRefusal, stage="fit", detail=_reason_details.latent_class.INVALID_CONFIG
     ),
 )
 
@@ -422,6 +433,7 @@ def latent_class_effects(
     bootstrap_replicates: int = 200,
     initial_labels: Sequence[int] | None = None,
     data_binding: Literal["embedded", "digest"] = "embedded",
+    execution: Execution | None = None,
 ) -> LatentClassEffects:
     """Fit a ``classes``-component mixture of Gaussian linear outcome models and report effects.
 
@@ -436,6 +448,9 @@ def latent_class_effects(
     largest posterior responsibility below ``min_separation``, refuses as weak.
     ``variance_floor`` (a fraction of the outcome variance) marks a class as degenerate.
     ``bootstrap_replicates`` (0 reports no standard errors) resamples rows with label alignment.
+
+    ``execution.limits.memory_bytes`` bounds the planned working set of the fit and
+    ``execution.cancel`` stops it (``latent_class.cancelled``).
 
     ``data_binding="digest"`` exports a record that holds no rows, bound to the dataset by its
     digest; :func:`consume_latent_class_artifact` then needs the dataset passed back.
@@ -455,6 +470,7 @@ def latent_class_effects(
     """
     if not isinstance(within_class_randomization, bool):
         raise CausalTypeError("within_class_randomization must be a bool")
+    execution = resolve_execution(execution)
     names, columns = _covariate_columns(covariates)
     y = _column(outcome, "outcome")
     a = _column(treatment, "treatment")
@@ -488,6 +504,8 @@ def latent_class_effects(
         json.dumps(config, allow_nan=False),
         "latent_class_effects",
         digest_bound=data_binding == "digest",
+        memory_limit_bytes=execution.limits.memory_bytes,
+        cancel=execution.cancel,
     )
     if report is not None and artifact is None and refusal is not None:
         return _result(report, None, refusal)  # the export was refused; the fit stands
@@ -503,10 +521,10 @@ def consume_latent_class_artifact(
     artifact: bytes,
     *,
     expected_identity: LatentClassIdentity | Mapping[str, str] | None = None,
-    memory_limit_bytes: int | None = None,
     outcome: Any = None,
     treatment: Any = None,
     covariates: Any = None,
+    execution: Execution | None = None,
 ) -> LatentClassEffects:
     """Refit an exported latent-class artifact and accept only an identical one.
 
@@ -519,12 +537,14 @@ def consume_latent_class_artifact(
     Corruption and unknown major versions raise
     :class:`~antecedent.errors.CausalSerializationError`.
 
-    ``memory_limit_bytes`` bounds the refit's planned working set
+    ``execution.limits.memory_bytes`` bounds the refit's planned working set
     (``latent_class.memory_budget_exceeded``). An artifact exported with
     ``data_binding="digest"`` holds no rows: pass ``outcome``, ``treatment`` and ``covariates``
     (the dataset it was fitted on); any other dataset is refused (``IdentityMismatch``, ``data``)
     and omitting it refuses with ``latent_class.data_required``.
     """
+    execution = resolve_execution(execution)
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     if expected_identity is None:
@@ -549,7 +569,11 @@ def consume_latent_class_artifact(
             "covariates need outcome and treatment", reason_code="invalid_argument"
         )
     report, refusal = _consume(
-        data, expected_json, memory_limit_bytes=memory_limit_bytes, data=supplied
+        data,
+        expected_json,
+        memory_limit_bytes=execution.limits.memory_bytes,
+        cancel=execution.cancel,
+        data=supplied,
     )
     raise_refusal(refusal, LatentClassRefusal)
     if report is None:  # pragma: no cover - the native contract

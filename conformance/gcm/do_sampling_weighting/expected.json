@@ -6,12 +6,13 @@
     "baseline_pin": "parity/baselines/dowhy.toml",
     "env": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py"
   },
-  "reference": {
+  "historical_reference": {
     "project": "dowhy",
     "available": true,
     "version": "0.14",
     "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
-    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py", "generator_retained": false,
+    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py",
+    "generator_retained": false,
     "note": "black-box execution only; no source translation",
     "outputs": {
       "method": "dowhy.gcm.average_causal_effect",
@@ -23,6 +24,51 @@
   "oracle": {
     "kind": "closed_form",
     "method": "binary-treatment linear SCM: the treated interventional mean is 2",
-    "note": "the expected mean follows from the stated linear SCM; the `reference` block records a pinned DoWhy 0.14 run (generator deleted after import) that crates/antecedent/tests/gcm.rs does not compare against, so it is context, not the truth source"
+    "note": "the expected mean follows from the stated linear SCM; the `historical_reference` block records a pinned DoWhy 0.14 run (generator deleted after import) that crates/antecedent/tests/gcm.rs does not compare against, so it is context, not the truth source",
+    "generator": "conformance/gcm/do_sampling_weighting/reference.py",
+    "command": "uv run --frozen --script conformance/gcm/do_sampling_weighting/reference.py --check",
+    "environment_lock": "conformance/gcm/do_sampling_weighting/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "expected_treated_mean"
+    ],
+    "context_only_outputs": [
+      "tolerance_class label",
+      "DoWhy historical_reference block (not compared)",
+      "notes text"
+    ],
+    "independence_basis": "The generator evaluates the stated structural equation at the set value; it imports no Antecedent code and no statistics package. The shared object is the stated equation.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Interventional mean at T = 1 of a noiseless unconfounded binary-treatment SCM.",
+      "independence_basis": "The generator evaluates the stated structural equation at the set value; it imports no Antecedent code and no statistics package. The shared object is the stated equation.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The SCM has no outcome noise and no confounding, so any estimator that averages the treated outcomes passes; the fixture cannot distinguish a correct weighting from a plain treated-arm mean. The compared tolerance is 1e-9. No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/gcm/do_sampling_weighting/reference.py",
+          "sha256": "76ae7697914d6bd33b35f65b3614e5ea9893cecc553c4139c46401d017e1dd1b"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/gcm/do_sampling_weighting/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/gcm.rs",
+          "items": [
+            "fn binary_treatment_scm",
+            "fn do_sampling_weighting",
+            "fn fixture_dir"
+          ],
+          "sha256": "bf65c15af2f6f54932a6d29c401a7000a7ec5dd544839c9c89f95038cdeae860"
+        }
+      ],
+      "fixture_payload_sha256": "e9d5c74bad98cc37ebae0d1afe67734bc6c3635ee4e8b5c09a19568d290599f4"
+    }
   }
 }

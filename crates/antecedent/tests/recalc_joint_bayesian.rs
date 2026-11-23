@@ -1,5 +1,5 @@
-//! Internal unmeasured joint posterior retention; independent Gaussian algebra.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+//! Internal `not_measured` joint posterior retention; independent Gaussian algebra.
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::analysis::recalc_bayesian::PosteriorSummarySpec;
 use antecedent::analysis::recalc_joint_bayesian::{
     JointBayesianRequest, JointBayesianSession, execute_joint_bayesian_with_receipt,
@@ -130,7 +130,7 @@ fn actual_checked_joint_posterior_retention_and_independent_replay() {
         &ctx,
     )
     .unwrap();
-    assert_eq!(wire.calibration, "unmeasured");
+    assert_eq!(wire.calibration, "not_measured");
     assert_eq!(replayed, *session.fit().unwrap());
     request.model.priors.varying.provenance = PriorProvenance::Bank {
         bank_id: "used-bank".into(),
@@ -138,21 +138,30 @@ fn actual_checked_joint_posterior_retention_and_independent_replay() {
     };
     let (failure, work) =
         count_bayesian_work(|| execute_joint_bayesian_with_receipt(&mut session, &request, &ctx));
-    assert!(failure.is_err());
+    assert_eq!(
+        format!("{:?}", failure.err().unwrap()),
+        "Execution(Serialization(Refused { code: \"invalid_argument\", message: \"bayesian_transport.prior_data_overlap: observations used to build the prior bank also enter the likelihood; each datum may enter exactly one\" }))"
+    );
     assert_eq!(work.model_fits + work.posterior_draws, 0);
     request.model.priors.varying.provenance = PriorProvenance::Bank {
         bank_id: "oversized-bank".into(),
-        consumed: vec![request.sources[0].identity.clone(); 17],
+        consumed: vec![request.sources[0].identity.clone()],
     };
+    let prior_mean = request.model.priors.varying.mean.clone();
+    request.model.priors.varying.mean.resize(
+        antecedent_estimate::joint_bayesian_transport::JOINT_TRANSPORT_MAX_PARAMETERS + 1,
+        0.0,
+    );
     let (failure, work) =
         count_bayesian_work(|| execute_joint_bayesian_with_receipt(&mut session, &request, &ctx));
     assert!(matches!(
         failure,
         Err(antecedent::analysis::recalc_receipt::RecalcRunError::Request(
-            "recalc.bayesian_workspace_limit"
+            antecedent::analysis::recalc_receipt::RecalcRequestCode::BayesianWorkspaceLimit
         ))
     ));
     assert_eq!(work.model_fits + work.posterior_draws, 0);
+    request.model.priors.varying.mean = prior_mean;
     request.model.priors.varying.provenance = PriorProvenance::Declared;
     assert_eq!(
         execute_joint_bayesian_with_receipt(&mut session, &request, &ctx)

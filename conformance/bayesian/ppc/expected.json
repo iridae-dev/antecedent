@@ -3,5 +3,12 @@
     "prior_predictive",
     "posterior_predictive"
   ],
-  "require_finite_p_value": true
+  "require_finite_p_value": true,
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_kind": "implementation_exists",
+  "evidence_source": "crates/antecedent/tests/bayesian.rs::ppc",
+  "evidence_proposition": "Prior/posterior predictive checks produce the requested kind and finite p-values, and attach to the facade.",
+  "limitations": "Finiteness and attachment only; this fixture establishes no null rejection rate, power, posterior calibration or causal identification."
 }

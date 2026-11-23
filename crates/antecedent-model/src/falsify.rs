@@ -27,7 +27,7 @@
 //! That diagnostic shuffles one outcome column and re-scores a *fitted* model; this procedure
 //! fits nothing, relabels the graph, and compares graph-implied independencies with the data.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
@@ -46,8 +46,19 @@ use antecedent_stats::ci::{
 
 use crate::error::ModelError;
 
-/// Most node relabellings a run may request.
-pub const MAX_GRAPH_PERMUTATIONS: usize = 100_000;
+/// Most relabellings enumerated and held in memory when `n!` fits the request. A larger
+/// request over a small graph is sampled instead (reported as not exhaustive), so memory stays
+/// bounded; total work is bounded separately by [`MAX_FALSIFICATION_WORK`].
+pub const MAX_ENUMERATED_RELABELLINGS: usize = 1 << 20;
+
+/// Most relabelling work one [`falsify_graph`] run may request, in elementary steps: every
+/// relabelling costs its Markov-equivalence signature (`n^2`), its shuffle (`n`) and one key per
+/// local Markov implication (the size of its conditioning set, plus the pair). Cached CI tests
+/// are free in [`GraphFalsificationConfig::max_ci_tests`], so that ceiling does not bound this
+/// loop; a request over this limit is refused up front (a typed refusal, distinct from the
+/// `Incomplete` outcome of an exhausted CI-test budget) instead of being run to the end of a
+/// caller-sized `n_permutations`.
+pub const MAX_FALSIFICATION_WORK: u128 = 10_000_000_000;
 
 /// Default ceiling on distinct conditional-independence tests a run may evaluate.
 pub const DEFAULT_MAX_CI_TESTS: usize = 200_000;
@@ -105,24 +116,17 @@ impl GraphFalsificationConfig {
         if !open_unit(self.alpha) || !open_unit(self.significance) {
             return Err(refuse(
                 invalid,
-                "graph_falsification.invalid_level",
+                antecedent_core::reason_details::graph_falsification::INVALID_LEVEL,
                 "alpha and significance must lie in (0, 1)",
             ));
         }
-        if let Some(share) = self.max_equivalent_share {
-            if !(share.is_finite() && share > 0.0 && share <= 1.0) {
-                return Err(refuse(
-                    invalid,
-                    "graph_falsification.invalid_level",
-                    "max_equivalent_share must lie in (0, 1]",
-                ));
-            }
-        }
-        if self.n_permutations > MAX_GRAPH_PERMUTATIONS {
+        if let Some(share) = self.max_equivalent_share
+            && !(share.is_finite() && share > 0.0 && share <= 1.0)
+        {
             return Err(refuse(
-                antecedent_core::reason_code!("route_not_supported"),
-                "graph_falsification.permutations_exceed_ceiling",
-                "n_permutations exceeds the ceiling on node relabellings held in memory",
+                invalid,
+                antecedent_core::reason_details::graph_falsification::INVALID_LEVEL,
+                "max_equivalent_share must lie in (0, 1]",
             ));
         }
         if self.n_permutations == 0
@@ -131,7 +135,7 @@ impl GraphFalsificationConfig {
         {
             return Err(refuse(
                 invalid,
-                "graph_falsification.invalid_permutations",
+                antecedent_core::reason_details::graph_falsification::INVALID_PERMUTATIONS,
                 "n_permutations and min_permutations must be positive, with min_permutations at \
                  most n_permutations",
             ));
@@ -139,7 +143,7 @@ impl GraphFalsificationConfig {
         if self.ci_replicates == 0 {
             return Err(refuse(
                 invalid,
-                "graph_falsification.invalid_permutations",
+                antecedent_core::reason_details::graph_falsification::INVALID_PERMUTATIONS,
                 "ci_replicates must be positive",
             ));
         }
@@ -390,24 +394,67 @@ fn next_permutation(perm: &mut [usize]) -> bool {
 }
 
 /// The relabellings to compare against and whether they are all of the non-identity ones.
-fn draw_permutations(n: usize, requested: usize, rng: &mut CausalRng) -> (Vec<Vec<usize>>, bool) {
-    if factorial_within(n, requested).is_some() {
+fn draw_permutations(
+    n: usize,
+    requested: usize,
+    rng: &mut CausalRng,
+    ctx: &ExecutionContext,
+) -> Result<(RelabellingPlan, bool), ModelError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(ModelError::Cancelled);
+    }
+    if let Some(factorial) = factorial_within(n, requested.min(MAX_ENUMERATED_RELABELLINGS)) {
         let mut perm: Vec<usize> = (0..n).collect();
-        let mut all = Vec::new();
+        let mut all = Vec::with_capacity(factorial.saturating_sub(1));
         while next_permutation(&mut perm) {
+            if all.len() % 1024 == 0 && ctx.cancellation.is_cancelled() {
+                return Err(ModelError::Cancelled);
+            }
             all.push(perm.clone());
         }
-        // A prefix of the lexicographic order is not a random subset; a stopped run keeps one.
-        shuffle(&mut all, rng);
-        return (all, true);
+        // A prefix of the lexicographic order is not a random subset.
+        for i in (1..all.len()).rev() {
+            if i % 1024 == 0 && ctx.cancellation.is_cancelled() {
+                return Err(ModelError::Cancelled);
+            }
+            all.swap(i, below(rng, i + 1));
+        }
+        return Ok((RelabellingPlan::Listed(all), true));
     }
-    let mut drawn = Vec::with_capacity(requested);
-    for _ in 0..requested {
-        let mut perm: Vec<usize> = (0..n).collect();
-        shuffle(&mut perm, rng);
-        drawn.push(perm);
+    Ok((RelabellingPlan::Sampled { n, count: requested, rng: rng.clone() }, false))
+}
+
+/// The relabellings of a run: an explicit list, or a counted deterministic stream.
+enum RelabellingPlan {
+    /// Every non-identity relabelling, in shuffled order.
+    Listed(Vec<Vec<usize>>),
+    /// `count` independent uniform relabellings regenerated from `rng` on each pass.
+    Sampled { n: usize, count: usize, rng: CausalRng },
+}
+
+impl RelabellingPlan {
+    fn len(&self) -> usize {
+        match self {
+            Self::Listed(all) => all.len(),
+            Self::Sampled { count, .. } => *count,
+        }
     }
-    (drawn, false)
+
+    /// One pass over the relabellings; every pass yields the same sequence.
+    fn iter(&self) -> Box<dyn Iterator<Item = Vec<usize>> + '_> {
+        match self {
+            Self::Listed(all) => Box::new(all.iter().cloned()),
+            Self::Sampled { n, count, rng } => {
+                let mut rng = rng.clone();
+                let n = *n;
+                Box::new((0..*count).map(move |_| {
+                    let mut perm: Vec<usize> = (0..n).collect();
+                    shuffle(&mut perm, &mut rng);
+                    perm
+                }))
+            }
+        }
+    }
 }
 
 /// Cached CI evaluation under a shared search budget.
@@ -470,7 +517,7 @@ impl CiSession<'_> {
         if out.results.len() != queries.len() {
             return Err(refuse(
                 antecedent_core::reason_code!("diagnostic_not_available"),
-                "graph_falsification.ci_result_count",
+                antecedent_core::reason_details::graph_falsification::CI_RESULT_COUNT,
                 "the CI test returned a different number of results than queries",
             ));
         }
@@ -478,7 +525,7 @@ impl CiSession<'_> {
             if result.p_value.is_nan() {
                 return Err(refuse(
                     antecedent_core::reason_code!("diagnostic_not_available"),
-                    "graph_falsification.ci_p_value_missing",
+                    antecedent_core::reason_details::graph_falsification::CI_P_VALUE_MISSING,
                     "a local Markov implication produced a NaN p-value",
                 ));
             }
@@ -536,60 +583,100 @@ fn limitations(config: &GraphFalsificationConfig, replicates: Option<u32>) -> Ve
     out
 }
 
-/// Test a causal DAG against data by comparing its violated local Markov implications with those
-/// of random relabellings of its nodes. No fitted mechanisms are needed.
-///
-/// Nodes must be static variable nodes whose columns in `data` are numeric, observed and finite.
-/// The relabelling stream is seeded by `config.seed` (or the context's master seed); CI tests with
-/// permutation nulls draw from the context. Distinct CI tests are charged against
-/// `config.max_ci_tests` as a [`SearchBudget`] operation and cancellation is observed at every
-/// charge; results are cached across relabellings.
-///
-/// # Errors
-///
-/// Invalid configuration, a graph that is not a static DAG over at least two data columns,
-/// unobserved or non-finite data, an unknown or non-frequentist CI test, or a CI-test failure.
-/// Budget exhaustion and cancellation are reported as [`GraphFalsificationOutcome::Incomplete`].
-#[allow(
-    clippy::too_many_lines,
-    reason = "one procedure: validate, draw relabellings, test the graph, then each relabelling"
-)]
-pub fn falsify_graph(
-    dag: &Dag,
-    data: &TabularData,
-    config: &GraphFalsificationConfig,
+fn check_falsification_work(
+    n: usize,
+    count: usize,
+    implications: &[Implication],
+) -> Result<(), ModelError> {
+    let key_steps: u128 = implications.iter().map(|i| i.conditioning.len() as u128 + 2).sum();
+    let per_relabelling = (n as u128) * (n as u128 + 2) + key_steps;
+    let work = per_relabelling.saturating_mul(count as u128);
+    if work > MAX_FALSIFICATION_WORK {
+        return Err(ModelError::Unsupported {
+            message: format!(
+                "{}{}: graph_falsification.work_limit: {count} relabellings of a {n}-node graph \
+                 with {} implications cost {work} steps, over the limit of \
+                 {MAX_FALSIFICATION_WORK}. Next attempt: fewer relabellings",
+                antecedent_core::reason_code::PREFIX,
+                antecedent_core::reason_code!("execution_resource_limit"),
+                implications.len(),
+            ),
+        });
+    }
+    Ok(())
+}
+
+fn count_equivalent_permutations(
+    signature: &EquivalenceSignature,
+    permutations: &RelabellingPlan,
     ctx: &ExecutionContext,
-) -> Result<GraphFalsificationReport, ModelError> {
-    config.validate()?;
-    dag.validate()?;
+) -> Result<usize, ModelError> {
+    let mut equivalent_permutations = 0usize;
+    for perm in permutations.iter() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(ModelError::Cancelled);
+        }
+        if signature.relabelled(&perm) == *signature {
+            equivalent_permutations += 1;
+        }
+    }
+    Ok(equivalent_permutations)
+}
+
+fn falsification_permutation_allocation(
+    n: usize,
+    n_permutations: usize,
+    ctx: &ExecutionContext,
+) -> Result<(usize, u64), ModelError> {
+    // Reserve both the retained counts (including the final Arc conversion) and
+    // any enumerated vector payload/headers before either allocation.
+    let enumerated = factorial_within(n, n_permutations.min(MAX_ENUMERATED_RELABELLINGS));
+    let count = enumerated.map_or(n_permutations, |v| v.saturating_sub(1));
+    let bytes = count
+        .checked_mul(std::mem::size_of::<u32>())
+        .and_then(|v| v.checked_mul(2))
+        .and_then(|v| {
+            if enumerated.is_some() {
+                count
+                    .checked_mul(
+                        n.checked_mul(std::mem::size_of::<usize>())?
+                            .checked_add(std::mem::size_of::<Vec<usize>>())?,
+                    )?
+                    .checked_add(v)
+            } else {
+                Some(v)
+            }
+        })
+        .and_then(|v| v.checked_add(n.checked_mul(std::mem::size_of::<usize>())?))
+        .and_then(|v| u64::try_from(v).ok())
+        .ok_or(ModelError::ResourceLimit {
+            message: "graph falsification permutations",
+            required_bytes: u64::MAX,
+            limit_bytes: ctx.admission().available().bytes(),
+        })?;
+    Ok((count, bytes))
+}
+
+type GraphFalsificationColumns<'a> = (Vec<VariableId>, Vec<Cow<'a, [f64]>>);
+
+fn graph_falsification_columns<'a>(
+    dag: &Dag,
+    data: &'a TabularData,
+) -> Result<GraphFalsificationColumns<'a>, ModelError> {
     let n = dag.node_count();
-    if n < 2 {
-        return Err(refuse(
-            antecedent_core::reason_code!("invalid_argument"),
-            "graph_falsification.too_few_nodes",
-            "graph falsification needs a graph with at least two nodes",
-        ));
-    }
-    if data.row_count() == 0 {
-        return Err(refuse(
-            antecedent_core::reason_code!("invalid_argument"),
-            "graph_falsification.empty_data",
-            "graph falsification needs at least one row",
-        ));
-    }
     let mut variables = Vec::with_capacity(n);
     for node in dag.nodes() {
         let NodeRef::Static(variable) = node else {
             return Err(refuse(
                 antecedent_core::reason_code!("route_not_supported"),
-                "graph_falsification.node_not_static",
+                antecedent_core::reason_details::graph_falsification::NODE_NOT_STATIC,
                 "only static variable nodes are supported",
             ));
         };
         if variables.contains(variable) {
             return Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "graph_falsification.duplicate_variable",
+                antecedent_core::reason_details::graph_falsification::DUPLICATE_VARIABLE,
                 "distinct nodes must carry distinct variables",
             ));
         }
@@ -603,17 +690,65 @@ pub fn falsify_graph(
     if storage.iter().any(|col| col.iter().any(|v| !v.is_finite())) {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "graph_falsification.data_not_observed",
+            antecedent_core::reason_details::graph_falsification::DATA_NOT_OBSERVED,
             "graph columns must be fully observed and finite; rows are not dropped",
         ));
     }
+    Ok((variables, storage))
+}
+
+/// Test a causal DAG against data by comparing its violated local Markov implications with those
+/// of random relabellings of its nodes. No fitted mechanisms are needed.
+///
+/// Nodes must be static variable nodes whose columns in `data` are numeric, observed and finite.
+/// The relabelling stream is seeded by `config.seed` (or the context's master seed); CI tests with
+/// permutation nulls draw from the context. Distinct CI tests are charged against
+/// `config.max_ci_tests` as a [`SearchBudget`] operation and cancellation is observed at every
+/// charge; results are cached across relabellings.
+///
+/// # Errors
+///
+/// Invalid configuration, relabelling work over [`MAX_FALSIFICATION_WORK`] (a typed refusal),
+/// a graph that is not a static DAG over at least two data columns, unobserved or non-finite data, an unknown or non-frequentist CI test, or a CI-test failure.
+/// Budget exhaustion and cancellation are reported as [`GraphFalsificationOutcome::Incomplete`].
+#[allow(
+    clippy::too_many_lines,
+    reason = "one procedure: validate, draw relabellings, test the graph, then each relabelling"
+)]
+pub fn falsify_graph(
+    dag: &Dag,
+    data: &TabularData,
+    config: &GraphFalsificationConfig,
+    ctx: &ExecutionContext,
+) -> Result<GraphFalsificationReport, ModelError> {
+    config.validate()?;
+    if ctx.cancellation.is_cancelled() {
+        return Err(ModelError::Cancelled);
+    }
+    dag.validate()?;
+    let n = dag.node_count();
+    if n < 2 {
+        return Err(refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            antecedent_core::reason_details::graph_falsification::TOO_FEW_NODES,
+            "graph falsification needs a graph with at least two nodes",
+        ));
+    }
+    if data.row_count() == 0 {
+        return Err(refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            antecedent_core::reason_details::graph_falsification::EMPTY_DATA,
+            "graph falsification needs at least one row",
+        ));
+    }
+    let (variables, storage) = graph_falsification_columns(dag, data)?;
     let columns: Vec<&[f64]> = storage.iter().map(AsRef::as_ref).collect();
 
     let test = ci_from_name(&config.ci_test)?;
     if !test.p_value_is_frequentist() {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "graph_falsification.ci_test_not_frequentist",
+            antecedent_core::reason_details::graph_falsification::CI_TEST_NOT_FREQUENTIST,
             "the test's p-value is a posterior probability, not a frequentist p-value",
         ));
     }
@@ -633,9 +768,15 @@ pub fn falsify_graph(
         .stream_for(StreamDomain::Resample, PERMUTATION_STREAM);
     let implications = local_markov_implications(dag);
     let signature = EquivalenceSignature::of(dag);
-    let (permutations, exhaustive) = draw_permutations(n, config.n_permutations, &mut rng);
-    let equivalent_permutations =
-        permutations.iter().filter(|p| signature.relabelled(p) == signature).count();
+    let (count, bytes) = falsification_permutation_allocation(n, config.n_permutations, ctx)?;
+    let _lease = ctx.acquire_admission(0, bytes).map_err(|error| {
+        crate::error::admission_error(error, "graph falsification permutations", bytes, || {
+            ctx.admission().available().bytes()
+        })
+    })?;
+    check_falsification_work(n, count, &implications)?;
+    let (permutations, exhaustive) = draw_permutations(n, config.n_permutations, &mut rng, ctx)?;
+    let equivalent_permutations = count_equivalent_permutations(&signature, &permutations, ctx)?;
     let equivalent_share = (1 + equivalent_permutations) as f64 / (1 + permutations.len()) as f64;
     let max_equivalent_share = config.max_equivalent_share.unwrap_or(config.significance);
 
@@ -730,8 +871,12 @@ pub fn falsify_graph(
 
     let mut counts = Vec::with_capacity(permutations.len());
     let mut stop = None;
-    for perm in &permutations {
-        let keys: Vec<CiKey> = implications.iter().map(|i| key_under(i, perm)).collect();
+    for perm in permutations.iter() {
+        if ctx.cancellation.is_cancelled() {
+            stop = Some(SearchStop::Cancelled);
+            break;
+        }
+        let keys: Vec<CiKey> = implications.iter().map(|i| key_under(i, &perm)).collect();
         if let Some(reason) = session.ensure(&keys)? {
             stop = Some(reason);
             break;
@@ -756,7 +901,7 @@ pub fn falsify_graph(
             vec![format!("permutations: {}", permutations.len() - counts.len())],
         ));
     }
-    if counts.len() < config.min_permutations {
+    if stop == Some(SearchStop::Cancelled) || counts.len() < config.min_permutations {
         report.permutation_violations = Arc::from(counts);
         return Ok(report);
     }
@@ -798,6 +943,40 @@ fn stopped(
 )]
 mod tests {
     use super::*;
+
+    #[test]
+    fn permutation_allocation_accounts_for_enumeration_and_overflow() {
+        let ctx = ExecutionContext::for_tests(0);
+        let (count, bytes) = falsification_permutation_allocation(3, 6, &ctx).unwrap();
+        assert_eq!(count, 5);
+        let expected = 5 * std::mem::size_of::<u32>() * 2
+            + 5 * (3 * std::mem::size_of::<usize>() + std::mem::size_of::<Vec<usize>>())
+            + 3 * std::mem::size_of::<usize>();
+        assert_eq!(bytes, u64::try_from(expected).unwrap());
+        assert!(falsification_permutation_allocation(usize::MAX, usize::MAX, &ctx).is_err());
+    }
+
+    #[test]
+    fn equivalent_permutation_count_uses_each_listed_relabelling() {
+        let signature = EquivalenceSignature::of(&Dag::with_variables(3));
+        let permutations = RelabellingPlan::Listed(vec![vec![1, 0, 2], vec![2, 1, 0]]);
+        assert_eq!(
+            count_equivalent_permutations(
+                &signature,
+                &permutations,
+                &ExecutionContext::for_tests(0)
+            )
+            .unwrap(),
+            2
+        );
+    }
+
+    #[test]
+    fn graph_falsification_work_limit_refuses_excess_before_execution() {
+        let implications = [Implication { node: 0, other: 1, conditioning: vec![2, 3] }];
+        assert!(check_falsification_work(3, 1, &implications).is_ok());
+        assert!(check_falsification_work(100_000, 2, &implications).is_err());
+    }
 
     fn normal(rng: &mut CausalRng) -> f64 {
         let u1 = 1.0 - rng.next_f64();
@@ -903,15 +1082,19 @@ mod tests {
     #[test]
     fn small_graphs_enumerate_every_non_identity_relabelling() {
         let mut rng = CausalRng::from_seed(3);
-        let (perms, exhaustive) = draw_permutations(4, 100, &mut rng);
+        let (perms, exhaustive) =
+            draw_permutations(4, 100, &mut rng, &ExecutionContext::for_tests(1)).unwrap();
         assert!(exhaustive);
         assert_eq!(perms.len(), 23);
-        let distinct: HashSet<_> = perms.iter().cloned().collect();
+        let distinct: HashSet<_> = perms.iter().collect();
         assert_eq!(distinct.len(), 23);
         assert!(!distinct.contains(&vec![0, 1, 2, 3]));
-        let (sampled, exhaustive) = draw_permutations(8, 50, &mut rng);
+        let (sampled, exhaustive) =
+            draw_permutations(8, 50, &mut rng, &ExecutionContext::for_tests(1)).unwrap();
         assert!(!exhaustive);
         assert_eq!(sampled.len(), 50);
+        assert_eq!(sampled.iter().collect::<Vec<_>>(), sampled.iter().collect::<Vec<_>>());
+        assert_eq!(sampled.iter().count(), 50);
     }
 
     #[test]
@@ -1044,13 +1227,52 @@ mod tests {
     }
 
     #[test]
-    fn cancellation_is_incomplete() {
+    fn permutation_storage_is_admitted_before_enumeration_or_count_allocation() {
+        let data = linear_pairs(500, 5);
+        let limited = ExecutionContext::for_tests(1).with_memory_limit(Some(1024));
+        assert!(matches!(
+            falsify_graph(&graph(8, &TRUE_PAIRS), &data, &config(1_000_000), &limited),
+            Err(ModelError::ResourceLimit { .. })
+        ));
+        let unlimited_count =
+            GraphFalsificationConfig { n_permutations: usize::MAX, ..config(300) };
+        assert!(matches!(
+            falsify_graph(&graph(8, &TRUE_PAIRS), &data, &unlimited_count, &limited),
+            Err(ModelError::ResourceLimit { .. })
+        ));
+    }
+
+    #[test]
+    fn relabelling_work_is_bounded_whatever_the_cache_and_pool_hold() {
+        // Twelve nodes: 12! exceeds the enumeration limit, so the relabellings are sampled.
+        let mut rng = CausalRng::from_seed(3);
+        let columns: Vec<Vec<f64>> =
+            (0..12).map(|_| (0..50).map(|_| normal(&mut rng)).collect()).collect();
+        let data = table(&columns);
+        let chain: Vec<(u32, u32)> = (0..11).map(|i| (i, i + 1)).collect();
+        let ctx = ExecutionContext::for_tests(1);
+        let huge = config(1_000_000_000);
+        let error = falsify_graph(&graph(12, &chain), &data, &huge, &ctx).unwrap_err();
+        let ModelError::Unsupported { message } = error else { panic!("{error:?}") };
+        assert!(
+            message.contains(antecedent_core::reason_details::graph_falsification::WORK_LIMIT),
+            "{message}"
+        );
+        assert!(message.contains("execution_resource_limit"), "{message}");
+        // The default request is far below the limit.
+        let data = linear_pairs(500, 5);
+        assert!(falsify_graph(&graph(8, &TRUE_PAIRS), &data, &config(300), &ctx).is_ok());
+    }
+
+    #[test]
+    fn cancellation_before_equivalence_is_refused() {
         let data = linear_pairs(500, 5);
         let ctx = ExecutionContext::for_tests(1);
         ctx.cancellation.cancel();
-        let report = falsify_graph(&graph(8, &TRUE_PAIRS), &data, &config(300), &ctx).unwrap();
-        assert_eq!(report.outcome, GraphFalsificationOutcome::Incomplete);
-        assert_eq!(report.stop, Some(SearchStop::Cancelled));
+        assert!(matches!(
+            falsify_graph(&graph(8, &TRUE_PAIRS), &data, &config(300), &ctx),
+            Err(ModelError::Cancelled)
+        ));
     }
 
     #[test]

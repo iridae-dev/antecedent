@@ -1,0 +1,1 @@
+["use:antecedent_core::{ExecutionContext,ScratchLease,ScratchRefusal};#0","use:crate::bootstrap_wave::retained_index_slots;#0","use:crate::error::{EstimationError,ResampleBufferFault};#0","fn:admit_bootstrap_scratch#0","fn:index_buffer_bytes#0","fn:admit_array#0","fn:admit_bound_array#0","fn:admit_gather_scratch#0"]

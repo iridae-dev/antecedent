@@ -1,10 +1,17 @@
-"""Keeping a fitted model's exogenous noise and evaluating it again under other settings.
+"""What would the same units have done under another setting of a fitted model?
 
-Drawing returns the noise that produced the rows. Replaying that noise reproduces the draws bit
-for bit, replaying it under an intervention gives that intervention's counterfactual for the very
-same units, and noise edited by the caller (here one coordinate set to zero) is replayed as given.
-The chain ``a -> b -> c`` is linear, so the variance of ``b`` once the noise of ``a`` is held at
-zero is exactly the variance of ``b``'s own noise."""
+The data are 3,000 simulated rows of a linear Gaussian chain ``a -> b -> c``, fitted as a
+graphical causal model. Drawing returns the noise that produced the rows. The script asserts that
+replaying that noise reproduces the draws bit for bit, that replaying it under an intervention
+gives that intervention's counterfactual for the very same units, and that noise edited by the
+caller (here one coordinate set to zero) is replayed as given. The chain is linear, so the
+variance of ``b`` once the noise of ``a`` is held at zero is exactly the variance of ``b``'s own
+noise. Noise of the wrong width is refused.
+
+The counterfactuals are those of the fitted mechanisms under the declared graph, not of a real
+system.
+
+Run: ``python examples/python/noise_replay.py``."""
 
 from __future__ import annotations
 
@@ -18,7 +25,7 @@ c = -1.0 + 3.0 * b + 2.0 * rng.normal(size=3000)
 model = antecedent.model.fit_gcm(["a", "b", "c"], [a, b, c], [("a", "b"), ("b", "c")])
 
 # Draws come with their noise, one row per variable in the model's order.
-draws, noise = model.sample_noise({}, 4000, seed=3)
+draws, noise = model.sample_noise({}, 4000, execution=antecedent.Execution(seed=3))
 assert noise.shape == (3, 4000)
 np.testing.assert_array_equal(model.replay_noise(noise).draws, draws.draws)
 

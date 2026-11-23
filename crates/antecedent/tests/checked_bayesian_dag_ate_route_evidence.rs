@@ -1,8 +1,9 @@
 //! Builder-independent evidence for the Bayesian DAG mean ATE operation.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, reason = "one loop covers every licensed coordinate")]
+#![allow(clippy::too_many_lines, reason = "one loop covers every supported coordinate")]
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, StructureSource, Study,
 };
@@ -10,7 +11,7 @@ use antecedent_contract::SlotAvailability;
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use antecedent_prob::BayesLikelihood;
 
 #[path = "fixtures_common/mod.rs"]
@@ -53,7 +54,7 @@ fn bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh() {
                 "AverageEffect:Dag:{}:Bayesian:{label}",
                 if accepted { "accepted" } else { "explicit" }
             );
-            assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed));
+            assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Supported));
             assert_eq!(
                 prepared.structure_source(),
                 if accepted { StructureSource::Accepted } else { StructureSource::Explicit }
@@ -65,10 +66,12 @@ fn bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh() {
                 }
                 other => panic!("{coordinate}: support was not available: {other:?}"),
             }
-            let plan = prepared
-                .checked_bayesian_gcomp_operation()
-                .expect("retained Bayesian DAG operation");
-            assert_eq!(prepared.checked_bayesian_gcomp_validation(), Some(suite));
+            let RetainedOperation::BayesianGcomp { operation: plan, validation } =
+                prepared.retained_operation()
+            else {
+                panic!("retained Bayesian DAG operation")
+            };
+            assert_eq!(validation, suite);
             assert_eq!(plan.query(), &query);
             assert_eq!(plan.identification().average_effect(), Some(&query));
             assert!(
@@ -87,16 +90,16 @@ fn bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh() {
                     "one-shot DAG Bayesian path must execute the retained proof"
                 );
                 assert_eq!(
-                    one_shot.estimate.as_effect().unwrap().ate.to_bits(),
-                    result.estimate.as_effect().unwrap().ate.to_bits()
+                    one_shot.estimate().as_effect().unwrap().ate.to_bits(),
+                    result.estimate().as_effect().unwrap().ate.to_bits()
                 );
             }
             // The independent fixture is y = 2*t + z + noise under a complete
             // back-door graph. The posterior must estimate the known effect.
             assert!(
-                (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2,
+                (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.08, // observed 0.040
                 "{coordinate}: {}",
-                result.estimate.as_effect().unwrap().ate
+                result.estimate().as_effect().unwrap().ate
             );
             assert_eq!(result.posterior.as_ref().unwrap().draws.n_draws, 96);
             assert_eq!(
@@ -113,12 +116,16 @@ fn bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh() {
                     "{coordinate}: missing prior-sensitivity grid"
                 );
             }
-            let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
             assert_eq!(
-                refreshed.estimate.as_effect().unwrap().ate.to_bits(),
-                result.estimate.as_effect().unwrap().ate.to_bits()
+                refreshed.estimate().as_effect().unwrap().ate.to_bits(),
+                result.estimate().as_effect().unwrap().ate.to_bits()
             );
-            assert_eq!(prepared.checked_bayesian_gcomp_operation().unwrap().query(), &query);
+            let RetainedOperation::BayesianGcomp { operation, .. } = prepared.retained_operation()
+            else {
+                panic!("retained Bayesian DAG operation after refresh")
+            };
+            assert_eq!(operation.query(), &query);
 
             let artifact = prepared
                 .encode_contracted_result(
@@ -127,11 +134,11 @@ fn bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh() {
                     &ctx,
                 )
                 .unwrap();
-            let consumed = consume_analysis_result(&artifact).unwrap();
+            let consumed = replay_analysis_result(&artifact).unwrap();
             assert!(consumed.acceptance.unresolved.iter().any(|reason| {
                 reason.as_ref() == "dependencies.checked_bayesian_dag_ate_operation"
             }));
-            assert!(!consumed.acceptance.accepts_as_verified_program());
+            assert!(!consumed.acceptance.accepts_as_replayed_program());
         }
     }
 }
@@ -176,14 +183,18 @@ fn bayesian_dag_ate_keeps_non_gaussian_likelihood_on_outcome_scale() {
             .unwrap();
         let prepared = builder.prepare(&ctx).unwrap();
         drop(builder);
-        let plan = prepared.checked_bayesian_gcomp_operation().unwrap();
+        let RetainedOperation::BayesianGcomp { operation: plan, .. } =
+            prepared.retained_operation()
+        else {
+            panic!("retained Bayesian DAG operation")
+        };
         assert_eq!(plan.inference(), &InferenceMode::Bayesian(config));
         let result = prepared.estimate(&data, &ctx).unwrap();
-        assert!(result.estimate.as_effect().unwrap().ate.is_finite());
-        assert!(
-            result.estimate.as_effect().unwrap().ate > 0.1
-                && result.estimate.as_effect().unwrap().ate < 0.5
-        );
+        // Outcome-scale truth: the mean over z of sigmoid(1 + z - 0.3) - sigmoid(z - 0.3) on the
+        // ten-point grid is 0.2190 (observed 0.2033 logit, 0.2037 probit; the log-odds
+        // contrast would be ~1).
+        let ate = result.estimate().as_effect().unwrap().ate;
+        assert!((ate - 0.2190).abs() < 0.03, "{likelihood:?}: {ate}");
         assert_eq!(result.posterior.as_ref().unwrap().draws.n_draws, 64);
         assert_eq!(result.posterior.as_ref().unwrap().diagnostics.backend_id.as_ref(), "laplace");
     }
@@ -216,13 +227,16 @@ fn bayesian_dag_ate_poisson_mean_contrast_uses_the_count_scale() {
         .unwrap();
     let prepared = builder.prepare(&ExecutionContext::for_tests(309)).unwrap();
     drop(builder);
-    let plan = prepared.checked_bayesian_gcomp_operation().unwrap();
+    let RetainedOperation::BayesianGcomp { operation: plan, .. } = prepared.retained_operation()
+    else {
+        panic!("retained Bayesian DAG operation")
+    };
     assert_eq!(plan.inference(), &InferenceMode::Bayesian(config));
     let result = prepared.estimate(&data, &ExecutionContext::for_tests(309)).unwrap();
     assert!(
-        (result.estimate.as_effect().unwrap().ate - 1.0).abs() < 0.1,
+        (result.estimate().as_effect().unwrap().ate - 1.0).abs() < 0.02,
         "{}",
-        result.estimate.as_effect().unwrap().ate
+        result.estimate().as_effect().unwrap().ate
     );
     assert_eq!(result.posterior.as_ref().unwrap().diagnostics.backend_id.as_ref(), "laplace");
 }
@@ -241,10 +255,10 @@ fn bayesian_dag_ate_hmc_draw_floor_and_population_refusal_keep_scope_visible() {
         .unwrap();
     let prepared = builder.prepare(&ctx).unwrap();
     drop(builder);
-    assert_eq!(
-        prepared.checked_bayesian_gcomp_operation().unwrap().inference(),
-        &InferenceMode::Bayesian(config)
-    );
+    let RetainedOperation::BayesianGcomp { operation, .. } = prepared.retained_operation() else {
+        panic!("retained Bayesian DAG operation")
+    };
+    assert_eq!(operation.inference(), &InferenceMode::Bayesian(config));
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(result.posterior.as_ref().unwrap().diagnostics.backend_id.as_ref(), "hmc");
     assert!(result.posterior.as_ref().unwrap().draws.n_draws >= 3_000);
@@ -253,7 +267,8 @@ fn bayesian_dag_ate_hmc_draw_floor_and_population_refusal_keep_scope_visible() {
     );
 
     let mut other_population = query;
-    other_population.target_population = antecedent_core::TargetPopulation::Treated;
+    other_population.target_population =
+        antecedent_core::TargetPopulation::Environment(antecedent_core::EnvironmentId::from_raw(1));
     let maybe_study = Study::tabular(data.clone())
         .graph(graph)
         .query(other_population)
@@ -267,4 +282,34 @@ fn bayesian_dag_ate_hmc_draw_floor_and_population_refusal_keep_scope_visible() {
         Err(error) => error,
     };
     assert!(error.to_string().contains("population_not_estimable"), "{error}");
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
+}
+
+#[test]
+fn deferred_bayesian_dag_retains_its_checked_operation_before_data_fit() {
+    let ctx = ExecutionContext::for_tests(883);
+    let (data, graph, query) = confounded_scm(120, 883);
+    let builder = Study::tabular(data.clone())
+        .graph(graph)
+        .query(query)
+        .estimator(EstimatorId::BayesianGcomp)
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(96)))
+        .refute(RefuteSuite::None);
+    let study = builder.build().unwrap();
+    let deferred = study.prepare_deferred(&ctx).unwrap();
+    assert!(matches!(deferred.retained_operation(), RetainedOperation::BayesianGcomp { .. }));
+    let result = deferred.estimate(&data, &ctx).unwrap();
+    assert!(result.estimate().as_effect().unwrap().ate.is_finite());
 }

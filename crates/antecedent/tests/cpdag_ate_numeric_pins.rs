@@ -1,6 +1,6 @@
-//! Numeric pins for licensed CPDAG ATE cells.
+//! Numeric pins for supported CPDAG ATE cells.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -9,6 +9,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, PreparedStudy, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
@@ -163,19 +164,20 @@ fn assert_prepared_reuse(
     expected: f64,
     tolerance: f64,
 ) {
-    assert!((click.estimate.as_effect().unwrap().ate - expected).abs() < tolerance);
-    assert!((fresh.estimate.as_effect().unwrap().ate - expected).abs() < tolerance);
-    assert!((refreshed.estimate.as_effect().unwrap().ate - expected).abs() < tolerance);
+    assert!((click.estimate().as_effect().unwrap().ate - expected).abs() < tolerance);
+    assert!((fresh.estimate().as_effect().unwrap().ate - expected).abs() < tolerance);
+    assert!((refreshed.estimate().as_effect().unwrap().ate - expected).abs() < tolerance);
     assert!(
-        (click.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate).abs()
-            < 1e-12
-    );
-    assert!(
-        (refreshed.estimate.as_effect().unwrap().ate - click.estimate.as_effect().unwrap().ate)
+        (click.estimate().as_effect().unwrap().ate - fresh.estimate().as_effect().unwrap().ate)
             .abs()
             < 1e-12
     );
-    assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+    assert!(
+        (refreshed.estimate().as_effect().unwrap().ate - click.estimate().as_effect().unwrap().ate)
+            .abs()
+            < 1e-12
+    );
+    assert_eq!(click.support_status().unwrap().as_str(), "supported");
     // The Bayesian class route executes its retained envelope from the one-shot
     // facade too; the frequentist one-shot still identifies inline.
     let one_shot_sealed = fresh.logical_plan.estimator.as_deref() == Some("bayesian.gcomp");
@@ -209,19 +211,19 @@ fn run_prepared(
         "prepared plan must record the pinned estimator"
     );
     if expected_estimator == "linear.adjustment.ate" {
-        assert!(prepared.has_checked_static_class_effect_operation());
+        assert!(matches!(prepared.retained_operation(), RetainedOperation::StaticClassEffect(..)));
     }
     let click = prepared.estimate(data, &ctx).unwrap();
     if expected_estimator == "linear.adjustment.ate" {
         let artifact =
             prepared.encode_contracted_result(&click, "checked-static-class-effect", &ctx).unwrap();
-        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+        let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
         assert!(consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_static_class_effect_operation"
         }));
-        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert!(!consumed.acceptance.accepts_as_replayed_program());
     }
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert_eq!(
         identify_computations(&sink),
         2,
@@ -276,10 +278,10 @@ fn cpdag_ate_envelope_numeric_pin() {
                 // Joint-IF SE of the frozen-weight mixture on shared rows, pinned
                 // against the independent numpy reference (reference.py).
                 assert!(
-                    (result.estimate.as_effect().unwrap().se_analytic() - freq_se).abs()
+                    (result.estimate().as_effect().unwrap().se_analytic() - freq_se).abs()
                         < freq_se_tol,
                     "CPDAG envelope joint-IF SE {} vs reference {freq_se}",
-                    result.estimate.as_effect().unwrap().se_analytic()
+                    result.estimate().as_effect().unwrap().se_analytic()
                 );
                 assert!(
                     !result
@@ -316,7 +318,7 @@ fn cpdag_ate_envelope_numeric_pin() {
             // Bayesian mixture (estimate.envelope.bayesian_mixture_functional, which couples
             // completions by their influence-function correlation on shared rows) moved by 4e-5
             // from the fixture's pinned 0.4615641945101853. 6890a67 (decide adjustment existence
-            // by one test) can license a different, still-valid, non-minimal adjustment set per
+            // by one test) can support a different, still-valid, non-minimal adjustment set per
             // completion; two sets giving the same marginal point estimate/SE for their own
             // completion can still differ in per-unit influence-function shape, which shifts the
             // cross-completion correlation used for rank coupling. The sibling
@@ -360,24 +362,24 @@ fn cpdag_effect_executes_from_retained_plan_after_builder_is_dropped() {
         .build()
         .unwrap();
     let prepared = builder.prepare(&context).unwrap();
-    assert!(prepared.has_checked_static_class_effect_operation());
+    assert!(matches!(prepared.retained_operation(), RetainedOperation::StaticClassEffect(..)));
     let plan = prepared.plan().clone();
     assert_eq!(plan.logical.record.identifier.as_deref(), Some("generalized.adjustment"));
     drop(builder);
 
     let result = prepared.estimate(&data, &context).unwrap();
-    assert!((result.estimate.as_effect().unwrap().ate - expected).abs() < 1e-12);
+    assert!((result.estimate().as_effect().unwrap().ate - expected).abs() < 1e-12);
     assert!(result.diagnostics.iter().any(|item| { item.code.as_ref() == "exec.identify.cached" }));
     let artifact = prepared
         .encode_contracted_result(&result, "checked-static-class-effect", &context)
         .unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
     assert!(
         consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_static_class_effect_operation"
         })
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 }
 
 /// The frozen 64-draw Bayesian pin is checked against the table's own closed forms,
@@ -425,4 +427,17 @@ fn cpdag_ate_envelope_bayesian_pin_matches_closed_form_mixture() {
         "Bayesian pin {pinned} is {:.2} Monte Carlo SEs from the closed-form mixture {mixture}",
         (pinned - mixture).abs() / mc_se
     );
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

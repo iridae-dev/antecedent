@@ -2,7 +2,7 @@
 //! both sampling designs, overlap refusals, the estimator menu, thread-budget invariance,
 //! the prepared lifecycle, the independently consumed artifact and the closed interval route.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "learned_continuous_dgp/mod.rs"]
 mod dgp;
@@ -169,7 +169,12 @@ fn weak_overlap_refuses_rather_than_extrapolating() {
         let error = prepared.estimate(&ExecutionContext::for_tests(3)).unwrap_err();
         let (code, message) = refused_code(error);
         assert_eq!(code, "transport_support_failure");
-        assert!(message.starts_with("learned_transport.membership_overlap"), "{message}");
+        assert!(
+            message.starts_with(
+                antecedent_core::reason_details::learned_transport::MEMBERSHIP_OVERLAP
+            ),
+            "{message}"
+        );
     }
     // Known randomization probabilities outside the declared bound refuse at preparation.
     let (diagram, query, names) = graph();
@@ -186,45 +191,42 @@ fn weak_overlap_refuses_rather_than_extrapolating() {
     .unwrap_err();
     let (code, message) = refused_code(error);
     assert_eq!(code, "transport_support_failure");
-    assert!(message.starts_with("learned_transport.treatment_overlap"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::learned_transport::TREATMENT_OVERLAP),
+        "{message}"
+    );
 }
 
 #[test]
 fn declared_bounds_and_designs_refuse_with_their_details() {
-    let too_many_folds = LearnedContinuousOptions { folds: 21, ..options() };
-    let (code, message) = refused_code(
-        prepare(Design::IndependentSamples, Scenario::Good, (400, 300), too_many_folds, 1)
-            .unwrap_err(),
-    );
-    assert_eq!(code, "route_not_supported");
-    assert!(message.starts_with("learned_transport.bounds_exceeded"), "{message}");
-    let too_many_replicates = LearnedContinuousOptions { bootstrap: 2001, ..options() };
-    let (code, message) = refused_code(
-        prepare(Design::NestedCohort, Scenario::Good, (400, 300), too_many_replicates, 1)
-            .unwrap_err(),
-    );
-    assert_eq!(
-        (code, message.starts_with("learned_transport.bounds_exceeded")),
-        ("route_not_supported", true)
-    );
+    // The measured envelope (20 folds, 2000 replicates) is a recorded reference, not a ceiling:
+    // a larger fold count runs when the strata can hold it, and a larger replicate request is
+    // only recorded because the public route runs no replicates.
+    let more_folds = LearnedContinuousOptions { folds: 21, ..options() };
+    assert!(prepare(Design::IndependentSamples, Scenario::Good, (400, 300), more_folds, 1).is_ok());
+    let more_replicates = LearnedContinuousOptions { bootstrap: 2001, ..options() };
+    assert!(prepare(Design::NestedCohort, Scenario::Good, (400, 300), more_replicates, 1).is_ok());
     // Clustered or undeclared sampling and heterogeneous targets are refused by name.
     let error = antecedent_estimate::parse_learned_continuous_sampling("clustered").unwrap_err();
     assert!(
-        matches!(&error, EstimationError::Refused { code: "sampling_dependence_unknown", message } if message.starts_with("learned_transport.non_iid_design"))
+        matches!(&error, EstimationError::Refused { code: "sampling_dependence_unknown", message } if message.starts_with(antecedent_core::reason_details::learned_transport::NON_IID_DESIGN))
     );
     let error = antecedent_estimate::parse_learned_continuous_target("cate").unwrap_err();
     assert!(
-        matches!(&error, EstimationError::Refused { code: "route_not_supported", message } if message.starts_with("learned_transport.cate_requested"))
+        matches!(&error, EstimationError::Refused { code: "route_not_supported", message } if message.starts_with(antecedent_core::reason_details::learned_transport::CATE_REQUESTED))
     );
     // A replicate request below the floor keeps the point and withholds the interval.
-    let below = LearnedContinuousOptions { bootstrap: 50, ..options() };
+    let below = LearnedContinuousOptions { bootstrap: 1, ..options() };
     let result = prepare(Design::NestedCohort, Scenario::Good, (400, 300), below, 2)
         .unwrap()
         .estimate(&ExecutionContext::for_tests(2))
         .unwrap();
     let uncertainty = &result.estimate().uncertainty;
     assert_eq!(uncertainty.reason, "estimator_inference_mismatch");
-    assert_eq!(uncertainty.detail.as_deref(), Some("learned_transport.bootstrap_below_floor"));
+    assert_eq!(
+        uncertainty.detail.as_deref(),
+        Some(antecedent_core::reason_details::learned_transport::BOOTSTRAP_BELOW_FLOOR)
+    );
     assert!(result.estimate().estimate.is_finite());
 }
 
@@ -239,7 +241,7 @@ fn menu_lists_refused_estimators_with_reasons_consistent_with_the_graph() {
     assert!(!by_name("dr_learner_cate").eligible);
     assert_eq!(
         by_name("dr_learner_cate").refusal.as_ref().unwrap().detail.as_deref(),
-        Some("learned_transport.cate_requested")
+        Some(antecedent_core::reason_details::learned_transport::CATE_REQUESTED)
     );
     assert!(!by_name("exact_finite_law_evaluator").eligible);
     // Selection stays manual: no entry is ranked or recommended.
@@ -293,9 +295,13 @@ fn menu_lists_refused_estimators_with_reasons_consistent_with_the_graph() {
     assert!(tuned_entry.support_requirements[0].contains("at least 0.1 "));
     assert!(tuned_entry.support_requirements[1].contains("[0.2, 0.8]"));
     assert_eq!(tuned_entry.sampling_design, ["nested_cohort"]);
-    assert!(tuned_entry.uncertainty_status.starts_with("withheld: cell_not_licensed"));
+    assert!(
+        tuned_entry
+            .uncertainty_status
+            .starts_with("bootstrap_interval_requested: joint_outer_bootstrap")
+    );
     assert!(tuned_entry.uncertainty_status.contains("300 bootstrap replicates"));
-    let below = LearnedContinuousOptions { bootstrap: 50, ..tuned };
+    let below = LearnedContinuousOptions { bootstrap: 1, ..tuned };
     let menu_below = antecedent_estimate::transport_estimator_menu_with(
         &id,
         &query,
@@ -615,10 +621,18 @@ fn estimate_reuses_the_prepared_certificate_and_refresh_keeps_it() {
     // A changed sampling design or schema needs a new preparation.
     let mut nested = fresh.clone();
     nested.sampling = antecedent_estimate::TrialSampling::NestedCohort;
-    assert!(prepared.refresh(nested, &ctx).is_err());
+    let error = prepared.refresh(nested, &ctx).err().expect("a changed design is refused");
+    assert!(error.to_string().contains("transport.reprepare_required"), "{error}");
     let mut bad = fresh;
     bad.randomization.fill(0.0);
-    assert!(prepared.refresh(bad, &ctx).is_err());
+    let (code, message) = refused_code(
+        prepared.refresh(bad, &ctx).err().expect("an out-of-bound randomization refuses"),
+    );
+    assert_eq!(code, "transport_support_failure");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::learned_transport::TREATMENT_OVERLAP),
+        "{message}"
+    );
 }
 
 fn exported(design: Design) -> (Vec<u8>, LearnedContinuousArtifactWire) {
@@ -778,7 +792,8 @@ fn a_mutated_artifact_fails_independent_consumption_with_a_typed_error() {
     assert_eq!(refused(&forged_folds), Refusal::FoldMismatch);
     let forged_threshold = mutate(&original, |w| w.options.min_membership_probability = 0.49, true);
     assert_eq!(refused(&forged_threshold), Refusal::OverlapRefused);
-    let forged_bound = mutate(&original, |w| w.options.folds = 21, true);
+    // Fold ids are `u16`: one more fold than they can name is outside the format.
+    let forged_bound = mutate(&original, |w| w.options.folds = usize::from(u16::MAX) + 2, true);
     assert!(matches!(refused(&forged_bound), Refusal::LimitsExceeded(_)));
     let forged_certificate = mutate(&original, |w| w.certificate.rule = "forged".into(), true);
     assert!(matches!(refused(&forged_certificate), Refusal::ProofMismatch(_)));
@@ -847,7 +862,7 @@ fn the_analytic_interval_replays_and_the_legacy_bootstrap_refuses() {
         consume_learned_continuous_artifact(&forged, LearnedContinuousConsumeLimits::default()),
         Err(IoError::LearnedContinuous(Refusal::IntervalMismatch))
     ));
-    // The old percentile-bootstrap request remains withheld.
+    // A bootstrap request is recorded on the point result; the analytic route takes none.
     let requested = LearnedContinuousOptions { bootstrap: 199, ..options() };
     let result = prepare(Design::IndependentSamples, Scenario::Good, (400, 300), requested, 2)
         .unwrap()
@@ -856,7 +871,7 @@ fn the_analytic_interval_replays_and_the_legacy_bootstrap_refuses() {
     let uncertainty = &result.estimate().uncertainty;
     assert_eq!(
         (uncertainty.status.as_str(), uncertainty.reason.as_str()),
-        ("withheld", "cell_not_licensed")
+        ("bootstrap_interval_requested", "joint_outer_bootstrap")
     );
     assert!(!uncertainty.available() && result.estimate().estimate.is_finite());
     let (code, message) = refused_code(
@@ -866,7 +881,22 @@ fn the_analytic_interval_replays_and_the_legacy_bootstrap_refuses() {
             .unwrap_err(),
     );
     assert_eq!(code, "estimator_inference_mismatch");
-    assert!(message.starts_with("learned_transport.bootstrap_not_licensed"));
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::learned_transport::BOOTSTRAP_NOT_SUPPORTED
+        )
+    );
+    // The bootstrap request is formed by the bootstrap interval route, with a calibration slot.
+    let prepared =
+        prepare(Design::IndependentSamples, Scenario::Good, (400, 300), requested, 2).unwrap();
+    assert!(prepared.bootstrap_requested());
+    let bootstrap = prepared.bootstrap_interval(&ctx).unwrap();
+    let (lower, upper) = bootstrap.interval().expect("every replicate succeeded");
+    assert!(lower <= bootstrap.point().estimate && bootstrap.point().estimate <= upper);
+    assert_eq!(bootstrap.replicates().len(), 199);
+    assert!(bootstrap.uncertainty_reason().is_none());
+    // The slot annotates; it is never a gate.
+    let _ = bootstrap.calibration().status;
 }
 
 #[test]
@@ -918,22 +948,19 @@ fn the_estimator_layer_returns_the_point_with_recorded_diagnostics_and_refuses_d
     )
     .unwrap_err();
     assert!(
-        matches!(&error, EstimationError::Refused { code: "transport_support_failure", message } if message.starts_with("learned_transport.membership_overlap")),
+        matches!(&error, EstimationError::Refused { code: "transport_support_failure", message } if message.starts_with(antecedent_core::reason_details::learned_transport::MEMBERSHIP_OVERLAP)),
         "{error:?}"
     );
     let input = draw(Design::NestedCohort, Scenario::Good, 400, 300, 1);
-    let too_many = LearnedContinuousOptions { folds: 21, ..options() };
-    let error = antecedent_estimate::estimate_learned_continuous(
+    let more_folds = LearnedContinuousOptions { folds: 21, ..options() };
+    let run = antecedent_estimate::estimate_learned_continuous(
         &id,
         &input,
-        &too_many,
+        &more_folds,
         &ExecutionContext::for_tests(1),
     )
-    .unwrap_err();
-    assert!(
-        matches!(&error, EstimationError::Refused { code: "route_not_supported", message } if message.starts_with("learned_transport.bounds_exceeded")),
-        "{error:?}"
-    );
+    .unwrap();
+    assert_eq!(run.folds.count, 21);
 }
 
 #[test]
@@ -1106,7 +1133,11 @@ fn learned_continuous_posterior_refuses_a_mapped_prior() {
     let EstimationError::Refused { message, .. } = err else {
         panic!("expected a refusal");
     };
-    assert!(message.contains("learned_continuous_posterior.mapped_prior"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::learned_continuous_posterior::MAPPED_PRIOR),
+        "{message}"
+    );
 }
 
 #[test]

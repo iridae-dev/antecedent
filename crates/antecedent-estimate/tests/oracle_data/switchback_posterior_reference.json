@@ -1,0 +1,1678 @@
+[
+ {
+  "name": "independent_no_carryover",
+  "kind": "independent",
+  "rho": 0.0,
+  "carryover": false,
+  "period_effects": false,
+  "effect_precision": 0.5,
+  "nuisance_precision": 0.1,
+  "variance_shape": 2.0,
+  "variance_scale": 1.5,
+  "level": 0.9,
+  "sequences": [
+   {
+    "id": "s00",
+    "y": [
+     1.590895,
+     0.701023,
+     0.507871,
+     0.730839
+    ],
+    "assign": [
+     true,
+     false,
+     false,
+     true
+    ]
+   },
+   {
+    "id": "s01",
+    "y": [
+     0.567367,
+     0.834099,
+     0.387163,
+     1.099844
+    ],
+    "assign": [
+     false,
+     true,
+     false,
+     false
+    ]
+   },
+   {
+    "id": "s02",
+    "y": [
+     1.731764,
+     1.659243,
+     0.499505,
+     1.843216
+    ],
+    "assign": [
+     true,
+     false,
+     false,
+     true
+    ]
+   },
+   {
+    "id": "s03",
+    "y": [
+     1.929513,
+     1.475824,
+     -0.033569,
+     1.880557
+    ],
+    "assign": [
+     true,
+     false,
+     false,
+     true
+    ]
+   },
+   {
+    "id": "s04",
+    "y": [
+     1.600388,
+     0.067383,
+     -0.565187,
+     1.211337
+    ],
+    "assign": [
+     true,
+     false,
+     false,
+     true
+    ]
+   },
+   {
+    "id": "s05",
+    "y": [
+     1.163459,
+     0.275609,
+     -0.227877,
+     1.719182
+    ],
+    "assign": [
+     true,
+     false,
+     false,
+     true
+    ]
+   }
+  ],
+  "shape": 14.0,
+  "scale": 5.082579664206992,
+  "result": {
+   "direct": {
+    "location": 0.9101861857188601,
+    "scale": 0.23670945548883554,
+    "df": 28.0,
+    "interval_radius": 0.4026737771653028,
+    "probability_positive": 0.9996822665996723,
+    "sd": 0.24564501097964894
+   },
+   "periods": []
+  }
+ },
+ {
+  "name": "compound_with_carryover",
+  "kind": "compound",
+  "rho": 0.4,
+  "carryover": true,
+  "period_effects": false,
+  "effect_precision": 1.0,
+  "nuisance_precision": 0.01,
+  "variance_shape": 3.0,
+  "variance_scale": 2.0,
+  "level": 0.9,
+  "sequences": [
+   {
+    "id": "s00",
+    "y": [
+     -0.119674,
+     -0.742479,
+     0.949718,
+     0.993317,
+     3.200605
+    ],
+    "assign": [
+     false,
+     false,
+     false,
+     true,
+     true
+    ]
+   },
+   {
+    "id": "s01",
+    "y": [
+     0.60428,
+     0.371697,
+     -0.260831,
+     -0.335266,
+     1.79203
+    ],
+    "assign": [
+     true,
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   {
+    "id": "s02",
+    "y": [
+     -0.753362,
+     0.205903,
+     2.250313,
+     2.807596,
+     1.648015
+    ],
+    "assign": [
+     false,
+     true,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "id": "s03",
+    "y": [
+     1.53963,
+     2.514044,
+     1.544122,
+     0.655093,
+     1.76953
+    ],
+    "assign": [
+     true,
+     true,
+     false,
+     false,
+     true
+    ]
+   },
+   {
+    "id": "s04",
+    "y": [
+     0.699885,
+     1.862736,
+     1.139314,
+     1.538883,
+     -0.179799
+    ],
+    "assign": [
+     true,
+     true,
+     false,
+     false,
+     false
+    ]
+   },
+   {
+    "id": "s05",
+    "y": [
+     0.311498,
+     0.312387,
+     1.826647,
+     1.368053,
+     2.675236
+    ],
+    "assign": [
+     true,
+     false,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "id": "s06",
+    "y": [
+     0.938327,
+     0.553726,
+     0.943671,
+     2.651582,
+     2.674296
+    ],
+    "assign": [
+     false,
+     true,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "id": "s07",
+    "y": [
+     1.699126,
+     2.387007,
+     0.352341,
+     -0.35843,
+     2.450146
+    ],
+    "assign": [
+     true,
+     true,
+     false,
+     false,
+     true
+    ]
+   }
+  ],
+  "shape": 23.0,
+  "scale": 19.02486338931409,
+  "result": {
+   "direct": {
+    "location": 1.0963152702794075,
+    "scale": 0.2369405103680699,
+    "df": 46.0,
+    "interval_radius": 0.39774265512283896,
+    "probability_positive": 0.9999848126360431,
+    "sd": 0.24226568111645838
+   },
+   "carryover": {
+    "location": 0.8611854315067744,
+    "scale": 0.22925320653777329,
+    "df": 46.0,
+    "interval_radius": 0.384838282495936,
+    "probability_positive": 0.9997581426772563,
+    "sd": 0.23440560731353247
+   },
+   "sustained": {
+    "location": 1.9575007017861819,
+    "scale": 0.3061356342248827,
+    "df": 46.0,
+    "interval_radius": 0.5138977703524349,
+    "probability_positive": 0.9999999629521568,
+    "sd": 0.3130159457506799
+   },
+   "periods": []
+  }
+ },
+ {
+  "name": "autoregressive_negative_with_period_effects",
+  "kind": "ar",
+  "rho": -0.6,
+  "carryover": false,
+  "period_effects": true,
+  "effect_precision": 0.2,
+  "nuisance_precision": 0.05,
+  "variance_shape": 1.5,
+  "variance_scale": 1.0,
+  "level": 0.9,
+  "sequences": [
+   {
+    "id": "s00",
+    "y": [
+     1.238183,
+     1.459629,
+     0.907171,
+     1.568598
+    ],
+    "assign": [
+     true,
+     true,
+     false,
+     true
+    ]
+   },
+   {
+    "id": "s01",
+    "y": [
+     0.507541,
+     1.213071,
+     1.209339,
+     1.308717
+    ],
+    "assign": [
+     true,
+     false,
+     false,
+     false
+    ]
+   },
+   {
+    "id": "s02",
+    "y": [
+     0.46124,
+     0.581184,
+     2.217805,
+     1.07229
+    ],
+    "assign": [
+     true,
+     false,
+     true,
+     false
+    ]
+   },
+   {
+    "id": "s03",
+    "y": [
+     0.485679,
+     1.120206,
+     1.432298,
+     2.728708
+    ],
+    "assign": [
+     false,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "id": "s04",
+    "y": [
+     -0.9723,
+     1.12086,
+     0.975373,
+     2.427722
+    ],
+    "assign": [
+     false,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "id": "s05",
+    "y": [
+     1.437347,
+     0.524162,
+     1.353349,
+     0.959445
+    ],
+    "assign": [
+     true,
+     false,
+     false,
+     false
+    ]
+   }
+  ],
+  "shape": 13.5,
+  "scale": 4.648482695584302,
+  "result": {
+   "direct": {
+    "location": 0.5730870724107447,
+    "scale": 0.17670277895754605,
+    "df": 27.0,
+    "interval_radius": 0.3009758017253792,
+    "probability_positive": 0.9984301802336025,
+    "sd": 0.18363491459584946
+   },
+   "periods": [
+    {
+     "location": 0.5336096165323975,
+     "scale": 0.4197304673071613,
+     "df": 27.0,
+     "interval_radius": 0.7149220552818368,
+     "probability_positive": 0.892770001513993,
+     "sd": 0.4361966969163786
+    },
+    {
+     "location": 0.9042685458811783,
+     "scale": 0.2703452603096325,
+     "df": 27.0,
+     "interval_radius": 0.4604759582411379,
+     "probability_positive": 0.9987858556580397,
+     "sd": 0.28095103586503045
+    },
+    {
+     "location": 1.2123305332991237,
+     "scale": 0.3670788971766149,
+     "df": 27.0,
+     "interval_radius": 0.6252412442293489,
+     "probability_positive": 0.9986487138807989,
+     "sd": 0.3814795801777492
+    }
+   ]
+  }
+ },
+ {
+  "name": "compound_near_admissible_lower_bound",
+  "kind": "compound",
+  "rho": -0.3323333333333333,
+  "carryover": true,
+  "period_effects": false,
+  "effect_precision": 0.5,
+  "nuisance_precision": 0.1,
+  "variance_shape": 2.0,
+  "variance_scale": 1.0,
+  "level": 0.9,
+  "sequences": [
+   {
+    "id": "s00",
+    "y": [
+     0.061827,
+     0.338932,
+     1.356821,
+     0.987478
+    ],
+    "assign": [
+     true,
+     false,
+     false,
+     true
+    ]
+   },
+   {
+    "id": "s01",
+    "y": [
+     0.977628,
+     2.152558,
+     1.370426,
+     1.913153
+    ],
+    "assign": [
+     false,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "id": "s02",
+    "y": [
+     0.825978,
+     2.042155,
+     1.076955,
+     1.436827
+    ],
+    "assign": [
+     true,
+     true,
+     false,
+     false
+    ]
+   },
+   {
+    "id": "s03",
+    "y": [
+     1.263762,
+     1.192398,
+     -0.084768,
+     0.402783
+    ],
+    "assign": [
+     true,
+     false,
+     false,
+     false
+    ]
+   },
+   {
+    "id": "s04",
+    "y": [
+     0.241357,
+     -0.102401,
+     1.495653,
+     1.785915
+    ],
+    "assign": [
+     true,
+     false,
+     true,
+     false
+    ]
+   },
+   {
+    "id": "s05",
+    "y": [
+     0.574291,
+     1.148439,
+     1.643963,
+     2.579577
+    ],
+    "assign": [
+     false,
+     true,
+     true,
+     true
+    ]
+   }
+  ],
+  "shape": 14.0,
+  "scale": 137.04767770775933,
+  "result": {
+   "direct": {
+    "location": 1.1838707448280954,
+    "scale": 0.26931679329112845,
+    "df": 28.0,
+    "interval_radius": 0.45814312818484215,
+    "probability_positive": 0.9999278735221837,
+    "sd": 0.2794832445893712
+   },
+   "carryover": {
+    "location": 1.311185725266454,
+    "scale": 0.3882586962657488,
+    "df": 28.0,
+    "interval_radius": 0.6604788787154259,
+    "probability_positive": 0.9989166465020344,
+    "sd": 0.4029150906126029
+   },
+   "sustained": {
+    "location": 2.4950564700945495,
+    "scale": 0.29105325980187957,
+    "df": 28.0,
+    "interval_radius": 0.49511970376791636,
+    "probability_positive": 0.9999999987158839,
+    "sd": 0.3020402419161809
+   },
+   "periods": []
+  }
+ },
+ {
+  "name": "autoregressive_near_unit_correlation",
+  "kind": "ar",
+  "rho": 0.999,
+  "carryover": false,
+  "period_effects": false,
+  "effect_precision": 0.5,
+  "nuisance_precision": 0.1,
+  "variance_shape": 2.0,
+  "variance_scale": 1.0,
+  "level": 0.9,
+  "sequences": [
+   {
+    "id": "s00",
+    "y": [
+     -0.481764,
+     1.106471,
+     1.706358,
+     1.134913,
+     1.711779
+    ],
+    "assign": [
+     false,
+     true,
+     false,
+     true,
+     true
+    ]
+   },
+   {
+    "id": "s01",
+    "y": [
+     1.91759,
+     0.839569,
+     1.823811,
+     1.123138,
+     1.04875
+    ],
+    "assign": [
+     true,
+     true,
+     false,
+     true,
+     false
+    ]
+   },
+   {
+    "id": "s02",
+    "y": [
+     -0.743127,
+     -0.314545,
+     1.471734,
+     2.141845,
+     0.364589
+    ],
+    "assign": [
+     false,
+     false,
+     true,
+     true,
+     false
+    ]
+   },
+   {
+    "id": "s03",
+    "y": [
+     0.668941,
+     0.155013,
+     0.874337,
+     0.715932,
+     1.344107
+    ],
+    "assign": [
+     true,
+     false,
+     false,
+     true,
+     true
+    ]
+   },
+   {
+    "id": "s04",
+    "y": [
+     0.072715,
+     1.734576,
+     2.499708,
+     2.776167,
+     1.287089
+    ],
+    "assign": [
+     false,
+     true,
+     true,
+     true,
+     false
+    ]
+   },
+   {
+    "id": "s05",
+    "y": [
+     0.403221,
+     0.514004,
+     0.982319,
+     1.15507,
+     2.361917
+    ],
+    "assign": [
+     false,
+     true,
+     true,
+     true,
+     true
+    ]
+   }
+  ],
+  "shape": 17.0,
+  "scale": 4738.964031979283,
+  "result": {
+   "direct": {
+    "location": 0.4607126261611845,
+    "scale": 0.20711096502429555,
+    "df": 34.0,
+    "interval_radius": 0.35020895427473775,
+    "probability_positive": 0.9835699682071445,
+    "sd": 0.2134850962546939
+   },
+   "periods": []
+  }
+ },
+ {
+  "name": "unequal_sequence_lengths",
+  "kind": "ar",
+  "rho": 0.3,
+  "carryover": true,
+  "period_effects": false,
+  "effect_precision": 0.5,
+  "nuisance_precision": 0.1,
+  "variance_shape": 2.0,
+  "variance_scale": 1.0,
+  "level": 0.9,
+  "sequences": [
+   {
+    "id": "s00",
+    "y": [
+     0.582199,
+     1.409115,
+     -0.202461
+    ],
+    "assign": [
+     true,
+     false,
+     false
+    ]
+   },
+   {
+    "id": "s01",
+    "y": [
+     -0.22284,
+     0.117803,
+     0.23153,
+     1.392602,
+     1.822027
+    ],
+    "assign": [
+     false,
+     false,
+     false,
+     false,
+     true
+    ]
+   },
+   {
+    "id": "s02",
+    "y": [
+     0.555454,
+     -0.535904,
+     1.295254,
+     2.1659
+    ],
+    "assign": [
+     false,
+     false,
+     false,
+     true
+    ]
+   },
+   {
+    "id": "s03",
+    "y": [
+     -0.518901,
+     1.350933,
+     1.149381,
+     1.37665,
+     3.034217,
+     3.212044
+    ],
+    "assign": [
+     false,
+     true,
+     false,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "id": "s04",
+    "y": [
+     1.895322,
+     1.908494,
+     1.648391,
+     1.653619
+    ],
+    "assign": [
+     true,
+     true,
+     false,
+     true
+    ]
+   }
+  ],
+  "shape": 13.0,
+  "scale": 5.649217772806507,
+  "result": {
+   "direct": {
+    "location": 1.1043995354985707,
+    "scale": 0.2593168563161273,
+    "df": 26.0,
+    "interval_radius": 0.44229547702842736,
+    "probability_positive": 0.9998813191168172,
+    "sd": 0.2699055414408633
+   },
+   "carryover": {
+    "location": 1.0901120711096557,
+    "scale": 0.28791211439564285,
+    "df": 26.0,
+    "interval_radius": 0.4910680616289903,
+    "probability_positive": 0.999592841495133,
+    "sd": 0.2996684296859067
+   },
+   "sustained": {
+    "location": 2.1945116066082266,
+    "scale": 0.42166049804266986,
+    "df": 26.0,
+    "interval_radius": 0.7191917015161977,
+    "probability_positive": 0.9999901963744401,
+    "sd": 0.4388781610466908
+   },
+   "periods": []
+  }
+ },
+ {
+  "name": "weak_prior",
+  "kind": "compound",
+  "rho": 0.2,
+  "carryover": true,
+  "period_effects": false,
+  "effect_precision": 1e-08,
+  "nuisance_precision": 1e-08,
+  "variance_shape": 0.5,
+  "variance_scale": 0.5,
+  "level": 0.9,
+  "sequences": [
+   {
+    "id": "s00",
+    "y": [
+     0.532759,
+     -0.023158,
+     0.205771,
+     1.244117
+    ],
+    "assign": [
+     true,
+     false,
+     false,
+     true
+    ]
+   },
+   {
+    "id": "s01",
+    "y": [
+     -0.61211,
+     0.471016,
+     0.85369,
+     0.226463
+    ],
+    "assign": [
+     false,
+     false,
+     true,
+     false
+    ]
+   },
+   {
+    "id": "s02",
+    "y": [
+     0.920192,
+     0.925066,
+     2.154404,
+     0.530437
+    ],
+    "assign": [
+     false,
+     true,
+     true,
+     false
+    ]
+   },
+   {
+    "id": "s03",
+    "y": [
+     -0.401989,
+     0.408972,
+     0.864033,
+     0.425009
+    ],
+    "assign": [
+     false,
+     false,
+     true,
+     false
+    ]
+   },
+   {
+    "id": "s04",
+    "y": [
+     0.882325,
+     -0.272186,
+     -0.443508,
+     1.360492
+    ],
+    "assign": [
+     true,
+     false,
+     false,
+     true
+    ]
+   },
+   {
+    "id": "s05",
+    "y": [
+     1.985122,
+     2.021269,
+     1.015803,
+     1.439971
+    ],
+    "assign": [
+     true,
+     true,
+     false,
+     false
+    ]
+   }
+  ],
+  "shape": 12.5,
+  "scale": 3.591928668932499,
+  "result": {
+   "direct": {
+    "location": 1.0221689702270131,
+    "scale": 0.2086939482403626,
+    "df": 25.0,
+    "interval_radius": 0.3564786396159575,
+    "probability_positive": 0.9999757285985096,
+    "sd": 0.2175784816729835
+   },
+   "carryover": {
+    "location": 0.24719529800238854,
+    "scale": 0.2185588853256868,
+    "df": 25.0,
+    "interval_radius": 0.37332934075858526,
+    "probability_positive": 0.8656106195115495,
+    "sd": 0.2278633895532649
+   },
+   "sustained": {
+    "location": 1.2693642682294017,
+    "scale": 0.3394188319849919,
+    "df": 25.0,
+    "interval_radius": 0.5797751420500746,
+    "probability_positive": 0.9995182989513139,
+    "sd": 0.35386859435643647
+   },
+   "periods": []
+  }
+ },
+ {
+  "name": "strong_prior",
+  "kind": "independent",
+  "rho": 0.0,
+  "carryover": false,
+  "period_effects": false,
+  "effect_precision": 1000000.0,
+  "nuisance_precision": 1000000.0,
+  "variance_shape": 2.0,
+  "variance_scale": 1.0,
+  "level": 0.9,
+  "sequences": [
+   {
+    "id": "s00",
+    "y": [
+     0.356403,
+     0.356146,
+     1.655421,
+     0.662997
+    ],
+    "assign": [
+     false,
+     true,
+     false,
+     true
+    ]
+   },
+   {
+    "id": "s01",
+    "y": [
+     1.857977,
+     2.410502,
+     1.014778,
+     0.8309
+    ],
+    "assign": [
+     true,
+     true,
+     false,
+     false
+    ]
+   },
+   {
+    "id": "s02",
+    "y": [
+     -0.71507,
+     0.386037,
+     1.013553,
+     1.394974
+    ],
+    "assign": [
+     false,
+     false,
+     true,
+     false
+    ]
+   },
+   {
+    "id": "s03",
+    "y": [
+     -0.623906,
+     1.981163,
+     1.346967,
+     2.599084
+    ],
+    "assign": [
+     false,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "id": "s04",
+    "y": [
+     0.095981,
+     1.504553,
+     1.076772,
+     0.718684
+    ],
+    "assign": [
+     false,
+     true,
+     false,
+     false
+    ]
+   },
+   {
+    "id": "s05",
+    "y": [
+     0.122066,
+     1.145545,
+     2.306417,
+     2.060103
+    ],
+    "assign": [
+     true,
+     false,
+     true,
+     false
+    ]
+   }
+  ],
+  "shape": 14.0,
+  "scale": 23.886354513598558,
+  "result": {
+   "direct": {
+    "location": 1.6160966099558498e-05,
+    "scale": 0.0013061965442098139,
+    "df": 28.0,
+    "interval_radius": 0.002222011347586572,
+    "probability_positive": 0.5048919338140087,
+    "sd": 0.001355504214148863
+   },
+   "periods": []
+  }
+ },
+ {
+  "name": "outcome_offset_1000",
+  "kind": "independent",
+  "rho": 0.0,
+  "carryover": false,
+  "period_effects": false,
+  "effect_precision": 0.5,
+  "nuisance_precision": 1e-16,
+  "variance_shape": 2.0,
+  "variance_scale": 1.0,
+  "level": 0.9,
+  "sequences": [
+   {
+    "id": "s00",
+    "y": [
+     1000.180047,
+     999.735449,
+     1000.105071,
+     1002.081877
+    ],
+    "assign": [
+     true,
+     false,
+     false,
+     true
+    ]
+   },
+   {
+    "id": "s01",
+    "y": [
+     1000.328064,
+     1000.349989,
+     1001.675866,
+     999.935337
+    ],
+    "assign": [
+     false,
+     true,
+     false,
+     false
+    ]
+   },
+   {
+    "id": "s02",
+    "y": [
+     999.649669,
+     1001.847007,
+     1001.872703,
+     999.75951
+    ],
+    "assign": [
+     false,
+     true,
+     false,
+     false
+    ]
+   },
+   {
+    "id": "s03",
+    "y": [
+     999.154177,
+     1000.553355,
+     1000.3299,
+     1001.273159
+    ],
+    "assign": [
+     false,
+     true,
+     false,
+     true
+    ]
+   },
+   {
+    "id": "s04",
+    "y": [
+     1000.309637,
+     1000.781291,
+     1001.097052,
+     1002.576876
+    ],
+    "assign": [
+     false,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "id": "s05",
+    "y": [
+     999.25901,
+     1001.769822,
+     1001.59703,
+     1001.180234
+    ],
+    "assign": [
+     false,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "id": "s06",
+    "y": [
+     1000.010256,
+     1000.295036,
+     1000.178801,
+     1000.458853
+    ],
+    "assign": [
+     true,
+     false,
+     false,
+     false
+    ]
+   },
+   {
+    "id": "s07",
+    "y": [
+     999.920797,
+     1000.492716,
+     1001.662917,
+     1002.04173
+    ],
+    "assign": [
+     false,
+     true,
+     true,
+     false
+    ]
+   }
+  ],
+  "shape": 18.0,
+  "scale": 10.799396200400446,
+  "result": {
+   "direct": {
+    "location": 0.8175923468634685,
+    "scale": 0.2661667663742079,
+    "df": 36.0,
+    "interval_radius": 0.4493687432434399,
+    "probability_positive": 0.9979809444947793,
+    "sd": 0.2738833430708001
+   },
+   "periods": []
+  }
+ },
+ {
+  "name": "outcome_offset_100000",
+  "kind": "independent",
+  "rho": 0.0,
+  "carryover": false,
+  "period_effects": false,
+  "effect_precision": 0.5,
+  "nuisance_precision": 1e-16,
+  "variance_shape": 2.0,
+  "variance_scale": 1.0,
+  "level": 0.9,
+  "sequences": [
+   {
+    "id": "s00",
+    "y": [
+     100000.180047,
+     99999.735449,
+     100000.105071,
+     100002.081877
+    ],
+    "assign": [
+     true,
+     false,
+     false,
+     true
+    ]
+   },
+   {
+    "id": "s01",
+    "y": [
+     100000.328064,
+     100000.349989,
+     100001.675866,
+     99999.935337
+    ],
+    "assign": [
+     false,
+     true,
+     false,
+     false
+    ]
+   },
+   {
+    "id": "s02",
+    "y": [
+     99999.649669,
+     100001.847007,
+     100001.872703,
+     99999.75951
+    ],
+    "assign": [
+     false,
+     true,
+     false,
+     false
+    ]
+   },
+   {
+    "id": "s03",
+    "y": [
+     99999.154177,
+     100000.553355,
+     100000.3299,
+     100001.273159
+    ],
+    "assign": [
+     false,
+     true,
+     false,
+     true
+    ]
+   },
+   {
+    "id": "s04",
+    "y": [
+     100000.309637,
+     100000.781291,
+     100001.097052,
+     100002.576876
+    ],
+    "assign": [
+     false,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "id": "s05",
+    "y": [
+     99999.25901,
+     100001.769822,
+     100001.59703,
+     100001.180234
+    ],
+    "assign": [
+     false,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "id": "s06",
+    "y": [
+     100000.010256,
+     100000.295036,
+     100000.178801,
+     100000.458853
+    ],
+    "assign": [
+     true,
+     false,
+     false,
+     false
+    ]
+   },
+   {
+    "id": "s07",
+    "y": [
+     99999.920797,
+     100000.492716,
+     100001.662917,
+     100002.04173
+    ],
+    "assign": [
+     false,
+     true,
+     true,
+     false
+    ]
+   }
+  ],
+  "shape": 18.0,
+  "scale": 10.799396700382989,
+  "result": {
+   "direct": {
+    "location": 0.8175923468637496,
+    "scale": 0.2661667725356049,
+    "df": 36.0,
+    "interval_radius": 0.4493687536457123,
+    "probability_positive": 0.9979809441149614,
+    "sd": 0.27388334941082526
+   },
+   "periods": []
+  }
+ },
+ {
+  "name": "outcome_offset_1e+07",
+  "kind": "independent",
+  "rho": 0.0,
+  "carryover": false,
+  "period_effects": false,
+  "effect_precision": 0.5,
+  "nuisance_precision": 1e-16,
+  "variance_shape": 2.0,
+  "variance_scale": 1.0,
+  "level": 0.9,
+  "sequences": [
+   {
+    "id": "s00",
+    "y": [
+     10000000.180047,
+     9999999.735449,
+     10000000.105071,
+     10000002.081877
+    ],
+    "assign": [
+     true,
+     false,
+     false,
+     true
+    ]
+   },
+   {
+    "id": "s01",
+    "y": [
+     10000000.328064,
+     10000000.349989,
+     10000001.675866,
+     9999999.935337
+    ],
+    "assign": [
+     false,
+     true,
+     false,
+     false
+    ]
+   },
+   {
+    "id": "s02",
+    "y": [
+     9999999.649669,
+     10000001.847007,
+     10000001.872703,
+     9999999.75951
+    ],
+    "assign": [
+     false,
+     true,
+     false,
+     false
+    ]
+   },
+   {
+    "id": "s03",
+    "y": [
+     9999999.154177,
+     10000000.553355,
+     10000000.3299,
+     10000001.273159
+    ],
+    "assign": [
+     false,
+     true,
+     false,
+     true
+    ]
+   },
+   {
+    "id": "s04",
+    "y": [
+     10000000.309637,
+     10000000.781291,
+     10000001.097052,
+     10000002.576876
+    ],
+    "assign": [
+     false,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "id": "s05",
+    "y": [
+     9999999.25901,
+     10000001.769822,
+     10000001.59703,
+     10000001.180234
+    ],
+    "assign": [
+     false,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "id": "s06",
+    "y": [
+     10000000.010256,
+     10000000.295036,
+     10000000.178801,
+     10000000.458853
+    ],
+    "assign": [
+     true,
+     false,
+     false,
+     false
+    ]
+   },
+   {
+    "id": "s07",
+    "y": [
+     9999999.920797,
+     10000000.492716,
+     10000001.662917,
+     10000002.04173
+    ],
+    "assign": [
+     false,
+     true,
+     true,
+     false
+    ]
+   }
+  ],
+  "shape": 18.0,
+  "scale": 10.804396200951503,
+  "result": {
+   "direct": {
+    "location": 0.8175923468693064,
+    "scale": 0.2662283753729501,
+    "df": 36.0,
+    "interval_radius": 0.44947275757518534,
+    "probability_positive": 0.9979771440678447,
+    "sd": 0.2739467382074981
+   },
+   "periods": []
+  }
+ },
+ {
+  "name": "outcome_offset_1e6_correlated",
+  "kind": "compound",
+  "rho": 0.5,
+  "carryover": true,
+  "period_effects": false,
+  "effect_precision": 0.5,
+  "nuisance_precision": 1e-16,
+  "variance_shape": 2.0,
+  "variance_scale": 1.0,
+  "level": 0.9,
+  "sequences": [
+   {
+    "id": "s00",
+    "y": [
+     1000000.003691,
+     1000002.114752,
+     1000002.554721,
+     1000002.000757
+    ],
+    "assign": [
+     false,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "id": "s01",
+    "y": [
+     1000000.798151,
+     1000000.289475,
+     999999.836954,
+     1000002.039773
+    ],
+    "assign": [
+     true,
+     false,
+     false,
+     true
+    ]
+   },
+   {
+    "id": "s02",
+    "y": [
+     1000000.014407,
+     999999.307978,
+     1000001.731853,
+     1000002.124047
+    ],
+    "assign": [
+     false,
+     false,
+     true,
+     true
+    ]
+   },
+   {
+    "id": "s03",
+    "y": [
+     1000000.932261,
+     1000000.125546,
+     1000000.812834,
+     1000001.947235
+    ],
+    "assign": [
+     false,
+     false,
+     true,
+     false
+    ]
+   },
+   {
+    "id": "s04",
+    "y": [
+     1000001.523293,
+     1000001.55803,
+     1000001.617331,
+     1000001.935069
+    ],
+    "assign": [
+     true,
+     false,
+     true,
+     false
+    ]
+   },
+   {
+    "id": "s05",
+    "y": [
+     999999.395954,
+     1000000.894099,
+     1000000.887644,
+     1000000.800366
+    ],
+    "assign": [
+     false,
+     false,
+     false,
+     true
+    ]
+   },
+   {
+    "id": "s06",
+    "y": [
+     1000000.352703,
+     999999.868522,
+     1000002.126914,
+     1000001.32276
+    ],
+    "assign": [
+     false,
+     false,
+     true,
+     false
+    ]
+   },
+   {
+    "id": "s07",
+    "y": [
+     1000001.465495,
+     1000001.620306,
+     999999.949158,
+     1000000.074137
+    ],
+    "assign": [
+     true,
+     false,
+     false,
+     false
+    ]
+   }
+  ],
+  "shape": 18.0,
+  "scale": 8.989927071763017,
+  "result": {
+   "direct": {
+    "location": 1.199147122111666,
+    "scale": 0.18907301774847984,
+    "df": 36.0,
+    "interval_radius": 0.3192115436659268,
+    "probability_positive": 0.9999998784876023,
+    "sd": 0.19455453019493255
+   },
+   "carryover": {
+    "location": 1.0150642737345497,
+    "scale": 0.20459285314278658,
+    "df": 36.0,
+    "interval_radius": 0.3454136462856041,
+    "probability_positive": 0.9999915476825153,
+    "sd": 0.21052430906554195
+   },
+   "sustained": {
+    "location": 2.2142113958462155,
+    "scale": 0.30128331937260877,
+    "df": 36.0,
+    "interval_radius": 0.5086559393983022,
+    "probability_positive": 0.9999999942537388,
+    "sd": 0.3100179779966462
+   },
+   "periods": []
+  }
+ }
+]

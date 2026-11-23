@@ -1,10 +1,12 @@
-//! incremental antecedent-state facade helpers.
+//! Incremental state: keep published results consistent with data that changes.
 //!
-//! `apply` stays events/invalidation only. The facade inspects stale layers,
-//! recomputes through prepared handles, and publishes only the data/program
-//! version actually computed.
+//! [`apply_state_event`] records appended or replaced data and marks the registered queries
+//! that depend on it stale; it never reruns anything. The caller recomputes through prepared
+//! handles and publishes with [`publish_recomputed_results`], which stores a result only
+//! against the data and program version it was computed from. Use it in an application that
+//! shows results while data arrive.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CacheBudget, ContractIdentities, QueryId, SemanticDigest, StateVersion};
 
@@ -14,11 +16,18 @@ pub use antecedent_state::{
     CachedResult, CausalState, ChangedInput, ConstraintId, DataBatchRef, DataCatalog, DataVersion,
     GraphConstraintRecord, GraphEvidenceRecord, GraphEvidenceStore, GraphScoreCacheKey,
     GraphScoreData, GraphScoreFamily, InterventionRecord, InvalidationEntry, InvalidationLog,
-    InvalidationTarget, LagIndexCacheEntry, LagIndexCacheKey, LgssmParams, LinearOlsSuffStats,
-    LocalScoreCache, ModelRecord, ModelStore, ParentSetOp, ParticleFilterState, QueryRecord,
-    QueryStore, ResultPublication, ResultStore, RetentionPolicy, RollingMechanismDiagnostics,
-    StateError, StateEvent, StreamingCovariance, SuffStatStore, evict_mechanism_diag,
-    full_graph_score, insert_mechanism_diag,
+    InvalidationTarget, LagIndexCacheEntry, LgssmParams, LinearOlsSuffStats, LocalScoreCache,
+    ModelStore, ParentSetOp, ParticleFilterState, QueryRecord, QueryStore, ResultPublication,
+    ResultStore, RetentionPolicy, RollingMechanismDiagnostics, StateError, StateEvent,
+    StreamingCovariance, SuffStatStore, full_graph_score,
+};
+pub use antecedent_state::{
+    ConjugateBlockRefresh, CovarianceRefresh, CovarianceRow, CovarianceSnapshot, SpillHandle,
+    SpillRegistry, SpillStats, Spillable, WeightedOlsRefresh, WeightedRow, WeightedSnapshot,
+};
+pub use antecedent_state::{
+    ConjugateOlsPosterior, ConjugateOlsPrior, ConjugateOlsSummary, OlsLedgerState, OlsRefresh,
+    OlsSnapshot, RefreshChange, RefreshDisposition, RefreshOutcome, RefreshRow, route_contract,
 };
 
 /// Construct a fresh [`CausalState`] with the given cache budget.
@@ -101,6 +110,13 @@ pub fn publish_recomputed_results(
         })
         .collect();
     state.publish_results_at(expected, &updates).map_err(CausalError::from)
+}
+
+// --- Further items the language bindings use, re-exported from their defining crates ---
+
+/// Retention policies for state components, and explicit result-retention modes.
+pub mod retention {
+    pub use antecedent_state::retention::{RetainedOperation, RetentionMode, RetentionRefusal};
 }
 
 #[cfg(test)]

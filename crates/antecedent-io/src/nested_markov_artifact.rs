@@ -1,8 +1,6 @@
 //! Independent artifact of the bounded binary nested-Markov likelihood pilot
-//! (record `identify.binary_nested_markov`). Internal and non-routed: the public
-//! route `antecedent.transport.binary_nested_markov` stays closed
-//! (`cell_not_licensed`, `nested_markov.route_frozen`) until calibration is measured, so
-//! this artifact publishes a fit and a point contrast, never an interval or posterior.
+//! (record `identify.binary_nested_markov`). Internal and non-routed: this artifact
+//! publishes a fit and a point contrast, never an interval or posterior.
 //!
 //! Format version 1. The artifact carries the declared ADMG (variables, directed and
 //! bidirected edges), the graph id and parameterization id, the regime-specific cell
@@ -12,14 +10,14 @@
 //! equality-constraint residuals of the empirical law, normalization, boundary margin),
 //! the model-versus-plug-in target contrast, and **three separate status fields**:
 //! nonparametric identification, likelihood fit and inferential standing. Calibration is
-//! `unmeasured`.
+//! `not_measured`.
 //!
 //! A consumer trusts none of the receipt. Under its own bounds it checks the two digests,
 //! rebuilds the declared graph and counts, re-runs the pilot (scope check, fit, residuals
 //! and the target contrast against the empirical plug-in of the same identifying formula)
 //! and accepts only a receipt identical bit for bit. A changed graph, regime or count
 //! therefore refuses: outside the pilot class with the engine's own
-//! `nested_markov.outside_binary_pilot` refusal, or as a receipt that does not replay.
+//! `nested_markov.outside_binary_scope` refusal, or as a receipt that does not replay.
 //! The digests are separate: the premises digest (graph, parameterization, options, regime
 //! structure) and the data-identity digest (every count bit for bit). A consumer holding
 //! an expected identity passes a [`NestedMarkovExpectation`].
@@ -28,7 +26,7 @@
 //! consistently, and that the declared graph describes the world; the graph and its
 //! identification standing are declared premises bound into the premises digest.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::IoError;
 use antecedent_core::{ExecutionContext, IdentityDomain};
@@ -50,7 +48,7 @@ pub const NESTED_MARKOV_GRAPH_ID: &str = "binary_admg.verma.x1_x2_x3_x4.v1";
 /// Id of the district (c-factor) Mobius parameterization.
 pub const NESTED_MARKOV_PARAMETERIZATION: &str = "district_mobius_c_factor.v1";
 /// The only calibration status of this cell until coverage is measured.
-pub const NESTED_MARKOV_CALIBRATION: &str = "unmeasured";
+pub const NESTED_MARKOV_CALIBRATION: &str = "not_measured";
 
 /// Why a nested-Markov artifact was refused.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -92,7 +90,7 @@ fn estimation_refusal(error: &EstimationError) -> IoError {
     match error {
         EstimationError::Refused { code, message }
         | EstimationError::RefusedWithFields { code, message, .. } => {
-            IoError::Refused { code, message: message.clone() }
+            IoError::Refused { code, message: message.to_string() }
         }
         other => IoError::Convert(other.to_string()),
     }
@@ -400,8 +398,8 @@ impl NestedReceiptWire {
             }
         };
         let inference = match report.status.inference {
-            InferenceStanding::IntervalWithheldCalibrationUnmeasured => {
-                "interval_withheld_calibration_unmeasured"
+            InferenceStanding::IntervalCandidatesCalibrationAnnotated => {
+                "interval_candidates_calibration_annotated"
             }
         };
         Self {
@@ -458,7 +456,7 @@ pub struct NestedMarkovArtifactWire {
     pub options: NestedOptionsWire,
     /// The fit receipt.
     pub receipt: NestedReceiptWire,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Digest of the scientific premises.
     pub premises_digest: String,
@@ -586,10 +584,13 @@ impl NestedMarkovArtifactWire {
             return Err(unsupported("required features").into());
         }
         if wire.calibration != NESTED_MARKOV_CALIBRATION {
-            return Err(unsupported("calibration is unmeasured").into());
+            return Err(unsupported("calibration is not_measured").into());
         }
-        if wire.receipt.status.inference != "interval_withheld_calibration_unmeasured" {
-            return Err(unsupported("this pilot publishes no interval").into());
+        if wire.receipt.status.inference != "interval_candidates_calibration_annotated" {
+            return Err(unsupported(
+                "this pilot artifact publishes the fit and point contrast only",
+            )
+            .into());
         }
         Ok(wire)
     }
@@ -687,7 +688,7 @@ impl NestedMarkovArtifactWire {
     }
 }
 
-/// Original unmeasured covariance/interval candidate envelope.
+/// Original `not_measured` covariance/interval candidate envelope.
 /// A distinct measured outer envelope resolves scalar authority without changing
 /// this historical standing. The public point artifact does not accept this marker.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -699,7 +700,7 @@ pub struct NestedFisherArtifact {
     pub method: String,
     /// Declared sampling assumption, not authenticated from the count table.
     pub sampling: String,
-    /// Original candidate standing remains unmeasured, including inside a measured envelope.
+    /// Original candidate standing remains `not_measured`, including inside a measured envelope.
     pub calibration: String,
     /// Bound point-fit premises, data and likelihood receipt.
     pub point: NestedMarkovArtifactWire,
@@ -709,7 +710,7 @@ pub struct NestedFisherArtifact {
     pub parameter_covariance: Vec<f64>,
     /// Covariance of two means and their contrast.
     pub effect_covariance: [[f64; 3]; 3],
-    /// Unmeasured normal-delta candidates.
+    /// Not measured normal-delta candidates.
     pub interval_candidates: [[f64; 2]; 3],
     /// Inverse information residual.
     pub inverse_residual: f64,
@@ -745,7 +746,7 @@ impl NestedFisherArtifact {
             version: 1,
             method: "binary_verma_expected_fisher_delta_internal_v1".into(),
             sampling: "iid_multinomial_integer_counts_correctly_specified_interior_model".into(),
-            calibration: "unmeasured".into(),
+            calibration: "not_measured".into(),
             point: NestedMarkovArtifactWire::from_report(input, options, &candidate.pilot)?,
             nominal_level,
             parameter_covariance: candidate.parameter_covariance.clone(),
@@ -756,7 +757,7 @@ impl NestedFisherArtifact {
         Ok((artifact, candidate))
     }
 
-    /// Export internal candidate evidence; no public route can load it as a licensed interval.
+    /// Export internal candidate evidence; no public route can load it as a supported interval.
     /// # Errors
     /// CBOR encoding failure.
     pub fn export(&self) -> Result<Vec<u8>, IoError> {

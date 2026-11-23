@@ -1,16 +1,18 @@
 //! Original checked transport arrival estimation and independently replayed raw counts.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::analysis::design_ranking::{DesignRankingRequestWire, evaluate};
-use antecedent::analysis::proposal_arrival::{ArrivalArtifact, ArrivalRequest, execute};
+use antecedent::analysis::proposal_arrival::{
+    ArrivalArtifact, ArrivalLimits, ArrivalPoint, ArrivalRequest, execute_with_limits,
+};
 use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_core::{
     DependenceGroup, Environment, EvidenceCatalog, EvidenceKind, ExecutionContext, RegimeBinding,
     SamplingDesign, VariableCoordinate, VariableDomain, VariableId,
 };
 use antecedent_design::{
-    DurableStudyCandidate, ExpectedEvidence, RepairFamilyRef, RepairLimits, RepairObjective,
-    RepairReportArtifact, StudyCostDeclaration, StudyKind, TransportRepairFamily, UnitRules,
-    repair,
+    DurableStudyCandidate, ExpectedEvidence, RepairFamily, RepairFamilyRef, RepairLimits,
+    RepairObjective, RepairReportArtifact, StudyCostDeclaration, StudyKind, TransportRepairFamily,
+    UnitRules, repair,
 };
 use antecedent_expr::execution_counts::count_static_work;
 use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, LawTolerance};
@@ -22,6 +24,9 @@ use antecedent_io::{
 };
 use serde_json::json;
 use std::sync::Arc;
+fn execute(r: &ArrivalRequest, ctx: &ExecutionContext) -> Result<ArrivalPoint, IoError> {
+    execute_with_limits(r, ctx, ArrivalLimits::default())
+}
 fn pin(key: &str) -> serde_json::Value {
     let expected: serde_json::Value =
         serde_json::from_str(include_str!("../../../conformance/proposals/arrival/expected.json"))
@@ -79,7 +84,7 @@ fn ranking(id: &str) -> antecedent::analysis::design_ranking::DesignRankingEvalu
         "decision":{"contract_identity":"arrival-ranking","utility_unit":"utility","action_ids":["wait","act"],"intercepts":[0.,-0.5],"slopes":[0.,1.],"prior":{"kind":"draws","states":[0.25,0.75]}},
         "candidates":[{"semantic_id":id,"sample_size":200,"cost":{"amount":1.,"unit":"utility"},"signal":{"prior_id":"decision-prior","state_quantity":q,"observation_quantity":q,"rng_seed":3,"evidence_lineage":["original-study-proposal"],"conditional_independence":"iid_given_state"},"provider":{"kind":"binomial"}}],"rng_seed":3,"source_digests":["original-prior"]
     })).unwrap();
-    evaluate(&rank).unwrap()
+    evaluate(rank, &antecedent::prelude::ExecutionContext::production_default(0)).unwrap()
 }
 fn law(rid: antecedent_core::RegimeId, active: bool) -> ExactLawWire {
     let counts = if active { vec![20, 80] } else { vec![80, 20] };
@@ -218,7 +223,7 @@ fn arrival_checked_transport_evaluates_actual_counts_and_full_atom_truth() {
     assert!((point.mean.unwrap() - pin("active_mean").as_f64().unwrap()).abs() < 1e-12);
     assert_eq!(point.point.probabilities, vec![0.2, 0.8]);
     assert_eq!(point.inference, "empirical_point_only");
-    assert_eq!(point.calibration, "unmeasured");
+    assert_eq!(point.calibration, "not_measured");
     assert_eq!(point.work.program_compilations, actual.program_compilations);
     assert_eq!(point.work.provider_calls, actual.provider_calls);
     assert!(actual.program_compilations > 0 && actual.provider_calls > 0);
@@ -270,7 +275,7 @@ fn arrival_original_artifact_and_raw_provider_replay_refuses_resealed_changes() 
                 )
                 .unwrap_err()
             )
-            .contains("proposal_arrival.replay_mismatch")
+            .contains(antecedent_core::reason_details::proposal_arrival::REPLAY_MISMATCH)
         );
     }
     assert!(
@@ -304,7 +309,10 @@ fn arrival_count_snapshot_population_assignment_and_sampling_refusals() {
     }
     let ctx = ExecutionContext::for_tests(3);
     ctx.cancellation.cancel();
-    assert!(detail(execute(&original, &ctx).unwrap_err()).contains("proposal_arrival.cancelled"));
+    assert!(
+        detail(execute(&original, &ctx).unwrap_err())
+            .contains(antecedent_core::reason_details::proposal_arrival::CANCELLED)
+    );
 }
 
 #[test]
@@ -320,4 +328,60 @@ fn arrival_checked_z_transport_replays_original_proof_and_actual_count_worlds() 
     )
     .unwrap();
     assert_eq!(replay.result, artifact.result);
+}
+
+/// The evaluation operation and depth bounds refuse one below the work the request needs and
+/// admit exactly that work; the recursion ceiling refuses one past it.
+///
+/// Reference: the exact evaluator charges a fixed number of operations and a fixed recursion
+/// depth for this request, so there is a unique smallest `operations` (and smallest `depth`)
+/// that evaluates. The oracle is that threshold, found by bisection over the same entry point:
+/// at the threshold the evaluation succeeds with the pinned mean, one below it the original
+/// evaluator refuses, and the published defaults (100000 operations, depth 128) admit it. The
+/// structural ceiling is `depth <= 256`: 256 passes the structural check, 257 refuses with
+/// `proposal_arrival.bounds_exceeded`. Tolerance is zero on the thresholds and 1e-12 on the mean.
+#[test]
+fn arrival_evaluation_operation_and_depth_bounds_refuse_one_past_and_admit_the_bound() {
+    use antecedent_core::reason_details::proposal_arrival as reason;
+    let request = fixture();
+    assert_eq!((request.operations, request.depth), (100_000, 128));
+    let run = |operations: usize, depth: usize| {
+        let mut r = request.clone();
+        r.operations = operations;
+        r.depth = depth;
+        execute(&r, &ExecutionContext::for_tests(3))
+    };
+    let smallest = |ok: &dyn Fn(usize) -> bool, high: usize| {
+        assert!(ok(high), "the largest probed bound must admit the request");
+        let (mut lo, mut hi) = (1_usize, high);
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            if ok(mid) {
+                hi = mid;
+            } else {
+                lo = mid + 1;
+            }
+        }
+        lo
+    };
+
+    let operations = smallest(&|n| run(n, 128).is_ok(), 100_000);
+    let admitted = run(operations, 128).unwrap();
+    assert!((admitted.mean.unwrap() - pin("active_mean").as_f64().unwrap()).abs() < 1e-12);
+    assert!(run(operations - 1, 128).is_err());
+    let message = detail(run(operations - 1, 128).unwrap_err());
+    let expected =
+        if operations == 1 { reason::BOUNDS_EXCEEDED } else { reason::ORIGINAL_CONSUMER_REFUSED };
+    assert!(message.contains(expected), "{message}");
+
+    let depth = smallest(&|n| run(100_000, n).is_ok(), 128);
+    let admitted = run(100_000, depth).unwrap();
+    assert!((admitted.mean.unwrap() - pin("active_mean").as_f64().unwrap()).abs() < 1e-12);
+    let message = detail(run(100_000, depth - 1).unwrap_err());
+    let expected =
+        if depth == 1 { reason::BOUNDS_EXCEEDED } else { reason::ORIGINAL_CONSUMER_REFUSED };
+    assert!(message.contains(expected), "{message}");
+
+    run(100_000, 256).unwrap();
+    assert!(detail(run(100_000, 257).unwrap_err()).contains(reason::BOUNDS_EXCEEDED));
 }

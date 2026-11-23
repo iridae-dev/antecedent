@@ -2,7 +2,7 @@
 //!
 //! # The cell
 //!
-//! The population is a finite mixture of `K` latent regimes (classes), `2 <= K <= 4`. Within
+//! The population is a finite mixture of `K` latent regimes (classes), `K >= 2`. Within
 //! class `k` the outcome follows a Gaussian linear model in the treatment `A` and the observed
 //! covariates `X`:
 //!
@@ -60,7 +60,7 @@
 //! classes by the permutation minimizing the squared distance in `(tau, alpha)`. Failed
 //! replicates (degenerate, not converged) are counted and skipped; fewer than two successes
 //! refuses. The reported quantity is the bootstrap standard deviation; **calibration is
-//! [`CalibrationStatus::Unmeasured`]** and no coverage or interval claim is made.
+//! [`CalibrationStatus::NotMeasured`]** and no coverage or interval claim is made.
 //!
 //! # Identification premises
 //!
@@ -96,18 +96,16 @@
 //! * `latent_class.treatment_constant` (`effect_not_identified`);
 //! * `latent_class.design_support_too_small` (`design_rank_deficient`);
 //! * `latent_class.constant_outcome` (`population_not_estimable`);
-//! * `latent_class.too_many_classes`, `latent_class.invalid_config`,
-//!   `latent_class.length_mismatch`, `latent_class.non_finite_input`,
-//!   `latent_class.too_few_rows`, `latent_class.too_many_covariates`
-//!   (`invalid_argument`).
+//! * `latent_class.invalid_config`, `latent_class.length_mismatch`,
+//!   `latent_class.non_finite_input`, `latent_class.too_few_rows` (`invalid_argument`).
 //!
 //! # What a result does not say
 //!
-//! Point estimates and bootstrap standard errors only; the bootstrap's coverage is unmeasured.
-//! Nothing here licenses a causal claim beyond the declared premises, and the class labels are
+//! Point estimates and bootstrap standard errors only; the bootstrap's coverage is `not_measured`.
+//! Nothing here supports a causal claim beyond the declared premises, and the class labels are
 //! an ordering convenience, not a discovered meaning.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::needless_range_loop,
@@ -117,7 +115,7 @@
 use std::cmp::Ordering;
 use std::f64::consts::TAU as TWO_PI;
 
-use antecedent_core::reason_code;
+use antecedent_core::{ExecutionContext, reason_code};
 
 use crate::effect_constancy::CalibrationStatus;
 use crate::error::EstimationError;
@@ -126,23 +124,20 @@ use crate::util::dot;
 use crate::util::{count, refuse};
 use crate::vector_treatment::DesignSummary;
 
-/// Most latent classes accepted.
+/// Latent classes the checked routes treat as the default envelope. Not enforced here: the
+/// class count is bounded by the rows-per-class and design-support identifiability checks.
 pub const LATENT_CLASS_MAX_CLASSES: usize = 4;
 
-/// Most restarts accepted.
-pub(crate) const LATENT_CLASS_MAX_RESTARTS: usize = 64;
-
-/// Most covariates accepted.
-pub(crate) const LATENT_CLASS_MAX_COVARIATES: usize = 64;
-
-/// Most bootstrap replicates accepted.
-pub(crate) const LATENT_CLASS_MAX_BOOTSTRAP: usize = 5000;
+/// Most EM restarts a configuration may request; more is refused.
+pub const LATENT_CLASS_MAX_RESTARTS: usize = 1_000;
+/// Most EM iterations per restart a configuration may request; more is refused.
+pub const LATENT_CLASS_MAX_ITERATIONS: usize = 100_000;
 
 /// Inference claim of the route.
 pub const LATENT_CLASS_INFERENCE_CLAIM: &str = "point_with_bootstrap_se";
 
 /// Statement attached to every result.
-pub const LATENT_CLASS_CAVEAT: &str = "bootstrap standard errors are unmeasured for coverage; class \
+pub const LATENT_CLASS_CAVEAT: &str = "bootstrap standard errors are not_measured for coverage; class \
                                        labels are an effect ordering, not a discovered meaning; \
                                        identification rests on the declared within-class \
                                        randomization and Gaussian-linear class models";
@@ -182,7 +177,7 @@ pub struct LatentClassData<'a> {
 /// Fit configuration.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LatentClassConfig {
-    /// Number of latent classes `K`, `2..=4`.
+    /// Number of latent classes `K`, at least 2.
     pub classes: usize,
     /// Seed of every deterministic stream (initialization, bootstrap).
     pub seed: u64,
@@ -309,7 +304,7 @@ pub struct LatentClassResult {
     pub bootstrap: Option<LatentClassBootstrap>,
     /// Identification premises and their status.
     pub premises: Vec<LatentClassPremise>,
-    /// Calibration state: unmeasured.
+    /// Calibration state: `not_measured`.
     pub calibration: CalibrationStatus,
     /// [`LATENT_CLASS_INFERENCE_CLAIM`].
     pub inference_claim: &'static str,
@@ -370,6 +365,7 @@ enum EmFailure {
     Degenerate,
     NotConverged,
     NotMonotone,
+    Cancelled,
 }
 
 struct FitState {
@@ -384,28 +380,21 @@ fn validate_config(config: &LatentClassConfig) -> Result<(), EstimationError> {
     if config.classes < 2 {
         return Err(refuse(
             reason_code!("population_not_estimable"),
-            "latent_class.degenerate_class",
+            antecedent_core::reason_details::latent_class::DEGENERATE_CLASS,
             "a single class is the ordinary regression, not a mixture; declare at least two classes",
-        ));
-    }
-    if config.classes > LATENT_CLASS_MAX_CLASSES {
-        return Err(refuse(
-            invalid,
-            "latent_class.too_many_classes",
-            "at most four latent classes are supported",
         ));
     }
     if !config.assume_conditional_randomization {
         return Err(refuse(
             reason_code!("required_option_missing"),
-            "latent_class.randomization_not_declared",
+            antecedent_core::reason_details::latent_class::RANDOMIZATION_NOT_DECLARED,
             "declare that treatment is as-if randomized within class given the covariates",
         ));
     }
     let bad = config.restarts == 0
         || config.restarts > LATENT_CLASS_MAX_RESTARTS
         || config.max_iterations == 0
-        || config.bootstrap_replicates > LATENT_CLASS_MAX_BOOTSTRAP
+        || config.max_iterations > LATENT_CLASS_MAX_ITERATIONS
         || !(config.tolerance.is_finite() && config.tolerance > 0.0)
         || !(config.min_class_weight >= 0.0 && config.min_class_weight <= 0.5)
         || !(config.min_separation >= 0.0 && config.min_separation <= 1.0)
@@ -413,7 +402,7 @@ fn validate_config(config: &LatentClassConfig) -> Result<(), EstimationError> {
     if bad {
         return Err(refuse(
             invalid,
-            "latent_class.invalid_config",
+            antecedent_core::reason_details::latent_class::INVALID_CONFIG,
             "restarts, iterations, tolerance, weight, separation, floor or bootstrap count is out of range",
         ));
     }
@@ -449,38 +438,35 @@ fn validate_data(
     if data.treatment.len() != n || data.covariates.iter().any(|c| c.len() != n) {
         return Err(refuse(
             invalid,
-            "latent_class.length_mismatch",
+            antecedent_core::reason_details::latent_class::LENGTH_MISMATCH,
             "outcome, treatment and covariate columns must share one length",
-        ));
-    }
-    if p > LATENT_CLASS_MAX_COVARIATES {
-        return Err(refuse(
-            invalid,
-            "latent_class.too_many_covariates",
-            "the covariate count exceeds the supported bound",
         ));
     }
     let finite = data.outcome.iter().chain(data.treatment).all(|v| v.is_finite())
         && data.covariates.iter().all(|c| c.iter().all(|v| v.is_finite()));
     if !finite {
-        return Err(refuse(invalid, "latent_class.non_finite_input", "inputs must be finite"));
-    }
-    let d = p + 2;
-    if n < config.classes * (d + 1) {
         return Err(refuse(
             invalid,
-            "latent_class.too_few_rows",
+            antecedent_core::reason_details::latent_class::NON_FINITE_INPUT,
+            "inputs must be finite",
+        ));
+    }
+    let d = p + 2;
+    if n < config.classes.saturating_mul(d + 1) {
+        return Err(refuse(
+            invalid,
+            antecedent_core::reason_details::latent_class::TOO_FEW_ROWS,
             "fewer rows than classes times regression dimension plus one",
         ));
     }
-    if let Some(labels) = &config.initial_labels {
-        if labels.len() != n || labels.iter().any(|&l| l >= config.classes) {
-            return Err(refuse(
-                invalid,
-                "latent_class.invalid_config",
-                "initial labels must give one label below the class count per row",
-            ));
-        }
+    if let Some(labels) = &config.initial_labels
+        && (labels.len() != n || labels.iter().any(|&l| l >= config.classes))
+    {
+        return Err(refuse(
+            invalid,
+            antecedent_core::reason_details::latent_class::INVALID_CONFIG,
+            "initial labels must give one label below the class count per row",
+        ));
     }
     let mut z = Vec::with_capacity(n * d);
     for i in 0..n {
@@ -495,14 +481,14 @@ fn validate_data(
     if data.treatment.iter().all(|v| v.total_cmp(&first) == Ordering::Equal) {
         return Err(refuse(
             reason_code!("effect_not_identified"),
-            "latent_class.treatment_constant",
+            antecedent_core::reason_details::latent_class::TREATMENT_CONSTANT,
             "the treatment does not vary, so no class effect is identified",
         ));
     }
     if distinct_design_points(&problem) < d + config.classes - 1 {
         return Err(refuse(
             reason_code!("design_rank_deficient"),
-            "latent_class.design_support_too_small",
+            antecedent_core::reason_details::latent_class::DESIGN_SUPPORT_TOO_SMALL,
             "too few distinct treatment and covariate points to identify the mixture",
         ));
     }
@@ -511,7 +497,7 @@ fn validate_data(
     if variance.is_nan() || variance <= 0.0 {
         return Err(refuse(
             reason_code!("population_not_estimable"),
-            "latent_class.constant_outcome",
+            antecedent_core::reason_details::latent_class::CONSTANT_OUTCOME,
             "the outcome is constant, so no class structure exists",
         ));
     }
@@ -629,11 +615,15 @@ fn run_em(
     init: Vec<Vec<f64>>,
     config: &LatentClassConfig,
     limits: Limits,
+    ctx: &ExecutionContext,
 ) -> Result<FitState, EmFailure> {
     let mut resp = init;
     let mut params = m_step(problem, &resp, limits)?;
     let mut trace: Vec<f64> = Vec::new();
     for _ in 0..config.max_iterations {
+        if ctx.cancellation.is_cancelled() {
+            return Err(EmFailure::Cancelled);
+        }
         let ll = e_step(problem, &params, &mut resp);
         if !ll.is_finite() {
             return Err(EmFailure::NotConverged);
@@ -717,6 +707,7 @@ fn best_fit(
     problem: &Problem,
     config: &LatentClassConfig,
     limits: Limits,
+    ctx: &ExecutionContext,
 ) -> Result<(FitState, usize, usize), EstimationError> {
     let attempted = if config.initial_labels.is_some() { 1 } else { config.restarts };
     let mut best: Option<FitState> = None;
@@ -728,7 +719,7 @@ fn best_fit(
             Some(labels) => hard_responsibilities(labels, config.classes),
             None => seeded_init(problem, config.classes, restart, config.seed),
         };
-        match run_em(problem, init, config, limits) {
+        match run_em(problem, init, config, limits, ctx) {
             Ok(fit) => {
                 succeeded += 1;
                 let better = match &best {
@@ -742,24 +733,25 @@ fn best_fit(
             Err(EmFailure::Degenerate) => degenerate += 1,
             Err(EmFailure::NotMonotone) => non_monotone += 1,
             Err(EmFailure::NotConverged) => {}
+            Err(EmFailure::Cancelled) => return Err(cancelled_fit()),
         }
     }
     match best {
         Some(fit) => Ok((fit, attempted, succeeded)),
         None if degenerate == attempted => Err(refuse(
             reason_code!("population_not_estimable"),
-            "latent_class.degenerate_class",
+            antecedent_core::reason_details::latent_class::DEGENERATE_CLASS,
             "every start collapsed a class: the data show no separable class structure \
              (a single regime, a noise-free fit or a class too small to estimate)",
         )),
         None if non_monotone > 0 => Err(refuse(
             reason_code!("mechanism_fit_not_converged"),
-            "latent_class.likelihood_not_monotone",
+            antecedent_core::reason_details::latent_class::LIKELIHOOD_NOT_MONOTONE,
             "the EM log-likelihood decreased; the numerical fit is unreliable",
         )),
         None => Err(refuse(
             reason_code!("mechanism_fit_not_converged"),
-            "latent_class.not_converged",
+            antecedent_core::reason_details::latent_class::NOT_CONVERGED,
             "no start converged within the iteration bound; raise the bound or the tolerance",
         )),
     }
@@ -808,6 +800,75 @@ fn permutations(k: usize) -> Vec<Vec<usize>> {
     out
 }
 
+/// Classes up to which the alignment enumerates every permutation (first minimum wins ties);
+/// beyond it the same minimum-cost alignment is solved as an assignment problem.
+const EXHAUSTIVE_ALIGNMENT_CLASSES: usize = 6;
+
+/// Minimum-cost assignment of the rows of a square cost matrix to distinct columns
+/// (Hungarian algorithm with potentials, `O(k^3)`): entry `i` is the column of row `i`.
+/// `None` for a non-finite cost.
+fn min_cost_assignment(cost: &[Vec<f64>]) -> Option<Vec<usize>> {
+    let k = cost.len();
+    if cost.iter().any(|row| row.len() != k || row.iter().any(|v| !v.is_finite())) {
+        return None;
+    }
+    // One-based potentials and matching; column 0 is the virtual start.
+    let mut u = vec![0.0_f64; k + 1];
+    let mut v = vec![0.0_f64; k + 1];
+    let mut matched_row = vec![0_usize; k + 1];
+    let mut way = vec![0_usize; k + 1];
+    for i in 1..=k {
+        matched_row[0] = i;
+        let mut j0 = 0_usize;
+        let mut min_v = vec![f64::INFINITY; k + 1];
+        let mut used = vec![false; k + 1];
+        loop {
+            used[j0] = true;
+            let i0 = matched_row[j0];
+            let mut delta = f64::INFINITY;
+            let mut j1 = 0_usize;
+            for j in 1..=k {
+                if !used[j] {
+                    let reduced = cost[i0 - 1][j - 1] - u[i0] - v[j];
+                    if reduced < min_v[j] {
+                        min_v[j] = reduced;
+                        way[j] = j0;
+                    }
+                    if min_v[j] < delta {
+                        delta = min_v[j];
+                        j1 = j;
+                    }
+                }
+            }
+            for j in 0..=k {
+                if used[j] {
+                    u[matched_row[j]] += delta;
+                    v[j] -= delta;
+                } else {
+                    min_v[j] -= delta;
+                }
+            }
+            j0 = j1;
+            if matched_row[j0] == 0 {
+                break;
+            }
+        }
+        loop {
+            let j1 = way[j0];
+            matched_row[j0] = matched_row[j1];
+            j0 = j1;
+            if j0 == 0 {
+                break;
+            }
+        }
+    }
+    let mut assignment = vec![0_usize; k];
+    for j in 1..=k {
+        assignment[matched_row[j] - 1] = j - 1;
+    }
+    Some(assignment)
+}
+
 fn mixture_average(params: &Params) -> f64 {
     params.weights.iter().zip(&params.beta).map(|(w, b)| w * b[1]).sum()
 }
@@ -815,13 +876,22 @@ fn mixture_average(params: &Params) -> f64 {
 /// One aligned bootstrap replicate: (effects, weights, average effect).
 type Replicate = (Vec<f64>, Vec<f64>, f64);
 
+fn cancelled_fit() -> EstimationError {
+    refuse(
+        reason_code!("cancelled_no_claim"),
+        antecedent_core::reason_details::latent_class::CANCELLED,
+        "the latent-class fit was cancelled; no estimate is reported",
+    )
+}
+
 fn bootstrap_replicate(
     problem: &Problem,
     reference: &Params,
     config: &LatentClassConfig,
     limits: Limits,
     b: usize,
-) -> Option<Replicate> {
+    ctx: &ExecutionContext,
+) -> Result<Option<Replicate>, EstimationError> {
     let n_u64 = as_u64(problem.n).max(1);
     let mut state = mix64(config.seed.wrapping_add(0xB007_57A9)) ^ mix64(as_u64(b).wrapping_add(1));
     let indices: Vec<usize> = (0..problem.n)
@@ -831,26 +901,41 @@ fn bootstrap_replicate(
     let k = reference.weights.len();
     let mut resp = vec![vec![0.0; sample.n]; k];
     e_step(&sample, reference, &mut resp);
-    let fit = run_em(&sample, resp, config, limits).ok()?;
+    let fit = match run_em(&sample, resp, config, limits, ctx) {
+        Ok(fit) => fit,
+        Err(EmFailure::Cancelled) => return Err(cancelled_fit()),
+        Err(_) => return Ok(None),
+    };
+    Ok(align_replicate(reference, &fit))
+}
+
+/// Align a converged replicate's classes to the reference fit's labels.
+fn align_replicate(reference: &Params, fit: &FitState) -> Option<Replicate> {
+    let k = reference.weights.len();
     let canonical = reorder(&fit.params, &canonical_order(&fit.params));
-    let mut best: Option<(f64, Vec<usize>)> = None;
-    for perm in permutations(k) {
-        let cost: f64 = (0..k)
-            .map(|c| {
-                let rep = &canonical.beta[perm[c]];
-                let reference_beta = &reference.beta[c];
-                (rep[1] - reference_beta[1]).powi(2) + (rep[0] - reference_beta[0]).powi(2)
-            })
-            .sum();
-        let lower = match &best {
-            Some((current, _)) => cost < *current,
-            None => true,
-        };
-        if lower {
-            best = Some((cost, perm));
+    let pair_cost = |c: usize, r: usize| {
+        let rep = &canonical.beta[r];
+        let reference_beta = &reference.beta[c];
+        (rep[1] - reference_beta[1]).powi(2) + (rep[0] - reference_beta[0]).powi(2)
+    };
+    let perm = if k <= EXHAUSTIVE_ALIGNMENT_CLASSES {
+        let mut best: Option<(f64, Vec<usize>)> = None;
+        for perm in permutations(k) {
+            let cost: f64 = (0..k).map(|c| pair_cost(c, perm[c])).sum();
+            let lower = match &best {
+                Some((current, _)) => cost < *current,
+                None => true,
+            };
+            if lower {
+                best = Some((cost, perm));
+            }
         }
-    }
-    let perm = best?.1;
+        best?.1
+    } else {
+        let cost: Vec<Vec<f64>> =
+            (0..k).map(|c| (0..k).map(|r| pair_cost(c, r)).collect()).collect();
+        min_cost_assignment(&cost)?
+    };
     let effects: Vec<f64> = perm.iter().map(|&c| canonical.beta[c][1]).collect();
     let weights: Vec<f64> = perm.iter().map(|&c| canonical.weights[c]).collect();
     let average = effects.iter().zip(&weights).map(|(t, w)| t * w).sum();
@@ -870,20 +955,27 @@ fn bootstrap_se(
     reference: &Params,
     config: &LatentClassConfig,
     limits: Limits,
+    ctx: &ExecutionContext,
 ) -> Result<Option<BootstrapSe>, EstimationError> {
     let requested = config.bootstrap_replicates;
     if requested == 0 {
         return Ok(None);
     }
     let k = reference.weights.len();
-    let replicates: Vec<Replicate> = (0..requested)
-        .filter_map(|b| bootstrap_replicate(problem, reference, config, limits, b))
-        .collect();
+    let mut replicates: Vec<Replicate> = Vec::new();
+    for b in 0..requested {
+        if ctx.cancellation.is_cancelled() {
+            return Err(cancelled_fit());
+        }
+        if let Some(replicate) = bootstrap_replicate(problem, reference, config, limits, b, ctx)? {
+            replicates.push(replicate);
+        }
+    }
     let succeeded = replicates.len();
     if succeeded < 2 {
         return Err(refuse(
             reason_code!("mechanism_fit_not_converged"),
-            "latent_class.not_converged",
+            antecedent_core::reason_details::latent_class::NOT_CONVERGED,
             "fewer than two bootstrap replicates converged to a non-degenerate fit",
         ));
     }
@@ -919,14 +1011,16 @@ fn premises() -> Vec<LatentClassPremise> {
 ///
 /// Refuses with the details documented on the module: invalid configuration or data, an
 /// undeclared randomization premise, a constant treatment, too little design support, a
-/// degenerate or weak class, or an EM that did not converge or was not monotone.
+/// degenerate or weak class, an EM that did not converge or was not monotone, or
+/// `latent_class.cancelled` when `ctx` is cancelled.
 pub fn fit_latent_class_effects(
     data: &LatentClassData<'_>,
     config: &LatentClassConfig,
+    ctx: &ExecutionContext,
 ) -> Result<LatentClassResult, EstimationError> {
     validate_config(config)?;
     let (problem, limits) = validate_data(data, config)?;
-    let (fit, attempted, succeeded) = best_fit(&problem, config, limits)?;
+    let (fit, attempted, succeeded) = best_fit(&problem, config, limits, ctx)?;
     let order = canonical_order(&fit.params);
     let params = reorder(&fit.params, &order);
     let k = order.len();
@@ -949,7 +1043,7 @@ pub fn fit_latent_class_effects(
         rows.iter().map(|row| row.iter().copied().fold(0.0_f64, f64::max)).sum::<f64>()
             / count(problem.n);
     check_identification(&params, separation, config)?;
-    let boot = bootstrap_se(&problem, &params, config, limits)?;
+    let boot = bootstrap_se(&problem, &params, config, limits, ctx)?;
     let classes: Vec<LatentClassEffect> = (0..k)
         .map(|c| LatentClassEffect {
             index: c,
@@ -985,7 +1079,7 @@ pub fn fit_latent_class_effects(
         min_effect_gap,
         bootstrap: boot.map(|b| b.summary),
         premises: premises(),
-        calibration: CalibrationStatus::Unmeasured,
+        calibration: CalibrationStatus::NotMeasured,
         inference_claim: LATENT_CLASS_INFERENCE_CLAIM,
         caveat: LATENT_CLASS_CAVEAT,
     })
@@ -1000,17 +1094,43 @@ fn check_identification(
     if params.weights.iter().any(|&w| w < config.min_class_weight) {
         return Err(refuse(
             weak,
-            "latent_class.weak_class",
+            antecedent_core::reason_details::latent_class::WEAK_CLASS,
             "a class weight is below the declared minimum class weight",
         ));
     }
     if separation < config.min_separation {
         return Err(refuse(
             weak,
-            "latent_class.weak_class",
+            antecedent_core::reason_details::latent_class::WEAK_CLASS,
             "the classes overlap: the mean largest posterior responsibility is below the \
              declared minimum separation",
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod assignment_tests {
+    use super::{min_cost_assignment, permutations};
+
+    #[test]
+    fn hungarian_assignment_matches_exhaustive_minimum() {
+        let cost = vec![
+            vec![4.0, 1.0, 3.0, 9.0, 2.0],
+            vec![2.0, 0.5, 5.0, 3.0, 7.0],
+            vec![3.0, 2.0, 2.0, 1.0, 6.0],
+            vec![5.0, 4.0, 1.0, 8.0, 0.0],
+            vec![1.0, 6.0, 4.0, 2.0, 3.0],
+        ];
+        let total =
+            |perm: &[usize]| -> f64 { perm.iter().enumerate().map(|(r, &c)| cost[r][c]).sum() };
+        let best =
+            permutations(5).into_iter().map(|perm| total(&perm)).fold(f64::INFINITY, f64::min);
+        let assignment = min_cost_assignment(&cost).expect("finite costs");
+        let mut seen = assignment.clone();
+        seen.sort_unstable();
+        assert_eq!(seen, vec![0, 1, 2, 3, 4]);
+        assert!((total(&assignment) - best).abs() < 1e-12);
+        assert!(min_cost_assignment(&[vec![f64::NAN]]).is_none());
+    }
 }

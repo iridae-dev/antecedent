@@ -1,27 +1,27 @@
-//! Calibration coordinates, licensed routes and the known-optimum simulation design.
+//! Calibration coordinates, supported routes and the known-optimum simulation design.
 //!
 //! A ranking or optimality probability, or an interval for a selected decision, is a
 //! claim about the *whole procedure*: the candidate-set size, the Monte Carlo budget and
 //! the selection rule together. Component Monte Carlo error alone does not cover the
-//! selected decision. A route is licensed at a coordinate exactly when a current,
+//! selected decision. Every published route is reported at every coordinate, with its
+//! calibration status as an annotation: `calibrated` exactly when a current,
 //! attesting, non-boundary coverage record measured that construction and the
-//! coordinate lies inside the range it measured ([`license_route_at`] resolves the
-//! record through the shipped coverage table). At any other coordinate the route is
-//! closed with a typed `cell_not_licensed` refusal and only point diagnostics are
-//! published.
+//! coordinate lies inside the range it measured ([`support_route_at`] resolves the
+//! record through the shipped coverage table), and otherwise `outside_measured_scope`,
+//! `measured_below_nominal` or `not_measured`. Calibration never withholds an interval.
 //!
 //! [`KnownOptimumDesign`] is the data-generating process the measurement uses: a
 //! finite candidate set with known true utilities (so the true optimum, the true value
 //! of the selected candidate and the true ranking are known), noisy Monte Carlo
 //! utilities on a selection stream, and an independent validation stream.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_io_core::calibration::{
-    CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire, calibration_slot,
+    BASIS_MISSING, CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire, calibration_slot,
 };
-use antecedent_io_core::contract_section::CalibrationStatus;
+use antecedent_io_core::contract_section::{CalibrationSlotWire, CalibrationStatus};
 use antecedent_kernels::standard_normal;
 use serde::{Deserialize, Serialize};
 
@@ -132,27 +132,13 @@ impl PublishedRoute {
     }
 }
 
-/// A route that is closed at a coordinate, with its refusal.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ClosedRoute {
-    /// The route.
-    pub route: PublishedRoute,
-    /// Coordinate it would be calibrated at.
-    pub coordinate: String,
-    /// Registered reason code of the refusal.
-    pub code: String,
-    /// What would open it.
-    pub remedy: String,
-}
-
 /// Query axis name every decision-reliability coverage record carries.
 pub const RECORD_QUERY: &str = "DecisionReliability";
-/// Nominal level [`license_route`] resolves at.
-pub const DEFAULT_LICENSE_LEVEL: f64 = 0.95;
+/// Nominal level [`support_route`] resolves at.
+pub const DEFAULT_SUPPORT_LEVEL: f64 = 0.95;
 
 impl PublishedRoute {
-    /// Estimator label and interval method of the record that licenses the route.
+    /// Estimator label and interval method of the record that supports the route.
     #[must_use]
     pub const fn record_construction(self) -> (&'static str, &'static str) {
         match self {
@@ -172,9 +158,9 @@ impl PublishedRoute {
 
 /// Candidate-set size bands a coverage record is keyed by, inclusive on both ends.
 ///
-/// A record measured at several sizes inside a band licenses every size of the band,
+/// A record measured at several sizes inside a band supports every size of the band,
 /// and only because each size visited passed; a size above the last band has no
-/// record and is closed. The width of a band is what the measurement has to visit: a
+/// record and is not supported. The width of a band is what the measurement has to visit: a
 /// selection correction grows with the logarithm of the count, and the best-candidate
 /// set switches from paired comparisons to the dependence-free construction above
 /// 64 candidates, so no band spans that switch.
@@ -225,7 +211,7 @@ pub fn calibration_basis(
 }
 
 /// The basis under the key of records that measured one exact candidate count. Such a
-/// record licenses exactly that count; a measurement now keys by band
+/// record supports exactly that count; a measurement now keys by band
 /// ([`calibration_basis`]).
 fn exact_count_basis(
     route: PublishedRoute,
@@ -251,6 +237,7 @@ fn basis_with_functional(
     let (estimator, interval_method) = route.record_construction();
     Some(CalibrationBasisWire {
         key: CalibrationKeyWire {
+            validation: "not_applicable".into(),
             query: RECORD_QUERY.to_owned(),
             graph_class: "NotApplicable".to_owned(),
             structure: "fixed".to_owned(),
@@ -278,63 +265,136 @@ fn basis_with_functional(
     })
 }
 
-/// Ask for a published route at a coordinate, at [`DEFAULT_LICENSE_LEVEL`].
+/// The calibration of a published route at a coordinate, at [`DEFAULT_SUPPORT_LEVEL`].
 ///
 /// # Errors
-/// [`ReliabilityError::CellNotLicensed`] unless a coverage record measured this route
-/// at this coordinate.
-pub fn license_route(
+/// None today: calibration annotates the route and never refuses it. The `Result`
+/// is kept so the signature stays stable for callers that handle a refusal.
+pub fn support_route(
     route: PublishedRoute,
     coordinate: &CalibrationCoordinate,
-) -> Result<(), ReliabilityError> {
-    license_route_at(route, coordinate, DEFAULT_LICENSE_LEVEL)
+) -> Result<CalibrationSlotWire, ReliabilityError> {
+    support_route_at(route, coordinate, DEFAULT_SUPPORT_LEVEL)
 }
 
-/// Ask for a published route at a coordinate and nominal level.
+/// Estimator label of the record that supports the selected-program value interval.
+pub const SELECTED_VALUE_ESTIMATOR: &str = "decision_reliability_selected_program_value";
+/// Interval method of that record: the sup-t band over the shared draws.
+pub const SELECTED_VALUE_INTERVAL_METHOD: &str = "simultaneous_sup_t_draws";
+
+/// The `functional` label of a selected-value record: the banded label of
+/// [`banded_record_functional`] plus the way the candidates came to exist.
+fn selected_value_functional(coordinate: &CalibrationCoordinate) -> Option<String> {
+    let banded = banded_record_functional(coordinate)?;
+    Some(if coordinate.adaptively_generated {
+        format!("{banded};generation=adaptive_search")
+    } else {
+        banded
+    })
+}
+
+/// The calibration basis of the selected-program value interval at `coordinate` and
+/// nominal `level`: the key a coverage record must equal and the draw budget it must cover.
+/// `None` when the coordinate carries a declaration no record can cover (undeclared serial
+/// dependence or coupling, importance weights, a candidate-set size outside every band).
+#[must_use]
+pub fn selected_value_basis(
+    coordinate: &CalibrationCoordinate,
+    level: f64,
+) -> Option<CalibrationBasisWire> {
+    if coordinate.within_stream == WithinStreamDependence::Unknown
+        || coordinate.importance_weighted
+        || coordinate.coupling == CandidateCoupling::Unknown
+    {
+        return None;
+    }
+    let posterior = coordinate.paradigm == SourceParadigm::Posterior;
+    let draws = u32::try_from(coordinate.mc_budget).unwrap_or(u32::MAX);
+    Some(CalibrationBasisWire {
+        key: CalibrationKeyWire {
+            validation: "not_applicable".into(),
+            query: RECORD_QUERY.to_owned(),
+            graph_class: "NotApplicable".to_owned(),
+            structure: "fixed".to_owned(),
+            modality: "decision_draws".to_owned(),
+            inference: if posterior { "Bayesian" } else { "Frequentist" }.to_owned(),
+            estimator: SELECTED_VALUE_ESTIMATOR.to_owned(),
+            interval_method: SELECTED_VALUE_INTERVAL_METHOD.to_owned(),
+            se_kind: "source_draws".to_owned(),
+            dependence: format!(
+                "{}.{}",
+                coordinate.coupling.as_str(),
+                coordinate.within_stream.as_str()
+            ),
+            posterior: if posterior { "draws" } else { "" }.to_owned(),
+            functional: selected_value_functional(coordinate)?,
+            level,
+            identification: "model_conditional".into(),
+        },
+        scope: CalibrationScopeWire {
+            row_count: coordinate.mc_budget,
+            replicates_ok: (!posterior).then_some(draws),
+            posterior_draws: posterior.then_some(draws),
+            unidentified_mass: 0.0,
+        },
+    })
+}
+
+/// The calibration slot of the selected-program value interval at a coordinate and level:
+/// `calibrated` when a current, attesting coverage record measured the construction there,
+/// otherwise the status and reason of the closest record or `not_measured`. An annotation;
+/// the interval is reported either way.
+#[must_use]
+pub fn selected_value_calibration(
+    coordinate: &CalibrationCoordinate,
+    level: f64,
+) -> CalibrationSlotWire {
+    selected_value_basis(coordinate, level).map_or_else(
+        || CalibrationSlotWire::not_measured(BASIS_MISSING),
+        |basis| calibration_slot(&basis),
+    )
+}
+
+/// The calibration slot of a published route at a coordinate and nominal level.
 ///
-/// The route is licensed only when the shipped coverage table holds a current,
+/// The slot is `calibrated` when the shipped coverage table holds a current,
 /// attesting, non-boundary record whose construction equals [`calibration_basis`] (or,
 /// for a record measured at one exact count, that count) and whose measured sample-size
-/// range contains the coordinate's Monte Carlo budget.
-/// Nothing a caller passes can open a route.
+/// range contains the coordinate's Monte Carlo budget. Otherwise it carries the status
+/// and reason of the closest record, or `not_measured` when no basis can describe the
+/// coordinate (undeclared serial dependence, weights, adaptive candidates). Nothing a
+/// caller passes can raise the status.
 ///
 /// # Errors
-/// [`ReliabilityError::CellNotLicensed`] for every other coordinate.
-pub fn license_route_at(
+/// None today; see [`support_route`].
+pub fn support_route_at(
     route: PublishedRoute,
     coordinate: &CalibrationCoordinate,
     level: f64,
-) -> Result<(), ReliabilityError> {
-    let licensed =
+) -> Result<CalibrationSlotWire, ReliabilityError> {
+    Ok(route_calibration(route, coordinate, level))
+}
+
+/// The calibration slot of `route` at `coordinate` and `level` (see [`support_route_at`]).
+#[must_use]
+pub fn route_calibration(
+    route: PublishedRoute,
+    coordinate: &CalibrationCoordinate,
+    level: f64,
+) -> CalibrationSlotWire {
+    let mut first = None;
+    for basis in
         [calibration_basis(route, coordinate, level), exact_count_basis(route, coordinate, level)]
             .into_iter()
             .flatten()
-            .any(|basis| calibration_slot(&basis).status == CalibrationStatus::Calibrated);
-    if licensed {
-        Ok(())
-    } else {
-        Err(ReliabilityError::CellNotLicensed {
-            route: route.as_str(),
-            coordinate: coordinate.describe(),
-        })
+    {
+        let slot = calibration_slot(&basis);
+        if slot.status == CalibrationStatus::Calibrated {
+            return slot;
+        }
+        first.get_or_insert(slot);
     }
-}
-
-/// Every route that is closed at `coordinate`, with the refusal it would return.
-#[must_use]
-pub fn closed_routes(coordinate: &CalibrationCoordinate) -> Vec<ClosedRoute> {
-    PublishedRoute::ALL
-        .into_iter()
-        .filter(|&route| license_route(route, coordinate).is_err())
-        .map(|route| ClosedRoute {
-            route,
-            coordinate: coordinate.describe(),
-            code: antecedent_core::reason_code!("cell_not_licensed").to_owned(),
-            remedy: "point diagnostics only: a coverage record at this candidate-set size, \
-                     Monte Carlo budget and selection rule would be needed"
-                .to_owned(),
-        })
-        .collect()
+    first.unwrap_or_else(|| CalibrationSlotWire::not_measured(BASIS_MISSING))
 }
 
 /// How the simulated candidates' noise is coupled.
@@ -402,6 +462,7 @@ pub fn simulate_selection_draws(
     }
     let n = design.n_draws;
     let k = design.true_means.len();
+    // Known-optimum calibration harness: the design declares `n_draws` and runs on no study context.
     let mut columns = vec![vec![0.0_f64; n]; k];
     let (coupling, segments) = match design.coupling {
         NoiseCoupling::SharedStream { correlation } => {

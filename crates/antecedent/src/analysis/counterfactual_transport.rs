@@ -18,17 +18,17 @@
 //!    (changed numbers at the same shape included) and rebuilds the numerical
 //!    state. A refresh that is refused leaves the prepared value untouched.
 //! 3. [`CounterfactualTransportResult::export_artifact`] writes the
-//!    `counterfactual_transport_v1` artifact and
+//!    `counterfactual_transport_v2` artifact and
 //!    [`consume_counterfactual_transport_artifact`] replays it from bytes and
 //!    an expected identity: it re-decides under the stored limits, requires the
 //!    identical derivation, re-evaluates the point bit for bit, or re-verifies
 //!    the obstruction's witness by exact enumeration.
 //!
 //! The route is point-only: exact finite laws carry no sampling uncertainty and
-//! a counted, empirical or posterior law is refused with `cell_not_licensed`;
+//! a counted, empirical or posterior law is refused with `not_supported`;
 //! sampled counterfactual transport is a separate route.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{EvidenceCatalog, ExecutionContext, SearchLimits};
 use antecedent_estimate::{
@@ -132,14 +132,20 @@ impl CounterfactualTransportObstructionReport {
     /// Re-verify the witness by exact rational enumeration on the report's own
     /// model class, query and catalog.
     ///
+    /// The verification is charged to `ctx`: its admission pool and cancellation.
+    ///
     /// # Errors
     /// `transport_not_certified` (`counterfactual_transport.invalid_witness`)
-    /// when the witness no longer verifies.
-    pub fn verify(&self) -> Result<CounterfactualTransportWitnessCheck, IoError> {
-        self.obstruction.verify().map_err(identification_error)
+    /// when the witness no longer verifies; `transport_budget_cancel` when the
+    /// verification was stopped.
+    pub fn verify(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<CounterfactualTransportWitnessCheck, IoError> {
+        self.obstruction.verify(ctx).map_err(identification_error)
     }
 
-    /// Export the obstruction as a `counterfactual_transport_v1` artifact that a
+    /// Export the obstruction as a `counterfactual_transport_v2` artifact that a
     /// fresh consumer re-verifies from bytes.
     ///
     /// # Errors
@@ -230,7 +236,7 @@ impl CounterfactualTransportResult {
     }
 
     /// Export the premises, derivation, laws and point as a
-    /// `counterfactual_transport_v1` artifact.
+    /// `counterfactual_transport_v2` artifact.
     ///
     /// # Errors
     /// The artifact does not encode, a bound is exceeded or names do not cover
@@ -347,7 +353,7 @@ fn refusal_of(decision: &CounterfactualTransportDecision) -> IoError {
 /// # Errors
 /// A coded refusal: `route_not_supported` for a request outside the frozen
 /// contract, `invalid_argument` for a malformed query or catalog,
-/// `transport_missing_evidence` naming the regimes that would license a
+/// `transport_missing_evidence` naming the regimes that would support a
 /// derivation, `transport_not_certified` when the bounded search neither
 /// derives nor verifies a witness, `transport_budget_cancel` with the search
 /// receipt, and the evaluation refusals of [`PreparedCounterfactualTransport::evaluate`]
@@ -389,7 +395,7 @@ pub fn prepare_counterfactual_transport(
         }
         CounterfactualTransportDecision::ProvenNonTransportable(obstruction) => {
             let memory_limit_bytes =
-                ctx.memory.hard_limit_bytes.map_or(COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES, |hard| {
+                ctx.memory_limit_bytes().map_or(COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES, |hard| {
                     hard.min(COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES)
                 });
             Ok(CounterfactualTransportPreparation::ProvenNonTransportable(Box::new(
@@ -434,7 +440,7 @@ impl PreparedCounterfactualTransport {
     /// without changing this value.
     ///
     /// # Errors
-    /// `cell_not_licensed` (`counterfactual_transport.sampled_inference_closed`)
+    /// `not_supported` (`counterfactual_transport.no_sampled_inference`)
     /// for a counted, empirical or posterior law; `invalid_argument`
     /// (`counterfactual_transport.invalid_evidence`) for a law whose population,
     /// regime, axes or levels do not match the catalog and declared levels;

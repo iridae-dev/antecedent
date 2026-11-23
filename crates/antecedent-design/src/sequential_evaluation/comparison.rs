@@ -9,7 +9,7 @@
 //! and checked against the enumerated value of the supplied collect-then-act
 //! policy. A disagreement is refused, not reported.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -18,7 +18,7 @@ use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 
 use super::belief::{branches, predict};
 use super::gformula::{EvaluationLimits, PolicyEvaluation, commit_tail, walk};
-use super::model::{ActionRole, Compiled, dot};
+use super::model::{ActionRole, Compiled, CompiledAction, dot};
 use super::policy::{ContingentPolicy, HistoryKey, PolicySpec};
 use super::{
     FiniteSequentialModel, SEQUENTIAL_EVALUATION_INFERENCE, SequentialRequest, SequentialResult,
@@ -31,6 +31,7 @@ use crate::objective::DesignObjective;
 use crate::preposterior::{DecisionPrior, DecisionSignal};
 use crate::ranker::{DecisionRegistry, DesignEvaluationContext, DesignRankConfig, DesignRanker};
 use crate::result::ScoreEvaluation;
+use antecedent_core::named_variants;
 
 /// What a comparison asks of its policy's first decision.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -47,24 +48,12 @@ pub enum ComparisonKind {
     ChooseAfterObservation,
 }
 
-impl ComparisonKind {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::ActNow => "act_now",
-            Self::Wait => "wait",
-            Self::CollectEvidence => "collect_evidence",
-            Self::ChooseAfterObservation => "choose_after_observation",
-        }
-    }
-
-    /// Parse a stable name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::ActNow, Self::Wait, Self::CollectEvidence, Self::ChooseAfterObservation]
-            .into_iter()
-            .find(|kind| kind.as_str() == name)
+named_variants! {
+    ComparisonKind {
+        ActNow => "act_now",
+        Wait => "wait",
+        CollectEvidence => "collect_evidence",
+        ChooseAfterObservation => "choose_after_observation",
     }
 }
 
@@ -206,10 +195,10 @@ fn check_kind(
         let symbols = compiled.actions[action].symbols;
         let mut seen: Vec<&[(usize, f64)]> = Vec::new();
         for symbol in 0..symbols {
-            if let Some(next) = policy.distribution(&root.extended(action, symbol)) {
-                if !seen.contains(&next) {
-                    seen.push(next);
-                }
+            if let Some(next) = policy.distribution(&root.extended(action, symbol))
+                && !seen.contains(&next)
+            {
+                seen.push(next);
             }
         }
         if seen.len() < 2 {
@@ -405,16 +394,10 @@ fn commit_utility(compiled: &Compiled, action: usize, state: usize) -> f64 {
     spec.immediate[state] - spec.utility_cost + commit_tail(compiled, action, &unit, 0, &[])
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "validate the request, score through the ranker, then enumerate and compare"
-)]
-fn value_of_collecting(
-    compiled: &Compiled,
+fn admit_voi_request<'a>(
+    compiled: &'a Compiled,
     request: &VoiRequest,
-    limits: EvaluationLimits,
-    ctx: &ExecutionContext,
-) -> SequentialResult<VoiCheck> {
+) -> SequentialResult<&'a CompiledAction> {
     let pure_information = |action: usize| {
         compiled.actions.get(action).filter(|spec| {
             spec.role == ActionRole::Continue
@@ -452,6 +435,20 @@ fn value_of_collecting(
             "name declared commit actions",
         ));
     }
+    Ok(collect)
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "validate the request, score through the ranker, then enumerate and compare"
+)]
+fn value_of_collecting(
+    compiled: &Compiled,
+    request: &VoiRequest,
+    limits: EvaluationLimits,
+    ctx: &ExecutionContext,
+) -> SequentialResult<VoiCheck> {
+    let collect = admit_voi_request(compiled, request)?;
     let states = compiled.states;
     let believed = predict(compiled, &compiled.initial, request.collect_action);
     let table: Vec<Vec<f64>> = request

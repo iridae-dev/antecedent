@@ -12,7 +12,7 @@
 //! declared support and outside the refusal mask, and nothing else. The only
 //! uncertainty it can report is the model-based standard error
 //! `se = sqrt(phi' V phi)` from the stored covariance. That number is marked as
-//! model-based with calibration unmeasured; it is never an interval or a
+//! model-based with calibration `not_measured`; it is never an interval or a
 //! coverage claim, and it carries no extrapolation or misspecification
 //! uncertainty. The verifier evaluates from the stored fields only.
 
@@ -43,10 +43,12 @@ pub const POINT_SCOPE: &str = "point prediction f(x) = b'phi(x) of the declared 
 /// Stored statement of what the reported uncertainty means.
 pub const UNCERTAINTY_SCOPE: &str = "model-based standard error se = sqrt(phi' V phi) from the stored covariance; not an interval, not a coverage claim, and without extrapolation or misspecification uncertainty";
 /// Stored calibration status of the standard error.
-pub const CALIBRATION_STATUS: &str = "calibration unmeasured";
+pub const CALIBRATION_STATUS: &str = "calibration not_measured";
 /// Label carried by every reported standard error.
 pub const SE_BASIS: &str = "model_based_sqrt_phi_v_phi";
-/// Largest polynomial degree a term may declare.
+/// Default largest polynomial degree a term may declare. This is a numeric-stability
+/// default (the power basis is ill-conditioned at high degree), not a format limit: a
+/// consumer that wants other degrees sets [`ExportLimits::max_degree`].
 pub const MAX_POLYNOMIAL_DEGREE: u32 = 8;
 
 const SYMMETRY_TOLERANCE: f64 = 1e-9;
@@ -66,6 +68,9 @@ pub struct ExportLimits {
     pub max_mask_regions: usize,
     /// Largest number of levels in one level set.
     pub max_levels: usize,
+    /// Largest polynomial degree a power term may declare (default
+    /// [`MAX_POLYNOMIAL_DEGREE`]).
+    pub max_degree: u32,
 }
 
 impl Default for ExportLimits {
@@ -76,6 +81,7 @@ impl Default for ExportLimits {
             max_inputs: 64,
             max_mask_regions: 256,
             max_levels: 1024,
+            max_degree: MAX_POLYNOMIAL_DEGREE,
         }
     }
 }
@@ -114,22 +120,16 @@ fn invalid(detail: &'static str, subject: impl Into<String>) -> ExportRefusal {
     }
 }
 
-fn unlicensed(detail: &'static str, subject: impl Into<String>) -> ExportRefusal {
-    ExportRefusal {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
-        detail,
-        subject: subject.into(),
-    }
-}
-
 fn io_refusal(error: &IoError) -> ExportRefusal {
     let detail = match error {
         IoError::UnsupportedVersion { .. } | IoError::UnsupportedFormat { .. } => {
-            "compact_export.unsupported_version"
+            antecedent_core::reason_details::compact_export::UNSUPPORTED_VERSION
         }
-        IoError::TooLarge => "compact_export.oversized",
-        IoError::ChecksumMismatch { .. } => "compact_export.container_checksum_mismatch",
-        _ => "compact_export.container_invalid",
+        IoError::TooLarge => antecedent_core::reason_details::compact_export::OVERSIZED,
+        IoError::ChecksumMismatch { .. } => {
+            antecedent_core::reason_details::compact_export::CONTAINER_CHECKSUM_MISMATCH
+        }
+        _ => antecedent_core::reason_details::compact_export::CONTAINER_INVALID,
     };
     invalid(detail, error.to_string())
 }
@@ -173,7 +173,7 @@ pub enum TermSpec {
         /// Input `variable_id`.
         quantity: String,
     },
-    /// The numeric quantity raised to `degree` (2 to [`MAX_POLYNOMIAL_DEGREE`]).
+    /// The numeric quantity raised to `degree` (2 to [`ExportLimits::max_degree`]).
     Power {
         /// Input `variable_id`.
         quantity: String,
@@ -470,18 +470,27 @@ fn check_support(
     match support {
         InputSupport::Range { lo, hi } => {
             if !lo.is_finite() || !hi.is_finite() || lo > hi {
-                return Err(invalid("compact_export.invalid_support", subject));
+                return Err(invalid(
+                    antecedent_core::reason_details::compact_export::INVALID_SUPPORT,
+                    subject,
+                ));
             }
         }
         InputSupport::Levels { levels } => {
             if levels.len() > limits.max_levels {
-                return Err(invalid("compact_export.too_many_levels", subject));
+                return Err(invalid(
+                    antecedent_core::reason_details::compact_export::TOO_MANY_LEVELS,
+                    subject,
+                ));
             }
             if levels.is_empty()
                 || levels.iter().any(|level| level.trim().is_empty())
                 || levels.windows(2).any(|pair| pair[0] >= pair[1])
             {
-                return Err(invalid("compact_export.invalid_support", subject));
+                return Err(invalid(
+                    antecedent_core::reason_details::compact_export::INVALID_SUPPORT,
+                    subject,
+                ));
             }
         }
     }
@@ -489,31 +498,49 @@ fn check_support(
 }
 
 fn check_quantity(quantity: &ScientificQuantityWire) -> Result<(), ExportRefusal> {
-    ScientificQuantity::try_from(quantity.clone())
-        .map(|_| ())
-        .map_err(|_| invalid("compact_export.invalid_quantity", quantity.variable_id.clone()))
+    ScientificQuantity::try_from(quantity.clone()).map(|_| ()).map_err(|_| {
+        invalid(
+            antecedent_core::reason_details::compact_export::INVALID_QUANTITY,
+            quantity.variable_id.clone(),
+        )
+    })
 }
 
 /// Dimension and count checks that run before any index is trusted.
 fn check_shape(body: &CompactExportBody, limits: &ExportLimits) -> Result<(), ExportRefusal> {
     let n = body.terms.len();
     if n == 0 {
-        return Err(invalid("compact_export.no_terms", "terms"));
+        return Err(invalid(antecedent_core::reason_details::compact_export::NO_TERMS, "terms"));
     }
     if n > limits.max_terms {
-        return Err(invalid("compact_export.too_many_terms", n.to_string()));
+        return Err(invalid(
+            antecedent_core::reason_details::compact_export::TOO_MANY_TERMS,
+            n.to_string(),
+        ));
     }
     if body.inputs.len() > limits.max_inputs {
-        return Err(invalid("compact_export.too_many_inputs", body.inputs.len().to_string()));
+        return Err(invalid(
+            antecedent_core::reason_details::compact_export::TOO_MANY_INPUTS,
+            body.inputs.len().to_string(),
+        ));
     }
     if body.mask.len() > limits.max_mask_regions {
-        return Err(invalid("compact_export.too_many_mask_regions", body.mask.len().to_string()));
+        return Err(invalid(
+            antecedent_core::reason_details::compact_export::TOO_MANY_MASK_REGIONS,
+            body.mask.len().to_string(),
+        ));
     }
     if body.coefficients.len() != n {
-        return Err(invalid("compact_export.dimension_mismatch", "coefficients"));
+        return Err(invalid(
+            antecedent_core::reason_details::compact_export::DIMENSION_MISMATCH,
+            "coefficients",
+        ));
     }
     if n.checked_mul(n) != Some(body.covariance.len()) {
-        return Err(invalid("compact_export.dimension_mismatch", "covariance"));
+        return Err(invalid(
+            antecedent_core::reason_details::compact_export::DIMENSION_MISMATCH,
+            "covariance",
+        ));
     }
     Ok(())
 }
@@ -528,7 +555,10 @@ fn check_inputs(
         .windows(2)
         .any(|pair| pair[0].quantity.variable_id >= pair[1].quantity.variable_id)
     {
-        return Err(invalid("compact_export.inputs_not_canonical", "inputs"));
+        return Err(invalid(
+            antecedent_core::reason_details::compact_export::INPUTS_NOT_CANONICAL,
+            "inputs",
+        ));
     }
     let mut supports = BTreeMap::new();
     for input in &body.inputs {
@@ -542,36 +572,55 @@ fn check_inputs(
 fn check_terms(
     body: &CompactExportBody,
     supports: &BTreeMap<String, InputSupport>,
+    limits: &ExportLimits,
 ) -> Result<(), ExportRefusal> {
     if body.terms.windows(2).any(|pair| pair[0] >= pair[1]) {
-        return Err(invalid("compact_export.terms_not_canonical", "terms"));
+        return Err(invalid(
+            antecedent_core::reason_details::compact_export::TERMS_NOT_CANONICAL,
+            "terms",
+        ));
     }
     let support_of = |quantity: &String| {
-        supports
-            .get(quantity)
-            .ok_or_else(|| invalid("compact_export.unknown_quantity", quantity.clone()))
+        supports.get(quantity).ok_or_else(|| {
+            invalid(
+                antecedent_core::reason_details::compact_export::UNKNOWN_QUANTITY,
+                quantity.clone(),
+            )
+        })
     };
     for term in &body.terms {
         match term {
             TermSpec::Intercept => {}
             TermSpec::Linear { quantity } | TermSpec::Power { quantity, .. } => {
                 if !matches!(support_of(quantity)?, InputSupport::Range { .. }) {
-                    return Err(invalid("compact_export.term_support_mismatch", quantity.clone()));
+                    return Err(invalid(
+                        antecedent_core::reason_details::compact_export::TERM_SUPPORT_MISMATCH,
+                        quantity.clone(),
+                    ));
                 }
-                if let TermSpec::Power { degree, .. } = term {
-                    if !(2..=MAX_POLYNOMIAL_DEGREE).contains(degree) {
-                        return Err(invalid("compact_export.invalid_degree", quantity.clone()));
-                    }
+                if let TermSpec::Power { degree, .. } = term
+                    && !(2..=limits.max_degree).contains(degree)
+                {
+                    return Err(invalid(
+                        antecedent_core::reason_details::compact_export::INVALID_DEGREE,
+                        quantity.clone(),
+                    ));
                 }
             }
             TermSpec::OneHot { quantity, level } => match support_of(quantity)? {
                 InputSupport::Levels { levels } => {
                     if !levels.contains(level) {
-                        return Err(invalid("compact_export.unknown_level", level.clone()));
+                        return Err(invalid(
+                            antecedent_core::reason_details::compact_export::UNKNOWN_LEVEL,
+                            level.clone(),
+                        ));
                     }
                 }
                 InputSupport::Range { .. } => {
-                    return Err(invalid("compact_export.term_support_mismatch", quantity.clone()));
+                    return Err(invalid(
+                        antecedent_core::reason_details::compact_export::TERM_SUPPORT_MISMATCH,
+                        quantity.clone(),
+                    ));
                 }
             },
         }
@@ -582,28 +631,98 @@ fn check_terms(
 fn check_covariance(body: &CompactExportBody) -> Result<(), ExportRefusal> {
     let n = body.terms.len();
     if body.coefficients.iter().chain(&body.covariance).any(|value| !value.is_finite()) {
-        return Err(invalid("compact_export.non_finite_value", "coefficients_or_covariance"));
+        return Err(invalid(
+            antecedent_core::reason_details::compact_export::NON_FINITE_VALUE,
+            "coefficients_or_covariance",
+        ));
     }
     let at = |i: usize, j: usize| body.covariance[i * n + j];
     for i in 0..n {
         if at(i, i) < 0.0 {
-            return Err(invalid("compact_export.covariance_not_psd", format!("diagonal {i}")));
+            return Err(invalid(
+                antecedent_core::reason_details::compact_export::COVARIANCE_NOT_PSD,
+                format!("diagonal {i}"),
+            ));
         }
         for j in (i + 1)..n {
             let (a, b) = (at(i, j), at(j, i));
             if (a - b).abs() > SYMMETRY_TOLERANCE * (1.0 + a.abs().max(b.abs())) {
                 return Err(invalid(
-                    "compact_export.covariance_asymmetric",
+                    antecedent_core::reason_details::compact_export::COVARIANCE_ASYMMETRIC,
                     format!("entry {i},{j}"),
                 ));
             }
             let bound = (at(i, i) * at(j, j)).sqrt() * (1.0 + PSD_TOLERANCE);
             if a.abs().max(b.abs()) > bound + f64::MIN_POSITIVE {
-                return Err(invalid("compact_export.covariance_not_psd", format!("entry {i},{j}")));
+                return Err(invalid(
+                    antecedent_core::reason_details::compact_export::COVARIANCE_NOT_PSD,
+                    format!("entry {i},{j}"),
+                ));
             }
         }
     }
+    // The diagonal and pairwise bounds are necessary but not sufficient from three
+    // dimensions up: the full positive-semidefinite condition is checked below.
+    if let Some(pivot) = first_negative_pivot(&body.covariance, n) {
+        return Err(invalid(
+            antecedent_core::reason_details::compact_export::COVARIANCE_NOT_PSD,
+            format!("pivot {pivot}"),
+        ));
+    }
     Ok(())
+}
+
+/// Symmetric-pivoted Cholesky elimination of the row-major `n x n` matrix `matrix`
+/// (symmetrized first). Returns the step at which the Schur complement acquires a diagonal
+/// below `-tolerance`, which certifies a negative eigenvalue beyond rounding, or `None` when
+/// the matrix is positive semidefinite to the tolerance. Singular matrices pass: once the
+/// largest remaining diagonal is within the tolerance of zero the rest of the Schur
+/// complement is zero to that tolerance (a PSD matrix bounds each entry by the geometric mean
+/// of its diagonals) and the elimination stops.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "the calculation follows the retained matrix indexing"
+)]
+fn first_negative_pivot(matrix: &[f64], n: usize) -> Option<usize> {
+    let mut a: Vec<f64> = (0..n * n)
+        .map(|k| {
+            let (i, j) = (k / n, k % n);
+            0.5 * (matrix[i * n + j] + matrix[j * n + i])
+        })
+        .collect();
+    let scale = (0..n).map(|i| a[i * n + i]).fold(0.0_f64, f64::max);
+    let tolerance = PSD_TOLERANCE * scale * f64::from(u32::try_from(n).unwrap_or(u32::MAX));
+    let mut order: Vec<usize> = (0..n).collect();
+    for step in 0..n {
+        // Largest remaining diagonal is the pivot; any remaining diagonal below
+        // -tolerance already certifies a negative eigenvalue.
+        let (mut best, mut best_value) = (step, f64::NEG_INFINITY);
+        for k in step..n {
+            let d = a[order[k] * n + order[k]];
+            if d < -tolerance {
+                return Some(step);
+            }
+            if d > best_value {
+                (best, best_value) = (k, d);
+            }
+        }
+        if best_value <= tolerance {
+            return None;
+        }
+        order.swap(step, best);
+        let p = order[step];
+        for r in (step + 1)..n {
+            let (i, factor) = (order[r], a[order[r] * n + p] / best_value);
+            if factor == 0.0 {
+                continue;
+            }
+            for c in (step + 1)..n {
+                let j = order[c];
+                a[i * n + j] -= factor * a[p * n + j];
+            }
+        }
+    }
+    None
 }
 
 fn check_region(
@@ -612,29 +731,44 @@ fn check_region(
     limits: &ExportLimits,
 ) -> Result<(), ExportRefusal> {
     if region.id.trim().is_empty() {
-        return Err(invalid("compact_export.invalid_mask_region", region.id.clone()));
+        return Err(invalid(
+            antecedent_core::reason_details::compact_export::INVALID_MASK_REGION,
+            region.id.clone(),
+        ));
     }
     if region.conditions.is_empty() {
-        return Err(invalid("compact_export.empty_mask_region", region.id.clone()));
+        return Err(invalid(
+            antecedent_core::reason_details::compact_export::EMPTY_MASK_REGION,
+            region.id.clone(),
+        ));
     }
     if region.conditions.windows(2).any(|pair| pair[0].quantity >= pair[1].quantity) {
-        return Err(invalid("compact_export.mask_not_canonical", region.id.clone()));
+        return Err(invalid(
+            antecedent_core::reason_details::compact_export::MASK_NOT_CANONICAL,
+            region.id.clone(),
+        ));
     }
     for condition in &region.conditions {
         let declared = supports.get(&condition.quantity).ok_or_else(|| {
-            invalid("compact_export.unknown_quantity", condition.quantity.clone())
+            invalid(
+                antecedent_core::reason_details::compact_export::UNKNOWN_QUANTITY,
+                condition.quantity.clone(),
+            )
         })?;
         check_support(&condition.within, &region.id, limits)?;
         match (&condition.within, declared) {
             (InputSupport::Range { .. }, InputSupport::Range { .. }) => {}
             (InputSupport::Levels { levels: chosen }, InputSupport::Levels { levels: all }) => {
                 if chosen.iter().any(|level| !all.contains(level)) {
-                    return Err(invalid("compact_export.unknown_level", region.id.clone()));
+                    return Err(invalid(
+                        antecedent_core::reason_details::compact_export::UNKNOWN_LEVEL,
+                        region.id.clone(),
+                    ));
                 }
             }
             _ => {
                 return Err(invalid(
-                    "compact_export.mask_support_mismatch",
+                    antecedent_core::reason_details::compact_export::MASK_SUPPORT_MISMATCH,
                     condition.quantity.clone(),
                 ));
             }
@@ -649,33 +783,44 @@ fn check_mask(
     limits: &ExportLimits,
 ) -> Result<(), ExportRefusal> {
     if body.mask.windows(2).any(|pair| pair[0].id >= pair[1].id) {
-        return Err(invalid("compact_export.mask_not_canonical", "mask"));
+        return Err(invalid(
+            antecedent_core::reason_details::compact_export::MASK_NOT_CANONICAL,
+            "mask",
+        ));
     }
     body.mask.iter().try_for_each(|region| check_region(region, supports, limits))
 }
 
 fn check_semantics(body: &CompactExportBody, limits: &ExportLimits) -> Result<(), ExportRefusal> {
     if body.scope != ExportScope::declared() {
-        return Err(invalid("compact_export.scope_mismatch", "scope"));
+        return Err(invalid(
+            antecedent_core::reason_details::compact_export::SCOPE_MISMATCH,
+            "scope",
+        ));
     }
     let supports = check_inputs(body, limits)?;
-    check_terms(body, &supports)?;
+    check_terms(body, &supports, limits)?;
     check_covariance(body)?;
     check_mask(body, &supports, limits)
 }
 
 fn check_input_value(input: &ExportInput, query: &ExportQuery) -> Result<(), ExportRefusal> {
     let name = &input.quantity.variable_id;
-    let value = query
-        .values
-        .get(name)
-        .ok_or_else(|| unlicensed("compact_export.missing_quantity", name.clone()))?;
+    let value = query.values.get(name).ok_or_else(|| {
+        invalid(antecedent_core::reason_details::compact_export::MISSING_QUANTITY, name.clone())
+    })?;
     match (&input.support, value) {
         (InputSupport::Range { lo, hi }, QueryValue::Number(x)) => {
             if !x.is_finite() {
-                Err(unlicensed("compact_export.non_finite_input", name.clone()))
+                Err(invalid(
+                    antecedent_core::reason_details::compact_export::NON_FINITE_INPUT,
+                    name.clone(),
+                ))
             } else if x < lo || x > hi {
-                Err(unlicensed("compact_export.out_of_support", name.clone()))
+                Err(invalid(
+                    antecedent_core::reason_details::compact_export::OUT_OF_SUPPORT,
+                    name.clone(),
+                ))
             } else {
                 Ok(())
             }
@@ -684,10 +829,16 @@ fn check_input_value(input: &ExportInput, query: &ExportQuery) -> Result<(), Exp
             if levels.contains(level) {
                 Ok(())
             } else {
-                Err(unlicensed("compact_export.out_of_support", name.clone()))
+                Err(invalid(
+                    antecedent_core::reason_details::compact_export::OUT_OF_SUPPORT,
+                    name.clone(),
+                ))
             }
         }
-        _ => Err(unlicensed("compact_export.query_type_mismatch", name.clone())),
+        _ => Err(invalid(
+            antecedent_core::reason_details::compact_export::QUERY_TYPE_MISMATCH,
+            name.clone(),
+        )),
     }
 }
 
@@ -706,7 +857,10 @@ fn region_matches(region: &MaskRegion, query: &ExportQuery) -> bool {
 fn number_of(query: &ExportQuery, quantity: &str) -> Result<f64, ExportRefusal> {
     match query.values.get(quantity) {
         Some(QueryValue::Number(x)) => Ok(*x),
-        _ => Err(unlicensed("compact_export.query_type_mismatch", quantity)),
+        _ => Err(invalid(
+            antecedent_core::reason_details::compact_export::QUERY_TYPE_MISMATCH,
+            quantity,
+        )),
     }
 }
 
@@ -720,7 +874,10 @@ fn basis_row(terms: &[TermSpec], query: &ExportQuery) -> Result<Vec<f64>, Export
                 .map(|x| x.powi(i32::try_from(*degree).unwrap_or(i32::MAX))),
             TermSpec::OneHot { quantity, level } => match query.values.get(quantity) {
                 Some(QueryValue::Level(chosen)) => Ok(if chosen == level { 1.0 } else { 0.0 }),
-                _ => Err(unlicensed("compact_export.query_type_mismatch", quantity.clone())),
+                _ => Err(invalid(
+                    antecedent_core::reason_details::compact_export::QUERY_TYPE_MISMATCH,
+                    quantity.clone(),
+                )),
             },
         })
         .collect()
@@ -733,13 +890,19 @@ fn evaluate_body(
 ) -> Result<PointWithSe, ExportRefusal> {
     let known = |name: &str| body.inputs.iter().any(|input| input.quantity.variable_id == name);
     if let Some(extra) = query.values.keys().find(|key| !known(key.as_str())) {
-        return Err(unlicensed("compact_export.unknown_quantity", extra.clone()));
+        return Err(invalid(
+            antecedent_core::reason_details::compact_export::UNKNOWN_QUANTITY,
+            extra.clone(),
+        ));
     }
     for input in &body.inputs {
         check_input_value(input, query)?;
     }
     if let Some(region) = body.mask.iter().find(|region| region_matches(region, query)) {
-        return Err(unlicensed("compact_export.masked_region", region.id.clone()));
+        return Err(invalid(
+            antecedent_core::reason_details::compact_export::MASKED_REGION,
+            region.id.clone(),
+        ));
     }
     let phi = basis_row(&body.terms, query)?;
     let n = phi.len();
@@ -752,11 +915,17 @@ fn evaluate_body(
         .sum();
     let scale: f64 = body.covariance.iter().step_by(n + 1).zip(&phi).map(|(v, p)| v * p * p).sum();
     if variance < -NEGATIVE_VARIANCE_TOLERANCE * (1.0 + scale.abs()) {
-        return Err(unlicensed("compact_export.negative_variance", "phi_v_phi"));
+        return Err(invalid(
+            antecedent_core::reason_details::compact_export::NEGATIVE_VARIANCE,
+            "phi_v_phi",
+        ));
     }
     let se = variance.max(0.0).sqrt();
     if !point.is_finite() || !se.is_finite() {
-        return Err(unlicensed("compact_export.non_finite_result", "evaluation"));
+        return Err(invalid(
+            antecedent_core::reason_details::compact_export::NON_FINITE_RESULT,
+            "evaluation",
+        ));
     }
     Ok(PointWithSe {
         point,
@@ -779,21 +948,36 @@ fn verify_body(
     expected_identity: &str,
 ) -> Result<(), ExportRefusal> {
     if body.version != COMPACT_EXPORT_VERSION {
-        return Err(invalid("compact_export.unsupported_version", body.version.to_string()));
+        return Err(invalid(
+            antecedent_core::reason_details::compact_export::UNSUPPORTED_VERSION,
+            body.version.to_string(),
+        ));
     }
     check_shape(body, limits)?;
     let (premises, data, identity) = body.compute_digests();
     if body.premises_blake3 != premises {
-        return Err(invalid("compact_export.premises_digest_mismatch", "premises_blake3"));
+        return Err(invalid(
+            antecedent_core::reason_details::compact_export::PREMISES_DIGEST_MISMATCH,
+            "premises_blake3",
+        ));
     }
     if body.data_blake3 != data {
-        return Err(invalid("compact_export.data_digest_mismatch", "data_blake3"));
+        return Err(invalid(
+            antecedent_core::reason_details::compact_export::DATA_DIGEST_MISMATCH,
+            "data_blake3",
+        ));
     }
     if body.identity != identity {
-        return Err(invalid("compact_export.identity_mismatch", "identity"));
+        return Err(invalid(
+            antecedent_core::reason_details::compact_export::IDENTITY_MISMATCH,
+            "identity",
+        ));
     }
     if body.identity != expected_identity {
-        return Err(invalid("compact_export.identity_unexpected", expected_identity));
+        return Err(invalid(
+            antecedent_core::reason_details::compact_export::IDENTITY_UNEXPECTED,
+            expected_identity,
+        ));
     }
     check_semantics(body, limits)
 }
@@ -811,22 +995,33 @@ impl CompactExport {
         let limits = ExportLimits::default();
         let n = spec.terms.len();
         if spec.coefficients.len() != n {
-            return Err(invalid("compact_export.dimension_mismatch", "coefficients"));
+            return Err(invalid(
+                antecedent_core::reason_details::compact_export::DIMENSION_MISMATCH,
+                "coefficients",
+            ));
         }
         if n.checked_mul(n) != Some(spec.covariance.len()) {
-            return Err(invalid("compact_export.dimension_mismatch", "covariance"));
+            return Err(invalid(
+                antecedent_core::reason_details::compact_export::DIMENSION_MISMATCH,
+                "covariance",
+            ));
         }
         let mut order: Vec<usize> = (0..n).collect();
         order.sort_by(|&a, &b| spec.terms[a].cmp(&spec.terms[b]));
         if order.windows(2).any(|pair| spec.terms[pair[0]] == spec.terms[pair[1]]) {
-            return Err(invalid("compact_export.duplicate_term", "terms"));
+            return Err(invalid(
+                antecedent_core::reason_details::compact_export::DUPLICATE_TERM,
+                "terms",
+            ));
         }
         let source = &spec.covariance;
         let covariance: Vec<f64> =
             order.iter().flat_map(|&i| order.iter().map(move |&j| source[i * n + j])).collect();
         let mut inputs = spec.inputs;
         inputs.sort_by(|a, b| a.quantity.variable_id.cmp(&b.quantity.variable_id));
-        inputs.iter_mut().for_each(|input| canonical_support(&mut input.support));
+        for input in &mut inputs {
+            canonical_support(&mut input.support);
+        }
         let mut mask = spec.mask;
         for region in &mut mask {
             region.conditions.iter_mut().for_each(|c| canonical_support(&mut c.within));
@@ -879,7 +1074,10 @@ impl CompactExport {
     /// A blank artifact id, an oversized payload or an encoding failure refuses.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, ExportRefusal> {
         if artifact_id.trim().is_empty() {
-            return Err(invalid("compact_export.missing_artifact_id", "artifact_id"));
+            return Err(invalid(
+                antecedent_core::reason_details::compact_export::MISSING_ARTIFACT_ID,
+                "artifact_id",
+            ));
         }
         let payload = to_cbor(&self.body).map_err(|error| io_refusal(&error))?;
         let descriptor = section_descriptor_with_policy(
@@ -905,7 +1103,10 @@ impl CompactExport {
         let mut bytes = Vec::new();
         encoded.write_to(&mut bytes).map_err(|error| io_refusal(&error))?;
         if bytes.len() > ExportLimits::default().max_bytes {
-            return Err(invalid("compact_export.oversized", bytes.len().to_string()));
+            return Err(invalid(
+                antecedent_core::reason_details::compact_export::OVERSIZED,
+                bytes.len().to_string(),
+            ));
         }
         Ok(bytes)
     }
@@ -924,7 +1125,10 @@ impl CompactExport {
         expected_identity: &str,
     ) -> Result<Self, ExportRefusal> {
         if bytes.len() > limits.max_bytes {
-            return Err(invalid("compact_export.oversized", bytes.len().to_string()));
+            return Err(invalid(
+                antecedent_core::reason_details::compact_export::OVERSIZED,
+                bytes.len().to_string(),
+            ));
         }
         let mut reader = ArtifactReader::open_seek(std::io::Cursor::new(bytes))
             .map_err(|error| io_refusal(&error))?;
@@ -941,19 +1145,51 @@ impl CompactExport {
             (layout_ok, declared)
         };
         if !layout_ok {
-            return Err(invalid("compact_export.layout_invalid", "manifest"));
+            return Err(invalid(
+                antecedent_core::reason_details::compact_export::LAYOUT_INVALID,
+                "manifest",
+            ));
         }
         if crate::error::declared_exceeds_usize_limit(declared, limits.max_bytes) {
-            return Err(invalid("compact_export.oversized", "declared_uncompressed_size"));
+            return Err(invalid(
+                antecedent_core::reason_details::compact_export::OVERSIZED,
+                "declared_uncompressed_size",
+            ));
         }
         let section =
             reader.load_section(COMPACT_EXPORT_SECTION).map_err(|error| io_refusal(&error))?;
         if section.as_bytes().len() > limits.max_bytes {
-            return Err(invalid("compact_export.oversized", "section"));
+            return Err(invalid(
+                antecedent_core::reason_details::compact_export::OVERSIZED,
+                "section",
+            ));
         }
         let body: CompactExportBody =
             from_cbor(section.as_bytes()).map_err(|error| io_refusal(&error))?;
         verify_body(&body, limits, expected_identity)?;
         Ok(Self { body })
+    }
+}
+
+#[cfg(test)]
+mod psd_tests {
+    use super::first_negative_pivot;
+
+    #[test]
+    fn a_unit_diagonal_matrix_with_strongly_negative_correlations_is_not_psd() {
+        let m = [1.0, -0.9, -0.9, -0.9, 1.0, -0.9, -0.9, -0.9, 1.0];
+        // Eliminating the first row leaves diagonals 0.19 and an off-diagonal of -1.71, so the
+        // Schur complement's last diagonal is 0.19 - 1.71^2 / 0.19 < 0 at the third pivot.
+        assert_eq!(first_negative_pivot(&m, 3), Some(2));
+    }
+
+    #[test]
+    fn singular_and_diagonal_matrices_pass() {
+        // Rank one: v v' with v = (1, 2, 3).
+        let v = [1.0_f64, 2.0, 3.0];
+        let rank_one: Vec<f64> = (0..9).map(|k| v[k / 3] * v[k % 3]).collect();
+        assert!(first_negative_pivot(&rank_one, 3).is_none());
+        assert!(first_negative_pivot(&[0.0; 4], 2).is_none());
+        assert!(first_negative_pivot(&[2.0, 0.0, 0.0, 0.5], 2).is_none());
     }
 }

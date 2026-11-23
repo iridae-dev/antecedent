@@ -1,7 +1,7 @@
 //! Joint circular-block bootstrap of the response surface.
 
 use crate::temporal_block::{
-    AlignedRows, GappedAlignedRows, RowBlockDraws, aligned_block_bootstrap,
+    AlignedRows, GappedAlignedRows, RowBlockDraws, aligned_block_bootstrap, common_time_window,
     gapped_aligned_block_bootstrap,
 };
 use crate::util::BOOTSTRAP_MAX_FAILURE_FRAC;
@@ -33,7 +33,7 @@ pub fn circular_block_positions_into(
 ///
 /// The surface evaluates `cbar(a)'β` at many cells, so each replicate keeps the whole
 /// coefficient vector and the resampled design column means for every horizon, rather
-/// than collapsing to a single SE the way [`crate::util::bootstrap_se`] does. Failure
+/// than collapsing to a single SE the way [`crate::util::bootstrap_se_with_scratch`] does. Failure
 /// accounting matches that helper: too few survivors, or more than
 /// [`BOOTSTRAP_MAX_FAILURE_FRAC`] soft failures, means no bootstrap SE is reported.
 pub(super) struct SurfaceBootstrap {
@@ -91,6 +91,131 @@ pub(super) fn bootstrap_surface(
         |maps| refit.run(horizons, maps),
     )?;
     refit.finish(boot)
+}
+
+/// Resample stream base of the Bayesian block-weight draws of the joint surface.
+const HORIZON_BAYES_STREAM: u64 = 0x7E51_u64;
+
+/// Joint Bayesian block bootstrap of the whole dose × horizon surface: the posterior over the
+/// surface given the empirical law of the time-aligned lag windows.
+///
+/// Each replicate draws one Exp(1) weight per block of `block_length` consecutive series times
+/// of the window every horizon can evaluate, shared by every horizon, and refits every horizon
+/// by weighted least squares on its own lag-aligned rows at those times (the row weights and
+/// the weighted design column means). A kept replicate is therefore one draw of the whole
+/// surface under one weight vector, coupled across horizons, which independent per-horizon
+/// fits are not. Returns `None` on the conditions [`bootstrap_surface`] does.
+pub(super) fn bayesian_bootstrap_surface(
+    horizons: &[FittedHorizon],
+    rows: &[AlignedRows],
+    block_length: usize,
+    replicates: u32,
+    ctx: &ExecutionContext,
+) -> Option<SurfaceBootstrap> {
+    if replicates == 0 || horizons.is_empty() || rows.iter().any(|r| r.rows == 0) {
+        return None;
+    }
+    let (start, len) = common_time_window(rows)?;
+    let block = block_length.clamp(1, len);
+    let mut weights = Vec::with_capacity(len);
+    bayesian_surface_draws(horizons, replicates, ctx, |refit, rng| {
+        weights.clear();
+        while weights.len() < len {
+            let weight = antecedent_kernels::bayesian_bootstrap_weights(rng, 1, false)[0];
+            weights.extend(std::iter::repeat_n(weight, block.min(len - weights.len())));
+        }
+        refit.run_weighted(horizons, rows, start, &weights)
+    })
+}
+
+/// [`bayesian_bootstrap_surface`] for horizons fit on a series with missing time points.
+///
+/// The weights fall on blocks of the original time axis over the window every design covers: one
+/// Exp(1) weight per `block_length` consecutive series times, shared by every horizon and by
+/// every time of the block that is intact in **every** design (an observed position). A time
+/// inside a gap carries no row, so a block never joins times across a gap and a gap never
+/// receives a weight. Each horizon is refit by weighted least squares on its own intact rows at
+/// those times.
+pub(super) fn bayesian_bootstrap_surface_gapped(
+    horizons: &[FittedHorizon],
+    rows: &[GappedAlignedRows],
+    block_length: usize,
+    replicates: u32,
+    ctx: &ExecutionContext,
+) -> Option<SurfaceBootstrap> {
+    if replicates == 0 || horizons.is_empty() {
+        return None;
+    }
+    let start = rows.iter().map(|d| d.first_time).max()?;
+    let end = rows.iter().map(|d| d.first_time + d.complete.len()).min()?;
+    if end <= start {
+        return None;
+    }
+    // The observed positions: times intact in every design, and each design's row for them.
+    let mut times = Vec::new();
+    let mut row_of: Vec<Vec<usize>> = rows.iter().map(|_| Vec::new()).collect();
+    let mut seen: Vec<usize> = vec![0; rows.len()];
+    for (design, count) in rows.iter().zip(seen.iter_mut()) {
+        *count = design.complete[..start - design.first_time].iter().filter(|c| **c).count();
+    }
+    for time in start..end {
+        let mut usable = true;
+        for design in rows {
+            usable &= design.complete[time - design.first_time];
+        }
+        if usable {
+            times.push(time);
+            for ((design, count), out) in rows.iter().zip(&seen).zip(row_of.iter_mut()) {
+                let before = design.complete[start - design.first_time..time - design.first_time]
+                    .iter()
+                    .filter(|c| **c)
+                    .count();
+                out.push(count + before);
+            }
+        }
+    }
+    if times.len() < 2 {
+        return None;
+    }
+    let block = block_length.clamp(1, end - start);
+    bayesian_surface_draws(horizons, replicates, ctx, |refit, rng| {
+        let n_blocks = (end - start).div_ceil(block);
+        let block_weights: Vec<f64> = (0..n_blocks)
+            .map(|_| antecedent_kernels::bayesian_bootstrap_weights(rng, 1, false)[0])
+            .collect();
+        let weights: Vec<f64> = times.iter().map(|t| block_weights[(t - start) / block]).collect();
+        refit.run_weighted_rows(horizons, &row_of, &weights)
+    })
+}
+
+// Both Bayesian surfaces retain the same stream, cancellation and failure policy;
+// callers supply the aligned or gapped block-weight construction.
+fn bayesian_surface_draws(
+    horizons: &[FittedHorizon],
+    replicates: u32,
+    ctx: &ExecutionContext,
+    mut draw: impl FnMut(&mut SurfaceRefit, &mut antecedent_core::CausalRng) -> Option<Vec<f64>>,
+) -> Option<SurfaceBootstrap> {
+    let mut refit = SurfaceRefit::new(horizons);
+    let mut draws = Vec::with_capacity(replicates as usize);
+    let (mut attempted, mut cancelled) = (0u32, false);
+    for replicate in 0..replicates {
+        if ctx.cancellation.is_cancelled() {
+            cancelled = true;
+            break;
+        }
+        attempted += 1;
+        let mut rng = ctx.rng.stream_for(
+            antecedent_core::StreamDomain::TemporalBlock,
+            antecedent_core::derive_stream(HORIZON_BAYES_STREAM, u64::from(replicate)),
+        );
+        if let Some(flat) = draw(&mut refit, &mut rng)
+            && flat.iter().all(|x| x.is_finite())
+        {
+            draws.push(flat);
+        }
+    }
+    finish_surface_draws(draws, attempted, cancelled, refit.ncols)
 }
 
 /// [`bootstrap_surface`] for horizons fit on a series with missing time points: one block plan
@@ -168,18 +293,94 @@ impl SurfaceRefit {
         Some(flat)
     }
 
-    fn finish(self, boot: RowBlockDraws) -> Option<SurfaceBootstrap> {
-        if boot.draws.len() < 2 {
-            return None;
-        }
-        // Unattempted replicates after cancellation are not failures (mirrors
-        // `finalize_bootstrap_se_ex`); singular resamples among those attempted are.
-        let failed = f64::from(boot.attempted) - boot.draws.len() as f64;
-        if failed / f64::from(boot.attempted) > BOOTSTRAP_MAX_FAILURE_FRAC {
-            return None;
-        }
-        Some(SurfaceBootstrap { draws: boot.draws, ncols: self.ncols, cancelled: boot.cancelled })
+    /// Every horizon's weighted-least-squares coefficients and weighted design column means,
+    /// the lag-aligned rows at series times `start..start + weights.len()` weighted by
+    /// `weights`.
+    fn run_weighted(
+        &mut self,
+        horizons: &[FittedHorizon],
+        rows: &[AlignedRows],
+        start: usize,
+        weights: &[f64],
+    ) -> Option<Vec<f64>> {
+        let row_of: Vec<Vec<usize>> = horizons
+            .iter()
+            .zip(rows)
+            .map(|(_, aligned)| {
+                let offset = start.checked_sub(aligned.first_time)?;
+                Some((0..weights.len()).map(|i| offset + i).collect())
+            })
+            .collect::<Option<_>>()?;
+        self.run_weighted_rows(horizons, &row_of, weights)
     }
+
+    /// [`Self::run_weighted`] on explicit rows: `row_of[h][i]` is the row of horizon `h`'s design
+    /// that carries weight `weights[i]`.
+    fn run_weighted_rows(
+        &mut self,
+        horizons: &[FittedHorizon],
+        row_of: &[Vec<usize>],
+        weights: &[f64],
+    ) -> Option<Vec<f64>> {
+        let m = weights.len();
+        let total: f64 = weights.iter().sum();
+        if !(total.is_finite() && total > 0.0) {
+            return None;
+        }
+        let root: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
+        let mut flat = Vec::new();
+        for (fitted, rows) in horizons.iter().zip(row_of) {
+            let design = &fitted.prepared.design;
+            let (n, p) = (design.nrows, design.ncols);
+            if m <= p || rows.len() != m || rows.iter().any(|&r| r >= n) {
+                return None;
+            }
+            self.x_boot.resize(m * p, 0.0);
+            self.y_boot.resize(m, 0.0);
+            for (i, &r) in root.iter().enumerate() {
+                self.y_boot[i] = design.outcome[rows[i]] * r;
+            }
+            let mut means = Vec::with_capacity(p);
+            for c in 0..p {
+                let column = &design.matrix[c * n..(c + 1) * n];
+                let mut weighted_sum = 0.0;
+                for (i, &r) in root.iter().enumerate() {
+                    let value = column[rows[i]];
+                    self.x_boot[c * m + i] = value * r;
+                    weighted_sum += weights[i] * value;
+                }
+                means.push(weighted_sum / total);
+            }
+            let fit = FaerBackend
+                .least_squares(&self.x_boot, m, p, &self.y_boot, &mut self.ols_ws)
+                .ok()?;
+            flat.extend(fit.coefficients);
+            flat.extend(means);
+        }
+        Some(flat)
+    }
+
+    fn finish(self, boot: RowBlockDraws) -> Option<SurfaceBootstrap> {
+        finish_surface_draws(boot.draws, boot.attempted, boot.cancelled, self.ncols)
+    }
+}
+
+// Unattempted replicates after cancellation are not failures. Both surface
+// routes require two successful draws and limit failures among attempts.
+fn finish_surface_draws(
+    draws: Vec<Vec<f64>>,
+    attempted: u32,
+    cancelled: bool,
+    ncols: Vec<usize>,
+) -> Option<SurfaceBootstrap> {
+    if draws.len() < 2 {
+        return None;
+    }
+    let failed = f64::from(attempted) - draws.len() as f64;
+    if failed / f64::from(attempted) > BOOTSTRAP_MAX_FAILURE_FRAC {
+        return None;
+    }
+    Some(SurfaceBootstrap { draws, ncols, cancelled })
 }
 
 /// Unbiased sample SD of column `cell` across `draws`.

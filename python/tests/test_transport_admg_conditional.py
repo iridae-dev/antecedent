@@ -15,13 +15,17 @@ import math
 import struct
 
 import pytest
-from antecedent import Admg
+from antecedent import Admg, build_flavor
+from antecedent import _reason_details as reason_details
 from antecedent.errors import (
+    CausalCancelledError,
     CausalSerializationError,
     CausalTypeError,
     CausalUnsupportedError,
     CausalValueError,
 )
+from antecedent.execution import Execution
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 NAMES = ["x", "y", "w"]
@@ -176,7 +180,7 @@ def test_conditional_transport_identifies_and_matches_the_enumerated_truth():
     assert populations == {"source", "target"}
     prepared = builder.prepare_exact(laws(), REQUESTS)
     del builder
-    result = json.loads(prepared.estimate())
+    result = json.loads(require_success(prepared.estimate()))
     assert prepared.plan()["compiled_plans"] == len(REQUESTS)
     for request, point in zip(REQUESTS, result["requests"], strict=True):
         expected = truth(int(request["x"]), int(request["w"]))
@@ -192,18 +196,37 @@ def test_prepare_exact_compiles_a_plan_after_query_disposal():
     plan = prepared.plan()
     assert plan["compiled_plans"] == 4
     assert plan["remaining"] == ["w"] and plan["reduced_treatments"] == ["x"]
-    assert risk(json.loads(prepared.estimate())) == pytest.approx(truth(0, 0), abs=1e-12)
+    assert risk(json.loads(require_success(prepared.estimate()))) == pytest.approx(
+        truth(0, 0), abs=1e-12
+    )
     # A request that does not bind the conditioned variable is refused by name.
-    with pytest.raises(CausalUnsupportedError, match="admg_transport.invalid_request") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.admg_transport.INVALID_REQUEST
+    ) as info:
         decide().prepare_exact(laws(), {"x": 1.0})
     assert info.value.reason_code == "invalid_argument"
+
+
+def test_failed_conditional_estimate_preserves_published_seed_and_artifact():
+    from antecedent.state import CancellationToken
+
+    prepared = decide().prepare_exact(laws(), REQUESTS)
+    require_success(prepared.estimate(seed=3))
+    before = bytes(prepared.export())
+    assert prepared.seed == 3
+    token = CancellationToken()
+    token.cancel()
+    with pytest.raises(CausalCancelledError):
+        require_success(prepared.estimate(seed=7, cancel=token))
+    assert prepared.seed == 3
+    assert bytes(prepared.export()) == before
 
 
 def test_estimate_returns_exact_points_only():
     builder = decide()
     prepared = builder.prepare_exact(laws(), REQUESTS)
     del builder
-    result = json.loads(prepared.estimate(seed=3))
+    result = json.loads(require_success(prepared.estimate(seed=3)))
     assert prepared.plan()["compiled_plans"] == 4
     assert result["interval"] == {"available": False, "status": "point_only"}
     assert result["scope"] == "admg_conditional_transport_sound_incomplete"
@@ -211,23 +234,29 @@ def test_estimate_returns_exact_points_only():
     assert risk(result) == pytest.approx(truth(0, 0), abs=1e-12)
 
 
-def test_refresh_keeps_the_proof_and_moves_the_point():
+def test_rebinding_laws_keeps_the_proof_and_moves_the_point():
     builder = decide()
     prepared = builder.prepare_exact(laws(), REQUESTS)
     del builder
-    before = json.loads(prepared.estimate())
+    before = json.loads(require_success(prepared.estimate()))
     plan = prepared.plan()
-    prepared.refresh(laws(shift=0.1))
-    assert prepared.plan() == plan
-    after = json.loads(prepared.estimate())
+    moved = prepared.bind_snapshot(laws(shift=0.1))
+    assert moved is not prepared
+    assert moved.plan() == plan
+    after = json.loads(require_success(moved.estimate()))
     for request, point in zip(REQUESTS, after["requests"], strict=True):
         expected = truth(int(request["x"]), int(request["w"]), shift=0.1)
         assert risk(point) == pytest.approx(expected, abs=1e-12)
     assert risk(before) != pytest.approx(risk(after), abs=1e-6)
-    # Refresh clears the last result: nothing is exported until the plan runs again.
-    prepared.refresh(laws())
+    # The original branch keeps its laws and its executed result.
+    assert risk(json.loads(require_success(prepared.estimate()))) == pytest.approx(
+        risk(before), abs=1e-12
+    )
+    # A rebound branch exports nothing until its own plan runs.
+    unexecuted = prepared.bind_snapshot(laws())
     with pytest.raises(CausalUnsupportedError, match="not_executed"):
-        prepared.export()
+        bytes(unexecuted.export())
+    assert bytes(prepared.export()).startswith(b"ANTECEDENT-ADMG-CONDITIONAL\x01")
 
 
 def test_export_requires_an_estimate_and_frames_the_names():
@@ -235,10 +264,10 @@ def test_export_requires_an_estimate_and_frames_the_names():
     prepared = builder.prepare_exact(laws(), REQUESTS)
     del builder
     with pytest.raises(CausalUnsupportedError, match="not_executed"):
-        prepared.export()
-    prepared.estimate()
+        bytes(prepared.export())
+    require_success(prepared.estimate())
     assert prepared.plan()["compiled_plans"] == 4
-    artifact = prepared.export()
+    artifact = bytes(prepared.export())
     assert artifact.startswith(b"ANTECEDENT-ADMG-CONDITIONAL\x01")
     # The frame carries the names (CBOR text "x", "y", "w").
     assert b"\x83axayaw" in artifact
@@ -248,11 +277,11 @@ def test_exported_result_is_recomputed_by_the_artifact_consumer():
     builder = decide()
     prepared = builder.prepare_exact(laws(), REQUESTS)
     del builder
-    produced = json.loads(prepared.estimate())
+    produced = json.loads(require_success(prepared.estimate()))
     assert prepared.plan()["remaining"] == ["w"]
-    artifact = prepared.export()
+    artifact = bytes(prepared.export())
     del prepared
-    consumed = json.loads(transport.consume_admg_conditional_transport_artifact(artifact))
+    consumed = transport.consume_admg_conditional_transport_artifact(artifact).to_dict()
     assert consumed["probabilities"] == produced["probabilities"]
     for a, b in zip(consumed["requests"], produced["requests"], strict=True):
         assert a["probabilities"] == b["probabilities"]
@@ -265,7 +294,9 @@ def test_exported_result_is_recomputed_by_the_artifact_consumer():
     # Relabelled names in the frame (same byte length) are refused.
     swapped = artifact.replace(b"\x83axayaw", b"\x83ayaxaw", 1)
     assert swapped != artifact
-    with pytest.raises(CausalUnsupportedError, match="admg_transport.invalid_artifact") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.admg_transport.INVALID_ARTIFACT
+    ) as info:
         transport.consume_admg_conditional_transport_artifact(swapped)
     assert info.value.reason_code == "invalid_argument"
 
@@ -286,11 +317,17 @@ def test_exported_result_is_recomputed_by_the_artifact_consumer():
         transport.consume_admg_conditional_transport_artifact(bytes(tampered))
 
 
-def test_counted_laws_are_not_licensed_on_the_conditional_route():
+def test_counted_laws_are_not_supported_on_the_conditional_route():
     stage = decide()
-    with pytest.raises(CausalUnsupportedError, match="admg_transport.interval_withheld") as info:
+    if build_flavor() == "development":
+        # A development build runs the route and records would_refuse.
         stage.prepare_empirical(laws(), REQUESTS)
-    assert info.value.reason_code == "cell_not_licensed"
+        return
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.admg_transport.COUNTED_LAWS_UNSUPPORTED
+    ) as info:
+        stage.prepare_empirical(laws(), REQUESTS)
+    assert info.value.reason_code == "not_supported"
 
 
 def witness_holds(witness, names):
@@ -366,7 +403,7 @@ def test_a_proven_obstruction_bounds_and_invalid_queries_carry_reason_codes():
     assert stage.identification_status == "proven_non_transportable"
     decision = stage.decision()
     assert decision["reason_code"] == "transport_proven_non_transportable"
-    assert decision["detail"] == "admg_transport.proven_non_transportable"
+    assert decision["detail"] == reason_details.admg_transport.PROVEN_NON_TRANSPORTABLE
     candidate = decision["candidate"]
     assert candidate["proof"] is True
     assert candidate["reduced_query"] == {"outcomes": ["y", "w"], "treatments": ["x"]}
@@ -375,13 +412,13 @@ def test_a_proven_obstruction_bounds_and_invalid_queries_carry_reason_codes():
     assert witness["first_value"] != witness["second_value"]
     assert witness_holds(witness, NAMES)
     with pytest.raises(
-        CausalUnsupportedError, match="admg_transport.proven_non_transportable"
+        CausalUnsupportedError, match=reason_details.admg_transport.PROVEN_NON_TRANSPORTABLE
     ) as info:
         stage.prepare_exact(laws(), REQUESTS)
     assert info.value.reason_code == "transport_proven_non_transportable"
     # The obstruction exports and the consumer re-verifies the witness.
     artifact = stage.export_obstruction()
-    consumed = json.loads(transport.consume_admg_conditional_obstruction_artifact(artifact))
+    consumed = transport.consume_admg_conditional_obstruction_artifact(artifact).to_dict()
     assert consumed["identification_status"] == "proven_non_transportable"
     assert consumed["witness"] == witness
     assert consumed["remaining"] == ["w"]
@@ -390,7 +427,9 @@ def test_a_proven_obstruction_bounds_and_invalid_queries_carry_reason_codes():
     with pytest.raises((CausalSerializationError, CausalUnsupportedError)):
         transport.consume_admg_conditional_obstruction_artifact(bytes(tampered))
     # An identified stage has no obstruction to export.
-    with pytest.raises(CausalUnsupportedError):
+    with pytest.raises(
+        CausalUnsupportedError, match="only a proven obstruction exports as an obstruction artifact"
+    ):
         decide().export_obstruction()
     # A budget stop is a receipt, never a verdict.
     exhausted = decide(max_operations=2)
@@ -400,7 +439,9 @@ def test_a_proven_obstruction_bounds_and_invalid_queries_carry_reason_codes():
     receipt = exhausted.decision()["receipt"]
     assert receipt["stop"] == "search.operations" and receipt["operations_consumed"] == 2
     # Limits above the frozen maxima refuse as bounds_exceeded.
-    with pytest.raises(CausalUnsupportedError, match="admg_transport.bounds_exceeded") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.admg_transport.BOUNDS_EXCEEDED
+    ) as info:
         decide(max_operations=4097)
     assert info.value.reason_code == "route_not_supported"
     # Overlapping roles are refused before native code.
@@ -458,10 +499,12 @@ def test_an_s_hedge_without_a_witness_stays_not_certified():
     assert stage.outcome == "not_certified"
     decision = stage.decision()
     assert decision["reason_code"] == "transport_not_certified"
-    assert decision["detail"] == "admg_transport.not_certified"
+    assert decision["detail"] == reason_details.admg_transport.NOT_CERTIFIED
     assert decision["stages"][-1] == {"stage": "conditional_witness", "outcome": "out_of_scope"}
     assert decision["candidate"]["proof"] is False
-    with pytest.raises(CausalUnsupportedError, match="admg_transport.not_certified") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.admg_transport.NOT_CERTIFIED
+    ) as info:
         stage.prepare_exact(laws(), REQUESTS)
     assert info.value.reason_code == "transport_not_certified"
 
@@ -473,7 +516,9 @@ def test_an_unknown_variable_reaches_native_code_as_an_invalid_query():
         treatments=["x"],
         conditioned_on=["w"],
     )
-    with pytest.raises(CausalUnsupportedError, match="admg_transport.invalid_query") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.admg_transport.INVALID_QUERY
+    ) as info:
         transport.identify_admg_conditional_transport(
             graph=graph(), query=unknown, catalog=catalog()
         )
@@ -483,7 +528,9 @@ def test_an_unknown_variable_reaches_native_code_as_an_invalid_query():
 
 def test_a_catalog_disagreeing_with_the_diagram_is_an_invalid_catalog():
     # The source environment declares selection on y; the diagram selects w.
-    with pytest.raises(CausalUnsupportedError, match="admg_transport.invalid_catalog") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.admg_transport.INVALID_CATALOG
+    ) as info:
         transport.identify_admg_conditional_transport(
             graph=graph(), query=query(("w",)), catalog=catalog(selected=("y",))
         )
@@ -501,10 +548,12 @@ def test_a_missing_source_experiment_is_a_missing_evidence_stage():
     decision = stage.decision()
     assert decision["identification_status"] == "missing_evidence"
     assert decision["reason_code"] == "transport_missing_evidence"
-    assert decision["detail"] == "admg_transport.missing_evidence"
+    assert decision["detail"] == reason_details.admg_transport.MISSING_EVIDENCE
     assert decision["remaining"] == ["w"]
     assert any("source" in o for o in decision["obligations"]), decision["obligations"]
-    with pytest.raises(CausalUnsupportedError, match="admg_transport.missing_evidence") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.admg_transport.MISSING_EVIDENCE
+    ) as info:
         stage.prepare_exact(laws(), REQUESTS)
     assert info.value.reason_code == "transport_missing_evidence"
 
@@ -512,11 +561,13 @@ def test_a_missing_source_experiment_is_a_missing_evidence_stage():
 def test_a_zero_mass_conditioning_event_is_a_support_failure():
     # The target's w mechanism puts no mass on w = 1: P*(w = 1 | do(x)) = 0.
     prepared = decide().prepare_exact(laws(w_zero=True), [{"x": 0.0, "w": 0.0}])
-    point = json.loads(prepared.estimate())
+    point = json.loads(require_success(prepared.estimate()))
     assert risk(point) == pytest.approx(truth_w_zero(0), abs=1e-12)
     prepared = decide().prepare_exact(laws(w_zero=True), [{"x": 0.0, "w": 1.0}])
-    with pytest.raises(CausalUnsupportedError, match="admg_transport.support_failure") as info:
-        prepared.estimate()
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.admg_transport.SUPPORT_FAILURE
+    ) as info:
+        require_success(prepared.estimate())
     assert info.value.reason_code == "transport_support_failure"
     assert "zero mass" in str(info.value)
 
@@ -542,13 +593,15 @@ def edit_payload(artifact, old, new):
 
 def test_consumer_mismatches_carry_their_reason_codes():
     prepared = decide().prepare_exact(laws(), REQUESTS)
-    produced = json.loads(prepared.estimate())
-    artifact = prepared.export()
+    produced = json.loads(require_success(prepared.estimate()))
+    artifact = bytes(prepared.export())
     # A stored premise (the search operation limit, 4096 -> 4095, CBOR uint16)
     # edited without re-sealing: the premises digest no longer matches.
     key = b"\x71search_operations"
     edited = edit_payload(artifact, key + b"\x19\x10\x00", key + b"\x19\x0f\xff")
-    with pytest.raises(CausalUnsupportedError, match="admg_transport.premises_mismatch") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.admg_transport.PREMISES_MISMATCH
+    ) as info:
         transport.consume_admg_conditional_transport_artifact(edited)
     assert info.value.reason_code == "transport_not_certified"
     assert "premises digest mismatch" in str(info.value)
@@ -558,12 +611,14 @@ def test_consumer_mismatches_carry_their_reason_codes():
     old = b"\xfb" + struct.pack(">d", p)
     new = b"\xfb" + struct.pack(">d", math.nextafter(p, 1.0))
     edited = edit_payload(artifact, old, new)
-    with pytest.raises(CausalUnsupportedError, match="admg_transport.replay_mismatch") as info:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.admg_transport.REPLAY_MISMATCH
+    ) as info:
         transport.consume_admg_conditional_transport_artifact(edited)
     assert info.value.reason_code == "transport_not_certified"
     assert "a point does not replay" in str(info.value)
     # The unedited artifact still replays.
-    consumed = json.loads(transport.consume_admg_conditional_transport_artifact(artifact))
+    consumed = transport.consume_admg_conditional_transport_artifact(artifact).to_dict()
     assert consumed["probabilities"] == produced["probabilities"]
 
 
@@ -600,7 +655,7 @@ def prepare_scenarios(at, **options):
 
 def test_conditional_questions_enter_the_scenario_envelope():
     prepared = prepare_scenarios({"x": 1.0, "w": 1.0})
-    report = json.loads(prepared.estimate())
+    report = json.loads(require_success(prepared.estimate()))
     rows = {row["name"]: row for row in report["scenarios"]}
     negative = rows["shifted"]["status"]
     assert {name: row["status"] for name, row in rows.items()} == {
@@ -613,12 +668,14 @@ def test_conditional_questions_enter_the_scenario_envelope():
     assert rows["chain"]["identification_status"] == "identified"
     if negative == "not_certified":
         assert rows["shifted"]["identification_status"] == "not_certified"
-        assert rows["shifted"]["detail"].startswith("admg_transport.not_certified")
+        assert rows["shifted"]["detail"].startswith(reason_details.admg_transport.NOT_CERTIFIED)
         assert "inspection-only candidate (not a proof)" in rows["shifted"]["detail"]
     else:
         assert negative == "structurally_unidentified"
         assert rows["shifted"]["identification_status"] == "proven_non_transportable"
-        assert rows["shifted"]["detail"].startswith("admg_transport.proven_non_transportable")
+        assert rows["shifted"]["detail"].startswith(
+            reason_details.admg_transport.PROVEN_NON_TRANSPORTABLE
+        )
     assert rows["shifted"]["point"] is None
     # The true scenario's point is the enumerated truth, inside the envelope.
     expected = truth(1, 1)
@@ -630,12 +687,14 @@ def test_conditional_questions_enter_the_scenario_envelope():
     counts = {m["status"]: m["count"] for m in report["masses"]}
     assert counts[negative] == 1 and counts["identified"] == 2
     # The artifact replays independently.
-    artifact = prepared.export()
-    consumed = json.loads(transport.consume_transport_scenarios_artifact(artifact))
+    artifact = bytes(prepared.export())
+    consumed = transport.consume_transport_scenarios_artifact(artifact).to_dict()
     assert [row["status"] for row in consumed["scenarios"]] == [
         row["status"] for row in report["scenarios"]
     ]
-    with pytest.raises(CausalUnsupportedError, match="scenarios.shared_data_aggregate"):
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.scenarios.SHARED_DATA_AGGREGATE
+    ):
         prepared.aggregate_interval()
 
 
@@ -643,7 +702,7 @@ def test_conditional_scenario_requests_bind_the_conditioned_variables():
     with pytest.raises((CausalValueError, CausalUnsupportedError)) as info:
         prepare_scenarios({"x": 1.0})
     assert info.value.reason_code == "invalid_argument"
-    assert "admg_transport.invalid_request" in str(info.value)
+    assert reason_details.admg_transport.INVALID_REQUEST in str(info.value)
     with pytest.raises(CausalTypeError):
         transport.prepare_transport_scenarios(
             scenario_set(),
@@ -663,7 +722,7 @@ def test_a_cancelled_decision_is_a_receipt_never_a_verdict():
 
     token = CancellationToken()
     token.cancel()
-    stage = decide(cancel=token)
+    stage = decide(execution=Execution(cancel=token))
     assert stage.outcome == "exhausted"
     assert stage.identification_status == "budget_cancel"
     receipt = stage.decision()["receipt"]
@@ -677,7 +736,7 @@ def test_the_obstruction_consumer_reverifies_the_exported_witness():
     artifact = stage.export_obstruction()
     # The consumer needs only the bytes: it re-verifies the witness exactly
     # and reports the same verdict and witness the producer held.
-    consumed = json.loads(transport.consume_admg_conditional_obstruction_artifact(artifact))
+    consumed = transport.consume_admg_conditional_obstruction_artifact(artifact).to_dict()
     assert consumed["identification_status"] == "proven_non_transportable"
     assert consumed["witness"] == witness
     assert witness_holds(consumed["witness"], NAMES)
@@ -694,7 +753,7 @@ def test_an_exported_obstruction_replays_after_its_builder_is_discarded():
     witness = builder.decision()["witness"]
     artifact = builder.export_obstruction()
     del builder
-    consumed = json.loads(transport.consume_admg_conditional_obstruction_artifact(artifact))
+    consumed = transport.consume_admg_conditional_obstruction_artifact(artifact).to_dict()
     assert consumed["witness"] == witness
     assert witness_holds(consumed["witness"], NAMES)
     # An obstruction retains no plan to execute: the proven stage refuses to
@@ -703,7 +762,7 @@ def test_an_exported_obstruction_replays_after_its_builder_is_discarded():
         decide(selected=("y",)).prepare_exact(laws(), REQUESTS)
     prepared = decide().prepare_exact(laws(), REQUESTS)
     assert prepared.plan()["compiled_plans"] == len(REQUESTS)
-    assert prepared.estimate()
+    assert require_success(prepared.estimate())
 
 
 def test_the_obstruction_artifact_consumer_needs_no_builder_plan_or_data():
@@ -712,13 +771,49 @@ def test_the_obstruction_artifact_consumer_needs_no_builder_plan_or_data():
     del builder
     # Bytes alone: no catalog, law or plan is supplied, and a point artifact is
     # not an obstruction (the retained plan of a point route is a different format).
-    consumed = json.loads(transport.consume_admg_conditional_obstruction_artifact(artifact))
+    consumed = transport.consume_admg_conditional_obstruction_artifact(artifact).to_dict()
     assert consumed["identification_status"] == "proven_non_transportable"
     assert consumed["remaining"] == ["w"]
     prepared = decide().prepare_exact(laws(), REQUESTS)
-    assert prepared.estimate()
-    prepared.estimate()
+    assert require_success(prepared.estimate())
+    require_success(prepared.estimate())
     point = prepared.plan()
     assert point["compiled_plans"] == len(REQUESTS)
     with pytest.raises((CausalSerializationError, CausalUnsupportedError)):
         transport.consume_admg_conditional_obstruction_artifact(artifact[:-10])
+
+
+def _forest_roots(forest):
+    sources = [edge[0] for edge in forest["directed"]]
+    return {node for node in forest["nodes"] if node not in sources}
+
+
+def test_the_proven_obstruction_names_an_s_hedge_of_nested_forests_with_shared_roots():
+    # Selection on y: the reduced joint P(y, w | do(x)) has an s-hedge. By definition the larger
+    # forest meets the intervention set, the smaller is nested in it and misses the
+    # intervention set, both have the same roots, and every node has at most one child.
+    decision = decide(selected=("y",)).decision()
+    candidate = decision["candidate"]
+    larger, smaller = candidate["larger"], candidate["smaller"]
+    treatments = set(candidate["reduced_query"]["treatments"])
+    assert treatments == {"x"}
+    assert set(larger["nodes"]) & treatments
+    assert not set(smaller["nodes"]) & treatments
+    assert set(smaller["nodes"]) < set(larger["nodes"]) <= set(NAMES)
+    assert _forest_roots(larger) == _forest_roots(smaller) != set()
+    graph_directed = {("x", "y"), ("y", "w")}
+    graph_bidirected = {frozenset(("x", "y"))}
+    for forest in (larger, smaller):
+        sources = [edge[0] for edge in forest["directed"]]
+        assert len(sources) == len(set(sources)), "each node has at most one child"
+        assert {tuple(edge) for edge in forest["directed"]} <= graph_directed
+        assert {frozenset(edge) for edge in forest["bidirected"]} <= graph_bidirected
+        assert all(set(edge) <= set(forest["nodes"]) for edge in forest["directed"])
+        assert all(set(edge) <= set(forest["nodes"]) for edge in forest["bidirected"])
+    # The verified two-model witness disagrees on the query the hedge obstructs.
+    assert candidate["proof"] is True
+    assert decision["witness"]["first_value"] != decision["witness"]["second_value"]
+    # Without selection on y the same query has no hedge to report.
+    identified = decide().decision()
+    assert identified["outcome"] == "identified"
+    assert "candidate" not in identified

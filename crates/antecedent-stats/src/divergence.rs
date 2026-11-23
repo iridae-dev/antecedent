@@ -1,6 +1,6 @@
 //! Divergence and two-sample helpers for mechanism-change detection.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -60,6 +60,29 @@ pub fn likelihood_ratio_permutations(n_left: usize, n_right: usize) -> Option<us
     (n_left.min(n_right) < LR_ASYMPTOTIC_MIN_SEGMENT).then_some(DEFAULT_MECHANISM_PERMUTATIONS)
 }
 
+/// `x - ln(1 + x)` for `|x| < 1/2` without cancellation.
+///
+/// With `z = x / (2 + x)`, `ln(1 + x) = 2 atanh z`, so
+/// `x - ln(1 + x) = x z - 2 (z^3/3 + z^5/5 + ...)`, where `x z = x^2 / (2 + x)` is exact to
+/// rounding and the series is a small correction (`|z| <= 1/3`).
+fn x_minus_ln1p(x: f64) -> f64 {
+    let z = x / (2.0 + x);
+    let z2 = z * z;
+    let mut power = z * z2;
+    let mut series = 0.0;
+    let mut k = 3.0;
+    for _ in 0..40 {
+        let term = power / k;
+        series += term;
+        if term.abs() <= 1e-18 * series.abs() {
+            break;
+        }
+        power *= z2;
+        k += 2.0;
+    }
+    x * z - 2.0 * series
+}
+
 /// Gaussian KL divergence `KL(N(μ0,σ0²) ‖ N(μ1,σ1²))`.
 ///
 /// # Errors
@@ -79,13 +102,28 @@ pub fn gaussian_kl(mu0: f64, var0: f64, mu1: f64, var1: f64) -> Result<f64, Stat
     }
     let relative_change = (var0 - var1) / var1;
     let variance_term = if relative_change.abs() < 0.5 {
-        // log1p avoids cancellation of the log ratio close to equal variances.
-        relative_change - relative_change.ln_1p()
+        // `x - ln(1 + x)` cancels to order x^2 near equal variances, so a plain log1p loses
+        // about log10(1/x) digits; the atanh series below has no cancellation.
+        x_minus_ln1p(relative_change)
     } else {
         var0 / var1 - 1.0 + var1.ln() - var0.ln()
     };
-    let standardized_shift = (mu0 - mu1) / var1.sqrt();
-    Ok(0.5 * (variance_term + standardized_shift * standardized_shift))
+    let scale = var1.sqrt();
+    let difference = mu0 - mu1;
+    let standardized_shift = difference / scale;
+    let divergence = 0.5 * (variance_term + standardized_shift * standardized_shift);
+    if divergence.is_finite() {
+        return Ok(divergence);
+    }
+    // Keep the ordinary arithmetic unchanged. Only when an intermediate overflows,
+    // distribute the final half over the terms and scale before subtracting means.
+    let half_variance = if variance_term.is_finite() {
+        0.5 * variance_term
+    } else {
+        (0.5 * var0) / var1 - 0.5 + 0.5 * (var1.ln() - var0.ln())
+    };
+    let shift = if difference.is_finite() { standardized_shift } else { mu0 / scale - mu1 / scale };
+    Ok(half_variance + (0.5 * shift) * shift)
 }
 
 /// Population mean and variance of a slice (`Σ(x − mean)² / n`, with `n` at least 1).
@@ -328,8 +366,12 @@ pub fn kernel_two_sample_with_permutations(
     let gram = (n <= MMD_GRAM_CACHE_MAX_POOLED).then(|| pooled_rbf_gram(&pooled, bandwidth));
     // Observed and null statistics take the same route so their fp rounding agrees.
     let mut order: Vec<usize> = (0..n).collect();
-    let mmd2 = |order: &[usize], values: &[f64]| match &gram {
-        Some(k) => mmd2_from_gram(k, n, &order[..na], &order[na..]),
+    let mut labels = vec![0.0; if gram.is_some() { n } else { 0 }];
+    let mut mmd2 = |order: &[usize], values: &[f64]| match &gram {
+        Some(k) => {
+            partition_labels(&order[..na], &order[na..], &mut labels);
+            mmd2_from_labels(k, n, &labels)
+        }
         None => biased_mmd2(&values[..na], &values[na..], bandwidth),
     };
     let observed = mmd2(&order, &pooled);
@@ -456,6 +498,12 @@ const MEDIAN_HEURISTIC_EXACT_PAIR_CAP: usize = 20_000;
 /// Number of pairs drawn when the pool is too large to enumerate exactly.
 const MEDIAN_HEURISTIC_SAMPLE_SIZE: usize = 2_000;
 
+/// Uniform index in `0..n` by rejection sampling ([`antecedent_kernels::unbiased_index`]), so
+/// no residue of `2^64 mod n` is over-represented. `n` is positive at every call site.
+fn draw_index(rng: &mut CausalRng, n: usize) -> usize {
+    antecedent_kernels::unbiased_index(rng, n)
+}
+
 /// Bandwidth via the median pairwise-|diff| heuristic on the pooled sample.
 ///
 /// Computes the exact median over all `C(n, 2)` pairs when that's affordable;
@@ -464,12 +512,6 @@ const MEDIAN_HEURISTIC_SAMPLE_SIZE: usize = 2_000;
 /// `(i, j)` pair enumeration can alias with periodicity in structured / time-ordered
 /// input — exactly what `kernel_two_sample` is documented to be used on — and bias the
 /// estimated median away from the true one.
-/// Uniform-enough index in `0..n` from one 64-bit draw (modulo reduction, as before).
-fn draw_index(rng: &mut CausalRng, n: usize) -> usize {
-    let n64 = u64::try_from(n).unwrap_or(u64::MAX);
-    usize::try_from(rng.next_u64() % n64).unwrap_or(usize::MAX)
-}
-
 fn rbf_bandwidth_median_heuristic(a: &[f64], b: &[f64], rng: &mut CausalRng) -> f64 {
     let mut pooled = Vec::with_capacity(a.len() + b.len());
     pooled.extend_from_slice(a);
@@ -540,21 +582,46 @@ fn pooled_rbf_gram(pooled: &[f64], bandwidth: f64) -> Vec<f64> {
     k
 }
 
-/// Biased MMD² for the index sets `ia` / `ib` of a precomputed pooled Gram matrix.
-fn mmd2_from_gram(k: &[f64], n: usize, ia: &[usize], ib: &[usize]) -> f64 {
-    let block_sum = |rows: &[usize], cols: &[usize]| -> f64 {
-        let mut s = 0.0;
-        for &i in rows {
-            let row = &k[i * n..(i + 1) * n];
-            for &j in cols {
-                s += row[j];
-            }
+/// Biased MMD² of a labelled partition of a precomputed pooled Gram matrix.
+///
+/// With `s_i = 1/n_a` on the first sample, `−1/n_b` on the second and `0` elsewhere, the biased
+/// MMD² is the quadratic form `sᵀ K s`, one symmetric matrix-vector product over contiguous
+/// rows (a permutation only rewrites the label vector).
+#[allow(
+    clippy::float_cmp,
+    reason = "a label is exactly zero when its point belongs to neither sample"
+)]
+fn mmd2_from_labels(k: &[f64], n: usize, labels: &[f64]) -> f64 {
+    let mut total = 0.0;
+    for (i, &label) in labels.iter().enumerate().take(n) {
+        if label == 0.0 {
+            continue;
         }
-        s
-    };
+        let row = &k[i * n..(i + 1) * n];
+        let dot: f64 = row.iter().zip(labels).map(|(kij, sj)| kij * sj).sum();
+        total += label * dot;
+    }
+    total
+}
+
+/// Signed sample labels for the partition `ia` / `ib` of an `n`-point pool, written into `out`.
+fn partition_labels(ia: &[usize], ib: &[usize], out: &mut [f64]) {
+    out.fill(0.0);
     let (na, nb) = (ia.len() as f64, ib.len() as f64);
-    block_sum(ia, ia) / (na * na) + block_sum(ib, ib) / (nb * nb)
-        - 2.0 * block_sum(ia, ib) / (na * nb)
+    for &i in ia {
+        out[i] = 1.0 / na;
+    }
+    for &j in ib {
+        out[j] = -1.0 / nb;
+    }
+}
+
+/// Biased MMD² for the index sets `ia` / `ib` of a precomputed pooled Gram matrix.
+#[cfg(test)]
+fn mmd2_from_gram(k: &[f64], n: usize, ia: &[usize], ib: &[usize]) -> f64 {
+    let mut labels = vec![0.0; n];
+    partition_labels(ia, ib, &mut labels);
+    mmd2_from_labels(k, n, &labels)
 }
 
 #[inline]
@@ -751,6 +818,24 @@ mod tests {
         for bad in [f64::NAN, f64::INFINITY, -1.0, 0.0] {
             assert!(gaussian_kl(0.0, bad, 0.0, 1.0).is_err());
         }
+    }
+
+    #[test]
+    fn gaussian_kl_keeps_representable_results_when_intermediates_overflow() {
+        // Equal variances give (mu0 - mu1)^2 / (2 * variance). For the
+        // variance-only cases, the logarithmic term is below one ULP here.
+        let cases = [
+            (1e308, f64::MAX, -1e308, f64::MAX, 2.0 * (1e308 / f64::MAX) * 1e308),
+            (1.4e154, 1.0, 0.0, 1.0, 9.8e307),
+            (0.0, f64::MAX, 0.0, 0.75, f64::MAX / 1.5),
+            (1e154, f64::MAX, 0.0, 1.0, 0.5 * f64::MAX + 5e307),
+        ];
+        for (mu0, var0, mu1, var1, expected) in cases {
+            let actual = gaussian_kl(mu0, var0, mu1, var1).unwrap();
+            assert!(actual.is_finite(), "{mu0}, {var0}, {mu1}, {var1}: {actual}");
+            assert!((actual / expected - 1.0).abs() < 1e-14);
+        }
+        assert!(gaussian_kl(f64::MAX, 1.0, -f64::MAX, 1.0).unwrap().is_infinite());
     }
 
     #[test]

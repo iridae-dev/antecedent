@@ -73,9 +73,13 @@ pub fn estimate(
         }
     }
     let denominator = treated_subjects as f64;
+    // The comparison term is the odds-weighted mean of the untreated-change residual with the
+    // weights normalised to sum to one (the improved doubly robust estimator): a constant
+    // error in the supplied prediction then cancels between the treated and comparison terms
+    // instead of leaving the unit-weight mismatch (sum of odds over n_treated) minus one.
     let effect = treated_change / denominator
         - predicted_counterfactual / denominator
-        - control_residual_correction / denominator;
+        - control_residual_correction / control_weight;
     let effective_control_sample_size = control_weight.powi(2) / squared_weights;
     if !effect.is_finite() || !effective_control_sample_size.is_finite() {
         return Err("augmented DiD estimate overflowed finite precision");
@@ -88,4 +92,216 @@ pub fn estimate(
         propensity_max,
         effective_control_sample_size,
     })
+}
+
+/// The augmented ATT of [`estimate`] with each subject weighted by `weights`; `None` when the
+/// weighted sample has no treated or no comparison subject. Weights multiply the odds, so an
+/// integer weight is the same estimate as repeating the subject.
+fn weighted_effect(
+    change: &[f64],
+    treated: &[bool],
+    propensity: &[f64],
+    prediction: &[f64],
+    weights: &[f64],
+) -> Option<f64> {
+    let mut treated_weight = 0.0;
+    let mut treated_term = 0.0;
+    let mut correction = 0.0;
+    let mut control_weight = 0.0;
+    for i in 0..change.len() {
+        let w = weights[i];
+        if w <= 0.0 {
+            continue;
+        }
+        if treated[i] {
+            treated_weight += w;
+            treated_term += w * (change[i] - prediction[i]);
+        } else {
+            let odds = propensity[i] / (1.0 - propensity[i]);
+            control_weight += w * odds;
+            correction += w * odds * (change[i] - prediction[i]);
+        }
+    }
+    (treated_weight > 0.0 && control_weight > 0.0)
+        .then(|| treated_term / treated_weight - correction / control_weight)
+        .filter(|effect| effect.is_finite())
+}
+
+/// Whole-cluster resample of the augmented ATT with the supplied nuisance predictions held
+/// at their values: every replicate redraws (or reweights) whole clusters and recomputes the
+/// estimator. The supplied predictions' own estimation error is not propagated; the interval
+/// describes the sampling of subjects given those predictions. Its coverage is `not_measured`.
+///
+/// # Errors
+///
+/// The inputs fail [`estimate`], fewer than two clusters, or the resample is refused
+/// (cancellation, admission).
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the five aligned columns, the clusters and the resample are distinct inputs"
+)]
+pub fn resample_augmented_panel(
+    pre: &[f64],
+    post: &[f64],
+    treated: &[bool],
+    propensity: &[f64],
+    prediction: &[f64],
+    clusters: &[std::sync::Arc<str>],
+    weighting: crate::rollout_resampling::UnitWeighting,
+    replicates: u32,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<
+    (AugmentedPanelDidFit, crate::rollout_resampling::ReplicateSummary),
+    crate::EstimationError,
+> {
+    let fit = estimate(pre, post, treated, propensity, prediction)
+        .map_err(|message| crate::EstimationError::refused("invalid_argument", message))?;
+    if clusters.len() != pre.len() {
+        return Err(crate::EstimationError::refused(
+            "invalid_argument",
+            "augmented panel clusters must align with the subject rows",
+        ));
+    }
+    let mut labels: std::collections::BTreeMap<&str, usize> =
+        clusters.iter().map(|label| (label.as_ref(), 0)).collect();
+    for (position, slot) in labels.values_mut().enumerate() {
+        *slot = position;
+    }
+    if labels.len() < 2 {
+        return Err(crate::EstimationError::refused(
+            "option_not_applicable",
+            "a whole-cluster resample needs at least two clusters; next attempt: the point \
+             estimate without an interval",
+        ));
+    }
+    let index: Vec<usize> = clusters.iter().map(|label| labels[label.as_ref()]).collect();
+    let change: Vec<f64> = post.iter().zip(pre).map(|(after, before)| after - before).collect();
+    let summary = crate::rollout_resampling::resample_procedure(
+        ctx,
+        0x4155_4744_0001,
+        replicates,
+        &[fit.effect],
+        |rng| {
+            let cluster_weights =
+                crate::rollout_resampling::unit_weights(weighting, labels.len(), rng);
+            let weights: Vec<f64> = index.iter().map(|c| cluster_weights[*c]).collect();
+            weighted_effect(&change, treated, propensity, prediction, &weights)
+                .map(|effect| vec![effect])
+        },
+    )?;
+    Ok((fit, summary))
+}
+
+/// Central 95% interval `point ± t·se` from a whole-cluster resample standard error that
+/// came from `replicates_ok` completed refits; `None` below two refits or without a finite
+/// positive standard error.
+///
+/// The resample standard error is itself estimated from finitely many refits. Given the data
+/// the refits are independent of the point's own sampling error, and for an approximately
+/// normal sampling law `se² / σ²` is a scaled chi-square on `replicates_ok - 1` degrees of
+/// freedom, so `(point - truth) / se` follows a Student-t law on those degrees of freedom and
+/// the normal quantile is slightly too small. The multiplier is that exact quantile; it tends
+/// to the normal one as the refit count grows and involves no tuning.
+#[must_use]
+pub fn resample_interval_95(
+    point: f64,
+    standard_error: f64,
+    replicates_ok: u32,
+) -> Option<[f64; 2]> {
+    if replicates_ok < 2 || !standard_error.is_finite() || standard_error <= 0.0 {
+        return None;
+    }
+    let critical = antecedent_stats::special::student_t_ppf(0.975, f64::from(replicates_ok - 1));
+    let half = critical * standard_error;
+    half.is_finite().then_some([point - half, point + half])
+}
+
+#[cfg(test)]
+mod resample_tests {
+    use std::sync::Arc;
+
+    use super::{estimate, resample_augmented_panel, resample_interval_95, weighted_effect};
+    use crate::rollout_resampling::UnitWeighting;
+    use crate::splitmix::FixtureRng;
+
+    #[test]
+    fn the_resample_interval_uses_the_student_quantile_on_the_refit_count() {
+        let interval = resample_interval_95(1.0, 0.5, 199).unwrap();
+        // The 0.975 quantile of Student-t on 198 degrees of freedom is 1.9720.
+        assert!((interval[1] - 1.0 - 0.5 * 1.972).abs() < 1e-3, "{interval:?}");
+        assert!(((interval[1] - 1.0) - (1.0 - interval[0])).abs() < 1e-12);
+        let large = resample_interval_95(0.0, 1.0, 1_000_000).unwrap();
+        assert!((large[1] - 1.959_964).abs() < 1e-3);
+        assert!(resample_interval_95(0.0, 1.0, 1).is_none());
+        assert!(resample_interval_95(0.0, 0.0, 199).is_none());
+        assert!(resample_interval_95(0.0, f64::NAN, 199).is_none());
+    }
+
+    #[test]
+    fn the_augmented_resample_reproduces_the_point_and_is_thread_invariant() {
+        let mut rng = FixtureRng::new(9);
+        let (mut pre, mut post, mut treated, mut propensity, mut prediction, mut clusters) =
+            (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        for i in 0..400 {
+            let x = rng.uniform();
+            let p = 0.25 + 0.5 * x;
+            let d = rng.uniform() < p;
+            let base = rng.uniform();
+            pre.push(base);
+            post.push(base + x + if d { 1.5 } else { 0.0 } + 0.2 * (rng.uniform() - 0.5));
+            treated.push(d);
+            propensity.push(p);
+            prediction.push(x);
+            clusters.push(Arc::<str>::from(format!("c{}", i / 4)));
+        }
+        let run = |ctx: &antecedent_core::ExecutionContext| {
+            resample_augmented_panel(
+                &pre,
+                &post,
+                &treated,
+                &propensity,
+                &prediction,
+                &clusters,
+                UnitWeighting::Resample,
+                199,
+                ctx,
+            )
+            .unwrap()
+        };
+        let (fit, serial) = run(&antecedent_core::ExecutionContext::for_tests(3));
+        let (_, parallel) = run(&antecedent_core::ExecutionContext::production(3, 4));
+        assert_eq!(serial, parallel);
+        assert!((fit.effect - 1.5).abs() < 0.1, "{}", fit.effect);
+        let interval = serial.quantities[0].interval.unwrap();
+        assert!(interval[0] < fit.effect && fit.effect < interval[1]);
+    }
+
+    #[test]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
+    fn an_integer_weight_is_the_same_estimate_as_repeating_the_subject() {
+        let pre = [1.0, 2.0, 0.5, 3.0, 1.5, 2.5, 0.0];
+        let post = [3.0, 2.5, 2.0, 3.5, 2.0, 3.5, 1.0];
+        let treated = [true, true, false, false, true, false, false];
+        let propensity = [0.4, 0.7, 0.2, 0.9, 0.5, 0.05, 0.6];
+        let prediction = [0.3, 0.1, 0.2, 0.0, 0.4, 0.1, 0.2];
+        let change: Vec<f64> = post.iter().zip(&pre).map(|(a, b)| a - b).collect();
+        let weights = [2.0, 1.0, 3.0, 1.0, 1.0, 2.0, 1.0];
+        let mut rep = (vec![], vec![], vec![], vec![], vec![]);
+        for (i, &w) in weights.iter().enumerate() {
+            for _ in 0..w as usize {
+                rep.0.push(pre[i]);
+                rep.1.push(post[i]);
+                rep.2.push(treated[i]);
+                rep.3.push(propensity[i]);
+                rep.4.push(prediction[i]);
+            }
+        }
+        let repeated = estimate(&rep.0, &rep.1, &rep.2, &rep.3, &rep.4).unwrap().effect;
+        let weighted = weighted_effect(&change, &treated, &propensity, &prediction, &weights);
+        assert!((weighted.unwrap() - repeated).abs() < 1e-12, "{weighted:?} {repeated}");
+    }
 }

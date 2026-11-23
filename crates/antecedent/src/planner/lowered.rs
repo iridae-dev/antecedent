@@ -1,0 +1,1902 @@
+//! The lowered program `Study::compile` attaches to every physical plan.
+//!
+//! One value per compiled route holds the six compiler layers: the scientific
+//! problem, the identification product, the statistical program, the evidence and
+//! decision program, the physical layer, and the claim the execution must publish.
+//! Dispatch refuses a plan that carries none. The physical record itself stays on
+//! [`crate::planner::PhysicalExecutionPlan`]; this value carries the operators and
+//! design shape that record was planned from.
+//!
+//! The identity covers layers one to four and six. Layer five is execution
+//! accounting: a data refresh may re-plan it without changing what was compiled.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+mod chain;
+mod decision;
+mod linear_gaussian;
+mod planning;
+
+use std::sync::Arc;
+
+use antecedent_contract::{ClaimKind, DataClassification};
+use antecedent_core::{
+    CanonicalWriter, PhysicalOperator, ScientificTarget, SemanticDigest, VariableId,
+};
+use antecedent_expr::IdentifiedEstimand;
+use antecedent_identify::{CompiledIdentificationProduct, IdentificationResult};
+
+use crate::analysis::IdentificationCache;
+use crate::analysis::lowering::RouteCell;
+use crate::planner::statistical::StatisticalProgram;
+
+pub use chain::ChainProgram;
+pub use decision::{
+    CarrierDemand, Composition, DecisionProgram, EvidenceDecisionProgram, EvidenceRole,
+    EvidenceSourceRef, EvsiProgram,
+};
+pub(crate) use linear_gaussian::{
+    linear_gaussian_physical_operators, linear_gaussian_program_operators,
+    linear_gaussian_scientific_problem,
+};
+pub use planning::{PlanningProgram, SIMULATION_RECORD_BYTES, SimulationQuote};
+
+const LOWERED_PROGRAM_TAG: &str = "antecedent.lowered_program";
+
+/// How far a route's lowering has been carried. Every registered route cell lowers
+/// each layer from its own scientific problem, except the atom operations a program
+/// names as deferred: those are lowered and identified per posterior atom at execution.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum LoweringDepth {
+    /// The route lowers each layer from its own scientific problem.
+    Complete,
+    /// The outer program is lowered; the named per-atom operations (their identification,
+    /// estimator and executor) are chosen from each atom's structure at every execution
+    /// and are not retained in this program.
+    AtomOperationsDeferred {
+        /// The deferred per-atom operations, in words.
+        operations: &'static str,
+    },
+}
+
+impl LoweringDepth {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Complete => "complete",
+            Self::AtomOperationsDeferred { .. } => "atom_operations_deferred",
+        }
+    }
+
+    /// The per-atom operations this lowering defers to execution, when it defers any.
+    #[must_use]
+    pub const fn deferred_operations(self) -> Option<&'static str> {
+        match self {
+            Self::Complete => None,
+            Self::AtomOperationsDeferred { operations } => Some(operations),
+        }
+    }
+}
+
+/// Non-world-indexed functional a scientific problem asks for.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum FunctionalKind {
+    /// Law of an outcome under an intervention.
+    InterventionalDistribution,
+    /// Conditional outcome law given recorded evidence, optionally after an intervention.
+    ConditionalObservation,
+    /// Effect transmitted along a declared set of paths.
+    PathSpecific,
+    /// Unit-level counterfactual.
+    Counterfactual,
+    /// Attribution of an anomalous value to upstream mechanisms.
+    AnomalyAttribution,
+    /// Attribution of a distribution change to mechanism changes.
+    ChangeAttribution,
+    /// Detection of changed mechanisms.
+    MechanismChange,
+    /// Attribution of one unit's change.
+    UnitChange,
+    /// Matching on histories.
+    HistoryMatch,
+    /// Identified set rather than a point functional.
+    IdentifiedSet,
+    /// Contrast of randomized assignment arms (ITT, complier or treated-recipient effect).
+    AssignmentContrast,
+    /// Contrast of mean outcomes between two network exposure levels.
+    ExposureContrast,
+    /// Value of a fixed treatment policy against its reference policy.
+    PolicyValue,
+    /// Effect on the treated units or unit of a panel design.
+    EffectOnTreated,
+    /// Contrast of arm event-time laws: survival, restricted mean or cumulative incidence.
+    SurvivalContrast,
+    /// Value of a prescribed sequential treatment regime.
+    RegimeValue,
+    /// Derivative, average derivative, directional derivative or Jacobian of a response curve.
+    ResponseDerivative,
+    /// Contrast of an outcome functional between intervention worlds the world algebra
+    /// cannot state (a callback action, or a schedule outside the horizon).
+    InterventionContrast,
+    /// A causal structure, structure class or structure posterior searched from the
+    /// observational law.
+    StructureSearch,
+    /// An attribution computed under fitted mechanisms (intrinsic influence, root
+    /// causes, distribution change, paths, feature relevance).
+    Attribution,
+    /// A simulation of fitted mechanisms (interventional draws, policy value, unit effects).
+    Simulation,
+    /// A quantity propagated through a chain of transformations: a measurement
+    /// mapping, a transport, a pool, a derived quantity, a decision utility and a
+    /// preposterior update.
+    PropagatedChain,
+    /// A graph-selected effect pooled across completed imputation tables.
+    GraphImputationEffect,
+    /// A noncausal association of an outcome with predictors in the observed law: a
+    /// conditional law, regression coefficients, an association measure or a scored
+    /// predictive model. It states no intervention.
+    Association,
+}
+
+impl FunctionalKind {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::InterventionalDistribution => "interventional_distribution",
+            Self::ConditionalObservation => "conditional_observation",
+            Self::PathSpecific => "path_specific",
+            Self::Counterfactual => "counterfactual",
+            Self::AnomalyAttribution => "anomaly_attribution",
+            Self::ChangeAttribution => "change_attribution",
+            Self::MechanismChange => "mechanism_change",
+            Self::UnitChange => "unit_change",
+            Self::HistoryMatch => "history_match",
+            Self::IdentifiedSet => "identified_set",
+            Self::AssignmentContrast => "assignment_contrast",
+            Self::ExposureContrast => "exposure_contrast",
+            Self::PolicyValue => "policy_value",
+            Self::EffectOnTreated => "effect_on_treated",
+            Self::SurvivalContrast => "survival_contrast",
+            Self::RegimeValue => "regime_value",
+            Self::ResponseDerivative => "response_derivative",
+            Self::InterventionContrast => "intervention_contrast",
+            Self::StructureSearch => "structure_search",
+            Self::Attribution => "attribution",
+            Self::Simulation => "simulation",
+            Self::PropagatedChain => "propagated_chain",
+            Self::GraphImputationEffect => "graph_imputation_effect",
+            Self::Association => "association",
+        }
+    }
+}
+
+/// Authority of a lowered program fingerprint.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProgramIdentityScope {
+    /// The fingerprint identifies the portable semantic program.
+    Semantic,
+    /// A runtime callback is identified only by its declaration, not its binding or state.
+    RuntimeCallbackDeclarationOnly,
+}
+
+impl ProgramIdentityScope {
+    /// Stable scope name in plan views.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Semantic => "semantic",
+            Self::RuntimeCallbackDeclarationOnly => "runtime_callback_declaration_only",
+        }
+    }
+}
+
+/// What the scientific problem asks for.
+#[derive(Clone, Debug)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "public enum built once per problem; boxing a variant would change its public API"
+)]
+pub enum ProblemTarget {
+    /// World-indexed target: worlds, a contrast, a dose-time surface, or mediation.
+    Target(ScientificTarget),
+    /// One world-indexed target per requested horizon, in request order: a
+    /// multi-horizon mediation or a per-horizon family the query answers jointly.
+    Targets(Arc<[ScientificTarget]>),
+    /// A functional that is not indexed by intervention worlds, with the digest of the query
+    /// (interventions, levels, conditioning, evaluation points) that defines it, so two queries of
+    /// one kind have different identities for semantic-scope programs. Runtime callbacks
+    /// identify their declaration only; see [`ProgramIdentityScope`].
+    QueryFunctional {
+        /// Kind of functional.
+        kind: FunctionalKind,
+        /// Outcome the functional reads, when it has one.
+        outcome: Option<VariableId>,
+        /// Canonical digest of the query the functional answers.
+        query: [u8; 32],
+    },
+}
+
+/// Layer one: the scientific problem.
+#[derive(Clone, Debug)]
+pub struct ScientificProblem {
+    pub(crate) target: ProblemTarget,
+    pub(crate) identity_scope: ProgramIdentityScope,
+    // Live callback bindings belong to the compiled plan; never encoded into its fingerprint.
+    pub(crate) runtime_query: Option<antecedent_core::CausalQuery>,
+    pub(crate) plan_id: Arc<str>,
+    pub(crate) data: DataClassification,
+    pub(crate) graph_class: &'static str,
+    pub(crate) query_variables: Arc<[VariableId]>,
+    pub(crate) source_digest: Option<[u8; 32]>,
+    pub(crate) support_coordinate: Option<Arc<str>>,
+    pub(crate) supported: bool,
+    /// Evidence status of the coordinate, read from the study at lowering. Not part of the
+    /// program identity: the identity binds the coordinate and whether it is supported.
+    pub(crate) support_status: Option<crate::support::CellStatus>,
+}
+
+impl ScientificProblem {
+    /// What the problem asks for.
+    #[must_use]
+    pub const fn target(&self) -> &ProblemTarget {
+        &self.target
+    }
+
+    /// Route record plan id.
+    #[must_use]
+    pub fn plan_id(&self) -> &str {
+        &self.plan_id
+    }
+
+    /// Data modality the problem reads.
+    #[must_use]
+    pub const fn data(&self) -> DataClassification {
+        self.data
+    }
+
+    /// Graph class of the supplied structure.
+    #[must_use]
+    pub const fn graph_class(&self) -> &'static str {
+        self.graph_class
+    }
+
+    /// Variables the query names.
+    #[must_use]
+    pub fn query_variables(&self) -> &[VariableId] {
+        &self.query_variables
+    }
+
+    /// Content digest of the source rows, when the lowering bound one.
+    #[must_use]
+    pub const fn source_digest(&self) -> Option<[u8; 32]> {
+        self.source_digest
+    }
+
+    /// Support-matrix coordinate of the study, when the query is on the matrix axis.
+    #[must_use]
+    pub fn support_coordinate(&self) -> Option<&str> {
+        self.support_coordinate.as_deref()
+    }
+
+    /// Whether the study's coordinate is a supported cell.
+    #[must_use]
+    pub const fn supported(&self) -> bool {
+        self.supported
+    }
+
+    /// Evidence status of the study's support-matrix cell.
+    #[must_use]
+    pub const fn support_status(&self) -> Option<crate::support::CellStatus> {
+        self.support_status
+    }
+
+    fn write(&self, writer: &mut CanonicalWriter) {
+        match &self.target {
+            ProblemTarget::Target(target) => {
+                writer.text("target").bytes(target.identity().as_bytes());
+            }
+            ProblemTarget::Targets(targets) => {
+                writer.text("targets").word(targets.len() as u64);
+                for target in targets.iter() {
+                    writer.bytes(target.identity().as_bytes());
+                }
+            }
+            ProblemTarget::QueryFunctional { kind, outcome, query } => {
+                writer
+                    .text("query_functional")
+                    .text(kind.as_str())
+                    .opt_word(outcome.map(|id| u64::from(id.raw())))
+                    .bytes(query);
+            }
+        }
+        writer
+            .text(&self.plan_id)
+            .text(data_classification_name(self.data))
+            .text(self.graph_class)
+            .word(self.query_variables.len() as u64);
+        for variable in &*self.query_variables {
+            writer.word(u64::from(variable.raw()));
+        }
+        writer
+            .opt_text(self.source_digest.as_ref().map(hex).as_deref())
+            .opt_text(self.support_coordinate.as_deref())
+            .word(u64::from(self.supported));
+    }
+}
+
+/// Layer two: what identification the program carries.
+#[derive(Clone, Debug)]
+pub(crate) enum IdentificationLayer {
+    /// Identification is left to preparation, which identifies and reports what it
+    /// finds; the reason says why compile retained nothing.
+    Deferred {
+        /// Why compile retained no identification.
+        reason: &'static str,
+        /// The not-identified product the refusal came from, when the route reads one: its
+        /// status, derivation and query. It is the record the evidence needs derive from;
+        /// it is not an identification claim and preparation still raises the refusal.
+        /// Not part of the program's identity: the declared graph and query already are.
+        failure: Option<Arc<IdentificationResult>>,
+    },
+    /// Identified at compile and retained with the program; preparation installs
+    /// these products and does not identify again.
+    Retained(Arc<RetainedIdentification>),
+    /// The route identifies on each execution.
+    PerExecution {
+        /// Why the route cannot retain one identification.
+        reason: &'static str,
+    },
+    /// Identification of a feedback model that is not a graphical identification
+    /// product of an acyclic model.
+    NonGraphical(Arc<NonGraphicalIdentification>),
+    /// The program claims no identification: it describes the observed law and states no
+    /// causal contrast. When it follows a causal query that was refused, the refusal's
+    /// reason code is retained.
+    NotClaimed {
+        /// Reason code of the refused causal query this program follows.
+        refusal: Option<Arc<str>>,
+    },
+}
+
+/// Identification a feedback program carries in place of a graphical product.
+///
+/// None of these is upgraded to graphical identification: a specified or fitted
+/// model stays conditional on that model, a clamp-experiment recovery keeps the
+/// directions its design leaves unresolved, and a cyclic input/output SCM
+/// identification stays scoped to its theorem and premises.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum NonGraphicalIdentification {
+    /// Conditional on the specified or fitted model whose digest is `model`.
+    SpecifiedModelConditional {
+        /// Digest of the model the answer is conditional on.
+        model: [u8; 32],
+    },
+    /// Linear law recovered from declared clamp experiments.
+    ExperimentalRecovery {
+        /// Digest of the declared clamp design.
+        design: [u8; 32],
+        /// Directions the design leaves unresolved, as `(target, missing clamps)`.
+        unresolved: Arc<[(VariableId, Arc<[VariableId]>)]>,
+    },
+    /// Theorem-scoped identification of an input/output SCM on a cyclic graph.
+    CyclicIoScm {
+        /// Digest of the graphical source and its premises.
+        source: [u8; 32],
+    },
+    /// The overlap of the evidence a chain combines, from its dependence
+    /// contract: which stages share rows, clusters, models, priors,
+    /// disturbances or periods. Nothing is identified from observations.
+    SharedEvidenceContract {
+        /// Digest of the declared chain, which carries the declared factors.
+        contract: [u8; 32],
+    },
+    /// Observational policy adjustment and row-splitting are declared; the
+    /// graph-based exchangeability assumption is not verified by this route.
+    DeclaredPolicyEvaluation {
+        /// Digest of the complete rows, policy rule and evaluation split.
+        request: [u8; 32],
+    },
+    /// Backdoor separation and pre-treatment information were checked on the
+    /// caller's declared causal DAG before policy learning or scoring.
+    GraphCheckedPolicyEvaluation {
+        /// Digest of the rows, graph, information set and split.
+        request: [u8; 32],
+    },
+}
+
+impl NonGraphicalIdentification {
+    /// Stable `snake_case` name.
+    pub(crate) const fn as_str(&self) -> &'static str {
+        match self {
+            Self::SpecifiedModelConditional { .. } => "specified_model_conditional",
+            Self::ExperimentalRecovery { .. } => "experimental_recovery",
+            Self::CyclicIoScm { .. } => "cyclic_ioscm",
+            Self::SharedEvidenceContract { .. } => "shared_evidence_contract",
+            Self::DeclaredPolicyEvaluation { .. } => "declared_policy_evaluation",
+            Self::GraphCheckedPolicyEvaluation { .. } => "graph_checked_policy_evaluation",
+        }
+    }
+
+    fn write(&self, writer: &mut CanonicalWriter) {
+        writer.text(self.as_str());
+        match self {
+            Self::SpecifiedModelConditional { model } => {
+                writer.bytes(model);
+            }
+            Self::ExperimentalRecovery { design, unresolved } => {
+                writer.bytes(design).word(unresolved.len() as u64);
+                for (target, missing) in unresolved.iter() {
+                    writer.word(u64::from(target.raw())).word(missing.len() as u64);
+                    for source in missing.iter() {
+                        writer.word(u64::from(source.raw()));
+                    }
+                }
+            }
+            Self::CyclicIoScm { source } => {
+                writer.bytes(source);
+            }
+            Self::SharedEvidenceContract { contract } => {
+                writer.bytes(contract);
+            }
+            Self::DeclaredPolicyEvaluation { request }
+            | Self::GraphCheckedPolicyEvaluation { request } => {
+                writer.bytes(request);
+            }
+        }
+    }
+}
+
+/// Identification products compiled with a lowered program.
+#[derive(Clone, Debug)]
+pub(crate) struct RetainedIdentification {
+    /// Checked product bound to the scientific target, when the route builds one.
+    pub(crate) product: Option<CompiledIdentificationProduct>,
+    /// Products preparation installs, in install order.
+    pub(crate) caches: Arc<[IdentificationCache]>,
+    /// Digest of the study inputs these products were identified from (query,
+    /// structure and the options identification reads). Dispatch installs a retained
+    /// product only into a study with the same key; `None` (an input with no
+    /// canonical encoding) matches no study.
+    pub(crate) key: Option<[u8; 32]>,
+    /// Seal of each product in [`Self::caches`], index-aligned, computed when compile
+    /// retained it: a digest over the full identification result. A checked operation
+    /// verifies the product it holds against this instead of identifying again.
+    seals: Arc<[Option<[u8; 32]>]>,
+    /// An identification no study slot holds, which the execution reads from the program: a
+    /// mediation on a temporal window, or the probe of a temporal cross-world query.
+    execution: Option<RetainedExecutionProof>,
+}
+
+/// Identification retained with the program for an execution that identifies on a window or
+/// probe derived from its query and structure, so that it is identified once.
+#[derive(Clone, Debug)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "retained once per program; boxing a variant would add indirection to every proof access"
+)]
+pub(crate) enum RetainedExecutionProof {
+    /// One proof per component (total, direct, indirect) on the unrolled ADMG window;
+    /// `None` where a component the query did not request is not identified.
+    Admg(Vec<Option<(IdentificationResult, IdentifiedEstimand)>>),
+    /// One class certificate per component on the unfolded PAG window.
+    Pag {
+        /// Certificates in component order; `None` where not fully identified.
+        envelopes: Vec<Option<antecedent_identify::TemporalClassEnvelope>>,
+    },
+    /// The one-step pulse probe of a temporal cross-world query on a temporal DAG.
+    CrossWorld {
+        /// The probe's identification.
+        identification: IdentificationResult,
+        /// The lag indexer of its unfolding.
+        indexer: antecedent_core::TemporalIndexer,
+    },
+    /// The class certificate of the cross-world probe on a temporal CPDAG or PAG.
+    CrossWorldClass {
+        /// Completions of the class and their identification.
+        envelope: Arc<antecedent_identify::TemporalClassEnvelope>,
+    },
+}
+
+impl RetainedIdentification {
+    /// Retain `caches`, sealing each product a checked operation proves from.
+    ///
+    /// # Errors
+    ///
+    /// A product cannot be encoded for its seal.
+    pub(crate) fn new(
+        product: Option<CompiledIdentificationProduct>,
+        caches: Vec<IdentificationCache>,
+        key: Option<[u8; 32]>,
+    ) -> Result<Self, crate::error::CausalError> {
+        let seals = caches
+            .iter()
+            .map(crate::analysis::identification_seal::seal_cache)
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self {
+            product,
+            caches: Arc::from(caches),
+            key,
+            seals: Arc::from(seals),
+            execution: None,
+        })
+    }
+
+    /// The same retained products with an execution proof.
+    pub(crate) fn with_execution_proof(mut self, proof: RetainedExecutionProof) -> Self {
+        self.execution = Some(proof);
+        self
+    }
+
+    /// The execution proof, when the program retained one.
+    pub(crate) const fn execution_proof(&self) -> Option<&RetainedExecutionProof> {
+        self.execution.as_ref()
+    }
+
+    /// Products preparation installs.
+    pub(crate) fn caches(&self) -> &[IdentificationCache] {
+        &self.caches
+    }
+
+    /// The compile-time seal of the static identification, when one was retained.
+    pub(crate) fn static_seal(&self) -> Option<[u8; 32]> {
+        self.sealed_where(|cache| matches!(cache, IdentificationCache::Static(_)))
+    }
+
+    /// The compile-time seal of the temporal identification, when one was retained.
+    pub(crate) fn temporal_seal(&self) -> Option<[u8; 32]> {
+        self.sealed_where(|cache| matches!(cache, IdentificationCache::Temporal(_)))
+    }
+
+    fn sealed_where(&self, pick: impl Fn(&IdentificationCache) -> bool) -> Option<[u8; 32]> {
+        self.caches
+            .iter()
+            .zip(self.seals.iter())
+            .find(|(cache, _)| pick(cache))
+            .and_then(|(_, seal)| *seal)
+    }
+}
+
+impl IdentificationLayer {
+    fn write(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Deferred { reason, .. } => {
+                writer.text("deferred").text(reason);
+            }
+            Self::Retained(retained) => {
+                writer.text("retained");
+                match &retained.product {
+                    Some(product) => writer.word(1).bytes(product.identity().as_bytes()),
+                    None => writer.word(0),
+                };
+                writer.word(retained.caches.len() as u64);
+                for cache in &*retained.caches {
+                    writer.text(cache.kind());
+                }
+            }
+            Self::PerExecution { reason } => {
+                writer.text("per_execution").text(reason);
+            }
+            Self::NonGraphical(identification) => {
+                writer.text("non_graphical");
+                identification.write(writer);
+            }
+            Self::NotClaimed { refusal } => {
+                writer.text("not_claimed").opt_text(refusal.as_deref());
+            }
+        }
+    }
+}
+
+/// Where a physical design width came from.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum WidthSource {
+    /// Encoded from the selected roles and their contrast codings.
+    Quoted,
+    /// The route fits no single quoted adjustment design; the reason says what it
+    /// fits instead and when that is sized.
+    NotDesignBased(&'static str),
+}
+
+impl WidthSource {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Quoted => "quoted",
+            Self::NotDesignBased(_) => "not_design_based",
+        }
+    }
+}
+
+/// The design a program fits: the rows and encoded columns of a quoted design, or
+/// the reason the route fits no single design. A route that is not design based
+/// carries no rows or columns at all: the planner's sizing of the physical record
+/// stays on that record and is not restated here as a design.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct DesignShape(DesignExtent);
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+enum DesignExtent {
+    Quoted { rows: u64, columns: u64, direct: bool },
+    NotDesignBased(&'static str),
+}
+
+impl DesignShape {
+    /// A quoted design of `rows` by `columns` encoded columns, including the intercept.
+    pub(crate) const fn quoted(rows: u64, columns: u64, direct: bool) -> Self {
+        Self(DesignExtent::Quoted { rows, columns, direct })
+    }
+
+    /// A route that fits no single quoted design; `reason` says what it fits instead.
+    pub(crate) const fn not_design_based(reason: &'static str) -> Self {
+        Self(DesignExtent::NotDesignBased(reason))
+    }
+
+    /// The same design gathered through a materialized contrast expansion.
+    pub(crate) const fn materialized(self) -> Self {
+        match self.0 {
+            DesignExtent::Quoted { rows, columns, .. } => Self::quoted(rows, columns, false),
+            DesignExtent::NotDesignBased(_) => self,
+        }
+    }
+
+    /// Rows a quoted design was sized for. `None` when the route is not design based.
+    #[must_use]
+    pub const fn rows(&self) -> Option<u64> {
+        match self.0 {
+            DesignExtent::Quoted { rows, .. } => Some(rows),
+            DesignExtent::NotDesignBased(_) => None,
+        }
+    }
+
+    /// Encoded columns of a quoted design, including the intercept. `None` when the
+    /// route is not design based.
+    #[must_use]
+    pub const fn columns(&self) -> Option<u64> {
+        match self.0 {
+            DesignExtent::Quoted { columns, .. } => Some(columns),
+            DesignExtent::NotDesignBased(_) => None,
+        }
+    }
+
+    /// Where the column count came from.
+    #[must_use]
+    pub const fn source(&self) -> WidthSource {
+        match self.0 {
+            DesignExtent::Quoted { .. } => WidthSource::Quoted,
+            DesignExtent::NotDesignBased(reason) => WidthSource::NotDesignBased(reason),
+        }
+    }
+
+    /// Whether every design column is numeric, so the design is gathered directly
+    /// from borrowed source columns instead of a materialized contrast expansion.
+    /// A route that is not design based gathers no design.
+    #[must_use]
+    pub const fn direct(&self) -> bool {
+        match self.0 {
+            DesignExtent::Quoted { direct, .. } => direct,
+            DesignExtent::NotDesignBased(_) => false,
+        }
+    }
+}
+
+/// Layer five: the physical operators and design shape the plan record was sized from.
+#[derive(Clone, Debug)]
+pub struct PhysicalLayer {
+    pub(crate) operators: Arc<[PhysicalOperator]>,
+    pub(crate) design: DesignShape,
+}
+
+impl PhysicalLayer {
+    /// Physical operator contracts.
+    #[must_use]
+    pub fn operators(&self) -> &[PhysicalOperator] {
+        &self.operators
+    }
+
+    /// Design shape.
+    #[must_use]
+    pub const fn design(&self) -> DesignShape {
+        self.design
+    }
+}
+
+/// How the published uncertainty must be read.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum UncertaintyReading {
+    /// Sampling law of a frequentist estimate.
+    Sampling,
+    /// Posterior law under a declared likelihood and prior.
+    Posterior,
+    /// Predictive law of a future outcome under a declared model.
+    Predictive,
+    /// Monte Carlo variation conditional on a known, declared model law.
+    MonteCarlo,
+    /// Draw-indexed bounds under an interval-valued assumption, without coverage.
+    AssumptionEnvelope,
+    /// Identified set or envelope.
+    Envelope,
+    /// Point claim with no uncertainty.
+    None,
+}
+
+impl UncertaintyReading {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Sampling => "sampling",
+            Self::Posterior => "posterior",
+            Self::Predictive => "predictive",
+            Self::MonteCarlo => "monte_carlo",
+            Self::AssumptionEnvelope => "assumption_envelope",
+            Self::Envelope => "envelope",
+            Self::None => "none",
+        }
+    }
+}
+
+/// Layer six: the claim an execution must publish. The measured receipt stays on the result.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ClaimDemand {
+    pub(crate) uncertainty: UncertaintyReading,
+    pub(crate) kind: Option<ClaimKind>,
+}
+
+impl ClaimDemand {
+    /// How the published uncertainty must be read.
+    #[must_use]
+    pub const fn uncertainty(&self) -> UncertaintyReading {
+        self.uncertainty
+    }
+
+    /// Claim kind the route publishes, when its lowering states one.
+    #[must_use]
+    pub const fn kind(&self) -> Option<ClaimKind> {
+        self.kind
+    }
+}
+
+/// The layers a route lowering assembles. [`Self::finish`] computes the identity.
+pub(crate) struct LoweredParts {
+    pub(crate) cell: RouteCell,
+    pub(crate) depth: LoweringDepth,
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl LoweredParts {
+    /// Seal the parts into a lowered program.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(self.cell.as_str()).text(self.depth.as_str());
+        // A complete program writes nothing more, so its identity is unchanged.
+        if let Some(operations) = self.depth.deferred_operations() {
+            writer.text(operations);
+        }
+        self.scientific.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell: ProgramCell::Route(self.cell),
+            depth: self.depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+            binding: None,
+        }
+    }
+}
+
+/// The parts a cyclic family lowering assembles. The program is always
+/// [`LoweringDepth::Complete`]; [`Self::finish`] computes the identity.
+pub(crate) struct CyclicLoweredParts {
+    /// Stable family name the program was lowered for.
+    pub(crate) family: &'static str,
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl CyclicLoweredParts {
+    /// Seal the parts into a lowered program for the cyclic family.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = ProgramCell::CyclicFamily(self.family);
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(self.family).text(depth.as_str());
+        self.scientific.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell,
+            depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+            binding: None,
+        }
+    }
+}
+
+/// The parts a standalone planning lowering assembles: a future trial of a
+/// declared design, with no data bound. [`Self::finish`] computes the identity.
+pub(crate) struct PlanningLoweredParts {
+    /// Stable name of the planned design.
+    pub(crate) design: &'static str,
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl PlanningLoweredParts {
+    /// Seal the parts into a lowered program for the planned design.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = ProgramCell::Planning(self.design);
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(self.design).text(depth.as_str());
+        self.scientific.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell,
+            depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+            binding: None,
+        }
+    }
+}
+
+/// The parts a propagation-chain lowering assembles: a chain of transformations
+/// over declared sources, with no study bound. [`Self::finish`] computes the
+/// identity.
+pub(crate) struct ChainLoweredParts {
+    /// Stable name of the reading the chain answers (`spread`, `enclosure`, ...).
+    pub(crate) reading: &'static str,
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl ChainLoweredParts {
+    /// Seal the parts into a lowered program for the chain.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = ProgramCell::PropagationChain(self.reading);
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(self.reading).text(depth.as_str());
+        self.scientific.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell,
+            depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+            binding: None,
+        }
+    }
+}
+
+/// Six-layer compilation of a standalone typed composition route. The cell
+/// selects the scientific family; each route supplies its own complete layers.
+pub(crate) struct StandaloneCompositionLoweredParts {
+    pub(crate) cell: ProgramCell,
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl StandaloneCompositionLoweredParts {
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = self.cell;
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(depth.as_str());
+        self.scientific.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell,
+            depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+            binding: None,
+        }
+    }
+}
+
+/// The six layers of a bounded graph-selection imputation operation.
+pub(crate) struct GraphImputationLoweredParts {
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl GraphImputationLoweredParts {
+    /// Bind all semantic layers; physical quotes do not alter scientific identity.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = ProgramCell::GraphImputation;
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(depth.as_str());
+        self.scientific.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell,
+            depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+            binding: None,
+        }
+    }
+}
+
+/// The six layers of a bounded categorical posterior candidate.
+pub(crate) struct CategoricalPosteriorLoweredParts {
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl CategoricalPosteriorLoweredParts {
+    /// Bind all semantic layers; physical quotes do not alter scientific identity.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = ProgramCell::CategoricalPosteriorCandidate;
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(depth.as_str());
+        self.scientific.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell,
+            depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+            binding: None,
+        }
+    }
+}
+
+/// The six layers of a bounded fixed-shift MNAR candidate.
+pub(crate) struct MnarFixedShiftLoweredParts {
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl MnarFixedShiftLoweredParts {
+    /// Bind all semantic layers; physical quotes do not alter scientific identity.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = ProgramCell::MnarFixedShift;
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(depth.as_str());
+        self.scientific.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell,
+            depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+            binding: None,
+        }
+    }
+}
+
+/// The six layers of a bounded latent soft-intervention program.
+pub(crate) struct LatentSoftInterventionLoweredParts {
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl LatentSoftInterventionLoweredParts {
+    /// Bind all semantic layers; physical quotes do not alter scientific identity.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = ProgramCell::LatentSoftIntervention;
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(depth.as_str());
+        // Promotion of this capability annotates the same scientific program.
+        ScientificProblem { supported: false, ..self.scientific.clone() }.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell,
+            depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+            binding: None,
+        }
+    }
+}
+
+/// The six layers of a compiled event-process program.
+pub(crate) struct EventProcessLoweredParts {
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl EventProcessLoweredParts {
+    /// Bind all semantic layers; physical quotes do not alter scientific identity.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = ProgramCell::EventProcess;
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(depth.as_str());
+        // Promotion of this capability annotates the same scientific program.
+        ScientificProblem { supported: false, ..self.scientific.clone() }.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell,
+            depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+            binding: None,
+        }
+    }
+}
+
+/// The compiled route of a joint-panel program. Every joint-panel family lowers through
+/// [`JointPanelLoweredParts`], which names the program cell by this route.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub(crate) enum JointPanelRoute {
+    /// A fitted joint multi-channel panel response over its declared program worlds.
+    Response,
+    /// A fitted joint panel response under a piecewise or smooth time-varying mechanism.
+    TimeVarying,
+    /// A joint panel response pooled over multiply imputed completed panels.
+    Imputation,
+    /// A search for the best program over a fitted joint panel response.
+    ProgramSearch,
+    /// Held-out selection of a program from randomized or instrumented candidates.
+    ProgramSelection,
+    /// An independent experiment conditioning a joint panel or design law, and the decision
+    /// and next-study value read from the conditioned law.
+    Experiment,
+    /// A design-native joint functional with its retained design proof.
+    Design,
+}
+
+impl JointPanelRoute {
+    /// Every joint-panel route, in declaration order.
+    #[cfg(test)]
+    pub(crate) const ALL: [Self; 7] = [
+        Self::Response,
+        Self::TimeVarying,
+        Self::Imputation,
+        Self::ProgramSearch,
+        Self::ProgramSelection,
+        Self::Experiment,
+        Self::Design,
+    ];
+
+    /// The program cell a program of this route is lowered for.
+    pub(crate) const fn cell(self) -> ProgramCell {
+        match self {
+            Self::Response => ProgramCell::JointPanelResponse,
+            Self::TimeVarying => ProgramCell::JointPanelTimeVarying,
+            Self::Imputation => ProgramCell::JointPanelImputation,
+            Self::ProgramSearch => ProgramCell::JointPanelProgramSearch,
+            Self::ProgramSelection => ProgramCell::JointPanelProgramSelection,
+            Self::Experiment => ProgramCell::JointPanelExperiment,
+            Self::Design => ProgramCell::JointDesign,
+        }
+    }
+}
+
+/// The six layers of a compiled joint-panel program, for the route it was lowered for.
+pub(crate) struct JointPanelLoweredParts {
+    /// The joint-panel route the program is lowered for; it names the program cell.
+    pub(crate) route: JointPanelRoute,
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl JointPanelLoweredParts {
+    /// Bind all semantic layers; physical quotes do not alter scientific identity.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = self.route.cell();
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(depth.as_str());
+        // Promotion of this capability annotates the same scientific program.
+        ScientificProblem { supported: false, ..self.scientific.clone() }.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell,
+            depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+            binding: None,
+        }
+    }
+}
+
+/// The compiled cell a lowered program was lowered for: a route cell of
+/// `Study::compile`, a cyclic family that prepares through its own entry, a
+/// standalone experiment plan, or a propagation chain.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub(crate) enum ProgramCell {
+    /// A registered route cell.
+    Route(RouteCell),
+    /// A cyclic family, by its stable family name.
+    CyclicFamily(&'static str),
+    /// A standalone experiment plan, by its design name.
+    Planning(&'static str),
+    /// A chain of transformations, by the reading it answers.
+    PropagationChain(&'static str),
+    /// Complete observational policy learning and held-out scoring.
+    ObservationalPolicy,
+    /// Several noisy indicators of a construct in one observation query.
+    JointMeasuredObservation,
+    /// Dependent-error joint measurement on a finite construct.
+    DependentMeasuredObservation,
+    /// Joint indicator error fitted from labelled validation counts.
+    FittedDependentMeasuredObservation,
+    /// Paired intervention worlds derived from one compiled cyclic model.
+    CyclicActionWorldDecision,
+    /// Joint fitted-mechanism posterior predictive action worlds.
+    CyclicPosteriorActionDecision,
+    /// Joint cyclic feedback fit standardized to an independent target frame.
+    CyclicTargetFeedbackDecision,
+    /// Checked bridge transport and predictive utility in one program.
+    BridgeTransportDecision,
+    /// Independent source-target trial-level bridge premise assessment.
+    BridgeTransportPremiseAssessment,
+    /// Matched bridge validation and conditional predictive utility.
+    AssessedBridgeTransportDecision,
+    /// Fitted source-target effect posterior and utility in one program.
+    JointTransportEffectDecision,
+    TrialIpwTransportDecision,
+    TrialIpwPredictiveDecision,
+    /// Fitted target outcome prediction and paired-world utility.
+    JointTransportPredictiveDecision,
+    /// Target-population time-ordered path-specific transport.
+    TemporalPathTransport,
+    /// Whole-chain resampling union around a fixed assumption envelope.
+    SamplingAssumptionUnion,
+    /// Compiler-generated IID whole-chain bootstrap assumption union.
+    IidSamplingAssumptionUnion,
+    /// Compiler-generated whole-cluster bootstrap assumption union.
+    ClusterSamplingAssumptionUnion,
+    /// Compiler-generated moving-block bootstrap assumption union.
+    MovingBlockSamplingAssumptionUnion,
+    /// Full-refit cross-fitted policy subsampling.
+    PolicySubsampling,
+    SequentialPolicyReliability,
+    /// Bundle replay with a live executable chain terminal.
+    BundleRecomputation,
+    /// Bundle replay with a live scientific bridge terminal.
+    BridgeBundleRecomputation,
+    /// Bundle recomputation with a refitted cyclic posterior producer.
+    CyclicPosteriorBundleRecomputation,
+    /// A live bundle with an embedded cyclic posterior fit node.
+    CyclicPosteriorNodeBundleRecomputation,
+    /// A live bundle with an embedded trial-IPW fit node.
+    TrialIpwNodeBundleRecomputation,
+    /// A live bundle with a graph-imputation transport fit.
+    GraphImputationTransportNodeBundleRecomputation,
+    /// A live bundle with a joint source-target effect fit.
+    JointTransportEffectNodeBundleRecomputation,
+    JointTransportPredictiveNodeDecisionBundleRecomputation,
+    TrialIpwPredictiveNodeDecisionBundleRecomputation,
+    CyclicTargetFeedbackNodeDecisionBundleRecomputation,
+    GraphImputationPredictiveNodeDecisionBundleRecomputation,
+    AssessedBridgePosteriorNodeDecisionBundleRecomputation,
+    SequentialPolicyReliabilityNodeBundleRecomputation,
+    /// Checked connected components with a joint fitted action decision.
+    JointComponentPosteriorDecision,
+    /// Bounded transformation of jointly fitted component action worlds.
+    BoundedComponentPosteriorDecision,
+    /// Bundle recomputation of a parameter-posterior decision.
+    PosteriorDecisionBundleRecomputation,
+    /// A bounded graph-selection imputation composite.
+    GraphImputation,
+    /// Graph-imputation effect posterior and downstream utility.
+    GraphImputationEffectDecision,
+    GraphImputationBernoulliPredictiveWorldDecision,
+    GraphImputationGaussianTargetPredictiveWorldDecision,
+    GraphImputationBernoulliPredictiveClusterBootstrapDecision,
+    GraphImputationGaussianPredictiveClusterBootstrapDecision,
+    /// Graph-imputation target standardization and downstream utility.
+    GraphImputationTransportDecision,
+    GraphImputationTransportClusterBootstrapDecision,
+    GraphImputationConfoundedTransportDecision,
+    GraphImputationConfoundedTransportClusterBootstrapDecision,
+    /// Graph-imputation transport over mixed covariates with kernel weights.
+    GraphImputationKernelTransportDecision,
+    GraphImputationKernelTransportClusterBootstrapDecision,
+    GraphImputationConfoundedKernelTransportClusterBootstrapDecision,
+    /// Declared-MAR complete-case weighted target standardization.
+    GraphImputationMarTransportDecision,
+    /// A scientifically closed categorical posterior candidate.
+    CategoricalPosteriorCandidate,
+    /// A fixed declared MNAR operation.
+    MnarFixedShift,
+    /// Latent additive soft-intervention discovery and prediction.
+    LatentSoftIntervention,
+    /// A native event-process or event-world program.
+    EventProcess,
+    /// A fitted joint multi-channel panel response over its declared program worlds.
+    JointPanelResponse,
+    /// A fitted joint panel response under a piecewise or smooth time-varying mechanism.
+    JointPanelTimeVarying,
+    /// A joint panel response pooled over multiply imputed completed panels.
+    JointPanelImputation,
+    /// A search for the best program over a fitted joint panel response.
+    JointPanelProgramSearch,
+    /// Held-out selection of a program from randomized or instrumented candidates.
+    JointPanelProgramSelection,
+    /// An independent experiment conditioning a joint panel or design law, and the decision
+    /// and next-study value read from the conditioned law.
+    JointPanelExperiment,
+    /// A design-native joint functional with its retained design proof.
+    JointDesign,
+}
+
+impl ProgramCell {
+    /// Stable name, written to the supported-route record.
+    #[allow(clippy::too_many_lines, reason = "one exhaustive arm per program cell")]
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Route(cell) => cell.as_str(),
+            Self::CyclicFamily(_) => "CyclicFamily",
+            Self::Planning(_) => "ExperimentPlanning",
+            Self::PropagationChain(_) => "PropagationChain",
+            Self::ObservationalPolicy => "ObservationalPolicy",
+            Self::JointMeasuredObservation => "JointMeasuredObservation",
+            Self::DependentMeasuredObservation => "DependentMeasuredObservation",
+            Self::FittedDependentMeasuredObservation => "FittedDependentMeasuredObservation",
+            Self::CyclicActionWorldDecision => "CyclicActionWorldDecision",
+            Self::CyclicPosteriorActionDecision => "CyclicPosteriorActionDecision",
+            Self::CyclicTargetFeedbackDecision => "CyclicTargetFeedbackDecision",
+            Self::BridgeTransportDecision => "BridgeTransportDecision",
+            Self::BridgeTransportPremiseAssessment => "BridgeTransportPremiseAssessment",
+            Self::AssessedBridgeTransportDecision => "AssessedBridgeTransportDecision",
+            Self::JointTransportEffectDecision => "JointTransportEffectDecision",
+            Self::TrialIpwTransportDecision => "TrialIpwTransportDecision",
+            Self::TrialIpwPredictiveDecision => "TrialIpwPredictiveDecision",
+            Self::JointTransportPredictiveDecision => "JointTransportPredictiveDecision",
+            Self::TemporalPathTransport => "TemporalPathTransport",
+            Self::SamplingAssumptionUnion => "SamplingAssumptionUnion",
+            Self::IidSamplingAssumptionUnion => "IidSamplingAssumptionUnion",
+            Self::ClusterSamplingAssumptionUnion => "ClusterSamplingAssumptionUnion",
+            Self::MovingBlockSamplingAssumptionUnion => "MovingBlockSamplingAssumptionUnion",
+            Self::PolicySubsampling => "PolicySubsampling",
+            Self::SequentialPolicyReliability => "SequentialPolicyReliability",
+            Self::BundleRecomputation => "BundleRecomputation",
+            Self::BridgeBundleRecomputation => "BridgeBundleRecomputation",
+            Self::CyclicPosteriorBundleRecomputation => "CyclicPosteriorBundleRecomputation",
+            Self::CyclicPosteriorNodeBundleRecomputation => {
+                "CyclicPosteriorNodeBundleRecomputation"
+            }
+            Self::TrialIpwNodeBundleRecomputation => "TrialIpwNodeBundleRecomputation",
+            Self::GraphImputationTransportNodeBundleRecomputation => {
+                "GraphImputationTransportNodeBundleRecomputation"
+            }
+            Self::JointTransportEffectNodeBundleRecomputation => {
+                "JointTransportEffectNodeBundleRecomputation"
+            }
+            Self::JointTransportPredictiveNodeDecisionBundleRecomputation => {
+                "JointTransportPredictiveNodeDecisionBundleRecomputation"
+            }
+            Self::TrialIpwPredictiveNodeDecisionBundleRecomputation => {
+                "TrialIpwPredictiveNodeDecisionBundleRecomputation"
+            }
+            Self::CyclicTargetFeedbackNodeDecisionBundleRecomputation => {
+                "CyclicTargetFeedbackNodeDecisionBundleRecomputation"
+            }
+            Self::GraphImputationPredictiveNodeDecisionBundleRecomputation => {
+                "GraphImputationPredictiveNodeDecisionBundleRecomputation"
+            }
+            Self::AssessedBridgePosteriorNodeDecisionBundleRecomputation => {
+                "AssessedBridgePosteriorNodeDecisionBundleRecomputation"
+            }
+            Self::SequentialPolicyReliabilityNodeBundleRecomputation => {
+                "SequentialPolicyReliabilityNodeBundleRecomputation"
+            }
+            Self::JointComponentPosteriorDecision => "JointComponentPosteriorDecision",
+            Self::BoundedComponentPosteriorDecision => "BoundedComponentPosteriorDecision",
+            Self::PosteriorDecisionBundleRecomputation => "PosteriorDecisionBundleRecomputation",
+            Self::GraphImputation => "GraphImputation",
+            Self::GraphImputationEffectDecision => "GraphImputationEffectDecision",
+            Self::GraphImputationBernoulliPredictiveWorldDecision => {
+                "GraphImputationBernoulliPredictiveWorldDecision"
+            }
+            Self::GraphImputationGaussianTargetPredictiveWorldDecision => {
+                "GraphImputationGaussianTargetPredictiveWorldDecision"
+            }
+            Self::GraphImputationBernoulliPredictiveClusterBootstrapDecision => {
+                "GraphImputationBernoulliPredictiveClusterBootstrapDecision"
+            }
+            Self::GraphImputationGaussianPredictiveClusterBootstrapDecision => {
+                "GraphImputationGaussianPredictiveClusterBootstrapDecision"
+            }
+            Self::GraphImputationTransportDecision => "GraphImputationTransportDecision",
+            Self::GraphImputationTransportClusterBootstrapDecision => {
+                "GraphImputationTransportClusterBootstrapDecision"
+            }
+            Self::GraphImputationConfoundedTransportDecision => {
+                "GraphImputationConfoundedTransportDecision"
+            }
+            Self::GraphImputationConfoundedTransportClusterBootstrapDecision => {
+                "GraphImputationConfoundedTransportClusterBootstrapDecision"
+            }
+            Self::GraphImputationKernelTransportDecision => {
+                "GraphImputationKernelTransportDecision"
+            }
+            Self::GraphImputationKernelTransportClusterBootstrapDecision => {
+                "GraphImputationKernelTransportClusterBootstrapDecision"
+            }
+            Self::GraphImputationConfoundedKernelTransportClusterBootstrapDecision => {
+                "GraphImputationConfoundedKernelTransportClusterBootstrapDecision"
+            }
+            Self::GraphImputationMarTransportDecision => "GraphImputationMarTransportDecision",
+            Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
+            Self::MnarFixedShift => "MnarFixedShift",
+            Self::LatentSoftIntervention => "LatentSoftIntervention",
+            Self::EventProcess => "EventProcess",
+            Self::JointPanelResponse => "JointPanelResponse",
+            Self::JointPanelTimeVarying => "JointPanelTimeVarying",
+            Self::JointPanelImputation => "JointPanelImputation",
+            Self::JointPanelProgramSearch => "JointPanelProgramSearch",
+            Self::JointPanelProgramSelection => "JointPanelProgramSelection",
+            Self::JointPanelExperiment => "JointPanelExperiment",
+            Self::JointDesign => "JointDesign",
+        }
+    }
+}
+
+impl PartialEq<ProgramCell> for RouteCell {
+    fn eq(&self, other: &ProgramCell) -> bool {
+        matches!(other, ProgramCell::Route(cell) if cell == self)
+    }
+}
+
+impl PartialEq<RouteCell> for ProgramCell {
+    fn eq(&self, other: &RouteCell) -> bool {
+        matches!(self, ProgramCell::Route(cell) if cell == other)
+    }
+}
+
+/// The program one route lowers to. Every plan `Study::compile` returns carries one.
+#[derive(Clone, Debug)]
+pub struct LoweredProgram {
+    cell: ProgramCell,
+    depth: LoweringDepth,
+    scientific: ScientificProblem,
+    identification: IdentificationLayer,
+    statistical: Arc<StatisticalProgram>,
+    evidence: EvidenceDecisionProgram,
+    physical: PhysicalLayer,
+    claim: ClaimDemand,
+    identity: SemanticDigest,
+    /// Key of the study inputs identification reads, recorded when compile attached the
+    /// program; `None` when the program was not attached to a study or an input has no
+    /// canonical encoding. Not part of the identity.
+    binding: Option<[u8; 32]>,
+}
+
+const _: () = {
+    const fn shared_across_workers<T: Send + Sync>() {}
+    shared_across_workers::<LoweredProgram>();
+};
+
+impl LoweredProgram {
+    /// Name of the compiled route cell this program was lowered for.
+    #[must_use]
+    pub const fn route(&self) -> &'static str {
+        self.cell.as_str()
+    }
+
+    /// Stable family name when this program was lowered for a cyclic family.
+    #[must_use]
+    pub const fn cyclic_family(&self) -> Option<&'static str> {
+        match self.cell {
+            ProgramCell::CyclicFamily(family) => Some(family),
+            ProgramCell::Route(_)
+            | ProgramCell::Planning(_)
+            | ProgramCell::PropagationChain(_)
+            | ProgramCell::ObservationalPolicy
+            | ProgramCell::JointMeasuredObservation
+            | ProgramCell::DependentMeasuredObservation
+            | ProgramCell::FittedDependentMeasuredObservation
+            | ProgramCell::CyclicActionWorldDecision
+            | ProgramCell::CyclicPosteriorActionDecision
+            | ProgramCell::CyclicTargetFeedbackDecision
+            | ProgramCell::BridgeTransportDecision
+            | ProgramCell::BridgeTransportPremiseAssessment
+            | ProgramCell::AssessedBridgeTransportDecision
+            | ProgramCell::TrialIpwTransportDecision
+            | ProgramCell::TrialIpwPredictiveDecision
+            | ProgramCell::JointTransportEffectDecision
+            | ProgramCell::JointTransportPredictiveDecision
+            | ProgramCell::TemporalPathTransport
+            | ProgramCell::SamplingAssumptionUnion
+            | ProgramCell::IidSamplingAssumptionUnion
+            | ProgramCell::ClusterSamplingAssumptionUnion
+            | ProgramCell::MovingBlockSamplingAssumptionUnion
+            | ProgramCell::PolicySubsampling
+            | ProgramCell::SequentialPolicyReliability
+            | ProgramCell::BundleRecomputation
+            | ProgramCell::BridgeBundleRecomputation
+            | ProgramCell::CyclicPosteriorBundleRecomputation
+            | ProgramCell::CyclicPosteriorNodeBundleRecomputation
+            | ProgramCell::TrialIpwNodeBundleRecomputation
+            | ProgramCell::GraphImputationTransportNodeBundleRecomputation
+            | ProgramCell::JointTransportEffectNodeBundleRecomputation
+            | ProgramCell::JointTransportPredictiveNodeDecisionBundleRecomputation
+            | ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation
+            | ProgramCell::CyclicTargetFeedbackNodeDecisionBundleRecomputation
+            | ProgramCell::GraphImputationPredictiveNodeDecisionBundleRecomputation
+            | ProgramCell::AssessedBridgePosteriorNodeDecisionBundleRecomputation
+            | ProgramCell::SequentialPolicyReliabilityNodeBundleRecomputation
+            | ProgramCell::JointComponentPosteriorDecision
+            | ProgramCell::BoundedComponentPosteriorDecision
+            | ProgramCell::PosteriorDecisionBundleRecomputation
+            | ProgramCell::GraphImputation
+            | ProgramCell::GraphImputationEffectDecision
+            | ProgramCell::GraphImputationBernoulliPredictiveWorldDecision
+            | ProgramCell::GraphImputationGaussianTargetPredictiveWorldDecision
+            | ProgramCell::GraphImputationBernoulliPredictiveClusterBootstrapDecision
+            | ProgramCell::GraphImputationGaussianPredictiveClusterBootstrapDecision
+            | ProgramCell::GraphImputationConfoundedTransportDecision
+            | ProgramCell::GraphImputationTransportDecision
+            | ProgramCell::GraphImputationTransportClusterBootstrapDecision
+            | ProgramCell::GraphImputationConfoundedTransportClusterBootstrapDecision
+            | ProgramCell::GraphImputationKernelTransportDecision
+            | ProgramCell::GraphImputationKernelTransportClusterBootstrapDecision
+            | ProgramCell::GraphImputationConfoundedKernelTransportClusterBootstrapDecision
+            | ProgramCell::GraphImputationMarTransportDecision
+            | ProgramCell::CategoricalPosteriorCandidate
+            | ProgramCell::MnarFixedShift
+            | ProgramCell::LatentSoftIntervention
+            | ProgramCell::EventProcess
+            | ProgramCell::JointPanelResponse
+            | ProgramCell::JointPanelTimeVarying
+            | ProgramCell::JointPanelImputation
+            | ProgramCell::JointPanelProgramSearch
+            | ProgramCell::JointPanelProgramSelection
+            | ProgramCell::JointPanelExperiment
+            | ProgramCell::JointDesign => None,
+        }
+    }
+
+    /// Stable design name when this program was lowered for a standalone experiment plan.
+    #[must_use]
+    pub const fn planned_design(&self) -> Option<&'static str> {
+        match self.cell {
+            ProgramCell::Planning(design) => Some(design),
+            ProgramCell::Route(_)
+            | ProgramCell::CyclicFamily(_)
+            | ProgramCell::PropagationChain(_)
+            | ProgramCell::ObservationalPolicy
+            | ProgramCell::JointMeasuredObservation
+            | ProgramCell::DependentMeasuredObservation
+            | ProgramCell::FittedDependentMeasuredObservation
+            | ProgramCell::CyclicActionWorldDecision
+            | ProgramCell::CyclicPosteriorActionDecision
+            | ProgramCell::CyclicTargetFeedbackDecision
+            | ProgramCell::BridgeTransportDecision
+            | ProgramCell::BridgeTransportPremiseAssessment
+            | ProgramCell::AssessedBridgeTransportDecision
+            | ProgramCell::TrialIpwTransportDecision
+            | ProgramCell::TrialIpwPredictiveDecision
+            | ProgramCell::JointTransportEffectDecision
+            | ProgramCell::JointTransportPredictiveDecision
+            | ProgramCell::TemporalPathTransport
+            | ProgramCell::SamplingAssumptionUnion
+            | ProgramCell::IidSamplingAssumptionUnion
+            | ProgramCell::ClusterSamplingAssumptionUnion
+            | ProgramCell::MovingBlockSamplingAssumptionUnion
+            | ProgramCell::PolicySubsampling
+            | ProgramCell::SequentialPolicyReliability
+            | ProgramCell::BundleRecomputation
+            | ProgramCell::BridgeBundleRecomputation
+            | ProgramCell::CyclicPosteriorBundleRecomputation
+            | ProgramCell::CyclicPosteriorNodeBundleRecomputation
+            | ProgramCell::TrialIpwNodeBundleRecomputation
+            | ProgramCell::GraphImputationTransportNodeBundleRecomputation
+            | ProgramCell::JointTransportEffectNodeBundleRecomputation
+            | ProgramCell::JointTransportPredictiveNodeDecisionBundleRecomputation
+            | ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation
+            | ProgramCell::CyclicTargetFeedbackNodeDecisionBundleRecomputation
+            | ProgramCell::GraphImputationPredictiveNodeDecisionBundleRecomputation
+            | ProgramCell::AssessedBridgePosteriorNodeDecisionBundleRecomputation
+            | ProgramCell::SequentialPolicyReliabilityNodeBundleRecomputation
+            | ProgramCell::JointComponentPosteriorDecision
+            | ProgramCell::BoundedComponentPosteriorDecision
+            | ProgramCell::PosteriorDecisionBundleRecomputation
+            | ProgramCell::GraphImputation
+            | ProgramCell::GraphImputationEffectDecision
+            | ProgramCell::GraphImputationBernoulliPredictiveWorldDecision
+            | ProgramCell::GraphImputationGaussianTargetPredictiveWorldDecision
+            | ProgramCell::GraphImputationBernoulliPredictiveClusterBootstrapDecision
+            | ProgramCell::GraphImputationGaussianPredictiveClusterBootstrapDecision
+            | ProgramCell::GraphImputationConfoundedTransportDecision
+            | ProgramCell::GraphImputationTransportDecision
+            | ProgramCell::GraphImputationTransportClusterBootstrapDecision
+            | ProgramCell::GraphImputationConfoundedTransportClusterBootstrapDecision
+            | ProgramCell::GraphImputationKernelTransportDecision
+            | ProgramCell::GraphImputationKernelTransportClusterBootstrapDecision
+            | ProgramCell::GraphImputationConfoundedKernelTransportClusterBootstrapDecision
+            | ProgramCell::GraphImputationMarTransportDecision
+            | ProgramCell::CategoricalPosteriorCandidate
+            | ProgramCell::MnarFixedShift
+            | ProgramCell::LatentSoftIntervention
+            | ProgramCell::EventProcess
+            | ProgramCell::JointPanelResponse
+            | ProgramCell::JointPanelTimeVarying
+            | ProgramCell::JointPanelImputation
+            | ProgramCell::JointPanelProgramSearch
+            | ProgramCell::JointPanelProgramSelection
+            | ProgramCell::JointPanelExperiment
+            | ProgramCell::JointDesign => None,
+        }
+    }
+
+    /// The reading a propagation chain answers when this program was lowered for one.
+    #[must_use]
+    pub const fn chain_reading(&self) -> Option<&'static str> {
+        match self.cell {
+            ProgramCell::PropagationChain(reading) => Some(reading),
+            ProgramCell::Route(_)
+            | ProgramCell::CyclicFamily(_)
+            | ProgramCell::Planning(_)
+            | ProgramCell::ObservationalPolicy
+            | ProgramCell::JointMeasuredObservation
+            | ProgramCell::DependentMeasuredObservation
+            | ProgramCell::FittedDependentMeasuredObservation
+            | ProgramCell::CyclicActionWorldDecision
+            | ProgramCell::CyclicPosteriorActionDecision
+            | ProgramCell::CyclicTargetFeedbackDecision
+            | ProgramCell::BridgeTransportDecision
+            | ProgramCell::BridgeTransportPremiseAssessment
+            | ProgramCell::AssessedBridgeTransportDecision
+            | ProgramCell::TrialIpwTransportDecision
+            | ProgramCell::TrialIpwPredictiveDecision
+            | ProgramCell::JointTransportEffectDecision
+            | ProgramCell::JointTransportPredictiveDecision
+            | ProgramCell::TemporalPathTransport
+            | ProgramCell::SamplingAssumptionUnion
+            | ProgramCell::IidSamplingAssumptionUnion
+            | ProgramCell::ClusterSamplingAssumptionUnion
+            | ProgramCell::MovingBlockSamplingAssumptionUnion
+            | ProgramCell::PolicySubsampling
+            | ProgramCell::SequentialPolicyReliability
+            | ProgramCell::BundleRecomputation
+            | ProgramCell::BridgeBundleRecomputation
+            | ProgramCell::CyclicPosteriorBundleRecomputation
+            | ProgramCell::CyclicPosteriorNodeBundleRecomputation
+            | ProgramCell::TrialIpwNodeBundleRecomputation
+            | ProgramCell::GraphImputationTransportNodeBundleRecomputation
+            | ProgramCell::JointTransportEffectNodeBundleRecomputation
+            | ProgramCell::JointTransportPredictiveNodeDecisionBundleRecomputation
+            | ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation
+            | ProgramCell::CyclicTargetFeedbackNodeDecisionBundleRecomputation
+            | ProgramCell::GraphImputationPredictiveNodeDecisionBundleRecomputation
+            | ProgramCell::AssessedBridgePosteriorNodeDecisionBundleRecomputation
+            | ProgramCell::SequentialPolicyReliabilityNodeBundleRecomputation
+            | ProgramCell::JointComponentPosteriorDecision
+            | ProgramCell::BoundedComponentPosteriorDecision
+            | ProgramCell::PosteriorDecisionBundleRecomputation
+            | ProgramCell::GraphImputation
+            | ProgramCell::GraphImputationEffectDecision
+            | ProgramCell::GraphImputationBernoulliPredictiveWorldDecision
+            | ProgramCell::GraphImputationGaussianTargetPredictiveWorldDecision
+            | ProgramCell::GraphImputationBernoulliPredictiveClusterBootstrapDecision
+            | ProgramCell::GraphImputationGaussianPredictiveClusterBootstrapDecision
+            | ProgramCell::GraphImputationConfoundedTransportDecision
+            | ProgramCell::GraphImputationTransportDecision
+            | ProgramCell::GraphImputationTransportClusterBootstrapDecision
+            | ProgramCell::GraphImputationConfoundedTransportClusterBootstrapDecision
+            | ProgramCell::GraphImputationKernelTransportDecision
+            | ProgramCell::GraphImputationKernelTransportClusterBootstrapDecision
+            | ProgramCell::GraphImputationConfoundedKernelTransportClusterBootstrapDecision
+            | ProgramCell::GraphImputationMarTransportDecision
+            | ProgramCell::CategoricalPosteriorCandidate
+            | ProgramCell::MnarFixedShift
+            | ProgramCell::LatentSoftIntervention
+            | ProgramCell::EventProcess
+            | ProgramCell::JointPanelResponse
+            | ProgramCell::JointPanelTimeVarying
+            | ProgramCell::JointPanelImputation
+            | ProgramCell::JointPanelProgramSearch
+            | ProgramCell::JointPanelProgramSelection
+            | ProgramCell::JointPanelExperiment
+            | ProgramCell::JointDesign => None,
+        }
+    }
+
+    /// The propagation chain this program was lowered from, when it was lowered
+    /// for one.
+    #[must_use]
+    pub fn propagation_chain(&self) -> Option<&ChainProgram> {
+        self.evidence.chain()
+    }
+
+    /// How far this route's lowering has been carried.
+    #[must_use]
+    pub const fn depth(&self) -> LoweringDepth {
+        self.depth
+    }
+
+    /// Layer one.
+    #[must_use]
+    pub const fn scientific(&self) -> &ScientificProblem {
+        &self.scientific
+    }
+
+    /// Whether layer two retains an identification product compiled with the program.
+    #[must_use]
+    pub const fn identification_retained(&self) -> bool {
+        matches!(self.identification, IdentificationLayer::Retained(_))
+    }
+
+    /// Identification retained at compile, for preparation to install.
+    pub(crate) fn retained_identification(&self) -> Option<&RetainedIdentification> {
+        match &self.identification {
+            IdentificationLayer::Retained(retained) => Some(retained),
+            IdentificationLayer::Deferred { .. }
+            | IdentificationLayer::PerExecution { .. }
+            | IdentificationLayer::NotClaimed { .. }
+            | IdentificationLayer::NonGraphical(_) => None,
+        }
+    }
+
+    /// The not-identified product a deferred layer two retained, when the refusal came from
+    /// a route that reads one.
+    pub(crate) fn refused_identification(&self) -> Option<&IdentificationResult> {
+        match &self.identification {
+            IdentificationLayer::Deferred { failure, .. } => failure.as_deref(),
+            IdentificationLayer::Retained(_)
+            | IdentificationLayer::PerExecution { .. }
+            | IdentificationLayer::NotClaimed { .. }
+            | IdentificationLayer::NonGraphical(_) => None,
+        }
+    }
+
+    /// Layer two as compile lowered it.
+    pub(crate) const fn identification_layer(&self) -> &IdentificationLayer {
+        &self.identification
+    }
+
+    /// Identification of a feedback program, when layer two carries one.
+    pub(crate) fn non_graphical_identification(&self) -> Option<&NonGraphicalIdentification> {
+        match &self.identification {
+            IdentificationLayer::NonGraphical(identification) => Some(identification),
+            IdentificationLayer::Deferred { .. }
+            | IdentificationLayer::PerExecution { .. }
+            | IdentificationLayer::NotClaimed { .. }
+            | IdentificationLayer::Retained(_) => None,
+        }
+    }
+
+    /// Layer three.
+    #[must_use]
+    pub fn statistical(&self) -> &StatisticalProgram {
+        &self.statistical
+    }
+
+    /// Layer four.
+    #[must_use]
+    pub const fn evidence(&self) -> &EvidenceDecisionProgram {
+        &self.evidence
+    }
+
+    /// Layer five.
+    #[must_use]
+    pub const fn physical(&self) -> &PhysicalLayer {
+        &self.physical
+    }
+
+    /// The program with `operators` appended to its physical layer. The physical layer
+    /// stays out of the identity, so the program's identity does not move.
+    pub(crate) fn with_physical_operators(mut self, operators: Vec<PhysicalOperator>) -> Self {
+        let mut all = self.physical.operators.to_vec();
+        all.extend(operators);
+        self.physical.operators = Arc::from(all);
+        self
+    }
+
+    /// The program with the key of the study it was compiled for.
+    pub(crate) fn with_binding(mut self, binding: Option<[u8; 32]>) -> Self {
+        self.binding = binding;
+        self
+    }
+
+    /// Key of the study this program was compiled for, when it recorded one.
+    pub(crate) const fn binding(&self) -> Option<[u8; 32]> {
+        self.binding
+    }
+
+    /// Layer six.
+    #[must_use]
+    pub const fn claim(&self) -> &ClaimDemand {
+        &self.claim
+    }
+
+    /// Fingerprint over layers one to four and six. For a runtime callback this
+    /// identifies only the declaration, not the callback binding, state or behavior.
+    #[must_use]
+    pub const fn identity_scope(&self) -> ProgramIdentityScope {
+        self.scientific.identity_scope
+    }
+
+    /// Whether this plan belongs to the query's live callback bindings.
+    pub(crate) fn accepts_live_query(&self, query: &antecedent_core::CausalQuery) -> bool {
+        match &self.scientific.runtime_query {
+            Some(original) => original == query,
+            None => !crate::analysis::lowering::has_runtime_callback(query),
+        }
+    }
+
+    /// Authoritative semantic identity, absent for runtime callback declarations.
+    #[must_use]
+    pub const fn semantic_identity(&self) -> Option<SemanticDigest> {
+        match self.identity_scope() {
+            ProgramIdentityScope::Semantic => Some(self.identity),
+            ProgramIdentityScope::RuntimeCallbackDeclarationOnly => None,
+        }
+    }
+
+    /// Fingerprint over layers one to four and six; see [`Self::identity_scope`].
+    #[must_use]
+    pub const fn identity(&self) -> SemanticDigest {
+        self.identity
+    }
+
+    /// Program cell, for dispatch verification. A cyclic family's program never
+    /// equals a route cell, so route dispatch refuses it.
+    pub(crate) const fn cell(&self) -> ProgramCell {
+        self.cell
+    }
+}
+
+/// Stable `snake_case` name of a data classification.
+pub(crate) const fn data_classification_name(data: DataClassification) -> &'static str {
+    match data {
+        DataClassification::Tabular => "tabular",
+        DataClassification::Temporal => "temporal",
+        DataClassification::Panel => "panel",
+        DataClassification::MultiEnvironment => "multi_environment",
+        DataClassification::Event => "event",
+    }
+}
+
+fn hex(digest: &[u8; 32]) -> String {
+    SemanticDigest::from_bytes(*digest).to_hex()
+}

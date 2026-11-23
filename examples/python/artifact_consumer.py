@@ -1,7 +1,12 @@
-"""Consume scientific bytes against a separately retained identity.
+"""Load a saved result against an identity that was retained apart from its bytes.
 
-Use --input for a producer's directory. With no arguments, create a temporary
-producer fixture and demonstrate valid consumption and two invalid requests.
+With no arguments the script runs artifact_producer.py into a temporary directory (a
+simulated randomized effect of 2), loads the bytes under the retained identity, and asserts
+that two invalid requests refuse: the right bytes against a different expected identity, and
+bytes that are not an artifact. Loading checks that the artifact is intact and bound to the
+expected identity; it recomputes nothing and does not recreate a live study or its data.
+
+Run: python examples/python/artifact_consumer.py [--input PRODUCER_DIRECTORY]
 """
 
 import argparse
@@ -21,7 +26,8 @@ def consume(directory):
     assert loaded.acceptance.identity_bound
     print("Consumer effect:", loaded.answer.value)
     print("Acceptance:", loaded.acceptance)
-    # Obtain a different valid expected identity, rather than guessing a field.
+    # A different analysis supplies a well-formed identity that these bytes do not match, so
+    # the refusal below is an identity mismatch and not a malformed expectation.
     import numpy as np
 
     t = np.array([0.0, 1.0] * 80)
@@ -29,13 +35,13 @@ def consume(directory):
         {"t": t, "y": 3 * t},
         graph=[("t", "y")],
         query=ant.AverageEffect("t", "y"),
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
         refute=False,
-    ).artifact()
+    ).export()
     wrong_expected = different.expectation
     for label, content, identity in [
         ("wrong identity", data, wrong_expected),
-        ("altered bytes", b"not-an-artifact", expected),
+        ("malformed bytes", b"not-an-artifact", expected),
     ]:
         try:
             ant.load(content, expected=identity)

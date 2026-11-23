@@ -2,9 +2,15 @@
 //!
 //! The nuisance predictions and policy actions are frozen on the evaluation
 //! rows; prediction ownership is retained as caller-declared metadata.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::QueryError;
+use super::fault::PolicyValueFault;
+use super::probability::{compensated_sum, row_totals_one, within_budget};
+use crate::canonical_encode::{
+    CanonicalEncode, count, encode_flags, encode_option, encode_usizes, flag,
+};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 use std::sync::Arc;
 
@@ -39,6 +45,23 @@ pub struct MultiActionPolicyInputs {
     pub cate_groups: Arc<[Arc<str>]>,
 }
 
+/// Every field is written. Row-, action- and row-by-action-aligned arrays keep
+/// their order; the action labels keep their positions (actions index them).
+impl CanonicalEncode for MultiActionPolicyInputs {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer.texts(&self.action_labels);
+        encode_usizes(writer, &self.assignment);
+        encode_usizes(writer, &self.actions);
+        encode_usizes(writer, &self.reference);
+        writer.reals(&self.propensities);
+        encode_flags(writer, &self.available);
+        writer.reals(&self.costs).reals(&self.reference_costs);
+        encode_usizes(writer, &self.capacities);
+        encode_usizes(writer, &self.reference_capacities);
+        writer.opt_real(self.budget).opt_real(self.reference_budget).texts(&self.cate_groups);
+    }
+}
+
 impl MultiActionPolicyInputs {
     /// Whether capacities or budgets can couple recommendations across rows.
     /// An unconstraining declared limit is harmless to row-score inference.
@@ -54,7 +77,7 @@ impl MultiActionPolicyInputs {
             capacities.iter().any(|&limit| limit < n)
                 || budget.is_some_and(|limit| {
                     let maximum_cost = costs.iter().copied().fold(0.0_f64, f64::max);
-                    limit + 1e-12 < n as f64 * maximum_cost
+                    !within_budget(n as f64 * maximum_cost, limit)
                 })
         })
     }
@@ -91,10 +114,7 @@ impl MultiActionPolicyInputs {
                 && (self.cate_groups.len() != n
                     || self.cate_groups.iter().any(|group| group.trim().is_empty())))
         {
-            return Err(QueryError::InvalidPolicyValue(
-                "multi-action policy rows, labels, probabilities, and constraints must align"
-                    .into(),
-            ));
+            return Err(QueryError::InvalidPolicyValue(PolicyValueFault::MultiActionAlignment));
         }
         if self.costs.iter().chain(self.reference_costs.iter()).any(|x| !x.is_finite() || *x < 0.0)
             || [self.budget, self.reference_budget]
@@ -102,11 +122,10 @@ impl MultiActionPolicyInputs {
                 .flatten()
                 .any(|x| !x.is_finite() || x < 0.0)
             || self.propensities.chunks_exact(k).any(|row| {
-                row.iter().any(|p| !p.is_finite() || *p <= 0.0 || *p > 1.0)
-                    || (row.iter().sum::<f64>() - 1.0).abs() > 1e-8
+                row.iter().any(|p| !p.is_finite() || *p <= 0.0 || *p > 1.0) || !row_totals_one(row)
             })
         {
-            return Err(QueryError::InvalidPolicyValue("multi-action probabilities must be positive and sum to one; costs and budgets must be finite and non-negative".into()));
+            return Err(QueryError::InvalidPolicyValue(PolicyValueFault::MultiActionProbabilities));
         }
         for (recommendations, costs, capacities, budget) in [
             (&self.actions, &self.costs, &self.capacities, self.budget),
@@ -118,21 +137,20 @@ impl MultiActionPolicyInputs {
             ),
         ] {
             let mut counts = vec![0usize; k];
-            let mut total_cost = 0.0;
             for (i, &action) in recommendations.iter().enumerate() {
                 if !self.available[i * k + action] {
                     return Err(QueryError::InvalidPolicyValue(
-                        "policy selects an unavailable action".into(),
+                        PolicyValueFault::UnavailableAction,
                     ));
                 }
                 counts[action] += 1;
-                total_cost += costs[action];
             }
+            let total_cost = compensated_sum(recommendations.iter().map(|&action| costs[action]));
             if counts.iter().zip(capacities.iter()).any(|(count, limit)| count > limit)
-                || budget.is_some_and(|limit| total_cost > limit + 1e-12)
+                || budget.is_some_and(|limit| !within_budget(total_cost, limit))
             {
                 return Err(QueryError::InvalidPolicyValue(
-                    "policy exceeds its action capacity or budget".into(),
+                    PolicyValueFault::ActionCapacityExceeded,
                 ));
             }
         }
@@ -143,7 +161,7 @@ impl MultiActionPolicyInputs {
 /// Exact graphless coordinate (design, method, inference claim) for a policy
 /// value result, given the structural flags of the executed query. The same
 /// mapping is used by execution, contract emission, and artifact validation so
-/// the licensed coordinate is computed identically everywhere.
+/// the supported coordinate is computed identically everywhere.
 ///
 /// `regret` takes precedence (finite-class simultaneous claim), then the
 /// multi-action and uplift shapes, then the binary IPW/AIPW distinction, with
@@ -152,7 +170,7 @@ impl MultiActionPolicyInputs {
 #[must_use]
 #[allow(
     clippy::fn_params_excessive_bools,
-    reason = "each flag is an independent structural property of the executed query, decided upstream; they select one exact license coordinate and are not a refactorable state object"
+    reason = "each flag is an independent structural property of the executed query, decided upstream; they select one exact support coordinate and are not a refactorable state object"
 )]
 pub fn policy_graphless_coordinate(
     multi: bool,
@@ -261,6 +279,44 @@ pub struct FixedCandidateRegretInputs {
     pub training_subject_ids: Arc<[Arc<str>]>,
 }
 
+/// Every field is written, including the caller-declared ownership flags (they
+/// select the supported estimator). Row-aligned arrays keep their order; the
+/// subject-id lists keep their declared order as well (conservatively, although
+/// they are only checked for disjointness).
+impl CanonicalEncode for PolicyValueQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.outcome.encode(writer);
+        encode_flags(writer, &self.assignment);
+        writer.reals(&self.propensity);
+        encode_flags(writer, &self.actions);
+        encode_flags(writer, &self.reference);
+        writer
+            .reals(&self.mu0)
+            .reals(&self.mu1)
+            .reals(&self.costs)
+            .reals(&self.reference_costs)
+            .texts(&self.evaluation_subject_ids)
+            .word(flag(self.disjoint_training_subjects))
+            .word(flag(self.crossfit_fold_ownership_valid))
+            .word(flag(self.global_constraints_present));
+        encode_option(writer, self.multi_action.as_ref());
+        encode_usizes(writer, &self.uplift_bins);
+        writer.word(count(self.uplift_bin_count)).texts(&self.uplift_training_subject_ids);
+        encode_option(writer, self.regret.as_ref());
+    }
+}
+
+/// Candidates keep their prespecified order (`selected_index` points into it).
+impl CanonicalEncode for FixedCandidateRegretInputs {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer.word(count(self.candidates.len()));
+        for candidate in self.candidates.iter() {
+            encode_flags(writer, candidate);
+        }
+        writer.word(count(self.selected_index)).texts(&self.training_subject_ids);
+    }
+}
+
 impl PolicyValueQuery {
     /// Validate frozen row-aligned policy value inputs and positivity.
     ///
@@ -304,7 +360,7 @@ impl PolicyValueQuery {
                     .len()
                     != multi.assignment.len()
             {
-                return Err(QueryError::InvalidPolicyValue("multi-action policy must carry only multi-action inputs and unique evaluation subject IDs".into()));
+                return Err(QueryError::InvalidPolicyValue(PolicyValueFault::MultiActionInputs));
             }
             return multi.validate();
         }
@@ -319,15 +375,13 @@ impl PolicyValueQuery {
             || !(self.costs.len() == 1 || self.costs.len() == n)
             || !(self.reference_costs.len() == 1 || self.reference_costs.len() == n)
         {
-            return Err(QueryError::InvalidPolicyValue(
-                "policy, outcome predictions, ownership IDs, and assignment must align on at least two rows".into(),
-            ));
+            return Err(QueryError::InvalidPolicyValue(PolicyValueFault::BinaryAlignment));
         }
         if self.propensity.iter().any(|p| !p.is_finite() || *p <= 0.0 || *p >= 1.0) {
-            return Err(QueryError::InvalidPolicyValue(
-                "randomized propensities must be finite and strictly between zero and one".into(),
-            ));
+            return Err(QueryError::InvalidPolicyValue(PolicyValueFault::PropensityRange));
         }
+        let evaluation_ids =
+            self.evaluation_subject_ids.iter().collect::<std::collections::HashSet<_>>();
         if self.mu0.iter().chain(self.mu1.iter()).any(|x| !x.is_finite())
             || self
                 .costs
@@ -335,24 +389,16 @@ impl PolicyValueQuery {
                 .chain(self.reference_costs.iter())
                 .any(|x| !x.is_finite() || *x < 0.0)
             || self.evaluation_subject_ids.iter().any(|id| id.trim().is_empty())
-            || self.evaluation_subject_ids.iter().collect::<std::collections::HashSet<_>>().len()
-                != n
+            || evaluation_ids.len() != n
         {
-            return Err(QueryError::InvalidPolicyValue(
-                "predictions, costs, and unique non-empty evaluation subject IDs must be valid"
-                    .into(),
-            ));
+            return Err(QueryError::InvalidPolicyValue(PolicyValueFault::PredictionInputs));
         }
         if ipw && (self.disjoint_training_subjects || self.crossfit_fold_ownership_valid) {
-            return Err(QueryError::InvalidPolicyValue(
-                "IPW has no nuisance prediction ownership metadata".into(),
-            ));
+            return Err(QueryError::InvalidPolicyValue(PolicyValueFault::IpwOwnershipMetadata));
         }
         if self.uplift_bin_count == 0 {
             if !self.uplift_bins.is_empty() || !self.uplift_training_subject_ids.is_empty() {
-                return Err(QueryError::InvalidPolicyValue(
-                    "uplift bins and training subjects require a positive bin count".into(),
-                ));
+                return Err(QueryError::InvalidPolicyValue(PolicyValueFault::UpliftBinCount));
             }
         } else if self.uplift_bins.len() != n
             || self.uplift_bin_count > n
@@ -360,23 +406,28 @@ impl PolicyValueQuery {
             || self
                 .uplift_training_subject_ids
                 .iter()
-                .any(|id| id.trim().is_empty() || self.evaluation_subject_ids.contains(id))
+                .any(|id| id.trim().is_empty() || evaluation_ids.contains(id))
             || self
                 .uplift_training_subject_ids
                 .iter()
                 .collect::<std::collections::HashSet<_>>()
                 .len()
                 != self.uplift_training_subject_ids.len()
-            || self.uplift_bins.iter().any(|&bin| bin >= self.uplift_bin_count)
-            || (0..self.uplift_bin_count)
-                .any(|bin| self.uplift_bins.iter().filter(|&&x| x == bin).count() < 2)
+            || {
+                let mut counts = vec![0usize; self.uplift_bin_count];
+                self.uplift_bins.iter().any(|&bin| match counts.get_mut(bin) {
+                    Some(count) => {
+                        *count += 1;
+                        false
+                    }
+                    None => true,
+                }) || counts.iter().any(|&count| count < 2)
+            }
         {
-            return Err(QueryError::InvalidPolicyValue("uplift bins must cover evaluation rows and each bin; declared training subjects must be unique and disjoint".into()));
+            return Err(QueryError::InvalidPolicyValue(PolicyValueFault::UpliftBinCoverage));
         }
         if !(ipw || self.disjoint_training_subjects || self.crossfit_fold_ownership_valid) {
-            return Err(QueryError::InvalidPolicyValue(
-                "prediction ownership requires disjoint training IDs or matching excluded-fold metadata".into(),
-            ));
+            return Err(QueryError::InvalidPolicyValue(PolicyValueFault::PredictionOwnership));
         }
         if let Some(regret) = &self.regret {
             let training = &regret.training_subject_ids;
@@ -388,14 +439,10 @@ impl PolicyValueQuery {
                 || regret.candidates.iter().any(|actions| actions.len() != n)
                 || regret.candidates[regret.selected_index].as_ref() != self.actions.as_ref()
                 || training.is_empty()
-                || training
-                    .iter()
-                    .any(|id| id.trim().is_empty() || self.evaluation_subject_ids.contains(id))
+                || training.iter().any(|id| id.trim().is_empty() || evaluation_ids.contains(id))
                 || training.iter().collect::<std::collections::HashSet<_>>().len() != training.len()
             {
-                return Err(QueryError::InvalidPolicyValue(
-                    "finite-class regret requires 2–16 fixed IPW candidates, selected-policy equality, and disjoint construction subjects".into(),
-                ));
+                return Err(QueryError::InvalidPolicyValue(PolicyValueFault::FiniteClassRegret));
             }
         }
         Ok(())
@@ -431,7 +478,25 @@ mod tests {
 
     #[test]
     fn accepts_aligned_held_out_contract() {
+        // Acceptance baseline for the refusal tests that mutate this query.
         assert!(valid().validate().is_ok());
+    }
+
+    #[test]
+    fn uplift_bins_require_coverage_and_disjoint_training() {
+        let mut query = valid();
+        query.uplift_bin_count = 1;
+        query.uplift_bins = Arc::from([0, 0]);
+        query.uplift_training_subject_ids = Arc::from([Arc::<str>::from("training")]);
+        assert!(query.validate().is_ok());
+        query.uplift_bins = Arc::from([0, 1]);
+        assert!(query.validate().is_err());
+        query.uplift_bin_count = 2;
+        assert!(query.validate().is_err());
+        query.uplift_bin_count = 1;
+        query.uplift_bins = Arc::from([0, 0]);
+        query.uplift_training_subject_ids = Arc::from([Arc::<str>::from("a")]);
+        assert!(query.validate().is_err());
     }
 
     #[test]

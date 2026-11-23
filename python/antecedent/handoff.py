@@ -16,8 +16,14 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 
 import numpy as np
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._digest import canonical_digest
-from .errors import CausalError
+from .errors import CausalError, CausalTypeError
 from .estimation import IdentifyResult
 from .extensibility import ProviderRefusal, ProviderValueRefusal
 from .extensibility import _refuse as _provider_refuse
@@ -187,6 +193,8 @@ class AdjustmentHandoff:
         Offset k selects row origin+k. Boundary rows are trimmed, never wrapped.
         ``origins`` identifies retained rows relative to the input series; separate
         subjects must be aligned separately to avoid crossing panel boundaries.
+        Missing outcomes remain NaN for exceedance functionals, leaving missing-data
+        handling to the caller just as for raw outcomes.
         """
         if layout not in ("econml", "named"):
             raise _refuse(
@@ -256,12 +264,20 @@ class AdjustmentHandoff:
             functional = coerce_outcome_functional(self.outcome_functional)
             if functional is not None:
                 y = np.asarray(cols["Y"])
-                if functional["kind"] == "exceedance":
-                    cols["Y"] = (y > float(cast(float, functional["threshold"]))).astype(float)
-                elif functional["kind"] == "exceedance_grid":
-                    cols["Y"] = np.column_stack(
-                        [(y > c).astype(float) for c in cast(list[float], functional["thresholds"])]
-                    )
+                if functional["kind"] in ("exceedance", "exceedance_grid"):
+                    # NaN compares false to every threshold, but an unknown outcome
+                    # is not a known non-event. Preserve it for the caller.
+                    missing_y = np.not_equal(y, y)
+
+                    def event(threshold: float) -> np.ndarray:
+                        return np.where(missing_y, np.nan, (y > threshold).astype(float))
+
+                    if functional["kind"] == "exceedance":
+                        cols["Y"] = event(float(cast(float, functional["threshold"])))
+                    else:
+                        cols["Y"] = np.column_stack(
+                            [event(c) for c in cast(list[float], functional["thresholds"])]
+                        )
         if self.target_weights is not None:
             weights = np.asarray(self.target_weights, dtype=float)
             if (
@@ -504,7 +520,7 @@ class AdjustmentProviderAdapter:
                 "tool": tool,
                 "claim_id": receipt.claim_id,
             },
-            artifact=receipt.export(),
+            artifact=bytes(receipt.export()),
         )
 
 
@@ -552,7 +568,7 @@ class ExternalEstimate:
         """The external execution (learner, version, snapshot) that supplied the value."""
         return None if self._claim is None else self._claim.provenance_label
 
-    def export_claim(self, *, artifact_id: str = "external-claim") -> bytes:
+    def _export_claim(self, *, artifact_id: str = "external-claim") -> ExportedArtifact:
         """The bound claim as an ``external_response_claim_v1`` artifact.
 
         :meth:`export` keeps the attested-estimate receipt. Reload this one with
@@ -567,11 +583,11 @@ class ExternalEstimate:
                 offending="label",
                 remedy="attach the effect with label='ate' or label='cate'",
             )
-        return cast(bytes, self._claim.export(artifact_id=artifact_id))
+        return artifact_from_receipt(self._claim, self._claim.export(artifact_id=artifact_id))
 
     @property
     def trust(self):
-        """Caller attestation. Never ``verified_extension`` or ``native_licensed``."""
+        """Caller attestation. Never ``verified_extension`` or ``native_supported``."""
         from .extensibility import ProviderTrust
 
         return ProviderTrust.EXTERNALLY_ATTESTED
@@ -643,15 +659,25 @@ class ExternalEstimate:
             ReasoningSlots.from_result_section(self._contract, calibration=self.calibration)
         )
 
-    def export(self, *, artifact_id: str = "external-estimate") -> bytes:
-        if artifact_id != "external-estimate":
+    @artifact_export
+    def export(
+        self, *, quantity: Literal["estimate", "claim"] = "estimate", artifact_id: str | None = None
+    ) -> ExportedArtifact:
+        """Export the attested receipt or its separately bound response claim."""
+        if quantity == "claim":
+            return self._export_claim(
+                artifact_id="external-claim" if artifact_id is None else artifact_id
+            )
+        if quantity != "estimate":
+            raise CausalTypeError("quantity must be 'estimate' or 'claim'")
+        if artifact_id not in (None, "external-estimate"):
             raise _refuse(
                 "handoff.artifact_id_immutable",
                 "An attested external estimate is immutable; its artifact ID cannot be rewritten.",
                 offending="artifact_id",
                 remedy="export the receipt unchanged, or attach the estimate again",
             )
-        return self._bytes
+        return artifact_from_receipt(self, self._bytes)
 
     def __repr__(self) -> str:
         return f"<ExternalEstimate claim_id={self.claim_id[:12]} calibration={self.calibration.status}>"
@@ -671,7 +697,7 @@ def adjustment(
 ) -> AdjustmentHandoff:
     """Emit an adjustment-set handoff, or refuse.
 
-    Licensed only for point-identified backdoor / generalized-adjustment
+    Supported only for point-identified backdoor / generalized-adjustment
     estimands on an explicit or accepted graph. Front-door, IV, general ID,
     general temporal ID functionals,
     partial identification, and graph-posterior mixtures refuse rather than
@@ -787,7 +813,7 @@ def _modifier_set(
 ) -> tuple[str, ...]:
     if modifiers is None:
         single = getattr(query, "modifier", None)
-        many = getattr(query, "effect_modifiers", None)
+        many = getattr(query, "modifiers", None) or getattr(query, "effect_modifiers", None)
         if isinstance(single, str):
             return (single,)
         if many:
@@ -921,6 +947,9 @@ def _bind_claim(
     quantity (functional ``cate``) bound as a column, so a CATE of any length is a
     single claim and never one coordinate per row.
     """
+    config = container_bytes(config)
+    payload = container_bytes(payload)
+    snapshot_payload = container_bytes(snapshot_payload) if snapshot_payload is not None else None
     from dataclasses import replace
 
     from . import _native

@@ -7,15 +7,18 @@ use super::{
     IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedResultContext,
     IdentifierId, InferenceDiagnostics, InferenceMode, Instant, PhysicalExecutionPlan, Strategy,
     StudyResult, TableView, TabularData, VariableId, effect_from_posterior, elapsed_ns,
-    finish_identified_execute_with_context, identify_static_query_with_rd,
-    project_for_ate_estimate, select_claim,
+    finish_identified_execute_with_context, project_for_ate_estimate, select_claim,
 };
 use crate::analysis::prepared::Inspect;
-use crate::analysis::proof_support::{proof_supplies, verify_proof_against_graph};
+use crate::analysis::proof_support::{
+    RetainedProof, proof_supplies, verify_proof_against_graph, verify_retained_static,
+};
 use antecedent_estimate::bayesian_robust_ate::{
     BayesianRobustAteInput, BayesianRobustAteOptions, estimate_bayesian_robust_ate,
     plan_bayesian_robust_ate_folds,
 };
+
+const PROOF_REFUSED: &str = "Bayesian robust ATE proof is not justified by its retained graph";
 
 /// Prepared Bayesian robust ATE, including its fixed row and fold identities.
 #[derive(Clone)]
@@ -52,8 +55,9 @@ impl CheckedBayesianRobustAteExecution {
         cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
         inference: InferenceMode,
         context: IdentifiedResultContext,
-        physical: std::sync::Arc<PhysicalExecutionPlan>,
+        compilation: crate::analysis::proof_support::CheckedCompileContext<'_>,
     ) -> Result<Self, CausalError> {
+        let crate::analysis::proof_support::CheckedCompileContext { physical, ctx } = compilation;
         let (identification, estimand) = (&cache.identification, &cache.estimand);
         let CausalQuery::AverageEffect(target) = &context.query else {
             return Err(CausalError::Compile {
@@ -93,9 +97,9 @@ impl CheckedBayesianRobustAteExecution {
             });
         }
         let InferenceMode::Bayesian(config) = inference else {
-            return Err(CausalError::Unsupported {
-                message: "bayesian.robust_ate requires Bayesian inference",
-            });
+            return Err(CausalError::unsupported_inference(
+                "bayesian.robust_ate requires Bayesian inference",
+            ));
         };
         if config.prior.is_some()
             || config.prior_artifact.is_some()
@@ -105,7 +109,7 @@ impl CheckedBayesianRobustAteExecution {
                 message: "bayesian.robust_ate uses a Bayesian-bootstrap row law and does not accept coefficient or transferred priors",
             });
         }
-        verify_robust_ate_proof(graph, &query, identification, estimand)?;
+        verify_robust_ate_proof(graph, &query, identification, estimand, &physical, ctx)?;
         let options = BayesianRobustAteOptions { draws: config.n_draws, ..Default::default() };
         let input = make_input(data, &query, estimand)?;
         let fold_ids =
@@ -212,6 +216,7 @@ impl CheckedBayesianRobustAteExecution {
             unevaluable_mass: 0.0,
             early_stopped: false,
             treatment_contrast: None,
+            preparation: None,
         };
         let estimate = effect_from_posterior(&posterior)?;
         let diagnostic = Diagnostic::new(
@@ -256,18 +261,27 @@ fn verify_robust_ate_proof(
     query: &AverageEffectQuery,
     identification: &antecedent_identify::IdentificationResult,
     estimand: &IdentifiedEstimand,
+    physical: &PhysicalExecutionPlan,
+    ctx: &ExecutionContext,
 ) -> Result<(), CausalError> {
     if identification.average_effect() != Some(query) || !proof_supplies(identification, estimand) {
         return Err(CausalError::Compile {
             message: "Bayesian robust ATE estimand is not supplied by its retained proof".into(),
         });
     }
+
+    if verify_retained_static(physical, identification, estimand, PROOF_REFUSED)?
+        == RetainedProof::Sealed
+    {
+        return Ok(());
+    }
     let (checked_identification, checked_estimand) = select_claim(
-        identify_static_query_with_rd(
+        crate::strategy_table::identify_static_query_in_context(
             IdentifierId::BackdoorAdjustment,
             graph,
             &CausalQuery::AverageEffect(query.clone()),
             None,
+            Some(ctx),
         )?,
         EstimatorId::BayesianRobustAte,
     )?;
@@ -276,7 +290,7 @@ fn verify_robust_ate_proof(
         &checked_estimand,
         identification,
         estimand,
-        "Bayesian robust ATE proof is not justified by its retained graph",
+        PROOF_REFUSED,
     )
 }
 

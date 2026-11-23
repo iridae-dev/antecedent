@@ -1,7 +1,7 @@
 //! Sealers of the series routes over a `TemporalDag` or a retained class
 //! envelope: mediation, effect and response.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SealContext, SealOutcome};
 use crate::analysis::builder::{DataInput, RefuteSuite};
@@ -14,24 +14,24 @@ use antecedent_core::{OutcomeFunctional, TargetPopulation, TemporalEffectQuery};
 
 pub(super) fn temporal_mediation(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.route, analysis.temporal_identification_cache.as_deref()) {
+    let sealed = match (cx.route, analysis.temporal_cache().map(|cache| &**cache)) {
         (Some(RouteInput::TemporalMediationDag { data, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
-                && analysis.split.is_none()
-                && analysis.custom_validators.is_empty()
+                && analysis.declared.tiered.is_none()
+                && analysis.declared.split.is_none()
+                && analysis.declared.custom_validators.is_empty()
                 && matches!(
                     analysis.structure_source,
                     crate::support::StructureSource::Explicit
                         | crate::support::StructureSource::Accepted
                 )
                 && matches!(
-                    analysis.refute,
+                    analysis.settings.refute,
                     RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
                 ) =>
         {
-            Some(crate::analysis::execute::CheckedTemporalMediationOperation::checked(
-                analysis, data, plan, cache,
+            Some(crate::analysis::execute::CheckedTemporalMediationOperation::checked_within(
+                analysis, data, plan, cache, cx.ctx,
             )?)
         }
         _ => None,
@@ -45,9 +45,9 @@ pub(super) fn temporal_class_mediation(cx: &SealContext<'_>) -> SealOutcome {
         DataInput::Temporal(data) | DataInput::Event(data)
             if crate::analysis::execute::CheckedTemporalClassMediationOperation::admits(
                 analysis,
-            ) && (analysis.temporal_class_identification_cache.is_some()
-                || analysis.temporal_class_posterior_identification_cache.is_some()
-                || analysis.dbn_posterior_identification_cache.is_some()) =>
+            ) && (analysis.temporal_class_cache().is_some()
+                || analysis.temporal_class_posterior_cache().is_some()
+                || analysis.dbn_posterior_cache().is_some()) =>
         {
             Some(Box::new(
                 crate::analysis::execute::CheckedTemporalClassMediationOperation::checked(
@@ -62,20 +62,20 @@ pub(super) fn temporal_class_mediation(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.route, analysis.temporal_identification_cache.as_deref()) {
+    let sealed = match (cx.route, analysis.temporal_cache().map(|cache| &**cache)) {
         (Some(RouteInput::TemporalEffectDag { query, graph, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
+                && analysis.declared.tiered.is_none()
                 && matches!(
                     analysis.structure_source,
                     crate::support::StructureSource::Explicit
                         | crate::support::StructureSource::Accepted
                 )
-                && analysis.split.is_none()
-                && analysis.custom_validators.is_empty()
-                && matches!(analysis.inference, InferenceMode::Frequentist)
+                && analysis.declared.split.is_none()
+                && analysis.declared.custom_validators.is_empty()
+                && matches!(analysis.settings.inference, InferenceMode::Frequentist)
                 && matches!(
-                    analysis.refute,
+                    analysis.settings.refute,
                     RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
                 )
                 && query.policy.is_pulse_or_sustained() =>
@@ -96,8 +96,8 @@ pub(super) fn temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome {
                         indexer: member.indexer.clone(),
                         identifier,
                         estimator,
-                        bootstrap_replicates: analysis.bootstrap_replicates,
-                        refute: analysis.refute,
+                        bootstrap_replicates: analysis.settings.bootstrap_replicates,
+                        refute: analysis.settings.refute,
                     },
                 )?;
                 Some(crate::analysis::execute::CheckedTemporalEffectExecution::checked(
@@ -116,18 +116,18 @@ pub(super) fn temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn bayesian_temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, .. } = *cx;
-    let sealed = match (cx.route, analysis.temporal_identification_cache.as_deref()) {
+    let sealed = match (cx.route, analysis.temporal_cache().map(|cache| &**cache)) {
         (Some(RouteInput::TemporalEffectDag { query, graph, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
+                && analysis.declared.tiered.is_none()
                 && matches!(
                     analysis.structure_source,
                     crate::support::StructureSource::Explicit
                         | crate::support::StructureSource::Accepted
                 )
-                && analysis.split.is_none()
-                && analysis.custom_validators.is_empty()
-                && matches!(analysis.inference, InferenceMode::Bayesian(_))
+                && analysis.declared.split.is_none()
+                && analysis.declared.custom_validators.is_empty()
+                && matches!(analysis.settings.inference, InferenceMode::Bayesian(_))
                 && query.policy.is_pulse_or_sustained()
                 && analysis.point_validation() =>
         {
@@ -149,13 +149,13 @@ pub(super) fn bayesian_temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome 
                         identifier,
                         estimator: procedure,
                         bootstrap_replicates: 0,
-                        refute: analysis.refute,
+                        refute: analysis.settings.refute,
                     },
                 )?;
                 Some(crate::analysis::CheckedBayesianTemporalEffectOperation::checked(
                     target,
-                    &analysis.inference,
-                    analysis.refute,
+                    &analysis.settings.inference,
+                    analysis.settings.refute,
                 )?)
             } else {
                 None
@@ -168,16 +168,16 @@ pub(super) fn bayesian_temporal_dag_effect(cx: &SealContext<'_>) -> SealOutcome 
 
 pub(super) fn temporal_class_effect(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.route, analysis.temporal_class_identification_cache.as_ref()) {
+    let sealed = match (cx.route, analysis.temporal_class_cache()) {
         (Some(RouteInput::TemporalEffectClass { query, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
+                && analysis.declared.tiered.is_none()
                 && matches!(
                     analysis.structure_source,
                     crate::support::StructureSource::Explicit
                         | crate::support::StructureSource::Accepted
                 )
-                && matches!(analysis.inference, InferenceMode::Frequentist)
+                && matches!(analysis.settings.inference, InferenceMode::Frequentist)
                 && query.policy.is_pulse_or_sustained() =>
         {
             let identifier = crate::strategy_table::IdentifierId::GeneralizedAdjustment;
@@ -185,16 +185,17 @@ pub(super) fn temporal_class_effect(cx: &SealContext<'_>) -> SealOutcome {
             if cx.binding.names(identifier, estimator) {
                 let operation = crate::analysis::CheckedTemporalClassEffectOperation::checked(
                     crate::analysis::CheckedTemporalClassEffectOperationPremises {
+                        ctx: cx.ctx,
                         source_graph: (*analysis.graph).clone(),
                         query,
                         bundle: cache,
-                        max_completions: analysis.max_completions,
+                        max_completions: analysis.declared.max_completions,
                         identifier,
                         estimator,
-                        bootstrap_replicates: analysis.bootstrap_replicates,
-                        split: analysis.split,
-                        refute: analysis.refute,
-                        custom_validators: analysis.custom_validators.clone(),
+                        bootstrap_replicates: analysis.settings.bootstrap_replicates,
+                        split: analysis.declared.split,
+                        refute: analysis.settings.refute,
+                        custom_validators: analysis.declared.custom_validators.clone(),
                     },
                 )?;
                 Some(crate::analysis::execute::CheckedTemporalClassEffectExecution::checked(
@@ -213,21 +214,21 @@ pub(super) fn temporal_class_effect(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn temporal_dag_response(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.route, analysis.temporal_identification_cache.as_deref()) {
+    let sealed = match (cx.route, analysis.temporal_cache().map(|cache| &**cache)) {
         (Some(RouteInput::TemporalResponseDag { query, graph, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
+                && analysis.declared.tiered.is_none()
                 && matches!(
                     analysis.structure_source,
                     crate::support::StructureSource::Explicit
                         | crate::support::StructureSource::Accepted
                 )
-                && analysis.custom_validators.is_empty()
+                && analysis.declared.custom_validators.is_empty()
                 && matches!(
-                    analysis.inference,
+                    analysis.settings.inference,
                     InferenceMode::Frequentist | InferenceMode::Bayesian(_)
                 )
-                && analysis.refute == RefuteSuite::None
+                && analysis.settings.refute == RefuteSuite::None
                 && query.temporal.is_some()
                 && query.temporal.as_ref().is_some_and(|spec| match &spec.policy {
                     antecedent_core::TemporalPolicy::Pulse { .. } => true,
@@ -240,9 +241,11 @@ pub(super) fn temporal_dag_response(cx: &SealContext<'_>) -> SealOutcome {
                 && crate::analysis::temporal_response_is_direct(query) =>
         {
             let identifier = crate::strategy_table::IdentifierId::TemporalBackdoorUnfolded;
-            let estimator = EstimatorId::temporal_response_for(&analysis.inference);
+            let estimator = EstimatorId::temporal_response_for(&analysis.settings.inference);
             if cx.binding.names(identifier, estimator) {
-                let temporal = query.temporal.as_ref().expect("guarded temporal response");
+                let temporal = query.temporal.as_ref().ok_or(CausalError::Unsupported {
+                    message: "a temporal response query carries no temporal specification",
+                })?;
                 let (treatment, outcome) =
                     crate::analysis::proof_support::require_primary_pair(&query.functional)?;
                 let dose = single_step_dose(query)?.unwrap_or(1.0);
@@ -270,9 +273,10 @@ pub(super) fn temporal_dag_response(cx: &SealContext<'_>) -> SealOutcome {
                     evidence,
                     identifier,
                     estimator,
-                    analysis.bootstrap_replicates,
-                    &analysis.inference,
-                )?;
+                    analysis.settings.bootstrap_replicates,
+                    &analysis.settings.inference,
+                )?
+                .with_joint_horizons(analysis.settings.retain_joint_horizons);
                 let execution =
                     crate::analysis::execute::CheckedTemporalResponseExecution::checked(
                         operation,

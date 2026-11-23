@@ -3,7 +3,7 @@
 //! True scores are2+.5Z: unweighted mean2/IF variance.25; known w(Z)=3/1
 //! ratio target2.25 with IF±.375/variance.140625. Original exact arm OLS models,
 //! five-fold propensity/outcome fit sets, actual frozen-score consumer, no new CI.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(clippy::cast_precision_loss, reason = "bounded diagnostic dimensions")]
 #[path = "common/calibration.rs"]
 mod calibration;
@@ -34,7 +34,7 @@ fn request(n: usize, seed: u64) -> RecalcRequest {
         y.push(1. + 0.3 * zv + tv * (2. + 0.5 * zv));
     }
     RecalcRequest {
-        columns: vec![("t".into(), t), ("y".into(), y), ("z".into(), z)],
+        columns: vec![("t".into(), t), ("y".into(), y), ("z".into(), z)].into(),
         edges: vec![(2, 0), (2, 1), (0, 1)],
         treatment: 0,
         outcome: 1,
@@ -55,7 +55,7 @@ struct Sample {
     kernel_solves: u64,
 }
 fn portable(session: &RecalcSession, r: &RecalcRequest, n: usize, law: LawValue) -> Option<()> {
-    let artifact = freeze_crossfit_scores(session, n as u64, RetargetSupport::Licensed).ok()?;
+    let artifact = freeze_crossfit_scores(session, n as u64, RetargetSupport::Supported).ok()?;
     let bytes = artifact.to_bytes("generic-aipw-known-target-se").ok()?;
     let checked = FrozenScoreTable::from_bytes(&bytes, Some(artifact.identity())).ok()?;
     let row_ids = ScoreTable::from_frozen(&checked).ok()?.row_index.to_vec();
@@ -64,7 +64,7 @@ fn portable(session: &RecalcSession, r: &RecalcRequest, n: usize, law: LawValue)
         n_variables: 3,
         edges: r.edges.clone(),
         target: r.target.clone(),
-        target_row_ids: Some(row_ids),
+        target_row_ids: Some(row_ids.iter().map(|id| id.get()).collect()),
         utility: r.utility,
         quantity: ScoreQuantity::AverageEffect,
         changed_inputs: vec![],

@@ -13,7 +13,10 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 from antecedent import _native
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalCancelledError, CausalError, CausalTypeError, CausalValueError
+from antecedent.execution import Execution, ResourceLimits
+from antecedent.outcomes import require_success
 from antecedent.recalc import RecalcRefusal, Utility
 from antecedent.recalc_temporal import (
     CheckedTemporalIntervalCandidate as Candidate,
@@ -159,29 +162,23 @@ def test_candidate_constructor_and_foreign_callback_cannot_mint_native_authority
     assert calls == []
 
 
-def test_load_rejects_bounds_before_dispatch_and_normal_route_is_exactly_closed(monkeypatch):
+def test_load_rejects_bounds_before_dispatch_and_normal_route_is_exactly_unsupported(monkeypatch):
     monkeypatch.delattr(_native, "consume_checked_temporal_interval_candidate", raising=False)
     with pytest.raises(CausalValueError):
         Candidate.load(b"", expected=identity(), max_replicates=2001)
     with pytest.raises(CausalTypeError):
         Candidate.load(b"", expected=identity(), max_units=True)
     with pytest.raises(CausalTypeError):
-        Candidate.load(b"", expected=identity(), cancel=object())
+        Candidate.load(b"", expected=identity(), execution=Execution(cancel=object()))
     with pytest.raises(RecalcRefusal) as caught:
         Candidate.load(b"", expected=identity())
     assert (caught.value.code, caught.value.detail, caught.value.stage) == (
-        "cell_not_licensed",
-        "temporal_interval.route_frozen",
+        "route_not_supported",
+        reason_details.temporal_interval.CONSUMER_UNAVAILABLE,
         "inference",
     )
 
 
-INTERNAL = hasattr(_native, "consume_checked_temporal_interval_candidate")
-
-
-@pytest.mark.skipif(
-    not INTERNAL, reason="original checked lifecycle requires isolated calibration-internal wheel"
-)
 @pytest.mark.parametrize(
     ("functional", "method"),
     [
@@ -196,7 +193,7 @@ def test_original_checked_source_score_draws_intervals_and_fresh_consumer(
 ):
     req = request(functional)
     session = TemporalSession()
-    point = session.execute(req, seed=41)
+    point = require_success(session.execute(req, execution=Execution(seed=41)))
     config = Config(method=method, replicates=500, bootstrap_seed=9171, max_failed_fraction=0)
     candidate = session.interval_candidate(config=config)
     payload = candidate.inspect()
@@ -205,7 +202,7 @@ def test_original_checked_source_score_draws_intervals_and_fresh_consumer(
     assert point.law.ate == pytest.approx(candidate.point, abs=1e-12)
     assert candidate.functional == functional
     assert candidate.config == config
-    assert candidate.calibration == "unmeasured"
+    assert candidate.calibration == "not_measured"
     assert candidate.expected_identity.snapshot_id == req.snapshot_id
     assert candidate.expected_identity.initial_state_id == req.initial_state_id
     assert candidate.expected_identity.producing_seed == 41
@@ -234,15 +231,18 @@ def test_original_checked_source_score_draws_intervals_and_fresh_consumer(
         expected = (values.mean() - tails[1] * se, values.mean() - tails[0] * se)
     else:
         low, high = np.quantile(points, [0.025, 0.975])
-        expected = (
-            (low, high)
-            if method == "percentile"
-            else (2 * values.mean() - high, 2 * values.mean() - low)
-        )
+        if method == "percentile":
+            # The checked percentile effect interval is the equal-tailed type-7 percentile of the
+            # replicate points; its calibration slot, not the endpoints, carries the measured scope.
+            expected = (low, high)
+        elif method == "basic":
+            expected = (2 * values.mean() - high, 2 * values.mean() - low)
+        else:
+            raise AssertionError(method)
         assert candidate.standard_error is None and candidate.unit_scores is None
     assert candidate.interval == pytest.approx(expected, abs=1e-12)
     artifact = tmp_path / "original-checked-interval.cbor"
-    artifact.write_bytes(candidate.export())
+    artifact.write_bytes(bytes(candidate.export()))
     replayed = Candidate.load(artifact.read_bytes(), expected=candidate.expected_identity)
     assert replayed.inspect() == candidate.inspect()
     script = """
@@ -277,19 +277,30 @@ print(json.dumps(r.inspect(),sort_keys=True))
         replace(candidate.expected_identity, functional=TemporalResponse((1, 0))),
     ]:
         with pytest.raises(CausalError):
-            Candidate.load(candidate.export(), expected=changed)
+            Candidate.load(bytes(candidate.export()), expected=changed)
     for bounds in [
         {"max_units": 79},
         {"max_histories": 1279},
         {"max_replicates": 79},
-        {"memory_limit_bytes": 0},
     ]:
         with pytest.raises(CausalError):
-            Candidate.load(candidate.export(), expected=candidate.expected_identity, **bounds)
+            Candidate.load(
+                bytes(candidate.export()), expected=candidate.expected_identity, **bounds
+            )
+    with pytest.raises(CausalError):
+        Candidate.load(
+            bytes(candidate.export()),
+            expected=candidate.expected_identity,
+            execution=Execution(limits=ResourceLimits(memory_bytes=0)),
+        )
     cancelled = _native.CancellationToken()
     cancelled.cancel()
     with pytest.raises(CausalCancelledError):
-        Candidate.load(candidate.export(), expected=candidate.expected_identity, cancel=cancelled)
+        Candidate.load(
+            bytes(candidate.export()),
+            expected=candidate.expected_identity,
+            execution=Execution(cancel=cancelled),
+        )
     with pytest.raises(CausalError):
         Candidate.load(b"invalid", expected=candidate.expected_identity)
 
@@ -310,14 +321,14 @@ def test_duck_typed_session_callback_is_refused_before_invocation():
     assert calls == []
 
 
-def test_live_original_source_without_optional_hook_keeps_exact_frozen_refusal(monkeypatch):
+def test_live_original_source_without_optional_hook_keeps_the_protocol_refusal(monkeypatch):
     import builtins
 
     import antecedent.recalc_temporal as temporal
 
     req = request(TemporalEffect((1, 1), (0, 0)))
     session = TemporalSession()
-    session.execute(req, seed=41)
+    require_success(session.execute(req, execution=Execution(seed=41)))
     identities = session.identities
 
     def without_optional(obj, name, default=None):
@@ -327,17 +338,17 @@ def test_live_original_source_without_optional_hook_keeps_exact_frozen_refusal(m
     with pytest.raises(RecalcRefusal) as caught:
         session.interval_candidate(config=Config(method="studentized"))
     assert (caught.value.code, caught.value.detail, caught.value.stage) == (
-        "cell_not_licensed",
-        "temporal_interval.route_frozen",
+        "route_not_supported",
+        reason_details.temporal_interval.INTERVAL_NOT_SUPPORTED,
         "inference",
     )
     assert session.identities == identities
-    assert session.execute(req, seed=41).receipt.totals.total == 0
+    assert (
+        require_success(session.execute(req, execution=Execution(seed=41))).receipt.totals.total
+        == 0
+    )
 
 
-@pytest.mark.skipif(
-    not INTERNAL, reason="original checked lifecycle requires isolated calibration-internal wheel"
-)
 def test_original_checked_source_reversed_nonconsecutive_ids_fresh_replay(tmp_path):
     original = request(TemporalEffect((1, 1), (0, 0)))
     req = replace(
@@ -351,7 +362,7 @@ def test_original_checked_source_reversed_nonconsecutive_ids_fresh_replay(tmp_pa
         [unit.unit_id for unit in req.units], reverse=True
     )
     session = TemporalSession()
-    point = session.execute(req, seed=41)
+    point = require_success(session.execute(req, execution=Execution(seed=41)))
     config = Config(
         method="studentized", replicates=500, bootstrap_seed=9171, max_failed_fraction=0
     )
@@ -369,7 +380,7 @@ def test_original_checked_source_reversed_nonconsecutive_ids_fresh_replay(tmp_pa
         selected.mean(axis=1), abs=1e-12
     )
     artifact = tmp_path / "reversed-source-checked-interval.cbor"
-    artifact.write_bytes(candidate.export())
+    artifact.write_bytes(bytes(candidate.export()))
     replayed = Candidate.load(artifact.read_bytes(), expected=candidate.expected_identity)
     assert replayed.inspect() == payload
     script = """

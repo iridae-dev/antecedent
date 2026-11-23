@@ -2,15 +2,14 @@ use std::sync::Arc;
 
 use antecedent_contract::{DataClassification, LogicalAnalysisPlanRecord};
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ExecutionContext, MemoryBudget, TemporalEffectQuery,
-    VariableId,
+    AverageEffectQuery, CausalQuery, ExecutionContext, TemporalEffectQuery, VariableId,
 };
 use antecedent_data::{DiscoveryEstimationSplit, TabularData, TimeSeriesData};
 use antecedent_graph::{Dag, TemporalDag};
 
 use crate::accepted::AcceptedGraph;
 use crate::error::CausalError;
-use crate::strategy_table::IdentifierId;
+use crate::strategy_table::{EstimatorId, IdentifierId};
 
 use super::*;
 
@@ -29,6 +28,7 @@ fn tabular_plan(rows: u64) -> LogicalAnalysisPlan {
         },
         query: CausalQuery::AverageEffect(q),
         split: None,
+        design_columns_hint: 2,
         row_count_hint: rows,
     }
 }
@@ -41,7 +41,7 @@ fn static_ate_compiles_with_schedule_and_copies() {
     let physical = plan.compile_physical(&ctx).unwrap();
     assert!(physical.record.estimated_peak_memory_bytes.is_some());
     assert_eq!(physical.record.kernels.len(), 1);
-    assert_eq!(physical.record.estimated_copy_bytes, Some(200 * 8 * 8));
+    assert_eq!(physical.record.estimated_copy_bytes, Some(200 * 2 * 8));
     assert_eq!(physical.record.task_schedule.len(), 1);
     assert_eq!(&*physical.record.task_schedule[0].dimension, "serial");
     assert!(!physical.record.materializations.is_empty());
@@ -63,6 +63,7 @@ fn temporal_query_on_tabular_fails() {
         },
         query: CausalQuery::TemporalEffect(q),
         split: None,
+        design_columns_hint: 2,
         row_count_hint: 10,
     };
     assert!(matches!(plan.validate(), Err(CausalError::Compile { .. })));
@@ -84,17 +85,35 @@ fn pcmci_on_tabular_fails() {
         },
         query: CausalQuery::AverageEffect(q),
         split: None,
+        design_columns_hint: 2,
         row_count_hint: 10,
     };
     assert!(matches!(plan.validate(), Err(CausalError::Compile { .. })));
 }
 
 #[test]
-fn soft_memory_limit_refuses_dense_plan() {
+fn memory_limit_refuses_dense_plan() {
+    // An estimator with no streamed reduction cannot leave the resident design.
+    let mut plan = tabular_plan(10_000);
+    plan.record.estimator = Some(Arc::from("glm.adjustment"));
+    let mut ctx = ExecutionContext::for_tests(1);
+    ctx.set_memory_limit(Some(64));
+    assert!(matches!(plan.compile_physical(&ctx), Err(CausalError::Resource { .. })));
+}
+
+#[test]
+fn memory_limit_hands_a_streamable_plan_to_the_streamed_reduction() {
+    // The closed-form linear adjustment streams its rows, so the resident quote is not the
+    // admission test: the starting record is admitted and the streamed alternative is chosen
+    // when the route is lowered.
     let plan = tabular_plan(10_000);
     let mut ctx = ExecutionContext::for_tests(1);
-    ctx.memory = MemoryBudget { soft_limit_bytes: Some(64), hard_limit_bytes: None };
-    assert!(matches!(plan.compile_physical(&ctx), Err(CausalError::Resource { .. })));
+    ctx.set_memory_limit(Some(64));
+    let physical = plan.compile_physical(&ctx).expect("a streamable plan is admitted");
+    // The starting record is quoted from one batch of one column, not from the resident
+    // 10 000 x 2 design, and fits inside the limit.
+    assert_eq!(physical.record.estimated_copy_bytes, Some(8));
+    assert!(physical.record.estimated_peak_memory_bytes.is_some_and(|peak| peak <= 64));
 }
 
 #[test]
@@ -171,8 +190,8 @@ fn refuses_iv_estimator_with_backdoor_identifier() {
         graph: &graph,
         query: &query,
         validation_suite: None,
-        identifier: Arc::from("backdoor.adjustment"),
-        estimator: Arc::from("iv.2sls"),
+        identifier: IdentifierId::BackdoorAdjustment,
+        estimator: EstimatorId::Iv2Sls,
     })
     .unwrap_err();
     assert!(matches!(err, CausalError::Compile { .. }));
@@ -186,26 +205,23 @@ fn refuses_propensity_estimator_with_frontdoor_identifier() {
         graph: &graph,
         query: &query,
         validation_suite: None,
-        identifier: Arc::from("frontdoor"),
-        estimator: Arc::from("propensity.weighting"),
+        identifier: IdentifierId::Frontdoor,
+        estimator: EstimatorId::PropensityWeighting,
     })
     .unwrap_err();
     assert!(matches!(err, CausalError::Compile { .. }));
 }
 
 #[test]
-fn refuses_unknown_identifier_and_estimator() {
-    let (data, graph, query) = toy_static_input();
-    let err = compile_logical_static_ate(StaticAteCompileInput {
-        data: &data,
-        graph: &graph,
-        query: &query,
-        validation_suite: None,
-        identifier: Arc::from("backdoor.adjustment"),
-        estimator: Arc::from("not.a.real.estimator"),
-    })
-    .unwrap_err();
-    assert!(matches!(err, CausalError::Compile { .. }));
+fn closed_ids_refuse_unknown_wire_names_before_a_compile_input_exists() {
+    // The compile inputs carry the closed ids, so an unknown wire name is refused where it is
+    // parsed, not inside the compile.
+    assert!("not.a.real.estimator".parse::<EstimatorId>().is_err());
+    assert!("not.a.real.identifier".parse::<IdentifierId>().is_err());
+    assert_eq!(
+        "linear.adjustment.ate".parse::<EstimatorId>(),
+        Ok(EstimatorId::LinearAdjustmentAte)
+    );
 }
 
 #[test]
@@ -218,8 +234,8 @@ fn refuses_att_target_population_with_linear_adjustment() {
         graph: &graph,
         query: &att_query,
         validation_suite: None,
-        identifier: Arc::from("backdoor.adjustment"),
-        estimator: Arc::from("linear.adjustment.ate"),
+        identifier: IdentifierId::BackdoorAdjustment,
+        estimator: EstimatorId::LinearAdjustmentAte,
     })
     .unwrap_err();
     let message = err.to_string();
@@ -380,8 +396,8 @@ fn accepts_default_pair() {
         graph: &graph,
         query: &query,
         validation_suite: None,
-        identifier: Arc::from("backdoor.adjustment"),
-        estimator: Arc::from("linear.adjustment.ate"),
+        identifier: IdentifierId::BackdoorAdjustment,
+        estimator: EstimatorId::LinearAdjustmentAte,
     })
     .unwrap();
     assert_eq!(plan.record.identifier.as_deref(), Some("backdoor.adjustment"));
@@ -396,8 +412,8 @@ fn accepts_propensity_weighting_with_backdoor_adjustment() {
         graph: &graph,
         query: &query,
         validation_suite: None,
-        identifier: Arc::from("backdoor.adjustment"),
-        estimator: Arc::from("propensity.weighting"),
+        identifier: IdentifierId::BackdoorAdjustment,
+        estimator: EstimatorId::PropensityWeighting,
     })
     .unwrap();
     assert_eq!(plan.record.estimator.as_deref(), Some("propensity.weighting"));
@@ -415,11 +431,11 @@ fn refuses_dag_only_identifier_on_pag() {
 }
 
 #[test]
-fn compile_temporal_response_refuses_unlicensed_observation() {
+fn compile_temporal_response_refuses_unsupported_observation() {
     use antecedent_core::{
         CausalSchemaBuilder, ContinuousDomain, GridSpec, MeasurementSpec, ObservationAssumption,
         ObservationSpec, ResponseFunctional, ResponseQuery, RoleHint, SmallRoleSet,
-        TEMPORAL_OBSERVATION_UNLICENSED, TemporalPolicy, TemporalResponseSpec, ValueType,
+        TEMPORAL_OBSERVATION_UNSUPPORTED, TemporalPolicy, TemporalResponseSpec, ValueType,
     };
     use antecedent_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
@@ -493,5 +509,5 @@ fn compile_temporal_response_refuses_unlicensed_observation() {
     let Some(message) = err.compile_message() else {
         panic!("expected a compile refusal, got {err:?}");
     };
-    assert!(message.contains(TEMPORAL_OBSERVATION_UNLICENSED), "stable refuse, got {message}");
+    assert!(message.contains(TEMPORAL_OBSERVATION_UNSUPPORTED), "stable refuse, got {message}");
 }

@@ -18,9 +18,10 @@ use antecedent_kernels::standard_normal;
 use antecedent_kernels::{norm_cdf, norm_inv, norm_pdf};
 use antecedent_validate::predictive_assessment::{
     DependenceDeclaration, EnsembleCrpsForm, FiniteTruth, FitDeclaration, ForecastLaw, Horizon,
-    LawSource, ObservationKey, Outcome, OverlapPolicy, OverlapStatus, PredictiveAssessmentError,
-    PredictiveAssessmentReport, PredictiveAssessmentSpec, PredictiveReplicates, PredictiveTarget,
-    PredictorLaws, ProviderIdentity, ProviderTrustLabel, RealizedObservations, ScoreIntervalQuery,
+    LawSource, MAX_BINS, MAX_JOINT_DIMENSION, MAX_LAW_ATOMS, MAX_PREDICTORS, ObservationKey,
+    Outcome, OverlapPolicy, OverlapStatus, PredictiveAssessmentError, PredictiveAssessmentReport,
+    PredictiveAssessmentSpec, PredictiveReplicates, PredictiveTarget, PredictorLaws,
+    ProviderIdentity, ProviderTrustLabel, RealizedObservations, ScoreIntervalQuery,
     ScoreIntervalRequest, ScoreKind, ValidationDesign, assess_predictive_laws, brier_binary,
     construct_expected_score_interval, crps_gaussian, crps_weighted_atoms, detail,
     distribution_drift, energy_score_weighted, exact_expected_score, expected_score_interval,
@@ -123,14 +124,19 @@ fn gaussian_log_score_matches_the_density() {
 fn standalone_scoring_refuses_malformed_inputs_and_non_finite_scores() {
     let form = EnsembleCrpsForm::EmpiricalLaw;
     let malformed_law = ForecastLaw::Gaussian { mean: 0.0, sd: -1.0 };
-    assert!(score_case(ScoreKind::Log, form, &malformed_law, &Outcome::Real(0.0)).is_err());
+    let error = score_case(ScoreKind::Log, form, &malformed_law, &Outcome::Real(0.0)).unwrap_err();
+    assert_eq!(error.detail(), detail::INVALID_LAW, "{error}");
+    assert!(error.to_string().contains("a Gaussian law needs a finite mean and a positive sd"));
 
     let law = ForecastLaw::gaussian(0.0, 1.0);
-    assert!(score_case(ScoreKind::Crps, form, &law, &Outcome::Real(f64::NAN)).is_err());
+    let error = score_case(ScoreKind::Crps, form, &law, &Outcome::Real(f64::NAN)).unwrap_err();
+    assert_eq!(error.detail(), detail::INVALID_OBSERVATIONS, "{error}");
 
     // Finite inputs can still overflow an intermediate standardized residual.
     let extreme = ForecastLaw::gaussian(f64::MAX, 1.0);
-    assert!(score_case(ScoreKind::Log, form, &extreme, &Outcome::Real(-f64::MAX)).is_err());
+    let error = score_case(ScoreKind::Log, form, &extreme, &Outcome::Real(-f64::MAX)).unwrap_err();
+    assert_eq!(error.detail(), detail::INVALID_LAW, "{error}");
+    assert!(error.to_string().contains("overflowed the finite numeric range"), "{error}");
 }
 
 #[test]
@@ -138,11 +144,19 @@ fn exact_expected_score_refuses_malformed_finite_truths() {
     let forecast = ForecastLaw::gaussian(0.0, 1.0);
     let non_finite_support =
         FiniteTruth::Real { support: vec![f64::NAN], probabilities: vec![1.0] };
-    assert!(exact_expected_score(ScoreKind::Crps, &forecast, &non_finite_support).is_err());
+    let error = exact_expected_score(ScoreKind::Crps, &forecast, &non_finite_support).unwrap_err();
+    assert_eq!(error.detail(), detail::INVALID_LAW, "{error}");
+    assert!(error.to_string().contains("a finite truth support point is not finite"), "{error}");
 
     let overflowing_dimension =
         FiniteTruth::Vector { dimension: usize::MAX, atoms: vec![], probabilities: vec![1.0] };
-    assert!(exact_expected_score(ScoreKind::Energy, &forecast, &overflowing_dimension).is_err());
+    let error =
+        exact_expected_score(ScoreKind::Energy, &forecast, &overflowing_dimension).unwrap_err();
+    assert_eq!(error.detail(), detail::INVALID_LAW, "{error}");
+    assert!(
+        error.to_string().contains("a vector truth needs a bounded positive dimension"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -354,7 +368,7 @@ fn a_calibrated_generator_has_a_uniform_pit_and_nominal_coverage() {
     let report = assess_predictive_laws(&generator_spec(n), &ctx()).unwrap();
     let diagnostics = &report.predictors[0].diagnostics;
     assert_eq!(diagnostics.label, "diagnostic");
-    assert_eq!(diagnostics.calibration, "unmeasured");
+    assert_eq!(diagnostics.calibration, "not_measured");
     let pit = diagnostics.pit.as_ref().unwrap();
     // The KS distance of n = 2000 uniform PIT values exceeds 0.05 with probability ~1e-10.
     assert!(pit.ks_distance < 0.05, "ks {}", pit.ks_distance);
@@ -364,10 +378,10 @@ fn a_calibrated_generator_has_a_uniform_pit_and_nominal_coverage() {
     assert!(close(coverage[1].empirical_coverage, 0.9, 0.04));
     // The expected CRPS of the true law is 1 / sqrt(pi).
     let expected = 1.0 / std::f64::consts::PI.sqrt();
-    assert!(close(mean_score(&report, 0, ScoreKind::Crps), expected, 0.04));
+    assert!(close(mean_score(&report, 0, ScoreKind::Crps), expected, 0.02));
     // The expected log score of the true law is the entropy (1 + ln 2 pi) / 2.
     let entropy = 0.5 * (1.0 + (2.0 * std::f64::consts::PI).ln());
-    assert!(close(mean_score(&report, 0, ScoreKind::Log), entropy, 0.08));
+    assert!(close(mean_score(&report, 0, ScoreKind::Log), entropy, 0.03));
 }
 
 #[test]
@@ -425,7 +439,7 @@ fn score_differences_are_paired_and_state_their_dependence() {
     ));
     // The exact expected CRPS of N(0, 0.5^2) under N(0, 1) is 0.60997; the calibrated one
     // is 1/sqrt(pi); their difference is about 0.0458.
-    assert!(close(crps_overconfident.mean_difference, 0.0458, 0.02));
+    assert!(close(crps_overconfident.mean_difference, 0.0458, 0.005));
 }
 
 #[test]
@@ -439,23 +453,29 @@ fn no_declared_dependence_withholds_every_standard_error() {
         assert!(difference.dm_statistic.is_none());
         assert_eq!(difference.dependence, "undeclared");
     }
-    // The point scores are still reported.
-    assert!(mean_score(&report, 0, ScoreKind::Crps).is_finite());
+    // The point scores are still reported, and equal the scores under a declared dependence on
+    // the same stream: the declaration only governs standard errors.
+    let mut declared = generator_spec(200);
+    declared.dependence = Some(DependenceDeclaration::Iid);
+    let with_dependence = assess_predictive_laws(&declared, &ctx()).unwrap();
+    for kind in [ScoreKind::Crps, ScoreKind::Log] {
+        assert!(close(mean_score(&report, 0, kind), mean_score(&with_dependence, 0, kind), 1e-12,));
+    }
 }
 
 // -- the shape of the report ------------------------------------------------------------
 
 #[test]
-fn every_report_is_point_only_unmeasured_and_not_a_causal_claim() {
+fn every_report_is_point_only_not_measured_and_not_a_causal_claim() {
     let report = assess_predictive_laws(&generator_spec(50), &ctx()).unwrap();
     assert_eq!(report.family, "predictive_assessment");
     assert_eq!(report.inference_claim, "point_only");
     assert_eq!(report.causal_validity, "not_established");
     assert_eq!(report.uncertainty.sampling_interval, "not reported");
-    assert_eq!(report.uncertainty.reason_code, "cell_not_licensed");
+    assert_eq!(report.uncertainty.reason_code, "uncertainty_representation_insufficient");
     let interval = report.request_score_interval().unwrap_err();
-    assert_eq!(interval.reason_code(), "cell_not_licensed");
-    assert_eq!(interval.detail(), detail::INTERVAL_NOT_LICENSED);
+    assert_eq!(interval.reason_code(), "quantity_semantics_mismatch");
+    assert_eq!(interval.detail(), detail::INTERVAL_NOT_SUPPORTED);
     let causal = report.request_causal_validity().unwrap_err();
     assert_eq!(causal.detail(), detail::NOT_A_CAUSAL_CLAIM);
     let probability = report.request_score_as_probability().unwrap_err();
@@ -463,13 +483,13 @@ fn every_report_is_point_only_unmeasured_and_not_a_causal_claim() {
 }
 
 #[test]
-fn a_score_interval_request_is_refused_with_cell_not_licensed() {
+fn a_score_interval_request_is_refused_with_not_supported() {
     let mut spec = generator_spec(50);
     spec.score_interval =
         Some(ScoreIntervalRequest { level: 0.95, method: "block bootstrap".to_owned() });
     let (code, detail_slot) = refusal(assess_predictive_laws(&spec, &ctx()));
-    assert_eq!(code, "cell_not_licensed");
-    assert_eq!(detail_slot, detail::INTERVAL_NOT_LICENSED);
+    assert_eq!(code, "quantity_semantics_mismatch");
+    assert_eq!(detail_slot, detail::INTERVAL_NOT_SUPPORTED);
 }
 
 // -- target, horizon and law-source refusals --------------------------------------------
@@ -589,7 +609,7 @@ fn iid_is_refused_for_rolling_origin_and_blocked_designs() {
     let (code, slot) = refusal(assess_predictive_laws(&spec, &ctx()));
     assert_eq!(
         (code.as_str(), slot.as_str()),
-        ("sampling_dependence_unknown", detail::IID_NOT_LICENSED)
+        ("sampling_dependence_unknown", detail::IID_NOT_SUPPORTED)
     );
 
     let n = 6;
@@ -601,7 +621,7 @@ fn iid_is_refused_for_rolling_origin_and_blocked_designs() {
     );
     blocked.dependence = Some(DependenceDeclaration::Iid);
     let (_, slot) = refusal(assess_predictive_laws(&blocked, &ctx()));
-    assert_eq!(slot, detail::IID_NOT_LICENSED);
+    assert_eq!(slot, detail::IID_NOT_SUPPORTED);
 }
 
 #[test]
@@ -680,8 +700,11 @@ fn caller_minted_keys_are_never_verified_held_out() {
         assess_predictive_laws(&overlap_spec(fit.clone(), OverlapPolicy::LabelOnly), &ctx())
             .unwrap();
     assert_eq!(report.predictors[0].overlap.label(), "unverified");
-    assert!(
-        assess_predictive_laws(&overlap_spec(fit, OverlapPolicy::RequireHeldOut), &ctx()).is_err()
+    let (code, slot) =
+        refusal(assess_predictive_laws(&overlap_spec(fit, OverlapPolicy::RequireHeldOut), &ctx()));
+    assert_eq!(
+        (code.as_str(), slot.as_str()),
+        ("evidence_overlap_unknown", detail::OVERLAP_UNKNOWN)
     );
     assert!(minted_key(1).is_caller_minted());
     assert!(!key(1).is_caller_minted());
@@ -831,7 +854,8 @@ fn posterior_predictive_replicates_are_scored_as_sample_laws() {
     let report = assess_predictive_laws(&spec, &ctx()).unwrap();
     // Row 0: 7/18 (hand value above); row 1: a point mass at the outcome, CRPS 0.
     assert!(close(mean_score(&report, 0, ScoreKind::Crps), 7.0 / 36.0, 1e-12));
-    assert!(PredictiveReplicates::new(2, 2, vec![0.0; 3]).is_err());
+    let error = PredictiveReplicates::new(2, 2, vec![0.0; 3]).unwrap_err();
+    assert_eq!(error.detail(), detail::INVALID_LAW, "{error}");
 }
 
 #[test]
@@ -922,7 +946,8 @@ fn malformed_inputs_are_refused() {
         ValidationDesign::HeldOutSplit,
         Vec::new(),
     );
-    assert!(assess_predictive_laws(&empty, &ctx()).is_err());
+    let (code, slot) = refusal(assess_predictive_laws(&empty, &ctx()));
+    assert_eq!((code.as_str(), slot.as_str()), ("invalid_argument", detail::SCORE_NOT_DEFINED));
     let cancelled = ctx();
     cancelled.cancellation.cancel();
     let (code, slot) = refusal(assess_predictive_laws(&generator_spec(10), &cancelled));
@@ -962,9 +987,12 @@ fn a_malformed_diagnostic_configuration_is_refused() {
         spec.interval_levels = levels;
         spec
     };
-    for spec in
-        [build(1, vec![0.5]), build(10, vec![1.5]), build(10, vec![0.0]), build(5000, vec![])]
-    {
+    for spec in [
+        build(1, vec![0.5]),
+        build(10, vec![1.5]),
+        build(10, vec![0.0]),
+        build(MAX_BINS + 1, vec![]),
+    ] {
         let (code, slot) = refusal(assess_predictive_laws(&spec, &ctx()));
         assert_eq!(code, "invalid_argument");
         assert_eq!(slot, detail::DIAGNOSTIC_NOT_DEFINED);
@@ -979,14 +1007,14 @@ fn declared_bounds_on_predictors_atoms_and_joint_dimension_are_refused() {
     let one = |name: String| predictor(&name, gaussian_laws(1, 0.0, 1.0), Horizon::Contemporaneous);
     let spec = PredictiveAssessmentSpec::new(
         observations(gaussian_outcomes(1, 31), Horizon::Contemporaneous),
-        (0..33).map(|i| one(format!("p{i}"))).collect(),
+        (0..=MAX_PREDICTORS).map(|i| one(format!("p{i}"))).collect(),
         ValidationDesign::HeldOutSplit,
         vec![ScoreKind::Crps],
     );
     let (code, slot) = refusal(assess_predictive_laws(&spec, &ctx()));
     assert_eq!((code.as_str(), slot.as_str()), ("route_not_supported", detail::BOUNDS_EXCEEDED));
 
-    let too_many_draws = ForecastLaw::EmpiricalSample { draws: vec![0.0; 65_537] };
+    let too_many_draws = ForecastLaw::EmpiricalSample { draws: vec![0.0; MAX_LAW_ATOMS + 1] };
     let spec = PredictiveAssessmentSpec::new(
         observations(gaussian_outcomes(1, 32), Horizon::Contemporaneous),
         vec![predictor("big", vec![too_many_draws], Horizon::Contemporaneous)],
@@ -996,12 +1024,13 @@ fn declared_bounds_on_predictors_atoms_and_joint_dimension_are_refused() {
     let (code, slot) = refusal(assess_predictive_laws(&spec, &ctx()));
     assert_eq!((code.as_str(), slot.as_str()), ("invalid_argument", detail::INVALID_LAW));
 
-    let wide = ForecastLaw::JointSample { dimension: 65, draws: vec![0.0; 65] };
+    let width = MAX_JOINT_DIMENSION + 1;
+    let wide = ForecastLaw::JointSample { dimension: width, draws: vec![0.0; width] };
     let spec = PredictiveAssessmentSpec::new(
         RealizedObservations {
             target: target(Horizon::Contemporaneous),
             ids: vec![key(0)],
-            outcomes: vec![Outcome::Vector(vec![0.0; 65])],
+            outcomes: vec![Outcome::Vector(vec![0.0; width])],
         },
         vec![predictor("wide", vec![wide], Horizon::Contemporaneous)],
         ValidationDesign::HeldOutSplit,
@@ -1139,8 +1168,10 @@ fn the_iid_score_interval_is_the_exact_t_interval_at_ten_thousand_and_a_hundred_
 }
 
 #[test]
-fn the_cluster_count_and_serial_bandwidth_requirements_hold_at_any_case_count() {
-    // Many cases do not substitute for clusters: nine clusters of 2,000 cases refuse.
+fn the_cluster_count_and_serial_bandwidth_set_the_degrees_of_freedom_at_any_case_count() {
+    // Many cases do not substitute for clusters: nine clusters of 2,000 cases give 8 degrees
+    // of freedom (the interval is built; its calibration says it is outside the measured
+    // designs).
     let n = 18_000;
     let outcomes = gaussian_outcomes(n, 61);
     let query = |name: &str| ScoreIntervalQuery {
@@ -1167,11 +1198,9 @@ fn the_cluster_count_and_serial_bandwidth_requirements_hold_at_any_case_count() 
     };
     let nine = clustered(9);
     let report = assess_predictive_laws(&nine, &ctx()).unwrap();
-    let error =
-        construct_expected_score_interval(&nine, &report, &query("forecast_a")).unwrap_err();
-    assert_eq!(error.reason_code(), "cell_not_licensed");
-    assert_eq!(error.detail(), detail::INTERVAL_SCOPE_OUTSIDE_MEASURED);
-    // Ten clusters satisfy the requirement; the construction no longer refuses on it.
+    let built = construct_expected_score_interval(&nine, &report, &query("forecast_a")).unwrap();
+    assert!(close(built.interval.degrees_of_freedom, 8.0, 0.0));
+    // Ten clusters give 9 degrees of freedom.
     let ten = clustered(10);
     let report = assess_predictive_laws(&ten, &ctx()).unwrap();
     let built = construct_expected_score_interval(&ten, &report, &query("forecast_a")).unwrap();
@@ -1198,9 +1227,12 @@ fn the_cluster_count_and_serial_bandwidth_requirements_hold_at_any_case_count() 
     };
     let wide = serial(2_000);
     let report = assess_predictive_laws(&wide, &ctx()).unwrap();
-    let error =
-        construct_expected_score_interval(&wide, &report, &query("forecast_a")).unwrap_err();
-    assert_eq!(error.detail(), detail::INTERVAL_SCOPE_OUTSIDE_MEASURED);
+    let built = construct_expected_score_interval(&wide, &report, &query("forecast_a")).unwrap();
+    assert!(close(
+        built.interval.degrees_of_freedom,
+        (18_000.0_f64 / 2_001.0 - 1.0).max(1.0),
+        1e-9
+    ));
     let narrow = serial(26);
     let report = assess_predictive_laws(&narrow, &ctx()).unwrap();
     let built = construct_expected_score_interval(&narrow, &report, &query("forecast_a")).unwrap();
@@ -1218,9 +1250,9 @@ fn the_cluster_count_and_serial_bandwidth_requirements_hold_at_any_case_count() 
 }
 
 #[test]
-fn a_case_count_beyond_every_measured_record_is_not_published() {
+fn a_case_count_beyond_every_measured_record_is_reported_outside_the_measured_scope() {
     // The iid construction is measured to a stated upper limit (102,400 cases); one past
-    // it refuses rather than extrapolating.
+    // it is reported and the slot says it is outside the measured scope, never calibrated.
     let n = 110_000;
     let spec = large_iid_spec(n);
     let report = assess_predictive_laws(&spec, &ctx()).unwrap();
@@ -1230,7 +1262,124 @@ fn a_case_count_beyond_every_measured_record_is_not_published() {
         score: ScoreKind::Crps,
         level: 0.95,
     };
-    let error = expected_score_interval(&spec, &report, &query).unwrap_err();
-    assert_eq!(error.reason_code(), "cell_not_licensed");
-    assert_eq!(error.detail(), detail::INTERVAL_SCOPE_OUTSIDE_MEASURED);
+    let interval = expected_score_interval(&spec, &report, &query).unwrap();
+    assert!(interval.lower < interval.upper);
+    assert_ne!(
+        interval.calibration.status,
+        antecedent_io_core::contract_section::CalibrationStatus::Calibrated
+    );
+}
+
+#[test]
+fn comparison_admission_aggregates_work_and_rejects_duplicates() {
+    use antecedent_validate::predictive_assessment::admit_comparisons;
+    let pairs =
+        vec![("calibrated".into(), "biased".into()), ("biased".into(), "calibrated".into())];
+    // 10 cases * 2 pairs * 2 scores * (7 linear passes + 3 lags),
+    // plus endpoint resolution and byte-based name traversal/copying.
+    assert_eq!(
+        admit_comparisons(
+            10,
+            &[("calibrated", 0), ("overconfident", 0), ("biased", 0)],
+            2,
+            &pairs,
+            Some(3),
+            5478
+        )
+        .unwrap(),
+        5478
+    );
+    assert!(
+        admit_comparisons(
+            10,
+            &[("calibrated", 0), ("overconfident", 0), ("biased", 0)],
+            2,
+            &pairs,
+            Some(3),
+            5477
+        )
+        .is_err()
+    );
+    assert!(
+        admit_comparisons(
+            usize::MAX,
+            &[("calibrated", 0), ("overconfident", 0), ("biased", 0)],
+            2,
+            &pairs,
+            Some(u32::MAX),
+            u64::MAX
+        )
+        .is_err()
+    );
+    // Fit overlap sorting is also multiplied by the number of pairs; an
+    // unselected huge fit-key list adds no fit-overlap charge.
+    assert_eq!(
+        admit_comparisons(
+            10,
+            &[("calibrated", 100), ("overconfident", u64::MAX), ("biased", 100)],
+            2,
+            &pairs,
+            None,
+            8958
+        )
+        .unwrap(),
+        8958
+    );
+    assert!(
+        admit_comparisons(
+            10,
+            &[("calibrated", 100), ("overconfident", u64::MAX), ("biased", 100)],
+            2,
+            &pairs,
+            None,
+            8957
+        )
+        .is_err()
+    );
+    // Implicit pairs select the first predictor as anchor and every other endpoint.
+    assert_eq!(
+        admit_comparisons(
+            10,
+            &[("calibrated", 100), ("overconfident", 100), ("biased", 50)],
+            2,
+            &[],
+            None,
+            5298
+        )
+        .unwrap(),
+        5298
+    );
+    let mut spec = generator_spec(10);
+    spec.comparisons = pairs;
+    let report = assess_predictive_laws(&spec, &ctx()).unwrap();
+    assert_eq!(
+        report
+            .differences
+            .iter()
+            .map(|d| (d.candidate.as_str(), d.reference.as_str()))
+            .collect::<Vec<_>>(),
+        vec![
+            ("calibrated", "biased"),
+            ("calibrated", "biased"),
+            ("biased", "calibrated"),
+            ("biased", "calibrated")
+        ]
+    );
+    spec.comparisons[1] = spec.comparisons[0].clone();
+    assert!(spec.canonicalized().is_err());
+    assert!(assess_predictive_laws(&spec, &ctx()).is_err());
+}
+
+#[test]
+fn comparison_name_bytes_are_admitted_before_common_prefix_search() {
+    use antecedent_validate::predictive_assessment::admit_comparisons;
+    let prefix = "x".repeat(32_768);
+    let a = format!("{prefix}a");
+    let b = format!("{prefix}b");
+    let pairs = vec![(a.clone(), b.clone()), (b.clone(), a.clone())];
+    let names = [(a.as_str(), 0), (b.as_str(), 0)];
+    let needed = admit_comparisons(2, &names, 1, &pairs, None, u64::MAX).unwrap();
+    assert!(needed > 1_000_000);
+    assert!(admit_comparisons(2, &names, 1, &pairs, None, needed - 1).is_err());
+    assert_eq!(admit_comparisons(2, &names, 1, &pairs, None, needed).unwrap(), needed);
 }

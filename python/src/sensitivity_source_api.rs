@@ -1,18 +1,18 @@
 //! Explicit original joint-sensitivity source materialization and complete replay.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::bridge::serialization;
 use crate::sensitivity_decision_api::PySensitivityArtifact;
-use antecedent_core::reason_code;
-use antecedent_io::IoError;
-use antecedent_validate::JointDeviationSpec;
+use antecedent::io::IoError;
+use antecedent::reason::reason_code;
+use antecedent::validate::JointDeviationSpec;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 #[derive(Clone)]
 pub(crate) struct SourceRecipe {
     pub(crate) prepared: antecedent::PreparedZTransport,
     pub(crate) spec: JointDeviationSpec,
-    pub(crate) context: antecedent_core::ExecutionContext,
+    pub(crate) context: antecedent::prelude::ExecutionContext,
 }
 impl PySensitivityArtifact {
     pub(crate) fn checked_source(
@@ -97,7 +97,9 @@ fn export_sensitivity_source<'py>(
 ) -> PyResult<Bound<'py, PyBytes>> {
     let source = artifact.checked_source(py)?.ok_or_else(|| {
         crate::with_reason_code(
-            crate::value_err("sensitivity_source.source_unavailable"),
+            crate::value_err(
+                antecedent::reason::reason_details::sensitivity_source::SOURCE_UNAVAILABLE,
+            ),
             reason_code!("invalid_argument"),
         )
     })?;
@@ -108,17 +110,17 @@ fn export_sensitivity_source<'py>(
 fn consume_sensitivity_source(py: Python<'_>, data: &[u8]) -> PyResult<PySensitivityArtifact> {
     if data.len() > antecedent::analysis::sensitivity_source::MAX_BYTES {
         return Err(crate::with_reason_code(
-            crate::value_err("sensitivity_source.limits_exceeded"),
+            crate::value_err(
+                antecedent::reason::reason_details::sensitivity_source::LIMITS_EXCEEDED,
+            ),
             reason_code!("invalid_argument"),
         ));
     }
     let bytes = data.to_vec();
+    let ctx = crate::execution_api::context(0);
     let source = crate::detach_catch(py, move || {
-        antecedent::analysis::sensitivity_source::SourceBackedSensitivity::consume(
-            &bytes,
-            &antecedent_core::ExecutionContext::production_default(0),
-        )
-        .map_err(source_error)
+        antecedent::analysis::sensitivity_source::SourceBackedSensitivity::consume(&bytes, &ctx)
+            .map_err(source_error)
     })?;
     Ok(PySensitivityArtifact {
         artifact: source.surface().clone(),

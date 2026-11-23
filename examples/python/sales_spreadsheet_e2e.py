@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-"""Explore several causal questions in a simulated sales analysis.
+"""Can one reviewed graph answer several questions of a sales table without rerunning discovery?
 
-Discover and accept a graph, estimate an average effect with Bayesian
-inference, and examine effects along particular paths and for individual
-rows. A separate temporal example estimates the effect of a brief intervention.
+The static table (400 rows) and the weekly series (350 steps) are simulated from declared
+linear mechanisms, so the targets are fixture truths of that model: campaign intensity reaches
+revenue directly with coefficient 1.2 and through the channel with 0.6 x 0.8 = 0.48 (total
+1.68), and a promotion pulse moves returns one step later with coefficient 0.85. The script
+asserts the Bayesian average effect, the channel-path share and the pulse effect against those
+values within 0.25, checks the individual effects only for being finite, and counts calls into
+PC discovery to show that none of these estimates runs it. The graphs are declared, not tested.
 
-Install with `python -m pip install antecedent`; see examples/README.md."""
+Run: ``python examples/python/sales_spreadsheet_e2e.py``."""
 
 from __future__ import annotations
 
@@ -13,13 +17,14 @@ import math
 
 import antecedent
 import numpy as np
+from antecedent.outcomes import require_success
 
 
 def _sales_static(n: int = 400, seed: int = 7):
     """Campaign intensity (t) → revenue (y) via channel (m), confounder spend_context (z).
 
-    Continuous linear-Gaussian SEM so path_decompose (β products) and GCM ITE share
-    the same artifact as Bayesian ATE — binary treatment would refuse path_decompose.
+    Continuous linear-Gaussian SEM, so the path-specific attribution (β products), the
+    fitted-mechanism ITE and the Bayesian ATE all read the same table.
     """
     rng = np.random.default_rng(seed)
     z = rng.normal(size=n)
@@ -54,7 +59,7 @@ def main() -> None:
     # so the "estimate clicks must not discover" assertion below is not vacuous.
     antecedent.discovery.PC.run = spy_run  # type: ignore[method-assign]
 
-    # Hand-accepted DAG (discover-once already reviewed in product UX).
+    # A DAG accepted by hand, standing in for a graph a reviewer accepted after one discovery run.
     dag = antecedent.Dag.from_edges(
         ["z", "t", "m", "y"],
         [("z", "t"), ("z", "m"), ("z", "y"), ("t", "m"), ("t", "y"), ("m", "y")],
@@ -62,17 +67,20 @@ def main() -> None:
     accepted = antecedent.AcceptedGraph.from_graph(dag, algorithm_id="reviewed")
     q = antecedent.AverageEffect(treatment="t", outcome="y")
 
-    bayes = antecedent.analyze(
-        data,
-        graph=accepted,
-        query=q,
-        inference=antecedent.Bayesian(backend="laplace", n_draws=128),
-        refute="none",
-        seed=3,
-        bootstrap=0,
+    bayes = require_success(
+        antecedent.analyze(
+            data,
+            graph=accepted,
+            query=q,
+            inference=antecedent.Bayesian(backend="laplace", n_draws=128),
+            refute="none",
+            execution=antecedent.Execution(seed=3),
+        )
     )
     assert math.isfinite(bayes.ate), bayes.ate
     assert bayes.posterior is not None
+    # Declared total effect: 1.2 direct + 0.6 * 0.8 through the channel.
+    assert abs(bayes.ate - 1.68) < 0.25, bayes.ate
     print(f"Bayesian ATE={bayes.ate:.4f} (campaign → revenue)")
 
     # Path-specific: direct t→y vs mediated t→m→y
@@ -86,26 +94,39 @@ def main() -> None:
         "t",
         "y",
         path_nodes=["m"],
-        seed=5,
+        execution=antecedent.Execution(seed=5),
     )
     assert math.isfinite(path.total_change)
+    mediated = next((c for p, c in path.path_breakdown if len(p) == 3 and p[1] == "m"), None)
+    assert mediated is not None, path.path_breakdown
+    # Declared channel path: 0.6 * 0.8 = 0.48 (Monte Carlo tolerance).
+    assert abs(mediated - 0.48) < 0.25, mediated
     print(f"Path decompose total_change={path.total_change:.4f} paths={len(path.path_breakdown)}")
 
-    ite = antecedent.analyze(
-        data, graph=accepted, query=antecedent.Counterfactual("t", "y"), seed=7
+    ite = require_success(
+        antecedent.analyze(
+            data,
+            graph=accepted,
+            query=antecedent.Counterfactual("t", "y"),
+            execution=antecedent.Execution(seed=7),
+        )
     )
     assert len(ite.unit_effects) == len(cols[0])
     assert math.isfinite(ite.mean_ite)
+    assert all(math.isfinite(float(u)) for u in ite.unit_effects)
     print(f"ITE mean={ite.mean_ite:.4f} n={len(ite.unit_effects)}")
 
-    # Second estimate click — still no discovery.
+    # Re-estimating the retained study reuses the same data snapshot and still runs no discovery.
     study = bayes.study
-    second = study.estimate(seed=4)
+    second = require_success(
+        antecedent.estimate(antecedent.reconfigure(study, execution=antecedent.Execution(seed=4)))
+    )
     assert second.data_snapshot_id == bayes.data_snapshot_id
-    acceptance = antecedent.load(bayes.export()).acceptance
-    assert acceptance.verified or acceptance.sealed
+    artifact = bayes.export()
+    acceptance = antecedent.load(artifact, expected=artifact.expectation).acceptance
+    assert acceptance.recognized
     print("Calibration:", bayes.calibration.status)
-    assert discovery_calls["n"] == 0, "static estimate clicks must not discover"
+    assert discovery_calls["n"] == 0, "static estimates must not run discovery"
     assert accepted.version == 1
 
     # --- Temporal pulse Bayesian block ---
@@ -114,20 +135,21 @@ def main() -> None:
         ["promo", "returns"], [("promo", 1, "returns", 0)]
     )
     temporal = antecedent.AcceptedGraph.from_graph(tdag, algorithm_id="pcmci")
-    pulse = antecedent.analyze(
-        series,
-        graph=temporal,
-        query=antecedent.PulseEffect(
-            treatment="promo",
-            outcome="returns",
-            treatment_lag=1,
-            horizon_steps=1,
-            active_level=1.0,
-        ),
-        inference=antecedent.Bayesian(backend="laplace", n_draws=96),
-        refute="none",
-        seed=13,
-        bootstrap=0,
+    pulse = require_success(
+        antecedent.analyze(
+            series,
+            graph=temporal,
+            query=antecedent.PulseEffect(
+                treatment="promo",
+                outcome="returns",
+                treatment_lag=1,
+                horizon_steps=1,
+                active_level=1.0,
+            ),
+            inference=antecedent.Bayesian(backend="laplace", n_draws=96),
+            refute="none",
+            execution=antecedent.Execution(seed=13),
+        )
     )
     assert math.isfinite(pulse.ate), pulse.ate
     print(f"Temporal pulse Bayesian ATE={pulse.ate:.4f} (promo → returns)")

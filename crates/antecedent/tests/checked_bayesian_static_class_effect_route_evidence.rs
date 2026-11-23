@@ -7,8 +7,9 @@
 //! sibling numeric-pin tests validate against closed forms; here the same pins must be
 //! reproduced from the retained checked plan after the builder is gone.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, GraphClass, IdentifierId, InferenceMode,
     RefuteSuite, Study,
@@ -144,7 +145,7 @@ struct Fixture {
     graph: ClassGraph,
     pin: serde_json::Value,
     /// Seeded posterior mean of the envelope mixture; see the numeric-pin tests for
-    /// the closed-form checks that license these values.
+    /// the closed-form checks that support these values.
     expected_ate: f64,
 }
 
@@ -242,10 +243,17 @@ fn bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dro
                     let mut prepared = builder.prepare(&ctx).unwrap();
                     drop(builder);
 
-                    assert!(prepared.has_checked_static_class_effect_operation(), "{coordinate}");
-                    let plan = prepared
-                        .checked_static_class_effect_info()
-                        .expect("retained Bayesian static class effect operation");
+                    assert!(
+                        matches!(
+                            prepared.retained_operation(),
+                            RetainedOperation::StaticClassEffect(..)
+                        ),
+                        "{coordinate}"
+                    );
+                    let RetainedOperation::StaticClassEffect(plan) = prepared.retained_operation()
+                    else {
+                        panic!("retained Bayesian static class effect operation")
+                    };
                     assert_eq!(plan.graph_class, fixture.graph_class, "{coordinate}");
                     assert_eq!(plan.query, query, "{coordinate}");
                     assert_eq!(
@@ -279,10 +287,10 @@ fn bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dro
 
                     let result = prepared.estimate(&data, &ctx).unwrap();
                     assert!(
-                        (result.estimate.as_effect().unwrap().ate - fixture.expected_ate).abs()
+                        (result.estimate().as_effect().unwrap().ate - fixture.expected_ate).abs()
                             < 1e-9,
                         "{coordinate}: envelope posterior mean {} vs pin {}",
-                        result.estimate.as_effect().unwrap().ate,
+                        result.estimate().as_effect().unwrap().ate,
                         fixture.expected_ate
                     );
                     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.gcomp"));
@@ -305,8 +313,8 @@ fn bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dro
 
                     // The one-shot facade executes the same retained plan.
                     assert_eq!(
-                        one_shot.estimate.as_effect().unwrap().ate.to_bits(),
-                        result.estimate.as_effect().unwrap().ate.to_bits(),
+                        one_shot.estimate().as_effect().unwrap().ate.to_bits(),
+                        result.estimate().as_effect().unwrap().ate.to_bits(),
                         "{coordinate}: one-shot and prepared clicks must agree bitwise"
                     );
                     assert!(
@@ -317,17 +325,21 @@ fn bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dro
                         "{coordinate}: one-shot run must execute the retained proof"
                     );
 
-                    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+                    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
                     assert_eq!(
-                        refreshed.estimate.as_effect().unwrap().ate.to_bits(),
-                        result.estimate.as_effect().unwrap().ate.to_bits()
+                        refreshed.estimate().as_effect().unwrap().ate.to_bits(),
+                        result.estimate().as_effect().unwrap().ate.to_bits()
                     );
-                    let rebound = prepared.checked_static_class_effect_info().unwrap();
+                    let RetainedOperation::StaticClassEffect(rebound) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("retained Bayesian static class effect operation after refresh")
+                    };
                     assert_eq!(rebound.query, plan.query);
                     assert_eq!(rebound.inference, plan.inference);
                     assert_eq!(rebound.completion_count, plan.completion_count);
                     assert!(
-                        prepared.refresh(reordered(pin), &ctx).is_err(),
+                        rebind_estimate(&mut prepared, reordered(pin), &ctx).is_err(),
                         "{coordinate}: schema-changing refresh must be refused"
                     );
 
@@ -338,7 +350,7 @@ fn bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dro
                             &ctx,
                         )
                         .unwrap();
-                    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
                     assert!(consumed.contract.is_some());
                     assert!(
                         consumed.acceptance.unresolved.iter().any(|reason| {
@@ -347,7 +359,7 @@ fn bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dro
                         "{coordinate}: {:?}",
                         consumed.acceptance.unresolved
                     );
-                    assert!(!consumed.acceptance.accepts_as_verified_program());
+                    assert!(!consumed.acceptance.accepts_as_replayed_program());
                 }
             }
         }
@@ -363,4 +375,17 @@ fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
         .unwrap()
         .join()
         .unwrap();
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

@@ -25,12 +25,6 @@ pub(crate) struct Model<'a> {
     pub(crate) conflict: f64,
     pub(crate) degree: Option<usize>,
 }
-fn refused(message: &str) -> IoError {
-    IoError::Refused {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
-        message: format!("measured_transport.protocol_not_measured: {message}"),
-    }
-}
 fn prior_matches(prior: &GaussianPriorWire, width: usize) -> bool {
     prior.provenance == PriorProvenanceWire::Declared
         && prior.mean.len() == width
@@ -45,6 +39,14 @@ fn prior_matches(prior: &GaussianPriorWire, width: usize) -> bool {
                 }
         })
 }
+/// The validated scope of a measured transport interval. A configuration outside the frozen
+/// validation protocol is not refused: the scope records `measured_protocol: false` with the
+/// reason, and [`tag_outside`] gives its basis a construction no coverage record measured, so
+/// calibration reports `not_measured`. Calibration annotates the interval and never gates it.
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "callers propagate the shared artifact error type with `?`"
+)]
 pub(crate) fn protocol(
     model: &Model<'_>,
     sources: &[JointSourceWire],
@@ -52,6 +54,38 @@ pub(crate) fn protocol(
     draws: usize,
     level: f64,
 ) -> Result<serde_json::Value, IoError> {
+    match protocol_checked(model, sources, target, draws, level) {
+        Err(message) => Ok(serde_json::json!({
+            "measured_protocol": false,
+            "outside_measured_protocol": message,
+            "evidence_interpretation": "outside the frozen validation protocol: reported without a coverage claim",
+            "declared_model_assumptions": ["correct invariant Gaussian effect model","independent disjoint source samples","known residual variances"],
+            "sampling_assumptions_authenticated_from_rows": false,
+            "source_rows": sources.iter().map(|s| s.outcome.len()).collect::<Vec<_>>(),
+            "posterior_draws": draws, "level": level, "reported_scalar": "target_effect"
+        })),
+        Ok(scope) => Ok(scope),
+    }
+}
+
+/// Give a basis a construction no record measured when its scope is outside the protocol.
+pub(crate) fn tag_outside(
+    scope: &serde_json::Value,
+    mut basis: antecedent_core::CalibrationBasis,
+) -> antecedent_core::CalibrationBasis {
+    if scope.get("measured_protocol") == Some(&serde_json::Value::Bool(false)) {
+        basis.estimator = format!("{}+outside_measured_protocol", basis.estimator).into();
+    }
+    basis
+}
+
+fn protocol_checked(
+    model: &Model<'_>,
+    sources: &[JointSourceWire],
+    target: &JointTargetWire,
+    draws: usize,
+    level: f64,
+) -> Result<serde_json::Value, &'static str> {
     if level.to_bits() != PROTOCOL_LEVEL_BITS
         || draws < PROTOCOL_MIN_DRAWS
         || model.graph != GraphClassCode::FixedDag
@@ -63,9 +97,9 @@ pub(crate) fn protocol(
         || sources.len() > 2
         || model.degree.is_some_and(|d| d != 2)
     {
-        return Err(refused(
+        return Err(
             "nominal level, posterior draws, model, dependence or source count differs from the frozen validation protocol",
-        ));
+        );
     }
     let varying_covariates = match model.varying {
         VaryingBlockCode::Intercept => false,
@@ -85,19 +119,19 @@ pub(crate) fn protocol(
             && varying_covariates
             && sharing == SourceSharingCode::IndependentVaryingBlocks))
     {
-        return Err(refused("varying-block/sharing configuration is not measured"));
+        return Err("varying-block/sharing configuration is not measured");
     }
     let (q, r) = match (model.degree, varying_covariates) {
         (None, false) => (3, 1),
         (None, true) => (2, 2),
         (Some(2), false) => (5, 1),
         (Some(2), true) => (3, 3),
-        _ => return Err(refused("basis is not measured")),
+        _ => return Err("basis is not measured"),
     };
     if !prior_matches(model.invariant, q) || !prior_matches(model.varying_prior, r) {
-        return Err(refused(
+        return Err(
             "only zero-mean declared isotropic Gaussian priors with variance 1000 were measured; prior banks are not activated",
-        ));
+        );
     }
     let n = sources[0].outcome.len();
     if !(150..=600).contains(&n)
@@ -110,9 +144,9 @@ pub(crate) fn protocol(
                     != if i == 0 { 1.0f64.to_bits() } else { 2.25f64.to_bits() }
         })
     {
-        return Err(refused(
+        return Err(
             "balanced per-source sample sizes, known variances or covariate bounds differ from the frozen protocol",
-        ));
+        );
     }
     let target_design = [-0.25f64, 0.25, 0.25, 0.55];
     if target.rows != 4
@@ -120,7 +154,7 @@ pub(crate) fn protocol(
         || target.covariates[0].len() != 4
         || target.covariates[0].iter().zip(target_design).any(|(a, b)| a.to_bits() != b.to_bits())
     {
-        return Err(refused("target covariate design differs from the measured fixed target"));
+        return Err("target covariate design differs from the measured fixed target");
     }
     Ok(serde_json::json!({
         "validation_design":if model.degree.is_some(){"known_quadratic_gaussian_invariant_effect_fixed_target"}else{"known_gaussian_invariant_effect_fixed_target"},
@@ -134,6 +168,7 @@ pub(crate) fn protocol(
         "source_ids":sources.iter().map(|s|&s.id).collect::<Vec<_>>(),"source_noise_variances":sources.iter().map(|s|s.noise_variance).collect::<Vec<_>>(),
         "target_covariates":target.covariates,"features":model.features,"basis_degree":model.degree,
         "varying":model.varying.as_str(),"sharing":model.sharing.as_str(),"prior_mean":0.0,"prior_variance":f64::from_bits(PROTOCOL_PRIOR_VARIANCE_BITS),"prior_provenance":"declared",
+        "measured_protocol":true,
         "posterior_draws":draws,"posterior_draws_min":PROTOCOL_MIN_DRAWS,"level":level,"reported_scalar":"target_effect"
     }))
 }
@@ -190,29 +225,36 @@ mod tests {
         assert_eq!(report["sampling_assumptions_authenticated_from_rows"], false);
         assert_eq!(report["varying"], "intercept");
         assert_eq!(report["sharing"], "independent_varying_blocks");
-        assert!(protocol(&model, &sources, &target, 4095, 0.95).is_err());
-        assert!(protocol(&model, &sources, &target, 4096, 0.90).is_err());
+        assert_eq!(report["measured_protocol"], true);
+        // A configuration outside the frozen protocol is reported, not refused: the scope
+        // records `measured_protocol: false` with the reason.
+        let outside = |report: serde_json::Value| {
+            assert_eq!(report["measured_protocol"], false, "{report}");
+            assert!(report["outside_measured_protocol"].as_str().is_some(), "{report}");
+        };
+        outside(protocol(&model, &sources, &target, 4095, 0.95).unwrap());
+        outside(protocol(&model, &sources, &target, 4096, 0.90).unwrap());
         sources[0].noise_variance = 1.1;
-        assert!(protocol(&model, &sources, &target, 4096, 0.95).is_err());
+        outside(protocol(&model, &sources, &target, 4096, 0.95).unwrap());
         sources[0].noise_variance = 1.0;
         sources[0].covariates[0][0] = 1.1;
-        assert!(protocol(&model, &sources, &target, 4096, 0.95).is_err());
+        outside(protocol(&model, &sources, &target, 4096, 0.95).unwrap());
         sources[0].covariates[0][0] = 0.0;
         target.covariates[0][0] = -0.20;
-        assert!(protocol(&model, &sources, &target, 4096, 0.95).is_err());
+        outside(protocol(&model, &sources, &target, 4096, 0.95).unwrap());
         target.covariates[0][0] = -0.25;
         model.degree = Some(3);
-        assert!(protocol(&model, &sources, &target, 4096, 0.95).is_err());
+        outside(protocol(&model, &sources, &target, 4096, 0.95).unwrap());
         model.degree = None;
         let bank = GaussianPriorWire {
             provenance: PriorProvenanceWire::Bank { bank_id: "bank".into(), consumed: vec![] },
             ..prior(3)
         };
         model.invariant = &bank;
-        assert!(protocol(&model, &sources, &target, 4096, 0.95).is_err());
+        outside(protocol(&model, &sources, &target, 4096, 0.95).unwrap());
         model.invariant = &invariant;
         sources[0].outcome.truncate(149);
-        assert!(protocol(&model, &sources, &target, 4096, 0.95).is_err());
+        outside(protocol(&model, &sources, &target, 4096, 0.95).unwrap());
     }
 }
 
@@ -235,23 +277,28 @@ mod native_lifecycle_tests {
         reason = "bounded paired native execution and adversarial replay fixture"
     )]
     fn every_measured_transport_variant_matches_original_execution_basis_bit_for_bit() {
-        let factor = PopulationFactor {
-            population: Arc::from("source"),
-            regime: None,
-            variables: Arc::from([]),
-            conditioned_on: Arc::from([]),
-            interventions: Arc::from([]),
-        };
         let proof = TransportIdentification::Transportable {
             formula: TransportFormula::Standardize {
                 over: Arc::from([VariableId::from_raw(1)]),
-                source_response: factor.clone(),
-                target_law: factor,
+                source_response: PopulationFactor {
+                    population: Arc::from("source"),
+                    regime: None,
+                    variables: Arc::from([VariableId::from_raw(100)]),
+                    conditioned_on: Arc::from([VariableId::from_raw(1)]),
+                    interventions: Arc::from([VariableId::from_raw(101)]),
+                },
+                target_law: PopulationFactor {
+                    population: Arc::from("target"),
+                    regime: None,
+                    variables: Arc::from([VariableId::from_raw(1)]),
+                    conditioned_on: Arc::from([]),
+                    interventions: Arc::from([]),
+                },
             },
             certificate: TransportCertificate {
-                rule: Arc::from("standardization"),
-                selection_targets: Arc::from([]),
-                premises: Arc::from([]),
+                rule: Arc::from("transport.sid.standardize"),
+                selection_targets: Arc::from([VariableId::from_raw(1)]),
+                premises: Arc::from([Arc::from("standardizers are pre-treatment")]),
             },
         };
         let target = TargetData {
@@ -337,85 +384,113 @@ mod native_lifecycle_tests {
                 joint.target_calibration_basis(0.95).unwrap().estimator.as_ref(),
                 "joint_bayesian_transport"
             );
-            let (wire, _, measured) = crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::build_measured(&proof,&model,&sources,&target,options,0.95,&ctx).unwrap();
-            assert_eq!(wire.export().unwrap(), measured.source_artifact());
-            assert_eq!(
-                measured.report().scalars[0].point.to_bits(),
-                joint.target_effect_mean.to_bits()
-            );
-            assert_eq!(measured.report().scalars[0].calibration.status, "calibrated");
-            let (_,_,loaded)=crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::consume_measured(measured.export(),measured.expectation(),crate::joint_bayesian_transport_artifact::JointBayesianConsumeLimits::default(),&ctx).unwrap();
-            assert_eq!(loaded.export(), measured.export());
-            // Canonical harness identities keep the exact pre-change evidence key.
-            assert_eq!(
-                joint.target_calibration_basis(0.95).unwrap().posterior.as_ref(),
-                format!(
-                    "{}.{}",
-                    antecedent_estimate::joint_bayesian_transport::JOINT_TRANSPORT_SAMPLER,
-                    joint.model_identity
-                )
-            );
-            let mut aliases = sources.clone();
-            for (index, source) in aliases.iter_mut().enumerate() {
-                source.id = format!("renamed-population-{index}");
-            }
-            let (_, alias_fit, alias_measured) = crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::build_measured(
-                &proof, &model, &aliases, &target, options, 0.95, &ctx).unwrap();
-            assert_eq!(
-                alias_fit.target_calibration_basis(0.95).unwrap(),
-                joint.target_calibration_basis(0.95).unwrap()
-            );
-            assert_eq!(alias_fit.draws.values, joint.draws.values);
-            assert_ne!(alias_fit.model_identity, joint.model_identity);
-            assert_ne!(alias_measured.source_artifact(), measured.source_artifact());
-            assert_ne!(alias_measured.expectation(), measured.expectation());
-            let alias_loaded = crate::measured_inference::MeasuredInference::consume(
-                alias_measured.export(),
-                alias_measured.expectation(),
-                &ctx,
-            )
-            .unwrap();
-            assert_eq!(alias_loaded.export(), alias_measured.export());
-            assert!(
-                crate::measured_inference::MeasuredInference::consume(
-                    alias_measured.export(),
-                    measured.expectation(),
-                    &ctx
-                )
-                .is_err()
-            );
-            let mut forged =
-                crate::measured_inference::decode(measured.export(), measured.expectation())
-                    .unwrap();
-            forged.report.scalars[0].point += 0.1;
-            forged.report.identity.seal =
-                crate::measured_inference::report_seal(&forged.report).unwrap();
-            let forged_bytes = crate::to_cbor(&forged).unwrap();
-            assert!(crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::consume_measured(&forged_bytes,&forged.report.identity,crate::joint_bayesian_transport_artifact::JointBayesianConsumeLimits::default(),&ctx).is_err());
-
-            if count == 1 {
-                let generic = crate::measured_inference::MeasuredInference::consume(
-                    measured.export(),
-                    measured.expectation(),
-                    &ctx,
+            let basis = joint.target_calibration_basis(0.95).unwrap();
+            let slot = crate::calibration::calibration_slot(&super::super::basis_wire(&basis));
+            let (plain_wire, plain_fit) =
+                crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::build(
+                    &proof, &model, &sources, &target, options, &ctx,
                 )
                 .unwrap();
-                assert_eq!(generic.export(), measured.export());
-                let mut wrong_route = measured.expectation().clone();
-                wrong_route.route = "invented".into();
-                assert!(
-                    crate::measured_inference::MeasuredInference::consume(
-                        measured.export(),
-                        &wrong_route,
-                        &ctx
-                    )
-                    .is_err()
+            assert_eq!(plain_fit.target_effect_mean.to_bits(), joint.target_effect_mean.to_bits());
+            assert_eq!(plain_fit.draws.values, joint.draws.values);
+            let bytes = plain_wire.export().unwrap();
+            assert_eq!(
+                crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::decode(&bytes)
+                    .unwrap()
+                    .export()
+                    .unwrap(),
+                bytes
+            );
+            let result =
+                crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::build_measured(
+                    &proof, &model, &sources, &target, options, 0.95, &ctx,
                 );
-                // Replacing source bytes with a valid newly produced source and
-                // resealing the entire envelope still cannot retain old scalars.
-                let mut changed_sources = sources.clone();
-                changed_sources[0].outcome[0] += 1.0;
-                let (changed_wire, _) =
+            match result {
+                Ok((wire, _, measured)) => {
+                    // Calibration annotates: the interval is reported with the slot the resolver gave.
+                    assert_eq!(measured.report().scalars[0].calibration.status, slot.status);
+                    assert!(
+                        measured.report().scalars[0].lower <= measured.report().scalars[0].upper
+                    );
+                    assert_eq!(wire.export().unwrap(), measured.source_artifact());
+                    assert_eq!(
+                        measured.report().scalars[0].point.to_bits(),
+                        joint.target_effect_mean.to_bits()
+                    );
+                    let (_,_,loaded)=crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::consume_measured(measured.export(),measured.expectation(),crate::joint_bayesian_transport_artifact::JointBayesianConsumeLimits::default(),&ctx).unwrap();
+                    assert_eq!(loaded.export(), measured.export());
+                    // Canonical harness identities keep the exact pre-change evidence key.
+                    assert_eq!(
+                        joint.target_calibration_basis(0.95).unwrap().posterior.as_ref(),
+                        format!(
+                            "{}.{}",
+                            antecedent_estimate::joint_bayesian_transport::JOINT_TRANSPORT_SAMPLER,
+                            joint.model_identity
+                        )
+                    );
+                    let mut aliases = sources.clone();
+                    for (index, source) in aliases.iter_mut().enumerate() {
+                        source.id = format!("renamed-population-{index}");
+                    }
+                    let (_, alias_fit, alias_measured) = crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::build_measured(
+                &proof, &model, &aliases, &target, options, 0.95, &ctx).unwrap();
+                    assert_eq!(
+                        alias_fit.target_calibration_basis(0.95).unwrap(),
+                        joint.target_calibration_basis(0.95).unwrap()
+                    );
+                    assert_eq!(alias_fit.draws.values, joint.draws.values);
+                    assert_ne!(alias_fit.model_identity, joint.model_identity);
+                    assert_ne!(alias_measured.source_artifact(), measured.source_artifact());
+                    assert_ne!(alias_measured.expectation(), measured.expectation());
+                    let alias_loaded = crate::measured_inference::MeasuredInference::consume(
+                        alias_measured.export(),
+                        alias_measured.expectation(),
+                        &ctx,
+                    )
+                    .unwrap();
+                    assert_eq!(alias_loaded.export(), alias_measured.export());
+                    assert!(
+                        crate::measured_inference::MeasuredInference::consume(
+                            alias_measured.export(),
+                            measured.expectation(),
+                            &ctx
+                        )
+                        .is_err()
+                    );
+                    let mut forged = crate::measured_inference::decode(
+                        measured.export(),
+                        measured.expectation(),
+                    )
+                    .unwrap();
+                    forged.report.scalars[0].point += 0.1;
+                    forged.report.identity.seal =
+                        crate::measured_inference::report_seal(&forged.report).unwrap();
+                    let forged_bytes = crate::to_cbor(&forged).unwrap();
+                    assert!(crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::consume_measured(&forged_bytes,&forged.report.identity,crate::joint_bayesian_transport_artifact::JointBayesianConsumeLimits::default(),&ctx).is_err());
+
+                    if count == 1 {
+                        let generic = crate::measured_inference::MeasuredInference::consume(
+                            measured.export(),
+                            measured.expectation(),
+                            &ctx,
+                        )
+                        .unwrap();
+                        assert_eq!(generic.export(), measured.export());
+                        let mut wrong_route = measured.expectation().clone();
+                        wrong_route.route = "invented".into();
+                        assert!(
+                            crate::measured_inference::MeasuredInference::consume(
+                                measured.export(),
+                                &wrong_route,
+                                &ctx
+                            )
+                            .is_err()
+                        );
+                        // Replacing source bytes with a valid newly produced source and
+                        // resealing the entire envelope still cannot retain old scalars.
+                        let mut changed_sources = sources.clone();
+                        changed_sources[0].outcome[0] += 1.0;
+                        let (changed_wire, _) =
                     crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::build(
                         &proof,
                         &model,
@@ -425,21 +500,29 @@ mod native_lifecycle_tests {
                         &ctx,
                     )
                     .unwrap();
-                let mut swapped =
-                    crate::measured_inference::decode(measured.export(), measured.expectation())
+                        let mut swapped = crate::measured_inference::decode(
+                            measured.export(),
+                            measured.expectation(),
+                        )
                         .unwrap();
-                swapped.source = changed_wire.export().unwrap();
-                swapped.report.identity.candidate_digest = crate::identity::digest_canonical(
-                    antecedent_core::IdentityDomain::Claim,
-                    &swapped.source,
-                )
-                .to_hex();
-                swapped.report.identity.premises_digest = changed_wire.premises_digest;
-                swapped.report.identity.data_digest = changed_wire.data_digest;
-                swapped.report.identity.seal =
-                    crate::measured_inference::report_seal(&swapped.report).unwrap();
-                let bytes = crate::to_cbor(&swapped).unwrap();
-                assert!(crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::consume_measured(&bytes,&swapped.report.identity,crate::joint_bayesian_transport_artifact::JointBayesianConsumeLimits::default(),&ctx).is_err());
+                        swapped.source = changed_wire.export().unwrap();
+                        swapped.report.identity.candidate_digest =
+                            crate::identity::digest_canonical(
+                                antecedent_core::IdentityDomain::Claim,
+                                &swapped.source,
+                            )
+                            .to_hex();
+                        swapped.report.identity.premises_digest = changed_wire.premises_digest;
+                        swapped.report.identity.data_digest = changed_wire.data_digest;
+                        swapped.report.identity.seal =
+                            crate::measured_inference::report_seal(&swapped.report).unwrap();
+                        let bytes = crate::to_cbor(&swapped).unwrap();
+                        assert!(crate::joint_bayesian_transport_artifact::JointBayesianArtifactWire::consume_measured(&bytes,&swapped.report.identity,crate::joint_bayesian_transport_artifact::JointBayesianConsumeLimits::default(),&ctx).is_err());
+                    }
+                }
+                Err(error) => {
+                    panic!("interval must be reported with its calibration status: {error:?}")
+                }
             }
             let learned_model = LearnedJointModel {
                 graph: model.graph,
@@ -478,7 +561,32 @@ mod native_lifecycle_tests {
                 learned.target_calibration_basis(0.95).unwrap().estimator.as_ref(),
                 "learned_joint_transport"
             );
-            let (wire, _, measured) =
+            let basis = learned.target_calibration_basis(0.95).unwrap();
+            let slot = crate::calibration::calibration_slot(&super::super::basis_wire(&basis));
+            let (plain_wire, plain_fit) =
+                crate::learned_joint_transport_artifact::LearnedJointArtifactWire::build(
+                    &proof,
+                    &learned_model,
+                    &sources,
+                    &target,
+                    options,
+                    &ctx,
+                )
+                .unwrap();
+            assert_eq!(
+                plain_fit.target_effect_mean.to_bits(),
+                learned.target_effect_mean.to_bits()
+            );
+            assert_eq!(plain_fit.draws.values, learned.draws.values);
+            let bytes = plain_wire.export().unwrap();
+            assert_eq!(
+                crate::learned_joint_transport_artifact::LearnedJointArtifactWire::decode(&bytes)
+                    .unwrap()
+                    .export()
+                    .unwrap(),
+                bytes
+            );
+            let result =
                 crate::learned_joint_transport_artifact::LearnedJointArtifactWire::build_measured(
                     &proof,
                     &learned_model,
@@ -487,29 +595,35 @@ mod native_lifecycle_tests {
                     options,
                     0.95,
                     &ctx,
-                )
-                .unwrap();
-            assert_eq!(wire.export().unwrap(), measured.source_artifact());
-            assert_eq!(
-                measured.report().scalars[0].point.to_bits(),
-                learned.target_effect_mean.to_bits()
-            );
-            let (_,_,loaded)=crate::learned_joint_transport_artifact::LearnedJointArtifactWire::consume_measured(measured.export(),measured.expectation(),crate::learned_joint_transport_artifact::LearnedJointConsumeLimits::default(),&ctx).unwrap();
-            assert_eq!(loaded.export(), measured.export());
-            // Canonical harness identities keep the exact pre-change evidence key.
-            assert_eq!(
-                learned.target_calibration_basis(0.95).unwrap().posterior.as_ref(),
-                format!(
-                    "{}.{}",
-                    antecedent_estimate::learned_joint_transport::LEARNED_JOINT_SAMPLER,
-                    learned.model_identity
-                )
-            );
-            let mut aliases = sources.clone();
-            for (index, source) in aliases.iter_mut().enumerate() {
-                source.id = format!("renamed-population-{index}");
-            }
-            let (_, alias_fit, alias_measured) =
+                );
+            match result {
+                Ok((wire, _, measured)) => {
+                    // Calibration annotates: the interval is reported with the slot the resolver gave.
+                    assert_eq!(measured.report().scalars[0].calibration.status, slot.status);
+                    assert!(
+                        measured.report().scalars[0].lower <= measured.report().scalars[0].upper
+                    );
+                    assert_eq!(wire.export().unwrap(), measured.source_artifact());
+                    assert_eq!(
+                        measured.report().scalars[0].point.to_bits(),
+                        learned.target_effect_mean.to_bits()
+                    );
+                    let (_,_,loaded)=crate::learned_joint_transport_artifact::LearnedJointArtifactWire::consume_measured(measured.export(),measured.expectation(),crate::learned_joint_transport_artifact::LearnedJointConsumeLimits::default(),&ctx).unwrap();
+                    assert_eq!(loaded.export(), measured.export());
+                    // Canonical harness identities keep the exact pre-change evidence key.
+                    assert_eq!(
+                        learned.target_calibration_basis(0.95).unwrap().posterior.as_ref(),
+                        format!(
+                            "{}.{}",
+                            antecedent_estimate::learned_joint_transport::LEARNED_JOINT_SAMPLER,
+                            learned.model_identity
+                        )
+                    );
+                    let mut aliases = sources.clone();
+                    for (index, source) in aliases.iter_mut().enumerate() {
+                        source.id = format!("renamed-population-{index}");
+                    }
+                    let (_, alias_fit, alias_measured) =
                 crate::learned_joint_transport_artifact::LearnedJointArtifactWire::build_measured(
                     &proof,
                     &learned_model,
@@ -520,37 +634,44 @@ mod native_lifecycle_tests {
                     &ctx,
                 )
                 .unwrap();
-            assert_eq!(
-                alias_fit.target_calibration_basis(0.95).unwrap(),
-                learned.target_calibration_basis(0.95).unwrap()
-            );
-            assert_eq!(alias_fit.draws.values, learned.draws.values);
-            assert_ne!(alias_fit.model_identity, learned.model_identity);
-            assert_ne!(alias_measured.source_artifact(), measured.source_artifact());
-            assert_ne!(alias_measured.expectation(), measured.expectation());
-            let alias_loaded = crate::measured_inference::MeasuredInference::consume(
-                alias_measured.export(),
-                alias_measured.expectation(),
-                &ctx,
-            )
-            .unwrap();
-            assert_eq!(alias_loaded.export(), alias_measured.export());
-            assert!(
-                crate::measured_inference::MeasuredInference::consume(
-                    alias_measured.export(),
-                    measured.expectation(),
-                    &ctx
-                )
-                .is_err()
-            );
-            let mut forged =
-                crate::measured_inference::decode(measured.export(), measured.expectation())
+                    assert_eq!(
+                        alias_fit.target_calibration_basis(0.95).unwrap(),
+                        learned.target_calibration_basis(0.95).unwrap()
+                    );
+                    assert_eq!(alias_fit.draws.values, learned.draws.values);
+                    assert_ne!(alias_fit.model_identity, learned.model_identity);
+                    assert_ne!(alias_measured.source_artifact(), measured.source_artifact());
+                    assert_ne!(alias_measured.expectation(), measured.expectation());
+                    let alias_loaded = crate::measured_inference::MeasuredInference::consume(
+                        alias_measured.export(),
+                        alias_measured.expectation(),
+                        &ctx,
+                    )
                     .unwrap();
-            forged.report.scalars[0].calibration.calibration_sha = Some("0".repeat(40));
-            forged.report.identity.seal =
-                crate::measured_inference::report_seal(&forged.report).unwrap();
-            let forged_bytes = crate::to_cbor(&forged).unwrap();
-            assert!(crate::learned_joint_transport_artifact::LearnedJointArtifactWire::consume_measured(&forged_bytes,&forged.report.identity,crate::learned_joint_transport_artifact::LearnedJointConsumeLimits::default(),&ctx).is_err());
+                    assert_eq!(alias_loaded.export(), alias_measured.export());
+                    assert!(
+                        crate::measured_inference::MeasuredInference::consume(
+                            alias_measured.export(),
+                            measured.expectation(),
+                            &ctx
+                        )
+                        .is_err()
+                    );
+                    let mut forged = crate::measured_inference::decode(
+                        measured.export(),
+                        measured.expectation(),
+                    )
+                    .unwrap();
+                    forged.report.scalars[0].calibration.calibration_sha = Some("0".repeat(40));
+                    forged.report.identity.seal =
+                        crate::measured_inference::report_seal(&forged.report).unwrap();
+                    let forged_bytes = crate::to_cbor(&forged).unwrap();
+                    assert!(crate::learned_joint_transport_artifact::LearnedJointArtifactWire::consume_measured(&forged_bytes,&forged.report.identity,crate::learned_joint_transport_artifact::LearnedJointConsumeLimits::default(),&ctx).is_err());
+                }
+                Err(error) => {
+                    panic!("interval must be reported with its calibration status: {error:?}")
+                }
+            }
         }
     }
 }

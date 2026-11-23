@@ -2,15 +2,19 @@
 use crate::transport_common::{
     error, execution_context, frame_named_artifact, serialization_error, unframe_named_artifact,
 };
-use antecedent_core::{SmoothedDoseTransportQuery, VariableId};
-use antecedent_estimate::{SmoothedDoseInput, SmoothedDoseOptions};
-use antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits;
+use antecedent::estimate::{SmoothedDoseInput, SmoothedDoseOptions};
+use antecedent::io::smoothed_dose_artifact::SmoothedDoseConsumeLimits;
+use antecedent::prelude::VariableId;
+use antecedent::query::SmoothedDoseTransportQuery;
 use pyo3::{prelude::*, types::PyBytes};
 use std::sync::Arc;
 
 /// Magic prefix of a portable smoothed-dose artifact: the io crate's versioned CBOR
 /// wire, framed with the variable names it was built under.
 const PREFIX: &[u8] = b"ANTECEDENT-SMOOTHED-DOSE\x01";
+
+/// Magic prefix of a portable smoothed-dose posterior artifact, framed like the point one.
+const POSTERIOR_PREFIX: &[u8] = b"ANTECEDENT-SMOOTHED-DOSE-POSTERIOR\x01";
 
 /// Fixed-bandwidth smoothed dose response at the declared grid, point only.
 const SCOPE: &str = "smoothed_dose_response_transport_point_only";
@@ -22,11 +26,14 @@ fn value_error(e: impl std::fmt::Display) -> PyErr {
 /// Parse the rows; the sampling design is checked first so clustered or undeclared
 /// designs refuse by name (`dose_response.non_iid_design`).
 fn parse_input(data: &Bound<'_, PyAny>, names: &[String]) -> PyResult<SmoothedDoseInput> {
+    if data.hasattr("_buffers")? {
+        return crate::transport_buffers::smoothed(data, names);
+    }
     let wire: String = data.call_method1("_json", (names.to_vec(),))?.extract()?;
     let mut value: serde_json::Value = serde_json::from_str(&wire).map_err(serialization_error)?;
     let sampling =
         value.get("sampling").and_then(serde_json::Value::as_str).unwrap_or_default().to_owned();
-    antecedent_estimate::smoothed_dose::parse_smoothed_dose_sampling(&sampling).map_err(error)?;
+    antecedent::declared::IidSampling::parse_smoothed_dose(&sampling).map_err(error)?;
     value["sampling"] = sampling.into();
     serde_json::from_value(value).map_err(value_error)
 }
@@ -60,10 +67,10 @@ fn build(
     graph: &crate::graphs::Admg,
     selections: &[String],
     spec: &str,
-) -> PyResult<(antecedent_graph::SelectionDiagram, SmoothedDoseTransportQuery)> {
+) -> PyResult<(antecedent::graph::SelectionDiagram, SmoothedDoseTransportQuery)> {
     let spec: QuerySpec = serde_json::from_str(spec).map_err(value_error)?;
     let kernel =
-        antecedent_estimate::smoothed_dose::parse_smoothing_kernel(&spec.kernel).map_err(error)?;
+        antecedent::estimate::smoothed_dose::parse_smoothing_kernel(&spec.kernel).map_err(error)?;
     let query = SmoothedDoseTransportQuery {
         outcome: resolve(graph, &spec.outcome)?,
         dose: resolve(graph, &spec.dose)?,
@@ -75,7 +82,7 @@ fn build(
         dose_support: spec.dose_support,
         density_provenance: Arc::from(spec.density_provenance.as_str()),
     };
-    let diagram = antecedent_graph::SelectionDiagram::try_new(
+    let diagram = antecedent::graph::SelectionDiagram::try_new(
         graph.admg.clone(),
         selections.iter().map(|s| resolve(graph, s)).collect::<PyResult<Vec<_>>>()?,
     )
@@ -108,6 +115,23 @@ fn estimate_json(result: &antecedent::SmoothedDoseResult, names: &[String]) -> S
     .to_string()
 }
 
+fn posterior_json(
+    result: &antecedent::analysis::SmoothedDosePosteriorResult,
+    names: &[String],
+) -> PyResult<String> {
+    let wire = result.wire();
+    serde_json::to_string(&serde_json::json!({
+        "result": result.result(),
+        "query": wire.query,
+        "certificate": wire.certificate,
+        "model": wire.model,
+        "premises_digest": wire.premises_digest,
+        "data_digest": wire.data_digest,
+        "variable_names": names,
+    }))
+    .map_err(serialization_error)
+}
+
 #[pyclass(skip_from_py_object)]
 #[doc(hidden)]
 #[derive(Clone)]
@@ -121,6 +145,13 @@ struct PreparedSmoothedDoseNative {
 
 #[pymethods]
 impl PreparedSmoothedDoseNative {
+    #[pyo3(signature=(seed=None))]
+    fn fork(&self, seed: Option<u64>) -> PyResult<Self> {
+        let seed = seed.unwrap_or(self.seed);
+        let ctx = execution_context(seed, self.memory_bytes, None);
+        let inner = self.inner.with_seed(seed, &ctx).map_err(error)?;
+        Ok(Self { inner, seed, last: None, ..self.clone() })
+    }
     /// Cross-fit the nuisances on the retained rows and report the grid. The
     /// certificate derived at preparation is reused.
     #[pyo3(signature=(cancel=None))]
@@ -137,35 +168,64 @@ impl PreparedSmoothedDoseNative {
         Ok(payload)
     }
 
-    /// The closed interval route: always refuses with `cell_not_licensed`.
+    /// The unsupported Bayesian posterior of the same smoothed dose response, under the declared
+    /// outcome model (`model` is its JSON): `(posterior json, framed artifact bytes)`.
+    #[pyo3(signature=(model))]
+    fn posterior(&self, py: Python<'_>, model: &str) -> PyResult<(String, Py<PyBytes>)> {
+        let model: antecedent::io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire =
+            serde_json::from_str(model).map_err(value_error)?;
+        let inner = self.inner.clone();
+        let result = crate::detach_catch(py, move || inner.posterior(model).map_err(error))?;
+        let payload = posterior_json(&result, &self.names)?;
+        let framed =
+            frame_named_artifact(POSTERIOR_PREFIX, &self.names, result.export().map_err(error)?)?;
+        Ok((payload, PyBytes::new(py, &framed).unbind()))
+    }
+
+    /// The bootstrap interval per grid dose with its calibration slot, as JSON.
     #[pyo3(signature=(cancel=None))]
-    fn interval(&self, py: Python<'_>, cancel: Option<crate::PyCancellationToken>) -> PyResult<()> {
+    fn interval(
+        &self,
+        py: Python<'_>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<String> {
         let ctx = execution_context(self.seed, self.memory_bytes, cancel);
         let inner = self.inner.clone();
-        crate::detach_catch(py, move || inner.interval(&ctx).map(|_| ()).map_err(error))
+        crate::detach_catch(py, move || {
+            let run = inner.interval(&ctx).map_err(error)?;
+            let doses: Vec<f64> = run.point().grid.iter().map(|point| point.dose).collect();
+            let bands: Vec<Option<[f64; 2]>> =
+                run.intervals().iter().map(|band| band.map(|(lo, hi)| [lo, hi])).collect();
+            Ok(serde_json::json!({
+                "doses": doses,
+                "intervals": bands,
+                "reason": run.uncertainty_reason(),
+                "calibration": run.calibration(),
+            })
+            .to_string())
+        })
     }
 
     /// Replace the rows with a compatible snapshot; clears the last claim.
     #[pyo3(signature=(data,cancel=None))]
-    fn refresh(
-        &mut self,
+    fn bind_snapshot(
+        &self,
         py: Python<'_>,
         data: &Bound<'_, PyAny>,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<()> {
+    ) -> PyResult<Self> {
         let input = parse_input(data, &self.names)?;
         let ctx = execution_context(self.seed, self.memory_bytes, cancel);
         let inner = self.inner.clone();
-        self.inner = crate::detach_catch(py, move || inner.refresh(input, &ctx).map_err(error))?;
-        self.last = None;
-        Ok(())
+        let inner = crate::detach_catch(py, move || inner.refresh(input, &ctx).map_err(error))?;
+        Ok(Self { inner, last: None, ..self.clone() })
     }
 
     /// The last execution as a framed, independently consumable artifact.
     fn export(&self, py: Python<'_>) -> PyResult<Py<PyBytes>> {
         let result = self.last.as_ref().ok_or_else(|| {
             crate::refusal(
-                antecedent_core::reason_code!("not_executed"),
+                antecedent::reason::reason_code!("not_executed"),
                 "transport.no_execution_claim: estimate before exporting a smoothed dose artifact",
             )
         })?;
@@ -182,7 +242,7 @@ impl PreparedSmoothedDoseNative {
     fn last_result(&self) -> PyResult<String> {
         let result = self.last.as_ref().ok_or_else(|| {
             crate::refusal(
-                antecedent_core::reason_code!("not_executed"),
+                antecedent::reason::reason_code!("not_executed"),
                 "transport.no_execution_claim: estimate before reading a result",
             )
         })?;
@@ -205,7 +265,7 @@ fn prepare_smoothed_dose(
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<PreparedSmoothedDoseNative> {
-    antecedent_estimate::smoothed_dose::parse_smoothed_dose_target(target_name).map_err(error)?;
+    target_name.parse::<antecedent::declared::SmoothedDoseTarget>().map_err(error)?;
     let (diagram, query) = build(graph, &selections, query)?;
     let input = parse_input(data, &graph.names)?;
     let options: SmoothedDoseOptions = serde_json::from_str(options).map_err(value_error)?;
@@ -275,10 +335,47 @@ fn consume_smoothed_dose(
     })
 }
 
+/// Independently recheck a framed smoothed-dose posterior artifact: re-derive the certificate
+/// from the stored graph and query, recompute the posterior from the stored rows and seed, and
+/// accept only a bit-identical result. The replay runs under the caller's memory limit and
+/// cancellation token, so a cancelled or over-budget replay is a reason-coded refusal.
+#[pyfunction]
+#[pyo3(signature=(artifact, *, max_rows=100_000, max_points=1_024, max_memory_bytes=None, cancel=None))]
+fn consume_smoothed_dose_posterior(
+    py: Python<'_>,
+    artifact: &[u8],
+    max_rows: usize,
+    max_points: usize,
+    max_memory_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<String> {
+    let (names, bytes) =
+        unframe_named_artifact(POSTERIOR_PREFIX, artifact, "smoothed dose posterior")?;
+    let limits = antecedent::analysis::bayesian_posterior_row::PosteriorRowConsumeLimits {
+        max_rows,
+        max_points,
+    };
+    let ctx = execution_context(0, max_memory_bytes, cancel);
+    crate::detach_catch(py, move || {
+        let result = antecedent::analysis::consume_smoothed_dose_posterior_artifact_with_context(
+            &bytes, limits, &ctx,
+        )
+        .map_err(error)?;
+        if result.wire().variable_names != names {
+            return Err(crate::refusal(
+                antecedent::reason::reason_code!("invalid_argument"),
+                "transport.names_mismatch: the artifact was built under other variable names",
+            ));
+        }
+        posterior_json(&result, &names)
+    })
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PreparedSmoothedDoseNative>()?;
     module.add_function(wrap_pyfunction!(prepare_smoothed_dose, module)?)?;
     module.add_function(wrap_pyfunction!(smoothed_dose_estimator_menu, module)?)?;
     module.add_function(wrap_pyfunction!(consume_smoothed_dose, module)?)?;
+    module.add_function(wrap_pyfunction!(consume_smoothed_dose_posterior, module)?)?;
     Ok(())
 }

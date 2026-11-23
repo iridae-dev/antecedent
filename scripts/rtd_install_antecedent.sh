@@ -15,7 +15,7 @@ if python -m pip install "antecedent==${VERSION}"; then
 fi
 
 echo "RTD: antecedent==${VERSION} not on PyPI; compiling ./python"
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.85
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.97
 PATH="${HOME}/.cargo/bin:${PATH}" python -m pip install "${ROOT}/python"
 INSTALLED_VERSION="$(python -c 'import antecedent; print(antecedent.__version__)')"
 test "${INSTALLED_VERSION}" = "${VERSION}"

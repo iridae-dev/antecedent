@@ -5,9 +5,78 @@
 //! its bytes fit the export budget. Each refusal names the quantity that exceeded its bound; the
 //! in-memory fit is unaffected by an export refusal.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
+
+/// The shape the budgeted treatment artifacts (`categorical_treatment`, `vector_treatment`)
+/// share: a fit sealed under the computation budget of an [`ExecutionContext`], exported under
+/// a byte budget and consumed by recomputation within a replay budget.
+///
+/// An implementor supplies the three budgeted operations; the unbudgeted `seal`, `to_bytes` and
+/// `from_bytes` follow from them (no memory limit, the format's byte cap).
+pub trait BudgetedTreatmentArtifact: Sized {
+    /// What is fitted and sealed.
+    type Request;
+    /// The identity a consumer retains independently of the artifact.
+    type Identity;
+    /// Why sealing, exporting or consuming was refused.
+    type Error;
+    /// The format's byte cap, the most an export may occupy.
+    const MAX_BYTES: usize;
+
+    /// Fit the request and seal the answer under the computation budget of `ctx`.
+    ///
+    /// # Errors
+    /// The core fit's refusals, the format's bounds and the memory or cancellation refusals.
+    fn seal_with(request: &Self::Request, ctx: &ExecutionContext) -> Result<Self, Self::Error>;
+
+    /// Serialize when the whole artifact fits `export_budget` bytes (at most
+    /// [`Self::MAX_BYTES`]).
+    ///
+    /// # Errors
+    /// An empty id, an encoding failure or an export budget exceeded.
+    fn to_bytes_within(
+        &self,
+        artifact_id: &str,
+        export_budget: usize,
+    ) -> Result<Vec<u8>, Self::Error>;
+
+    /// Consume an artifact by recomputation within the replay budget of `ctx`.
+    ///
+    /// # Errors
+    /// Corruption, another major version, a changed identity, a stored result that does not
+    /// replay, or a memory or cancellation refusal.
+    fn from_bytes_with(
+        bytes: &[u8],
+        expected: Option<&Self::Identity>,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, Self::Error>;
+
+    /// [`Self::seal_with`] with no memory limit.
+    ///
+    /// # Errors
+    /// As [`Self::seal_with`].
+    fn seal(request: &Self::Request) -> Result<Self, Self::Error> {
+        Self::seal_with(request, &unbounded_context())
+    }
+
+    /// [`Self::to_bytes_within`] up to the format's cap [`Self::MAX_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::to_bytes_within`].
+    fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, Self::Error> {
+        self.to_bytes_within(artifact_id, Self::MAX_BYTES)
+    }
+
+    /// [`Self::from_bytes_with`] with no memory limit.
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes_with`].
+    fn from_bytes(bytes: &[u8], expected: Option<&Self::Identity>) -> Result<Self, Self::Error> {
+        Self::from_bytes_with(bytes, expected, &unbounded_context())
+    }
+}
 
 /// The refusal details one artifact reports, spelled out where the artifact is defined.
 #[derive(Clone, Copy)]
@@ -20,8 +89,8 @@ pub(crate) struct BudgetDetails {
     pub(crate) export: &'static str,
 }
 
-/// A typed refusal: the registered reason code and `detail: explanation`.
-pub(crate) type BudgetRefusal = (&'static str, String);
+/// A typed refusal: the registered reason code, the detail identifier and the explanation.
+pub(crate) type BudgetRefusal = (&'static str, &'static str, String);
 
 /// The context the size-independent entry points run under: no memory limit, not cancelled.
 pub(crate) fn unbounded_context() -> ExecutionContext {
@@ -48,21 +117,34 @@ pub(crate) fn admit_computation(
     if ctx.cancellation.is_cancelled() {
         return Err((
             details.cancelled.0,
-            format!("{}: cancelled before the work started", details.cancelled.1),
+            details.cancelled.1,
+            "cancelled before the work started".to_owned(),
         ));
     }
     let planned = planned.unwrap_or(u64::MAX);
-    match ctx.memory.hard_limit_bytes {
+    match ctx.memory_limit_bytes() {
         Some(limit) if planned > limit => Err((
             antecedent_core::reason_code!("route_not_supported"),
+            details.memory,
             format!(
-                "{}: the work needs about {planned} bytes, over the {limit}-byte memory budget \
-                 of the execution context",
-                details.memory
+                "the work needs about {planned} bytes, over the {limit}-byte memory budget \
+                 of the execution context"
             ),
         )),
         _ => Ok(()),
     }
+}
+
+/// Acquire a byte-only lease after checking the context's configured hard limit.
+/// Callers map the returned message into their own artifact error type.
+pub(crate) fn admit_bytes(
+    ctx: &ExecutionContext,
+    bytes: u64,
+) -> Result<antecedent_core::execution::AdmissionLease, String> {
+    if ctx.memory_limit_bytes().is_some_and(|limit| bytes > limit) {
+        return Err("configured memory limit".into());
+    }
+    ctx.acquire_admission(0, bytes).map_err(|error| error.to_string())
 }
 
 /// Admit the working set of a dense regression of `rows` rows on `columns` design columns: the
@@ -90,12 +172,59 @@ pub(crate) fn admit_export(
     if needed > budget {
         return Err((
             antecedent_core::reason_code!("route_not_supported"),
+            details.export,
             format!(
-                "{}: the artifact needs {needed} bytes, over the export budget of {budget} \
-                 bytes; the fit is complete and stays in memory",
-                details.export
+                "the artifact needs {needed} bytes, over the export budget of {budget} \
+                 bytes; the fit is complete and stays in memory"
             ),
         ));
     }
     Ok(())
+}
+
+/// Overflow-safe sum of structural replay work units. These are conservative planning units,
+/// not a wall-clock prediction. Every product and the sum must fit the consumer's allowance.
+pub(crate) struct ReplayWork(Option<usize>);
+
+impl ReplayWork {
+    pub(crate) fn new() -> Self {
+        Self(Some(0))
+    }
+
+    pub(crate) fn add(&mut self, factors: &[usize]) {
+        self.0 = self.0.and_then(|total| {
+            factors
+                .iter()
+                .try_fold(1usize, |v, &factor| v.checked_mul(factor))
+                .and_then(|term| total.checked_add(term))
+        });
+    }
+
+    #[cfg(test)]
+    pub(crate) fn units(&self) -> Option<usize> {
+        self.0
+    }
+
+    pub(crate) fn admit(&self, limit: usize) -> Result<(), ReplayWorkExceeded> {
+        if self.0.is_some_and(|work| work <= limit) { Ok(()) } else { Err(ReplayWorkExceeded) }
+    }
+}
+
+/// The replay work estimate overflowed or exceeded the caller's allowance.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct ReplayWorkExceeded;
+
+#[cfg(test)]
+mod replay_work_tests {
+    use super::*;
+    #[test]
+    fn checked_work_boundary_and_overflow() {
+        let mut work = ReplayWork::new();
+        work.add(&[3, 4]);
+        work.add(&[2, 5]);
+        assert!(work.admit(22).is_ok());
+        assert!(work.admit(21).is_err());
+        work.add(&[usize::MAX, 2]);
+        assert!(work.admit(usize::MAX).is_err());
+    }
 }

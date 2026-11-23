@@ -4,6 +4,81 @@
   "tolerance_class": "Numeric",
   "oracle": {
     "kind": "closed_form",
-    "method": "linear interaction law Y = 1 + 2T + 0.5TW with mean W about 2: the marginal ATE is about 3"
+    "method": "linear interaction law Y = 1 + 2T + 0.5TW with mean W about 2: the marginal ATE is about 3",
+    "generator": "conformance/context/conditional_effect/reference.py",
+    "command": "uv run --frozen --script conformance/context/conditional_effect/reference.py --check",
+    "environment_lock": "conformance/context/conditional_effect/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "ate_target",
+      "ate_tol as a positive band narrower than the interaction contribution"
+    ],
+    "context_only_outputs": [
+      "tolerance_class label",
+      "oracle method text (its 'about 2' wording)"
+    ],
+    "independence_basis": "The generator reads the stated interaction law Y = 1 + 2T + 0.5TW and the test's deterministic modifier column (W_i = i mod 5, 200 rows, mean exactly 2), evaluates the unit-level contrast in exact rational arithmetic and averages it; it imports no Antecedent code and no statistics package. The shared object is the stated law and the modifier column.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Modifier-averaged contrast of a noise-free linear interaction law over the test's modifier column.",
+      "independence_basis": "The generator reads the stated interaction law Y = 1 + 2T + 0.5TW and the test's deterministic modifier column (W_i = i mod 5, 200 rows, mean exactly 2), evaluates the unit-level contrast in exact rational arithmetic and averages it; it imports no Antecedent code and no statistics package. The shared object is the stated law and the modifier column.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The executing assertion compares a frequentist conditional-adjustment ATE with the target under a 0.3 band, so agreement shows the band is centred on the structural average, not that the estimator is efficient. Noiseless outcome, deterministic modifier. No uncertainty or calibration claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/context/conditional_effect/reference.py",
+          "sha256": "9d4eadfc3f1c7430e016a059e45c88fc6543010f7853069a37d489c08e0741ca"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/context/conditional_effect/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/supported_static_cells.rs",
+          "items": [
+            "const SUITES",
+            "fn assert_bayesian_validation",
+            "fn assert_evalue_fields",
+            "fn average_effect_dag_bayesian_known_truth_all_structures_and_suites",
+            "fn average_effect_dag_frequentist_known_truth_all_structures_and_suites",
+            "fn bayes",
+            "fn conditional_effect_dag_frequentist_known_truth_all_structures_and_suites",
+            "fn conditional_effect_graph_posterior_known_truth_all_inferences_and_suites",
+            "fn counterfactual_dag_additive_outcome_reports_rejected_heterogeneity_not_homogeneity",
+            "fn counterfactual_dag_categorical_lever_is_invariant_to_parent_rescaling",
+            "fn counterfactual_dag_discrete_outcome_makes_no_homogeneity_claim",
+            "fn counterfactual_dag_exp_modifier_unit_effects_rise_with_the_modifier",
+            "fn counterfactual_dag_flags_units_outside_the_opposite_arms_covariate_support",
+            "fn counterfactual_dag_interaction_outcome_recovers_subgroup_unit_effects",
+            "fn counterfactual_dag_single_parent_outcome_discloses_structural_homogeneity",
+            "fn counterfactual_query",
+            "fn dag",
+            "fn diagnostic",
+            "fn distribution_bayesian_known_truth_all_structures_and_suites",
+            "fn distribution_table",
+            "fn field",
+            "fn homogeneity_diagnostic",
+            "fn interaction_scm",
+            "fn json",
+            "fn linear_gaussian_ate",
+            "fn mediation_bayesian_known_truth_all_structures_and_suites",
+            "fn mediation_scm",
+            "fn mixture_data",
+            "fn refuter_names",
+            "fn report",
+            "fn staged",
+            "fn subgroup_mean",
+            "fn unit_effect_spread"
+          ],
+          "sha256": "d988f32a9d7cc24835152f515edd1e2d8be4510196a51b8eaa1002f1e90e374d"
+        }
+      ],
+      "fixture_payload_sha256": "db768e2bcde3f87d941006b589f354e3fc065881ad8e2725119c56ed84a6d9aa"
+    }
   }
 }

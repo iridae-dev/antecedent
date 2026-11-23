@@ -1,6 +1,6 @@
 //! Static graph-posterior identification caches: DAG, ADMG and CPDAG/PAG atoms.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -28,15 +28,22 @@ pub(crate) struct CachedGraphPosteriorAtomIdentification {
     pub estimand: IdentifiedEstimand,
     /// Full per-atom identification result.
     pub identification: IdentificationResult,
+    /// The certified sID transport proof of this atom's selection diagram, retained only
+    /// by a `TransportQuery` posterior: the trial-to-target estimator reads its formula.
+    pub transport: Option<Arc<antecedent_identify::TransportIdentification>>,
 }
 
 /// One completion case inside a CPDAG/PAG posterior atom.
 #[derive(Clone, Debug)]
 pub(crate) struct CachedClassPosteriorCase {
+    /// Full canonical identity of the completion retained by the point producer.
+    pub completion_digest: [u8; 32],
     /// Enumeration weight of this completion.
     pub weight: f64,
     /// Identification status of the completion.
     pub status: IdentificationStatus,
+    /// Complete retained proof, including assumptions, derivation and expression arena.
+    pub identification: Arc<IdentificationResult>,
     /// Selected estimand when the completion is estimable.
     pub estimand: Option<IdentifiedEstimand>,
 }
@@ -85,20 +92,20 @@ pub(crate) fn build_graph_posterior_identification_cache(
     ctx: &ExecutionContext,
 ) -> Result<CachedGraphPosteriorIdentification, CausalError> {
     use crate::strategy_table::{
-        DEFAULT_IDENTIFIER_ID, EstimatorId, identify_static, select_estimand,
+        DEFAULT_IDENTIFIER_ID, EstimatorId, identify_static_query_in_context, select_estimand,
     };
 
     // A DBN posterior's contemporaneous masks are valid DAGs, but identifying a
     // static effect on them alone would drop every lagged confounder. That is
     // a different coordinate (temporal Pulse / Sustained), so fail closed.
-    if posterior.lag_masks.is_some() || posterior.max_lag.is_some() {
+    if posterior.lag_masks().is_some() || posterior.max_lag().is_some() {
         return Err(CausalError::Unsupported {
             message: "static AverageEffect over a graph posterior requires static DAG atoms; \
                       this posterior carries DBN lag structure, so it needs a temporal \
                       Pulse / single-step Sustained query",
         });
     }
-    match posterior.atom_kind {
+    match posterior.atom_kind() {
         antecedent_discovery::GraphPosteriorAtomKind::Dag => {}
         antecedent_discovery::GraphPosteriorAtomKind::Admg
         | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg => {
@@ -107,12 +114,19 @@ pub(crate) fn build_graph_posterior_identification_cache(
         _ => return build_class_graph_posterior_identification_cache(posterior, query, ctx),
     }
     crate::analysis::execute::report_identify_compute(ctx);
-    let by_mask = identify_unique_adjacency_masks(posterior, ctx, |mask, _inner| {
+    let by_mask = identify_unique_adjacency_masks(posterior, ctx, |mask, inner| {
         (|| -> Result<Option<(IdentifiedEstimand, IdentificationResult)>, CausalError> {
-            let Ok(dag) = dag_from_adjacency_mask(mask, posterior.n_vars) else {
+            let Ok(dag) = dag_from_adjacency_mask(mask, posterior.n_vars()) else {
                 return Ok(None);
             };
-            let Ok(identification) = identify_static(DEFAULT_IDENTIFIER_ID, &dag, query) else {
+            let Some(identification) = class_envelope_outcome(identify_static_query_in_context(
+                DEFAULT_IDENTIFIER_ID,
+                &dag,
+                &CausalQuery::AverageEffect(query.clone()),
+                None,
+                Some(inner),
+            ))?
+            else {
                 return Ok(None);
             };
             if !crate::analysis::execute::identification_status_ok_for_case(identification.status)
@@ -178,11 +192,14 @@ pub(crate) fn build_admg_graph_posterior_response_identification_cache(
     };
     let by_mask = identify_unique_adjacency_masks(posterior, ctx, |mask, _inner| {
         (|| -> Result<Option<(IdentifiedEstimand, IdentificationResult)>, CausalError> {
-            let Ok(admg) = admg_from_adjacency_mask(mask, posterior.n_vars) else {
+            let Ok(admg) = admg_from_adjacency_mask(mask, posterior.n_vars()) else {
                 return Ok(None);
             };
-            let Ok(identification) =
-                identify_admg_query(DEFAULT_ADMG_IDENTIFIER_ID, &admg, &causal_query)
+            let Some(identification) = class_envelope_outcome(identify_admg_query(
+                DEFAULT_ADMG_IDENTIFIER_ID,
+                &admg,
+                &causal_query,
+            ))?
             else {
                 return Ok(None);
             };
@@ -214,10 +231,12 @@ fn build_admg_graph_posterior_identification_cache(
     crate::analysis::execute::report_identify_compute(ctx);
     let by_mask = identify_unique_adjacency_masks(posterior, ctx, |mask, _inner| {
         (|| -> Result<Option<(IdentifiedEstimand, IdentificationResult)>, CausalError> {
-            let Ok(admg) = admg_from_adjacency_mask(mask, posterior.n_vars) else {
+            let Ok(admg) = admg_from_adjacency_mask(mask, posterior.n_vars()) else {
                 return Ok(None);
             };
-            let Ok(identification) = identify_admg(DEFAULT_ADMG_IDENTIFIER_ID, &admg, query) else {
+            let Some(identification) =
+                class_envelope_outcome(identify_admg(DEFAULT_ADMG_IDENTIFIER_ID, &admg, query))?
+            else {
                 return Ok(None);
             };
             if !crate::analysis::execute::identification_status_ok_for_case(identification.status)
@@ -235,43 +254,172 @@ fn build_admg_graph_posterior_identification_cache(
     collect_mask_atoms(posterior, ctx, &by_mask)
 }
 
+/// Identify every atom of a lagged temporal-ADMG posterior on the unrolled window of its own
+/// template (the complete ID algorithm, as a supplied `TemporalAdmg` contrast is).
+///
+/// Atoms are keyed by posterior position: two atoms that differ only in their lagged edges
+/// share a contemporaneous mask, so the posterior's graph keys do not tell them apart. An atom
+/// whose template the window cannot hold, or whose contrast the window leaves unidentified (a
+/// hedge, a modifier a treated period can reach), keeps its mass as unidentified mass.
+///
+/// # Errors
+///
+/// A posterior that is not a lagged temporal-ADMG posterior, a population other than the
+/// observed one (a property of the query, not of an atom), or cancellation.
+pub(crate) fn build_temporal_admg_posterior_identification_cache(
+    posterior: &GraphPosterior,
+    variables: &[antecedent_core::VariableId],
+    query: &antecedent_core::TemporalEffectQuery,
+    ctx: &ExecutionContext,
+) -> Result<CachedGraphPosteriorIdentification, CausalError> {
+    use crate::analysis::temporal_admg_contrast::identify_window_contrast_within;
+
+    if !posterior.is_lagged_temporal_admg() {
+        return Err(CausalError::Compile {
+            message: "a lagged temporal-ADMG identification requires TemporalAdmg atoms with \
+                      per-atom lag masks"
+                .into(),
+        });
+    }
+    if query.target_population != antecedent_core::TargetPopulation::AllObserved {
+        return Err(CausalError::Compile {
+            message: "a contrast over lagged temporal-ADMG atoms answers for the observed \
+                      population; a reweighted or local target population is a different \
+                      estimand"
+                .into(),
+        });
+    }
+    let max_lag = posterior.max_lag().unwrap_or(0);
+    let variable_count = u32::try_from(variables.len()).map_err(|_| CausalError::Compile {
+        message: "series schema exceeds the variable id range".into(),
+    })?;
+    crate::analysis::execute::report_identify_compute(ctx);
+    let budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    let mapped = map_posterior_graphs(posterior, ctx, |i, inner| {
+        let mut budget = budget.clone();
+        let Some(atom) = posterior.temporal_admg_atom(i) else { return Ok(None) };
+        let _template_lease =
+            crate::analysis::temporal_admg_contrast::admit_temporal_atom_template(
+                &atom,
+                posterior.n_vars(),
+                &mut budget,
+                inner,
+            )?;
+        let template = atom.to_template(posterior.n_vars(), max_lag, variables);
+        if inner.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal atom" });
+        }
+        let Ok(template) = template else {
+            return Ok(None);
+        };
+        let contrast = match identify_window_contrast_within(
+            &template,
+            query,
+            variable_count,
+            &mut budget,
+            inner,
+        ) {
+            Ok(contrast) => contrast,
+            Err(error @ (CausalError::Resource { .. } | CausalError::Cancelled { .. })) => {
+                return Err(error);
+            }
+            Err(_) => return Ok(None),
+        };
+        Ok::<Option<(IdentifiedEstimand, IdentificationResult)>, CausalError>(Some((
+            contrast.estimand,
+            contrast.identification,
+        )))
+    })?;
+    let mut weights = Vec::with_capacity(posterior.n_graphs());
+    let mut flags = Vec::with_capacity(posterior.n_graphs());
+    let mut keys = Vec::with_capacity(posterior.n_graphs());
+    let mut atoms = Vec::new();
+    for (i, found) in mapped.into_iter().enumerate() {
+        let key = super::dbn_envelope_key(i)?;
+        keys.push(key);
+        weights.push(posterior.weights()[i]);
+        if let Some((estimand, identification)) = found {
+            flags.push(GraphIdentFlag::Identified);
+            atoms.push(CachedGraphPosteriorAtomIdentification {
+                key,
+                estimand,
+                identification,
+                transport: None,
+            });
+        } else {
+            flags.push(GraphIdentFlag::Unidentified);
+        }
+    }
+    Ok(CachedGraphPosteriorIdentification {
+        graphs: WeightedGraphSamples::new(weights, flags, keys)?,
+        atoms: Arc::from(atoms),
+        class_atoms: Arc::from([]),
+    })
+}
+
+/// Only an identification refusal can remove an atom from the identified mass.
+fn class_envelope_outcome<T>(outcome: Result<T, CausalError>) -> Result<Option<T>, CausalError> {
+    match outcome {
+        Ok(envelope) => Ok(Some(envelope)),
+        Err(error) if error.is_identification_refusal() => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
 /// Identify every CPDAG/PAG posterior atom with the existing class ATE envelope.
 fn build_class_graph_posterior_identification_cache(
     posterior: &GraphPosterior,
     query: &AverageEffectQuery,
     ctx: &ExecutionContext,
 ) -> Result<CachedGraphPosteriorIdentification, CausalError> {
-    use crate::strategy_table::{DEFAULT_PAG_IDENTIFIER_ID, identify_cpdag, identify_pag};
+    use crate::strategy_table::{
+        DEFAULT_PAG_IDENTIFIER_ID, identify_cpdag_in_context, identify_pag_in_context,
+    };
     use antecedent_discovery::adjacency_mask::{
         cpdag_from_adjacency_mask, pag_from_adjacency_mask,
     };
 
     crate::analysis::execute::report_identify_compute(ctx);
-    let resolved = map_posterior_graphs(posterior, ctx, |i, _inner| {
-        let mask = posterior.atoms[i];
-        let mark = posterior
-            .mark_atoms
-            .as_ref()
-            .map_or(antecedent_discovery::AdjacencyMask::EMPTY, |marks| marks[i]);
-        let key = posterior.graph_keys[i];
-        let cached = match posterior.atom_kind {
+    let resolved = map_posterior_graphs(posterior, ctx, |i, inner| {
+        let mask = &posterior.atoms()[i];
+        let mark = posterior.mark_atom(i);
+        let key = posterior.graph_keys()[i];
+        let cached = match posterior.atom_kind() {
             antecedent_discovery::GraphPosteriorAtomKind::Cpdag => {
-                let Ok(cpdag) = cpdag_from_adjacency_mask(mask, posterior.n_vars) else {
+                let Ok(cpdag) = cpdag_from_adjacency_mask(mask, posterior.n_vars()) else {
                     return Ok(None);
                 };
-                Ok::<_, CausalError>(
-                    identify_cpdag(DEFAULT_PAG_IDENTIFIER_ID, &cpdag, query)
-                        .ok()
-                        .map(|envelope| cache_class_envelope(key, query, envelope)),
-                )
+                class_envelope_outcome(identify_cpdag_in_context(
+                    DEFAULT_PAG_IDENTIFIER_ID,
+                    &cpdag,
+                    query,
+                    Some(inner),
+                ))
+                .and_then(|envelope| {
+                    envelope
+                        .map(|envelope| {
+                            cache_class_envelope(key, query, envelope, antecedent_io::dag_identity)
+                        })
+                        .transpose()
+                })
             }
             antecedent_discovery::GraphPosteriorAtomKind::Pag => {
-                let Ok(pag) = pag_from_adjacency_mask(mask, mark, posterior.n_vars) else {
+                let Ok(pag) = pag_from_adjacency_mask(mask, &mark, posterior.n_vars()) else {
                     return Ok(None);
                 };
-                Ok(identify_pag(DEFAULT_PAG_IDENTIFIER_ID, &pag, query)
-                    .ok()
-                    .map(|envelope| cache_class_envelope(key, query, envelope)))
+                class_envelope_outcome(identify_pag_in_context(
+                    DEFAULT_PAG_IDENTIFIER_ID,
+                    &pag,
+                    query,
+                    Some(inner),
+                ))
+                .and_then(|envelope| {
+                    envelope
+                        .map(|envelope| {
+                            cache_class_envelope(key, query, envelope, antecedent_io::pag_identity)
+                        })
+                        .transpose()
+                })
             }
             _ => Ok(None),
         }?;
@@ -301,15 +449,24 @@ fn cache_class_envelope<G>(
     key: u64,
     query: &AverageEffectQuery,
     envelope: IdentificationEnvelope<G>,
-) -> CachedClassPosteriorAtomIdentification {
+    identity: impl Fn(&G) -> Result<antecedent_io::GraphIdentityWire, antecedent_io::IoError>,
+) -> Result<CachedClassPosteriorAtomIdentification, CausalError> {
     use crate::strategy_table::{EstimatorId, select_estimand};
 
     let identification =
         crate::analysis::execute::envelope_to_identification_result(&envelope, query);
     let cases: Vec<CachedClassPosteriorCase> = envelope
         .cases
-        .iter()
+        .into_iter()
         .map(|case| {
+            let wire = identity(&case.graph).map_err(|e| CausalError::Compile {
+                message: format!("completion graph identity: {e}"),
+            })?;
+            let digest =
+                antecedent_io::digest_wire(antecedent_core::IdentityDomain::Identification, &wire)
+                    .map_err(|e| CausalError::Compile {
+                        message: format!("completion graph digest: {e}"),
+                    })?;
             let estimand =
                 if crate::analysis::execute::identification_status_ok_for_case(case.result.status)
                     && !case.result.estimands.is_empty()
@@ -321,17 +478,23 @@ fn cache_class_envelope<G>(
                 } else {
                     None
                 };
-            CachedClassPosteriorCase { weight: case.weight.0, status: case.result.status, estimand }
+            Ok(CachedClassPosteriorCase {
+                completion_digest: *digest.as_bytes(),
+                weight: case.weight.0,
+                status: case.result.status,
+                identification: Arc::new(case.result),
+                estimand,
+            })
         })
-        .collect();
-    CachedClassPosteriorAtomIdentification {
+        .collect::<Result<_, CausalError>>()?;
+    Ok(CachedClassPosteriorAtomIdentification {
         key,
         identification,
         invariant: envelope.invariant,
         cases: Arc::from(cases),
         identified_weight: envelope.identified_weight.0,
         truncated_completions: envelope.truncated_completions,
-    }
+    })
 }
 
 #[cfg(test)]
@@ -341,6 +504,63 @@ mod tests {
     use antecedent_discovery::adjacency_mask::set_edge;
     use antecedent_discovery::{AdjacencyMask, SamplingSummary};
     use antecedent_prob::InferenceDiagnostics;
+
+    #[test]
+    fn completion_witnesses_hash_the_actual_canonical_graphs() {
+        use antecedent_graph::{Cpdag, DenseNodeId};
+        let mut class = Cpdag::with_variables(2);
+        class.insert_undirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let envelope = crate::strategy_table::identify_cpdag(
+            crate::strategy_table::IdentifierId::GeneralizedAdjustment,
+            &class,
+            &query,
+        )
+        .unwrap();
+        assert!(envelope.cases.len() >= 2);
+        let expected: Vec<[u8; 32]> = envelope
+            .cases
+            .iter()
+            .map(|case| {
+                let graph = antecedent_io::dag_identity(&case.graph).unwrap();
+                *antecedent_io::digest_wire(antecedent_core::IdentityDomain::Identification, &graph)
+                    .unwrap()
+                    .as_bytes()
+            })
+            .collect();
+        let cached =
+            cache_class_envelope(17, &query, envelope, antecedent_io::dag_identity).unwrap();
+        let actual: Vec<_> = cached.cases.iter().map(|case| case.completion_digest).collect();
+        assert_eq!(actual, expected);
+        assert_ne!(actual[0], actual[1]);
+
+        let pag = antecedent_graph::Pag::with_variables(2);
+        let envelope = crate::strategy_table::identify_pag_in_context(
+            crate::strategy_table::IdentifierId::GeneralizedAdjustment,
+            &pag,
+            &query,
+            None,
+        )
+        .unwrap();
+        assert!(!envelope.cases.is_empty());
+        let expected: Vec<[u8; 32]> = envelope
+            .cases
+            .iter()
+            .map(|case| {
+                let graph = antecedent_io::pag_identity(&case.graph).unwrap();
+                *antecedent_io::digest_wire(antecedent_core::IdentityDomain::Identification, &graph)
+                    .unwrap()
+                    .as_bytes()
+            })
+            .collect();
+        let cached =
+            cache_class_envelope(21, &query, envelope, antecedent_io::pag_identity).unwrap();
+        assert_eq!(
+            cached.cases.iter().map(|case| case.completion_digest).collect::<Vec<_>>(),
+            expected
+        );
+    }
 
     /// A static posterior whose samples repeat a handful of confounding structures, as an
     /// MCMC posterior does: many entries, few distinct graphs.
@@ -361,7 +581,7 @@ mod tests {
             edges(&[(0, 1), (1, 2)]),
         ];
         let adjacency: Vec<AdjacencyMask> =
-            (0..n_graphs).map(|i| structures[i % structures.len()]).collect();
+            (0..n_graphs).map(|i| structures[i % structures.len()].clone()).collect();
         GraphPosterior::from_atoms(
             N,
             vec![1.0 / n_graphs as f64; n_graphs],
@@ -375,6 +595,75 @@ mod tests {
             },
         )
         .unwrap()
+    }
+
+    fn class_posterior() -> GraphPosterior {
+        let posterior = repeated_posterior(2);
+        let mut complete = AdjacencyMask::EMPTY;
+        for i in 0..4 {
+            for j in 0..4 {
+                if i != j {
+                    complete = set_edge(complete, 4, i, j, true);
+                }
+            }
+        }
+        GraphPosterior::from_atoms(
+            posterior.n_vars(),
+            Arc::clone(posterior.weights()),
+            vec![complete; 2],
+            Arc::clone(posterior.edge_marginals()),
+            Arc::clone(posterior.orientation_marginals()),
+            SamplingSummary {
+                ess: posterior.ess(),
+                diagnostics: posterior.diagnostics().clone(),
+                rejected_invalid: posterior.rejected_invalid(),
+            },
+        )
+        .unwrap()
+        .with_atom_kind(antecedent_discovery::GraphPosteriorAtomKind::Cpdag)
+    }
+
+    #[test]
+    fn static_class_posterior_workers_keep_the_actual_pool_after_a_warm_run() {
+        use antecedent_core::CachePolicy;
+        use antecedent_core::execution::AdmissionPool;
+        let posterior = class_posterior();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let warm = build_graph_posterior_identification_cache(
+            &posterior,
+            &query,
+            &ExecutionContext::production(81, 2),
+        )
+        .unwrap();
+        assert!(!warm.class_atoms.is_empty());
+        for policy in
+            [CachePolicy::disabled(), CachePolicy::enabled(Some(1)), CachePolicy::enabled(None)]
+        {
+            let pool = AdmissionPool::fixed(2, 1 << 20);
+            let mut ctx = ExecutionContext::production(81, 2).with_admission(pool.clone());
+            ctx.cache_policy = policy;
+            let held = ctx.acquire_admission(0, (1 << 20) - 1).unwrap();
+            let error =
+                build_graph_posterior_identification_cache(&posterior, &query, &ctx).unwrap_err();
+            assert!(matches!(error, CausalError::Resource { .. }), "{error:?}");
+            assert_eq!(pool.available().bytes(), 1);
+            drop(held);
+            assert_eq!(pool.available().bytes(), 1 << 20);
+        }
+    }
+
+    #[test]
+    fn static_class_posterior_worker_cancellation_is_not_unidentified_mass() {
+        let posterior = class_posterior();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let mut ctx = ExecutionContext::production(81, 2);
+        ctx.cancellation = antecedent_core::CancellationToken::cancel_after_checks(32);
+        let error =
+            build_graph_posterior_identification_cache(&posterior, &query, &ctx).unwrap_err();
+        assert!(matches!(error, CausalError::Cancelled { .. }), "{error:?}");
+        assert_eq!(ctx.admission.available().threads(), 2);
     }
 
     /// Timing harness for the three static builders (`cargo test -p antecedent --lib

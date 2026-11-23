@@ -3,7 +3,6 @@
 import copy
 import json
 import os
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -13,6 +12,47 @@ import calibration_family as family
 
 
 class FamilyTests(unittest.TestCase):
+    def test_only_full_object_identities_cache_source_reads(self):
+        family._immutable_source.cache_clear()
+        self.addCleanup(family._immutable_source.cache_clear)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "source.rs"
+            path.write_bytes(b"before")
+            self.assertEqual(family.read_source(root, path.name), b"before")
+            path.write_bytes(b"after")
+            self.assertEqual(family.read_source(root, path.name), b"after")
+            with patch.object(
+                family.subprocess,
+                "check_output",
+                side_effect=[
+                    b"fixed",
+                    b"head1",
+                    b"head2",
+                    b"tag1",
+                    b"tag2",
+                    b"short1",
+                    b"short2",
+                ],
+            ) as show:
+                for _ in range(2):
+                    self.assertEqual(
+                        family.read_source(root, path.name, "a" * 40), b"fixed"
+                    )
+                self.assertEqual(show.call_count, 1)
+                for ref, expected in (
+                    ("HEAD", b"head"),
+                    ("v1", b"tag"),
+                    ("abcdef", b"short"),
+                ):
+                    self.assertEqual(
+                        family.read_source(root, path.name, ref), expected + b"1"
+                    )
+                    self.assertEqual(
+                        family.read_source(root, path.name, ref), expected + b"2"
+                    )
+                self.assertEqual(show.call_count, 7)
+
     def test_roster_ignores_inherited_selection_and_needs_only_historical_inputs(self):
         gate = b"""#!/usr/bin/env bash
 set -eu
@@ -182,56 +222,37 @@ CoverageTally::for_record(key.with_dgp("a(b)"), level(0.95)).labelled("a\\\"b");
         ):
             family.validate_measurement_selection(hc3, [family.allocations.GROUP])
 
-    def test_actual_gate_dispatch_rejects_foreign_followup_before_any_command(self):
-        groups = json.loads(
-            family.read_source(
-                family.ROOT, family.MANIFEST_PATH, family.allocations.ORIGINAL_SOURCE
-            )
-        )["groups"]
-        config = family.decision.config_for_manifest(
-            {"groups": groups, "validation_domain": family.decision.PAG_CONFIDENCE_SET_DOMAIN}
-        )
-        label, _ = family.followup_allocation(config)
-        gate = (family.ROOT / family.GATE_PATH).read_text(encoding="utf-8")
-        check = "check() {" + gate.split("\ncheck() {", 1)[1].split("\n}\n", 1)[0] + "\n}\n"
-        with tempfile.TemporaryDirectory() as directory:
-            script = "set -e\nGROUP_INDEX=0\nSHARD_N=''\nGRID_POINTS='0 1 2'\nCONFIRM_SUFFIX=''\nFAILED_COUNT=0\n"
-            script += (
-                "grid_group() { return 0; }\nrun_point() { echo DISPATCH; RUN_STATUS=0; }\n" + check
-            )
-            environment = {
-                **os.environ,
-                "ANTECEDENT_CALIBRATION_DRY_RUN": "",
-                family.decision.ENV: family.decision.canonical_json(config),
-                "LOG_DIR": directory,
-            }
-            denied = subprocess.run(
-                ["bash", "-c", script + "check 'foreign: test' true\n"],
-                cwd=family.ROOT,
-                env=environment,
-                text=True,
-                capture_output=True,
-            )
-            self.assertNotEqual(denied.returncode, 0)
-            self.assertIn("allocated group", denied.stderr)
-            self.assertNotIn("DISPATCH", denied.stdout)
-            allowed = subprocess.run(
-                ["bash", "-c", script + f"check '{label}' true\n"],
-                cwd=family.ROOT,
-                env=environment,
-                text=True,
-                capture_output=True,
-            )
-            self.assertEqual(allowed.returncode, 0, allowed.stderr)
-            self.assertEqual(allowed.stdout.count("DISPATCH"), 3)
-
     def test_current_domain_is_resolvable_by_the_immutable_source_reader(self):
         source = (family.ROOT / "scripts/calibration_decision.py").read_bytes()
         with patch.object(family, "read_source", return_value=source):
             self.assertEqual(
                 family.source_validation_domain(family.ROOT, "0" * 40),
-                family.decision.PAG_CONFIDENCE_SET_DOMAIN,
+                family.decision.MEASUREMENT_DOMAIN,
             )
+
+    def test_the_measurement_domain_admits_every_group_of_the_current_roster(self):
+        config = family.current_config()
+        self.assertEqual(config["validation_domain"], "coverage_measurement")
+        roster = json.loads((family.ROOT / family.MANIFEST_PATH).read_text(encoding="utf-8"))
+        labels = [group["label"] for group in roster["groups"]]
+        family.validate_measurement_selection(config, labels)
+        family.validate_measurement_selection(config, labels[-3:])
+        with self.assertRaisesRegex(ValueError, "absent from the frozen current roster"):
+            family.validate_measurement_selection(config, ["not_a_group: nothing"])
+        with self.assertRaises(ValueError):
+            family.validate_measurement_selection(config, [])
+        self.assertIsNone(family.followup_allocation(config))
+
+    def test_the_spent_pag_confidence_set_domain_still_admits_only_its_group(self):
+        config = dict(
+            family.current_config(),
+            validation_domain=family.decision.PAG_CONFIDENCE_SET_DOMAIN,
+            family_groups=757,
+            family_cells=581376,
+        )
+        family.validate_measurement_selection(config, [family.allocations.PAG_EXTENSION["group"]["label"]])
+        with self.assertRaises(ValueError):
+            family.validate_measurement_selection(config, ["effect_constancy_calibration: known_gaussian_null_power_and_holm"])
 
     def test_pag_confidence_set_reserves_distinct_slot_without_resetting_spent_risk(self):
         allocations = family.allocations
@@ -297,7 +318,8 @@ CoverageTally::for_record(key.with_dgp("a(b)"), level(0.95)).labelled("a\\\"b");
             for name in ("crates", "scripts", "parity"):
                 (root / name).mkdir()
             (root / family.GATE_PATH).write_text(
-                "printf 'group 1: alpha\\ngroup 2: beta\\ngrid 2\\n'", encoding="utf-8"
+                '[[group]]\nlabel = "alpha"\ngrid = false\n\n[[group]]\nlabel = "beta"\ngrid = true\n',
+                encoding="utf-8",
             )
             (root / family.ACCEPTANCE_PATH).write_text("", encoding="utf-8")
             audit = family.reviewed_label_audit(root)

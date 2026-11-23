@@ -8,9 +8,11 @@ copied_tests = false
 # Strategy-table id: identify.randomized.design (IdentifierId::RandomizedDesign).
 # The graph is schema only. Identification is the caller-declared assignment
 # mechanism, recorded in checked_randomized::randomized_identification.
-papers = [
- { title = "On the Application of Probability Theory to Agricultural Experiments. Essay on Principles. Section 9", doi = "10.1214/ss/1177012031", sections = ["completely randomized comparison of treatments; the translation is the classical finite-population design argument this identifier records"] },
-]
+# `papers = []` is deliberate (see provenance/README.md): the route records the caller-declared
+# assignment mechanism as the identifying statement (randomization-based design argument going
+# back to Neyman 1923 / 1990 translation). It derives no functional from a graph and estimates
+# nothing here; the paper text was not retrieved.
+papers = []
 
 implementation_deviations = [
  "No graph search. The identifier stamps consistency, positivity, and the design's known-assignment statement; it does not derive an identifying functional from a DAG.",
@@ -25,3 +27,23 @@ test_sources = [
  "crates/antecedent/src/analysis/execute/checked_randomized.rs",
  "crates/antecedent/tests/randomized_trial_route.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "randomized_identification stamps the identification of a randomized-effect query: an expectation functional of the outcome, the rule name (intention-to-treat, multi-arm, Wald complier, one-sided treatment on the treated), and the declared assumptions of the assignment design, noncompliance, covariate adjustment and a requested exact test."
+no_independent_algorithm = "The identification builder interns an expression node and pushes declared assumption records chosen by matching on the query's design, estimand and options; it computes nothing. The mapped module also orchestrates execution: its arithmetic is counting assignment cells, 1 - propensity, and the CUPED residual y - coefficient * x with a caller-fixed coefficient; it has no square root, logarithm, exponential, power or solve. Intervals, variances and exact tests are the covered records' code."
+covered_by = ["estimate.randomized.ht_itt", "estimate.randomized.neyman_itt", "estimate.randomized.multi_arm", "estimate.randomized.wald_cace_late", "estimate.randomized.fixed_cuped_ht_itt", "estimate.randomized.ancova_itt", "estimate.randomized.switchback_ht_itt"]
+record_sha256 = "b3cfbe62502a512c030711b5c68b8f20af3a438dfd4e99c50b432c8f28be388b"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/execute/checked_randomized.rs"
+items = ["fn push_randomized_core_assumptions", "fn push_randomized_covariate_assumptions", "fn push_randomized_design_assumptions", "fn randomized_identification"]
+sha256 = "bf923729e738b5ae07b2750c9c2bc9e099a47c8ddefd67b6cb4ba7ed8c33a2a5"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/randomized_trial_route.rs"
+items = ["fn bernoulli_encouragement_retains_wald_cace_and_refuses_fabricated_interval", "fn calibrated_randomized_intervals_round_trip_and_reject_tampering", "fn cluster_randomized_itt_refuses_inconsistent_assignment_or_sparse_arms", "fn cluster_randomized_itt_uses_cluster_totals_and_assignment_units", "fn complete_randomization_enumerates_fisher_sharp_null_without_interval", "fn complete_randomization_keeps_its_own_neyman_construction_at_300_rows", "fn diff_means", "fn fisher_large_scale_includes_the_observed_allocation", "fn fixed_cell_factorial_reports_both_main_effects_and_interaction_without_interval", "fn fixed_cuped_bernoulli_itt_adjusts_in_native_retained_execution", "fn graphless_bernoulli_itt_runs_and_retains_design_units", "fn graphless_complete_and_stratified_itt_use_neyman_variance", "fn graphless_interval_support_refuses_zero_variance_despite_assignment_support", "fn multi_arm_retained_study_reports_all_contrasts_and_refuses_missing_support", "fn multi_covariate_ancova_runs_in_retained_study_and_artifact", "fn neyman_se", "fn one_sided_treatment_on_treated_is_distinct_and_refuses_two_sided_receipt", "fn run_case", "fn switchback_itt_retains_periods_and_sequence_variance"]
+sha256 = "1374196f05a13690b389b493ab8bd8f5df36a4b7a7fec65835b24c36ce23bb74"

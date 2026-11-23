@@ -36,7 +36,7 @@
 //! sample sizes and variable counts it measured. It is a statement about the method, never
 //! about one dataset: faithfulness and causal sufficiency of a table are untestable, so a given
 //! discovered graph is never certified.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::split_effect::{
     ALPHA, AdjustedEffect, CI_TEST, LEVEL, SPLIT_DEPENDENCE, adjusted_effect, discovery_refusal,
 };
@@ -44,6 +44,7 @@ use super::{
     MeasuredExpectation, MeasuredInference, ScalarExecution, authorize, build_report,
     compare_replay, decode,
 };
+use super::{invalid as malformed, refused};
 use crate::IoError;
 use antecedent_core::{CalibrationBasis, ExecutionContext, IdentityDomain, RngFactory, VariableId};
 use antecedent_data::TabularData;
@@ -61,20 +62,6 @@ use antecedent_graph::Cpdag;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-fn refused(detail: &str, message: &str) -> IoError {
-    IoError::Refused {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
-        message: format!("{detail}: {message}"),
-    }
-}
-
-fn malformed(detail: &str, message: &str) -> IoError {
-    IoError::Refused {
-        code: antecedent_core::reason_code!("invalid_argument"),
-        message: format!("{detail}: {message}"),
-    }
-}
-
 /// Route name the measured consumer registers.
 pub const PARENT_SET_EFFECT_ROUTE: &str = "split_parent_set_effect";
 /// Calibration `structure` value of the treatment-parent-set sample-split design.
@@ -84,7 +71,7 @@ pub const LINEAR_ESTIMATOR: &str = "parent_set_split.pc_parcorr.total_effect_adj
 /// Calibration `estimator` value of a log-linear study.
 pub const LOG_LINEAR_ESTIMATOR: &str = "parent_set_split.pc_parcorr.log_linear_mean_ratio";
 /// The topologies the construction is measured on, each its own record. A table does not
-/// announce its topology, so a cell is licensed only when the record of every topology attests:
+/// announce its topology, so a cell is supported only when the record of every topology attests:
 /// the conservative intersection.
 pub const TOPOLOGIES: [&str; 3] = [
     "hub_confounded_multi_path",
@@ -99,10 +86,17 @@ pub fn governing_topologies(max_degree: u32) -> &'static [&'static str] {
     if max_degree >= SUPPORTED_MAX_DEGREE { &TOPOLOGIES } else { &TOPOLOGIES[..2] }
 }
 /// Fewest searched variables measured.
+///
+/// With [`MAX_VARIABLES`] and [`SUPPORTED_MAX_DEGREE`] this is the support boundary of the
+/// calibration records, not a limit of the engine: the procedure runs on any table, but its
+/// coverage was measured only for these sizes and degrees; any other is computed and reported,
+/// and the calibration slot says `not_measured` because the basis names the variable count and
+/// degree.
 pub const MIN_VARIABLES: usize = 10;
-/// Most searched variables measured.
+/// Most searched variables measured. See [`MIN_VARIABLES`].
 pub const MAX_VARIABLES: usize = 20;
-/// Largest declared maximum graph degree the construction supports.
+/// Largest declared maximum graph degree the construction has records for. See
+/// [`MIN_VARIABLES`].
 pub const SUPPORTED_MAX_DEGREE: u32 = 4;
 /// The acceptance reason of every executed construction: all edges incident to the treatment
 /// are oriented in the discovered class.
@@ -153,7 +147,7 @@ impl Transformation {
             "linear" => Ok(Self::Linear),
             "log_linear" => Ok(Self::LogLinear),
             other => Err(malformed(
-                "parent_set_effect.transformation_undeclared",
+                antecedent_core::reason_details::parent_set_effect::TRANSFORMATION_UNDECLARED,
                 &format!(
                     "the transformation must be declared as `linear` or `log_linear` before any \
                      data are read; got `{other}`"
@@ -296,7 +290,7 @@ impl ParentSetEffectSource {
         let source: Self = crate::from_cbor(bytes)?;
         if crate::to_cbor(&source)? != bytes {
             return Err(malformed(
-                "parent_set_effect.source_not_canonical",
+                antecedent_core::reason_details::parent_set_effect::SOURCE_NOT_CANONICAL,
                 "the source bytes are not the canonical encoding",
             ));
         }
@@ -305,60 +299,31 @@ impl ParentSetEffectSource {
 
     fn validate(&self) -> Result<usize, IoError> {
         let k = self.columns.len();
-        if !matches!(self.version, 1 | FORMAT_VERSION) || self.names.len() != k {
-            return Err(malformed(
-                "parent_set_effect.source_invalid",
-                "unknown format version or names and columns of different counts",
-            ));
-        }
-        if !(MIN_VARIABLES..=MAX_VARIABLES).contains(&k) {
-            return Err(refused(
-                "parent_set_effect.variable_count_not_measured",
-                "only tables of ten to twenty searched variables were measured",
-            ));
-        }
+        super::validate_split_header(
+            matches!(self.version, 1 | FORMAT_VERSION),
+            self.names.len(),
+            self.columns.len(),
+            antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID,
+        )?;
         if self.max_degree == 0 {
             return Err(malformed(
-                "parent_set_effect.source_invalid",
+                antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID,
                 "the declared maximum graph degree must be at least one",
             ));
         }
-        if self.max_degree > SUPPORTED_MAX_DEGREE {
-            return Err(refused(
-                "parent_set_effect.degree_above_supported",
-                &format!(
-                    "the declared maximum graph degree is {} and the supported maximum is \
-                     {SUPPORTED_MAX_DEGREE}",
-                    self.max_degree
-                ),
-            ));
-        }
-        let rows = self.columns[0].len();
-        if !(8..=MAX_ROWS).contains(&rows) || self.columns.iter().any(|c| c.len() != rows) {
-            return Err(malformed(
-                "parent_set_effect.source_invalid",
-                "columns must have one length between 8 and 2^20 rows",
-            ));
-        }
-        if self.columns.iter().flatten().any(|v| !v.is_finite()) {
-            return Err(malformed(
-                "parent_set_effect.source_invalid",
-                "missing or non-finite values are not supported",
-            ));
-        }
-        let (t, y) = (self.treatment as usize, self.outcome as usize);
-        if t >= k || y >= k || t == y {
-            return Err(malformed(
-                "parent_set_effect.source_invalid",
-                "treatment and outcome must be two distinct columns",
-            ));
-        }
+        let rows = super::validate_split_columns(
+            &self.columns,
+            self.treatment,
+            self.outcome,
+            MAX_ROWS,
+            antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID,
+        )?;
         match (self.transformation, self.log_shift) {
             (Transformation::Linear, None) => {}
             (Transformation::LogLinear, Some(shift)) if shift.is_finite() && shift != 0.0 => {}
             _ => {
                 return Err(malformed(
-                    "parent_set_effect.source_invalid",
+                    antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID,
                     "a log-linear study declares a finite non-zero log shift of the treatment and \
                      a linear study declares none",
                 ));
@@ -369,7 +334,7 @@ impl ParentSetEffectSource {
                 let nonpositive = column.iter().filter(|v| **v <= 0.0).count();
                 if nonpositive > 0 {
                     return Err(malformed(
-                        "parent_set_effect.log_linear_input_not_positive",
+                        antecedent_core::reason_details::parent_set_effect::LOG_LINEAR_INPUT_NOT_POSITIVE,
                         &format!(
                             "column `{name}` has {nonpositive} non-positive value(s); a \
                              log-linear study requires every searched column to be positive"
@@ -388,7 +353,7 @@ impl ParentSetEffectSource {
             let tiers_ok = knowledge.tiers.iter().flatten().all(|&v| known(v));
             if !links_ok || !tiers_ok {
                 return Err(malformed(
-                    "parent_set_effect.knowledge_invalid",
+                    antecedent_core::reason_details::parent_set_effect::KNOWLEDGE_INVALID,
                     "background knowledge names a column that is not searched, or a link from a \
                      column to itself",
                 ));
@@ -409,7 +374,12 @@ impl ParentSetEffectSource {
         TabularData::from_f64_columns(
             self.names.iter().map(String::as_str).zip(scaled.iter().map(Vec::as_slice)),
         )
-        .map_err(|error| malformed("parent_set_effect.source_invalid", &error.to_string()))
+        .map_err(|error| {
+            malformed(
+                antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID,
+                &error.to_string(),
+            )
+        })
     }
 }
 
@@ -503,27 +473,37 @@ pub fn treatment_parent_set_under_conflicts(
         VariableId::from_raw(treatment),
         max_colliders,
     )
-    .map_err(|error| malformed("parent_set_effect.discovery_failed", &error.to_string()))?;
+    .map_err(|error| {
+        malformed(
+            antecedent_core::reason_details::parent_set_effect::DISCOVERY_FAILED,
+            &error.to_string(),
+        )
+    })?;
     match resolution {
         ConflictResolution::Invariant(orientation) => {
             neighbourhood(structure, names, treatment, outcome, Some(&orientation))
         }
         ConflictResolution::Varies => Err(refused(
-            "parent_set_effect.treatment_orientation_depends_on_conflict",
+            antecedent_core::reason_code!("discovered_structure_unresolved"),
+            antecedent_core::reason_details::parent_set_effect::TREATMENT_ORIENTATION_DEPENDS_ON_CONFLICT,
             "the discovery met conflicting orientation evidence and the choices among the \
              conflicting colliders orient the treatment's edges differently, so the treatment's \
              parents are not determined",
         )),
         ConflictResolution::Unresolvable => Err(refused(
-            "parent_set_effect.search_not_finished",
+            antecedent_core::reason_code!("discovered_structure_unresolved"),
+            antecedent_core::reason_details::parent_set_effect::SEARCH_NOT_FINISHED,
             "the discovery met conflicting orientation evidence that no choice among the \
              colliders removes",
         )),
-        ConflictResolution::BudgetExceeded { implicated, budget } => Err(refused(
-            "parent_set_effect.conflict_resolution_budget",
+        ConflictResolution::BudgetExceeded { implicated, budget, coverage } => Err(refused(
+            antecedent_core::reason_code!("discovered_structure_unresolved"),
+            antecedent_core::reason_details::parent_set_effect::CONFLICT_RESOLUTION_BUDGET,
             &format!(
                 "{implicated} colliders are implicated in conflicting orientation evidence, \
-                 above the {budget} whose choices are compared"
+                 above the {budget} whose choices are compared; a sample covering {:.3}% of the \
+                 resolutions found no disagreement, which does not establish invariance",
+                coverage * 100.0
             ),
         )),
     }
@@ -540,7 +520,8 @@ fn neighbourhood(
 ) -> Result<TreatmentNeighbourhood, IoError> {
     if structure.class() != StructureClass::Cpdag {
         return Err(refused(
-            "parent_set_effect.structure_class",
+            antecedent_core::reason_code!("invalid_argument"),
+            antecedent_core::reason_details::parent_set_effect::STRUCTURE_CLASS,
             "only a completed partially directed graph over static variables is accepted",
         ));
     }
@@ -558,7 +539,8 @@ fn neighbourhood(
             || !known(edge.b.variable)
         {
             return Err(refused(
-                "parent_set_effect.structure_class",
+                antecedent_core::reason_code!("invalid_argument"),
+                antecedent_core::reason_details::parent_set_effect::STRUCTURE_CLASS,
                 "a node is not a static searched variable",
             ));
         }
@@ -603,7 +585,8 @@ fn neighbourhood(
             .collect::<Vec<_>>()
             .join("; ");
         return Err(refused(
-            "parent_set_effect.treatment_parents_ambiguous",
+            antecedent_core::reason_code!("discovered_structure_unresolved"),
+            antecedent_core::reason_details::parent_set_effect::TREATMENT_PARENTS_AMBIGUOUS,
             &format!(
                 "the edges incident to the treatment `{}` are not all oriented: {listed}; the \
                  class holds graphs with different parent sets and no completion is chosen",
@@ -616,7 +599,8 @@ fn neighbourhood(
     directed.sort_unstable();
     if parents.contains(&outcome) {
         return Err(refused(
-            "parent_set_effect.outcome_precedes_treatment",
+            antecedent_core::reason_code!("invalid_argument"),
+            antecedent_core::reason_details::parent_set_effect::OUTCOME_PRECEDES_TREATMENT,
             "the discovered structure orients the outcome into the treatment",
         ));
     }
@@ -750,6 +734,7 @@ impl ParentSetEffectRun {
             None,
             0.0,
         )
+        .with_validation("not_applicable")
     }
 
     /// The bases of every topology's record, in [`TOPOLOGIES`] order.
@@ -779,13 +764,27 @@ impl ParentSetEffectRun {
 /// treatment's edges differently by choice or that implicates more than
 /// [`MAX_CONFLICTING_COLLIDERS`] colliders, a treatment edge left undirected, or the refusals of
 /// [`adjusted_effect`].
+pub fn run(
+    source: &ParentSetEffectSource,
+    ctx: &ExecutionContext,
+) -> Result<ParentSetEffectRun, IoError> {
+    run_with_collider_bound(source, ctx, MAX_CONFLICTING_COLLIDERS)
+}
+
+/// [`run`] comparing the treatment's orientation across the resolutions of at most
+/// `max_conflicting_colliders` implicated colliders (`2^bound` orientations of the skeleton)
+/// instead of [`MAX_CONFLICTING_COLLIDERS`].
+///
+/// # Errors
+/// Those of [`run`], with the caller's bound in place of the default.
 #[allow(
     clippy::too_many_lines,
     reason = "discovery, the parent-limit and conflict refusals and the adjusted fit read one search outcome"
 )]
-pub fn run(
+pub fn run_with_collider_bound(
     source: &ParentSetEffectSource,
     ctx: &ExecutionContext,
+    max_conflicting_colliders: usize,
 ) -> Result<ParentSetEffectRun, IoError> {
     source.validate()?;
     let frame = source.frame()?;
@@ -835,17 +834,22 @@ pub fn run(
         .run(&contract, &split.discovery, &run_ctx)
         .map_err(|error| discovery_refusal(&error))?;
     let outcome = adapter.outcome().ok_or_else(|| {
-        malformed("parent_set_effect.discovery_failed", "the discovery run retained no outcome")
+        malformed(
+            antecedent_core::reason_details::parent_set_effect::DISCOVERY_FAILED,
+            "the discovery run retained no outcome",
+        )
     })?;
     if outcome.search_incomplete {
         return Err(refused(
-            "parent_set_effect.search_not_finished",
+            antecedent_core::reason_code!("discovered_structure_unresolved"),
+            antecedent_core::reason_details::parent_set_effect::SEARCH_NOT_FINISHED,
             "the discovery search exhausted a bound",
         ));
     }
     if outcome.diagnostics.iter().any(|(code, _)| code.ends_with(PARENT_LIMIT_DIAGNOSTIC)) {
         return Err(refused(
-            "parent_set_effect.parent_limit_bound",
+            antecedent_core::reason_code!("discovered_structure_unresolved"),
+            antecedent_core::reason_details::parent_set_effect::PARENT_LIMIT_BOUND,
             &format!(
                 "the discovered skeleton exceeded the declared maximum graph degree {}; the \
                  limit removed adjacencies no test had separated, so the orientations rest on \
@@ -872,11 +876,12 @@ pub fn run(
             &source.names,
             source.treatment,
             source.outcome,
-            MAX_CONFLICTING_COLLIDERS,
+            max_conflicting_colliders,
         )?,
         (_, true) => {
             return Err(refused(
-                "parent_set_effect.search_not_finished",
+                antecedent_core::reason_code!("discovered_structure_unresolved"),
+                antecedent_core::reason_details::parent_set_effect::SEARCH_NOT_FINISHED,
                 "the discovery met conflicting orientation evidence",
             ));
         }
@@ -968,7 +973,7 @@ pub fn measure(source_bytes: &[u8], ctx: &ExecutionContext) -> Result<MeasuredIn
         interval: (executed.reported.lower, executed.reported.upper),
         basis,
     };
-    // A table does not announce its topology: the cell is licensed only when every topology's
+    // A table does not announce its topology: the cell is supported only when every topology's
     // record attests this construction, so each topology's record is resolved here and a
     // missing, stale or boundary record of any one refuses the whole.
     for topology in governing_topologies(executed.max_degree) {
@@ -1138,7 +1143,9 @@ mod tests {
     fn a_conflict_that_changes_the_treatments_parents_is_refused() {
         let error = under_conflicts(3, MAX_CONFLICTING_COLLIDERS).unwrap_err();
         assert!(
-            detail(&error).contains("parent_set_effect.treatment_orientation_depends_on_conflict"),
+            detail(&error).contains(
+                antecedent_core::reason_details::parent_set_effect::TREATMENT_ORIENTATION_DEPENDS_ON_CONFLICT
+            ),
             "{error}"
         );
     }
@@ -1147,7 +1154,79 @@ mod tests {
     fn more_implicated_colliders_than_the_budget_are_refused_with_both_counts() {
         let error = under_conflicts(1, 1).unwrap_err();
         let text = detail(&error);
-        assert!(text.contains("parent_set_effect.conflict_resolution_budget"), "{text}");
+        assert!(
+            text.contains(
+                antecedent_core::reason_details::parent_set_effect::CONFLICT_RESOLUTION_BUDGET
+            ),
+            "{text}"
+        );
         assert!(text.contains("2 colliders") && text.contains("above the 1"), "{text}");
+    }
+    fn coefficient(point: f64, lower: f64, upper: f64, standard_error: f64) -> AdjustedEffect {
+        AdjustedEffect {
+            point,
+            lower,
+            upper,
+            level: 0.95,
+            standard_error,
+            degrees_of_freedom: 30.0,
+            rows: 40,
+            adjustment_set: Vec::new(),
+        }
+    }
+
+    /// The mean ratio is the exponential of the shifted log-scale coefficient, its interval is
+    /// the exponential image of the log-scale interval with the endpoints put in order (a
+    /// negative shift reverses them), and its standard error is the delta-method image
+    /// `ratio * |shift| * se`; a linear study reports the coefficient unchanged.
+    #[test]
+    fn the_reported_effect_is_the_declared_image_of_the_coefficient() {
+        let log = coefficient(0.4, 0.1, 0.7, 0.15);
+        for shift in [0.5_f64, 1.0, -2.0, 1e-3] {
+            let got = reported_effect(Transformation::LogLinear, Some(shift), &log);
+            let ratio = (shift * 0.4).exp();
+            assert_eq!(got.name, MEAN_RATIO);
+            assert!((got.point - ratio).abs() <= 1e-15 * ratio);
+            let (a, b) = ((shift * 0.1).exp(), (shift * 0.7).exp());
+            assert!((got.lower - a.min(b)).abs() <= 1e-15 * a.min(b), "shift {shift}");
+            assert!((got.upper - a.max(b)).abs() <= 1e-15 * a.max(b), "shift {shift}");
+            assert!(got.lower <= got.point && got.point <= got.upper, "shift {shift}");
+            let se = ratio * shift.abs() * 0.15;
+            assert!((got.standard_error - se).abs() <= 1e-15 * se.max(1e-300), "shift {shift}");
+        }
+        let linear = reported_effect(Transformation::Linear, None, &log);
+        assert_eq!(linear.name, TOTAL_EFFECT);
+        assert_eq!(
+            (linear.point, linear.lower, linear.upper, linear.standard_error),
+            (0.4, 0.1, 0.7, 0.15)
+        );
+    }
+}
+
+#[cfg(test)]
+mod shared_validation_order_tests {
+    #[test]
+    fn degree_refusal_precedes_bad_rows_after_header() {
+        use super::{ParentSetEffectSource, Transformation};
+        let mut source = ParentSetEffectSource::new(
+            vec!["a".into(), "b".into(), "c".into()],
+            vec![vec![], vec![], vec![]],
+            0,
+            1,
+            0,
+            0,
+            Transformation::Linear,
+            0,
+            None,
+        );
+        assert!(source.validate().unwrap_err().to_string().contains("maximum graph degree"));
+        source.version = 99;
+        assert!(source.validate().unwrap_err().to_string().contains("unknown format version"));
+        source.max_degree = 1;
+        source.columns = vec![vec![1.0; 8]; 3];
+        source.version = 1;
+        assert_eq!(source.validate().unwrap(), 8);
+        source.version = 2;
+        assert_eq!(source.validate().unwrap(), 8);
     }
 }

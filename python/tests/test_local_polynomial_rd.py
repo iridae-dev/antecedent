@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
 from antecedent import analyze
 from antecedent.errors import CausalCompileError
-from antecedent.estimation import PreparedAnalysis
+from antecedent.outcomes import require_success
 from antecedent.quasi import (
     FuzzyRegressionDiscontinuity,
     RegressionKink,
 )
+
+
+def _analyzed(data, query):
+    return require_success(analyze(data, query=query))
 
 
 def _running_grid() -> list[float]:
@@ -27,9 +32,9 @@ def test_fuzzy_rd_local_quadratic_recovers_known_local_effect():
                 running.append(score)
                 treatment.append(treated)
                 outcome.append(1.0 + 2.0 * score + 0.5 * score**2 + 3.0 * treated + noise)
-    result = analyze(
+    result = _analyzed(
         {"x": running, "t": treatment, "y": outcome},
-        query=FuzzyRegressionDiscontinuity("y", "t", "x", 0.0, 1.0),
+        FuzzyRegressionDiscontinuity("y", "t", "x", 0.0, 1.0),
     ).local_polynomial_ratio
     assert result.estimate == pytest.approx(3.0, abs=1e-10)
     assert result.first_stage_discontinuity == pytest.approx(0.5, abs=1e-10)
@@ -39,7 +44,7 @@ def test_fuzzy_rd_local_quadratic_recovers_known_local_effect():
     assert result.standard_error > 0
     assert result.ci_lower < result.estimate < result.ci_upper
     assert result.uncertainty == "rbc_hc0_delta_normal_fixed_bandwidth"
-    assert result.support_status == "licensed"
+    assert result.support_status == "supported"
     assert "exclusion_restriction" in result.assumptions
     assert "cubic_pilot_bias_correction_at_same_bandwidth" in result.diagnostics
     assert "calibrated_strong_first_stage_fixture" in result.diagnostics
@@ -51,9 +56,9 @@ def test_fuzzy_regression_kink_recovers_known_local_effect():
     outcome = [
         2.0 + 1.5 * x + 0.5 * x**2 + 3.0 * t for x, t in zip(running, treatment, strict=True)
     ]
-    result = analyze(
+    result = _analyzed(
         {"x": running, "dose": treatment, "y": outcome},
-        query=RegressionKink("y", "dose", "x", 0.0, 1.0),
+        RegressionKink("y", "dose", "x", 0.0, 1.0),
     ).local_polynomial_ratio
     assert result.estimate == pytest.approx(3.0, abs=1e-10)
     assert result.first_stage_discontinuity == pytest.approx(0.8, abs=1e-10)
@@ -89,14 +94,14 @@ def test_retained_local_ratio_uses_main_analyze_flow_with_calibrated_interval(ki
                 outcome.append(1.0 + 2.0 * score + 0.5 * score**2 + 3.0 * dose + noise)
     rows = {"x": running, "t": treatment, "y": outcome}
     query = (RegressionKink if kink else FuzzyRegressionDiscontinuity)("y", "t", "x", 0.0, 1.0)
-    result = analyze(rows, query=query)
+    result = _analyzed(rows, query)
     fit = result.local_polynomial_ratio
     assert fit is not None
     assert fit.estimate == pytest.approx(3.0, abs=1e-7)
     assert fit.ci_lower < 3.0 < fit.ci_upper
-    assert fit.support_status == "licensed"
+    assert fit.support_status == "supported"
     assert result.estimate.se_analytic == pytest.approx(fit.standard_error)
-    direct = analyze(rows, query=query).local_polynomial_ratio
+    direct = _analyzed(rows, query).local_polynomial_ratio
     assert fit.standard_error == pytest.approx(direct.standard_error)
     assert fit.reduced_form_standard_error == pytest.approx(direct.reduced_form_standard_error)
     assert fit.first_stage_standard_error == pytest.approx(direct.first_stage_standard_error)
@@ -109,7 +114,10 @@ def test_retained_local_ratio_uses_main_analyze_flow_with_calibrated_interval(ki
         if kink
         else "cubic_pilot_bias_correction_at_same_bandwidth"
     ) in fit.diagnostics
-    assert PreparedAnalysis.prepare(rows, query=query).estimate(rows).local_polynomial_ratio == fit
+    prepared = antecedent.prepare(rows, query=query)
+    assert require_success(antecedent.estimate(prepared)).local_polynomial_ratio == fit
+    rebound = antecedent.rebind(prepared, data=rows)
+    assert require_success(antecedent.estimate(rebound)).local_polynomial_ratio == fit
 
 
 def test_local_polynomial_rd_refuses_weak_first_stage_and_sparse_side_support():
@@ -119,9 +127,17 @@ def test_local_polynomial_rd_refuses_weak_first_stage_and_sparse_side_support():
         1.0 + 2.0 * x + treatment_value
         for x, treatment_value in zip(running, treatment, strict=True)
     ]
-    with pytest.raises(CausalCompileError, match="discontinuity is too small"):
+    # A treatment that is smooth through the cutoff has a first stage that rounding leaves
+    # indistinguishable from zero at its own HC0 interval.
+    with pytest.raises(CausalCompileError, match="weak first stage"):
         analyze(
             {"x": running, "t": treatment, "y": outcome},
+            query=FuzzyRegressionDiscontinuity("y", "t", "x", 0.0, 1.0),
+        )
+    # A constant treatment has no discontinuity at all.
+    with pytest.raises(CausalCompileError, match="discontinuity is too small"):
+        analyze(
+            {"x": running, "t": [0.0] * len(running), "y": outcome},
             query=FuzzyRegressionDiscontinuity("y", "t", "x", 0.0, 1.0),
         )
     rng = np.random.default_rng(4)
@@ -146,6 +162,7 @@ def test_local_polynomial_rd_refuses_weak_first_stage_and_sparse_side_support():
         )
 
 
+@pytest.mark.calibration_simulation
 def test_fuzzy_rd_rbc_interval_has_nominal_coverage_in_seeded_known_truth_fixture():
     rng = np.random.default_rng(20260926)
     running = np.linspace(-1.0, 1.0, 602, dtype=np.float64)[1:-1]
@@ -165,9 +182,9 @@ def test_fuzzy_rd_rbc_interval_has_nominal_coverage_in_seeded_known_truth_fixtur
             + rng.normal(0.0, 1.0, len(running))
         )
         try:
-            result = analyze(
+            result = _analyzed(
                 {"x": running, "t": treatment, "y": outcome},
-                query=FuzzyRegressionDiscontinuity("y", "t", "x", 0.0, 0.5),
+                FuzzyRegressionDiscontinuity("y", "t", "x", 0.0, 0.5),
             ).local_polynomial_ratio
         except CausalCompileError as error:
             assert "weak first stage" in str(error)

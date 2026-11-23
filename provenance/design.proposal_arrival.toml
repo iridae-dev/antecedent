@@ -8,3 +8,23 @@ papers = []
 implementation_deviations = ["Original engineering of actual study-arrival execution over existing independently checked repair/ranking consumers, catalog SID and frozen z-transport verifiers/binders, exact finite expression compiler and provider evaluator. Every algorithm and its scientific scope retain the original implementation/provenance; this adapter is not a parallel estimator. The raw cell counts, declared Available physical binding, original planned sample total and complete checked program are reexecuted by fresh consumption.", "Scope is one independent unweighted jointly observed delivered regime with explicitly disjoint count tables per concrete intervention world. Count-law arithmetic is an empirical point estimate; finite structural and arithmetic verification do not validate interval calibration, authenticate raw physical observations or grant live provider authority. Existing descriptor-only arrival remains a structural receipt check."]
 upstream_implementations_observed = []
 test_sources = ["conformance/proposals/arrival/expected.json", "conformance/proposals/arrival/README.md", "crates/antecedent/tests/proposal_arrival.rs", "python/tests/test_proposal_arrival.py"]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Actual finite arrived-study estimation through the original checked transport evaluator, kept separate from the hypothetical proposal receipt; the result is empirical point only."
+no_independent_algorithm = "Orchestration: it binds the arrival to the proposal receipt, re-checks transport identification and evaluates the original exact transport expression. No estimator beyond those records."
+covered_by = ["design.proposal_receipt", "identify.transport_sid"]
+record_sha256 = "387e1a17428a4d15ecaec25548af3ec5e1911b6059c3faf35d5e5d8ef37850c8"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/proposal_arrival.rs"
+items = ["const MAX_ARRIVAL_BYTES", "const MAX_EVALUATION_DEPTH", "enum Family", "fn base", "fn bind_arrival_program", "fn bounds", "fn budget", "fn consume", "fn consume_with_limits", "fn default", "fn digest", "fn execute_with_limits", "fn family", "fn from", "fn ids", "fn native_error", "fn produce", "fn produce_with_limits", "fn reference", "fn refused", "fn to_bytes", "fn to_bytes_with_limits", "fn unsupported", "fn validate_base_providers", "fn validate_delivery", "struct ArrivalArtifact", "struct ArrivalLimits", "struct ArrivalPoint", "struct ArrivalRequest", "struct ArrivalWork", "struct BoundArrivalProgram"]
+sha256 = "922695f17b791098764b2fc4e3164e04c9d4171ec287f51114a00b8182e591ab"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/proposal_arrival.rs"
+items = ["fn arrival_checked_transport_evaluates_actual_counts_and_full_atom_truth", "fn arrival_checked_z_transport_replays_original_proof_and_actual_count_worlds", "fn arrival_count_snapshot_population_assignment_and_sampling_refusals", "fn arrival_original_artifact_and_raw_provider_replay_refuses_resealed_changes", "fn candidate", "fn detail", "fn execute", "fn fixture", "fn fixture_family", "fn law", "fn pin", "fn ranking", "fn v"]
+sha256 = "38810cdf5cfc956eaa29f689ea4e4e26486f776c4743041fad4ff9e8903b46b6"

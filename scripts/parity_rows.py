@@ -1,6 +1,6 @@
 """The one reader of the parity manifests for the feature gates.
 
-Every feature gate (`gate_bayesian.sh`, `gate_gcm.sh`, ...) reads `[[capabilities]]`
+The parity inventory gate (`check_parity_inventories.py`) reads `[[capabilities]]`
 rows and checks that each `done` row has evidence on disk. They all go through
 this module, which parses with `tomllib`, so the gates see exactly the rows a real
 TOML parser sees (multi-line strings, single-quoted literals, CRLF files,
@@ -18,30 +18,81 @@ indented keys and trailing comments included).
 Evidence is the file (or fixture directory) that carries a row's behaviour. A test
 file or a fixture directory must actually hold tests or fixtures, so deleting every
 test in the cited file turns the gate red instead of leaving a path that merely
-exists. The tests themselves are run, and counted, by the cargo lines each gate
-issues through `scripts/counted_cargo.sh`.
+exists. The tests themselves run in the engineering and scientific lanes (`scripts/test.sh`).
 """
 
 from __future__ import annotations
 
 import re
 import sys
-import tomllib
 from pathlib import Path
+
+from _repo import load_toml
 
 # The gates run from the repository root (or from an overlay of it in a self-test).
 ROOT = Path.cwd()
 
-_RUST_TEST = re.compile(r"#\[\s*(?:tokio::)?test\b")
-_PY_TEST = re.compile(r"^(?:async\s+)?def\s+test\w*\s*\(", re.M)
 RETIRED = ("intentional_deviation",)
+
+# These schemas use `reason` for explanatory prose. Their explicitly typed
+# calibration_reason/reason_code fields still consume the closed vocabulary.
+REASON_PROSE_SCHEMAS = frozenset({
+    "support_refusal_reasons.toml", "support_n_a.toml", "support_axes.toml",
+    "support_graphless.toml", "python_facade_surface.toml",
+    "estimator_route_residual.toml",
+    "slow_correctness_tests.toml",
+})
+
+
+def reason_obligation(path: Path, key: str) -> str | None:
+    if key == "calibration_reason":
+        return "calibration"
+    if key == "reason_code":
+        return "runtime_refusal"
+    if key == "reason" and path.name not in REASON_PROSE_SCHEMAS:
+        return "python_product" if path.name == "python_products.toml" else "claim"
+    return None
+
+
+def runtime_code_literals(path: Path, text: str) -> list[str]:
+    """Scientific refusal codes, excluding one separately typed device vocabulary.
+
+    A device fallback diagnostic is not a scientific refusal. The exception is
+    scoped to its exact module and impl, not every code() method in that file.
+    """
+    from test_evidence import _match_bracket, mask_rust
+
+    masked = mask_rust(text)
+    impls = [(m.group(1), m.end() - 1, _match_bracket(masked.skeleton, m.end() - 1))
+             for m in re.finditer(r"\bimpl\s+(\w+)\s*\{", masked.skeleton)]
+    found = []
+    for method in re.finditer(r"\bfn\s+code\s*\(\s*&self\s*\)\s*->\s*&\s*'static\s+str\s*\{", masked.skeleton):
+        owners = [name for name, start, end in impls if start < method.start() < end]
+        if path.as_posix() == "crates/antecedent-learn-burn/src/policy.rs" and owners == ["FallbackReason"]:
+            continue
+        end = _match_bracket(masked.skeleton, method.end() - 1)
+        found.extend(re.findall(r'=>\s*"([a-z][a-z0-9_]+)"', masked.code[method.end():end]))
+    return found
+
+
+def raw_reason_emissions(path: Path) -> list[int]:
+    """Line numbers of unchecked reason prefixes in compiled product code.
+
+    Follow module ownership so a cfg(test) child in a separate file is excluded,
+    while product code after an inline test module is still checked.
+    """
+    from capability_source import nontest_rust
+
+    source = nontest_rust(path)
+    return [number for number, line in enumerate(source.splitlines(), 1)
+            if '"reason=' in line and "concat!" not in line]
 
 
 def rows(path: str | Path, table: str = "capabilities") -> list[dict]:
     """Rows of `[[table]]` in `path` (relative to the repo root), parsed by tomllib."""
     p = Path(path)
     p = p if p.is_absolute() else ROOT / p
-    return tomllib.loads(p.read_text(encoding="utf-8")).get(table, [])
+    return load_toml(p).get(table, [])
 
 
 def find_row(path: str | Path, cid: str) -> dict | None:
@@ -59,11 +110,37 @@ def _evidence_problem(cid: str, rel: str) -> str | None:
         return None
     if p.stat().st_size == 0:
         return f"{cid} evidence file is empty: {rel}"
-    text = p.read_text(errors="ignore", encoding="utf-8")
-    if p.suffix == ".rs" and "/tests/" in p.as_posix() and not _RUST_TEST.search(text):
-        return f"{cid} evidence {rel} is a test file with no #[test] function"
-    if p.suffix == ".py" and "/tests/" in p.as_posix() and not _PY_TEST.search(text):
-        return f"{cid} evidence {rel} is a test module with no test function"
+    p.read_text(errors="ignore", encoding="utf-8")
+    if "/tests/" in p.as_posix() and p.suffix in {".rs", ".py"}:
+        # Inspect actual test declarations and assertions, not textual tokens in
+        # comments, docstrings, ignored tests or unrelated helper functions.
+        from capability_source import assertion_problems
+        from test_evidence import (
+            python_test_declarations,
+            rust_items,
+            rust_test_declaration_problems,
+            static_python_test,
+        )
+
+        if p.suffix == ".rs":
+            _, items = rust_items(p.resolve())
+            names = {item.name for item in items if item.kind == "fn"}
+            live = any(not rust_test_declaration_problems(p.resolve(), name)
+                       and not assertion_problems(p.resolve(), name) for name in names)
+        else:
+            try:
+                declarations = python_test_declarations(p.resolve())
+                live = any(
+                    not item["static_skip_or_xfail"]
+                    and (item["assertion_nodes"] > 0 if "." in item["selector"] else
+                         not static_python_test(p.resolve(), item["selector"])
+                         and not assertion_problems(p.resolve(), item["selector"]))
+                    for item in declarations
+                )
+            except (SyntaxError, ValueError):
+                live = False
+        if not live:
+            return f"{cid} evidence {rel} has no live asserting test function"
     return None
 
 
@@ -108,8 +185,15 @@ def honesty_problems(
 
 def evidence_map_problems(evidence: dict[str, str], manifests: list[str]) -> list[str]:
     """Each id in `evidence` must be a `done` row of one of `manifests` with real evidence."""
-    by_id = {r.get("id"): r for m in manifests for r in rows(m)}
+    all_rows = [r for m in manifests for r in rows(m)]
+    by_id = {r.get("id"): r for r in all_rows}
+    seen: set[str] = set()
     problems: list[str] = []
+    for row in all_rows:
+        cid = row.get("id")
+        if cid in seen:
+            problems.append(f"duplicate capability id {cid}")
+        seen.add(cid)
     for cid, rel in evidence.items():
         row = by_id.get(cid)
         if row is None:
@@ -123,8 +207,15 @@ def evidence_map_problems(evidence: dict[str, str], manifests: list[str]) -> lis
 
 def require_done(manifest: str, ids: list[str] | tuple[str, ...], gate: str) -> list[str]:
     """Rows other inventories must have closed for `gate` to pass."""
-    by_id = {r.get("id"): r for r in rows(manifest)}
+    all_rows = rows(manifest)
+    by_id = {r.get("id"): r for r in all_rows}
+    seen: set[str] = set()
     problems = []
+    for row in all_rows:
+        cid = row.get("id")
+        if cid in seen:
+            problems.append(f"duplicate capability id {cid} in {manifest}")
+        seen.add(cid)
     for cid in ids:
         row = by_id.get(cid)
         if row is None:
@@ -135,7 +226,8 @@ def require_done(manifest: str, ids: list[str] | tuple[str, ...], gate: str) -> 
 
 
 def exit_artifact_problems(paths: list[str]) -> list[str]:
-    return [f"required exit artifact missing: {p}" for p in paths if not (ROOT / p).exists()]
+    return [f"required exit artifact missing or empty: {p}" for p in paths
+            if not (ROOT / p).is_file() or (ROOT / p).stat().st_size == 0]
 
 
 def finish(label: str, problems: list[str], ok_message: str) -> None:

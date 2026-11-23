@@ -1,6 +1,6 @@
 //! Reusable traversal workspace.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::GraphError;
 use crate::types::DenseNodeId;
@@ -24,10 +24,10 @@ impl BitSet {
     pub fn full(len: usize) -> Self {
         let mut set = Self { words: vec![u64::MAX; len.div_ceil(64)], len };
         let tail = len % 64;
-        if tail != 0 {
-            if let Some(last) = set.words.last_mut() {
-                *last = (1u64 << tail) - 1;
-            }
+        if tail != 0
+            && let Some(last) = set.words.last_mut()
+        {
+            *last = (1u64 << tail) - 1;
         }
         set
     }
@@ -47,10 +47,10 @@ impl BitSet {
         self.len = len;
         self.words.resize(len.div_ceil(64), 0);
         let tail = len % 64;
-        if tail != 0 {
-            if let Some(last) = self.words.last_mut() {
-                *last &= (1u64 << tail) - 1;
-            }
+        if tail != 0
+            && let Some(last) = self.words.last_mut()
+        {
+            *last &= (1u64 << tail) - 1;
         }
     }
 
@@ -74,9 +74,7 @@ impl BitSet {
     /// instead of [`Self::insert`], which treats an out-of-range id as a programming bug.
     pub fn try_insert(&mut self, id: DenseNodeId) -> Result<(), GraphError> {
         let i = id.as_usize();
-        if i >= self.len {
-            return Err(GraphError::UnknownNode { id: id.raw() });
-        }
+        crate::types::validate_node_index(self.len, id)?;
         let word = i / 64;
         let bit = i % 64;
         let Some(slot) = self.words.get_mut(word) else {

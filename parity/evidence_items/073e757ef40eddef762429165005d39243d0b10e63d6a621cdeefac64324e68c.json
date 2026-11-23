@@ -1,0 +1,1 @@
+["use:std::sync::Arc;#0","use:super::{HistoryConstruction,HistoryExecutionError};#0","struct:HistoryScan#0","impl:HistoryScan#0","impl:HistoryScan#0/fn:plan#0","impl:HistoryScan#0/fn:lag_plan#0","impl:HistoryScan#0/fn:complete#0","impl:HistoryScan#0/fn:with_gaps#0","impl:HistoryScan#0/fn:windows#0","impl:HistoryConstruction#0","impl:HistoryConstruction#0/fn:scan_columns#0"]

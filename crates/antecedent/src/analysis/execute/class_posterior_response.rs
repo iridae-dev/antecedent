@@ -1,8 +1,8 @@
 //! CPDAG/PAG graph-posterior Response: class envelope per atom, then policy.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::atom_mix::{ScalarRefuterMix, append_unidentified_atoms, finish_atom_refutations};
+use super::atom_mix::append_unidentified_atoms;
 use super::completion_fit_memo::{CompletionFitKey, CompletionFitMemo};
 use super::response_path::{
     graph_posterior_response_supported, mix_response_values, mix_support_reports,
@@ -15,7 +15,7 @@ use super::{
     EstimationWorkspace, EstimatorId, ExecutionContext, GraphPosterior, IdentificationResult,
     IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
     IdentifiedKeyWeights, IdentifierId, InferenceMode, Instant, OverlapPolicy,
-    PhysicalExecutionPlan, PosteriorMassSummary, RefutationRun, RefuteSuite, ResponseFunctional,
+    PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite, ResponseFunctional,
     ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, Strategy, Study,
     StudyResult, TableView, TabularData, VariableId, bayesian_gcomp, elapsed_ns,
     identification_status_ok_for_case, identify_cached_diagnostic, provenance_ids,
@@ -29,6 +29,13 @@ use crate::result::{
     StructuralAggregationPolicy, StructuralResponseAtom, StructuralResponseMixture,
 };
 
+mod level_refit;
+
+pub(super) use level_refit::{StaticResponseLevelRefit, level_adjustment_sensitivity};
+use level_refit::{
+    atom_plugin_scalar, level_refit_masked_data, plugin_level_on_class_response_atoms,
+};
+
 struct ClassAtomResponseEval {
     key: u64,
     status: IdentificationStatus,
@@ -36,11 +43,25 @@ struct ClassAtomResponseEval {
     response: Option<CausalResponse>,
     partial: bool,
     atom_scores: Vec<(f64, antecedent_estimate::ResponseInfluence)>,
-    plugin_levels: Vec<(f64, IdentifiedEstimand, f64, antecedent_core::AssumptionSet)>,
+    point_weights: Vec<f64>,
+    scores_expected: bool,
+    point_completions: Option<crate::result::StaticFittedCompletions>,
+    plugin_levels: Vec<(
+        f64,
+        [u8; 32],
+        IdentificationStatus,
+        IdentifiedEstimand,
+        f64,
+        antecedent_core::AssumptionSet,
+    )>,
 }
 
 impl super::Study {
     /// Mix CPDAG/PAG posterior atoms through the existing class response envelope.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the route keeps preparation, mixing and finish in one bounded operation"
+    )]
     pub(super) fn execute_class_graph_posterior_response(
         &self,
         data: &TabularData,
@@ -51,13 +72,13 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         graph_posterior_response_supported(query)?;
-        let class_tag = gp.atom_kind.as_str().to_ascii_lowercase();
+        let class_tag = gp.atom_kind().as_str().to_ascii_lowercase();
         let witness = response_path::response_witness_ate(query)?;
         let (treatment, outcome) = response_primary_pair(&query.functional)?;
         let (identified, identify_cached) =
             self.class_graph_posterior_response_identification(gp, &witness, ctx)?;
         let options = self.response_options.clone().unwrap_or_default();
-        let evals = self.evaluate_class_posterior_response_atoms(
+        let mut evals = self.evaluate_class_posterior_response_atoms(
             data,
             query,
             outcome,
@@ -94,7 +115,7 @@ impl super::Study {
             mixed.response.assumptions.clone(),
             OverlapPolicy::ExplicitOverride,
         );
-        let estimator_id = if self.inference.is_bayesian() {
+        let estimator_id = if self.settings.inference.is_bayesian() {
             EstimatorId::ResponseBayesian
         } else {
             EstimatorId::default_for_response(&query.functional)
@@ -108,8 +129,10 @@ impl super::Study {
                 identified: &identified,
                 evals: &evals,
                 mixed: &mixed,
-                scalar,
-                standard_error,
+                source: physical
+                    .lowered()
+                    .and_then(crate::planner::lowered::LoweredProgram::semantic_identity)
+                    .map(|id| *id.as_bytes()),
                 estimator_id,
                 treatment,
                 outcome,
@@ -123,12 +146,30 @@ impl super::Study {
         }
         diagnostics.extend(mixed.response.support.warnings.iter().cloned());
 
+        // Witness retention is optional: a resource refusal leaves normal
+        // estimation intact and the later refit check fails closed.
+        let class_witnesses = if self.retain_response_witnesses {
+            match retain_static_class_witnesses(
+                gp,
+                &identified,
+                &mut evals,
+                self.temporal_validation_budget.as_ref(),
+                ctx,
+            ) {
+                Ok(witnesses) => witnesses,
+                Err(CausalError::Resource { .. }) => None,
+                Err(error) => return Err(error),
+            }
+        } else {
+            None
+        };
+
         let algo =
             physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
         let MixedClassPosteriorResponse {
             policy, identification, estimand, response, mixture, ..
         } = mixed;
-        Ok(self.finish_identified_execute(
+        let mut result = self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
                 identification,
@@ -152,7 +193,9 @@ impl super::Study {
                 diagnostics: Some(diagnostics),
                 ..Default::default()
             }),
-        ))
+        );
+        result.static_class_witnesses = class_witnesses;
+        Ok(result)
     }
 
     /// The prepared class posterior identification cache, or a live build for the witness query.
@@ -162,9 +205,7 @@ impl super::Study {
         witness: &AverageEffectQuery,
         ctx: &ExecutionContext,
     ) -> Result<(Arc<CachedGraphPosteriorIdentification>, bool), CausalError> {
-        let (identified, identify_cached) = if let Some(cache) =
-            self.graph_posterior_identification_cache.as_ref()
-        {
+        let (identified, identify_cached) = if let Some(cache) = self.graph_posterior_cache() {
             (Arc::clone(cache), true)
         } else {
             (
@@ -200,7 +241,7 @@ impl super::Study {
         let data_est = &data_est;
         ctx.map_indexed(identified.class_atoms.len(), |i, inner| {
             let atom = &identified.class_atoms[i];
-            match &self.inference {
+            match &self.settings.inference {
                 InferenceMode::Frequentist => evaluate_class_atom_response_frequentist(
                     self, data_est, query, atom, options, inner,
                 ),
@@ -209,6 +250,7 @@ impl super::Study {
                 ),
             }
         })
+        .map_err(Into::into)
     }
 
     /// Class-envelope, aggregation-policy and withheld-uncertainty disclosures of the response.
@@ -235,18 +277,21 @@ impl super::Study {
             mixed.mixture.unevaluable_mass,
             mixed.mixture.subsampled_out_mass,
         );
-        if mixed.weighted.len() > 1 && mixed.mixed_if_se.is_none() {
+        if (mixed.weighted.iter().filter(|(_, w, _)| *w > 0.0).count() > 1
+            || mixed.single_class_needs_joint_scores)
+            && matches!(mixed.response.uncertainty, ResponseUncertainty::None)
+        {
             diagnostics.push(Diagnostic::new(
-                "estimate.response.graph_posterior.uncertainty_withheld",
+                "estimate.response.graph_posterior.no_uncertainty_method",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
-                if self.inference.is_bayesian() {
+                if self.settings.inference.is_bayesian() {
                     "multi-atom Bayesian class-posterior response withholds an aggregate \
                      credible interval: graph-specific dispersion and a frozen-weight aggregate \
                      are different objects"
                 } else if !matches!(mixed.conditional, Some(ResponseValue::Scalar(_))) {
-                    "multi-atom Frequentist class-posterior curve withholds an aggregate band: \
-                     the joint-IF SE is published for scalar aggregates only"
+                    "Frequentist class-posterior response withholds an aggregate band: \
+                     complete aligned pointwise influences are unavailable or incompatible"
                 } else if !matches!(
                     mixed.policy,
                     StructuralAggregationPolicy::SameEstimandWeightedMean
@@ -258,7 +303,16 @@ impl super::Study {
                      interval because aligned atom influences were unavailable"
                 },
             ));
-        } else if mixed.mixed_if_se.is_some() {
+        } else if mixed.mixed_if_se.is_some()
+            || (mixed.single_class_needs_joint_scores
+                && matches!(
+                    mixed.response.uncertainty,
+                    ResponseUncertainty::PointwiseBand {
+                        interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                        ..
+                    }
+                ))
+        {
             diagnostics.push(Diagnostic::new(
                 "estimate.response.graph_posterior.joint_if_se",
                 DiagnosticKind::Scientific,
@@ -284,69 +338,41 @@ impl super::Study {
             identified,
             evals,
             mixed,
-            scalar,
-            standard_error,
+            source,
             estimator_id,
             treatment,
             outcome,
         } = input;
-        let plugin_scalar = match &mixed.conditional {
-            Some(ResponseValue::Scalar(value)) => *value,
-            _ => scalar,
-        };
-        let scalar_intervention = plugin_scalar.is_finite()
-            && matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
         if matches!(query.functional, ResponseFunctional::InterventionResponse { .. })
-            && (!matches!(self.refute, RefuteSuite::None) || !self.custom_validators.is_empty())
+            && (!matches!(self.settings.refute, RefuteSuite::None)
+                || !self.declared.custom_validators.is_empty())
         {
-            if matches!(self.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
+            if matches!(self.settings.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
                 diagnostics.push(Diagnostic::new(
                     "refute.evalue.not_a_contrast",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    "contrast-shaped refuters are not licensed for a plugin intervention level; \
+                    "contrast-shaped refuters are not supported for a plugin intervention level; \
                      cheap runs overlap only and full runs overlap plus sampling-stability of the \
                      g-comp level",
                 ));
             }
-            if scalar_intervention
-                && matches!(mixed.policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
-            {
-                let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
-                let mut refute_ws = EstimationWorkspace::default();
-                let plugin_estimate = EffectEstimate::new(
-                    plugin_scalar,
-                    standard_error,
-                    mixed.response.assumptions.clone(),
-                    OverlapPolicy::ExplicitOverride,
-                );
-                RefutationRun {
-                    data,
-                    estimand: &mixed.estimand,
-                    query: &ate_query,
-                    estimate: &plugin_estimate,
-                    suite: self.refute,
+            plugin_level_on_class_response_atoms(
+                self,
+                data,
+                identified,
+                evals,
+                (treatment, outcome),
+                query,
+                source,
+                ctx,
+                AtomRefutationPolicy {
+                    aggregation: mixed.policy,
                     estimator: estimator_id.as_str(),
-                    custom: &self.custom_validators,
-                    temporal: None,
-                }
-                .plugin_level(&mut refute_ws, ctx)
-            } else {
-                plugin_level_on_class_response_atoms(
-                    self,
-                    data,
-                    identified,
-                    evals,
-                    (treatment, outcome),
-                    ctx,
-                    AtomRefutationPolicy {
-                        aggregation: mixed.policy,
-                        estimator: estimator_id.as_str(),
-                    },
-                )
-            }
+                },
+            )
         } else {
-            if !matches!(self.refute, RefuteSuite::None) {
+            if !matches!(self.settings.refute, RefuteSuite::None) {
                 diagnostics.push(Diagnostic::new(
                     "refute.response.skipped",
                     DiagnosticKind::Scientific,
@@ -365,6 +391,248 @@ impl super::Study {
     }
 }
 
+fn admit_fitted_completions(
+    count: usize,
+    ctx: &ExecutionContext,
+) -> Result<Option<crate::result::StaticFittedCompletions>, CausalError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: "static fitted-completion witnesses" });
+    }
+    let Some(bytes) = count
+        .checked_mul(std::mem::size_of::<([u8; 32], u64, IdentificationStatus)>())
+        .and_then(|bytes| u64::try_from(bytes).ok())
+    else {
+        return Ok(None);
+    };
+    let lease = match ctx.acquire_admission(0, bytes) {
+        Ok(lease) => lease,
+        Err(antecedent_core::execution::AdmissionError::Cancelled) => {
+            return Err(CausalError::Cancelled { stage: "static fitted-completion witnesses" });
+        }
+        Err(_) => return Ok(None),
+    };
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: "static fitted-completion witnesses" });
+    }
+    let mut entries = Vec::new();
+    if entries.try_reserve_exact(count).is_err() {
+        return Ok(None);
+    }
+    Ok(Some(crate::result::StaticFittedCompletions { entries, _lease: lease }))
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "admission and capture must check the same complete fitted contributor set"
+)]
+fn retain_static_class_witnesses(
+    gp: &GraphPosterior,
+    identified: &Arc<CachedGraphPosteriorIdentification>,
+    evals: &mut [ClassAtomResponseEval],
+    shared_budget: Option<&antecedent_core::TemporalBudget>,
+    ctx: &ExecutionContext,
+) -> Result<Option<Arc<crate::result::StaticClassWitnessSet>>, CausalError> {
+    let n = gp.atoms().len();
+    if n == 0
+        || gp.max_lag().is_some()
+        || gp.lag_masks().is_some()
+        || gp.lag_bidirected_masks().is_some()
+        || identified.class_atoms.len() > n
+        || evals.len() != identified.class_atoms.len()
+        || gp.graph_keys().len() != n
+        || gp.weights().len() != n
+        || gp.mark_atoms().is_some_and(|marks| marks.len() != n)
+    {
+        return Ok(None);
+    }
+    let Some(mut budget) = shared_budget.cloned() else { return Ok(None) };
+    let work = u64::try_from(n)
+        .ok()
+        .and_then(|n| n.checked_mul(n))
+        .and_then(|n| n.checked_mul(3))
+        .ok_or_else(|| CausalError::Resource {
+            message: "static class witness lookup work overflow".into(),
+        })?;
+    budget
+        .charge_work(work)
+        .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+    // Cache grouping uses adjacency keys; a PAG with equal adjacency but
+    // different endpoint marks is not one class and cannot use this witness.
+    if let Some(marks) = gp.mark_atoms() {
+        for i in 0..n {
+            for j in i + 1..n {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled { stage: "static class witnesses" });
+                }
+                if gp.graph_keys()[i] != gp.graph_keys()[j] {
+                    continue;
+                }
+                let left = marks[i].words();
+                let right = marks[j].words();
+                if left.len() != right.len() {
+                    return Ok(None);
+                }
+                for (a, b) in left.chunks(256).zip(right.chunks(256)) {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(CausalError::Cancelled { stage: "static class witnesses" });
+                    }
+                    budget
+                        .charge_work(u64::try_from(a.len()).map_err(|_| CausalError::Resource {
+                            message: "class mark comparison work overflow".into(),
+                        })?)
+                        .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+                    if a != b {
+                        return Ok(None);
+                    }
+                }
+            }
+        }
+    }
+    for (atom, eval) in identified.class_atoms.iter().zip(evals.iter()) {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "static class witnesses" });
+        }
+        let mut index = None;
+        for (sample, key) in gp.graph_keys().iter().enumerate() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "static class witnesses" });
+            }
+            if *key != atom.key {
+                continue;
+            }
+            index.get_or_insert(sample);
+        }
+        let Some(index) = index else { return Ok(None) };
+        let mut matching_atoms = 0usize;
+        for candidate in identified.class_atoms.iter() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "static class witnesses" });
+            }
+            if candidate.key == atom.key {
+                matching_atoms += 1;
+            }
+        }
+        if matching_atoms != 1
+            || eval.key != atom.key
+            || atom.truncated_completions != 0
+            || !gp.weights()[index].is_finite()
+            || gp.weights()[index] < 0.0
+        {
+            return Ok(None);
+        }
+        let Some(fitted) = &eval.point_completions else { return Ok(None) };
+        let entry_work = u64::try_from(fitted.entries.len()).map_err(|_| {
+            CausalError::Resource { message: "static class completion work overflow".into() }
+        })?;
+        budget
+            .charge_work(entry_work)
+            .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+        if fitted.entries.len() != eval.point_weights.len()
+            || eval.response.is_some() == fitted.entries.is_empty()
+        {
+            return Ok(None);
+        }
+        let duplicate_work =
+            entry_work.checked_mul(entry_work).ok_or_else(|| CausalError::Resource {
+                message: "static completion identity comparison overflow".into(),
+            })?;
+        budget
+            .charge_work(duplicate_work)
+            .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+        for (index, entry) in fitted.entries.iter().enumerate() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "static class witnesses" });
+            }
+            for other in &fitted.entries[index + 1..] {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled { stage: "static class witnesses" });
+                }
+                if other.0 == entry.0 {
+                    return Ok(None);
+                }
+            }
+        }
+        for (entry, weight) in fitted.entries.iter().zip(&eval.point_weights) {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "static class witnesses" });
+            }
+            if !weight.is_finite() || *weight <= 0.0 || entry.1 != weight.to_bits() {
+                return Ok(None);
+            }
+        }
+    }
+    let bytes = n
+        .checked_mul(std::mem::size_of::<(u64, u64)>())
+        .and_then(|bytes| {
+            identified
+                .class_atoms
+                .len()
+                .checked_mul(std::mem::size_of::<crate::result::StaticClassAtomWitness>())
+                .and_then(|atoms| bytes.checked_add(atoms))
+        })
+        .and_then(|n| n.checked_add(std::mem::size_of::<crate::result::StaticClassWitnessSet>()))
+        .and_then(|n| n.checked_add(std::mem::size_of::<CachedGraphPosteriorIdentification>()))
+        .and_then(|n| n.checked_add(4 * std::mem::size_of::<usize>()))
+        .and_then(|n| u64::try_from(n).ok())
+        .ok_or_else(|| CausalError::Resource {
+            message: "static class witness allocation size overflow".into(),
+        })?;
+    let lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            CausalError::Cancelled { stage: "static class witnesses" }
+        }
+        other => CausalError::Resource { message: other.to_string() },
+    })?;
+    let mut atoms = Vec::new();
+    atoms.try_reserve_exact(identified.class_atoms.len()).map_err(|_| CausalError::Resource {
+        message: "static class witness allocation failed".into(),
+    })?;
+    for (atom, eval) in identified.class_atoms.iter().zip(evals.iter_mut()) {
+        let mut index = None;
+        for (sample, key) in gp.graph_keys().iter().enumerate() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "static class witnesses" });
+            }
+            if *key == atom.key {
+                index = Some(sample);
+                break;
+            }
+        }
+        let Some(index) = index else { return Ok(None) };
+        let Some(completions) = eval.point_completions.take() else { return Ok(None) };
+        atoms.push(crate::result::StaticClassAtomWitness {
+            graph_key: atom.key,
+            outer_weight: gp.weights()[index].to_bits(),
+            completions,
+        });
+    }
+    let mut samples = Vec::new();
+    samples.try_reserve_exact(n).map_err(|_| CausalError::Resource {
+        message: "static class sample witness allocation failed".into(),
+    })?;
+    for (&key, &weight) in gp.graph_keys().iter().zip(gp.weights().iter()) {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "static class witnesses" });
+        }
+        if !weight.is_finite() || weight < 0.0 {
+            return Ok(None);
+        }
+        samples.push((key, weight.to_bits()));
+    }
+    let cache: Arc<dyn std::fmt::Debug + Send + Sync + std::panic::RefUnwindSafe> =
+        identified.clone();
+    Ok(Some(Arc::new(crate::result::StaticClassWitnessSet {
+        atom_kind: gp.atom_kind(),
+        n_vars: gp.n_vars(),
+        identification_cache: Arc::downgrade(&cache),
+        source_atoms: Arc::downgrade(gp.atoms()),
+        source_marks: gp.mark_atoms().map(Arc::downgrade),
+        samples,
+        atoms,
+        _lease: lease,
+    })))
+}
+
 /// Borrowed inputs of the plugin-level refutation of a class graph-posterior response.
 #[derive(Clone, Copy)]
 struct ClassResponseRefuteInput<'a> {
@@ -373,8 +641,7 @@ struct ClassResponseRefuteInput<'a> {
     identified: &'a CachedGraphPosteriorIdentification,
     evals: &'a [ClassAtomResponseEval],
     mixed: &'a MixedClassPosteriorResponse,
-    scalar: f64,
-    standard_error: f64,
+    source: Option<[u8; 32]>,
     estimator_id: EstimatorId,
     treatment: VariableId,
     outcome: VariableId,
@@ -390,17 +657,28 @@ struct MixedClassPosteriorResponse {
     weighted: Vec<(u64, f64, CausalResponse)>,
     failed_mass: f64,
     mixed_if_se: Option<f64>,
+    single_class_needs_joint_scores: bool,
 }
 
 fn evaluate_class_atom_response_frequentist(
-    _study: &Study,
+    study: &Study,
     data: &TabularData,
     query: &ResponseQuery,
     atom: &CachedClassPosteriorAtomIdentification,
     options: &antecedent_estimate::ContinuousResponseOptions,
-    _ctx: &ExecutionContext,
+    ctx: &ExecutionContext,
 ) -> Result<ClassAtomResponseEval, CausalError> {
+    // The response estimator reads column validity, not the table analysis mask.
+    // Materialize that mask for the point as well as every subsequent refit.
+    let (selected, _selection_lease) =
+        level_refit_masked_data(data, ctx).map_err(CausalError::from)?;
+    let data = selected.as_ref().unwrap_or(data);
     let mut weighted = Vec::new();
+    let mut point_completions = if study.retain_response_witnesses {
+        admit_fitted_completions(atom.cases.len(), ctx)?
+    } else {
+        None
+    };
     let mut atom_scores = Vec::new();
     let mut primary_estimand = None;
     let mut plugin_levels = Vec::new();
@@ -409,6 +687,9 @@ fn evaluate_class_atom_response_frequentist(
         Option<antecedent_estimate::ResponseInfluence>,
     )> = CompletionFitMemo::default();
     for (case_index, case) in atom.cases.iter().enumerate() {
+        if case.weight == 0.0 {
+            continue;
+        }
         let Some(estimand) = case.estimand.as_ref() else {
             continue;
         };
@@ -448,13 +729,19 @@ fn evaluate_class_atom_response_frequentist(
         if let Some(scalar) = atom_plugin_scalar(&response) {
             plugin_levels.push((
                 case.weight,
+                case.completion_digest,
+                case.status,
                 estimand.clone(),
                 scalar,
                 response.assumptions.clone(),
             ));
         }
+        if let Some(records) = &mut point_completions {
+            records.entries.push((case.completion_digest, case.weight.to_bits(), case.status));
+        }
         weighted.push((u64::try_from(case_index).unwrap_or(u64::MAX), case.weight, response));
     }
+    let point_weights = weighted.iter().map(|(_, weight, _)| *weight).collect();
     let response = if weighted.is_empty() {
         None
     } else {
@@ -468,7 +755,10 @@ fn evaluate_class_atom_response_frequentist(
         partial: atom.invariant.is_none()
             || matches!(atom.identification.status, IdentificationStatus::PartiallyIdentified),
         atom_scores,
+        point_weights,
+        scores_expected: true,
         plugin_levels,
+        point_completions,
     })
 }
 
@@ -480,19 +770,30 @@ fn evaluate_class_atom_response_bayesian(
     options: &antecedent_estimate::ContinuousResponseOptions,
     ctx: &ExecutionContext,
 ) -> Result<ClassAtomResponseEval, CausalError> {
-    let cfg = match &study.inference {
+    let cfg = match &study.settings.inference {
         InferenceMode::Bayesian(c) => c.clone(),
         InferenceMode::Frequentist => {
-            return Err(CausalError::Unsupported {
-                message: "evaluate_class_atom_response_bayesian requires inference=Bayesian",
-            });
+            return Err(CausalError::unsupported_inference(
+                "evaluate_class_atom_response_bayesian requires inference=Bayesian",
+            ));
         }
     };
+    let (selected, _selection_lease) =
+        level_refit_masked_data(data, ctx).map_err(CausalError::from)?;
+    let data = selected.as_ref().unwrap_or(data);
     let mut weighted = Vec::new();
+    let mut point_completions = if study.retain_response_witnesses {
+        admit_fitted_completions(atom.cases.len(), ctx)?
+    } else {
+        None
+    };
     let mut primary_estimand = None;
     let mut plugin_levels = Vec::new();
     let mut completion_fits: CompletionFitMemo<CausalResponse> = CompletionFitMemo::default();
     for (case_index, case) in atom.cases.iter().enumerate() {
+        if case.weight == 0.0 {
+            continue;
+        }
         let Some(estimand) = case.estimand.as_ref() else {
             continue;
         };
@@ -533,13 +834,19 @@ fn evaluate_class_atom_response_bayesian(
             // point. Posterior uncertainty remains attached to the response itself.
             plugin_levels.push((
                 case.weight,
+                case.completion_digest,
+                case.status,
                 estimand.clone(),
                 scalar,
                 response.assumptions.clone(),
             ));
         }
+        if let Some(records) = &mut point_completions {
+            records.entries.push((case.completion_digest, case.weight.to_bits(), case.status));
+        }
         weighted.push((u64::try_from(case_index).unwrap_or(u64::MAX), case.weight, response));
     }
+    let point_weights = weighted.iter().map(|(_, weight, _)| *weight).collect();
     let response = if weighted.is_empty() {
         None
     } else {
@@ -553,7 +860,10 @@ fn evaluate_class_atom_response_bayesian(
         partial: atom.invariant.is_none()
             || matches!(atom.identification.status, IdentificationStatus::PartiallyIdentified),
         atom_scores: Vec::new(),
+        point_weights,
+        scores_expected: false,
         plugin_levels,
+        point_completions,
     })
 }
 
@@ -591,6 +901,7 @@ struct ClassPayloadInputs<'a> {
     mass: ClassMass,
     row_count: usize,
     confidence_level: f64,
+    single_class_needs_joint_scores: bool,
 }
 
 /// Evaluated atoms of a class posterior response before mixing.
@@ -605,6 +916,7 @@ struct ClassResponseCollected {
     primary_identification: Option<IdentificationResult>,
     primary_estimand: Option<IdentifiedEstimand>,
     atom_scores: Vec<(f64, antecedent_estimate::ResponseInfluence)>,
+    single_class_needs_joint_scores: bool,
 }
 
 /// Weights, atoms and primary claim of the evaluated class posterior atoms.
@@ -623,16 +935,42 @@ fn collect_class_response_atoms(
     let mut primary_estimand = None;
     let mut atom_scores: Vec<(f64, antecedent_estimate::ResponseInfluence)> = Vec::new();
     let proofs = super::atom_mix::AtomProofIndex::build(&identified.class_atoms);
+    let mut scores_complete = true;
+    let mut single_class_needs_joint_scores = false;
 
     let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
     for eval in evals {
         let w = key_weights.get(eval.key);
-        for (score_w, scores) in &eval.atom_scores {
-            atom_scores.push((w * score_w, scores.clone()));
-        }
         let value = eval.response.as_ref().and_then(response_identified_value);
+        if w > 0.0 && value.is_some() {
+            let expected: Vec<f64> =
+                eval.point_weights.iter().copied().filter(|w| *w > 0.0).collect();
+            let scores: Vec<_> =
+                eval.atom_scores.iter().filter(|(weight, _)| *weight > 0.0).collect();
+            let score_weights: Vec<f64> =
+                eval.atom_scores.iter().map(|(weight, _)| *weight).collect();
+            let nested =
+                super::atom_mix::nested_complete_weights(w, &eval.point_weights, &score_weights);
+            // Equal row-aligned scores and the class's existing identical-interval
+            // check support retaining its uncertainty, including surface bands.
+            let identical_scores = nested.is_some()
+                && eval.response.as_ref().is_some_and(|response| {
+                    !matches!(response.uncertainty, ResponseUncertainty::None)
+                })
+                && scores.windows(2).all(|pair| pair[0].1 == pair[1].1);
+            single_class_needs_joint_scores |=
+                eval.scores_expected && expected.len() > 1 && !identical_scores;
+            if let Some(nested) = nested {
+                for ((_, scores), weight) in scores.into_iter().zip(nested) {
+                    atom_scores.push((weight, scores.clone()));
+                }
+            } else {
+                // Any point contributor without scores invalidates the joint IF.
+                scores_complete = false;
+            }
+        }
         if let Some(response) = eval.response.clone() {
-            if value.is_some() {
+            if value.is_some() && w > 0.0 {
                 identified_weight += w;
                 if let Some(estimand) = eval.estimand.as_ref() {
                     contributing.push(estimand.clone());
@@ -643,7 +981,7 @@ fn collect_class_response_atoms(
                 }
                 any_partial |= eval.partial;
                 weighted.push((eval.key, w, response));
-            } else {
+            } else if w > 0.0 {
                 unevaluable_weight += w;
             }
         } else if w > 0.0 {
@@ -659,6 +997,9 @@ fn collect_class_response_atoms(
             response: eval.response.clone(),
         });
     }
+    if !scores_complete {
+        atom_scores.clear();
+    }
     ClassResponseCollected {
         atoms,
         weighted,
@@ -670,10 +1011,11 @@ fn collect_class_response_atoms(
         primary_identification,
         primary_estimand,
         atom_scores,
+        single_class_needs_joint_scores,
     }
 }
 
-/// Mixed response of the evaluated class atoms, with the joint-IF SE when one is licensed.
+/// Mixed response of the evaluated class atoms, with the joint-IF SE when one is supported.
 fn class_posterior_response_payload(
     inputs: &ClassPayloadInputs<'_>,
 ) -> (CausalResponse, Option<f64>) {
@@ -689,21 +1031,23 @@ fn class_posterior_response_payload(
         mass,
         row_count,
         confidence_level,
+        single_class_needs_joint_scores,
     } = *inputs;
     let graph_dependent = resolve_posterior_status(
         IdentificationStatus::NonparametricallyIdentified,
         policy,
         mass.summary(identified),
     ) == IdentificationStatus::GraphDependent;
+    let positive_graphs = weighted.iter().filter(|(_, weight, _)| *weight > 0.0).count();
     let mixed_if_se = (!graph_dependent
-        && weighted.len() > 1
+        && (positive_graphs > 1 || single_class_needs_joint_scores)
         && matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
         && matches!(conditional, Some(ResponseValue::Scalar(_))))
     .then(|| response_path::mixed_response_scalar_se(atom_scores, row_count))
     .flatten();
     let uncertainty = if graph_dependent {
         ResponseUncertainty::None
-    } else if weighted.len() == 1 {
+    } else if positive_graphs == 1 && !single_class_needs_joint_scores {
         first.uncertainty.clone()
     } else if let (Some(se), Some(ResponseValue::Scalar(value))) = (mixed_if_se, &conditional) {
         let level = confidence_level;
@@ -716,6 +1060,9 @@ fn class_posterior_response_payload(
             interpretation: antecedent_core::IntervalInterpretation::Confidence,
             draws: None,
         }
+    } else if matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean) {
+        joint_surface_band(atom_scores, row_count, conditional.as_ref(), confidence_level)
+            .unwrap_or(ResponseUncertainty::None)
     } else {
         ResponseUncertainty::None
     };
@@ -757,6 +1104,43 @@ fn class_posterior_response_payload(
     (response, mixed_if_se)
 }
 
+/// Pointwise intervals from the same complete, row-aligned joint influence as the mean.
+fn joint_surface_band(
+    scores: &[(f64, antecedent_estimate::ResponseInfluence)],
+    rows: usize,
+    value: Option<&ResponseValue>,
+    level: f64,
+) -> Option<ResponseUncertainty> {
+    let (ResponseValue::Surface { mean, .. }
+    | ResponseValue::Vector(mean)
+    | ResponseValue::Jacobian { values: mean, .. }) = value?
+    else {
+        return None;
+    };
+    let mixed = response_path::mix_response_influences(scores, rows)?;
+    if mixed.columns.len() != mean.len() {
+        return None;
+    }
+    let cols: Vec<&[f64]> = mixed.columns.iter().map(Vec::as_slice).collect();
+    let cov = antecedent_estimate::joint_influence_covariance(&cols, None).ok()?;
+    let z = antecedent_stats::normal_ppf(0.5 + level / 2.0);
+    if !z.is_finite() || (0..mean.len()).any(|i| !mean[i].is_finite() || !cov.se(i).is_finite()) {
+        return None;
+    }
+    let lower: Arc<[f64]> = mean.iter().enumerate().map(|(i, v)| v - z * cov.se(i)).collect();
+    let upper: Arc<[f64]> = mean.iter().enumerate().map(|(i, v)| v + z * cov.se(i)).collect();
+    if lower.iter().chain(upper.iter()).any(|bound| !bound.is_finite()) {
+        return None;
+    }
+    Some(ResponseUncertainty::PointwiseBand {
+        level,
+        lower,
+        upper,
+        interpretation: antecedent_core::IntervalInterpretation::Confidence,
+        draws: None,
+    })
+}
+
 fn mix_class_posterior_responses(
     identified: &CachedGraphPosteriorIdentification,
     evals: &[ClassAtomResponseEval],
@@ -776,6 +1160,7 @@ fn mix_class_posterior_responses(
         primary_identification,
         primary_estimand,
         atom_scores,
+        single_class_needs_joint_scores,
     } = collect_class_response_atoms(identified, evals);
     append_unidentified_atoms(&mut atoms, &identified.graphs);
 
@@ -802,8 +1187,12 @@ fn mix_class_posterior_responses(
     let conditional =
         if mixable_scalar { Some(mix_response_values(&conditional_refs)?) } else { None };
     let structural_set = response_envelope_from_weighted(&weighted);
-    let first =
-        weighted.first().map(|(_, _, response)| response).ok_or_else(|| CausalError::Compile {
+    let first = weighted
+        .iter()
+        .find(|(_, weight, _)| *weight > 0.0)
+        .or_else(|| weighted.first())
+        .map(|(_, _, response)| response)
+        .ok_or_else(|| CausalError::Compile {
             message: "class graph-posterior response mix: no evaluable atom values".into(),
         })?;
 
@@ -812,6 +1201,7 @@ fn mix_class_posterior_responses(
         query,
         weighted: &weighted,
         atom_scores: &atom_scores,
+        single_class_needs_joint_scores,
         first,
         policy,
         conditional: &conditional,
@@ -838,6 +1228,7 @@ fn mix_class_posterior_responses(
         full_mass_scope: identified.class_atoms.iter().all(|a| a.truncated_completions == 0),
         truncated_atoms: evals.iter().map(|_| 0).sum::<usize>()
             + identified.class_atoms.iter().map(|a| a.truncated_completions).sum::<usize>(),
+        aggregation_policy: Some(policy),
     };
     let identification = primary_identification.ok_or_else(|| CausalError::Compile {
         message: "class graph-posterior response mix: no evaluable atom values".into(),
@@ -857,74 +1248,802 @@ fn mix_class_posterior_responses(
         weighted,
         failed_mass: if total > 0.0 { failed_mass / total } else { 0.0 },
         mixed_if_se,
+        single_class_needs_joint_scores,
     })
 }
 
-fn atom_plugin_scalar(response: &CausalResponse) -> Option<f64> {
-    match response_identified_value(response)? {
-        ResponseValue::Scalar(value) if value.is_finite() => Some(value),
-        ResponseValue::Surface { mean, .. } if mean.len() == 1 => {
-            mean.first().copied().filter(|value| value.is_finite())
-        }
-        _ => None,
-    }
-}
+#[cfg(test)]
+mod nested_weight_tests {
+    use super::*;
+    use crate::strategy_table::{DEFAULT_IDENTIFIER_ID, identify_static, select_estimand};
+    use antecedent_core::{Intervention, SupportRegion, SupportReport, SupportStatus, Value};
+    use antecedent_graph::{Dag, DenseNodeId};
+    use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 
-fn plugin_level_on_class_response_atoms(
-    study: &Study,
-    data: &TabularData,
-    identified: &CachedGraphPosteriorIdentification,
-    evals: &[ClassAtomResponseEval],
-    (treatment, outcome): (VariableId, VariableId),
-    ctx: &ExecutionContext,
-    refutation: AtomRefutationPolicy<'_>,
-) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
-    let AtomRefutationPolicy { aggregation: policy, estimator } = refutation;
-    let suite = study.refute;
-    let custom = &study.custom_validators[..];
-    let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
-    let mut refute_ws = EstimationWorkspace::default();
-    let mut per_atom = Vec::new();
-    let mut diagnostics = Vec::new();
-    let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
-    for eval in evals {
-        let atom_weight = key_weights.get(eval.key);
-        if atom_weight <= 0.0 {
-            continue;
-        }
-        for (case_weight, estimand, scalar, assumptions) in &eval.plugin_levels {
-            let weight = atom_weight * *case_weight;
-            if weight <= 0.0 {
-                continue;
+    #[test]
+    fn completion_witness_admission_propagates_cancellation() {
+        let ctx = ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        assert!(matches!(admit_fitted_completions(1, &ctx), Err(CausalError::Cancelled { .. })));
+        assert!(matches!(
+            admit_fitted_completions(usize::MAX, &ctx),
+            Err(CausalError::Cancelled { .. })
+        ));
+    }
+
+    fn fixture()
+    -> (CachedGraphPosteriorIdentification, Vec<ClassAtomResponseEval>, ResponseQuery, Dag) {
+        let t = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let identification =
+            identify_static(DEFAULT_IDENTIFIER_ID, &dag, &AverageEffectQuery::binary_ate(t, y))
+                .unwrap();
+        let estimand = select_estimand(&identification, EstimatorId::LinearAdjustmentAte).unwrap();
+        let functional = ResponseFunctional::InterventionResponse {
+            outcome: y,
+            interventions: Arc::from([Intervention::set(t, Value::f64(1.0))]),
+        };
+        let query = ResponseQuery::new(functional.clone());
+        let response = |value| CausalResponse {
+            estimand: functional.clone(),
+            identification_status: IdentificationStatus::NonparametricallyIdentified,
+            estimate: ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)),
+            uncertainty: ResponseUncertainty::None,
+            support: SupportReport {
+                status: SupportStatus::Supported,
+                query_region: SupportRegion { minima: Arc::from([0.0]), maxima: Arc::from([1.0]) },
+                diagnostics: Vec::new(),
+                warnings: Vec::new(),
+                point_status: None,
+            },
+            assumptions: antecedent_core::AssumptionSet::default(),
+            provenance_id: Arc::from("test"),
+            horizon_identification: None,
+            interaction_structurally_zero: false,
+        };
+        let scores = |column| antecedent_estimate::ResponseInfluence {
+            columns: vec![column],
+            row_index: Arc::from([
+                antecedent_data::GlobalId::new(0),
+                antecedent_data::GlobalId::new(1),
+                antecedent_data::GlobalId::new(2),
+                antecedent_data::GlobalId::new(3),
+            ]),
+        };
+        let make = |key, value, weights: Vec<f64>, columns: Vec<Vec<f64>>, partial| {
+            ClassAtomResponseEval {
+                key,
+                status: IdentificationStatus::NonparametricallyIdentified,
+                estimand: Some(estimand.clone()),
+                response: Some(response(value)),
+                partial,
+                atom_scores: weights.iter().copied().zip(columns.into_iter().map(scores)).collect(),
+                point_weights: weights,
+                scores_expected: true,
+                point_completions: None,
+                plugin_levels: Vec::new(),
             }
-            let estimate = EffectEstimate::new(
-                *scalar,
-                f64::NAN,
-                assumptions.clone(),
-                OverlapPolicy::ExplicitOverride,
-            );
-            let (reports, notes) = RefutationRun {
-                data,
-                estimand,
-                query: &ate_query,
-                estimate: &estimate,
-                suite,
-                estimator,
-                custom,
-                temporal: None,
-            }
-            .plugin_level(&mut refute_ws, ctx)?;
-            diagnostics.extend(notes);
-            per_atom.push((weight, reports));
+        };
+        let evals = vec![
+            make(9, 99.0, vec![1.0], vec![vec![20.0, -20.0, 20.0, -20.0]], true),
+            make(3, 0.0, vec![1.0], vec![vec![1.0, -1.0, 1.0, -1.0]], false),
+            make(5, 6.0, vec![1.0, 1.0, 1.0], vec![vec![0.0; 4]; 3], false),
+        ];
+        let class_atoms = [3_u64, 5, 9]
+            .into_iter()
+            .map(|key| crate::analysis::prepared::CachedClassPosteriorAtomIdentification {
+                key,
+                identification: identification.clone(),
+                invariant: Some(estimand.clone()),
+                cases: Arc::from([]),
+                identified_weight: 1.0,
+                truncated_completions: 0,
+            })
+            .collect::<Vec<_>>();
+        let cache = CachedGraphPosteriorIdentification {
+            graphs: WeightedGraphSamples::new(
+                vec![0.0, 0.5, 0.5],
+                vec![GraphIdentFlag::Identified; 3],
+                vec![9, 3, 5],
+            )
+            .unwrap(),
+            atoms: Arc::from([]),
+            class_atoms: class_atoms.into(),
+        };
+        (cache, evals, query, dag)
+    }
+
+    #[test]
+    fn witness_keeps_duplicate_samples_and_refuses_different_pag_marks() {
+        use antecedent_discovery::{GraphPosteriorAtomKind, SamplingSummary};
+        let ctx = ExecutionContext::for_tests(1);
+        let posterior = |marks: [u64; 2]| {
+            GraphPosterior::new(
+                2,
+                vec![0.2, 0.8],
+                vec![3, 3],
+                vec![0.0; 4],
+                vec![0.0; 4],
+                SamplingSummary {
+                    ess: 1.0,
+                    diagnostics: antecedent_prob::InferenceDiagnostics::analytic(
+                        "duplicate witness",
+                    ),
+                    rejected_invalid: 0,
+                },
+            )
+            .unwrap()
+            .with_atom_kind(GraphPosteriorAtomKind::Pag)
+            .with_mark_masks(marks)
+            .unwrap()
+        };
+        let run = |gp: &GraphPosterior| {
+            let (mut cache, mut evals, _, _) = fixture();
+            cache.class_atoms = Arc::from([cache.class_atoms[0].clone()]);
+            let mut eval = evals.remove(1);
+            let mut entries = admit_fitted_completions(1, &ctx).unwrap().unwrap();
+            entries.entries.push((
+                [7; 32],
+                1.0_f64.to_bits(),
+                IdentificationStatus::NonparametricallyIdentified,
+            ));
+            eval.point_completions = Some(entries);
+            let cache = Arc::new(cache);
+            let budget =
+                antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+            retain_static_class_witnesses(gp, &cache, &mut [eval], Some(&budget), &ctx).unwrap()
+        };
+        let same = posterior([0, 0]);
+        let witness = run(&same).expect("identical PAG samples are supported");
+        assert_eq!(witness.samples, [(3, 0.2_f64.to_bits()), (3, 0.8_f64.to_bits())]);
+        assert_eq!(witness.atoms.len(), 1);
+        assert!(run(&posterior([0, 1])).is_none());
+    }
+
+    #[test]
+    fn collector_uses_nested_weights_and_ignores_zero_mass_partial_atom() {
+        let (cache, mut evals, query, _) = fixture();
+        let collected = collect_class_response_atoms(&cache, &evals);
+        assert_eq!(collected.weighted.len(), 2);
+        assert_eq!(collected.contributing.len(), 2);
+        assert!(!collected.any_partial);
+        assert_eq!(collected.atom_scores.len(), 4);
+        assert!((collected.atom_scores[0].0 - 0.5).abs() < 1e-12);
+        assert!(collected.atom_scores[1..].iter().all(|(w, _)| (*w - 1.0 / 6.0).abs() < 1e-12));
+        let mixed = mix_class_posterior_responses(&cache, &evals, 0.0, &query, 4, 0.95).unwrap();
+        assert!(
+            matches!(mixed.conditional, Some(ResponseValue::Scalar(v)) if (v - 3.0).abs() < 1e-12)
+        );
+        assert!(mixed.mixed_if_se.is_some());
+        evals[2].atom_scores.pop();
+        let incomplete = collect_class_response_atoms(&cache, &evals);
+        assert!(incomplete.atom_scores.is_empty());
+        let mixed = mix_class_posterior_responses(&cache, &evals, 0.0, &query, 4, 0.95).unwrap();
+        assert!(mixed.mixed_if_se.is_none());
+    }
+
+    #[test]
+    fn surface_band_uses_joint_scores_and_refuses_missing_columns() {
+        let rows: Arc<[antecedent_data::GlobalId]> =
+            (0..4).map(antecedent_data::GlobalId::new).collect::<Vec<_>>().into();
+        let scores = vec![
+            (
+                0.25,
+                antecedent_estimate::ResponseInfluence {
+                    columns: vec![vec![1.0, -1.0, 1.0, -1.0], vec![2.0, -2.0, 2.0, -2.0]],
+                    row_index: rows.clone(),
+                },
+            ),
+            (
+                0.75,
+                antecedent_estimate::ResponseInfluence {
+                    columns: vec![vec![0.0; 4], vec![0.0; 4]],
+                    row_index: rows,
+                },
+            ),
+        ];
+        let value = ResponseValue::Surface {
+            grid: Arc::from([0.0, 1.0]),
+            dimension: 1,
+            mean: Arc::from([1.0, 2.0]),
+        };
+        let Some(ResponseUncertainty::PointwiseBand { lower, upper, .. }) =
+            joint_surface_band(&scores, 4, Some(&value), 0.95)
+        else {
+            panic!("joint pointwise band");
+        };
+        assert!(lower[0] < 1.0 && upper[0] > 1.0 && lower[1] < 2.0 && upper[1] > 2.0);
+        assert!(((upper[1] - lower[1]) / (upper[0] - lower[0]) - 2.0).abs() < 1e-12);
+        let missing =
+            ResponseValue::Surface { grid: Arc::from([0.0]), dimension: 1, mean: Arc::from([1.0]) };
+        assert!(joint_surface_band(&scores, 4, Some(&missing), 0.95).is_none());
+    }
+
+    #[test]
+    fn single_class_surface_retains_joint_pointwise_band_for_distinct_completions() {
+        let (mut cache, mut evals, query, _) = fixture();
+        cache.graphs = WeightedGraphSamples::new(
+            vec![0.0, 1.0, 0.0],
+            vec![GraphIdentFlag::Identified; 3],
+            vec![9, 3, 5],
+        )
+        .unwrap();
+        evals[1].response.as_mut().unwrap().estimate =
+            ResponseIdentification::PointIdentified(ResponseValue::Surface {
+                grid: Arc::from([0.0, 1.0]),
+                dimension: 1,
+                mean: Arc::from([1.0, 2.0]),
+            });
+        evals[1].point_weights = vec![1.0, 1.0];
+        let rows = evals[1].atom_scores[0].1.row_index.clone();
+        evals[1].atom_scores = vec![
+            (
+                1.0,
+                antecedent_estimate::ResponseInfluence {
+                    columns: vec![vec![1.0, -1.0, 1.0, -1.0], vec![2.0, -2.0, 2.0, -2.0]],
+                    row_index: rows.clone(),
+                },
+            ),
+            (
+                1.0,
+                antecedent_estimate::ResponseInfluence {
+                    columns: vec![vec![0.0; 4], vec![0.0; 4]],
+                    row_index: rows,
+                },
+            ),
+        ];
+        let mixed = mix_class_posterior_responses(&cache, &evals, 0.0, &query, 4, 0.95).unwrap();
+        assert!(matches!(mixed.response.uncertainty, ResponseUncertainty::PointwiseBand { .. }));
+        let same = evals[1].atom_scores[0].1.clone();
+        evals[1].atom_scores[1].1 = same;
+        let existing = ResponseUncertainty::PointwiseBand {
+            level: 0.95,
+            lower: Arc::from([0.5, 1.5]),
+            upper: Arc::from([1.5, 2.5]),
+            interpretation: antecedent_core::IntervalInterpretation::Confidence,
+            draws: None,
+        };
+        evals[1].response.as_mut().unwrap().uncertainty = existing.clone();
+        let identical =
+            mix_class_posterior_responses(&cache, &evals, 0.0, &query, 4, 0.95).unwrap();
+        assert_eq!(identical.response.uncertainty, existing);
+        evals[1].atom_scores.pop();
+        let missing = mix_class_posterior_responses(&cache, &evals, 0.0, &query, 4, 0.95).unwrap();
+        assert!(matches!(missing.response.uncertainty, ResponseUncertainty::None));
+    }
+
+    #[test]
+    fn intervention_level_refit_uses_requested_set_and_shift() {
+        use antecedent_validate::common::EffectRefit;
+        let (_, evals, _, dag) = fixture();
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(1);
+        // Distinct doses identify the unpenalized cubic target spline. Its basis
+        // evaluates outside the observed domain at the endpoint, so the shift
+        // oracle uses the endpoint-clamped dose, not linear extrapolation.
+        let x: Vec<f64> = (0..100).map(|i| f64::from(i) / 25.0).collect();
+        let max_x = x.last().copied().unwrap();
+        let shift_expected =
+            10.0 + 2.0 * x.iter().map(|v| (v + 1.0).min(max_x)).sum::<f64>() / x.len() as f64;
+        let y: Vec<f64> = x.iter().map(|v| 10.0 + 2.0 * v).collect();
+        let data =
+            TabularData::from_f64_columns([("t", x.as_slice()), ("y", y.as_slice())]).unwrap();
+        let assumptions = antecedent_core::AssumptionSet::default();
+        let ctx = ExecutionContext::for_tests(1);
+        for (action, expected) in [
+            (Intervention::set(treatment, Value::f64(2.0)), 14.0),
+            (Intervention::shift(treatment, Value::f64(1.0)), shift_expected),
+        ] {
+            let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+                outcome,
+                interventions: Arc::from([action]),
+            });
+            let study = Study::tabular(data.clone())
+                .graph(dag.clone())
+                .query(query.clone())
+                .refute(RefuteSuite::None)
+                .build()
+                .unwrap();
+            let refit = StaticResponseLevelRefit {
+                study: &study,
+                query: &query,
+                estimand: evals[1].estimand.as_ref().unwrap(),
+                status: IdentificationStatus::NonparametricallyIdentified,
+                assumptions: &assumptions,
+                operational: None,
+            };
+            let estimate = refit.refit(&data, &[], &ctx).unwrap();
+            assert!((estimate.ate - expected).abs() < 1e-5, "{} != {expected}", estimate.ate);
+            assert!((estimate.ate - 2.0).abs() > 10.0, "not the unit contrast");
         }
     }
-    let mix_scalar = matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean);
-    Ok(finish_atom_refutations(
-        per_atom,
-        diagnostics,
-        mix_scalar,
-        ScalarRefuterMix::Effect,
-        None,
-        false,
-    ))
+
+    #[test]
+    fn level_refit_observes_analysis_mask_and_releases_its_admission() {
+        use antecedent_validate::common::EffectRefit;
+        let (_, evals, _, dag) = fixture();
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(1);
+        let x: Vec<f64> = (0..100).map(|i| f64::from(i % 5)).collect();
+        let y: Vec<f64> = x
+            .iter()
+            .enumerate()
+            .map(|(i, v)| if i < 50 { 10.0 + 2.0 * v } else { 100.0 + 2.0 * v })
+            .collect();
+        let data =
+            TabularData::from_f64_columns([("t", x.as_slice()), ("y", y.as_slice())]).unwrap();
+        let flags: Vec<bool> = (0..100).map(|i| i < 50).collect();
+        let masked =
+            data.with_analysis_mask(antecedent_data::ValidityBitmap::from_bools(&flags)).unwrap();
+        let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome,
+            interventions: Arc::from([Intervention::set(treatment, Value::f64(2.0))]),
+        });
+        let study = Study::tabular(data.clone())
+            .graph(dag)
+            .query(query.clone())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        let assumptions = antecedent_core::AssumptionSet::default();
+        let refitter = StaticResponseLevelRefit {
+            study: &study,
+            query: &query,
+            estimand: evals[1].estimand.as_ref().unwrap(),
+            status: IdentificationStatus::NonparametricallyIdentified,
+            assumptions: &assumptions,
+            operational: None,
+        };
+        let pool = antecedent_core::execution::AdmissionPool::fixed(1, 1_000_000);
+        let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let before = pool.available().bytes();
+        let result = refitter.refit(&masked, &[], &ctx).unwrap();
+        assert!((result.ate - 14.0).abs() < 1e-5);
+        let (cache, _, _, _) = fixture();
+        let mut atom = cache.class_atoms.iter().find(|atom| atom.key == 3).unwrap().clone();
+        atom.cases = Arc::from([crate::analysis::prepared::CachedClassPosteriorCase {
+            completion_digest: [4; 32],
+            weight: 1.0,
+            status: IdentificationStatus::NonparametricallyIdentified,
+            identification: Arc::new(atom.identification.clone()),
+            estimand: Some((*refitter.estimand).clone()),
+        }]);
+        let point = evaluate_class_atom_response_frequentist(
+            &study,
+            &masked,
+            &query,
+            &atom,
+            &antecedent_estimate::ContinuousResponseOptions::default(),
+            &ctx,
+        )
+        .unwrap();
+        let point_value = atom_plugin_scalar(point.response.as_ref().unwrap()).unwrap();
+        assert!(
+            (point_value - result.ate).abs() < 1e-8,
+            "masked point and refit must use identical observations"
+        );
+        assert_eq!(pool.available().bytes(), before);
+        let latch = std::cell::RefCell::new(None);
+        let limited_refitter = StaticResponseLevelRefit { operational: Some(&latch), ..refitter };
+        let limited = ExecutionContext::for_tests(1)
+            .with_admission(antecedent_core::execution::AdmissionPool::fixed(1, 0));
+        assert!(matches!(
+            limited_refitter.refit(&masked, &[], &limited),
+            Err(antecedent_validate::ValidationError::Resource { .. })
+        ));
+        assert!(matches!(
+            latch.borrow().as_ref(),
+            Some(antecedent_validate::ValidationError::Resource { .. })
+        ));
+        ctx.cancellation.cancel();
+        assert!(matches!(
+            refitter.refit(&masked, &[], &ctx),
+            Err(antecedent_validate::ValidationError::Cancelled)
+        ));
+    }
+
+    #[test]
+    fn full_suite_bootstrap_refits_sampled_levels_on_selected_rows() {
+        use antecedent_validate::common::EffectRefit;
+        let (_, evals, _, dag) = fixture();
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(1);
+        let x: Vec<f64> = (0..100).map(|i| f64::from(i % 5)).collect();
+        let y: Vec<f64> = x
+            .iter()
+            .enumerate()
+            .map(|(i, v)| 10.0 + 2.0 * v + (i % 7) as f64 * 0.1 + if i < 50 { 0.0 } else { 1000.0 })
+            .collect();
+        let data =
+            TabularData::from_f64_columns([("t", x.as_slice()), ("y", y.as_slice())]).unwrap();
+        let flags: Vec<bool> = (0..100).map(|i| i < 50).collect();
+        let masked =
+            data.with_analysis_mask(antecedent_data::ValidityBitmap::from_bools(&flags)).unwrap();
+        let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome,
+            interventions: Arc::from([Intervention::set(treatment, Value::f64(2.0))]),
+        });
+        let study = Study::tabular(data)
+            .graph(dag)
+            .query(query.clone())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        let assumptions = antecedent_core::AssumptionSet::default();
+        let refitter = StaticResponseLevelRefit {
+            study: &study,
+            query: &query,
+            estimand: evals[1].estimand.as_ref().unwrap(),
+            status: IdentificationStatus::NonparametricallyIdentified,
+            assumptions: &assumptions,
+            operational: None,
+        };
+        let ctx = ExecutionContext::for_tests(1);
+        let original = refitter.refit(&masked, &[], &ctx).unwrap();
+        let witness = antecedent_core::AverageEffectQuery::binary_ate(treatment, outcome);
+        let problem = antecedent_validate::RefutationProblem::new(
+            &masked,
+            refitter.estimand,
+            &witness,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        )
+        .with_effect_refit(&refitter);
+        let mut workspace = antecedent_estimate::EstimationWorkspace::default();
+        let outcomes = antecedent_validate::ValidationSuite::plugin_level_full()
+            .run(&problem, &mut workspace, &ctx)
+            .unwrap();
+        let report = outcomes
+            .iter()
+            .find_map(|outcome| match outcome {
+                antecedent_validate::ValidationOutcome::Report(report)
+                    if report.refuter.as_ref() == "bootstrap.ci_coverage" =>
+                {
+                    Some(report)
+                }
+                _ => None,
+            })
+            .expect("static level bootstrap report");
+        assert_eq!(report.replicates, 200);
+        assert!(report.comparison > 0.0, "sampled levels must vary");
+        assert!(
+            (13.0..16.0).contains(&report.refuted_ate),
+            "masked-out outcomes must not enter draws: {report:?}"
+        );
+    }
+
+    #[test]
+    fn adjustment_drop_refits_the_level_with_the_reduced_adjustment() {
+        let (_, evals, _, _) = fixture();
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(1);
+        let z_id = VariableId::from_raw(2);
+        let z: Vec<f64> = (0..100).map(|i| f64::from(i % 2)).collect();
+        let x: Vec<f64> = (0..100)
+            .map(|i| 0.5 * z[i] + 0.2 * (f64::from(u32::try_from(i % 5).unwrap()) - 2.0))
+            .collect();
+        let y: Vec<f64> = (0..100).map(|i| 10.0 + 2.0 * x[i] + 5.0 * z[i]).collect();
+        let data = TabularData::from_f64_columns([
+            ("t", x.as_slice()),
+            ("y", y.as_slice()),
+            ("z", z.as_slice()),
+        ])
+        .unwrap();
+        let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome,
+            interventions: Arc::from([Intervention::set(treatment, Value::f64(0.5))]),
+        });
+        let mut dag = Dag::with_variables(3);
+        dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+        dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let study = Study::tabular(data.clone())
+            .graph(dag)
+            .query(query.clone())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        let base = evals[1].estimand.as_ref().unwrap();
+        let estimand = IdentifiedEstimand::new(
+            Arc::clone(&base.method),
+            Arc::from([z_id]),
+            Arc::clone(&base.instruments),
+            Arc::clone(&base.mediators),
+            base.functional,
+            base.rd_design,
+        );
+        let assumptions = antecedent_core::AssumptionSet::default();
+        let refitter = StaticResponseLevelRefit {
+            study: &study,
+            query: &query,
+            estimand: &estimand,
+            status: IdentificationStatus::NonparametricallyIdentified,
+            assumptions: &assumptions,
+            operational: None,
+        };
+        let original = antecedent_validate::common::EffectRefit::refit(
+            &refitter,
+            &data,
+            &[],
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap();
+        let report = level_adjustment_sensitivity(
+            &refitter,
+            &data,
+            &original,
+            treatment,
+            outcome,
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap();
+        assert!(
+            (report.refuted_ate - original.ate).abs() > 0.1,
+            "dropping z must actually change the level"
+        );
+        assert!(report.comparison > 0.0);
+    }
+
+    struct LevelRefitValidator;
+    impl antecedent_validate::CustomEffectValidator for LevelRefitValidator {
+        fn name(&self) -> &'static str {
+            "test.level_refit"
+        }
+        fn validate(
+            &self,
+            problem: &antecedent_validate::RefutationProblem<'_>,
+            ctx: &ExecutionContext,
+        ) -> Result<antecedent_validate::RefutationReport, antecedent_validate::ValidationError>
+        {
+            let refit = problem.effect_refit.ok_or(
+                antecedent_validate::ValidationError::NotApplicable {
+                    message: "missing level refit",
+                },
+            )?;
+            let value = refit.refit(problem.data, &[], ctx)?.ate;
+            Ok(antecedent_validate::RefutationReport::new(
+                self.name(),
+                problem.original.ate,
+                value,
+                1.0,
+                true,
+                true,
+                None,
+                0,
+            ))
+        }
+    }
+
+    #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the test checks complete and incomplete scoped executions together"
+    )]
+    fn completion_reports_refit_the_level_and_keep_distinct_scopes() {
+        let (cache, mut evals, _, dag) = fixture();
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(1);
+        let x: Vec<f64> = (0..100).map(|i| f64::from(i % 5)).collect();
+        let y: Vec<f64> = x.iter().map(|v| 10.0 + 2.0 * v).collect();
+        let data =
+            TabularData::from_f64_columns([("t", x.as_slice()), ("y", y.as_slice())]).unwrap();
+        let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome,
+            interventions: Arc::from([Intervention::set(treatment, Value::f64(2.0))]),
+        });
+        for eval in &mut evals {
+            eval.response.as_mut().unwrap().estimate =
+                ResponseIdentification::PointIdentified(ResponseValue::Scalar(14.0));
+            eval.plugin_levels = eval
+                .point_weights
+                .iter()
+                .enumerate()
+                .map(|(index, weight)| {
+                    (
+                        *weight,
+                        [u8::try_from(eval.key).unwrap() + u8::try_from(index).unwrap(); 32],
+                        eval.status,
+                        eval.estimand.as_ref().unwrap().clone(),
+                        14.0,
+                        antecedent_core::AssumptionSet::default(),
+                    )
+                })
+                .collect();
+        }
+        let study = Study::tabular(data.clone())
+            .graph(dag)
+            .query(query.clone())
+            .refute(RefuteSuite::None)
+            .custom_validators(vec![Arc::new(LevelRefitValidator)])
+            .build()
+            .unwrap();
+        let mixed = mix_class_posterior_responses(&cache, &evals, 0.0, &query, 100, 0.95).unwrap();
+        let (reports, notes) = study
+            .refute_class_graph_posterior_response(
+                ClassResponseRefuteInput {
+                    data: &data,
+                    query: &query,
+                    identified: &cache,
+                    evals: &evals,
+                    mixed: &mixed,
+                    source: Some([3; 32]),
+                    estimator_id: EstimatorId::LinearAdjustmentAte,
+                    treatment,
+                    outcome,
+                },
+                &mut Vec::new(),
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
+        assert_eq!(
+            notes
+                .iter()
+                .filter(|d| d.code.as_ref() == "refute.class_response.completion_weight")
+                .count(),
+            4
+        );
+        assert_eq!(reports.len(), 4); // one + three completions; zero-weight graph is excluded.
+        let mut seen = std::collections::HashSet::new();
+        for report in &reports {
+            assert!((report.original_ate - 14.0).abs() < 1e-12);
+            assert!((report.refuted_ate - 14.0).abs() < 1e-5);
+            let Some(antecedent_validate::RefutationScope::StaticClassCompletion {
+                outer_atom,
+                completion_digest,
+                target,
+            }) = &report.scope
+            else {
+                panic!("completion scope")
+            };
+            assert!(seen.insert((*outer_atom, *completion_digest)));
+            assert_eq!(target.family(), antecedent_validate::TargetFamily::WorldValued);
+            assert_eq!(target.source(), &[3; 32]);
+            let prefix = format!(
+                "scope:v1:static_class_completion:{}:{}|",
+                outer_atom,
+                antecedent_core::identity::to_hex(completion_digest)
+            );
+            assert!(target.labels().iter().all(|label| label.starts_with(&prefix)));
+        }
+        // Missing one completion does not promote the available subset to a
+        // whole-target verdict or erase its scoped reports.
+        evals[2].plugin_levels.pop();
+        let mixed = mix_class_posterior_responses(&cache, &evals, 0.0, &query, 100, 0.95).unwrap();
+        let (partial, notes) = study
+            .refute_class_graph_posterior_response(
+                ClassResponseRefuteInput {
+                    data: &data,
+                    query: &query,
+                    identified: &cache,
+                    evals: &evals,
+                    mixed: &mixed,
+                    source: Some([3; 32]),
+                    estimator_id: EstimatorId::LinearAdjustmentAte,
+                    treatment,
+                    outcome,
+                },
+                &mut Vec::new(),
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
+        assert_eq!(partial.len(), 3);
+        assert!(partial.iter().all(|r| matches!(
+            &r.scope,
+            Some(antecedent_validate::RefutationScope::StaticClassCompletion { .. })
+        )));
+        assert!(
+            notes.iter().any(|d| d.code.as_ref() == "refute.class_response.incomplete_completions")
+        );
+    }
+
+    #[test]
+    fn scalar_refuter_dispatch_runs_complete_nested_inputs() {
+        let (cache, mut evals, query, dag) = fixture();
+        for eval in &mut evals {
+            eval.plugin_levels = eval
+                .point_weights
+                .iter()
+                .map(|weight| {
+                    (
+                        *weight,
+                        [u8::try_from(eval.key).unwrap(); 32],
+                        eval.status,
+                        eval.estimand.as_ref().unwrap().clone(),
+                        match &eval.response.as_ref().unwrap().estimate {
+                            ResponseIdentification::PointIdentified(ResponseValue::Scalar(
+                                value,
+                            )) => *value,
+                            _ => unreachable!(),
+                        },
+                        antecedent_core::AssumptionSet::default(),
+                    )
+                })
+                .collect();
+        }
+        let data = TabularData::from_f64_columns([
+            ("t", &[0.0, 1.0, 0.0, 1.0][..]),
+            ("y", &[1.0, 2.0, 1.0, 2.0][..]),
+        ])
+        .unwrap();
+        let study = Study::tabular(data.clone())
+            .graph(dag)
+            .query(query.clone())
+            .refute(RefuteSuite::Cheap)
+            .build()
+            .unwrap();
+        let mixed = mix_class_posterior_responses(&cache, &evals, 0.0, &query, 4, 0.95).unwrap();
+        let mut diagnostics = Vec::new();
+        let (reports, notes) = study
+            .refute_class_graph_posterior_response(
+                ClassResponseRefuteInput {
+                    data: &data,
+                    query: &query,
+                    identified: &cache,
+                    evals: &evals,
+                    mixed: &mixed,
+                    source: Some([3; 32]),
+                    estimator_id: EstimatorId::LinearAdjustmentAte,
+                    treatment: VariableId::from_raw(0),
+                    outcome: VariableId::from_raw(1),
+                },
+                &mut diagnostics,
+                &ExecutionContext::for_tests(0),
+            )
+            .unwrap();
+        assert!(
+            !notes
+                .iter()
+                .any(|d| d.code.as_ref() == "refute.class_response.incomplete_completions")
+        );
+        assert!(!reports.is_empty(), "the complete route must produce scoped reports: {notes:?}");
+        for report in &reports {
+            assert!(matches!(report.original_ate, 0.0 | 6.0));
+            assert!(matches!(
+                &report.scope,
+                Some(antecedent_validate::RefutationScope::StaticClassCompletion { .. })
+            ));
+        }
+    }
+
+    #[test]
+    fn scalar_refuter_dispatch_withholds_incomplete_completion_inputs() {
+        let (cache, evals, query, dag) = fixture();
+        let data = TabularData::from_f64_columns([
+            ("t", &[0.0, 1.0, 0.0, 1.0][..]),
+            ("y", &[1.0, 2.0, 1.0, 2.0][..]),
+        ])
+        .unwrap();
+        let study = Study::tabular(data.clone())
+            .graph(dag)
+            .query(query.clone())
+            .refute(RefuteSuite::Cheap)
+            .build()
+            .unwrap();
+        let mixed = mix_class_posterior_responses(&cache, &evals, 0.0, &query, 4, 0.95).unwrap();
+        let mut diagnostics = Vec::new();
+        let (reports, notes) = study
+            .refute_class_graph_posterior_response(
+                ClassResponseRefuteInput {
+                    data: &data,
+                    query: &query,
+                    identified: &cache,
+                    evals: &evals,
+                    mixed: &mixed,
+                    source: Some([3; 32]),
+                    estimator_id: EstimatorId::LinearAdjustmentAte,
+                    treatment: VariableId::from_raw(0),
+                    outcome: VariableId::from_raw(1),
+                },
+                &mut diagnostics,
+                &ExecutionContext::for_tests(0),
+            )
+            .unwrap();
+        assert!(reports.is_empty());
+        assert!(
+            notes.iter().any(|d| d.code.as_ref() == "refute.class_response.incomplete_completions")
+        );
+    }
 }

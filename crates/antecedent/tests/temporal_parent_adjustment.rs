@@ -9,10 +9,11 @@
 //! history still refuse; the contract records the rule and set, and they
 //! survive export and consumption.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, InferenceMode, RefuteSuite, Study, StudyResult};
 use antecedent_core::{
     Assumption, CausalQuery, ExecutionContext, IdentificationStatus, Lag, TemporalEffectQuery,
@@ -75,14 +76,14 @@ fn autoregressive_pulse_was_refused_and_is_now_identified_by_parent_adjustment()
         // pa(t[-1]) = {t[-2], z[-2]}.
         assert_eq!(result.estimand.adjustment_set.len(), 2);
         assert!(
-            (result.estimate.as_effect().unwrap().ate - AR_BETA).abs() < 0.05,
+            (result.estimate().as_effect().unwrap().ate - AR_BETA).abs() < 0.05,
             "accepted={accepted}: ate={} truth={AR_BETA}",
-            result.estimate.as_effect().unwrap().ate
+            result.estimate().as_effect().unwrap().ate
         );
     }
 }
 
-/// Every licensed `PulseEffect × TemporalDag` coordinate on fixed structure
+/// Every supported `PulseEffect × TemporalDag` coordinate on fixed structure
 /// takes the same parent-adjusted identification: Frequentist and Bayesian,
 /// explicit and accepted, validation none / cheap / full, through the staged
 /// prepare → estimate handle.
@@ -118,7 +119,10 @@ fn every_fixed_structure_pulse_coordinate_uses_parent_adjustment() {
                     .unwrap();
                 if bayesian {
                     assert!(
-                        prepared.checked_bayesian_temporal_dag_effect_info().is_some(),
+                        matches!(
+                            prepared.retained_operation(),
+                            RetainedOperation::BayesianTemporalDagEffect(..)
+                        ),
                         "the parent-adjustment Bayesian route must retain its checked temporal plan"
                     );
                 }
@@ -131,7 +135,7 @@ fn every_fixed_structure_pulse_coordinate_uses_parent_adjustment() {
                     let posterior = result.posterior.as_ref().expect("posterior");
                     posterior.summaries.mean[posterior.effect_column().unwrap()]
                 } else {
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 };
                 assert!((value - AR_BETA).abs() < 0.08, "{what}: {value}");
             }
@@ -160,9 +164,9 @@ fn pooled_panel_pulse_uses_parent_adjustment() {
         .unwrap();
     assert!(rules(&result).iter().any(|rule| rule == PARENT_ADJUSTMENT_RULE));
     assert!(
-        (result.estimate.as_effect().unwrap().ate - AR_BETA).abs() < 0.05,
+        (result.estimate().as_effect().unwrap().ate - AR_BETA).abs() < 0.05,
         "ate={}",
-        result.estimate.as_effect().unwrap().ate
+        result.estimate().as_effect().unwrap().ate
     );
 }
 
@@ -180,21 +184,21 @@ fn parent_adjustment_removes_the_confounding_the_naive_regression_keeps() {
     let adjusted =
         study(data, autoregressive_pulse_dag(true, false).into(), pulse()).run(&ctx).unwrap();
     assert!(
-        (biased.estimate.as_effect().unwrap().ate - AR_BETA).abs() > 0.2,
+        (biased.estimate().as_effect().unwrap().ate - AR_BETA).abs() > 0.2,
         "naive ate={}",
-        biased.estimate.as_effect().unwrap().ate
+        biased.estimate().as_effect().unwrap().ate
     );
     assert!(
-        (adjusted.estimate.as_effect().unwrap().ate - AR_BETA).abs() < 0.05,
+        (adjusted.estimate().as_effect().unwrap().ate - AR_BETA).abs() < 0.05,
         "ate={}",
-        adjusted.estimate.as_effect().unwrap().ate
+        adjusted.estimate().as_effect().unwrap().ate
     );
 }
 
 fn fit(data: &TimeSeriesData, identified: &TemporalIdentificationResult) -> f64 {
     let ctx = ExecutionContext::for_tests(1);
     let mut estimator = TemporalLinearAdjustment::new();
-    estimator.inner.bootstrap_replicates = 0;
+    estimator.inner.inference.bootstrap_replicates = 0;
     let prepared = estimator
         .prepare(
             data,
@@ -315,6 +319,8 @@ fn record_for(
     let leak = |value: &str| -> &'static str { Box::leak(value.to_owned().into_boxed_str()) };
     antecedent_io::coverage_records_data::CoverageRecord {
         id,
+        validation_schema: 2,
+        validation: leak(&key.validation),
         query: leak(&key.query),
         graph_class: leak(&key.graph_class),
         structure: leak(&key.structure),
@@ -361,9 +367,12 @@ fn parent_adjusted_interval_binds_only_to_parent_adjustment_records() {
             .refute(RefuteSuite::None)
             .build()
             .unwrap();
-        let result = study.run(&ctx).unwrap();
-        let contract = study.inspect().unwrap();
-        result.calibration_bases(&contract).unwrap().remove(0)
+        let prepared = study.prepare(&ctx).unwrap();
+        let result = prepared.estimate_retained(&ctx).unwrap();
+        let contract = prepared.contract().unwrap();
+        let basis = result.calibration_bases(&contract).unwrap().remove(0);
+        assert_eq!(basis.key.validation, "none");
+        basis
     };
     let parent = run(
         autoregressive_pulse_dag(true, false),
@@ -379,16 +388,17 @@ fn parent_adjusted_interval_binds_only_to_parent_adjustment_records() {
     same_otherwise.identification = unfolding.key.identification.clone();
     assert_eq!(same_otherwise, unfolding.key, "only the identification construction differs");
 
-    let unfolding_record = record_for(&unfolding.key, "cov.unfolding", 100, 1000);
-    let parent_record = record_for(&parent.key, "cov.parent", 100, 1000);
+    let unfolding_record =
+        record_for(&unfolding.key, "cov.unfolding.v2_validation_none", 100, 1000);
+    let parent_record = record_for(&parent.key, "cov.parent.v2_validation_none", 100, 1000);
     let slot = calibration_slot_in(&parent, &[unfolding_record]);
-    assert_eq!(slot.status, "unavailable");
+    assert_eq!(slot.status, "not_measured");
     assert_eq!(slot.reason.as_deref(), Some(IDENTIFICATION_NOT_MEASURED));
     let slot = calibration_slot_in(&parent, &[unfolding_record, parent_record]);
     assert_eq!(slot.status, "calibrated", "{slot:?}");
-    assert_eq!(slot.record_id.as_deref(), Some("cov.parent"));
+    assert_eq!(slot.record_id.as_deref(), Some("cov.parent.v2_validation_none"));
     let slot = calibration_slot_in(&unfolding, &[parent_record, unfolding_record]);
-    assert_eq!(slot.record_id.as_deref(), Some("cov.unfolding"));
+    assert_eq!(slot.record_id.as_deref(), Some("cov.unfolding.v2_validation_none"));
 }
 
 #[test]
@@ -425,13 +435,13 @@ fn contract_records_the_parent_adjustment_and_round_trips_it() {
     assert_eq!(*own.as_bytes(), *product.as_bytes(), "the contract binds this product");
 
     let bytes = prepared.encode_contracted_result(&result, "parent-adjustment", &ctx).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
     assert!(
         consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_temporal_dag_effect_operation"
         })
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     let body = &consumed.body.identification;
     assert!(body.derivation.iter().any(|step| step.rule == PARENT_ADJUSTMENT_RULE));
     let section = consumed.contract.as_ref().expect("contract");

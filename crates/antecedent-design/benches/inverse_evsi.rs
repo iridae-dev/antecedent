@@ -1,7 +1,7 @@
 //! Criterion benches for the finite inverse query, EVSI evaluation and exact-objective
 //! ranking: the three paths that rebuilt per-constraint, per-candidate or per-draw work.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     missing_docs,

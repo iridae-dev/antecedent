@@ -6,7 +6,7 @@
 //! derived by hand in the test or from an independent implementation, not from the code
 //! under test.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -479,7 +479,7 @@ fn the_rank_drop_refuses_when_a_query_column_or_the_priority_is_at_stake() {
 
     let incomplete = RankDropPolicy { priority: ColumnPriority::Declared(vec![ia]) };
     let refusal = plan_rank_drop(&input, &incomplete, &ctx).unwrap_err();
-    assert_eq!(refusal.reason_code(), Some("rank_drop_not_licensed"));
+    assert_eq!(refusal.reason_code(), Some("rank_drop_not_supported"));
     let fields = refusal.refusal_fields().unwrap();
     assert_eq!(fields.stage.as_deref(), Some("rank_drop"));
     assert_eq!(fields.implicated_columns, vec!["b".to_string()]);
@@ -489,7 +489,7 @@ fn the_rank_drop_refuses_when_a_query_column_or_the_priority_is_at_stake() {
     protected.protected = vec![ib];
     let adjustment_order = RankDropPolicy { priority: ColumnPriority::AdjustmentOrder };
     let refusal = plan_rank_drop(&protected, &adjustment_order, &ctx).unwrap_err();
-    assert_eq!(refusal.reason_code(), Some("rank_drop_not_licensed"));
+    assert_eq!(refusal.reason_code(), Some("rank_drop_not_supported"));
     assert_eq!(refusal.refusal_fields().unwrap().implicated_columns, vec!["b".to_string()]);
 
     // An adjustment column that is a copy of the treatment is a treatment-definition question.
@@ -504,7 +504,7 @@ fn the_rank_drop_refuses_when_a_query_column_or_the_priority_is_at_stake() {
         1.0,
     );
     let refusal = plan_rank_drop(&input, &adjustment_order, &ctx).unwrap_err();
-    assert_eq!(refusal.reason_code(), Some("rank_drop_not_licensed"));
+    assert_eq!(refusal.reason_code(), Some("rank_drop_not_supported"));
     assert!(refusal.refusal_fields().unwrap().implicated_columns.contains(&"alias".to_string()));
 }
 
@@ -535,7 +535,7 @@ fn preflight_and_fit_diagnostics_observe_cancellation() {
 /// The three new reason codes are registered runtime refusals.
 #[test]
 fn the_new_reason_codes_are_registered() {
-    for code in ["design_rank_deficient", "rank_drop_not_licensed", "arm_not_populated"] {
+    for code in ["design_rank_deficient", "rank_drop_not_supported", "arm_not_populated"] {
         assert!(antecedent_core::reason_code::is_runtime_refusal(code), "{code}");
     }
 }
@@ -711,10 +711,10 @@ fn a_prepared_batch_diagnoses_and_costs_every_claim() {
 }
 
 /// Retargeted overlap refusal: a row-weight retarget onto a region the treated arm never
-/// reaches refuses as a support failure (class and text as before) and now carries structured
+/// reaches refuses as a positivity failure (`positivity_violated`) and now carries structured
 /// fields (the per-site checks are in `refusal_fields_existing_sites.rs`).
 #[test]
-fn a_retarget_onto_unsupported_rows_refuses_as_support_with_structured_fields() {
+fn a_retarget_onto_unsupported_rows_refuses_as_positivity_with_structured_fields() {
     let mut rng = stream(14, 1);
     let n = 800usize;
     let mut z = vec![0.0; n];
@@ -745,7 +745,7 @@ fn a_retarget_onto_unsupported_rows_refuses_as_support_with_structured_fields() 
         .prepare(&ctx)
         .unwrap();
     let error = prepared.retarget(&w, &[VariableId::from_raw(2)], &ctx).unwrap_err();
-    assert!(matches!(error.peeled(), CausalError::Support { .. }), "{error}");
+    assert_eq!(error.reason_code(), Some("positivity_violated"), "{error}");
     let fields = error.refusal_fields().expect("the retarget refusal carries fields");
     assert_eq!(fields.stage.as_deref(), Some("retarget"));
     assert_eq!(fields.arm_ess.len(), 2);

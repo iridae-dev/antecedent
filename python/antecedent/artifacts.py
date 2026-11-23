@@ -18,6 +18,7 @@ from ._artifact_protocol import (
     ArtifactInspection,
     ExportedArtifact,
     LoadContext,
+    container_bytes,
 )
 from ._artifact_protocol import (
     inspect_artifact as inspect,
@@ -115,6 +116,7 @@ def loads(data: bytes) -> CausalArtifact:
     believed only through the registry that holds its verification receipt.
     """
 
+    data = container_bytes(data)
     decoded = _decode_causal_artifact(data)
     payload = json.loads(decoded.payload_json)
     if not isinstance(payload, dict):  # canonical wire payloads are object-shaped
@@ -135,10 +137,16 @@ def loads(data: bytes) -> CausalArtifact:
     )
 
 
-def accept(data: bytes) -> dict[str, str]:
-    """Independently accept an ``analysis_result`` contract from bytes alone."""
+def accept(data: bytes, *, replay: bool = False) -> dict[str, str]:
+    """Load an ``analysis_result`` contract from bytes alone and check it is intact.
 
-    return dict(_accept_analysis_result_contract(data))
+    Nothing is recomputed unless ``replay`` is true, which is for a result that did not come
+    from your own authoring. The receipt carries ``intact`` and ``integrity``; a replay adds
+    ``replayed``, ``not_replayable`` and ``mismatches``.
+    """
+
+    data = container_bytes(data)
+    return dict(_accept_analysis_result_contract(data, replay))
 
 
 __all__ = [

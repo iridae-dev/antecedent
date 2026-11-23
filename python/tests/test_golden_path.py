@@ -3,16 +3,17 @@
 ```python
 result = ant.analyze(data, graph=graph, query=ant.AverageEffect("treatment", "outcome"))
 study = result.study
-updated = study.refresh(new_data)
+updated = ant.estimate(ant.rebind(study, data=new_data))
 report = result.inspect().to_dict()
-loaded = ant.load(result.export())
+artifact = result.export()
+loaded = ant.load(artifact, expected=artifact.expectation)
 ```
 
-Each case runs exactly those five statements with every warning turned into an
+Each case runs exactly those statements with every warning turned into an
 error, then checks that the report is JSON, the loaded execution is verified,
 and the live and loaded answers agree (kind, value or bounds, and identities).
-A route that needs one more argument (``inference=``, ``discovery=``) passes it
-through ``options``; the five statements themselves never change.
+A route that needs one more argument (``inference=``) passes it through ``options``;
+a discovered structure is executed and accepted explicitly first and passed as ``graph``.
 """
 
 from __future__ import annotations
@@ -26,9 +27,15 @@ from typing import Any
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 from antecedent.transport.advanced import SelectionDiagram, TransportQuery
 
-from _sealed_loads import assert_answer_kept
+from _loaded_results import (
+    assert_answer_kept,
+    assert_loaded_outcome,
+    assert_refutation_replay_withheld,
+    carries_refutation_replay,
+)
 
 
 def _static(seed: int, n: int = 1200) -> dict[str, np.ndarray]:
@@ -98,6 +105,82 @@ def _network_outcomes(seed: int) -> dict[str, np.ndarray]:
     return {"y": 1.0 + 2.0 * treated + 0.5 * neighbors + rng.normal(size=UNITS)}
 
 
+def _check_cpdag_bounds(result: Any, data: dict[str, np.ndarray]) -> None:
+    """The identified set of the two completions of ``z - treatment``.
+
+    ``z -> treatment`` adjusts for ``z`` (least squares coefficient of the treatment), and
+    ``treatment -> z`` adjusts for nothing (the raw contrast, which carries the ``z`` path).
+    Generating values: the lower end is 1.5; the upper end is 1.5 + 4 E[z sigma(z)] = 2.326.
+    """
+    z, t, y = data["z"], data["treatment"], data["outcome"]
+    design = np.column_stack([np.ones_like(z), t, z])
+    lower = np.linalg.lstsq(design, y, rcond=None)[0][1]
+    upper = y[t == 1].mean() - y[t == 0].mean()
+    got_lower, got_upper = result.answer.bounds
+    assert got_lower == pytest.approx(lower, abs=1e-8)
+    assert got_upper == pytest.approx(upper, abs=1e-8)
+    nodes, weights = np.polynomial.hermite_e.hermegauss(80)
+    weights = weights / weights.sum()
+    propensity = 1 / (1 + np.exp(-nodes))
+    upper_truth = 1.5 + 4 * np.sum(weights * nodes * propensity)
+    # Observed deviations from the generating ends: 0.067 (lower), 0.023 (upper).
+    assert got_lower == pytest.approx(1.5, abs=0.2)
+    assert got_upper == pytest.approx(upper_truth, abs=0.1)
+
+
+def _check_transport(result: Any, data: dict[str, np.ndarray]) -> None:
+    """Trial-to-target IPW: sum psi / sum (1 - S), psi = S (+-1) (1 - s) / (s e) y.
+
+    The target is the non-trial population, ``E[x | S = 0] = -0.236`` under ``S | x ~
+    Bernoulli(sigma(x / 2))``, so the generating effect ``1 + x`` averages to 0.764 there.
+    """
+    a, y, trial, s, e = (data[k] for k in ("a", "y", "trial", "s", "e"))
+    prob = np.where(a == 1, e, 1 - e)
+    sign = np.where(a == 1, 1.0, -1.0)
+    ipw = np.sum(trial * sign * (1 - s) / (s * prob) * y) / np.sum(1 - trial)
+    assert result.answer.value == pytest.approx(ipw, abs=1e-9)
+    nodes, weights = np.polynomial.hermite_e.hermegauss(80)
+    weights = weights / weights.sum()
+    outside = 1 - 1 / (1 + np.exp(-0.5 * nodes))
+    truth = 1 + np.sum(weights * nodes * outside) / np.sum(weights * outside)
+    # Observed deviations from the generating target effect: 0.089 and 0.147 (n = 600).
+    assert result.answer.value == pytest.approx(truth, abs=0.4)
+
+
+def _check_interference(result: Any, data: dict[str, np.ndarray]) -> None:
+    """Horvitz-Thompson direct effect with no treated neighbour: levels (own 0, 0) -> (1, 0).
+
+    Under Bernoulli(1/2) on a ring a unit has own = a and no treated neighbour with
+    probability 1/2 * 1/4 = 1/8 at either level; the answer is the sum over exposed units of
+    y / (1/8) divided by n, difference of the two levels. The product draws the exposure
+    probabilities by Monte Carlo (observed deviation from 1/8: 0.8%, so 0.015 in the answer);
+    the generating direct effect is 2.0 but only 18 units inform it.
+    """
+    y = data["y"]
+    treated = np.array(ASSIGNMENT, dtype=float)
+    neighbors = np.array([treated[(i + 1) % UNITS] + treated[i - 1] for i in range(UNITS)])
+    probability = 0.125
+    ht = (
+        np.sum(y[(treated == 1) & (neighbors == 0)]) - np.sum(y[(treated == 0) & (neighbors == 0)])
+    ) / (probability * UNITS)
+    assert result.answer.value == pytest.approx(ht, abs=0.04)
+
+
+def _check_response_curve(result: Any, data: dict[str, np.ndarray]) -> None:
+    """``E[outcome | do(treatment = t)] = 1.5 t`` at the grid.
+
+    Observed deviations over seeds 1-4 are at most 0.19 at the grid ends and 0.06 at 0
+    (local-polynomial sampling noise, n = 1500), so the tolerances are 0.3 and 0.15: they
+    exclude the confounded slope (1.5 + 0.5 = 2.0 would give 0.5 at the ends) and a flat curve.
+    """
+    del data
+    response = result.response
+    assert [point[0] for point in response.points] == [-1.0, 0.0, 1.0]
+    for point, value in zip(response.points, response.values, strict=True):
+        tolerance = 0.15 if point[0] == 0.0 else 0.3
+        assert value[0] == pytest.approx(1.5 * point[0], abs=tolerance)
+
+
 STATIC_DAG = [("z", "treatment"), ("z", "outcome"), ("treatment", "outcome")]
 
 
@@ -109,6 +192,12 @@ class Case:
     query: Any
     kind: str
     options: dict[str, Any] = field(default_factory=dict)
+    #: The generating value of a scalar answer (``None`` when the answer is not a point).
+    truth: float | None = None
+    #: Independent structural check of a result against the data it was computed on: an exact
+    #: recomputation of the estimator or identified set from the data in numpy, and the
+    #: generating value at a tolerance of a few times the observed sampling deviation.
+    check: Callable[[Any, dict[str, np.ndarray]], None] | None = None
 
 
 CASES = [
@@ -118,6 +207,7 @@ CASES = [
         STATIC_DAG,
         ant.AverageEffect("treatment", "outcome"),
         "point",
+        truth=1.5,
     ),
     Case(
         "dag-average-bayesian",
@@ -126,6 +216,7 @@ CASES = [
         ant.AverageEffect("treatment", "outcome"),
         "point",
         {"inference": ant.Bayesian(n_draws=200)},
+        truth=1.5,
     ),
     Case(
         "dag-average-treated",
@@ -134,6 +225,7 @@ CASES = [
         ant.AverageEffect("treatment", "outcome", target_population=ant.population.Treated()),
         "point",
         {"estimator": "aipw"},
+        truth=1.5,
     ),
     Case(
         "cpdag-average-bounds",
@@ -145,6 +237,7 @@ CASES = [
         ),
         ant.AverageEffect("treatment", "outcome"),
         "bounds",
+        check=_check_cpdag_bounds,
     ),
     Case(
         "discovery-pc-average",
@@ -153,6 +246,7 @@ CASES = [
         ant.AverageEffect("treatment", "outcome"),
         "point",
         {"discovery": ant.discovery.PC(alpha=0.05)},
+        truth=1.5,
     ),
     Case(
         "temporal-pulse",
@@ -160,9 +254,15 @@ CASES = [
         [("pressure", 1, "defect", 0)],
         ant.PulseEffect("pressure", "defect", treatment_lag=1, horizon_steps=1),
         "point",
+        truth=0.9,
     ),
     Case(
-        "counterfactual", _static, STATIC_DAG, ant.Counterfactual("treatment", "outcome"), "point"
+        "counterfactual",
+        _static,
+        STATIC_DAG,
+        ant.Counterfactual("treatment", "outcome"),
+        "point",
+        truth=1.5,
     ),
     Case(
         "mediation",
@@ -170,6 +270,7 @@ CASES = [
         [("treatment", "mediator"), ("treatment", "outcome"), ("mediator", "outcome")],
         ant.MediationEffect("treatment", "outcome", mediators=["mediator"]),
         "point",
+        truth=0.96,
     ),
     Case(
         "conditional",
@@ -177,6 +278,7 @@ CASES = [
         [("treatment", "outcome"), ("w", "outcome")],
         ant.ConditionalEffect("treatment", "outcome", "w"),
         "point",
+        truth=2.5,
     ),
     Case(
         "transport-trial-ipw",
@@ -191,6 +293,7 @@ CASES = [
             treatment_probability="e",
         ),
         "point",
+        check=_check_transport,
     ),
     Case(
         "interference-neighbor-count",
@@ -206,6 +309,7 @@ CASES = [
             realized_assignment=ASSIGNMENT,
         ),
         "point",
+        check=_check_interference,
     ),
     Case(
         "response-curve",
@@ -213,22 +317,31 @@ CASES = [
         [("a", "treatment"), ("b", "treatment"), ("treatment", "outcome")],
         ant.ResponseCurve("treatment", "outcome", grid=[-1.0, 0.0, 1.0]),
         "response",
+        check=_check_response_curve,
     ),
 ]
 
 
+@pytest.mark.parametrize("refute", ["default", "none"])
 @pytest.mark.parametrize("case", CASES, ids=[case.name for case in CASES])
-def test_golden_path(case: Case) -> None:
+def test_golden_path(case: Case, refute: str) -> None:
+    """With refutation reports the loaded artifact is recognized but withheld; without, kept."""
     data, new_data = case.make(1), case.make(2)
-    graph, query, options = case.graph, case.query, case.options
+    graph, query, options = case.graph, case.query, dict(case.options)
+    if refute == "none":
+        options["refute"] = "none"
+    method = options.pop("discovery", None)
+    if method is not None:
+        graph = ant.discovery.discover(data, method=method, accept_discovered=True)
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        result = ant.analyze(data, graph=graph, query=query, **options)
+        result = require_success(ant.analyze(data, graph=graph, query=query, **options))
         study = result.study
-        updated = study.refresh(new_data)
+        updated = require_success(ant.estimate(ant.rebind(study, data=new_data)))
         report = result.inspect().to_dict()
-        loaded = ant.load(result.export())
+        artifact = result.export()
+        loaded = require_success(ant.load(artifact, expected=artifact.expectation))
 
         # Refresh re-executed the same program on new data, of the same result type,
         # and the earlier result still exports its own execution (checked below
@@ -243,9 +356,25 @@ def test_golden_path(case: Case) -> None:
         json.dumps(loaded_report, allow_nan=False)
         assert set(report) == set(loaded_report)
 
-        # Live and loaded answers agree.
-        assert_answer_kept(loaded)
+        # Live and loaded answers agree when the body carries no refutation reports; a body
+        # that does is recognized, names the missing replay and keeps no recorded answer.
+        if refute == "none":
+            assert not carries_refutation_replay(loaded)
+            assert_answer_kept(loaded)
+        else:
+            assert_loaded_outcome(loaded)
+        withheld = carries_refutation_replay(loaded)
         assert result.answer.kind == case.kind
+        if case.truth is not None:
+            # The point answer is the generating value (the confounded contrast would be off by
+            # about 0.9 in the static cases), on the first data and on the refreshed data.
+            for answer in (result.answer, updated.answer):
+                assert answer.value == pytest.approx(case.truth, abs=0.12), case.name
+        if case.check is not None:
+            case.check(result, data)
+            case.check(updated, new_data)
+        if withheld:
+            assert_refutation_replay_withheld(loaded)
         assert loaded.answer == result.answer
         assert report["answer"] == loaded_report["answer"]
         assert loaded.program_id == result.program_id
@@ -274,10 +403,12 @@ def test_response_curve_on_a_binary_treatment_is_a_coded_refusal(graph: Any) -> 
     That is refused by name, with the queries that do answer a binary treatment,
     rather than surfacing the backend's singular-matrix message."""
     with pytest.raises(ant.errors.CausalUnsupportedError) as caught:
-        ant.analyze(
-            _static(1),
-            graph=graph,
-            query=ant.ResponseCurve("treatment", "outcome", grid=[0.0, 1.0]),
+        require_success(
+            ant.analyze(
+                _static(1),
+                graph=graph,
+                query=ant.ResponseCurve("treatment", "outcome", grid=[0.0, 1.0]),
+            )
         )
     assert caught.value.reason_code == "treatment_support_too_discrete"
     message = str(caught.value)
@@ -323,26 +454,33 @@ def test_autoregressive_treatment_pulse_is_identified_by_parent_adjustment(
     ``{t[t-2], z[t-2]}``: the five lines recover the known effect, and the report
     and the loaded contract name the ``temporal.parent_adjustment`` derivation."""
     query = ant.PulseEffect("t", "y", treatment_lag=1, horizon_steps=1)
-    if "discovery" in options:
-        accepted = options["discovery"].accept(_autoregressive(1))
+    options = dict(options)
+    method = options.pop("discovery", None)
+    if method is not None:
+        accepted = ant.discovery.discover(_autoregressive(1), method=method, accept_discovered=True)
         assert set(accepted.graph.edges()) == set(AUTOREGRESSIVE_DAG)
+        options["graph"] = accepted
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        result = ant.analyze(_autoregressive(1), query=query, **options)
+        result = require_success(ant.analyze(_autoregressive(1), query=query, **options))
         study = result.study
-        updated = study.refresh(_autoregressive(2))
+        updated = require_success(ant.estimate(ant.rebind(study, data=_autoregressive(2))))
         report = result.inspect().to_dict()
-        loaded = ant.load(result.export())
+        artifact = result.export()
+        loaded = require_success(ant.load(artifact, expected=artifact.expectation))
 
     for answer in (result.answer, updated.answer):
         assert answer.kind == "point"
         assert answer.value == pytest.approx(0.8, abs=0.08)
-    assert_answer_kept(loaded)
-    assert loaded.answer == result.answer
+    # The default refutations make the loaded body unreplayable: recognized, withheld.
+    assert_refutation_replay_withheld(loaded)
 
     identification = report["identification"]["payload"]
-    assert identification["status"] == "NonparametricallyIdentified"
+    # The inspection payload reports the native reasoning slot's wire spelling, the same
+    # live and loaded; the typed identification view keeps the CamelCase verdict.
+    assert identification["status"] == "nonparametrically_identified"
+    assert result.identification.status == "NonparametricallyIdentified"
     assert result.identification.adjustment_set == tuple(["t", "z"])
     (case,) = report["assumptions"]["payload"]["certificate"]["cases"]
     assert [step["rule"] for step in case["identification"]["derivation"]][0] == PARENT_ADJUSTMENT
@@ -371,10 +509,12 @@ def test_sustained_effect_on_an_autoregressive_treatment_still_refuses() -> None
     sustained window meets time-varying confounding through the treatment's own
     past, so the refusal still names the lagged cycle."""
     with pytest.raises(ant.errors.CausalIdentifyError) as caught:
-        ant.analyze(
-            _autoregressive(1),
-            graph=AUTOREGRESSIVE_DAG,
-            query=ant.SustainedEffect("t", "y", window=(-2, -1)),
+        require_success(
+            ant.analyze(
+                _autoregressive(1),
+                graph=AUTOREGRESSIVE_DAG,
+                query=ant.SustainedEffect("t", "y", window=(-2, -1)),
+            )
         )
     message = str(caught.value)
     assert "lagged cycle" in message

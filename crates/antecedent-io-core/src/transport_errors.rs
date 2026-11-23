@@ -4,7 +4,7 @@
 //! estimators with [`IoError`](crate::IoError), which wraps each of them.
 //! Every artifact module re-exports its own enum at its established path.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::TransportOutcomeKind;
 use antecedent_identify::{IdentificationError, admg_conditional_refusal};
@@ -39,6 +39,12 @@ pub enum ZTransportArtifactError {
     /// The premises digest does not match the stored premises.
     #[error("premises digest mismatch")]
     PremisesMismatch,
+    /// The evidence digest does not match the stored laws, request, program and result.
+    #[error("evidence digest mismatch")]
+    EvidenceMismatch,
+    /// The caller's variable names are not the names the artifact was built under.
+    #[error("variable names do not match the verified name mapping")]
+    NamesMismatch,
 }
 
 impl ZTransportArtifactError {
@@ -54,7 +60,9 @@ impl ZTransportArtifactError {
             | Self::LawInvalid(_)
             | Self::ProgramMismatch(_)
             | Self::PointMismatch
-            | Self::PremisesMismatch => TransportOutcomeKind::InvalidInput,
+            | Self::PremisesMismatch
+            | Self::EvidenceMismatch
+            | Self::NamesMismatch => TransportOutcomeKind::InvalidInput,
         }
     }
 }
@@ -87,7 +95,7 @@ pub enum MzTransportArtifactError {
     /// A recomputed contrast differs from the stored contrast.
     #[error("contrast does not replay")]
     ContrastMismatch,
-    /// The stored interval bookkeeping contradicts the licensing decision or
+    /// The stored interval bookkeeping contradicts the support decision or
     /// does not recompute bit for bit from its seed and replicate spec.
     #[error("uncertainty bookkeeping does not check: {0}")]
     UncertaintyMismatch(&'static str),
@@ -97,6 +105,9 @@ pub enum MzTransportArtifactError {
     /// The data-identity digest does not match the stored snapshot identities.
     #[error("data identity digest mismatch")]
     DataIdentityMismatch,
+    /// The evidence digest does not match the stored laws, requests and results.
+    #[error("evidence digest mismatch")]
+    EvidenceMismatch,
     /// The caller's variable names are not the names the artifact was built under.
     #[error("variable names do not match the verified name mapping")]
     NamesMismatch,
@@ -149,6 +160,9 @@ pub enum MixedSourceArtifactError {
     /// The data-identity digest does not match the stored snapshot identities.
     #[error("data identity digest mismatch")]
     DataIdentityMismatch,
+    /// The evidence digest does not match the stored laws, requests and results.
+    #[error("evidence digest mismatch")]
+    EvidenceMismatch,
     /// The caller's variable names are not the names the artifact was built under.
     #[error("variable names do not match the verified name mapping")]
     NamesMismatch,
@@ -168,9 +182,9 @@ pub enum AdmgConditionalArtifactError {
         /// The stored version.
         version: u32,
     },
-    /// The artifact claims an interval or carries counted laws.
-    #[error("admg_transport.interval_withheld: the route publishes exact points only")]
-    IntervalWithheld,
+    /// The artifact claims an interval or carries counted laws: the conditional route has no sampling construction for counted tables.
+    #[error("admg_transport.counted_laws_unsupported: the route publishes exact points only")]
+    CountedLawsUnsupported,
     /// A stored limit or collection exceeds the consumer's bound.
     #[error("admg_transport.consumer_limits: consumer limit exceeded: {0}")]
     LimitsExceeded(&'static str),
@@ -189,6 +203,9 @@ pub enum AdmgConditionalArtifactError {
     /// The data-identity digest does not match the stored snapshot identities.
     #[error("admg_transport.data_identity_mismatch: data identity digest mismatch")]
     DataIdentityMismatch,
+    /// The evidence digest does not match the stored laws, requests and results.
+    #[error("admg_transport.evidence_mismatch: evidence digest mismatch")]
+    EvidenceMismatch,
     /// The caller's variable names are not the verified name mapping.
     #[error("admg_transport.invalid_artifact: variable names do not match the verified mapping")]
     NamesMismatch,
@@ -203,28 +220,38 @@ impl AdmgConditionalArtifactError {
             Self::UnsupportedSemantics(_)
             | Self::UnsupportedVersion { .. }
             | Self::LawInvalid(_)
-            | Self::NamesMismatch => {
-                (reason_code!("invalid_argument"), "admg_transport.invalid_artifact")
-            }
-            Self::IntervalWithheld => {
-                (reason_code!("cell_not_licensed"), "admg_transport.interval_withheld")
-            }
-            Self::LimitsExceeded(_) => {
-                (reason_code!("route_not_supported"), "admg_transport.consumer_limits")
-            }
+            | Self::NamesMismatch => (
+                reason_code!("invalid_argument"),
+                antecedent_core::reason_details::admg_transport::INVALID_ARTIFACT,
+            ),
+            Self::CountedLawsUnsupported => (
+                reason_code!("route_not_supported"),
+                antecedent_core::reason_details::admg_transport::COUNTED_LAWS_UNSUPPORTED,
+            ),
+            Self::LimitsExceeded(_) => (
+                reason_code!("route_not_supported"),
+                antecedent_core::reason_details::admg_transport::CONSUMER_LIMITS,
+            ),
             Self::ProofMismatch(inner) => admg_conditional_refusal(inner).unwrap_or((
                 reason_code!("transport_not_certified"),
-                "admg_transport.invalid_derivation",
+                antecedent_core::reason_details::admg_transport::INVALID_DERIVATION,
             )),
-            Self::ReplayMismatch(_) => {
-                (reason_code!("transport_not_certified"), "admg_transport.replay_mismatch")
-            }
-            Self::PremisesMismatch => {
-                (reason_code!("transport_not_certified"), "admg_transport.premises_mismatch")
-            }
-            Self::DataIdentityMismatch => {
-                (reason_code!("transport_not_certified"), "admg_transport.data_identity_mismatch")
-            }
+            Self::ReplayMismatch(_) => (
+                reason_code!("transport_not_certified"),
+                antecedent_core::reason_details::admg_transport::REPLAY_MISMATCH,
+            ),
+            Self::PremisesMismatch => (
+                reason_code!("transport_not_certified"),
+                antecedent_core::reason_details::admg_transport::PREMISES_MISMATCH,
+            ),
+            Self::DataIdentityMismatch => (
+                reason_code!("transport_not_certified"),
+                antecedent_core::reason_details::admg_transport::DATA_IDENTITY_MISMATCH,
+            ),
+            Self::EvidenceMismatch => (
+                reason_code!("transport_not_certified"),
+                antecedent_core::reason_details::admg_transport::EVIDENCE_MISMATCH,
+            ),
         }
     }
 }
@@ -277,6 +304,9 @@ pub enum TemporalTransportArtifactError {
     /// The stored catalog or laws disagree with the recorded data digest.
     #[error("temporal sequence data identity mismatch")]
     DataIdentityMismatch,
+    /// The evidence digest does not match the stored laws, sequence and report.
+    #[error("temporal sequence evidence digest mismatch")]
+    EvidenceMismatch,
     /// The report was not produced by the prepared sequence it is exported with.
     #[error("the report was not produced by this prepared sequence")]
     ForeignReport,

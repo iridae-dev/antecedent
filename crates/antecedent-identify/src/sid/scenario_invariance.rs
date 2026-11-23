@@ -37,7 +37,7 @@
 //! A scenario that is not identified reports its structural reason instead (the
 //! s-hedge or witness variables), never an invariance list.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
@@ -52,9 +52,10 @@ use super::{BoundTransportFunctional, ClassicalTransportDerivation, Rule, SHedge
 
 /// Detail of a report refused because the derivation and its formula disagree.
 pub(crate) const INVARIANCE_INCONSISTENT_DETAIL: &str =
-    "scenario_invariance.derivation_inconsistent";
+    antecedent_core::reason_details::scenario_invariance::DERIVATION_INCONSISTENT;
 /// Detail of a report refused because the graph holds a non-static node.
-pub(crate) const INVARIANCE_NON_STATIC_DETAIL: &str = "scenario_invariance.non_static_node";
+pub(crate) const INVARIANCE_NON_STATIC_DETAIL: &str =
+    antecedent_core::reason_details::scenario_invariance::NON_STATIC_NODE;
 
 /// A refused invariance report.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
@@ -281,6 +282,20 @@ fn edges(values: &[(VariableId, VariableId)]) -> String {
     values.iter().map(|(a, b)| format!("{}-{}", a.raw(), b.raw())).collect::<Vec<_>>().join(",")
 }
 
+/// Free text (a population name, an obligation) in the canonical text: quoted and escaped, so
+/// no value can contain a separator or newline that forges another field or line.
+fn quoted(text: &str) -> String {
+    format!("{text:?}")
+}
+
+/// Obligations as a set: sorted without repeats, so the order a decision lists them in
+/// never reaches the identity.
+fn obligation_set(mut obligations: Vec<Arc<str>>) -> Vec<Arc<str>> {
+    obligations.sort_unstable();
+    obligations.dedup();
+    obligations
+}
+
 fn regime_text(regime: Option<u32>) -> String {
     regime.map_or_else(|| "none".to_owned(), |r| r.to_string())
 }
@@ -316,7 +331,7 @@ fn canonical_text(status: &str, selection: &SelectionDifferences, body: &Invaria
                 let _ = writeln!(
                     out,
                     "source={};vars={};cond={};do={};regime={};district_sel={};rule={}",
-                    item.population,
+                    quoted(&item.population),
                     ids(&item.variables),
                     ids(&item.conditioned_on),
                     ids(&item.do_set),
@@ -346,8 +361,11 @@ fn canonical_text(status: &str, selection: &SelectionDifferences, body: &Invaria
         InvarianceBody::Obstructed { witness } => witness_text(&mut out, witness),
         InvarianceBody::Undecided { status, obligations, candidate } => {
             let _ = writeln!(out, "undecided={status}");
+            let mut obligations = obligations.iter().collect::<Vec<_>>();
+            obligations.sort_unstable();
+            obligations.dedup();
             for obligation in obligations {
-                let _ = writeln!(out, "obligation={obligation}");
+                let _ = writeln!(out, "obligation={}", quoted(obligation));
             }
             if let Some(witness) = candidate {
                 witness_text(&mut out, witness);
@@ -656,13 +674,13 @@ pub fn invariance_report(
         ScenarioOutcome::MissingEvidence { obligations }
         | ScenarioOutcome::NotCertified { obligations } => InvarianceBody::Undecided {
             status: outcome.status(),
-            obligations: obligations.to_vec(),
+            obligations: obligation_set(obligations.to_vec()),
             candidate: None,
         },
         ScenarioOutcome::ConditionalNotCertified { obligations, candidate } => {
             InvarianceBody::Undecided {
                 status: outcome.status(),
-                obligations: obligations.to_vec(),
+                obligations: obligation_set(obligations.to_vec()),
                 candidate: candidate.as_ref().map(|c| {
                     witness_of(
                         "conditional_reduced_s_hedge_candidate",
@@ -683,4 +701,72 @@ pub fn invariance_report(
     let status = outcome.status();
     let identity = digest(&canonical_text(status, &selection, &body));
     Ok(InvarianceReport { status, selection, body, identity })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn selection() -> SelectionDifferences {
+        SelectionDifferences {
+            selection_targets: Vec::new(),
+            shared_mechanisms: Vec::new(),
+            directed_edges: Vec::new(),
+            bidirected_edges: Vec::new(),
+        }
+    }
+
+    fn undecided(obligations: &[&str]) -> InvarianceBody {
+        InvarianceBody::Undecided {
+            status: "missing_evidence",
+            obligations: obligations.iter().map(|o| Arc::from(*o)).collect(),
+            candidate: None,
+        }
+    }
+
+    fn text(body: &InvarianceBody) -> String {
+        canonical_text("missing_evidence", &selection(), body)
+    }
+
+    #[test]
+    fn obligation_order_does_not_reach_the_canonical_text() {
+        assert_eq!(text(&undecided(&["b", "a", "a"])), text(&undecided(&["a", "b"])));
+        assert_eq!(
+            obligation_set(vec![Arc::from("b"), Arc::from("a"), Arc::from("b")]),
+            vec![Arc::<str>::from("a"), Arc::from("b")]
+        );
+    }
+
+    #[test]
+    fn an_obligation_cannot_forge_another_line() {
+        let forged = text(&undecided(&["a\nobligation=b"]));
+        assert_ne!(forged, text(&undecided(&["a", "b"])));
+        // One obligation, one line.
+        assert_eq!(forged.lines().filter(|l| l.starts_with("obligation=")).count(), 1);
+    }
+
+    #[test]
+    fn a_population_name_cannot_forge_a_field() {
+        let item = |population: &str, rule: &'static str| SourceInvariance {
+            population: Arc::from(population),
+            variables: Vec::new(),
+            conditioned_on: Vec::new(),
+            do_set: Vec::new(),
+            regime: None,
+            invariant_mechanisms: Vec::new(),
+            district_selection_targets: Vec::new(),
+            rule,
+        };
+        let body = |invariance| InvarianceBody::Identified {
+            rules: Vec::new(),
+            invariances: vec![invariance],
+            target_factors: Vec::new(),
+            conditional: None,
+        };
+        let forging = item("p;vars=;cond=;do=;regime=none;district_sel=;rule=r\nsource=q", "s");
+        let plain = item("p", "s");
+        assert_ne!(text(&body(forging.clone())), text(&body(plain)));
+        let lines = text(&body(forging)).lines().filter(|l| l.starts_with("source=")).count();
+        assert_eq!(lines, 1);
+    }
 }

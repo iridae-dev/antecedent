@@ -18,10 +18,10 @@ validates it, compiles it once and runs the same executor on every route -- forw
 (:func:`sample_temporal_policy`), plus its replay over a factual panel
 (:func:`counterfactual_temporal_policy`).
 
-The licence of each route for a program is reported by :func:`policy_support` (simulation,
+The support of each route for a program is reported by :func:`policy_support` (simulation,
 counterfactual execution and observational identification, each with the reason code of a refusal
-or the assumption of a conditional licence), :func:`policy_value` runs the program against the
-unintervened model on the same noise, and :class:`PreparedPolicy` compiles and licenses a
+or the assumption of a conditional support), :func:`policy_value` runs the program against the
+unintervened model on the same noise, and :class:`PreparedPolicy` compiles and supports a
 program once for any number of runs; the practitioner handle (:class:`PolicyProgramValue` through
 ``antecedent.prepare``) is the same retained program reached from data and a graph. Identification routes cannot take a transform or a computed
 assignment (its interventional law is not a point mass), so those stay model-based: the values
@@ -38,17 +38,28 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 import numpy as np
 from numpy.typing import NDArray
 
 from . import _native
-from .errors import CausalValueError
+from ._artifact_protocol import ArtifactAcceptance, container_bytes
+from ._scientific import ScientificResult
+from .counterfactual import FittedGcm, native_gcm
+from .errors import (
+    CausalSerializationError,
+    CausalTypeError,
+    CausalUnsupportedError,
+    CausalValueError,
+)
+from .execution import Execution, resolve_execution
 
 __all__ = [
     "Expr",
+    "ConsumedPolicyProgram",
+    "consume_policy_program",
     "PolicyContract",
     "PolicyPreparation",
     "PolicyProgramResult",
@@ -283,31 +294,35 @@ def _programs(text: str) -> tuple[Program, ...]:
 
 
 def sample_policy(
-    fitted: _native.FittedGcm,
+    fitted: FittedGcm,
     programs: Sequence[Program],
     n: int,
     *,
-    seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> _native.GcmSampleResult:
     """Draw ``n`` rows from ``fitted`` with ``programs`` applied (forward ancestral sampling)."""
-    return _native.sample_policy(fitted, _text(programs), n, seed, threads)
+    execution = resolve_execution(execution)
+    return _native.sample_policy(
+        native_gcm(fitted), _text(programs), n, execution.seed, execution.threads
+    )
 
 
 def counterfactual_policy(
-    fitted: _native.FittedGcm,
+    fitted: FittedGcm,
     programs: Sequence[Program],
     outcomes: Sequence[str],
     *,
-    seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> dict[str, NDArray[np.float64]]:
     """Each factual row's ``outcomes`` had ``programs`` applied, on its own abduced noise."""
-    return _native.counterfactual_policy(fitted, _text(programs), list(outcomes), seed, threads)
+    execution = resolve_execution(execution)
+    return _native.counterfactual_policy(
+        native_gcm(fitted), _text(programs), list(outcomes), execution.seed, execution.threads
+    )
 
 
 def sample_temporal_policy(
-    fitted: _native.FittedGcm,
+    fitted: FittedGcm,
     programs: Sequence[Program],
     *,
     n_rows: int,
@@ -315,8 +330,7 @@ def sample_temporal_policy(
     window: int,
     start: int = 0,
     history: Sequence[Mapping[str, Sequence[float]]] | None = None,
-    seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> list[_native.GcmSampleResult]:
     """Roll ``fitted`` out for ``n_steps`` steps with ``programs`` active from step ``start``.
 
@@ -324,24 +338,32 @@ def sample_temporal_policy(
     zero, most recent first, as ``{variable: values}`` over every variable. A look-back that
     reaches before the first available step is refused (``policy_history_unavailable``).
     """
+    execution = resolve_execution(execution)
     steps = None
     if history is not None:
         steps = [{name: [float(v) for v in values] for name, values in h.items()} for h in history]
     return _native.sample_temporal_policy(
-        fitted, _text(programs), n_rows, n_steps, window, seed, start, steps, threads
+        native_gcm(fitted),
+        _text(programs),
+        n_rows,
+        n_steps,
+        window,
+        execution.seed,
+        start,
+        steps,
+        execution.threads,
     )
 
 
 def counterfactual_temporal_policy(
-    fitted: _native.FittedGcm,
+    fitted: FittedGcm,
     programs: Sequence[Program],
     steps: Sequence[Mapping[str, Sequence[float]]],
     *,
     window: int,
     start: int = 0,
     history: Sequence[Mapping[str, Sequence[float]]] | None = None,
-    seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> list[_native.GcmSampleResult]:
     """Replay a factual panel under ``programs`` active from step ``start``, step by step.
 
@@ -354,6 +376,7 @@ def counterfactual_temporal_policy(
     reaches before the first available step is refused (``policy_history_unavailable``).
     The abduction's rank-preservation disclosure applies as on the static route.
     """
+    execution = resolve_execution(execution)
     if not steps:
         raise CausalValueError("pass at least one panel step")
     tables = [
@@ -366,7 +389,14 @@ def counterfactual_temporal_policy(
             {name: [float(v) for v in values] for name, values in h.items()} for h in history
         ]
     return _native.counterfactual_temporal_policy(
-        fitted, _text(programs), tables, window, seed, start, previous, threads
+        native_gcm(fitted),
+        _text(programs),
+        tables,
+        window,
+        execution.seed,
+        start,
+        previous,
+        execution.threads,
     )
 
 
@@ -404,6 +434,7 @@ def decode_policy_program(
     sequence. Each is verified against its record again before the program is returned
     (``policy_callback_unrecoverable`` on any difference, or when one is missing).
     """
+    data = container_bytes(data)
     from .intervention_callbacks import decode_programs
 
     if callbacks is not None:
@@ -411,16 +442,113 @@ def decode_policy_program(
     return _programs(_native.decode_policy_program(list(names), bytes(data)))
 
 
+@dataclass(frozen=True, slots=True, repr=False)
+class ConsumedPolicyProgram(ScientificResult):
+    """An independently verified program declaration, with its original encoding.
+
+    The ordered names are supplied by the consumer: historical program bytes
+    identify variables by position and do not attest their external labels.
+    This object contains no fitted mechanisms, observations or policy value.
+    """
+
+    identity: str
+    names: tuple[str, ...]
+    programs: tuple[Program, ...]
+    acceptance: ArtifactAcceptance
+    _artifact_bytes: bytes = field(repr=False, compare=False)
+
+    @property
+    def answer(self) -> Any:
+        from .outcomes import Answer
+
+        return Answer("unavailable", detail="verified_program_declaration_has_no_policy_value")
+
+    def inspect(self) -> Any:
+        from .results._report import InspectionReport, SlotModel
+
+        unavailable = SlotModel(
+            available=False, reason="program_declaration_only", summary="no execution retained"
+        )
+        return InspectionReport(
+            identification=unavailable,
+            support=SlotModel(
+                available=True,
+                summary="native decoder verified program version, identity and declared reads",
+            ),
+            uncertainty=unavailable,
+            assumptions=SlotModel(
+                available=True,
+                summary="variable labels supplied by consumer in native variable order",
+                payload={"names": self.names},
+            ),
+            answer=self.answer,
+            program_id=self.identity,
+            family="policy_program",
+            stage="consumed",
+            operations=("inspect", "to_dict", "export"),
+            details={"replayable": False, "resumable": False},
+        )
+
+
+def consume_policy_program(
+    artifact: bytes, *, expected_identity: str | None = None, supplied: Any = None
+) -> ConsumedPolicyProgram:
+    """Verify a historical policy encoding under explicitly supplied ordered names.
+
+    ``supplied`` is an ordered sequence of variable names, or ``{"names": ...}``.
+    No labels are inferred from a live study. The native decoder checks the
+    encoding version, expression identity, variable references and declared reads.
+    An optional independently retained identity is then checked against the
+    decoded program's native identity. Original bytes are retained unchanged.
+    """
+    names = supplied.get("names") if isinstance(supplied, Mapping) else supplied
+    if not isinstance(names, Sequence) or isinstance(names, (str, bytes, bytearray)):
+        raise CausalTypeError("policy program consumption needs supplied ordered variable names")
+    names = tuple(names)
+    if not names or any(not isinstance(name, str) or not name for name in names):
+        raise CausalValueError("supplied names must be a nonempty ordered sequence of names")
+    if len(set(names)) != len(names):
+        raise CausalValueError("supplied variable names must be unique")
+    if expected_identity is not None and (
+        not isinstance(expected_identity, str)
+        or len(expected_identity) != 64
+        or any(character not in "0123456789abcdefABCDEF" for character in expected_identity)
+    ):
+        raise CausalValueError(
+            "expected_identity must be a 64-character hexadecimal program identity"
+        )
+    data = container_bytes(artifact)
+    # Both operations go through native verification; Python performs no expression evaluation.
+    programs = decode_policy_program(names, data)
+    identity = policy_program_identity(names, programs)
+    if expected_identity is not None and identity != expected_identity.lower():
+        raise CausalSerializationError("policy program does not match the expected identity")
+    return ConsumedPolicyProgram(
+        identity=identity,
+        names=names,
+        programs=programs,
+        acceptance=ArtifactAcceptance(
+            "loaded",
+            expected_identity is not None,
+            False,
+            False,
+            proof="native policy decoder verifies version, expression digest and declared reads; "
+            "native identity recomputation binds the optional consumer expectation",
+        ),
+        _artifact_bytes=data,
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class RouteDecision:
-    """One route's licence for a program.
+    """One route's support for a program.
 
-    ``licensed`` with an ``assumption`` is a conditional licence (counterfactual execution of a
+    ``supported`` with an ``assumption`` is a conditional support (counterfactual execution of a
     callback assumes it is a function of its declared inputs). A refusal carries the registered
     ``reason_code``, a namespaced ``detail`` and the full ``message``.
     """
 
-    licensed: bool
+    supported: bool
     assumption: str | None
     reason_code: str | None
     detail: str | None
@@ -429,7 +557,7 @@ class RouteDecision:
 
 @dataclass(frozen=True, slots=True)
 class PolicySupport:
-    """The licence of each execution route for one program."""
+    """The support of each execution route for one program."""
 
     simulation: RouteDecision
     counterfactual: RouteDecision
@@ -472,24 +600,23 @@ def _support(fields: Mapping[str, Mapping[str, Any]]) -> PolicySupport:
     )
 
 
-def policy_support(fitted: _native.FittedGcm, programs: Sequence[Program]) -> PolicySupport:
-    """The licence of each route for ``programs`` on ``fitted``, before anything runs.
+def policy_support(fitted: FittedGcm, programs: Sequence[Program]) -> PolicySupport:
+    """The support of each route for ``programs`` on ``fitted``, before anything runs.
 
     A refusal on a route names its registered reason code; for example a transform of the
-    generated value is licensed for simulation and counterfactual execution and refused for
-    observational identification with ``policy_route_not_licensed``.
+    generated value is supported for simulation and counterfactual execution and refused for
+    observational identification with ``policy_route_not_supported``.
     """
-    return _support(_native.policy_support(fitted, _text(programs)))
+    return _support(_native.policy_support(native_gcm(fitted), _text(programs)))
 
 
 def policy_value(
-    fitted: _native.FittedGcm,
+    fitted: FittedGcm,
     programs: Sequence[Program],
     outcome: str,
     *,
     n: int,
-    seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> PolicyValueResult:
     """Value of ``programs`` on ``outcome`` under the fitted model.
 
@@ -497,7 +624,12 @@ def policy_value(
     intervention, and reports both means and their paired difference with the simulation error.
     A policy the simulation route refuses is refused here with the same reason code.
     """
-    return _value(_native.policy_value(fitted, _text(programs), outcome, n, seed, threads))
+    execution = resolve_execution(execution)
+    return _value(
+        _native.policy_value(
+            native_gcm(fitted), _text(programs), outcome, n, execution.seed, execution.threads
+        )
+    )
 
 
 def _value(fields: Mapping[str, Any]) -> PolicyValueResult:
@@ -506,11 +638,11 @@ def _value(fields: Mapping[str, Any]) -> PolicyValueResult:
 
 
 class PreparedPolicy:
-    """A program compiled and licensed once against one fitted model.
+    """A program compiled and supported once against one fitted model.
 
     Every run reuses the prepared program: :meth:`sample`, :meth:`counterfactual` and
     :meth:`value` are the library's executor on the same program, and equal the one-shot
-    :func:`sample_policy`, :func:`counterfactual_policy` and :func:`policy_value`. The licence is
+    :func:`sample_policy`, :func:`counterfactual_policy` and :func:`policy_value`. The support is
     fixed at preparation (:attr:`support`) and the program's identity is the one
     :func:`policy_program_identity` reports (``None`` for a program that cannot leave the
     process).
@@ -518,8 +650,8 @@ class PreparedPolicy:
 
     __slots__ = ("_native",)
 
-    def __init__(self, fitted: _native.FittedGcm, programs: Sequence[Program]) -> None:
-        self._native = _native.PreparedPolicy(fitted, _text(programs))
+    def __init__(self, fitted: FittedGcm, programs: Sequence[Program]) -> None:
+        self._native = _native.PreparedPolicy(native_gcm(fitted), _text(programs))
 
     @property
     def identity(self) -> str | None:
@@ -528,7 +660,7 @@ class PreparedPolicy:
 
     @property
     def support(self) -> PolicySupport:
-        """The licence of each route, fixed at preparation."""
+        """The support of each route, fixed at preparation."""
         return _support(self._native.support())
 
     @property
@@ -543,41 +675,42 @@ class PreparedPolicy:
 
     @property
     def model_bindings(self) -> int:
-        """How many fitted models the program's overlay and licence were resolved against."""
+        """How many fitted models the program's overlay and support were resolved against."""
         return int(self._native.model_bindings)
 
-    def rebind(self, fitted: _native.FittedGcm) -> PreparedPolicy:
+    def rebind(self, fitted: FittedGcm) -> PreparedPolicy:
         """The same program bound to another fitted model over the same variables.
 
-        For a model refitted on refreshed data: the overlay and the licence are resolved against
+        For a model refitted on refreshed data: the overlay and the support are resolved against
         ``fitted``; the program is not compiled again (:attr:`program_compilations` is
         unchanged, :attr:`model_bindings` grows by one).
         """
         rebound = object.__new__(PreparedPolicy)
-        rebound._native = self._native.rebind(fitted)
+        rebound._native = self._native.rebind(native_gcm(fitted))
         return rebound
 
-    def sample(
-        self, n: int, *, seed: int = 0, threads: int | None = None
-    ) -> _native.GcmSampleResult:
+    def sample(self, n: int, *, execution: Execution | None = None) -> _native.GcmSampleResult:
         """Draw ``n`` rows under the program."""
-        return self._native.sample(n, seed, threads)
+        execution = resolve_execution(execution)
+        return self._native.sample(n, execution.seed, execution.threads)
 
     def counterfactual(
-        self, outcomes: Sequence[str], *, seed: int = 0, threads: int | None = None
+        self, outcomes: Sequence[str], *, execution: Execution | None = None
     ) -> dict[str, NDArray[np.float64]]:
         """Each factual row's ``outcomes`` had the program been applied, on its own noise."""
-        return self._native.counterfactual(list(outcomes), seed, threads)
+        execution = resolve_execution(execution)
+        return self._native.counterfactual(list(outcomes), execution.seed, execution.threads)
 
     def value(
-        self, outcome: str, *, n: int, seed: int = 0, threads: int | None = None
+        self, outcome: str, *, n: int, execution: Execution | None = None
     ) -> PolicyValueResult:
         """The program's value on ``outcome`` (see :func:`policy_value`)."""
-        return _value(self._native.value(outcome, n, seed, threads))
+        execution = resolve_execution(execution)
+        return _value(self._native.value(outcome, n, execution.seed, execution.threads))
 
 
-def prepare_policy(fitted: _native.FittedGcm, programs: Sequence[Program]) -> PreparedPolicy:
-    """Compile and license ``programs`` once on ``fitted``; see :class:`PreparedPolicy`."""
+def prepare_policy(fitted: FittedGcm, programs: Sequence[Program]) -> PreparedPolicy:
+    """Compile and support ``programs`` once on ``fitted``; see :class:`PreparedPolicy`."""
     return PreparedPolicy(fitted, programs)
 
 
@@ -588,7 +721,7 @@ class PolicyProgramValue:
     The question ``antecedent.prepare(data, query=..., graph=...)`` takes to answer a policy
     question through the retained handle: the model is fitted on ``data`` along ``graph`` once
     (``candidates`` / ``constraints`` / ``splits`` / ``purge`` are :func:`antecedent.model.fit_gcm`
-    options), the program is compiled and licensed against it once, and every ``estimate`` /
+    options), the program is compiled and supported against it once, and every ``estimate`` /
     ``refresh`` reruns :func:`policy_value` on ``n_draws`` draws without compiling the program
     again. The value is model-based: only its simulation error is quantified.
     """
@@ -625,9 +758,9 @@ class PolicyProgramValue:
 class PolicyContract:
     """What a policy value rests on: the route it ran on and every assumption it needs.
 
-    ``route`` is the licence the value was produced under (``"simulation"``); the licence of the
+    ``route`` is the support the value was produced under (``"simulation"``); the support of the
     other routes is in :attr:`PolicyProgramResult.support`. ``assumptions`` are the structural
-    assumptions of a model-based value plus the conditional licences of the route (for example a
+    assumptions of a model-based value plus the conditional supports of the route (for example a
     callback's), ``mechanisms`` the fitted family of each variable, and ``model_uncertainty`` is
     ``"unquantified"`` (not zero): the fitted parameters are taken as exact.
     """
@@ -644,7 +777,7 @@ class PolicyPreparation:
     """What the retained handle has done: the receipt that a rerun compiled nothing.
 
     ``program_compilations`` stays 1 however many runs and refreshes follow; ``model_bindings``
-    counts the fitted models the compiled overlay and licence were resolved against (one more per
+    counts the fitted models the compiled overlay and support were resolved against (one more per
     refresh); ``runs`` counts the executions of the value.
     """
 
@@ -653,23 +786,86 @@ class PolicyPreparation:
     runs: int
 
 
-@dataclass(frozen=True, slots=True)
-class PolicyProgramResult:
-    """One run of the prepared policy question: the value, its licence, contract and provenance.
+@dataclass(frozen=True, slots=True, repr=False)
+class PolicyProgramResult(ScientificResult):
+    """One run of the prepared policy question: the value, its support, contract and provenance.
 
     ``value`` equals, bit for bit, :func:`policy_value` on the same fitted model, program and
     seed; ``support`` is the decision of each route (simulation, counterfactual execution,
-    observational identification) with the assumption of a conditional licence or the reason code
+    observational identification) with the assumption of a conditional support or the reason code
     of a refusal.
     """
 
     value: PolicyValueResult
     contract: PolicyContract
     preparation: PolicyPreparation
+    _native: Any = field(default=None, repr=False, compare=False)
+    _prepared: Any = field(default=None, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        from ._freeze import freeze
+
+        object.__setattr__(self, "contract", freeze(self.contract))
+
+    @property
+    def answer(self) -> Any:
+        from .outcomes import Answer
+
+        return Answer(
+            kind="policy_value",
+            value=self.value.policy_mean,
+            detail="model-based policy mean; Monte Carlo error only",
+        )
+
+    @property
+    def route(self) -> Any:
+        return None if self._native is None else self._native.last_route
+
+    def inspect(self) -> Any:
+        from .results._report import InspectionReport, SlotModel
+
+        return InspectionReport(
+            identification=SlotModel(available=True, summary="model-based policy value"),
+            support=SlotModel(
+                available=True,
+                summary="simulation route supported",
+                payload={"support": self.support},
+            ),
+            uncertainty=SlotModel(
+                available=True,
+                summary="Monte Carlo error only; model uncertainty unquantified",
+                payload={
+                    "policy_simulation_stderr": self.value.policy_simulation_stderr,
+                    "difference_simulation_stderr": self.value.difference_simulation_stderr,
+                },
+            ),
+            assumptions=SlotModel(
+                available=True,
+                summary=f"{len(self.contract.assumptions)} assumptions",
+                payload={"assumptions": self.contract.assumptions},
+            ),
+            answer=self.answer,
+            program_id=self.contract.program_identity,
+            stage="executed",
+            family="policy_program",
+            operations=("inspect", "to_dict") + (("export",) if self._prepared is not None else ()),
+            details={"export_quantities": ("program",)},
+        )
+
+    def export(self, *, quantity: str) -> Any:
+        """Export the retained checked program; this does not export a fitted value."""
+        if quantity != "program" or self._prepared is None:
+            raise CausalUnsupportedError(
+                "this policy result exports only its retained program with quantity='program'",
+                reason_code="route_not_supported",
+            )
+        from ._artifact_protocol import artifact_from_receipt
+
+        return artifact_from_receipt(self, self._prepared._native.export_program())
 
     @property
     def support(self) -> PolicySupport:
-        """The licence of each route for the program."""
+        """The support of each route for the program."""
         return self.value.support
 
     @property

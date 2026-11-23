@@ -4,7 +4,7 @@
 //! effect-estimate and refutation half needs the estimators. Both are public
 //! here under the one path.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_io_core::analysis_wire::{
     DiagnosticWire, HedgeCertificateWire, HedgeProblemWire, IdentificationResultWire,
@@ -14,8 +14,11 @@ pub use antecedent_io_core::analysis_wire::{
 };
 
 pub use crate::estimate_wire::{
-    CandidateSelectionWire, ClipSensitivityWire, EffectEstimateWire, FirstStageDiagnosticsWire,
-    JointCovarianceWire, OverlapReportWire, PropensityIntervalWire, ScoreColumnWire,
-    ScoreInferenceWire, ScoreTableWire, effect_estimate_from_wire, effect_estimate_to_wire,
-    refutation_from_wire, refutation_to_wire,
+    AnalyticSeKindWire, BlockFamilyWire, BlockResamplingWire, CandidateSelectionWire,
+    ClipSensitivityWire, EffectEstimateWire, EstimateOverlapPolicyWire, FirstStageDiagnosticsWire,
+    JointCovarianceWire, OverlapReportWire, PreparationWire, PropensityIntervalWire,
+    ScoreColumnWire, ScoreInferenceWire, ScoreTableWire, UncertaintyWithheldWire,
+    descriptive_scope, effect_estimate_from_owned_wire, effect_estimate_from_wire,
+    effect_estimate_to_wire, refutation_from_wire, refutation_to_wire,
+    whole_target_diagnostic_scope,
 };

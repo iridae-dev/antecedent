@@ -1,0 +1,232 @@
+feature_id = "cyclic.general_systems"
+implementation_crate = "antecedent-model"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = [
+ {title = "Adam: A Method for Stochastic Optimization", url = "https://arxiv.org/abs/1412.6980v9", sections = ["Version 9, 30 January 2017; Algorithm 1, independent bounded projected minibatch implementation"]},
+ {title = "A family of embedded Runge-Kutta formulae", url = "https://doi.org/10.1016/0771-050X(80)90013-3", doi = "10.1016/0771-050X(80)90013-3", sections = ["Dormand and Prince 1980, RK5(4) tableau; independently implemented stages and error control"]},
+ {title = "Foundations of Structural Causal Models with Cycles and Latent Variables", url = "https://arxiv.org/abs/1611.06221v6", doi = "10.48550/arXiv.1611.06221", sections = ["Version 6, 22 November 2021; additive-noise abduction, solutions and distinct interventional solvability"]},
+ {title = "Causal Calculus in the Presence of Cycles, Latent Confounders and Selection Bias", url = "https://proceedings.mlr.press/v115/forre20a.html", sections = ["PMLR 115, 2020 / arXiv:1901.00433v2 (3 July 2019); checked revision history 20 October 2026; Theorems 5.2/7.2/9.10, Algorithm 1, Corollary 8.4(4)"]},
+ {title = "Constraint-Based Causal Discovery using Partial Ancestral Graphs in the presence of Cycles", url = "https://proceedings.mlr.press/v124/m-mooij20a.html", sections = ["PMLR 124, 2020; checked against corrected arXiv:2005.00610v3 (15 September 2023), inline proofs and typo corrections; Propositions 4/5/6/7/8(i); cyclic FCI interpretation under simple sigma-faithful SCM assumptions"]},
+ {title = "NODAGS-Flow: Nonlinear Cyclic Causal Structure Learning", url = "https://proceedings.mlr.press/v206/sethuraman23a.html", sections = ["PMLR 206, 2023; additive-noise equilibrium change-of-variables likelihood; no neural source port"]},
+ {title = "Bicycle: Intervention-Based Causal Discovery with Cycles", url = "https://proceedings.mlr.press/v236/rohbeck24a.html", sections = ["PMLR 236, 2024; Equations 1-4, Section 4.1 and Appendix A.1; Gaussian stationary synthetic protocol, shared drift/forcing/diffusion likelihood; no count-likelihood variational estimator"]},
+ {title = "Causal Reasoning with Bipartite Graphical Causal Models", url = "https://arxiv.org/abs/2608.19831v1", sections = ["PMLR 337 / arXiv:2608.19831v1, 2026; Definitions 3/5/13/33, Lemma 42: matching/SCC causal ordering, determinism-aware B-separation and domain-selector invariance"]},
+ {title = "Continuous Markov processes and stochastic equations", url = "https://doi.org/10.1007/BF02846028", doi = "10.1007/BF02846028", sections = ["Maruyama 1955; the Euler-Maruyama step, independently implemented with a fixed declared step"]},
+ {title = "Approximate integration of stochastic differential equations", url = "https://doi.org/10.1137/1119062", doi = "10.1137/1119062", sections = ["Milstein 1975; the diagonal Milstein correction g g' (dW^2 - dt)/2, used only when each diffusion depends on no other state"]},
+ {title = "Numerical Solution of Stochastic Differential Equations", url = "https://doi.org/10.1007/978-3-662-12616-5", doi = "10.1007/978-3-662-12616-5", sections = ["Kloeden and Platen 1992; strong and weak convergence orders of the Euler and Milstein schemes and the commutativity condition for diagonal noise, used to define the step-halving evidence"]},
+ {title = "Approximate discrete-time schemes for statistics of diffusion processes", url = "https://doi.org/10.1080/02331888908802205", doi = "10.1080/02331888908802205", sections = ["Florens-Zmirou 1989; consistency of the Euler contrast estimator as the observation interval shrinks"]},
+ {title = "Estimation of an ergodic diffusion from discrete observations", url = "https://doi.org/10.1111/1467-9469.00059", doi = "10.1111/1467-9469.00059", sections = ["Kessler 1997; Gaussian (Euler-type) quasi-likelihood estimation of drift and diffusion parameters from discrete observations"]},
+ {title = "Fast splittable pseudorandom number generators", url = "https://doi.org/10.1145/2660193.2660195", doi = "10.1145/2660193.2660195", sections = ["Steele, Lea and Flood 2014; the SplitMix64 mixing function used to address a counter-based Gaussian stream"]},
+ {title = "A note on the generation of random normal deviates", url = "https://doi.org/10.1214/aoms/1177706645", doi = "10.1214/aoms/1177706645", sections = ["Box and Muller 1958; the cosine branch transform of two uniforms"]},
+]
+implementation_deviations = [
+ "Built-in mechanism families store dense per-equation weight rows, so the dense disturbance covariance admits at most 4096 variables (solver_model_order_budget). The Jacobian, its factorization and the contraction bounds are sparse and admitted by nonzeros, block order, estimated memory, factor fill, iteration count and wall clock; arbitrary callbacks are not serialized.",
+ "Sparse blocks are solved by sparse LU with a minimum-degree order and partial pivoting (ties broken by sparsity). The condition number is a Hager-Higham estimate (exact for blocks up to 32), a lower bound on the true value. The Collatz-Wielandt spectral bound is rigorous for any positive weight vector; diagonal dominance of the root Jacobian proves nonsingularity only at the returned numerical state.",
+ "Global contraction is a sufficient row-norm certificate. Damped Newton roots alone remain uncertified; affine bijection uses a separate outward-rounded inverse-residual proof.",
+ "Polynomial systems use independently implemented outward-rounded interval/Krawczyk isolation; domain completeness is withheld on unresolved boxes.",
+ "Coordinate likelihood fitting is local with specified covariance. Bayesian draws are conditional on specified structure and covariance. No nominal calibration claims.",
+ "Continuous-time ODE/OU semantics remain distinct from static equilibrium SCMs.",
+ "Joint parameter/factual abduction includes training likelihood, factual structural density, measurement likelihood and normal parameter prior; its diagnostics cover all sampled coordinates.",
+ "Typed mechanism, simultaneous-equation and dynamic execution blocks extend the existing model compiler; no scheduling result proves solvability or identification.",
+ "Named clamps, mechanism changes/replacements and shocks retain distinct identities; numerical/certificate response failures preserve original draw positions.",
+ "BGCM graphical reasoning is theorem-scoped; finite polynomial candidate fitting is not a general latent BGCM estimator.",
+ "Generalized ID is observation-only with explicit ioSCM/product-density premises; procedure failure is not non-identifiability.",
+ "Nonlinear SDEs are diagonal-noise, bounded-dimension (16 states) models written in the portable mechanism language; a square root is a diffusion wrapper rather than an expression operator. Regularity is certified by interval derivative arithmetic over the declared state box and input envelopes with a 1e-9 outward margin (not directed rounding); a square-root diffusion that reaches zero is certified only as Holder-1/2 and the certificate says strong rates are then not guaranteed.",
+ "Reflecting or clamping state bounds change the simulated process at the boundary and are part of the specified model; the Euler quasi-likelihood ignores the reflection and reports the fraction of transitions within three standard deviations of a bound.",
+ "Euler-Maruyama and diagonal Milstein run on a declared fixed step with a counter-based generator (SplitMix64 mixing of seed, path, fine step and component, cosine Box-Muller); the half-step refinement reuses the same Brownian path. The reported step-halving difference estimates discretization bias of the declared step and is not a bound; the Richardson mean assumes weak order one. Inputs are read at the left end of each step; actions must lie on the step grid.",
+ "The Euler Gaussian transition quasi-likelihood is a pseudo-likelihood: its maximizer is consistent as the observation interval shrinks, and the interval-times-rate product is the only discretization evidence (flagged above 0.1, refused above 0.5 by default); its bias is not estimated and no latent-path or particle-filter likelihood is provided. Partial or noisy observation uses an extended Kalman innovation likelihood of the Euler-discretized model, a linearization that is always labelled model-conditional; standard errors are the inverse observed information of the pseudo-likelihood.",
+ "Parameter uncertainty of simulated responses is propagated by asymptotic-normal draws of the fitted parameters through common-random-number ensembles; it excludes Monte Carlo, discretization and model-specification error and is reported apart from them.",
+ "Finite and Gaussian functional numerical evaluation lives in antecedent-estimate; IO rechecks graph-source identity and exact theorem-derived executable IR before delegation. Numerical component metadata alone grants no causal authority.",
+]
+upstream_implementations_observed = []
+test_sources = ["crates/antecedent-model/src/nonlinear_sde/tests.rs", "crates/antecedent-estimate/src/nonlinear_sde_fit/tests.rs", "python/tests/test_nonlinear_sde.py", "inline crate unit tests registered in parity/test_registry.toml, including exhaustive small incidence graphs against independent closed-form Gaussian truths", "python/tests/test_cyclic.py", "crates/antecedent-model/tests/sparse_equilibrium_scale.rs", "python/tests/test_cyclic_sparse_scale.py", "crates/antecedent-model/tests/cyclic_general_systems_reference.rs (Dormand-Prince against a 60-digit replay of the accept/reject loop and exact solutions, SplitMix64 and Box-Muller against Python big integers, Euler-Maruyama and Milstein ensembles replayed at 60 digits with the frozen counter noise, Krawczyk isolation against exact Fraction Sturm roots)", "crates/antecedent-estimate/tests/cyclic_general_systems_reference.rs (projected Adam against a step-by-step 60-digit recurrence and an exhaustive table of minibatch partitions, the Euler Gaussian quasi-likelihood against its definition and the exact Ornstein-Uhlenbeck transition density, the extended Kalman likelihood against a Kalman filter of the discretised model)"]
+
+[[reference_fixture]]
+id = "sparse-feedback-equilibrium-scale"
+source = "conformance/gcm/sparse_feedback_equilibrium/reference.py"
+truth = "Rings of 300 to 320 variables solved densely with NumPy/LAPACK: affine equilibrium values, exact infinity-norm condition number from the dense inverse, exact spectral radius of the absolute weight matrix and clamped-system solutions; the sparse solver is compared with these and with SciPy sparse solves, plus an independent fixed-point reference for tanh and compositional rings, and budget refusals, non-unique bistable pairs and near-singular rings are asserted."
+
+[[reference_fixture]]
+id = "nonlinear-sde-ensemble"
+source = "conformance/gcm/nonlinear_sde_ensemble/reference.py"
+truth = "NumPy replay of the counter-based generator and of Euler-Maruyama ensembles of the documented SIR system with a seasonal input, square-root state-dependent noise, reflecting bounds, a replaced-input world and a held-component world, with half-step weak differences and paired contrasts; exact moment ODEs (RK4 and closed form) of a square-root diffusion with a piecewise-constant input against Monte Carlo ensembles within standard-error tolerances; the dense Euler quasi log likelihood of trajectories drawn with numpy.random.default_rng, and parameters recovered from them with separate fitting, identification and discretization evidence."
+
+[[reference_fixture]]
+id = "overlapping-nonlinear-loops"
+source = "examples/python/general_cyclic_systems.py"
+truth = "Independent scalar fixed-point generator with correlated Gaussian disturbances; single-intervention training and held-out joint intervention; shared-noise factual counterfactual; fresh-process refit/replay."
+
+[[reference_fixture]]
+id = "cyclic-id-frontdoor-and-scc-kernels"
+source = "crates/antecedent-identify/src/cyclic_id.rs"
+truth = "Independent binary joint tables and a latent binary frontdoor generator; verifies the executable generalized-ID IR numerically, including SCC joint kernels."
+
+[[reference_fixture]]
+id = "exhaustive-cyclic-fci"
+source = "crates/antecedent-discovery/src/cyclic_fci.rs"
+truth = "All 512 three-node directed/bidirected configurations; oracle skeleton and ancestral-mark soundness. Existing sigma-separation tests independently compare walk and acyclification engines."
+
+[[reference_fixture]]
+id = "bipartite-linear-gaussian-truth"
+source = "crates/antecedent-graph/src/bipartite.rs"
+truth = "Exhaustive small equation incidence patterns against closed-form independently solved Gaussian equations; determinism-aware conditional covariance and equation-order invariance."
+
+[[reference_fixture]]
+id = "joint-factual-parameter-abduction"
+source = "crates/antecedent-estimate/src/cyclic_likelihood.rs"
+truth = "Conjugate Gaussian posterior with noisy factual measurement; training and factual evidence both update parameters, preserving parameter/disturbance coupling."
+
+[[reference_fixture]]
+id = "joint-multiple-equilibrium-selection"
+source = "crates/antecedent-estimate/src/polynomial_scm.rs"
+truth = "Independent finite cubic/quadratic branch laws with identical interventional marginals but counterfactual means +1.2 and -1.2; noisy factual posterior 0.8/0.2; parameter posterior 64/65; intervention-induced undefined mass one; explicit unresolved and impossible evidence."
+
+[[reference_fixture]]
+id = "compositional-free-system-score"
+source = "crates/antecedent-model/src/nonlinear_equilibrium.rs"
+truth = "Central-difference reference for every intercept, legacy weight and compositional parameter score, with self-feedback, correlated disturbances and a clamped free system. Forward/reverse tape derivatives have separate finite-difference checks."
+
+[[reference_fixture]]
+id = "typed-cyclic-functional-replay"
+source = "crates/antecedent-io/src/cyclic_functional.rs"
+truth = "Independent binary joint table; source graph and exact functional binding, intervention probabilities 0.2 and 0.5, explicit positivity failure, out-of-band source identity rejection and artifact replay."
+
+[[reference_fixture]]
+id = "cyclic-calculus-gaussian-exhaustive"
+source = "crates/antecedent-identify/src/cyclic_calculus.rs"
+truth = "Every verified observation/action/exchange rewrite on all 512 three-node mixed graphs, all ordered query pairs and optional fixed/conditioned third variable, compared with independent dense Gaussian conditioning and intervention algebra."
+
+[[reference_fixture]]
+id = "ou-shared-equation-score"
+source = "crates/antecedent-estimate/src/ou_mechanisms.rs"
+truth = "Independent central differences for shared drift, forcing and diffusion scores with equation replacements; stationary laws additionally compared against SciPy continuous Lyapunov solutions in paper protocols."
+
+[[reference_fixture]]
+id = "ou-trajectory-joint-gaussian-likelihood"
+source = "conformance/gcm/ou_trajectory_likelihood/reference.py"
+truth = "Brute-force joint Gaussian density of all observation times of stationary OU trajectories (SciPy expm and continuous Lyapunov solutions) for fully observed irregular, partially observed noisy and oscillatory combined-observation cases; the production Kalman likelihood on the retained data equals it."
+
+[[reference_fixture]]
+id = "ou-trajectory-exact-transition-fit"
+source = "crates/antecedent-estimate/src/ou_trajectory.rs"
+truth = "The exact Gaussian transition (matrix exponential and van Loan covariance) against the scalar closed form, Brownian motion with drift and a rotation; the Kalman likelihood against the product of closed-form scalar transition densities and, in Python, against the brute-force joint Gaussian density of all observation times with SciPy matrix exponentials and Lyapunov solutions; parameters recovered within four standard errors from independently simulated irregular-interval trajectories, fully and partially observed; held-out intervention trajectories compared with independent Monte Carlo including propagated sampling uncertainty; unidentified designs refused with dynamics_not_identified."
+
+[[reference_fixture]]
+id = "paper-synthetic-protocols"
+source = "examples/python/cyclic_paper_experiments.py"
+truth = "Independent NumPy equilibrium generators and SciPy OU laws, declared published feature/sample sizes, disjoint validation/test joint interventions, original optimizer failure diagnostics and fresh-process CPU artifact reconstruction. Reduced smoke mode is explicitly not a paper reproduction."
+
+[[reference_fixture]]
+id = "continuous-identified-density-composition"
+source = "crates/antecedent-io/src/cyclic_gaussian_functional.rs"
+truth = "Independent latent Gaussian frontdoor structural law gives do(X=1) outcome N(0.4,2.13); checked continuous IR products/ratios and analytic Gaussian integrals agree. IID Gaussian MLE moments, invalid assignments, source mismatch and refit/replay are checked separately."
+
+[[reference_fixture]]
+id = "gaussian-functional-engine-boundary"
+source = "crates/antecedent-estimate/src/cyclic_gaussian_functional.rs"
+truth = "Univariate standard-normal density agrees with its analytic value; malformed retained density buffers and program variables outside the observational law are refused before numerical indexing. Existing IO frontdoor/MLE/replay oracle assertions still exercise the same engine."
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "Six numerics methods owned by this umbrella record, each against its own independent reference. (1) The adaptive Dormand-Prince 5(4) integrator behind OdeSystem::trajectory (integrate and dormand_prince in crates/antecedent-model/src/continuous_cyclic.rs): the tableau, the infinity-norm error ratio over atol + rtol max(|y|, |y_new|), the 0.9 ratio^(-1/5) step factor clamped to [0.1, 5] (5 on a zero error), exact landing on observation and clamp-schedule times and the zeroed derivative of a clamped component. (2) splitmix_mix and counter_normal in crates/antecedent-model/src/nonlinear_sde.rs: the SplitMix64 finalizer, the four-fold key chaining, the two uniforms and the cosine Box-Muller branch. (3) Euler-Maruyama and diagonal Milstein as run by simulate_sde and sample_sde_paths (run_path, run_world, numerical_error in the same file): the coarse Brownian increment built from two fine ones, the Milstein term g g' (dW^2 - dt)/2 and its square-root-wrapper form h'/4 (dW^2 - dt) skipped when h = 0, reflecting and clamping bounds, held components with a schedule, linear and piecewise-constant inputs, replaced-input worlds, and the reported ensemble mean, variance, covariance, step-halving difference and its standard error, root-mean-square pathwise difference, Richardson mean and paired contrast. (4) sde_quasi_log_likelihood in crates/antecedent-estimate/src/nonlinear_sde_fit.rs: the direct Euler Gaussian transition quasi-likelihood for fully observed diagonal-noise systems (constant, state-dependent and square-root diffusions, coupled drift) and the extended Kalman innovation likelihood of the Euler-discretised model with substeps and a partial or full-rank noisy linear observation. (5) fit_cyclic_adam in crates/antecedent-estimate/src/cyclic_adam.rs: the Adam recurrence with bias correction, the proximal L1 step on incoming weights only, the row-sum contraction projection, the validation-patience rule, best-validation model selection, the KKT stationarity score and the stopping reasons, for the identity and tanh mechanisms with and without a learned self-coefficient (the Jacobian term). (6) PolynomialSystem::isolate with its Krawczyk operator in crates/antecedent-model/src/equation_system.rs for univariate and two-variable integer systems. SDE interval enclosure definitions moved to nonlinear_sde/interval.rs and all bound definitions were compared unchanged except module visibility. SDE simulation definitions subsequently moved to nonlinear_sde/simulation.rs; the bound definitions were compared unchanged except internal visibility and trailing commas. SDE intervention and world-planning definitions moved to nonlinear_sde/world.rs and were compared unchanged except internal visibility and formatting. The other methods of this record are NOT reviewed here; limitations names them."
+assumptions = ["Each reference is written from the textbook definition of its method, not from the cited paper: Euler-Maruyama x + f dt + g dW and the diagonal Milstein correction g g' (dW^2 - dt)/2, the Euler Gaussian transition N(x + f dt, g^2 dt), the Kalman recursion of F = I + J h, P <- F P F' + diag(g^2) h, Adam with beta 0.9 and 0.999 and epsilon 1e-8 added to the square root of the bias-corrected second moment, and the Krawczyk operator with a contraction and strict-inclusion test. This review checks the code against those statements, not against the papers.", "The feedback likelihood used for Adam is the Gaussian density of the free coordinate with the change-of-variables term ln|1 - s| when the self coefficient s is learned, with the second variable clamped; its scores are analytic.", "The library Brownian increments are the object of the SDE checks: the reference recomputes counter_normal in big integers and double-rounded uniforms and feeds the 60-digit scheme replay with them.", "Accepted and rejected step counts are compared exactly; they are decided at ratios far from the accept threshold in every frozen case, so 60-digit and f64 arithmetic agree on them.", "Exact roots come from Sturm sequences over Fractions of the exactly represented coefficients, bracketed to 2^-110 and widened outward by one unit in the last place."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and wrote its references from the stated definitions in exact rational and 60-digit arithmetic; no upstream implementation or test source was consulted or copied. None of the cited papers (or any other) was retrieved: nothing was downloaded, and the method definitions above are my restatements from memory of standard material."
+redistribution = "The two reference scripts, their frozen JSON outputs and the Rust tests are repository-authored under MIT OR Apache-2.0; the scripts import mpmath (BSD-3-Clause) at run time and do not redistribute it. They declare inline script metadata, are not run in a locked isolated environment and are not wired into any gate; the frozen output is compared by the tests. The cited papers are named, not redistributed."
+limitations = "NOT reviewed in this record review, and still resting only on the repository's own tests: BGCM graphical reasoning (matching and strongly-connected causal ordering, B-separation; crates/antecedent-graph/src/bipartite.rs); generalized identification and the cyclic do-calculus (cyclic_id.rs, cyclic_calculus.rs, the Gaussian functional engine and its IO binding); cyclic FCI (cyclic_fci.rs; sigma-separation itself is reviewed in graph.sigma_separation); the sparse equilibrium solver, Collatz-Wielandt bound, affine certificate and damped-Newton roots; additive-noise abduction and joint parameter abduction; the NODAGS-style equilibrium likelihood and the Bicycle-style Ornstein-Uhlenbeck mechanisms and trajectory fits (Lyapunov solves, Kalman trajectory likelihood, exact transition fit); the regularity certificate of nonlinear SDEs (interval derivative arithmetic and its 1e-9 margin); the optimizer, observed-information standard errors and identification and discretization diagnostics of fit_sde_quasi_likelihood (only the likelihood it maximizes is reviewed); the library shuffle kernel behind Adam minibatches (reviewed only through exhaustive batch partitions, which pins that an epoch visits every row once and steps once per batch, not the shuffle's distribution); the Python bindings. No primary paper was retrieved. The Dormand-Prince coefficients are written in the reference from memory and are validated by the rooted-tree order conditions up to order five (propagated weights) and four (embedded weights) in exact rationals, so a wrong coefficient would be caught, but the match to the published table itself is unverified. The SplitMix64 constants are likewise recalled; the seed-zero output sequence quoted from memory (three 64-bit values) is reproduced, which is a consistency check only. Whether the cited Kessler (1997) estimator is the simple Euler contrast implemented here is not established (that paper was not read; the code is checked as the Euler Gaussian transition density). Coverage is finite: 9 ODE systems (including a 40:25 stiff linear pair, tanh/sin feedback with rejections, a relu kink, timed clamps and a zero-error growth case), 15 counter-noise addresses including keys that drive each uniform to the ends of its range, 7 SDE configurations (one to two states, 5 to 7 paths, 20 to 40 steps) at 1e-9 to 1e-10 relative, 4 Adam fits plus a 90 x 90 minibatch table, 6 nested OU subsamplings, and 11 polynomial systems (degree up to 8, at most two variables). Higher-dimensional Krawczyk systems, stiff or long-horizon SDEs, many-path Monte Carlo behaviour of the ensembles and a learned self coefficient together with a tanh mechanism are not exercised. Findings that are properties of the method rather than defects: the documented uniform ((k + 1/2)/2^53 in doubles) rounds to exactly one for the largest hash values, so that deviate is 0 instead of about 1e-8 (probability 2^-53, harmless); the Euler quasi log-likelihood differs from the exact Ornstein-Uhlenbeck log-density by an amount that does not vanish with the observation interval except near the generating parameters (the review compares maximisers and the gap at the truth); Krawczyk isolation certifies only simple interior roots, leaves multiple roots unresolved by design, and is not required to certify roots on the closed domain boundary. Scoped 2026-11-07 source comparison verifies unchanged contrast world lookup, duplicate and empty identity refusals, and validation order; the synthetic engineering test does not expand the scientific or calibration comparison."
+sources = ["https://mpmath.org/doc/1.3.0/", "https://docs.python.org/3/library/fractions.html", "https://docs.python.org/3/library/math.html"]
+findings_resolved = ["The Dormand-Prince integrator reproduces a 60-digit replay of the same accept/reject loop in state (5e-11 relative) and in accepted and rejected step counts (exact) on nine systems, including a 179-step stiff run with rejections, timed clamps, a relu kink, the zero-error growth by five and a single accepted step, and agrees with closed forms (rotation, linear decay, sinh solution of x' = tanh x, matrix exponentials with clamps) to the replay's own distance from the exact solution.", "splitmix_mix and counter_normal equal the big-integer definition for the probe values and for eleven addresses plus four keys engineered through the inverse mixer to hit the ends of both uniforms; the deviates are standard normal in mean, variance, kurtosis and three quantiles at 2^18 draws, are uncorrelated at lag one, and change with each address coordinate.", "Euler-Maruyama and diagonal Milstein ensembles, their coarse paths, moments, covariance, step-halving difference and standard error, strong difference, Richardson mean and paired contrast equal the 60-digit replay with the same noise on geometric, square-root reflecting, clamped zero-start and coupled input-driven systems with a scheduled hold and a replaced input.", "The Euler quasi log-likelihood equals the Euler Gaussian transition density summed over each trajectory to 1e-11 for constant, state-dependent, square-root and coupled systems and for irregular times; its maximiser in theta is the Euler maximiser, which approaches the exact Ornstein-Uhlenbeck maximiser as the interval shrinks; the extended Kalman likelihood equals a Kalman filter of the discretised model to 1e-10 with and without substeps, for one noisy combination and for two noisy observations.", "Projected Adam equals the step-by-step recurrence epoch by epoch (validation trace 1e-9, best epoch, step count, fitted parameters, training and validation log-likelihood, KKT score and stopping reason exact) on four fits covering L1 shrinkage, the contraction projection binding at the margin with a learned self coefficient (Jacobian term), a saturating mechanism and an exactly zero weight; each epoch of a minibatch run matches exactly one of the 90 possible batch partitions.", "Krawczyk isolation certifies every simple interior root of each tested system in exactly one box that meets exactly one exact Sturm root, never certifies a multiple root (double and triple roots stay in unresolved boxes), loses no exact root (each lies in a certified or unresolved box), excludes the whole box when no real solution exists and is complete when roots are simple. No defect was found in any reviewed path."]
+record_sha256 = "b2e488a70ea9fc7657a9fbb0a2bd1a97829c57fdbe4518ccd926cd48277523d7"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/continuous_cyclic.rs"
+items = ["fn default", "fn dormand_prince", "fn drift", "fn integrate", "fn trajectory", "fn validate", "fn validate_policy", "struct OdePolicy", "struct OdeSystem", "struct OdeTrajectory", "struct TimedClamp"]
+sha256 = "6a6f7525422a627075f5f749de31890c5a45ccfe603347098fbb65d4b0ff8aeb"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/nonlinear_sde.rs"
+items = ["const CANCEL_STRIDE", "const GOLDEN", "const MAX_SDE_INPUTS", "const MAX_SDE_KNOTS", "const MAX_SDE_PARAMETERS", "const MAX_SDE_RETAINED_CELLS", "const MAX_SDE_STATE", "const MAX_SDE_STEP_EVALUATIONS", "const MAX_WORLDS", "const ROUNDING_MARGIN", "enum SdeBoundaryRule", "enum SdeError", "enum SdeInterpolation", "enum SdeScheme", "fn apply", "fn bad", "fn boundary", "fn bytes", "fn certificate", "fn check_cancel", "fn compile", "fn contains", "fn contains_all", "fn counter_normal", "fn dimension", "fn from", "fn output_times", "fn parameter_values", "fn range", "fn splitmix_mix", "fn system", "fn unsupported", "fn validate", "fn value_at", "struct CompiledSde", "struct SdeBoundary", "struct SdeCertificate", "struct SdeContrastEnsemble", "struct SdeDiffusion", "struct SdeEnsembleReport", "struct SdeInput", "struct SdeNumericalError", "struct SdeParameter", "struct SdePaths", "struct SdeRetention", "struct SdeSimulationPolicy", "struct SdeSystem", "struct SdeWorldEnsemble"]
+sha256 = "8bf09b0ccb2d9a8f0a6ab5d31047a7c06f1599e3f956798b4d94d0a903433441"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/nonlinear_sde/world.rs"
+items = ["const BASELINE_WORLD", "fn action_cell", "fn expression_nodes", "fn input_bytes", "fn plan_world", "fn plan_world_checked", "fn recertification_bytes", "fn value_at", "fn world_plan_bytes", "struct SdeAction", "struct SdeContrast", "struct SdeWorld", "struct WorldPlan"]
+sha256 = "f0b5cfc804ceb64e28e49e536fd51d298bb35645cddd2928eace52653a1ebc86"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/nonlinear_sde/simulation.rs"
+items = ["fn admit", "fn admit_world_plans", "fn effective_compiled", "fn mean_and_se", "fn numerical_error", "fn resolve_theta", "fn run_path", "fn run_world", "fn sample_sde_paths", "fn sde_contrast_slots", "fn simulate_sde", "fn sum_polled", "fn validate_initial", "struct Levels"]
+sha256 = "1a73fe9f267eede3a8a77491634595ee9caa893ab3f5d1673d8f97ade47bd3be"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/nonlinear_sde/interval.rs"
+items = ["const ZERO", "fn enclose", "fn fmul", "fn iadd", "fn imax_abs", "fn imul", "fn logistic", "fn sane", "fn softplus", "struct Iv"]
+sha256 = "c86ae874f35bbeab0652fc09e36b1a74ed032711efac7f8d0977b7a624562af1"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/equation_system.rs"
+items = ["fn add", "fn default", "fn down", "fn evaluate", "fn excludes_zero", "fn isolate", "fn krawczyk", "fn magnitude", "fn midpoint", "fn mul", "fn neg", "fn point", "fn pow", "fn sub", "fn up", "fn validate", "struct Interval", "struct IsolatedSolutions", "struct IsolationPolicy", "struct Monomial", "struct PolynomialEquation", "struct PolynomialSystem"]
+sha256 = "dafa7bd0411c2961958452ec3a5edf45ea039016a6d4babcc0d3d145de8af360"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/nonlinear_sde_fit.rs"
+items = ["const BOUNDARY_FRACTION_FLAG", "const FLAT_DIAGONAL", "const GRADIENT_STEP", "const HESSIAN_STEP", "const INFORMATION_FLOOR", "const LN_2PI", "const MAX_FIT_PARAMETERS", "const MAX_OBSERVATIONS", "const MAX_OBSERVED", "const MAX_TRAJECTORIES", "enum SdeDiscretizationStatus", "enum SdeFitError", "enum SdeIdentificationFailure", "enum SdeIdentificationStatus", "fn bad", "fn checked_filter_substeps", "fn cholesky", "fn cholesky_or_psd", "fn cholesky_solve", "fn code", "fn default", "fn default_flag", "fn default_floor", "fn default_refusal", "fn direct_trajectory", "fn filter_trajectory", "fn fit_sde_quasi_likelihood", "fn gradient", "fn information", "fn log_likelihood", "fn numerical", "fn prepare", "fn record", "fn refuse_if_coarse", "fn sde_quasi_log_likelihood", "fn spd_inverse", "fn summarize_information", "fn symmetric_eigenvalues", "fn theta", "fn update", "fn validate", "fn validate_design", "struct InformationSummary", "struct Prepared", "struct Probe", "struct Problem", "struct SdeDiscretization", "struct SdeFilterPrior", "struct SdeFit", "struct SdeFitPolicy", "struct SdeFitting", "struct SdeIdentification", "struct SdeObservation", "struct SdeObservationModel", "struct SdeTrajectory"]
+sha256 = "ea017d881596eff0e067558369a4f5100fc781bfbc33a0f39737926c2c9be063"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/cyclic_adam.rs"
+items = ["fn default", "fn fit_cyclic_adam", "fn project", "fn supported", "struct CyclicAdamEpoch", "struct CyclicAdamFit", "struct CyclicAdamPolicy"]
+sha256 = "ea8ba208d96164874c7f63ff6059a9edf6855c824d09d1a892038d6b3096f13a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/nonlinear_equilibrium.rs"
+items = ["fn invalid_equilibrium_input"]
+sha256 = "c1075fbe50712bc1cdc3d16963b82910db3b8a4eeabd8e12886448f968948f34"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/cyclic_likelihood.rs"
+items = ["fn invalid_equilibrium_input"]
+sha256 = "f4a07a644fbc5412ec9ceb6a70d306e61f135fef9c8b3de39d0edd730c6f1e61"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/cyclic_general_systems_reference.rs"
+items = ["fn close", "fn close_grid", "fn cyclic_general_systems_counter_normals_are_standard_normal_and_distinct_by_address", "fn cyclic_general_systems_dormand_prince_matches_exact_rk_and_step_control", "fn cyclic_general_systems_euler_maruyama_and_milstein_replay_the_frozen_noise_exactly", "fn cyclic_general_systems_krawczyk_isolation_agrees_with_exact_sturm_roots", "fn cyclic_general_systems_splitmix_and_box_muller_match_big_integer_definition", "fn document", "fn grid", "fn numbers", "fn unsigned"]
+sha256 = "27cc430d774b34e76ea20df7fe78ec7477e8f24459dafb0337345e8fdc3f18c1"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-model/tests/oracle_data/cyclic_general_systems_reference.py"
+sha256 = "cfefcb8cbf89a925fa550ade8ec737fc246f737ab3957d0e6a622d12506904cb"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-model/tests/oracle_data/cyclic_general_systems_reference.json"
+sha256 = "a1b018f918bae769ce2e7d152544ca94f88c59b704499dc9423437a7f33b5557"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/cyclic_general_systems_reference.rs"
+items = ["fn close", "fn compiled", "fn cyclic_general_systems_adam_minibatch_epochs_match_one_exact_batch_partition", "fn cyclic_general_systems_euler_quasi_likelihood_handles_state_dependent_and_coupled_systems", "fn cyclic_general_systems_euler_quasi_likelihood_is_the_euler_density_and_tracks_the_exact_ou_law", "fn cyclic_general_systems_extended_kalman_likelihood_equals_the_discretised_kalman_filter", "fn cyclic_general_systems_projected_adam_replays_the_exact_recurrence", "fn document", "fn numbers", "fn quasi", "fn regime_rows", "fn trajectories"]
+sha256 = "35c2d50c51dcd4f0e8ecc47a902308a815f8a6da210651ea0b92de2c1fd857eb"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/cyclic_general_systems_reference.py"
+sha256 = "4a1bc08c085968328a2811c1e6ed833f31c98ce8090dcffe20f064ebc0addc03"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/cyclic_general_systems_reference.json"
+sha256 = "25b8ce27aa062da2a80bad74bc16b00e3fd763fa8097306ad6d599214ede17ac"

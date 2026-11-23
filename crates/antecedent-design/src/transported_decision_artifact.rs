@@ -29,7 +29,7 @@
 //! receipt's target population and the contract's coordinates must still
 //! agree).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ScientificQuantity;
 use antecedent_core::SupportStatus;
@@ -60,11 +60,16 @@ const BODY_SECTION: &str = "transported_decision_body";
 const MAX_LIST_ITEMS: usize = 1024;
 const MAX_TEXT_BYTES: usize = 8 * 1024;
 
-const DETAIL_LAW_NOT_EXPORTABLE: &str = "transported_decision_artifact.law_not_exportable";
-const DETAIL_BOUNDS: &str = "transported_decision_artifact.bounds_exceeded";
-const DETAIL_REPLAY: &str = "transported_decision_artifact.replay_mismatch";
-const DETAIL_IDENTITY: &str = "transported_decision_artifact.identity_expected";
-const DETAIL_INVALID: &str = "transported_decision_artifact.invalid";
+const DETAIL_LAW_NOT_EXPORTABLE: &str =
+    antecedent_core::reason_details::transported_decision_artifact::LAW_NOT_EXPORTABLE;
+const DETAIL_BOUNDS: &str =
+    antecedent_core::reason_details::transported_decision_artifact::BOUNDS_EXCEEDED;
+const DETAIL_REPLAY: &str =
+    antecedent_core::reason_details::transported_decision_artifact::REPLAY_MISMATCH;
+const DETAIL_IDENTITY: &str =
+    antecedent_core::reason_details::transported_decision_artifact::IDENTITY_EXPECTED;
+const DETAIL_INVALID: &str =
+    antecedent_core::reason_details::transported_decision_artifact::INVALID;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -85,6 +90,10 @@ struct Body {
     snapshot_id: String,
     causal_contract_id: String,
     rng_id: String,
+    /// Posterior mean or frequentist point estimate. Absent on an older artifact,
+    /// which is read as a frequentist point estimate.
+    #[serde(default = "frequentist_estimate")]
+    estimate: crate::decision_eval::MeanEstimate,
     receipt: TransportReceipt,
     unsupported: String,
     weakest_support: String,
@@ -92,8 +101,12 @@ struct Body {
     outcomes: Vec<OutcomeWire>,
 }
 
+fn frequentist_estimate() -> crate::decision_eval::MeanEstimate {
+    crate::decision_eval::MeanEstimate::Frequentist
+}
+
 fn refused(code: &'static str, detail: &str, message: impl std::fmt::Display) -> IoError {
-    IoError::Refused { code, message: format!("{detail}: {message}") }
+    crate::plan_common::refused_with(code, detail, message)
 }
 
 fn from_transported(error: &TransportedRefusal) -> IoError {
@@ -167,6 +180,7 @@ pub fn export_transported_decision(
         snapshot_id: mean.snapshot_id.clone(),
         causal_contract_id: mean.causal_contract_id.clone(),
         rng_id: mean.rng_id.clone(),
+        estimate: mean.estimate,
         receipt: response.receipt().clone(),
         unsupported: unsupported_name(policy.unsupported).to_owned(),
         weakest_support: policy.weakest_support.as_str().to_owned(),
@@ -279,6 +293,7 @@ pub fn consume_transported_decision(
         snapshot_id: body.snapshot_id.clone(),
         causal_contract_id: body.causal_contract_id.clone(),
         rng_id: body.rng_id.clone(),
+        estimate: body.estimate,
     };
     let response = TransportedResponse::from_stored_point(mean, body.receipt.clone())
         .map_err(|error| from_transported(&error))?;
@@ -309,14 +324,14 @@ pub fn consume_transported_decision(
             "the stored decision does not replay from its contract, carried value, receipt and policy",
         ));
     }
-    if let Some(expected) = expected_identity {
-        if expected != decision.identity {
-            return Err(refused(
-                antecedent_core::reason_code!("decision_contract_unsatisfied"),
-                DETAIL_IDENTITY,
-                "the decision identity differs from the consumer's retained identity",
-            ));
-        }
+    if let Some(expected) = expected_identity
+        && expected != decision.identity
+    {
+        return Err(refused(
+            antecedent_core::reason_code!("decision_contract_unsatisfied"),
+            DETAIL_IDENTITY,
+            "the decision identity differs from the consumer's retained identity",
+        ));
     }
     Ok(ConsumedTransportedDecision { decision, response })
 }

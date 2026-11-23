@@ -3,7 +3,7 @@
 //! A bounded, checksummed, sectioned container holding one joint fit of `k >= 2` treatments that
 //! share ONE adjustment set and ONE row snapshot:
 //!
-//! * `vector_treatment_meta` (CBOR): version, feature marker, the frozen null, the **unmeasured**
+//! * `vector_treatment_meta` (CBOR): version, feature marker, the frozen null, the **`not_measured`**
 //!   calibration coordinate, the covariance kind, the snapshot and adjustment-set declaration,
 //!   the named coefficient order, the declared contrasts, the identity digests, the stored result
 //!   (named coefficients, the **full** covariance, contrasts with their standard errors and Holm
@@ -19,8 +19,9 @@
 //!     the rows computes once `X'X` is known, so the meat is fixed when sealing and the consumer
 //!     recomputes the sandwich `(X'X)^-1 meat (X'X)^-1` from these numbers alone, bit-identically;
 //!   * `rows` (legacy robust artifacts): the outcome, the adjustment columns and the treatment
-//!     columns, replayed through the core fit. It is read but no longer written; replay above
-//!     [`VECTOR_TREATMENT_HC_ROW_CAP`] rows is refused.
+//!     columns, replayed through the core fit. It is read but no longer written; the declared row
+//!     count must match the stored payload exactly, so the artifact byte budget is the only bound
+//!     on the rows.
 //!
 //! The summaries carry no row, so they are bound to the rows they came from by a digest
 //! (`data_digest`, part of the design identity): [`VectorTreatmentArtifact::verify_data`] checks
@@ -43,11 +44,12 @@
 //! artifact was resealed consistently.
 //!
 //! What this does **not** say: every p-value (Wald, Holm, joint chi-square) is asymptotic and its
-//! calibration is `unmeasured`; no coverage claim is made and no interval is produced. The caller
+//! calibration is `not_measured`; no coverage claim is made and no interval is produced. The caller
 //! owns that the shared adjustment set is valid. Unknown major versions refuse.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::borrow::Cow;
 use std::collections::BTreeSet;
 
 use antecedent_core::{CanonicalWriter, ExecutionContext};
@@ -61,26 +63,27 @@ use antecedent_estimate::vector_treatment::{
 use serde::{Deserialize, Serialize};
 
 use crate::artifact_budget::{
-    BudgetDetails, BudgetRefusal, admit_export, admit_regression, unbounded_context,
+    BudgetDetails, BudgetRefusal, BudgetedTreatmentArtifact, admit_export, admit_regression,
 };
 use crate::artifact_codec::CanonicalSize;
-use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const VECTOR_TREATMENT_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
 pub const VECTOR_TREATMENT_ARTIFACT_FEATURE: &str = "vector_treatment_v1";
 /// Calibration coordinate: coverage, Type I error and power were not measured.
-pub const VECTOR_TREATMENT_CALIBRATION: &str = "unmeasured";
+pub const VECTOR_TREATMENT_CALIBRATION: &str = "not_measured";
 /// Most bytes an artifact may occupy: the largest export budget, enforced on consumption.
 pub const MAX_VECTOR_TREATMENT_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
-/// Most rows a legacy robust-covariance `rows` replay artifact may carry. Sealing no longer
-/// embeds rows, so this bounds only the consumption of artifacts that already do.
+/// Row count the legacy robust-covariance `rows` replay format was originally written for. It
+/// is no longer applied: a declared row count must match the stored numbers exactly (so the
+/// artifact byte budget bounds the rows), and the constant is kept only so existing importers
+/// still resolve it.
 pub const VECTOR_TREATMENT_HC_ROW_CAP: usize = 4096;
 /// Most shared adjustment columns an artifact may declare.
 pub const VECTOR_TREATMENT_MAX_ADJUSTMENT: usize = 1024;
-/// Standing caveat: inference is asymptotic and its calibration is unmeasured.
-pub const VECTOR_TREATMENT_INFERENCE_CAVEAT: &str = "every p-value is an asymptotic Wald, Holm or chi-square value whose calibration is unmeasured; no coverage claim is made and no interval is produced";
+/// Standing caveat: inference is asymptotic and its calibration is `not_measured`.
+pub const VECTOR_TREATMENT_INFERENCE_CAVEAT: &str = "every p-value is an asymptotic Wald, Holm or chi-square value whose calibration is not_measured; no coverage claim is made and no interval is produced";
 /// Standing caveat: the adjustment set is the caller's.
 pub const VECTOR_TREATMENT_ADJUSTMENT_CAVEAT: &str = "the caller owns that the shared adjustment set is valid; the artifact certifies the arithmetic of one joint regression, not identification";
 
@@ -91,9 +94,12 @@ const REPLAY_SUMMARY: &str = "summary";
 const REPLAY_ROBUST_SUMMARY: &str = "robust_summary";
 const REPLAY_ROWS: &str = "rows";
 const BUDGET: BudgetDetails = BudgetDetails {
-    cancelled: (antecedent_core::reason_code!("cancelled_no_claim"), "vector_treatment.cancelled"),
-    memory: "vector_treatment.memory_budget_exceeded",
-    export: "vector_treatment.export_budget_exceeded",
+    cancelled: (
+        antecedent_core::reason_code!("cancelled_no_claim"),
+        antecedent_core::reason_details::vector_treatment::CANCELLED,
+    ),
+    memory: antecedent_core::reason_details::vector_treatment::MEMORY_BUDGET_EXCEEDED,
+    export: antecedent_core::reason_details::vector_treatment::EXPORT_BUDGET_EXCEEDED,
 };
 
 crate::sectioned_artifact_error!(
@@ -105,15 +111,16 @@ crate::sectioned_artifact_error!(
     false
 );
 
-fn budget_refusal((code, message): BudgetRefusal) -> VectorTreatmentArtifactError {
-    VectorTreatmentArtifactError::Refused { code, message }
+fn budget_refusal((code, detail, explanation): BudgetRefusal) -> VectorTreatmentArtifactError {
+    VectorTreatmentArtifactError::refused(code, detail, explanation)
 }
 
 fn invalid_request(message: &str) -> VectorTreatmentArtifactError {
-    VectorTreatmentArtifactError::Refused {
-        code: antecedent_core::reason_code!("invalid_argument"),
-        message: format!("vector_treatment.invalid_request: {message}"),
-    }
+    VectorTreatmentArtifactError::refused(
+        antecedent_core::reason_code!("invalid_argument"),
+        antecedent_core::reason_details::vector_treatment::INVALID_REQUEST,
+        message,
+    )
 }
 
 /// One declared contrast of the named coefficients.
@@ -310,9 +317,9 @@ pub struct VectorTreatmentMeta {
     pub feature: String,
     /// The frozen null.
     pub null: String,
-    /// Always `asymptotic_wald_calibration_unmeasured`.
+    /// Always `asymptotic_wald_calibration_not_measured`.
     pub inference_claim: String,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// `model_based`, `hc0`, `hc1`, `hc2` or `hc3`.
     pub covariance: String,
@@ -352,7 +359,7 @@ pub struct VectorTreatmentReportWire {
     pub null: String,
     /// Inference claim.
     pub inference_claim: String,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Covariance estimator.
     pub covariance_kind: String,
@@ -500,9 +507,6 @@ impl Replay {
                 }))
             }
             REPLAY_ROWS => {
-                if decl.n_rows > VECTOR_TREATMENT_HC_ROW_CAP {
-                    return Err(VectorTreatmentArtifactError::LimitsExceeded("replay rows"));
-                }
                 if decl.n_rows.checked_mul(p) != Some(numbers.len()) {
                     return Err(malformed("numbers section length"));
                 }
@@ -637,27 +641,17 @@ fn identity_diff(
     stored: &VectorTreatmentIdentity,
     other: &VectorTreatmentIdentity,
 ) -> Option<&'static str> {
-    if stored.snapshot_id != other.snapshot_id {
-        Some("row_snapshot")
-    } else if stored.adjustment_set_id != other.adjustment_set_id {
-        Some("adjustment_set")
-    } else if stored.treatment_id != other.treatment_id {
-        Some("treatment_vector")
-    } else if stored.design_id != other.design_id {
-        Some("design")
-    } else if stored.covariance_id != other.covariance_id {
-        Some("covariance_kind")
-    } else if stored.contrast_id != other.contrast_id {
-        Some("contrasts")
-    } else if stored.null != other.null {
-        Some("null")
-    } else if stored.result_id != other.result_id {
-        Some("result")
-    } else if stored.digest != other.digest {
-        Some("identity")
-    } else {
-        None
-    }
+    crate::first_identity_difference!(stored, other, {
+        snapshot_id => "row_snapshot",
+        adjustment_set_id => "adjustment_set",
+        treatment_id => "treatment_vector",
+        design_id => "design",
+        covariance_id => "covariance_kind",
+        contrast_id => "contrasts",
+        null => "null",
+        result_id => "result",
+        digest => "identity",
+    })
 }
 
 pub(crate) fn reals_to_bytes(values: &[f64]) -> Vec<u8> {
@@ -713,26 +707,27 @@ fn compute(
         }
         Replay::Rows { outcome, adjustment, treatments } => {
             let input = VectorTreatmentInput {
-                outcome: outcome.clone(),
-                row_snapshot: decl.row_snapshot.clone(),
+                outcome: Cow::Borrowed(outcome),
+                row_snapshot: Cow::Borrowed(&decl.row_snapshot),
                 adjustment: decl
                     .adjustment
                     .iter()
                     .zip(adjustment)
-                    .map(|(name, values)| NamedColumn {
-                        name: name.clone(),
-                        values: values.clone(),
-                    })
+                    .map(|(name, values)| NamedColumn::new(name.as_str(), values.as_slice()))
                     .collect(),
                 treatments: decl
                     .treatments
                     .iter()
                     .zip(treatments)
                     .map(|(name, values)| TreatmentColumn {
-                        name: name.clone(),
-                        values: values.clone(),
-                        adjustment_set: decl.adjustment.clone(),
-                        row_snapshot: decl.row_snapshot.clone(),
+                        name: Cow::Borrowed(name),
+                        values: Cow::Borrowed(values),
+                        adjustment_set: decl
+                            .adjustment
+                            .iter()
+                            .map(|a| Cow::Borrowed(a.as_str()))
+                            .collect(),
+                        row_snapshot: Cow::Borrowed(&decl.row_snapshot),
                     })
                     .collect(),
             };
@@ -768,41 +763,28 @@ fn encode_parts_impl(
     artifact_id: &str,
     export_budget: usize,
 ) -> Result<Vec<u8>, VectorTreatmentArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(VectorTreatmentArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes =
-        to_cbor(meta).map_err(|error| VectorTreatmentArtifactError::Encode(error.to_string()))?;
     // A consumer reads at most the byte cap of uncompressed sections, whatever the container
     // compresses to; the caller's budget bounds the container itself.
-    admit_export(
-        BUDGET,
-        meta_bytes.len().saturating_add(numbers.len()),
-        MAX_VECTOR_TREATMENT_ARTIFACT_BYTES,
-    )
-    .map_err(budget_refusal)?;
-    let bytes = crate::encode_container(
+    let bytes = crate::artifact_codec::encode_sectioned_admitting(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
-            note: "vector_treatment_wald_unmeasured",
+            note: "vector_treatment_wald_not_measured",
             max_bytes: MAX_VECTOR_TREATMENT_ARTIFACT_BYTES,
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[
-            crate::OutSection {
-                id: META_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &meta_bytes,
-            },
-            crate::OutSection {
-                id: NUMBERS_SECTION,
-                content_type: crate::CONTENT_BYTES,
-                bytes: numbers,
-            },
-        ],
-    )
-    .map_err(|error| crate::map_artifact_check!(error, VectorTreatmentArtifactError))?;
+        META_SECTION,
+        meta,
+        &[crate::OutSection {
+            id: NUMBERS_SECTION,
+            content_type: crate::CONTENT_BYTES,
+            bytes: numbers,
+        }],
+        |uncompressed| {
+            admit_export(BUDGET, uncompressed, MAX_VECTOR_TREATMENT_ARTIFACT_BYTES)
+                .map_err(budget_refusal)
+        },
+    )?;
     admit_export(BUDGET, bytes.len(), export_budget.min(MAX_VECTOR_TREATMENT_ARTIFACT_BYTES))
         .map_err(budget_refusal)?;
     Ok(bytes)
@@ -826,23 +808,20 @@ pub fn decode_parts(
 fn decode_parts_impl(
     bytes: &[u8],
 ) -> Result<(VectorTreatmentMeta, Vec<u8>), VectorTreatmentArtifactError> {
-    let parts = crate::decode_container(
+    let (meta, parts) = crate::artifact_codec::decode_sectioned::<
+        VectorTreatmentArtifactError,
+        VectorTreatmentMeta,
+    >(
         ARTIFACT_KIND,
         MAX_VECTOR_TREATMENT_ARTIFACT_BYTES,
-        &[META_SECTION, NUMBERS_SECTION],
+        META_SECTION,
+        &[NUMBERS_SECTION],
+        VECTOR_TREATMENT_ARTIFACT_VERSION,
         bytes,
-    )
-    .map_err(|error| crate::map_artifact_check!(error, VectorTreatmentArtifactError))?;
-    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
+    )?;
+    let Ok([payload]) = <[Vec<u8>; 1]>::try_from(parts) else {
         return Err(VectorTreatmentArtifactError::Malformed("unsupported container layout".into()));
     };
-    let meta = crate::decode_with_version(&meta_bytes, |version| {
-        if version == VECTOR_TREATMENT_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(VectorTreatmentArtifactError::UnsupportedVersion { version })
-        }
-    })?;
     Ok((meta, payload))
 }
 
@@ -880,6 +859,36 @@ fn data_digest(request: &VectorTreatmentRequest) -> String {
     writer.finish_hex()
 }
 
+impl BudgetedTreatmentArtifact for VectorTreatmentArtifact {
+    type Request = VectorTreatmentRequest;
+    type Identity = VectorTreatmentIdentity;
+    type Error = VectorTreatmentArtifactError;
+    const MAX_BYTES: usize = MAX_VECTOR_TREATMENT_ARTIFACT_BYTES;
+
+    fn seal_with(
+        request: &VectorTreatmentRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, VectorTreatmentArtifactError> {
+        Self::seal_with(request, ctx)
+    }
+
+    fn to_bytes_within(
+        &self,
+        artifact_id: &str,
+        export_budget: usize,
+    ) -> Result<Vec<u8>, VectorTreatmentArtifactError> {
+        self.to_bytes_within(artifact_id, export_budget)
+    }
+
+    fn from_bytes_with(
+        bytes: &[u8],
+        expected: Option<&VectorTreatmentIdentity>,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, VectorTreatmentArtifactError> {
+        Self::from_bytes_with(bytes, expected, ctx)
+    }
+}
+
 impl VectorTreatmentArtifact {
     /// Fit the declared treatments jointly and seal the answer with its embedded design and
     /// identity, with no memory limit; see [`Self::seal_with`].
@@ -889,7 +898,7 @@ impl VectorTreatmentArtifact {
     /// set, snapshot or row count; `design_rank_deficient`; `invalid_argument`) and the
     /// format's bounds.
     pub fn seal(request: &VectorTreatmentRequest) -> Result<Self, VectorTreatmentArtifactError> {
-        Self::seal_with(request, &unbounded_context())
+        <Self as BudgetedTreatmentArtifact>::seal(request)
     }
 
     /// Fit the declared treatments jointly under the computation budget of `ctx`.
@@ -917,21 +926,25 @@ impl VectorTreatmentArtifact {
         check_decl(&decl)?;
         admit_regression(BUDGET, decl.n_rows, decl.columns(), ctx).map_err(budget_refusal)?;
         let input = VectorTreatmentInput {
-            outcome: request.outcome.clone(),
-            row_snapshot: request.row_snapshot.clone(),
+            outcome: Cow::Borrowed(&request.outcome),
+            row_snapshot: Cow::Borrowed(&request.row_snapshot),
             adjustment: request
                 .adjustment
                 .iter()
-                .map(|c| NamedColumn { name: c.name.clone(), values: c.values.clone() })
+                .map(|c| NamedColumn::new(c.name.as_str(), c.values.as_slice()))
                 .collect(),
             treatments: request
                 .treatments
                 .iter()
                 .map(|t| TreatmentColumn {
-                    name: t.name.clone(),
-                    values: t.values.clone(),
-                    adjustment_set: t.adjustment_set.clone(),
-                    row_snapshot: t.row_snapshot.clone(),
+                    name: Cow::Borrowed(&t.name),
+                    values: Cow::Borrowed(&t.values),
+                    adjustment_set: t
+                        .adjustment_set
+                        .iter()
+                        .map(|a| Cow::Borrowed(a.as_str()))
+                        .collect(),
+                    row_snapshot: Cow::Borrowed(&t.row_snapshot),
                 })
                 .collect(),
         };
@@ -1017,12 +1030,11 @@ impl VectorTreatmentArtifact {
         match &self.meta.data_digest {
             Some(stored) if *stored == data_digest(request) => Ok(()),
             Some(_) => Err(VectorTreatmentArtifactError::IdentityMismatch { field: "data" }),
-            None => Err(VectorTreatmentArtifactError::Refused {
-                code: antecedent_core::reason_code!("route_not_supported"),
-                message: "vector_treatment.data_not_bound: this artifact embeds its rows and \
-                          records no data digest"
-                    .to_owned(),
-            }),
+            None => Err(VectorTreatmentArtifactError::refused(
+                antecedent_core::reason_code!("route_not_supported"),
+                antecedent_core::reason_details::vector_treatment::DATA_NOT_BOUND,
+                "this artifact embeds its rows and records no data digest",
+            )),
         }
     }
 
@@ -1032,7 +1044,7 @@ impl VectorTreatmentArtifact {
     /// An empty id, an encoding failure or `vector_treatment.export_budget_exceeded` when the
     /// artifact would exceed [`MAX_VECTOR_TREATMENT_ARTIFACT_BYTES`].
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, VectorTreatmentArtifactError> {
-        self.to_bytes_within(artifact_id, MAX_VECTOR_TREATMENT_ARTIFACT_BYTES)
+        <Self as BudgetedTreatmentArtifact>::to_bytes(self, artifact_id)
     }
 
     /// Serialize when the whole artifact fits `export_budget` bytes (at most
@@ -1064,7 +1076,7 @@ impl VectorTreatmentArtifact {
         bytes: &[u8],
         expected: Option<&VectorTreatmentIdentity>,
     ) -> Result<Self, VectorTreatmentArtifactError> {
-        Self::from_bytes_with(bytes, expected, &unbounded_context())
+        <Self as BudgetedTreatmentArtifact>::from_bytes(bytes, expected)
     }
 
     /// Consume an artifact by recomputation within the replay budget of `ctx`.
@@ -1078,21 +1090,18 @@ impl VectorTreatmentArtifact {
         ctx: &ExecutionContext,
     ) -> Result<Self, VectorTreatmentArtifactError> {
         let (meta, raw) = decode_parts_impl(bytes)?;
-        if meta.feature != VECTOR_TREATMENT_ARTIFACT_FEATURE {
-            return Err(VectorTreatmentArtifactError::UnsupportedSemantics("feature marker"));
-        }
+        crate::artifact_codec::require_semantics::<VectorTreatmentArtifactError>(
+            meta.feature == VECTOR_TREATMENT_ARTIFACT_FEATURE,
+            "feature marker",
+        )?;
         if meta.null != VECTOR_TREATMENT_NULL {
             return Err(VectorTreatmentArtifactError::IdentityMismatch { field: "null" });
         }
-        if meta.inference_claim != VECTOR_TREATMENT_INFERENCE_CLAIM {
-            return Err(VectorTreatmentArtifactError::UnsupportedSemantics("inference claim"));
-        }
-        if meta.calibration != VECTOR_TREATMENT_CALIBRATION {
-            return Err(VectorTreatmentArtifactError::UnsupportedSemantics("calibration"));
-        }
-        if meta.caveats != standing_caveats() {
-            return Err(VectorTreatmentArtifactError::UnsupportedSemantics("caveats"));
-        }
+        crate::artifact_codec::require_markers::<VectorTreatmentArtifactError>(&[
+            (meta.inference_claim == VECTOR_TREATMENT_INFERENCE_CLAIM, "inference claim"),
+            (meta.calibration == VECTOR_TREATMENT_CALIBRATION, "calibration"),
+            (meta.caveats == standing_caveats(), "caveats"),
+        ])?;
         let decl = Decl::from_meta(&meta)?;
         check_decl(&decl)?;
         if raw.len() % 8 != 0 {
@@ -1105,15 +1114,18 @@ impl VectorTreatmentArtifact {
         if let Some(field) = identity_diff(&meta.identity, &computed.identity) {
             return Err(VectorTreatmentArtifactError::IdentityMismatch { field });
         }
+        // Replay contract: the consumer re-runs the same deterministic code on the stored
+        // numbers, so the result must agree exactly (derived `PartialEq`: bitwise except that
+        // `-0.0 == 0.0`); a tolerance would admit a result the producer never computed.
         if meta.result != computed.result {
             return Err(VectorTreatmentArtifactError::ResultMismatch(
                 "coefficients, covariance, contrasts or joint test",
             ));
         }
-        if let Some(expected) = expected {
-            if let Some(field) = identity_diff(expected, &computed.identity) {
-                return Err(VectorTreatmentArtifactError::IdentityMismatch { field });
-            }
+        if let Some(expected) = expected
+            && let Some(field) = identity_diff(expected, &computed.identity)
+        {
+            return Err(VectorTreatmentArtifactError::IdentityMismatch { field });
         }
         Ok(Self { meta, numbers: computed.numbers, fit: computed.fit })
     }
@@ -1233,16 +1245,19 @@ mod number_section_tests {
             assert_eq!(legacy.fit(), summary.fit(), "{covariance}");
             // Embedded rows need no digest; asking to verify against one says so.
             let error = legacy.verify_data(&request).unwrap_err();
-            assert_eq!(error.refusal().unwrap().1, "vector_treatment.data_not_bound");
+            assert_eq!(
+                error.refusal().unwrap().1,
+                antecedent_core::reason_details::vector_treatment::DATA_NOT_BOUND
+            );
         }
     }
 
     #[test]
-    fn a_legacy_rows_replay_above_its_cap_is_refused_on_consumption() {
+    fn a_legacy_rows_replay_declaring_more_rows_than_it_stores_is_malformed() {
         let decl = decl(VECTOR_TREATMENT_HC_ROW_CAP + 1);
         assert!(matches!(
             Replay::from_numbers(&decl, REPLAY_ROWS, &[]),
-            Err(VectorTreatmentArtifactError::LimitsExceeded("replay rows"))
+            Err(VectorTreatmentArtifactError::Malformed(_))
         ));
     }
 }

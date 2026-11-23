@@ -1,16 +1,25 @@
-"""Binary treatment policies and held-out randomized evaluation."""
+"""Treatment policies, their value on randomized evaluation data, and conditional dose responses.
+
+A policy is a fixed recommendation per row (:class:`BinaryPolicy`, :class:`MultiActionPolicy`);
+it is evaluated on randomized rows held out from whatever produced it. Ask
+:class:`PolicyValue` or :class:`MultiActionPolicyValue` through :func:`antecedent.analyze`, or use
+the direct utilities :func:`evaluate_policy`, :func:`evaluate_policy_doubly_robust`,
+:func:`evaluate_multi_action_policy` and :func:`uplift_by_score`.
+:class:`ConditionalDoseResponse` estimates a continuous-dose response within baseline groups.
+"""
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from math import floor, isfinite
-from numbers import Integral
+from decimal import Decimal
+from math import isfinite
+from numbers import Integral, Real
 from typing import Any
 
 import numpy as np
 
-from ._columns import coerce_fields, hold_unresolved, resolved, resolved_opt
+from ._columns import coerce_fields, hold_unresolved, resolved, resolved_opt, scalar_or_values
 from ._data import as_columns
 from ._native import evaluate_binary_policy as _evaluate_binary_policy
 from ._native import evaluate_binary_policy_doubly_robust as _evaluate_binary_policy_doubly_robust
@@ -24,7 +33,8 @@ class BinaryPolicy:
     """A binary treat/control recommendation for each evaluation row.
 
     ``capacity`` and ``max_treatment_rate`` constrain the number of treated
-    rows. ``budget`` constrains the sum of their declared treatment costs.
+    rows. The rate is interpreted by its shortest decimal spelling when converted
+    to a whole-row capacity. ``budget`` constrains the sum of their declared treatment costs.
     Costs may be scalar or one per row.
     """
 
@@ -59,7 +69,7 @@ class BinaryPolicy:
             raise CausalValueError("budget must be finite and non-negative")
         if self.max_treatment_rate is not None and (
             isinstance(self.max_treatment_rate, bool)
-            or not isinstance(self.max_treatment_rate, (int, float))
+            or not isinstance(self.max_treatment_rate, Real)
             or not isfinite(self.max_treatment_rate)
             or not 0.0 <= self.max_treatment_rate <= 1.0
         ):
@@ -227,7 +237,7 @@ class DoublyRobustPolicyEvaluation:
         "training/test disjointness or excluded-fold correspondence is checked from caller-supplied IDs only",
         "nuisance predictions and randomization claims are not independently authenticated",
     )
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
 
 
 @dataclass(frozen=True, slots=True)
@@ -429,9 +439,9 @@ class PolicyValue:
                 )
 
             def cost(candidate: BinaryPolicy) -> tuple[float, ...]:
-                if isinstance(candidate.costs, (int, float)):
+                if isinstance(candidate.costs, Real):
                     return (float(candidate.costs),) * n
-                return tuple(float(value) for value in candidate.costs)
+                return tuple(float(value) for value in scalar_or_values(candidate.costs))
 
             if any(cost(candidate) != cost(self.policy) for candidate in candidates):
                 raise CausalValueError(
@@ -623,6 +633,23 @@ class UpliftBin:
 
 @dataclass(frozen=True, slots=True)
 class ConditionalDoseResponsePoint:
+    """One point of a conditional dose-response grid: the mean outcome at one dose in one group.
+
+    Fields:
+
+    * ``baseline_group`` -- the pre-treatment group label.
+    * ``target_dose`` -- the dose the response is evaluated at.
+    * ``response`` -- the kernel-smoothed inverse-density estimate of the mean outcome had every
+      unit in the group received ``target_dose``.
+    * ``local_rows`` -- rows inside the kernel window around the target dose.
+    * ``effective_sample_size`` -- the effective number of rows given the kernel weights.
+    * ``minimum_dose_density`` -- the density floor: the smallest supplied dose density the
+      point relies on.
+    * ``maximum_normalized_weight`` -- the largest normalized weight of a single row.
+    * ``local_outcome_sd`` -- the standard deviation of the local outcomes; descriptive, not a
+      standard error.
+    """
+
     baseline_group: str
     target_dose: float
     response: float
@@ -656,6 +683,24 @@ class FixedDosePolicyValueEstimate:
 
 @dataclass(frozen=True, slots=True)
 class ConditionalDoseResponseEstimate:
+    """The result of a :class:`ConditionalDoseResponse` query: group-specific dose responses.
+
+    Read ``points`` first, with each point's local-support diagnostics. ``uncertainty`` is
+    ``"point_only"`` unless the result says otherwise; ``fixed_policy`` holds the paired value of
+    the declared group-dose rule (:class:`FixedDosePolicyValueEstimate`) when ``policy_doses`` was
+    given, with ``policy_value_estimated`` set.
+
+    Fields:
+
+    * ``points`` -- one :class:`ConditionalDoseResponsePoint` per group and target dose.
+    * ``bandwidth`` -- the kernel bandwidth used.
+    * ``density_provenance`` -- the declared source of the supplied dose density.
+    * ``uncertainty``, ``evaluation_method``, ``support_status``, ``assumptions`` and
+      ``diagnostics`` -- labels stating what is estimated and on which premises (conditional
+      exchangeability of the dose given the groups, a correct dose density, and local positivity
+      around each target dose).
+    """
+
     points: tuple[ConditionalDoseResponsePoint, ...]
     bandwidth: float
     density_provenance: str
@@ -663,7 +708,7 @@ class ConditionalDoseResponseEstimate:
     evaluation_method: str = "stratified_triangular_kernel_inverse_density"
     policy_value_estimated: bool = False
     fixed_policy: FixedDosePolicyValueEstimate | None = None
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     assumptions: tuple[str, ...] = (
         "Conditional exchangeability of continuous dose given the supplied baseline groups.",
         "Consistency, no interference, and correct dose density at observed doses.",
@@ -840,19 +885,17 @@ def evaluate_policy(
         not isinstance(value, (bool, np.bool_)) for value in available
     ):
         raise CausalValueError("available entries must be bool values")
-    probability_values = (
-        [float(propensity)] if isinstance(propensity, (int, float)) else list(propensity)
-    )
-    cost_values = (
-        [float(policy.costs)] if isinstance(policy.costs, (int, float)) else list(policy.costs)
-    )
+    probability_values = scalar_or_values(propensity)
+    cost_values = scalar_or_values(policy.costs)
     capacity = policy.capacity
     if policy.max_treatment_rate is not None:
-        rate_capacity = floor(policy.max_treatment_rate * n)
+        numerator, denominator = Decimal(str(policy.max_treatment_rate)).as_integer_ratio()
+        rate_capacity = numerator * n // denominator
         capacity = rate_capacity if capacity is None else min(capacity, rate_capacity)
     reference_capacity = None if reference is None else reference.capacity
     if reference is not None and reference.max_treatment_rate is not None:
-        rate_capacity = floor(reference.max_treatment_rate * n)
+        numerator, denominator = Decimal(str(reference.max_treatment_rate)).as_integer_ratio()
+        rate_capacity = numerator * n // denominator
         reference_capacity = (
             rate_capacity if reference_capacity is None else min(reference_capacity, rate_capacity)
         )
@@ -863,13 +906,7 @@ def evaluate_policy(
         np.asarray(probability_values, dtype=np.float64),
         reference=reference_actions,
         costs=cost_values,
-        reference_costs=(
-            None
-            if reference is None
-            else [float(reference.costs)]
-            if isinstance(reference.costs, (int, float))
-            else list(reference.costs)
-        ),
+        reference_costs=None if reference is None else scalar_or_values(reference.costs),
         available=None if available is None else [bool(value) for value in available],
         capacity=capacity,
         budget=policy.budget,
@@ -994,7 +1031,7 @@ def evaluate_policy_doubly_robust(
     if not np.isfinite(mu0_values).all() or not np.isfinite(mu1_values).all():
         raise CausalValueError("mu0 and mu1 predictions must be finite")
     probability_values = np.asarray(
-        [float(propensity)] if isinstance(propensity, (int, float)) else list(propensity),
+        scalar_or_values(propensity),
         dtype=np.float64,
     )
     raw = _evaluate_binary_policy_doubly_robust(
@@ -1005,16 +1042,8 @@ def evaluate_policy_doubly_robust(
         mu0_values,
         mu1_values,
         reference=list(resolved(reference.actions)) if reference is not None else None,
-        costs=(
-            [float(policy.costs)] if isinstance(policy.costs, (int, float)) else list(policy.costs)
-        ),
-        reference_costs=(
-            None
-            if reference is None
-            else [float(reference.costs)]
-            if isinstance(reference.costs, (int, float))
-            else list(reference.costs)
-        ),
+        costs=scalar_or_values(policy.costs),
+        reference_costs=None if reference is None else scalar_or_values(reference.costs),
     )
     return DoublyRobustPolicyEvaluation(
         float(raw[0]),

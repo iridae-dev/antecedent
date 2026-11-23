@@ -1,8 +1,13 @@
-"""Estimate an effect, reuse the analysis, and save the result.
+"""Estimate an average effect, rerun the same study on new data, and save the result.
 
-The simulated treatment increases the outcome by 2. After estimating it,
-we change the data so the effect is 3 and run the same study again.
-See docs/python-workflow.md for installation and a step-by-step explanation."""
+The simulated randomized treatment raises the outcome by 2. A second table adds 1 to every
+treated outcome, so its effect is 3. The script asserts that the rebound branch moves by
+exactly that 1 while the original result stays fixed, and that a saved result loads intact.
+Loading recomputes nothing, and the effect is a fixture truth of the simulated mechanism, not
+a claim about real data.
+
+Run: ``python examples/python/analysis_workflow.py``. See docs/start/first-analysis.md for
+installation and a step-by-step explanation."""
 
 from __future__ import annotations
 
@@ -24,30 +29,66 @@ query = ant.AverageEffect("treatment", "outcome")
 
 new_data = {**data, "outcome": data["outcome"] + treatment}
 
-# Estimate the effect, then keep the study so we can reuse it.
-result = ant.analyze(data, graph=graph, query=query, seed=19, bootstrap=25)
+# Estimate the effect, then keep the study: it holds the identified program, so a rebind
+# reruns the same question on new rows without identifying again.
+result = ant.analyze(
+    data,
+    graph=graph,
+    query=query,
+    execution=ant.Execution(seed=19),
+    inference=ant.Frequentist(bootstrap=25),
+)
 study = result.study
-updated = study.refresh(new_data)
+branch = ant.rebind(study, data=new_data)
+updated = ant.estimate(branch)
 report = result.inspect().to_dict()
-loaded = ant.load(result.export())
+artifact = result.export()
+loaded = ant.load(artifact, expected=artifact.expectation)
 
 print(result)
-print("Calibration:", result.calibration.status, result.calibration.reason)
+print("Calibration:", result.value.calibration.status, result.value.calibration.reason)
 json.dumps(report, allow_nan=False)
 
-# The loaded execution keeps the recorded answer. A verified load replayed the
-# program; a sealed load verified the contract and identities and names the
-# checked operation it cannot replay from bytes alone.
-assert loaded.acceptance.verified or loaded.acceptance.sealed
-assert loaded.answer == result.answer
-assert loaded.export() == result.export()
+# The default analysis carries refutation reports. Loading checks the artifact is intact and
+# keeps the recorded answer. Replay cannot recompute the refutation reports, so it lists them
+# as not replayable instead of reporting the result as replayed.
+assert loaded.acceptance.status == "loaded"
+assert loaded.answer.kind == result.answer.kind
+audited = loaded.replay()
+assert not audited.acceptance.replayed
+assert "dependencies.refutation_replay" in audited.acceptance.not_replayable
+assert loaded.value.program_id == result.value.program_id
+assert bytes(loaded.export()) == bytes(artifact)
 
-# Refresh re-executed the same program on new data; the original result stays fixed.
+# Without refutation reports the load also keeps the recorded answer. Loading replays nothing;
+# loaded.replay() recomputes the published numbers.
+plain = ant.analyze(
+    data,
+    graph=graph,
+    query=query,
+    execution=ant.Execution(seed=19),
+    inference=ant.Frequentist(bootstrap=25),
+    refute="none",
+)
+plain_artifact = plain.export()
+plain_loaded = ant.load(plain_artifact, expected=plain_artifact.expectation)
+assert plain_loaded.acceptance.recognized
+assert plain_loaded.answer.kind == plain.answer.kind
+assert plain_loaded.answer.value == plain.answer.value
+assert bytes(plain_loaded.export()) == bytes(plain_artifact)
+
+# The branch re-executed the same program on new data; the original result stays fixed.
 assert np.isclose(updated.answer.value, result.answer.value + 1)
-assert np.isclose(study.estimate().answer.value, updated.answer.value)
-print("After refresh:", updated)
+assert np.isclose(ant.estimate(study).answer.value, result.answer.value)
+print("After rebinding:", updated)
 
 # To inspect identification before estimating, prepare the study explicitly.
-prepared = ant.prepare(data, graph=graph, query=query, seed=19, bootstrap=25)
+prepared = ant.prepare(
+    data,
+    graph=graph,
+    query=query,
+    execution=ant.Execution(seed=19),
+    inference=ant.Frequentist(bootstrap=25),
+)
 assert prepared.inspect().identification.available
-assert np.isclose(prepared.estimate().answer.value, result.answer.value)
+assert np.isclose(ant.estimate(prepared).answer.value, result.answer.value)

@@ -1,10 +1,15 @@
-# Background knowledge in discovery
+# Give discovery background knowledge
 
-Background knowledge is what you assert about the graph before the data are consulted:
-links that must be there, links that cannot be, an ordering of the variables, and a limit
-on how many parents a variable may have. The ordinary discovery classes (`PC`, `FCI`,
-`RFCI`, `GES`, `PCMCI`, `PCMCIPlus`) and the selective-discovery contracts read the same statement, through one
-parser, and give it one digest.
+Use this page when you run a discovery search and already know part of the graph: a link
+that must be there, a link that cannot be, an ordering of the variables (dose precedes
+response), or a limit on how many parents a variable may have. You state it once as a
+`BackgroundKnowledge` and pass it as `knowledge=`. The ordinary discovery classes (`PC`,
+`FCI`, `RFCI`, `GES`, `PCMCI`, `PCMCIPlus`) and the
+[selective-discovery contracts](../selective-discovery.md) read the same statement through
+one parser and give it one digest.
+
+Background knowledge is an assertion, not evidence: the search honours it and never tests it.
+A result discovered under knowledge is conditional on that knowledge being true.
 
 ```python
 from antecedent.discovery import PC, BackgroundKnowledge, Link
@@ -13,17 +18,49 @@ knowledge = BackgroundKnowledge(
     required=(Link("dose", "response"),),          # dose -> response (a direct cause)
     forbidden=(Link("response", "age"),),          # response does not cause age
     tiers=(("age", "sex"), ("dose",), ("response",)),  # later tiers cannot cause earlier ones
+    max_parents=3,                                 # optional parent limit; None means no limit
 )
 result = PC(knowledge=knowledge).run(data)
 result.background_knowledge        # hex digest; None when no knowledge was given
 ```
 
-A `Link` is `source[t - source_lag] -> target[t - target_lag]` by variable name, with both
-lags 0 in a static search. A statement an algorithm cannot honour is **refused**, never
-ignored: the refusal carries a reason code (`invalid_argument` for statements that
-contradict each other, `unknown_variable` for a name the search does not cover,
-`option_not_applicable` for a statement with no meaning for the algorithm) and a detail that
-names the statement.
+`data` is a table whose columns include every variable the statements name. A `Link` is
+`source[t - source_lag] -> target[t - target_lag]` by variable name, with both lags 0 in a
+static search. A variable that appears in no tier is unconstrained by the tiers.
+
+## Reading the result
+
+The search returns the same kind of object it returns without knowledge (a CPDAG from PC and
+GES, a PAG from FCI and RFCI, a lagged graph from the PCMCI family), with your statements
+applied as the table below describes. Three things tell you what the knowledge did:
+
+- `result.background_knowledge` is the digest of the statements. Two results with different
+  digests were discovered under different assertions and are different artifacts (see
+  [Identity](#identity)).
+- An `*.orientation_conflict` diagnostic means the data compelled a direction your statements
+  exclude; the edge is marked as a conflict instead of being oriented either way.
+- A `*.parent_limit_removed_adjacencies` diagnostic means `max_parents` removed an adjacency
+  that no test found independent; the output then no longer follows from the
+  conditional-independence decisions alone (see the parent-limit paragraph below).
+
+## Refusals
+
+A statement an algorithm cannot honour is **refused**, never ignored. The refusal is a
+`CausalUnsupportedError` whose `reason_code` is one of the following, and whose message names
+the statement by the variable names you wrote:
+
+| `reason_code` | Raised when | What to change |
+| --- | --- | --- |
+| `invalid_argument` | statements contradict each other: a link both required and forbidden, a required link against the tiers, required links forming a directed cycle, more required parent adjacencies than `max_parents` | remove the conflicting statement |
+| `unknown_variable` | a statement names a variable the search does not cover | name only searched variables |
+| `option_not_applicable` | the statement has no meaning for the algorithm: a lagged link in a search over a table, a required link outside the lag window | drop the statement or use an algorithm that enforces it |
+
+A selective-discovery contract raises the same three codes with a
+`selective_discovery.background_knowledge_*` detail; see
+[Discovered structure and per-population discovery](../reference/refusal-codes.md#discovered-structure-and-per-population-discovery)
+in the refusal reference, and
+[Structured refusals and their remedies](../reference/refusal-codes.md#structured-refusals-and-their-remedies)
+for how to branch on the fields.
 
 ## What each algorithm does with each statement
 
@@ -53,7 +90,7 @@ diagnostic. Where the limit never binds nothing changes. The bound is a degree b
 parents, so it can be stricter than a bound on the parents of the true DAG; the guarantee it gives
 is that every DAG in the returned class respects the limit.
 
-Two notes on reading the table.
+Notes on reading the table.
 
 * **Direction knowledge and the data can disagree.** Knowledge orients the edges the
   data leave undirected. When the data compel the opposite direction (a collider, or an
@@ -64,7 +101,7 @@ Two notes on reading the table.
   before the majority collider rule, so a collider that disagrees is reported as an orientation
   conflict instead of overriding them. A pair with only one direction forbidden is kept as an
   edge (the usual both-directions-must-survive rule would otherwise discard it).
-* **LiNGAM and NOTEARS (Rust level, no Python `knowledge=`).** Both return a DAG and enforce
+* **LiNGAM and NOTEARS (Rust only; the Python classes take no `knowledge=`).** Both return a DAG and enforce
   every statement exactly: a forbidden direction (or a later tier) is excluded from the
   candidate edges, a required link is kept, and `max_parents` caps each variable's parents
   (required links exempt in LiNGAM, re-added in NOTEARS). They run the same checks as GES and
@@ -109,3 +146,16 @@ effective sample size `(sum w)^2 / sum w^2` are on the `SampleSplit`
 (`analysis_weights`, `analysis_row_ids`, `analysis_effective_sample_size`) and in the
 receipt. See [Selective discovery](../selective-discovery.md#splitting-rows-filter-then-split)
 for the estimands, normalization and what the receipt verifies.
+
+## Example
+
+[`examples/python/discovery_methods.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/discovery_methods.py)
+runs GES on five variables whose equivalence class leaves the chain `u - y - z` undirected:
+tiers orient the chain, one forbidden link orients the pair it names, and a required link
+that contradicts a tier is refused with `invalid_argument`.
+
+## Related
+
+- [Rerun discovery without recomputing it](../selective-discovery.md)
+- [Read graph uncertainty and unidentified mass](../graph_uncertainty.md)
+- [Discovery, attribution and simulation as compiled routes](compiled-structure-routes.md)

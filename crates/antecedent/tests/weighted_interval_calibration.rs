@@ -15,11 +15,11 @@
 //! its variance and its effective sample size differ, so every record binds the functional
 //! label `…+weights=sampling` and no record measured on unweighted rows applies to it. The
 //! routes publish no weighted interval until a record measures one. These designs are
-//! `#[ignore]`d measurement designs registered in `scripts/gate_calibration.sh`
+//! `#[ignore]`d measurement designs registered in `parity/calibration_groups.toml`
 //! (`run_wi`); the coverage record is the only missing piece. The fixed-seed truth checks of the
 //! same estimators are `crates/antecedent-estimate/tests/sampling_weights.rs`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 
@@ -42,7 +42,7 @@ use antecedent_expr::{ExprId, IdentifiedEstimand};
 use antecedent_kernels::{sigmoid, standard_normal};
 use antecedent_stats::GlmFamily;
 use common::calibration::{
-    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, Z95, grid_n,
+    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, Z95, grid_n, grid_seed,
     map_replicates, n_sim, validation_seed,
 };
 
@@ -180,7 +180,7 @@ fn scored_cluster_reference_for_protocol(
     }
     let fit = fit?;
     let df = fit.uncertainty.analytic.reference_df?;
-    let critical = antecedent_stats::student_t_ppf((1.0 + REPORTED_LEVEL) / 2.0, df);
+    let critical = antecedent_stats::student_t_ppf(f64::midpoint(1.0, REPORTED_LEVEL), df);
     let se = fit.se_analytic();
     (df.is_finite()
         && df > 0.0
@@ -572,12 +572,12 @@ fn measure_against(
     let mut tally = analytic_tally(test, dgp, construction);
     let mut centres = Vec::new();
     let mut se_squared_sum = 0.0;
-    for row in map_replicates(n_sim(), |rep| replicate(n, 91_000 + rep)) {
+    for row in map_replicates(n_sim(), |rep| replicate(n, grid_seed(91_000 + rep))) {
         let Some((interval, rows)) = row else {
             tally.skip();
             continue;
         };
-        tally.bind(
+        tally.bind_validation(
             construction,
             ScopeFacts {
                 row_count: rows,
@@ -585,9 +585,10 @@ fn measure_against(
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         tally.record(Some(interval), truth);
-        centres.push((interval.0 + interval.1) / 2.0);
+        centres.push(f64::midpoint(interval.0, interval.1));
         se_squared_sum += ((interval.1 - interval.0) / (2.0 * Z95)).powi(2);
     }
     if centres.len() > 1 {
@@ -679,7 +680,7 @@ fn upgraded_weighted_constructions_preserve_legacy_record_identity() {
             },
             REPORTED_LEVEL,
         );
-        tally.bind(
+        tally.bind_validation(
             &basis,
             ScopeFacts {
                 row_count: 1200,
@@ -687,6 +688,7 @@ fn upgraded_weighted_constructions_preserve_legacy_record_identity() {
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         ids.push(tally.record_id().unwrap());
     }
@@ -709,7 +711,7 @@ fn cluster_scoring_uses_the_published_student_reference_and_preserves_normal_evi
     for basis in [raw, upgraded] {
         let mut tally =
             analytic_tally("weighted_aipw_cluster_dml_interval", "identity_probe", &basis);
-        tally.bind(
+        tally.bind_validation(
             &basis,
             ScopeFacts {
                 row_count: 1200,
@@ -717,6 +719,7 @@ fn cluster_scoring_uses_the_published_student_reference_and_preserves_normal_evi
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         ids.push(tally.record_id().unwrap());
     }
@@ -760,11 +763,17 @@ fn the_scored_intervals_are_ordered_and_centred_near_the_population_effect() {
     for fit in fits {
         let ((lo, hi), _) = fit.expect("a weighted fit");
         assert!(lo.is_finite() && hi.is_finite() && lo < hi);
-        assert!(((lo + hi) / 2.0 - TRUTH).abs() < 0.4, "centre {}", (lo + hi) / 2.0);
+        // At these seeds every centre is within 0.08 of the population effect and every
+        // interval holds it. Ignoring the weights speaks for the over-sampled high-z units and
+        // lands near 1.2, outside this band.
+        let centre = f64::midpoint(lo, hi);
+        assert!((centre - TRUTH).abs() < 0.12, "centre {centre}");
+        assert!(lo < TRUTH && TRUTH < hi, "interval [{lo}, {hi}] misses the population effect");
     }
     let ((lo, hi), rows) = panel(40, 91_005).expect("a weighted panel fit");
     assert!(rows > 320 && rows % 2 == 0);
-    assert!(lo < hi && ((lo + hi) / 2.0 - TRUTH).abs() < 0.6);
+    assert!(lo < hi && (f64::midpoint(lo, hi) - TRUTH).abs() < 0.15);
+    assert!(lo < TRUTH && TRUTH < hi, "panel interval [{lo}, {hi}] misses the population effect");
 }
 
 #[test]
@@ -835,7 +844,7 @@ fn measure_balanced_hajek(test: &'static str, cluster: bool) {
         CoverageTally::for_record(RecordKey { test, dgp, interval: method }, REPORTED_LEVEL);
     let mut reference_df = Vec::new();
     for fit in map_replicates(n_sim(), |rep| {
-        let sample = sample(n, 91_000 + rep, Effect::Heterogeneous, cluster);
+        let sample = sample(n, grid_seed(91_000 + rep), Effect::Heterogeneous, cluster);
         let (data, estimand) = table(&sample)?;
         let mut estimator = PropensityWeighting::new()
             .with_bootstrap_replicates(0)
@@ -877,7 +886,7 @@ fn measure_balanced_hajek(test: &'static str, cluster: bool) {
         if let Some(df) = fit.reference_df {
             reference_df.push(df);
         }
-        tally.bind(
+        tally.bind_validation(
             &basis,
             ScopeFacts {
                 row_count: n as u64,
@@ -885,6 +894,7 @@ fn measure_balanced_hajek(test: &'static str, cluster: bool) {
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         tally.record(Some((fit.lower, fit.upper)), TRUTH);
     }
@@ -920,14 +930,14 @@ fn measure_population_aipw(
         REPORTED_LEVEL,
     );
     let mut diagnostics = Vec::new();
-    for result in
-        map_replicates(n_sim(), |rep| fit(&sample(n, 91_000 + rep, Effect::Heterogeneous, false)))
-    {
+    for result in map_replicates(n_sim(), |rep| {
+        fit(&sample(n, grid_seed(91_000 + rep), Effect::Heterogeneous, false))
+    }) {
         let Some(result) = result else {
             tally.skip();
             continue;
         };
-        tally.bind(
+        tally.bind_validation(
             &basis,
             ScopeFacts {
                 row_count: n as u64,
@@ -935,6 +945,7 @@ fn measure_population_aipw(
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         tally.record(Some((result.lower, result.upper)), TRUTH);
         diagnostics.push((
@@ -1253,7 +1264,7 @@ fn weighted_aipw_atc_interval() {
         REPORTED_LEVEL,
     );
     for result in map_replicates(n_sim(), |rep| {
-        let s = sample(n, 91_000 + rep, Effect::Constant, false);
+        let s = sample(n, grid_seed(91_000 + rep), Effect::Constant, false);
         let (data, estimand) = table(&s)?;
         let estimator = AipwAte::new()
             .with_bootstrap_replicates(0)
@@ -1276,7 +1287,7 @@ fn weighted_aipw_atc_interval() {
             tally.skip();
             continue;
         };
-        tally.bind(
+        tally.bind_validation(
             &basis,
             ScopeFacts {
                 row_count: n as u64,
@@ -1284,6 +1295,7 @@ fn weighted_aipw_atc_interval() {
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         tally.record(Some((result.lower, result.upper)), TRUTH);
     }

@@ -27,7 +27,8 @@ use antecedent_design::design_ranking_artifact::{
     SealInputs, consume, consume_wire, seal,
 };
 use antecedent_design::evsi::{
-    CostToUtilityMap, EvsiCandidate, EvsiReport, EvsiRequest, StudyCostSpec, evaluate_evsi,
+    CostToUtilityMap, EvsiCandidate, EvsiError, EvsiReport, EvsiRequest, StudyCostSpec,
+    evaluate_evsi,
 };
 use antecedent_design::ranking::RankingError;
 use antecedent_design::signal::{
@@ -242,11 +243,11 @@ fn candidate_mut<'a>(
 fn round_trip_retains_net_values_three_twentieths_and_one_fortieth() {
     let wire = seal_guess(frozen_candidates());
     assert_eq!(wire.calibration, DESIGN_RANKING_CALIBRATION);
-    assert_eq!(wire.calibration, "unmeasured");
+    assert_eq!(wire.calibration, "not_measured");
     let bytes = wire.to_bytes("ranking-1").unwrap();
     let consumed = consume(&bytes, &retained(&wire)).unwrap();
     assert_eq!(consumed.identity, wire.digest);
-    assert_eq!(consumed.calibration, "unmeasured");
+    assert_eq!(consumed.calibration, "not_measured");
     assert_eq!(consumed.provenance_chain, wire.provenance_chain().unwrap());
     let entries = &consumed.ranking.entries;
     assert_eq!(entries[0].semantic_id, "cand-1");
@@ -322,7 +323,10 @@ fn unsealed_mutation_corruption_and_unknown_version_refuse() {
     candidate_mut(&mut edited, "cand-1").evsi = 0.9;
     let error = consume_wire(&edited, &open()).unwrap_err();
     assert!(matches!(error, DesignRankingArtifactError::DigestMismatch), "{error:?}");
-    assert_eq!(refusal_detail(&error), "design_ranking.digest_mismatch");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::design_ranking::DIGEST_MISMATCH
+    );
 
     // A flipped byte is a container failure, not a refusal.
     let mut bytes = wire.to_bytes("r").unwrap();
@@ -333,12 +337,20 @@ fn unsealed_mutation_corruption_and_unknown_version_refuse() {
 
     // Truncation and an unknown major version also refuse.
     let good = wire.to_bytes("r").unwrap();
-    assert!(consume(&good[..good.len() / 2], &open()).is_err());
+    let truncated = consume(&good[..good.len() / 2], &open()).unwrap_err();
+    assert!(
+        matches!(truncated, DesignRankingArtifactError::Io(_))
+            && format!("{truncated:?}").contains("UnexpectedEof"),
+        "{truncated:?}"
+    );
     let mut future = wire.clone();
     future.version = 2;
     let error = consume(&future.to_bytes("r").unwrap(), &open()).unwrap_err();
     assert!(matches!(error, DesignRankingArtifactError::UnsupportedVersion(2)), "{error:?}");
-    assert_eq!(refusal_detail(&error), "design_ranking.unsupported_version");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::design_ranking::UNSUPPORTED_VERSION
+    );
 
     // A retained identity that differs refuses even for an honest artifact.
     let wrong = ConsumeExpectation { artifact_identity: Some("other".into()), ..open() };
@@ -346,33 +358,9 @@ fn unsealed_mutation_corruption_and_unknown_version_refuse() {
     assert!(matches!(error, DesignRankingArtifactError::ExpectedIdentityMismatch), "{error:?}");
 }
 
-#[test]
-fn altered_signal_or_update_is_refused_even_when_resealed() {
+/// An altered request or attested law is refused even when the artifact is resealed.
+fn altered_request_or_law_is_refused_when_resealed(wire: &DesignRankingArtifactWire) {
     type CandidateMutation = Box<dyn Fn(&mut EvsiCandidateWire)>;
-    let wire = seal_guess(frozen_candidates());
-
-    // Update mode relabelled to the other mode the law could claim.
-    let mut edited = wire.clone();
-    candidate_mut(&mut edited, "cand-1").update_mode = "native_update".into();
-    let error = consume_wire(&resealed(edited), &open()).unwrap_err();
-    assert!(
-        matches!(
-            &error,
-            DesignRankingArtifactError::SignalInconsistent { slot: "update_mode", .. }
-        ),
-        "{error:?}"
-    );
-    assert_eq!(refusal_detail(&error), "design_ranking.signal_inconsistent");
-
-    // An external law relabelled native trust.
-    let mut edited = wire.clone();
-    candidate_mut(&mut edited, "cand-1").trust = "native_licensed".into();
-    let error = consume_wire(&resealed(edited), &open()).unwrap_err();
-    assert!(
-        matches!(&error, DesignRankingArtifactError::SignalInconsistent { slot: "trust", .. }),
-        "{error:?}"
-    );
-
     // The exact request changed (RNG seed, sample size): its fingerprint no longer matches.
     let mutations: Vec<CandidateMutation> = vec![
         Box::new(|c| c.request.rng_seed = 99),
@@ -405,7 +393,42 @@ fn altered_signal_or_update_is_refused_even_when_resealed() {
         matches!(&error, DesignRankingArtifactError::ReplayMismatch { quantity: "evsi", .. }),
         "{error:?}"
     );
-    assert_eq!(refusal_detail(&error), "design_ranking.replay_mismatch");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::design_ranking::REPLAY_MISMATCH
+    );
+}
+
+#[test]
+fn altered_signal_or_update_is_refused_even_when_resealed() {
+    let wire = seal_guess(frozen_candidates());
+
+    // Update mode relabelled to the other mode the law could claim.
+    let mut edited = wire.clone();
+    candidate_mut(&mut edited, "cand-1").update_mode = "native_update".into();
+    let error = consume_wire(&resealed(edited), &open()).unwrap_err();
+    assert!(
+        matches!(
+            &error,
+            DesignRankingArtifactError::SignalInconsistent { slot: "update_mode", .. }
+        ),
+        "{error:?}"
+    );
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::design_ranking::SIGNAL_INCONSISTENT
+    );
+
+    // An external law relabelled native trust.
+    let mut edited = wire.clone();
+    candidate_mut(&mut edited, "cand-1").trust = "native_supported".into();
+    let error = consume_wire(&resealed(edited), &open()).unwrap_err();
+    assert!(
+        matches!(&error, DesignRankingArtifactError::SignalInconsistent { slot: "trust", .. }),
+        "{error:?}"
+    );
+
+    altered_request_or_law_is_refused_when_resealed(&wire);
 
     // A stored number edited and resealed.
     let mut edited = wire.clone();
@@ -458,7 +481,10 @@ fn altered_signal_or_update_is_refused_even_when_resealed() {
         matches!(&error, DesignRankingArtifactError::Ranking(RankingError::SignalMismatch(id)) if id == "cand-2"),
         "{error:?}"
     );
-    assert_eq!(refusal_detail(&error), "design_ranking.signal_mismatch");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::design_ranking::SIGNAL_MISMATCH
+    );
 }
 
 #[test]
@@ -471,7 +497,10 @@ fn altered_cost_mapping_amount_or_unit_is_refused_even_when_resealed() {
     assert!(matches!(error, DesignRankingArtifactError::CostUnitsMismatch(_)), "{error:?}");
     let refusal = error.refusal().unwrap();
     assert_eq!(refusal.code, "design_cost_units_mismatch");
-    assert_eq!(refusal.detail, "design_ranking.cost_units_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::design_ranking::COST_UNITS_MISMATCH
+    );
 
     let mut edited = wire.clone();
     edited.cost_map.as_mut().unwrap().utility_unit = "qaly".into();
@@ -498,7 +527,10 @@ fn altered_cost_mapping_amount_or_unit_is_refused_even_when_resealed() {
         matches!(&error, DesignRankingArtifactError::Ranking(RankingError::CostMappingMismatch)),
         "{error:?}"
     );
-    assert_eq!(refusal_detail(&error), "design_ranking.cost_units_mismatch");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::design_ranking::COST_UNITS_MISMATCH
+    );
     let none = ConsumeExpectation { cost_mapping: Some(None), ..open() };
     assert!(matches!(
         consume_wire(&wire, &none).unwrap_err(),
@@ -513,7 +545,10 @@ fn source_overlap_is_refused_before_ranking_and_when_resealed() {
     overlapping[0].reused_observation_ids = vec!["obs-prior".into()];
     let problem = guess_problem();
     let req = request(&GUESS, overlapping, Some(utility_map()));
-    assert!(evaluate_evsi(&problem, &guess_prior(), &req, &CancellationToken::new()).is_err());
+    assert!(matches!(
+        evaluate_evsi(&problem, &guess_prior(), &req, &CancellationToken::new()),
+        Err(EvsiError::SourceOverlap(ids)) if ids == ["obs-prior"]
+    ));
 
     // An artifact whose reuse list was edited to overlap and resealed refuses at consumption.
     let wire = seal_guess(frozen_candidates());
@@ -527,7 +562,10 @@ fn source_overlap_is_refused_before_ranking_and_when_resealed() {
         }
         other => panic!("{other:?}"),
     }
-    assert_eq!(refusal_detail(&error), "design_ranking.source_overlap");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::design_ranking::SOURCE_OVERLAP
+    );
 
     // A consumer's retained source digests must equal the stored ones.
     let other_sources =
@@ -555,7 +593,10 @@ fn stored_order_and_search_receipt_must_follow_from_the_values() {
     candidate_mut(&mut edited, "cand-2").rank = 0;
     let error = consume_wire(&resealed(edited), &open()).unwrap_err();
     assert!(matches!(&error, DesignRankingArtifactError::RankMismatch("rank")), "{error:?}");
-    assert_eq!(refusal_detail(&error), "design_ranking.rank_mismatch");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::design_ranking::RANK_MISMATCH
+    );
 
     let mut edited = wire.clone();
     edited.search.truncated = true;
@@ -578,10 +619,18 @@ fn bounds_are_checked_before_any_recomputation() {
     }
     let error = consume_wire(&huge, &open()).unwrap_err();
     assert!(matches!(&error, DesignRankingArtifactError::Bounds("candidates")), "{error:?}");
-    assert_eq!(refusal_detail(&error), "design_ranking.bounds_exceeded");
+    assert_eq!(
+        refusal_detail(&error),
+        antecedent_core::reason_details::design_ranking::BOUNDS_EXCEEDED
+    );
     // Oversized bytes refuse before decoding.
     let big = vec![0_u8; 9 * 1024 * 1024];
-    assert!(consume(&big, &open()).is_err());
+    let oversized = consume(&big, &open()).unwrap_err();
+    assert!(
+        matches!(oversized, DesignRankingArtifactError::Io(_))
+            && format!("{oversized:?}").contains("TooLarge"),
+        "{oversized:?}"
+    );
 }
 
 // -- native exact recomputation -------------------------------------------------------------
@@ -657,7 +706,7 @@ fn native_binomial_is_natively_replayed_and_equivalent_external_signals_are_not(
         consumed.candidates.iter().map(|c| (c.semantic_id.as_str(), c)).collect();
     assert_eq!(by_id["a_native"].replay, ReplayKind::NativeExactRecomputed);
     assert!(by_id["a_native"].natively_replayed());
-    assert_eq!(by_id["a_native"].trust, SignalTrustLabel::NativeLicensed);
+    assert_eq!(by_id["a_native"].trust, SignalTrustLabel::NativeSupported);
     assert_eq!(by_id["b_posterior"].replay, ReplayKind::AttestedLawArithmetic);
     assert_eq!(by_id["b_posterior"].update_mode, SignalUpdateMode::ExternalPosterior);
     assert_eq!(by_id["c_values"].replay, ReplayKind::AttestedValuesCombined);
@@ -705,7 +754,7 @@ fn attested_decision_values_stay_attested_when_altered_or_relabelled() {
     {
         let c = candidate_mut(&mut edited, "values");
         c.update_mode = "native_update".into();
-        c.trust = "native_licensed".into();
+        c.trust = "native_supported".into();
         c.provider = None;
         c.attestor = None;
     }
@@ -799,7 +848,7 @@ fn monte_carlo_value_is_bound_but_never_marked_replayed() {
     let consumed = consume(&wire.to_bytes("mc").unwrap(), &open()).unwrap();
     assert_eq!(consumed.candidates[0].replay, ReplayKind::MonteCarloNotReplayed);
     assert!(!consumed.candidates[0].natively_replayed());
-    assert_eq!(consumed.calibration, "unmeasured");
+    assert_eq!(consumed.calibration, "not_measured");
     // Its error cannot be erased: a Monte Carlo value claiming zero error is refused.
     let mut edited = wire.clone();
     candidate_mut(&mut edited, "mc").stderr = 0.0;
@@ -903,4 +952,145 @@ fn a_newer_body_version_is_refused_as_a_version_before_any_field_is_read() {
     .unwrap();
     let error = DesignRankingArtifactWire::from_bytes(&bytes).unwrap_err();
     assert!(matches!(error, DesignRankingArtifactError::UnsupportedVersion(99)), "{error:?}");
+}
+
+/// A provider whose second preparation would supply a different scientific law.
+/// Publication must use the first preparation even when the process memo is warm.
+#[derive(Default)]
+struct ChangingProvider {
+    calls: std::sync::atomic::AtomicUsize,
+    law: std::sync::Mutex<Option<std::sync::Weak<dyn antecedent_design::DecisionSignal<f64>>>>,
+}
+
+impl SignalProvider for ChangingProvider {
+    fn prepare(
+        &self,
+        request: &SignalRequest,
+    ) -> Result<antecedent_design::signal::PreparedSignal, antecedent_design::signal::SignalError>
+    {
+        let call = self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let prepared = NativeGaussianMeanSignal::new(if call == 0 { 12.0 } else { 99.0 })
+            .unwrap()
+            .prepare(request)?;
+        let antecedent_design::signal::PreparedLaw::Likelihood(law) = &prepared.law else {
+            unreachable!("native Gaussian provider returns a likelihood");
+        };
+        *self.law.lock().unwrap() = Some(Arc::downgrade(law));
+        Ok(prepared)
+    }
+}
+
+#[test]
+fn contextual_evsi_owns_the_exact_law_through_seal_without_process_retention() {
+    use antecedent_core::{CachePolicy, ExecutionContext};
+    use antecedent_design::design_ranking_artifact::seal_with_context;
+    use antecedent_design::evsi::evaluate_evsi_with_context;
+    use std::sync::atomic::Ordering;
+
+    let utility = AffineUtility::new(vec![0.0, 0.0], vec![0.0, 1.0]).unwrap();
+    let problem = DecisionProblem::new(vec![0_usize, 1], Arc::new(utility), vec![]);
+    let prior = DecisionPrior::Normal { mean: 0.5, variance: 1.0 };
+    let disabled = ExecutionContext::for_tests(999);
+    let mut bounded = disabled.clone();
+    bounded.cache_policy = CachePolicy::enabled(Some(1024));
+    let mut finite = disabled.clone().with_memory_limit(Some(1 << 20));
+    finite.cache_policy = CachePolicy::enabled(None);
+    for (label, ctx) in [("disabled", disabled), ("bounded", bounded), ("finite", finite)] {
+        let id = format!("context-law-{label}");
+        let native: Arc<dyn SignalProvider> =
+            Arc::new(NativeGaussianMeanSignal::new(12.0).unwrap());
+        let mut req =
+            request(&["stay", "treat"], vec![candidate(&id, 4, native, 0.0, "utility")], None);
+        // Populate the identical receipt key under the legacy process-owned policy.
+        let warm = evaluate_evsi(&problem, &prior, &req, &CancellationToken::new()).unwrap();
+        let sources = digests();
+        let baseline = seal(&SealInputs {
+            problem: &problem,
+            prior: &prior,
+            request: &req,
+            report: &warm,
+            source_digests: &sources,
+        })
+        .unwrap();
+        let provider = Arc::new(ChangingProvider::default());
+        req.candidates[0].provider = provider.clone();
+        let before = ctx.admission().available();
+        let evaluated = evaluate_evsi_with_context(&problem, &prior, &req, &ctx).unwrap();
+        assert_eq!(evaluated.report(), &warm, "{label}: receipts and values stay exact");
+        let sealed = seal_with_context(
+            &SealInputs {
+                problem: &problem,
+                prior: &prior,
+                request: &req,
+                report: evaluated.report(),
+                source_digests: &sources,
+            },
+            &evaluated,
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(sealed, baseline, "{label}: the warm memo cannot replace the evaluated law");
+        assert_eq!(provider.calls.load(Ordering::SeqCst), 1, "publication never re-prepares");
+        let weak = provider.law.lock().unwrap().clone().unwrap();
+        assert!(weak.upgrade().is_some(), "the evaluation owns its law until publication");
+        drop(evaluated);
+        assert!(weak.upgrade().is_none(), "{label}: no process entry may retain this run's law");
+        assert_eq!(ctx.admission().available(), before);
+    }
+}
+
+#[test]
+fn contextual_evsi_cancellation_refuses_before_provider_work_and_before_seal() {
+    use antecedent_core::ExecutionContext;
+    use antecedent_design::design_ranking_artifact::seal_with_context;
+    use antecedent_design::evsi::{EvsiError, evaluate_evsi_with_context};
+    use std::sync::atomic::Ordering;
+
+    let problem = guess_problem();
+    let prior = DecisionPrior::Normal { mean: 0.5, variance: 1.0 };
+    let provider = Arc::new(ChangingProvider::default());
+    let req = request(
+        &GUESS,
+        vec![candidate("context-cancel", 4, provider.clone(), 0.0, "utility")],
+        None,
+    );
+    let ctx = ExecutionContext::for_tests(5);
+    let evaluated = evaluate_evsi_with_context(&problem, &prior, &req, &ctx).unwrap();
+    let sources = digests();
+    let mut changed = evaluated.report().clone();
+    changed.rng_seed ^= 1;
+    let error = seal_with_context(
+        &SealInputs {
+            problem: &problem,
+            prior: &prior,
+            request: &req,
+            report: &changed,
+            source_digests: &sources,
+        },
+        &evaluated,
+        &ctx,
+    )
+    .unwrap_err();
+    assert!(matches!(error, DesignRankingArtifactError::InvalidWire("evaluation report differs")));
+    ctx.cancellation.cancel();
+    let error = evaluate_evsi_with_context(&problem, &prior, &req, &ctx).err().unwrap();
+    assert!(matches!(error, EvsiError::Cancelled));
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
+    let error = seal_with_context(
+        &SealInputs {
+            problem: &problem,
+            prior: &prior,
+            request: &req,
+            report: evaluated.report(),
+            source_digests: &sources,
+        },
+        &evaluated,
+        &ctx,
+    )
+    .unwrap_err();
+    assert!(matches!(
+        error,
+        DesignRankingArtifactError::Design(antecedent_design::DesignError::Cancelled)
+    ));
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
 }

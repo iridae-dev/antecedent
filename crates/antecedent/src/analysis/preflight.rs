@@ -22,11 +22,9 @@
 //! when a treatment, outcome or effect modifier is involved. The plan is a record; no
 //! estimator is re-run on the reduced design.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::borrow::Cow;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 
 use antecedent_core::{
     CausalQuery, ExecutionContext, Intervention, ResponseFunctional, VariableId, reason_code,
@@ -44,6 +42,17 @@ use super::execute::Study;
 use super::prepared::PreparedStudy;
 use crate::error::CausalError;
 
+mod drop;
+mod rank;
+
+use drop::{column_priority_order, rank_drop_refusal};
+pub(super) use drop::{kept_adjustment_ids, verify_span_preserved};
+
+use rank::{
+    dependent_columns, design_names, duplicate_groups, r_squared, scan_rank, tolerance,
+    unexplained_ratio,
+};
+
 const STAGE_PREFLIGHT: &str = "preflight";
 const STAGE_RANK_DROP: &str = "rank_drop";
 
@@ -56,9 +65,8 @@ pub const NEAR_COLLINEAR_RATIO: f64 = 1e-3;
 /// threshold, not a verdict.
 pub const NEAR_DETERMINISTIC_R2: f64 = 0.999;
 
-/// Largest table the fit-free checks will copy (rows times columns read). Larger inputs are
-/// refused as a resource limit rather than materialized.
-pub const MAX_PREFLIGHT_CELLS: usize = 100_000_000;
+/// Bytes the fit-free checks copy per table cell read (one `f64`).
+const PREFLIGHT_BYTES_PER_CELL: u64 = 8;
 
 /// Linear-relation coefficients smaller than this (in original column units) are not listed.
 const COEFFICIENT_FLOOR: f64 = 1e-8;
@@ -270,9 +278,19 @@ pub struct PreflightInput<'a> {
     pub protected: Vec<VariableId>,
     /// Arms or cells to count. One arm is a joint cell; two are `[control, active]`.
     pub arms: Vec<ArmSpec>,
+    /// Largest table copy, in bytes, the checks may materialize. `None` defers to the
+    /// execution context's memory limit; with neither set the table is not bounded.
+    pub memory_limit_bytes: Option<u64>,
 }
 
 impl<'a> PreflightInput<'a> {
+    /// The same input with an explicit byte limit on the table copy.
+    #[must_use]
+    pub const fn with_memory_limit_bytes(mut self, limit: Option<u64>) -> Self {
+        self.memory_limit_bytes = limit;
+        self
+    }
+
     /// A binary contrast between two coded levels of one treatment.
     #[must_use]
     pub fn binary_effect(
@@ -293,6 +311,7 @@ impl<'a> PreflightInput<'a> {
                 ArmSpec { role: "control", levels: vec![(treatment, control)] },
                 ArmSpec { role: "active", levels: vec![(treatment, active)] },
             ],
+            memory_limit_bytes: None,
         }
     }
 
@@ -317,6 +336,7 @@ impl<'a> PreflightInput<'a> {
             adjustment: adjustment.to_vec(),
             protected: Vec::new(),
             arms: vec![ArmSpec { role: "cell", levels }],
+            memory_limit_bytes: None,
         }
     }
 }
@@ -379,7 +399,7 @@ fn resolve_arm_indicator(
 }
 
 impl<'a> Frame<'a> {
-    fn new(input: &'a PreflightInput<'a>) -> Result<Self, CausalError> {
+    fn new(input: &'a PreflightInput<'a>, ctx: &ExecutionContext) -> Result<Self, CausalError> {
         if input.treatments.is_empty() || input.arms.is_empty() {
             return Err(crate::compile_reason!(
                 "invalid_argument",
@@ -390,11 +410,17 @@ impl<'a> Frame<'a> {
         let rows_total = data.row_count();
         let nt = input.treatments.len();
         let width = nt + 1 + input.adjustment.len();
-        if rows_total.saturating_mul(width) > MAX_PREFLIGHT_CELLS {
+        let bytes = (rows_total as u64)
+            .saturating_mul(width as u64)
+            .saturating_mul(PREFLIGHT_BYTES_PER_CELL);
+        if let Some(limit) = input.memory_limit_bytes.or_else(|| ctx.memory_limit_bytes())
+            && bytes > limit
+        {
             return Err(CausalError::Resource {
                 message: format!(
-                    "preflight would read {rows_total} rows x {width} columns, over the \
-                     {MAX_PREFLIGHT_CELLS}-cell limit; run it on a subset or fewer columns"
+                    "preflight would copy {rows_total} rows x {width} columns ({bytes} bytes), \
+                         over the {limit}-byte memory limit; raise the limit, or run it on a \
+                         subset or fewer columns"
                 ),
             });
         }
@@ -516,10 +542,11 @@ fn arm_refusal(subject: &str, arms: &[ArmCount], empty: &[String]) -> CausalErro
         ),
         ..RefusalFields::default()
     };
-    EstimationError::refused_with_fields(
+    EstimationError::refused_detail_with_fields(
         reason_code!("arm_not_populated"),
+        subject,
         format!(
-            "{subject}: an arm or cell has no complete-case rows ({})",
+            "an arm or cell has no complete-case rows ({})",
             arms.iter()
                 .map(|a| format!("{} has {}", a.label, a.rows))
                 .collect::<Vec<_>>()
@@ -528,196 +555,6 @@ fn arm_refusal(subject: &str, arms: &[ArmCount], empty: &[String]) -> CausalErro
         fields,
     )
     .into()
-}
-
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
-}
-
-fn l2(a: &[f64]) -> f64 {
-    dot(a, a).sqrt()
-}
-
-/// Result of scanning columns in priority order with twice-applied Gram-Schmidt.
-struct RankScan {
-    /// Orthonormal basis of the kept columns.
-    basis: Vec<Vec<f64>>,
-    /// Per scanned column.
-    columns: Vec<ScannedColumn>,
-}
-
-struct ScannedColumn {
-    kept: bool,
-    /// Residual norm over own norm.
-    ratio: f64,
-    /// `(scanned column index, coefficient in original units)` of the exact relation, for a
-    /// dependent column.
-    explained_by: Vec<(usize, f64)>,
-}
-
-/// Scan `cols` in order: a column is kept when its residual after projecting out the earlier
-/// kept columns exceeds `tol` times its own norm. Dependent columns record the relation that
-/// explains them, obtained by back-substitution in the triangular factor of the kept columns.
-fn scan_rank(cols: &[&[f64]], tol: f64, ctx: &ExecutionContext) -> Result<RankScan, CausalError> {
-    let mut basis: Vec<Vec<f64>> = Vec::new();
-    // Upper-triangular factor, one column per kept column: `r_kept[k][l] = <q_l, a_k>`.
-    let mut r_kept: Vec<Vec<f64>> = Vec::new();
-    let mut kept_index: Vec<usize> = Vec::new();
-    let mut norms = Vec::with_capacity(cols.len());
-    let mut scanned = Vec::with_capacity(cols.len());
-    for (j, col) in cols.iter().enumerate() {
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled { stage: STAGE_PREFLIGHT });
-        }
-        let norm = l2(col);
-        norms.push(norm);
-        if !(norm.is_finite() && norm > 0.0) {
-            scanned.push(ScannedColumn { kept: false, ratio: 0.0, explained_by: Vec::new() });
-            continue;
-        }
-        let mut w: Vec<f64> = col.iter().map(|v| v / norm).collect();
-        let mut coef = vec![0.0; basis.len()];
-        for _ in 0..2 {
-            for (k, q) in basis.iter().enumerate() {
-                let c = dot(q, &w);
-                for (wi, qi) in w.iter_mut().zip(q) {
-                    *wi -= c * qi;
-                }
-                coef[k] += c;
-            }
-        }
-        let ratio = l2(&w);
-        if ratio > tol {
-            basis.push(w.iter().map(|v| v / ratio).collect());
-            coef.push(ratio);
-            r_kept.push(coef);
-            kept_index.push(j);
-            scanned.push(ScannedColumn { kept: true, ratio, explained_by: Vec::new() });
-        } else {
-            // Solve R c = coef for the coefficients on the kept (unit-norm) columns.
-            let m = kept_index.len();
-            let mut c = vec![0.0; m];
-            for k in (0..m).rev() {
-                let tail: f64 = ((k + 1)..m).map(|i| r_kept[i][k] * c[i]).sum();
-                c[k] = (coef[k] - tail) / r_kept[k][k];
-            }
-            let explained_by = c
-                .iter()
-                .zip(&kept_index)
-                .filter_map(|(&ck, &i)| {
-                    let original = ck * norm / norms[i];
-                    (original.abs() > COEFFICIENT_FLOOR).then_some((i, original))
-                })
-                .collect();
-            scanned.push(ScannedColumn { kept: false, ratio, explained_by });
-        }
-    }
-    Ok(RankScan { basis, columns: scanned })
-}
-
-/// `1 - R²` of `values` regressed on the scanned basis (which spans the intercept first),
-/// as the square root: the unexplained share of the centered norm. `None` for a constant.
-fn unexplained_ratio(basis: &[Vec<f64>], values: &[f64]) -> Option<f64> {
-    let n = values.len() as f64;
-    let mean = values.iter().sum::<f64>() / n;
-    let centered: f64 = values.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>().sqrt();
-    if !(centered.is_finite() && centered > 0.0) {
-        return None;
-    }
-    let mut w = values.to_vec();
-    for _ in 0..2 {
-        for q in basis {
-            let c = dot(q, &w);
-            for (wi, qi) in w.iter_mut().zip(q) {
-                *wi -= c * qi;
-            }
-        }
-    }
-    Some(l2(&w) / centered)
-}
-
-/// Squared Pearson correlation; `None` when either side is constant.
-fn r_squared(a: &[f64], b: &[f64]) -> Option<f64> {
-    let n = a.len() as f64;
-    let ma = a.iter().sum::<f64>() / n;
-    let mb = b.iter().sum::<f64>() / n;
-    let (mut saa, mut sbb, mut sab) = (0.0, 0.0, 0.0);
-    for (x, y) in a.iter().zip(b) {
-        saa += (x - ma) * (x - ma);
-        sbb += (y - mb) * (y - mb);
-        sab += (x - ma) * (y - mb);
-    }
-    if saa > 0.0 && sbb > 0.0 { Some(sab * sab / (saa * sbb)) } else { None }
-}
-
-/// Normalized bit pattern of a value (`-0.0` equals `0.0`).
-fn bits(value: f64) -> u64 {
-    (value + 0.0).to_bits()
-}
-
-#[allow(clippy::needless_range_loop, reason = "index pairs walk several parallel arrays")]
-fn duplicate_groups(columns: &[Vec<f64>]) -> Vec<Vec<usize>> {
-    let hashes: Vec<u64> = columns
-        .iter()
-        .map(|col| {
-            let mut hasher = DefaultHasher::new();
-            for &v in col {
-                bits(v).hash(&mut hasher);
-            }
-            hasher.finish()
-        })
-        .collect();
-    let mut seen = vec![false; columns.len()];
-    let mut groups = Vec::new();
-    for j in 0..columns.len() {
-        if seen[j] {
-            continue;
-        }
-        let mut group = vec![j];
-        for k in (j + 1)..columns.len() {
-            if !seen[k]
-                && hashes[k] == hashes[j]
-                && columns[k].iter().zip(&columns[j]).all(|(a, b)| bits(*a) == bits(*b))
-            {
-                seen[k] = true;
-                group.push(k);
-            }
-        }
-        if group.len() > 1 {
-            groups.push(group);
-        }
-    }
-    groups
-}
-
-fn tolerance(rows: usize, design_columns: usize) -> f64 {
-    rows.max(design_columns) as f64 * f64::EPSILON
-}
-
-/// Names of the design columns for a scan: the intercept, then `adjustment` in scan order.
-fn design_names(adjustment: &[String]) -> Vec<String> {
-    let mut names = Vec::with_capacity(adjustment.len() + 1);
-    names.push("(intercept)".to_string());
-    names.extend(adjustment.iter().cloned());
-    names
-}
-
-fn dependent_columns(scan: &RankScan, names: &[String], skip: usize) -> Vec<DependentColumn> {
-    scan.columns
-        .iter()
-        .enumerate()
-        .skip(skip)
-        .filter(|(_, c)| !c.kept)
-        .map(|(j, c)| DependentColumn {
-            column: names[j].clone(),
-            residual_ratio: c.ratio,
-            explained_by: c
-                .explained_by
-                .iter()
-                .map(|&(i, coefficient)| ColumnWeight { column: names[i].clone(), coefficient })
-                .collect(),
-        })
-        .collect()
 }
 
 /// One review finding per group of exactly duplicated columns, worded by whether it touches the query or the adjustment set.
@@ -828,12 +665,12 @@ fn rank_findings(
 ///
 /// # Errors
 ///
-/// An unknown or non-numeric column, a table exceeding the preflight cell limit, or cancellation.
+/// An unknown or non-numeric column, a table copy over the memory limit, or cancellation.
 pub fn preflight_design(
     input: &PreflightInput<'_>,
     ctx: &ExecutionContext,
 ) -> Result<PreflightReport, CausalError> {
-    let frame = Frame::new(input)?;
+    let frame = Frame::new(input, ctx)?;
     let mut findings = Vec::new();
     let nt = frame.nt();
 
@@ -856,12 +693,12 @@ pub fn preflight_design(
 
     for (j, col) in frame.adjustment_columns().iter().enumerate() {
         for (what, code, values) in query_columns(&frame) {
-            if let Some(r2) = r_squared(col, values) {
-                if r2 >= NEAR_DETERMINISTIC_R2 {
-                    let mut flag = review_flag(code, what, &adjustment_names[j], r2);
-                    flag.columns = vec![adjustment_names[j].clone(), what.to_string()];
-                    findings.push(flag);
-                }
+            if let Some(r2) = r_squared(col, values)
+                && r2 >= NEAR_DETERMINISTIC_R2
+            {
+                let mut flag = review_flag(code, what, &adjustment_names[j], r2);
+                flag.columns = vec![adjustment_names[j].clone(), what.to_string()];
+                findings.push(flag);
             }
         }
         if let Some(kind) = separates_arms(col, &frame.indicator) {
@@ -1085,10 +922,10 @@ impl NuisanceFitDiagnostics {
     }
 }
 
+/// Kish effective sample size, rescaled by the largest weight so large finite weights do not
+/// overflow; zero mass is `0.0` and a non-finite weight is `NaN` (an explicit unavailable value).
 fn kish_ess(weights: &[f64]) -> f64 {
-    let sum: f64 = weights.iter().sum();
-    let sum_sq: f64 = weights.iter().map(|w| w * w).sum();
-    if sum_sq > 0.0 { sum * sum / sum_sq } else { 0.0 }
+    antecedent_kernels::kish_ess(weights)
 }
 
 #[allow(
@@ -1110,12 +947,12 @@ fn nearest_rank(sorted: &[f64], probability: f64) -> f64 {
 ///
 /// # Errors
 ///
-/// An unknown or non-numeric column, a table exceeding the preflight cell limit, or cancellation.
+/// An unknown or non-numeric column, a table copy over the memory limit, or cancellation.
 pub fn fit_diagnostics_design(
     input: &PreflightInput<'_>,
     ctx: &ExecutionContext,
 ) -> Result<NuisanceFitDiagnostics, CausalError> {
-    let frame = Frame::new(input)?;
+    let frame = Frame::new(input, ctx)?;
     if ctx.cancellation.is_cancelled() {
         return Err(CausalError::Cancelled { stage: STAGE_PREFLIGHT });
     }
@@ -1272,80 +1109,11 @@ pub struct RankDropPlan {
     pub design_identity: String,
 }
 
-fn rank_drop_refusal(
-    subject: &str,
-    reason: &str,
-    implicated: Vec<String>,
-    remedy: &str,
-) -> CausalError {
-    let fields = RefusalFields {
-        stage: Some(STAGE_RANK_DROP.to_string()),
-        subject: Some(subject.to_string()),
-        reason: Some(reason.to_string()),
-        implicated_columns: implicated,
-        remedy: Some(remedy.to_string()),
-        ..RefusalFields::default()
-    };
-    EstimationError::refused_with_fields(
-        reason_code!("rank_drop_not_licensed"),
-        format!("{subject}: {reason}; nothing was dropped"),
-        fields,
-    )
-    .into()
-}
-
-/// Resolves the declared column priority to adjustment-column positions, refusing a priority that does not cover the set.
-fn column_priority_order(
-    input: &PreflightInput<'_>,
-    policy: &RankDropPolicy,
-    frame: &Frame<'_>,
-) -> Result<Vec<usize>, CausalError> {
-    let p = input.adjustment.len();
-    Ok(match &policy.priority {
-        ColumnPriority::AdjustmentOrder => (0..p).collect(),
-        ColumnPriority::Declared(ids) => {
-            let mut used = vec![false; p];
-            let mut order = Vec::with_capacity(p);
-            for id in ids {
-                let slot = (0..p).find(|&k| !used[k] && input.adjustment[k] == *id);
-                match slot {
-                    Some(k) => {
-                        used[k] = true;
-                        order.push(k);
-                    }
-                    None => {
-                        return Err(rank_drop_refusal(
-                            &frame.subject,
-                            "the declared column priority names a column that is not in the \
-                             adjustment set (or names it twice)",
-                            Vec::new(),
-                            "declare every adjustment column exactly once, highest priority first",
-                        ));
-                    }
-                }
-            }
-            if order.len() != p {
-                let missing: Vec<String> = (0..p)
-                    .filter(|&k| !used[k])
-                    .map(|k| frame.adjustment_names()[k].clone())
-                    .collect();
-                return Err(rank_drop_refusal(
-                    &frame.subject,
-                    "the declared column priority does not cover the adjustment set",
-                    missing,
-                    "declare every adjustment column exactly once, highest priority first",
-                ));
-            }
-            order
-        }
-    })
-}
-
 /// Plan an opt-in rank-deficiency drop under a declared column priority.
 ///
 /// # Errors
 ///
-/// `rank_drop_not_licensed` when the priority does not cover the adjustment set, when a
+/// `rank_drop_not_supported` when the priority does not cover the adjustment set, when a
 /// dependent column is a treatment, outcome or effect modifier, or when an adjustment column
 /// is an exact copy of a treatment or the outcome; `arm_not_populated` when an arm is empty;
 /// or the preflight errors (unknown column, size limit, cancellation).
@@ -1354,7 +1122,7 @@ pub fn plan_rank_drop(
     policy: &RankDropPolicy,
     ctx: &ExecutionContext,
 ) -> Result<RankDropPlan, CausalError> {
-    let frame = Frame::new(input)?;
+    let frame = Frame::new(input, ctx)?;
     let nt = frame.nt();
     let p = input.adjustment.len();
     let order = column_priority_order(input, policy, &frame)?;
@@ -1441,10 +1209,6 @@ pub fn plan_rank_drop(
     })
 }
 
-/// A dropped column's residual after projecting onto the retained span must stay within
-/// this multiple of the scan tolerance (rounding slack for the second projection).
-const SPAN_SLACK: f64 = 10.0;
-
 /// Numerical evidence that a rank drop kept the column space of the `[1 | Z]` design.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct SpanCheck {
@@ -1459,106 +1223,6 @@ pub struct SpanCheck {
     pub tolerance: f64,
 }
 
-/// The adjustment columns a plan keeps, in the input's order.
-pub(super) fn kept_adjustment_ids(
-    input: &PreflightInput<'_>,
-    plan: &RankDropPlan,
-) -> Result<Vec<VariableId>, CausalError> {
-    let schema = input.data.schema();
-    let mut kept = Vec::with_capacity(plan.kept_adjustment.len());
-    for &id in &input.adjustment {
-        let meta = schema.get(id)?;
-        if plan.kept_adjustment.iter().any(|name| name.as_str() == &*meta.name) {
-            kept.push(id);
-        }
-    }
-    Ok(kept)
-}
-
-/// Residual norm over own norm of `values` after projecting out an orthonormal `basis`
-/// (twice, for orthogonality). A zero column lies in every span.
-fn residual_over_norm(basis: &[Vec<f64>], values: &[f64]) -> f64 {
-    let norm = l2(values);
-    if !(norm.is_finite() && norm > 0.0) {
-        return 0.0;
-    }
-    let mut w = values.to_vec();
-    for _ in 0..2 {
-        for q in basis {
-            let c = dot(q, &w);
-            for (wi, qi) in w.iter_mut().zip(q) {
-                *wi -= c * qi;
-            }
-        }
-    }
-    l2(&w) / norm
-}
-
-/// Verify, independently of the plan's scan, that dropping `plan.dropped` left the column
-/// space unchanged: the retained design has full numerical rank equal to the original's, and
-/// every dropped column lies in the retained span within the scan tolerance.
-///
-/// # Errors
-///
-/// `rank_drop_not_licensed` when the retained design is still rank deficient, its rank
-/// differs from the original, or a dropped column is not in the retained span; the
-/// preflight errors (unknown column, size limit, cancellation).
-pub(super) fn verify_span_preserved(
-    input: &PreflightInput<'_>,
-    plan: &RankDropPlan,
-    kept: &[VariableId],
-    ctx: &ExecutionContext,
-) -> Result<SpanCheck, CausalError> {
-    let frame = Frame::new(input)?;
-    let columns = frame.adjustment_columns();
-    let ones = vec![1.0; frame.rows_complete];
-    let keep_mask: Vec<bool> = input.adjustment.iter().map(|id| kept.contains(id)).collect();
-    let mut design: Vec<&[f64]> = vec![&ones];
-    design.extend(
-        columns.iter().zip(&keep_mask).filter(|(_, keep)| **keep).map(|(c, _)| c.as_slice()),
-    );
-    let tol = tolerance(frame.rows_complete, input.adjustment.len() + 1);
-    let scan = scan_rank(&design, tol, ctx)?;
-    let retained_rank = scan.basis.len();
-    if retained_rank != design.len() || retained_rank != plan.numerical_rank {
-        return Err(rank_drop_refusal(
-            &frame.subject,
-            "rank_drop_estimate.span_not_preserved: the retained design does not span the \
-             original column space (its numerical rank differs from the original's or it is \
-             still rank deficient)",
-            Vec::new(),
-            "the drop would change the fitted projection; keep the original adjustment set",
-        ));
-    }
-    let mut worst = 0.0_f64;
-    let mut worst_column = String::new();
-    for ((column, keep), name) in columns.iter().zip(&keep_mask).zip(frame.adjustment_names()) {
-        if *keep {
-            continue;
-        }
-        let ratio = residual_over_norm(&scan.basis, column);
-        if ratio > worst {
-            worst = ratio;
-            worst_column.clone_from(name);
-        }
-    }
-    if worst > SPAN_SLACK * tol {
-        return Err(rank_drop_refusal(
-            &frame.subject,
-            "rank_drop_estimate.span_not_preserved: a dropped column is not an exact linear \
-             combination of the retained columns",
-            vec![worst_column],
-            "the drop would change the fitted projection; keep the original adjustment set",
-        ));
-    }
-    Ok(SpanCheck {
-        original_rank: plan.numerical_rank,
-        retained_rank,
-        max_dropped_residual_ratio: worst,
-        tolerance: SPAN_SLACK * tol,
-    })
-}
-
 fn outside_cell() -> CausalError {
     crate::unsupported_reason!(
         "route_not_supported",
@@ -1569,7 +1233,7 @@ fn outside_cell() -> CausalError {
 
 /// The certified adjustment set a prepared plan retains, when it retains one.
 pub(super) fn adjustment_of(study: &Study) -> Option<Vec<VariableId>> {
-    if let Some(cache) = &study.identification_cache {
+    if let Some(cache) = study.static_cache() {
         return Some(cache.estimand.adjustment_set.to_vec());
     }
     study.shared_batch_design.as_ref()?.covariate.as_ref().map(|c| c.adjustment_set.to_vec())
@@ -1607,10 +1271,10 @@ pub(super) fn name_stats_refusal(
         return error;
     };
     fields.subject = Some(report.subject.clone());
-    if fields.numerical_rank.is_some() {
-        if let Some(rank) = &report.rank {
-            fields.implicated_columns = rank.dependent.iter().map(|d| d.column.clone()).collect();
-        }
+    if fields.numerical_rank.is_some()
+        && let Some(rank) = &report.rank
+    {
+        fields.implicated_columns = rank.dependent.iter().map(|d| d.column.clone()).collect();
     }
     error.diagnosed(fields)
 }
@@ -1644,10 +1308,11 @@ pub(super) fn with_plan_subject(study: &Study, error: CausalError) -> CausalErro
     error.diagnosed(fields)
 }
 
-/// [`name_stats_refusal`] for a one-shot run, which has no frozen plan: prepare the study (this
-/// builds the identification the dependent-column scan needs; it runs only after a refusal)
-/// and name the refusal against that plan, falling back to the query's label alone when
-/// preparation cannot supply one.
+/// [`name_stats_refusal`] for a one-shot run, which has no frozen plan: identify the study
+/// without fitting its statistical operations (the identification is all the dependent-column
+/// scan needs; it runs only after a refusal, so it must not repeat the cross-fit that may
+/// have just failed) and name the refusal against that plan, falling back to the query's label
+/// alone when identification cannot supply one.
 pub(super) fn name_run_refusal(
     study: &Study,
     error: CausalError,
@@ -1656,14 +1321,14 @@ pub(super) fn name_run_refusal(
     if !matches!(&error, CausalError::Estimate(EstimationError::Stats(_))) {
         return error;
     }
-    match study.prepare(ctx) {
+    match study.prepare_deferred(ctx) {
         Ok(prepared) => name_stats_refusal(prepared.study(), None, error, ctx),
         Err(_) => with_plan_subject(study, error),
     }
 }
 
 /// The preflight input a prepared plan implies.
-fn input_of(study: &Study) -> Result<PreflightInput<'_>, CausalError> {
+pub(super) fn input_of(study: &Study) -> Result<PreflightInput<'_>, CausalError> {
     let DataInput::Tabular(data) = &study.data else {
         return Err(outside_cell());
     };
@@ -1916,12 +1581,45 @@ mod tests {
         for recorded_rank in [3, 2] {
             let error =
                 verify_span_preserved(&input, &plan(recorded_rank), &[ia], &ctx).unwrap_err();
-            assert_eq!(error.reason_code(), Some("rank_drop_not_licensed"), "{error}");
-            assert!(error.to_string().contains("rank_drop_estimate.span_not_preserved"), "{error}");
+            assert_eq!(error.reason_code(), Some("rank_drop_not_supported"), "{error}");
+            assert!(
+                error.to_string().contains(
+                    antecedent_core::reason_details::rank_drop_estimate::SPAN_NOT_PRESERVED
+                ),
+                "{error}"
+            );
         }
         // Keeping both columns spans the original space exactly.
         let kept_all = verify_span_preserved(&input, &plan(3), &[ia, ib], &ctx).unwrap();
         assert_eq!((kept_all.original_rank, kept_all.retained_rank), (3, 3));
         assert!(kept_all.max_dropped_residual_ratio <= 0.0);
+    }
+}
+
+#[cfg(test)]
+mod extreme_rank_normalization_tests {
+    use super::{scan_rank, tolerance};
+    use antecedent_core::ExecutionContext;
+
+    #[test]
+    fn finite_huge_and_tiny_columns_keep_their_rank() {
+        let ones = [1.0; 4];
+        let huge = [1e308, -1e308, 1e308, -1e308];
+        let tiny = [1e-300, 1e-300, -1e-300, -1e-300];
+        let cols: Vec<&[f64]> = vec![&ones, &huge, &tiny];
+        let scan = scan_rank(&cols, tolerance(4, 3), &ExecutionContext::for_tests(1)).unwrap();
+        assert_eq!(scan.columns.iter().filter(|column| column.kept).count(), 3);
+        assert!(scan.columns.iter().all(|column| column.ratio.is_finite()));
+    }
+
+    #[test]
+    fn scaled_duplicates_remain_dependent() {
+        let ones = [1.0; 4];
+        let small = [-5e-156, 5e-156, -5e-156, 5e-156];
+        let large = [-5e153, 5e153, -5e153, 5e153];
+        let cols: Vec<&[f64]> = vec![&ones, &small, &large];
+        let scan = scan_rank(&cols, tolerance(4, 3), &ExecutionContext::for_tests(1)).unwrap();
+        assert_eq!(scan.columns.iter().filter(|column| column.kept).count(), 2);
+        assert!(scan.columns[2].explained_by.iter().any(|(i, c)| *i == 1 && c.is_infinite()));
     }
 }

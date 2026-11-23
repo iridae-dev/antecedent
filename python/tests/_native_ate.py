@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from antecedent._native import AteAnalysisResult, PreparedAnalysis
+from antecedent.outcomes import require_success
 
 
 def native_ate(
@@ -43,4 +44,4 @@ def native_ate(
         options=options or None,
         **prepare_kwargs,
     )
-    return prepared.estimate(names, columns, seed=seed, threads=threads)
+    return require_success(prepared.estimate(names, columns, seed=seed, threads=threads))

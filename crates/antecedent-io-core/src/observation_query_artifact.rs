@@ -28,475 +28,91 @@
 //!
 //! No interval and no calibration is carried.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+//! # General queries
+//!
+//! Queries on continuous variables (conditioning a linear-Gaussian composition
+//! on observed real values, with or without an intervention), observation after
+//! an intervention on a finite model, and parameter uncertainty by retained-data
+//! redraw are carried in format version 2 under the feature marker
+//! `observation_query_general_v1`. A version-1 artifact keeps its bytes and its
+//! identity; a version-2 artifact is refused by a version-1 reader before its
+//! payload is interpreted. Real values are IEEE bit patterns, never strings.
+//! Redrawn parameters are returned as aligned draws (one row is one joint
+//! realization of every queried quantity) with the alignment identity of the
+//! repo's distribution artifact, and carry no coverage statement.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+mod error;
+mod wire;
+
+pub use error::{ObservationQueryArtifactError, query_error_refusals};
+use error::{composition_error, query_error, refused, registry_refusal};
+
+pub use wire::{
+    DependentMeasurementWire, MeasuredSlotWire, ObservationQueryWire, ObservationResultWire,
+    RedrawPriorWire, RedrawTargetWire, RetainedMechanismWire,
+};
+use wire::{level_bits, real_refs};
 
 use antecedent_contract::{
-    ExternalRefusal, InferenceBasis, MeasuredIndicator, MechanismOriginKind, ObservationContext,
-    ObservedSlot, SlotProvenance, SlotValue, level_unreachable_refusal, measured_likelihood,
-    zero_probability_evidence_refusal,
+    InferenceBasis, MeasuredIndicator, MechanismOriginKind, ObservationContext, ObservedSlot,
+    QuantityRole, ScientificQuantity, SlotProvenance, SlotValue, measured_likelihood,
+    mixed_conditioning_refusal,
 };
 use antecedent_core::measurement_model::{MeasurementKind, RepresentationVersion};
 use antecedent_core::{ExecutionContext, IdentityDomain};
 use antecedent_model::compose::{
-    ComposedFinite, ComposedModelSpec, CompositionError, FiniteLaw, MAX_COMPOSED_MECHANISMS,
+    ComposedFinite, ComposedLinearGaussian, ComposedModelSpec, FiniteLaw, MAX_COMPOSED_MECHANISMS,
     MechanismOrigin,
 };
 use antecedent_model::observation_query::{
     BetaBernoulli, Direction, FiniteBayesModel, MAX_BAYES_HYPOTHESES, MAX_BAYES_OBSERVATION_LEVELS,
-    MAX_BAYES_SEQUENCE, ObservationQueryError, UnreachableBound, condition, condition_on_measured,
-    conditioning_and_intervention, intervene, observations_required_binary_signal,
+    MAX_BAYES_UPDATE_WORK, condition, condition_gaussian, condition_on_measured,
+    conditioning_and_intervention, intervene, intervened_law, observations_required_binary_signal,
     observations_required_conjugate, required_bayes_factor, threshold_crossing_observations,
+};
+use antecedent_model::observation_uncertainty::{
+    GaussianSufficient, MAX_REDRAW_QUANTITIES, MAX_REDRAWS, MAX_RETAINED_REGRESSORS,
+    ParameterDraws, RetainedMechanism, TableCountRow, TableCounts, redraw_conditional,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::IoError;
-use crate::measurement_model_wire::{MeasurementModelWire, model_from_wire};
-use crate::mechanism_composition_artifact::{
-    MECHANISM_COMPOSITION_MAX_INTERVENTIONS, MechanismCompositionPremisesWire,
-    refusals_for_findings,
+use crate::distribution_artifact::{
+    DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
+    DistributionProvenance, DistributionTrust, DrawAlignment,
 };
+use crate::measurement_model_wire::model_from_wire;
+use crate::mechanism_composition_artifact::MechanismCompositionPremisesWire;
+use crate::quantity_wire::DistributionMeaningWire;
 
 /// The artifact format this reader writes and accepts.
 pub const OBSERVATION_QUERY_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker (and artifact kind) of the accepted format.
 pub const OBSERVATION_QUERY_ARTIFACT_FEATURE: &str = "observation_query_v1";
-/// Most assignments (observed values, interventions, background values) one
-/// query may carry.
-pub const OBSERVATION_QUERY_MAX_ASSIGNMENTS: usize = MECHANISM_COMPOSITION_MAX_INTERVENTIONS;
-
-/// Why an observation-query artifact was refused.
-#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum ObservationQueryArtifactError {
-    /// The bytes do not decode as this format.
-    #[error("observation-query artifact does not decode: {0}")]
-    Decode(String),
-    /// The feature marker is not this format's.
-    #[error("unsupported semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// Another format version, refused before the payload is interpreted.
-    #[error("unsupported artifact version {version}")]
-    UnsupportedVersion {
-        /// The stored version.
-        version: u32,
-    },
-    /// A stored collection exceeds the consumer's bound.
-    #[error("consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The identity does not match the stored premises, query and reading, or
-    /// the caller's expected identity.
-    #[error("identity mismatch")]
-    IdentityMismatch,
-    /// The artifact could not be encoded.
-    #[error("observation-query artifact does not encode: {0}")]
-    Encode(String),
-    /// A stored field is not a well formed declaration.
-    #[error("malformed premises: {0}")]
-    Malformed(String),
-    /// The stored mechanisms do not establish a coherent joint law.
-    #[error("mechanisms do not compose: {} refusal(s)", .refusals.len())]
-    Incoherent {
-        /// Every defect, as structured refusals.
-        refusals: Vec<ExternalRefusal>,
-    },
-    /// The request is refused: each refusal has a registered code, a
-    /// namespaced `observation_query.*` detail and a remedy.
-    #[error("observation query refused: {} refusal(s)", .refusals.len())]
-    Refused {
-        /// The refusals (never empty).
-        refusals: Vec<ExternalRefusal>,
-    },
-    /// The replayed result differs from the stored one.
-    #[error("result does not replay")]
-    ResultMismatch,
-    /// Cancellation was observed at a work boundary.
-    #[error("observation query cancelled")]
-    Cancelled,
-    /// The replay itself failed.
-    #[error("replay failed: {0}")]
-    Replay(String),
-}
-
-impl From<IoError> for ObservationQueryArtifactError {
-    fn from(error: IoError) -> Self {
-        Self::Decode(error.to_string())
-    }
-}
-
-fn refused(refusal: ExternalRefusal) -> ObservationQueryArtifactError {
-    ObservationQueryArtifactError::Refused { refusals: vec![refusal] }
-}
-
-fn registry_refusal(
-    code: &'static str,
-    detail: &str,
-    offending: impl Into<String>,
-    remedy: &'static str,
-) -> ExternalRefusal {
-    ExternalRefusal::new(code, antecedent_contract::OBSERVATION_QUERY_STAGE, detail)
-        .with_offending(offending)
-        .with_remedy(remedy)
-}
-
-/// The structured refusal for a numerical-layer error.
-///
-/// [`ObservationQueryError::Cancelled`] is not a refusal of the request and
-/// has none; callers handle it separately.
-#[must_use]
-pub fn query_error_refusals(error: &ObservationQueryError) -> Vec<ExternalRefusal> {
-    let invalid = antecedent_core::reason_code!("invalid_argument");
-    let one = |r: ExternalRefusal| vec![r];
-    match error {
-        ObservationQueryError::UnknownVariable(name) => one(registry_refusal(
-            antecedent_core::reason_code!("unknown_variable"),
-            "observation_query.unknown_variable",
-            name.clone(),
-            "name a variable of the composed model",
-        )),
-        ObservationQueryError::UnknownLevel { variable, level } => one(registry_refusal(
-            invalid,
-            "observation_query.unknown_level",
-            format!("{variable}={level}"),
-            "name a declared level of the variable",
-        )),
-        ObservationQueryError::RepeatedVariable(name) => one(registry_refusal(
-            invalid,
-            "observation_query.repeated_slot",
-            name.clone(),
-            "assign each variable at most once",
-        )),
-        ObservationQueryError::OutcomeObserved(name) => one(registry_refusal(
-            invalid,
-            "observation_query.outcome_assigned",
-            name.clone(),
-            "ask about an outcome that is not itself conditioned on",
-        )),
-        ObservationQueryError::ConstructObserved(name) => one(registry_refusal(
-            invalid,
-            "observation_query.construct_observed_directly",
-            name.clone(),
-            "condition on the construct directly or on its measured indicator, not both",
-        )),
-        ObservationQueryError::ZeroProbabilityEvidence => one(zero_probability_evidence_refusal()),
-        ObservationQueryError::Invalid(what) => one(registry_refusal(
-            invalid,
-            "observation_query.invalid_declaration",
-            (*what).to_owned(),
-            "supply a well formed declaration: probabilities in range, distributions that sum to one, named levels",
-        )),
-        ObservationQueryError::LevelUnreachable { level, extremum, direction, bound } => {
-            let bound = match bound {
-                UnreachableBound::SignalDoesNotMove => "signal_does_not_move",
-                UnreachableBound::ObservationBudget { .. } => "observation_budget",
-                UnreachableBound::NoObservationCrosses => "no_observation_crosses",
-                _ => "unreachable",
-            };
-            one(level_unreachable_refusal(*level, *extremum, direction.as_str(), bound))
-        }
-        ObservationQueryError::Composition(CompositionError::Incoherent { findings }) => {
-            refusals_for_findings(findings)
-        }
-        ObservationQueryError::Composition(other) => one(registry_refusal(
-            antecedent_core::reason_code!("route_not_supported"),
-            "observation_query.request_unsupported",
-            other.to_string(),
-            "state the query within the bounded finite family",
-        )),
-        _ => one(registry_refusal(
-            antecedent_core::reason_code!("route_not_supported"),
-            "observation_query.request_unsupported",
-            error.to_string(),
-            "state the query within the bounded family",
-        )),
-    }
-}
-
-fn query_error(error: ObservationQueryError) -> ObservationQueryArtifactError {
-    match error {
-        ObservationQueryError::Cancelled => ObservationQueryArtifactError::Cancelled,
-        ObservationQueryError::Composition(CompositionError::Incoherent { findings }) => {
-            ObservationQueryArtifactError::Incoherent { refusals: refusals_for_findings(&findings) }
-        }
-        other => ObservationQueryArtifactError::Refused { refusals: query_error_refusals(&other) },
-    }
-}
-
-fn composition_error(error: CompositionError) -> ObservationQueryArtifactError {
-    match error {
-        CompositionError::Incoherent { findings } => {
-            ObservationQueryArtifactError::Incoherent { refusals: refusals_for_findings(&findings) }
-        }
-        CompositionError::Cancelled => ObservationQueryArtifactError::Cancelled,
-        other => ObservationQueryArtifactError::Replay(other.to_string()),
-    }
-}
-
-// ----------------------------------------------------------------- the wire
-
-/// A recorded value of an indicator, with the measurement model that relates
-/// the indicator to the construct it is offered for.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct MeasuredSlotWire {
-    /// The model variable that is the construct.
-    pub construct: String,
-    /// Stable identity of the recorded column.
-    pub indicator_id: String,
-    /// Kind of the recorded column (a `MeasurementKind` name).
-    pub indicator_kind: String,
-    /// The recorded level, in the construct's level coding.
-    pub recorded_level: String,
-    /// For a binary indicator, the positive level of the construct.
-    pub positive_level: Option<String>,
-    /// Coordinate system of the recorded column.
-    pub representation_system: String,
-    /// Version of that coordinate system.
-    pub representation_version: u32,
-    /// The measurement model.
-    pub model: MeasurementModelWire,
-}
-
-/// What is asked.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-#[allow(
-    clippy::large_enum_variant,
-    reason = "wire shape: boxing would change the serialized form and the public variant shape"
-)]
-pub enum ObservationQueryWire {
-    /// `P(outcome | observed values)` on a composed finite model, optionally
-    /// with one measured signal inverted through its measurement model.
-    ConditionalOutcome {
-        /// Outcome variable.
-        outcome: String,
-        /// `(variable, level)` recorded without error.
-        observed: Vec<(String, String)>,
-        /// One recorded indicator value, applied through its model.
-        measured: Option<MeasuredSlotWire>,
-    },
-    /// `P(outcome | do(interventions))` on a composed finite model.
-    InterventionalOutcome {
-        /// Outcome variable.
-        outcome: String,
-        /// `(variable, level)` set by intervention.
-        interventions: Vec<(String, String)>,
-    },
-    /// Both laws of one assignment from one model, reported side by side.
-    ConditioningVersusIntervention {
-        /// Outcome variable.
-        outcome: String,
-        /// `(variable, level)`, read once as observed and once as set.
-        assignment: Vec<(String, String)>,
-    },
-    /// Which observed levels of a signal move an outcome probability across a
-    /// threshold.
-    ThresholdCrossing {
-        /// Outcome variable.
-        outcome: String,
-        /// Outcome level whose probability is tracked.
-        outcome_level: String,
-        /// The signal variable.
-        signal: String,
-        /// Recorded values held fixed.
-        background: Vec<(String, String)>,
-        /// Threshold, as a bit pattern.
-        threshold_bits: u64,
-        /// `raise` or `lower`.
-        direction: String,
-    },
-    /// Posterior of a declared finite hypothesis space after observations.
-    FinitePosterior {
-        /// Hypothesis names.
-        hypotheses: Vec<String>,
-        /// Prior probabilities, as bit patterns.
-        prior_bits: Vec<u64>,
-        /// Observation level names.
-        observation_levels: Vec<String>,
-        /// Row-major `[hypothesis][observation]` likelihood, as bit patterns.
-        likelihood_bits: Vec<u64>,
-        /// The observations (exchangeable).
-        observations: Vec<String>,
-    },
-    /// Posterior of a declared Beta-Bernoulli model.
-    ConjugatePosterior {
-        /// Prior first shape, as bits.
-        alpha_bits: u64,
-        /// Prior second shape, as bits.
-        beta_bits: u64,
-        /// Successes observed.
-        successes: u64,
-        /// Failures observed.
-        failures: u64,
-    },
-    /// The Bayes factor that moves a probability to a level.
-    RequiredBayesFactor {
-        /// Starting probability, as bits.
-        prior_bits: u64,
-        /// Target level, as bits.
-        level_bits: u64,
-        /// `raise` or `lower`.
-        direction: String,
-    },
-    /// Readings of a binary signal needed to move a probability to a level.
-    RequiredObservationsBinarySignal {
-        /// Starting probability of the hypothesis, as bits.
-        prior_bits: u64,
-        /// Target level, as bits.
-        level_bits: u64,
-        /// `raise` or `lower`.
-        direction: String,
-        /// `P(positive reading | hypothesis)`, as bits.
-        rate_given_hypothesis_bits: u64,
-        /// `P(positive reading | complement)`, as bits.
-        rate_given_complement_bits: u64,
-        /// Largest observation count the solve may return.
-        max_observations: u64,
-    },
-    /// Observations needed to move a Beta-Bernoulli predictive probability to
-    /// a level.
-    RequiredObservationsConjugate {
-        /// Prior first shape, as bits.
-        alpha_bits: u64,
-        /// Prior second shape, as bits.
-        beta_bits: u64,
-        /// Target level, as bits.
-        level_bits: u64,
-        /// `raise` or `lower`.
-        direction: String,
-        /// Largest observation count the solve may return.
-        max_observations: u64,
-    },
-}
-
-impl ObservationQueryWire {
-    /// The operation this query performs; part of the identity.
-    #[must_use]
-    pub const fn operation(&self) -> &'static str {
-        match self {
-            Self::ConditionalOutcome { .. } => "conditioning",
-            Self::InterventionalOutcome { .. } => "intervention",
-            Self::ConditioningVersusIntervention { .. } => "conditioning_and_intervention",
-            Self::ThresholdCrossing { .. } => "threshold_crossing",
-            Self::FinitePosterior { .. } | Self::ConjugatePosterior { .. } => "posterior_update",
-            Self::RequiredBayesFactor { .. }
-            | Self::RequiredObservationsBinarySignal { .. }
-            | Self::RequiredObservationsConjugate { .. } => "evidence_requirement",
-        }
-    }
-
-    /// Whether the query runs on a composed causal model.
-    #[must_use]
-    pub const fn needs_composed_model(&self) -> bool {
-        matches!(
-            self,
-            Self::ConditionalOutcome { .. }
-                | Self::InterventionalOutcome { .. }
-                | Self::ConditioningVersusIntervention { .. }
-                | Self::ThresholdCrossing { .. }
-        )
-    }
-
-    /// This query with every assignment list in canonical (variable, level)
-    /// order, so two declarations that differ only in listing order have one
-    /// wire form and one identity. Results do not depend on the order.
-    #[must_use]
-    pub fn canonical(mut self) -> Self {
-        match &mut self {
-            Self::ConditionalOutcome { observed, .. } => observed.sort(),
-            Self::InterventionalOutcome { interventions, .. } => interventions.sort(),
-            Self::ConditioningVersusIntervention { assignment, .. } => assignment.sort(),
-            Self::ThresholdCrossing { background, .. } => background.sort(),
-            _ => {}
-        }
-        self
-    }
-}
-
-fn level_bits(levels: &[(String, f64)]) -> Vec<(String, u64)> {
-    levels.iter().map(|(l, p)| (l.clone(), p.to_bits())).collect()
-}
-
-/// The stored result, as IEEE bit patterns.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub enum ObservationResultWire {
-    /// A conditional distribution.
-    Conditional {
-        /// Always `conditioning`.
-        operation: String,
-        /// `P(observed values)` (with the recorded indicator value, when one
-        /// is applied), as bits.
-        evidence_probability_bits: u64,
-        /// `(level, probability bits)` of the outcome.
-        levels: Vec<(String, u64)>,
-        /// `(level, probability bits)` of the construct given a measured
-        /// signal; `None` when no measured signal was applied.
-        construct_posterior: Option<Vec<(String, u64)>>,
-    },
-    /// An interventional distribution.
-    Interventional {
-        /// Always `intervention`.
-        operation: String,
-        /// `(level, probability bits)` of the outcome.
-        levels: Vec<(String, u64)>,
-    },
-    /// Both laws of one assignment.
-    Paired {
-        /// `P(assignment)` under the observational law, as bits.
-        conditioning_evidence_bits: u64,
-        /// Conditioning: `(level, probability bits)`.
-        conditioning: Vec<(String, u64)>,
-        /// Intervention: `(level, probability bits)`.
-        intervention: Vec<(String, u64)>,
-        /// Largest absolute difference over the outcome's levels, as bits.
-        max_abs_difference_bits: u64,
-    },
-    /// The observed levels that cross a threshold.
-    ThresholdCrossing {
-        /// Probability of observing a crossing level, as bits.
-        crossing_probability_bits: u64,
-        /// `(signal level, P(level) bits, conditional bits, crosses)`.
-        rows: Vec<(String, u64, u64, bool)>,
-    },
-    /// A finite posterior.
-    FinitePosterior {
-        /// `(hypothesis, posterior bits)`.
-        posterior: Vec<(String, u64)>,
-        /// Log evidence, as bits.
-        log_evidence_bits: u64,
-        /// Evidence probability, as bits.
-        evidence_probability_bits: u64,
-        /// `(observation level, predictive bits)`.
-        predictive: Vec<(String, u64)>,
-    },
-    /// A conjugate posterior.
-    ConjugatePosterior {
-        /// Posterior first shape, as bits.
-        alpha_bits: u64,
-        /// Posterior second shape, as bits.
-        beta_bits: u64,
-        /// Predictive probability of the next success, as bits.
-        predictive_success_bits: u64,
-    },
-    /// A required Bayes factor.
-    RequiredBayesFactor {
-        /// The factor, as bits.
-        factor_bits: u64,
-        /// No evidence is needed.
-        already_satisfied: bool,
-    },
-    /// A required observation count.
-    RequiredObservations {
-        /// Smallest count that reaches the level.
-        observations: u64,
-        /// The probability at that count, as bits.
-        value_bits: u64,
-        /// No observation is needed.
-        already_satisfied: bool,
-        /// Bayes factor of one reading, as bits, for a likelihood-ratio route.
-        bayes_factor_bits: Option<u64>,
-    },
-}
+/// The format version that carries the general queries (continuous evidence,
+/// observation after an intervention, retained-data redraw). A reader of
+/// [`OBSERVATION_QUERY_ARTIFACT_VERSION`] alone refuses it before the payload
+/// is interpreted.
+pub const OBSERVATION_QUERY_GENERAL_ARTIFACT_VERSION: u32 = 2;
+/// The feature marker of the general queries.
+pub const OBSERVATION_QUERY_GENERAL_FEATURE: &str = "observation_query_general_v1";
+/// Additive format for a declared joint measurement likelihood.
+pub const OBSERVATION_QUERY_JOINT_MEASURED_VERSION: u32 = 3;
+/// Required feature of the joint measured-signal query.
+pub const OBSERVATION_QUERY_JOINT_MEASURED_FEATURE: &str = "observation_query_joint_measured_v1";
+/// Additive format for a complete dependent-error measurement law.
+pub const OBSERVATION_QUERY_DEPENDENT_MEASURED_VERSION: u32 = 4;
+/// Required feature of dependent-error conditioning.
+pub const OBSERVATION_QUERY_DEPENDENT_MEASURED_FEATURE: &str =
+    "observation_query_dependent_measured_v1";
+/// Most retained mechanisms, and most parent-configuration rows of one retained
+/// table, a redraw query may carry.
+pub const OBSERVATION_QUERY_MAX_RETAINED_ROWS: usize = 4096;
+/// The reading of the spread of redrawn parameters: a spread of exact posterior
+/// draws with no coverage statement.
+pub const PARAMETER_DRAWS_READING: &str = antecedent_contract::UNCALIBRATED_SPREAD_LABEL;
 
 /// The versioned artifact.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -548,6 +164,45 @@ pub fn observation_query_identity(
     query: &ObservationQueryWire,
     inference_basis: &str,
 ) -> Result<String, IoError> {
+    if query.is_dependent_measured() {
+        return crate::digest_hex(
+            IdentityDomain::Program,
+            &(
+                OBSERVATION_QUERY_DEPENDENT_MEASURED_FEATURE,
+                OBSERVATION_QUERY_DEPENDENT_MEASURED_VERSION,
+                query.operation(),
+                inference_basis,
+                premises,
+                query,
+            ),
+        );
+    }
+    if query.is_joint_measured() {
+        return crate::digest_hex(
+            IdentityDomain::Program,
+            &(
+                OBSERVATION_QUERY_JOINT_MEASURED_FEATURE,
+                OBSERVATION_QUERY_JOINT_MEASURED_VERSION,
+                query.operation(),
+                inference_basis,
+                premises,
+                query,
+            ),
+        );
+    }
+    if query.is_general() {
+        return crate::digest_hex(
+            IdentityDomain::Program,
+            &(
+                OBSERVATION_QUERY_GENERAL_FEATURE,
+                OBSERVATION_QUERY_GENERAL_ARTIFACT_VERSION,
+                query.operation(),
+                inference_basis,
+                premises,
+                query,
+            ),
+        );
+    }
     crate::digest_hex(
         IdentityDomain::Program,
         &(
@@ -563,29 +218,145 @@ pub fn observation_query_identity(
 
 // ----------------------------------------------------------------- execution
 
-fn check_assignments(
-    pairs: &[(String, String)],
-    what: &'static str,
+/// Check the structural bounds of a declared observation query without
+/// evaluating its model or conditioning a law. Assignment lists carry no
+/// count cap beyond the artifact byte budget; model evaluation checks names.
+///
+/// # Errors
+/// A malformed or oversized declaration.
+#[allow(clippy::match_same_arms, reason = "the cases retain distinct wire or replay semantics")]
+#[allow(clippy::too_many_lines, reason = "one arm per query declaration form")]
+pub fn check_query_bounds(
+    query: &ObservationQueryWire,
 ) -> Result<(), ObservationQueryArtifactError> {
-    if pairs.len() > OBSERVATION_QUERY_MAX_ASSIGNMENTS {
-        return Err(ObservationQueryArtifactError::LimitsExceeded(what));
-    }
-    Ok(())
-}
-
-fn check_query_bounds(query: &ObservationQueryWire) -> Result<(), ObservationQueryArtifactError> {
     match query {
-        ObservationQueryWire::ConditionalOutcome { observed, .. } => {
-            check_assignments(observed, "observed values")
+        ObservationQueryWire::ConditionalOutcome { .. }
+        | ObservationQueryWire::InterventionalOutcome { .. }
+        | ObservationQueryWire::ConditioningVersusIntervention { .. }
+        | ObservationQueryWire::GaussianOutcome { .. }
+        | ObservationQueryWire::ConditionalInterventionalOutcome { .. }
+        | ObservationQueryWire::ThresholdCrossing { .. } => Ok(()),
+        ObservationQueryWire::JointMeasuredOutcome { measured, dependence, .. } => {
+            if measured.len() < 2
+                || measured.len() > 16
+                || dependence != "conditionally_independent_given_construct"
+            {
+                return Err(ObservationQueryArtifactError::Malformed(
+                    "joint measurement needs 2-16 indicators and an explicit conditional-independence declaration".into(),
+                ));
+            }
+            let construct = &measured[0].construct;
+            let mut ids = std::collections::BTreeSet::new();
+            if measured
+                .iter()
+                .any(|slot| slot.construct != *construct || !ids.insert(slot.indicator_id.as_str()))
+            {
+                return Err(ObservationQueryArtifactError::Malformed(
+                    "joint indicators must be distinct and name one construct".into(),
+                ));
+            }
+            Ok(())
         }
-        ObservationQueryWire::InterventionalOutcome { interventions, .. } => {
-            check_assignments(interventions, "interventions")
+        ObservationQueryWire::DependentMeasuredOutcome { measured, error_law, .. } => {
+            let n = error_law.indicator_ids.len();
+            if !(2..=16).contains(&n)
+                || measured.len() != n
+                || error_law.indicator_levels.len() != n
+                || error_law.construct_levels.is_empty()
+                || error_law.construct_levels.len() > 16
+                || error_law.construct.trim().is_empty()
+                || error_law.population_id.trim().is_empty()
+                || error_law.regime_id.trim().is_empty()
+                || error_law.evidence_id.trim().is_empty()
+                || error_law.indicator_ids.windows(2).any(|pair| pair[0] >= pair[1])
+                || error_law.indicator_ids.iter().any(|id| id.trim().is_empty())
+                || error_law.construct_levels.iter().any(|level| level.trim().is_empty())
+                || error_law
+                    .construct_levels
+                    .iter()
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .len()
+                    != error_law.construct_levels.len()
+            {
+                return Err(ObservationQueryArtifactError::Malformed(
+                    "dependent measurement needs distinct indicators and a complete scoped construct law".into(),
+                ));
+            }
+            let mut cells = 1usize;
+            for (index, levels) in error_law.indicator_levels.iter().enumerate() {
+                if levels.is_empty()
+                    || levels.len() > 16
+                    || levels.iter().any(|level| level.trim().is_empty())
+                    || levels.iter().collect::<std::collections::BTreeSet<_>>().len()
+                        != levels.len()
+                    || measured[index].0.as_str() != error_law.indicator_ids[index].as_str()
+                    || !levels.contains(&measured[index].1)
+                {
+                    return Err(ObservationQueryArtifactError::Malformed(
+                        "indicator identities, levels or recorded values differ from the dependent-error table".into(),
+                    ));
+                }
+                cells = cells.checked_mul(levels.len()).ok_or(
+                    ObservationQueryArtifactError::LimitsExceeded("dependent measurement cells"),
+                )?;
+                if cells > 65_536 {
+                    return Err(ObservationQueryArtifactError::LimitsExceeded(
+                        "dependent measurement cells",
+                    ));
+                }
+            }
+            if error_law.probability_bits.len() != cells * error_law.construct_levels.len() {
+                return Err(ObservationQueryArtifactError::Malformed(
+                    "dependent-error table has the wrong number of cells".into(),
+                ));
+            }
+            for row in error_law.probability_bits.chunks_exact(cells) {
+                let probabilities: Vec<f64> =
+                    row.iter().map(|bits| f64::from_bits(*bits)).collect();
+                if probabilities
+                    .iter()
+                    .any(|value| !value.is_finite() || !(0.0..=1.0).contains(value))
+                    || (probabilities.iter().sum::<f64>() - 1.0).abs() > 1e-9
+                {
+                    return Err(ObservationQueryArtifactError::Malformed(
+                        "each construct row must be a normalized joint indicator law".into(),
+                    ));
+                }
+            }
+            Ok(())
         }
-        ObservationQueryWire::ConditioningVersusIntervention { assignment, .. } => {
-            check_assignments(assignment, "assignment")
-        }
-        ObservationQueryWire::ThresholdCrossing { background, .. } => {
-            check_assignments(background, "background values")
+        ObservationQueryWire::ParameterRedraw { retained, draws, .. } => {
+            if retained.len() > MAX_COMPOSED_MECHANISMS || *draws > MAX_REDRAWS {
+                return Err(ObservationQueryArtifactError::LimitsExceeded("redraw"));
+            }
+            for item in retained {
+                match item {
+                    RetainedMechanismWire::Gaussian { parents, gram_bits, xty_bits, .. } => {
+                        if parents.len() >= MAX_RETAINED_REGRESSORS
+                            || gram_bits.len() > MAX_RETAINED_REGRESSORS * MAX_RETAINED_REGRESSORS
+                            || xty_bits.len() > MAX_RETAINED_REGRESSORS
+                        {
+                            return Err(ObservationQueryArtifactError::LimitsExceeded(
+                                "retained regression",
+                            ));
+                        }
+                    }
+                    RetainedMechanismWire::Table { rows, .. } => {
+                        if rows.len() > OBSERVATION_QUERY_MAX_RETAINED_ROWS
+                            || rows.iter().any(|(config, counts)| {
+                                config.len() > MAX_COMPOSED_MECHANISMS
+                                    || counts.len()
+                                        > antecedent_model::compose::MAX_LEVELS_PER_VARIABLE
+                            })
+                        {
+                            return Err(ObservationQueryArtifactError::LimitsExceeded(
+                                "retained table",
+                            ));
+                        }
+                    }
+                }
+            }
+            Ok(())
         }
         ObservationQueryWire::FinitePosterior {
             hypotheses,
@@ -601,7 +372,7 @@ fn check_query_bounds(query: &ObservationQueryWire) -> Result<(), ObservationQue
             {
                 return Err(ObservationQueryArtifactError::LimitsExceeded("bayes model"));
             }
-            if observations.len() > MAX_BAYES_SEQUENCE {
+            if observations.len() as u64 > MAX_BAYES_UPDATE_WORK {
                 return Err(ObservationQueryArtifactError::LimitsExceeded("observations"));
             }
             Ok(())
@@ -643,7 +414,7 @@ fn measured_slot_likelihood(
     let Some(index) = law.variables().iter().position(|v| v == &measured.construct) else {
         return Err(refused(registry_refusal(
             antecedent_core::reason_code!("unknown_variable"),
-            "observation_query.unknown_variable",
+            antecedent_core::reason_details::observation_query::UNKNOWN_VARIABLE,
             measured.construct.clone(),
             "name a variable of the composed model",
         )));
@@ -679,17 +450,409 @@ fn measured_slot_likelihood(
     measured_likelihood(&slot, &law.levels()[index], &context).map_err(refused)
 }
 
+fn evaluate_composed(
+    spec: &ComposedModelSpec,
+    query: &ObservationQueryWire,
+    ctx: &ExecutionContext,
+) -> Result<ObservationResultWire, ObservationQueryArtifactError> {
+    match query {
+        ObservationQueryWire::GaussianOutcome { .. } => evaluate_gaussian(spec, query, ctx),
+        ObservationQueryWire::ParameterRedraw { .. } => evaluate_redraw(spec, query, ctx),
+        _ => evaluate_finite(spec, query, ctx),
+    }
+}
+
+fn evaluate_gaussian(
+    spec: &ComposedModelSpec,
+    query: &ObservationQueryWire,
+    ctx: &ExecutionContext,
+) -> Result<ObservationResultWire, ObservationQueryArtifactError> {
+    let ObservationQueryWire::GaussianOutcome { outcome, interventions, observed } = query else {
+        return Err(ObservationQueryArtifactError::Malformed(
+            "a Gaussian evaluation was given another query".to_owned(),
+        ));
+    };
+    let model = ComposedLinearGaussian::compile(spec).map_err(composition_error)?;
+    let answer =
+        condition_gaussian(&model, outcome, &real_refs(interventions), &real_refs(observed), ctx)
+            .map_err(query_error)?;
+    Ok(ObservationResultWire::GaussianConditional {
+        operation: query.operation().to_owned(),
+        mean_bits: answer.mean.to_bits(),
+        variance_bits: answer.variance.to_bits(),
+        evidence_log_density_bits: answer.evidence_log_density.map(f64::to_bits),
+    })
+}
+
+fn retained_from_wire(item: &RetainedMechanismWire) -> RetainedMechanism {
+    match item {
+        RetainedMechanismWire::Gaussian {
+            variable,
+            parents,
+            gram_bits,
+            xty_bits,
+            yty_bits,
+            rows,
+        } => RetainedMechanism::Gaussian(GaussianSufficient {
+            variable: variable.clone(),
+            parents: parents.clone(),
+            gram: bits(gram_bits),
+            xty: bits(xty_bits),
+            yty: f64::from_bits(*yty_bits),
+            rows: *rows,
+        }),
+        RetainedMechanismWire::Table { variable, rows } => RetainedMechanism::Table(TableCounts {
+            variable: variable.clone(),
+            rows: rows
+                .iter()
+                .map(|(parent_levels, counts)| TableCountRow {
+                    parent_levels: parent_levels.clone(),
+                    counts: counts.clone(),
+                })
+                .collect(),
+        }),
+    }
+}
+
+/// The quantity coordinates of redrawn draws: one per queried functional of the
+/// outcome, at the composition's population, under the intervened regime, with
+/// the recorded values as conditioning.
+fn draw_quantities(
+    spec: &ComposedModelSpec,
+    target: &RedrawTargetWire,
+    functionals: &[String],
+) -> Vec<ScientificQuantity> {
+    let outcome = target.outcome();
+    let units = spec
+        .mechanisms
+        .iter()
+        .find(|m| m.variable == outcome)
+        .map(|m| m.output_units.clone())
+        .filter(|u| !u.trim().is_empty())
+        .unwrap_or_else(|| "dimensionless".to_owned());
+    let mut conditions: Vec<(String, String)> = match target {
+        RedrawTargetWire::Gaussian { observed, .. } => {
+            observed.iter().map(|(v, b)| (v.clone(), format!("{}", f64::from_bits(*b)))).collect()
+        }
+        RedrawTargetWire::Finite { observed, .. } => observed.clone(),
+    };
+    conditions.sort();
+    let regime = if target.has_interventions() {
+        let mut set: Vec<String> = match target {
+            RedrawTargetWire::Gaussian { interventions, .. } => {
+                interventions.iter().map(|(v, b)| format!("{v}={}", f64::from_bits(*b))).collect()
+            }
+            RedrawTargetWire::Finite { interventions, .. } => {
+                interventions.iter().map(|(v, l)| format!("{v}={l}")).collect()
+            }
+        };
+        set.sort();
+        format!("do({})", set.join(","))
+    } else {
+        spec.target.regime.clone()
+    };
+    functionals
+        .iter()
+        .map(|functional| ScientificQuantity {
+            variable_id: format!("{}:{outcome}", spec.target.population),
+            variable_name: outcome.to_owned(),
+            role: QuantityRole::Outcome,
+            units: units.clone(),
+            population_id: spec.target.population.clone(),
+            regime_id: regime.clone(),
+            horizon: 0,
+            functional_id: functional.clone(),
+            conditioning: conditions
+                .iter()
+                .map(|(variable, value)| antecedent_contract::QuantityCondition {
+                    variable_id: variable.clone(),
+                    value_id: value.clone(),
+                })
+                .collect(),
+            transform_id: "identity".to_owned(),
+        })
+        .collect()
+}
+
+fn digest_error(error: &IoError) -> ObservationQueryArtifactError {
+    ObservationQueryArtifactError::Encode(error.to_string())
+}
+
+/// The aligned draws of a redraw query as the repo's distribution artifact.
+///
+/// Every row is one joint realization of the queried quantities (one parameter
+/// draw produced them all), so the alignment is [`DrawAlignment::Joint`]. The
+/// source is the identity of the query on these premises, the snapshot is the
+/// digest of the retained data and priors, and the stream is the seed.
+fn parameter_draws_distribution(
+    spec: &ComposedModelSpec,
+    query: &ObservationQueryWire,
+    draws: &ParameterDraws,
+) -> Result<DistributionArtifact, ObservationQueryArtifactError> {
+    let ObservationQueryWire::ParameterRedraw { target, retained, prior, draws: n, seed } = query
+    else {
+        return Err(ObservationQueryArtifactError::Malformed(
+            "a distribution was requested for a query that redraws nothing".to_owned(),
+        ));
+    };
+    let premises = MechanismCompositionPremisesWire::from_spec(spec);
+    let basis = inference_basis_of(spec);
+    let source = observation_query_identity(Some(&premises), query, basis.as_str())
+        .map_err(|error| digest_error(&error))?;
+    let snapshot = crate::digest_hex(
+        IdentityDomain::Program,
+        &("observation_query_retained_data_v1", retained, prior),
+    )
+    .map_err(|error| digest_error(&error))?;
+    let contract =
+        crate::digest_hex(IdentityDomain::Program, &("observation_query_premises_v1", &premises))
+            .map_err(|error| digest_error(&error))?;
+    let quantities = draw_quantities(spec, target, &draws.quantities);
+    let semantic = if target.has_interventions() {
+        DistributionMeaningWire::InterventionalPredictive
+    } else {
+        DistributionMeaningWire::PosteriorPredictive
+    };
+    let identity = DistributionIdentity::new(
+        semantic,
+        &quantities,
+        DrawAlignment::Joint,
+        DistributionProvenance {
+            source_id: source,
+            provider_id: "observation_query.parameter_redraw".to_owned(),
+            rng_id: format!("splitmix64.derived_stream:seed={seed}:draws={n}"),
+            snapshot_id: snapshot,
+            causal_contract_id: contract,
+        },
+    )
+    .map_err(|e| ObservationQueryArtifactError::Malformed(e.to_string()))?;
+    DistributionArtifact::new(
+        DistributionMetadata {
+            version: 1,
+            identity,
+            axes: ["draw".to_owned(), "quantity".to_owned()],
+            shape: [draws.draws, draws.width()],
+            weights: None,
+            supported: None,
+            calibration: DistributionCalibration::NotMeasured,
+            trust: DistributionTrust::Unverified,
+            legacy_posterior: None,
+            legacy_bindings: None,
+        },
+        draws.values.clone(),
+    )
+    .map_err(|e| ObservationQueryArtifactError::Malformed(e.to_string()))
+}
+
+fn evaluate_redraw(
+    spec: &ComposedModelSpec,
+    query: &ObservationQueryWire,
+    ctx: &ExecutionContext,
+) -> Result<ObservationResultWire, ObservationQueryArtifactError> {
+    let ObservationQueryWire::ParameterRedraw { target, retained, prior, draws, seed } = query
+    else {
+        return Err(ObservationQueryArtifactError::Malformed(
+            "a redraw evaluation was given another query".to_owned(),
+        ));
+    };
+    let retained: Vec<RetainedMechanism> = retained.iter().map(retained_from_wire).collect();
+    let drawn = redraw_conditional(
+        spec,
+        &target.to_target(),
+        &retained,
+        &prior.to_prior(),
+        *draws,
+        *seed,
+        ctx,
+    )
+    .map_err(query_error)?;
+    if drawn.width() > MAX_REDRAW_QUANTITIES {
+        return Err(ObservationQueryArtifactError::LimitsExceeded("quantities"));
+    }
+    let alignment_identity = parameter_draws_distribution(spec, query, &drawn)?
+        .alignment_identity()
+        .map_err(|error| digest_error(&error))?;
+    Ok(ObservationResultWire::ParameterDraws {
+        quantities: drawn.quantities.clone(),
+        draws: *draws,
+        point_bits: drawn.point.iter().map(|v| v.to_bits()).collect(),
+        values_bits: drawn.values.iter().map(|v| v.to_bits()).collect(),
+        alignment_identity,
+        reading: PARAMETER_DRAWS_READING.to_owned(),
+    })
+}
+
 #[allow(
     clippy::too_many_lines,
     reason = "one arm per composed-model query, each a short call into the numerical layer"
 )]
-fn evaluate_composed(
+fn evaluate_finite(
     spec: &ComposedModelSpec,
     query: &ObservationQueryWire,
     ctx: &ExecutionContext,
 ) -> Result<ObservationResultWire, ObservationQueryArtifactError> {
     let model = ComposedFinite::compile(spec).map_err(composition_error)?;
     match query {
+        ObservationQueryWire::DependentMeasuredOutcome {
+            outcome,
+            interventions,
+            observed,
+            measured,
+            error_law,
+        } => {
+            let observed = refs(observed);
+            let interventions_ref = refs(interventions);
+            let law =
+                intervened_law(&model, &interventions_ref, &observed, ctx).map_err(query_error)?;
+            if interventions_ref
+                .iter()
+                .any(|(variable, _)| *variable == error_law.construct.as_str())
+            {
+                return Err(refused(mixed_conditioning_refusal(&error_law.construct)));
+            }
+            let mut regime = interventions.clone();
+            regime.sort();
+            let expected_regime = if regime.is_empty() {
+                spec.target.regime.clone()
+            } else {
+                format!(
+                    "do({})",
+                    regime
+                        .iter()
+                        .map(|(v, level)| format!("{v}={level}"))
+                        .collect::<Vec<_>>()
+                        .join(",")
+                )
+            };
+            if error_law.population_id != spec.target.population
+                || error_law.regime_id != expected_regime
+            {
+                return Err(ObservationQueryArtifactError::Malformed(
+                    "dependent measurement law is outside the query population or regime".into(),
+                ));
+            }
+            let index = law
+                .variables()
+                .iter()
+                .position(|variable| variable == &error_law.construct)
+                .ok_or_else(|| {
+                    ObservationQueryArtifactError::Malformed(
+                        "dependent measurement construct is absent from the finite model".into(),
+                    )
+                })?;
+            if law.levels()[index].as_slice() != error_law.construct_levels.as_slice() {
+                return Err(ObservationQueryArtifactError::Malformed(
+                    "dependent measurement construct levels differ from the finite model".into(),
+                ));
+            }
+            let mut cell = 0usize;
+            for ((id, recorded), (table_id, levels)) in
+                measured.iter().zip(error_law.indicator_ids.iter().zip(&error_law.indicator_levels))
+            {
+                if id != table_id {
+                    return Err(ObservationQueryArtifactError::Malformed(
+                        "dependent measurement indicator order differs".into(),
+                    ));
+                }
+                let position =
+                    levels.iter().position(|level| level == recorded).ok_or_else(|| {
+                        ObservationQueryArtifactError::Malformed(
+                            "dependent measurement recorded level is absent".into(),
+                        )
+                    })?;
+                cell = cell * levels.len() + position;
+            }
+            let cells = error_law.probability_bits.len() / error_law.construct_levels.len();
+            let likelihood: Vec<f64> = (0..error_law.construct_levels.len())
+                .map(|row| f64::from_bits(error_law.probability_bits[row * cells + cell]))
+                .collect();
+            let answer = condition_on_measured(
+                &law,
+                outcome,
+                &error_law.construct,
+                &observed,
+                &likelihood,
+                ctx,
+            )
+            .map_err(query_error)?;
+            Ok(ObservationResultWire::Conditional {
+                operation: query.operation().to_owned(),
+                evidence_probability_bits: answer.evidence_probability.to_bits(),
+                levels: level_bits(&answer.outcome),
+                construct_posterior: Some(level_bits(&answer.construct_posterior)),
+            })
+        }
+        ObservationQueryWire::JointMeasuredOutcome {
+            outcome,
+            interventions,
+            observed,
+            measured,
+            ..
+        } => {
+            let observed = refs(observed);
+            let interventions = refs(interventions);
+            let law =
+                intervened_law(&model, &interventions, &observed, ctx).map_err(query_error)?;
+            let construct = &measured[0].construct;
+            if interventions.iter().any(|(variable, _)| *variable == construct) {
+                return Err(refused(mixed_conditioning_refusal(construct)));
+            }
+            let mut likelihood = measured_slot_likelihood(&measured[0], &law, spec)?;
+            for indicator in &measured[1..] {
+                let next = measured_slot_likelihood(indicator, &law, spec)?;
+                if next.len() != likelihood.len() {
+                    return Err(ObservationQueryArtifactError::Malformed(
+                        "joint indicator likelihoods have different construct levels".into(),
+                    ));
+                }
+                for (joint, factor) in likelihood.iter_mut().zip(next) {
+                    *joint *= factor;
+                }
+            }
+            let answer =
+                condition_on_measured(&law, outcome, construct, &observed, &likelihood, ctx)
+                    .map_err(query_error)?;
+            Ok(ObservationResultWire::Conditional {
+                operation: query.operation().to_owned(),
+                evidence_probability_bits: answer.evidence_probability.to_bits(),
+                levels: level_bits(&answer.outcome),
+                construct_posterior: Some(level_bits(&answer.construct_posterior)),
+            })
+        }
+        ObservationQueryWire::ConditionalInterventionalOutcome {
+            outcome,
+            interventions,
+            observed,
+            measured,
+        } => {
+            let observed = refs(observed);
+            let interventions = refs(interventions);
+            let law =
+                intervened_law(&model, &interventions, &observed, ctx).map_err(query_error)?;
+            if let Some(m) = measured {
+                if interventions.iter().any(|(v, _)| *v == m.construct) {
+                    return Err(refused(mixed_conditioning_refusal(&m.construct)));
+                }
+                let likelihood = measured_slot_likelihood(m, &law, spec)?;
+                let answer =
+                    condition_on_measured(&law, outcome, &m.construct, &observed, &likelihood, ctx)
+                        .map_err(query_error)?;
+                Ok(ObservationResultWire::Conditional {
+                    operation: query.operation().to_owned(),
+                    evidence_probability_bits: answer.evidence_probability.to_bits(),
+                    levels: level_bits(&answer.outcome),
+                    construct_posterior: Some(level_bits(&answer.construct_posterior)),
+                })
+            } else {
+                let answer = condition(&law, outcome, &observed, ctx).map_err(query_error)?;
+                Ok(ObservationResultWire::Conditional {
+                    operation: query.operation().to_owned(),
+                    evidence_probability_bits: answer.evidence_probability.to_bits(),
+                    levels: level_bits(&answer.levels),
+                    construct_posterior: None,
+                })
+            }
+        }
         ObservationQueryWire::ConditionalOutcome { outcome, observed, measured } => {
             let law = model.law(&[], ctx).map_err(composition_error)?;
             let observed = refs(observed);
@@ -938,7 +1101,57 @@ pub fn evaluate_observation_query(
     }
 }
 
+/// The format version and feature marker a query is carried under.
+const fn format_of(query: &ObservationQueryWire) -> (u32, &'static str) {
+    if query.is_dependent_measured() {
+        (OBSERVATION_QUERY_DEPENDENT_MEASURED_VERSION, OBSERVATION_QUERY_DEPENDENT_MEASURED_FEATURE)
+    } else if query.is_joint_measured() {
+        (OBSERVATION_QUERY_JOINT_MEASURED_VERSION, OBSERVATION_QUERY_JOINT_MEASURED_FEATURE)
+    } else if query.is_general() {
+        (OBSERVATION_QUERY_GENERAL_ARTIFACT_VERSION, OBSERVATION_QUERY_GENERAL_FEATURE)
+    } else {
+        (OBSERVATION_QUERY_ARTIFACT_VERSION, OBSERVATION_QUERY_ARTIFACT_FEATURE)
+    }
+}
+
 impl ObservationQueryArtifactWire {
+    /// The aligned draws of a parameter-redraw claim as the repo's distribution
+    /// artifact, rebuilt from the stored result.
+    ///
+    /// # Errors
+    /// A claim that is not a parameter redraw, premises that no longer compose,
+    /// or draws that do not form a valid distribution.
+    pub fn distribution(&self) -> Result<DistributionArtifact, ObservationQueryArtifactError> {
+        let (
+            Some(premises),
+            ObservationResultWire::ParameterDraws {
+                quantities,
+                draws,
+                values_bits,
+                point_bits,
+                ..
+            },
+        ) = (&self.premises, &self.result)
+        else {
+            return Err(ObservationQueryArtifactError::Malformed(
+                "the claim carries no parameter draws".to_owned(),
+            ));
+        };
+        let spec = premises
+            .to_spec()
+            .map_err(|e| ObservationQueryArtifactError::Malformed(e.to_string()))?;
+        parameter_draws_distribution(
+            &spec,
+            &self.query,
+            &ParameterDraws {
+                quantities: quantities.clone(),
+                draws: *draws as usize,
+                values: bits(values_bits),
+                point: bits(point_bits),
+            },
+        )
+    }
+
     /// Execute and seal an artifact for `query`.
     ///
     /// `spec` is the composed model for a query that runs on one and `None`
@@ -975,9 +1188,10 @@ impl ObservationQueryArtifactWire {
         let inference_basis = basis.as_str().to_owned();
         let identity = observation_query_identity(premises.as_ref(), &query, &inference_basis)
             .map_err(|e| ObservationQueryArtifactError::Encode(e.to_string()))?;
+        let (version, feature) = format_of(&query);
         Ok(Self {
-            version: OBSERVATION_QUERY_ARTIFACT_VERSION,
-            required_features: vec![OBSERVATION_QUERY_ARTIFACT_FEATURE.to_owned()],
+            version,
+            required_features: vec![feature.to_owned()],
             premises,
             query,
             inference_basis,
@@ -1004,17 +1218,35 @@ impl ObservationQueryArtifactWire {
     /// # Errors
     /// A decoding failure, another version or a foreign feature.
     pub fn decode(bytes: &[u8]) -> Result<Self, ObservationQueryArtifactError> {
-        let wire: Self = crate::decode_with_version(bytes, |version| {
-            if version == OBSERVATION_QUERY_ARTIFACT_VERSION {
+        let wire: Self = crate::decode_with_version(bytes, |version: u32| {
+            if version == OBSERVATION_QUERY_ARTIFACT_VERSION
+                || version == OBSERVATION_QUERY_GENERAL_ARTIFACT_VERSION
+                || version == OBSERVATION_QUERY_JOINT_MEASURED_VERSION
+                || version == OBSERVATION_QUERY_DEPENDENT_MEASURED_VERSION
+            {
                 Ok(())
             } else {
                 Err(ObservationQueryArtifactError::UnsupportedVersion { version })
             }
         })?;
-        if wire.required_features != [OBSERVATION_QUERY_ARTIFACT_FEATURE] {
+        wire.check_format()?;
+        Ok(wire)
+    }
+
+    /// The version, the feature marker and the query variant must agree: a
+    /// version-1 artifact holds only the version-1 queries and a version-2
+    /// artifact only the general ones.
+    fn check_format(&self) -> Result<(), ObservationQueryArtifactError> {
+        let (version, feature) = format_of(&self.query);
+        if self.version != version {
+            return Err(ObservationQueryArtifactError::UnsupportedVersion {
+                version: self.version,
+            });
+        }
+        if self.required_features != [feature] {
             return Err(ObservationQueryArtifactError::UnsupportedSemantics("required features"));
         }
-        Ok(wire)
+        Ok(())
     }
 
     /// Verify and replay.
@@ -1029,14 +1261,7 @@ impl ObservationQueryArtifactWire {
         expected_identity: Option<&str>,
         ctx: &ExecutionContext,
     ) -> Result<ConsumedObservationQuery, ObservationQueryArtifactError> {
-        if self.version != OBSERVATION_QUERY_ARTIFACT_VERSION {
-            return Err(ObservationQueryArtifactError::UnsupportedVersion {
-                version: self.version,
-            });
-        }
-        if self.required_features != [OBSERVATION_QUERY_ARTIFACT_FEATURE] {
-            return Err(ObservationQueryArtifactError::UnsupportedSemantics("required features"));
-        }
+        self.check_format()?;
         if let Some(p) = &self.premises {
             check_premises_bounds(p)?;
         }
@@ -1047,10 +1272,10 @@ impl ObservationQueryArtifactWire {
         if recomputed != self.identity {
             return Err(ObservationQueryArtifactError::IdentityMismatch);
         }
-        if let Some(expected) = expected_identity {
-            if expected != recomputed {
-                return Err(ObservationQueryArtifactError::IdentityMismatch);
-            }
+        if let Some(expected) = expected_identity
+            && expected != recomputed
+        {
+            return Err(ObservationQueryArtifactError::IdentityMismatch);
         }
         let stored_basis = basis_from_name(&self.inference_basis)?;
         let spec = match &self.premises {
@@ -1067,7 +1292,7 @@ impl ObservationQueryArtifactWire {
             }
         }
         let result = evaluate_observation_query(spec.as_ref(), &self.query, ctx)?;
-        if result != self.result {
+        if !self.result.replays_as(&result) {
             return Err(ObservationQueryArtifactError::ResultMismatch);
         }
         Ok(ConsumedObservationQuery {

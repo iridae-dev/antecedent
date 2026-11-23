@@ -4,7 +4,7 @@ Generated inline by `crates/antecedent/tests/estimate_conformance.rs` — no
 CSV, no pinned baseline install. Clean-room synthetic SCM, deterministic from a fixed
 `ExecutionContext` seed.
 
-SCM: `U -> T -> M -> Y` with `U -> Y`, `U` unmeasured. `T = 3 + U + noise`
+SCM: `U -> T -> M -> Y` with `U -> Y`, `U` not_measured. `T = 3 + U + noise`
 (uncentred), `M = 0.4·T + noise`, `Y = 5·M + U + noise`; the mediated effect is
 `0.4 · 5 = 2`. The two path coefficients differ from each other and from their
 product, so returning either one alone (0.4, 5), or the confounded `Y ~ T` slope

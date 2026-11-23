@@ -19,7 +19,7 @@ and verifies original source replay in a fresh interpreter.
 
 Source identity, original covariance and multiplicity family, fully supported
 scientific coordinates and original partition provenance are mandatory. The
-results remain point-only and unmeasured: they do not identify transport, authorize
+results remain point-only and not_measured: they do not identify transport, authorize
 posterior transfer or promise policy generalization. Calibration is a later gate.
 
 ## Expected summary

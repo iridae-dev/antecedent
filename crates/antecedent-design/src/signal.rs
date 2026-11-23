@@ -12,7 +12,7 @@
 //! trust label and exact request fingerprint travel on the [`SignalReceipt`]; a
 //! representation never upgrades trust to native.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -171,8 +171,8 @@ impl SignalUpdateMode {
 /// Trust label a signal carries on its receipt.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum SignalTrustLabel {
-    /// Implemented and licensed natively.
-    NativeLicensed,
+    /// Implemented and supported natively.
+    NativeSupported,
     /// Supplier-asserted only.
     ExternallyAttested,
     /// The exact contract passed object-level verification (still not native).
@@ -184,7 +184,7 @@ impl SignalTrustLabel {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::NativeLicensed => "native_licensed",
+            Self::NativeSupported => "native_supported",
             Self::ExternallyAttested => "externally_attested",
             Self::ExactRequestVerified => "exact_request_verified",
         }
@@ -323,10 +323,37 @@ fn retained_laws() -> &'static Mutex<RetainedLaws> {
     LAWS.get_or_init(|| Mutex::new(RetainedLaws { order: VecDeque::new(), by_id: HashMap::new() }))
 }
 
+/// Whether a context can use the process-owned signal-law memo. A constrained
+/// caller cannot transfer its scientific payload beyond its byte account.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub(crate) enum ProcessLawReuse {
+    Allowed,
+    Bypass,
+}
+
+impl ProcessLawReuse {
+    pub(crate) fn for_context(ctx: &antecedent_core::ExecutionContext) -> Self {
+        if ctx.cache_policy.enabled
+            && ctx.cache_policy.max_bytes.is_none()
+            && ctx.admission.byte_budget() == u64::MAX
+        {
+            Self::Allowed
+        } else {
+            Self::Bypass
+        }
+    }
+}
+
 /// Remember the law `evaluate_evsi` just prepared, keyed by receipt identity.
 ///
 /// The receipt identity covers the law digest. [`recall_prepared`] returns it to `seal`.
-pub(crate) fn remember_prepared(prepared: &PreparedSignal) {
+pub(crate) fn remember_prepared(
+    prepared: &PreparedSignal,
+    ctx: &antecedent_core::ExecutionContext,
+) {
+    if ProcessLawReuse::for_context(ctx) == ProcessLawReuse::Bypass {
+        return;
+    }
     let id = prepared.receipt.identity();
     let mut slot = retained_laws().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if let Some(existing) = slot.by_id.get_mut(&id) {
@@ -510,67 +537,89 @@ impl SignalError {
         match self {
             Self::InvalidRequest(what) => at(
                 antecedent_core::reason_code!("invalid_argument"),
-                "signal_provider.invalid_request",
+                antecedent_core::reason_details::signal_provider::INVALID_REQUEST,
             )
             .offending(*what)
             .build(),
-            Self::MissingLineage => at(signal, "signal_provider.missing_lineage").build(),
-            Self::ConditionalIndependenceMissing => {
-                at(signal, "signal_provider.conditional_independence_missing").build()
+            Self::MissingLineage => {
+                at(signal, antecedent_core::reason_details::signal_provider::MISSING_LINEAGE)
+                    .build()
             }
-            Self::SampleSizeInvalid => at(signal, "signal_provider.sample_size_invalid").build(),
+            Self::ConditionalIndependenceMissing => at(
+                signal,
+                antecedent_core::reason_details::signal_provider::CONDITIONAL_INDEPENDENCE_MISSING,
+            )
+            .build(),
+            Self::SampleSizeInvalid => {
+                at(signal, antecedent_core::reason_details::signal_provider::SAMPLE_SIZE_INVALID)
+                    .build()
+            }
             Self::ComputationalLimit(what) => {
-                at(signal, "signal_provider.computational_limit").offending(*what).build()
+                at(signal, antecedent_core::reason_details::signal_provider::COMPUTATIONAL_LIMIT)
+                    .offending(*what)
+                    .build()
             }
             Self::InvalidObject => at(
                 antecedent_core::reason_code!("external_binding_mismatch"),
-                "signal_provider.invalid_object",
+                antecedent_core::reason_details::signal_provider::INVALID_OBJECT,
             )
             .build(),
             Self::InvalidTable(what) => {
-                at(signal, "signal_provider.invalid_table").offending(*what).build()
+                at(signal, antecedent_core::reason_details::signal_provider::INVALID_TABLE)
+                    .offending(*what)
+                    .build()
             }
             Self::RequestFingerprintMismatch => at(
                 antecedent_core::reason_code!("external_binding_mismatch"),
-                "signal_provider.request_fingerprint_mismatch",
+                antecedent_core::reason_details::signal_provider::REQUEST_FINGERPRINT_MISMATCH,
             )
             .build(),
-            Self::CandidateMismatch => at(signal, "signal_provider.candidate_mismatch").build(),
-            Self::PriorMismatch => at(signal, "signal_provider.prior_mismatch").build(),
+            Self::CandidateMismatch => {
+                at(signal, antecedent_core::reason_details::signal_provider::CANDIDATE_MISMATCH)
+                    .build()
+            }
+            Self::PriorMismatch => {
+                at(signal, antecedent_core::reason_details::signal_provider::PRIOR_MISMATCH).build()
+            }
             Self::SampleSizeMismatch { declared, requested } => {
-                at(signal, "signal_provider.sample_size_mismatch")
+                at(signal, antecedent_core::reason_details::signal_provider::SAMPLE_SIZE_MISMATCH)
                     .expected(requested.to_string())
                     .supplied(declared.to_string())
                     .build()
             }
             Self::ObservationQuantityMismatch => at(
                 antecedent_core::reason_code!("quantity_semantics_mismatch"),
-                "signal_provider.observation_quantity_mismatch",
+                antecedent_core::reason_details::signal_provider::OBSERVATION_QUANTITY_MISMATCH,
             )
             .build(),
             Self::PosteriorQuantityMismatch => at(
                 antecedent_core::reason_code!("quantity_semantics_mismatch"),
-                "signal_provider.posterior_quantity_mismatch",
+                antecedent_core::reason_details::signal_provider::POSTERIOR_QUANTITY_MISMATCH,
             )
             .build(),
             Self::CapabilityMissing(capability) => at(
                 antecedent_core::reason_code!("external_capability_missing"),
-                "signal_provider.capability_missing",
+                antecedent_core::reason_details::signal_provider::CAPABILITY_MISSING,
             )
             .capability(*capability)
             .build(),
             Self::TrustNativeClaimed => at(
                 antecedent_core::reason_code!("external_binding_mismatch"),
-                "signal_provider.trust_native_claimed",
+                antecedent_core::reason_details::signal_provider::TRUST_NATIVE_CLAIMED,
             )
             .build(),
             Self::TrustMismatch => at(
                 antecedent_core::reason_code!("external_binding_mismatch"),
-                "signal_provider.trust_mismatch",
+                antecedent_core::reason_details::signal_provider::TRUST_MISMATCH,
             )
             .build(),
-            Self::LawIncoherent => at(signal, "signal_provider.law_incoherent").build(),
-            Self::PosteriorIncoherent => at(signal, "signal_provider.posterior_incoherent").build(),
+            Self::LawIncoherent => {
+                at(signal, antecedent_core::reason_details::signal_provider::LAW_INCOHERENT).build()
+            }
+            Self::PosteriorIncoherent => {
+                at(signal, antecedent_core::reason_details::signal_provider::POSTERIOR_INCOHERENT)
+                    .build()
+            }
         }
     }
 }
@@ -639,7 +688,7 @@ fn native_prepared(
             rng_seed: request.rng_seed,
             family: family.to_owned(),
             update_mode: SignalUpdateMode::NativeUpdate,
-            trust: SignalTrustLabel::NativeLicensed,
+            trust: SignalTrustLabel::NativeSupported,
             attestor: None,
             provider_identity: None,
             evidence_lineage: lineage,
@@ -1077,7 +1126,7 @@ impl ExternalSignal {
             return Err(SignalError::InvalidObject);
         };
         match &trust {
-            ExternalTrustState::NativeLicensed => return Err(SignalError::TrustNativeClaimed),
+            ExternalTrustState::NativeSupported => return Err(SignalError::TrustNativeClaimed),
             ExternalTrustState::ExternallyAttested { attestor } => {
                 if is_blank(attestor) {
                     return Err(SignalError::TrustMismatch);
@@ -1117,7 +1166,7 @@ impl ExternalSignal {
             ExternalTrustState::ExactRequestVerified(_) => {
                 (SignalTrustLabel::ExactRequestVerified, None)
             }
-            ExternalTrustState::NativeLicensed => (SignalTrustLabel::ExternallyAttested, None),
+            ExternalTrustState::NativeSupported => (SignalTrustLabel::ExternallyAttested, None),
         }
     }
 

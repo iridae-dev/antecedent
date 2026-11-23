@@ -7,7 +7,7 @@
 //! such a cell stayed valid: a `NaN` treatment or confounder failed the ATE
 //! with a rank-deficiency error and a `NaN` outcome returned a `NaN` effect.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
@@ -102,7 +102,7 @@ fn ate(data: TabularData) -> f64 {
         .unwrap()
         .run(&ExecutionContext::for_tests(50))
         .unwrap()
-        .estimate
+        .estimate()
         .as_effect()
         .unwrap()
         .ate
@@ -134,7 +134,7 @@ fn pulse(series: TimeSeriesData) -> Result<f64, String> {
         .build()
         .unwrap()
         .run(&ExecutionContext::for_tests(50))
-        .map(|result| result.estimate.as_effect().unwrap().ate)
+        .map(|result| result.estimate().as_effect().unwrap().ate)
         .map_err(|e| format!("{e:?}"))
 }
 

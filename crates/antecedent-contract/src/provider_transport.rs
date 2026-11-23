@@ -11,7 +11,7 @@
 //!   of the quantity it answers, the invariance and selection assumptions it
 //!   relies on, and the evidence it rests on. [`ProviderTransportSource::admit`]
 //!   refuses a missing population or regime, a quantity the provider object
-//!   does not declare, a native licence, a verification receipt that does not
+//!   does not declare, a native support, a verification receipt that does not
 //!   cover the object, and a provider that is only attested where the route
 //!   requires exact-request verification. An admitted source is an instance of
 //!   the interface contract (a produced port that supplies the
@@ -47,10 +47,10 @@
 //!
 //! A declared population is the producer's declaration, not proof that the
 //! data came from it; verification receipts cover provider behaviour at exact
-//! requests, not the truth of an invariance assumption. A handoff licenses no
+//! requests, not the truth of an invariance assumption. A handoff supports no
 //! interval, posterior or calibration claim.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::result_large_err,
@@ -73,14 +73,11 @@ use crate::{
     DistributionMeaning, ExternalPosteriorKind, ExternalRefusal, ExternalScientificObject,
     ExternalTrustState, ProviderTrust, ScientificQuantity,
 };
+use antecedent_core::named_variants;
 
 /// Version word written into every identity of this module. Bump only when a
 /// canonical encoding below changes.
 pub const PROVIDER_TRANSPORT_VERSION: u64 = 1;
-/// Most assumptions, populations or evidence sources one declaration may name.
-pub const MAX_PROVIDER_TRANSPORT_ITEMS: usize = 256;
-/// Longest identity, in bytes.
-pub const MAX_PROVIDER_TRANSPORT_TEXT_BYTES: usize = 4096;
 /// Port name of the quantity an admitted provider source produces.
 pub const PROVIDER_SOURCE_PORT: &str = "provider_source";
 /// Port name of the quantity a transport route consumes from a provider.
@@ -141,7 +138,7 @@ fn assumption_mismatch(detail: &str, remedy: &'static str) -> ExternalRefusal {
 }
 
 fn text_ok(text: &str) -> bool {
-    !text.trim().is_empty() && text.len() <= MAX_PROVIDER_TRANSPORT_TEXT_BYTES
+    !text.trim().is_empty()
 }
 
 fn write_support(writer: &mut CanonicalWriter, support: &SupportDomain) {
@@ -201,22 +198,10 @@ pub enum SourceTrustRequirement {
     ExactRequestVerified,
 }
 
-impl SourceTrustRequirement {
-    /// Stable `snake_case` label.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::AttestationAccepted => "attestation_accepted",
-            Self::ExactRequestVerified => "exact_request_verified",
-        }
-    }
-
-    /// Parse the label written by [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::AttestationAccepted, Self::ExactRequestVerified]
-            .into_iter()
-            .find(|requirement| requirement.as_str() == name)
+named_variants! {
+    SourceTrustRequirement {
+        AttestationAccepted => "attestation_accepted",
+        ExactRequestVerified => "exact_request_verified",
     }
 }
 
@@ -275,58 +260,55 @@ impl ProviderTransportSource {
     ///
     /// # Errors
     /// The first defect, in a fixed order, as a registered refusal with a
-    /// `provider_transport.*` detail and the declaration that would license
+    /// `provider_transport.*` detail and the declaration that would support
     /// the route: a missing population or regime
     /// (`population_missing`, `regime_missing`), an incomplete quantity,
     /// a provider object this route does not admit or that is ill formed,
     /// missing assumptions, a quantity the object does not declare, a native
-    /// licence, a receipt that does not cover the object, or attestation where
+    /// support, a receipt that does not cover the object, or attestation where
     /// verification is required (`verification_required`).
     pub fn admit(&self) -> Result<AdmittedProviderSource, ExternalRefusal> {
         if !text_ok(&self.component) || !text_ok(&self.semantic_identity) {
             return Err(declare(
-                "provider_transport.blank_field",
+                antecedent_core::reason_details::provider_transport::BLANK_FIELD,
                 "name the component and the semantic identity of the quantity",
             ));
         }
         if self.quantity.population_id.trim().is_empty() {
             return Err(declare(
-                "provider_transport.population_missing",
+                antecedent_core::reason_details::provider_transport::POPULATION_MISSING,
                 "declare the population the provider's output was established in",
             )
             .with_offending("quantity.population_id"));
         }
         if self.quantity.regime_id.trim().is_empty() {
             return Err(declare(
-                "provider_transport.regime_missing",
+                antecedent_core::reason_details::provider_transport::REGIME_MISSING,
                 "declare the intervention regime (`observational` is explicit) the provider's output answers",
             )
             .with_offending("quantity.regime_id"));
         }
         if self.quantity.validate().is_err() || !self.support.is_well_formed() {
             return Err(declare(
-                "provider_transport.quantity_invalid",
+                antecedent_core::reason_details::provider_transport::QUANTITY_INVALID,
                 "name the variable, units, functional and transform of the quantity, with canonical conditioning and a well formed support",
             ));
         }
         if object_meaning(&self.object).is_none() {
             return Err(declare(
-                "provider_transport.object_unsupported",
+                antecedent_core::reason_details::provider_transport::OBJECT_UNSUPPORTED,
                 "offer a law, a parameter posterior or a causal-functional posterior; other provider objects are not source evidence of this route",
             ));
         }
         if self.object.validate().is_err() {
             return Err(declare(
-                "provider_transport.object_invalid",
+                antecedent_core::reason_details::provider_transport::OBJECT_INVALID,
                 "declare a complete provider object with distinct quantities and operations",
             ));
         }
-        if self.assumptions.is_empty()
-            || self.assumptions.len() > MAX_PROVIDER_TRANSPORT_ITEMS
-            || self.assumptions.iter().any(|a| !text_ok(a))
-        {
+        if self.assumptions.is_empty() || self.assumptions.iter().any(|a| !text_ok(a)) {
             return Err(declare(
-                "provider_transport.assumptions_missing",
+                antecedent_core::reason_details::provider_transport::ASSUMPTIONS_MISSING,
                 "name the invariance and selection assumptions the provider's output relies on",
             ));
         }
@@ -335,28 +317,28 @@ impl ProviderTransportSource {
             .any(|declared| declared.require_same_coordinate(&self.quantity).is_ok())
         {
             return Err(not_bound(
-                "provider_transport.quantity_not_declared",
+                antecedent_core::reason_details::provider_transport::QUANTITY_NOT_DECLARED,
                 "offer a quantity, population and regime that the provider object declares",
             )
             .with_supplied(self.quantity.canonical_identity()));
         }
         match &self.trust {
-            ExternalTrustState::NativeLicensed => {
+            ExternalTrustState::NativeSupported => {
                 return Err(declare(
-                    "provider_transport.native_trust_claimed",
-                    "a provider is external: declare it attested or exact-request verified; native licence is never conferred by metadata",
+                    antecedent_core::reason_details::provider_transport::NATIVE_TRUST_CLAIMED,
+                    "a provider is external: declare it attested or exact-request verified; native support is never conferred by metadata",
                 ));
             }
             ExternalTrustState::ExternallyAttested { attestor } => {
                 if !text_ok(attestor) {
                     return Err(declare(
-                        "provider_transport.trust_incomplete",
+                        antecedent_core::reason_details::provider_transport::TRUST_INCOMPLETE,
                         "name the attestor of an attested provider",
                     ));
                 }
                 if self.requirement == SourceTrustRequirement::ExactRequestVerified {
                     return Err(untrusted(
-                        "provider_transport.verification_required",
+                        antecedent_core::reason_details::provider_transport::VERIFICATION_REQUIRED,
                         "supply an exact-request verification receipt that covers this provider object; an attestation does not stand in for it",
                     )
                     .with_expected("verified_extension")
@@ -366,7 +348,7 @@ impl ProviderTransportSource {
             ExternalTrustState::ExactRequestVerified(_) => {
                 if !self.trust.verifies(&self.object) {
                     return Err(untrusted(
-                        "provider_transport.receipt_does_not_cover",
+                        antecedent_core::reason_details::provider_transport::RECEIPT_DOES_NOT_COVER,
                         "supply the receipt issued for this exact provider object, version, snapshot and request",
                     ));
                 }
@@ -453,7 +435,7 @@ impl AdmittedProviderSource {
             ExternalTrustState::ExactRequestVerified(receipt) => {
                 writer.word(2).text(&receipt.digest());
             }
-            ExternalTrustState::NativeLicensed => {
+            ExternalTrustState::NativeSupported => {
                 writer.word(0);
             }
         }
@@ -463,7 +445,7 @@ impl AdmittedProviderSource {
 
     /// The source as one instance of the interface-contract schema: a produced
     /// port that supplies the `external_provider` provenance stage. The port
-    /// is point-only for a mean alone and unmeasured otherwise; it is never
+    /// is point-only for a mean alone and `not_measured` otherwise; it is never
     /// measured, so no interval or calibration is carried.
     #[must_use]
     pub fn interface_contract(&self) -> InterfaceContract {
@@ -482,7 +464,7 @@ impl AdmittedProviderSource {
             if let Some(meaning) = object_meaning(&source.object) {
                 port = port.with_uncertainty(meaning);
             }
-            port = port.with_calibration(CalibrationStatus::Unmeasured);
+            port = port.with_calibration(CalibrationStatus::NotMeasured);
         } else {
             port = port.with_calibration(CalibrationStatus::PointOnly);
         }
@@ -528,7 +510,7 @@ impl AdmittedProviderSource {
     pub fn require_bound_to(&self, transport: &TransportIdentity) -> Result<(), ExternalRefusal> {
         if !transport.source_populations.iter().any(|p| p == self.population()) {
             return Err(quantity_mismatch(
-                "provider_transport.population_not_a_source",
+                antecedent_core::reason_details::provider_transport::POPULATION_NOT_A_SOURCE,
                 "use a provider whose population is a source population of the selection diagram, or declare the transport from that population",
             )
             .with_expected(transport.source_populations.join(","))
@@ -538,7 +520,7 @@ impl AdmittedProviderSource {
             self.source.assumptions.iter().find(|a| !transport.assumptions.contains(a))
         {
             return Err(assumption_mismatch(
-                "provider_transport.assumptions_not_carried",
+                antecedent_core::reason_details::provider_transport::ASSUMPTIONS_NOT_CARRIED,
                 "carry every assumption the provider's output relies on in the transport identity",
             )
             .with_offending(missing.clone()));
@@ -611,22 +593,10 @@ pub enum TransportedInputPolicy {
     AcceptsTransported,
 }
 
-impl TransportedInputPolicy {
-    /// Stable `snake_case` label.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::NativeTargetOnly => "native_target_only",
-            Self::AcceptsTransported => "accepts_transported",
-        }
-    }
-
-    /// Parse the label written by [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::NativeTargetOnly, Self::AcceptsTransported]
-            .into_iter()
-            .find(|policy| policy.as_str() == name)
+named_variants! {
+    TransportedInputPolicy {
+        NativeTargetOnly => "native_target_only",
+        AcceptsTransported => "accepts_transported",
     }
 }
 
@@ -672,29 +642,27 @@ impl TransportedClaimOffer {
             || !text_ok(&self.semantic_identity)
             || !text_ok(&transport.target_population)
             || transport.source_populations.is_empty()
-            || transport.source_populations.len() > MAX_PROVIDER_TRANSPORT_ITEMS
             || transport.source_populations.iter().any(|p| !text_ok(p))
             || transport.assumptions.is_empty()
-            || transport.assumptions.len() > MAX_PROVIDER_TRANSPORT_ITEMS
             || transport.assumptions.iter().any(|a| !text_ok(a))
             || transport.source_populations.contains(&transport.target_population)
         {
             return Err(declare(
-                "provider_transport.transport_identity_incomplete",
+                antecedent_core::reason_details::provider_transport::TRANSPORT_IDENTITY_INCOMPLETE,
                 "name the source populations (none of them the target), the target population, the selection diagram and the assumptions the claim was carried under",
             ));
         }
         if self.quantity.population_id != transport.target_population {
             return Err(quantity_mismatch(
-                "provider_transport.claim_not_in_target",
+                antecedent_core::reason_details::provider_transport::CLAIM_NOT_IN_TARGET,
                 "state the transported claim in the target population of its transport identity",
             )
             .with_expected(transport.target_population.clone())
             .with_supplied(self.quantity.population_id.clone()));
         }
-        if self.evidence.is_empty() || self.evidence.len() > MAX_PROVIDER_TRANSPORT_ITEMS {
+        if self.evidence.is_empty() {
             return Err(declare(
-                "provider_transport.evidence_missing",
+                antecedent_core::reason_details::provider_transport::EVIDENCE_MISSING,
                 "name the ledger sources the transported claim was derived from",
             ));
         }
@@ -703,7 +671,7 @@ impl TransportedClaimOffer {
 
     /// The offer as one instance of the interface-contract schema: a produced
     /// port that supplies the `transformation` and `claim` provenance stages.
-    /// It is point-only for a mean alone and unmeasured otherwise; transport
+    /// It is point-only for a mean alone and `not_measured` otherwise; transport
     /// never produces a measured calibration label.
     #[must_use]
     pub fn interface_contract(&self) -> InterfaceContract {
@@ -724,7 +692,7 @@ impl TransportedClaimOffer {
             port = port.with_uncertainty(meaning);
         }
         port = port.with_calibration(if carries {
-            CalibrationStatus::Unmeasured
+            CalibrationStatus::NotMeasured
         } else {
             CalibrationStatus::PointOnly
         });
@@ -747,7 +715,7 @@ impl TransportedClaimOffer {
     ) -> Result<Self, ExternalRefusal> {
         let EvidenceBasis::Declared(evidence) = &port.evidence else {
             return Err(declare(
-                "provider_transport.evidence_missing",
+                antecedent_core::reason_details::provider_transport::EVIDENCE_MISSING,
                 "name the ledger sources the transported claim was derived from",
             ));
         };
@@ -874,7 +842,7 @@ pub fn hand_to_consumer(
     if policy == TransportedInputPolicy::NativeTargetOnly {
         return Err(vec![
             assumption_mismatch(
-                "provider_transport.native_target_required",
+                antecedent_core::reason_details::provider_transport::NATIVE_TARGET_REQUIRED,
                 "supply native target data, or declare the consumer's input as accepting a transported claim with its transport identity",
             )
             .with_offending(consumed_port)
@@ -927,7 +895,7 @@ pub fn hand_to_callback(
     {
         return Err(vec![
             assumption_mismatch(
-                "provider_transport.input_not_external",
+                antecedent_core::reason_details::provider_transport::INPUT_NOT_EXTERNAL,
                 "hand a transported claim to an input supplied from outside the callback graph",
             )
             .with_offending(input),

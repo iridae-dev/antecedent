@@ -16,11 +16,12 @@
 //! identity independently refuses a consistently resealed artifact of another
 //! evaluation.
 //!
-//! The artifact carries no interval, posterior or coverage statement
-//! (`point_only`); the rollout error and the importance-weighted standard
-//! error are labelled uncalibrated diagnostics.
+//! The artifact carries no posterior or coverage statement (`point_only`). The
+//! off-policy estimate carries the Wald interval of its importance-weighted standard error,
+//! reported with the calibration status `not_measured`; the rollout error is labelled an
+//! uncalibrated diagnostic.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::evidence_ledger::EvidenceLedger;
 use antecedent_core::{CanonicalWriter, ExecutionContext, blake3_hex};
@@ -272,6 +273,19 @@ pub struct TrajectoryWire {
     pub outcome_bits: u64,
 }
 
+/// The Wald interval of an off-policy estimate on the wire. Its calibration status is
+/// always `not_measured` ([`OffPolicyInterval::calibration_slot`]), so none is stored.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct IntervalWire {
+    /// Nominal level bits.
+    pub level_bits: u64,
+    /// Lower limit bits.
+    pub lower_bits: u64,
+    /// Upper limit bits.
+    pub upper_bits: u64,
+}
+
 /// The off-policy estimate and its inputs on the wire.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -290,6 +304,8 @@ pub struct OffPolicyWire {
     pub max_weight_bits: u64,
     /// Uncalibrated standard error bits.
     pub standard_error_bits: Option<u64>,
+    /// The Wald interval of the ordinary estimate; absent below two trajectories.
+    pub interval: Option<IntervalWire>,
     /// Histories checked for positivity.
     pub positivity_histories_checked: u64,
     /// Records counted once.
@@ -384,10 +400,11 @@ pub struct SequentialEvaluationArtifact {
 // ---------------------------------------------------------------------------
 
 fn refused(detail: &'static str, text: impl AsRef<str>) -> IoError {
-    IoError::Refused {
-        code: antecedent_core::reason_code!("invalid_argument"),
-        message: format!("{detail}: {}", text.as_ref()),
-    }
+    crate::plan_common::refused_with(
+        antecedent_core::reason_code!("invalid_argument"),
+        detail,
+        text.as_ref(),
+    )
 }
 
 fn identity_refused(field: &str) -> IoError {
@@ -410,8 +427,12 @@ fn reals(values: &[u64]) -> Vec<f64> {
 }
 
 fn index(value: u64, what: &str) -> Result<usize, IoError> {
-    usize::try_from(value)
-        .map_err(|_| refused("sequential_evaluation.malformed", format!("{what} is out of range")))
+    usize::try_from(value).map_err(|_| {
+        refused(
+            antecedent_core::reason_details::sequential_evaluation::MALFORMED,
+            format!("{what} is out of range"),
+        )
+    })
 }
 
 fn steps_to_wire(history: &HistoryKey) -> Vec<StepWire> {
@@ -443,7 +464,9 @@ fn actions_to_wire(actions: &[(usize, f64)]) -> Vec<ActionProbabilityWire> {
         .collect()
 }
 
-fn policy_to_wire(policy: &ContingentPolicy) -> PolicyWire {
+#[doc(hidden)]
+#[must_use]
+pub fn policy_to_wire(policy: &ContingentPolicy) -> PolicyWire {
     PolicyWire {
         version: policy.version().to_owned(),
         decisions: policy
@@ -456,7 +479,8 @@ fn policy_to_wire(policy: &ContingentPolicy) -> PolicyWire {
     }
 }
 
-fn policy_from_wire(wire: &PolicyWire) -> Result<ContingentPolicy, IoError> {
+#[doc(hidden)]
+pub fn policy_from_wire(wire: &PolicyWire) -> Result<ContingentPolicy, IoError> {
     let mut policy = ContingentPolicy::new(wire.version.clone());
     for entry in &wire.decisions {
         let history = steps_from_wire(&entry.history)?;
@@ -474,7 +498,8 @@ fn policy_from_wire(wire: &PolicyWire) -> Result<ContingentPolicy, IoError> {
     Ok(policy)
 }
 
-fn model_to_wire_body(model: &FiniteSequentialModel) -> ModelWire {
+#[doc(hidden)]
+pub fn model_to_wire_body(model: &FiniteSequentialModel) -> ModelWire {
     ModelWire {
         label: model.label.clone(),
         population: model.population.clone(),
@@ -527,11 +552,16 @@ fn model_to_wire_body(model: &FiniteSequentialModel) -> ModelWire {
     }
 }
 
-fn model_from_wire_body(wire: &ModelWire) -> Result<FiniteSequentialModel, IoError> {
+#[doc(hidden)]
+pub fn model_from_wire_body(wire: &ModelWire) -> Result<FiniteSequentialModel, IoError> {
     let mut actions = Vec::with_capacity(wire.actions.len());
     for action in &wire.actions {
-        let role = ActionRole::from_name(&action.role)
-            .ok_or_else(|| refused("sequential_evaluation.malformed", "unknown action role"))?;
+        let role = ActionRole::from_name(&action.role).ok_or_else(|| {
+            refused(
+                antecedent_core::reason_details::sequential_evaluation::MALFORMED,
+                "unknown action role",
+            )
+        })?;
         let channel = match &action.channel {
             Some(measurement) => {
                 Some(ObservationChannel { measurement: model_from_wire(measurement)? })
@@ -585,15 +615,21 @@ fn model_from_wire_body(wire: &ModelWire) -> Result<FiniteSequentialModel, IoErr
         horizon: index(wire.horizon, "the horizon")?,
         actions,
         terminal_utility: reals(&wire.terminal_bits),
-        censoring: CensoringRule::from_name(&wire.censoring)
-            .ok_or_else(|| refused("sequential_evaluation.malformed", "unknown censoring rule"))?,
+        censoring: CensoringRule::from_name(&wire.censoring).ok_or_else(|| {
+            refused(
+                antecedent_core::reason_details::sequential_evaluation::MALFORMED,
+                "unknown censoring rule",
+            )
+        })?,
         resource_budget: wire.resource_budget_bits.map(f64::from_bits),
         stopping,
         support,
     })
 }
 
-fn trajectories_to_wire(log: &[LoggedTrajectory]) -> Vec<TrajectoryWire> {
+#[doc(hidden)]
+#[must_use]
+pub fn trajectories_to_wire(log: &[LoggedTrajectory]) -> Vec<TrajectoryWire> {
     log.iter()
         .map(|trajectory| TrajectoryWire {
             id: trajectory.id.clone(),
@@ -611,7 +647,8 @@ fn trajectories_to_wire(log: &[LoggedTrajectory]) -> Vec<TrajectoryWire> {
         .collect()
 }
 
-fn trajectories_from_wire(wire: &[TrajectoryWire]) -> Result<Vec<LoggedTrajectory>, IoError> {
+#[doc(hidden)]
+pub fn trajectories_from_wire(wire: &[TrajectoryWire]) -> Result<Vec<LoggedTrajectory>, IoError> {
     let mut out = Vec::with_capacity(wire.len());
     for trajectory in wire {
         let mut steps = Vec::with_capacity(trajectory.steps.len());
@@ -689,6 +726,9 @@ fn evaluation_identity(body: &SequentialEvaluationBody) -> String {
                 .word(off.effective_sample_size_bits)
                 .word(off.max_weight_bits)
                 .opt_word(off.standard_error_bits)
+                .opt_word(off.interval.as_ref().map(|i| i.level_bits))
+                .opt_word(off.interval.as_ref().map(|i| i.lower_bits))
+                .opt_word(off.interval.as_ref().map(|i| i.upper_bits))
                 .text(&off.ledger_state);
         }
         None => {
@@ -744,6 +784,11 @@ fn build_body(
                 effective_sample_size_bits: estimate.effective_sample_size.to_bits(),
                 max_weight_bits: estimate.max_weight.to_bits(),
                 standard_error_bits: estimate.uncalibrated_standard_error.map(f64::to_bits),
+                interval: estimate.interval.as_ref().map(|i| IntervalWire {
+                    level_bits: i.level.to_bits(),
+                    lower_bits: i.lower.to_bits(),
+                    upper_bits: i.upper.to_bits(),
+                }),
                 positivity_histories_checked: estimate.positivity_histories_checked,
                 records_counted: estimate.records_counted,
                 ledger_state: estimate.ledger_state,
@@ -876,12 +921,13 @@ impl SequentialEvaluationArtifact {
         expected: Option<&ExpectedEvaluation>,
         ctx: &ExecutionContext,
     ) -> Result<(), IoError> {
+        use antecedent_core::reason_details::sequential_evaluation;
         let body = &self.body;
         if body.version != u32::from(SEQUENTIAL_EVALUATION_ARTIFACT_VERSION) {
             return Err(IoError::UnsupportedVersion { version: body.version });
         }
         if body.inference != SEQUENTIAL_EVALUATION_INFERENCE {
-            return Err(refused("sequential_evaluation.version", "unsupported inference claim"));
+            return Err(refused(sequential_evaluation::VERSION, "unsupported inference claim"));
         }
         if body.digest != self.recomputed_digest()? {
             return Err(identity_refused("body digest"));
@@ -924,28 +970,28 @@ impl SequentialEvaluationArtifact {
             Err(refused(detail, format!("the stored {what} does not replay")))
         };
         if fresh.model != body.model {
-            return differs("sequential_evaluation.model_mismatch", "model");
+            return differs(sequential_evaluation::MODEL_MISMATCH, "model");
         }
         if fresh.policy != body.policy {
-            return differs("sequential_evaluation.policy_mismatch", "policy");
+            return differs(sequential_evaluation::POLICY_MISMATCH, "policy");
         }
         if fresh.exact.value_bits != body.exact.value_bits {
-            return differs("sequential_evaluation.value_mismatch", "policy value");
+            return differs(sequential_evaluation::VALUE_MISMATCH, "policy value");
         }
         if fresh.exact.histories != body.exact.histories {
-            return differs("sequential_evaluation.history_receipt_mismatch", "history receipts");
+            return differs(sequential_evaluation::HISTORY_RECEIPT_MISMATCH, "history receipts");
         }
         if fresh.exact.decisions != body.exact.decisions {
-            return differs("sequential_evaluation.decision_receipt_mismatch", "decision receipts");
+            return differs(sequential_evaluation::DECISION_RECEIPT_MISMATCH, "decision receipts");
         }
         if fresh.exact != body.exact {
-            return differs("sequential_evaluation.exact_mismatch", "enumeration");
+            return differs(sequential_evaluation::EXACT_MISMATCH, "enumeration");
         }
         if fresh.off_policy != body.off_policy {
-            return differs("sequential_evaluation.off_policy_mismatch", "off-policy estimate");
+            return differs(sequential_evaluation::OFF_POLICY_MISMATCH, "off-policy estimate");
         }
         if fresh.rollout != body.rollout {
-            return differs("sequential_evaluation.rollout_mismatch", "rollout diagnostic");
+            return differs(sequential_evaluation::ROLLOUT_MISMATCH, "rollout diagnostic");
         }
         if fresh.identities != body.identities {
             return Err(identity_refused("identities"));
@@ -960,7 +1006,7 @@ impl SequentialEvaluationArtifact {
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, IoError> {
         if artifact_id.trim().is_empty() {
             return Err(refused(
-                "sequential_evaluation.artifact_id_missing",
+                antecedent_core::reason_details::sequential_evaluation::ARTIFACT_ID_MISSING,
                 "an artifact needs a non-blank id",
             ));
         }
@@ -985,7 +1031,7 @@ impl SequentialEvaluationArtifact {
         )
         .map_err(|error| match error {
             antecedent_io_core::CodecError::Layout => refused(
-                "sequential_evaluation.artifact_kind_mismatch",
+                antecedent_core::reason_details::sequential_evaluation::ARTIFACT_KIND_MISMATCH,
                 "unsupported container layout",
             ),
             other => other.into_io("sequential evaluation artifact"),
@@ -1005,14 +1051,14 @@ impl SequentialEvaluationArtifact {
         )
         .map_err(|error| match error {
             antecedent_io_core::CodecError::Layout => refused(
-                "sequential_evaluation.artifact_kind_mismatch",
+                antecedent_core::reason_details::sequential_evaluation::ARTIFACT_KIND_MISMATCH,
                 "unsupported container layout",
             ),
             other => other.into_io("sequential evaluation artifact"),
         })?;
         let Ok([body]) = <[Vec<u8>; 1]>::try_from(parts) else {
             return Err(refused(
-                "sequential_evaluation.artifact_kind_mismatch",
+                antecedent_core::reason_details::sequential_evaluation::ARTIFACT_KIND_MISMATCH,
                 "unexpected section count",
             ));
         };

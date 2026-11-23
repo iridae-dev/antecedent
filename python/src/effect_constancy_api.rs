@@ -34,7 +34,7 @@ fn failure(error: &EffectConstancyArtifactError) -> PyErr {
     match error {
         EffectConstancyArtifactError::LimitsExceeded(what) => with_reason_code(
             value_err(format!("effect_constancy.limits_exceeded: {what}")),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ),
         other => crate::serialization_err(other.to_string()),
     }
@@ -77,7 +77,7 @@ fn evaluate_effect_constancy(
 #[pyo3(signature = (artifact, expected_identity_json=None))]
 fn consume_effect_constancy_artifact(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expected_identity_json: Option<String>,
 ) -> PyResult<ConsumePayload> {
     let expected: Option<EffectConstancyIdentity> = match expected_identity_json {
@@ -86,13 +86,13 @@ fn consume_effect_constancy_artifact(
             Some(serde_json::from_str(&text).map_err(|e| {
                 with_reason_code(
                     value_err(format!("effect_constancy.invalid_identity: {e}")),
-                    antecedent_core::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_code!("invalid_argument"),
                 )
             })?)
         }
         None => None,
     };
-    detach_catch(py, move || match EffectConstancy::consume(&artifact, expected.as_ref()) {
+    detach_catch(py, move || match EffectConstancy::consume(artifact, expected.as_ref()) {
         Ok(done) => {
             let report = serde_json::to_string(&done.report())
                 .map_err(|e| crate::serialization_err(e.to_string()))?;

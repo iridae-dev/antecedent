@@ -7,7 +7,7 @@
 //! mass accounting from the sizes of nested prefixes, and the refusal
 //! vocabulary from the registry.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 
@@ -15,8 +15,8 @@ use antecedent_contract::adaptive_design::{
     AdaptiveDesignContract, AdaptiveDesignDeclaration, AssignmentFamily, BoundarySidedness,
     CellStatus, DelayMechanism, InferenceParadigm, InterimAnalysis, MonitoringStrategy,
     OutcomeAvailability, OutcomeStructure, PolicyEpoch, ProcedureCell, SpendingKind,
-    StoppingRuleDeclaration, StoppingRuleKind, StoppingSpec, licensed_routes, procedure_cells,
-    procedure_status,
+    StoppingRuleDeclaration, StoppingRuleKind, StoppingSpec, procedure_cells, procedure_status,
+    supported_routes,
 };
 use antecedent_core::SemanticDigest;
 
@@ -123,28 +123,28 @@ fn details(error: &antecedent_contract::adaptive_design::AdaptiveContractError) 
 #[test]
 fn the_matrix_lists_every_combination_once_and_classifies_each() {
     let cells = procedure_cells();
-    assert_eq!(cells.len(), 6 * 3 * 4 * 5);
+    assert_eq!(cells.len(), 6 * 5 * 4 * 5);
     let identifiers: BTreeSet<String> = cells.iter().map(ProcedureCell::identifier).collect();
     assert_eq!(identifiers.len(), cells.len(), "no cell is listed twice");
-    let mut licensed = 0;
+    let mut supported = 0;
     let mut incoherent = 0;
     let mut pairing = 0;
     let mut carried = 0;
     for cell in &cells {
         match procedure_status(cell) {
-            CellStatus::Licensed { paradigms } => {
+            CellStatus::Supported { paradigms } => {
                 assert!(!paradigms.is_empty());
-                licensed += 1;
+                supported += 1;
             }
-            CellStatus::ClosedIncoherent { reason } => {
+            CellStatus::Incoherent { reason } => {
                 assert!(!reason.is_empty());
                 incoherent += 1;
             }
-            CellStatus::ClosedPairing { reason } => {
+            CellStatus::PairingNotSupported { reason } => {
                 assert!(reason.contains("pairing"));
                 pairing += 1;
             }
-            CellStatus::CarriedForward { owner, reason } => {
+            CellStatus::NotDelivered { owner, reason } => {
                 assert!(owner.starts_with("adaptive_inference/"));
                 assert!(!reason.is_empty());
                 carried += 1;
@@ -152,23 +152,28 @@ fn the_matrix_lists_every_combination_once_and_classifies_each() {
             _ => panic!("an unclassified cell"),
         }
     }
-    // Incoherent: stopping without looks (4 x 18), looks without a rule
-    // (3 x 18 x ... see the axis sizes) and alpha spending with a
-    // decision-theoretic rule. Counted from the axes, not from the code.
-    let per_cell_group = 6 * 3; // assignment x outcome
+    // Incoherent: stopping without looks (4 x 30), looks without a rule
+    // (3 x 30 x ... see the axis sizes), alpha spending with a
+    // decision-theoretic rule, and a choice outcome under any assignment but fixed
+    // presentation (5 x 2 groups, each of the 12 combinations of monitoring and stopping
+    // that is coherent). Counted from the axes, not from the code.
+    let per_cell_group = 6 * 5; // assignment x outcome
     let stopping_without_looks = per_cell_group * 4; // final-only with one of 4 rules
     let looks_without_rule = per_cell_group * 3; // 3 monitoring strategies with no rule
     let spending_with_decision_theory = per_cell_group; // group sequential x decision theoretic
     assert_eq!(
         incoherent,
-        stopping_without_looks + looks_without_rule + spending_with_decision_theory
+        stopping_without_looks
+            + looks_without_rule
+            + spending_with_decision_theory
+            + 5 * 2 * (4 * 5 - 8)
     );
-    assert_eq!((licensed, pairing, carried), (7, 17, 192));
-    assert_eq!(licensed + incoherent + pairing + carried, cells.len());
+    assert_eq!((supported, pairing, carried), (12, 20, 208));
+    assert_eq!(supported + incoherent + pairing + carried, cells.len());
 }
 
 #[test]
-fn exactly_the_delivered_cells_are_licensed_with_their_own_paradigms() {
+fn exactly_the_delivered_cells_are_supported_with_their_own_paradigms() {
     use AssignmentFamily as A;
     use InferenceParadigm as P;
     use MonitoringStrategy as M;
@@ -213,24 +218,55 @@ fn exactly_the_delivered_cells_are_licensed_with_their_own_paradigms() {
             cell(A::FixedRandomization, O::SingleOutcome, M::FinalAnalysisOnly, S::NoStopping),
             vec![P::FrequentistFixedSample],
         ),
+        (
+            cell(A::FixedRandomization, O::CategoricalChoice, M::FinalAnalysisOnly, S::NoStopping),
+            vec![P::BayesianPosterior],
+        ),
+        (
+            cell(A::FixedRandomization, O::CategoricalChoice, M::FixedInterimLooks, S::Efficacy),
+            vec![P::BayesianPosterior],
+        ),
+        (
+            cell(
+                A::FixedRandomization,
+                O::CategoricalChoice,
+                M::FixedInterimLooks,
+                S::DecisionTheoretic,
+            ),
+            vec![P::BayesianPosterior, P::DecisionTheoreticStopping],
+        ),
+        (
+            cell(A::FixedRandomization, O::RepeatedChoice, M::FinalAnalysisOnly, S::NoStopping),
+            vec![P::BayesianPosterior],
+        ),
+        (
+            cell(
+                A::FixedRandomization,
+                O::RepeatedChoice,
+                M::FixedInterimLooks,
+                S::DecisionTheoretic,
+            ),
+            vec![P::BayesianPosterior, P::DecisionTheoreticStopping],
+        ),
     ];
-    let routes = licensed_routes();
+    let routes = supported_routes();
     assert_eq!(routes.len(), expected.len());
     for (cell, paradigms) in expected {
-        let found = routes.iter().find(|(c, _)| *c == cell).expect("delivered cell is licensed");
+        let found = routes.iter().find(|(c, _)| *c == cell).expect("delivered cell is supported");
         assert_eq!(found.1, paradigms.as_slice(), "{}", cell.identifier());
     }
-    // A guarantee for two components does not license their pairing: each of
+    // A guarantee for two components does not support their pairing: each of
     // these shares an assignment family or a monitoring strategy with a
-    // licensed cell and is not licensed itself.
+    // supported cell and is not supported itself.
     for pairing in [
         cell(A::ThompsonBetaBernoulli, O::SingleOutcome, M::GroupSequential, S::Efficacy),
         cell(A::EpsilonGreedy, O::SingleOutcome, M::GroupSequential, S::Efficacy),
         cell(A::EpsilonGreedy, O::RepeatedMeasures, M::GroupSequential, S::Efficacy),
         cell(A::FixedRandomization, O::RepeatedMeasures, M::FixedInterimLooks, S::Efficacy),
+        cell(A::FixedRandomization, O::RepeatedChoice, M::FixedInterimLooks, S::Efficacy),
     ] {
         assert!(
-            matches!(procedure_status(&pairing), CellStatus::ClosedPairing { .. }),
+            matches!(procedure_status(&pairing), CellStatus::PairingNotSupported { .. }),
             "{}",
             pairing.identifier()
         );
@@ -272,22 +308,51 @@ fn the_registry_table_and_the_executable_matrix_agree_cell_by_cell() {
     for (row, cell) in rows.iter().zip(&cells) {
         assert_eq!(row.0, cell.identifier(), "registry order is the matrix order");
         match procedure_status(cell) {
-            CellStatus::Licensed { paradigms } => {
-                assert_eq!(row.1, "licensed", "{}", row.0);
+            CellStatus::Supported { paradigms } => {
+                assert_eq!(row.1, "supported", "{}", row.0);
                 let names: Vec<&str> = paradigms.iter().map(|p| p.as_str()).collect();
                 assert_eq!(row.3, names, "{}", row.0);
             }
-            CellStatus::ClosedIncoherent { .. } => {
-                assert_eq!(row.1, "closed_incoherent", "{}", row.0)
+            CellStatus::Incoherent { .. } => {
+                assert_eq!(row.1, "incoherent", "{}", row.0)
             }
-            CellStatus::ClosedPairing { .. } => assert_eq!(row.1, "closed_pairing", "{}", row.0),
-            CellStatus::CarriedForward { owner, .. } => {
-                assert_eq!(row.1, "carried_forward", "{}", row.0);
+            CellStatus::PairingNotSupported { .. } => {
+                assert_eq!(row.1, "pairing_not_supported", "{}", row.0)
+            }
+            CellStatus::NotDelivered { owner, .. } => {
+                assert_eq!(row.1, "not_delivered", "{}", row.0);
                 assert_eq!(row.2.as_deref(), Some(owner), "{}", row.0);
             }
             _ => panic!("an unclassified cell"),
         }
     }
+}
+
+#[test]
+fn a_choice_outcome_has_no_assignment_among_arms() {
+    for assignment in
+        AssignmentFamily::ALL.iter().copied().filter(|a| *a != AssignmentFamily::FixedRandomization)
+    {
+        let cell = cell(
+            assignment,
+            OutcomeStructure::CategoricalChoice,
+            MonitoringStrategy::FinalAnalysisOnly,
+            StoppingRuleKind::NoStopping,
+        );
+        assert!(matches!(procedure_status(&cell), CellStatus::Incoherent { .. }));
+    }
+    let mut d = declaration(cell(
+        AssignmentFamily::FixedRandomization,
+        OutcomeStructure::CategoricalChoice,
+        MonitoringStrategy::FinalAnalysisOnly,
+        StoppingRuleKind::NoStopping,
+    ));
+    d.stopping_rule.as_mut().unwrap().spec = StoppingSpec::NoStopping;
+    let error =
+        AdaptiveDesignContract::new(d).expect_err("an arm contract is not a choice contract");
+    assert!(details(&error).iter().any(|d| {
+        d == antecedent_core::reason_details::adaptive_inference::CHOICE_OUTCOME_NEEDS_CHOICE_CONTRACT
+    }));
 }
 
 // -- the futility rule ----------------------------------------------------------------------
@@ -314,11 +379,43 @@ fn a_futility_rule_has_its_own_spec_with_parameters_in_range_and_part_of_the_ide
     {
         let error = AdaptiveDesignContract::new(futility_declaration(margin, threshold))
             .expect_err("out of range");
-        assert_eq!(details(&error), ["adaptive_inference.rule_mismatch"]);
+        assert_eq!(
+            details(&error),
+            [antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH]
+        );
+    }
+    for spec in [
+        StoppingSpec::NoStopping,
+        StoppingSpec::PosteriorProbabilityBest { threshold: 0.95 },
+        StoppingSpec::PosteriorExpectedLoss { loss_threshold: 0.05 },
+        StoppingSpec::ResourceCap { max_units: 1 },
+        StoppingSpec::AlphaSpending {
+            spending: SpendingKind::PocockType,
+            total_alpha: 0.05,
+            sidedness: BoundarySidedness::OneSidedUpper,
+        },
+    ] {
+        let mut d = futility_declaration(0.05, 0.1);
+        d.stopping_rule.as_mut().unwrap().spec = spec;
+        assert_eq!(
+            details(&AdaptiveDesignContract::new(d).unwrap_err()),
+            [antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH]
+        );
+    }
+    for (margin, threshold) in [(f64::INFINITY, 0.1), (0.05, f64::NAN), (0.05, f64::INFINITY)] {
+        assert_eq!(
+            details(
+                &AdaptiveDesignContract::new(futility_declaration(margin, threshold)).unwrap_err()
+            ),
+            [antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH]
+        );
     }
     // Futility boundaries (error rates) stay carried forward with their owner.
     let refusal = contract.admit_paradigm(InferenceParadigm::BayesianPosterior).unwrap_err();
-    assert_eq!(refusal.detail, "adaptive_inference.cell_carried_forward");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::CELL_NOT_DELIVERED
+    );
 }
 
 // -- completeness ---------------------------------------------------------------------------
@@ -336,14 +433,27 @@ fn a_complete_declaration_is_accepted() {
 fn every_missing_element_is_its_own_typed_refusal() {
     type Strip = fn(&mut AdaptiveDesignDeclaration);
     let cases: [(&str, Strip); 6] = [
-        ("adaptive_inference.policy_history_missing", |d| d.policy_history = None),
-        ("adaptive_inference.assignment_probabilities_missing", |d| {
-            d.assignment_probabilities = None;
+        (antecedent_core::reason_details::adaptive_inference::POLICY_HISTORY_MISSING, |d| {
+            d.policy_history = None
         }),
-        ("adaptive_inference.exposure_history_missing", |d| d.exposure = None),
-        ("adaptive_inference.outcome_availability_missing", |d| d.availability = None),
-        ("adaptive_inference.interim_analyses_missing", |d| d.interim_analyses = None),
-        ("adaptive_inference.stopping_rule_missing", |d| d.stopping_rule = None),
+        (
+            antecedent_core::reason_details::adaptive_inference::ASSIGNMENT_PROBABILITIES_MISSING,
+            |d| {
+                d.assignment_probabilities = None;
+            },
+        ),
+        (antecedent_core::reason_details::adaptive_inference::EXPOSURE_HISTORY_MISSING, |d| {
+            d.exposure = None
+        }),
+        (antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_MISSING, |d| {
+            d.availability = None
+        }),
+        (antecedent_core::reason_details::adaptive_inference::INTERIM_ANALYSES_MISSING, |d| {
+            d.interim_analyses = None
+        }),
+        (antecedent_core::reason_details::adaptive_inference::STOPPING_RULE_MISSING, |d| {
+            d.stopping_rule = None
+        }),
     ];
     for (detail, strip) in &cases {
         let mut declaration = thompson();
@@ -372,47 +482,50 @@ fn inconsistent_records_are_refused_with_distinct_details() {
     };
     assert_eq!(
         mutate(|d| d.assignment_probabilities.as_mut().unwrap()[0] = vec![0.5, 0.6]),
-        ["adaptive_inference.probabilities_invalid"]
+        [antecedent_core::reason_details::adaptive_inference::PROBABILITIES_INVALID]
     );
     assert_eq!(
         mutate(|d| d.assignment_probabilities.as_mut().unwrap()[0] = vec![0.0, 1.0]),
-        ["adaptive_inference.assigned_probability_zero"]
+        [antecedent_core::reason_details::adaptive_inference::ASSIGNED_PROBABILITY_ZERO]
     );
-    assert_eq!(mutate(|d| d.assigned_arm[2] = 7), ["adaptive_inference.arm_out_of_range"]);
+    assert_eq!(
+        mutate(|d| d.assigned_arm[2] = 7),
+        [antecedent_core::reason_details::adaptive_inference::ARM_OUT_OF_RANGE]
+    );
     assert_eq!(
         mutate(|d| d.interim_analyses.as_mut().unwrap()[1].units_enrolled = 7),
-        ["adaptive_inference.looks_not_ordered"]
+        [antecedent_core::reason_details::adaptive_inference::LOOKS_NOT_ORDERED]
     );
     assert_eq!(
         mutate(|d| d.interim_analyses.as_mut().unwrap()[0].information_fraction = 1.0),
-        ["adaptive_inference.looks_not_ordered"]
+        [antecedent_core::reason_details::adaptive_inference::LOOKS_NOT_ORDERED]
     );
     assert_eq!(
         mutate(|d| d.availability.as_mut().unwrap().available_at_look[5] = Some(0)),
-        ["adaptive_inference.shape_mismatch"],
+        [antecedent_core::reason_details::adaptive_inference::SHAPE_MISMATCH],
         "an outcome cannot be available before its unit is enrolled"
     );
     assert_eq!(
         mutate(|d| d.availability.as_mut().unwrap().available_at_look[0] = None),
-        ["adaptive_inference.shape_mismatch"],
+        [antecedent_core::reason_details::adaptive_inference::SHAPE_MISMATCH],
         "availability and observed outcomes must agree"
     );
     assert_eq!(
         mutate(|d| d.stopping_rule.as_mut().unwrap().kind = StoppingRuleKind::Resource),
-        ["adaptive_inference.rule_mismatch"]
+        [antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH]
     );
     assert_eq!(
         mutate(|d| d.outcomes[1] = vec![0.5]),
-        ["adaptive_inference.outcome_invalid"],
+        [antecedent_core::reason_details::adaptive_inference::OUTCOME_INVALID],
         "Beta-Bernoulli is defined for {{0, 1}}"
     );
     assert_eq!(
         mutate(|d| d.policy_history.as_mut().unwrap()[0].first_unit = 1),
-        ["adaptive_inference.policy_history_invalid"]
+        [antecedent_core::reason_details::adaptive_inference::POLICY_HISTORY_INVALID]
     );
     assert_eq!(
         mutate(|d| d.probability_floor = 0.0),
-        ["adaptive_inference.probability_floor_invalid"]
+        [antecedent_core::reason_details::adaptive_inference::PROBABILITY_FLOOR_INVALID]
     );
     // A fixed-randomization declaration whose probabilities vary is not one.
     let mut fixed = declaration(cell(
@@ -423,7 +536,10 @@ fn inconsistent_records_are_refused_with_distinct_details() {
     ));
     fixed.assignment_probabilities.as_mut().unwrap()[3] = vec![0.4, 0.6];
     let error = AdaptiveDesignContract::new(fixed).expect_err("probabilities vary");
-    assert_eq!(details(&error), ["adaptive_inference.rule_mismatch"]);
+    assert_eq!(
+        details(&error),
+        [antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH]
+    );
     // The refusals use only registered codes.
     for refusal in &error.refusals {
         assert!(antecedent_core::reason_code::is_runtime_refusal(refusal.code));
@@ -470,7 +586,10 @@ fn fixed_sample_inference_of_adaptive_data_is_refused() {
     let contract = AdaptiveDesignContract::new(thompson()).unwrap();
     let refusal = contract.admit_paradigm(InferenceParadigm::FrequentistFixedSample).unwrap_err();
     assert_eq!(refusal.code, "adaptive_design_ignored");
-    assert_eq!(refusal.detail, "adaptive_inference.fixed_sample_on_adaptive_data");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_ON_ADAPTIVE_DATA
+    );
     // Adaptive in any one axis suffices: a fixed assignment with interim looks.
     let looked_at = declaration(cell(
         AssignmentFamily::FixedRandomization,
@@ -480,7 +599,10 @@ fn fixed_sample_inference_of_adaptive_data_is_refused() {
     ));
     let contract = AdaptiveDesignContract::new(looked_at).unwrap();
     let refusal = contract.admit_paradigm(InferenceParadigm::FrequentistFixedSample).unwrap_err();
-    assert_eq!(refusal.detail, "adaptive_inference.fixed_sample_on_adaptive_data");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_ON_ADAPTIVE_DATA
+    );
     // A design fixed in advance is the one case the paradigm is authorized.
     let fixed = declaration(cell(
         AssignmentFamily::FixedRandomization,
@@ -495,21 +617,27 @@ fn fixed_sample_inference_of_adaptive_data_is_refused() {
 }
 
 #[test]
-fn a_paradigm_never_transfers_to_a_cell_it_is_not_licensed_for() {
+fn a_paradigm_never_transfers_to_a_cell_it_is_not_supported_for() {
     let contract = AdaptiveDesignContract::new(thompson()).unwrap();
     assert!(contract.admit_paradigm(InferenceParadigm::BayesianPosterior).is_ok());
     assert!(contract.admit_paradigm(InferenceParadigm::AnytimeValidFrequentist).is_ok());
     let refusal =
         contract.admit_paradigm(InferenceParadigm::FrequentistAdaptiveWeighting).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(refusal.detail, "adaptive_inference.paradigm_not_licensed_for_cell");
+    assert_eq!(refusal.code, "route_not_supported");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::PARADIGM_NOT_SUPPORTED_FOR_CELL
+    );
     let refusal =
         contract.admit_paradigm(InferenceParadigm::FrequentistGroupSequential).unwrap_err();
-    assert_eq!(refusal.detail, "adaptive_inference.paradigm_not_licensed_for_cell");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::PARADIGM_NOT_SUPPORTED_FOR_CELL
+    );
 }
 
 #[test]
-fn closed_carried_and_paired_cells_are_refused_with_their_own_details() {
+fn incoherent_undelivered_and_unpaired_cells_are_refused_with_their_own_details() {
     use AssignmentFamily as A;
     use MonitoringStrategy as M;
     use OutcomeStructure as O;
@@ -520,20 +648,26 @@ fn closed_carried_and_paired_cells_are_refused_with_their_own_details() {
     };
     let carried =
         refused(cell(A::UpperConfidenceBound, O::SingleOutcome, M::FixedInterimLooks, S::Efficacy));
-    assert_eq!(carried.detail, "adaptive_inference.cell_carried_forward");
+    assert_eq!(
+        carried.detail,
+        antecedent_core::reason_details::adaptive_inference::CELL_NOT_DELIVERED
+    );
     assert_eq!(carried.offending.as_deref(), Some("adaptive_inference/upper_confidence_bound"));
     let paired =
         refused(cell(A::ThompsonBetaBernoulli, O::SingleOutcome, M::GroupSequential, S::Efficacy));
-    assert_eq!(paired.detail, "adaptive_inference.pairing_not_licensed");
+    assert_eq!(
+        paired.detail,
+        antecedent_core::reason_details::adaptive_inference::PAIRING_NOT_SUPPORTED
+    );
     let closed = refused(cell(
         A::ThompsonBetaBernoulli,
         O::SingleOutcome,
         M::FinalAnalysisOnly,
         S::Efficacy,
     ));
-    assert_eq!(closed.detail, "adaptive_inference.cell_closed");
+    assert_eq!(closed.detail, antecedent_core::reason_details::adaptive_inference::CELL_INCOHERENT);
     for refusal in [&carried, &paired, &closed] {
-        assert_eq!(refusal.code, "cell_not_licensed");
+        assert_eq!(refusal.code, "route_not_supported");
     }
 }
 
@@ -544,13 +678,19 @@ fn noncompliance_and_outcome_dependent_delay_are_refused_before_any_number() {
     let contract = AdaptiveDesignContract::new(declaration).unwrap();
     let refusal = contract.admit_paradigm(InferenceParadigm::BayesianPosterior).unwrap_err();
     assert_eq!(refusal.code, "adaptive_assumption_violated");
-    assert_eq!(refusal.detail, "adaptive_inference.exposure_differs_from_assignment");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::EXPOSURE_DIFFERS_FROM_ASSIGNMENT
+    );
 
     let mut declaration = thompson();
     declaration.availability.as_mut().unwrap().delay = DelayMechanism::OutcomeDependent;
     let contract = AdaptiveDesignContract::new(declaration).unwrap();
     let refusal = contract.admit_paradigm(InferenceParadigm::BayesianPosterior).unwrap_err();
-    assert_eq!(refusal.detail, "adaptive_inference.delay_not_ignorable");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::DELAY_NOT_IGNORABLE
+    );
 
     let mut declaration = thompson();
     declaration.availability.as_mut().unwrap().delay = DelayMechanism::IgnorableAdministrative;
@@ -571,10 +711,21 @@ fn delayed_outcomes_enter_the_analysis_only_when_observed() {
     declaration.outcomes[7] = Vec::new();
     availability.delay = DelayMechanism::IgnorableAdministrative;
     let contract = AdaptiveDesignContract::new(declaration).unwrap();
-    assert_eq!(contract.analysis_units(0), vec![0, 2]);
-    assert_eq!(contract.analysis_units(1), vec![0, 1, 2, 3, 4, 5, 6]);
+    let first = contract.analysis_units(0).unwrap();
+    let last = contract.analysis_units(1).unwrap();
+    assert_eq!(first, vec![0, 2]);
+    assert_eq!(last, vec![0, 1, 2, 3, 4, 5, 6]);
     // Nested: each look's data contain the previous look's.
-    assert!(contract.analysis_units(0).iter().all(|u| contract.analysis_units(1).contains(u)));
+    assert!(first.iter().all(|u| last.contains(u)));
+    for look in [contract.looks(), usize::MAX] {
+        let refusal = contract.analysis_units(look).unwrap_err();
+        assert_eq!(refusal.code, "invalid_argument");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::adaptive_inference::LOOK_OUT_OF_RANGE
+        );
+        assert_eq!(refusal.offending.as_deref(), Some(format!("look {look}").as_str()));
+    }
 }
 
 #[test]
@@ -588,9 +739,6 @@ fn interim_looks_count_each_observation_once() {
     assert!(evidence.mass.unknown_sources.is_empty());
     assert_eq!(evidence.look_sources.len(), 2);
     assert!(evidence.ledger.result(evidence.reuse).is_some());
-    // The ledger never licenses an interval for the repeated use.
-    let error = evidence.ledger.request_interval(evidence.reuse).unwrap_err();
-    assert_eq!(error.code, "cell_not_licensed");
 }
 
 #[test]
@@ -599,7 +747,10 @@ fn the_looks_are_never_pooled_as_independent_evidence() {
     let evidence = contract.interim_evidence().unwrap();
     let refusal = contract.refuse_independent_pooling_of_looks(&evidence).unwrap_err();
     assert_eq!(refusal.code, "evidence_double_counted");
-    assert_eq!(refusal.detail, "adaptive_inference.looks_share_observations");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::LOOKS_SHARE_OBSERVATIONS
+    );
     // With only a final analysis there is no earlier look to double count.
     let single = declaration(cell(
         AssignmentFamily::FixedRandomization,
@@ -634,7 +785,26 @@ fn observation_identities_are_stable_per_contract_and_unit() {
     let mut other = thompson();
     other.label = "another".to_owned();
     let b = AdaptiveDesignContract::new(other).unwrap();
-    assert_eq!(a.observation_id(3), a.observation_id(3));
-    assert_ne!(a.observation_id(3), a.observation_id(4));
-    assert_ne!(a.observation_id(3), b.observation_id(3));
+    // Rebuilt from the same declaration, the identity is the same: it is a function of the
+    // contract and the unit, not of the instance.
+    let rebuilt = AdaptiveDesignContract::new(thompson()).unwrap();
+    let id = a.observation_id(3).unwrap();
+    assert_eq!(id, rebuilt.observation_id(3).unwrap());
+    assert_ne!(id, a.observation_id(4).unwrap());
+    assert_ne!(id, b.observation_id(3).unwrap());
+    assert_eq!(
+        id,
+        antecedent_contract::evidence_ledger::ObservationId::from_key(
+            &a.identity().to_hex(),
+            &3_u32.to_le_bytes(),
+        )
+    );
+    for unit in [a.units(), usize::MAX] {
+        let refusal = a.observation_id(unit).unwrap_err();
+        assert_eq!(refusal.code, antecedent_core::reason_code!("invalid_argument"));
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::adaptive_inference::UNIT_OUT_OF_RANGE
+        );
+    }
 }

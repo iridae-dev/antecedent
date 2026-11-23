@@ -4,6 +4,16 @@ import sys
 import tomllib
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _repo
+from provenance_links import (  # noqa: E402  # noqa: E402
+    ALIAS,
+    FAMILY,
+    NOT_AN_ALGORITHM,
+    method_review_problems,
+    non_algorithm_review_problems,
+)
+
 root = Path(".")
 records = sorted((root / "provenance").glob("*.toml"))
 allowed_exposure = {
@@ -22,8 +32,12 @@ path_pattern = re.compile(
     r"((?:crates|python|conformance|tests|parity|benches|docs)/[A-Za-z0-9_./-]+)"
 )
 problems: list[str] = []
+item_bound = 0
 checked = 0
 path_refs = 0
+primary_reviewed = 0
+non_algorithm_mapped = 0
+known_stems = {p.stem for p in records if p.name != "_template.toml"}
 
 for path in records:
     if path.name == "_template.toml":
@@ -31,15 +45,28 @@ for path in records:
     checked += 1
     rel = path.relative_to(root)
     try:
-        record = tomllib.loads(path.read_text(encoding="utf-8"))
+        record = _repo.load_toml(path)
     except (OSError, tomllib.TOMLDecodeError) as error:
         problems.append(f"{rel}: cannot parse: {error}")
         continue
 
     if record.get("feature_id") != path.stem:
-        problems.append(
-            f"{rel}: feature_id must equal filename stem {path.stem!r}"
-        )
+        problems.append(f"{rel}: feature_id must equal filename stem {path.stem!r}")
+    for key in ("method_review", "non_algorithm_review"):
+        review = record.get(key)
+        if isinstance(review, dict):
+            item_bound += sum(
+                isinstance(a, dict) and "items" in a for a in review.get("artifacts") or []
+            )
+    review_findings = method_review_problems(root, record)
+    problems.extend(f"{rel}: {problem}" for problem in review_findings)
+    if isinstance(record.get("method_review"), dict) and not review_findings:
+        primary_reviewed += 1
+
+    mapping_findings = non_algorithm_review_problems(root, record, known_stems)
+    problems.extend(f"{rel}: {problem}" for problem in mapping_findings)
+    if isinstance(record.get("non_algorithm_review"), dict) and not mapping_findings:
+        non_algorithm_mapped += 1
 
     crate = record.get("implementation_crate")
     crate_exists = isinstance(crate, str) and (
@@ -65,14 +92,13 @@ for path in records:
             if not isinstance(paper.get("title"), str) or not paper["title"].strip():
                 problems.append(f"{prefix}.title must be non-empty")
             sections = paper.get("sections")
-            if not isinstance(sections, list) or not sections or any(
-                not isinstance(section, str) or not section.strip()
-                for section in sections
+            if (
+                not isinstance(sections, list)
+                or not sections
+                or any(not isinstance(section, str) or not section.strip() for section in sections)
             ):
                 problems.append(f"{prefix}.sections must name exact locations")
-            if "doi" in paper and (
-                not isinstance(paper["doi"], str) or not paper["doi"].strip()
-            ):
+            if "doi" in paper and (not isinstance(paper["doi"], str) or not paper["doi"].strip()):
                 problems.append(f"{prefix}.doi must be omitted rather than empty")
 
     upstream = record.get("upstream_implementations_observed")
@@ -84,16 +110,19 @@ for path in records:
             if not isinstance(implementation, dict):
                 problems.append(f"{prefix} must be a table, not a bare string")
                 continue
-            if not isinstance(implementation.get("project"), str) or not implementation[
-                "project"
-            ].strip():
+            if (
+                not isinstance(implementation.get("project"), str)
+                or not implementation["project"].strip()
+            ):
                 problems.append(f"{prefix}.project must be non-empty")
             if implementation.get("exposure") not in allowed_exposure:
                 problems.append(f"{prefix}.exposure is not an allowed disclosure")
 
     test_sources = record.get("test_sources")
-    if not isinstance(test_sources, list) or not test_sources or any(
-        not isinstance(source, str) or not source.strip() for source in test_sources
+    if (
+        not isinstance(test_sources, list)
+        or not test_sources
+        or any(not isinstance(source, str) or not source.strip() for source in test_sources)
     ):
         problems.append(f"{rel}: test_sources must be a non-empty string array")
         continue
@@ -108,33 +137,11 @@ for path in records:
 # CI factory id, must resolve to a record. Family names that are not
 # filenames are explicit aliases — a new closed-set id cannot ship without
 # either a matching file or an alias to one.
-stems = {
-    p.stem
-    for p in (root / "provenance").glob("*.toml")
-    if p.name != "_template.toml"
-}
-ALIAS = {
-    "identify.general_id": "identify.id",
-    "identify.transport.sid": "identify.transport_sid",
-    "estimate.propensity": "estimate.propensity_weighting",
-    "estimate.matching": "estimate.distance_matching",
-    "estimate.glm_adjustment": "estimate.glm",
-    "estimate.frontdoor": "estimate.frontdoor_two_stage",
-    "estimate.iv": "estimate.iv_2sls",
-    "estimate.temporal_linear": "estimate.temporal_linear_adjustment",
-    "estimate.conditional_linear": "estimate.conditional",
-    "estimate.transport.trial_ipw": "estimate.trial_to_target",
-    "estimate.interference.ht_hajek": "stats.randomized_interference",
-}
-FAMILY = {
-    "estimate.propensity": (
-        "estimate.propensity_weighting",
-        "estimate.propensity_matching",
-        "estimate.propensity_stratification",
-    ),
-}
+stems = {p.stem for p in (root / "provenance").glob("*.toml") if p.name != "_template.toml"}
 ids_rs = (root / "crates/antecedent/src/strategy_table/ids.rs").read_text(encoding="utf-8")
 pointers = re.findall(r'provenance:\s*(?:\n\s*)?\(\s*"([^"]+)"', ids_rs)
+if not pointers:
+    problems.append("strategy-table provenance pointer scan found no pointers")
 for feat in pointers:
     resolved = ALIAS.get(feat, feat)
     if resolved not in stems:
@@ -144,9 +151,7 @@ for feat in pointers:
         )
     for member in FAMILY.get(feat, ()):
         if member not in stems:
-            problems.append(
-                f"strategy-table family {feat!r} is missing member record {member!r}"
-            )
+            problems.append(f"strategy-table family {feat!r} is missing member record {member!r}")
 
 CI_CLAIM = {
     "parcorr": "ci.partial_correlation",
@@ -180,6 +185,10 @@ CI_SKIP = {"oracle"}
 factory = (root / "crates/antecedent-stats/src/ci/factory.rs").read_text(encoding="utf-8")
 fn = re.search(r"pub fn ci_from_name\b.*?(?=\n#\[cfg|\nimpl |\Z)", factory, re.S)
 factory_names = set(re.findall(r'"([a-z][a-z0-9_]*)"', fn.group(0) if fn else ""))
+if fn is None:
+    problems.append("CI factory ci_from_name definition is missing")
+elif not factory_names:
+    problems.append("CI factory ci_from_name contains no names")
 for name in sorted(factory_names):
     if name in CI_SKIP:
         continue
@@ -187,9 +196,55 @@ for name in sorted(factory_names):
     if claim is None:
         problems.append(f"CI factory name {name!r} has no provenance mapping")
     elif claim not in stems:
+        problems.append(f"CI factory name {name!r} maps to missing provenance record {claim!r}")
+
+# Method review: every record that names the modules it covers names files that exist, and every
+# specification whose child has an implementing module links clean-room provenance and a reviewed
+# public surface (or records why the module implements no algorithm).
+for path in records:
+    if path.name == "_template.toml":
+        continue
+    record = _repo.load_toml(path)
+    for module in record.get("modules", []):
+        if not (root / module).exists():
+            problems.append(
+                f"{path.relative_to(root)}: modules names {module}, which does not exist"
+            )
+children = {
+    c["id"]: c
+    for c in _repo.load_toml(root / "parity/method_children/children.toml")["child"]
+}
+review_checked = 0
+for spec in _repo.load_toml(root / "parity/method_specs/specs.toml")[
+    "spec"
+]:
+    sid = spec["id"]
+    module = children[sid]["module"].split(";")[0].strip().split(" ")[0]
+    if module in ("", "none", "unlisted"):
+        continue  # no implementing module: nothing to link
+    review_checked += 1
+    links = spec.get("provenance", [])
+    if not links:
         problems.append(
-            f"CI factory name {name!r} maps to missing provenance record {claim!r}"
+            f"spec {sid}: method links no provenance record and records no reason"
         )
+    for link in links:
+        if link.startswith("not_applicable:"):
+            if module not in NOT_AN_ALGORITHM:
+                problems.append(
+                    f"spec {sid}: provenance not_applicable for {module}, which is not a listed non-algorithm"
+                )
+        elif link not in stems:
+            problems.append(f"spec {sid}: provenance record {link!r} does not exist")
+        else:
+            linked = _repo.load_toml(root / "provenance" / f"{link}.toml")
+            if any(linked.get(flag) is not False for flag in required_booleans):
+                problems.append(f"spec {sid}: provenance record {link!r} is not clean-room")
+    if str(spec.get("api_review", "")).startswith("unreviewed") or not spec.get("api_review"):
+        problems.append(f"spec {sid}: public surface of {module} is not in a reviewed API snapshot")
+
+if review_checked == 0:
+    problems.append("no method provenance/API links were inspected")
 
 for extra in (
     "estimate.identified_set",
@@ -208,4 +263,6 @@ if problems:
         print(f" - {problem}")
     sys.exit(1)
 
-print(f"provenance schema/path audit: ok ({checked} records, {path_refs} path references)")
+print(
+    f"provenance schema/path audit: ok ({checked} records, {path_refs} path references, {review_checked} method provenance/API links, {primary_reviewed} bounded primary method reviews, {non_algorithm_mapped} justified non-algorithm mappings, {item_bound} item-bound artifacts)"
+)

@@ -5,7 +5,7 @@
 //! or linear-algebra code is reused — so a pin against it is a numeric comparison,
 //! not a shape check.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     dead_code,

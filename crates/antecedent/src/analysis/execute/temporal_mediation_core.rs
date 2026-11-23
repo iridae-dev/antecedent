@@ -2,12 +2,12 @@
 //!
 //! The sealed operation ([`super::CheckedTemporalMediationOperation`]) and the
 //! one-shot route both resolve their per-horizon proofs, gate their own
-//! licence, and call [`fit_temporal_mediation`]. The linear mechanism fits, the
+//! support, and call [`fit_temporal_mediation`]. The linear mechanism fits, the
 //! block bootstrap, the Gaussian posterior composition, the refuters and the
 //! result envelope live here only, so a route cannot drift from the other in
 //! seeds, diagnostics or provenance.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::temporal_path::{
     MediationHorizonClick, mediation_click_adjustment_keys, mediation_horizon_z_differs,
@@ -46,7 +46,7 @@ pub(super) fn require_isotropic_mediation_prior(
 ) -> Result<(), CausalError> {
     if config.has_transfer() {
         return Err(CausalError::Unsupported {
-            message: "Bayesian temporal mediation supports isotropic mechanism priors; shared or transferred coefficient priors are not licensed",
+            message: "Bayesian temporal mediation supports isotropic mechanism priors; shared or transferred coefficient priors are not supported",
         });
     }
     Ok(())
@@ -154,6 +154,9 @@ pub(super) fn fit_temporal_mediation(
     if ctx.cancellation.is_cancelled() {
         return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_ESTIMATE_POINT });
     }
+    // The mediation design windows are not weighted by the observation they end at, so a
+    // weighted series would be fit unweighted and still labelled as sampling-weighted.
+    super::series_weights::refuse_unread_series_weights(inputs.data, "temporal mediation")?;
     let TemporalMediationInputs { horizons, .. } = *inputs;
     let first = horizons.first().ok_or_else(|| CausalError::Compile {
         message: "temporal mediation requires at least one horizon".into(),
@@ -393,7 +396,7 @@ fn mediation_preamble_diagnostics(
             "estimate.mediation.bayesian",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
-            "independent Gaussian mediator and outcome mechanisms; total = direct + mediated for every posterior draw; NaturalDirect and NaturalIndirect use the licensed additive linear no-treatment-mediator-interaction alias",
+            "independent Gaussian mediator and outcome mechanisms; total = direct + mediated for every posterior draw; NaturalDirect and NaturalIndirect use the supported additive linear no-treatment-mediator-interaction alias",
         ));
     }
     diagnostics
@@ -553,7 +556,7 @@ fn fit_mediation_mechanisms(
     prior_scale: f64,
     ctx: &ExecutionContext,
 ) -> Result<Vec<CausalPosterior>, CausalError> {
-    preparations
+    let fitted = preparations
         .iter()
         .enumerate()
         .map(|(mechanism, prep)| {
@@ -564,7 +567,15 @@ fn fit_mediation_mechanisms(
                 .fit(prep, status, &mut BayesianGCompWorkspace::default(), ctx)
                 .map_err(CausalError::from)
         })
-        .collect()
+        .collect::<Result<Vec<_>, _>>()?;
+    // The mediator and outcome share the series: their draws are one joint law.
+    Ok(antecedent_estimate::bayesian_mediation::couple_mediation_mechanisms(
+        preparations,
+        fitted,
+        horizon as usize,
+        mediation_mechanism_seed(ctx.rng.master_seed(), horizon, preparations.len()),
+        ctx,
+    ))
 }
 
 fn fit_bayesian_horizon(
@@ -577,7 +588,7 @@ fn fit_bayesian_horizon(
     ctx: &ExecutionContext,
 ) -> Result<HorizonFit, CausalError> {
     use antecedent_estimate::bayesian_mediation::{
-        compose_temporal_mediation, prepare_temporal_mediation_with_gaps,
+        compose_temporal_mediation_mechanisms, prepare_temporal_mediation_with_gaps,
     };
     let status = click.identification.status;
     let natural_alias = matches!(
@@ -598,9 +609,8 @@ fn fit_bayesian_horizon(
         fit_mediation_mechanisms(estimator, &preparations, (click.horizon, status), scale, ctx)
     };
     let mechanisms = fit(config.prior_scale)?;
-    let mut posterior =
-        compose_temporal_mediation(&mechanisms[0], &mechanisms[1], horizon_query, status)
-            .map_err(CausalError::from)?;
+    let mut posterior = compose_temporal_mediation_mechanisms(&mechanisms, horizon_query, status)
+        .map_err(CausalError::from)?;
     if natural_alias {
         posterior.assumptions.push(antecedent_estimate::linear_no_interaction_restriction());
     }
@@ -684,14 +694,14 @@ fn mediation_prior_sensitivity(
     (antecedent_validate::RefutationReport, antecedent_prob::PriorSensitivitySummary),
     CausalError,
 > {
-    use antecedent_estimate::bayesian_mediation::compose_temporal_mediation;
+    use antecedent_estimate::bayesian_mediation::compose_temporal_mediation_mechanisms;
     let sensitivity = antecedent_validate::PriorSensitivity::standard_grid();
     let mut means = Vec::new();
     let mut sds = Vec::new();
     for &scale in sensitivity.scales.iter() {
         let scaled = fit(scale)?;
         let scaled_posterior =
-            compose_temporal_mediation(&scaled[0], &scaled[1], horizon_query, status)
+            compose_temporal_mediation_mechanisms(&scaled, horizon_query, status)
                 .map_err(CausalError::from)?;
         means.push(scaled_posterior.summaries.mean[0]);
         sds.push(scaled_posterior.summaries.sd[0]);

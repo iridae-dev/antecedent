@@ -4,7 +4,7 @@
 //! against the selection diagram and compiles one conditional plan per request.
 //! Estimation evaluates those plans and never searches again. The route is
 //! point-only: exact laws carry no sampling uncertainty, so counted laws are
-//! refused (`cell_not_licensed`) and no interval is computed, stored or
+//! refused (`not_supported`) and no interval is computed, stored or
 //! accepted. Refresh replaces laws only for the snapshots the frozen catalog
 //! binds; the proof is unchanged.
 use super::StudyBuilder;
@@ -160,7 +160,7 @@ impl StudyBuilder {
 }
 
 /// One plan per request. Counted laws are refused here by the estimate-level
-/// preparation (`cell_not_licensed`, `admg_transport.interval_withheld`) before
+/// preparation (`not_supported`, `admg_transport.counted_laws_unsupported`) before
 /// anything compiles: this route has no sampling theory.
 fn compile(
     functional: &BoundConditionalTransportFunctional,
@@ -209,6 +209,13 @@ impl PreparedAdmgConditionalTransport {
             .map_err(estimate_err)?;
         let plans = compile(&self.functional, &data, &self.requests, self.limits, ctx)?;
         Ok(Self { data, plans, ..self.clone() })
+    }
+
+    /// Recompile physical evaluation under the current caller while retaining the checked proof.
+    /// # Errors
+    /// Cancellation, resource or conditional-plan compilation failure.
+    pub fn requote_execution(&self, ctx: &ExecutionContext) -> Result<Self, IoError> {
+        self.refresh(self.data.clone(), ctx)
     }
 
     /// The frozen, catalog-bound functional.

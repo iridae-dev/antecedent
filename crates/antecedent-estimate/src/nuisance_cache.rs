@@ -1,0 +1,1617 @@
+//! Nuisance identities and blocked out-of-fold predictions used by sequential execution.
+//!
+//! Source, target, design, rows, folds, treatment, outcome, weights, provider, options, seed
+//! and numerical dependencies are explicit fields of one [`NuisanceCacheKey`]. The only way to
+//! make a key is [`NuisanceKeyBuilder`], which hashes the actual values: a vector of outcomes,
+//! weights, a design matrix, a realized fold assignment. A key whose product reads an axis the
+//! caller did not supply is refused, so there is no opaque, caller-assembled identity.
+//! Ordinary estimator reuse is stored by `crossfit_cache` under these same keys.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::cmp::Ordering;
+
+use antecedent_core::identity::{CanonicalWriter, DependencyAxis, ReusableProduct};
+use antecedent_core::{
+    DesignDependencyId, NumericalPolicy, ProviderId, SemanticDigest, SourceDependencyId,
+};
+use thiserror::Error;
+
+/// Why a certified nuisance was not stored or restored.
+#[derive(Clone, Debug, Eq, PartialEq, Error)]
+#[non_exhaustive]
+pub enum NuisanceCacheError {
+    /// The row was in the training set of the evaluation fold.
+    #[error(
+        "out-of-fold prediction for training row {row_id} of fold {fold} is refused; \
+         next attempt: predict a row held out of that fold"
+    )]
+    TrainingLeakage {
+        /// Evaluation fold whose training set contains the row.
+        fold: u32,
+        /// Training row that was asked for or stored.
+        row_id: u64,
+    },
+    /// A held-out evaluation row was used as a training or fold row.
+    #[error(
+        "held-out row {row_id} leaks into a nuisance fold; \
+         next attempt: keep that row out of training and out of the fold blocks"
+    )]
+    HeldOutLeakage {
+        /// Held-out row id.
+        row_id: u64,
+    },
+    /// The same key and role already store a different prediction.
+    #[error(
+        "this key and role already store a different certified prediction; \
+         next attempt: reuse the stored block or change a key field"
+    )]
+    ConflictingFit,
+    /// The fold assignment listed no rows.
+    #[error("fold assignment has no rows; next attempt: assign at least one row")]
+    EmptyFolds,
+    /// Cross-fitting needs two folds so an evaluation fold has a training complement.
+    #[error("fold count {fold_count} is below 2; next attempt: declare at least two folds")]
+    TooFewFolds {
+        /// Declared fold count.
+        fold_count: u32,
+    },
+    /// The same row id was listed twice.
+    #[error("row {row_id} is listed twice; next attempt: keep one assignment per row")]
+    DuplicateRow {
+        /// Repeated row id.
+        row_id: u64,
+    },
+    /// A fold index is outside `0..fold_count`.
+    #[error("fold {fold} is outside 0..{fold_count}; next attempt: use a declared fold")]
+    FoldOutOfRange {
+        /// Requested fold index.
+        fold: u32,
+        /// Declared fold count.
+        fold_count: u32,
+    },
+    /// A name was empty after trimming.
+    #[error("{field} is blank; next attempt: name it")]
+    Blank {
+        /// Which name was blank.
+        field: &'static str,
+    },
+    /// A stored prediction was not finite.
+    #[error("prediction for row {row_id} is not finite; next attempt: store a finite value")]
+    NonFinitePrediction {
+        /// Row whose prediction was refused.
+        row_id: u64,
+    },
+    /// A numerical dependency was not finite.
+    #[error("numerical dependency {name} is not finite; next attempt: store a finite parameter")]
+    NonFiniteDependency {
+        /// Dependency name.
+        name: String,
+    },
+    /// The row is not a member of the evaluation fold.
+    #[error("row {row_id} is not in fold {fold}; next attempt: restore a row of that fold")]
+    RowNotInFold {
+        /// Evaluation fold.
+        fold: u32,
+        /// Requested row id.
+        row_id: u64,
+    },
+    /// The same numerical dependency name was given twice.
+    #[error(
+        "numerical dependency {name} is listed twice; next attempt: keep one value for that name"
+    )]
+    DuplicateNumericalDependency {
+        /// Repeated dependency name.
+        name: String,
+    },
+    /// A fold block contained no predictions.
+    #[error("fold {fold} has no predictions; next attempt: store its held-out rows")]
+    EmptyBlock {
+        /// Evaluation fold.
+        fold: u32,
+    },
+    /// The store listed no fold blocks.
+    #[error("no out-of-fold block was given; next attempt: pass the held-out fold blocks")]
+    EmptyBlocks,
+    /// Two blocks named the same evaluation fold.
+    #[error("fold {fold} was given twice; next attempt: keep one block per evaluation fold")]
+    DuplicateFold {
+        /// Repeated evaluation fold.
+        fold: u32,
+    },
+    /// The evaluation fold has no rows outside it, so the block is not out of fold.
+    #[error(
+        "fold {fold} has no training rows outside it; \
+         next attempt: hold that fold out of a non-empty training set"
+    )]
+    EmptyTraining {
+        /// Evaluation fold.
+        fold: u32,
+    },
+    /// A batch named no prepared request.
+    #[error("no prepared request was given; next attempt: pass at least one request")]
+    EmptyRequests,
+    /// A key was asked for without an input its product reads.
+    #[error(
+        "the nuisance key omits the {axis:?} dependency; \
+         next attempt: supply it from the actual inputs before building the key"
+    )]
+    MissingInput {
+        /// Dependency axis that was not supplied.
+        axis: DependencyAxis,
+    },
+    /// A matrix or column did not have the length its shape declares.
+    #[error(
+        "{field} has {actual} values where its shape needs {expected}; \
+         next attempt: pass the whole column-major matrix"
+    )]
+    ShapeMismatch {
+        /// Which input.
+        field: &'static str,
+        /// Values the shape needs.
+        expected: usize,
+        /// Values supplied.
+        actual: usize,
+    },
+    /// A request named no nuisance role.
+    #[error(
+        "a prepared request names no nuisance role; \
+         next attempt: name the treatment or outcome role"
+    )]
+    EmptyRoles,
+}
+
+/// One field of a [`NuisanceCacheKey`].
+///
+/// [`NuisanceCacheKey::mismatch`] reports the first field that differs, in this order.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
+pub enum KeyField {
+    /// Which reusable product the key is for.
+    Product,
+    /// Scientific target.
+    Target,
+    /// Numeric design identity.
+    Design,
+    /// Row identities of the estimation rows.
+    Rows,
+    /// Fold assignment and held-out rows.
+    Folds,
+    /// Treatment the nuisance conditions on.
+    Treatment,
+    /// Outcome values the nuisance is trained to.
+    Outcome,
+    /// Sampling weights the nuisance is fit under.
+    Weights,
+    /// Provider identity and version.
+    Provider,
+    /// Learner and fitting options.
+    Options,
+    /// Randomness the nuisance consumes.
+    Seed,
+    /// Numerical policy and named parameters.
+    Numerical,
+}
+
+/// Scientific target the nuisance was certified for.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct TargetDependency {
+    digest: SemanticDigest,
+}
+
+impl TargetDependency {
+    /// Target identity. The digest is not interpreted here.
+    #[must_use]
+    pub const fn new(digest: SemanticDigest) -> Self {
+        Self { digest }
+    }
+
+    /// Target derived from a named functional and the reals that parameterize it
+    /// (thresholds, levels, regime codes). Equality is bitwise.
+    #[must_use]
+    pub fn of_functional(name: &str, parameters: &[f64]) -> Self {
+        let mut writer = CanonicalWriter::new("antecedent.nuisance.target");
+        writer.text(name).reals(parameters);
+        Self { digest: SemanticDigest::from_bytes(writer.finish()) }
+    }
+
+    /// Target digest.
+    #[must_use]
+    pub const fn digest(self) -> SemanticDigest {
+        self.digest
+    }
+}
+
+/// Design identity the nuisance was certified for.
+///
+/// [`Self::from_matrix`] and [`Self::from_columns`] hash every value and the shape, so a
+/// changed entry is a different design. [`Self::new`] only names a layout the caller bound
+/// elsewhere; a key built from it does not cover the values.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct DesignDependency {
+    id: DesignDependencyId,
+    content: Option<SemanticDigest>,
+}
+
+impl DesignDependency {
+    /// Design identity the caller has already bound to the numeric layout.
+    #[must_use]
+    pub const fn new(id: DesignDependencyId) -> Self {
+        Self { id, content: None }
+    }
+
+    /// Design derived from a column-major `nrows x ncols` matrix: shape and every value.
+    ///
+    /// # Errors
+    ///
+    /// [`NuisanceCacheError::ShapeMismatch`] when `values` is not `nrows * ncols` long.
+    #[must_use = "a refused design is not a cache key"]
+    pub fn from_matrix(
+        nrows: usize,
+        ncols: usize,
+        values: &[f64],
+    ) -> Result<Self, NuisanceCacheError> {
+        let expected = nrows.saturating_mul(ncols);
+        if values.len() != expected {
+            return Err(NuisanceCacheError::ShapeMismatch {
+                field: "design matrix",
+                expected,
+                actual: values.len(),
+            });
+        }
+        let mut writer = CanonicalWriter::new("antecedent.nuisance.design");
+        writer.word(nrows as u64).word(ncols as u64).reals(values);
+        Ok(Self::derived(writer.finish()))
+    }
+
+    /// Design derived from equal-length columns, in column order.
+    ///
+    /// # Errors
+    ///
+    /// [`NuisanceCacheError::ShapeMismatch`] when a column differs in length from the first.
+    #[must_use = "a refused design is not a cache key"]
+    pub fn from_columns(columns: &[&[f64]]) -> Result<Self, NuisanceCacheError> {
+        let nrows = columns.first().map_or(0, |column| column.len());
+        let mut values = Vec::with_capacity(nrows.saturating_mul(columns.len()));
+        for column in columns {
+            if column.len() != nrows {
+                return Err(NuisanceCacheError::ShapeMismatch {
+                    field: "design column",
+                    expected: nrows,
+                    actual: column.len(),
+                });
+            }
+            values.extend_from_slice(column);
+        }
+        Self::from_matrix(nrows, columns.len(), &values)
+    }
+
+    fn derived(digest: [u8; 32]) -> Self {
+        let mut head = [0u8; 8];
+        head.copy_from_slice(&digest[..8]);
+        Self {
+            id: DesignDependencyId::from_raw(u64::from_le_bytes(head)),
+            content: Some(SemanticDigest::from_bytes(digest)),
+        }
+    }
+
+    /// Design id. For a derived design this is the first 64 bits of the content digest.
+    #[must_use]
+    pub const fn id(self) -> DesignDependencyId {
+        self.id
+    }
+
+    /// Digest of the shape and values, when the design was derived from them.
+    #[must_use]
+    pub const fn content(self) -> Option<SemanticDigest> {
+        self.content
+    }
+}
+
+/// Treatment the nuisance conditions on.
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct TreatmentDependency {
+    name: String,
+    coding: SemanticDigest,
+}
+
+impl TreatmentDependency {
+    /// Treatment name and coding identity.
+    ///
+    /// The stored name is trimmed. A blank name is refused.
+    ///
+    /// # Errors
+    ///
+    /// [`NuisanceCacheError::Blank`] when `name` is empty after trimming.
+    #[must_use = "a refused treatment dependency is not a cache key"]
+    pub fn try_new(name: &str, coding: SemanticDigest) -> Result<Self, NuisanceCacheError> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(NuisanceCacheError::Blank { field: "treatment" });
+        }
+        Ok(Self { name: name.to_owned(), coding })
+    }
+
+    /// Treatment whose coding identity is the hash of its actual value columns.
+    ///
+    /// # Errors
+    ///
+    /// [`NuisanceCacheError::Blank`] when `name` is empty after trimming.
+    #[must_use = "a refused treatment dependency is not a cache key"]
+    pub fn of_values(name: &str, columns: &[&[f64]]) -> Result<Self, NuisanceCacheError> {
+        let mut writer = CanonicalWriter::new("antecedent.nuisance.treatment");
+        writer.word(columns.len() as u64);
+        for column in columns {
+            writer.reals(column);
+        }
+        Self::try_new(name, SemanticDigest::from_bytes(writer.finish()))
+    }
+
+    /// Trimmed treatment name.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Coding identity.
+    #[must_use]
+    pub const fn coding(&self) -> SemanticDigest {
+        self.coding
+    }
+}
+
+/// Provider that produced the nuisance, including its version.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct ProviderDependency {
+    id: ProviderId,
+    version: SemanticDigest,
+}
+
+impl ProviderDependency {
+    /// Provider id and version digest.
+    #[must_use]
+    pub const fn new(id: ProviderId, version: SemanticDigest) -> Self {
+        Self { id, version }
+    }
+
+    /// Provider named by `tag`, versioned by `version` (the producing crate's version, a
+    /// backend identity). Both are hashed, so two tags are two providers.
+    #[must_use]
+    pub fn named(tag: &str, version: &str) -> Self {
+        let id = CanonicalWriter::new("antecedent.nuisance.provider").text(tag).finish();
+        let mut head = [0u8; 8];
+        head.copy_from_slice(&id[..8]);
+        let version = CanonicalWriter::new("antecedent.nuisance.provider.version")
+            .text(tag)
+            .text(version)
+            .finish();
+        Self {
+            id: ProviderId::from_raw(u64::from_le_bytes(head)),
+            version: SemanticDigest::from_bytes(version),
+        }
+    }
+
+    /// Provider id.
+    #[must_use]
+    pub const fn id(self) -> ProviderId {
+        self.id
+    }
+
+    /// Provider version.
+    #[must_use]
+    pub const fn version(self) -> SemanticDigest {
+        self.version
+    }
+}
+
+/// One named numerical parameter. Equality is bitwise.
+///
+/// Negative zero is stored as positive zero. A non-finite value is refused.
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct NumericalDependency {
+    name: String,
+    bits: u64,
+}
+
+impl NumericalDependency {
+    /// Finite parameter. The stored name is trimmed.
+    ///
+    /// # Errors
+    ///
+    /// [`NuisanceCacheError::Blank`] when `name` is empty after trimming.
+    /// [`NuisanceCacheError::NonFiniteDependency`] when `value` is not finite.
+    #[must_use = "a refused numerical dependency is not a cache key"]
+    pub fn try_new(name: &str, value: f64) -> Result<Self, NuisanceCacheError> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(NuisanceCacheError::Blank { field: "numerical dependency" });
+        }
+        if !value.is_finite() {
+            return Err(NuisanceCacheError::NonFiniteDependency { name: name.to_owned() });
+        }
+        Ok(Self { name: name.to_owned(), bits: canonical_bits(value) })
+    }
+
+    /// Trimmed parameter name.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Finite parameter value.
+    #[must_use]
+    pub const fn value(&self) -> f64 {
+        f64::from_bits(self.bits)
+    }
+}
+
+/// Numerical policy and named parameters the fit depends on.
+///
+/// Strict policy is not a zero tolerance. Named parameters are ordered by name;
+/// input order is not part of the key.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct NumericalDependencies {
+    policy: NumericalPolicy,
+    dependencies: Box<[NumericalDependency]>,
+}
+
+impl NumericalDependencies {
+    /// Policy plus named parameters.
+    ///
+    /// # Errors
+    ///
+    /// [`NuisanceCacheError::DuplicateNumericalDependency`] when two parameters share a name.
+    #[must_use = "a refused numerical dependency set is not a cache key"]
+    pub fn try_new(
+        policy: NumericalPolicy,
+        dependencies: &[NumericalDependency],
+    ) -> Result<Self, NuisanceCacheError> {
+        let mut dependencies = dependencies.to_vec();
+        dependencies.sort_unstable_by(|left, right| left.name.cmp(&right.name));
+        for pair in dependencies.windows(2) {
+            if pair[0].name == pair[1].name {
+                return Err(NuisanceCacheError::DuplicateNumericalDependency {
+                    name: pair[0].name.clone(),
+                });
+            }
+        }
+        Ok(Self { policy, dependencies: dependencies.into_boxed_slice() })
+    }
+
+    /// Numerical policy. Strict is distinct from a zero tolerance.
+    #[must_use]
+    pub const fn policy(&self) -> NumericalPolicy {
+        self.policy
+    }
+
+    /// Named parameters, in name order.
+    #[must_use]
+    pub const fn dependencies(&self) -> &[NumericalDependency] {
+        &self.dependencies
+    }
+}
+
+impl Ord for NumericalDependencies {
+    fn cmp(&self, other: &Self) -> Ordering {
+        policy_key(self.policy)
+            .cmp(&policy_key(other.policy))
+            .then_with(|| self.dependencies.cmp(&other.dependencies))
+    }
+}
+
+impl PartialOrd for NumericalDependencies {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// One estimation row and the fold it belongs to.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct FoldRow {
+    row_id: u64,
+    fold: u32,
+}
+
+impl FoldRow {
+    /// Row id and fold index. The assignment checks the fold range.
+    #[must_use]
+    pub const fn new(row_id: u64, fold: u32) -> Self {
+        Self { row_id, fold }
+    }
+
+    /// Row id.
+    #[must_use]
+    pub const fn row_id(&self) -> u64 {
+        self.row_id
+    }
+
+    /// Fold index.
+    #[must_use]
+    pub const fn fold(&self) -> u32 {
+        self.fold
+    }
+}
+
+/// Fold assignment and the held-out evaluation rows that must stay out of it.
+///
+/// Held-out row ids and fold rows are disjoint. At least two folds are present,
+/// and at least two of them are used, so an evaluation fold can have a training
+/// complement.
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct FoldAssignment {
+    fold_count: u32,
+    rows: Box<[FoldRow]>,
+    held_out: Box<[u64]>,
+}
+
+impl FoldAssignment {
+    /// Assign `rows` to folds `0..fold_count`, and keep `held_out` out of that assignment.
+    ///
+    /// Row order and held-out order are not part of the key. Duplicate ids are refused.
+    ///
+    /// # Errors
+    ///
+    /// [`NuisanceCacheError::TooFewFolds`], [`NuisanceCacheError::EmptyFolds`],
+    /// [`NuisanceCacheError::DuplicateRow`], [`NuisanceCacheError::FoldOutOfRange`],
+    /// [`NuisanceCacheError::EmptyTraining`] when every row shares one fold, and
+    /// [`NuisanceCacheError::HeldOutLeakage`] when a held-out row is also assigned.
+    #[must_use = "a refused fold assignment is not a cache key"]
+    pub fn try_new(
+        fold_count: u32,
+        rows: &[FoldRow],
+        held_out: &[u64],
+    ) -> Result<Self, NuisanceCacheError> {
+        if fold_count < 2 {
+            return Err(NuisanceCacheError::TooFewFolds { fold_count });
+        }
+        if rows.is_empty() {
+            return Err(NuisanceCacheError::EmptyFolds);
+        }
+        let mut rows = rows.to_vec();
+        rows.sort_unstable_by_key(FoldRow::row_id);
+        for pair in rows.windows(2) {
+            if pair[0].row_id == pair[1].row_id {
+                return Err(NuisanceCacheError::DuplicateRow { row_id: pair[0].row_id });
+            }
+        }
+        for row in &rows {
+            if row.fold >= fold_count {
+                return Err(NuisanceCacheError::FoldOutOfRange { fold: row.fold, fold_count });
+            }
+        }
+        let first = rows[0].fold;
+        if rows.iter().all(|row| row.fold == first) {
+            return Err(NuisanceCacheError::EmptyTraining { fold: first });
+        }
+        let mut held_out = held_out.to_vec();
+        held_out.sort_unstable();
+        for pair in held_out.windows(2) {
+            if pair[0] == pair[1] {
+                return Err(NuisanceCacheError::DuplicateRow { row_id: pair[0] });
+            }
+        }
+        for row_id in &held_out {
+            if rows.binary_search_by_key(row_id, FoldRow::row_id).is_ok() {
+                return Err(NuisanceCacheError::HeldOutLeakage { row_id: *row_id });
+            }
+        }
+        Ok(Self {
+            fold_count,
+            rows: rows.into_boxed_slice(),
+            held_out: held_out.into_boxed_slice(),
+        })
+    }
+
+    /// Declared fold count.
+    #[must_use]
+    pub const fn fold_count(&self) -> u32 {
+        self.fold_count
+    }
+
+    /// Assigned rows, in row-id order.
+    #[must_use]
+    pub const fn rows(&self) -> &[FoldRow] {
+        &self.rows
+    }
+
+    /// Held-out evaluation rows, in row-id order.
+    #[must_use]
+    pub const fn held_out(&self) -> &[u64] {
+        &self.held_out
+    }
+
+    /// Fold of an assigned row.
+    #[must_use]
+    pub fn fold_of(&self, row_id: u64) -> Option<u32> {
+        let index = self.rows.binary_search_by_key(&row_id, FoldRow::row_id).ok()?;
+        Some(self.rows[index].fold)
+    }
+
+    /// Whether `row_id` is a held-out evaluation row.
+    #[must_use]
+    pub fn is_held_out(&self, row_id: u64) -> bool {
+        self.held_out.binary_search(&row_id).is_ok()
+    }
+
+    /// Whether `row_id` is assigned to a fold other than `evaluation_fold`.
+    #[must_use]
+    pub fn is_training_row(&self, evaluation_fold: u32, row_id: u64) -> bool {
+        self.fold_of(row_id).is_some_and(|fold| fold != evaluation_fold)
+    }
+}
+
+/// One finite prediction bound to the row it belongs to.
+///
+/// Equality is bitwise, including negative zero.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct PredictedRow {
+    row_id: u64,
+    bits: u64,
+}
+
+impl PredictedRow {
+    /// Finite prediction for `row_id`.
+    ///
+    /// # Errors
+    ///
+    /// [`NuisanceCacheError::NonFinitePrediction`] when `value` is not finite.
+    #[must_use = "a refused prediction is not stored"]
+    pub const fn try_new(row_id: u64, value: f64) -> Result<Self, NuisanceCacheError> {
+        if !value.is_finite() {
+            return Err(NuisanceCacheError::NonFinitePrediction { row_id });
+        }
+        Ok(Self { row_id, bits: value.to_bits() })
+    }
+
+    /// Row id.
+    #[must_use]
+    pub const fn row_id(&self) -> u64 {
+        self.row_id
+    }
+
+    /// Stored prediction.
+    #[must_use]
+    pub const fn value(&self) -> f64 {
+        f64::from_bits(self.bits)
+    }
+
+    /// Bits of [`Self::value`], including the sign of zero.
+    #[must_use]
+    pub const fn bits(&self) -> u64 {
+        self.bits
+    }
+}
+
+/// Out-of-fold predictions for one evaluation fold.
+///
+/// Rows are stored in row-id order. The block does not include that fold's
+/// training rows.
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct BlockedOutOfFoldPredictions {
+    evaluation_fold: u32,
+    rows: Box<[PredictedRow]>,
+}
+
+impl BlockedOutOfFoldPredictions {
+    /// Predictions for rows held out in `evaluation_fold`.
+    ///
+    /// # Errors
+    ///
+    /// [`NuisanceCacheError::EmptyBlock`] when `rows` is empty.
+    /// [`NuisanceCacheError::DuplicateRow`] when a row id is repeated.
+    #[must_use = "a refused block is not an out-of-fold prediction"]
+    pub fn try_new(
+        evaluation_fold: u32,
+        rows: &[PredictedRow],
+    ) -> Result<Self, NuisanceCacheError> {
+        if rows.is_empty() {
+            return Err(NuisanceCacheError::EmptyBlock { fold: evaluation_fold });
+        }
+        let mut rows = rows.to_vec();
+        rows.sort_unstable_by_key(PredictedRow::row_id);
+        for pair in rows.windows(2) {
+            if pair[0].row_id == pair[1].row_id {
+                return Err(NuisanceCacheError::DuplicateRow { row_id: pair[0].row_id });
+            }
+        }
+        Ok(Self { evaluation_fold, rows: rows.into_boxed_slice() })
+    }
+
+    /// Fold these predictions were held out of.
+    #[must_use]
+    pub const fn evaluation_fold(&self) -> u32 {
+        self.evaluation_fold
+    }
+
+    /// Predictions in row-id order.
+    #[must_use]
+    pub const fn rows(&self) -> &[PredictedRow] {
+        &self.rows
+    }
+}
+
+/// Compact identity of a fold assignment: the fold count, the number of assigned rows and
+/// one digest of every `(row id, fold)` pair and every held-out row.
+///
+/// Two assignments that put any row in a different fold, add or drop a row, or change the
+/// held-out set have different identities, and the identity is a few words wide whatever
+/// the row count, so a key does not carry (or compare) a per-row list.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct FoldIdentity {
+    fold_count: u32,
+    assigned: u64,
+    held_out: u64,
+    digest: SemanticDigest,
+}
+
+impl FoldIdentity {
+    /// Identity of a checked [`FoldAssignment`].
+    #[must_use]
+    pub fn of_assignment(folds: &FoldAssignment) -> Self {
+        Self::from_parts(
+            folds.fold_count,
+            folds.rows.len(),
+            folds.rows.iter().map(|row| (row.row_id, row.fold)),
+            &folds.held_out,
+        )
+    }
+
+    /// Identity of the realized folds of rows `0..folds.len()`: row `i` is in fold `folds[i]`.
+    ///
+    /// It agrees with [`Self::of_assignment`] on an assignment of the same rows and folds.
+    ///
+    /// # Errors
+    ///
+    /// [`NuisanceCacheError::TooFewFolds`], [`NuisanceCacheError::EmptyFolds`],
+    /// [`NuisanceCacheError::FoldOutOfRange`], and [`NuisanceCacheError::EmptyTraining`] when
+    /// every row shares one fold.
+    #[must_use = "a refused fold assignment is not a cache key"]
+    pub fn of_fold_ids(fold_count: u32, folds: &[u32]) -> Result<Self, NuisanceCacheError> {
+        if fold_count < 2 {
+            return Err(NuisanceCacheError::TooFewFolds { fold_count });
+        }
+        let Some(&first) = folds.first() else {
+            return Err(NuisanceCacheError::EmptyFolds);
+        };
+        if let Some(&fold) = folds.iter().find(|&&fold| fold >= fold_count) {
+            return Err(NuisanceCacheError::FoldOutOfRange { fold, fold_count });
+        }
+        if folds.iter().all(|&fold| fold == first) {
+            return Err(NuisanceCacheError::EmptyTraining { fold: first });
+        }
+        Ok(Self::from_parts(
+            fold_count,
+            folds.len(),
+            folds.iter().enumerate().map(|(row, &fold)| (row as u64, fold)),
+            &[],
+        ))
+    }
+
+    fn from_parts(
+        fold_count: u32,
+        assigned: usize,
+        rows: impl Iterator<Item = (u64, u32)>,
+        held_out: &[u64],
+    ) -> Self {
+        let mut writer = CanonicalWriter::new("antecedent.nuisance.folds");
+        writer.word(u64::from(fold_count)).word(assigned as u64);
+        for (row, fold) in rows {
+            writer.word(row).word(u64::from(fold));
+        }
+        writer.words(held_out);
+        Self {
+            fold_count,
+            assigned: assigned as u64,
+            held_out: held_out.len() as u64,
+            digest: SemanticDigest::from_bytes(writer.finish()),
+        }
+    }
+
+    /// Declared fold count.
+    #[must_use]
+    pub const fn fold_count(&self) -> u32 {
+        self.fold_count
+    }
+
+    /// Rows the assignment covers.
+    #[must_use]
+    pub const fn assigned_rows(&self) -> u64 {
+        self.assigned
+    }
+
+    /// Held-out rows the assignment keeps out.
+    #[must_use]
+    pub const fn held_out_rows(&self) -> u64 {
+        self.held_out
+    }
+
+    /// Digest of every `(row, fold)` pair and held-out row.
+    #[must_use]
+    pub const fn digest(&self) -> SemanticDigest {
+        self.digest
+    }
+}
+
+impl FoldAssignment {
+    /// Compact identity of this assignment.
+    #[must_use]
+    pub fn identity(&self) -> FoldIdentity {
+        FoldIdentity::of_assignment(self)
+    }
+}
+
+/// Learner and fitting options, hashed field by field.
+///
+/// Build it from the options a fit actually reads: every name, text, real (bitwise) and word
+/// is part of the digest, in order.
+#[derive(Clone, Debug)]
+pub struct NuisanceOptions {
+    writer: CanonicalWriter,
+}
+
+impl NuisanceOptions {
+    /// Start an option set for the fit `kind`.
+    #[must_use]
+    pub fn new(kind: &str) -> Self {
+        Self { writer: CanonicalWriter::new(&format!("antecedent.nuisance.options.{kind}")) }
+    }
+
+    /// A named text option.
+    #[must_use]
+    pub fn text(mut self, name: &str, value: &str) -> Self {
+        self.writer.word(0).text(name).text(value);
+        self
+    }
+
+    /// A named real option, compared bitwise.
+    #[must_use]
+    pub fn real(mut self, name: &str, value: f64) -> Self {
+        self.writer.word(1).text(name).real(value);
+        self
+    }
+
+    /// A named integer option.
+    #[must_use]
+    pub fn word(mut self, name: &str, value: u64) -> Self {
+        self.writer.word(2).text(name).word(value);
+        self
+    }
+
+    /// A named digest option (a fold-plan input, a vector hashed elsewhere), or its absence.
+    #[must_use]
+    pub fn digest(mut self, name: &str, value: Option<SemanticDigest>) -> Self {
+        self.writer.word(3).text(name);
+        match value {
+            Some(value) => self.writer.word(1).bytes(value.as_bytes()),
+            None => self.writer.word(0),
+        };
+        self
+    }
+
+    /// The option digest.
+    #[must_use]
+    pub fn finish(&self) -> SemanticDigest {
+        SemanticDigest::from_bytes(self.writer.finish())
+    }
+}
+
+/// The outcome, weights, options and seed a fit consumed, each hashed from its values.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct InputBinding {
+    outcome: SemanticDigest,
+    weights: Option<SemanticDigest>,
+    options: SemanticDigest,
+    seed: u64,
+}
+
+impl InputBinding {
+    /// Bind the actual outcome vector, the weights (`None` is unweighted), the options and the
+    /// seed.
+    #[must_use]
+    pub fn derive(
+        outcome: &[f64],
+        weights: Option<&[f64]>,
+        options: &NuisanceOptions,
+        seed: u64,
+    ) -> Self {
+        Self {
+            outcome: SemanticDigest::of_reals("antecedent.nuisance.outcome", outcome),
+            weights: weights.map(|w| SemanticDigest::of_reals("antecedent.nuisance.weights", w)),
+            options: options.finish(),
+            seed,
+        }
+    }
+}
+
+/// Checked dependencies of one nuisance fit.
+///
+/// Make one with [`NuisanceKeyBuilder`]. Every field is a digest or a small value, so the
+/// key is compact, hashable and cheap to compare.
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct NuisanceCacheKey {
+    product: ReusableProduct,
+    target: Option<TargetDependency>,
+    design: DesignDependency,
+    rows: SemanticDigest,
+    folds: FoldIdentity,
+    treatment: TreatmentDependency,
+    outcome: Option<SemanticDigest>,
+    weights: Option<SemanticDigest>,
+    provider: ProviderDependency,
+    options: SemanticDigest,
+    seed: Option<u64>,
+    numerical: NumericalDependencies,
+}
+
+impl NuisanceCacheKey {
+    /// Product this key is for.
+    #[must_use]
+    pub const fn product(&self) -> ReusableProduct {
+        self.product
+    }
+
+    /// Target dependency, when the product reads one.
+    #[must_use]
+    pub const fn target(&self) -> Option<TargetDependency> {
+        self.target
+    }
+
+    /// Design dependency.
+    #[must_use]
+    pub const fn design(&self) -> DesignDependency {
+        self.design
+    }
+
+    /// Row-identity digest.
+    #[must_use]
+    pub const fn rows(&self) -> SemanticDigest {
+        self.rows
+    }
+
+    /// Compact fold identity.
+    #[must_use]
+    pub const fn folds(&self) -> &FoldIdentity {
+        &self.folds
+    }
+
+    /// Treatment dependency.
+    #[must_use]
+    pub const fn treatment(&self) -> &TreatmentDependency {
+        &self.treatment
+    }
+
+    /// Outcome digest, when the product reads the outcome.
+    #[must_use]
+    pub const fn outcome(&self) -> Option<SemanticDigest> {
+        self.outcome
+    }
+
+    /// Weights digest; `None` is the unweighted fit.
+    #[must_use]
+    pub const fn weights(&self) -> Option<SemanticDigest> {
+        self.weights
+    }
+
+    /// Provider dependency.
+    #[must_use]
+    pub const fn provider(&self) -> ProviderDependency {
+        self.provider
+    }
+
+    /// Options digest.
+    #[must_use]
+    pub const fn options(&self) -> SemanticDigest {
+        self.options
+    }
+
+    /// Seed, when the product consumes randomness.
+    #[must_use]
+    pub const fn seed(&self) -> Option<u64> {
+        self.seed
+    }
+
+    /// Numerical dependencies.
+    #[must_use]
+    pub const fn numerical(&self) -> &NumericalDependencies {
+        &self.numerical
+    }
+
+    /// Axes this key covers. A product's [`ReusableProduct::required_axes`] are a subset.
+    #[must_use]
+    pub fn covered_axes(&self) -> Vec<DependencyAxis> {
+        let mut axes = vec![
+            DependencyAxis::Design,
+            DependencyAxis::Rows,
+            DependencyAxis::Folds,
+            DependencyAxis::Treatment,
+            DependencyAxis::Weights,
+            DependencyAxis::Provider,
+            DependencyAxis::Options,
+            DependencyAxis::Numerical,
+        ];
+        if self.target.is_some() {
+            axes.push(DependencyAxis::Target);
+        }
+        if self.outcome.is_some() {
+            axes.push(DependencyAxis::Outcome);
+        }
+        if self.seed.is_some() {
+            axes.push(DependencyAxis::Seed);
+        }
+        axes
+    }
+
+    /// Bytes this key holds, counting its owned names.
+    #[must_use]
+    pub fn retained_bytes(&self) -> u64 {
+        let names = self.treatment.name.len()
+            + self
+                .numerical
+                .dependencies
+                .iter()
+                .map(|dependency| {
+                    std::mem::size_of::<NumericalDependency>() + dependency.name.len()
+                })
+                .sum::<usize>();
+        (std::mem::size_of::<Self>() + names) as u64
+    }
+
+    /// First field that differs, in [`KeyField`] order.
+    ///
+    /// `None` means every field matches.
+    #[must_use]
+    pub fn mismatch(&self, other: &Self) -> Option<KeyField> {
+        if self.product != other.product {
+            return Some(KeyField::Product);
+        }
+        if self.target != other.target {
+            return Some(KeyField::Target);
+        }
+        if self.design != other.design {
+            return Some(KeyField::Design);
+        }
+        if self.rows != other.rows {
+            return Some(KeyField::Rows);
+        }
+        if self.folds != other.folds {
+            return Some(KeyField::Folds);
+        }
+        if self.treatment != other.treatment {
+            return Some(KeyField::Treatment);
+        }
+        if self.outcome != other.outcome {
+            return Some(KeyField::Outcome);
+        }
+        if self.weights != other.weights {
+            return Some(KeyField::Weights);
+        }
+        if self.provider != other.provider {
+            return Some(KeyField::Provider);
+        }
+        if self.options != other.options {
+            return Some(KeyField::Options);
+        }
+        if self.seed != other.seed {
+            return Some(KeyField::Seed);
+        }
+        if self.numerical != other.numerical {
+            return Some(KeyField::Numerical);
+        }
+        None
+    }
+}
+
+/// The only constructor of a [`NuisanceCacheKey`].
+///
+/// Each method takes the actual values (or a dependency derived from them) and records the
+/// axis it covers. [`Self::build`] refuses a key whose product reads an axis that was never
+/// supplied, so an omitted dependency is a refusal, not a silent hit.
+#[derive(Clone, Debug)]
+pub struct NuisanceKeyBuilder {
+    product: ReusableProduct,
+    covered: Vec<DependencyAxis>,
+    target: Option<TargetDependency>,
+    design: Option<DesignDependency>,
+    rows: Option<SemanticDigest>,
+    folds: Option<FoldIdentity>,
+    treatment: Option<TreatmentDependency>,
+    outcome: Option<SemanticDigest>,
+    weights: Option<SemanticDigest>,
+    provider: Option<ProviderDependency>,
+    options: Option<SemanticDigest>,
+    seed: Option<u64>,
+    numerical: Option<NumericalDependencies>,
+    deferred: Option<NuisanceCacheError>,
+}
+
+impl NuisanceKeyBuilder {
+    /// Start a key for `product`.
+    #[must_use]
+    pub fn new(product: ReusableProduct) -> Self {
+        Self {
+            product,
+            covered: Vec::new(),
+            target: None,
+            design: None,
+            rows: None,
+            folds: None,
+            treatment: None,
+            outcome: None,
+            weights: None,
+            provider: None,
+            options: None,
+            seed: None,
+            numerical: None,
+            deferred: None,
+        }
+    }
+
+    /// The same inputs keyed for another product (the propensity inputs for an outcome fit).
+    #[must_use]
+    pub fn with_product(mut self, product: ReusableProduct) -> Self {
+        self.product = product;
+        self
+    }
+
+    fn cover(mut self, axis: DependencyAxis) -> Self {
+        if !self.covered.contains(&axis) {
+            self.covered.push(axis);
+        }
+        self
+    }
+
+    fn defer(mut self, error: NuisanceCacheError) -> Self {
+        self.deferred.get_or_insert(error);
+        self
+    }
+
+    /// The scientific target.
+    #[must_use]
+    pub fn target(mut self, target: TargetDependency) -> Self {
+        self.target = Some(target);
+        self.cover(DependencyAxis::Target)
+    }
+
+    /// A design already derived from its values.
+    #[must_use]
+    pub fn design(mut self, design: DesignDependency) -> Self {
+        self.design = Some(design);
+        self.cover(DependencyAxis::Design)
+    }
+
+    /// The column-major design matrix itself.
+    #[must_use]
+    pub fn design_matrix(self, nrows: usize, ncols: usize, values: &[f64]) -> Self {
+        match DesignDependency::from_matrix(nrows, ncols, values) {
+            Ok(design) => self.design(design),
+            Err(error) => self.defer(error),
+        }
+    }
+
+    /// The identities of the estimation rows, in row order.
+    #[must_use]
+    pub fn rows_by_id(mut self, ids: impl IntoIterator<Item = u64>) -> Self {
+        let mut writer = CanonicalWriter::new("antecedent.nuisance.rows");
+        let mut count = 0u64;
+        for id in ids {
+            writer.word(id);
+            count += 1;
+        }
+        writer.word(count);
+        self.rows = Some(SemanticDigest::from_bytes(writer.finish()));
+        self.cover(DependencyAxis::Rows)
+    }
+
+    /// Rows that have no identity beyond their position among `count` rows.
+    #[must_use]
+    pub fn rows_positional(mut self, count: usize) -> Self {
+        let mut writer = CanonicalWriter::new("antecedent.nuisance.rows.positional");
+        writer.word(count as u64);
+        self.rows = Some(SemanticDigest::from_bytes(writer.finish()));
+        self.cover(DependencyAxis::Rows)
+    }
+
+    /// The row ids of a checked fold assignment.
+    #[must_use]
+    pub fn rows_of_folds(self, folds: &FoldAssignment) -> Self {
+        self.rows_by_id(folds.rows.iter().map(|row| row.row_id))
+    }
+
+    /// The realized fold assignment.
+    #[must_use]
+    pub fn folds(mut self, folds: FoldIdentity) -> Self {
+        self.folds = Some(folds);
+        self.cover(DependencyAxis::Folds)
+    }
+
+    /// A treatment dependency already derived from its values.
+    #[must_use]
+    pub fn treatment(mut self, treatment: TreatmentDependency) -> Self {
+        self.treatment = Some(treatment);
+        self.cover(DependencyAxis::Treatment)
+    }
+
+    /// The treatment's actual value columns.
+    #[must_use]
+    pub fn treatment_values(self, name: &str, columns: &[&[f64]]) -> Self {
+        match TreatmentDependency::of_values(name, columns) {
+            Ok(treatment) => self.treatment(treatment),
+            Err(error) => self.defer(error),
+        }
+    }
+
+    /// The outcome vector the nuisance is trained to.
+    #[must_use]
+    pub fn outcome(self, outcome: &[f64]) -> Self {
+        self.outcome_digest(SemanticDigest::of_reals("antecedent.nuisance.outcome", outcome))
+    }
+
+    /// An outcome digest already derived from the values.
+    #[must_use]
+    pub fn outcome_digest(mut self, outcome: SemanticDigest) -> Self {
+        self.outcome = Some(outcome);
+        self.cover(DependencyAxis::Outcome)
+    }
+
+    /// The weights the fit ran under; `None` states that it was unweighted.
+    #[must_use]
+    pub fn weights(self, weights: Option<&[f64]>) -> Self {
+        self.weights_digest(
+            weights.map(|w| SemanticDigest::of_reals("antecedent.nuisance.weights", w)),
+        )
+    }
+
+    /// A weights digest already derived from the values; `None` is unweighted.
+    #[must_use]
+    pub fn weights_digest(mut self, weights: Option<SemanticDigest>) -> Self {
+        self.weights = weights;
+        self.cover(DependencyAxis::Weights)
+    }
+
+    /// The provider that produced the fit.
+    #[must_use]
+    pub fn provider(mut self, provider: ProviderDependency) -> Self {
+        self.provider = Some(provider);
+        self.cover(DependencyAxis::Provider)
+    }
+
+    /// The fitting options.
+    #[must_use]
+    pub fn options(mut self, options: &NuisanceOptions) -> Self {
+        self.options = Some(options.finish());
+        self.cover(DependencyAxis::Options)
+    }
+
+    /// The randomness the fit consumes.
+    #[must_use]
+    pub fn seed(mut self, seed: u64) -> Self {
+        self.seed = Some(seed);
+        self.cover(DependencyAxis::Seed)
+    }
+
+    /// The numerical policy and named parameters.
+    #[must_use]
+    pub fn numerical(mut self, numerical: NumericalDependencies) -> Self {
+        self.numerical = Some(numerical);
+        self.cover(DependencyAxis::Numerical)
+    }
+
+    /// Outcome, weights, options and seed of an [`InputBinding`].
+    #[must_use]
+    pub fn bind(mut self, inputs: InputBinding) -> Self {
+        self.options = Some(inputs.options);
+        self.seed = Some(inputs.seed);
+        self.cover(DependencyAxis::Options)
+            .cover(DependencyAxis::Seed)
+            .outcome_digest(inputs.outcome)
+            .weights_digest(inputs.weights)
+    }
+
+    /// The checked key.
+    ///
+    /// # Errors
+    ///
+    /// The first shape or name error of a method above, or
+    /// [`NuisanceCacheError::MissingInput`] naming an axis the product reads and the builder
+    /// never received.
+    #[must_use = "a refused key is not a cache key"]
+    pub fn build(self) -> Result<NuisanceCacheKey, NuisanceCacheError> {
+        if let Some(error) = self.deferred {
+            return Err(error);
+        }
+        if let Some(&axis) = self.product.omitted_axes(&self.covered).first() {
+            return Err(NuisanceCacheError::MissingInput { axis });
+        }
+        let missing = |axis| NuisanceCacheError::MissingInput { axis };
+        Ok(NuisanceCacheKey {
+            product: self.product,
+            target: self.target,
+            design: self.design.ok_or(missing(DependencyAxis::Design))?,
+            rows: self.rows.ok_or(missing(DependencyAxis::Rows))?,
+            folds: self.folds.ok_or(missing(DependencyAxis::Folds))?,
+            treatment: self.treatment.ok_or(missing(DependencyAxis::Treatment))?,
+            outcome: self.outcome,
+            weights: self.weights,
+            provider: self.provider.ok_or(missing(DependencyAxis::Provider))?,
+            options: self.options.ok_or(missing(DependencyAxis::Options))?,
+            seed: self.seed,
+            numerical: self.numerical.ok_or(missing(DependencyAxis::Numerical))?,
+        })
+    }
+}
+
+/// Certified source identity.
+///
+/// The id is not the rows. `content` distinguishes two snapshots that reuse an
+/// id. Column names are not this identity.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct CertifiedSource {
+    id: SourceDependencyId,
+    content: SemanticDigest,
+}
+
+impl CertifiedSource {
+    /// Source id and content digest.
+    #[must_use]
+    pub const fn new(id: SourceDependencyId, content: SemanticDigest) -> Self {
+        Self { id, content }
+    }
+
+    /// Source id.
+    #[must_use]
+    pub const fn id(self) -> SourceDependencyId {
+        self.id
+    }
+
+    /// Content digest.
+    #[must_use]
+    pub const fn content(self) -> SemanticDigest {
+        self.content
+    }
+}
+
+const fn canonical_bits(value: f64) -> u64 {
+    let bits = value.to_bits();
+    if bits == 0x8000_0000_0000_0000 { 0 } else { bits }
+}
+
+const fn policy_key(policy: NumericalPolicy) -> (u8, u64, u64) {
+    match policy {
+        NumericalPolicy::Strict => (0, 0, 0),
+        NumericalPolicy::Tolerance(t) => (1, t.absolute().to_bits(), t.relative().to_bits()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const N: usize = 12;
+
+    struct Problem {
+        design: Vec<f64>,
+        treatment: Vec<f64>,
+        outcome: Vec<f64>,
+        weights: Option<Vec<f64>>,
+        rows: Vec<u64>,
+        folds: Vec<u32>,
+        tag: &'static str,
+        option: f64,
+        seed: u64,
+        tolerance: f64,
+        threshold: f64,
+    }
+
+    impl Problem {
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "the fixed reference fixture preserves its exact values and bounded setup"
+        )]
+        fn base() -> Self {
+            Self {
+                design: (0..2 * N).map(|i| (i as f64 * 0.37).sin()).collect(),
+                treatment: (0..N).map(|i| f64::from(u8::from(i % 3 == 0))).collect(),
+                outcome: (0..N).map(|i| (i as f64 * 0.91).cos()).collect(),
+                weights: Some((0..N).map(|i| 1.0 + 0.1 * i as f64).collect()),
+                rows: (0..N as u64).collect(),
+                folds: (0..N).map(|i| (i % 3) as u32).collect(),
+                tag: "faer",
+                option: 1e-4,
+                seed: 7,
+                tolerance: 1e-8,
+                threshold: 0.5,
+            }
+        }
+
+        fn key(&self, product: ReusableProduct) -> NuisanceCacheKey {
+            let options = NuisanceOptions::new("test").real("ridge", self.option);
+            let mut builder = NuisanceKeyBuilder::new(product)
+                .design_matrix(N, 2, &self.design)
+                .rows_by_id(self.rows.iter().copied())
+                .folds(FoldIdentity::of_fold_ids(3, &self.folds).unwrap())
+                .treatment_values("treatment", &[&self.treatment])
+                .weights(self.weights.as_deref())
+                .provider(ProviderDependency::named(self.tag, "1"))
+                .options(&options)
+                .numerical(
+                    NumericalDependencies::try_new(
+                        NumericalPolicy::strict(),
+                        &[NumericalDependency::try_new("tol", self.tolerance).unwrap()],
+                    )
+                    .unwrap(),
+                );
+            if product != ReusableProduct::PropensityFit {
+                builder = builder
+                    .target(TargetDependency::of_functional("threshold", &[self.threshold]))
+                    .outcome(&self.outcome)
+                    .seed(self.seed);
+            }
+            builder.build().unwrap()
+        }
+    }
+
+    #[test]
+    #[allow(
+        clippy::type_complexity,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
+    fn a_key_is_derived_from_the_actual_inputs_and_each_change_is_a_miss() {
+        let base = Problem::base();
+        let reference = base.key(ReusableProduct::OutcomeFit);
+        assert_eq!(reference, Problem::base().key(ReusableProduct::OutcomeFit));
+        assert_eq!(reference.mismatch(&Problem::base().key(ReusableProduct::OutcomeFit)), None);
+
+        let mutations: Vec<(&str, KeyField, Box<dyn Fn(&mut Problem)>)> = vec![
+            ("design entry", KeyField::Design, Box::new(|p| p.design[5] += 1e-12)),
+            ("treatment entry", KeyField::Treatment, Box::new(|p| p.treatment[1] = 1.0)),
+            ("outcome entry", KeyField::Outcome, Box::new(|p| p.outcome[4] += 1e-12)),
+            (
+                "weight entry",
+                KeyField::Weights,
+                Box::new(|p| p.weights.as_mut().unwrap()[2] += 0.5),
+            ),
+            ("weights removed", KeyField::Weights, Box::new(|p| p.weights = None)),
+            ("row identity", KeyField::Rows, Box::new(|p| p.rows[3] += 1_000)),
+            ("one row's fold", KeyField::Folds, Box::new(|p| p.folds[0] = 1)),
+            ("provider", KeyField::Provider, Box::new(|p| p.tag = "other")),
+            ("option", KeyField::Options, Box::new(|p| p.option = 1e-3)),
+            ("seed", KeyField::Seed, Box::new(|p| p.seed += 1)),
+            ("tolerance", KeyField::Numerical, Box::new(|p| p.tolerance = 1e-6)),
+            ("target threshold", KeyField::Target, Box::new(|p| p.threshold = 0.25)),
+        ];
+        for (name, field, mutate) in mutations {
+            let mut problem = Problem::base();
+            mutate(&mut problem);
+            let changed = problem.key(ReusableProduct::OutcomeFit);
+            assert_ne!(changed, reference, "{name} must change the key");
+            assert_eq!(reference.mismatch(&changed), Some(field), "{name}");
+        }
+        // Another product over the same inputs is another key.
+        let learner = Problem::base().key(ReusableProduct::LearnerBundle);
+        assert_eq!(reference.mismatch(&learner), Some(KeyField::Product));
+    }
+
+    #[test]
+    fn a_propensity_key_ignores_the_outcome_but_not_the_weights() {
+        let base = Problem::base();
+        let key = base.key(ReusableProduct::PropensityFit);
+        let mut other_outcome = Problem::base();
+        other_outcome.outcome[0] += 3.0;
+        other_outcome.threshold = 9.0;
+        other_outcome.seed = 99;
+        assert_eq!(key, other_outcome.key(ReusableProduct::PropensityFit));
+        let mut reweighted = Problem::base();
+        reweighted.weights.as_mut().unwrap()[0] += 1.0;
+        assert_ne!(key, reweighted.key(ReusableProduct::PropensityFit));
+    }
+
+    #[test]
+    fn every_product_key_covers_the_axes_the_product_reads() {
+        for product in [
+            ReusableProduct::PropensityFit,
+            ReusableProduct::OutcomeFit,
+            ReusableProduct::LearnerBundle,
+            ReusableProduct::SequentialNuisance,
+        ] {
+            let key = Problem::base().key(product);
+            assert!(product.omitted_axes(&key.covered_axes()).is_empty(), "{product:?}");
+        }
+    }
+
+    #[test]
+    fn a_key_missing_an_axis_its_product_reads_is_refused() {
+        let options = NuisanceOptions::new("test");
+        let partial = || {
+            NuisanceKeyBuilder::new(ReusableProduct::OutcomeFit)
+                .design_matrix(2, 1, &[0.0, 1.0])
+                .rows_positional(2)
+                .folds(FoldIdentity::of_fold_ids(2, &[0, 1]).unwrap())
+                .treatment_values("t", &[&[0.0, 1.0]])
+                .provider(ProviderDependency::named("p", "1"))
+                .options(&options)
+                .numerical(NumericalDependencies::try_new(NumericalPolicy::strict(), &[]).unwrap())
+        };
+        // Outcome, weights, target and seed are all unsupplied; the first one is named.
+        assert!(matches!(
+            partial().build(),
+            Err(NuisanceCacheError::MissingInput { axis: DependencyAxis::Target })
+        ));
+        assert!(matches!(
+            partial()
+                .target(TargetDependency::of_functional("mean", &[]))
+                .weights(None)
+                .seed(1)
+                .build(),
+            Err(NuisanceCacheError::MissingInput { axis: DependencyAxis::Outcome })
+        ));
+        assert!(
+            partial()
+                .target(TargetDependency::of_functional("mean", &[]))
+                .weights(None)
+                .seed(1)
+                .outcome(&[0.0, 1.0])
+                .build()
+                .is_ok()
+        );
+        // A matrix of the wrong length is refused instead of hashed.
+        assert!(matches!(
+            NuisanceKeyBuilder::new(ReusableProduct::PropensityFit)
+                .design_matrix(3, 2, &[0.0; 5])
+                .build(),
+            Err(NuisanceCacheError::ShapeMismatch { field: "design matrix", .. })
+        ));
+    }
+
+    #[test]
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
+    fn fold_identity_is_compact_and_tracks_every_row_and_the_held_out_set() {
+        let rows: Vec<FoldRow> =
+            (0..N as u64).map(|row| FoldRow::new(row, (row % 3) as u32)).collect();
+        let assignment = FoldAssignment::try_new(3, &rows, &[]).unwrap();
+        let folds: Vec<u32> = (0..N as u32).map(|row| row % 3).collect();
+        assert_eq!(assignment.identity(), FoldIdentity::of_fold_ids(3, &folds).unwrap());
+        assert_eq!(assignment.identity().assigned_rows(), N as u64);
+        assert!(std::mem::size_of::<FoldIdentity>() <= 64, "no per-row list in the identity");
+        for row in 0..N {
+            let mut moved = folds.clone();
+            moved[row] = (moved[row] + 1) % 3;
+            assert_ne!(
+                assignment.identity(),
+                FoldIdentity::of_fold_ids(3, &moved).unwrap(),
+                "row {row}"
+            );
+        }
+        let held = FoldAssignment::try_new(3, &rows, &[100]).unwrap();
+        assert_ne!(assignment.identity(), held.identity());
+        assert_eq!(held.identity().held_out_rows(), 1);
+        assert_ne!(
+            FoldIdentity::of_fold_ids(3, &folds).unwrap(),
+            FoldIdentity::of_fold_ids(4, &folds).unwrap()
+        );
+        assert!(matches!(
+            FoldIdentity::of_fold_ids(2, &[1, 1, 1]),
+            Err(NuisanceCacheError::EmptyTraining { fold: 1 })
+        ));
+        assert!(matches!(
+            FoldIdentity::of_fold_ids(2, &[0, 2]),
+            Err(NuisanceCacheError::FoldOutOfRange { fold: 2, fold_count: 2 })
+        ));
+    }
+
+    #[test]
+    fn derived_design_and_treatment_track_values_and_shape() {
+        let a = DesignDependency::from_matrix(2, 2, &[1.0, 2.0, 3.0, 4.0]).unwrap();
+        assert_eq!(a, DesignDependency::from_matrix(2, 2, &[1.0, 2.0, 3.0, 4.0]).unwrap());
+        assert_ne!(a, DesignDependency::from_matrix(2, 2, &[1.0, 2.0, 3.0, 5.0]).unwrap());
+        assert_ne!(a, DesignDependency::from_matrix(4, 1, &[1.0, 2.0, 3.0, 4.0]).unwrap());
+        assert_eq!(a, DesignDependency::from_columns(&[&[1.0, 2.0], &[3.0, 4.0]]).unwrap());
+        assert!(a.content().is_some());
+        assert!(DesignDependency::new(DesignDependencyId::from_raw(1)).content().is_none());
+        let t = TreatmentDependency::of_values("a", &[&[0.0, 1.0]]).unwrap();
+        assert_ne!(t, TreatmentDependency::of_values("a", &[&[1.0, 0.0]]).unwrap());
+        assert_ne!(t, TreatmentDependency::of_values("b", &[&[0.0, 1.0]]).unwrap());
+    }
+}

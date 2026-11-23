@@ -1,0 +1,77 @@
+feature_id = "transport.typed_mechanism_transport"
+implementation_crate = "antecedent-model"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Admission of fitted nonlinear and non-Gaussian mechanisms from a source population into a
+# target-population composed model, with target-specific refits. The admission rule is the
+# selection-diagram rule per variable (a mechanism with no selection node into it is shared; one
+# with a selection node into it differs and needs target evidence). The fits are Fisher scoring on
+# the exponential-family likelihoods and a Levenberg-damped Gauss-Newton for expression means; the
+# declared-invariance test is a Wald comparison of the source and target parameter vectors.
+papers = [
+  { title = "External Validity: From Do-Calculus to Transportability Across Populations", citation_note = "Previously recorded title and bibliographic detail: External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
+]
+implementation_deviations = [
+  "Bounded executed route, not a published algorithm: typed mechanisms are polynomial or expression conditional means under Gaussian, heteroscedastic Gaussian, log-normal, Bernoulli, Poisson or gamma response; finite tables are decided by the finite counterfactual transport derivation.",
+  "A shifted mechanism (a selection node points into it) is used only from a target fit and is refused without one; a mechanism is never treated as invariant because target evidence is missing.",
+  "A declared-invariant mechanism with a supplied target fit is tested by a Wald comparison of the full parameter vectors with the summed fit covariances (independent samples assumed); a rejection refuses the transport and a non-rejection is not evidence of invariance. Without target data the invariance is an untested premise recorded in the receipt.",
+  "Interventional means are Monte Carlo over the structural model with paired per-node, per-unit random streams and an exact conditional mean for the outcome; the Monte Carlo standard error is numerical-approximation uncertainty reported apart from parameter uncertainty.",
+  "Parameter uncertainty of a contrast is first order, g' Sigma g, with a score-function gradient over every involved mechanism's parameters; the covariance is the source fit's for a carried mechanism and the target fit's for a refit one, joined by an explicitly declared dependence. The selection-diagram assumption adds no variance and the result says so; no interval is issued.",
+  "The log-dispersion covariance of the Gaussian, log-normal and gamma families uses the asymptotic 1/(2 dof) and the moment form respectively; they enter a contrast only through the families whose mean depends on the scale (log-normal).",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-model/tests/typed_mechanism_transport.rs",
+  "crates/antecedent/tests/typed_transported_mechanism_facade.rs",
+  "python/tests/test_typed_mechanism_transport.py",
+  "conformance/transport/typed_mechanism_shift/reference.py",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "typed_mechanism_transport::{fit_mechanism, refit_in_target, invariance_check} for a Gaussian-identity mechanism with a degree-1 polynomial mean: standardization of parents with the source sample, least-squares coefficients, the residual-scale parameter (log s) and its covariance blocks, the target refit on the source design, and the Wald comparison d'(S_source + S_target)^-1 d with its chi-square upper-tail p-value and rejection rule. Not the Fisher-scoring fits of the Bernoulli, Poisson, gamma, log-normal and heteroscedastic families (compared with an external numpy/scipy fit by conformance/transport/typed_mechanism_shift, a fixture this review did not re-read), the expression-mean Gauss-Newton, the Monte Carlo interventional means or the first-order contrast variance. Typed fitting definitions moved to typed_mechanism_transport/fitting.rs; all bound definitions were compared unchanged apart from formatting. Transported-model evaluation moved to typed_mechanism_transport/evaluation.rs; every bound definition and the other bound artifacts were compared unchanged."
+assumptions = ["The source and target samples are independent, so the covariance of the parameter difference is the sum of the fit covariances.", "A non-rejection is not evidence of invariance."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. No cited publication was retrieved in this review: the correspondence is between the product code and the standard definitions, verified numerically, not a page-level reading of any paper."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library and mpmath (a pure-Python library, installed offline in the local environment). The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Five cases at 50 digits: a mild intercept shift (p about 0.31), the smallest admissible samples (5 rows each), two parents offset by 10000 with a large shift (p below 1e-200), a scale-only difference, and identical samples (statistic 0, p = 1). Parameters and covariances are asserted to 1e-9 relative, the statistic to 1e-8 and the p-value to 1e-6, the rejection decision at 0.05 and either side of the p-value, and the refusal of a target not on the source design. Only the Gaussian family with a linear mean and the Wald step are reviewed; the other families, the Monte Carlo contrast and its delta-method uncertainty remain covered only by the conformance fixture and unit tests named in the record, so this record is a bounded review of its Gaussian and Wald part and not of the whole route. Coverage and power of the invariance test are not measured."
+sources = ["External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014), https://doi.org/10.1214/14-STS486, cited and not retrieved"]
+findings_resolved = ["No defect found in the reviewed part: Gaussian fits, the Wald statistic and its chi-square tail match the 50-digit reference, including offset covariates and identical samples."]
+record_sha256 = "764f25d35b3b7a6042df11875c623a903ef8375a75e41eca77c7178cb2c88197"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/typed_mechanism_transport.rs"
+items = ["const DETAIL_DESIGN_NOT_SHARED", "const DETAIL_TARGET_SPEC_DIFFERS", "const MAX_EXPRESSION_PARAMETERS", "const MAX_POLYNOMIAL_DEGREE", "const MAX_TYPED_PARENTS", "enum MeanSpec", "enum ResponseFamily", "enum TypedFitError", "fn as_str", "fn context", "fn covariance", "fn eta_with", "fn invariance_check", "fn logistic", "fn n_obs", "fn parameters", "fn polynomial_features", "fn polynomial_width", "fn provenance", "fn scale_dim", "fn scaling", "fn single", "fn softplus", "fn spec", "fn standardize", "fn variable", "struct FittedMechanism", "struct InvarianceCheck", "struct MechanismSpec"]
+sha256 = "575c559940667dce7aa9960adbb247442485578c306e717c2dcc268b6ff80418"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/typed_mechanism_transport/evaluation.rs"
+items = ["fn target"]
+sha256 = "36c369029506c740a82b7f7956141bcfdfefba0b18141910c74631629ba0a02e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/typed_mechanism_transport/fitting.rs"
+items = ["enum Link", "fn check_support", "fn column", "fn eta", "fn fit_heteroscedastic", "fn fit_mean", "fn fit_mechanism", "fn fit_mechanism_polled", "fn jacobian", "fn matvec", "fn mean", "fn new", "fn objective", "fn refit_in_target", "fn refit_in_target_polled", "fn score_and_weight", "fn validate_spec", "struct MeanProblem"]
+sha256 = "8b23c8ef0030c83279250de8f2f23cafe2a155b2a52a7fa3118e31774238e063"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/typed_mechanism_transport_reference.rs"
+items = ["fn check_fit", "fn columns", "fn context", "fn fits_and_wald_comparison_match_the_fifty_digit_reference", "fn near", "fn num", "fn provenance", "fn the_same_sample_is_exactly_invariant_and_a_foreign_design_is_refused", "fn vec_of"]
+sha256 = "a674746ec431cc202ff299379f4a0a53fd29490cf3269e56d46b999acd1f4c7f"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-model/tests/oracle_data/typed_mechanism_transport_reference.py"
+sha256 = "27f2d22f5d75dd74731bbcbc6f4d693335e173e3ab5e39040084dba3a8820c4e"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-model/tests/oracle_data/typed_mechanism_transport_reference.json"
+sha256 = "197ef158a80bf5ee84173518aac96c3755e1d2859bdc83833878fe7d8276c722"
+

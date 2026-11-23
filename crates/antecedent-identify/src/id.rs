@@ -1,8 +1,10 @@
 //! Shpitser & Pearl (2006) ID algorithm for semi-Markovian models.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -21,6 +23,11 @@ use crate::identifier::IdentificationWorkspace;
 use crate::prepared::{AncestorMemo, PreparedAdmg};
 use crate::result::{DerivationTrace, IdentificationPerformanceRecord, IdentificationResult};
 
+mod expression;
+mod recursion;
+use expression::{c_component_expression, dist_marginal, sum_out_if_any};
+use recursion::id_recurse;
+
 /// Memo key: canonical (Y, X, V) plus optional hard assignment for ATE contrast sides.
 ///
 /// Assignment must be part of the key: left (`do(T=t₁)`) and right (`do(T=t₀)`) share
@@ -32,6 +39,62 @@ struct SubproblemKey {
     v: BitSet,
     assign: Assign,
     dist: DistCtx,
+}
+
+/// Memo table of solved subproblems.
+///
+/// Lookups hash and compare the borrowed query parts, so a hit allocates and
+/// clones nothing; the owned [`SubproblemKey`] is built only when a new
+/// outcome is stored. Outcomes are shared as `Arc`s.
+#[derive(Default)]
+struct IdMemo {
+    buckets: HashMap<u64, Vec<(SubproblemKey, Arc<IdOutcome>)>>,
+    len: usize,
+}
+
+fn subproblem_hash(y: &BitSet, x: &BitSet, v: &BitSet, assign: &Assign, dist: &DistCtx) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    y.hash(&mut hasher);
+    x.hash(&mut hasher);
+    v.hash(&mut hasher);
+    assign.hash(&mut hasher);
+    dist.hash(&mut hasher);
+    hasher.finish()
+}
+
+impl IdMemo {
+    const fn len(&self) -> usize {
+        self.len
+    }
+
+    fn get(
+        &self,
+        hash: u64,
+        y: &BitSet,
+        x: &BitSet,
+        v: &BitSet,
+        assign: &Assign,
+        dist: &DistCtx,
+    ) -> Option<&Arc<IdOutcome>> {
+        self.buckets.get(&hash)?.iter().find_map(|(key, outcome)| {
+            (key.y == *y
+                && key.x == *x
+                && key.v == *v
+                && key.assign == *assign
+                && key.dist == *dist)
+                .then_some(outcome)
+        })
+    }
+
+    fn insert(&mut self, hash: u64, key: SubproblemKey, outcome: Arc<IdOutcome>) {
+        let bucket = self.buckets.entry(hash).or_default();
+        if let Some(slot) = bucket.iter_mut().find(|(k, _)| *k == key) {
+            slot.1 = outcome;
+        } else {
+            bucket.push((key, outcome));
+            self.len += 1;
+        }
+    }
 }
 
 /// Hard-set values baked into emitted factors, one per intervened node.
@@ -97,7 +160,7 @@ pub(crate) struct IdRun<'a, 'm> {
     prepared: &'a PreparedAdmg,
     ancestors: AncestorMemo,
     arena: &'a mut CausalExprArena,
-    memo: &'a mut HashMap<SubproblemKey, IdOutcome>,
+    memo: &'a mut IdMemo,
     derivation: &'a mut DerivationTrace,
     perf: &'a mut IdentificationPerformanceRecord,
     ws: &'a mut GraphWorkspace,
@@ -120,18 +183,38 @@ enum IdOutcome {
     Fail(HedgeCertificate),
 }
 
-/// Budget hook of a metered ID recursion: every recursive call charges
-/// `(recursion depth, estimated live bytes)` to the caller's budget, and an error
-/// stops the recursion. Unmetered callers (every public entry point) pass
-/// [`IdMeter::unmetered`] and see unchanged behaviour.
+/// Budget of one ID recursion. Every recursive call (memo hits included) is charged.
+///
+/// Public entry points build [`IdMeter::admitted`]: a finite call cap taken from the active
+/// workflow context (`ExecutionContext::id_work_limit`, the finite default when none is
+/// installed) and a cancellation poll on that context. A caller that already holds its own
+/// budget builds [`IdMeter::metered`], which reports `(recursion depth, estimated live bytes)`
+/// to it instead; an error from the hook stops the recursion.
 pub(crate) struct IdMeter<'m> {
     charge: Option<&'m mut (dyn FnMut(usize, u64) -> Result<(), IdentificationError> + 'm)>,
     depth: usize,
+    calls: u64,
+    /// Finite call cap and cancellation poll of the active workflow; `None` when a caller
+    /// budget (`charge`) owns both.
+    admitted_cap: Option<u64>,
 }
 
-impl IdMeter<'_> {
-    const fn unmetered() -> Self {
-        Self { charge: None, depth: 0 }
+impl<'m> IdMeter<'m> {
+    /// A meter capped by the active workflow's general-ID work limit and its cancellation.
+    fn admitted() -> Self {
+        Self {
+            charge: None,
+            depth: 0,
+            calls: 0,
+            admitted_cap: Some(antecedent_core::numerical_admission::id_work_limit()),
+        }
+    }
+
+    /// A meter reporting every call to the caller's own budget.
+    fn metered(
+        charge: &'m mut (dyn FnMut(usize, u64) -> Result<(), IdentificationError> + 'm),
+    ) -> Self {
+        Self { charge: Some(charge), depth: 0, calls: 0, admitted_cap: None }
     }
 
     /// Enter one recursive call and charge it: the live state is the expression
@@ -142,6 +225,15 @@ impl IdMeter<'_> {
         memo_entries: usize,
     ) -> Result<(), IdentificationError> {
         self.depth += 1;
+        self.calls = self.calls.saturating_add(1);
+        if let Some(cap) = self.admitted_cap {
+            if antecedent_core::numerical_admission::is_cancelled() {
+                return Err(IdentificationError::Cancelled);
+            }
+            if self.calls > cap {
+                return Err(IdentificationError::budget(crate::error::IdentificationBudget::Steps));
+            }
+        }
         let bytes = (arena_nodes as u64)
             .saturating_mul(96)
             .saturating_add((memo_entries as u64).saturating_mul(192));
@@ -192,10 +284,10 @@ pub(crate) fn identify_interventional_metered(
     require_disjoint(y, x)?;
     let mut arena = CausalExprArena::new();
     let mut derivation = DerivationTrace::default();
-    let mut memo: HashMap<SubproblemKey, IdOutcome> = HashMap::new();
+    let mut memo = IdMemo::default();
     let mut perf = IdentificationPerformanceRecord::default();
     let active = BitSet::full(prepared.admg().node_count());
-    let mut meter = IdMeter { charge: Some(charge), depth: 0 };
+    let mut meter = IdMeter::metered(charge);
     let mut run = IdRun {
         prepared,
         ancestors: AncestorMemo::default(),
@@ -215,6 +307,80 @@ pub(crate) fn identify_interventional_metered(
             hedge.with_problem(crate::hedge::HedgeProblem::capture(prepared, x, y)?),
         )),
     }
+}
+
+/// One ID subproblem with its own hard-set binding: `P(y | do(x))` where the free
+/// do-labels are `assign`.
+pub(crate) struct AssignedProblem {
+    /// Outcome set.
+    pub(crate) y: BitSet,
+    /// Intervened set.
+    pub(crate) x: BitSet,
+    /// Hard-set values baked into the emitted factors.
+    pub(crate) assign: Arc<[(DenseNodeId, Value)]>,
+}
+
+/// Result of identifying a list of [`AssignedProblem`]s in one run.
+pub(crate) enum AssignedIds {
+    /// One functional per problem, in order, all in the caller's arena.
+    Identified(Vec<ExprId>),
+    /// ID line 5 for the first problem that failed, carrying that problem.
+    Hedge(HedgeCertificate),
+}
+
+/// Identify each problem with the complete ID algorithm over one shared memo and arena.
+///
+/// Each problem keeps its own `assign`: the same intervened node can be bound to a
+/// different level in each emitted functional. The district formula of a path-specific
+/// effect needs this, since each district's kernel reads the treatment at the level of the
+/// treatment edges that enter that district.
+///
+/// # Errors
+///
+/// Overlapping or empty sets, or unknown variables.
+pub(crate) fn identify_assigned_problems(
+    prepared: &PreparedAdmg,
+    arena: &mut CausalExprArena,
+    derivation: &mut DerivationTrace,
+    perf: &mut IdentificationPerformanceRecord,
+    ws: &mut GraphWorkspace,
+    problems: &[AssignedProblem],
+) -> Result<AssignedIds, IdentificationError> {
+    let mut memo = IdMemo::default();
+    let active = BitSet::full(prepared.admg().node_count());
+    let mut meter = IdMeter::admitted();
+    let mut run = IdRun {
+        prepared,
+        ancestors: AncestorMemo::default(),
+        arena,
+        memo: &mut memo,
+        derivation,
+        perf,
+        ws,
+        meter: &mut meter,
+    };
+    let mut functionals = Vec::with_capacity(problems.len());
+    for problem in problems {
+        require_disjoint(&problem.y, &problem.x)?;
+        match id_recurse(
+            &mut run,
+            IdQuery {
+                y: &problem.y,
+                x: &problem.x,
+                v: &active,
+                dist: &DistCtx::Marginal,
+                assign: Arc::clone(&problem.assign),
+            },
+        )? {
+            IdOutcome::Expr(expression) => functionals.push(expression),
+            IdOutcome::Fail(hedge) => {
+                return Ok(AssignedIds::Hedge(hedge.with_problem(
+                    crate::hedge::HedgeProblem::capture(prepared, &problem.x, &problem.y)?,
+                )));
+            }
+        }
+    }
+    Ok(AssignedIds::Identified(functionals))
 }
 
 /// The two sides of a hard-set schedule contrast: the scheduled treatment nodes and the
@@ -422,7 +588,7 @@ impl IdIdentifier {
             result.query = CausalQuery::Response(response.clone());
             result.derivation.push(
                 "identify.response.general_id",
-                "binary contrast is an identification witness only; general-ID curve estimation is not licensed",
+                "binary contrast is an identification witness only; general-ID curve estimation is not supported",
             );
             return Ok(result);
         };
@@ -492,6 +658,7 @@ impl IdIdentifier {
         query
             .validate()
             .map_err(|_| IdentificationError::unsupported("invalid average-effect query"))?;
+        crate::identification_run::require_marginal_target(query)?;
         let t = prepared.var_to_dense(query.treatment)?;
         let y = prepared.var_to_dense(query.outcome)?;
         let mut y_set = BitSet::with_len(prepared.admg().node_count());
@@ -502,17 +669,19 @@ impl IdIdentifier {
         let mut arena = CausalExprArena::new();
         let mut derivation = DerivationTrace::default();
         derivation.push("general.id", "Shpitser–Pearl ID for ATE contrast");
-        let mut memo: HashMap<SubproblemKey, IdOutcome> = HashMap::new();
+        let mut memo = IdMemo::default();
         let mut perf = IdentificationPerformanceRecord::default();
 
         let active = BitSet::full(prepared.admg().node_count());
         let active_level = intervention_value(&query.active)?;
         let control_level = intervention_value(&query.control)?;
 
+        // One budget across both sides of the contrast.
+        let mut meter = IdMeter::admitted();
         let mut side = |assign: Assign,
                         prepared: &PreparedAdmg,
                         arena: &mut CausalExprArena,
-                        memo: &mut HashMap<SubproblemKey, IdOutcome>,
+                        memo: &mut IdMemo,
                         derivation: &mut DerivationTrace,
                         perf: &mut IdentificationPerformanceRecord|
          -> Result<IdOutcome, IdentificationError> {
@@ -524,7 +693,7 @@ impl IdIdentifier {
                 derivation,
                 perf,
                 ws: &mut workspace.graph,
-                meter: &mut IdMeter::unmetered(),
+                meter: &mut meter,
             };
             id_recurse(
                 &mut run,
@@ -612,33 +781,25 @@ impl IdIdentifier {
     ) -> Result<IdentificationResult, IdentificationError> {
         let ScheduleContrast { schedule, active_level, control_level } = *contrast;
         if schedule.is_empty() {
-            return Err(IdentificationError::msg("empty treatment schedule"));
+            return Err(IdentificationError::EmptyTreatmentSchedule);
         }
         let mut arena = CausalExprArena::new();
         let mut derivation = DerivationTrace::default();
         derivation.push("general.id", "Shpitser–Pearl ID for schedule contrast");
-        let mut memo: HashMap<SubproblemKey, IdOutcome> = HashMap::new();
+        let mut memo = IdMemo::default();
         let mut perf = IdentificationPerformanceRecord::default();
         let active_set = BitSet::full(prepared.admg().node_count());
-
-        let mut x_set = BitSet::with_len(prepared.admg().node_count());
-        let mut schedule_dense = Vec::with_capacity(schedule.len());
-        for &t in schedule {
-            let d = prepared.var_to_dense(t)?;
-            x_set.insert(d);
-            schedule_dense.push(d);
-        }
-        let mut y_set = BitSet::with_len(prepared.admg().node_count());
-        y_set.insert(prepared.var_to_dense(outcome)?);
-        require_disjoint(&y_set, &x_set)?;
+        let (x_set, schedule_dense, y_set) = schedule_sets(prepared, schedule, outcome)?;
 
         let assign_for = |level: &Value| -> Assign {
             schedule_dense.iter().map(|&d| (d, level.clone())).collect()
         };
+        // One budget across both sides of the contrast.
+        let mut meter = IdMeter::admitted();
         let mut side = |assign: Assign,
                         prepared: &PreparedAdmg,
                         arena: &mut CausalExprArena,
-                        memo: &mut HashMap<SubproblemKey, IdOutcome>,
+                        memo: &mut IdMemo,
                         derivation: &mut DerivationTrace,
                         perf: &mut IdentificationPerformanceRecord|
          -> Result<IdOutcome, IdentificationError> {
@@ -650,7 +811,7 @@ impl IdIdentifier {
                 derivation,
                 perf,
                 ws: &mut workspace.graph,
-                meter: &mut IdMeter::unmetered(),
+                meter: &mut meter,
             };
             id_recurse(
                 &mut run,
@@ -715,7 +876,7 @@ impl IdIdentifier {
         ))
     }
 
-    fn identify_sets(
+    pub(crate) fn identify_sets(
         prepared: &PreparedAdmg,
         y: &BitSet,
         x: &BitSet,
@@ -731,7 +892,7 @@ impl IdIdentifier {
                 let mut arena = CausalExprArena::new();
                 let mut derivation = DerivationTrace::default();
                 derivation.push("general.id", "Shpitser–Pearl ID");
-                let mut memo: HashMap<SubproblemKey, IdOutcome> = HashMap::new();
+                let mut memo = IdMemo::default();
                 let mut perf = IdentificationPerformanceRecord::default();
                 let active = BitSet::full(prepared.admg().node_count());
                 let mut run = IdRun {
@@ -742,7 +903,7 @@ impl IdIdentifier {
                     derivation: &mut derivation,
                     perf: &mut perf,
                     ws: &mut workspace.graph,
-                    meter: &mut IdMeter::unmetered(),
+                    meter: &mut IdMeter::admitted(),
                 };
                 match id_recurse(
                     &mut run,
@@ -807,6 +968,26 @@ pub(crate) fn validate_distribution_query(
 /// `P(A)` as if it were the interventional law. This guard sits on the dense
 /// sets so that it also covers entries with no query object to validate and
 /// interventions that only resolve to a variable after normalization.
+/// Treatment set, dense schedule and outcome set of a schedule contrast; the outcome must not
+/// be scheduled.
+fn schedule_sets(
+    prepared: &PreparedAdmg,
+    schedule: &[VariableId],
+    outcome: VariableId,
+) -> Result<(BitSet, Vec<DenseNodeId>, BitSet), IdentificationError> {
+    let mut x_set = BitSet::with_len(prepared.admg().node_count());
+    let mut schedule_dense = Vec::with_capacity(schedule.len());
+    for &t in schedule {
+        let d = prepared.var_to_dense(t)?;
+        x_set.insert(d);
+        schedule_dense.push(d);
+    }
+    let mut y_set = BitSet::with_len(prepared.admg().node_count());
+    y_set.insert(prepared.var_to_dense(outcome)?);
+    require_disjoint(&y_set, &x_set)?;
+    Ok((x_set, schedule_dense, y_set))
+}
+
 fn require_disjoint(y: &BitSet, x: &BitSet) -> Result<(), IdentificationError> {
     if !y.any() {
         return Err(IdentificationError::unsupported("general ID requires at least one outcome"));
@@ -842,7 +1023,7 @@ fn expectation_contrast(
         right: right_exp,
         op: ContrastOp::Difference,
     });
-    arena.simplify(contrast).map_err(|e| IdentificationError::msg(e.to_string()))
+    arena.simplify(contrast).map_err(IdentificationError::expression)
 }
 
 fn intervention_value(intervention: &Intervention) -> Result<Value, IdentificationError> {
@@ -899,979 +1080,5 @@ fn not_identified_with_hedge(
     )
 }
 
-/// Run ID; returns expression for `P_x(y)` over observational factors in the run's arena.
-fn id_recurse(
-    run: &mut IdRun<'_, '_>,
-    query: IdQuery<'_>,
-) -> Result<IdOutcome, IdentificationError> {
-    let IdQuery { y, x, v, dist, assign } = query;
-    run.perf.candidates_examined = run.perf.candidates_examined.saturating_add(1);
-    let key = SubproblemKey {
-        y: y.clone(),
-        x: x.clone(),
-        v: v.clone(),
-        assign: assign.clone(),
-        dist: dist.clone(),
-    };
-    run.meter.enter(run.arena.len(), run.memo.len())?;
-    if let Some(hit) = run.memo.get(&key) {
-        run.perf.sets_returned = run.perf.sets_returned.saturating_add(1);
-        run.meter.leave();
-        return Ok(hit.clone());
-    }
-
-    let outcome = id_body(run, IdQuery { y, x, v, dist, assign })?;
-    run.meter.leave();
-    run.memo.insert(key, outcome.clone());
-    Ok(outcome)
-}
-
-fn id_body(run: &mut IdRun<'_, '_>, query: IdQuery<'_>) -> Result<IdOutcome, IdentificationError> {
-    let IdQuery { y, x, v, dist, assign } = query;
-    // Line 1: x = ∅ → ∑_{v\y} of the *current* distribution
-    if !x.any() {
-        run.derivation.push("general.id.line1", "empty intervention; marginal of current dist");
-        return Ok(IdOutcome::Expr(dist_marginal(run.prepared, dist, y, v, run.arena, &assign)?));
-    }
-
-    // Line 2: restrict to An(Y)_G; the current distribution marginalizes over
-    // the removed set (a Marginal stays a Marginal; a CFactor grows its sumset).
-    let an_y = run.prepared.ancestors_cached(y, v, run.ws, &mut run.ancestors);
-    if !v.equal_set(&an_y) {
-        let mut x2 = x.clone();
-        x2.intersect_with(&an_y);
-        let mut removed = v.clone();
-        removed.difference_with(&an_y);
-        let dist2 = dist.marginalize(&removed);
-        run.derivation.push("general.id.line2", "restrict to ancestral set of Y");
-        return id_recurse(run, IdQuery { y, x: &x2, v: &an_y, dist: &dist2, assign });
-    }
-
-    // Line 3: W = (V\X) \ An(Y)_{G_{\bar X}} — only X changes; dist unchanged.
-    let mut v_minus_x = v.clone();
-    v_minus_x.difference_with(x);
-    let an_bar = run.prepared.ancestors_bar_x(y, v, x, run.ws);
-    let mut w = v_minus_x.clone();
-    w.difference_with(&an_bar);
-    if w.any() {
-        let mut x2 = x.clone();
-        x2.union_with(&w);
-        run.derivation.push("general.id.line3", "add superfluous interventions");
-        return id_recurse(run, IdQuery { y, x: &x2, v, dist, assign });
-    }
-
-    // Line 4 / 5–7: C-components of G[V\X]
-    let comps = run.prepared.c_components(&v_minus_x);
-    if comps.is_empty() {
-        // Not a published line, and unreachable: every entry point enforces
-        // ∅ ≠ Y, Y ∩ X = ∅, and each line preserves Y ⊆ V \ X (line 2 keeps
-        // An(Y) ⊇ Y, line 3 only adds non-ancestors of Y to X, line 4 recurses
-        // on Y = S_i with X = V \ S_i, line 7 keeps Y ⊆ S ⊆ S′). An empty
-        // V \ X would mean Y ⊆ X, where the answer is a point mass at x and
-        // never a marginal of the current law, so nothing is emitted for it.
-        return Err(IdentificationError::InvariantViolated {
-            message: "general ID: outcomes are not disjoint from interventions",
-        });
-    }
-
-    if comps.len() > 1 {
-        run.derivation
-            .push("general.id.line4", format!("C-component factorization ({} parts)", comps.len()));
-        let mut factors = Vec::with_capacity(comps.len());
-        for s_i in &comps {
-            let mut x_i = v.clone();
-            x_i.difference_with(s_i);
-            match id_recurse(run, IdQuery { y: s_i, x: &x_i, v, dist, assign: assign.clone() })? {
-                IdOutcome::Expr(e) => factors.push(e),
-                fail @ IdOutcome::Fail(_) => return Ok(fail),
-            }
-        }
-        let product = {
-            let list = run.arena.intern_list(factors);
-            run.arena.intern(ExprNode::Product(list))
-        };
-        // ∑_{v \ (y ∪ x)}
-        let mut sum_vars = v.clone();
-        sum_vars.difference_with(y);
-        sum_vars.difference_with(x);
-        let expr = if sum_vars.any() {
-            let vs = intern_nodes(run.prepared, &sum_vars, run.arena)?;
-            run.arena.intern(ExprNode::SumOut { variables: vs, expr: product })
-        } else {
-            product
-        };
-        return Ok(IdOutcome::Expr(expr));
-    }
-
-    // Single C-component S of G[V\X]
-    let s = &comps[0];
-    // Line 5: C(G) = {G} → FAIL
-    if run.prepared.is_single_c_component(v) {
-        run.derivation.push("general.id.line5", "hedge: G is a single C-component");
-        // A certificate names real variables or is not issued: a node without
-        // a variable identity fails the call rather than being given a made-up id.
-        for node in v.iter() {
-            run.prepared.dense_to_var(node)?;
-        }
-        let hedge = HedgeCertificate::from_sets(v, s, |d| {
-            run.prepared.dense_to_var(d).expect("every node of F was resolved above")
-        });
-        return Ok(IdOutcome::Fail(hedge));
-    }
-
-    id_lines_5_to_7(run, IdQuery { y, x, v, dist, assign }, s)
-}
-
-/// Lines 6–7 dispatch for the single-C-component case (line 5 handled above).
-fn id_lines_5_to_7(
-    run: &mut IdRun<'_, '_>,
-    query: IdQuery<'_>,
-    s: &BitSet,
-) -> Result<IdOutcome, IdentificationError> {
-    let IdQuery { y, x, v, dist, assign } = query;
-    // Districts of G (on V)
-    let g_comps = run.prepared.c_components(v);
-    // Line 6: S ∈ C(G) — emit the C-factor of the *current* distribution.
-    if g_comps.iter().any(|c| c.equal_set(s)) {
-        run.derivation.push("general.id.line6", "S is a C-component of G; factorize current dist");
-        let expr = match dist {
-            DistCtx::Marginal => c_component_expression(run.prepared, s, y, v, run.arena, &assign)?,
-            DistCtx::CFactor(law) => {
-                // ∑_{s\y} ∏_{Vi∈S} P′(vi | v_π^{(i-1)}): with an empty sumset the
-                // telescope collapses each conditional to its own frozen factor;
-                // after a line-2 marginalization they are ratios of marginals.
-                let mut sum_vars = s.clone();
-                sum_vars.difference_with(y);
-                let sub = Law { sumset: sum_vars, factors: law.conditionals(run.prepared, s, v)? };
-                sub.emit(run.prepared, &BitSet::with_len(v.bit_len()), run.arena, &assign)?
-            }
-        };
-        return Ok(IdOutcome::Expr(expr));
-    }
-
-    // Line 7: ∃ S' ⊃ S, S' ∈ C(G). Recurse on G_{S'} against
-    // P′ = ∏_{Vi∈S′} P(vi | v_π^{(i-1)} ∩ S′, v_π^{(i-1)} \ S′), the C-factor
-    // of the current distribution — its factors keep conditioning on
-    // topological predecessors *outside* S' (Tian's telescope).
-    if let Some(s_prime) = g_comps.iter().find(|c| s.is_subset_of(c) && !c.equal_set(s)) {
-        run.derivation
-            .push("general.id.line7", "recurse into containing C-component S' against Q[S']");
-        let mut x2 = x.clone();
-        x2.intersect_with(s_prime);
-        let factors = match dist {
-            DistCtx::Marginal => marginal_conditionals(run.prepared, s_prime, v),
-            DistCtx::CFactor(law) => law.conditionals(run.prepared, s_prime, v)?,
-        };
-        let dist2 =
-            DistCtx::CFactor(Arc::new(Law { sumset: BitSet::with_len(v.bit_len()), factors }));
-        return id_recurse(run, IdQuery { y, x: &x2, v: s_prime, dist: &dist2, assign });
-    }
-
-    Err(IdentificationError::InvariantViolated {
-        message: "general ID: no line applies to the current C-component state",
-    })
-}
-
-/// Chain-rule conditionals `P(vi | v_π^{(i-1)})` of the observational marginal
-/// over `v`, for `vi ∈ s`, in topological order.
-fn marginal_conditionals(prepared: &PreparedAdmg, s: &BitSet, v: &BitSet) -> Vec<Factor> {
-    let mut factors = Vec::new();
-    let mut preceding = BitSet::with_len(v.bit_len());
-    for &vi in prepared.topo() {
-        if !v.contains(vi) {
-            continue;
-        }
-        if s.contains(vi) {
-            factors.push(Factor::Observed { var: vi, cond: preceding.clone() });
-        }
-        preceding.insert(vi);
-    }
-    factors
-}
-
-impl DistCtx {
-    /// Marginalize the current distribution over `removed` (line 2).
-    fn marginalize(&self, removed: &BitSet) -> Self {
-        match self {
-            // A marginal of the observational marginal is still a marginal.
-            Self::Marginal => Self::Marginal,
-            Self::CFactor(law) => {
-                let mut sumset = law.sumset.clone();
-                sumset.union_with(removed);
-                Self::CFactor(Arc::new(Law { sumset, factors: law.factors.clone() }))
-            }
-        }
-    }
-}
-
-impl Law {
-    /// Conditionals `P′(vi | v_π^{(i-1)})` of this law over `v`, for `vi ∈ s`,
-    /// in topological order.
-    ///
-    /// With an empty sumset every factor after `vi` sums to one without
-    /// touching the earlier factors, so `∑_{later} P′ = ∏_{j ≤ i} f_j` and the
-    /// conditional is `vi`'s own factor. Once line 2 has summed variables out
-    /// of the product that telescope no longer holds node-wise, and the
-    /// conditional is formed from its definition,
-    /// `∑_{later} P′ / ∑_{vi} ∑_{later} P′`.
-    fn conditionals(
-        &self,
-        prepared: &PreparedAdmg,
-        s: &BitSet,
-        v: &BitSet,
-    ) -> Result<Vec<Factor>, IdentificationError> {
-        if !self.sumset.any() {
-            let kept: Vec<Factor> =
-                self.factors.iter().filter(|f| s.contains(f.var())).cloned().collect();
-            if kept.len() != s.count_ones() {
-                return Err(IdentificationError::InvariantViolated {
-                    message: "general ID: current law does not cover the requested C-component",
-                });
-            }
-            return Ok(kept);
-        }
-        let mut out = Vec::new();
-        let mut later = v.clone();
-        for &vi in prepared.topo() {
-            if !v.contains(vi) {
-                continue;
-            }
-            later.remove(vi);
-            if s.contains(vi) {
-                let mut sumset = self.sumset.clone();
-                sumset.union_with(&later);
-                let num = Arc::new(Self { sumset, factors: self.factors.clone() });
-                out.push(Factor::Conditional { var: vi, num });
-            }
-        }
-        Ok(out)
-    }
-
-    /// Emit `∑_{sumset} ∏ factors`.
-    ///
-    /// `bound` holds the variables already bound by enclosing sums of this
-    /// emission. `do(·)` labels are applied only to factors whose assigned
-    /// variable is *free* — a bound occurrence is the sum's dummy variable,
-    /// not the do-value.
-    fn emit(
-        &self,
-        prepared: &PreparedAdmg,
-        bound: &BitSet,
-        arena: &mut CausalExprArena,
-        assign: &Assign,
-    ) -> Result<ExprId, IdentificationError> {
-        let mut bound = bound.clone();
-        bound.union_with(&self.sumset);
-        let mut exprs = Vec::with_capacity(self.factors.len());
-        for factor in &self.factors {
-            exprs.push(factor.emit(prepared, &bound, arena, assign)?);
-        }
-        let product = if exprs.len() == 1 {
-            exprs[0]
-        } else {
-            let list = arena.intern_list(exprs);
-            arena.intern(ExprNode::Product(list))
-        };
-        if self.sumset.any() {
-            let vs = intern_nodes(prepared, &self.sumset, arena)?;
-            Ok(arena.intern(ExprNode::SumOut { variables: vs, expr: product }))
-        } else {
-            Ok(product)
-        }
-    }
-}
-
-impl Factor {
-    fn emit(
-        &self,
-        prepared: &PreparedAdmg,
-        bound: &BitSet,
-        arena: &mut CausalExprArena,
-        assign: &Assign,
-    ) -> Result<ExprId, IdentificationError> {
-        match self {
-            Self::Observed { var, cond } => {
-                let effective_assign: Assign =
-                    assign.iter().filter(|(t, _)| !bound.contains(*t)).cloned().collect();
-                let var_i = prepared.dense_to_var(*var)?;
-                let vars = arena.intern_var_set([var_i]);
-                let cond_vars: Result<Vec<_>, _> =
-                    cond.iter().map(|d| prepared.dense_to_var(d)).collect();
-                let cond_vars = cond_vars?;
-                let conditioned_on = arena.intern_var_set(cond_vars.clone());
-                let (intervention, domain) =
-                    intervention_for_factor(arena, prepared, &effective_assign, *var, &cond_vars)?;
-                Ok(arena.intern_distribution(vars, conditioned_on, intervention, domain))
-            }
-            Self::Conditional { var, num } => {
-                let numerator = num.emit(prepared, bound, arena, assign)?;
-                // The denominator is literally `∑_{var}` of the numerator node,
-                // so an evaluator can recognize a conditional on a null event
-                // (0/0 with a bounded extension) instead of a generic 0/0. Only
-                // when `var` carries a free do-label must the body be re-emitted
-                // with `var` bound, since the label would otherwise pin the
-                // summation variable.
-                let labelled = !bound.contains(*var) && assign.iter().any(|(t, _)| t == var);
-                let body = if labelled {
-                    let mut inner = bound.clone();
-                    inner.insert(*var);
-                    num.emit(prepared, &inner, arena, assign)?
-                } else {
-                    numerator
-                };
-                let variables = arena.intern_var_set([prepared.dense_to_var(*var)?]);
-                let denominator = arena.intern(ExprNode::SumOut { variables, expr: body });
-                Ok(arena.intern(ExprNode::Ratio { numerator, denominator }))
-            }
-        }
-    }
-}
-
-/// Marginal `∑_{v\y}` of the current distribution (lines 1 and degenerate).
-fn dist_marginal(
-    prepared: &PreparedAdmg,
-    dist: &DistCtx,
-    y: &BitSet,
-    v: &BitSet,
-    arena: &mut CausalExprArena,
-    assign: &Assign,
-) -> Result<ExprId, IdentificationError> {
-    match dist {
-        DistCtx::Marginal => observational_marginal(prepared, y, v, arena, assign),
-        DistCtx::CFactor(law) => {
-            // Sum over everything in v except y, plus the carried sumset.
-            let mut sumset = v.clone();
-            sumset.difference_with(y);
-            sumset.union_with(&law.sumset);
-            let marginal = Law { sumset, factors: law.factors.clone() };
-            marginal.emit(prepared, &BitSet::with_len(v.bit_len()), arena, assign)
-        }
-    }
-}
-
-fn intern_nodes(
-    prepared: &PreparedAdmg,
-    nodes: &BitSet,
-    arena: &mut CausalExprArena,
-) -> Result<antecedent_expr::VarSetId, IdentificationError> {
-    let vars: Result<Vec<_>, _> = nodes.iter().map(|d| prepared.dense_to_var(d)).collect();
-    Ok(arena.intern_var_set(vars?))
-}
-
-fn observational_marginal(
-    prepared: &PreparedAdmg,
-    y: &BitSet,
-    v: &BitSet,
-    arena: &mut CausalExprArena,
-    assign: &Assign,
-) -> Result<ExprId, IdentificationError> {
-    // Tian / Shpitser–Pearl: P(V) = ∏_{S ∈ C(G[V])} Q[S], Q[S] = ∏_{Vi∈S} P(Vi | V^π_<i).
-    // On a DAG, C-components are singletons and this reduces to the usual Markov product
-    // (conditioning on extra predecessors is redundant given pa(Vi)). On an ADMG with
-    // bidirected edges, ∏ P(vi | pa(vi)) is not the observational joint.
-    let comps = prepared.c_components(v);
-    let factors = if comps.is_empty() {
-        markov_product(prepared, v, arena, assign)?
-    } else if comps.len() == 1 {
-        q_component_product(prepared, &comps[0], v, arena, assign)?
-    } else {
-        let mut parts = Vec::with_capacity(comps.len());
-        for s in &comps {
-            parts.push(q_component_product(prepared, s, v, arena, assign)?);
-        }
-        if parts.len() == 1 {
-            parts[0]
-        } else {
-            let list = arena.intern_list(parts);
-            arena.intern(ExprNode::Product(list))
-        }
-    };
-    let mut sum_vars = v.clone();
-    sum_vars.difference_with(y);
-    if sum_vars.any() {
-        let vs = intern_nodes(prepared, &sum_vars, arena)?;
-        Ok(arena.intern(ExprNode::SumOut { variables: vs, expr: factors }))
-    } else {
-        Ok(factors)
-    }
-}
-
-fn c_component_expression(
-    prepared: &PreparedAdmg,
-    s: &BitSet,
-    y: &BitSet,
-    v: &BitSet,
-    arena: &mut CausalExprArena,
-    assign: &Assign,
-) -> Result<ExprId, IdentificationError> {
-    // ∑_{s\y} ∏_{Vi∈S} P(vi | v^{π}_{<i})
-    let product = q_component_product(prepared, s, v, arena, assign)?;
-    let mut sum_vars = s.clone();
-    sum_vars.difference_with(y);
-    if sum_vars.any() {
-        let vs = intern_nodes(prepared, &sum_vars, arena)?;
-        Ok(arena.intern(ExprNode::SumOut { variables: vs, expr: product }))
-    } else {
-        Ok(product)
-    }
-}
-
-fn q_component_product(
-    prepared: &PreparedAdmg,
-    s: &BitSet,
-    v: &BitSet,
-    arena: &mut CausalExprArena,
-    assign: &Assign,
-) -> Result<ExprId, IdentificationError> {
-    let empty_i = arena.empty_intervention_set();
-    let mut factors = Vec::new();
-    let mut preceding = BitSet::with_len(v.bit_len());
-    for &vi in prepared.topo() {
-        if !v.contains(vi) {
-            continue;
-        }
-        if s.contains(vi) {
-            let var_i = prepared.dense_to_var(vi)?;
-            let vars = arena.intern_var_set([var_i]);
-            let cond_vars: Result<Vec<_>, _> =
-                preceding.iter().map(|d| prepared.dense_to_var(d)).collect();
-            let cond_vars = cond_vars?;
-            let conditioned_on = arena.intern_var_set(cond_vars.clone());
-            let (intervention, domain) =
-                intervention_for_factor(arena, prepared, assign, vi, &cond_vars)?;
-            factors.push(arena.intern_distribution(vars, conditioned_on, intervention, domain));
-        }
-        preceding.insert(vi);
-    }
-    if factors.is_empty() {
-        let y = intern_nodes(prepared, s, arena)?;
-        let empty = arena.empty_var_set();
-        return Ok(arena.intern_distribution(y, empty, empty_i, DomainRef::Observational));
-    }
-    if factors.len() == 1 {
-        return Ok(factors[0]);
-    }
-    let list = arena.intern_list(factors);
-    Ok(arena.intern(ExprNode::Product(list)))
-}
-
-fn markov_product(
-    prepared: &PreparedAdmg,
-    v: &BitSet,
-    arena: &mut CausalExprArena,
-    assign: &Assign,
-) -> Result<ExprId, IdentificationError> {
-    let empty_i = arena.empty_intervention_set();
-    let mut factors = Vec::new();
-    for &vi in prepared.topo() {
-        if !v.contains(vi) {
-            continue;
-        }
-        let var_i = prepared.dense_to_var(vi)?;
-        let vars = arena.intern_var_set([var_i]);
-        let parents: Result<Vec<_>, _> = prepared
-            .admg()
-            .parents(vi)
-            .iter()
-            .copied()
-            .filter(|p| v.contains(*p))
-            .map(|p| prepared.dense_to_var(p))
-            .collect();
-        let parents = parents?;
-        let conditioned_on = arena.intern_var_set(parents.clone());
-        let (intervention, domain) =
-            intervention_for_factor(arena, prepared, assign, vi, &parents)?;
-        factors.push(arena.intern_distribution(vars, conditioned_on, intervention, domain));
-    }
-    if factors.is_empty() {
-        let empty = arena.empty_var_set();
-        return Ok(arena.intern_distribution(empty, empty, empty_i, DomainRef::Observational));
-    }
-    if factors.len() == 1 {
-        return Ok(factors[0]);
-    }
-    let list = arena.intern_list(factors);
-    Ok(arena.intern(ExprNode::Product(list)))
-}
-
-/// Bake `do(T=t)` into the factor that generates `T`, or into factors that condition on `T`.
-fn intervention_for_factor(
-    arena: &mut CausalExprArena,
-    prepared: &PreparedAdmg,
-    assign: &Assign,
-    vi: DenseNodeId,
-    conditioned_on: &[VariableId],
-) -> Result<(antecedent_expr::InterventionSetId, DomainRef), IdentificationError> {
-    let mut touching = Vec::new();
-    for (t, val) in assign.iter() {
-        let t_var = prepared.dense_to_var(*t)?;
-        if *t == vi || conditioned_on.iter().any(|&v| v == t_var) {
-            touching.push(InterventionAssignment { variable: t_var, value: val.clone() });
-        }
-    }
-    if touching.is_empty() {
-        return Ok((arena.empty_intervention_set(), DomainRef::Observational));
-    }
-    let intervention = crate::intervention_support::intern_assignments(arena, touching)?;
-    Ok((intervention, DomainRef::Interventional))
-}
-
 #[cfg(test)]
-mod tests {
-    use antecedent_core::{
-        AverageEffectQuery, CausalQuery, ContinuousDomain, GridSpec, Intervention,
-        MechanismOverride, ResponseFunctional, ResponseQuery, TargetPopulation, Value, VariableId,
-    };
-    use antecedent_graph::{Admg, Dag, DenseNodeId};
-    use std::sync::Arc;
-
-    use super::*;
-    use crate::error::IdentificationError;
-    use crate::identifier::IdentificationWorkspace;
-    use crate::oracle_dot::{admg_from_oracle_dot, dag_from_oracle_dot};
-    use crate::result::IdentificationStatus;
-
-    fn chain_dag() -> Dag {
-        let mut dag = Dag::with_variables(3);
-        // 0 -> 1 -> 2  (T -> M -> Y) but use T=0, Z=1, Y=2 with Z confounder style:
-        // backdoor chain: Z -> T -> Y, Z -> Y  => nodes 0=Z, 1=T, 2=Y
-        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
-        dag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
-        dag
-    }
-
-    #[test]
-    fn backdoor_chain_identified() {
-        let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../conformance/identify/general_id_backdoor_chain/expected.json"
-        ))
-        .unwrap();
-        assert_eq!(fixture["case"], "identifiable_backdoor");
-        assert_eq!(fixture["treatment"], "t");
-        assert_eq!(fixture["outcome"], "y");
-        assert_eq!(fixture["expected_status_family"], "identified");
-        assert!(
-            fixture["reference"]["outputs"]["estimand"]
-                .as_str()
-                .unwrap()
-                .contains("Estimand name: backdoor"),
-            "external oracle must identify the frozen Z -> T, Z -> Y, T -> Y graph by backdoor"
-        );
-
-        let (dag, nodes) = dag_from_oracle_dot(fixture["graph_dot"].as_str().unwrap());
-        let id = IdIdentifier::new();
-        let prep = id.prepare_dag(&dag).unwrap();
-        let q = AverageEffectQuery::binary_ate(
-            nodes.id(fixture["treatment"].as_str().unwrap()),
-            nodes.id(fixture["outcome"].as_str().unwrap()),
-        );
-        let mut ws = IdentificationWorkspace::default();
-        let res = id.identify_ate(&prep, &q, &mut ws).unwrap();
-        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
-        assert_eq!(res.estimands[0].method_kind().unwrap(), EstimandMethod::GeneralId);
-    }
-
-    #[test]
-    fn general_id_records_causal_markov() {
-        // Truncated-factorization / g-formula identification is only valid
-        // under the Causal Markov condition on the graph; every other
-        // identifier in the crate (backdoor, IV, RD) records its structural
-        // assumptions, and general ID must not be the exception.
-        let id = IdIdentifier::new();
-        let prep = id.prepare_dag(&chain_dag()).unwrap();
-        let q = AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(2));
-        let mut ws = IdentificationWorkspace::default();
-        let res = id.identify_ate(&prep, &q, &mut ws).unwrap();
-        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
-        assert!(
-            res.required_assumptions
-                .entries
-                .iter()
-                .any(|r| matches!(r.assumption, antecedent_core::Assumption::CausalMarkov)),
-            "general ID must record the Causal Markov assumption it relies on"
-        );
-    }
-
-    #[test]
-    fn hedge_not_identified() {
-        let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../conformance/identify/id_hedge/expected.json"
-        ))
-        .unwrap();
-        assert_eq!(fixture["cases"][1]["certificate"].as_str(), Some("hedge"));
-        let external: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../conformance/identify/general_id_hedge/expected.json"
-        ))
-        .unwrap();
-        assert_eq!(external["case"], "nonidentifiable_or_unidentified");
-        assert_eq!(external["treatment"], "t");
-        assert_eq!(external["outcome"], "y");
-        assert_eq!(external["expected_status_family"], "unidentified");
-        assert!(
-            external["reference"]["outputs"]["estimand"]
-                .as_str()
-                .unwrap()
-                .contains("No such variable(s) found!"),
-            "external oracle must refuse every standard identification strategy on the bow arc"
-        );
-        let (g, nodes) = admg_from_oracle_dot(external["graph_dot"].as_str().unwrap());
-        let id = IdIdentifier::new();
-        let prep = id.prepare(&g).unwrap();
-        let q = AverageEffectQuery::binary_ate(
-            nodes.id(external["treatment"].as_str().unwrap()),
-            nodes.id(external["outcome"].as_str().unwrap()),
-        );
-        let mut ws = IdentificationWorkspace::default();
-        let res = id.identify_ate(&prep, &q, &mut ws).unwrap();
-        assert_eq!(res.status, IdentificationStatus::NotIdentified);
-        assert!(res.diagnostics.iter().any(|d| d.code.as_ref() == "identify.hedge"));
-    }
-
-    #[test]
-    fn frontdoor_admg_identified() {
-        let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../conformance/identify/general_id_frontdoor/expected.json"
-        ))
-        .unwrap();
-        assert_eq!(fixture["expected_status_family"], "identified");
-        let (g, nodes) = admg_from_oracle_dot(fixture["graph_dot"].as_str().unwrap());
-        let id = IdIdentifier::new();
-        let prep = id.prepare(&g).unwrap();
-        let q = AverageEffectQuery::binary_ate(
-            nodes.id(fixture["treatment"].as_str().unwrap()),
-            nodes.id(fixture["outcome"].as_str().unwrap()),
-        );
-        let mut ws = IdentificationWorkspace::default();
-        let res = id.identify_ate(&prep, &q, &mut ws).unwrap();
-        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
-    }
-
-    #[test]
-    fn soft_constant_and_shift_ate_reduce_to_set() {
-        let id = IdIdentifier::new();
-        let prep = id.prepare_dag(&chain_dag()).unwrap();
-        let mut ws = IdentificationWorkspace::default();
-
-        let soft = CausalQuery::AverageEffect(AverageEffectQuery::new(
-            VariableId::from_raw(1),
-            VariableId::from_raw(2),
-            Arc::from([]),
-            Intervention::set(VariableId::from_raw(1), Value::f64(0.0)),
-            Intervention::soft(VariableId::from_raw(1), MechanismOverride::constant(1.0)),
-            TargetPopulation::AllObserved,
-        ));
-        let res = id.identify(&prep, &soft, &mut ws).unwrap();
-        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
-
-        let shift = CausalQuery::AverageEffect(AverageEffectQuery::new(
-            VariableId::from_raw(1),
-            VariableId::from_raw(2),
-            Arc::from([]),
-            Intervention::set(VariableId::from_raw(1), Value::f64(0.0)),
-            Intervention::shift(VariableId::from_raw(1), Value::f64(1.0)),
-            TargetPopulation::AllObserved,
-        ));
-        let err = id.identify(&prep, &shift, &mut ws).unwrap_err();
-        assert!(
-            matches!(err, IdentificationError::UnsupportedQuery { message } if message.contains("Shift")),
-            "{err}"
-        );
-    }
-
-    #[test]
-    fn admg_observational_line1_uses_c_component_factorization() {
-        // A ↔ B, no directed edges: Markov product would be P(A)P(B); Tian Q is P(A)P(B|A).
-        let mut g = Admg::with_variables(2);
-        g.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-        let id = IdIdentifier::new();
-        let prep = id.prepare(&g).unwrap();
-        let q = CausalQuery::Distribution(
-            antecedent_core::InterventionalDistributionQuery::new(
-                VariableId::from_raw(0),
-                Arc::from([]),
-            )
-            .with_outcomes(Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)])),
-        );
-        let mut ws = IdentificationWorkspace::default();
-        let res = id.identify(&prep, &q, &mut ws).unwrap();
-        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
-        let functional = res.estimands[0].functional;
-        assert!(
-            distribution_has_nonempty_cond(&res.arena, functional),
-            "line 1 on a bidirected ADMG must use Q-component factors, not ∏ P(vi)"
-        );
-    }
-
-    fn distribution_has_nonempty_cond(arena: &CausalExprArena, id: ExprId) -> bool {
-        match arena.node(id) {
-            ExprNode::Distribution { conditioned_on, .. } => {
-                !arena.var_set(*conditioned_on).is_empty()
-            }
-            ExprNode::Product(list) => {
-                arena.list(*list).iter().any(|&e| distribution_has_nonempty_cond(arena, e))
-            }
-            ExprNode::SumOut { expr, .. } | ExprNode::IntegralOut { expr, .. } => {
-                distribution_has_nonempty_cond(arena, *expr)
-            }
-            ExprNode::Ratio { numerator, denominator } => {
-                distribution_has_nonempty_cond(arena, *numerator)
-                    || distribution_has_nonempty_cond(arena, *denominator)
-            }
-            _ => false,
-        }
-    }
-
-    /// With ID complete, an `Err` is never a verdict on identifiability, so each remaining
-    /// one carries its own kind: a malformed query, and a broken internal invariant.
-    #[test]
-    fn remaining_errors_are_typed_by_cause() {
-        let id = IdIdentifier::new();
-        let prep = id.prepare_dag(&chain_dag()).unwrap();
-        let y = VariableId::from_raw(2);
-        let outcome_intervened =
-            CausalQuery::Distribution(antecedent_core::InterventionalDistributionQuery::new(
-                y,
-                [Intervention::set(y, Value::f64(1.0))],
-            ));
-        let err = id
-            .identify(&prep, &outcome_intervened, &mut IdentificationWorkspace::default())
-            .unwrap_err();
-        assert!(matches!(err, IdentificationError::InvalidQuery { .. }), "{err:?}");
-
-        // A law that lacks a factor for a node of the requested C-component cannot arise
-        // from the recursion; if it did, that is a defect, not an unsupported query.
-        let nodes = prep.admg().node_count();
-        let law = Law { sumset: BitSet::with_len(nodes), factors: Vec::new() };
-        let mut s = BitSet::with_len(nodes);
-        s.insert(DenseNodeId::from_raw(2));
-        let err = law.conditionals(&prep, &s, &BitSet::full(nodes)).unwrap_err();
-        assert!(matches!(err, IdentificationError::InvariantViolated { .. }), "{err:?}");
-    }
-
-    /// Napkin `W -> Z -> X -> Y`, `W <-> X`, `W <-> Y`: line 7 → line 2 → line 6.
-    /// The conditional of the marginalized C-factor must be emitted as
-    /// `N / ∑_y N` with the denominator summing the *same* numerator node, the
-    /// shape an exact evaluator recognizes as a conditional on a null event
-    /// when positivity fails (rather than an unlocated 0/0).
-    #[test]
-    fn napkin_conditional_is_a_ratio_over_its_own_marginal() {
-        let mut g = Admg::with_variables(4);
-        for (a, b) in [(0, 1), (1, 2), (2, 3)] {
-            g.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
-        }
-        for (a, b) in [(0, 2), (0, 3)] {
-            g.insert_bidirected(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
-        }
-        let id = IdIdentifier::new();
-        let prep = id.prepare(&g).unwrap();
-        let q = CausalQuery::Distribution(antecedent_core::InterventionalDistributionQuery::new(
-            VariableId::from_raw(3),
-            [Intervention::set(VariableId::from_raw(2), Value::f64(1.0))],
-        ));
-        let mut ws = IdentificationWorkspace::default();
-        let res = id.identify(&prep, &q, &mut ws).unwrap();
-        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
-        let rules: Vec<&str> = res.derivation.steps.iter().map(|s| s.rule.as_ref()).collect();
-        assert_eq!(
-            rules,
-            [
-                "general.id",
-                "general.id.line3",
-                "general.id.line7",
-                "general.id.line2",
-                "general.id.line6"
-            ]
-        );
-        let ExprNode::Ratio { numerator, denominator } =
-            res.arena.node(res.estimands[0].functional).clone()
-        else {
-            panic!("expected a ratio, got {}", res.arena.pretty(res.estimands[0].functional));
-        };
-        let ExprNode::SumOut { variables, expr } = res.arena.node(denominator).clone() else {
-            panic!("denominator must be a sum");
-        };
-        assert_eq!(expr, numerator, "denominator must marginalize the numerator node itself");
-        assert_eq!(res.arena.var_set(variables), [VariableId::from_raw(3)]);
-        // Numerator: ∑_w P(w) P(x | w, z) P(y | w, z, x).
-        let ExprNode::SumOut { variables, expr } = res.arena.node(numerator).clone() else {
-            panic!("numerator must sum out w");
-        };
-        assert_eq!(res.arena.var_set(variables), [VariableId::from_raw(0)]);
-        let ExprNode::Product(list) = res.arena.node(expr).clone() else {
-            panic!("numerator body must be the carried C-factor");
-        };
-        assert_eq!(res.arena.list(list).len(), 3);
-    }
-
-    /// `Z -> T`, `Z -> Y`, `T -> Y` and a four-point grid: the mean curve is one identified
-    /// intervention mean per grid level, not the first level standing for the whole curve.
-    #[test]
-    fn mean_curve_general_id_identifies_every_grid_level() {
-        let id = IdIdentifier::new();
-        let prep = id.prepare_dag(&chain_dag()).unwrap();
-        let (t, y) = (VariableId::from_raw(1), VariableId::from_raw(2));
-        let grid = [0.0, 0.5, 1.0, 2.0];
-        let response = ResponseQuery::new(ResponseFunctional::MeanCurve {
-            outcome: y,
-            treatment: ContinuousDomain::new(t, GridSpec::Values(Arc::from(grid))),
-        });
-        let res = id
-            .identify_response(&prep, &response, &mut IdentificationWorkspace::default())
-            .unwrap();
-        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
-        assert!(matches!(res.query, CausalQuery::Response(_)));
-        assert_eq!(res.estimands.len(), grid.len());
-        for estimand in &res.estimands {
-            assert_eq!(estimand.method_kind().unwrap(), EstimandMethod::GeneralId);
-            let ExprNode::Expectation { function, .. } = res.arena.node(estimand.functional) else {
-                panic!("each grid level is the mean of Y");
-            };
-            assert_eq!(function.variable(), y);
-        }
-        // The level is part of the functional, so no two grid points share one.
-        for (i, a) in res.estimands.iter().enumerate() {
-            for b in &res.estimands[i + 1..] {
-                assert_ne!(a.functional, b.functional);
-            }
-        }
-    }
-
-    /// `P(A | do(A = 1))` is the point mass at 1, not the observational `P(A)`: an outcome that
-    /// is also an intervention target is an invalid query for ID, whole or partial overlap.
-    #[test]
-    fn outcome_that_is_an_intervention_target_is_refused() {
-        let id = IdIdentifier::new();
-        let prep = id.prepare_dag(&chain_dag()).unwrap();
-        let (t, y) = (VariableId::from_raw(1), VariableId::from_raw(2));
-        let mut ws = IdentificationWorkspace::default();
-        let whole =
-            CausalQuery::Distribution(antecedent_core::InterventionalDistributionQuery::new(
-                t,
-                [Intervention::set(t, Value::f64(1.0))],
-            ));
-        let partial = CausalQuery::Distribution(
-            antecedent_core::InterventionalDistributionQuery::new(
-                y,
-                [Intervention::set(t, Value::f64(1.0))],
-            )
-            .with_outcomes([y, t]),
-        );
-        for query in [whole, partial] {
-            let err = id.identify(&prep, &query, &mut ws).unwrap_err();
-            assert!(matches!(err, IdentificationError::InvalidQuery { .. }), "{err}");
-        }
-        // Disjoint outcome and intervention stay valid.
-        let fine =
-            CausalQuery::Distribution(antecedent_core::InterventionalDistributionQuery::new(
-                y,
-                [Intervention::set(t, Value::f64(1.0))],
-            ));
-        assert!(id.identify(&prep, &fine, &mut ws).is_ok());
-    }
-
-    #[test]
-    fn soft_linear_gaussian_still_unsupported() {
-        let id = IdIdentifier::new();
-        let prep = id.prepare_dag(&chain_dag()).unwrap();
-        let mut ws = IdentificationWorkspace::default();
-        let soft = CausalQuery::AverageEffect(AverageEffectQuery::new(
-            VariableId::from_raw(1),
-            VariableId::from_raw(2),
-            Arc::from([]),
-            Intervention::set(VariableId::from_raw(1), Value::f64(0.0)),
-            Intervention::soft(
-                VariableId::from_raw(1),
-                MechanismOverride::named("linear_gaussian", vec![1.0, 0.0]),
-            ),
-            TargetPopulation::AllObserved,
-        ));
-        let err = id.identify(&prep, &soft, &mut ws).unwrap_err();
-        assert!(
-            matches!(err, IdentificationError::UnsupportedQuery { message } if message.contains("Soft")),
-            "{err}"
-        );
-    }
-
-    /// The counterfactual-identification hook charges every ID recursion: the
-    /// front-door `P_x(y)` charges each recursive call with its depth and live
-    /// bytes, and an error from the charge stops ID with that error.
-    #[test]
-    fn every_metered_recursion_is_charged_and_a_stop_ends_it() {
-        let mut g = Admg::with_variables(3);
-        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-        g.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
-        g.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
-        let prepared = PreparedAdmg::new(g).unwrap();
-        let set = |ids: &[u32]| {
-            let mut b = BitSet::with_len(3);
-            for &i in ids {
-                b.insert(DenseNodeId::from_raw(i));
-            }
-            b
-        };
-        // P_x(y): line 3 and the line-4 district factorization recurse.
-        let (y, x) = (set(&[2]), set(&[0]));
-        let mut charges = Vec::new();
-        let mut record = |depth: usize, bytes: u64| {
-            charges.push((depth, bytes));
-            Ok(())
-        };
-        let outcome = identify_interventional_metered(
-            &prepared,
-            &y,
-            &x,
-            &mut GraphWorkspace::default(),
-            &mut record,
-        )
-        .unwrap();
-        assert!(matches!(outcome, MeteredId::Identified { .. }));
-        assert!(charges.len() >= 3, "{charges:?}");
-        assert_eq!(charges[0].0, 1, "the first call is at depth one");
-        assert!(charges.iter().map(|c| c.0).max().unwrap() >= 2, "{charges:?}");
-        assert!(charges.windows(2).all(|w| w[1].1 >= w[0].1), "live bytes only grow: {charges:?}");
-        // A stop on the second charge ends ID with that error.
-        let mut calls = 0;
-        let mut stop = |_: usize, _: u64| {
-            calls += 1;
-            if calls >= 2 { Err(IdentificationError::Cancelled) } else { Ok(()) }
-        };
-        let stopped = identify_interventional_metered(
-            &prepared,
-            &y,
-            &x,
-            &mut GraphWorkspace::default(),
-            &mut stop,
-        );
-        assert!(matches!(stopped, Err(IdentificationError::Cancelled)));
-        assert_eq!(calls, 2);
-        // The bow arc's P_x(y) is a hedge carrying its problem.
-        let mut bow = Admg::with_variables(2);
-        bow.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-        bow.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-        let bow = PreparedAdmg::new(bow).unwrap();
-        let (y, x) = (
-            {
-                let mut b = BitSet::with_len(2);
-                b.insert(DenseNodeId::from_raw(1));
-                b
-            },
-            {
-                let mut b = BitSet::with_len(2);
-                b.insert(DenseNodeId::from_raw(0));
-                b
-            },
-        );
-        let MeteredId::Hedge(hedge) = identify_interventional_metered(
-            &bow,
-            &y,
-            &x,
-            &mut GraphWorkspace::default(),
-            &mut |_, _| Ok(()),
-        )
-        .unwrap() else {
-            panic!("expected a hedge")
-        };
-        hedge.verify_carried().unwrap();
-    }
-}
+mod tests;

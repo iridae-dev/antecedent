@@ -105,7 +105,10 @@ fn decision_refusal_carries_stage_action_reason_supplied_meaning_and_remedy() {
     let refusal = error.to_refusal();
     assert_eq!(refusal.stage, "evaluate");
     assert_eq!(refusal.code, "joint_law_required");
-    assert_eq!(refusal.detail, "decision_evaluation.joint_law_required");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_evaluation::JOINT_LAW_REQUIRED
+    );
     assert_eq!(refusal.offending.as_deref(), Some("A1"));
     assert_eq!(refusal.expected.as_deref(), Some("joint"));
     assert_eq!(refusal.supplied.as_deref(), Some("independent_marginals"));
@@ -180,7 +183,10 @@ fn wrong_population_action_unit_and_capability_stay_four_distinct_refusals() {
         capability: None,
         remedy: None,
     };
-    assert_eq!(unit.detail, "external_response_binding.coordinate_units");
+    assert_eq!(
+        unit.detail,
+        antecedent_core::reason_details::external_response_binding::COORDINATE_UNITS
+    );
     assert_eq!(unit.expected.as_deref(), Some("mmHg"));
     assert_eq!(unit.supplied.as_deref(), Some("kPa"));
 
@@ -209,19 +215,23 @@ fn wrong_population_action_unit_and_capability_stay_four_distinct_refusals() {
         pair(&population),
         (
             "quantity_semantics_mismatch".to_owned(),
-            "decision_contract.outside_decision_scope".to_owned()
+            antecedent_core::reason_details::decision_contract::OUTSIDE_DECISION_SCOPE.to_owned()
         )
     );
     assert_eq!(population.offending.as_deref(), Some("A1[1]"));
     assert_eq!(
         pair(&action),
-        ("invalid_argument".to_owned(), "decision_contract.unknown_action".to_owned())
+        (
+            "invalid_argument".to_owned(),
+            antecedent_core::reason_details::decision_contract::UNKNOWN_ACTION.to_owned()
+        )
     );
     assert_eq!(
         pair(&capability),
         (
             "external_capability_missing".to_owned(),
-            "provider_capability_negotiation.capability_missing".to_owned()
+            antecedent_core::reason_details::provider_capability_negotiation::CAPABILITY_MISSING
+                .to_owned()
         )
     );
     assert_eq!(capability.capability, Some(ExternalCapability::Cdf));
@@ -242,7 +252,10 @@ fn malformed_refusal_envelopes_are_themselves_refused() {
     let error = unregistered.validate().unwrap_err();
     assert_eq!(
         (error.code, error.detail.as_str()),
-        ("invalid_argument", "structured_refusals.unregistered_code")
+        (
+            "invalid_argument",
+            antecedent_core::reason_details::structured_refusals::UNREGISTERED_CODE
+        )
     );
     assert_eq!(error.offending.as_deref(), Some("not_a_registered_code"));
 
@@ -250,14 +263,18 @@ fn malformed_refusal_envelopes_are_themselves_refused() {
         let mut malformed = good.clone();
         malformed.detail = bad.to_owned();
         let error = malformed.validate().unwrap_err();
-        assert_eq!(error.detail, "structured_refusals.malformed_detail", "{bad}");
+        assert_eq!(
+            error.detail,
+            antecedent_core::reason_details::structured_refusals::MALFORMED_DETAIL,
+            "{bad}"
+        );
         assert_eq!(error.offending.as_deref(), Some(bad));
     }
 
     let mut stageless = good;
     stageless.stage = "  ";
     let error = stageless.validate().unwrap_err();
-    assert_eq!(error.detail, "structured_refusals.missing_stage");
+    assert_eq!(error.detail, antecedent_core::reason_details::structured_refusals::MISSING_STAGE);
     assert_eq!(error.validate(), Ok(()), "the refusal about a refusal is itself well formed");
 }
 
@@ -276,7 +293,7 @@ fn json_declared_contract_keeps_its_typed_refusal() {
         pair(&refusal),
         (
             "quantity_semantics_mismatch".to_owned(),
-            "decision_contract.outside_decision_scope".to_owned()
+            antecedent_core::reason_details::decision_contract::OUTSIDE_DECISION_SCOPE.to_owned()
         )
     );
     assert_eq!(refusal.offending.as_deref(), Some("A1[1]"));
@@ -289,10 +306,16 @@ fn json_declared_contract_keeps_its_typed_refusal() {
     let refusal = contract_from_json_refusal(&unknown_action.to_string()).unwrap_err();
     assert_eq!(
         pair(&refusal),
-        ("invalid_argument".to_owned(), "decision_contract.unknown_action".to_owned())
+        (
+            "invalid_argument".to_owned(),
+            antecedent_core::reason_details::decision_contract::UNKNOWN_ACTION.to_owned()
+        )
     );
 
     let refusal = contract_from_json_refusal("{ not json").unwrap_err();
-    assert_eq!(refusal.detail, "decision_contract.invalid_declaration");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_contract::INVALID_DECLARATION
+    );
     assert_eq!(refusal.validate(), Ok(()));
 }

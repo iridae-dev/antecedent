@@ -1,6 +1,6 @@
 //! Typed accessors over the sealed [`PreparedExecution`] route.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     CheckedAdmgResponseCurveOperation, CheckedAipwOperation, CheckedBayesianGcompOperation,
@@ -49,6 +49,7 @@ impl PreparedExecution {
         self.operation().rebind_for_dispatch(data)
     }
 
+    #[cfg(test)]
     pub(crate) fn checked_linear(
         &self,
     ) -> Option<&antecedent_estimate::CheckedLinearAdjustmentAte> {
@@ -95,6 +96,21 @@ typed_accessors! {
     iv -> CheckedIvOperation = Iv;
 }
 
+impl super::PreparedStudy {
+    /// The exact static identification retained by this prepared execution.
+    pub(crate) fn retained_static_identification(
+        &self,
+    ) -> Option<&super::CachedStaticIdentification> {
+        self.execution
+            .path_specific_effect_operation()
+            .map(|operation| operation.cache.as_ref())
+            .or_else(|| match self.analysis.identification.as_ref() {
+                Some(super::IdentificationCache::Static(cache)) => Some(cache.as_ref()),
+                _ => None,
+            })
+    }
+}
+
 #[cfg(test)]
 impl super::PreparedStudy {
     /// The static identification allocation the sealed static-ATE operation
@@ -114,15 +130,17 @@ impl super::PreparedStudy {
 
 pub(crate) fn checked_aipw_fitter(study: &Study) -> AipwAte {
     if let Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) =
-        study.estimator_spec.as_deref()
+        study.declared.estimator_spec.as_deref()
     {
         return (**config).clone();
     }
     let mut fitter = AipwAte::new();
-    fitter.bootstrap_replicates = study.bootstrap_replicates;
-    if let Some(overlap) = study.overlap_policy {
+    fitter.inference.sampling_design =
+        crate::estimator_spec::declared_sampling(study.declared.sampling_design);
+    fitter.inference.bootstrap_replicates = study.settings.bootstrap_replicates;
+    if let Some(overlap) = study.declared.overlap_policy {
         fitter.overlap = overlap;
     }
-    fitter.population_registry.clone_from(&study.population_registry);
+    fitter.population_registry.clone_from(&study.declared.population_registry);
     fitter
 }

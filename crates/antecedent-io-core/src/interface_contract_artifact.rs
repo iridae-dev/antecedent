@@ -28,7 +28,7 @@
 //! connection and verified by the artifacts they describe. The artifact
 //! carries no interval, posterior or coverage statement of its own.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 
@@ -40,9 +40,9 @@ use antecedent_contract::interface_contract::{
     MAX_PORT_SET_ITEMS, ProducedPort, SupportDomain, UncertaintyMeaning, UncertaintyParadigm,
 };
 use antecedent_core::CanonicalWriter;
+use antecedent_core::refusal::changed_identity;
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
 use crate::quantity_wire::ScientificQuantityWire;
 
 /// The artifact major version this reader writes and accepts.
@@ -92,11 +92,9 @@ impl InterfaceContractArtifactError {
             Self::Refused { code, detail, message } => {
                 Some((*code, detail.clone(), message.clone()))
             }
-            Self::IdentityMismatch { field } => Some((
-                antecedent_core::reason_code!("route_not_supported"),
-                "interface_contract.identity_mismatch".to_owned(),
-                format!("{field} changed"),
-            )),
+            Self::IdentityMismatch { field } => {
+                Some(changed_identity("interface_contract.identity_mismatch", field))
+            }
             _ => None,
         }
     }
@@ -107,11 +105,11 @@ fn malformed(text: impl Into<String>) -> InterfaceContractArtifactError {
 }
 
 fn refused(refusal: antecedent_contract::ExternalRefusal) -> InterfaceContractArtifactError {
-    InterfaceContractArtifactError::Refused {
-        code: refusal.code,
-        detail: refusal.detail,
-        message: refusal.remedy.unwrap_or("the interface contract is not well formed").to_owned(),
-    }
+    let (code, detail, message) = crate::artifact_codec::external_refusal_parts(
+        refusal,
+        "the interface contract is not well formed",
+    );
+    InterfaceContractArtifactError::Refused { code, detail, message }
 }
 
 // -- wire types ---------------------------------------------------------------------------
@@ -144,7 +142,7 @@ pub struct UncertaintyWire {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CalibrationWire {
-    /// `none`, `point_only`, `unmeasured`, `measured` or `inherited`.
+    /// `none`, `point_only`, `not_measured`, `measured` or `inherited`.
     pub status: String,
     /// Measured record identity (`measured`).
     pub record_id: Option<String>,
@@ -342,17 +340,29 @@ fn unsupported(what: &'static str) -> Failure {
     Failure::UnsupportedSemantics(what)
 }
 
-fn strictly_increasing(values: &[String], what: &'static str) -> Result<(), Failure> {
-    if values.len() > MAX_PORT_SET_ITEMS {
+/// Whether `values` is sorted and distinct (strictly increasing).
+pub(crate) fn is_strictly_increasing<T: Ord>(values: &[T]) -> bool {
+    values.windows(2).all(|pair| pair[0] < pair[1])
+}
+
+fn strictly_increasing(
+    values: &[String],
+    what: &'static str,
+    limits: &InterfaceContractIntakeLimits,
+) -> Result<(), Failure> {
+    if values.len() > limits.max_set_items {
         return Err(Failure::LimitsExceeded(what));
     }
-    if values.windows(2).any(|pair| pair[0] >= pair[1]) {
+    if !is_strictly_increasing(values) {
         return Err(malformed(format!("{what} are not sorted and distinct")));
     }
     Ok(())
 }
 
-fn support_from_wire(wire: &SupportWire) -> Result<SupportDomain, Failure> {
+fn support_from_wire(
+    wire: &SupportWire,
+    limits: &InterfaceContractIntakeLimits,
+) -> Result<SupportDomain, Failure> {
     let no_levels = wire.levels.is_none();
     let no_bounds = wire.lower_bits.is_none() && wire.upper_bits.is_none();
     match wire.kind.as_str() {
@@ -371,7 +381,7 @@ fn support_from_wire(wire: &SupportWire) -> Result<SupportDomain, Failure> {
         },
         "categorical" if no_bounds => match &wire.levels {
             Some(levels) => {
-                strictly_increasing(levels, "support levels")?;
+                strictly_increasing(levels, "support levels", limits)?;
                 Ok(SupportDomain::Categorical { levels: levels.clone() })
             }
             None => Err(malformed("a categorical support carries its levels")),
@@ -423,12 +433,12 @@ fn calibration_from_wire(wire: &CalibrationWire) -> Result<CalibrationStatus, Fa
         }
     };
     match wire.status.as_str() {
-        "none" | "point_only" | "unmeasured" => {
+        "none" | "point_only" | "not_measured" => {
             stray(wire.record_id.is_some() || wire.input.is_some())?;
             Ok(match wire.status.as_str() {
                 "none" => CalibrationStatus::None,
                 "point_only" => CalibrationStatus::PointOnly,
-                _ => CalibrationStatus::Unmeasured,
+                _ => CalibrationStatus::NotMeasured,
             })
         }
         "measured" => {
@@ -451,14 +461,21 @@ fn quantity_from_wire(wire: &ScientificQuantityWire) -> Result<ScientificQuantit
     ScientificQuantity::try_from(wire.clone()).map_err(malformed)
 }
 
-fn string_set(values: &[String], what: &'static str) -> Result<BTreeSet<String>, Failure> {
-    strictly_increasing(values, what)?;
+fn string_set(
+    values: &[String],
+    what: &'static str,
+    limits: &InterfaceContractIntakeLimits,
+) -> Result<BTreeSet<String>, Failure> {
+    strictly_increasing(values, what, limits)?;
     Ok(values.iter().cloned().collect())
 }
 
-fn produced_from_wire(wire: &ProducedPortWire) -> Result<ProducedPort, Failure> {
+fn produced_from_wire(
+    wire: &ProducedPortWire,
+    limits: &InterfaceContractIntakeLimits,
+) -> Result<ProducedPort, Failure> {
     let evidence = if wire.evidence.declared {
-        strictly_increasing(&wire.evidence.sources, "evidence sources")?;
+        strictly_increasing(&wire.evidence.sources, "evidence sources", limits)?;
         let mut sources = BTreeSet::new();
         for text in &wire.evidence.sources {
             let id = SourceId::from_hex(text)
@@ -476,31 +493,67 @@ fn produced_from_wire(wire: &ProducedPortWire) -> Result<ProducedPort, Failure> 
         name: wire.name.clone(),
         quantity: quantity_from_wire(&wire.quantity)?,
         semantic_identity: wire.semantic_identity.clone(),
-        support: support_from_wire(&wire.support)?,
+        support: support_from_wire(&wire.support, limits)?,
         operations: operations_from_wire(&wire.operations)?,
         uncertainty: uncertainty_from_wire(wire.uncertainty.as_ref())?,
         calibration: calibration_from_wire(&wire.calibration)?,
-        measurement_models: string_set(&wire.measurement_models, "measurement models")?,
+        measurement_models: string_set(&wire.measurement_models, "measurement models", limits)?,
         evidence,
-        provenance: string_set(&wire.provenance, "provenance stages")?,
+        provenance: string_set(&wire.provenance, "provenance stages", limits)?,
     })
 }
 
-fn consumed_from_wire(wire: &ConsumedPortWire) -> Result<ConsumedPort, Failure> {
+fn consumed_from_wire(
+    wire: &ConsumedPortWire,
+    limits: &InterfaceContractIntakeLimits,
+) -> Result<ConsumedPort, Failure> {
     Ok(ConsumedPort {
         name: wire.name.clone(),
         quantity: quantity_from_wire(&wire.quantity)?,
         semantic_identity: wire.semantic_identity.clone(),
-        support: support_from_wire(&wire.support)?,
+        support: support_from_wire(&wire.support, limits)?,
         operations: operations_from_wire(&wire.operations)?,
         uncertainty: uncertainty_from_wire(wire.uncertainty.as_ref())?,
         calibration: CalibrationRequirement::from_name(&wire.calibration)
             .ok_or(unsupported("calibration requirement"))?,
-        measurement_models: string_set(&wire.measurement_models, "measurement models")?,
+        measurement_models: string_set(&wire.measurement_models, "measurement models", limits)?,
         dependence: DependenceRequirement::from_name(&wire.dependence)
             .ok_or(unsupported("dependence requirement"))?,
-        provenance: string_set(&wire.provenance, "provenance stages")?,
+        provenance: string_set(&wire.provenance, "provenance stages", limits)?,
     })
+}
+
+/// Intake bounds for a stored interface contract. The defaults are the contract crate's
+/// [`MAX_INTERFACE_PORTS`], [`MAX_PORT_SET_ITEMS`] and
+/// [`MAX_INTERFACE_CONTRACT_ARTIFACT_BYTES`]; a caller with a larger contract passes its own
+/// to [`contract_from_wire_within`] or [`InterfaceContractArtifact::from_bytes_within`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InterfaceContractIntakeLimits {
+    /// Most container bytes.
+    pub max_bytes: usize,
+    /// Most produced ports, and most consumed ports.
+    pub max_ports: usize,
+    /// Most items of one per-port set (models, sources, levels, stages).
+    pub max_set_items: usize,
+}
+
+impl Default for InterfaceContractIntakeLimits {
+    fn default() -> Self {
+        Self {
+            max_bytes: MAX_INTERFACE_CONTRACT_ARTIFACT_BYTES,
+            max_ports: MAX_INTERFACE_PORTS,
+            max_set_items: MAX_PORT_SET_ITEMS,
+        }
+    }
+}
+
+/// Rebuild a contract from its wire form under the default intake bounds; see
+/// [`contract_from_wire_within`].
+///
+/// # Errors
+/// A wire that is not canonical, names an unknown vocabulary word or exceeds a bound.
+pub fn contract_from_wire(wire: &ContractWire) -> Result<InterfaceContract, Failure> {
+    contract_from_wire_within(wire, &InterfaceContractIntakeLimits::default())
 }
 
 /// Rebuild a contract from its wire form. The wire must be in canonical order
@@ -508,22 +561,34 @@ fn consumed_from_wire(wire: &ConsumedPortWire) -> Result<ConsumedPort, Failure> 
 /// not validated here.
 ///
 /// # Errors
-/// A wire that is not canonical, names an unknown vocabulary word or exceeds a bound.
-pub fn contract_from_wire(wire: &ContractWire) -> Result<InterfaceContract, Failure> {
-    if wire.produces.len() > MAX_INTERFACE_PORTS || wire.consumes.len() > MAX_INTERFACE_PORTS {
+/// A wire that is not canonical, names an unknown vocabulary word or exceeds a bound of
+/// `limits`.
+pub fn contract_from_wire_within(
+    wire: &ContractWire,
+    limits: &InterfaceContractIntakeLimits,
+) -> Result<InterfaceContract, Failure> {
+    if wire.produces.len() > limits.max_ports || wire.consumes.len() > limits.max_ports {
         return Err(Failure::LimitsExceeded("ports"));
     }
     let names = |ports: &[&str]| -> Result<(), Failure> {
-        if ports.windows(2).any(|pair| pair[0] >= pair[1]) {
-            Err(malformed("ports are not sorted by name and distinct"))
-        } else {
+        if is_strictly_increasing(ports) {
             Ok(())
+        } else {
+            Err(malformed("ports are not sorted by name and distinct"))
         }
     };
     names(&wire.produces.iter().map(|p| p.name.as_str()).collect::<Vec<_>>())?;
     names(&wire.consumes.iter().map(|p| p.name.as_str()).collect::<Vec<_>>())?;
-    let produces = wire.produces.iter().map(produced_from_wire).collect::<Result<Vec<_>, _>>()?;
-    let consumes = wire.consumes.iter().map(consumed_from_wire).collect::<Result<Vec<_>, _>>()?;
+    let produces = wire
+        .produces
+        .iter()
+        .map(|p| produced_from_wire(p, limits))
+        .collect::<Result<Vec<_>, _>>()?;
+    let consumes = wire
+        .consumes
+        .iter()
+        .map(|p| consumed_from_wire(p, limits))
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(InterfaceContract { component: wire.component.clone(), produces, consumes })
 }
 
@@ -544,6 +609,7 @@ fn compute_identity(meta: &InterfaceContractMeta) -> String {
 fn check(
     meta: &InterfaceContractMeta,
     expected_identity: Option<&str>,
+    limits: &InterfaceContractIntakeLimits,
 ) -> Result<InterfaceContractArtifact, Failure> {
     if meta.version != INTERFACE_CONTRACT_ARTIFACT_VERSION {
         return Err(Failure::UnsupportedVersion { version: meta.version });
@@ -554,7 +620,7 @@ fn check(
     if !meta.required_features.is_empty() {
         return Err(unsupported("required feature"));
     }
-    let contract = contract_from_wire(&meta.contract)?;
+    let contract = contract_from_wire_within(&meta.contract, limits)?;
     contract.validate().map_err(refused)?;
     let contract_identity = contract.canonical_identity().to_hex();
     if meta.contract_identity != contract_identity {
@@ -571,11 +637,7 @@ fn check(
 }
 
 fn encode_meta(meta: &InterfaceContractMeta, artifact_id: &str) -> Result<Vec<u8>, Failure> {
-    if artifact_id.trim().is_empty() {
-        return Err(Failure::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta).map_err(|error| Failure::Encode(error.to_string()))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "interface_contract",
@@ -583,33 +645,22 @@ fn encode_meta(meta: &InterfaceContractMeta, artifact_id: &str) -> Result<Vec<u8
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection {
-            id: META_SECTION,
-            content_type: crate::CONTENT_CBOR,
-            bytes: &meta_bytes,
-        }],
+        META_SECTION,
+        meta,
+        &[],
     )
-    .map_err(|error| crate::map_artifact_check!(error, InterfaceContractArtifactError))
 }
 
-fn decode_meta(bytes: &[u8]) -> Result<InterfaceContractMeta, Failure> {
-    let parts = crate::decode_container(
+fn decode_meta(bytes: &[u8], max_bytes: usize) -> Result<InterfaceContractMeta, Failure> {
+    crate::artifact_codec::decode_sectioned(
         ARTIFACT_KIND,
-        MAX_INTERFACE_CONTRACT_ARTIFACT_BYTES,
-        &[META_SECTION],
+        max_bytes,
+        META_SECTION,
+        &[],
+        INTERFACE_CONTRACT_ARTIFACT_VERSION,
         bytes,
     )
-    .map_err(|error| crate::map_artifact_check!(error, InterfaceContractArtifactError))?;
-    let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(Failure::Malformed("unsupported container layout".into()));
-    };
-    crate::decode_with_version(&meta_bytes, |version: u16| {
-        if version == INTERFACE_CONTRACT_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(Failure::UnsupportedVersion { version })
-        }
-    })
+    .map(|(meta, _)| meta)
 }
 
 // -- public type --------------------------------------------------------------------------------
@@ -641,7 +692,7 @@ impl InterfaceContractArtifact {
             identity: String::new(),
         };
         meta.identity = compute_identity(&meta);
-        let artifact = check(&meta, None)?;
+        let artifact = check(&meta, None, &InterfaceContractIntakeLimits::default())?;
         Ok((artifact, meta))
     }
 
@@ -672,7 +723,19 @@ impl InterfaceContractArtifact {
         bytes: &[u8],
         expected_identity: Option<&str>,
     ) -> Result<Self, InterfaceContractArtifactError> {
-        check(&decode_meta(bytes)?, expected_identity)
+        Self::from_bytes_within(bytes, expected_identity, &InterfaceContractIntakeLimits::default())
+    }
+
+    /// [`Self::from_bytes`] under the caller's intake bounds.
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a bound of `limits` exceeded is `LimitsExceeded`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        limits: &InterfaceContractIntakeLimits,
+    ) -> Result<Self, InterfaceContractArtifactError> {
+        check(&decode_meta(bytes, limits.max_bytes)?, expected_identity, limits)
     }
 
     /// Read the stored metadata without replaying it: the independent
@@ -682,7 +745,7 @@ impl InterfaceContractArtifact {
     /// # Errors
     /// Corruption, another major version or a malformed container.
     pub fn inspect(bytes: &[u8]) -> Result<InterfaceContractMeta, InterfaceContractArtifactError> {
-        decode_meta(bytes)
+        decode_meta(bytes, MAX_INTERFACE_CONTRACT_ARTIFACT_BYTES)
     }
 
     /// The validated contract.
@@ -712,7 +775,7 @@ impl InterfaceContractArtifact {
         meta: &InterfaceContractMeta,
         expected_identity: Option<&str>,
     ) -> Result<Self, InterfaceContractArtifactError> {
-        check(meta, expected_identity)
+        check(meta, expected_identity, &InterfaceContractIntakeLimits::default())
     }
 
     /// Recompute the identity of `meta` after an edit, for tests that reseal.

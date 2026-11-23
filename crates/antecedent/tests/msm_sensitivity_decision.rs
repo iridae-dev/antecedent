@@ -125,8 +125,8 @@ fn msm_decision_keeps_sampling_withheld_and_refuses_composition() {
     let SamplingReport::Withheld { reason_code, detail } = &decided.sampling else {
         panic!("the sampling interval must stay withheld");
     };
-    assert_eq!(reason_code, "cell_not_licensed");
-    assert_eq!(detail, "msm_sensitivity.interval_withheld");
+    assert_eq!(reason_code, "uncertainty_representation_insufficient");
+    assert_eq!(detail, antecedent_core::reason_details::msm_sensitivity::NO_INTERVAL_METHOD);
     let contract =
         contract_from_artifact(&built, StructuralPolicy::RequireInvariantBestAction).unwrap();
     let spec = SensitivityDecisionSpec {
@@ -134,6 +134,9 @@ fn msm_decision_keeps_sampling_withheld_and_refuses_composition() {
         ..SensitivityDecisionSpec::default()
     };
     let error = evaluate_sensitivity_decision(&contract, &built, &spec).unwrap_err();
-    assert_eq!(error.reason_code(), "cell_not_licensed");
-    assert_eq!(error.detail(), "sensitivity_decision_composition.composition_not_licensed");
+    assert_eq!(error.reason_code(), "route_not_supported");
+    assert_eq!(
+        error.detail(),
+        antecedent_core::reason_details::sensitivity_decision_composition::COMPOSITION_NOT_SUPPORTED
+    );
 }

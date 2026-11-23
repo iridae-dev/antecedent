@@ -18,3 +18,41 @@ test_sources = [
   "crates/antecedent-design/tests/decision_contract_eval.rs",
   "crates/antecedent-design/tests/decision_mean_source.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Finite weighted expectation, population variance, threshold probability, left-inverse quantile and a fractional-boundary tail mean on the draws of a supplied law. Scoped re-review compared all bound item definitions across both paths; search contract definitions are unchanged. Admissibility definitions were likewise compared across both paths and are unchanged."
+no_independent_algorithm = "Arithmetic on a supplied finite law; no estimator and no sampling theorem. Variance is that of the finite law and the tail mean splits the boundary atom, both stated in the rustdoc."
+derivation = "E[g(X)] = sum_i w_i g(x_i); Var = sum_i w_i (g(x_i)-E)^2; P(g>t) = sum of weights above t; quantile = inf{x: F(x) >= p}."
+record_sha256 = "8f9856feea6034e7cf6ae1b1443aa7b045f7ffb65c670e8b575aed50f5062692"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_eval.rs"
+items = ["const MASS_TOLERANCE", "enum DecisionEvalError", "enum Verdict", "fn build_table", "fn build_table_with", "fn check_functional", "fn constraint_fails", "fn evaluate_contract", "fn evaluate_contract_validated", "fn evaluate_functional", "fn fractional_tail_mean", "fn from_table", "fn functional", "fn law_criterion_label", "fn left_inverse", "fn locate", "fn parsed_quantities", "fn positive_mass_max", "fn rank_table", "fn reason_code", "fn resolve_action", "fn weighted_mean", "struct ActionLaw", "struct ActionOutcome", "struct ConstraintExclusion", "struct DecisionResult", "struct FunctionalValue", "struct SourceReceipt", "struct Table"]
+sha256 = "f19c868a90b10a860c4a147401477fc98d438dcc9eed6fb73cf6c655701efbca"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_contract.rs"
+items = ["const MAX_ACTIONS", "const MAX_DEPTH", "const MAX_INPUTS", "enum ActionKind", "enum DecisionContractError", "enum DecisionCriterion", "enum DecisionFunctional", "enum SourceRepresentation", "enum StructuralPolicy", "enum Tail", "enum UtilityExpr", "fn all_finite", "fn binary", "fn collect_inputs", "fn depth", "fn encode", "fn functional", "fn identity", "fn inputs_used", "fn minimum", "fn product", "fn put_list", "fn tag", "fn valid", "fn validate", "fn validate_action", "fn validate_action_count", "fn validated_identity", "struct DecisionAction", "struct DecisionContract", "struct HardConstraint"]
+sha256 = "bf71d31eaef9d62683c636765d8789db73e5e92541fa0c73feda4415a091c00b"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_contract/admissibility.rs"
+items = ["fn identity", "fn tag", "fn validate"]
+sha256 = "19599ba3792d01c8ef4c477f9cde38df78f12e4e4fb1c64906a7c5bb74e5cdf1"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_contract/search.rs"
+items = ["fn expr", "fn identity", "fn validate"]
+sha256 = "7210861a22c4e87e78219a33527163610d946af866797019b9f558d7595942be"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/decision_contract_eval.rs"
+items = ["const NEAR_TOLERANCE", "const P", "const Q", "fn a_missing_coordinate_is_a_semantics_mismatch", "fn a_posterior_over_a_mean_cannot_answer_an_outcome_law_input", "fn artifact", "fn columns", "fn contract", "fn each_initial_criterion_is_scored_by_its_own_route", "fn hard_constraints_exclude_and_never_penalize", "fn hard_constraints_respect_tiny_positive_probability_mass", "fn independent_marginals_are_refused_not_paired_by_index", "fn indistinguishable_actions_are_reported_as_such", "fn joint", "fn joint_rows_choose_the_safe_action_where_pairing_by_marginals_would_not", "fn loss_regret_and_perfect_information_use_minimum_loss", "fn near", "fn nonfinite_aggregates_refuse_instead_of_ranking_nan_or_infinity", "fn quantile_functional_and_criterion_share_boundary_convention", "fn quantity", "fn sampled_laws_report_point_values_without_unsupported_monte_carlo_errors", "fn structure_criteria_refuse_a_single_draw_source", "fn weights_are_normalized_and_change_the_answer", "fn zero_mass_atoms_do_not_change_worst_regret_or_tiny_quantiles"]
+sha256 = "7ce7c808748f9c93f6f434c4b25245d3d839ba141b54ada1d16f7cc4e4f5d1bd"

@@ -26,7 +26,7 @@
 //! * `high_leverage_cohort`: heavy-tailed modifiers and a cohort made of the rows with
 //!   the largest `|x_1|`, where the sandwich covariance is least reliable.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::cast_sign_loss,
     clippy::cast_possible_truncation,
@@ -35,7 +35,6 @@
 #![cfg(feature = "calibration-internal")]
 #![allow(
     clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
     clippy::too_many_arguments,
     reason = "bounded simulation sizes and small indices"
 )]

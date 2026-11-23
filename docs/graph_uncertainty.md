@@ -1,14 +1,40 @@
-# Interpreting graph uncertainty and unidentified mass
+# Read graph uncertainty and unidentified mass
 
-Discovered structure is evidence, not a finished causal model. Antecedent keeps
-compatible graphs in play, reports when an effect is not identified on part of
-that belief, and refuses to invent orientations the data do not support. This
-page is a practitioner reading guide; the [support matrix](support-matrix.md)
-remains the license for which combinations may run.
+Use this page when your graph came from discovery, or you hold several candidate graphs,
+and you need to report an effect without pretending the structure is settled. It shows how to
+estimate across the compatible graphs, how to read the share of structural belief on which
+the effect is not identified (`unidentified_mass`), and what to do when estimation stops for
+review of a partial graph. You need a table and a query; the
+[support matrix](support-matrix.md) lists which combinations are supported.
 
-Related mental-model pages: [a result is a claim](result-is-a-claim.md),
-[refusal and partial knowledge](refusal-and-partial-knowledge.md), and the
-discover → [`AcceptedGraph`](artifacts.md) spine.
+```python
+import antecedent
+from antecedent import AverageEffect, Bayesian, analyze
+from antecedent.discovery import ExactDagPosterior
+from antecedent.outcomes import require_success
+
+result = require_success(
+    analyze(
+        data=data,
+        discovery=ExactDagPosterior().run(data, execution=antecedent.Execution(seed=7)),
+        query=AverageEffect(treatment="spend", outcome="pipeline"),
+        inference=Bayesian(n_draws=200, backend="conjugate"),
+        execution=antecedent.Execution(seed=7),
+    )
+)
+posterior = result.posterior
+posterior.unidentified_mass     # share of graph-posterior weight with no identified estimand
+posterior.effect_mean           # E[effect | identified], not the effect under all graphs
+```
+
+Antecedent checks identification in each graph before estimating there. Graphs in which the
+effect is not identified contribute no estimate, and their weight is reported, never
+renormalized away. Read the two numbers together: see
+[Reading `unidentified_mass` and envelope cases](#reading-unidentified_mass-and-envelope-cases).
+
+Background: [results are claims](concepts/results-are-claims.md),
+[refusals](concepts/refusals.md), and holding a reviewed graph in an
+[`AcceptedGraph`](selective-discovery.md#hold-an-accepted-graph-and-estimate-from-it-repeatedly).
 
 ## Exact DAG posterior vs PAG / partial graphs
 
@@ -25,6 +51,72 @@ Practical distinction:
 - A **PAG / CPDAG envelope** answers “across completions of this partial graph, what identified set and residual unidentified mass remain?” Completing the class (review) is a separate scientific act from averaging over it.
 
 Priors never upgrade an unidentified atom into an identified one. Failed estimation on an identified atom is **unevaluable** mass, not unidentified mass—keep those axes separate when reading diagnostics.
+
+## Reading `unidentified_mass` and envelope cases
+
+After `analyze(...)` with a graph posterior or class envelope, inspect the result
+before projecting a scalar. `analyze` returns an outcome; `require_success(outcome)` (or
+`outcome.value`) is the result:
+
+```python
+posterior = result.posterior  # may be None on some Frequentist routes
+mass = posterior.unidentified_mass if posterior is not None else None
+```
+
+Notation: the structural belief is a set of atoms (DAGs of a posterior, or completions of a
+class) with weights `w_g` summing to one; `τ_g` is the query's effect in atom `g`; and an
+atom is *identified* when the query has an identified estimand in it.
+
+What to look for:
+
+1. **`posterior.unidentified_mass`** (or `result` / HTML callouts that mirror it) — the sum of `w_g` over atoms where the query has **no** identified estimand. A value of `0.5` means half of the structural belief says the observational data alone cannot answer the question under those graphs.
+2. **`posterior.effect_mean` / envelope means** — typically **`E[τ | identified]`**: a mixture only over atoms that identify the effect. That number is *not* “the ATE under all plausible graphs.”
+3. **Answer shape `partial` / limitation `unidentified_mass`** — Antecedent withholds a single point mean when unidentified mass is material; the HTML banner says so explicitly.
+4. **Envelope fields** (`posterior.envelope`, structural response identified sets) — lower/upper over identified atoms, plus the same unidentified mass axis. Informative when you need a set; still not support to drop the unidentified share.
+
+When is an envelope useful vs “don’t publish a point”?
+
+- **Publish the split:** report identified-conditional effect *and* unidentified mass (and, if present, the identified set).
+- **Do not publish a lone ROI / ATE** when unidentified mass is large enough that a decision would change if that mass resolved against you—unless you state the conditioning (“among structures where the effect is identified…”).
+- **Envelope alone** is still incomplete if you hide the unidentified share; the set only covers identified completions.
+
+Pinned contracts for the math and refusal behavior:
+
+- [Bayesian graph effect envelope](conformance/bayesian__graph_effect_envelope.md) (`conformance/bayesian/graph_effect_envelope`) — weighted ensemble with known unidentified fraction; `renormalize_identified_only` refuses a 100% mixture after dropping mass.
+- [PAG envelope unidentified mass](conformance/pag__envelope_unidentified_mass.md) (`conformance/pag/envelope_unidentified_mass`) — for `x o-> y`, both completions (`x -> y`, `x <-> y`) lack an adjustment certificate, so the effect is reported as not identified by the implemented adjustment method and the unidentified mass is preserved (this is a refusal of that method, not a claim of a zero effect).
+- [Known-truth mixtures](conformance/bayesian__known_truth_mixtures.md) — analytic `E[τ | identified]` with retained unidentified mass (e.g. static mixture mean `2.625` with mass `0.2`).
+
+## When `CausalReviewError` is raised
+
+Discovery algorithms often return a CPDAG or PAG with pending marks. Estimation
+that would require treating that partial graph as a finished DAG raises
+`CausalReviewError` (also available as `ReviewRequired`). Structured attributes
+include `kind`, `algorithm`, `pending_edge_count`, `hint`, and pending edge
+records—see `python/tests/test_review_required_ux.py`.
+
+Typical triggers:
+
+- `discovery.discover(data, method=FCI(...), accept_discovered=False)` (or incomplete
+  review) when circle marks remain.
+- Forcing a point estimate on a TemporalPag / MAG completion path with no
+  identified mass (compile refusal rather than a silent NaN).
+
+How to complete or accept a graph:
+
+1. **Review pending marks** with subject-matter knowledge:
+   `accepted.review({(u, v): ("tail", "arrow"), ...})` on an
+   [`AcceptedGraph`](artifacts.md) handle (version bumps; the old handle stays).
+2. **Supply an explicit DAG** you are willing to defend
+   (`AcceptedGraph.from_graph(dag)` or `graph=[(u, v), ...]`), as in
+   [`examples/python/discover_then_estimate.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/discover_then_estimate.py).
+3. **Keep the class and use an envelope / posterior route** when you are not
+   ready to orient—do not silently pick a MAP orientation to “unblock” the
+   pipeline.
+4. Use `antecedent.errors.next_action(err)` / `pending_edges(err)` for an
+   actionable orientation hint in UIs.
+
+Acceptance records review provenance; it does **not** prove the real-world
+graph is true.
 
 ## Completion search budgets
 
@@ -49,10 +141,11 @@ per node pair and conditioning subset) would not fit the budget.
 
 `ExactDagPosterior` enumerates every labeled DAG and stops at **6** variables. For more,
 `OrderMcmc` and `StructureMcmc` (and `CiScreenedPosterior`, which runs structure MCMC on the
-pairs its screen kept) sample the same Gaussian-BIC pseudo-posterior over DAGs and accept up to
-**16** variables. The posterior carries each atom's directed edges as a packed edge set whose
-first word is the earlier 64-bit encoding unchanged: a graph on at most eight variables is
-exactly the integer it was before, and a stored one decodes as it is. `GraphPosterior.adjacency`
+pairs its screen kept, plus any pair the screen dropped without decisive Gaussian-BIC evidence of
+independence: a test that fails to reject a weak edge shows low power, not absence, and no sample
+under 361 rows can decide) sample the same Gaussian-BIC pseudo-posterior over DAGs and accept up to
+**16** variables. The posterior carries each atom's directed edges as a packed edge set of
+64-bit words, so a graph on at most eight variables is a single word. `GraphPosterior.adjacency`
 in Python holds one Python `int` per atom, so graphs of up to 16 variables decode with ordinary
 integer arithmetic (bit `from * (n_vars - 1) + (to if to < from else to - 1)` is the edge
 `from -> to`). The DBN posterior keeps its own smaller bound, set by its lag-edge space. The
@@ -68,7 +161,7 @@ Conditions of the validated 10- and 12-variable workflow:
 | Chains | 4; above 8 variables each runs 8 replicas at inverse temperatures 1, 0.75, 0.56, 0.42, 0.32, 0.24, 0.18, 0.13 (the default 4-replica ladder 1, 1/2, 1/4, 1/8 is kept at 8 or fewer); replica exchange every 10 iterations |
 | Warmup per chain | structure MCMC 3 000 iterations; order MCMC 6 000 |
 | Retained draws per chain | structure MCMC 12 000, order MCMC 24 000, thinned by 2 |
-| Publication gate | split R-hat below 1.2 over every edge indicator, bulk ESS above 10, every edge's Monte-Carlo standard error at most 0.05, every chain made a structural move, every chain's edge marginals agree with the pooled ones (at most 6 standard errors, with the excursion error for edges a chain rarely flips), and rank-normalized split R-hat of the log target at most 1.1 |
+| Publication gate | split R-hat below 1.2 over every edge indicator, bulk ESS above 10, every edge's Monte-Carlo standard error at most 0.05, every chain made a structural move, every chain's edge marginals agree with the pooled ones (at most 6 standard errors, or the larger Student-t limit that keeps a correct run's false refusal at 1e-3 over all its edge-by-chain comparisons, with the excursion error for edges a chain rarely flips), and rank-normalized split R-hat of the log target at most 1.1 |
 
 A schedule far shorter than this is refused by the gate rather than published.
 
@@ -122,7 +215,7 @@ What is checked, and what is not:
   compared with a closed-form law with no data: the uniform prior on DAGs with at most one
   parent per node has `(n + 1)^(n - 1)` members and an exact edge-count law.
 - Four independent, strongly identified 12-variable colliders are recovered through the multi-word encoding.
-- `antecedent_discovery::exact_dag_marginals` computes the exact `P(i -> j)` of the same posterior (Gaussian BIC, the uniform or Bernoulli edge prior and every constraint, including the parent cap) for up to 12 variables by dynamic programming over node subsets, without enumerating DAGs: the sum over DAGs of a product of per-node factors is a sink recursion, and the sum over the DAGs containing an edge is the same recursion with that node's factor restricted. It agrees with an independent enumeration of every DAG to 1e-9 at five, six and seven variables (1.1 billion DAGs), and the published-condition samplers agree with it at 10 and 12 variables on 2,000 rows. This is the route behind `ExactDagPosterior().run(...)` from 7 to 12 variables (`discover_exact_dag_marginals`): it returns `ExactDagMarginals` (exact `P(i -> j)` and the log normalizing constant) and no graph atoms, so the list of graphs, weights, the MAP graph and the mixture that `analyze` takes over graphs are refused (`option_not_applicable`) rather than approximated; up to 6 variables the enumerating engine and its `GraphPosterior` are unchanged. More than 12 variables are refused naming `EXACT_MARGINAL_MAX_NODES`; larger problems are the samplers' alone.
+- `antecedent_discovery::exact_dag_marginals` computes the exact `P(i -> j)` of the same posterior (Gaussian BIC, the uniform or Bernoulli edge prior and every constraint, including the parent cap) for up to 15 variables by dynamic programming over node subsets, without enumerating DAGs: the sum over DAGs of a product of per-node factors is a sink recursion, and the sum over the DAGs containing an edge is the same recursion with that node's factor restricted. It agrees with an independent enumeration of every DAG to 1e-9 at five, six and seven variables (1.1 billion DAGs), and the published-condition samplers agree with it at 10 and 12 variables on 2,000 rows. This is the route behind `ExactDagPosterior().run(...)` from 7 to 15 variables (`discover_exact_dag_marginals`): it returns `ExactDagMarginals` (exact `P(i -> j)` and the log normalizing constant) and no graph atoms, so the list of graphs, weights, the MAP graph and the mixture that `analyze` takes over graphs are refused (`option_not_applicable`) rather than approximated; up to 6 variables the enumerating engine returns its `GraphPosterior`. More than 15 variables are refused naming `EXACT_MARGINAL_MAX_NODES`; larger problems are the samplers' alone.
 - The paired move is checked against the exact conditional from every one of the 543 four-variable DAGs, and the whole samplers (paired moves alone, then the default ladder) against all 543 DAGs of four variables and all 29 281 of five.
 - **No calibration is claimed.** A reported skeleton marginal of 0.7 does not mean that 70% of
   such pairs are adjacent: the weights are a BIC pseudo-posterior, not an integrated Bayesian
@@ -132,72 +225,181 @@ What is checked, and what is not:
   checked is computational: the exact marginals against enumeration, and the published samplers
   against the exact marginals. The marginals are conditional on the prior and the parent cap.
 
-## Reading `unidentified_mass` and envelope cases
+## Per-edge priors, soft tiers and screened marginals
 
-After `analyze(...)` with a graph posterior or class envelope, inspect the result
-before projecting a scalar:
+The edge prior need not give every edge one probability. `StructurePrior` (Python) and
+`GraphPrior::with_edge_priors` / `with_soft_tiers` (Rust) add two factors that keep the prior a
+product over directed edges, so the exact marginals, `OrderMcmc` and `StructureMcmc` use them with no
+change of algorithm:
 
-```python
-result = analyze(...)
-posterior = result.posterior  # may be None on some Frequentist routes
-mass = posterior.unidentified_mass if posterior is not None else None
-```
+- **Per-edge probabilities.** A sparse map `(from, to) -> p`, each `p` in (0, 1), plus a default for
+  the edges it does not list (unset, unlisted edges keep the global `edge_inclusion` or a neutral
+  factor). Edge `i -> j` contributes `ln p` when present and `ln (1 - p)` when absent. A probability
+  outside (0, 1), an unknown variable, a self edge, an edge listed twice, or an edge the hard
+  constraints forbid is refused.
+- **Soft tiers.** A tier order whose violations are penalised, not forbidden: a present edge from a
+  later tier into an earlier one multiplies the prior odds by `exp(-penalty)` (state the log-penalty,
+  or the odds factor in (0, 1)). A hard tier (`BackgroundKnowledge.tiers`) wins: the edge it forbids
+  has no prior factor at all, so declaring the same order softly beside it changes nothing.
 
-What to look for:
+`StructurePrior` is accepted by `ExactDagPosterior`, `OrderMcmc`, `StructureMcmc`, `CiScreenedPosterior` and `DbnPosterior` (which prices a `(from, to)` pair alike at the contemporaneous edge and at every lag).
 
-1. **`posterior.unidentified_mass`** (or `result` / HTML callouts that mirror it) — posterior (or class) weight where the query has **no** identified estimand. A value of `0.5` means half of the structural belief says the observational data alone cannot answer the question under those graphs.
-2. **`posterior.effect_mean` / envelope means** — typically **`E[τ | identified]`**: a mixture only over atoms that identify the effect. That number is *not* “the ATE under all plausible graphs.”
-3. **Answer shape `partial` / limitation `unidentified_mass`** — Antecedent withholds a single point mean when unidentified mass is material; the HTML banner says so explicitly.
-4. **Envelope fields** (`posterior.envelope`, structural response identified sets) — lower/upper over identified atoms, plus the same unidentified mass axis. Informative when you need a set; still not a license to drop the unidentified share.
+Without either factor the prior, the scores and the samplers are exactly those described above.
 
-When is an envelope useful vs “don’t publish a point”?
+**Screen, then exact marginals, at scale.** Above 15 variables the exact marginals do not apply to
+the whole problem, but they apply per question. `CiScreenedPosterior::screen_then_exact_marginals`
+(Rust) runs the CI screen on all variables, takes the focus variables plus their nearest neighbours
+in the screen's skeleton (at most `max_variables`, itself at most `EXACT_MARGINAL_MAX_NODES`), and
+runs the exact dynamic programme on that set with the screen as a per-edge prior: pairs the screen
+kept get one probability, the others a low one, and a caller's own per-edge probability for an edge
+is kept. In Python this is `ScreenedExactMarginals(focus=("y",), max_variables=12).run(data)`, which returns `ExactDagMarginals` over the selected variables; in Rust it is a compiled search, `DiscoverySpec::screened_exact_marginals`. The result states that its marginals are **conditional on the screen**: variables outside
+the set are not conditioned on, and no marginal is that of the full posterior.
 
-- **Publish the split:** report identified-conditional effect *and* unidentified mass (and, if present, the identified set).
-- **Do not publish a lone ROI / ATE** when unidentified mass is large enough that a decision would change if that mass resolved against you—unless you state the conditioning (“among structures where the effect is identified…”).
-- **Envelope alone** is still incomplete if you hide the unidentified share; the set only covers identified completions.
+**The prior is part of the compiled query.** The Bayesian search methods that take a prior
+(`ExactDagPosterior`, `ExactDagMarginals`, `OrderMcmc`, `StructureMcmc`, `CiScreenedPosterior`,
+`ScreenedExactMarginals`, `DbnPosterior`, and a class posterior over them) carry it as a
+`StructurePriorSpec` in the core `DiscoveryMethod`, and the wire form carries it only when set, so a
+search without a prior keeps its query, wire document and configuration digest. The lowered
+program names the per-edge probabilities and soft tiers in its prior, and the provenance of the
+accepted posterior records them (`structure_prior`). In Python,
+`analyze(..., discovery=ExactDagPosterior(prior=...))` runs the search under the prior inside the
+study and the graph-posterior estimate is taken over that posterior; the result's contract states
+the prior.
 
-Pinned contracts for the math and refusal behavior:
+**Posterior pooled across imputations.** When the data are themselves uncertain (missing cells,
+corrected measurements), search each completed table and pool: the pooled mass of a graph is the
+mean of its per-imputation masses, and the pooled edge marginals are the means of the
+per-imputation marginals, so the data's uncertainty widens the structure uncertainty.
+`run(imputations=[table_1, ..., table_K])` on `ExactDagPosterior`, `OrderMcmc`, `StructureMcmc`,
+`CiScreenedPosterior` and `DbnPosterior` (completed series) searches each table in the engine and
+returns the equal-weight mixture of the per-imputation posteriors (draw sets, for a sampled search).
+The posterior is tagged `pooled_imputations(<search>)`; its diagnostics state the method and keep
+each imputation's convergence, effective sample size, largest R-hat and Monte-Carlo error, and the
+pooled edge errors combine the independent runs. Above six variables the exact search pools its
+marginals (means, and the log of the mean normalizer). `analyze(..., discovery=<search>,
+imputations=[...])` runs the pooled search and mixes the effect over the pooled posterior, so a
+measurement stage's completed tables reach structure uncertainty without a manual step. In Rust the
+same are `discover_pooled_*` and `pool_posteriors_over_imputations`.
 
-- [Bayesian graph effect envelope](conformance/bayesian__graph_effect_envelope.md) (`conformance/bayesian/graph_effect_envelope`) — weighted ensemble with known unidentified fraction; `renormalize_identified_only` refuses a 100% mixture after dropping mass.
-- [PAG envelope unidentified mass](conformance/pag__envelope_unidentified_mass.md) (`conformance/pag/envelope_unidentified_mass`) — generalized-adjustment PAG envelope preserves unidentified completion mass.
-- [Known-truth mixtures](conformance/bayesian__known_truth_mixtures.md) — analytic `E[τ | identified]` with retained unidentified mass (e.g. static mixture mean `2.625` with mass `0.2`).
+## Directed-edge reliability in the signed-uniform Gaussian structural model
 
-## When `CausalReviewError` is raised
+Five discovery calibration gates ask whether directed edges assigned probability
+`p` are present with frequency `p` under a simulated graph prior. Three use
+complete tables and two pool over imputations. The existing exact engine
+enumerates or sums Gaussian-BIC graph weights correctly. On the fixed
+400-dataset per-edge-prior fixture, its lowest bin contains 10,011 predictions
+with mean 0.0117 and observed frequency 0.0028. It fails the registered
+reliability test. Changing the sampler cannot correct a discrepancy in the
+exact target.
 
-Discovery algorithms often return a CPDAG or PAG with pending marks. Estimation
-that would require treating that partial graph as a finished DAG raises
-`CausalReviewError` (also available as `ReviewRequired`). Structured attributes
-include `kind`, `algorithm`, `pending_edge_count`, `hint`, and pending edge
-records—see `python/tests/test_review_required_ux.py`.
+The discrepancy is visible in a one-parent regression. Take two orthogonal,
+centered columns with 400 rows and squared norms of 400. Adding the parent
+leaves the fitted residual variance unchanged. Gaussian BIC gives the edge a
+relative weight of `1 / √400 = 0.05` before the graph prior. Under the
+fixture's coefficient and unit-noise model, the corresponding likelihood ratio
+is `2 ∫[0.5,1] exp(−200 b²) db`, approximately `1.91e−24`. Both calculations
+penalize the unnecessary edge, but they assign it very different weights.
 
-Typical triggers:
+There is a second distinction for direction. With two observed variables, the
+Gaussian regression models for `X → Y` and `Y → X` attain the same fitted joint
+density and use the same number of parameters. Their BIC scores agree. With
+equal prior odds, both directions receive the same weight even when the
+association is strong. Known equal noise variances in the structural simulator
+supply information about direction that the freely fitted BIC model discards.
 
-- `analyze(..., discovery=FCI(...), accept_discovered=False)` (or incomplete
-  review) when circle / undirected marks remain.
-- Forcing a point estimate on a TemporalPag / MAG completion path with no
-  identified mass (compile refusal rather than a silent NaN).
+The scientific checks compare the implemented score with independent numerical
+calculations. The calibration studies compare its reported probabilities with
+frequencies in fresh simulated data. A correct computation can fail the second
+check. A BIC weight interpreted as an edge probability is subject to that check.
 
-How to complete or accept a graph:
+**Complete-data score.** Select `ExactDagPosterior(score="gaussian_signed_uniform", max_parents=3)`
+for a zero-intercept linear Gaussian structural equation with known unit noise
+variance. Each present edge has an independent fair sign and coefficient
+magnitude uniform on [0.5, 1]. Each local score integrates the Gaussian
+likelihood over the permitted coefficients. The graph weights also include the
+declared structure prior and constraints. A node can have up to three parents.
+An unresolved numerical integral refuses the search.
 
-1. **Review pending marks** with subject-matter knowledge:
-   `accepted.review({(u, v): ("tail", "arrow"), ...})` on an
-   [`AcceptedGraph`](artifacts.md) handle (version bumps; the old handle stays).
-2. **Supply an explicit DAG** you are willing to defend
-   (`AcceptedGraph.from_graph([...])` or `graph=[(u, v), ...]`), as in
-   `examples/python/discover_then_estimate.py`.
-3. **Keep the class and use an envelope / posterior route** when you are not
-   ready to orient—do not silently pick a MAP orientation to “unblock” the
-   pipeline.
-4. Use `antecedent.errors.next_action(err)` / `pending_edges(err)` for an
-   actionable orientation hint in UIs.
+**Scope of the calibration study.** Each of three fixed studies draws 400
+independent graphs and datasets from the stated model, with six variables and
+400 observations per dataset. The studies vary the per-edge prior and soft
+tier penalty. They compare predicted probabilities against directed edges in
+the generating graph in ten equal-width bins. A bin needs 200 predicted edges
+to enter the reliability check. The uncertainty calculation clusters edges by
+dataset. A user with a different sample size or probabilities falling in a
+sparsely populated bin needs evidence for that setting. In development runs
+of these fixed studies, only the lowest and highest bins reached 200 edges.
+All six eligible bins passed the registered check. These designs provide
+little information about edges assigned a probability near 65%.
 
-Acceptance records review provenance; it does **not** prove the real-world
-graph is true.
+**Partially observed data.** The discovery crate provides
+`observed_marginals::signed_uniform_observed_marginals` for two to six variables,
+up to three parents per node, and one partially observed column supplied last.
+The model assumes the missingness process is ignorable. It integrates the
+missing cells together. Each completed table is weighted by its graph
+normalizer divided by the probability density used to generate the completion.
+The result includes the draw count, effective draw count, and largest estimated
+Monte Carlo standard error of an edge probability. An unresolved integration
+returns an error. The existing BIC imputation procedure uses its own score and
+retains its existing calibration obligations.
+
+A two-variable numerical reference directly integrates a missing cell and the
+coefficient. A six-variable reference enumerates 16,807 possible directed
+forests and integrates two missing cells. The separate frequency studies use
+six variables, a three-parent cap, 400 rows and 25% completely random
+missingness in one column. Each prior design is tested on 400 independently
+generated datasets. Every refusal blocks the study; the registered bin rules
+apply to all 30 directed pairs on each dataset.
+
+**Release evidence.** The signed-uniform studies have their own gate identities.
+The three complete-data and two pooled Gaussian-BIC obligations retain their
+own verdicts. A pass for the signed-uniform score earns evidence only for that
+score and study design.
+
+## Uncertainty over a discovered structure
+
+A frequentist search (PC, FCI, GES, LiNGAM, NOTEARS, PCMCI) returns one structure and no
+sampling error. Two compiled routes carry the missing uncertainty. Neither is a support-matrix
+cell, and neither makes a coverage claim.
+
+**Posterior over Markov equivalence classes.** `EquivalenceClassPosterior(base)` (Rust:
+`DiscoverySpec::equivalence_classes`) runs an `ExactDagPosterior`, `OrderMcmc`,
+`StructureMcmc` or `CiScreenedPosterior` unchanged, replaces every DAG it lists by its
+CPDAG and sums the mass of the DAGs that share one. The answer is a `GraphPosterior` whose
+`atom_kind` is `"Cpdag"`, the Bayesian counterpart of PC and GES: a class the DAG posterior
+favours is not split across its members, because the Gaussian BIC score cannot tell them
+apart. Both directed bits of an unordered pair mark an undirected edge, so
+`edge_marginals` count it in both directions. The class posterior is accepted as a
+posterior and never as one DAG. `OrderMcmc(noise="laplace")` scores parent sets under Laplace noise, which is not
+equivalent within a class, so the posterior can orient an edge the Gaussian posterior leaves
+undirected (the Bayesian counterpart of LiNGAM and NOTEARS orientation); it is a
+pseudo-posterior under that declared noise family. A `DbnPosterior` base collapses onto the
+classes of each template's one-step window. `ExactPagPosterior` is the Bayesian counterpart of FCI and RFCI for at most four
+variables: every maximal ancestral graph is fitted by residual iterative conditional fitting,
+scored by BIC, and Markov-equivalent graphs are merged into their PAG, so the result is a
+`GraphPosterior` with `atom_kind` `"Pag"` and `mark_masks` flagging the circle endpoints.
+`PagMcmc` is its Metropolis counterpart for two to 31 variables (single-pair link moves from
+the empty graph, with ancestrality and maximality checks); `converged` records only that the
+chains' class frequencies agree. More variables, or a schedule whose m-separation work exceeds
+the sampler's budget, refuse.
+
+**Stability of the search.** `BootstrapStability(base, replicates)` (Rust:
+`DiscoverySpec::bootstrap_stability`) re-runs the search on resamples drawn under the
+declared sampling design: rows for independent subjects, circular blocks for a dependent
+series (and each environment of a multi-environment study), whole units for a panel. LPCMCI and
+J-PCMCI+ are re-run too, and regime PCMCI is re-run on block resamples that carry their regime labels, one table per regime. The result tabulates how often every node pair was
+adjacent, how often it carried every pair of endpoint marks, and how often the search
+returned every whole structure; `reference_edges` is the structure on the full sample. The
+frequencies are a bootstrap distribution of the search, not a posterior. A resample on
+which the search fails is counted in `replicates_failed` and never redrawn, and fewer than
+half succeeding is refused. A table with a missing searched value, a masked or weighted
+table and a declared design that does not sample independent rows are refused with the next
+attempt named.
 
 ## Worked vignette: marketing channel structural uncertainty
 
 Full walkthrough:
-[`examples/notebooks/marketing_channel_structural_uncertainty.ipynb`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/notebooks/marketing_channel_structural_uncertainty.ipynb).
+[`examples/notebooks/marketing_channel_structural_uncertainty.ipynb`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/marketing_channel_structural_uncertainty.ipynb).
 
 Synthetic weekly spend / demand / pipeline data are generated so the true effect
 of paid-search spend on qualified pipeline is **1.5** (£k pipeline per £k
@@ -231,6 +433,20 @@ Dashboard-appropriate: two readouts—**identified-conditional effect** and
 **unidentified structural mass**—plus a link to the pending graph / review
 state.
 
+## Refusals and stops you will meet
+
+| Situation | What you get | Next step |
+| --- | --- | --- |
+| estimating on a CPDAG or PAG with pending marks | `CausalReviewError` (`ReviewRequired`) with the pending edges | orient the marks with `AcceptedGraph.review`, supply a DAG, or keep the class and use a posterior or envelope route; see [above](#when-causalreviewerror-is-raised) |
+| asking `ExactDagPosterior` for graph atoms, weights, the MAP graph or a mixture over graphs at 7 to 15 variables | `option_not_applicable`: only exact edge marginals exist there | use the marginals, or sample with `OrderMcmc` or `StructureMcmc` |
+| `ExactDagPosterior` above 15 variables, `ExactPagPosterior` above four, `PagMcmc` above 31 or with a schedule whose work exceeds its budget | refused, naming the bound | reduce the variables, shorten the schedule, or use a sampler |
+| an MCMC schedule that fails the publication gate | refused, not published | lengthen the schedule toward the validated conditions |
+| `BootstrapStability` on a table with a missing searched value, a masked or weighted table, or with fewer than half the resamples succeeding | refused with the next attempt named | drop incomplete rows first; fix the failing search |
+| a completion search that exhausts its budget | a partial result with `search_stop` and a receipt, not a refusal | every class-wide claim is withdrawn; raise the budget or restrict the class |
+| a point estimate on a temporal PAG or MAG completion path with no identified mass | a refusal at compile, not a NaN and not a zero effect | see [evidence that would resolve a not-identified result](reference/refusal-codes.md#evidence-that-would-resolve-a-not-identified-result) |
+
+Codes and remedies are in the [refusal reference](reference/refusal-codes.md).
+
 ## Anti-patterns
 
 - **Treating the MAP CPDAG (or MAP DAG) as truth.** The highest-scoring graph is
@@ -250,9 +466,9 @@ state.
 
 ## Further reading
 
-- Notebook: [marketing channel structural uncertainty](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/notebooks/marketing_channel_structural_uncertainty.ipynb)
+- Notebook: [marketing channel structural uncertainty](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/marketing_channel_structural_uncertainty.ipynb)
 - Conformance: [graph effect envelope](conformance/bayesian__graph_effect_envelope.md),
   [PAG envelope unidentified mass](conformance/pag__envelope_unidentified_mass.md),
   [known-truth mixtures](conformance/bayesian__known_truth_mixtures.md)
 - UX pins: `python/tests/test_review_required_ux.py`
-- Workflow: [Python workflow](python-workflow.md), [artifacts](artifacts.md)
+- Workflow: [Python workflow](start/first-analysis.md), [artifacts](artifacts.md)

@@ -1,0 +1,70 @@
+feature_id = "composition.panel_experiment_update"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+implementation_deviations = [
+  "Independent modular finite Bayesian importance update under a declared known-variance Gaussian experimental-mean likelihood; no new causal identification method or external implementation is reproduced.",
+  "A converged shared panel posterior or an authenticated native design posterior supplies paired whole-function realizations. A complete supported estimand bridge and finite affine mapping preserve population, window, duration, dose, exposure, recency, spend and declared source/mapping dependence.",
+  "The FrozenJointImportance policy conditions a frozen fitted law; it does not jointly refit the observational and experimental data. Frequentist Gaussian sandwich realizations refuse as a Bayesian prior.",
+  "Caller current evidence authority checks the selected source/result identities and revisions, trust, withdrawal and supersession. Experimental evidence already used in fitted-data/prior origins refuses duplicate updating.",
+  "The existing weighted preposterior engine ranks additional samples of the same supported mapped estimand using explicit future data, update, terminal actions, utility and net cost. Unsupported novel regimes do not inherit this mapping.",
+  "The generic JointLawExperimentResult adapter derives the assembled contrast from the actual target and checked world-mean projection; it cannot change a structural/local/cohort target into population world means. Native Gaussian randomization and full-history Dirichlet mechanism laws enter without a nonlinear-panel refit.",
+  "NativeJointExperimentResult consumes the actual history/structural/cohort/donor posterior directly, retaining NativeJointIdentification and a target-kind-bound linear projection. It does not relabel local/native effects as population world means. Conditional decision receipts preserve the native proof and every future-study utility reads the same aligned native coordinates.",
+  "Native experiment artifacts rerun the complete original design/data/statistical recipe before experimental conditioning; the original likelihood/prior/seed/law identity binds mapping slots. Historical numerical-only generic artifacts retain their versioned decoder and never gain current authority.",
+  "The acceptance matrix is generated from the complete X07 capability catalogue crossed with advertised mappings, translations and decision cases. Missing implementations remain explicit obligations, separate from the scientific refusal to use sampling draws as a Bayesian prior; matrix rows are not claimed test results.",
+  "Independent likelihood-ratio arithmetic checks every retained posterior weight and expectation. Independent table counts check randomized Gaussian and longitudinal Dirichlet posterior expectations. Exhaustive terminal-action enumeration checks utilities, constraints and EVPI. Predictive Gaussian-mixture quadrature checks nested future-data value with explicit total-variation midpoint and Mills tail bounds, retaining production Monte Carlo error separately.",
+  "Artifacts replay the stored conditional law and update through the same native probability engine. Historical replay grants no current authorization and does not attest stored fit origin. Calibration and decision-selection reliability are not measured.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent/src/analysis/joint_panel/experiment.rs",
+  "crates/antecedent/src/analysis/joint_panel/experiment/law.rs",
+  "crates/antecedent/src/analysis/joint_panel/experiment/native.rs",
+  "crates/antecedent/src/analysis/joint_panel/experiment/native/tests.rs",
+  "crates/antecedent/src/analysis/joint_panel/experiment/matrix.rs",
+  "crates/antecedent/tests/joint_panel_experiment_chain/matrix.rs",
+  "conformance/response/joint_panel/experiment_reference.py",
+  "scripts/test_joint_panel_experiment_reference.py",
+  "scripts/run_joint_panel_experiment_acceptance.py",
+  "conformance/response/joint_panel/acceptance_record.rs",
+  "crates/antecedent/tests/joint_panel_experiment_chain.rs",
+  "crates/antecedent-io/src/joint_panel_artifact.rs",
+  "crates/antecedent-prob/src/finite_belief.rs",
+  "crates/antecedent-prob/tests/finite_belief_reference.rs (80-digit posterior of the Gaussian experimental-mean likelihood)",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The numerical update in crates/antecedent-prob/src/finite_belief.rs: condition (prior mass times exp of a declared log likelihood, normalised through the largest log weight, zero prior or zero likelihood kept as exact zeros), AffineGaussianExperiment::condition (the log density of the observed experimental mean under N((target - intercept) / slope, variance / n) for every aligned slot, with the standardisation that avoids overflow of a large finite deviation), and linear_functional_rows. Not JointAffineGaussianExperiment or its appended tests, the joint-panel wiring, estimand bridge, native proof binding, mapping dependence, identity or authority checks, preposterior ranking, or any claim that the experimental likelihood is the correct model of the study. The reviewed scalar implementation and assertions are unchanged by the later joint-likelihood addition."
+assumptions = ["The experimental sample mean is the only retained datum and is N(mu, v / n) with the variance v of one observation known and the observations independent; the review checks arithmetic given that declaration, not the declaration.", "The prior over aligned slots is a probability vector over whole-function realisations that already carries the observational evidence; the update is modular and does not refit it, as the record states.", "The affine map target = intercept + slope * experimental_mean is supplied per slot and is exact; no Jacobian enters because the likelihood is a density of the observed mean, which is common to every slot."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the stated model at 80 digits (mpmath logarithm, exponential and the log-sum-exp normalisation done in high precision); no upstream implementation was consulted. No primary paper is cited: Bayes' rule on a finite set with a Gaussian likelihood is textbook, and none was retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency."
+limitations = "Forty-six cases (six named, forty random) compare every posterior mass to 1e-12 relative: two slots, negative and mixed-sign slopes with intercepts, a posterior 30 standard errors into one tail, a zero-prior slot, a sample of 1e8 with targets 1e-4 apart, a variance of 1e-9, and forty seeded random sets of 2 to 12 slots (variance 0.1 to 5.1, n 1 to 200); ten random functionals of up to eight aligned rows are compared to 1e-12 relative; the refusals of the contract are asserted. The mapping and identity layers, the preposterior value computation and the decision receipts that surround the update are not examined here, and a heavy-tailed or dependent experimental likelihood is outside the declared model. The reference script is not run in a locked environment: its output is frozen in the JSON file."
+sources = ["https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The posterior equals the normalised prior-times-likelihood reference on every case, including a tail case where the unnormalised likelihood would underflow without the largest-log-weight shift.", "A zero prior or zero likelihood slot remains an exact zero, and an update that leaves zero total mass, a non-finite or negative prior, a NaN or positive-infinite log likelihood, a zero slope, a non-positive variance and a misaligned slot count are refused.", "No product defect was found in this record."]
+record_sha256 = "31973837b1746f5e803eb02a11a098644bec28a8e8915f304db00512e952b3f2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-prob/src/finite_belief.rs"
+items = ["fn condition", "fn invalid", "fn linear_functional_rows", "struct AffineGaussianExperiment", "struct JointAffineGaussianExperiment"]
+sha256 = "4bccc22a00a1778a9c1f83130569d8d23ae7259023da5654f0328ecbe8366b7e"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-prob/tests/finite_belief_reference.rs"
+items = ["fn floats", "fn joint_update_is_the_marginal_product_when_independent_and_the_bivariate_law_otherwise", "fn joint_update_refuses_what_is_not_a_joint_sampling_law", "fn linear_functional_equals_the_exact_row_dot_product", "fn malformed_updates_are_refused_and_never_reweighted", "fn reference", "fn refused", "fn text_floats", "fn the_update_equals_the_normalised_gaussian_likelihood_times_prior"]
+sha256 = "a8d1116c4c8b5e4fb336955f55b482b12ecc27928ab1d3b4a942817fd7ce9282"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-prob/tests/oracle_data/finite_belief_reference.py"
+sha256 = "5da6b1eb272b658fbbb53dd76ed86109fb862ea3cc74ccf3f5a7776c73a029f6"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-prob/tests/oracle_data/finite_belief_reference.json"
+sha256 = "9e11d42901ea20e2f663c2b3f67bd2bbf2ec15503a954996790316a8169f6dba"

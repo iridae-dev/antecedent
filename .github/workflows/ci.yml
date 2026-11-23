@@ -27,6 +27,85 @@ env:
   RUSTFLAGS: -D warnings
 
 jobs:
+  # Tier 0: source reading only, no Rust build and no test execution (scripts/gate_release.sh
+  # --section static). Registry integrity collects the generated Python route tests, which
+  # import the package, so the job installs this run's native extension as python-lint does.
+  static:
+    name: Static checks
+    needs: python-native
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: DCO check
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          # pull_request checkout is the ephemeral merge commit into the base;
+          # that merge has no Signed-off-by. Check only non-merge commits on
+          # the branch side of the two-dot range. Unshallow (not --deepen):
+          # a fixed deepen along the base ref can leave the checked-out merge
+          # commit grafted parentless, and a parentless graft is not a merge
+          # to --no-merges, so the ephemeral merge itself got DCO-checked.
+          git fetch --unshallow origin "$BASE_REF" 2>/dev/null \
+            || git fetch origin "$BASE_REF"
+          python3 scripts/check_dco.py "origin/${BASE_REF}..HEAD"
+
+      - name: Install Rust 1.97
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # pinned action ref; toolchain below
+        with:
+          toolchain: "1.97"
+          components: rustfmt
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      # The gate's scripts run as `python3`. Review digests of Python items use the
+      # interpreter's `ast.unparse`, whose output changes between patch releases (it did
+      # between 3.12.7 and 3.12.13), so pin the exact patch the digests were bound under.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12.16"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Sync Python dependencies
+        working-directory: python
+        run: uv sync --locked --python 3.12 --group dev --no-install-project
+
+      - name: Download same-run native extension
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ci-python-native-linux-cp312
+          path: target/ci-python-native
+
+      - name: Install and verify same-run native extension
+        working-directory: python
+        run: uv run --no-sync python ../scripts/ci_python_native.py install ../target/ci-python-native "$GITHUB_SHA"
+
+      - name: Static gate
+        env:
+          ANTECEDENT_RC_RECEIPTS: ${{ runner.temp }}/citations
+        run: |
+          mkdir -p "$ANTECEDENT_RC_RECEIPTS"
+          bash scripts/gate_release.sh --section ci-static
+
+      - name: Retain verified citation inputs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: citation-ci-static
+          path: ${{ runner.temp }}/citations/capabilities.toml
+          if-no-files-found: error
+
   rust:
     name: Rust ${{ matrix.display }}
     runs-on: ${{ matrix.os }}
@@ -89,10 +168,10 @@ jobs:
             exit 1
           fi
 
-      - name: Install Rust 1.85
-        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.85
+      - name: Install Rust 1.97
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # pinned action ref; toolchain below
         with:
-          toolchain: "1.85"
+          toolchain: "1.97"
           components: rustfmt, clippy
 
       - name: Cache cargo
@@ -103,42 +182,6 @@ jobs:
 
       - name: Enable compiler cache
         run: echo 'RUSTC_WRAPPER=sccache' >> "$GITHUB_ENV"
-
-      - name: DCO check
-        if: github.event_name == 'pull_request'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          set -euo pipefail
-          # pull_request checkout is the ephemeral merge commit into the base;
-          # that merge has no Signed-off-by. Check only non-merge commits on
-          # the branch side of the two-dot range. Unshallow (not --deepen):
-          # a fixed deepen along the base ref can leave the checked-out merge
-          # commit grafted parentless, and a parentless graft is not a merge
-          # to --no-merges, so the ephemeral merge itself got DCO-checked.
-          git fetch --unshallow origin "$BASE_REF" 2>/dev/null \
-            || git fetch origin "$BASE_REF"
-          RANGE="origin/${BASE_REF}..HEAD"
-          while IFS= read -r commit; do
-            if ! git log -1 --format=%B "$commit" | grep -qE '^Signed-off-by: .+ <.+@.+>$'; then
-              echo "Missing DCO on $commit"
-              git log -1 --format=%B "$commit"
-              exit 1
-            fi
-          done < <(git rev-list --no-merges "$RANGE")
-
-      - name: Format
-        run: bash scripts/gate_rustfmt.sh
-
-      - name: Lint allows carry reasons
-        run: bash scripts/gate_lint_allows.sh
-
-      - name: Every test file is compiled
-        run: python3 scripts/check_test_targets.py
-
-      - name: Split Rust suites preserve workspace features
-        if: matrix.os == 'ubuntu-latest' && matrix.suite == 'rest'
-        run: python3 scripts/check_rust_ci_feature_parity.py "$RUST_CI_REST_FEATURES" "$RUST_CI_FACADE_FEATURES"
 
       # The macOS suite is sensitive to float bits and stack size, so it runs
       # on main. PRs keep its format/DCO check but do not wait for its tests.
@@ -157,9 +200,8 @@ jobs:
           # The facade's dev-dependencies enabled these features in the former
           # full-workspace command. The calibration-internal self dev-dependencies
           # are gone, so this shard passes the same feature set explicitly.
-          cargo test --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES" --no-run --timings
           rm -f target/nextest/ci/junit.xml
-          cargo nextest run -P ci --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES"
+          cargo nextest run --locked --timings -P ci --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES"
           cargo test --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES" --doc
 
       - name: Test facade
@@ -170,9 +212,8 @@ jobs:
           # Python's default features activate ml-gbdt, ml-forest, ml-neural and
           # data/arrow in the former full-workspace command. calibration-internal
           # is not a default feature; the closed-estimator targets opt into it here.
-          cargo test -p antecedent --features "$RUST_CI_FACADE_FEATURES,calibration-internal" --no-run --timings
           rm -f target/nextest/ci/junit.xml
-          cargo nextest run -P ci -p antecedent --features "$RUST_CI_FACADE_FEATURES,calibration-internal"
+          cargo nextest run --locked --timings -P ci -p antecedent --features "$RUST_CI_FACADE_FEATURES,calibration-internal"
           cargo test -p antecedent --features "$RUST_CI_FACADE_FEATURES,calibration-internal" --doc
 
       - name: Upload Cargo timings
@@ -207,12 +248,6 @@ jobs:
           run_nextest gaussian-process -p antecedent-model --features gaussian-process,ml-full
           cargo test -p antecedent-model --features gaussian-process,ml-full --doc
 
-      # The feature gates no longer re-run these suites; this lists the binaries
-      # the steps above built and fails when a filter they relied on selects nothing.
-      - name: Named tests still exist
-        if: matrix.os == 'ubuntu-latest'
-        run: bash scripts/gate_named_tests.sh --shard '${{ matrix.suite }}'
-
       - name: Upload Rust test durations
         if: always() && (matrix.os != 'macos-latest' || github.event_name != 'pull_request')
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -220,39 +255,6 @@ jobs:
           name: rust-test-results-${{ matrix.os }}-${{ matrix.suite }}
           path: target/ci-test-results/*.xml
           if-no-files-found: warn
-
-  # `fuzz/` is its own package (empty `[workspace]`), so the Rust job never
-  # builds it. This job only typechecks and links the libFuzzer binaries.
-  # It does not execute them.
-  fuzz:
-    name: Fuzz build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    env:
-      # Do not inherit the workflow `-D warnings`. This package builds path
-      # dependencies as they are, and those crates currently warn.
-      RUSTFLAGS: ""
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Install nightly
-        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.85
-        with:
-          toolchain: nightly
-
-      - name: Install cargo-fuzz
-        uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
-        with:
-          tool: cargo-fuzz
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          workspaces: fuzz
-
-      - name: Build fuzz targets
-        run: cargo +nightly fuzz build --target x86_64-unknown-linux-gnu
 
   # `cargo test --workspace` unifies features through the `python` member
   # (default = ml-full), so the Rust job never compiles the graph a crates.io
@@ -272,10 +274,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Rust 1.85
-        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.85
+      - name: Install Rust 1.97
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # pinned action ref; toolchain below
         with:
-          toolchain: "1.85"
+          toolchain: "1.97"
           components: clippy
 
       - name: Cache cargo
@@ -307,6 +309,27 @@ jobs:
           pkgs="-p antecedent-estimate -p antecedent-io -p antecedent-validate -p antecedent-learn -p antecedent"
           cargo check $pkgs
           cargo check $pkgs --features calibration-internal
+
+      # The `development` feature runs `not_supported` routes. It is never default and nothing
+      # that ships may resolve it: published crates and the wheel build without it.
+      - name: Release builds resolve without the development feature
+        run: |
+          set -euo pipefail
+          cargo tree -e features -p antecedent -p antecedent-py > "$RUNNER_TEMP/release-features.txt"
+          if grep -q development "$RUNNER_TEMP/release-features.txt"; then
+            echo "::error::the development feature is enabled in a release resolution"
+            cargo tree -e features -i antecedent-core -p antecedent -p antecedent-py | grep development || true
+            exit 1
+          fi
+          # The wheel's maturin configuration and manifests must not name the feature.
+          if grep -nE 'features *=.*development' python/pyproject.toml; then
+            echo "::error::python/pyproject.toml enables the development feature"
+            exit 1
+          fi
+          if grep -nE '^default *=.*development' crates/*/Cargo.toml python/Cargo.toml; then
+            echo "::error::a crate enables development by default"
+            exit 1
+          fi
 
       - name: Each optional feature alone
         run: |
@@ -377,10 +400,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Rust 1.85
-        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.85
+      - name: Install Rust 1.97
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # pinned action ref; toolchain below
         with:
-          toolchain: "1.85"
+          toolchain: "1.97"
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -430,11 +453,11 @@ jobs:
         with:
           command: check
 
-      - name: Install Rust 1.85 for crate packaging
+      - name: Install Rust 1.97 for crate packaging
         if: github.event_name == 'pull_request'
-        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.85
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # pinned action ref; toolchain below
         with:
-          toolchain: "1.85"
+          toolchain: "1.97"
 
       - name: Cache cargo for crate packaging
         if: github.event_name == 'pull_request'
@@ -447,11 +470,43 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin "$BASE_REF"
-          if git diff --name-only "origin/${BASE_REF}...HEAD" | grep -qE '^crates/.+/Cargo\.toml$|^Cargo\.toml$|^scripts/publish_crates\.(sh|py)$'; then
+          changed_paths="$(git diff --name-only "origin/${BASE_REF}...HEAD")"
+          if grep -E '^crates/.+/Cargo\.toml$|^Cargo\.toml$|^scripts/publish_crates\.(sh|py)$' > /dev/null <<< "$changed_paths"; then
             bash scripts/publish_crates.sh --dry-run
           else
             echo "No crate manifest changes; skipping publish dry-run"
           fi
+
+  # The development build: `not_supported` routes run and results list `would_refuse`.
+  # The release-semantics twin (`release_not_supported`) runs in the ordinary suites.
+  development:
+    name: Development build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust 1.97
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # pinned action ref; toolchain below
+        with:
+          toolchain: "1.97"
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+        with:
+          tool: nextest
+
+      - name: Test the development build
+        run: |
+          set -euo pipefail
+          cargo nextest run -P development -p antecedent --features development --test development_build
+          cargo nextest run -P development -p antecedent-core --features development --lib
 
   # Linux source-tree Python checks all use one native extension from this run.
   # Keep the full release wheel matrix independent: it checks packaged installs
@@ -468,13 +523,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Calibration attestation (coverage records match the code)
-        run: bash scripts/gate_calibration_attestation.sh
-
-      - name: Install Rust 1.85
-        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.85
+      - name: Install Rust 1.97
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # pinned action ref; toolchain below
         with:
-          toolchain: "1.85"
+          toolchain: "1.97"
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -495,6 +547,10 @@ jobs:
           uv run --no-sync maturin develop --locked --release --skip-install --timings
           uv run --no-sync python ../scripts/ci_python_native.py stage ../target/ci-python-native "$GITHUB_SHA"
 
+      - name: Wheel is a release build
+        working-directory: python
+        run: uv run --no-sync python -c "import antecedent; assert antecedent.build_flavor() == 'release', antecedent.build_flavor()"
+
       - name: Upload same-run native extension
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -512,18 +568,38 @@ jobs:
           path: target/cargo-timings/*.html
           if-no-files-found: warn
 
-  # Domain-correctness gates. `gate_release.sh` is the umbrella for the parity
-  # schema check, the provenance schema check, and the feature gates
-  # (estimate_ci, bayesian, gcm, pag, context, attribution, design_state,
-  # upstream_names, causal_artifacts, composition, transport). Previously none of
-  # these ran on a PR, so numerical parity and the public-repo name check went
-  # unenforced on PRs. Its first step fails the job when a committed coverage
-  # record does not match the code (gate_calibration_attestation.sh): the
-  # statistical measurement is made on a development machine before upload
-  # (scripts/measure_calibration.sh) and never runs here.
-  gate-sections:
-    name: Domain ${{ matrix.section }}
-    needs: python-native
+  # Tier 1, builds that run no test. Each job is one section of scripts/gate_release.sh, so the
+  # local gate and CI cannot drift. Cheap checks run first; the engineering tests (rust, development,
+  # python-lint, python-wheels) and the record-currency job (scientific) follow.
+
+  # The public API of every published crate matches its reviewed snapshot (rustdoc build).
+  public-api:
+    name: Public API
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust 1.97
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # pinned action ref; toolchain below
+        with:
+          toolchain: "1.97"
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - name: Public API snapshots
+        run: bash scripts/gate_release.sh --section public-api
+
+  # Every cited test of the support matrix, the graphless supports and the transport stages is a
+  # compiled, non-ignored test: cargo lists the test binaries, nothing runs. Eight shards of the
+  # matrix cells run in parallel; shard 0 also takes the graphless and transport citations.
+  cited-tests:
+    name: Cited tests ${{ matrix.shard }}
+    needs: [python-native, static, scientific, rust]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -539,24 +615,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        section: [inventory, promotion-python, matrix-0, matrix-1, matrix-2, matrix-3, matrix-4, matrix-5, matrix-6, matrix-7, transport-contracts, feature-core, feature-composition, feature-transport, feature-conformance, feature-exits]
-    steps: &domain_test_steps
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The calibration attestation diffs against each record's
-          # calibration_sha, which a shallow clone does not contain.
           fetch-depth: 0
 
-      # Seconds, and before any build: an upload whose coverage records owe a
-      # re-measurement fails here with the drifted facets, their paths and the
-      # local command that measures them.
-      - name: Calibration attestation (coverage records match the code)
-        run: bash scripts/gate_calibration_attestation.sh
-
-      - name: Install Rust 1.85
-        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.85
+      - name: Install Rust 1.97
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # pinned action ref; toolchain below
         with:
-          toolchain: "1.85"
+          toolchain: "1.97"
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -567,74 +635,157 @@ jobs:
       - name: Enable compiler cache
         run: echo 'RUSTC_WRAPPER=sccache' >> "$GITHUB_ENV"
 
-      - name: Install cargo-nextest for cited evidence tests
-        if: (startsWith(matrix.section, 'promotion-') && matrix.section != 'promotion-python') || startsWith(matrix.section, 'checked-')
-        uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
-        with:
-          tool: nextest
-
       - name: Install uv
-        if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'checked-') && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: "3.12"
 
       - name: Sync Python dependencies
-        if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'checked-') && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
         working-directory: python
         run: uv sync --locked --python 3.12 --group dev --no-install-project
 
       - name: Download same-run native extension
-        if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'checked-') && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: ci-python-native-linux-cp312
           path: target/ci-python-native
 
       - name: Install and verify same-run native extension
-        if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'checked-') && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
         working-directory: python
         run: uv run --no-sync python ../scripts/ci_python_native.py install ../target/ci-python-native "$GITHUB_SHA"
 
-      - name: Release gate section
+      - name: Download verified citation inputs from this run
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: citation-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/citations
+
+      - name: Download Linux engineering results from this run
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: rust-test-results-ubuntu-latest-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/citations
+
+      - name: Resolve the cited tests
         env:
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           UV_NO_SYNC: "1"
-        run: bash scripts/gate_release.sh --section "${{ matrix.section }}"
+          RECEIPTS: ${{ runner.temp }}/citations
+          SHARD: ${{ matrix.shard }}
+        run: |
+          for suite in rest facade; do mv "$RECEIPTS/$suite.xml" "$RECEIPTS/rust-$suite.xml"; done
+          python3 scripts/gate_support.py --cited-tests --matrix-shard "$SHARD" --release-receipts "$RECEIPTS"
 
       - name: Compiler cache statistics
         if: always()
         run: sccache --show-stats
 
-  # These sections need only Rust, so they can start while the shared Python
-  # extension builds. Reuse the setup/check steps to keep the gates identical.
-  gate-rust-sections:
-    name: Domain ${{ matrix.section }}
+  # Every bench target compiles and passes Criterion's smoke mode. Pull requests skip it unless
+  # they touch a bench file or a [[bench]] entry; main always runs it.
+  benches:
+    name: Bench smoke
     runs-on: ubuntu-latest
     permissions:
       contents: read
     env: *domain_test_env
-    strategy:
-      fail-fast: false
-      matrix:
-        section: [promotion-facade-0, promotion-facade-1, promotion-estimate, promotion-identify, promotion-other, graphless, checked-0, checked-1, checked-2, checked-3, benches]
-    steps: *domain_test_steps
-
-  # Retain the required Domain gates check: every section must pass.
-  gates:
-    name: Domain gates
-    needs: [gate-sections, gate-rust-sections]
-    if: always()
-    runs-on: ubuntu-latest
     steps:
-      - name: Require every domain section
-        env:
-          PYTHON_RESULT: ${{ needs.gate-sections.result }}
-          RUST_RESULT: ${{ needs.gate-rust-sections.result }}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # The optimized bench build of the facade lost its runner mid-compile; free disk, add
+      # swap and build two crates at a time to stay within memory.
+      - name: Free disk and add swap
         run: |
           set -euo pipefail
-          test "$PYTHON_RESULT" = success
-          test "$RUST_RESULT" = success
+          for path in /usr/share/dotnet /opt/hostedtoolcache/CodeQL /usr/local/lib/android /opt/ghc /usr/local/share/boost; do
+            if [[ -e "$path" ]]; then sudo rm -rf "$path"; fi
+          done
+          sudo fallocate -l 16G /swapfile.bench
+          sudo chmod 600 /swapfile.bench
+          sudo mkswap /swapfile.bench
+          sudo swapon /swapfile.bench
+          echo 'CARGO_BUILD_JOBS=2' >> "$GITHUB_ENV"
+          free -h
+          df -h /
+
+      - name: Install Rust 1.97
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # pinned action ref; toolchain below
+        with:
+          toolchain: "1.97"
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - name: Cache Rust compilation
+        uses: mozilla-actions/sccache-action@fd02668681acd5f960e1372061bee5e3e987195c # v0.0.11
+
+      - name: Enable compiler cache
+        run: echo 'RUSTC_WRAPPER=sccache' >> "$GITHUB_ENV"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: "3.12"
+          # The smoke may run no uv command, which leaves nothing to cache.
+          ignore-nothing-to-cache: true
+
+      - name: Criterion smoke
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          # Wall-clock soft budgets are measured on the reference development machine; a
+          # runner reports a miss as a warning (benches/soft_budget.rs).
+          ANTECEDENT_ADVISORY_SOFT_BUDGETS: "1"
+        run: bash scripts/gate_release.sh --section benches
+
+      - name: Compiler cache statistics
+        if: always()
+        run: sccache --show-stats
+
+  # Tier 3, record currency: the scientific and calibration records committed with the change
+  # are current (scripts/scientific_records.py status --check, scripts/calibration_status.py
+  # --check). CI never executes a scientific assertion or a calibration measurement and never
+  # records anything: those are earned on development machines (bash scripts/test.sh), rerunning
+  # only what is owed, and committed. A record fingerprints the toolchain, lockfile, features and
+  # ANTECEDENT_* environment, so this job pins the same Rust toolchain and test environment as the
+  # Rust job; it needs no compiler cache, nextest or native extension because it builds nothing.
+  scientific:
+    name: Scientific and calibration records current
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env: *domain_test_env
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust 1.97
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # pinned action ref; toolchain below
+        with:
+          toolchain: "1.97"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: "3.12"
+          # The record checks run no uv command, which leaves nothing to cache.
+          ignore-nothing-to-cache: true
+
+      - name: Scientific and calibration records are current
+        env:
+          ANTECEDENT_RC_RECEIPTS: ${{ runner.temp }}/citations
+        run: |
+          mkdir -p "$ANTECEDENT_RC_RECEIPTS"
+          bash scripts/gate_release.sh --section scientific
+
+      - name: Retain verified citation inputs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: citation-scientific
+          path: ${{ runner.temp }}/citations/current.json
+          if-no-files-found: error
 
   # Python lint / type check. `uv sync` creates python/.venv, which is what
   # scripts/gate_python_lint.sh requires, so CI runs the very script the release
@@ -653,10 +804,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Rust 1.85
-        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.85
+      - name: Install Rust 1.97
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # pinned action ref; toolchain below
         with:
-          toolchain: "1.85"
+          toolchain: "1.97"
+          # The evidence-earning script tests merge coverage profiles with llvm-profdata and
+          # build the compiler inventory driver against rustc-dev.
+          components: llvm-tools-preview, rustc-dev
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -693,19 +847,35 @@ jobs:
 
       - name: script unit tests
         run: |
-          python3 scripts/test_ci_python_native.py
-          python3 scripts/test_calibration_key_aliases.py
-          python3 scripts/test_collect_coverage_records.py
-          python3 scripts/test_promotion_refusal_helpers.py
-          python3 scripts/test_publish_crates.py
-          python3 scripts/test_recover_published_crate.py
-          python3 scripts/test_release_support_delta.py
-          python3 scripts/test_transport_replay_contract.py
+          # Publication controls run after real notebook execution in docs.yml.
+          # Every deselected assertion is named in the execution receipt.
+          bash scripts/test.sh scripts --exclude-module test_docs_publication
           python3 scripts/verify_release_selftest.py
+
+      # Source and metadata checks only: no test, calibration or replay executes. The static
+      # job runs the registry and lane checks themselves; these are their self-tests and the
+      # evidence audit report. test_evidence_audit.py (stale or deleted native extension, empty
+      # selection, skipped required evidence) and test_cost_report.py run in the step above.
+      - name: Test-suite controls
+        run: |
+          python3 scripts/test_assertion_scan.py --self-test
+          python3 scripts/check_test_registry.py --self-test
+          mkdir -p target
+          python3 scripts/evidence_audit.py report > target/evidence-audit-report.md
+
+      - name: Retain script test execution receipts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: script-test-execution
+          path: |
+            target/script-tests/
+            target/test-performance/*.json
+          if-no-files-found: error
 
       - name: pytest with coverage floor
         working-directory: python
-        run: uv run --no-sync pytest -q --durations=30 --cov=antecedent --cov-report=term-missing --cov-fail-under=85
+        run: uv run --no-sync pytest -q -m 'not requires_calibration and not calibration_simulation' --durations=30 --cov=antecedent --cov-report=term-missing --cov-fail-under=85
 
       - name: Compiler cache statistics
         if: always()
@@ -761,19 +931,19 @@ jobs:
             python: "3.14"
             target: aarch64
             manylinux: auto
-          - os: macos-14
+          - os: macos-latest
             python: "3.11"
             target: aarch64
             manylinux: ""
-          - os: macos-14
+          - os: macos-latest
             python: "3.12"
             target: aarch64
             manylinux: ""
-          - os: macos-14
+          - os: macos-latest
             python: "3.13"
             target: aarch64
             manylinux: ""
-          - os: macos-14
+          - os: macos-latest
             python: "3.14"
             target: aarch64
             manylinux: ""
@@ -802,10 +972,10 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Rust 1.85
-        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.85
+      - name: Install Rust 1.97
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # pinned action ref; toolchain below
         with:
-          toolchain: "1.85"
+          toolchain: "1.97"
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -829,14 +999,14 @@ jobs:
           set -euo pipefail
           # Install from repo root, then import/test outside python/ so the
           # source tree does not shadow the wheel on sys.path.
-          pip install python/dist/*.whl numpy pandas pyarrow pytest mypy
+          pip install python/dist/*.whl numpy pandas pyarrow pytest 'pytest-xdist>=3.8,<4' mypy
           cd "$(mktemp -d)"
           python -c "import antecedent; print(antecedent.__version__)"
           # Run the WHOLE suite against the installed wheel. Do not reintroduce a
           # hand-maintained file allowlist here: the previous 11-of-56 list silently
           # excluded every test added by the 0.4.0 refactor.
           ROOT="${{ github.workspace }}"
-          pytest -q --durations=30 "$ROOT/python/tests"
+          python -m pytest -q -m 'not requires_calibration and not calibration_simulation' -n auto --maxprocesses=4 --dist worksteal --durations=30 "$ROOT/python/tests"
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

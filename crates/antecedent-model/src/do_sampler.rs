@@ -1,6 +1,6 @@
 //! Do-samplers: weighting, KDE, and MCMC.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -19,7 +19,14 @@ use crate::sample::sample_interventional;
 pub struct DoSampleResult {
     /// Sampled (or reweighted observational) outcomes for the target variable.
     pub values: Arc<[f64]>,
-    /// Optional importance weights (weighting sampler); empty if not used.
+    /// Per-value weights, empty when the sampler carries none.
+    ///
+    /// The scale depends on the route and is part of the contract: the confounded branch of
+    /// [`WeightingDoSampler`] returns importance weights **normalized to sum to one** (with
+    /// [`Self::ess`] reporting their concentration); the root-treatment branch returns
+    /// **unit weights** (every matched unit counts once, so averages are plain empirical
+    /// means and an ESS would equal the matched count); [`KdeDoSampler`] returns `1/n`.
+    /// Use [`WeightingDoSampler::weighted_mean`] rather than assuming a scale.
     pub weights: Arc<[f64]>,
     /// Sampler id.
     pub method: Arc<str>,
@@ -42,12 +49,16 @@ pub struct DoSampleResult {
 
 /// Weighting do-sampler for hard `do(T=t)`.
 ///
-/// - **Root treatment:** empirical outcomes among units with `T ≈ t`.
+/// - **Root treatment:** empirical outcomes among units with `|T − t| ≤ root_match_tolerance`
+///   (default [`DEFAULT_ROOT_MATCH_TOLERANCE`]). A tolerance of `0.0` is exact matching, which
+///   is the right reading for a discrete treatment; a positive tolerance is a continuous
+///   neighbourhood approximation and should be chosen from the treatment's resolution.
 /// - **Confounded continuous treatment:** Horvitz–Thompson (1952) with a **shrinking** Gaussian
 ///   kernel on the treatment margin (Silverman 1986 bandwidth) over the fitted conditional
 ///   density `f(T∣parents)`: `wᵢ ∝ Kₕ(Tᵢ − t) / f(Tᵢ∣parents)`. Hard interventions have a
 ///   Dirac interventional law, so the kernel is the localization numerator (there is no
-///   separate `lp_do` term).
+///   separate `lp_do` term). Raw weights are capped at `1e6` before normalization; this
+///   truncation changes the estimate, and its activation count is reported in `notes`.
 /// - **Density unavailable:** if the fitted treatment mechanism cannot supply `f(T∣parents)`
 ///   (e.g. an unfitted slot), `estimate` refuses rather than silently reporting an unweighted
 ///   kernel estimate as IPW. A unit whose fitted density is non-finite is dropped from the
@@ -58,27 +69,45 @@ pub struct WeightingDoSampler {
     pub treatment: VariableId,
     /// Outcome variable.
     pub outcome: VariableId,
+    /// Half-width of the absolute window around the intervention value that selects units
+    /// of a root treatment (see the type docs).
+    pub root_match_tolerance: f64,
 }
+
+/// Default root-treatment matching window: a numerical-equality neighbourhood for treatments
+/// stored as exact levels.
+pub const DEFAULT_ROOT_MATCH_TOLERANCE: f64 = 1e-9;
 
 impl WeightingDoSampler {
     /// Construct.
     #[must_use]
     pub fn new(treatment: VariableId, outcome: VariableId) -> Self {
-        Self { treatment, outcome }
+        Self { treatment, outcome, root_match_tolerance: DEFAULT_ROOT_MATCH_TOLERANCE }
+    }
+
+    /// Replace the root-treatment matching window (`0.0` matches exactly).
+    #[must_use]
+    pub fn with_root_match_tolerance(mut self, tolerance: f64) -> Self {
+        self.root_match_tolerance = tolerance;
+        self
     }
 
     /// Estimate E[Y | do(T=t)] via matching / Horvitz–Thompson (1952) on fitted model densities.
     ///
     /// # Errors
     ///
-    /// Missing columns or unfitted treatment mechanism.
+    /// Missing columns or unfitted treatment mechanism; cancellation; the context's memory
+    /// limit exceeded by the working buffers.
     pub fn estimate(
         &self,
         model: &CompiledCausalModel,
         data: &TabularData,
         treatment_value: f64,
-        _ctx: &ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> Result<DoSampleResult, ModelError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(ModelError::Cancelled);
+        }
         let t_dense = model
             .dense_of(self.treatment)
             .ok_or_else(|| ModelError::Shape { message: "treatment not in model".into() })?;
@@ -89,15 +118,24 @@ impl WeightingDoSampler {
             .gather_for(t_dense)
             .ok_or_else(|| ModelError::Shape { message: "missing gather for treatment".into() })?;
 
+        // Working buffers: weights, values and the fitted log-density (three columns) plus the
+        // parent matrix of the confounded branch, charged before they are allocated.
+        let _admitted = crate::sample::admit_cells(Some(ctx), n, 3 + gather.n_parents())?;
         let mut weights = vec![0.0; n];
         let mut values = Vec::with_capacity(n);
         let mut notes = Vec::new();
 
         if gather.n_parents() == 0 {
-            // Root treatment: empirical outcomes among units with T ≈ t.
+            // Root treatment: empirical outcomes among units within the matching window.
+            if !(self.root_match_tolerance.is_finite() && self.root_match_tolerance >= 0.0) {
+                return Err(ModelError::Numerical {
+                    message: "weighting sampler: root match tolerance must be finite and >= 0"
+                        .into(),
+                });
+            }
             let mut selected = 0usize;
             for i in 0..n {
-                if (t[i] - treatment_value).abs() < 1e-9 {
+                if (t[i] - treatment_value).abs() <= self.root_match_tolerance {
                     values.push(y[i]);
                     weights[selected] = 1.0;
                     selected += 1;
@@ -109,7 +147,10 @@ impl WeightingDoSampler {
                     message: "weighting sampler: no observational units match do-value".into(),
                 });
             }
-            notes.push(Arc::from("root treatment: exact match reweighting"));
+            notes.push(Arc::from(format!(
+                "root treatment: {selected} units matched within +/-{:e} (unit weights)",
+                self.root_match_tolerance
+            )));
             return Ok(DoSampleResult {
                 values: Arc::from(values),
                 weights: Arc::from(weights),
@@ -122,11 +163,16 @@ impl WeightingDoSampler {
         }
 
         // Confounded: IPW using Gaussian propensity from fitted treatment mechanism.
-        let (values, mut weights, dropped_nonfinite, bw) =
+        let (values, mut weights, dropped_nonfinite, capped, bw) =
             confounded_ipw_weights(model, data, gather, t_dense, &t, &y, treatment_value)?;
         if dropped_nonfinite > 0 {
             notes.push(Arc::from(format!(
                 "dropped {dropped_nonfinite} of {n} units with non-finite treatment density"
+            )));
+        }
+        if capped > 0 {
+            notes.push(Arc::from(format!(
+                "capped {capped} of {n} raw IPW weights at 1e6 before normalization"
             )));
         }
         let wsum: f64 = weights.iter().sum();
@@ -221,6 +267,8 @@ impl KdeDoSampler {
         ctx: &ExecutionContext,
     ) -> Result<DoSampleResult, ModelError> {
         let batch = sample_interventional(model, interventions, n_draws, rng, ws, ctx)?;
+        // The result copies the outcome column and carries one weight per draw.
+        let _admitted = crate::sample::admit_cells(Some(ctx), n_draws, 2)?;
         let dense = model
             .dense_of(self.outcome)
             .ok_or_else(|| ModelError::Shape { message: "outcome not in model".into() })?;
@@ -262,6 +310,10 @@ impl KdeDoSampler {
 /// The treatment mechanism's density cannot be evaluated at all (e.g. an unfitted slot):
 /// propagated rather than swallowed, since a bare kernel fallback would not be the
 /// requested importance-weighted estimate.
+#[allow(
+    clippy::type_complexity,
+    reason = "the return type preserves the scientific operation structure"
+)]
 fn confounded_ipw_weights(
     model: &CompiledCausalModel,
     data: &TabularData,
@@ -270,7 +322,7 @@ fn confounded_ipw_weights(
     t: &[f64],
     y: &[f64],
     treatment_value: f64,
-) -> Result<(Vec<f64>, Vec<f64>, usize, f64), ModelError> {
+) -> Result<(Vec<f64>, Vec<f64>, usize, usize, f64), ModelError> {
     let n = y.len();
     let slot = model.mechanisms.get(t_dense);
     let mut parent_cols = Vec::new();
@@ -297,6 +349,7 @@ fn confounded_ipw_weights(
     let mut weights = Vec::with_capacity(n);
     let mut values = Vec::with_capacity(n);
     let mut dropped_nonfinite = 0usize;
+    let mut capped = 0usize;
     for i in 0..n {
         // A row whose fitted density is non-finite (e.g. zero probability under the model)
         // cannot be importance-weighted; including it at the bare kernel weight would
@@ -309,10 +362,12 @@ fn confounded_ipw_weights(
         let z = (t[i] - treatment_value) / bw;
         let kernel = inv_norm * (-0.5 * z * z).exp();
         let dens = lp_obs[i].exp().max(1e-300);
-        weights.push((kernel / dens).min(1e6));
+        let raw_weight = kernel / dens;
+        capped += usize::from(raw_weight > 1e6);
+        weights.push(raw_weight.min(1e6));
         values.push(y[i]);
     }
-    Ok((values, weights, dropped_nonfinite, bw))
+    Ok((values, weights, dropped_nonfinite, capped, bw))
 }
 
 /// Silverman bandwidth of a sampled outcome margin, from the shared rule in
@@ -372,7 +427,33 @@ impl McmcDoSampler {
         ws: &mut MechanismWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<DoSampleResult, ModelError> {
-        let pilot = sample_interventional(model, interventions, n_samples.max(64), rng, ws, ctx)?;
+        if !self.proposal_sd.is_finite() || self.proposal_sd <= 0.0 {
+            return Err(ModelError::Shape {
+                message: "the MCMC proposal_sd must be finite and positive".into(),
+            });
+        }
+        let iters = n_samples
+            .checked_mul(self.thin.max(1))
+            .and_then(|kept| kept.checked_add(self.burn_in))
+            .filter(|&iters| iters <= MAX_MCMC_ITERATIONS)
+            .ok_or_else(|| ModelError::Shape {
+                message: "burn_in + n_samples * thin exceeds the supported chain length".into(),
+            })?;
+        // Every step evaluates a KDE over the whole pilot: bound the chain by that work, not
+        // only by its length.
+        let pilot_len = n_samples.max(64);
+        if u64::try_from(iters)
+            .ok()
+            .zip(u64::try_from(pilot_len).ok())
+            .and_then(|(iters, pilot)| iters.checked_mul(pilot))
+            .is_none_or(|work| work > MAX_MCMC_KDE_EVALUATIONS)
+        {
+            return Err(ModelError::Shape {
+                message: "the chain length times the pilot size exceeds the supported KDE work"
+                    .into(),
+            });
+        }
+        let pilot = sample_interventional(model, interventions, pilot_len, rng, ws, ctx)?;
         let dense = model
             .dense_of(self.outcome)
             .ok_or_else(|| ModelError::Shape { message: "outcome not in model".into() })?;
@@ -391,8 +472,10 @@ impl McmcDoSampler {
         let mut current = pilot_col[0];
         let mut accepted = 0usize;
         let mut total = 0usize;
+        // The retained chain and the copy of the pilot column the KDE owns.
+        let _admitted =
+            crate::sample::admit_cells(Some(ctx), n_samples.saturating_add(pilot_len), 1)?;
         let mut out = Vec::with_capacity(n_samples);
-        let iters = self.burn_in + n_samples * self.thin.max(1);
         // Degenerate pilot (near-zero bandwidth) → independent draws from the pilot
         // empirical measure (random-walk MH cannot move).
         let degenerate =
@@ -404,6 +487,9 @@ impl McmcDoSampler {
         let mut p_cur =
             if degenerate { f64::NAN } else { KdeDoSampler::density(&kde, current).max(1e-300) };
         for i in 0..iters {
+            if i % 4096 == 0 && ctx.cancellation.is_cancelled() {
+                return Err(ModelError::Cancelled);
+            }
             if degenerate {
                 #[allow(
                     clippy::cast_possible_truncation,
@@ -427,7 +513,7 @@ impl McmcDoSampler {
                     accepted += 1;
                 }
             }
-            if i >= self.burn_in && (i - self.burn_in) % self.thin.max(1) == 0 {
+            if i >= self.burn_in && (i - self.burn_in).is_multiple_of(self.thin.max(1)) {
                 out.push(current);
                 if out.len() == n_samples {
                     break;
@@ -446,6 +532,12 @@ impl McmcDoSampler {
         })
     }
 }
+
+/// Longest random-walk chain (burn-in plus thinned draws) one call may run.
+pub const MAX_MCMC_ITERATIONS: usize = 1_000_000_000;
+
+/// Most KDE density evaluations (chain steps times pilot size) one call may run.
+pub const MAX_MCMC_KDE_EVALUATIONS: u64 = 10_000_000_000;
 
 /// Convenience: interventional mean of a variable from ancestral sampling.
 ///
@@ -608,6 +700,61 @@ mod tests {
         (compiled.with_mechanisms(store), data)
     }
 
+    #[test]
+    fn weighting_reports_when_raw_ipw_weights_are_capped() {
+        // Fit on a narrow-noise treatment mechanism, then evaluate observations with
+        // treatment far from that mechanism's conditional mean at z=0.
+        let (model, _) = confounded_continuous_scm(200);
+        let n = 20;
+        let mut schema = CausalSchemaBuilder::new();
+        for name in ["z", "t", "y"] {
+            schema
+                .add_variable(
+                    name,
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        let valid = ValidityBitmap::all_valid(n);
+        let columns = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(vec![0.0; n]), valid.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from((0..n).map(|i| 2.0 + i as f64 * 0.01).collect::<Vec<_>>()),
+                    valid.clone(),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(2), Arc::from(vec![1.0; n]), valid)
+                    .unwrap(),
+            ),
+        ];
+        let data = TabularData::new(
+            OwnedColumnarStorage::try_new(schema.build().unwrap(), columns, None, None).unwrap(),
+        );
+        let result = WeightingDoSampler::new(VariableId::from_raw(1), VariableId::from_raw(2))
+            .estimate(&model, &data, 2.1, &ExecutionContext::for_tests(1))
+            .unwrap();
+        assert!(
+            result
+                .notes
+                .iter()
+                .any(|note| note.contains("raw IPW weights at 1e6 before normalization")),
+            "{:?}",
+            result.notes
+        );
+        assert!((result.weights.iter().sum::<f64>() - 1.0).abs() < 1e-12);
+    }
+
     /// Regression test for the confounded-continuous-treatment ESS gap: the weighting
     /// sampler must report a small effective sample size when `treatment_value` sits far
     /// into the tail of the observed treatment support (the global Silverman bandwidth
@@ -751,5 +898,14 @@ mod tests {
             .unwrap();
         assert_eq!(mcmc.values.len(), 30);
         assert!(mcmc.accept_rate.unwrap() > 0.0);
+
+        // Unusable chain controls are refused before any sampling work.
+        let outcome = VariableId::from_raw(1);
+        let wrapping = McmcDoSampler { thin: 1 << 63, ..McmcDoSampler::new(outcome) };
+        let nan_step = McmcDoSampler { proposal_sd: f64::NAN, ..McmcDoSampler::new(outcome) };
+        let endless = McmcDoSampler { burn_in: usize::MAX, ..McmcDoSampler::new(outcome) };
+        for sampler in [wrapping, nan_step, endless] {
+            assert!(sampler.sample(&model, &iv, 30, &mut rng, &mut ws, &ctx).is_err());
+        }
     }
 }

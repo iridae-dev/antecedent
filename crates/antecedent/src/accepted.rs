@@ -1,9 +1,9 @@
-//! `AcceptedGraph`: the review gate moved into the type system.
+//! `AcceptedGraph`: a graph a caller has reviewed and accepted, recorded in its type.
 //!
-//! The library's committed philosophy is that identification is evaluated before
-//! estimation, and that partial graphs are never silently completed. Historically that
-//! guarantee was enforced by runtime checks scattered across `compile()` — all firing
-//! late, long after a user had already built an analysis around an unreviewed graph.
+//! Identification is evaluated before estimation, and a partial graph is never silently
+//! completed. Use this module when a structure comes from discovery, a file or another tool:
+//! accepting it here moves the review decision to the point where the graph enters the
+//! library, instead of to a late check inside `compile()`.
 //!
 //! [`AcceptedGraph`] records acceptance in the type system. Class-aware
 //! identification still validates that the accepted marks support estimation. PAG circles and CPDAG
@@ -11,7 +11,7 @@
 //! they may remain on an accepted graph. Conflict and bidirected marks that
 //! cannot complete are refused before estimation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -311,11 +311,159 @@ pub struct AcceptedGraph {
     /// [`Self::with_schema`]. `None` when the structure was never bound (the default) —
     /// binding is opt-in so existing callers are unaffected.
     schema_names: Option<Arc<[Arc<str>]>>,
+    /// The compiled search and review this structure came from, when it was
+    /// accepted from a compiled discovery. `None` for a supplied structure.
+    provenance: Option<Arc<StructureProvenance>>,
+}
+
+/// Where a discovered structure came from: the compiled search that produced
+/// it and the review gate that accepted it.
+///
+/// A study prepared on the accepted structure carries this record in its
+/// contract and binds its digest into the program identity and the lowered
+/// program's evidence. Identification excludes it, as it excludes the
+/// discovery algorithm: re-accepting the same graph does not change what is
+/// identified, but a fit on a graph from another search is another program.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct StructureProvenance {
+    /// Search method id (for example `pc`, `pcmci_plus`, `order_mcmc`).
+    pub method: Arc<str>,
+    /// Inference mode the method declared (`frequentist` or `bayesian`).
+    pub inference: Arc<str>,
+    /// Structure class the search returned; CPDAG and PAG stay classes.
+    pub discovered_class: Arc<str>,
+    /// Canonical digest of the discovery query: variables, method, bounds and
+    /// the digest of the executable configuration.
+    pub query: [u8; 32],
+    /// The bounds the search ran under, as a stable label.
+    pub search_bounds: Arc<str>,
+    /// Identity of the data snapshot the search read.
+    pub data_snapshot: [u8; 32],
+    /// Identity of the lowered discovery program.
+    pub program: [u8; 32],
+    /// Claim id of the discovery execution.
+    pub claim: [u8; 32],
+    /// How the review gate accepted the structure: `accepted` when nothing was
+    /// pending, `accepted_after_review` when pending marks were resolved.
+    pub review: Arc<str>,
+    /// Pending marks the review resolved.
+    pub resolved_marks: u64,
+    /// The per-edge prior probabilities and soft tiers the posterior is a posterior under, as
+    /// the query declared them; `None` when the search declared none.
+    pub structure_prior: Option<Arc<str>>,
+    /// How the posterior was pooled over the completed tables of an uncertain measurement or
+    /// missing data; `None` for a search that ran on one table.
+    pub pooling: Option<StructurePooling>,
+}
+
+/// The pooling of a structure posterior over imputations: the search ran on every completed
+/// table and the per-table posteriors were mixed with equal weight.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct StructurePooling {
+    /// The pooling rule (`equal_weight_mixture_of_per_imputation_posteriors`).
+    pub method: Arc<str>,
+    /// Number of completed tables the search ran on.
+    pub imputations: u64,
+    /// Identity of what produced the completed tables: the measurement or missing-data
+    /// declaration and the data it read, or the digest of the tables themselves.
+    pub source: Arc<str>,
+}
+
+/// Recorded-assumption id of the structure stage a result consumed.
+pub const STRUCTURE_STAGE_ASSUMPTION_ID: &str = "estimate.structure_posterior";
+
+impl StructureProvenance {
+    /// Explicit probability score bound by this accepted exact discovery program.
+    #[must_use]
+    pub fn graph_score(&self) -> Option<&str> {
+        self.search_bounds.rsplit_once("; graph_score=").map(|(_, score)| score)
+    }
+
+    /// The statement of the stage a result consumed: the search and its declared structure
+    /// prior and, when pooled, the pooling over imputations and what produced them.
+    #[must_use]
+    pub fn statement(&self) -> String {
+        use std::fmt::Write as _;
+        let mut text = format!(
+            "structure posterior: method {} ({} inference, {} class, bounds {}, review {})",
+            self.method, self.inference, self.discovered_class, self.search_bounds, self.review
+        );
+        if let Some(prior) = &self.structure_prior {
+            text.push_str("; structure prior ");
+            text.push_str(prior);
+        }
+        if let Some(pooling) = &self.pooling {
+            let _ = write!(
+                text,
+                "; pooled over {} imputations by {} from {}",
+                pooling.imputations, pooling.method, pooling.source
+            );
+        }
+        let _ = write!(text, "; provenance digest {}", digest_hex(&self.digest()));
+        text
+    }
+
+    /// Canonical digest of the record.
+    #[must_use]
+    pub fn digest(&self) -> [u8; 32] {
+        let mut writer = antecedent_core::CanonicalWriter::new("antecedent.structure_provenance");
+        writer
+            .text(&self.method)
+            .text(&self.inference)
+            .text(&self.discovered_class)
+            .bytes(&self.query)
+            .text(&self.search_bounds)
+            .bytes(&self.data_snapshot)
+            .bytes(&self.program)
+            .bytes(&self.claim)
+            .text(&self.review)
+            .word(self.resolved_marks);
+        // Written only when declared, so a record of a search without one keeps its digest.
+        if let Some(statement) = &self.structure_prior {
+            writer.text(statement);
+        }
+        // Likewise written only for a pooled posterior.
+        if let Some(pooling) = &self.pooling {
+            writer
+                .text("pooled")
+                .text(&pooling.method)
+                .word(pooling.imputations)
+                .text(&pooling.source);
+        }
+        writer.finish()
+    }
+}
+
+pub(crate) fn digest_hex(bytes: &[u8; 32]) -> String {
+    use std::fmt::Write as _;
+    bytes.iter().fold(String::with_capacity(64), |mut out, byte| {
+        let _ = write!(out, "{byte:02x}");
+        out
+    })
 }
 
 impl AcceptedGraph {
     fn from_kind(kind: GraphKind, algorithm_id: Option<Arc<str>>) -> Self {
-        Self { kind, version: 1, algorithm_id, schema_names: None }
+        Self { kind, version: 1, algorithm_id, schema_names: None, provenance: None }
+    }
+
+    /// Record the compiled search and review this structure came from.
+    #[must_use]
+    pub fn with_provenance(mut self, provenance: Arc<StructureProvenance>) -> Self {
+        self.provenance = Some(provenance);
+        self
+    }
+
+    /// The compiled search and review this structure came from, when it was
+    /// accepted from a compiled discovery.
+    #[must_use]
+    pub fn provenance(&self) -> Option<&StructureProvenance> {
+        self.provenance.as_deref()
+    }
+
+    /// The shared provenance record, for a contract that carries it.
+    pub(crate) fn provenance_shared(&self) -> Option<Arc<StructureProvenance>> {
+        self.provenance.clone()
     }
 
     /// Accept an already-directed static DAG. Cannot fail: a [`Dag`] has no undirected
@@ -569,6 +717,7 @@ impl AcceptedGraph {
             version: self.version + 1,
             algorithm_id: next.algorithm_id,
             schema_names: next.schema_names,
+            provenance: next.provenance,
         }
     }
 

@@ -73,8 +73,8 @@ fn pieces_artifact(snapshot: &str) -> DistributionArtifact {
             shape: [4, 3],
             weights: None,
             supported: None,
-            calibration: DistributionCalibration::Unmeasured,
-            trust: DistributionTrust::NativeLicensed,
+            calibration: DistributionCalibration::NotMeasured,
+            trust: DistributionTrust::NativeSupported,
             legacy_posterior: None,
             legacy_bindings: None,
         },
@@ -130,7 +130,10 @@ fn offered_to_other_consumers(claim: &PropagationClaim) {
     )
     .expect_err("a spread is not a decision-reliability artifact");
     assert_eq!(refusal.code, "invalid_argument");
-    assert_eq!(refusal.detail, "decision_reliability.artifact_kind_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_reliability::ARTIFACT_KIND_MISMATCH
+    );
     assert!(refusal.message.contains("expected decision_reliability_v1"));
     assert!(refusal.message.contains("supplied joint_law_propagation_v1"));
     assert!(refusal.remedy.is_some_and(|r| r.contains("joint-law propagation consumer")));
@@ -138,7 +141,10 @@ fn offered_to_other_consumers(claim: &PropagationClaim) {
     let refusal = consume_mechanism_composition_artifact(&bytes, None, &ctx())
         .expect_err("a spread is not a mechanism composition");
     assert_eq!(refusal.code(), "invalid_argument");
-    assert_eq!(refusal.details(), vec!["mechanism_composition.artifact_kind_mismatch"]);
+    assert_eq!(
+        refusal.details(),
+        vec![antecedent_core::reason_details::mechanism_composition::ARTIFACT_KIND_MISMATCH]
+    );
     let first = &refusal.refusals[0];
     assert_eq!(first.supplied.as_deref(), Some("joint_law_propagation_v1"));
     assert_eq!(first.expected.as_deref(), Some("mechanism_composition_v1"));
@@ -149,7 +155,10 @@ fn offered_to_other_consumers(claim: &PropagationClaim) {
     assert_eq!(error.reason_code(), Some("invalid_argument"));
     let refusal = antecedent_design::inverse_query_artifact::artifact_refusal(&error);
     assert_eq!(refusal.code, "invalid_argument");
-    assert_eq!(refusal.detail, "functional_inverse_query.artifact_kind_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::functional_inverse_query::ARTIFACT_KIND_MISMATCH
+    );
     assert_eq!(refusal.expected.as_deref(), Some("inverse_functional_query_v1"));
     assert_eq!(refusal.supplied.as_deref(), Some("joint_law_propagation_v1"));
     assert!(refusal.remedy.is_some_and(|r| r.contains("joint-law propagation consumer")));
@@ -171,7 +180,16 @@ fn an_aligned_transported_spread_is_not_read_as_a_decision_or_a_composition() {
 
 #[test]
 fn the_joint_law_consumer_replays_both_transported_spreads_to_identical_bits() {
-    for claim in [covariance_claim(), aligned_claim()] {
+    // Hand values. Covariance form: weights (1, 1, 1) on the stated covariance, whose entries
+    // sum to 1 + 4 + 9 + 2 * 0.5 = 15. Aligned form: the draws of a + b + c are 3, 3, 8, 9,
+    // mean 5.75, squared deviations 7.5625, 7.5625, 5.0625, 10.5625, population variance
+    // 30.75 / 4 = 7.6875.
+    for (claim, variance) in [(covariance_claim(), 15.0), (aligned_claim(), 7.6875)] {
+        assert!(
+            (claim.value("variance").unwrap() - variance).abs() < 1e-12,
+            "{:?}",
+            claim.value("variance")
+        );
         let bytes = claim.export().expect("export");
         let consumed =
             consume_joint_law_propagation_artifact(&bytes, Some(claim.identity()), &ctx())
@@ -182,6 +200,7 @@ fn the_joint_law_consumer_replays_both_transported_spreads_to_identical_bits() {
             consumed.value("variance").map(f64::to_bits),
             claim.value("variance").map(f64::to_bits)
         );
+        assert!((consumed.value("variance").unwrap() - variance).abs() < 1e-12);
     }
 }
 
@@ -194,12 +213,15 @@ fn malformed_bytes_keep_their_generic_refusals() {
         &ctx(),
     )
     .expect_err("junk");
-    assert_eq!(refusal.detail, "decision_reliability.artifact");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::decision_reliability::ARTIFACT);
     let refusal = consume_mechanism_composition_artifact(&junk, None, &ctx()).expect_err("junk");
-    assert_eq!(refusal.details(), vec!["mechanism_composition.artifact_invalid"]);
+    assert_eq!(
+        refusal.details(),
+        vec![antecedent_core::reason_details::mechanism_composition::ARTIFACT_INVALID]
+    );
     let error = inverse_query::consume(&junk, None).expect_err("junk");
     assert_ne!(
         antecedent_design::inverse_query_artifact::artifact_refusal(&error).detail,
-        "functional_inverse_query.artifact_kind_mismatch"
+        antecedent_core::reason_details::functional_inverse_query::ARTIFACT_KIND_MISMATCH
     );
 }

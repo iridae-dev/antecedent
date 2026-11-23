@@ -1,0 +1,1 @@
+[{"digest":"80d6deeecd4fd449fb4d944d4d3df92491d281c595f4e29d7940121cab97c87d","file":"98de4c1d267aadf00160acf4855752345e938d93845b7d6728565102ebf5bf9b","kind":"rust_items","path":"crates/antecedent-estimate/tests/bayesian_route_exact.rs","role":"compile","scopes":[[[],true]],"select":{"full":[4,5,6,7]},"table":"0eca3c675a35fb4a2cb59bb0139655fecdf58ad8a166428f0966b1d32e8ff083"}]

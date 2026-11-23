@@ -1,25 +1,23 @@
 //! Temporal extensions of the finite two-step sequence: the uncertain
-//! pre-action state, the new-period refresh, and the closed dependent interval.
+//! pre-action state, the new-period refresh, and the unsupported dependent interval.
 //!
 //! * **Initial state** (`antecedent.transport.temporal_initial_state`, point only,
-//!   licensed): the target two-step mean marginalized over a finite **target**
+//!   supported): the target two-step mean marginalized over a finite **target**
 //!   initial-state law, `sum_s0 P_target(s0) R(s0)`. A source law or a single state
 //!   cannot answer it, and fixing the state is a different estimand with its own
 //!   label. The result exports an independent artifact.
 //! * **New-period refresh** (`antecedent.transport.temporal_new_period_refresh`,
-//!   point only, licensed): a held result is re-evaluated, never copied, on a
+//!   point only, supported): a held result is re-evaluated, never copied, on a
 //!   replacement panel of a new period when the graph, horizon, lag alignment,
 //!   intervention history, selection targets, regimes and proof are unchanged. Anything
 //!   else is a typed invalidation. A stale interval never survives a refresh.
-//! * **Dependent interval** (`antecedent.transport.temporal_dependent_interval`): a
-//!   calibrated claim whose calibration is unmeasured, so this
-//!   route is **closed**: it validates its arguments through the core and then refuses
-//!   with `cell_not_licensed` / `temporal_interval.route_frozen`. Its replay artifact
-//!   exists at the io layer as an internal artifact.
+//! * **Dependent interval** (`antecedent.transport.temporal_dependent_interval`): the
+//!   block-bootstrap interval of the temporal response, reported with the calibration slot
+//!   of its coverage records (the measured route lives in `recalc_temporal_measured`).
 use antecedent_core::reason_code;
 use antecedent_estimate::temporal_dependent_interval::{
-    DependentIntervalConfig, INTERVAL_MAX_REPLICATES, INTERVAL_MIN_REPLICATES,
-    ObservedStateSequence, TEMPORAL_INTERVAL_TOO_FEW_UNITS, TEMPORAL_INTERVAL_TOO_MANY_REPLICATES,
+    DependentIntervalConfig, INTERVAL_MIN_REPLICATES, ObservedStateSequence,
+    TEMPORAL_INTERVAL_TOO_FEW_UNITS, TEMPORAL_INTERVAL_TOO_MANY_REPLICATES,
     TEMPORAL_INTERVAL_UNSUPPORTED_HISTORY, TemporalEstimator, TemporalUnitPanel, UnitHistories,
 };
 use antecedent_estimate::temporal_initial_state::{
@@ -30,6 +28,7 @@ use antecedent_estimate::temporal_refresh::{
     TemporalWindowIdentity, accept_refresh, refresh_held,
 };
 use antecedent_io::IoError;
+use antecedent_io::period_refresh_artifact::{PeriodRefreshArtifactWire, PeriodRefreshReplay};
 use antecedent_io::temporal_initial_state_artifact::{
     InitialStateReplay, PanelSummaryWire, TemporalInitialStateArtifactWire,
     TemporalInitialStateConsumeLimits, TemporalPremisesWire,
@@ -39,9 +38,7 @@ use antecedent_io::temporal_refresh_artifact::{
 };
 use std::collections::BTreeSet;
 
-fn refused(code: &'static str, detail: &str, message: &str) -> IoError {
-    IoError::Refused { code, message: format!("{detail}: {message}") }
-}
+use crate::error::io_refused as refused;
 
 /// A declared observation window of a prepared result.
 #[derive(Clone, Debug)]
@@ -68,6 +65,13 @@ fn identity_for(
     panel: &TemporalUnitPanel,
     sequence: [u32; 2],
 ) -> Result<TemporalWindowIdentity, IoError> {
+    if panel.horizon().is_some_and(|steps| steps != TEMPORAL_REFRESH_HORIZON) {
+        return Err(refused(
+            reason_code!("invalid_argument"),
+            antecedent_core::reason_details::temporal_refresh::INVALID_REPLACEMENT,
+            "a prepared result's panel must have the refreshable horizon of two",
+        ));
+    }
     let identity = TemporalWindowIdentity {
         graph_id: window.graph_id.clone().unwrap_or_else(|| premises.graph_id.clone()),
         horizon: window.horizon,
@@ -93,6 +97,8 @@ struct RefreshLineage {
     receipt: RefreshReceipt,
     interval_invalidated: bool,
     previous_value: f64,
+    /// The products the refresh invalidated and the ones it reused, one entry per product.
+    log: antecedent_state::InvalidationLog,
 }
 
 /// A prepared target-marginal initial-state result, with the window it is valid for.
@@ -132,7 +138,7 @@ impl TemporalInitialState {
         premises.validate()?;
         let query = MarginalizedQuery::new(sequence, spec)?;
         let marginalized = query.effect(&panel)?;
-        let fixed_query = fixed_state.map(|s0| FixedStateQuery { sequence, s0 });
+        let fixed_query = fixed_state.map(|s0| FixedStateQuery { sequence: sequence.to_vec(), s0 });
         let fixed = fixed_query.as_ref().map(|q| q.effect(&panel)).transpose()?;
         let identity = match window {
             Some(w) => {
@@ -143,7 +149,7 @@ impl TemporalInitialState {
                 {
                     return Err(refused(
                         reason_code!("invalid_argument"),
-                        "temporal_refresh.invalid_replacement",
+                        antecedent_core::reason_details::temporal_refresh::INVALID_REPLACEMENT,
                         "a prepared result's window must match its premises and a horizon of two",
                     ));
                 }
@@ -212,6 +218,13 @@ impl TemporalInitialState {
         self.lineage.as_ref().map(|l| l.previous_value)
     }
 
+    /// The invalidation log of the refresh that produced this result: one entry per prepared
+    /// product that read a changed window factor (`None` for a result that was not refreshed).
+    #[must_use]
+    pub fn refresh_invalidations(&self) -> Option<&antecedent_state::InvalidationLog> {
+        self.lineage.as_ref().map(|l| &l.log)
+    }
+
     /// Whether the refresh that produced this result invalidated an old interval.
     #[must_use]
     pub fn interval_invalidated(&self) -> bool {
@@ -240,7 +253,7 @@ impl TemporalInitialState {
         let identity = self.identity.clone().ok_or_else(|| {
             refused(
                 reason_code!("invalid_argument"),
-                "temporal_refresh.window_missing",
+                antecedent_core::reason_details::temporal_refresh::WINDOW_MISSING,
                 "the held result declared no observation window, so it has nothing to refresh",
             )
         })?;
@@ -269,11 +282,21 @@ impl TemporalInitialState {
             refresh_held(&held, new_identity, |_| self.query.effect(&panel))?;
         let refreshed = accept_refresh(&held, &receipt, refreshed)?;
         let fixed = self.fixed_query.as_ref().map(|q| q.effect(&panel)).transpose()?;
+        // The refresh moves the factors that differ between the two windows; the products
+        // that read them are invalidated and the rest are reused. The mechanism is not
+        // declared invariant across periods here, so a new period moves the model too.
+        let mut log = antecedent_state::InvalidationLog::new();
+        log.push_temporal_change(
+            antecedent_core::StateVersion::from_raw(2),
+            &crate::period_refresh::window_factor_changes(&held.identity, &refreshed.identity),
+            false,
+            "temporal initial-state refresh",
+        );
         Ok(Self {
             premises: self.premises.clone(),
             sequence: self.sequence,
             query: self.query.clone(),
-            fixed_query: self.fixed_query,
+            fixed_query: self.fixed_query.clone(),
             panel,
             marginalized: refreshed.value,
             fixed,
@@ -284,6 +307,7 @@ impl TemporalInitialState {
                 receipt,
                 interval_invalidated: interval_existed,
                 previous_value: self.marginalized.value,
+                log,
             }),
         })
     }
@@ -297,7 +321,7 @@ impl TemporalInitialState {
         let (Some(lineage), Some(new_identity)) = (&self.lineage, &self.identity) else {
             return Err(refused(
                 reason_code!("invalid_argument"),
-                "temporal_refresh.no_refresh",
+                antecedent_core::reason_details::temporal_refresh::NO_REFRESH,
                 "only a result produced by a refresh has a refresh artifact",
             ));
         };
@@ -347,6 +371,21 @@ pub fn consume_temporal_refresh_artifact(
     TemporalRefreshArtifactWire::consume(bytes, limits)
 }
 
+/// Independently recompute a period-refresh ledger from its retained blocks.
+///
+/// The consumer re-decides every period (extend or restart) with the window-survival rules,
+/// refuses an overlapping period, a reused snapshot, and a row or block used twice, rebuilds
+/// each block's digest, and recomputes the posterior and the least-squares fit from the rows
+/// alone. A stored result the recomputation does not reproduce is refused.
+///
+/// # Errors
+/// Any seal, prior, block, period, outcome or stored-result mismatch.
+pub fn consume_period_refresh_artifact(
+    bytes: &[u8],
+) -> Result<(PeriodRefreshArtifactWire, PeriodRefreshReplay), IoError> {
+    PeriodRefreshArtifactWire::consume(bytes)
+}
+
 /// The estimand a dependent interval is requested for.
 #[derive(Clone, Debug)]
 pub enum IntervalEstimand {
@@ -359,15 +398,11 @@ pub enum IntervalEstimand {
 }
 
 fn validate_interval_design(config: &DependentIntervalConfig, units: usize) -> Result<(), IoError> {
-    if config.replicates > INTERVAL_MAX_REPLICATES {
-        return Err(refused(
-            reason_code!("route_not_supported"),
-            TEMPORAL_INTERVAL_TOO_MANY_REPLICATES,
-            &format!(
-                "{} replicates exceed the cap of {INTERVAL_MAX_REPLICATES}",
-                config.replicates
-            ),
-        ));
+    if let Err(error) = antecedent_estimate::temporal_dependent_interval::validate_config(config)
+        && let Some((code, message)) = error.coded_refusal()
+        && message.detail() == Some(TEMPORAL_INTERVAL_TOO_MANY_REPLICATES)
+    {
+        return Err(IoError::Refused { code, message: message.as_str().to_owned() });
     }
     let bad = |message: &str| IoError::Refused {
         code: reason_code!("invalid_argument"),
@@ -397,8 +432,12 @@ fn interval_estimator(
     estimand: IntervalEstimand,
 ) -> Result<Box<dyn TemporalEstimator>, IoError> {
     Ok(match estimand {
-        IntervalEstimand::Observed => Box::new(ObservedStateSequence { sequence }),
-        IntervalEstimand::FixedState(s0) => Box::new(FixedStateQuery { sequence, s0 }),
+        IntervalEstimand::Observed => {
+            Box::new(ObservedStateSequence { sequence: sequence.to_vec() })
+        }
+        IntervalEstimand::FixedState(s0) => {
+            Box::new(FixedStateQuery { sequence: sequence.to_vec(), s0 })
+        }
         IntervalEstimand::Marginalized(spec) => Box::new(MarginalizedQuery::new(sequence, spec)?),
     })
 }
@@ -407,7 +446,7 @@ fn interval_estimator(
 /// The original panel/estimator is checked and replayed, then current scalar
 /// calibration evidence is resolved by the native consumer.
 /// # Errors
-/// Invalid source/design, an unmeasured method/target or absent/stale evidence.
+/// Invalid source/design, a `not_measured` method/target or absent/stale evidence.
 pub fn temporal_dependent_interval(
     snapshot_id: &str,
     units: Option<Vec<UnitHistories>>,
@@ -458,7 +497,7 @@ fn validated_interval(
     {
         return Err(refused(
             reason_code!("route_not_supported"),
-            "temporal_interval.retired_method",
+            antecedent_core::reason_details::temporal_interval::RETIRED_METHOD,
             "direct intervals require studentized",
         ));
     }
@@ -477,7 +516,7 @@ fn validated_interval(
 }
 
 /// Prepare the original whole-unit candidate and independently replay its artifact.
-/// Internal acceptance preparation only: no measured or released interval license.
+/// Internal acceptance preparation only: no measured or released interval support.
 ///
 /// # Errors
 /// Original panel/design/history refusals or failed original engine/artifact replay.
@@ -497,7 +536,7 @@ pub fn temporal_dependent_interval_candidate(
     let wire = match &estimand {
         IntervalEstimand::Observed => IntervalEstimatorWire::observed(sequence),
         IntervalEstimand::FixedState(s0) => {
-            IntervalEstimatorWire::fixed(&FixedStateQuery { sequence, s0: *s0 })
+            IntervalEstimatorWire::fixed(&FixedStateQuery { sequence: sequence.to_vec(), s0: *s0 })
         }
         IntervalEstimand::Marginalized(spec) => IntervalEstimatorWire::marginalized(
             sequence,

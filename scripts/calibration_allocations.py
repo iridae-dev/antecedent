@@ -12,6 +12,9 @@ import re
 import calibration_decision as decision
 
 PATH = "parity/calibration_decision_allocations.json"
+# Digest of the original frozen roster (the 757 groups of ORIGINAL_SOURCE's manifest), the roster
+# the allocations below are indexed in. It does not move when the gate gains a group: callers
+# validate against `calibration_family.original_roster()`, never the current roster.
 ROSTER_DIGEST = "bd73004e74b845ef31bed0b4210560267dbaf794507c7a039c7d59a7c3ecf500"
 ORIGINAL_DIGEST = "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541"
 ORIGINAL_SOURCE = "70a71dd33bc55cbc2398b0f91c4a2c797afad618"

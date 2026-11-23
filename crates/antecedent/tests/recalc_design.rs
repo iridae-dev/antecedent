@@ -1,11 +1,13 @@
 //! Checked design-effect recalculation against independent structural and covariance truth.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::recalc_design::{
     DesignModel, DesignRequest, DesignRunError, DesignSession, consume_design_with_data,
     execute_design_with_receipt,
 };
-use antecedent::analysis::recalc_receipt::{RecalcOutcome, RecalcRunError, UtilitySpec};
+use antecedent::analysis::recalc_receipt::{
+    RecalcOutcome, RecalcRequestCode, RecalcRunError, UtilitySpec,
+};
 use antecedent_core::ExecutionContext;
 use antecedent_core::recalc::{ResumeContext, Stage};
 use antecedent_stats::fit_counts::count_least_squares_solves;
@@ -24,7 +26,14 @@ fn request(
     columns: Vec<(String, Vec<f64>)>,
     edges: Vec<(u32, u32)>,
 ) -> DesignRequest {
-    DesignRequest { columns, edges, treatment: 0, outcome: 1, model, utility: utility() }
+    DesignRequest {
+        columns: columns.into(),
+        edges,
+        treatment: 0,
+        outcome: 1,
+        model,
+        utility: utility(),
+    }
 }
 fn iv(strength: f64) -> DesignRequest {
     let (mut z, mut t, mut y) = (Vec::new(), Vec::new(), Vec::new());
@@ -32,7 +41,10 @@ fn iv(strength: f64) -> DesignRequest {
         for instrument in [0., 1.] {
             for confounder in [-1., 1.] {
                 for error in [-1., 1.] {
-                    let treatment = strength * instrument + confounder;
+                    // A dose whose levels do not include the contrasted 0 and 1: a discrete
+                    // treatment with levels beyond the contrasted pair is refused, and the slope
+                    // per unit is unchanged by the shift.
+                    let treatment = strength * instrument + confounder + 0.5;
                     z.push(instrument);
                     t.push(treatment);
                     y.push(2. * treatment + 0.3 * confounder + 0.4 * error);
@@ -124,7 +136,7 @@ fn design_first_fits_match_iv_rd_frontdoor_structural_and_covariance_truth() {
             let d = session
                 .result()
                 .unwrap()
-                .estimate
+                .estimate()
                 .as_effect()
                 .unwrap()
                 .diagnostics
@@ -211,7 +223,9 @@ fn assert_source_backed_replay(
         count_least_squares_solves(|| consume_design_with_data(bytes, None, &ctx()));
     assert!(matches!(
         missing,
-        Err(DesignRunError::Recalc(RecalcRunError::Request("recalc.design_data_unavailable")))
+        Err(DesignRunError::Recalc(RecalcRunError::Request(
+            RecalcRequestCode::DesignDataUnavailable
+        )))
     ));
     assert_eq!(solves, 0);
     for changed in [
@@ -228,12 +242,16 @@ fn assert_source_backed_replay(
     ] {
         assert!(matches!(
             consume_design_with_data(bytes, Some(&changed), &ctx()),
-            Err(DesignRunError::Recalc(RecalcRunError::Request("recalc.design_artifact_mismatch")))
+            Err(DesignRunError::Recalc(RecalcRunError::Request(
+                RecalcRequestCode::DesignArtifactMismatch
+            )))
         ));
     }
     assert!(matches!(
         consume_design_with_data(bytes, Some(r), &ExecutionContext::for_tests(120)),
-        Err(DesignRunError::Recalc(RecalcRunError::Request("recalc.design_artifact_mismatch")))
+        Err(DesignRunError::Recalc(RecalcRunError::Request(
+            RecalcRequestCode::DesignArtifactMismatch
+        )))
     ));
     if let DesignModel::Rd { .. } = r.model {
         let mut changed = r.clone();
@@ -244,7 +262,9 @@ fn assert_source_backed_replay(
         // but the original checked-program binding must still reject it.
         assert!(matches!(
             consume_design_with_data(bytes, Some(&changed), &ctx()),
-            Err(DesignRunError::Recalc(RecalcRunError::Request("recalc.design_artifact_mismatch")))
+            Err(DesignRunError::Recalc(RecalcRunError::Request(
+                RecalcRequestCode::DesignArtifactMismatch
+            )))
         ));
     }
 }
@@ -256,24 +276,26 @@ fn design_actual_artifact_consumers_and_fresh_raw_data_refits_are_honest() {
         let first = run(&mut session, &r);
         let bytes = session.export_result().unwrap();
         let (consumed, solves) =
-            count_least_squares_solves(|| antecedent_io::consume_analysis_result(&bytes).unwrap());
+            count_least_squares_solves(|| antecedent_io::replay_analysis_result(&bytes).unwrap());
         assert_eq!(solves, 0);
+        // IV and front-door replay their point estimate from carried moments; the RD
+        // operation has no portable replay and stays explicitly unresolved.
         if matches!(r.model, DesignModel::Rd { .. }) {
-            // The existing RD wire lacks the checked running-variable operation.
-            // Its consumer names this dependency rather than inventing replay support.
-            assert!(!consumed.acceptance.accepts_as_verified_program());
+            assert!(!consumed.acceptance.accepts_as_replayed_program());
             assert!(
                 consumed
                     .acceptance
                     .unresolved
                     .iter()
-                    .any(|reason| reason.as_ref() == "dependencies.checked_rd_operation")
+                    .any(|reason| reason.as_ref() == "dependencies.checked_rd_operation"),
+                "{:?}",
+                consumed.acceptance.unresolved
             );
         } else {
-            assert!(consumed.acceptance.accepts_as_verified_program());
+            assert!(consumed.acceptance.accepts_as_replayed_program());
         }
         close(consumed.body.estimate.unwrap(), first.law.ate);
-        assert!(antecedent_io::consume_analysis_result(&bytes[..bytes.len() / 2]).is_err());
+        assert!(antecedent_io::replay_analysis_result(&bytes[..bytes.len() / 2]).is_err());
         assert_source_backed_replay(&bytes, &r, &first, consumed.artifact_digest);
         let mut absent = DesignSession::resume(
             session.identities().clone(),
@@ -298,6 +320,63 @@ fn design_actual_artifact_consumers_and_fresh_raw_data_refits_are_honest() {
         assert!(rebuilt.receipt.totals().model_fits > 0);
         same(&first, &rebuilt);
     }
+}
+
+#[test]
+fn design_source_replay_refuses_other_dependencies_and_wrong_operation() {
+    let original = iv(1.0);
+    let mut session = DesignSession::new();
+    run(&mut session, &original);
+    let bytes = session.export_result().unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
+
+    // Preserve the original sealed contract while changing its published body.
+    // The missing numerical replay operation must not mask this separate failure.
+    let mut body = consumed.body.clone();
+    body.estimate = Some(body.estimate.unwrap() + 1.0);
+    let mut artifact = antecedent_io::encode_analysis_result_artifact(
+        &body,
+        consumed.header.variable_names.clone(),
+        "tampered-design",
+    )
+    .unwrap();
+    let (descriptor, section) = antecedent_io::pack_section_shared(
+        antecedent_io::CONTRACT_SECTION,
+        "application/cbor",
+        antecedent_io::to_cbor(consumed.contract.as_ref().unwrap()).unwrap().into(),
+        antecedent_io::CompressPolicy::Auto,
+    );
+    artifact.manifest.sections.push(descriptor);
+    artifact.sections.push(section);
+    let mut changed = Vec::new();
+    artifact.write_to(&mut changed).unwrap();
+    let parsed = antecedent_io::replay_analysis_result(&changed).unwrap();
+    assert!(
+        parsed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| reason.as_ref() != "dependencies.checked_estimator_operation"),
+        "{:?}",
+        parsed.acceptance.unresolved
+    );
+    assert!(matches!(
+        consume_design_with_data(&changed, Some(&original), &ctx()),
+        Err(DesignRunError::Recalc(RecalcRunError::Request(
+            RecalcRequestCode::DesignArtifactUnverified
+        )))
+    ));
+
+    // A missing IV numerical operation is not authority to replay the artifact
+    // as a different, though independently supported, front-door operation.
+    let mut wrong_operation = original.clone();
+    wrong_operation.model = DesignModel::Frontdoor { mediator: 2 };
+    assert!(matches!(
+        consume_design_with_data(&bytes, Some(&wrong_operation), &ctx()),
+        Err(DesignRunError::Recalc(RecalcRunError::Request(
+            RecalcRequestCode::DesignArtifactUnverified
+        )))
+    ));
 }
 
 #[test]
@@ -330,15 +409,23 @@ fn design_cutoff_mediator_and_resource_refusals_preserve_previous_state() {
         let cancelled = ctx();
         cancelled.cancellation.cancel();
         let ((), solves) = count_least_squares_solves(|| {
-            assert!(execute_design_with_receipt(&mut session, &r, &cancelled).is_err())
+            assert!(matches!(
+                execute_design_with_receipt(&mut session, &r, &cancelled),
+                Err(DesignRunError::Recalc(RecalcRunError::Request(RecalcRequestCode::Cancelled)))
+            ));
         });
         assert_eq!(solves, 0);
         let mut changed = r.clone();
         changed.columns[1].1[0] += 0.1;
         let mut budget = ctx();
-        budget.memory.hard_limit_bytes = Some(1);
+        budget.set_memory_limit(Some(1));
         let ((), solves) = count_least_squares_solves(|| {
-            assert!(execute_design_with_receipt(&mut session, &changed, &budget).is_err())
+            assert!(matches!(
+                execute_design_with_receipt(&mut session, &changed, &budget),
+                Err(DesignRunError::Recalc(RecalcRunError::Request(
+                    RecalcRequestCode::MemoryBudgetExceeded
+                )))
+            ));
         });
         assert_eq!(solves, 0);
         changed = r.clone();
@@ -346,8 +433,20 @@ fn design_cutoff_mediator_and_resource_refusals_preserve_previous_state() {
             DesignModel::Iv2Sls { instrument } => *instrument = 1,
             DesignModel::Rd { cutoff, .. } => *cutoff = 2.,
             DesignModel::Frontdoor { mediator } => *mediator = 1,
+        }
+        // An instrument or mediator that is the outcome is an invalid role; a cutoff outside the
+        // running variable's range is not a checked regression discontinuity.
+        let expected_code = if matches!(r.model, DesignModel::Rd { .. }) {
+            RecalcRequestCode::DesignNotChecked
+        } else {
+            RecalcRequestCode::InvalidDesignRoles
         };
-        assert!(execute_design_with_receipt(&mut session, &changed, &ctx()).is_err());
+        let bad = execute_design_with_receipt(&mut session, &changed, &ctx());
+        assert!(
+            matches!(&bad, Err(DesignRunError::Recalc(RecalcRunError::Request(code))) if *code == expected_code),
+            "{:?}",
+            bad.as_ref().err()
+        );
         assert_eq!(std::ptr::from_ref(session.result().unwrap()), old);
         assert_eq!(run(&mut session, &r).receipt.totals().total(), 0);
     }
@@ -407,8 +506,14 @@ fn design_role_exclusion_and_window_changes_reidentify_actual_checked_engines() 
                 execute_design_with_receipt(&mut session, &r, &ctx())
             });
             assert!(
-                failed.is_err(),
-                "instrument exclusion/front-door complete mediation must be checked"
+                matches!(
+                    failed,
+                    Err(DesignRunError::Recalc(RecalcRunError::Execution(
+                        antecedent::CausalError::NotIdentified { .. }
+                    )))
+                ),
+                "instrument exclusion/front-door complete mediation must be checked: {:?}",
+                failed.as_ref().err()
             );
             assert_eq!(solves, 0, "causal graph refusal precedes numerical fits");
         }

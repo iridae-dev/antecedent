@@ -1,6 +1,6 @@
 //! The transported static path-specific counterfactual through the `antecedent`
 //! facade: evaluate, export and consume, the hand-derived oracle values, the typed refusals
-//! (with the two-model witness) mapped onto `CausalError`, and the general closed route that
+//! (with the two-model witness) mapped onto `CausalError`, and the general unsupported route that
 //! the narrow cell does not open.
 //!
 //! Model: `m = 0.5 z + (2 - 0.5 z) a + u_m`, `y = (3 + 0.75 z) a + 4 m + 1.5 z + u_y`, with
@@ -8,7 +8,7 @@
 //! `15.09375`; source law `{0: 0.4, 1: 0.4, 2: 0.2}`: NDE `5.4`. Shifting the target law to
 //! `{0: 0.5, 1: 0.5}` moves the NDE by exactly `-0.28125`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(clippy::float_cmp, reason = "exact dyadic hand values")]
 
 use antecedent::CausalError;
@@ -100,7 +100,7 @@ fn nde() -> TransportedCounterfactualRequestWire {
 }
 
 #[test]
-fn x8t_facade_hand_values_nde_nie_total() {
+fn facade_hand_values_nde_nie_total() {
     let direct = TransportedCounterfactual::evaluate(&nde()).unwrap();
     close(direct.target_contrast(), 5.34375);
     close(direct.source_contrast(), 5.4);
@@ -115,7 +115,7 @@ fn x8t_facade_hand_values_nde_nie_total() {
 }
 
 #[test]
-fn x8t_facade_target_law_shift_moves_the_answer_by_the_hand_amount() {
+fn facade_target_law_shift_moves_the_answer_by_the_hand_amount() {
     let base = TransportedCounterfactual::evaluate(&nde()).unwrap().target_contrast();
     let mut shifted = nde();
     shifted.target_law = law(&[(0.0, 0.5), (1.0, 0.5)]);
@@ -124,9 +124,9 @@ fn x8t_facade_target_law_shift_moves_the_answer_by_the_hand_amount() {
 }
 
 #[test]
-fn x8t_facade_export_and_consume_replay_the_answer_and_bind_the_identity() {
+fn facade_export_and_consume_replay_the_answer_and_bind_the_identity() {
     let sealed = TransportedCounterfactual::evaluate(&nde()).unwrap();
-    let bytes = sealed.export("x8t-facade").unwrap();
+    let bytes = sealed.export("facade").unwrap();
     let consumed = TransportedCounterfactual::consume(&bytes, Some(sealed.identity())).unwrap();
     assert_eq!(consumed.result(), sealed.result());
     assert_eq!(consumed.target_contrast(), sealed.target_contrast());
@@ -145,42 +145,74 @@ fn x8t_facade_export_and_consume_replay_the_answer_and_bind_the_identity() {
 }
 
 #[test]
-fn x8t_facade_selection_on_the_outcome_refuses_with_a_witness_and_maps_to_a_causal_error() {
+fn facade_selection_on_the_outcome_refuses_with_a_witness_and_maps_to_a_causal_error() {
     let mut request = nde();
     request.selections = vec![SelectionWire { label: "S".into(), target: "y".into() }];
     let error = TransportedCounterfactual::evaluate(&request).unwrap_err();
     let refusal = error.refusal().expect("a structured refusal");
     assert_eq!(refusal.code, "transport_proven_non_transportable");
-    assert_eq!(refusal.detail, "transported_counterfactual.selection_on_mechanism");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::SELECTION_ON_MECHANISM
+    );
     let witness = refusal.witness.expect("two-model witness");
     close(witness.target_contrast_b - witness.target_contrast_a, 1.5);
     let causal = CausalError::from(error);
     let text = causal.to_string();
     assert!(text.contains("transport_proven_non_transportable"), "{text}");
-    assert!(text.contains("transported_counterfactual.selection_on_mechanism"), "{text}");
+    assert!(
+        text.contains(
+            antecedent_core::reason_details::transported_counterfactual::SELECTION_ON_MECHANISM
+        ),
+        "{text}"
+    );
 }
 
 #[test]
-fn x8t_facade_undeclared_premises_refuse_and_default_to_undeclared() {
+fn facade_undeclared_premises_refuse_and_default_to_undeclared() {
     let mut request = nde();
     request.premises = PremisesWire::default();
     let refusal =
         TransportedCounterfactual::evaluate(&request).unwrap_err().refusal().expect("refusal");
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(refusal.detail, "transported_counterfactual.nonadditive_mechanism");
+    assert_eq!(refusal.code, "route_not_supported");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::NONADDITIVE_MECHANISM
+    );
     assert_eq!(refusal.offending.as_deref(), Some("additive_noise"));
 }
 
 #[test]
-fn x8t_facade_the_general_transported_route_stays_closed() {
-    // The narrow cell is a different theorem; the general closed gate still refuses, whatever
-    // is supplied.
+fn facade_the_general_transported_route_has_no_method() {
+    // The narrow cell is a different theorem; the general route has no joint theorem, so it
+    // refuses whatever is supplied. Missing prerequisite gates are named first.
     let refusal = transported_path_specific(
         &TransportedCounterfactualPrerequisites::default(),
         &[],
         &std::collections::BTreeMap::new(),
     )
     .unwrap_err();
-    assert_eq!(refusal.refusal.detail, "transported_counterfactual.route_frozen");
-    assert_eq!(refusal.refusal.code, "cell_not_licensed");
+    assert_eq!(
+        refusal.refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::PREREQUISITE_MISSING
+    );
+    assert_eq!(refusal.refusal.code, "transport_missing_evidence");
+    assert_eq!(refusal.missing_gates.len(), 3);
+
+    // With every gate passed and no factor required, only the missing theorem remains.
+    let refusal = transported_path_specific(
+        &TransportedCounterfactualPrerequisites {
+            transport_support: true,
+            fixed_population_support: true,
+            cross_population_assumptions: true,
+        },
+        &[],
+        &std::collections::BTreeMap::new(),
+    )
+    .unwrap_err();
+    assert_eq!(
+        refusal.refusal.detail,
+        antecedent_core::reason_details::transported_counterfactual::JOINT_THEOREM_NOT_DERIVED
+    );
+    assert_eq!(refusal.refusal.code, "route_not_supported");
 }

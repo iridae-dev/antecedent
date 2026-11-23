@@ -1,0 +1,20 @@
+feature_id = "inverse.transported_forward_source"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+
+implementation_deviations = [
+ "Contract and routing record, no estimator or published procedure: a transported response with its receipt as a forward source only when the input policy accepts a transported input; the receipt is bound into the origin and re-derived on consume (docs/guides/inverse-outcome.md).",
+ "Every number is supplied by the upstream cohort, composition or transport route, whose own provenance records govern it; the source adds no standard error and no calibration.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-design/tests/inverse_forward_source.rs",
+ "crates/antecedent/tests/inverse_forward_sources_facade.rs",
+]

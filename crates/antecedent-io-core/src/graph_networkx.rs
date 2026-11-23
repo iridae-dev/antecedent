@@ -1,6 +1,6 @@
 //! `NetworkX`-compatible JSON graph interchange (`node_link` / adjacency).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 
@@ -8,7 +8,9 @@ use antecedent_graph::Dag;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
-use crate::convert::{dag_from_wire, dag_to_wire};
+use crate::convert::{
+    GraphLimits, check_graph_budget_within, dag_from_wire_with_limits, dag_to_wire,
+};
 use crate::error::IoError;
 use crate::graph_dot;
 use crate::graph_json::without_names;
@@ -96,8 +98,20 @@ without_names! {
 ///
 /// Undirected / malformed JSON / cycles.
 pub fn dag_with_names_from_networkx_node_link(json: &str) -> Result<(Dag, Vec<String>), IoError> {
+    dag_with_names_from_networkx_node_link_with_limits(json, &GraphLimits::default())
+}
+
+/// [`dag_with_names_from_networkx_node_link`] under the caller's graph bounds: a document over `limits` is refused.
+///
+/// # Errors
+///
+/// As [`dag_with_names_from_networkx_node_link`], and [`IoError::Convert`] when a bound of `limits` is exceeded.
+pub fn dag_with_names_from_networkx_node_link_with_limits(
+    json: &str,
+    limits: &GraphLimits,
+) -> Result<(Dag, Vec<String>), IoError> {
     let (wire, names) = dag_wire_and_names_from_networkx_node_link(json)?;
-    Ok((dag_from_wire(&wire)?, names))
+    Ok((dag_from_wire_with_limits(&wire, limits)?, names))
 }
 
 /// Serialize a [`Dag`] to `NetworkX` node-link JSON.
@@ -106,7 +120,7 @@ pub fn dag_with_names_from_networkx_node_link(json: &str) -> Result<(Dag, Vec<St
 ///
 /// Wire / JSON failures.
 pub fn dag_to_networkx_node_link(dag: &Dag, names: Option<&[String]>) -> Result<String, IoError> {
-    let doc = networkx_node_link_from_wire(&dag_to_wire(dag)?, names);
+    let doc = node_link_document(&dag_to_wire(dag)?, names);
     serde_json::to_string_pretty(&doc).map_err(|e| IoError::Convert(format!("json: {e}")))
 }
 
@@ -182,8 +196,24 @@ pub(crate) fn bind_node_link<T: NodeLinkEndpoints>(
 }
 
 /// Build node-link document from wire.
-#[must_use]
-pub fn networkx_node_link_from_wire(wire: &DagWire, names: Option<&[String]>) -> NetworkXNodeLink {
+///
+/// The wire's `node_count` is an iteration count, so a wire that did not come from an
+/// in-memory graph is held to the default graph bounds before the document is built.
+///
+/// # Errors
+///
+/// [`IoError::Convert`] when `node_count` or the edge count exceeds [`GraphLimits::default`].
+pub fn networkx_node_link_from_wire(
+    wire: &DagWire,
+    names: Option<&[String]>,
+) -> Result<NetworkXNodeLink, IoError> {
+    check_graph_budget_within(wire.node_count, wire.edges.len(), &GraphLimits::default())?;
+    Ok(node_link_document(wire, names))
+}
+
+/// Build the node-link document for a wire already known to be bounded (encoded from an
+/// in-memory graph or admitted by [`networkx_node_link_from_wire`]).
+fn node_link_document(wire: &DagWire, names: Option<&[String]>) -> NetworkXNodeLink {
     let nodes = (0..wire.node_count)
         .map(|i| {
             let id = names
@@ -245,6 +275,18 @@ without_names! {
 ///
 /// Undirected / malformed / cycles / unsupported adjacency shape.
 pub fn dag_with_names_from_networkx_adjacency(json: &str) -> Result<(Dag, Vec<String>), IoError> {
+    dag_with_names_from_networkx_adjacency_with_limits(json, &GraphLimits::default())
+}
+
+/// [`dag_with_names_from_networkx_adjacency`] under the caller's graph bounds: a document over `limits` is refused.
+///
+/// # Errors
+///
+/// As [`dag_with_names_from_networkx_adjacency`], and [`IoError::Convert`] when a bound of `limits` is exceeded.
+pub fn dag_with_names_from_networkx_adjacency_with_limits(
+    json: &str,
+    limits: &GraphLimits,
+) -> Result<(Dag, Vec<String>), IoError> {
     let doc: NetworkXAdjacency =
         serde_json::from_str(json).map_err(|e| IoError::Convert(format!("json: {e}")))?;
     if !doc.directed {
@@ -280,7 +322,7 @@ pub fn dag_with_names_from_networkx_adjacency(json: &str) -> Result<(Dag, Vec<St
         }
     }
     let node_count = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
-    let dag = dag_from_wire(&DagWire { node_count, edges })?;
+    let dag = dag_from_wire_with_limits(&DagWire { node_count, edges }, limits)?;
     Ok((dag, order))
 }
 
@@ -479,5 +521,13 @@ mod tests {
         let s = dag_to_networkx_adjacency(&dag, None).unwrap();
         let (_back, names) = dag_with_names_from_networkx_adjacency(&s).unwrap();
         assert_eq!(names, vec!["0".to_string(), "1".to_string()]);
+    }
+
+    #[test]
+    fn wire_export_refuses_an_unbounded_node_count() {
+        let wire = DagWire { node_count: u32::MAX, edges: Vec::new() };
+        assert!(matches!(networkx_node_link_from_wire(&wire, None), Err(IoError::Convert(_))));
+        let wire = DagWire { node_count: 3, edges: vec![(0, 1)] };
+        assert_eq!(networkx_node_link_from_wire(&wire, None).unwrap().nodes.len(), 3);
     }
 }

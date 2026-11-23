@@ -17,6 +17,10 @@ autotests = false
 [lints]
 workspace = true
 
+[features]
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent-core/development", "antecedent-kernels/development", "antecedent-stats/development"]
+
 [dependencies]
 antecedent-core = { workspace = true }
 antecedent-kernels = { workspace = true }
@@ -32,5 +36,29 @@ name = "state_append"
 harness = false
 
 [[test]]
+name = "conjugate_offset_reference"
+path = "tests/conjugate_offset_reference.rs"
+
+[[test]]
+name = "ols_refresh_reference"
+path = "tests/ols_refresh_reference.rs"
+
+[[test]]
+name = "incremental_ols_reference"
+path = "tests/incremental_ols_reference.rs"
+
+[[test]]
+name = "streaming_memory_bound"
+path = "tests/streaming_memory_bound.rs"
+
+[[test]]
 name = "suite_01"
 path = "tests/suite_01.rs"
+
+[[test]]
+name = "scenario_refresh_designs"
+path = "tests/scenario_refresh_designs.rs"
+
+[[test]]
+name = "state_incremental_particle_graph_score_reference"
+path = "tests/state_incremental_particle_graph_score_reference.rs"

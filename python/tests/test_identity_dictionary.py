@@ -7,6 +7,7 @@ from collections.abc import Mapping
 
 import antecedent as ant
 import numpy as np
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_toml
 
@@ -37,6 +38,8 @@ def test_identity_domains_match_native_order():
         "target_weights",
         "learned_trial",
         "transport_certificate",
+        "cyclic_solution",
+        "cyclic_recovery",
     ]
 
 
@@ -65,9 +68,9 @@ def _hex(value) -> str:
 
 
 def test_prepared_and_loaded_availability():
-    # An AIPW prepared study holds a score table, so every advertised domain,
-    # including score_reuse, has a value; a nonconstant retarget adds
-    # target_weights.
+    # A prepared study materializes no score table, so score_reuse (like the data
+    # snapshot) is advertised from the completed execution and its artifact; a
+    # nonconstant retarget of the completed study adds target_weights.
     data = _data()
     prepared = ant.prepare(
         data,
@@ -75,13 +78,16 @@ def test_prepared_and_loaded_availability():
         query=ant.AverageEffect("t", "y"),
         estimator="aipw",
         refute="none",
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
     )
     slots = prepared.inspect()
-    executed = prepared.estimate()
-    retargeted = prepared.retarget(np.exp(data["z"] / 3), depends_on=["z"])
-    exported = retargeted.export()
-    loaded_slots = ant.load(exported).inspect()
+    outcome = ant.estimate(prepared)
+    executed = require_success(outcome)
+    # The prepared branch is immutable; the completed study the outcome retains owns the scores.
+    retargeted = outcome.study.retarget(np.exp(data["z"] / 3), depends_on=["z"])
+    artifact = retargeted.export()
+    exported = bytes(artifact)
+    loaded_slots = require_success(ant.load(exported, expected=artifact.expectation)).inspect()
     section = ant.artifacts.loads(exported).contract
     for row in IDENTITY["identity"]:
         if not row["python"].startswith("inspect()."):

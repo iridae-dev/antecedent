@@ -1,5 +1,5 @@
 //! Cross-world selective execution through the facade: the checked capability
-//! matrix, a sealed execution, a fresh-process replay and a licensed resume.
+//! matrix, a sealed execution, a fresh-process replay and a supported resume.
 //!
 //! Oracle (hand computed): mediation model with `X = U_X` (0.5), mediator
 //! response types `qm = [0.3, 0.4, 0.1, 0.2]` of `X`, and `Y = M` when
@@ -81,7 +81,7 @@ fn request() -> FiniteExecutionRequest {
 fn the_capability_matrix_is_stated_and_every_closed_row_is_actionable() {
     let rows = capability_matrix();
     assert!(rows.iter().any(|r| r.status == CapabilityStatus::Executed));
-    for row in rows.iter().filter(|r| r.status == CapabilityStatus::Closed) {
+    for row in rows.iter().filter(|r| r.status == CapabilityStatus::NotSupported) {
         assert!(row.refusal_code.is_some() && !row.remedy.is_empty(), "{}", row.id);
     }
 }
@@ -91,15 +91,20 @@ fn natural_direct_effect_seals_replays_and_resumes() {
     let sealed = CrossWorldExecution::seal(&request(), &ctx()).unwrap();
     assert!((sealed.result().value - 0.25).abs() < 1e-12, "{}", sealed.result().value);
     assert_eq!(sealed.result().label, "point_only");
-    assert!(sealed.interval().is_err());
-    assert_eq!(sealed.posterior().unwrap_err().code, "cell_not_licensed");
+    let interval = sealed.interval().err().expect("an unqualified interval is closed");
+    assert_eq!(interval.code, "sampling_dependence_unknown");
+    assert_eq!(
+        interval.detail,
+        antecedent_core::reason_details::cross_world_execution::NO_INTERVAL_METHOD
+    );
+    assert_eq!(sealed.posterior().unwrap_err().code, "uncertainty_representation_insufficient");
 
     let bytes = sealed.to_bytes("natural-direct").unwrap();
     let mut consumed =
         CrossWorldExecution::consume(&bytes, Some(sealed.identity()), &ctx()).unwrap();
     assert_eq!(consumed.result().value.to_bits(), sealed.result().value.to_bits());
 
-    // Licensed resume: a new action definition (indirect effect) reuses the
+    // Supported resume: a new action definition (indirect effect) reuses the
     // verified abduction and equals a full rerun bit for bit.
     let mut next = request();
     next.worlds = vec![
@@ -139,13 +144,24 @@ fn a_fresh_process_consumes_only_the_bytes_and_matches_the_oracle() {
     let path = std::env::temp_dir()
         .join(format!("antecedent-cross-world-{}-{unique}.bin", std::process::id()));
     std::fs::write(&path, sealed.to_bytes("natural-direct").unwrap()).unwrap();
+    // The child must select this very test: under a suite crate it is a module member, so its
+    // libtest name carries the module path (a bare name would match nothing and "pass").
+    let prefix =
+        module_path!().split_once("::").map_or(String::new(), |(_, rest)| format!("{rest}::"));
+    let test_name =
+        format!("{prefix}a_fresh_process_consumes_only_the_bytes_and_matches_the_oracle");
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .arg("--exact")
-        .arg("a_fresh_process_consumes_only_the_bytes_and_matches_the_oracle")
+        .arg(&test_name)
         .env(PATH, &path)
         .output()
         .unwrap();
     std::fs::remove_file(path).unwrap();
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("running 1 test"),
+        "the child selected no test: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
 }
 

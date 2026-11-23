@@ -1,0 +1,1377 @@
+//! Experimental evidence for decision-relevant outcomes.
+//!
+//! The quantity that an experiment estimates best is often not the quantity that decides the
+//! action: a randomized change moves transaction frequency, transaction value and variable cost,
+//! and the decision turns on a margin built from all three. This module keeps what each
+//! transition from estimate to decision is allowed to say.
+//!
+//! * [`JointExperimentEvidence`] is the coherent object for several effects of one experiment:
+//!   their estimands, population, regimes and horizon, the assignment design, the shared
+//!   observation identity, and either the full covariance of the arm-mean estimators or an
+//!   explicit statement that only marginal variances exist. Marginals are never promoted to a
+//!   joint law.
+//! * A [`DerivedQuantity`] is a function of those outcomes written in the decision contract's own
+//!   [`UtilityExpr`] language. Its inputs are measured components, components bounded by a
+//!   declared assumption, or declared missing. [`derive`] answers with a point, a delta-method
+//!   sampling interval, an assumption range, or an unresolved result, and never with a stronger
+//!   standing than its weakest input: precision of one component confers none on the others, and
+//!   an executable transformation confers no identification or calibration.
+//! * [`decide`] compares two actions over the admissible set and classifies the decision as
+//!   robust, assumption-dependent or unresolved, naming the unresolved quantity responsible. A
+//!   sampling interval and an assumption range are reported side by side and never composed.
+//! * [`plan_evidence`] ranks feasible next evidence by what it would do to that decision under a
+//!   declared planning model.
+//! * [`reuse_receipt`] states which stages a change invalidates and which it reuses.
+//!
+//! Compilation precedes execution: [`compile_joint_experiment`] states the design, the outcomes,
+//! which variance-reduction strategies are admissible under that design, and the identification
+//! and statistical obligations before anything is fitted.
+//!
+//! Nothing here estimates a nuisance, widens an interval, or turns a sensitivity bound into a
+//! probability. A derived interval is a delta-method construction with calibration `not_measured`.
+// SPDX-License-Identifier: MIT OR Apache-2.0
+#![allow(
+    clippy::too_many_lines,
+    clippy::items_after_statements,
+    clippy::if_not_else,
+    reason = "straight-line validation and enumeration that reads best in one place"
+)]
+
+mod compile;
+mod derive;
+
+pub use compile::{
+    CompiledJointExperiment, CompiledObligation, JointExperimentSpec, adjustment_verdicts,
+    compile_joint_experiment,
+};
+mod expr;
+mod plan;
+mod proxy;
+mod reuse;
+mod temporal;
+
+use antecedent_core::CanonicalWriter;
+
+pub use derive::{
+    Arm, AssumedRange, DecisionFrame, DecisionResult, DerivedQuantity, DerivedResult, InputBinding,
+    SamplingInterval, Standing, UnresolvedReason, Verdict, decide,
+    decision_interval_calibration_basis, decision_interval_calibration_slot, derive,
+};
+pub use plan::{Candidate, EvidencePlan, PlanRow, PlanValue, PlanningModel, plan_evidence};
+pub use proxy::{ProxyBridge, ProxyDecision, ProxyMapping, decide_with_proxy};
+pub use reuse::{
+    EvidenceLedger, LineageStatus, ReuseReceipt, Stage, StageDigests, StageStatus, reuse_receipt,
+};
+pub use temporal::{
+    TemporalBridgeDecision, TemporalEffectBridge, TemporalEstimand, decide_with_temporal_bridge,
+};
+
+pub use crate::decision_contract::UtilityExpr;
+
+/// Normal quantile for a two-sided 95% interval.
+pub(crate) const Z95: f64 = 1.959_963_984_540_054;
+
+/// Independently assigned units required in each arm before a normal interval over the
+/// covariance is supported; equal to the estimator's own threshold.
+pub const MIN_UNITS_PER_ARM_FOR_INTERVAL: usize = 30;
+
+/// The most unknown dimensions one evaluation enumerates (`2^n` vertices).
+pub const MAX_UNKNOWN_DIMENSIONS: usize = 12;
+
+/// Statement carried by every answer that has both a sampling and an assumption part.
+pub const SEPARATION_STATEMENT: &str = "a sampling interval, an identified set and an assumption range are different objects; the assumption range is not a probability law and no sampling interval has been composed into it";
+
+/// Statement carried by every delta-method interval.
+pub const DELTA_METHOD_STATEMENT: &str = "first-order delta method through the conservative Neyman covariance of the arm-mean estimators; calibration is not_measured and no support is inherited from the components";
+
+/// Why a request, a declaration or a combination of evidence is refused.
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
+pub enum EvidenceRefusal {
+    /// A declaration is malformed.
+    #[error("invalid declaration: {0}")]
+    Invalid(String),
+    /// The execution resource budget refused the operation.
+    #[error("resource limit: {0}")]
+    Resource(String),
+    /// The caller cancelled execution before a result was available.
+    #[error("execution cancelled")]
+    Cancelled,
+    /// The requested population is not the experiment's population.
+    #[error("requested population `{requested}` is not the experiment population `{available}`")]
+    IncompatiblePopulation {
+        /// Population the request names.
+        requested: String,
+        /// Population the evidence covers.
+        available: String,
+    },
+    /// The requested intervention contrast is not the one the experiment randomized.
+    #[error("requested regimes `{requested}` are not the randomized regimes `{available}`")]
+    IncompatibleIntervention {
+        /// Regimes the request names.
+        requested: String,
+        /// Regimes the evidence covers.
+        available: String,
+    },
+    /// The requested horizon is not the measured horizon.
+    #[error("requested horizon {requested} is not the measured horizon {available}")]
+    IncompatibleHorizon {
+        /// Horizon the request names.
+        requested: u32,
+        /// Horizon the evidence covers.
+        available: u32,
+    },
+    /// The assignment design is not one the joint route supports, or two designs differ.
+    #[error("assignment design `{0}` has no joint route or does not match the other evidence")]
+    UnsupportedAssignmentDesign(String),
+    /// Evidence from different sources cannot be combined without a supported dependence route.
+    #[error(
+        "evidence `{left}` and `{right}` share or have unknown dependence; independence was not declared"
+    )]
+    DependenceUnknown {
+        /// First evidence identity.
+        left: String,
+        /// Second evidence identity.
+        right: String,
+    },
+    /// The exposure assumption between assignment units is not stated.
+    #[error("the exposure assumption between assignment units is unspecified")]
+    InterferenceUnspecified,
+    /// The request reaches beyond the experimental contrast without a declared bridge.
+    #[error(
+        "a deployment-policy quantity needs a declared structural bridge from the experimental contrast"
+    )]
+    DeploymentBridgeMissing,
+    /// An adjustment strategy is not admissible under the declared design.
+    #[error("adjustment `{strategy}` is not admissible under `{design}`: {reason}")]
+    AdjustmentNotAdmissible {
+        /// Adjustment strategy name.
+        strategy: String,
+        /// Assignment design name.
+        design: String,
+        /// Why not.
+        reason: String,
+    },
+    /// More unknown dimensions than one evaluation enumerates.
+    #[error("{0} unknown dimensions exceed the limit of {MAX_UNKNOWN_DIMENSIONS}")]
+    TooManyUnknowns(usize),
+    /// The frame does not name exactly two actions.
+    #[error("a decision frame compares exactly two actions")]
+    FrameShape,
+}
+
+impl EvidenceRefusal {
+    /// Registered refusal code (`parity/reason_codes.toml`).
+    #[must_use]
+    pub fn registered_code(&self) -> &'static str {
+        match self {
+            Self::Invalid(_) | Self::FrameShape => "decision_evidence_invalid",
+            Self::Resource(_) => "execution_resource_limit",
+            Self::Cancelled => "execution_cancelled",
+            Self::IncompatiblePopulation { .. }
+            | Self::IncompatibleIntervention { .. }
+            | Self::IncompatibleHorizon { .. }
+            | Self::DeploymentBridgeMissing => "decision_evidence_scope_mismatch",
+            Self::UnsupportedAssignmentDesign(_)
+            | Self::InterferenceUnspecified
+            | Self::AdjustmentNotAdmissible { .. }
+            | Self::TooManyUnknowns(_) => "decision_evidence_design_unsupported",
+            Self::DependenceUnknown { .. } => "evidence_overlap_unknown",
+        }
+    }
+
+    /// Stable machine-readable reason.
+    #[must_use]
+    pub fn reason_code(&self) -> &'static str {
+        match self {
+            Self::Invalid(_) => {
+                antecedent_core::reason_details::decision_evidence::INVALID_DECLARATION
+            }
+            Self::Resource(_) => antecedent_core::reason_details::decision_evidence::RESOURCE_LIMIT,
+            Self::Cancelled => antecedent_core::reason_details::decision_evidence::CANCELLED,
+            Self::IncompatiblePopulation { .. } => {
+                antecedent_core::reason_details::decision_evidence::INCOMPATIBLE_POPULATION
+            }
+            Self::IncompatibleIntervention { .. } => {
+                antecedent_core::reason_details::decision_evidence::INCOMPATIBLE_INTERVENTION
+            }
+            Self::IncompatibleHorizon { .. } => {
+                antecedent_core::reason_details::decision_evidence::INCOMPATIBLE_HORIZON
+            }
+            Self::UnsupportedAssignmentDesign(_) => {
+                antecedent_core::reason_details::decision_evidence::UNSUPPORTED_ASSIGNMENT_DESIGN
+            }
+            Self::DependenceUnknown { .. } => {
+                antecedent_core::reason_details::decision_evidence::DEPENDENCE_UNKNOWN
+            }
+            Self::InterferenceUnspecified => {
+                antecedent_core::reason_details::decision_evidence::INTERFERENCE_UNSPECIFIED
+            }
+            Self::DeploymentBridgeMissing => {
+                antecedent_core::reason_details::decision_evidence::DEPLOYMENT_BRIDGE_MISSING
+            }
+            Self::AdjustmentNotAdmissible { .. } => {
+                antecedent_core::reason_details::decision_evidence::ADJUSTMENT_NOT_ADMISSIBLE
+            }
+            Self::TooManyUnknowns(_) => {
+                antecedent_core::reason_details::decision_evidence::TOO_MANY_UNKNOWNS
+            }
+            Self::FrameShape => antecedent_core::reason_details::decision_evidence::FRAME_SHAPE,
+        }
+    }
+
+    /// The next thing to try; every refusal names one.
+    #[must_use]
+    pub fn next_attempt(&self) -> &'static str {
+        match self {
+            Self::Invalid(_) => "correct the declaration named in the message",
+            Self::Resource(_) => "increase the execution budget or reduce the requested work",
+            Self::Cancelled => "retry with a live cancellation context",
+            Self::IncompatiblePopulation { .. } => {
+                "request the experiment's population, or bind evidence from the target population"
+            }
+            Self::IncompatibleIntervention { .. } => {
+                "request the contrast the experiment randomized, or run the experiment for the requested contrast"
+            }
+            Self::IncompatibleHorizon { .. } => {
+                "request the measured horizon, or measure the requested one"
+            }
+            Self::UnsupportedAssignmentDesign(_) => {
+                "estimate each design separately and combine only under a declared independence"
+            }
+            Self::DependenceUnknown { .. } => {
+                "declare the evidence independent if it shares no units or observations, or derive the joint law from one experiment"
+            }
+            Self::InterferenceUnspecified => {
+                "declare no between-unit interference, or a bound on spillover, as an assumption"
+            }
+            Self::DeploymentBridgeMissing => {
+                "declare the structural assumption that carries the experimental contrast to the deployment, or ask for the experimental contrast"
+            }
+            Self::AdjustmentNotAdmissible { .. } => {
+                "use a strategy listed as admissible by compile_joint_experiment"
+            }
+            Self::TooManyUnknowns(_) => {
+                "reduce the number of assumed components or tie them across arms"
+            }
+            Self::FrameShape => "name exactly two actions",
+        }
+    }
+}
+
+/// One outcome whose effect the experiment estimates.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OutcomeComponent {
+    /// Name derived quantities refer to.
+    pub name: String,
+    /// Stable variable identity.
+    pub variable_id: String,
+    /// Declared units; never converted.
+    pub units: String,
+}
+
+/// How an outcome was adjusted for pretreatment information.
+#[derive(Clone, Debug, PartialEq)]
+pub enum AdjustmentKind {
+    /// No adjustment.
+    None,
+    /// Fixed CUPED with totals centered on the pretreatment mean of the target rows.
+    /// This preserves each arm mean as well as the contrast.
+    CenteredFixedCuped {
+        /// Covariate name.
+        covariate: String,
+        /// Coefficient fixed independently of experimental outcomes.
+        coefficient: f64,
+    },
+    /// A pretreatment covariate with a coefficient fixed outside this experiment's outcomes.
+    FixedCuped {
+        /// Covariate name.
+        covariate: String,
+        /// Coefficient, fixed before the outcomes were observed.
+        coefficient: f64,
+    },
+}
+
+/// The adjustment of one component.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ComponentAdjustment {
+    /// Component name.
+    pub component: String,
+    /// Adjustment applied to it.
+    pub kind: AdjustmentKind,
+}
+
+/// A refusal-or-admission verdict for one adjustment strategy under the declared design.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AdjustmentVerdict {
+    /// Strategy name.
+    pub strategy: &'static str,
+    /// Whether its coefficient is fixed independently of the experiment or learned from it.
+    pub coefficient: &'static str,
+    /// Whether the strategy is admissible and, if not, why.
+    pub admissible: Result<&'static str, &'static str>,
+}
+
+/// What is assumed about exposure between assignment units.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Exposure {
+    /// No outcome of a unit depends on another unit's assignment. An assumption, not a finding.
+    NoBetweenUnitInterference {
+        /// Identity of the declared assumption.
+        assumption_id: String,
+    },
+    /// Spillover may bias the contrast of each component by at most the given absolute amount.
+    BoundedSpillover {
+        /// Identity of the declared assumption.
+        assumption_id: String,
+        /// Per-component bound on the bias of the contrast, aligned with the outcomes.
+        bias_bounds: Vec<f64>,
+    },
+    /// Bounds on the absolute bias of each arm mean, aligned with the components.
+    /// These are substantive assumptions, not empirically established intervals.
+    BoundedArmSpillover {
+        /// Identity of the declared assumption.
+        assumption_id: String,
+        /// Bounds on treated-arm mean bias.
+        treated_bias_bounds: Vec<f64>,
+        /// Bounds on control-arm mean bias.
+        control_bias_bounds: Vec<f64>,
+    },
+    /// Nothing is declared; derived quantities refuse.
+    Unspecified,
+}
+
+/// What a request asks about.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Target {
+    /// The contrast the experiment randomized, in the experiment's population.
+    ExperimentalContrast,
+    /// A sequentially randomized excursion at one decision with a declared outcome lag.
+    Excursion {
+        /// Number of periods between the randomized decision and the outcome.
+        lag: u32,
+        /// Identity of the recorded sequential randomization law.
+        assignment_law_id: String,
+    },
+    /// A whole static-regime contrast, with an explicit identification premise.
+    Regime {
+        /// Number of treatment decisions in the two paths.
+        periods: u32,
+        /// Identity of the declared sequential-exchangeability assumption.
+        exchangeability_assumption_id: String,
+    },
+    /// A history-adaptive policy contrast with an explicit identification premise.
+    AdaptiveRegime {
+        /// Number of treatment decisions.
+        periods: u32,
+        /// Declared sequential-exchangeability assumption.
+        exchangeability_assumption_id: String,
+    },
+    /// A broader deployment policy, reached only through a declared structural assumption.
+    Deployment {
+        /// Identity of the structural bridge, when one is declared.
+        bridge_assumption_id: Option<String>,
+    },
+}
+
+/// What a derived quantity or decision is asked about.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Request {
+    /// Population the answer is for.
+    pub population_id: String,
+    /// Treated regime.
+    pub treated_regime_id: String,
+    /// Control regime.
+    pub control_regime_id: String,
+    /// Horizon in ordered causal steps.
+    pub horizon: u32,
+    /// Experimental contrast or a broader deployment.
+    pub target: Target,
+}
+
+/// Dependence between the arm-mean estimators of the components.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Dependence {
+    /// Full `K x K` covariances (row-major) of the treated- and control-arm mean estimators.
+    Joint {
+        /// Treated arm.
+        treated: Vec<f64>,
+        /// Control arm.
+        control: Vec<f64>,
+    },
+    /// Full covariance of concatenated treated and control arm means, in that order.
+    /// This retains paired or repeated-assignment dependence across arms.
+    JointArms {
+        /// Row-major `2K x 2K` covariance matrix.
+        covariance: Vec<f64>,
+    },
+    /// Point estimates only: no compatible joint sampling law or posterior is available.
+    PointOnly,
+    /// Only marginal variances exist; the covariance between components is unknown.
+    MarginalsOnly {
+        /// Treated-arm variances.
+        treated: Vec<f64>,
+        /// Control-arm variances.
+        control: Vec<f64>,
+    },
+}
+
+/// The assignment design the estimates came from.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DesignRecord {
+    /// `cluster`, `complete`, `matched_pairs` or `switchback`.
+    pub assignment_design: String,
+    /// Independent treated units, or independent pairs/sequences for a joint-arm design.
+    pub treated_units: usize,
+    /// Independent control units, or the same independent pair/sequence count.
+    pub control_units: usize,
+    /// Outcome rows.
+    pub outcome_rows: usize,
+}
+
+/// Inspectable randomization design details retained with joint evidence.
+#[derive(Clone, Debug, PartialEq)]
+pub enum DesignDetails {
+    /// Fixed matched pairs and their known assignment law.
+    MatchedPairs {
+        /// Cluster identities in input order.
+        cluster_ids: Vec<String>,
+        /// Cluster indices in each pair.
+        pairs: Vec<(usize, usize)>,
+        /// Pretreatment matching variables.
+        matching_variables: Vec<String>,
+        /// Treatment assignment probabilities.
+        treatment_probabilities: Vec<f64>,
+        /// Fixed cluster sizes in target rows.
+        cluster_sizes: Vec<usize>,
+        /// Realized assignment, aligned with cluster identities.
+        realized_assignment: Vec<bool>,
+        /// Preassignment design assumption.
+        preassignment_assumption_id: String,
+        /// Independent-pair assignment assumption.
+        independent_pairs_assumption_id: String,
+        /// Consistency and treatment-version assumption.
+        consistency_assumption_id: String,
+    },
+    /// Sequentially randomized excursion schedule and identification assumptions.
+    TemporalExcursion {
+        /// Independent unit identity per observation row.
+        unit_ids: Vec<String>,
+        /// Period per observation row.
+        periods: Vec<i64>,
+        /// Recorded treatment assignment probability per decision row.
+        treatment_probabilities: Vec<f64>,
+        /// Realized assignments, aligned with observation rows.
+        realized_assignment: Vec<bool>,
+        /// Lag from decision to measured outcome.
+        lag: u32,
+        /// Declared positivity floor for both arms.
+        min_probability: f64,
+        /// Identity of the sequential assignment law.
+        assignment_law_id: String,
+        /// Independence assumption for units.
+        independent_units_assumption_id: String,
+        /// Assumption that unmatched outcomes are administrative end-of-follow-up.
+        administrative_followup_assumption_id: String,
+        /// Consistency and treatment-version assumption.
+        consistency_assumption_id: String,
+        /// Number of paired decisions actually used.
+        paired_decisions: usize,
+    },
+    /// Finite-history adaptive policies evaluated on complete independent episodes.
+    AdaptiveRegime {
+        /// Independent subject identities.
+        subject_ids: Vec<String>,
+        /// Number of decisions per subject.
+        periods: u32,
+        /// Policy selection was independent of evaluation outcomes.
+        policy_prespecification_assumption_id: String,
+        /// Population positivity assumption.
+        positivity_assumption_id: String,
+        /// Sequential exchangeability assumption.
+        exchangeability_assumption_id: String,
+        /// Treatment consistency assumption.
+        consistency_assumption_id: String,
+        /// Complete follow-up assumption.
+        followup_assumption_id: String,
+        /// Failed delete-subject slots, in subject order.
+        failures: Vec<Option<String>>,
+    },
+    /// Point-only observational static-regime analysis and identification assumptions.
+    TemporalRegime {
+        /// Subject identity for every row.
+        unit_ids: Vec<String>,
+        /// Period for every row.
+        periods: Vec<i64>,
+        /// Observed treatment history.
+        realized_assignment: Vec<bool>,
+        /// Per-outcome fitted minimum action probability, or `None` for the g-formula.
+        observed_minimum_probabilities: Vec<Option<f64>>,
+        /// Measured predecision confounder identities.
+        confounder_ids: Vec<String>,
+        /// Active static treatment path.
+        active_path: Vec<bool>,
+        /// Reference static treatment path.
+        reference_path: Vec<bool>,
+        /// Existing regime estimator used for the point value.
+        method: String,
+        /// Positivity threshold.
+        min_probability: f64,
+        /// Sequential positivity under the declared paths.
+        positivity_assumption_id: String,
+        /// Sequential exchangeability given recorded history.
+        exchangeability_assumption_id: String,
+        /// Consistency assumption.
+        consistency_assumption_id: String,
+        /// Complete follow-up assumption.
+        followup_assumption_id: String,
+        /// Correctness premise for the selected nuisance models.
+        model_assumption_id: String,
+        /// Number of aligned whole-subject bootstrap refits, if requested.
+        bootstrap_replicates: Option<usize>,
+    },
+    /// Switchback schedule, assignment probabilities and temporal assumptions.
+    Switchback {
+        /// Sequence identity for each retained period.
+        sequence_ids: Vec<String>,
+        /// Period identity for each retained row.
+        period_ids: Vec<String>,
+        /// Treatment probability for each retained row.
+        treatment_probabilities: Vec<f64>,
+        /// Realized assignment for each retained period.
+        realized_assignment: Vec<bool>,
+        /// No-carryover assumption.
+        no_carryover_assumption_id: String,
+        /// Prespecified washout rule.
+        washout_rule_id: String,
+        /// Declared post-switch washout length.
+        washout_periods: usize,
+        /// Independent-sequence assumption.
+        independent_sequences_assumption_id: String,
+        /// Consistency and treatment-version assumption.
+        consistency_assumption_id: String,
+    },
+}
+
+/// Several effects of one experiment, kept together.
+#[derive(Clone, Debug, PartialEq)]
+pub struct JointExperimentEvidence {
+    /// Identity of the observations and assignment these estimates came from.
+    pub evidence_id: String,
+    /// Population the experiment sampled.
+    pub population_id: String,
+    /// Treated regime identity.
+    pub treated_regime_id: String,
+    /// Control regime identity.
+    pub control_regime_id: String,
+    /// Horizon in ordered causal steps.
+    pub horizon: u32,
+    /// The outcomes, in estimator order.
+    pub components: Vec<OutcomeComponent>,
+    /// Per-row mean of each outcome in the treated arm.
+    pub treated_means: Vec<f64>,
+    /// Per-row mean of each outcome in the control arm.
+    pub control_means: Vec<f64>,
+    /// What is known about the dependence between components.
+    pub dependence: Dependence,
+    /// The design.
+    pub design: DesignRecord,
+    /// Adjustment of each component.
+    pub adjustments: Vec<ComponentAdjustment>,
+    /// Exposure between assignment units.
+    pub exposure: Exposure,
+    /// Identity of the full design declaration, when the design requires one.
+    pub design_contract_id: Option<String>,
+    /// Inspectable design details accompanying that identity.
+    pub design_details: Option<DesignDetails>,
+    /// Route support of each component's marginal effect, when one was earned; informational.
+    pub marginal_supports: Vec<Option<String>>,
+}
+
+fn valid_component_covariance(m: &[f64], full: bool, k: usize) -> bool {
+    let expected = if full { k * k } else { k };
+    if m.len() != expected || m.iter().any(|v| !v.is_finite()) {
+        return false;
+    }
+    // A symmetric matrix can satisfy every pairwise correlation bound and
+    // still have a negative eigenvalue. Check positive semidefiniteness by
+    // a tolerance-aware LDL decomposition before using it as covariance.
+    if full {
+        let scale = (0..k).map(|i| m[i * k + i].abs()).fold(0.0_f64, f64::max);
+        let tolerance = scale * 1e-10;
+        let mut l = vec![0.0; k * k];
+        let mut d = vec![0.0; k];
+        for i in 0..k {
+            let pivot =
+                m[i * k + i] - (0..i).map(|j| l[i * k + j] * l[i * k + j] * d[j]).sum::<f64>();
+            if pivot < -tolerance {
+                return false;
+            }
+            d[i] = pivot.max(0.0);
+            for row in i + 1..k {
+                let residual = m[row * k + i]
+                    - (0..i).map(|j| l[row * k + j] * l[i * k + j] * d[j]).sum::<f64>();
+                if d[i] <= tolerance {
+                    if residual.abs() > tolerance {
+                        return false;
+                    }
+                } else {
+                    l[row * k + i] = residual / d[i];
+                }
+            }
+        }
+    }
+    (0..k).all(|i| {
+        let d = m[if full { i * k + i } else { i }];
+        d >= 0.0
+            && (!full
+                || (0..k).all(|j| {
+                    (m[i * k + j] - m[j * k + i]).abs() <= 1e-9 * (1.0 + m[i * k + j].abs())
+                        && m[i * k + j].abs()
+                            <= (m[i * k + i] * m[j * k + j]).sqrt() * (1.0 + 1e-9) + 1e-300
+                }))
+    })
+}
+
+impl JointExperimentEvidence {
+    /// Validate and assemble the evidence.
+    ///
+    /// # Errors
+    ///
+    /// [`EvidenceRefusal::Invalid`] for misaligned or non-finite arrays, a covariance that is
+    /// not symmetric with a nonnegative diagonal, an arm with fewer than two units, or an
+    /// exposure bound list that does not align with the components;
+    /// [`EvidenceRefusal::UnsupportedAssignmentDesign`] for a design other than `cluster` or
+    /// `complete`.
+    #[allow(clippy::too_many_arguments, reason = "one coherent record; every field is required")]
+    pub fn new(
+        evidence_id: impl Into<String>,
+        population_id: impl Into<String>,
+        regimes: (impl Into<String>, impl Into<String>),
+        horizon: u32,
+        components: Vec<OutcomeComponent>,
+        means: (Vec<f64>, Vec<f64>),
+        dependence: Dependence,
+        design: DesignRecord,
+        adjustments: Vec<ComponentAdjustment>,
+        exposure: Exposure,
+    ) -> Result<Self, EvidenceRefusal> {
+        let k = components.len();
+        let invalid = |m: &str| Err(EvidenceRefusal::Invalid(m.to_owned()));
+        if k == 0 {
+            return invalid("at least one outcome component is required");
+        }
+        let names: std::collections::BTreeSet<_> =
+            components.iter().map(|c| c.name.as_str()).collect();
+        if names.len() != k
+            || components.iter().any(|c| c.name.trim().is_empty() || c.units.trim().is_empty())
+        {
+            return invalid("component names must be unique and non-empty, and units declared");
+        }
+        let (treated_means, control_means) = means;
+        if treated_means.len() != k
+            || control_means.len() != k
+            || treated_means.iter().chain(&control_means).any(|v| !v.is_finite())
+        {
+            return invalid("arm means must be finite and aligned with the components");
+        }
+        let ok = match &dependence {
+            Dependence::Joint { treated, control } => {
+                valid_component_covariance(treated, true, k)
+                    && valid_component_covariance(control, true, k)
+            }
+            Dependence::JointArms { covariance } => {
+                valid_component_covariance(covariance, true, 2 * k)
+            }
+            Dependence::PointOnly => true,
+            Dependence::MarginalsOnly { treated, control } => {
+                valid_component_covariance(treated, false, k)
+                    && valid_component_covariance(control, false, k)
+            }
+        };
+        if !ok {
+            return invalid("covariances must be finite, symmetric and positive semidefinite");
+        }
+        if !matches!(
+            design.assignment_design.as_str(),
+            "cluster"
+                | "complete"
+                | "matched_pairs"
+                | "switchback"
+                | "temporal_excursion"
+                | "temporal_regime"
+                | "adaptive_regime"
+        ) {
+            return Err(EvidenceRefusal::UnsupportedAssignmentDesign(design.assignment_design));
+        }
+        if design.treated_units < 2 || design.control_units < 2 || design.outcome_rows == 0 {
+            return invalid("each arm needs at least two independently assigned units");
+        }
+        let mut adjusted = std::collections::BTreeSet::new();
+        for a in &adjustments {
+            if !names.contains(a.component.as_str()) || !adjusted.insert(a.component.as_str()) {
+                return invalid("adjustments must name distinct known components");
+            }
+            if let AdjustmentKind::FixedCuped { covariate, coefficient }
+            | AdjustmentKind::CenteredFixedCuped { covariate, coefficient } = &a.kind
+                && (covariate.trim().is_empty() || !coefficient.is_finite())
+            {
+                return invalid("fixed CUPED needs a covariate and a finite coefficient");
+            }
+        }
+        if let Exposure::BoundedSpillover { bias_bounds, .. } = &exposure
+            && (bias_bounds.len() != k || bias_bounds.iter().any(|b| !b.is_finite() || *b < 0.0))
+        {
+            return invalid(
+                "spillover bounds must be finite, nonnegative and aligned with the components",
+            );
+        }
+        if let Exposure::BoundedArmSpillover { treated_bias_bounds, control_bias_bounds, .. } =
+            &exposure
+            && [treated_bias_bounds, control_bias_bounds].iter().any(|bounds| {
+                bounds.len() != k || bounds.iter().any(|b| !b.is_finite() || *b < 0.0)
+            })
+        {
+            return invalid(
+                "arm spillover bounds must be finite, nonnegative and aligned with the components",
+            );
+        }
+        let (treated_regime, control_regime) = (regimes.0.into(), regimes.1.into());
+        if treated_regime == control_regime {
+            return invalid("the treated and control regimes must differ");
+        }
+        Ok(Self {
+            evidence_id: evidence_id.into(),
+            population_id: population_id.into(),
+            treated_regime_id: treated_regime,
+            control_regime_id: control_regime,
+            horizon,
+            components,
+            treated_means,
+            control_means,
+            dependence,
+            design,
+            adjustments,
+            exposure,
+            design_contract_id: None,
+            design_details: None,
+            marginal_supports: vec![None; k],
+        })
+    }
+
+    /// Attach the route support each component's marginal effect earned (informational: a
+    /// derived quantity never inherits it).
+    #[must_use]
+    pub fn with_marginal_supports(mut self, supports: Vec<Option<String>>) -> Self {
+        if supports.len() == self.components.len() {
+            self.marginal_supports = supports;
+        }
+        self
+    }
+
+    /// Index of the component named `name`.
+    #[must_use]
+    pub fn component_index(&self, name: &str) -> Option<usize> {
+        self.components.iter().position(|c| c.name == name)
+    }
+
+    /// Combine evidence from two experiments that were declared independent.
+    ///
+    /// The result is block-diagonal in its dependence. Evidence that shares an identity (the
+    /// same observations), differs in population, regimes, horizon or design, or was not
+    /// declared independent is refused.
+    ///
+    /// # Errors
+    ///
+    /// The matching [`EvidenceRefusal`].
+    pub fn merge_independent(
+        &self,
+        other: &Self,
+        declared_independent: bool,
+    ) -> Result<Self, EvidenceRefusal> {
+        if matches!(self.dependence, Dependence::JointArms { .. } | Dependence::PointOnly)
+            || matches!(other.dependence, Dependence::JointArms { .. } | Dependence::PointOnly)
+        {
+            return Err(EvidenceRefusal::DependenceUnknown {
+                left: self.evidence_id.clone(),
+                right: other.evidence_id.clone(),
+            });
+        }
+        if self.population_id != other.population_id {
+            return Err(EvidenceRefusal::IncompatiblePopulation {
+                requested: other.population_id.clone(),
+                available: self.population_id.clone(),
+            });
+        }
+        if (&self.treated_regime_id, &self.control_regime_id)
+            != (&other.treated_regime_id, &other.control_regime_id)
+        {
+            return Err(EvidenceRefusal::IncompatibleIntervention {
+                requested: format!("{}/{}", other.treated_regime_id, other.control_regime_id),
+                available: format!("{}/{}", self.treated_regime_id, self.control_regime_id),
+            });
+        }
+        if self.horizon != other.horizon {
+            return Err(EvidenceRefusal::IncompatibleHorizon {
+                requested: other.horizon,
+                available: self.horizon,
+            });
+        }
+        if self.design.assignment_design != other.design.assignment_design {
+            return Err(EvidenceRefusal::UnsupportedAssignmentDesign(
+                other.design.assignment_design.clone(),
+            ));
+        }
+        if self.evidence_id == other.evidence_id || !declared_independent {
+            return Err(EvidenceRefusal::DependenceUnknown {
+                left: self.evidence_id.clone(),
+                right: other.evidence_id.clone(),
+            });
+        }
+        let (ka, kb) = (self.components.len(), other.components.len());
+        if other.components.iter().any(|c| self.component_index(&c.name).is_some()) {
+            return Err(EvidenceRefusal::Invalid(
+                "merged evidence repeats a component name".into(),
+            ));
+        }
+        let k = ka + kb;
+        let embed = |a: &Dependence, b: &Dependence, treated: bool| -> Vec<f64> {
+            let pick = |d: &Dependence, n: usize| -> Vec<f64> {
+                match d {
+                    Dependence::Joint { treated: t, control: c } => {
+                        if treated {
+                            t.clone()
+                        } else {
+                            c.clone()
+                        }
+                    }
+                    Dependence::PointOnly => unreachable!("point-only evidence is refused above"),
+                    Dependence::JointArms { .. } => {
+                        unreachable!("joint arm dependence is refused above")
+                    }
+                    Dependence::MarginalsOnly { treated: t, control: c } => {
+                        let v = if treated { t } else { c };
+                        let mut m = vec![0.0; n * n];
+                        for (i, x) in v.iter().enumerate() {
+                            m[i * n + i] = *x;
+                        }
+                        m
+                    }
+                }
+            };
+            let (ma, mb) = (pick(a, ka), pick(b, kb));
+            let mut m = vec![0.0; k * k];
+            for i in 0..ka {
+                for j in 0..ka {
+                    m[i * k + j] = ma[i * ka + j];
+                }
+            }
+            for i in 0..kb {
+                for j in 0..kb {
+                    m[(ka + i) * k + ka + j] = mb[i * kb + j];
+                }
+            }
+            m
+        };
+        let both_joint = matches!(self.dependence, Dependence::Joint { .. })
+            && matches!(other.dependence, Dependence::Joint { .. });
+        let dependence = if both_joint {
+            Dependence::Joint {
+                treated: embed(&self.dependence, &other.dependence, true),
+                control: embed(&self.dependence, &other.dependence, false),
+            }
+        } else {
+            let diag = |m: &[f64]| (0..k).map(|i| m[i * k + i]).collect::<Vec<_>>();
+            let (t, c) = (
+                embed(&self.dependence, &other.dependence, true),
+                embed(&self.dependence, &other.dependence, false),
+            );
+            Dependence::MarginalsOnly { treated: diag(&t), control: diag(&c) }
+        };
+        let exposure = match (&self.exposure, &other.exposure) {
+            (
+                Exposure::NoBetweenUnitInterference { .. },
+                Exposure::NoBetweenUnitInterference { .. },
+            ) => self.exposure.clone(),
+            _ => Exposure::Unspecified,
+        };
+        Ok(Self {
+            evidence_id: format!("{}+{}", self.evidence_id, other.evidence_id),
+            population_id: self.population_id.clone(),
+            treated_regime_id: self.treated_regime_id.clone(),
+            control_regime_id: self.control_regime_id.clone(),
+            horizon: self.horizon,
+            components: self.components.iter().chain(&other.components).cloned().collect(),
+            treated_means: self.treated_means.iter().chain(&other.treated_means).copied().collect(),
+            control_means: self.control_means.iter().chain(&other.control_means).copied().collect(),
+            dependence,
+            design: DesignRecord {
+                treated_units: self.design.treated_units.min(other.design.treated_units),
+                control_units: self.design.control_units.min(other.design.control_units),
+                ..self.design.clone()
+            },
+            adjustments: self.adjustments.iter().chain(&other.adjustments).cloned().collect(),
+            exposure,
+            design_contract_id: None,
+            design_details: None,
+            marginal_supports: self
+                .marginal_supports
+                .iter()
+                .chain(&other.marginal_supports)
+                .cloned()
+                .collect(),
+        })
+    }
+
+    /// Identity of the scientific premise: what was estimated, in whom, under which contrast and
+    /// design and exposure assumption. Independent of the observations and the adjustment.
+    #[must_use]
+    pub fn scientific_identity(&self) -> String {
+        let mut w = CanonicalWriter::new("antecedent.decision_evidence.scientific.v1");
+        w.text(&self.population_id).text(&self.treated_regime_id).text(&self.control_regime_id);
+        w.word(u64::from(self.horizon)).text(&self.design.assignment_design);
+        for c in &self.components {
+            w.text(&c.name).text(&c.variable_id).text(&c.units);
+        }
+        if let Some(id) = &self.design_contract_id {
+            w.text(id);
+        }
+        match &self.design_details {
+            Some(DesignDetails::MatchedPairs {
+                cluster_ids,
+                pairs,
+                matching_variables,
+                treatment_probabilities,
+                cluster_sizes,
+                preassignment_assumption_id,
+                independent_pairs_assumption_id,
+                consistency_assumption_id,
+                realized_assignment: _,
+            }) => {
+                w.word(1)
+                    .text(preassignment_assumption_id)
+                    .text(independent_pairs_assumption_id)
+                    .text(consistency_assumption_id);
+                w.word(cluster_ids.len() as u64).word(matching_variables.len() as u64);
+                for v in cluster_ids.iter().chain(matching_variables) {
+                    w.text(v);
+                }
+                for (a, b) in pairs {
+                    w.word(*a as u64).word(*b as u64);
+                }
+                w.reals(treatment_probabilities);
+                for n in cluster_sizes {
+                    w.word(*n as u64);
+                }
+            }
+            Some(DesignDetails::TemporalExcursion {
+                unit_ids,
+                periods,
+                treatment_probabilities,
+                realized_assignment: _,
+                lag,
+                min_probability,
+                assignment_law_id,
+                independent_units_assumption_id,
+                administrative_followup_assumption_id,
+                consistency_assumption_id,
+                paired_decisions,
+            }) => {
+                w.word(3)
+                    .word(u64::from(*lag))
+                    .real(*min_probability)
+                    .text(assignment_law_id)
+                    .text(independent_units_assumption_id)
+                    .text(administrative_followup_assumption_id)
+                    .text(consistency_assumption_id)
+                    .word(*paired_decisions as u64);
+                w.word(unit_ids.len() as u64);
+                for id in unit_ids {
+                    w.text(id);
+                }
+                w.word(periods.len() as u64);
+                for period in periods {
+                    w.text(&period.to_string());
+                }
+                w.reals(treatment_probabilities);
+            }
+            Some(DesignDetails::AdaptiveRegime {
+                subject_ids,
+                periods,
+                policy_prespecification_assumption_id,
+                positivity_assumption_id,
+                exchangeability_assumption_id,
+                consistency_assumption_id,
+                followup_assumption_id,
+                failures,
+            }) => {
+                w.word(5)
+                    .word(u64::from(*periods))
+                    .text(policy_prespecification_assumption_id)
+                    .text(positivity_assumption_id)
+                    .text(exchangeability_assumption_id)
+                    .text(consistency_assumption_id)
+                    .text(followup_assumption_id);
+                for id in subject_ids {
+                    w.text(id);
+                }
+                for failure in failures {
+                    match failure {
+                        Some(v) => {
+                            w.word(1).text(v);
+                        }
+                        None => {
+                            w.word(0);
+                        }
+                    }
+                }
+            }
+            Some(DesignDetails::TemporalRegime {
+                unit_ids,
+                periods,
+                realized_assignment: _,
+                observed_minimum_probabilities: _,
+                confounder_ids,
+                active_path,
+                reference_path,
+                method,
+                min_probability,
+                positivity_assumption_id,
+                exchangeability_assumption_id,
+                consistency_assumption_id,
+                followup_assumption_id,
+                model_assumption_id,
+                bootstrap_replicates,
+            }) => {
+                w.word(4)
+                    .text(method)
+                    .real(*min_probability)
+                    .text(positivity_assumption_id)
+                    .text(exchangeability_assumption_id)
+                    .text(consistency_assumption_id)
+                    .text(followup_assumption_id)
+                    .text(model_assumption_id);
+                match bootstrap_replicates {
+                    Some(n) => {
+                        w.word(1).word(*n as u64);
+                    }
+                    None => {
+                        w.word(0);
+                    }
+                }
+                w.word(unit_ids.len() as u64);
+                for id in unit_ids {
+                    w.text(id);
+                }
+                for period in periods {
+                    w.text(&period.to_string());
+                }
+                w.word(confounder_ids.len() as u64);
+                for id in confounder_ids {
+                    w.text(id);
+                }
+                w.word(active_path.len() as u64);
+                for a in active_path {
+                    w.word(u64::from(*a));
+                }
+                w.word(reference_path.len() as u64);
+                for a in reference_path {
+                    w.word(u64::from(*a));
+                }
+            }
+            Some(DesignDetails::Switchback {
+                sequence_ids,
+                period_ids,
+                treatment_probabilities,
+                no_carryover_assumption_id,
+                washout_rule_id,
+                washout_periods,
+                independent_sequences_assumption_id,
+                consistency_assumption_id,
+                realized_assignment: _,
+            }) => {
+                w.word(2)
+                    .text(no_carryover_assumption_id)
+                    .text(washout_rule_id)
+                    .word(*washout_periods as u64)
+                    .text(independent_sequences_assumption_id)
+                    .text(consistency_assumption_id);
+                w.word(sequence_ids.len() as u64).word(period_ids.len() as u64);
+                for s in sequence_ids.iter().chain(period_ids) {
+                    w.text(s);
+                }
+                w.reals(treatment_probabilities);
+            }
+            None => {}
+        }
+        match &self.exposure {
+            Exposure::NoBetweenUnitInterference { assumption_id } => {
+                w.word(1).text(assumption_id);
+            }
+            Exposure::BoundedSpillover { assumption_id, bias_bounds } => {
+                w.word(2).text(assumption_id).reals(bias_bounds);
+            }
+            Exposure::BoundedArmSpillover {
+                assumption_id,
+                treated_bias_bounds,
+                control_bias_bounds,
+            } => {
+                w.word(3).text(assumption_id).reals(treated_bias_bounds).reals(control_bias_bounds);
+            }
+            Exposure::Unspecified => {
+                w.word(0);
+            }
+        }
+        w.finish_hex()
+    }
+
+    /// Identity of the adjustment specification.
+    #[must_use]
+    pub fn adjustment_identity(&self) -> String {
+        let mut w = CanonicalWriter::new("antecedent.decision_evidence.adjustment.v1");
+        let mut sorted = self.adjustments.clone();
+        sorted.sort_by(|a, b| a.component.cmp(&b.component));
+        for a in &sorted {
+            w.text(&a.component);
+            match &a.kind {
+                AdjustmentKind::None => {
+                    w.word(0);
+                }
+                AdjustmentKind::FixedCuped { covariate, coefficient } => {
+                    w.word(1).text(covariate).real(*coefficient);
+                }
+                AdjustmentKind::CenteredFixedCuped { covariate, coefficient } => {
+                    w.word(2).text(covariate).real(*coefficient);
+                }
+            }
+        }
+        w.finish_hex()
+    }
+
+    /// Identity of the fitted joint estimate: the observations, the premise and the adjustment.
+    #[must_use]
+    pub fn estimate_identity(&self) -> String {
+        let mut w = CanonicalWriter::new("antecedent.decision_evidence.estimate.v1");
+        w.text(&self.evidence_id)
+            .text(&self.scientific_identity())
+            .text(&self.adjustment_identity());
+        match &self.design_details {
+            Some(
+                DesignDetails::MatchedPairs { realized_assignment, .. }
+                | DesignDetails::Switchback { realized_assignment, .. }
+                | DesignDetails::TemporalExcursion { realized_assignment, .. }
+                | DesignDetails::TemporalRegime { realized_assignment, .. },
+            ) => {
+                w.word(realized_assignment.len() as u64);
+                for assignment in realized_assignment {
+                    w.word(u64::from(*assignment));
+                }
+            }
+            Some(DesignDetails::AdaptiveRegime { .. }) | None => {}
+        }
+        if let Some(DesignDetails::TemporalRegime { observed_minimum_probabilities, .. }) =
+            &self.design_details
+        {
+            w.word(observed_minimum_probabilities.len() as u64);
+            for p in observed_minimum_probabilities {
+                match p {
+                    Some(v) => {
+                        w.word(1).real(*v);
+                    }
+                    None => {
+                        w.word(0);
+                    }
+                }
+            }
+        }
+        w.word(self.design.treated_units as u64)
+            .word(self.design.control_units as u64)
+            .word(self.design.outcome_rows as u64)
+            .reals(&self.treated_means)
+            .reals(&self.control_means);
+        match &self.dependence {
+            Dependence::Joint { treated, control } => {
+                w.word(0).reals(treated).reals(control);
+            }
+            Dependence::JointArms { covariance } => {
+                w.word(2).reals(covariance);
+            }
+            Dependence::PointOnly => {
+                w.word(3);
+            }
+            Dependence::MarginalsOnly { treated, control } => {
+                w.word(1).reals(treated).reals(control);
+            }
+        }
+        w.finish_hex()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::derive::tests::{evidence, no_interference};
+    use super::*;
+
+    fn spec(design: &str, adjustments: Vec<ComponentAdjustment>) -> JointExperimentSpec {
+        JointExperimentSpec {
+            outcomes: vec![OutcomeComponent {
+                name: "value".into(),
+                variable_id: "v".into(),
+                units: "usd".into(),
+            }],
+            assignment_design: design.into(),
+            population_id: "pop".into(),
+            treated_regime_id: "ship".into(),
+            control_regime_id: "hold".into(),
+            horizon: 4,
+            adjustments,
+            exposure: no_interference(),
+        }
+    }
+
+    fn cuped() -> Vec<ComponentAdjustment> {
+        vec![ComponentAdjustment {
+            component: "value".into(),
+            kind: AdjustmentKind::FixedCuped { covariate: "pre".into(), coefficient: 0.5 },
+        }]
+    }
+
+    #[test]
+    fn compile_states_design_and_admissibility_before_any_fit() {
+        let c = compile_joint_experiment(spec("cluster", cuped())).unwrap();
+        assert_eq!(c.unit_of_analysis, "assignment cluster");
+        let learned =
+            c.adjustment_verdicts.iter().find(|v| v.strategy == "learned_regression").unwrap();
+        assert!(learned.admissible.is_err());
+        assert!(
+            c.adjustment_verdicts
+                .iter()
+                .find(|v| v.strategy == "fixed_cuped")
+                .unwrap()
+                .admissible
+                .is_ok()
+        );
+        assert!(c.obligations.iter().any(|o| o.id == "fixed_pre_assignment_coefficient"));
+        assert!(
+            compile_joint_experiment(spec("cluster", vec![]))
+                .unwrap()
+                .obligations
+                .iter()
+                .all(|o| o.id != "fixed_pre_assignment_coefficient")
+        );
+        assert!(matches!(
+            compile_joint_experiment(spec("stepped_wedge", vec![])),
+            Err(EvidenceRefusal::UnsupportedAssignmentDesign(_))
+        ));
+    }
+
+    #[test]
+    fn compiled_premise_identity_matches_the_evidence_built_from_it() {
+        let ev = evidence(1.0, no_interference());
+        let spec = JointExperimentSpec {
+            outcomes: ev.components.clone(),
+            assignment_design: "cluster".into(),
+            population_id: "pop".into(),
+            treated_regime_id: "ship".into(),
+            control_regime_id: "hold".into(),
+            horizon: 4,
+            adjustments: vec![],
+            exposure: no_interference(),
+        };
+        assert_eq!(
+            compile_joint_experiment(spec).unwrap().scientific_identity,
+            ev.scientific_identity()
+        );
+    }
+
+    #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the calculation or fixture checks exact discrete or boundary values"
+    )]
+    fn merging_requires_declared_independence_and_matching_premise() {
+        let a = evidence(1.0, no_interference());
+        let mut b = evidence(1.0, no_interference());
+        b.evidence_id = "exp-2".into();
+        b.components = vec![OutcomeComponent {
+            name: "refunds".into(),
+            variable_id: "r".into(),
+            units: "u".into(),
+        }];
+        b.treated_means = vec![0.1];
+        b.control_means = vec![0.1];
+        b.dependence = Dependence::Joint { treated: vec![0.01], control: vec![0.01] };
+        assert!(matches!(
+            a.merge_independent(&b, false),
+            Err(EvidenceRefusal::DependenceUnknown { .. })
+        ));
+        assert!(matches!(
+            a.merge_independent(&a, true),
+            Err(EvidenceRefusal::DependenceUnknown { .. })
+        ));
+        let m = a.merge_independent(&b, true).unwrap();
+        assert_eq!(m.components.len(), 4);
+        let Dependence::Joint { treated, .. } = &m.dependence else { panic!() };
+        assert_eq!(treated[3 * 4], 0.0, "cross-experiment covariance is the declared zero");
+        let mut c = b.clone();
+        c.horizon = 9;
+        assert!(matches!(
+            a.merge_independent(&c, true),
+            Err(EvidenceRefusal::IncompatibleHorizon { .. })
+        ));
+    }
+
+    #[test]
+    fn few_independent_units_leave_no_interval_however_many_rows() {
+        let mut ev = evidence(1.0, no_interference());
+        ev.design = DesignRecord {
+            assignment_design: "cluster".into(),
+            treated_units: 8,
+            control_units: 8,
+            outcome_rows: 100_000,
+        };
+        let q = DerivedQuantity {
+            name: "v".into(),
+            units: "u".into(),
+            expr: UtilityExpr::Input(0),
+            inputs: vec![InputBinding::Measured("value".into())],
+        };
+        let req = derive::tests::request();
+        let r = derive(&ev, &req, &q).unwrap();
+        assert!(r.sampling.is_none() && r.contrast.is_some());
+        assert!(matches!(
+            r.unresolved[0],
+            UnresolvedReason::TooFewIndependentUnits { required: 30, .. }
+        ));
+    }
+
+    #[test]
+    fn covariance_validation_checks_joint_positive_semidefiniteness() {
+        let indefinite = [1.0, -0.9, -0.9, -0.9, 1.0, -0.9, -0.9, -0.9, 1.0];
+        assert!(!valid_component_covariance(&indefinite, true, 3));
+        assert!(valid_component_covariance(&[1.0, 1.0, 1.0, 1.0], true, 2));
+        assert!(!valid_component_covariance(&[1.0, -1.0], false, 2));
+    }
+
+    #[test]
+    fn invalid_covariance_is_refused() {
+        let mut ev = evidence(1.0, no_interference());
+        if let Dependence::Joint { treated, .. } = &mut ev.dependence {
+            treated[1] = 5.0;
+            treated[3] = 5.0;
+        }
+        let rebuilt = JointExperimentEvidence::new(
+            "x",
+            "pop",
+            ("a", "b"),
+            1,
+            ev.components.clone(),
+            (ev.treated_means.clone(), ev.control_means.clone()),
+            ev.dependence.clone(),
+            ev.design.clone(),
+            vec![],
+            no_interference(),
+        );
+        assert!(matches!(rebuilt, Err(EvidenceRefusal::Invalid(_))));
+    }
+}

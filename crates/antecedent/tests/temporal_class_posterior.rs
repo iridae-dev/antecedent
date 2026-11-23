@@ -1,6 +1,6 @@
 //! TemporalCpdag/Pag graph-posterior Pulse/Sustained: policy, mass, and suites.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,
@@ -93,11 +93,42 @@ fn pulse() -> TemporalEffectQuery {
     TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
 }
 
-fn licensed_pulse() -> TemporalEffectQuery {
+fn supported_pulse() -> TemporalEffectQuery {
     TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
         .with_policy(antecedent_core::TemporalPolicy::pulse(-1))
         .with_horizon_steps(1)
         .with_max_history_lag(Some(1))
+}
+
+/// OLS coefficient of `t@-1` in `y ~ 1 + t@-1 (+ z@-1)` over `series()`, the structural pulse
+/// effect the identified atoms recover (the law is `y_t = 1.4 t_{t-1} + 0.6 z_{t-1} + wiggle`).
+fn series_lagged_coefficient(adjust_z: bool) -> f64 {
+    let n = 48usize;
+    let phase = |i: usize| f64::from(u32::try_from(i).unwrap()) * 0.37;
+    let t = |i: usize| f64::from(u8::from(phase(i).cos() > 0.0));
+    let z = |i: usize| phase(i).sin();
+    let y = |i: usize| 1.4 * t(i - 1) + 0.6 * z(i - 1) + 0.1 * (phase(i) * 1.7).sin();
+    let rows: Vec<usize> = (1..n).collect();
+    let m = rows.len() as f64;
+    let mean = |f: &dyn Fn(usize) -> f64| rows.iter().map(|&i| f(i)).sum::<f64>() / m;
+    let (xt, xz, yy) = (|i: usize| t(i - 1), |i: usize| z(i - 1), |i: usize| y(i));
+    let (mt, mz, my) = (mean(&xt), mean(&xz), mean(&yy));
+    let cov = |a: &dyn Fn(usize) -> f64, ma: f64, b: &dyn Fn(usize) -> f64, mb: f64| {
+        rows.iter().map(|&i| (a(i) - ma) * (b(i) - mb)).sum::<f64>() / m
+    };
+    let (stt, szz, stz) = (cov(&xt, mt, &xt, mt), cov(&xz, mz, &xz, mz), cov(&xt, mt, &xz, mz));
+    let (sty, szy) = (cov(&xt, mt, &yy, my), cov(&xz, mz, &yy, my));
+    if adjust_z { (sty * szz - szy * stz) / (stt * szz - stz * stz) } else { sty / stt }
+}
+
+/// The at-0 forms for both kinds, plus the explicit `t@-1` pulse where the class carries no
+/// visibility witness requirement (a `TemporalPag` atom needs one the single-mask posterior lacks).
+fn queries_for(kind: GraphPosteriorAtomKind) -> Vec<TemporalEffectQuery> {
+    let mut queries = vec![pulse(), sustained()];
+    if kind == GraphPosteriorAtomKind::Cpdag {
+        queries.push(supported_pulse());
+    }
+    queries
 }
 
 fn sustained() -> TemporalEffectQuery {
@@ -338,21 +369,25 @@ fn visible_pag_contemp() -> u64 {
 }
 
 #[test]
-fn temporal_pag_graph_posterior_licensed_pulse_runs() {
+fn temporal_pag_graph_posterior_supported_pulse_runs() {
     let gp = class_posterior(
         GraphPosteriorAtomKind::Pag,
         &[1.0],
         &[visible_pag_contemp()],
         &[lag_bit(3, 0, 1)],
     );
-    let result = run(gp, licensed_pulse(), InferenceMode::Frequentist, RefuteSuite::None);
+    let result = run(gp, supported_pulse(), InferenceMode::Frequentist, RefuteSuite::None);
     assert!(
         result.structural_response.is_some(),
-        "licensed pulse(-1) TemporalPag GP must identify"
+        "supported pulse(-1) TemporalPag GP must identify"
     );
+    let ate = result.estimate().as_effect().unwrap().ate;
+    // The atom keeps only t@-1 -> y, so the identified adjustment is empty and the effect is the
+    // simple OLS slope of y on t@-1 over series() (1.4952), not the structural 1.4.
+    let reference = series_lagged_coefficient(false);
     assert!(
-        result.estimate.as_effect().unwrap().ate.is_finite()
-            || result.identification.status != antecedent_core::IdentificationStatus::NotIdentified
+        (ate - reference).abs() < 1e-6,
+        "supported TemporalPag pulse {ate} vs unOLS slope {reference}"
     );
 }
 
@@ -366,26 +401,37 @@ fn temporal_class_graph_posterior_pulse_and_sustained_run() {
                 [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
             temporal_pag_from_dbn_atoms(0, identified, 0, 3, 1, &variables).unwrap();
         }
-        for query in [pulse(), sustained()] {
+        for query in queries_for(kind) {
             for inference in [
                 InferenceMode::Frequentist,
                 InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(8)),
             ] {
-                let result = run(gp.clone(), query.clone(), inference, RefuteSuite::None);
+                let result = run(gp.clone(), query.clone(), inference.clone(), RefuteSuite::None);
                 assert!(
                     result.structural_response.is_some(),
                     "{kind:?} {:?} missing mixture",
                     query.policy
                 );
-                assert!(
-                    result.estimate.as_effect().unwrap().ate.is_finite()
-                        || result
-                            .diagnostics
-                            .iter()
-                            .any(|d| d.message.contains("IdentifiedSetEnvelope")
-                                || d.message.contains("graph_dependent_atoms")),
-                    "{kind:?} produced neither a scalar nor a class policy"
-                );
+                let ate = result.estimate().as_effect().unwrap().ate;
+                if matches!(
+                    query.policy,
+                    antecedent_core::TemporalPolicy::Pulse { at: -1 }
+                        | antecedent_core::TemporalPolicy::Sustained { from: -1, until: -1 }
+                ) {
+                    // One identified atom (t@-1, z@-1 -> y; weight 1) of series(): the effect is
+                    // the OLS slope of y on t@-1 (z@-1 is a parent of y but not of t, so it is not a back-door
+                    // variable; Bayesian: within the 8-draw error).
+                    let reference = series_lagged_coefficient(false);
+                    let tol = if inference == InferenceMode::Frequentist { 1e-6 } else { 0.15 };
+                    assert!(
+                        (ate - reference).abs() < tol,
+                        "{kind:?} {:?}: effect {ate} vs OLS slope {reference}",
+                        query.policy
+                    );
+                } else {
+                    // The unsupported at-0 forms are only required to run to a scalar here.
+                    assert!(ate.is_finite(), "{kind:?} {:?}: scalar expected", query.policy);
+                }
             }
         }
     }
@@ -462,7 +508,7 @@ fn assert_disagreeing_estimands_withhold_scalar() {
                 query.policy
             );
             assert!(
-                !result.estimate.as_effect().unwrap().ate.is_finite(),
+                !result.estimate().as_effect().unwrap().ate.is_finite(),
                 "{kind:?} {:?}: scalar ate must be withheld",
                 query.policy
             );
@@ -494,7 +540,7 @@ fn assert_same_estimand_scalar() {
     let identified = identified_lag_mask();
     for kind in [GraphPosteriorAtomKind::Cpdag, GraphPosteriorAtomKind::Pag] {
         let gp = class_posterior(kind, &[1.0], &[0], &[identified]);
-        for query in [pulse(), sustained()] {
+        for query in queries_for(kind) {
             let result =
                 run(gp.clone(), query.clone(), InferenceMode::Frequentist, RefuteSuite::None);
             assert!(
@@ -503,7 +549,7 @@ fn assert_same_estimand_scalar() {
                 query.policy
             );
             assert!(
-                result.estimate.as_effect().unwrap().ate.is_finite(),
+                result.estimate().as_effect().unwrap().ate.is_finite(),
                 "{kind:?} {:?}: scalar ate required",
                 query.policy
             );
@@ -512,7 +558,21 @@ fn assert_same_estimand_scalar() {
                 Some(antecedent_core::ResponseValue::Scalar(value)) => *value,
                 _ => panic!("{kind:?} {:?}: conditional_on_identified", query.policy),
             };
-            assert!((conditional - result.estimate.as_effect().unwrap().ate).abs() < 1e-12);
+            assert!((conditional - result.estimate().as_effect().unwrap().ate).abs() < 1e-12);
+            // series(): y_t = 1.4 t_{t-1} + 0.6 z_{t-1} + wiggle, and the identified atom keeps
+            // t@-1 -> y, so the structural effect is 1.4 whatever else enters the adjustment.
+            if matches!(
+                query.policy,
+                antecedent_core::TemporalPolicy::Pulse { at: -1 }
+                    | antecedent_core::TemporalPolicy::Sustained { from: -1, until: -1 }
+            ) {
+                let reference = series_lagged_coefficient(false);
+                assert!(
+                    (conditional - reference).abs() < 1e-6,
+                    "{kind:?} {:?}: effect {conditional} vs OLS slope {reference}",
+                    query.policy
+                );
+            }
             assert!(
                 result.diagnostics.iter().any(|d| {
                     d.code.as_ref() == "estimate.graph_posterior.structural_aggregation"
@@ -534,6 +594,28 @@ fn temporal_class_graph_posterior_same_estimand_scalar() {
     assert_same_estimand_scalar();
 }
 
+/// `y_t` = 1.4 t_{t-1} + 0.1 sin(1.7 phase), z a distractor: the graph t@-1 -> y has no omitted
+/// parent, so the structural coefficient is the effect.
+fn pag_pin_series() -> TimeSeriesData {
+    let n = 48usize;
+    let mut t = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    let mut z = vec![0.0; n];
+    for i in 0..n {
+        let phase = f64::from(u32::try_from(i).unwrap()) * 0.37;
+        z[i] = phase.sin();
+        t[i] = f64::from(u8::from(phase.cos() > 0.0));
+        if i > 0 {
+            y[i] = 1.4 * t[i - 1] + 0.1 * (phase * 1.7).sin();
+        }
+    }
+    TimeSeriesData::from_f64_columns(
+        [("t", t.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())],
+        1,
+    )
+    .unwrap()
+}
+
 #[test]
 fn temporal_class_graph_posterior_numeric_pins() {
     let pin = fixture_temporal_effect_pin();
@@ -552,47 +634,51 @@ fn temporal_class_graph_posterior_numeric_pins() {
     let unidentified_truth = pin["expected_unidentified_mass"].as_f64().unwrap();
     let tolerance = pin["effect_abs_tolerance"].as_f64().unwrap();
     for kind in [GraphPosteriorAtomKind::Cpdag, GraphPosteriorAtomKind::Pag] {
-        let (data, gp, pin_numeric) = if kind == GraphPosteriorAtomKind::Cpdag {
-            (fixture_series.clone(), fixture_class_posterior(kind, &pin), true)
+        // The PAG atoms need a visibility witness, which the two-variable fixture series cannot
+        // carry; `pag_pin_series` is a three-variable law whose only structural cause of y is
+        // 1.4 * t@-1, so its pulse and sustained effects are 1.4 for any weights over atoms that
+        // keep t@-1 -> y, and the lag-autoregressive atom is the one left unidentified.
+        let (data, gp, truth, band) = if kind == GraphPosteriorAtomKind::Cpdag {
+            (fixture_series.clone(), fixture_class_posterior(kind, &pin), effect_truth, tolerance)
         } else {
-            (series(), class_posterior(kind, &[1.0], &[0], &[identified_lag_mask()]), false)
+            let weights: Vec<f64> = pin["posterior_weights"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_f64().unwrap())
+                .collect();
+            (
+                pag_pin_series(),
+                class_posterior(
+                    kind,
+                    &weights,
+                    &[visible_pag_contemp(), visible_pag_contemp()],
+                    &[lag_bit(3, 0, 1), lag_bit(3, 0, 1) | lag_bit(3, 0, 0)],
+                ),
+                1.4,
+                0.05,
+            )
         };
         for query in [fixture_pulse(), fixture_sustained()] {
             for inference in [
                 InferenceMode::Frequentist,
                 InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(16)),
             ] {
-                let result = run_on(
-                    &data,
-                    gp.clone(),
-                    if pin_numeric {
-                        query.clone()
-                    } else if matches!(query.policy, TemporalPolicy::Pulse { .. }) {
-                        pulse()
-                    } else {
-                        sustained()
-                    },
-                    inference,
-                    RefuteSuite::None,
-                    0,
+                let result =
+                    run_on(&data, gp.clone(), query.clone(), inference, RefuteSuite::None, 0);
+                assert_eq!(result.support_status().unwrap().as_str(), "supported", "{kind:?}");
+                assert!(
+                    (result.estimate().as_effect().unwrap().ate - truth).abs() < band,
+                    "{kind:?} {:?}: effect {} vs {truth}",
+                    query.policy,
+                    result.estimate().as_effect().unwrap().ate
                 );
-                assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{kind:?}");
-                if pin_numeric {
-                    assert!(
-                        (result.estimate.as_effect().unwrap().ate - effect_truth).abs() < tolerance,
-                        "{kind:?} {:?}: effect {} vs {effect_truth}",
-                        query.policy,
-                        result.estimate.as_effect().unwrap().ate
-                    );
-                    let mixture = result.structural_response.as_ref().expect("mixture");
-                    assert!(
-                        (mixture.unidentified_mass - unidentified_truth).abs() < 1e-12,
-                        "{kind:?}: unidentified mass {}",
-                        mixture.unidentified_mass
-                    );
-                } else {
-                    assert!(result.structural_response.is_some(), "{kind:?} mixture");
-                }
+                let mixture = result.structural_response.as_ref().expect("mixture");
+                assert!(
+                    (mixture.unidentified_mass - unidentified_truth).abs() < 1e-12,
+                    "{kind:?}: unidentified mass {}",
+                    mixture.unidentified_mass
+                );
             }
         }
     }
@@ -625,14 +711,14 @@ fn temporal_class_graph_posterior_shared_block_se_when_mixable() {
                 "{kind:?} {:?}: must publish shared circular-block SE",
                 query.policy
             );
-            let se = result.estimate.as_effect().unwrap().se_bootstrap().expect("se_bootstrap");
+            let se = result.estimate().as_effect().unwrap().se_bootstrap().expect("se_bootstrap");
             assert!(se.is_finite() && se > 0.0, "{kind:?} {:?}: positive block SE", query.policy);
             assert!(
                 result
                     .diagnostics
                     .iter()
                     .all(|d| d.code.as_ref() != "estimate.graph_posterior.joint_if_se")
-                    || result.estimate.as_effect().unwrap().scores.influence.is_some(),
+                    || result.estimate().as_effect().unwrap().scores.influence.is_some(),
                 "joint-IF diagnostic only when influence is published"
             );
         }
@@ -652,9 +738,9 @@ fn temporal_class_graph_posterior_shared_block_withheld_when_graph_dependent() {
         32,
     );
     assert!(has_policy(&result, StructuralAggregationPolicy::GraphDependentAtoms));
-    assert!(!result.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(!result.estimate().as_effect().unwrap().ate.is_finite());
     assert!(!has_diagnostic(&result, SHARED_BLOCK));
-    assert!(result.estimate.as_effect().unwrap().se_bootstrap().is_none());
+    assert!(result.estimate().as_effect().unwrap().se_bootstrap().is_none());
 }
 
 fn mediation_series(n: usize) -> TimeSeriesData {
@@ -763,11 +849,11 @@ fn temporal_class_graph_posterior_mediation_envelope() {
         RefuteSuite::None,
         40,
     );
-    assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(result.support_status().unwrap().as_str(), "supported");
     assert!(
-        (result.estimate.as_effect().unwrap().ate - effect_truth).abs() < tolerance,
+        (result.estimate().as_effect().unwrap().ate - effect_truth).abs() < tolerance,
         "mediated {} vs truth {effect_truth}",
-        result.estimate.as_effect().unwrap().ate
+        result.estimate().as_effect().unwrap().ate
     );
     assert_eq!(result.identification.status, IdentificationStatus::GraphDependent);
     assert!(has_policy(&result, StructuralAggregationPolicy::SameEstimandWeightedMean));
@@ -775,12 +861,32 @@ fn temporal_class_graph_posterior_mediation_envelope() {
     assert!((structural.unidentified_mass - unidentified_truth).abs() < 1e-12);
     assert!(
         result
-            .estimate
+            .estimate()
             .as_effect()
             .unwrap()
             .se_bootstrap()
             .is_some_and(|se| se.is_finite() && se > 0.0)
     );
+
+    // The Bayesian cell is held to the same closed-form path product and the same
+    // unidentified mass; the pin is the structural equation, not the frequentist result.
+    let bayesian = run_mediation(
+        &series,
+        known_truth_cpdag_mediation_posterior(pin, &weights),
+        mediation_query(),
+        InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(256)),
+        RefuteSuite::None,
+        0,
+    );
+    assert_eq!(bayesian.support_status().unwrap().as_str(), "supported");
+    assert!(
+        (bayesian.estimate().as_effect().unwrap().ate - effect_truth).abs() < tolerance,
+        "Bayesian mediated {} vs truth {effect_truth}",
+        bayesian.estimate().as_effect().unwrap().ate
+    );
+    assert_eq!(bayesian.identification.status, IdentificationStatus::GraphDependent);
+    let structural = bayesian.structural_response.as_ref().expect("Bayesian structural mixture");
+    assert!((structural.unidentified_mass - unidentified_truth).abs() < 1e-12);
 }
 
 #[test]
@@ -801,7 +907,7 @@ fn temporal_class_graph_posterior_mediation_cheap_and_full_run() {
         for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
             let result =
                 run_mediation(&series, gp.clone(), mediation_query(), inference.clone(), suite, 0);
-            assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+            assert_eq!(result.support_status().unwrap().as_str(), "supported");
             assert!(
                 result.diagnostics.iter().any(|d| {
                     d.code.as_ref() == "refute.envelope.temporal_class_mediation_posterior"
@@ -834,14 +940,14 @@ fn bayesian_temporal_mediation_keeps_partial_mass_posterior_conditional() {
         RefuteSuite::None,
         0,
     );
-    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(result.estimate().as_effect().unwrap().ate.is_finite());
     assert!(result.posterior.is_none());
     assert_eq!(result.identification.status, IdentificationStatus::GraphDependent);
     assert!(
         result
             .diagnostics
             .iter()
-            .any(|d| d.code.as_ref() == "estimate.graph_posterior.posterior_withheld")
+            .any(|d| d.code.as_ref() == "estimate.graph_posterior.no_posterior_method")
     );
 }
 
@@ -978,7 +1084,7 @@ fn temporal_class_graph_posterior_response_mixes() {
                 [(InferenceMode::Frequentist, None), (flat_bayesian(400), Some(400))]
             {
                 let result = run_response(gp.clone(), query.clone(), inference, RefuteSuite::None);
-                assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{kind:?}");
+                assert_eq!(result.support_status().unwrap().as_str(), "supported", "{kind:?}");
                 assert_atoms_match_structural_truth(
                     &result,
                     query_kind,
@@ -1018,7 +1124,7 @@ fn temporal_class_graph_posterior_intervention_response_cheap_and_full_mix_atom_
             for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
                 let result =
                     run_response(gp.clone(), intervention_response(), inference.clone(), suite);
-                assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{kind:?}");
+                assert_eq!(result.support_status().unwrap().as_str(), "supported", "{kind:?}");
                 assert_atoms_match_structural_truth(
                     &result,
                     "set",
@@ -1036,6 +1142,149 @@ fn temporal_class_graph_posterior_intervention_response_cheap_and_full_mix_atom_
             }
         }
     }
+}
+
+#[test]
+fn temporal_class_response_refuters_check_levels_and_shift_with_intercept() {
+    fn data(intercept: f64) -> TimeSeriesData {
+        let n = 240usize;
+        let mut t = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        let mut z = vec![0.0; n];
+        for i in 0..n {
+            let x = i as f64;
+            t[i] = f64::from(u8::from((x * 1.31).sin() > 0.0));
+            z[i] = (x * 0.19).sin();
+            if i > 0 {
+                y[i] = intercept + 2.0 * t[i - 1] + 0.01 * (x * 0.73).cos();
+            }
+        }
+        TimeSeriesData::from_f64_columns(
+            [("t", t.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())],
+            1,
+        )
+        .unwrap()
+    }
+    fn execute(offset: f64, kind: GraphPosteriorAtomKind) -> antecedent::StudyResult {
+        let gp = if kind == GraphPosteriorAtomKind::Pag {
+            class_posterior(kind, &[1.0], &[visible_pag_contemp()], &[lag_bit(3, 0, 1)])
+        } else {
+            class_posterior(kind, &[1.0], &[0], &[identified_lag_mask()])
+        };
+        Study::series(data(offset))
+            .graph_posterior(gp)
+            .query(intervention_response())
+            .refute(RefuteSuite::Cheap)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(1))
+            .unwrap()
+    }
+    for kind in [GraphPosteriorAtomKind::Cpdag, GraphPosteriorAtomKind::Pag] {
+        let base = execute(10.0, kind);
+        let shifted = execute(15.0, kind);
+        assert!(!base.refutations.is_empty(), "{kind:?}: missing level reports");
+        assert_eq!(base.refutations.len(), shifted.refutations.len());
+        for (a, b) in base.refutations.iter().zip(&shifted.refutations) {
+            assert!((a.original_ate - 12.0).abs() < 0.1, "{kind:?}: {}", a.original_ate);
+            assert!((b.original_ate - a.original_ate - 5.0).abs() < 1e-6);
+            assert!((a.original_ate - 2.0).abs() > 5.0, "the report used the pulse contrast");
+        }
+    }
+}
+
+#[test]
+fn temporal_class_completion_reports_cannot_certify_whole_after_scope_mutation() {
+    // In the first graph z at the treatment time is a parent of both t and
+    // the subsequent y; the second has only t -> y. Both responses identify,
+    // but they require different adjustment functionals.
+    let posterior = class_posterior(
+        GraphPosteriorAtomKind::Cpdag,
+        &[0.5, 0.5],
+        &[z_confounds_t_contemp(), 0],
+        &[identified_lag_mask(), t_to_y_lag_mask()],
+    );
+    let mut result = Study::series(disagreeing_series())
+        .graph_posterior(posterior)
+        .query(intervention_response())
+        .refute(RefuteSuite::Cheap)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(1))
+        .unwrap();
+    assert!(
+        has_policy(&result, StructuralAggregationPolicy::GraphDependentAtoms),
+        "expected different identified functionals; diagnostics: {:?}",
+        result.diagnostics
+    );
+    assert_eq!(
+        result
+            .structural_response
+            .as_ref()
+            .unwrap()
+            .atoms
+            .iter()
+            .filter(|atom| atom.value.is_some())
+            .count(),
+        2,
+        "both graph points must be retained"
+    );
+    assert!(
+        result.refutations.iter().any(|report| report.scope.is_some()),
+        "expected scoped completion reports; diagnostics: {:?}",
+        result.diagnostics
+    );
+    // Mutable access invalidates the private checked owner, even if a caller
+    // removes every scope descriptor from the public view.
+    for report in &mut result.refutations {
+        report.scope = None;
+    }
+    assert!(result.analysis_result_wire(&intervention_response()).is_err());
+}
+
+#[test]
+fn temporal_class_level_does_not_accept_scalar_custom_validator() {
+    use antecedent_validate::{
+        CustomEffectValidator, RefutationProblem, RefutationReport, ValidationError,
+    };
+    struct ScalarOnly;
+    impl CustomEffectValidator for ScalarOnly {
+        fn name(&self) -> &'static str {
+            "scalar_only"
+        }
+        fn validate(
+            &self,
+            _: &RefutationProblem<'_>,
+            _: &ExecutionContext,
+        ) -> Result<RefutationReport, ValidationError> {
+            panic!("a scalar callback cannot validate a response level")
+        }
+    }
+    let gp = class_posterior(GraphPosteriorAtomKind::Cpdag, &[1.0], &[0], &[identified_lag_mask()]);
+    let result = Study::series(series())
+        .graph_posterior(gp)
+        .query(intervention_response())
+        .refute(RefuteSuite::None)
+        .custom_validators(vec![std::sync::Arc::new(ScalarOnly)])
+        .build();
+    assert!(result.is_err());
+}
+
+#[test]
+fn temporal_class_level_validation_honors_pre_cancelled_context() {
+    let gp = class_posterior(GraphPosteriorAtomKind::Cpdag, &[1.0], &[0], &[identified_lag_mask()]);
+    let study = Study::series(series())
+        .graph_posterior(gp)
+        .query(intervention_response())
+        .refute(RefuteSuite::Cheap)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let ctx = ExecutionContext::for_tests(1);
+    ctx.cancellation.cancel();
+    assert!(matches!(study.run(&ctx), Err(antecedent::CausalError::Cancelled { .. })));
 }
 
 #[test]
@@ -1060,4 +1309,59 @@ fn capped_temporal_class_posterior_does_not_claim_full_class_scope() {
     assert!(mixture.truncated_atoms > 0);
     assert!(!mixture.full_mass_scope);
     assert_eq!(result.identification.status, IdentificationStatus::GraphDependent);
+}
+
+#[test]
+fn zero_mass_graph_at_envelope_endpoint_keeps_its_completion_level_checks() {
+    use antecedent_validate::RefutationScope;
+
+    // The two known distinct adjustment routes from disagreeing_posterior are
+    // retained as set members even when the first graph has no posterior mass.
+    let posterior = class_posterior(
+        GraphPosteriorAtomKind::Cpdag,
+        &[0.0, 1.0],
+        &[z_confounds_t_contemp(), 0],
+        &[identified_lag_mask(), t_to_y_lag_mask()],
+    );
+    let result = Study::series(disagreeing_series())
+        .graph_posterior(posterior)
+        .query(intervention_response())
+        .refute(RefuteSuite::Cheap)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(1))
+        .unwrap();
+    let mixture = result.structural_response.as_ref().unwrap();
+    let zero = mixture
+        .atoms
+        .iter()
+        .find(|atom| atom.weight == 0.0 && atom.value.is_some())
+        .expect("the zero-mass graph must retain its fitted point");
+    let positive = mixture
+        .atoms
+        .iter()
+        .find(|atom| atom.weight > 0.0 && atom.value.is_some())
+        .expect("the positive-mass graph must retain its fitted point");
+    let level = |value: &ResponseValue| match value {
+        ResponseValue::Scalar(x) => *x,
+        ResponseValue::Surface { mean, .. } if mean.len() == 1 => mean[0],
+        other => panic!("expected a one-coordinate level, got {other:?}"),
+    };
+    let zero_level = level(zero.value.as_ref().unwrap());
+    let positive_level = level(positive.value.as_ref().unwrap());
+    assert!(
+        (zero_level - positive_level).abs() > 1e-6,
+        "the fixture must distinguish the two graphs"
+    );
+    let envelope =
+        mixture.identified_set.as_ref().expect("the graph-dependent point set is retained");
+    assert_eq!(envelope.lower.len(), 1);
+    assert!((envelope.lower[0] - zero_level.min(positive_level)).abs() < 1e-8);
+    assert!((envelope.upper[0] - zero_level.max(positive_level)).abs() < 1e-8);
+    assert!(result.refutations.iter().any(|report| {
+        matches!(&report.scope, Some(RefutationScope::TemporalClassCompletion { outer_atom, .. })
+            if *outer_atom == zero.graph_key)
+            && (report.original_ate - zero_level).abs() < 1e-8
+    }), "the endpoint from the zero-mass graph must have a scoped level check");
 }

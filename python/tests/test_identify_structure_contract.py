@@ -3,6 +3,12 @@
 import antecedent
 import pytest
 
+from _repo_text import REPO_ROOT, load_json
+
+_CLASS_PIN = load_json(
+    REPO_ROOT / "conformance" / "response" / "class_aware_envelope" / "expected.json"
+)
+
 
 def test_sustained_identification_preserves_explicit_window() -> None:
     graph = antecedent.TemporalDag.from_lagged_edges(
@@ -61,3 +67,53 @@ def test_native_certificate_keeps_temporal_coordinates_and_derivation():
     assert identified.assumption_statements
     assert identified.derivation_statements
     assert identified.to_dict()["assumption_statements"] == list(identified.assumption_statements)
+
+
+def _class_graph(class_name: str):
+    spec = _CLASS_PIN[class_name]["graph"]
+    if class_name == "cpdag":
+        return antecedent.Cpdag.from_directed_undirected(
+            _CLASS_PIN["columns"],
+            [tuple(edge) for edge in spec["directed_edges"]],
+            [tuple(edge) for edge in spec["undirected_edges"]],
+        )
+    return antecedent.Pag.from_marked_edges(
+        _CLASS_PIN["columns"], [tuple(edge) for edge in spec["marked_edges"]]
+    )
+
+
+@pytest.mark.parametrize("class_name", ["cpdag", "pag"])
+def test_class_identification_keeps_the_pinned_completion_mass_for_effect_and_response(
+    class_name: str,
+) -> None:
+    pin = _CLASS_PIN[class_name]["identification"]
+    graph = _class_graph(class_name)
+    queries = [
+        antecedent.AverageEffect("t", "y"),
+        antecedent.InterventionResponse("y", intervention=antecedent.intervention.Set("t", 1.0)),
+        antecedent.ResponseCurve("t", "y", grid=[float(value) for value in _CLASS_PIN["grid"]]),
+    ]
+    for query in queries:
+        identified = antecedent.identify(graph=graph, query=query)
+        assert identified.status == pin["status"], type(query).__name__
+        assert identified.certificate["identified_weight"] == pin["identified_mass"]
+        assert identified.certificate["unidentified_weight"] == pin["unidentified_mass"]
+
+
+@pytest.mark.parametrize("class_name", ["cpdag", "pag"])
+@pytest.mark.parametrize("query_kind", ["average", "response"])
+def test_a_dag_only_identifier_is_refused_on_class_graphs_and_names_the_class_identifier(
+    class_name: str, query_kind: str
+) -> None:
+    graph = _class_graph(class_name)
+    query = (
+        antecedent.AverageEffect("t", "y")
+        if query_kind == "average"
+        else antecedent.InterventionResponse(
+            "y", intervention=antecedent.intervention.Set("t", 1.0)
+        )
+    )
+    with pytest.raises((antecedent.errors.CausalError, ValueError), match="generalized.adjustment"):
+        antecedent.identify(graph=graph, query=query, identifier="backdoor.adjustment")
+    default = antecedent.identify(graph=graph, query=query)
+    assert default.status == _CLASS_PIN[class_name]["identification"]["status"]

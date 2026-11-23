@@ -2,8 +2,11 @@
 //! temporal graph-posterior mediation.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::float_cmp, reason = "fixture values and categorical codes are compared exactly")]
+
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, MediationContrast,
@@ -148,11 +151,49 @@ fn inferences() -> [(InferenceMode, EstimatorId, f64); 2] {
     ]
 }
 
+fn assert_theorem_targets(
+    plan: &antecedent::CheckedTemporalClassMediationInfo,
+    query: &MediationQuery,
+) {
+    assert!(!plan.scientific_targets.is_empty());
+    for binding in plan.scientific_targets.iter() {
+        assert!(query.horizons.contains(&binding.horizon));
+        let Some(target) = &binding.scientific_target else {
+            assert_eq!(binding.atom_identified, Some(false));
+            assert!(binding.identification_status.is_none());
+            continue;
+        };
+        assert!(binding.identification_status.is_some());
+        let antecedent_core::TargetForm::Mediation(mediation) = target.form() else {
+            panic!("a mediation completion must retain its own theorem target");
+        };
+        assert_eq!(mediation.arms().control(), &query.control);
+        assert_eq!(mediation.arms().active(), &query.active);
+        assert_eq!(mediation.arms().mediators(), query.mediators.as_ref());
+        assert_eq!(mediation.binding().outcome().outcome(), query.outcome);
+        assert_eq!(mediation.binding().population(), &query.target_population);
+        assert_eq!(mediation.schedule(), Some(&antecedent_core::TemporalPolicy::pulse(-1)));
+        assert_eq!(mediation.time().horizon_steps(), Some(binding.horizon));
+        assert!(mediation.time().history().unwrap().max_lag_steps().is_some());
+        assert_eq!(
+            mediation.time().initial_law(),
+            Some(&antecedent_core::InitialLaw::contemporaneous_observed())
+        );
+        assert!(
+            mediation.premises().contains(&antecedent_core::CrossWorldPremise::PathSpecificNested)
+        );
+    }
+}
+
 fn has_cached_identification(result: &antecedent::StudyResult) -> bool {
     result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached")
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the lifecycle fixture checks all retained coordinates together"
+)]
 fn checked_temporal_class_mediation_lifecycle_covers_all_class_envelope_coordinates() {
     let initial = confounded_series(0.0, false);
     let query = mediation_query(&[1]);
@@ -174,25 +215,32 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_class_envelope_coordina
                 let mut prepared = builder.prepare(&context).unwrap();
                 drop(builder);
 
-                let plan = prepared
-                    .checked_temporal_class_mediation_info()
-                    .expect("TemporalCpdag mediation must retain its checked operation");
+                let RetainedOperation::TemporalClassMediation(plan) = prepared.retained_operation()
+                else {
+                    panic!("TemporalCpdag mediation must retain its checked operation")
+                };
                 assert_eq!(plan.query, query, "{case}");
+                assert_theorem_targets(&plan, &query);
                 assert_eq!(plan.graph_class, antecedent::GraphClass::TemporalCpdag, "{case}");
                 assert_eq!(plan.identifier.as_ref(), "generalized.adjustment", "{case}");
                 assert_eq!(plan.estimator, expected_estimator, "{case}");
                 assert_eq!(plan.validation, suite, "{case}");
                 assert_eq!(plan.bootstrap_replicates, 8, "{case}");
                 assert_eq!(plan.horizons.as_ref(), &[1], "{case}");
-                assert_eq!(plan.atom_count, 1, "{case}: one oriented completion");
-                assert!((plan.identified_mass - 1.0).abs() < 1e-12, "{case}");
-                assert!(plan.unidentified_mass.abs() < 1e-12, "{case}");
+                assert_eq!(plan.proof_masses.len(), 1);
+                assert_eq!(plan.proof_masses[0].horizon, 1);
+                assert_eq!(plan.proof_masses[0].atom_count, plan.atom_count.unwrap());
+                assert_eq!(plan.proof_masses[0].identified_mass, plan.identified_mass.unwrap());
+                assert_eq!(plan.proof_masses[0].unidentified_mass, plan.unidentified_mass.unwrap());
+                assert_eq!(plan.atom_count, Some(1), "{case}: one oriented completion");
+                assert!((plan.identified_mass.unwrap() - 1.0).abs() < 1e-12, "{case}");
+                assert!(plan.unidentified_mass.unwrap().abs() < 1e-12, "{case}");
 
                 let first = prepared.estimate_series(&initial, &context).unwrap();
                 assert!(
-                    (first.estimate.as_effect().unwrap().ate - MEDIATED_TRUTH).abs() < tolerance,
+                    (first.estimate().as_effect().unwrap().ate - MEDIATED_TRUTH).abs() < tolerance,
                     "{case}: mediated {} vs structural {MEDIATED_TRUTH}",
-                    first.estimate.as_effect().unwrap().ate
+                    first.estimate().as_effect().unwrap().ate
                 );
                 assert_eq!(
                     first.logical_plan.estimator.as_deref(),
@@ -216,8 +264,8 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_class_envelope_coordina
                     "{case}: one-shot run must execute its retained prepared plan"
                 );
                 assert!(
-                    (one_shot.estimate.as_effect().unwrap().ate
-                        - first.estimate.as_effect().unwrap().ate)
+                    (one_shot.estimate().as_effect().unwrap().ate
+                        - first.estimate().as_effect().unwrap().ate)
                         .abs()
                         < 1e-12,
                     "{case}: one-shot and prepared execution share one program"
@@ -226,15 +274,16 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_class_envelope_coordina
                 let refreshed =
                     prepared.refresh_series(confounded_series(0.4, false), &context).unwrap();
                 assert!(
-                    (refreshed.estimate.as_effect().unwrap().ate - MEDIATED_TRUTH).abs()
+                    (refreshed.estimate().as_effect().unwrap().ate - MEDIATED_TRUTH).abs()
                         < tolerance,
                     "{case}: intercept shift must not change the mediated contrast"
                 );
-                assert_eq!(
-                    prepared.checked_temporal_class_mediation_info().unwrap().proof_signature,
-                    plan.proof_signature,
-                    "{case}"
-                );
+                let RetainedOperation::TemporalClassMediation(retained) =
+                    prepared.retained_operation()
+                else {
+                    panic!("{case}: temporal class mediation retained after refresh")
+                };
+                assert_eq!(retained.proof_signature, plan.proof_signature, "{case}");
 
                 let artifact = prepared
                     .encode_contracted_result(
@@ -243,7 +292,7 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_class_envelope_coordina
                         &context,
                     )
                     .unwrap();
-                let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
                 assert!(
                     consumed
                         .acceptance
@@ -252,7 +301,7 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_class_envelope_coordina
                         .any(|dependency| dependency.as_ref() == CHECKED_DEPENDENCY),
                     "{case}: independent consumption must report the missing checked operation"
                 );
-                assert!(!consumed.acceptance.accepts_as_verified_program(), "{case}");
+                assert!(!consumed.acceptance.accepts_as_replayed_program(), "{case}");
             }
         }
     }
@@ -394,32 +443,50 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordin
                 let mut prepared = builder.prepare(&context).unwrap();
                 drop(builder);
 
-                let plan = prepared
-                    .checked_temporal_class_mediation_info()
-                    .expect("graph-posterior mediation must retain its checked operation");
+                let RetainedOperation::TemporalClassMediation(plan) = prepared.retained_operation()
+                else {
+                    panic!("graph-posterior mediation must retain its checked operation")
+                };
                 assert_eq!(plan.query, query, "{case}");
+                assert_theorem_targets(&plan, &query);
                 assert_eq!(plan.graph_class, graph_class, "{case}");
                 assert_eq!(plan.identifier.as_ref(), "temporal.mediation", "{case}");
                 assert_eq!(plan.estimator, expected_estimator, "{case}");
                 assert_eq!(plan.validation, suite, "{case}");
                 assert_eq!(plan.bootstrap_replicates, 8, "{case}");
-                assert_eq!(plan.atom_count, 2, "{case}: both posterior atoms retained");
+                assert_eq!(plan.atom_count, Some(2), "{case}: both posterior atoms retained");
+                let atom_weights = plan
+                    .scientific_targets
+                    .iter()
+                    .map(|binding| {
+                        (binding.atom_key.expect("posterior slot key"), binding.atom_weight)
+                    })
+                    .collect::<std::collections::BTreeMap<_, _>>();
+                assert_eq!(atom_weights.len(), 2);
+                assert!((atom_weights.values().sum::<f64>() - 1.0).abs() < 1e-12);
                 assert!(
-                    (plan.unidentified_mass - pin.unidentified_mass).abs() < 1e-12,
+                    plan.scientific_targets
+                        .iter()
+                        .any(|binding| binding.atom_identified == Some(false))
+                );
+
+                assert!(
+                    (plan.unidentified_mass.unwrap() - pin.unidentified_mass).abs() < 1e-12,
                     "{case}: unidentified mass {} vs pin {}",
-                    plan.unidentified_mass,
+                    plan.unidentified_mass.unwrap(),
                     pin.unidentified_mass
                 );
                 assert!(
-                    (plan.identified_mass + plan.unidentified_mass - 1.0).abs() < 1e-12,
+                    (plan.identified_mass.unwrap() + plan.unidentified_mass.unwrap() - 1.0).abs()
+                        < 1e-12,
                     "{case}"
                 );
 
                 let first = prepared.estimate_series(&initial, &context).unwrap();
                 assert!(
-                    (first.estimate.as_effect().unwrap().ate - pin.effect).abs() < pin.tolerance,
+                    (first.estimate().as_effect().unwrap().ate - pin.effect).abs() < pin.tolerance,
                     "{case}: mediated {} vs truth {}",
-                    first.estimate.as_effect().unwrap().ate,
+                    first.estimate().as_effect().unwrap().ate,
                     pin.effect
                 );
                 assert_eq!(
@@ -448,8 +515,8 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordin
                     "{case}: one-shot run must execute its retained prepared plan"
                 );
                 assert!(
-                    (one_shot.estimate.as_effect().unwrap().ate
-                        - first.estimate.as_effect().unwrap().ate)
+                    (one_shot.estimate().as_effect().unwrap().ate
+                        - first.estimate().as_effect().unwrap().ate)
                         .abs()
                         < 1e-12,
                     "{case}: one-shot and prepared execution share one program"
@@ -458,15 +525,16 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordin
                 let refreshed =
                     prepared.refresh_series(posterior_series(0.7, false), &context).unwrap();
                 assert!(
-                    (refreshed.estimate.as_effect().unwrap().ate - pin.effect).abs()
+                    (refreshed.estimate().as_effect().unwrap().ate - pin.effect).abs()
                         < pin.tolerance,
                     "{case}: intercept shift must not change the mediated contrast"
                 );
-                assert_eq!(
-                    prepared.checked_temporal_class_mediation_info().unwrap().proof_signature,
-                    plan.proof_signature,
-                    "{case}"
-                );
+                let RetainedOperation::TemporalClassMediation(retained) =
+                    prepared.retained_operation()
+                else {
+                    panic!("{case}: temporal class mediation retained after refresh")
+                };
+                assert_eq!(retained.proof_signature, plan.proof_signature, "{case}");
 
                 let artifact = prepared
                     .encode_contracted_result(
@@ -475,7 +543,7 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordin
                         &context,
                     )
                     .unwrap();
-                let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
                 assert!(
                     consumed
                         .acceptance
@@ -484,7 +552,7 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordin
                         .any(|dependency| dependency.as_ref() == CHECKED_DEPENDENCY),
                     "{case}: independent consumption must report the missing checked operation"
                 );
-                assert!(!consumed.acceptance.accepts_as_verified_program(), "{case}");
+                assert!(!consumed.acceptance.accepts_as_replayed_program(), "{case}");
             }
         }
     }
@@ -506,7 +574,9 @@ fn checked_temporal_class_mediation_refuses_schema_changes_and_binds_its_structu
         .unwrap()
         .prepare(&context)
         .unwrap();
-    let plan = prepared.checked_temporal_class_mediation_info().unwrap();
+    let RetainedOperation::TemporalClassMediation(plan) = prepared.retained_operation() else {
+        panic!("temporal class mediation retained")
+    };
     assert!(prepared.refresh_series(confounded_series(0.0, true), &context).is_err());
     let other = Study::series(initial.clone())
         .graph(changed_cpdag())
@@ -517,9 +587,11 @@ fn checked_temporal_class_mediation_refuses_schema_changes_and_binds_its_structu
         .unwrap()
         .prepare(&context)
         .unwrap();
+    let RetainedOperation::TemporalClassMediation(other_plan) = other.retained_operation() else {
+        panic!("temporal class mediation retained")
+    };
     assert_ne!(
-        plan.proof_signature,
-        other.checked_temporal_class_mediation_info().unwrap().proof_signature,
+        plan.proof_signature, other_plan.proof_signature,
         "the retained proof identity must include disconnected lagged nodes"
     );
     let other_result = other.estimate_series(&initial, &context).unwrap();
@@ -541,7 +613,9 @@ fn checked_temporal_class_mediation_refuses_schema_changes_and_binds_its_structu
             .unwrap()
             .prepare(&context)
             .unwrap();
-        let plan = prepared.checked_temporal_class_mediation_info().unwrap();
+        let RetainedOperation::TemporalClassMediation(plan) = prepared.retained_operation() else {
+            panic!("{kind:?}: temporal class mediation retained")
+        };
         assert!(prepared.refresh_series(posterior_series(0.0, true), &context).is_err());
         let other = Study::series(series.clone())
             .graph_posterior(changed_posterior(&pin, kind))
@@ -552,9 +626,12 @@ fn checked_temporal_class_mediation_refuses_schema_changes_and_binds_its_structu
             .unwrap()
             .prepare(&context)
             .unwrap();
+        let RetainedOperation::TemporalClassMediation(other_plan) = other.retained_operation()
+        else {
+            panic!("{kind:?}: temporal class mediation retained")
+        };
         assert_ne!(
-            plan.proof_signature,
-            other.checked_temporal_class_mediation_info().unwrap().proof_signature,
+            plan.proof_signature, other_plan.proof_signature,
             "{kind:?}: the retained proof identity must include the frozen posterior weights"
         );
     }
@@ -570,9 +647,8 @@ fn checked_temporal_class_mediation_refuses_schema_changes_and_binds_its_structu
         .build()
         .unwrap();
     assert!(multi.run(&context).is_err());
-    assert!(
-        multi
-            .prepare(&context)
-            .map_or(true, |prepared| prepared.checked_temporal_class_mediation_info().is_none())
-    );
+    assert!(multi.prepare(&context).map_or(true, |prepared| !matches!(
+        prepared.retained_operation(),
+        RetainedOperation::TemporalClassMediation(..)
+    )));
 }

@@ -1,0 +1,67 @@
+feature_id = "sensitivity.missing_outcome_departure"
+implementation_crate = "antecedent-validate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Sensitivity of a two-arm mean contrast to a declared, bounded departure of the outcome
+# missingness mechanism from missing at random: a delta-adjusted pattern mixture (Little 1993;
+# National Research Council 2010; Cro et al. 2020 for delta-based tipping-point analysis in
+# trials) and an exponential-tilting selection model (Kim and Yu 2011; Rotnitzky, Robins and
+# Scharfstein 1998 for the selection-model sensitivity parameter). The closed forms used here
+# (effect(delta) = MAR + delta (l1 f1 - l0 f0); missing-pattern mean sum w y / sum w with
+# w = exp(t y); the delta-method variance with the observed-fraction term) are derived in the
+# module documentation and verified against hand-derived anchors and a standard-library
+# reference, not copied from any of them.
+papers = [
+  { title = "Pattern-mixture models for multivariate incomplete data", sections = ["Pattern-mixture factorization of the full-data law into the observed and missing patterns, with the missing-pattern law identified only through an untestable restriction"] },
+  { title = "Semiparametric regression for repeated outcomes with nonignorable nonresponse", sections = ["Selection-model sensitivity parameter indexing the departure of the response mechanism from missing at random"] },
+  { title = "Semiparametric fractional imputation / exponential tilting", sections = ["Exponential tilting of the observed outcome law to represent the missing-pattern law under a logistic response model"] },
+  { title = "Sensitivity analysis for clinical trials with missing continuous outcome data using controlled multiple imputation: a practical guide", sections = ["Delta-adjustment and tipping-point reporting for the conclusion and decisions of a trial"] },
+]
+
+implementation_deviations = [
+  "The estimand is the contrast of the arms' full-population mean outcomes under a randomized or ignorable assignment held fixed. The difference in means is closed form; regression adjustment, inverse-propensity weighting and augmented weighting are re-run at every grid point on a table completed by the departure (imputation from the arm outcome regression plus the shift, or plus the tilted-weight mean residual). An estimator with no completed-table form is refused (mnar_sensitivity.unsupported_estimator).",
+  "The selection model is evaluated on the empirical observed outcome law of each arm, so the tilt is bounded by the observed outcome range for every finite parameter; it is not a parametric outcome model. The conditional sampling variance of the difference in means is the delta-method variance with the observed-fraction term; an adjusted estimator's is a seeded bootstrap that resamples units within arm and repeats the imputation fit. Both are conditional on the parameter value and exclude uncertainty in the choice of departure model.",
+  "Claim policy: the supported claim is an assumption range over the declared departure, never a confidence interval and never empirically established; the departure is recorded as an untestable assumption. The public per-point sampling interval and interval-derived tipping are withheld (not_supported / mnar_sensitivity.sampling_interval_not_supported); a requested composition with the range also refuses. A fixed-shift delta-method candidate is available only behind calibration-internal and its calibration remains not measured.",
+  "Tipping points are found by scanning each grid cell at eight interior points and bisecting the continuous effect function inside the first cell where a conclusion differs from its missing-at-random value, separately on each side of MAR; the interval conclusion of an adjusted estimator is scanned on the declared grid only. The bracket is certified against the floating-point evaluation.",
+  "Scope is a binary 0/1 treatment with no missing entry and an outcome with missing entries, at most 67108864 rows, 64 covariates, 4096 grid points, 5000 bootstrap replicates and 64 declared decisions; the parameter range must be finite, contain zero and stay within 1e12 (shift) or 1e3 (tilt).",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "hand-derived shift example (MAR effect 1.5, missing fractions 0.4 and 0.5; sign tipping 15 and -3.75; decision tipping -1.25) and binary-tilt example (missing-pattern mean expit(theta); decision tipping ln(5/3))",
+  "conformance/validate/mnar_sensitivity/reference.py",
+  "crates/antecedent-validate/tests/mnar_sensitivity.rs",
+  "python/tests/test_mnar_sensitivity.py",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "mnar_sensitivity and arm_mean in crates/antecedent-validate/src/mnar_sensitivity.rs for the difference-in-means estimator (the adjusted estimators in mnar_adjusted.rs are exercised only through the saturated-covariate stratified closed form): the pattern-mixture shift and exponential-tilting selection means of each arm, the combination pi ybar + (1 - pi) g, the delta-method sampling variance with the observed-fraction term, the grid, assumption range and tipping search. The public route reports the delta-method sampling interval and the excludes-null tipping, with the interval's calibration slot recorded as not measured; the numerical sampling checks run through that same route. Not a review of whether any departure parameter is plausible, of coverage of the sampling interval, or of the bootstrap interval of adjusted estimators."
+assumptions = ["Randomized or ignorable treatment assignment held fixed; only the outcome-missingness mechanism departs from missing at random, by a one-parameter family declared in advance.", "The tilt is evaluated on the empirical observed outcome law of each arm, so the departure is bounded by the observed range.", "The delta-method variance treats the observed fraction as binomial and the observed outcomes as an independent sample given it."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and the retained reference; no upstream implementation or test source was consulted or copied."
+redistribution = "The reference and its frozen output are repository-authored under MIT OR Apache-2.0; the primary sources are not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made). The retained reference is a standard-library Python script (not mpmath) whose variance uses a numerical influence function by central finite difference of the arm mean under a perturbed observation weight, and whose selection model is evaluated through Bayes' rule on the logistic selection mechanism rather than the closed tilted mean; it is binary64 and agrees with the implementation to 1e-6 in the standard error, so differences below that are not resolved. The frozen output covers a closed-form shift case, a binary tilt with a closed-form expit anchor and one seeded continuous case with opposite loadings. The sampling variance is a first-order delta-method quantity, so its small-sample accuracy is not established and calibration remains not measured. The reference script was being edited by another author at the time of the review (an encoding argument only) and is therefore not digest-bound here; its frozen output is."
+sources = ["https://www.nap.edu/catalog/12955"]
+findings_resolved = ["Re-ran the retained reference check (frozen output reproduces) and the facade-independent crate tests (15 MNAR tests pass): effects agree to 1e-9, sampling standard errors to 1e-6, and tipping points to 1e-7 against the independently computed values, including the logistic selection model evaluated by explicit Bayes and a variance from a finite-difference influence function.", "Derived by hand that the implemented variance (ybar - g)^2 pi (1 - pi) / n + Var(pi y + (1 - pi) psi) / n_obs is the first-order variance of pi ybar + (1 - pi) g, using psi = y - ybar for the shift and w (y - g) / mean(w) for the tilt, and that it matches the reference's numerically differentiated influence; no defect found, no product change."]
+record_sha256 = "3119c0eda5fb27830d1fc8703087b542656c1d096e92b368305f0e605a2bd6a9"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/mnar_sensitivity.rs"
+items = ["const MNAR_ASSIGNMENT_ASSUMPTION_ID", "const MNAR_ASSUMPTION_RANGE_CLAIM", "const MNAR_CELL_SUBSTEPS", "const MNAR_DEPARTURE_ASSUMPTION_ID", "const MNAR_DEPARTURE_ASSUMPTION_STATUS", "const MNAR_EMPIRICAL_STATUS", "const MNAR_FAMILY", "const MNAR_INTERPRETATION", "const MNAR_MAX_BISECTIONS", "const MNAR_MAX_BOOTSTRAP", "const MNAR_MAX_COVARIATES", "const MNAR_MAX_DECISIONS", "const MNAR_MAX_DELTA", "const MNAR_MAX_GRID_POINTS", "const MNAR_MAX_ROWS", "const MNAR_MAX_TILT", "const MNAR_MAX_TOLERANCE", "const MNAR_MAX_WORK", "const MNAR_METHOD", "const MNAR_MIN_BOOTSTRAP", "const MNAR_MIN_TOLERANCE", "const MNAR_SAMPLING_BASIS", "const MNAR_SAMPLING_DETAIL", "const MNAR_SAMPLING_STATUS", "const MNAR_TARGET", "enum MnarConclusionKind", "enum MnarEstimator", "enum MnarModel", "fn arm_mean", "fn assumptions", "fn cheap_interval", "fn check_spec", "fn detail", "fn first_change", "fn make_arm", "fn max_magnitude", "fn mnar_sensitivity", "fn mnar_sensitivity_impl", "fn name", "fn new", "fn null_label", "fn parameter_grid", "fn point", "fn prepare", "fn reason_code", "fn refuse", "fn sample_variance", "fn sign_label", "fn size", "fn tipping_of", "fn try_point", "fn uses_covariates", "struct Arm", "struct ArmLoading", "struct Context", "struct MnarAssumptionRange", "struct MnarAssumptionRecord", "struct MnarData", "struct MnarDecision", "struct MnarDecisionReport", "struct MnarMechanism", "struct MnarPoint", "struct MnarSamplingInterval", "struct MnarSensitivityError", "struct MnarSensitivityResult", "struct MnarSensitivitySpec", "struct MnarTipping", "struct MnarTippingSide", "struct Prepared"]
+sha256 = "a79a4decf83535b9c865637de86a6dc41148c88e023cc9224627ddc7c2a96882"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-validate/tests/mnar_sensitivity.rs"
+items = ["fn close", "fn mnar_matches_the_independent_reference", "fn run"]
+sha256 = "94ff5b062b71945e8c10b5fbb29555486e3ef699d0e07d777751ed6dd63ac3fa"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "conformance/validate/mnar_sensitivity/expected.json"
+sha256 = "61f482b5f904a511b8b4343cc8a97f0a80d03c682d738b9510daffe74679f96b"

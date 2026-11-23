@@ -1,0 +1,5602 @@
+[
+ {
+  "seed": 11,
+  "variables": [
+   {
+    "name": "Z",
+    "levels": [
+     "a",
+     "b",
+     "c"
+    ],
+    "parents": [],
+    "rows": [
+     {
+      "config": [],
+      "probs": [
+       0.875,
+       0.0,
+       0.125
+      ]
+     }
+    ]
+   },
+   {
+    "name": "S",
+    "levels": [
+     "lo",
+     "hi"
+    ],
+    "parents": [
+     "Z"
+    ],
+    "rows": [
+     {
+      "config": [
+       "a"
+      ],
+      "probs": [
+       0.875,
+       0.125
+      ]
+     },
+     {
+      "config": [
+       "b"
+      ],
+      "probs": [
+       1.0,
+       0.0
+      ]
+     },
+     {
+      "config": [
+       "c"
+      ],
+      "probs": [
+       0.375,
+       0.625
+      ]
+     }
+    ]
+   },
+   {
+    "name": "W",
+    "levels": [
+     "n",
+     "p",
+     "x"
+    ],
+    "parents": [
+     "S"
+    ],
+    "rows": [
+     {
+      "config": [
+       "lo"
+      ],
+      "probs": [
+       0.3125,
+       0.6875,
+       0.0
+      ]
+     },
+     {
+      "config": [
+       "hi"
+      ],
+      "probs": [
+       1.0,
+       0.0,
+       0.0
+      ]
+     }
+    ]
+   },
+   {
+    "name": "Y",
+    "levels": [
+     "0",
+     "1",
+     "2"
+    ],
+    "parents": [
+     "S",
+     "Z"
+    ],
+    "rows": [
+     {
+      "config": [
+       "lo",
+       "a"
+      ],
+      "probs": [
+       0.3125,
+       0.625,
+       0.0625
+      ]
+     },
+     {
+      "config": [
+       "lo",
+       "b"
+      ],
+      "probs": [
+       0.1875,
+       0.6875,
+       0.125
+      ]
+     },
+     {
+      "config": [
+       "lo",
+       "c"
+      ],
+      "probs": [
+       0.25,
+       0.3125,
+       0.4375
+      ]
+     },
+     {
+      "config": [
+       "hi",
+       "a"
+      ],
+      "probs": [
+       0.0625,
+       0.0625,
+       0.875
+      ]
+     },
+     {
+      "config": [
+       "hi",
+       "b"
+      ],
+      "probs": [
+       0.75,
+       0.125,
+       0.125
+      ]
+     },
+     {
+      "config": [
+       "hi",
+       "c"
+      ],
+      "probs": [
+       0.0,
+       0.3125,
+       0.6875
+      ]
+     }
+    ]
+   }
+  ],
+  "queries": [
+   {
+    "kind": "condition",
+    "outcome": "Y",
+    "evidence": {
+     "S": "hi"
+    },
+    "evidence_probability": 0.1875,
+    "levels": [
+     [
+      "0",
+      0.036458333333333336
+     ],
+     [
+      "1",
+      0.16666666666666666
+     ],
+     [
+      "2",
+      0.796875
+     ]
+    ]
+   },
+   {
+    "kind": "condition",
+    "outcome": "Z",
+    "evidence": {
+     "S": "hi"
+    },
+    "evidence_probability": 0.1875,
+    "levels": [
+     [
+      "a",
+      0.5833333333333334
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      0.4166666666666667
+     ]
+    ]
+   },
+   {
+    "kind": "condition",
+    "outcome": "Y",
+    "evidence": {
+     "S": "lo",
+     "W": "p"
+    },
+    "evidence_probability": 0.55859375,
+    "levels": [
+     [
+      "0",
+      0.3088942307692308
+     ],
+     [
+      "1",
+      0.6069711538461539
+     ],
+     [
+      "2",
+      0.08413461538461539
+     ]
+    ]
+   },
+   {
+    "kind": "condition",
+    "outcome": "Z",
+    "evidence": {
+     "S": "lo",
+     "W": "p"
+    },
+    "evidence_probability": 0.55859375,
+    "levels": [
+     [
+      "a",
+      0.9423076923076923
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      0.057692307692307696
+     ]
+    ]
+   },
+   {
+    "kind": "condition",
+    "outcome": "Y",
+    "evidence": {
+     "W": "n",
+     "Z": "c"
+    },
+    "evidence_probability": 0.0927734375,
+    "levels": [
+     [
+      "0",
+      0.039473684210526314
+     ],
+     [
+      "1",
+      0.3125
+     ],
+     [
+      "2",
+      0.6480263157894737
+     ]
+    ]
+   },
+   {
+    "kind": "condition",
+    "outcome": "Y",
+    "evidence": {
+     "Z": "a",
+     "S": "hi",
+     "W": "p"
+    },
+    "error": "zero_evidence"
+   },
+   {
+    "kind": "intervene",
+    "outcome": "Y",
+    "do": {
+     "S": "hi"
+    },
+    "levels": [
+     [
+      "0",
+      0.0546875
+     ],
+     [
+      "1",
+      0.09375
+     ],
+     [
+      "2",
+      0.8515625
+     ]
+    ]
+   },
+   {
+    "kind": "intervene",
+    "outcome": "Y",
+    "do": {
+     "S": "lo"
+    },
+    "levels": [
+     [
+      "0",
+      0.3046875
+     ],
+     [
+      "1",
+      0.5859375
+     ],
+     [
+      "2",
+      0.109375
+     ]
+    ]
+   },
+   {
+    "kind": "intervene",
+    "outcome": "Y",
+    "do": {
+     "S": "hi",
+     "W": "n"
+    },
+    "levels": [
+     [
+      "0",
+      0.0546875
+     ],
+     [
+      "1",
+      0.09375
+     ],
+     [
+      "2",
+      0.8515625
+     ]
+    ]
+   },
+   {
+    "kind": "intervene",
+    "outcome": "Y",
+    "do": {
+     "Z": "b"
+    },
+    "levels": [
+     [
+      "0",
+      0.1875
+     ],
+     [
+      "1",
+      0.6875
+     ],
+     [
+      "2",
+      0.125
+     ]
+    ]
+   },
+   {
+    "kind": "after",
+    "outcome": "Y",
+    "do": {
+     "S": "hi"
+    },
+    "observed": {
+     "W": "p"
+    },
+    "error": "zero_evidence"
+   },
+   {
+    "kind": "after",
+    "outcome": "Y",
+    "do": {
+     "S": "lo"
+    },
+    "observed": {
+     "Z": "b"
+    },
+    "error": "zero_evidence"
+   },
+   {
+    "kind": "after",
+    "outcome": "Y",
+    "do": {
+     "S": "hi"
+    },
+    "observed": {
+     "W": "n",
+     "Z": "a"
+    },
+    "evidence_probability": 0.875,
+    "levels": [
+     [
+      "0",
+      0.0625
+     ],
+     [
+      "1",
+      0.0625
+     ],
+     [
+      "2",
+      0.875
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "Y",
+    "construct": "Z",
+    "observed": {},
+    "likelihood": [
+     0.75,
+     0.125,
+     0.0625
+    ],
+    "evidence_probability": 0.6640625,
+    "outcome_levels": [
+     [
+      "0",
+      0.27904411764705883
+     ],
+     [
+      "1",
+      0.5518382352941177
+     ],
+     [
+      "2",
+      0.16911764705882354
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.9882352941176471
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      0.011764705882352941
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "Z",
+    "construct": "Z",
+    "observed": {},
+    "likelihood": [
+     0.75,
+     0.125,
+     0.0625
+    ],
+    "evidence_probability": 0.6640625,
+    "outcome_levels": [
+     [
+      "a",
+      0.9882352941176471
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      0.011764705882352941
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.9882352941176471
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      0.011764705882352941
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "S",
+    "construct": "Z",
+    "observed": {},
+    "likelihood": [
+     0.75,
+     0.125,
+     0.0625
+    ],
+    "evidence_probability": 0.6640625,
+    "outcome_levels": [
+     [
+      "lo",
+      0.8691176470588236
+     ],
+     [
+      "hi",
+      0.13088235294117648
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.9882352941176471
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      0.011764705882352941
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "Y",
+    "construct": "Z",
+    "observed": {
+     "W": "p"
+    },
+    "likelihood": [
+     0.5,
+     0.5,
+     0.5
+    ],
+    "evidence_probability": 0.279296875,
+    "outcome_levels": [
+     [
+      "0",
+      0.3088942307692308
+     ],
+     [
+      "1",
+      0.6069711538461539
+     ],
+     [
+      "2",
+      0.08413461538461539
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.9423076923076923
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      0.057692307692307696
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "Z",
+    "construct": "Z",
+    "observed": {
+     "W": "p"
+    },
+    "likelihood": [
+     0.5,
+     0.5,
+     0.5
+    ],
+    "evidence_probability": 0.279296875,
+    "outcome_levels": [
+     [
+      "a",
+      0.9423076923076923
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      0.057692307692307696
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.9423076923076923
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      0.057692307692307696
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "S",
+    "construct": "Z",
+    "observed": {
+     "W": "p"
+    },
+    "likelihood": [
+     0.5,
+     0.5,
+     0.5
+    ],
+    "evidence_probability": 0.279296875,
+    "outcome_levels": [
+     [
+      "lo",
+      1.0
+     ],
+     [
+      "hi",
+      0.0
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.9423076923076923
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      0.057692307692307696
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "Y",
+    "construct": "Z",
+    "observed": {
+     "S": "hi"
+    },
+    "likelihood": [
+     0.0,
+     1.0,
+     0.25
+    ],
+    "evidence_probability": 0.01953125,
+    "outcome_levels": [
+     [
+      "0",
+      0.0
+     ],
+     [
+      "1",
+      0.3125
+     ],
+     [
+      "2",
+      0.6875
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.0
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      1.0
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "Z",
+    "construct": "Z",
+    "observed": {
+     "S": "hi"
+    },
+    "likelihood": [
+     0.0,
+     1.0,
+     0.25
+    ],
+    "evidence_probability": 0.01953125,
+    "outcome_levels": [
+     [
+      "a",
+      0.0
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      1.0
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.0
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      1.0
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "Y",
+    "construct": "Z",
+    "observed": {},
+    "likelihood": [
+     0.0625,
+     0.0,
+     0.0
+    ],
+    "evidence_probability": 0.0546875,
+    "outcome_levels": [
+     [
+      "0",
+      0.28125
+     ],
+     [
+      "1",
+      0.5546875
+     ],
+     [
+      "2",
+      0.1640625
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      1.0
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      0.0
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "Z",
+    "construct": "Z",
+    "observed": {},
+    "likelihood": [
+     0.0625,
+     0.0,
+     0.0
+    ],
+    "evidence_probability": 0.0546875,
+    "outcome_levels": [
+     [
+      "a",
+      1.0
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      0.0
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      1.0
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      0.0
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "S",
+    "construct": "Z",
+    "observed": {},
+    "likelihood": [
+     0.0625,
+     0.0,
+     0.0
+    ],
+    "evidence_probability": 0.0546875,
+    "outcome_levels": [
+     [
+      "lo",
+      0.875
+     ],
+     [
+      "hi",
+      0.125
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      1.0
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      0.0
+     ]
+    ]
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.3088942307692308,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.8125,
+      "conditional": 0.3088942307692308,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.1875,
+      "conditional": 0.036458333333333336,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.8125
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.036458333333333336,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.8125,
+      "conditional": 0.3088942307692308,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.1875,
+      "conditional": 0.036458333333333336,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.3088942307692308,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.8125,
+      "conditional": 0.3088942307692308,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.1875,
+      "conditional": 0.036458333333333336,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.8125
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.3098942307692308,
+    "direction": "raise",
+    "error": "unreachable",
+    "extremum": 0.3088942307692308
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.3088942307692308,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.8125,
+      "conditional": 0.3088942307692308,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.1875,
+      "conditional": 0.036458333333333336,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.036458333333333336,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.8125,
+      "conditional": 0.3088942307692308,
+      "crosses": false
+     },
+     {
+      "level": "hi",
+      "probability": 0.1875,
+      "conditional": 0.036458333333333336,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.1875
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.3088942307692308,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.8125,
+      "conditional": 0.3088942307692308,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.1875,
+      "conditional": 0.036458333333333336,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.3098942307692308,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.8125,
+      "conditional": 0.3088942307692308,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.1875,
+      "conditional": 0.036458333333333336,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.796875,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.8125,
+      "conditional": 0.08413461538461539,
+      "crosses": false
+     },
+     {
+      "level": "hi",
+      "probability": 0.1875,
+      "conditional": 0.796875,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.1875
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.08413461538461539,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.8125,
+      "conditional": 0.08413461538461539,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.1875,
+      "conditional": 0.796875,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.796875,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.8125,
+      "conditional": 0.08413461538461539,
+      "crosses": false
+     },
+     {
+      "level": "hi",
+      "probability": 0.1875,
+      "conditional": 0.796875,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.1875
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.797875,
+    "direction": "raise",
+    "error": "unreachable",
+    "extremum": 0.796875
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.796875,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.8125,
+      "conditional": 0.08413461538461539,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.1875,
+      "conditional": 0.796875,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.08413461538461539,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.8125,
+      "conditional": 0.08413461538461539,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.1875,
+      "conditional": 0.796875,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.8125
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.796875,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.8125,
+      "conditional": 0.08413461538461539,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.1875,
+      "conditional": 0.796875,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.797875,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.8125,
+      "conditional": 0.08413461538461539,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.1875,
+      "conditional": 0.796875,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.3088942307692308,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.44140625,
+      "conditional": 0.19316924778761063,
+      "crosses": false
+     },
+     {
+      "level": "p",
+      "probability": 0.55859375,
+      "conditional": 0.3088942307692308,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.55859375
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.19316924778761063,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.44140625,
+      "conditional": 0.19316924778761063,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.55859375,
+      "conditional": 0.3088942307692308,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.3088942307692308,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.44140625,
+      "conditional": 0.19316924778761063,
+      "crosses": false
+     },
+     {
+      "level": "p",
+      "probability": 0.55859375,
+      "conditional": 0.3088942307692308,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.55859375
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.3098942307692308,
+    "direction": "raise",
+    "error": "unreachable",
+    "extremum": 0.3088942307692308
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.3088942307692308,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.44140625,
+      "conditional": 0.19316924778761063,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.55859375,
+      "conditional": 0.3088942307692308,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.19316924778761063,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.44140625,
+      "conditional": 0.19316924778761063,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.55859375,
+      "conditional": 0.3088942307692308,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.44140625
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.3088942307692308,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.44140625,
+      "conditional": 0.19316924778761063,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.55859375,
+      "conditional": 0.3088942307692308,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.3098942307692308,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.44140625,
+      "conditional": 0.19316924778761063,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.55859375,
+      "conditional": 0.3088942307692308,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.38689159292035397,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.44140625,
+      "conditional": 0.38689159292035397,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.55859375,
+      "conditional": 0.08413461538461539,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.44140625
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.08413461538461539,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.44140625,
+      "conditional": 0.38689159292035397,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.55859375,
+      "conditional": 0.08413461538461539,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.38689159292035397,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.44140625,
+      "conditional": 0.38689159292035397,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.55859375,
+      "conditional": 0.08413461538461539,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.44140625
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.38789159292035397,
+    "direction": "raise",
+    "error": "unreachable",
+    "extremum": 0.38689159292035397
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.38689159292035397,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.44140625,
+      "conditional": 0.38689159292035397,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.55859375,
+      "conditional": 0.08413461538461539,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.08413461538461539,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.44140625,
+      "conditional": 0.38689159292035397,
+      "crosses": false
+     },
+     {
+      "level": "p",
+      "probability": 0.55859375,
+      "conditional": 0.08413461538461539,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.55859375
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.38689159292035397,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.44140625,
+      "conditional": 0.38689159292035397,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.55859375,
+      "conditional": 0.08413461538461539,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.38789159292035397,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.44140625,
+      "conditional": 0.38689159292035397,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.55859375,
+      "conditional": 0.08413461538461539,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   }
+  ]
+ },
+ {
+  "seed": 12,
+  "variables": [
+   {
+    "name": "Z",
+    "levels": [
+     "a",
+     "b",
+     "c"
+    ],
+    "parents": [],
+    "rows": [
+     {
+      "config": [],
+      "probs": [
+       0.5,
+       0.4375,
+       0.0625
+      ]
+     }
+    ]
+   },
+   {
+    "name": "S",
+    "levels": [
+     "lo",
+     "hi"
+    ],
+    "parents": [
+     "Z"
+    ],
+    "rows": [
+     {
+      "config": [
+       "a"
+      ],
+      "probs": [
+       1.0,
+       0.0
+      ]
+     },
+     {
+      "config": [
+       "b"
+      ],
+      "probs": [
+       0.6875,
+       0.3125
+      ]
+     },
+     {
+      "config": [
+       "c"
+      ],
+      "probs": [
+       0.25,
+       0.75
+      ]
+     }
+    ]
+   },
+   {
+    "name": "W",
+    "levels": [
+     "n",
+     "p",
+     "x"
+    ],
+    "parents": [
+     "S"
+    ],
+    "rows": [
+     {
+      "config": [
+       "lo"
+      ],
+      "probs": [
+       0.75,
+       0.25,
+       0.0
+      ]
+     },
+     {
+      "config": [
+       "hi"
+      ],
+      "probs": [
+       0.0,
+       1.0,
+       0.0
+      ]
+     }
+    ]
+   },
+   {
+    "name": "Y",
+    "levels": [
+     "0",
+     "1",
+     "2"
+    ],
+    "parents": [
+     "S",
+     "Z"
+    ],
+    "rows": [
+     {
+      "config": [
+       "lo",
+       "a"
+      ],
+      "probs": [
+       0.6875,
+       0.25,
+       0.0625
+      ]
+     },
+     {
+      "config": [
+       "lo",
+       "b"
+      ],
+      "probs": [
+       0.5,
+       0.375,
+       0.125
+      ]
+     },
+     {
+      "config": [
+       "lo",
+       "c"
+      ],
+      "probs": [
+       0.0,
+       0.4375,
+       0.5625
+      ]
+     },
+     {
+      "config": [
+       "hi",
+       "a"
+      ],
+      "probs": [
+       0.25,
+       0.625,
+       0.125
+      ]
+     },
+     {
+      "config": [
+       "hi",
+       "b"
+      ],
+      "probs": [
+       0.3125,
+       0.375,
+       0.3125
+      ]
+     },
+     {
+      "config": [
+       "hi",
+       "c"
+      ],
+      "probs": [
+       0.375,
+       0.25,
+       0.375
+      ]
+     }
+    ]
+   }
+  ],
+  "queries": [
+   {
+    "kind": "condition",
+    "outcome": "Y",
+    "evidence": {
+     "S": "hi"
+    },
+    "evidence_probability": 0.18359375,
+    "levels": [
+     [
+      "0",
+      0.32845744680851063
+     ],
+     [
+      "1",
+      0.34308510638297873
+     ],
+     [
+      "2",
+      0.32845744680851063
+     ]
+    ]
+   },
+   {
+    "kind": "condition",
+    "outcome": "Z",
+    "evidence": {
+     "S": "hi"
+    },
+    "evidence_probability": 0.18359375,
+    "levels": [
+     [
+      "a",
+      0.0
+     ],
+     [
+      "b",
+      0.7446808510638298
+     ],
+     [
+      "c",
+      0.2553191489361702
+     ]
+    ]
+   },
+   {
+    "kind": "condition",
+    "outcome": "Y",
+    "evidence": {
+     "S": "lo",
+     "W": "p"
+    },
+    "evidence_probability": 0.2041015625,
+    "levels": [
+     [
+      "0",
+      0.6052631578947368
+     ],
+     [
+      "1",
+      0.2996411483253589
+     ],
+     [
+      "2",
+      0.0950956937799043
+     ]
+    ]
+   },
+   {
+    "kind": "condition",
+    "outcome": "Z",
+    "evidence": {
+     "S": "lo",
+     "W": "p"
+    },
+    "evidence_probability": 0.2041015625,
+    "levels": [
+     [
+      "a",
+      0.6124401913875598
+     ],
+     [
+      "b",
+      0.3684210526315789
+     ],
+     [
+      "c",
+      0.019138755980861243
+     ]
+    ]
+   },
+   {
+    "kind": "condition",
+    "outcome": "Y",
+    "evidence": {
+     "W": "n",
+     "Z": "c"
+    },
+    "evidence_probability": 0.01171875,
+    "levels": [
+     [
+      "0",
+      0.0
+     ],
+     [
+      "1",
+      0.4375
+     ],
+     [
+      "2",
+      0.5625
+     ]
+    ]
+   },
+   {
+    "kind": "condition",
+    "outcome": "Y",
+    "evidence": {
+     "Z": "a",
+     "S": "hi",
+     "W": "p"
+    },
+    "error": "zero_evidence"
+   },
+   {
+    "kind": "intervene",
+    "outcome": "Y",
+    "do": {
+     "S": "hi"
+    },
+    "levels": [
+     [
+      "0",
+      0.28515625
+     ],
+     [
+      "1",
+      0.4921875
+     ],
+     [
+      "2",
+      0.22265625
+     ]
+    ]
+   },
+   {
+    "kind": "intervene",
+    "outcome": "Y",
+    "do": {
+     "S": "lo"
+    },
+    "levels": [
+     [
+      "0",
+      0.5625
+     ],
+     [
+      "1",
+      0.31640625
+     ],
+     [
+      "2",
+      0.12109375
+     ]
+    ]
+   },
+   {
+    "kind": "intervene",
+    "outcome": "Y",
+    "do": {
+     "S": "hi",
+     "W": "n"
+    },
+    "levels": [
+     [
+      "0",
+      0.28515625
+     ],
+     [
+      "1",
+      0.4921875
+     ],
+     [
+      "2",
+      0.22265625
+     ]
+    ]
+   },
+   {
+    "kind": "intervene",
+    "outcome": "Y",
+    "do": {
+     "Z": "b"
+    },
+    "levels": [
+     [
+      "0",
+      0.44140625
+     ],
+     [
+      "1",
+      0.375
+     ],
+     [
+      "2",
+      0.18359375
+     ]
+    ]
+   },
+   {
+    "kind": "after",
+    "outcome": "Y",
+    "do": {
+     "S": "hi"
+    },
+    "observed": {
+     "W": "p"
+    },
+    "evidence_probability": 1.0,
+    "levels": [
+     [
+      "0",
+      0.28515625
+     ],
+     [
+      "1",
+      0.4921875
+     ],
+     [
+      "2",
+      0.22265625
+     ]
+    ]
+   },
+   {
+    "kind": "after",
+    "outcome": "Y",
+    "do": {
+     "S": "lo"
+    },
+    "observed": {
+     "Z": "b"
+    },
+    "evidence_probability": 0.4375,
+    "levels": [
+     [
+      "0",
+      0.5
+     ],
+     [
+      "1",
+      0.375
+     ],
+     [
+      "2",
+      0.125
+     ]
+    ]
+   },
+   {
+    "kind": "after",
+    "outcome": "Y",
+    "do": {
+     "S": "hi"
+    },
+    "observed": {
+     "W": "n",
+     "Z": "a"
+    },
+    "error": "zero_evidence"
+   },
+   {
+    "kind": "measured",
+    "outcome": "Y",
+    "construct": "Z",
+    "observed": {},
+    "likelihood": [
+     0.75,
+     0.125,
+     0.0625
+    ],
+    "evidence_probability": 0.43359375,
+    "outcome_levels": [
+     [
+      "0",
+      0.6528012387387387
+     ],
+     [
+      "1",
+      0.2661880630630631
+     ],
+     [
+      "2",
+      0.0810106981981982
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.8648648648648649
+     ],
+     [
+      "b",
+      0.12612612612612611
+     ],
+     [
+      "c",
+      0.009009009009009009
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "Z",
+    "construct": "Z",
+    "observed": {},
+    "likelihood": [
+     0.75,
+     0.125,
+     0.0625
+    ],
+    "evidence_probability": 0.43359375,
+    "outcome_levels": [
+     [
+      "a",
+      0.8648648648648649
+     ],
+     [
+      "b",
+      0.12612612612612611
+     ],
+     [
+      "c",
+      0.009009009009009009
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.8648648648648649
+     ],
+     [
+      "b",
+      0.12612612612612611
+     ],
+     [
+      "c",
+      0.009009009009009009
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "S",
+    "construct": "Z",
+    "observed": {},
+    "likelihood": [
+     0.75,
+     0.125,
+     0.0625
+    ],
+    "evidence_probability": 0.43359375,
+    "outcome_levels": [
+     [
+      "lo",
+      0.9538288288288288
+     ],
+     [
+      "hi",
+      0.04617117117117117
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.8648648648648649
+     ],
+     [
+      "b",
+      0.12612612612612611
+     ],
+     [
+      "c",
+      0.009009009009009009
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "Y",
+    "construct": "Z",
+    "observed": {
+     "W": "p"
+    },
+    "likelihood": [
+     0.5,
+     0.5,
+     0.5
+    ],
+    "evidence_probability": 0.19384765625,
+    "outcome_levels": [
+     [
+      "0",
+      0.47418136020151136
+     ],
+     [
+      "1",
+      0.3202141057934509
+     ],
+     [
+      "2",
+      0.20560453400503778
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.3224181360201511
+     ],
+     [
+      "b",
+      0.5465994962216625
+     ],
+     [
+      "c",
+      0.1309823677581864
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "Z",
+    "construct": "Z",
+    "observed": {
+     "W": "p"
+    },
+    "likelihood": [
+     0.5,
+     0.5,
+     0.5
+    ],
+    "evidence_probability": 0.19384765625,
+    "outcome_levels": [
+     [
+      "a",
+      0.3224181360201511
+     ],
+     [
+      "b",
+      0.5465994962216625
+     ],
+     [
+      "c",
+      0.1309823677581864
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.3224181360201511
+     ],
+     [
+      "b",
+      0.5465994962216625
+     ],
+     [
+      "c",
+      0.1309823677581864
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "S",
+    "construct": "Z",
+    "observed": {
+     "W": "p"
+    },
+    "likelihood": [
+     0.5,
+     0.5,
+     0.5
+    ],
+    "evidence_probability": 0.19384765625,
+    "outcome_levels": [
+     [
+      "lo",
+      0.5264483627204031
+     ],
+     [
+      "hi",
+      0.473551637279597
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.3224181360201511
+     ],
+     [
+      "b",
+      0.5465994962216625
+     ],
+     [
+      "c",
+      0.1309823677581864
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "Y",
+    "construct": "Z",
+    "observed": {
+     "S": "hi"
+    },
+    "likelihood": [
+     0.0,
+     1.0,
+     0.25
+    ],
+    "evidence_probability": 0.1484375,
+    "outcome_levels": [
+     [
+      "0",
+      0.31743421052631576
+     ],
+     [
+      "1",
+      0.3651315789473684
+     ],
+     [
+      "2",
+      0.31743421052631576
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.0
+     ],
+     [
+      "b",
+      0.9210526315789473
+     ],
+     [
+      "c",
+      0.07894736842105263
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "Z",
+    "construct": "Z",
+    "observed": {
+     "S": "hi"
+    },
+    "likelihood": [
+     0.0,
+     1.0,
+     0.25
+    ],
+    "evidence_probability": 0.1484375,
+    "outcome_levels": [
+     [
+      "a",
+      0.0
+     ],
+     [
+      "b",
+      0.9210526315789473
+     ],
+     [
+      "c",
+      0.07894736842105263
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.0
+     ],
+     [
+      "b",
+      0.9210526315789473
+     ],
+     [
+      "c",
+      0.07894736842105263
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "Y",
+    "construct": "Z",
+    "observed": {},
+    "likelihood": [
+     0.0625,
+     0.0,
+     0.0
+    ],
+    "evidence_probability": 0.03125,
+    "outcome_levels": [
+     [
+      "0",
+      0.6875
+     ],
+     [
+      "1",
+      0.25
+     ],
+     [
+      "2",
+      0.0625
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      1.0
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      0.0
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "Z",
+    "construct": "Z",
+    "observed": {},
+    "likelihood": [
+     0.0625,
+     0.0,
+     0.0
+    ],
+    "evidence_probability": 0.03125,
+    "outcome_levels": [
+     [
+      "a",
+      1.0
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      0.0
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      1.0
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      0.0
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "S",
+    "construct": "Z",
+    "observed": {},
+    "likelihood": [
+     0.0625,
+     0.0,
+     0.0
+    ],
+    "evidence_probability": 0.03125,
+    "outcome_levels": [
+     [
+      "lo",
+      1.0
+     ],
+     [
+      "hi",
+      0.0
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      1.0
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      0.0
+     ]
+    ]
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.5,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.515625,
+      "conditional": 0.5,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.484375,
+      "conditional": 0.3790322580645161,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.515625
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.3790322580645161,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.515625,
+      "conditional": 0.5,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.484375,
+      "conditional": 0.3790322580645161,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.5,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.515625,
+      "conditional": 0.5,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.484375,
+      "conditional": 0.3790322580645161,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.515625
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.501,
+    "direction": "raise",
+    "error": "unreachable",
+    "extremum": 0.5
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.5,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.515625,
+      "conditional": 0.5,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.484375,
+      "conditional": 0.3790322580645161,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.3790322580645161,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.515625,
+      "conditional": 0.5,
+      "crosses": false
+     },
+     {
+      "level": "p",
+      "probability": 0.484375,
+      "conditional": 0.3790322580645161,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.484375
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.5,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.515625,
+      "conditional": 0.5,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.484375,
+      "conditional": 0.3790322580645161,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.501,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.515625,
+      "conditional": 0.5,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.484375,
+      "conditional": 0.3790322580645161,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.24596774193548387,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.515625,
+      "conditional": 0.125,
+      "crosses": false
+     },
+     {
+      "level": "p",
+      "probability": 0.484375,
+      "conditional": 0.24596774193548387,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.484375
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.125,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.515625,
+      "conditional": 0.125,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.484375,
+      "conditional": 0.24596774193548387,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.24596774193548387,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.515625,
+      "conditional": 0.125,
+      "crosses": false
+     },
+     {
+      "level": "p",
+      "probability": 0.484375,
+      "conditional": 0.24596774193548387,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.484375
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.24696774193548388,
+    "direction": "raise",
+    "error": "unreachable",
+    "extremum": 0.24596774193548387
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.24596774193548387,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.515625,
+      "conditional": 0.125,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.484375,
+      "conditional": 0.24596774193548387,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.125,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.515625,
+      "conditional": 0.125,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.484375,
+      "conditional": 0.24596774193548387,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.515625
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.24596774193548387,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.515625,
+      "conditional": 0.125,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.484375,
+      "conditional": 0.24596774193548387,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.24696774193548388,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.515625,
+      "conditional": 0.125,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.484375,
+      "conditional": 0.24596774193548387,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.6052631578947368,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.81640625,
+      "conditional": 0.6052631578947368,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.18359375,
+      "conditional": 0.32845744680851063,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.81640625
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.32845744680851063,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.81640625,
+      "conditional": 0.6052631578947368,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.18359375,
+      "conditional": 0.32845744680851063,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.6052631578947368,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.81640625,
+      "conditional": 0.6052631578947368,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.18359375,
+      "conditional": 0.32845744680851063,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.81640625
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.6062631578947368,
+    "direction": "raise",
+    "error": "unreachable",
+    "extremum": 0.6052631578947368
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.6052631578947368,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.81640625,
+      "conditional": 0.6052631578947368,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.18359375,
+      "conditional": 0.32845744680851063,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.32845744680851063,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.81640625,
+      "conditional": 0.6052631578947368,
+      "crosses": false
+     },
+     {
+      "level": "hi",
+      "probability": 0.18359375,
+      "conditional": 0.32845744680851063,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.18359375
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.6052631578947368,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.81640625,
+      "conditional": 0.6052631578947368,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.18359375,
+      "conditional": 0.32845744680851063,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.6062631578947368,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.81640625,
+      "conditional": 0.6052631578947368,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.18359375,
+      "conditional": 0.32845744680851063,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.32845744680851063,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.81640625,
+      "conditional": 0.0950956937799043,
+      "crosses": false
+     },
+     {
+      "level": "hi",
+      "probability": 0.18359375,
+      "conditional": 0.32845744680851063,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.18359375
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.0950956937799043,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.81640625,
+      "conditional": 0.0950956937799043,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.18359375,
+      "conditional": 0.32845744680851063,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.32845744680851063,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.81640625,
+      "conditional": 0.0950956937799043,
+      "crosses": false
+     },
+     {
+      "level": "hi",
+      "probability": 0.18359375,
+      "conditional": 0.32845744680851063,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.18359375
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.32945744680851063,
+    "direction": "raise",
+    "error": "unreachable",
+    "extremum": 0.32845744680851063
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.32845744680851063,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.81640625,
+      "conditional": 0.0950956937799043,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.18359375,
+      "conditional": 0.32845744680851063,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.0950956937799043,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.81640625,
+      "conditional": 0.0950956937799043,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.18359375,
+      "conditional": 0.32845744680851063,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.81640625
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.32845744680851063,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.81640625,
+      "conditional": 0.0950956937799043,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.18359375,
+      "conditional": 0.32845744680851063,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.32945744680851063,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.81640625,
+      "conditional": 0.0950956937799043,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.18359375,
+      "conditional": 0.32845744680851063,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.6052631578947368,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.6123046875,
+      "conditional": 0.6052631578947368,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.3876953125,
+      "conditional": 0.47418136020151136,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.6123046875
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.47418136020151136,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.6123046875,
+      "conditional": 0.6052631578947368,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.3876953125,
+      "conditional": 0.47418136020151136,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.6052631578947368,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.6123046875,
+      "conditional": 0.6052631578947368,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.3876953125,
+      "conditional": 0.47418136020151136,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.6123046875
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.6062631578947368,
+    "direction": "raise",
+    "error": "unreachable",
+    "extremum": 0.6052631578947368
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.6052631578947368,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.6123046875,
+      "conditional": 0.6052631578947368,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.3876953125,
+      "conditional": 0.47418136020151136,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.47418136020151136,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.6123046875,
+      "conditional": 0.6052631578947368,
+      "crosses": false
+     },
+     {
+      "level": "p",
+      "probability": 0.3876953125,
+      "conditional": 0.47418136020151136,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.3876953125
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.6052631578947368,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.6123046875,
+      "conditional": 0.6052631578947368,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.3876953125,
+      "conditional": 0.47418136020151136,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.6062631578947368,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.6123046875,
+      "conditional": 0.6052631578947368,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.3876953125,
+      "conditional": 0.47418136020151136,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.20560453400503778,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.6123046875,
+      "conditional": 0.0950956937799043,
+      "crosses": false
+     },
+     {
+      "level": "p",
+      "probability": 0.3876953125,
+      "conditional": 0.20560453400503778,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.3876953125
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.0950956937799043,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.6123046875,
+      "conditional": 0.0950956937799043,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.3876953125,
+      "conditional": 0.20560453400503778,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.20560453400503778,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.6123046875,
+      "conditional": 0.0950956937799043,
+      "crosses": false
+     },
+     {
+      "level": "p",
+      "probability": 0.3876953125,
+      "conditional": 0.20560453400503778,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.3876953125
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.20660453400503778,
+    "direction": "raise",
+    "error": "unreachable",
+    "extremum": 0.20560453400503778
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.20560453400503778,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.6123046875,
+      "conditional": 0.0950956937799043,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.3876953125,
+      "conditional": 0.20560453400503778,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.0950956937799043,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.6123046875,
+      "conditional": 0.0950956937799043,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.3876953125,
+      "conditional": 0.20560453400503778,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.6123046875
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.20560453400503778,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.6123046875,
+      "conditional": 0.0950956937799043,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.3876953125,
+      "conditional": 0.20560453400503778,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.20660453400503778,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.6123046875,
+      "conditional": 0.0950956937799043,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.3876953125,
+      "conditional": 0.20560453400503778,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   }
+  ]
+ },
+ {
+  "seed": 13,
+  "variables": [
+   {
+    "name": "Z",
+    "levels": [
+     "a",
+     "b",
+     "c"
+    ],
+    "parents": [],
+    "rows": [
+     {
+      "config": [],
+      "probs": [
+       0.5,
+       0.0625,
+       0.4375
+      ]
+     }
+    ]
+   },
+   {
+    "name": "S",
+    "levels": [
+     "lo",
+     "hi"
+    ],
+    "parents": [
+     "Z"
+    ],
+    "rows": [
+     {
+      "config": [
+       "a"
+      ],
+      "probs": [
+       0.3125,
+       0.6875
+      ]
+     },
+     {
+      "config": [
+       "b"
+      ],
+      "probs": [
+       0.4375,
+       0.5625
+      ]
+     },
+     {
+      "config": [
+       "c"
+      ],
+      "probs": [
+       0.25,
+       0.75
+      ]
+     }
+    ]
+   },
+   {
+    "name": "W",
+    "levels": [
+     "n",
+     "p",
+     "x"
+    ],
+    "parents": [
+     "S"
+    ],
+    "rows": [
+     {
+      "config": [
+       "lo"
+      ],
+      "probs": [
+       0.4375,
+       0.5625,
+       0.0
+      ]
+     },
+     {
+      "config": [
+       "hi"
+      ],
+      "probs": [
+       0.3125,
+       0.6875,
+       0.0
+      ]
+     }
+    ]
+   },
+   {
+    "name": "Y",
+    "levels": [
+     "0",
+     "1",
+     "2"
+    ],
+    "parents": [
+     "S",
+     "Z"
+    ],
+    "rows": [
+     {
+      "config": [
+       "lo",
+       "a"
+      ],
+      "probs": [
+       0.125,
+       0.125,
+       0.75
+      ]
+     },
+     {
+      "config": [
+       "lo",
+       "b"
+      ],
+      "probs": [
+       0.375,
+       0.1875,
+       0.4375
+      ]
+     },
+     {
+      "config": [
+       "lo",
+       "c"
+      ],
+      "probs": [
+       0.0,
+       0.8125,
+       0.1875
+      ]
+     },
+     {
+      "config": [
+       "hi",
+       "a"
+      ],
+      "probs": [
+       0.0,
+       0.25,
+       0.75
+      ]
+     },
+     {
+      "config": [
+       "hi",
+       "b"
+      ],
+      "probs": [
+       0.25,
+       0.25,
+       0.5
+      ]
+     },
+     {
+      "config": [
+       "hi",
+       "c"
+      ],
+      "probs": [
+       0.125,
+       0.375,
+       0.5
+      ]
+     }
+    ]
+   }
+  ],
+  "queries": [
+   {
+    "kind": "condition",
+    "outcome": "Y",
+    "evidence": {
+     "S": "hi"
+    },
+    "evidence_probability": 0.70703125,
+    "levels": [
+     [
+      "0",
+      0.07044198895027624
+     ],
+     [
+      "1",
+      0.3080110497237569
+     ],
+     [
+      "2",
+      0.6215469613259669
+     ]
+    ]
+   },
+   {
+    "kind": "condition",
+    "outcome": "Z",
+    "evidence": {
+     "S": "hi"
+    },
+    "evidence_probability": 0.70703125,
+    "levels": [
+     [
+      "a",
+      0.4861878453038674
+     ],
+     [
+      "b",
+      0.049723756906077346
+     ],
+     [
+      "c",
+      0.46408839779005523
+     ]
+    ]
+   },
+   {
+    "kind": "condition",
+    "outcome": "Y",
+    "evidence": {
+     "S": "lo",
+     "W": "p"
+    },
+    "evidence_probability": 0.164794921875,
+    "levels": [
+     [
+      "0",
+      0.10166666666666667
+     ],
+     [
+      "1",
+      0.3875
+     ],
+     [
+      "2",
+      0.5108333333333334
+     ]
+    ]
+   },
+   {
+    "kind": "condition",
+    "outcome": "Z",
+    "evidence": {
+     "S": "lo",
+     "W": "p"
+    },
+    "evidence_probability": 0.164794921875,
+    "levels": [
+     [
+      "a",
+      0.5333333333333333
+     ],
+     [
+      "b",
+      0.09333333333333334
+     ],
+     [
+      "c",
+      0.37333333333333335
+     ]
+    ]
+   },
+   {
+    "kind": "condition",
+    "outcome": "Y",
+    "evidence": {
+     "W": "n",
+     "Z": "c"
+    },
+    "evidence_probability": 0.150390625,
+    "levels": [
+     [
+      "0",
+      0.08522727272727272
+     ],
+     [
+      "1",
+      0.5142045454545454
+     ],
+     [
+      "2",
+      0.4005681818181818
+     ]
+    ]
+   },
+   {
+    "kind": "condition",
+    "outcome": "Y",
+    "evidence": {
+     "Z": "a",
+     "S": "hi",
+     "W": "p"
+    },
+    "evidence_probability": 0.236328125,
+    "levels": [
+     [
+      "0",
+      0.0
+     ],
+     [
+      "1",
+      0.25
+     ],
+     [
+      "2",
+      0.75
+     ]
+    ]
+   },
+   {
+    "kind": "intervene",
+    "outcome": "Y",
+    "do": {
+     "S": "hi"
+    },
+    "levels": [
+     [
+      "0",
+      0.0703125
+     ],
+     [
+      "1",
+      0.3046875
+     ],
+     [
+      "2",
+      0.625
+     ]
+    ]
+   },
+   {
+    "kind": "intervene",
+    "outcome": "Y",
+    "do": {
+     "S": "lo"
+    },
+    "levels": [
+     [
+      "0",
+      0.0859375
+     ],
+     [
+      "1",
+      0.4296875
+     ],
+     [
+      "2",
+      0.484375
+     ]
+    ]
+   },
+   {
+    "kind": "intervene",
+    "outcome": "Y",
+    "do": {
+     "S": "hi",
+     "W": "n"
+    },
+    "levels": [
+     [
+      "0",
+      0.0703125
+     ],
+     [
+      "1",
+      0.3046875
+     ],
+     [
+      "2",
+      0.625
+     ]
+    ]
+   },
+   {
+    "kind": "intervene",
+    "outcome": "Y",
+    "do": {
+     "Z": "b"
+    },
+    "levels": [
+     [
+      "0",
+      0.3046875
+     ],
+     [
+      "1",
+      0.22265625
+     ],
+     [
+      "2",
+      0.47265625
+     ]
+    ]
+   },
+   {
+    "kind": "after",
+    "outcome": "Y",
+    "do": {
+     "S": "hi"
+    },
+    "observed": {
+     "W": "p"
+    },
+    "evidence_probability": 0.6875,
+    "levels": [
+     [
+      "0",
+      0.0703125
+     ],
+     [
+      "1",
+      0.3046875
+     ],
+     [
+      "2",
+      0.625
+     ]
+    ]
+   },
+   {
+    "kind": "after",
+    "outcome": "Y",
+    "do": {
+     "S": "lo"
+    },
+    "observed": {
+     "Z": "b"
+    },
+    "evidence_probability": 0.0625,
+    "levels": [
+     [
+      "0",
+      0.375
+     ],
+     [
+      "1",
+      0.1875
+     ],
+     [
+      "2",
+      0.4375
+     ]
+    ]
+   },
+   {
+    "kind": "after",
+    "outcome": "Y",
+    "do": {
+     "S": "hi"
+    },
+    "observed": {
+     "W": "n",
+     "Z": "a"
+    },
+    "evidence_probability": 0.15625,
+    "levels": [
+     [
+      "0",
+      0.0
+     ],
+     [
+      "1",
+      0.25
+     ],
+     [
+      "2",
+      0.75
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "Y",
+    "construct": "Z",
+    "observed": {},
+    "likelihood": [
+     0.75,
+     0.125,
+     0.0625
+    ],
+    "evidence_probability": 0.41015625,
+    "outcome_levels": [
+     [
+      "0",
+      0.04776785714285714
+     ],
+     [
+      "1",
+      0.22938988095238094
+     ],
+     [
+      "2",
+      0.7228422619047619
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.9142857142857143
+     ],
+     [
+      "b",
+      0.01904761904761905
+     ],
+     [
+      "c",
+      0.06666666666666667
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "Z",
+    "construct": "Z",
+    "observed": {},
+    "likelihood": [
+     0.75,
+     0.125,
+     0.0625
+    ],
+    "evidence_probability": 0.41015625,
+    "outcome_levels": [
+     [
+      "a",
+      0.9142857142857143
+     ],
+     [
+      "b",
+      0.01904761904761905
+     ],
+     [
+      "c",
+      0.06666666666666667
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.9142857142857143
+     ],
+     [
+      "b",
+      0.01904761904761905
+     ],
+     [
+      "c",
+      0.06666666666666667
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "S",
+    "construct": "Z",
+    "observed": {},
+    "likelihood": [
+     0.75,
+     0.125,
+     0.0625
+    ],
+    "evidence_probability": 0.41015625,
+    "outcome_levels": [
+     [
+      "lo",
+      0.3107142857142857
+     ],
+     [
+      "hi",
+      0.6892857142857143
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.9142857142857143
+     ],
+     [
+      "b",
+      0.01904761904761905
+     ],
+     [
+      "c",
+      0.06666666666666667
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "Y",
+    "construct": "Z",
+    "observed": {
+     "W": "p"
+    },
+    "likelihood": [
+     0.5,
+     0.5,
+     0.5
+    ],
+    "evidence_probability": 0.325439453125,
+    "outcome_levels": [
+     [
+      "0",
+      0.078347711927982
+     ],
+     [
+      "1",
+      0.32813672168042013
+     ],
+     [
+      "2",
+      0.5935155663915979
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.4981245311327832
+     ],
+     [
+      "b",
+      0.060765191297824456
+     ],
+     [
+      "c",
+      0.44111027756939236
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "Z",
+    "construct": "Z",
+    "observed": {
+     "W": "p"
+    },
+    "likelihood": [
+     0.5,
+     0.5,
+     0.5
+    ],
+    "evidence_probability": 0.325439453125,
+    "outcome_levels": [
+     [
+      "a",
+      0.4981245311327832
+     ],
+     [
+      "b",
+      0.060765191297824456
+     ],
+     [
+      "c",
+      0.44111027756939236
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.4981245311327832
+     ],
+     [
+      "b",
+      0.060765191297824456
+     ],
+     [
+      "c",
+      0.44111027756939236
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "S",
+    "construct": "Z",
+    "observed": {
+     "W": "p"
+    },
+    "likelihood": [
+     0.5,
+     0.5,
+     0.5
+    ],
+    "evidence_probability": 0.325439453125,
+    "outcome_levels": [
+     [
+      "lo",
+      0.25318829707426854
+     ],
+     [
+      "hi",
+      0.7468117029257314
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.4981245311327832
+     ],
+     [
+      "b",
+      0.060765191297824456
+     ],
+     [
+      "c",
+      0.44111027756939236
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "Y",
+    "construct": "Z",
+    "observed": {
+     "S": "hi"
+    },
+    "likelihood": [
+     0.0,
+     1.0,
+     0.25
+    ],
+    "evidence_probability": 0.1171875,
+    "outcome_levels": [
+     [
+      "0",
+      0.1625
+     ],
+     [
+      "1",
+      0.3375
+     ],
+     [
+      "2",
+      0.5
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.0
+     ],
+     [
+      "b",
+      0.3
+     ],
+     [
+      "c",
+      0.7
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "Z",
+    "construct": "Z",
+    "observed": {
+     "S": "hi"
+    },
+    "likelihood": [
+     0.0,
+     1.0,
+     0.25
+    ],
+    "evidence_probability": 0.1171875,
+    "outcome_levels": [
+     [
+      "a",
+      0.0
+     ],
+     [
+      "b",
+      0.3
+     ],
+     [
+      "c",
+      0.7
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      0.0
+     ],
+     [
+      "b",
+      0.3
+     ],
+     [
+      "c",
+      0.7
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "Y",
+    "construct": "Z",
+    "observed": {},
+    "likelihood": [
+     0.0625,
+     0.0,
+     0.0
+    ],
+    "evidence_probability": 0.03125,
+    "outcome_levels": [
+     [
+      "0",
+      0.0390625
+     ],
+     [
+      "1",
+      0.2109375
+     ],
+     [
+      "2",
+      0.75
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      1.0
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      0.0
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "Z",
+    "construct": "Z",
+    "observed": {},
+    "likelihood": [
+     0.0625,
+     0.0,
+     0.0
+    ],
+    "evidence_probability": 0.03125,
+    "outcome_levels": [
+     [
+      "a",
+      1.0
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      0.0
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      1.0
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      0.0
+     ]
+    ]
+   },
+   {
+    "kind": "measured",
+    "outcome": "S",
+    "construct": "Z",
+    "observed": {},
+    "likelihood": [
+     0.0625,
+     0.0,
+     0.0
+    ],
+    "evidence_probability": 0.03125,
+    "outcome_levels": [
+     [
+      "lo",
+      0.3125
+     ],
+     [
+      "hi",
+      0.6875
+     ]
+    ],
+    "construct_levels": [
+     [
+      "a",
+      1.0
+     ],
+     [
+      "b",
+      0.0
+     ],
+     [
+      "c",
+      0.0
+     ]
+    ]
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.3151595744680851,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.3671875,
+      "conditional": 0.3151595744680851,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.6328125,
+      "conditional": 0.2986111111111111,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.3671875
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.2986111111111111,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.3671875,
+      "conditional": 0.3151595744680851,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.6328125,
+      "conditional": 0.2986111111111111,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.3151595744680851,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.3671875,
+      "conditional": 0.3151595744680851,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.6328125,
+      "conditional": 0.2986111111111111,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.3671875
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.3161595744680851,
+    "direction": "raise",
+    "error": "unreachable",
+    "extremum": 0.3151595744680851
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.3151595744680851,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.3671875,
+      "conditional": 0.3151595744680851,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.6328125,
+      "conditional": 0.2986111111111111,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.2986111111111111,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.3671875,
+      "conditional": 0.3151595744680851,
+      "crosses": false
+     },
+     {
+      "level": "p",
+      "probability": 0.6328125,
+      "conditional": 0.2986111111111111,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.6328125
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.3151595744680851,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.3671875,
+      "conditional": 0.3151595744680851,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.6328125,
+      "conditional": 0.2986111111111111,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.3161595744680851,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.3671875,
+      "conditional": 0.3151595744680851,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.6328125,
+      "conditional": 0.2986111111111111,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.4756944444444444,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.3671875,
+      "conditional": 0.46742021276595747,
+      "crosses": false
+     },
+     {
+      "level": "p",
+      "probability": 0.6328125,
+      "conditional": 0.4756944444444444,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.6328125
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.46742021276595747,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.3671875,
+      "conditional": 0.46742021276595747,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.6328125,
+      "conditional": 0.4756944444444444,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.4756944444444444,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.3671875,
+      "conditional": 0.46742021276595747,
+      "crosses": false
+     },
+     {
+      "level": "p",
+      "probability": 0.6328125,
+      "conditional": 0.4756944444444444,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.6328125
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.4766944444444444,
+    "direction": "raise",
+    "error": "unreachable",
+    "extremum": 0.4756944444444444
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.4756944444444444,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.3671875,
+      "conditional": 0.46742021276595747,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.6328125,
+      "conditional": 0.4756944444444444,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.46742021276595747,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.3671875,
+      "conditional": 0.46742021276595747,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.6328125,
+      "conditional": 0.4756944444444444,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.3671875
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.4756944444444444,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.3671875,
+      "conditional": 0.46742021276595747,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.6328125,
+      "conditional": 0.4756944444444444,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {
+     "Z": "b"
+    },
+    "threshold": 0.4766944444444444,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.3671875,
+      "conditional": 0.46742021276595747,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.6328125,
+      "conditional": 0.4756944444444444,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.10166666666666667,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.29296875,
+      "conditional": 0.10166666666666667,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.70703125,
+      "conditional": 0.07044198895027624,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.29296875
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.07044198895027624,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.29296875,
+      "conditional": 0.10166666666666667,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.70703125,
+      "conditional": 0.07044198895027624,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.10166666666666667,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.29296875,
+      "conditional": 0.10166666666666667,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.70703125,
+      "conditional": 0.07044198895027624,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.29296875
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.10266666666666667,
+    "direction": "raise",
+    "error": "unreachable",
+    "extremum": 0.10166666666666667
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.10166666666666667,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.29296875,
+      "conditional": 0.10166666666666667,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.70703125,
+      "conditional": 0.07044198895027624,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.07044198895027624,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.29296875,
+      "conditional": 0.10166666666666667,
+      "crosses": false
+     },
+     {
+      "level": "hi",
+      "probability": 0.70703125,
+      "conditional": 0.07044198895027624,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.70703125
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.10166666666666667,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.29296875,
+      "conditional": 0.10166666666666667,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.70703125,
+      "conditional": 0.07044198895027624,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.10266666666666667,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.29296875,
+      "conditional": 0.10166666666666667,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.70703125,
+      "conditional": 0.07044198895027624,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.6215469613259669,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.29296875,
+      "conditional": 0.5108333333333334,
+      "crosses": false
+     },
+     {
+      "level": "hi",
+      "probability": 0.70703125,
+      "conditional": 0.6215469613259669,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.70703125
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.5108333333333334,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.29296875,
+      "conditional": 0.5108333333333334,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.70703125,
+      "conditional": 0.6215469613259669,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.6215469613259669,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.29296875,
+      "conditional": 0.5108333333333334,
+      "crosses": false
+     },
+     {
+      "level": "hi",
+      "probability": 0.70703125,
+      "conditional": 0.6215469613259669,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.70703125
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.6225469613259669,
+    "direction": "raise",
+    "error": "unreachable",
+    "extremum": 0.6215469613259669
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.6215469613259669,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.29296875,
+      "conditional": 0.5108333333333334,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.70703125,
+      "conditional": 0.6215469613259669,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.5108333333333334,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.29296875,
+      "conditional": 0.5108333333333334,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.70703125,
+      "conditional": 0.6215469613259669,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.29296875
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.6215469613259669,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.29296875,
+      "conditional": 0.5108333333333334,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.70703125,
+      "conditional": 0.6215469613259669,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "S",
+    "background": {},
+    "threshold": 0.6225469613259669,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "lo",
+      "probability": 0.29296875,
+      "conditional": 0.5108333333333334,
+      "crosses": true
+     },
+     {
+      "level": "hi",
+      "probability": 0.70703125,
+      "conditional": 0.6215469613259669,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.0819055944055944,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.34912109375,
+      "conditional": 0.0819055944055944,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.65087890625,
+      "conditional": 0.078347711927982,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.34912109375
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.078347711927982,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.34912109375,
+      "conditional": 0.0819055944055944,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.65087890625,
+      "conditional": 0.078347711927982,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.0819055944055944,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.34912109375,
+      "conditional": 0.0819055944055944,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.65087890625,
+      "conditional": 0.078347711927982,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.34912109375
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.0829055944055944,
+    "direction": "raise",
+    "error": "unreachable",
+    "extremum": 0.0819055944055944
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.0819055944055944,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.34912109375,
+      "conditional": 0.0819055944055944,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.65087890625,
+      "conditional": 0.078347711927982,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.078347711927982,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.34912109375,
+      "conditional": 0.0819055944055944,
+      "crosses": false
+     },
+     {
+      "level": "p",
+      "probability": 0.65087890625,
+      "conditional": 0.078347711927982,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.65087890625
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.0819055944055944,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.34912109375,
+      "conditional": 0.0819055944055944,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.65087890625,
+      "conditional": 0.078347711927982,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "0",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.0829055944055944,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.34912109375,
+      "conditional": 0.0819055944055944,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.65087890625,
+      "conditional": 0.078347711927982,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.5935155663915979,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.34912109375,
+      "conditional": 0.5809003496503496,
+      "crosses": false
+     },
+     {
+      "level": "p",
+      "probability": 0.65087890625,
+      "conditional": 0.5935155663915979,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.65087890625
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.5809003496503496,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.34912109375,
+      "conditional": 0.5809003496503496,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.65087890625,
+      "conditional": 0.5935155663915979,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.5935155663915979,
+    "direction": "raise",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.34912109375,
+      "conditional": 0.5809003496503496,
+      "crosses": false
+     },
+     {
+      "level": "p",
+      "probability": 0.65087890625,
+      "conditional": 0.5935155663915979,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 0.65087890625
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.5945155663915979,
+    "direction": "raise",
+    "error": "unreachable",
+    "extremum": 0.5935155663915979
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.5935155663915979,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.34912109375,
+      "conditional": 0.5809003496503496,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.65087890625,
+      "conditional": 0.5935155663915979,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.5809003496503496,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.34912109375,
+      "conditional": 0.5809003496503496,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.65087890625,
+      "conditional": 0.5935155663915979,
+      "crosses": false
+     }
+    ],
+    "crossing_probability": 0.34912109375
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.5935155663915979,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.34912109375,
+      "conditional": 0.5809003496503496,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.65087890625,
+      "conditional": 0.5935155663915979,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   },
+   {
+    "kind": "threshold",
+    "outcome": "Y",
+    "outcome_level": "2",
+    "signal": "W",
+    "background": {},
+    "threshold": 0.5945155663915979,
+    "direction": "lower",
+    "levels": [
+     {
+      "level": "n",
+      "probability": 0.34912109375,
+      "conditional": 0.5809003496503496,
+      "crosses": true
+     },
+     {
+      "level": "p",
+      "probability": 0.65087890625,
+      "conditional": 0.5935155663915979,
+      "crosses": true
+     }
+    ],
+    "crossing_probability": 1.0
+   }
+  ]
+ }
+]

@@ -5,7 +5,7 @@
 //! the structural verdicts the transport identifier's own unit tests fix for the same DAGs
 //! with the same query.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -106,7 +106,10 @@ fn chain_class_yields_its_three_members_with_the_verdicts_fixed_for_each_dag() {
     // 0 <- 1 <- 2: the varying mechanism is not an ancestor of the outcome: direct transport.
     match &by_edges(&[(1, 0), (2, 1)]).verdict {
         MemberVerdict::Identified { formula: TransportFormula::Direct(_), rule } => {
-            assert_eq!(rule, "transport.sid.direct");
+            assert!(
+                rule == "transport.sid.direct" || rule == "transport.sid.treatment_irrelevant",
+                "{rule}"
+            );
         }
         other => panic!("0<-1<-2: {other:?}"),
     }
@@ -160,7 +163,10 @@ fn exhausted_search_bound_refuses_and_names_the_unresolved_pairs() {
     r.exhausted_search_bounds = 1;
     let refused = refusal(transport_across_class(&r, &query()).unwrap_err());
     assert_eq!(refused.code, "discovered_structure_unresolved");
-    assert_eq!(refused.detail, "discovered_transport.search_incomplete");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::discovered_transport::SEARCH_INCOMPLETE
+    );
     assert_eq!(refused.exhausted_search_bounds, 1);
     let pairs: Vec<(u32, u32)> =
         refused.unresolved.iter().map(|p| (p.a.raw(), p.b.raw())).collect();
@@ -176,20 +182,29 @@ fn orientation_conflict_unknown_target_and_zero_bound_are_refused() {
     let targets = [v(1)];
     let refused =
         refusal(transport_across_class(&request(&conflicted, &targets), &query()).unwrap_err());
-    assert_eq!(refused.detail, "discovered_transport.orientation_conflict");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::discovered_transport::ORIENTATION_CONFLICT
+    );
     assert!(refused.unresolved.iter().any(|p| p.reason == "orientation_conflict"));
 
     let class = chain(3);
     let unknown = [v(9)];
     let refused =
         refusal(transport_across_class(&request(&class, &unknown), &query()).unwrap_err());
-    assert_eq!(refused.detail, "discovered_transport.selection_target_unknown");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::discovered_transport::SELECTION_TARGET_UNKNOWN
+    );
     assert_eq!(refused.unknown_selection_targets, vec![v(9)]);
 
     let mut zero = request(&class, &targets);
     zero.member_bound = 0;
     let refused = refusal(transport_across_class(&zero, &query()).unwrap_err());
-    assert_eq!(refused.detail, "discovered_transport.member_bound_zero");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::discovered_transport::MEMBER_BOUND_ZERO
+    );
 }
 
 /// `E[outcome | do(treatment)]` from an experiment on `treatment`.
@@ -284,9 +299,20 @@ fn pag_members_disagree_when_a_selected_cause_may_share_a_latent_cause_with_the_
         let z_is_a_cause = member.directed_edges.contains(&(v(2), v(1)));
         match (&member.verdict, z_is_a_cause) {
             (MemberVerdict::NotCertified { .. }, true) => {}
+            // Where the treatment does not reach the outcome the intervention is irrelevant, and
+            // the target's outcome law answers it whatever the selected cause does.
+            (MemberVerdict::Identified { formula, rule }, true)
+                if rule == "transport.sid.treatment_irrelevant" =>
+            {
+                assert_eq!(kind(formula), "direct");
+                assert!(!member.directed_edges.contains(&(v(0), v(1))));
+            }
             (MemberVerdict::Identified { formula, rule }, false) => {
                 assert_eq!(kind(formula), "direct");
-                assert_eq!(rule, "transport.sid.direct");
+                assert!(
+                    rule == "transport.sid.direct" || rule == "transport.sid.treatment_irrelevant",
+                    "{rule}"
+                );
             }
             other => panic!("{other:?}"),
         }
@@ -303,7 +329,10 @@ fn pag_search_bound_target_and_bound_refusals_name_the_unresolved_marks() {
     let mut exhausted = pag_request(&class, &targets);
     exhausted.exhausted_search_bounds = 2;
     let refused = refusal(transport_across_pag(&exhausted, &effect_query(1, 0)).unwrap_err());
-    assert_eq!(refused.detail, "discovered_transport.search_incomplete");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::discovered_transport::SEARCH_INCOMPLETE
+    );
     assert_eq!(refused.exhausted_search_bounds, 2);
     assert!(refused.unresolved.iter().all(|p| p.reason == "circle_endpoint"));
     assert_eq!(refused.unresolved.len(), 2);
@@ -312,20 +341,29 @@ fn pag_search_bound_target_and_bound_refusals_name_the_unresolved_marks() {
     let refused = refusal(
         transport_across_pag(&pag_request(&class, &unknown), &effect_query(1, 0)).unwrap_err(),
     );
-    assert_eq!(refused.detail, "discovered_transport.selection_target_unknown");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::discovered_transport::SELECTION_TARGET_UNKNOWN
+    );
     assert_eq!(refused.unknown_selection_targets, vec![v(7)]);
 
     let mut zero = pag_request(&class, &targets);
     zero.member_bound = 0;
     let refused = refusal(transport_across_pag(&zero, &effect_query(1, 0)).unwrap_err());
-    assert_eq!(refused.detail, "discovered_transport.member_bound_zero");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::discovered_transport::MEMBER_BOUND_ZERO
+    );
 
     let mut conflicted = class.clone();
     conflicted.mark_conflict(d(0), d(1)).unwrap();
     let refused = refusal(
         transport_across_pag(&pag_request(&conflicted, &targets), &effect_query(1, 0)).unwrap_err(),
     );
-    assert_eq!(refused.detail, "discovered_transport.orientation_conflict");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::discovered_transport::ORIENTATION_CONFLICT
+    );
 }
 
 #[test]
@@ -349,7 +387,10 @@ fn a_pag_member_bound_or_walk_budget_leaves_the_envelope_partial() {
     match transport_across_pag(&starved, &effect_query(1, 0)) {
         Ok(envelope) => assert_eq!(envelope.status(), EnvelopeStatus::Partial),
         Err(error) => {
-            assert_eq!(refusal(error).detail, "discovered_transport.class_too_large");
+            assert_eq!(
+                refusal(error).detail,
+                antecedent_core::reason_details::discovered_transport::CLASS_TOO_LARGE
+            );
         }
     }
 }
@@ -408,6 +449,20 @@ fn autoregressive_template() -> TemporalDag {
 }
 
 #[test]
+fn temporal_maximum_variable_id_is_refused_before_unfolding() {
+    let mut graph = TemporalDag::empty();
+    lagged(&mut graph, 0, 0);
+    lagged(&mut graph, 1, 0);
+    lagged(&mut graph, u32::MAX, 0);
+    let error = transport_across_temporal_class(
+        &temporal_request(TemporalClass::Dag(&graph), &[], 0),
+        &effect_query(1, 0),
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("temporal variable count overflows"));
+}
+
+#[test]
 fn a_lag_one_effect_with_autoregressive_history_is_identified_at_horizon_one() {
     let template = autoregressive_template();
     let targets = [v(2)];
@@ -457,7 +512,10 @@ fn the_effect_horizon_decides_whether_a_selected_history_matters() {
     match &envelope.members()[0].verdict {
         MemberVerdict::Identified { rule, formula } => {
             assert_eq!(kind(formula), "direct");
-            assert_eq!(rule, "transport.sid.direct");
+            assert!(
+                rule == "transport.sid.direct" || rule == "transport.sid.treatment_irrelevant",
+                "{rule}"
+            );
         }
         other => panic!("{other:?}"),
     }
@@ -530,6 +588,18 @@ fn temporal_pag_members_disagree_when_a_selected_lagged_cause_may_be_confounded(
             member.directed_edges.contains(&LaggedEdge { from: v(2), to: v(1), lag: 1 });
         match (&member.verdict, w_is_a_cause) {
             (MemberVerdict::NotCertified { .. }, true) => {}
+            // Where the lagged treatment does not reach the outcome the intervention is
+            // irrelevant, and the target's outcome law answers it.
+            (MemberVerdict::Identified { formula, rule }, true)
+                if rule == "transport.sid.treatment_irrelevant" =>
+            {
+                assert_eq!(kind(formula), "direct");
+                assert!(!member.directed_edges.contains(&LaggedEdge {
+                    from: v(0),
+                    to: v(1),
+                    lag: 1
+                }));
+            }
             (MemberVerdict::Identified { formula, .. }, false) => {
                 assert_eq!(kind(formula), "direct");
             }
@@ -549,7 +619,10 @@ fn temporal_requests_refuse_unknown_variables_and_unroll_only_the_declared_treat
         )
         .unwrap_err(),
     );
-    assert_eq!(refused.detail, "discovered_transport.temporal_query_invalid");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::discovered_transport::TEMPORAL_QUERY_INVALID
+    );
 
     let unknown = [v(8)];
     let refused = refusal(
@@ -559,7 +632,10 @@ fn temporal_requests_refuse_unknown_variables_and_unroll_only_the_declared_treat
         )
         .unwrap_err(),
     );
-    assert_eq!(refused.detail, "discovered_transport.selection_target_unknown");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::discovered_transport::SELECTION_TARGET_UNKNOWN
+    );
 
     // An experiment on a variable other than the treatment is not unrolled.
     let mut other_experiment = effect_query(1, 0);
@@ -571,5 +647,92 @@ fn temporal_requests_refuse_unknown_variables_and_unroll_only_the_declared_treat
         )
         .unwrap_err(),
     );
-    assert_eq!(refused.detail, "discovered_transport.temporal_query_invalid");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::discovered_transport::TEMPORAL_QUERY_INVALID
+    );
+}
+
+#[test]
+fn static_class_transport_preserves_context_and_typed_completion_stops() {
+    use antecedent_core::ExecutionContext;
+    use antecedent_identify::discovered_transport::{
+        transport_across_class_with_context, transport_across_pag_with_context,
+    };
+    use antecedent_identify::{IdentificationBudget, IdentificationError};
+    let cpdag = chain(3);
+    let targets = [v(1)];
+    let cpdag_request = request(&cpdag, &targets);
+    let mut pag = Pag::with_variables(3);
+    pag.insert_circle_arrow(d(0), d(1)).unwrap();
+    pag.insert_circle_arrow(d(2), d(1)).unwrap();
+    let pag_targets = [v(2)];
+    let pag_request = pag_request(&pag, &pag_targets);
+    let pag_query = effect_query(1, 0);
+    let ctx = ExecutionContext::for_tests(17).with_memory_limit(Some(1 << 24));
+    let before = ctx.admission().available();
+    assert_eq!(
+        transport_across_class_with_context(&cpdag_request, &query(), &ctx).unwrap(),
+        transport_across_class(&cpdag_request, &query()).unwrap()
+    );
+    assert_eq!(
+        transport_across_pag_with_context(&pag_request, &pag_query, &ctx).unwrap(),
+        transport_across_pag(&pag_request, &pag_query).unwrap()
+    );
+    assert_eq!(ctx.admission().available(), before);
+
+    let tiny = ExecutionContext::for_tests(17).with_memory_limit(Some(1));
+    let before = tiny.admission().available();
+    for result in [
+        transport_across_class_with_context(&cpdag_request, &query(), &tiny),
+        transport_across_pag_with_context(&pag_request, &pag_query, &tiny),
+    ] {
+        assert!(matches!(
+            result,
+            Err(DiscoveredTransportError::Identification(IdentificationError::Budget {
+                budget: IdentificationBudget::Memory
+            }))
+        ));
+    }
+    assert_eq!(tiny.admission().available(), before);
+    ctx.cancellation.cancel();
+    for result in [
+        transport_across_class_with_context(&cpdag_request, &query(), &ctx),
+        transport_across_pag_with_context(&pag_request, &pag_query, &ctx),
+    ] {
+        assert!(matches!(
+            result,
+            Err(DiscoveredTransportError::Identification(IdentificationError::Cancelled))
+        ));
+    }
+}
+
+#[test]
+fn temporal_class_transport_threads_the_callers_context() {
+    use antecedent_core::ExecutionContext;
+    use antecedent_identify::discovered_transport_temporal::transport_across_temporal_class_with_context;
+    use antecedent_identify::{IdentificationBudget, IdentificationError};
+    let template = autoregressive_template();
+    let targets = [v(2)];
+    let request = temporal_request(TemporalClass::Dag(&template), &targets, 1);
+    let ctx = ExecutionContext::for_tests(17).with_memory_limit(Some(1 << 26));
+    let before = ctx.admission().available();
+    assert_eq!(
+        transport_across_temporal_class_with_context(&request, &effect_query(1, 0), &ctx).unwrap(),
+        transport_across_temporal_class(&request, &effect_query(1, 0)).unwrap()
+    );
+    assert_eq!(ctx.admission().available(), before);
+
+    let tiny = ExecutionContext::for_tests(17).with_memory_limit(Some(1));
+    assert!(matches!(
+        transport_across_temporal_class_with_context(&request, &effect_query(1, 0), &tiny),
+        Err(DiscoveredTransportError::Identification(IdentificationError::Budget {
+            budget: IdentificationBudget::Memory
+        }))
+    ));
+    ctx.cancellation.cancel();
+    assert!(matches!(
+        transport_across_temporal_class_with_context(&request, &effect_query(1, 0), &ctx),
+        Err(DiscoveredTransportError::Identification(IdentificationError::Cancelled))
+    ));
 }

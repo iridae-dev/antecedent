@@ -20,4 +20,34 @@ upstream_implementations_observed = [
 test_sources = [
  "crates/antecedent-attribution/src/feature_relevance.rs (in-module unit tests)",
  "crates/antecedent/tests/attribution.rs",
+ "closed-form Shapley values of known linear structural models (additive and mediated games), a feature that does not reach the outcome, and refusal of repeated or outcome features (crates/antecedent-attribution/tests/feature_relevance_reference.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "feature_relevance in crates/antecedent-attribution/src/feature_relevance.rs: the coalition value E[Y | do(X_i = mean_i + delta for i in S)] under ancestral sampling of a fitted model with common random numbers, the exact Shapley aggregation over the features, the absolute-value score and ranking, the feature-count limit and the validation of the feature list. Not a review of the Shapley engine (checked against rational-arithmetic references in its own tests), of the fitted mechanisms' accuracy, or of the cited paper's conditional or marginal sampling of dropped features, which the record states is not implemented."
+assumptions = ["The fitted structural model is the truth: relevance is the Shapley attribution, over the listed features, of the change in the outcome mean from intervening on all of them at the shifted levels.", "A feature intervened on is set to its data mean plus delta in every coalition containing it, and its parents no longer influence it; features outside the coalition are sampled from their fitted mechanisms.", "Players are the distinct features; a coalition is a set of players."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed."
+limitations = "The cited paper was not re-read (no downloads were made and no copy was read from this environment) and the construction here differs from it as the record states, so the review checks the routine against its own documented value function only. Tolerances in the reference tests (0.1 on values of order one) cover Monte Carlo error in the sampled root means at 40000 samples. The reported score is the absolute Shapley value, so direction is lost, and the shift is taken from the data means, not the model's. The sampling seed is fixed and not configurable, so the score does not vary across repeated calls. Only linear mechanisms with an exactly fitted outcome were used as references; nonlinear or noisy mechanisms are covered by the sampling engine's own tests, not by closed-form values. Calibration remains deferred."
+sources = ["https://doi.org/10.48550/arXiv.1910.13413"]
+findings_resolved = ["An additive linear game (y = 2x - 3z, independent roots) returns scores 2 delta and 3 delta at delta 1 and 2.5, a mediated game (m = x, y = 2m) splits the effect equally between x and m as the definition requires since do(m) severs x, and a feature with no path to the outcome scores zero, all within 0.1.", "Defect fixed: a feature listed twice became two Shapley players that always move together, so the effect was split between the copies (each scored 0.83 where the single feature scores about 2.0 in the test model) with no error; and the outcome could be listed as its own feature. Both are now refused as invalid input."]
+record_sha256 = "f53d93c8d290939254742c3ae8f296026fa0a844487a0bbc88b81f0f3813581c"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-attribution/src/feature_relevance.rs"
+items = ["fn feature_relevance", "struct FeaturePayoff", "struct FeatureRelevanceOptions"]
+sha256 = "f538d4cfad12ce87c4fe824f096aa2e6bd2d17db1c215986b84c83e322bdffda"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-attribution/src/shapley.rs"
+items = ["enum Evaluator", "fn fork", "fn new", "fn samples_per_evaluation", "fn value", "trait CoalitionPayoff"]
+sha256 = "b8c6821e105615e2ff53b5b1b45616ccdb42195d60e09ce464c2cf7c2f484bb5"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-attribution/tests/feature_relevance_reference.rs"
+items = ["fn a_feature_that_does_not_reach_the_outcome_scores_zero", "fn a_repeated_feature_or_the_outcome_among_the_features_is_not_scored_silently", "fn an_additive_linear_game_gives_each_feature_its_own_coefficient_times_the_shift", "fn build", "fn intervening_on_a_mediator_severs_its_cause_and_splits_the_effect", "fn more_features_than_the_declared_limit_are_refused", "fn score_of", "fn scores", "fn series"]
+sha256 = "9b272464b5f73981fe0c823fa60688e1fa2be570210538897b178a35ebf39c98"

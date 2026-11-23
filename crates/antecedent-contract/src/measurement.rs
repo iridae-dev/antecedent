@@ -1,9 +1,9 @@
-//! Semantic contract for measurement models: what a model licenses, for
+//! Semantic contract for measurement models: what a model supports, for
 //! which population, regime, arm and representation, and what stays refused.
 //!
 //! The numerical correction is elsewhere; this module decides whether a
 //! request *may* use a [`MeasurementModel`] at all, and says which request it
-//! refused and what declaration or evidence would license it. Refusals are
+//! refused and what declaration or evidence would support it. Refusals are
 //! [`ExternalRefusal`]s under the `measurement_model` detail namespace, each
 //! with a registered reason code.
 //!
@@ -17,7 +17,7 @@
 //! representation-version coordinate live here, beside it, so no exhaustive
 //! match over roles in another crate is broken.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 
@@ -91,14 +91,14 @@ pub struct MeasurementRouteCard {
     pub assumptions: &'static [&'static str],
     /// Downstream operations the route may enter.
     pub allowed: &'static [MeasurementOperation],
-    /// Operations that stay refused, with what would license each.
+    /// Operations that stay refused, with what would support each.
     pub refused: &'static [(MeasurementOperation, &'static str)],
 }
 
 const CLASSICAL_REFUSED: &[(MeasurementOperation, &str)] = &[
     (
         MeasurementOperation::NonlinearOutcomeModel,
-        "regression calibration is exact for a linear outcome model only; a nonlinear model needs its own measurement-error route",
+        "the moment correction is exact for a linear outcome model only; for a logistic outcome model use the continuous correction (`PreparedMeasurementModel::estimate_continuous`: logistic regression calibration or SIMEX with a bootstrap of the whole procedure)",
     ),
     (
         MeasurementOperation::ConditionOnConstruct,
@@ -140,7 +140,7 @@ const BINARY_REFUSED: &[(MeasurementOperation, &str)] = &[
 const REPEATED_REFUSED: &[(MeasurementOperation, &str)] = &[
     (
         MeasurementOperation::NonlinearOutcomeModel,
-        "the replicate-based variance corrects a linear outcome model only",
+        "the replicate-based moment correction is exact for a linear outcome model only; for a logistic outcome model use the continuous correction (`PreparedMeasurementModel::estimate_continuous`: logistic regression calibration or SIMEX with a bootstrap of the whole procedure)",
     ),
     (
         MeasurementOperation::ConditionOnConstruct,
@@ -163,7 +163,7 @@ const REPEATED_REFUSED: &[(MeasurementOperation, &str)] = &[
 const CATEGORICAL_REFUSED: &[(MeasurementOperation, &str)] = &[
     (
         MeasurementOperation::ConditionOnConstruct,
-        "per-unit soft assignments are not consumed; a calibrated per-unit posterior is a separate route",
+        "per-unit soft assignments are not consumed by a confusion matrix; a calibrated per-unit probability of exposure is answered by `antecedent_estimate::measurement::correct_soft_exposure_effect` (Python `measurement_exposure.soft_exposure_effect`)",
     ),
     (
         MeasurementOperation::InterveneOnRepresentation,
@@ -222,7 +222,7 @@ pub fn route_card(route: MeasurementRoute) -> MeasurementRouteCard {
                 "sensitivity and specificity known, or estimated from an independent validation sample",
                 "Youden index above the declared minimum",
                 "non-differential error, or an explicit per-arm differential declaration",
-                "misclassification of the outcome; exposure misclassification is a separate closed route",
+                "misclassification of the outcome; a misclassified exposure is answered by `antecedent_estimate::measurement::correct_exposure_misclassification` (Python `measurement_exposure.correct_exposure_misclassification`)",
             ],
             allowed: &[
                 MeasurementOperation::LatentPrevalence,
@@ -292,12 +292,12 @@ fn invalid(detail: &str) -> MeasurementRefusal {
 pub fn model_refusal(error: &MeasurementModelError) -> MeasurementRefusal {
     match error {
         MeasurementModelError::BlankField(name) => {
-            invalid("measurement_model.blank_field").with_offending(*name)
+            invalid(antecedent_core::reason_details::measurement_model::BLANK_FIELD).with_offending(*name)
         }
         MeasurementModelError::ObservedIndicator => ExternalRefusal::new(
             antecedent_core::reason_code!("measurement_model_invalid"),
             STAGE_DECLARE,
-            "measurement_model.indicator_observed",
+            antecedent_core::reason_details::measurement_model::INDICATOR_OBSERVED,
         )
         .with_remedy(
             "an observed column has no error model; declare it noisy or misclassified, or use it directly",
@@ -305,7 +305,7 @@ pub fn model_refusal(error: &MeasurementModelError) -> MeasurementRefusal {
         MeasurementModelError::ProxyOfferedAsConstruct { offered } => ExternalRefusal::new(
             antecedent_core::reason_code!("proxy_offered_as_construct"),
             STAGE_DECLARE,
-            "measurement_model.proxy_as_construct",
+            antecedent_core::reason_details::measurement_model::PROXY_AS_CONSTRUCT,
         )
         .with_supplied(offered.as_str())
         .with_expected(MeasurementKind::LatentScientific.as_str())
@@ -313,27 +313,27 @@ pub fn model_refusal(error: &MeasurementModelError) -> MeasurementRefusal {
             "name the latent scientific construct and relate the proxy to it by a measurement model",
         ),
         MeasurementModelError::IndicatorKindNotAccepted { route, kind } => {
-            invalid("measurement_model.indicator_kind")
+            invalid(antecedent_core::reason_details::measurement_model::INDICATOR_KIND)
                 .with_offending(route.as_str())
                 .with_supplied(kind.as_str())
         }
         MeasurementModelError::RouteParameterMismatch => {
-            invalid("measurement_model.route_parameters")
+            invalid(antecedent_core::reason_details::measurement_model::ROUTE_PARAMETERS)
         }
         MeasurementModelError::InvalidParameter(what) => {
-            invalid("measurement_model.parameter").with_offending(*what)
+            invalid(antecedent_core::reason_details::measurement_model::PARAMETER).with_offending(what.as_str())
         }
         MeasurementModelError::StructureParameterMismatch => {
             ExternalRefusal::new(
                 antecedent_core::reason_code!("differential_error_not_pooled"),
                 STAGE_DECLARE,
-                "measurement_model.structure_parameters",
+                antecedent_core::reason_details::measurement_model::STRUCTURE_PARAMETERS,
             )
             .with_remedy(
                 "declare shared parameters as non-differential, or one parameter set per arm as differential by arm",
             )
         }
-        _ => invalid("measurement_model.unrecognized"),
+        _ => invalid(antecedent_core::reason_details::measurement_model::UNRECOGNIZED),
     }
 }
 
@@ -366,7 +366,7 @@ pub struct MeasurementRequest<'a> {
 /// proxy offered as the construct; a different population, regime or arm; a
 /// representation change without an explicit mapping; a non-differential
 /// analysis of a differential model (or the reverse); an operation the route
-/// does not license.
+/// does not support.
 #[allow(
     clippy::result_large_err,
     reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
@@ -382,7 +382,7 @@ pub fn check_measurement_request(
         return Err(ExternalRefusal::new(
             antecedent_core::reason_code!("proxy_offered_as_construct"),
             STAGE_BIND,
-            "measurement_model.indicator_as_construct",
+            antecedent_core::reason_details::measurement_model::INDICATOR_AS_CONSTRUCT,
         )
         .with_offending(request.construct_id)
         .with_expected(model.construct.id.clone())
@@ -391,33 +391,33 @@ pub fn check_measurement_request(
     }
     if request.construct_id != model.construct.id {
         return Err(binding_mismatch(
-            "measurement_model.construct_mismatch",
+            antecedent_core::reason_details::measurement_model::CONSTRUCT_MISMATCH,
             &model.construct.id,
             request.construct_id,
         ));
     }
     if request.population_id != model.binding.population_id {
         return Err(binding_mismatch(
-            "measurement_model.population_mismatch",
+            antecedent_core::reason_details::measurement_model::POPULATION_MISMATCH,
             &model.binding.population_id,
             request.population_id,
         ));
     }
     if request.regime_id != model.binding.regime_id {
         return Err(binding_mismatch(
-            "measurement_model.regime_mismatch",
+            antecedent_core::reason_details::measurement_model::REGIME_MISMATCH,
             &model.binding.regime_id,
             request.regime_id,
         ));
     }
-    if let ArmBinding::Arm(bound) = &model.binding.arm {
-        if request.arm_id != Some(bound.as_str()) {
-            return Err(binding_mismatch(
-                "measurement_model.arm_mismatch",
-                bound,
-                request.arm_id.unwrap_or("all_arms"),
-            ));
-        }
+    if let ArmBinding::Arm(bound) = &model.binding.arm
+        && request.arm_id != Some(bound.as_str())
+    {
+        return Err(binding_mismatch(
+            antecedent_core::reason_details::measurement_model::ARM_MISMATCH,
+            bound,
+            request.arm_id.unwrap_or("all_arms"),
+        ));
     }
     check_representation_transfer(
         &model.representation,
@@ -481,7 +481,7 @@ pub fn check_representation_transfer(
         if requires_intervention_meaning
             && indicator_kind == MeasurementKind::LearnedVectorRepresentation
         {
-            return Err(unmapped("measurement_model.learned_coordinates_not_intervenable")
+            return Err(unmapped(antecedent_core::reason_details::measurement_model::LEARNED_COORDINATES_NOT_INTERVENABLE)
                 .with_remedy(
                     "declare the intervention on the scientific construct; coordinates of a learned representation have no intervention meaning of their own",
                 ));
@@ -489,17 +489,20 @@ pub fn check_representation_transfer(
         return Ok(());
     }
     let Some(mapping) = mapping else {
-        return Err(unmapped("measurement_model.representation_unmapped").with_remedy(
+        return Err(unmapped(antecedent_core::reason_details::measurement_model::REPRESENTATION_UNMAPPED).with_remedy(
             "supply an explicit mapping between the two representation versions; a changed coordinate system or version is a different quantity",
         ));
     };
     if &mapping.from != model_representation || &mapping.to != requested {
-        return Err(unmapped("measurement_model.mapping_endpoints").with_remedy(
+        return Err(unmapped(
+            antecedent_core::reason_details::measurement_model::MAPPING_ENDPOINTS,
+        )
+        .with_remedy(
             "the mapping must run exactly from the model's representation to the requested one",
         ));
     }
     if requires_intervention_meaning && !mapping.carries_intervention_meaning() {
-        return Err(unmapped("measurement_model.intervention_meaning_not_carried")
+        return Err(unmapped(antecedent_core::reason_details::measurement_model::INTERVENTION_MEANING_NOT_CARRIED)
             .with_remedy(
                 "a relabeling carries values only; declare evidence that interventions correspond across the mapping",
             ));
@@ -516,28 +519,28 @@ fn check_structure(
     assumed: ErrorStructure,
 ) -> Result<(), MeasurementRefusal> {
     if declared == assumed {
-        if let ErrorStructure::Differential(axis) = declared {
-            if axis != DifferentialAxis::Arm {
-                return Err(ExternalRefusal::new(
+        if let ErrorStructure::Differential(axis) = declared
+            && axis != DifferentialAxis::Arm
+        {
+            return Err(ExternalRefusal::new(
                     antecedent_core::reason_code!("differential_error_not_pooled"),
                     STAGE_BIND,
-                    "measurement_model.differential_axis_unsupported",
+                    antecedent_core::reason_details::measurement_model::DIFFERENTIAL_AXIS_UNSUPPORTED,
                 )
                 .with_offending(axis.as_str())
                 .with_remedy(
                     "only error that differs by arm has a bounded route; other axes stay refused rather than pooled",
                 ));
-            }
         }
         return Ok(());
     }
     let (detail, remedy) = match declared {
         ErrorStructure::Differential(_) => (
-            "measurement_model.differential_declared",
+            antecedent_core::reason_details::measurement_model::DIFFERENTIAL_DECLARED,
             "the model is declared differential; analyse it with its per-arm parameters, not the non-differential route",
         ),
         _ => (
-            "measurement_model.differential_undeclared",
+            antecedent_core::reason_details::measurement_model::DIFFERENTIAL_UNDECLARED,
             "the analysis assumes error that differs; declare that structure with its own parameters",
         ),
     };
@@ -567,9 +570,9 @@ fn check_operation(
         .find(|(refused, _)| *refused == operation)
         .map_or("not an operation this route enters", |(_, why)| *why);
     Err(ExternalRefusal::new(
-        antecedent_core::reason_code!("cell_not_licensed"),
+        antecedent_core::reason_code!("route_not_supported"),
         STAGE_BIND,
-        "measurement_model.operation_not_licensed",
+        antecedent_core::reason_details::measurement_model::OPERATION_NOT_SUPPORTED,
     )
     .with_offending(operation.as_str())
     .with_supplied(route.as_str())
@@ -594,7 +597,7 @@ pub struct MeasurementInterfaceBasis {
     /// What the correction consumes of the indicator estimate and offers of
     /// the construct value.
     pub operations: BTreeSet<ContractOperation>,
-    /// The calibration the corrected value holds; `None` is unmeasured when it
+    /// The calibration the corrected value holds; `None` is `not_measured` when it
     /// carries uncertainty and point-only otherwise.
     pub calibration: Option<CalibrationStatus>,
     /// The evidence the corrected value rests on.
@@ -611,12 +614,12 @@ pub struct MeasurementInterfaceBasis {
 /// indicator and construct identities, and the model's population and regime
 /// for both ends. Those refuse under the `measurement_model.*` details that
 /// [`check_measurement_request`] uses. An interval offered by a route that
-/// does not license one refuses as `measurement_model.operation_not_licensed`.
+/// does not support one refuses as `measurement_model.operation_not_supported`.
 ///
 /// # Errors
 /// A malformed model, a quantity that is not the model's indicator or
 /// construct, a population or regime other than the model's binding, or an
-/// operation the route does not license.
+/// operation the route does not support.
 #[allow(
     clippy::result_large_err,
     reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
@@ -631,14 +634,14 @@ pub fn measurement_interface_contract(
     model.validate().map_err(|error| model_refusal(&error))?;
     if indicator.variable_id != model.indicator.id {
         return Err(binding_mismatch(
-            "measurement_model.indicator_mismatch",
+            antecedent_core::reason_details::measurement_model::INDICATOR_MISMATCH,
             &model.indicator.id,
             &indicator.variable_id,
         ));
     }
     if construct.variable_id != model.construct.id {
         return Err(binding_mismatch(
-            "measurement_model.construct_mismatch",
+            antecedent_core::reason_details::measurement_model::CONSTRUCT_MISMATCH,
             &model.construct.id,
             &construct.variable_id,
         ));
@@ -646,14 +649,14 @@ pub fn measurement_interface_contract(
     for quantity in [indicator, construct] {
         if quantity.population_id != model.binding.population_id {
             return Err(binding_mismatch(
-                "measurement_model.population_mismatch",
+                antecedent_core::reason_details::measurement_model::POPULATION_MISMATCH,
                 &model.binding.population_id,
                 &quantity.population_id,
             ));
         }
         if quantity.regime_id != model.binding.regime_id {
             return Err(binding_mismatch(
-                "measurement_model.regime_mismatch",
+                antecedent_core::reason_details::measurement_model::REGIME_MISMATCH,
                 &model.binding.regime_id,
                 &quantity.regime_id,
             ));
@@ -708,7 +711,7 @@ pub fn check_unmodelled_use(
         other => Err(ExternalRefusal::new(
             antecedent_core::reason_code!("proxy_offered_as_construct"),
             STAGE_BIND,
-            "measurement_model.unmodelled_proxy",
+            antecedent_core::reason_details::measurement_model::UNMODELLED_PROXY,
         )
         .with_supplied(other.as_str())
         .with_remedy(
@@ -741,7 +744,7 @@ impl LatentPosteriorTrust {
 /// Check that an external posterior object may supply a model's latent
 /// variable, and report how far it is trusted.
 ///
-/// Native licensing is never held by a provider: a state that claims it, and
+/// Native support is never held by a provider: a state that claims it, and
 /// a posterior whose identity, kind, coordinates or draw operation differ
 /// from what the model names, refuse.
 ///
@@ -761,7 +764,7 @@ pub fn check_latent_posterior(
 ) -> Result<LatentPosteriorTrust, MeasurementRefusal> {
     model.validate().map_err(|error| model_refusal(&error))?;
     let MeasurementParameters::ExternalPosterior { reference, .. } = &model.parameters else {
-        return Err(invalid("measurement_model.route_parameters")
+        return Err(invalid(antecedent_core::reason_details::measurement_model::ROUTE_PARAMETERS)
             .with_supplied(model.route.as_str())
             .with_expected(MeasurementRoute::ExternalLatentPosterior.as_str()));
     };
@@ -779,30 +782,35 @@ pub fn check_latent_posterior(
         || identity.snapshot_id != reference.snapshot_id
         || identity.request_id != reference.request_id
     {
-        return Err(posterior_refusal("measurement_model.posterior_identity")
-            .with_expected(format!("{}/{}", reference.provider_id, reference.object_id))
-            .with_supplied(format!("{}/{}", identity.provider_id, identity.object_id))
-            .with_remedy("supply the exact provider object the model names"));
+        return Err(posterior_refusal(
+            antecedent_core::reason_details::measurement_model::POSTERIOR_IDENTITY,
+        )
+        .with_expected(format!("{}/{}", reference.provider_id, reference.object_id))
+        .with_supplied(format!("{}/{}", identity.provider_id, identity.object_id))
+        .with_remedy("supply the exact provider object the model names"));
     }
     object.validate().map_err(|_| {
-        posterior_refusal("measurement_model.posterior_declaration")
+        posterior_refusal(antecedent_core::reason_details::measurement_model::POSTERIOR_DECLARATION)
             .with_remedy("the provider declaration is incomplete or inconsistent")
     })?;
     let ExternalScientificObject::Posterior(posterior) = object else {
-        return Err(posterior_refusal("measurement_model.posterior_kind")
-            .with_remedy("the latent variable is supplied by a posterior object"));
+        return Err(posterior_refusal(
+            antecedent_core::reason_details::measurement_model::POSTERIOR_KIND,
+        )
+        .with_remedy("the latent variable is supplied by a posterior object"));
     };
     if posterior.kind != ExternalPosteriorKind::Parameter {
-        return Err(posterior_refusal("measurement_model.posterior_kind").with_remedy(
-            "supply a posterior over the latent coordinates (a parameter posterior)",
-        ));
+        return Err(posterior_refusal(
+            antecedent_core::reason_details::measurement_model::POSTERIOR_KIND,
+        )
+        .with_remedy("supply a posterior over the latent coordinates (a parameter posterior)"));
     }
     if !posterior.capabilities.contains(&ExternalCapability::Sample) {
-        return Err(posterior_refusal("measurement_model.posterior_capability")
-            .with_capability(ExternalCapability::Sample)
-            .with_remedy(
-                "the route consumes joint posterior draws; declare the sampling operation",
-            ));
+        return Err(posterior_refusal(
+            antecedent_core::reason_details::measurement_model::POSTERIOR_CAPABILITY,
+        )
+        .with_capability(ExternalCapability::Sample)
+        .with_remedy("the route consumes joint posterior draws; declare the sampling operation"));
     }
     let covers = |quantity: &ScientificQuantity| {
         quantity.variable_id == model.construct.id
@@ -810,20 +818,22 @@ pub fn check_latent_posterior(
             && quantity.regime_id == model.binding.regime_id
     };
     if !posterior.quantities.iter().any(covers) {
-        return Err(posterior_refusal("measurement_model.posterior_quantity")
-            .with_expected(format!(
-                "{}@{}/{}",
-                model.construct.id, model.binding.population_id, model.binding.regime_id
-            ))
-            .with_remedy(
-                "the posterior must declare the construct in the model's population and regime",
-            ));
+        return Err(posterior_refusal(
+            antecedent_core::reason_details::measurement_model::POSTERIOR_QUANTITY,
+        )
+        .with_expected(format!(
+            "{}@{}/{}",
+            model.construct.id, model.binding.population_id, model.binding.regime_id
+        ))
+        .with_remedy(
+            "the posterior must declare the construct in the model's population and regime",
+        ));
     }
     match trust {
-        ExternalTrustState::NativeLicensed => {
-            Err(posterior_refusal("measurement_model.posterior_native_trust")
-                .with_remedy("a provider object is never natively licensed; attest or verify it"))
-        }
+        ExternalTrustState::NativeSupported => Err(posterior_refusal(
+            antecedent_core::reason_details::measurement_model::POSTERIOR_NATIVE_TRUST,
+        )
+        .with_remedy("a provider object is never natively supported; attest or verify it")),
         ExternalTrustState::ExternallyAttested { .. } => {
             Ok(LatentPosteriorTrust::ExternallyAttested)
         }
@@ -831,8 +841,10 @@ pub fn check_latent_posterior(
             if trust.verifies(object) {
                 Ok(LatentPosteriorTrust::ExactRequestVerified)
             } else {
-                Err(posterior_refusal("measurement_model.posterior_receipt")
-                    .with_remedy("the verification receipt does not cover this exact object"))
+                Err(posterior_refusal(
+                    antecedent_core::reason_details::measurement_model::POSTERIOR_RECEIPT,
+                )
+                .with_remedy("the verification receipt does not cover this exact object"))
             }
         }
     }
@@ -845,19 +857,19 @@ pub fn check_latent_posterior(
 pub fn identification_refusal(kind: &str, observed: f64, bound: f64) -> MeasurementRefusal {
     let (detail, remedy) = match kind {
         "youden" => (
-            "measurement_model.youden_too_small",
+            antecedent_core::reason_details::measurement_model::YOUDEN_TOO_SMALL,
             "the indicator is not informative enough to invert; a more accurate measurement or a larger declared minimum-evidence study is needed",
         ),
         "reliability" => (
-            "measurement_model.reliability_too_small",
+            antecedent_core::reason_details::measurement_model::RELIABILITY_TOO_SMALL,
             "the error variance leaves too little latent variance; a more reliable measurement or averaged replicates is needed",
         ),
         "confusion" => (
-            "measurement_model.confusion_ill_conditioned",
+            antecedent_core::reason_details::measurement_model::CONFUSION_ILL_CONDITIONED,
             "the confusion matrix cannot be inverted within the declared condition bound",
         ),
         _ => (
-            "measurement_model.insufficient_replicates",
+            antecedent_core::reason_details::measurement_model::INSUFFICIENT_REPLICATES,
             "replicates on more units are needed to identify the within-unit variance",
         ),
     };
@@ -945,19 +957,28 @@ mod tests {
         let mut req = request(&r);
         req.construct_id = "schema:flag";
         let refusal = check_measurement_request(&model(), &req, None).unwrap_err();
-        assert_eq!(refusal.detail, "measurement_model.indicator_as_construct");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::measurement_model::INDICATOR_AS_CONSTRUCT
+        );
         assert_eq!(refusal.code, "proxy_offered_as_construct");
         assert_eq!(refusal.validate(), Ok(()));
 
         let mut bad = model();
         bad.construct.kind = MeasurementKind::LearnedVectorRepresentation;
         let refusal = check_measurement_request(&bad, &request(&r), None).unwrap_err();
-        assert_eq!(refusal.detail, "measurement_model.proxy_as_construct");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::measurement_model::PROXY_AS_CONSTRUCT
+        );
         assert_eq!(refusal.supplied.as_deref(), Some("learned_vector_representation"));
 
         let unmodelled =
             check_unmodelled_use(MeasurementKind::NoisyMisclassified, true).unwrap_err();
-        assert_eq!(unmodelled.detail, "measurement_model.unmodelled_proxy");
+        assert_eq!(
+            unmodelled.detail,
+            antecedent_core::reason_details::measurement_model::UNMODELLED_PROXY
+        );
         assert!(check_unmodelled_use(MeasurementKind::NoisyMisclassified, false).is_ok());
         assert!(check_unmodelled_use(MeasurementKind::LatentScientific, true).is_ok());
     }
@@ -969,13 +990,13 @@ mod tests {
         req.population_id = "clinic-b";
         assert_eq!(
             check_measurement_request(&model(), &req, None).unwrap_err().detail,
-            "measurement_model.population_mismatch"
+            antecedent_core::reason_details::measurement_model::POPULATION_MISMATCH
         );
         let mut req = request(&r);
         req.regime_id = "do(a=1)";
         assert_eq!(
             check_measurement_request(&model(), &req, None).unwrap_err().detail,
-            "measurement_model.regime_mismatch"
+            antecedent_core::reason_details::measurement_model::REGIME_MISMATCH
         );
         let mut arm_model = model();
         arm_model.binding.arm = ArmBinding::Arm("treated".into());
@@ -983,7 +1004,7 @@ mod tests {
         req.arm_id = Some("control");
         assert_eq!(
             check_measurement_request(&arm_model, &req, None).unwrap_err().detail,
-            "measurement_model.arm_mismatch"
+            antecedent_core::reason_details::measurement_model::ARM_MISMATCH
         );
         req.arm_id = Some("treated");
         assert!(check_measurement_request(&arm_model, &req, None).is_ok());
@@ -991,7 +1012,7 @@ mod tests {
         req.construct_id = "construct:other";
         assert_eq!(
             check_measurement_request(&model(), &req, None).unwrap_err().detail,
-            "measurement_model.construct_mismatch"
+            antecedent_core::reason_details::measurement_model::CONSTRUCT_MISMATCH
         );
     }
 
@@ -1000,7 +1021,10 @@ mod tests {
         let new = rep(2);
         let refusal = check_measurement_request(&model(), &request(&new), None).unwrap_err();
         assert_eq!(refusal.code, "representation_mapping_required");
-        assert_eq!(refusal.detail, "measurement_model.representation_unmapped");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::measurement_model::REPRESENTATION_UNMAPPED
+        );
 
         let mapping = RepresentationMapping {
             from: rep(1),
@@ -1013,7 +1037,7 @@ mod tests {
         let wrong = RepresentationMapping { from: rep(3), ..mapping.clone() };
         assert_eq!(
             check_measurement_request(&model(), &request(&new), Some(&wrong)).unwrap_err().detail,
-            "measurement_model.mapping_endpoints"
+            antecedent_core::reason_details::measurement_model::MAPPING_ENDPOINTS
         );
 
         // Intervention meaning does not cross a relabeling.
@@ -1025,7 +1049,10 @@ mod tests {
             MeasurementKind::NoisyMisclassified,
         )
         .unwrap_err();
-        assert_eq!(refusal.detail, "measurement_model.intervention_meaning_not_carried");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::measurement_model::INTERVENTION_MEANING_NOT_CARRIED
+        );
         let preserving = RepresentationMapping {
             semantics: MappingSemantics::InterventionPreserving { evidence_id: "exp".into() },
             ..mapping
@@ -1049,7 +1076,10 @@ mod tests {
             MeasurementKind::LearnedVectorRepresentation,
         )
         .unwrap_err();
-        assert_eq!(refusal.detail, "measurement_model.learned_coordinates_not_intervenable");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::measurement_model::LEARNED_COORDINATES_NOT_INTERVENABLE
+        );
     }
 
     #[test]
@@ -1078,12 +1108,18 @@ mod tests {
         };
         let refusal = check_measurement_request(&differential, &request(&r), None).unwrap_err();
         assert_eq!(refusal.code, "differential_error_not_pooled");
-        assert_eq!(refusal.detail, "measurement_model.differential_declared");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::measurement_model::DIFFERENTIAL_DECLARED
+        );
         let mut diff_request = request(&r);
         diff_request.assumed_structure = ErrorStructure::Differential(DifferentialAxis::Arm);
         assert!(check_measurement_request(&differential, &diff_request, None).is_ok());
         let refusal = check_measurement_request(&model(), &diff_request, None).unwrap_err();
-        assert_eq!(refusal.detail, "measurement_model.differential_undeclared");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::measurement_model::DIFFERENTIAL_UNDECLARED
+        );
         // Differential by time is representable but has no route.
         let mut by_time = request(&r);
         by_time.assumed_structure = ErrorStructure::Differential(DifferentialAxis::Time);
@@ -1094,7 +1130,7 @@ mod tests {
     }
 
     #[test]
-    fn operations_outside_the_route_are_refused_with_what_would_license_them() {
+    fn operations_outside_the_route_are_refused_with_what_would_support_them() {
         let r = rep(1);
         for operation in [
             MeasurementOperation::Interval,
@@ -1105,8 +1141,11 @@ mod tests {
             let mut req = request(&r);
             req.operation = operation;
             let refusal = check_measurement_request(&model(), &req, None).unwrap_err();
-            assert_eq!(refusal.detail, "measurement_model.operation_not_licensed");
-            assert_eq!(refusal.code, "cell_not_licensed");
+            assert_eq!(
+                refusal.detail,
+                antecedent_core::reason_details::measurement_model::OPERATION_NOT_SUPPORTED
+            );
+            assert_eq!(refusal.code, "route_not_supported");
             assert!(refusal.remedy.is_some());
         }
         for route in MeasurementRoute::ALL {
@@ -1126,12 +1165,12 @@ mod tests {
         observed.indicator.kind = MeasurementKind::Observed;
         assert_eq!(
             model_refusal(&observed.validate().unwrap_err()).detail,
-            "measurement_model.indicator_observed"
+            antecedent_core::reason_details::measurement_model::INDICATOR_OBSERVED
         );
         let mut blank = model();
         blank.binding.population_id = " ".into();
         let refusal = model_refusal(&blank.validate().unwrap_err());
-        assert_eq!(refusal.detail, "measurement_model.blank_field");
+        assert_eq!(refusal.detail, antecedent_core::reason_details::measurement_model::BLANK_FIELD);
         assert_eq!(refusal.offending.as_deref(), Some("binding.population_id"));
     }
 }

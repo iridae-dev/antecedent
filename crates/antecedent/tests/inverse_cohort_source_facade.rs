@@ -10,7 +10,7 @@
 //! `3.45` and `7.4`; with the target "mean at least 5" only the second meets it. For
 //! `effect = 3` the mean contrast is `3 + 0.5 * 0.45 = 3.225` and the second utility `11.4`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::cohort_decision::{
     CohortBinding, CohortColumn, CohortDecisionSource, CohortOptions, CovariateShiftDeclaration,
@@ -56,8 +56,14 @@ fn columns(effect: f64) -> Vec<(String, Vec<f64>)> {
     vec![("t".into(), t), ("y".into(), y), ("z".into(), z)]
 }
 
-/// The exported contracted result of a DR-learner fit.
+/// The exported contracted result of a DR-learner fit, carrying the full source table so a
+/// consumer replays the fit and verifies the parent claim.
 fn fit(effect: f64) -> Vec<u8> {
+    fit_exported(effect, true)
+}
+
+/// The same fit, exported with the full source table or compact.
+fn fit_exported(effect: f64, with_source: bool) -> Vec<u8> {
     let columns = columns(effect);
     let borrowed: Vec<(&str, &[f64])> =
         columns.iter().map(|(name, values)| (name.as_str(), values.as_slice())).collect();
@@ -77,7 +83,11 @@ fn fit(effect: f64) -> Vec<u8> {
         .unwrap();
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&data, &ctx()).unwrap();
-    prepared.encode_contracted_result(&result, "dr-fit", &ctx()).unwrap()
+    if with_source {
+        prepared.encode_contracted_result_with_source(&result, &data, "dr-fit", &ctx()).unwrap()
+    } else {
+        prepared.encode_contracted_result(&result, "dr-fit", &ctx()).unwrap()
+    }
 }
 
 fn cohort(population: &str) -> CohortBinding {
@@ -187,15 +197,18 @@ fn the_cohort_source_is_refused_what_a_point_cannot_answer() {
     );
     assert!(!error.detail().is_empty());
 
-    // An interval region is not licensed for any source.
+    // An interval region is not supported for any source.
     let error = evaluate(
         &query_on(&source, mean_at_least(5.0)),
         &forward,
         InverseDemand { interval_region: true },
     )
     .unwrap_err();
-    assert_eq!(error, ForwardSourceRefusal::IntervalNotLicensed(ForwardSourceKind::CohortContrast));
-    assert_eq!(error.code(), "cell_not_licensed");
+    assert_eq!(
+        error,
+        ForwardSourceRefusal::IntervalNotSupported(ForwardSourceKind::CohortContrast)
+    );
+    assert_eq!(error.code(), "uncertainty_representation_insufficient");
 }
 
 #[test]
@@ -205,7 +218,7 @@ fn a_shifted_cohort_is_read_only_under_a_policy_that_accepts_transported_claims(
 
     let refused = cohort_source(&source, TransportedInputPolicy::NativeTargetOnly).unwrap_err();
     assert_eq!(refused, ForwardSourceRefusal::TransportedNotAccepted);
-    assert_eq!(refused.code(), "cell_not_licensed");
+    assert_eq!(refused.code(), "decision_contract_unsatisfied");
 
     let forward = cohort_source(&source, TransportedInputPolicy::AcceptsTransported).unwrap();
     assert_eq!(forward.origin().kind, ForwardSourceKind::TransportedResponse);
@@ -250,5 +263,20 @@ fn a_sealed_cohort_query_replays_under_its_identity_and_follows_the_fitted_model
         seal(query_on(&other, mean_at_least(5.0)), &other_forward, InverseDemand::default())
             .unwrap();
     let other_bytes = inverse_query::export(&other_artifact, "cohort-inverse").unwrap();
-    assert!(inverse_query::consume(&other_bytes, Some(artifact.identity())).is_err());
+    assert_eq!(
+        inverse_query::consume(&other_bytes, Some(artifact.identity())).unwrap_err().to_string(),
+        "reason=inverse_functional_unsupported: functional_inverse_query.wrong_contract: premises digest differs from the consumer's retained identity"
+    );
+}
+
+#[test]
+fn a_compact_export_of_the_same_fit_is_not_a_verified_parent_of_a_cohort_source() {
+    match FittedEffectModel::load(&fit_exported(2.0, false)) {
+        Err(refusal) => assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::cohort_decision::PARENT_NOT_VERIFIED
+        ),
+        Ok(_) => panic!("a compact export must not be a verified parent"),
+    }
+    assert!(FittedEffectModel::load(&fit_exported(2.0, true)).is_ok());
 }

@@ -1,6 +1,6 @@
 //! Retained proof and procedure for a fixed-graph temporal effect.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CausalQuery, IdentificationStatus, TemporalEffectQuery};
 use antecedent_data::TemporalIndexer;
@@ -226,7 +226,7 @@ pub(crate) fn temporal_proof_binds_query(
     })?;
     let expected_outcome = indexer.dense_id(antecedent_core::TemporalNodeKey {
         variable: query.outcome,
-        offset: query.outcome_offset(),
+        offset: query.outcome_offset()?,
     })?;
     if query.is_multi_step_sustained() {
         // The schedule identifier retains the complete temporal query and

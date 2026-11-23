@@ -4,7 +4,7 @@
 //! tier-closure set in `O(p)`. [`WithinTier::Unknown`] returns two canonical
 //! sets as an envelope and never collapses to one.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -29,14 +29,14 @@ pub const NO_LATENT_TO_OUTCOME: &str = "tiered.no_latent_to_outcome";
 
 /// A specific `CoDetermined` pair has no joint generalized-adjustment set on the
 /// known closure ADMG (open back-door, or a drawn treatment↔outcome edge).
-pub const TIERED_JOINT_ADJUSTMENT_REFUSE: &str = "no joint generalized back-door set on the CoDetermined closure ADMG; open back-door or a drawn treatment↔outcome edge";
+pub const TIERED_JOINT_ADJUSTMENT_REFUSE: &str = "no joint generalized back-door set on the CoDetermined closure ADMG; open back-door or a drawn treatment↔outcome edge, or a treatment that causes a closure variable; general ID on the closure ADMG was not attempted, so this refuses the closure route and is not a certificate of non-identification";
 
 /// The single-treatment tier closure fails the generalized back-door check on the
 /// supplied ADMG (open back-door, or a drawn treatment↔outcome edge).
-pub(crate) const TIERED_ADJUSTMENT_REFUSE: &str = "tier closure is not a generalized back-door set on the CoDetermined ADMG; open back-door or a drawn treatment↔outcome edge";
+pub(crate) const TIERED_ADJUSTMENT_REFUSE: &str = "tier closure is not a generalized back-door set on the CoDetermined ADMG; open back-door or a drawn treatment↔outcome edge; general ID on the supplied ADMG was not attempted, so this refuses the closure route and is not a certificate of non-identification";
 
 /// Unknown-tier joint cells have no single ADMG and no cell-AIPW score table.
-pub(crate) const TIERED_JOINT_UNKNOWN_REFUSE: &str = "Unknown-tier joint InterventionResponse has no single ADMG; two canonical scenarios are not a cell-AIPW license";
+pub(crate) const TIERED_JOINT_UNKNOWN_REFUSE: &str = "Unknown-tier joint InterventionResponse has no single ADMG; two canonical scenarios are not a cell-AIPW support";
 
 /// Identify an average effect under a declared tier background.
 ///
@@ -56,6 +56,7 @@ pub fn identify_tiered(
     background: &TieredBackground,
     query: &AverageEffectQuery,
 ) -> Result<IdentificationResult, IdentificationError> {
+    validate_query(query)?;
     match background.within_tier {
         WithinTier::CoDetermined => identify_closure(background, None, query),
         WithinTier::Unknown => identify_tiered_unknown(background, query),
@@ -78,10 +79,63 @@ pub fn identify_tiered_on(
     admg: &Admg,
     query: &AverageEffectQuery,
 ) -> Result<IdentificationResult, IdentificationError> {
+    validate_query(query)?;
     match background.within_tier {
         WithinTier::CoDetermined => identify_closure(background, Some(admg), query),
         WithinTier::Unknown => identify_tiered_unknown(background, query),
     }
+}
+
+/// The query is well formed (distinct treatment and outcome, matching intervention targets,
+/// modifiers that are neither).
+fn validate_query(query: &AverageEffectQuery) -> Result<(), IdentificationError> {
+    query.validate().map_err(|_| IdentificationError::unsupported("invalid average-effect query"))
+}
+
+/// Why a declared effect modifier cannot be conditioned on, if one cannot.
+///
+/// The closure adjusts for tiers up to the treatment's, so a conditional effect given `W`
+/// is identified only when `W` is known to be pretreatment: a modifier in a later tier is a
+/// descendant of the treatment on every ordering the background allows, and conditioning on
+/// it can block a mediated path or open a collider. With unknown within-tier order a modifier
+/// in the treatment's own tier may also follow the treatment, so it is refused too.
+fn post_treatment_modifier(
+    background: &TieredBackground,
+    query: &AverageEffectQuery,
+    own_tier_counts: bool,
+) -> Result<Option<&'static str>, IdentificationError> {
+    let Some(treatment_tier) = background.tier_of(query.treatment) else {
+        return Ok(None);
+    };
+    for &modifier in query.effect_modifiers.iter() {
+        let tier = background
+            .tier_of(modifier)
+            .ok_or(IdentificationError::unsupported("effect modifier is not in a declared tier"))?;
+        if tier > treatment_tier {
+            return Ok(Some(
+                "an effect modifier in a later tier than the treatment is post-treatment; the tier closure does not identify an effect conditional on it",
+            ));
+        }
+        if own_tier_counts && tier == treatment_tier {
+            return Ok(Some(
+                "an effect modifier in the treatment's tier may follow the treatment when within-tier order is unknown; the tier closure does not identify an effect conditional on it",
+            ));
+        }
+    }
+    Ok(None)
+}
+
+fn modifier_refusal(query: &AverageEffectQuery, reason: &'static str) -> IdentificationResult {
+    let mut result = not_identified(CausalQuery::AverageEffect(query.clone()), reason);
+    result.required_assumptions = named_no_latent_assumption();
+    result.diagnostics.push(no_latent_diagnostic());
+    result.diagnostics.push(Diagnostic::new(
+        "identify.tiered.modifier",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Warning,
+        reason,
+    ));
+    result
 }
 
 fn identify_tiered_unknown(
@@ -89,6 +143,9 @@ fn identify_tiered_unknown(
     query: &AverageEffectQuery,
 ) -> Result<IdentificationResult, IdentificationError> {
     let [pre, closure] = background.unknown_canonical_sets(query.treatment, query.outcome)?;
+    if let Some(reason) = post_treatment_modifier(background, query, true)? {
+        return Ok(modifier_refusal(query, reason));
+    }
     let (estimands, arena) = estimands_for_sets(
         query,
         &[
@@ -225,6 +282,9 @@ fn identify_closure(
     query: &AverageEffectQuery,
 ) -> Result<IdentificationResult, IdentificationError> {
     let set = background.tier_closure(query.treatment, query.outcome)?;
+    if let Some(reason) = post_treatment_modifier(background, query, false)? {
+        return Ok(modifier_refusal(query, reason));
+    }
     let holds = match admg {
         None => true,
         Some(admg) => {
@@ -607,12 +667,11 @@ mod tests {
         // closure measures roughly cubic in p (unoptimized: ~230 ms at p=200,
         // ~8.1 s at p=667). An absolute bound measures the machine, not the
         // algorithm, and fails under parallel test load; bound the growth
-        // instead. Load only ever adds time to a run, so the minimum over
-        // rounds is the closest measurement of the algorithm's own cost at
-        // each size, and the ratio of the two minima is stable where a ratio
-        // of paired single runs is not (a spike on either side of one pair
-        // moves it by multiples). Doubling p costs ~8x when cubic; 12x leaves
-        // headroom and still rejects a quartic regression (16x).
+        // instead. Compare paired runs and take the median ratio: independent
+        // minima can come from different load regimes, while the median resists
+        // a few interrupted pairs. Alternate their order to limit drift bias.
+        // Doubling p costs ~8x when cubic; 12x leaves headroom and still rejects
+        // a quartic regression (16x).
         assert_joint_width_identified(100, |_| true);
         assert_joint_width_identified(200, |_| true);
         let (small_schema, small_bg) = facet_width_joint(100);
@@ -624,28 +683,38 @@ mod tests {
             identify_tiered_joint(bg, schema, query).unwrap();
             started.elapsed()
         };
-        let mut small_best = std::time::Duration::MAX;
-        let mut large_best = std::time::Duration::MAX;
-        for _ in 0..7 {
-            small_best = small_best.min(time(&small_bg, &small_schema, &small_query));
-            large_best = large_best.min(time(&large_bg, &large_schema, &large_query));
+        let mut ratios = Vec::with_capacity(9);
+        for round in 0..9 {
+            let (small, large) = if round % 2 == 0 {
+                (
+                    time(&small_bg, &small_schema, &small_query),
+                    time(&large_bg, &large_schema, &large_query),
+                )
+            } else {
+                let large = time(&large_bg, &large_schema, &large_query);
+                let small = time(&small_bg, &small_schema, &small_query);
+                (small, large)
+            };
+            ratios.push(large.as_secs_f64() / small.as_secs_f64().max(1e-6));
         }
-        let growth = large_best.as_secs_f64() / small_best.as_secs_f64().max(1e-6);
+        ratios.sort_by(f64::total_cmp);
+        let growth = ratios[ratios.len() / 2];
         assert!(
             growth < 12.0,
-            "p 100 -> 200 grew {growth:.1}x (best of 7: {small_best:?} -> {large_best:?})"
+            "p 100 -> 200 median growth was {growth:.1}x (paired ratios: {ratios:?})"
         );
         let large = time(&large_bg, &large_schema, &large_query);
         assert!(large.as_secs() < 10, "200-node joint closure took {large:?}");
     }
 
     #[test]
-    #[ignore = "CI width: joint p=667 clique; keep 20 + 200 default"]
-    fn joint_identification_p667_under_recorded_bound() {
-        // Unoptimized measurement: ~8.1 s on the p=667 facet clique
-        // (~221k bidirected edges). Single-lever p=667 is chunked and stays
-        // under 1 s; this is the recorded joint-path bound, not that bench.
-        assert_joint_width_identified(667, |elapsed| elapsed.as_secs_f64() < 16.0);
+    fn joint_identification_p667_examines_two_candidates() {
+        // The p=667 facet clique (~221k bidirected edges). The bound is the work
+        // done, not the clock: the helper asserts the closure set has exactly
+        // p - 3 members, that the joint search examined exactly two candidate
+        // sets, and that the adjustment set equals the tier closure. A search
+        // that slid into enumeration would examine more than two.
+        assert_joint_width_identified(667, |_| true);
     }
 
     #[test]
@@ -828,8 +897,8 @@ mod tests {
 
         let admg = background.to_admg(&schema).unwrap();
         let query = joint_query(&schema, "t1", "t2", "y");
-        // Generic subset search lists z + every co-facet. Pin 16 so this fixture
-        // still overflows after Default moved to 40; the default-limit tests cover that default.
+        // The generic search's maximal set is z + every co-facet. Declare a 16-candidate ceiling so
+        // this fixture overflows it; the default (no ceiling) is covered by the default-limit tests.
         let generic = GeneralizedAdjustmentIdentifier {
             config: crate::generalized::GeneralizedAdjustmentConfig {
                 max_candidates: 16,
@@ -840,22 +909,22 @@ mod tests {
         .unwrap();
         assert_eq!(
             generic.status,
-            IdentificationStatus::NotIdentified,
-            "generic search must cap on this graph: {:?}",
+            IdentificationStatus::NonparametricallyIdentified,
+            "the ceiling skips the search for a smaller set, not the decision: {:?}",
             generic.diagnostics
         );
+        let mut generic_set = generic.estimands[0].adjustment_set.to_vec();
+        generic_set.sort_unstable();
+        let mut expected_set = expected.to_vec();
+        expected_set.sort_unstable();
+        assert_eq!(generic_set, expected_set, "the certified maximal set is the tier closure");
         assert!(
             generic.diagnostics.iter().any(|d| {
                 d.kind == DiagnosticKind::Execution
-                    && d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
+                    && d.code.as_ref() == crate::JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE
             }),
-            "cap is execution, not a third status: {:?}",
+            "the unfinished search is execution, not a third status: {:?}",
             generic.diagnostics
-        );
-        assert!(
-            generic.diagnostics.iter().any(|d| {
-                d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
-            })
         );
 
         let started = std::time::Instant::now();

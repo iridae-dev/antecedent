@@ -5,7 +5,7 @@
 //! provenance, and the certified adjustment set. Cross-language round-trip
 //! is through [`ScoreTableWire`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -16,7 +16,11 @@ use crate::error::EstimationError;
 use crate::joint_if::{JointCovariance, joint_influence_covariance, kish_n_eff, weighted_mean};
 
 /// Per-row cross-fitted AIPW scores.
-#[derive(Clone, Debug, PartialEq)]
+///
+/// Equality compares the scores and what identifies them, never the preparation summary: how
+/// the columns were admitted is a fact about one run, so a table read back from a wire equals
+/// the table that was exported.
+#[derive(Clone, Debug)]
 pub struct ScoreTable {
     /// Observed cell on each retained row; empty on legacy score artifacts.
     pub observed_arm: Arc<[u32]>,
@@ -27,7 +31,7 @@ pub struct ScoreTable {
     /// Complete-case row count.
     pub n_rows: usize,
     /// Original data-frame row index of each complete-case row.
-    pub row_index: Arc<[u32]>,
+    pub row_index: Arc<[antecedent_data::GlobalId]>,
     /// Fold assignment (seeded, arm-stratified plan over distinct units; or a shared plan).
     pub fold_ids: Arc<[u32]>,
     /// Number of folds used to fit nuisances.
@@ -48,8 +52,73 @@ pub struct ScoreTable {
     pub propensity_clip: Option<f64>,
     /// Treatment variable.
     pub treatment: VariableId,
-    /// Additional intervened coordinates (joint cells). Empty for binary ATE.
+    /// Complete ordered intervention coordinates for joint cells, including `treatment`.
+    /// Arm-mask bit `j` refers to coordinate `j`. Empty for binary ATE tables.
     pub intervened: Arc<[VariableId]>,
+    /// How the columns the scores were fitted on were prepared, when the estimator admitted
+    /// them through the preparation path. A physical fact about the run, so it is not part of
+    /// the score artifact's wire form or identity; a table read back from a wire has none.
+    pub preparation: Option<Arc<crate::PreparationSummary>>,
+}
+
+impl ScoreTable {
+    /// Whether the cross-fit read a batch's shared covariate design.
+    #[must_use]
+    pub fn reads_shared_design(&self) -> bool {
+        self.nuisance_provenance.starts_with(crate::crossfit_aipw::AIPW_SHARED_DESIGN_PROVENANCE)
+    }
+
+    /// The same table named as read from a batch's shared covariate design.
+    ///
+    /// The scores of a cross-fit do not depend on which of two identical designs supplied its
+    /// covariates; only the provenance records it. A table already so named is unchanged, and a
+    /// table of another construction is returned as it is.
+    #[must_use]
+    pub fn named_for_shared_design(mut self) -> Self {
+        use crate::crossfit_aipw::{AIPW_CROSSFIT_PROVENANCE, AIPW_SHARED_DESIGN_PROVENANCE};
+        if let Some(suffix) = self.nuisance_provenance.strip_prefix(AIPW_CROSSFIT_PROVENANCE)
+            && !self.reads_shared_design()
+        {
+            self.nuisance_provenance = format!("{AIPW_SHARED_DESIGN_PROVENANCE}{suffix}").into();
+        }
+        self
+    }
+}
+
+impl PartialEq for ScoreTable {
+    fn eq(&self, other: &Self) -> bool {
+        let Self {
+            observed_arm,
+            propensities,
+            observed_outcome,
+            n_rows,
+            row_index,
+            fold_ids,
+            n_folds,
+            scores,
+            columns,
+            adjustment_set,
+            nuisance_provenance,
+            propensity_clip,
+            treatment,
+            intervened,
+            preparation: _,
+        } = self;
+        *observed_arm == other.observed_arm
+            && *propensities == other.propensities
+            && *observed_outcome == other.observed_outcome
+            && *n_rows == other.n_rows
+            && *row_index == other.row_index
+            && *fold_ids == other.fold_ids
+            && *n_folds == other.n_folds
+            && *scores == other.scores
+            && *columns == other.columns
+            && *adjustment_set == other.adjustment_set
+            && *nuisance_provenance == other.nuisance_provenance
+            && *propensity_clip == other.propensity_clip
+            && *treatment == other.treatment
+            && *intervened == other.intervened
+    }
 }
 
 impl ScoreTable {
@@ -99,6 +168,26 @@ impl ScoreTable {
     ///
     /// Weight length mismatch or empty mass.
     pub fn summarize(&self, weights: Option<&[f64]>) -> Result<ScoreSummary, EstimationError> {
+        self.summarize_with(weights, None)
+    }
+
+    /// [`Self::summarize`] with the variance of the means read under a declared dependence:
+    /// cluster-robust or Newey-West on the weighted influence values instead of independent
+    /// rows. `None` is the independent-row summary.
+    ///
+    /// # Errors
+    ///
+    /// Weight length mismatch, empty mass, a dependence that does not cover the rows, or fewer
+    /// than two clusters.
+    pub fn summarize_with(
+        &self,
+        weights: Option<&[f64]>,
+        dependence: Option<&crate::score_dependence::ScoreDependence>,
+    ) -> Result<ScoreSummary, EstimationError> {
+        // The returned Arc means have a distinct owner in an admitted workflow.
+        // These guards cover the construction Vec and temporary slice references.
+        let _means_scratch = crate::util::admit_bound_array::<f64>(self.n_columns(), 1)?;
+        let _column_refs = crate::util::admit_bound_array::<&[f64]>(self.n_columns(), 1)?;
         let mut means = Vec::with_capacity(self.n_columns());
         let mut cols: Vec<&[f64]> = Vec::with_capacity(self.n_columns());
         for j in 0..self.n_columns() {
@@ -106,8 +195,12 @@ impl ScoreTable {
             cols.push(col);
             means.push(weighted_mean(col, weights)?);
         }
-        let covariance =
-            crate::joint_if::joint_influence_covariance_with_means(&cols, weights, &means)?;
+        let covariance = match dependence {
+            None => crate::joint_if::joint_influence_covariance_with_means(&cols, weights, &means)?,
+            Some(dependence) => crate::score_dependence::dependent_influence_covariance(
+                &cols, weights, &means, dependence,
+            )?,
+        };
         let n_eff = match weights {
             Some(w) => kish_n_eff(w),
             None => self.n_rows as f64,
@@ -305,23 +398,24 @@ fn simultaneous_bands(
     covariance: &JointCovariance,
     supported: &[bool],
 ) -> Result<(f64, Vec<f64>, Vec<f64>), EstimationError> {
-    let active: Vec<_> =
-        (0..means.len()).filter(|&j| supported[j] && covariance.se(j) > 0.0).collect();
+    let active_count = (0..means.len()).filter(|&j| supported[j] && covariance.se(j) > 0.0).count();
+    let _active_indices = crate::util::admit_bound_array::<usize>(active_count, 1)?;
+    let mut active = Vec::with_capacity(active_count);
+    active.extend((0..means.len()).filter(|&j| supported[j] && covariance.se(j) > 0.0));
     let critical_value = if active.is_empty() {
         0.0
     } else {
+        let _matrix_owner = crate::util::admit_bound_array::<f64>(active.len(), active.len())?;
+        let construction = crate::util::admit_bound_array::<f64>(active.len(), active.len())?;
         let mut values = Vec::with_capacity(active.len() * active.len());
         for &j in &active {
             for &i in &active {
                 values.push(covariance.get(i, j));
             }
         }
-        crate::joint_if::max_t_critical(
-            &JointCovariance { dim: active.len(), values: values.into() },
-            0.95,
-            4096,
-            0x15,
-        )?
+        let selected = JointCovariance { dim: active.len(), values: values.into() };
+        drop(construction);
+        crate::joint_if::max_t_critical(&selected, 0.95, 4096, 0x15)?
     };
     let mut lower = Vec::with_capacity(means.len());
     let mut upper = Vec::with_capacity(means.len());
@@ -391,7 +485,25 @@ impl ScoreTable {
 
     /// Simultaneous bands for the fixed declared family; does not cover data-driven selection.
     pub fn inference(&self, weights: Option<&[f64]>) -> Result<ScoreInference, EstimationError> {
-        let summary = self.summarize(weights)?;
+        self.inference_with(weights, None)
+    }
+
+    /// [`Self::inference`] with the bands built from the covariance under a declared dependence.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::summarize_with`], or a failed critical value.
+    pub fn inference_with(
+        &self,
+        weights: Option<&[f64]>,
+        dependence: Option<&crate::score_dependence::ScoreDependence>,
+    ) -> Result<ScoreInference, EstimationError> {
+        // This summary is consumed here. Its Arc means/covariance must stay
+        // admitted until inference has finished, independently of result buffers.
+        let _summary_means = crate::util::admit_bound_array::<f64>(self.n_columns(), 1)?;
+        let _summary_covariance =
+            crate::util::admit_bound_array::<f64>(self.n_columns(), self.n_columns())?;
+        let summary = self.summarize_with(weights, dependence)?;
         let support = self.support(weights);
         let (critical_value, lower, upper) =
             simultaneous_bands(&summary.means, &summary.covariance, &support.threshold_supported)?;
@@ -440,7 +552,7 @@ impl ScoreTable {
             propensities: self.propensities.to_vec(),
             observed_outcome: self.observed_outcome.to_vec(),
             n_rows: self.n_rows as u64,
-            row_index: self.row_index.to_vec(),
+            row_index: self.row_index.iter().map(|id| id.get()).collect(),
             fold_ids: self.fold_ids.to_vec(),
             n_folds: self.n_folds,
             scores: self.scores.to_vec(),
@@ -459,14 +571,20 @@ impl ScoreTable {
     ///
     /// Shape mismatch.
     pub fn from_wire(wire: ScoreTableWire) -> Result<Self, EstimationError> {
-        wire.check().map_err(|error| EstimationError::data_msg(error.to_string()))?;
+        wire.check()?;
         let n = usize::try_from(wire.n_rows).unwrap_or(usize::MAX);
         Ok(Self {
             observed_arm: wire.observed_arm.into(),
             propensities: wire.propensities.into(),
             observed_outcome: wire.observed_outcome.into(),
             n_rows: n,
-            row_index: Arc::from(wire.row_index),
+            row_index: wire
+                .row_index
+                .iter()
+                .copied()
+                .map(antecedent_data::GlobalId::new)
+                .collect::<Vec<_>>()
+                .into(),
             fold_ids: Arc::from(wire.fold_ids),
             n_folds: wire.n_folds,
             scores: Arc::from(wire.scores),
@@ -478,6 +596,7 @@ impl ScoreTable {
                 .collect::<Vec<_>>()
                 .into(),
             nuisance_provenance: Arc::from(wire.nuisance_provenance),
+            preparation: None,
             propensity_clip: wire.propensity_clip,
             treatment: VariableId::from_raw(wire.treatment),
             intervened: wire
@@ -504,7 +623,9 @@ mod tests {
             propensities: vec![0.5; 2 * n].into(),
             observed_outcome: (0..n).map(|i| if i < 5 { 1.0 } else { 0.0 }).collect(),
             n_rows: n,
-            row_index: (0..n).map(|i| u32::try_from(i).unwrap()).collect(),
+            row_index: (0..n)
+                .map(|i| antecedent_data::GlobalId::new(u64::try_from(i).unwrap()))
+                .collect(),
             fold_ids: (0..n).map(|i| u32::try_from(i % 2).unwrap()).collect(),
             n_folds: 2,
             scores: scores.into(),
@@ -517,6 +638,7 @@ mod tests {
             propensity_clip: None,
             treatment: VariableId::from_raw(0),
             intervened: Arc::from([]),
+            preparation: None,
         }
     }
 
@@ -587,6 +709,7 @@ mod tests {
             propensity_clip: None,
             treatment: VariableId::from_raw(0),
             intervened: Arc::from([]),
+            preparation: None,
         };
         for variance in [f64::NAN, f64::INFINITY, -1.0, -1e-20] {
             let summary = ScoreSummary {
@@ -635,6 +758,7 @@ mod tests {
             propensity_clip: None,
             treatment: VariableId::from_raw(0),
             intervened: Arc::from([]),
+            preparation: None,
         };
         // Two arms at one threshold are one threshold; the mean functional has none.
         assert_eq!(table_with(&[Some(0.5), Some(0.5)]).distinct_threshold_count(), 1);
@@ -653,7 +777,10 @@ mod tests {
             propensities: Arc::from([0.5; 4]),
             observed_outcome: Arc::from([1.0, 2.0]),
             n_rows: 2,
-            row_index: Arc::from([0, 1]),
+            row_index: Arc::from([
+                antecedent_data::GlobalId::new(0),
+                antecedent_data::GlobalId::new(1),
+            ]),
             fold_ids: Arc::from([0, 1]),
             n_folds: 2,
             scores: Arc::from([1.0, 2.0, 3.0, 4.0]),
@@ -666,6 +793,7 @@ mod tests {
             propensity_clip: Some(0.02),
             treatment: VariableId::from_raw(0),
             intervened: Arc::from([]),
+            preparation: None,
         };
         let restored = ScoreTable::from_wire(table.to_wire()).unwrap();
         assert_eq!(restored.scores.as_ref(), table.scores.as_ref());

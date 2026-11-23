@@ -1,0 +1,1 @@
+["use:std::sync::Arc;#0","use:antecedent_core::{IdentificationStatus,NodeRef,VariableId};#0","use:antecedent_graph::Admg;#0","use:antecedent_identify::IdentificationResult;#0","use:super::{Study,contract_identification,data_schema};#0","struct:FailureInputs#0","fn:failure_inputs#0","fn:failure_inputs_of#0"]

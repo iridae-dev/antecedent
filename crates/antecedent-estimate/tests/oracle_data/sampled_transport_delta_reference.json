@@ -1,0 +1,97 @@
+[
+ {
+  "name": "large",
+  "counts": [
+   6423,
+   971,
+   322,
+   2208,
+   2225,
+   295,
+   956,
+   6600
+  ],
+  "point": 0.6868178357450276,
+  "se": 0.004159174648172253,
+  "lower": 0.678666003229198,
+  "upper": 0.6949696682608574,
+  "lower_clamped": false,
+  "upper_clamped": false
+ },
+ {
+  "name": "moderate",
+  "counts": [
+   136,
+   31,
+   5,
+   37,
+   42,
+   3,
+   13,
+   133
+  ],
+  "point": 0.7289961137582207,
+  "se": 0.029347996194710516,
+  "lower": 0.6714750981981695,
+  "upper": 0.7865171293182719,
+  "lower_clamped": false,
+  "upper_clamped": false
+ },
+ {
+  "name": "small",
+  "counts": [
+   19,
+   2,
+   3,
+   9,
+   4,
+   1,
+   1,
+   25
+  ],
+  "point": 0.7690348700535458,
+  "se": 0.06852939854948033,
+  "lower": 0.6347197170143729,
+  "upper": 0.9033500230927186,
+  "lower_clamped": false,
+  "upper_clamped": false
+ },
+ {
+  "name": "upper_clamp",
+  "counts": [
+   1,
+   12,
+   1,
+   10,
+   1,
+   1,
+   1,
+   10
+  ],
+  "point": 0.9025641025641026,
+  "se": 0.05414346794271894,
+  "lower": 0.7964448553982745,
+  "upper": 1.0,
+  "lower_clamped": false,
+  "upper_clamped": true
+ },
+ {
+  "name": "lower_clamp",
+  "counts": [
+   40,
+   1,
+   12,
+   1,
+   2,
+   1,
+   1,
+   1
+  ],
+  "point": 0.08060606060606061,
+  "se": 0.04695883520253121,
+  "lower": 0.0,
+  "upper": 0.17264368635897345,
+  "lower_clamped": true,
+  "upper_clamped": false
+ }
+]

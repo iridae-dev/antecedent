@@ -1,0 +1,79 @@
+feature_id = "model.scc_compile"
+implementation_crate = "antecedent-model"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Foundations of Structural Causal Models with Cycles and Latent Variables", doi = "10.48550/arXiv.1611.06221", sections = ["Section 2.2: solvability of a cyclic structural model. This module solves a specified linear equilibrium. It does not certify unique solvability for every intervention subset."] },
+ { title = "Learning Linear Cyclic Causal Models with Latent Variables", sections = ["JMLR 13 (2012), Section 2: the linear equilibrium x = Kx + c + ε and weak stability as invertibility. This module solves a specified model. It does not run the paper's estimator."] },
+]
+
+implementation_deviations = [
+ "Each strongly connected component of the free support is one square block I − K_SS, scheduled sources before sinks. The block is overwritten by a Gauss–Jordan solve. (I − K)^{-1} is not formed and is not stored.",
+ "A nonzero diagonal is refused and names the next attempt. It is not normalized.",
+ "Disturbance covariance between components is kept. A hard clamp substitutes constants and leaves the free block its marginal disturbance covariance.",
+ "A numerically singular (pivot at or below the equilibrated floor, the test assess shares) or non-finite block is a refusal. The result stays NotMarkedUnidentified. Physical stability is unclaimed. No iterative solver is recorded.",
+ "A hard clamp is rechecked before the free block is solved. Exact singularity, numerical singularity, and a non-finite block are refusals. An ill-conditioned block stays ill-conditioned. A mechanism shift, a pulse, a sustained action, and an initial-state change are different requests and are refused instead of being compiled as that clamp.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "inline unit tests (crates/antecedent-model/src/scc_compile.rs)",
+ "inline unit tests (crates/antecedent-model/src/intervention_request.rs)",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "compile_gaussian_equilibrium, compile_routed_gaussian_equilibrium and route_linear_support in crates/antecedent-model/src/scc_compile.rs for an admitted cyclic component of a specified linear map with a Gaussian disturbance and a hard clamp: equilibrium mean and covariance, the strongly connected block schedule, the acyclic-versus-cyclic route, and the block condition numbers. Not a review of the paper's solvability theory for every intervention subset, of non-hard interventions, or of models whose component cannot be admitted. Admission estimates were moved to scc_compile/admission.rs and all bound items compared unchanged apart from internal visibility and formatting. Blockwise propagation definitions moved to scc_compile/propagation.rs and were compared unchanged apart from internal visibility and formatting. Matrix diagnostics and solves moved to scc_compile/numerics.rs and bound items were compared unchanged apart from internal visibility and formatting. Support routing moved to scc_compile/routing.rs and bound items were compared unchanged apart from formatting."
+assumptions = ["The linear equilibrium is X = KX + c + e with a zero diagonal; a hard clamp deletes the clamped equations and leaves the free block (I - K_FF) X_F = K_FH a + c_F + e_F, whose solution is the Neumann series sum of K_FF^k whenever the spectral radius of K_FF is below one.", "The reference models are drawn with every row's absolute sum at most 0.9, so the Neumann series converges geometrically and the family certificate rho(|K|) < 1 is admitted.", "The covariance of the free block is (I - K_FF)^-1 S_FF (I - K_FF)^-T with the marginal disturbance covariance S_FF; a clamped variable has zero row and column; the strongly connected components of the free support are the diagonal blocks."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are cited and not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the definitions used by the reference are the standard statements, so a mistake in how a record or this reference states a method would not be detected here. Models are drawn under the absolute-row-sum bound 0.9 (a component cannot be admitted otherwise) so the singular and numerically singular refusals of the compiler are exercised only through assess and revalidate_free_block (model.linear_solution), not through compile. Condition numbers of blocks larger than two are the Hager-Higham estimate and are checked only to lie between the true value divided by the block order and the true value. Blocks beyond order 6 and sparse large-scale paths are not tested here. No claim about estimators or physical stability. Calibration remains deferred."
+sources = ["https://doi.org/10.48550/arXiv.1611.06221"]
+findings_resolved = ["Compared the compiled mean and covariance of 600 random cyclic and acyclic specified models under random clamps with the Neumann-series reference (no factorization), through both the direct and routed compilers; they agree to 1e-9 relative, the blocks equal the strongly connected components of the free support computed by transitive closure, and the route is acyclic exactly when no free block has more than one member, with a topological order in the acyclic case.", "Checked every block's reported infinity-norm condition number: the closed form (orders 1 and 2) equals the product of norms of A and its Neumann inverse, and the estimate for larger blocks never exceeds that value and is within a factor of the block order of it.", "No defect requiring a change to scc_compile.rs was found. Code edits: the shared integration test file (crates/antecedent-model/tests/linear_equilibrium_reference.rs) only."]
+record_sha256 = "d87163f6c867461cd9669bf1b15eb8bc1b2f4b16d89d8a8981016b3b47286670"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/scc_compile.rs"
+items = ["enum SccCompileError", "fn admission", "fn blocks", "fn bytes", "fn compile_attempt", "fn compile_checked", "fn compile_gaussian_equilibrium", "fn component_id", "fn covariance", "fn dimension", "fn finish_compile", "fn free_block_equation", "fn from", "fn identification", "fn mean", "fn model_dimension_u64", "fn physical_stability", "fn psd_verified", "fn rechecked_solvability", "fn reject_compile_inputs", "fn require_psd_once", "fn residual_inf", "fn route_work", "fn schedule", "fn solver", "fn support_blocks", "fn try_new", "fn unlimited", "fn work", "struct AdmissionCost", "struct BlockDiagnostic", "struct CompileBudget", "struct CompiledEquilibrium", "struct GaussianDisturbance", "struct PlannedSchedule", "struct PsdVerdict"]
+sha256 = "876cb9266d492d0e911c29b4ec3ac630366d76a2ab297f7aa286ed6717a7f029"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/scc_compile/routing.rs"
+items = ["enum LinearSupportRoute", "fn binds", "fn compile_routed_gaussian_equilibrium", "fn compile_routed_with", "fn dag_support_refusal", "fn equilibrium", "fn get", "fn is_empty", "fn len", "fn new", "fn route", "fn route_linear_support", "struct LinearRouteSet", "struct RoutedEquilibrium"]
+sha256 = "281cada9922ca7248727184e59349e7a472e30e7a96239b5e944966f1595f8ca"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/scc_compile/numerics.rs"
+items = ["fn block_residual", "fn condition_of", "fn exact_infinity_kappa", "fn eye_minus_block", "fn finite_matrix", "fn hager_one_norm_inverse", "fn positions", "fn require_psd", "fn solve_row_major", "fn solve_vector", "fn structural_coefficient", "fn structural_residual", "fn symmetrize"]
+sha256 = "b6385d2d72b36090b5876431cf6f76852d5251665b2ff232ffe5248a06b2035a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/scc_compile/propagation.rs"
+items = ["fn batch_columns", "fn cross_input", "fn disturbance_block", "fn disturbance_cross", "fn earlier_covariance", "fn mean_right_hand_side", "fn parent_coefficients", "fn propagate", "fn solve_block", "struct Moments", "struct ParentInputs", "struct Propagated"]
+sha256 = "0377e5156511bd9123da04b7ef08f64ed9f548c32f1b554ed809670513162f7e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/scc_compile/admission.rs"
+items = ["fn block_work", "fn byte_overflow", "fn condition_work", "fn plan_bytes", "fn plan_work", "fn work_overflow"]
+sha256 = "ab3f54d1c409e563bdb59c691d65714c97d9cb8f96f6fc04b70d0e11c835676c"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/linear_solution.rs"
+items = ["const ADMISSION_GAP", "const FREE_BLOCK_EQUATION", "const ILL_CONDITIONED_KAPPA", "const NONZERO_DIAGONAL_NEXT_ATTEMPT", "const PIVOT_TEST_ORDER_LIMIT", "const POWER_ITERATIONS", "enum Conditioning", "enum ConsistencyWitness", "enum FamilyCertificate", "enum IdentificationStatus", "enum LinearSolutionError", "enum NextAttempt", "enum PhysicalStability", "enum SolvabilityRefusal", "enum SolverConvergence", "enum Uniqueness", "fn abs_matvec", "fn abs_radius_upper", "fn assess", "fn assignment_row_count", "fn certify_family", "fn closed_form_singular", "fn coefficient", "fn coefficients", "fn collatz_wielandt_upper", "fn decide", "fn dimension", "fn eye_minus_k", "fn free_batch_rhs", "fn free_indices", "fn gather_k_fh", "fn hard_clamp_mean_batch", "fn identification", "fn indices", "fn intercept", "fn is_admitted", "fn means", "fn neumann_block", "fn none", "fn not_estimated", "fn pivots_regular", "fn positive_ratio_max", "fn principal", "fn query_block", "fn revalidate_free_block", "fn rho_abs_upper", "fn row", "fn rows", "fn scatter_clamp_means", "fn small_block_non_finite", "fn smaller_upper", "fn solvability_refusal", "fn solve_free_means", "fn try_new", "fn two_by_two_conditioning", "fn undetermined", "struct FactorDescription", "struct HardClamp", "struct HardClampMeanBatch", "struct LinearStructuralMap", "struct QueryBlock", "struct SingularBlock", "struct SolutionAssessment"]
+sha256 = "fe9b2d420b044d65d8765cc296f9e470bb90a454a01f2988005e7acb8d48e3f1"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/linear_equilibrium_reference.rs"
+items = ["fn a_nearly_critical_two_cycle_keeps_its_closed_form_to_the_conditioning", "fn compiled_equilibria_match_the_neumann_series_on_random_models_and_clamps", "fn component_for", "fn has_cycle", "fn inf_norm", "fn matmul", "fn neumann_inverse", "fn next", "fn random_case", "fn reference_components", "fn reference_moments", "fn relative_close", "fn signed", "fn singular_and_nonsingular_cycles_are_decided_by_the_determinant", "struct Case", "struct Lcg"]
+sha256 = "415cdf449ac58dfadbd04f77ab15fa9c7287633ed034664cf7b6766949bf8d7e"

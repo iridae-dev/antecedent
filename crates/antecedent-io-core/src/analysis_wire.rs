@@ -4,7 +4,7 @@
 //! estimators, live in `antecedent-io` and join this module's public path
 //! there.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -21,11 +21,24 @@ use serde::{Deserialize, Serialize};
 
 use crate::convert::{vars_from_raw, vars_to_raw};
 use crate::error::IoError;
+
+pub(crate) mod borrowed;
 use crate::expr_wire::{ExprArenaWire, expr_arena_from_wire, expr_arena_to_wire};
 use crate::query_wire::{CausalQueryWire, causal_query_from_wire};
 use crate::trace::{
     AssumptionRecordWire, DerivationStepWire, assumptions_from_wire, assumptions_to_wire,
 };
+pub use borrowed::BorrowedIdentificationWire;
+
+/// Joint covariance, column-major.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct JointCovarianceWire {
+    /// Number of functionals.
+    pub dim: usize,
+    /// Covariance entries.
+    pub values: Vec<f64>,
+}
 
 /// Sharp RD design on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -179,6 +192,145 @@ pub struct DiagnosticWire {
     pub fields: Vec<(String, String)>,
 }
 
+/// Descriptive target coordinates. This wire value is not runtime authority.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct RefutationTargetWire {
+    /// Scope descriptor version; this format is version 1.
+    pub version: u16,
+    /// Stable target-family name.
+    pub family: String,
+    /// Whether the target uses temporal data.
+    pub temporal: bool,
+    /// Whether the target uses Bayesian inference.
+    pub bayesian: bool,
+    /// Ordered target-coordinate labels.
+    pub labels: Vec<String>,
+    /// Source lowered-program identity.
+    pub source: [u8; 32],
+    /// Derived target identity, checked on conversion.
+    pub identity: [u8; 32],
+}
+
+/// Descriptive refutation scope. It does not attest execution or report contents.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum RefutationScopeWire {
+    /// A descriptive summary of route-level reports, with no whole-target verdict.
+    RouteSummary {
+        /// Identity stamped by the actual producing program.
+        produced_by: [u8; 32],
+    },
+    /// Full-vector diagnostic from an existing target-native run; not replay authority.
+    WholeTargetDiagnostic {
+        /// Identity stamped by the actual producing program.
+        produced_by: [u8; 32],
+        /// The exact target-native report. Floating-point fields use IEEE 754 bits.
+        report: Box<WholeTargetDiagnosticWire>,
+    },
+    /// An original scope and its actual producer, retained as descriptive metadata.
+    ScopedReport {
+        /// The original, non-wrapper scope.
+        scope: Box<OriginalRefutationScopeWire>,
+        /// Identity stamped by the actual producing program.
+        produced_by: [u8; 32],
+    },
+    /// A whole target, subject to independent authority checks.
+    WholeTarget {
+        /// Descriptive target metadata.
+        target: RefutationTargetWire,
+    },
+    /// A single temporal completion and horizon.
+    TemporalClassCompletion {
+        /// Posterior atom key.
+        outer_atom: u64,
+        /// Horizon position.
+        horizon_index: u64,
+        /// Horizon in steps.
+        horizon: u32,
+        /// Full canonical completion digest.
+        completion_digest: [u8; 32],
+        /// Descriptive target metadata.
+        target: RefutationTargetWire,
+    },
+    /// A single static class completion.
+    StaticClassCompletion {
+        /// Posterior atom key.
+        outer_atom: u64,
+        /// Full canonical completion digest.
+        completion_digest: [u8; 32],
+        /// Descriptive target metadata.
+        target: RefutationTargetWire,
+    },
+}
+
+/// A descriptive full-vector target-native report; no execution authority is implied.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct WholeTargetDiagnosticWire {
+    /// Target descriptor.
+    pub target: RefutationTargetWire,
+    /// Refuter kind.
+    pub refuter: String,
+    /// Original vector, as IEEE 754 bits.
+    pub original: Vec<u64>,
+    /// Refuted vector, as IEEE 754 bits.
+    pub refuted: Vec<u64>,
+    /// Joint statistic kind.
+    pub statistic_kind: String,
+    /// Joint statistic value, as IEEE 754 bits.
+    pub statistic_value: u64,
+    /// Joint statistic degrees of freedom.
+    pub statistic_df: u64,
+    /// Optional joint statistic tail, as IEEE 754 bits.
+    pub statistic_p_value: Option<u64>,
+    /// Standardised bias vector, as IEEE 754 bits.
+    pub standardised_bias: Vec<u64>,
+    /// Optional standardised bias norm, as IEEE 754 bits.
+    pub standardised_bias_norm: Option<u64>,
+    /// Whether the configured check passed.
+    pub passed: bool,
+    /// Whether the check was informative.
+    pub informative: bool,
+    /// Successful refits.
+    pub replicates: u32,
+    /// Optional failure description.
+    pub failure: Option<String>,
+}
+
+/// An original, non-recursive refutation scope carried by a descriptive wrapper.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum OriginalRefutationScopeWire {
+    /// A whole-target descriptor.
+    WholeTarget {
+        /// Descriptive target.
+        target: RefutationTargetWire,
+    },
+    /// A temporal completion descriptor.
+    TemporalClassCompletion {
+        /// Posterior atom key.
+        outer_atom: u64,
+        /// Horizon position.
+        horizon_index: u64,
+        /// Horizon in steps.
+        horizon: u32,
+        /// Completion digest.
+        completion_digest: [u8; 32],
+        /// Descriptive target.
+        target: RefutationTargetWire,
+    },
+    /// A static completion descriptor.
+    StaticClassCompletion {
+        /// Posterior atom key.
+        outer_atom: u64,
+        /// Completion digest.
+        completion_digest: [u8; 32],
+        /// Descriptive target.
+        target: RefutationTargetWire,
+    },
+}
+
 /// Refutation report wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -199,6 +351,171 @@ pub struct RefutationReportWire {
     pub failure_condition: Option<String>,
     /// Replicates.
     pub replicates: u32,
+    /// Descriptive scope; absent in legacy records. It is not execution authority.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<RefutationScopeWire>,
+}
+
+fn refutation_target_identity<S: AsRef<str>>(
+    family: &str,
+    quadrant: &str,
+    labels: &[S],
+    source: &[u8; 32],
+) -> [u8; 32] {
+    let mut writer = antecedent_core::CanonicalWriter::new("antecedent.refutation_target");
+    writer.text(family).text(quadrant).texts(labels).bytes(source);
+    writer.finish()
+}
+
+/// Validate descriptive target metadata, without granting execution authority.
+///
+/// # Errors
+/// The target descriptor is malformed, inconsistent with its scope, or has an invalid identity.
+#[allow(clippy::too_many_lines)] // Keep the exhaustive wire cases and their shared checks together.
+pub fn validate_refutation_scope(scope: &RefutationScopeWire) -> Result<(), IoError> {
+    enum ScopeView<'a> {
+        Whole(&'a RefutationTargetWire),
+        Temporal(&'a RefutationTargetWire, u64, u64, u32, &'a [u8; 32]),
+        Static(&'a RefutationTargetWire, u64, &'a [u8; 32]),
+    }
+    let view = match scope {
+        RefutationScopeWire::RouteSummary { .. } => return Ok(()),
+        RefutationScopeWire::WholeTargetDiagnostic { produced_by, report } => {
+            let len = report.target.labels.len();
+            if report.target.source != *produced_by
+                || report.refuter.is_empty()
+                || report.statistic_kind.is_empty()
+                || report.original.len() != len
+                || report.refuted.len() != len
+                || (!report.standardised_bias.is_empty()
+                    && report.standardised_bias.len() != len
+                    && !(report.target.family == "world_valued"
+                        && len > 1
+                        && report.standardised_bias.len() == len - 1))
+                || report
+                    .original
+                    .iter()
+                    .chain(&report.refuted)
+                    .chain(&report.standardised_bias)
+                    .any(|bits| f64::from_bits(*bits).is_nan())
+                || f64::from_bits(report.statistic_value).is_nan()
+                || report.statistic_p_value.is_some_and(|bits| f64::from_bits(bits).is_nan())
+                || report.standardised_bias_norm.is_some_and(|bits| f64::from_bits(bits).is_nan())
+            {
+                return Err(IoError::Convert("invalid whole-target diagnostic shape".into()));
+            }
+            ScopeView::Whole(&report.target)
+        }
+        RefutationScopeWire::ScopedReport { scope, .. } => match scope.as_ref() {
+            OriginalRefutationScopeWire::WholeTarget { target } => ScopeView::Whole(target),
+            OriginalRefutationScopeWire::TemporalClassCompletion {
+                target,
+                outer_atom,
+                horizon_index,
+                horizon,
+                completion_digest,
+            } => ScopeView::Temporal(
+                target,
+                *outer_atom,
+                *horizon_index,
+                *horizon,
+                completion_digest,
+            ),
+            OriginalRefutationScopeWire::StaticClassCompletion {
+                target,
+                outer_atom,
+                completion_digest,
+            } => ScopeView::Static(target, *outer_atom, completion_digest),
+        },
+        RefutationScopeWire::WholeTarget { target } => ScopeView::Whole(target),
+        RefutationScopeWire::TemporalClassCompletion {
+            target,
+            outer_atom,
+            horizon_index,
+            horizon,
+            completion_digest,
+        } => ScopeView::Temporal(target, *outer_atom, *horizon_index, *horizon, completion_digest),
+        RefutationScopeWire::StaticClassCompletion { target, outer_atom, completion_digest } => {
+            ScopeView::Static(target, *outer_atom, completion_digest)
+        }
+    };
+    let (target, expected_scope) = match view {
+        ScopeView::Whole(target) => (target, None),
+        ScopeView::Temporal(target, outer_atom, horizon_index, horizon, digest) => {
+            if !target.temporal {
+                return Err(IoError::Convert(
+                    "temporal completion scope requires a temporal target".into(),
+                ));
+            }
+            (
+                target,
+                Some(format!(
+                    "scope:v1:temporal_class_completion:{outer_atom}:{horizon_index}:{horizon}:{}",
+                    antecedent_core::identity::to_hex(digest)
+                )),
+            )
+        }
+        ScopeView::Static(target, outer_atom, digest) => {
+            if target.temporal {
+                return Err(IoError::Convert(
+                    "static completion scope requires a static target".into(),
+                ));
+            }
+            (
+                target,
+                Some(format!(
+                    "scope:v1:static_class_completion:{outer_atom}:{}",
+                    antecedent_core::identity::to_hex(digest)
+                )),
+            )
+        }
+    };
+    if expected_scope.is_some() {
+        let mut labels = std::collections::HashSet::with_capacity(target.labels.len());
+        if target.labels.iter().any(|label| !labels.insert(label.as_str())) {
+            return Err(IoError::Convert("refutation target repeats a coordinate label".into()));
+        }
+    }
+    if let Some(selector) = expected_scope {
+        let prefix = format!("{selector}|");
+        if target.labels.iter().any(|label| label.strip_prefix(&prefix).is_none_or(str::is_empty)) {
+            return Err(IoError::Convert(
+                "refutation completion selector is not bound to every target coordinate".into(),
+            ));
+        }
+    }
+    let valid_family = matches!(
+        target.family.as_str(),
+        "scalar_average_effect"
+            | "conditional_effect"
+            | "response_derivative"
+            | "temporal_effect"
+            | "mediation"
+            | "world_valued"
+            | "joint_contrast"
+            | "attribution"
+            | "interventional_law"
+    );
+    if target.version != 1
+        || !valid_family
+        || target.labels.is_empty()
+        || target.labels.iter().any(String::is_empty)
+        || (target.family == "scalar_average_effect" && target.labels.len() != 1)
+    {
+        return Err(IoError::Convert("invalid refutation target descriptor".into()));
+    }
+    let quadrant = match (target.temporal, target.bayesian) {
+        (false, false) => "static.frequentist",
+        (false, true) => "static.bayesian",
+        (true, false) => "temporal.frequentist",
+        (true, true) => "temporal.bayesian",
+    };
+    let identity =
+        refutation_target_identity(&target.family, quadrant, &target.labels, &target.source);
+    if identity != target.identity {
+        return Err(IoError::Convert("refutation target identity mismatch".into()));
+    }
+    Ok(())
 }
 
 /// The one table of identification-status spellings: `snake_case` on the analysis and
@@ -376,15 +693,14 @@ pub fn identification_from_wire(
                 "identified estimand functional is outside its expression arena".into(),
             ));
         }
-        if let Some(design) = &estimand.rd_design {
-            if !design.cutoff.is_finite()
+        if let Some(design) = &estimand.rd_design
+            && (!design.cutoff.is_finite()
                 || !design.bandwidth.is_finite()
-                || design.bandwidth <= 0.0
-            {
-                return Err(IoError::Convert(
-                    "sharp RD design needs a finite cutoff and a finite positive bandwidth".into(),
-                ));
-            }
+                || design.bandwidth <= 0.0)
+        {
+            return Err(IoError::Convert(
+                "sharp RD design needs a finite cutoff and a finite positive bandwidth".into(),
+            ));
         }
     }
     Ok(IdentificationResult::from_parts(IdentificationResultParts {
@@ -489,4 +805,65 @@ pub fn diagnostic_from_wire(w: &DiagnosticWire) -> Result<Diagnostic, IoError> {
             .collect::<Vec<_>>()
             .into(),
     })
+}
+
+#[cfg(test)]
+mod route_diagnostic_wire_tests {
+    use super::{diagnostic_from_wire, diagnostic_to_wire};
+    use antecedent_core::diagnostic::{RouteCheck, RouteKind, RouteMass, RouteNativeDiagnostic};
+
+    #[test]
+    fn route_records_round_trip_through_the_wire_with_their_mass() {
+        let measured = RouteMass::new(0.0625).expect("a finite mass");
+        let records = [
+            RouteNativeDiagnostic::check(RouteKind::Convergence, RouteCheck::new(false, measured)),
+            RouteNativeDiagnostic::check(
+                RouteKind::RHat,
+                RouteCheck::new(false, RouteMass::zero()),
+            ),
+            RouteNativeDiagnostic::check(
+                RouteKind::PosteriorEss,
+                RouteCheck::new(true, RouteMass::unreported()),
+            ),
+            RouteNativeDiagnostic::unsupported_inference(RouteMass::unreported()),
+        ];
+        for record in records {
+            let diagnostic = record.to_diagnostic();
+            let wire = diagnostic_to_wire(&diagnostic);
+            let bytes = serde_json::to_vec(&wire).expect("the wire encodes");
+            let decoded: super::DiagnosticWire =
+                serde_json::from_slice(&bytes).expect("the wire decodes");
+            let restored = diagnostic_from_wire(&decoded).expect("the diagnostic decodes");
+            assert_eq!(restored, diagnostic);
+            assert_eq!(RouteNativeDiagnostic::from_diagnostic(&restored), Some(record));
+        }
+    }
+}
+
+#[cfg(test)]
+mod refutation_target_identity_tests {
+    use super::{RefutationScopeWire, RefutationTargetWire, validate_refutation_scope};
+
+    #[test]
+    fn fixed_target_identity_is_accepted_and_tampering_is_refused() {
+        let target = RefutationTargetWire {
+            version: 1,
+            family: "conditional_effect".into(),
+            temporal: true,
+            bayesian: true,
+            labels: vec!["alpha".into(), "β".into()],
+            source: [0x42; 32],
+            identity: antecedent_core::identity::digest_from_hex(
+                "43cf05f9c0a50ec49e6401fed1df62cbcbc096b06fe78d0b9c6451c5c3f302d5",
+            )
+            .unwrap(),
+        };
+        let mut changed = target.clone();
+        changed.labels.swap(0, 1);
+        assert!(validate_refutation_scope(&RefutationScopeWire::WholeTarget { target }).is_ok());
+        assert!(
+            validate_refutation_scope(&RefutationScopeWire::WholeTarget { target: changed })
+                .is_err()
+        );
+    }
 }

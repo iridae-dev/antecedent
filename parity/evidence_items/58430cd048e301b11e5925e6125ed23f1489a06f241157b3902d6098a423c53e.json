@@ -1,0 +1,1 @@
+["use:antecedent_core::KernelPolicy;#0","use:crate::view::{F64VectorView,ViewError};#0","enum:KernelImpl#0","fn:select_impl#0","fn:gather#0","fn:standardize_inplace#0","fn:accumulate_contingency#0","fn:weighted_mean#0"]

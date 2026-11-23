@@ -1,6 +1,6 @@
 //! Typed scientific refusals of cross-world execution.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{ExternalRefusal, StructuredRefusal};
 use thiserror::Error;
@@ -8,7 +8,7 @@ use thiserror::Error;
 /// Stage reported by the refusals of this module.
 pub const EXECUTE_STAGE: &str = "execute";
 
-/// A structured refusal plus the prerequisites that would license the request.
+/// A structured refusal plus the prerequisites that would support the request.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CrossWorldRefusal {
     /// Registered code, stage, namespaced detail, offending subject and remedy.
@@ -67,14 +67,9 @@ pub(crate) fn refuse_missing(
 ) -> CrossWorldExecutionError {
     CrossWorldExecutionError::Refused(Box::new(CrossWorldRefusal {
         refusal: StructuredRefusal {
-            code,
-            stage: EXECUTE_STAGE,
-            detail: detail.to_owned(),
             offending,
-            expected: None,
-            supplied: None,
-            capability: None,
             remedy: Some(remedy),
+            ..StructuredRefusal::new(code, EXECUTE_STAGE, detail)
         },
         missing,
     }))

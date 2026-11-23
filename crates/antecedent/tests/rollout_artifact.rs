@@ -1,5 +1,5 @@
 //! Independent finite source-state, terminal decision and ranking acceptance.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::analysis::design_ranking::{DesignRankingRequestWire, evaluate};
 use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_design::composition_bundle::{
@@ -14,6 +14,7 @@ use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
+use antecedent_io::error::IoError;
 use antecedent_io::quantity_wire::DistributionMeaningWire;
 use serde_json::json;
 
@@ -64,9 +65,9 @@ fn source(posterior: bool) -> DistributionArtifact {
             shape: [2, 2],
             weights: None,
             supported: None,
-            calibration: DistributionCalibration::Unmeasured,
+            calibration: DistributionCalibration::NotMeasured,
             trust: if posterior {
-                DistributionTrust::NativeLicensed
+                DistributionTrust::NativeSupported
             } else {
                 DistributionTrust::ExternalAttested
             },
@@ -89,7 +90,8 @@ fn fixture(posterior: bool) -> RolloutArtifact {
                 "evidence_lineage":["law-1"],"conditional_independence":"iid_given_state"}, "provider":{"kind":"binomial"}}],
         "rng_seed":3,"source_digests":[digest]
     })).unwrap();
-    let ranked = evaluate(&request).unwrap();
+    let ranked =
+        evaluate(request, &antecedent::prelude::ExecutionContext::production_default(0)).unwrap();
     let wire = ranked.artifact();
     let expected = RolloutExpectation {
         source: RolloutSource {
@@ -135,7 +137,15 @@ fn rollout_finite_source_and_ranking_replay_match_independent_bet_truth() {
         assert!((ranking.ranking.entries[0].evsi - pin("evsi").as_f64().unwrap()).abs() < 1e-12);
         assert!((ranking.ranking.entries[0].evpi - pin("evpi").as_f64().unwrap()).abs() < 1e-12);
         assert_eq!(decoded.binding.source.trust, artifact.binding.source.trust);
-        assert_eq!(decoded.binding.source.calibration, DistributionCalibration::Unmeasured);
+        assert_eq!(decoded.binding.source.calibration, DistributionCalibration::NotMeasured);
+    }
+}
+fn assert_refused(result: Result<(), IoError>, code: &str, message: &str, edit: usize) {
+    match result {
+        Err(IoError::Refused { code: c, message: m }) => {
+            assert_eq!((c, m.as_str()), (code, message), "edit {edit}");
+        }
+        other => panic!("edit {edit}: expected the refusal {code}/{message}, got {other:?}"),
     }
 }
 #[test]
@@ -148,7 +158,7 @@ fn rollout_resealed_prior_terminal_coordinate_and_standing_mutations_refuse() {
             1 => changed.binding.decision.admissible[0] = false,
             2 => changed.binding.decision.utility_unit = "other-unit".into(),
             3 => changed.binding.state.units = "other-units".into(),
-            4 => changed.binding.source.trust = DistributionTrust::NativeLicensed,
+            4 => changed.binding.source.trust = DistributionTrust::NativeSupported,
             5 => changed.binding.source.calibration = DistributionCalibration::Measured,
             6 => {
                 if let antecedent_design::design_ranking_artifact::PriorWire::Draws { states } =
@@ -166,23 +176,61 @@ fn rollout_resealed_prior_terminal_coordinate_and_standing_mutations_refuse() {
             }
         }
         changed.seal().unwrap();
-        assert!(changed.verify(&artifact.binding).is_err(), "expected boundary edit {edit}");
-        assert!(changed.verify(&changed.binding).is_err(), "scientific boundary edit {edit}");
+        assert_refused(
+            changed.verify(&artifact.binding),
+            "invalid_argument",
+            antecedent_core::reason_details::rollout::EXPECTED_BINDING_MISMATCH,
+            edit,
+        );
+        let scientific = [
+            antecedent_core::reason_details::rollout::TERMINAL_DECISION_MISMATCH,
+            antecedent_core::reason_details::rollout::TERMINAL_DECISION_MISMATCH,
+            antecedent_core::reason_details::rollout::TERMINAL_DECISION_MISMATCH,
+            antecedent_core::reason_details::rollout::STATE_COORDINATE_MISMATCH,
+            antecedent_core::reason_details::rollout::SOURCE_STANDING_MISMATCH,
+            antecedent_core::reason_details::rollout::SOURCE_STANDING_MISMATCH,
+            antecedent_core::reason_details::rollout::ORDERED_PRIOR_MISMATCH,
+            antecedent_core::reason_details::rollout::TERMINAL_DECISION_MISMATCH,
+        ];
+        assert_refused(
+            changed.verify(&changed.binding),
+            "invalid_argument",
+            scientific[edit],
+            edit,
+        );
     }
 }
 #[test]
 fn rollout_changed_source_values_and_draw_order_cannot_retain_original_prior() {
     let artifact = fixture(false);
     let old = source(false);
-    for draws in [vec![0.75, 2., 0.25, 1.], vec![0.25, 999., 0.75, 2.], vec![0.5, 1., 0.75, 2.]] {
+    for (edit, (draws, scientific)) in [
+        (
+            vec![0.75, 2., 0.25, 1.],
+            antecedent_core::reason_details::rollout::ORDERED_PRIOR_MISMATCH,
+        ),
+        (
+            vec![0.25, 999., 0.75, 2.],
+            antecedent_core::reason_details::rollout::RANKING_SOURCE_MISMATCH,
+        ),
+        (vec![0.5, 1., 0.75, 2.], antecedent_core::reason_details::rollout::ORDERED_PRIOR_MISMATCH),
+    ]
+    .into_iter()
+    .enumerate()
+    {
         let replacement = DistributionArtifact::new(old.metadata().clone(), draws).unwrap();
         let mut changed = artifact.clone();
         changed.source_artifact = replacement.to_bytes("law").unwrap();
         changed.seal().unwrap();
-        assert!(changed.verify(&artifact.binding).is_err());
+        assert_refused(
+            changed.verify(&artifact.binding),
+            "invalid_argument",
+            antecedent_core::reason_details::rollout::SOURCE_DIGEST_MISMATCH,
+            edit,
+        );
         changed.binding.source_digest = source_digest(&replacement);
         changed.seal().unwrap();
-        assert!(changed.verify(&changed.binding).is_err());
+        assert_refused(changed.verify(&changed.binding), "invalid_argument", scientific, edit);
     }
 }
 #[test]
@@ -205,7 +253,25 @@ fn rollout_meaning_support_weighting_and_marginal_pairing_refuse() {
         changed.binding.state = source.quantities()[0].clone();
         changed.binding.source_digest = source_digest(&source);
         changed.seal().unwrap();
-        assert!(changed.verify(&changed.binding).is_err(), "edit {edit}");
+        let result = changed.verify(&changed.binding);
+        match edit {
+            1 => assert!(
+                matches!(&result, Err(IoError::Convert(m)) if m == "distribution coordinate unsupported"),
+                "edit {edit}: {result:?}"
+            ),
+            0 | 2 => assert_refused(
+                result,
+                "route_not_supported",
+                antecedent_core::reason_details::rollout::UNWEIGHTED_JOINT_STATE_REQUIRED,
+                edit,
+            ),
+            _ => assert_refused(
+                result,
+                "route_not_supported",
+                antecedent_core::reason_details::rollout::STATE_INTERPRETATION_MISMATCH,
+                edit,
+            ),
+        }
     }
 }
 fn bundle(
@@ -257,7 +323,10 @@ fn rollout_bundle_verifies_source_rollout_ranking_chain_and_refuses_swapped_meta
 fn rollout_truncation_corruption_and_nonfinite_prior_refuse() {
     let artifact = fixture(false);
     let bytes = artifact.to_bytes("rollout").unwrap();
-    assert!(consume(&bytes[..bytes.len() / 2], &artifact.binding).is_err());
+    match consume(&bytes[..bytes.len() / 2], &artifact.binding) {
+        Err(IoError::Io(failure)) => assert_eq!(failure.message(), "failed to fill whole buffer"),
+        other => panic!("a truncated rollout ends unexpectedly, got {:?}", other.err()),
+    }
     let mut changed = artifact.clone();
     if let antecedent_design::design_ranking_artifact::PriorWire::Draws { states } =
         &mut changed.binding.decision.prior
@@ -265,5 +334,10 @@ fn rollout_truncation_corruption_and_nonfinite_prior_refuse() {
         states[0] = f64::NAN;
     }
     changed.seal().unwrap();
-    assert!(changed.verify(&changed.binding).is_err());
+    assert_refused(
+        changed.verify(&changed.binding),
+        "invalid_argument",
+        antecedent_core::reason_details::rollout::ORDERED_PRIOR_MISMATCH,
+        0,
+    );
 }

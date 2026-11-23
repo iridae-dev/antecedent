@@ -4,8 +4,8 @@ build-backend = "maturin"
 
 [project]
 name = "antecedent"
-version = "2.4.1"
-description = "Identification-first causal inference: discovery, identification, estimation, interventions, and counterfactuals under structural uncertainty"
+version = "3.0.0"
+description = "A compiler and evidence-aware runtime for causal science: discovery, identification, estimation, interventions and counterfactuals under structural uncertainty"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT OR Apache-2.0" }
@@ -59,6 +59,7 @@ dev = [
     "pyarrow>=25.0.0",
     "pytest>=9.1.1",
     "pytest-cov>=6.0.0",
+    "pytest-xdist>=3.8,<4",
     "pyyaml>=6.0.2",
     "ruff>=0.12.0",
 ]
@@ -67,7 +68,11 @@ dev = [
 testpaths = ["tests"]
 # -rs lists every skip with its reason; the skip bound in tests/conftest.py fails
 # a session that mostly skips, which is what a broken native extension looks like.
-addopts = "--strict-markers -rs"
+addopts = "--strict-markers -rs -m 'not requires_calibration and not calibration_simulation'"
+markers = [
+  "requires_calibration: measured-record acceptance; select explicitly after branch calibration",
+  "calibration_simulation: repeated-sampling coverage or type-I check; select explicitly with -m calibration_simulation",
+]
 
 [tool.coverage.run]
 source = ["antecedent"]
@@ -106,6 +111,7 @@ raises-require-match-for = ["Exception", "ValueError", "TypeError"]
 "../examples/python/**" = [
   "B",
   "SIM",
+  "E402", # notebook cells import where the step uses it
 ]
 
 [tool.mypy]

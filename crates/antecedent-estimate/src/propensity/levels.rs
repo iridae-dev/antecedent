@@ -8,7 +8,7 @@
 //! target population to the rows at the two declared levels, and the exclusion is counted on
 //! the result. Nothing is dropped silently.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::EstimationError;
 
@@ -133,13 +133,14 @@ pub(crate) fn classify_treatment_levels(
     if let (Some(value), OtherLevels::Refuse) = (first_other, other_levels) {
         return Err(crate::util::refuse(
             antecedent_core::reason_code!("treatment_level_undeclared"),
-            "treatment_levels.undeclared_level",
+            antecedent_core::reason_details::treatment_levels::UNDECLARED_LEVEL,
             &format!(
                 "{excluded_rows} complete-case rows have a treatment value at neither declared \
                  level (active {active}, control {control}); first found {value}; {}. Excluding \
                  them would restrict the target population to the rows at the two declared \
-                 levels: declare that with OtherLevels::ExcludeUndeclared, or use the \
-                 full-population generalized-propensity estimator",
+                 levels. Next attempt: declare that restriction with \
+                 OtherLevels::ExcludeUndeclared, or use the full-population \
+                 generalized-propensity estimator",
                 describe_observed_levels(treatment)
             ),
         ));

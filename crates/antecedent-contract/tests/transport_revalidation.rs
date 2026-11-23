@@ -116,7 +116,10 @@ fn changed_selection_diagram_recomputes_transported_claims_and_what_rests_on_the
         assert_eq!(claim.authority, PriorAuthority::NotRetained);
     }
     let refusal = result.claim("effect").unwrap().refusal().unwrap();
-    assert_eq!(refusal.detail, "composition_verification.recompute_required");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_verification::RECOMPUTE_REQUIRED
+    );
 }
 
 #[test]
@@ -125,7 +128,7 @@ fn changed_target_recomputes_a_point_claim_and_withdraws_a_claim_calibrated_else
     current.target.identity = d(111);
     let result = revalidate_transport(&base(), &current, &none()).unwrap();
 
-    // point-only claim: the numbers are stale, no license is lost
+    // point-only claim: the numbers are stale, no support is lost
     let note = result.claim("note").unwrap();
     assert_eq!(note.class, Revalidation::Recompute);
     assert!(note.reasons.contains(&TransportReason::TargetPopulationChanged));
@@ -207,7 +210,10 @@ fn unsupported_target_withdraws_every_claim_for_support_with_the_coordinates() {
         assert!(claim.reasons.iter().any(TransportReason::is_withdrawal));
     }
     let refusal = result.claim("note").unwrap().refusal().unwrap();
-    assert_eq!(refusal.detail, "composition_verification.support_withdrawn");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_verification::SUPPORT_WITHDRAWN
+    );
 }
 
 #[test]

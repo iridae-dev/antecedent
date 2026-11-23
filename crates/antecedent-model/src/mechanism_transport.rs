@@ -41,7 +41,7 @@
 //! data cannot move them. A refit under another population, regime or quantity than the
 //! request names is refused (the diagram and context findings), never adopted.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -59,26 +59,32 @@ use crate::compose::{
 pub const MECHANISM_TRANSPORT_VERSION: u32 = 2;
 
 /// A carried mechanism is not a fitted one.
-pub const DETAIL_ORIGIN_NOT_FITTED: &str = "mechanism_transport.origin_not_fitted";
+pub const DETAIL_ORIGIN_NOT_FITTED: &str =
+    antecedent_core::reason_details::mechanism_transport::ORIGIN_NOT_FITTED;
 /// A carried mechanism is not additive-noise linear-Gaussian.
-pub const DETAIL_FAMILY_UNSUPPORTED: &str = "mechanism_transport.family_unsupported";
+pub const DETAIL_FAMILY_UNSUPPORTED: &str =
+    antecedent_core::reason_details::mechanism_transport::FAMILY_UNSUPPORTED;
 /// The diagram does not describe the source population of a carried mechanism.
-pub const DETAIL_DIAGRAM_SOURCE_MISMATCH: &str = "mechanism_transport.diagram_source_mismatch";
+pub const DETAIL_DIAGRAM_SOURCE_MISMATCH: &str =
+    antecedent_core::reason_details::mechanism_transport::DIAGRAM_SOURCE_MISMATCH;
 /// The diagram does not describe the request's target population.
-pub const DETAIL_DIAGRAM_TARGET_MISMATCH: &str = "mechanism_transport.diagram_target_mismatch";
+pub const DETAIL_DIAGRAM_TARGET_MISMATCH: &str =
+    antecedent_core::reason_details::mechanism_transport::DIAGRAM_TARGET_MISMATCH;
 /// A supplied target mechanism was not fitted in the target population.
-pub const DETAIL_TARGET_NOT_NATIVE: &str = "mechanism_transport.target_mechanism_not_native";
+pub const DETAIL_TARGET_NOT_NATIVE: &str =
+    antecedent_core::reason_details::mechanism_transport::TARGET_MECHANISM_NOT_NATIVE;
 /// A variable has more than one mechanism in one role.
-pub const DETAIL_DUPLICATE_MECHANISM: &str = "mechanism_transport.duplicate_mechanism";
+pub const DETAIL_DUPLICATE_MECHANISM: &str =
+    antecedent_core::reason_details::mechanism_transport::DUPLICATE_MECHANISM;
 /// A selection node points into a latent cause of a carried mechanism.
 pub const DETAIL_SELECTION_INTO_LATENT: &str =
     crate::compose::coherence::DETAIL_SELECTION_INTO_LATENT;
 /// A selection node points into a carried mechanism's variable (the literal
 /// of the composition checker, so one defect has one name).
 pub const DETAIL_SELECTION_INTO_MECHANISM: &str =
-    "mechanism_composition.population_selection_arrow_into_mechanism";
+    antecedent_core::reason_details::mechanism_composition::POPULATION_SELECTION_ARROW_INTO_MECHANISM;
 
-const TAG_IDENTITY: &str = "antecedent.model.mechanism_transport";
+const TAG_IDENTITY: &str = "antecedent.model.mechanism_transport.complete_dependence.v2";
 
 /// Everything a transported composition is built from.
 #[derive(Clone, Debug, PartialEq)]
@@ -516,6 +522,17 @@ fn write_mechanism_body(w: &mut CanonicalWriter, m: &MechanismDescriptor) {
     }
 }
 
+fn write_parameter_term(w: &mut CanonicalWriter, term: &ParameterTerm) {
+    match term {
+        ParameterTerm::Intercept => {
+            w.word(0);
+        }
+        ParameterTerm::Coefficient(name) => {
+            w.word(1).text(name);
+        }
+    }
+}
+
 fn write_dependence(w: &mut CanonicalWriter, dependence: &PosteriorDependence) {
     match dependence {
         PosteriorDependence::Unknown => {
@@ -524,13 +541,26 @@ fn write_dependence(w: &mut CanonicalWriter, dependence: &PosteriorDependence) {
         PosteriorDependence::IndependentByDesign { justification } => {
             w.word(1).text(justification);
         }
-        PosteriorDependence::Joint { covariance, parameters, .. } => {
-            w.word(2).word(parameters.len() as u64).reals(covariance);
+        PosteriorDependence::Joint { meaning, parameters, covariance } => {
+            w.word(2).word(*meaning as u64).word(parameters.len() as u64);
+            for parameter in parameters {
+                w.text(&parameter.mechanism);
+                write_parameter_term(w, &parameter.term);
+            }
+            w.reals(covariance);
         }
         PosteriorDependence::CrossCovariance { blocks } => {
             w.word(3).word(blocks.len() as u64);
-            for b in blocks {
-                w.text(&b.first).text(&b.second).reals(&b.values);
+            for block in blocks {
+                w.text(&block.first).text(&block.second).word(block.first_parameters.len() as u64);
+                for term in &block.first_parameters {
+                    write_parameter_term(w, term);
+                }
+                w.word(block.second_parameters.len() as u64);
+                for term in &block.second_parameters {
+                    write_parameter_term(w, term);
+                }
+                w.reals(&block.values);
             }
         }
     }

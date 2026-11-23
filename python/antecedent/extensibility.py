@@ -11,6 +11,7 @@ import contextlib
 import hashlib
 import json
 import re
+import threading
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
@@ -21,6 +22,12 @@ from typing import TYPE_CHECKING, Any, Protocol, cast, get_args, runtime_checkab
 import numpy as np
 from numpy.typing import NDArray
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._digest import canonical_digest
 from .errors import CausalValueError, StructuredRefusal
@@ -204,7 +211,7 @@ class ProviderTrust(StrEnum):
     nobody has claimed anything for it; a provider is never registered with it.
     """
 
-    NATIVE_LICENSED = "native_licensed"
+    NATIVE_SUPPORTED = "native_supported"
     VERIFIED_EXTENSION = "verified_extension"
     EXTERNALLY_ATTESTED = "externally_attested"
     UNVERIFIED = "unverified"
@@ -246,7 +253,7 @@ class UncertaintySemantics(StrEnum):
 
     Any other non-blank ``uncertainty_semantics`` string is a provider-declared
     method identity (Rust ``ExternalUncertaintyMeaning::ProviderDeclared``), never
-    promoted to an Antecedent interval.
+    treated as an Antecedent interval.
     """
 
     POINT_ONLY = "point_only"
@@ -258,7 +265,7 @@ class CausalProviderSpec:
     """Machine-readable claims required before an extension can run.
 
     These declarations describe an extension's contract; they do not make its
-    scientific claims true. Native licensing and extension verification remain
+    scientific claims true. Native support and extension verification remain
     separate gates.
 
     ``capabilities`` and ``meaning`` are the typed counterparts of what a
@@ -497,7 +504,7 @@ class ProviderVerificationReceipt:
     the receipt covers, and its digest are decided natively. One receipt serves
     every surface. It is exportable, loadable under the digest a consumer
     retained, and consumable by composition through :meth:`trust_evidence`. It
-    covers only the listed requests and never grants native licensing or
+    covers only the listed requests and never grants native support or
     calibration.
     """
 
@@ -593,13 +600,15 @@ class ProviderVerificationReceipt:
             for item in self._requests
         )
 
-    def export(self, *, artifact_id: str = "provider-verification") -> bytes:
+    @artifact_export
+    def export(self, *, artifact_id: str = "provider-verification") -> ExportedArtifact:
         """Serialize through the shared container; reload with :meth:`load` and :attr:`digest`."""
-        return bytes(self._native_value.export(artifact_id))
+        return artifact_from_receipt(self, bytes(self._native_value.export(artifact_id)))
 
     @classmethod
     def load(cls, data: bytes, *, expected_digest: str) -> ProviderVerificationReceipt:
         """Load an export under the digest the consumer retained independently."""
+        data = container_bytes(data)
         from . import _native
 
         return cls(_native.ProviderVerificationReceipt.load(data, expected_digest))
@@ -688,6 +697,7 @@ class ProviderRegistry:
         self._providers: dict[str, tuple[ExecutableProvider, ProviderTrust]] = {}
         self._entry_points: dict[str, str] = {}
         self._verification: dict[str, ProviderVerificationReceipt] = {}
+        self._execution_lock = threading.RLock()
 
     def load_entry_point(self, name: str) -> CausalProvider:
         """Explicitly load one installed ``antecedent.providers`` entry point.
@@ -739,13 +749,13 @@ class ProviderRegistry:
         if not callable(getattr(provider, "execute", None)):
             raise TypeError("provider must implement execute(request)")
         executable = cast(ExecutableProvider, provider)
-        if trust is ProviderTrust.NATIVE_LICENSED:
+        if trust is ProviderTrust.NATIVE_SUPPORTED:
             raise _refuse(
-                "provider.native_licence_not_available",
-                "Python extensions cannot register as native licensed providers",
+                "provider.native_support_not_available",
+                "Python extensions cannot register as native supported providers",
                 code="external_verification_failed",
                 offending="trust",
-                remedy="register as externally attested; native licensing is granted only to "
+                remedy="register as externally attested; native support is granted only to "
                 "providers implemented in the library",
             )
         if trust is not ProviderTrust.EXTERNALLY_ATTESTED:
@@ -800,7 +810,7 @@ class ProviderRegistry:
         *,
         evidence_origin: str,
     ) -> ProviderVerificationReceipt:
-        """Run independent caller fixtures before promoting an external provider.
+        """Run independent caller fixtures before registering an external provider.
 
         Fixtures are sugar: each becomes a typed request with numeric probes
         (shape, known truth, replay, optional uncertainty) that Rust checks and
@@ -808,8 +818,8 @@ class ProviderRegistry:
         references (assumptions, support label, provenance, artifact bytes) are
         compared here and must hold before any probe is submitted. This checks
         the executable contract and supplied references; it does not certify the
-        scientific validity of caller supplied truth or grant native licensing.
-        Promotion is atomic after every fixture passes.
+        scientific validity of caller supplied truth or grant native support.
+        Registration is atomic after every fixture passes.
         """
         provider, trust = self._entry(name)
         if trust is not ProviderTrust.EXTERNALLY_ATTESTED:
@@ -1023,6 +1033,11 @@ class ProviderRegistry:
             ) from exc
 
     def execute(self, name: str, request: Mapping[str, Any]) -> ProviderResult:
+        """Execute a provider under this registry's serialized callback boundary."""
+        with self._execution_lock:
+            return self._execute(name, request)
+
+    def _execute(self, name: str, request: Mapping[str, Any]) -> ProviderResult:
         provider, trust = self._entry(name)
         spec = provider.spec
         report = self._verification.get(name)
@@ -1039,7 +1054,13 @@ class ProviderRegistry:
         effective_trust = trust
         if report is not None and not report.covers(request, spec_digest=current_spec_digest):
             effective_trust = ProviderTrust.EXTERNALLY_ATTESTED
-        raw = provider.execute(MappingProxyType(dict(request)))
+        try:
+            raw = provider.execute(MappingProxyType(dict(request)))
+        except Exception as error:
+            # Provider callbacks are operational boundaries, even when user code
+            # raises a scientific refusal class. Keep its identity and traceback.
+            setattr(error, "_antecedent_operational_callback", True)  # noqa: B010 -- exception marker
+            raise
         if not isinstance(raw, ProviderExecution):
             raise TypeError("provider execute() must return ProviderExecution")
         estimate = _provider_array(raw.estimate, "estimate")

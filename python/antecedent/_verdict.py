@@ -19,6 +19,9 @@ VERDICTS: dict[str, str] = {
     "PartiallyIdentified": "partially identified",
     "GraphDependent": "graph-dependent",
     "NotIdentified": "not identified",
+    # A noncausal association states no identification: it is neither identified nor a
+    # failed identification, and is never read as the effect of an intervention.
+    "NotClaimed": "not claimed",
 }
 
 #: Restriction that an identified verdict holds under. Priors never upgrade
@@ -29,13 +32,14 @@ QUALIFIERS: dict[str, str] = {
     "IdentifiedUnderPriorRestrictions": "under prior restrictions",
 }
 
-Tone = Literal["identified", "caution", "not_identified"]
+Tone = Literal["identified", "caution", "not_identified", "noncausal"]
 
 _TONES: dict[str, Tone] = {
     "identified": "identified",
     "partially identified": "caution",
     "graph-dependent": "caution",
     "not identified": "not_identified",
+    "not claimed": "noncausal",
 }
 
 

@@ -1,11 +1,12 @@
 //! Coordinate-specific closure evidence for static linear adjustment.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, EstimatorId, RefuteSuite, StructureSource, Study};
 use antecedent_contract::SlotAvailability;
 use antecedent_core::ExecutionContext;
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 #[path = "fixtures_common/mod.rs"]
 mod common;
@@ -38,7 +39,7 @@ fn verify_linear_adjustment_coordinate(coordinate: &str, accepted: bool, validat
         if accepted { StructureSource::Accepted } else { StructureSource::Explicit },
         "{coordinate} structure source"
     );
-    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed));
+    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Supported));
     let contract = prepared.contract().unwrap();
     match &contract.reasoning.support {
         SlotAvailability::Available(slot) => assert_eq!(
@@ -60,9 +61,9 @@ fn verify_linear_adjustment_coordinate(coordinate: &str, accepted: bool, validat
         "{coordinate} validation choice"
     );
 
-    let lowering = prepared
-        .checked_linear_adjustment()
-        .unwrap_or_else(|| panic!("{coordinate} omitted its checked linear-adjustment lowering"));
+    let RetainedOperation::CheckedLinear(lowering) = prepared.retained_operation() else {
+        panic!("{coordinate} omitted its checked linear-adjustment lowering")
+    };
     assert_eq!(lowering.source_functional(), lowering.program().mapping().source);
     assert_eq!(lowering.executable_functional(), lowering.program().mapping().executable);
     assert_eq!(lowering.lowering().population, antecedent_core::TargetPopulation::AllObserved);
@@ -71,23 +72,26 @@ fn verify_linear_adjustment_coordinate(coordinate: &str, accepted: bool, validat
     let result = prepared.estimate(&data, &ctx).unwrap();
     // The fixture is generated from y = 2*t + z + noise and the graph supplies
     // the complete back-door adjustment set {z}; this is an independent truth.
+    let reference = independent_adjusted_effect(&data);
     assert!(
-        (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2,
-        "{coordinate}: ate={}",
-        result.estimate.as_effect().unwrap().ate
+        (result.estimate().as_effect().unwrap().ate - reference).abs() < 1e-9,
+        "{coordinate}: ate={} against least squares {reference}",
+        result.estimate().as_effect().unwrap().ate
     );
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    // The sample estimate also sits within sampling error of the generating coefficient.
+    assert!((reference - 2.0).abs() < 0.2, "{coordinate}: reference {reference}");
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert!(
-        (refreshed.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2,
+        (refreshed.estimate().as_effect().unwrap().ate - reference).abs() < 1e-9,
         "{coordinate}: refreshed ate={}",
-        refreshed.estimate.as_effect().unwrap().ate
+        refreshed.estimate().as_effect().unwrap().ate
     );
     assert_eq!(
-        result.estimate.as_effect().unwrap().ate.to_bits(),
-        refreshed.estimate.as_effect().unwrap().ate.to_bits()
+        result.estimate().as_effect().unwrap().ate.to_bits(),
+        refreshed.estimate().as_effect().unwrap().ate.to_bits()
     );
     assert!(
-        prepared.checked_linear_adjustment().is_some(),
+        matches!(prepared.retained_operation(), RetainedOperation::CheckedLinear(..)),
         "{coordinate} lost its checked lowering after refresh"
     );
 
@@ -101,12 +105,32 @@ fn verify_linear_adjustment_coordinate(coordinate: &str, accepted: bool, validat
             &ctx,
         )
         .unwrap();
-    let consumed = consume_analysis_result(&bytes).unwrap();
-    assert!(
-        consumed.acceptance.accepts_as_verified_program(),
-        "{coordinate} artifact should replay from portable OLS moments: {:?}",
-        consumed.acceptance.unresolved
-    );
+    let consumed = replay_analysis_result(&bytes).unwrap();
+    if consumed.body.refutations.is_empty() {
+        assert!(
+            consumed.acceptance.accepts_as_replayed_program(),
+            "{coordinate} artifact should replay from portable OLS moments: {:?}",
+            consumed.acceptance.unresolved
+        );
+    } else {
+        assert!(!consumed.acceptance.accepts_as_replayed_program());
+        assert!(consumed.acceptance.unresolved.iter().any(|reason| {
+            matches!(
+                reason.as_ref(),
+                "dependencies.refutation_replay" | "dependencies.scoped_refutation_replay"
+            )
+        }));
+        assert!(
+            consumed.acceptance.unresolved.iter().all(|reason| {
+                matches!(
+                    reason.as_ref(),
+                    "dependencies.refutation_replay" | "dependencies.scoped_refutation_replay"
+                )
+            }),
+            "{coordinate}: unexpected replay obligations: {:?}",
+            consumed.acceptance.unresolved
+        );
+    }
     assert_eq!(consumed.body.estimate, Some(refreshed.effect()));
     let consumed_contract = consumed.contract.as_ref().expect("contracted linear artifact");
     assert_eq!(consumed_contract.estimator.as_deref(), Some("linear.adjustment.ate"));
@@ -233,4 +257,57 @@ fn dag_accepted_frequentist_full_linear_adjustment_coordinate() {
         true,
         "full",
     );
+}
+
+/// Ordinary least squares of `y` on `(1, t, z)` from the fixture's raw columns (ids 0, 1, 2 are
+/// `t`, `y`, `z`), solved here by Gaussian elimination on the normal equations: the exact
+/// back-door adjustment estimate for the adjustment set `{z}`.
+fn independent_adjusted_effect(data: &antecedent_data::TabularData) -> f64 {
+    let column = |id: usize| -> Vec<f64> {
+        match &data.storage().columns()[id] {
+            antecedent_data::OwnedColumn::Float64(c) => c.values.to_vec(),
+            other => panic!("unexpected column {other:?}"),
+        }
+    };
+    let (t, y, z) = (column(0), column(1), column(2));
+    let mut a = [[0.0_f64; 4]; 3];
+    for i in 0..t.len() {
+        let row = [1.0, t[i], z[i]];
+        for r in 0..3 {
+            for c in 0..3 {
+                a[r][c] += row[r] * row[c];
+            }
+            a[r][3] += row[r] * y[i];
+        }
+    }
+    for pivot in 0..3 {
+        let best =
+            (pivot..3).max_by(|&p, &q| a[p][pivot].abs().total_cmp(&a[q][pivot].abs())).unwrap();
+        a.swap(pivot, best);
+        for r in pivot + 1..3 {
+            let factor = a[r][pivot] / a[pivot][pivot];
+            for c in pivot..4 {
+                a[r][c] -= factor * a[pivot][c];
+            }
+        }
+    }
+    let mut beta = [0.0_f64; 3];
+    for r in (0..3).rev() {
+        let tail: f64 = (r + 1..3).map(|c| a[r][c] * beta[c]).sum();
+        beta[r] = (a[r][3] - tail) / a[r][r];
+    }
+    beta[1]
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

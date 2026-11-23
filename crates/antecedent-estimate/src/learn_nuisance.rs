@@ -1,6 +1,6 @@
 //! Shared learner-backed nuisance helpers for DML / [`crate::DrLearner`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -11,39 +11,84 @@
 )]
 
 use antecedent_core::ExecutionContext;
+use antecedent_learn::aipw_crossfit::{AipwCrossFitError, ColumnMajorDesign};
 use antecedent_learn::{
     CrossFittedPrediction, DesignView, LearnerFactory, LearnerSpec, NuisanceDiagnostics,
-    PredictionTask, RowSelection, TargetView, cross_fit_with_folds_weighted, diagnose, resolve_for,
+    PredictionTask, TargetView, cross_fit_with_folds_weighted, resolve_for,
 };
 
-use crate::crossfit_plan::{
-    CrossfitPlan, FoldIdErrors, FoldRows, FoldSource, SHARED_FOLD_ID_ERRORS, derive_fold_ids,
-};
+use crate::crossfit_plan::{FoldIdErrors, FoldSource, derive_fold_ids};
 use crate::error::EstimationError;
+
+/// Record the scientific boundary of caller-supplied learner factories.
+pub(crate) fn declare_unverified_factories(
+    assumptions: &mut antecedent_core::AssumptionSet,
+    algorithm: &'static str,
+) {
+    use std::sync::Arc;
+    assumptions.push(antecedent_core::AssumptionRecord {
+        assumption: antecedent_core::Assumption::Custom {
+            id: Arc::from("dml.caller_factory.unverified"),
+            description: Arc::from("Caller-supplied learner factories and any prior training data are not verified by this route; cross-fitting alone does not establish their scientific validity or absence of prior data overlap."),
+        },
+        source: antecedent_core::AssumptionSource::AlgorithmDefault { algorithm: Arc::from(algorithm) },
+        scope: antecedent_core::AssumptionScope::Estimation,
+        status: antecedent_core::AssumptionStatus::Declared,
+    });
+}
 
 #[allow(
     clippy::needless_pass_by_value,
     reason = "a `map_err` adapter: the error arrives by value at every call site"
 )]
 pub(crate) fn learn_err(err: antecedent_learn::LearnError) -> EstimationError {
-    EstimationError::stats_msg(err.to_string())
+    match err {
+        antecedent_learn::LearnError::Cancelled
+        | antecedent_learn::LearnError::Stats(
+            antecedent_stats::StatsError::Cancelled
+            | antecedent_stats::StatsError::Admission(
+                antecedent_core::execution::AdmissionError::Cancelled,
+            ),
+        )
+        | antecedent_learn::LearnError::Admission(
+            antecedent_core::execution::AdmissionError::Cancelled,
+        )
+        | antecedent_learn::LearnError::Probability(
+            antecedent_prob::ProbError::Admission(
+                antecedent_core::execution::AdmissionError::Cancelled,
+            )
+            | antecedent_prob::ProbError::Cancelled { .. },
+        ) => nuisance_cancelled(),
+        antecedent_learn::LearnError::Admission(error)
+        | antecedent_learn::LearnError::Stats(antecedent_stats::StatsError::Admission(error))
+        | antecedent_learn::LearnError::Probability(antecedent_prob::ProbError::Admission(error)) => {
+            EstimationError::Admission(error)
+        }
+        other => EstimationError::Learner(other),
+    }
 }
 
 /// The stop of a cancelled cross-fit: no nuisance bundle is returned or cached.
 fn nuisance_cancelled() -> EstimationError {
     crate::util::refuse(
         antecedent_core::reason_code!("cancelled_no_claim"),
-        "dml.cancelled",
+        antecedent_core::reason_details::dml::CANCELLED,
         "the cross-fitted nuisance fit was cancelled; no estimate or score table is reported \
          and the stop is not a verdict on the data",
     )
 }
 
-pub(crate) fn intercept_is_constant(design: &[f64], nrows: usize) -> bool {
-    if nrows == 0 {
-        return false;
+/// The estimator-side error of an AIPW cross-fit stop: each case keeps the error it had
+/// before the computation moved to the learner layer.
+pub(crate) fn aipw_cross_fit_error(error: AipwCrossFitError) -> EstimationError {
+    match error {
+        AipwCrossFitError::Learner(error) => learn_err(error),
+        AipwCrossFitError::Cancelled => nuisance_cancelled(),
+        AipwCrossFitError::Admission(error) => EstimationError::Admission(error),
+        AipwCrossFitError::WeightsUnsupported { message } => {
+            crate::sampling_weights::unsupported_route(&message)
+        }
     }
-    design[..nrows].iter().all(|&v| (v - 1.0).abs() <= 1e-12)
 }
 
 /// Drop a constant intercept column for tree learners; keep it for parametric ones.
@@ -53,18 +98,11 @@ pub(crate) fn design_for_spec(
     nrows: usize,
     ncols: usize,
 ) -> Result<DesignView<'_>, EstimationError> {
-    let drop_intercept = matches!(
+    antecedent_learn::aipw_crossfit::design_for_spec(
         spec,
-        LearnerSpec::GradientBoostedTrees(_)
-            | LearnerSpec::RandomForest(_)
-            | LearnerSpec::NeuralNet(_)
-    ) && ncols > 1
-        && intercept_is_constant(design, nrows);
-    if drop_intercept {
-        DesignView::from_column_major(&design[nrows..], nrows, ncols - 1).map_err(learn_err)
-    } else {
-        DesignView::from_column_major(design, nrows, ncols).map_err(learn_err)
-    }
+        ColumnMajorDesign { values: design, nrows, ncols },
+    )
+    .map_err(learn_err)
 }
 
 pub(crate) fn resolve_nuisance(
@@ -96,28 +134,23 @@ impl<'a> NuisanceDesign<'a> {
             ncols: problem.design_ncols,
         }
     }
+
+    /// The same design as the learner layer's plain column-major view.
+    fn plain(self) -> ColumnMajorDesign<'a> {
+        ColumnMajorDesign { values: self.values, nrows: self.nrows, ncols: self.ncols }
+    }
 }
 
-/// The learners of the outcome-regression and treatment-propensity nuisances.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct AipwLearners {
-    pub(crate) outcome: LearnerSpec,
-    pub(crate) treatment: LearnerSpec,
-}
+pub(crate) use antecedent_learn::aipw_crossfit::AipwLearners;
+pub(crate) use antecedent_learn::aipw_crossfit::intercept_is_constant;
 
 /// Refuse prior weights for a learner that cannot fit under them, naming the learner.
 pub(crate) fn require_weight_capable(
     factory: &dyn LearnerFactory,
     spec: LearnerSpec,
 ) -> Result<(), EstimationError> {
-    if factory.capabilities().sample_weights {
-        return Ok(());
-    }
-    Err(crate::sampling_weights::unsupported_route(&format!(
-        "the {} nuisance learner cannot be fit under sampling weights; use a linear, ridge, \
-         logistic or gradient-boosted learner, which carry prior weights through every fold",
-        spec.identity()
-    )))
+    antecedent_learn::aipw_crossfit::require_weight_capable(factory, spec)
+        .map_err(aipw_cross_fit_error)
 }
 
 pub(crate) fn cross_fit_nuisance(
@@ -126,7 +159,7 @@ pub(crate) fn cross_fit_nuisance(
     design: NuisanceDesign<'_>,
     y: &[f64],
     weights: Option<&[f64]>,
-    folds: usize,
+    fold_ids: Vec<u16>,
     ctx: &ExecutionContext,
 ) -> Result<CrossFittedPrediction, EstimationError> {
     let NuisanceDesign { values: design, nrows, ncols } = design;
@@ -138,36 +171,12 @@ pub(crate) fn cross_fit_nuisance(
         require_weight_capable(factory.as_ref(), spec)?;
     }
     let view = design_for_spec(spec, design, nrows, ncols)?;
-    let rows: Vec<u32> = (0..nrows)
-        .map(|i| {
-            u32::try_from(i)
-                .map_err(|_| EstimationError::data_msg("rows exceed u32 index capacity"))
-        })
-        .collect::<Result<_, _>>()?;
-    let plan = derive_fold_ids(
-        nrows,
-        folds,
-        FoldSource::Stratified {
-            strata: &vec![0; nrows],
-            units: &rows,
-            seed: ctx.rng.master_seed(),
-        },
-        &SHARED_FOLD_ID_ERRORS,
-    )?;
-    let plan: Vec<u16> = plan
-        .into_iter()
-        .map(|f| {
-            u16::try_from(f).map_err(|_| {
-                EstimationError::unsupported("cross-fitting supports at most 65536 folds")
-            })
-        })
-        .collect::<Result<_, _>>()?;
     cross_fit_with_folds_weighted(
         factory.as_ref(),
         view,
         TargetView::new(y),
         weights,
-        plan,
+        fold_ids,
         ctx,
         None,
     )
@@ -175,6 +184,7 @@ pub(crate) fn cross_fit_nuisance(
 }
 
 /// Per-arm outcome models + propensity, trained on `train ∩ arm` and scored on the valid fold.
+#[allow(clippy::too_many_arguments, reason = "the inputs describe one estimation procedure")]
 pub(crate) fn cross_fit_aipw_nuisances(
     learners: AipwLearners,
     design: NuisanceDesign<'_>,
@@ -183,154 +193,23 @@ pub(crate) fn cross_fit_aipw_nuisances(
     (folds, fold_ids): (usize, Vec<u16>),
     ctx: &ExecutionContext,
     weights: Option<&[f64]>,
+    admit_boundary_saturation: bool,
 ) -> Result<AipwPredictions, EstimationError> {
-    let AipwLearners { outcome, treatment } = learners;
-    let NuisanceDesign { values: design, nrows, ncols } = design;
-    let (outcome_factory, _) =
-        resolve_nuisance(outcome, PredictionTask::Regression, design, nrows, ncols, y, ctx)?;
-    let (treat_factory, _) = resolve_nuisance(
-        treatment,
-        PredictionTask::BinaryProbability,
-        design,
-        nrows,
-        ncols,
-        t,
-        ctx,
-    )?;
-    if weights.is_some() {
-        require_weight_capable(outcome_factory.as_ref(), outcome)?;
-        require_weight_capable(treat_factory.as_ref(), treatment)?;
-    }
-    let x_outcome = design_for_spec(outcome, design, nrows, ncols)?;
-    let x_treat = design_for_spec(treatment, design, nrows, ncols)?;
-    let plan = CrossfitPlan::from_fold_ids(folds, fold_ids.iter().map(|&f| u32::from(f)).collect());
-    let models = AipwFoldModels {
-        outcome: outcome_factory.as_ref(),
-        treatment: treat_factory.as_ref(),
-        x_outcome,
-        x_treat,
+    antecedent_learn::aipw_crossfit::cross_fit_aipw_nuisances(
+        learners,
+        design.plain(),
         y,
         t,
+        (folds, fold_ids),
+        ctx,
         weights,
-    };
-    let fold_parts = plan
-        .map_folds(ctx, |rows, inner| fit_aipw_fold(&models, rows, inner))
-        .map_err(|error| {
-            if ctx.cancellation.is_cancelled() { nuisance_cancelled() } else { learn_err(error) }
-        })?;
-
-    let mut mu0 = vec![0.0; nrows];
-    let mut mu1 = vec![0.0; nrows];
-    let mut ehat = vec![0.0; nrows];
-    let mut treat_prov = Vec::with_capacity(folds);
-    for part in fold_parts {
-        treat_prov.extend(part.provenance);
-        for (i, pred) in part.valid.iter().copied().zip(part.mu0) {
-            mu0[i as usize] = pred;
-        }
-        for (i, pred) in part.valid.iter().copied().zip(part.mu1) {
-            mu1[i as usize] = pred;
-        }
-        for (i, pred) in part.valid.iter().copied().zip(part.ehat) {
-            ehat[i as usize] = pred;
-        }
-    }
-    let treat = CrossFittedPrediction {
-        predictions: ehat.clone(),
-        fold_assignment: fold_ids,
-        model_provenance: treat_prov,
-        validation: diagnose(PredictionTask::BinaryProbability, t, &ehat),
-    };
-    Ok((mu0, mu1, ehat, treat))
-}
-
-/// What every fold of the AIPW cross-fit fits and scores: the two learner factories, their
-/// designs and the targets.
-#[derive(Clone, Copy)]
-struct AipwFoldModels<'a> {
-    outcome: &'a dyn LearnerFactory,
-    treatment: &'a dyn LearnerFactory,
-    x_outcome: DesignView<'a>,
-    x_treat: DesignView<'a>,
-    y: &'a [f64],
-    t: &'a [f64],
-    /// Prior weight of every row (mean one), or `None` for the unweighted fits.
-    weights: Option<&'a [f64]>,
-}
-
-struct AipwFold {
-    valid: Vec<u32>,
-    mu0: Vec<f64>,
-    mu1: Vec<f64>,
-    ehat: Vec<f64>,
-    provenance: [antecedent_learn::LearnerProvenance; 3],
-}
-
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "i indexes the rows of a problem whose row count the caller checked to fit u32"
-)]
-fn fit_aipw_fold(
-    models: &AipwFoldModels<'_>,
-    rows: FoldRows<'_>,
-    ctx: &ExecutionContext,
-) -> Result<AipwFold, antecedent_learn::LearnError> {
-    let AipwFoldModels { outcome, treatment, x_outcome, x_treat, y, t, weights } = *models;
-    // The fold is the unit of work: cancellation is observed before its three fits.
-    if ctx.cancellation.is_cancelled() {
-        return Err(antecedent_learn::LearnError::Backend(
-            "nuisance fitting cancelled".to_string(),
-        ));
-    }
-    let mut train = Vec::with_capacity(rows.train.len());
-    let mut train0 = Vec::new();
-    let mut train1 = Vec::new();
-    for &i in rows.train {
-        let idx = i as u32;
-        train.push(idx);
-        if t[i] > 0.5 {
-            train1.push(idx);
-        } else {
-            train0.push(idx);
-        }
-    }
-    let valid: Vec<u32> = rows.valid.iter().map(|&i| i as u32).collect();
-    if train.is_empty() || valid.is_empty() || train0.is_empty() || train1.is_empty() {
-        return Err(antecedent_learn::LearnError::Shape {
-            message: "empty DML/AIPW train, valid, or treatment arm in a fold",
-        });
-    }
-    let y_view = TargetView::new(y);
-    let t_view = TargetView::new(t);
-    let mu0 =
-        outcome.fit(x_outcome.with_rows(RowSelection::new(&train0))?, y_view, weights, ctx)?;
-    let mu1 =
-        outcome.fit(x_outcome.with_rows(RowSelection::new(&train1))?, y_view, weights, ctx)?;
-    let ehat =
-        treatment.fit(x_treat.with_rows(RowSelection::new(&train))?, t_view, weights, ctx)?;
-    let valid_out = x_outcome.with_rows(RowSelection::new(&valid))?;
-    let valid_t = x_treat.with_rows(RowSelection::new(&valid))?;
-    let mut m0 = vec![0.0; valid.len()];
-    let mut m1 = vec![0.0; valid.len()];
-    let mut e = vec![0.0; valid.len()];
-    mu0.predict(valid_out, &mut m0, ctx)?;
-    mu1.predict(valid_out, &mut m1, ctx)?;
-    ehat.predict(valid_t, &mut e, ctx)?;
-    Ok(AipwFold {
-        valid,
-        mu0: m0,
-        mu1: m1,
-        ehat: e,
-        provenance: [mu0.provenance(), mu1.provenance(), ehat.provenance()],
-    })
+        admit_boundary_saturation,
+    )
+    .map_err(aipw_cross_fit_error)
 }
 
 pub(crate) fn clip_propensity(scores: &mut [f64], clip: Option<f64>) {
-    if let Some(c) = clip {
-        for score in scores.iter_mut() {
-            *score = crate::overlap::clip_propensity(*score, c);
-        }
-    }
+    antecedent_learn::aipw_crossfit::clip_propensities(scores, clip);
 }
 
 /// The clipped retained propensities, refusing an exact 0 or 1 (or a non-finite value).
@@ -357,42 +236,10 @@ pub(crate) fn iid_se(values: &[f64]) -> f64 {
     antecedent_stats::iid_se(values)
 }
 
-pub(crate) fn aipw_scores(t: &[f64], y: &[f64], e: &[f64], mu0: &[f64], mu1: &[f64]) -> Vec<f64> {
-    t.iter()
-        .zip(y)
-        .zip(e)
-        .zip(mu0)
-        .zip(mu1)
-        .map(|((((&ti, &yi), &ei), &m0), &m1)| {
-            (m1 - m0) + ti * (yi - m1) / ei - (1.0 - ti) * (yi - m0) / (1.0 - ei)
-        })
-        .collect()
-}
+pub(crate) use antecedent_learn::aipw_crossfit::aipw_scores;
 
 /// Immutable predictions shared across compatible estimators.
 pub(crate) type AipwPredictions = (Vec<f64>, Vec<f64>, Vec<f64>, CrossFittedPrediction);
-
-/// A prepared-input key owns its buffers so allocator reuse cannot create stale hits.
-#[derive(Debug)]
-pub(crate) struct AipwCacheEntry {
-    design: std::sync::Arc<[f64]>,
-    outcome_values: std::sync::Arc<[f64]>,
-    treatment_values: std::sync::Arc<[f64]>,
-    nrows: usize,
-    ncols: usize,
-    outcome: LearnerSpec,
-    treatment: LearnerSpec,
-    folds: usize,
-    seed: u64,
-    row_index: std::sync::Arc<[u32]>,
-    fold_assignment: Option<std::sync::Arc<[u32]>>,
-    fold_units: Option<std::sync::Arc<[u32]>>,
-    fold_unit_kind: crate::cluster_dml_aipw::IndependenceUnit,
-    fold_seed: u64,
-    /// Sampling weights the nuisances were fit under (compared by identity).
-    weights: Option<std::sync::Arc<[f64]>>,
-    result: std::sync::Mutex<Option<std::sync::Arc<AipwPredictions>>>,
-}
 
 /// Per-row fold ids for the retained AIPW nuisances: the recorded assignment when the
 /// problem carries one, otherwise a fresh seeded plan stratified by treatment arm.
@@ -400,7 +247,7 @@ pub(crate) struct AipwCacheEntry {
     clippy::cast_possible_truncation,
     reason = "fold ids are below the fold count, which was checked above to be at most u16::MAX + 1"
 )]
-fn retained_fold_ids(
+pub(crate) fn retained_fold_ids(
     problem: &crate::propensity::PreparedPropensityProblem,
     folds: usize,
     ctx: &ExecutionContext,
@@ -439,14 +286,69 @@ fn retained_fold_ids(
 fn require_populated_arms(treatment: &[f64]) -> Result<(), EstimationError> {
     // Preparation validates binary values with its numerical tolerance. Match the
     // executing fold classifier so accepted near-zero/near-one values retain their arms.
-    if treatment.iter().any(|&value| value <= 0.5) && treatment.iter().any(|&value| value > 0.5) {
+    if antecedent_learn::dr_replay::both_arms_populated(treatment) {
         return Ok(());
     }
     Err(crate::util::refuse(
         antecedent_core::reason_code!("arm_not_populated"),
-        "dml.arm_not_populated",
+        antecedent_core::reason_details::dml::ARM_NOT_POPULATED,
         "both treatment arms must remain populated after complete-case selection",
     ))
+}
+
+/// The cross-fitted AIPW nuisances of `problem` with the per-arm outcome regressions fitted by
+/// `outcome` (a prior-regularized regression) and the propensity by the `treatment` spec.
+///
+/// Nothing is cached: the outcome factory carries a prior the cache key does not name.
+pub(crate) fn prior_outcome_aipw_nuisances(
+    problem: &crate::propensity::PreparedPropensityProblem,
+    outcome: &dyn LearnerFactory,
+    treatment: LearnerSpec,
+    folds: usize,
+    ctx: &ExecutionContext,
+) -> Result<AipwPredictions, EstimationError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(nuisance_cancelled());
+    }
+    require_populated_arms(&problem.treatment)?;
+    let fold_ids = retained_fold_ids(problem, folds, ctx)?;
+    let admit = crate::propensity::admits_boundary_saturation(problem.overlap);
+    antecedent_learn::aipw_crossfit::cross_fit_aipw_nuisances_with_outcome_factory(
+        outcome,
+        treatment,
+        NuisanceDesign::of(problem).plain(),
+        &problem.outcome,
+        &problem.treatment,
+        (folds, fold_ids),
+        ctx,
+        problem.sampling_weights.as_ref().map(|s| &*s.weights),
+        admit,
+    )
+    .map_err(aipw_cross_fit_error)
+    .map_err(propensity_nuisance_error)
+}
+
+/// The learner-backed cross-fitted nuisances of `problem`, fit once per key.
+///
+/// The key is derived from the design, outcome and treatment columns, the weights, the row
+/// identities, the realized folds and the fold-plan inputs, both learner specifications and the
+/// seed ([`crate::nuisance_keys::learner_bundle_key`]), so a changed input is a miss and an
+/// identical request (even from another prepared problem of the same cache scope) reads the
+/// retained bundle. Retention is charged to the pool of `ctx`, or to the pool of the cache the
+/// problem shares; when it cannot be retained the bundle is fit for this caller alone.
+/// A boundary-saturated GLM refusal from an AIPW nuisance is the propensity's: the outcome
+/// nuisance resolves for regression, where no logistic learner is admitted. It refuses as
+/// `positivity_violated`; every other error is unchanged.
+fn propensity_nuisance_error(error: EstimationError) -> EstimationError {
+    match error {
+        EstimationError::Learner(antecedent_learn::LearnError::Stats(
+            stats @ antecedent_stats::StatsError::GlmRefused {
+                kind: antecedent_stats::GlmRefusalKind::BoundarySaturated,
+                ..
+            },
+        )) => crate::propensity::propensity_fit_error(stats),
+        other => other,
+    }
 }
 
 pub(crate) fn cached_aipw_nuisances(
@@ -456,113 +358,85 @@ pub(crate) fn cached_aipw_nuisances(
     folds: usize,
     ctx: &ExecutionContext,
 ) -> Result<std::sync::Arc<AipwPredictions>, EstimationError> {
-    use std::sync::Arc;
     let check_cancel = || {
         if ctx.cancellation.is_cancelled() { Err(nuisance_cancelled()) } else { Ok(()) }
     };
     check_cancel()?;
     require_populated_arms(&problem.treatment)?;
-    let entry = {
-        let mut cache = problem
-            .learner_cache
-            .lock()
-            .map_err(|_| EstimationError::stats_msg("nuisance cache lock poisoned"))?;
-        if let Some(entry) = cache.iter().find(|entry| {
-            Arc::ptr_eq(&entry.design, &problem.design_matrix)
-                && Arc::ptr_eq(&entry.outcome_values, &problem.outcome)
-                && Arc::ptr_eq(&entry.treatment_values, &problem.treatment)
-                && entry.nrows == problem.nrows
-                && entry.ncols == problem.design_ncols
-                && entry.outcome == outcome
-                && entry.treatment == treatment
-                && entry.folds == folds
-                && entry.seed == ctx.rng.master_seed()
-                && Arc::ptr_eq(&entry.row_index, &problem.row_index)
-                && entry.fold_units == problem.fold_units
-                && entry.fold_unit_kind == problem.fold_unit_kind
-                && entry.fold_seed == problem.fold_seed
-                && match (&entry.weights, problem.sampling_weights.as_ref()) {
-                    (None, None) => true,
-                    (Some(a), Some(b)) => Arc::ptr_eq(a, &b.weights),
-                    _ => false,
-                }
-                && match (&entry.fold_assignment, &problem.fold_assignment) {
-                    (None, None) => true,
-                    (Some(a), Some(b)) => Arc::ptr_eq(a, b),
-                    _ => false,
-                }
-        }) {
-            Arc::clone(entry)
-        } else {
-            // Bound idle retention without evicting an in-flight initialization.
-            while cache.len() >= 8 {
-                let Some(index) = cache.iter().position(|entry| Arc::strong_count(entry) == 1)
-                else {
-                    break;
-                };
-                cache.remove(index);
-            }
-            let entry = Arc::new(AipwCacheEntry {
-                design: Arc::clone(&problem.design_matrix),
-                outcome_values: Arc::clone(&problem.outcome),
-                treatment_values: Arc::clone(&problem.treatment),
-                nrows: problem.nrows,
-                ncols: problem.design_ncols,
-                outcome,
-                treatment,
-                folds,
-                seed: ctx.rng.master_seed(),
-                row_index: Arc::clone(&problem.row_index),
-                fold_assignment: problem.fold_assignment.clone(),
-                fold_units: problem.fold_units.clone(),
-                fold_unit_kind: problem.fold_unit_kind,
-                fold_seed: problem.fold_seed,
-                weights: problem.sampling_weights.as_ref().map(|s| Arc::clone(&s.weights)),
-                result: std::sync::Mutex::new(None),
-            });
-            // All eight slots can be initialized concurrently. An additional key
-            // computes outside the retained cache instead of exceeding its budget.
-            if cache.len() < 8 {
-                cache.push(Arc::clone(&entry));
-            }
-            entry
-        }
-    };
-    // Only callers for this exact key wait on the fit. Failure leaves it retryable.
-    let mut slot = loop {
-        check_cancel()?;
-        match entry.result.try_lock() {
-            Ok(slot) => break slot,
-            Err(std::sync::TryLockError::WouldBlock) => {
-                std::thread::sleep(std::time::Duration::from_millis(5))
-            }
-            Err(std::sync::TryLockError::Poisoned(_)) => {
-                return Err(EstimationError::stats_msg("nuisance fit lock poisoned"));
-            }
-        }
-    };
-    check_cancel()?;
-    if let Some(result) = slot.as_ref() {
-        return Ok(Arc::clone(result));
-    }
     let fold_ids = retained_fold_ids(problem, folds, ctx)?;
-    let result = Arc::new(cross_fit_aipw_nuisances(
-        AipwLearners { outcome, treatment },
-        NuisanceDesign::of(problem),
-        &problem.outcome,
-        &problem.treatment,
-        (folds, fold_ids),
-        ctx,
-        problem.sampling_weights.as_ref().map(|s| &*s.weights),
-    )?);
-    check_cancel()?;
-    *slot = Some(Arc::clone(&result));
-    Ok(result)
+    // Four f64 vectors of one value per row, the fold ids, and the per-fold provenance.
+    let payload = (problem.nrows as u64).saturating_mul(4 * 8 + 2).saturating_add(4096);
+    // A declared overlap clip or trim governs propensities at the boundary; without one a
+    // saturated propensity nuisance refuses as `positivity_violated`.
+    let admit = crate::propensity::admits_boundary_saturation(problem.overlap);
+    let key = crate::nuisance_keys::learner_bundle_key(
+        problem,
+        outcome,
+        treatment,
+        folds,
+        ctx.rng.master_seed(),
+        &fold_ids,
+        admit,
+    );
+    let compute = || {
+        check_cancel()?;
+        cross_fit_aipw_nuisances(
+            AipwLearners { outcome, treatment },
+            NuisanceDesign::of(problem),
+            &problem.outcome,
+            &problem.treatment,
+            (folds, fold_ids.clone()),
+            ctx,
+            problem.sampling_weights.as_ref().map(|s| &*s.weights),
+            admit,
+        )
+        .map_err(propensity_nuisance_error)
+    };
+    let Some(key) = key else {
+        return compute().map(std::sync::Arc::new);
+    };
+    let (bundle, reused) =
+        problem.learner_cache.get_or_compute(key, payload, Some(ctx), &check_cancel, compute)?;
+    if reused {
+        antecedent_core::execution_attempt::record_physical(
+            antecedent_core::execution_attempt::PhysicalEvent::CacheHit,
+            1,
+        );
+    }
+    Ok(bundle)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nuisance_cancellation_preserves_detail_and_non_cancel_admission() {
+        use antecedent_core::execution::AdmissionError;
+        use antecedent_learn::LearnError;
+        for input in [
+            LearnError::Cancelled,
+            LearnError::Admission(AdmissionError::Cancelled),
+            LearnError::Stats(antecedent_stats::StatsError::Cancelled),
+            LearnError::Stats(antecedent_stats::StatsError::Admission(AdmissionError::Cancelled)),
+            LearnError::Probability(antecedent_prob::ProbError::Admission(
+                AdmissionError::Cancelled,
+            )),
+            LearnError::Probability(antecedent_prob::ProbError::Cancelled {
+                stage: "hmc.cancelled",
+            }),
+        ] {
+            let error = learn_err(input);
+            assert!(
+                matches!(error, EstimationError::Refused { code: "cancelled_no_claim", ref message }
+                if message.detail() == Some(antecedent_core::reason_details::dml::CANCELLED))
+            );
+        }
+        assert!(matches!(
+            learn_err(LearnError::Admission(AdmissionError::Overflow)),
+            EstimationError::Admission(AdmissionError::Overflow)
+        ));
+    }
 
     #[test]
     fn guarded_propensity_refuses_boundary_values_unless_a_clip_makes_them_interior() {

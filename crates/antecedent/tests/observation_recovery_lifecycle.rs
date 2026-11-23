@@ -173,11 +173,19 @@ fn preparing_from_a_decided_derivation_never_decides_again_and_checks_its_inputs
     ] {
         let error = prepare(graph, catalog, effect, Vec::new()).unwrap_err();
         assert_eq!(error.reason_code(), Some("transport_not_certified"), "{error}");
-        assert!(error.to_string().contains("recovery.invalid_derivation"), "{error}");
+        assert!(
+            error
+                .to_string()
+                .contains(antecedent_core::reason_details::recovery::INVALID_DERIVATION),
+            "{error}"
+        );
     }
     let error = prepare(model.graph.clone(), model.catalog(), None, requests()).unwrap_err();
     assert_eq!(error.reason_code(), Some("invalid_argument"));
-    assert!(error.to_string().contains("recovery.invalid_query"), "{error}");
+    assert!(
+        error.to_string().contains(antecedent_core::reason_details::recovery::INVALID_QUERY),
+        "{error}"
+    );
 }
 
 #[test]
@@ -214,7 +222,10 @@ fn refresh_keeps_the_derivation_and_refuses_another_snapshot() {
     .unwrap();
     let error = prepared.refresh(moved, &ctx()).unwrap_err();
     assert_eq!(error.reason_code(), Some("invalid_argument"));
-    assert!(error.to_string().contains("recovery.invalid_observed_law"), "{error}");
+    assert!(
+        error.to_string().contains(antecedent_core::reason_details::recovery::INVALID_OBSERVED_LAW),
+        "{error}"
+    );
     let _ = SNAPSHOT;
 }
 
@@ -236,7 +247,11 @@ fn a_nonrecoverable_decision_refuses_preparation_with_its_witness_code() {
     )
     .unwrap_err();
     assert_eq!(error.reason_code(), Some("transport_proven_non_transportable"));
-    assert!(error.to_string().contains("recovery.nonrecoverable_witness"));
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::recovery::NONRECOVERABLE_WITNESS)
+    );
 }
 
 #[test]
@@ -295,7 +310,10 @@ fn the_io_consumer_replays_under_the_stored_limits() {
         panic!("limits above the consumer's maxima must refuse");
     };
     assert_eq!(error.reason_code(), Some("route_not_supported"));
-    assert!(error.to_string().contains("recovery.bounds_exceeded"), "{error}");
+    assert!(
+        error.to_string().contains(antecedent_core::reason_details::recovery::BOUNDS_EXCEEDED),
+        "{error}"
+    );
 }
 
 fn reseal(wire: &mut RecoveryArtifactWire) {
@@ -310,6 +328,28 @@ fn consume(wire: &RecoveryArtifactWire) -> Result<(), RecoveryArtifactError> {
         &ctx(),
     )
     .map(|_| ())
+}
+
+#[test]
+fn legacy_catalog_identity_remains_inspectable_but_cannot_replay() {
+    let (bytes, _) = exported(&model());
+    let original = RecoveryArtifactWire::decode(&bytes).unwrap();
+    assert!(consume(&original).is_ok());
+    let mut proof = original.clone();
+    let identity = &mut proof.derivation.margins[0].identity;
+    assert!(identity.starts_with("catalog_distribution.v2|"));
+    *identity = identity.replacen("catalog_distribution.v2|", "catalog_distribution.v1|", 1);
+    reseal(&mut proof);
+    assert!(matches!(consume(&proof), Err(RecoveryArtifactError::ProofMismatch(_))));
+    let mut result = original;
+    assert!(result.recovered_identity.starts_with("catalog_distribution.v2|"));
+    result.recovered_identity = result.recovered_identity.replacen(
+        "catalog_distribution.v2|",
+        "catalog_distribution.v1|",
+        1,
+    );
+    reseal(&mut result);
+    assert!(matches!(consume(&result), Err(RecoveryArtifactError::RecoveredMismatch)));
 }
 
 #[test]
@@ -435,11 +475,11 @@ fn a_mutated_artifact_fails_independent_consumption() {
     // Every kind maps to a registered code and an observation-recovery detail.
     assert_eq!(
         RecoveryArtifactError::PremisesMismatch.refusal(),
-        ("transport_not_certified", "recovery.invalid_derivation")
+        ("transport_not_certified", antecedent_core::reason_details::recovery::INVALID_DERIVATION)
     );
     assert_eq!(
         RecoveryArtifactError::LimitsExceeded("x").refusal(),
-        ("route_not_supported", "recovery.bounds_exceeded")
+        ("route_not_supported", antecedent_core::reason_details::recovery::BOUNDS_EXCEEDED)
     );
 }
 
@@ -453,18 +493,33 @@ fn wire_structs_deny_unknown_fields() {
     }
     let mut tampered = Vec::new();
     ciborium::into_writer(&value, &mut tampered).unwrap();
-    assert!(RecoveryArtifactWire::decode(&tampered).is_err());
+    match RecoveryArtifactWire::decode(&tampered) {
+        Err(antecedent_io::IoError::Cbor(failure)) => {
+            assert_eq!(format!("{:?}", failure.fault()), "Decode");
+            assert!(
+                failure.message().starts_with("Custom(\"unknown field `smuggled`, expected one of"),
+                "{}",
+                failure.message()
+            );
+        }
+        other => panic!("an unknown wire field is a CBOR decode refusal, got {:?}", other.err()),
+    }
     let json = serde_json::json!({"population": "p", "observed_regime": 0, "partially_observed": [], "fully_observed": [], "extra": 1});
+    let error = serde_json::from_value::<antecedent_io::recovery_artifact::RecoveryQueryWire>(json)
+        .unwrap_err();
     assert!(
-        serde_json::from_value::<antecedent_io::recovery_artifact::RecoveryQueryWire>(json)
-            .is_err()
+        error.to_string().starts_with("unknown field `extra`, expected one of `population`"),
+        "{error}"
     );
     let record =
         serde_json::to_value(RecoveryArtifactWire::decode(&bytes).unwrap().derivation).unwrap();
     let mut extra = record;
     extra["smuggled"] = serde_json::json!(1);
+    let error =
+        serde_json::from_value::<antecedent_identify::RecoveryDerivationRecord>(extra).unwrap_err();
     assert!(
-        serde_json::from_value::<antecedent_identify::RecoveryDerivationRecord>(extra).is_err()
+        error.to_string().starts_with("unknown field `smuggled`, expected one of `rule_version`"),
+        "{error}"
     );
 }
 
@@ -482,14 +537,20 @@ fn another_format_version_or_an_unknown_required_feature_is_refused() {
             RecoveryArtifactWire::decode(&wire.export().unwrap()),
             Err(antecedent_io::IoError::UnsupportedVersion { version: v }) if v == version
         ));
-        assert!(
-            consume_observation_recovery_artifact(
-                &wire.export().unwrap(),
-                RecoveryConsumeLimits::default(),
-                &ctx()
-            )
-            .is_err()
-        );
+        match consume_observation_recovery_artifact(
+            &wire.export().unwrap(),
+            RecoveryConsumeLimits::default(),
+            &ctx(),
+        ) {
+            Err(antecedent_io::IoError::Refused { code, message }) => {
+                assert_eq!(code, "transport_not_certified");
+                assert_eq!(
+                    message,
+                    "recovery.invalid_derivation: recovery artifact: unsupported semantics: decode"
+                );
+            }
+            other => panic!("an unsupported version is refused, got {:?}", other.err()),
+        }
     }
     for features in [vec!["future_semantics_v9".to_owned()], Vec::new()] {
         let mut wire = original.clone();

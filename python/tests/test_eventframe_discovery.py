@@ -5,6 +5,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 
 def _lag1_series(n: int = 120, seed: int = 3):
@@ -28,21 +29,29 @@ def test_eventframe_pcmci_discovery_happy_path():
     data = _lag1_series()
     n = len(data["x"])
     frame = antecedent.data.event(data, np.arange(n, dtype=np.int64), align_interval_ns=1)
-    result = antecedent.analyze(
-        frame,
-        discovery=antecedent.discovery.PCMCI(max_lag=1, alpha=0.2, fdr=False),
-        query=antecedent.PulseEffect(
-            treatment="x",
-            outcome="y",
-            treatment_lag=1,
-            horizon_steps=1,
-            active_level=1.0,
-        ),
-        bootstrap=0,
-        seed=1,
-        refute=False,
+    result = require_success(
+        antecedent.analyze(
+            frame,
+            graph=antecedent.discovery.discover(
+                frame,
+                method=antecedent.discovery.PCMCI(max_lag=1, alpha=0.2, fdr=False),
+                execution=antecedent.Execution(seed=1),
+                accept_discovered=True,
+            ),
+            query=antecedent.PulseEffect(
+                treatment="x",
+                outcome="y",
+                treatment_lag=1,
+                horizon_steps=1,
+                active_level=1.0,
+            ),
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+            refute=False,
+        )
     )
-    assert np.isfinite(result.ate)
+    # y_t = 0.6 x_{t-1} + noise, so a unit pulse at lag 1 moves y by 0.6.
+    assert result.ate == pytest.approx(0.6, abs=0.05)
 
 
 def test_eventframe_rejects_jpcmci_plus():
@@ -52,17 +61,24 @@ def test_eventframe_rejects_jpcmci_plus():
     with pytest.raises(
         antecedent.errors.CausalUnsupportedError, match="discovers across environments"
     ):
-        antecedent.analyze(
-            frame,
-            discovery=antecedent.discovery.JPCMCIPlus(max_lag=1, alpha=0.2, fdr=False),
-            query=antecedent.PulseEffect(
-                treatment="x",
-                outcome="y",
-                treatment_lag=1,
-                horizon_steps=1,
-                active_level=1.0,
-            ),
-            bootstrap=0,
-            seed=1,
-            refute=False,
+        require_success(
+            antecedent.analyze(
+                frame,
+                graph=antecedent.discovery.discover(
+                    frame,
+                    method=antecedent.discovery.JPCMCIPlus(max_lag=1, alpha=0.2, fdr=False),
+                    execution=antecedent.Execution(seed=1),
+                    accept_discovered=True,
+                ),
+                query=antecedent.PulseEffect(
+                    treatment="x",
+                    outcome="y",
+                    treatment_lag=1,
+                    horizon_steps=1,
+                    active_level=1.0,
+                ),
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
+                refute=False,
+            )
         )

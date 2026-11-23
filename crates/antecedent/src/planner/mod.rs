@@ -1,24 +1,53 @@
-//! Logical / physical analysis planning.
+//! The logical and physical plans a study compiles to, and their inspection.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+//! [`LogicalAnalysisPlan`] records what will be identified and estimated;
+//! [`PhysicalExecutionPlan`] records how it will run. [`PlanView`] lays out a program's routes
+//! and stages, and [`inspect`] estimates resources and reuse from values the caller already
+//! holds. Read a plan before running when you need to know what a study will do and cost.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod binding;
+pub(crate) mod fact;
 mod logical;
+pub mod lowered;
 mod plan;
+pub mod plan_view;
+pub mod statistical;
 
 pub(crate) use binding::{PlanBinding, RouteDefaults};
 pub(crate) use logical::{
-    StaticAteCompileInput, StaticCpdagAteCompileInput, StaticCpdagResponseCompileInput,
-    StaticDistributionCompileInput, StaticPagAteCompileInput, StaticPagResponseCompileInput,
-    StaticPathSpecificCompileInput, StaticResponseCompileInput, TemporalClassEffectCompileInput,
-    compile_logical_codetermined_joint, compile_logical_distribution,
-    compile_logical_path_specific, compile_logical_static_ate, compile_logical_static_cpdag_ate,
-    compile_logical_static_cpdag_response, compile_logical_static_pag_ate,
-    compile_logical_static_pag_response, compile_logical_static_response,
-    compile_logical_temporal_class_effect, compile_logical_temporal_effect,
-    compile_logical_temporal_effect_classified, compile_logical_temporal_response,
+    StaticAdmgPathSpecificCompileInput, StaticAteCompileInput, StaticCpdagAteCompileInput,
+    StaticCpdagPathSpecificCompileInput, StaticCpdagResponseCompileInput,
+    StaticDistributionCompileInput, StaticPagAteCompileInput, StaticPagPathSpecificCompileInput,
+    StaticPagResponseCompileInput, StaticPathSpecificCompileInput, StaticResponseCompileInput,
+    TemporalClassEffectCompileInput, compile_logical_codetermined_joint,
+    compile_logical_distribution, compile_logical_path_specific,
+    compile_logical_path_specific_admg, compile_logical_path_specific_cpdag,
+    compile_logical_path_specific_pag, compile_logical_static_ate,
+    compile_logical_static_cpdag_ate, compile_logical_static_cpdag_response,
+    compile_logical_static_pag_ate, compile_logical_static_pag_response,
+    compile_logical_static_response, compile_logical_temporal_class_effect,
+    compile_logical_temporal_effect, compile_logical_temporal_effect_classified,
+    compile_logical_temporal_response,
+};
+pub(crate) use lowered::{
+    linear_gaussian_physical_operators, linear_gaussian_program_operators,
+    linear_gaussian_scientific_problem,
 };
 pub use plan::{LogicalAnalysisPlan, PhysicalExecutionPlan, reject_dag_only_on_pag};
+pub use plan_view::{PlanRoute, PlanStage, PlanView, RouteFamily};
+
+// --- Further items the language bindings use, re-exported from their defining crates ---
+
+/// Inspection of a plan from values the caller already holds.
+pub mod inspect {
+    pub use antecedent_core::inspect::{
+        EstimatedResources, EvidenceTransformation, EvidenceTransformations, InspectionInputs,
+        InspectionRefusal, MaterializationSnapshot, PlanInspection, ReuseSnapshot,
+        UncertaintyDemand, inspect,
+    };
+}
 
 #[cfg(test)]
 mod tests;

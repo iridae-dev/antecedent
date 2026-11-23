@@ -1,0 +1,1661 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+//! Typed interventions on cyclic models and the worlds they define.
+//!
+//! A caller names variables by [`VariableId`] and passes core
+//! [`Intervention`]s. [`resolve_cyclic_world`] admits each one on its
+//! [`CyclicFamily`] and binds it to a model position. The result is a list of
+//! [`CyclicAction`]s with distinct scientific identities:
+//!
+//! - an untimed [`Intervention::Set`] is a hard clamp, which deletes the
+//!   clamped equation;
+//! - an untimed [`Intervention::Shift`] is an additive shock on the structural
+//!   disturbance of an equilibrium;
+//! - an [`Intervention::Soft`] of family [`SOFT_CONSTANT`] or
+//!   [`SOFT_LINEAR_MECHANISM`] replaces the deterministic mechanism and keeps
+//!   the disturbance;
+//! - an [`Intervention::Soft`] of family [`SOFT_ADDITIVE_SHIFT`] changes the
+//!   mechanism's intercept (on the continuous-time family, a drift input);
+//! - an [`InterventionOperation::InitialState`] replaces one initial-state law
+//!   of a continuous-time system.
+//!
+//! None of them is rewritten into another. A numerically equal answer from two
+//! actions does not make them the same world. Every refusal is a
+//! [`CyclicInterventionRefusal`] that names the next attempt.
+//!
+//! The evaluators return a [`CyclicWorldResult`] keyed by
+//! [`ScientificWorldId`]. It keeps the request that defined the world, the
+//! resolved actions, the outcome, the [`WorldCertificate`], how the world was
+//! solved ([`WorldSolvedBy`]), and the failed and withheld mass
+//! ([`WorldMass`]). A world whose free block has no unique solution is a
+//! result with failed mass one, not a dropped world. A certificate is a
+//! uniqueness claim for the declared model; physical stability stays
+//! unclaimed, and a specified-model evaluation is not identification.
+//!
+//! - Linear equilibrium: the intervened map is rechecked with
+//!   [`revalidate_solvability`]. When `ρ(|K|) < 1` holds for the intervened
+//!   map, the world compiles through an admitted [`CyclicComponent`] and is
+//!   certified. Otherwise the free block is decided by a direct solve and the
+//!   world is reported uncertified, or withheld under
+//!   [`CertificateDemand::Required`].
+//! - Nonlinear equilibrium: each disturbance draw is solved through the named
+//!   [`EquilibriumAction`]s. A draw refused for lack of a contraction
+//!   certificate is withheld mass; a draw that did not converge is failed mass.
+//!   Neither is renormalized away.
+//! - Continuous time: the trajectory is integrated from the intervened initial
+//!   state with clamps held from the initial time. Adaptive integration
+//!   controls local error only, so the trajectory is not certified.
+
+#![forbid(unsafe_code)]
+#![deny(missing_docs)]
+
+mod continuous;
+mod linear;
+mod nonlinear;
+pub use continuous::{ContinuousTimeSpecification, evaluate_continuous_time_world};
+use linear::failed_parts;
+pub use linear::{
+    CertificateDemand, LinearCyclicSpecification, evaluate_linear_world, evaluate_linear_worlds,
+    evaluate_linear_worlds_routed,
+};
+use nonlinear::nonlinear_world_cost;
+pub use nonlinear::{NonlinearCyclicSpecification, equilibrium_actions, evaluate_nonlinear_world};
+
+use std::collections::BTreeMap;
+use std::fmt;
+use std::sync::Arc;
+
+use antecedent_core::execution::AdmissionLease;
+use antecedent_core::intervention::{
+    AdmitError, CYCLIC_SUPPORTED_OPERATION_ATTEMPT, CapabilityRefusal, CyclicFamily,
+    InterventionOperation,
+};
+use antecedent_core::refusal::NextAttempt;
+use antecedent_core::{
+    ExecutionContext, Intervention, InterventionError, MechanismOverride, ScientificWorldId,
+    TemporalPolicy, Value, VariableId, WorldAction,
+};
+use antecedent_kernels::gauss_jordan_solve;
+
+use crate::continuous_cyclic::{OdePolicy, OdeSystem, OdeTrajectory, TimedClamp};
+use crate::cyclic_actions::EquilibriumAction;
+use crate::cyclic_component::CyclicComponent;
+use crate::intervention_request::{
+    InterventionRequest, InterventionRequestError, hard_clamp_of, revalidate_solvability,
+};
+use crate::linear_solution::{
+    HardClamp, LinearStructuralMap, NONZERO_DIAGONAL_NEXT_ATTEMPT, PhysicalStability,
+    SolvabilityRefusal, assess, free_indices,
+};
+use crate::nonlinear_equilibrium::{
+    Activation, Clamp, Equation, EquilibriumError, EquilibriumModel, EquilibriumOutcome,
+    SolvePolicy,
+};
+use crate::scc_compile::{
+    BlockDiagnostic, CompileBudget, GaussianDisturbance, LinearRouteSet, LinearSupportRoute,
+    SccCompileError, compile_routed_with, gaussian_equilibrium_admission,
+    gaussian_equilibrium_route_work,
+};
+
+/// Soft family that replaces the mechanism by a constant. Parameters: `[value]`.
+pub const SOFT_CONSTANT: &str = "constant";
+
+/// Soft family that adds to the mechanism's intercept. Parameters: `[delta]`.
+pub const SOFT_ADDITIVE_SHIFT: &str = "additive_shift";
+
+/// Soft family that replaces the mechanism by an affine one.
+/// Parameters: `[intercept, w_0, …, w_{n-1}]` in the specification's variable order.
+pub const SOFT_LINEAR_MECHANISM: &str = "linear_mechanism";
+
+/// Bind the variable in the specification.
+pub const BIND_VARIABLE_ATTEMPT: NextAttempt = NextAttempt::new(
+    "bind_variable",
+    "bind the variable in the specification's variable order, or remove the action",
+);
+
+/// Declare at most one clamp per variable.
+pub const ONE_ACTION_PER_VARIABLE_ATTEMPT: NextAttempt = NextAttempt::new(
+    "one_action_per_variable",
+    "declare at most one clamp per variable, or one mechanism change plus one additive shock",
+);
+
+/// Assign a finite float level.
+pub const FINITE_FLOAT_LEVEL_ATTEMPT: NextAttempt = NextAttempt::new(
+    "finite_float_level",
+    "assign a finite float level; other value types are not coerced",
+);
+
+/// Use a soft family this layer resolves.
+pub const SUPPORTED_SOFT_FAMILY_ATTEMPT: NextAttempt = NextAttempt::new(
+    "supported_soft_family",
+    "use soft family `constant` [value], `additive_shift` [delta], or `linear_mechanism` \
+     [intercept, one weight per variable]",
+);
+
+/// Supply the packed parameters the soft family declares.
+pub const SOFT_PARAMETER_SHAPE_ATTEMPT: NextAttempt = NextAttempt::new(
+    "soft_parameter_shape",
+    "pack `constant` and `additive_shift` as one parameter, and `linear_mechanism` as the \
+     intercept followed by one weight per variable",
+);
+
+/// A self-coefficient belongs to another family or to a normalization.
+pub const NONZERO_DIAGONAL_ATTEMPT: NextAttempt =
+    NextAttempt::new("normalize_structural_diagonal", NONZERO_DIAGONAL_NEXT_ATTEMPT);
+
+/// Name a declared initial-state law.
+pub const DECLARED_INITIAL_LAW_ATTEMPT: NextAttempt = NextAttempt::new(
+    "declared_initial_law",
+    "name one of the specification's declared initial-state laws",
+);
+
+/// Repair a malformed intervention.
+pub const WELL_FORMED_INTERVENTION_ATTEMPT: NextAttempt = NextAttempt::new(
+    "well_formed_intervention",
+    "repair the intervention so it validates: finite levels, a valid temporal policy, and an \
+     untimed sequence",
+);
+
+/// Repair the specification.
+pub const WELL_FORMED_SPECIFICATION_ATTEMPT: NextAttempt = NextAttempt::new(
+    "well_formed_specification",
+    "repair the specification's shape, coefficients, noise law, or numerical policy and \
+     evaluate again",
+);
+
+/// Give each world its own id.
+pub const DISTINCT_WORLD_ATTEMPT: NextAttempt =
+    NextAttempt::new("distinct_world_ids", "give each requested world its own ScientificWorldId");
+
+/// Name a component and certifying evidence.
+pub const CERTIFYING_EVIDENCE_ATTEMPT: NextAttempt = NextAttempt::new(
+    "certifying_evidence",
+    "name a component id, a source id, and certifying evidence other than the source",
+);
+
+/// Work, in solver iteration units, one nonlinear world may spend across its draws: the draws,
+/// times the iterations each draw can take (the policy's total bound, or its per-block bound
+/// over every block, whichever is lower), times the squared order. A world over it is
+/// refused before any draw is solved.
+pub const NONLINEAR_WORLD_MAX_WORK: u64 = 10_000_000_000_000;
+
+/// Fixed bytes charged for one retained result besides its numbers: the request, the resolved
+/// actions, the variable ids and the certificate record.
+const RESULT_OVERHEAD_BYTES: usize = 4096;
+
+/// Fixed bytes charged for one retained draw outcome besides its state and blocks: the
+/// evidence record and its strings.
+const OUTCOME_OVERHEAD_BYTES: usize = 2048;
+
+/// Resources or cancellation stopped the evaluation.
+pub const EXECUTION_ATTEMPT: NextAttempt = NextAttempt::new(
+    "execution_resources",
+    "raise the admitted resources or clear the cancellation, then evaluate the world again",
+);
+
+/// A singular clamped loop needs a selection or a dynamic law.
+pub const SELECTION_OR_DYNAMIC_LAW_ATTEMPT: NextAttempt = NextAttempt::new(
+    "selection_or_dynamic_law",
+    "declare an equilibrium selection rule or a dynamic law for the clamped loop, or intervene \
+     with a mechanism change that keeps the free block regular",
+);
+
+/// A numerically singular block needs a rank-revealing factor.
+pub const RANK_REVEALING_FACTOR_ATTEMPT: NextAttempt = NextAttempt::new(
+    "rank_revealing_factor",
+    "factor the free block with a rank-revealing decomposition before treating it as singular, \
+     or rescale its coefficients",
+);
+
+/// A non-finite free block needs rescaled coefficients.
+pub const RESCALE_COEFFICIENTS_ATTEMPT: NextAttempt = NextAttempt::new(
+    "rescale_structural_coefficients",
+    "rescale the structural coefficients so the free block and its solution are finite",
+);
+
+/// The family bound was not shown for a linear world.
+pub const QUERY_SPECIFIC_CERTIFICATE_ATTEMPT: NextAttempt = NextAttempt::new(
+    "query_specific_free_block",
+    "the bound ρ(|K|) < 1 was not shown for the intervened map; certify this world's free set \
+     by an exact factorization, or report the world uncertified",
+);
+
+/// A nonlinear root is not shown unique.
+pub const BLOCK_CONTRACTION_ATTEMPT: NextAttempt = NextAttempt::new(
+    "block_contraction_certificate",
+    "bound each free block's derivative norm below one, or verify an affine bijection, before \
+     treating a numerical root as the unique equilibrium",
+);
+
+/// Some nonlinear draws failed.
+pub const RETAINED_FAILED_DRAWS_ATTEMPT: NextAttempt = NextAttempt::new(
+    "retained_failed_draws",
+    "report the failed draws as failed mass, or revise the solve policy and the numerical \
+     initial guess and evaluate again",
+);
+
+/// A trajectory needs a validated integrator before it is certified.
+pub const VALIDATED_INTEGRATION_ATTEMPT: NextAttempt = NextAttempt::new(
+    "validated_integration",
+    "bound the global integration error with a validated integrator before certifying the \
+     trajectory",
+);
+
+/// Integration did not reach the horizon.
+pub const INTEGRATION_FAILURE_ATTEMPT: NextAttempt = NextAttempt::new(
+    "revised_integration_policy",
+    "raise the step budget or revise the tolerances, or shorten the horizon, and integrate again",
+);
+
+// ---------------------------------------------------------------------------
+// Refusals
+// ---------------------------------------------------------------------------
+
+/// What was refused.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum CyclicRefusalKind {
+    /// The family does not perform the operation.
+    Capability {
+        /// Why the operation was not rewritten into one the family performs.
+        reason: &'static str,
+    },
+    /// The intervention or its policy is malformed.
+    Malformed {
+        /// Validation message.
+        reason: String,
+    },
+    /// The variable is not bound in the specification.
+    UnboundVariable {
+        /// Variable that was named.
+        variable: VariableId,
+    },
+    /// Two actions on one variable conflict.
+    ConflictingActions {
+        /// Variable named twice.
+        variable: VariableId,
+    },
+    /// A level is not a float.
+    NonFloatLevel,
+    /// A level or a soft parameter is NaN or infinite.
+    NonFiniteLevel,
+    /// The soft family is not one this layer resolves.
+    UnsupportedSoftFamily {
+        /// Family that was named.
+        family: Arc<str>,
+    },
+    /// The soft parameters do not have the family's shape.
+    SoftParameterShape {
+        /// Soft family.
+        family: &'static str,
+        /// Parameter count the family takes.
+        expected: usize,
+        /// Parameter count supplied.
+        found: usize,
+    },
+    /// A replacement gives the variable a structural self-coefficient.
+    NonzeroDiagonal {
+        /// Variable whose replacement reads itself.
+        variable: VariableId,
+    },
+    /// The initial-state law is not declared.
+    UnknownInitialLaw {
+        /// Law that was named.
+        law_name: Arc<str>,
+    },
+    /// The same variable id is bound twice, or no variable is bound.
+    VariableBinding {
+        /// What is inconsistent.
+        message: &'static str,
+    },
+    /// Two requests share one world id.
+    DuplicateWorld,
+    /// The specification or the numerical policy is malformed.
+    Specification {
+        /// What is inconsistent.
+        message: String,
+    },
+    /// The component gate refused the specification's evidence.
+    Evidence {
+        /// Component refusal.
+        message: String,
+    },
+    /// Resources or cancellation stopped the evaluation.
+    Execution {
+        /// Resource refusal.
+        message: String,
+    },
+}
+
+impl fmt::Display for CyclicRefusalKind {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Capability { reason } => formatter.write_str(reason),
+            Self::Malformed { reason } => write!(formatter, "malformed intervention: {reason}"),
+            Self::UnboundVariable { variable } => {
+                write!(formatter, "variable {} is not bound", variable.raw())
+            }
+            Self::ConflictingActions { variable } => {
+                write!(formatter, "conflicting actions on variable {}", variable.raw())
+            }
+            Self::NonFloatLevel => formatter.write_str("the level is not a float"),
+            Self::NonFiniteLevel => formatter.write_str("the level is not finite"),
+            Self::UnsupportedSoftFamily { family } => {
+                write!(formatter, "soft family `{family}` is not resolved on a cyclic model")
+            }
+            Self::SoftParameterShape { family, expected, found } => write!(
+                formatter,
+                "soft family `{family}` takes {expected} parameters and {found} were supplied"
+            ),
+            Self::NonzeroDiagonal { variable } => write!(
+                formatter,
+                "the replacement gives variable {} a structural self-coefficient",
+                variable.raw()
+            ),
+            Self::UnknownInitialLaw { law_name } => {
+                write!(formatter, "initial-state law `{law_name}` is not declared")
+            }
+            Self::VariableBinding { message } => formatter.write_str(message),
+            Self::DuplicateWorld => formatter.write_str("the world id is requested twice"),
+            Self::Specification { message } => write!(formatter, "specification: {message}"),
+            Self::Evidence { message } => write!(formatter, "component evidence: {message}"),
+            Self::Execution { message } => write!(formatter, "execution: {message}"),
+        }
+    }
+}
+
+/// A typed refusal. It always names the next attempt.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CyclicInterventionRefusal {
+    /// World being resolved, when the refusal belongs to one.
+    pub world: Option<ScientificWorldId>,
+    /// Family the refusal was decided on, when one was named.
+    pub family: Option<CyclicFamily>,
+    /// Operation or step that was refused.
+    pub operation: &'static str,
+    /// What was refused.
+    pub kind: CyclicRefusalKind,
+    /// What to declare instead.
+    pub next_attempt: NextAttempt,
+}
+
+impl fmt::Display for CyclicInterventionRefusal {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("cyclic ")?;
+        match self.family {
+            Some(family) => write!(formatter, "{family}")?,
+            None => formatter.write_str("model")?,
+        }
+        if let Some(world) = self.world {
+            write!(formatter, " world {world}")?;
+        }
+        write!(
+            formatter,
+            ": {} refused: {}; next attempt: {}",
+            self.operation,
+            self.kind,
+            self.next_attempt.sentence()
+        )
+    }
+}
+
+impl std::error::Error for CyclicInterventionRefusal {}
+
+fn refusal(
+    world: Option<ScientificWorldId>,
+    family: Option<CyclicFamily>,
+    operation: &'static str,
+    kind: CyclicRefusalKind,
+    next_attempt: NextAttempt,
+) -> CyclicInterventionRefusal {
+    CyclicInterventionRefusal { world, family, operation, kind, next_attempt }
+}
+
+fn specification_refusal(
+    family: CyclicFamily,
+    world: Option<ScientificWorldId>,
+    message: impl fmt::Display,
+) -> CyclicInterventionRefusal {
+    refusal(
+        world,
+        Some(family),
+        "specification",
+        CyclicRefusalKind::Specification { message: message.to_string() },
+        WELL_FORMED_SPECIFICATION_ATTEMPT,
+    )
+}
+
+fn execution_refusal(
+    family: CyclicFamily,
+    world: ScientificWorldId,
+    message: impl fmt::Display,
+) -> CyclicInterventionRefusal {
+    refusal(
+        Some(world),
+        Some(family),
+        "evaluate",
+        CyclicRefusalKind::Execution { message: message.to_string() },
+        EXECUTION_ATTEMPT,
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Variables and requests
+// ---------------------------------------------------------------------------
+
+/// Variable ids in model order: position `k` is model node `k`.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct CyclicVariables {
+    ids: Vec<VariableId>,
+}
+
+impl CyclicVariables {
+    /// Bind `ids` to model positions `0..ids.len()`.
+    ///
+    /// # Errors
+    ///
+    /// An empty list, or an id bound twice.
+    pub fn try_new(ids: Vec<VariableId>) -> Result<Self, CyclicInterventionRefusal> {
+        let binding = |message| {
+            refusal(
+                None,
+                None,
+                "bind_variables",
+                CyclicRefusalKind::VariableBinding { message },
+                BIND_VARIABLE_ATTEMPT,
+            )
+        };
+        if ids.is_empty() {
+            return Err(binding("a cyclic model binds at least one variable"));
+        }
+        let mut seen = std::collections::BTreeSet::new();
+        if ids.iter().any(|id| !seen.insert(*id)) {
+            return Err(binding("a variable id is bound to two model positions"));
+        }
+        Ok(Self { ids })
+    }
+
+    /// Ids in model order.
+    #[must_use]
+    pub fn ids(&self) -> &[VariableId] {
+        &self.ids
+    }
+
+    /// Number of bound variables.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.ids.len()
+    }
+
+    /// Always `false`: a binding holds at least one variable.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.ids.is_empty()
+    }
+
+    /// Model position of `variable`.
+    #[must_use]
+    pub fn position(&self, variable: VariableId) -> Option<usize> {
+        self.ids.iter().position(|id| *id == variable)
+    }
+}
+
+/// The interventions that define one world.
+///
+/// Interventions are simultaneous. `temporal` applies to each of them and is
+/// refused by the equilibrium families; it is kept so a refusal names the
+/// timing that was asked for. Initial-state changes are
+/// [`InterventionOperation::InitialState`] values.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct CyclicWorldRequest {
+    world: ScientificWorldId,
+    interventions: Vec<Intervention>,
+    temporal: Option<TemporalPolicy>,
+    initial_states: Vec<InterventionOperation>,
+}
+
+impl CyclicWorldRequest {
+    /// World `world` under the simultaneous untimed `interventions`.
+    #[must_use]
+    pub fn new(
+        world: ScientificWorldId,
+        interventions: impl IntoIterator<Item = Intervention>,
+    ) -> Self {
+        Self {
+            world,
+            interventions: interventions.into_iter().collect(),
+            temporal: None,
+            initial_states: Vec::new(),
+        }
+    }
+
+    /// World without interventions: the model as specified.
+    #[must_use]
+    pub fn observational(world: ScientificWorldId) -> Self {
+        Self::new(world, [])
+    }
+
+    /// World from a target's [`WorldAction`]. A schedule keeps its policy.
+    #[must_use]
+    pub fn from_action(world: ScientificWorldId, action: &WorldAction) -> Self {
+        if let Some((intervention, policy)) = action.schedule_parts() {
+            return Self::new(world, [intervention.clone()]).timed(policy.clone());
+        }
+        Self::new(world, action.at_decision_interventions().unwrap_or_default().to_vec())
+    }
+
+    /// Time every intervention of this world by `policy`.
+    #[must_use]
+    pub fn timed(mut self, policy: TemporalPolicy) -> Self {
+        self.temporal = Some(policy);
+        self
+    }
+
+    /// Replace the initial-state law `law_name` by the level `level`.
+    ///
+    /// # Errors
+    ///
+    /// An empty law name or a non-finite level.
+    pub fn with_initial_state(
+        mut self,
+        law_name: impl Into<Arc<str>>,
+        level: f64,
+    ) -> Result<Self, CyclicInterventionRefusal> {
+        let operation = InterventionOperation::initial_state(law_name, Value::f64(level))
+            .map_err(|error| malformed(self.world, None, "initial_state_change", &error))?;
+        self.initial_states.push(operation);
+        Ok(self)
+    }
+
+    /// World id.
+    #[must_use]
+    pub const fn world(&self) -> ScientificWorldId {
+        self.world
+    }
+
+    /// Simultaneous interventions, as declared.
+    #[must_use]
+    pub fn interventions(&self) -> &[Intervention] {
+        &self.interventions
+    }
+
+    /// Timing applied to every intervention, when one was declared.
+    #[must_use]
+    pub const fn temporal(&self) -> Option<&TemporalPolicy> {
+        self.temporal.as_ref()
+    }
+
+    /// Initial-state changes, as declared.
+    #[must_use]
+    pub fn initial_states(&self) -> &[InterventionOperation] {
+        &self.initial_states
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Resolved actions
+// ---------------------------------------------------------------------------
+
+/// Replacement deterministic mechanism. The disturbance is kept.
+#[derive(Clone, Debug, PartialEq)]
+pub enum MechanismReplacement {
+    /// `x_i := value + u_i`.
+    Constant {
+        /// Replacement constant.
+        value: f64,
+    },
+    /// `x_i := intercept + Σ_j weights[j] x_j + u_i`.
+    Linear {
+        /// Replacement intercept.
+        intercept: f64,
+        /// Weights in the specification's variable order.
+        weights: Vec<f64>,
+    },
+}
+
+/// One action bound to a model position.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum CyclicAction {
+    /// Delete the equation and hold the variable at `level`.
+    HardClamp {
+        /// Clamped variable.
+        variable: VariableId,
+        /// Model position.
+        node: usize,
+        /// Assigned level.
+        level: f64,
+    },
+    /// Replace the deterministic mechanism and keep its disturbance.
+    ReplaceMechanism {
+        /// Target variable.
+        variable: VariableId,
+        /// Model position.
+        node: usize,
+        /// Replacement.
+        replacement: MechanismReplacement,
+    },
+    /// Add `intercept_shift` to the mechanism's intercept.
+    ChangeMechanism {
+        /// Target variable.
+        variable: VariableId,
+        /// Model position.
+        node: usize,
+        /// Added to the intercept.
+        intercept_shift: f64,
+    },
+    /// Add `delta` to the structural disturbance.
+    AdditiveShock {
+        /// Target variable.
+        variable: VariableId,
+        /// Model position.
+        node: usize,
+        /// Deterministic perturbation of the disturbance.
+        delta: f64,
+    },
+    /// Replace the initial-state law of a continuous-time state.
+    InitialState {
+        /// State variable.
+        variable: VariableId,
+        /// Model position.
+        node: usize,
+        /// Declared law that was replaced.
+        law_name: Arc<str>,
+        /// Replacement initial level.
+        level: f64,
+    },
+}
+
+const CLAMP_BIT: u8 = 1;
+const MECHANISM_BIT: u8 = 2;
+const SHOCK_BIT: u8 = 4;
+const INITIAL_BIT: u8 = 8;
+
+impl CyclicAction {
+    /// Stable name of the action kind.
+    #[must_use]
+    pub const fn kind(&self) -> &'static str {
+        match self {
+            Self::HardClamp { .. } => "hard_clamp",
+            Self::ReplaceMechanism { .. } => "replace_mechanism",
+            Self::ChangeMechanism { .. } => "change_mechanism",
+            Self::AdditiveShock { .. } => "additive_shock",
+            Self::InitialState { .. } => "initial_state_change",
+        }
+    }
+
+    /// Target variable.
+    #[must_use]
+    pub const fn variable(&self) -> VariableId {
+        match self {
+            Self::HardClamp { variable, .. }
+            | Self::ReplaceMechanism { variable, .. }
+            | Self::ChangeMechanism { variable, .. }
+            | Self::AdditiveShock { variable, .. }
+            | Self::InitialState { variable, .. } => *variable,
+        }
+    }
+
+    /// Model position.
+    #[must_use]
+    pub const fn node(&self) -> usize {
+        match self {
+            Self::HardClamp { node, .. }
+            | Self::ReplaceMechanism { node, .. }
+            | Self::ChangeMechanism { node, .. }
+            | Self::AdditiveShock { node, .. }
+            | Self::InitialState { node, .. } => *node,
+        }
+    }
+
+    const fn bit(&self) -> u8 {
+        match self {
+            Self::HardClamp { .. } => CLAMP_BIT,
+            Self::ReplaceMechanism { .. } | Self::ChangeMechanism { .. } => MECHANISM_BIT,
+            Self::AdditiveShock { .. } => SHOCK_BIT,
+            Self::InitialState { .. } => INITIAL_BIT,
+        }
+    }
+}
+
+/// Actions of one world, admitted and bound, sorted by model position.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResolvedCyclicWorld {
+    world: ScientificWorldId,
+    family: CyclicFamily,
+    actions: Vec<CyclicAction>,
+}
+
+impl ResolvedCyclicWorld {
+    /// World id.
+    #[must_use]
+    pub const fn world(&self) -> ScientificWorldId {
+        self.world
+    }
+
+    /// Family the actions were admitted on.
+    #[must_use]
+    pub const fn family(&self) -> CyclicFamily {
+        self.family
+    }
+
+    /// Bound actions.
+    #[must_use]
+    pub fn actions(&self) -> &[CyclicAction] {
+        &self.actions
+    }
+}
+
+/// Admit every action of `request` on `family` and bind it to `variables`.
+///
+/// `initial_laws` names the initial-state law of each model position; it is
+/// read only by the continuous-time family.
+///
+/// # Errors
+///
+/// A [`CyclicInterventionRefusal`] naming the next attempt: an operation the
+/// family does not perform, a malformed intervention, an unbound variable, a
+/// non-float or non-finite level, an unsupported soft family or parameter
+/// shape, a self-coefficient on the linear family, an undeclared initial-state
+/// law, or conflicting actions on one variable.
+pub fn resolve_cyclic_world(
+    family: CyclicFamily,
+    variables: &CyclicVariables,
+    initial_laws: &[Arc<str>],
+    request: &CyclicWorldRequest,
+) -> Result<ResolvedCyclicWorld, CyclicInterventionRefusal> {
+    let world = request.world;
+    let mut actions =
+        Vec::with_capacity(request.interventions.len() + request.initial_states.len());
+    for intervention in &request.interventions {
+        let operation = family.admit(intervention, request.temporal.as_ref()).map_err(|error| {
+            admit_refusal(world, family, intervention_name(intervention), error)
+        })?;
+        actions.push(action_of(world, family, variables, &operation)?);
+    }
+    for operation in &request.initial_states {
+        family
+            .admit_operation(operation)
+            .map_err(|refused| capability_refusal(world, family, refused))?;
+        actions.push(initial_state_action(world, family, variables, initial_laws, operation)?);
+    }
+    let mut seen: BTreeMap<usize, u8> = BTreeMap::new();
+    for action in &actions {
+        let bit = action.bit();
+        let held = seen.entry(action.node()).or_insert(0);
+        if *held & bit != 0 || *held & CLAMP_BIT != 0 || (bit == CLAMP_BIT && *held != 0) {
+            return Err(refusal(
+                Some(world),
+                Some(family),
+                action.kind(),
+                CyclicRefusalKind::ConflictingActions { variable: action.variable() },
+                ONE_ACTION_PER_VARIABLE_ATTEMPT,
+            ));
+        }
+        *held |= bit;
+    }
+    actions.sort_by_key(|action| (action.node(), action.bit()));
+    Ok(ResolvedCyclicWorld { world, family, actions })
+}
+
+fn intervention_name(intervention: &Intervention) -> &'static str {
+    match intervention {
+        Intervention::Set { .. } => "set",
+        Intervention::Shift { .. } => "shift",
+        Intervention::Stochastic { .. } => "stochastic",
+        Intervention::Soft { .. } => "soft",
+        Intervention::Transform { .. } => "transform",
+        Intervention::Assign { .. } => "assign",
+        Intervention::Sequence(_) => "sequence",
+        _ => "intervention",
+    }
+}
+
+fn capability_refusal(
+    world: ScientificWorldId,
+    family: CyclicFamily,
+    refused: CapabilityRefusal,
+) -> CyclicInterventionRefusal {
+    refusal(
+        Some(world),
+        Some(family),
+        refused.operation(),
+        CyclicRefusalKind::Capability { reason: refused.reason() },
+        family.next_attempt(refused.operation()),
+    )
+}
+
+fn malformed(
+    world: ScientificWorldId,
+    family: Option<CyclicFamily>,
+    operation: &'static str,
+    error: &InterventionError,
+) -> CyclicInterventionRefusal {
+    let next_attempt = if matches!(error, InterventionError::NonFiniteLevel) {
+        FINITE_FLOAT_LEVEL_ATTEMPT
+    } else {
+        WELL_FORMED_INTERVENTION_ATTEMPT
+    };
+    refusal(
+        Some(world),
+        family,
+        operation,
+        CyclicRefusalKind::Malformed { reason: error.to_string() },
+        next_attempt,
+    )
+}
+
+fn admit_refusal(
+    world: ScientificWorldId,
+    family: CyclicFamily,
+    operation: &'static str,
+    error: AdmitError,
+) -> CyclicInterventionRefusal {
+    match error {
+        AdmitError::Refused(refused) => capability_refusal(world, family, refused),
+        AdmitError::Invalid(invalid) => malformed(world, Some(family), operation, &invalid),
+        other => refusal(
+            Some(world),
+            Some(family),
+            operation,
+            CyclicRefusalKind::Malformed { reason: other.to_string() },
+            WELL_FORMED_INTERVENTION_ATTEMPT,
+        ),
+    }
+}
+
+fn bind(
+    world: ScientificWorldId,
+    family: CyclicFamily,
+    operation: &'static str,
+    variables: &CyclicVariables,
+    variable: VariableId,
+) -> Result<usize, CyclicInterventionRefusal> {
+    variables.position(variable).ok_or_else(|| {
+        refusal(
+            Some(world),
+            Some(family),
+            operation,
+            CyclicRefusalKind::UnboundVariable { variable },
+            BIND_VARIABLE_ATTEMPT,
+        )
+    })
+}
+
+fn float_level(
+    world: ScientificWorldId,
+    family: CyclicFamily,
+    operation: &'static str,
+    value: &Value,
+) -> Result<f64, CyclicInterventionRefusal> {
+    let kind = match value {
+        Value::Float64(level) if level.is_finite() => {
+            // `-0.0` and `+0.0` are one level.
+            return Ok(if level.to_bits() == (-0.0_f64).to_bits() { 0.0 } else { *level });
+        }
+        Value::Float64(_) => CyclicRefusalKind::NonFiniteLevel,
+        _ => CyclicRefusalKind::NonFloatLevel,
+    };
+    Err(refusal(Some(world), Some(family), operation, kind, FINITE_FLOAT_LEVEL_ATTEMPT))
+}
+
+fn action_of(
+    world: ScientificWorldId,
+    family: CyclicFamily,
+    variables: &CyclicVariables,
+    operation: &InterventionOperation,
+) -> Result<CyclicAction, CyclicInterventionRefusal> {
+    match operation {
+        InterventionOperation::Set { variable, value } => {
+            let node = bind(world, family, "set", variables, *variable)?;
+            let level = float_level(world, family, "set", value)?;
+            Ok(CyclicAction::HardClamp { variable: *variable, node, level })
+        }
+        InterventionOperation::Shift { variable, delta } => {
+            let node = bind(world, family, "shift", variables, *variable)?;
+            let delta = float_level(world, family, "shift", delta)?;
+            Ok(CyclicAction::AdditiveShock { variable: *variable, node, delta })
+        }
+        InterventionOperation::Soft { variable, mechanism } => {
+            let node = bind(world, family, "soft", variables, *variable)?;
+            soft_action(world, family, variables.len(), *variable, node, mechanism)
+        }
+        other => Err(refusal(
+            Some(world),
+            Some(family),
+            other.name(),
+            CyclicRefusalKind::Capability {
+                reason: "the operation was admitted but has no cyclic action kind",
+            },
+            CYCLIC_SUPPORTED_OPERATION_ATTEMPT,
+        )),
+    }
+}
+
+fn soft_action(
+    world: ScientificWorldId,
+    family: CyclicFamily,
+    order: usize,
+    variable: VariableId,
+    node: usize,
+    mechanism: &MechanismOverride,
+) -> Result<CyclicAction, CyclicInterventionRefusal> {
+    let parameters: &[f64] = &mechanism.parameters;
+    let refuse =
+        |kind, next_attempt| refusal(Some(world), Some(family), "soft", kind, next_attempt);
+    if parameters.iter().any(|parameter| !parameter.is_finite()) {
+        return Err(refuse(CyclicRefusalKind::NonFiniteLevel, FINITE_FLOAT_LEVEL_ATTEMPT));
+    }
+    let shape = |family_name: &'static str, expected: usize| {
+        if parameters.len() == expected {
+            Ok(())
+        } else {
+            Err(refuse(
+                CyclicRefusalKind::SoftParameterShape {
+                    family: family_name,
+                    expected,
+                    found: parameters.len(),
+                },
+                SOFT_PARAMETER_SHAPE_ATTEMPT,
+            ))
+        }
+    };
+    match &*mechanism.family_id {
+        SOFT_CONSTANT => {
+            shape(SOFT_CONSTANT, 1)?;
+            Ok(CyclicAction::ReplaceMechanism {
+                variable,
+                node,
+                replacement: MechanismReplacement::Constant { value: parameters[0] },
+            })
+        }
+        SOFT_ADDITIVE_SHIFT => {
+            shape(SOFT_ADDITIVE_SHIFT, 1)?;
+            Ok(CyclicAction::ChangeMechanism { variable, node, intercept_shift: parameters[0] })
+        }
+        SOFT_LINEAR_MECHANISM => {
+            shape(SOFT_LINEAR_MECHANISM, order + 1)?;
+            let weights = parameters[1..].to_vec();
+            if family == CyclicFamily::LinearEquilibrium && weights[node].abs() > 0.0 {
+                return Err(refuse(
+                    CyclicRefusalKind::NonzeroDiagonal { variable },
+                    NONZERO_DIAGONAL_ATTEMPT,
+                ));
+            }
+            Ok(CyclicAction::ReplaceMechanism {
+                variable,
+                node,
+                replacement: MechanismReplacement::Linear { intercept: parameters[0], weights },
+            })
+        }
+        _ => Err(refuse(
+            CyclicRefusalKind::UnsupportedSoftFamily { family: Arc::clone(&mechanism.family_id) },
+            SUPPORTED_SOFT_FAMILY_ATTEMPT,
+        )),
+    }
+}
+
+fn initial_state_action(
+    world: ScientificWorldId,
+    family: CyclicFamily,
+    variables: &CyclicVariables,
+    initial_laws: &[Arc<str>],
+    operation: &InterventionOperation,
+) -> Result<CyclicAction, CyclicInterventionRefusal> {
+    let InterventionOperation::InitialState { law_name, level } = operation else {
+        return Err(refusal(
+            Some(world),
+            Some(family),
+            operation.name(),
+            CyclicRefusalKind::Capability {
+                reason: "an initial-state slot holds another operation",
+            },
+            CYCLIC_SUPPORTED_OPERATION_ATTEMPT,
+        ));
+    };
+    let Some(node) = initial_laws.iter().position(|law| law == law_name) else {
+        return Err(refusal(
+            Some(world),
+            Some(family),
+            "initial_state_change",
+            CyclicRefusalKind::UnknownInitialLaw { law_name: Arc::clone(law_name) },
+            DECLARED_INITIAL_LAW_ATTEMPT,
+        ));
+    };
+    let Some(&variable) = variables.ids().get(node) else {
+        return Err(specification_refusal(
+            family,
+            Some(world),
+            "an initial-state law has no bound variable",
+        ));
+    };
+    let level = float_level(world, family, "initial_state_change", level)?;
+    Ok(CyclicAction::InitialState { variable, node, law_name: Arc::clone(law_name), level })
+}
+
+// ---------------------------------------------------------------------------
+// World results
+// ---------------------------------------------------------------------------
+
+/// Why a world has no solution to return.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum WorldFailureCause {
+    /// The intervened free block is singular, numerically singular, or non-finite.
+    Solvability(SolvabilityRefusal),
+    /// Integration did not reach the horizon.
+    Integration {
+        /// Integrator diagnostic.
+        detail: String,
+    },
+}
+
+/// A world with no solution, and what to try instead.
+#[derive(Clone, Debug, PartialEq)]
+pub struct WorldFailure {
+    /// Why no solution was returned.
+    pub cause: WorldFailureCause,
+    /// What to declare instead.
+    pub next_attempt: NextAttempt,
+}
+
+impl WorldFailure {
+    fn solvability(refused: SolvabilityRefusal) -> Self {
+        let next_attempt = match &refused {
+            SolvabilityRefusal::Singular { .. } => SELECTION_OR_DYNAMIC_LAW_ATTEMPT,
+            SolvabilityRefusal::NumericallySingular { .. } => RANK_REVEALING_FACTOR_ATTEMPT,
+            SolvabilityRefusal::NonFinite => RESCALE_COEFFICIENTS_ATTEMPT,
+        };
+        Self { cause: WorldFailureCause::Solvability(refused), next_attempt }
+    }
+}
+
+/// What the world evaluated to.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum CyclicWorldOutcome {
+    /// Gaussian equilibrium law, in the specification's variable order.
+    /// A clamped variable has its level as mean and a zero row and column.
+    GaussianLaw {
+        /// Equilibrium mean.
+        mean: Vec<f64>,
+        /// Row-major equilibrium covariance.
+        covariance: Vec<f64>,
+        /// Structural residual of the compile, when the compile reported one.
+        residual_inf: Option<f64>,
+        /// Conditioning and residual diagnostics for compiled free blocks, when available.
+        /// A family contraction certificate proves uniqueness, not numerical conditioning.
+        block_diagnostics: Option<Vec<BlockDiagnostic>>,
+    },
+    /// One outcome per disturbance draw, in draw order. Failed draws stay in place.
+    EquilibriumDraws {
+        /// Draw-aligned outcomes.
+        outcomes: Vec<EquilibriumOutcome>,
+    },
+    /// Trajectory at the specification's observation times.
+    Trajectory {
+        /// Integrated trajectory.
+        trajectory: OdeTrajectory,
+    },
+    /// No solution was returned.
+    NoSolution {
+        /// Why, and what to try instead.
+        failure: WorldFailure,
+    },
+    /// A solution was not computed because its certificate was required and not shown.
+    Withheld,
+}
+
+/// What the certificate rests on.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum CertificateBasis {
+    /// `ρ(|K|) < 1` for the intervened linear map. Every hard-clamp free block of
+    /// that map is uniquely solvable.
+    LinearFamilyContraction {
+        /// Upper bound on `ρ(|K|)`.
+        rho_abs_upper: f64,
+    },
+    /// Every free block of every draw contracts or is a verified affine bijection.
+    NonlinearBlockContraction {
+        /// Draws covered.
+        draws: usize,
+    },
+}
+
+/// Why a world is not certified.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum CertificateGap {
+    /// The bound `ρ(|K|) < 1` was not shown for the intervened map.
+    LinearFamilyBoundInsufficient {
+        /// Upper bound that did not land below one.
+        rho_abs_upper: f64,
+    },
+    /// Some draws solved numerically without a uniqueness certificate.
+    NonlinearUniquenessUnproved {
+        /// Draws without the certificate.
+        uncertified_draws: usize,
+    },
+    /// Some draws failed or were withheld.
+    NonlinearMassLost {
+        /// Draws that did not converge or were singular.
+        failed_draws: usize,
+        /// Draws refused for lack of a contraction certificate.
+        withheld_draws: usize,
+    },
+    /// The trajectory rests on locally error-controlled integration.
+    NumericalIntegrationOnly,
+    /// The world has no solution.
+    NoSolution,
+}
+
+/// Uniqueness certificate of one world.
+#[derive(Clone, Debug, PartialEq)]
+pub enum WorldCertificate {
+    /// Certified for the declared model.
+    Certified {
+        /// What the certificate rests on.
+        basis: CertificateBasis,
+    },
+    /// Not certified.
+    NotCertified {
+        /// Why.
+        gap: CertificateGap,
+        /// What would earn the certificate, or what to try instead.
+        next_attempt: NextAttempt,
+    },
+}
+
+impl WorldCertificate {
+    /// Whether the world is certified.
+    #[must_use]
+    pub const fn is_certified(&self) -> bool {
+        matches!(self, Self::Certified { .. })
+    }
+
+    /// Gap, when not certified.
+    #[must_use]
+    pub const fn gap(&self) -> Option<&CertificateGap> {
+        match self {
+            Self::Certified { .. } => None,
+            Self::NotCertified { gap, .. } => Some(gap),
+        }
+    }
+
+    /// Next attempt, when not certified.
+    #[must_use]
+    pub const fn next_attempt(&self) -> Option<NextAttempt> {
+        match self {
+            Self::Certified { .. } => None,
+            Self::NotCertified { next_attempt, .. } => Some(*next_attempt),
+        }
+    }
+
+    fn gap_name(&self) -> Option<&'static str> {
+        self.gap().map(|gap| match gap {
+            CertificateGap::LinearFamilyBoundInsufficient { .. } => {
+                "linear_family_bound_insufficient"
+            }
+            CertificateGap::NonlinearUniquenessUnproved { .. } => "nonlinear_uniqueness_unproved",
+            CertificateGap::NonlinearMassLost { .. } => "nonlinear_mass_lost",
+            CertificateGap::NumericalIntegrationOnly => "numerical_integration_only",
+            CertificateGap::NoSolution => "no_solution",
+        })
+    }
+}
+
+/// How the world was solved.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum WorldSolvedBy {
+    /// The free support is acyclic and was evaluated in this topological order.
+    AcyclicOrder {
+        /// Free positions, sources first.
+        order: Vec<usize>,
+    },
+    /// The DAG algorithm refused a cycle; strongly connected blocks were factored.
+    StronglyConnectedBlocks {
+        /// The DAG algorithm's refusal.
+        dag_refusal: String,
+        /// Free blocks, sources first.
+        blocks: Vec<Vec<usize>>,
+    },
+    /// The free block was solved directly without a family certificate.
+    DirectFreeBlockSolve {
+        /// Free positions.
+        free: Vec<usize>,
+    },
+    /// Nonlinear blocks solved under an explicit policy.
+    NonlinearBlocks {
+        /// Post-action blocks, sources first.
+        blocks: Vec<Vec<usize>>,
+        /// Numerical policy.
+        policy: SolvePolicy,
+    },
+    /// Adaptive Dormand–Prince integration.
+    AdaptiveIntegration {
+        /// Accepted steps.
+        accepted_steps: usize,
+        /// Rejected steps.
+        rejected_steps: usize,
+        /// Numerical policy.
+        policy: OdePolicy,
+    },
+    /// Nothing was solved.
+    NotSolved,
+}
+
+impl WorldSolvedBy {
+    /// Stable name.
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::AcyclicOrder { .. } => "acyclic_order",
+            Self::StronglyConnectedBlocks { .. } => "strongly_connected_blocks",
+            Self::DirectFreeBlockSolve { .. } => "direct_free_block_solve",
+            Self::NonlinearBlocks { .. } => "nonlinear_blocks",
+            Self::AdaptiveIntegration { .. } => "adaptive_integration",
+            Self::NotSolved => "not_solved",
+        }
+    }
+}
+
+/// Share of the world's disturbance law, or of its draws, by status.
+///
+/// `failed` had no solution. `withheld` was not answered because a required
+/// certificate was not shown. Neither is renormalized into the solved share.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WorldMass {
+    failed: f64,
+    withheld: f64,
+}
+
+impl WorldMass {
+    /// Every unit of mass was solved.
+    pub const SOLVED: Self = Self { failed: 0.0, withheld: 0.0 };
+    /// No mass was solved.
+    pub const FAILED: Self = Self { failed: 1.0, withheld: 0.0 };
+    /// Every unit of mass was withheld.
+    pub const WITHHELD: Self = Self { failed: 0.0, withheld: 1.0 };
+
+    fn from_counts(total: usize, failed: usize, withheld: usize) -> Self {
+        let total = total.max(1) as f64;
+        Self { failed: failed as f64 / total, withheld: withheld as f64 / total }
+    }
+
+    /// Failed share.
+    #[must_use]
+    pub const fn failed(self) -> f64 {
+        self.failed
+    }
+
+    /// Withheld share.
+    #[must_use]
+    pub const fn withheld(self) -> f64 {
+        self.withheld
+    }
+
+    /// Solved share.
+    #[must_use]
+    pub fn solved(self) -> f64 {
+        1.0 - self.failed - self.withheld
+    }
+}
+
+/// Admission that funds a result's retained storage, released with its last clone. Equality
+/// ignores it: two results are equal when their numbers are.
+#[derive(Clone, Debug, Default)]
+struct WorldRetention(Option<Arc<AdmissionLease>>);
+
+impl PartialEq for WorldRetention {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+/// Outcome, certificate, solver, and mass of one evaluated world.
+type WorldParts = (CyclicWorldOutcome, WorldCertificate, WorldSolvedBy, WorldMass);
+
+/// One evaluated cyclic world.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CyclicWorldResult {
+    world: ScientificWorldId,
+    family: CyclicFamily,
+    variables: Vec<VariableId>,
+    request: CyclicWorldRequest,
+    actions: Vec<CyclicAction>,
+    outcome: CyclicWorldOutcome,
+    certificate: WorldCertificate,
+    solved_by: WorldSolvedBy,
+    mass: WorldMass,
+    physical_stability: PhysicalStability,
+    retention: WorldRetention,
+}
+
+impl CyclicWorldResult {
+    fn from_parts(
+        resolved: ResolvedCyclicWorld,
+        variables: &CyclicVariables,
+        request: &CyclicWorldRequest,
+        (outcome, certificate, solved_by, mass): WorldParts,
+    ) -> Self {
+        Self {
+            world: resolved.world,
+            family: resolved.family,
+            variables: variables.ids().to_vec(),
+            request: request.clone(),
+            actions: resolved.actions,
+            outcome,
+            certificate,
+            solved_by,
+            mass,
+            physical_stability: PhysicalStability::Unclaimed,
+            retention: WorldRetention::default(),
+        }
+    }
+
+    /// This result, with `lease` held until its last clone drops. The caller admits the bytes
+    /// of the retained outcome (see [`Self::retained_gaussian_estimate`]) before it builds them.
+    #[must_use]
+    pub fn retained_by(mut self, lease: AdmissionLease) -> Self {
+        self.retention = WorldRetention(Some(Arc::new(lease)));
+        self
+    }
+
+    /// Bytes the retention lease still holds in the admission pool; zero when none was attached.
+    #[must_use]
+    pub fn retained_admitted_bytes(&self) -> u64 {
+        self.retention.0.as_ref().map_or(0, |lease| lease.remainder().bytes())
+    }
+
+    /// Conservative bytes a Gaussian law over `order` variables retains: the mean and the
+    /// covariance, plus the fixed bookkeeping of the result.
+    #[must_use]
+    pub fn retained_gaussian_estimate(order: usize) -> u64 {
+        let floats = order.saturating_mul(order).saturating_add(order);
+        u64::try_from(floats.saturating_mul(8).saturating_add(RESULT_OVERHEAD_BYTES))
+            .unwrap_or(u64::MAX)
+    }
+
+    /// Conservative bytes the outcomes of a nonlinear world retain over `draws` draws of a model
+    /// of `order` variables, whatever its block structure.
+    #[must_use]
+    pub fn retained_draws_estimate(order: usize, draws: usize) -> u64 {
+        nonlinear_world_cost(order, draws, order, &SolvePolicy::default()).1.unwrap_or(u64::MAX)
+    }
+
+    /// Conservative bytes a trajectory of `samples` states of `order` variables retains.
+    #[must_use]
+    pub fn retained_trajectory_estimate(order: usize, samples: usize) -> u64 {
+        let per_state = order.saturating_mul(8).saturating_add(std::mem::size_of::<Vec<f64>>());
+        u64::try_from(per_state.saturating_mul(samples).saturating_add(RESULT_OVERHEAD_BYTES))
+            .unwrap_or(u64::MAX)
+    }
+
+    /// World id.
+    #[must_use]
+    pub const fn world(&self) -> ScientificWorldId {
+        self.world
+    }
+
+    /// Family the world was evaluated on.
+    #[must_use]
+    pub const fn family(&self) -> CyclicFamily {
+        self.family
+    }
+
+    /// Variables in outcome order.
+    #[must_use]
+    pub fn variables(&self) -> &[VariableId] {
+        &self.variables
+    }
+
+    /// The request that defined the world.
+    #[must_use]
+    pub const fn request(&self) -> &CyclicWorldRequest {
+        &self.request
+    }
+
+    /// Resolved actions.
+    #[must_use]
+    pub fn actions(&self) -> &[CyclicAction] {
+        &self.actions
+    }
+
+    /// Outcome.
+    #[must_use]
+    pub const fn outcome(&self) -> &CyclicWorldOutcome {
+        &self.outcome
+    }
+
+    /// Uniqueness certificate.
+    #[must_use]
+    pub const fn certificate(&self) -> &WorldCertificate {
+        &self.certificate
+    }
+
+    /// How the world was solved.
+    #[must_use]
+    pub const fn solved_by(&self) -> &WorldSolvedBy {
+        &self.solved_by
+    }
+
+    /// Failed and withheld mass.
+    #[must_use]
+    pub const fn mass(&self) -> WorldMass {
+        self.mass
+    }
+
+    /// Physical stability. Never claimed here.
+    #[must_use]
+    pub const fn physical_stability(&self) -> PhysicalStability {
+        self.physical_stability
+    }
+
+    /// Mean of `variable`, when the outcome has a complete mean.
+    #[must_use]
+    pub fn mean_of(&self, variable: VariableId) -> Option<f64> {
+        let position = self.variables.iter().position(|id| *id == variable)?;
+        self.complete_mean().map(|mean| mean[position])
+    }
+
+    /// Mean in variable order: the Gaussian mean, the average over draws when
+    /// every draw solved, or the final state of a trajectory. `None` when some
+    /// mass failed or was withheld: the solved share is not renormalized.
+    fn complete_mean(&self) -> Option<Vec<f64>> {
+        match &self.outcome {
+            CyclicWorldOutcome::GaussianLaw { mean, .. } => Some(mean.clone()),
+            CyclicWorldOutcome::EquilibriumDraws { outcomes } => {
+                let mut sum = vec![0.0; self.variables.len()];
+                for outcome in outcomes {
+                    let EquilibriumOutcome::Solved(solution) = outcome else {
+                        return None;
+                    };
+                    for (total, value) in sum.iter_mut().zip(&solution.values) {
+                        *total += value;
+                    }
+                }
+                if outcomes.is_empty() {
+                    return None;
+                }
+                let count = outcomes.len() as f64;
+                Some(sum.into_iter().map(|total| total / count).collect())
+            }
+            CyclicWorldOutcome::Trajectory { trajectory } => trajectory.states.last().cloned(),
+            CyclicWorldOutcome::NoSolution { .. } | CyclicWorldOutcome::Withheld => None,
+        }
+    }
+
+    /// Variable-keyed view for result types outside this crate.
+    #[must_use]
+    pub fn summary(&self) -> CyclicWorldSummary {
+        let means =
+            self.complete_mean().map(|mean| self.variables.iter().copied().zip(mean).collect());
+        let variances = match &self.outcome {
+            CyclicWorldOutcome::GaussianLaw { covariance, .. } => {
+                let n = self.variables.len();
+                Some(
+                    self.variables
+                        .iter()
+                        .enumerate()
+                        .map(|(index, id)| (*id, covariance[index * n + index]))
+                        .collect(),
+                )
+            }
+            _ => None,
+        };
+        CyclicWorldSummary {
+            world: self.world,
+            family: self.family,
+            means,
+            variances,
+            certified: self.certificate.is_certified(),
+            certificate_gap: self.certificate.gap_name(),
+            next_attempt: self.certificate.next_attempt(),
+            solved_by: self.solved_by.as_str(),
+            failed_mass: self.mass.failed(),
+            withheld_mass: self.mass.withheld(),
+        }
+    }
+}
+
+/// Variable-keyed summary of one world.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CyclicWorldSummary {
+    /// World id.
+    pub world: ScientificWorldId,
+    /// Family.
+    pub family: CyclicFamily,
+    /// Complete means, when the outcome has them.
+    pub means: Option<Vec<(VariableId, f64)>>,
+    /// Gaussian variances, when the outcome is a Gaussian law.
+    pub variances: Option<Vec<(VariableId, f64)>>,
+    /// Whether the world is certified.
+    pub certified: bool,
+    /// Stable name of the certificate gap.
+    pub certificate_gap: Option<&'static str>,
+    /// Next attempt when not certified.
+    pub next_attempt: Option<NextAttempt>,
+    /// Stable name of how the world was solved.
+    pub solved_by: &'static str,
+    /// Failed share.
+    pub failed_mass: f64,
+    /// Withheld share.
+    pub withheld_mass: f64,
+}
+
+/// World results keyed by [`ScientificWorldId`].
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct CyclicWorldResults {
+    worlds: BTreeMap<ScientificWorldId, CyclicWorldResult>,
+}
+
+impl CyclicWorldResults {
+    /// Key `results` by world.
+    ///
+    /// # Errors
+    ///
+    /// Two results for one world.
+    pub fn try_from_results(
+        results: impl IntoIterator<Item = CyclicWorldResult>,
+    ) -> Result<Self, CyclicInterventionRefusal> {
+        let mut worlds = BTreeMap::new();
+        for result in results {
+            let (world, family) = (result.world, result.family);
+            if worlds.insert(world, result).is_some() {
+                return Err(duplicate_world(world, family));
+            }
+        }
+        Ok(Self { worlds })
+    }
+
+    /// Result of `world`.
+    #[must_use]
+    pub fn get(&self, world: ScientificWorldId) -> Option<&CyclicWorldResult> {
+        self.worlds.get(&world)
+    }
+
+    /// Results in world order.
+    #[allow(
+        clippy::iter_without_into_iter,
+        reason = "the public surface keeps one explicit world-order iterator"
+    )]
+    pub fn iter(
+        &self,
+    ) -> std::collections::btree_map::Iter<'_, ScientificWorldId, CyclicWorldResult> {
+        self.worlds.iter()
+    }
+
+    /// Number of worlds.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.worlds.len()
+    }
+
+    /// Whether no world is held.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.worlds.is_empty()
+    }
+
+    /// Summaries in world order.
+    #[must_use]
+    pub fn summaries(&self) -> Vec<CyclicWorldSummary> {
+        self.worlds.values().map(CyclicWorldResult::summary).collect()
+    }
+}
+
+fn duplicate_world(world: ScientificWorldId, family: CyclicFamily) -> CyclicInterventionRefusal {
+    refusal(
+        Some(world),
+        Some(family),
+        "evaluate",
+        CyclicRefusalKind::DuplicateWorld,
+        DISTINCT_WORLD_ATTEMPT,
+    )
+}
+
+#[cfg(test)]
+mod admission_tests {
+    use super::*;
+
+    #[test]
+    fn the_nonlinear_work_bound_counts_draws_iterations_and_order_squared() {
+        let policy = SolvePolicy {
+            max_iterations: 10,
+            max_total_iterations: 1_000,
+            ..SolvePolicy::default()
+        };
+        let (work, _) = nonlinear_world_cost(4, 100, 3, &policy);
+        assert_eq!(work, Some(100 * 30 * 16), "per-block bound over three blocks is lower");
+        let (work, _) = nonlinear_world_cost(4, 100, 500, &policy);
+        assert_eq!(work, Some(100 * 1_000 * 16), "the total bound is lower over many blocks");
+    }
+
+    #[test]
+    fn a_world_over_the_work_limit_is_refused_before_any_draw_is_solved() {
+        let policy = SolvePolicy::default();
+        let (work, _) = nonlinear_world_cost(100, usize::MAX / 4, 1, &policy);
+        assert!(work.is_none_or(|work| work > NONLINEAR_WORLD_MAX_WORK));
+    }
+
+    #[test]
+    fn retained_bytes_grow_with_draws_and_blocks() {
+        let policy = SolvePolicy::default();
+        let (_, small) = nonlinear_world_cost(3, 10, 1, &policy);
+        let (_, more_draws) = nonlinear_world_cost(3, 20, 1, &policy);
+        let (_, more_blocks) = nonlinear_world_cost(3, 10, 3, &policy);
+        assert!(more_draws > small && more_blocks > small);
+        assert!(small.is_some_and(|b| b >= 10 * OUTCOME_OVERHEAD_BYTES as u64));
+    }
+
+    #[test]
+    fn a_gaussian_law_is_charged_for_its_mean_and_covariance() {
+        let floats = 5 * 5 + 5;
+        assert_eq!(
+            CyclicWorldResult::retained_gaussian_estimate(5),
+            (floats * 8 + RESULT_OVERHEAD_BYTES) as u64
+        );
+    }
+}

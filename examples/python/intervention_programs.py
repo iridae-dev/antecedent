@@ -1,11 +1,17 @@
-"""A price floor as an intervention program, run on every route and saved as bytes.
+"""What does a price floor do to demand, and can the rule be saved and replayed?
 
-``price := max(10, 0.85 * price)`` replaces the price the node's own mechanism generated; the
-node keeps its incoming edges and its noise, so this is not ``do(price = c)``. The same program
-text is drawn forward, replayed on each factual row's own abduced noise, refused when it is
-malformed or reads backwards through the graph, encoded as versioned bytes under a content
-identity, and, as a plain Python function, shown to be a runtime binding that cannot leave the
-process unless it is declared from self-contained source."""
+Data: 600 simulated rows with ``demand = 50 - 0.8 * price + noise``, fitted as a two-node model.
+The program ``price := max(10, 0.85 * price)`` replaces the price the node's own mechanism
+generated; the node keeps its incoming edges and its noise, so this is not ``do(price = c)``.
+
+The script asserts that forward draws and the replay on each factual row's own abduced noise
+equal the hand-applied floor; that simulation and counterfactual routes are supported and
+identification is refused; that a malformed or circular program is refused; that the encoded
+bytes keep the program's content identity; and that a Python callback leaves the process only
+when declared from self-contained source. The policy value is model-based: its simulation error
+is quantified and the fitted model's own uncertainty is not.
+
+Run: ``python examples/python/intervention_programs.py``."""
 
 from __future__ import annotations
 
@@ -16,7 +22,7 @@ from antecedent.intervention_callbacks import (
     GENERATED,
     CallbackProgram,
     InterventionCallback,
-    export_records,
+    callback_records,
     recover_callback,
     required_callbacks,
 )
@@ -47,28 +53,31 @@ model = antecedent.model.fit_gcm(NAMES, [price, demand], [("price", "demand")])
 floor = transform("price", maximum(10, 0.85 * generated()))
 
 # 1. Forward sampling: on the same noise the program is the hand-applied floor.
-observed = model.sample_do({}, N_DRAWS, seed=7).draws[0]
-floored = sample_policy(model, [floor], N_DRAWS, seed=7).draws[0]
+observed = model.sample_do({}, N_DRAWS, execution=antecedent.Execution(seed=7)).draws[0]
+floored = sample_policy(model, [floor], N_DRAWS, execution=antecedent.Execution(seed=7)).draws[0]
 np.testing.assert_array_equal(floored, np.maximum(10.0, 0.85 * observed))
 assert (floored >= 10.0).all() and (0.85 * observed < 10.0).any()
 
 # 2. Counterfactual execution: each factual row's own noise goes through the same floor.
-worlds = counterfactual_policy(model, [floor], ["price", "demand"], seed=1)
+worlds = counterfactual_policy(
+    model, [floor], ["price", "demand"], execution=antecedent.Execution(seed=1)
+)
 np.testing.assert_allclose(worlds["price"], np.maximum(10.0, 0.85 * price), atol=1e-9)
 raised = worlds["price"] > price
 assert raised.any() and (worlds["demand"][raised] < demand[raised]).all()
 
-# Each route is licensed separately before anything runs. A transform is simulable and replayable
+# Each route is supported separately before anything runs. A transform is simulable and replayable
 # but is a function of each unit's noise, not a level, so it has no observational identification.
 support = policy_support(model, [floor])
-assert support.simulation.licensed and support.counterfactual.licensed
-assert not support.identification.licensed
-assert support.identification.reason_code == "policy_route_not_licensed"
+assert support.simulation.supported and support.counterfactual.supported
+assert not support.identification.supported
+assert support.identification.reason_code == "policy_route_not_supported"
 
 # Its model-based value is the paired difference against the unintervened model on the same noise;
 # only the simulation error is quantified, and the model's own uncertainty says it is not.
-value = policy_value(model, [floor], "demand", n=4000, seed=3)
-# The floor lowers most prices, and demand falls with price.
+value = policy_value(model, [floor], "demand", n=4000, execution=antecedent.Execution(seed=3))
+# The floor lowers every price above 10 (most rows), and demand falls with price, so mean demand
+# rises.
 assert value.mean_difference > 5 * value.difference_simulation_stderr
 assert value.model_uncertainty == "unquantified"
 
@@ -77,7 +86,7 @@ assert value.model_uncertainty == "unquantified"
 circular = assign("price", var("demand"))
 assert policy_support(model, [circular]).simulation.reason_code == "policy_dependency_circular"
 try:
-    sample_policy(model, [circular], N_DRAWS, seed=1)
+    sample_policy(model, [circular], N_DRAWS, execution=antecedent.Execution(seed=1))
 except CausalError as refusal:
     assert refusal.reason_code == "policy_dependency_circular", refusal
 else:
@@ -106,10 +115,12 @@ by_callback = CallbackProgram(
     reads=[GENERATED],
     mode="transform",
 )
-via_callback = sample_callbacks(model, [by_callback], N_DRAWS, seed=7).draws[0]
+via_callback = sample_callbacks(
+    model, [by_callback], N_DRAWS, execution=antecedent.Execution(seed=7)
+).draws[0]
 np.testing.assert_array_equal(via_callback, floored)
 try:
-    export_records([by_callback])
+    callback_records([by_callback])
 except CausalUnsupportedError as refusal:
     assert refusal.reason_code == "policy_callback_not_portable", refusal
 else:
@@ -122,7 +133,7 @@ SOURCE = "def floor(g):\n    return np.maximum(10.0, 0.85 * g)\n"
 recoverable = InterventionCallback.from_source(
     SOURCE, entry_point="floor", inputs=["g"], name="floor"
 )
-(record,) = export_records([recoverable])
+(record,) = callback_records([recoverable])
 replayed = recover_callback(SOURCE, record)
 program = CallbackProgram(
     "price",
@@ -130,14 +141,18 @@ program = CallbackProgram(
     reads=[GENERATED],
     mode="transform",
 )
-np.testing.assert_array_equal(sample_callbacks(model, [program], N_DRAWS, seed=7).draws[0], floored)
+np.testing.assert_array_equal(
+    sample_callbacks(model, [program], N_DRAWS, execution=antecedent.Execution(seed=7)).draws[0],
+    floored,
+)
 artifact = encode_policy_program(
     NAMES, [CallbackProgram("price", recoverable, reads=[GENERATED], mode="transform")]
 )
 assert required_callbacks(artifact) == (record,)
 (restored,) = decode_policy_program(NAMES, artifact, callbacks=[replayed])
 np.testing.assert_array_equal(
-    sample_callbacks(model, [restored], N_DRAWS, seed=7).draws[0], floored
+    sample_callbacks(model, [restored], N_DRAWS, execution=antecedent.Execution(seed=7)).draws[0],
+    floored,
 )
 try:
     encode_policy_program(NAMES, [by_callback])

@@ -11,7 +11,7 @@
 //!    alignment identity); mixtures need known weights; a transported interval
 //!    composed with another claim needs an aligned law or a covariance.
 //!    Unrelated marginal draws are never paired by index.
-//! 2. **Execute** the licensed route in `antecedent_stats::joint_law`: the
+//! 2. **Execute** the supported route in `antecedent_stats::joint_law`: the
 //!    delta method for a linear map, the aligned expectation, the law of total
 //!    variance for a mixture, or a dependence envelope.
 //! 3. **Export** seals the declaration, the numbers and the result into
@@ -22,13 +22,13 @@
 //! probability with its Monte Carlo band and verdict) is requested through the
 //! `*_spread` and `*_exceedance` functions; it is labelled
 //! `uncalibrated_spread` and carries no coverage statement. An **interval** at
-//! a composed coordinate is licensed only by
+//! a composed coordinate is supported only by
 //! [`PropagationClaim::check_composed_interval`] with a measured coverage
 //! record for exactly that coordinate and construction.
 //!
 //! # What a value means
 //!
-//! A value computed under a licensed dependence route is a labelled point
+//! A value computed under a supported dependence route is a labelled point
 //! value (`point_only`): no interval and no posterior is produced. A
 //! dependence envelope is a `structural_envelope` (the set of values no
 //! coupling of the marginals could exceed) or, for a declared correlation
@@ -37,7 +37,7 @@
 //! [`PropagationClaim::interval`] and [`PropagationClaim::posterior`] refuse
 //! with the stated remedy.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{
     ComposedCoordinate, CoverageRecord, ExternalRefusal, InputAlignment, InputRole,
@@ -59,7 +59,7 @@ use antecedent_stats::{
 
 /// The refusals of a propagation request: each with a registered reason code,
 /// a namespaced `joint_law_propagation.*` detail, the offending subject and a
-/// remedy that names the dependence information that would license it.
+/// remedy that names the dependence information that would support it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct JointLawPropagationRefusal {
     /// Every refusal. Never empty.
@@ -76,7 +76,7 @@ impl JointLawPropagationRefusal {
             ExternalRefusal::new(
                 antecedent_core::reason_code!("invalid_argument"),
                 JOINT_LAW_STAGE,
-                "joint_law_propagation.invalid_request",
+                antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST,
             )
             .with_offending(offending.to_owned())
             .with_remedy(remedy),
@@ -159,7 +159,7 @@ pub fn alignment_identity(artifact: &DistributionArtifact) -> Result<String, Ref
             ExternalRefusal::new(
                 antecedent_core::reason_code!("joint_law_required"),
                 JOINT_LAW_STAGE,
-                "joint_law_propagation.index_pairing_refused",
+                antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED,
             )
             .with_offending(identity.source_id.clone())
             .with_remedy(
@@ -215,7 +215,7 @@ impl PropagationDraws {
         column: usize,
     ) -> Result<Self, Refusal> {
         let id = id.into();
-        let [rows, width] = artifact.shape();
+        let [_, width] = artifact.shape();
         if column >= width {
             return Err(Refusal::invalid(&id, "name a column of the artifact"));
         }
@@ -234,7 +234,7 @@ impl PropagationDraws {
             return Err(Refusal::invalid(&id, "the coordinate is unsupported in the artifact"));
         }
         let alignment = input_alignment(artifact)?;
-        let values = (0..rows).map(|row| artifact.draws()[row * width + column]).collect();
+        let values = artifact.draws().iter().skip(column).step_by(width).copied().collect();
         Ok(Self {
             id,
             evidence_id: metadata.identity.snapshot_id.clone(),
@@ -312,7 +312,11 @@ impl PropagationDraws {
         &self.values
     }
 
-    fn as_input(&self) -> PropagationInput {
+    /// The input as the propagation rule sees it: identity, evidence, role and alignment,
+    /// without the draws. Pass it to `check_propagation_with_ledger` to have an evidence
+    /// ledger decide its overlap with other inputs.
+    #[must_use]
+    pub fn input(&self) -> PropagationInput {
         PropagationInput {
             id: self.id.clone(),
             evidence_id: self.evidence_id.clone(),
@@ -366,7 +370,7 @@ pub enum LinearDependence {
 
 // ------------------------------------------------------------------ claims
 
-/// A composed uncertain quantity: the licensed route, the labelled value and
+/// A composed uncertain quantity: the supported route, the labelled value and
 /// the sealed artifact that replays it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PropagationClaim {
@@ -416,27 +420,22 @@ impl PropagationClaim {
     /// A named float value (`mean`, `variance`, `lower`/`upper` pairs ...).
     #[must_use]
     pub fn value(&self, name: &str) -> Option<f64> {
-        if is_count(name) {
-            return None;
-        }
-        self.artifact.result.iter().find(|(n, _)| n == name).map(|(_, b)| f64::from_bits(*b))
+        self.artifact.result.value(name)
     }
 
     /// The number of aligned rows, for an aligned route.
     #[must_use]
     pub fn n_rows(&self) -> Option<u64> {
-        self.artifact.result.iter().find(|(n, _)| n == "n_rows").map(|(_, v)| *v)
+        self.artifact.result.n_rows()
     }
 
     /// Every named float value in stored order.
-    #[must_use]
-    pub fn values(&self) -> Vec<(String, f64)> {
+    pub fn values(&self) -> impl Iterator<Item = (&'static str, f64)> {
         self.artifact
             .result
-            .iter()
-            .filter(|(n, _)| !is_count(n))
-            .map(|(n, b)| (n.clone(), f64::from_bits(*b)))
-            .collect()
+            .float_entries()
+            .into_iter()
+            .map(|(name, stored)| (name, f64::from_bits(stored)))
     }
 
     /// The decision verdict (`act`, `withhold` or `unresolved`) of a composed
@@ -444,21 +443,20 @@ impl PropagationClaim {
     /// stated probability only; it is not a coverage statement.
     #[must_use]
     pub fn verdict(&self) -> Option<&'static str> {
-        let code = self.artifact.result.iter().find(|(n, _)| n == "verdict_code")?.1;
-        let verdict = match code {
-            0 => DecisionVerdict::Act,
-            1 => DecisionVerdict::Withhold,
-            2 => DecisionVerdict::Unresolved,
-            _ => return None,
-        };
-        Some(verdict.as_str())
+        self.decision_verdict().map(DecisionVerdict::as_str)
+    }
+
+    /// The typed decision verdict of a composed exceedance decision.
+    #[must_use]
+    pub fn decision_verdict(&self) -> Option<DecisionVerdict> {
+        self.artifact.result.verdict()
     }
 
     /// The composed coordinate a coverage record for this claim must be
     /// measured at: `operation|route|role,role,...`.
     ///
     /// # Errors
-    /// A declaration whose dependence route does not license a spread (an
+    /// A declaration whose dependence route does not support a spread (an
     /// envelope has no composed coordinate with a spread).
     pub fn coordinate_id(&self) -> Result<String, Refusal> {
         let request =
@@ -472,7 +470,7 @@ impl PropagationClaim {
     /// the declared sample size of the least-supported input's evidence.
     ///
     /// # Errors
-    /// A declaration whose dependence route licenses no spread, or a sample
+    /// A declaration whose dependence route supports no spread, or a sample
     /// size of zero.
     pub fn composed_interval_basis(
         &self,
@@ -498,15 +496,16 @@ impl PropagationClaim {
         ))
     }
 
-    /// The interval reading of the composed quantity, licensed only by a
-    /// currently attesting coverage record the registry holds for exactly this
-    /// composed coordinate, construction, nominal level and evidence size.
-    /// The caller supplies no record. Without one it is closed with the typed
-    /// refusal; a component interval does not cover the composition.
+    /// The interval reading of the composed quantity, with the calibration
+    /// slot the registry resolves for exactly this composed coordinate,
+    /// construction, nominal level and evidence size: `calibrated` under a
+    /// currently attesting record, otherwise the status that names why not.
+    /// The caller supplies no record. A component interval does not cover the
+    /// composition, so the interval is always built for the named construction.
     ///
-    /// A licensed `normal_approximation` interval is built from this claim's
+    /// A supported `normal_approximation` interval is built from this claim's
     /// mean and variance at the record's nominal level. For another
-    /// construction the licence is returned without bounds: the caller builds
+    /// construction the support is returned without bounds: the caller builds
     /// the interval from the aligned draws with the construction the record
     /// was measured for.
     ///
@@ -515,8 +514,7 @@ impl PropagationClaim {
     ///
     /// # Errors
     /// The refusals of `antecedent_contract::check_composed_interval`: an
-    /// unlicensed dependence route, a missing or non-attesting record, or a
-    /// nominal level outside `(0, 1)`.
+    /// unsupported dependence route or a nominal level outside `(0, 1)`.
     pub fn check_composed_interval(
         &self,
         construction: &str,
@@ -568,13 +566,16 @@ impl PropagationClaim {
         } else {
             None
         };
+        let calibration = super::joint_law_composed_basis::slot(&basis);
         Ok(ComposedInterval {
             coordinate_id: plan.coordinate.id(),
             record_id: plan.record_id,
+            calibration,
             construction: plan.construction,
             nominal_level: plan.nominal_level,
             label: plan.label,
             bounds,
+            declared_evidence_rows: evidence_rows,
         })
     }
 
@@ -586,12 +587,12 @@ impl PropagationClaim {
         self.artifact.export().map_err(Refusal::from)
     }
 
-    /// An interval for the composed quantity. Always refused: no composed
-    /// coordinate has a measured coverage record, and a component interval
-    /// does not cover the composition.
+    /// An interval for the composed quantity without a named construction. Always
+    /// refused: a component interval does not cover the composition.
     ///
     /// # Errors
-    /// Always `cell_not_licensed` with the stated remedy.
+    /// Always `uncertainty_representation_insufficient` with the stated remedy; ask
+    /// for [`Self::check_composed_interval`] naming a construction.
     pub fn interval(&self) -> Result<(), Refusal> {
         self.closed(RequestedReading::Interval)
     }
@@ -599,7 +600,7 @@ impl PropagationClaim {
     /// A posterior statement for the composed quantity. Always refused.
     ///
     /// # Errors
-    /// Always `cell_not_licensed` with the stated remedy.
+    /// Always `uncertainty_representation_insufficient` with the stated remedy.
     pub fn posterior(&self) -> Result<(), Refusal> {
         self.closed(RequestedReading::Posterior)
     }
@@ -616,29 +617,45 @@ impl PropagationClaim {
     }
 }
 
-/// A composed interval licensed by a measured coverage record at its composed
+/// A composed interval supported by a measured coverage record at its composed
 /// coordinate. The record, not this value, carries the coverage evidence.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ComposedInterval {
     coordinate_id: String,
-    record_id: String,
+    record_id: Option<String>,
+    calibration: antecedent_io::contract_section::CalibrationSlotWire,
     construction: String,
     nominal_level: f64,
     label: &'static str,
     bounds: Option<(f64, f64)>,
+    declared_evidence_rows: u64,
 }
 
 impl ComposedInterval {
+    /// The evidence size the record was resolved at. It is the caller's
+    /// declaration, not something the sealed claim authenticates: the support
+    /// holds only as far as that declaration is true.
+    #[must_use]
+    pub fn declared_evidence_rows(&self) -> u64 {
+        self.declared_evidence_rows
+    }
+
     /// The composed coordinate the record was matched against.
     #[must_use]
     pub fn coordinate_id(&self) -> &str {
         &self.coordinate_id
     }
 
-    /// The identity of the record that licensed the interval.
+    /// The identity of the governing coverage record, when one matched.
     #[must_use]
-    pub fn record_id(&self) -> &str {
-        &self.record_id
+    pub fn record_id(&self) -> Option<&str> {
+        self.record_id.as_deref()
+    }
+
+    /// The calibration of this interval.
+    #[must_use]
+    pub const fn calibration(&self) -> &antecedent_io::contract_section::CalibrationSlotWire {
+        &self.calibration
     }
 
     /// The construction the interval is built with.
@@ -667,11 +684,6 @@ impl ComposedInterval {
     }
 }
 
-/// Result names that hold an integer count or code, not float bits.
-fn is_count(name: &str) -> bool {
-    matches!(name, "n_rows" | "verdict_code")
-}
-
 // ------------------------------------------------------------- execution
 
 /// Check `declared` against the propagation rule, execute `numbers` and seal
@@ -679,7 +691,7 @@ fn is_count(name: &str) -> bool {
 ///
 /// # Errors
 /// A refusal of the rule (with its registered code and remedy), numbers that do
-/// not fit the licensed route, a failed computation or cancellation.
+/// not fit the supported route, a failed computation or cancellation.
 pub fn propagate(
     declared: &PropagationRequest,
     numbers: PropagationRequestWire,
@@ -715,7 +727,7 @@ pub fn propagate_aligned_functional(
 ) -> Result<PropagationClaim, Refusal> {
     let declared = PropagationRequest {
         operation,
-        inputs: vec![x.as_input(), y.as_input()],
+        inputs: vec![x.input(), y.input()],
         dependence: PropagationDependence::AlignedJointLaw,
         reading: RequestedReading::Point,
     };
@@ -746,7 +758,7 @@ pub fn propagate_aligned_linear(
 ) -> Result<PropagationClaim, Refusal> {
     let declared = PropagationRequest {
         operation,
-        inputs: vec![x.as_input(), y.as_input()],
+        inputs: vec![x.input(), y.input()],
         dependence: PropagationDependence::AlignedJointLaw,
         reading: RequestedReading::Point,
     };
@@ -791,7 +803,7 @@ pub fn propagate_linear_moments(
     )
 }
 
-/// The spread (a variance under the licensed dependence route) of
+/// The spread (a variance under the supported dependence route) of
 /// `sum a_i X_i` from means and a covariance, labelled `uncalibrated_spread`.
 /// The variance is what the route determines; it carries no coverage statement.
 ///
@@ -833,7 +845,7 @@ fn linear_moments_reading(
         ));
     }
     if matches!(dependence, LinearDependence::DeclaredIndependent) {
-        let cross = (0..k).any(|i| (0..k).any(|j| i != j && covariance[i * k + j].abs() > 0.0));
+        let cross = (0..k).any(|i| (0..k).any(|j| i != j && covariance[i * k + j] != 0.0));
         if cross {
             return Err(Refusal::invalid(
                 "covariance",
@@ -925,7 +937,7 @@ pub fn propagate_dependence_envelope(
 ) -> Result<PropagationClaim, Refusal> {
     let declared = PropagationRequest {
         operation,
-        inputs: vec![x.as_input(), y.as_input()],
+        inputs: vec![x.input(), y.input()],
         dependence: PropagationDependence::MarginalsOnly,
         reading: RequestedReading::Envelope,
     };
@@ -1062,7 +1074,7 @@ fn aligned_declared(
 ) -> PropagationRequest {
     PropagationRequest {
         operation,
-        inputs: vec![x.as_input(), y.as_input()],
+        inputs: vec![x.input(), y.input()],
         dependence: PropagationDependence::AlignedJointLaw,
         reading,
     }
@@ -1226,7 +1238,7 @@ pub fn propagate_transported_spread_aligned(
     ];
     let declared = PropagationRequest {
         operation: PropagationOperation::TransportedComposition,
-        inputs: pieces.iter().map(PropagationDraws::as_input).collect(),
+        inputs: pieces.iter().map(PropagationDraws::input).collect(),
         dependence: PropagationDependence::AlignedJointLaw,
         reading: RequestedReading::Spread,
     };
@@ -1346,7 +1358,7 @@ pub fn claim_from_artifact(
 ///
 /// # Errors
 /// A malformed or edited artifact, a retained identity that differs, a result
-/// that does not replay, or a stored declaration the rule no longer licenses.
+/// that does not replay, or a stored declaration the rule no longer supports.
 pub fn consume_joint_law_propagation_artifact(
     bytes: &[u8],
     expected_identity: Option<&str>,

@@ -8,12 +8,13 @@
 //! subtree can never hold a donor the scan would have chosen. Resource use is bounded by
 //! the [`ExecutionContext`]: memory against its hard limit, work through cancellation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
 use antecedent_core::ExecutionContext;
+use antecedent_core::execution::{AdmissionError, AdmissionLease};
 
 use crate::error::StatsError;
 
@@ -22,6 +23,43 @@ const KD_LEAF: usize = 16;
 
 /// Queries one worker evaluates between cancellation checks.
 const QUERY_CHUNK: usize = 1024;
+
+pub(crate) fn validate_query_length(query: &[f64], dim: usize) -> Result<(), StatsError> {
+    if query.len() != dim {
+        return Err(StatsError::Shape { message: "query length != dim" });
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_query_values(query: &[f64]) -> Result<(), StatsError> {
+    if query.iter().any(|v| !v.is_finite()) {
+        return Err(StatsError::Shape { message: "matching query must be finite" });
+    }
+    Ok(())
+}
+
+/// Validate the shape of a row-major batch without changing later refusal ordering.
+pub(crate) fn validate_batch_query_length(
+    queries: &[f64],
+    n_queries: usize,
+    dim: usize,
+) -> Result<(), StatsError> {
+    if queries.len() != n_queries.saturating_mul(dim) {
+        return Err(StatsError::Shape { message: "queries length != n_queries * dim" });
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_batch_outputs(
+    n_queries: usize,
+    donor_rows: &[usize],
+    distances: &[f64],
+) -> Result<(), StatsError> {
+    if donor_rows.len() < n_queries || distances.len() < n_queries {
+        return Err(StatsError::Shape { message: "output buffers too short" });
+    }
+    Ok(())
+}
 
 /// Distance metric for matching.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -89,7 +127,7 @@ impl MatchingIndex {
         if features_rowmajor.iter().any(|v| !v.is_finite()) {
             return Err(StatsError::Shape { message: "matching features must be finite" });
         }
-        check_budget(ctx, "matching index", index_bytes(n, dim, distance))?;
+        let _admitted = check_budget(ctx, "matching index", index_bytes(n, dim, distance))?;
         let layout = match distance {
             MatchingDistance::Absolute => sorted_layout(features_rowmajor),
             MatchingDistance::Euclidean => {
@@ -162,15 +200,11 @@ impl MatchingIndex {
         query: &[f64],
         caliper: Option<f64>,
     ) -> Result<Option<(usize, f64)>, StatsError> {
-        if query.len() != self.dim {
-            return Err(StatsError::Shape { message: "query length != dim" });
-        }
+        validate_query_length(query, self.dim)?;
         if self.donor_rows.is_empty() {
             return Err(StatsError::Shape { message: "empty matching index" });
         }
-        if query.iter().any(|v| !v.is_finite()) {
-            return Err(StatsError::Shape { message: "matching query must be finite" });
-        }
+        validate_query_values(query)?;
         let (best_i, best_d) = match &self.layout {
             Layout::Sorted { values, first_position } => {
                 nearest_sorted(values, first_position, query[0])
@@ -184,10 +218,10 @@ impl MatchingIndex {
         if !best_d.is_finite() {
             return Ok(None);
         }
-        if let Some(c) = caliper {
-            if best_d > c {
-                return Ok(None);
-            }
+        if let Some(c) = caliper
+            && best_d > c
+        {
+            return Ok(None);
         }
         Ok(Some((self.donor_rows[best_i], best_d)))
     }
@@ -210,12 +244,8 @@ impl MatchingIndex {
         let Layout::Tree(tree) = &self.layout else {
             return Err(StatsError::Shape { message: "nearest_k requires a Euclidean index" });
         };
-        if query.len() != self.dim {
-            return Err(StatsError::Shape { message: "query length != dim" });
-        }
-        if query.iter().any(|v| !v.is_finite()) {
-            return Err(StatsError::Shape { message: "matching query must be finite" });
-        }
+        validate_query_length(query, self.dim)?;
+        validate_query_values(query)?;
         let mut found = Nearest::new(k.min(self.donor_rows.len()));
         tree.search(&self.features, self.dim, query, usize::MAX, &mut found);
         out.clear();
@@ -270,7 +300,8 @@ impl MatchingIndex {
         if features_rowmajor.iter().any(|v| !v.is_finite()) {
             return Err(StatsError::Shape { message: "matching features must be finite" });
         }
-        check_budget(ctx, "k-th self-distance search", self_distance_bytes(n, k, ctx))?;
+        let _admitted =
+            check_budget(ctx, "k-th self-distance search", self_distance_bytes(n, k, ctx))?;
         let tree = KdTree::build(features_rowmajor, n, dim, ctx)?;
         tree.kth_self_distances(features_rowmajor, dim, distance, k, &mut out[..n], ctx)
     }
@@ -295,9 +326,7 @@ impl MatchingIndex {
         if k == 0 {
             return Err(StatsError::Shape { message: "k must be > 0" });
         }
-        if queries_rowmajor.len() != n_queries.saturating_mul(self.dim) {
-            return Err(StatsError::Shape { message: "queries length != n_queries * dim" });
-        }
+        validate_batch_query_length(queries_rowmajor, n_queries, self.dim)?;
         if out.len() < n_queries {
             return Err(StatsError::Shape { message: "output too short" });
         }
@@ -305,9 +334,7 @@ impl MatchingIndex {
         if n_donors < k {
             return Err(StatsError::Shape { message: "not enough donors for k" });
         }
-        if queries_rowmajor.iter().any(|v| !v.is_finite()) {
-            return Err(StatsError::Shape { message: "matching query must be finite" });
-        }
+        validate_query_values(queries_rowmajor)?;
         let mut dists = vec![0.0; n_donors];
         for q in 0..n_queries {
             let query = &queries_rowmajor[q * self.dim..(q + 1) * self.dim];
@@ -344,7 +371,8 @@ impl MatchingIndex {
         }
         match &self.layout {
             Layout::Tree(tree) => {
-                check_budget(ctx, "k-th self-distance search", self_distance_bytes(n, k, ctx))?;
+                let _admitted =
+                    check_budget(ctx, "k-th self-distance search", self_distance_bytes(n, k, ctx))?;
                 tree.kth_self_distances(
                     &self.features,
                     self.dim,
@@ -382,12 +410,8 @@ impl MatchingIndex {
         out_distance: &mut [f64],
         ctx: &ExecutionContext,
     ) -> Result<u32, StatsError> {
-        if queries_rowmajor.len() != n_queries.saturating_mul(self.dim) {
-            return Err(StatsError::Shape { message: "queries length != n_queries * dim" });
-        }
-        if out_donor_row.len() < n_queries || out_distance.len() < n_queries {
-            return Err(StatsError::Shape { message: "output buffers too short" });
-        }
+        validate_batch_query_length(queries_rowmajor, n_queries, self.dim)?;
+        validate_batch_outputs(n_queries, out_donor_row, out_distance)?;
         let mut matched = 0u32;
         for q in 0..n_queries {
             if q % QUERY_CHUNK == 0 && ctx.cancellation.is_cancelled() {
@@ -406,13 +430,6 @@ impl MatchingIndex {
         Ok(matched)
     }
 }
-
-/// Soft upper bound the brute-force matching path had on its donor count.
-#[deprecated(
-    since = "2.4.1",
-    note = "no longer enforced: the index scales with the donor count, bounded by the execution context's memory limit"
-)]
-pub const EXACT_MATCHING_ROW_LIMIT: usize = 10_000;
 
 /// Entry points of the earlier signatures, which carried no execution context. Each runs the
 /// `_within` form under a context with no memory limit and no cancellation.
@@ -506,23 +523,38 @@ fn unbounded_context() -> ExecutionContext {
     ExecutionContext::production(0, 1)
 }
 
-/// Refuse when the context is cancelled or `bytes` exceeds its hard memory limit.
+/// Lease `bytes` on the admission pool, or refuse when the context is cancelled, when `bytes`
+/// is `None` because the size math overflowed, or when the pool cannot fund it.
+///
+/// `None` is not zero and is not allocated. The returned lease holds the bytes until it is
+/// dropped; keep it for as long as the planned buffers live.
 pub(crate) fn check_budget(
     ctx: &ExecutionContext,
     what: &'static str,
     bytes: Option<u64>,
-) -> Result<(), StatsError> {
+) -> Result<AdmissionLease, StatsError> {
     if ctx.cancellation.is_cancelled() {
         return Err(StatsError::Cancelled);
     }
-    let Some(limit_bytes) = ctx.memory.hard_limit_bytes else {
-        return Ok(());
+    let Some(required_bytes) = bytes else {
+        return Err(StatsError::ResourceLimit {
+            message: what,
+            required_bytes: u64::MAX,
+            limit_bytes: ctx.memory_limit_bytes().unwrap_or(u64::MAX),
+        });
     };
-    let required_bytes = bytes.unwrap_or(u64::MAX);
+    let limit_bytes = ctx.memory_limit_bytes().unwrap_or(u64::MAX);
     if required_bytes > limit_bytes {
         return Err(StatsError::ResourceLimit { message: what, required_bytes, limit_bytes });
     }
-    Ok(())
+    ctx.acquire_admission(0, required_bytes).map_err(|error| match error {
+        AdmissionError::Cancelled => StatsError::Cancelled,
+        _ => StatsError::ResourceLimit {
+            message: what,
+            required_bytes,
+            limit_bytes: ctx.admission().available().bytes(),
+        },
+    })
 }
 
 /// Bytes a freshly built index over `n` donors of `dim` features retains.
@@ -648,10 +680,10 @@ impl Nearest {
         let entry = Entry { distance, position };
         if self.heap.len() < self.k {
             self.heap.push(entry);
-        } else if let Some(mut worst) = self.heap.peek_mut() {
-            if entry < *worst {
-                *worst = entry;
-            }
+        } else if let Some(mut worst) = self.heap.peek_mut()
+            && entry < *worst
+        {
+            *worst = entry;
         }
     }
 
@@ -1028,10 +1060,10 @@ mod tests {
         if !best_d.is_finite() {
             return None;
         }
-        if let Some(c) = caliper {
-            if best_d > c {
-                return None;
-            }
+        if let Some(c) = caliper
+            && best_d > c
+        {
+            return None;
         }
         Some((index.donor_rows[best_i], best_d))
     }
@@ -1244,8 +1276,7 @@ mod tests {
         let donors = vec![0.5; 4000];
         let rows: Vec<usize> = (0..2000).collect();
         let mut limited = ctx();
-        limited.memory =
-            antecedent_core::MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(1024) };
+        limited.set_memory_limit(Some(1024));
         for distance in [MatchingDistance::Euclidean, MatchingDistance::Absolute] {
             let dim = if distance == MatchingDistance::Absolute { 1 } else { 2 };
             let feats = &donors[..rows.len() * dim];
@@ -1281,6 +1312,91 @@ mod tests {
         assert!(matches!(
             idx.match_all_within(&[0.5, 0.5], 1, None, &mut donor_rows, &mut dist, &cancelled),
             Err(StatsError::Cancelled)
+        ));
+    }
+
+    #[test]
+    fn unrepresentable_index_bytes_are_refused_before_allocation() {
+        assert_eq!(usize::MAX.wrapping_mul(usize::MAX), 1);
+        assert!(index_bytes(usize::MAX, usize::MAX, MatchingDistance::Euclidean).is_none());
+        let mut open = ctx();
+        open.set_memory_limit(None);
+        let error = check_budget(&open, "matching index", None).unwrap_err();
+        assert!(matches!(
+            error,
+            StatsError::ResourceLimit { required_bytes: u64::MAX, limit_bytes: u64::MAX, .. }
+        ));
+        assert!(open.memory_limit_bytes().is_none());
+    }
+
+    #[test]
+    fn self_distance_workers_cannot_exceed_the_hard_limit() {
+        let n = 32usize;
+        let k = 3usize;
+        let dim = 2usize;
+        let one = ctx();
+        let mut many = ExecutionContext::production(1, 8);
+        let serial_bytes = self_distance_bytes(n, k, &one).unwrap();
+        let parallel_bytes = self_distance_bytes(n, k, &many).unwrap();
+        assert!(parallel_bytes > serial_bytes);
+        assert!(parallel_bytes <= serial_bytes.saturating_mul(8));
+        many.set_memory_limit(Some(serial_bytes));
+        let mut out = vec![1.0; n];
+        let feats = vec![0.5; n * dim];
+        let error = MatchingIndex::kth_self_distances_within(
+            &feats,
+            n,
+            dim,
+            MatchingDistance::Euclidean,
+            k,
+            &mut out,
+            &many,
+        )
+        .unwrap_err();
+        assert!(matches!(error, StatsError::ResourceLimit { .. }));
+        assert!(out.iter().all(|value| value.total_cmp(&1.0).is_eq()));
+        assert_eq!(many.memory_limit_bytes(), Some(serial_bytes));
+    }
+
+    #[test]
+    fn matching_query_refusals_keep_route_specific_order() {
+        let ctx = ctx();
+        let empty =
+            MatchingIndex::exact_within(&[], 1, &[], MatchingDistance::Euclidean, &ctx).unwrap();
+        assert!(matches!(
+            empty.nearest(&[], None),
+            Err(StatsError::Shape { message: "query length != dim" })
+        ));
+        assert!(matches!(
+            empty.nearest(&[f64::NAN], None),
+            Err(StatsError::Shape { message: "empty matching index" })
+        ));
+        let mut out = Vec::new();
+        assert!(matches!(
+            empty.nearest_k(&[f64::NAN], 1, &mut out),
+            Err(StatsError::Shape { message: "matching query must be finite" })
+        ));
+        let boxed = crate::matching_boxtree::BoxTreeIndex::exact_within(&[], 1, &ctx).unwrap();
+        assert!(matches!(
+            boxed.nearest(&[f64::NAN], None),
+            Err(StatsError::Shape { message: "matching query must be finite" })
+        ));
+        // Batch shape precedes output capacity in both index routes.
+        assert!(matches!(
+            empty.match_all_within(&[], 1, None, &mut [], &mut [], &ctx),
+            Err(StatsError::Shape { message: "queries length != n_queries * dim" })
+        ));
+        assert!(matches!(
+            boxed.match_all_within(&[], 1, None, &mut [], &mut [], &ctx),
+            Err(StatsError::Shape { message: "queries length != n_queries * dim" })
+        ));
+        assert!(matches!(
+            empty.match_all_within(&[0.0], 1, None, &mut [], &mut [], &ctx),
+            Err(StatsError::Shape { message: "output buffers too short" })
+        ));
+        assert!(matches!(
+            boxed.match_all_within(&[0.0], 1, None, &mut [], &mut [], &ctx),
+            Err(StatsError::Shape { message: "output buffers too short" })
         ));
     }
 
@@ -1477,7 +1593,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "acceptance workload: 100k donors; run with --ignored in a release build"]
     fn one_hundred_thousand_donor_acceptance() {
         let started = std::time::Instant::now();
         exercise_at_scale(100_000, 200);

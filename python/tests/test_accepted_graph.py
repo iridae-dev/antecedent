@@ -7,7 +7,11 @@ import math
 import antecedent
 import numpy as np
 import pytest
+from antecedent.execution import Execution
+from antecedent.execution_attempt import observe_native_attempts
 from antecedent.graph import TemporalCpdag, TemporalPag
+from antecedent.inference import Bayesian, Frequentist
+from antecedent.outcomes import Outcome, require_success
 
 from _scm import confounded_scm
 
@@ -39,7 +43,9 @@ def test_from_discovery_estimates_without_rediscover(monkeypatch):
     _patch_discovery(monkeypatch, "run_static_discovery", spy)
 
     result, algo = antecedent.discovery.run_static_discovery(
-        data, antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0), seed=1
+        data,
+        antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0),
+        execution=antecedent.Execution(seed=1),
     )
     assert calls["n"] == 1
     assert algo == "pc"
@@ -57,13 +63,17 @@ def test_from_discovery_estimates_without_rediscover(monkeypatch):
         version=accepted.version,
     )
     q = antecedent.AverageEffect(treatment="t", outcome="y")
-    first = estimate_handle.analyze(data, query=q, seed=1)
-    second = estimate_handle.analyze(data, query=q, seed=1, bootstrap=0)
+    first = require_success(estimate_handle.analyze(data, query=q, execution=Execution(seed=1)))
+    second = require_success(
+        estimate_handle.analyze(
+            data, query=q, execution=Execution(seed=1), inference=Frequentist(bootstrap=0)
+        )
+    )
     assert calls["n"] == 1, "estimate clicks must not re-enter discovery"
     assert estimate_handle.version == 1
     assert math.isfinite(first.ate)
     assert math.isfinite(second.ate)
-    assert abs(first.ate - 2.0) < 0.75
+    assert abs(first.ate - 2.0) < 4.0 * first.estimate.se_analytic
     assert first.identification.status == second.identification.status
 
 
@@ -80,8 +90,22 @@ def test_bootstrap_tweak_does_not_bump_version_or_rediscover(monkeypatch):
     _patch_discovery(monkeypatch, "run_static_discovery", boom)
 
     q = antecedent.AverageEffect(treatment="t", outcome="y")
-    a = accepted.analyze(data, query=q, seed=1, bootstrap=0)
-    b = accepted.analyze(data, query=q, seed=1, bootstrap=10, refute=False)
+    study = accepted.prepare(
+        data,
+        query=q,
+        execution=Execution(seed=1),
+        inference=Frequentist(bootstrap=0),
+        refute=False,
+    )
+    first = study.estimate()
+    branch = study.reconfigure(inference=Frequentist(bootstrap=10))
+    a = require_success(first)
+    b = require_success(branch.estimate())
+    assert branch is not study
+    assert study._declarations["inference"].bootstrap == 0
+    assert branch._declarations["inference"].bootstrap == 10
+    assert study.inspect().stage == "prepared"
+    assert require_success(first).ate == a.ate
     assert calls["n"] == 0
     assert accepted.version == 1
     assert math.isfinite(a.ate) and math.isfinite(b.ate)
@@ -92,12 +116,16 @@ def test_accepted_graph_prepare_records_accepted_structure():
     dag = antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
     accepted = antecedent.AcceptedGraph.from_graph(dag, algorithm_id="hand")
     q = antecedent.AverageEffect(treatment="t", outcome="y")
-    prepared = accepted.prepare(data, query=q, refute=False, seed=1)
+    prepared = accepted.prepare(data, query=q, refute=False, execution=Execution(seed=1))
     assert prepared.structure_source == "accepted"
-    click = prepared.estimate(data, seed=1)
+    click = require_success(prepared.estimate())
     assert math.isfinite(click.ate)
-    edges_prepared = antecedent.estimation.PreparedAnalysis.prepare(
-        data, query=q, graph=[("z", "t"), ("z", "y"), ("t", "y")], refute=False, seed=1
+    edges_prepared = antecedent.prepare(
+        data,
+        query=q,
+        graph=[("z", "t"), ("z", "y"), ("t", "y")],
+        refute=False,
+        execution=Execution(seed=1),
     )
     assert edges_prepared.structure_source == "explicit"
 
@@ -116,7 +144,9 @@ def test_rediscover_bumps_version_and_calls_discovery(monkeypatch):
     _patch_discovery(monkeypatch, "run_static_discovery", spy)
 
     refreshed = accepted.rediscover(
-        data, antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0), seed=1
+        data,
+        antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0),
+        execution=antecedent.Execution(seed=1),
     )
     assert calls["n"] == 1
     assert refreshed.version == accepted.version + 1
@@ -131,10 +161,12 @@ def test_analyze_rejects_discovery_kwarg():
         [("z", "t"), ("z", "y"), ("t", "y")], algorithm_id=None
     )
     with pytest.raises(antecedent.errors.CausalUnsupportedError, match="rejects discovery="):
-        accepted.analyze(
-            data,
-            query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            discovery=antecedent.discovery.PC(),
+        require_success(
+            accepted.analyze(
+                data,
+                query=antecedent.AverageEffect(treatment="t", outcome="y"),
+                discovery=antecedent.discovery.PC(),
+            )
         )
 
 
@@ -148,15 +180,7 @@ def test_json_roundtrip_preserves_version_and_edges():
 
 
 def test_json_roundtrip_preserves_node_names_cpdag():
-    """Round-trip through Cpdag.to_json()/from_json() must keep real variable names.
-
-    This currently depends on a native fix (owned elsewhere in this refactor):
-    `Cpdag.from_json` / `Pag.from_json` / `Admg.from_json` discard variable
-    names, so `AcceptedGraph.from_json(ag.to_json())` today comes back with
-    placeholder nodes ("0", "1", "2", ...) for these three graph kinds. This
-    test asserts the *intended* behavior and will fail until that native fix
-    lands — see the task brief for this refactor phase.
-    """
+    """Graph serialization preserves the declared variable names."""
     cpdag = antecedent.Cpdag.from_directed_undirected(
         ["z", "t", "y"], [("z", "t"), ("z", "y")], [("t", "y")]
     )
@@ -217,14 +241,19 @@ def test_prepare_on_accepted_graph():
         [("z", "t"), ("z", "y"), ("t", "y")], algorithm_id="supplied"
     )
     prepared = accepted.prepare(
-        data, query=antecedent.AverageEffect(treatment="t", outcome="y"), seed=1
+        data,
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        execution=Execution(seed=1),
     )
     assert prepared is not None
-    first = prepared.estimate(data, seed=1)
-    second = prepared.refresh(data, seed=1)
+    first = require_success(prepared.estimate())
+    branch = prepared.rebind(data=data)
+    second = require_success(branch.estimate())
+    assert branch is not prepared
+    assert prepared.inspect().stage == "prepared"
     assert accepted.version == 1
     assert abs(first.ate - second.ate) < 1e-12
-    assert abs(first.ate - 2.0) < 0.6
+    assert abs(first.ate - 2.0) < 4.0 * first.estimate.se_analytic
 
 
 def _lag1_series(n: int = 300, seed: int = 9):
@@ -248,7 +277,9 @@ def test_temporal_accepted_graph_estimates_without_rediscover(monkeypatch):
     _patch_discovery(monkeypatch, "run_temporal_discovery", spy)
 
     result, algo = antecedent.discovery.run_temporal_discovery(
-        data, antecedent.discovery.PCMCI(max_lag=2, alpha=0.05, fdr=False), seed=9
+        data,
+        antecedent.discovery.PCMCI(max_lag=2, alpha=0.05, fdr=False),
+        execution=antecedent.Execution(seed=9),
     )
     assert calls["n"] == 1
     assert algo == "pcmci"
@@ -264,12 +295,30 @@ def test_temporal_accepted_graph_estimates_without_rediscover(monkeypatch):
         version=accepted.version,
     )
     q = antecedent.PulseEffect(treatment="x", outcome="y", treatment_lag=1, horizon_steps=1)
-    first = estimate_handle.analyze(data, query=q, seed=1, bootstrap=0, refute=False)
-    second = estimate_handle.analyze(data, query=q, seed=1, bootstrap=10, refute=False)
+    first = require_success(
+        estimate_handle.analyze(
+            data,
+            query=q,
+            execution=Execution(seed=1),
+            inference=Frequentist(bootstrap=0),
+            refute=False,
+        )
+    )
+    second = require_success(
+        estimate_handle.analyze(
+            data,
+            query=q,
+            execution=Execution(seed=1),
+            inference=Frequentist(bootstrap=10),
+            refute=False,
+        )
+    )
     assert calls["n"] == 1, "temporal estimate clicks must not re-enter discovery"
     assert estimate_handle.version == 1
-    assert math.isfinite(first.ate)
-    assert math.isfinite(second.ate)
+    # The generating law is y_t = 0.8 x_{t-1} + noise(0.05), so a unit pulse at lag 1 moves y
+    # by 0.8 one step on (observed deviation 0.005).
+    assert abs(first.ate - 0.8) < 0.02
+    assert abs(second.ate - 0.8) < 0.02
 
 
 def test_temporal_rediscover_bumps_version(monkeypatch):
@@ -286,7 +335,9 @@ def test_temporal_rediscover_bumps_version(monkeypatch):
     _patch_discovery(monkeypatch, "run_temporal_discovery", spy)
 
     refreshed = accepted.rediscover(
-        data, antecedent.discovery.PCMCI(max_lag=2, alpha=0.05, fdr=False), seed=1
+        data,
+        antecedent.discovery.PCMCI(max_lag=2, alpha=0.05, fdr=False),
+        execution=antecedent.Execution(seed=1),
     )
     assert calls["n"] == 1
     assert refreshed.version == accepted.version + 1
@@ -405,3 +456,145 @@ def test_dunders_on_dag():
     assert "nodes=3" in text
     assert "version=2" in text
     assert "pending=0" in text
+
+
+def test_convenience_preparation_is_fit_free_and_matches_canonical_lifecycle():
+    data, _ = confounded_scm(n=300, seed=71)
+    owned = antecedent.data.table(data)
+    accepted = antecedent.AcceptedGraph.from_graph(
+        [("z", "t"), ("z", "y"), ("t", "y")], algorithm_id="hand"
+    )
+    query = antecedent.AverageEffect("t", "y")
+    execution = Execution(seed=19, threads=1)
+    observed = observe_native_attempts(
+        lambda: accepted.prepare(owned, query=query, execution=execution, refute=False)
+    )
+    study = observed.unwrap()
+    assert observed.report.is_complete
+    for operation in (
+        "glm_fit",
+        "adjusted_fit",
+        "learner_fit",
+        "posterior_fit",
+        "posterior_draw",
+        "score_construction",
+        "factor_construction",
+        "integration",
+        "decision",
+    ):
+        assert observed.report.operations[operation].attempted == 0, operation
+    assert isinstance(study, antecedent.PreparedAnalysis)
+    assert study.inspect().stage == "prepared"
+    canonical = antecedent.prepare(
+        owned,
+        graph=accepted,
+        query=query,
+        execution=execution,
+        refute=False,
+        inference=Frequentist(profile="interactive"),
+    )
+    assert study.inspect().contract == canonical.inspect().contract
+    outcomes = (
+        study.estimate(),
+        canonical.estimate(),
+        accepted.analyze(owned, query=query, execution=execution, refute=False),
+        antecedent.analyze(
+            owned,
+            graph=accepted,
+            query=query,
+            execution=execution,
+            refute=False,
+            inference=Frequentist(profile="interactive"),
+        ),
+    )
+    assert all(isinstance(outcome, Outcome) for outcome in outcomes)
+    results = [require_success(outcome) for outcome in outcomes]
+    assert abs(results[0].ate - 2.0) < 4.0 * results[0].estimate.se_analytic
+    for outcome, result in zip(outcomes, results, strict=True):
+        assert result.ate == results[0].ate
+        assert result.identification.status == results[0].identification.status
+        assert result.performance.latency_mode == "interactive"
+        assert result.performance.bootstrap_replicates_requested == 0
+        assert outcome.inspect().claim_id == outcomes[0].inspect().claim_id
+    assert study.inspect().stage == canonical.inspect().stage == "prepared"
+    assert accepted.version == 1
+
+
+@pytest.mark.parametrize("method", ["prepare", "analyze"])
+@pytest.mark.parametrize("legacy_argument", ["seed", "threads", "bootstrap", "latency"])
+def test_convenience_methods_reject_superseded_loose_controls(method, legacy_argument):
+    data, _ = confounded_scm(n=80, seed=7)
+    accepted = antecedent.AcceptedGraph.from_graph([("t", "y")])
+    with pytest.raises(TypeError, match=legacy_argument):
+        getattr(accepted, method)(
+            data, query=antecedent.AverageEffect("t", "y"), **{legacy_argument: 1}
+        )
+
+
+def test_prepare_preserves_explicit_discovery_review_boundary():
+    data, _ = confounded_scm(n=80, seed=7)
+    accepted = antecedent.AcceptedGraph.from_graph([("t", "y")])
+    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="rejects discovery="):
+        accepted.prepare(
+            data,
+            query=antecedent.AverageEffect("t", "y"),
+            discovery=antecedent.discovery.PC(),
+        )
+
+
+@pytest.mark.parametrize("profile", ["interactive", "standard", "report"])
+def test_explicit_inference_profile_and_budget_override_click_defaults(profile):
+    data, _ = confounded_scm(n=200, seed=31)
+    accepted = antecedent.AcceptedGraph.from_graph([("z", "t"), ("z", "y"), ("t", "y")])
+    inference = Frequentist(profile=profile, bootstrap=3)
+    query = antecedent.AverageEffect("t", "y")
+    execution = Execution(seed=19, threads=1)
+    study = accepted.prepare(
+        data, query=query, inference=inference, execution=execution, refute=False
+    )
+    assert study._declarations["inference"] == inference
+    assert inference == Frequentist(profile=profile, bootstrap=3)
+    result = require_success(study.estimate())
+    assert result.performance.latency_mode == profile
+    assert result.performance.bootstrap_replicates_requested == 3
+    assert abs(result.ate - 2.0) < 4.0 * result.estimate.se_analytic
+
+
+@pytest.mark.parametrize(
+    "inference", [Frequentist(bootstrap=7), Bayesian(n_draws=37, prior_scale=2.5)]
+)
+@pytest.mark.parametrize("method", ["prepare", "analyze"])
+def test_convenience_adds_only_missing_profile_and_delegates(monkeypatch, inference, method):
+    from dataclasses import replace
+
+    from antecedent import prepared as lifecycle
+
+    accepted = antecedent.AcceptedGraph.from_graph([("t", "y")])
+    query = antecedent.AverageEffect("t", "y")
+    data = {"t": [0.0, 1.0], "y": [1.0, 2.0]}
+    execution = Execution(seed=17, threads=1)
+    calls = []
+    sentinel = object()
+
+    def canonical(received, **declarations):
+        calls.append((received, declarations))
+        return sentinel
+
+    monkeypatch.setattr(lifecycle, method, canonical)
+    result = getattr(accepted, method)(
+        data, query=query, inference=inference, execution=execution, refute=False
+    )
+    assert result is sentinel
+    assert inference.profile is None
+    assert calls == [
+        (
+            data,
+            {
+                "graph": accepted,
+                "query": query,
+                "inference": replace(inference, profile="interactive"),
+                "execution": execution,
+                "refute": False,
+            },
+        )
+    ]

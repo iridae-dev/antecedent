@@ -3,7 +3,7 @@
 //! the row-based fit and checked against an independent sandwich computation), the absence of a
 //! row ceiling, the computation and export budgets, the digest binding of a summary to its rows,
 //! resealed-mutation refusals against a retained identity, unresealed tampering, unknown
-//! versions and the unmeasured calibration coordinate.
+//! versions and the `not_measured` calibration coordinate.
 //!
 //! Frozen dataset (n = 6, columns `1, t1, t2`): `t1 = [1,0,1,0,0,1]`, `t2 = [1,1,1,0,0,0]`,
 //! `y = [3,2,5,1,0,4]`. `b = [2.75, 0.75]`, `RSS = 3.25`, `sigma^2 = 3.25 / 3`, and the treatment
@@ -11,7 +11,7 @@
 //! (coverage, Type I error, power) is deliberately NOT measured here.
 #![allow(clippy::float_cmp, reason = "bit-identical replay is the property under test")]
 
-use antecedent_core::{ExecutionContext, MemoryBudget};
+use antecedent_core::ExecutionContext;
 use antecedent_estimate::vector_treatment::{
     Contrast, NamedColumn, TreatmentColumn, VectorCovariance, VectorTreatmentInput,
     VectorTreatmentOptions, fit_vector_treatment,
@@ -134,13 +134,13 @@ fn vector_artifact_joint_wald_and_holm_match_closed_forms() {
 }
 
 #[test]
-fn vector_artifact_calibration_is_unmeasured_and_says_so() {
+fn vector_artifact_calibration_is_not_measured_and_says_so() {
     let report = export(&request()).0.report();
     assert_eq!(report.calibration, VECTOR_TREATMENT_CALIBRATION);
-    assert_eq!(report.calibration, "unmeasured");
-    assert_eq!(report.inference_claim, "asymptotic_wald_calibration_unmeasured");
+    assert_eq!(report.calibration, "not_measured");
+    assert_eq!(report.inference_claim, "asymptotic_wald_calibration_not_measured");
     assert_eq!(report.version, VECTOR_TREATMENT_ARTIFACT_VERSION);
-    assert!(report.caveats[0].contains("calibration is unmeasured"), "{:?}", report.caveats);
+    assert!(report.caveats[0].contains("calibration is not_measured"), "{:?}", report.caveats);
     assert!(report.caveats[0].contains("no interval"), "{:?}", report.caveats);
     assert!(report.caveats[1].contains("caller owns"), "{:?}", report.caveats);
 }
@@ -149,15 +149,15 @@ fn vector_artifact_calibration_is_unmeasured_and_says_so() {
 fn vector_artifact_summary_replay_is_bit_identical_to_the_core_fit() {
     let artifact = VectorTreatmentArtifact::seal(&adjusted_request()).unwrap();
     let input = VectorTreatmentInput {
-        outcome: Y.to_vec(),
+        outcome: Y.to_vec().into(),
         row_snapshot: "snap".into(),
-        adjustment: vec![NamedColumn { name: "w".into(), values: W.to_vec() }],
+        adjustment: vec![NamedColumn::new("w", W.to_vec())],
         treatments: ["t1", "t2"]
             .iter()
             .zip([X1, X2])
             .map(|(name, values)| TreatmentColumn {
                 name: (*name).into(),
-                values: values.to_vec(),
+                values: values.to_vec().into(),
                 adjustment_set: vec!["w".into()],
                 row_snapshot: "snap".into(),
             })
@@ -230,21 +230,21 @@ fn row_fit(
     covariance: VectorCovariance,
 ) -> antecedent_estimate::vector_treatment::VectorTreatmentFit {
     let input = VectorTreatmentInput {
-        outcome: request.outcome.clone(),
-        row_snapshot: request.row_snapshot.clone(),
+        outcome: request.outcome.as_slice().into(),
+        row_snapshot: request.row_snapshot.as_str().into(),
         adjustment: request
             .adjustment
             .iter()
-            .map(|c| NamedColumn { name: c.name.clone(), values: c.values.clone() })
+            .map(|c| NamedColumn::new(c.name.as_str(), c.values.as_slice()))
             .collect(),
         treatments: request
             .treatments
             .iter()
             .map(|t| TreatmentColumn {
-                name: t.name.clone(),
-                values: t.values.clone(),
-                adjustment_set: t.adjustment_set.clone(),
-                row_snapshot: t.row_snapshot.clone(),
+                name: t.name.as_str().into(),
+                values: t.values.as_slice().into(),
+                adjustment_set: t.adjustment_set.iter().map(|a| a.as_str().into()).collect(),
+                row_snapshot: t.row_snapshot.as_str().into(),
             })
             .collect(),
     };
@@ -436,7 +436,6 @@ fn vector_robust_fit_has_no_row_ceiling_and_the_artifact_does_not_grow_with_the_
 }
 
 #[test]
-#[ignore = "fits 100,000 rows; run with --ignored"]
 fn vector_robust_fit_runs_at_one_hundred_thousand_rows() {
     let big = synthetic(100_000, "hc2");
     let artifact = VectorTreatmentArtifact::seal(&big).unwrap();
@@ -522,10 +521,16 @@ fn vector_summary_is_bound_to_its_rows_by_a_digest() {
         );
         let mut renamed = request.clone();
         renamed.treatments[0].name = "u1".into();
-        assert!(artifact.verify_data(&renamed).is_err());
+        assert_eq!(
+            artifact.verify_data(&renamed),
+            Err(VectorTreatmentArtifactError::IdentityMismatch { field: "data" })
+        );
         let mut reordered = request.clone();
         reordered.outcome.swap(0, 1);
-        assert!(artifact.verify_data(&reordered).is_err());
+        assert_eq!(
+            artifact.verify_data(&reordered),
+            Err(VectorTreatmentArtifactError::IdentityMismatch { field: "data" })
+        );
         // The digest is part of the design identity: a forged one under the stored identity refuses.
         let (meta, numbers) = decode_parts(&artifact.to_bytes("t").unwrap()).unwrap();
         let mut forged = meta;
@@ -542,23 +547,29 @@ fn vector_summary_is_bound_to_its_rows_by_a_digest() {
 fn vector_budgets_refuse_with_precise_details_and_keep_the_fit() {
     let request = synthetic(2_000, "hc1");
     let mut tight = ExecutionContext::production(0, 1);
-    tight.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(10_000) };
+    tight.set_memory_limit(Some(10_000));
     let error = VectorTreatmentArtifact::seal_with(&request, &tight).unwrap_err();
     let (code, detail, text) = error.refusal().unwrap();
     assert_eq!(
         (code, detail.as_str()),
-        ("route_not_supported", "vector_treatment.memory_budget_exceeded")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::vector_treatment::MEMORY_BUDGET_EXCEEDED
+        )
     );
     assert!(text.contains("10000-byte"), "{text}");
     let mut roomy = ExecutionContext::production(0, 1);
-    roomy.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(10_000_000) };
+    roomy.set_memory_limit(Some(10_000_000));
     let artifact = VectorTreatmentArtifact::seal_with(&request, &roomy).unwrap();
 
     let cancelled = ExecutionContext::production(0, 1);
     cancelled.cancellation.cancel();
     let error = VectorTreatmentArtifact::seal_with(&request, &cancelled).unwrap_err();
     let (code, detail, _) = error.refusal().unwrap();
-    assert_eq!((code, detail.as_str()), ("cancelled_no_claim", "vector_treatment.cancelled"));
+    assert_eq!(
+        (code, detail.as_str()),
+        ("cancelled_no_claim", antecedent_core::reason_details::vector_treatment::CANCELLED)
+    );
 
     // Export: an artifact above its budget refuses and names the bytes; the fit survives.
     let bytes = artifact.to_bytes("fit").unwrap();
@@ -567,14 +578,20 @@ fn vector_budgets_refuse_with_precise_details_and_keep_the_fit() {
     let (code, detail, text) = error.refusal().unwrap();
     assert_eq!(
         (code, detail.as_str()),
-        ("route_not_supported", "vector_treatment.export_budget_exceeded")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::vector_treatment::EXPORT_BUDGET_EXCEEDED
+        )
     );
     assert!(text.contains(&format!("{} bytes", bytes.len())), "{text}");
     assert_eq!(artifact.fit().n_rows, 2_000);
 
     // Replay runs under the same kind of context.
     let error = VectorTreatmentArtifact::from_bytes_with(&bytes, None, &cancelled).unwrap_err();
-    assert_eq!(error.refusal().unwrap().1, "vector_treatment.cancelled");
+    assert_eq!(
+        error.refusal().unwrap().1,
+        antecedent_core::reason_details::vector_treatment::CANCELLED
+    );
     assert!(VectorTreatmentArtifact::from_bytes_with(&bytes, None, &roomy).is_ok());
 }
 
@@ -586,7 +603,10 @@ fn vector_artifact_incompatible_treatments_refuse_with_the_core_detail() {
         VectorTreatmentArtifact::seal(&other_set).unwrap_err().refusal().unwrap();
     assert_eq!(
         (code, detail.as_str()),
-        ("route_not_supported", "vector_treatment.adjustment_set_mismatch")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::vector_treatment::ADJUSTMENT_SET_MISMATCH
+        )
     );
 
     let mut other_snapshot = request();
@@ -595,13 +615,16 @@ fn vector_artifact_incompatible_treatments_refuse_with_the_core_detail() {
         VectorTreatmentArtifact::seal(&other_snapshot).unwrap_err().refusal().unwrap();
     assert_eq!(
         (code, detail.as_str()),
-        ("route_not_supported", "vector_treatment.row_snapshot_mismatch")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::vector_treatment::ROW_SNAPSHOT_MISMATCH
+        )
     );
 
     let mut short = request();
     short.treatments[1].values.pop();
     let (_, detail, _) = VectorTreatmentArtifact::seal(&short).unwrap_err().refusal().unwrap();
-    assert_eq!(detail, "vector_treatment.row_count_mismatch");
+    assert_eq!(detail, antecedent_core::reason_details::vector_treatment::ROW_COUNT_MISMATCH);
 
     let mut constant = request();
     constant.treatments[1].values = vec![1.0; 6];
@@ -609,28 +632,34 @@ fn vector_artifact_incompatible_treatments_refuse_with_the_core_detail() {
         VectorTreatmentArtifact::seal(&constant).unwrap_err().refusal().unwrap();
     assert_eq!(
         (code, detail.as_str()),
-        ("design_rank_deficient", "vector_treatment.treatment_without_variation")
+        (
+            "design_rank_deficient",
+            antecedent_core::reason_details::vector_treatment::TREATMENT_WITHOUT_VARIATION
+        )
     );
 
     let mut collinear = request();
     collinear.treatments[1].values = X1.iter().map(|v| 2.0 * v).collect();
     let (_, detail, _) = VectorTreatmentArtifact::seal(&collinear).unwrap_err().refusal().unwrap();
-    assert_eq!(detail, "vector_treatment.collinear_treatments");
+    assert_eq!(detail, antecedent_core::reason_details::vector_treatment::COLLINEAR_TREATMENTS);
 
     let mut single = request();
     single.treatments.truncate(1);
     let (_, detail, _) = VectorTreatmentArtifact::seal(&single).unwrap_err().refusal().unwrap();
-    assert_eq!(detail, "vector_treatment.too_few_treatments");
+    assert_eq!(detail, antecedent_core::reason_details::vector_treatment::TOO_FEW_TREATMENTS);
 
     let mut unknown = request();
     unknown.contrasts[0].weights[0].0 = "zzz".into();
     let (_, detail, _) = VectorTreatmentArtifact::seal(&unknown).unwrap_err().refusal().unwrap();
-    assert_eq!(detail, "vector_treatment.unknown_contrast_coefficient");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::vector_treatment::UNKNOWN_CONTRAST_COEFFICIENT
+    );
 
     let mut bad_kind = request();
     bad_kind.covariance = "cluster".into();
     let (_, detail, _) = VectorTreatmentArtifact::seal(&bad_kind).unwrap_err().refusal().unwrap();
-    assert_eq!(detail, "vector_treatment.invalid_request");
+    assert_eq!(detail, antecedent_core::reason_details::vector_treatment::INVALID_REQUEST);
 }
 
 /// Seal `mutated` as a consumer-consistent artifact and consume it against the identity of
@@ -648,7 +677,7 @@ fn resealed_mutation_refuses(
     assert_eq!(error, VectorTreatmentArtifactError::IdentityMismatch { field }, "{field}");
     let (code, detail, _) = error.refusal().unwrap();
     assert_eq!(code, "route_not_supported");
-    assert_eq!(detail, "vector_treatment.wrong_contract");
+    assert_eq!(detail, antecedent_core::reason_details::vector_treatment::WRONG_CONTRACT);
 }
 
 #[test]
@@ -803,7 +832,47 @@ fn vector_artifact_unknown_major_version_and_corrupt_bytes_refuse() {
     let mut corrupt = bytes.clone();
     let middle = corrupt.len() / 2;
     corrupt[middle] ^= 0xff;
-    assert!(VectorTreatmentArtifact::from_bytes(&corrupt, None).is_err());
-    assert!(VectorTreatmentArtifact::from_bytes(&bytes[..bytes.len() - 5], None).is_err());
-    assert!(VectorTreatmentArtifact::from_bytes(&[], None).is_err());
+    assert_eq!(
+        format!("{:?}", VectorTreatmentArtifact::from_bytes(&corrupt, None).unwrap_err()),
+        r#"Container(ChecksumMismatch { section: "vector_treatment_meta" })"#
+    );
+    for short in [&bytes[..bytes.len() - 5], &[][..]] {
+        assert!(
+            matches!(
+                VectorTreatmentArtifact::from_bytes(short, None),
+                Err(VectorTreatmentArtifactError::Decode(_))
+            ),
+            "a truncated or empty artifact is a decode refusal"
+        );
+    }
+}
+
+/// The shared shape of the budgeted treatment artifacts: sealed, exported under a byte budget
+/// and consumed again through the trait alone.
+fn round_trip_through_the_trait<A>(request: &A::Request) -> Vec<u8>
+where
+    A: antecedent_io::BudgetedTreatmentArtifact,
+    A::Error: std::fmt::Debug,
+{
+    let artifact = A::seal(request).unwrap();
+    let bytes = artifact.to_bytes("vector-test").unwrap();
+    assert_eq!(artifact.to_bytes_within("vector-test", A::MAX_BYTES).unwrap(), bytes);
+    let over_budget = artifact.to_bytes_within("vector-test", bytes.len() - 1).unwrap_err();
+    let shown = format!("{over_budget:?}");
+    assert!(
+        shown.contains("route_not_supported")
+            && shown.contains(
+                antecedent_core::reason_details::vector_treatment::EXPORT_BUDGET_EXCEEDED
+            ),
+        "{shown}"
+    );
+    A::from_bytes(&bytes, None).unwrap();
+    bytes
+}
+
+#[test]
+fn the_budgeted_trait_agrees_with_the_inherent_entry_points() {
+    let request = request();
+    let bytes = round_trip_through_the_trait::<VectorTreatmentArtifact>(&request);
+    assert_eq!(bytes, export(&request).1);
 }

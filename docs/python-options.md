@@ -1,43 +1,54 @@
 # Python workflow reference
 
-Start with the [Python quickstart](python-workflow.md) for a complete example.
-Use this page when you need to configure or integrate an analysis.
+This page lists the options of the Python workflow by task: preparing and inspecting a study,
+choosing a population, configuring estimators and inference, branching, and exporting. Each
+section names the option, its default, what it changes in the result and the refusal code you get
+when it does not apply.
+
+Start with the [Python quickstart](start/first-analysis.md) for a complete example. Snippets
+assume `import antecedent as ant`; refusal codes are explained in the
+[refusal code reference](reference/refusal-codes.md), and terms such as *supported* and
+*calibration status* in the [glossary](concepts/glossary.md).
 
 ## Prepare explicitly when useful
 
 ```python
-study = ant.prepare(data, graph=graph, query=query, seed=19)
+study = ant.prepare(data, graph=graph, query=query, execution=ant.Execution(seed=19))
 report = study.inspect()        # includes cached identification; does not estimate
-result = study.estimate()      # uses retained data and preparation's seed/threads
+result = ant.estimate(study)   # uses the owned data and the execution declared at preparation
 ```
 
 ### Ask a policy question
 
 `ant.prepare(data, graph=dag, query=PolicyProgramValue(programs, outcome, n_draws=...))`
 (from `antecedent.intervention_programs`) prepares the value of an intervention program such as
-`price := max(1, 0.85 * price)` on a fitted structural model. The model is fitted and the program
-compiled and licensed once; `estimate(seed=...)` and `refresh(new_data)` rerun the value without
-compiling the program again (`study.preparation.program_compilations` stays 1), and each result
-equals `policy_value` on the same model and seed. The result reports the support decision of the
+`price := max(1, 0.85 * price)` on a fitted structural model. The program is
+compiled during preparation, while mechanism fitting and Monte Carlo evaluation require
+explicit execution. Use `ant.estimate(study)`, `ant.rebind(study, data=new_data)`, or
+`ant.reconfigure(study, execution=ant.Execution(seed=...))` for execution and independent
+branches. The result reports the support decision of the
 simulation, counterfactual and identification routes, the contract (the structural assumptions the
 value rests on) and the provenance record. Estimand options such as `estimator=` and `refute=`
 do not apply and are refused; see the [intervention programs guide](guides/intervention-programs.md).
 
-### Defaults and latency
+### Scientific defaults and execution policy
 
-`analyze` and `prepare` use the same defaults. Set `bootstrap`, `refute`, or
-`n_draws` explicitly when you need a particular budget. `latency=` selects a
-budget tier only for values you omit; it never overrides an explicit value.
+`analyze` and `prepare` resolve the same native scientific defaults. Declare
+bootstrap counts and posterior draws on `Frequentist` or `Bayesian`; validation
+budgets belong to the applicable validation declaration. Scientific profiles
+such as `Frequentist(profile="interactive")` select presets only for omitted
+values. An explicit scientific budget takes precedence over its profile.
 
-For integrations, the shared default table is available through
-`antecedent._native.omitted_defaults()`. The Rust study builder owns it, and
-`antecedent.estimation.PreparedAnalysis.prepare(...)` uses it too.
+Seeds, threads, cancellation, resource limits, cache policy, and observers
+belong to reusable `Execution` declarations. Replace a policy through an
+immutable `reconfigure` branch. The shared default table is available through
+`antecedent._native.omitted_defaults()`; Rust owns the resolved numerical defaults.
 
 ### Inspect and preview a study
 
 Use `study.inspect()` to read what the study already knows: cached
 identification, contract identities, and the reasoning report. Until estimation
-runs, calibration is `unavailable` with the reason `not_executed`.
+runs, calibration is `not_measured` with the reason `not_executed`.
 
 `study.preflight()` gives the cheaper structural view from before identification.
 It has no `program_id`, because that identity also depends on identification.
@@ -51,11 +62,14 @@ retargeting without prepared scores returns `score_table_unavailable`.
 
 ### Refusal codes
 
-A refusal carries a registered `reason_code` (and `error.report.code`). An
+A returned refusal carries its registered code as `outcome.refusal.code`; a raised
+one carries it as `error.reason_code` (and `error.report.code`). The
+[refusal code reference](reference/refusal-codes.md) lists each code with its remedy. An
 estimator that does not implement the requested inference is refused with
-`estimator_inference_mismatch`; a question with no identified estimand raises
-`antecedent.errors.EffectNotIdentified` with `identification_status` and
-`search_complete`.
+`estimator_inference_mismatch`; a question with no identified estimand is refused with
+`effect_not_identified`, and the retained `antecedent.errors.EffectNotIdentified`
+(`outcome.refusal.raise_error()` raises it) carries `identification_status`,
+`search_complete` and `search_capped`.
 
 `result.inspect().to_dict()` and `ant.load(result.export()).inspect().to_dict()`
 report the same portable record: `contract` is the exported contract section,
@@ -73,8 +87,12 @@ Rust kind is population-scoped carries the same keyword-only field
 `PulseEffect`, `SustainedEffect`, `InterventionResponse`, `ResponseCurve` and
 the six derivative queries) and accepts the `antecedent.population` types
 (`AllRows`, `Treated`, `Untreated`, `Named`, `Rows`, `CustomDistribution`, with
-named and custom targets bound by `population_registry=`). `None` means the
-all-observed population. The Rust study builder licenses the declaration: an
+named and custom targets bound by `population_registry=`; `AverageEffect` also
+takes the weighted targets `target_kernel(...)` and `target_row_weights(...)`,
+resolved against the analysed table and reported on `result.weighted_target`,
+see [weighted target populations](guides/transport/weighted-target-population.md)).
+`None` means the
+all-observed population. The Rust study builder supports the declaration: an
 `AverageEffect` estimates the targets its estimator supports (AIPW and the
 propensity estimators take treated, untreated, predicate and custom-distribution
 targets; `linear.adjustment.ate` and Bayesian g-computation take only the
@@ -82,8 +100,8 @@ all-observed population on every graph class). Every other population-scoped
 query refuses a declared population with `reason_code="population_not_estimable"`
 instead of answering for the all-observed rows; for a reweighted response or
 average effect, prepare the all-observed AIPW or cell-AIPW study and `retarget`
-its frozen scores. `analyze_many` and `PreparedBatch.prepare` estimate each
-query's own population.
+its frozen scores. `estimation.analyze_many` and `estimation.prepare_many` preserve each
+query's own population declaration.
 
 ## Read counterfactual unit effects
 
@@ -108,19 +126,24 @@ carries its per-unit output on the result itself, aligned row for row:
 
 A unit ITE is not a conditional average effect. For a pointwise interval on
 the CATE `tau(x)` at prespecified covariate profiles, use the Rust
-[`DrLearner::fit_pointwise_profiles`](dr-pointwise-cate.md).
+[`DrLearner::fit_pointwise_profiles`](guides/heterogeneous-effects-and-policies.md#pointwise-cate-at-a-covariate-profile).
 
 ## Estimate a family of average effects
 
-`antecedent.estimation.analyze_many(data, graph=..., queries=[...])` ingests
-the table once and returns one result per `AverageEffect` query, in query
-order. `antecedent.estimation.PreparedBatch.prepare` freezes the same batch for
-`estimate(new_data)`, and `PreparedBatch.prepare_cells` batches discrete joint
-`InterventionResponse` cells. Run any other query through `ant.analyze`.
+`ant.estimation.prepare_many(data, graph=..., queries=[...], inference=...,
+execution=ant.Execution(seed=19))` owns one table and prepares an immutable batch
+without fitting. `ant.estimate(study)` returns `Outcome[BatchResult]`;
+`require_success(outcome).members` contains one typed outcome per query, in query order.
+`ant.estimation.analyze_many(...)` combines preparation and execution.
+The same operations accept homogeneous `AverageEffect` queries or static discrete joint
+`InterventionResponse` cells. Select `batch.member(index)` explicitly for downstream
+composition or export. Branch with `ant.rebind(batch.study, data=new_data)` or
+`ant.reconfigure(batch.study, queries=other_queries)`; earlier completions stay unchanged.
+Run other query families through `ant.analyze`.
 
 - **One seed for the family.** Every query cross-fits with the batch's `seed`
   and fold count, so it draws the same fold plan as the same query passed to
-  `ant.analyze(..., seed=seed)` and returns the same estimate.
+  `ant.analyze(..., execution=ant.Execution(seed=seed))` and returns the same estimate.
 - **Shared nuisance fits.** Queries that would fit the identical cross-fitted
   AIPW nuisance share one fit. The propensity model is shared when the
   treatment coding, adjustment set, complete-case rows, fold plan and learner
@@ -156,25 +179,26 @@ without an influence function), the joint fields stay `None` and each result
 carries `batch.joint_if.unavailable`. If only the max-t critical value fails,
 the p-values remain and each result carries `batch.joint_if.max_t_unavailable`.
 For joint cells, `simultaneous_interval` is on the cell levels, and the
-p-values test the declared `family_contrast` (default `cell_minus_control`;
-`None` publishes no p-values).
+p-values test `family=ant.estimation.CellFamily(contrast="cell_minus_control")`
+(the default); `CellFamily(contrast=None)` publishes no p-values.
+`CellFamily(posterior_draws=300)` requests aligned score-posterior draws for joint
+cells. Supplying `family` to an average-effect batch raises an argument error.
 
-**What a batch covers.** `analyze_many` and `PreparedBatch.prepare` take
-`AverageEffect` queries; `PreparedBatch.prepare_cells` takes static discrete
-joint `InterventionResponse` cells (two or more `Set` interventions). Any other
-query (a single-variable or temporal `InterventionResponse`, a
-`ResponseCurve`, a `ConditionalEffect`, and so on) is refused before any data is
-read with `CausalUnsupportedError`, `reason_code="route_not_supported"`, and a
-`remedy` naming `ant.analyze`, which estimates it one query at a time. The Rust
-`BatchStudy` has the same boundary: `estimate_many` and `prepare` take
-`AverageEffectQuery`, and `prepare_cells` refuses any other response query with
-`route_not_supported`.
+**What a batch covers.** `estimation.analyze_many` and `estimation.prepare_many`
+accept homogeneous `AverageEffect` queries or static discrete joint
+`InterventionResponse` cells (two or more `Set` interventions). Other queries have
+`reason_code="route_not_supported"` and a remedy naming `ant.analyze`.
+The concise execution boundary returns a typed refusal; malformed arguments and
+operational failures raise typed errors. Native identification refusals remain visible
+on prepared handles before explicit execution. No unsupported query silently executes
+as another scientific method.
 
 **Configured batches and retarget.** The batch entry points take `estimator=` as a string
 id or a typed configuration (`Aipw(...)`) and the `estimator_config=` dict, exactly as
-`ant.analyze` does; one configuration governs the batch. `PreparedBatch.retarget` reports the
+`ant.analyze` does; one configuration governs the batch. The completed `BatchResult.retarget` returns `Outcome[BatchRetarget]` with the
 points, joint score covariance and named contrasts of a declared family over one row snapshot
-(`point_only`; the simultaneous interval is closed). See
+(points and plug-in covariance remain distinct from the simultaneous interval). Preparation has no
+scores to retarget; every completed result keeps its own row snapshot. See
 [the guide](guides/batch-retarget.md).
 
 ## Configure response estimates
@@ -196,6 +220,36 @@ parent under the pulse parent-adjustment fallback, the refusal names
 `max_history_lag`, and raising it on the query is the remedy. With the
 default, the unfolding grows to the graph's own chain bound, and a refusal
 there (a lagged cycle) is not helped by a cap.
+
+## Bound a pulse's extrapolation
+
+A pulse is a counterfactual dose, and its fitted lag response is linear in the
+treatment, so a level the series never visited is reached by extrapolation. When
+the control or active level of a `PulseEffect` lies outside the observed treatment
+interval, the result's support diagnostics carry
+`estimate.temporal.pulse.level_extrapolation`, whose fields give the observed
+minimum, maximum, mean and standard deviation, and each level's distance in
+observed ranges (`max - min`) and in standard deviations. The effect there is
+conditional on the response staying linear. An active level more than
+`Execution(pulse_extrapolation_ranges=...)` observed ranges beyond the interval
+(default 10) is refused with `positivity_violated` and a next attempt. The control
+level is never refused: a control of 0 outside the data is how a pulse is written.
+
+## Declare delayed feedback
+
+A temporal `ResponseCurve` or `InterventionResponse` takes a keyword-only
+`feedback=FeedbackMechanism(delay=, level=, autoregression=, input_gain=,
+innovation_variance=, initial_law=None, initial_state=0.0)`. It declares the
+dynamics `s <- a s + b u + e`; they are declared, not fitted. `delay` is the
+feedback delay in ticks (at least 1) and is not `treatment_lag`; `level` is the
+dose the pulse or sustained policy holds; `initial_law` is `None` for the
+contemporaneous observed law or the name of a law, and `initial_state` is its
+level at the origin. With a declaration the response is the finite-horizon
+rollout of those dynamics at every requested horizon
+(`model.delayed_feedback.finite_horizon`), with no band; without one the fitted
+dose-by-horizon surface is published. Feedback requires `horizons`. An
+off-cadence horizon, a delay that arrives after the horizon, and an ancestry
+deeper than the declared `max_history_lag` are refused.
 
 ## Choose a Bayesian likelihood
 
@@ -238,7 +292,7 @@ tabular `AverageEffect` on a `Dag`:
   every draw.
 
 Any other route refuses the option with `reason_code="invalid_argument"` rather
-than ignore it. The interval stays `scope_not_assessed` until a coverage record
+than ignore it. The interval is annotated `not_measured` while no coverage record
 covers the draw count and sample size.
 
 ## Clip or trim propensity scores
@@ -247,13 +301,16 @@ The propensity-score estimators (`PropensityWeighting`, `PropensityMatching`,
 `PropensityStratification`, `DistanceMatching` and `Aipw` in
 `antecedent.estimators`) take `overlap=Overlap(clip=..., trim=...)`, or the
 `estimator_config` key `overlap={"clip": ..., "trim": ...}`. By default
-propensities are clipped into `[0.01, 0.99]` and no unit is trimmed, and
-`Overlap()` spells out that default. `clip` bounds the propensities used in
+propensities are clipped into `[0.01, 0.99]` and no unit is trimmed; `DML` and
+`DRLearner` also accept `overlap=`. `Overlap()` declares the default bounds explicitly and
+computes the same estimate, with one difference: without a declared policy a propensity
+within 1e-8 of 0 or 1 refuses as `positivity_violated`, while `Overlap()` lets the clip
+govern those rows. `clip` bounds the propensities used in
 the weights, and `trim` drops units whose propensity lies outside
 `[trim, 1 - trim]`. Trimming narrows the population the effect describes.
 `None` turns either one off. A non-default policy changes the inference-binding
 identity and is part of the calibration key, so it reports
-`scope_not_assessed` unless a coverage record measured that policy.
+`outside_measured_scope` or `not_measured` unless a coverage record measured that policy.
 
 ## Penalize the AIPW propensity
 
@@ -261,17 +318,29 @@ identity and is part of the calibration key, so it reports
 cross-fit fold's training rows, with the penalty chosen from a fixed grid by seeded inner
 cross-validation on those rows only; `PropensityPenalty(kind="lasso")` fits an L1-penalized
 one and also selects its support on those rows (recorded per fold in
-`estimate.penalized_support`). The route keeps the score table and retargeting (with its
+the `penalized_support` diagnostic). The route keeps the score table and retargeting (with its
 covariance) and publishes the cross-fitted influence-function SE; with `bootstrap > 0` it
 publishes a bootstrap SE whose every replicate repeats penalty selection and nuisance
-fitting (`estimate.penalized_bootstrap` lists the penalties each replicate selected). Both
-rest on a stated remainder condition and are calibration-wired and unmeasured, so
-they report `scope_not_assessed`. `nuisance_fallback="ridge_logistic"` / `"lasso"` (or a
+fitting (`penalized_bootstrap` lists the penalties each replicate selected). Both
+rest on a stated remainder condition, and each interval carries its calibration status
+(read `result.inspect().calibration`). `nuisance_fallback="ridge_logistic"` / `"lasso"` (or a
 `PropensityPenalty` for its tuning) re-runs the route with that propensity when the plain
-GLM fit fails and records the failed fit in `estimate.penalized_fallback`;
-`nuisance_fallback="ml"` stays closed (`nuisance_fallback_not_licensed`) and a lasso outside
-the cross-fitted untrimmed mean ATE is refused (`selection_inference_not_licensed`). This is
+GLM fit fails and records the failed fit in `penalized_fallback`;
+`nuisance_fallback="ml"` stays closed (`nuisance_fallback_not_supported`) and a lasso outside
+the cross-fitted untrimmed mean ATE is refused (`selection_inference_not_supported`). This is
 distinct from `GlmOptions.ridge_on_separation`. See [the guide](guides/penalized-aipw.md).
+
+## Regularize the DML and AIPW outcome nuisance with a prior
+
+`DML(prior_from=result.posterior.artifact, mapping=None)` (and `Aipw(bootstrap=0, prior_from=...)`
+for the cross-fitted mean ATE; `DRLearner` and `CausalForest` take none) replaces each fold's per-arm outcome
+regression of the AIPW score by the posterior mode under the artifact's Gaussian coefficient
+prior (centred on the prior mean); the doubly robust correction, cross-fitting and the
+influence-function interval are unchanged, so the prior shapes efficiency and never
+identification. `mapping=PriorMapping.named_parameters([...])` pairs source coefficients with
+the outcome columns (`intercept`, `coef_<covariate>`); coordinates that do not map refuse
+`quantity_semantics_mismatch` and the partially linear score, `cluster_dml` and a
+`ComposedPrior` refuse. See [the guide](guides/dml-scores.md#a-prior-on-the-outcome-nuisance).
 
 ## Declare the independence unit of the AIPW cross-fit
 
@@ -279,15 +348,15 @@ distinct from `GlmOptions.ridge_on_separation`. See [the guide](guides/penalized
 with whole clusters owning folds (not an IID cross-fit followed by `se="cluster"`). It
 reports the cross-fitted point, keeps the score table and reports the cluster-sandwich
 standard error of the scores as `se_analytic`: a bootstrap or a non-default `se` is refused
-up front (`cluster_interval_not_licensed`), fewer clusters than
+up front (`cluster_interval_not_supported`), fewer clusters than
 `min_clusters` refuse `too_few_clusters`. `ClusterDml(unit="dyad", cluster_ids=...,
 second_cluster_ids=...)` declares two-way dependence: folds own whole connected components of
 the endpoint graph (no endpoint crosses folds) and `se_analytic` is the two-way sandwich; an entity used in both
-endpoint roles or one giant component refuses `dyadic_dependence_not_licensed`, and fewer
+endpoint roles or one giant component refuses `dyadic_dependence_not_supported`, and fewer
 than `min_components_per_fold` components per fold refuse `too_few_clusters`. `DML` and
 `DRLearner` declare dependence through `cluster_dml` only, and `CausalForest` through
 `cluster="site"` (whole-cluster subsampling, honesty and cross-fitting; see
-[the guide](guides/cluster-inference.md)): a row-aligned `cluster_ids`, `cluster_dml` or
+[the guide](guides/clustered-dml.md#clusters-for-propensity-weighting-stratification-and-the-causal-forest)): a row-aligned `cluster_ids`, `cluster_dml` or
 `multiway_ids` key in their `estimator_config` refuses `route_not_supported`.
 `PropensityWeighting` and `PropensityStratification` take `cluster="site"` for a cluster
 sandwich with the propensity-estimation correction and a whole-cluster bootstrap.
@@ -307,8 +376,32 @@ nothing), rows of weight zero are excluded and counted, a negative, NaN or infin
 refuses naming its row (`sampling_weights_invalid`), and `result.estimate.sampling_weights`
 reports the rows used, the zero-weight rows, the Kish effective sample size and the declared
 weight sum. A construction with no weighted contrast refuses the weights
-(`option_not_applicable`, `sampling_weights.route_unsupported`). See
+(`option_not_applicable`, `sampling_weights.route_unsupported`): this covers table weights on every
+static route other than the average effect, synthetic control and survival, and `SustainedEffect`
+has no `weights` argument. See
 [the guide](guides/sampling-weights.md).
+
+## Carry measurement uncertainty into the structure
+
+Pass the completed tables of a measurement or missing-data model as `imputations=` beside a
+posterior-search `discovery=` (`ExactDagPosterior`, `OrderMcmc`, `StructureMcmc`,
+`CiScreenedPosterior`, or `DbnPosterior` over completed series):
+
+```python
+result = antecedent.analyze(
+    tables[0],
+    discovery=antecedent.discovery.StructureMcmc(),
+    imputations=tables,
+    query=antecedent.AverageEffect(treatment="t", outcome="y"),
+    inference=antecedent.Bayesian(backend="conjugate"),
+)
+```
+
+The engine searches every table, pools the posteriors as an equal-weight mixture (a graph only some
+imputations support keeps the share of them that do), keeps each imputation's Monte-Carlo
+diagnostics in the pooled posterior, and the effect is mixed over the pooled posterior. The same
+pooling is `search.run(imputations=...)`. `imputations=` cannot be combined with `graph=`, and above
+six variables the exact search pools edge marginals only, which a study cannot mix over.
 
 ## Read identification details
 
@@ -319,19 +412,24 @@ human-readable state on the object (`identification.to_dict()` includes them).
 `statement` uses it. That is readable identification data, not a notebook
 renderer.
 
-## Reuse data and refresh a study
+## Reuse data and branch a study
 
-| Operation | Data used | Changes the study's retained data? |
+| Operation | Data used | Returned object |
 |---|---|---|
-| `study.estimate()` | Retained data | No |
-| `study.estimate(other_data)` | Supplied data | No |
-| `study.refresh(new_data)` | Supplied data | Yes, after successful execution |
-| `result.inspect()` | That result's execution | No |
-| `result.export()` | That result's execution | No |
+| `ant.estimate(study)` | Retained data | A new outcome |
+| `ant.rebind(study, data=new_data)` | Newly declared observations | A new prepared branch |
+| `ant.reconfigure(study, query=other_query)` | Compatible retained observations | A new prepared branch |
+| `result.inspect()` | That outcome's scientific record | An inspection report |
+| `result.export()` | The explicitly selected scientific product | A typed artifact |
 
-A failed refresh leaves the study usable. Refresh does not mutate an earlier
-result or its exported bytes. A study is a live, in-process resource; retain it
-while repeated estimation is useful and release references when done.
+Earlier studies, outcomes, and exported bytes stay unchanged. Inspect
+`branch.reuse` for retained and invalidated work. When native reuse is unsupported
+(for example a changed frozen design), `ant.rebind` refuses and names the remedy:
+call `ant.prepare` again with the new declarations. A branch never silently
+substitutes another scientific method. Streaming and adaptive sessions keep
+their explicitly stateful domain interfaces.
+
+Runnable example: [`examples/python/branch_and_reuse.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/branch_and_reuse.py).
 
 ## Software and agent consumers
 
@@ -339,50 +437,51 @@ while repeated estimation is useful and release references when done.
 report = result.inspect().to_dict()
 # json.dumps(report, allow_nan=False) is supported.
 
-try:
-    next_result = study.refresh(new_data)
-except ant.CausalError as error:
-    refusal = error.report.to_dict()
-    # Original exception type and descriptive message are preserved.
-    # The failed study operation also retains error.study for recovery.
+branch = ant.rebind(study, data=new_data)
+next_result = ant.estimate(branch)
+if next_result.refusal is not None:
+    print(next_result.refusal.code, next_result.refusal.message)
+    print(next_result.refusal.obligations, next_result.refusal.next_actions)
 ```
 
-Refusals contain the operation, code, message, query and available review hint /
-pending edges. Unknown scientific evidence stays unavailable. Existing Python
-argument-validation `ValueError` and `TypeError` exceptions also receive reports;
-their original exception types remain unchanged.
+Scientific refusals retain stable codes, details, obligations and available next actions.
+Unknown scientific evidence stays unavailable. Invalid arguments, resource failures,
+cancellation and implementation failures raise typed errors; callback exceptions
+retain their original object and traceback. These failures do not publish a successful
+scientific outcome.
 
 Reports retain identification mass, uncertainty sources and targets (including
-omitted components), assumption obligations, and support evidence. A licensed
+omitted components), assumption obligations, and support evidence. A supported
 matrix cell does not establish empirical support or validate its assumptions.
 
 ## Portable executions
 
 ```python
-encoded = result.export()
-loaded = ant.load(encoded)
-loaded.acceptance.status  # "verified", "sealed", or "unavailable"
-loaded.acceptance.unresolved  # sealed checked operations the consumer cannot replay
+artifact = result.export()
+encoded = bytes(artifact)
+loaded = ant.load(encoded, expected=artifact.expectation)
+loaded.acceptance.status  # "loaded", "replayed", or "unavailable"
+replayed = loaded.replay()  # for a result from outside your own authoring
+replayed.acceptance.not_replayable  # parts whose evidence the artifact does not carry
+replayed.acceptance.mismatches  # parts that were recomputed and differ
 loaded.answer
 loaded.inspect().to_dict()
-assert loaded.export() == encoded
+assert bytes(loaded.export()) == encoded
 ```
 
 `load` runs the Rust semantic consumer. Malformed contracts fail closed;
 missing or unrecognized contracts yield explicitly unavailable semantic views
-that can still be forwarded. A `verified` load replayed a verified program. A
-`sealed` load recognized the artifact, verified its contract and identities,
-kept the recorded answer, and names the sealed checked operation it cannot
-replay from bytes alone; `acceptance.verified` and `acceptance.replayable`
-stay `False` for it. Acceptance verifies the artifact's semantic
+that can still be forwarded. A load checks that the artifact is intact and recomputes
+nothing; `replay()` (or `load(..., replay=True)`) recomputes the published numbers and
+reports what it could not replay and what disagreed. Acceptance checks the artifact's
 contract, not the truth of causal assumptions. Loading does not reconstruct a
-live study or recover the source dataset. The original decoded body is available
-as `loaded.decoded_artifact.payload`.
+live study or recover the source dataset. Use the common inspection report to read acceptance and retained scientific standing;
+requested specialized conversions are explicit materialization boundaries.
 
-For prior transfer, `Bayesian(prior_from=...)` still expects the posterior-only
-payload from `result.study.export_artifact()`, taken before the study changes.
-The full `result.export()` archive is intended for execution inspection and
-forwarding. See [artifact examples](artifacts.md#exporting-prepared-results).
+For prior transfer, select `posterior = result.export(quantity="posterior")` and
+pass that typed artifact as `Bayesian(prior_from=posterior)`. This selection
+materializes the retained posterior without another fit. The full result artifact
+preserves its own execution and acceptance standing. See [artifact examples](artifacts.md#exporting-prepared-results).
 
 `program_id` is the compiled program identity (`contract["program"]`).
 `claim_id` is the execution claim identity (`contract["claim"]["claim_id"]`).
@@ -391,22 +490,19 @@ different layers. A prepared inspect has a program and no claim.
 
 ## Current boundaries
 
-**Composition evidence.** Every licensed support-matrix cell has a first-class
-inspect/contract coordinate and completes inspect → preview → execute →
-claim → consume on the Rust compiler path
-(`compiler.e2e_licensed_cells`). That is composition-seam evidence on
-synthetic licensed-coordinate fixtures (`internal_cross_check`). Parent
-estimator evidence is not inherited.
+**Composition evidence.** Every supported support-matrix cell completes the inspect, preview, execute, claim and consume sequence in the Rust compiler path on synthetic fixtures. That shows the pieces compose; it does not carry over a parent estimator's coverage evidence.
 
-**Reusable studies.** `analyze` is `prepare(...).estimate()`. Every licensed
-Python product-matrix route retains a study and a contracted export. Custom
-validator results travel as caller-attested evidence. A result with no
-execution (prepared-only, cancelled, or a body-only load) refuses `.study` /
-`.export()` with `not_executed` or `cancelled_no_claim`. It never silently
-reruns discovery.
+**Reusable studies.** `analyze` performs preparation followed by explicit
+estimation. Completed analysis outcomes retain their applicable immutable study;
+independently loaded outcomes have no live study or dataset. Read the outcome's
+inspection and applicable operations for its actual retained capabilities.
+Custom-validator findings remain caller-declared evidence. Scientific refusals
+and unsupported exports do not silently rerun discovery or estimation.
 
-Retargeting remains available from frozen scores of the execution it follows:
-after `estimate(new_data)`, `retarget` reweights the scores fitted on `new_data`.
+Retargeting uses the frozen scores belonging to a completed outcome. Prepare
+new data through `ant.rebind`, execute that branch, and use its completed
+`outcome.study.retarget(weights, depends_on=...)`; earlier completed outcomes
+retain their own scores.
 A nonconstant-weight retarget exports under a `RowWeights` target whose
 `target_weights` identity binds the exact weight bits, their row count, the data
 snapshot, the score table (`score_reuse`) and `depends_on`. The weights travel in
@@ -414,5 +510,6 @@ the artifact, so a consumer re-derives the identity and confirms the population
 the answer is about; `inspect().target_weights_id` shows it. Constant weights of
 any scale keep the original target. The binding belongs to the retargeted
 result, not to the plan: the plan is still an AllObserved study and re-estimates
-on new data, while `reexecute_retarget(artifact)` re-runs the carried weights and
-raises `row_weights_bound_to_snapshot` on a different snapshot.
+on new data, while `population.replay_retarget(completed, artifact)` independently consumes
+the artifact and reuses the completed source's exact scores. A different snapshot
+or score identity returns the scientific refusal `row_weights_bound_to_snapshot`.

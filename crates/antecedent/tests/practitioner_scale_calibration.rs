@@ -24,10 +24,10 @@
 //! (`rho = 0.5`) on a `TemporalDag`, scored through the circular-block bootstrap interval the
 //! runtime reports, at 320, 1,280 and 4,160 steps.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build). Wall-clock estimates
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build). Wall-clock estimates
 //! at 2,000 replicates on a 12-core machine are given at each design.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,
@@ -107,9 +107,9 @@ fn practitioner_study(n: usize, seed: u64, noise: Noise) -> PractitionerStudy {
     let mut normal = gaussian(seed);
     let mut uniform = uniform_from_state(seed ^ 0x5DEE_CE66_D1CE_4E5B);
     let treatment_slope =
-        |j: usize| 0.3 * if j % 2 == 0 { 1.0 } else { -1.0 } / (1.0 + (j / 5) as f64);
+        |j: usize| 0.3 * if j.is_multiple_of(2) { 1.0 } else { -1.0 } / (1.0 + (j / 5) as f64);
     let outcome_slope =
-        |j: usize| 0.5 * if j % 3 == 0 { 1.0 } else { -0.5 } / (1.0 + (j % 4) as f64);
+        |j: usize| 0.5 * if j.is_multiple_of(3) { 1.0 } else { -0.5 } / (1.0 + (j % 4) as f64);
     let clustered = matches!(noise, Noise::Clustered);
     let shifts: Vec<(f64, f64)> = if clustered {
         (0..CLUSTERS).map(|_| (0.4 * normal(), 0.3 * normal())).collect()
@@ -168,7 +168,7 @@ fn binary_ate() -> AverageEffectQuery {
 /// One replicate's reported and gate-level intervals with the constructions the execution
 /// reported. A replicate that failed to produce a result is `None`.
 struct Scored {
-    reported: Vec<(Construction, ScopeFacts)>,
+    reported: Vec<(Construction, ScopeFacts, &'static str)>,
     intervals: [Option<(f64, f64)>; 2],
 }
 
@@ -178,7 +178,7 @@ fn scored(
     seed: u64,
     intervals: impl FnOnce(&StudyResult) -> [Option<(f64, f64)>; 2],
 ) -> Option<Scored> {
-    let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
+    let result = study.run(&ExecutionContext::production(seed, 1)).ok()?;
     let contract = study.inspect().ok()?;
     Some(Scored { reported: constructions(&contract, &result), intervals: intervals(&result) })
 }
@@ -202,12 +202,12 @@ fn score(tallies: &mut [CoverageTally; 2], runs: &[Option<Scored>], truth: f64) 
         };
         for (tally, interval) in tallies.iter_mut().zip(run.intervals) {
             let wanted = tally.record_interval().expect("record-keyed tally");
-            let (construction, scope) = run
+            let (construction, scope, validation) = run
                 .reported
                 .iter()
-                .find(|(construction, _)| construction.interval_method == wanted)
+                .find(|(construction, _, _)| construction.interval_method == wanted)
                 .unwrap_or_else(|| panic!("the execution reported no {wanted} interval"));
-            tally.bind(construction, *scope);
+            tally.bind_validation(construction, *scope, validation);
             tally.record(interval, truth);
         }
     }
@@ -244,18 +244,18 @@ fn estimator_coverage(
 }
 
 fn linear(se_kind: AnalyticSeKind) -> LinearAdjustmentAte {
-    LinearAdjustmentAte { bootstrap_replicates: 0, se_kind, ..LinearAdjustmentAte::default() }
+    LinearAdjustmentAte::default().with_bootstrap_replicates(0).with_se_kind(se_kind)
 }
 
 fn aipw(se_kind: AnalyticSeKind) -> AipwAte {
-    AipwAte { bootstrap_replicates: 0, se_kind, ..AipwAte::new() }
+    AipwAte::new().with_bootstrap_replicates(0).with_se_kind(se_kind)
 }
 
 // ================================================================== static estimators
 
 /// Linear adjustment, classical standard error, 1,000 to 100,000 rows. About 4 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_linear_adjustment_analytic_interval() {
     estimator_coverage(
         "practitioner_linear_adjustment_analytic_interval",
@@ -268,7 +268,7 @@ fn practitioner_linear_adjustment_analytic_interval() {
 
 /// Linear adjustment, HC1 sandwich, heteroskedastic noise. About 4 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_linear_adjustment_hc1_interval() {
     estimator_coverage(
         "practitioner_linear_adjustment_hc1_interval",
@@ -281,7 +281,7 @@ fn practitioner_linear_adjustment_hc1_interval() {
 
 /// Linear adjustment, cluster-robust standard error over 500 clusters. About 5 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_linear_adjustment_cluster_interval() {
     estimator_coverage(
         "practitioner_linear_adjustment_cluster_interval",
@@ -299,7 +299,7 @@ fn practitioner_linear_adjustment_cluster_interval() {
 /// Linear adjustment at the facade default of 199 bootstrap replicates (the bootstrap-SE
 /// interval of an `estimate` call that chose nothing). About 1.5 hours: 199 refits per replicate.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_linear_adjustment_bootstrap_interval() {
     estimator_coverage(
         "practitioner_linear_adjustment_bootstrap_interval",
@@ -310,9 +310,29 @@ fn practitioner_linear_adjustment_bootstrap_interval() {
     );
 }
 
+#[test]
+#[ignore = "full-size bootstrap solver regression"]
+fn practitioner_bootstrap_reuses_prepared_solver() {
+    let study =
+        Study::tabular(practitioner_study(MAX_ROWS, 0x1700_0004, Noise::Homoskedastic).data)
+            .graph(practitioner_dag())
+            .query(binary_ate())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+    let (result, traffic) = antecedent_stats::faer_backend::observe_solver_traffic(|| {
+        study.run(&ExecutionContext::production(17, 1))
+    });
+    result.expect("the full-size study must report its bootstrap interval");
+    assert!(
+        traffic.design_gathers < 8,
+        "199 bootstrap refits should reuse one prepared basis: {traffic:?}"
+    );
+}
+
 /// Cross-fitted AIPW, influence-function standard error. About 40 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_aipw_analytic_interval() {
     estimator_coverage(
         "practitioner_aipw_analytic_interval",
@@ -325,7 +345,7 @@ fn practitioner_aipw_analytic_interval() {
 
 /// AIPW, HC1 influence-function variance, heteroskedastic noise. About 40 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_aipw_hc1_interval() {
     estimator_coverage(
         "practitioner_aipw_hc1_interval",
@@ -338,7 +358,7 @@ fn practitioner_aipw_hc1_interval() {
 
 /// AIPW with the cluster-robust influence-function variance over 500 clusters. About 40 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_aipw_cluster_interval() {
     estimator_coverage(
         "practitioner_aipw_cluster_interval",
@@ -358,7 +378,7 @@ fn practitioner_aipw_cluster_interval() {
 /// raised to 1,000 (`LAPLACE_MIN_DRAWS`), so it is this construction at this draw count. About
 /// 30 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_bayesian_laplace_interval() {
     let mut pair = tallies("practitioner_bayesian_laplace_interval", DGP, "posterior_quantile");
     let runs = map_replicates(n_sim(), |rep| {
@@ -415,7 +435,7 @@ fn rank_pair(result: &StudyResult) -> [Option<(f64, f64)>; 2] {
 /// mass is 0.95 at every count where the type-7 interval's is 0.921. Practitioner scale. About
 /// 30 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_bayesian_laplace_64_draw_interval() {
     let mut pair =
         tallies("practitioner_bayesian_laplace_64_draw_interval", DGP, "posterior_quantile");
@@ -438,7 +458,7 @@ fn practitioner_bayesian_laplace_64_draw_interval() {
 /// The same 64-draw construction on the ordinary small-sample grid (250, 500 and 1,000 rows of
 /// `static_dgp::linear_ate_data`, as the default Laplace record). About 3 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn small_sample_bayesian_laplace_64_draw_interval() {
     let mut pair = tallies(
         "small_sample_bayesian_laplace_64_draw_interval",
@@ -510,7 +530,7 @@ fn class_posterior() -> GraphPosterior {
 /// share an empty adjustment) at practitioner scale: independent fair `T` and `Z`,
 /// `Y = 2T + 2Z ± 0.2`, joint influence-function standard error. About 6 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_class_posterior_interval() {
     const CLASS_TRUTH: f64 = 2.0;
     let mut pair = tallies("practitioner_class_posterior_interval", DGP, "analytic_se");
@@ -589,7 +609,7 @@ fn temporal_coverage(test: &'static str, query: &antecedent_core::TemporalEffect
             .ok()?;
         let result = study.run(&ExecutionContext::for_tests(scenario.seed + rep)).ok()?;
         let contract = study.inspect().ok()?;
-        let effect = result.estimate.as_effect()?;
+        let effect = result.estimate().as_effect()?;
         let (ate, se) = (effect.ate, effect.se_bootstrap());
         Some(Scored {
             reported: constructions(&contract, &result),
@@ -604,13 +624,13 @@ fn temporal_coverage(test: &'static str, query: &antecedent_core::TemporalEffect
         };
         let [at_reported, at_gate] = run.intervals;
         if at_gate.is_some() {
-            let (construction, scope) = run
+            let (construction, scope, validation) = run
                 .reported
                 .iter()
-                .find(|(construction, _)| construction.interval_method == "circular_block_se")
+                .find(|(construction, _, _)| construction.interval_method == "circular_block_se")
                 .expect("the execution reported its circular-block interval");
-            gated.bind(construction, *scope);
-            reported.bind(construction, *scope);
+            gated.bind_validation(construction, *scope, validation);
+            reported.bind_validation(construction, *scope, validation);
         }
         gated.record(at_gate, truth);
         reported.record(at_reported, truth);
@@ -621,14 +641,14 @@ fn temporal_coverage(test: &'static str, query: &antecedent_core::TemporalEffect
 
 /// Pulse effect at horizon 1 on 320 to 4,160 steps. About 25 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_temporal_pulse_h1_interval() {
     temporal_coverage("practitioner_temporal_pulse_h1_interval", &pulse(1), BETA);
 }
 
 /// Pulse effect at horizon 2 (propagated through an intermediate). About 25 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_temporal_pulse_h2_interval() {
     temporal_coverage(
         "practitioner_temporal_pulse_h2_interval",
@@ -639,7 +659,7 @@ fn practitioner_temporal_pulse_h2_interval() {
 
 /// Single-step sustained effect. About 25 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_temporal_sustained_interval() {
     temporal_coverage("practitioner_temporal_sustained_interval", &single_sustained(), BETA);
 }
@@ -647,7 +667,7 @@ fn practitioner_temporal_sustained_interval() {
 /// Default Bayesian `PulseEffect` on a `TemporalDag` (Laplace, 1,000 draws, prior scale 10) at
 /// 320 to 4,160 steps, iid residuals as `calibration_temporal`'s default design. About 20 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_temporal_bayesian_pulse_interval() {
     let mut pair = tallies(
         "practitioner_temporal_bayesian_pulse_interval",
@@ -691,7 +711,7 @@ const CONTRASTS: [(&str, MediationContrast, f64); 3] = [
 /// its own truth and is judged on its own marginal coverage, never combined into a joint claim.
 /// About 45 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_temporal_mediation_interval() {
     let test = "practitioner_temporal_mediation_interval";
     let dgp = "crates/antecedent/tests/common/driven_dgp.rs::mediation_series";
@@ -757,13 +777,15 @@ fn practitioner_temporal_mediation_interval() {
             };
             let [at_reported, at_gate] = contrasts[i].intervals;
             if at_gate.is_some() {
-                let (construction, scope) = contrasts[i]
+                let (construction, scope, validation) = contrasts[i]
                     .reported
                     .iter()
-                    .find(|(construction, _)| construction.interval_method == "circular_block_se")
+                    .find(|(construction, _, _)| {
+                        construction.interval_method == "circular_block_se"
+                    })
                     .expect("the execution reported its circular-block interval");
-                gated[i].bind(construction, *scope);
-                reported[i].bind(construction, *scope);
+                gated[i].bind_validation(construction, *scope, validation);
+                reported[i].bind_validation(construction, *scope, validation);
             }
             gated[i].record(at_gate, *truth);
             reported[i].record(at_reported, *truth);
@@ -789,7 +811,7 @@ fn practitioner_temporal_mediation_interval() {
 /// executions of a replicate share one simulated series and are never combined into a joint
 /// claim. About 40 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_temporal_bayesian_mediation_interval() {
     let key = RecordKey {
         test: "practitioner_temporal_bayesian_mediation_interval",
@@ -842,13 +864,13 @@ fn practitioner_temporal_bayesian_mediation_interval() {
                 continue;
             };
             let [at_reported, at_gate] = contrasts[i].intervals;
-            let (construction, scope) = contrasts[i]
+            let (construction, scope, validation) = contrasts[i]
                 .reported
                 .iter()
-                .find(|(construction, _)| construction.interval_method == "posterior_quantile")
+                .find(|(construction, _, _)| construction.interval_method == "posterior_quantile")
                 .expect("the execution reported its posterior interval");
-            gated[i].bind(construction, *scope);
-            reported[i].bind(construction, *scope);
+            gated[i].bind_validation(construction, *scope, validation);
+            reported[i].bind_validation(construction, *scope, validation);
             gated[i].record(at_gate, *truth);
             reported[i].record(at_reported, *truth);
         }
@@ -897,9 +919,16 @@ fn the_practitioner_study_is_a_well_posed_design() {
         .unwrap()
         .run(&ExecutionContext::for_tests(17))
         .unwrap();
-    let effect = result.estimate.as_effect().unwrap();
-    assert!((effect.ate - TRUTH).abs() < 0.15, "ate {}", effect.ate);
+    let effect = result.estimate().as_effect().unwrap();
     assert!(effect.se_analytic() > 0.0);
+    // The estimate sits within five analytic standard errors of the generating effect (the
+    // cluster-level treatment shift has mean zero), not merely within a fixed 0.15.
+    assert!(
+        (effect.ate - TRUTH).abs() < 5.0 * effect.se_analytic(),
+        "ate {} se {}",
+        effect.ate,
+        effect.se_analytic()
+    );
 }
 
 /// A Laplace request for 64 draws keeps its draws, mean and sd; its effect interval is the
@@ -923,6 +952,15 @@ fn a_64_draw_laplace_request_publishes_the_exchangeable_rank_interval() {
     assert_eq!(posterior.draws.n_draws, 64);
     let column = posterior.effect_column().unwrap();
     let (lower, upper) = rank_interval(posterior.draws.column(column).unwrap(), 0.95);
+    // Exchangeable-rank (type 6) by hand: position (n + 1) p = 65 * 0.025 = 1.625 and
+    // 65 * 0.975 = 63.375 (1-based) interpolate the order statistics linearly.
+    let mut sorted = posterior.draws.column(column).unwrap().to_vec();
+    sorted.sort_by(f64::total_cmp);
+    let by_hand = (
+        sorted[0] + 0.625 * (sorted[1] - sorted[0]),
+        sorted[62] + 0.375 * (sorted[63] - sorted[62]),
+    );
+    assert!((by_hand.0 - lower).abs() < 1e-12 && (by_hand.1 - upper).abs() < 1e-12);
     assert_eq!(posterior.summaries.q025[column].to_bits(), lower.to_bits());
     assert_eq!(posterior.summaries.q975[column].to_bits(), upper.to_bits());
     let own = posterior.draws.summarize();

@@ -15,7 +15,13 @@ use antecedent_io_core::distribution_artifact::{
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
 use antecedent_io_core::quantity_wire::DistributionMeaningWire;
-use antecedent_test_support::near_lt_1e12 as near;
+use antecedent_test_support::within;
+
+const NEAR_TOLERANCE: f64 = 1e-12;
+
+fn near(a: f64, b: f64) -> bool {
+    within(a, b, NEAR_TOLERANCE)
+}
 
 mod common;
 
@@ -263,10 +269,10 @@ fn weights_are_normalized_and_change_the_answer() {
 }
 
 #[test]
-fn sampled_laws_report_point_values_without_unlicensed_monte_carlo_errors() {
+fn sampled_laws_report_point_values_without_unsupported_monte_carlo_errors() {
     let exact = joint(P, Q);
     for calibration in [
-        DistributionCalibration::Unmeasured,
+        DistributionCalibration::NotMeasured,
         DistributionCalibration::PointOnly,
         DistributionCalibration::Measured,
     ] {

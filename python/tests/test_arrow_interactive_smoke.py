@@ -8,6 +8,7 @@ from __future__ import annotations
 import math
 
 import pytest
+from antecedent.outcomes import require_success
 
 from _scm import confounded_scm
 
@@ -17,7 +18,7 @@ import antecedent
 import pyarrow as pa
 
 
-def test_arrow_interactive_zero_copy_and_estimate():
+def test_arrow_cdi_borrow_and_owned_snapshot_estimate():
     data, edges = confounded_scm(n=600, seed=7)
     table = pa.table(
         {
@@ -35,28 +36,45 @@ def test_arrow_interactive_zero_copy_and_estimate():
     )
     assert info.bytes_borrowed >= n_rows * n_cols * 8
 
-    arrow_result = antecedent.analyze(
-        table,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        latency="interactive",
-        seed=1,
+    # Arrow may alias writable NumPy buffers. The common input contract owns
+    # those bytes once; its receipt must describe the copy rather than borrowing.
+    owned = antecedent.data.table(table)
+    assert owned.bytes_copied == n_rows * n_cols * 8
+    assert owned.bytes_borrowed == 0
+    first_treatment = float(owned["t"][0])
+    previous_treatment = data["t"][0]
+    data["t"][0] += 10.0
+    assert float(owned["t"][0]) == first_treatment
+    data["t"][0] = previous_treatment
+
+    arrow_result = require_success(
+        antecedent.analyze(
+            owned,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Frequentist(bootstrap=0),
+            refute="cheap",
+            execution=antecedent.Execution(seed=1),
+        )
     )
     assert math.isfinite(arrow_result.ate)
-    assert abs(arrow_result.ate - 2.0) < 0.5
+    # The structural ATE is 2 (observed 1.989); the unadjusted contrast is far above it.
+    assert abs(arrow_result.ate - 2.0) < 0.1
     assert arrow_result.identification.status
-    assert arrow_result.performance.latency_mode == "interactive"
+    assert arrow_result.plan.validation_suite == "overlap+evalue"
     assert arrow_result.performance.bootstrap_replicates_requested == 0
-    assert arrow_result.performance.bytes_borrowed is not None
-    assert arrow_result.performance.bytes_borrowed >= n_rows * n_cols * 8
+    assert arrow_result.performance.bytes_borrowed in (None, 0)
 
     # Pandas / dict twin remains correct; CDI must not diverge silently.
-    dict_result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        latency="interactive",
-        seed=1,
+    dict_result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Frequentist(bootstrap=0),
+            refute="cheap",
+            execution=antecedent.Execution(seed=1),
+        )
     )
     assert abs(arrow_result.ate - dict_result.ate) < 1e-9
 
@@ -78,15 +96,17 @@ def test_arrow_interactive_on_stage_streams_payloads():
     def on_stage(stage: str, payload: dict) -> None:
         stages.append(stage)
 
-    result = antecedent.analyze(
-        table,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        latency="interactive",
-        refute=False,
-        on_stage=on_stage,
+    result = require_success(
+        antecedent.analyze(
+            table,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Frequentist(bootstrap=0),
+            refute=False,
+            execution=antecedent.Execution(on_stage=on_stage),
+        )
     )
-    assert math.isfinite(result.ate)
+    assert abs(result.ate - 2.0) < 0.15  # structural ATE 2; observed 1.943
     assert stages, "on_stage must fire on the Arrow path"
 
 
@@ -108,16 +128,17 @@ def test_arrow_interactive_cancel_and_progress():
             seen["bootstrap"] = True
             token.cancel()
 
-    partial = antecedent.analyze(
-        table,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        bootstrap=requested,
-        refute=False,
-        seed=3,
-        threads=1,
-        cancel=token,
-        on_progress=on_progress,
+    partial = require_success(
+        antecedent.analyze(
+            table,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Frequentist(bootstrap=requested),
+            refute=False,
+            execution=antecedent.Execution(
+                seed=3, threads=1, cancel=token, on_progress=on_progress
+            ),
+        )
     )
     assert math.isfinite(partial.ate)
     assert partial.performance.cancelled

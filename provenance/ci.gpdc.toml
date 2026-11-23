@@ -22,3 +22,42 @@ test_sources = [
  "conformance/discovery/ci_stats (gpdc_dep / gpdc_ind, black-box comparison against pinned Tigramite baseline)",
  "conformance/discovery/advanced_ci (gpdc_cases, black-box comparison against pinned Tigramite baseline)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The permutation test in crates/antecedent-stats/src/ci/advanced/gpdc.rs: residualization of X and Y (centering when Z is empty), the biased V-statistic distance correlation of crates/antecedent-stats/src/dcor.rs, the exchangeable shuffle of the Y residual, the rule for counting a permuted distance correlation that equals the observed one (dcor_reaches_observed), and the add-one p-value. Reviewed with an empty conditioning set only. Not the kernel-ridge fit, the hyperparameters, the Nystrom predictor, block permutation, or the conditional case."
+assumptions = ["Residual series are exchangeable under the null (the permutation argument); with Z empty the residual is the centered series.", "Distance correlation is the square root of dCov^2 / sqrt(dVar^2(X) dVar^2(Y)) with the V-statistic normalisation, evaluated by sorting and Fenwick identities in floating point."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), itertools and collections from the Python standard library, imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Five series of 8 to 9 rows on a decimal grid (four tie-rich and one exactly independent table), with every distinct arrangement of Y enumerated (at most 2520). The Monte Carlo p-value is compared with its exact expectation at 20000 replicates within five binomial standard errors, so a bias smaller than about 0.01 would not be detected. The statistic is asserted as its square to 1e-12 because the floating-point distance correlation of an exactly independent table is 1.8e-8 rather than 0 (cancellation in dCov^2); a reported value below about 1e-6 is therefore indistinguishable from zero. The kernel centres its inputs, so a series far from zero is exact (six series with offsets to 1e9 against the 50-digit value to 1e-12, unit test in dcor.rs); a series without spread has no distance correlation and the kernel returns NaN where it returned 0 (the test itself refuses such a residual before calling it). Conditioning sets, the kernel fit, larger samples and continuous (untied) data are not enumerated. The reference script is not run in a locked, isolated environment and is not wired into any gate."
+sources = ["https://doi.org/10.1214/009053607000000505", "https://mpmath.org/"]
+findings_resolved = ["Defect repaired: the permutation null counted a permuted distance correlation only when it was at least the observed one in floating point. A permutation that is a symmetry of the grid-valued series gives the same distance correlation as a real number, but dCov^2 is a difference of three nearly equal sums, so the two values differ in the last bits and the tied permutation counted for or against at random; on a reflection-symmetric 8-row series the p-value was 0.978 against an exact 1. The comparison is now made on the squared correlation with an absolute slack of 1e-12 (dcor_reaches_observed). An exactly independent 2x2 table, whose reported distance correlation is 1.8e-8, is covered by the same rule.", "The statistic equals the 60-digit distance correlation on every series and the p-value equals the exactly enumerated null on all of them."]
+record_sha256 = "b7013356e2cccf782d8fd8e09a1b7d06634692715a6872aa8658071a6a9e9300"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/ci/advanced/gpdc.rs"
+items = ["fn dcor_reaches_observed", "fn default", "fn length_scale", "fn new", "fn ridge", "struct Gpdc"]
+sha256 = "79a748f822183a9c5100d68ad57c54630d24848c7adbd8750bdedf610ef46291"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/dcor.rs"
+items = ["fn new", "struct Fenwick"]
+sha256 = "69c11a20098267830fd62712aa6579130235dcdcd9cc16f86fac7add5788d981"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/continuous_null_reference.rs"
+items = ["const REPLICATES", "fn check", "fn distance_correlation_permutation_p_value_counts_tied_arrangements_like_the_enumerated_null", "fn floats", "fn knn_distance_permutation_p_value_counts_tied_arrangements_like_the_enumerated_null"]
+sha256 = "43b33db33b730741256bfa4c26d1e286d60a9b9df933401f0af2840b3f50297d"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/continuous_null_reference.py"
+sha256 = "2d711de5cfcca9600819b43e2d53c0ff7be0f26486074eb7f1313405324cfd5a"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/continuous_null_reference.json"
+sha256 = "7b8146587817b86073833fb2b7fce66285de2babd4a1efd6b423be1856d97789"

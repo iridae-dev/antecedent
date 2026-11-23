@@ -485,7 +485,8 @@ fn verifiers_mean_decision_helper_matches_direct_evaluation_and_refuses_what_a_m
 
     // Bytes that are not a claim are refused by the claim's own consumer.
     let not_a_claim = joint().distribution;
-    assert!(mean_decision_bytes(&mean_contract(), &not_a_claim, "mean-result").is_err());
+    let refused = mean_decision_bytes(&mean_contract(), &not_a_claim, "mean-result").unwrap_err();
+    assert_eq!(refused.stage, BundleStage::SwappedEvidence);
 }
 
 #[test]
@@ -505,7 +506,10 @@ fn verifiers_changed_mean_value_fails_the_point_only_result() {
     assert_eq!(failed_stage(&consumed, "result"), BundleStage::TamperedQuantity);
     assert_eq!(consumed.value("result", "treat.expected_utility"), None);
     let refusal = consumed.require_verified().unwrap_err().to_refusal().unwrap();
-    assert_eq!(refusal.detail, "composition_bundle.tampered_quantity");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_bundle::TAMPERED_QUANTITY
+    );
 }
 
 #[test]
@@ -525,7 +529,10 @@ fn verifiers_joint_requirement_over_a_mean_only_claim_fails_unsupported_law() {
     assert_eq!(failed_stage(&consumed, "result"), BundleStage::UnsupportedLaw);
     assert_eq!(consumed.node("result").unwrap().claim_label, None);
     let refusal = consumed.require_verified().unwrap_err().to_refusal().unwrap();
-    assert_eq!(refusal.detail, "composition_bundle.unsupported_law");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_bundle::UNSUPPORTED_LAW
+    );
     assert_eq!(refusal.code, "joint_law_required");
 }
 
@@ -871,8 +878,9 @@ fn sensitivity_parts() -> SensitivityParts {
             },
             identified_bound: None,
             sampling: SamplingStatus::Withheld {
-                reason_code: "cell_not_licensed".into(),
-                detail: "joint_sensitivity.interval_withheld".into(),
+                reason_code: "uncertainty_representation_insufficient".into(),
+                detail: antecedent_core::reason_details::joint_sensitivity::NO_INTERVAL_METHOD
+                    .into(),
             },
         },
         provenance: SensitivityProvenance {
@@ -1092,7 +1100,8 @@ fn verifiers_registry_covers_every_artifact_kind_and_refuses_the_rest() {
     let mut corrupt = j.distribution.clone();
     let middle = corrupt.len() / 2;
     corrupt[middle] ^= 0xff;
-    assert!(describe_artifact(NodeKind::Distribution, &corrupt).is_err());
+    let failure = describe_artifact(NodeKind::Distribution, &corrupt).unwrap_err();
+    assert_eq!(failure.stage, BundleStage::SwappedEvidence);
     let facts: BTreeMap<String, String> =
         describe_artifact(NodeKind::Distribution, &j.distribution).unwrap().facts;
     assert_eq!(facts.get(FACT_LAW).map(String::as_str), Some(LAW_JOINT));

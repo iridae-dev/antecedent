@@ -8,13 +8,38 @@ this interval.
 
 from __future__ import annotations
 
+import json
+from collections.abc import Iterator
+from dataclasses import dataclass
 from typing import Any
 
 from .._native import z_transport_joint_sensitivity_interval as _joint_interval
-from ._impl import _optional_non_negative
+from ..execution import Execution
+from ._controls import call_native
 from ._joint_sensitivity import JointDeviation, _deviation, _stage
 
-__all__ = ["joint_mechanism_sensitivity_interval"]
+__all__ = ["JointSensitivityInterval", "joint_mechanism_sensitivity_interval"]
+
+
+@dataclass(frozen=True)
+class JointSensitivityInterval:
+    """The sampling interval of the joint range with its calibration annotation.
+
+    Iterating yields ``(lower, upper, coverage_target)``. ``calibration`` is the slot
+    (``status`` is ``calibrated``, ``outside_measured_scope``, ``measured_below_nominal`` or
+    ``not_measured``); it annotates the interval and never withholds it.
+    """
+
+    lower: float
+    upper: float
+    coverage_target: str
+    level: float
+    replicates_ok: int
+    replicates_failed: int
+    calibration: dict[str, Any]
+
+    def __iter__(self) -> Iterator[Any]:
+        return iter((self.lower, self.upper, self.coverage_target))
 
 
 def joint_mechanism_sensitivity_interval(
@@ -23,23 +48,26 @@ def joint_mechanism_sensitivity_interval(
     *,
     replicates: int = 199,
     level: float = 0.95,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
-) -> tuple[float, float, str]:
+    execution: Execution | None = None,
+) -> JointSensitivityInterval:
     """Conservative endpoint percentile bootstrap of the joint range.
 
-    Returns ``(lower, upper, coverage_target)``. Only level ``0.95`` and
-    replicate counts from 199 through 2000 are admitted
-    (``joint_sensitivity.bounds_exceeded``).
+    Returns the interval with its calibration slot. A level other than ``0.95`` or fewer than 199
+    replicates is computed too; its slot says ``not_measured`` or ``outside_measured_scope``.
+    Replicate counts outside 2 through 2000 are refused (``joint_sensitivity.bounds_exceeded``).
     """
     deviation = _deviation(deviation)
-    lower, upper, coverage_target = _joint_interval(
+    lower, upper, coverage_target, calibration, ok, failed = call_native(
+        execution,
+        _joint_interval,
         _stage(stage),
         list(deviation._pairs),
         replicates=replicates,
         level=level,
         decision_threshold=deviation.decision_threshold,
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+        cancel="cancel",
+        memory="memory_bytes",
     )
-    return (lower, upper, coverage_target)
+    return JointSensitivityInterval(
+        lower, upper, coverage_target, level, ok, failed, json.loads(calibration)
+    )

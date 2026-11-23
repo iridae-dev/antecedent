@@ -16,7 +16,7 @@
 //! let scores = score_anomalies(&model, &data, &query)?;
 //! ```
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -36,6 +36,7 @@ pub mod distribution_change;
 pub mod error;
 pub mod feature_relevance;
 pub mod intrinsic_influence;
+pub mod latent_blocks;
 pub mod mechanism_change;
 pub mod path;
 pub mod population;
@@ -45,26 +46,36 @@ pub mod robust;
 pub mod root_cause;
 pub mod shapley;
 pub mod structure_change;
+#[doc(hidden)]
+pub mod temporal_resampling;
 pub mod unit_change;
 
 pub use anomaly::{
     AnomalyScores, ArrowStrength, PopulationDoContrast, arrow_strengths, population_do_contrast,
-    score_anomalies, score_anomalies_with,
+    score_anomalies, score_anomalies_blocks_with, score_anomalies_with,
 };
 pub use builder::ChangeAttribution;
+pub use coalition::Coalition;
 pub use distribution_change::{
-    DifferenceMeasure, DistributionChangeOptions, distribution_change,
-    distribution_change_with_row_weights,
+    DifferenceMeasure, DistributionChangeOptions, PopulationRefit, distribution_change,
+    distribution_change_with_frequency_weights, distribution_change_with_row_weights,
 };
 pub use error::AttributionError;
 pub use feature_relevance::{FeatureRelevanceOptions, feature_relevance};
 pub use intrinsic_influence::{
-    ComponentStatus, ComponentUncertainty, INTRINSIC_MAX_EXACT_PLAYERS, IntrinsicAllocation,
-    IntrinsicBudget, IntrinsicInfluenceQuery, IntrinsicInfluenceResult, IntrinsicMethod,
-    NoiseIndependence, PartialStderr, ShapleyMethod, SourceInfluence, UncertaintyComponent,
-    intrinsic_influence,
+    ComponentStatus, ComponentUncertainty, FitResampling, INTRINSIC_MAX_EXACT_PLAYERS,
+    IntrinsicAllocation, IntrinsicBudget, IntrinsicInfluenceQuery, IntrinsicInfluenceResult,
+    IntrinsicMethod, NoiseIndependence, PartialStderr, ShapleyMethod, SourceInfluence,
+    UncertaintyComponent, intrinsic_influence,
 };
-pub use mechanism_change::{MechanismChangeMethod, detect_mechanism_changes};
+pub use latent_blocks::{
+    HEDGE_WITNESS_ID, HEDGE_WITNESS_TEST, MechanismHedge, NoiseBlockIdentification, NoiseBlockPlan,
+    distribution_change_blocks, plan_noise_blocks,
+};
+pub use mechanism_change::{
+    MIN_BLOCK_PERMUTATIONS, MechanismChangeMethod, MechanismChangePosterior,
+    detect_mechanism_changes, detect_mechanism_changes_block, mechanism_change_posterior,
+};
 pub use path::path_decompose;
 pub use population::resolve_rows;
 pub use result::{
@@ -72,8 +83,10 @@ pub use result::{
     FitUncertainty, InteractionTerm, MechanismChangeDetection, PathContribution, RootCauseRank,
     UnitChangeResult,
 };
-pub use robust::{RobustChangeOptions, distribution_change_robust};
+pub use robust::{
+    RobustChangeOptions, distribution_change_robust, distribution_change_robust_with_refit,
+};
 pub use root_cause::root_cause_rank;
 pub use shapley::{CoalitionPayoff, ShapleyEstimate, estimate_shapley};
-pub use structure_change::{StructureChangeOptions, structure_change};
+pub use structure_change::{StructureChangeOptions, structure_change, structure_change_with_refit};
 pub use unit_change::unit_change;

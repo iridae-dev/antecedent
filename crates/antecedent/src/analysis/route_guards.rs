@@ -4,7 +4,7 @@
 //! Every helper here is a pure restatement of a fragment that several routes
 //! spelled out inline; none widens or narrows what any route admits.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -31,14 +31,14 @@ impl Study {
     /// or `full`).
     #[must_use]
     pub(crate) fn point_validation(&self) -> bool {
-        matches!(self.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+        matches!(self.settings.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
     }
 
     /// [`Self::point_validation`] widened to the placebo-and-RCC suite.
     #[must_use]
     pub(crate) fn point_validation_or_placebo(&self) -> bool {
         matches!(
-            self.refute,
+            self.settings.refute,
             RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full
         )
     }

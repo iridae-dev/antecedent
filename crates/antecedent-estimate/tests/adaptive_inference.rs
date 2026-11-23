@@ -1,7 +1,7 @@
 //! Estimators for adaptively collected data: values against independent
 //! oracles, typed refusals, closed guarantee routes and cancellation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::adaptive_inference::{
@@ -40,11 +40,14 @@ fn the_posterior_is_conjugate_and_carries_its_premise_and_a_closed_guarantee() {
         "normalization",
     );
     assert!(posterior.premise.contains("observed history"));
-    assert_eq!(posterior.guarantee.code, "cell_not_licensed");
-    assert_eq!(posterior.guarantee.detail, "adaptive_inference.posterior_interval_closed");
-    let refusal = posterior.guarantee.refusal("a credible interval");
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert!(refusal.message.contains("whole-procedure coverage"));
+    // The credible interval is reported: the uniform-prior posterior of 1 success in 1 trial
+    // is Beta(2, 1) (CDF x^2), whose equal-tailed 95% interval is (sqrt(0.025), sqrt(0.975)).
+    let one = bayesian_posterior(1.0, 1.0, &[ArmCounts { successes: 1, failures: 0 }; 2], &ctx())
+        .unwrap();
+    let (lower, upper) = one.arms[0].credible_interval(0.95).unwrap();
+    close(lower, 0.025_f64.sqrt(), 1e-9, "Beta(2,1) lower");
+    close(upper, 0.975_f64.sqrt(), 1e-9, "Beta(2,1) upper");
+    assert!(one.arms[0].credible_interval(1.0).is_none());
 }
 
 #[test]
@@ -67,12 +70,24 @@ fn a_posterior_rule_decides_from_the_history_and_claims_no_error_rate() {
         expected_loss_stopping(&posterior, PosteriorRule::ExpectedLoss { loss_threshold: 1e-6 })
             .unwrap();
     assert!(!loss.stop, "the expected loss of the best arm is not below one in a million");
-    assert_eq!(stop.guarantee.detail, "adaptive_inference.stopping_reliability_closed");
-    assert_eq!(stop.guarantee.code, "cell_not_licensed");
-    assert!(
-        expected_loss_stopping(&posterior, PosteriorRule::ProbabilityBest { threshold: 0.4 })
-            .is_err()
+    assert_eq!(
+        stop.guarantee.detail,
+        antecedent_core::reason_details::adaptive_inference::NO_STOPPING_RELIABILITY_PROCEDURE
     );
+    assert_eq!(stop.guarantee.code, "estimator_inference_mismatch");
+    {
+        let error =
+            expected_loss_stopping(&posterior, PosteriorRule::ProbabilityBest { threshold: 0.4 })
+                .unwrap_err();
+        assert_eq!(
+            (error.code, error.detail),
+            (
+                "invalid_argument",
+                antecedent_core::reason_details::adaptive_inference::INPUT_INVALID
+            )
+        );
+        assert!(error.message.contains("probability threshold in (0.5, 1)"), "{}", error.message);
+    }
 }
 
 #[test]
@@ -105,14 +120,16 @@ fn weighted_estimates_match_the_hand_calculation_and_never_clip() {
     close(fit.uncalibrated_variance, 0.774_348_577_567_450_3, 1e-9, "variance");
     close(fit.uncalibrated_standard_error, fit.uncalibrated_variance.sqrt(), 1e-15, "se");
     assert_eq!(fit.units, 4);
-    assert_eq!(fit.guarantee.code, "cell_not_licensed");
     // A floor above the smallest probability of an estimand arm is a typed
     // refusal naming the unit and arm, never a clip.
     let strict = WeightedOptions { probability_floor: 0.25, ..options };
     let refusal =
         adaptively_weighted_estimate(&history, Estimand::ArmMean(0), &strict, &ctx()).unwrap_err();
     assert_eq!(refusal.code, "adaptive_assumption_violated");
-    assert_eq!(refusal.detail, "adaptive_inference.positivity_floor");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::POSITIVITY_FLOOR
+    );
     assert!(refusal.message.contains("unit 3"));
     // Estimating only the arm that was never starved is fine.
     assert!(adaptively_weighted_estimate(&history, Estimand::ArmMean(1), &strict, &ctx()).is_ok());
@@ -149,7 +166,10 @@ fn a_subject_size_multiplier_reweights_the_scores() {
         &options,
         &ctx(),
     );
-    assert_eq!(refused.unwrap_err().detail, "adaptive_inference.input_invalid");
+    assert_eq!(
+        refused.unwrap_err().detail,
+        antecedent_core::reason_details::adaptive_inference::INPUT_INVALID
+    );
 }
 
 #[test]
@@ -162,7 +182,6 @@ fn confidence_sequences_match_the_closed_form_and_union_bound_a_contrast() {
     close(single.arms[0].upper, 0.865_299_150_331_128_5, 1e-12, "upper");
     close(single.arms[0].mean, 0.75, 1e-15, "mean");
     assert_eq!(single.label, "uncalibrated_confidence_sequence");
-    assert_eq!(single.guarantee.code, "cell_not_licensed");
     let arm_b: Vec<f64> = (0..100).map(|i| f64::from(i % 2)).collect();
     let contrast =
         anytime_valid_arm_sequences(&[arm_a, arm_b], Some((0, 1)), 0.05, 100.0, &ctx()).unwrap();
@@ -173,7 +192,10 @@ fn confidence_sequences_match_the_closed_form_and_union_bound_a_contrast() {
     // Outcomes outside [0, 1] are refused, not rescaled.
     let refusal =
         anytime_valid_arm_sequences(&[vec![0.5, 1.5]], None, 0.05, 10.0, &ctx()).unwrap_err();
-    assert_eq!(refusal.detail, "adaptive_inference.outcome_invalid");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::OUTCOME_INVALID
+    );
 }
 
 fn plan() -> GroupSequentialPlan {
@@ -202,19 +224,62 @@ fn group_sequential_boundaries_and_decisions_follow_the_published_values() {
     assert_eq!(none.stopped_at, None);
     let last = group_sequential_decision(&plan(), &[1.0, 2.0, 2.0], &ctx()).unwrap();
     assert_eq!(last.stopped_at, Some(2));
-    assert_eq!(last.guarantee.detail, "adaptive_inference.stagewise_adjustment_closed");
-    assert_eq!(last.guarantee.code, "cell_not_licensed");
+    assert_eq!(
+        last.guarantee.detail,
+        antecedent_core::reason_details::adaptive_inference::NO_STAGEWISE_ADJUSTMENT_PROCEDURE
+    );
+    assert_eq!(last.guarantee.code, "route_not_supported");
     // More looks than planned, and a non-finite statistic.
-    assert!(group_sequential_decision(&plan(), &[0.0; 4], &ctx()).is_err());
-    assert!(group_sequential_decision(&plan(), &[f64::NAN], &ctx()).is_err());
+    {
+        let error = group_sequential_decision(&plan(), &[0.0; 4], &ctx()).unwrap_err();
+        assert_eq!(
+            (error.code, error.detail),
+            (
+                "invalid_argument",
+                antecedent_core::reason_details::adaptive_inference::INPUT_INVALID
+            )
+        );
+        assert!(error.message.contains("at most the planned looks"), "{}", error.message);
+    }
+    {
+        let error = group_sequential_decision(&plan(), &[f64::NAN], &ctx()).unwrap_err();
+        assert_eq!(
+            (error.code, error.detail),
+            (
+                "invalid_argument",
+                antecedent_core::reason_details::adaptive_inference::INPUT_INVALID
+            )
+        );
+        assert!(error.message.contains("one finite standardized statistic"), "{}", error.message);
+    }
 }
 
 #[test]
 fn the_standardized_difference_matches_a_hand_calculation() {
     let z = standardized_difference(&[1.0, 2.0, 3.0], &[2.0, 4.0, 6.0]).unwrap();
     close(z, 2.0 / (5.0_f64 / 3.0).sqrt(), 1e-14, "welch");
-    assert!(standardized_difference(&[1.0], &[1.0, 2.0]).is_err());
-    assert!(standardized_difference(&[1.0, 1.0], &[2.0, 2.0]).is_err());
+    {
+        let error = standardized_difference(&[1.0], &[1.0, 2.0]).unwrap_err();
+        assert_eq!(
+            (error.code, error.detail),
+            (
+                "invalid_argument",
+                antecedent_core::reason_details::adaptive_inference::INPUT_INVALID
+            )
+        );
+        assert!(error.message.contains("at least two observed outcomes"), "{}", error.message);
+    }
+    {
+        let error = standardized_difference(&[1.0, 1.0], &[2.0, 2.0]).unwrap_err();
+        assert_eq!(
+            (error.code, error.detail),
+            (
+                "invalid_argument",
+                antecedent_core::reason_details::adaptive_inference::INPUT_INVALID
+            )
+        );
+        assert!(error.message.contains("zero sample variance"), "{}", error.message);
+    }
 }
 
 #[test]
@@ -224,14 +289,13 @@ fn cancellation_is_a_refusal_not_a_verdict() {
     let counts = [ArmCounts { successes: 1, failures: 1 }; 2];
     let refusal = bayesian_posterior(1.0, 1.0, &counts, &ctx).unwrap_err();
     assert_eq!(refusal.code, "cancelled_no_claim");
-    assert_eq!(refusal.detail, "adaptive_inference.cancelled");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::adaptive_inference::CANCELLED);
     let refusal = group_sequential_boundaries(&plan(), &ctx).unwrap_err();
     assert_eq!(refusal.code, "cancelled_no_claim");
 }
 
-#[cfg(feature = "calibration-internal")]
 #[test]
-fn the_calibration_internal_intervals_are_candidates_not_claims() {
+fn the_interval_constructions_are_reported_and_their_arguments_validated() {
     use antecedent_estimate::adaptive_inference::{
         beta_credible_interval_internal, weighted_wald_interval_internal,
     };
@@ -246,7 +310,5 @@ fn the_calibration_internal_intervals_are_candidates_not_claims() {
             .unwrap();
     close(mass, 0.9, 1e-9, "interval mass");
     assert!(beta_credible_interval_internal(&posterior.arms[0], 1.5).is_none());
-    // The published guarantee stays closed.
-    assert_eq!(posterior.guarantee.code, "cell_not_licensed");
     let _ = weighted_wald_interval_internal;
 }

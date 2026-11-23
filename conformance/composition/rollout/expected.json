@@ -1,11 +1,86 @@
 {
-  "state_draws": [0.25, 0.75],
-  "terminal_actions": ["wait", "bet"],
-  "utilities": [[0.0, 0.0], [-0.25, 0.25]],
+  "oracle": {
+    "kind": "enumeration",
+    "method": "finite state-law enumeration",
+    "independence_basis": "Exact enumeration of the two equal-mass states and the Bernoulli outcome sequences: prior expected utility, EVPI as E[max payoff] minus the best prior action, EVSI as the preposterior value of the sample counts, and the predictive count law (5/16, 3/8, 5/16). The generator enumerates states and outcome sequences with Fractions and maximizes over actions directly; no Antecedent code, no sampling and no value-of-information routine. The payoff table (wait = 0, bet = theta - 1/2) is the fixture's statement and is shared with the product input.",
+    "generator": "conformance/composition/rollout/reference.py",
+    "command": "uv run --frozen --script conformance/composition/rollout/reference.py --check",
+    "environment_lock": "conformance/composition/rollout/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "prior expected utility",
+      "EVPI",
+      "EVSI for two observations",
+      "terminal utility table"
+    ],
+    "context_only_outputs": [
+      "rank (single candidate)",
+      "calibration label"
+    ],
+    "historical_exposure": "Written during this review from the fixture README and the executing assertion; no product implementation source was consulted. Authorship of the original hand enumeration is unrecorded.",
+    "reference_review": {
+      "scope": "Two states, two terminal actions, a two-observation Bernoulli study; exact rational EVPI and EVSI compared at the test's 1e-12.",
+      "independence_basis": "The generator enumerates states and outcome sequences with Fractions and maximizes over actions directly; no Antecedent code, no sampling and no value-of-information routine. The payoff table (wait = 0, bet = theta - 1/2) is the fixture's statement and is shared with the product input.",
+      "historical_exposure": "Written during this review from the fixture README and the executing assertion; no product implementation source was consulted. Authorship of the original hand enumeration is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "One finite decision problem; Bernoulli sampling only; no continuous states, costs of sampling or ranking among several designs (rank is a single-entry context value). Calibration not_measured.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/composition/rollout/reference.py",
+          "sha256": "472139c870f98bc214352baa35c92324ad97165361437c1ea3e217070f41cfee"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/composition/rollout/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/rollout_artifact.rs",
+          "items": [
+            "fn assert_refused",
+            "fn bundle",
+            "fn fixture",
+            "fn pin",
+            "fn quantity",
+            "fn rollout_bundle_verifies_source_rollout_ranking_chain_and_refuses_swapped_metadata",
+            "fn rollout_changed_source_values_and_draw_order_cannot_retain_original_prior",
+            "fn rollout_finite_source_and_ranking_replay_match_independent_bet_truth",
+            "fn rollout_meaning_support_weighting_and_marginal_pairing_refuse",
+            "fn rollout_resealed_prior_terminal_coordinate_and_standing_mutations_refuse",
+            "fn rollout_truncation_corruption_and_nonfinite_prior_refuse",
+            "fn source"
+          ],
+          "sha256": "13a6926122fdbd7e0f8d60045d31b4c658faaf326b90ef0b0675f0bfafaa1773"
+        }
+      ],
+      "fixture_payload_sha256": "9148e269e3d842f8690942ba5017298cc21b3263e34cf89111cbb8dcc4ffdd0c"
+    }
+  },
+  "state_draws": [
+    0.25,
+    0.75
+  ],
+  "terminal_actions": [
+    "wait",
+    "bet"
+  ],
+  "utilities": [
+    [
+      0.0,
+      0.0
+    ],
+    [
+      -0.25,
+      0.25
+    ]
+  ],
   "prior_expected_utility": 0.0,
   "evpi": 0.125,
   "sample_size": 2,
   "evsi": 0.0625,
   "rank": 0,
-  "calibration": "unmeasured"
+  "calibration": "not_measured"
 }

@@ -1,6 +1,6 @@
 //! Discovery constraints with compiled masks (§13.4 / §13.8).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -95,7 +95,8 @@ impl CiMaskType {
 /// How contemporaneous links may relate across environments (J-PCMCI+).
 ///
 /// Retained for API compatibility. Günther pooled search does not use this enum
-/// to drive pooling; link assumptions come from node roles instead.
+/// to drive pooling; link assumptions come from node roles instead, so any value other than
+/// the default is refused by [`DiscoveryConstraints::validate`] rather than ignored.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
 pub enum CrossEnvLinkAssumption {
     /// No cross-environment contemporaneous assumption (default).
@@ -203,9 +204,9 @@ pub struct MultiDatasetConstraints {
     pub space_dummy_ci: SpaceDummyCiMode,
     /// How time one-hot dummies enter CI (scalar vs multivariate block).
     pub time_dummy_ci: TimeDummyCiMode,
-    /// Cross-environment link assumptions (API compatibility; unused by Günther path).
+    /// Cross-environment link assumptions (API compatibility; only the default is accepted).
     pub cross_env: CrossEnvLinkAssumption,
-    /// Legacy intersection-pool flag; ignored by Günther pooled search.
+    /// Legacy intersection-pool flag; the pooled search always pools, so `false` is refused.
     pub pool_lagged_ci: bool,
 }
 
@@ -232,14 +233,13 @@ impl MultiDatasetConstraints {
     /// Whether `v` is marked as an observed context variable.
     #[must_use]
     pub fn is_context(&self, v: VariableId) -> bool {
-        self.context_variables.iter().any(|&x| x == v)
+        self.context_variables.contains(&v)
     }
 
     /// Whether `v` is a synthetic dummy.
     #[must_use]
     pub fn is_dummy(&self, v: VariableId) -> bool {
-        self.space_dummy_variables.iter().any(|&x| x == v)
-            || self.time_dummy_variables.iter().any(|&x| x == v)
+        self.space_dummy_variables.contains(&v) || self.time_dummy_variables.contains(&v)
     }
 
     /// Kind of an observed context variable (defaults to space).
@@ -251,10 +251,10 @@ impl MultiDatasetConstraints {
     /// Resolve the J-PCMCI+ role of `v` (system if unmarked).
     #[must_use]
     pub fn role_of(&self, v: VariableId) -> JpcmciNodeRole {
-        if self.space_dummy_variables.iter().any(|&x| x == v) {
+        if self.space_dummy_variables.contains(&v) {
             return JpcmciNodeRole::SpaceDummy;
         }
-        if self.time_dummy_variables.iter().any(|&x| x == v) {
+        if self.time_dummy_variables.contains(&v) {
             return JpcmciNodeRole::TimeDummy;
         }
         if self.is_context(v) {
@@ -351,31 +351,6 @@ fn describe_link(link: LaggedLink) -> String {
         link.target.raw(),
         link.target_lag.raw()
     )
-}
-
-/// Whether the directed graph with these `(from, to)` edges has a cycle (a self-loop counts).
-fn has_directed_cycle(edges: &[(u32, u32)]) -> bool {
-    let mut in_degree: std::collections::BTreeMap<u32, usize> = std::collections::BTreeMap::new();
-    for &(from, to) in edges {
-        in_degree.entry(from).or_insert(0);
-        *in_degree.entry(to).or_insert(0) += 1;
-    }
-    let mut ready: Vec<u32> = in_degree.iter().filter(|(_, d)| **d == 0).map(|(n, _)| *n).collect();
-    let mut removed = 0usize;
-    while let Some(node) = ready.pop() {
-        removed += 1;
-        for &(from, to) in edges {
-            if from == node {
-                if let Some(d) = in_degree.get_mut(&to) {
-                    *d -= 1;
-                    if *d == 0 {
-                        ready.push(to);
-                    }
-                }
-            }
-        }
-    }
-    removed < in_degree.len()
 }
 
 /// The background knowledge of a discovery request: what the analyst asserts about the graph
@@ -576,7 +551,7 @@ impl DiscoveryConstraints {
     /// Günther multi-dataset link assumptions.
     #[must_use]
     pub fn is_forbidden(&self, link: LaggedLink) -> bool {
-        self.forbidden.iter().any(|f| *f == link)
+        self.forbidden.contains(&link)
             || self.tier_forbids(link.source, link.target)
             || self.multi_dataset.gunther_forbids(link)
     }
@@ -584,7 +559,7 @@ impl DiscoveryConstraints {
     /// Whether a link is required.
     #[must_use]
     pub fn is_required(&self, link: LaggedLink) -> bool {
-        self.required.iter().any(|r| *r == link)
+        self.required.contains(&link)
     }
 
     /// Whether both directions of the contemporaneous pair `{a, b}` are forbidden, i.e. a static
@@ -694,7 +669,7 @@ impl DiscoveryConstraints {
         if self.tiers.is_empty() {
             return None;
         }
-        self.tiers.iter().position(|tier| tier.iter().any(|x| *x == v))
+        self.tiers.iter().position(|tier| tier.contains(&v))
     }
 
     /// Tier rule: edge `src → target` is forbidden when `tier(src) > tier(target)`.
@@ -704,6 +679,25 @@ impl DiscoveryConstraints {
             (Some(ts), Some(tt)) => ts > tt,
             _ => false,
         }
+    }
+
+    /// Validate the significance threshold consumed by CI-based searches.
+    pub(crate) fn validate_ci_options(&self) -> Result<(), DiscoveryError> {
+        if !(self.alpha.is_finite() && 0.0 < self.alpha && self.alpha < 1.0) {
+            return Err(DiscoveryError::unsupported(
+                "discovery alpha must be finite and in (0, 1)",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Validate the threshold and doubled lag used by temporal CI searches.
+    pub(crate) fn validate_temporal_ci_options(&self) -> Result<(), DiscoveryError> {
+        self.validate_ci_options()?;
+        if self.temporal.max_lag.raw().checked_mul(2).is_none() {
+            return Err(DiscoveryError::unsupported("discovery doubled max_lag exceeds u32"));
+        }
+        Ok(())
     }
 
     /// Validate required vs forbidden conflicts and multi-dataset sanity.
@@ -721,6 +715,21 @@ impl DiscoveryConstraints {
                     message: "required context→context lagged links are unsupported",
                 });
             }
+        }
+        // The pooled search takes its link assumptions from node roles. These two declarations
+        // are not read anywhere, so a value other than the implemented one must not be accepted.
+        if self.multi_dataset.cross_env != CrossEnvLinkAssumption::default() {
+            return Err(DiscoveryError::Unsupported {
+                message: "a cross-environment link assumption is not used by the pooled \
+                          J-PCMCI+ search, which takes its link assumptions from node roles; \
+                          leave it at Independent",
+            });
+        }
+        if !self.multi_dataset.pool_lagged_ci {
+            return Err(DiscoveryError::Unsupported {
+                message: "pool_lagged_ci = false is not implemented: the pooled search always \
+                          pools the lagged conditional-independence tests of all environments",
+            });
         }
         Ok(())
     }
@@ -741,12 +750,12 @@ impl DiscoveryConstraints {
             .filter(|r| r.source_lag.is_contemporaneous() && r.target_lag.is_contemporaneous())
             .map(|r| (r.source.raw(), r.target.raw()))
             .collect();
-        if has_directed_cycle(&contemporaneous) {
-            return Err(KnowledgeFault::Contradictory(
-                "the required contemporaneous links form a directed cycle (a variable would cause \
-                 itself)"
-                    .to_owned(),
-            ));
+        if antecedent_graph::error::sparse_directed_edges_contain_cycle(&contemporaneous) {
+            let refusal = antecedent_graph::error::CyclicDagRefusal::new(
+                antecedent_graph::error::DagOperation::Discovery,
+                antecedent_graph::error::CyclicNextAttempt::Condensation,
+            );
+            return Err(KnowledgeFault::Contradictory(refusal.to_string()));
         }
         Ok(())
     }
@@ -757,8 +766,8 @@ impl DiscoveryConstraints {
     /// The statements are checked for consistency ([`Self::validate`] does the same), every
     /// variable they name must be searched, and each statement must have a meaning for the
     /// search: a static search has no lags, a lagged search cannot honour a required link
-    /// outside its lag window, and a parent limit is refused where the algorithm returns an
-    /// equivalence class (see [`KnowledgeScope`]).
+    /// outside its lag window. Every search enforces a parent limit, so no scope refuses one
+    /// (see [`KnowledgeScope`]).
     ///
     /// # Errors
     ///
@@ -1034,6 +1043,46 @@ mod tests {
     }
 
     #[test]
+    fn a_required_two_cycle_names_condensation_and_a_chain_is_accepted() {
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let forward = contemp_link(vars[0], vars[1]);
+        let back = contemp_link(vars[1], vars[0]);
+        let cyclic = DiscoveryConstraints {
+            required: Arc::from([forward, back]),
+            ..DiscoveryConstraints::default()
+        };
+        let err = cyclic.validate().unwrap_err();
+        let text = err.to_string();
+        assert!(text.contains("directed cycle"), "{text}");
+        assert!(text.contains("condensation"), "{text}");
+        assert!(text.contains("CyclicDigraph"), "{text}");
+        let chain = DiscoveryConstraints {
+            required: Arc::from([forward]),
+            ..DiscoveryConstraints::default()
+        };
+        assert!(chain.validate().is_ok());
+    }
+
+    #[test]
+    fn a_cycle_on_sparse_variable_ids_is_refused_and_a_gapped_chain_is_not() {
+        let vars = [VariableId::from_raw(10), VariableId::from_raw(40)];
+        let forward = contemp_link(vars[0], vars[1]);
+        let back = contemp_link(vars[1], vars[0]);
+        let cyclic = DiscoveryConstraints {
+            required: Arc::from([forward, back]),
+            ..DiscoveryConstraints::default()
+        };
+        let text = cyclic.validate().unwrap_err().to_string();
+        assert!(text.contains("directed cycle"), "{text}");
+        assert!(text.contains("condensation"), "{text}");
+        let chain = DiscoveryConstraints {
+            required: Arc::from([forward]),
+            ..DiscoveryConstraints::default()
+        };
+        assert!(chain.validate().is_ok());
+    }
+
+    #[test]
     fn tiers_forbid_backward_edges() {
         let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
         let c = DiscoveryConstraints {
@@ -1058,8 +1107,6 @@ mod tests {
         let c = DiscoveryConstraints {
             multi_dataset: MultiDatasetConstraints {
                 context_variables: Arc::from([ctx]),
-                cross_env: CrossEnvLinkAssumption::SharedContemporaneousSkeleton,
-                pool_lagged_ci: true,
                 ..MultiDatasetConstraints::default()
             },
             ..DiscoveryConstraints::default()
@@ -1068,6 +1115,33 @@ mod tests {
         assert!(!c.multi_dataset.is_context(VariableId::from_raw(0)));
         assert_eq!(c.multi_dataset.role_of(ctx), JpcmciNodeRole::SpaceContext);
         c.validate().unwrap();
+    }
+
+    /// The pooled search reads neither the cross-environment link assumption nor the lagged-pooling
+    /// switch, so a declaration other than the one it implements is refused instead of accepted
+    /// and ignored.
+    #[test]
+    fn multi_dataset_declarations_the_pooled_search_does_not_read_are_refused() {
+        let with = |multi_dataset: MultiDatasetConstraints| DiscoveryConstraints {
+            multi_dataset,
+            ..DiscoveryConstraints::default()
+        };
+        for cross_env in [
+            CrossEnvLinkAssumption::SharedContemporaneousSkeleton,
+            CrossEnvLinkAssumption::EnvironmentSpecificContemporaneous,
+        ] {
+            let c =
+                with(MultiDatasetConstraints { cross_env, ..MultiDatasetConstraints::default() });
+            let error = c.validate().unwrap_err().to_string();
+            assert!(error.contains("cross-environment"), "{cross_env:?}: {error}");
+        }
+        let c = with(MultiDatasetConstraints {
+            pool_lagged_ci: false,
+            ..MultiDatasetConstraints::default()
+        });
+        let error = c.validate().unwrap_err().to_string();
+        assert!(error.contains("pool_lagged_ci"), "{error}");
+        with(MultiDatasetConstraints::default()).validate().unwrap();
     }
 
     #[test]
@@ -1118,7 +1192,7 @@ mod tests {
         if tiers.is_empty() {
             return None;
         }
-        tiers.iter().position(|tier| tier.iter().any(|id| *id == variable))
+        tiers.iter().position(|tier| tier.contains(&variable))
     }
 
     fn scan_forbidden(constraints: &DiscoveryConstraints, link: LaggedLink) -> bool {
@@ -1129,7 +1203,7 @@ mod tests {
             (Some(src), Some(target)) => src > target,
             _ => false,
         };
-        constraints.forbidden.iter().any(|forbidden| *forbidden == link)
+        constraints.forbidden.contains(&link)
             || tier_forbids
             || constraints.multi_dataset.gunther_forbids(link)
     }
@@ -1418,6 +1492,32 @@ mod tests {
         ];
         for edit in edits {
             assert_ne!(edit.identity(), base.identity());
+        }
+    }
+
+    #[test]
+    fn ci_numeric_checks_are_specific_to_the_consuming_search() {
+        let mut constraints = DiscoveryConstraints {
+            alpha: 0.0,
+            temporal: TemporalConstraints {
+                min_lag: Lag::from_raw(1),
+                max_lag: Lag::from_raw(u32::MAX),
+            },
+            ..DiscoveryConstraints::default()
+        };
+        // Generic constraints are also used by priors and non-CI searches.
+        assert!(constraints.validate().is_ok());
+        assert!(constraints.validate_ci_options().is_err());
+        assert!(constraints.validate_temporal_ci_options().is_err());
+        constraints.alpha = 0.05;
+        assert!(constraints.validate().is_ok());
+        assert!(constraints.validate_ci_options().is_ok());
+        assert!(constraints.validate_temporal_ci_options().is_err());
+        constraints.temporal.max_lag = Lag::from_raw(u32::MAX / 2);
+        assert!(constraints.validate_temporal_ci_options().is_ok());
+        for alpha in [f64::NAN, f64::INFINITY, 0.0, 1.0] {
+            constraints.alpha = alpha;
+            assert!(constraints.validate_ci_options().is_err());
         }
     }
 }

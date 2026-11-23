@@ -1,0 +1,165 @@
+{
+  "decision": {
+    "chosen": [
+      1
+    ],
+    "evpi": 0.09153203078755648,
+    "expected_utility": 0.029072396312788115,
+    "values": [
+      0.0,
+      0.029072396312788115,
+      0.4290723963127881
+    ]
+  },
+  "future_study": {
+    "absolute_error_bound": 0.0004425041103423702,
+    "cells": 4096,
+    "gross_evsi": 0.062410877144147,
+    "tail_standard_deviations": 8
+  },
+  "net_values": [
+    0.052410877144147,
+    -0.037589122855853
+  ],
+  "population_time_dose_estimands": [
+    {
+      "dose": 1.0,
+      "duration": 2,
+      "mean": 4.110460474512968,
+      "population_weights": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "dose": 1.0,
+      "duration": 2,
+      "mean": 4.010609594497895,
+      "population_weights": [
+        0.1,
+        0.2,
+        0.3,
+        0.4
+      ]
+    },
+    {
+      "dose": 4.0,
+      "duration": 2,
+      "mean": 5.676335117456978,
+      "population_weights": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "dose": 4.0,
+      "duration": 2,
+      "mean": 5.6466137563252765,
+      "population_weights": [
+        0.1,
+        0.2,
+        0.3,
+        0.4
+      ]
+    },
+    {
+      "dose": 1.0,
+      "duration": 12,
+      "mean": 3.8764598872838842,
+      "population_weights": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "dose": 1.0,
+      "duration": 12,
+      "mean": 3.998189888106185,
+      "population_weights": [
+        0.1,
+        0.2,
+        0.3,
+        0.4
+      ]
+    },
+    {
+      "dose": 4.0,
+      "duration": 12,
+      "mean": 5.942994549996775,
+      "population_weights": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "dose": 4.0,
+      "duration": 12,
+      "mean": 6.0764128039663055,
+      "population_weights": [
+        0.1,
+        0.2,
+        0.3,
+        0.4
+      ]
+    },
+    {
+      "dose": 1.0,
+      "duration": 24,
+      "mean": 3.846181797349764,
+      "population_weights": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "dose": 1.0,
+      "duration": 24,
+      "mean": 3.921105235810288,
+      "population_weights": [
+        0.1,
+        0.2,
+        0.3,
+        0.4
+      ]
+    },
+    {
+      "dose": 4.0,
+      "duration": 24,
+      "mean": 5.962782462039543,
+      "population_weights": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "dose": 4.0,
+      "duration": 24,
+      "mean": 6.043550027073681,
+      "population_weights": [
+        0.1,
+        0.2,
+        0.3,
+        0.4
+      ]
+    }
+  ],
+  "posterior_weights": [
+    9.775514886359357e-05,
+    0.9137562254937475,
+    0.086146019357389
+  ],
+  "schema": "antecedent.independent_experiment_reference.v1",
+  "semantics": "frozen_modular_finite_law_not_joint_refit"
+}

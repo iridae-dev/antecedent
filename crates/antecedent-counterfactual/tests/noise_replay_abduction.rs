@@ -1,7 +1,7 @@
 //! Abduced noise replayed through the batch noise-replay API matches the counterfactual
 //! engine's own prediction, and the noise inference disclosure travels with the table.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -103,6 +103,27 @@ fn abduction_then_replay_matches_the_counterfactual_prediction() {
             assert!((a - b).abs() < 1e-12);
         }
     }
+}
+
+#[test]
+fn constant_abduction_uses_the_same_support_as_factual_replay() {
+    let engine = engine_for(vec![MechanismSlot::Constant { value: 0.0 }]);
+    let data = TabularData::from_f64_columns([("x", &[0.0, 0.5e-12][..])]).unwrap();
+    let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from([]) };
+    let table = assert_replay_matches_predict(&engine, &data, &world);
+    let ctx = ExecutionContext::for_tests(9);
+    let view = ModelView::observational(&engine.model);
+    let factual = NoiseReplayer::new().replay(&view, NoiseSource::Table(&table), 0, &ctx).unwrap();
+    for (replayed, observed) in factual.column(0).unwrap().iter().zip([0.0, 0.5e-12]) {
+        assert!((replayed - observed).abs() < 1e-12);
+    }
+    let off_support = TabularData::from_f64_columns([("x", &[1e-10][..])]).unwrap();
+    assert!(matches!(
+        engine.abduct(&off_support, AbductionMissingPolicy::Error, &ctx),
+        Err(antecedent_counterfactual::CounterfactualError::Model(
+            antecedent_model::ModelError::Numerical { .. }
+        ))
+    ));
 }
 
 #[test]

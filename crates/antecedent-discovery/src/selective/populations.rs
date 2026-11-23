@@ -46,7 +46,7 @@
 //! than absorbed. Outcome-only rows leave the declared contract and the structure edge
 //! alignment rule unchanged.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -56,18 +56,10 @@ use antecedent_data::TabularData;
 use super::adapter::{SelectiveRunReport, StaticSelectiveDiscovery};
 use super::contract::StaticDiscoveryContract;
 use super::identity::{DataIdentity, Digest, SELECTIVE_IDENTITY_VERSION, static_data_identity};
-use super::refusal::SelectiveDiscoveryError;
+use super::refusal::{SelectiveDiscoveryError, invalid};
 use super::structure::{Mark, StructureNode};
 
 const POPULATIONS_TAG: &str = "antecedent.selective_discovery.populations.v1";
-
-fn invalid(detail: &'static str, remedy: impl Into<String>) -> SelectiveDiscoveryError {
-    SelectiveDiscoveryError::refused(
-        antecedent_core::reason_code!("invalid_argument"),
-        detail,
-        remedy,
-    )
-}
 
 /// One population's rows, labelled.
 #[derive(Clone, Copy, Debug)]
@@ -146,9 +138,8 @@ impl PerPopulationReport {
 
 /// Per-population discovery with one retained statistic store per population.
 ///
-/// Each population's adapter is atomic on its own: a refused or failed request leaves that
-/// population's retained state, outcome and identities as they were. The set-level report is
-/// replaced only by a request in which every population succeeded.
+/// A refused or failed request leaves every population adapter and the set-level report
+/// unchanged. The new set is published only after every population succeeds.
 #[derive(Debug)]
 pub struct PerPopulationDiscovery {
     adapters: BTreeMap<String, StaticSelectiveDiscovery>,
@@ -222,17 +213,21 @@ impl PerPopulationDiscovery {
         }
         refuse_duplicate_rows(&identities)?;
 
-        // Execute. Each adapter replaces its own state atomically; the set-level report is
-        // committed only when all of them succeed.
+        // Execute into private candidate adapters; publish the set only after every run succeeds.
+        let mut candidates: BTreeMap<String, StaticSelectiveDiscovery> = self
+            .adapters
+            .iter()
+            .map(|(name, adapter)| (name.clone(), adapter.fork_candidate()))
+            .collect();
         let mut results: Vec<PopulationDiscovery> = Vec::with_capacity(populations.len());
         let mut structures: Vec<(String, Vec<super::structure::StructureEdge>)> = Vec::new();
         for (rows, (_, identity)) in populations.iter().zip(identities) {
             let per_population = for_population(contract, rows.population);
-            let adapter = self.adapters.entry(rows.population.to_owned()).or_default();
+            let adapter = candidates.entry(rows.population.to_owned()).or_default();
             let report = adapter.run(&per_population, rows.data, ctx)?;
             let outcome = adapter.outcome().ok_or_else(|| {
                 invalid(
-                    "selective_discovery.nothing_retained",
+                    antecedent_core::reason_details::selective_discovery::NOTHING_RETAINED,
                     "the population run retained no outcome",
                 )
             })?;
@@ -257,6 +252,7 @@ impl PerPopulationDiscovery {
             identity: set_identity(&results),
             populations: results,
         };
+        self.adapters = candidates;
         Ok(self.committed.insert(report))
     }
 }
@@ -281,7 +277,7 @@ fn validate_request(
     {
         return Err(SelectiveDiscoveryError::refused(
             antecedent_core::reason_code!("route_not_supported"),
-            "selective_discovery.pooled_population_search",
+            antecedent_core::reason_details::selective_discovery::POOLED_POPULATION_SEARCH,
             "per-population discovery runs the contract on each population separately and \
              pools nothing. A pooled or context-variable search has its own cross-population \
              invariance assumptions: use the pooled algorithm directly and declare those \
@@ -290,7 +286,7 @@ fn validate_request(
     }
     if populations.len() < 2 {
         return Err(invalid(
-            "selective_discovery.populations_missing",
+            antecedent_core::reason_details::selective_discovery::POPULATIONS_MISSING,
             "declare at least two populations; a single population is the single-population \
              route",
         ));
@@ -299,13 +295,13 @@ fn validate_request(
     for rows in populations {
         if rows.population.trim().is_empty() {
             return Err(invalid(
-                "selective_discovery.population_missing",
+                antecedent_core::reason_details::selective_discovery::POPULATION_MISSING,
                 "every table is declared with the population it was drawn from",
             ));
         }
         if !seen.insert(rows.population) {
             return Err(invalid(
-                "selective_discovery.population_repeated",
+                antecedent_core::reason_details::selective_discovery::POPULATION_REPEATED,
                 format!(
                     "population `{}` is declared twice; give each table its own population \
                      label, or merge them into one declared population",
@@ -324,7 +320,7 @@ fn refuse_duplicate_rows(
         for (second, b) in &identities[i + 1..] {
             if a.digest == b.digest {
                 return Err(invalid(
-                    "selective_discovery.pooled_population_data",
+                    antecedent_core::reason_details::selective_discovery::POOLED_POPULATION_DATA,
                     format!(
                         "populations `{first}` and `{second}` hold content-identical rows, so \
                          they are one dataset under two labels (a pooled table split by label, \

@@ -9,10 +9,12 @@ population's structural model, independently of the formula under test.
 """
 
 import json
+import re
 
 import antecedent
 import pytest
 from antecedent import Admg
+from antecedent import _reason_details as reason_details
 from antecedent.errors import (
     CausalCancelledError,
     CausalResourceError,
@@ -20,6 +22,8 @@ from antecedent.errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from antecedent.execution import Execution, ResourceLimits
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 NAMES = ["b", "l1", "a1", "l2", "a2", "y"]
@@ -170,7 +174,7 @@ def prepare(sequence=(1.0, 0.0), *, the_spec=None, cat=None, data=None, **limits
 def test_the_whole_sequence_matches_the_target_interventional_truth():
     for a1 in (0.0, 1.0):
         for a2 in (0.0, 1.0):
-            report = json.loads(prepare((a1, a2)).estimate())
+            report = json.loads(require_success(prepare((a1, a2)).estimate()))
             assert report["scope"] == "finite_two_step_temporal_transport_sequence_point_only"
             assert report["inference_claim"] == "point_only"
             assert report["horizon"] == 2 and report["sequence"] == [a1, a2]
@@ -181,15 +185,15 @@ def test_the_whole_sequence_matches_the_target_interventional_truth():
 
 
 def test_sequence_order_matters():
-    ab = json.loads(prepare((0.0, 1.0)).estimate())
-    ba = json.loads(prepare((1.0, 0.0)).estimate())
+    ab = json.loads(require_success(prepare((0.0, 1.0)).estimate()))
+    ba = json.loads(require_success(prepare((1.0, 0.0)).estimate()))
     assert ab["mean"] == pytest.approx(truth("target", (0, 1)), abs=1e-12)
     assert ba["mean"] == pytest.approx(truth("target", (1, 0)), abs=1e-12)
     assert abs(ab["mean"] - ba["mean"]) > 0.01
 
 
 def test_time_varying_confounding_and_every_invariance_are_explicit():
-    report = json.loads(prepare().estimate())
+    report = json.loads(require_success(prepare().estimate()))
     assert report["time_varying_confounders"] == ["l2"]
     by = {i["variable"]: i for i in report["invariances"]}
     assert (by["b"]["slice"], by["b"]["assumption"]) == (0, "differs_by_selection")
@@ -202,12 +206,12 @@ def test_time_varying_confounding_and_every_invariance_are_explicit():
     assert populations == {"source", "target"}
     # Without l2 -> a2 the second action has no time-varying confounder.
     plain = [e for e in DIRECTED if e != ("l2", "a2")]
-    without = json.loads(prepare(the_spec=spec(directed=plain)).estimate())
+    without = json.loads(require_success(prepare(the_spec=spec(directed=plain)).estimate()))
     assert without["time_varying_confounders"] == []
 
 
 def test_the_support_report_is_local_to_each_history_and_step():
-    support = json.loads(prepare((0.0, 1.0)).estimate())["support"]
+    support = json.loads(require_success(prepare((0.0, 1.0)).estimate()))["support"]
     assert support["initial_coordinates"] == ["b", "l1"]
     assert support["history_coordinates"] == ["b", "l1", "l2"]
     steps = [r["step"] for r in support["rows"]]
@@ -217,7 +221,7 @@ def test_the_support_report_is_local_to_each_history_and_step():
 
 def test_a_reached_history_without_source_support_refuses():
     with pytest.raises(
-        CausalUnsupportedError, match="temporal_transport.history_outside_support"
+        CausalUnsupportedError, match=reason_details.temporal_transport.HISTORY_OUTSIDE_SUPPORT
     ) as refused:
         prepare((1.0, 1.0), data=laws(skip=((1, 0, 1),)))
     assert refused.value.reason_code == "transport_support_failure"
@@ -225,49 +229,62 @@ def test_a_reached_history_without_source_support_refuses():
 
 
 def test_invalid_horizon_sequence_and_bounds_refuse():
-    with pytest.raises(CausalUnsupportedError, match="temporal_transport.horizon") as three:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.temporal_transport.HORIZON
+    ) as three:
         spec(horizon=3)
     assert three.value.reason_code == "route_not_supported"
-    with pytest.raises(CausalUnsupportedError, match="temporal_transport.horizon") as longer:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.temporal_transport.HORIZON
+    ) as longer:
         prepare((1.0, 0.0, 1.0))
     assert longer.value.reason_code == "route_not_supported"
-    with pytest.raises(CausalValueError, match="temporal_transport.invalid_sequence") as short:
+    with pytest.raises(
+        CausalValueError, match=reason_details.temporal_transport.INVALID_SEQUENCE
+    ) as short:
         prepare((1.0,))
     assert short.value.reason_code == "invalid_argument"
-    with pytest.raises(CausalValueError, match="temporal_transport.invalid_sequence"):
+    with pytest.raises(CausalValueError, match=reason_details.temporal_transport.INVALID_SEQUENCE):
         prepare((1.0, 2.0))
-    with pytest.raises(CausalValueError, match="temporal_transport.invalid_spec") as action:
+    with pytest.raises(
+        CausalValueError, match=reason_details.temporal_transport.INVALID_SPEC
+    ) as action:
         prepare(the_spec=spec(selections=("a1",)))
     assert action.value.reason_code == "invalid_argument"
-    with pytest.raises(CausalUnsupportedError, match="temporal_transport.bounds_exceeded") as wide:
-        prepare(the_spec=spec(actions=9))
-    assert wide.value.reason_code == "route_not_supported"
+    # The alphabet size has no fixed cap: a wide alphabet is bounded only by the one
+    # shared search budget, whose stop is a receipt and never a verdict.
+    with pytest.raises(CausalResourceError, match=reason_details.temporal_transport.HISTORY_BUDGET):
+        prepare(the_spec=spec(actions=9), max_steps=1)
 
 
 def test_one_shared_budget_stops_are_receipts_never_verdicts():
-    with pytest.raises(CausalResourceError, match="temporal_transport.history_budget") as steps:
+    with pytest.raises(
+        CausalResourceError, match=reason_details.temporal_transport.HISTORY_BUDGET
+    ) as steps:
         prepare(max_steps=3)
     assert "search.operations" in str(steps.value)
-    with pytest.raises(CausalResourceError, match="temporal_transport.history_budget"):
+    with pytest.raises(CausalResourceError, match=reason_details.temporal_transport.HISTORY_BUDGET):
         prepare(max_depth=1)
-    with pytest.raises(CausalResourceError, match="temporal_transport.history_budget"):
-        prepare(memory_bytes=64)
+    with pytest.raises(CausalResourceError, match=reason_details.temporal_transport.HISTORY_BUDGET):
+        prepare(execution=Execution(limits=ResourceLimits(memory_bytes=64)))
     token = antecedent.state.CancellationToken()
     token.cancel()
-    with pytest.raises(CausalCancelledError, match="temporal_transport.history_budget"):
-        prepare(cancel=token)
+    with pytest.raises(
+        CausalCancelledError, match=reason_details.temporal_transport.HISTORY_BUDGET
+    ):
+        prepare(execution=Execution(cancel=token))
     # The same premises decide under a modest budget: the stop said nothing about identification.
-    assert json.loads(prepare(max_steps=1000).estimate())["status"] == "available"
+    assert json.loads(require_success(prepare(max_steps=1000).estimate()))["status"] == "available"
 
 
 def test_a_structural_obstruction_and_missing_evidence_refuse_with_their_own_reasons():
     with pytest.raises(
-        CausalUnsupportedError, match="temporal_transport.checked_obstruction"
+        CausalUnsupportedError, match=reason_details.temporal_transport.CHECKED_OBSTRUCTION
     ) as shifted:
         prepare(the_spec=spec(selections=("y",)))
     assert shifted.value.reason_code == "transport_proven_non_transportable"
     with pytest.raises(
-        CausalUnsupportedError, match="temporal_transport.missing_evidence"
+        CausalUnsupportedError, match=reason_details.temporal_transport.MISSING_EVIDENCE
     ) as missing:
         prepare(
             cat=catalog(with_history=False),
@@ -279,7 +296,7 @@ def test_a_structural_obstruction_and_missing_evidence_refuse_with_their_own_rea
 def test_an_interval_request_refuses_with_estimator_inference_mismatch():
     prepared = prepare()
     with pytest.raises(
-        CausalUnsupportedError, match="temporal_transport.interval_requested"
+        CausalUnsupportedError, match=reason_details.temporal_transport.INTERVAL_REQUESTED
     ) as refused:
         prepared.interval()
     assert refused.value.reason_code == "estimator_inference_mismatch"
@@ -287,25 +304,29 @@ def test_an_interval_request_refuses_with_estimator_inference_mismatch():
 
 def test_same_window_refresh_re_estimates_and_a_new_window_needs_a_new_preparation():
     prepared = prepare((1.0, 0.0))
-    before = json.loads(prepared.estimate())
+    before = json.loads(require_success(prepared.estimate()))
     moved = list(SOURCE_P)
     moved[7] = 0.5
     target = list(TARGET_P)
     target[7] = 0.5
-    prepared.refresh(laws(source_p=moved, target_p=target))
-    after = json.loads(prepared.estimate())
+    require_success(prepared.refresh(laws(source_p=moved, target_p=target)))
+    after = json.loads(require_success(prepared.estimate()))
     assert abs(after["mean"] - before["mean"]) > 1e-4
     assert after["mean"] == pytest.approx(
         enumerate_law("target", {A1: 1, A2: 0}, [Y], target)[1], abs=1e-12
     )
     # Without the source's history experiments the window is another window.
     only_target = transport.ExactTransportData(tuple(laws().laws[:1]))
-    with pytest.raises(CausalUnsupportedError, match="temporal_transport.horizon") as changed:
-        prepared.refresh(only_target)
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.temporal_transport.HORIZON
+    ) as changed:
+        require_success(prepared.refresh(only_target))
     assert changed.value.reason_code == "route_not_supported"
     # A dropped history experiment is a history outside support, not a new window.
-    with pytest.raises(CausalUnsupportedError, match="temporal_transport.history_outside_support"):
-        prepared.refresh(laws(skip=((1, 1, 1),)))
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.temporal_transport.HISTORY_OUTSIDE_SUPPORT
+    ):
+        require_success(prepared.refresh(laws(skip=((1, 1, 1),))))
 
 
 PREFIX = b"ANTECEDENT-TEMPORAL-TRANSPORT\x01"
@@ -361,17 +382,17 @@ def _frame(names, inner):
 
 def test_artifact_round_trip_is_recomputed_bit_for_bit_and_tampering_fails():
     prepared = prepare((1.0, 0.0))
-    live = json.loads(prepared.estimate())
-    artifact = prepared.export()
-    consumed = json.loads(transport.consume_temporal_transport_artifact(artifact))
+    live = json.loads(require_success(prepared.estimate()))
+    artifact = bytes(prepared.export())
+    consumed = transport.consume_temporal_transport_artifact(artifact).to_dict()
     assert consumed["mean"] == live["mean"]
     assert consumed["point"]["probabilities"] == live["point"]["probabilities"]
     assert consumed["support"] == live["support"] and consumed["invariances"] == live["invariances"]
     assert consumed["sequence"] == [1.0, 0.0] and consumed["horizon"] == 2
     # Another sequence, another identity.
     other = prepare((0.0, 1.0))
-    other.estimate()
-    other_digest = json.loads(transport.consume_temporal_transport_artifact(other.export()))
+    require_success(other.estimate())
+    other_digest = transport.consume_temporal_transport_artifact(bytes(other.export())).to_dict()
     assert other_digest["premises_digest"] != consumed["premises_digest"]
     names, inner = _unframe(artifact)
     assert names == NAMES and _frame(names, inner) == artifact
@@ -389,18 +410,28 @@ def test_artifact_round_trip_is_recomputed_bit_for_bit_and_tampering_fails():
     # The consumer's own limits bound the recorded ones.
     with pytest.raises(CausalResourceError):
         transport.consume_temporal_transport_artifact(artifact, max_steps=5)
-    with pytest.raises(CausalSerializationError):
+    with pytest.raises(
+        CausalSerializationError,
+        match=re.escape(
+            'cbor error: Io(Error { kind: UnexpectedEof, message: "failed to fill whole buffe'
+        ),
+    ):
         transport.consume_temporal_transport_artifact(artifact[:-3])
-    with pytest.raises(antecedent.errors.CausalTypeError):
+    with pytest.raises(
+        antecedent.errors.CausalTypeError,
+        match=re.escape(
+            "an artifact is bytes or ExportedArtifact; read paths with Path.read_bytes()"
+        ),
+    ):
         transport.consume_temporal_transport_artifact("not bytes")
 
 
 def test_export_needs_an_estimate_first():
     with pytest.raises(CausalUnsupportedError, match="no_execution_claim"):
-        prepare().export()
+        bytes(prepare().export())
 
 
-# Checked execution: each licensed Python route runs from the retained, frozen plan
+# Checked execution: each supported Python route runs from the retained, frozen plan
 # with no builder alive, and the test inspects that retained plan.
 
 
@@ -419,7 +450,7 @@ def test_prepare_compiles_a_checked_plan_after_builder_disposal():
     assert plan["compiled"] and plan["horizon"] == 2 and plan["sequence"] == [0.0, 1.0]
     assert plan["rules"] and plan["histories"] == {"initial": 4, "complete": 8}
     assert {population for population, _ in plan["cited"]} <= {"source", "target"}
-    assert json.loads(retained_plan.estimate())["mean"] == pytest.approx(
+    assert json.loads(require_success(retained_plan.estimate()))["mean"] == pytest.approx(
         truth("target", (0, 1)), abs=1e-12
     )
 
@@ -433,7 +464,7 @@ def test_plan_is_a_read_only_summary_of_the_retained_plan_after_builder_disposal
     plan = json.loads(first)
     assert plan["sequence"] == [1.0, 0.0] and plan["histories"] == {"initial": 4, "complete": 8}
     # Reading the plan executes nothing: the estimate still runs from the same retained plan.
-    assert json.loads(retained_plan.estimate())["horizon"] == 2
+    assert json.loads(require_success(retained_plan.estimate()))["horizon"] == 2
     assert retained_plan.plan() == first
 
 
@@ -441,8 +472,8 @@ def test_estimate_executes_the_retained_plan_after_builder_disposal():
     retained_plan = _retained_plan()
     plan = json.loads(retained_plan.plan())
     assert plan["compiled"]
-    first = json.loads(retained_plan.estimate())
-    second = json.loads(retained_plan.estimate())
+    first = json.loads(require_success(retained_plan.estimate()))
+    second = json.loads(require_success(retained_plan.estimate()))
     assert first["mean"] == second["mean"] == pytest.approx(truth("target", (1, 0)), abs=1e-12)
 
 
@@ -451,27 +482,29 @@ def test_refresh_re_estimates_from_the_retained_plan_after_builder_disposal():
     before = json.loads(retained_plan.plan())
     moved = list(SOURCE_P)
     moved[7] = 0.5
-    retained_plan.refresh(laws(source_p=moved))
+    require_success(retained_plan.refresh(laws(source_p=moved)))
     after_plan = json.loads(retained_plan.plan())
     assert after_plan["rules"] == before["rules"]
     assert after_plan["cited"] == before["cited"]
-    assert json.loads(retained_plan.estimate())["status"] == "available"
+    assert json.loads(require_success(retained_plan.estimate()))["status"] == "available"
 
 
 def test_export_replays_the_retained_plan_after_builder_disposal():
     retained_plan = _retained_plan()
     assert json.loads(retained_plan.plan())["compiled"]
-    live = json.loads(retained_plan.estimate())
-    artifact = retained_plan.export()
-    consumed = json.loads(transport.consume_temporal_transport_artifact(artifact))
+    live = json.loads(require_success(retained_plan.estimate()))
+    artifact = bytes(retained_plan.export())
+    consumed = transport.consume_temporal_transport_artifact(artifact).to_dict()
     assert consumed["mean"] == live["mean"] and consumed["support"] == live["support"]
 
 
 def test_consume_recomputes_from_the_retained_plan_after_builder_disposal():
     retained_plan = _retained_plan((0.0, 1.0))
     plan = json.loads(retained_plan.plan())
-    live = json.loads(retained_plan.estimate())
-    consumed = json.loads(transport.consume_temporal_transport_artifact(retained_plan.export()))
+    live = json.loads(require_success(retained_plan.estimate()))
+    consumed = transport.consume_temporal_transport_artifact(
+        bytes(retained_plan.export())
+    ).to_dict()
     assert consumed["sequence"] == plan["sequence"] == [0.0, 1.0]
     assert consumed["point"]["probabilities"] == live["point"]["probabilities"]
     assert consumed["mean"] == pytest.approx(truth("target", (0, 1)), abs=1e-12)
@@ -504,7 +537,7 @@ def test_a_source_law_that_does_not_serve_the_cited_leaf_supports_no_history():
     )
     only_obs = transport.ExactTransportData((laws().laws[0], obs_law))
     with pytest.raises(
-        CausalUnsupportedError, match="temporal_transport.history_outside_support"
+        CausalUnsupportedError, match=reason_details.temporal_transport.HISTORY_OUTSIDE_SUPPORT
     ) as refused:
         prepare(cat=catalog(extra=[_source_obs()]), data=only_obs)
     assert refused.value.reason_code == "transport_support_failure"
@@ -518,12 +551,14 @@ def test_a_source_law_that_does_not_serve_the_cited_leaf_supports_no_history():
         interventions=(("a1", 1.0), ("a2", 0.0)),
     )
     only_actions = transport.ExactTransportData((laws().laws[0], actions_law))
-    with pytest.raises(CausalUnsupportedError, match="temporal_transport.history_outside_support"):
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.temporal_transport.HISTORY_OUTSIDE_SUPPORT
+    ):
         prepare(cat=catalog(extra=[_source_actions()]), data=only_actions)
 
 
 def test_evidence_is_marked_cited_only_when_the_derivation_reads_it():
-    report = json.loads(prepare(cat=catalog(extra=[_source_obs()])).estimate())
+    report = json.loads(require_success(prepare(cat=catalog(extra=[_source_obs()])).estimate()))
     cited = {}
     for row in report["evidence"]:
         cited.setdefault(row["regime"], set()).add(row["cited_by_derivation"])
@@ -535,15 +570,17 @@ def test_a_refresh_that_moves_the_fixed_initial_state_needs_a_new_preparation():
     prepared = prepare((1.0, 0.0))
     moved = list(TARGET_P)
     moved[0] = 0.5
-    with pytest.raises(CausalUnsupportedError, match="temporal_transport.horizon") as refused:
-        prepared.refresh(laws(target_p=moved))
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.temporal_transport.HORIZON
+    ) as refused:
+        require_success(prepared.refresh(laws(target_p=moved)))
     assert refused.value.reason_code == "route_not_supported"
     assert "initial-state" in str(refused.value)
     # Other target mechanisms keep the same initial state: a same-window refresh.
     later = list(TARGET_P)
     later[7] = 0.4
-    prepared.refresh(laws(target_p=later))
-    assert json.loads(prepared.estimate())["status"] == "available"
+    require_success(prepared.refresh(laws(target_p=later)))
+    assert json.loads(require_success(prepared.estimate()))["status"] == "available"
 
 
 def test_a_budget_stop_shows_its_receipt():

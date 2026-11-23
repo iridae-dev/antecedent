@@ -15,3 +15,22 @@ test_sources = [
   "crates/antecedent-io/tests/cross_surface_joint_law.rs",
   "python/tests/test_cross_surface.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "A parity check between the Python and Rust surfaces over one aligned joint-law artifact format: values, identities and refusal details read on one surface from bytes written on the other."
+no_independent_algorithm = "distribution_artifact.rs is the shared encoding, decoding and identity binding of the artifact; the check compares bytes, identities and constants of an enumerated two-draw law and adds no numerics."
+record_sha256 = "e6401292ebec640de918c0b0452e99c32c510efe3b199425188f6ac72f2b4262"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/distribution_artifact.rs"
+items = ["const ARTIFACT_KIND", "const DRAW_SECTION", "const MAX_DISTRIBUTION_ARTIFACT_BYTES", "const MAX_DISTRIBUTION_COORDINATES", "const MAX_DISTRIBUTION_DRAWS", "const META_SECTION", "enum DistributionCalibration", "enum DistributionTrust", "enum DrawAlignment", "fn covariance", "fn default", "fn draws", "fn from_bytes", "fn from_bytes_within", "fn joint_expectation", "fn mean", "fn metadata", "fn n_draws", "fn new", "fn new_within", "fn quantities", "fn require_coordinate", "fn require_joint", "fn semantic", "fn to_bytes", "fn to_bytes_within", "fn validate", "fn validate_metadata", "fn validate_within", "fn weights", "struct DistributionArtifact", "struct DistributionIdentity", "struct DistributionIntakeLimits", "struct DistributionMetadata", "struct DistributionProvenance", "struct LegacyPosteriorBinding"]
+sha256 = "5fd62dd35d22955c7b613bc7d6367a7156a6270fcba6ec5a5f13100dde45026c"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-io/tests/cross_surface_joint_law.rs"
+items = ["fn assert_enumerated_truth", "fn both_directions_round_trip_through_one_wire_format", "fn changed_semantic_id_wrong_meaning_and_marginals_refuse", "fn expected_identity", "fn fixture_dir", "fn identity", "fn law", "fn near", "fn python_built_joint_law_reports_the_enumerated_truth_under_constants", "fn quantities", "fn read_fixture", "fn regenerate_rust_fixtures"]
+sha256 = "848ca53758d0c9a89d62dafc7a5c3edea28456e5cc750e0ed0645a3f810ee495"

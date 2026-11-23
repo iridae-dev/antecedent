@@ -1,6 +1,6 @@
 //! CI calibration helpers (null / alternative recovery rates).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -350,7 +350,7 @@ pub(crate) fn calibrate_gsquared(
         let y_alt: Vec<f64> = x
             .iter()
             .map(|&xi| {
-                if rng.next_u64() % 5 == 0 {
+                if rng.next_u64().is_multiple_of(5) {
                     (rng.next_u64() % u64::try_from(levels).unwrap_or(1)) as f64
                 } else {
                     xi
@@ -496,6 +496,7 @@ pub(crate) fn collect_null_pvalues_parcorr_like(
     let mut ws = CiWorkspace::default();
     let ctx = ExecutionContext::for_tests(seed);
     let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+    // Calibration harness: one p-value per trial on a context it builds itself, so no study pool exists to lease from.
     let mut out = Vec::with_capacity(trials as usize);
     for t in 0..trials {
         let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, trial_stream(0xCA12, t));
@@ -559,7 +560,7 @@ mod tests {
     #[test]
     fn robust_parcorr_calibration_smoke() {
         // Every-PR smoke at alpha + 3 SE. The exact binomial gate lives in
-        // `robust_parcorr_calibration_gate` (scripts/gate_calibration.sh).
+        // `robust_parcorr_calibration_gate` (scripts/measure_calibration.sh).
         let report =
             calibrate_parcorr_like(&RobustPartialCorrelation::new(), 180, 60, 0.05, 13).unwrap();
         let ceiling = smoke_type_i_ceiling(0.05, 60);
@@ -570,7 +571,7 @@ mod tests {
     #[test]
     fn weighted_parcorr_calibration_smoke() {
         // Every-PR smoke at alpha + 3 SE. The exact binomial gate lives in
-        // `weighted_parcorr_calibration_gate` (scripts/gate_calibration.sh).
+        // `weighted_parcorr_calibration_gate` (scripts/measure_calibration.sh).
         let n = 180usize;
         let w = vec![1.0; n];
         let report =
@@ -630,7 +631,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn robust_parcorr_calibration_gate() {
         let trials = 1000u32;
         let alpha = 0.05;
@@ -647,7 +648,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn weighted_parcorr_calibration_gate() {
         let trials = 1000u32;
         let alpha = 0.05;
@@ -667,7 +668,7 @@ mod tests {
 
     /// G² Type I near α (calibration gate). Every-PR smoke uses a looser ceiling.
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn gsquared_calibration_gate() {
         let trials = 1000u32;
         let alpha = 0.05;
@@ -683,7 +684,7 @@ mod tests {
 
     /// kNN-CMI actual Type I rate under independent noise (not just alt≺null ordering).
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn knn_dependence_calibration_gate() {
         let trials = 200u32;
         let alpha = 0.05;
@@ -736,7 +737,7 @@ mod tests {
 
     /// `ParCorr` block-shuffle (`block_size=1` ⇒ row permutation) p-values ≈ U[0,1] under null.
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn parcorr_perm_pvalue_uniformity_gate() {
         let trials = 400u32;
         let n_bins = 10usize;
@@ -764,7 +765,7 @@ mod tests {
 
     /// kNN-CMI permutation p-values ≈ U[0,1] under independent noise.
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn knn_perm_pvalue_uniformity_gate() {
         let trials = 200u32;
         let n = 100usize;
@@ -873,7 +874,7 @@ mod tests {
     /// of ~0.34 at px=py=2 and ~0.81 at px=py=3 -- rising with n, so not a
     /// small-sample artifact. This gate would have caught that immediately.
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn multivariate_block_calibration_gate() {
         let trials = 400u32;
         let alpha = 0.05;
@@ -896,7 +897,7 @@ mod tests {
     /// which kept that direction favourable under permutation and produced the same
     /// anti-conservative bias as the analytic path (~0.33 at px=py=2).
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn multivariate_block_shuffle_calibration_gate() {
         let report =
             calibrate_multivariate_parcorr_block_shuffle(200, 2, 2, 200, 0.05, 83).unwrap();
@@ -946,7 +947,7 @@ mod tests {
     /// null has ample permutation support and is not calibrated by coarseness. Blocks much longer
     /// than this turn mildly conservative (0.02–0.03), which is valid but wastes power.
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn gpdc_block_shuffle_autocorrelated_type_i_gate() {
         let trials = 200u32;
         let alpha = 0.05;
@@ -1009,7 +1010,7 @@ mod tests {
     /// **0.047**, the element-wise null (`block_size = 1`) at **0.12**, which fails this
     /// assertion.
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn knn_unconditional_block_shuffle_autocorrelated_type_i_gate() {
         let trials = 200u32;
         let alpha = 0.05;
@@ -1054,8 +1055,8 @@ mod tests {
         let n = 100usize;
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
         let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0x51);
-        let x: Vec<f64> = (0..n).map(|_| ((rng.next_u64() % 4) as f64)).collect();
-        let y_null: Vec<f64> = (0..n).map(|_| ((rng.next_u64() % 4) as f64)).collect();
+        let x: Vec<f64> = (0..n).map(|_| (rng.next_u64() % 4) as f64).collect();
+        let y_null: Vec<f64> = (0..n).map(|_| (rng.next_u64() % 4) as f64).collect();
         let cols_null: [&[f64]; 2] = [&x, &y_null];
         let req = CiBatchRequest {
             columns: &cols_null,
@@ -1243,7 +1244,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn parcorr_conditional_null_gate() {
         let (trials, alpha) = (1000u32, 0.05);
         let (rej, trials) = conditional_null_rejections(
@@ -1263,7 +1264,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn robust_parcorr_conditional_null_gate() {
         let (trials, alpha) = (1000u32, 0.05);
         let (rej, trials) = conditional_null_rejections(
@@ -1280,7 +1281,7 @@ mod tests {
 
     /// Heterogeneous weights (0.5–1.5, Kish `n_eff` ≈ 0.96 n) with a confounding Z.
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn weighted_parcorr_conditional_null_gate() {
         let (trials, alpha, n) = (1000u32, 0.05, 250usize);
         let mut wrng = ExecutionContext::for_tests(107).rng.stream(0x77);
@@ -1298,7 +1299,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn gsquared_conditional_null_gate() {
         let (trials, alpha) = (1000u32, 0.05);
         let (rej, trials) = conditional_null_rejections(
@@ -1314,7 +1315,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn symbolic_cmi_conditional_null_gate() {
         let (trials, alpha) = (400u32, 0.05);
         let (rej, trials) = conditional_null_rejections(
@@ -1332,7 +1333,7 @@ mod tests {
     /// Continuous Z confounder: the size-2-window conditional permutation null must not be the
     /// near-1 rejection rate the old tercile bins produced.
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn knn_conditional_null_gate() {
         let (trials, alpha) = (300u32, 0.05);
         let (rej, trials) = conditional_null_rejections(
@@ -1349,7 +1350,7 @@ mod tests {
 
     /// Z scaled by 100: the GP must condition on the standardised Z, not on a raw length scale.
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn gpdc_conditional_null_gate() {
         let (trials, alpha) = (300u32, 0.05);
         let (rej, trials) = conditional_null_rejections(
@@ -1382,7 +1383,7 @@ mod tests {
     /// 4000 rows, must hold its Type I rate where the exact test cannot run: a nonlinear
     /// confounder that the 256-point kernel has to represent, at n = 6000.
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn gpdc_nystrom_conditional_null_gate() {
         let (trials, alpha) = (200u32, 0.05);
         let (rej, trials) = conditional_null_rejections(
@@ -1400,7 +1401,7 @@ mod tests {
     /// As [`gpdc_nystrom_conditional_null_gate`] at n = 20000, where a fixed rank covers a
     /// smaller share of the sample.
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn gpdc_nystrom_conditional_null_large_n_gate() {
         let (trials, alpha) = (100u32, 0.05);
         let (rej, trials) = conditional_null_rejections(
@@ -1418,7 +1419,7 @@ mod tests {
     /// Power of the Nyström-residualized GPDC against a conditional dependence of
     /// `Y` on `X` of 0.1 per unit (partial correlation about 0.1) at n = 6000.
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn gpdc_nystrom_conditional_power_gate() {
         let (trials, alpha) = (100u32, 0.05);
         let (rej, trials) = conditional_null_rejections(
@@ -1490,14 +1491,14 @@ mod tests {
     /// The low-rank GPDC test beyond the exact test's 4000-row limit, 8000 rows, two
     /// conditioning variables: Type I error near nominal and power under dependence.
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn conditional_gpdc_beyond_4k_8000_rows() {
         assert_two_conditioner_type_i_and_power(8_000, 5_996_245, 0xC0_10, 200);
     }
 
     /// As [`conditional_gpdc_beyond_4k_8000_rows`] at 20000 rows.
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn conditional_gpdc_beyond_4k_20000_rows() {
         assert_two_conditioner_type_i_and_power(20_000, 6_766_463, 0xC0_11, 100);
     }
@@ -1507,7 +1508,7 @@ mod tests {
     /// cannot run): the rejection rate at level 0.05 stays within the exact binomial region and
     /// its coverage (one minus that rate) stays above the 0.93 floor.
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn scalable_gpdc_replacement_validated_separately() {
         let record = |id: &str| {
             let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -1557,7 +1558,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn parcorr_block_shuffle_conditional_autocorrelated_type_i_gate() {
         let (trials, alpha) = (400u32, 0.05);
         let (rej, trials) = conditional_null_rejections(
@@ -1573,7 +1574,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn weighted_parcorr_block_shuffle_conditional_autocorrelated_type_i_gate() {
         let (trials, alpha, n) = (400u32, 0.05, 200usize);
         let (rej, trials) = conditional_null_rejections(

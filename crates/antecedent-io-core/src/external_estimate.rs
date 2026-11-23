@@ -4,7 +4,7 @@
 //! as attested evidence; it is not re-run, not an `EconML` wrapper, and not a
 //! native calibrated point claim.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     AverageEffectQuery, CanonicalWriter, CausalQuery, CausalSchemaBuilder, IDENTITY_FORMAT,
@@ -72,7 +72,7 @@ pub struct ExternalEstimateAttach {
 ///
 /// Only a fully identified parent (`nonparametrically_identified` or
 /// `identified_under_parametric_restrictions`) can carry an attested estimate: a partially
-/// identified, graph-dependent or refused parent licenses no point value to attach to.
+/// identified, graph-dependent or refused parent supports no point value to attach to.
 ///
 /// # Errors
 ///
@@ -140,6 +140,7 @@ fn receipt_body(
     let query_wire = causal_query_to_wire(&query)?;
     let status = wire_status(&attach.status);
     let body = AnalysisResultWire {
+        native_execution: None,
         query: query_wire.clone(),
         identification: IdentificationResultWire {
             status: status.clone(),
@@ -170,10 +171,22 @@ fn receipt_body(
         local_polynomial_ratio: None,
         randomized_effect: None,
         survival: None,
+        posterior_row: None,
         longitudinal_regime: None,
+        sequential_contrast: None,
+        history_match: None,
+        iv_bounds: None,
+        association: None,
+        quasi_rollout: None,
+        temporal_design: None,
         interference_inference: None,
         interventional_distribution: None,
         standard_error: None,
+        joint_covariance: None,
+        simultaneous_interval: None,
+        adjusted_p_values: None,
+        family_contrast: None,
+        family_contrast_interval: None,
         interval_lower: None,
         interval_upper: None,
         assumptions: Vec::new(),
@@ -184,6 +197,7 @@ fn receipt_body(
         mediation_grid: None,
         structural_response: None,
         unit_effects: None,
+        counterfactual_contrasts: None,
         cate: None,
         fitted_effect: None,
         cate_se: None,
@@ -393,7 +407,7 @@ fn receipt_contract(
             identification_domain: domains.identification,
             support_domain: domains.support,
             evaluated_domain: domains.evaluated,
-            calibration: CalibrationSlotWire::unavailable(antecedent_core::reason_code!(
+            calibration: CalibrationSlotWire::not_measured(antecedent_core::reason_code!(
                 "attested_not_reverifiable"
             )),
             attested: vec![evidence.clone()],
@@ -406,6 +420,7 @@ fn receipt_contract(
         data_snapshot: None,
         execution: None,
         score_reuse: None,
+        adjusted_fit_reuse: None,
         target_weights: None,
         checked_aipw_rows: None,
     })
@@ -495,18 +510,9 @@ fn wire_status(status: &str) -> String {
 ///
 /// Wrong length or non-hex input.
 pub fn parse_digest_hex(hex: &str) -> Result<[u8; 32], IoError> {
-    if hex.len() != 64 {
-        return Err(IoError::Convert("digest hex must be 64 characters".into()));
-    }
-    if !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return Err(IoError::Convert("digest hex must be hexadecimal digits".into()));
-    }
-    let mut out = [0u8; 32];
-    for (idx, chunk) in hex.as_bytes().chunks(2).enumerate() {
-        let text = std::str::from_utf8(chunk).map_err(|err| IoError::Convert(err.to_string()))?;
-        out[idx] = u8::from_str_radix(text, 16).map_err(|err| IoError::Convert(err.to_string()))?;
-    }
-    Ok(out)
+    antecedent_contract::evidence_ledger::parse_digest_hex(hex)
+        .map(|digest| *digest.as_bytes())
+        .ok_or_else(|| IoError::Convert("digest hex must be 64 hexadecimal characters".into()))
 }
 
 /// Decode an external-estimate receipt and return its claim section.
@@ -741,8 +747,8 @@ mod tests {
         let mut attach = attach_with_payload(&[0]);
         attach.scalar_value = Some(1.2);
         let bytes = encode_external_estimate_claim(&attach).unwrap();
-        let consumed = crate::consume_analysis_result(&bytes).unwrap();
-        assert!(!consumed.acceptance.verified_references);
+        let consumed = crate::replay_analysis_result(&bytes).unwrap();
+        assert!(!consumed.acceptance.replayed_references);
         let host = crate::project_claim_host(&consumed);
         assert_eq!(host.identification_domain, serde_json::Value::Null);
         assert_eq!(host.support_domain, serde_json::Value::Null);

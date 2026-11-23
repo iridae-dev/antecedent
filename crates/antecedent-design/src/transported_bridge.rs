@@ -37,7 +37,7 @@
 //! the terminal outcome or a modifier, is refused (the premise is named);
 //! the premise stays an unresolved obligation of the rebuilt claim.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::bridge::{
     AssumptionKind, BridgeAssumption, BridgeContract, BridgeEndpoint, BridgeKind, BridgeMapping,
@@ -55,10 +55,10 @@ pub const SURROGATE_TRANSPORT_PREMISE_ID: &str = "surrogate_terminal_relation_in
 /// A selection node points into the terminal outcome or a modifier of the
 /// relation, contradicting the premise.
 pub const DETAIL_PREMISE_CONTRADICTED: &str =
-    "scientific_bridge.transport_premise_contradicted_by_selection_diagram";
+    antecedent_core::reason_details::scientific_bridge::TRANSPORT_PREMISE_CONTRADICTED_BY_SELECTION_DIAGRAM;
 /// The declared diagram is not between the scopes the bridge moves across.
 pub const DETAIL_DIAGRAM_SCOPE_MISMATCH: &str =
-    "scientific_bridge.transport_diagram_scope_mismatch";
+    antecedent_core::reason_details::scientific_bridge::TRANSPORT_DIAGRAM_SCOPE_MISMATCH;
 
 const TAG_DIAGRAM: &str = "antecedent.design.transported_bridge.selection_diagram";
 
@@ -228,6 +228,10 @@ impl TransportedSurrogateBridge {
                 evidence: Some(self.validation_evidence.clone()),
             }],
             transport,
+
+            mapping_uncertainty: None,
+            source_dependence: None,
+            estimand_bridge: None,
         })
     }
 
@@ -235,7 +239,7 @@ impl TransportedSurrogateBridge {
     ///
     /// # Errors
     /// The refusals of [`Self::contract`], then the contract's own: an
-    /// unlicensed bridge, a source about another quantity or unit, a source
+    /// unsupported bridge, a source about another quantity or unit, a source
     /// that is not a finite point, and a surrogate effect outside the
     /// validated range.
     #[allow(

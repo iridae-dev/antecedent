@@ -1390,8 +1390,8 @@
         ]
       ],
       "mediation": [
-        0.09022090667408024,
-        0.0005170887388735183
+        0.09191894400594558,
+        0.0008263690049485812
       ],
       "window": [
         2.384749207166842,
@@ -1402,8 +1402,8 @@
         0.0036841421103005713
       ],
       "confounded_mediation": [
-        5.6443750097472005,
-        1.0855362063215817
+        5.644793566017976,
+        1.0902613586208165
       ],
       "dependent_pulse": [
         0.05923952664376631,
@@ -1426,8 +1426,8 @@
         ]
       ],
       "mediation": [
-        0.3718093954454733,
-        0.008030520680890496
+        0.3746870365868089,
+        0.010178669525566834
       ],
       "window": [
         4.926347291067917,
@@ -1438,14 +1438,18 @@
         0.00611663690470527
       ],
       "confounded_mediation": [
-        1.7492644065255079,
-        0.04947021248786676
+        1.748475837552695,
+        0.046712003056427504
       ],
       "dependent_pulse": [
         0.8286001679315192,
         0.04579188816713404
       ]
     }
+  },
+  "joint_block": {
+    "mediation": 30,
+    "confounded_mediation": 5
   },
   "tempering": {
     "window": [
@@ -1580,6 +1584,22 @@
   "oracle": {
     "kind": "independent_reimplementation",
     "project": "NumPy Normal-inverse-gamma posterior equations",
-    "generator": "conformance/bayesian/posterior_moments/generate.py (retained; imports NumPy only, no Antecedent code)"
+    "method": "tempered Normal-inverse-gamma matrix equations, Bartlett long-run covariance of stacked OLS scores, REML autoregression by Nelder-Mead, and product moments of jointly Gaussian coefficients",
+    "independence_basis": "The plain and tempered posterior moments are closed-form matrix equations in NumPy. The tempering factor kappa re-implements the repository-defined long-run-variance rule (autoregressive REML fit, fixed-b Newey-West bound, delta-method spread; constants at the top of the file) in NumPy and imports no Antecedent code, so for kappa the reference checks the product against the rule as restated here, not against an external definition. The retained generator and the executing assertions were read for the review recorded in reference_review.",
+    "generator": "conformance/bayesian/posterior_moments/generate.py",
+    "generator_retained": true,
+    "environment_lock": "conformance/bayesian/posterior_moments/generate.py.lock",
+    "command": "uv run --frozen --script conformance/bayesian/posterior_moments/generate.py --check",
+    "asserted_outputs": [
+      "posterior[scale][family] mean and variance for conditional, mediation, window, response, stationary_window, confounded_mediation",
+      "tempering[family][*].rows and kappa (window, stationary_window)",
+      "posterior[scale].dependent_pulse and the mediation moments and kappa in the Rust assertions",
+      "joint_block (the Rust assertion reports the same block length)"
+    ],
+    "context_only_outputs": [
+      "data (inputs)"
+    ],
+    "executing_assertion": "python/tests/test_posterior_moments.py::test_posterior_moments_and_artifact",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown."
   }
 }

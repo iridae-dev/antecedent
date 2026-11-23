@@ -13,10 +13,10 @@
 //! full outcome coefficients, including covariance with reused donor outcomes, and estimates
 //! homoskedastic noise from arm-regression residuals with their residual degrees of freedom.
 //!
-//! The ignored design runs through `scripts/gate_calibration.sh`; it emits no coverage record
+//! The ignored design runs through `scripts/measure_calibration.sh`; it emits no coverage record
 //! (the estimator is not reachable through the facade) and gates pass or fail.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_precision_loss, reason = "bounded measurement dimensions")]
 
@@ -109,7 +109,17 @@ fn knn_matching_replicates_are_finite_and_centred_on_the_effect() {
     let fits: Vec<(f64, f64)> =
         (0..24).map(|r| replicate(2_000, SEED + r).expect("a fit")).collect();
     let mean = fits.iter().map(|&(ate, _)| ate).sum::<f64>() / fits.len() as f64;
-    assert!((mean - EFFECT).abs() < 0.1, "mean ATT {mean}");
+    // Observed: mean 0.522 (matching bias about 0.02), sd 0.064, root-mean-square se 0.060, 22 of 24
+    // intervals cover. The mean has sampling sd 0.013, so 0.08 is a wide margin; the analytic se
+    // must track the replicate sd (ratio 0.93) and nearly all intervals must cover the effect.
+    let sd = (fits.iter().map(|&(a, _)| (a - mean).powi(2)).sum::<f64>()
+        / (fits.len() as f64 - 1.0))
+        .sqrt();
+    let rms_se = (fits.iter().map(|&(_, s)| s * s).sum::<f64>() / fits.len() as f64).sqrt();
+    assert!((0.7..1.4).contains(&(rms_se / sd)), "rms se {rms_se} vs replicate sd {sd}");
+    let covered = fits.iter().filter(|&&(a, s)| (a - EFFECT).abs() <= Z95 * s).count();
+    assert!(covered >= 18, "{covered} of 24 intervals cover the effect");
+    assert!((mean - EFFECT).abs() < 0.08, "mean ATT {mean}");
     for fit in fits {
         let (lo, hi) = interval(fit).expect("a finite interval");
         assert!(lo < hi && hi - lo < 1.0, "[{lo}, {hi}]");
@@ -117,7 +127,7 @@ fn knn_matching_replicates_are_finite_and_centred_on_the_effect() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn knn_matching_interval_ci_coverage() {
     eprintln!("CALIBRATION_GATE_PROTOCOL population_linear");
     let rows = ROWS.n(MAX_ROWS);

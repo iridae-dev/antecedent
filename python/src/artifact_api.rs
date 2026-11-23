@@ -1,14 +1,15 @@
 //! Python bridge for standalone format-0.5 causal wire artifacts.
 
+use crate::NumericColumn;
 use crate::bridge::serialization as serialization_error;
-use antecedent_io::executed_functional_labels;
-use antecedent_io::{
+use antecedent::io::{
     CausalPayloadWire, CausalQueryWire, CausalResponseWire, ExternalEstimateAttach,
     InterferenceEstimateWire, TransportEffectEstimateWire, TransportIdentificationWire,
     decode_analysis_result_artifact, decode_causal_payload_artifact,
-    encode_causal_payload_artifact, encode_external_estimate_claim, parse_digest_hex,
+    encode_causal_payload_artifact, encode_external_estimate_claim, executed_functional_labels,
+    parse_digest_hex,
 };
-use numpy::{PyArray1, PyReadonlyArray1};
+use numpy::PyArray1;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Serialize;
@@ -45,43 +46,45 @@ fn parse_payload(kind: &str, payload_json: &str) -> PyResult<CausalPayloadWire> 
         "query" => {
             let wire = parse::<CausalQueryWire>(payload_json)?;
             let domain =
-                antecedent_io::causal_query_from_wire(&wire).map_err(serialization_error)?;
+                antecedent::io::causal_query_from_wire(&wire).map_err(serialization_error)?;
             CausalPayloadWire::Query(Box::new(
-                antecedent_io::causal_query_to_wire(&domain).map_err(serialization_error)?,
+                antecedent::io::causal_query_to_wire(&domain).map_err(serialization_error)?,
             ))
         }
         "static_result" => CausalPayloadWire::StaticResult(Box::new(parse::<
-            antecedent_io::StaticResultWire,
+            antecedent::io::StaticResultWire,
         >(payload_json)?)),
         "response_result" => {
             let wire = parse::<CausalResponseWire>(payload_json)?;
             let domain =
-                antecedent_io::causal_response_from_wire(&wire).map_err(serialization_error)?;
+                antecedent::io::causal_response_from_wire(&wire).map_err(serialization_error)?;
             let mut canonical =
-                antecedent_io::causal_response_to_wire(&domain).map_err(serialization_error)?;
+                antecedent::io::causal_response_to_wire(&domain).map_err(serialization_error)?;
             canonical.coordinates = wire.coordinates;
             CausalPayloadWire::ResponseResult(Box::new(canonical))
         }
         "transport_identification" => {
             let wire = parse::<TransportIdentificationWire>(payload_json)?;
-            let domain = antecedent_io::transport_identification_from_wire(&wire);
+            let domain = antecedent::io::transport_identification_from_wire(&wire)
+                .map_err(serialization_error)?;
             CausalPayloadWire::TransportIdentification(Box::new(
-                antecedent_io::transport_identification_to_wire(&domain),
+                antecedent::io::transport_identification_to_wire(&domain),
             ))
         }
         "transport_estimate" => {
             let wire = parse::<TransportEffectEstimateWire>(payload_json)?;
             let domain =
-                antecedent_io::transport_effect_from_wire(&wire).map_err(serialization_error)?;
+                antecedent::io::transport_effect_from_wire(&wire).map_err(serialization_error)?;
             CausalPayloadWire::TransportEstimate(Box::new(
-                antecedent_io::transport_effect_to_wire(&domain).map_err(serialization_error)?,
+                antecedent::io::transport_effect_to_wire(&domain).map_err(serialization_error)?,
             ))
         }
         "interference_estimate" => {
             let wire = parse::<InterferenceEstimateWire>(payload_json)?;
-            let domain = antecedent_io::interference_estimate_from_wire(&wire);
+            let domain = antecedent::io::try_interference_estimate_from_wire(&wire)
+                .map_err(serialization_error)?;
             CausalPayloadWire::InterferenceEstimate(Box::new(
-                antecedent_io::interference_estimate_to_wire(&domain),
+                antecedent::io::interference_estimate_to_wire(&domain),
             ))
         }
         _ => {
@@ -113,30 +116,35 @@ fn encode_causal_artifact<'py>(
     artifact_id: &str,
     contract_json: Option<&str>,
 ) -> PyResult<Bound<'py, PyBytes>> {
-    if contract_json.is_some() && payload_kind != "analysis_result" {
-        return Err(crate::serialization_err("a contract belongs to an analysis_result artifact"));
-    }
-    let artifact = if payload_kind == "analysis_result" {
-        let result = parse::<antecedent_io::AnalysisResultWire>(payload_json)?;
-        let contract =
-            contract_json.map(parse::<antecedent_io::AnalysisResultContractWire>).transpose()?;
-        antecedent_io::encode_analysis_result_artifact_with_contract(
-            &result,
-            variable_names,
-            artifact_id,
-            contract.as_ref(),
-        )
-    } else {
-        let payload = parse_payload(payload_kind, payload_json)?;
-        encode_causal_payload_artifact(&payload, variable_names, artifact_id)
-    }
-    .map_err(serialization_error)?;
-    let mut bytes = Vec::new();
-    artifact.write_to(&mut bytes).map_err(serialization_error)?;
-    // Return real Python `bytes`, not the `list[int]` PyO3 would produce from
-    // a bare `Vec<u8>` return type -- callers (and the `antecedent.artifacts`
-    // wire format) depend on `isinstance(..., bytes)`.
-    Ok(PyBytes::new(py, &bytes))
+    crate::catch_ffi(|| {
+        if contract_json.is_some() && payload_kind != "analysis_result" {
+            return Err(crate::serialization_err(
+                "a contract belongs to an analysis_result artifact",
+            ));
+        }
+        let artifact = if payload_kind == "analysis_result" {
+            let result = parse::<antecedent::io::AnalysisResultWire>(payload_json)?;
+            let contract = contract_json
+                .map(parse::<antecedent::io::AnalysisResultContractWire>)
+                .transpose()?;
+            antecedent::io::encode_analysis_result_artifact_with_contract(
+                &result,
+                variable_names,
+                artifact_id,
+                contract.as_ref(),
+            )
+        } else {
+            let payload = parse_payload(payload_kind, payload_json)?;
+            encode_causal_payload_artifact(&payload, variable_names, artifact_id)
+        }
+        .map_err(serialization_error)?;
+        let mut bytes = Vec::new();
+        artifact.write_to(&mut bytes).map_err(serialization_error)?;
+        // Return real Python `bytes`, not the `list[int]` PyO3 would produce from
+        // a bare `Vec<u8>` return type -- callers (and the `antecedent.artifacts`
+        // wire format) depend on `isinstance(..., bytes)`.
+        Ok(PyBytes::new(py, &bytes))
+    })
 }
 
 /// A provider result or external callback output, read structurally.
@@ -144,10 +152,10 @@ fn encode_causal_artifact<'py>(
 /// The payload is the declared header: a `verified_extension` trust here is a
 /// producer's claim, believed only by the registry that holds its evidence.
 fn decode_external_frame(bytes: &[u8]) -> PyResult<Option<DecodedCausalArtifact>> {
-    use antecedent_io::external_callback_artifact::ExternalCallbackArtifact;
-    use antecedent_io::provider_envelope::{inspect_provider_envelope, is_provider_envelope};
+    use antecedent::io::external_callback_artifact::ExternalCallbackArtifact;
+    use antecedent::io::provider_envelope::{inspect_provider_envelope, is_provider_envelope};
 
-    let stable = antecedent_io::STABLE_FORMAT;
+    let stable = antecedent::io::STABLE_FORMAT;
     if is_provider_envelope(bytes) {
         let envelope = inspect_provider_envelope(bytes).map_err(serialization_error)?;
         return Ok(Some(DecodedCausalArtifact {
@@ -163,11 +171,11 @@ fn decode_external_frame(bytes: &[u8]) -> PyResult<Option<DecodedCausalArtifact>
     if ExternalCallbackArtifact::recognizes(bytes) {
         let callback = ExternalCallbackArtifact::inspect(bytes).map_err(serialization_error)?;
         let payload = serde_json::json!({
-            "request_digest": antecedent_core::to_hex(&callback.request_digest),
-            "provider_digest": antecedent_core::to_hex(&callback.provider_digest),
+            "request_digest": antecedent::identity::to_hex(&callback.request_digest),
+            "provider_digest": antecedent::identity::to_hex(&callback.provider_digest),
             "policy": callback.policy,
             "identity": callback.identity,
-            "claim_blake3": antecedent_core::blake3_hex(&callback.artifact),
+            "claim_blake3": antecedent::identity::blake3_hex(&callback.artifact),
         });
         return Ok(Some(DecodedCausalArtifact {
             artifact_id: callback.artifact_id(),
@@ -189,11 +197,32 @@ fn inspect_artifact_container(bytes: &[u8]) -> PyResult<String> {
 }
 
 fn inspect_container_metadata(bytes: &[u8], depth: usize) -> PyResult<String> {
-    use antecedent_io::container::EncodedArtifact;
-    use antecedent_io::reader::ArtifactReader;
+    use antecedent::io::EncodedArtifact;
+    use antecedent::io::reader::ArtifactReader;
     use std::io::Cursor;
     if depth > 8 {
         return Err(serialization_error("artifact framing exceeds the inspection depth limit"));
+    }
+    if bytes.starts_with(antecedent::io::bayesian_prior_recalc_artifact::BOUND_PRIOR_MAGIC) {
+        let source =
+            antecedent::io::bayesian_prior_recalc_artifact::BoundBayesianPriorWire::decode(bytes)
+                .map_err(serialization_error)?;
+        // Framing and retained metadata only. Posterior authority requires the
+        // scientific source replay performed by the Bayesian prior consumer.
+        return json(&serde_json::json!({
+            "manifest": {"artifact_kind": {"other": "bound_bayesian_prior_source_v1"}},
+            "metadata": {
+                "source_snapshot": blake3::Hash::from(source.source_snapshot).to_hex().to_string(),
+                "columns": source.columns.len(), "draws": source.draws,
+                "seed": source.seed, "posterior_bytes": source.posterior.len(),
+            },
+        }));
+    }
+    if bytes.starts_with(b"ANTSTALEBASE1") {
+        return json(&serde_json::json!({
+            "manifest": {"artifact_kind": {"other": "staleness_baseline_v1"}},
+            "metadata": {"encoded_payload_bytes": bytes.len() - 13, "validation": "requires_consumer"},
+        }));
     }
     if bytes.starts_with(b"ANTECEDENT-") {
         let delimiter = bytes
@@ -218,13 +247,23 @@ fn inspect_container_metadata(bytes: &[u8], depth: usize) -> PyResult<String> {
                 "metadata": {"envelope": metadata},
             }));
         }
-        let (names, inner) =
-            if marker.starts_with("ANTECEDENT-TEMPORAL-") || marker == "ANTECEDENT-LEARNED-TRIAL" {
-                (Vec::<String>::new(), payload.to_vec())
-            } else {
-                antecedent_io::convert::from_cbor::<(Vec<String>, Vec<u8>)>(payload)
-                    .map_err(serialization_error)?
-            };
+        if matches!(marker, "ANTECEDENT-PERIOD-REFRESH" | "ANTECEDENT-PERIOD-REFRESH-SUMMARY") {
+            // These frames prefix a raw scientific record, rather than a schema tuple.
+            // Inspection recognizes framing only. Parsing row blocks and verifying the
+            // seal belong to the independent consumer, keeping this metadata bounded.
+            return json(&serde_json::json!({
+                "manifest": {"artifact_kind": {"other": marker}, "frame_version": 1},
+                "metadata": {"encoded_payload_bytes": payload.len(), "validation": "requires_consumer"},
+            }));
+        }
+        let (names, inner) = if marker.starts_with("ANTECEDENT-TEMPORAL-")
+            || matches!(marker, "ANTECEDENT-LEARNED-TRIAL" | "ANTECEDENT-SCENARIO-COVARIANCE")
+        {
+            (Vec::<String>::new(), payload.to_vec())
+        } else {
+            antecedent::io::convert::from_cbor::<(Vec<String>, Vec<u8>)>(payload)
+                .map_err(serialization_error)?
+        };
         let inspected: serde_json::Value =
             serde_json::from_str(&inspect_container_metadata(&inner, depth + 1)?)
                 .map_err(serialization_error)?;
@@ -233,9 +272,17 @@ fn inspect_container_metadata(bytes: &[u8], depth: usize) -> PyResult<String> {
             "metadata": {"variable_names": names, "inner": inspected},
         }));
     }
-    if !bytes.starts_with(antecedent_io::container::MAGIC) {
+    if !bytes.starts_with(antecedent::io::container::MAGIC) {
+        if antecedent::io::array_fit_artifact::inspect_array_fit_header(bytes)
+            .map_err(serialization_error)?
+        {
+            return json(&serde_json::json!({
+                "manifest": {"artifact_kind": {"other": "array_fit_replay_v1"}},
+                "metadata": {"encoded_payload_bytes": bytes.len(), "validation": "requires_independent_refit"},
+            }));
+        }
         let metadata: serde_json::Value =
-            antecedent_io::convert::from_cbor(bytes).map_err(serialization_error)?;
+            antecedent::io::convert::from_cbor(bytes).map_err(serialization_error)?;
         let kind = metadata
             .get("required_features")
             .and_then(|v| v.as_array())
@@ -274,7 +321,7 @@ fn inspect_container_metadata(bytes: &[u8], depth: usize) -> PyResult<String> {
         .sections
         .iter()
         .filter_map(|section| {
-            antecedent_io::convert::from_cbor::<serde_json::Value>(&section.data)
+            antecedent::io::convert::from_cbor::<serde_json::Value>(&section.data)
                 .ok()
                 .map(|value| (section.id.clone(), value))
         })
@@ -284,81 +331,158 @@ fn inspect_container_metadata(bytes: &[u8], depth: usize) -> PyResult<String> {
 
 #[pyfunction]
 fn decode_causal_artifact(bytes: &[u8]) -> PyResult<DecodedCausalArtifact> {
-    if let Some(external) = decode_external_frame(bytes)? {
-        return Ok(external);
-    }
-    let Ok((artifact, header, payload)) = decode_causal_payload_artifact(bytes) else {
-        let (artifact, header, payload) =
-            decode_analysis_result_artifact(bytes).map_err(serialization_error)?;
-        let contract_json = match antecedent_io::decode_analysis_result_contract(&artifact) {
-            Ok(Some(contract)) => Some(json(&contract)?),
-            Ok(None) => None,
-            Err(err) => return Err(serialization_error(err)),
+    crate::catch_ffi(|| {
+        if let Some(external) = decode_external_frame(bytes)? {
+            return Ok(external);
+        }
+        let Ok((artifact, header, payload)) = decode_causal_payload_artifact(bytes) else {
+            let (artifact, header, payload) =
+                decode_analysis_result_artifact(bytes).map_err(serialization_error)?;
+            let contract_json = match antecedent::io::decode_analysis_result_contract(&artifact) {
+                Ok(Some(contract)) => Some(json(&contract)?),
+                Ok(None) => None,
+                Err(err) => return Err(serialization_error(err)),
+            };
+            return Ok(DecodedCausalArtifact {
+                artifact_id: artifact.manifest.artifact_id,
+                format_major: artifact.manifest.format_version.major,
+                format_minor: artifact.manifest.format_version.minor,
+                payload_kind: "analysis_result".into(),
+                variable_names: header.variable_names,
+                payload_json: json(&payload)?,
+                contract_json,
+            });
         };
-        return Ok(DecodedCausalArtifact {
+        Ok(DecodedCausalArtifact {
             artifact_id: artifact.manifest.artifact_id,
             format_major: artifact.manifest.format_version.major,
             format_minor: artifact.manifest.format_version.minor,
-            payload_kind: "analysis_result".into(),
+            payload_kind: match header.payload_kind {
+                antecedent::io::CausalPayloadKind::Query => "query",
+                antecedent::io::CausalPayloadKind::ResponseResult => "response_result",
+                antecedent::io::CausalPayloadKind::StaticResult => "static_result",
+                antecedent::io::CausalPayloadKind::TransportIdentification => {
+                    "transport_identification"
+                }
+                antecedent::io::CausalPayloadKind::TransportEstimate => "transport_estimate",
+                antecedent::io::CausalPayloadKind::InterferenceEstimate => "interference_estimate",
+            }
+            .into(),
             variable_names: header.variable_names,
-            payload_json: json(&payload)?,
-            contract_json,
-        });
-    };
-    Ok(DecodedCausalArtifact {
-        artifact_id: artifact.manifest.artifact_id,
-        format_major: artifact.manifest.format_version.major,
-        format_minor: artifact.manifest.format_version.minor,
-        payload_kind: match header.payload_kind {
-            antecedent_io::CausalPayloadKind::Query => "query",
-            antecedent_io::CausalPayloadKind::ResponseResult => "response_result",
-            antecedent_io::CausalPayloadKind::StaticResult => "static_result",
-            antecedent_io::CausalPayloadKind::TransportIdentification => "transport_identification",
-            antecedent_io::CausalPayloadKind::TransportEstimate => "transport_estimate",
-            antecedent_io::CausalPayloadKind::InterferenceEstimate => "interference_estimate",
-        }
-        .into(),
-        variable_names: header.variable_names,
-        payload_json: payload_json(&payload)?,
-        contract_json: None,
+            payload_json: payload_json(&payload)?,
+            contract_json: None,
+        })
     })
 }
 
+/// Load an analysis result and check it is intact; with `replay`, also recompute its numbers.
+///
+/// Loading is cheap and replays nothing. `replay` is for a result that did not come from this
+/// process, and runs under the requested-replay bounds.
 #[pyfunction]
+#[pyo3(signature = (bytes, replay=false))]
 fn accept_analysis_result_contract(
     bytes: &[u8],
+    replay: bool,
 ) -> PyResult<std::collections::HashMap<String, String>> {
-    let consumed = antecedent_io::consume_analysis_result(bytes).map_err(serialization_error)?;
-    let mut out = std::collections::HashMap::new();
-    out.insert("recognized".into(), consumed.acceptance.recognized.to_string());
-    out.insert("verified_references".into(), consumed.acceptance.verified_references.to_string());
-    out.insert(
-        "accepts_as_verified_program".into(),
-        consumed.acceptance.accepts_as_verified_program().to_string(),
-    );
-    if let Some(restriction) = &consumed.acceptance.restriction {
-        out.insert("restriction".into(), restriction.to_string());
+    crate::catch_ffi(|| {
+        let load = antecedent::io::load_analysis_result(bytes).map_err(serialization_error)?;
+        let join = |reasons: &[std::sync::Arc<str>]| {
+            reasons.iter().map(std::string::ToString::to_string).collect::<Vec<_>>().join(",")
+        };
+        let mut out = std::collections::HashMap::new();
+        out.insert("intact".into(), load.is_intact().to_string());
+        out.insert("integrity".into(), join(&load.integrity));
+        if replay {
+            let report = antecedent::io::replay_loaded_result(
+                &load,
+                &antecedent::io::ReplayOptions::default(),
+            )
+            .map_err(serialization_error)?;
+            out.insert("replayed".into(), report.replayed().to_string());
+            out.insert("not_replayable".into(), join(&report.not_replayable));
+            out.insert("mismatches".into(), join(&report.mismatches));
+        }
+        if let Some(contract) = &load.contract {
+            out.insert(
+                "program".into(),
+                antecedent::identity::to_hex(&contract.identities.program),
+            );
+            out.insert("target".into(), antecedent::identity::to_hex(&contract.identities.target));
+            out.insert("graph_class".into(), contract.graph_class.clone());
+            out.insert("variable_names".into(), contract.target.schema.variable_names().join(","));
+            for (key, value) in executed_functional_labels(&contract.target.query) {
+                out.insert(key, value);
+            }
+        }
+        Ok(out)
+    })
+}
+
+/// The provenance records an analysis-result artifact carries for its executed route, as JSON.
+///
+/// `None` when the artifact carries no section bound to its contract. Descriptive: reading it
+/// is separate from loading and replay, and takes no part in either.
+#[pyfunction]
+fn analysis_result_method_provenance_json(bytes: &[u8]) -> PyResult<Option<String>> {
+    crate::catch_ffi(|| {
+        carried_method_provenance(bytes)
+            .map(|provenance| {
+                serde_json::to_string(&provenance)
+                    .map_err(|error| crate::value_err(error.to_string()))
+            })
+            .transpose()
+    })
+}
+
+/// Section id of the provenance records an analysis-result export carries.
+const METHOD_PROVENANCE_SECTION: &str = "analysis_result.method_provenance";
+
+/// The provenance records the producer cited for the executed route, as the artifact carries
+/// them.
+///
+/// `None` when the artifact has no readable contract, or the section is absent, duplicated,
+/// unreadable, in another format, or does not name the identifier and estimator the contract
+/// declares (at most one id per role, and each declared id for its role). This is the check
+/// `decode_method_provenance_section` applies on the Rust replay path.
+fn carried_method_provenance(
+    bytes: &[u8],
+) -> Option<antecedent::io::method_provenance::MethodProvenanceWire> {
+    let (artifact, _, _) = antecedent::io::decode_analysis_result_artifact(bytes).ok()?;
+    let contract = antecedent::io::decode_analysis_result_contract(&artifact).ok()??;
+    let (identifier, estimator) = (contract.identifier.as_deref(), contract.estimator.as_deref());
+    let mut sections =
+        artifact.sections.iter().filter(|section| section.id == METHOD_PROVENANCE_SECTION);
+    let section = sections.next()?;
+    if sections.next().is_some() {
+        return None;
     }
-    out.insert(
-        "unresolved".into(),
-        consumed
-            .acceptance
-            .unresolved
+    let provenance: antecedent::io::method_provenance::MethodProvenanceWire =
+        antecedent::io::convert::from_cbor(&section.data).ok()?;
+    let format = antecedent::io::method_provenance::method_provenance(None, None).format;
+    if provenance.format != format {
+        return None;
+    }
+    for (role, declared) in [("identifier", identifier), ("estimator", estimator)] {
+        let mut keys: Vec<&str> = provenance
+            .records
             .iter()
-            .map(std::string::ToString::to_string)
-            .collect::<Vec<_>>()
-            .join(","),
-    );
-    if let Some(contract) = &consumed.contract {
-        out.insert("program".into(), antecedent_core::to_hex(&contract.identities.program));
-        out.insert("target".into(), antecedent_core::to_hex(&contract.identities.target));
-        out.insert("graph_class".into(), contract.graph_class.clone());
-        out.insert("variable_names".into(), contract.target.schema.variable_names().join(","));
-        for (key, value) in executed_functional_labels(&contract.target.query) {
-            out.insert(key, value);
+            .flat_map(|record| record.cited_for.iter())
+            .chain(&provenance.unlinked)
+            .filter(|cited| cited.role.as_str() == role)
+            .map(|cited| cited.key.as_str())
+            .collect();
+        keys.sort_unstable();
+        keys.dedup();
+        let agrees = match declared {
+            Some(declared) => keys == [declared],
+            None => keys.len() <= 1,
+        };
+        if !agrees {
+            return None;
         }
     }
-    Ok(out)
+    Some(provenance)
 }
 
 #[pyfunction(name = "encode_external_estimate_claim")]
@@ -387,9 +511,9 @@ fn encode_external_estimate_claim_py<'py>(
         .unwrap_or_default()
         .iter()
         .map(|name| match name.as_str() {
-            "continuous" => Ok(antecedent_core::ValueType::Continuous),
-            "binary" => Ok(antecedent_core::ValueType::Binary),
-            "count" => Ok(antecedent_core::ValueType::Count),
+            "continuous" => Ok(antecedent::schema::ValueType::Continuous),
+            "binary" => Ok(antecedent::schema::ValueType::Binary),
+            "count" => Ok(antecedent::schema::ValueType::Count),
             other => Err(serialization_error(format!(
                 "unsupported value type `{other}` (use continuous, binary or count)"
             ))),
@@ -399,10 +523,11 @@ fn encode_external_estimate_claim_py<'py>(
         identification.map(parse_digest_hex).transpose().map_err(serialization_error)?;
     let data_snapshot = match data_snapshot {
         Some(hex) => parse_digest_hex(hex).map_err(serialization_error)?,
-        None => antecedent_core::CanonicalWriter::digest_bytes(
+        None => *antecedent::identity::digest_bytes(
             "antecedent.external_estimate.data_snapshot.v1",
             snapshot_payload.unwrap_or(b""),
-        ),
+        )
+        .as_bytes(),
     };
     let bytes = encode_external_estimate_claim(&ExternalEstimateAttach {
         learner: learner.into(),
@@ -425,10 +550,14 @@ fn encode_external_estimate_claim_py<'py>(
     Ok(PyBytes::new(py, &bytes))
 }
 
-/// A verified parent claim and its immutable provider-independent predictor.
+fn checked_feature_names(names: &[String], features: &[u32]) -> Option<Vec<String>> {
+    features.iter().map(|id| names.get(*id as usize).cloned()).collect()
+}
+
+/// A replayed parent claim and its immutable provider-independent predictor.
 #[pyclass(frozen, skip_from_py_object)]
 struct FittedEffectModel {
-    model: antecedent_estimate::FittedEffect,
+    model: antecedent::estimate::FittedEffect,
     bytes: Vec<u8>,
     #[pyo3(get)]
     features: Vec<String>,
@@ -440,32 +569,36 @@ struct FittedEffectModel {
 impl FittedEffectModel {
     #[staticmethod]
     fn load(bytes: &[u8]) -> PyResult<Self> {
-        let consumed =
-            antecedent_io::consume_analysis_result(bytes).map_err(serialization_error)?;
-        if !consumed.acceptance.accepts_as_verified_program()
-            || !consumed.acceptance.verified_references
-        {
-            return Err(serialization_error("fitted prediction requires a verified parent claim"));
-        }
-        let claim =
-            consumed.contract.as_ref().and_then(|c| c.claim.as_ref()).ok_or_else(|| {
+        crate::catch_ffi(|| {
+            let load = antecedent::io::load_analysis_result(bytes).map_err(serialization_error)?;
+            let report = antecedent::io::replay_loaded_result(
+                &load,
+                &antecedent::io::ReplayOptions::default(),
+            )
+            .map_err(serialization_error)?;
+            if !report.replayed() {
+                return Err(serialization_error(
+                    "fitted prediction requires a parent claim that replays",
+                ));
+            }
+            let claim = load.contract.as_ref().and_then(|c| c.claim.as_ref()).ok_or_else(|| {
                 serialization_error("fitted prediction requires an executed claim")
             })?;
-        let model = consumed
-            .body
-            .fitted_effect
-            .ok_or_else(|| serialization_error("this result has no portable fitted effect"))?;
-        model.validate().map_err(serialization_error)?;
-        let features = model
-            .features
-            .iter()
-            .map(|v| consumed.header.variable_names[*v as usize].clone())
-            .collect();
-        Ok(Self {
-            model,
-            bytes: bytes.to_vec(),
-            features,
-            parent_claim: antecedent_core::to_hex(&claim.claim_id),
+            let model =
+                load.body.fitted_effect.as_deref().cloned().ok_or_else(|| {
+                    serialization_error("this result has no portable fitted effect")
+                })?;
+            model.validate().map_err(serialization_error)?;
+            let features = checked_feature_names(&load.header.variable_names, &model.features)
+                .ok_or_else(|| {
+                    serialization_error("fitted effect feature is outside the header name frame")
+                })?;
+            Ok(Self {
+                model,
+                bytes: bytes.to_vec(),
+                features,
+                parent_claim: antecedent::identity::to_hex(&claim.claim_id),
+            })
         })
     }
 
@@ -473,31 +606,34 @@ impl FittedEffectModel {
     fn predict<'py>(
         &self,
         py: Python<'py>,
-        columns: Vec<PyReadonlyArray1<'py, f64>>,
+        columns: Vec<NumericColumn<'py>>,
         nrows: usize,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-        let ids: Vec<_> =
-            self.model.features.iter().map(|v| antecedent_core::VariableId::from_raw(*v)).collect();
-        // The read-only guards in `columns` outlive the detached closure that borrows the slices.
-        let slices: Vec<&[f64]> = columns
-            .iter()
-            .map(|column| {
-                column.as_slice().map_err(|_| {
-                    crate::value_err("prediction columns must be contiguous float64 arrays")
+        crate::catch_ffi(|| {
+            let ids: Vec<_> = self
+                .model
+                .features
+                .iter()
+                .map(|v| antecedent::prelude::VariableId::from_raw(*v))
+                .collect();
+            // Snapshot every column while attached: Python arrays may be mutated by another
+            // thread once prediction releases the interpreter.
+            let owned: Vec<Vec<f64>> = columns
+                .iter()
+                .enumerate()
+                .map(|(index, column)| {
+                    column
+                        .values(&format!("prediction column {index}"))
+                        .map(std::borrow::Cow::into_owned)
                 })
-            })
-            .collect::<PyResult<_>>()?;
-        let values = py.detach(|| {
-            self.model
-                .predict(
-                    &ids,
-                    &slices,
-                    nrows,
-                    &antecedent_core::ExecutionContext::production_default(0),
-                )
-                .map_err(serialization_error)
-        })?;
-        Ok(PyArray1::from_vec(py, values))
+                .collect::<PyResult<_>>()?;
+            let slices: Vec<&[f64]> = owned.iter().map(|column| &column[..]).collect();
+            let ctx = crate::execution_api::context(0);
+            let values = py.detach(|| {
+                self.model.predict(&ids, &slices, nrows, &ctx).map_err(serialization_error)
+            })?;
+            Ok(PyArray1::from_vec(py, values))
+        })
     }
 
     fn export<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
@@ -512,6 +648,20 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(decode_causal_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(inspect_artifact_container, m)?)?;
     m.add_function(wrap_pyfunction!(accept_analysis_result_contract, m)?)?;
+    m.add_function(wrap_pyfunction!(analysis_result_method_provenance_json, m)?)?;
     m.add_function(wrap_pyfunction!(encode_external_estimate_claim_py, m)?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod fitted_feature_name_tests {
+    use super::checked_feature_names;
+
+    #[test]
+    fn fitted_feature_names_preserve_order_and_reject_unknown_ids() {
+        let names = vec!["x".to_owned(), "y".to_owned()];
+        assert_eq!(checked_feature_names(&names, &[1, 0]), Some(vec!["y".into(), "x".into()]));
+        assert_eq!(checked_feature_names(&names, &[2]), None);
+        assert_eq!(checked_feature_names(&names, &[u32::MAX]), None);
+    }
 }

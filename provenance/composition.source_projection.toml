@@ -9,15 +9,35 @@ implementation_deviations = ["Original artifact consumers reconstruct each proje
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent/tests/source_projection.rs", "python/tests/test_source_projection.py"]
 algorithm_provenance = ["provenance/composition.source_projection.toml"]
-parity_registry = "parity/promotion.toml"
+parity_registry = "parity/capability_records.toml"
 support_registry = "parity/transport_stages.toml"
 positive_fixture = "composition.source_projection.source_projection.source_projection_original_native_mean_and_affine_utility_match_independent_truth.positive"
 oracle_kind = "closed_form"
 oracle_inputs = "Original linear SCM Y=1+2A+.2X with balanced X, interventions1/2; original external attested means3/5; action utilitiesA=2*mean0-1 andB=mean1/2."
 expected_values = "Native/external means3/5; affine utilitiesA5/B2.5; selected A remains5 when B has original weak-overlap standing, while selected B and full-contract output refuse; full-source replay refuses resealed numeric/source/snapshot/coordinate/dependency mutations; three projection nodes require one actual checked execution."
 tolerance = "absolute1e-4 native means; exact affine arithmetic, original identities and execution counts"
-calibration = "point_only_original_unmeasured_no_new_interval_or_joint_coverage"
-executing_gate = "scripts/gate_promotion.sh"
+calibration = "point_only_original_not_measured_no_new_interval_or_joint_coverage"
+executing_gate = "scripts/gate_capability_records.sh"
 artifact_consumer_fixture = "composition.source_projection.source_projection.test_source_projection_fresh_process_requires_actual_original_raw_data_execution.artifact"
 provider_trust = "original_native_source_unverified_on_import; external_attestation_retained"
 exact_request_verification = "actual_original_PreparedStudy_execution_full_source_comparison_required_for_native_bundle_resolution"
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Source-backed projections of a portable workflow: replay of an original artifact consumer, binding exact coordinates and an affine decision expression."
+no_independent_algorithm = "Replays an original consumer and an affine expression over supplied numbers; the module has no square root, logarithm, exponential, power or solve."
+covered_by = ["composition.source_evidence", "decision.contract"]
+record_sha256 = "67918c28b3efc71c6ad7aa618c654ca1bec710a50cba84fd7c98f2e4fea0eade"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/source_projection_artifact.rs"
+items = ["const MAGIC", "const MAX_SOURCE_PROJECTION_BYTES", "enum ProjectionSource", "enum SourceProjection", "fn affine_functional_output", "fn affine_output", "fn consume", "fn export", "fn external_source", "fn identity", "fn inspect", "fn invalid_projection", "fn native_source", "fn original_bytes", "fn original_refusal", "fn produce", "fn projection", "fn recomputed_identity", "fn reconstruct", "fn report", "struct OriginalSource", "struct ProjectionReport", "struct SourceProjectionArtifact"]
+sha256 = "b889f2bff4ef92c43458b09a659cf899314749955681f79b70e1d408a07a82cb"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/source_projection.rs"
+items = ["fn contract", "fn pin", "fn prepared", "fn project", "fn source", "fn source_projection_original_native_mean_and_affine_utility_match_independent_truth"]
+sha256 = "aba2947160b11957855bd895a6a31f9f798f1edd97b9b6019dbd2429ad4ad41b"

@@ -12,6 +12,9 @@ use antecedent::{PrimaryEstimate, Study};
 use antecedent_core::{CausalQuery, MultiActionPolicyInputs, PolicyValueQuery, VariableId};
 use antecedent_data::TabularData;
 
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
+
 fn query() -> PolicyValueQuery {
     PolicyValueQuery {
         outcome: VariableId::from_raw(0),
@@ -78,18 +81,24 @@ fn retained_finite_class_regret_round_trips_and_rejects_forged_bounds() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "retained_finite_class_regret_round_trips",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let policy = result.policy_value().unwrap();
     let regret = policy.regret.as_ref().unwrap();
     assert!(regret.regret > 0.0);
     assert!(regret.interval_95[0] <= regret.regret && regret.regret <= regret.interval_95[1]);
     // The finite-class simultaneous regret bound is now an exact graphless row.
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
     let bytes = prepared.encode_contracted_result(&result, "fixed-class-regret", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.policy_value.as_ref().unwrap().regret.as_ref().unwrap().selected_index, 1);
     assert_eq!(
         body.policy_value.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
     let mut forged = body.clone();
     forged.policy_value.as_mut().unwrap().regret.as_mut().unwrap().interval_95[1] += 0.5;
@@ -101,7 +110,7 @@ fn retained_finite_class_regret_round_trips_and_rejects_forged_bounds() {
         )
         .is_err()
     );
-    // Forging the licensed status onto a scalar-only payload must also be rejected.
+    // Forging the supported status onto a scalar-only payload must also be rejected.
     let mut forged_status = body.clone();
     forged_status.policy_value.as_mut().unwrap().regret = None;
     assert!(
@@ -146,9 +155,9 @@ fn policy_answer_is_not_an_ate_and_survives_retained_reexecution() {
     assert_eq!(policy_wire.incremental_standard_error, answer.incremental_standard_error);
     assert_eq!(policy_wire.uncertainty, "row_score_standard_error_independent_subjects");
     assert_eq!(body.estimate, None, "policy values must never be serialized as ATEs");
-    assert!(matches!(first.estimate, PrimaryEstimate::NotAnEffect));
+    assert!(matches!(first.estimate(), PrimaryEstimate::NotAnEffect));
     assert_eq!(first.effect().is_nan(), true);
-    let refreshed = prepared.refresh(data, &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data, &ctx).unwrap();
     assert_eq!(first.policy_value(), refreshed.policy_value());
     assert_eq!(first.logical_plan.plan_id, refreshed.logical_plan.plan_id);
 }
@@ -213,6 +222,12 @@ fn retained_held_out_uplift_intervals_round_trip_and_refuse_forged_bounds() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "retained_held_out_uplift_intervals_round",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let bins = &result.policy_value().unwrap().uplift_bins;
     assert_eq!(bins.len(), 2);
     for (index, &truth) in [2.0, 0.5].iter().enumerate() {
@@ -223,10 +238,10 @@ fn retained_held_out_uplift_intervals_round_trip_and_refuse_forged_bounds() {
     let artifact = prepared.encode_contracted_result(&result, "ranked-interval", &ctx).unwrap();
     let (_, _, mut body) = antecedent_io::decode_analysis_result_artifact(&artifact).unwrap();
     assert_eq!(body.policy_value.as_ref().unwrap().uplift_bins[0].interval_95, bins[0].interval_95);
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
     assert_eq!(
         body.policy_value.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
     body.policy_value.as_mut().unwrap().uplift_bins[0].interval_95 = Some([0.0, 0.0]);
     assert!(
@@ -248,7 +263,7 @@ fn retained_held_out_uplift_intervals_round_trip_and_refuse_forged_bounds() {
         .prepare(&ctx)
         .unwrap();
     let aipw_result = aipw.estimate(&data, &ctx).unwrap();
-    assert_eq!(aipw_result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(aipw_result.support_status(), Some(antecedent::support::CellStatus::Supported));
     assert!(
         aipw_result
             .policy_value()
@@ -263,7 +278,7 @@ fn retained_held_out_uplift_intervals_round_trip_and_refuse_forged_bounds() {
     let (_, _, aipw_body) = antecedent_io::decode_analysis_result_artifact(&aipw_artifact).unwrap();
     assert_eq!(
         aipw_body.policy_value.unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
 }
 
@@ -271,10 +286,45 @@ fn retained_held_out_uplift_intervals_round_trip_and_refuse_forged_bounds() {
 fn policy_query_refuses_missing_ownership_or_overlap() {
     let mut invalid = query();
     invalid.disjoint_training_subjects = false;
-    assert!(invalid.validate().is_err());
+    let ownership = invalid.validate().unwrap_err().to_string();
+    assert!(
+        ownership.contains("prediction ownership requires disjoint training IDs"),
+        "{ownership}"
+    );
     invalid = query();
     invalid.propensity = Arc::from([0.0]);
-    assert!(invalid.validate().is_err());
+    let overlap = invalid.validate().unwrap_err().to_string();
+    assert!(
+        overlap.contains("propensities must be finite and strictly between zero and one"),
+        "{overlap}"
+    );
+}
+
+/// Independent AIPW row scores of a binary policy under a known propensity: the policy's
+/// predicted arm mean plus the inverse-propensity-weighted residual when the assigned arm
+/// matches the policy's arm. Returns the mean and the standard error of the mean.
+fn aipw_policy_value(
+    assignment: &[bool],
+    actions: &[bool],
+    outcomes: &[f64],
+    mu0: f64,
+    mu1: f64,
+    propensity: f64,
+) -> (f64, f64) {
+    let scores = (0..outcomes.len())
+        .map(|i| {
+            let (mu, weight) = if actions[i] {
+                (mu1, if assignment[i] { 1.0 / propensity } else { 0.0 })
+            } else {
+                (mu0, if assignment[i] { 0.0 } else { 1.0 / (1.0 - propensity) })
+            };
+            mu + weight * (outcomes[i] - mu)
+        })
+        .collect::<Vec<_>>();
+    let m = scores.len() as f64;
+    let mean = scores.iter().sum::<f64>() / m;
+    let variance = scores.iter().map(|s| (s - mean).powi(2)).sum::<f64>() / (m - 1.0);
+    (mean, (variance / m).sqrt())
 }
 
 #[test]
@@ -299,21 +349,40 @@ fn retained_held_out_policy_intervals_round_trip_and_reject_forgery() {
         Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q.clone())).build().unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "retained_held_out_policy_intervals_round",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let value = result.policy_value().unwrap();
     let policy_ci = value.policy_interval_95.unwrap();
     let incremental_ci = value.incremental_interval_95.unwrap();
+    // The published value and interval are the independently computed AIPW mean and the mean
+    // plus or minus the normal 0.975 quantile times its standard error.
+    let (expected, expected_se) = aipw_policy_value(
+        &(0..n).map(|i| i % 2 == 1).collect::<Vec<_>>(),
+        &(0..n).map(|i| i % 3 == 0).collect::<Vec<_>>(),
+        &outcomes,
+        1.0,
+        3.0,
+        0.5,
+    );
+    assert!((value.policy_value - expected).abs() < 1e-9, "{} vs {expected}", value.policy_value);
+    let half = (policy_ci[1] - policy_ci[0]) / 2.0;
+    assert!((half - 1.959_963_984_540_054 * expected_se).abs() < 1e-6, "{half} vs {expected_se}");
     assert!(policy_ci[0] < value.policy_value && value.policy_value < policy_ci[1]);
     assert!(
         incremental_ci[0] < value.incremental_value && value.incremental_value < incremental_ci[1]
     );
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
     let bytes = prepared.encode_contracted_result(&result, "policy-interval", &ctx).unwrap();
     let (_, _, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.policy_value.as_ref().unwrap().policy_interval_95, Some(policy_ci));
     assert_eq!(body.policy_value.as_ref().unwrap().incremental_interval_95, Some(incremental_ci));
     assert_eq!(
         body.policy_value.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
     body.policy_value.as_mut().unwrap().incremental_interval_95 = Some([0.0, 0.0]);
     assert!(
@@ -358,7 +427,7 @@ fn retained_crossfit_policy_intervals_round_trip_and_refuse_forgery() {
     q.mu0 = vec![1.0; n].into();
     q.mu1 = vec![3.0; n].into();
     // Cross-fitted nuisance ownership: caller-declared excluded folds, not
-    // disjoint training subjects. The interval is licensed on this row.
+    // disjoint training subjects. The interval is supported on this row.
     q.disjoint_training_subjects = false;
     q.crossfit_fold_ownership_valid = true;
     q.evaluation_subject_ids =
@@ -371,6 +440,12 @@ fn retained_crossfit_policy_intervals_round_trip_and_refuse_forgery() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "retained_crossfit_policy_intervals_round",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let value = result.policy_value().unwrap();
     let policy_ci =
         value.policy_interval_95.expect("cross-fitted AIPW publishes a policy interval");
@@ -384,12 +459,12 @@ fn retained_crossfit_policy_intervals_round_trip_and_refuse_forgery() {
         value.prediction_ownership.as_ref(),
         "caller_declared_cross_fitted_excluded_fold_ids"
     );
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
     let bytes = prepared.encode_contracted_result(&result, "crossfit-policy", &ctx).unwrap();
     let (_, _, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(
         body.policy_value.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
     assert_eq!(body.policy_value.as_ref().unwrap().policy_interval_95, Some(policy_ci));
     body.policy_value.as_mut().unwrap().incremental_interval_95 = Some([0.0, 0.0]);
@@ -506,12 +581,12 @@ fn retained_multi_action_value_matches_known_randomized_truth_and_round_trips() 
     let (_, _, mut grouped_body) =
         antecedent_io::decode_analysis_result_artifact(&grouped_artifact).unwrap();
     assert_eq!(grouped_body.policy_value.as_ref().unwrap().multi_action_cate[0].effect, 1.0);
-    grouped_body.policy_value.as_mut().unwrap().graphless_support_status = Some("licensed".into());
+    grouped_body.policy_value.as_mut().unwrap().graphless_support_status = Some("supported".into());
     assert!(
         antecedent_io::encode_analysis_result_artifact(
             &grouped_body,
             vec!["outcome".into()],
-            "forged-policy-license"
+            "forged-policy-support"
         )
         .is_err()
     );
@@ -578,10 +653,16 @@ fn multi_action_intervals_require_nonbinding_global_constraints() {
         Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q.clone())).build().unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "multi_action_intervals_require_nonbindin",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let value = result.policy_value().unwrap();
     assert!(value.policy_interval_95.is_some());
     assert!(value.incremental_interval_95.is_some());
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
     assert_eq!(value.multi_action_cate.len(), 2);
     for (point, truth) in value.multi_action_cate.iter().zip([1.0, 3.0]) {
         let bounds = point.interval_95.expect("300 randomized subjects and 100 observed per arm");
@@ -621,4 +702,17 @@ fn multi_action_intervals_require_nonbinding_global_constraints() {
     let capped_value =
         capped.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap().into_policy_value().unwrap();
     assert!(capped_value.policy_interval_95.is_none());
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

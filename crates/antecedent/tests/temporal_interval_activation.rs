@@ -28,14 +28,14 @@ fn panel() -> Vec<UnitHistories> {
                                 + 0.1 * f64::from(s0)
                                 + 0.2 * f64::from(s0 * l2)
                                 + 0.05 * f64::from(a1 + a2);
-                            histories.push(SequenceHistory {
-                                time_id: u64::try_from(histories.len()).unwrap(),
+                            histories.push(SequenceHistory::two_step(
+                                u64::try_from(histories.len()).unwrap(),
                                 s0,
                                 a1,
                                 l2,
                                 a2,
-                                y: mean + shock,
-                            });
+                                mean + shock,
+                            ));
                         }
                     }
                 }
@@ -73,8 +73,8 @@ fn temporal_actual_facade_candidate_and_independent_consumer_preserve_frozen_coo
         let wire = prepare(IntervalMethod::Studentized);
         // Independent SCM integration: .3*.35 + .7*.55 = .49; unit shocks sum to zero.
         assert!((wire.result.point - 0.49).abs() < 1e-12);
-        assert_eq!(wire.result.calibration, "unmeasured");
-        assert_eq!(wire.result.claim, "dependence_preserving_calibration_unmeasured");
+        assert_eq!(wire.result.calibration, "not_measured");
+        assert_eq!(wire.result.claim, "dependence_preserving_calibration_not_measured");
         assert_eq!(wire.result.replicates.len(), 500);
         assert_eq!(wire.result.failed, 0);
         let bytes = wire.export().unwrap();
@@ -99,17 +99,24 @@ fn temporal_facade_candidate_replay_refuses_resealed_panel_estimator_and_seed_mu
             1 => changed.panel.units[0].unit_id = 10_000,
             2 => changed.panel.units[0].histories[0].time_id = 90_000,
             3 => changed.panel.units[0].histories[0].y += 0.1,
-            4 => changed.estimator.sequence = [1, 1],
+            4 => changed.estimator.sequence = vec![1, 1],
             _ => changed.config.seed += 1,
         }
         changed.seal = changed.compute_seal().unwrap();
-        assert!(
-            TemporalIntervalArtifactWire::consume(
-                &changed.export().unwrap(),
-                &TemporalIntervalConsumeLimits::default(),
-                &ExecutionContext::for_tests(901),
-            )
-            .is_err()
-        );
+        let refused = TemporalIntervalArtifactWire::consume(
+            &changed.export().unwrap(),
+            &TemporalIntervalConsumeLimits::default(),
+            &ExecutionContext::for_tests(901),
+        )
+        .err()
+        .unwrap_or_else(|| panic!("field {field}: the resealed mutation must be refused"));
+        // Re-ordering the time ids is caught by the panel's own ordering check before replay.
+        let want = if field == 2 {
+            "reason=route_not_supported: temporal_interval.unknown_units: unit 0 has time ids \
+             that are not strictly ordered"
+        } else {
+            "convert error: temporal_interval_artifact.interval_replay"
+        };
+        assert_eq!(refused.to_string(), want, "field {field}");
     }
 }

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import multi_level_treatment
 from antecedent.errors import CausalError
 
@@ -61,7 +62,7 @@ def test_both_targets_recover_their_own_truth_and_differ() -> None:
     assert abs(full.effect - 3.0) < 4 * full.se_analytic
     assert abs(pair.effect - _pairwise_truth()) < 4 * pair.se_analytic
     assert full.effect - pair.effect > 0.1
-    assert full.calibration == "unmeasured"
+    assert full.calibration == "not_measured"
     for mean, alpha in zip(full.level_means, ALPHA, strict=True):
         assert abs(mean.mean - alpha) < 4 * mean.se
 
@@ -79,7 +80,7 @@ def test_a_row_at_an_undeclared_level_is_refused_not_dropped() -> None:
             adjust={"z": data["z"]},
         )
     assert raised.value.reason_code == "treatment_level_undeclared"
-    assert "treatment_levels.full_population_undeclared_level" in str(raised.value)
+    assert reason_details.treatment_levels.FULL_POPULATION_UNDECLARED_LEVEL in str(raised.value)
 
 
 def test_the_target_has_no_default_and_full_population_needs_its_levels() -> None:
@@ -94,32 +95,49 @@ def test_the_target_has_no_default_and_full_population_needs_its_levels() -> Non
         )
 
 
-def test_the_interval_is_withheld_until_a_coverage_record_covers_the_construction() -> None:
+def test_the_adjustment_is_reported_as_declared_not_identified() -> None:
+    data = _draw(1500, seed=4)
+    result = multi_level_treatment.multi_level_effect(
+        data["y"],
+        data["t"],
+        active=2.0,
+        control=0.0,
+        target="pairwise_subpopulation",
+        adjust={"z": data["z"]},
+    )
+    assert result.adjustment_basis == "declared"
+    assert result.to_dict()["adjustment_basis"] == "declared"
+
+
+def test_the_interval_is_reported_with_its_calibration_status() -> None:
     data = _draw(2000, seed=9)
     common = {"active": 2.0, "control": 0.0, "adjust": {"z": data["z"]}}
     pair = multi_level_treatment.multi_level_effect(
         data["y"], data["t"], target="pairwise_subpopulation", **common
     )
-    # The pairwise subpopulation target has no coverage measurement: always withheld.
-    assert pair.interval is None
-    assert pair.interval_status == "scope_not_assessed"
-    assert pair.interval_reason is not None
-    assert pair.calibration == "unmeasured"
-    assert pair.to_dict()["interval"] is None
+    # The pairwise subpopulation target has no coverage measurement: the interval is reported
+    # and its calibration status says so.
+    assert pair.interval is not None and pair.interval.lower < pair.interval.upper
+    assert pair.interval.coverage_record is None
+    assert pair.interval_status == "not_measured"
+    assert pair.interval_reason == "estimator_grid_not_measured"
+    assert pair.calibration != "calibrated"
+    assert pair.to_dict()["interval"] is not None
 
     full = multi_level_treatment.multi_level_effect(
         data["y"], data["t"], target="full_population", levels=[0.0, 1.0, 2.0], **common
     )
     z = 1.959963984540054
-    if full.interval is None:
-        assert full.interval_status == "scope_not_assessed"
-        assert full.interval_reason is not None
-        assert full.calibration == "unmeasured"
-    else:
-        # Once a current record covers the construction the interval is the published normal one.
-        assert full.interval_status == "calibrated"
-        assert full.calibration == "calibrated"
-        assert full.interval.level == 0.95
-        assert full.interval.lower == pytest.approx(full.effect - z * full.se_analytic)
-        assert full.interval.upper == pytest.approx(full.effect + z * full.se_analytic)
-        assert full.interval.coverage_record
+    # The interval is the published normal one; the calibration status annotates it. Three
+    # declared levels at the default folds and 2000 rows is the construction the
+    # full-population record measured, between 1500 and 6000 rows.
+    assert full.interval_status == "calibrated"
+    assert full.interval_reason is None
+    assert full.calibration == "calibrated"
+    assert full.interval.coverage_record == (
+        "cov.multi_level_contrast.not_applicable.frequentist.analytic_se.l95."
+        "multilevel_generalized_propensity_interval.v2_validation_not_applicable"
+    )
+    assert full.interval.level == 0.95
+    assert full.interval.lower == pytest.approx(full.effect - z * full.se_analytic)
+    assert full.interval.upper == pytest.approx(full.effect + z * full.se_analytic)

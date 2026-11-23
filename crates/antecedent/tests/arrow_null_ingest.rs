@@ -3,7 +3,7 @@
 //! A null cell loaded from an Arrow record batch must leave the analysis
 //! exactly as if the row had been dropped before loading.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -111,7 +111,7 @@ fn ate(data: TabularData) -> f64 {
         .unwrap()
         .run(&ExecutionContext::for_tests(50))
         .unwrap()
-        .estimate
+        .estimate()
         .as_effect()
         .unwrap()
         .ate

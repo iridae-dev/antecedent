@@ -1,7 +1,7 @@
 //! Factorized-propensity AIPW for bounded discrete joint cells.
 //!
-//! The joint treatment `T = (T_1, .., T_k)` is `k <= 3` binary coordinates, so there are at
-//! most 8 cells. [`crate::cell_aipw::CellSaturatedAipw`] fits one multinomial logit over all
+//! The joint treatment `T = (T_1, .., T_k)` is `k` binary coordinates, so there are
+//! `2^k` cells. [`crate::cell_aipw::CellSaturatedAipw`] fits one multinomial logit over all
 //! cells and refuses the whole family when any cell is empty. This route instead writes each
 //! cell propensity as a product of binary conditionals under a declared ordering `o`,
 //!
@@ -43,9 +43,9 @@
 //! the seeds. The result stays point only: the table is marked
 //! (`provenance_marks_learned`) so no interval or covariance is published
 //! ([`refuse_joint_learner_inference`]), because a flexible nuisance needs its own remainder and
-//! coverage license that no record grants.
+//! coverage support that no record grants.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -59,6 +59,7 @@ use antecedent_learn::{
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::aipw::predict_colmajor;
+use crate::arm::TreatmentArm;
 use crate::cell_aipw::{cell_minus_control_coefficients, interaction_coefficients};
 use crate::crossfit_plan::{CrossfitPlan, FoldSource, SHARED_FOLD_ID_ERRORS, rows_colmajor};
 use crate::error::EstimationError;
@@ -69,14 +70,16 @@ use crate::propensity::{
 use crate::scores::{ScoreColumn, ScoreTable};
 use crate::util::refuse;
 
-/// Most jointly intervened binary components of a factorized joint cell.
+/// Components of a factorized joint cell that are always admitted, whatever the row count.
+///
+/// Beyond this many components the fit also needs at least as many complete-case rows as joint
+/// cells (`2^k`), so the per-cell tables stay proportional to the data.
 pub const MAX_FACTORIZED_COMPONENTS: usize = 3;
 
-/// Most orderings one fit re-estimates the family under (`3! = 6`).
+/// Orderings [`orderings_for`] enumerates exhaustively (`3! = 6`). When the `k!` permutations of
+/// more components exceed it, the declared ordering is followed by a deterministic sample of
+/// distinct permutations up to this many orderings in all.
 pub const MAX_ORDERINGS: usize = 6;
-
-/// Largest declared number of cross-fit folds.
-const MAX_FOLDS: usize = 20;
 
 /// Provenance of the factorized joint-cell score table.
 const FACTORIZED_PROVENANCE: &str = "joint_cell.factorized.crossfit.ridge_logistic_prefix.ols.v1";
@@ -88,7 +91,7 @@ const LEARNED_PROVENANCE: &str = "joint_cell.factorized.crossfit.learner_prefix.
 const LEARNED_PROVENANCE_TAG: &str = ";nuisance=ml_joint_cell";
 
 /// Whether a score table's provenance marks learner-supplied joint-cell nuisances, whose
-/// remainder is not licensed: the table is a point-and-score artifact.
+/// remainder is not supported: the table is a point-and-score artifact.
 #[must_use]
 pub(crate) fn provenance_marks_learned(provenance: &str) -> bool {
     provenance.contains(LEARNED_PROVENANCE_TAG)
@@ -149,12 +152,12 @@ impl FactorizedJointConfig {
         let bad = |message: &str| {
             Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "joint_cells.config",
+                antecedent_core::reason_details::joint_cells::CONFIG,
                 message,
             ))
         };
-        if !(2..=MAX_FOLDS).contains(&self.folds) {
-            return bad("folds must lie in 2..=20");
+        if self.folds < 2 {
+            return bad("folds must be at least 2 (the fold plan refuses more folds than rows)");
         }
         if !(self.clip > 0.0 && self.clip < 0.5) {
             return bad(
@@ -170,15 +173,15 @@ impl FactorizedJointConfig {
         if !(self.ordering_tolerance_sd.is_finite() && self.ordering_tolerance_sd >= 0.0) {
             return bad("ordering_tolerance_sd must be finite and non-negative");
         }
-        if let Some(spec) = self.learner {
-            if matches!(spec, LearnerSpec::Auto) || spec.validate().is_err() {
-                return Err(refuse(
-                    antecedent_core::reason_code!("invalid_argument"),
-                    "joint_cells.learner",
-                    "declare an explicit learner with valid hyperparameters; auto is refused \
+        if let Some(spec) = self.learner
+            && (matches!(spec, LearnerSpec::Auto) || spec.validate().is_err())
+        {
+            return Err(refuse(
+                antecedent_core::reason_code!("invalid_argument"),
+                antecedent_core::reason_details::joint_cells::LEARNER,
+                "declare an explicit learner with valid hyperparameters; auto is refused \
                      because it hides the learner actually fit",
-                ));
-            }
+            ));
         }
         Ok(())
     }
@@ -189,8 +192,8 @@ impl FactorizedJointConfig {
 /// `ridge_logistic` is the default route (`None`). `random_forest` and `gradient_boosted_trees`
 /// declare that learner with its default hyperparameters for every conditional and outcome
 /// model (a point-only route; see [`FactorizedJointConfig::learner`]). `lasso` is closed
-/// (`selection_inference_not_licensed`). The remaining machine-learning names are not declared
-/// joint-cell learners (`ml_nuisance_not_licensed`). Any other name is an invalid argument.
+/// (`selection_inference_not_supported`). The remaining machine-learning names are not declared
+/// joint-cell learners (`ml_nuisance_not_supported`). Any other name is an invalid argument.
 ///
 /// # Errors
 ///
@@ -201,15 +204,15 @@ pub fn declared_joint_nuisance(provider: &str) -> Result<Option<LearnerSpec>, Es
         "random_forest" => Ok(Some(LearnerSpec::RandomForest(ForestSpec::default()))),
         "gradient_boosted_trees" => Ok(Some(LearnerSpec::GradientBoostedTrees(GbtSpec::default()))),
         "lasso" => Err(refuse(
-            antecedent_core::reason_code!("selection_inference_not_licensed"),
-            "penalized_propensity.selection_closed",
+            antecedent_core::reason_code!("selection_inference_not_supported"),
+            antecedent_core::reason_details::penalized_propensity::SELECTION_NOT_SUPPORTED,
             "a lasso conditional propensity is not a declared joint-cell nuisance: the \
              prefix-stratum selections are not cross-fitted per cell, so the option is closed; \
              declare ridge_logistic, random_forest or gradient_boosted_trees",
         )),
         "ml" | "gradient_boosting" | "neural_network" | "forest" | "boosting" => Err(refuse(
-            antecedent_core::reason_code!("ml_nuisance_not_licensed"),
-            "joint_cells.ml_learner_not_declared",
+            antecedent_core::reason_code!("ml_nuisance_not_supported"),
+            antecedent_core::reason_details::joint_cells::ML_LEARNER_NOT_DECLARED,
             &format!(
                 "{provider} is not a declared joint-cell learner; declare random_forest or \
                  gradient_boosted_trees (point only), or ridge_logistic"
@@ -217,7 +220,7 @@ pub fn declared_joint_nuisance(provider: &str) -> Result<Option<LearnerSpec>, Es
         )),
         other => Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "joint_cells.nuisance_provider",
+            antecedent_core::reason_details::joint_cells::NUISANCE_PROVIDER,
             &format!(
                 "unknown joint-cell nuisance provider {other:?}; declare ridge_logistic, \
                  random_forest or gradient_boosted_trees"
@@ -233,26 +236,26 @@ pub fn declared_joint_nuisance(provider: &str) -> Result<Option<LearnerSpec>, Es
 #[must_use]
 pub fn refuse_joint_inference() -> EstimationError {
     refuse(
-        antecedent_core::reason_code!("penalized_interval_not_licensed"),
-        "joint_cells.interval_withheld",
+        antecedent_core::reason_code!("penalized_interval_not_supported"),
+        antecedent_core::reason_details::joint_cells::NO_INTERVAL_METHOD,
         "factorized joint cells publish point estimates and an aligned score table only; no \
-         interval or joint covariance is licensed for penalized conditional propensities",
+         interval or joint covariance is supported for penalized conditional propensities",
     )
 }
 
 /// The refusal for an interval or joint covariance over learner-supplied joint cells.
 ///
-/// A flexible nuisance needs its own remainder-rate and coverage license for an interval, and no
+/// A flexible nuisance needs its own remainder-rate and coverage support for an interval, and no
 /// record grants one on joint cells; only the point estimates and the aligned score table are
 /// published.
 #[must_use]
 pub fn refuse_joint_learner_inference() -> EstimationError {
     refuse(
-        antecedent_core::reason_code!("ml_nuisance_not_licensed"),
-        "joint_cells.ml_interval_withheld",
+        antecedent_core::reason_code!("ml_nuisance_not_supported"),
+        antecedent_core::reason_details::joint_cells::NO_ML_INTERVAL_METHOD,
         "learner-supplied joint cells publish point estimates and an aligned score table only; \
          an interval or joint covariance over machine-learning nuisances needs a nuisance \
-         remainder and coverage license that no record grants",
+         remainder and coverage support that no record grants",
     )
 }
 
@@ -261,7 +264,7 @@ pub fn refuse_joint_learner_inference() -> EstimationError {
 ///
 /// # Errors
 ///
-/// `declared` is not a permutation of `0..k`, or `k` is outside `1..=3`.
+/// `declared` is not a permutation of `0..k`, or `k` is outside `1..=31`.
 pub fn orderings_for(
     k: usize,
     declared: &[usize],
@@ -271,12 +274,54 @@ pub fn orderings_for(
     if !all_permutations {
         return Ok(vec![declared.to_vec()]);
     }
+    if !factorial_within(k, MAX_ORDERINGS) {
+        return Ok(sampled_orderings(k, declared));
+    }
     let mut all = Vec::new();
     permutations(&mut (0..k).collect::<Vec<_>>(), 0, &mut all);
     all.sort();
     let mut out = vec![declared.to_vec()];
     out.extend(all.into_iter().filter(|p| p.as_slice() != declared));
     Ok(out)
+}
+
+/// Whether `k! <= limit`.
+fn factorial_within(k: usize, limit: usize) -> bool {
+    let mut product = 1usize;
+    for factor in 2..=k {
+        match product.checked_mul(factor) {
+            Some(next) if next <= limit => product = next,
+            _ => return false,
+        }
+    }
+    true
+}
+
+/// The declared ordering followed by a deterministic sample of distinct other permutations
+/// (seeded by `k` and the declared ordering), `MAX_ORDERINGS` in all, in lexicographic order.
+fn sampled_orderings(k: usize, declared: &[usize]) -> Vec<Vec<usize>> {
+    let mut state = declared
+        .iter()
+        .fold(antecedent_core::mix64(k as u64), |h, &c| antecedent_core::mix64(h ^ c as u64));
+    let mut sample: Vec<Vec<usize>> = Vec::with_capacity(MAX_ORDERINGS);
+    // Distinct draws are overwhelmingly likely; the attempt bound only guards a degenerate stream.
+    for _ in 0..MAX_ORDERINGS * 64 {
+        if sample.len() + 1 >= MAX_ORDERINGS {
+            break;
+        }
+        let mut permutation: Vec<usize> = (0..k).collect();
+        for i in (1..k).rev() {
+            let draw = antecedent_core::splitmix64(&mut state) % (i as u64 + 1);
+            permutation.swap(i, usize::try_from(draw).unwrap_or(0));
+        }
+        if permutation.as_slice() != declared && !sample.contains(&permutation) {
+            sample.push(permutation);
+        }
+    }
+    sample.sort();
+    let mut out = vec![declared.to_vec()];
+    out.extend(sample);
+    out
 }
 
 fn permutations(items: &mut Vec<usize>, start: usize, out: &mut Vec<Vec<usize>>) {
@@ -292,15 +337,20 @@ fn permutations(items: &mut Vec<usize>, start: usize, out: &mut Vec<Vec<usize>>)
 }
 
 fn ordering_error(message: &str) -> EstimationError {
-    refuse(antecedent_core::reason_code!("invalid_argument"), "joint_cells.ordering", message)
+    refuse(
+        antecedent_core::reason_code!("invalid_argument"),
+        antecedent_core::reason_details::joint_cells::ORDERING,
+        message,
+    )
 }
 
 fn check_permutation(k: usize, ordering: &[usize]) -> Result<(), EstimationError> {
-    if k == 0 || k > MAX_FACTORIZED_COMPONENTS {
+    // Cell codes are `u32` bitmasks of the components.
+    if k == 0 || k > 31 {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "joint_cells.component_count",
-            "factorized joint cells support 1 to 3 binary components",
+            antecedent_core::reason_details::joint_cells::COMPONENT_COUNT,
+            "factorized joint cells need 1 to 31 binary components",
         ));
     }
     let mut seen = vec![false; k];
@@ -320,8 +370,8 @@ pub(crate) fn validate_orderings(
     k: usize,
     orderings: &[Vec<usize>],
 ) -> Result<(), EstimationError> {
-    if orderings.is_empty() || orderings.len() > MAX_ORDERINGS {
-        return Err(ordering_error("declare 1 to 6 orderings; the first is the declared one"));
+    if orderings.is_empty() {
+        return Err(ordering_error("declare at least one ordering; the first is the declared one"));
     }
     for (i, ordering) in orderings.iter().enumerate() {
         check_permutation(k, ordering)?;
@@ -451,6 +501,11 @@ pub struct FactorizedJointFit {
     /// Aligned scores of the supported cells under the declared ordering. The provenance
     /// carries the ridge tag, so no interval or covariance is published from it.
     pub scores: ScoreTable,
+    /// How the columns the fit read were prepared. A physical fact about the run, so it is
+    /// not part of any identity; the same summary rides on [`Self::scores`].
+    pub preparation: Option<Arc<crate::PreparationSummary>>,
+    /// Caller-supplied nuisance factories were not verified by this route.
+    pub external_nuisances_unverified: bool,
 }
 
 impl FactorizedJointFit {
@@ -488,7 +543,7 @@ impl FactorizedJointFit {
 fn contrast_refusal(message: &str) -> EstimationError {
     refuse(
         antecedent_core::reason_code!("joint_cell_unsupported"),
-        "joint_cells.contrast_cell_unsupported",
+        antecedent_core::reason_details::joint_cells::CONTRAST_CELL_UNSUPPORTED,
         message,
     )
 }
@@ -499,8 +554,9 @@ struct Problem {
     design: Vec<f64>,
     cell: Vec<u32>,
     outcome: Vec<f64>,
-    row_index: Vec<u32>,
+    row_index: Vec<antecedent_data::GlobalId>,
     adjustment_set: Arc<[VariableId]>,
+    preparation: Arc<crate::PreparationSummary>,
 }
 
 /// One fold's row lists, borrowed from the shared cross-fit plan, with the validation design.
@@ -525,26 +581,31 @@ fn prepare_problem(
     for (i, id) in ids.iter().enumerate() {
         if ids[..i].contains(id) {
             return Err(invalid(
-                "joint_cells.columns",
+                antecedent_core::reason_details::joint_cells::COLUMNS,
                 "treatment, outcome and adjustment columns must be distinct",
             ));
         }
     }
-    let mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
-    let outcome_values = data.float64_masked(outcome, &mask).map_err(EstimationError::from)?;
+    let crate::prepare::AdmittedColumns { data, row_mask: mask, receipt } =
+        crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
+    let outcome_values =
+        data.float64_selected(outcome, &mask).map_err(EstimationError::from)?.into_owned();
     let n = outcome_values.len();
     if n == 0 {
-        return Err(invalid("joint_cells.no_rows", "no complete-case rows for joint cells"));
+        return Err(invalid(
+            antecedent_core::reason_details::joint_cells::NO_ROWS,
+            "no complete-case rows for joint cells",
+        ));
     }
     let mut cell = vec![0u32; n];
     for (j, &id) in treatments.iter().enumerate() {
-        let column = data.float64_masked(id, &mask).map_err(EstimationError::from)?;
-        for (code, &value) in cell.iter_mut().zip(&column) {
+        let column = data.float64_selected(id, &mask).map_err(EstimationError::from)?;
+        for (code, &value) in cell.iter_mut().zip(column.iter()) {
             if (value - 1.0).abs() <= 1e-12 {
                 *code |= 1 << j;
             } else if value.abs() > 1e-12 {
                 return Err(invalid(
-                    "joint_cells.not_binary",
+                    antecedent_core::reason_details::joint_cells::NOT_BINARY,
                     "factorized joint cells require binary 0/1 treatment components",
                 ));
             }
@@ -553,15 +614,17 @@ fn prepare_problem(
     let ncols = 1 + adjustment.len();
     let mut design = vec![1.0; n * ncols];
     for (j, &z) in adjustment.iter().enumerate() {
-        let column = data.float64_masked(z, &mask).map_err(EstimationError::from)?;
-        design[(1 + j) * n..(2 + j) * n].copy_from_slice(&column);
+        data.float64_selected_into(z, &mask, &mut design[(1 + j) * n..(2 + j) * n])
+            .map_err(EstimationError::from)?;
     }
     let mut row_index = Vec::with_capacity(n);
     for (i, &keep) in mask.iter().enumerate() {
         if keep {
-            row_index.push(u32::try_from(i).map_err(|_| {
-                EstimationError::data_msg("row index exceeds the u32 row-id capacity")
-            })?);
+            row_index.push(antecedent_data::GlobalId::new(u64::try_from(i).map_err(|_| {
+                        EstimationError::data_msg(
+                            "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                        )
+                    })?));
         }
     }
     Ok(Problem {
@@ -572,6 +635,7 @@ fn prepare_problem(
         outcome: outcome_values,
         row_index,
         adjustment_set: Arc::from(adjustment.to_vec()),
+        preparation: crate::prepare::preparation_summary(&receipt),
     })
 }
 
@@ -583,28 +647,29 @@ fn is_cancelled(error: &EstimationError) -> bool {
 fn cancelled() -> EstimationError {
     refuse(
         antecedent_core::reason_code!("cancelled_no_claim"),
-        "joint_cells.cancelled",
+        antecedent_core::reason_details::joint_cells::CANCELLED,
         "the factorized joint-cell fit was cancelled; no estimate is reported",
     )
 }
 
 /// Learners resolved for the conditionals (binary probability) and the per-cell outcome models
 /// (regression) of a declared [`FactorizedJointConfig::learner`].
-struct LearnedNuisance {
-    outcome: Box<dyn LearnerFactory>,
+struct LearnedNuisance<'a> {
+    outcome: Box<dyn LearnerFactory + 'a>,
     outcome_spec: LearnerSpec,
-    propensity: Box<dyn LearnerFactory>,
+    propensity: Box<dyn LearnerFactory + 'a>,
     propensity_spec: LearnerSpec,
+    external: bool,
 }
 
-impl LearnedNuisance {
+impl LearnedNuisance<'_> {
     fn resolve(spec: LearnerSpec) -> Result<Self, EstimationError> {
         let outcome_spec = spec.for_task(PredictionTask::Regression);
         let propensity_spec = spec.for_task(PredictionTask::BinaryProbability);
         let unavailable = |error: antecedent_learn::LearnError| {
             refuse(
                 antecedent_core::reason_code!("route_not_supported"),
-                "joint_cells.learner_unavailable",
+                antecedent_core::reason_details::joint_cells::LEARNER_UNAVAILABLE,
                 &format!(
                     "the {} learner cannot be resolved for joint-cell nuisances: {error}",
                     spec.name()
@@ -617,10 +682,14 @@ impl LearnedNuisance {
             propensity: resolve_for(propensity_spec, PredictionTask::BinaryProbability)
                 .map_err(unavailable)?,
             propensity_spec,
+            external: false,
         })
     }
 
     fn identity(&self) -> String {
+        if self.external {
+            return "outcome=caller_factory;propensity=caller_factory;trust=unverified".to_owned();
+        }
         format!(
             "outcome={};propensity={}",
             self.outcome_spec.identity(),
@@ -629,11 +698,14 @@ impl LearnedNuisance {
     }
 }
 
-fn row_ids(rows: &[usize]) -> Result<Vec<u32>, EstimationError> {
+fn row_ids(rows: &[usize]) -> Result<Vec<u64>, EstimationError> {
     rows.iter()
         .map(|&i| {
-            u32::try_from(i)
-                .map_err(|_| EstimationError::data_msg("row index exceeds the u32 row-id capacity"))
+            u64::try_from(i).map_err(|_| {
+                EstimationError::data_msg(
+                    "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                )
+            })
         })
         .collect()
 }
@@ -646,8 +718,8 @@ fn learner_fold_predict(
     factory: &dyn LearnerFactory,
     view_spec: LearnerSpec,
     problem: &Problem,
-    train: &[u32],
-    valid: &[u32],
+    train: &[u64],
+    valid: &[u64],
     y: &[f64],
     ctx: &ExecutionContext,
 ) -> Result<(Vec<f64>, LearnerProvenance), String> {
@@ -658,7 +730,7 @@ fn learner_fold_predict(
         factory.fit(fit_view, TargetView::new(y), None, ctx).map_err(|error| error.to_string())?;
     let predict_view =
         view.with_rows(RowSelection::new(valid)).map_err(|error| error.to_string())?;
-    let mut predicted = vec![0.0; valid.len()];
+    let mut predicted = vec![f64::NAN; valid.len()];
     model.predict(predict_view, &mut predicted, ctx).map_err(|error| error.to_string())?;
     Ok((predicted, model.provenance()))
 }
@@ -673,7 +745,7 @@ struct ConditionalFits<'a> {
     config: &'a FactorizedJointConfig,
     problem: &'a Problem,
     folds: &'a [FoldSplit<'a>],
-    learned: Option<&'a LearnedNuisance>,
+    learned: Option<&'a LearnedNuisance<'a>>,
     cache: HashMap<ConditionalKey, Result<Vec<f64>, String>>,
     selections: Vec<RidgeFoldSelection>,
     provenances: Vec<LearnerProvenance>,
@@ -725,7 +797,7 @@ impl ConditionalFits<'_> {
         }
         let t: Vec<f64> =
             rows.iter().map(|&i| f64::from((problem.cell[i] >> target) & 1)).collect();
-        let positives = t.iter().filter(|&&v| v > 0.5).count();
+        let positives = t.iter().filter(|&&v| TreatmentArm::is_treated_indicator(v)).count();
         if positives == 0 || positives == rows.len() {
             self.degenerate += 1;
             return Ok(Ok(vec![if positives == 0 { 0.0 } else { 1.0 }; n_valid]));
@@ -734,7 +806,7 @@ impl ConditionalFits<'_> {
             return self.fit_learned(learned, fold, &rows, target);
         }
         let design_train = rows_colmajor(&problem.design, problem.n, problem.ncols, &rows);
-        let units: Vec<u32> = rows.iter().map(|&i| problem.row_index[i]).collect();
+        let units: Vec<_> = rows.iter().map(|&i| problem.row_index[i]).collect();
         let input = RidgeFoldInput {
             design_train: &design_train,
             n_train: rows.len(),
@@ -766,7 +838,7 @@ impl ConditionalFits<'_> {
     /// cells that need it); only cancellation is an `Err`.
     fn fit_learned(
         &mut self,
-        learned: &LearnedNuisance,
+        learned: &LearnedNuisance<'_>,
         fold: usize,
         rows: &[usize],
         target: usize,
@@ -786,6 +858,11 @@ impl ConditionalFits<'_> {
             self.ctx,
         ) {
             Ok((predicted, _)) if predicted.iter().any(|p| !(0.0..=1.0).contains(p)) => {
+                if learned.external {
+                    return Err(EstimationError::data_msg(
+                        "caller propensity factory returned an invalid probability",
+                    ));
+                }
                 Ok(Err(format!("fold {fold}: the learner returned a probability outside [0, 1]")))
             }
             Ok((predicted, provenance)) => {
@@ -793,6 +870,9 @@ impl ConditionalFits<'_> {
                 Ok(Ok(predicted))
             }
             Err(_) if self.ctx.cancellation.is_cancelled() => Err(cancelled()),
+            Err(reason) if learned.external => Err(EstimationError::data_msg(format!(
+                "caller propensity factory failed: {reason}"
+            ))),
             Err(reason) => Ok(Err(format!("fold {fold}: the learner failed: {reason}"))),
         }
     }
@@ -805,7 +885,7 @@ type LearnedOutcome = (Vec<f64>, Vec<LearnerProvenance>);
 /// learner provenance of every fold, or why the cell's model is unsupported. Only cancellation
 /// is an `Err`.
 fn learned_outcome_predictions(
-    learned: &LearnedNuisance,
+    learned: &LearnedNuisance<'_>,
     problem: &Problem,
     folds: &[FoldSplit<'_>],
     cell: u32,
@@ -834,6 +914,11 @@ fn learned_outcome_predictions(
             ctx,
         ) {
             Ok((predicted, _)) if predicted.iter().any(|p| !p.is_finite()) => {
+                if learned.external {
+                    return Err(EstimationError::data_msg(
+                        "caller outcome factory returned a non-finite value",
+                    ));
+                }
                 return Ok(Err(format!("fold {fold}: the learner returned a non-finite value")));
             }
             Ok((predicted, provenance)) => {
@@ -843,6 +928,11 @@ fn learned_outcome_predictions(
                 }
             }
             Err(_) if ctx.cancellation.is_cancelled() => return Err(cancelled()),
+            Err(reason) if learned.external => {
+                return Err(EstimationError::data_msg(format!(
+                    "caller outcome factory failed: {reason}"
+                )));
+            }
             Err(reason) => {
                 return Ok(Err(format!("fold {fold}: the outcome learner failed: {reason}")));
             }
@@ -854,7 +944,7 @@ fn learned_outcome_predictions(
 /// Provenance suffix of a learner-supplied table: the declared learner identity, the distinct
 /// fitted implementations, and the seeds that make the fit replayable.
 fn learned_suffix(
-    learned: &LearnedNuisance,
+    learned: &LearnedNuisance<'_>,
     provenances: &[LearnerProvenance],
     fold_seed: u64,
     ctx_seed: u64,
@@ -973,19 +1063,25 @@ fn evaluate_cell(
     if rows == 0 {
         return Err(CellRefusal {
             code: antecedent_core::reason_code!("arm_not_populated"),
-            detail: "joint_cells.cell_empty",
+            detail: antecedent_core::reason_details::joint_cells::CELL_EMPTY,
             message: format!("cell {cell} has no complete-case rows"),
         });
     }
-    let mu = mu
-        .as_ref()
-        .map_err(|why| unsupported("joint_cells.outcome_model_unsupported", why.clone()))?;
-    let e = propensity
-        .as_ref()
-        .map_err(|why| unsupported("joint_cells.conditional_unsupported", why.clone()))?;
+    let mu = mu.as_ref().map_err(|why| {
+        unsupported(
+            antecedent_core::reason_details::joint_cells::OUTCOME_MODEL_UNSUPPORTED,
+            why.clone(),
+        )
+    })?;
+    let e = propensity.as_ref().map_err(|why| {
+        unsupported(
+            antecedent_core::reason_details::joint_cells::CONDITIONAL_UNSUPPORTED,
+            why.clone(),
+        )
+    })?;
     if e.iter().any(|v| !v.is_finite()) {
         return Err(unsupported(
-            "joint_cells.conditional_unsupported",
+            antecedent_core::reason_details::joint_cells::CONDITIONAL_UNSUPPORTED,
             format!("cell {cell} has a non-finite fitted propensity"),
         ));
     }
@@ -1005,7 +1101,7 @@ fn evaluate_cell(
     let ess = sum_w * sum_w / sum_w2;
     if ess < config.min_cell_ess {
         return Err(unsupported(
-            "joint_cells.cell_ess_below_minimum",
+            antecedent_core::reason_details::joint_cells::CELL_ESS_BELOW_MINIMUM,
             format!(
                 "cell {cell}: in-cell weights have effective sample size {ess:.3}, below the \
                  declared minimum {}",
@@ -1049,7 +1145,7 @@ fn normalization(
     if max_row_sum > 1.0 + tolerance || (complete && max_error > tolerance) {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "joint_cells.normalization_failed",
+            antecedent_core::reason_details::joint_cells::NORMALIZATION_FAILED,
             &format!(
                 "under ordering {ordering:?} the enumerated cell propensities sum to at most \
                  {max_row_sum} with deviation {max_error} from one, beyond the tolerance \
@@ -1067,7 +1163,7 @@ fn normalization(
 
 /// Fit the cell-saturated family with factorized propensities under every declared ordering.
 ///
-/// `treatments` are `k <= 3` binary 0/1 columns (cell bit `j` is `treatments[j]`),
+/// `treatments` are `k` binary 0/1 columns (cell bit `j` is `treatments[j]`),
 /// `adjustment` the certified adjustment set, and `orderings` the declared ordering followed by
 /// any alternatives (see [`orderings_for`]); each is a permutation of `0..k`.
 ///
@@ -1096,6 +1192,123 @@ pub fn fit_factorized_joint_cells(
     )
 }
 
+/// Fit factorized joint-cell scores with caller-supplied nuisance factories.
+///
+/// Factories receive only selected rows and must declare the required regression or
+/// binary-probability task. Their provenance is marked unverified; fit failures stop
+/// the operation instead of publishing a partial result. The existing per-cell support
+/// checks and point-only inference policy remain in force.
+/// # Errors
+/// Invalid declarations, incompatible factories, invalid predictions, fit failure,
+/// cancellation, or a support or resource refusal.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the checked joint query and two factories are independent inputs"
+)]
+#[doc(hidden)]
+pub fn fit_factorized_joint_cells_with_factories(
+    data: &TabularData,
+    treatments: &[VariableId],
+    outcome: VariableId,
+    adjustment: &[VariableId],
+    orderings: &[Vec<usize>],
+    config: &FactorizedJointConfig,
+    ctx: &ExecutionContext,
+    outcome_factory: &dyn LearnerFactory,
+    propensity_factory: &dyn LearnerFactory,
+) -> Result<FactorizedJointFit, EstimationError> {
+    config.validate()?;
+    if config.learner.is_some() {
+        return Err(EstimationError::unsupported(
+            "caller factories cannot be combined with a built-in learner specification",
+        ));
+    }
+    for (factory, task) in [
+        (outcome_factory, PredictionTask::Regression),
+        (propensity_factory, PredictionTask::BinaryProbability),
+    ] {
+        if factory.task() != task {
+            return Err(crate::learn_nuisance::learn_err(
+                antecedent_learn::LearnError::TaskMismatch {
+                    requested: task,
+                    supported: factory.task(),
+                },
+            ));
+        }
+        let caps = factory.capabilities();
+        if !match task {
+            PredictionTask::Regression => caps.regression,
+            PredictionTask::BinaryProbability => caps.binary_probability,
+        } {
+            return Err(EstimationError::unsupported(
+                "caller factory does not declare the requested task capability",
+            ));
+        }
+    }
+    let learned = LearnedNuisance {
+        outcome: Box::new(antecedent_learn::IsolatedFactory::new(outcome_factory)),
+        outcome_spec: LearnerSpec::Linear(crate::LinearSpec::default()),
+        propensity: Box::new(antecedent_learn::IsolatedFactory::new(propensity_factory)),
+        propensity_spec: LearnerSpec::Logistic(crate::LogisticSpec::default()),
+        external: true,
+    };
+    fit_with_nuisance(
+        &JointCellRows { data, treatments, outcome, adjustment },
+        orderings,
+        config,
+        ctx,
+        Some(&learned),
+    )
+}
+
+// Parent-owned dense arrays and conditional cache only. Ridge/learner fitting
+// workspaces retain their own separate admission leases.
+fn factorized_parent_bytes(
+    n: usize,
+    p: usize,
+    cells: usize,
+    orders: usize,
+    folds: usize,
+    k: usize,
+) -> Option<u64> {
+    use std::mem::size_of;
+    let mut bytes = 0usize;
+    let mut add = |count: usize, width: usize| -> Option<()> {
+        bytes = bytes.checked_add(count.checked_mul(width)?)?;
+        Some(())
+    };
+    let dense_cells = n.checked_mul(cells)?;
+    // Outcome predictions, current and first-order propensities, evaluated
+    // scores for each ordering, and copied scores/propensities in the result.
+    add(dense_cells.checked_mul(orders.checked_add(5)?)?, size_of::<f64>())?;
+    // Every distinct prefix of each ordering has up to 2^j settings, each
+    // contributing one validation vector across all folds.
+    let prefixes = orders.checked_mul(cells.checked_sub(1)?)?;
+    add(n.checked_mul(prefixes)?, size_of::<f64>())?;
+    // Fold-valid designs plus one caller-owned training design.
+    add(n.checked_mul(p)?.checked_mul(2)?, size_of::<f64>())?;
+    // Fold train/valid index lists, fold IDs, and a current gathered row list.
+    add(n.checked_mul(folds.checked_add(1)?)?, size_of::<usize>())?;
+    add(n, size_of::<u32>().checked_add(size_of::<f64>())?)?;
+    add(folds.checked_mul(2)?, size_of::<Vec<usize>>())?;
+    let entries = prefixes.checked_mul(folds)?;
+    // Hash table allocation has spare buckets; account key/value and a control
+    // byte per bucket, including a second bucket for each possible entry.
+    add(
+        entries.checked_mul(2)?,
+        size_of::<(ConditionalKey, Result<Vec<f64>, String>)>().checked_add(1)?,
+    )?;
+    add(cells.checked_mul(orders.checked_add(2)?)?, size_of::<Result<Vec<f64>, String>>())?;
+    add(cells.checked_mul(orders)?, size_of::<Result<(CellEstimate, Vec<f64>), CellRefusal>>())?;
+    add(cells, size_of::<JointCellReport>().checked_add(size_of::<CellOrderingSpread>())?)?;
+    add(cells.checked_mul(orders)?, size_of::<Option<f64>>())?;
+    add(cells.checked_mul(k)?, size_of::<u8>())?;
+    add(cells, size_of::<usize>().checked_add(size_of::<ScoreColumn>())?)?;
+    add(folds, size_of::<FoldSplit<'_>>())?;
+    add(orders.checked_mul(k)?.checked_mul(2)?, size_of::<usize>())?;
+    u64::try_from(bytes).ok()
+}
+
 /// The table and variable roles of a factorized joint-cell fit.
 struct JointCellRows<'a> {
     data: &'a TabularData,
@@ -1113,7 +1326,7 @@ fn fit_with_nuisance(
     orderings: &[Vec<usize>],
     config: &FactorizedJointConfig,
     ctx: &ExecutionContext,
-    learned: Option<&LearnedNuisance>,
+    learned: Option<&LearnedNuisance<'_>>,
 ) -> Result<FactorizedJointFit, EstimationError> {
     let JointCellRows { data, treatments, outcome, adjustment } = *rows;
     let k = treatments.len();
@@ -1122,6 +1335,26 @@ fn fit_with_nuisance(
     let problem = prepare_problem(data, treatments, outcome, adjustment)?;
     let n = problem.n;
     let n_cells = 1u32 << k;
+    if k > MAX_FACTORIZED_COMPONENTS && n_cells as usize > n {
+        return Err(refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            antecedent_core::reason_details::joint_cells::COMPONENT_COUNT,
+            "more than three components need at least as many complete-case rows as joint cells",
+        ));
+    }
+    let bytes = factorized_parent_bytes(
+        n,
+        problem.ncols,
+        n_cells as usize,
+        orderings.len(),
+        config.folds,
+        k,
+    )
+    .ok_or(EstimationError::Admission(antecedent_core::execution::AdmissionError::Overflow))?;
+    let _parent_lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => cancelled(),
+        other => EstimationError::Admission(other),
+    })?;
     let plan = CrossfitPlan::derive(
         n,
         config.folds,
@@ -1139,8 +1372,12 @@ fn fit_with_nuisance(
             FoldSplit { train: rows.train, valid: rows.valid, design_valid }
         })
         .collect();
-    let rows_in_cell: Vec<usize> =
-        (0..n_cells).map(|c| problem.cell.iter().filter(|&&code| code == c).count()).collect();
+    let mut rows_in_cell = vec![0usize; n_cells as usize];
+    for &code in &problem.cell {
+        if let Some(count) = rows_in_cell.get_mut(code as usize) {
+            *count += 1;
+        }
+    }
 
     let mut mu = Vec::with_capacity(n_cells as usize);
     let mut outcome_provenances: Vec<LearnerProvenance> = Vec::new();
@@ -1240,7 +1477,7 @@ fn fit_with_nuisance(
             .collect();
         return Err(refuse(
             antecedent_core::reason_code!("joint_cell_unsupported"),
-            "joint_cells.no_supported_cell",
+            antecedent_core::reason_details::joint_cells::NO_SUPPORTED_CELL,
             &format!("no cell of the family is supported ({})", reasons.join("; ")),
         ));
     }
@@ -1270,6 +1507,7 @@ fn fit_with_nuisance(
         propensity_clip: Some(config.clip),
         treatment: treatments[0],
         intervened: Arc::from(treatments.to_vec()),
+        preparation: Some(Arc::clone(&problem.preparation)),
     };
     Ok(FactorizedJointFit {
         treatments: treatments.to_vec(),
@@ -1280,6 +1518,8 @@ fn fit_with_nuisance(
         sensitivity,
         degenerate_conditionals: degenerate,
         scores: table,
+        preparation: Some(Arc::clone(&problem.preparation)),
+        external_nuisances_unverified: learned.is_some_and(|item| item.external),
     })
 }
 
@@ -1326,6 +1566,77 @@ mod tests {
     use super::*;
 
     #[test]
+    fn caller_factories_match_builtin_joint_scores_and_record_trust() {
+        let input = fixture(400, 17);
+        let ctx = ExecutionContext::for_tests(17);
+        let mut built_in = FactorizedJointConfig::new(RidgeTuning::default());
+        built_in.learner = Some(LearnerSpec::Linear(crate::LinearSpec::default()));
+        let mut external = built_in.clone();
+        external.learner = None;
+        let outcome = resolve_for(
+            LearnerSpec::Linear(crate::LinearSpec::default()),
+            PredictionTask::Regression,
+        )
+        .unwrap();
+        let propensity = resolve_for(
+            LearnerSpec::Logistic(crate::LogisticSpec::default()),
+            PredictionTask::BinaryProbability,
+        )
+        .unwrap();
+        let order = vec![vec![0, 1]];
+        let expected = fit_factorized_joint_cells(
+            &input.data,
+            &input.treatments,
+            input.outcome,
+            &input.adjustment,
+            &order,
+            &built_in,
+            &ctx,
+        )
+        .unwrap();
+        let actual = fit_factorized_joint_cells_with_factories(
+            &input.data,
+            &input.treatments,
+            input.outcome,
+            &input.adjustment,
+            &order,
+            &external,
+            &ctx,
+            outcome.as_ref(),
+            propensity.as_ref(),
+        )
+        .unwrap();
+        assert!(actual.external_nuisances_unverified);
+        assert!(actual.scores.nuisance_provenance.contains("trust=unverified"));
+        for (a, b) in actual.scores.scores.iter().zip(expected.scores.scores.iter()) {
+            assert!((a - b).abs() < 1e-10);
+        }
+    }
+
+    #[test]
+    fn factorized_parent_admission_refuses_before_cell_fits() {
+        use antecedent_core::execution::{AdmissionError, AdmissionPool};
+        assert!(factorized_parent_bytes(usize::MAX, 10, 1024, 6, 5, 10).is_none());
+        let input = fixture(80, 17);
+        let ctx = ExecutionContext::for_tests(17).with_admission(AdmissionPool::fixed(1, 1));
+        let config = FactorizedJointConfig::new(RidgeTuning::default());
+        let order: Vec<usize> = (0..input.treatments.len()).collect();
+        let result = fit_factorized_joint_cells(
+            &input.data,
+            &input.treatments,
+            input.outcome,
+            &input.adjustment,
+            &[order],
+            &config,
+            &ctx,
+        );
+        assert!(matches!(
+            result,
+            Err(EstimationError::Admission(AdmissionError::ExceedsRemainder { .. }))
+        ));
+    }
+
+    #[test]
     fn attempt_observer_records_actual_cached_conditional_failure_without_refitting() {
         use antecedent_core::execution_attempt::{Operation, observe_execution};
         use antecedent_stats::fit_counts::count_least_squares_solves;
@@ -1364,6 +1675,16 @@ mod tests {
         assert_eq!(cached.report.counts(Operation::LeastSquaresSolve).attempted, 0);
     }
 
+    #[test]
+    fn prepared_problem_keeps_the_admission_receipt_for_the_fit_outputs() {
+        let input = fixture(80, 17);
+        let problem =
+            prepare_problem(&input.data, &input.treatments, input.outcome, &input.adjustment)
+                .unwrap();
+        assert_eq!(problem.preparation.backend, "direct_arrow");
+        assert_eq!(problem.preparation.rows_admitted, Some(80));
+    }
+
     fn supported(estimate: f64) -> (CellEstimate, Vec<f64>) {
         (
             CellEstimate {
@@ -1378,7 +1699,10 @@ mod tests {
     }
 
     fn refused() -> Result<(CellEstimate, Vec<f64>), CellRefusal> {
-        Err(unsupported("joint_cells.cell_ess_below_minimum", "thin".to_string()))
+        Err(unsupported(
+            antecedent_core::reason_details::joint_cells::CELL_ESS_BELOW_MINIMUM,
+            "thin".to_string(),
+        ))
     }
 
     /// Hand-computed: cell 0 estimates 1.00, 1.02, 0.99 spread by 0.03; cell 1 is refused under
@@ -1558,7 +1882,7 @@ mod tests {
     fn stubbed(
         outcome_fail: FailRule,
         propensity_fail: FailRule,
-    ) -> (LearnedNuisance, FitLog, FitLog) {
+    ) -> (LearnedNuisance<'static>, FitLog, FitLog) {
         let (outcome_log, propensity_log) = (FitLog::default(), FitLog::default());
         let outcome_spec = LearnerSpec::Linear(LinearSpec {});
         let propensity_spec = LearnerSpec::Logistic(LogisticSpec { ridge_lambda: 0.0 });
@@ -1575,13 +1899,14 @@ mod tests {
                 fail: propensity_fail,
             }),
             propensity_spec,
+            external: false,
         };
         (learned, outcome_log, propensity_log)
     }
 
     fn run_stubbed(
         fixture: &Fixture,
-        learned: &LearnedNuisance,
+        learned: &LearnedNuisance<'_>,
     ) -> Result<FactorizedJointFit, EstimationError> {
         let mut config = FactorizedJointConfig::new(RidgeTuning::default());
         config.seed = 5;
@@ -1642,7 +1967,10 @@ mod tests {
         for (index, report) in fit.cells.iter().enumerate() {
             match (&report.status, index) {
                 (CellStatus::Unsupported(refusal), 3) => {
-                    assert_eq!(refusal.detail, "joint_cells.outcome_model_unsupported");
+                    assert_eq!(
+                        refusal.detail,
+                        antecedent_core::reason_details::joint_cells::OUTCOME_MODEL_UNSUPPORTED
+                    );
                     assert!(refusal.message.contains("outcome learner failed"), "{refusal:?}");
                 }
                 (CellStatus::Supported(_), 0..=2) => {}
@@ -1660,7 +1988,10 @@ mod tests {
         for (index, report) in fit.cells.iter().enumerate() {
             match (&report.status, index) {
                 (CellStatus::Unsupported(refusal), 1 | 3) => {
-                    assert_eq!(refusal.detail, "joint_cells.conditional_unsupported");
+                    assert_eq!(
+                        refusal.detail,
+                        antecedent_core::reason_details::joint_cells::CONDITIONAL_UNSUPPORTED
+                    );
                     assert!(refusal.message.contains("the learner failed"), "{refusal:?}");
                 }
                 (CellStatus::Supported(_), 0 | 2) => {}
@@ -1676,6 +2007,9 @@ mod tests {
         else {
             panic!("expected a refusal")
         };
-        assert!(message.contains("joint_cells.no_supported_cell"), "{message}");
+        assert!(
+            message.contains(antecedent_core::reason_details::joint_cells::NO_SUPPORTED_CELL),
+            "{message}"
+        );
     }
 }

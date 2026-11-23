@@ -3,7 +3,7 @@
 //!
 //! Every candidate's signal comes from its [`SignalProvider`]. A provider that supplies
 //! an observation law (native or external likelihood) is scored through the existing
-//! [`DesignObjective::ReduceDecisionRegret`] path of [`DesignRanker`] (one
+//! [`DesignObjective::ReduceDecisionRegret`] path of [`crate::ranker::DesignRanker`] (one
 //! preposterior analysis per candidate, scheduled with `map_indexed`), with EVPI and the current
 //! Bayes action read from [`PreposteriorAnalysis`]. A provider that supplies externally
 //! computed per-branch decision values is evaluated as
@@ -18,7 +18,19 @@
 //! cost unit equals every candidate's; otherwise value and cost are reported
 //! separately and incompatible units refuse.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+//! A [`FutureStudyProgram`] is the same definition assembled from a state belief, a
+//! future-data generator, an update operator, terminal actions and an affine utility.
+//! Gross EVSI does not read the study cost. Net value is gross EVSI minus that cost
+//! only when a cost is declared; an absent cost is left absent.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+mod future;
+pub use future::{
+    AffineStateUtility, FutureStudyError, FutureStudyProgram, FutureStudyValue,
+    NormalMeanFutureData, NormalMeanKnownVarianceUpdate, NormalPosterior, NormalStateBelief,
+    StudyAction, UpdatedDecision,
+};
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -34,7 +46,7 @@ use crate::decision::{DecisionProblem, DecisionTable, evaluate_decision};
 use crate::error::DesignError;
 use crate::preposterior::{DecisionPrior, DecisionSignal, EvsiMonteCarlo, PreposteriorAnalysis};
 use crate::rank_rows::{AdjacentRank, evsi_bound_violation, rank_rows};
-use crate::ranker::{DesignRankConfig, DesignRanker};
+use crate::ranker::DesignRankConfig;
 use crate::signal::{
     ExternalDecisionValues, PreparedLaw, RefusalBuilder, SignalError, SignalProvider,
     SignalReceipt, SignalTrustLabel, SignalUpdateMode, remember_prepared, state_key,
@@ -89,7 +101,7 @@ pub struct EvsiRequest {
     pub action_ids: Vec<String>,
     /// Candidates (any order; evaluation is canonical by semantic id).
     pub candidates: Vec<EvsiCandidate>,
-    /// Cost-to-utility mapping, if one is licensed.
+    /// Cost-to-utility mapping, if one is supported.
     pub cost_map: Option<CostToUtilityMap>,
     /// Refuse (instead of reporting value and cost separately) when no map is supplied.
     pub require_net_value: bool,
@@ -244,6 +256,29 @@ pub struct EvsiReport {
     pub search: SearchReceipt,
 }
 
+/// One contextual evaluation with the exact provider laws that produced it.
+/// Laws remain owned by this run until artifact publication; they are not a
+/// process cache and are never recovered by re-preparing the provider.
+#[derive(Debug)]
+pub struct EvaluatedEvsi {
+    report: EvsiReport,
+    pub(crate) laws: Vec<crate::signal::PreparedSignal>,
+}
+
+impl EvaluatedEvsi {
+    /// The evaluated ranking and its original receipts.
+    #[must_use]
+    pub const fn report(&self) -> &EvsiReport {
+        &self.report
+    }
+
+    /// Keep the report and release this run's prepared laws.
+    #[must_use]
+    pub fn into_report(self) -> EvsiReport {
+        self.report
+    }
+}
+
 /// Why an EVSI evaluation refuses.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -293,6 +328,20 @@ pub enum EvsiError {
     Unscored(String),
 }
 
+impl From<antecedent_core::execution::MapExecutionError<EvsiError>> for EvsiError {
+    fn from(error: antecedent_core::execution::MapExecutionError<EvsiError>) -> Self {
+        match error {
+            antecedent_core::execution::MapExecutionError::Work(error) => error,
+            antecedent_core::execution::MapExecutionError::Admission(
+                antecedent_core::execution::AdmissionError::Cancelled,
+            ) => Self::Cancelled,
+            antecedent_core::execution::MapExecutionError::Admission(error) => {
+                Self::Design(DesignError::Resource(error.to_string()))
+            }
+        }
+    }
+}
+
 impl From<DesignError> for EvsiError {
     fn from(error: DesignError) -> Self {
         match error {
@@ -308,6 +357,27 @@ impl From<SignalError> for EvsiError {
     }
 }
 
+/// Write a refusal as `detail` plus its offending coordinate, the text an error built from it
+/// shows (never a `Debug` rendering).
+pub(crate) fn write_refusal(
+    f: &mut std::fmt::Formatter<'_>,
+    refusal: &ExternalRefusal,
+) -> std::fmt::Result {
+    f.write_str(&refusal.detail)?;
+    match &refusal.offending {
+        Some(offending) => write!(f, ": {offending}"),
+        None => Ok(()),
+    }
+}
+
+impl std::fmt::Display for EvsiError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write_refusal(f, &self.to_refusal())
+    }
+}
+
+impl std::error::Error for EvsiError {}
+
 impl EvsiError {
     /// Structured refusal under the `evsi` namespace (signal refusals keep
     /// `signal_provider`).
@@ -318,53 +388,56 @@ impl EvsiError {
         let at = |code, detail: &str| RefusalBuilder::new(code, "evaluate", detail);
         match self {
             Self::Signal(error) => error.to_refusal(),
+            Self::Design(DesignError::Resource(message)) => {
+                at("execution_resource_limit", antecedent_core::reason_details::evsi::EXECUTION_RESOURCE_LIMIT).expected(message.clone()).build()
+            }
             Self::Design(error) => {
-                at(signal, "evsi.design_error").expected(error.to_string()).build()
+                at(signal, antecedent_core::reason_details::evsi::DESIGN_ERROR).expected(error.to_string()).build()
             }
             Self::InvalidRequest(what) => at(
                 antecedent_core::reason_code!("invalid_argument"),
-                "evsi.invalid_request",
+                antecedent_core::reason_details::evsi::INVALID_REQUEST,
             )
             .offending(*what)
             .build(),
             Self::DuplicateCandidate(id) => {
-                at(signal, "evsi.duplicate_candidate").offending(id.clone()).build()
+                at(signal, antecedent_core::reason_details::evsi::DUPLICATE_CANDIDATE).offending(id.clone()).build()
             }
-            Self::SourceOverlap(ids) => at(signal, "evsi.source_overlap")
+            Self::SourceOverlap(ids) => at(signal, antecedent_core::reason_details::evsi::SOURCE_OVERLAP)
                 .offending(ids.join(","))
                 .remedy("use only data not already summarized by the prior")
                 .build(),
             Self::SourceOverlapUnknown { candidate, reason } => at(
                 antecedent_core::reason_code!("evidence_overlap_unknown"),
-                "evsi.source_overlap_unknown",
+                antecedent_core::reason_details::evsi::SOURCE_OVERLAP_UNKNOWN,
             )
             .offending(candidate.clone())
             .expected(reason.clone())
             .remedy("declare the observations behind the prior and the study in the evidence ledger")
             .build(),
             Self::SampleSizeMismatch(id) => {
-                at(signal, "evsi.sample_size_mismatch").offending(id.clone()).build()
+                at(signal, antecedent_core::reason_details::evsi::SAMPLE_SIZE_MISMATCH).offending(id.clone()).build()
             }
             Self::ReceiptMismatch(id) => {
-                at(signal, "evsi.receipt_mismatch").offending(id.clone()).build()
+                at(signal, antecedent_core::reason_details::evsi::RECEIPT_MISMATCH).offending(id.clone()).build()
             }
             Self::PriorStatesMismatch(id) => {
-                at(signal, "evsi.prior_states_mismatch").offending(id.clone()).build()
+                at(signal, antecedent_core::reason_details::evsi::PRIOR_STATES_MISMATCH).offending(id.clone()).build()
             }
             Self::ActionSetChanged => at(
                 antecedent_core::reason_code!("decision_contract_unsatisfied"),
-                "evsi.action_set_changed",
+                antecedent_core::reason_details::evsi::ACTION_SET_CHANGED,
             )
             .remedy("an action-set change is a separate decision problem")
             .build(),
-            Self::DecisionValuesNeedDraws => at(signal, "evsi.decision_values_need_draws").build(),
+            Self::DecisionValuesNeedDraws => at(signal, antecedent_core::reason_details::evsi::DECISION_VALUES_NEED_DRAWS).build(),
             Self::DecisionValuesIncoherent(id) => {
-                at(signal, "evsi.decision_values_incoherent").offending(id.clone()).build()
+                at(signal, antecedent_core::reason_details::evsi::DECISION_VALUES_INCOHERENT).offending(id.clone()).build()
             }
-            Self::CostMapRequired => at(units, "evsi.cost_map_required")
+            Self::CostMapRequired => at(units, antecedent_core::reason_details::evsi::COST_MAP_REQUIRED)
                 .remedy("supply a cost-to-utility mapping or report value and cost separately")
                 .build(),
-            Self::CostUnitsMismatch(what) => at(units, "evsi.cost_units_mismatch")
+            Self::CostUnitsMismatch(what) => at(units, antecedent_core::reason_details::evsi::COST_UNITS_MISMATCH)
                 .offending(what.clone())
                 .remedy(
                     "declare each study cost in the cost map's cost unit and map it into the decision's utility unit",
@@ -372,17 +445,17 @@ impl EvsiError {
                 .build(),
             Self::InvalidCost(what) => at(
                 antecedent_core::reason_code!("invalid_argument"),
-                "evsi.invalid_cost",
+                antecedent_core::reason_details::evsi::INVALID_COST,
             )
             .offending(what.clone())
             .build(),
             Self::BoundViolation(which) => {
-                at(signal, "evsi.bound_violation").offending(*which).build()
+                at(signal, antecedent_core::reason_details::evsi::BOUND_VIOLATION).offending(*which).build()
             }
             Self::Cancelled => {
-                at(antecedent_core::reason_code!("cancelled_no_claim"), "evsi.cancelled").build()
+                at(antecedent_core::reason_code!("cancelled_no_claim"), antecedent_core::reason_details::evsi::CANCELLED).build()
             }
-            Self::Unscored(id) => at(signal, "evsi.unscored_candidate").offending(id.clone()).build(),
+            Self::Unscored(id) => at(signal, antecedent_core::reason_details::evsi::UNSCORED_CANDIDATE).offending(id.clone()).build(),
         }
     }
 }
@@ -409,13 +482,13 @@ fn validate_costs(request: &EvsiRequest) -> Result<(), EvsiError> {
         if !(cost.amount.is_finite() && cost.amount >= 0.0) || is_blank(&cost.unit) {
             return Err(EvsiError::InvalidCost(candidate.semantic_id.clone()));
         }
-        if let Some(map) = &request.cost_map {
-            if cost.unit != map.cost_unit {
-                return Err(EvsiError::CostUnitsMismatch(format!(
-                    "candidate {} cost unit {} differs from map cost unit {}",
-                    candidate.semantic_id, cost.unit, map.cost_unit
-                )));
-            }
+        if let Some(map) = &request.cost_map
+            && cost.unit != map.cost_unit
+        {
+            return Err(EvsiError::CostUnitsMismatch(format!(
+                "candidate {} cost unit {} differs from map cost unit {}",
+                candidate.semantic_id, cost.unit, map.cost_unit
+            )));
         }
     }
     Ok(())
@@ -632,6 +705,7 @@ fn candidate_overlap(
 
 /// Numbers one candidate's evaluation produced.
 struct Evaluated {
+    prepared: crate::signal::PreparedSignal,
     evsi: f64,
     integration: IntegrationReport,
     evpi: f64,
@@ -661,8 +735,6 @@ fn likelihood_value<A>(
     request: &EvsiRequest,
     ctx: &ExecutionContext,
 ) -> Result<Valued, EvsiError> {
-    let ranker = DesignRanker::new().with_config(request.rank_config.clone());
-    ranker.validate_config()?;
     let analysis = PreposteriorAnalysis::new(problem, prior, signal.as_ref())?;
     let n = signal
         .sample_size(&candidate.design)
@@ -712,6 +784,7 @@ fn values_value<A>(
     prior: &DecisionPrior<f64>,
     values: &ExternalDecisionValues,
     request: &EvsiRequest,
+    evpi: Option<f64>,
     id: &str,
 ) -> Result<Valued, EvsiError> {
     let DecisionPrior::Draws(states) = prior else {
@@ -728,38 +801,64 @@ fn values_value<A>(
     }
     let table = DecisionTable::build(problem, states)?;
     let n_actions = problem.actions.len();
+    // Center both prior and externally supplied branch values at a common
+    // represented utility before summing. Coherence is an absolute error in
+    // these utility differences, not relative to an arbitrary utility origin.
+    // A common anchor cancels only for a normalized branch law. Refuse
+    // substantive missing mass rather than silently renormalizing it away.
+    let branch_mass = antecedent_kernels::numeric::CompensatedSum::of(
+        values.branch_probabilities.iter().copied(),
+    );
+    if !branch_mass.is_finite() || (branch_mass - 1.0).abs() > 4.0 * f64::EPSILON {
+        return Err(EvsiError::DecisionValuesIncoherent(id.to_owned()));
+    }
+    let anchor = table.utility(table.admissible[0], 0);
     let prior_eu: Vec<f64> = (0..n_actions)
         .map(|a| {
-            (0..table.n_outcomes).map(|k| table.utility(a, k)).sum::<f64>()
-                / table.n_outcomes as f64
+            antecedent_kernels::numeric::CompensatedSum::of(
+                (0..table.n_outcomes).map(|k| table.utility(a, k) - anchor),
+            ) / table.n_outcomes as f64
         })
         .collect();
-    let branch_value = |branch: usize, action: usize| values.values[branch][columns[action]];
+    let branch_value =
+        |branch: usize, action: usize| values.values[branch][columns[action]] - anchor;
     for (action, &prior) in prior_eu.iter().enumerate() {
-        let averaged: f64 = values
-            .branch_probabilities
-            .iter()
-            .enumerate()
-            .map(|(y, p)| p * branch_value(y, action))
-            .sum();
-        if (averaged - prior).abs() > 1e-8 * (1.0 + prior.abs()) {
+        let averaged = antecedent_kernels::numeric::CompensatedSum::of(
+            values
+                .branch_probabilities
+                .iter()
+                .enumerate()
+                .map(|(y, p)| p * branch_value(y, action)),
+        );
+        if !prior.is_finite()
+            || !averaged.is_finite()
+            || (averaged - prior).abs() > crate::rank_rows::EVSI_BOUND_ABS
+        {
             return Err(EvsiError::DecisionValuesIncoherent(id.to_owned()));
         }
     }
-    let after: f64 = values
-        .branch_probabilities
-        .iter()
-        .enumerate()
-        .map(|(y, p)| {
+    let mut bayes_action = table.admissible[0];
+    let mut centered_best = prior_eu[bayes_action];
+    for &action in &table.admissible[1..] {
+        if prior_eu[action] > centered_best {
+            bayes_action = action;
+            centered_best = prior_eu[action];
+        }
+    }
+    let after = antecedent_kernels::numeric::CompensatedSum::of(
+        values.branch_probabilities.iter().enumerate().map(|(y, p)| {
             let best = table
                 .admissible
                 .iter()
                 .map(|&a| branch_value(y, a))
                 .fold(f64::NEG_INFINITY, f64::max);
             p * best
-        })
-        .sum();
-    let (bayes_action, prior_best) = table.bayes_action();
+        }),
+    );
+    if !after.is_finite() {
+        return Err(EvsiError::DecisionValuesIncoherent(id.to_owned()));
+    }
+    let prior_best = anchor + centered_best;
     let integration = IntegrationReport {
         method: IntegrationMethod::ExternallyComputed,
         replicates: 0,
@@ -768,9 +867,10 @@ fn values_value<A>(
         converged: true,
         early_stopped: false,
     };
-    let evpi = evaluate_decision(problem, states)?.posterior_regret;
+    // The per-request value of perfect information, shared by every candidate.
+    let evpi = evpi.ok_or(EvsiError::DecisionValuesNeedDraws)?;
     Ok(Valued {
-        evsi: after - prior_best,
+        evsi: after - centered_best,
         integration,
         evpi,
         prior_expected_utility: prior_best,
@@ -785,6 +885,7 @@ fn evaluate_candidate<A: Clone>(
     request: &EvsiRequest,
     candidate: &EvsiCandidate,
     evidence: Option<&EvsiEvidence<'_>>,
+    prior_evpi: Option<f64>,
     ctx: &ExecutionContext,
 ) -> Result<Evaluated, EvsiError> {
     let id = &candidate.semantic_id;
@@ -815,7 +916,9 @@ fn evaluate_candidate<A: Clone>(
             }
             likelihood_value(problem, prior, signal, candidate, request, ctx)?
         }
-        PreparedLaw::DecisionValues(values) => values_value(problem, prior, values, request, id)?,
+        PreparedLaw::DecisionValues(values) => {
+            values_value(problem, prior, values, request, prior_evpi, id)?
+        }
     };
     let Valued { evsi, integration, evpi, prior_expected_utility, bayes_action, stream_digest } =
         valued;
@@ -824,14 +927,18 @@ fn evaluate_candidate<A: Clone>(
     }
     // Seal reuses this law when the receipt is still the one on the row. The
     // artifact is built from the law, so a miss falls back to preparing again.
-    remember_prepared(&prepared);
+    if ctx.cancellation.is_cancelled() {
+        return Err(EvsiError::Cancelled);
+    }
+    remember_prepared(&prepared, ctx);
     Ok(Evaluated {
+        receipt: prepared.receipt.clone(),
+        prepared,
         evsi,
         integration,
         evpi,
         prior_expected_utility,
         bayes_action,
-        receipt: prepared.receipt,
         overlap,
         stream_digest,
     })
@@ -917,16 +1024,53 @@ fn evaluate<A: Clone + Sync>(
     evidence: Option<&EvsiEvidence<'_>>,
     cancellation: &CancellationToken,
 ) -> Result<EvsiReport, EvsiError> {
+    let mut ctx =
+        ExecutionContext::production(request.rng_seed, antecedent_core::default_user_threads());
+    ctx.cancellation = cancellation.clone();
+    evaluate_in_context(problem, prior, request, evidence, &ctx).map(EvaluatedEvsi::into_report)
+}
+
+/// Evaluate EVSI using the caller's admission pool, parallelism, cancellation
+/// and cache policy. The request's declared seed still defines all draw streams.
+///
+/// # Errors
+/// As [`evaluate_evsi`], including caller cancellation or refused integration.
+pub fn evaluate_evsi_with_context<A: Clone + Sync>(
+    problem: &DecisionProblem<A, f64>,
+    prior: &DecisionPrior<f64>,
+    request: &EvsiRequest,
+    ctx: &ExecutionContext,
+) -> Result<EvaluatedEvsi, EvsiError> {
+    evaluate_in_context(problem, prior, request, None, ctx)
+}
+
+fn evaluate_in_context<A: Clone + Sync>(
+    problem: &DecisionProblem<A, f64>,
+    prior: &DecisionPrior<f64>,
+    request: &EvsiRequest,
+    evidence: Option<&EvsiEvidence<'_>>,
+    ctx: &ExecutionContext,
+) -> Result<EvaluatedEvsi, EvsiError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(EvsiError::Cancelled);
+    }
+    // Keep scientific stream identity tied to the request, while cloning shares
+    // the caller's live pool and cancellation rather than resetting either.
+    let mut ctx = ctx.clone();
+    ctx.rng = antecedent_core::RngFactory::from_seed(request.rng_seed);
     validate_request(problem, request)?;
+    request.rank_config.validate()?;
+    // The value of perfect information depends on the problem and the prior draws alone.
+    let prior_evpi = match prior {
+        DecisionPrior::Draws(states) => Some(evaluate_decision(problem, states)?.posterior_regret),
+        DecisionPrior::Normal { .. } => None,
+    };
     let mut ordered: Vec<&EvsiCandidate> = request.candidates.iter().collect();
     ordered.sort_by(|a, b| a.semantic_id.cmp(&b.semantic_id));
     let supplied = ordered.len();
     let unevaluated_ids: Vec<String> =
         ordered.iter().skip(request.max_candidates).map(|c| c.semantic_id.clone()).collect();
     ordered.truncate(request.max_candidates);
-    let mut ctx =
-        ExecutionContext::production(request.rng_seed, antecedent_core::default_user_threads());
-    ctx.cancellation = cancellation.clone();
     // Replicate streams are keyed by (seed, purpose, replicate) and shared by every
     // candidate (common random numbers), so neither the index order of `map_indexed` nor
     // the catalog moves them.
@@ -934,7 +1078,7 @@ fn evaluate<A: Clone + Sync>(
         if ctx.cancellation.is_cancelled() {
             return Err(EvsiError::Cancelled);
         }
-        evaluate_candidate(problem, prior, request, ordered[index], evidence, ctx)
+        evaluate_candidate(problem, prior, request, ordered[index], evidence, prior_evpi, ctx)
     })?;
     let search = SearchReceipt {
         supplied,
@@ -942,7 +1086,12 @@ fn evaluate<A: Clone + Sync>(
         truncated: !unevaluated_ids.is_empty(),
         unevaluated_ids,
     };
-    Ok(assemble(prior, request, &ordered, &evaluated, search))
+    if ctx.cancellation.is_cancelled() {
+        return Err(EvsiError::Cancelled);
+    }
+    let report = assemble(prior, request, &ordered, &evaluated, search);
+    let laws = evaluated.into_iter().map(|value| value.prepared).collect();
+    Ok(EvaluatedEvsi { report, laws })
 }
 
 fn assemble(
@@ -1015,3 +1164,261 @@ fn assemble(
         search,
     }
 }
+
+#[cfg(test)]
+mod future_study_tests {
+    use antecedent_kernels::{norm_pdf, norm_sf};
+
+    use super::{
+        AffineStateUtility, FutureStudyError, FutureStudyProgram, IntegrationMethod,
+        NormalMeanFutureData, NormalMeanKnownVarianceUpdate, NormalStateBelief, StudyAction,
+    };
+
+    const TOL: f64 = 1e-12;
+    const PRIOR_VARIANCE: f64 = 1.0;
+    const SAMPLE_SIZE: u64 = 4;
+    const NOISE_VARIANCE: f64 = 12.0;
+    /// `0.5 * (φ(1) − (1 − Φ(1)))` for `s = 1/2` and `z = 1`.
+    const EVSI_AT_HALF: f64 = 0.041_657_735_293_843_15;
+
+    const fn near(left: f64, right: f64) -> bool {
+        (left - right).abs() <= TOL
+    }
+
+    fn program(mean: f64, study_cost: Option<f64>) -> FutureStudyProgram {
+        FutureStudyProgram::try_new(
+            NormalStateBelief::try_new(mean, PRIOR_VARIANCE).expect("belief"),
+            NormalMeanFutureData::try_new(SAMPLE_SIZE, NOISE_VARIANCE).expect("data"),
+            NormalMeanKnownVarianceUpdate,
+            vec![
+                StudyAction::try_new("stay").expect("stay"),
+                StudyAction::try_new("treat").expect("treat"),
+            ],
+            AffineStateUtility::try_new(vec![0.0, 0.0], vec![0.0, 1.0]).expect("utility"),
+            study_cost,
+        )
+        .expect("program")
+    }
+
+    /// `s² = τ² n τ² / (n τ² + σ²)`, `z = |μ₀| / s`, `EVSI = s (φ(z) − z (1 − Φ(z)))`.
+    ///
+    /// Stay pays 0 and treat pays `θ`, so the actions are indifferent at 0 and the
+    /// slope gap is 1. This is the normal linear-loss integral, not a sample.
+    fn closed_form_evsi(mean: f64) -> f64 {
+        let n = SAMPLE_SIZE as f64;
+        let spread_sq = PRIOR_VARIANCE * n * PRIOR_VARIANCE / (n * PRIOR_VARIANCE + NOISE_VARIANCE);
+        let spread = spread_sq.sqrt();
+        let z = mean.abs() / spread;
+        spread * (norm_pdf(z) - z * norm_sf(z))
+    }
+
+    const fn conjugate_posterior(sample_mean: f64) -> (f64, f64) {
+        let n = SAMPLE_SIZE as f64;
+        let prior_precision = 1.0 / PRIOR_VARIANCE;
+        let data_precision = n / NOISE_VARIANCE;
+        let posterior_precision = prior_precision + data_precision;
+        let mean = (prior_precision * 0.5 + data_precision * sample_mean) / posterior_precision;
+        (mean, 1.0 / posterior_precision)
+    }
+
+    #[test]
+    fn conjugate_normal_mean_update_and_decision_matches_closed_form_evsi() {
+        let analytic = closed_form_evsi(0.5);
+        assert!(
+            near(analytic, EVSI_AT_HALF),
+            "closed form {analytic} left the normal linear-loss constant"
+        );
+
+        let (mean_at_two, variance_at_two) = conjugate_posterior(2.0);
+        assert!(near(mean_at_two, 7.0 / 8.0));
+        assert!(near(variance_at_two, 3.0 / 4.0));
+        let decided = program(0.5, None).updated_decision(2.0).expect("posterior decision");
+        assert!(near(decided.posterior_mean, mean_at_two));
+        assert!(near(decided.posterior_variance, variance_at_two));
+        let treat_if_positive = usize::from(mean_at_two > 0.0);
+        assert_eq!(decided.action_index, treat_if_positive);
+        assert!(near(decided.expected_utility, mean_at_two));
+
+        let (mean_at_minus_three, _) = conjugate_posterior(-3.0);
+        assert!(near(mean_at_minus_three, -3.0 / 8.0));
+        let abstain = program(0.5, None).updated_decision(-3.0).expect("posterior decision");
+        assert_eq!(abstain.action_index, 0);
+        assert!(near(abstain.expected_utility, 0.0));
+        assert!(near(abstain.posterior_variance, variance_at_two));
+
+        let (_, variance_at_prior) = conjugate_posterior(0.5);
+        let spread = (PRIOR_VARIANCE - variance_at_prior).sqrt();
+        let z = 0.5 / spread;
+        let from_update = spread * (norm_pdf(z) - z * norm_sf(z));
+        assert!(near(from_update, analytic));
+
+        for mean in [-0.5_f64, 0.0, 0.5] {
+            let value = program(mean, None).evaluate_future_study().expect("evsi");
+            assert_eq!(value.integration, IntegrationMethod::Exact);
+            assert!(near(value.gross_evsi, closed_form_evsi(mean)));
+            assert!(near(value.prior_expected_utility, mean.max(0.0)));
+            assert!(near(
+                value.preposterior_expected_utility,
+                value.prior_expected_utility + value.gross_evsi
+            ));
+            assert!(value.study_cost.is_none());
+            assert!(value.net_value.is_none());
+            let z_perfect = mean.abs() / PRIOR_VARIANCE.sqrt();
+            let evpi =
+                PRIOR_VARIANCE.sqrt() * (norm_pdf(z_perfect) - z_perfect * norm_sf(z_perfect));
+            assert!(value.gross_evsi <= evpi + TOL);
+            assert!(value.gross_evsi >= -TOL);
+        }
+        assert!(near(program(0.5, None).gross_evsi().expect("gross"), analytic));
+        assert!(near(from_update, program(0.5, None).gross_evsi().expect("gross")));
+    }
+
+    #[test]
+    fn small_information_is_not_lost_to_cancellation() {
+        // tau^2 = 1, sigma^2 = 1e12, n = 1: the preposterior variance is
+        // 1 * 1 / (1 + 1e12) ~ 1e-12, and the two actions pay 1e9 and 1e9 + theta, so
+        // they are indifferent at the prior mean 0 with slope gap 1.
+        // EVSI = s * phi(0) = s / sqrt(2 pi), s = 1e-6 / sqrt(1 + 1e-12).
+        let program = FutureStudyProgram::try_new(
+            NormalStateBelief::try_new(0.0, 1.0).expect("belief"),
+            NormalMeanFutureData::try_new(1, 1e12).expect("data"),
+            NormalMeanKnownVarianceUpdate,
+            vec![
+                StudyAction::try_new("stay").expect("stay"),
+                StudyAction::try_new("treat").expect("treat"),
+            ],
+            AffineStateUtility::try_new(vec![1e9, 1e9], vec![0.0, 1.0]).expect("utility"),
+            None,
+        )
+        .expect("program");
+        let spread = 1e-6 / (1.0_f64 + 1e-12).sqrt();
+        let expected = spread / (2.0 * std::f64::consts::PI).sqrt();
+        let got = program.evaluate_future_study().expect("evsi");
+        assert!(
+            (got.gross_evsi - expected).abs() <= 1e-12 * expected,
+            "{} vs {expected}",
+            got.gross_evsi
+        );
+        assert_eq!(got.prior_expected_utility.to_bits(), 1e9_f64.to_bits());
+    }
+
+    #[test]
+    fn gross_evsi_ignores_study_cost_and_absent_cost_is_not_netted() {
+        let bare = program(0.5, None).evaluate_future_study().expect("bare");
+        let priced = program(0.5, Some(0.01));
+        let priced_value = priced.evaluate_future_study().expect("priced");
+        let declared_zero = program(0.5, Some(0.0)).evaluate_future_study().expect("zero");
+
+        assert!(bare.net_value.is_none());
+        assert!(bare.study_cost.is_none());
+        assert!(priced.study_cost().is_some());
+        assert!(near(priced.gross_evsi().expect("gross ignores cost"), bare.gross_evsi));
+        assert!(near(priced_value.gross_evsi, bare.gross_evsi));
+        assert!(near(priced_value.study_cost.expect("declared cost"), 0.01));
+        assert!(near(
+            priced_value.net_value.expect("declared cost has a net"),
+            bare.gross_evsi - 0.01
+        ));
+        assert!(near(declared_zero.gross_evsi, bare.gross_evsi));
+        assert!(declared_zero.study_cost.is_some());
+        assert!(near(declared_zero.study_cost.expect("zero is declared"), 0.0));
+        assert!(near(declared_zero.net_value.expect("zero cost is subtracted"), bare.gross_evsi));
+        assert_eq!(priced.actions().len(), 2);
+        assert_eq!(priced.actions().first().expect("stay").id(), "stay");
+        assert_eq!(priced.actions().get(1).expect("treat").id(), "treat");
+    }
+
+    #[test]
+    fn future_study_program_rejects_invalid_belief_data_utility_and_cost() {
+        assert!(matches!(
+            NormalStateBelief::try_new(0.0, 0.0),
+            Err(FutureStudyError::InvalidBelief)
+        ));
+        assert!(matches!(
+            NormalStateBelief::try_new(f64::NAN, 1.0),
+            Err(FutureStudyError::InvalidBelief)
+        ));
+        assert!(matches!(
+            NormalStateBelief::try_new(0.0, f64::INFINITY),
+            Err(FutureStudyError::InvalidBelief)
+        ));
+        assert!(matches!(
+            NormalMeanFutureData::try_new(0, 1.0),
+            Err(FutureStudyError::InvalidFutureData)
+        ));
+        assert!(matches!(
+            NormalMeanFutureData::try_new(4, 0.0),
+            Err(FutureStudyError::InvalidFutureData)
+        ));
+        assert!(matches!(StudyAction::try_new(" "), Err(FutureStudyError::BlankAction)));
+        assert!(matches!(
+            AffineStateUtility::try_new(vec![0.0], vec![0.0, 1.0]),
+            Err(FutureStudyError::InvalidUtility)
+        ));
+        assert!(matches!(
+            AffineStateUtility::try_new(vec![f64::NAN], vec![1.0]),
+            Err(FutureStudyError::InvalidUtility)
+        ));
+
+        let belief = NormalStateBelief::try_new(0.5, 1.0).expect("belief");
+        let data = NormalMeanFutureData::try_new(4, 12.0).expect("data");
+        let stay = StudyAction::try_new("stay").expect("stay");
+        let treat = StudyAction::try_new("treat").expect("treat");
+        let utility = AffineStateUtility::try_new(vec![0.0, 0.0], vec![0.0, 1.0]).expect("utility");
+        let one = AffineStateUtility::try_new(vec![0.0], vec![1.0]).expect("one");
+        assert!(matches!(
+            FutureStudyProgram::try_new(
+                belief,
+                data,
+                NormalMeanKnownVarianceUpdate,
+                vec![],
+                one.clone(),
+                None,
+            ),
+            Err(FutureStudyError::EmptyActions)
+        ));
+        assert!(matches!(
+            FutureStudyProgram::try_new(
+                belief,
+                data,
+                NormalMeanKnownVarianceUpdate,
+                vec![stay.clone(), treat.clone()],
+                one,
+                None,
+            ),
+            Err(FutureStudyError::InvalidUtility)
+        ));
+        assert!(matches!(
+            FutureStudyProgram::try_new(
+                belief,
+                data,
+                NormalMeanKnownVarianceUpdate,
+                vec![stay.clone(), StudyAction::try_new("stay").expect("dup")],
+                utility.clone(),
+                None,
+            ),
+            Err(FutureStudyError::DuplicateAction)
+        ));
+        for cost in [Some(-1.0), Some(f64::NAN), Some(f64::INFINITY)] {
+            assert!(matches!(
+                FutureStudyProgram::try_new(
+                    belief,
+                    data,
+                    NormalMeanKnownVarianceUpdate,
+                    vec![stay.clone(), treat.clone()],
+                    utility.clone(),
+                    cost,
+                ),
+                Err(FutureStudyError::InvalidCost)
+            ));
+        }
+        assert!(matches!(
+            program(0.5, None).updated_decision(f64::NAN),
+            Err(FutureStudyError::InvalidObservation)
+        ));
+    }
+}
+
+#[cfg(test)]
+#[path = "evsi_worker_tests.rs"]
+mod worker_admission_tests;

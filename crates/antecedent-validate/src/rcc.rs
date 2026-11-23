@@ -1,6 +1,6 @@
 //! Random common cause refuter.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -83,7 +83,7 @@ impl RandomCommonCause {
                 fill_gaussian(
                     noise,
                     ctx,
-                    crate::streams::RANDOM_COMMON_CAUSE.wrapping_add(u64::from(r)),
+                    crate::streams::replicate_stream(crate::streams::RANDOM_COMMON_CAUSE, r),
                 );
                 let (data, new_id) = with_extra_float(
                     problem.data,

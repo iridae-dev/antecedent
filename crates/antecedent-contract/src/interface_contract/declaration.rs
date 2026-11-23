@@ -8,7 +8,7 @@
 //! identity, the composition stage), so a connection can be decided from two
 //! declarations before anything is executed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
@@ -19,23 +19,28 @@ use super::refusal::{
     InterfaceRefusal, blank_field, calibration_record_blank, calibration_without_interval,
     duplicate_port, inherited_input_unknown, invalid_digest, invalid_quantity, invalid_support,
     missing_operations, point_only_with_uncertainty, posterior_without_posterior_meaning,
-    too_many_items, uncertainty_meaning_required, uncertainty_meaning_unused,
-    unknown_provenance_stage,
+    uncertainty_meaning_required, uncertainty_meaning_unused, unknown_provenance_stage,
 };
 use crate::composition_provenance::CompositionStage;
 use crate::evidence_ledger::SourceId;
 use crate::quantity::meaning_tag;
 use crate::{DistributionMeaning, ExternalCapability, ScientificQuantity};
+use antecedent_core::named_variants;
 
 /// Version word written into every interface contract identity. Bump only
 /// when the canonical encoding below changes.
 pub const INTERFACE_CONTRACT_VERSION: u64 = 1;
-/// Most produced ports, and most consumed ports, one contract may declare.
+// The sizes below are the defaults that decoders of untrusted contract records apply to their
+// own input. Validating a declaration is linear in its size, so the contract itself imposes no
+// count or length bound; memory is the only limit.
+
+/// Default bound on produced ports, and on consumed ports, that a decoder of untrusted input
+/// applies to one contract record.
 pub const MAX_INTERFACE_PORTS: usize = 256;
-/// Longest identity or name, in bytes.
+/// Default bound on an identity or name, in bytes, that a decoder of untrusted input applies.
 pub const MAX_INTERFACE_TEXT_BYTES: usize = 4096;
-/// Most measurement models, evidence sources, support levels or provenance
-/// stages one port may declare.
+/// Default bound on measurement models, evidence sources, support levels or provenance stages
+/// per port that a decoder of untrusted input applies.
 pub const MAX_PORT_SET_ITEMS: usize = 1024;
 
 /// Domain tag of the canonical contract stream.
@@ -64,40 +69,20 @@ pub enum ContractOperation {
     Posterior,
 }
 
+named_variants! {
+    ContractOperation {
+        Point => "point",
+        Mean => "mean",
+        Law => "law",
+        Draws => "draws",
+        JointDraws => "joint_draws",
+        Covariance => "covariance",
+        Interval => "interval",
+        Posterior => "posterior",
+    }
+}
+
 impl ContractOperation {
-    /// Every operation, in canonical order.
-    pub const ALL: [Self; 8] = [
-        Self::Point,
-        Self::Mean,
-        Self::Law,
-        Self::Draws,
-        Self::JointDraws,
-        Self::Covariance,
-        Self::Interval,
-        Self::Posterior,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Point => "point",
-            Self::Mean => "mean",
-            Self::Law => "law",
-            Self::Draws => "draws",
-            Self::JointDraws => "joint_draws",
-            Self::Covariance => "covariance",
-            Self::Interval => "interval",
-            Self::Posterior => "posterior",
-        }
-    }
-
-    /// Parse the name written by [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|operation| operation.as_str() == name)
-    }
-
     /// Canonical tag word of the operation.
     #[must_use]
     pub const fn tag(self) -> u64 {
@@ -160,25 +145,12 @@ pub enum UncertaintyParadigm {
     Empirical,
 }
 
-impl UncertaintyParadigm {
-    /// Every paradigm.
-    pub const ALL: [Self; 4] = [Self::Posterior, Self::Sampling, Self::Resampling, Self::Empirical];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Posterior => "posterior",
-            Self::Sampling => "sampling",
-            Self::Resampling => "resampling",
-            Self::Empirical => "empirical",
-        }
-    }
-
-    /// Parse the name written by [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|paradigm| paradigm.as_str() == name)
+named_variants! {
+    UncertaintyParadigm {
+        Posterior => "posterior",
+        Sampling => "sampling",
+        Resampling => "resampling",
+        Empirical => "empirical",
     }
 }
 
@@ -241,17 +213,19 @@ impl UncertaintyMeaning {
 pub enum CalibrationStatus {
     /// No calibration statement.
     None,
-    /// A point value; no uncertainty statement is made or licensed.
+    /// A point value; no uncertainty statement is made or supported.
     PointOnly,
     /// An uncertainty statement is made whose coverage has not been measured.
-    Unmeasured,
+    NotMeasured,
     /// Coverage was measured, in the record with this identity.
     Measured {
         /// Identity of the measured calibration record.
         record_id: String,
     },
     /// Declared to be inherited from a consumed port of the same component;
-    /// resolved against the upstream producer when a composition is checked.
+    /// resolved against the upstream producer when a composition is checked. The
+    /// output must keep the upstream quantity and uncertainty coordinates; the
+    /// declaration asserts that the component forwards the calibrated quantity.
     Inherited {
         /// Name of the consumed port the calibration is inherited from.
         input: String,
@@ -265,7 +239,7 @@ impl CalibrationStatus {
         match self {
             Self::None => "none",
             Self::PointOnly => "point_only",
-            Self::Unmeasured => "unmeasured",
+            Self::NotMeasured => "not_measured",
             Self::Measured { .. } => "measured",
             Self::Inherited { .. } => "inherited",
         }
@@ -287,20 +261,10 @@ pub enum CalibrationRequirement {
     Measured,
 }
 
-impl CalibrationRequirement {
-    /// Stable `snake_case` label.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::NotRequired => "not_required",
-            Self::Measured => "measured",
-        }
-    }
-
-    /// Parse the label written by [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::NotRequired, Self::Measured].into_iter().find(|r| r.as_str() == name)
+named_variants! {
+    CalibrationRequirement {
+        NotRequired => "not_required",
+        Measured => "measured",
     }
 }
 
@@ -337,25 +301,15 @@ pub enum DependenceRequirement {
     DisjointEvidence,
 }
 
+named_variants! {
+    DependenceRequirement {
+        Unconstrained => "unconstrained",
+        DeclaredEvidence => "declared_evidence",
+        DisjointEvidence => "disjoint_evidence",
+    }
+}
+
 impl DependenceRequirement {
-    /// Stable `snake_case` label.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Unconstrained => "unconstrained",
-            Self::DeclaredEvidence => "declared_evidence",
-            Self::DisjointEvidence => "disjoint_evidence",
-        }
-    }
-
-    /// Parse the label written by [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::Unconstrained, Self::DeclaredEvidence, Self::DisjointEvidence]
-            .into_iter()
-            .find(|r| r.as_str() == name)
-    }
-
     /// Whether the evidence of the input must be declared.
     #[must_use]
     pub const fn requires_declared(self) -> bool {
@@ -429,10 +383,7 @@ impl SupportDomain {
             }
             Self::Categorical { levels } => {
                 !levels.is_empty()
-                    && levels.len() <= MAX_PORT_SET_ITEMS
-                    && levels
-                        .iter()
-                        .all(|l| !l.trim().is_empty() && l.len() <= MAX_INTERFACE_TEXT_BYTES)
+                    && levels.iter().all(|l| !l.trim().is_empty())
                     && levels.windows(2).all(|pair| pair[0] < pair[1])
             }
         }
@@ -553,7 +504,8 @@ impl ProducedPort {
         self
     }
 
-    /// Declare the evidence sources.
+    /// Declare the evidence sources. An empty set does not establish a dependence
+    /// guarantee; connection checks treat it as unknown evidence.
     #[must_use]
     pub fn with_evidence(mut self, sources: impl IntoIterator<Item = SourceId>) -> Self {
         self.evidence = EvidenceBasis::Declared(sources.into_iter().collect());
@@ -719,7 +671,7 @@ impl PortFacts {
     }
 
     /// A produced port for `quantity` under these facts. The calibration is
-    /// `calibration` when stated, otherwise `unmeasured` for an offering that
+    /// `calibration` when stated, otherwise `not_measured` for an offering that
     /// carries uncertainty and `point_only` for one that does not; it is never
     /// measured by default.
     pub(crate) fn produced(
@@ -745,7 +697,7 @@ impl PortFacts {
             port = port.with_uncertainty(meaning);
         }
         port = port.with_calibration(calibration.unwrap_or(if carries {
-            CalibrationStatus::Unmeasured
+            CalibrationStatus::NotMeasured
         } else {
             CalibrationStatus::PointOnly
         }));
@@ -789,21 +741,19 @@ pub struct InterfaceContract {
 }
 
 fn check_text(field: &str, text: &str) -> Result<(), InterfaceRefusal> {
-    if text.trim().is_empty() || text.len() > MAX_INTERFACE_TEXT_BYTES {
+    if text.trim().is_empty() {
         return Err(blank_field(field));
     }
     Ok(())
 }
 
-/// Whether `text` is 64 lowercase hex characters.
+/// Whether `text` is 64 lowercase hex characters. Declared model identities are canonical
+/// identity text, so uppercase is refused (unlike externally supplied digests).
 pub(super) fn is_lower_hex_digest(text: &str) -> bool {
-    text.len() == 64 && text.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    antecedent_core::digest_from_lower_hex(text).is_some()
 }
 
 fn check_models(field: &str, models: &BTreeSet<String>) -> Result<(), InterfaceRefusal> {
-    if models.len() > MAX_PORT_SET_ITEMS {
-        return Err(too_many_items(field));
-    }
     if models.iter().any(|m| !is_lower_hex_digest(m)) {
         return Err(invalid_digest(field));
     }
@@ -811,9 +761,6 @@ fn check_models(field: &str, models: &BTreeSet<String>) -> Result<(), InterfaceR
 }
 
 fn check_stages(stages: &BTreeSet<String>) -> Result<(), InterfaceRefusal> {
-    if stages.len() > MAX_PORT_SET_ITEMS {
-        return Err(too_many_items("provenance"));
-    }
     if let Some(stage) = stages.iter().find(|s| CompositionStage::from_name(s).is_none()) {
         return Err(unknown_provenance_stage(stage));
     }
@@ -875,13 +822,8 @@ impl ProducedPort {
         check_uncertainty(&self.name, &self.operations, self.uncertainty)?;
         check_models("measurement_models", &self.measurement_models)?;
         check_stages(&self.provenance)?;
-        if let EvidenceBasis::Declared(sources) = &self.evidence {
-            if sources.len() > MAX_PORT_SET_ITEMS {
-                return Err(too_many_items("evidence"));
-            }
-        }
         match &self.calibration {
-            CalibrationStatus::None | CalibrationStatus::Unmeasured => {}
+            CalibrationStatus::None | CalibrationStatus::NotMeasured => {}
             CalibrationStatus::PointOnly => {
                 if uncertainty_ops(&self.operations) {
                     return Err(point_only_with_uncertainty(&self.name));
@@ -938,9 +880,6 @@ impl InterfaceContract {
     /// names the declaration that would make the contract well formed.
     pub fn validate(&self) -> Result<(), InterfaceRefusal> {
         check_text("component", &self.component)?;
-        if self.produces.len() > MAX_INTERFACE_PORTS || self.consumes.len() > MAX_INTERFACE_PORTS {
-            return Err(too_many_items("ports"));
-        }
         let mut consumed = BTreeSet::new();
         for port in &self.consumes {
             if !consumed.insert(port.name.as_str()) {
@@ -1060,7 +999,7 @@ fn write_produced(writer: &mut CanonicalWriter, port: &ProducedPort) {
         CalibrationStatus::PointOnly => {
             writer.word(2);
         }
-        CalibrationStatus::Unmeasured => {
+        CalibrationStatus::NotMeasured => {
             writer.word(3);
         }
         CalibrationStatus::Measured { record_id } => {

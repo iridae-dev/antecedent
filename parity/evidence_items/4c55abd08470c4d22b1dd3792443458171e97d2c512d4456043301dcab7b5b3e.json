@@ -1,0 +1,1 @@
+["use:crate::temporal_design::{ClusterScores,PanelRows,contrasts::two_arm_scores,dense_labels,lagged_pairs,sampling_summary,};#0","use:std::collections::{BTreeMap,BTreeSet};#0","struct:ExcursionOutcome#0","struct:JointExcursionRecipe#0","struct:JointExcursionLaw#0","fn:joint_excursion#0"]

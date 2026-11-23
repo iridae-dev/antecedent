@@ -4,9 +4,8 @@
 //! container: a CBOR section of execution identities and the original claim
 //! artifact as an opaque section. The earlier `ANTCALLBACK1` frame stays
 //! readable; nothing writes it any more.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::IoError;
-use crate::convert::to_cbor;
 use crate::external_claim_artifact::{ExternalClaimArtifact, ExternalClaimIdentity};
 use serde::{Deserialize, Serialize};
 
@@ -63,16 +62,9 @@ impl ExternalCallbackArtifact {
     /// # Errors
     /// Invalid original claim, non-attested trust, or excessive bytes.
     pub fn export(&self) -> Result<Vec<u8>, IoError> {
-        self.validate()?;
-        let meta = to_cbor(&CallbackMeta {
-            version: META_VERSION,
-            request_digest: self.request_digest,
-            provider_digest: self.provider_digest,
-            policy: self.policy.clone(),
-            identity: self.identity.clone(),
-        })?;
+        self.validate(crate::external_claim_artifact::MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES)?;
         let artifact_id = self.artifact_id();
-        crate::encode_container(
+        crate::artifact_codec::encode_sectioned_io(
             &crate::ArtifactContainer {
                 kind: ARTIFACT_KIND,
                 note: "external_callback",
@@ -80,20 +72,21 @@ impl ExternalCallbackArtifact {
                 artifact_id: &artifact_id,
                 library_version: env!("CARGO_PKG_VERSION"),
             },
-            &[
-                crate::OutSection {
-                    id: META_SECTION,
-                    content_type: crate::CONTENT_CBOR,
-                    bytes: &meta,
-                },
-                crate::OutSection {
-                    id: CLAIM_SECTION,
-                    content_type: crate::CONTENT_BYTES,
-                    bytes: &self.artifact,
-                },
-            ],
+            META_SECTION,
+            &CallbackMeta {
+                version: META_VERSION,
+                request_digest: self.request_digest,
+                provider_digest: self.provider_digest,
+                policy: self.policy.clone(),
+                identity: self.identity.clone(),
+            },
+            &[crate::OutSection {
+                id: CLAIM_SECTION,
+                content_type: crate::CONTENT_BYTES,
+                bytes: &self.artifact,
+            }],
+            "unsupported external callback layout",
         )
-        .map_err(|error| error.into_io("unsupported external callback layout"))
     }
 
     /// Decode and independently validate the existing scientific claim.
@@ -101,7 +94,19 @@ impl ExternalCallbackArtifact {
     /// # Errors
     /// Bounds, format, or original external claim refusal.
     pub fn consume(bytes: &[u8], request: &[u8; 32], provider: &[u8; 32]) -> Result<Self, IoError> {
-        let value = Self::inspect(bytes)?;
+        Self::consume_within(bytes, request, provider, MAX_CALLBACK_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::consume`] under the caller's byte bound instead of [`MAX_CALLBACK_ARTIFACT_BYTES`].
+    /// # Errors
+    /// As [`Self::consume`]; an envelope over `max_bytes` is refused.
+    pub fn consume_within(
+        bytes: &[u8],
+        request: &[u8; 32],
+        provider: &[u8; 32],
+        max_bytes: usize,
+    ) -> Result<Self, IoError> {
+        let value = Self::inspect_within(bytes, max_bytes)?;
         if &value.request_digest != request || &value.provider_digest != provider {
             return Err(IoError::Convert("callback artifact execution identity mismatch".into()));
         }
@@ -113,40 +118,51 @@ impl ExternalCallbackArtifact {
     /// # Errors
     /// Bounds, format, or original external claim refusal.
     pub fn inspect(bytes: &[u8]) -> Result<Self, IoError> {
-        if bytes.len() > MAX_CALLBACK_ARTIFACT_BYTES {
+        Self::inspect_bounded(
+            bytes,
+            MAX_CALLBACK_ARTIFACT_BYTES,
+            crate::external_claim_artifact::MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES,
+        )
+    }
+
+    /// [`Self::inspect`] under the caller's byte bound instead of [`MAX_CALLBACK_ARTIFACT_BYTES`].
+    /// # Errors
+    /// As [`Self::inspect`]; an envelope over `max_bytes` is refused.
+    pub fn inspect_within(bytes: &[u8], max_bytes: usize) -> Result<Self, IoError> {
+        Self::inspect_bounded(bytes, max_bytes, max_bytes)
+    }
+
+    fn inspect_bounded(
+        bytes: &[u8],
+        max_bytes: usize,
+        claim_max_bytes: usize,
+    ) -> Result<Self, IoError> {
+        if bytes.len() > max_bytes {
             return Err(IoError::Convert("invalid callback artifact envelope".into()));
         }
         let value = if bytes.starts_with(LEGACY_MAGIC) {
             Self::decode_legacy(bytes)?
         } else {
-            Self::decode_container(bytes)?
+            Self::decode_container(bytes, max_bytes)?
         };
-        value.validate()?;
+        value.validate(claim_max_bytes)?;
         Ok(value)
     }
 
-    fn decode_container(bytes: &[u8]) -> Result<Self, IoError> {
-        let layout = "invalid callback artifact envelope";
-        let parts = crate::decode_container(
-            ARTIFACT_KIND,
-            MAX_CALLBACK_ARTIFACT_BYTES,
-            &[META_SECTION, CLAIM_SECTION],
-            bytes,
-        )
-        .map_err(|error| error.into_io(layout))?;
-        let Ok([meta, artifact]) = <[Vec<u8>; 2]>::try_from(parts) else {
-            return Err(IoError::Convert(layout.into()));
-        };
+    fn decode_container(bytes: &[u8], max_bytes: usize) -> Result<Self, IoError> {
         // The version is read from the untyped value and gated before the typed
         // shape is interpreted, so a newer body is `UnsupportedVersion`, not a
         // shape error.
-        let meta: CallbackMeta = crate::decode_with_version(&meta, |version: u16| {
-            if version == META_VERSION {
-                Ok(())
-            } else {
-                Err(IoError::UnsupportedVersion { version: u32::from(version) })
-            }
-        })?;
+        let (meta, [artifact]): (CallbackMeta, _) =
+            crate::artifact_codec::decode_sectioned_io_versioned(
+                ARTIFACT_KIND,
+                max_bytes,
+                META_SECTION,
+                &[CLAIM_SECTION],
+                "invalid callback artifact envelope",
+                META_VERSION,
+                bytes,
+            )?;
         Ok(Self {
             request_digest: meta.request_digest,
             provider_digest: meta.provider_digest,
@@ -169,7 +185,7 @@ impl ExternalCallbackArtifact {
         Ok(value)
     }
 
-    fn validate(&self) -> Result<(), IoError> {
+    fn validate(&self, claim_max_bytes: usize) -> Result<(), IoError> {
         if !matches!(
             self.policy.as_str(),
             "deterministic" | "seeded" | "stateful" | "side_effecting"
@@ -178,7 +194,7 @@ impl ExternalCallbackArtifact {
         {
             return Err(IoError::Convert("callback output has unsupported replay or trust".into()));
         }
-        ExternalClaimArtifact::from_bytes(&self.artifact, &self.identity)?;
+        ExternalClaimArtifact::from_bytes_within(&self.artifact, &self.identity, claim_max_bytes)?;
         Ok(())
     }
 }
@@ -193,5 +209,15 @@ mod tests {
         assert!(ExternalCallbackArtifact::recognizes(b"ANTCALLBACK1\x00"));
         assert!(ExternalCallbackArtifact::inspect(b"not an artifact").is_err());
         assert!(ExternalCallbackArtifact::inspect(b"ANTCALLBACK1\xff").is_err());
+    }
+
+    #[test]
+    fn a_caller_byte_bound_refuses_an_envelope_over_it() {
+        // Over a one-byte bound the envelope is refused before any decoding.
+        assert!(ExternalCallbackArtifact::inspect_within(b"ANTCALLBACK1\x00", 1).is_err());
+        assert!(
+            ExternalCallbackArtifact::consume_within(b"ANTCALLBACK1\x00", &[0; 32], &[0; 32], 1)
+                .is_err()
+        );
     }
 }

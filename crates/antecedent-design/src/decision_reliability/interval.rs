@@ -28,36 +28,40 @@
 //! considered but did not retain are counted, never covered: the confidence set is for
 //! the best *retained* candidate.
 //!
-//! The derivation itself carries [`DerivedStanding::DerivedUnmeasured`]: it is a
-//! construction, not a claim. [`DerivedUncertainty::publish`] returns `Ok` only when a
-//! current, attesting coverage record measured the route at its coordinate
+//! The derivation itself carries [`DerivedStanding::DerivedNotMeasured`]: it is a
+//! construction, not a claim. Its calibration is measured per route at its coordinate
 //! (candidate-set size, Monte Carlo budget, selection rule, coupling and serial
-//! dependence) and refuses with `cell_not_licensed` everywhere else.
+//! dependence). [`DerivedUncertainty::publish`] reports the intervals at every coordinate and
+//! attaches the calibration slot: `calibrated` where such a record covers the coordinate,
+//! otherwise `outside_measured_scope`, `measured_below_nominal` or `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
+use antecedent_io_core::calibration::CONSTRUCTION_NOT_MEASURED;
+use antecedent_io_core::contract_section::CalibrationSlotWire;
 use antecedent_kernels::norm_inv;
 use serde::{Deserialize, Serialize};
 
 use super::ReliabilityError;
-use super::calibration::{CalibrationCoordinate, PublishedRoute, license_route_at};
+use super::calibration::{CalibrationCoordinate, PublishedRoute, support_route_at};
 use super::draws::{CandidateCoupling, DecisionDraws};
-use super::mc_error::{McEstimate, PairCoupling, estimate_difference};
+use super::mc_error::{McEstimate, PairCoupling};
 use super::report::{
     ReliabilityReport, ReliabilityRequest, SelectionUncertainty, SourceUncertainty, ValidationPlan,
     assess,
 };
-use super::selection::split_draws;
+use super::selection::split_draws_in_context;
 
 /// Body version of [`DerivedUncertainty`].
 pub const DERIVED_UNCERTAINTY_VERSION: u32 = 1;
 /// Smallest effective sample size at which the normal approximation is derived.
 pub const MIN_NORMAL_ESS: f64 = 30.0;
-/// Most candidates for which every pairwise paired comparison is computed.
+/// Most candidates for which every pairwise paired comparison is computed. Beyond it the
+/// best-candidate set is the dependence-free Bonferroni construction, the method the published
+/// interval calibration covers for larger candidate counts (so the switch is a calibrated
+/// method boundary, not a resource limit).
 pub const MAX_PAIRED_COMPARISON_CANDIDATES: usize = 64;
-/// Most candidate-pair-draw cells the paired comparisons may touch.
-pub const MAX_PAIRED_COMPARISON_CELLS: usize = 1 << 27;
 /// Largest nominal level a request may ask for (the tail mass must stay representable).
 pub const MAX_INTERVAL_LEVEL: f64 = 0.9999;
 /// Smallest nominal level a request may ask for.
@@ -114,7 +118,7 @@ impl IntervalRequest {
 pub enum DerivedStanding {
     /// The construction is derived under stated assumptions and has no coverage record
     /// at its coordinate.
-    DerivedUnmeasured,
+    DerivedNotMeasured,
 }
 
 /// How a numerical interval was built.
@@ -278,7 +282,7 @@ pub struct SelectionComponent {
     pub corrected: Option<SelectionCorrectedInterval>,
 }
 
-/// The three components, derived and unmeasured.
+/// The three components, derived and `not_measured`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DerivedUncertainty {
@@ -298,7 +302,7 @@ pub struct DerivedUncertainty {
     pub numerical: NumericalComponent,
     /// Component three: selection-induced uncertainty.
     pub selection: SelectionComponent,
-    /// Always derived and unmeasured.
+    /// Always derived and `not_measured`.
     pub standing: DerivedStanding,
     /// Coordinate a coverage record would have to measure.
     pub coordinate: CalibrationCoordinate,
@@ -307,12 +311,15 @@ pub struct DerivedUncertainty {
 }
 
 impl DerivedUncertainty {
-    /// Ask to publish a route from this derivation.
+    /// Publish a route from this derivation with its calibration slot.
+    ///
+    /// The slot is `calibrated` when a current, attesting coverage record measured the
+    /// route at [`Self::coordinate`], and otherwise names why it is not (a `not_measured`
+    /// level, multiplicity or Monte Carlo budget). The intervals are reported either way.
     ///
     /// # Errors
-    /// [`ReliabilityError::CellNotLicensed`] until a coverage record measures the route
-    /// at [`Self::coordinate`].
-    pub fn publish(&self, route: PublishedRoute) -> Result<(), ReliabilityError> {
+    /// None today: calibration annotates the route and never refuses it.
+    pub fn publish(&self, route: PublishedRoute) -> Result<CalibrationSlotWire, ReliabilityError> {
         // The measured utility and ranking-probability intervals are marginal; a
         // simultaneous (Bonferroni over every reported interval) request is a different
         // construction no record measured. The confidence set and the selection-corrected
@@ -320,12 +327,9 @@ impl DerivedUncertainty {
         let marginal_only =
             matches!(route, PublishedRoute::RankingProbability | PublishedRoute::UtilityInterval);
         if marginal_only && self.request.multiplicity != IntervalMultiplicity::Marginal {
-            return Err(ReliabilityError::CellNotLicensed {
-                route: route.as_str(),
-                coordinate: self.coordinate.describe(),
-            });
+            return Ok(CalibrationSlotWire::not_measured(CONSTRUCTION_NOT_MEASURED));
         }
-        license_route_at(route, &self.coordinate, self.request.level)
+        support_route_at(route, &self.coordinate, self.request.level)
     }
 
     /// One combined uncertainty number.
@@ -451,7 +455,7 @@ fn paired_confidence_set(
             if i == j {
                 continue;
             }
-            let difference = estimate_difference(
+            let difference = super::mc_error::estimate_difference_in_context(
                 &draws.candidates[i].utilities,
                 &draws.candidates[j].utilities,
                 draws.weights.as_deref(),
@@ -459,6 +463,7 @@ fn paired_confidence_set(
                 request.batch_plan,
                 &request.functional,
                 pair_coupling,
+                ctx,
             )?;
             let beats = if difference.standard_error > 0.0 {
                 difference.value > z * difference.standard_error
@@ -509,12 +514,10 @@ fn confidence_set(
     if retained < 2 {
         return Ok(make(ConfidenceSetBasis::MarginalBonferroni, ids.clone(), 0.0));
     }
-    let cells = retained
-        .checked_mul(retained)
-        .and_then(|pairs| pairs.checked_mul(selection_draws.n_draws()));
-    let paired = retained <= MAX_PAIRED_COMPARISON_CANDIDATES
-        && cells.is_some_and(|c| c <= MAX_PAIRED_COMPARISON_CELLS);
-    if paired {
+    // The paired construction is chosen by the candidate count alone: the method an interval
+    // is supported under must not change with the draw count. Its cost is cancellable and each
+    // difference estimate is admitted against the context's budgets.
+    if retained <= MAX_PAIRED_COMPARISON_CANDIDATES {
         let tail = alpha / (retained as f64 - 1.0);
         let members = paired_confidence_set(selection_draws, request, tail, ctx)?;
         return Ok(make(ConfidenceSetBasis::PairedComparisonsWithBest, members, critical(tail)));
@@ -708,14 +711,15 @@ pub fn derive_uncertainty(
 ) -> Result<DerivedUncertainty, ReliabilityError> {
     interval.validate()?;
     let report = assess(draws, validation, request, ctx)?;
-    let selection_draws = match &request.validation {
+    let split = match &request.validation {
         ValidationPlan::SplitSelectionDraws { selection_fraction, gap } => {
-            split_draws(draws, *selection_fraction, *gap)?.0
+            Some(split_draws_in_context(draws, *selection_fraction, *gap, ctx)?)
         }
-        _ => draws.clone(),
+        _ => None,
     };
+    let selection_draws = split.as_ref().map_or(draws, |parts| &parts.selection);
     let numerical = numerical_component(&report, interval)?;
-    let confidence = confidence_set(&report, &selection_draws, request, interval.alpha(), ctx)?;
+    let confidence = confidence_set(&report, selection_draws, request, interval.alpha(), ctx)?;
     let corrected = corrected_interval(&report, interval)?;
     Ok(DerivedUncertainty {
         version: DERIVED_UNCERTAINTY_VERSION,
@@ -726,7 +730,7 @@ pub fn derive_uncertainty(
         source: report.source_uncertainty.clone(),
         numerical,
         selection: SelectionComponent { confidence_set: confidence, corrected },
-        standing: DerivedStanding::DerivedUnmeasured,
+        standing: DerivedStanding::DerivedNotMeasured,
         coordinate: report.coordinate.clone(),
         assumptions: assumptions(),
     })

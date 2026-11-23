@@ -2,14 +2,15 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
-    Arc, CausalError, CausalExprArena, CausalPosterior, CausalQuery, Dag, DerivationTrace,
-    Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext,
+    Arc, CausalError, CausalExprArena, CausalPosterior, CausalQuery, DerivationTrace, Diagnostic,
+    DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext,
     IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
     IdentifiedEstimand, IdentifiedExecuteFinish, IdentifiedResultContext, IdentifierId,
     InferenceDiagnostics, InferenceMode, Instant, OverlapPolicy, PhysicalExecutionPlan,
     RefuteSuite, Strategy, Study, StudyResult, TableView, TabularData, VariableId,
     effect_from_posterior, elapsed_ns, finish_identified_execute_with_context,
 };
+use crate::accepted::{AcceptedGraph, GraphRef};
 use crate::analysis::prepared::Inspect;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -18,12 +19,13 @@ enum InterferenceProcedure {
     SaturationExact,
     ObservationalIpw,
     ConjugateGaussian { draws: usize, prior_sd: f64 },
+    ClusterBayesianBootstrap { draws: usize },
 }
 
 /// Complete fixed network, assignment, query and inference procedure for one exposure contrast.
 #[derive(Clone)]
 pub(crate) struct CheckedInterferenceOperation {
-    graph: Dag,
+    graph: Arc<AcceptedGraph>,
     query: antecedent_core::InterferenceQuery,
     source_schema: antecedent_core::CausalSchema,
     source_rows: usize,
@@ -36,6 +38,8 @@ pub(crate) struct CheckedInterferenceOperation {
     estimator: EstimatorId,
     physical: std::sync::Arc<PhysicalExecutionPlan>,
     result_context: IdentifiedResultContext,
+    refute: RefuteSuite,
+    replicates: u32,
 }
 
 impl std::fmt::Debug for CheckedInterferenceOperation {
@@ -52,6 +56,22 @@ impl std::fmt::Debug for CheckedInterferenceOperation {
     }
 }
 
+/// Preserve operational refusals when the estimator runs under a public workflow.
+pub(super) fn interference_estimation_error(
+    error: antecedent_estimate::EstimationError,
+) -> CausalError {
+    match error {
+        antecedent_estimate::EstimationError::Stats(antecedent_stats::StatsError::Cancelled) => {
+            CausalError::Cancelled { stage: crate::analysis::stage::STAGE_VALIDATE }
+        }
+        antecedent_estimate::EstimationError::Stats(
+            error @ (antecedent_stats::StatsError::ResourceLimit { .. }
+            | antecedent_stats::StatsError::WorkLimit { .. }),
+        ) => CausalError::Resource { message: error.to_string() },
+        other => CausalError::from(other),
+    }
+}
+
 impl CheckedInterferenceOperation {
     pub(crate) fn checked(
         study: &Study,
@@ -64,16 +84,28 @@ impl CheckedInterferenceOperation {
             });
         };
         query.validate()?;
-        let graph = study.graph.as_dag().ok_or(CausalError::Unsupported {
-            message: "checked interference requires a supplied DAG schema",
-        })?;
+        let graph = &study.graph;
         let design = study.interference.as_ref().ok_or(CausalError::Unsupported {
             message: "checked interference requires a fixed network and realized assignment",
         })?;
         let design = design.bound_to(data)?;
         refuse_unsupported_interference_design(study, &design, data, graph)?;
-        let (procedure, estimator) = match &study.inference {
+        let (procedure, estimator) = match &study.settings.inference {
             InferenceMode::Frequentist => frequentist_interference_procedure(query, &design)?,
+            InferenceMode::Bayesian(config) if cluster_bootstrap_design(query) => {
+                admit_cluster_bootstrap(config)?;
+                // Reject unsupported neighborhood, assignment and arm sizes during prepare.
+                antecedent_estimate::estimate_cluster_interference_total(
+                    query,
+                    &design.network,
+                    &design.assignment,
+                )
+                .map_err(CausalError::from)?;
+                (
+                    InterferenceProcedure::ClusterBayesianBootstrap { draws: config.n_draws },
+                    EstimatorId::InterferenceClusterBayesianBootstrap,
+                )
+            }
             InferenceMode::Bayesian(config) => {
                 if config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
                     || config.likelihood != antecedent_prob::BayesLikelihood::GaussianIdentity
@@ -88,7 +120,7 @@ impl CheckedInterferenceOperation {
                     || query.exposure != antecedent_core::ExposureMapping::NeighborCount
                 {
                     return Err(CausalError::Unsupported {
-                        message: "the licensed Bayesian interference route requires Bernoulli assignment, NeighborCount exposure and the conjugate Gaussian model with its declared isotropic prior",
+                        message: "the supported Bayesian interference route requires Bernoulli assignment, NeighborCount exposure and the conjugate Gaussian model with its declared isotropic prior",
                     });
                 }
                 if config.n_draws < 2
@@ -126,15 +158,10 @@ impl CheckedInterferenceOperation {
             CausalQuery::Interference(query.clone()),
             outcome,
             &procedure,
-            matches!(
-                query.assignment,
-                antecedent_core::AssignmentDesign::ClusterRandomization { .. }
-                    | antecedent_core::AssignmentDesign::TwoStageSaturation { .. }
-                    | antecedent_core::AssignmentDesign::ObservedExposure { .. }
-            ),
+            partial_interference(query),
         );
         Ok(Self {
-            graph: graph.clone(),
+            graph: Arc::clone(graph),
             query: query.clone(),
             source_schema: data.schema().clone(),
             source_rows: data.row_count(),
@@ -147,6 +174,8 @@ impl CheckedInterferenceOperation {
             estimator,
             physical: physical.clone(),
             result_context: IdentifiedResultContext::from_study(study),
+            refute: study.settings.refute,
+            replicates: study.settings.bootstrap_replicates,
         })
     }
 
@@ -162,6 +191,43 @@ impl CheckedInterferenceOperation {
         (self.source_rows, self.network_edges.len())
     }
 
+    /// The identification this operation records for `query` under `inference`: the
+    /// procedure [`Self::checked`] selects for the declared assignment, without the
+    /// prepare-time design validation that needs the bound network. The route lowering
+    /// retains it at compile.
+    pub(crate) fn design_identification(
+        query: &antecedent_core::InterferenceQuery,
+        inference: &InferenceMode,
+    ) -> (IdentificationResult, IdentifiedEstimand) {
+        let procedure = match inference {
+            InferenceMode::Bayesian(config) if cluster_bootstrap_design(query) => {
+                InterferenceProcedure::ClusterBayesianBootstrap { draws: config.n_draws }
+            }
+            InferenceMode::Bayesian(config) => InterferenceProcedure::ConjugateGaussian {
+                draws: config.n_draws,
+                prior_sd: config.prior_scale,
+            },
+            InferenceMode::Frequentist => match query.assignment {
+                antecedent_core::AssignmentDesign::ObservedExposure { .. } => {
+                    InterferenceProcedure::ObservationalIpw
+                }
+                antecedent_core::AssignmentDesign::TwoStageSaturation { .. } => {
+                    InterferenceProcedure::SaturationExact
+                }
+                _ => InterferenceProcedure::DesignBasedYoung,
+            },
+        };
+        let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, .. } =
+            query.functional;
+        interference_identification(
+            CausalQuery::Interference(query.clone()),
+            outcome,
+            &procedure,
+            partial_interference(query),
+        )
+    }
+
+    #[allow(clippy::too_many_lines, reason = "the route's steps read in order in one place")]
     pub(crate) fn execute(
         &self,
         data: &TabularData,
@@ -187,6 +253,22 @@ impl CheckedInterferenceOperation {
                 stage: super::super::stage::STAGE_ESTIMATE_POINT,
             });
         }
+        let design_estimate = self.procedure == InterferenceProcedure::DesignBasedYoung;
+        let initial_pair = design_estimate
+            && !matches!(
+                self.query.assignment,
+                antecedent_core::AssignmentDesign::ClusterRandomization { .. }
+            );
+        super::interference_refutation::admit_interference_procedure(
+            &self.query,
+            self.assignment.len(),
+            self.network_edges.len(),
+            initial_pair,
+            design_estimate,
+            self.refute,
+            self.replicates,
+            ctx,
+        )?;
         let network =
             antecedent_data::NetworkData::try_new(data.clone(), Arc::clone(&self.network_edges))?;
         let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, .. } =
@@ -200,7 +282,21 @@ impl CheckedInterferenceOperation {
                 InterferenceProcedure::ConjugateGaussian { draws, prior_sd } => {
                     self.bayesian_arm(&network, ctx, draws, prior_sd)?
                 }
+                InterferenceProcedure::ClusterBayesianBootstrap { draws } => {
+                    self.cluster_bootstrap_arm(&network, ctx, draws)?
+                }
             };
+        let refutations = super::interference_refutation::refute_interference(
+            &super::interference_refutation::InterferenceRefutationInput {
+                query: &self.query,
+                network: &network,
+                assignment: &self.assignment,
+                estimated: estimated.as_ref(),
+                suite: self.refute,
+                replicates: self.replicates,
+            },
+            ctx,
+        )?;
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
@@ -214,12 +310,48 @@ impl CheckedInterferenceOperation {
                 outcome,
             )
             .identify_cached(true)
+            .refutations(refutations)
             .extra_diagnostics(vec![diagnostic])
             .wall_time_ns(elapsed_ns(started)),
         );
         result.payload =
             crate::result::ResultPayload::from_interference(estimated, interference_inference);
         result.posterior = posterior;
+        // The Student-t reference law of an arm of few clusters states its support row; the
+        // Dirichlet law of larger arms has none.
+        if matches!(self.procedure, InterferenceProcedure::ClusterBayesianBootstrap { .. })
+            && let antecedent_core::AssignmentDesign::ClusterRandomization { clusters, .. } =
+                &self.query.assignment
+        {
+            let arms = clusters
+                .iter()
+                .copied()
+                .zip(self.assignment.iter().copied())
+                .collect::<std::collections::BTreeSet<(u32, bool)>>();
+            let treated = arms.iter().filter(|(_, assigned)| *assigned).count();
+            let control = arms.len() - treated;
+            if treated.min(control) < antecedent_estimate::CLUSTER_DIRICHLET_MIN_ARM_CLUSTERS {
+                super::bayesian_quasi_common::state_design_posterior_row(
+                    &mut result,
+                    crate::support::GraphlessSupportKey {
+                        family: "interference",
+                        design: "cluster_randomization_total",
+                        method: "cluster_student_reference_posterior",
+                        inference_claim: "exposure_contrast_pointwise_95_posterior_quantiles",
+                    },
+                    crate::support::GraphlessAssignmentSupport {
+                        assignment_unit: "cluster",
+                        treated,
+                        control,
+                        rows: self.assignment.len(),
+                        interval_95_published: true,
+                        reported_intervals: 1,
+                        all_reported_intervals: true,
+                        ..Default::default()
+                    },
+                );
+            }
+        }
         Ok(result)
     }
 
@@ -232,7 +364,9 @@ impl CheckedInterferenceOperation {
         let seed = ctx.rng.stream_for(antecedent_core::StreamDomain::Transport, 0x1F7E).next_u64();
         let saturation = matches!(self.procedure, InterferenceProcedure::SaturationExact);
         let (estimated, interference_inference) = if saturation {
-            self.saturation_inference(network)?
+            antecedent_core::numerical_admission::with_context(ctx, || {
+                self.saturation_inference(network)
+            })?
         } else if matches!(
             self.query.assignment,
             antecedent_core::AssignmentDesign::ClusterRandomization { .. }
@@ -240,13 +374,15 @@ impl CheckedInterferenceOperation {
             self.cluster_inference(network)?
         } else {
             (
-                antecedent_estimate::estimate_interference(
-                    &self.query,
-                    network,
-                    &self.assignment,
-                    seed,
-                )
-                .map_err(CausalError::from)?,
+                antecedent_core::numerical_admission::with_context(ctx, || {
+                    antecedent_estimate::estimate_interference(
+                        &self.query,
+                        network,
+                        &self.assignment,
+                        seed,
+                    )
+                })
+                .map_err(interference_estimation_error)?,
                 None,
             )
         };
@@ -310,7 +446,7 @@ impl CheckedInterferenceOperation {
                 first_stage_arm_clusters: [interval.low_clusters, interval.high_clusters],
             });
         let graphless_support_status = interval.as_ref().and_then(|interval| {
-            interference_graphless_license(
+            interference_graphless_support(
                 "two_stage_saturation",
                 "saturation_cluster_neyman_welch",
                 crate::support::GraphlessAssignmentSupport {
@@ -373,7 +509,7 @@ impl CheckedInterferenceOperation {
         let interval_available = interval.is_some();
         let to_exposed_units = self.assignment.iter().filter(|&&assigned| assigned).count();
         let graphless_support_status = interval.as_ref().and_then(|_| {
-            interference_graphless_license(
+            interference_graphless_support(
                 "cluster_randomization_total",
                 "cluster_total_neyman_welch",
                 crate::support::GraphlessAssignmentSupport {
@@ -434,7 +570,7 @@ impl CheckedInterferenceOperation {
             }
         });
         let graphless_support_status = interval.as_ref().and_then(|_| {
-            interference_graphless_license(
+            interference_graphless_support(
                 "observational_known_exposure",
                 "observational_known_exposure_cluster_t",
                 crate::support::GraphlessAssignmentSupport {
@@ -552,6 +688,7 @@ impl CheckedInterferenceOperation {
             unevaluable_mass: 0.0,
             early_stopped: false,
             treatment_contrast: None,
+            preparation: None,
         };
         let estimate = effect_from_posterior(&posterior)?;
         Ok((
@@ -569,6 +706,160 @@ impl CheckedInterferenceOperation {
     }
 }
 
+impl CheckedInterferenceOperation {
+    /// Cluster-level Bayesian-bootstrap posterior of the cluster total-effect contrast.
+    fn cluster_bootstrap_arm(
+        &self,
+        network: &antecedent_data::NetworkData,
+        ctx: &ExecutionContext,
+        draws: usize,
+    ) -> Result<InterferenceArm, CausalError> {
+        let options =
+            antecedent_estimate::score_posterior::ScorePosteriorOptions { draws, coverage: 0.95 };
+        // An arm of few clusters publishes the reference law; otherwise the Dirichlet-weight law.
+        let small_arm = antecedent_estimate::estimate_cluster_interference_small_arm_posterior(
+            &self.query,
+            network,
+            &self.assignment,
+            options,
+        )
+        .map_err(CausalError::from)?;
+        let (_, summary) = match small_arm {
+            Some(reference) => reference,
+            None => antecedent_estimate::estimate_cluster_interference_bayesian_bootstrap(
+                &self.query,
+                network,
+                &self.assignment,
+                options,
+                ctx,
+            )
+            .map_err(CausalError::from)?,
+        };
+        let schema = antecedent_prob::PosteriorSchema {
+            quantities: Arc::from([antecedent_prob::PosteriorQuantityKind::Effect {
+                name: Arc::from("cluster_total_exposure_contrast"),
+            }]),
+        };
+        let posterior_draws = antecedent_prob::PosteriorDraws::from_column_major(
+            schema,
+            summary.draws.len(),
+            Arc::<[f64]>::from(summary.draws),
+        )?;
+        let mut diagnostics =
+            InferenceDiagnostics::analytic("interference.cluster_bayesian_bootstrap");
+        // Clusters of the design and of its smaller arm; the assignment is constant within a
+        // cluster.
+        let (clusters, smaller_arm) = match &self.query.assignment {
+            antecedent_core::AssignmentDesign::ClusterRandomization { clusters, .. } => {
+                let arms = clusters
+                    .iter()
+                    .copied()
+                    .zip(self.assignment.iter().copied())
+                    .collect::<std::collections::BTreeSet<(u32, bool)>>();
+                let treated = arms.iter().filter(|(_, assigned)| *assigned).count();
+                (arms.len(), treated.min(arms.len() - treated))
+            }
+            _ => (0, 0),
+        };
+        // The estimator publishes the Student-t reference law for an arm of few clusters.
+        let minimum = antecedent_estimate::CLUSTER_DIRICHLET_MIN_ARM_CLUSTERS;
+        let reference_law = smaller_arm < minimum;
+        let mut notes = vec![Arc::<str>::from(format!(
+            "clusters={clusters} draws={draws} interval=equal_tailed_95"
+        ))];
+        if reference_law {
+            notes.push(Arc::from(format!(
+                "law=student_reference: the smaller arm has {smaller_arm} clusters, fewer than \
+                 the {minimum} at which Dirichlet weights carry the spread of an arm mean, so the \
+                 Dirichlet-process prior of the declared assumptions is replaced by Gaussian \
+                 cluster totals under the noninformative prior; draws are the reference law's \
+                 quantile grid, not Monte Carlo samples"
+            )));
+        }
+        diagnostics.notes = notes;
+        let message: Arc<str> = if reference_law {
+            Arc::from(
+                "Student-t reference posterior (calibration status `not_measured`) of the cluster total-effect contrast, used in place of the Bayesian bootstrap because an arm has few clusters: centred at the design-based contrast with the conservative cluster Neyman standard error and Welch-Satterthwaite degrees of freedom; the declared complete cluster allocation (not the prior) identifies the contrast, and partial interference is declared, not tested",
+            )
+        } else {
+            Arc::from(
+                "Bayesian-bootstrap posterior (calibration status `not_measured`) of the cluster total-effect contrast: the declared complete cluster allocation (not the prior) identifies the contrast, and partial interference is declared, not tested",
+            )
+        };
+        let posterior = CausalPosterior {
+            summaries: posterior_draws.summarize(),
+            draws: posterior_draws,
+            identification: self.identification.status,
+            prior_sensitivity: None,
+            conflict_summary: None,
+            diagnostics,
+            assumptions: cluster_bootstrap_assumptions(),
+            unidentified_mass: 0.0,
+            subsampled_out_mass: 0.0,
+            unevaluable_mass: 0.0,
+            early_stopped: false,
+            treatment_contrast: None,
+            preparation: None,
+        };
+        let estimate = effect_from_posterior(&posterior)?;
+        Ok((
+            None,
+            None,
+            Some(posterior),
+            estimate,
+            Diagnostic::new(
+                "estimate.interference.cluster_bayesian_bootstrap",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                message,
+            ),
+        ))
+    }
+}
+
+/// Whether a Bayesian study declares the complete cluster allocation the bootstrap models.
+fn cluster_bootstrap_design(query: &antecedent_core::InterferenceQuery) -> bool {
+    matches!(query.assignment, antecedent_core::AssignmentDesign::ClusterRandomization { .. })
+}
+
+/// Refuse the Bayesian configurations the cluster bootstrap does not read.
+fn admit_cluster_bootstrap(config: &crate::BayesianConfig) -> Result<(), CausalError> {
+    if config.prior.is_some()
+        || config.prior_artifact.is_some()
+        || config.prior_mapping.is_some()
+        || config.external_compose.is_some()
+    {
+        return Err(CausalError::Unsupported {
+            message: "the cluster Bayesian bootstrap reads no declared prior: its prior is the vanishing-concentration Dirichlet process on the cluster law. Next attempt: omit the prior, or use the design-based cluster interval under Frequentist inference",
+        });
+    }
+    if config.n_draws < 2 {
+        return Err(CausalError::Unsupported {
+            message: "the cluster Bayesian bootstrap requires at least two posterior draws",
+        });
+    }
+    Ok(())
+}
+
+fn cluster_bootstrap_assumptions() -> antecedent_core::AssumptionSet {
+    use antecedent_core::{
+        Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
+        ParametricAssumption,
+    };
+    let algorithm: Arc<str> = Arc::from("interference.cluster_bayesian_bootstrap");
+    let mut assumptions = design_identification_assumptions(true);
+    assumptions.push(AssumptionRecord {
+        assumption: Assumption::ParametricRestriction(ParametricAssumption {
+            id: Arc::from("interference.cluster_dirichlet_process_prior"),
+            description: Arc::from("The law of the scaled cluster totals within each arm has a Dirichlet-process prior of vanishing concentration, so the posterior weights on the observed clusters are Dirichlet(1, ..., 1) within the arm; clusters are independent units of inference."),
+        }),
+        source: AssumptionSource::AlgorithmDefault { algorithm },
+        scope: AssumptionScope::Estimation,
+        status: AssumptionStatus::Declared,
+    });
+    assumptions
+}
+
 /// Estimate, inference block, posterior, effect and diagnostic one procedure arm produces.
 type InterferenceArm = (
     Option<antecedent_estimate::InterferenceEstimate>,
@@ -578,24 +869,51 @@ type InterferenceArm = (
     Diagnostic,
 );
 
-/// Refuses studies outside the explicit fixed-DAG, bound-network, no-validation-suite contract.
+/// The number of variables the structure covers, for any static class the exposure contrast is
+/// stated under. The structure binds the unit schema; the known assignment mechanism and the
+/// exposure mapping identify the contrast, so no class reads an edge of it.
+fn structure_width(graph: &AcceptedGraph) -> Result<usize, CausalError> {
+    match graph.graph_ref() {
+        GraphRef::Dag(dag) => Ok(dag.node_count()),
+        GraphRef::Cpdag(cpdag) => Ok(cpdag.node_count()),
+        GraphRef::Pag(pag) => Ok(pag.node_count()),
+        GraphRef::Admg(_) | GraphRef::TemporalAdmg(_) => {
+            graph.graph_ref().projected_admg()?.map(|admg| admg.node_count()).ok_or(
+                CausalError::Unsupported {
+                    message: "interference reads a static structure over the unit schema",
+                },
+            )
+        }
+        _ => Err(CausalError::Unsupported {
+            message: "interference reads a static Dag, Admg, Cpdag or Pag over the unit schema",
+        }),
+    }
+}
+
+/// Refuses studies outside the fixed-structure, bound-network contract.
 fn refuse_unsupported_interference_design(
     study: &Study,
     design: &crate::InterferenceSpec,
     data: &TabularData,
-    graph: &Dag,
+    graph: &AcceptedGraph,
 ) -> Result<(), CausalError> {
-    if study.structure_source != crate::support::StructureSource::Explicit
-        || study.tiered.is_some()
-        || study.graph_posterior.is_some()
-        || study.refute != RefuteSuite::None
-        || !study.custom_validators.is_empty()
+    let width = structure_width(graph)?;
+    // The exposure contrast is identified by the known assignment and exposure mapping, so a
+    // graph posterior leaves it unchanged: the posterior's stub structure binds only the unit
+    // schema, as a supplied structure does.
+    if !matches!(
+        study.structure_source,
+        crate::support::StructureSource::Explicit
+            | crate::support::StructureSource::Accepted
+            | crate::support::StructureSource::GraphPosterior
+    ) || study.declared.tiered.is_some()
+        || !study.declared.custom_validators.is_empty()
         || design.assignment.len() != data.row_count()
         || design.network.units().row_count() != data.row_count()
-        || graph.node_count() != data.schema().variables().len()
+        || width != data.schema().variables().len()
     {
         return Err(CausalError::Unsupported {
-            message: "checked interference is limited to an explicit fixed DAG schema and no validation suite",
+            message: "checked interference is limited to a fixed structure over the unit schema and no custom validator",
         });
     }
     Ok(())
@@ -673,6 +991,16 @@ fn frequentist_interference_procedure(
     ))
 }
 
+/// Whether the declared assignment confines interference to disjoint clusters.
+fn partial_interference(query: &antecedent_core::InterferenceQuery) -> bool {
+    matches!(
+        query.assignment,
+        antecedent_core::AssignmentDesign::ClusterRandomization { .. }
+            | antecedent_core::AssignmentDesign::TwoStageSaturation { .. }
+            | antecedent_core::AssignmentDesign::ObservedExposure { .. }
+    )
+}
+
 fn interference_identification(
     query: CausalQuery,
     outcome: VariableId,
@@ -698,6 +1026,11 @@ fn interference_identification(
             "interference.observational_exchangeability",
             "Identification assumes no unmeasured confounding of network exposure and potential outcomes conditional on the variables used to supply exposure probabilities, plus partial interference, consistency, and positivity.",
             observational_identification_assumptions(),
+        ),
+        InterferenceProcedure::ClusterBayesianBootstrap { .. } => (
+            "interference.cluster_bayesian_bootstrap",
+            "Identification is complete randomization of clusters and partial interference within disjoint clusters; the posterior is over the (0,0) to (1,1) total effect of assigning an entire cluster, with the clusters as the units of a Bayesian bootstrap.",
+            cluster_bootstrap_assumptions(),
         ),
         InterferenceProcedure::ConjugateGaussian { prior_sd, .. } => (
             "interference.bayesian_gaussian",
@@ -872,16 +1205,16 @@ fn estimate_observed_exposure(
     .map_err(CausalError::from)
 }
 
-/// License one interference exposure-contrast interval against the exact
+/// Support one interference exposure-contrast interval against the exact
 /// graphless support table. The interval must already be published; a withheld
 /// interval or too little independent-cluster support classifies as refused and
-/// yields no license.
-fn interference_graphless_license(
+/// yields no support.
+fn interference_graphless_support(
     design: &'static str,
     method: &'static str,
     support: crate::support::GraphlessAssignmentSupport,
 ) -> Option<crate::support::CellStatus> {
-    crate::support::license_if_graphless(
+    crate::support::support_if_graphless(
         crate::support::GraphlessSupportKey {
             family: "interference",
             design,
@@ -892,8 +1225,15 @@ fn interference_graphless_license(
     )
 }
 
-fn graph_signature(graph: &Dag) -> (usize, Arc<[(u32, u32)]>) {
-    (graph.node_count(), graph.directed_edge_pairs_sorted().into())
+/// The width and directed edges of the structure the operation was sealed against.
+fn graph_signature(graph: &AcceptedGraph) -> (usize, Arc<[(u32, u32)]>) {
+    let width = structure_width(graph).unwrap_or(0);
+    let edges: Arc<[(u32, u32)]> = match graph.graph_ref() {
+        GraphRef::Dag(dag) => dag.directed_edge_pairs_sorted().into(),
+        GraphRef::Admg(admg) => admg.directed_edge_pairs_sorted().into(),
+        _ => Arc::from([]),
+    };
+    (width, edges)
 }
 
 fn interference_bayesian_assumptions(prior_sd: f64) -> antecedent_core::AssumptionSet {
@@ -965,6 +1305,7 @@ mod checked_interference_tests {
         )
     )]
     use super::*;
+    use crate::graph::Dag;
     use antecedent_core::{
         AssignmentDesign, CausalQuery, ExposureLevel, ExposureMapping, InterferenceFunctional,
         InterferenceQuery, VariableId,
@@ -1032,13 +1373,10 @@ mod checked_interference_tests {
     }
 
     fn cluster_edges() -> Vec<NetworkEdge> {
-        (0..4)
+        (0..4u64)
             .flat_map(|cluster| {
                 let first = cluster * 2;
-                [
-                    NetworkEdge { from: first, to: first + 1, weight: 1.0 },
-                    NetworkEdge { from: first + 1, to: first, weight: 1.0 },
-                ]
+                [NetworkEdge::new(first, first + 1, 1.0), NetworkEdge::new(first + 1, first, 1.0)]
             })
             .collect()
     }
@@ -1077,7 +1415,7 @@ mod checked_interference_tests {
             TabularData::from_f64_columns([("y", &[4.0, 4.0, 6.0, 6.0, 1.0, 1.0, 3.0, 3.0][..])])
                 .unwrap();
         let mut edges = cluster_edges();
-        edges.push(NetworkEdge { from: 0, to: 2, weight: 1.0 });
+        edges.push(NetworkEdge::new(0, 2, 1.0));
         let study = crate::Study::tabular(data.clone())
             .graph(dag())
             .query(CausalQuery::Interference(cluster_total_query()))
@@ -1105,10 +1443,7 @@ mod checked_interference_tests {
             .map(|value| value.as_f64().unwrap())
             .collect::<Vec<_>>();
         let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
-        let edges = vec![
-            NetworkEdge { from: 0, to: 1, weight: 1.0 },
-            NetworkEdge { from: 1, to: 0, weight: 1.0 },
-        ];
+        let edges = vec![NetworkEdge::new(0, 1, 1.0), NetworkEdge::new(1, 0, 1.0)];
         let assignment = truth["assignment"]
             .as_array()
             .unwrap()
@@ -1149,10 +1484,12 @@ mod checked_interference_tests {
             .as_array()
             .unwrap()
             .iter()
-            .map(|edge| NetworkEdge {
-                from: u32::try_from(edge[0].as_u64().unwrap()).expect("node id fits u32"),
-                to: u32::try_from(edge[1].as_u64().unwrap()).expect("node id fits u32"),
-                weight: 1.0,
+            .map(|edge| {
+                NetworkEdge::new(
+                    edge[0].as_u64().expect("edge endpoint"),
+                    edge[1].as_u64().expect("edge endpoint"),
+                    1.0,
+                )
             })
             .collect::<Vec<_>>();
         let assignment = truth["assignment"]
@@ -1193,10 +1530,7 @@ mod checked_interference_tests {
             &data,
             dag(),
             contrast_query(),
-            vec![
-                NetworkEdge { from: 0, to: 1, weight: 1.0 },
-                NetworkEdge { from: 1, to: 0, weight: 1.0 },
-            ],
+            vec![NetworkEdge::new(0, 1, 1.0), NetworkEdge::new(1, 0, 1.0)],
             vec![true, false],
             InferenceMode::Frequentist,
         );

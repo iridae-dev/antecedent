@@ -250,7 +250,10 @@ fn reliability_at_or_below_the_floor_refuses_with_a_registered_code() {
     let err = correct_classical_linear_effect(&m, &data_binding(), &linear_data(&sim), &ctx())
         .unwrap_err();
     assert_eq!(err.code, "measurement_not_identified");
-    assert_eq!(err.detail, "measurement_model.reliability_too_small");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::measurement_model::RELIABILITY_TOO_SMALL
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -319,7 +322,10 @@ fn too_few_replicated_units_refuse_with_measurement_not_identified() {
         correct_repeated_linear_effect(&few, &data_binding(), &y, &values, &counts, &[], 0, &ctx())
             .unwrap_err();
     assert_eq!(err.code, "measurement_not_identified");
-    assert_eq!(err.detail, "measurement_model.insufficient_replicates");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::measurement_model::INSUFFICIENT_REPLICATES
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -392,7 +398,7 @@ fn binary_risk_difference_recovers_truth_and_pooling_differential_error_fails() 
         RiskDifferenceInput { exposed_arm_id: "treated", unexposed_arm_id: "placebo", table };
     let err = correct_binary_risk_difference(&differential, &data_binding(), &unknown, &ctx())
         .unwrap_err();
-    assert_eq!(err.detail, "measurement_model.arm_mismatch");
+    assert_eq!(err.detail, antecedent_core::reason_details::measurement_model::ARM_MISMATCH);
 }
 
 #[test]
@@ -428,7 +434,10 @@ fn youden_index_at_or_below_the_minimum_refuses() {
         );
         let err = correct_binary_prevalence(&m, &data_binding(), 40, 100, &ctx()).unwrap_err();
         assert_eq!(err.code, "measurement_not_identified");
-        assert_eq!(err.detail, "measurement_model.youden_too_small");
+        assert_eq!(
+            err.detail,
+            antecedent_core::reason_details::measurement_model::YOUDEN_TOO_SMALL
+        );
     }
 }
 
@@ -492,7 +501,9 @@ fn categorical_inversion_recovers_proportions_and_outcome_means() {
         .unwrap();
     assert_eq!(record.parameter_uncertainty, ParameterUncertainty::Propagated);
     assert_eq!(record.model_identity, m.identities().model);
-    assert!(out.functional(&CategoricalFunctional::Proportion("absent")).is_err());
+    let unknown = out.functional(&CategoricalFunctional::Proportion("absent")).unwrap_err();
+    assert_eq!(unknown.code, "invalid_argument");
+    assert_eq!(unknown.detail, antecedent_core::reason_details::measurement_model::UNKNOWN_LEVEL);
 
     // A confusion matrix worse conditioned than declared refuses.
     let singular = model(
@@ -511,7 +522,10 @@ fn categorical_inversion_recovers_proportions_and_outcome_means() {
         ObservedClassSummary { count: 50, mean: 0.0, variance: 1.0 },
     ];
     let err = correct_categorical(&singular, &data_binding(), &two, &ctx()).unwrap_err();
-    assert_eq!(err.detail, "measurement_model.confusion_ill_conditioned");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::measurement_model::CONFUSION_ILL_CONDITIONED
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -610,7 +624,7 @@ fn posterior_mean_substitution_recovers_the_slope_that_a_single_draw_attenuates(
     let few = PosteriorLinearData { draw_count: 10, draws: &marginal[..10 * n], ..data };
     let err =
         correct_latent_posterior_linear_effect(&m, &data_binding(), &few, &ctx()).unwrap_err();
-    assert_eq!(err.detail, "measurement_model.insufficient_draws");
+    assert_eq!(err.detail, antecedent_core::reason_details::measurement_model::INSUFFICIENT_DRAWS);
 }
 
 #[test]
@@ -676,18 +690,27 @@ fn a_latent_posterior_needs_an_exactly_matching_provider_object() {
     );
     // Metadata cannot confer native trust.
     let refusal =
-        check_latent_posterior(&m, &good, &ExternalTrustState::NativeLicensed).unwrap_err();
-    assert_eq!(refusal.detail, "measurement_model.posterior_native_trust");
+        check_latent_posterior(&m, &good, &ExternalTrustState::NativeSupported).unwrap_err();
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::POSTERIOR_NATIVE_TRUST
+    );
     // Another request fingerprint is another object.
     let mut other_identity = identity.clone();
     other_identity.request_id = "req-2".into();
     let other = object(other_identity, "cohort");
     let refusal = check_latent_posterior(&m, &other, &attested).unwrap_err();
-    assert_eq!(refusal.detail, "measurement_model.posterior_identity");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::POSTERIOR_IDENTITY
+    );
     // The posterior must declare the construct in the model's population.
     let wrong_population = object(identity, "other-cohort");
     let refusal = check_latent_posterior(&m, &wrong_population, &attested).unwrap_err();
-    assert_eq!(refusal.detail, "measurement_model.posterior_quantity");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::POSTERIOR_QUANTITY
+    );
     assert_eq!(refusal.validate(), Ok(()));
 }
 
@@ -713,14 +736,17 @@ fn a_proxy_offered_as_the_construct_is_refused_before_any_number() {
         let err = correct_classical_linear_effect(&m, &data_binding(), &linear_data(&sim), &ctx())
             .unwrap_err();
         assert_eq!(err.code, "proxy_offered_as_construct");
-        assert_eq!(err.detail, "measurement_model.proxy_as_construct");
+        assert_eq!(
+            err.detail,
+            antecedent_core::reason_details::measurement_model::PROXY_AS_CONSTRUCT
+        );
     }
     let mut observed = classical_model(0.6, 0.0);
     observed.indicator.kind = MeasurementKind::Observed;
     let err =
         correct_classical_linear_effect(&observed, &data_binding(), &linear_data(&sim), &ctx())
             .unwrap_err();
-    assert_eq!(err.detail, "measurement_model.indicator_observed");
+    assert_eq!(err.detail, antecedent_core::reason_details::measurement_model::INDICATOR_OBSERVED);
 }
 
 #[test]
@@ -732,20 +758,32 @@ fn population_regime_arm_and_representation_must_match_the_data() {
     };
     let mut other = data_binding();
     other.population_id = "elsewhere".into();
-    assert_eq!(run(&m, &other).detail, "measurement_model.population_mismatch");
+    assert_eq!(
+        run(&m, &other).detail,
+        antecedent_core::reason_details::measurement_model::POPULATION_MISMATCH
+    );
     let mut other = data_binding();
     other.regime_id = "do(a=1)".into();
-    assert_eq!(run(&m, &other).detail, "measurement_model.regime_mismatch");
+    assert_eq!(
+        run(&m, &other).detail,
+        antecedent_core::reason_details::measurement_model::REGIME_MISMATCH
+    );
     let mut arm_model = classical_model(0.6, 0.0);
     arm_model.binding.arm = ArmBinding::Arm("treated".into());
     let mut other = data_binding();
     other.arm_id = Some("control".into());
-    assert_eq!(run(&arm_model, &other).detail, "measurement_model.arm_mismatch");
+    assert_eq!(
+        run(&arm_model, &other).detail,
+        antecedent_core::reason_details::measurement_model::ARM_MISMATCH
+    );
     let mut other = data_binding();
     other.representation.version = 2;
     let err = run(&m, &other);
     assert_eq!(err.code, "representation_mapping_required");
-    assert_eq!(err.detail, "measurement_model.representation_unmapped");
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::measurement_model::REPRESENTATION_UNMAPPED
+    );
 }
 
 #[test]
@@ -809,12 +847,15 @@ fn estimator_and_contract_refuse_the_same_requests_with_the_same_details() {
         correct_classical_linear_effect(&m, &binding, &linear_data(&sim), &ctx()).unwrap_err();
     assert_eq!(contract.code, estimate.code);
     assert_eq!(contract.detail, estimate.detail);
-    // An interval is never licensed for a measurement-corrected functional.
+    // An interval is never supported for a measurement-corrected functional.
     let mut interval = request("cohort");
     interval.operation = MeasurementOperation::Interval;
     let refusal = check_measurement_request(&m, &interval, None).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(antecedent_estimate::measurement::interval_not_licensed().code, "cell_not_licensed");
+    assert_eq!(refusal.code, "route_not_supported");
+    assert_eq!(
+        antecedent_estimate::measurement::interval_not_supported().code,
+        "route_not_supported"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -864,11 +905,398 @@ fn artifact_replays_independently_and_refuses_semantic_mutation() {
         let err = MeasurementModelArtifact::from_bytes(&forged, &identity).unwrap_err();
         assert_eq!(err.reason_code(), Some("measurement_binding_mismatch"));
         // And the original result cannot be attached to the mutated model.
-        assert!(MeasurementModelArtifact::new(&mutated, Some(&result)).is_err());
+        let attached = MeasurementModelArtifact::new(&mutated, Some(&result)).unwrap_err();
+        assert_eq!(attached.reason_code(), Some("measurement_binding_mismatch"));
     }
     // Bytes damaged in transit are refused by the container checksums.
     let mut damaged = bytes.clone();
     let at = damaged.len() / 2;
     damaged[at] ^= 0x55;
-    assert!(MeasurementModelArtifact::from_bytes(&damaged, &identity).is_err());
+    let damaged_error = MeasurementModelArtifact::from_bytes(&damaged, &identity).unwrap_err();
+    assert!(damaged_error.to_string().contains("checksum mismatch"), "{damaged_error}");
+}
+
+#[test]
+fn corrected_prevalence_interval_is_the_closed_form_wald_interval() {
+    use antecedent_estimate::measurement::corrected_functional_interval;
+    // As the algebra test above: pi = 0.3, closed-form variance of the corrected prevalence.
+    let m = binary_model(
+        vec![binary_rates(None, 0.9, 0.8, 0.0001, 0.0004)],
+        ErrorStructure::NonDifferential,
+    );
+    let result = correct_binary_prevalence(&m, &data_binding(), 410, 1000, &ctx()).unwrap();
+    let variance: f64 = (0.41 * 0.59 / 1000.0 + 0.49 * 0.0004 + 0.09 * 0.0001) / 0.49;
+    let half = 1.959_963_984_540_054 * variance.sqrt();
+    let (lo, hi) = corrected_functional_interval(&result.record, 0.95).unwrap();
+    assert!((lo - (0.3 - half)).abs() < 1e-9 && (hi - (0.3 + half)).abs() < 1e-9);
+    assert_eq!(
+        corrected_functional_interval(&result.record, 1.0).unwrap_err().code,
+        "invalid_argument"
+    );
+}
+
+/// Classical-error corrected slope on eight hand-written rows (no covariates, error variance
+/// 0.3, standard error 0.05 of that estimate), against the moment-correction sandwich written
+/// out with explicit 2 x 2 arithmetic:
+/// `A = M - diag(0, s2)`, `beta = A^-1 r`, `psi_i = v_i e_i + (0, s2 beta_1)`,
+/// `Var = A^-1 mean(psi psi') A^-T / n + c c' v_est` with `c = A^-1[:, 1] beta_1`.
+#[test]
+fn classical_slope_interval_equals_the_hand_sandwich() {
+    use antecedent_estimate::measurement::corrected_functional_interval;
+    let w = [0.1, 0.9, 1.7, 2.4, 3.1, 3.8, 4.6, 5.2];
+    let y = [1.0, 2.1, 2.8, 4.3, 4.9, 6.2, 6.8, 8.1];
+    let data = LinearMeasuredData {
+        outcome: &y,
+        regressor: &w,
+        covariates: &[],
+        covariate_count: 0,
+        replicate_counts: None,
+    };
+    let (s2, se_s2) = (0.3, 0.05);
+    let result = correct_classical_linear_effect(
+        &classical_model(s2, se_s2),
+        &data_binding(),
+        &data,
+        &ctx(),
+    )
+    .unwrap();
+    let n = 8.0;
+    let mw = w.iter().sum::<f64>() / n;
+    let mww = w.iter().map(|v| v * v).sum::<f64>() / n;
+    let my = y.iter().sum::<f64>() / n;
+    let mwy = w.iter().zip(&y).map(|(a, b)| a * b).sum::<f64>() / n;
+    // A = [[1, mw], [mw, mww - s2]]; inverse by the 2 x 2 formula.
+    let (a00, a01, a11) = (1.0, mw, mww - s2);
+    let det = a00 * a11 - a01 * a01;
+    let inv = [[a11 / det, -a01 / det], [-a01 / det, a00 / det]];
+    let beta = [inv[0][0] * my + inv[0][1] * mwy, inv[1][0] * my + inv[1][1] * mwy];
+    let mut meat = [[0.0; 2]; 2];
+    for (wi, yi) in w.iter().zip(&y) {
+        let e = yi - beta[0] - beta[1] * wi;
+        let psi = [e, wi * e + s2 * beta[1]];
+        for a in 0..2 {
+            for b in 0..2 {
+                meat[a][b] += psi[a] * psi[b] / n;
+            }
+        }
+    }
+    // given = inv * meat * inv' / n, entry (1, 1).
+    let row = [
+        inv[1][0] * meat[0][0] + inv[1][1] * meat[1][0],
+        inv[1][0] * meat[0][1] + inv[1][1] * meat[1][1],
+    ];
+    let given = (row[0] * inv[1][0] + row[1] * inv[1][1]) / n;
+    let c1 = inv[1][1] * beta[1];
+    let total = given + c1 * c1 * se_s2 * se_s2;
+    let record = &result.record;
+    assert!((record.point - beta[1]).abs() < 1e-9, "{} vs {}", record.point, beta[1]);
+    assert!((record.standard_error.unwrap() - total.sqrt()).abs() < 1e-9);
+    let half = 1.959_963_984_540_054 * total.sqrt();
+    let (lo, hi) = corrected_functional_interval(record, 0.95).unwrap();
+    assert!((lo - (beta[1] - half)).abs() < 1e-8 && (hi - (beta[1] + half)).abs() < 1e-8);
+}
+
+/// Two-level categorical proportion: with `C = [[0.9, 0.2], [0.1, 0.8]]`, validation column
+/// counts (500, 400) and 410 of 1000 units observed as `a`, the corrected proportion is the
+/// Rogan-Gladen `pi = (p - c12) / (c11 - c12) = 0.3`, whose delta variance is
+/// `[p(1-p)/n + pi^2 c11 (1-c11)/n1 + (1-pi)^2 c12 (1-c12)/n2] / (c11 - c12)^2`.
+#[test]
+fn categorical_proportion_interval_equals_the_two_level_closed_form() {
+    use antecedent_estimate::measurement::corrected_functional_interval;
+    let m = model(
+        MeasurementRoute::ProbabilisticCategorical,
+        MeasurementKind::ProbabilisticFeatureAssignment,
+        ErrorStructure::NonDifferential,
+        MeasurementParameters::Categorical {
+            levels: vec!["a".into(), "b".into()],
+            confusion: vec![0.9, 0.2, 0.1, 0.8],
+            column_counts: Some(vec![500, 400]),
+            max_condition: 50.0,
+        },
+    );
+    let classes = [
+        ObservedClassSummary { count: 410, mean: 1.0, variance: 1.0 },
+        ObservedClassSummary { count: 590, mean: 2.0, variance: 1.0 },
+    ];
+    let out = correct_categorical(&m, &data_binding(), &classes, &ctx()).unwrap();
+    let record = out.record(&CategoricalFunctional::Proportion("a")).unwrap();
+    let (p, n, c11, c12) = (0.41, 1000.0, 0.9, 0.2);
+    let den = c11 - c12;
+    let pi = (p - c12) / den;
+    let variance = (p * (1.0 - p) / n
+        + pi * pi * c11 * (1.0 - c11) / 500.0
+        + (1.0 - pi) * (1.0 - pi) * c12 * (1.0 - c12) / 400.0)
+        / (den * den);
+    assert!((record.point - pi).abs() < 1e-12);
+    assert!((record.standard_error.unwrap().powi(2) - variance).abs() < 1e-12);
+    let half = 1.959_963_984_540_054 * variance.sqrt();
+    let (lo, hi) = corrected_functional_interval(&record, 0.95).unwrap();
+    assert!((lo - (pi - half)).abs() < 1e-9 && (hi - (pi + half)).abs() < 1e-9);
+}
+
+/// Repeated-measurement corrected slope on six units of two replicates each, against the
+/// moment-correction sandwich with the retained influence of the within-variance estimate
+/// written out in explicit arithmetic.
+#[test]
+fn repeated_slope_interval_equals_the_hand_sandwich_with_retained_influence() {
+    use antecedent_estimate::measurement::corrected_functional_interval;
+    let pairs = [(0.2, 0.6), (1.1, 0.9), (1.8, 2.3), (2.9, 2.6), (3.4, 3.9), (4.6, 4.3)];
+    let y = [1.2, 2.0, 3.1, 4.2, 5.3, 6.1];
+    let values: Vec<f64> = pairs.iter().flat_map(|p| [p.0, p.1]).collect();
+    let counts = [2_u32; 6];
+    let m = model(
+        MeasurementRoute::RepeatedMeasurements,
+        MeasurementKind::NoisyMisclassified,
+        ErrorStructure::NonDifferential,
+        MeasurementParameters::Repeated { min_replicated_units: 2, min_reliability: 0.1 },
+    );
+    let result =
+        correct_repeated_linear_effect(&m, &data_binding(), &y, &values, &counts, &[], 0, &ctx())
+            .unwrap();
+    let n = 6.0;
+    let w: Vec<f64> = pairs.iter().map(|p| 0.5 * (p.0 + p.1)).collect();
+    // One-way within sum of squares per unit, (a - b)^2 / 2; df_within = 6, so msw = mean ssw.
+    let ssw: Vec<f64> = pairs.iter().map(|p| (p.0 - p.1) * (p.0 - p.1) / 2.0).collect();
+    let s2 = ssw.iter().sum::<f64>() / 6.0;
+    // nu_bar = 1, so the influence of unit i is ssw_i - (k - 1) msw.
+    let xi: Vec<f64> = ssw.iter().map(|s| s - s2).collect();
+    let shift = s2 * 0.5; // mean(1 / k) = 1/2
+    let mw = w.iter().sum::<f64>() / n;
+    let mww = w.iter().map(|v| v * v).sum::<f64>() / n;
+    let my = y.iter().sum::<f64>() / n;
+    let mwy = w.iter().zip(&y).map(|(a, b)| a * b).sum::<f64>() / n;
+    let (a00, a01, a11) = (1.0, mw, mww - shift);
+    let det = a00 * a11 - a01 * a01;
+    let inv = [[a11 / det, -a01 / det], [-a01 / det, a00 / det]];
+    let beta = [inv[0][0] * my + inv[0][1] * mwy, inv[1][0] * my + inv[1][1] * mwy];
+    let mut meat = [[0.0; 2]; 2];
+    let mut cross = [0.0; 2];
+    for ((wi, yi), xii) in w.iter().zip(&y).zip(&xi) {
+        let e = yi - beta[0] - beta[1] * wi;
+        let psi = [e, wi * e + s2 * 0.5 * beta[1]];
+        for a in 0..2 {
+            cross[a] += psi[a] * xii / n;
+            for b in 0..2 {
+                meat[a][b] += psi[a] * psi[b] / n;
+            }
+        }
+    }
+    let row = [
+        inv[1][0] * meat[0][0] + inv[1][1] * meat[1][0],
+        inv[1][0] * meat[0][1] + inv[1][1] * meat[1][1],
+    ];
+    let given = (row[0] * inv[1][0] + row[1] * inv[1][1]) / n;
+    let c1 = inv[1][1] * beta[1] * 0.5;
+    let u1 = inv[1][0] * cross[0] + inv[1][1] * cross[1];
+    let v_xi = xi.iter().map(|v| v * v).sum::<f64>() / n;
+    let total = given + (2.0 * c1 * u1 + c1 * c1 * v_xi) / n;
+    let record = &result.record;
+    assert!((record.point - beta[1]).abs() < 1e-9, "{} vs {}", record.point, beta[1]);
+    assert!((record.standard_error.unwrap().powi(2) - total).abs() < 1e-9);
+    let half = 1.959_963_984_540_054 * total.sqrt();
+    let (lo, hi) = corrected_functional_interval(record, 0.95).unwrap();
+    assert!((lo - (beta[1] - half)).abs() < 1e-8 && (hi - (beta[1] + half)).abs() < 1e-8);
+}
+
+/// Simple-regression slope and its HC0 variance `sum (x - mean)^2 e^2 / Sxx^2`, from the
+/// definition.
+fn ols_slope_hc0(x: &[f64], y: &[f64]) -> (f64, f64) {
+    let n = x.len() as f64;
+    let (mx, my) = (x.iter().sum::<f64>() / n, y.iter().sum::<f64>() / n);
+    let sxx: f64 = x.iter().map(|v| (v - mx) * (v - mx)).sum();
+    let sxy: f64 = x.iter().zip(y).map(|(a, b)| (a - mx) * (b - my)).sum();
+    let slope = sxy / sxx;
+    let intercept = my - slope * mx;
+    let meat: f64 = x
+        .iter()
+        .zip(y)
+        .map(|(a, b)| {
+            let e = b - intercept - slope * a;
+            (a - mx) * (a - mx) * e * e
+        })
+        .sum();
+    (slope, meat / (sxx * sxx))
+}
+
+fn small_posterior_model(conditioned: bool) -> MeasurementModel {
+    model(
+        MeasurementRoute::ExternalLatentPosterior,
+        MeasurementKind::LearnedVectorRepresentation,
+        ErrorStructure::NonDifferential,
+        MeasurementParameters::ExternalPosterior {
+            reference: PosteriorReference {
+                provider_id: "vendor".into(),
+                object_id: "latent-1".into(),
+                version_id: "v3".into(),
+                snapshot_id: "snap".into(),
+                request_id: "req-1".into(),
+            },
+            conditioned_on_outcome: conditioned,
+            min_draws: 2,
+        },
+    )
+}
+
+#[test]
+fn posterior_slope_intervals_equal_the_hand_rubin_and_hc0_constructions() {
+    use antecedent_estimate::measurement::corrected_functional_interval;
+    let y = [1.2, 2.0, 3.1, 4.2, 5.3, 6.1];
+    let draws = [
+        [0.1, 0.8, 1.6, 2.2, 3.1, 3.9],
+        [0.3, 1.1, 1.4, 2.6, 2.8, 4.2],
+        [0.2, 0.9, 1.9, 2.4, 3.3, 4.0],
+    ];
+    let flat: Vec<f64> = draws.iter().flatten().copied().collect();
+    let data = PosteriorLinearData {
+        outcome: &y,
+        draws: &flat,
+        draw_count: 3,
+        covariates: &[],
+        covariate_count: 0,
+    };
+    let z = 1.959_963_984_540_054;
+
+    // Outcome-conditioned draws: Rubin's rules, W + (1 + 1/S) B on the slope.
+    let fits: Vec<(f64, f64)> = draws.iter().map(|d| ols_slope_hc0(d, &y)).collect();
+    let mean = fits.iter().map(|f| f.0).sum::<f64>() / 3.0;
+    let within = fits.iter().map(|f| f.1).sum::<f64>() / 3.0;
+    let between = fits.iter().map(|f| (f.0 - mean) * (f.0 - mean)).sum::<f64>() / 2.0;
+    let total = within + (1.0 + 1.0 / 3.0) * between;
+    let result = correct_latent_posterior_linear_effect(
+        &small_posterior_model(true),
+        &data_binding(),
+        &data,
+        &ctx(),
+    )
+    .unwrap();
+    assert!((result.record.point - mean).abs() < 1e-9);
+    assert!((result.record.standard_error.unwrap().powi(2) - total).abs() < 1e-9);
+    let (lo, hi) = corrected_functional_interval(&result.record, 0.95).unwrap();
+    assert!((lo - (mean - z * total.sqrt())).abs() < 1e-8);
+    assert!((hi - (mean + z * total.sqrt())).abs() < 1e-8);
+
+    // Outcome-free posterior: regression on the posterior means with the Monte Carlo error of
+    // three draws calibrated out, HC0 variance. The pooled within-unit draw variance over the
+    // draw count is the error variance of a mean; each mean is pulled toward the grand mean by
+    // lambda = 1 - error variance / variance of the means (no covariates, so the fitted value
+    // of a mean is the grand mean).
+    let means: Vec<f64> = (0..6).map(|i| draws.iter().map(|d| d[i]).sum::<f64>() / 3.0).collect();
+    let within: f64 = draws
+        .iter()
+        .map(|d| d.iter().zip(&means).map(|(x, m)| (x - m) * (x - m)).sum::<f64>())
+        .sum();
+    let monte_carlo = within / (6.0 * 2.0) / 3.0;
+    let grand = means.iter().sum::<f64>() / 6.0;
+    let spread = means.iter().map(|m| (m - grand) * (m - grand)).sum::<f64>() / 6.0;
+    let lambda = 1.0 - monte_carlo / spread;
+    assert!(lambda > 0.9 && lambda < 1.0, "the calibration is a small shrinkage here: {lambda}");
+    let calibrated: Vec<f64> = means.iter().map(|m| grand + lambda * (m - grand)).collect();
+    let (slope, variance) = ols_slope_hc0(&calibrated, &y);
+    let result = correct_latent_posterior_linear_effect(
+        &small_posterior_model(false),
+        &data_binding(),
+        &data,
+        &ctx(),
+    )
+    .unwrap();
+    assert!((result.record.point - slope).abs() < 1e-9);
+    assert!((result.record.standard_error.unwrap().powi(2) - variance).abs() < 1e-9);
+    let (lo, hi) = corrected_functional_interval(&result.record, 0.95).unwrap();
+    assert!((lo - (slope - z * variance.sqrt())).abs() < 1e-8);
+    assert!((hi - (slope + z * variance.sqrt())).abs() < 1e-8);
+}
+
+/// Outcome means by true category for two levels, from `theta = (ybar_0, ybar_1, p_0, p_1,
+/// C_00, C_01, C_10, C_11)`: `pi = C^-1 p`, `Q[j][t] = C[j][t] pi_t / p_j`, `mu = Q^-1 ybar`,
+/// written with explicit 2 x 2 inverses.
+fn two_level_outcome_means(t: &[f64; 8]) -> [f64; 2] {
+    let inv = |a: f64, b: f64, c: f64, d: f64| {
+        let det = a * d - b * c;
+        [[d / det, -b / det], [-c / det, a / det]]
+    };
+    let ci = inv(t[4], t[5], t[6], t[7]);
+    let pi = [ci[0][0] * t[2] + ci[0][1] * t[3], ci[1][0] * t[2] + ci[1][1] * t[3]];
+    let q =
+        [[t[4] * pi[0] / t[2], t[5] * pi[1] / t[2]], [t[6] * pi[0] / t[3], t[7] * pi[1] / t[3]]];
+    let qi = inv(q[0][0], q[0][1], q[1][0], q[1][1]);
+    [qi[0][0] * t[0] + qi[0][1] * t[1], qi[1][0] * t[0] + qi[1][1] * t[1]]
+}
+
+/// The corrected outcome means and contrast against an independently differentiated map: the
+/// Jacobian of `two_level_outcome_means` is taken by Richardson-extrapolated central
+/// differences (steps `h` and `h / 2`, error `O(h^4)`), the covariance of `theta` is written
+/// from the multinomial and binomial variances, and the variances are `J Sigma J'`.
+#[test]
+fn categorical_outcome_mean_and_contrast_variances_equal_an_independent_jacobian() {
+    use antecedent_estimate::measurement::corrected_functional_interval;
+    let m = model(
+        MeasurementRoute::ProbabilisticCategorical,
+        MeasurementKind::ProbabilisticFeatureAssignment,
+        ErrorStructure::NonDifferential,
+        MeasurementParameters::Categorical {
+            levels: vec!["a".into(), "b".into()],
+            confusion: vec![0.9, 0.2, 0.1, 0.8],
+            column_counts: Some(vec![500, 400]),
+            max_condition: 50.0,
+        },
+    );
+    let classes = [
+        ObservedClassSummary { count: 410, mean: 1.0, variance: 0.8 },
+        ObservedClassSummary { count: 590, mean: 2.0, variance: 1.3 },
+    ];
+    let out = correct_categorical(&m, &data_binding(), &classes, &ctx()).unwrap();
+    let theta = [1.0, 2.0, 0.41, 0.59, 0.9, 0.2, 0.1, 0.8];
+    let n = 1000.0;
+    let mut sigma = [[0.0_f64; 8]; 8];
+    sigma[0][0] = 0.8 / 410.0;
+    sigma[1][1] = 1.3 / 590.0;
+    sigma[2][2] = 0.41 * 0.59 / n;
+    sigma[3][3] = 0.41 * 0.59 / n;
+    sigma[2][3] = -0.41 * 0.59 / n;
+    sigma[3][2] = sigma[2][3];
+    // Column t = 0 holds C_00 and C_10 (500 validation units); column 1 holds C_01 and C_11 (400).
+    for (idx, count) in [([4, 6], 500.0), ([5, 7], 400.0)] {
+        let p = theta[idx[0]];
+        sigma[idx[0]][idx[0]] = p * (1.0 - p) / count;
+        sigma[idx[1]][idx[1]] = p * (1.0 - p) / count;
+        sigma[idx[0]][idx[1]] = -p * (1.0 - p) / count;
+        sigma[idx[1]][idx[0]] = -p * (1.0 - p) / count;
+    }
+    let derivative = |i: usize, level: usize| {
+        let central = |h: f64| {
+            let (mut up, mut down) = (theta, theta);
+            up[i] += h;
+            down[i] -= h;
+            (two_level_outcome_means(&up)[level] - two_level_outcome_means(&down)[level])
+                / (2.0 * h)
+        };
+        let h = 1e-3;
+        (4.0 * central(h / 2.0) - central(h)) / 3.0
+    };
+    let jac: Vec<Vec<f64>> =
+        (0..2).map(|level| (0..8).map(|i| derivative(i, level)).collect()).collect();
+    let cov = |a: &[f64], b: &[f64]| {
+        (0..8).map(|i| (0..8).map(|j| a[i] * sigma[i][j] * b[j]).sum::<f64>()).sum::<f64>()
+    };
+    let mu = two_level_outcome_means(&theta);
+    let (v00, v11, v01) = (cov(&jac[0], &jac[0]), cov(&jac[1], &jac[1]), cov(&jac[0], &jac[1]));
+    let z = 1.959_963_984_540_054;
+    let cases = [
+        (CategoricalFunctional::OutcomeMean("a"), mu[0], v00),
+        (CategoricalFunctional::OutcomeMean("b"), mu[1], v11),
+        (
+            CategoricalFunctional::OutcomeContrast { first: "a", second: "b" },
+            mu[0] - mu[1],
+            v00 + v11 - 2.0 * v01,
+        ),
+    ];
+    for (functional, point, variance) in cases {
+        let record = out.record(&functional).unwrap();
+        assert!((record.point - point).abs() < 1e-9, "point");
+        let got = record.standard_error.unwrap().powi(2);
+        assert!((got - variance).abs() <= 1e-6 * variance, "variance {got} vs {variance}");
+        let (lo, hi) = corrected_functional_interval(&record, 0.95).unwrap();
+        let half = z * got.sqrt();
+        assert!((lo - (point - half)).abs() < 1e-8 && (hi - (point + half)).abs() < 1e-8);
+    }
 }

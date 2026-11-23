@@ -1,6 +1,6 @@
 """Transport a response into a target population.
 
-Day-1 surface::
+Ask an ordinary question in a target population::
 
     query = antecedent.transport.Transport(
         antecedent.ResponseCurve("price", "sales", grid=[8, 9, 10, 11, 12]),
@@ -14,7 +14,7 @@ Selection differences stay on ``Transport.selections`` or per-``Source``.
 Conservative estimation uses :class:`EmpiricalTable`; :class:`LearnedCategorical`
 and :class:`TrialAipw` are opt-in assumption changes.
 
-The licensed trial-IPW cell is :class:`antecedent.transport.advanced.TransportQuery`.
+The supported trial-IPW cell is :class:`antecedent.transport.advanced.TransportQuery`.
 Theorem-stage request types live in :mod:`antecedent.transport.advanced`.
 """
 
@@ -24,6 +24,7 @@ from typing import NoReturn
 
 from . import advanced as advanced
 from ._day1 import Evidence, Source, Transport
+from ._evaluation import TransportEvaluation
 from ._impl import (
     EmpiricalTable,
     ExactDiscreteLaw,
@@ -31,7 +32,6 @@ from ._impl import (
     LearnedCategorical,
     RegimeSample,
     StatisticalTransportData,
-    TransportControls,
     TransportInference,
     TrialAipw,
     TrialAipwData,
@@ -64,13 +64,12 @@ _REMOVED = frozenset({"OverlapDiagnostic", "TransportOverlapReport"})
 def __getattr__(name: str) -> NoReturn:
     if name in _MOVED_TO_ADVANCED:
         raise AttributeError(
-            f"antecedent.transport.{name} moved to antecedent.transport.advanced.{name} "
-            "in 2.0 (see docs/migrations/2.0-transport-day1.md)"
+            f"antecedent.transport.{name} moved to antecedent.transport.advanced.{name} in 2.0"
         )
     if name in _REMOVED:
         raise AttributeError(
             f"antecedent.transport.{name} is no longer exported in 2.0; it is the type of "
-            "TrialTransportEstimate.overlap (see docs/migrations/2.0-transport-day1.md)"
+            "TrialTransportEstimate.overlap"
         )
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
@@ -83,7 +82,7 @@ __all__ = [
     "LearnedCategorical",
     "TrialAipw",
     "TransportInference",
-    "TransportControls",
+    "TransportEvaluation",
     "ExactTransportData",
     "StatisticalTransportData",
     "TrialAipwData",

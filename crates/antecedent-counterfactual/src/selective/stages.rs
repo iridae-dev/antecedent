@@ -1,6 +1,6 @@
 //! Stage vocabulary, observed work counters and semantic stream identities.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CanonicalWriter;
 

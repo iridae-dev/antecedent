@@ -17,8 +17,10 @@ deliberately NOT measured here.
 
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalSerializationError, CausalTypeError, CausalUnsupportedError
 from antecedent.latent_class import (
     LatentClassRefusal,
@@ -73,27 +75,30 @@ def test_latent_fit_has_no_row_ceiling_and_replays_beyond_the_former_one() -> No
     assert p.effect == pytest.approx(1.0, abs=1e-6)
     assert result.mixture_effect == pytest.approx(-0.2, abs=1e-6)
     assert result.responsibilities.shape == (30_000, 2)
-    again = consume_latent_class_artifact(result.export(), expected_identity=result.identity)
+    again = consume_latent_class_artifact(bytes(result.export()), expected_identity=result.identity)
     assert again.identity == result.identity
 
 
 def test_latent_digest_bound_artifact_needs_the_dataset_and_respects_the_memory_limit() -> None:
     d = build()
     result = fit(d, data_binding="digest")
-    bound = result.export()
+    bound = bytes(result.export())
     columns = {"outcome": d["y"], "treatment": d["a"], "covariates": {"x": d["x"]}}
     again = consume_latent_class_artifact(bound, expected_identity=result.identity, **columns)
     assert again.identity == result.identity
     with pytest.raises(LatentClassRefusal) as refused:
         consume_latent_class_artifact(bound)
-    assert refused.value.detail == "latent_class.data_required"
+    assert refused.value.detail == reason_details.latent_class.DATA_REQUIRED
     other = {**columns, "outcome": d["y"] + 1e-9}
     with pytest.raises(LatentClassRefusal) as refused:
         consume_latent_class_artifact(bound, **other)
-    assert refused.value.detail == "latent_class.wrong_contract"
+    assert refused.value.detail == reason_details.latent_class.WRONG_CONTRACT
     with pytest.raises(LatentClassRefusal) as refused:
-        consume_latent_class_artifact(fit(d).export(), memory_limit_bytes=1_000)
-    assert refused.value.detail == "latent_class.memory_budget_exceeded"
+        consume_latent_class_artifact(
+            bytes(fit(d).export()),
+            execution=antecedent.Execution(limits=antecedent.ResourceLimits(memory_bytes=1_000)),
+        )
+    assert refused.value.detail == reason_details.latent_class.MEMORY_BUDGET_EXCEEDED
 
 
 def test_latent_recovers_hand_derived_two_class_fixed_point() -> None:
@@ -188,7 +193,7 @@ def test_latent_mixture_effect_is_the_weighted_sum_of_class_effects() -> None:
     assert weighted == pytest.approx(0.6 - 0.4 * 2.0, abs=1e-8)
 
 
-def test_latent_bootstrap_is_seeded_label_aligned_and_unmeasured() -> None:
+def test_latent_bootstrap_is_seeded_label_aligned_and_not_measured() -> None:
     first = fit(seed=7, bootstrap_replicates=60)
     second = fit(seed=7, bootstrap_replicates=60)
     assert first.to_dict() == second.to_dict(), "the same seed replays bit-identically"
@@ -199,15 +204,23 @@ def test_latent_bootstrap_is_seeded_label_aligned_and_unmeasured() -> None:
     closed_q = (NOISE_VARIANCE / (16.0 * 0.25)) ** 0.5
     closed_p = (NOISE_VARIANCE / (24.0 * 0.25)) ** 0.5
     se_q, se_p = first.classes[0].effect_se, first.classes[1].effect_se
-    assert se_q is not None and 0.5 * closed_q < se_q < 2.0 * closed_q
-    assert se_p is not None and 0.5 * closed_p < se_p < 2.0 * closed_p
-    assert first.mixture_effect_se is not None and first.mixture_effect_se > 0.0
+    # Replicate noise for 60 draws is about 9 percent; observed ratios over four seeds are
+    # 0.96 to 1.24, so a 0.8 to 1.35 band rejects a mis-scaled (for example sd/sqrt(n)) SE.
+    assert se_q is not None and 0.8 * closed_q < se_q < 1.35 * closed_q
+    assert se_p is not None and 0.8 * closed_p < se_p < 1.35 * closed_p
+    # Mixture effect = sum_k w_k tau_k with the class shares resampled too: the delta-method
+    # variance is sum_k w_k^2 se_k^2 + (tau_P - tau_Q)^2 * w_P w_Q / n (n = 40 rows).
+    closed_mixture = (
+        0.4**2 * closed_q**2 + 0.6**2 * closed_p**2 + (3.0**2) * 0.6 * 0.4 / 40.0
+    ) ** 0.5
+    assert first.mixture_effect_se is not None
+    assert 0.75 * closed_mixture < first.mixture_effect_se < 1.3 * closed_mixture
     other = fit(seed=8, bootstrap_replicates=60)
     assert other.classes[0].effect_se != se_q
     assert other.classes[0].effect == pytest.approx(first.classes[0].effect, abs=1e-9)
-    assert first.calibration == "unmeasured"
+    assert first.calibration == "not_measured"
     assert first.inference_claim == "point_with_bootstrap_se"
-    assert "unmeasured" in first.caveat
+    assert "not_measured" in first.caveat
     status = {p.name: p.status for p in first.premises}
     assert status["conditional_randomization_within_class"] == "declared"
     assert status["class_weight_and_separation"] == "checked"
@@ -216,7 +229,7 @@ def test_latent_bootstrap_is_seeded_label_aligned_and_unmeasured() -> None:
 def test_latent_weak_class_weight_refuses() -> None:
     with pytest.raises(LatentClassRefusal) as caught:
         fit(min_class_weight=0.5)  # the smaller class has weight 0.4
-    assert caught.value.detail == "latent_class.weak_class"
+    assert caught.value.detail == reason_details.latent_class.WEAK_CLASS
     assert caught.value.reason_code == "population_not_estimable"
     assert isinstance(caught.value, CausalUnsupportedError)
     assert_registered_refusal(caught.value)
@@ -225,7 +238,7 @@ def test_latent_weak_class_weight_refuses() -> None:
 def test_latent_single_and_noise_free_regimes_are_degenerate() -> None:
     with pytest.raises(LatentClassRefusal) as caught:
         fit(classes=1)
-    assert caught.value.detail == "latent_class.degenerate_class"
+    assert caught.value.detail == reason_details.latent_class.DEGENERATE_CLASS
     a, x, y = [], [], []
     for arm in (0.0, 1.0):
         for xv in (-1.0, 0.0, 1.0):
@@ -236,7 +249,7 @@ def test_latent_single_and_noise_free_regimes_are_degenerate() -> None:
     single = {"y": np.array(y), "a": np.array(a), "x": np.array(x)}
     with pytest.raises(LatentClassRefusal) as caught:
         fit(single, seed=1)
-    assert caught.value.detail == "latent_class.degenerate_class"
+    assert caught.value.detail == reason_details.latent_class.DEGENERATE_CLASS
     assert caught.value.reason_code == "population_not_estimable"
 
 
@@ -244,34 +257,38 @@ def test_latent_premise_and_configuration_refusals() -> None:
     d = build()
     with pytest.raises(LatentClassRefusal) as caught:
         latent_class_effects(d["y"], d["a"], {"x": d["x"]}, classes=2, seed=1)
-    assert caught.value.detail == "latent_class.randomization_not_declared"
+    assert caught.value.detail == reason_details.latent_class.RANDOMIZATION_NOT_DECLARED
     assert caught.value.reason_code == "required_option_missing"
     assert_registered_refusal(caught.value)
     with pytest.raises(LatentClassRefusal) as caught:
         fit(d, classes=5)
-    assert caught.value.detail == "latent_class.too_many_classes"
+    # The class count is declared, not capped: five classes need at least d + K - 1 = 7 distinct
+    # treatment-covariate points, and this design has six.
+    assert caught.value.detail == reason_details.latent_class.DESIGN_SUPPORT_TOO_SMALL
+    assert caught.value.reason_code == "design_rank_deficient"
+    assert_registered_refusal(caught.value)
     constant = {**d, "a": np.ones_like(d["a"])}
     with pytest.raises(LatentClassRefusal) as caught:
         fit(constant)
-    assert caught.value.detail == "latent_class.treatment_constant"
+    assert caught.value.detail == reason_details.latent_class.TREATMENT_CONSTANT
     assert caught.value.reason_code == "effect_not_identified"
     labels = [int(1 - c) if i % 4 == 3 else int(c) for i, c in enumerate(d["cls"])]
     with pytest.raises(LatentClassRefusal) as caught:
         fit(d, seed=1, initial_labels=labels, max_iterations=1)
-    assert caught.value.detail == "latent_class.not_converged"
+    assert caught.value.detail == reason_details.latent_class.NOT_CONVERGED
     assert caught.value.reason_code == "mechanism_fit_not_converged"
 
 
 def test_latent_artifact_round_trips_with_a_bit_for_bit_refit() -> None:
     result = fit(seed=7, bootstrap_replicates=10)
-    again = consume_latent_class_artifact(result.export(), expected_identity=result.identity)
+    again = consume_latent_class_artifact(bytes(result.export()), expected_identity=result.identity)
     assert again.to_dict() == result.to_dict()
     np.testing.assert_array_equal(again.responsibilities, result.responsibilities)
     assert again.identity == result.identity
     assert again.log_likelihood_trace_head == result.log_likelihood_trace_head
     assert result.responsibilities_summary.digest == again.responsibilities_summary.digest
     from_mapping = consume_latent_class_artifact(
-        result.export(), expected_identity=result.identity._wire()
+        bytes(result.export()), expected_identity=result.identity._wire()
     )
     assert from_mapping.identity == result.identity
 
@@ -282,10 +299,10 @@ def test_latent_artifact_refuses_a_resealed_change_against_retained_identity() -
     d["y"] = d["y"].copy()
     d["y"][0] += 0.125
     resealed = fit(d)
-    assert consume_latent_class_artifact(resealed.export()).identity == resealed.identity
+    assert consume_latent_class_artifact(bytes(resealed.export())).identity == resealed.identity
     with pytest.raises(LatentClassRefusal) as caught:
-        consume_latent_class_artifact(resealed.export(), expected_identity=original.identity)
-    assert caught.value.detail == "latent_class.wrong_contract"
+        consume_latent_class_artifact(bytes(resealed.export()), expected_identity=original.identity)
+    assert caught.value.detail == reason_details.latent_class.WRONG_CONTRACT
     assert caught.value.offending == "data"
     assert caught.value.reason_code == "route_not_supported"
     assert_registered_refusal(caught.value)
@@ -293,7 +310,7 @@ def test_latent_artifact_refuses_a_resealed_change_against_retained_identity() -
 
 def test_latent_artifact_corruption_and_type_errors() -> None:
     result = fit()
-    corrupt = bytearray(result.export())
+    corrupt = bytearray(bytes(result.export()))
     corrupt[len(corrupt) // 2] ^= 0xFF
     with pytest.raises(CausalSerializationError):
         consume_latent_class_artifact(bytes(corrupt))

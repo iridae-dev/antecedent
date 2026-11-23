@@ -1,6 +1,7 @@
 //! Builder-independent evidence for fixed-graph frequentist temporal contrasts.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ExecutionContext, Lag, TemporalEffectQuery, TemporalPolicy, VariableId,
@@ -76,7 +77,10 @@ fn fixed_temporal_contrasts_execute_from_retained_proof_and_procedure() {
                 let mut prepared = builder.prepare(&ctx).unwrap();
                 drop(builder);
 
-                let plan = prepared.checked_temporal_dag_effect_info().expect("checked plan");
+                let RetainedOperation::TemporalDagEffect(plan) = prepared.retained_operation()
+                else {
+                    panic!("checked plan")
+                };
                 assert_eq!(plan.query, query);
                 assert_eq!(plan.identifier.as_str(), "temporal.backdoor.unfolded");
                 assert_eq!(
@@ -93,23 +97,27 @@ fn fixed_temporal_contrasts_execute_from_retained_proof_and_procedure() {
                 let result = prepared.estimate_series(&data, &ctx).unwrap();
                 let expected = if multi_step { 5.0 } else { 2.0 };
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate - expected).abs() < 0.08,
+                    (result.estimate().as_effect().unwrap().ate - expected).abs() < 1e-3,
                     "multi_step={multi_step}, accepted={accepted}, suite={suite:?}: {}",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
-                assert!((one_shot.estimate.as_effect().unwrap().ate - expected).abs() < 0.08);
+                assert!((one_shot.estimate().as_effect().unwrap().ate - expected).abs() < 1e-3);
                 assert!(
                     one_shot.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached")
                 );
 
                 let scaled = prepared.refresh_series(series(1.2), &ctx).unwrap();
-                assert!((scaled.estimate.as_effect().unwrap().ate - 1.2 * expected).abs() < 0.1);
-                assert_eq!(prepared.checked_temporal_dag_effect_info().unwrap().query, plan.query);
+                assert!((scaled.estimate().as_effect().unwrap().ate - 1.2 * expected).abs() < 1e-3);
+                let RetainedOperation::TemporalDagEffect(retained) = prepared.retained_operation()
+                else {
+                    panic!("checked plan after refresh")
+                };
+                assert_eq!(retained.query, plan.query);
 
                 let artifact = prepared
                     .encode_contracted_result(&scaled, "checked-temporal-effect", &ctx)
                     .unwrap();
-                let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
                 assert!(
                     consumed.acceptance.unresolved.iter().any(|reason| {
                         reason.as_ref() == "dependencies.checked_temporal_dag_effect_operation"
@@ -118,7 +126,7 @@ fn fixed_temporal_contrasts_execute_from_retained_proof_and_procedure() {
                     consumed.acceptance.unresolved,
                     consumed.contract.as_ref().map(|c| (&c.target.query, &c.estimator))
                 );
-                assert!(!consumed.acceptance.accepts_as_verified_program());
+                assert!(!consumed.acceptance.accepts_as_replayed_program());
             }
         }
     }

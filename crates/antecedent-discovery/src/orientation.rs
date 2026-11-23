@@ -3,7 +3,7 @@
 //! CPDAG completion rules R1-R4 are Meek 1995. Rules enqueue only neighbors of
 //! changed edges — never a full-graph edge scan.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
@@ -319,9 +319,11 @@ pub struct OrientationState {
     /// Edges `(c, b)` whose discriminating-path search exhausted its budget and were left
     /// unresolved (circle kept at `c`) rather than failing the run.
     pub discriminating_skipped: HashSet<(u32, u32)>,
+    /// Effort bound of the R9 / R10 uncovered-path search.
+    pub pd_path_budget: crate::uncovered_paths::PdPathBudget,
     /// Edges `(a, c)` that R9 / R10 left unresolved (circle kept at `a`) because their
     /// uncovered potentially-directed path search exhausted its budget without finding a
-    /// path that licenses the orientation.
+    /// path that supports the orientation.
     pub pd_path_skipped: HashSet<(u32, u32)>,
 }
 
@@ -445,8 +447,11 @@ pub(crate) fn try_orient_undirected<G: CpdagOps>(
             delta.premises.push(premise.into());
             Ok(true)
         }
-        Err(GraphError::Cycle { .. }) => {
-            state.record_conflict(delta, from, to, "cycle");
+        // An orientation into a context node contradicts its exogeneity: the same kind of
+        // contradiction as a cycle, recorded and pinned rather than aborting the run.
+        Err(e @ (GraphError::Cycle { .. } | GraphError::ContextCaused { .. })) => {
+            let kind = if matches!(e, GraphError::Cycle { .. }) { "cycle" } else { "context" };
+            state.record_conflict(delta, from, to, kind);
             if graph.mark_conflict(from, to).is_ok() {
                 delta.edges_changed += 1;
                 delta.fixed_point = false;
@@ -648,7 +653,7 @@ impl<G: CpdagOps> OrientationRule<G> for MeekR2 {
 
 /// Whether two nonadjacent `mediators` `c, d` form an unshielded triple `c — a — d` whose
 /// non-collider status is known. R3 rests on that premise, so a triple marked ambiguous (no
-/// separating set or a tied majority vote) cannot license it.
+/// separating set or a tied majority vote) cannot support it.
 fn has_definite_noncollider_pair<G: CpdagOps>(
     graph: &G,
     state: &OrientationState,
@@ -939,7 +944,7 @@ fn apply_orient_collider<G: CpdagOps>(
                     state.mark_ambiguous_triple(a, *c, b);
                     continue;
                 };
-                if sep.iter().any(|x| *x == *c) {
+                if sep.contains(c) {
                     continue;
                 }
                 for &(endpoint, kind) in &[(a, a_kind), (b, b_kind)] {

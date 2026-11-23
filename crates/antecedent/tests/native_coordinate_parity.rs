@@ -97,7 +97,7 @@ fn by_hand(dose: &str) -> ScientificQuantity {
 }
 
 #[test]
-fn facade_getter_equals_the_c1_program_getter_and_the_hand_derivation() {
+fn facade_getter_equals_the_program_getter_and_the_hand_derivation() {
     let schema = schema();
     let name_of = |id: VariableId| schema.get(id).ok().map(|variable| variable.name.to_string());
     let labels = ResponseCoordinateLabels {
@@ -110,7 +110,7 @@ fn facade_getter_equals_the_c1_program_getter_and_the_hand_derivation() {
         program: program(),
         snapshot_id: "snap-1".into(),
         rng_id: "pcg:seed=7".into(),
-        calibration: DistributionCalibration::Unmeasured,
+        calibration: DistributionCalibration::NotMeasured,
     };
     let c1 = native_response_coordinates(&response(), &schema, &context).unwrap();
     let hand = vec![by_hand("0.5"), by_hand("1"), by_hand("2")];

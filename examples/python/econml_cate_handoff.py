@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Hand off Antecedent's adjustment set to EconML for CATE.
+"""Hand an identified adjustment set to EconML for conditional effects.
 
-Antecedent identifies a backdoor adjustment set on a small confounded SCM and
-estimates the ATE. ``antecedent.handoff.econml`` exports that set; callers fit
-EconML themselves. Soft-depends on ``econml``: without it, the Antecedent half
-still runs and asserts. Install Antecedent with ``python -m pip install
-antecedent``; optionally ``python -m pip install econml`` for the CATE half.
+The simulation has a confounder z of a binary treatment t whose effect on y is 2. Antecedent
+identifies the backdoor adjustment set and estimates the average effect;
+``antecedent.handoff.econml`` exports the set as the Y, T and W columns a caller passes to an
+EconML learner. The script asserts the set {z} and an effect within 0.35 of 2. The EconML fit
+is the caller's: its output is printed, not asserted, and Antecedent makes no claim about it.
+``econml`` is optional: without it only the Antecedent half runs.
+
+Run: ``python examples/python/econml_cate_handoff.py`` (optionally after ``pip install econml``).
 """
 
 from __future__ import annotations
@@ -13,13 +16,14 @@ from __future__ import annotations
 import math
 import random
 
+import antecedent as _ant_api
 import numpy as np
 from antecedent import AverageEffect, Dag, analyze, identify
 from antecedent.handoff import econml
 
 TRUE_ATE = 2.0
 
-# Populated by ``main`` for earning tests that run this file via runpy.
+# Populated by ``main`` for tests that run this file via runpy.
 LAST_HANDOFF: dict[str, object] = {}
 
 
@@ -55,14 +59,14 @@ def main() -> None:
         graph=graph,
         query=query,
         refute=False,
-        bootstrap=0,
-        seed=11,
+        inference=_ant_api.Frequentist(bootstrap=0),
+        execution=_ant_api.Execution(seed=11),
     )
     assert result.answer.kind == "point"
     ate = float(result.answer.value)
     print(f"Antecedent ATE={ate:.4f} (truth={TRUE_ATE})")
 
-    spec = econml(result)
+    spec = econml(result.value)
     print(
         f"Handoff: treatment={spec.treatment!r} outcome={spec.outcome!r} "
         f"confounders={spec.confounders} identifier={spec.identifier} "
@@ -86,7 +90,8 @@ def main() -> None:
         print("econml not installed; skipping LinearDML CATE half")
         return
 
-    # Caller-owned fit: Antecedent only supplied the adjustment columns.
+    # The fit below belongs to the caller and to EconML; Antecedent supplied only the
+    # adjustment columns.
     learner = LinearDML(random_state=11)
     learner.fit(Y=cols["Y"], T=cols["T"], X=None, W=cols["W"])
     cate_mean = float(np.asarray(learner.const_marginal_ate()).reshape(-1)[0])

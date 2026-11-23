@@ -7,7 +7,7 @@
 //! quadrature of the expected maximum of independent normals. No tolerance is tuned to
 //! an observed value.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_design::decision_reliability::{
@@ -385,7 +385,7 @@ fn records_are_keyed_by_the_candidate_count_band_not_by_the_count() {
     );
     // The budget is the scope, not part of the key.
     assert_eq!(basis_of(5).unwrap().scope.row_count, n as u64);
-    // Beyond the last band nothing is measured: no basis, so no route can be licensed.
+    // Beyond the last band nothing is measured: no basis, so no route can be supported.
     assert!(basis_of(101).is_none());
     assert_eq!(candidate_count_band(1), None);
     assert_eq!(candidate_count_band(101), None);

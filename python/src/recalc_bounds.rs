@@ -1,8 +1,8 @@
 //! Shared resource-checked extraction for selective-recalculation bridges.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::ExecutionContext;
-use numpy::PyReadonlyArray1;
+use crate::NumericColumn;
+use antecedent::prelude::ExecutionContext;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyTuple};
 
@@ -25,11 +25,16 @@ pub(crate) fn check_values(
         .and_then(|n| u64::try_from(n).ok())
         .and_then(|n| n.checked_mul(BYTES_PER_VALUE))
         .and_then(|n| n.checked_add(extra_bytes))
-        .ok_or_else(|| invalid("recalc.limits_exceeded", "input size overflows"))?;
-    let limit = ctx.memory.hard_limit_bytes.into_iter().chain(ctx.memory.soft_limit_bytes).min();
+        .ok_or_else(|| {
+            invalid(
+                antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
+                "input size overflows",
+            )
+        })?;
+    let limit = ctx.memory_limit_bytes().into_iter().min();
     if let Some(limit) = limit.filter(|limit| bytes > *limit) {
         return Err(invalid(
-            "recalc.memory_budget_exceeded",
+            antecedent::reason::reason_details::recalc::MEMORY_BUDGET_EXCEEDED,
             format!("planned input copy of {bytes} bytes exceeds memory limit of {limit} bytes"),
         ));
     }
@@ -38,12 +43,8 @@ pub(crate) fn check_values(
 
 /// Admit the caller's columns: the copy the bridge will make is checked against the memory
 /// budget of `ctx`.
-pub(crate) fn check_columns(
-    columns: &[PyReadonlyArray1<'_, f64>],
-    ctx: &ExecutionContext,
-) -> PyResult<()> {
-    let values =
-        columns.iter().try_fold(0usize, |n, c| c.len().ok().and_then(|len| n.checked_add(len)));
+pub(crate) fn check_columns(columns: &[NumericColumn<'_>], ctx: &ExecutionContext) -> PyResult<()> {
+    let values = columns.iter().try_fold(0usize, |n, c| n.checked_add(c.len()));
     check_values(values, 0, ctx)
 }
 
@@ -84,7 +85,12 @@ pub(crate) fn bounded_prediction_rows(
     let row_overhead = u64::try_from(nrows)
         .ok()
         .and_then(|n| n.checked_mul(std::mem::size_of::<Vec<f64>>() as u64))
-        .ok_or_else(|| invalid("recalc.limits_exceeded", "prediction size overflow"))?;
+        .ok_or_else(|| {
+            invalid(
+                antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
+                "prediction size overflow",
+            )
+        })?;
     check_values(total, row_overhead, ctx)?;
     let mut rows = Vec::with_capacity(nrows);
     for i in 0..nrows {

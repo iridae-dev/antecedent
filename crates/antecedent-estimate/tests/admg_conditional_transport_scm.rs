@@ -418,7 +418,10 @@ fn a_zero_mass_conditioning_event_refuses_as_a_support_failure() {
             panic!("typed refusal");
         };
         assert_eq!(code, "transport_support_failure");
-        assert!(message.starts_with("admg_transport.support_failure"), "{message}");
+        assert!(
+            message.starts_with(antecedent_core::reason_details::admg_transport::SUPPORT_FAILURE),
+            "{message}"
+        );
     }
 }
 
@@ -455,7 +458,10 @@ fn a_request_must_bind_exactly_the_treatments_and_conditioned_variables() {
         .unwrap_err();
         let EstimationError::Refused { code, message } = error else { panic!("typed") };
         assert_eq!(code, "invalid_argument");
-        assert!(message.starts_with("admg_transport.invalid_request"), "{message}");
+        assert!(
+            message.starts_with(antecedent_core::reason_details::admg_transport::INVALID_REQUEST),
+            "{message}"
+        );
     };
     invalid(Assignment::from_pairs([(v(0), Value::Int64(1))]));
     invalid(Assignment::from_pairs([
@@ -476,12 +482,16 @@ fn a_request_must_bind_exactly_the_treatments_and_conditioned_variables() {
         panic!("typed")
     };
     assert_eq!(code, "invalid_argument");
-    assert!(message.starts_with("admg_transport.invalid_request"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::admg_transport::INVALID_REQUEST),
+        "{message}"
+    );
 }
 
 /// Counted laws would make the point an empirical plug-in, which this route does
-/// not license: the estimate-level preparation refuses them, as the facade and
-/// Python preparations do, before compiling anything.
+/// not support: the estimate-level preparation refuses them in a release build, as the
+/// facade and Python preparations do, before compiling anything; a development build runs
+/// them.
 #[test]
 fn counted_laws_are_refused_by_the_estimate_level_preparation() {
     let scm = Scm {
@@ -520,17 +530,24 @@ fn counted_laws_are_refused_by_the_estimate_level_preparation() {
     .with_empirical_counts(vec![1; cells])
     .unwrap();
     let counted = ExactTransportData::try_new(laws, 1_000_000).unwrap();
-    let error = prepare_exact_admg_conditional_transport(
+    let outcome = prepare_exact_admg_conditional_transport(
         &functional,
         counted,
         &request(&[0], &[2], 0),
         ExactEvaluationLimits::default(),
         &ctx,
-    )
-    .unwrap_err();
+    );
+    if cfg!(feature = "development") {
+        assert!(outcome.is_ok(), "a development build runs counted laws");
+        return;
+    }
+    let error = outcome.unwrap_err();
     let EstimationError::Refused { code, message } = error else { panic!("typed refusal") };
-    assert_eq!(code, "cell_not_licensed");
-    assert!(message.starts_with("admg_transport.interval_withheld"), "{message}");
+    assert_eq!(code, "not_supported");
+    assert_eq!(
+        message.as_str(),
+        "admg_transport.counted_laws_unsupported: the route is not supported (missing: admg_conditional.counted_law_plugin_check)"
+    );
 }
 
 #[test]
@@ -641,15 +658,20 @@ fn admg_conditional_posterior_mean_stays_at_the_enumerated_truth() {
 }
 
 #[test]
-fn admg_conditional_posterior_refuses_an_unmeasured_band() {
+fn admg_conditional_posterior_refuses_an_not_measured_band() {
     let error = dirichlet_supported_mean(
         &[0.5, 0.5],
-        PosteriorRequest::UnmeasuredBand,
+        PosteriorRequest::CredibleBand,
         DirichletNamespace::AdmgConditional,
     )
     .unwrap_err();
     let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
-    assert!(message.contains("admg_conditional_posterior.unmeasured_band"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::admg_conditional_posterior::BAND_NOT_CONSTRUCTED
+        ),
+        "{message}"
+    );
 }
 
 #[test]

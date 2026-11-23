@@ -24,7 +24,7 @@
 //! The artifact decides and records nothing beyond the ledger's own rules:
 //! it carries no interval, posterior or coverage statement.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::evidence_ledger::{
     AppliedOperation, ClaimClass, CombinationRequest, DetectedOverlap, EvidenceLedger, LedgerError,
@@ -40,7 +40,7 @@ use antecedent_stats::synthesis::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
+use crate::replay_tolerance::{ReplayNonFinite, ReplayScale, ReplayTolerance};
 
 /// The artifact major version this reader writes and accepts.
 pub const EVIDENCE_LEDGER_ARTIFACT_VERSION: u16 = 1;
@@ -50,6 +50,31 @@ pub const EVIDENCE_LEDGER_ARTIFACT_FEATURE: &str = "evidence_ledger_v1";
 pub const MAX_EVIDENCE_LEDGER_ARTIFACT_BYTES: usize = 128 * 1024 * 1024;
 /// Most syntheses an artifact may carry.
 pub const MAX_LEDGER_SYNTHESES: usize = 1024;
+
+/// Intake bounds a consumer applies to a stored evidence ledger artifact. The defaults are
+/// [`MAX_EVIDENCE_LEDGER_ARTIFACT_BYTES`], the contract's default operation bound and
+/// [`MAX_LEDGER_SYNTHESES`]; a caller with a larger budget passes its own to
+/// [`EvidenceLedgerArtifact::from_bytes_within`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EvidenceLedgerIntakeLimits {
+    /// Most container bytes.
+    pub max_bytes: usize,
+    /// Most ledger operations replayed.
+    pub max_operations: usize,
+    /// Most syntheses recomputed.
+    pub max_syntheses: usize,
+}
+
+impl Default for EvidenceLedgerIntakeLimits {
+    fn default() -> Self {
+        Self {
+            max_bytes: MAX_EVIDENCE_LEDGER_ARTIFACT_BYTES,
+            max_operations: antecedent_contract::evidence_ledger::MAX_OPERATIONS,
+            max_syntheses: MAX_LEDGER_SYNTHESES,
+        }
+    }
+}
+
 /// Relative tolerance a consumer applies when comparing a recomputed
 /// synthesis value with the stored one (transcendental functions may differ
 /// in the last bits across platforms).
@@ -63,7 +88,7 @@ crate::sectioned_artifact_enum! {
     #[derive(Clone, Debug, PartialEq, Eq)]
     EvidenceLedgerArtifactError {
         noun: "evidence ledger",
-        identity: "evidence_ledger.identity_mismatch",
+        identity: antecedent_core::reason_details::evidence_ledger::IDENTITY_MISMATCH,
         variants {
             /// The ledger refused a stored operation on replay.
             Refused {
@@ -103,17 +128,17 @@ impl EvidenceLedgerArtifactError {
             Self::Refused { code, detail, message } => Some((*code, *detail, message.clone())),
             Self::IdentityMismatch { field } => Some((
                 antecedent_core::reason_code!("route_not_supported"),
-                "evidence_ledger.identity_mismatch",
+                antecedent_core::reason_details::evidence_ledger::IDENTITY_MISMATCH,
                 format!("{field} changed"),
             )),
             Self::ReplayMismatch(what) => Some((
                 antecedent_core::reason_code!("invalid_argument"),
-                "evidence_ledger.replay_mismatch",
+                antecedent_core::reason_details::evidence_ledger::REPLAY_MISMATCH,
                 format!("the stored {what} does not replay"),
             )),
             Self::SynthesisMismatch(what) => Some((
                 antecedent_core::reason_code!("invalid_argument"),
-                "evidence_ledger.synthesis_mismatch",
+                antecedent_core::reason_details::evidence_ledger::SYNTHESIS_MISMATCH,
                 format!("the stored synthesis {what} does not replay"),
             )),
             _ => None,
@@ -430,10 +455,6 @@ pub fn covariance_has_cross_terms(studies: usize, covariance: &[f64]) -> bool {
 
 // -- hex and bits helpers --------------------------------------------------------------------
 
-fn hex(digest: SemanticDigest) -> String {
-    digest.to_hex()
-}
-
 fn bits(values: &[f64]) -> Vec<u64> {
     values.iter().map(|v| v.to_bits()).collect()
 }
@@ -478,7 +499,7 @@ fn lineage_to_wire(lineage: &Lineage) -> LineageWire {
             LineageWire { of: Some(of.to_hex()), ..empty() }
         }
         Lineage::Transform { of, transform } => {
-            LineageWire { of: Some(of.to_hex()), transform: Some(hex(*transform)), ..empty() }
+            LineageWire { of: Some(of.to_hex()), transform: Some(transform.to_hex()), ..empty() }
         }
         Lineage::PriorPlusLikelihood { prior, likelihood } => LineageWire {
             prior: Some(prior.to_hex()),
@@ -505,7 +526,7 @@ fn source_to_wire(source: &SourceDeclaration) -> SourceWire {
         transport: source.transport.as_ref().map(|t| TransportWire {
             source_populations: t.source_populations.clone(),
             target_population: t.target_population.clone(),
-            selection_diagram: hex(t.selection_diagram),
+            selection_diagram: t.selection_diagram.to_hex(),
             assumptions: t.assumptions.clone(),
         }),
     }
@@ -543,7 +564,7 @@ fn request_to_wire(request: &CombinationRequest) -> CombinationWire {
                 PoolingDependence::DeclaredCovariance { covariance, has_cross_covariance } => {
                     DependenceWire {
                         kind: "declared_covariance".to_owned(),
-                        covariance: Some(hex(covariance)),
+                        covariance: Some(covariance.to_hex()),
                         has_cross_covariance,
                         rho_lo_bits: None,
                         rho_hi_bits: None,
@@ -1123,27 +1144,34 @@ fn compute_identity(meta: &EvidenceLedgerMeta) -> String {
 
 // -- consumption ---------------------------------------------------------------------------------
 
+/// A synthesis value is relative to the recomputed one; an undefined (NaN) value must be
+/// undefined in both.
+const SYNTHESIS_REPLAY: ReplayTolerance = ReplayTolerance::new(
+    SYNTHESIS_REPLAY_TOLERANCE,
+    ReplayScale::ReplayedOrOne,
+    ReplayNonFinite::NanMatchesNan,
+);
+
 fn within(stored: f64, recomputed: f64) -> bool {
-    if stored.is_nan() || recomputed.is_nan() {
-        return stored.is_nan() && recomputed.is_nan();
-    }
-    (stored - recomputed).abs() <= SYNTHESIS_REPLAY_TOLERANCE * recomputed.abs().max(1.0)
+    SYNTHESIS_REPLAY.close(stored, recomputed)
 }
 
 fn check(
     meta: &EvidenceLedgerMeta,
     expected_identity: Option<&str>,
+    limits: &EvidenceLedgerIntakeLimits,
 ) -> Result<EvidenceLedgerArtifact, EvidenceLedgerArtifactError> {
     if meta.version != EVIDENCE_LEDGER_ARTIFACT_VERSION {
         return Err(EvidenceLedgerArtifactError::UnsupportedVersion { version: meta.version });
     }
-    if meta.feature != EVIDENCE_LEDGER_ARTIFACT_FEATURE {
-        return Err(EvidenceLedgerArtifactError::UnsupportedSemantics("feature marker"));
-    }
-    if meta.operations.len() > antecedent_contract::evidence_ledger::MAX_OPERATIONS {
+    crate::artifact_codec::require_semantics::<EvidenceLedgerArtifactError>(
+        meta.feature == EVIDENCE_LEDGER_ARTIFACT_FEATURE,
+        "feature marker",
+    )?;
+    if meta.operations.len() > limits.max_operations {
         return Err(EvidenceLedgerArtifactError::LimitsExceeded("operations"));
     }
-    if meta.syntheses.len() > MAX_LEDGER_SYNTHESES {
+    if meta.syntheses.len() > limits.max_syntheses {
         return Err(EvidenceLedgerArtifactError::LimitsExceeded("syntheses"));
     }
     // Replay: the ledger recomputes identities, policy, refusals and effects.
@@ -1163,7 +1191,7 @@ fn check(
     if ledger.head().to_hex() != meta.head {
         return Err(EvidenceLedgerArtifactError::ReplayMismatch("head identity"));
     }
-    if hex(ledger.state_digest()) != meta.state_digest {
+    if ledger.state_digest().to_hex() != meta.state_digest {
         return Err(EvidenceLedgerArtifactError::ReplayMismatch("state digest"));
     }
     // Syntheses: bound to ledger results and recomputed.
@@ -1200,12 +1228,7 @@ fn encode_meta(
     meta: &EvidenceLedgerMeta,
     artifact_id: &str,
 ) -> Result<Vec<u8>, EvidenceLedgerArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(EvidenceLedgerArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes =
-        to_cbor(meta).map_err(|error| EvidenceLedgerArtifactError::Encode(error.to_string()))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "evidence_ledger",
@@ -1213,33 +1236,25 @@ fn encode_meta(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection {
-            id: META_SECTION,
-            content_type: crate::CONTENT_CBOR,
-            bytes: &meta_bytes,
-        }],
+        META_SECTION,
+        meta,
+        &[],
     )
-    .map_err(|error| crate::map_artifact_check!(error, EvidenceLedgerArtifactError))
 }
 
-fn decode_meta(bytes: &[u8]) -> Result<EvidenceLedgerMeta, EvidenceLedgerArtifactError> {
-    let parts = crate::decode_container(
+fn decode_meta(
+    bytes: &[u8],
+    max_bytes: usize,
+) -> Result<EvidenceLedgerMeta, EvidenceLedgerArtifactError> {
+    crate::artifact_codec::decode_sectioned(
         ARTIFACT_KIND,
-        MAX_EVIDENCE_LEDGER_ARTIFACT_BYTES,
-        &[META_SECTION],
+        max_bytes,
+        META_SECTION,
+        &[],
+        EVIDENCE_LEDGER_ARTIFACT_VERSION,
         bytes,
     )
-    .map_err(|error| crate::map_artifact_check!(error, EvidenceLedgerArtifactError))?;
-    let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(EvidenceLedgerArtifactError::Malformed("unsupported container layout".into()));
-    };
-    crate::decode_with_version(&meta_bytes, |version| {
-        if version == EVIDENCE_LEDGER_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(EvidenceLedgerArtifactError::UnsupportedVersion { version })
-        }
-    })
+    .map(|(meta, _)| meta)
 }
 
 // -- public type ---------------------------------------------------------------------------------
@@ -1271,11 +1286,11 @@ impl EvidenceLedgerArtifact {
             operations: ledger.operations().iter().map(operation_to_wire).collect(),
             syntheses: syntheses.iter().map(synthesis_to_wire).collect::<Result<Vec<_>, _>>()?,
             head: ledger.head().to_hex(),
-            state_digest: hex(ledger.state_digest()),
+            state_digest: ledger.state_digest().to_hex(),
             identity: String::new(),
         };
         meta.identity = compute_identity(&meta);
-        let artifact = check(&meta, None)?;
+        let artifact = check(&meta, None, &EvidenceLedgerIntakeLimits::default())?;
         Ok((artifact, meta))
     }
 
@@ -1325,7 +1340,19 @@ impl EvidenceLedgerArtifact {
         bytes: &[u8],
         expected_identity: Option<&str>,
     ) -> Result<Self, EvidenceLedgerArtifactError> {
-        check(&decode_meta(bytes)?, expected_identity)
+        Self::from_bytes_within(bytes, expected_identity, &EvidenceLedgerIntakeLimits::default())
+    }
+
+    /// [`Self::from_bytes`] under the caller's intake bounds.
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a bound of `limits` exceeded is `LimitsExceeded`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        limits: &EvidenceLedgerIntakeLimits,
+    ) -> Result<Self, EvidenceLedgerArtifactError> {
+        check(&decode_meta(bytes, limits.max_bytes)?, expected_identity, limits)
     }
 
     /// Validate metadata as a consumer would, for tests that reseal edits.
@@ -1337,7 +1364,7 @@ impl EvidenceLedgerArtifact {
         meta: &EvidenceLedgerMeta,
         expected_identity: Option<&str>,
     ) -> Result<Self, EvidenceLedgerArtifactError> {
-        check(meta, expected_identity)
+        check(meta, expected_identity, &EvidenceLedgerIntakeLimits::default())
     }
 
     /// Recompute the identity of `meta` after an edit, for tests that reseal.

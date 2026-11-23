@@ -9,6 +9,10 @@ notes = "Pinned per ADR 0009. Used only to interpret conformance/**/expected.jso
 # number is copied; the module skips when dowhy is absent or is not `version` above. Install with
 # `pip install dowhy==0.14 pandas networkx scipy scikit-learn statsmodels`.
 comparison_test = "python/tests/test_dowhy_comparison.py"
+comparison_command = "uv run --frozen --script scripts/run_dowhy_comparison.py"
+comparison_environment = "scripts/run_dowhy_comparison.py.lock"
+# The explicit command uses isolated pinned dependencies and fails if a required
+# case skips; ordinary pytest retains its optional comparator behavior.
 
 [[comparison]]
 id = "interventional_mean"

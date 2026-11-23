@@ -3,7 +3,24 @@
 //! Each value is the historical stream. A rename does not change draws; a new
 //! number would.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+/// Replicates whose stream is the historical `base + r`. Bases of the refuters above are
+/// `0x1000` apart at the closest, so those offsets cannot alias a neighbouring refuter.
+const ADDITIVE_REPLICATES: u32 = 0x1000;
+
+/// Stream of replicate `r` of a refuter whose streams start at `base`.
+///
+/// Replicates below `0x1000` keep the historical `base + r` stream. Larger indices would run
+/// into the next refuter's base, so they use a derived, hash-separated stream instead; any
+/// replicate count is therefore accepted without two refuters sharing a draw.
+pub(crate) const fn replicate_stream(base: u64, r: u32) -> u64 {
+    if r < ADDITIVE_REPLICATES {
+        base.wrapping_add(r as u64)
+    } else {
+        antecedent_core::derive_stream(base, r as u64)
+    }
+}
 
 /// Placebo refit replicates.
 pub(crate) const PLACEBO_REFIT: u64 = 0xA7E0_0001_0000;
@@ -32,6 +49,12 @@ pub(crate) const NEIGHBORHOOD_SENSITIVITY: u64 = 0xA7E0_000D_0000;
 pub(crate) const FUNCTIONAL_SUBSET_80: u64 = 0xF012_0000;
 /// Functional-stability 50% subsets.
 pub(crate) const FUNCTIONAL_SUBSET_50: u64 = 0xF013_0000;
+/// Window-contrast contiguous 80% stretches.
+pub(crate) const WINDOW_STRETCH_80: u64 = 0xF016_0000;
+/// Window-contrast contiguous 50% stretches.
+pub(crate) const WINDOW_STRETCH_50: u64 = 0xF017_0000;
+/// Window-contrast treatment rotations.
+pub(crate) const WINDOW_PLACEBO_SHIFT: u64 = 0xF018_0000;
 
 /// Discovery null calibration.
 pub(crate) const STABILITY_NULL: u64 = 0x5011;

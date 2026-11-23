@@ -3,6 +3,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, EstimatorId, IdentifierId, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ContinuousDomain, GridSpec, Intervention, ResponseFunctional,
@@ -75,8 +76,9 @@ fn mean_curve_explicit_and_accepted_keep_ordered_grid_through_refresh_and_export
             route_builder.run(&antecedent_core::ExecutionContext::for_tests(991)).unwrap();
         let context = antecedent_core::ExecutionContext::for_tests(991);
         let mut prepared = route_builder.prepare(&context).unwrap();
-        let plan =
-            prepared.checked_static_dag_response_info().expect("retained checked MeanCurve plan");
+        let RetainedOperation::StaticDagResponse(plan) = prepared.retained_operation() else {
+            panic!("retained checked MeanCurve plan")
+        };
         assert_eq!(plan.query, query);
         assert_eq!(plan.identifier, IdentifierId::ResponseBackdoor);
         assert_eq!(plan.estimator, EstimatorId::ResponseKennedyDr);
@@ -92,27 +94,27 @@ fn mean_curve_explicit_and_accepted_keep_ordered_grid_through_refresh_and_export
         }
         for (&dose, &estimate) in [-0.5, 0.0, 0.5].iter().zip(&got) {
             let truth = 0.4 + 1.7 * dose;
-            assert!((estimate - truth).abs() < 0.12, "dose {dose}: {estimate} != {truth}");
+            assert!((estimate - truth).abs() < 0.005, "dose {dose}: {estimate} != {truth}");
         }
 
         let refreshed_data = data(0.3);
-        let refreshed = prepared.refresh(refreshed_data.clone(), &context).unwrap();
+        let refreshed = rebind_estimate(&mut prepared, refreshed_data.clone(), &context).unwrap();
         let refreshed_values = values(refreshed.response().unwrap());
         for (&dose, &estimate) in [-0.5, 0.0, 0.5].iter().zip(&refreshed_values) {
             let truth = 0.7 + 1.7 * dose;
-            assert!((estimate - truth).abs() < 0.12, "refreshed dose {dose}: {estimate}");
+            assert!((estimate - truth).abs() < 0.005, "refreshed dose {dose}: {estimate}");
         }
 
         let artifact = prepared
             .encode_contracted_result(&refreshed, "checked-dag-response-curve", &context)
             .unwrap();
-        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+        let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
         assert!(
             consumed.acceptance.unresolved.iter().any(|reason| {
                 reason.as_ref() == "dependencies.checked_response_grid_operation"
             })
         );
-        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert!(!consumed.acceptance.accepts_as_replayed_program());
     }
 }
 
@@ -133,9 +135,9 @@ fn intervention_gcomp_explicit_and_accepted_cover_each_validation_suite() {
                 route_builder.run(&antecedent_core::ExecutionContext::for_tests(992)).unwrap();
             let context = antecedent_core::ExecutionContext::for_tests(992);
             let mut prepared = route_builder.prepare(&context).unwrap();
-            let plan = prepared
-                .checked_static_dag_response_info()
-                .expect("retained checked intervention g-computation plan");
+            let RetainedOperation::StaticDagResponse(plan) = prepared.retained_operation() else {
+                panic!("retained checked intervention g-computation plan")
+            };
             assert_eq!(plan.query, query);
             assert_eq!(plan.identifier, IdentifierId::ResponseBackdoor);
             assert_eq!(plan.estimator, EstimatorId::ResponseInterventionGcomp);
@@ -150,21 +152,21 @@ fn intervention_gcomp_explicit_and_accepted_cover_each_validation_suite() {
             assert_eq!(first.refutations.is_empty(), suite == RefuteSuite::None);
             let got = prepared_value;
             let truth = 0.4 + 1.7 * 0.25;
-            assert!((got - truth).abs() < 0.12, "{suite:?}: {got} != {truth}");
+            assert!((got - truth).abs() < 0.005, "{suite:?}: {got} != {truth}");
 
             let refreshed_data = data(0.3);
-            let refreshed = prepared.refresh(refreshed_data, &context).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, refreshed_data, &context).unwrap();
             let refreshed_value = values(refreshed.response().unwrap())[0];
-            assert!((refreshed_value - truth - 0.3).abs() < 0.12, "{suite:?} refresh");
+            assert!((refreshed_value - truth - 0.3).abs() < 0.005, "{suite:?} refresh");
 
             let artifact = prepared
                 .encode_contracted_result(&refreshed, "checked-dag-intervention", &context)
                 .unwrap();
-            let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+            let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
             assert!(consumed.acceptance.unresolved.iter().any(|reason| {
                 reason.as_ref() == "dependencies.checked_intervention_response_operation"
             }));
-            assert!(!consumed.acceptance.accepts_as_verified_program());
+            assert!(!consumed.acceptance.accepts_as_replayed_program());
         }
     }
 }
@@ -183,7 +185,20 @@ fn static_response_curve_refuses_a_too_small_runtime_memory_budget() {
     let prepared =
         route_builder.prepare(&antecedent_core::ExecutionContext::for_tests(993)).unwrap();
     let mut context = antecedent_core::ExecutionContext::for_tests(993);
-    context.memory.hard_limit_bytes = Some(1);
+    context.set_memory_limit(Some(1));
     let error = prepared.estimate(&data, &context).unwrap_err();
     assert!(matches!(error, antecedent::CausalError::Resource { .. }), "{error:?}");
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

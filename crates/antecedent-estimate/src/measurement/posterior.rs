@@ -6,9 +6,14 @@
 //! * the posterior **does not** condition on the outcome: the regressor is
 //!   replaced by the per-unit posterior mean. For a linear outcome model this
 //!   is exact (regression calibration); regressing on a *draw* instead adds
-//!   Berkson noise and attenuates the slope. The provider's own parameter
-//!   uncertainty is not representable from per-unit means, so the record says
-//!   [`ParameterUncertainty::NotPropagated`];
+//!   Berkson noise and attenuates the slope. A mean of `S` draws still carries
+//!   the Monte Carlo error `v / S`, which attenuates the slope by
+//!   `1 - (v / S) / Var(mean | covariates)`; the mean is therefore replaced by
+//!   its best linear predictor given the covariates (`calibrated_means`), on
+//!   which least squares is the moment-corrected slope (Fuller 1987, section
+//!   1.2; Carroll, Ruppert, Stefanski and Crainiceanu 2006, chapter 4). The
+//!   provider's own parameter uncertainty is not representable from per-unit
+//!   means, so the record says [`ParameterUncertainty::NotPropagated`];
 //! * the posterior **does** condition on the outcome: each joint draw is a
 //!   proper imputation, one linear fit per draw, combined with Rubin's rules;
 //!   the between-imputation variance carries the provider's uncertainty.
@@ -98,14 +103,14 @@ pub fn correct_latent_posterior_linear_effect(
     else {
         return Err(MeasurementError::new(
             antecedent_core::reason_code!("measurement_model_invalid"),
-            "measurement_model.invalid_model",
+            antecedent_core::reason_details::measurement_model::INVALID_MODEL,
             "posterior route needs external-posterior parameters",
         ));
     };
     if data.draw_count < *min_draws as usize {
         return Err(MeasurementError::new(
             antecedent_core::reason_code!("measurement_not_identified"),
-            "measurement_model.insufficient_draws",
+            antecedent_core::reason_details::measurement_model::INSUFFICIENT_DRAWS,
             format!(
                 "{} joint draws supplied; the model declares at least {min_draws}",
                 data.draw_count
@@ -156,6 +161,7 @@ pub fn correct_latent_posterior_linear_effect(
         });
     }
     let means = posterior_means(data.draws, n, data.draw_count).map_err(|e| stats_error(&e))?;
+    let means = calibrated_means(&means, data)?;
     let exact = ErrorVariance::known(0.0, 0.0).map_err(|e| stats_error(&e))?;
     let raw = LinearErrorData {
         y: data.outcome,
@@ -187,4 +193,81 @@ pub fn correct_latent_posterior_linear_effect(
         imputations: None,
         record,
     })
+}
+
+/// The least-squares fit of `means` on an intercept and the covariates, row by row.
+fn fitted_on_covariates(
+    means: &[f64],
+    covariates: &[f64],
+    covariate_count: usize,
+) -> Result<Vec<f64>, MeasurementError> {
+    let n = means.len();
+    if covariate_count == 0 {
+        let mean = means.iter().sum::<f64>() / n as f64;
+        return Ok(vec![mean; n]);
+    }
+    let (first, rest) = covariates.split_at(n);
+    let exact = ErrorVariance::known(0.0, 0.0).map_err(|e| stats_error(&e))?;
+    let design = LinearErrorData {
+        y: means,
+        w: first,
+        covariates: rest,
+        covariate_count: covariate_count - 1,
+        replicate_counts: None,
+    };
+    let moments = LinearMoments::accumulate(&design, &exact, 0.0).map_err(|e| stats_error(&e))?;
+    let fit = moments.solve().map_err(|e| stats_error(&e))?;
+    let beta = &fit.naive_coefficients;
+    Ok((0..n)
+        .map(|i| {
+            beta[0]
+                + beta[1] * first[i]
+                + (0..covariate_count - 1).map(|j| beta[2 + j] * rest[j * n + i]).sum::<f64>()
+        })
+        .collect())
+}
+
+/// The per-unit posterior means with the Monte Carlo error of a finite number of draws
+/// calibrated out.
+///
+/// A mean of `S` draws carries the error variance `v / S`, estimated by the pooled within-unit
+/// variance of the draws over `S`. Each mean is replaced by `fitted + lambda (mean - fitted)`,
+/// with `fitted` its regression on the covariates and
+/// `lambda = 1 - (v / S) / Var(mean | covariates)`: the best linear predictor of the exact
+/// posterior mean. The draws of one unit are read as independent draws of its posterior.
+fn calibrated_means(
+    means: &[f64],
+    data: &PosteriorLinearData<'_>,
+) -> Result<Vec<f64>, MeasurementError> {
+    let n = means.len();
+    let draw_count = data.draw_count;
+    // One draw has no within-unit variance, and a malformed covariate block is refused by the
+    // fit that follows.
+    if draw_count < 2 || data.covariate_count.checked_mul(n) != Some(data.covariates.len()) {
+        return Ok(means.to_vec());
+    }
+    let within: f64 = data
+        .draws
+        .chunks_exact(n)
+        .map(|draw| draw.iter().zip(means).map(|(x, m)| (x - m) * (x - m)).sum::<f64>())
+        .sum();
+    let monte_carlo = within / (n as f64 * (draw_count as f64 - 1.0)) / draw_count as f64;
+    if monte_carlo <= 0.0 {
+        return Ok(means.to_vec());
+    }
+    let fitted = fitted_on_covariates(means, data.covariates, data.covariate_count)?;
+    let residual_variance =
+        means.iter().zip(&fitted).map(|(m, f)| (m - f) * (m - f)).sum::<f64>() / n as f64;
+    let lambda = 1.0 - monte_carlo / residual_variance;
+    if lambda.is_nan() || lambda <= 0.0 {
+        return Err(MeasurementError::new(
+            antecedent_core::reason_code!("measurement_not_identified"),
+            antecedent_core::reason_details::measurement_model::INSUFFICIENT_DRAWS,
+            format!(
+                "the Monte Carlo error of the posterior means over {draw_count} draws is not \
+                 below their spread given the covariates; supply more joint draws"
+            ),
+        ));
+    }
+    Ok(means.iter().zip(&fitted).map(|(m, f)| f + lambda * (m - f)).collect())
 }

@@ -25,11 +25,12 @@
 //! cancellation never exports: nothing recorded lets a consumer reproduce where
 //! the interruption fell.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use crate::exact_transport_laws::canonical_laws;
 use antecedent_core::{
     ExecutionContext, IdentityDomain, NodeRef, SearchLimits, SearchReceipt, SearchStop, VariableId,
     reason_code,
@@ -49,6 +50,7 @@ use antecedent_identify::sid::scenarios::ScenarioCoordinate;
 use serde::{Deserialize, Serialize};
 
 use crate::IoError;
+use crate::artifact_budget::ReplayWork;
 use crate::exact_law_wire::ExactLawWire;
 use crate::query_wire::ValueWire;
 use crate::transport_catalog_wire::EvidenceCatalogWire;
@@ -64,6 +66,27 @@ pub const CPDAG_COMPLETION_ARTIFACT_FEATURE: &str = "cpdag_completion_scenarios_
 
 /// Most completion records, laws or bindings a consumer accepts in one artifact.
 const MAX_STORED_ITEMS: usize = 4096;
+
+// Each insertion scans an adjacency list, and each directed insertion can also
+// initialize reachability scratch and scan both adjacency halves. Charge these
+// structural units before rebuilding an untrusted graph, independently of the
+// later completion-search budget. This is a planning bound, not a time estimate.
+fn admit_cpdag_reconstruction(
+    nodes: usize,
+    directed: usize,
+    undirected: usize,
+    limit: usize,
+) -> Result<(), CpdagArtifactError> {
+    let edges = directed.checked_add(undirected);
+    let mut work = ReplayWork::new();
+    work.add(&[directed, nodes]);
+    work.add(&[2, directed, directed]);
+    match edges {
+        Some(edges) => work.add(&[edges, edges]),
+        None => return Err(CpdagArtifactError::LimitsExceeded("cpdag reconstruction work")),
+    }
+    work.admit(limit).map_err(|_| CpdagArtifactError::LimitsExceeded("cpdag reconstruction work"))
+}
 
 /// Why a completion artifact was refused.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -99,27 +122,34 @@ impl CpdagArtifactError {
     #[must_use]
     pub fn refusal(&self) -> (&'static str, &'static str) {
         match self {
-            Self::UnsupportedSemantics(_) => {
-                (reason_code!("route_not_supported"), "cpdag_scenarios.unsupported_semantics")
-            }
-            Self::LimitsExceeded(_) => {
-                (reason_code!("transport_budget_cancel"), "cpdag_scenarios.consumer_limit_exceeded")
-            }
-            Self::PremisesMismatch => {
-                (reason_code!("invalid_argument"), "cpdag_scenarios.premises_mismatch")
-            }
-            Self::DataIdentityMismatch => {
-                (reason_code!("invalid_argument"), "cpdag_scenarios.data_identity_mismatch")
-            }
-            Self::ReportMismatch => {
-                (reason_code!("invalid_argument"), "cpdag_scenarios.report_replay_mismatch")
-            }
-            Self::ProviderMismatch(_) => {
-                (reason_code!("invalid_argument"), "cpdag_scenarios.provider_mismatch")
-            }
-            Self::CancelledNotReplayable => {
-                (reason_code!("cancelled_no_claim"), "cpdag_scenarios.cancelled_not_exportable")
-            }
+            Self::UnsupportedSemantics(_) => (
+                reason_code!("route_not_supported"),
+                antecedent_core::reason_details::cpdag_scenarios::UNSUPPORTED_SEMANTICS,
+            ),
+            Self::LimitsExceeded(_) => (
+                reason_code!("transport_budget_cancel"),
+                antecedent_core::reason_details::cpdag_scenarios::CONSUMER_LIMIT_EXCEEDED,
+            ),
+            Self::PremisesMismatch => (
+                reason_code!("invalid_argument"),
+                antecedent_core::reason_details::cpdag_scenarios::PREMISES_MISMATCH,
+            ),
+            Self::DataIdentityMismatch => (
+                reason_code!("invalid_argument"),
+                antecedent_core::reason_details::cpdag_scenarios::DATA_IDENTITY_MISMATCH,
+            ),
+            Self::ReportMismatch => (
+                reason_code!("invalid_argument"),
+                antecedent_core::reason_details::cpdag_scenarios::REPORT_REPLAY_MISMATCH,
+            ),
+            Self::ProviderMismatch(_) => (
+                reason_code!("invalid_argument"),
+                antecedent_core::reason_details::cpdag_scenarios::PROVIDER_MISMATCH,
+            ),
+            Self::CancelledNotReplayable => (
+                reason_code!("cancelled_no_claim"),
+                antecedent_core::reason_details::cpdag_scenarios::CANCELLED_NOT_EXPORTABLE,
+            ),
         }
     }
 }
@@ -231,11 +261,23 @@ impl CompletionCpdagWire {
     /// Rebuild the CPDAG (nodes added in ascending variable order).
     ///
     /// # Errors
-    /// More nodes than the artifact may store, a repeated variable, or an
-    /// edge naming a variable that is not a node.
+    /// More nodes than the artifact may store, reconstruction work above the
+    /// default replay allowance, a repeated variable, or an edge naming a
+    /// variable that is not a node.
     pub fn to_cpdag(&self) -> Result<Cpdag, IoError> {
         if self.variables.len() > MAX_STORED_ITEMS {
             return Err(CpdagArtifactError::LimitsExceeded("cpdag node count").into());
+        }
+        self.check_reconstruction_work()?;
+        // Dense ids follow the stored order and the premises identity sorts the variables, so
+        // only the ascending order has one reading.
+        for pair in self.variables.windows(2) {
+            if pair[0] == pair[1] {
+                return Err(IoError::Convert("a CPDAG variable repeats".into()));
+            }
+            if pair[0] > pair[1] {
+                return Err(IoError::Convert("CPDAG variables are not in ascending order".into()));
+            }
         }
         let mut graph = Cpdag::empty();
         let mut ids = BTreeMap::new();
@@ -263,6 +305,15 @@ impl CompletionCpdagWire {
                 .map_err(|e| IoError::Convert(e.to_string()))?;
         }
         Ok(graph)
+    }
+
+    fn check_reconstruction_work(&self) -> Result<(), CpdagArtifactError> {
+        admit_cpdag_reconstruction(
+            self.variables.len(),
+            self.directed.len(),
+            self.undirected.len(),
+            antecedent_io_core::distribution_replay::MAX_REPLAY_OPERATIONS,
+        )
     }
 }
 
@@ -553,20 +604,6 @@ pub struct CpdagCompletionArtifactWire {
     pub data_digest: String,
 }
 
-fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoError> {
-    let mut laws = data
-        .laws()
-        .iter()
-        .map(|law| {
-            let wire = ExactLawWire::from_law(law);
-            crate::to_cbor(&(&wire.population, wire.regime, &wire.interventions))
-                .map(|key| (key, wire))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    laws.sort_by(|a, b| a.0.cmp(&b.0));
-    Ok(laws.into_iter().map(|(_, law)| law).collect())
-}
-
 fn premises_identity(wire: &CpdagCompletionArtifactWire) -> Result<String, IoError> {
     let mut cpdag = wire.cpdag.clone();
     cpdag.variables.sort_unstable();
@@ -730,11 +767,10 @@ impl CpdagCompletionArtifactWire {
             return Err(exceeded("completion search budget"));
         }
         if let (Some(producer), Some(consumer)) =
-            (self.search_memory_bytes, ctx.memory.hard_limit_bytes)
+            (self.search_memory_bytes, ctx.memory_limit_bytes())
+            && producer > consumer
         {
-            if producer > consumer {
-                return Err(exceeded("completion search memory"));
-            }
+            return Err(exceeded("completion search memory"));
         }
         if self.operation_limit > limits.evaluation.operations
             || self.depth_limit > limits.evaluation.depth
@@ -752,6 +788,7 @@ impl CpdagCompletionArtifactWire {
         if self.cpdag.variables.len() > MAX_STORED_ITEMS {
             return Err(exceeded("cpdag node count"));
         }
+        self.cpdag.check_reconstruction_work()?;
         if self.report.completions.len() > MAX_STORED_ITEMS
             || self.evidence.bindings.len() > MAX_STORED_ITEMS
         {
@@ -836,7 +873,7 @@ impl CpdagCompletionArtifactWire {
         // hard limit already bounds, so a memory truncation reproduces.
         let mut replay = ctx.clone();
         if wire.search_memory_bytes.is_some() {
-            replay.memory.hard_limit_bytes = wire.search_memory_bytes;
+            replay.set_memory_limit(wire.search_memory_bytes);
         }
         let ctx = &replay;
         let prepared = premises.prepare(ctx)?;
@@ -846,5 +883,31 @@ impl CpdagCompletionArtifactWire {
             return Err(CpdagArtifactError::ReportMismatch.into());
         }
         Ok((wire, report))
+    }
+}
+
+#[cfg(test)]
+mod reconstruction_budget_tests {
+    use super::{CompletionCpdagWire, admit_cpdag_reconstruction};
+
+    #[test]
+    fn unsorted_variables_are_refused_rather_than_given_other_dense_ids() {
+        let wire = |variables: Vec<u32>| CompletionCpdagWire {
+            variables,
+            directed: vec![],
+            undirected: vec![],
+        };
+        assert!(wire(vec![0, 1, 2]).to_cpdag().is_ok());
+        assert!(wire(vec![2, 0, 1]).to_cpdag().is_err());
+        assert!(wire(vec![0, 0]).to_cpdag().is_err());
+    }
+
+    #[test]
+    fn reconstruction_work_checks_boundary_and_overflow() {
+        // 1 * 3 nodes + 2 * 1 directed^2 + 2 total edges^2 = 9.
+        assert!(admit_cpdag_reconstruction(3, 1, 1, 9).is_ok());
+        assert!(admit_cpdag_reconstruction(3, 1, 1, 8).is_err());
+        assert!(admit_cpdag_reconstruction(1, usize::MAX, 1, usize::MAX).is_err());
+        assert!(admit_cpdag_reconstruction(usize::MAX, 2, 0, usize::MAX).is_err());
     }
 }

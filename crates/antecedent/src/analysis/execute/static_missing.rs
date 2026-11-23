@@ -13,7 +13,8 @@ impl Study {
     /// Whether the caller declared complete-case handling, which lets gap-aware estimators
     /// fit the intact lag windows of a series with missing time points.
     pub(super) fn declares_complete_case(&self) -> bool {
-        self.missing
+        self.declared
+            .missing
             .as_ref()
             .is_some_and(|declaration| declaration.policy == MissingPolicy::CompleteCase)
     }
@@ -46,7 +47,7 @@ impl Study {
         data: &TabularData,
         result: &mut StudyResult,
     ) -> Result<(), CausalError> {
-        if result.missing_data.is_some() {
+        if result.extras.missing_data.is_some() {
             return Ok(());
         }
         let mut variables: Vec<antecedent_core::VariableId> = Vec::new();
@@ -63,22 +64,22 @@ impl Study {
             }
         }
         let (policy, declared) =
-            missing_data::effective_policy(MissingRoute::Static, self.missing.as_ref());
-        if policy == MissingPolicy::ErrorOnMissing {
-            if let Some(cell) = first_missing_cell(data, &variables)? {
-                return Err(CausalError::Estimate(
-                    antecedent_estimate::missing_policy::policy_required(
-                        &cell,
-                        MissingRoute::Static.label(),
-                        &[MissingPolicy::CompleteCase],
-                    ),
-                ));
-            }
+            missing_data::effective_policy(MissingRoute::Static, self.declared.missing.as_ref());
+        if policy == MissingPolicy::ErrorOnMissing
+            && let Some(cell) = first_missing_cell(data, &variables)?
+        {
+            return Err(CausalError::Estimate(
+                antecedent_estimate::missing_policy::policy_required(
+                    &cell,
+                    MissingRoute::Static.label(),
+                    &[MissingPolicy::CompleteCase],
+                ),
+            ));
         }
         let mask = data.storage().analysis_mask();
         let keep = complete_rows(data, mask, &variables)?;
         let accounting = RowAccounting::from_selection(data, mask, policy, &variables, &keep)?;
-        result.missing_data = Some(missing_data::report(
+        result.extras.missing_data = Some(missing_data::report(
             MissingRoute::Static,
             declared,
             std::sync::Arc::from([]),

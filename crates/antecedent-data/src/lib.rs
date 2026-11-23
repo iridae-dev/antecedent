@@ -14,7 +14,7 @@
 //! assert_eq!(data.row_count(), 3);
 //! ```
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![deny(unsafe_code)]
 #![deny(missing_docs)]
@@ -25,20 +25,28 @@ pub mod aligned_buffer;
 pub mod arrow_adapter;
 #[cfg(feature = "arrow")]
 pub mod arrow_ffi;
+pub mod backend_boundary;
 pub mod buffer;
 pub mod categorical;
 pub mod column;
+pub mod column_closure;
 mod content_identity;
 pub mod dataset;
+pub mod design_layout;
 pub mod discrete;
 pub mod error;
 pub mod event;
+#[cfg(any(feature = "parquet", feature = "ipc"))]
+pub mod file_source;
+pub mod global_index;
 pub mod lagged_frame;
+pub mod lazy_identity;
 pub mod materialize;
 pub mod missing;
 pub mod multi_env;
 pub mod network;
 pub mod panel;
+pub mod panel_window;
 pub mod pooled_frame;
 pub mod project;
 pub mod reference;
@@ -46,16 +54,23 @@ pub mod resample;
 pub mod sample;
 pub mod sample_policy;
 pub mod selection;
+pub mod source;
 pub mod split;
 pub mod storage;
 pub mod surrogate;
 pub mod table;
 pub mod temporal;
+pub mod unbalanced_panel;
+pub mod unit_key;
 pub mod vector_vars;
 
 #[cfg(test)]
+mod differential;
+#[cfg(test)]
 mod testing;
 
+#[cfg(feature = "arrow")]
+pub use arrow_adapter::ArrowFrameView;
 #[cfg(feature = "arrow")]
 pub use arrow_adapter::{ArrowLoadResult, tabular_from_arrow_c_columns, tabular_from_record_batch};
 #[cfg(feature = "arrow")]
@@ -71,36 +86,48 @@ pub use column::{
 };
 pub use dataset::{TabularData, TimeSeriesData};
 pub use discrete::DiscreteColumn;
-pub use error::DataError;
+pub use error::{DataError, ValidityFault};
 pub use event::EventData;
+pub use global_index::{ChunkIndex, GlobalId, GlobalIndexError};
 pub use lagged_frame::{LaggedFrame, LaggedFrameOptions};
 pub use missing::{
-    DropReason, GroupAccounting, MissingCell, RowAccounting, UnitAccounting, complete_rows,
-    dropped_row_digest, first_missing_cell, policy_required_text,
+    DropReason, GroupAccounting, MissingCell, RowAccounting, UnitAccounting,
+    complete_float_columns, complete_rows, dropped_row_digest, first_missing_cell,
+    policy_required_text,
 };
 pub use multi_env::MultiEnvironmentData;
 pub use network::{NetworkData, NetworkEdge};
 pub use panel::{PanelData, PanelUnit, PanelUnitView};
+pub use panel_window::PopulationUnit;
 pub use pooled_frame::{
     DEFAULT_MAX_TIME_ONE_HOT_LEVELS, DummyOptions, PooledLaggedFrame, TimeDummyEncoding,
-    pool_multi_env_lagged_frame,
+    pool_multi_env_lagged_frame, pool_multi_env_lagged_frame_within,
 };
 pub use project::{IdRemap, dedupe_variable_ids};
 pub use reference::ReferencePointPolicy;
 pub use resample::{
     PermutationScheme, ResamplingPlan, circular_block_length, fill_circular_block_indexes,
-    fill_resample_index_batch, fill_resample_indexes, resample_timeseries,
+    fill_declared_plan, fill_resample_index_batch, fill_resample_index_replicate,
+    fill_resample_indexes, resample_timeseries,
 };
 pub use sample::{
     DropSummary, GappedSample, LagMap, LaggedColumn, LaggedPreparedSample, LaggedSamplePlan,
     LaggedSampleWorkspace,
 };
-pub use sample_policy::{MaskPolicy, MissingDeclaration, MissingPolicy};
+pub use sample_policy::{
+    ImputationDomain, ImputationModel, ImputationSpec, MaskPolicy, MissingDeclaration,
+    MissingPolicy, MissingnessAssumption,
+};
 pub use split::{DiscoveryEstimationSplit, EnvHoldoutSplit, TimeRange};
 pub use storage::OwnedColumnarStorage;
 pub use surrogate::{surrogate_permute_columns, surrogate_phase_randomize};
 pub use table::TableView;
 pub use temporal::{SamplingRegularity, TemporalIndexer, TemporalNodeKey, TimeIndex};
+pub use unbalanced_panel::{
+    AttritionBaseline, AttritionRow, BalanceRequirement, PanelBalanceReport, PanelLayout,
+    PanelPreparationError, PeriodRun, PreparationMode, PreparedPanel, UnitRun, UnitSummary,
+};
+pub use unit_key::UnitKey;
 pub use vector_vars::{VectorVariableGroups, column_blocks_for_frame};
 
 #[cfg(test)]

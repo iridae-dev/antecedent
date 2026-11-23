@@ -9,7 +9,6 @@ use antecedent_design::composition_verifiers::{
     projection_node_description, register_standard_verifiers,
 };
 use antecedent_design::source_projection_artifact::SourceProjectionArtifact;
-use antecedent_io::error::IoError;
 
 use super::source_evidence::SourceResolution;
 
@@ -40,7 +39,9 @@ impl NodeVerifier for ResolvedProjectionVerifier {
                 .find(|receipt| receipt.source_artifact_digest() == report.source_digest)
                 .ok_or_else(|| NodeFailure {
                     stage: BundleStage::CallbackUnavailable,
-                    reason: "composition_bundle.callback_unavailable".into(),
+                    reason:
+                        antecedent_core::reason_details::composition_bundle::CALLBACK_UNAVAILABLE
+                            .into(),
                 })?;
             if report.unresolved.iter().any(|dependency| {
                 !receipt
@@ -50,7 +51,9 @@ impl NodeVerifier for ResolvedProjectionVerifier {
             }) {
                 return Err(NodeFailure {
                     stage: BundleStage::CallbackUnavailable,
-                    reason: "composition_bundle.callback_unavailable".into(),
+                    reason:
+                        antecedent_core::reason_details::composition_bundle::CALLBACK_UNAVAILABLE
+                            .into(),
                 });
             }
         }
@@ -64,19 +67,9 @@ impl NodeVerifier for ResolvedProjectionVerifier {
 }
 
 /// Original bundle consumer plus source projections resolved only by opaque actual-execution receipts.
-/// A receipt supplies no live fit, provider authority or calibration license.
-///
-/// # Errors
-/// More than 64 separately executed source receipts exceed the bounded consumer scope.
-pub fn source_resolved_consumer(
-    receipts: Vec<SourceResolution>,
-) -> Result<BundleConsumer, IoError> {
-    if receipts.len() > 64 {
-        return Err(IoError::Refused {
-            code: antecedent_core::reason_code!("invalid_argument"),
-            message: "source_projection.limits_exceeded".into(),
-        });
-    }
+/// A receipt supplies no live fit, provider authority or calibration support.
+#[must_use]
+pub fn source_resolved_consumer(receipts: Vec<SourceResolution>) -> BundleConsumer {
     let receipts: Arc<[SourceResolution]> = receipts.into();
     let consumer = [
         NodeKind::CausalContract,
@@ -91,5 +84,5 @@ pub fn source_resolved_consumer(
             receipts: Arc::clone(&receipts),
         }))
     });
-    Ok(register_standard_verifiers(consumer))
+    register_standard_verifiers(consumer)
 }

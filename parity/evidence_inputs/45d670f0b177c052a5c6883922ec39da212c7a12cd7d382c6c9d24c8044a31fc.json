@@ -1,0 +1,1 @@
+[{"digest":"2031b550f2175a672cdf272bdf18d3ae4e6d0fd800d266a1f30e17883f510a65","file":"6b515f07aca3ffeb9fcab2f8ee9491b8b0a1023e39740c6d1f1bf7fa5df2616d","kind":"rust_items","path":"crates/antecedent-prob/tests/prior_support_oracle.rs","role":"compile","scopes":[[[],true]],"select":{"full":[6,7,8]},"table":"4e83b41ad209499ffff062c0154f7709fbcd27f3e6ceb7074911c998d33838a8"}]

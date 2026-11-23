@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import struct
 import warnings
 from collections.abc import Mapping
@@ -13,15 +14,18 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, get_args
 if TYPE_CHECKING:
     from .._artifact_protocol import ExportedArtifact
     from .._workflow import LoadedResult
-    from ..estimation import PreparedAnalysis
+    from ..mnar_sensitivity import MnarResult
     from ..msm_sensitivity import MsmResult
     from ..prediction import FittedEffectModel
+    from ..prepared import PreparedAnalysis
     from .response import CausalResponseView
 
 from .._api import describe_refusal
 from ..errors import CausalUnsupportedError
-from ._families import canonical_from_live, canonical_from_wire
-from ._report import InspectionReport, as_inspection
+from ..outcomes import ANSWER_KINDS as ANSWER_KINDS
+from ..outcomes import Answer, AnswerKind, Refused
+from ._families import canonical_from_live, canonical_from_wire, wire_section_with_stated_row
+from ._report import InspectionReport, as_inspection, cached_inspection
 from ._slots import ReasoningSlots, SlotView
 
 
@@ -48,23 +52,54 @@ _CALIBRATION_FIELDS = (
     "calibration_sha",
     "level",
     "observed_coverage",
+    "observed",
     "replicates",
+    "interval_counts",
+    "panel_functional",
+    "pre_treatment_periods",
+    "attempted_panels",
+    "returned_intervals",
+    "covered_intervals",
+    "nominal",
 )
+
+
+CalibrationStatus = Literal[
+    "calibrated", "outside_measured_scope", "measured_below_nominal", "not_measured"
+]
+CALIBRATION_STATUSES: tuple[CalibrationStatus, ...] = get_args(CalibrationStatus)
+
+
+def _calibration_status(value: Any) -> CalibrationStatus:
+    """The claim's status text; an absent status is ``not_measured``, an unknown one an error."""
+    if value is None or value == "":
+        return "not_measured"
+    if value not in CALIBRATION_STATUSES:
+        raise ValueError(
+            f"unknown calibration status {value!r}; expected one of {CALIBRATION_STATUSES}"
+        )
+    return value
 
 
 @dataclass(frozen=True, slots=True)
 class CalibrationInfo:
     """Calibration slot projected from ``contract["claim"]["calibration"]``.
 
-    ``status`` is the native string (``calibrated``, ``boundary``,
-    ``scope_not_assessed``, ``unavailable``, or any status a newer claim
-    carries); it is never normalized. ``reason`` is the reason code when the
-    interval is not calibrated. ``level`` / ``observed_coverage`` /
+    Calibration is an annotation on the reported interval, never a gate: the
+    interval is reported whatever ``status`` says. ``status`` is the native
+    string, one of :data:`CalibrationStatus`: ``calibrated`` (inside a current
+    attesting coverage record's measured scope), ``outside_measured_scope`` (a
+    record matches the construction but this request lies outside its measured
+    scope, or the record no longer attests the current code),
+    ``measured_below_nominal`` (the governing record measured coverage below
+    nominal at this sample size; ``observed_coverage`` carries it) or
+    ``not_measured`` (no record, or no interval reported). ``reason`` is the
+    reason code when the interval is not calibrated. ``level`` / ``observed_coverage`` /
     ``replicates`` are the record's measured coverage fields when the claim
     carries them, and ``extra`` keeps every other slot field.
     """
 
-    status: str = "unavailable"
+    status: CalibrationStatus = "not_measured"
     record_id: str | None = None
     reason: str | None = None
     scope_n: int | None = None
@@ -74,16 +109,22 @@ class CalibrationInfo:
     observed_coverage: float | None = None
     replicates: int | None = None
     extra: tuple[tuple[str, Any], ...] = ()
+    donor_count: int | None = None
+    pre_treatment_periods: int | None = None
+    post_treatment_periods: int | None = None
+    attempted_panels: int | None = None
+    returned_intervals: int | None = None
+    covered_intervals: int | None = None
 
     @classmethod
     def from_contract(cls, contract: Mapping[str, Any] | None) -> CalibrationInfo:
         if not isinstance(contract, Mapping):
-            return cls(status="unavailable", reason="not_executed")
+            return cls(status="not_measured", reason="not_executed")
         claim = contract.get("claim")
         raw_slot = claim.get("calibration") if isinstance(claim, Mapping) else None
         slot: Mapping[str, Any] = raw_slot if isinstance(raw_slot, Mapping) else {}
         if not slot and "calibration_status" not in contract:
-            return cls(status="unavailable", reason="not_executed")
+            return cls(status="not_measured", reason="not_executed")
 
         def pick(name: str) -> Any:
             value = slot.get(name)
@@ -102,26 +143,57 @@ class CalibrationInfo:
                 and k.removeprefix("calibration_") not in _CALIBRATION_FIELDS
                 and k != "calibration_sha"
             )
+        basis = slot.get("basis") or {}
+        key = basis.get("key", {}) if isinstance(basis, Mapping) else {}
+        scope = basis.get("scope", {}) if isinstance(basis, Mapping) else {}
+        functional = pick("panel_functional") or key.get("functional") or ""
+        panel = re.fullmatch(
+            r"synthetic_control/(?:posterior_average|predictive_path_average)"
+            r"\+donors=(\d+)\+post_periods=(\d+)",
+            functional if isinstance(functional, str) else "",
+        )
+        if panel:
+            extra = tuple((k, v) for k, v in extra if k != "basis")
+        history = pick("pre_treatment_periods")
+        counts = slot.get("interval_counts") or {}
+        level = pick("level")
+        if level is None:
+            level = pick("nominal")
+        if level is None and panel:
+            level = key.get("level")
         return cls(
-            status=str(pick("status") or "unavailable"),
+            status=_calibration_status(pick("status")),
             record_id=pick("record_id"),
             reason=pick("reason"),
             scope_n=_as_optional_int(pick("scope_n")),
             scope_dependence=pick("scope_dependence"),
             calibration_sha=pick("calibration_sha"),
-            level=_as_optional_float(pick("level")),
-            observed_coverage=_as_optional_float(pick("observed_coverage")),
+            level=_as_optional_float(level),
+            observed_coverage=_as_optional_float(
+                pick("observed_coverage")
+                if pick("observed_coverage") is not None
+                else pick("observed")
+            ),
             replicates=_as_optional_int(pick("replicates")),
             extra=extra,
+            donor_count=int(panel[1]) if panel else None,
+            post_treatment_periods=int(panel[2]) if panel else None,
+            pre_treatment_periods=_as_optional_int(
+                history if history is not None else scope.get("row_count")
+            )
+            if panel
+            else None,
+            attempted_panels=_as_optional_int(counts.get("attempted", pick("attempted_panels"))),
+            returned_intervals=_as_optional_int(counts.get("returned", pick("returned_intervals"))),
+            covered_intervals=_as_optional_int(counts.get("covered", pick("covered_intervals"))),
         )
 
     def describe(self) -> str:
         """One line: status, then reason code, record id, and measured fields when present.
 
-        Absent fields are omitted, never printed as ``None``; an unrecognized
-        status renders as itself.
+        Absent fields are omitted, never printed as ``None``.
         """
-        bits = [self.status]
+        bits: list[str] = [self.status]
         if self.reason:
             bits.append(f"reason {self.reason}")
         if self.record_id:
@@ -130,69 +202,38 @@ class CalibrationInfo:
             bits.append(f"level {self.level:g}")
         if self.observed_coverage is not None:
             bits.append(f"observed coverage {self.observed_coverage:g}")
+        if self.donor_count is not None:
+            bits.append(
+                f"{self.donor_count} donors, {self.pre_treatment_periods} pre-treatment "
+                f"and {self.post_treatment_periods} post-treatment periods"
+            )
+        if self.returned_intervals is not None:
+            bits.append(
+                f"{self.covered_intervals}/{self.returned_intervals} returned intervals covered "
+                f"across {self.attempted_panels} simulated panels"
+            )
         if self.replicates is not None:
             bits.append(f"{self.replicates} replicates")
         bits.extend(f"{key} {value}" for key, value in self.extra if value not in (None, ""))
         return " · ".join(bits)
 
 
-AnswerKind = Literal[
-    "point", "bounds", "partial", "response", "structured", "policy_value", "unavailable"
-]
-
-#: The closed :attr:`Answer.kind` vocabulary, shared by live and loaded results.
-ANSWER_KINDS: tuple[AnswerKind, ...] = get_args(AnswerKind)
-
-#: Portable claim kind (``contract["claim"]["kind"]``) → :attr:`Answer.kind`.
-#: A loaded result and the live result of the same execution give one kind.
+#: Portable native claim kinds retain their distinct scientific readings.
 CLAIM_KIND_ANSWERS: dict[str, AnswerKind] = {
     "point": "point",
     "bounds": "bounds",
     "mixture": "partial",
     "response": "response",
     "policy_value": "policy_value",
+    "associational": "associational",
     "incomplete": "unavailable",
-    "refusal": "unavailable",
+    "refusal": "refused",
 }
 
 
-@dataclass(frozen=True, slots=True)
-class Answer:
-    """Safe consumption shape. ``kind`` is one of :data:`ANSWER_KINDS`:
-
-    - ``point``: a complete scalar claim; ``value`` holds it.
-    - ``bounds``: a set-identified scalar; ``bounds`` is the identified set
-      ``(lower, upper)`` over identified completions.
-    - ``partial``: identification is partial or leftover structural mass
-      remains, so there is no scalar (or, for a function-valued claim, no
-      unrestricted curve: read ``result.envelope``); ``bounds`` carries the
-      identified set whenever the execution computed one, and ``detail`` names
-      the limitation.
-    - ``response``: a function-valued claim (response curve, intervention
-      response, derivative or Jacobian); read ``result.response`` /
-      ``result.estimate``.
-    - ``structured``: an executed claim with no single scalar, such as a
-      multi-horizon temporal mediation grid; read its structured fields
-      (``result.mediation_grid``).
-    - ``unavailable``: no claim (not identified, refused, not executed,
-      non-finite, or not semantically accepted); ``detail`` names why.
-
-    This is the interface that withholds an unrestricted scalar when
-    identification is partial or leftover mass remains. Historical fields
-    such as ``effect``, ``ate``, ``posterior``, and ``response`` stay on the
-    result for existing callers. ``effect`` / ``ate`` warn when a point
-    display would misrepresent; ``ANTECEDENT_STRICT_ANSWER=1`` raises.
-    """
-
-    kind: AnswerKind
-    value: float | None = None
-    bounds: tuple[float, float] | None = None
-    detail: str | None = None
-    structured: Mapping[str, Any] | None = None
-
-    def __post_init__(self) -> None:
-        if self.kind not in ANSWER_KINDS:
-            raise ValueError(f"Answer.kind must be one of {ANSWER_KINDS}; got {self.kind!r}")
+def _posterior_row_detail(estimator: Any) -> str:
+    """The answer detail of an unsupported Bayesian randomized-design posterior."""
+    return f"unsupported_posterior_{str(estimator).replace('.', '_')}"
 
 
 def _scalar_bounds(value: Any) -> tuple[float, float] | None:
@@ -208,8 +249,35 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
     claim = claim if isinstance(claim, Mapping) else {}
     claim_kind = claim.get("kind")
     kind = CLAIM_KIND_ANSWERS.get(str(claim_kind)) if claim_kind is not None else None
+    if kind == "refused":
+        return Refused(
+            detail=str(claim.get("reason", claim.get("detail", "scientific_refusal"))),
+            structured=claim,
+        )
+    # A rollout section answers for itself, beside a point claim or a posterior alike, as
+    # the live result does; only an incomplete or refused claim withholds it.
+    rollout = payload.get("quasi_rollout")
+    if kind != "unavailable" and isinstance(rollout, Mapping):
+        return Answer(
+            "structured",
+            detail=("supported" if rollout.get("supported") else "unsupported")
+            + "_quasi_rollout_"
+            + str(rollout.get("uncertainty")),
+            structured=canonical_from_wire("quasi_rollout", rollout),
+        )
     if kind is None:
         return Answer("unavailable", detail=f"unrecognized_claim_kind:{claim_kind}")
+    if kind == "associational":
+        section = wire_section_with_stated_row(payload, "association")
+        return Answer(
+            "associational",
+            detail="noncausal_association",
+            structured=(
+                canonical_from_wire("association", section)
+                if isinstance(section, Mapping)
+                else None
+            ),
+        )
     limitation = ReasoningSlots.from_result_section(contract, payload).rendering_limitation()
     if kind == "policy_value":
         policy = payload.get("policy_value")
@@ -241,6 +309,50 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
         )
         return Answer(
             "structured", detail=detail, structured=canonical_from_wire("survival", survival)
+        )
+    posterior_row = payload.get("posterior_row")
+    if kind == "point" and isinstance(posterior_row, Mapping):
+        return Answer(
+            "structured",
+            detail=_posterior_row_detail(posterior_row.get("estimator")),
+            structured=canonical_from_wire("posterior_row", posterior_row),
+        )
+    contrast = wire_section_with_stated_row(payload, "sequential_contrast")
+    if kind == "point" and isinstance(contrast, Mapping):
+        return Answer(
+            "structured",
+            detail=("supported" if contrast.get("supported") else "unsupported")
+            + "_sequential_contrast_"
+            + str(contrast.get("uncertainty")),
+            structured=canonical_from_wire("sequential_contrast", contrast),
+        )
+    bounds_section = wire_section_with_stated_row(payload, "iv_bounds")
+    if kind == "bounds" and isinstance(bounds_section, Mapping):
+        return Answer(
+            "bounds",
+            bounds=(float(bounds_section["lower"]), float(bounds_section["upper"])),
+            detail=("supported" if bounds_section.get("supported") else "unsupported")
+            + "_iv_bounds_"
+            + str(bounds_section.get("uncertainty")),
+            structured=canonical_from_wire("iv_bounds", bounds_section),
+        )
+    design = wire_section_with_stated_row(payload, "temporal_design")
+    if kind != "unavailable" and isinstance(design, Mapping):
+        return Answer(
+            "structured",
+            detail=("supported" if design.get("supported") else "unsupported")
+            + "_temporal_design_"
+            + str(design.get("uncertainty")),
+            structured=canonical_from_wire("temporal_design", design),
+        )
+    matched = wire_section_with_stated_row(payload, "history_match")
+    if kind == "point" and isinstance(matched, Mapping):
+        return Answer(
+            "structured",
+            detail="supported_period_history_match_fixed_b_period_interval"
+            if matched.get("supported")
+            else "unsupported_period_history_match_standard_error_no_interval",
+            structured=canonical_from_wire("history_match", matched),
         )
     regime = payload.get("longitudinal_regime")
     if kind == "point" and isinstance(regime, Mapping):
@@ -303,7 +415,10 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
     if kind == "unavailable":
         return Answer("unavailable", detail=limitation or str(claim_kind))
     if kind == "response":
-        # A limited function-valued claim is partial: its envelope, not a curve.
+        # A structural envelope remains an identified set even when every
+        # atom is identified or its endpoints happen to coincide.
+        if isinstance(envelope, Mapping) and limitation is None:
+            limitation = "identified_set"
         return Answer("partial" if limitation else "response", detail=limitation)
     if kind == "bounds" and bounds is not None and limitation is None:
         # A structural identified set remains a set after loading, even when
@@ -340,54 +455,13 @@ class ResultAPI:
     @describe_refusal
     def study(self) -> PreparedAnalysis:
         """Reusable study, when this execution retained one; never re-prepares lazily."""
-        prepared = getattr(self, "_prepared", None)
+        prepared = getattr(self, "_live_study", None)
         if prepared is None:
             raise CausalUnsupportedError(
                 "This result has no retained study.",
                 reason_code="not_executed",
             )
         return prepared
-
-    def refresh(
-        self,
-        data: Mapping[str, Any] | Any,
-        *,
-        seed: int | None = None,
-        threads: int | None = None,
-    ) -> Any:
-        """Re-estimate on new data via the retained prepared handle.
-
-        The five-line second click is ``result = analyze(...); result.refresh(new_data)``.
-        A second ``analyze()`` still re-prepares. Equivalent to ``result.study.refresh``.
-        """
-        refreshed = self.study.refresh(data, seed=seed, threads=threads)
-        binding = getattr(self, "program_binding", None)
-        if binding is not None:
-            from ..program_claims import ProgramBinding
-            from ._report import copy_model
-
-            refreshed = copy_model(
-                refreshed,
-                quantities=refreshed.response_coordinates(
-                    outcome_units=binding.outcome_units,
-                    population=binding.population_id,
-                    transform=binding.transform_id,
-                ),
-                program_binding=ProgramBinding.from_response(
-                    refreshed,
-                    outcome_units=binding.outcome_units,
-                    dose_units=binding.dose_units,
-                    population=binding.population_id,
-                    transform=binding.transform_id,
-                ),
-            )
-        return refreshed
-
-    def artifact(self, **kwargs: Any) -> ExportedArtifact[LoadedResult]:
-        """Portable bytes, kind, independently retainable expectation, and export metadata."""
-        from .._artifact_protocol import exported_artifact
-
-        return exported_artifact(self, **kwargs)
 
     def refute(
         self,
@@ -403,7 +477,12 @@ class ResultAPI:
 
         if isinstance(suite, Refute):
             suite = str(suite)
-        study = self.study
+        study = getattr(self, "_prepared", None)
+        if study is None:
+            raise CausalUnsupportedError(
+                "This result has no retained statistical preparation.",
+                reason_code="not_executed",
+            )
         execution = getattr(self, "_execution", None)
         if execution is None:
             raise CausalUnsupportedError(
@@ -413,6 +492,25 @@ class ResultAPI:
         frozen = study._frozen(execution.snapshot())
         token = {} if cancel is None else {"cancel": cancel}
         return frozen.refute(data, suite=suite, seed=seed, threads=threads, **token)
+
+    @property
+    def method_provenance(self) -> Any:
+        """Provenance records behind the route this result executed.
+
+        A :class:`~antecedent.citations.MethodProvenance`: the identifier and estimator records
+        of the executed plan, each with its sources, documented deviations, review scope limits,
+        id and digest. Descriptive only; distinct from the execution ``provenance`` mapping.
+        """
+        from ..citations import provenance_of
+
+        return provenance_of(self)
+
+    def citations(self) -> tuple[Any, ...]:
+        """This result's sources, de-duplicated, each with the caveats of the records citing it.
+
+        See :func:`antecedent.citations.bibliography` for a study's de-duplicated list.
+        """
+        return self.method_provenance.citations()
 
     def _scalar_effect(self) -> float | None:
         """Historical scalar without the legacy-field warning."""
@@ -473,6 +571,66 @@ class ResultAPI:
             )
             return Answer(
                 "structured", detail=detail, structured=canonical_from_live("survival", survival)
+            )
+        posterior_row = getattr(self, "posterior_row", None)
+        if posterior_row is not None:
+            return Answer(
+                "structured",
+                detail=_posterior_row_detail(posterior_row.estimator),
+                structured=canonical_from_live("posterior_row", posterior_row),
+            )
+        contrast = getattr(self, "sequential_contrast", None)
+        if contrast is not None:
+            return Answer(
+                "structured",
+                detail=("supported" if contrast.supported else "unsupported")
+                + "_sequential_contrast_"
+                + contrast.uncertainty,
+                structured=canonical_from_live("sequential_contrast", contrast),
+            )
+        association = getattr(self, "association", None)
+        if association is not None:
+            return Answer(
+                "associational",
+                detail="noncausal_association",
+                structured=canonical_from_live("association", association),
+            )
+        iv_bounds = getattr(self, "iv_bounds", None)
+        if iv_bounds is not None:
+            return Answer(
+                "bounds",
+                bounds=(float(iv_bounds.lower), float(iv_bounds.upper)),
+                detail=("supported" if iv_bounds.supported else "unsupported")
+                + "_iv_bounds_"
+                + str(iv_bounds.uncertainty),
+                structured=canonical_from_live("iv_bounds", iv_bounds),
+            )
+        design = getattr(self, "temporal_design", None)
+        if design is not None:
+            return Answer(
+                "structured",
+                detail=("supported" if design.supported else "unsupported")
+                + "_temporal_design_"
+                + str(design.uncertainty),
+                structured=canonical_from_live("temporal_design", design),
+            )
+        rollout = getattr(self, "quasi_rollout", None)
+        if rollout is not None:
+            return Answer(
+                "structured",
+                detail=("supported" if rollout.supported else "unsupported")
+                + "_quasi_rollout_"
+                + str(rollout.uncertainty),
+                structured=canonical_from_live("quasi_rollout", rollout),
+            )
+        matched = getattr(self, "history_match", None)
+        if matched is not None:
+            return Answer(
+                "structured",
+                detail="supported_period_history_match_fixed_b_period_interval"
+                if matched.supported
+                else "unsupported_period_history_match_standard_error_no_interval",
+                structured=canonical_from_live("history_match", matched),
             )
         regime = getattr(self, "longitudinal_regime", None)
         if regime is not None:
@@ -568,6 +726,103 @@ class ResultAPI:
                 f"Randomized competing-risk cumulative incidence through {survival.tau:g}: "
                 f"cause {survival.target_cause} difference {survival.incidence_difference:g}."
                 + suffix
+            )
+        posterior_row = getattr(self, "posterior_row", None)
+        if posterior_row is not None:
+            coordinates = "; ".join(
+                f"{name} {mean:g} [{lower:g}, {upper:g}]"
+                for name, mean, lower, upper in zip(
+                    posterior_row.coordinates,
+                    posterior_row.mean,
+                    posterior_row.lower,
+                    posterior_row.upper,
+                    strict=True,
+                )
+            )
+            return (
+                f"Unsupported Bayesian posterior ({posterior_row.estimator}) for "
+                f"{posterior_row.target}: {coordinates}. Equal-tailed 95% credible intervals "
+                "under the declared likelihood and prior; calibration is not_measured and the "
+                "prior supplies no identifying premise."
+            )
+        contrast = getattr(self, "sequential_contrast", None)
+        if contrast is not None:
+            spread = (
+                f"normal interval [{contrast.interval[0]:g}, {contrast.interval[1]:g}]"
+                if contrast.interval is not None
+                else "modular Bayesian-bootstrap posterior, no frequentist interval"
+            )
+            return (
+                f"Observational sequential contrast {contrast.contrast:g} of regime "
+                f"{contrast.active_regime} against {contrast.control_regime}: {spread}. "
+                + (
+                    "Supported: the fit meets the sequential-contrast support row, with "
+                    "sequential exchangeability and correctly specified nuisance models declared."
+                    if contrast.supported
+                    else "No support row is stated on this section; the runtime calibration "
+                    "slot is not_measured."
+                )
+            )
+        design = getattr(self, "temporal_design", None)
+        if design is not None:
+            from .._temporal_design import describe_temporal_design
+
+            return describe_temporal_design(design)
+        rollout = getattr(self, "quasi_rollout", None)
+        if rollout is not None and rollout.effects:
+            overall = rollout.effects[0]
+            label = (
+                "95% credible interval"
+                if str(rollout.uncertainty).startswith("bayesian_")
+                else "pointwise 95% interval"
+            )
+            spread = (
+                f"{label} [{overall.interval[0]:g}, {overall.interval[1]:g}]"
+                if overall.interval is not None
+                else "no interval"
+            )
+            return (
+                f"{rollout.design} ({rollout.method}) summary {overall.estimate:g}: {spread} "
+                f"({rollout.uncertainty}). Unsupported; calibration is not_measured."
+            )
+        association = getattr(self, "association", None)
+        if association is not None:
+            from ..descriptive import describe_association
+
+            return describe_association(association)
+        iv_bounds = getattr(self, "iv_bounds", None)
+        if iv_bounds is not None:
+            spread = (
+                f" {iv_bounds.interval.level:.0%} sampling interval about the set "
+                f"[{iv_bounds.interval.lower:g}, {iv_bounds.interval.upper:g}]"
+                f" ({iv_bounds.interval.method})."
+                if iv_bounds.interval is not None
+                else " No sampling interval."
+            )
+            return (
+                f"Average effect under a binary instrument is partially identified: "
+                f"[{iv_bounds.lower:g}, {iv_bounds.upper:g}], a set and not a point."
+                f"{spread} "
+                + (
+                    "Supported: the interval is stated for the endpoints of the set."
+                    if iv_bounds.supported
+                    else "Unsupported, calibration not_measured."
+                )
+            )
+        matched = getattr(self, "history_match", None)
+        if matched is not None:
+            return (
+                f"Within-period history-matched contrast {matched.contrast:g} on the matched "
+                "treated units. "
+                + (
+                    f"Supported fixed-b period interval [{matched.interval_lower:g}, "
+                    f"{matched.interval_upper:g}] for the expected matched contrast, with "
+                    "calendar periods as the sampling units."
+                    if matched.supported
+                    and matched.interval_lower is not None
+                    and matched.interval_upper is not None
+                    else "Unsupported; the runtime calibration slot is not_measured."
+                )
             )
         regime = getattr(self, "longitudinal_regime", None)
         if regime is not None:
@@ -692,6 +947,19 @@ class ResultAPI:
 
         return from_analysis(self, data=data, lambda_max=lambda_max, **options)
 
+    def mnar_sensitivity(
+        self, *, data: Any, model: str | None, lower: float, upper: float, **options: Any
+    ) -> MnarResult:
+        """Re-run this average effect across a bounded grid of an MNAR departure.
+
+        The result's query and checked adjustment set choose the estimand and the covariates;
+        ``data`` holds the outcome column with its missing values. The range is an assumption
+        range, never a confidence interval.
+        """
+        from ..mnar_sensitivity import from_analysis
+
+        return from_analysis(self, data=data, model=model, lower=lower, upper=upper, **options)
+
     def as_response(self) -> CausalResponseView:
         """This result when it is function-valued; refuse a scalar analysis."""
         from .response import CausalResponseView
@@ -712,10 +980,13 @@ class ResultAPI:
             contract = getattr(slots, "contract", None) if slots is not None else None
         if isinstance(contract, Mapping):
             return CalibrationInfo.from_contract(contract)
-        return CalibrationInfo(status="unavailable", reason="not_executed")
+        return CalibrationInfo(status="not_measured", reason="not_executed")
 
     def inspect(self) -> InspectionReport:
         """Inspect this execution, including uncertainty and all available evidence."""
+        return cached_inspection(self, self._build_inspection)
+
+    def _build_inspection(self) -> InspectionReport:
         slots = getattr(self, "reasoning", None)
         if slots is None:
             slots = ReasoningSlots.from_contract({})
@@ -764,7 +1035,8 @@ class ResultAPI:
             assumption_payload["certificate"] = certificate
         support_payload = dict(slots.support.payload)
         support_payload["execution"] = _payload(getattr(self, "support", None))
-        support_payload["validation"] = _payload(getattr(self, "validation", None))
+        if "validation" not in support_payload:
+            support_payload["validation"] = _payload(getattr(self, "validation", None))
         report = replace(
             slots,
             identification=SlotView(
@@ -786,88 +1058,124 @@ class ResultAPI:
                     ),
                     Mapping,
                 )
-                else CalibrationInfo(status="unavailable", reason="not_executed")
+                else CalibrationInfo(status="not_measured", reason="not_executed")
             ),
             diagnostics=tuple(getattr(self, "diagnostics", ())),
         )
-        return as_inspection(self._with_portable_record(report)).model_copy(
-            update={
-                "stage": "executed",
-                "family": type(self).__name__,
-                "operations": ("inspect", "export", "refute", "refresh"),
-            }
+        return as_inspection(
+            self._with_portable_record(report),
+            stage="executed",
+            family=type(self).__name__,
+            operations=("inspect", "export", "refute"),
         )
 
     def _with_portable_record(self, report: ReasoningSlots) -> ReasoningSlots:
-        """Report the execution through the record its export carries.
+        """Read retained contract metadata without exporting or parsing a container.
 
-        ``contract`` becomes the portable contract section and the portable
-        evidence (identification method and adjustment set, validation verdict,
-        unit effects) is read from the exported body, so this report and
-        ``load(export()).inspect()`` agree on them. An execution that exports no
-        record (none retained, or a cancelled click) has no portable contract.
+        Execution factories retain the native contract in reasoning/_contract.
+        Portable evidence, when captured at execution/load, is retained separately;
+        inspection never invents missing evidence or silently catches export errors.
         """
-        from dataclasses import replace
-
-        from .. import artifacts
-        from ..errors import CausalError
-        from ._slots import portable_evidence, with_portable_evidence
-
-        execution = getattr(self, "_execution", None)
-        if execution is None:
-            return replace(report, contract=None)
-        try:
-            decoded = artifacts.loads(execution.export_contracted_artifact())
-        except (CausalError, ValueError):
-            return replace(report, contract=None)
-        if not isinstance(decoded.contract, Mapping):
-            return replace(report, contract=None)
-        section = dict(decoded.contract)
-        native = ReasoningSlots.from_result_section(section, decoded.payload)
-        # Availability is the executed contract's native decision, the same one
-        # `load(export()).inspect()` reports; the live report only adds payload.
-        report = replace(
-            report,
-            uncertainty=replace(
-                report.uncertainty,
-                available=native.uncertainty.available,
-                reason=native.uncertainty.reason,
-                summary=native.uncertainty.summary,
-            ),
-            assumptions=replace(
-                report.assumptions,
-                available=native.assumptions.available,
-                reason=native.assumptions.reason,
-                summary=native.assumptions.summary,
-            ),
-        )
-        return replace(
-            with_portable_evidence(report, portable_evidence(section, decoded.payload)),
-            contract=section,
-        )
+        section: Mapping[str, Any] | None = report.contract
+        if not isinstance(section, Mapping) or section.get("format") != 2:
+            retained = getattr(self, "_contract", None)
+            if isinstance(retained, Mapping):
+                section = retained
+        if not isinstance(section, Mapping):
+            return report
+        return replace(report, contract=section)
 
     @property
     def fitted_model(self) -> FittedEffectModel:
         """Verified portable CATE predictor for this exact retained execution."""
         from ..prediction import FittedEffectModel
 
-        return FittedEffectModel.load(self.export())
+        return FittedEffectModel.load(bytes(self.export()))
+
+    def fitted_model_from_source(self, data: Any) -> FittedEffectModel:
+        """Replay the fit using an explicitly supplied copy of its source table.
+
+        The resulting portable model contains the complete source table, including
+        unused columns and individual rows. Share its exported bytes accordingly.
+        The source must exactly match the execution's recorded data snapshot.
+        """
+        from ..estimation import _prepared_columns
+        from ..prediction import FittedEffectModel
+
+        execution = getattr(self, "_execution", None)
+        if execution is None:
+            raise CausalUnsupportedError(
+                "This result has no retained execution artifact.", reason_code="not_executed"
+            )
+        if getattr(self, "quantities", None) is not None:
+            raise CausalUnsupportedError(
+                "Source export does not support labelled scientific quantities.",
+                reason_code="option_not_applicable",
+            )
+        names, columns, _ = _prepared_columns(data)
+        return FittedEffectModel.load(
+            execution.export_contracted_artifact_with_source(names, columns)
+        )
 
     @describe_refusal
-    def export(self, *, artifact_id: str = "analysis-result") -> bytes:
-        """Export this exact execution, even after another estimate or refresh."""
+    def export(
+        self,
+        *,
+        artifact_id: str | None = None,
+        quantity: Literal["result", "posterior", "record", "query"] = "result",
+    ) -> ExportedArtifact[LoadedResult]:
+        """Export this exact execution, even after another estimate or refresh.
+
+        ``"posterior"`` is a transferable single-estimand prior (scalar draws only);
+        ``"record"`` is the full retained posterior or response record of the execution,
+        including response surfaces and structural mixtures, which are not priors.
+        """
         execution = getattr(self, "_execution", None)
         if execution is None:
             raise CausalUnsupportedError(
                 "This result has no retained execution artifact.",
                 reason_code="not_executed",
             )
+        from .._artifact_protocol import artifact_from_receipt
+
+        if quantity not in ("result", "posterior", "record", "query"):
+            from ..errors import CausalValueError
+
+            raise CausalValueError("quantity must be result, posterior, record or query")
+        if quantity == "posterior":
+            if (
+                getattr(self, "posterior", None) is None
+                or getattr(self, "response", None) is not None
+            ):
+                raise CausalUnsupportedError(
+                    "posterior export requires draws of a single scalar estimand",
+                    reason_code="option_not_applicable",
+                )
+            if getattr(self, "structural_unidentified_mass", None) is not None or getattr(
+                self, "structural_identified_set", None
+            ):
+                raise CausalUnsupportedError(
+                    "draws mixing structural completions are not a transferable single-estimand prior",
+                    reason_code="option_not_applicable",
+                )
+        if quantity in ("posterior", "record", "query"):
+            return artifact_from_receipt(
+                self,
+                execution.export_artifact(
+                    artifact_id="prepared-result" if artifact_id is None else artifact_id,
+                    payload="query" if quantity == "query" else "result",
+                ),
+            )
+        artifact_id = "analysis-result" if artifact_id is None else artifact_id
+
         quantities = getattr(self, "quantities", None)
         if quantities is not None:
             import json
 
-            return execution.export_contracted_artifact(
+            data = execution.export_contracted_artifact(
                 artifact_id=artifact_id,
                 quantities_json=json.dumps([quantity._wire() for quantity in quantities]),
             )
-        return execution.export_contracted_artifact(artifact_id=artifact_id)
+        else:
+            data = execution.export_contracted_artifact(artifact_id=artifact_id)
+        return artifact_from_receipt(self, data)

@@ -11,7 +11,7 @@
 //! (Harvard, 1961), ch. 4 (terminal opportunity loss and the expected value of
 //! perfect information).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
 use std::sync::Arc;

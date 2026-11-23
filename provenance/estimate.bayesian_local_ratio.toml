@@ -1,0 +1,79 @@
+feature_id = "estimate.bayesian_local_ratio"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Strategy-table implementation id: estimate.bayesian_local_ratio
+# (EstimatorId::BayesianLocalRatio, public name bayesian.local_ratio; plan ids
+# bayesian.fuzzy_rd and bayesian.regression_kink).
+#
+# The cited papers supply the estimands: the fuzzy regression-discontinuity
+# effect as the outcome jump over the treatment jump at the cutoff, and the
+# regression-kink effect as the outcome slope change over the treatment slope
+# change. The Bayesian layer is the repository's own construction, not a
+# procedure from either paper: the fixed-bandwidth local-linear Gaussian model
+# of estimate.bayesian_rd is fitted to the outcome and to the received
+# treatment on the same design, independent zero-centered Normal coefficient
+# priors and a plug-in 2x2 residual covariance, and the numerator and
+# denominator coefficients are drawn jointly so the ratio draws carry the
+# outcome-treatment residual correlation. Continuity at the cutoff, exclusion
+# of the cutoff from the outcome except through treatment and, for the jump,
+# monotone compliance stay declared; the prior supplies none of them.
+papers = [
+ { title = "Identification and Estimation of Treatment Effects with a Regression-Discontinuity Design", doi = "10.1111/1468-0262.00183", sections = ["fuzzy design: ratio of the outcome and treatment discontinuities"] },
+ { title = "Inference on Causal Effects in a Generalized Regression Kink Design", doi = "10.3982/ECTA11224", sections = ["kink estimand as the ratio of outcome and treatment slope changes"] },
+]
+
+implementation_deviations = [
+ "Unweighted rectangular window with a caller-declared symmetric bandwidth and local-linear fits on both sides; no kernel weighting, data-driven bandwidth, local quadratic or cubic fit, or robust bias correction of the frequentist local-polynomial row.",
+ "A ratio of two Normal posteriors has no finite mean: the reported point is the posterior median and the posterior mean of the ratio is never reported.",
+ "When the denominator posterior has mass within a declared floor of zero above the interval's tail mass, the credible interval is withheld and the mass is reported with a weak-first-stage diagnostic; the ratio is not divided through.",
+ "Residual covariance is a plug-in 2x2 estimate and is not given a prior or integrated out; the correlation is clamped away from one so the joint draw stays positive definite. The coefficient prior scale prior_sd is in residual standard deviations of each response (the ridge strength is 1/prior_sd^2 on the unscaled Gram matrix and the covariance is multiplied by the residual covariance), and the residuals come from the posterior-mean fit.",
+ "Manipulation, density, continuity-placebo and covariate-adjusted checks are not provided.",
+ "The route is explicitly unsupported and uncalibrated: no coverage record covers the credible interval.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/bayesian_local_ratio/tests.rs (fuzzy_jump_posterior_matches_the_independent_bivariate_normal_ratio, kink_posterior_uses_the_slope_change_coefficients, a_denominator_with_mass_near_zero_withholds_the_interval_and_reports_the_mass, thin_windows_and_invalid_inputs_are_refused, a_constant_treatment_is_flagged_weak_not_divided_through)",
+ "crates/antecedent/tests/bayesian_design_routes.rs (local_ratio_recovers_the_known_ratio_and_withholds_the_interval_when_weak)",
+ "python/tests/test_bayesian_design_routes.py (test_bayesian_local_ratio_recovers_truth_and_withholds_a_weak_interval)",
+ "independent bivariate Normal ratio draws computed inside the test, not by the library",
+ "crates/antecedent-estimate/tests/bayesian_local_ratio_reference.rs (exact bivariate-Normal ratio law: first-stage moments, positive and near-zero mass, the ratio distribution function, the weak-first-stage withholding, for a fuzzy jump, a kink and a weak first stage)",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "fit_bayesian_local_ratio of crates/antecedent-estimate/src/bayesian_local_ratio.rs: the rectangular window |R - c| <= h with A = 1{R >= c} and the design (1, A, R - c, A (R - c)), the ridge-form posterior means of the outcome and treatment coefficient vectors (X'X + I/prior_sd^2)^-1 X'resp, the plug-in 2x2 residual covariance with n - 4 divisor (diagonal floor 1e-12, correlation clamped to 1 - 1e-6), the joint bivariate Normal draws of the (numerator, denominator) coefficient pair at index 1 (jump) or 3 (kink) with covariance (inverse)_kk times the residual covariance, the draw-wise ratio, the denominator positive probability, the near-zero mass within the declared floor and the weak-first-stage withholding of the interval at the 2.5% tail mass, and the median. Not the joint-coordinate sampler beyond its agreement with the exact law, the choice of bandwidth, or monotone-compliance and continuity premises, or the coverage of the interval."
+assumptions = ["Continuity of the untreated outcome and of the propensity at the cutoff, exclusion of the cutoff except through treatment, and (jump) monotone compliance are declared premises the prior does not supply.", "The local-linear Gaussian model holds within the declared window with a common residual covariance; the covariance is a plug-in.", "The coefficient prior is N(0, S prior_sd^2 I) on each response, so prior_sd is in residual standard deviations; the ratio of the paired draws has no finite mean, so the median and the distribution function are the targets.", "Accuracy is stated against an exact distribution function of the ratio of correlated Normals."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with a 30-digit exact bivariate-Normal ratio law written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Three 400-row series (201-row windows) with a strong fuzzy jump, a kink and a first stage whose jump is 0.02 (so 98.6% of the denominator mass lies within the floor 0.1): the window count, denominator mean (five Monte Carlo standard errors) and sd (1%), positive probability and near-zero mass (five binomial standard errors), the weak flag, the withheld interval and thirteen points of the ratio distribution function (five binomial standard errors) agree with the exact bivariate-Normal law, 200,000 draws at one seed. The prior is wide (prior_sd 20) so the tight-prior inflation of the plug-in covariance seen in the sharp posterior is not exercised here. Not exercised: floors near the 2.5% threshold, strongly correlated residuals near the clamp, windows near the 12-row minimum and coverage under the declared law. The cited publications were not retrieved."
+sources = ["https://doi.org/10.1111/1468-0262.00183", "https://doi.org/10.3982/ECTA11224", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The documentation described prior_sd as the absolute standard deviation of every coefficient, but the posterior is the one for coefficient covariance multiplied by each response's residual variance (the prior is in residual standard deviations, as in the sharp posterior); the module, field and record text now say so.", "No numerical defect was found: window membership, the ridge posterior means, the residual covariance with its floors and clamp, the joint coordinate draws, the pairing of numerator and denominator and the weak-first-stage rule agree with the exact reference."]
+record_sha256 = "771386de03db32ca487e8df21dee88ffd07bda30b424766e0d0ad0783e1adbdd"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/bayesian_local_ratio.rs"
+items = ["const CORRELATION_LIMIT", "const VARIANCE_FLOOR", "const WEAK_FIRST_STAGE_MASS", "enum LocalRatioKind", "fn fit_bayesian_local_ratio", "fn fit_two_responses", "fn window_rows", "struct BayesianLocalRatioEstimate", "struct LocalRatioSample", "struct LocalRatioSpec", "struct TwoResponseFit", "type WindowRows"]
+sha256 = "6ef78b73af36c77160617ed0d8af2b0b566245ae736ea1d5f64a251b506cedea"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/bayesian_local_ratio_reference.rs"
+items = ["const DRAWS", "fn floats", "fn the_paired_draws_follow_the_exact_numerator_denominator_and_ratio_laws", "fn within"]
+sha256 = "df09980fedd3fb6717307d17fa2be93370f3121aa1cffd0670d3859841fa7db0"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/bayesian_local_ratio_reference.py"
+sha256 = "81293776dd14d8304b8e014a3b117be34b3678b6610a68336271f0d9a33c5476"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/bayesian_local_ratio_reference.json"
+sha256 = "3e6532e648e0b89d026b90016bc8155b0bea6214a9db1ac8368cfd898b5699d3"

@@ -1,4 +1,4 @@
-//! Frozen structural truth through the licensed staged handle.
+//! Frozen structural truth through the supported staged handle.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::estimate::validate_static_pair;
 use antecedent::{AcceptedGraph, EstimatorId, IdentifierId, RefuteSuite, Study};
@@ -65,11 +65,14 @@ fn static_kinds_known_truth() {
                     .unwrap();
                 let prepared = study.prepare(&ctx).unwrap();
                 let result = prepared.estimate(&data, &ctx).unwrap();
+                // The direct effect is estimated to 5e-4 here; the pinned band governs the
+                // indirect and total effects, which carry the mediator's sampling error (0.018).
+                let band = if key == "direct" { 3e-3 } else { pin["tolerance"].as_f64().unwrap() };
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate - pin[key].as_f64().unwrap()).abs()
-                        < pin["tolerance"].as_f64().unwrap(),
+                    (result.estimate().as_effect().unwrap().ate - pin[key].as_f64().unwrap()).abs()
+                        < band,
                     "{key}: {:?}",
-                    result.estimate
+                    result.estimate()
                 );
                 assert!(
                     result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached")
@@ -147,17 +150,17 @@ fn fixed_dag_nested_natural_direct_effect_executes_and_refuses_other_graphs() {
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
-    assert_eq!(study.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(study.support_status(), Some(antecedent::support::CellStatus::Supported));
     let mut prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate_retained(&ctx).unwrap();
     let expected = pin["reference"]["natural_direct_effect"].as_f64().unwrap();
     assert!(
-        (result.estimate.as_effect().unwrap().ate - expected).abs() < 1e-3,
+        (result.estimate().as_effect().unwrap().ate - expected).abs() < 1e-3,
         "{:?}",
-        result.estimate
+        result.estimate()
     );
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("mediation.linear"));
-    assert!(result.interval.is_none(), "this route is point-only until separately calibrated");
+    assert!(result.interval().is_none(), "this route is point-only until separately calibrated");
 
     // The retained typed operation survives the builder and data refresh. A fresh
     // retained estimate repeats the refreshed result without reconstructing worlds
@@ -173,12 +176,12 @@ fn fixed_dag_nested_natural_direct_effect_executes_and_refuses_other_graphs() {
         ("y", refreshed_y.as_slice()),
     ])
     .unwrap();
-    let refreshed = prepared.refresh(refreshed_data, &ctx).unwrap();
-    assert!(refreshed.estimate.as_effect().unwrap().ate.is_finite());
+    let refreshed = rebind_estimate(&mut prepared, refreshed_data, &ctx).unwrap();
+    assert!(refreshed.estimate().as_effect().unwrap().ate.is_finite());
     let retained = prepared.estimate_retained(&ctx).unwrap();
     assert_eq!(
-        retained.estimate.as_effect().unwrap().ate.to_bits(),
-        refreshed.estimate.as_effect().unwrap().ate.to_bits()
+        retained.estimate().as_effect().unwrap().ate.to_bits(),
+        refreshed.estimate().as_effect().unwrap().ate.to_bits()
     );
 
     // A well-formed but incompatible DAG is refused with the stable cross-world reason.
@@ -339,11 +342,11 @@ fn confounded_static_kinds_are_not_the_observational_association() {
             .unwrap()
             .estimate(&data, &ctx)
             .unwrap();
+        let band = if key == "direct" { 3e-3 } else { pin["tolerance"].as_f64().unwrap() };
         assert!(
-            (result.estimate.as_effect().unwrap().ate - pin[key].as_f64().unwrap()).abs()
-                < pin["tolerance"].as_f64().unwrap(),
+            (result.estimate().as_effect().unwrap().ate - pin[key].as_f64().unwrap()).abs() < band,
             "{key}: {:?}",
-            result.estimate
+            result.estimate()
         );
     }
     let query = CounterfactualQuery::new(
@@ -434,21 +437,57 @@ fn accepted_counterfactual_matches_explicit() {
 }
 
 #[test]
-fn nested_counterfactual_refuses_before_execution() {
+fn permitting_nested_interventions_preserves_flat_effects() {
     let a = [0.0, 1.0, 2.0];
     let data = TabularData::from_f64_columns([("a", a.as_slice()), ("y", a.as_slice())]).unwrap();
     let mut graph = Dag::with_variables(2);
     graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    let mut query = CounterfactualQuery::new(
-        VariableId::from_raw(1),
-        [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
+    let context = ExecutionContext::for_tests(1);
+    let estimate = |allow_nested| {
+        let mut query = CounterfactualQuery::new(
+            VariableId::from_raw(1),
+            [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
+        );
+        query.allow_nested = allow_nested;
+        Study::tabular(data.clone())
+            .graph(graph.clone())
+            .query(CausalQuery::Counterfactual(query))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .prepare(&context)
+            .unwrap()
+            .estimate_retained(&context)
+            .unwrap()
+    };
+    let plain = estimate(false);
+    let permitted = estimate(true);
+    let plain = plain.counterfactual().unwrap();
+    let contrasts = permitted.counterfactual_contrasts().unwrap();
+    assert_eq!(contrasts.contrasts.len(), 1);
+    let permitted = contrasts.primary();
+    assert_eq!(permitted.unit_effects.len(), a.len());
+    assert!((plain.mean_ite - 1.0).abs() < 1e-8);
+    assert!((permitted.mean_ite - plain.mean_ite).abs() < 1e-12);
+    assert!(
+        permitted
+            .unit_effects
+            .iter()
+            .zip(plain.unit_effects.iter())
+            .all(|(a, b)| (a - b).abs() < 1e-12)
     );
-    query.allow_nested = true;
-    let result = Study::tabular(data)
-        .graph(graph)
-        .query(CausalQuery::Counterfactual(query))
-        .refute(RefuteSuite::None)
-        .build()
-        .and_then(|study| study.prepare(&ExecutionContext::for_tests(1)));
-    assert!(result.is_err());
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

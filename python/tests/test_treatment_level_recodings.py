@@ -17,6 +17,7 @@ import numpy as np
 import pytest
 from antecedent.errors import CausalError, CausalValueError
 from antecedent.estimators import Aipw, PropensityMatching, PropensityWeighting
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -52,14 +53,16 @@ def _coded(data: dict[str, np.ndarray], control: Any, active: Any) -> dict[str, 
 
 
 def _analyze(data: Any, estimator: Any, control: Any, active: Any) -> Any:
-    return ant.analyze(
-        data,
-        graph=STATIC_DAG,
-        query=ant.AverageEffect("t", "y", control_level=control, active_level=active),
-        estimator=estimator,
-        refute="none",
-        bootstrap=0,
-        seed=3,
+    return require_success(
+        ant.analyze(
+            data,
+            graph=STATIC_DAG,
+            query=ant.AverageEffect("t", "y", control_level=control, active_level=active),
+            estimator=estimator,
+            refute="none",
+            inference=ant.Frequentist(bootstrap=0),
+            execution=ant.Execution(seed=3),
+        )
     )
 
 
@@ -79,7 +82,7 @@ def test_equivalent_treatment_recodings_agree(estimator: Any) -> None:
         for name, (control, active) in CODINGS.items()
     }
     base = results["0/1"]
-    assert abs(base.answer.value - EFFECT) < 0.25
+    assert abs(base.answer.value - EFFECT) < 0.1
     for name, (control, active) in CODINGS.items():
         result = results[name]
         assert result.answer.value == base.answer.value, name
@@ -120,16 +123,20 @@ def test_refresh_encodes_a_new_table_by_the_same_declared_labels() -> None:
         query=ant.AverageEffect("t", "y", control_level="a", active_level="b"),
         estimator=PropensityWeighting(bootstrap=0),
         refute="none",
-        bootstrap=0,
-        seed=3,
+        inference=ant.Frequentist(bootstrap=0),
+        execution=ant.Execution(seed=3),
     )
-    first = prepared.estimate()
-    again = prepared.refresh(labelled)
+    outcome = ant.estimate(prepared)
+    first = require_success(outcome)
+    again = require_success(ant.estimate(ant.rebind(prepared, data=labelled)))
     assert again.answer.value == first.answer.value
     assert again.estimand_text == first.estimand_text == "E[y | do(t='b')] - E[y | do(t='a')]"
     # A refreshed table with other outcomes keeps the mapping and moves the estimate.
     shifted = {**labelled, "y": labelled["y"] + 1.0 * data["t"]}
-    assert prepared.refresh(shifted).answer.value > first.answer.value + 0.5
+    assert (
+        require_success(ant.estimate(ant.rebind(prepared, data=shifted))).answer.value
+        > first.answer.value + 0.5
+    )
 
 
 def test_a_row_at_another_label_is_refused_not_dropped() -> None:

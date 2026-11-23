@@ -11,7 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import _temporal_capture_transfer as transfer
-import calibration_facets as facets
+import calibration_key_aliases as aliases
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -74,13 +74,13 @@ class TemporalTransfer(unittest.TestCase):
         self.assertEqual(payload, before)
         self.assertEqual(derived[transfer.RECORD]["se_kind"], "percentile")
         self.assertEqual(
-            facets.compare_replay(derived[transfer.RECORD], payload[transfer.RECORD]),
+            aliases.compare_replay(derived[transfer.RECORD], payload[transfer.RECORD]),
             [
                 f"{transfer.RECORD}: se_kind stored 'percentile' replayed 'percentile_or_logical_support'"
             ],
         )
         self.assertTrue(
-            facets._bit_equal(
+            aliases._bit_equal(
                 derived[transfer.RECORD] | {"se_kind": transfer.OLD_KIND},
                 before[transfer.RECORD],
             )
@@ -164,7 +164,7 @@ class TemporalTransfer(unittest.TestCase):
                         [transfer.RECORD, *transfer.ORDINARY_RECORDS],
                         ROOT,
                         lambda paths: payloads,
-                        facets._bit_equal,
+                        aliases._bit_equal,
                     )
 
             self.assertEqual(load(capture), capture["payloads"])
@@ -306,7 +306,7 @@ class TemporalTransfer(unittest.TestCase):
                         [transfer.RECORD],
                         ROOT,
                         lambda paths: payloads,
-                        facets._bit_equal,
+                        aliases._bit_equal,
                     )
 
             self.assertEqual(load(capture), capture["payloads"])

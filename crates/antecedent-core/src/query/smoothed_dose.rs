@@ -1,5 +1,5 @@
 //! Kernel-smoothed dose-response transport query.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //!
 //! The estimand is `psi_h(a) = E_target[ integral K_h(a - t) E(Y | X, A=t, S=1) dt ]` for
 //! each declared grid dose `a`, one declared bandwidth `h` and the declared kernel `K`.
@@ -12,6 +12,7 @@
 //! what keep the routes apart.
 
 use super::TransportQuery;
+use super::fault::ResponseFault;
 use super::{ContinuousDomain, GridSpec, QueryError, ResponseFunctional, ResponseQuery};
 use crate::ids::VariableId;
 use std::sync::Arc;
@@ -81,6 +82,10 @@ impl SmoothedDoseTransportQuery {
     /// grid, a non-finite or repeated grid dose, a non-positive or non-finite bandwidth,
     /// an empty or non-finite dose support, blank or equal population keys, or a blank
     /// density provenance.
+    #[allow(
+        clippy::float_cmp,
+        reason = "The grid forbids duplicate dose coordinates by exact numeric equality."
+    )]
     pub fn validate(&self) -> Result<(), QueryError> {
         let (lo, hi) = self.dose_support;
         let mut sorted = self.grid.to_vec();
@@ -88,7 +93,7 @@ impl SmoothedDoseTransportQuery {
         if self.outcome == self.dose
             || self.grid.is_empty()
             || self.grid.iter().any(|a| !a.is_finite())
-            || sorted.windows(2).any(|pair| pair[0].total_cmp(&pair[1]).is_eq())
+            || sorted.windows(2).any(|pair| pair[0] == pair[1])
             || !self.bandwidth.is_finite()
             || self.bandwidth <= 0.0
             || !lo.is_finite()
@@ -99,13 +104,7 @@ impl SmoothedDoseTransportQuery {
             || self.source_population == self.target_population
             || self.density_provenance.trim().is_empty()
         {
-            return Err(QueryError::InvalidResponse(
-                "a smoothed dose-response transport query needs distinct dose and outcome \
-                 coordinates, a non-empty grid of distinct finite doses, a positive finite \
-                 bandwidth, a finite dose support lo < hi, distinct population keys and a \
-                 density provenance"
-                    .into(),
-            ));
+            return Err(QueryError::InvalidResponse(ResponseFault::SmoothedDoseDeclaration));
         }
         Ok(())
     }
@@ -144,6 +143,17 @@ mod tests {
             dose_support: (0.0, 4.0),
             density_provenance: Arc::from("known"),
         }
+    }
+
+    #[test]
+    fn signed_zeroes_are_the_same_dose_but_an_individual_zero_is_valid() {
+        let duplicate = SmoothedDoseTransportQuery { grid: Arc::from([-0.0, 0.0]), ..query() };
+        assert!(matches!(
+            duplicate.validate(),
+            Err(QueryError::InvalidResponse(ResponseFault::SmoothedDoseDeclaration))
+        ));
+        let negative_only = SmoothedDoseTransportQuery { grid: Arc::from([-0.0]), ..query() };
+        assert!(negative_only.validate().is_ok());
     }
 
     #[test]

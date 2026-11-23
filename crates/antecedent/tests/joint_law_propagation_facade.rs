@@ -75,8 +75,8 @@ fn artifact(
             shape: [x.len(), 2],
             weights: None,
             supported: None,
-            calibration: DistributionCalibration::Unmeasured,
-            trust: DistributionTrust::NativeLicensed,
+            calibration: DistributionCalibration::NotMeasured,
+            trust: DistributionTrust::NativeSupported,
             legacy_posterior: None,
             legacy_bindings: None,
         },
@@ -150,7 +150,10 @@ fn index_pairing_of_unrelated_marginal_artifacts_is_refused() {
     )
     .expect_err("refused");
     assert_eq!(error.code(), "joint_law_required");
-    assert_eq!(error.details(), vec!["joint_law_propagation.alignment_mismatch"]);
+    assert_eq!(
+        error.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::ALIGNMENT_MISMATCH]
+    );
     // Independently sampled marginals are never paired by index.
     let marginals = artifact("snap-marginals", DrawAlignment::IndependentMarginals, &x, &y);
     let mx = PropagationDraws::from_artifact_column("mx", &marginals, 0).expect("mx");
@@ -164,7 +167,10 @@ fn index_pairing_of_unrelated_marginal_artifacts_is_refused() {
     )
     .expect_err("refused");
     assert_eq!(error.code(), "joint_law_required");
-    assert_eq!(error.details(), vec!["joint_law_propagation.index_pairing_refused"]);
+    assert_eq!(
+        error.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED]
+    );
     assert!(alignment_identity(&marginals).is_err());
 }
 
@@ -226,7 +232,12 @@ fn a_covariance_aware_contrast_agrees_between_moments_and_aligned_draws() {
     )
     .expect_err("shared evidence");
     assert_eq!(error.code(), "evidence_double_counted");
-    assert_eq!(error.details(), vec!["joint_law_propagation.shared_evidence_declared_independent"]);
+    assert_eq!(
+        error.details(),
+        vec![
+            antecedent_core::reason_details::joint_law_propagation::SHARED_EVIDENCE_DECLARED_INDEPENDENT
+        ]
+    );
 }
 
 #[test]
@@ -275,7 +286,10 @@ fn known_weight_mixture_and_missing_weights() {
         &ctx(),
     )
     .expect_err("refused");
-    assert_eq!(error.details(), vec!["joint_law_propagation.mixture_weights_unknown"]);
+    assert_eq!(
+        error.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::MIXTURE_WEIGHTS_UNKNOWN]
+    );
 }
 
 #[test]
@@ -313,15 +327,17 @@ fn the_dependence_envelope_is_labelled_and_never_a_point_or_an_interval() {
     // The envelope states no point and no interval.
     for refusal in [cdf.interval(), cdf.posterior()] {
         let error = refusal.expect_err("closed");
-        assert_eq!(error.code(), "cell_not_licensed");
+        assert_eq!(error.code(), "uncertainty_representation_insufficient");
     }
     assert_eq!(
         cdf.interval().expect_err("closed").details(),
-        vec!["joint_law_propagation.interval_route_closed"]
+        vec![antecedent_core::reason_details::joint_law_propagation::NO_INTERVAL_CONSTRUCTION]
     );
     assert_eq!(
         cdf.posterior().expect_err("closed").details(),
-        vec!["joint_law_propagation.posterior_route_closed"]
+        vec![
+            antecedent_core::reason_details::joint_law_propagation::NO_POSTERIOR_FOR_FIXED_LAW_INPUTS
+        ]
     );
     // A value function without a verified sign structure is refused.
     let refused = propagate_dependence_envelope(
@@ -333,7 +349,10 @@ fn the_dependence_envelope_is_labelled_and_never_a_point_or_an_interval() {
     )
     .expect_err("refused");
     assert_eq!(refused.code(), "route_not_supported");
-    assert_eq!(refused.details(), vec!["joint_law_propagation.structure_not_verified"]);
+    assert_eq!(
+        refused.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::STRUCTURE_NOT_VERIFIED]
+    );
 }
 
 #[test]
@@ -375,7 +394,10 @@ fn the_artifact_replays_in_a_fresh_consumer_and_every_mutation_is_refused() {
     // A retained identity that differs is refused.
     let error =
         consume_joint_law_propagation_artifact(&bytes, Some("other"), &ctx()).expect_err("refused");
-    assert_eq!(error.details(), vec!["joint_law_propagation.artifact_refused"]);
+    assert_eq!(
+        error.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::ARTIFACT_REFUSED]
+    );
     // Every sampled single-byte change either fails to decode or fails to
     // verify; none replays to a different accepted claim.
     for position in (0..bytes.len()).step_by((bytes.len() / 64).max(1)) {
@@ -415,13 +437,62 @@ fn a_transported_interval_needs_an_aligned_law_or_a_covariance() {
     };
     let error = propagate(&unknown, numbers.clone(), &ctx()).expect_err("refused");
     assert_eq!(error.code(), "joint_law_required");
-    assert_eq!(error.details(), vec!["joint_law_propagation.transported_dependence_required"]);
+    assert_eq!(
+        error.details(),
+        vec![
+            antecedent_core::reason_details::joint_law_propagation::TRANSPORTED_DEPENDENCE_REQUIRED
+        ]
+    );
     transported.role = InputRole::SourceSampling;
     let with_covariance = PropagationRequest {
         dependence: PropagationDependence::Covariance { id: "shared-source-evidence".into() },
         inputs: vec![transported, other],
         ..unknown
     };
-    let claim = propagate(&with_covariance, numbers, &ctx()).expect("covariance licenses it");
+    let claim = propagate(&with_covariance, numbers, &ctx()).expect("covariance supports it");
     assert!((claim.value("variance").expect("variance") - 2.5).abs() < 1e-15);
+}
+
+/// Inputs resting on evidence-ledger sources: the ledger, not the equality of their
+/// evidence identities, decides which declared independence holds. Sources hold the rows
+/// a = {1, 2, 3}, b = {3, 4} and c = {7, 8}; only a and b share a row.
+#[test]
+fn ledger_sources_decide_the_overlap_of_draws_inputs() {
+    use antecedent_contract::evidence_ledger::{
+        EvidenceLedger, ObservationId, SourceDeclaration, SourceKind,
+    };
+    use antecedent_contract::{check_propagation, check_propagation_with_ledger};
+    let mut ledger = EvidenceLedger::new();
+    let mut source = |label: &str, rows: &[u8]| {
+        ledger
+            .add_source(
+                SourceDeclaration::new(label, SourceKind::ObservationSet).with_observations(
+                    rows.iter().copied().map(|r| ObservationId::from_key("trial", &[r])),
+                ),
+            )
+            .unwrap()
+    };
+    let (a, b, c) = (source("a", &[1, 2, 3]), source("b", &[3, 4]), source("c", &[7, 8]));
+    let draws = |id: &str, on| {
+        PropagationDraws::independent_marginal(id, "unbound", vec![0.0, 1.0, 2.0])
+            .with_evidence_source(on)
+    };
+    let (x, y, z) = (draws("x", a), draws("y", b), draws("z", c));
+    assert_eq!(x.input().evidence_id, a.to_hex(), "the input rests on its ledger source");
+    let independent = |first: &PropagationDraws, second: &PropagationDraws| PropagationRequest {
+        operation: PropagationOperation::Sum,
+        inputs: vec![first.input(), second.input()],
+        dependence: PropagationDependence::DeclaredIndependent,
+        reading: RequestedReading::Point,
+    };
+    // Without the ledger, distinct sources look disjoint.
+    assert!(check_propagation(&independent(&x, &y)).is_ok());
+    // The ledger finds the shared row and refuses the declared independence.
+    let shared = check_propagation_with_ledger(&independent(&x, &y), &ledger).unwrap_err();
+    assert_eq!(
+        shared.detail,
+        antecedent_core::reason_details::joint_law_propagation::SHARED_EVIDENCE_DECLARED_INDEPENDENT
+    );
+    let disjoint = check_propagation_with_ledger(&independent(&x, &z), &ledger).unwrap();
+    assert!(disjoint.shared_evidence.is_empty());
 }

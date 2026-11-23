@@ -16,8 +16,13 @@
 //!     uncertainty by the first-order delta method for functionals of
 //!     interventional means;
 //!   - finite-discrete conditional tables, executed by exact enumeration and
-//!     truncated factorization; parameter uncertainty is not propagated (the
-//!     route is point-only).
+//!     truncated factorization; parameter uncertainty is not propagated by this
+//!     module (the executor is point-only; the retained-data redraw in
+//!     `observation_uncertainty` re-executes it under posterior draws).
+//!
+//!   Conditioning on observed real values of a linear-Gaussian composition is
+//!   the Schur complement of the observed block of its (possibly intervened)
+//!   joint law ([`JointGaussian::condition`]).
 //! - **Declared, not discovered**: a mechanism enters a composition only
 //!   through [`MechanismDescriptor`]. Nothing is inferred about units,
 //!   populations, shared causes or dependence from names or fits.
@@ -31,7 +36,7 @@
 //! The semantic mapping from scientific quantities to these descriptors lives
 //! in `antecedent-contract`; this crate carries no claim vocabulary.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub mod coherence;
 pub mod descriptor;
@@ -55,8 +60,8 @@ pub use descriptor::{
     SelectionNodeDeclaration, TabularRow, UncertaintyMeaning,
 };
 pub use gaussian::{
-    ComposedLinearGaussian, ContrastArm, FunctionalUncertainty, JointGaussian, MeanContrast,
-    SampleTable,
+    ComposedLinearGaussian, ConditionedGaussian, ContrastArm, FunctionalUncertainty,
+    GaussianConditioningError, JointGaussian, MeanContrast, SampleTable,
 };
 pub use tabular::{ComposedFinite, FiniteLaw};
 
@@ -82,6 +87,18 @@ pub fn noise_stream_index(role: u64, name: &str) -> u64 {
         h = mix64(h ^ u64::from(b));
     }
     h
+}
+
+/// A topological simulation refused a directed cycle and named the next attempt.
+fn cyclic_simulation_refusal(consumer: &'static str, attempt: &'static str) -> CompositionError {
+    CompositionError::Numerical {
+        message: antecedent_graph::error::CyclicDagRefusal::unsupported(
+            antecedent_graph::error::DagOperation::Simulation,
+            consumer,
+            attempt,
+        )
+        .to_string(),
+    }
 }
 
 /// Why a composition could not be compiled or executed.
@@ -125,4 +142,19 @@ impl CompositionError {
 
 pub(crate) fn incoherent(finding: CoherenceFinding) -> CompositionError {
     CompositionError::Incoherent { findings: vec![finding] }
+}
+
+#[cfg(test)]
+mod cyclic_refusal_tests {
+    use super::{CompositionError, cyclic_simulation_refusal};
+
+    #[test]
+    fn simulation_refusal_preserves_consumer_and_attempt() {
+        assert_eq!(
+            cyclic_simulation_refusal("consumer", "try\nthis"),
+            CompositionError::Numerical {
+                message: "simulation refused a directed cycle; next attempt: consumer has no cyclic support; next attempt: try\nthis".into(),
+            }
+        );
+    }
 }

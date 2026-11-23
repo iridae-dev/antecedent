@@ -8,7 +8,7 @@
 //! graph (Lauritzen et al. 1990 / Pearl 1988), whose neighbor order the
 //! certificates depend on.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::many_single_char_names, reason = "x, y, z are standard d-separation names")]
 
@@ -342,10 +342,10 @@ impl Dag {
         ws: &mut DSeparationWorkspace,
         overlay: Option<&GraphOverlay>,
     ) -> Result<bool, GraphError> {
-        self.validate_node_pub(x)?;
-        self.validate_node_pub(y)?;
+        self.validate_node(x)?;
+        self.validate_node(y)?;
         for &v in z {
-            self.validate_node_pub(v)?;
+            self.validate_node(v)?;
         }
         if x == y {
             return Ok(false);
@@ -392,10 +392,10 @@ impl Dag {
         ws: &mut DSeparationWorkspace,
         overlay: Option<&GraphOverlay>,
     ) -> Result<SeparationResult, GraphError> {
-        self.validate_node_pub(x)?;
-        self.validate_node_pub(y)?;
+        self.validate_node(x)?;
+        self.validate_node(y)?;
         for &v in z {
-            self.validate_node_pub(v)?;
+            self.validate_node(v)?;
         }
         if z.iter().any(|&v| v == x || v == y) {
             return Err(GraphError::InvalidEndpoints {

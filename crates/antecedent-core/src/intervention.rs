@@ -3,14 +3,358 @@
 //! enables hard, shift, stochastic, soft, and sequenced interventions.
 //! Estimators that only support hard `Set` continue to reject other variants.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+mod capability;
+
+pub use capability::{
+    AdmitError, CYCLIC_CONTINUOUS_TIME_ATTEMPT, CYCLIC_DRIFT_INPUT_ATTEMPT,
+    CYCLIC_PER_LEVEL_CLAMP_ATTEMPT, CYCLIC_SOFT_REPLACEMENT_ATTEMPT,
+    CYCLIC_SUPPORTED_OPERATION_ATTEMPT, CYCLIC_UNTIMED_CLAMP_ATTEMPT, CapabilityRefusal,
+    CyclicFamily, ExecutionSurface, InterventionOperation,
+};
 
 use std::sync::Arc;
 
 use crate::callback::Portability;
+use crate::canonical_encode::{CanonicalEncode, count, i32_bits};
+use crate::identity::CanonicalWriter;
 use crate::ids::{DynamicRuleId, VariableId};
 use crate::value::Value;
 use crate::value_expr::{ExpressionFault, PolicyReads, ValueExpr};
+
+/// Caller-authorized finite ceilings for temporal materialization.
+/// These logical limits remain in force even if the execution pool is unbounded.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TemporalMaterializationLimits {
+    /// Maximum total active offsets expanded by one operation.
+    pub max_offsets: u64,
+    /// Maximum total logical work across one operation.
+    pub max_work: u64,
+    /// Maximum bytes charged to an individual admitted materialization.
+    pub max_bytes: u64,
+    /// Maximum dense nodes in one unrolled graph.
+    pub max_graph_nodes: u64,
+    /// Maximum edge insertions and induced-pair candidates in one unroll.
+    pub max_graph_edges: u64,
+}
+
+impl Default for TemporalMaterializationLimits {
+    fn default() -> Self {
+        Self {
+            max_offsets: 100_000,
+            max_work: 100_000_000,
+            max_bytes: 256 * 1024 * 1024,
+            max_graph_nodes: 100_000,
+            max_graph_edges: 1_000_000,
+        }
+    }
+}
+
+/// Cumulative logical allowance shared by all stages of one temporal operation.
+/// Clones share the same counters, including across concurrent workers.
+/// Resident bytes remain charged separately to the leases owning allocations.
+#[derive(Clone, Debug)]
+pub struct TemporalBudget {
+    limits: TemporalMaterializationLimits,
+    remaining_offsets: Arc<std::sync::atomic::AtomicU64>,
+    remaining_work: Arc<std::sync::atomic::AtomicU64>,
+}
+impl TemporalBudget {
+    /// Start a fresh top-level operation with finite caller-selected limits.
+    #[must_use]
+    pub fn new(limits: TemporalMaterializationLimits) -> Self {
+        Self {
+            remaining_offsets: Arc::new(std::sync::atomic::AtomicU64::new(limits.max_offsets)),
+            remaining_work: Arc::new(std::sync::atomic::AtomicU64::new(limits.max_work)),
+            limits,
+        }
+    }
+    /// Per-materialization byte and per-graph shape limits.
+    #[must_use]
+    pub const fn limits(&self) -> TemporalMaterializationLimits {
+        self.limits
+    }
+    /// Charge logical expansion before traversing or allocating it.
+    ///
+    /// # Errors
+    /// Returns a limit error when the remaining offset budget is insufficient.
+    pub fn charge_offsets(&mut self, count: u64) -> Result<(), TemporalMaterializationError> {
+        self.remaining_offsets
+            .fetch_update(
+                std::sync::atomic::Ordering::Relaxed,
+                std::sync::atomic::Ordering::Relaxed,
+                |remaining| remaining.checked_sub(count),
+            )
+            .map_err(|_| TemporalMaterializationError::Limit { dimension: "offsets" })?;
+        Ok(())
+    }
+    /// Charge work before starting the bounded operation.
+    ///
+    /// # Errors
+    /// Returns a limit error when the remaining work budget is insufficient.
+    pub fn charge_work(&mut self, count: u64) -> Result<(), TemporalMaterializationError> {
+        self.remaining_work
+            .fetch_update(
+                std::sync::atomic::Ordering::Relaxed,
+                std::sync::atomic::Ordering::Relaxed,
+                |remaining| remaining.checked_sub(count),
+            )
+            .map_err(|_| TemporalMaterializationError::Limit { dimension: "work" })?;
+        Ok(())
+    }
+}
+
+/// Admission retained while generic intervention validation constructs temporary read/target sets.
+/// The visitor is allocation-free and stops before recursive validation at 64 levels.
+///
+/// # Errors
+/// Returns an error when resource admission, cancellation, or a traversal limit refuses the request.
+#[allow(
+    clippy::too_many_lines,
+    reason = "The visitor and its bounded traversal share the operation’s resource accounting."
+)]
+pub fn admit_temporal_intervention_validation<'a>(
+    interventions: impl IntoIterator<Item = &'a Intervention>,
+    budget: &mut TemporalBudget,
+    ctx: &crate::ExecutionContext,
+) -> Result<crate::execution::AdmissionLease, TemporalMaterializationError> {
+    struct Visitor<'a> {
+        budget: &'a mut TemporalBudget,
+        ctx: &'a crate::ExecutionContext,
+        bytes: u64,
+        expr_nodes: u64,
+        intervention_nodes: u64,
+    }
+    impl Visitor<'_> {
+        fn add(&mut self, work: u64, bytes: u64) -> Result<(), TemporalMaterializationError> {
+            if self.ctx.cancellation.is_cancelled() {
+                return Err(TemporalMaterializationError::Cancelled);
+            }
+            self.budget.charge_work(work)?;
+            self.bytes = self
+                .bytes
+                .checked_add(bytes)
+                .ok_or(TemporalMaterializationError::Limit { dimension: "bytes" })?;
+            if self.bytes > self.budget.limits().max_bytes {
+                return Err(TemporalMaterializationError::Limit { dimension: "bytes" });
+            }
+            Ok(())
+        }
+        fn expression(
+            &mut self,
+            expr: &ValueExpr,
+            depth: usize,
+        ) -> Result<(), TemporalMaterializationError> {
+            if depth > crate::value_expr::MAX_EXPR_DEPTH {
+                return Err(TemporalMaterializationError::Limit { dimension: "expression depth" });
+            }
+            self.add(8, 256)?;
+            self.expr_nodes = self
+                .expr_nodes
+                .checked_add(1)
+                .ok_or(TemporalMaterializationError::Limit { dimension: "work" })?;
+            match expr {
+                ValueExpr::Neg(a) | ValueExpr::Not(a) | ValueExpr::Indicator(a) => {
+                    self.expression(a, depth + 1)?
+                }
+                ValueExpr::Arith { lhs, rhs, .. }
+                | ValueExpr::Compare { lhs, rhs, .. }
+                | ValueExpr::Logic { lhs, rhs, .. } => {
+                    self.expression(lhs, depth + 1)?;
+                    self.expression(rhs, depth + 1)?;
+                }
+                ValueExpr::Clip { value, lower, upper } => {
+                    self.expression(value, depth + 1)?;
+                    self.expression(lower, depth + 1)?;
+                    self.expression(upper, depth + 1)?;
+                }
+                ValueExpr::If { condition, then_branch, else_branch } => {
+                    self.expression(condition, depth + 1)?;
+                    self.expression(then_branch, depth + 1)?;
+                    self.expression(else_branch, depth + 1)?;
+                }
+                ValueExpr::Callback(call) => {
+                    let spec = call.spec();
+                    let n = spec.inputs.len() as u64;
+                    self.add(n, 0)?;
+                    let mut longest = 0u64;
+                    for label in spec.inputs.iter() {
+                        if self.ctx.cancellation.is_cancelled() {
+                            return Err(TemporalMaterializationError::Cancelled);
+                        }
+                        longest = longest.max(label.len() as u64);
+                    }
+                    let comparisons = n
+                        .checked_mul(n)
+                        .and_then(|v| v.checked_mul(longest.max(1)))
+                        .ok_or(TemporalMaterializationError::Limit { dimension: "work" })?;
+                    self.add(comparisons, 0)?;
+                    if let crate::callback::CallbackOutput::Levels(levels) = &spec.output {
+                        self.add(levels.len() as u64, 0)?;
+                    }
+                    self.add(call.args().len() as u64, 0)?;
+                    for arg in call.args() {
+                        self.expression(arg, depth + 1)?;
+                    }
+                }
+                ValueExpr::Const(_)
+                | ValueExpr::Generated
+                | ValueExpr::Var(_)
+                | ValueExpr::Lag { .. } => {}
+            }
+            Ok(())
+        }
+        fn intervention(
+            &mut self,
+            item: &Intervention,
+            depth: usize,
+        ) -> Result<(), TemporalMaterializationError> {
+            if depth > crate::value_expr::MAX_EXPR_DEPTH {
+                return Err(TemporalMaterializationError::Limit {
+                    dimension: "intervention depth",
+                });
+            }
+            self.add(4, 1024)?;
+            self.intervention_nodes = self
+                .intervention_nodes
+                .checked_add(1)
+                .ok_or(TemporalMaterializationError::Limit { dimension: "work" })?;
+            match item {
+                Intervention::Set { .. } | Intervention::Shift { .. } => {}
+                Intervention::Soft { mechanism, .. } => {
+                    self.add(mechanism.parameters.len() as u64, 0)?
+                }
+                Intervention::Stochastic { policy, .. } => {
+                    if let StochasticPolicy::Categorical { probs } = policy {
+                        self.add((probs.len() as u64).saturating_mul(2), 0)?;
+                    }
+                }
+                Intervention::Transform { expr, reads, .. }
+                | Intervention::Assign { expr, reads, .. } => {
+                    self.add(
+                        (reads.current.len() as u64).saturating_add(reads.history.len() as u64),
+                        0,
+                    )?;
+                    self.expression(expr, 1)?;
+                }
+                Intervention::Sequence(sequence) => {
+                    let n = sequence.steps.len() as u64;
+                    self.add(
+                        n.checked_mul(n)
+                            .and_then(|x| x.checked_add(n))
+                            .ok_or(TemporalMaterializationError::Limit { dimension: "work" })?,
+                        n.checked_mul(128)
+                            .ok_or(TemporalMaterializationError::Limit { dimension: "bytes" })?,
+                    )?;
+                    for step in sequence.steps.iter() {
+                        self.intervention(&step.intervention, depth + 1)?;
+                    }
+                }
+            }
+            Ok(())
+        }
+    }
+    let mut visitor = Visitor { budget, ctx, bytes: 4096, expr_nodes: 0, intervention_nodes: 0 };
+    for item in interventions {
+        visitor.intervention(item, 1)?;
+    }
+    // Read-set construction sorts collected variables. Charge a conservative
+    // log factor for all expression nodes, in addition to the visits above.
+    let interventions = visitor.intervention_nodes;
+    visitor.add(
+        interventions
+            .checked_mul(interventions)
+            .and_then(|n| n.checked_mul(64))
+            .ok_or(TemporalMaterializationError::Limit { dimension: "work" })?,
+        0,
+    )?;
+    let n = visitor.expr_nodes;
+    let log = u64::from(64 - n.max(1).leading_zeros());
+    visitor.add(
+        n.checked_mul(log)
+            .and_then(|x| x.checked_mul(8))
+            .ok_or(TemporalMaterializationError::Limit { dimension: "work" })?,
+        0,
+    )?;
+    let bytes = visitor.bytes;
+    ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        crate::execution::AdmissionError::Cancelled => TemporalMaterializationError::Cancelled,
+        other => TemporalMaterializationError::Admission(other),
+    })
+}
+
+/// An invalid policy or an operational refusal to materialize it.
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
+pub enum TemporalMaterializationError {
+    /// Policy shape is invalid.
+    #[error(transparent)]
+    Policy(#[from] InterventionError),
+    /// Caller-selected logical or size ceiling was exceeded.
+    #[error("temporal materialization limit exceeded: {dimension}")]
+    Limit {
+        /// Which materialization bound was exceeded.
+        dimension: &'static str,
+    },
+    /// Admission was refused.
+    #[error(transparent)]
+    Admission(#[from] crate::execution::AdmissionError),
+    /// Cancellation was observed.
+    #[error("temporal materialization cancelled")]
+    Cancelled,
+    /// The allocator refused the bounded allocation.
+    #[error("temporal allocation failed")]
+    Allocation,
+}
+
+/// Allocation-free ordered policy traversal. Callers doing long work must poll
+/// cancellation and enforce a logical-work limit while consuming the iterator.
+pub enum TemporalOffsetIter<'a> {
+    /// One offset.
+    Pulse(std::option::IntoIter<i32>),
+    /// Inclusive sustained range, including ranges reaching `i32::MAX`.
+    Sustained(std::ops::RangeInclusive<i32>),
+    /// Borrowed dynamic schedule.
+    Dynamic(std::iter::Copied<std::slice::Iter<'a, i32>>),
+}
+impl Iterator for TemporalOffsetIter<'_> {
+    type Item = i32;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Pulse(iter) => iter.next(),
+            Self::Sustained(iter) => iter.next(),
+            Self::Dynamic(iter) => iter.next(),
+        }
+    }
+}
+
+/// An admitted offset buffer; clones share both its data and its lease.
+#[derive(Clone, Debug)]
+pub struct AdmittedTemporalOffsets(Arc<AdmittedTemporalOffsetsInner>);
+#[derive(Debug)]
+struct AdmittedTemporalOffsetsInner {
+    values: Box<[i32]>,
+    _lease: crate::execution::AdmissionLease,
+}
+impl AdmittedTemporalOffsets {
+    /// Borrow offsets. A separately copied slice is owned by its caller.
+    #[must_use]
+    pub fn as_slice(&self) -> &[i32] {
+        &self.0.values
+    }
+}
+impl AsRef<[i32]> for AdmittedTemporalOffsets {
+    fn as_ref(&self) -> &[i32] {
+        self.as_slice()
+    }
+}
+impl std::ops::Deref for AdmittedTemporalOffsets {
+    type Target = [i32];
+    fn deref(&self) -> &Self::Target {
+        self.as_slice()
+    }
+}
 
 /// Temporal intervention policy over discrete time steps.
 ///
@@ -41,6 +385,25 @@ pub enum TemporalPolicy {
         /// Non-empty sorted unique step offsets where the intervention is active.
         active_at: Arc<[i32]>,
     },
+}
+
+impl CanonicalEncode for TemporalPolicy {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Pulse { at } => {
+                writer.word(1).word(i32_bits(*at));
+            }
+            Self::Sustained { from, until } => {
+                writer.word(2).word(i32_bits(*from)).word(i32_bits(*until));
+            }
+            Self::Dynamic { rule, active_at } => {
+                writer.word(3).word(u64::from(rule.raw())).word(count(active_at.len()));
+                for step in active_at.as_ref() {
+                    writer.word(i32_bits(*step));
+                }
+            }
+        }
+    }
 }
 
 impl TemporalPolicy {
@@ -97,31 +460,88 @@ impl TemporalPolicy {
         }
     }
 
-    /// Active treatment offsets (Pulse: `[at]`; Sustained: `from..=until`; Dynamic: schedule).
-    ///
+    /// Number of active offsets without expanding the policy.
     /// # Errors
-    ///
-    /// Empty dynamic schedule or inverted sustained window.
-    pub fn active_offsets(&self) -> Result<Arc<[i32]>, InterventionError> {
-        match self {
-            Self::Pulse { at } => Ok(Arc::from([*at])),
-            Self::Sustained { from, until } => {
-                if *until < *from {
-                    return Err(InterventionError::InvalidTemporalWindow {
-                        from: *from,
-                        until: *until,
-                    });
-                }
-                let steps: Vec<i32> = (*from..=*until).collect();
-                Ok(Arc::from(steps))
-            }
+    /// An inverted sustained window or empty dynamic schedule.
+    pub fn offset_count(&self) -> Result<u64, InterventionError> {
+        self.validate()?;
+        Ok(match self {
+            Self::Pulse { .. } => 1,
+            Self::Sustained { from, until } => u64::from(until.abs_diff(*from)) + 1,
+            Self::Dynamic { active_at, .. } => active_at.len() as u64,
+        })
+    }
+
+    /// Traverse offsets without allocating the expanded schedule.
+    /// # Errors
+    /// An inverted sustained window or empty dynamic schedule.
+    pub fn offsets(&self) -> Result<TemporalOffsetIter<'_>, InterventionError> {
+        self.validate()?;
+        Ok(match self {
+            Self::Pulse { at } => TemporalOffsetIter::Pulse(Some(*at).into_iter()),
+            Self::Sustained { from, until } => TemporalOffsetIter::Sustained(*from..=*until),
             Self::Dynamic { active_at, .. } => {
-                if active_at.is_empty() {
-                    return Err(InterventionError::EmptyDynamicSchedule);
-                }
-                Ok(Arc::clone(active_at))
+                TemporalOffsetIter::Dynamic(active_at.iter().copied())
             }
+        })
+    }
+
+    /// Materialize a schedule only after checking logical limits and reserving
+    /// bytes. The returned handle and its clones retain the memory lease.
+    /// # Errors
+    /// Invalid policy, caller limit, cancellation, admission or allocation failure.
+    pub fn active_offsets_within(
+        &self,
+        budget: &mut TemporalBudget,
+        ctx: &crate::ExecutionContext,
+    ) -> Result<AdmittedTemporalOffsets, TemporalMaterializationError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(TemporalMaterializationError::Cancelled);
         }
+        let count = self.offset_count()?;
+        budget.charge_offsets(count)?;
+        budget.charge_work(count)?;
+        let limits = budget.limits();
+        // Vec-to-box may transiently move the allocation. Include both buffers
+        // plus the returned Arc/lease bookkeeping in the admission.
+        let bytes = count
+            .checked_mul(8)
+            .and_then(|n| n.checked_add(256))
+            .ok_or(TemporalMaterializationError::Limit { dimension: "bytes" })?;
+        if bytes > limits.max_bytes {
+            return Err(TemporalMaterializationError::Limit { dimension: "bytes" });
+        }
+        let len = usize::try_from(count)
+            .map_err(|_| TemporalMaterializationError::Limit { dimension: "offsets" })?;
+        let lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+            crate::execution::AdmissionError::Cancelled => TemporalMaterializationError::Cancelled,
+            other => TemporalMaterializationError::Admission(other),
+        })?;
+        let mut values = Vec::new();
+        values.try_reserve_exact(len).map_err(|_| TemporalMaterializationError::Allocation)?;
+        for (index, offset) in self.offsets()?.enumerate() {
+            if index % 1024 == 0 && ctx.cancellation.is_cancelled() {
+                return Err(TemporalMaterializationError::Cancelled);
+            }
+            values.push(offset);
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Err(TemporalMaterializationError::Cancelled);
+        }
+        Ok(AdmittedTemporalOffsets(Arc::new(AdmittedTemporalOffsetsInner {
+            values: values.into_boxed_slice(),
+            _lease: lease,
+        })))
+    }
+
+    /// Active offsets under finite default limits. Use `active_offsets_within`
+    /// to supply the caller's shared operation budget and cancellation context.
+    /// # Errors
+    /// Invalid policy, default logical limits, admission, cancellation, or allocation failure.
+    pub fn active_offsets(&self) -> Result<AdmittedTemporalOffsets, TemporalMaterializationError> {
+        let ctx = crate::ExecutionContext::production_default(0);
+        let mut budget = TemporalBudget::new(ctx.temporal_materialization_limits());
+        self.active_offsets_within(&mut budget, &ctx)
     }
 
     /// Validate policy bounds.
@@ -252,6 +672,23 @@ pub enum StochasticPolicy {
     },
 }
 
+impl CanonicalEncode for StochasticPolicy {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Bernoulli { p } => {
+                writer.word(1).real(*p);
+            }
+            Self::Gaussian { mean, variance } => {
+                writer.word(2).real(*mean).real(*variance);
+            }
+            Self::Categorical { probs } => {
+                writer.word(3);
+                writer.reals(probs);
+            }
+        }
+    }
+}
+
 impl StochasticPolicy {
     /// Bernoulli policy.
     #[must_use]
@@ -280,39 +717,39 @@ impl StochasticPolicy {
         match self {
             Self::Bernoulli { p } => {
                 if !(0.0..=1.0).contains(p) || !p.is_finite() {
-                    return Err(InterventionError::InvalidStochasticPolicy {
-                        message: "Bernoulli p must be finite and in [0, 1]",
-                    });
+                    return Err(InterventionError::InvalidStochasticPolicy(
+                        StochasticPolicyFault::BernoulliProbability,
+                    ));
                 }
             }
             Self::Gaussian { mean, variance } => {
                 if !mean.is_finite() {
-                    return Err(InterventionError::InvalidStochasticPolicy {
-                        message: "Gaussian mean must be finite",
-                    });
+                    return Err(InterventionError::InvalidStochasticPolicy(
+                        StochasticPolicyFault::GaussianMean,
+                    ));
                 }
                 if !(variance.is_finite() && *variance > 0.0) {
-                    return Err(InterventionError::InvalidStochasticPolicy {
-                        message: "Gaussian variance must be finite and > 0",
-                    });
+                    return Err(InterventionError::InvalidStochasticPolicy(
+                        StochasticPolicyFault::GaussianVariance,
+                    ));
                 }
             }
             Self::Categorical { probs } => {
                 if probs.is_empty() {
-                    return Err(InterventionError::InvalidStochasticPolicy {
-                        message: "categorical probs must be non-empty",
-                    });
+                    return Err(InterventionError::InvalidStochasticPolicy(
+                        StochasticPolicyFault::CategoricalEmpty,
+                    ));
                 }
                 if probs.iter().any(|p| !(p.is_finite() && *p >= 0.0)) {
-                    return Err(InterventionError::InvalidStochasticPolicy {
-                        message: "categorical probs must be finite and >= 0",
-                    });
+                    return Err(InterventionError::InvalidStochasticPolicy(
+                        StochasticPolicyFault::CategoricalEntries,
+                    ));
                 }
                 let sum: f64 = probs.iter().sum();
                 if sum.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
-                    return Err(InterventionError::InvalidStochasticPolicy {
-                        message: "categorical probs must sum to a positive value",
-                    });
+                    return Err(InterventionError::InvalidStochasticPolicy(
+                        StochasticPolicyFault::CategoricalTotal,
+                    ));
                 }
             }
         }
@@ -457,6 +894,53 @@ pub enum Intervention {
     Sequence(InterventionSequence),
 }
 
+impl CanonicalEncode for Intervention {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Set { variable, value } => {
+                writer.word(1);
+                variable.encode(writer);
+                value.encode(writer);
+            }
+            Self::Shift { variable, delta } => {
+                writer.word(2);
+                variable.encode(writer);
+                delta.encode(writer);
+            }
+            Self::Stochastic { variable, policy } => {
+                writer.word(3);
+                variable.encode(writer);
+                policy.encode(writer);
+            }
+            Self::Soft { variable, mechanism } => {
+                writer.word(4);
+                variable.encode(writer);
+                writer.text(&mechanism.family_id);
+                writer.reals(&mechanism.parameters);
+            }
+            Self::Transform { variable, expr, reads } => {
+                writer.word(5);
+                variable.encode(writer);
+                expr.encode(writer);
+                reads.encode(writer);
+            }
+            Self::Assign { variable, expr, reads } => {
+                writer.word(6);
+                variable.encode(writer);
+                expr.encode(writer);
+                reads.encode(writer);
+            }
+            Self::Sequence(sequence) => {
+                writer.word(7).word(count(sequence.steps.len()));
+                for step in sequence.steps.as_ref() {
+                    step.intervention.encode(writer);
+                    step.temporal.encode(writer);
+                }
+            }
+        }
+    }
+}
+
 impl Intervention {
     /// Transform of the generated value; the declared reads are the expression's own.
     #[must_use]
@@ -541,7 +1025,14 @@ impl Intervention {
                     return None;
                 }
                 let first = seq.steps[0].intervention.primary_variable()?;
-                if seq.steps.iter().all(|s| s.intervention.primary_variable() == Some(first)) {
+                // The first child was already checked above. Rechecking it here
+                // makes a chain of singleton sequences exponential in depth.
+                if seq
+                    .steps
+                    .iter()
+                    .skip(1)
+                    .all(|s| s.intervention.primary_variable() == Some(first))
+                {
                     Some(first)
                 } else {
                     None
@@ -610,16 +1101,37 @@ impl Intervention {
     }
 }
 
+/// Which parameter of a [`StochasticPolicy`] is invalid.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
+pub enum StochasticPolicyFault {
+    /// Refused: Bernoulli p must be finite and in [0, 1]
+    #[error("Bernoulli p must be finite and in [0, 1]")]
+    BernoulliProbability,
+    /// Refused: Gaussian mean must be finite
+    #[error("Gaussian mean must be finite")]
+    GaussianMean,
+    /// Refused: Gaussian variance must be finite and > 0
+    #[error("Gaussian variance must be finite and > 0")]
+    GaussianVariance,
+    /// Refused: categorical probs must be non-empty
+    #[error("categorical probs must be non-empty")]
+    CategoricalEmpty,
+    /// Refused: categorical probs must be finite and >= 0
+    #[error("categorical probs must be finite and >= 0")]
+    CategoricalEntries,
+    /// Refused: categorical probs must sum to a positive value
+    #[error("categorical probs must sum to a positive value")]
+    CategoricalTotal,
+}
+
 /// Errors from intervention construction or validation.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 #[non_exhaustive]
 pub enum InterventionError {
     /// Stochastic policy parameters are invalid.
-    #[error("invalid stochastic policy: {message}")]
-    InvalidStochasticPolicy {
-        /// Context.
-        message: &'static str,
-    },
+    #[error("invalid stochastic policy: {0}")]
+    InvalidStochasticPolicy(StochasticPolicyFault),
     /// A hard level, shift, or soft-mechanism parameter is NaN or infinite.
     #[error("intervention level must be finite")]
     NonFiniteLevel,
@@ -643,6 +1155,12 @@ pub enum InterventionError {
         /// What is wrong with the expression.
         fault: ExpressionFault,
     },
+    /// A sequence already names a policy on each step.
+    #[error("a sequence carries its own temporal policy and cannot take another")]
+    TimedSequence,
+    /// An initial-state law was not named.
+    #[error("initial-state law name is empty")]
+    EmptyInitialLaw,
 }
 
 #[cfg(test)]
@@ -786,5 +1304,300 @@ mod tests {
         assert_eq!(p.active_offsets().unwrap().as_ref(), &[0, 2, 5]);
         let empty = TemporalPolicy::dynamic(DynamicRuleId::from_raw(1), []);
         assert!(matches!(empty.validate(), Err(InterventionError::EmptyDynamicSchedule)));
+    }
+
+    fn refusal_operation(error: AdmitError) -> &'static str {
+        match error {
+            AdmitError::Refused(refusal) => refusal.operation(),
+            AdmitError::Invalid(error) => panic!("malformed intervention: {error}"),
+        }
+    }
+
+    #[test]
+    fn the_same_set_is_one_operation_on_every_surface_that_supports_it() {
+        let set = Intervention::set(VariableId::from_raw(0), Value::f64(1.0));
+        let static_op = ExecutionSurface::Static.admit(&set, None).unwrap();
+        let counterfactual_op = ExecutionSurface::Counterfactual.admit(&set, None).unwrap();
+        let cyclic_op = ExecutionSurface::Cyclic.admit(&set, None).unwrap();
+        assert_eq!(static_op, counterfactual_op);
+        assert_eq!(static_op, cyclic_op);
+        assert!(matches!(static_op, InterventionOperation::Set { .. }));
+        let refused = ExecutionSurface::Temporal.admit(&set, None).unwrap_err();
+        let AdmitError::Refused(refusal) = refused else {
+            panic!("an untimed set is not a finite-horizon action");
+        };
+        assert_eq!(refusal.operation(), "set");
+    }
+
+    #[test]
+    fn shift_soft_pulse_sustained_and_initial_state_are_not_a_set() {
+        let variable = VariableId::from_raw(0);
+        let set = Intervention::set(variable, Value::f64(1.0));
+        let shift = Intervention::shift(variable, Value::f64(1.0));
+        let soft = Intervention::soft(variable, MechanismOverride::constant(1.0));
+        let shift_op = ExecutionSurface::Static.admit(&shift, None).unwrap();
+        let soft_op = ExecutionSurface::Static.admit(&soft, None).unwrap();
+        assert!(matches!(shift_op, InterventionOperation::Shift { .. }));
+        assert!(matches!(soft_op, InterventionOperation::Soft { .. }));
+        assert_ne!(shift_op, ExecutionSurface::Static.admit(&set, None).unwrap());
+        assert_ne!(soft_op, ExecutionSurface::Static.admit(&set, None).unwrap());
+
+        let pulse =
+            ExecutionSurface::Temporal.admit(&set, Some(&TemporalPolicy::pulse(0))).unwrap();
+        let sustained =
+            ExecutionSurface::Temporal.admit(&set, Some(&TemporalPolicy::sustained(0, 0))).unwrap();
+        assert!(matches!(pulse, InterventionOperation::Pulse { .. }));
+        assert!(matches!(sustained, InterventionOperation::Sustained { .. }));
+        assert_ne!(pulse, sustained);
+        assert_ne!(pulse.name(), "set");
+        assert_ne!(sustained.name(), "set");
+        assert_ne!(pulse.name(), sustained.name());
+
+        for surface in
+            [ExecutionSurface::Static, ExecutionSurface::Counterfactual, ExecutionSurface::Cyclic]
+        {
+            let admitted_shift = surface.supports(&shift_op);
+            let admitted_soft = surface.supports(&soft_op);
+            assert_eq!(admitted_shift, surface != ExecutionSurface::Cyclic);
+            assert_eq!(admitted_soft, surface != ExecutionSurface::Cyclic);
+            if surface == ExecutionSurface::Cyclic {
+                assert_eq!(refusal_operation(surface.admit(&shift, None).unwrap_err()), "shift");
+                assert_eq!(refusal_operation(surface.admit(&soft, None).unwrap_err()), "soft");
+            }
+            assert_eq!(
+                refusal_operation(
+                    surface.admit(&set, Some(&TemporalPolicy::pulse(0))).unwrap_err()
+                ),
+                "pulse"
+            );
+            assert_eq!(
+                refusal_operation(
+                    surface.admit(&set, Some(&TemporalPolicy::sustained(0, 0))).unwrap_err()
+                ),
+                "sustained"
+            );
+        }
+
+        let initial = InterventionOperation::initial_state("x0", Value::f64(2.0)).unwrap();
+        assert_eq!(initial.name(), "initial_state_change");
+        for surface in ExecutionSurface::ALL {
+            let refusal = surface.admit_operation(&initial).unwrap_err();
+            assert_eq!(refusal.operation(), "initial_state_change");
+            assert!(refusal.reason().contains("not a hard clamp"));
+        }
+        assert_eq!(
+            InterventionOperation::initial_state("", Value::f64(2.0)).unwrap_err(),
+            InterventionError::EmptyInitialLaw
+        );
+    }
+
+    #[test]
+    fn cyclic_families_admit_their_own_operations_and_keep_the_bare_surface() {
+        let variable = VariableId::from_raw(0);
+        let set = Intervention::set(variable, Value::f64(1.0));
+        let shift = Intervention::shift(variable, Value::f64(1.0));
+        let soft = Intervention::soft(variable, MechanismOverride::constant(1.0));
+        let initial = InterventionOperation::initial_state("x0", Value::f64(2.0)).unwrap();
+        for family in [CyclicFamily::LinearEquilibrium, CyclicFamily::NonlinearEquilibrium] {
+            for intervention in [&set, &shift, &soft] {
+                let operation = family.admit(intervention, None).unwrap();
+                assert_eq!(operation, intervention.operation(None).unwrap());
+            }
+            let refusal = family.admit_operation(&initial).unwrap_err();
+            assert_eq!(refusal.surface, ExecutionSurface::Cyclic);
+            assert_eq!(refusal.operation(), "initial_state_change");
+            assert_eq!(family.next_attempt(refusal.operation()), CYCLIC_CONTINUOUS_TIME_ATTEMPT);
+        }
+        let continuous = CyclicFamily::ContinuousTime;
+        continuous.admit(&set, None).unwrap();
+        continuous.admit(&soft, None).unwrap();
+        continuous.admit_operation(&initial).unwrap();
+        let refusal = refusal_operation(continuous.admit(&shift, None).unwrap_err());
+        assert_eq!(refusal, "shift");
+        assert_eq!(continuous.next_attempt(refusal), CYCLIC_DRIFT_INPUT_ATTEMPT);
+
+        // The bare surface is unchanged: only the untimed set.
+        assert!(ExecutionSurface::Cyclic.admit(&set, None).is_ok());
+        assert_eq!(
+            refusal_operation(ExecutionSurface::Cyclic.admit(&shift, None).unwrap_err()),
+            "shift"
+        );
+        assert_eq!(
+            refusal_operation(ExecutionSurface::Cyclic.admit(&soft, None).unwrap_err()),
+            "soft"
+        );
+    }
+
+    #[test]
+    fn every_cyclic_family_refusal_names_a_next_attempt() {
+        let variable = VariableId::from_raw(0);
+        let other = VariableId::from_raw(1);
+        let set = Intervention::set(variable, Value::f64(1.0));
+        let shift = Intervention::shift(variable, Value::f64(1.0));
+        let refused = [
+            (Intervention::stochastic(variable, StochasticPolicy::bernoulli(0.5)), None),
+            (Intervention::transform(variable, ValueExpr::generated()), None),
+            (Intervention::assign(variable, ValueExpr::var(other)), None),
+            (set.clone(), Some(TemporalPolicy::pulse(0))),
+            (set.clone(), Some(TemporalPolicy::sustained(0, 2))),
+            (shift.clone(), Some(TemporalPolicy::pulse(0))),
+            (
+                Intervention::sequence(InterventionSequence::new(vec![
+                    SequencedIntervention::new(set, TemporalPolicy::pulse(0)),
+                ])),
+                None,
+            ),
+        ];
+        for family in CyclicFamily::ALL {
+            for (intervention, temporal) in &refused {
+                let name =
+                    refusal_operation(family.admit(intervention, temporal.as_ref()).unwrap_err());
+                let attempt = family.next_attempt(name);
+                assert!(!attempt.name().is_empty() && !attempt.sentence().is_empty());
+                assert_ne!(attempt, CYCLIC_SUPPORTED_OPERATION_ATTEMPT, "{family} {name}");
+            }
+        }
+        // A timed shift on an equilibrium names the timing, not the shift it performs untimed.
+        let timed_shift = CyclicFamily::LinearEquilibrium
+            .admit(&shift, Some(&TemporalPolicy::pulse(0)))
+            .unwrap_err();
+        assert_eq!(refusal_operation(timed_shift), "pulse");
+        // On the continuous-time family the shift itself is what is refused.
+        let timed_shift = CyclicFamily::ContinuousTime
+            .admit(&shift, Some(&TemporalPolicy::pulse(0)))
+            .unwrap_err();
+        assert_eq!(refusal_operation(timed_shift), "shift");
+    }
+
+    #[test]
+    fn intervention_encodings_are_unchanged_by_cyclic_admission() {
+        let variable = VariableId::from_raw(7);
+        let cases = [
+            Intervention::set(variable, Value::f64(1.5)),
+            Intervention::shift(variable, Value::f64(-0.25)),
+            Intervention::soft(
+                variable,
+                MechanismOverride::named("linear_mechanism", vec![0.1, 0.0, 0.4]),
+            ),
+        ];
+        for (tag, intervention) in [1_u64, 2, 4].into_iter().zip(&cases) {
+            let mut encoded = CanonicalWriter::new("intervention-encoding");
+            intervention.encode(&mut encoded);
+            let mut expected = CanonicalWriter::new("intervention-encoding");
+            expected.word(tag).word(7);
+            match intervention {
+                Intervention::Set { value, .. } | Intervention::Shift { delta: value, .. } => {
+                    value.encode(&mut expected);
+                }
+                Intervention::Soft { mechanism, .. } => {
+                    expected.text(&mechanism.family_id).reals(&mechanism.parameters);
+                }
+                _ => unreachable!("only the three cyclic action kinds are encoded here"),
+            }
+            assert_eq!(encoded.finish(), expected.finish());
+            let before = encoded.finish();
+            let admitted = CyclicFamily::NonlinearEquilibrium.admit(intervention, None).unwrap();
+            assert_eq!(admitted, intervention.operation(None).unwrap());
+            let mut after = CanonicalWriter::new("intervention-encoding");
+            intervention.encode(&mut after);
+            assert_eq!(after.finish(), before);
+        }
+    }
+}
+
+#[cfg(test)]
+mod bounded_temporal_offsets_tests {
+    use super::*;
+    use crate::execution::AdmissionPool;
+    fn limits() -> TemporalMaterializationLimits {
+        TemporalMaterializationLimits {
+            max_offsets: 4,
+            max_work: 4,
+            max_bytes: 1024,
+            max_graph_nodes: 4,
+            max_graph_edges: 4,
+        }
+    }
+    #[test]
+    fn enormous_ranges_are_lazy_and_refuse_before_allocation() {
+        let policy = TemporalPolicy::sustained(i32::MIN, i32::MAX);
+        assert_eq!(policy.offset_count().unwrap(), 1_u64 << 32);
+        assert!(matches!(
+            policy.active_offsets(),
+            Err(TemporalMaterializationError::Limit { dimension: "offsets" })
+        ));
+        assert_eq!(
+            policy.offsets().unwrap().take(3).collect::<Vec<_>>(),
+            [i32::MIN, i32::MIN + 1, i32::MIN + 2]
+        );
+        let ctx = crate::ExecutionContext::for_tests(1);
+        assert!(matches!(
+            policy.active_offsets_within(&mut TemporalBudget::new(limits()), &ctx),
+            Err(TemporalMaterializationError::Limit { dimension: "offsets" })
+        ));
+    }
+    #[test]
+    fn offsets_preserve_values_and_clones_hold_the_admission() {
+        let pool = AdmissionPool::fixed(1, 1024);
+        let ctx = crate::ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let policy = TemporalPolicy::sustained(-1, 1);
+        let offsets =
+            policy.active_offsets_within(&mut TemporalBudget::new(limits()), &ctx).unwrap();
+        assert_eq!(offsets.as_slice(), [-1, 0, 1]);
+        let free = pool.available().bytes();
+        assert!(free < 1024);
+        let clone = offsets.clone();
+        drop(offsets);
+        assert_eq!(pool.available().bytes(), free);
+        drop(clone);
+        assert_eq!(pool.available().bytes(), 1024);
+        ctx.cancellation.cancel();
+        assert!(matches!(
+            policy.active_offsets_within(&mut TemporalBudget::new(limits()), &ctx),
+            Err(TemporalMaterializationError::Cancelled)
+        ));
+    }
+    #[test]
+    fn one_budget_is_consumed_across_nested_materializations() {
+        let ctx = crate::ExecutionContext::for_tests(1);
+        let mut budget = TemporalBudget::new(limits());
+        let mut sibling = budget.clone();
+        let first =
+            TemporalPolicy::sustained(0, 2).active_offsets_within(&mut budget, &ctx).unwrap();
+        assert_eq!(first.as_slice(), &[0, 1, 2]);
+        assert!(matches!(
+            TemporalPolicy::sustained(0, 1).active_offsets_within(&mut sibling, &ctx),
+            Err(TemporalMaterializationError::Limit { dimension: "offsets" })
+        ));
+    }
+
+    #[test]
+    fn validation_preflight_bounds_nested_interventions_and_holds_memory() {
+        let v = VariableId::from_raw(0);
+        let mut item = Intervention::set(v, Value::f64(1.0));
+        for _ in 0..20 {
+            item = Intervention::Sequence(InterventionSequence::new([SequencedIntervention {
+                intervention: item,
+                temporal: TemporalPolicy::pulse(0),
+            }]));
+        }
+        let pool = AdmissionPool::fixed(1, 131_072);
+        let ctx = crate::ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let mut bounds = limits();
+        bounds.max_work = 1_000_000;
+        bounds.max_bytes = 131_072;
+        let mut budget = TemporalBudget::new(bounds);
+        let before = pool.available().bytes();
+        let lease = admit_temporal_intervention_validation([&item], &mut budget, &ctx).unwrap();
+        assert!(pool.available().bytes() < before);
+        assert_eq!(item.primary_variable(), Some(v));
+        item.validate().unwrap();
+        drop(lease);
+        assert_eq!(pool.available().bytes(), before);
+        ctx.cancellation.cancel();
+        assert!(matches!(
+            admit_temporal_intervention_validation([&item], &mut budget, &ctx),
+            Err(TemporalMaterializationError::Cancelled)
+        ));
     }
 }

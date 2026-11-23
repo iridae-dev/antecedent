@@ -16,7 +16,7 @@ papers = [
 
 implementation_deviations = [
   "The classification is relative to the declared graph: a dependence that is not declared as an edge is not detected, and a node's identity, coordinate, support, trust and calibration standing are declarations the producer supplies, not facts the library checks.",
-  "Stage reuse never proves a claim licensed. The graph layers support, provider trust and calibration standing on the planner's reuse decision and withdraws a license even when every number is reusable.",
+  "Stage reuse never proves a claim supported. The graph layers support, provider trust and calibration standing on the planner's reuse decision and withdraws support even when every number is reusable.",
   "No interval, posterior or calibration record is produced or measured: a calibration declaration names a record identity and a coordinate, and the classification only checks that the record held at the claim's own coordinate is the one the claim states.",
 ]
 
@@ -28,3 +28,28 @@ test_sources = [
   "semantic mutation of stored classifications, graphs, effects and declared overlap by an independent artifact consumer",
   "permutation of node declaration order over all orderings of a six-node graph",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Dependency bookkeeping over a declared directed acyclic graph: a sweep in dependency order propagates changed and withdrawn marks along typed edges and compares two snapshots."
+no_independent_algorithm = "Graph traversal and classification; no statistic is computed and nothing numeric is revalidated beyond identity equality."
+record_sha256 = "d24cf1b69b96aaf313176285bddb8999bf4ba1d28b86efc24b295f656b38c659"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/composition_verification/graph.rs"
+items = ["const COMPOSITION_GRAPH_VERSION", "enum CalibrationDeclaration", "enum DependencyKind", "enum GraphError", "enum NodeKind", "enum SupportStanding", "enum TrustStanding", "fn add_edge", "fn add_node", "fn ancestors_of", "fn digest", "fn edges", "fn edges_of", "fn encode_calibration", "fn encode_node", "fn identity", "fn is_empty", "fn len", "fn native_point", "fn new", "fn node", "fn nodes", "fn of_provider", "fn provider", "fn standing", "fn text", "fn topological_order", "fn undeclared", "fn with_assumptions", "fn with_calibration", "fn with_coordinate", "fn with_evidence", "fn with_representation", "fn with_standing", "fn with_structure", "fn with_transformation", "fn with_trust", "fn with_unsupported", "struct ClaimStanding", "struct CompositionEdge", "struct CompositionGraph", "struct CompositionNode"]
+sha256 = "99eb0f446dddb86dd2b1215151d800b6b88524ac53c69b5d1c590077d79f3fc7"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/composition_verification/revalidate.rs"
+items = ["enum CalibrationState", "enum NumericalCause", "enum ObservedEffect", "enum PriorAuthority", "enum WithdrawalKind", "fn as_str", "fn claim", "fn claims", "fn dependency_set", "fn evaluate_calibration", "fn from_result_status", "fn from_revalidation", "fn held_record", "fn identity", "fn keys_of", "fn ledger_effects", "fn own_causes", "fn own_withdrawals", "fn plain", "fn propagate_cause", "fn refusal", "fn removed", "fn require_valid", "fn revalidate", "fn withdrawn_for", "struct CalibrationLineage", "struct ClaimRevalidation", "struct GraphRevalidation", "struct NumericalReason", "struct Withdrawal", "struct Working", "type Held"]
+sha256 = "c377c6c10baa7f5e0959dd510bebc7291dda2ac25c156540af9b1941814920c6"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/composition_verification.rs"
+items = ["const ALL", "fn a_change_leaves_the_sibling_valid_and_recomputes_every_dependent", "fn a_different_calibration_record_is_not_inherited", "fn a_node_added_after_the_earlier_snapshot_has_nothing_to_reuse", "fn a_provider_standing_nobody_stated_is_not_a_support", "fn a_refit_under_an_unchanged_structure_is_a_recomputation_with_no_old_authority", "fn a_removed_input_is_a_retired_support_not_a_stale_number", "fn a_replaced_calibration_record_recomputes_its_owner_and_refuses_its_heirs", "fn a_reused_claim_does_not_keep_authority_across_a_trust_standing_that_moved", "fn a_standing_is_stated_as_one_value_and_unstated_standing_is_refused", "fn a_withdrawn_provider_trust_withdraws_dependents_without_stale_numbers", "fn an_unchanged_graph_is_still_valid_and_keeps_its_authority", "fn an_unsupported_target_withdraws_only_what_rests_on_its_support", "fn another_vocabulary_adapts_onto_the_one_class", "fn build", "fn calibration_inherited_from_an_object_that_no_longer_holds_it_is_withdrawn_not_refused", "fn d", "fn declaration_order_never_changes_identity_order_or_classification", "fn heap", "fn keys", "fn ledger_standings_drive_the_graph_classification", "fn malformed_graphs_are_refused", "fn no_effects", "fn node", "fn obs", "fn params", "fn permutations", "fn pool", "fn replaced_scientific_premises_withdraw_old_authority_and_descendants", "fn restored_support_recomputes_the_claims_that_were_never_supported_there", "fn reusing_a_structural_derivation_after_data_replacement_keeps_no_fit_authority", "fn shared_data_comes_from_the_ledger_overlap_and_unknown_is_never_independent", "fn the_classification_identity_binds_every_reported_field", "fn the_view_reports_lineage_boundaries_versions_and_unsupported_coordinates", "fn transport_pair", "fn transported_calibration_is_never_inherited_by_a_different_target", "struct Params"]
+sha256 = "93bd5135397568dd8766c28936e0e31d55eccb9455746273beba32020da196f2"

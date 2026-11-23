@@ -24,7 +24,7 @@
 //! ([`CovariateShiftDeclaration`]) with every row inside the support contract; the result
 //! is point-only evidence under that assumption, labelled `Extrapolative`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use super::design_exports::design_crate::cohort_decision_input::{
     cohort_decision_input, cohort_forward_claim, cohort_mean_source, cohort_trust_evidence,
@@ -108,7 +108,7 @@ impl FittedEffectModel {
     /// # Errors
     /// Missing or outside support, a feature-schema, unit, population or contrast mismatch,
     /// or an undeclared population shift; each refusal names the declaration or evidence
-    /// that would license the request.
+    /// that would support the request.
     pub fn decision_source(
         &self,
         cohort: &CohortBinding,
@@ -177,7 +177,7 @@ pub fn fit_cohort_effect(
 /// fit, bound to a currently attesting coverage record, or a typed refusal.
 ///
 /// # Errors
-/// A source not built from `native`, a shifted cohort, an unmeasured level or fit size
+/// A source not built from `native`, a shifted cohort, a `not_measured` level or fit size
 /// (no attesting record), or a changed artifact.
 pub fn measured_cohort_interval(
     native: &NativeCohortFit,

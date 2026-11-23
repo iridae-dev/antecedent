@@ -1,6 +1,6 @@
-//! Internal checked joint transport recalculation inspection.
-//! No calibrated public posterior route is issued by this candidate adapter.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+//! Checked joint transport recalculation with a native aligned candidate posterior.
+//! No calibrated public posterior or interval is issued: calibration stays `not_measured`.
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::recalc_bayesian::{BayesianLaw, PosteriorSummarySpec};
 use super::recalc_common::{Fields, literal};
 use super::recalc_receipt::{DecisionValue, RecalcReceipt, UtilitySpec};
@@ -29,10 +29,10 @@ pub struct JointBayesianRequest {
     pub options: JointTransportOptions,
     /// Inspection projection over native emitted target-effect draws.
     pub summary: PosteriorSummarySpec,
-    /// Native expected effect net-benefit rule, with calibration still unmeasured.
+    /// Native expected effect net-benefit rule, with calibration still `not_measured`.
     pub utility: UtilitySpec,
 }
-/// Inspection-only candidate outcome. It is not a public licensed interval result.
+/// Inspection-only candidate outcome. It is not a public supported interval result.
 #[derive(Debug)]
 pub struct JointBayesianRecalcOutcome {
     /// Actual shared invalidation plan.
@@ -52,7 +52,7 @@ struct JointBayesianLive {
     law: BayesianLaw,
     decision: DecisionValue,
 }
-/// Internal retention boundary of a genuine raw-query checked transport fit.
+/// Retention boundary of a genuine raw-query checked transport fit.
 pub struct JointBayesianSession {
     previous: antecedent_core::recalc::StageIdentities,
     live: Option<JointBayesianLive>,
@@ -135,33 +135,29 @@ impl JointBayesianRequest {
         &self,
         ctx: &antecedent_core::ExecutionContext,
     ) -> Result<(), super::recalc_receipt::RecalcRunError> {
-        use super::recalc_receipt::RecalcRunError;
+        use super::recalc_receipt::{RecalcRequestCode, RecalcRunError};
         self.summary.validate()?;
         self.utility.validate()?;
         if ctx.cancellation.is_cancelled() {
-            return Err(RecalcRunError::Request("recalc.cancelled"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::Cancelled));
         }
         if self.diagram.causal_graph().has_bidirected() {
-            return Err(RecalcRunError::Request("recalc.joint_bayesian_graph_unsupported"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::JointBayesianGraphUnsupported));
         }
-        self.metadata_guard()?;
+        let metadata_bytes = self.metadata_guard()?;
         if self.sources.is_empty()
-            || self.sources.len() > 16
-            || self.model.features.len() > 32
-            || !(2..=100_000).contains(&self.options.draws)
+            || self.options.draws < 2
             || self.target.rows == 0
-            || self.target.rows > 100_000
             || self.target.covariates.len() != self.model.features.len()
             || self.target.covariates.iter().any(|column| column.len() != self.target.rows)
             || self.sources.iter().any(|source| {
                 source.treatment.is_empty()
-                    || source.treatment.len() > 100_000
                     || source.outcome.len() != source.treatment.len()
                     || source.covariates.len() != self.model.features.len()
                     || source.covariates.iter().any(|column| column.len() != source.treatment.len())
             })
         {
-            return Err(RecalcRunError::Request("recalc.joint_bayesian_invalid_data"));
+            return Err(RecalcRunError::Request(RecalcRequestCode::JointBayesianInvalidData));
         }
         let raw = self
             .sources
@@ -177,12 +173,19 @@ impl JointBayesianRequest {
             .saturating_mul(p)
             .saturating_add(self.options.draws.saturating_mul(p + 17))
             .saturating_add(p.saturating_mul(p).saturating_mul(32));
-        if raw > 1_000_000 || values > 16_000_000 {
-            return Err(RecalcRunError::Request("recalc.bayesian_workspace_limit"));
+        // Eight bytes per value, doubled for the working copies the fit makes of its inputs.
+        let bytes = u64::try_from(values)
+            .unwrap_or(u64::MAX)
+            .saturating_mul(16)
+            .saturating_add(u64::try_from(metadata_bytes).unwrap_or(u64::MAX));
+        if ctx.memory_limit_bytes().into_iter().any(|limit| bytes > limit) {
+            return Err(RecalcRunError::Request(RecalcRequestCode::MemoryBudgetExceeded));
         }
         Ok(())
     }
-    fn metadata_guard(&self) -> Result<(), super::recalc_receipt::RecalcRunError> {
+    /// Refuses a prior wider than the estimator admits and returns the bytes of identity text the
+    /// request carries, which `validate` charges against the caller's memory budget.
+    fn metadata_guard(&self) -> Result<usize, super::recalc_receipt::RecalcRunError> {
         use antecedent_estimate::joint_bayesian_transport::{
             JOINT_TRANSPORT_MAX_PARAMETERS, PriorProvenance,
         };
@@ -204,27 +207,17 @@ impl JointBayesianRequest {
                 || prior.covariance.len() > JOINT_TRANSPORT_MAX_PARAMETERS.pow(2)
             {
                 return Err(super::recalc_receipt::RecalcRunError::Request(
-                    "recalc.bayesian_workspace_limit",
+                    super::recalc_receipt::RecalcRequestCode::BayesianWorkspaceLimit,
                 ));
             }
             if let PriorProvenance::Bank { bank_id, consumed } = &prior.provenance {
-                if consumed.len() > 16 {
-                    return Err(super::recalc_receipt::RecalcRunError::Request(
-                        "recalc.bayesian_workspace_limit",
-                    ));
-                }
                 bytes = bytes.saturating_add(bank_id.len());
                 for identity in consumed {
                     bytes = bytes.saturating_add(identity_bytes(identity));
                 }
             }
         }
-        if bytes > 1_000_000 {
-            return Err(super::recalc_receipt::RecalcRunError::Request(
-                "recalc.bayesian_workspace_limit",
-            ));
-        }
-        Ok(())
+        Ok(bytes)
     }
     /// Dependency identities include every source unit, prior and consumed-evidence declaration.
     #[must_use]
@@ -289,7 +282,7 @@ impl JointBayesianRequest {
         // The projection states an uncertainty claim with no calibration record, and its draws
         // are rows of one aligned joint posterior over the sources: the alignment is the draw
         // count, the seed and the source units it was drawn for.
-        ids.set_calibration(&antecedent_core::recalc::CalibrationInput::Unmeasured);
+        ids.set_calibration(&antecedent_core::recalc::CalibrationInput::NotMeasured);
         ids.set_coupling(&antecedent_core::recalc::CouplingInput::AlignedJoint {
             alignment: Fields::new()
                 .texts(&self.sources.iter().map(|source| source.id.as_str()).collect::<Vec<_>>())
@@ -315,6 +308,33 @@ impl JointBayesianSession {
             boundary: antecedent_core::recalc::Boundary::InProcess,
         }
     }
+    /// Resume semantic identities. Caller flags cannot create a retained posterior.
+    #[must_use]
+    pub fn resume(
+        previous: antecedent_core::recalc::StageIdentities,
+        context: antecedent_core::recalc::ResumeContext,
+    ) -> Self {
+        Self {
+            previous,
+            live: None,
+            boundary: antecedent_core::recalc::Boundary::FreshProcess(
+                antecedent_core::recalc::ResumeContext {
+                    supplied_data: context.supplied_data,
+                    ..antecedent_core::recalc::ResumeContext::default()
+                },
+            ),
+        }
+    }
+    /// Actual native state boundary.
+    #[must_use]
+    pub const fn boundary(&self) -> antecedent_core::recalc::Boundary {
+        self.boundary
+    }
+    /// Whether a native candidate fit is retained, never an optimistic supplied flag.
+    #[must_use]
+    pub const fn is_live(&self) -> bool {
+        self.live.is_some()
+    }
     /// Actual native retained candidate fit for inspection only.
     #[must_use]
     pub fn fit(&self) -> Option<&JointTransportFit> {
@@ -336,7 +356,7 @@ impl JointBayesianSession {
     }
 }
 /// Execute a raw-query checked candidate model or inspect its retained target-effect draws.
-/// This internal route publishes no calibrated posterior or confidence interval.
+/// This route publishes no calibrated posterior or confidence interval.
 /// # Errors
 /// Original identification/likelihood/prior ownership refusals, bounds, or receipt errors.
 #[allow(
@@ -348,7 +368,9 @@ pub fn execute_joint_bayesian_with_receipt(
     request: &JointBayesianRequest,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<JointBayesianRecalcOutcome, super::recalc_receipt::RecalcRunError> {
-    use super::recalc_receipt::{Counter, LawValue, RecalcRunError, ReceiptRecorder, decide};
+    use super::recalc_receipt::{
+        Counter, LawValue, RecalcRequestCode, RecalcRunError, ReceiptRecorder, decide,
+    };
     use antecedent_core::recalc::{
         Boundary, RecalcCapabilities, RequestSupport, RetargetSupport, Stage, StageStatus,
     };
@@ -371,7 +393,7 @@ pub fn execute_joint_bayesian_with_receipt(
         return Err(RecalcRunError::Refused(Box::new(plan)));
     }
     let changed = |stage| matches!(plan.status(stage), Some(StageStatus::Recomputed { .. }));
-    let mut recorder = ReceiptRecorder::new();
+    let mut recorder = ReceiptRecorder::charged_to(ctx);
     let old = session.live.as_ref();
     let (identification, fit, artifact) = if changed(Stage::ScoreArtifact) {
         let raw = request
@@ -391,14 +413,8 @@ pub fn execute_joint_bayesian_with_receipt(
         )
         .unwrap_or(u64::MAX)
         .saturating_mul(16);
-        if ctx
-            .memory
-            .hard_limit_bytes
-            .into_iter()
-            .chain(ctx.memory.soft_limit_bytes)
-            .any(|limit| bytes > limit)
-        {
-            return Err(RecalcRunError::Request("recalc.memory_budget_exceeded"));
+        if ctx.memory_limit_bytes().into_iter().any(|limit| bytes > limit) {
+            return Err(RecalcRunError::Request(RecalcRequestCode::MemoryBudgetExceeded));
         }
         let (identification, checks) = count_checked_identifications(|| {
             if changed(Stage::Identification) {
@@ -440,7 +456,7 @@ pub fn execute_joint_bayesian_with_receipt(
                 .names
                 .iter()
                 .position(|name| name == "effect.target")
-                .ok_or(RecalcRunError::Request("recalc.bayesian_effect_unavailable"))?;
+                .ok_or(RecalcRunError::Request(RecalcRequestCode::BayesianEffectUnavailable))?;
             let values =
                 fit.draws.values.chunks_exact(width).map(|row| row[column]).collect::<Vec<_>>();
             let law = super::recalc_bayesian::summarize_issued_values(&values, request.summary)?;

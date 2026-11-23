@@ -1,5 +1,22 @@
 //! Joint outer bootstrap for catalog-bound empirical transport tables.
 
+mod bayesian;
+pub use bayesian::{
+    BayesianStatisticalTransportEstimate, BayesianStatisticalTransportOptions,
+    evaluate_bayesian_statistical_transport, evaluate_bayesian_statistical_transport_grid,
+};
+mod bootstrap;
+mod cited_tables;
+mod replicates;
+mod z_draws;
+use bootstrap::{BootstrapDraws, outer_bootstrap};
+use cited_tables::{AliasPolicy, CitedTables};
+use replicates::ReplicateColumns;
+use z_draws::{
+    TableDrawer, ZDrawSpec, resample_cited_counts, validate_draw_spec, z_draws,
+    z_interval_over_draws,
+};
+
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -11,18 +28,19 @@ use antecedent_data::{ResamplingPlan, fill_resample_indexes};
 use antecedent_expr::{Assignment, ExactDiscreteLaw, ExactDistribution, ExactEvaluationLimits};
 use antecedent_identify::BoundTransportFunctional;
 use antecedent_stats::{QuantileRule, equal_tail_interval_sorted};
+use serde::{Deserialize, Serialize};
 
 use crate::empirical_table::{
     BayesianLawDrawer, BayesianTransportLawProvider, EmpiricalTableOptions,
     StatisticalTransportInput, assemble_point_laws, assemble_statistical_laws, bound_sample_key,
-    dependence_refusal, dirichlet_posterior_probabilities, licensed_iid_dependence,
-    licensed_iid_regimes, validate_dataset_aliases, validate_options,
+    dependence_refusal, dirichlet_posterior_probabilities, supported_iid_dependence,
+    supported_iid_regimes, validate_dataset_aliases, validate_options,
 };
 use crate::error::EstimationError;
 use crate::transport::{is_support_failure, prepare_exact_transport, refuse_budget, refuse_eval};
 use crate::util::ReplicatePolicy;
 
-/// Licensed uncertainty method for the empirical-table path.
+/// Supported uncertainty method for the empirical-table path.
 pub const PERCENTILE_BOOTSTRAP: &str = "percentile_bootstrap";
 /// Posterior interval constructor for finite-discrete structural transport.
 pub const POSTERIOR_EQUAL_TAIL: &str = "posterior_equal_tail";
@@ -30,6 +48,74 @@ pub const POSTERIOR_EQUAL_TAIL: &str = "posterior_equal_tail";
 pub const Z_TRANSPORT_INTERVAL_NOT_MEASURED: &str = "estimator_grid_not_measured";
 /// Why an interval is withheld when a replicate summary is not a finite number.
 pub const INTERVAL_NUMERICAL_FAILURE: &str = "bootstrap_numerical_failure";
+
+/// Why a Bayesian transport posterior publishes, or withholds, its intervals.
+///
+/// The serialized spelling of each reason is the estimator's own stable string, so artifacts
+/// written before the reason was a closed set keep reading; a payload naming any other reason
+/// fails at deserialisation.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub enum TransportIntervalReason {
+    /// The intervals are published; coverage is measured in the release calibration pass
+    /// ([`Z_TRANSPORT_INTERVAL_NOT_MEASURED`]).
+    #[serde(rename = "estimator_grid_not_measured")]
+    NotMeasured,
+    /// The draws exceeded the bootstrap failure budget.
+    #[serde(rename = "bootstrap_failure_fraction")]
+    BootstrapFailureFraction,
+    /// An interval endpoint was not a finite number ([`INTERVAL_NUMERICAL_FAILURE`]).
+    #[serde(rename = "bootstrap_numerical_failure")]
+    NumericalFailure,
+    /// Fewer posterior draws than a nominal interval needs.
+    #[serde(rename = "insufficient_bootstrap_replicates")]
+    InsufficientDraws,
+    /// The evidence's dependence structure supports no resampling.
+    #[serde(rename = "transport.unsupported_dependence")]
+    UnsupportedDependence,
+    /// The catalog binds no estimated regime to draw.
+    #[serde(rename = "no_estimated_regime")]
+    NoEstimatedRegime,
+}
+
+impl TransportIntervalReason {
+    /// Every reason, in declaration order.
+    pub const ALL: [Self; 6] = [
+        Self::NotMeasured,
+        Self::BootstrapFailureFraction,
+        Self::NumericalFailure,
+        Self::InsufficientDraws,
+        Self::UnsupportedDependence,
+        Self::NoEstimatedRegime,
+    ];
+
+    /// The stable string form.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::NotMeasured => Z_TRANSPORT_INTERVAL_NOT_MEASURED,
+            Self::BootstrapFailureFraction => "bootstrap_failure_fraction",
+            Self::NumericalFailure => INTERVAL_NUMERICAL_FAILURE,
+            Self::InsufficientDraws => "insufficient_bootstrap_replicates",
+            Self::UnsupportedDependence => "transport.unsupported_dependence",
+            Self::NoEstimatedRegime => "no_estimated_regime",
+        }
+    }
+
+    /// The reason a stable string names, or `None` for a string that is not a reason.
+    #[must_use]
+    pub fn parse(text: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|reason| reason.as_str() == text)
+    }
+
+    /// The reason a dependence refusal ([`dependence_refusal`]) names.
+    fn from_dependence_refusal(reason: &str) -> Self {
+        if reason == Self::NoEstimatedRegime.as_str() {
+            Self::NoEstimatedRegime
+        } else {
+            Self::UnsupportedDependence
+        }
+    }
+}
 
 /// Random-stream layout of every statistical transport draw.
 ///
@@ -65,292 +151,6 @@ impl TransportStream {
     }
 }
 
-/// Posterior summaries from coherent finite-joint law draws.
-#[derive(Clone, Debug)]
-pub struct BayesianStatisticalTransportEstimate {
-    /// Provider identity, including its support/prior distinction.
-    pub estimator: Arc<str>,
-    /// Posterior interval interpretation.
-    pub interval_method: Arc<str>,
-    /// Complete transport distribution for every joint posterior draw.
-    pub distributions: Arc<[ExactDistribution]>,
-    /// Pointwise equal-tail posterior intervals for each atom, in distribution order.
-    pub atom_intervals: Arc<[(f64, f64)]>,
-    /// Pointwise equal-tail posterior intervals by outcome mean.
-    pub mean_intervals: Arc<[(VariableId, f64, f64)]>,
-    /// Why the intervals are withheld, or [`Z_TRANSPORT_INTERVAL_NOT_MEASURED`] when they are published.
-    pub interval_reason: Option<Arc<str>>,
-    /// Requested joint posterior draws.
-    pub draws_requested: u32,
-    /// Successfully evaluated draws.
-    pub draws_ok: u32,
-    /// Failed draws, retained in accounting.
-    pub draws_failed: u32,
-}
-
-/// Settings shared by every request in a Bayesian statistical transport grid.
-#[derive(Clone, Copy, Debug)]
-pub struct BayesianStatisticalTransportOptions {
-    /// Finite-joint posterior law provider.
-    pub provider: BayesianTransportLawProvider,
-    /// Number of shared posterior law draws.
-    pub draws: u32,
-    /// Equal-tail interval probability mass.
-    pub coverage_level: f64,
-    /// Maximum cells in a materialized joint law.
-    pub max_joint_cells: usize,
-}
-
-/// Per-atom and per-outcome-mean replicate columns of one request.
-///
-/// Every interval constructor on this path records its successful replicates
-/// here and summarizes them through one rule, so the classical bootstrap, the
-/// nominal z-transport bootstrap, and both posterior draw paths cannot drift
-/// in how they check atom support or compute an equal-tail interval.
-#[derive(Clone, Debug, Default)]
-struct ReplicateColumns {
-    outcomes: Vec<VariableId>,
-    atoms: Vec<Vec<f64>>,
-    means: Vec<Vec<f64>>,
-    ok: u32,
-}
-
-impl ReplicateColumns {
-    fn new(outcomes: &[VariableId]) -> Self {
-        Self {
-            outcomes: outcomes.to_vec(),
-            atoms: Vec::new(),
-            means: vec![Vec::new(); outcomes.len()],
-            ok: 0,
-        }
-    }
-
-    /// Record one successful replicate distribution.
-    fn record(&mut self, distribution: &ExactDistribution) -> Result<(), EstimationError> {
-        if self.ok > 0 && self.atoms.len() != distribution.probabilities.len() {
-            return Err(EstimationError::refused(
-                antecedent_core::reason_code!("transport_numerical_failure"),
-                "transport atom support changed between replicates",
-            ));
-        }
-        for (column, outcome) in self.means.iter_mut().zip(&self.outcomes) {
-            column.push(distribution.mean(*outcome).map_err(|error| refuse_eval(&error))?);
-        }
-        for (atom, probability) in distribution.probabilities.iter().enumerate() {
-            if self.atoms.len() == atom {
-                self.atoms.push(Vec::new());
-            }
-            self.atoms[atom].push(*probability);
-        }
-        self.ok = self.ok.saturating_add(1);
-        Ok(())
-    }
-
-    /// Replicate rows (replicate × atom), in replicate order.
-    fn atom_rows(&self) -> Vec<Arc<[f64]>> {
-        (0..self.ok as usize)
-            .map(|row| self.atoms.iter().map(|column| column[row]).collect())
-            .collect()
-    }
-
-    /// Per-outcome mean replicates.
-    fn mean_columns(&self) -> Arc<[(VariableId, Arc<[f64]>)]> {
-        self.outcomes
-            .iter()
-            .zip(&self.means)
-            .map(|(outcome, column)| (*outcome, Arc::from(column.as_slice())))
-            .collect()
-    }
-
-    /// Equal-tail intervals of every atom and outcome mean, or the reason none
-    /// can be published.
-    fn intervals(&self, level: f64) -> Result<PointwiseIntervals, &'static str> {
-        let atoms = self
-            .atoms
-            .iter()
-            .map(|column| percentile_interval(column, level))
-            .collect::<Option<Arc<[_]>>>()
-            .ok_or(INTERVAL_NUMERICAL_FAILURE)?;
-        let means = self
-            .outcomes
-            .iter()
-            .zip(&self.means)
-            .map(|(outcome, column)| {
-                percentile_interval(column, level).map(|(lower, upper)| (*outcome, lower, upper))
-            })
-            .collect::<Option<Arc<[_]>>>()
-            .ok_or(INTERVAL_NUMERICAL_FAILURE)?;
-        Ok(PointwiseIntervals { atoms, means })
-    }
-}
-
-/// Pointwise atom and outcome-mean intervals.
-struct PointwiseIntervals {
-    atoms: Arc<[(f64, f64)]>,
-    means: Arc<[(VariableId, f64, f64)]>,
-}
-
-/// Evaluate finite-discrete structural transport under joint Bayesian law draws.
-///
-/// Each independent dataset is drawn once per iteration and aliases resolve to that same
-/// draw. Caller supplied exact laws are included unchanged. The two providers have
-/// distinct identities and support semantics; this function makes no causal-identification
-/// or repeated-sampling calibration claim.
-/// # Errors
-/// Invalid interval settings, cancellation, or exhausted exact-evaluation resources.
-pub fn evaluate_bayesian_statistical_transport(
-    functional: &BoundTransportFunctional,
-    input: &StatisticalTransportInput,
-    request: &Assignment,
-    limits: ExactEvaluationLimits,
-    options: BayesianStatisticalTransportOptions,
-    ctx: &ExecutionContext,
-) -> Result<BayesianStatisticalTransportEstimate, EstimationError> {
-    let mut estimates = evaluate_bayesian_statistical_transport_grid(
-        functional,
-        input,
-        std::slice::from_ref(request),
-        limits,
-        options,
-        ctx,
-    )?;
-    Ok(estimates.remove(0))
-}
-
-/// Evaluate every request from one shared sequence of posterior law draws.
-///
-/// A draw that fails support is counted and skipped. Intervals are withheld, rather than
-/// estimated from the survivors, when successful draws are fewer than two or the failure
-/// fraction exceeds the bootstrap rule. Published intervals carry
-/// [`Z_TRANSPORT_INTERVAL_NOT_MEASURED`]: coverage is measured in the release calibration pass.
-/// # Errors
-/// Invalid interval settings, cancellation, exhausted resources, or atom support that changes
-/// between successful draws.
-pub fn evaluate_bayesian_statistical_transport_grid(
-    functional: &BoundTransportFunctional,
-    input: &StatisticalTransportInput,
-    requests: &[Assignment],
-    limits: ExactEvaluationLimits,
-    options: BayesianStatisticalTransportOptions,
-    ctx: &ExecutionContext,
-) -> Result<Vec<BayesianStatisticalTransportEstimate>, EstimationError> {
-    if requests.is_empty() {
-        return Err(EstimationError::data_msg("Bayesian transport grid is empty"));
-    }
-    if options.draws < 2
-        || !options.coverage_level.is_finite()
-        || !(options.coverage_level > 0.0 && options.coverage_level < 1.0)
-    {
-        return Err(EstimationError::data_msg(
-            "Bayesian transport requires at least two draws and coverage strictly between zero and one",
-        ));
-    }
-    let estimator: Arc<str> = Arc::from(match options.provider {
-        BayesianTransportLawProvider::EmpiricalSupport => {
-            crate::empirical_table::EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP
-        }
-        BayesianTransportLawProvider::DeclaredStateSpaceDirichlet => {
-            crate::empirical_table::STATE_SPACE_DIRICHLET
-        }
-    });
-    if let Some(reason) = dependence_refusal(functional.catalog(), &input.samples) {
-        return Ok(withheld_bayesian_grid(&estimator, options.draws, 0, 0, reason, requests.len()));
-    }
-    let outcomes = functional.derivation().query().outcomes.clone();
-    let drawer =
-        BayesianLawDrawer::prepare(input, functional, options.provider, options.max_joint_cells)?;
-    let mut per_request: Vec<ReplicateColumns> =
-        requests.iter().map(|_| ReplicateColumns::new(&outcomes)).collect();
-    let mut distributions: Vec<Vec<ExactDistribution>> =
-        (0..requests.len()).map(|_| Vec::new()).collect();
-    let mut failed = 0u32;
-    for draw_id in 0..options.draws {
-        crate::transport::refuse_cancelled(ctx, "Bayesian transport execution")?;
-        let mut rng = ctx
-            .rng
-            .stream_for(StreamDomain::Transport, TransportStream::BayesianGrid.index(0, draw_id)?);
-        let (mut laws, by_sample) = drawer.draw(&mut rng)?;
-        laws.extend(by_sample.into_values());
-        let data = antecedent_expr::ExactTransportData::try_new(laws, options.max_joint_cells)
-            .map_err(|error| EstimationError::data_msg(error.to_string()))?;
-        let mut request_distributions = Vec::with_capacity(requests.len());
-        let mut draw_failed = false;
-        for request in requests {
-            match prepare_exact_transport(functional, data.clone(), request.clone(), limits, ctx)
-                .and_then(|plan| plan.evaluate(ctx))
-            {
-                Ok(distribution) => request_distributions.push(distribution),
-                Err(error) if is_support_failure(&error) => {
-                    draw_failed = true;
-                    break;
-                }
-                Err(error) => return Err(refuse_eval(&error)),
-            }
-        }
-        if draw_failed {
-            failed = failed.saturating_add(1);
-            continue;
-        }
-        for ((columns, slot), distribution) in
-            per_request.iter_mut().zip(&mut distributions).zip(request_distributions)
-        {
-            columns.record(&distribution)?;
-            slot.push(distribution);
-        }
-    }
-    let successful = options.draws.saturating_sub(failed);
-    let withhold = ReplicatePolicy::BOOTSTRAP.decide(options.draws, successful, failed).err();
-    per_request
-        .into_iter()
-        .zip(distributions)
-        .map(|(columns, distributions)| {
-            let (atom_intervals, mean_intervals, interval_reason) = match withhold {
-                Some(reason) => (Arc::from([]), Arc::from([]), reason),
-                None => match columns.intervals(options.coverage_level) {
-                    Ok(intervals) => {
-                        (intervals.atoms, intervals.means, Z_TRANSPORT_INTERVAL_NOT_MEASURED)
-                    }
-                    Err(reason) => (Arc::from([]), Arc::from([]), reason),
-                },
-            };
-            Ok(BayesianStatisticalTransportEstimate {
-                estimator: Arc::clone(&estimator),
-                interval_method: Arc::from(POSTERIOR_EQUAL_TAIL),
-                distributions: distributions.into(),
-                atom_intervals,
-                mean_intervals,
-                interval_reason: Some(Arc::from(interval_reason)),
-                draws_requested: options.draws,
-                draws_ok: successful,
-                draws_failed: failed,
-            })
-        })
-        .collect()
-}
-
-fn withheld_bayesian_grid(
-    estimator: &Arc<str>,
-    draws: u32,
-    ok: u32,
-    failed: u32,
-    reason: &'static str,
-    requests: usize,
-) -> Vec<BayesianStatisticalTransportEstimate> {
-    (0..requests)
-        .map(|_| BayesianStatisticalTransportEstimate {
-            estimator: Arc::clone(estimator),
-            interval_method: Arc::from(POSTERIOR_EQUAL_TAIL),
-            distributions: Arc::from([]),
-            atom_intervals: Arc::from([]),
-            mean_intervals: Arc::from([]),
-            interval_reason: Some(Arc::from(reason)),
-            draws_requested: draws,
-            draws_ok: ok,
-            draws_failed: failed,
-        })
-        .collect()
-}
-
 /// Joint bootstrap columns aligned to original replicate IDs.
 pub(crate) type TransportMeanReplicates = Arc<[(VariableId, Arc<[f64]>)]>;
 
@@ -363,7 +163,7 @@ pub struct TransportUncertaintyRow {
     pub method: Arc<str>,
     /// Nominal coverage.
     pub coverage_target: f64,
-    /// `pointwise` unless a simultaneous family is separately licensed.
+    /// `pointwise` unless a simultaneous family is separately supported.
     pub interval_scope: Arc<str>,
     /// Sample size per estimated snapshot.
     pub sample_sizes: Arc<[(Arc<str>, u32)]>,
@@ -386,7 +186,7 @@ pub struct TransportUncertaintyRow {
 pub struct StatisticalTransportEstimate {
     /// Plug-in target law.
     pub distribution: ExactDistribution,
-    /// Licensed interval metadata, when published.
+    /// Supported interval metadata, when published.
     pub uncertainty: Option<TransportUncertaintyRow>,
     /// Pointwise percentile intervals aligned with `distribution.atoms`.
     pub atom_intervals: Option<Arc<[(f64, f64)]>>,
@@ -402,7 +202,7 @@ pub struct StatisticalTransportEstimate {
     pub uncertainty_reason: Option<Arc<str>>,
 }
 
-/// Evaluate the plug-in and, when licensed, the joint outer bootstrap.
+/// Evaluate the plug-in and, when supported, the joint outer bootstrap.
 ///
 /// # Errors
 /// Provider, support, numerical, dependence-as-hard-error, or budget failure.
@@ -536,15 +336,15 @@ fn evaluate_grid(
     validate_options(options)?;
     validate_dataset_aliases(functional.catalog(), &input.samples)?;
     let mut budget_ctx = ctx.clone();
-    budget_ctx.memory.hard_limit_bytes =
-        ctx.memory.hard_limit_bytes.map(|n| n / requests.len() as u64);
+    budget_ctx.set_memory_limit(ctx.memory_limit_bytes().map(|n| n / requests.len() as u64));
     let (fit_cost, reserved_bytes) =
         check_statistical_resources(input, functional, options, &budget_ctx)?;
-    budget_ctx.memory.hard_limit_bytes =
-        budget_ctx.memory.hard_limit_bytes.map(|limit| limit.saturating_sub(reserved_bytes as u64));
+    budget_ctx.set_memory_limit(
+        budget_ctx.memory_limit_bytes().map(|limit| limit.saturating_sub(reserved_bytes as u64)),
+    );
     let bootstrapping = options.bootstrap_replicates > 0
         && !input.samples.is_empty()
-        && licensed_iid_dependence(functional.catalog(), &input.samples);
+        && supported_iid_dependence(functional.catalog(), &input.samples);
     let evaluations = if bootstrapping { options.bootstrap_replicates as usize + 1 } else { 1 };
     let fits = fit_cost
         .checked_mul(evaluations)
@@ -633,7 +433,7 @@ fn summarize_bootstrap(
         }));
         return Ok(estimate);
     }
-    if !licensed_iid_dependence(functional.catalog(), &input.samples) {
+    if !supported_iid_dependence(functional.catalog(), &input.samples) {
         estimate.uncertainty_reason = Some(Arc::from(
             dependence_refusal(functional.catalog(), &input.samples)
                 .unwrap_or("transport.unsupported_dependence"),
@@ -657,7 +457,9 @@ fn summarize_bootstrap(
     estimate.replicate_ids = Some(boot.ids.clone());
     let decided = ReplicatePolicy::BOOTSTRAP
         .decide(options.bootstrap_replicates, boot.ok, boot.failed)
-        .and_then(|()| boot.columns.intervals(options.coverage_level));
+        .and_then(|()| {
+            boot.columns.intervals(options.coverage_level).map_err(TransportIntervalReason::as_str)
+        });
     match decided {
         Ok(intervals) => {
             estimate.atom_intervals = Some(intervals.atoms);
@@ -737,7 +539,7 @@ pub fn check_statistical_resources(
             .ok_or_else(overflow)?;
     }
     let retained_replicates = if !input.samples.is_empty()
-        && licensed_iid_dependence(functional.catalog(), &input.samples)
+        && supported_iid_dependence(functional.catalog(), &input.samples)
     {
         options.bootstrap_replicates as usize
     } else {
@@ -752,8 +554,7 @@ pub fn check_statistical_resources(
         .checked_add(width.checked_mul(retained_replicates).ok_or_else(overflow)?)
         .ok_or_else(overflow)?;
     if ctx
-        .memory
-        .hard_limit_bytes
+        .memory_limit_bytes()
         .is_some_and(|limit| u64::try_from(bytes).map_or(true, |n| n > limit))
     {
         return Err(overflow());
@@ -797,121 +598,6 @@ fn target_cells(
     Ok(outcome_cells)
 }
 
-#[derive(Clone)]
-struct BootstrapDraws {
-    ids: Arc<[u32]>,
-    ok: u32,
-    failed: u32,
-    columns: ReplicateColumns,
-}
-
-fn outer_bootstrap(
-    functional: &BoundTransportFunctional,
-    input: &StatisticalTransportInput,
-    requests: &[Assignment],
-    limits: ExactEvaluationLimits,
-    options: &EmpiricalTableOptions,
-    ctx: &ExecutionContext,
-) -> Result<Vec<BootstrapDraws>, EstimationError> {
-    let outcomes = functional.derivation().query().outcomes.clone();
-    let mut columns: Vec<ReplicateColumns> =
-        requests.iter().map(|_| ReplicateColumns::new(&outcomes)).collect();
-    let mut ids = Vec::new();
-    let mut failed = 0u32;
-    // Datasets are resampled in the order of their bound sample keys, whatever
-    // the order the evidence was supplied in, so the same evidence always draws
-    // the same replicates; forwarded aliases share one dataset.
-    let mut samples: Vec<_> = input
-        .samples
-        .iter()
-        .map(|sample| (bound_sample_key(functional.catalog(), sample), sample))
-        .collect();
-    samples.sort_by(|a, b| a.0.cmp(&b.0));
-    samples.dedup_by(|a, b| a.0 == b.0);
-    // Every replicate resamples each dataset on its own `(dataset, replicate)` stream, so
-    // replicates are independent; they are evaluated across the context's thread budget
-    // and folded in index order. `None` is a counted failed replicate.
-    let attempts = ctx.map_indexed::<_, EstimationError, _>(
-        options.bootstrap_replicates as usize,
-        |index, ctx| {
-            let replicate = u32::try_from(index).unwrap_or(u32::MAX);
-            crate::transport::refuse_cancelled(ctx, "transport statistical execution")?;
-            let mut indexes = Vec::new();
-            let mut row_indexes = BTreeMap::new();
-            for (dataset, (key, sample)) in samples.iter().enumerate() {
-                let n = sample.n();
-                if n == 0 {
-                    return Ok(None);
-                }
-                let mut rng = ctx.rng.stream_for(
-                    StreamDomain::Transport,
-                    TransportStream::Bootstrap.index(dataset, replicate)?,
-                );
-                indexes.clear();
-                if fill_resample_indexes(ResamplingPlan::IidBootstrap, n, &mut rng, &mut indexes)
-                    .is_err()
-                {
-                    return Ok(None);
-                }
-                row_indexes.insert(key.clone(), indexes.clone());
-            }
-            let assembled =
-                match assemble_statistical_laws(input, functional, options, &row_indexes, ctx) {
-                    Ok(data) => {
-                        data.with_shared_factor_cache(if requests.len() > 1 { 1024 } else { 0 })
-                    }
-                    Err(EstimationError::EmptyEmpiricalSample { .. }) => return Ok(None),
-                    Err(error) => return Err(error),
-                };
-            let mut complete = Vec::with_capacity(requests.len());
-            for request in requests {
-                match prepare_exact_transport(
-                    functional,
-                    assembled.clone(),
-                    request.clone(),
-                    limits,
-                    ctx,
-                )
-                .and_then(|plan| plan.evaluate(ctx))
-                {
-                    Ok(distribution) => complete.push(distribution),
-                    Err(error) => {
-                        crate::transport::refuse_cancelled(ctx, "transport statistical execution")?;
-                        if is_support_failure(&error) {
-                            break;
-                        }
-                        return Err(refuse_eval(&error));
-                    }
-                }
-            }
-            if let Some(progress) = &ctx.progress {
-                progress.report(
-                    f64::from(replicate + 1) / f64::from(options.bootstrap_replicates),
-                    "transport.bootstrap",
-                );
-            }
-            Ok((complete.len() == requests.len()).then_some(complete))
-        },
-    )?;
-    for (index, attempt) in attempts.into_iter().enumerate() {
-        let Some(complete) = attempt else {
-            failed += 1;
-            continue;
-        };
-        for (column, distribution) in columns.iter_mut().zip(&complete) {
-            column.record(distribution)?;
-        }
-        ids.push(u32::try_from(index).unwrap_or(u32::MAX));
-    }
-    crate::transport::refuse_cancelled(ctx, "transport statistical execution")?;
-    let ids: Arc<[u32]> = ids.into();
-    let ok = u32::try_from(ids.len()).unwrap_or(u32::MAX);
-    Ok(columns
-        .into_iter()
-        .map(|columns| BootstrapDraws { ids: Arc::clone(&ids), ok, failed, columns })
-        .collect())
-}
-
 /// Equal-tail percentile interval for an empirical z-transport functional.
 ///
 /// The point law is unchanged. The interval resamples each cited count table
@@ -949,285 +635,6 @@ pub struct BayesianZTransportIntervalOptions {
     pub coverage_level: f64,
 }
 
-/// How one cited law is drawn: from the table of its dataset as it is, or as
-/// a recorded margin of that dataset's finest table.
-struct LawSource {
-    /// Index of the resampled table the law reads.
-    dataset: usize,
-    /// For a projected margin, the law cell of every table cell.
-    projection: Option<Vec<usize>>,
-}
-
-/// The cited count tables of a z-transport functional, one per independent
-/// dataset: laws whose catalog binding names the same forwarded dataset share
-/// one table and one resampling stream.
-struct CitedTables<'a> {
-    laws: &'a [ExactDiscreteLaw],
-    /// How each law is rebuilt from the resampled tables.
-    sources: Vec<LawSource>,
-    /// The counts of each resampled table.
-    counts: Vec<&'a [u64]>,
-}
-
-/// How laws naming the same forwarded dataset are resampled.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum AliasPolicy {
-    /// Every alias carries the identical table; anything else is a data error.
-    Identical,
-    /// Aliases are identical or a recorded margin of the finest shared table;
-    /// any other pair withholds the interval.
-    JointProjection,
-}
-
-/// Forwarded dataset identity of the catalog binding of `law`'s regime.
-fn forwarded_dataset(catalog: &EvidenceCatalog, law: &ExactDiscreteLaw) -> Option<Arc<str>> {
-    catalog
-        .bindings
-        .iter()
-        .find(|binding| binding.regime == law.regime())
-        .and_then(|binding| binding.dataset_identity.clone())
-}
-
-/// Whether two catalog descriptors describe the same law family: everything
-/// but the source entry, its snapshot and the projection trail agrees.
-fn same_law_family(a: &CatalogDistribution, b: &CatalogDistribution) -> bool {
-    let set = |ids: &[VariableId]| ids.iter().copied().collect::<std::collections::BTreeSet<_>>();
-    let values = |d: &CatalogDistribution| {
-        let mut out =
-            d.intervention_values.iter().map(|a| (a.variable, a.value.clone())).collect::<Vec<_>>();
-        out.sort_by_key(|(variable, _)| *variable);
-        out
-    };
-    a.study == b.study
-        && a.population == b.population
-        && a.kind == b.kind
-        && a.evidence_kind == b.evidence_kind
-        && a.origin == b.origin
-        && a.selection == b.selection
-        && set(&a.interventions) == set(&b.interventions)
-        && values(a) == values(b)
-        && set(&a.measured) == set(&b.measured)
-        && a.availability == b.availability
-        && set(&a.conditioned_on) == set(&b.conditioned_on)
-        && a.dataset == b.dataset
-}
-
-/// How a law relates to the finest table of the dataset it shares.
-enum Relation {
-    /// The identical table.
-    Identical,
-    /// A recorded margin: the law cell of every root cell.
-    Margin(Vec<usize>),
-}
-
-/// How `law` relates to the finest table `root` of the dataset they share:
-/// [`Relation::Identical`] for the identical table, [`Relation::Margin`] for a recorded margin
-/// (the catalog descriptor of `law` is `root`'s marginalized over the dropped
-/// coordinates, and its counts are exactly that margin of `root`'s counts), and
-/// `None` when neither holds.
-fn relate_to_root(
-    catalog: &EvidenceCatalog,
-    root: &ExactDiscreteLaw,
-    law: &ExactDiscreteLaw,
-) -> Option<Relation> {
-    let (Some(root_counts), Some(counts)) = (root.empirical_counts(), law.empirical_counts())
-    else {
-        return None;
-    };
-    let (Some(root_d), Some(law_d)) =
-        (catalog.distribution(root.regime()), catalog.distribution(law.regime()))
-    else {
-        return None;
-    };
-    let same_world = root.population() == law.population()
-        && root.interventions().len() == law.interventions().len()
-        && law.interventions().iter().all(|a| root.interventions().contains(a));
-    if !same_world {
-        return None;
-    }
-    let same_axes = |a: &antecedent_expr::DiscreteAxis, b: &antecedent_expr::DiscreteAxis| {
-        a.variable == b.variable && a.values == b.values
-    };
-    if root.axes().len() == law.axes().len()
-        && root.axes().iter().zip(law.axes()).all(|(a, b)| same_axes(a, b))
-    {
-        return (same_law_family(&root_d, &law_d) && root_counts == counts)
-            .then_some(Relation::Identical);
-    }
-    let drop = root_d
-        .measured
-        .iter()
-        .filter(|variable| !law_d.measured.contains(variable))
-        .copied()
-        .collect::<Vec<_>>();
-    let projected = root_d.project(EvidenceProjection::Marginalize { drop: drop.into() }).ok()?;
-    if !same_law_family(&projected, &law_d) {
-        return None;
-    }
-    // Each law axis is a root axis with the same levels; the law cell of a root
-    // cell reads those axes' levels (last axis fastest in both layouts).
-    let positions = law
-        .axes()
-        .iter()
-        .map(|axis| root.axes().iter().position(|root_axis| same_axes(root_axis, axis)))
-        .collect::<Option<Vec<_>>>()?;
-    let mut map = Vec::with_capacity(root_counts.len());
-    let mut level = vec![0usize; root.axes().len()];
-    for _ in 0..root_counts.len() {
-        map.push(
-            positions
-                .iter()
-                .zip(law.axes())
-                .fold(0usize, |cell, (position, axis)| cell * axis.values.len() + level[*position]),
-        );
-        for (axis, value) in root.axes().iter().zip(level.iter_mut()).rev() {
-            *value += 1;
-            if *value < axis.values.len() {
-                break;
-            }
-            *value = 0;
-        }
-    }
-    let mut margin = vec![0u64; counts.len()];
-    for (cell, count) in map.iter().zip(root_counts) {
-        margin[*cell] = margin[*cell].checked_add(*count)?;
-    }
-    (margin == counts).then_some(Relation::Margin(map))
-}
-
-impl<'a> CitedTables<'a> {
-    fn new(
-        functional: &dyn crate::transport::BoundZFormula,
-        data: &'a antecedent_expr::ExactTransportData,
-        policy: AliasPolicy,
-    ) -> Result<Result<Self, &'static str>, EstimationError> {
-        let laws = data.laws();
-        let catalog = functional.catalog();
-        let mut tables = Vec::with_capacity(laws.len());
-        for law in laws {
-            tables.push(law.empirical_counts().ok_or_else(|| {
-                EstimationError::data_msg("z-transport interval requires counted laws")
-            })?);
-        }
-        let identities = laws.iter().map(|law| forwarded_dataset(catalog, law)).collect::<Vec<_>>();
-        // The finest law of each forwarded dataset, by cell count then order.
-        let root_of = |index: usize| -> usize {
-            let Some(identity) = &identities[index] else {
-                return index;
-            };
-            match policy {
-                AliasPolicy::Identical => (0..laws.len())
-                    .find(|j| identities[*j].as_ref() == Some(identity))
-                    .unwrap_or(index),
-                AliasPolicy::JointProjection => (0..laws.len())
-                    .filter(|j| identities[*j].as_ref() == Some(identity))
-                    .max_by_key(|j| (tables[*j].len(), std::cmp::Reverse(*j)))
-                    .unwrap_or(index),
-            }
-        };
-        let roots = (0..laws.len()).map(root_of).collect::<Vec<_>>();
-        // Resampled tables in first-appearance order; the joint policy orders
-        // them by (population, regime) so its streams do not depend on the
-        // order laws were supplied in.
-        let mut order = Vec::new();
-        for root in &roots {
-            if !order.contains(root) {
-                order.push(*root);
-            }
-        }
-        if policy == AliasPolicy::JointProjection {
-            order.sort_by_key(|root| (laws[*root].population(), laws[*root].regime().raw()));
-        }
-        let counts = order.iter().map(|root| tables[*root]).collect::<Vec<_>>();
-        let mut sources = Vec::with_capacity(laws.len());
-        for (index, law) in laws.iter().enumerate() {
-            let root = roots[index];
-            let dataset = order.iter().position(|r| *r == root).unwrap_or_default();
-            let projection = if root == index {
-                None
-            } else {
-                match policy {
-                    AliasPolicy::Identical => {
-                        if tables[root] != tables[index] {
-                            return Err(EstimationError::data_msg(
-                                "conflicting forwarded dataset aliases",
-                            ));
-                        }
-                        None
-                    }
-                    AliasPolicy::JointProjection => match relate_to_root(catalog, &laws[root], law)
-                    {
-                        Some(Relation::Identical) => None,
-                        Some(Relation::Margin(map)) => Some(map),
-                        None => return Ok(Err("transport.unsupported_dependence")),
-                    },
-                }
-            };
-            sources.push(LawSource { dataset, projection });
-        }
-        Ok(Ok(Self { laws, sources, counts }))
-    }
-
-    /// Rebuild every cited law from one resampled table per dataset; a projected
-    /// law is the margin of its dataset's table in the same replicate.
-    fn rebuild(
-        &self,
-        tables: &[Vec<f64>],
-        counts: Option<&[Vec<u64>]>,
-    ) -> Result<Vec<ExactDiscreteLaw>, EstimationError> {
-        self.laws
-            .iter()
-            .zip(&self.sources)
-            .map(|(law, source)| {
-                let dataset = source.dataset;
-                let (probabilities, law_counts) = match &source.projection {
-                    None => (tables[dataset].clone(), counts.map(|c| c[dataset].clone())),
-                    Some(map) => {
-                        let cells = law.probabilities().len();
-                        if let Some(counts) = counts {
-                            let mut margin = vec![0u64; cells];
-                            for (cell, count) in map.iter().zip(&counts[dataset]) {
-                                margin[*cell] += count;
-                            }
-                            let total = margin.iter().sum::<u64>() as f64;
-                            let p = margin.iter().map(|c| *c as f64 / total).collect();
-                            (p, Some(margin))
-                        } else {
-                            let mut p = vec![0.0; cells];
-                            for (cell, mass) in map.iter().zip(&tables[dataset]) {
-                                p[*cell] += mass;
-                            }
-                            (p, None)
-                        }
-                    }
-                };
-                let rebuilt = match law_counts {
-                    Some(law_counts) => antecedent_expr::ExactDiscreteLaw::try_empirical(
-                        law.population(),
-                        law.regime(),
-                        law.interventions().to_vec(),
-                        law.axes().to_vec(),
-                        probabilities,
-                        law.snapshot_identity(),
-                        law.tolerance(),
-                    )
-                    .and_then(|rebuilt| rebuilt.with_empirical_counts(law_counts)),
-                    None => antecedent_expr::ExactDiscreteLaw::try_bayesian_posterior(
-                        law.population(),
-                        law.regime(),
-                        law.interventions().to_vec(),
-                        law.axes().to_vec(),
-                        probabilities,
-                        law.snapshot_identity(),
-                        law.tolerance(),
-                    ),
-                };
-                rebuilt.map_err(|error| EstimationError::data_msg(error.to_string()))
-            })
-            .collect()
-    }
-}
-
 /// Publish a nominal percentile interval when every cited law has counts.
 ///
 /// Exact laws and dependence the classical empirical path already refuses stay
@@ -1255,7 +662,6 @@ pub fn nominal_z_transport_interval(
         coverage_level,
         keep_counts: true,
     };
-    let mut indexes = Vec::new();
     z_interval_over_draws(
         functional,
         data,
@@ -1263,7 +669,7 @@ pub fn nominal_z_transport_interval(
         limits,
         &spec,
         ctx,
-        |counts, rng, out, resampled| bootstrap_draw(counts, rng, &mut indexes, out, resampled),
+        |counts, rng, out, resampled| bootstrap_draw(counts, rng, out, resampled, ctx),
     )
 }
 
@@ -1271,20 +677,19 @@ pub fn nominal_z_transport_interval(
 fn bootstrap_draw(
     counts: &[u64],
     rng: &mut antecedent_core::CausalRng,
-    indexes: &mut Vec<u32>,
     probabilities: &mut Vec<f64>,
     resampled: &mut [u64],
-) -> bool {
-    if !resample_cited_counts(counts, rng, indexes, resampled) {
-        return false;
+    ctx: &ExecutionContext,
+) -> Result<bool, EstimationError> {
+    if !resample_cited_counts(counts, rng, resampled, ctx)? {
+        return Ok(false);
     }
     let total = resampled.iter().sum::<u64>() as f64;
     probabilities.clear();
     probabilities.extend(resampled.iter().map(|count| *count as f64 / total));
-    true
+    Ok(true)
 }
 
-#[cfg(feature = "calibration-internal")]
 /// Joint percentile-bootstrap intervals for a multi-source mz functional.
 ///
 /// Every replicate draws all cited tables once under one replicate id and
@@ -1313,7 +718,6 @@ pub struct MzTransportIntervals {
     pub replicates_failed: u32,
 }
 
-#[cfg(feature = "calibration-internal")]
 /// Pointwise intervals of one request of a joint mz bootstrap.
 #[derive(Clone, Debug)]
 pub struct MzRequestInterval {
@@ -1324,7 +728,7 @@ pub struct MzRequestInterval {
 }
 
 /// Whether the declared sampling of the studies a multi-source formula cites
-/// licenses a joint bootstrap, or the reason the interval is withheld.
+/// supports a joint bootstrap, or the reason the interval is withheld.
 ///
 /// Every cited regime needs an independent-design binding without weights.
 /// Each pair of cited regimes must be declared independent studies, or the same
@@ -1372,8 +776,7 @@ pub fn mz_sampling_dependence(
     Ok(())
 }
 
-#[cfg(feature = "calibration-internal")]
-/// The spec of the internal mz joint bootstrap: one row bootstrap per cited
+/// The spec of the mz joint bootstrap: one row bootstrap per cited
 /// dataset and replicate on the classical bootstrap stream, with counts kept.
 const fn mz_bootstrap_spec(replicates: u32, coverage_level: f64) -> ZDrawSpec {
     ZDrawSpec {
@@ -1407,7 +810,7 @@ fn mz_tables<'a>(
 /// before drawing, or `None` when it would draw.
 ///
 /// Exact laws have no sampling uncertainty; the catalog's declared sampling must
-/// license a joint bootstrap ([`mz_sampling_dependence`]); and laws that name the
+/// support a joint bootstrap ([`mz_sampling_dependence`]); and laws that name the
 /// same forwarded dataset must be the identical table or a recorded margin of
 /// the finest one (its catalog descriptor is that table's marginalization and
 /// its counts are exactly that margin). Any other shared dataset cannot be
@@ -1423,8 +826,7 @@ pub fn mz_interval_withheld_reason(
     Ok(mz_tables(functional, data)?.err())
 }
 
-#[cfg(feature = "calibration-internal")]
-/// The law sets the internal mz joint bootstrap evaluates, one per replicate
+/// The law sets the mz joint bootstrap evaluates, one per replicate
 /// (`None` for a replicate whose draw failed), for inspection: laws sharing a
 /// forwarded dataset are drawn from one resampled table in every replicate.
 ///
@@ -1443,16 +845,7 @@ pub fn mz_transport_bootstrap_law_draws(
         Ok(tables) => tables,
         Err(reason) => return Ok(Err(reason)),
     };
-    let mut indexes = Vec::new();
-    let mut drawer = TableDrawer::new(&tables, data.max_support_rows());
-    let mut out = Vec::with_capacity(replicates as usize);
-    for replicate in 0..replicates {
-        crate::transport::refuse_cancelled(ctx, spec.stage)?;
-        out.push(drawer.draw(&spec, replicate, ctx, &mut |counts, rng, p, resampled| {
-            bootstrap_draw(counts, rng, &mut indexes, p, resampled)
-        })?);
-    }
-    Ok(Ok(out))
+    bootstrap_law_draws(&tables, data.max_support_rows(), &spec, ctx).map(Ok)
 }
 
 /// The law sets of the iid row bootstrap of a single-source z functional's cited
@@ -1485,37 +878,41 @@ pub fn z_transport_bootstrap_law_draws(
         return Ok(Err("exact_supplied_law_no_sampling_uncertainty"));
     }
     let regimes = data.laws().iter().map(antecedent_expr::ExactDiscreteLaw::regime);
-    if !licensed_iid_regimes(functional.catalog(), regimes) {
+    if !supported_iid_regimes(functional.catalog(), regimes) {
         return Ok(Err("transport.unsupported_dependence"));
     }
     crate::transport::validate_exact_laws(functional.catalog(), data)
         .map_err(|error| refuse_eval(&error))?;
     let tables = CitedTables::new(functional, data, AliasPolicy::Identical)?
         .map_err(EstimationError::data_msg)?;
-    let mut indexes = Vec::new();
-    let mut drawer = TableDrawer::new(&tables, data.max_support_rows());
-    let mut out = Vec::with_capacity(replicates as usize);
-    for replicate in 0..replicates {
-        crate::transport::refuse_cancelled(ctx, spec.stage)?;
-        out.push(drawer.draw(&spec, replicate, ctx, &mut |counts, rng, p, resampled| {
-            bootstrap_draw(counts, rng, &mut indexes, p, resampled)
-        })?);
-    }
-    Ok(Ok(out))
+    bootstrap_law_draws(&tables, data.max_support_rows(), &spec, ctx).map(Ok)
 }
 
-#[cfg(feature = "calibration-internal")]
+// Draw each cited table once per replicate. Route-specific validation and
+// dependence policies are resolved before entering this shared loop.
+fn bootstrap_law_draws(
+    tables: &CitedTables<'_>,
+    max_support_rows: usize,
+    spec: &ZDrawSpec,
+    ctx: &ExecutionContext,
+) -> Result<Vec<Option<antecedent_expr::ExactTransportData>>, EstimationError> {
+    let mut drawer = TableDrawer::new(tables, max_support_rows);
+    let mut out = Vec::with_capacity(spec.replicates as usize);
+    for replicate in 0..spec.replicates {
+        crate::transport::refuse_cancelled(ctx, spec.stage)?;
+        out.push(drawer.draw(spec, replicate, ctx, &mut |counts, rng, p, resampled| {
+            bootstrap_draw(counts, rng, p, resampled, ctx)
+        })?);
+    }
+    Ok(out)
+}
+
 /// Joint percentile bootstrap of a multi-source mz functional over `requests`.
 ///
-/// This is the internal estimator the calibration harness measures; the public
-/// prepared route does not publish it until its coverage records exist.
-///
-/// Like the learned-continuous interval, this is compiled only with the
-/// `calibration-internal` feature, which only dev-dependencies (this crate's integration
-/// tests, `antecedent-io`'s interval tests and the facade's calibration harness) enable;
-/// no released build links it. The public prepared route withholds the interval, and
-/// [`mz_interval_withheld_reason`] / [`mz_sampling_dependence`] stay public to report why.
-/// Exact laws, undeclared or unsupported dependence (including shared datasets
+/// The reported intervals carry a calibration annotation resolved from the construction's
+/// calibration basis; calibration never gates them.
+/// [`mz_interval_withheld_reason`] / [`mz_sampling_dependence`] report why an interval is
+/// withheld for a data or dependence reason. Exact laws, undeclared or unsupported dependence (including shared datasets
 /// that are not one table or a recorded margin of it), and a bootstrap that
 /// fails too often withhold the interval with a stable reason; the point
 /// estimate is never withheld by this function.
@@ -1544,7 +941,6 @@ pub fn mz_transport_bootstrap_interval(
         Ok(tables) => tables,
         Err(reason) => return Ok(Err(reason)),
     };
-    let mut indexes = Vec::new();
     let drawn = z_draws(
         functional,
         TableDrawer::new(&tables, data.max_support_rows()),
@@ -1552,7 +948,7 @@ pub fn mz_transport_bootstrap_interval(
         limits,
         &spec,
         ctx,
-        |counts, rng, out, resampled| bootstrap_draw(counts, rng, &mut indexes, out, resampled),
+        |counts, rng, out, resampled| bootstrap_draw(counts, rng, out, resampled, ctx),
     )?;
     let ok = drawn.columns[0].ok;
     if let Err(reason) = ReplicatePolicy::BOOTSTRAP.decide(replicates, ok, drawn.failed) {
@@ -1565,7 +961,7 @@ pub fn mz_transport_bootstrap_interval(
                 atom_intervals: intervals.atoms,
                 mean_intervals: intervals.means,
             }),
-            Err(reason) => return Ok(Err(reason)),
+            Err(reason) => return Ok(Err(reason.as_str())),
         }
     }
     let base = &drawn.columns[0];
@@ -1624,288 +1020,14 @@ pub fn bayesian_z_transport_interval(
         keep_counts: false,
     };
     z_interval_over_draws(functional, data, request, limits, &spec, ctx, |counts, rng, out, _| {
-        match dirichlet_posterior_probabilities(counts, prior, rng) {
+        Ok(match dirichlet_posterior_probabilities(counts, prior, rng) {
             Some(drawn) => {
                 *out = drawn;
                 true
             }
             None => false,
-        }
+        })
     })
-}
-
-/// What one z-transport interval route draws: its method label, RNG stream
-/// tag, cancellation stage, replicate count and coverage, and whether the drawn
-/// tables carry counts (a bootstrap) or probabilities only (a posterior).
-struct ZDrawSpec {
-    method: &'static str,
-    stream: TransportStream,
-    stage: &'static str,
-    replicates: u32,
-    coverage_level: f64,
-    keep_counts: bool,
-}
-
-/// The one draw loop of both z-transport interval routes.
-///
-/// The cited count tables are validated against the catalog once; every draw
-/// then rebuilds them with `draw(counts, rng, probabilities, resampled)` per
-/// dataset (returning `false` for a draw that cannot be taken), compiles the
-/// checked formula against the rebuilt laws without revalidating providers,
-/// and records the replicate. Each dataset reads its own RNG stream.
-fn z_interval_over_draws(
-    functional: &dyn crate::transport::BoundZFormula,
-    data: &antecedent_expr::ExactTransportData,
-    request: &Assignment,
-    limits: ExactEvaluationLimits,
-    spec: &ZDrawSpec,
-    ctx: &ExecutionContext,
-    draw: impl FnMut(&[u64], &mut antecedent_core::CausalRng, &mut Vec<f64>, &mut Vec<u64>) -> bool,
-) -> Result<Result<NominalZTransportInterval, &'static str>, EstimationError> {
-    if data.laws().iter().any(|law| law.empirical_counts().is_none()) {
-        return Ok(Err("exact_supplied_law_no_sampling_uncertainty"));
-    }
-    validate_draw_spec(spec)?;
-    let regimes = data.laws().iter().map(antecedent_expr::ExactDiscreteLaw::regime);
-    if !licensed_iid_regimes(functional.catalog(), regimes) {
-        return Ok(Err("transport.unsupported_dependence"));
-    }
-    crate::transport::validate_exact_laws(functional.catalog(), data)
-        .map_err(|error| refuse_eval(&error))?;
-    let tables = CitedTables::new(functional, data, AliasPolicy::Identical)?
-        .map_err(EstimationError::data_msg)?;
-    let drawn = z_draws(
-        functional,
-        TableDrawer::new(&tables, data.max_support_rows()),
-        std::slice::from_ref(request),
-        limits,
-        spec,
-        ctx,
-        draw,
-    )?;
-    Ok(finish_z_interval(
-        spec.method,
-        &drawn.columns[0],
-        spec.replicates,
-        drawn.failed,
-        spec.coverage_level,
-    ))
-}
-
-fn validate_draw_spec(spec: &ZDrawSpec) -> Result<(), EstimationError> {
-    if spec.replicates < 2
-        || !spec.coverage_level.is_finite()
-        || !(spec.coverage_level > 0.0 && spec.coverage_level < 1.0)
-    {
-        return Err(EstimationError::data_msg(
-            "z-transport interval requires at least two replicates and coverage strictly between zero and one",
-        ));
-    }
-    Ok(())
-}
-
-/// Replicate columns of every request, drawn jointly.
-struct ZDraws {
-    /// One column set per request; replicate `r` of every set is the same draw.
-    columns: Vec<ReplicateColumns>,
-    /// Draws where any request failed; such a draw is recorded for none.
-    failed: u32,
-}
-
-/// One resampled law set per replicate, from reusable per-dataset buffers.
-struct TableDrawer<'t, 'a> {
-    tables: &'t CitedTables<'a>,
-    max_support_rows: usize,
-    resampled: Vec<Vec<u64>>,
-    probabilities: Vec<Vec<f64>>,
-}
-
-impl<'t, 'a> TableDrawer<'t, 'a> {
-    fn new(tables: &'t CitedTables<'a>, max_support_rows: usize) -> Self {
-        Self {
-            tables,
-            max_support_rows,
-            resampled: tables.counts.iter().map(|c| vec![0; c.len()]).collect(),
-            probabilities: tables.counts.iter().map(|c| vec![0.0; c.len()]).collect(),
-        }
-    }
-
-    /// Draw every dataset once for `replicate` (each on its own stream) and
-    /// rebuild the laws; `None` when a dataset draw cannot be taken.
-    fn draw(
-        &mut self,
-        spec: &ZDrawSpec,
-        replicate: u32,
-        ctx: &ExecutionContext,
-        draw: &mut impl FnMut(
-            &[u64],
-            &mut antecedent_core::CausalRng,
-            &mut Vec<f64>,
-            &mut Vec<u64>,
-        ) -> bool,
-    ) -> Result<Option<antecedent_expr::ExactTransportData>, EstimationError> {
-        for (dataset, counts) in self.tables.counts.iter().enumerate() {
-            let mut rng =
-                ctx.rng.stream_for(StreamDomain::Transport, spec.stream.index(dataset, replicate)?);
-            if !draw(
-                counts,
-                &mut rng,
-                &mut self.probabilities[dataset],
-                &mut self.resampled[dataset],
-            ) {
-                return Ok(None);
-            }
-        }
-        let laws = self
-            .tables
-            .rebuild(&self.probabilities, spec.keep_counts.then_some(&self.resampled))?;
-        antecedent_expr::ExactTransportData::try_new(laws, self.max_support_rows)
-            .map(Some)
-            .map_err(|error| EstimationError::data_msg(error.to_string()))
-    }
-}
-
-/// Draw the cited tables `spec.replicates` times and evaluate every request on
-/// each draw. A replicate counts only when every request evaluates, so the
-/// columns stay aligned by replicate id and contrasts are within-replicate.
-fn z_draws(
-    functional: &dyn crate::transport::BoundZFormula,
-    mut drawer: TableDrawer<'_, '_>,
-    requests: &[Assignment],
-    limits: ExactEvaluationLimits,
-    spec: &ZDrawSpec,
-    ctx: &ExecutionContext,
-    mut draw: impl FnMut(&[u64], &mut antecedent_core::CausalRng, &mut Vec<f64>, &mut Vec<u64>) -> bool,
-) -> Result<ZDraws, EstimationError> {
-    let outcomes = functional.outcomes().clone();
-    let mut columns = requests.iter().map(|_| ReplicateColumns::new(&outcomes)).collect::<Vec<_>>();
-    let mut failed = 0u32;
-    for replicate in 0..spec.replicates {
-        crate::transport::refuse_cancelled(ctx, spec.stage)?;
-        let Some(drawn) = drawer.draw(spec, replicate, ctx, &mut draw)? else {
-            failed += 1;
-            continue;
-        };
-        let Some(evaluated) = evaluate_z_requests(functional, drawn, requests, limits, ctx)? else {
-            failed += 1;
-            continue;
-        };
-        for (column, distribution) in columns.iter_mut().zip(&evaluated) {
-            column.record(distribution)?;
-        }
-    }
-    Ok(ZDraws { columns, failed })
-}
-
-/// Evaluate every request on one drawn law set, in request order; `None` when
-/// any request is a counted support failure. Compilation consumes the law set,
-/// so only the last request takes it by move and the others read a clone.
-fn evaluate_z_requests(
-    functional: &dyn crate::transport::BoundZFormula,
-    drawn: antecedent_expr::ExactTransportData,
-    requests: &[Assignment],
-    limits: ExactEvaluationLimits,
-    ctx: &ExecutionContext,
-) -> Result<Option<Vec<ExactDistribution>>, EstimationError> {
-    let mut evaluated = Vec::with_capacity(requests.len());
-    let Some((last, head)) = requests.split_last() else {
-        return Ok(Some(evaluated));
-    };
-    for request in head {
-        let Some(distribution) = evaluate_z_draw(functional, drawn.clone(), request, limits, ctx)?
-        else {
-            return Ok(None);
-        };
-        evaluated.push(distribution);
-    }
-    let Some(distribution) = evaluate_z_draw(functional, drawn, last, limits, ctx)? else {
-        return Ok(None);
-    };
-    evaluated.push(distribution);
-    Ok(Some(evaluated))
-}
-
-/// Evaluate one resampled or drawn law set; `None` is a counted support failure.
-fn evaluate_z_draw(
-    functional: &dyn crate::transport::BoundZFormula,
-    draw: antecedent_expr::ExactTransportData,
-    request: &Assignment,
-    limits: ExactEvaluationLimits,
-    ctx: &ExecutionContext,
-) -> Result<Option<ExactDistribution>, EstimationError> {
-    let evaluated =
-        crate::transport::compile_exact_z_transport(functional, draw, request.clone(), limits, ctx)
-            .and_then(|plan| plan.evaluate(ctx));
-    match evaluated {
-        Ok(distribution) => Ok(Some(distribution)),
-        Err(error) if is_support_failure(&error) => Ok(None),
-        Err(error) => Err(refuse_eval(&error)),
-    }
-}
-
-/// Summarize the recorded z-transport replicates under the bootstrap rule.
-fn finish_z_interval(
-    method: &'static str,
-    columns: &ReplicateColumns,
-    requested: u32,
-    failed: u32,
-    coverage_level: f64,
-) -> Result<NominalZTransportInterval, &'static str> {
-    ReplicatePolicy::BOOTSTRAP.decide(requested, columns.ok, failed)?;
-    let intervals = columns.intervals(coverage_level)?;
-    Ok(NominalZTransportInterval {
-        method: Arc::from(method),
-        reason: Arc::from(Z_TRANSPORT_INTERVAL_NOT_MEASURED),
-        coverage_target: coverage_level,
-        atom_intervals: intervals.atoms,
-        mean_intervals: intervals.means,
-        replicates_requested: requested,
-        replicates_ok: columns.ok,
-        replicates_failed: failed,
-    })
-}
-
-/// Resample a count table by an iid row bootstrap of its observations.
-///
-/// The rows are never materialized: each drawn row index is located in the
-/// cumulative count table, so the memory is one index buffer (reused across
-/// datasets and replicates) plus the output cells. The draws are the same as
-/// the row bootstrap of the expanded table.
-fn resample_cited_counts(
-    counts: &[u64],
-    rng: &mut antecedent_core::CausalRng,
-    indexes: &mut Vec<u32>,
-    out: &mut [u64],
-) -> bool {
-    let total = counts.iter().try_fold(0u64, |n, k| n.checked_add(*k));
-    let Some(total) = total.and_then(|total| usize::try_from(total).ok()) else {
-        return false;
-    };
-    if total == 0 || out.len() != counts.len() {
-        return false;
-    }
-    let mut cumulative = Vec::with_capacity(counts.len());
-    let mut running = 0u64;
-    for count in counts {
-        running += count;
-        cumulative.push(running);
-    }
-    indexes.clear();
-    if fill_resample_indexes(ResamplingPlan::IidBootstrap, total, rng, indexes).is_err()
-        || indexes.len() != total
-    {
-        return false;
-    }
-    out.fill(0);
-    for index in indexes.iter() {
-        // The first cell whose cumulative count exceeds the row index holds that row.
-        let cell = cumulative.partition_point(|end| *end <= u64::from(*index));
-        if cell >= out.len() {
-            return false;
-        }
-        out[cell] += 1;
-    }
-    true
 }
 
 /// Linear-interpolation (type-7) percentile interval of resampled replicates.
@@ -1932,6 +1054,26 @@ pub fn percentile_interval(values: &[f64], level: f64) -> Option<(f64, f64)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn interval_reasons_keep_their_stable_strings() {
+        assert_eq!(
+            TransportIntervalReason::BootstrapFailureFraction.as_str(),
+            ReplicatePolicy::BOOTSTRAP.reason
+        );
+        assert_eq!(
+            TransportIntervalReason::InsufficientDraws.as_str(),
+            ReplicatePolicy::percentile_floor(0).reason
+        );
+        for reason in TransportIntervalReason::ALL {
+            assert_eq!(TransportIntervalReason::parse(reason.as_str()), Some(reason));
+        }
+        assert_eq!(TransportIntervalReason::parse("not_a_reason"), None);
+        assert_eq!(
+            TransportIntervalReason::NotMeasured.as_str(),
+            Z_TRANSPORT_INTERVAL_NOT_MEASURED
+        );
+    }
 
     #[test]
     fn percentile_interval_is_pointwise_and_ordered() {
@@ -1989,10 +1131,9 @@ mod tests {
     fn resampled_counts_match_the_expanded_row_bootstrap() {
         let counts = [3u64, 0, 2, 5];
         let ctx = ExecutionContext::for_tests(5);
-        let mut indexes = Vec::new();
         let mut out = vec![0u64; 4];
         let mut rng = ctx.rng.stream_for(StreamDomain::Transport, 9);
-        assert!(resample_cited_counts(&counts, &mut rng, &mut indexes, &mut out));
+        assert!(resample_cited_counts(&counts, &mut rng, &mut out, &ctx).unwrap());
         assert_eq!(out.iter().sum::<u64>(), 10);
         assert_eq!(out[1], 0);
         // Expanding the rows and drawing the same indexes gives the same table.
@@ -2006,10 +1147,16 @@ mod tests {
         let mut drawn = Vec::new();
         fill_resample_indexes(ResamplingPlan::IidBootstrap, 10, &mut rng, &mut drawn).unwrap();
         for index in drawn {
-            expected[rows[index as usize]] += 1;
+            expected[rows[usize::try_from(index.get()).expect("row id")]] += 1;
         }
         assert_eq!(out, expected);
-        assert!(!resample_cited_counts(&[0, 0], &mut rng, &mut indexes, &mut out[..2]));
+        assert!(!resample_cited_counts(&[0, 0], &mut rng, &mut out[..2], &ctx).unwrap());
+        let cancelled = ExecutionContext::for_tests(5);
+        cancelled.cancellation.cancel();
+        let error =
+            resample_cited_counts(&[usize::MAX as u64], &mut rng, &mut out[..1], &cancelled)
+                .unwrap_err();
+        assert_eq!(error.reason_code(), Some("transport_budget_cancel"));
     }
 
     #[test]

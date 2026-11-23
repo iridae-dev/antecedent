@@ -9,20 +9,22 @@
 //! by an external provider (declared through the provider contract's object
 //! identity). A law that exists only as a callback is refused by name.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::overlap::FitDeclaration;
 use super::refusal::{PredictiveAssessmentError, detail, invalid, refuse, unsupported};
 use antecedent_core::reason_code;
 
-/// Most cases an assessment accepts.
-pub const MAX_CASES: usize = 1_000_000;
-/// Most predictors an assessment compares.
-pub const MAX_PREDICTORS: usize = 32;
-/// Most atoms, draws or categories one case's law may carry.
-pub const MAX_LAW_ATOMS: usize = 65_536;
-/// Largest dimension of a joint law.
-pub const MAX_JOINT_DIMENSION: usize = 64;
+/// Sanity bound on cases; the working limit is [`super::MAX_ASSESSMENT_WORK`].
+pub const MAX_CASES: usize = 1 << 24;
+/// Sanity bound on predictors; the working limit is [`super::MAX_ASSESSMENT_WORK`].
+pub const MAX_PREDICTORS: usize = 1024;
+/// Sanity bound on atoms, draws or categories of one case's law; the working limit is
+/// [`super::MAX_ASSESSMENT_WORK`].
+pub const MAX_LAW_ATOMS: usize = 1 << 20;
+/// Sanity bound on the dimension of a joint law; the working limit is
+/// [`super::MAX_ASSESSMENT_WORK`].
+pub const MAX_JOINT_DIMENSION: usize = 1024;
 /// Tolerance on a probability vector summing to one.
 pub const PROBABILITY_SUM_TOLERANCE: f64 = 1e-9;
 
@@ -181,6 +183,14 @@ impl ObservationKey {
     #[must_use]
     pub const fn from_bytes(bytes: [u8; 32]) -> Self {
         Self { digest: bytes, caller_minted: false }
+    }
+
+    /// Restore a digest whose origin is caller-minted or provenance-unknown.
+    ///
+    /// This is conservative: it cannot grant ledger-backed held-out status.
+    #[must_use]
+    pub const fn from_caller_minted_bytes(bytes: [u8; 32]) -> Self {
+        Self { digest: bytes, caller_minted: true }
     }
 
     /// The digest bytes.
@@ -770,6 +780,15 @@ impl PredictorLaws {
                     self.name,
                     self.laws.len()
                 ),
+            ));
+        }
+        if let FitDeclaration::PerCase(fits) = &self.fit
+            && (fits.len() != cases
+                || fits.iter().any(|fit| matches!(fit, FitDeclaration::PerCase(_))))
+        {
+            return Err(invalid(
+                detail::INVALID_LAW,
+                "per-case fit declarations must align with cases and cannot be nested",
             ));
         }
         for law in &self.laws {

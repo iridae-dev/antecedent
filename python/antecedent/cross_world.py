@@ -24,6 +24,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from ._artifact_protocol import container_bytes
 from ._columns import coerce_fields
 from ._data import as_columns
 from ._native import (
@@ -32,8 +33,10 @@ from ._native import (
 from ._native import (
     evaluate_cross_world_edge_contrast as _evaluate,
 )
+from ._validate import nonempty_name as _name
 from .accepted_graph import AcceptedGraph
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .execution import Execution, native_controls, resolve_execution
 from .graph import Dag
 
 __all__ = [
@@ -44,12 +47,6 @@ __all__ = [
 ]
 
 _MECHANISMS = ("linear_gaussian", "non_separable_basis")
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value:
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,10 +160,10 @@ def _refuse_structure(graph: object) -> None:
         return
     if isinstance(graph, AcceptedGraph) or hasattr(graph, "nodes"):
         raise CausalUnsupportedError(
-            "cross_world.graph_outside_contract: only a supplied explicit Dag is licensed; "
+            "cross_world.graph_outside_contract: only a supplied explicit Dag is supported; "
             "accepted, uncertain, latent-confounded (Admg), equivalence-class and temporal "
             "structures are refused",
-            reason_code="cell_not_licensed",
+            reason_code="route_not_supported",
         )
     raise CausalTypeError("graph must be a Dag")
 
@@ -178,7 +175,7 @@ def path_specific_effect(
     *,
     mechanism: str = "linear_gaussian",
     uncertainty: str | None = None,
-    seed: int = 1,
+    execution: Execution | None = None,
 ) -> CrossWorldEffect:
     """Evaluate a path-specific edge contrast on ``graph`` and ``data``.
 
@@ -193,8 +190,10 @@ def path_specific_effect(
     if mechanism not in _MECHANISMS:
         raise CausalValueError(f"mechanism must be one of {_MECHANISMS}")
     names, columns = as_columns(data)
+    execution = resolve_execution(execution)
     return _effect(
-        _evaluate(
+        execution._call(
+            _evaluate,
             names,
             columns,
             list(graph.edges()),
@@ -205,19 +204,38 @@ def path_specific_effect(
             list(intervention.edges),
             mechanism=mechanism,
             interval_requested=uncertainty is not None,
-            seed=seed,
+            **native_controls(execution, seed="seed"),
         )
     )
 
 
-def consume_cross_world_artifact(artifact: bytes, *, seed: int = 1) -> CrossWorldEffect:
+def consume_cross_world_artifact(
+    artifact: bytes,
+    *,
+    expected_data_digest: str | None = None,
+    execution: Execution | None = None,
+) -> CrossWorldEffect:
     """Replay an exported artifact from its stored premises and accept only an identical one.
+
+    ``expected_data_digest`` (a result's ``data_digest``) additionally requires the artifact's
+    factual table to be the caller's: an artifact computed on other data is refused.
 
     The replay uses the same evaluator plus a separate closed-form recomputation
     of the point for both mechanism families. It detects corruption and re-sealed
     edits that change the derivation or the point; it does not detect a producer
     that seals a wrong table or query on purpose.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
-    return _effect(_consume(bytes(artifact), seed=seed))
+    if expected_data_digest is not None and not isinstance(expected_data_digest, str):
+        raise CausalTypeError("expected_data_digest must be a string")
+    execution = resolve_execution(execution)
+    return _effect(
+        execution._call(
+            _consume,
+            bytes(artifact),
+            expected_data_digest=expected_data_digest,
+            **native_controls(execution, seed="seed"),
+        )
+    )

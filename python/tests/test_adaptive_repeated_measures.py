@@ -10,15 +10,17 @@ Truth is computed here in pure Python, never by native code:
 * the martingale property of the adaptively weighted score (unbiased under epsilon-greedy
   assignment), with its Monte Carlo standard error.
 
-Every result is ``derived_unmeasured``; every refusal is ``cell_not_licensed`` (premise) or
+Every result is ``derived_not_measured``; every refusal is ``adaptive_assumption_violated`` (premise) or
 ``adaptive_contract_incomplete`` / ``invalid_argument`` (declaration) with its own detail.
 """
 
 from __future__ import annotations
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import adaptive_inference as ai
 from antecedent.adaptive_inference import AdaptiveInferenceRefusal
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -57,7 +59,9 @@ EVEN = ai.UnitAssignment.fixed((0.5, 0.5))
 GREEDY = ai.UnitAssignment.epsilon_greedy(0.4)
 
 
-def refused(call, detail: str, code: str = "cell_not_licensed") -> AdaptiveInferenceRefusal:
+def refused(
+    call, detail: str, code: str = "adaptive_assumption_violated"
+) -> AdaptiveInferenceRefusal:
     with pytest.raises(AdaptiveInferenceRefusal) as caught:
         call()
     assert_registered_refusal(caught.value)
@@ -74,7 +78,9 @@ def test_a_missing_within_unit_correlation_is_its_own_refusal():
             structure=rm(4, 1.0, None),
             analysis=ai.FinalAnalysis.cluster_robust(),
         )
-    assert caught.value.details == ("adaptive_inference.within_unit_correlation_missing",)
+    assert caught.value.details == (
+        reason_details.adaptive_inference.WITHIN_UNIT_CORRELATION_MISSING,
+    )
     assert_registered_refusal(caught.value)
     assert caught.value.reason_code == "adaptive_contract_incomplete"
 
@@ -83,11 +89,11 @@ def test_every_missing_element_gives_its_own_detail():
     with pytest.raises(AdaptiveInferenceRefusal) as caught:
         ai.RepeatedMeasuresProcedure.declare(ai.RepeatedMeasuresDeclaration(arms=2))
     assert caught.value.details == (
-        "adaptive_inference.policy_history_missing",
-        "adaptive_inference.interim_analyses_missing",
-        "adaptive_inference.outcome_structure_missing",
-        "adaptive_inference.final_analysis_missing",
-        "adaptive_inference.stopping_rule_missing",
+        reason_details.adaptive_inference.POLICY_HISTORY_MISSING,
+        reason_details.adaptive_inference.INTERIM_ANALYSES_MISSING,
+        reason_details.adaptive_inference.OUTCOME_STRUCTURE_MISSING,
+        reason_details.adaptive_inference.FINAL_ANALYSIS_MISSING,
+        reason_details.adaptive_inference.STOPPING_RULE_MISSING,
     )
     assert caught.value.reason_code == "adaptive_contract_incomplete"
 
@@ -101,8 +107,8 @@ def test_a_missing_variance_component_of_a_cluster_is_its_own_refusal():
             analysis=ai.FinalAnalysis.cluster_robust(),
         )
     assert caught.value.details == (
-        "adaptive_inference.between_unit_variance_missing",
-        "adaptive_inference.within_unit_variance_missing",
+        reason_details.adaptive_inference.BETWEEN_UNIT_VARIANCE_MISSING,
+        reason_details.adaptive_inference.WITHIN_UNIT_VARIANCE_MISSING,
     )
 
 
@@ -114,7 +120,7 @@ def test_an_invalid_correlation_is_invalid_argument():
             structure=rm(4, 1.0, 1.0),
             analysis=ai.FinalAnalysis.cluster_robust(),
         )
-    assert caught.value.details == ("adaptive_inference.correlation_invalid",)
+    assert caught.value.details == (reason_details.adaptive_inference.CORRELATION_INVALID,)
     assert caught.value.reason_code == "invalid_argument"
 
 
@@ -128,7 +134,7 @@ def test_the_closed_forms_are_the_design_effect_and_the_enumerated_mixture():
     )
     assert procedure.cell["id"] == FIXED_CELL
     report = procedure.closed_form((0.0, 0.5))
-    assert report.claim == ai.DERIVED_UNMEASURED
+    assert report.claim == ai.DERIVED_NOT_MEASURED
     assert report.procedure_identity == procedure.identity
     assert report.route == "cluster_robust_unit_summaries"
     body = report.body
@@ -184,8 +190,8 @@ def test_the_derived_fixed_sample_report_separates_exact_values_from_monte_carlo
         structure=rm(3, 2.0, 0.5),
         analysis=ai.FinalAnalysis.cluster_robust(),
     )
-    report = procedure.derive((0.0, 0.25), replications=4000, seed=13)
-    assert report.claim == ai.DERIVED_UNMEASURED
+    report = require_success(procedure.derive((0.0, 0.25), replications=4000, seed=13))
+    assert report.claim == ai.DERIVED_NOT_MEASURED
     body = report.body
     assert body["kind"] == "derived"
     assert body["paradigm"] == "frequentist_fixed_sample"
@@ -207,7 +213,7 @@ def test_the_weighting_route_is_labelled_and_unbiased_under_epsilon_greedy():
     )
     assert procedure.cell["id"] == GREEDY_CELL
     assert procedure.cell["paradigm"] == "frequentist_adaptive_weighting"
-    report = procedure.derive((0.0, 0.5), replications=2000, seed=13)
+    report = require_success(procedure.derive((0.0, 0.5), replications=2000, seed=13))
     assert report.route == "adaptively_weighted_unit_scores"
     body = report.body
     assert body["paradigm"] == "frequentist_adaptive_weighting"
@@ -224,8 +230,8 @@ def test_a_fixed_sample_analysis_after_adaptive_assignment_is_refused():
         structure=rm(3, 1.0, 0.4),
         analysis=ai.FinalAnalysis.cluster_robust(),
     )
-    detail = "adaptive_inference.fixed_sample_design_adaptive"
-    refused(lambda: procedure.derive((0.0, 0.5), replications=10, seed=1), detail)
+    detail = reason_details.adaptive_inference.FIXED_SAMPLE_DESIGN_ADAPTIVE
+    refused(lambda: require_success(procedure.derive((0.0, 0.5), replications=10, seed=1)), detail)
     refused(
         lambda: procedure.derive_paradigm(
             "frequentist_fixed_sample", (0.0, 0.5), replications=10, seed=1
@@ -242,8 +248,8 @@ def test_an_independence_assumption_for_dependent_measurements_is_refused():
         analysis=ai.FinalAnalysis.pooled_independent(),
     )
     refused(
-        lambda: procedure.derive((0.0, 0.0), replications=10, seed=1),
-        "adaptive_inference.independence_assumed_for_dependent_measurements",
+        lambda: require_success(procedure.derive((0.0, 0.0), replications=10, seed=1)),
+        reason_details.adaptive_inference.INDEPENDENCE_ASSUMED_FOR_DEPENDENT_MEASUREMENTS,
     )
     # Independence declared as a zero correlation is admitted.
     independent = declare(
@@ -252,8 +258,8 @@ def test_an_independence_assumption_for_dependent_measurements_is_refused():
         structure=rm(4, 1.0, 0.0),
         analysis=ai.FinalAnalysis.pooled_independent(),
     )
-    report = independent.derive((0.0, 0.0), replications=200, seed=1)
-    assert report.claim == ai.DERIVED_UNMEASURED
+    report = require_success(independent.derive((0.0, 0.0), replications=200, seed=1))
+    assert report.claim == ai.DERIVED_NOT_MEASURED
     assert report.body["design_effect"] == pytest.approx(1.0, abs=TOL)
 
 
@@ -268,7 +274,7 @@ def test_a_paradigm_that_is_not_derived_for_the_cell_is_refused():
         lambda: procedure.derive_paradigm(
             "anytime_valid_frequentist", (0.0, 0.5), replications=10, seed=1
         ),
-        "adaptive_inference.repeated_measures_paradigm_not_derived",
+        reason_details.adaptive_inference.REPEATED_MEASURES_PARADIGM_NOT_DERIVED,
     )
 
 
@@ -300,7 +306,7 @@ def test_a_guarantee_is_not_paired_across_cells():
             lambda cell_id=cell_id, paradigm=paradigm: procedure.transfer_guarantee(
                 cell_id, paradigm
             ),
-            "adaptive_inference.guarantee_not_transferable",
+            reason_details.adaptive_inference.GUARANTEE_NOT_TRANSFERABLE,
         )
 
 
@@ -315,3 +321,239 @@ def test_the_identity_changes_with_the_declared_dependence_at_unchanged_shape():
 
     assert at(0.3) == at(0.3)
     assert at(0.3) != at(0.4)
+
+
+# ------------------------------------------------------------------ posterior of the arm means
+#
+# Oracle in pure Python: two compound-symmetric measurements per unit (variance 2, correlation
+# 1/2) give the unit-mean variance v = 2 * 1.5 / 2 = 1.5; arm k has precision 1/prior_var + n_k/v
+# and mean (prior_mean/prior_var + sum_k/v)/precision over the unit means.
+
+POSTERIOR_PRIORS = ((0.0, 4.0), (1.0, 2.0))
+POSTERIOR_UNITS = (
+    (0, (1.0, 3.0)),
+    (0, (2.0, 2.0)),
+    (1, (4.0, 6.0)),
+    (1, (5.0, 7.0)),
+    (1, (3.0, 5.0)),
+)
+
+
+def _posterior_units(probabilities):
+    return [(arm, y, p) for (arm, y), p in zip(POSTERIOR_UNITS, probabilities, strict=True)]
+
+
+def _hand_posterior():
+    v = 1.5
+    out = []
+    for arm, (m0, v0) in enumerate(POSTERIOR_PRIORS):
+        means = [sum(y) / 2.0 for a, y in POSTERIOR_UNITS if a == arm]
+        precision = 1.0 / v0 + len(means) / v
+        out.append(((m0 / v0 + sum(means) / v) / precision, precision**-0.5))
+    return out
+
+
+def test_the_posterior_matches_the_hand_calculation_and_is_unsupported():
+    from statistics import NormalDist
+
+    procedure = declare(
+        assignment=EVEN,
+        enrolment=(5,),
+        structure=rm(2, 2.0, 0.5),
+        analysis=ai.FinalAnalysis.cluster_robust(),
+    )
+    posterior = require_success(
+        procedure.posterior(
+            priors=POSTERIOR_PRIORS, units=_posterior_units([0.5] * 5), credible_level=0.95
+        )
+    )
+    (m0, s0), (m1, s1) = _hand_posterior()
+    assert posterior.arms[0]["mean"] == pytest.approx(m0, abs=TOL)
+    assert posterior.arms[1]["mean"] == pytest.approx(m1, abs=TOL)
+    assert posterior.arms[0]["standard_deviation"] == pytest.approx(s0, abs=TOL)
+    contrast = posterior.contrast
+    sd = (s0**2 + s1**2) ** 0.5
+    z = NormalDist().inv_cdf(0.975)
+    assert contrast["mean"] == pytest.approx(m1 - m0, abs=TOL)
+    assert contrast["standard_deviation"] == pytest.approx(sd, abs=TOL)
+    assert contrast["interval"][0] == pytest.approx(m1 - m0 - z * sd, abs=1e-8)
+    assert contrast["interval"][1] == pytest.approx(m1 - m0 + z * sd, abs=1e-8)
+    assert contrast["probability_positive"] == pytest.approx(
+        NormalDist().cdf((m1 - m0) / sd), abs=1e-9
+    )
+    assert posterior.estimator_id == "bayesian.repeated_measures_arm_contrast"
+    assert posterior.supported is False
+    assert posterior.calibration == "not_measured"
+
+
+def test_the_posterior_is_independent_of_the_assignment_probabilities_and_keeps_them():
+    fixed = declare(
+        assignment=EVEN,
+        enrolment=(5,),
+        structure=rm(2, 2.0, 0.5),
+        analysis=ai.FinalAnalysis.cluster_robust(),
+    )
+    greedy = declare(
+        assignment=GREEDY,
+        enrolment=(5,),
+        structure=rm(2, 2.0, 0.5),
+        analysis=ai.FinalAnalysis.adaptively_weighted(),
+    )
+    probabilities = [0.9, 0.2, 0.35, 0.8, 0.6]
+    a = require_success(fixed.posterior(priors=POSTERIOR_PRIORS, units=_posterior_units([0.5] * 5)))
+    b = require_success(
+        greedy.posterior(priors=POSTERIOR_PRIORS, units=_posterior_units(probabilities))
+    )
+    assert a.contrast == b.contrast
+    assert a.arms == b.arms
+    assert b.selection_evidence["adaptive"] is True
+    assert b.selection_evidence["assignment_probabilities"] == probabilities
+
+
+def test_an_unobserved_selection_and_an_unobserved_arm_are_refused_with_their_next_attempt():
+    procedure = declare(
+        assignment=EVEN,
+        enrolment=(5,),
+        structure=rm(2, 2.0, 0.5),
+        analysis=ai.FinalAnalysis.cluster_robust(),
+    )
+    caught = refused(
+        lambda: require_success(
+            procedure.posterior(
+                priors=POSTERIOR_PRIORS,
+                units=_posterior_units([0.5] * 5),
+                selection="depends_on_unobserved",
+            )
+        ),
+        reason_details.adaptive_inference.SELECTION_NOT_IGNORABLE,
+    )
+    assert "model the selection jointly" in str(caught)
+    only_one_arm = [(1, y, 0.5) for arm, y in POSTERIOR_UNITS if arm == 1]
+    caught = refused(
+        lambda: require_success(procedure.posterior(priors=POSTERIOR_PRIORS, units=only_one_arm)),
+        reason_details.adaptive_inference.ARM_NOT_OBSERVED,
+    )
+    assert "prior alone does not identify" in str(caught)
+
+
+def test_the_posterior_artifact_round_trips_and_refuses_a_forgery():
+    procedure = declare(
+        assignment=EVEN,
+        enrolment=(5,),
+        structure=rm(2, 2.0, 0.5),
+        analysis=ai.FinalAnalysis.cluster_robust(),
+    )
+    posterior = require_success(
+        procedure.posterior(priors=POSTERIOR_PRIORS, units=_posterior_units([0.5] * 5))
+    )
+    # Historical envelope compatibility remains tested independently of the
+    # additive self-contained canonical export.
+    import json
+
+    from antecedent._freeze import thaw
+
+    text, refusal = procedure._handle.posterior_artifact(json.dumps(thaw(posterior.report)))
+    assert refusal is None
+    from antecedent._artifact_protocol import inspect_artifact
+
+    historical = inspect_artifact(text.encode("utf-8"))
+    assert historical.acceptance.unresolved == ("declared_repeated_measures_procedure",)
+    assert not historical.acceptance.replayed and not historical.acceptance.replayable
+    # An independently re-declared procedure loads and recomputes it.
+    again = declare(
+        assignment=EVEN,
+        enrolment=(5,),
+        structure=rm(2, 2.0, 0.5),
+        analysis=ai.FinalAnalysis.cluster_robust(),
+    ).load_posterior(text)
+    assert again.contrast == posterior.contrast
+    edited = text.replace('"supported":false', '"supported":true')
+    assert edited != text
+    with pytest.raises(AdaptiveInferenceRefusal):
+        procedure.load_posterior(edited)
+    other = declare(
+        assignment=EVEN,
+        enrolment=(5,),
+        structure=rm(2, 3.0, 0.5),
+        analysis=ai.FinalAnalysis.cluster_robust(),
+    )
+    with pytest.raises(AdaptiveInferenceRefusal):
+        other.load_posterior(text)
+
+
+def test_self_contained_posterior_exports_replay_in_fresh_process_and_bind_exact_premises(tmp_path):
+    import json
+    import subprocess
+    import sys
+
+    from antecedent._artifact_protocol import ExportedArtifact, load_scientific
+
+    procedure = declare(
+        assignment=EVEN,
+        enrolment=(5,),
+        structure=rm(2, 2.0, 0.5),
+        analysis=ai.FinalAnalysis.cluster_robust(),
+    )
+    posterior = require_success(
+        procedure.posterior(priors=POSTERIOR_PRIORS, units=_posterior_units([0.5] * 5))
+    )
+    from antecedent.outcomes import as_outcome
+
+    outcome = as_outcome(posterior)
+    assert outcome.answer.kind == "distribution"
+    assert outcome.uncertainty.summary == "posterior_equal_tailed_credible_interval"
+    assert outcome.uncertainty.reason == "uncalibrated_posterior"
+    assert not outcome.support.available
+    assert outcome.identities["procedure_identity"] == procedure.identity
+    artifact = outcome.export()
+    assert isinstance(artifact, ExportedArtifact)
+    assert artifact.kind == "antecedent.repeated_measures_posterior_bundle"
+    assert artifact.expectation.identity != procedure.identity
+    assert bytes(procedure.export(posterior)) == bytes(artifact)
+    restored = require_success(
+        ai.consume_repeated_measures_posterior_artifact(
+            artifact,
+            artifact.expectation.identity,
+        )
+    )
+    assert restored.contrast == posterior.contrast
+    assert restored.arms == posterior.arms
+    assert restored.acceptance.status == "replayed"
+    assert restored.acceptance.replayable
+    assert not restored.supported
+    assert restored.calibration == "not_measured"
+    assert bytes(restored.export()) == bytes(artifact)
+    generic = load_scientific(artifact, expected=artifact.expectation)
+    assert generic.contrast == posterior.contrast
+    assert generic.acceptance.identity_bound
+
+    path = tmp_path / "posterior.json"
+    path.write_bytes(bytes(artifact))
+    script = (
+        "import json,sys\n"
+        "from antecedent.adaptive_inference import consume_repeated_measures_posterior_artifact\n"
+        "from antecedent.outcomes import require_success\n"
+        "r=require_success(consume_repeated_measures_posterior_artifact(open(sys.argv[1],'rb').read(),sys.argv[2]))\n"
+        "print(json.dumps({'contrast':r.contrast,'status':r.acceptance.status,'replayable':r.acceptance.replayable}))\n"
+    )
+    output = subprocess.run(
+        [sys.executable, "-c", script, str(path), artifact.expectation.identity],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    fresh = json.loads(output.stdout)
+    expected_contrast = dict(posterior.contrast)
+    expected_contrast["interval"] = list(expected_contrast["interval"])
+    assert fresh["contrast"] == expected_contrast
+    assert fresh["status"] == "replayed"
+    assert fresh["replayable"]
+
+    from antecedent.errors import CausalSerializationError
+
+    with pytest.raises(CausalSerializationError):
+        ai.consume_repeated_measures_posterior_artifact(artifact, "0" * 64)
+    envelope = json.loads(bytes(artifact))
+    envelope["declaration"]["structure"]["variance"] = 3.0
+    with pytest.raises(CausalSerializationError):
+        ai.consume_repeated_measures_posterior_artifact(json.dumps(envelope).encode())

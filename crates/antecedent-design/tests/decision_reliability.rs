@@ -4,7 +4,7 @@
 //! the effective sample size of the quantity (a multiple of its theoretical standard
 //! error), never tuned to an observed value. All simulation runs at fixed seeds.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_design::decision_reliability::{
@@ -15,8 +15,8 @@ use antecedent_design::decision_reliability::{
     SelectionRule, SelectionStatus, SelectionUncertainty, SourceParadigm, SourceUncertainty,
     StandardErrorMethod, StreamId, StreamPurpose, ThresholdSide, UncertaintyReporting,
     ValidationKind, ValidationPlan, WithinStreamDependence, assess, consume, estimate,
-    estimate_difference, license_route, rank, select_in_sample, simulate_replicate,
-    simulate_selection_draws, split_draws, winners_curse_bound,
+    estimate_difference, rank, select_in_sample, simulate_replicate, simulate_selection_draws,
+    split_draws, support_route, winners_curse_bound,
 };
 use antecedent_kernels::{norm_cdf, norm_inv, norm_pdf, standard_normal};
 
@@ -257,7 +257,7 @@ fn importance_weights_use_kish_ess_and_the_self_normalized_delta_method() {
     assert!((got.standard_error - 562.5_f64.sqrt() / 2_000.0).abs() < 1e-12);
     assert!((got.effective_sample_size - 800.0).abs() < 1e-9);
     assert_eq!(got.method, StandardErrorMethod::SelfNormalizedWeights);
-    // No weighted order-statistic or influence-function error is licensed.
+    // No weighted order-statistic or influence-function error is supported.
     for functional in
         [Functional::Quantile { p: 0.5 }, Functional::Cvar { alpha: 0.25, tail: RiskTail::Lower }]
     {
@@ -603,7 +603,7 @@ fn adaptively_generated_candidates_need_a_search_record() {
     assert_eq!(err.reason_code(), "candidate_search_record_required");
     let refusal = err.to_refusal();
     assert!(refusal.detail.starts_with("decision_reliability."));
-    assert!(refusal.remedy.is_some(), "the refusal states what would license the request");
+    assert!(refusal.remedy.is_some(), "the refusal states what would support the request");
     // Ranking alone refuses the same way.
     let err = rank(&adaptive_carrier(None), &RankingRequest::default(), &ctx()).unwrap_err();
     assert_eq!(err.reason_code(), "candidate_search_record_required");
@@ -732,7 +732,7 @@ fn validation_must_be_independent_of_the_selection_draws() {
     assert!(split_draws(&chain, 0.5, 20).is_ok());
 }
 
-// ---- the three components stay separate; closed routes ------------------------------
+// ---- the three components stay separate; unsupported routes ------------------------------
 
 #[test]
 fn the_three_components_are_separate_fields_and_a_combined_number_is_refused() {
@@ -755,7 +755,9 @@ fn the_three_components_are_separate_fields_and_a_combined_number_is_refused() {
     // while the Monte Carlo standard error of the same candidate is 2 / sqrt(500).
     assert!((spread.standard_deviation - 2.0).abs() < 0.2);
     let mc = &report.monte_carlo_error.candidates[1].estimate;
-    assert!((mc.standard_error - spread.standard_deviation / 500_f64.sqrt()).abs() < 1e-9);
+    // The source spread is the empirical law's population SD; the Monte Carlo
+    // error uses the Bessel-corrected sample variance on the same 500 draws.
+    assert!((mc.standard_error - spread.standard_deviation / 499_f64.sqrt()).abs() < 1e-9);
     assert!(spread.standard_deviation > 20.0 * mc.standard_error);
     // Known law: no source uncertainty is reported.
     draws.source = SourceParadigm::KnownLaw;
@@ -782,54 +784,78 @@ fn the_three_components_are_separate_fields_and_a_combined_number_is_refused() {
 }
 
 #[test]
-fn every_published_ranking_or_interval_route_is_closed_at_its_coordinate() {
+fn every_published_ranking_or_interval_route_is_reported_uncalibrated_outside_its_range() {
     // 100 draws per candidate is below the measured range (500 to 2000): no current
-    // coverage record covers it, so every route refuses with the typed reason.
+    // coverage record covers it, so every route is reported and not calibrated.
     let draws = gaussian_pair(0.5, 100, false);
     let report = assess(&draws, None, &ReliabilityRequest::expected_utility(), &ctx()).unwrap();
     let coordinate: &CalibrationCoordinate = &report.coordinate;
     assert_eq!(coordinate.candidate_set_size, 2);
     assert_eq!(coordinate.mc_budget, 100);
     assert_eq!(coordinate.selection_rule, "maximize_expected_utility");
-    assert_eq!(report.closed_routes.len(), PublishedRoute::ALL.len());
     for route in PublishedRoute::ALL {
-        let err = license_route(route, coordinate).unwrap_err();
-        assert_eq!(err.reason_code(), "cell_not_licensed");
-        let refusal = err.to_refusal();
-        assert!(refusal.detail.starts_with("decision_reliability."));
-        assert!(refusal.offending.unwrap().contains("candidate_set_size=2"));
+        let slot = support_route(route, coordinate).unwrap();
+        assert_ne!(slot.status, antecedent_io_core::CalibrationStatus::Calibrated);
     }
-    assert!(report.closed_routes.iter().all(|r| r.code == "cell_not_licensed"));
 }
 
 #[test]
-fn every_published_route_is_licensed_inside_a_measured_coverage_record() {
-    // Two candidates on a shared stream with 1000 draws each, expected-utility selection,
-    // independent unweighted enumerated draws, level 0.95: inside the measured records of
-    // the ranking probability, the utility interval, the confidence set and the
-    // selection-corrected interval (500 to 2000 draws, shared correlation 0 and 0.5).
+fn measured_routes_respect_current_attestation_in_their_calibration_status() {
+    use antecedent_design::decision_reliability::{calibration_basis, record_functional};
+    use antecedent_io_core::CalibrationStatus;
+    use antecedent_io_core::calibration::{
+        RECORD_NOT_ATTESTING, calibration_slot, record_attests_current_code,
+    };
+    use antecedent_io_core::coverage_records_data::RECORDS;
+
+    // These coordinates have measured records. A measured record supports a route
+    // only while its governing statistical surface is currently attested.
     let draws = gaussian_pair(0.5, 1000, false);
     let report = assess(&draws, None, &ReliabilityRequest::expected_utility(), &ctx()).unwrap();
     assert_eq!(report.coordinate.mc_budget, 1000);
     for route in PublishedRoute::ALL {
-        license_route(route, &report.coordinate)
-            .unwrap_or_else(|error| panic!("{} is measured here: {error:?}", route.as_str()));
+        let banded = calibration_basis(route, &report.coordinate, 0.95).unwrap();
+        let mut exact = banded.clone();
+        exact.key.functional = record_functional(&report.coordinate);
+        let slots = [calibration_slot(&banded), calibration_slot(&exact)];
+        assert!(
+            slots.iter().any(|slot| slot.record_id.is_some()),
+            "{} lacks a measured record",
+            route.as_str()
+        );
+        for slot in &slots {
+            if slot.reason.as_deref() == Some(RECORD_NOT_ATTESTING) {
+                let record = RECORDS
+                    .iter()
+                    .find(|record| Some(record.id) == slot.record_id.as_deref())
+                    .unwrap();
+                assert!(!record_attests_current_code(record));
+            }
+        }
+        let should_open = slots.iter().any(|slot| slot.status == CalibrationStatus::Calibrated);
+        let slot = support_route(route, &report.coordinate).unwrap();
+        assert_eq!(
+            slot.status == CalibrationStatus::Calibrated,
+            should_open,
+            "{} attestation decision",
+            route.as_str()
+        );
     }
-    assert!(report.closed_routes.is_empty());
-    // The same coordinate at another level, and with serially dependent draws, is not.
-    let at_ninety = antecedent_design::decision_reliability::license_route_at(
+    // A different nominal level and serial dependence remain outside the records: the route
+    // is still reported, annotated as not calibrated.
+    let at_ninety = antecedent_design::decision_reliability::support_route_at(
         PublishedRoute::RankingProbability,
         &report.coordinate,
         0.9,
     )
-    .unwrap_err();
-    assert_eq!(at_ninety.reason_code(), "cell_not_licensed");
+    .unwrap();
+    assert_ne!(at_ninety.status, CalibrationStatus::Calibrated);
     let mut dependent = report.coordinate.clone();
     dependent.within_stream =
         antecedent_design::decision_reliability::WithinStreamDependence::Autocorrelated;
-    assert_eq!(
-        license_route(PublishedRoute::UtilityInterval, &dependent).unwrap_err().reason_code(),
-        "cell_not_licensed"
+    assert_ne!(
+        support_route(PublishedRoute::UtilityInterval, &dependent).unwrap().status,
+        CalibrationStatus::Calibrated
     );
 }
 
@@ -850,7 +876,8 @@ fn pre_specified_decisions_have_no_selection_effect_and_adaptive_ones_cannot_cla
         decision: DecisionChoice::PreSpecified("absent".into()),
         ..ReliabilityRequest::expected_utility()
     };
-    assert!(assess(&draws, None, &missing, &ctx()).is_err());
+    let absent = assess(&draws, None, &missing, &ctx()).unwrap_err();
+    assert_eq!(absent.reason_code(), "invalid_argument");
 }
 
 #[test]
@@ -929,7 +956,7 @@ fn the_artifact_round_trips_and_is_recomputed_from_the_draws() {
         assess(&consumed.draws, consumed.validation.as_ref(), &consumed.request, &ctx()).unwrap();
     assert_eq!(recomputed, consumed.report);
     // The decision is the true optimum here (index 2, true utility 0.4 against 0.2).
-    assert!(["c00000", "c00001", "c00002"].contains(&consumed.report.decided_id.as_str()));
+    assert_eq!(consumed.report.decided_id, "c00002");
 }
 
 #[test]
@@ -981,7 +1008,7 @@ fn semantic_mutations_of_the_artifact_are_refused() {
     let mut forged = DecisionReliabilityArtifact::from_bytes(&bytes).unwrap();
     forged.draws.coupling = CandidateCoupling::DeclaredIndependent;
     reseal(&mut forged);
-    assert!(forged.verify(&default, &ctx()).is_err());
+    assert!(message(&forged, &default).contains("declared_independent_but_draws_overlap"));
 
     // A consistently resealed forgery (draws and report both regenerated) is caught by
     // an independently retained expectation.
@@ -1085,7 +1112,7 @@ fn rank_statements_on_independently_drawn_candidates_are_refused_by_the_propagat
     assert_eq!(error.reason_code(), "joint_law_required");
 
     // The mean difference of the same candidates is a linear contrast: independence of
-    // distinct streams licenses it (variances add), so the carrier still assesses.
+    // distinct streams supports it (variances add), so the carrier still assesses.
     assert!(assess(&separate, None, &ReliabilityRequest::expected_utility(), &ctx()).is_ok());
 
     // One shared simulation is an aligned joint law and ranks.

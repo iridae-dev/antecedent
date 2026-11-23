@@ -1,12 +1,13 @@
 //! Conditional independence tests.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod advanced;
 mod analytic;
 mod bayes;
 mod block_shuffle;
 mod calibration;
+mod covariance_session;
 mod factory;
 mod gsquared;
 mod pairwise_mv;
@@ -16,11 +17,12 @@ mod residualize;
 mod types;
 
 pub use advanced::{
-    GPDC_NYSTROM_MAX_INDUCING_POINTS, Gpdc, GpdcNystrom, KnnDependence, MixedKnnDependence,
-    OracleCi, SymbolicCmi,
+    GPDC_NYSTROM_MAX_INDUCING_POINTS, Gpdc, GpdcExactQuote, GpdcNystrom, KnnDependence,
+    MixedKnnDependence, OracleCi, SymbolicCmi,
 };
 pub use bayes::{BayesFactorCi, PosteriorDependenceCi, PosteriorPredictiveCi};
 pub use calibration::{CalibrationReport, calibrate_parcorr_like};
+pub use covariance_session::CovarianceCiSession;
 pub use factory::ci_from_name;
 pub use gsquared::{GSquared, RegressionCi};
 pub use pairwise_mv::PairwiseMultivariateCi;

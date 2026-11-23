@@ -1,6 +1,6 @@
 //! conformance: batch multi-query shares one table (BACKLOG E).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -108,15 +108,15 @@ fn batch_matches_solo_estimates() {
         .unwrap();
 
     assert!(
-        (batch[0].estimate.as_effect().unwrap().ate - solo1.estimate.as_effect().unwrap().ate)
+        (batch[0].estimate().as_effect().unwrap().ate - solo1.estimate().as_effect().unwrap().ate)
             .abs()
             < 1e-12
     );
     assert!(
-        (batch[1].estimate.as_effect().unwrap().ate - solo2.estimate.as_effect().unwrap().ate)
+        (batch[1].estimate().as_effect().unwrap().ate - solo2.estimate().as_effect().unwrap().ate)
             .abs()
             < 1e-12
     );
-    assert!((batch[0].estimate.as_effect().unwrap().ate - 2.0).abs() < 0.4);
-    assert!((batch[1].estimate.as_effect().unwrap().ate - 1.5).abs() < 0.4);
+    assert!((batch[0].estimate().as_effect().unwrap().ate - 2.0).abs() < 0.12);
+    assert!((batch[1].estimate().as_effect().unwrap().ate - 1.5).abs() < 0.1);
 }

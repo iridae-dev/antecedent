@@ -1,24 +1,29 @@
-//! Outcome functionals on licensed effect and response queries.
+//! Outcome functionals on supported effect and response queries.
 //!
 //! Identification is unchanged: the same adjustment set is applied to a
 //! transform of `Y` (`Y` itself, or `1{Y > c}`). Quantile treatment effects
 //! invert an estimated `F_a` on a disclosed grid.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
+
+use crate::canonical_encode::{CanonicalEncode, count};
+use crate::identity::CanonicalWriter;
 
 use super::QueryError;
 use super::attribution::OrderedFloatBits;
 
 /// Functional of the interventional outcome law.
 ///
-/// [`Self::Mean`] is the licensed default. Exceedance functionals replace `Y`
+/// [`Self::Mean`] is the supported default. Exceedance functionals replace `Y`
 /// with an indicator of the upper tail; the adjustment set does not change.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
+#[derive(Default)]
 pub enum OutcomeFunctional {
     /// `E[Y(a)]` (default).
+    #[default]
     Mean,
     /// `P(Y(a) > c)` at a single threshold.
     Exceedance(OrderedFloatBits),
@@ -29,9 +34,25 @@ pub enum OutcomeFunctional {
     Quantile(OrderedFloatBits),
 }
 
-impl Default for OutcomeFunctional {
-    fn default() -> Self {
-        Self::Mean
+impl CanonicalEncode for OutcomeFunctional {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Mean => {
+                writer.word(1);
+            }
+            Self::Exceedance(threshold) => {
+                writer.word(2).real(threshold.to_f64());
+            }
+            Self::ExceedanceGrid(grid) => {
+                writer.word(3).word(count(grid.len()));
+                for threshold in grid.as_ref() {
+                    writer.real(threshold.to_f64());
+                }
+            }
+            Self::Quantile(tau) => {
+                writer.word(4).real(tau.to_f64());
+            }
+        }
     }
 }
 

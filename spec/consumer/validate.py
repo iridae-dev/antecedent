@@ -617,7 +617,7 @@ MEANING_PARADIGM = {
 }
 ROLE_TAG = {"treatment": 1, "outcome": 2, "covariate": 3, "mediator": 4, "selection": 5,
             "utility": 6}
-CALIBRATION_TAG = {"none": 1, "point_only": 2, "unmeasured": 3, "measured": 4, "inherited": 5}
+CALIBRATION_TAG = {"none": 1, "point_only": 2, "not_measured": 3, "measured": 4, "inherited": 5}
 CALIBRATION_REQUIREMENT_TAG = {"not_required": 0, "measured": 1}
 DEPENDENCE_TAG = {"unconstrained": 0, "declared_evidence": 1, "disjoint_evidence": 2}
 SUPPORT_TAG = {"real": 1, "non_negative": 2, "binary": 3, "interval": 4, "categorical": 5}
@@ -937,6 +937,17 @@ LINK_TAG = "antecedent.composition_provenance.link.v1"
 KIND_STAGE = {
     "causal_contract": "causal_contract",
     "execution_or_fit": "distribution_artifact",
+    "cyclic_posterior_fit": "distribution_artifact",
+    "trial_ipw_transport_fit": "distribution_artifact",
+    "graph_imputation_transport_fit": "distribution_artifact",
+    "joint_transport_effect_fit": "distribution_artifact",
+    "joint_transport_predictive_fit": "distribution_artifact",
+    "trial_ipw_predictive_fit": "distribution_artifact",
+    "cyclic_target_feedback_fit": "distribution_artifact",
+    "graph_imputation_predictive_fit": "distribution_artifact",
+    "assessed_bridge_posterior_fit": "distribution_artifact",
+    "sequential_policy_reliability_fit": "distribution_artifact",
+    "sequential_decision_draws": "distribution_artifact",
     "distribution": "distribution_artifact",
     "frozen_scores": "distribution_artifact",
     "external_claim": "external_provider",
@@ -949,8 +960,13 @@ KIND_STAGE = {
     "transformation": "transformation",
     "rollout": "transformation",
     "decision_contract": "decision_contract",
+    "sequential_reliability_diagnostic": "claim",
+    "predictive_chain_decision": "claim",
     "decision_result": "claim",
     "inverse_query": "claim",
+    "observation_query": "claim",
+    "scientific_bridge": "claim",
+    "propagation_chain": "claim",
     "sensitivity": "sensitivity_input",
     "study_ranking": "study_ranking_provider",
 }
@@ -1122,6 +1138,7 @@ def self_test(fixtures_dir=None):
             cbor_decode(bytes.fromhex(text))
             failures.append("cbor %s: malformed input was accepted" % text)
         except CborError:
+            # Rejecting each malformed CBOR vector is the expected self-test result.
             pass
     for length, expected in KNOWN_BLAKE3:
         if blake3_hex(_pattern(length)) != expected:

@@ -4,7 +4,7 @@
 //! mediation) accumulate the same weighted mixture. Route-specific bounds,
 //! standard errors, and refusal text stay on [`AtomEvalView`] and the call.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{HashMap, HashSet};
 
@@ -171,7 +171,7 @@ pub(super) struct MixedAtomEvals {
     pub posterior: Option<CausalPosterior>,
     /// Structural mixture, including unidentified atoms appended from `graphs`.
     pub mixture: StructuralResponseMixture,
-    /// True when the policy licensed a weighted mean and some mass was mixable.
+    /// True when the policy supported a weighted mean and some mass was mixable.
     pub mixable_scalar: bool,
     /// Running lower bound before the finite check. `INFINITY` when unset.
     pub bound_lo: f64,
@@ -225,6 +225,7 @@ where
     let mut assumptions = antecedent_core::AssumptionSet::default();
     let mut atom_posteriors = Vec::new();
     let mut outer_se_items = Vec::new();
+    let mut contributing_scalars = 0_usize;
     let mut outer_atom_ifs: Vec<&[f64]> = Vec::new();
     let mut outer_atom_weights = Vec::new();
     let mut sole_uncertainty = None;
@@ -232,14 +233,16 @@ where
     let key_weights = IdentifiedKeyWeights::new(input.graphs);
     for eval in evals {
         let w = key_weights.get(eval.key());
-        if input.bounds == AtomBoundRule::SetAlways {
-            if let Some((lower, upper)) = eval.identified_bounds() {
-                lo = lo.min(lower);
-                hi = hi.max(upper);
-            }
+        if w > 0.0
+            && input.bounds == AtomBoundRule::SetAlways
+            && let Some((lower, upper)) = eval.identified_bounds()
+        {
+            lo = lo.min(lower);
+            hi = hi.max(upper);
         }
         let value = eval.scalar();
-        if let Some(v) = value {
+        if let Some(v) = value.filter(|_| w > 0.0) {
+            contributing_scalars += 1;
             identified_weight += w;
             match input.bounds {
                 AtomBoundRule::SetOrPoint => {
@@ -309,8 +312,8 @@ where
     let mixable_scalar =
         matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean) && mixable > 0.0;
     let ate = if mixable_scalar { weighted / mixable } else { f64::NAN };
-    let n_contributing = outer_se_items.len();
-    let joint = mixable_scalar && n_contributing > 1 && outer_atom_ifs.len() == n_contributing;
+    let joint =
+        mixable_scalar && contributing_scalars > 1 && outer_atom_ifs.len() == contributing_scalars;
     let mixed_influence = if joint && mixable_scalar {
         mixed_static_influence(&outer_atom_ifs, &outer_atom_weights)
     } else {
@@ -319,8 +322,10 @@ where
     let se = if mixable_scalar {
         if joint {
             mixed_influence.as_deref().map_or(f64::NAN, mixture_se)
-        } else {
+        } else if outer_se_items.len() == contributing_scalars {
             mix_weighted_analytic_se(outer_se_items)
+        } else {
+            f64::NAN
         }
     } else {
         f64::NAN
@@ -339,6 +344,7 @@ where
         conditional_on_identified,
         full_mass_scope: input.full_mass_scope,
         truncated_atoms: input.truncated_atoms,
+        aggregation_policy: Some(policy),
     };
     let identification = primary_identification
         .ok_or_else(|| CausalError::Compile { message: missing_values(evals.len(), mixable) })?;
@@ -349,10 +355,8 @@ where
     };
     let estimand = estimand.ok_or_else(|| CausalError::Compile { message: missing_estimand() })?;
     let mut estimate = EffectEstimate::new(ate, se, assumptions, OverlapPolicy::ExplicitOverride);
-    if joint {
-        if let Some(influence) = mixed_influence {
-            estimate.scores.influence = Some(influence);
-        }
+    if joint && let Some(influence) = mixed_influence {
+        estimate.scores.influence = Some(influence);
     }
     // A component posterior is not the posterior of a weighted aggregate.
     // Retain it, and the standard errors of its fit, at the top level only when it covers the
@@ -363,7 +367,7 @@ where
         && unevaluable_mass == 0.0
         && mixture.full_mass_scope;
     if let Some(uncertainty) = sole_uncertainty.filter(|_| covers_target) {
-        estimate.uncertainty = uncertainty;
+        estimate.uncertainty = sanitize_atom_uncertainty(uncertainty);
     }
     let posterior = if covers_target && atom_posteriors.len() == 1 {
         atom_posteriors.into_iter().next().map(|(_, posterior)| posterior)
@@ -381,6 +385,72 @@ where
         bound_lo: lo,
         bound_hi: hi,
     })
+}
+
+/// Keep the single positive-weight atom's valid uncertainty without publishing invalid SEs.
+pub(super) fn sanitize_atom_uncertainty(
+    mut uncertainty: antecedent_estimate::EstimateUncertainty,
+) -> antecedent_estimate::EstimateUncertainty {
+    if !uncertainty.analytic.se.is_finite() || uncertainty.analytic.se < 0.0 {
+        uncertainty.analytic.se = f64::NAN;
+    }
+    uncertainty.bootstrap.se = uncertainty.bootstrap.se.filter(|se| se.is_finite() && *se >= 0.0);
+    uncertainty
+}
+
+/// Allocate one graph's weight among its exact point-contributing completions.
+/// Invalid or empty completion weights cannot define a conditional mixture.
+pub(super) fn nested_completion_weights(graph_weight: f64, weights: &[f64]) -> Option<Vec<f64>> {
+    if !graph_weight.is_finite()
+        || graph_weight < 0.0
+        || weights.is_empty()
+        || weights.iter().any(|w| !w.is_finite() || *w < 0.0)
+    {
+        return None;
+    }
+    let scale = weights.iter().copied().fold(0.0_f64, f64::max);
+    if scale == 0.0 {
+        return None;
+    }
+    let sum = weights.iter().map(|w| w / scale).sum::<f64>();
+    if !sum.is_finite() || sum <= 0.0 {
+        return None;
+    }
+    Some(weights.iter().map(|w| graph_weight * (w / scale) / sum).collect())
+}
+
+/// Positive inner members and their normalized coefficients; zero-weight designs
+/// must not participate in common-window selection or resampling.
+pub(super) fn positive_nested_indices(
+    graph_weight: f64,
+    weights: &[f64],
+) -> Option<Vec<(usize, f64)>> {
+    Some(
+        nested_completion_weights(graph_weight, weights)?
+            .into_iter()
+            .enumerate()
+            .filter(|(_, weight)| *weight > 0.0)
+            .collect(),
+    )
+}
+
+/// Normalize only when every positive-weight point contributor has a matching input.
+pub(super) fn nested_complete_weights(
+    graph_weight: f64,
+    expected: &[f64],
+    available: &[f64],
+) -> Option<Vec<f64>> {
+    if expected.iter().chain(available).any(|w| !w.is_finite() || *w < 0.0) {
+        return None;
+    }
+    let expected: Vec<f64> = expected.iter().copied().filter(|w| *w > 0.0).collect();
+    let available: Vec<f64> = available.iter().copied().filter(|w| *w > 0.0).collect();
+    if expected.len() != available.len()
+        || expected.iter().zip(&available).any(|(a, b)| a.to_bits() != b.to_bits())
+    {
+        return None;
+    }
+    nested_completion_weights(graph_weight, &expected)
 }
 
 /// Append unidentified posterior samples that are not already in `atoms`.
@@ -423,7 +493,7 @@ pub(super) struct AtomRefuterBatch {
     pub notes: Vec<Diagnostic>,
 }
 
-/// How positive-weight refuter reports are reduced when a scalar mix is licensed.
+/// How positive-weight refuter reports are reduced when a scalar mix is supported.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum ScalarRefuterMix {
     /// [`mix_atom_refutation_reports`], including partial-coverage warnings.
@@ -538,6 +608,8 @@ mod tests {
         key: u64,
         estimand: IdentifiedEstimand,
         influence: Vec<f64>,
+        value: f64,
+        se: Option<f64>,
     }
 
     impl AtomEvalView for Eval {
@@ -551,7 +623,7 @@ mod tests {
             Some(&self.estimand)
         }
         fn scalar(&self) -> Option<f64> {
-            Some(0.5)
+            Some(self.value)
         }
         fn posterior(&self) -> Option<&CausalPosterior> {
             None
@@ -566,10 +638,10 @@ mod tests {
             false
         }
         fn analytic_se(&self) -> Option<f64> {
-            Some(0.1)
+            self.se
         }
         fn influence(&self) -> Option<&[f64]> {
-            Some(&self.influence)
+            (!self.influence.is_empty()).then_some(self.influence.as_slice())
         }
     }
 
@@ -607,6 +679,8 @@ mod tests {
             .map(|&key| Eval {
                 key,
                 estimand: estimand.clone(),
+                value: 0.5,
+                se: Some(0.1),
                 influence: (0..40)
                     .map(|r| ((r * 7 + usize::try_from(key).unwrap()) % 11) as f64 - 5.0)
                     .collect(),
@@ -640,6 +714,115 @@ mod tests {
         );
     }
 
+    #[test]
+    fn nested_weights_preserve_graph_mass_and_complete_joint_influence() {
+        let a = super::nested_completion_weights(0.5, &[1.0]).unwrap();
+        let b = super::nested_completion_weights(0.5, &[1.0, 1.0, 1.0]).unwrap();
+        let coefficients = [a[0], b[0], b[1], b[2]];
+        let point = coefficients.iter().zip([0.0, 6.0, 6.0, 6.0]).map(|(w, v)| w * v).sum::<f64>();
+        assert!((point - 3.0).abs() < 1e-12);
+        let ifs: [&[f64]; 4] = [&[1.0, -1.0], &[0.0, 0.0], &[0.0, 0.0], &[0.0, 0.0]];
+        let mixed = super::mixed_static_influence(&ifs, &coefficients).unwrap();
+        assert!((mixed[0] - 0.5).abs() < 1e-12 && (mixed[1] + 0.5).abs() < 1e-12);
+        let duplicate = super::nested_completion_weights(0.5, &[1.0, 1.0]).unwrap();
+        assert_eq!(duplicate, vec![0.25, 0.25]);
+        let unequal = super::nested_completion_weights(0.6, &[1.0, 3.0]).unwrap();
+        assert!((unequal[0] - 0.15).abs() < 1e-12 && (unequal[1] - 0.45).abs() < 1e-12);
+        assert_eq!(super::nested_completion_weights(0.0, &[1.0]).unwrap(), vec![0.0]);
+        assert!(super::nested_completion_weights(1.0, &[0.0, 0.0]).is_none());
+        assert!(super::nested_completion_weights(1.0, &[1.0, f64::NAN]).is_none());
+        assert!(super::nested_complete_weights(0.5, &[1.0, 1.0], &[1.0]).is_none());
+        assert_eq!(super::nested_complete_weights(0.5, &[1.0, 0.0], &[1.0]).unwrap(), vec![0.5]);
+        // A zero-mass design cannot narrow the common window or fail a refit.
+        assert_eq!(super::positive_nested_indices(0.5, &[2.0, 0.0]).unwrap(), vec![(0, 0.5)]);
+        assert!(super::nested_complete_weights(0.5, &[1.0, -1.0], &[1.0]).is_none());
+    }
+
+    #[test]
+    fn incomplete_atom_uncertainty_never_becomes_the_whole_mixture_se() {
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let identification = identify_static(DEFAULT_IDENTIFIER_ID, &dag, &query).unwrap();
+        let estimand = select_estimand(&identification, EstimatorId::LinearAdjustmentAte).unwrap();
+        let proofs = [Proof(3, identification.clone()), Proof(5, identification)];
+        let run = |second_se: Option<f64>, second_weight: f64, joint_influences: bool| {
+            let graphs = WeightedGraphSamples::new(
+                vec![1.0 - second_weight, second_weight],
+                vec![GraphIdentFlag::Identified; 2],
+                vec![3, 5],
+            )
+            .unwrap();
+            let evals = [
+                Eval {
+                    key: 3,
+                    estimand: estimand.clone(),
+                    value: 1.0,
+                    se: Some(0.1),
+                    influence: if joint_influences { vec![1.0, -1.0, 2.0, -2.0] } else { vec![] },
+                },
+                Eval {
+                    key: 5,
+                    estimand: estimand.clone(),
+                    value: 3.0,
+                    se: second_se,
+                    influence: if joint_influences { vec![-1.0, 1.0, -2.0, 2.0] } else { vec![] },
+                },
+            ];
+            mix_atom_evals(
+                &evals,
+                AtomMixInput {
+                    graphs: &graphs,
+                    proofs: &proofs,
+                    unidentified_mass: 0.0,
+                    full_mass_scope: true,
+                    truncated_atoms: 0,
+                    bounds: AtomBoundRule::Point,
+                    estimand_fallback: true,
+                },
+                |_, _| String::new(),
+                String::new,
+            )
+            .unwrap()
+            .estimate
+        };
+        for invalid in [None, Some(f64::NAN), Some(-1.0)] {
+            let mixed = run(invalid, 0.4, false);
+            assert!((mixed.ate - 1.8).abs() < 1e-12);
+            assert!(mixed.se_analytic().is_nan());
+        }
+        // Two separately reported SEs are not a joint covariance.
+        assert!(run(Some(0.2), 0.4, false).se_analytic().is_nan());
+        // The zero-weight atom is outside the conditional mixture even with invalid SE.
+        let only = run(Some(f64::NAN), 0.0, false);
+        assert_eq!(only.ate.to_bits(), 1.0_f64.to_bits());
+        assert_eq!(only.se_analytic().to_bits(), 0.1_f64.to_bits());
+
+        // Complete shared-row influences give the variance of the entire weighted
+        // estimator: scores [0.2, -0.2, 0.4, -0.4], mean zero; sample
+        // covariance divided by n = (0.04 + 0.04 + 0.16 + 0.16)/(4*3).
+        let joint = run(Some(0.2), 0.4, true);
+        let expected = (0.4_f64 / 12.0).sqrt();
+        assert!((joint.se_analytic() - expected).abs() < 1e-12);
+        assert!((joint.ate - 1.8).abs() < 1e-12);
+        // Complete aligned influence is independent evidence even when one atom did
+        // not separately publish an analytic SE.
+        assert!((run(None, 0.4, true).se_analytic() - expected).abs() < 1e-12);
+
+        let mut bad = EffectEstimate::new(
+            1.0,
+            -1.0,
+            antecedent_core::AssumptionSet::default(),
+            OverlapPolicy::ExplicitOverride,
+        )
+        .uncertainty;
+        bad.bootstrap.se = Some(-2.0);
+        let sanitized = sanitize_atom_uncertainty(bad);
+        assert!(sanitized.analytic.se.is_nan());
+        assert!(sanitized.bootstrap.se.is_none());
+    }
+
     /// Timing harness for the shared atom mixer over long influence columns
     /// (`cargo test -p antecedent --lib atom_mix::tests::mixer_scales -- --ignored --nocapture`).
     #[test]
@@ -665,6 +848,8 @@ mod tests {
                 .map(|&key| Eval {
                     key,
                     estimand: estimand.clone(),
+                    value: 0.5,
+                    se: Some(0.1),
                     influence: (0..rows)
                         .map(|r| ((r as u64 * 31 + key) % 97) as f64 - 48.0)
                         .collect(),

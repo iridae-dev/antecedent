@@ -5,10 +5,11 @@
 //! execution can construct [`MeasuredInference`]. Every reported scalar must
 //! resolve to a current attesting non-boundary calibration record. Consumers
 //! independently replay the original source and compare the complete report.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::IoError;
 use crate::calibration::{CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire};
 use crate::contract_section::CalibrationSlotWire;
+use crate::refusal::refused;
 use antecedent_core::{CalibrationBasis, IdentityDomain};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -18,16 +19,67 @@ pub const MAX_MEASURED_ARTIFACT_BYTES: usize = 64 * 1024 * 1024;
 const MAX_SCALARS: usize = 32;
 const FEATURE: &str = "measured_inference_v1";
 pub(crate) mod adaptive_interval;
+/// Fixed, scientifically closed categorical candidate source replay.
+pub mod categorical_candidate;
+pub(crate) mod choice_interval;
 pub mod cohort_interval;
 pub mod count_fitted_interval;
+pub mod graph_candidate;
+pub mod mnar_candidate;
 pub(crate) mod nested;
 pub(crate) mod recovery_temporal;
 pub mod split_effect;
 pub mod split_parent_set_effect;
 pub(crate) mod transport;
 
+fn invalid(detail: &str, message: &str) -> IoError {
+    refused(antecedent_core::reason_code!("invalid_argument"), detail, message)
+}
+
+fn validate_split_header(
+    version_ok: bool,
+    names: usize,
+    columns: usize,
+    detail: &str,
+) -> Result<(), IoError> {
+    if !version_ok || names != columns {
+        return Err(invalid(
+            detail,
+            "unknown format version or names and columns of different counts",
+        ));
+    }
+    if columns < 3 {
+        return Err(invalid(
+            detail,
+            "a treatment, an outcome and at least one more searched variable are needed",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_split_columns(
+    columns: &[Vec<f64>],
+    treatment: u32,
+    outcome: u32,
+    max_rows: usize,
+    detail: &str,
+) -> Result<usize, IoError> {
+    let rows = columns[0].len();
+    if !(8..=max_rows).contains(&rows) || columns.iter().any(|c| c.len() != rows) {
+        return Err(invalid(detail, "columns must have one length between 8 and 2^20 rows"));
+    }
+    if columns.iter().flatten().any(|v| !v.is_finite()) {
+        return Err(invalid(detail, "missing or non-finite values are not supported"));
+    }
+    let (t, y) = (treatment as usize, outcome as usize);
+    if t >= columns.len() || y >= columns.len() || t == y {
+        return Err(invalid(detail, "treatment and outcome must be two distinct columns"));
+    }
+    Ok(rows)
+}
+
 /// A caller's immutable expected source and reported question. This is a
-/// declaration, never a license or a substitute for actual source replay.
+/// declaration, never support or a substitute for actual source replay.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MeasuredExpectation {
@@ -71,7 +123,8 @@ pub struct MeasuredInferenceReport {
     pub version: u32,
     /// Native route.
     pub route: String,
-    /// `calibrated` only after every actual basis resolves to attesting evidence.
+    /// `calibrated` only when every scalar's basis resolves to attesting evidence;
+    /// otherwise the most severe scalar status. Annotation only.
     pub calibration: String,
     /// Complete reported scalar list, with individual record bindings.
     pub scalars: Vec<MeasuredScalarReport>,
@@ -152,6 +205,10 @@ impl MeasuredInference {
             "cohort_interval" => cohort_interval::CohortIntervalArtifactWire::consume_measured(bytes, expected, ctx),
             "count_fitted_interval" => count_fitted_interval::CountFittedIntervalArtifactWire::consume_measured(bytes, expected),
             "adaptive_interval" => crate::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact::consume_measured_interval(bytes, expected, ctx),
+            "choice_interval" => crate::choice_inference_result_artifact::ChoiceInferenceResultArtifact::consume_measured_interval(bytes, expected, ctx),
+            "graph_imputation_interval" => graph_candidate::consume_measured(bytes, expected, ctx),
+            "mnar_fixed_shift_interval" => mnar_candidate::consume_measured(bytes, expected, ctx),
+            "categorical_prior_predictive_interval" => categorical_candidate::consume_measured(bytes, expected, ctx),
             "sampled_counterfactual_transport" => crate::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire::consume_measured(bytes, expected, crate::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportConsumeLimits::default(), ctx),
             "split_effect" => crate::measured_inference::split_effect::consume_measured(bytes, expected, ctx),
             "split_parent_set_effect" => crate::measured_inference::split_parent_set_effect::consume_measured(bytes, expected, ctx),
@@ -173,14 +230,18 @@ pub struct ScalarExecution {
     pub basis: CalibrationBasis,
 }
 fn refusal(detail: &str, message: &str) -> IoError {
-    IoError::Refused {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
-        message: format!("{detail}: {message}"),
-    }
+    let code = match detail {
+        "measured_inference.unsupported_route" | "measured_inference.bounds_exceeded" => {
+            antecedent_core::reason_code!("route_not_supported")
+        }
+        _ => antecedent_core::reason_code!("invalid_argument"),
+    };
+    IoError::Refused { code, message: format!("{detail}: {message}") }
 }
 fn basis_wire(b: &CalibrationBasis) -> CalibrationBasisWire {
     CalibrationBasisWire {
         key: CalibrationKeyWire {
+            validation: b.validation.to_string(),
             query: b.query.to_string(),
             graph_class: b.graph_class.to_string(),
             structure: b.structure.to_string(),
@@ -223,11 +284,22 @@ pub fn report_seal(report: &MeasuredInferenceReport) -> Result<String, IoError> 
     )
 }
 
+/// Report-level status: `calibrated` only when every scalar is; otherwise the
+/// most severe scalar status. Calibration annotates the interval, never gates it.
+fn aggregate_status(scalars: &[MeasuredScalarReport]) -> &'static str {
+    for status in ["measured_below_nominal", "outside_measured_scope", "not_measured"] {
+        if scalars.iter().any(|s| s.calibration.status == status) {
+            return status;
+        }
+    }
+    "calibrated"
+}
+
 /// Build readable record-bound metadata from supplied declarations. This is
 /// stateless lookup and formatting only: arbitrary caller bases never construct
 /// [`MeasuredInference`] or authenticate an execution/model/sampling design.
 /// # Errors
-/// Invalid/bounded scalar inputs or a basis without current attesting evidence.
+/// Invalid or bounded scalar inputs.
 pub fn build_report(
     route: &str,
     source: &[u8],
@@ -262,18 +334,7 @@ pub fn build_report(
             ));
         }
         let basis = basis_wire(&execution.basis);
-        let slot = crate::calibration::calibration_slot(&basis);
-        if slot.status != "calibrated" || slot.record_id.is_none() || slot.calibration_sha.is_none()
-        {
-            return Err(refusal(
-                "measured_inference.record_not_attesting",
-                &format!(
-                    "{}: {}",
-                    execution.name,
-                    slot.reason.as_deref().unwrap_or("no attesting record")
-                ),
-            ));
-        }
+        let slot = slot_for(&basis);
         scalars.push(MeasuredScalarReport {
             name: execution.name,
             point: execution.point,
@@ -295,7 +356,7 @@ pub fn build_report(
     let mut report = MeasuredInferenceReport {
         version: 1,
         route: route.into(),
-        calibration: "calibrated".into(),
+        calibration: aggregate_status(&scalars).into(),
         scalars,
         validated_scope: scope,
         identity,
@@ -327,6 +388,33 @@ pub fn encode_report(source: &[u8], report: &MeasuredInferenceReport) -> Result<
         ));
     }
     Ok(bytes)
+}
+
+#[cfg(test)]
+thread_local! {
+    static TEST_RECORDS: std::cell::RefCell<Option<Vec<antecedent_io_core::coverage_records_data::CoverageRecord>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Run `f` with `records` as the only coverage evidence, so tests exercise the
+/// supported path without a measured record in the shipped table.
+#[cfg(test)]
+pub(crate) fn with_test_records<R>(
+    records: Vec<antecedent_io_core::coverage_records_data::CoverageRecord>,
+    f: impl FnOnce() -> R,
+) -> R {
+    TEST_RECORDS.with(|cell| *cell.borrow_mut() = Some(records));
+    let out = f();
+    TEST_RECORDS.with(|cell| *cell.borrow_mut() = None);
+    out
+}
+
+fn slot_for(basis: &CalibrationBasisWire) -> CalibrationSlotWire {
+    #[cfg(test)]
+    if let Some(records) = TEST_RECORDS.with(|cell| cell.borrow().clone()) {
+        return crate::calibration::calibration_slot_in(basis, &records);
+    }
+    crate::calibration::calibration_slot(basis)
 }
 
 /// Crate-owned adapters derive these inputs from actual successful fit/replay.
@@ -433,7 +521,7 @@ mod tests {
     fn sealed_calibrated_flags_and_forged_record_never_grant_source_authority() {
         let source = vec![1, 2, 3];
         for route in ["joint_bayesian", "learned_joint", "nested_fisher", "nested_bayesian"] {
-            let mut slot = CalibrationSlotWire::unavailable("invented");
+            let mut slot = CalibrationSlotWire::not_measured("invented");
             slot.status = "calibrated".into();
             slot.record_id = Some("invented.record".into());
             slot.calibration_sha = Some("0".repeat(40));
@@ -481,5 +569,70 @@ mod tests {
             changed.level = 0.9;
             assert!(decode(&bytes, &changed).is_err());
         }
+    }
+}
+
+#[cfg(test)]
+mod shared_refusal_tests {
+    use super::{IoError, invalid, refused};
+
+    #[test]
+    fn measured_refusals_preserve_code_and_exact_detail_message() {
+        for (code, value) in [
+            ("route_not_supported", refused("route_not_supported", "detail:slot", "line\nbreak")),
+            ("invalid_argument", invalid("detail:slot", "line\nbreak")),
+        ] {
+            match value {
+                IoError::Refused { code: actual, message } => {
+                    assert_eq!(actual, code);
+                    assert_eq!(message, "detail:slot: line\nbreak");
+                }
+                other => panic!("unexpected error: {other}"),
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod shared_split_validation_tests {
+    #[test]
+    fn header_then_columns_preserve_error_order_and_bounds() {
+        use super::{validate_split_columns, validate_split_header};
+        assert!(
+            validate_split_header(false, 0, 0, "detail")
+                .unwrap_err()
+                .to_string()
+                .contains("unknown format version")
+        );
+        assert!(
+            validate_split_header(true, 2, 2, "detail")
+                .unwrap_err()
+                .to_string()
+                .contains("at least one more")
+        );
+        let mut columns = vec![vec![0.0; 8]; 3];
+        assert_eq!(validate_split_columns(&columns, 0, 1, 8, "detail").unwrap(), 8);
+        columns[0].push(f64::NAN);
+        assert!(
+            validate_split_columns(&columns, 0, 0, 8, "detail")
+                .unwrap_err()
+                .to_string()
+                .contains("one length")
+        );
+        columns[0].pop();
+        columns[0][0] = f64::NAN;
+        assert!(
+            validate_split_columns(&columns, 0, 0, 8, "detail")
+                .unwrap_err()
+                .to_string()
+                .contains("non-finite")
+        );
+        columns[0][0] = 0.0;
+        assert!(
+            validate_split_columns(&columns, 0, 0, 8, "detail")
+                .unwrap_err()
+                .to_string()
+                .contains("distinct columns")
+        );
     }
 }

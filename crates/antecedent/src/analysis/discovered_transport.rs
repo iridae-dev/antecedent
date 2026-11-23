@@ -42,7 +42,7 @@
 //! envelope, and its [`DiscoveredTransportReport::identity`], are recomputed from it. The
 //! selection targets are kept only by being passed again.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![expect(
     clippy::result_large_err,
@@ -57,7 +57,8 @@ use antecedent_discovery::selective::{
     StaticDiscoveryContract, StaticSelectiveDiscovery,
 };
 use antecedent_identify::discovered_transport::{
-    DiscoveredTransportRequest, transport_across_class, transport_across_pag,
+    DiscoveredTransportRequest, transport_across_class_with_context,
+    transport_across_pag_with_context,
 };
 
 pub use antecedent_identify::discovered_transport::{
@@ -67,7 +68,8 @@ pub use antecedent_identify::discovered_transport::{
 };
 
 /// Detail of the refusal of a temporal structure offered without a horizon.
-pub const TEMPORAL_STRUCTURE_DETAIL: &str = "discovered_transport.temporal_structure_unsupported";
+pub const TEMPORAL_STRUCTURE_DETAIL: &str =
+    antecedent_core::reason_details::discovered_transport::TEMPORAL_STRUCTURE_UNSUPPORTED;
 
 const REPORT_TAG: &str = "antecedent.discovered_transport.report.v1";
 
@@ -207,9 +209,30 @@ pub fn transport_discovered_structure(
     query: &TransportQuery,
     member_bound: usize,
 ) -> Result<DiscoveredTransportReport, DiscoveredTransportError> {
+    transport_discovered_structure_with_context(
+        outcome,
+        selection_targets,
+        query,
+        member_bound,
+        &ExecutionContext::production(0, 1),
+    )
+}
+
+/// Read a discovered class under the caller's completion/member-search memory
+/// account and cancellation without changing its scientific envelope identity.
+///
+/// # Errors
+/// As [`transport_discovered_structure`], including typed identification memory/cancellation.
+pub fn transport_discovered_structure_with_context(
+    outcome: &DiscoveryOutcome,
+    selection_targets: &[VariableId],
+    query: &TransportQuery,
+    member_bound: usize,
+    ctx: &ExecutionContext,
+) -> Result<DiscoveredTransportReport, DiscoveredTransportError> {
     let exhausted = exhausted_bounds(outcome);
     let envelope = match &outcome.native {
-        NativeResult::StaticCpdag(result) => transport_across_class(
+        NativeResult::StaticCpdag(result) => transport_across_class_with_context(
             &DiscoveredTransportRequest {
                 class: &result.evidence.graph,
                 selection_targets,
@@ -217,8 +240,9 @@ pub fn transport_discovered_structure(
                 member_bound,
             },
             query,
+            ctx,
         )?,
-        NativeResult::StaticPag(result) => transport_across_pag(
+        NativeResult::StaticPag(result) => transport_across_pag_with_context(
             &PagTransportRequest {
                 class: &result.evidence.graph,
                 selection_targets,
@@ -227,6 +251,7 @@ pub fn transport_discovered_structure(
                 completion_operations: antecedent_graph::DEFAULT_COMPLETION_OPERATIONS,
             },
             query,
+            ctx,
         )?,
         _ => {
             return Err(DiscoveredTransportError::Refused(DiscoveredTransportRefusal {
@@ -292,62 +317,68 @@ pub fn discover_and_transport(
     let outcome = adapter.outcome().cloned().ok_or_else(|| {
         SelectiveDiscoveryError::refused(
             antecedent_core::reason_code!("invalid_argument"),
-            "selective_discovery.nothing_retained",
+            antecedent_core::reason_details::selective_discovery::NOTHING_RETAINED,
             "the discovery run retained no outcome",
         )
     })?;
-    let transport =
-        transport_discovered_structure(&outcome, selection_targets, query, member_bound);
+    let transport = transport_discovered_structure_with_context(
+        &outcome,
+        selection_targets,
+        query,
+        member_bound,
+        ctx,
+    );
     Ok(DiscoveredTransportRun { discovery, outcome, transport })
 }
 
 fn remedy_of(detail: &str) -> &'static str {
     match detail {
-        "discovered_transport.search_incomplete" => {
+        antecedent_core::reason_details::discovered_transport::SEARCH_INCOMPLETE => {
             "rerun discovery with larger search bounds, or declare the causal graph and its \
              selection diagram; transport is not computed across an incomplete class"
         }
-        "discovered_transport.orientation_conflict" => {
+        antecedent_core::reason_details::discovered_transport::ORIENTATION_CONFLICT => {
             "resolve the conflicting edges with background knowledge, or declare the causal \
              graph and its selection diagram"
         }
-        "discovered_transport.selection_target_unknown" => {
+        antecedent_core::reason_details::discovered_transport::SELECTION_TARGET_UNKNOWN => {
             "declare selection targets among the searched variables"
         }
-        "discovered_transport.class_too_large" | "discovered_transport.member_bound_zero" => {
+        antecedent_core::reason_details::discovered_transport::CLASS_TOO_LARGE
+        | antecedent_core::reason_details::discovered_transport::MEMBER_BOUND_ZERO => {
             "orient edges with background knowledge or an intervention, give a positive member \
              bound, or declare the causal graph"
         }
-        "discovered_transport.no_members" => {
+        antecedent_core::reason_details::discovered_transport::NO_MEMBERS => {
             "rerun discovery or declare the causal graph; the structure is not the CPDAG of any \
              graph"
         }
-        "discovered_transport.pag_class_ambiguous" => {
+        antecedent_core::reason_details::discovered_transport::PAG_CLASS_AMBIGUOUS => {
             "rerun discovery, or declare the causal graph; the circle endpoints admit \
              completions from more than one Markov equivalence class"
         }
-        "discovered_transport.pag_selection_bias_edge" => {
+        antecedent_core::reason_details::discovered_transport::PAG_SELECTION_BIAS_EDGE => {
             "remove the selection-bias edge with background knowledge, or declare the causal \
              graph and its selection diagram"
         }
-        "discovered_transport.class_not_identified" => {
+        antecedent_core::reason_details::discovered_transport::CLASS_NOT_IDENTIFIED => {
             "the effect is not identified in some member of the class: resolve the marks that \
              separate the members with background knowledge or an intervention, or declare the \
              causal graph and its selection diagram"
         }
-        "discovered_transport.member_not_estimable" => {
+        antecedent_core::reason_details::discovered_transport::MEMBER_NOT_ESTIMABLE => {
             "supply source and target evidence that covers every factor the identified formula \
              needs, or declare the causal graph"
         }
-        "discovered_transport.class_enumeration_partial" => {
+        antecedent_core::reason_details::discovered_transport::CLASS_ENUMERATION_PARTIAL => {
             "raise the member bound and the completion budget until the whole class is \
              enumerated, or declare the causal graph"
         }
-        "discovered_transport.evidence_invalid" => {
+        antecedent_core::reason_details::discovered_transport::EVIDENCE_INVALID => {
             "supply source and target tables whose columns are the structure's variables as \
              non-negative integer codes"
         }
-        "discovered_transport.temporal_query_invalid" => {
+        antecedent_core::reason_details::discovered_transport::TEMPORAL_QUERY_INVALID => {
             "state a mean response curve of one outcome under the declared treatment, with the \
              treatment, outcome and selection targets among the structure's variables"
         }

@@ -1,0 +1,193 @@
+# Ignored Rust tests that are not calibration, writer or timing probes.
+#
+# Read by scripts/check_ignored_tests.py (CI: Test-suite controls) and by
+# `bash scripts/test.sh slow`. Calibration, fixture-writer and timing tests are
+# classified from the reason on their #[ignore]; every other ignored test must be
+# listed here, with a reason, or the checker fails. A row whose test no longer
+# exists or is no longer #[ignore]d also fails: delete the row when the test
+# moves into an ordinary lane.
+#
+# [[slow]]   correctness assertions too slow for the ordinary lanes, run by
+#            `bash scripts/test.sh slow` (--run-ignored only, selected by exact
+#            libtest name). expected_seconds is the measured wall time of the
+#            test alone at the test profile (opt-level 2), rounded up, from a
+#            host under load; it is a planning figure, not a bound.
+# [[other]]  ignored for a reason that is none of the above and that no lane
+#            can satisfy by itself; stays ignored.
+
+[[slow]]
+path = "crates/antecedent-identify/src/mag_id_bruteforce.rs"
+name = "exhaustive_four_observed_two_latent"
+reason = "Exhaustive sweep of every four-observed, two-latent MAG against brute-force identification."
+expected_seconds = 10
+
+[[slow]]
+path = "crates/antecedent-discovery/tests/fci_pag_class_exhaustive.rs"
+name = "fci_returns_the_invariant_pag_of_every_five_node_class"
+reason = "FCI returns the invariant PAG of every five-node equivalence class (about 3 minutes unoptimized)."
+expected_seconds = 20
+
+[[slow]]
+path = "crates/antecedent-discovery/tests/graph_posterior_wide.rs"
+name = "samplers_match_an_exhaustive_reference_on_the_ten_variable_ring_with_triangles"
+reason = "Samplers against an exhaustive 14-million-state reference on the ten-variable ring with triangles."
+expected_seconds = 20
+
+[[slow]]
+path = "crates/antecedent-discovery/tests/graph_posterior_wide.rs"
+name = "published_schedule_agrees_with_a_five_times_longer_run_on_the_twelve_variable_ring"
+reason = "Published sampling schedule against a five-fold longer run on the twelve-variable ring."
+expected_seconds = 60
+
+[[slow]]
+path = "crates/antecedent-discovery/tests/graph_posterior_wide.rs"
+name = "exact_posterior_matches_independent_enumeration_on_tractable_cases"
+reason = "Exact DAG posterior against independent enumeration, up to 1.1 billion DAGs at seven variables."
+expected_seconds = 30
+
+[[slow]]
+path = "crates/antecedent-stats/tests/adaptive_procedure_capacity.rs"
+name = "the_exact_law_refuses_too_much_work_with_its_own_detail"
+reason = "Exact-law enumeration up to its work bound, then the refusal detail (about ten seconds)."
+expected_seconds = 20
+
+[[slow]]
+path = "crates/antecedent-stats/src/ci/advanced/gpdc_tests.rs"
+name = "gpdc_nystrom_one_hundred_thousand_row_acceptance"
+reason = "GPDC Nystrom conditional-independence test at 100,000 rows."
+expected_seconds = 10
+
+[[slow]]
+path = "crates/antecedent-validate/src/sensitivity.rs"
+name = "nonparametric_sensitivity_beyond_20k_100000_rows"
+reason = "Nonparametric sensitivity beyond the 20,000-row ceiling at 100,000 rows."
+expected_seconds = 5
+
+[[slow]]
+path = "crates/antecedent/tests/supported_compiler.rs"
+name = "diagnostic_registry_closure_after_builder_and_study_drop"
+reason = "Executes every supported support cell (723) and checks retained checked execution after builder and study drop."
+expected_seconds = 200
+
+[[other]]
+path = "crates/antecedent-design/tests/coordinate_parity.rs"
+name = "consume_python_fixtures"
+reason = "Consumes py_* fixtures that only a Python regeneration writes (ANTECEDENT_WRITE_FIXTURES=1 pytest ... regenerate_python_fixtures); without them it fails on a missing file, so it cannot run on its own."
+
+[[other]]
+path = "crates/antecedent/tests/temporal_response_observation_adjusted_reference.rs"
+name = "print_the_library_streams"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-estimate/src/learned_trial_reference_tests.rs"
+name = "emit_plan"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-estimate/src/observational_survival_reference_tests.rs"
+name = "emit_folds"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-estimate/src/propensity/penalized_reference_tests.rs"
+name = "emit_inner_folds"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-estimate/tests/bayesian_robust_ate_reference.rs"
+name = "dump_stream_inputs"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-estimate/tests/estimate_association_reference.rs"
+name = "association_dump_library_streams"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-estimate/tests/observational_policy_reference.rs"
+name = "emit_splits"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-estimate/tests/recovery_sampled_observation_reference.rs"
+name = "dump_replicate_stream"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-estimate/tests/temporal_dependent_interval_reference.rs"
+name = "dump_temporal_interval_stream"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-estimate/tests/temporal_sequential_reference.rs"
+name = "temporal_sequential_dump_reference_inputs"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-validate/src/bayesian_checks/ppc_prior_sensitivity_reference_tests.rs"
+name = "ppc_prior_sensitivity_emit"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-validate/tests/bootstrap_refute_reference.rs"
+name = "emit_indices"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-validate/tests/functional_reference.rs"
+name = "functional_emit"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-validate/tests/joint_uncertainty_reference.rs"
+name = "emit_draws"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-validate/tests/robustness_refuters_reference.rs"
+name = "emit"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-validate/tests/simulated_unobserved_confounder_reference.rs"
+name = "emit"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-validate/tests/static_mediation_reference.rs"
+name = "emit"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent-validate/tests/temporal_mediation_refuter_reference.rs"
+name = "emit"
+reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent/tests/practitioner_scale_calibration.rs"
+name = "practitioner_bootstrap_reuses_prepared_solver"
+reason = "Full-size bootstrap solver traffic regression reserved for an explicit practitioner-scale performance run; it does not measure coverage."
+
+[[other]]
+path = "crates/antecedent-stats/src/faer_backend/resampling.rs"
+name = "practitioner_pairs_bootstrap_matches_full_qr"
+reason = "Full-size prepared-solver versus QR performance comparison reserved for an explicit practitioner-scale run."
+
+[[slow]]
+path = "crates/antecedent/tests/joint_panel_calibration.rs"
+name = "joint_panel_warp_speed_validation_time_varying_contrast"
+reason = "Warp-speed validation: the nested and pooled-draw coverage of the time-varying contrast agree on 100 paired replicates."
+expected_seconds = 900
+
+[[slow]]
+path = "crates/antecedent/tests/joint_panel_calibration.rs"
+name = "joint_panel_warp_speed_validation_time_varying_contrast_broader"
+reason = "Warp-speed validation: the nested and pooled-draw coverage of the broader time-varying contrast agree on 100 paired replicates."
+expected_seconds = 1100
+
+[[slow]]
+path = "crates/antecedent/tests/joint_panel_calibration.rs"
+name = "joint_panel_warp_speed_validation_false_change"
+reason = "Screen validation: the screened false-change verdicts equal the nested ones on 100 paired replicates."
+expected_seconds = 1300

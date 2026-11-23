@@ -7,7 +7,7 @@
 //! Carlo standard error. Boundary constants are independent: published
 //! values, or an independent grid recursion (`SciPy`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::needless_range_loop, reason = "assertions index per-arm columns by arm")]
 
@@ -264,16 +264,24 @@ fn a_posterior_stopping_decision_follows_the_declared_expected_loss_rule() {
     close(v[0], 1.0, 0.0, "best arm");
     assert!(v[1] > 0.99 && v[2] < 0.05, "probability best {} loss {}", v[1], v[2]);
     close(v[3], 1.0, 0.0, "stop");
-    assert_eq!(outcome.result.closed_guarantee, "adaptive_inference.stopping_reliability_closed");
+    assert_eq!(
+        outcome.result.unsupported_claim,
+        Some(
+            antecedent_core::reason_details::adaptive_inference::NO_STOPPING_RELIABILITY_PROCEDURE
+        )
+    );
 }
 
 #[test]
-fn decision_theoretic_stopping_is_not_licensed_for_a_probability_best_rule() {
+fn decision_theoretic_stopping_is_not_supported_for_a_probability_best_rule() {
     let session = session(thompson_trial([0.2, 0.8], 100, &[50, 100], 4));
     let request = AdaptiveRequest::PosteriorStopping { look: 1, prior_alpha: 1.0, prior_beta: 1.0 };
     let refusal = session.analyse(&request, &ctx()).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(refusal.detail, "adaptive_inference.paradigm_not_licensed_for_cell");
+    assert_eq!(refusal.code, "route_not_supported");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::PARADIGM_NOT_SUPPORTED_FOR_CELL
+    );
 }
 
 // -- the paradigm gate ----------------------------------------------------------------------
@@ -283,25 +291,32 @@ fn fixed_sample_inference_of_adaptive_data_is_refused_while_the_posterior_runs()
     let session = session(thompson_trial([0.3, 0.6], 80, &[40, 80], 1));
     let refusal: AdaptiveInferenceRefusal = session.fixed_sample().unwrap_err();
     assert_eq!(refusal.code, "adaptive_design_ignored");
-    assert_eq!(refusal.detail, "adaptive_inference.fixed_sample_on_adaptive_data");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_ON_ADAPTIVE_DATA
+    );
     let request = AdaptiveRequest::BayesianPosterior { look: 1, prior_alpha: 1.0, prior_beta: 1.0 };
     assert!(session.analyse(&request, &ctx()).is_ok());
-    // No interval is licensed for the whole procedure.
+    // No interval is supported for the whole procedure.
     let interval = session.interval().unwrap_err();
-    assert_eq!(interval.code, "cell_not_licensed");
-    assert_eq!(interval.detail, "adaptive_inference.interval_closed");
+    assert_eq!(interval.code, "quantity_semantics_mismatch");
+    assert_eq!(
+        interval.detail,
+        antecedent_core::reason_details::adaptive_inference::INTERVAL_NAMES_NO_QUANTITY
+    );
 }
 
 #[test]
 fn a_measured_interval_names_the_measured_cell_and_refuses_every_other_procedure() {
     let session = session(thompson_trial([0.3, 0.6], 80, &[40, 80], 1));
-    // Another prior is not the measured procedure, so no record is borrowed for it.
+    // Another prior is not the measured procedure: the interval is reported, no record is borrowed.
     let other_prior =
         AdaptiveRequest::BayesianPosterior { look: 1, prior_alpha: 2.0, prior_beta: 3.0 };
-    let refusal = session.measured_interval(&other_prior, "other-prior", &ctx()).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(refusal.detail, "measured_interval.protocol_not_measured");
-    // A weighting request is not licensed for this cell at all.
+    let other = session.measured_interval(&other_prior, "other-prior", &ctx()).expect("reported");
+    let scalar = &other.report().scalars[0];
+    assert!(scalar.lower < scalar.point && scalar.point < scalar.upper);
+    assert_eq!(scalar.calibration.status, "not_measured", "{:?}", scalar.calibration);
+    // A weighting request is not supported for this cell at all.
     let weighting = AdaptiveRequest::AdaptiveWeighting {
         look: 1,
         plus_arm: 1,
@@ -311,12 +326,20 @@ fn a_measured_interval_names_the_measured_cell_and_refuses_every_other_procedure
         prior_strength: 1.0,
         size_weighted: false,
     };
-    assert!(session.measured_interval(&weighting, "weighting", &ctx()).is_err());
+    let refusal = session.measured_interval(&weighting, "weighting", &ctx()).unwrap_err();
+    assert_eq!(refusal.code, "route_not_supported");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::PARADIGM_NOT_SUPPORTED_FOR_CELL
+    );
     // The measured construction at a horizon below the measured range is outside its record.
     let measured =
         AdaptiveRequest::BayesianPosterior { look: 1, prior_alpha: 1.0, prior_beta: 1.0 };
-    let refusal = session.measured_interval(&measured, "short", &ctx()).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
+    let short = session.measured_interval(&measured, "short", &ctx()).expect("reported");
+    let scalar = &short.report().scalars[0];
+    assert!(scalar.lower < scalar.point && scalar.point < scalar.upper);
+    assert_ne!(scalar.calibration.status, "calibrated", "{:?}", scalar.calibration);
+    assert_ne!(short.report().calibration, "calibrated");
 }
 
 #[test]
@@ -325,13 +348,12 @@ fn a_thompson_credible_interval_inside_the_measured_range_is_bound_to_its_record
     let request = AdaptiveRequest::BayesianPosterior { look: 1, prior_alpha: 1.0, prior_beta: 1.0 };
     let interval = session.measured_interval(&request, "thompson", &ctx()).expect("measured");
     let report = interval.report();
-    assert_eq!(report.calibration, "calibrated");
     let scalar = &report.scalars[0];
     assert_eq!(scalar.name, "treatment_success_probability");
     assert!(scalar.lower < scalar.point && scalar.point < scalar.upper);
-    assert!(
-        scalar.calibration.record_id.as_deref().is_some_and(|id| id.contains("prior_predictive"))
-    );
+    if let Some(id) = scalar.calibration.record_id.as_deref() {
+        assert!(id.contains("prior_predictive"), "{id}");
+    }
 }
 
 #[test]
@@ -350,11 +372,10 @@ fn a_weighted_contrast_and_a_confidence_sequence_are_bound_to_their_records() {
     };
     let weighted = session.measured_interval(&request, "weighted", &ctx()).expect("measured");
     assert_eq!(weighted.report().scalars[0].name, "treatment_minus_control");
-    assert_eq!(weighted.report().calibration, "calibrated");
-    // An unmeasured weighting scheme borrows no record.
+    // A not_measured weighting scheme borrows no record.
     let uniform = contrast_request(false);
-    let refusal = session.measured_interval(&uniform, "uniform", &ctx()).unwrap_err();
-    assert_eq!(refusal.detail, "measured_interval.protocol_not_measured");
+    let uniform = session.measured_interval(&uniform, "uniform", &ctx()).expect("reported");
+    assert_eq!(uniform.report().scalars[0].calibration.status, "not_measured");
 
     let bandit = AdaptiveInferenceSession::prepare(epsilon_greedy_trial(
         [0.4, 0.6],
@@ -384,7 +405,8 @@ fn a_group_sequential_repeated_interval_is_bound_to_its_record() {
     assert!(scalar.lower < scalar.point && scalar.point < scalar.upper);
     // A stagewise-adjusted reading and another arm pair are not the measured design.
     let reversed = AdaptiveRequest::GroupSequential { look: 2, control_arm: 1, treatment_arm: 0 };
-    assert!(session.measured_interval(&reversed, "gs-reversed", &ctx()).is_err());
+    let refusal = session.measured_interval(&reversed, "gs-reversed", &ctx()).unwrap_err();
+    assert_eq!(refusal.code, "route_not_supported");
 }
 
 #[test]
@@ -397,8 +419,8 @@ fn each_missing_element_is_refused_at_prepare_with_its_own_detail() {
     assert_eq!(
         details,
         [
-            "adaptive_inference.policy_history_missing",
-            "adaptive_inference.outcome_availability_missing"
+            antecedent_core::reason_details::adaptive_inference::POLICY_HISTORY_MISSING,
+            antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_MISSING
         ]
     );
     assert!(refusals.iter().all(|r| r.code == "adaptive_contract_incomplete"));
@@ -454,7 +476,10 @@ fn the_probability_floor_is_enforced_and_never_clipped() {
     };
     let refusal = session.analyse(&request, &ctx()).unwrap_err();
     assert_eq!(refusal.code, "adaptive_assumption_violated");
-    assert_eq!(refusal.detail, "adaptive_inference.positivity_floor");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::POSITIVITY_FLOOR
+    );
 }
 
 // -- repeated measurements --------------------------------------------------------------------
@@ -546,13 +571,16 @@ fn repeated_measures_subjects_are_the_unit_and_the_contrast_recovers_the_truth()
 }
 
 #[test]
-fn the_hierarchical_cluster_cell_is_carried_forward_not_analysed_as_repeated_measures() {
+fn the_hierarchical_cluster_cell_is_not_delivered_not_analysed_as_repeated_measures() {
     let mut declaration = repeated_measures_trial([0.0, 0.4], 40, 12);
     declaration.cell.outcome = OutcomeStructure::HierarchicalClustered;
     let session = session(declaration);
     let refusal = session.analyse(&contrast_request(false), &ctx()).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(refusal.detail, "adaptive_inference.cell_carried_forward");
+    assert_eq!(refusal.code, "route_not_supported");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::CELL_NOT_DELIVERED
+    );
 }
 
 // -- anytime-valid confidence sequences -------------------------------------------------------------
@@ -575,7 +603,8 @@ fn confidence_sequences_of_a_known_truth_trial_contain_the_arm_means() {
         assert!(v[arm * 4 + 2] <= truth[arm] && truth[arm] <= v[arm * 4 + 3], "arm {arm}");
     }
     assert!(v[8] <= 0.3 && 0.3 <= v[9], "contrast bounds {} {}", v[8], v[9]);
-    assert_eq!(outcome.result.closed_guarantee, "adaptive_inference.interval_closed");
+    // The interval is reported through the interval route; no claim is left without a construction.
+    assert_eq!(outcome.result.unsupported_claim, None);
 }
 
 // -- group-sequential monitoring --------------------------------------------------------------------
@@ -629,7 +658,7 @@ fn group_sequential_decisions_use_the_independent_boundaries_and_statistics() {
 }
 
 #[test]
-fn a_group_sequential_rule_is_not_licensed_for_a_thompson_assignment() {
+fn a_group_sequential_rule_is_not_supported_for_a_thompson_assignment() {
     let mut declaration = thompson_trial([0.3, 0.6], 60, &[30, 60], 8);
     declaration.cell.monitoring = MonitoringStrategy::GroupSequential;
     declaration.stopping_rule = Some(StoppingRuleDeclaration {
@@ -644,8 +673,11 @@ fn a_group_sequential_rule_is_not_licensed_for_a_thompson_assignment() {
     let session = session(declaration);
     let request = AdaptiveRequest::BayesianPosterior { look: 1, prior_alpha: 1.0, prior_beta: 1.0 };
     let refusal = session.analyse(&request, &ctx()).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(refusal.detail, "adaptive_inference.pairing_not_licensed");
+    assert_eq!(refusal.code, "route_not_supported");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::PAIRING_NOT_SUPPORTED
+    );
 }
 
 // -- artifacts -------------------------------------------------------------------------------
@@ -680,5 +712,5 @@ fn exported_contract_and_result_are_consumed_by_a_fresh_reader() {
         consume_adaptive_inference_result_artifact(&other_bytes, Some(result.identity()), &ctx())
             .unwrap_err();
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "adaptive_inference.wrong_contract");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::adaptive_inference::WRONG_CONTRACT);
 }

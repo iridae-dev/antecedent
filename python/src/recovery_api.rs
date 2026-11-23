@@ -1,27 +1,28 @@
 //! Python bindings for exact binary observation recovery:
-//! graph-licensed recovery, not MAR/IPCW.
+//! graph-supported recovery, not MAR/IPCW.
 use crate::graphs::Admg;
 use crate::transport_common::{
     execution_context, frame_named_artifact, resolve, unframe_named_artifact,
 };
 use crate::transport_interference_api::parse_catalog;
 use crate::transport_z_api::to_py_json;
-use antecedent_core::{
-    EvidenceCatalog, ExecutionContext, RegimeId, SearchLimits, Value, VariableId,
-};
-use antecedent_expr::{
+use antecedent::estimate::{
     Assignment, DiscreteAxis, ExactDiscreteLaw, ExactDistribution, ExactEvaluationLimits,
     LawTolerance,
 };
-use antecedent_graph::{DenseNodeId, NodeRef};
-use antecedent_identify::recovery::MISSING_LEVEL;
-use antecedent_identify::{
+use antecedent::execution::SearchLimits;
+use antecedent::graph::{DenseNodeId, NodeRef};
+use antecedent::identify::recovery::MISSING_LEVEL;
+use antecedent::identify::{
     ObservationRecoveryQuery, PartiallyObserved, RECOVERY_DEFAULT_LIMITS, RecoveredEffectQuery,
     RecoveryDecision, RecoveryDerivation, RecoveryDetail, RecoveryError, RecoveryLimits,
     RecoveryWitness, decide_observation_recovery, verify_recovery_witness,
 };
-use antecedent_io::IoError;
-use antecedent_io::recovery_artifact::{RecoveryArtifactWire, RecoveryConsumeLimits};
+use antecedent::io::IoError;
+use antecedent::io::recovery_artifact::{RecoveryArtifactWire, RecoveryConsumeLimits};
+use antecedent::prelude::{ExecutionContext, Value, VariableId};
+use antecedent::query::EvidenceCatalog;
+use antecedent::schema::RegimeId;
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -31,11 +32,10 @@ use std::sync::Arc;
 const RECOVERY_PREFIX: &[u8] = b"ANTECEDENT-OBSERVATION-RECOVERY\x01";
 
 /// Largest sampled-recovery artifact a consumer reads: it carries the sampled replicates.
-#[cfg(feature = "calibration-internal")]
 const MAX_SAMPLED_RECOVERY_ARTIFACT_BYTES: usize = 2 * crate::bridge::MAX_DECLARED_ARTIFACT_BYTES;
 
-/// Graph-licensed recovery of the full law, exact laws, point only.
-const SCOPE: &str = "graph_licensed_observation_recovery_not_mar_ipcw";
+/// Graph-supported recovery of the full law, exact laws, point only.
+const SCOPE: &str = "graph_supported_observation_recovery_not_mar_ipcw";
 
 fn recovery_err(error: &RecoveryError) -> PyErr {
     crate::refusal(error.reason_code(), error.to_string())
@@ -60,7 +60,7 @@ fn derivation_json(derivation: &RecoveryDerivation, names: &[String]) -> serde_j
     let record = derivation.record();
     serde_json::json!({
         "outcome": "recovered",
-        "route": "graph-licensed recovery, not MAR/IPCW",
+        "route": "graph-supported recovery, not MAR/IPCW",
         "rule_version": record.rule_version,
         "population": record.population,
         "premises": record.premises,
@@ -91,11 +91,11 @@ fn derivation_json(derivation: &RecoveryDerivation, names: &[String]) -> serde_j
 
 fn witness_json(
     witness: &RecoveryWitness,
-    graph: &antecedent_graph::Admg,
+    graph: &antecedent::graph::Admg,
     query: &ObservationRecoveryQuery,
     names: &[String],
 ) -> serde_json::Value {
-    let model = |mechanisms: &[antecedent_identify::WitnessMechanism]| {
+    let model = |mechanisms: &[antecedent::identify::WitnessMechanism]| {
         mechanisms
             .iter()
             .map(|m| {
@@ -141,7 +141,7 @@ fn distribution_json(point: &ExactDistribution, names: &[String]) -> serde_json:
 }
 
 fn result_json(
-    recovered: &antecedent_estimate::RecoveredLaw,
+    recovered: &antecedent::estimate::RecoveredLaw,
     effects: &[ExactDistribution],
     requests: &[Assignment],
     names: &[String],
@@ -215,12 +215,11 @@ fn parse_observed(
         LawTolerance { absolute, relative },
     )
     .map_err(|e| crate::value_err(e.to_string()))?;
-    if let Ok(counts) = law.getattr("empirical_counts") {
-        if !counts.is_none() {
-            let counts: Vec<u64> = counts.extract()?;
-            exact =
-                exact.with_empirical_counts(counts).map_err(|e| crate::value_err(e.to_string()))?;
-        }
+    if let Ok(counts) = law.getattr("empirical_counts")
+        && !counts.is_none()
+    {
+        let counts: Vec<u64> = counts.extract()?;
+        exact = exact.with_empirical_counts(counts).map_err(|e| crate::value_err(e.to_string()))?;
     }
     Ok(exact)
 }
@@ -262,7 +261,7 @@ fn parse_requests(
 struct ObservationRecoveryStage {
     decision: RecoveryDecision,
     graph: Admg,
-    shared: antecedent_graph::Admg,
+    shared: antecedent::graph::Admg,
     query: ObservationRecoveryQuery,
     catalog: EvidenceCatalog,
     effect: Option<RecoveredEffectQuery>,
@@ -286,19 +285,22 @@ impl ObservationRecoveryStage {
         memory_limit_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<(String, Vec<u8>)> {
-        use antecedent_estimate::{
+        use antecedent::estimate::{
             ObservationPattern, ObservationRow, SampledObservationInput, SampledRecoveryConfig,
             estimate_sampled_recovery,
         };
-        use antecedent_io::sampled_recovery_artifact::{
+        use antecedent::io::sampled_recovery_artifact::{
             SampledRecoveryArtifactInput, SampledRecoveryArtifactWire,
         };
         let config = match interval_method {
-            "bootstrap_bca" if replicates == 2000 => SampledRecoveryConfig::bca(seed),
+            // Any replicate count runs; calibration annotates a count no record measured.
+            "bootstrap_bca" => {
+                SampledRecoveryConfig { replicates, ..SampledRecoveryConfig::bca(seed) }
+            }
             _ => {
                 return Err(sampled_candidate_error(
                     "invalid_argument",
-                    "sampled_recovery.invalid_input: BCa requires 2000 replicates and a known interval method",
+                    "sampled_recovery.invalid_input: unknown interval method",
                 ));
             }
         };
@@ -416,8 +418,7 @@ impl ObservationRecoveryStage {
 
 #[pymethods]
 impl ObservationRecoveryStage {
-    /// Internal historical candidate; retains unmeasured semantics.
-    #[cfg(feature = "calibration-internal")]
+    /// Internal historical candidate; retains `not_measured` semantics.
     #[pyo3(signature=(population, observed_regime, partial, fully, rows, snapshot, replicates, seed, interval_method="bootstrap_bca"))]
     #[allow(clippy::too_many_arguments)]
     fn sampled_candidate(
@@ -466,25 +467,9 @@ impl ObservationRecoveryStage {
         memory_limit_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<crate::measured_inference_api::NativeMeasuredInference> {
-        use antecedent_io::sampled_recovery_artifact::{
+        use antecedent::io::sampled_recovery_artifact::{
             SampledRecoveryArtifactWire, SampledRecoveryConsumeLimits, SampledRecoveryExpectation,
         };
-        if replicates != 2000
-            || interval_method != "bootstrap_bca"
-            || !(1000..=4000).contains(&rows.len())
-        {
-            return Err(crate::transport_common::error(IoError::Refused {code:antecedent_core::reason_code!("cell_not_licensed"),message:"sampled_recovery.protocol_not_measured: measured BCa requires 2000 draws and 1000..=4000 observation rows".into()}));
-        }
-        if self.catalog.bindings.iter().any(|binding| {
-            binding.regime == self.query.observed_regime
-                && (binding.weights.is_some()
-                    || binding.sampling != antecedent_core::SamplingDesign::Independent)
-        }) {
-            return Err(crate::transport_common::error(IoError::Refused {
-                code: antecedent_core::reason_code!("cell_not_licensed"),
-                message: "sampled_recovery.protocol_not_measured: measured whole-row recovery requires an unweighted independent observation binding".into(),
-            }));
-        }
         let memory = match (self.memory_bytes, memory_limit_bytes) {
             (Some(a), Some(b)) => Some(a.min(b)),
             (a, b) => a.or(b),
@@ -618,7 +603,7 @@ impl ObservationRecoveryStage {
         })
     }
 
-    /// Counted laws are not licensed on this route (a sampled provider is not licensed):
+    /// Counted laws are not supported on this route (a sampled provider is not supported):
     /// preparation refuses.
     #[pyo3(signature=(law, requests=None, *, max_operations=10_000_000, max_depth=256, seed=0, cancel=None))]
     #[allow(clippy::too_many_arguments, clippy::unused_self, unused_variables)]
@@ -632,8 +617,8 @@ impl ObservationRecoveryStage {
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<PreparedObservationRecoveryStage> {
         Err(recovery_err(&RecoveryError::new(
-            RecoveryDetail::EmpiricalNotLicensed,
-            "counted laws are not licensed on the recovery route: it publishes exact-law points only",
+            RecoveryDetail::EmpiricalNotSupported,
+            "counted laws are not supported on the recovery route: it publishes exact-law points only",
         )))
     }
 }
@@ -696,7 +681,7 @@ impl PreparedObservationRecoveryStage {
     fn export(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
         let result = self.last.as_ref().ok_or_else(|| {
             crate::refusal(
-                antecedent_core::reason_code!("not_executed"),
+                antecedent::reason::reason_code!("not_executed"),
                 "estimate before exporting an observation-recovery artifact",
             )
         })?;
@@ -718,12 +703,12 @@ impl PreparedObservationRecoveryStage {
 /// one mapped by name, or the m-graph's causal restriction.
 fn effect_graph_for(
     graph: &Admg,
-    shared: &antecedent_graph::Admg,
+    shared: &antecedent::graph::Admg,
     query: &ObservationRecoveryQuery,
     given: Option<PyRef<'_, Admg>>,
-) -> PyResult<antecedent_graph::Admg> {
-    let mut out = antecedent_graph::Admg::empty();
-    let py_err = |e: antecedent_graph::GraphError| crate::value_err(e.to_string());
+) -> PyResult<antecedent::graph::Admg> {
+    let mut out = antecedent::graph::Admg::empty();
+    let py_err = |e: antecedent::graph::GraphError| crate::value_err(e.to_string());
     if let Some(effect) = given {
         let mut dense = Vec::new();
         for n in &effect.names {
@@ -891,7 +876,7 @@ fn consume_observation_recovery_artifact(
         let ctx: ExecutionContext = execution_context(0, memory_bytes, cancel);
         let consumed = RecoveryArtifactWire::consume_with_limits(&bytes, limits, &ctx)
             .map_err(|e| io_err(&e))?;
-        let graph = antecedent_io::admg_from_wire(&consumed.wire.graph).map_err(|e| io_err(&e))?;
+        let graph = antecedent::io::admg_from_wire(&consumed.wire.graph).map_err(|e| io_err(&e))?;
         crate::transport_exact_api::validate_artifact_names(&names, &graph)?;
         // The frame's names must be the mapping the verified identity binds.
         consumed.wire.check_variable_names(&names).map_err(|e| io_err(&IoError::from(e)))?;
@@ -918,16 +903,15 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PreparedObservationRecoveryStage>()?;
     module.add_function(wrap_pyfunction!(identify_observation_recovery_stage, module)?)?;
     module.add_function(wrap_pyfunction!(consume_observation_recovery_artifact, module)?)?;
-    #[cfg(feature = "calibration-internal")]
     module.add_function(wrap_pyfunction!(consume_sampled_recovery_candidate, module)?)?;
     Ok(())
 }
 
 fn sampled_candidate_error(code: &str, message: &str) -> PyErr {
-    if code == antecedent_core::reason_code!("invalid_argument") {
+    if code == antecedent::reason::reason_code!("invalid_argument") {
         crate::with_reason_code(
             crate::value_err(message),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         )
     } else {
         crate::refusal(code, message)
@@ -942,13 +926,12 @@ fn sampled_candidate_io_error(error: &IoError) -> PyErr {
 }
 
 fn sampled_candidate_json(
-    wire: &antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactWire,
+    wire: &antecedent::io::sampled_recovery_artifact::SampledRecoveryArtifactWire,
 ) -> String {
     serde_json::json!({"result":wire.result,"snapshot":wire.snapshot_id,"calibration":wire.calibration,"premises_digest":wire.premises_digest,"data_digest":wire.data_digest,"query":wire.query,"names":wire.variable_names,"receipt":wire.receipt}).to_string()
 }
 
 /// Candidate consumer reruns the original whole-row method under retained identities.
-#[cfg(feature = "calibration-internal")]
 #[doc(hidden)]
 #[pyfunction]
 #[pyo3(signature=(artifact, premises_digest, data_digest, *, max_rows=100_000, max_replicates=2000, memory_bytes=None, cancel=None))]
@@ -963,7 +946,7 @@ fn consume_sampled_recovery_candidate(
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<String> {
-    use antecedent_io::sampled_recovery_artifact::{
+    use antecedent::io::sampled_recovery_artifact::{
         SampledRecoveryArtifactWire, SampledRecoveryConsumeLimits, SampledRecoveryExpectation,
     };
     let valid_digest = |value: &str| {
@@ -973,7 +956,7 @@ fn consume_sampled_recovery_candidate(
         || !valid_digest(&premises_digest)
         || !valid_digest(&data_digest)
         || !(1..=100_000).contains(&max_rows)
-        || !(1..=2000).contains(&max_replicates)
+        || max_replicates == 0
     {
         return Err(crate::value_err(
             "sampled_recovery.invalid_input: bounded bytes and retained expected identities required",
@@ -989,7 +972,12 @@ fn consume_sampled_recovery_candidate(
         let consumed = SampledRecoveryArtifactWire::consume_expecting(
             &bytes,
             &expected,
-            SampledRecoveryConsumeLimits { max_rows, max_replicates, ..Default::default() },
+            SampledRecoveryConsumeLimits {
+                max_rows,
+                // The caller's replicate and row ceilings together set the replay work budget.
+                max_replay_work: (max_rows as u64).saturating_mul(max_replicates as u64),
+                ..Default::default()
+            },
             &ctx,
         )
         .map_err(|e| sampled_candidate_io_error(&e))?;

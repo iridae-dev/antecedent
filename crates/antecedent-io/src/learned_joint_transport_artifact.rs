@@ -1,6 +1,6 @@
 //! Independent artifact of the learned joint source-target transport row
 //! (`learned_joint_transport`). The original
-//! candidate format and its posterior quantities retain their `unmeasured` standing.
+//! candidate format and its posterior quantities retain their `not_measured` standing.
 //! Separate `build_measured` / `consume_measured` adapters authorize only the
 //! target-effect scalar when the actual native execution satisfies the frozen
 //! protocol and its basis resolves to a current attesting calibration record.
@@ -11,7 +11,7 @@
 //! the source and target identities with the observations themselves, and the result: the
 //! exact posterior moments of the `antecedent-learn` fit, the aligned joint draws with their
 //! RNG identity, the diagnostics (including the basis rank), the graph / provider / query
-//! record and the calibration status (always `unmeasured`).
+//! record and the calibration status (always `not_measured`).
 //!
 //! A consumer trusts none of the result. Under its own bounds (a stored count above them
 //! refuses before any work) it checks the two digests, re-fits the model from the stored
@@ -30,9 +30,10 @@
 //! consistently, and the derivation the identification record copies, which is a
 //! declared premise bound into the premises digest, not re-derived here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::IoError;
+use crate::joint_bayesian_transport_artifact::engine_refusal;
 use crate::joint_bayesian_transport_artifact::{
     DataIdentityWire, GaussianPriorWire, JointDrawsWire, JointOptionsWire, JointSourceWire,
     JointTargetWire, PriorProvenanceWire,
@@ -44,11 +45,12 @@ use crate::transport_interference_wire::{
     TransportIdentificationWire, transport_identification_from_wire,
     transport_identification_to_wire,
 };
+
 use antecedent_core::{ExecutionContext, IdentityDomain};
 use antecedent_estimate::joint_bayesian_transport::{
     DataIdentity, GaussianPrior, JOINT_TRANSPORT_MAX_DRAWS, JOINT_TRANSPORT_MAX_PARAMETERS,
-    JointPriors, JointTransportCalibration, JointTransportOptions, JointTransportRefusal,
-    PriorProvenance, SourceData, TargetData,
+    JointPriors, JointTransportCalibration, JointTransportOptions, PriorProvenance, SourceData,
+    TargetData,
 };
 use antecedent_estimate::learned_joint_transport::{
     LearnedJointFit, LearnedJointModel, fit_learned_joint_transport,
@@ -61,7 +63,7 @@ pub const LEARNED_JOINT_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
 pub const LEARNED_JOINT_ARTIFACT_FEATURE: &str = "learned_joint_transport_conjugate_v1";
 /// The only calibration status of this cell until coverage is measured.
-pub const LEARNED_JOINT_CALIBRATION: &str = "unmeasured";
+pub const LEARNED_JOINT_CALIBRATION: &str = "not_measured";
 
 /// Why a learned joint transport artifact was refused.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -93,13 +95,6 @@ impl From<LearnedJointArtifactError> for IoError {
             code: antecedent_core::reason_code!("invalid_argument"),
             message: format!("learned joint transport artifact: {error}"),
         }
-    }
-}
-
-fn engine_refusal(refusal: &JointTransportRefusal) -> IoError {
-    IoError::Refused {
-        code: refusal.code,
-        message: format!("{}: {}", refusal.detail, refusal.message),
     }
 }
 
@@ -291,7 +286,7 @@ pub struct LearnedDiagnosticsWire {
     pub max_abs_z: f64,
     /// Whether the disagreement is flagged.
     pub flagged: bool,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
 }
 
@@ -335,7 +330,7 @@ impl LearnedResultWire {
     fn from_fit(fit: &LearnedJointFit) -> Self {
         let d = &fit.diagnostics;
         let calibration = match d.calibration {
-            JointTransportCalibration::Unmeasured => LEARNED_JOINT_CALIBRATION,
+            JointTransportCalibration::NotMeasured => LEARNED_JOINT_CALIBRATION,
         };
         let p = &fit.provider;
         Self {
@@ -417,7 +412,7 @@ pub struct LearnedJointArtifactWire {
     pub target: JointTargetWire,
     /// Posterior result.
     pub result: LearnedResultWire,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Digest of the scientific premises.
     pub premises_digest: String,
@@ -544,7 +539,7 @@ impl LearnedJointArtifactWire {
         if wire.calibration != LEARNED_JOINT_CALIBRATION
             || wire.result.diagnostics.calibration != LEARNED_JOINT_CALIBRATION
         {
-            return Err(unsupported("calibration is unmeasured").into());
+            return Err(unsupported("calibration is not_measured").into());
         }
         if wire.result.draws.alignment != "joint" {
             return Err(unsupported("draws must be aligned joint draws").into());
@@ -650,7 +645,7 @@ impl LearnedJointArtifactWire {
         if expected.data_digest.as_ref().is_some_and(|d| *d != wire.data_digest) {
             return Err(LearnedJointArtifactError::ExpectationMismatch("data identity").into());
         }
-        let id = transport_identification_from_wire(&wire.identification);
+        let id = transport_identification_from_wire(&wire.identification)?;
         let model = wire.model.to_model();
         let sources: Vec<SourceData> = wire.sources.iter().map(source_from_wire).collect();
         let target = TargetData {
@@ -671,7 +666,7 @@ impl LearnedJointArtifactWire {
 
 impl LearnedJointArtifactWire {
     /// Produce the unchanged original candidate plus a separately record-bound
-    /// measured target-effect scalar. Other posterior quantities remain unmeasured.
+    /// measured target-effect scalar. Other posterior quantities remain `not_measured`.
     /// # Errors
     /// Out-of-protocol inputs, original native refusal, or non-attesting evidence.
     pub fn build_measured(
@@ -743,7 +738,7 @@ impl LearnedJointArtifactWire {
             || target.covariates[0].len() != 4
             || !identity_ok(&target.identity)
         {
-            return Err(IoError::Refused { code:antecedent_core::reason_code!("cell_not_licensed"),message:"measured_transport.protocol_not_measured: source/model/identity shape exceeds the frozen bounded protocol".into() });
+            return Err(IoError::Refused { code:antecedent_core::reason_code!("invalid_argument"),message:"measured_transport.input_bounds_exceeded: source/model/identity shape exceeds the declared input bounds".into() });
         }
         Ok(())
     }
@@ -774,9 +769,12 @@ impl LearnedJointArtifactWire {
             != antecedent_estimate::learned_joint_transport::LEARNED_JOINT_SAMPLER
             || fit.diagnostics.draw_count != fit.draws.n_draws
         {
-            return Err(IoError::Refused { code:antecedent_core::reason_code!("cell_not_licensed"),message:"measured_transport.protocol_not_measured: actual native posterior differs from measured sampler".into() });
+            return Err(IoError::Refused { code:antecedent_core::reason_code!("invalid_argument"),message:"measured_transport.sampler_mismatch: actual native posterior differs from the sampler the replay expects".into() });
         }
-        let basis = fit.target_calibration_basis(level).map_err(|e| engine_refusal(&e))?;
+        let basis = crate::measured_inference::transport::tag_outside(
+            &scope,
+            fit.target_calibration_basis(level).map_err(|e| engine_refusal(&e))?,
+        );
         let column = fit
             .draws
             .column("effect.target")
@@ -798,7 +796,7 @@ impl LearnedJointArtifactWire {
         )
     }
     /// Independently replay the original source/priors/model and derive every
-    /// scalar's current record binding; serialized calibrated flags cannot license it.
+    /// scalar's current record binding; serialized calibrated flags cannot support it.
     /// # Errors
     /// Identity/source mismatch, original engine refusal, out-of-protocol or stale evidence.
     pub fn consume_measured(

@@ -2,10 +2,10 @@
 
 Two kinds of check, kept apart on purpose:
 
-* **Fit-free** (:func:`preflight`, ``PreparedAnalysis.diagnose``): counts, missingness,
+* **Fit-free** (:func:`preflight`, :func:`diagnose`): counts, missingness,
   exact duplicate columns, the numerical rank of the ``[1 | Z]`` design with the dependent
   columns named, and review flags for near-deterministic relations. Nothing is fit.
-* **Fit-requiring** (:func:`fit_diagnostics`, ``PreparedAnalysis.diagnose_fit``): a propensity
+* **Fit-requiring** (:func:`fit_diagnostics`, :func:`diagnose_fit`): a propensity
   model is fit and its score range and per-arm weight ESS are reported. A fit that fails
   before any score exists reports every fitted quantity as absent (``status == "absent"``).
 
@@ -15,14 +15,16 @@ an unpopulated arm is *blocking*.
 
 ``plan_rank_drop`` is opt-in and records, never executes: it declares a column priority,
 names the columns that would be dropped and the exact linear relation behind each, and
-refuses (``reason_code == "rank_drop_not_licensed"``) when a treatment, outcome or effect
-modifier is involved. ``estimate_with_rank_drop`` executes a plan: it re-runs a licensed
+refuses (``reason_code == "rank_drop_not_supported"``) when a treatment, outcome or effect
+modifier is involved. ``estimate_with_rank_drop`` executes a plan: it re-runs a supported
 estimator on the reduced design and returns the point estimate with the drop record, never
 silently, and refuses whenever the drop could change what is fitted.
 
 ``estimate_cost`` is a planning hint, not a runtime guarantee. It reports counts, and
 ``seconds`` only when ``parity/cost_model.toml`` (written by ``scripts/bench_cost_model.py``
-on a named machine) is present; otherwise ``seconds`` is ``None``.
+on a named machine) is present; otherwise ``seconds`` is ``None``. Pass ``cost_model=`` a
+:class:`CostModel` to take the seconds from a model you declare instead, independent of the
+working directory and the environment.
 
 A refusal raised by these calls carries its structured fields on
 ``error.refusal_fields`` (``None`` on every other error).
@@ -33,11 +35,19 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Any, overload
 
 from . import _native
+from ._columns import coerce_fields
 from ._data import ingest_columns
-from .errors import CausalUnsupportedError
+from .errors import CausalTypeError, CausalUnsupportedError
+from .execution import Execution
+from .outcomes import Outcome, capture_outcome
+
+if TYPE_CHECKING:
+    from ._batch import PreparedBatch
+    from .prepared import PreparedAnalysis
 
 __all__ = [
     "ArmCount",
@@ -47,6 +57,7 @@ __all__ = [
     "ColumnMissingness",
     "ColumnWeight",
     "CostEstimate",
+    "CostModel",
     "DependentColumn",
     "DroppedColumn",
     "DuplicateGroup",
@@ -60,6 +71,9 @@ __all__ = [
     "RankReport",
     "ScoreQuantile",
     "SpanCheck",
+    "diagnose",
+    "diagnose_fit",
+    "estimate_cost",
     "estimate_with_rank_drop",
     "fit_diagnostics",
     "plan_rank_drop",
@@ -107,7 +121,12 @@ class ColumnWeight:
     """One term ``coefficient * column`` of an exact linear relation (original units)."""
 
     column: str
-    coefficient: float
+    coefficient: float | None
+
+    @property
+    def coefficient_status(self) -> str:
+        """Whether the coefficient was numerically representable."""
+        return "unavailable" if self.coefficient is None else "available"
 
 
 @dataclass(frozen=True)
@@ -146,6 +165,7 @@ class PreflightReport:
     duplicates: tuple[DuplicateGroup, ...]
     rank: RankReport | None
     findings: tuple[PreflightFinding, ...]
+    nonfinite_numeric_fields: tuple[str, ...] = ()
 
     @property
     def blocking(self) -> tuple[PreflightFinding, ...]:
@@ -168,6 +188,7 @@ class BatchPreflightReport:
 
     reports: tuple[PreflightReport, ...]
     shares_covariates: bool
+    nonfinite_numeric_fields: tuple[str, ...] = ()
 
     @property
     def blocked_plans(self) -> tuple[int, ...]:
@@ -188,7 +209,12 @@ class ArmWeightEss:
 
     label: str
     rows: int
-    ess: float
+    ess: float | None
+
+    @property
+    def ess_status(self) -> str:
+        """Whether the effective sample size is available."""
+        return "unavailable" if self.ess is None else "available"
 
 
 @dataclass(frozen=True)
@@ -219,6 +245,7 @@ class NuisanceFitDiagnostics:
     reason: str | None
     numerical_rank: int | None
     design_columns: int | None
+    nonfinite_numeric_fields: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -241,6 +268,7 @@ class RankDropPlan:
     kept_adjustment: tuple[str, ...]
     numerical_rank: int
     design_identity: str
+    nonfinite_numeric_fields: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -268,6 +296,7 @@ class RankDropEstimate:
     projection_invariance: str
     ate: float
     note: str
+    nonfinite_numeric_fields: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -312,6 +341,63 @@ class CostEstimate:
     shared_covariate_bytes: int | None
     seconds: float | None
     seconds_basis: str
+    nonfinite_numeric_fields: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class CostModel:
+    """A declared planning cost model: seconds per counted fit are ``a + b * rows * columns**2``.
+
+    ``benchmark`` and ``platform`` name the measurement the coefficients came from and
+    ``cpu_count`` the machine; ``coefficients`` maps an estimator id (for example ``aipw`` or
+    ``linear.adjustment.ate``) to its ``(a, b)``. A model with an empty benchmark or platform,
+    no CPU, no coefficients or a negative or non-finite coefficient is refused
+    (:class:`~antecedent.errors.CausalValueError`). :meth:`from_toml` reads the text
+    ``scripts/bench_cost_model.py`` writes. The seconds it backs stay a planning hint: an
+    estimator the model has no coefficients for reports counts only, and says so.
+    """
+
+    benchmark: str
+    platform: str
+    cpu_count: int
+    coefficients: Mapping[str, tuple[float, float]]
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.coefficients, Mapping):
+            raise CausalTypeError("coefficients must map an estimator id to (a, b)")
+        benchmark, platform, cpu_count, rows = _native.build_cost_model(
+            self.benchmark,
+            self.platform,
+            self.cpu_count,
+            [(str(k), float(a), float(b)) for k, (a, b) in self.coefficients.items()],
+        )
+        coerce_fields(
+            self,
+            benchmark=benchmark,
+            platform=platform,
+            cpu_count=cpu_count,
+            coefficients=MappingProxyType({k: (a, b) for k, a, b in rows}),
+        )
+
+    @classmethod
+    def from_toml(cls, text: str) -> CostModel:
+        """A model from the TOML subset ``scripts/bench_cost_model.py`` writes.
+
+        A top-level ``benchmark``, a ``[machine]`` table with ``platform`` and ``cpu_count`` and
+        one ``[coefficients."<estimator id>"]`` table per estimator with ``a`` and ``b``.
+        """
+        if not isinstance(text, str):
+            raise CausalTypeError("cost model text must be a string")
+        benchmark, platform, cpu_count, rows = _native.parse_cost_model(text)
+        return cls(benchmark, platform, cpu_count, {k: (a, b) for k, a, b in rows})
+
+    def _wire(self) -> tuple[str, str, int, list[tuple[str, float, float]]]:
+        return (
+            self.benchmark,
+            self.platform,
+            self.cpu_count,
+            [(k, a, b) for k, (a, b) in self.coefficients.items()],
+        )
 
 
 @dataclass(frozen=True)
@@ -326,6 +412,17 @@ class BatchCostEstimate:
     nuisance_fits_upper_bound: int | None
     bootstrap_replicates_total: int
     design_matrix_bytes_total: int | None
+    nonfinite_numeric_fields: tuple[str, ...] = ()
+
+
+def _nonfinite(raw: Mapping[str, Any]) -> tuple[str, ...]:
+    """JSON pointers identifying numeric values serialized as null because they were nonfinite."""
+    return tuple(raw.get("nonfinite_numeric_fields", ()))
+
+
+def _nested(raw: Mapping[str, Any], value: Mapping[str, Any], prefix: str) -> Mapping[str, Any]:
+    paths = tuple(p[len(prefix) :] for p in _nonfinite(raw) if p.startswith(prefix + "/"))
+    return {**value, "nonfinite_numeric_fields": paths} if paths else value
 
 
 def _weights(raw: Sequence[Mapping[str, Any]]) -> tuple[ColumnWeight, ...]:
@@ -375,6 +472,7 @@ def _report(raw: Mapping[str, Any]) -> PreflightReport:
             ),
         ),
         findings=tuple(_finding(f) for f in raw["findings"]),
+        nonfinite_numeric_fields=_nonfinite(raw),
     )
 
 
@@ -403,6 +501,7 @@ def _fit_diagnostics(raw: Mapping[str, Any]) -> NuisanceFitDiagnostics:
             reason=None,
             numerical_rank=None,
             design_columns=None,
+            nonfinite_numeric_fields=_nonfinite(raw),
         )
     return NuisanceFitDiagnostics(
         subject=raw["subject"],
@@ -411,6 +510,7 @@ def _fit_diagnostics(raw: Mapping[str, Any]) -> NuisanceFitDiagnostics:
         reason=p["reason"],
         numerical_rank=p["numerical_rank"],
         design_columns=p["design_columns"],
+        nonfinite_numeric_fields=_nonfinite(raw),
     )
 
 
@@ -430,6 +530,7 @@ def _plan(raw: Mapping[str, Any]) -> RankDropPlan:
         kept_adjustment=tuple(raw["kept_adjustment"]),
         numerical_rank=raw["numerical_rank"],
         design_identity=raw["design_identity"],
+        nonfinite_numeric_fields=_nonfinite(raw),
     )
 
 
@@ -461,6 +562,7 @@ def _cost(raw: Mapping[str, Any]) -> CostEstimate:
         shared_covariate_bytes=raw["shared_covariate_bytes"],
         seconds=raw["seconds"],
         seconds_basis=raw["seconds_basis"],
+        nonfinite_numeric_fields=_nonfinite(raw),
     )
 
 
@@ -469,10 +571,11 @@ def _batch_cost(raw: Mapping[str, Any]) -> BatchCostEstimate:
         planning_hint=raw["planning_hint"],
         note=raw["note"],
         claims=raw["claims"],
-        plans=tuple(_cost(p) for p in raw["plans"]),
+        plans=tuple(_cost(_nested(raw, p, f"/plans/{i}")) for i, p in enumerate(raw["plans"])),
         nuisance_fits_upper_bound=raw["nuisance_fits_upper_bound"],
         bootstrap_replicates_total=raw["bootstrap_replicates_total"],
         design_matrix_bytes_total=raw["design_matrix_bytes_total"],
+        nonfinite_numeric_fields=_nonfinite(raw),
     )
 
 
@@ -484,16 +587,17 @@ def preflight(
     adjustment: Sequence[str],
     control: float = 0.0,
     active: float = 1.0,
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> PreflightReport:
     """Fit-free preflight of a declared binary-effect design, before any study is prepared.
 
     A design a nuisance fit would refuse cannot be prepared, so this is the entry point for
     one; ``PreparedAnalysis.diagnose`` reports the same checks on a prepared plan.
     """
+    run = _table_execution(execution)
     names, columns = ingest_columns(data)
-    raw = _native.preflight_json(
+    raw = run._call(
+        _native.preflight_json,
         names,
         columns,
         treatment,
@@ -501,8 +605,8 @@ def preflight(
         list(adjustment),
         control,
         active,
-        seed=seed,
-        threads=threads,
+        seed=run.seed,
+        threads=run.threads,
     )
     return _report(json.loads(raw))
 
@@ -515,16 +619,17 @@ def fit_diagnostics(
     adjustment: Sequence[str],
     control: float = 0.0,
     active: float = 1.0,
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> NuisanceFitDiagnostics:
     """Fit a diagnostic propensity model for a declared binary-effect design.
 
     Not preflight: the fit is part of the evidence. A failure before any score exists comes
     back as ``status == "absent"`` with the reason, not as an exception.
     """
+    run = _table_execution(execution)
     names, columns = ingest_columns(data)
-    raw = _native.fit_diagnostics_json(
+    raw = run._call(
+        _native.fit_diagnostics_json,
         names,
         columns,
         treatment,
@@ -532,12 +637,31 @@ def fit_diagnostics(
         list(adjustment),
         control,
         active,
-        seed=seed,
-        threads=threads,
+        seed=run.seed,
+        threads=run.threads,
     )
     return _fit_diagnostics(json.loads(raw))
 
 
+@overload
+def plan_rank_drop(
+    data: PreparedAnalysis[Any],
+    *,
+    priority: Sequence[str] | None = None,
+    execution: Execution | None = None,
+) -> RankDropPlan: ...
+
+
+@overload
+def plan_rank_drop(
+    data: PreparedBatch,
+    *,
+    priority: Sequence[str] | None = None,
+    execution: Execution | None = None,
+) -> tuple[RankDropPlan, ...]: ...
+
+
+@overload
 def plan_rank_drop(
     data: Mapping[str, Any] | Any,
     *,
@@ -547,19 +671,55 @@ def plan_rank_drop(
     priority: Sequence[str] | None = None,
     control: float = 0.0,
     active: float = 1.0,
-    seed: int = 1,
-    threads: int | None = None,
-) -> RankDropPlan:
+    execution: Execution | None = None,
+) -> RankDropPlan: ...
+
+
+def plan_rank_drop(
+    data: Mapping[str, Any] | Any,
+    *,
+    treatment: str | None = None,
+    outcome: str | None = None,
+    adjustment: Sequence[str] | None = None,
+    priority: Sequence[str] | None = None,
+    control: float = 0.0,
+    active: float = 1.0,
+    execution: Execution | None = None,
+) -> RankDropPlan | tuple[RankDropPlan, ...]:
     """Plan an opt-in rank-deficiency drop under a declared column priority.
 
     ``priority`` lists **every** adjustment column exactly once, highest priority first
     (``None`` = the adjustment order). The plan names the dropped columns, the exact linear
     relation behind each, and the resulting design identity; it is a record, not an
-    execution. Raises ``CausalUnsupportedError`` (``rank_drop_not_licensed``) when a
+    execution. Raises ``CausalUnsupportedError`` (``rank_drop_not_supported``) when a
     treatment or outcome is involved or the priority does not cover the adjustment set.
+
+    A canonical prepared study supplies its native certified design directly. Pass only
+    ``priority`` and, optionally, ``execution`` (the study's own by default); manual roles
+    would conflict with its retained declarations. A table takes ``execution`` too, with the
+    default ``Execution()``. Batch studies return one plan per query.
     """
+    if _is_prepared(data):
+        if any(value is not None for value in (treatment, outcome, adjustment)) or (
+            control != 0.0 or active != 1.0
+        ):
+            raise CausalTypeError(
+                "prepared rank-drop plans retain their design; pass priority and Execution only"
+            )
+        native, policy, batch = _prepared_context(data, execution)
+        if batch:
+            return policy._call(
+                plan_rank_drop_batch, native, priority, seed=policy.seed, threads=policy.threads
+            )
+        return policy._call(
+            plan_rank_drop_prepared, native, priority, seed=policy.seed, threads=policy.threads
+        )
+    run = _table_execution(execution)
+    if treatment is None or outcome is None or adjustment is None:
+        raise CausalTypeError("an unprepared design requires treatment, outcome and adjustment")
     names, columns = ingest_columns(data)
-    raw = _native.rank_drop_json(
+    raw = run._call(
+        _native.rank_drop_json,
         names,
         columns,
         treatment,
@@ -568,8 +728,8 @@ def plan_rank_drop(
         None if priority is None else list(priority),
         control,
         active,
-        seed=seed,
-        threads=threads,
+        seed=run.seed,
+        threads=run.threads,
     )
     return _plan(json.loads(raw))
 
@@ -584,8 +744,7 @@ def estimate_with_rank_drop(
     priority: Sequence[str] | None = None,
     control: float = 0.0,
     active: float = 1.0,
-    seed: int = 1,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> RankDropEstimate:
     """Estimate on the span-preserving reduced adjustment set of a declared rank drop.
 
@@ -593,13 +752,15 @@ def estimate_with_rank_drop(
     unpenalized nuisances) on the design with the plan's dependent columns removed. A dropped
     column is an exact linear combination of the retained ones, so the fitted projections
     equal the original design's. Raises ``CausalUnsupportedError``
-    (``rank_drop_not_licensed``) when the plan refuses, the retained columns do not span the
+    (``rank_drop_not_supported``) when the plan refuses, the retained columns do not span the
     original design, or the cross-fitted propensity separates on the reduced design;
     ``route_not_supported`` for any other estimator.
     """
+    run = _table_execution(execution)
     names, columns = ingest_columns(data)
     raw = json.loads(
-        _native.estimate_with_rank_drop_json(
+        run._call(
+            _native.estimate_with_rank_drop_json,
             names,
             columns,
             treatment,
@@ -609,18 +770,27 @@ def estimate_with_rank_drop(
             None if priority is None else list(priority),
             control,
             active,
-            seed=seed,
-            threads=threads,
+            seed=run.seed,
+            threads=run.threads,
         )
     )
     return RankDropEstimate(
-        plan=_plan(raw["plan"]),
+        plan=_plan(_nested(raw, raw["plan"], "/plan")),
         span_check=SpanCheck(**raw["span_check"]),
         estimator=raw["estimator"],
         projection_invariance=raw["projection_invariance"],
         ate=raw["ate"],
         note=raw["note"],
+        nonfinite_numeric_fields=_nonfinite(raw),
     )
+
+
+def _table_execution(execution: Execution | None) -> Execution:
+    """The execution a table-path entry runs under; ``None`` is the default ``Execution()``."""
+    run = Execution() if execution is None else execution
+    if not isinstance(run, Execution):
+        raise CausalTypeError("execution must be an antecedent.Execution")
+    return run
 
 
 def _call(native: Any, method: str, *args: Any, **kwargs: Any) -> Any:
@@ -633,6 +803,136 @@ def _call(native: Any, method: str, *args: Any, **kwargs: Any) -> Any:
             reason_code="route_not_supported",
         )
     return json.loads(fn(*args, **kwargs))
+
+
+def _is_prepared(study: Any) -> bool:
+    from ._batch import PreparedBatch
+    from .prepared import PreparedAnalysis
+
+    return isinstance(study, (PreparedAnalysis, PreparedBatch))
+
+
+def _prepared_context(study: Any, execution: Execution | None) -> tuple[Any, Execution, bool]:
+    """Select a retained native design without ingestion or scientific reconstruction."""
+    from ._batch import PreparedBatch
+    from .prepared import PreparedAnalysis
+
+    if not isinstance(study, (PreparedAnalysis, PreparedBatch)):
+        raise CausalTypeError("diagnostics require an immutable prepared study or batch")
+    policy = study.execution if execution is None else execution
+    if not isinstance(policy, Execution):
+        raise CausalTypeError("execution must be an Execution declaration")
+    if study._refused is not None:
+        assert study._refused.refusal is not None
+        study._refused.refusal.raise_error()
+    if isinstance(study, PreparedBatch):
+        return study._native, policy, True
+    return study._engine._native, policy, False
+
+
+@overload
+def diagnose(
+    study: PreparedAnalysis[Any], *, execution: Execution | None = None
+) -> PreflightReport: ...
+
+
+@overload
+def diagnose(
+    study: PreparedBatch, *, execution: Execution | None = None
+) -> BatchPreflightReport: ...
+
+
+def diagnose(
+    study: Any, *, execution: Execution | None = None
+) -> PreflightReport | BatchPreflightReport:
+    """Read counts, missingness and rank from the prepared native design, without fitting.
+
+    The native identification supplies roles and adjustment columns. Findings never change
+    that design or the source study. Omission of ``execution`` uses the study's policy.
+    """
+    native, policy, batch = _prepared_context(study, execution)
+    if batch:
+        return policy._call(diagnose_batch, native, seed=policy.seed, threads=policy.threads)
+    return policy._call(diagnose_prepared, native, seed=policy.seed, threads=policy.threads)
+
+
+@overload
+def diagnose_fit(
+    study: PreparedAnalysis[Any], *, execution: Execution | None = None
+) -> Outcome[NuisanceFitDiagnostics]: ...
+
+
+@overload
+def diagnose_fit(
+    study: PreparedBatch, *, execution: Execution | None = None
+) -> Outcome[tuple[NuisanceFitDiagnostics, ...]]: ...
+
+
+def diagnose_fit(study: Any, *, execution: Execution | None = None) -> Outcome[Any]:
+    """Explicitly fit diagnostic propensities against the native retained design.
+
+    The outcome retains scientific refusals; argument, resource, cancellation and callback
+    failures raise their original typed errors. An absent fit remains an explicit diagnostic
+    record without invented scores. No effect is estimated or retained state replaced.
+
+    Progress reports this diagnostic operation's start/completion as ``diagnose_fit``.
+    Progressive estimation stages are unavailable for a diagnostic propensity fit.
+    """
+    context = capture_outcome(_prepared_context, study, execution)
+    if context.refusal is not None:
+        return Outcome(refusal=context.refusal)
+    assert context.value is not None
+    native, policy, batch = context.value
+    if policy.on_stage is not None:
+        raise CausalUnsupportedError(
+            "diagnostic propensity fits do not expose progressive estimation stages",
+            reason_code="stage_stream_unavailable",
+        )
+    # Invoke observers outside scientific refusal capture so even an observer-raised
+    # scientific exception preserves its original identity and traceback as an error.
+    policy._report_progress(0.0, "diagnose_fit")
+    operation = diagnose_fit_batch if batch else diagnose_fit_prepared
+    outcome = capture_outcome(
+        policy._call, operation, native, seed=policy.seed, threads=policy.threads
+    )
+    policy._report_progress(1.0, "diagnose_fit")
+    return outcome
+
+
+@overload
+def estimate_cost(
+    study: PreparedAnalysis[Any],
+    *,
+    execution: Execution | None = None,
+    cost_model: CostModel | None = None,
+) -> CostEstimate: ...
+
+
+@overload
+def estimate_cost(
+    study: PreparedBatch,
+    *,
+    execution: Execution | None = None,
+    cost_model: CostModel | None = None,
+) -> BatchCostEstimate: ...
+
+
+def estimate_cost(
+    study: Any, *, execution: Execution | None = None, cost_model: CostModel | None = None
+) -> CostEstimate | BatchCostEstimate:
+    """Read the retained plan's scientific budgets and work counts without executing it.
+
+    Counts describe the prepared plan; overriding the policy for this read does not replan
+    its scientific declarations or turn a planning estimate into a measured execution.
+    ``cost_model`` takes the seconds from the model you declare; without it the process-wide
+    benchmark file (``parity/cost_model.toml`` or ``ANTECEDENT_COST_MODEL``) is read.
+    """
+    if cost_model is not None and not isinstance(cost_model, CostModel):
+        raise CausalTypeError("cost_model must be a CostModel")
+    native, policy, batch = _prepared_context(study, execution)
+    if batch:
+        return policy._call(estimate_cost_batch, native, cost_model)
+    return policy._call(estimate_cost_prepared, native, cost_model)
 
 
 def diagnose_prepared(native: Any, *, seed: int, threads: int | None) -> PreflightReport:
@@ -653,17 +953,20 @@ def plan_rank_drop_prepared(
     return _plan(_call(native, "plan_rank_drop_json", names, seed=seed, threads=threads))
 
 
-def estimate_cost_prepared(native: Any) -> CostEstimate:
+def estimate_cost_prepared(native: Any, cost_model: CostModel | None = None) -> CostEstimate:
     """``PreparedAnalysis.estimate_cost``: planning counts of a prepared plan."""
-    return _cost(_call(native, "estimate_cost_json"))
+    return _cost(_call(native, "estimate_cost_json", _wire_of(cost_model)))
 
 
 def diagnose_batch(native: Any, *, seed: int, threads: int | None) -> BatchPreflightReport:
     """``PreparedBatch.diagnose``: fit-free preflight of every plan."""
     raw = _call(native, "diagnose_json", seed=seed, threads=threads)
     return BatchPreflightReport(
-        reports=tuple(_report(r) for r in raw["reports"]),
+        reports=tuple(
+            _report(_nested(raw, r, f"/reports/{i}")) for i, r in enumerate(raw["reports"])
+        ),
         shares_covariates=raw["shares_covariates"],
+        nonfinite_numeric_fields=_nonfinite(raw),
     )
 
 
@@ -684,6 +987,10 @@ def plan_rank_drop_batch(
     return tuple(_plan(r) for r in raw)
 
 
-def estimate_cost_batch(native: Any) -> BatchCostEstimate:
+def estimate_cost_batch(native: Any, cost_model: CostModel | None = None) -> BatchCostEstimate:
     """``PreparedBatch.estimate_cost``: planning counts of every plan and their totals."""
-    return _batch_cost(_call(native, "estimate_cost_json"))
+    return _batch_cost(_call(native, "estimate_cost_json", _wire_of(cost_model)))
+
+
+def _wire_of(cost_model: CostModel | None) -> Any:
+    return None if cost_model is None else cost_model._wire()

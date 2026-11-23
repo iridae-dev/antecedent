@@ -18,5 +18,19 @@ papers = []
 upstream_implementations_observed = []
 
 test_sources = [
- "in-crate #[ignore] calibration tests (crates/antecedent-estimate/src/calibration_coverage.rs), run via scripts/gate_calibration.sh: linear_adjustment (analytic + HC1), ipw_hajek (bootstrap + analytic), aipw, matching, wald_iv (homoskedastic + HC1), rd_sharp analytic CI coverage",
+ "in-crate #[ignore] calibration tests (crates/antecedent-estimate/src/calibration_coverage.rs), run via scripts/measure_calibration.sh: linear_adjustment (analytic + HC1), ipw_hajek (bootstrap + analytic), aipw, matching, wald_iv (homoskedastic + HC1), rd_sharp analytic CI coverage",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "The coverage measurement harness: simulation cells that run an estimator's interval on seeded data-generating processes and count how often the truth is covered, reported as a rate with its Monte Carlo band."
+no_independent_algorithm = "calibration_coverage.rs generates seeded data, calls each covered estimator and tallies coverage, interval length, mean standard error and the Monte Carlo SD of the point estimates; it estimates nothing itself. The tests are #[ignore] (run by the calibration gate), so this mapping carries no routinely executing assertion and states no coverage result."
+covered_by = ["estimate.linear_adjustment", "estimate.propensity_weighting", "estimate.aipw", "estimate.iv_2sls", "estimate.rd", "estimate.distance_matching"]
+record_sha256 = "e6004b0da34c749bd62799d9944d68ca4ba68aab13ece3a863a64cbdefea27f7"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/calibration_coverage.rs"
+items = ["module"]
+sha256 = "ceff3e53e9a1dd06c40b2d71940febf3093c113282605d4194d7234c1384a9c9"

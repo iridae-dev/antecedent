@@ -6,7 +6,7 @@
 //! identity and a digest of the contract that was checked, never the contract
 //! itself, so it can leave the process and come back byte-for-byte equal. It
 //! covers only those exact requests and certifies no scientific truth beyond
-//! the probes, and holding one never licenses native behavior.
+//! the probes, and holding one never supports native behavior.
 
 use std::collections::HashSet;
 
@@ -17,6 +17,7 @@ use crate::{
     ExternalVerificationError, ProviderObjectIdentity, UtilityMonotonicity, VerificationProbe,
     VerificationProbeKind, capability_name, probe_name,
 };
+use antecedent_core::named_variants;
 
 const RECEIPT_TAG: &str = "antecedent.provider_verification.receipt.v1";
 const CONTRACT_TAG: &str = "antecedent.provider_verification.contract.v1";
@@ -38,26 +39,14 @@ pub enum VerifiedContractKind {
     Execution,
 }
 
-impl VerifiedContractKind {
-    /// Stable wire name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Law => "law",
-            Self::Posterior => "posterior",
-            Self::Signal => "signal",
-            Self::Evidence => "evidence",
-            Self::Utility => "utility",
-            Self::Execution => "execution",
-        }
-    }
-
-    /// Parse the name written by [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::Law, Self::Posterior, Self::Signal, Self::Evidence, Self::Utility, Self::Execution]
-            .into_iter()
-            .find(|kind| kind.as_str() == name)
+named_variants! {
+    VerifiedContractKind {
+        Law => "law",
+        Posterior => "posterior",
+        Signal => "signal",
+        Evidence => "evidence",
+        Utility => "utility",
+        Execution => "execution",
     }
 }
 
@@ -78,8 +67,12 @@ pub struct ExecutionContract {
     pub artifact_blake3: Option<String>,
 }
 
+/// Whether `value` is a 64-character hex digest. External digests (the opaque artifact's
+/// BLAKE3 and a verified contract digest) arrive as text from outside the library, so both
+/// cases are accepted here; canonical identities elsewhere are lowercase-only (see
+/// `digest_from_lower_hex`).
 fn hex64(value: &str) -> bool {
-    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+    antecedent_core::digest_from_hex(value).is_some()
 }
 
 impl ExecutionContract {
@@ -648,7 +641,7 @@ mod tests {
         assert!(!receipt.covers_execution(&tampered), "an artifact change is another contract");
         let state = ExternalTrustState::ExactRequestVerified(Box::new(receipt));
         assert!(state.verifies(&typed) && state.verifies_execution(&first));
-        assert!(!state.is_native_licensed());
+        assert!(!state.is_native_supported());
     }
 
     #[test]
@@ -677,7 +670,10 @@ mod tests {
             verify_provider_requests("origin", &[(VerificationSubject::Execution(&first), &off)])
                 .unwrap_err();
         let refusal = error.to_refusal();
-        assert_eq!(refusal.detail, "external_object_verification.failed_probe");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::external_object_verification::FAILED_PROBE
+        );
         assert_eq!(refusal.offending.as_deref(), Some("request[0].known_truth"));
         let uncertain = ExecutionContract { reports_uncertainty: true, ..execution("r1") };
         assert_eq!(

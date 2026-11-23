@@ -206,7 +206,7 @@ fn native_binomial_and_equivalent_external_law_agree_pointwise() {
 fn native_receipts_are_native_and_differ_from_an_equivalent_external_receipt() {
     let req = request("study-a", 1);
     let native = NativeBinomialSignal.prepare(&req).unwrap();
-    assert_eq!(native.receipt.trust, SignalTrustLabel::NativeLicensed);
+    assert_eq!(native.receipt.trust, SignalTrustLabel::NativeSupported);
     assert_eq!(native.receipt.family, "binomial");
     assert_eq!(native.receipt.update_mode, SignalUpdateMode::NativeUpdate);
     assert!(native.receipt.provider_identity.is_none());
@@ -214,7 +214,17 @@ fn native_receipts_are_native_and_differ_from_an_equivalent_external_receipt() {
     assert_ne!(native.receipt.identity(), external.receipt.identity());
     let gauss = NativeGaussianMeanSignal::new(0.25).unwrap().prepare(&req).unwrap();
     assert_eq!(gauss.receipt.family, "gaussian_mean");
-    assert!(NativeGaussianMeanSignal::new(0.0).is_err());
+    for bad in [0.0, -1.0] {
+        match NativeGaussianMeanSignal::new(bad) {
+            Err(antecedent_design::DesignError::Config(message)) => assert_eq!(
+                message,
+                format!("Gaussian signal noise variance must be finite and > 0 (got {bad})")
+            ),
+            other => {
+                panic!("variance {bad} must be a configuration refusal, got {:?}", other.err())
+            }
+        }
+    }
     // The request's sample size is authoritative for every candidate.
     let design = CandidateDesign::IncreaseSamplingRate(SamplingPlan {
         additional_samples: 99,
@@ -238,7 +248,10 @@ fn predictive_law_without_coherent_posterior_update_refuses() {
     let trust = attested(&obj);
     let error = ExternalSignal::new(obj, trust, body(&req, law)).unwrap_err();
     assert_eq!(error, SignalError::PosteriorIncoherent);
-    assert_eq!(error.to_refusal().detail, "signal_provider.posterior_incoherent");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::signal_provider::POSTERIOR_INCOHERENT
+    );
     // A predictive law that does not normalize also refuses.
     let law = ExternalLaw::Likelihood {
         states: vec![0.0, 1.0],
@@ -302,7 +315,10 @@ fn wrong_candidate_prior_sample_size_or_fingerprint_refuses() {
     resized.rng_seed = req.rng_seed;
     let error = provider.prepare(&resized).unwrap_err();
     assert_eq!(error, SignalError::RequestFingerprintMismatch);
-    assert_eq!(error.to_refusal().detail, "signal_provider.request_fingerprint_mismatch");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::signal_provider::REQUEST_FINGERPRINT_MISMATCH
+    );
 
     // With a matching fingerprint, a wrong candidate id, prior id and sample size each refuse.
     let mut wrong = object(&req, UPDATE_CAPS.to_vec());
@@ -328,7 +344,10 @@ fn wrong_candidate_prior_sample_size_or_fingerprint_refuses() {
     let provider = ExternalSignal::new(obj, trust, mismatched).unwrap();
     let error = provider.prepare(&req).unwrap_err();
     assert_eq!(error, SignalError::SampleSizeMismatch { declared: 5, requested: 1 });
-    assert_eq!(error.to_refusal().detail, "signal_provider.sample_size_mismatch");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::signal_provider::SAMPLE_SIZE_MISMATCH
+    );
 }
 
 #[test]
@@ -341,7 +360,10 @@ fn returned_posterior_quantity_must_align_with_the_request() {
     let provider = ExternalSignal::new(obj, trust, misaligned).unwrap();
     let error = provider.prepare(&req).unwrap_err();
     assert_eq!(error, SignalError::PosteriorQuantityMismatch);
-    assert_eq!(error.to_refusal().detail, "signal_provider.posterior_quantity_mismatch");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::signal_provider::POSTERIOR_QUANTITY_MISMATCH
+    );
 
     let obj = object(&req, UPDATE_CAPS.to_vec());
     let trust = attested(&obj);
@@ -357,7 +379,7 @@ fn native_trust_capability_and_object_claims_refuse() {
     let obj = object(&req, UPDATE_CAPS.to_vec());
     let error = ExternalSignal::new(
         obj,
-        ExternalTrustState::NativeLicensed,
+        ExternalTrustState::NativeSupported,
         body(&req, frozen_posterior()),
     )
     .unwrap_err();
@@ -413,7 +435,10 @@ fn request_declares_lineage_independence_sample_size_and_limits() {
     req.limits.max_support = 10;
     let error = NativeBinomialSignal.prepare(&req).unwrap_err();
     assert_eq!(error, SignalError::ComputationalLimit("support"));
-    assert_eq!(error.to_refusal().detail, "signal_provider.computational_limit");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::signal_provider::COMPUTATIONAL_LIMIT
+    );
 
     // The fingerprint ignores lineage order and tracks every other field.
     let a = request("study-a", 3);

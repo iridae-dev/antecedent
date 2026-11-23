@@ -1,4 +1,14 @@
-"""Complementary sources plus a grid. Same verbs as the single-source examples."""
+"""Can two partial experiments together identify a response curve neither identifies alone?
+
+Source ``a`` experiments on ``x`` and measures ``z``; source ``b`` experiments on ``z`` and measures
+``y``. No data are simulated: their laws are supplied exactly, and together they identify the
+target curve by chaining them: ``0.8 * 0.1 + 0.2 * 0.9 = 0.26`` at ``x = 0`` and ``0.74`` at
+``x = 1``, which the script asserts. When source ``a``'s law under ``x = 0`` is withheld, the
+script asserts that some grid point is no longer supported. Exact laws carry no sampling
+uncertainty, so no interval is inferred; the graph and transport assumptions are declared, not
+tested. The calls are the same as in the single-source `transport_exact.py`.
+
+Run: ``python examples/python/transport_meta_grid.py``."""
 
 import antecedent as ant
 
@@ -66,16 +76,17 @@ def main() -> None:
     result = ant.analyze(data, graph=graph, query=query)
     _slots(result, uncertainty=False)
     assert result.answer.kind == "response"
-    assert [round(row[0], 2) for row in result.response.values] == [0.26, 0.74]
-    print(list(result.response.values))
-    assert ant.load(result.export()) is not None
+    assert [round(row[0], 2) for row in result.value.response.values] == [0.26, 0.74]
+    print(list(result.value.response.values))
+    artifact = result.export()
+    assert ant.load(artifact, expected=artifact.expectation) is not None
 
     partial = ant.analyze(
         ant.transport.ExactTransportData(tuple(laws[1:])),
         graph=graph,
         query=query,
     )
-    assert any(status != "supported" for status in (partial.support.point_status or ()))
+    assert any(status != "supported" for status in (partial.value.support.point_status or ()))
 
 
 if __name__ == "__main__":

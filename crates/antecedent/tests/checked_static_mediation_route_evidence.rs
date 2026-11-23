@@ -1,8 +1,9 @@
-//! Builder-independent evidence for the licensed frequentist static mediation procedure.
+//! Builder-independent evidence for the supported frequentist static mediation procedure.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ExecutionContext, Intervention, MediationContrast, MediationQuery, Value,
@@ -10,6 +11,33 @@ use antecedent_core::{
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};
+
+fn assert_scientific_mediation_target(
+    target: &antecedent_core::ScientificTarget,
+    query: &MediationQuery,
+) {
+    let antecedent_core::TargetForm::Mediation(mediation) = target.form() else {
+        panic!("a mediation theorem must not be replaced by a generic joint contrast");
+    };
+    assert_eq!(mediation.arms().treatment(), query.treatment);
+    assert_eq!(mediation.arms().mediators(), query.mediators.as_ref());
+    assert_eq!(mediation.arms().active(), &query.active);
+    assert_eq!(mediation.arms().control(), &query.control);
+    assert_eq!(mediation.binding().population(), &query.target_population);
+    assert_eq!(mediation.binding().outcome().outcome(), query.outcome);
+    assert_eq!(mediation.binding().outcome().units().name(), "unspecified");
+    assert_eq!(mediation.time(), &antecedent_core::TimeFrame::static_decision());
+    if query.contrast != MediationContrast::Total {
+        assert!(
+            mediation
+                .premises()
+                .contains(&antecedent_core::CrossWorldPremise::CrossWorldIndependence)
+        );
+        assert!(
+            mediation.premises().contains(&antecedent_core::CrossWorldPremise::PathSpecificNested)
+        );
+    }
+}
 
 fn v(raw: u32) -> VariableId {
     VariableId::from_raw(raw)
@@ -64,13 +92,16 @@ fn static_mediation_preserves_declared_nonbinary_levels_and_default_validation()
                 .unwrap();
             let mut prepared = builder.prepare(&context).unwrap();
             drop(builder);
-            let plan = prepared.checked_static_mediation_info().unwrap();
+            let RetainedOperation::StaticMediation(plan) = prepared.retained_operation() else {
+                panic!("sealed mediation plan")
+            };
             assert_eq!(plan.query, query);
+            assert_scientific_mediation_target(&plan.scientific_target, &query);
             assert_eq!(plan.validation, RefuteSuite::PlaceboAndRcc);
             let result = prepared.estimate(&base, &context).unwrap();
-            assert!((result.estimate.as_effect().unwrap().ate - 0.6 * unit_truth).abs() < 1e-10);
+            assert!((result.estimate().as_effect().unwrap().ate - 0.6 * unit_truth).abs() < 1e-10);
             assert!(!result.refutations.is_empty());
-            let refreshed = prepared.refresh(data(0.15), &context).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, data(0.15), &context).unwrap();
             let direct_delta = if matches!(
                 contrast,
                 MediationContrast::Total
@@ -82,11 +113,14 @@ fn static_mediation_preserves_declared_nonbinary_levels_and_default_validation()
                 0.0
             };
             assert!(
-                (refreshed.estimate.as_effect().unwrap().ate - 0.6 * (unit_truth + direct_delta))
+                (refreshed.estimate().as_effect().unwrap().ate - 0.6 * (unit_truth + direct_delta))
                     .abs()
                     < 1e-10
             );
-            assert_eq!(prepared.checked_static_mediation_info().unwrap().query, query);
+            let RetainedOperation::StaticMediation(retained) = prepared.retained_operation() else {
+                panic!("sealed mediation plan after refresh")
+            };
+            assert_eq!(retained.query, query);
         }
     });
 }
@@ -107,7 +141,7 @@ fn static_result_wire_carries_the_queried_contrast_and_every_component() {
     let result = study.prepare(&context).unwrap().estimate(&base, &context).unwrap();
     let wire = result.static_result_wire(&CausalQuery::Mediation(query), None).unwrap();
     let mediation = result.mediation().unwrap();
-    assert_eq!(wire.estimate.to_bits(), result.estimate.as_effect().unwrap().ate.to_bits());
+    assert_eq!(wire.estimate.to_bits(), result.estimate().as_effect().unwrap().ate.to_bits());
     assert_eq!(
         wire.mediation,
         Some([mediation.total.unwrap(), mediation.direct.unwrap(), mediation.mediated.unwrap()])
@@ -149,13 +183,13 @@ fn data(direct_delta: f64) -> TabularData {
 }
 
 #[test]
-fn static_mediation_plan_executes_every_contrast_and_licensed_validation_suite() {
+fn static_mediation_plan_executes_every_contrast_and_supported_validation_suite() {
     run_on_large_stack(
-        static_mediation_plan_executes_every_contrast_and_licensed_validation_suite_inner,
+        static_mediation_plan_executes_every_contrast_and_supported_validation_suite_inner,
     );
 }
 
-fn static_mediation_plan_executes_every_contrast_and_licensed_validation_suite_inner() {
+fn static_mediation_plan_executes_every_contrast_and_supported_validation_suite_inner() {
     let base = data(0.0);
     let context = ExecutionContext::for_tests(203);
     for accepted in [false, true] {
@@ -181,19 +215,22 @@ fn static_mediation_plan_executes_every_contrast_and_licensed_validation_suite_i
                     .build()
                     .unwrap();
                 let one_shot = builder.run(&context).unwrap();
-                assert!((one_shot.estimate.as_effect().unwrap().ate - truth).abs() < 1e-10);
+                assert!((one_shot.estimate().as_effect().unwrap().ate - truth).abs() < 1e-10);
                 // The primary scalar is the queried contrast, not the mediation total.
                 assert_eq!(
                     one_shot.effect().to_bits(),
-                    one_shot.estimate.as_effect().unwrap().ate.to_bits()
+                    one_shot.estimate().as_effect().unwrap().ate.to_bits()
                 );
                 assert!(
                     one_shot.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached")
                 );
                 let mut prepared = builder.prepare(&context).unwrap();
                 drop(builder);
-                let plan = prepared.checked_static_mediation_info().expect("sealed mediation plan");
+                let RetainedOperation::StaticMediation(plan) = prepared.retained_operation() else {
+                    panic!("sealed mediation plan")
+                };
                 assert_eq!(plan.query, query);
+                assert_scientific_mediation_target(&plan.scientific_target, &query);
                 assert_eq!(plan.identifier.as_str(), "path_specific.natural");
                 assert_eq!(plan.estimator.as_str(), "mediation.linear");
                 assert_eq!(plan.validation, suite);
@@ -202,9 +239,9 @@ fn static_mediation_plan_executes_every_contrast_and_licensed_validation_suite_i
                 assert_eq!(plan.functional_roots.0, plan.functional_roots.1);
                 let result = prepared.estimate(&base, &context).unwrap();
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate - truth).abs() < 1e-10,
+                    (result.estimate().as_effect().unwrap().ate - truth).abs() < 1e-10,
                     "{accepted} {suite:?} {contrast:?}: {} vs {truth}",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
                 assert!(
                     result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached")
@@ -217,7 +254,7 @@ fn static_mediation_plan_executes_every_contrast_and_licensed_validation_suite_i
                         "{suite:?} must execute its retained refuter"
                     );
                 }
-                let refreshed = prepared.refresh(data(0.15), &context).unwrap();
+                let refreshed = rebind_estimate(&mut prepared, data(0.15), &context).unwrap();
                 let refreshed_truth = if matches!(
                     contrast,
                     MediationContrast::Total
@@ -229,17 +266,21 @@ fn static_mediation_plan_executes_every_contrast_and_licensed_validation_suite_i
                     truth
                 };
                 assert!(
-                    (refreshed.estimate.as_effect().unwrap().ate - refreshed_truth).abs() < 1e-10
+                    (refreshed.estimate().as_effect().unwrap().ate - refreshed_truth).abs() < 1e-10
                 );
-                assert_eq!(prepared.checked_static_mediation_info().unwrap().query, query);
+                let RetainedOperation::StaticMediation(retained) = prepared.retained_operation()
+                else {
+                    panic!("sealed mediation plan after refresh")
+                };
+                assert_eq!(retained.query, query);
                 let artifact = prepared
                     .encode_contracted_result(&refreshed, "checked-mediation", &context)
                     .unwrap();
-                let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
                 assert!(consumed.acceptance.unresolved.iter().any(|reason| {
                     reason.as_ref() == "dependencies.checked_mediation_operation"
                 }));
-                assert!(!consumed.acceptance.accepts_as_verified_program());
+                assert!(!consumed.acceptance.accepts_as_replayed_program());
             }
         }
     }
@@ -280,9 +321,11 @@ fn bayesian_static_mediation_plan_body() {
                 .build()
                 .unwrap();
                 let mut prepared = builder.prepare(&context).unwrap();
-                let plan = prepared
-                    .checked_bayesian_static_mediation_info()
-                    .expect("sealed Bayesian mediation plan");
+                let RetainedOperation::BayesianStaticMediation(plan) =
+                    prepared.retained_operation()
+                else {
+                    panic!("sealed Bayesian mediation plan")
+                };
                 assert_eq!(plan.query, query);
                 assert_eq!(plan.validation, suite);
                 assert_eq!(plan.identifier.as_str(), "path_specific.natural");
@@ -293,9 +336,9 @@ fn bayesian_static_mediation_plan_body() {
                 let result = prepared.estimate(&base, &context).unwrap();
                 assert!(result.posterior.is_some());
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate - expected).abs() < 0.5,
+                    (result.estimate().as_effect().unwrap().ate - expected).abs() < 0.03,
                     "{accepted} {suite:?}: {}",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
                 if contrast == MediationContrast::NaturalIndirect {
                     assert!(
@@ -310,22 +353,27 @@ fn bayesian_static_mediation_plan_body() {
                     );
                 }
                 assert_eq!(result.refutations.is_empty(), suite == RefuteSuite::None);
-                let refreshed = prepared.refresh(base.clone(), &context).unwrap();
+                let refreshed = rebind_estimate(&mut prepared, base.clone(), &context).unwrap();
                 assert!(
-                    (refreshed.estimate.as_effect().unwrap().ate
-                        - result.estimate.as_effect().unwrap().ate)
+                    (refreshed.estimate().as_effect().unwrap().ate
+                        - result.estimate().as_effect().unwrap().ate)
                         .abs()
                         < 1e-10
                 );
-                assert_eq!(prepared.checked_bayesian_static_mediation_info().unwrap().query, query);
+                let RetainedOperation::BayesianStaticMediation(retained) =
+                    prepared.retained_operation()
+                else {
+                    panic!("sealed Bayesian mediation plan after refresh")
+                };
+                assert_eq!(retained.query, query);
                 let artifact = prepared
                     .encode_contracted_result(&refreshed, "checked-bayesian-mediation", &context)
                     .unwrap();
-                let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
                 assert!(consumed.acceptance.unresolved.iter().any(|reason| {
                     reason.as_ref() == "dependencies.checked_bayesian_mediation_operation"
                 }));
-                assert!(!consumed.acceptance.accepts_as_verified_program());
+                assert!(!consumed.acceptance.accepts_as_replayed_program());
             }
         }
     }
@@ -466,4 +514,17 @@ fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
         .unwrap()
         .join()
         .unwrap();
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

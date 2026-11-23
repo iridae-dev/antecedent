@@ -1,6 +1,6 @@
 //! Coordinate-descent elastic net. Hidden behind [`crate::LearnerSpec::ElasticNet`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_stats::{

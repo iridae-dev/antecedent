@@ -3,7 +3,7 @@
 //! [`NodeRef`] lives in `antecedent-core` so sample planning can use it without
 //! depending on this crate.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_core::NodeRef;
 
@@ -60,6 +60,14 @@ impl DenseNodeId {
     pub const fn as_usize(self) -> usize {
         self.0 as usize
     }
+}
+
+/// Validate a dense index against a graph's node count.
+pub(crate) const fn validate_node_index(
+    node_count: usize,
+    id: DenseNodeId,
+) -> Result<(), GraphError> {
+    if id.as_usize() >= node_count { Err(GraphError::UnknownNode { id: id.raw() }) } else { Ok(()) }
 }
 
 /// Edge endpoint mark.
@@ -306,15 +314,9 @@ pub(crate) fn reject_future_to_past(
 ) -> Result<(), GraphError> {
     if let (NodeRef::Lagged { lag: from_lag, .. }, NodeRef::Lagged { lag: to_lag, .. }) =
         (nodes[from.as_usize()], nodes[to.as_usize()])
+        && from_lag < to_lag
     {
-        if from_lag < to_lag {
-            return Err(GraphError::FutureToPast {
-                from: from.raw(),
-                to: to.raw(),
-                from_lag,
-                to_lag,
-            });
-        }
+        return Err(GraphError::FutureToPast { from: from.raw(), to: to.raw(), from_lag, to_lag });
     }
     Ok(())
 }

@@ -1,6 +1,6 @@
-//! Numeric pins for licensed PAG and ADMG ATE cells.
+//! Numeric pins for supported PAG and ADMG ATE cells.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -181,19 +181,20 @@ fn assert_prepared_reuse(
     expected: f64,
     tolerance: f64,
 ) {
-    assert!((click.estimate.as_effect().unwrap().ate - expected).abs() < tolerance);
-    assert!((fresh.estimate.as_effect().unwrap().ate - expected).abs() < tolerance);
-    assert!((refreshed.estimate.as_effect().unwrap().ate - expected).abs() < tolerance);
+    assert!((click.estimate().as_effect().unwrap().ate - expected).abs() < tolerance);
+    assert!((fresh.estimate().as_effect().unwrap().ate - expected).abs() < tolerance);
+    assert!((refreshed.estimate().as_effect().unwrap().ate - expected).abs() < tolerance);
     assert!(
-        (click.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate).abs()
-            < 1e-12
-    );
-    assert!(
-        (refreshed.estimate.as_effect().unwrap().ate - click.estimate.as_effect().unwrap().ate)
+        (click.estimate().as_effect().unwrap().ate - fresh.estimate().as_effect().unwrap().ate)
             .abs()
             < 1e-12
     );
-    assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+    assert!(
+        (refreshed.estimate().as_effect().unwrap().ate - click.estimate().as_effect().unwrap().ate)
+            .abs()
+            < 1e-12
+    );
+    assert_eq!(click.support_status().unwrap().as_str(), "supported");
     assert_eq!(cached_count(fresh), 0);
     assert_eq!(cached_count(click), 1);
     assert_eq!(cached_count(refreshed), 1, "same-schema refresh must reuse identification");
@@ -222,7 +223,7 @@ fn run_prepared(
         "prepared plan must record the pinned estimator"
     );
     let click = prepared.estimate(data, &ctx).unwrap();
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert_eq!(
         identify_computations(&sink),
         2,
@@ -301,7 +302,7 @@ fn surface_means(result: &antecedent::StudyResult) -> Vec<f64> {
 }
 
 /// Bidirected front-door ADMG: `InterventionResponse` / `ResponseCurve` means at
-/// do(T=0) and do(T=1) match the licensed `InterventionalDistribution` / ATE
+/// do(T=0) and do(T=1) match the supported `InterventionalDistribution` / ATE
 /// functional on the same graph.
 #[test]
 #[allow(
@@ -330,7 +331,7 @@ fn admg_frontdoor_response_pins_against_distribution() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    assert!((ate.estimate.as_effect().unwrap().ate - expected_ate).abs() < tolerance);
+    assert!((ate.estimate().as_effect().unwrap().ate - expected_ate).abs() < tolerance);
 
     let mut dist_means = Vec::new();
     let mut ir_means = Vec::new();
@@ -392,7 +393,7 @@ fn admg_frontdoor_response_pins_against_distribution() {
                         "accepted={accepted} bayesian={bayesian} level={level}"
                     );
                     let mean = response_mean(result);
-                    let bound = if bayesian { 0.05 } else { 1e-9 };
+                    let bound = if bayesian { 0.015 } else { 1e-9 };
                     assert!(
                         (mean - dist_mean).abs() < bound,
                         "IR mean {mean} != dist {dist_mean} at do(T={level}) accepted={accepted} bayesian={bayesian}"
@@ -403,6 +404,16 @@ fn admg_frontdoor_response_pins_against_distribution() {
                 }
             }
         }
+    }
+    // The levels themselves, not only their difference: the front-door adjustment on the
+    // eight-cell table, in exact rationals, gives E[Y | do(T=0)] = 0.314 and
+    // E[Y | do(T=1)] = 0.596 (difference 0.282). A product shift common to both levels would
+    // leave the difference, and the cross-check against the distribution route, unchanged.
+    for (mean, truth) in dist_means.iter().zip([0.314, 0.596]) {
+        assert!((mean - truth).abs() < 1e-9, "distribution mean {mean} vs exact {truth}");
+    }
+    for (mean, truth) in ir_means.iter().zip([0.314, 0.596]) {
+        assert!((mean - truth).abs() < 1e-9, "response mean {mean} vs exact {truth}");
     }
     assert!(((ir_means[1] - ir_means[0]) - expected_ate).abs() < tolerance);
     assert!(((dist_means[1] - dist_means[0]) - expected_ate).abs() < tolerance);
@@ -518,17 +529,17 @@ fn napkin_effect_with_a_free_variable_is_the_enumerated_effect() {
         }
         let result = builder.build().unwrap().run(&ctx).unwrap();
         if bayesian {
-            // Posterior mean of a Bayesian bootstrap over 2048 rows.
+            // Posterior mean of a Bayesian bootstrap over 2048 rows (observed error 6e-4).
             assert!(
-                (result.estimate.as_effect().unwrap().ate - truth).abs() < 0.05,
+                (result.estimate().as_effect().unwrap().ate - truth).abs() < 0.01,
                 "ate={}",
-                result.estimate.as_effect().unwrap().ate
+                result.estimate().as_effect().unwrap().ate
             );
         } else {
             assert!(
-                (result.estimate.as_effect().unwrap().ate - truth).abs() < 1e-12,
+                (result.estimate().as_effect().unwrap().ate - truth).abs() < 1e-12,
                 "ate={}",
-                result.estimate.as_effect().unwrap().ate
+                result.estimate().as_effect().unwrap().ate
             );
         }
         let diagnostic = free_variable_diagnostic(&result);
@@ -570,4 +581,17 @@ fn napkin_effect_with_a_free_variable_is_the_enumerated_effect() {
             .unwrap();
         assert!((response_mean(&result) - expected).abs() < 1e-12, "{}", response_mean(&result));
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

@@ -1,0 +1,1262 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//! Retained dynamic/constraint model execution, identity and independent replay.
+//! Families retain distinct semantics; no conversion from ODE/OU/constraints to
+//! a static SCM is implied by using a common artifact transport.
+
+mod execution;
+mod request;
+
+pub use request::CyclicFamilyRequest;
+
+use crate::cyclic_system_artifact::{CyclicArtifactError, MAX_CYCLIC_ARTIFACT_BYTES, invalid};
+use antecedent_core::{CanonicalWriter, ExecutionContext};
+#[cfg(test)]
+use antecedent_model::continuous_cyclic::OrnsteinUhlenbeck;
+use antecedent_model::{
+    continuous_cyclic::{OdeTrajectory, OuMoments},
+    equation_system::IsolatedSolutions,
+};
+use serde::{Deserialize, Serialize};
+
+#[path = "cyclic_family_program.rs"]
+mod compiled;
+pub use compiled::CompiledCyclicFamilyProgram;
+use compiled::FrozenFamilyFitValue;
+pub(crate) use compiled::FrozenGaussianDensity;
+
+#[path = "cyclic_family_worlds.rs"]
+mod worlds;
+
+#[path = "cyclic_retained_recovery.rs"]
+mod retained_recovery;
+pub use retained_recovery::{
+    CyclicRecoveryOrigins, RetainedRecoveryInputs, RetainedRecoveryProvenance, recovery_origins,
+};
+
+#[path = "cyclic_family_contract.rs"]
+mod contract;
+pub use contract::{
+    CyclicProblem, CyclicRealization, CyclicUncertainty, cyclic_contract_payloads,
+    cyclic_identification, cyclic_problem, cyclic_realization, design_unresolved,
+};
+
+/// Identity of the lowered program a prepared handle executed, stamped on its report.
+///
+/// Like an admission reservation it is local to the process: it is omitted from
+/// every artifact and ignored by scientific equality, so an independently replayed
+/// report equals the stamped one.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct LoweredStamp(Option<antecedent_core::SemanticDigest>);
+
+impl LoweredStamp {
+    /// Stamp of `identity`.
+    #[must_use]
+    pub const fn of(identity: antecedent_core::SemanticDigest) -> Self {
+        Self(Some(identity))
+    }
+
+    /// The stamped identity, when one was stamped.
+    #[must_use]
+    pub const fn identity(self) -> Option<antecedent_core::SemanticDigest> {
+        self.0
+    }
+}
+
+impl PartialEq for LoweredStamp {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+pub use worlds::{
+    CertificateDemandWire, CoefficientCovarianceWire, CoefficientPriorWire,
+    ConstraintWeightingWire, CyclicActionAnswer, CyclicComponentWire, CyclicInitialStateWire,
+    CyclicInterventionWire, CyclicInterventionWorld, CyclicWorldAnswer, CyclicWorldOutcomeAnswer,
+    CyclicWorldWire, DisturbanceDivisorWire, DisturbancePriorWire, DynamicFitAnswer,
+    DynamicInferenceAnswer, DynamicMethodWire, DynamicProblemWire, ExperimentRegimeWire,
+    ExperimentalFitOptionsWire, ExperimentalRecoveryReport, LinearCyclicWire, NextAttemptAnswer,
+    RecoveredDrawOriginWire, RecoveredDrawStatusWire, RecoveredKeyedWorld, RecoveredLawCoefficient,
+    RecoveredLawDraw, RecoveredLawProduct, RecoveryInferenceWire, RecoveryPriorWire,
+    RegimeClampWire, RegimeSampleWire, ResamplingRuleWire, SamplingDesignWire, UnitColumnWire,
+    WorldCertificateAnswer, WorldSolvedByAnswer,
+};
+
+/// Explicit multi-chain sampling/replay policy.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CyclicSamplingPolicy {
+    /// Independent chain count.
+    pub chains: usize,
+    /// Discarded iterations per chain.
+    pub warmup: usize,
+    /// Retained draws per chain.
+    pub draws: usize,
+    /// Symmetric random-walk proposal scale: fixed for latent-state abduction, and the
+    /// starting step and per-chain start spread of the warmup-tuned parameter posterior.
+    pub proposal_scale: f64,
+    /// Reproducible semantic stream seed.
+    pub seed: u64,
+}
+impl CyclicSamplingPolicy {
+    fn options(&self) -> antecedent_prob::metropolis::MetropolisOptions {
+        antecedent_prob::metropolis::MetropolisOptions {
+            chains: self.chains,
+            warmup: self.warmup,
+            draws: self.draws,
+            proposal_scale: self.proposal_scale,
+        }
+    }
+    fn context(&self, ctx: &ExecutionContext) -> ExecutionContext {
+        let mut context = ctx.clone();
+        context.rng = antecedent_core::RngFactory::from_seed(self.seed);
+        context
+    }
+}
+
+/// One direct coefficient of a recovered linear law, `K[into, from]`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecoveredCoefficientWire {
+    /// Target equation, a raw node id.
+    pub into: u32,
+    /// Source variable, a raw node id.
+    pub from: u32,
+    /// Direct mechanism value. A structural zero is exact.
+    pub value: f64,
+}
+
+/// Support coordinate of an unresolved recovered direction. It is not a filled entry of `K`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecoveredSupportWire {
+    /// Target equation, a raw node id.
+    pub into: u32,
+    /// Source variable, a raw node id.
+    pub from: u32,
+}
+
+/// Why a recovered direction was left unresolved.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "reason", rename_all = "snake_case", deny_unknown_fields)]
+pub enum RecoveredUnresolvedWire {
+    /// At least one ordered pair into `target` fails the pair condition.
+    IncompletePairCoverage {
+        /// Equation coverage does not pin down.
+        target: u32,
+        /// Sources that are never clamped while `target` is passive.
+        missing_clamps: Vec<u32>,
+    },
+    /// The pair condition holds and the declared constraint rank does not.
+    DeficientConstraintRank {
+        /// Equation whose constraint block is rank deficient.
+        target: u32,
+        /// Declared column rank.
+        column_rank: usize,
+        /// Number of incoming coefficients.
+        width: usize,
+    },
+}
+
+/// One unresolved direction retained with a draw. It does not complete `K`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecoveredDirectionWire {
+    /// Coordinates the direction moves.
+    pub support: Vec<RecoveredSupportWire>,
+    /// Why the direction is unresolved.
+    pub reason: RecoveredUnresolvedWire,
+}
+
+/// One supplied draw of a recovered linear law.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecoveredDrawWire {
+    /// Direct effects named by this draw. Missing coordinates stay missing.
+    pub coefficients: Vec<RecoveredCoefficientWire>,
+    /// Intercept in node order.
+    pub intercept: Vec<f64>,
+    /// Disturbance mean of this draw, in node order.
+    pub noise_mean: Vec<f64>,
+    /// Row-major disturbance covariance of this draw.
+    pub noise_covariance: Vec<f64>,
+    /// Directions rank-aware recovery left free.
+    #[serde(default)]
+    pub unresolved: Vec<RecoveredDirectionWire>,
+    /// Weight of this draw. The weights of the law sum to one.
+    pub weight: f64,
+    /// When set, the draw stays inadmissible even if the numbers would compile.
+    #[serde(default)]
+    pub marked_inadmissible: bool,
+}
+
+/// One hard-clamp intervention of a recovered linear law.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecoveredInterventionWire {
+    /// Clamped positions in the node list.
+    pub clamp_nodes: Vec<usize>,
+    /// Clamp values, aligned with `clamp_nodes`.
+    pub clamp_values: Vec<f64>,
+}
+
+/// Distinct answer representations prevent equilibrium/dynamic/set coercions.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "family", content = "result", rename_all = "snake_case", deny_unknown_fields)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "the public wire representation retains its existing variants"
+)]
+pub enum CyclicFamilyAnswer {
+    /// Continuous Gaussian plug-in evaluation, retaining density fitting and theorem premises.
+    GaussianFunctional(crate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport),
+    /// Best-validation feasible model and independent stopping/score diagnostics.
+    AdamFit(antecedent_estimate::cyclic_adam::CyclicAdamFit),
+    /// Shared stochastic-mechanism fit and stationary laws in the requested worlds.
+    OuMechanisms {
+        /// Explicitly absent for specified-model evaluation.
+        fit: Option<antecedent_estimate::ou_mechanisms::OuMechanismFit>,
+        /// Actual interventional stationary laws, preserving world order.
+        laws: Vec<antecedent_estimate::ou_mechanisms::OuMechanismOutcome>,
+    },
+    /// Identified probabilities conditional on a declared finite observational law.
+    Functional(crate::cyclic_functional::CyclicFunctionalReport),
+    /// Local fitted model with full free-system likelihood diagnostics.
+    GradientFit(antecedent_estimate::cyclic_gradient::CyclicGradientFit),
+    /// Joint parameter/exogenous posterior and coupled multiple-equilibrium outcomes.
+    PolynomialCausal(antecedent_estimate::polynomial_scm::PolynomialCausalReport),
+
+    /// Conditional frequentist bootstrap, retaining fitting and response failures.
+    FrequentistBootstrap {
+        /// Bootstrap parameter vectors; None marks a failed fit.
+        parameters: Vec<Option<Vec<f64>>>,
+        /// `(world,bootstrap_attempt,noise_row)` answers, None for failed fits.
+        worlds: Vec<Vec<Option<Vec<antecedent_model::nonlinear_equilibrium::EquilibriumOutcome>>>>,
+    },
+
+    /// Named structural-action outputs, with explicit failed response mass.
+    EquilibriumActions(Vec<CyclicActionWorldReport>),
+
+    /// Bounded-candidate likelihood ranking and explicit unresolved alternatives.
+    PolynomialFit(antecedent_estimate::constraint_likelihood::PolynomialFit),
+    /// Parameter uncertainty and aligned `(world,parameter_draw,noise_row)` responses.
+    ParameterPosterior {
+        /// Conditional-structure/covariance draws and convergence diagnostics.
+        posterior: antecedent_estimate::cyclic_likelihood::CyclicPosterior,
+        /// Response evaluations retaining all alignment axes.
+        worlds: Vec<Vec<Vec<antecedent_model::nonlinear_equilibrium::EquilibriumOutcome>>>,
+    },
+    /// Joint parameter/factual-state posterior, with shared disturbances across worlds.
+    JointCounterfactual {
+        /// Parameter and factual draws, updated with both training and factual evidence.
+        posterior: antecedent_estimate::cyclic_likelihood::CyclicJointAbduction,
+        /// `(world,joint_draw)` predictions preserving parameter/noise dependence.
+        worlds: Vec<Vec<antecedent_model::nonlinear_equilibrium::EquilibriumOutcome>>,
+    },
+    /// Latent factual/noise posterior and `(world,abduction_draw)` counterfactuals.
+    PartialCounterfactual {
+        /// Explicit observation-model abduction and diagnostics.
+        abduction: antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior,
+        /// Predictions sharing each factual disturbance realization across worlds.
+        worlds: Vec<Vec<antecedent_model::nonlinear_equilibrium::EquilibriumOutcome>>,
+    },
+    /// Graphical derivation or cyclic PAG evidence, never a specified-model fit.
+    Graph(crate::cyclic_graph::CyclicGraphReport),
+    /// Finite-horizon ODE path.
+    Ode(OdeTrajectory),
+    /// Row-major stationary OU covariance.
+    OuStationary(Vec<f64>),
+    /// Finite-horizon OU mean/covariance.
+    OuTransient(OuMoments),
+    /// Selected parametric topology and conditional refit, not nonparametric graph ID.
+    StructureFit {
+        /// Selected topology and conditional refit.
+        fit: antecedent_estimate::cyclic_likelihood::CyclicStructureFit,
+        /// Complete selection/refit bootstrap attempts; failures retain their slots.
+        bootstrap: Vec<Option<antecedent_estimate::cyclic_likelihood::CyclicStructureFit>>,
+    },
+    /// Sensitivity-based deterministic drift fit and convergence facts.
+    OdeFit(antecedent_estimate::cyclic_dynamics::OdeFit),
+    /// Stationary OU parameter fit, conditional on declared diffusion/structure.
+    OuFit(antecedent_estimate::cyclic_dynamics::OuFit),
+    /// Trajectory OU fit with separate fitting, identification and numerical evidence,
+    /// and held-out predictions carrying propagated sampling uncertainty.
+    OuTrajectory(antecedent_estimate::ou_trajectory::OuTrajectoryReport),
+    /// Nonlinear SDE ensembles with Monte Carlo and numerical-approximation error, the
+    /// quasi-likelihood fit with separate fitting, identification and discretization
+    /// evidence, and parameter-draw spread kept as its own field.
+    SdeAnalysis(antecedent_estimate::nonlinear_sde_fit::SdeReport),
+    /// Certified roots and unresolved regions; no implicit selection law.
+    Polynomial(IsolatedSolutions),
+    /// Interventions evaluated from a retained recovered linear law.
+    ///
+    /// Preparation did not fit this law. Failed and inadmissible draws remain.
+    /// Specified models stay model-conditional; compilation grants no scientific support.
+    RecoveredLinear(RecoveredLinearReport),
+    /// Law recovered from clamp experiments, its draw origin, and its keyed worlds.
+    ExperimentalRecovery(ExperimentalRecoveryReport),
+    /// Typed worlds of a specified model, keyed by scientific world id.
+    Worlds(Vec<CyclicWorldAnswer>),
+    /// Point fit of a continuous-time family and its uncertainty.
+    DynamicInference {
+        /// Point fit.
+        fit: DynamicFitAnswer,
+        /// Sampling law, observed information, or posterior.
+        inference: Box<DynamicInferenceAnswer>,
+    },
+    /// Single-system equilibrium answer.
+    System(
+        #[serde(with = "shared_system_report")]
+        std::sync::Arc<crate::cyclic_system_artifact::CyclicExecutionReport>,
+    ),
+}
+
+// Share the native system report while preserving its historical inline encoding.
+mod shared_system_report {
+    use crate::cyclic_system_artifact::CyclicExecutionReport;
+    use serde::{Deserialize, Serialize};
+    use std::sync::Arc;
+
+    pub fn serialize<S: serde::Serializer>(
+        report: &Arc<CyclicExecutionReport>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        report.as_ref().serialize(serializer)
+    }
+    pub fn deserialize<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Arc<CyclicExecutionReport>, D::Error> {
+        CyclicExecutionReport::deserialize(deserializer).map(Arc::new)
+    }
+}
+
+/// Which algorithm certified one recovered draw.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "algorithm", rename_all = "snake_case", deny_unknown_fields)]
+pub enum RecoveredSolvedBy {
+    /// Topological DAG evaluation. The draw was not solved as a cyclic block.
+    Acyclic,
+    /// The DAG algorithm refused a directed cycle; the cyclic support compiled the draw.
+    Cyclic {
+        /// Existing next attempt named by the DAG refusal.
+        next_attempt: String,
+    },
+}
+
+/// One retained draw after intervention, including a failure slot.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case", deny_unknown_fields)]
+pub enum RecoveredDrawAnswer {
+    /// Certified equilibrium under this draw's own disturbance.
+    Equilibrium {
+        /// Equilibrium mean, in node order.
+        mean: Vec<f64>,
+        /// Row-major equilibrium covariance.
+        covariance: Vec<f64>,
+        /// Disturbance mean of this draw.
+        disturbance_mean: Vec<f64>,
+        /// Row-major disturbance covariance of this draw.
+        disturbance_covariance: Vec<f64>,
+        /// Algorithm that produced the equilibrium.
+        solved_by: RecoveredSolvedBy,
+    },
+    /// The coefficient law kept the draw and did not compile it.
+    Inadmissible {
+        /// Stable reason name.
+        reason: String,
+    },
+    /// An admissible draw was not certified. The weight remains.
+    NotCertified {
+        /// Display of the certification fault.
+        fault: String,
+    },
+}
+
+/// Draws of one intervention world, in law order.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecoveredWorldAnswer {
+    /// Law order, including failed and inadmissible draws.
+    pub draws: Vec<RecoveredEvaluatedDraw>,
+    /// Outcome coordinate.
+    pub outcome: usize,
+    /// Mass of every draw.
+    pub total_mass: f64,
+    /// Mass that did not enter the outcome mixture.
+    pub withheld_mass: f64,
+    /// Weighted mean of certified outcome means, when any exist.
+    pub mixture_mean: Option<f64>,
+    /// Total outcome variance across and within certified draws.
+    pub mixture_variance: Option<f64>,
+    /// Weighted variance of the certified draw means.
+    pub between_draw_variance: Option<f64>,
+}
+
+/// Weight and outcome of one recovered draw.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecoveredEvaluatedDraw {
+    /// Weight copied from the recovered law.
+    pub weight: f64,
+    /// Equilibrium, inadmissible status, or certification failure.
+    pub outcome: RecoveredDrawAnswer,
+}
+
+/// Intervention results for every retained world.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecoveredLinearReport {
+    /// Worlds in request order.
+    pub worlds: Vec<RecoveredWorldAnswer>,
+}
+
+/// Draw-aligned outcome of one named structural-action world.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CyclicActionWorldReport {
+    /// Prespecified world identifier.
+    pub id: String,
+    /// Actual post-action SCC schedule.
+    pub blocks: Vec<Vec<usize>>,
+    /// Outcomes retain failed draws in their original positions.
+    pub rows: Vec<antecedent_model::nonlinear_equilibrium::EquilibriumOutcome>,
+    /// Shared-disturbance prediction from the original factual state, when supplied.
+    pub counterfactual: Option<antecedent_model::nonlinear_equilibrium::EquilibriumOutcome>,
+}
+
+/// Identity-bound answer of the specified model.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CyclicFamilyReport {
+    #[serde(skip)]
+    pub(crate) retention: crate::retained_allocation::RetainedAllocation,
+    #[serde(skip)]
+    lowered: LoweredStamp,
+    /// Independently retained request digest.
+    pub identity: String,
+    /// Typed family answer.
+    pub answer: CyclicFamilyAnswer,
+}
+impl CyclicFamilyReport {
+    /// Admitted bytes held by this report; reservations are not process resident memory.
+    #[must_use]
+    pub fn retained_admitted_bytes(&self) -> u64 {
+        self.retention.bytes()
+    }
+
+    /// Identity of the lowered program whose execution produced this report.
+    ///
+    /// `None` for a report no prepared handle stamped, such as an independently
+    /// replayed artifact.
+    #[must_use]
+    pub const fn lowered_program_identity(&self) -> Option<antecedent_core::SemanticDigest> {
+        self.lowered.identity()
+    }
+
+    /// Stamp the identity of the lowered program that produced this report.
+    #[must_use]
+    pub fn with_lowered_program_identity(
+        mut self,
+        identity: antecedent_core::SemanticDigest,
+    ) -> Self {
+        self.lowered = LoweredStamp::of(identity);
+        self
+    }
+}
+// Versions 1 and 2 predate compiled block diagnostics. Keep their wire
+// representation stable; consumption recomputes diagnostics from the request.
+fn legacy_family_report(report: &CyclicFamilyReport) -> CyclicFamilyReport {
+    let mut legacy = report.clone();
+    if let CyclicFamilyAnswer::Worlds(worlds) = &mut legacy.answer {
+        for world in worlds {
+            if let worlds::CyclicWorldOutcomeAnswer::GaussianLaw { block_diagnostics, .. } =
+                &mut world.outcome
+            {
+                *block_diagnostics = None;
+            }
+        }
+    }
+    legacy
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Record {
+    version: u32,
+    request: CyclicFamilyRequest,
+    report: CyclicFamilyReport,
+}
+
+/// Typed trajectory-fit failure as the family's refusal, argument or resource error.
+/// An unidentified design is a registered scientific refusal, never a numerical failure.
+fn ou_trajectory_error(
+    error: antecedent_estimate::ou_trajectory::OuTrajectoryError,
+) -> CyclicArtifactError {
+    use antecedent_estimate::ou_trajectory::{
+        OuIdentificationFailure as Failure, OuTrajectoryError as E,
+    };
+    match error {
+        E::Unidentified { failure, detail } => CyclicArtifactError::ScientificRefusal {
+            code: antecedent_core::reason_code!("dynamics_not_identified"),
+            detail: failure.code(),
+            message: detail,
+            next_attempt: match failure {
+                Failure::NoTransitionInformation => {
+                    "observe each unit at two or more times, or fit the stationary law of independent snapshots with the stationary OU family"
+                }
+                Failure::SingularInformation => {
+                    "observe the state components the requested coordinates act on, fix or remove the coordinates the observations cannot determine, or use a diffusion parameterization with a unique factor"
+                }
+            }
+            .into(),
+        },
+        E::Resource(reason) => {
+            CyclicArtifactError::Execution(antecedent_model::nonlinear_equilibrium::EquilibriumError::Resource(reason))
+        }
+        other => invalid(other),
+    }
+}
+
+/// Typed SDE fit failure as the family's refusal, argument or resource error.
+/// Unsupported designs and unidentified parameters are registered scientific refusals.
+fn sde_error(error: antecedent_estimate::nonlinear_sde_fit::SdeFitError) -> CyclicArtifactError {
+    use antecedent_estimate::nonlinear_sde_fit::{SdeFitError as E, SdeIdentificationFailure as F};
+    match error {
+        E::Unidentified { failure, detail } => CyclicArtifactError::ScientificRefusal {
+            code: antecedent_core::reason_code!("dynamics_not_identified"),
+            detail: failure.code(),
+            message: detail,
+            next_attempt: match failure {
+                F::NoTransitionInformation => {
+                    "observe each unit at two or more times"
+                }
+                F::SingularInformation => {
+                    "fix or remove the parameters the observations cannot determine, or observe the states they act on"
+                }
+            }
+            .into(),
+        },
+        E::Unsupported { code, detail } => CyclicArtifactError::ScientificRefusal {
+            code: antecedent_core::reason_code!("route_not_supported"),
+            detail: code,
+            message: format!("{code}: {detail}"),
+            next_attempt: match code {
+                antecedent_core::reason_details::sde::UNBOUNDED_GROWTH => {
+                    "declare finite lower and upper bounds on the states the nonlinearity multiplies"
+                }
+                antecedent_core::reason_details::sde::MILSTEIN_NONCOMMUTATIVE => {
+                    "use Euler-Maruyama, or make each diffusion depend only on its own state"
+                }
+                antecedent_core::reason_details::sde::ACTION_TIME_OFF_GRID => {
+                    "place action times on the declared step grid"
+                }
+                antecedent_core::reason_details::sde::INPUT_OUTSIDE_CERTIFIED_ENVELOPE => {
+                    "widen the declared input envelope so the regularity certificate covers the schedule"
+                }
+                "sde_fit.observation_interval_too_coarse" => {
+                    "observe more densely, or fit a model whose transition law is exact"
+                }
+                "sde_fit.degenerate_transition" => {
+                    "fit with a declared observation model (extended Kalman likelihood) or hold the coordinate"
+                }
+                _ => "supply a fit, or choose a supported combination",
+            }
+            .into(),
+        },
+        E::Resource(reason) => CyclicArtifactError::Execution(
+            antecedent_model::nonlinear_equilibrium::EquilibriumError::Resource(reason),
+        ),
+        other => invalid(other),
+    }
+}
+
+struct BoundedJsonSize {
+    bytes: usize,
+}
+impl std::io::Write for BoundedJsonSize {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.bytes = self
+            .bytes
+            .checked_add(bytes.len())
+            .filter(|&n| n <= MAX_CYCLIC_ARTIFACT_BYTES)
+            .ok_or_else(|| std::io::Error::other("cyclic family byte limit"))?;
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+fn bounded_json<T: Serialize>(
+    value: &T,
+    ctx: &ExecutionContext,
+) -> Result<(Vec<u8>, antecedent_core::execution::AdmissionLease), CyclicArtifactError> {
+    let mut size = BoundedJsonSize { bytes: 0 };
+    serde_json::to_writer(&mut size, value).map_err(invalid)?;
+    let retention = ctx
+        .acquire_admission(
+            0,
+            crate::retained_allocation::allocation_bytes(value)
+                .map_err(invalid)?
+                .checked_add(size.bytes as u64)
+                .ok_or_else(|| invalid("retained request size overflow"))?,
+        )
+        .map_err(CyclicArtifactError::Admission)?;
+    let bytes = serde_json::to_vec(value).map_err(invalid)?;
+    Ok((bytes, retention))
+}
+impl CyclicFamilyRequest {
+    /// Stable semantic/operator family without executing or allocating a payload.
+    #[must_use]
+    pub const fn family_name(&self) -> &'static str {
+        match self {
+            Self::AdamFit { .. } => "adam_fit",
+            Self::EquilibriumRoots { .. } => "equilibrium_roots",
+            Self::OuMechanisms { .. } => "ou_mechanisms",
+            Self::Functional { .. } => "functional",
+            Self::GaussianFunctional { .. } => "gaussian_functional",
+            Self::GradientFit { .. } => "gradient_fit",
+            Self::PolynomialCausal { .. } => "polynomial_causal",
+            Self::EquilibriumActions { .. } => "equilibrium_actions",
+            Self::FrequentistBootstrap { .. } => "frequentist_bootstrap",
+            Self::PolynomialFit { .. } => "polynomial_fit",
+            Self::ParameterPosterior { .. } => "parameter_posterior",
+            Self::JointCounterfactual { .. } => "joint_counterfactual",
+            Self::PartialCounterfactual { .. } => "partial_counterfactual",
+            Self::Graph { .. } => "graph",
+            Self::Ode { .. } => "ode",
+            Self::OuStationary { .. } => "ou_stationary",
+            Self::OuTransient { .. } => "ou_transient",
+            Self::StructureFit { .. } => "structure_fit",
+            Self::OdeFit { .. } => "ode_fit",
+            Self::OuFit { .. } => "ou_fit",
+            Self::OuTrajectoryFit { .. } => "ou_trajectory_fit",
+            Self::SdeAnalysis { .. } => "sde_analysis",
+            Self::Polynomial { .. } => "polynomial",
+            Self::RecoveredLinear { .. } => "recovered_linear",
+            Self::ExperimentalRecovery { .. } | Self::RetainedExperimentalRecovery { .. } => {
+                "experimental_recovery"
+            }
+            Self::LinearWorlds { .. } => "linear_worlds",
+            Self::EquilibriumWorlds { .. } => "equilibrium_worlds",
+            Self::OdeWorlds { .. } => "ode_worlds",
+            Self::DynamicInference { .. } => "dynamic_inference",
+            Self::System { .. } => "system",
+        }
+    }
+
+    /// Intervention worlds of `report`, keyed by scientific world id, or `None`
+    /// for a family whose answer has no intervention worlds.
+    #[must_use]
+    pub fn intervention_worlds(
+        &self,
+        report: &CyclicFamilyReport,
+    ) -> Option<Vec<CyclicInterventionWorld>> {
+        worlds::intervention_worlds(self, &report.answer)
+    }
+    /// Execute on the common resource/cancellation context, preserving family semantics.
+    pub fn execute(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<CyclicFamilyReport, CyclicArtifactError> {
+        CompiledCyclicFamilyProgram::compile(self, ctx)?.execute(ctx)
+    }
+
+    fn execute_bound(
+        &self,
+        identity: &str,
+        frozen: Option<&FrozenFamilyFitValue>,
+        source_proof: Option<&crate::cyclic_functional::CheckedCyclicFunctionalSource>,
+        linear_routes: Option<&antecedent_model::scc_compile::LinearRouteSet>,
+        ctx: &ExecutionContext,
+    ) -> Result<CyclicFamilyReport, CyclicArtifactError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CyclicArtifactError::Cancelled);
+        }
+        let mut output_leases = Vec::new();
+        let base = compiled::output_bytes(self)?;
+        output_leases.push(std::sync::Arc::new(
+            ctx.acquire_admission(0, base).map_err(CyclicArtifactError::Admission)?,
+        ));
+        let answer = self.execute_answer(frozen, source_proof, linear_routes, ctx)?;
+        let required = crate::retained_allocation::allocation_bytes(&answer)
+            .map_err(invalid)?
+            .checked_add(identity.len() as u64 + std::mem::size_of::<CyclicFamilyReport>() as u64)
+            .ok_or_else(|| invalid("report retention size overflow"))?;
+        let held = output_leases
+            .iter()
+            .try_fold(0u64, |sum, lease| sum.checked_add(lease.remainder().bytes()))
+            .ok_or_else(|| invalid("report retention size overflow"))?;
+        if required > held {
+            output_leases.push(std::sync::Arc::new(
+                ctx.acquire_admission(0, required - held)
+                    .map_err(CyclicArtifactError::Admission)?,
+            ));
+        }
+        let retention = crate::retained_allocation::RetainedAllocation(output_leases);
+        antecedent_core::execution_attempt::record_physical(
+            antecedent_core::execution_attempt::PhysicalEvent::RetainedBytes,
+            retention.bytes(),
+        );
+        antecedent_core::execution_attempt::record_physical(
+            antecedent_core::execution_attempt::PhysicalEvent::RetainedFull,
+            1,
+        );
+        Ok(CyclicFamilyReport {
+            identity: identity.to_owned(),
+            answer,
+            retention,
+            lowered: LoweredStamp::default(),
+        })
+    }
+    /// Execute and encode with the existing family-neutral artifact container.
+    pub fn export(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<(CyclicFamilyReport, Vec<u8>), CyclicArtifactError> {
+        CompiledCyclicFamilyProgram::compile(self, ctx)?.export(ctx)
+    }
+
+    /// Bounded JSON record of `version` holding this request and `report`.
+    fn record_bytes(
+        &self,
+        version: u16,
+        report: &CyclicFamilyReport,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, CyclicArtifactError> {
+        #[derive(Serialize)]
+        struct View<'a> {
+            version: u16,
+            request: &'a CyclicFamilyRequest,
+            report: &'a CyclicFamilyReport,
+        }
+        let projected_bytes =
+            crate::retained_allocation::allocation_bytes(report).map_err(invalid)?;
+        let _projection =
+            ctx.acquire_admission(0, projected_bytes).map_err(CyclicArtifactError::Admission)?;
+        let legacy = legacy_family_report(report);
+        let (bytes, _record_retention) =
+            bounded_json(&View { version, request: self, report: &legacy }, ctx)?;
+        Ok(bytes)
+    }
+
+    /// Encode `sections` in the family-neutral container, admitting encoding scratch first.
+    fn encode_sections(
+        sections: &[crate::OutSection<'_>],
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, CyclicArtifactError> {
+        let payload = sections
+            .iter()
+            .try_fold(0_u64, |total, section| total.checked_add(section.bytes.len() as u64));
+        let scratch = payload
+            .and_then(|n| n.checked_mul(3))
+            .and_then(|n| n.checked_add(65536))
+            .ok_or_else(|| invalid("artifact encoding size overflow"))?;
+        let _encoding =
+            ctx.acquire_admission(0, scratch).map_err(CyclicArtifactError::Admission)?;
+        let artifact = crate::encode_container(
+            &crate::ArtifactContainer {
+                kind: "cyclic_family",
+                note: "specified_dynamic_or_constraint_model",
+                max_bytes: MAX_CYCLIC_ARTIFACT_BYTES,
+                artifact_id: "cyclic_family",
+                library_version: env!("CARGO_PKG_VERSION"),
+            },
+            sections,
+        )
+        .map_err(|e| invalid(e.into_io("cyclic family layout")))?;
+        if ctx.cancellation.is_cancelled() {
+            return Err(CyclicArtifactError::Cancelled);
+        }
+        Ok(artifact)
+    }
+
+    /// Encode a version-two record: the request and report, and the contract
+    /// section bound to that request.
+    fn encode_report(
+        &self,
+        report: &CyclicFamilyReport,
+        contract: &antecedent_io_core::contract_section::CyclicContractWire,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, CyclicArtifactError> {
+        let bytes = self.record_bytes(2, report, ctx)?;
+        let contract = crate::to_cbor(contract).map_err(invalid)?;
+        Self::encode_sections(
+            &[
+                crate::OutSection {
+                    id: FAMILY_V2_SECTION,
+                    content_type: crate::CONTENT_BYTES,
+                    bytes: &bytes,
+                },
+                crate::OutSection {
+                    id: antecedent_io_core::contract_section::CYCLIC_CONTRACT_SECTION,
+                    content_type: crate::CONTENT_CBOR,
+                    bytes: &contract,
+                },
+            ],
+            ctx,
+        )
+    }
+
+    /// Encode the version-one record, which carries no contract section. Kept so
+    /// the previous-version golden is written by the format it pins.
+    #[cfg(test)]
+    fn encode_report_v1(
+        &self,
+        report: &CyclicFamilyReport,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, CyclicArtifactError> {
+        let bytes = self.record_bytes(1, report, ctx)?;
+        Self::encode_sections(
+            &[crate::OutSection {
+                id: FAMILY_V1_SECTION,
+                content_type: crate::CONTENT_BYTES,
+                bytes: &bytes,
+            }],
+            ctx,
+        )
+    }
+}
+
+/// Section of a version-one record.
+const FAMILY_V1_SECTION: &str = "cyclic_family_v1";
+/// Record section of a version-two artifact; the contract section follows it.
+const FAMILY_V2_SECTION: &str = "cyclic_family_v2";
+
+/// A decoded record and, for version two, its contract section.
+struct Decoded {
+    record: Record,
+    request_bytes: Vec<u8>,
+    contract: Option<antecedent_io_core::contract_section::CyclicContractWire>,
+}
+
+/// Decode either record layout. A version-one record has no contract; a
+/// version-two record must carry one.
+fn decode_record(bytes: &[u8]) -> Result<Decoded, CyclicArtifactError> {
+    let layout = |e: crate::CodecError| invalid(e.into_io("cyclic family layout"));
+    let (record_bytes, contract) = match crate::decode_container(
+        "cyclic_family",
+        MAX_CYCLIC_ARTIFACT_BYTES,
+        &[FAMILY_V1_SECTION],
+        bytes,
+    ) {
+        Ok(mut parts) => (parts.pop().ok_or_else(|| invalid("missing family section"))?, None),
+        Err(crate::CodecError::Layout) => {
+            let mut parts = crate::decode_container(
+                "cyclic_family",
+                MAX_CYCLIC_ARTIFACT_BYTES,
+                &[FAMILY_V2_SECTION, antecedent_io_core::contract_section::CYCLIC_CONTRACT_SECTION],
+                bytes,
+            )
+            .map_err(layout)?;
+            let contract = parts.pop().ok_or_else(|| invalid("missing contract section"))?;
+            let record = parts.pop().ok_or_else(|| invalid("missing family section"))?;
+            (record, Some(crate::from_cbor(&contract).map_err(invalid)?))
+        }
+        Err(other) => return Err(layout(other)),
+    };
+    let record: Record = serde_json::from_slice(&record_bytes).map_err(invalid)?;
+    let expected = if contract.is_some() { 2 } else { 1 };
+    if record.version != expected {
+        return Err(invalid("unsupported cyclic family version"));
+    }
+    let request_bytes = serde_json::to_vec(&record.request).map_err(invalid)?;
+    Ok(Decoded { record, request_bytes, contract })
+}
+
+/// Check a version-two contract against its request, independently of the producer.
+///
+/// The contract is verified from bytes ([`antecedent_io_core::contract_section::verify_cyclic_contract_against_body`]),
+/// then every payload is re-derived from the decoded request and its compiled
+/// solve schedules, so a consistently resealed contract over other payloads is
+/// refused. Compilation does not fit or solve.
+///
+/// The compiled program is returned for the replay to execute. It is derived from the decoded
+/// request alone, never from the producer's contract, so the replay trusts nothing that this
+/// check did not compare, and the request's routes and plans are computed and charged once.
+fn verify_contract(
+    request: &CyclicFamilyRequest,
+    request_bytes: &[u8],
+    contract: &antecedent_io_core::contract_section::CyclicContractWire,
+    ctx: &ExecutionContext,
+) -> Result<CompiledCyclicFamilyProgram, CyclicArtifactError> {
+    let unresolved = antecedent_io_core::contract_section::verify_cyclic_contract_against_body(
+        contract,
+        request_bytes,
+    );
+    if !unresolved.is_empty() {
+        return Err(invalid(format!(
+            "cyclic family contract does not verify: {}",
+            unresolved.iter().map(|reason| &**reason).collect::<Vec<_>>().join(",")
+        )));
+    }
+    let program = CompiledCyclicFamilyProgram::compile(request, ctx)?;
+    if program.contract()? != *contract {
+        return Err(CyclicArtifactError::Mismatch);
+    }
+    Ok(program)
+}
+
+/// Check a separately retained request identity and recompute the typed answer.
+///
+/// Reads version-one records, which carry no contract, and version-two records,
+/// whose contract section is verified against the request before the answer is
+/// replayed.
+pub fn consume_cyclic_family(
+    bytes: &[u8],
+    expected_identity: &str,
+    ctx: &ExecutionContext,
+) -> Result<CyclicFamilyReport, CyclicArtifactError> {
+    consume_decoded(bytes, expected_identity, ctx).map(|(_, report)| report)
+}
+
+fn consume_decoded(
+    bytes: &[u8],
+    expected_identity: &str,
+    ctx: &ExecutionContext,
+) -> Result<(Decoded, CyclicFamilyReport), CyclicArtifactError> {
+    if bytes.len() > MAX_CYCLIC_ARTIFACT_BYTES || expected_identity.len() != 64 {
+        return Err(invalid(
+            "family byte limit or expected identity; next attempt: pass the 64-character \
+             identity the producer retained, and an artifact within the byte limit",
+        ));
+    }
+    let _retention = crate::cyclic_system_artifact::cyclic_decode_admission(bytes, ctx)?;
+    let decoded = decode_record(bytes)?;
+    if CanonicalWriter::digest_bytes_hex(
+        "antecedent.cyclic_family.request.v1",
+        &decoded.request_bytes,
+    ) != expected_identity
+        || decoded.record.report.identity != expected_identity
+    {
+        return Err(CyclicArtifactError::Mismatch);
+    }
+    let verified = if let Some(contract) = &decoded.contract {
+        if contract.request_identity != expected_identity {
+            return Err(CyclicArtifactError::Mismatch);
+        }
+        Some(verify_contract(&decoded.record.request, &decoded.request_bytes, contract, ctx)?)
+    } else {
+        None
+    };
+    let program = if let Some(program) = verified {
+        program
+    } else {
+        CompiledCyclicFamilyProgram::compile(&decoded.record.request, ctx)?
+    };
+    let report = program.execute(ctx)?;
+    let projected_bytes = crate::retained_allocation::allocation_bytes(&report).map_err(invalid)?;
+    let _projection =
+        ctx.acquire_admission(0, projected_bytes).map_err(CyclicArtifactError::Admission)?;
+    if report.identity != expected_identity
+        || legacy_family_report(&report) != decoded.record.report
+    {
+        return Err(CyclicArtifactError::Mismatch);
+    }
+    Ok((decoded, report))
+}
+
+/// Independently consume a version-two family artifact and return its verified
+/// contract with the replayed answer.
+///
+/// A version-one record has no contract and is refused here; it still replays
+/// through [`consume_cyclic_family`].
+pub fn consume_cyclic_family_contract(
+    bytes: &[u8],
+    expected_identity: &str,
+    ctx: &ExecutionContext,
+) -> Result<
+    (antecedent_io_core::contract_section::CyclicContractWire, CyclicFamilyReport),
+    CyclicArtifactError,
+> {
+    let (decoded, report) = consume_decoded(bytes, expected_identity, ctx)?;
+    let contract = decoded.contract.ok_or_else(|| {
+        invalid(
+            "a version-one cyclic family record carries no contract; next attempt: re-export it \
+             from a prepared family to write a contract section",
+        )
+    })?;
+    Ok((contract, report))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn ou_family_replay_is_bound_to_continuous_time_semantics() {
+        let request = CyclicFamilyRequest::OuStationary {
+            model: OrnsteinUhlenbeck { drift: vec![-2.0], center: vec![0.0], diffusion: vec![4.0] },
+        };
+        let ctx = ExecutionContext::for_tests(0);
+        let (report, bytes) = request.export(&ctx).unwrap();
+        assert_eq!(consume_cyclic_family(&bytes, &report.identity, &ctx).unwrap(), report);
+        assert!(consume_cyclic_family(&bytes, &"0".repeat(64), &ctx).is_err());
+    }
+}
+
+/// Independently replay a family and retain its verified executable request for
+/// scientific coordinate/evidence adapters. The request is returned only after
+/// the ordinary identity, semantic replay and exact answer checks succeed.
+pub fn consume_cyclic_family_with_request(
+    bytes: &[u8],
+    expected_identity: &str,
+    ctx: &ExecutionContext,
+) -> Result<(CyclicFamilyRequest, CyclicFamilyReport), CyclicArtifactError> {
+    let (decoded, report) = consume_decoded(bytes, expected_identity, ctx)?;
+    Ok((decoded.record.request, report))
+}
+
+/// Consume once and retain the actual verified producer contract when carried.
+/// Historical version-one records remain replayable but have no contract section.
+///
+/// # Errors
+/// The same identity, proof, numerical replay and control errors as the ordinary consumer.
+pub fn consume_cyclic_family_with_request_and_contract(
+    bytes: &[u8],
+    expected_identity: &str,
+    ctx: &ExecutionContext,
+) -> Result<
+    (
+        CyclicFamilyRequest,
+        CyclicFamilyReport,
+        Option<antecedent_io_core::contract_section::CyclicContractWire>,
+    ),
+    CyclicArtifactError,
+> {
+    let (decoded, report) = consume_decoded(bytes, expected_identity, ctx)?;
+    Ok((decoded.record.request, report, decoded.contract))
+}
+
+#[cfg(test)]
+mod seed_binding_tests {
+    use super::*;
+    use antecedent_model::nonlinear_equilibrium::{
+        Activation, Clamp, Equation, EquilibriumModel, RegimeRow,
+    };
+    #[test]
+    fn selection_bootstrap_replay_uses_request_seed_not_consumer_rng() {
+        let model = EquilibriumModel {
+            equations: vec![
+                Equation {
+                    id: "x".into(),
+                    intercept: 0.,
+                    weights: vec![0., 0.],
+                    activation: Activation::Identity,
+                    expression: None,
+                    parameters: vec![],
+                },
+                Equation {
+                    id: "y".into(),
+                    intercept: 0.,
+                    weights: vec![0., 0.],
+                    activation: Activation::Identity,
+                    expression: None,
+                    parameters: vec![],
+                },
+            ],
+            noise_covariance: vec![1., 0., 0., 1.],
+        };
+        let rows: Vec<_> = [-2., -1., 1., 2.]
+            .into_iter()
+            .flat_map(|x| {
+                [-0.1, 0.1].into_iter().map(move |e| RegimeRow {
+                    values: vec![x, 0.6 * x + e],
+                    clamps: vec![Clamp { variable: 0, value: x }],
+                })
+            })
+            .collect();
+        let request=CyclicFamilyRequest::StructureFit{seed:71,design:antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign::RandomizedWithinTargets,model,training:rows,heldout:vec![],policy:antecedent_estimate::cyclic_likelihood::CyclicFitOptions{initial_step:0.2,tolerance:0.001,max_sweeps:200,l1_penalty:0.1},threshold:0.05,bootstrap_replicates:2};
+        let (report, bytes) = request.export(&ExecutionContext::for_tests(1)).unwrap();
+        let CyclicFamilyAnswer::StructureFit { bootstrap, .. } = &report.answer else { panic!() };
+        assert!(bootstrap.iter().any(Option::is_some));
+        assert_eq!(
+            consume_cyclic_family(&bytes, &report.identity, &ExecutionContext::for_tests(999))
+                .unwrap(),
+            report
+        );
+    }
+}
+
+/// The version-one record keeps replaying; the version-two record carries a
+/// contract an independent consumer verifies against the request it travels with.
+///
+/// The previous-version golden lives at `tests/fixtures/cyclic_family_v1.bin` and
+/// is written by the version-one encoder it pins. Generate it with
+/// `cargo test -p antecedent-io --lib previous_version -- --ignored write_`.
+#[cfg(test)]
+mod previous_version {
+    use super::*;
+    use std::path::PathBuf;
+
+    const GOLDEN: &str = "cyclic_family_v1.bin";
+    const GENERATOR: &str =
+        "cargo test -p antecedent-io --lib previous_version -- --ignored write_";
+
+    fn fixture_dir() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
+    }
+
+    fn ctx() -> ExecutionContext {
+        ExecutionContext::for_tests(1)
+    }
+
+    /// `A = 0.4 B + U_A`, `B = 0.5 A + U_B` under the model as specified, a clamp and a shock.
+    fn request() -> CyclicFamilyRequest {
+        CyclicFamilyRequest::LinearWorlds {
+            variables: vec![10, 11],
+            model: LinearCyclicWire {
+                coefficients: vec![0.0, 0.4, 0.5, 0.0],
+                intercept: vec![0.0; 2],
+                noise_mean: vec![0.0; 2],
+                noise_covariance: vec![1.0, 0.0, 0.0, 1.0],
+            },
+            component: CyclicComponentWire {
+                component_id: "feedback".into(),
+                source_id: "specification".into(),
+                certifying_evidence: vec!["independent-bench-test".into()],
+            },
+            worlds: vec![
+                CyclicWorldWire { world: 7, interventions: vec![], initial_states: vec![] },
+                CyclicWorldWire {
+                    world: 8,
+                    interventions: vec![CyclicInterventionWire::Set { variable: 10, value: 2.0 }],
+                    initial_states: vec![],
+                },
+                CyclicWorldWire {
+                    world: 9,
+                    interventions: vec![CyclicInterventionWire::Shift { variable: 10, delta: 1.0 }],
+                    initial_states: vec![],
+                },
+            ],
+            certificate: CertificateDemandWire::Required,
+        }
+    }
+
+    #[test]
+    fn execution_reuses_the_routes_computed_with_the_plans_and_answers_the_same() {
+        let program = CompiledCyclicFamilyProgram::compile(&request(), &ctx()).unwrap();
+        let routes = program.linear_routes().expect("a linear-worlds program holds its routes");
+        assert_eq!(program.execution_plans().len(), 3);
+        assert_eq!(routes.len(), 2, "the observational and the shifted world share one route");
+        let routed = program.execute(&ctx()).unwrap();
+        let unrouted =
+            request().execute_bound(program.identity(), None, None, None, &ctx()).unwrap();
+        assert_eq!(routed, unrouted);
+    }
+
+    #[test]
+    #[ignore = "writes tests/fixtures; run with `-- --ignored write_`"]
+    fn write_cyclic_family_v1_golden() {
+        let program = CompiledCyclicFamilyProgram::compile(&request(), &ctx()).unwrap();
+        let report = program.execute(&ctx()).unwrap();
+        let bytes = request().encode_report_v1(&report, &ctx()).unwrap();
+        let dir = fixture_dir();
+        std::fs::create_dir_all(&dir).expect("create the fixture directory");
+        std::fs::write(dir.join(GOLDEN), bytes).expect("write the golden");
+    }
+
+    #[test]
+    fn legacy_wire_omits_diagnostics_but_replay_recovers_them() {
+        let program = CompiledCyclicFamilyProgram::compile(&request(), &ctx()).unwrap();
+        let (report, bytes) = program.export(&ctx()).unwrap();
+        let stored = decode_record(&bytes).unwrap();
+        let CyclicFamilyAnswer::Worlds(stored_worlds) = &stored.record.report.answer else {
+            panic!("worlds")
+        };
+        assert!(matches!(
+            &stored_worlds[0].outcome,
+            CyclicWorldOutcomeAnswer::GaussianLaw { block_diagnostics: None, .. }
+        ));
+        assert!(
+            !serde_json::to_string(&stored.record.report).unwrap().contains("block_diagnostics")
+        );
+        let replay = consume_cyclic_family(&bytes, program.identity(), &ctx()).unwrap();
+        assert_eq!(replay, report);
+        let CyclicFamilyAnswer::Worlds(worlds) = &replay.answer else { panic!("worlds") };
+        assert!(
+            matches!(&worlds[0].outcome, CyclicWorldOutcomeAnswer::GaussianLaw { block_diagnostics: Some(blocks), .. } if !blocks.is_empty())
+        );
+    }
+
+    #[test]
+    fn the_previous_version_golden_still_replays() {
+        let bytes = antecedent_test_support::read_fixture_bytes(
+            &fixture_dir(),
+            GOLDEN,
+            &format!("generate it with `{GENERATOR}`"),
+        );
+        let identity =
+            CompiledCyclicFamilyProgram::compile(&request(), &ctx()).unwrap().identity().to_owned();
+        let replayed = consume_cyclic_family(&bytes, &identity, &ctx()).unwrap();
+        assert_eq!(replayed, request().execute(&ctx()).unwrap());
+        let (decoded, _) = consume_cyclic_family_with_request(&bytes, &identity, &ctx()).unwrap();
+        assert_eq!(decoded, request());
+        assert!(
+            consume_cyclic_family_contract(&bytes, &identity, &ctx()).is_err(),
+            "a version-one record carries no contract to verify"
+        );
+        assert!(consume_cyclic_family(&bytes, &"0".repeat(64), &ctx()).is_err());
+    }
+
+    #[test]
+    fn a_freshly_encoded_version_one_record_replays_beside_version_two() {
+        let program = CompiledCyclicFamilyProgram::compile(&request(), &ctx()).unwrap();
+        let report = program.execute(&ctx()).unwrap();
+        let v1 = request().encode_report_v1(&report, &ctx()).unwrap();
+        assert_eq!(consume_cyclic_family(&v1, program.identity(), &ctx()).unwrap(), report);
+        let (exported, v2) = program.export(&ctx()).unwrap();
+        assert_ne!(v1, v2);
+        let (contract, replayed) =
+            consume_cyclic_family_contract(&v2, program.identity(), &ctx()).unwrap();
+        assert_eq!(replayed, exported);
+        assert_eq!(contract, program.contract().unwrap());
+        assert!(
+            antecedent_io_core::contract_section::verify_cyclic_contract_against_body(
+                &contract,
+                &serde_json::to_vec(&request()).unwrap(),
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn a_tampered_or_resealed_contract_is_refused() {
+        let program = CompiledCyclicFamilyProgram::compile(&request(), &ctx()).unwrap();
+        let report = program.execute(&ctx()).unwrap();
+        let contract = program.contract().unwrap();
+
+        let mut tampered = contract.clone();
+        tampered.observation.variables.push(12);
+        let bytes = request().encode_report(&report, &tampered, &ctx()).unwrap();
+        assert!(consume_cyclic_family(&bytes, program.identity(), &ctx()).is_err());
+
+        // A self-consistent contract over another request's payloads, bound to this
+        // request's identity, passes the byte-level check and fails re-derivation.
+        let mut other = request();
+        if let CyclicFamilyRequest::LinearWorlds { certificate, .. } = &mut other {
+            *certificate = CertificateDemandWire::ReportUncertified;
+        }
+        let other_program = CompiledCyclicFamilyProgram::compile(&other, &ctx()).unwrap();
+        let payloads = cyclic_contract_payloads(
+            &other,
+            other_program.execution_plans(),
+            other_program.fit_dependency_identity(),
+        )
+        .unwrap();
+        let resealed = antecedent_io_core::contract_section::seal_cyclic_contract(
+            payloads,
+            program.identity(),
+        )
+        .unwrap();
+        assert!(
+            antecedent_io_core::contract_section::verify_cyclic_contract_against_body(
+                &resealed,
+                &serde_json::to_vec(&request()).unwrap(),
+            )
+            .is_empty()
+        );
+        assert_ne!(resealed, contract);
+        let bytes = request().encode_report(&report, &resealed, &ctx()).unwrap();
+        assert!(matches!(
+            consume_cyclic_family(&bytes, program.identity(), &ctx()),
+            Err(CyclicArtifactError::Mismatch)
+        ));
+    }
+}

@@ -1,6 +1,6 @@
 //! Criterion smoke: append + invalidate.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     missing_docs,
@@ -13,14 +13,17 @@ use antecedent_core::{AverageEffectQuery, CacheBudget, CausalQuery, VariableId};
 use antecedent_state::{CausalState, DataBatchRef, LinearOlsSuffStats, StateEvent};
 use criterion::{Criterion, criterion_group, criterion_main};
 
+#[path = "../../../benches/soft_budget.rs"]
+mod soft_budget;
+
 fn run_append_once() -> CausalState {
     let mut state = CausalState::new(CacheBudget::new(1 << 20));
     let q = state.queries.register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
         VariableId::from_raw(0),
         VariableId::from_raw(1),
     )));
-    let _ = state.refresh_results(&[(q, 1, 32)]);
-    state.suff_stats.ols.insert(Arc::from("ols"), LinearOlsSuffStats::new(2));
+    let _ = state.refresh_results_at(state.version, &[(q, 1, 32)]);
+    state.suff_stats.ols.insert(Arc::from("ols"), LinearOlsSuffStats::new(2).expect("dimension"));
     for i in 0..64u64 {
         state
             .apply(StateEvent::AppendData(DataBatchRef {
@@ -47,10 +50,9 @@ fn bench_append(c: &mut Criterion) {
     let state = run_append_once();
     let elapsed = t0.elapsed();
     drop(state);
-    assert!(
-        elapsed < std::time::Duration::from_millis(20),
-        "state_append_invalidate_ols exceeded soft budget: {elapsed:?}"
-    );
+    soft_budget::check(elapsed < std::time::Duration::from_millis(20), || {
+        format!("state_append_invalidate_ols exceeded soft budget: {elapsed:?}")
+    });
 }
 
 criterion_group!(benches, bench_append);

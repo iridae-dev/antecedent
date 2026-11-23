@@ -1,6 +1,6 @@
 //! Observation pins on incomplete temporal classes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -173,7 +173,7 @@ fn censored_series(
     .unwrap()
 }
 
-fn licensed_pairs(
+fn supported_pairs(
     pin: &serde_json::Value,
     t: &[f64],
     latent: &[f64],
@@ -278,15 +278,15 @@ fn carries_observation_claim(result: &antecedent::StudyResult) -> bool {
 }
 
 #[test]
-fn licensed_observation_pairs_run_on_temporal_cpdag_and_pag() {
+fn supported_observation_pairs_run_on_temporal_cpdag_and_pag() {
     let class = class_pin();
-    let pairs: Vec<String> = class["licensed_pairs"]
+    let pairs: Vec<String> = class["supported_pairs"]
         .as_array()
         .unwrap()
         .iter()
         .map(|v| v.as_str().unwrap().to_owned())
         .collect();
-    assert!(pairs.len() >= 5, "licensed_pairs must name every TemporalDag pair: {pairs:?}");
+    assert!(pairs.len() >= 5, "supported_pairs must name every TemporalDag pair: {pairs:?}");
     let pin = pin();
     let (t_full, latent_full, selected_full, c_ind_full, c_cox_full, _) = generate(&pin);
     let n_cov = 400.min(t_full.len());
@@ -297,7 +297,7 @@ fn licensed_observation_pairs_run_on_temporal_cpdag_and_pag() {
         &c_ind_full[..n_cov],
         &c_cox_full[..n_cov],
     );
-    for (name, series, spec, assumption) in licensed_pairs(&pin, t, latent, selected, c_ind, c_cox)
+    for (name, series, spec, assumption) in supported_pairs(&pin, t, latent, selected, c_ind, c_cox)
     {
         assert!(pairs.iter().any(|listed| listed == name), "{name} missing from fixture");
         let query = curve_query(&pin, spec, assumption);
@@ -346,7 +346,6 @@ fn selected_incomplete_cpdag_matches_temporal_observation_surface() {
     let (t, latent, selected, _, _, _) = generate(&pin);
     let truth: Vec<f64> =
         pin["surface"]["mean"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
-    let atol = pin["atol"].as_f64().unwrap();
     let series = selected_series(&t, &latent, &selected);
     let query = curve_query(
         &pin,
@@ -377,7 +376,9 @@ fn selected_incomplete_cpdag_matches_temporal_observation_surface() {
             .iter()
             .map(|slice| mean.iter().zip(slice).map(|(a, b)| (a - b).abs()).fold(0.0, f64::max))
             .fold(f64::INFINITY, f64::min);
-        assert!(err <= atol + 0.15, "selected class atom {mean:?} vs slices {slices:?} err={err}");
+        // Observed worst-slice error is 0.067 (the pin tolerance is 0.35); 0.15 keeps a
+        // margin of two without admitting the 0.35 slack of the conformance fixture.
+        assert!(err <= 0.15, "selected class atom {mean:?} vs slices {slices:?} err={err}");
         checked += 1;
     }
     assert!(checked >= 1, "selected pair missing per-horizon atom surfaces");
@@ -413,7 +414,7 @@ fn frequentist_incomplete_class_uses_outer_block_or_withholds() {
         "two-completion identified set withholds the class observation band"
     );
     assert!(incomplete.diagnostics.iter().any(|d| {
-        d.code.as_ref() == "estimate.temporal_class.observation_class_band_withheld"
+        d.code.as_ref() == "estimate.temporal_class.no_observation_class_band_method"
             || d.code.as_ref() == "estimate.temporal_class.observation_no_complete_band"
     }));
     let structural = incomplete.structural_response.as_ref().unwrap();
@@ -436,7 +437,7 @@ fn frequentist_incomplete_class_uses_outer_block_or_withholds() {
     // bootstrap successes (`bootstrap_has_enough_successes`,
     // crates/antecedent/src/analysis/execute/execute_helpers.rs); 8 (as used for the
     // `incomplete` run above, which never publishes a band regardless of replicate count)
-    // cannot license one, so the strict `banded()` checks below need enough requested to
+    // cannot support one, so the strict `banded()` checks below need enough requested to
     // clear that floor even after any refit failures.
     let oriented = run_pair(
         series,
@@ -486,7 +487,7 @@ fn frequentist_incomplete_class_uses_outer_block_or_withholds() {
         // temporal_response.rs) only warns "few replicates" below
         // `SIMULTANEOUS_BAND_MIN_REPLICATES` on the very same completed-replicate count —
         // both constants are 40, so a banded response can never also carry that warning.
-        !warns(response, "estimate.temporal_response.band_withheld")
+        !warns(response, "estimate.temporal_response.no_band_method")
             && warns(response, "response.temporal.block.persistence_boundary")
             && response
                 .support
@@ -509,7 +510,7 @@ fn frequentist_incomplete_class_uses_outer_block_or_withholds() {
         .collect();
     assert!(!atom_responses.is_empty(), "atoms carry the outer circular-block band");
     assert!(atom_responses.iter().all(|r| tuple_band_disclosed(r)));
-    assert!(!warns(incomplete.response().unwrap(), "estimate.temporal_response.band_withheld"));
+    assert!(!warns(incomplete.response().unwrap(), "estimate.temporal_response.no_band_method"));
     assert!(banded(response), "the one-completion class publishes the outer band");
     assert!(tuple_band_disclosed(response));
     let note = oriented

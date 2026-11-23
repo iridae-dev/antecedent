@@ -7,4 +7,4 @@ DAG (`node_count`, directed edges).
 
 ## Expected summary
 
-Top-level keys: `expected_node_count, fixture, gml, networkx_node_link` (4 fields).
+Top-level keys: `evidence_kind, evidence_proposition, evidence_roles, evidence_source, expected_node_count, fixture, gml, limitations, networkx_node_link, oracle` (10 fields).

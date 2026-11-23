@@ -14,10 +14,9 @@ preprocessing outside the folds. The robustness claimed is model double robustne
 of the point estimate: it is consistent when either the outcome regressions or the
 participation model is. No efficiency, rate or CATE claim is made.
 
-The point estimate and the estimator menu are licensed. The whole-estimator
-interval (joint outer refit percentile bootstrap of the cross-fitted estimator) is
-not: its route is closed with ``cell_not_licensed`` until its coverage records are
-measured, so an estimate reports the interval withheld and never publishes one.
+The point estimate and the estimator menu are supported. The whole-estimator
+interval (joint outer refit percentile bootstrap of the cross-fitted estimator) is formed by
+:meth:`PreparedLearnedContinuous.interval` and carries its calibration slot.
 """
 
 from __future__ import annotations
@@ -29,10 +28,20 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .. import _native
+from .._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .._freeze import freeze as _frozen
+from .._scientific import ScientificResult
 from .._transport_results import _thaw
-from ..errors import CausalTypeError, CausalValueError
+from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ..execution import Execution
 from ..learners import Logistic, Ridge, _learner_wire
+from ..outcomes import Outcome, capture_outcome
 from ._impl import TrialAipwData, TrialAipwQuery
 
 #: The one supported target of a request.
@@ -47,8 +56,8 @@ class LearnedContinuousOptions:
     probability accepted on any row; ``min_treatment_probability`` bounds the known
     randomization probabilities. Both lie in ``(0, 0.5)``; insufficient overlap
     refuses rather than extrapolates. ``bootstrap`` requests interval replicates
-    (at most 2000, floor 199): the percentile route failed calibration, so the
-    request only changes the reported interval status. Set it to zero and call
+    (at most 2000, floor 2): the request sets the
+    reported interval status; ``PreparedLearnedContinuous.interval()`` forms the bootstrap interval. Set it to zero and call
     ``PreparedLearnedContinuous.interval()`` for the analytic influence interval.
     """
 
@@ -113,7 +122,7 @@ class EstimatorMenuEntry:
 class EstimatorMenu:
     """The estimators for one graph, query and learner configuration.
 
-    Selection is manual: no entry is ranked or recommended, because no licensed
+    Selection is manual: no entry is ranked or recommended, because no supported
     comparison criterion exists between the estimators.
     """
 
@@ -187,14 +196,16 @@ def estimator_menu(
 
 
 @dataclass(frozen=True, slots=True)
-class LearnedContinuousEstimate:
+class LearnedContinuousEstimate(ScientificResult):
     """The estimate with provenance, diagnostics and interval status.
 
     ``overlap`` keeps source membership (``selection``) and treatment overlap apart.
-    ``uncertainty`` is ``point_only`` when no interval was requested and ``withheld``
-    (``cell_not_licensed``, or ``estimator_inference_mismatch`` below the replicate
-    floor) for a legacy bootstrap request. ``interval()`` returns an ``available``
-    analytic influence interval and its standard error.
+    ``uncertainty`` is ``point_only`` when no interval was requested,
+    ``bootstrap_interval_requested`` for a bootstrap request of two or more replicates
+    (``PreparedLearnedContinuous.interval()`` forms it with its calibration slot) and
+    ``too_few_replicates`` (``estimator_inference_mismatch``) below the replicate floor. With
+    ``bootstrap=0``, ``interval()`` returns an ``available`` analytic influence interval and
+    its standard error.
     """
 
     estimate: float
@@ -214,6 +225,14 @@ class LearnedContinuousEstimate:
     evidence_digest: str
     execution_id: str
     variable_names: tuple[str, ...]
+    _artifact_bytes: bytes | None = field(default=None, init=False, repr=False, compare=False)
+
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
+        """Export the artifact captured from this completed native execution."""
+        if self._artifact_bytes is None:
+            raise CausalUnsupportedError("no completed native execution artifact is bound")
+        return artifact_from_receipt(self, self._artifact_bytes)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -257,46 +276,67 @@ def _estimate(payload: str) -> LearnedContinuousEstimate:
     )
 
 
-class PreparedLearnedContinuous:
+@dataclass(frozen=True, slots=True, repr=False)
+class PreparedLearnedContinuous(ScientificResult):
     """A prepared learned continuous transport.
 
     The certificate is derived once at preparation; ``estimate`` cross-fits every
     nuisance on the retained rows under the frozen seed and never identifies again.
     """
 
-    __slots__ = ("_last", "_native")
+    _native: Any = field(repr=False, compare=False)
+    _execution: Execution = field(repr=False, compare=False)
 
-    def __init__(self, native: Any) -> None:
-        self._native = native
-        self._last: LearnedContinuousEstimate | None = None
+    def __init__(self, native: Any, execution: Execution) -> None:
+        object.__setattr__(self, "_native", native)
+        object.__setattr__(self, "_execution", execution)
 
-    def estimate(self, *, cancel: Any = None) -> LearnedContinuousEstimate:
-        """Cross-fit and report the point and any legacy-bootstrap refusal status."""
-        self._last = _estimate(self._native.estimate(cancel))
-        return self._last
+    def _run(self, operation: str) -> LearnedContinuousEstimate:
+        native = self._execution._call(self._native.fork, seed=self._execution.seed)
+        result = _estimate(self._execution._call(getattr(native, operation)))
+        object.__setattr__(result, "_artifact_bytes", bytes(native.export()))
+        return result
 
-    def refresh(self, data: TrialAipwData, *, cancel: Any = None) -> None:
-        """Replace the rows with a compatible snapshot; the certificate is kept.
+    def estimate(self) -> Outcome[LearnedContinuousEstimate]:
+        """Execute an independent run, preserving this preparation and earlier answers."""
+        return capture_outcome(lambda: self._run("estimate"))
 
-        A changed feature schema or sampling design needs a new preparation.
-        """
+    def reconfigure(self, *, execution: Execution) -> PreparedLearnedContinuous:
+        """Branch physical policy and stream without fitting or copying raw observations."""
+        if not isinstance(execution, Execution):
+            raise CausalTypeError("execution must be an Execution declaration")
+        native = execution._call(self._native.fork, seed=execution.seed)
+        return PreparedLearnedContinuous(native, execution)
+
+    def bind_snapshot(self, data: TrialAipwData) -> PreparedLearnedContinuous:
+        """Compile a compatible immutable data branch without fitting its learners."""
         if not isinstance(data, TrialAipwData):
-            raise CausalTypeError("refresh requires TrialAipwData")
-        self._native.refresh(data, cancel)
-        self._last = None
+            raise CausalTypeError("bind_snapshot requires TrialAipwData")
+        native = self._execution._call(self._native.bind_snapshot, data)
+        return PreparedLearnedContinuous(native, self._execution)
 
-    def interval(self, *, cancel: Any = None) -> LearnedContinuousEstimate:
-        """Fit the design-specific analytic influence interval and keep its artifact."""
-        self._last = _estimate(self._native.interval(cancel))
-        return self._last
+    def interval(self) -> Outcome[LearnedContinuousEstimate | dict[str, Any]]:
+        """Execute the interval the options request, in a separate run.
+
+        With ``bootstrap=0`` this is the design-specific analytic influence interval, returned
+        as a :class:`LearnedContinuousEstimate`. With ``bootstrap >= 2`` it is the joint
+        outer-refit percentile-bootstrap interval, returned as a mapping with ``estimate``,
+        ``interval`` (``[lower, upper]``, or ``None`` when a replicate failed), ``reason``
+        (why none was produced, else ``None``), ``replicates_ok``, ``failures`` and
+        ``calibration`` (the slot; calibration annotates and never gates).
+        """
+
+        def execute() -> LearnedContinuousEstimate | dict[str, Any]:
+            if self._execution._call(self._native.bootstrap_requested):
+                raw = self._execution._call(self._native.bootstrap_interval)
+                return dict(json.loads(raw))
+            return self._run("interval")
+
+        return capture_outcome(execute)
 
     def estimator_menu(self) -> EstimatorMenu:
         """The estimator menu for this prepared graph, query and learners."""
         return _menu(self._native.estimator_menu())
-
-    def export(self) -> bytes:
-        """The last estimate as an independently consumable artifact."""
-        return bytes(self._native.export())
 
 
 def prepare_learned_continuous(
@@ -305,9 +345,7 @@ def prepare_learned_continuous(
     *,
     options: LearnedContinuousOptions | None = None,
     target: str = TARGET,
-    seed: int = 1,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PreparedLearnedContinuous:
     """Prepare the certified, learner-backed continuous-outcome mean contrast.
 
@@ -321,11 +359,11 @@ def prepare_learned_continuous(
             "prepare_learned_continuous requires TrialAipwQuery and TrialAipwData"
         )
     options = options or LearnedContinuousOptions()
-    if not isinstance(seed, int) or isinstance(seed, bool) or seed < 0:
-        raise CausalValueError("seed must be a non-negative integer")
-    if memory_bytes is not None and (not isinstance(memory_bytes, int) or memory_bytes < 0):
-        raise CausalValueError("memory_bytes must be a non-negative integer or None")
-    native = _native.prepare_learned_continuous(
+    execution = Execution() if execution is None else execution
+    if not isinstance(execution, Execution):
+        raise CausalTypeError("execution must be an Execution declaration")
+    native = execution._call(
+        _native.prepare_learned_continuous,
         query.graph,
         list(query.diagram.selections),
         query.diagram.source,
@@ -335,13 +373,19 @@ def prepare_learned_continuous(
         data,
         options._json(),
         target,
-        seed=seed,
-        memory_bytes=memory_bytes,
-        cancel=cancel,
+        seed=execution.seed,
+        memory_bytes=execution.limits.memory_bytes,
+        cancel=execution.cancel,
     )
-    return PreparedLearnedContinuous(native)
+    return PreparedLearnedContinuous(native, execution)
 
 
+@artifact_consumer(
+    proof="PreparedLearnedContinuous::consume re-derives the certificate, folds and held-out point without fitting",
+    replayable=True,
+    resumable=False,
+    identity=(),
+)
 def consume_learned_continuous(
     artifact: bytes, *, max_rows: int | None = None, max_features: int | None = None
 ) -> LearnedContinuousEstimate:
@@ -354,6 +398,7 @@ def consume_learned_continuous(
     graph, query, learner specs, folds, seed, thresholds, limits and variable names; any
     edit is refused with a typed error.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
     for label, value in (("max_rows", max_rows), ("max_features", max_features)):

@@ -1,6 +1,6 @@
 //! Helpers shared by the exact, statistical, learned-trial and grid transport modalities.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent_core::{
     EvidenceCatalog, ExecutionContext, IdentityDomain, NodeRef, RegimeId, VariableId,
 };
@@ -19,26 +19,52 @@ use std::sync::Arc;
 
 use super::exact::ExactFactorRequirement;
 
-/// The facade's licensing floor for a nominal-0.95 percentile or posterior interval edge.
+/// The facade's support floor for a nominal-0.95 percentile or posterior interval edge.
 pub(super) const PERCENTILE_FLOOR: ReplicatePolicy =
     ReplicatePolicy::percentile_floor(crate::result::PERCENTILE_95_MIN_REPLICATES);
+
+/// Largest departure from one of a probability vector's mass that still counts as normalised.
+pub(super) const PROBABILITY_SUM_TOLERANCE: f64 = 1e-9;
+
+/// Whether `probabilities` is a probability vector: every entry finite in `[0, 1]` and the
+/// (Neumaier-compensated) mass within [`PROBABILITY_SUM_TOLERANCE`] of one.
+pub(super) fn is_probability_vector(probabilities: &[f64]) -> bool {
+    let (mut total, mut correction) = (0.0_f64, 0.0_f64);
+    for &p in probabilities {
+        if !(p.is_finite() && (0.0..=1.0).contains(&p)) {
+            return false;
+        }
+        let next = total + p;
+        correction += if total.abs() >= p.abs() { (total - next) + p } else { (p - next) + total };
+        total = next;
+    }
+    ((total + correction) - 1.0).abs() <= PROBABILITY_SUM_TOLERANCE
+}
+
+/// Whether an exact distribution is well formed: aligned atoms and probabilities, atoms as wide
+/// as the outcome list, and a probability vector.
+pub(super) fn is_valid_exact_law(law: &antecedent_expr::ExactDistribution) -> bool {
+    law.atoms.len() == law.probabilities.len()
+        && law.atoms.iter().all(|atom| atom.len() == law.outcomes.len())
+        && is_probability_vector(&law.probabilities)
+}
 
 /// Withhold a Bayesian transport posterior's intervals when its draws fall under
 /// [`PERCENTILE_FLOOR`], keeping the point law and recording why.
 pub(super) fn apply_posterior_draw_floor(
     estimate: &mut antecedent_estimate::BayesianStatisticalTransportEstimate,
 ) {
-    if estimate.interval_reason.as_deref()
-        != Some(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED)
-    {
+    if estimate.interval_reason != Some(antecedent_estimate::TransportIntervalReason::NotMeasured) {
         return;
     }
-    if let Err(reason) =
-        PERCENTILE_FLOOR.decide(estimate.draws_requested, estimate.draws_ok, estimate.draws_failed)
+    if PERCENTILE_FLOOR
+        .decide(estimate.draws_requested, estimate.draws_ok, estimate.draws_failed)
+        .is_err()
     {
         estimate.atom_intervals = Arc::from([]);
         estimate.mean_intervals = Arc::from([]);
-        estimate.interval_reason = Some(Arc::from(reason));
+        estimate.interval_reason =
+            Some(antecedent_estimate::TransportIntervalReason::InsufficientDraws);
     }
 }
 
@@ -287,5 +313,19 @@ mod tests {
         assert!(missing.to_string().contains("missing bound snapshot"), "{missing}");
         let split = rebind_snapshots(&catalog, |_| vec!["a", "b"]).unwrap_err();
         assert!(split.to_string().contains("inconsistent snapshot identities"), "{split}");
+    }
+}
+
+#[cfg(test)]
+mod probability_vector_tests {
+    use super::is_probability_vector;
+
+    #[test]
+    fn accepts_normalised_and_refuses_the_rest() {
+        assert!(is_probability_vector(&[0.25, 0.75]));
+        assert!(!is_probability_vector(&[0.25, 0.76]));
+        assert!(!is_probability_vector(&[1.5, -0.5]));
+        assert!(!is_probability_vector(&[f64::NAN, 1.0]));
+        assert!(!is_probability_vector(&[]));
     }
 }

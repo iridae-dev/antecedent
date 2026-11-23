@@ -1,5 +1,5 @@
 //! Independent artifact of the joint Bayesian source-target transport engine. The original candidate
-//! format and its posterior quantities retain their `unmeasured` standing.
+//! format and its posterior quantities retain their `not_measured` standing.
 //! Separate `build_measured` / `consume_measured` adapters authorize only the
 //! target-effect scalar when the actual native execution satisfies the frozen
 //! protocol and its basis resolves to a current attesting calibration record.
@@ -10,7 +10,7 @@
 //! model reads, the draw request (count and seed), the source and target data identities
 //! with the observations themselves, and the result: exact posterior mean and covariance,
 //! the aligned joint draws with their RNG identity, the diagnostics, and the calibration
-//! status (always `unmeasured`).
+//! status (always `not_measured`).
 //!
 //! A consumer trusts none of the result. Under its own bounds (a stored count above them
 //! refuses before any work) it checks the two digests, re-fits the conjugate model from
@@ -31,7 +31,7 @@
 //! the identification record copies, which is a declared premise bound into the premises
 //! digest, not re-derived here (no graph is stored).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::model_codes::{
     GraphClassCode, SourceDependenceCode, SourceSharingCode, VaryingBlockCode,
@@ -59,7 +59,7 @@ pub const JOINT_BAYESIAN_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
 pub const JOINT_BAYESIAN_ARTIFACT_FEATURE: &str = "joint_bayesian_transport_conjugate_v1";
 /// The unchanged standing of the original candidate artifact format.
-pub const JOINT_BAYESIAN_CALIBRATION: &str = "unmeasured";
+pub const JOINT_BAYESIAN_CALIBRATION: &str = "not_measured";
 
 /// Why a joint Bayesian transport artifact was refused.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -94,11 +94,8 @@ impl From<JointBayesianArtifactError> for IoError {
     }
 }
 
-fn engine_refusal(refusal: &JointTransportRefusal) -> IoError {
-    IoError::Refused {
-        code: refusal.code,
-        message: format!("{}: {}", refusal.detail, refusal.message),
-    }
+pub(crate) fn engine_refusal(refusal: &JointTransportRefusal) -> IoError {
+    crate::refusal::refused(refusal.code, refusal.detail, &refusal.message)
 }
 
 /// Bounds a consumer imposes. Nothing the artifact stores raises them.
@@ -388,7 +385,7 @@ pub struct JointDiagnosticsWire {
     pub max_abs_z: f64,
     /// Whether the disagreement is flagged.
     pub flagged: bool,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
 }
 
@@ -430,7 +427,7 @@ impl JointResultWire {
     fn from_fit(fit: &JointTransportFit) -> Self {
         let d = &fit.diagnostics;
         let calibration = match d.calibration {
-            JointTransportCalibration::Unmeasured => JOINT_BAYESIAN_CALIBRATION,
+            JointTransportCalibration::NotMeasured => JOINT_BAYESIAN_CALIBRATION,
         };
         Self {
             parameter_names: fit.parameter_names.clone(),
@@ -500,12 +497,78 @@ pub struct JointBayesianArtifactWire {
     pub target: JointTargetWire,
     /// Posterior result.
     pub result: JointResultWire,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Digest of the scientific premises.
     pub premises_digest: String,
     /// Digest of the source and target data identities and observations.
     pub data_digest: String,
+}
+
+/// Complete pre-fit input of the joint transport producer. This separate wire
+/// lets a containing compiler bind the exact model and rows before fitting,
+/// then reconstruct that same declaration from a portable result artifact.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct JointBayesianInputWire {
+    /// Model, sharing, overlap rule and prior provenance.
+    pub model: JointModelWire,
+    /// Source trials and unit identities.
+    pub sources: Vec<JointSourceWire>,
+    /// Target covariate sample and unit identity.
+    pub target: JointTargetWire,
+    /// Draw count and stream seed.
+    pub options: JointOptionsWire,
+}
+
+impl JointBayesianInputWire {
+    /// Capture the exact declaration consumed by the producer.
+    #[must_use]
+    pub fn from_declaration(
+        model: &JointTransportModel,
+        sources: &[SourceData],
+        target: &TargetData,
+        options: JointTransportOptions,
+    ) -> Self {
+        Self {
+            model: JointModelWire::from_model(model),
+            sources: sources.iter().map(JointSourceWire::from_source).collect(),
+            target: JointTargetWire {
+                identity: DataIdentityWire::from_identity(&target.identity),
+                rows: target.rows,
+                covariates: target.covariates.clone(),
+            },
+            options: JointOptionsWire { draws: options.draws, seed: options.seed },
+        }
+    }
+
+    /// Reconstruct the same input from a consumed producer artifact.
+    #[must_use]
+    pub fn from_artifact(artifact: &JointBayesianArtifactWire) -> Self {
+        Self {
+            model: artifact.model.clone(),
+            sources: artifact.sources.clone(),
+            target: artifact.target.clone(),
+            options: artifact.options,
+        }
+    }
+
+    /// Restore the domain declaration for a containing compiler's replay.
+    #[must_use]
+    pub fn to_declaration(
+        &self,
+    ) -> (JointTransportModel, Vec<SourceData>, TargetData, JointTransportOptions) {
+        (
+            self.model.to_model(),
+            self.sources.iter().map(JointSourceWire::to_source).collect(),
+            TargetData {
+                identity: self.target.identity.to_identity(),
+                rows: self.target.rows,
+                covariates: self.target.covariates.clone(),
+            },
+            JointTransportOptions { draws: self.options.draws, seed: self.options.seed },
+        )
+    }
 }
 
 #[derive(Serialize)]
@@ -627,7 +690,7 @@ impl JointBayesianArtifactWire {
         if wire.calibration != JOINT_BAYESIAN_CALIBRATION
             || wire.result.diagnostics.calibration != JOINT_BAYESIAN_CALIBRATION
         {
-            return Err(unsupported("calibration is unmeasured").into());
+            return Err(unsupported("calibration is not_measured").into());
         }
         if wire.result.draws.alignment != "joint" {
             return Err(unsupported("draws must be aligned joint draws").into());
@@ -735,7 +798,7 @@ impl JointBayesianArtifactWire {
         if expected.data_digest.as_ref().is_some_and(|d| *d != wire.data_digest) {
             return Err(JointBayesianArtifactError::ExpectationMismatch("data identity").into());
         }
-        let id = transport_identification_from_wire(&wire.identification);
+        let id = transport_identification_from_wire(&wire.identification)?;
         let model = wire.model.to_model();
         let sources: Vec<SourceData> =
             wire.sources.iter().map(JointSourceWire::to_source).collect();
@@ -757,7 +820,7 @@ impl JointBayesianArtifactWire {
 
 impl JointBayesianArtifactWire {
     /// Produce the unchanged original candidate plus a separately record-bound
-    /// measured target-effect scalar. Other posterior quantities remain unmeasured.
+    /// measured target-effect scalar. Other posterior quantities remain `not_measured`.
     /// # Errors
     /// Out-of-protocol inputs, original native refusal, or non-attesting evidence.
     pub fn build_measured(
@@ -829,7 +892,7 @@ impl JointBayesianArtifactWire {
             || target.covariates[0].len() != 4
             || !identity_ok(&target.identity)
         {
-            return Err(IoError::Refused { code:antecedent_core::reason_code!("cell_not_licensed"),message:"measured_transport.protocol_not_measured: source/model/identity shape exceeds the frozen bounded protocol".into() });
+            return Err(IoError::Refused { code:antecedent_core::reason_code!("invalid_argument"),message:"measured_transport.input_bounds_exceeded: source/model/identity shape exceeds the declared input bounds".into() });
         }
         Ok(())
     }
@@ -860,9 +923,12 @@ impl JointBayesianArtifactWire {
             != antecedent_estimate::joint_bayesian_transport::JOINT_TRANSPORT_SAMPLER
             || fit.diagnostics.draw_count != fit.draws.n_draws
         {
-            return Err(IoError::Refused { code:antecedent_core::reason_code!("cell_not_licensed"),message:"measured_transport.protocol_not_measured: actual native posterior differs from measured sampler".into() });
+            return Err(IoError::Refused { code:antecedent_core::reason_code!("invalid_argument"),message:"measured_transport.sampler_mismatch: actual native posterior differs from the sampler the replay expects".into() });
         }
-        let basis = fit.target_calibration_basis(level).map_err(|e| engine_refusal(&e))?;
+        let basis = crate::measured_inference::transport::tag_outside(
+            &scope,
+            fit.target_calibration_basis(level).map_err(|e| engine_refusal(&e))?,
+        );
         let column = fit
             .draws
             .column("effect.target")
@@ -884,7 +950,7 @@ impl JointBayesianArtifactWire {
         )
     }
     /// Independently replay the original source/priors/model and derive every
-    /// scalar's current record binding; serialized calibrated flags cannot license it.
+    /// scalar's current record binding; serialized calibrated flags cannot support it.
     /// # Errors
     /// Identity/source mismatch, original engine refusal, out-of-protocol or stale evidence.
     pub fn consume_measured(
@@ -1021,4 +1087,49 @@ pub fn prior_data_overlap_from_ledger(
     }
     let pairs = prior_sources.iter().flat_map(|&a| likelihood_sources.iter().map(move |&b| (a, b)));
     fold_pair_overlap(ledger, pairs)
+}
+
+#[cfg(test)]
+mod shared_refusal_tests {
+    use super::{IoError, JointTransportRefusal, engine_refusal};
+    use antecedent_estimate::joint_bayesian_transport::FailedFitDiagnostics;
+
+    #[test]
+    fn temporal_and_scenario_refusals_keep_their_parts() {
+        use antecedent_identify::sid::scenarios::ScenarioSetRefusal;
+        use antecedent_identify::sid::temporal_sequence::TemporalRefusal;
+
+        let temporal = TemporalRefusal { code: "code", detail: "detail", message: "x:\ny".into() };
+        let scenario =
+            ScenarioSetRefusal { code: "code", detail: "detail", message: "x:\ny".into() };
+        for error in [
+            crate::temporal_transport_artifact::temporal_refusal(temporal),
+            crate::transport_scenario_artifact::scenario_refusal(scenario),
+        ] {
+            match error {
+                IoError::Refused { code, message } => {
+                    assert_eq!(code, "code");
+                    assert_eq!(message, "detail: x:\ny");
+                }
+                other => panic!("unexpected error: {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn transport_refusal_preserves_code_and_detail_message() {
+        let refusal = JointTransportRefusal {
+            code: "test_code",
+            detail: "test.detail",
+            message: "message: with\nnewline".into(),
+            failure: FailedFitDiagnostics::default(),
+        };
+        match engine_refusal(&refusal) {
+            IoError::Refused { code, message } => {
+                assert_eq!(code, "test_code");
+                assert_eq!(message, "test.detail: message: with\nnewline");
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
 }

@@ -9,15 +9,15 @@
 //! again from their stated definitions, so the library's `inversion_interval` is compared with
 //! a computation that shares none of its code.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
 use antecedent_stats::adaptive_inference::{
-    AdaptiveInferenceError as Error, AssignmentRule, BetaPrior, DERIVED_UNMEASURED, ExposureModel,
-    FinalSelection, InversionGrid, MAX_INVERSION_LAWS, ObservedTerminal, OutcomeKernel,
-    OutcomeObservation, ProcedureDeclaration, ProcedureSpec, Sidedness, StoppingRule,
-    enumerate_law, inversion_interval, ordering_p_values,
+    AdaptiveInferenceError as Error, AssignmentRule, BetaPrior, DERIVED_NOT_MEASURED,
+    ExposureModel, FinalSelection, InversionGrid, MAX_INVERSION_LAWS, ObservedTerminal,
+    OutcomeKernel, OutcomeObservation, ProcedureDeclaration, ProcedureSpec, Sidedness,
+    StoppingRule, enumerate_law, inversion_interval, ordering_p_values,
 };
 
 const UNITS: usize = 6;
@@ -310,7 +310,7 @@ fn the_inverted_adaptive_interval_matches_the_enumerated_supremum_tests() {
     let alpha = 0.3;
     for (observed, target) in [efficacy_stop(), horizon_behind()] {
         let interval = inversion_interval(&spec, &observed, &grid, alpha, &never).unwrap();
-        assert_eq!(interval.calibration, DERIVED_UNMEASURED);
+        assert_eq!(interval.calibration, DERIVED_NOT_MEASURED);
         let (accepted, evaluated) = oracle_interval(&grid, alpha, target);
         assert_eq!(interval.accepted, accepted);
         assert_eq!(interval.lower, accepted.first().copied());
@@ -344,7 +344,7 @@ fn inversion_refuses_what_its_premises_do_not_cover() {
     assert_eq!(
         inversion_interval(&spec, &observed, &small, 0.3, &never),
         Err(Error::PremiseFailed {
-            detail: "adaptive_inference.inversion_premise_contexts",
+            detail: antecedent_core::reason_details::adaptive_inference::INVERSION_PREMISE_CONTEXTS,
             message: "inversion is defined for a contrast of arms within one context",
         })
     );

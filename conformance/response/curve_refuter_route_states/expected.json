@@ -1,0 +1,69 @@
+{
+  "fixture_id": "response.curve_refuter_route_states",
+  "dgp": "lag series: x=4u-2; y_t=1.2+1.8*x_{t-1}+.3*e (seed 20240701, 1200 rows). class series: z=sin(.37t); x=cos(.61t)+.3*e; y_t=1.4*x_{t-1}+.6*z_{t-1}+.3*e (seed 20240702, 600 rows). static table: z=sin(.37i); t=.5z+.8sin(.61i)+.3*e; y=1+2t+.3*e (seed 20240704, 800 rows). u uniform and e sum of 12 uniforms minus 6 from one 64-bit LCG stream per law. panel: eight units of the lag-series law with 200 steps each, drawn unit after unit from one stream (seed 20240707). class panel: six units of the class-series law with 200 steps each, drawn unit after unit from one stream (seed 20240708)",
+  "lag_series": {
+    "rows": 1200,
+    "seed": 20240701,
+    "grid": [
+      -1.0,
+      0.0,
+      1.0
+    ],
+    "off_support_at": 2.2
+  },
+  "class_series": {
+    "rows": 600,
+    "seed": 20240702,
+    "grid": [
+      0.0,
+      1.0
+    ]
+  },
+  "static_table": {
+    "rows": 800,
+    "seed": 20240704,
+    "grid": [
+      -0.5,
+      0.5
+    ]
+  },
+  "curve_absolute_tolerance": 0.15,
+  "oracle": {
+    "kind": "closed_form",
+    "method": "linear laws in `dgp`: the interventional mean at level x is 1.2 + 1.8 x (lag series), 1.4 x + 0.6 mean(z_{t-1}) (class series) and 1 + 2 x (static table); the generator confirms by exact rational least squares on the regenerated rows that the fitted adjusted curve lies within a third of the declared band of each closed form",
+    "generator": "conformance/response/curve_refuter_route_states/reference.py",
+    "command": "uv run --frozen --script conformance/response/curve_refuter_route_states/reference.py --check",
+    "environment_lock": "conformance/response/curve_refuter_route_states/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "the class-panel curve (1.4 x + 0.6 mean(z) pooled over units)",
+      "the panel curve (the lag-series curve 1.2 + 1.8 x pooled over units)",
+      "the curve at each grid point within curve_absolute_tolerance for each law",
+      "the planted off-support grid point lies beyond the largest treatment value"
+    ],
+    "context_only_outputs": [
+      "fixture_id and dgp text (checked only as a guard on the model used)"
+    ],
+    "independence_basis": "The generator regenerates the stated rows from the integer noise recurrence and solves the exact rational normal equations of Y on 1, T, Z; it imports no Antecedent code and no statistics package. The shared object is the stated law and the noise recurrence.",
+    "historical_exposure": "Written for this fixture from the stated law and declared inputs; no product implementation source was consulted and no earlier pinned numbers are reused."
+  },
+  "panel": {
+    "units": 8,
+    "rows": 200,
+    "seed": 20240707,
+    "grid": [
+      -1.0,
+      0.0,
+      1.0
+    ]
+  },
+  "class_panel": {
+    "units": 6,
+    "rows": 200,
+    "seed": 20240708,
+    "grid": [
+      0.0,
+      1.0
+    ]
+  }
+}

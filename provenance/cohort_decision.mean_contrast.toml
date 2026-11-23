@@ -21,3 +21,54 @@ test_sources = [
   "crates/antecedent-io-core/src/cohort_decision/tests.rs",
   "crates/antecedent-design/tests/cohort_decision_input.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "A weighted mean of the conditional contrast predictions of a retained model over a declared cohort is the cohort expectation of an affine utility, issued point-only with a model-based standard error diagnostic. Retained-model items were compared across both paths; only parent-visible privacy changed, leaving validation and model identity unchanged. Prediction, support and shift items were compared across both paths; only parent-visible privacy changed, leaving numerical operations and refusal behavior unchanged. Artifact serialization and replay items were also compared across both paths; only test-visible privacy changed, with wire fields and replay behavior unchanged. Scoped re-review of the cohort-binding move compared every named item across both paths; only parent-only visibility changed, with validation, weights and canonical digest unchanged."
+no_independent_algorithm = "cohort_decision.rs predicts each cohort row (a compact-export basis evaluation or a portable learner's own prediction), takes the compensated weighted sum of the row contrasts, and recomputes sqrt(phibar' V phibar) from the retained covariance; the support check and the covariate-shift check compare declared contracts and reweight nothing."
+covered_by = ["estimate.compact_runtime_export", "cohort_decision.interval"]
+derivation = "E_cohort[tau(X)] = sum_i w_i tau(x_i) with sum w_i = 1, tau(x) = c'phi(x) for a linear compact model, so the mean contrast is c'phibar with phibar = sum w_i phi(x_i) and the standard error is sqrt(phibar' V phibar); crates/antecedent-estimate/tests/cohort_linear_effect.rs compares the point and the standard error to a 50-digit reference to 1e-9 and 1e-8 relative."
+record_sha256 = "f42e37337c9913ba5f5598d184cc095daa23a3be493d36b2afe90cf4bdcff44c"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/cohort_decision.rs"
+items = ["const CATE_FUNCTIONAL_ID", "const COHORT_CONDITIONING_VARIABLE", "const COHORT_DECISION_ARTIFACT_KIND", "const COHORT_DECISION_SECTION", "const COHORT_DECISION_VERSION", "const COHORT_FUNCTIONAL_ID", "const COHORT_TAG", "const COVARIATE_SHIFT_ASSUMPTION", "const IDENTITY_TAG", "const MAX_COHORT_DECISION_ARTIFACT_BYTES", "const MAX_COHORT_ROWS", "const MODEL_TAG", "const NEGATIVE_VARIANCE_TOLERANCE", "const POINT_SCOPE", "const STANDARD_ERROR_BASIS", "const STANDARD_ERROR_CALIBRATION", "const STANDARD_ERROR_SCOPE", "const SUPPORT_BASIS_DECLARED", "const SUPPORT_BASIS_FITTED_BOX", "const WEIGHT_SUM_TOLERANCE", "enum LawRequest", "fn assumptions", "fn build", "fn build_within", "fn cohort", "fn default", "fn for_identity", "fn identity", "fn interval_refusal", "fn invalid", "fn invalid_input", "fn io_refusal", "fn is_native", "fn law_refusal", "fn mean_contrast", "fn model", "fn new", "fn outcome_units", "fn quantity", "fn quantity_of", "fn recomputed_identity", "fn refusal", "fn regime_of", "fn row_contrasts", "fn schema_mismatch", "fn semantics_mismatch", "fn shift", "fn support", "fn support_status", "fn to_refusal", "fn uncalibrated_standard_error", "struct CohortDecisionSource", "struct CohortExpectation", "struct CohortIntakeLimits", "struct CohortOptions", "struct CohortRefusal", "struct ContrastDeclaration", "struct CovariateShiftDeclaration", "struct ParentIdentity", "struct SupportReceipt", "struct UncalibratedStandardError"]
+sha256 = "e1689ccc87f63ebe275596d96d91385c3bfdd278cc454f3edc998ba54d68ac2d"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/cohort_decision/retained_model.rs"
+items = ["enum ModelKind", "fn contrast", "fn feature_names", "fn finish", "fn from_compact_export", "fn identity", "fn is_linear_compact", "fn is_native", "fn model_identity", "fn parent", "fn population_id", "struct RetainedEffectModel"]
+sha256 = "88e77ce0225173c0aca2cb632200d956c6f808a35c25d52408de1a5cb0dea4dc"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/cohort_decision/prediction.rs"
+items = ["fn basis_row", "fn compact_predictions", "fn map_export_refusal", "fn outside_refusal", "fn portable_predictions", "fn require_exact_schema", "fn resolve_shift", "struct Predictions"]
+sha256 = "6e62c1f314c08abc35e7e5250401d6a16143d60f4e16b6b2f586d63d708dec58"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/cohort_decision/artifact.rs"
+items = ["enum ModelWire", "fn to_body", "fn to_bytes", "fn to_bytes_within", "struct SourceBody"]
+sha256 = "c9b64a26dd05219edabb6c095bd46df75b4c412ac45347d2f27a45b8161d1496"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/cohort_decision/cohort_binding.rs"
+items = ["enum CohortColumn", "fn columns", "fn compensated_sum", "fn digest", "fn features", "fn len", "fn level", "fn new", "fn numeric", "fn population_id", "fn row_ids", "fn rows", "fn snapshot_id", "fn uniform_weights", "fn validate", "fn validate_within", "fn weights", "struct CohortBinding"]
+sha256 = "009d25876a209e064339573ad75dff47ac7d80087062f01189d8f9ee1acbdf2b"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/cohort_linear_effect.rs"
+items = ["fn a_declared_export_cannot_claim_a_native_fit", "fn a_fit_with_too_few_rows_or_a_singular_design_is_refused", "fn a_shifted_cohort_stays_point_only", "fn coefficients_and_hc3_covariance_equal_the_multiprecision_fit_with_zero_one_and_two_modifiers", "fn cohort_of", "fn column", "fn lcg", "fn native_of", "fn noiseless_data_recover_the_effect_coefficients_exactly", "fn one_modifier", "fn reference", "fn rel_close", "fn response", "fn student_t_critical_values_equal_the_inverted_incomplete_beta", "fn the_cohort_mean_interval_equals_the_reference_point_standard_error_and_bands", "fn the_fit_matches_the_two_group_closed_form_for_the_sandwich", "fn the_native_interval_is_a_symmetric_student_t_band_over_the_recomputed_standard_error", "fn wire"]
+sha256 = "3e1a3d0415ef9ee632daa904a480d9f1326de21b76715b6b4f39a36603d13ecf"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/cohort_decision.rs"
+items = ["fn a_compact_export_of_the_same_fit_is_not_a_verified_parent", "fn a_compact_linear_model_carries_the_uncalibrated_variance_diagnostic_only", "fn affine_contracts_on_the_cohort_source_match_hand_calculated_utilities", "fn changed_rows_weights_cohort_and_parent_are_refused", "fn close", "fn cohort", "fn cohort_of", "fn columns", "fn contract", "fn ctx", "fn fit", "fn fit_exported", "fn linear_utility", "fn negative_gates_are_typed_and_actionable", "fn producer_to_cohort_to_affine_contract_matches_the_hand_calculation", "fn the_source_replays_in_a_fresh_consumer_under_the_retained_identity"]
+sha256 = "355a903036c8310efebbc1396c328e887c2062e6caa2e433d3b7bd5786196ebb"

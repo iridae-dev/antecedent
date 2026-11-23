@@ -1,0 +1,22 @@
+feature_id = "estimate.dml_score_covariance"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Double/debiased machine learning for treatment and structural parameters (Chernozhukov, Chetverikov, Demirer, Duflo, Hansen, Newey, Robins, 2018)", sections = ["Section 3.1, Definition 3.1: cross-fitting with a K-fold partition", "Section 5.1: the doubly robust (AIPW) score for the average treatment effect"] },
+]
+
+implementation_deviations = [
+ "The per-arm scores and the contrast are the formulas of the existing supported AIPW score table (built once by the shared cached nuisance bundle); the covariance of weighted retargeted claims is the Gram matrix of weighted influence values, derived in-repo (docs/guides/dml-scores.md) and not taken from the paper.",
+ "The covariance is a sampling covariance conditional on the declared weights and one row snapshot; no efficiency or coverage claim is made.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/dml.rs",
+ "crates/antecedent/tests/dml_scores_retarget.rs",
+]

@@ -3,8 +3,9 @@
 //!
 //! Two kinds of claim, kept apart.
 //!
-//! *The samplers reproduce their target.* Under the published conditions (at most three parents,
-//! a sparse Bernoulli edge prior, four chains, the schedules below) the publication gate passes
+//! *The samplers reproduce their target.* Under the published conditions (a parent cap that is a
+//! design input, three by default and checked at two and four as well; a sparse Bernoulli edge
+//! prior, four chains, the schedules below) the publication gate passes
 //! on at least 80% of replicates, and on a published replicate every directed-edge and skeleton
 //! marginal agrees with [`crate::exact_dag_marginals`] (same data, score and prior) within a
 //! tolerance derived from the marginal's reported Monte-Carlo standard error. The
@@ -22,17 +23,17 @@
 //! per node, coefficients of magnitude 0.5–1) and simulates the rows. A replicate the gate
 //! refuses is counted, not scored.
 //!
-//! Each test runs via `scripts/gate_calibration.sh` and is `#[ignore]`d otherwise.
+//! Each test runs via `scripts/measure_calibration.sh` and is `#[ignore]`d otherwise.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CausalRng, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_state::GraphScoreFamily;
 
 use crate::adjacency_mask::AdjacencyMask;
-use crate::adjacency_mask::{has_edge, set_edge};
 use crate::constraints::DiscoveryConstraints;
+use crate::edge_prior::{EdgePriors, SoftTiers};
 use crate::engine::DiscoveryWorkspace;
 use crate::graph_posterior::{GraphPosterior, GraphPrior};
 use crate::order_mcmc::OrderMcmc;
@@ -42,12 +43,29 @@ use crate::structure_mcmc::StructureMcmc;
 const N_ROWS: usize = 400;
 /// Replicates (datasets) per standing design.
 const N_SIM: u64 = 100;
+/// The release verdict always uses the registered budget. The runner separately
+/// captures executed code on an instrumented prefix whose verdict is discarded.
+fn calibration_replicates(registered: u64) -> u64 {
+    if std::env::var("ANTECEDENT_CALIBRATION_SMOKE").as_deref() != Ok("1") {
+        return registered;
+    }
+    eprintln!("calibration-smoke graph discovery coverage slice; no measurement verdict");
+    std::env::var("ANTECEDENT_CALIBRATION_NSIM")
+        .ok()
+        .and_then(|count| count.parse::<u64>().ok())
+        .filter(|count| *count > 0)
+        .map_or(registered, |count| registered.min(count))
+}
+
 /// Equal-width bins of the predicted skeleton marginal.
 const N_BINS: usize = 10;
 /// Fraction of replicates the publication gate must pass.
 const MIN_PUBLISHED_FRACTION: f64 = 0.8;
-/// Published cap on the parents of any node.
+/// Default cap on the parents of any node; the designs take the cap as an input and the
+/// parent-cap designs below run others.
 const MAX_PARENTS: usize = 3;
+/// Other parent caps the standing designs are run at.
+const OTHER_MAX_PARENTS: [usize; 2] = [2, 4];
 /// Bernoulli edge-inclusion probability of the published prior. A posterior is calibrated for
 /// data drawn from its own prior, so the prior states the generator's sparsity: a node has one
 /// parent on average, which at ten to twelve variables is about 0.19 to 0.16 of the pairs
@@ -94,7 +112,7 @@ fn sparse_sem_with_magnitudes(
             let pick = pool.swap_remove(crate::indexing::bounded_index(rng.next_u64(), pool.len()));
             let sign = if rng.next_f64() < 0.5 { -1.0 } else { 1.0 };
             parents[order[pos]].push((pick, sign * (floor + span * rng.next_f64())));
-            truth = set_edge(truth, n, pick, order[pos], true);
+            truth.set_edge(n, pick, order[pos], true);
         }
     }
     let mut cols = vec![vec![0.0; rows]; n];
@@ -111,13 +129,13 @@ fn sparse_sem_with_magnitudes(
 type BinCells = [(f64, f64, f64); N_BINS];
 
 /// One published replicate's skeleton marginals against the generating graph.
-fn bin_skeleton(n: usize, post: &GraphPosterior, truth: AdjacencyMask) -> BinCells {
-    bin_edge_marginals(n, &post.edge_marginals, truth)
+fn bin_skeleton(n: usize, post: &GraphPosterior, truth: &AdjacencyMask) -> BinCells {
+    bin_edge_marginals(n, post.edge_marginals(), truth)
 }
 
 /// The skeleton marginals of directed-edge marginals `edge` (row-major `from * n + to`) against
 /// the generating graph.
-fn bin_edge_marginals(n: usize, edge: &[f64], truth: AdjacencyMask) -> BinCells {
+fn bin_edge_marginals(n: usize, edge: &[f64], truth: &AdjacencyMask) -> BinCells {
     let mut cells = [(0.0, 0.0, 0.0); N_BINS];
     for i in 0..n {
         for j in (i + 1)..n {
@@ -126,7 +144,7 @@ fn bin_edge_marginals(n: usize, edge: &[f64], truth: AdjacencyMask) -> BinCells 
             let bin = (1..N_BINS)
                 .filter(|&b| scaled >= f64::from(u32::try_from(b).unwrap_or(u32::MAX)))
                 .count();
-            let adjacent = has_edge(truth, n, i, j) || has_edge(truth, n, j, i);
+            let adjacent = truth.has_edge(n, i, j) || truth.has_edge(n, j, i);
             cells[bin].0 += 1.0;
             cells[bin].1 += p;
             cells[bin].2 += f64::from(u8::from(adjacent));
@@ -135,10 +153,10 @@ fn bin_edge_marginals(n: usize, edge: &[f64], truth: AdjacencyMask) -> BinCells 
     cells
 }
 
-/// The published prior of the designs.
-fn design_prior() -> GraphPrior {
+/// The prior of the designs, with at most `max_parents` parents per node.
+fn design_prior(max_parents: usize) -> GraphPrior {
     GraphPrior::bernoulli_edges(EDGE_INCLUSION).unwrap().with_constraints(DiscoveryConstraints {
-        max_parents: Some(MAX_PARENTS),
+        max_parents: Some(max_parents),
         ..Default::default()
     })
 }
@@ -156,7 +174,7 @@ const EXACT_MATCH_FLOOR: f64 = 1e-3;
 /// `[0.05, 0.95]`, where an indicator flips often enough for its ESS to be estimated. `None`
 /// when no edge is in that range.
 fn chain_effective_draws(post: &GraphPosterior, exact: &[f64]) -> Option<f64> {
-    let ess = post.edge_ess.as_ref()?;
+    let ess = post.edge_ess()?;
     let mut informative: Vec<f64> = exact
         .iter()
         .zip(ess.iter())
@@ -193,34 +211,60 @@ fn marginal_error(reported: f64, exact: f64, effective_draws: Option<f64>) -> f6
 /// its worst difference from the exact marginals and the outcome of each gate criterion, so a
 /// disagreement is visibly either withheld (correct) or published (a failure). All published
 /// disagreements are listed before the test fails.
+fn assert_marginals_match_the_exact_posterior(
+    label: &str,
+    n: usize,
+    max_parents: usize,
+    sampler: GatedSampler,
+) {
+    assert_marginals_match_the_exact_posterior_under(
+        &format!("{label} max_parents={max_parents}"),
+        n,
+        &design_prior(max_parents),
+        sampler,
+    );
+}
+
+/// [`assert_marginals_match_the_exact_posterior`] under any prior.
 #[allow(clippy::too_many_lines, reason = "one replicate loop printing every comparison in order")]
-fn assert_marginals_match_the_exact_posterior(label: &str, n: usize, sampler: GatedSampler) {
+fn assert_marginals_match_the_exact_posterior_under(
+    label: &str,
+    n: usize,
+    prior: &GraphPrior,
+    sampler: GatedSampler,
+) {
     let vars: Vec<VariableId> =
         (0..n).map(|i| VariableId::from_raw(u32::try_from(i).unwrap())).collect();
-    let prior = design_prior();
     let names: Vec<String> = (0..n).map(|i| format!("v{i}")).collect();
     let name_refs: Vec<&str> = names.iter().map(String::as_str).collect();
     let mut truth_bins: Vec<BinCells> = Vec::new();
     let mut failures: Vec<String> = Vec::new();
-    for rep in 0..N_SIM {
+    let replicates = calibration_replicates(N_SIM);
+    let threads = std::env::var("ANTECEDENT_CALIBRATION_THREADS")
+        .ok()
+        .and_then(|value| value.parse::<u32>().ok())
+        .unwrap_or(1)
+        .max(1);
+    let results = ExecutionContext::production(0, threads).map_indexed(
+        usize::try_from(replicates).expect("registered replicate count fits usize"),
+        |index, _| {
+        let rep = u64::try_from(index).expect("registered replicate index fits u64");
         let (cols, truth) = sparse_sem(n, N_ROWS, 0x00ED_6E00 + rep);
         let data = crate::test_tables::continuous_table(&name_refs, cols);
         let ctx = ExecutionContext::for_tests(9_000 + rep);
-        let Some(post) = sampler(false, &data, &vars, &prior, &ctx) else {
-            println!("exact-posterior-match {label} n={n} rep={rep} sampler error");
-            continue;
+        let Some(post) = sampler(false, &data, &vars, prior, &ctx) else {
+            return Ok::<_, std::convert::Infallible>((format!("exact-posterior-match {label} n={n} rep={rep} sampler error"), None));
         };
-        let published = post.diagnostics.converged;
+        let published = post.diagnostics().converged;
         let exact =
-            crate::exact_dag_marginals(&data, &vars, &prior, GraphScoreFamily::GaussianBic, &ctx)
+            crate::exact_dag_marginals(&data, &vars, prior, GraphScoreFamily::GaussianBic, &ctx)
                 .unwrap();
-        let mcse = post.edge_mcse.as_ref().expect("a posterior reports its mcse");
+        let mcse = post.edge_mcse().expect("a posterior reports its mcse");
         let n_eff = chain_effective_draws(&post, &exact.edge_marginals);
         // A rarely-flipping edge has fewer effective draws than the chain's median; its own ESS,
         // when finite, bounds the draws its marginal is estimated from.
         let edge_draws = |k: usize| {
-            let own =
-                post.edge_ess.as_ref().map(|ess| ess[k]).filter(|e| e.is_finite() && *e > 0.0);
+            let own = post.edge_ess().map(|ess| ess[k]).filter(|e| e.is_finite() && *e > 0.0);
             match (n_eff, own) {
                 (Some(chain), Some(own)) => Some(chain.min(own)),
                 (chain, own) => chain.or(own),
@@ -234,7 +278,7 @@ fn assert_marginals_match_the_exact_posterior(label: &str, n: usize, sampler: Ga
                     continue;
                 }
                 let k = i * n + j;
-                let difference = (post.edge_marginals[k] - exact.edge_marginals[k]).abs();
+                let difference = (post.edge_marginals()[k] - exact.edge_marginals[k]).abs();
                 if difference > worst.0 {
                     worst = (difference, i, j);
                 }
@@ -243,13 +287,14 @@ fn assert_marginals_match_the_exact_posterior(label: &str, n: usize, sampler: Ga
                     violation = Some(format!(
                         "{label} n={n} rep={rep} edge {i}->{j}: sampler {:.5} vs exact {:.5} \
                          (error {error_k:.5})",
-                        post.edge_marginals[k], exact.edge_marginals[k],
+                        post.edge_marginals()[k],
+                        exact.edge_marginals[k],
                     ));
                 }
                 if i < j {
                     let r = j * n + i;
                     let (sampled, expected) = (
-                        post.edge_marginals[k] + post.edge_marginals[r],
+                        post.edge_marginals()[k] + post.edge_marginals()[r],
                         exact.edge_marginals[k] + exact.edge_marginals[r],
                     );
                     let error = marginal_error(mcse[k], exact.edge_marginals[k], edge_draws(k))
@@ -266,8 +311,8 @@ fn assert_marginals_match_the_exact_posterior(label: &str, n: usize, sampler: Ga
             }
         }
         let gate: Vec<&str> =
-            post.diagnostics.notes.iter().filter_map(|note| note.strip_prefix("gate_")).collect();
-        println!(
+            post.diagnostics().notes.iter().filter_map(|note| note.strip_prefix("gate_")).collect();
+        let message = format!(
             "exact-posterior-match {label} n={n} rep={rep} published={published} \
              worst_error={:.5} at {}->{} outside_tolerance={} gate=[{}]",
             worst.0,
@@ -276,16 +321,19 @@ fn assert_marginals_match_the_exact_posterior(label: &str, n: usize, sampler: Ga
             violation.is_some(),
             gate.join("; ")
         );
-        if !published {
-            continue;
+        Ok((message, published.then(|| (bin_skeleton(n, &post, &truth), violation))))
+    }).expect("execute every registered graph dataset");
+    for (message, published) in results {
+        println!("{message}");
+        if let Some((bins, violation)) = published {
+            if let Some(message) = violation {
+                failures.push(message);
+            }
+            truth_bins.push(bins);
         }
-        if let Some(message) = violation {
-            failures.push(message);
-        }
-        truth_bins.push(bin_skeleton(n, &post, truth));
     }
-    let rate = truth_bins.len() as f64 / N_SIM as f64;
-    println!("exact-posterior-match {label} n={n} published={}/{N_SIM}", truth_bins.len());
+    let rate = truth_bins.len() as f64 / replicates as f64;
+    println!("exact-posterior-match {label} n={n} published={}/{replicates}", truth_bins.len());
     assert!(
         rate >= MIN_PUBLISHED_FRACTION,
         "{label} n={n}: the publication gate passed {rate:.2} of replicates, below \
@@ -341,8 +389,34 @@ fn order_sampler_gated(
     prior: &GraphPrior,
     ctx: &ExecutionContext,
 ) -> Option<GraphPosterior> {
+    order_sampler_scheduled(gate, data, vars, prior, ctx, 1)
+}
+
+/// [`order_sampler_gated`] with four times the warmup and draws: the schedule the parent caps
+/// other than the default are published at. A tighter or looser cap reshapes which parent sets
+/// the chains must cross between; at 24,000 draws the four chains can agree on a rare skeleton
+/// pair before they have settled on its marginal, which the gate cannot see, and at 96,000 every
+/// published replicate matches the exact posterior.
+fn order_sampler_long(
+    gate: bool,
+    data: &TabularData,
+    vars: &[VariableId],
+    prior: &GraphPrior,
+    ctx: &ExecutionContext,
+) -> Option<GraphPosterior> {
+    order_sampler_scheduled(gate, data, vars, prior, ctx, 4)
+}
+
+fn order_sampler_scheduled(
+    gate: bool,
+    data: &TabularData,
+    vars: &[VariableId],
+    prior: &GraphPrior,
+    ctx: &ExecutionContext,
+    scale: u32,
+) -> Option<GraphPosterior> {
     OrderMcmc::new()
-        .with_schedule(4, 6000, 24_000, 2)
+        .with_schedule(4, 6000 * scale, 24_000 * scale, 2)
         .with_diagnostics_gate(gate)
         .run(
             data,
@@ -356,28 +430,368 @@ fn order_sampler_gated(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn structure_mcmc_marginals_match_the_exact_posterior_at_ten_variables() {
-    assert_marginals_match_the_exact_posterior("structure_mcmc", 10, structure_sampler_gated);
+    assert_marginals_match_the_exact_posterior(
+        "structure_mcmc",
+        10,
+        MAX_PARENTS,
+        structure_sampler_gated,
+    );
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn structure_mcmc_marginals_match_the_exact_posterior_at_twelve_variables() {
-    assert_marginals_match_the_exact_posterior("structure_mcmc", 12, structure_sampler_gated);
+    assert_marginals_match_the_exact_posterior(
+        "structure_mcmc",
+        12,
+        MAX_PARENTS,
+        structure_sampler_gated,
+    );
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn order_mcmc_marginals_match_the_exact_posterior_at_ten_variables() {
-    assert_marginals_match_the_exact_posterior("order_mcmc", 10, order_sampler_gated);
+    assert_marginals_match_the_exact_posterior("order_mcmc", 10, MAX_PARENTS, order_sampler_gated);
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn order_mcmc_marginals_match_the_exact_posterior_at_twelve_variables() {
-    assert_marginals_match_the_exact_posterior("order_mcmc", 12, order_sampler_gated);
+    assert_marginals_match_the_exact_posterior("order_mcmc", 12, MAX_PARENTS, order_sampler_gated);
 }
+
+#[test]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
+fn structure_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps() {
+    for max_parents in OTHER_MAX_PARENTS {
+        assert_marginals_match_the_exact_posterior(
+            "structure_mcmc",
+            10,
+            max_parents,
+            structure_sampler_gated,
+        );
+    }
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
+fn order_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps() {
+    for max_parents in OTHER_MAX_PARENTS {
+        assert_marginals_match_the_exact_posterior(
+            "order_mcmc",
+            10,
+            max_parents,
+            order_sampler_long,
+        );
+    }
+}
+
+/// Variables of the per-edge designs that compare a sampler with the exact marginals.
+const PER_EDGE_SAMPLER_VARIABLES: usize = 10;
+/// Variables of the per-edge reliability designs (the exact marginals are cheap here).
+const RELIABILITY_VARIABLES: usize = 6;
+/// Replicates of a reliability design.
+const RELIABILITY_REPLICATES: u64 = 400;
+/// Pairs a reliability bin needs before its residual is judged.
+const RELIABILITY_MIN_CELLS: f64 = 200.0;
+/// Standard errors a reliability bin's pooled residual may sit from zero.
+const RELIABILITY_MAX_Z: f64 = 3.5;
+/// Log-penalty the soft-tier designs charge an edge against the declared order.
+const SOFT_TIER_PENALTY: f64 = 1.5;
+
+fn variable_ids(n: usize) -> Vec<VariableId> {
+    (0..n).map(|i| VariableId::from_raw(u32::try_from(i).unwrap())).collect()
+}
+
+/// A sparse per-edge map for `n` variables: a few pairs the prior believes in at `0.35`, a few it
+/// doubts at `0.02`, the rest at the design's [`EDGE_INCLUSION`].
+fn per_edge_map(n: usize) -> EdgePriors {
+    let v = variable_ids(n);
+    let mut edges = Vec::new();
+    for i in 0..n {
+        for j in 0..n {
+            if i == j {
+                continue;
+            }
+            match (i + 2 * j) % 7 {
+                0 => edges.push((v[i], v[j], 0.35)),
+                3 => edges.push((v[i], v[j], 0.02)),
+                _ => {}
+            }
+        }
+    }
+    EdgePriors::new(edges).with_default(EDGE_INCLUSION)
+}
+
+/// Two soft tiers: the first half of the variables, then the second.
+fn half_tiers(n: usize) -> SoftTiers {
+    let v = variable_ids(n);
+    let first: std::sync::Arc<[VariableId]> = v[..n / 2].to_vec().into();
+    let second: std::sync::Arc<[VariableId]> = v[n / 2..].to_vec().into();
+    SoftTiers::with_log_penalty(vec![first, second], SOFT_TIER_PENALTY)
+}
+
+fn per_edge_prior(n: usize, max_parents: usize) -> GraphPrior {
+    design_prior(max_parents).with_edge_priors(per_edge_map(n))
+}
+
+fn soft_tier_prior(n: usize, max_parents: usize) -> GraphPrior {
+    design_prior(max_parents).with_soft_tiers(half_tiers(n))
+}
+
+fn per_edge_and_soft_tier_prior(n: usize, max_parents: usize) -> GraphPrior {
+    per_edge_prior(n, max_parents).with_soft_tiers(half_tiers(n))
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
+fn structure_mcmc_marginals_match_the_exact_posterior_under_per_edge_priors() {
+    assert_marginals_match_the_exact_posterior_under(
+        "structure_mcmc per_edge",
+        PER_EDGE_SAMPLER_VARIABLES,
+        &per_edge_and_soft_tier_prior(PER_EDGE_SAMPLER_VARIABLES, MAX_PARENTS),
+        structure_sampler_gated,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
+fn order_mcmc_marginals_match_the_exact_posterior_under_per_edge_priors() {
+    assert_marginals_match_the_exact_posterior_under(
+        "order_mcmc per_edge",
+        PER_EDGE_SAMPLER_VARIABLES,
+        &per_edge_and_soft_tier_prior(PER_EDGE_SAMPLER_VARIABLES, MAX_PARENTS),
+        order_sampler_gated,
+    );
+}
+
+/// The prior probability an edge `from -> to` is present under `prior`, as the posterior's prior
+/// states it (listed probability, else the default, else the global one; a soft tier scales the
+/// odds of an edge against the order by `exp(-penalty)`).
+fn prior_edge_probability(prior: &GraphPrior, n: usize, from: usize, to: usize) -> f64 {
+    let v = variable_ids(n);
+    let base = prior
+        .edge_priors
+        .as_ref()
+        .and_then(|map| {
+            map.edges
+                .iter()
+                .find(|&&(a, b, _)| a == v[from] && b == v[to])
+                .map(|&(_, _, p)| p)
+                .or(map.default)
+        })
+        .or(prior.edge_inclusion)
+        .unwrap_or(0.5);
+    let Some(soft) = &prior.soft_tiers else { return base };
+    let tier_of = |x: VariableId| soft.tiers.iter().position(|tier| tier.contains(&x));
+    match (tier_of(v[from]), tier_of(v[to])) {
+        (Some(a), Some(b)) if a > b => {
+            let odds = base / (1.0 - base) * (-soft.log_penalty).exp();
+            odds / (1.0 + odds)
+        }
+        _ => base,
+    }
+}
+
+/// A DAG drawn from `prior`: every ordered pair independently present with its prior
+/// probability, redrawn until the graph is acyclic and within the parent cap, which is the
+/// prior restricted to the DAGs it is a prior over.
+fn draw_dag_from_prior(prior: &GraphPrior, n: usize, rng: &mut CausalRng) -> AdjacencyMask {
+    loop {
+        let mut mask = AdjacencyMask::EMPTY;
+        for from in 0..n {
+            for to in 0..n {
+                if from != to && rng.next_f64() < prior_edge_probability(prior, n, from, to) {
+                    mask.set_edge(n, from, to, true);
+                }
+            }
+        }
+        let within_cap = prior.constraints.max_parents.is_none_or(|cap| {
+            (0..n).all(|v| crate::adjacency_mask::parents_of(&mask, n, v).len() <= cap)
+        });
+        if within_cap && crate::adjacency_mask::mask_is_dag(&mask, n) {
+            return mask;
+        }
+    }
+}
+
+/// Linear-Gaussian rows over the DAG `truth` (coefficient magnitudes `0.5` to `1`).
+fn rows_from_dag(
+    truth: &AdjacencyMask,
+    n: usize,
+    rows: usize,
+    rng: &mut CausalRng,
+) -> Vec<Vec<f64>> {
+    // Topological order by repeatedly taking a node whose parents are all placed.
+    let mut order: Vec<usize> = Vec::with_capacity(n);
+    while order.len() < n {
+        let next = (0..n)
+            .find(|&v| {
+                !order.contains(&v)
+                    && (0..n).all(|u| !truth.has_edge(n, u, v) || order.contains(&u))
+            })
+            .expect("a DAG has a source among the unplaced nodes");
+        order.push(next);
+    }
+    let mut coefficient = vec![vec![0.0; n]; n];
+    for from in 0..n {
+        for to in 0..n {
+            if from != to && truth.has_edge(n, from, to) {
+                let sign = if rng.next_f64() < 0.5 { -1.0 } else { 1.0 };
+                coefficient[from][to] = sign * (0.5 + 0.5 * rng.next_f64());
+            }
+        }
+    }
+    let mut cols = vec![vec![0.0; rows]; n];
+    for row in 0..rows {
+        for &node in &order {
+            let mean: f64 = (0..n).map(|p| coefficient[p][node] * cols[p][row]).sum();
+            cols[node][row] = mean + normal(rng);
+        }
+    }
+    cols
+}
+
+/// Preserve the bin sufficient statistics from each independent dataset, even when the
+/// reliability assertion fails. The numerical assertion itself still supplies the verdict.
+fn print_reliability_report(
+    label: &str,
+    family: GraphScoreFamily,
+    replicates: &[BinCells],
+    pooled: &BinCells,
+    passed: bool,
+) {
+    let bins: Vec<_> = pooled
+        .iter()
+        .enumerate()
+        .map(|(bin, &(cells, predicted, observed))| {
+            let cluster_residual_squares: f64 =
+                replicates.iter().map(|dataset| (dataset[bin].2 - dataset[bin].1).powi(2)).sum();
+            serde_json::json!({
+                "cells": cells, "predicted_sum": predicted, "observed_sum": observed,
+                "cluster_residual_squares": cluster_residual_squares,
+            })
+        })
+        .collect();
+    let report = serde_json::json!({
+        "design": label, "score": format!("{family:?}"), "variables": RELIABILITY_VARIABLES,
+        "rows_per_dataset": N_ROWS, "minimum_bin_cells": RELIABILITY_MIN_CELLS,
+        "maximum_abs_z": RELIABILITY_MAX_Z, "bins": bins,
+        "dataset_bins": replicates, "reliability_passed": passed,
+    });
+    println!("graph-reliability-report {report}");
+}
+
+/// Edge-marginal reliability under data drawn from the posterior's own prior.
+///
+/// Each replicate draws a DAG from `prior`, simulates rows from it, computes the exact marginals
+/// under `prior`, and bins every directed-edge marginal against whether the edge was drawn. Among
+/// edges reported at `p`, a fraction near `p` should be present: each bin's pooled residual
+/// `sum (observed - predicted)` must lie within [`RELIABILITY_MAX_Z`] cluster-robust standard
+/// errors of zero (clusters are replicates, whose edges share one dataset), for every bin of at
+/// least [`RELIABILITY_MIN_CELLS`] edges.
+fn check_complete_edge_reliability(
+    label: &str,
+    prior: &GraphPrior,
+    family: GraphScoreFamily,
+    seed: u64,
+) {
+    let n = RELIABILITY_VARIABLES;
+    let vars = variable_ids(n);
+    let names: Vec<String> = (0..n).map(|i| format!("v{i}")).collect();
+    let name_refs: Vec<&str> = names.iter().map(String::as_str).collect();
+    let mut replicates: Vec<BinCells> = Vec::new();
+    for rep in 0..calibration_replicates(RELIABILITY_REPLICATES) {
+        let mut rng = CausalRng::from_seed(seed + rep);
+        let truth = draw_dag_from_prior(prior, n, &mut rng);
+        let cols = rows_from_dag(&truth, n, N_ROWS, &mut rng);
+        let data = crate::test_tables::continuous_table(&name_refs, cols);
+        let ctx = ExecutionContext::for_tests(7_000 + rep);
+        let exact = crate::exact_dag_marginals(&data, &vars, prior, family, &ctx).unwrap();
+        let mut cells = [(0.0, 0.0, 0.0); N_BINS];
+        for from in 0..n {
+            for to in 0..n {
+                if from == to {
+                    continue;
+                }
+                let p = exact.edge_marginals[from * n + to];
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss,
+                    reason = "p is an edge marginal in [0, 1], so the bin index is in range"
+                )]
+                let bin = ((p * N_BINS as f64) as usize).min(N_BINS - 1);
+                cells[bin].0 += 1.0;
+                cells[bin].1 += p;
+                cells[bin].2 += f64::from(u8::from(truth.has_edge(n, from, to)));
+            }
+        }
+        replicates.push(cells);
+    }
+    let pooled = pool(&replicates);
+    let mut failures = Vec::new();
+    for (bin, &(cells, predicted, observed)) in pooled.iter().enumerate() {
+        if cells == 0.0 {
+            continue;
+        }
+        let residual = observed - predicted;
+        let spread: f64 = replicates.iter().map(|r| (r[bin].2 - r[bin].1).powi(2)).sum();
+        let z = if spread > 0.0 { residual / spread.sqrt() } else { 0.0 };
+        println!(
+            "edge-reliability {label} bin={bin} cells={cells} predicted={:.4} observed={:.4} z={z:.2}",
+            predicted / cells,
+            observed / cells
+        );
+        if cells >= RELIABILITY_MIN_CELLS && z.abs() > RELIABILITY_MAX_Z {
+            failures.push(format!("bin {bin}: {cells} edges, z = {z:.2}"));
+        }
+    }
+    print_reliability_report(label, family, &replicates, &pooled, failures.is_empty());
+    assert!(
+        failures.is_empty(),
+        "{label}: edge marginals are not reliable under draws from the prior: {}",
+        failures.join("; ")
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
+fn signed_uniform_per_edge_edge_probabilities_match_generating_frequencies() {
+    check_complete_edge_reliability(
+        "per_edge",
+        &per_edge_prior(RELIABILITY_VARIABLES, MAX_PARENTS),
+        GraphScoreFamily::GaussianSignedUniform,
+        0x6A14_0000,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
+fn signed_uniform_soft_tiers_edge_probabilities_match_generating_frequencies() {
+    check_complete_edge_reliability(
+        "soft_tiers",
+        &soft_tier_prior(RELIABILITY_VARIABLES, MAX_PARENTS),
+        GraphScoreFamily::GaussianSignedUniform,
+        0x6A15_0000,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
+fn signed_uniform_per_edge_and_soft_tiers_edge_probabilities_match_generating_frequencies() {
+    check_complete_edge_reliability(
+        "per_edge_and_soft_tiers",
+        &per_edge_and_soft_tier_prior(RELIABILITY_VARIABLES, MAX_PARENTS),
+        GraphScoreFamily::GaussianSignedUniform,
+        0x6A16_0000,
+    );
+}
+
+/// Fraction of final-column observations hidden in the observed-data study.
+const POOLED_MISSING_SHARE: f64 = 0.25;
 
 /// Replicates of the diagnostic below that run the exact computation only (cheap).
 const DIAGNOSTIC_EXACT_REPLICATES: u64 = 100;
@@ -422,7 +836,7 @@ fn exact_marginals_locate_the_skeleton_overstatement() {
     let n = 10;
     let vars: Vec<VariableId> =
         (0..n).map(|i| VariableId::from_raw(u32::try_from(i).unwrap())).collect();
-    let prior = design_prior();
+    let prior = design_prior(MAX_PARENTS);
     let names: Vec<String> = (0..n).map(|i| format!("v{i}")).collect();
     let name_refs: Vec<&str> = names.iter().map(String::as_str).collect();
     let draw = |magnitudes: (f64, f64), rep: u64| {
@@ -446,7 +860,7 @@ fn exact_marginals_locate_the_skeleton_overstatement() {
         let cells: Vec<BinCells> = (0..DIAGNOSTIC_EXACT_REPLICATES)
             .map(|rep| {
                 let (data, truth) = draw(magnitudes, rep);
-                bin_edge_marginals(n, &exact_of(&data, rep).edge_marginals, truth)
+                bin_edge_marginals(n, &exact_of(&data, rep).edge_marginals, &truth)
             })
             .collect();
         for (bin, &(pairs, predicted, observed)) in pool(&cells).iter().enumerate() {
@@ -478,7 +892,8 @@ fn exact_marginals_locate_the_skeleton_overstatement() {
                 for j in (i + 1)..n {
                     let exact_skeleton =
                         exact.edge_marginals[i * n + j] + exact.edge_marginals[j * n + i];
-                    let sampled = post.edge_marginals[i * n + j] + post.edge_marginals[j * n + i];
+                    let sampled =
+                        post.edge_marginals()[i * n + j] + post.edge_marginals()[j * n + i];
                     worst_gap = worst_gap.max((sampled - exact_skeleton).abs());
                     gap_all += sampled - exact_skeleton;
                     if exact_skeleton < 1.0 / N_BINS as f64 {
@@ -488,14 +903,11 @@ fn exact_marginals_locate_the_skeleton_overstatement() {
                     }
                 }
             }
-            let (mcse, rhat, ess) = (
-                post.edge_mcse.as_ref().unwrap(),
-                post.edge_rhat.as_ref().unwrap(),
-                post.edge_ess.as_ref().unwrap(),
-            );
+            let (mcse, rhat, ess) =
+                (post.edge_mcse().unwrap(), post.edge_rhat().unwrap(), post.edge_ess().unwrap());
             let worst = (0..n * n).max_by(|&a, &b| mcse[a].total_cmp(&mcse[b])).unwrap();
             let (wi, wj) = (worst / n, worst % n);
-            let d = &post.diagnostics;
+            let d = post.diagnostics();
             refused += u64::from(!d.converged);
             println!(
                 "skeleton-diagnostic {label} rep={rep} published={} rhat_max={:?} \
@@ -537,8 +949,8 @@ mod tests {
     fn sparse_sem_returns_its_generating_graph() {
         for n in [10usize, 12] {
             let (cols, truth) = sparse_sem(n, N_ROWS, 17);
-            assert!(crate::adjacency_mask::mask_is_dag(truth, n));
-            assert!((0..n).all(|v| crate::adjacency_mask::parents_of(truth, n, v).len() <= 2));
+            assert!(crate::adjacency_mask::mask_is_dag(&truth, n));
+            assert!((0..n).all(|v| crate::adjacency_mask::parents_of(&truth, n, v).len() <= 2));
             assert!(cols.iter().all(|c| c.len() == N_ROWS && c.iter().all(|x| x.is_finite())));
         }
     }
@@ -547,7 +959,7 @@ mod tests {
     #[test]
     fn binning_places_a_pair_by_its_skeleton_marginal() {
         let n = 3;
-        let truth = set_edge(AdjacencyMask::EMPTY, n, 0, 1, true);
+        let truth = crate::adjacency_mask::set_edge(AdjacencyMask::EMPTY, n, 0, 1, true);
         let mut edge = vec![0.0; n * n];
         edge[1] = 0.25;
         edge[n] = 0.5; // P(1 -> 0) = 0.5: skeleton pair (0, 1) at 0.75
@@ -555,7 +967,7 @@ mod tests {
         let post = GraphPosterior::from_atoms(
             n,
             vec![1.0],
-            vec![truth],
+            vec![truth.clone()],
             edge.clone(),
             edge,
             crate::graph_posterior::SamplingSummary {
@@ -565,8 +977,11 @@ mod tests {
             },
         )
         .unwrap();
-        let cells = bin_skeleton(n, &post, truth);
+        let cells = bin_skeleton(n, &post, &truth);
         assert_eq!(cells[7], (1.0, 0.75, 1.0));
         assert_eq!(cells[0], (2.0, 0.05, 0.0));
     }
 }
+
+#[path = "observed_marginals_validation.rs"]
+mod observed_marginals_validation;

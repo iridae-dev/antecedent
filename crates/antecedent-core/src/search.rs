@@ -11,7 +11,7 @@
 //! a resource outcome, never an impossibility or non-identification claim.
 //! Wire encoding of a receipt belongs to the artifact that carries it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::execution::ExecutionContext;
 
@@ -140,7 +140,7 @@ impl<'a> SearchBudget<'a> {
         ctx: &'a ExecutionContext,
     ) -> Result<Self, SearchReceipt> {
         let memory_limit_bytes =
-            ctx.memory.hard_limit_bytes.map_or(memory_limit_bytes, |h| h.min(memory_limit_bytes));
+            ctx.memory_limit_bytes().map_or(memory_limit_bytes, |h| h.min(memory_limit_bytes));
         let budget = Self {
             limits,
             ctx,
@@ -188,6 +188,62 @@ impl<'a> SearchBudget<'a> {
         }
         self.operations += 1;
         Ok(())
+    }
+
+    /// Whether `work` further operations at `depth` over `bytes` of live state would be admitted,
+    /// without recording them: neither the operation count nor the depth reached moves.
+    ///
+    /// A search whose accounting is part of a stored receipt meters work it cannot yet price
+    /// per operation (the leaves of an enumeration) with this, so the enumeration stops at the
+    /// budget while the receipt keeps counting only the operations that were charged.
+    /// Cancellation is checked first, then memory, operations and depth, as in [`Self::charge`].
+    ///
+    /// # Errors
+    ///
+    /// Returns the bound the work would cross.
+    pub fn admits(&self, depth: usize, bytes: u64, work: u64) -> Result<(), SearchStop> {
+        if self.ctx.cancellation.is_cancelled() {
+            return Err(SearchStop::Cancelled);
+        }
+        if bytes > self.memory_limit_bytes {
+            return Err(SearchStop::Memory);
+        }
+        if work > u64::try_from(self.operations_remaining()).unwrap_or(u64::MAX) {
+            return Err(SearchStop::Operations);
+        }
+        if depth > self.limits.depth {
+            return Err(SearchStop::Depth);
+        }
+        Ok(())
+    }
+
+    /// Lease `bytes` of storage for the search's context on its admission pool, to be held
+    /// while the caller allocates it. Nothing is allocated here, and a refusal charges nothing.
+    ///
+    /// # Errors
+    ///
+    /// [`SearchStop::Cancelled`] when the context is cancelled, [`SearchStop::Memory`] when
+    /// `bytes` exceeds the effective cap or the pool cannot fund it.
+    pub fn lease_storage(
+        &self,
+        bytes: u64,
+    ) -> Result<crate::execution::AdmissionLease, SearchStop> {
+        if self.ctx.cancellation.is_cancelled() {
+            return Err(SearchStop::Cancelled);
+        }
+        if bytes > self.memory_limit_bytes {
+            return Err(SearchStop::Memory);
+        }
+        self.ctx.acquire_admission(0, bytes).map_err(|error| match error {
+            crate::execution::AdmissionError::Cancelled => SearchStop::Cancelled,
+            _ => SearchStop::Memory,
+        })
+    }
+
+    /// Operations the limits still allow.
+    #[must_use]
+    pub const fn operations_remaining(&self) -> usize {
+        self.limits.operations.saturating_sub(self.operations)
     }
 
     /// Limits in force.
@@ -238,7 +294,6 @@ impl<'a> SearchBudget<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::execution::MemoryBudget;
 
     const LIMITS: SearchLimits = SearchLimits { operations: 3, depth: 2 };
 
@@ -310,7 +365,7 @@ mod tests {
     #[test]
     fn memory_and_mid_search_cancellation_are_observed_on_every_charge() {
         let mut ctx = ExecutionContext::for_tests(1);
-        ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(1024) };
+        ctx.set_memory_limit(Some(1024));
         let mut budget = SearchBudget::new(LIMITS, &ctx).unwrap();
         budget.charge(0, 1024).unwrap();
         assert_eq!(budget.charge(0, 1025), Err(SearchStop::Memory));
@@ -326,7 +381,7 @@ mod tests {
     fn the_memory_bound_is_never_absent_and_is_the_smaller_of_cap_and_context() {
         // No context limit: the default cap applies and is reported.
         let ctx = ExecutionContext::for_tests(1);
-        assert_eq!(ctx.memory.hard_limit_bytes, None);
+        assert_eq!(ctx.memory_limit_bytes(), None);
         let mut budget = SearchBudget::new(LIMITS, &ctx).unwrap();
         assert_eq!(budget.memory_limit_bytes(), DEFAULT_SEARCH_MEMORY_BYTES);
         budget.charge(0, DEFAULT_SEARCH_MEMORY_BYTES).unwrap();
@@ -337,7 +392,7 @@ mod tests {
         let mut small = SearchBudget::with_memory(LIMITS, 100, &ctx).unwrap();
         assert_eq!(small.charge(0, 101), Err(SearchStop::Memory));
         let mut limited = ExecutionContext::for_tests(1);
-        limited.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(50) };
+        limited.set_memory_limit(Some(50));
         let capped = SearchBudget::with_memory(LIMITS, 100, &limited).unwrap();
         assert_eq!(capped.memory_limit_bytes(), 50);
         let wider = SearchBudget::with_memory(LIMITS, 10, &limited).unwrap();

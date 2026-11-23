@@ -30,7 +30,7 @@
 //! means, never a law. The overlap check is a fitted-box necessary condition, not a
 //! density or positivity guarantee. No standard error, interval or utility variance is
 //! inherited; [`TransportedCohort::interval_refusal`] and
-//! [`TransportedCohort::law_refusal`] name the evidence that would license either.
+//! [`TransportedCohort::law_refusal`] name the evidence that would support either.
 //!
 //! The retained analysis result carries no population label of its own, so the source
 //! population is declared by the caller and bound into the identity. The route is bounded
@@ -55,7 +55,7 @@
 //! hence a new analysis result, parent claim and value. Target-population outcomes cannot
 //! move the issued value (the cohort carries covariates and weights, not outcomes).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 pub use antecedent_learn::transported_effect::{
@@ -78,15 +78,20 @@ pub const COHORT_TRANSPORT_ROUTE: &str = "cohort_effect";
 pub const COHORT_TRANSPORT_SUPPORT: &str = "extrapolative";
 
 /// A declaration that the retained model is not a portable analysis result.
-pub const DETAIL_MODEL_NOT_PORTABLE: &str = "transported_effect.model_not_portable";
+pub const DETAIL_MODEL_NOT_PORTABLE: &str =
+    antecedent_core::reason_details::transported_effect::MODEL_NOT_PORTABLE;
 /// A cohort feature that is not a finite numeric column.
-pub const DETAIL_COHORT_NOT_NUMERIC: &str = "transported_effect.cohort_not_numeric";
+pub const DETAIL_COHORT_NOT_NUMERIC: &str =
+    antecedent_core::reason_details::transported_effect::COHORT_NOT_NUMERIC;
 /// Outcome units were not declared.
-pub const DETAIL_UNITS_REQUIRED: &str = "transported_effect.outcome_units_required";
+pub const DETAIL_UNITS_REQUIRED: &str =
+    antecedent_core::reason_details::transported_effect::OUTCOME_UNITS_REQUIRED;
 /// The retained identity is not the recomputed one.
-pub const DETAIL_IDENTITY_MISMATCH: &str = "transported_effect.identity_mismatch";
+pub const DETAIL_IDENTITY_MISMATCH: &str =
+    antecedent_core::reason_details::transported_effect::IDENTITY_MISMATCH;
 /// The decision source's mean is not the transported mean.
-pub const DETAIL_DECISION_MEAN_MISMATCH: &str = "transported_effect.decision_source_mismatch";
+pub const DETAIL_DECISION_MEAN_MISMATCH: &str =
+    antecedent_core::reason_details::transported_effect::DECISION_SOURCE_MISMATCH;
 
 fn invalid(
     detail: &'static str,
@@ -345,14 +350,14 @@ pub fn transport_cohort_effect_from_result(
         None => FittedEffectModel::load(artifact),
     }
     .map_err(lift)?;
-    let consumed = antecedent_io::consume_analysis_result(artifact).map_err(|_| {
+    let consumed = antecedent_io::replay_analysis_result(artifact).map_err(|_| {
         invalid(
             DETAIL_MODEL_NOT_PORTABLE,
             "analysis_result",
             "supply the exported analysis result of a native DR-learner or causal-forest fit",
         )
     })?;
-    let Some(effect) = consumed.body.fitted_effect.clone() else {
+    let Some(effect) = consumed.body.fitted_effect.as_deref().cloned() else {
         return Err(invalid(
             DETAIL_MODEL_NOT_PORTABLE,
             "fitted_effect",

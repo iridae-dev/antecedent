@@ -10,7 +10,8 @@
 //! Providers are reached through `antecedent-learn` and exported to its
 //! provider-independent tree map, so the fitted slot carries no foreign model.
 
-use antecedent_core::ExecutionContext;
+use antecedent_core::execution::AdmissionError;
+use antecedent_core::{ExecutionContext, Parallelism, RngFactory};
 use antecedent_learn::{
     DesignView, ForestSpec, GbtSpec, LearnError, LearnerSpec, PredictionTask, TargetView,
     resolve_for,
@@ -77,12 +78,56 @@ fn learn_error(error: LearnError) -> ModelError {
                  `ml-forest` feature)"
             ),
         },
+        LearnError::Cancelled | LearnError::Admission(AdmissionError::Cancelled) => {
+            ModelError::Cancelled
+        }
+        // The host's budget or the learner's declared limit was passed: the same refusal family
+        // as every other admitted fit, never a family that merely failed.
+        LearnError::Admission(AdmissionError::ExceedsRemainder {
+            requested_bytes,
+            remaining_bytes,
+            ..
+        }) => ModelError::ResourceLimit {
+            message: "tree-ensemble fit working set",
+            required_bytes: requested_bytes,
+            limit_bytes: remaining_bytes,
+        },
+        LearnError::Admission(_) => ModelError::ResourceLimit {
+            message: "tree-ensemble fit working set",
+            required_bytes: u64::MAX,
+            limit_bytes: 0,
+        },
+        LearnError::ResourceLimit { message } => {
+            ModelError::ResourceLimit { message, required_bytes: u64::MAX, limit_bytes: 0 }
+        }
         other => ModelError::Unsupported { message: format!("tree ensemble fit: {other}") },
     }
 }
 
+/// The context every ensemble fit of `frame` runs under: the caller's, so the fit is admitted
+/// against the host's memory pool and observes its cancellation, with the seed and the thread
+/// count fixed so a family's fit stays a function of the table and the declared splits alone.
+fn ensemble_context(frame: &FitFrame<'_>) -> Result<ExecutionContext, ModelError> {
+    let caller = frame.execution().ok_or_else(|| ModelError::Unsupported {
+        message: "a tree-ensemble fit needs the caller's execution context".into(),
+    })?;
+    let mut ctx = caller.clone();
+    ctx.rng = RngFactory::from_seed(TREE_FIT_SEED);
+    // One thread: the fit is a pure function of the table, never of a scheduler.
+    ctx.parallelism = Parallelism::serial();
+    Ok(ctx)
+}
+
+fn poll(ctx: &ExecutionContext) -> Result<(), ModelError> {
+    if ctx.cancellation.is_cancelled() { Err(ModelError::Cancelled) } else { Ok(()) }
+}
+
 /// Fit one ensemble on a column-major design of `n` rows and `p` columns.
+///
+/// A boosted fit runs inside a library that cannot be interrupted, so cancellation is polled
+/// before it and after it, never during; the fit is admitted against `ctx` first.
 fn fit_ensemble(
+    ctx: &ExecutionContext,
     learner: TreeLearner,
     task: PredictionTask,
     design: &[f64],
@@ -90,11 +135,11 @@ fn fit_ensemble(
     p: usize,
     target: &[f64],
 ) -> Result<TreeEnsemble, ModelError> {
+    poll(ctx)?;
     let factory = resolve_for(learner.spec(task), task).map_err(learn_error)?;
     let view = DesignView::from_column_major(design, n, p).map_err(learn_error)?;
-    // One thread: the fit is a pure function of the table, never of a scheduler.
-    let ctx = ExecutionContext::production(TREE_FIT_SEED, 1);
-    let fitted = factory.fit(view, TargetView::new(target), None, &ctx).map_err(learn_error)?;
+    let fitted = factory.fit(view, TargetView::new(target), None, ctx).map_err(learn_error)?;
+    poll(ctx)?;
     let portable = fitted.portable().map_err(learn_error)?;
     TreeEnsemble::new(portable)
 }
@@ -131,10 +176,11 @@ pub(in crate::registry) fn fit_tree_additive(
     y: &[f64],
 ) -> Result<MechanismSlot, ModelError> {
     check_inputs(frame, y)?;
+    let ctx = ensemble_context(frame)?;
     let p = frame.n_parents();
     let n = y.len();
     let design = frame.column_major();
-    let ensemble = fit_ensemble(learner, PredictionTask::Regression, &design, n, p, y)?;
+    let ensemble = fit_ensemble(&ctx, learner, PredictionTask::Regression, &design, n, p, y)?;
 
     // Out-of-fold residuals under the frame's declared split scheme.
     let mut sum_sq = 0.0;
@@ -146,6 +192,7 @@ pub(in crate::registry) fn fit_tree_additive(
         let train = frame.select(&fold.train);
         let y_train: Vec<f64> = fold.train.iter().map(|&r| y[r]).collect();
         let fold_ensemble = fit_ensemble(
+            &ctx,
             learner,
             PredictionTask::Regression,
             &train.column_major(),
@@ -181,6 +228,7 @@ pub(in crate::registry) fn fit_tree_categorical(
     y: &[f64],
 ) -> Result<MechanismSlot, ModelError> {
     check_inputs(frame, y)?;
+    let ctx = ensemble_context(frame)?;
     let (support, probs) = discrete_support(y, None)?;
     let k = support.len();
     if k < 2 {
@@ -202,6 +250,7 @@ pub(in crate::registry) fn fit_tree_categorical(
             .map(|&c| if usize::try_from(c).is_ok_and(|c| c == level) { 1.0 } else { 0.0 })
             .collect();
         classifiers.push(fit_ensemble(
+            &ctx,
             learner,
             PredictionTask::BinaryProbability,
             &design,

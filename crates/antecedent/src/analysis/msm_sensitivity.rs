@@ -11,10 +11,10 @@
 //!
 //! Every number is an assumption range or an identified value. The sampling interval is
 //! withheld (`sampling interval: not reported`) and a requested sampling composition refuses
-//! with `cell_not_licensed` / `msm_sensitivity.composition_not_licensed`. Calibration is
-//! unmeasured.
+//! with `not_supported` / `msm_sensitivity.composition_not_supported`. Calibration is
+//! `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ScientificQuantity;
 use antecedent_io::IoError;
@@ -25,9 +25,9 @@ pub use antecedent_io::msm_sensitivity_adapter::{
 };
 pub use antecedent_io::sensitivity_artifact::{ActionUtility, SensitivityArtifact};
 pub use antecedent_validate::msm_sensitivity::{
-    MSM_ASSUMPTION_RANGE_CLAIM, MSM_FAMILY, MSM_INTERPRETATION, MSM_INTERVAL_WITHHELD,
-    MSM_MAX_GRID_POINTS, MSM_MAX_LAMBDA, MSM_MAX_OUTCOME_ATOMS, MSM_MAX_STRATA, MSM_MAX_TOLERANCE,
-    MSM_METHOD, MSM_MIN_TOLERANCE, MSM_NORMALIZATION, MSM_PERTURBATION_SCALE,
+    MSM_ASSUMPTION_RANGE_CLAIM, MSM_FAMILY, MSM_INTERPRETATION, MSM_MAX_GRID_POINTS,
+    MSM_MAX_LAMBDA, MSM_MAX_OUTCOME_ATOMS, MSM_MAX_STRATA, MSM_MAX_TOLERANCE, MSM_METHOD,
+    MSM_MIN_TOLERANCE, MSM_NO_INTERVAL_METHOD, MSM_NORMALIZATION, MSM_PERTURBATION_SCALE,
     MSM_SAMPLING_STATEMENT, MSM_TARGET, MsmSensitivityUncertainty,
 };
 
@@ -36,7 +36,7 @@ pub use antecedent_validate::msm_sensitivity::{
 ///
 /// # Errors
 ///
-/// The typed [`MsmSensitivityError`] of the contract (`composition_not_licensed`,
+/// The typed [`MsmSensitivityError`] of the contract (`composition_not_supported`,
 /// `lambda_below_one`, `lambda_range_empty`, `positivity`, `stratum_mass`, `outcome_law`,
 /// `invalid_threshold`, `invalid_tolerance`, `bounds_exceeded`).
 pub fn msm_sensitivity(

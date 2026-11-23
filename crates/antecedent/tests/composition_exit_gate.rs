@@ -10,10 +10,10 @@
 //! refusal or incomplete side.
 //!
 //! Story 3 checks the public analytic interval. Its coverage is measured separately
-//! in `learned_continuous_calibration.rs` under `scripts/gate_calibration.sh`.
+//! in `learned_continuous_calibration.rs` under `scripts/measure_calibration.sh`.
 //! `scripts/gate_composition_exit.sh` verifies the corresponding coverage records.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -55,9 +55,7 @@ use antecedent_identify::{
 use antecedent_io::IoError;
 use antecedent_io::learned_continuous_artifact::LearnedContinuousConsumeLimits;
 use antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits;
-use antecedent_io::mz_transport_artifact::{
-    MZ_INTERVAL_NOT_LICENSED, MZ_WITHHELD, MzTransportConsumeLimits,
-};
+use antecedent_io::mz_transport_artifact::{MZ_NOMINAL_INTERVAL, MzTransportConsumeLimits};
 use antecedent_io::temporal_transport_artifact::TemporalTransportConsumeLimits;
 use antecedent_io::transport_scenario_artifact::TransportScenarioConsumeLimits;
 
@@ -253,28 +251,26 @@ mod s1 {
             let id = RegimeId::from_raw(u32::try_from(k).unwrap());
             let measured: Vec<usize> =
                 (0..4).filter(|i| !do_.iter().any(|(v, _)| v == i)).collect();
-            regimes.push(
-                EvidenceRegime::try_new(
-                    id,
-                    if do_.is_empty() {
-                        RegimeKind::Observational
-                    } else {
-                        RegimeKind::Experimental
-                    },
-                    EvidenceKind::Available,
-                    do_.iter().map(|(v, _)| vid(*v)).collect::<Vec<_>>(),
-                    do_.iter()
-                        .map(|(v, l)| CoreIntervention {
-                            variable: vid(*v),
-                            value: Value::Bool(*l == 1),
-                        })
-                        .collect::<Vec<_>>(),
-                    measured.iter().map(|i| vid(*i)).collect::<Vec<_>>(),
-                    *population,
-                    DistributionAvailability::Joint,
-                )
-                .unwrap(),
-            );
+            let mut regime = EvidenceRegime::try_new(
+                id,
+                if do_.is_empty() { RegimeKind::Observational } else { RegimeKind::Experimental },
+                EvidenceKind::Available,
+                do_.iter().map(|(v, _)| vid(*v)).collect::<Vec<_>>(),
+                do_.iter()
+                    .map(|(v, l)| CoreIntervention {
+                        variable: vid(*v),
+                        value: Value::Bool(*l == 1),
+                    })
+                    .collect::<Vec<_>>(),
+                measured.iter().map(|i| vid(*i)).collect::<Vec<_>>(),
+                *population,
+                DistributionAvailability::Joint,
+            )
+            .unwrap();
+            // Each regime is its own counted table, so each is declared its own study: the
+            // joint bootstrap resamples them independently.
+            regime.study = Some(Arc::from(format!("{population}-{k}")));
+            regimes.push(regime);
             let snapshot = format!("{population}-{k}");
             bindings.push(binding(id, &snapshot));
             laws.push(
@@ -420,7 +416,7 @@ fn story_1_multi_source_limited_experiment_effect_requiring_complementary_source
             moved.contrasts()[0].estimate.to_bits(),
         );
 
-        // Counted laws: the point is returned, the unmeasured interval is withheld.
+        // Counted laws: the point is returned with the nominal interval and its calibration.
         let counted_prepared = StudyBuilder::mz_transport_empirical(
             graph,
             functional,
@@ -432,10 +428,10 @@ fn story_1_multi_source_limited_experiment_effect_requiring_complementary_source
         )
         .unwrap();
         let counted_result = counted_prepared.estimate(&ctx).unwrap();
-        assert!((risk_of(counted_result.distribution()) - truth(&P, 1)).abs() < 1e-2);
+        assert!((risk_of(counted_result.distribution()) - truth(&P, 1)).abs() < 1e-9);
         let u = counted_result.uncertainty();
-        assert_eq!((u.status.as_str(), u.reason.as_str()), (MZ_WITHHELD, MZ_INTERVAL_NOT_LICENSED));
-        assert!(!u.available() && u.mean_intervals.is_empty() && u.seed.is_none());
+        assert_eq!(u.status.as_str(), MZ_NOMINAL_INTERVAL);
+        assert!(u.available() && !u.mean_intervals.is_empty() && u.seed.is_some());
         let counted_bytes = counted_result.export(&counted_prepared, &ctx).unwrap();
         let counted_producer = bits(&counted_result.distribution().probabilities);
         (
@@ -695,7 +691,7 @@ fn story_2_finite_scenario_set_retains_identified_unidentified_and_unevaluated_m
                 .aggregate_interval()
                 .unwrap_err()
                 .to_string()
-                .contains("scenario_aggregate_not_licensed")
+                .contains("scenario_aggregate_not_supported")
         );
 
         // Refresh moves points and keeps every decision.
@@ -902,7 +898,7 @@ fn story_3_learned_continuous_transport_estimate_with_overlap_refusal() {
             let result = prepared.estimate(&ctx).unwrap();
             let estimate = result.estimate().clone();
             assert!(
-                (estimate.estimate - truth(0.4)).abs() < 0.3,
+                (estimate.estimate - truth(0.4)).abs() < 0.2,
                 "{sampling:?}: {} vs {}",
                 estimate.estimate,
                 truth(0.4)
@@ -924,7 +920,7 @@ fn story_3_learned_continuous_transport_estimate_with_overlap_refusal() {
             assert_eq!(refreshed.identification(), prepared.identification());
             let moved = refreshed.estimate(&ctx).unwrap();
             assert_ne!(moved.identity(), result.identity());
-            assert!((moved.estimate().estimate - truth(0.4)).abs() < 0.3);
+            assert!((moved.estimate().estimate - truth(0.4)).abs() < 0.2);
             (refreshed_export(&moved), moved.estimate().clone())
         };
 
@@ -935,7 +931,7 @@ fn story_3_learned_continuous_transport_estimate_with_overlap_refusal() {
         assert_eq!(consumed.estimate(), &producer);
         assert_eq!(consumed.estimate().estimate.to_bits(), producer.estimate.to_bits());
         assert_eq!(consumed.export().unwrap(), bytes, "consumption re-exports the same bytes");
-        assert!((consumed.estimate().estimate - truth(0.4)).abs() < 0.3);
+        assert!((consumed.estimate().estimate - truth(0.4)).abs() < 0.2);
     }
 
     // Overlap-refusal side: a target the trial cannot represent refuses; it never extrapolates.
@@ -953,7 +949,12 @@ fn story_3_learned_continuous_transport_estimate_with_overlap_refusal() {
         match prepared.estimate(&ctx) {
             Err(IoError::Refused { code, message }) => {
                 assert_eq!(code, "transport_support_failure");
-                assert!(message.starts_with("learned_transport.membership_overlap"), "{message}");
+                assert!(
+                    message.starts_with(
+                        antecedent_core::reason_details::learned_transport::MEMBERSHIP_OVERLAP
+                    ),
+                    "{message}"
+                );
             }
             other => panic!("expected an overlap refusal, got {:?}", other.map(|_| ())),
         }
@@ -966,7 +967,12 @@ fn story_3_learned_continuous_transport_estimate_with_overlap_refusal() {
     {
         Err(IoError::Refused { code, message }) => {
             assert_eq!(code, "transport_support_failure");
-            assert!(message.starts_with("learned_transport.treatment_overlap"), "{message}");
+            assert!(
+                message.starts_with(
+                    antecedent_core::reason_details::learned_transport::TREATMENT_OVERLAP
+                ),
+                "{message}"
+            );
         }
         other => panic!("expected a treatment-overlap refusal, got {:?}", other.map(|_| ())),
     }
@@ -1041,8 +1047,8 @@ mod s4 {
         .unwrap();
         let slots = TemporalSlots {
             baseline: vec![vid(B)],
-            covariates: [vec![vid(L1)], vec![vid(L2)]],
-            actions: [vid(A1), vid(A2)],
+            covariates: vec![vec![vid(L1)], vec![vid(L2)]],
+            actions: vec![vid(A1), vid(A2)],
             outcome: vid(Y),
         };
         let coordinates: Vec<ScenarioCoordinate> = NAMES
@@ -1220,7 +1226,9 @@ fn story_4_two_step_temporal_transport_with_history_support_refusal() {
                 Err(IoError::Refused { code, message }) => {
                     assert_eq!(code, "transport_support_failure");
                     assert!(
-                        message.starts_with("temporal_transport.history_outside_support"),
+                        message.starts_with(
+                            antecedent_core::reason_details::temporal_transport::HISTORY_OUTSIDE_SUPPORT
+                        ),
                         "{message}"
                     );
                     assert!(
@@ -1241,7 +1249,12 @@ fn story_4_two_step_temporal_transport_with_history_support_refusal() {
         match prepared.interval() {
             Err(IoError::Refused { code, message }) => {
                 assert_eq!(code, "estimator_inference_mismatch");
-                assert!(message.starts_with("temporal_transport.interval_requested"), "{message}");
+                assert!(
+                    message.starts_with(
+                        antecedent_core::reason_details::temporal_transport::INTERVAL_REQUESTED
+                    ),
+                    "{message}"
+                );
             }
             other => panic!("expected a typed refusal, got {other:?}"),
         }
@@ -1251,7 +1264,11 @@ fn story_4_two_step_temporal_transport_with_history_support_refusal() {
         match prepare(&three, laws(&source, &target, &[]), &ctx) {
             Err(IoError::Refused { code, message }) => {
                 assert_eq!(code, "route_not_supported");
-                assert!(message.starts_with("temporal_transport.horizon"), "{message}");
+                assert!(
+                    message
+                        .starts_with(antecedent_core::reason_details::temporal_transport::HORIZON),
+                    "{message}"
+                );
             }
             other => panic!("expected a horizon refusal, got {:?}", other.map(|_| ())),
         }
@@ -1397,7 +1414,7 @@ fn story_5_second_fixed_dag_cross_world_query_with_shared_abduction_and_typed_re
         let plug_in = outcome(active, mbar) - outcome(control, mbar);
         assert!((per_unit - plug_in).abs() > 1.0, "the fixture must separate the semantics");
         assert!(
-            (shared.point - per_unit).abs() < 0.25,
+            (shared.point - per_unit).abs() < 0.15,
             "{} vs per-unit truth {per_unit}",
             shared.point
         );
@@ -1431,7 +1448,10 @@ fn story_5_second_fixed_dag_cross_world_query_with_shared_abduction_and_typed_re
         .unwrap();
         let text = check(&graph, &recanting).unwrap_err().to_string();
         assert!(text.contains("reason=cross_world_not_identified"), "{text}");
-        assert!(text.contains("cross_world.recanting_witness"), "{text}");
+        assert!(
+            text.contains(antecedent_core::reason_details::cross_world::RECANTING_WITNESS),
+            "{text}"
+        );
         let text = evaluate_cross_world_effect(
             mediation(),
             &linear(60),
@@ -1442,7 +1462,10 @@ fn story_5_second_fixed_dag_cross_world_query_with_shared_abduction_and_typed_re
         .unwrap_err()
         .to_string();
         assert!(text.contains("reason=estimator_inference_mismatch"), "{text}");
-        assert!(text.contains("cross_world.interval_requested"), "{text}");
+        assert!(
+            text.contains(antecedent_core::reason_details::cross_world::INTERVAL_REQUESTED),
+            "{text}"
+        );
         let text = evaluate_cross_world_effect(
             admg(3, &EDGES.map(|(a, b)| (a as usize, b as usize)), &[(1, 2)]),
             &linear(60),
@@ -1452,8 +1475,11 @@ fn story_5_second_fixed_dag_cross_world_query_with_shared_abduction_and_typed_re
         )
         .unwrap_err()
         .to_string();
-        assert!(text.contains("reason=cell_not_licensed"), "{text}");
-        assert!(text.contains("cross_world.graph_outside_contract"), "{text}");
+        assert!(text.contains("reason=route_not_supported"), "{text}");
+        assert!(
+            text.contains(antecedent_core::reason_details::cross_world::GRAPH_OUTSIDE_CONTRACT),
+            "{text}"
+        );
         // The witness the check returns is what the artifact carries.
         let witness = check(&mediation(), &indirect).unwrap();
         assert_eq!(witness.intervened_edges, vec![(X, M), (M, Y)]);
@@ -1468,7 +1494,7 @@ fn story_5_second_fixed_dag_cross_world_query_with_shared_abduction_and_typed_re
     assert!((consumed.point - 3.0 * -0.6 * delta).abs() < 1e-9);
     let consumed = consume_cross_world_artifact(&nonsep_bytes, &ctx).unwrap();
     assert_eq!(consumed.point.to_bits(), producer.1, "shared-abduction point replays bit for bit");
-    assert!((consumed.point - producer.2).abs() < 0.25);
+    assert!((consumed.point - producer.2).abs() < 0.15);
     // A single flipped byte never returns a different answer.
     let mut tampered = nonsep_bytes.clone();
     let mid = tampered.len() / 2;
@@ -1704,7 +1730,10 @@ fn story_6_mixed_source_proof_by_bounded_search_and_an_incomplete_search_stays_u
             decide_mixed_source(&bow, &bow_query, &bow_catalog, MIXED_SOURCE_DEFAULT_LIMITS, &ctx)
                 .unwrap();
         assert_eq!(stuck.reason_code(), Some("transport_not_certified"));
-        assert_eq!(stuck.detail_code(), Some("mixed_search.not_certified"));
+        assert_eq!(
+            stuck.detail_code(),
+            Some(antecedent_core::reason_details::mixed_search::NOT_CERTIFIED)
+        );
         let MixedSourceDecision::NotCertified(inspection) = stuck else { panic!("not certified") };
         assert!(inspection.operations > 0 && inspection.generations > 0);
         assert!(!inspection.frontier.is_empty(), "the receipt lists what was explored");
@@ -1719,7 +1748,10 @@ fn story_6_mixed_source_proof_by_bounded_search_and_an_incomplete_search_stays_u
         )
         .unwrap();
         assert_eq!(stopped.reason_code(), Some("transport_budget_cancel"));
-        assert_eq!(stopped.detail_code(), Some("mixed_search.budget"));
+        assert_eq!(
+            stopped.detail_code(),
+            Some(antecedent_core::reason_details::mixed_search::BUDGET)
+        );
         let MixedSourceDecision::Exhausted(receipt) = stopped else { panic!("exhausted") };
         assert_eq!(receipt.stop, SearchStop::Operations);
         assert_eq!(receipt.operations_consumed, Some(30));
@@ -1753,7 +1785,7 @@ mod release_boundary;
 /// The release-boundary scenario end to end (`conformance/composition/release_boundary`):
 /// a misclassified exposure corrected by its declared confusion model enters a
 /// finite causal model together with a pooled study effect; an affine decision reads
-/// the licensed mean; new observations make the claim graph classify the claim for
+/// the supported mean; new observations make the claim graph classify the claim for
 /// recomputation and the decision flips; a fresh consumer holding only bytes
 /// recomputes both decisions against hand-written closed forms.
 #[test]

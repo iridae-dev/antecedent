@@ -163,11 +163,11 @@ fn a_verified_provider_output_is_source_evidence_that_reaches_a_transported_clai
         [ContractOperation::Mean, ContractOperation::Draws].into_iter().collect();
     assert_eq!(admitted.operations(), expected);
 
-    // The projection is an interface contract; it is unmeasured, never measured.
+    // The projection is an interface contract; it is not_measured, never measured.
     let contract = admitted.interface_contract();
     contract.validate().expect("the projection is a valid interface contract");
     let port = contract.produced("provider_source").expect("one produced port");
-    assert_eq!(port.calibration, CalibrationStatus::Unmeasured);
+    assert_eq!(port.calibration, CalibrationStatus::NotMeasured);
     assert!(port.provenance.contains("external_provider"));
 
     // Connection to the route's consumer: same population, regime, operations.
@@ -181,7 +181,7 @@ fn a_verified_provider_output_is_source_evidence_that_reaches_a_transported_clai
     let connection = connect_provider_source(&admitted, &consumer, TRANSPORT_SOURCE_PORT)
         .expect("population, regime, operations and provenance agree");
     assert_eq!(connection.operations, [ContractOperation::Mean].into_iter().collect());
-    assert_eq!(connection.calibration, CalibrationStatus::Unmeasured);
+    assert_eq!(connection.calibration, CalibrationStatus::NotMeasured);
     assert_eq!(connection.evidence, EvidenceBasis::Declared([trial].into_iter().collect()));
 
     // Ledger: external claim, derived from the trial rows, no transport identity yet.
@@ -272,21 +272,21 @@ fn a_missing_population_or_regime_refuses_before_any_connection() {
     check(
         &no_population.admit().expect_err("population"),
         "interface_contract_invalid",
-        "provider_transport.population_missing",
+        antecedent_core::reason_details::provider_transport::POPULATION_MISSING,
     );
     let mut no_regime = verified_source(EvidenceBasis::Undeclared);
     no_regime.quantity.regime_id = String::new();
     check(
         &no_regime.admit().expect_err("regime"),
         "interface_contract_invalid",
-        "provider_transport.regime_missing",
+        antecedent_core::reason_details::provider_transport::REGIME_MISSING,
     );
     let mut no_assumptions = verified_source(EvidenceBasis::Undeclared);
     no_assumptions.assumptions.clear();
     check(
         &no_assumptions.admit().expect_err("assumptions"),
         "interface_contract_invalid",
-        "provider_transport.assumptions_missing",
+        antecedent_core::reason_details::provider_transport::ASSUMPTIONS_MISSING,
     );
 }
 
@@ -300,7 +300,11 @@ fn attestation_does_not_stand_in_for_required_verification() {
         EvidenceBasis::Undeclared,
     );
     let refusal = required.admit().expect_err("attestation where verification is required");
-    check(&refusal, "external_verification_failed", "provider_transport.verification_required");
+    check(
+        &refusal,
+        "external_verification_failed",
+        antecedent_core::reason_details::provider_transport::VERIFICATION_REQUIRED,
+    );
     assert_eq!(refusal.expected.as_deref(), Some("verified_extension"));
     assert_eq!(refusal.supplied.as_deref(), Some("externally_attested"));
 
@@ -317,7 +321,7 @@ fn attestation_does_not_stand_in_for_required_verification() {
 }
 
 #[test]
-fn a_receipt_for_another_request_or_a_native_licence_is_refused() {
+fn a_receipt_for_another_request_or_a_native_support_is_refused() {
     let first = law("trial_a", "do(a=1)", "req-1");
     let receipt_for_first = verified(&first);
     let second = law("trial_a", "do(a=1)", "req-2");
@@ -330,18 +334,18 @@ fn a_receipt_for_another_request_or_a_native_licence_is_refused() {
     check(
         &wrong.admit().expect_err("receipt covers another request"),
         "external_verification_failed",
-        "provider_transport.receipt_does_not_cover",
+        antecedent_core::reason_details::provider_transport::RECEIPT_DOES_NOT_COVER,
     );
     let native = source(
         first,
-        ExternalTrustState::NativeLicensed,
+        ExternalTrustState::NativeSupported,
         SourceTrustRequirement::AttestationAccepted,
         EvidenceBasis::Undeclared,
     );
     check(
-        &native.admit().expect_err("native licence"),
+        &native.admit().expect_err("native support"),
         "interface_contract_invalid",
-        "provider_transport.native_trust_claimed",
+        antecedent_core::reason_details::provider_transport::NATIVE_TRUST_CLAIMED,
     );
 }
 
@@ -352,7 +356,7 @@ fn a_quantity_the_provider_does_not_declare_or_a_foreign_population_is_refused()
     check(
         &other_regime.admit().expect_err("regime not declared by the object"),
         "external_binding_mismatch",
-        "provider_transport.quantity_not_declared",
+        antecedent_core::reason_details::provider_transport::QUANTITY_NOT_DECLARED,
     );
 
     // A source whose population is not a declared source population of the
@@ -363,7 +367,7 @@ fn a_quantity_the_provider_does_not_declare_or_a_foreign_population_is_refused()
             .require_bound_to(&transport(&["trial_b"], "target"))
             .expect_err("trial_a is not a source of this transport"),
         "interface_contract_quantity_mismatch",
-        "provider_transport.population_not_a_source",
+        antecedent_core::reason_details::provider_transport::POPULATION_NOT_A_SOURCE,
     );
     let mut without_assumption = transport(&["trial_a"], "target");
     without_assumption.assumptions = vec!["something else".to_owned()];
@@ -372,7 +376,7 @@ fn a_quantity_the_provider_does_not_declare_or_a_foreign_population_is_refused()
             .require_bound_to(&without_assumption)
             .expect_err("the provider's assumption is not carried"),
         "interface_contract_assumption_mismatch",
-        "provider_transport.assumptions_not_carried",
+        antecedent_core::reason_details::provider_transport::ASSUMPTIONS_NOT_CARRIED,
     );
 
     // A route that needs another population is not served by this source.
@@ -519,7 +523,7 @@ fn a_consumer_that_needs_native_target_data_refuses_a_transported_claim() {
     check(
         &refusals[0],
         "interface_contract_assumption_mismatch",
-        "provider_transport.native_target_required",
+        antecedent_core::reason_details::provider_transport::NATIVE_TARGET_REQUIRED,
     );
     assert_eq!(refusals[0].supplied.as_deref(), Some("transported_claim"));
 }
@@ -536,7 +540,7 @@ fn a_claim_without_its_identity_or_outside_the_target_is_refused() {
     check(
         &refusals[0],
         "interface_contract_invalid",
-        "provider_transport.transport_identity_incomplete",
+        antecedent_core::reason_details::provider_transport::TRANSPORT_IDENTITY_INCOMPLETE,
     );
 
     let mut target_is_source = offer();
@@ -546,7 +550,7 @@ fn a_claim_without_its_identity_or_outside_the_target_is_refused() {
     check(
         &refusals[0],
         "interface_contract_invalid",
-        "provider_transport.transport_identity_incomplete",
+        antecedent_core::reason_details::provider_transport::TRANSPORT_IDENTITY_INCOMPLETE,
     );
 
     let mut native_coordinate = offer();
@@ -556,18 +560,23 @@ fn a_claim_without_its_identity_or_outside_the_target_is_refused() {
     check(
         &refusals[0],
         "interface_contract_quantity_mismatch",
-        "provider_transport.claim_not_in_target",
+        antecedent_core::reason_details::provider_transport::CLAIM_NOT_IN_TARGET,
     );
 
     let mut no_evidence = offer();
     no_evidence.evidence.clear();
     let refusals =
         hand_to_callback(&no_evidence, &callback, "effect", policy).expect_err("no evidence");
-    check(&refusals[0], "interface_contract_invalid", "provider_transport.evidence_missing");
+    check(
+        &refusals[0],
+        "interface_contract_invalid",
+        antecedent_core::reason_details::provider_transport::EVIDENCE_MISSING,
+    );
 }
 
 #[test]
-fn the_connection_still_refuses_a_different_population_a_calibration_demand_and_a_callback_input() {
+fn the_connection_refuses_a_different_population_and_a_callback_input_but_serves_a_calibration_demand()
+ {
     let policy = TransportedInputPolicy::AcceptsTransported;
 
     // The consumer's input is about another population than the claim's target.
@@ -576,8 +585,8 @@ fn the_connection_still_refuses_a_different_population_a_calibration_demand_and_
         hand_to_callback(&offer(), &elsewhere, "effect", policy).expect_err("population");
     assert!(refusals.iter().any(|r| r.code == "interface_contract_quantity_mismatch"));
 
-    // A consumer that relies on a measured calibration record is not served by
-    // a transported claim, which never holds one.
+    // A consumer that relies on a measured calibration record is served by a
+    // transported claim, which never holds one: the handoff carries that status.
     let callback = consumer_callback("target", InputSupplier::External);
     let mut contract = callback.interface_contract();
     // A measured requirement is only well formed beside an interval or posterior.
@@ -587,9 +596,14 @@ fn the_connection_still_refuses_a_different_population_a_calibration_demand_and_
         Some(antecedent_contract::interface_contract::UncertaintyMeaning::new(
             DistributionMeaning::EstimatorSampling,
         ));
-    let refusals = hand_to_consumer(&offer(), &contract, "effect", policy)
-        .expect_err("transport supplies no measured calibration");
-    assert!(refusals.iter().any(|r| r.code == "interface_contract_calibration_not_held"));
+    // The offer must carry the interval the consumer relies on; a mean alone is refused for the
+    // missing operation, not for its calibration.
+    let mut interval_offer = offer();
+    interval_offer.operations.insert(ContractOperation::Interval);
+    interval_offer.uncertainty = Some(DistributionMeaning::EstimatorSampling);
+    let handoff = hand_to_consumer(&interval_offer, &contract, "effect", policy)
+        .expect("calibration annotates the handoff and never refuses it");
+    assert_eq!(handoff.connection().calibration, CalibrationStatus::NotMeasured);
 
     // An input another callback supplies is not a claim from outside the graph.
     let mut nested = consumer_callback(
@@ -605,7 +619,7 @@ fn the_connection_still_refuses_a_different_population_a_calibration_demand_and_
     check(
         &refusals[0],
         "interface_contract_assumption_mismatch",
-        "provider_transport.input_not_external",
+        antecedent_core::reason_details::provider_transport::INPUT_NOT_EXTERNAL,
     );
 
     // An unknown consumed port is reported by the connection check.

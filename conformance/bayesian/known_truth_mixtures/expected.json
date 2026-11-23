@@ -26,13 +26,33 @@
     "z_offset": 0.5,
     "outcome_noise": 0.05,
     "seed": 1,
-    "posterior_weights": [0.5, 0.3, 0.2],
+    "posterior_weights": [
+      0.5,
+      0.3,
+      0.2
+    ],
     "atoms": "same masks as static_average_effect over [t, y, z]: T -> Y; Z -> T, Z -> Y, T -> Y; Y -> T (unidentified)",
-    "treatment_grid": [-0.5, 0.0, 0.5],
+    "treatment_grid": [
+      -0.5,
+      0.0,
+      0.5
+    ],
     "intervention_level": 0.5,
-    "identified_atom_curve_direct": [-0.375, 1.0, 2.375],
-    "identified_atom_curve_adjusted": [0.0, 1.0, 2.0],
-    "expected_conditional_on_identified_curve": [-0.234375, 1.0, 2.234375],
+    "identified_atom_curve_direct": [
+      -0.375,
+      1.0,
+      2.375
+    ],
+    "identified_atom_curve_adjusted": [
+      0.0,
+      1.0,
+      2.0
+    ],
+    "expected_conditional_on_identified_curve": [
+      -0.234375,
+      1.0,
+      2.234375
+    ],
     "expected_unidentified_mass": 0.2,
     "frequentist_abs_tolerance": 0.05,
     "frequentist_tolerance_note": "response.kennedy_dr (curve) and the GAM plug-in behind response.intervention_gcomp (level) smooth the exact linear law; observed atom deviations are at most 0.04 (level) and 0.013 (curve), well inside the 0.375 gap between atoms",
@@ -80,7 +100,10 @@
     "dgp": "defect_t = 0.9 * pressure_{t-1}",
     "n": 400,
     "seed": 42,
-    "posterior_weights": [0.7, 0.3],
+    "posterior_weights": [
+      0.7,
+      0.3
+    ],
     "identified_mass": 0.7,
     "expected_effect_given_identified": 0.9,
     "expected_unidentified_mass": 0.3,
@@ -98,7 +121,10 @@
     "dgp": "M_t = 0.8*T_{t-1}; Y_t = 0.25*T_{t-1} + 0.55*M_t; deterministic sinusoid treatment (temporal_mediation_grid)",
     "n": 320,
     "seed": 7,
-    "posterior_weights": [0.7, 0.3],
+    "posterior_weights": [
+      0.7,
+      0.3
+    ],
     "identified_atom": {
       "weight": 0.7,
       "contemporaneous_mask": 8,
@@ -109,7 +135,9 @@
     "expected_effect_given_identified": 0.44,
     "expected_unidentified_mass": 0.3,
     "effect_abs_tolerance": 0.04,
-    "horizons": [1],
+    "horizons": [
+      1
+    ],
     "contrast": "mediated",
     "unidentified_atom": {
       "weight": 0.3,
@@ -133,6 +161,179 @@
   "tolerance_class": "PosteriorDistribution",
   "oracle": {
     "kind": "closed_form",
-    "method": "analytic data-generating processes with balanced deterministic designs (README): each atom's effect follows from the law and the mixture from the stated posterior weights"
+    "method": "analytic data-generating processes with balanced deterministic designs (README): each atom's effect follows from the law and the mixture from the stated posterior weights",
+    "formula": "Per-atom effects from the stated laws (2, 3 via the confounded contrast, 1 + 2t, 1 + 2.75t, 0.9, 0.8*0.55); mixture = sum_k w_k tau_k / sum_k w_k over identified atoms; edge marginal = total weight of atoms whose mask includes the edge.",
+    "generator": "conformance/bayesian/known_truth_mixtures/reference.py",
+    "command": "uv run --frozen --script conformance/bayesian/known_truth_mixtures/reference.py --check",
+    "environment_lock": "conformance/bayesian/known_truth_mixtures/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "identified_weighted_sum",
+      "identified_mass",
+      "expected_effect_given_identified",
+      "expected_unidentified_mass",
+      "identified_atom_curve_direct",
+      "identified_atom_curve_adjusted",
+      "expected_conditional_on_identified_curve",
+      "temporal effect 0.9 and mediation effect 0.44 given identified",
+      "lagged_edge_marginals"
+    ],
+    "context_only_outputs": [
+      "data sizes, seeds and draws",
+      "the unadjusted atom's effect 3.0 (needs the test's cell design, E[Z|T=1]-E[Z|T=0] = 1/2, taken as input)",
+      "NotCertified identification errors and atom structures",
+      "tolerances and tolerance_class"
+    ],
+    "independence_basis": "The generator recomputes every mixture, curve, atom effect and edge marginal from the stated laws, masks and posterior weights with rational arithmetic; it imports no Antecedent code and no statistics package. The shared object is the stated data-generating laws and atom masks.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Posterior-mixture arithmetic and per-atom truths for the static, response-curve, temporal and mediation known-truth scenarios.",
+      "independence_basis": "The generator recomputes every mixture, curve, atom effect and edge marginal from the stated laws, masks and posterior weights with rational arithmetic; it imports no Antecedent code and no statistics package. The shared object is the stated data-generating laws and atom masks.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Mixture arithmetic and structural coefficients only. The unadjusted atom's effect (3) depends on the test's cell design and is taken as an input; the unidentified atom has no effect value, so identification status is not derived. Tolerances are context. No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/bayesian/known_truth_mixtures/reference.py",
+          "sha256": "ff9267e3671e52a5838b4a6d9cabd3c47db78f0451fb363588651aec6f7b56bf"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/bayesian/known_truth_mixtures/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/class_posterior_ate.rs",
+          "items": [
+            "fn ate",
+            "fn class_data",
+            "fn class_graph_posterior_inspect_and_execute_agree_on_support_status",
+            "fn class_posterior_atom_kind_defaults_to_dag_masks",
+            "fn class_posterior_cpdag_and_pag_average_effect_cheap_and_full_run",
+            "fn class_posterior_cpdag_and_pag_average_effect_none_runs",
+            "fn class_posterior_disagreeing_estimands_are_not_a_scalar_mixture",
+            "fn class_posterior_disagreeing_estimands_skip_scalar_mixture_refuter",
+            "fn class_posterior_does_not_publish_largest_atom_posterior_as_aggregate",
+            "fn class_posterior_frequentist_numeric_pins",
+            "fn class_posterior_graph_posterior_conditional_effect_runs",
+            "fn class_posterior_graph_posterior_intervention_response_cheap_and_full_run",
+            "fn class_posterior_graph_posterior_response_runs",
+            "fn class_posterior_known_truth_mixture_pin",
+            "fn class_posterior_mixed_refutation_pass_and_fail",
+            "fn class_posterior_same_estimand_two_atom_mixture_pin",
+            "fn cpdag_posterior",
+            "fn d",
+            "fn gaussian",
+            "fn has_policy",
+            "fn identified_pag_mask_roundtrips",
+            "fn known_truth_mixture_pin",
+            "fn mixture_data",
+            "fn name",
+            "fn oriented",
+            "fn outcome_parent_cpdag",
+            "fn pag_from_dag_edges",
+            "fn pag_posterior",
+            "fn reverse_causal_cpdag",
+            "fn run",
+            "fn run_with",
+            "fn two_completion_cpdag",
+            "fn two_completion_cpdag_mask_identifies",
+            "struct FailNth",
+            "struct FixedValidator"
+          ],
+          "sha256": "bfa7da8479f6250615095fbdac588a5dc3f6dd465f46ac38b9e96b411ae67ad3"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/response_facade.rs",
+          "items": [
+            "fn exceedance_level_refutation_refits_the_exceedance_target",
+            "fn report"
+          ],
+          "sha256": "1af23b293f0cf05c7604c2e378e43e31a89f4d65b205806cdd457eab26055cc6"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/manufacturing_temporal.rs",
+          "items": [
+            "fn assert_cheap_temporal_overlap_skip_diagnostic",
+            "fn assert_cheap_temporal_refuters",
+            "fn assert_close",
+            "fn assert_dbn_mediation_known_truth_mixture",
+            "fn assert_dose_horizon_ate",
+            "fn assert_full_suite_data_subset_refuter_ran",
+            "fn assert_manufacturing_dbn_known_truth_mixture",
+            "fn cached_count",
+            "fn dbn_posterior_graph_posterior_numeric_pins",
+            "fn dbn_posterior_intervention_response_cheap_and_full_mix_atom_refuters",
+            "fn dbn_posterior_intervention_response_matches_identified_atom",
+            "fn dbn_posterior_response_agrees_with_independent_atom_mix",
+            "fn dbn_posterior_response_curve_matches_identified_atom",
+            "fn discovered_temporal_pag_records_its_algorithm",
+            "fn dose_horizon_pulse_accepted_cheap_runs_evalue_only",
+            "fn dose_horizon_pulse_accepted_full_completes_with_data_subset_refuter",
+            "fn dose_horizon_pulse_and_sustained_none_all_structures",
+            "fn dose_horizon_pulse_explicit_cheap_runs_evalue_only",
+            "fn dose_horizon_pulse_explicit_full_completes_with_data_subset_refuter",
+            "fn dose_horizon_pulse_explicit_placebo_and_rcc_succeed",
+            "fn dose_horizon_pulse_query",
+            "fn dose_horizon_series",
+            "fn dose_horizon_sustained_accepted_cheap_runs_evalue_only",
+            "fn dose_horizon_sustained_accepted_full_completes_with_data_subset_refuter",
+            "fn dose_horizon_sustained_explicit_cheap_runs_evalue_only",
+            "fn dose_horizon_sustained_explicit_full_completes_with_data_subset_refuter",
+            "fn dose_horizon_sustained_query",
+            "fn has_structural_aggregation_policy",
+            "fn identify_computations",
+            "fn incomplete_temporal_pag_does_not_certify_invisible_effect",
+            "fn known_truth_dbn_mediation_posterior",
+            "fn known_truth_dbn_posterior",
+            "fn manufacturing_dbn_envelope_composed_prior_conflict",
+            "fn manufacturing_dbn_posterior_bayesian_envelope",
+            "fn manufacturing_dbn_posterior_bayesian_mediation_envelope",
+            "fn manufacturing_dbn_posterior_bayesian_mediation_estimation_failure_is_not_unidentified_mass",
+            "fn manufacturing_dbn_posterior_bayesian_sustained_envelope",
+            "fn manufacturing_dbn_posterior_bayesian_sustained_multistep_envelope",
+            "fn manufacturing_dbn_posterior_discovered_prepare_reuses_identification",
+            "fn manufacturing_dbn_posterior_frequentist_cheap_and_full_mix_atom_refuters",
+            "fn manufacturing_dbn_posterior_frequentist_mediation_cheap_and_full_mix_atom_refuters",
+            "fn manufacturing_dbn_posterior_frequentist_mediation_envelope",
+            "fn manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicate",
+            "fn manufacturing_dbn_posterior_frequentist_mediation_refuses_multi_horizon",
+            "fn manufacturing_dbn_posterior_frequentist_mediation_withholds_se_without_replicates",
+            "fn manufacturing_dbn_posterior_frequentist_shared_block_bootstrap",
+            "fn manufacturing_dbn_posterior_mediation_retains_multiple_horizons",
+            "fn manufacturing_dbn_posterior_multistep_sustained_supports_cheap_without_collapse",
+            "fn manufacturing_pressure_defect_bayesian",
+            "fn manufacturing_series",
+            "fn mediation_series",
+            "fn recording_ctx",
+            "fn report",
+            "fn response_value_points",
+            "fn response_values",
+            "fn run_explicit_temporal_response",
+            "fn run_temporal_frequentist_case",
+            "fn supplied_complete_temporal_pag_does_not_bypass_visibility",
+            "fn temporal_intervention_response",
+            "fn temporal_mean_curve",
+            "fn white_noise_pulse_series",
+            "struct RecordingProgress"
+          ],
+          "sha256": "13bef0e83cd55855dfcc10d89b4ab3b8c288245812c41ba9ff7102025d32a282"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/temporal_class_posterior.rs",
+          "items": [
+            "fn data"
+          ],
+          "sha256": "56a1c8fd02ef83b78dbd70e0612832f7f1481db78f66b2476f8cea82a4589383"
+        }
+      ],
+      "fixture_payload_sha256": "61eac03a090bfcea9f49d379f66b0dbb436ad87155faa2591b9f0001647d7832"
+    }
   }
 }

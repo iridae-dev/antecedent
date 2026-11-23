@@ -145,9 +145,9 @@ fn matching_names_units_and_shape_but_another_population_and_a_mean_for_a_law_re
     assert_eq!(
         details(&refusals),
         [
-            "interface_contract.population_mismatch",
-            "interface_contract.operation_unavailable",
-            "interface_contract.uncertainty_meaning_missing",
+            antecedent_core::reason_details::interface_contract::POPULATION_MISMATCH,
+            antecedent_core::reason_details::interface_contract::OPERATION_UNAVAILABLE,
+            antecedent_core::reason_details::interface_contract::UNCERTAINTY_MEANING_MISSING,
         ]
     );
     assert_eq!(
@@ -195,15 +195,15 @@ fn every_quantity_dimension_is_reported_separately() {
     assert_eq!(
         details(&refusals),
         [
-            "interface_contract.variable_mismatch",
-            "interface_contract.units_mismatch",
-            "interface_contract.population_mismatch",
-            "interface_contract.regime_mismatch",
-            "interface_contract.horizon_mismatch",
-            "interface_contract.functional_mismatch",
-            "interface_contract.transform_mismatch",
-            "interface_contract.semantic_identity_mismatch",
-            "interface_contract.support_mismatch",
+            antecedent_core::reason_details::interface_contract::VARIABLE_MISMATCH,
+            antecedent_core::reason_details::interface_contract::UNITS_MISMATCH,
+            antecedent_core::reason_details::interface_contract::POPULATION_MISMATCH,
+            antecedent_core::reason_details::interface_contract::REGIME_MISMATCH,
+            antecedent_core::reason_details::interface_contract::HORIZON_MISMATCH,
+            antecedent_core::reason_details::interface_contract::FUNCTIONAL_MISMATCH,
+            antecedent_core::reason_details::interface_contract::TRANSFORM_MISMATCH,
+            antecedent_core::reason_details::interface_contract::SEMANTIC_IDENTITY_MISMATCH,
+            antecedent_core::reason_details::interface_contract::SUPPORT_MISMATCH,
         ]
     );
 }
@@ -238,7 +238,10 @@ fn measurement_assumptions_must_agree_as_sets_of_model_identities() {
     let want_a = consumed(&[ContractOperation::Mean]).with_measurement_models([MODEL_A]);
     let producer_b = producer_of(base.clone().with_measurement_models([MODEL_B]));
     let refusals = check(&producer_b, &consumer_of(want_a.clone())).expect_err("model differs");
-    assert_eq!(details(&refusals), ["interface_contract.measurement_assumption_mismatch"]);
+    assert_eq!(
+        details(&refusals),
+        [antecedent_core::reason_details::interface_contract::MEASUREMENT_ASSUMPTION_MISMATCH]
+    );
     assert_eq!(refusals[0].expected.as_deref(), Some(MODEL_A));
     assert_eq!(refusals[0].supplied.as_deref(), Some(MODEL_B));
     // An uncorrected producer does not satisfy a consumer that needs the model.
@@ -257,7 +260,10 @@ fn undeclared_dependence_is_refused_where_the_consumer_needs_it_declared() {
             .with_dependence(DependenceRequirement::DeclaredEvidence),
     );
     let refusals = check(&producer, &consumer).expect_err("dependence unknown");
-    assert_eq!(details(&refusals), ["interface_contract.dependence_unknown"]);
+    assert_eq!(
+        details(&refusals),
+        [antecedent_core::reason_details::interface_contract::DEPENDENCE_UNKNOWN]
+    );
     assert_eq!(refusals[0].code, "interface_contract_assumption_mismatch");
     let declared = producer_of(produced(&[ContractOperation::Mean]).with_evidence([source(7)]));
     assert!(check(&declared, &consumer).is_ok());
@@ -278,8 +284,8 @@ fn posterior_and_sampling_uncertainty_are_not_interchangeable() {
     assert_eq!(
         details(&refusals),
         [
-            "interface_contract.operation_unavailable",
-            "interface_contract.uncertainty_paradigm_mismatch",
+            antecedent_core::reason_details::interface_contract::OPERATION_UNAVAILABLE,
+            antecedent_core::reason_details::interface_contract::UNCERTAINTY_PARADIGM_MISMATCH,
         ]
     );
     assert_eq!(refusals[1].expected.as_deref(), Some("posterior"));
@@ -291,29 +297,32 @@ fn posterior_and_sampling_uncertainty_are_not_interchangeable() {
             .with_uncertainty(DistributionMeaning::ParameterPosterior),
     );
     let refusals = check(&parameters, &consumer).expect_err("meaning differs");
-    assert_eq!(details(&refusals), ["interface_contract.uncertainty_meaning_mismatch"]);
+    assert_eq!(
+        details(&refusals),
+        [antecedent_core::reason_details::interface_contract::UNCERTAINTY_MEANING_MISMATCH]
+    );
     assert_eq!(refusals[0].expected.as_deref(), Some("causal_functional_posterior"));
     assert_eq!(refusals[0].supplied.as_deref(), Some("parameter_posterior"));
 }
 
 #[test]
-fn measured_calibration_is_required_not_assumed() {
+fn measured_calibration_is_carried_never_raised() {
     let consumer = consumer_of(
         consumed(&[ContractOperation::Interval])
             .with_uncertainty(DistributionMeaning::EstimatorSampling)
             .with_calibration(CalibrationRequirement::Measured),
     );
-    for status in [CalibrationStatus::None, CalibrationStatus::Unmeasured] {
+    for status in [CalibrationStatus::None, CalibrationStatus::NotMeasured] {
         let label = status.label();
         let producer = producer_of(
             produced(&[ContractOperation::Interval])
                 .with_uncertainty(DistributionMeaning::EstimatorSampling)
                 .with_calibration(status),
         );
-        let refusals = check(&producer, &consumer).expect_err("not held");
-        assert_eq!(details(&refusals), ["interface_contract.calibration_not_held"]);
-        assert_eq!(refusals[0].code, "interface_contract_calibration_not_held");
-        assert_eq!(refusals[0].supplied.as_deref(), Some(label));
+        // The consumer is served, and the connection says what the producer holds.
+        let connection = check_connection(&producer, "effect", &consumer, "effect")
+            .expect("calibration annotates and never refuses");
+        assert_eq!(connection.calibration.label(), label);
     }
     // An inherited label cannot be resolved from a pair.
     let inheriting = InterfaceContract {
@@ -325,8 +334,9 @@ fn measured_calibration_is_required_not_assumed() {
                 .with_calibration(CalibrationStatus::Inherited { input: "effect".into() }),
         ],
     };
-    let refusals = check(&inheriting, &consumer).expect_err("unresolved");
-    assert_eq!(details(&refusals), ["interface_contract.calibration_inherited_unresolved"]);
+    let connection = check_connection(&inheriting, "effect", &consumer, "effect")
+        .expect("an inherited label a pair cannot resolve is carried as not measured");
+    assert_eq!(connection.calibration, CalibrationStatus::NotMeasured);
     // A producer that holds a measured record connects, and the connection keeps its label.
     let measured = producer_of(
         produced(&[ContractOperation::Interval])
@@ -357,11 +367,14 @@ fn malformed_declarations_are_refused_with_their_own_detail() {
     let mut cases: Vec<(InterfaceContract, &str)> = Vec::new();
     // An interval with no stated meaning.
     contract.produces[0].operations.insert(ContractOperation::Interval);
-    cases.push((contract.clone(), "interface_contract.uncertainty_meaning_required"));
+    cases.push((
+        contract.clone(),
+        antecedent_core::reason_details::interface_contract::UNCERTAINTY_MEANING_REQUIRED,
+    ));
     // A meaning stated where nothing carries uncertainty.
     cases.push((
         producer_of(valid.clone().with_uncertainty(DistributionMeaning::Bootstrap)),
-        "interface_contract.uncertainty_meaning_unused",
+        antecedent_core::reason_details::interface_contract::UNCERTAINTY_MEANING_UNUSED,
     ));
     // A posterior operation with a sampling meaning.
     cases.push((
@@ -369,7 +382,7 @@ fn malformed_declarations_are_refused_with_their_own_detail() {
             produced(&[ContractOperation::Posterior])
                 .with_uncertainty(DistributionMeaning::EstimatorSampling),
         ),
-        "interface_contract.posterior_without_posterior_meaning",
+        antecedent_core::reason_details::interface_contract::POSTERIOR_WITHOUT_POSTERIOR_MEANING,
     ));
     // Point-only beside an interval.
     cases.push((
@@ -378,7 +391,7 @@ fn malformed_declarations_are_refused_with_their_own_detail() {
                 .with_uncertainty(DistributionMeaning::Bootstrap)
                 .with_calibration(CalibrationStatus::PointOnly),
         ),
-        "interface_contract.point_only_with_uncertainty",
+        antecedent_core::reason_details::interface_contract::POINT_ONLY_WITH_UNCERTAINTY,
     ));
     // Measured calibration with no record id, and with no interval operation.
     cases.push((
@@ -387,13 +400,13 @@ fn malformed_declarations_are_refused_with_their_own_detail() {
                 .with_uncertainty(DistributionMeaning::Bootstrap)
                 .with_calibration(CalibrationStatus::Measured { record_id: " ".into() }),
         ),
-        "interface_contract.calibration_record_blank",
+        antecedent_core::reason_details::interface_contract::CALIBRATION_RECORD_BLANK,
     ));
     cases.push((
         producer_of(
             valid.clone().with_calibration(CalibrationStatus::Measured { record_id: "r".into() }),
         ),
-        "interface_contract.calibration_without_interval",
+        antecedent_core::reason_details::interface_contract::CALIBRATION_WITHOUT_INTERVAL,
     ));
     // Inheritance from a port the component does not consume.
     cases.push((
@@ -402,24 +415,30 @@ fn malformed_declarations_are_refused_with_their_own_detail() {
                 .clone()
                 .with_calibration(CalibrationStatus::Inherited { input: "missing".into() }),
         ),
-        "interface_contract.inherited_input_unknown",
+        antecedent_core::reason_details::interface_contract::INHERITED_INPUT_UNKNOWN,
     ));
     // An identity that is not a lowercase hex digest.
     cases.push((
         producer_of(valid.clone().with_measurement_models(["not-a-digest"])),
-        "interface_contract.invalid_digest",
+        antecedent_core::reason_details::interface_contract::INVALID_DIGEST,
     ));
     cases.push((
         producer_of(valid.clone().with_provenance(["not_a_stage"])),
-        "interface_contract.unknown_provenance_stage",
+        antecedent_core::reason_details::interface_contract::UNKNOWN_PROVENANCE_STAGE,
     ));
     // A quantity with no units, an unordered interval, no operations.
     let mut no_units = valid.clone();
     no_units.quantity.units.clear();
-    cases.push((producer_of(no_units), "interface_contract.invalid_quantity"));
+    cases.push((
+        producer_of(no_units),
+        antecedent_core::reason_details::interface_contract::INVALID_QUANTITY,
+    ));
     let mut backwards = valid.clone();
     backwards.support = SupportDomain::interval(2.0, 1.0);
-    cases.push((producer_of(backwards), "interface_contract.invalid_support"));
+    cases.push((
+        producer_of(backwards),
+        antecedent_core::reason_details::interface_contract::INVALID_SUPPORT,
+    ));
     cases.push((
         producer_of(ProducedPort::new(
             "effect",
@@ -428,7 +447,7 @@ fn malformed_declarations_are_refused_with_their_own_detail() {
             SupportDomain::Real,
             [],
         )),
-        "interface_contract.missing_operations",
+        antecedent_core::reason_details::interface_contract::MISSING_OPERATIONS,
     ));
     cases.push((
         InterfaceContract {
@@ -436,7 +455,7 @@ fn malformed_declarations_are_refused_with_their_own_detail() {
             produces: vec![valid.clone(), valid],
             consumes: vec![],
         },
-        "interface_contract.duplicate_port",
+        antecedent_core::reason_details::interface_contract::DUPLICATE_PORT,
     ));
     for (contract, detail) in cases {
         let refusal = contract.validate().expect_err(detail);
@@ -479,7 +498,7 @@ fn identity_ignores_port_order_and_binds_every_declared_field() {
     changes.push(label);
     changes.push(a.clone().with_evidence([source(3)]));
     changes.push(a.clone().with_measurement_models([MODEL_A]));
-    changes.push(a.clone().with_calibration(CalibrationStatus::Unmeasured));
+    changes.push(a.clone().with_calibration(CalibrationStatus::NotMeasured));
     let mut support = a.clone();
     support.support = SupportDomain::NonNegative;
     changes.push(support);
@@ -545,7 +564,10 @@ fn a_cycle_is_refused_before_execution_with_its_path_named() {
             .expect_err("cyclic");
     assert_eq!(refusals.len(), 1);
     assert_eq!(refusals[0].code, "interface_contract_cyclic_composition");
-    assert_eq!(refusals[0].detail, "interface_contract.cyclic_composition");
+    assert_eq!(
+        refusals[0].detail,
+        antecedent_core::reason_details::interface_contract::CYCLIC_COMPOSITION
+    );
     assert_eq!(refusals[0].offending.as_deref(), Some("a -> b -> c -> a"));
     assert!(refusals[0].remedy.is_some());
     assert_eq!(refusals[0].validate(), Ok(()));
@@ -569,25 +591,40 @@ fn a_composition_with_a_pairwise_defect_is_refused_with_the_defect() {
     downstream.consumes[0].quantity.units = "lb".into();
     let refusals = check_composition(&[passthrough("a", None), downstream], &[link("a", "b")])
         .expect_err("units");
-    assert_eq!(details(&refusals), ["interface_contract.units_mismatch"]);
+    assert_eq!(
+        details(&refusals),
+        [antecedent_core::reason_details::interface_contract::UNITS_MISMATCH]
+    );
 }
 
 #[test]
 fn unknown_names_and_a_doubly_fed_port_are_refused() {
     let components = [passthrough("a", None), passthrough("b", None), passthrough("c", None)];
     let refusals = check_composition(&components, &[link("a", "zzz")]).expect_err("unknown");
-    assert_eq!(details(&refusals), ["interface_contract.unknown_component"]);
+    assert_eq!(
+        details(&refusals),
+        [antecedent_core::reason_details::interface_contract::UNKNOWN_COMPONENT]
+    );
     let refusals =
         check_composition(&components, &[ComponentConnection::new("a", "nope", "b", "in")])
             .expect_err("unknown port");
-    assert_eq!(details(&refusals), ["interface_contract.unknown_port"]);
+    assert_eq!(
+        details(&refusals),
+        [antecedent_core::reason_details::interface_contract::UNKNOWN_PORT]
+    );
     let refusals =
         check_composition(&components, &[link("a", "c"), link("b", "c")]).expect_err("fed twice");
-    assert_eq!(details(&refusals), ["interface_contract.port_multiply_fed"]);
+    assert_eq!(
+        details(&refusals),
+        [antecedent_core::reason_details::interface_contract::PORT_MULTIPLY_FED]
+    );
     assert_eq!(refusals[0].offending.as_deref(), Some("c.in"));
     let refusals = check_composition(&[passthrough("a", None), passthrough("a", None)], &[])
         .expect_err("duplicate");
-    assert_eq!(details(&refusals), ["interface_contract.duplicate_component"]);
+    assert_eq!(
+        details(&refusals),
+        [antecedent_core::reason_details::interface_contract::DUPLICATE_COMPONENT]
+    );
 }
 
 fn fan_in(left: u8, right: u8) -> Vec<InterfaceContract> {
@@ -623,11 +660,18 @@ fn inputs_that_must_be_disjoint_cannot_share_an_evidence_source() {
         ComponentConnection::new("s1", "out", "pool", "left"),
         ComponentConnection::new("s2", "out", "pool", "right"),
     ];
-    // Distinct sources: accepted.
-    assert!(check_composition(&fan_in(1, 2), &wires).is_ok());
+    // Distinct source identities do not prove that observations are disjoint.
+    let unknown = check_composition(&fan_in(1, 2), &wires).unwrap_err();
+    assert_eq!(
+        details(&unknown),
+        [antecedent_core::reason_details::interface_contract::DEPENDENCE_UNKNOWN]
+    );
     // One source reaching the pool twice: refused, with the count of shared sources.
     let refusals = check_composition(&fan_in(5, 5), &wires).expect_err("double counted");
-    assert_eq!(details(&refusals), ["interface_contract.shared_evidence"]);
+    assert_eq!(
+        details(&refusals),
+        [antecedent_core::reason_details::interface_contract::SHARED_EVIDENCE]
+    );
     assert_eq!(refusals[0].code, "interface_contract_assumption_mismatch");
     assert_eq!(refusals[0].supplied.as_deref(), Some("1 shared source(s)"));
     assert_eq!(refusals[0].offending.as_deref(), Some("s1.out, s2.out"));
@@ -691,21 +735,14 @@ fn inherited_calibration_resolves_against_the_upstream_that_holds_it() {
     let mid_to_sink = composed.connections.iter().find(|c| c.consumer == "sink").expect("edge");
     assert_eq!(mid_to_sink.calibration, CalibrationStatus::Measured { record_id: "rec-7".into() });
 
-    // An upstream that no longer holds a measured record: the inheritance is refused,
-    // and the downstream that relies on it is refused too.
-    let mut unmeasured = measured("rec-7");
-    unmeasured.produces[0].calibration = CalibrationStatus::Unmeasured;
-    let refusals = check_composition(&[unmeasured, interval_in("mid", false), sink], &wires)
-        .expect_err("not held");
-    assert_eq!(
-        details(&refusals),
-        [
-            "interface_contract.calibration_inherited_not_held",
-            "interface_contract.calibration_not_held",
-        ]
-    );
-    assert_eq!(refusals[0].offending.as_deref(), Some("out <- in"));
-    assert!(refusals.iter().all(|r| r.code == "interface_contract_calibration_not_held"));
+    // An upstream that no longer holds a measured record: the composition holds and the
+    // downstream connection carries the calibration status the upstream holds.
+    let mut not_measured = measured("rec-7");
+    not_measured.produces[0].calibration = CalibrationStatus::NotMeasured;
+    let composed = check_composition(&[not_measured, interval_in("mid", false), sink], &wires)
+        .expect("calibration annotates and never refuses");
+    let mid_to_sink = composed.connections.iter().find(|c| c.consumer == "sink").expect("edge");
+    assert_eq!(mid_to_sink.calibration, CalibrationStatus::NotMeasured);
 }
 
 #[test]
@@ -728,4 +765,127 @@ fn provider_capabilities_disclose_operations_one_to_one() {
     assert!(
         !operations_of_capabilities(&[ExternalCapability::Cdf]).contains(&ContractOperation::Draws)
     );
+}
+
+#[test]
+fn empty_evidence_never_satisfies_a_dependence_requirement() {
+    use antecedent_contract::interface_contract::EvidenceBasis;
+    for requirement in
+        [DependenceRequirement::DeclaredEvidence, DependenceRequirement::DisjointEvidence]
+    {
+        let consumer =
+            consumer_of(consumed(&[ContractOperation::Mean]).with_dependence(requirement));
+        let constructor = produced(&[ContractOperation::Mean]).with_evidence([]);
+        let mut literal = produced(&[ContractOperation::Mean]);
+        literal.evidence = EvidenceBasis::Declared(BTreeSet::new());
+        for port in [constructor, literal] {
+            let producer = producer_of(port);
+            let refused = check(&producer, &consumer).unwrap_err();
+            assert!(details(&refused).contains(
+                &antecedent_core::reason_details::interface_contract::DEPENDENCE_UNKNOWN
+            ));
+            let edge = ComponentConnection::new(
+                &producer.component,
+                &producer.produces[0].name,
+                &consumer.component,
+                &consumer.consumes[0].name,
+            );
+            let refused = check_composition(&[producer, consumer.clone()], &[edge]).unwrap_err();
+            assert!(details(&refused).contains(
+                &antecedent_core::reason_details::interface_contract::DEPENDENCE_UNKNOWN
+            ));
+        }
+    }
+}
+
+#[test]
+fn inherited_calibration_does_not_cross_changed_quantity() {
+    let mut upstream = passthrough("a", None);
+    upstream.consumes.clear();
+    upstream.produces[0] = ProducedPort::new(
+        "out",
+        quantity("mmHg", "adults", "do(a=1)"),
+        "estimand:ate",
+        SupportDomain::Real,
+        [ContractOperation::Interval],
+    )
+    .with_uncertainty(DistributionMeaning::EstimatorSampling)
+    .with_calibration(CalibrationStatus::Measured { record_id: "rec".into() });
+    let mut mid = passthrough("mid", None);
+    mid.consumes[0] = ConsumedPort::new(
+        "in",
+        quantity("mmHg", "adults", "do(a=1)"),
+        "estimand:ate",
+        SupportDomain::Real,
+        [ContractOperation::Interval],
+    )
+    .with_uncertainty(DistributionMeaning::EstimatorSampling);
+    mid.produces[0] = ProducedPort::new(
+        "out",
+        quantity("mmHg", "adults", "do(a=1)"),
+        "different:quantity",
+        SupportDomain::Real,
+        [ContractOperation::Interval],
+    )
+    .with_uncertainty(DistributionMeaning::EstimatorSampling)
+    .with_calibration(CalibrationStatus::Inherited { input: "in".into() });
+    // The changed quantity does not inherit the record; the composition still holds.
+    let composed = check_composition(&[upstream, mid], &[link("a", "mid")])
+        .expect("calibration annotates and never refuses");
+    assert_eq!(composed.order.len(), 2);
+}
+
+#[test]
+fn inherited_calibration_uses_the_actual_source_and_preserves_forwarding() {
+    let mut upstream = passthrough("a", None);
+    upstream.consumes.clear();
+    upstream.produces[0].operations.insert(ContractOperation::Interval);
+    upstream.produces[0].operations.insert(ContractOperation::Draws);
+    upstream.produces[0] =
+        upstream.produces[0].clone().with_uncertainty(DistributionMeaning::EstimatorSampling);
+    upstream.produces[0].calibration = CalibrationStatus::Measured { record_id: "rec".into() };
+    upstream.produces[0] = upstream.produces[0].clone().with_evidence([source(1)]);
+    let mut mid = passthrough("mid", None);
+    // The input accepts either uncertainty meaning; forwarding the actual sampling
+    // quantity still retains its calibration, even when fewer operations are offered.
+    mid.produces[0] = upstream.produces[0].clone();
+    mid.produces[0].operations.remove(&ContractOperation::Mean);
+    mid.produces[0].calibration = CalibrationStatus::Inherited { input: "in".into() };
+    let wires = [link("a", "mid")];
+    let accepted = check_composition(&[upstream.clone(), mid.clone()], &wires).unwrap();
+    assert_eq!(accepted.order.len(), 2);
+
+    let baseline = mid.produces[0].clone();
+    let mut changes = Vec::new();
+    let mut changed = baseline.clone();
+    changed.quantity = quantity("mmHg", "children", "do(a=1)");
+    changes.push(changed);
+    let mut changed = baseline.clone();
+    changed.measurement_models.insert(MODEL_A.into());
+    changes.push(changed);
+    let mut changed = baseline.clone();
+    changed = changed.with_uncertainty(DistributionMeaning::CausalFunctionalPosterior);
+    changes.push(changed);
+    let mut changed = baseline.clone();
+    changed.evidence = antecedent_contract::interface_contract::EvidenceBasis::Undeclared;
+    changes.push(changed);
+    let mut changed = baseline.clone();
+    changed.support = SupportDomain::NonNegative;
+    changes.push(changed);
+    let mut changed = baseline.clone();
+    changed.operations.insert(ContractOperation::JointDraws);
+    changes.push(changed);
+    let mut draws_only = baseline.clone();
+    draws_only.operations = [ContractOperation::Draws].into_iter().collect();
+    mid.produces[0] = draws_only;
+    let refused = check_composition(&[upstream.clone(), mid.clone()], &wires).unwrap_err();
+    assert!(details(&refused).contains(
+        &antecedent_core::reason_details::interface_contract::CALIBRATION_WITHOUT_INTERVAL
+    ));
+    for changed in changes {
+        mid.produces[0] = changed;
+        let composed = check_composition(&[upstream.clone(), mid.clone()], &wires)
+            .expect("calibration annotates and never refuses");
+        assert_eq!(composed.order.len(), 2);
+    }
 }

@@ -23,18 +23,16 @@
 //! result recreates no prepared study, score table or fit. The artifact decides and records;
 //! it computes nothing and carries no estimate.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
-use std::sync::{Mutex, PoisonError};
+use std::sync::Arc;
 
 use antecedent_core::recalc::{
     Boundary, RecalcCapabilities, RecalcPlan, RequestSupport, ResumeContext, RetargetSupport,
     Stage, StageIdentities, StageIdentity, StageStatus,
 };
 use serde::{Deserialize, Serialize};
-
-use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const RECALC_RECEIPT_ARTIFACT_VERSION: u16 = 1;
@@ -48,14 +46,13 @@ pub const MAX_RECALC_RECEIPT_STAGES: usize = 64;
 const ARTIFACT_KIND: &str = crate::artifact_kinds::RECALC_RECEIPT;
 const META_SECTION: &str = "recalc_receipt_meta";
 const MAX_ROUTE_BYTES: usize = 96;
-const MAX_INTERNED_ROUTES: usize = 64;
 
 crate::sectioned_artifact_enum! {
     /// Why a receipt artifact was refused or could not be produced.
     #[derive(Clone, Debug, PartialEq, Eq)]
     RecalcReceiptArtifactError {
         noun: "recalc receipt",
-        identity: "recalc_receipt.identity_mismatch",
+        identity: antecedent_core::reason_details::recalc_receipt::IDENTITY_MISMATCH,
         variants {
             /// A derived stage is stored as reused under a fresh-process boundary.
             FreshProcessReuse {
@@ -105,33 +102,31 @@ impl RecalcReceiptArtifactError {
     /// failures.
     #[must_use]
     pub fn refusal(&self) -> Option<(&'static str, &'static str, String)> {
-        let text = self.to_string();
-        let explanation =
-            text.split_once(": ").map_or_else(|| text.clone(), |(_, rest)| rest.to_owned());
+        let explanation = antecedent_core::refusal::explanation_of(&self.to_string());
         match self {
             Self::FreshProcessReuse { .. } => Some((
                 antecedent_core::reason_code!("score_table_unavailable"),
-                "recalc_receipt.fresh_process_reuse",
+                antecedent_core::reason_details::recalc_receipt::FRESH_PROCESS_REUSE,
                 explanation,
             )),
             Self::PlanMismatch { .. } => Some((
                 antecedent_core::reason_code!("route_not_supported"),
-                "recalc_receipt.plan_mismatch",
+                antecedent_core::reason_details::recalc_receipt::PLAN_MISMATCH,
                 explanation,
             )),
             Self::CountsInconsistent { .. } => Some((
                 antecedent_core::reason_code!("route_not_supported"),
-                "recalc_receipt.counts_inconsistent",
+                antecedent_core::reason_details::recalc_receipt::COUNTS_INCONSISTENT,
                 explanation,
             )),
             Self::TotalsMismatch => Some((
                 antecedent_core::reason_code!("route_not_supported"),
-                "recalc_receipt.totals_mismatch",
+                antecedent_core::reason_details::recalc_receipt::TOTALS_MISMATCH,
                 explanation,
             )),
             Self::IdentityMismatch { .. } => Some((
                 antecedent_core::reason_code!("route_not_supported"),
-                "recalc_receipt.identity_mismatch",
+                antecedent_core::reason_details::recalc_receipt::IDENTITY_MISMATCH,
                 explanation,
             )),
             _ => None,
@@ -308,13 +303,13 @@ pub struct ResumeWire {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CapabilitiesWire {
-    /// `licensed`, `not_declared` or `incompatible`.
+    /// `supported`, `not_declared` or `incompatible`.
     pub retarget: String,
     /// `on_grid`, `off_grid` or `unsupported`.
     pub request: String,
-    /// A separately licensed route that serves an off-grid or unsupported request.
+    /// A separately supported route that serves an off-grid or unsupported request.
     #[serde(default)]
-    pub licensed_route: Option<String>,
+    pub supported_route: Option<String>,
     /// `in_process` or `fresh_process`.
     pub boundary: String,
     /// What the fresh process holds; present exactly under `fresh_process`.
@@ -404,25 +399,13 @@ pub fn stage_from_label(label: &str) -> Option<Stage> {
     Stage::all().into_iter().find(|stage| stage.label() == label)
 }
 
-static ROUTES: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
-
-/// A bounded process-wide table of licensed-route names, because the core carries them as
-/// `&'static str`. At most [`MAX_INTERNED_ROUTES`] distinct names of [`MAX_ROUTE_BYTES`] bytes.
-fn intern_route(route: &str) -> Result<&'static str, RecalcReceiptArtifactError> {
+// Validate and own each route with its receipt; no process-global interning.
+fn owned_route(route: &str) -> Result<Arc<str>, RecalcReceiptArtifactError> {
     let allowed = |b: u8| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-');
     if route.is_empty() || route.len() > MAX_ROUTE_BYTES || !route.bytes().all(allowed) {
-        return Err(malformed("invalid licensed route name"));
+        return Err(malformed("invalid supported route name"));
     }
-    let mut known = ROUTES.lock().unwrap_or_else(PoisonError::into_inner);
-    if let Some(found) = known.iter().copied().find(|k| *k == route) {
-        return Ok(found);
-    }
-    if known.len() >= MAX_INTERNED_ROUTES {
-        return Err(RecalcReceiptArtifactError::LimitsExceeded("licensed routes"));
-    }
-    let leaked: &'static str = Box::leak(route.to_owned().into_boxed_str());
-    known.push(leaked);
-    Ok(leaked)
+    Ok(Arc::from(route))
 }
 
 impl CapabilitiesWire {
@@ -430,14 +413,16 @@ impl CapabilitiesWire {
     #[must_use]
     pub fn from_capabilities(capabilities: &RecalcCapabilities) -> Self {
         let retarget = match capabilities.retarget {
-            RetargetSupport::Licensed => "licensed",
+            RetargetSupport::Supported => "supported",
             RetargetSupport::NotDeclared => "not_declared",
             RetargetSupport::Incompatible => "incompatible",
         };
-        let (request, licensed_route) = match capabilities.request {
+        let (request, supported_route) = match &capabilities.request {
             RequestSupport::OnGrid => ("on_grid", None),
-            RequestSupport::OffGrid { licensed_route } => ("off_grid", licensed_route),
-            RequestSupport::Unsupported { licensed_route } => ("unsupported", licensed_route),
+            RequestSupport::OffGrid { supported_route } => ("off_grid", supported_route.as_deref()),
+            RequestSupport::Unsupported { supported_route } => {
+                ("unsupported", supported_route.as_deref())
+            }
         };
         let (boundary, resume) = match capabilities.boundary {
             Boundary::InProcess => ("in_process", None),
@@ -455,7 +440,7 @@ impl CapabilitiesWire {
         Self {
             retarget: retarget.to_owned(),
             request: request.to_owned(),
-            licensed_route: licensed_route.map(str::to_owned),
+            supported_route: supported_route.map(str::to_owned),
             boundary: boundary.to_owned(),
             resume,
         }
@@ -465,22 +450,22 @@ impl CapabilitiesWire {
     ///
     /// # Errors
     /// An unknown name, a route on an on-grid request, a resume context without (or on) a
-    /// fresh-process boundary, or an invalid or excess route name.
+    /// fresh-process boundary, or an invalid route name.
     pub fn to_capabilities(&self) -> Result<RecalcCapabilities, RecalcReceiptArtifactError> {
         let retarget = match self.retarget.as_str() {
-            "licensed" => RetargetSupport::Licensed,
+            "supported" => RetargetSupport::Supported,
             "not_declared" => RetargetSupport::NotDeclared,
             "incompatible" => RetargetSupport::Incompatible,
             other => return Err(malformed(format!("unknown retarget support `{other}`"))),
         };
-        let route = self.licensed_route.as_deref().map(intern_route).transpose()?;
+        let route = self.supported_route.as_deref().map(owned_route).transpose()?;
         let request = match (self.request.as_str(), route) {
             ("on_grid", None) => RequestSupport::OnGrid,
             ("on_grid", Some(_)) => {
-                return Err(malformed("an on-grid request names no licensed route"));
+                return Err(malformed("an on-grid request names no supported route"));
             }
-            ("off_grid", licensed_route) => RequestSupport::OffGrid { licensed_route },
-            ("unsupported", licensed_route) => RequestSupport::Unsupported { licensed_route },
+            ("off_grid", supported_route) => RequestSupport::OffGrid { supported_route },
+            ("unsupported", supported_route) => RequestSupport::Unsupported { supported_route },
             (other, _) => return Err(malformed(format!("unknown request support `{other}`"))),
         };
         let boundary = match (self.boundary.as_str(), self.resume) {
@@ -735,9 +720,10 @@ fn check(
     if meta.version != RECALC_RECEIPT_ARTIFACT_VERSION {
         return Err(RecalcReceiptArtifactError::UnsupportedVersion { version: meta.version });
     }
-    if meta.feature != RECALC_RECEIPT_ARTIFACT_FEATURE {
-        return Err(RecalcReceiptArtifactError::UnsupportedSemantics("feature marker"));
-    }
+    crate::artifact_codec::require_semantics::<RecalcReceiptArtifactError>(
+        meta.feature == RECALC_RECEIPT_ARTIFACT_FEATURE,
+        "feature marker",
+    )?;
     if meta.entries.len() > MAX_RECALC_RECEIPT_STAGES {
         return Err(RecalcReceiptArtifactError::LimitsExceeded("receipt entries"));
     }
@@ -818,33 +804,26 @@ pub fn encode_parts(
     meta: &RecalcReceiptMeta,
     artifact_id: &str,
 ) -> Result<Vec<u8>, RecalcReceiptArtifactError> {
-    encode_parts_impl(meta, artifact_id)
+    encode_parts_impl(meta, artifact_id, MAX_RECALC_RECEIPT_ARTIFACT_BYTES)
 }
 
 fn encode_parts_impl(
     meta: &RecalcReceiptMeta,
     artifact_id: &str,
+    max_bytes: usize,
 ) -> Result<Vec<u8>, RecalcReceiptArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(RecalcReceiptArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes =
-        to_cbor(meta).map_err(|error| RecalcReceiptArtifactError::Encode(error.to_string()))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "recalc_receipt",
-            max_bytes: MAX_RECALC_RECEIPT_ARTIFACT_BYTES,
+            max_bytes,
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection {
-            id: META_SECTION,
-            content_type: crate::CONTENT_CBOR,
-            bytes: &meta_bytes,
-        }],
+        META_SECTION,
+        meta,
+        &[],
     )
-    .map_err(|error| crate::map_artifact_check!(error, RecalcReceiptArtifactError))
 }
 
 /// Decode the metadata section of a container, refusing another version before the metadata
@@ -857,23 +836,22 @@ fn encode_parts_impl(
 // doc(hidden): the facade reads the historical receipt metadata.
 #[doc(hidden)]
 pub fn decode_parts(bytes: &[u8]) -> Result<RecalcReceiptMeta, RecalcReceiptArtifactError> {
-    let parts = crate::decode_container(
+    decode_parts_within(bytes, MAX_RECALC_RECEIPT_ARTIFACT_BYTES)
+}
+
+fn decode_parts_within(
+    bytes: &[u8],
+    max_bytes: usize,
+) -> Result<RecalcReceiptMeta, RecalcReceiptArtifactError> {
+    crate::artifact_codec::decode_sectioned(
         ARTIFACT_KIND,
-        MAX_RECALC_RECEIPT_ARTIFACT_BYTES,
-        &[META_SECTION],
+        max_bytes,
+        META_SECTION,
+        &[],
+        RECALC_RECEIPT_ARTIFACT_VERSION,
         bytes,
     )
-    .map_err(|error| crate::map_artifact_check!(error, RecalcReceiptArtifactError))?;
-    let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(RecalcReceiptArtifactError::Malformed("unsupported container layout".into()));
-    };
-    crate::decode_with_version(&meta_bytes, |version| {
-        if version == RECALC_RECEIPT_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(RecalcReceiptArtifactError::UnsupportedVersion { version })
-        }
-    })
+    .map(|(meta, _)| meta)
 }
 
 /// A produced or consumed selective-recalculation receipt: the stored table and the plan
@@ -971,7 +949,20 @@ impl RecalcReceiptArtifact {
     /// # Errors
     /// An empty id, an encoding failure or an oversized payload.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, RecalcReceiptArtifactError> {
-        encode_parts_impl(&self.meta, artifact_id)
+        self.to_bytes_within(artifact_id, MAX_RECALC_RECEIPT_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::to_bytes`] under the caller's byte bound instead of
+    /// [`MAX_RECALC_RECEIPT_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::to_bytes`]; a payload over `max_bytes` is `LimitsExceeded`.
+    pub fn to_bytes_within(
+        &self,
+        artifact_id: &str,
+        max_bytes: usize,
+    ) -> Result<Vec<u8>, RecalcReceiptArtifactError> {
+        encode_parts_impl(&self.meta, artifact_id, max_bytes)
     }
 
     /// Consume an artifact by recomputation.
@@ -987,7 +978,20 @@ impl RecalcReceiptArtifact {
         bytes: &[u8],
         expected_identity: Option<&str>,
     ) -> Result<Self, RecalcReceiptArtifactError> {
-        check(decode_parts(bytes)?, expected_identity)
+        Self::from_bytes_within(bytes, expected_identity, MAX_RECALC_RECEIPT_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::from_bytes`] under the caller's byte bound instead of
+    /// [`MAX_RECALC_RECEIPT_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a file over `max_bytes` is `LimitsExceeded`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        max_bytes: usize,
+    ) -> Result<Self, RecalcReceiptArtifactError> {
+        check(decode_parts_within(bytes, max_bytes)?, expected_identity)
     }
 }
 

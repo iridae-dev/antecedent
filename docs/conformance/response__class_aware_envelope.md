@@ -2,7 +2,7 @@
 
 **Suite path:** `conformance/response/class_aware_envelope`
 
-The licensed cell is the generalized-adjustment envelope already used for ATE,
+The supported cell is the generalized-adjustment envelope already used for ATE,
 evaluated pointwise and mass-weighted. It is not MAG/PAG response ID.
 
 ## InterventionResponse (discrete ATE table)
@@ -12,9 +12,10 @@ that adjust for `Z` identify `E[Y|do(T=t)] = 0.20 + 0.40 t`. The unadjusted
 completion identifies `0.14` and `0.66`. Equal weights therefore pin ATE
 contrasts `0.46` (CPDAG) and `0.44` (PAG).
 
-Intervention g-computation recovers those levels up to the additive-GAM
-plug-in. The recorded `do(0)` / `do(1)` values are output pins of that
-estimator, and `do(1) − do(0)` is checked against the ATE contrast.
+Intervention g-computation is checked against both completion laws computed
+directly from the contingency counts, including the diagnostic means 0.17 and
+0.63. The recorded `do(0)` / `do(1)` fields are historical estimator output
+pins, not the oracle for those checks. The contrast is also checked against ATE.
 
 Kennedy-DR is singular on this binary treatment, so it is not the discrete
 pin.
@@ -22,10 +23,34 @@ pin.
 ## ResponseCurve (continuous linear law)
 
 `y = 0.10 + 0.40 t + 0.20 z` with continuous `t` so Kennedy-DR is defined.
-The two-point grid is `[0, 1]`. Means are output pins; the contrast is
-checked against AverageEffect on the same graph and table, with a declared
-tolerance. The mixing rule is the claim, not bitwise equality with linear
-ATE.
+The two-point grid is `[0, 1]`, which lies outside the observed treatment
+support `[0.1, 0.9]`; the result reports `OutsideEmpiricalSupport` for both
+coordinates. The recorded means are regression pins of that extrapolation, not
+accuracy evidence, and their contrast is not compared with AverageEffect.
+
+The current means record the fixed-penalty joint GAM solve. A controlled
+comparison with its existing iterative fallback reproduced the previous means
+only on the iterative path; both paths passed the independent controls below.
+The numerical regression tolerance remains `1e-10`, and the Python consumer
+disables relative tolerance for this check.
+
+Three separate checks carry the evidence instead:
+
+1. Unambiguous linear case (the DAG `z -> t, z -> y, t -> y`): AverageEffect
+   recovers the generating 0.4, and the curve recovers the generating levels on
+   an in-support grid to within its smoothing error (observed 1.8e-3).
+2. Ambiguous class: each completion's own answer is asserted and their
+   disagreement is preserved. The adjusted completion is the line
+   `0.2 + 0.4 t`; the unadjusted completion's target is
+   `E[Y | T = t] = 0.10 + 0.40 t + 0.20 * 1[t > 0.5]` (here `z = 1` exactly when
+   `t > 0.5`).
+3. The gap between the curve contrast (0.499) and AverageEffect (0.569) is
+   accounted for completion by completion. The adjusted completion differs by
+   about 1e-3 (smoothing). The unadjusted completion differs by 0.137: its OLS
+   slope (0.737) is a linear-projection weight on a line-plus-step, while the
+   contrast between its extrapolated boundary lines is 0.6, and even the
+   in-support secant over `[0.1, 0.9]` is 0.65. These are different
+   functionals, not one estimator erring.
 
 Consumers: `crates/antecedent/tests/class_aware_response_numeric_pins.rs`
 and `python/tests/test_class_aware_response_numeric_pins.py`.
@@ -33,7 +58,7 @@ and `python/tests/test_class_aware_response_numeric_pins.py`.
 ## Bayesian
 
 Same envelope, `response.bayesian` per completion. Draws are not mixed;
-the licensed number is the identified-mass mean. The two-point intervention
+the supported number is the identified-mass mean. The two-point intervention
 contrast is pinned against the CPDAG / PAG Bayesian ATE fixtures.
 `estimate.envelope.response_posterior_not_mixed` discloses the omitted
 posterior mix. cheap/full stay n/a.

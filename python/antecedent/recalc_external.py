@@ -16,12 +16,29 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._recalc_bounds import _columns
 from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
+from .execution import Execution
 from .external import BoundExternalClaim, ExternalSpec, ProviderObject, Response
+from .outcomes import outcome_operation
 from .program_claims import ProgramBinding
-from .recalc import RecalcPlan, RecalcReceipt, RecalcRefusal, _seed
+from .recalc import (
+    RecalcPlan,
+    RecalcReceipt,
+    RecalcRefusal,
+    SessionStanding,
+    _execution,
+    _native_controls,
+    _seed,
+    session_standing,
+)
 
 CallbackPolicy = Literal["deterministic", "seeded", "stateful", "side_effecting", "unknown"]
 
@@ -177,6 +194,11 @@ class ExternalCallbackSession:
         self._handle = _native.ExternalCallbackSessionHandle()
 
     @property
+    def standing(self) -> SessionStanding:
+        """The standing inputs this session family's stage identities declare."""
+        return session_standing("external")
+
+    @property
     def is_live(self) -> bool:
         return bool(self._handle.is_live())
 
@@ -185,44 +207,45 @@ class ExternalCallbackSession:
         request: ExternalCallbackRequest,
         *,
         provider: CallbackProvider | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> RecalcPlan:
-        names, columns = _columns(
-            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
-        )
-        result, error = self._handle.plan(
+        run = _execution(execution)
+        limit, cancel = run.limits.memory_bytes, run.cancel
+        names, columns = _columns(request.data, memory_limit_bytes=limit, cancel=cancel)
+        result, error = run._call(
+            self._handle.plan,
             names,
             columns,
             request._wire(),
             provider is not None,
-            memory_limit_bytes=memory_limit_bytes,
+            memory_limit_bytes=limit,
             cancel=cancel,
         )
         raise_refusal(error, ExternalCallbackRefusal)
         assert result is not None
         return RecalcPlan.from_wire(json.loads(result))
 
+    @outcome_operation
     def execute(
         self,
         request: ExternalCallbackRequest,
         *,
         provider: CallbackProvider | None = None,
-        threads: int | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> ExternalCallbackResult:
+        run = _execution(execution)
+        # The posterior stream is the request's declared seed, not the execution's.
+        ctl = {k: v for k, v in _native_controls(run).items() if k != "seed"}
         names, columns = _columns(
-            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+            request.data, memory_limit_bytes=ctl["memory_limit_bytes"], cancel=ctl["cancel"]
         )
-        wire, receipt, claim, error = self._handle.execute(
+        wire, receipt, claim, error = run._call(
+            self._handle.execute,
             names,
             columns,
             request._wire(),
             None if provider is None else provider._handle,
-            threads=threads,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
+            **ctl,
         )
         raise_refusal(error, ExternalCallbackRefusal)
         if wire is None or receipt is None or claim is None:
@@ -234,12 +257,13 @@ class ExternalCallbackSession:
             BoundExternalClaim(claim, request.spec.statement),
         )
 
-    def export_output(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         result, error = self._handle.export_output()
         raise_refusal(error, ExternalCallbackRefusal)
         if result is None:
             raise CausalSerializationError("external callback has no portable output")
-        return bytes(result)
+        return artifact_from_receipt(self, bytes(result))
 
     @classmethod
     def resume(
@@ -247,18 +271,19 @@ class ExternalCallbackSession:
         artifact: bytes,
         request: ExternalCallbackRequest,
         *,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> ExternalCallbackSession:
-        names, columns = _columns(
-            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
-        )
-        handle, error = _native.ExternalCallbackSessionHandle.resume(
+        run = _execution(execution)
+        limit, cancel = run.limits.memory_bytes, run.cancel
+        artifact = container_bytes(artifact)
+        names, columns = _columns(request.data, memory_limit_bytes=limit, cancel=cancel)
+        handle, error = run._call(
+            _native.ExternalCallbackSessionHandle.resume,
             artifact,
             names,
             columns,
             request._wire(),
-            memory_limit_bytes=memory_limit_bytes,
+            memory_limit_bytes=limit,
             cancel=cancel,
         )
         raise_refusal(error, ExternalCallbackRefusal)

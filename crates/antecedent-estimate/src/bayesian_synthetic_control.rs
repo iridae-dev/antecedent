@@ -1,0 +1,599 @@
+//! Bayesian simplex synthetic control with a Dirichlet donor-weight prior.
+//!
+//! The estimand is the one of [`crate::synthetic_control::fit_synthetic_control`]: the average
+//! post-intervention gap between the treated unit and its counterfactual, the donor-weighted
+//! average of the donors' outcomes. The design premise is unchanged and no prior supplies it: the
+//! treated unit's untreated path lies in the convex hull of the donors' (a donor-weight simplex
+//! exists), donors are unaffected by the intervention, and the pre-period relation persists.
+//! The pre-fit and range diagnostics below are target-native descriptions of that premise; a good
+//! pre-fit does not establish it for the post period.
+//!
+//! Model: pre-period treated outcomes `y_t = sum_j w_j x_jt + e_t`, `w ~ Dirichlet(alpha 1)` on
+//! the simplex, `e` a stationary Gaussian AR(1) with declared coefficient `rho` and innovation
+//! variance `sigma2 ~ InvGamma(a, b)`. The counterfactual post-period mean carries the same
+//! error process continued from the last pre-period residual, so the effect draw is the realized
+//! average effect on the treated, not only the weight-driven gap. The posterior has no closed form
+//! and is sampled by pairwise-transfer Metropolis steps on the simplex with a Gibbs update of
+//! `sigma2`, over four overdispersed chains whose split R-hat and effective sample size gate the
+//! result.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+mod conditional;
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use antecedent_core::CausalRng;
+use antecedent_kernels::{sample_gamma, sample_inv_gamma, standard_normal};
+
+use crate::bayesian_panel_did::summarize;
+use crate::error::EstimationError;
+use crate::util::DrawSpec;
+
+const CHAINS: usize = 4;
+/// Metropolis sweeps between kept draws.
+const THIN: usize = 5;
+/// Largest split R-hat of the gap and the residual variance that is accepted.
+const MAX_RHAT: f64 = 1.05;
+/// Smallest total bulk effective sample size that is accepted.
+const MIN_BULK_ESS: f64 = 100.0;
+/// Pairwise-transfer proposal scales relative to each pair's own conditional posterior scale,
+/// one chosen uniformly per proposal. The pair's scale unit is the pre-period outcome spread
+/// over the root of the pre-period count times the root mean square of the donors' gap: the
+/// conditional standard deviation of that transfer when the error sd equals the outcome
+/// spread, so the smaller multiples cover error sds down to a thirtieth of it.
+const STEP_SCALES: [f64; 5] = [3.0, 1.0, 0.3, 0.1, 0.03];
+/// Largest absolute transfer a proposal makes.
+const MAX_TRANSFER: f64 = 0.3;
+/// Seed offset that separates the chains.
+const CHAIN_SEED_STRIDE: u64 = 0xD1B5_4A32_D192_ED03;
+
+/// Declared prior and sampler of a Bayesian synthetic control.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BayesianSyntheticControlSpec<'a> {
+    /// The single treated unit.
+    pub treated_unit: &'a str,
+    /// First post-intervention period.
+    pub intervention_period: i64,
+    /// Symmetric Dirichlet concentration of the donor weights (1 is uniform on the simplex).
+    pub dirichlet_concentration: f64,
+    /// Inverse-Gamma shape of the AR(1) innovation variance.
+    pub variance_shape: f64,
+    /// Inverse-Gamma scale of the AR(1) innovation variance.
+    pub variance_scale: f64,
+    /// Declared AR(1) coefficient of the pre-period fit errors, in (-1, 1); 0 is independent errors.
+    pub ar1_rho: f64,
+    /// Sweeps discarded before draws are kept, per chain.
+    pub burn_in: usize,
+}
+
+impl<'a> BayesianSyntheticControlSpec<'a> {
+    /// A uniform Dirichlet prior, a vague variance prior, independent errors and 1,000 burn-in sweeps.
+    #[must_use]
+    pub const fn new(treated_unit: &'a str, intervention_period: i64) -> Self {
+        Self {
+            treated_unit,
+            intervention_period,
+            dirichlet_concentration: 1.0,
+            variance_shape: 1e-3,
+            variance_scale: 1e-3,
+            ar1_rho: 0.0,
+            burn_in: 1_000,
+        }
+    }
+}
+
+/// Posterior of the average post-intervention effect on the treated unit.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BayesianSyntheticControlEstimate {
+    /// Effect draws, chain-major.
+    pub effect_draws: Vec<f64>,
+    /// Posterior mean.
+    pub mean: f64,
+    /// Posterior standard deviation.
+    pub sd: f64,
+    /// Equal-tailed 95% lower posterior quantile.
+    pub lower: f64,
+    /// Equal-tailed 95% upper posterior quantile.
+    pub upper: f64,
+    /// Posterior mean donor weights in stable unit-name order.
+    pub donor_weight_means: Vec<(String, f64)>,
+    /// Posterior standard deviation of each donor weight, in the same order.
+    pub donor_weight_sds: Vec<f64>,
+    /// Root mean squared pre-period gap at the posterior-mean weights.
+    pub pre_fit_rmse: f64,
+    /// Pre-periods in which the treated outcome lies outside the range of the donors' outcomes,
+    /// where no convex combination can match it.
+    pub pre_periods_outside_donor_range: usize,
+    /// Fraction of Metropolis proposals accepted.
+    pub acceptance_rate: f64,
+    /// Largest split R-hat of the weight-driven gap and the innovation variance.
+    pub max_split_rhat: f64,
+    /// Smallest bulk effective sample size of the same two quantities, across all chains.
+    pub min_bulk_ess: f64,
+    /// Observed pre-intervention periods.
+    pub n_pre_periods: usize,
+    /// Observed post-intervention periods.
+    pub n_post_periods: usize,
+    /// Explicit model scope.
+    pub model: &'static str,
+    /// Post-intervention periods, in order.
+    pub post_periods: Vec<i64>,
+    /// Posterior predictive draws of the effect at each post period (`[period][draw]`): the
+    /// treated outcome minus a draw of its counterfactual path, the donor-weighted outcome plus
+    /// the error process continued from the last pre-period residual.
+    pub period_effect_draws: Vec<Vec<f64>>,
+}
+
+struct ScPanel {
+    donors: Vec<String>,
+    target_pre: Vec<f64>,
+    donor_pre: Vec<Vec<f64>>,
+    target_post_mean: f64,
+    donor_post_mean: Vec<f64>,
+    n_post: usize,
+    post_periods: Vec<i64>,
+    target_post: Vec<f64>,
+    donor_post: Vec<Vec<f64>>,
+    /// `donors x donors` (row-major): the conditional posterior scale unit of a transfer
+    /// between two donors, which sharpens as pre-periods accumulate and as donors separate.
+    step_units: Vec<f64>,
+}
+
+/// Transfer scale units of every donor pair from the pre-period data alone, so the proposal
+/// stays symmetric and the chain's stationary law is untouched.
+fn transfer_units(target: &[f64], donors: &[Vec<f64>]) -> Vec<f64> {
+    let n = target.len() as f64;
+    let mean = target.iter().sum::<f64>() / n;
+    let spread = (target.iter().map(|y| (y - mean).powi(2)).sum::<f64>() / n).sqrt();
+    let spread = if spread > 0.0 && spread.is_finite() { spread } else { 1.0 };
+    let k = donors.len();
+    let mut units = vec![MAX_TRANSFER; k * k];
+    for i in 0..k {
+        for j in 0..k {
+            let mean_square =
+                donors[i].iter().zip(&donors[j]).map(|(a, b)| (a - b).powi(2)).sum::<f64>() / n;
+            let unit = spread / (n.sqrt() * mean_square.sqrt());
+            if unit.is_finite() {
+                units[i * k + j] = unit.min(MAX_TRANSFER);
+            }
+        }
+    }
+    units
+}
+
+fn parse_panel(
+    outcome: &[f64],
+    units: &[String],
+    periods: &[i64],
+    spec: &BayesianSyntheticControlSpec<'_>,
+) -> Result<ScPanel, EstimationError> {
+    let n = outcome.len();
+    if n == 0 || units.len() != n || periods.len() != n || outcome.iter().any(|v| !v.is_finite()) {
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "bayesian_synthetic_control_shape",
+            "synthetic control needs equal non-empty finite outcome, unit and period vectors. Next attempt: supply equal-length non-empty finite outcome, unit and period columns",
+        ));
+    }
+    let mut panel: BTreeMap<&str, BTreeMap<i64, f64>> = BTreeMap::new();
+    let mut all_periods = BTreeSet::new();
+    for i in 0..n {
+        if units[i].is_empty() || periods[i] <= 0 {
+            return Err(crate::util::refuse(
+                antecedent_core::reason_code!("invalid_argument"),
+                "bayesian_synthetic_control_labels",
+                "unit IDs must be non-empty and periods positive. Next attempt: give every row a non-empty unit label and a positive period",
+            ));
+        }
+        all_periods.insert(periods[i]);
+        if panel.entry(units[i].as_str()).or_default().insert(periods[i], outcome[i]).is_some() {
+            return Err(crate::util::refuse(
+                antecedent_core::reason_code!("invalid_argument"),
+                "bayesian_synthetic_control_duplicate_cell",
+                "each unit must have exactly one outcome per period. Next attempt: keep one outcome per unit and period, or aggregate repeated observations before the fit",
+            ));
+        }
+    }
+    let pre: Vec<i64> =
+        all_periods.iter().copied().filter(|p| *p < spec.intervention_period).collect();
+    let post: Vec<i64> =
+        all_periods.iter().copied().filter(|p| *p >= spec.intervention_period).collect();
+    if pre.len() < 2 || post.is_empty() {
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "bayesian_synthetic_control_periods",
+            "synthetic control requires at least two pre-periods and one post-period. Next attempt: supply a panel with at least two periods before and one at or after the intervention period, or the static randomized effect for a single-period table",
+        ));
+    }
+    if panel.len() < 4 || !panel.contains_key(spec.treated_unit) {
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "bayesian_synthetic_control_donors",
+            "synthetic control requires one observed treated unit and at least three donor units. Next attempt: supply the treated unit and at least three donor units",
+        ));
+    }
+    if panel.values().any(|observed| all_periods.iter().any(|p| !observed.contains_key(p))) {
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("missing_policy_required"),
+            "bayesian_synthetic_control_unbalanced",
+            "synthetic control requires a balanced panel with identical periods for every unit. Next attempt: balance the panel, or run the frequentist synthetic control with observed_window_support, which reads the treated unit's observed window without imputing",
+        ));
+    }
+    let treated = &panel[spec.treated_unit];
+    let donors: Vec<(&&str, &BTreeMap<i64, f64>)> =
+        panel.iter().filter(|(unit, _)| **unit != spec.treated_unit).collect();
+    let mean_post = |values: &BTreeMap<i64, f64>| {
+        post.iter().map(|p| values[p]).sum::<f64>() / post.len() as f64
+    };
+    let target_pre: Vec<f64> = pre.iter().map(|p| treated[p]).collect();
+    let donor_pre: Vec<Vec<f64>> =
+        donors.iter().map(|(_, v)| pre.iter().map(|p| v[p]).collect()).collect();
+    Ok(ScPanel {
+        donors: donors.iter().map(|(unit, _)| (**unit).to_string()).collect(),
+        step_units: transfer_units(&target_pre, &donor_pre),
+        target_pre,
+        donor_pre,
+        target_post_mean: mean_post(treated),
+        donor_post_mean: donors.iter().map(|(_, v)| mean_post(v)).collect(),
+        n_post: post.len(),
+        target_post: post.iter().map(|p| treated[p]).collect(),
+        donor_post: donors.iter().map(|(_, v)| post.iter().map(|p| v[p]).collect()).collect(),
+        post_periods: post,
+    })
+}
+
+/// Pre-period residuals `y_t - sum_j w_j x_jt`.
+fn residuals(panel: &ScPanel, weights: &[f64]) -> Vec<f64> {
+    panel
+        .target_pre
+        .iter()
+        .enumerate()
+        .map(|(t, y)| y - panel.donor_pre.iter().zip(weights).map(|(x, w)| w * x[t]).sum::<f64>())
+        .collect()
+}
+
+/// Sum of squared innovations of a stationary AR(1) error path.
+fn whitened_ss(residual: &[f64], rho: f64) -> f64 {
+    let first = residual.first().map_or(0.0, |r| (1.0 - rho * rho) * r * r);
+    first + residual.windows(2).map(|w| (w[1] - rho * w[0]).powi(2)).sum::<f64>()
+}
+
+struct ChainState {
+    weights: Vec<f64>,
+    residual: Vec<f64>,
+    ss: f64,
+    sigma2: f64,
+}
+
+/// A uniform index in `0..n`.
+fn below(rng: &mut CausalRng, n: usize) -> usize {
+    let bound = u64::try_from(n).unwrap_or(u64::MAX);
+    usize::try_from(rng.next_u64() % bound).unwrap_or(0)
+}
+
+/// `rho^k` for a small non-negative `k`.
+fn power(rho: f64, k: usize) -> f64 {
+    rho.powi(i32::try_from(k).unwrap_or(i32::MAX))
+}
+
+/// One pairwise-transfer Metropolis proposal; true when accepted.
+fn transfer_step(
+    state: &mut ChainState,
+    panel: &ScPanel,
+    spec: &BayesianSyntheticControlSpec<'_>,
+    rng: &mut CausalRng,
+) -> bool {
+    let donors = state.weights.len();
+    let alpha = spec.dirichlet_concentration;
+    // For sparse priors, select an unordered pair with probability proportional
+    // to its combined weight. A transfer preserves that weight, hence the pair
+    // selection probability cancels in the Metropolis ratio.
+    let i = if alpha < 0.5 {
+        let mut remaining = rng.next_f64();
+        state
+            .weights
+            .iter()
+            .position(|weight| {
+                remaining -= weight;
+                remaining <= 0.0
+            })
+            .unwrap_or(donors - 1)
+    } else {
+        below(rng, donors)
+    };
+    let j = (i + 1 + below(rng, donors - 1)) % donors;
+    let (i, j) = if alpha < 0.5 && i > j { (j, i) } else { (i, j) };
+    // Conditional on the pair mass, its prior split is Beta(alpha, alpha).
+    // An independence proposal from that law cancels the prior in the MH
+    // ratio and can move appreciable mass to donors near the simplex boundary.
+    let (wi, wj, delta, log_prior_ratio) = if alpha < 1.0 && rng.next_f64() < 0.5 {
+        let a = sample_gamma(alpha, 1.0, rng);
+        let b = sample_gamma(alpha, 1.0, rng);
+        let mass = state.weights[i] + state.weights[j];
+        let wi = mass * (a / (a + b));
+        (wi, mass * (b / (a + b)), wi - state.weights[i], 0.0)
+    } else {
+        let scale = (panel.step_units[i * donors + j] * STEP_SCALES[below(rng, STEP_SCALES.len())])
+            .min(MAX_TRANSFER);
+        let delta = scale * standard_normal(rng);
+        let (wi, wj) = (state.weights[i] + delta, state.weights[j] - delta);
+        let ratio =
+            (alpha - 1.0) * (wi.ln() + wj.ln() - state.weights[i].ln() - state.weights[j].ln());
+        (wi, wj, delta, ratio)
+    };
+    let uniform = rng.next_f64();
+    if !(wi.is_finite() && wi > 0.0 && wj.is_finite() && wj > 0.0) {
+        return false;
+    }
+    let proposed: Vec<f64> = state
+        .residual
+        .iter()
+        .zip(&panel.donor_pre[i])
+        .zip(&panel.donor_pre[j])
+        .map(|((r, xi), xj)| r - delta * (xi - xj))
+        .collect();
+    let ss = whitened_ss(&proposed, spec.ar1_rho);
+    let log_ratio = -(ss - state.ss) / (2.0 * state.sigma2) + log_prior_ratio;
+    if uniform.ln() < log_ratio {
+        state.weights[i] = wi;
+        state.weights[j] = wj;
+        state.residual = proposed;
+        state.ss = ss;
+        true
+    } else {
+        false
+    }
+}
+
+/// Draw of the realized average post-period effect given the weights and the error process.
+fn effect_draw(
+    gap: f64,
+    last_residual: f64,
+    sigma2: f64,
+    spec: &BayesianSyntheticControlSpec<'_>,
+    n_post: usize,
+    rng: &mut CausalRng,
+) -> f64 {
+    let rho = spec.ar1_rho;
+    let horizon = n_post as f64;
+    let carried: f64 = (1..=n_post).map(|k| power(rho, k)).sum();
+    let innovation_weight: f64 =
+        (1..=n_post).map(|m| (0..=(n_post - m)).map(|j| power(rho, j)).sum::<f64>().powi(2)).sum();
+    let mean = last_residual * carried / horizon;
+    let sd = (sigma2 * innovation_weight).sqrt() / horizon;
+    gap - (mean + sd * standard_normal(rng))
+}
+
+struct ChainDraws {
+    weights: Vec<Vec<f64>>,
+    lasts: Vec<f64>,
+    gaps: Vec<f64>,
+    sigma2: Vec<f64>,
+    effects: Vec<f64>,
+    accepted: usize,
+    proposals: usize,
+}
+
+fn run_chain(
+    panel: &ScPanel,
+    spec: &BayesianSyntheticControlSpec<'_>,
+    seed: u64,
+    kept: usize,
+) -> ChainDraws {
+    let mut rng = CausalRng::from_seed(seed);
+    let donors = panel.donors.len();
+    let mut start: Vec<f64> = (0..donors)
+        .map(|_| sample_gamma(spec.dirichlet_concentration.max(1.0), 1.0, &mut rng).max(1e-6))
+        .collect();
+    let total: f64 = start.iter().sum();
+    for w in &mut start {
+        *w /= total;
+    }
+    let residual = residuals(panel, &start);
+    let ss = whitened_ss(&residual, spec.ar1_rho);
+    let shape = spec.variance_shape + 0.5 * panel.target_pre.len() as f64;
+    let sigma2 = sample_inv_gamma(shape, spec.variance_scale + 0.5 * ss, &mut rng);
+    let mut state = ChainState { weights: start, residual, ss, sigma2 };
+    let mut out = ChainDraws {
+        weights: Vec::with_capacity(kept),
+        lasts: Vec::with_capacity(kept),
+        gaps: Vec::with_capacity(kept),
+        sigma2: Vec::with_capacity(kept),
+        effects: Vec::with_capacity(kept),
+        accepted: 0,
+        proposals: 0,
+    };
+    let conditional_pair = donors > 10 && conditional::uniform_independent(spec);
+    let transfers = if spec.dirichlet_concentration < 0.5 { 8 } else { 2 } * donors;
+    for sweep in 0..spec.burn_in + kept * THIN {
+        for step in 0..transfers {
+            if conditional_pair && step % 2 == 0 {
+                conditional::update(&mut state, panel, &mut rng);
+                continue;
+            }
+            out.proposals += 1;
+            out.accepted += usize::from(transfer_step(&mut state, panel, spec, &mut rng));
+        }
+        state.sigma2 = sample_inv_gamma(shape, spec.variance_scale + 0.5 * state.ss, &mut rng);
+        if sweep >= spec.burn_in && (sweep - spec.burn_in) % THIN == THIN - 1 {
+            let gap = panel.target_post_mean
+                - panel.donor_post_mean.iter().zip(&state.weights).map(|(x, w)| x * w).sum::<f64>();
+            let last = state.residual.last().copied().unwrap_or(0.0);
+            out.effects.push(effect_draw(gap, last, state.sigma2, spec, panel.n_post, &mut rng));
+            out.gaps.push(gap);
+            out.sigma2.push(state.sigma2);
+            out.weights.push(state.weights.clone());
+            out.lasts.push(last);
+        }
+    }
+    out
+}
+
+fn validate(
+    spec: &BayesianSyntheticControlSpec<'_>,
+    sampling: DrawSpec,
+) -> Result<(), EstimationError> {
+    let positive = |v: f64| v.is_finite() && v > 0.0;
+    let valid = !spec.treated_unit.is_empty()
+        && spec.intervention_period > 0
+        && positive(spec.dirichlet_concentration)
+        && positive(spec.variance_shape)
+        && positive(spec.variance_scale)
+        && spec.ar1_rho > -1.0
+        && spec.ar1_rho < 1.0
+        && sampling.draws >= 400;
+    if !valid {
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "bayesian_synthetic_control_prior",
+            "Bayesian synthetic control needs a treated unit, a positive intervention period, positive prior parameters, |rho| < 1 and at least 400 draws. Next attempt: declare a treated unit, a positive intervention period, positive prior parameters, |rho| < 1 and at least 400 draws",
+        ));
+    }
+    Ok(())
+}
+
+/// Posterior of the average post-intervention effect on the treated unit.
+///
+/// `sampling.draws` is the total over four chains. Refuses, naming the next attempt, when the
+/// chains disagree (split R-hat above 1.05) or the gap's effective sample size is below 100.
+pub fn fit_bayesian_synthetic_control(
+    outcome: &[f64],
+    units: &[String],
+    periods: &[i64],
+    spec: &BayesianSyntheticControlSpec<'_>,
+    sampling: DrawSpec,
+) -> Result<BayesianSyntheticControlEstimate, EstimationError> {
+    validate(spec, sampling)?;
+    let panel = parse_panel(outcome, units, periods, spec)?;
+    let per_chain = sampling.draws / CHAINS;
+    let chains: Vec<ChainDraws> = (0..CHAINS)
+        .map(|c| {
+            let seed = sampling.seed.wrapping_add(CHAIN_SEED_STRIDE.wrapping_mul(c as u64 + 1));
+            run_chain(&panel, spec, seed, per_chain)
+        })
+        .collect();
+    let _admitted = crate::util::admit_bound_array::<f64>(CHAINS * per_chain, 4)?;
+    let mut samples = Vec::with_capacity(CHAINS * per_chain * 2);
+    for chain in &chains {
+        for (gap, sigma2) in chain.gaps.iter().zip(&chain.sigma2) {
+            samples.extend([*gap, *sigma2]);
+        }
+    }
+    let diagnostics = antecedent_prob::mcmc_summary(&samples, CHAINS, per_chain, 2);
+    let rhat_ok = matches!(
+        diagnostics.max_rhat.partial_cmp(&MAX_RHAT),
+        Some(std::cmp::Ordering::Less | std::cmp::Ordering::Equal)
+    );
+    if !rhat_ok || diagnostics.min_bulk_ess < MIN_BULK_ESS {
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("posterior_draws_not_converged"),
+            "bayesian_synthetic_control_not_converged",
+            &format!(
+                "split R-hat {:.4} (limit {MAX_RHAT}), bulk ESS {:.1} (minimum {MIN_BULK_ESS}). \
+                 Next attempt: more draws or burn-in, or a larger donor pool with a less \
+                 concentrated prior",
+                diagnostics.max_rhat, diagnostics.min_bulk_ess
+            ),
+        ));
+    }
+    let mut estimate =
+        assemble(&panel, spec, &chains, diagnostics.max_rhat, diagnostics.min_bulk_ess);
+    estimate.period_effect_draws = period_paths(&panel, spec, &chains, sampling.seed);
+    Ok(estimate)
+}
+
+fn assemble(
+    panel: &ScPanel,
+    spec: &BayesianSyntheticControlSpec<'_>,
+    chains: &[ChainDraws],
+    max_rhat: f64,
+    min_bulk_ess: f64,
+) -> BayesianSyntheticControlEstimate {
+    let effect_draws: Vec<f64> = chains.iter().flat_map(|c| c.effects.iter().copied()).collect();
+    let all_weights: Vec<&Vec<f64>> = chains.iter().flat_map(|c| c.weights.iter()).collect();
+    let count = all_weights.len() as f64;
+    let weight_means: Vec<f64> = (0..panel.donors.len())
+        .map(|j| all_weights.iter().map(|w| w[j]).sum::<f64>() / count)
+        .collect();
+    let weight_sds: Vec<f64> = weight_means
+        .iter()
+        .enumerate()
+        .map(|(j, m)| {
+            (all_weights.iter().map(|w| (w[j] - m).powi(2)).sum::<f64>() / (count - 1.0)).sqrt()
+        })
+        .collect();
+    let fit_residual = residuals(panel, &weight_means);
+    let pre_fit_rmse =
+        (fit_residual.iter().map(|r| r * r).sum::<f64>() / fit_residual.len() as f64).sqrt();
+    let outside = panel
+        .target_pre
+        .iter()
+        .enumerate()
+        .filter(|(t, y)| {
+            let column = panel.donor_pre.iter().map(|x| x[*t]);
+            **y < column.clone().fold(f64::INFINITY, f64::min)
+                || **y > column.fold(f64::NEG_INFINITY, f64::max)
+        })
+        .count();
+    let (mean, sd, lower, upper) = summarize(&effect_draws);
+    let proposals: usize = chains.iter().map(|c| c.proposals).sum();
+    let accepted: usize = chains.iter().map(|c| c.accepted).sum();
+    BayesianSyntheticControlEstimate {
+        effect_draws,
+        mean,
+        sd,
+        lower,
+        upper,
+        donor_weight_means: panel.donors.iter().cloned().zip(weight_means).collect(),
+        donor_weight_sds: weight_sds,
+        pre_fit_rmse,
+        pre_periods_outside_donor_range: outside,
+        acceptance_rate: accepted as f64 / proposals as f64,
+        max_split_rhat: max_rhat,
+        min_bulk_ess,
+        n_pre_periods: panel.target_pre.len(),
+        n_post_periods: panel.n_post,
+        post_periods: panel.post_periods.clone(),
+        period_effect_draws: Vec::new(),
+        model: if panel.donors.len() > 10 && conditional::uniform_independent(spec) {
+            "simplex synthetic control; uniform Dirichlet donor-weight prior; independent Gaussian pre-fit errors; pairwise-transfer Metropolis with Gibbs donor-pair and variance updates"
+        } else if spec.ar1_rho.abs() <= 0.0 {
+            "simplex synthetic control; Dirichlet donor-weight prior; independent Gaussian pre-fit errors; pairwise-transfer Metropolis with Gibbs variance"
+        } else {
+            "simplex synthetic control; Dirichlet donor-weight prior; declared-coefficient AR(1) Gaussian pre-fit errors continued into the post period; pairwise-transfer Metropolis with Gibbs variance"
+        },
+    }
+}
+
+/// Stream offset of the posterior predictive path draws, apart from the chains' streams.
+const PATH_SEED_STRIDE: u64 = 0x9E37_79B9_7F4A_7C15;
+
+/// Posterior predictive effect paths: for every kept draw, the AR(1) error path is continued
+/// from the last pre-period residual with the draw's innovation variance, and each post
+/// period's effect is the treated outcome minus the donor-weighted outcome minus that error.
+/// A separate stream keeps the chains' draws, and so the average-effect posterior, unchanged.
+fn period_paths(
+    panel: &ScPanel,
+    spec: &BayesianSyntheticControlSpec<'_>,
+    chains: &[ChainDraws],
+    seed: u64,
+) -> Vec<Vec<f64>> {
+    let mut rng = CausalRng::from_seed(seed ^ PATH_SEED_STRIDE);
+    let mut paths: Vec<Vec<f64>> = vec![Vec::new(); panel.n_post];
+    for chain in chains {
+        for ((weights, sigma2), last) in chain.weights.iter().zip(&chain.sigma2).zip(&chain.lasts) {
+            let mut error = *last;
+            for (k, path) in paths.iter_mut().enumerate() {
+                error = spec.ar1_rho * error + sigma2.sqrt() * standard_normal(&mut rng);
+                let synthetic: f64 =
+                    panel.donor_post.iter().zip(weights).map(|(x, w)| w * x[k]).sum();
+                path.push(panel.target_post[k] - synthetic - error);
+            }
+        }
+    }
+    paths
+}
+
+#[cfg(test)]
+mod tests;

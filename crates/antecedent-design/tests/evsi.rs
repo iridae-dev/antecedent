@@ -244,7 +244,7 @@ fn gaussian_mean_matches_the_closed_form_normal_linear_loss_value() {
     assert!(row.integration.converged);
     assert!(near(row.integration.stderr, 0.0, 0.0));
     assert_eq!(row.sample_size, 4);
-    assert_eq!(row.provider_trust, SignalTrustLabel::NativeLicensed);
+    assert_eq!(row.provider_trust, SignalTrustLabel::NativeSupported);
     assert_eq!(row.update_mode, SignalUpdateMode::NativeUpdate);
     // Prior value of treating is mu0 = 1/2 > 0, so the Bayes action is "treat" (index 1).
     assert_eq!(report.bayes_action, 1);
@@ -268,7 +268,7 @@ fn binomial_enumeration_matches_native_and_every_external_update_mode() {
             "native",
             Arc::new(NativeBinomialSignal) as Arc<dyn SignalProvider>,
             SignalUpdateMode::NativeUpdate,
-            SignalTrustLabel::NativeLicensed,
+            SignalTrustLabel::NativeSupported,
         ),
         (
             "ext_likelihood",
@@ -301,7 +301,7 @@ fn binomial_enumeration_matches_native_and_every_external_update_mode() {
         assert_eq!(row.signal_receipt.request_fingerprint, req_for(id).fingerprint(), "{id}");
         assert_eq!(
             row.signal_receipt.provider_identity.is_some(),
-            trust != SignalTrustLabel::NativeLicensed,
+            trust != SignalTrustLabel::NativeSupported,
             "{id}"
         );
         assert_eq!(
@@ -374,6 +374,16 @@ fn monte_carlo_is_labelled_with_error_replicates_ess_and_convergence() {
     assert!(near(row.evpi, 1.0 / 12.0, 1e-12));
     let slack = 4.0 * row.integration.stderr + 1e-9;
     assert!(row.evsi >= -slack && row.evsi <= row.evpi + slack, "{} / {}", row.evsi, row.evpi);
+    // The exact value: Ybar ~ N(theta, 0.25 / 4), EVSI = int max(0, sum_k (theta_k - 0.45) f(y | theta_k) / 3) dy
+    // - 0.05 = 0.0538382731697 (fine-grid trapezoid, error below 1e-12); the estimate is
+    // within five Monte-Carlo standard errors of it, not merely inside [0, EVPI].
+    let exact = 0.053_838_273_169_72;
+    assert!(
+        (row.evsi - exact).abs() <= 5.0 * row.integration.stderr,
+        "{} vs exact {exact}, stderr {}",
+        row.evsi,
+        row.integration.stderr
+    );
     // The same seed reproduces the estimate exactly; a zero tolerance is not converged.
     let again = run(&problem, &prior, &req).unwrap();
     assert!(near(again.candidates[0].evsi, row.evsi, 0.0));
@@ -476,7 +486,7 @@ fn incompatible_cost_units_and_missing_maps_refuse() {
     .unwrap_err();
     assert!(matches!(error, EvsiError::CostUnitsMismatch(_)), "{error:?}");
     let refusal = error.to_refusal();
-    assert_eq!(refusal.detail, "evsi.cost_units_mismatch");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::evsi::COST_UNITS_MISMATCH);
     assert_eq!(refusal.code, "design_cost_units_mismatch");
 
     // A map into a different utility unit than the decision's.
@@ -503,7 +513,7 @@ fn incompatible_cost_units_and_missing_maps_refuse() {
     demanding.require_net_value = true;
     let error = run(&problem, &prior, &demanding).unwrap_err();
     assert_eq!(error, EvsiError::CostMapRequired);
-    assert_eq!(error.to_refusal().detail, "evsi.cost_map_required");
+    assert_eq!(error.to_refusal().detail, antecedent_core::reason_details::evsi::COST_MAP_REQUIRED);
 
     // Nonpositive rates and negative costs are invalid, not silently clamped.
     let free = CostToUtilityMap { utility_per_cost: 0.0, ..utility_map() };
@@ -547,11 +557,17 @@ fn changed_terminal_action_set_and_incoherent_values_refuse() {
     // The provider evaluates a different action set ("other" instead of "bet").
     let error = attempt(values(["abstain", "other"], [-0.2, 0.0, 0.2]));
     assert_eq!(error, EvsiError::ActionSetChanged);
-    assert_eq!(error.to_refusal().detail, "evsi.action_set_changed");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::evsi::ACTION_SET_CHANGED
+    );
     // Branch values that do not average to the prior value (0.3125 * (-0.2 + 0.5) != 0).
     let error = attempt(values(["abstain", "bet"], [-0.2, 0.0, 0.5]));
     assert_eq!(error, EvsiError::DecisionValuesIncoherent(id.into()));
-    assert_eq!(error.to_refusal().detail, "evsi.decision_values_incoherent");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::evsi::DECISION_VALUES_INCOHERENT
+    );
 
     // A request whose action ids do not align with the problem is invalid.
     let provider: Arc<dyn SignalProvider> = Arc::new(NativeBinomialSignal);
@@ -581,7 +597,10 @@ fn external_law_for_other_prior_draws_or_sample_size_refuses() {
     )
     .unwrap_err();
     assert_eq!(error, EvsiError::PriorStatesMismatch("c".into()));
-    assert_eq!(error.to_refusal().detail, "evsi.prior_states_mismatch");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::evsi::PRIOR_STATES_MISMATCH
+    );
 
     // The prepared signal's sample size is the request's `n`. A design row count
     // that differs is not a mismatch: the native provider overrides the design field.
@@ -659,7 +678,7 @@ fn source_overlap_between_prior_and_study_data_refuses() {
         run(&bet_problem(1.0, 0.0), &bet_prior(), &request(&BET_ACTIONS, vec![overlapping], None))
             .unwrap_err();
     assert_eq!(error, EvsiError::SourceOverlap(vec!["obs-prior".into()]));
-    assert_eq!(error.to_refusal().detail, "evsi.source_overlap");
+    assert_eq!(error.to_refusal().detail, antecedent_core::reason_details::evsi::SOURCE_OVERLAP);
 
     // The successful path reports the (empty) overlap diagnostic it checked.
     let provider: Arc<dyn SignalProvider> = Arc::new(NativeBinomialSignal);
@@ -684,7 +703,10 @@ fn signal_provider_refusals_surface_with_their_namespace() {
     let mut altered = candidate("c", 2, provider, 0.0, "utility");
     altered.signal_request.rng_seed = 99;
     let error = run(&problem, &prior, &request(&BET_ACTIONS, vec![altered], None)).unwrap_err();
-    assert_eq!(error.to_refusal().detail, "signal_provider.request_fingerprint_mismatch");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::signal_provider::REQUEST_FINGERPRINT_MISMATCH
+    );
 }
 
 #[test]
@@ -722,7 +744,7 @@ fn ties_truncation_and_cancellation_are_reported() {
         evaluate_evsi(&problem, &prior, &request(&BET_ACTIONS, vec![make("a")], None), &token)
             .unwrap_err();
     assert_eq!(error, EvsiError::Cancelled);
-    assert_eq!(error.to_refusal().detail, "evsi.cancelled");
+    assert_eq!(error.to_refusal().detail, antecedent_core::reason_details::evsi::CANCELLED);
 
     // Duplicate semantic ids are ambiguous.
     let error = run(&problem, &prior, &request(&BET_ACTIONS, vec![make("a"), make("a")], None))
@@ -838,7 +860,7 @@ fn a_study_derived_from_the_priors_data_under_another_id_is_refused_as_shared() 
         panic!("expected shared overlap: {error:?}")
     };
     assert_eq!(ids.len(), 2);
-    assert_eq!(error.to_refusal().detail, "evsi.source_overlap");
+    assert_eq!(error.to_refusal().detail, antecedent_core::reason_details::evsi::SOURCE_OVERLAP);
 
     // Disjoint data passes and reports the two sources' observations it compared (2 + 3).
     let report = evaluate_evsi_with_evidence(
@@ -885,7 +907,7 @@ fn unknown_lineage_or_an_unbound_candidate_is_refused_never_independent() {
         );
         let refusal = error.to_refusal();
         assert_eq!(refusal.code, "evidence_overlap_unknown");
-        assert_eq!(refusal.detail, "evsi.source_overlap_unknown");
+        assert_eq!(refusal.detail, antecedent_core::reason_details::evsi::SOURCE_OVERLAP_UNKNOWN);
     }
 
     // The ledger is the only overlap model on this path: string lists are refused.
@@ -952,4 +974,55 @@ fn monte_carlo_streams_are_keyed_by_replicate_and_shared_across_candidates() {
     assert_eq!(x.evsi.to_bits(), find(&renamed, "mc2").evsi.to_bits());
     let twins = run(&problem, &prior, &build(vec![make("t1", 4), make("t2", 4)])).unwrap();
     assert_eq!(find(&twins, "t1").evsi.to_bits(), find(&twins, "t2").evsi.to_bits());
+}
+
+#[test]
+#[allow(clippy::float_cmp, reason = "the fixture checks exact boundary values")]
+fn external_values_use_origin_independent_coherence_and_centered_evsi() {
+    let prior = bet_prior();
+    let make_law = |shift: f64, bias: f64| {
+        ExternalLaw::DecisionValues(ExternalDecisionValues {
+            branch_probabilities: vec![0.25, 0.5, 0.25],
+            action_ids: vec!["abstain".into(), "bet".into()],
+            values: vec![
+                vec![shift, shift - 1.0 + bias],
+                vec![shift, shift + bias],
+                vec![shift, shift + 1.0 + bias],
+            ],
+        })
+    };
+    let evaluate = |shift, bias| {
+        let id = "external_centered";
+        let provider = external(&signal_request(id, 2), UPDATE.to_vec(), make_law(shift, bias));
+        run(
+            &bet_problem(4.0, shift),
+            &prior,
+            &request(&BET_ACTIONS, vec![candidate(id, 2, provider, 0.0, "utility")], None),
+        )
+    };
+    let baseline = evaluate(0.0, 0.0).unwrap();
+    let translated = evaluate(1e8, 0.0).unwrap();
+    assert!((baseline.candidates[0].evsi - 0.25).abs() < 1e-12);
+    assert_eq!(translated.candidates[0].evsi, baseline.candidates[0].evsi);
+    let error = evaluate(1e8, -0.5).unwrap_err();
+    assert_eq!(error, EvsiError::DecisionValuesIncoherent("external_centered".into()));
+}
+
+#[test]
+fn external_values_do_not_hide_unnormalized_branch_mass_by_centering() {
+    let id = "missing_mass";
+    let shift = 1e8;
+    let law = ExternalLaw::DecisionValues(ExternalDecisionValues {
+        branch_probabilities: vec![0.25, 0.5, 0.25 - 1e-10],
+        action_ids: vec!["abstain".into(), "bet".into()],
+        values: vec![vec![shift, shift - 1.0], vec![shift, shift], vec![shift, shift + 1.0]],
+    });
+    let provider = external(&signal_request(id, 2), UPDATE.to_vec(), law);
+    let error = run(
+        &bet_problem(4.0, shift),
+        &bet_prior(),
+        &request(&BET_ACTIONS, vec![candidate(id, 2, provider, 0.0, "utility")], None),
+    )
+    .unwrap_err();
+    assert_eq!(error, EvsiError::DecisionValuesIncoherent(id.into()));
 }

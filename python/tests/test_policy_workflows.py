@@ -1,4 +1,4 @@
-"""The fitted-model handle reaches every policy capability, with licences, reason codes and provenance.
+"""The fitted-model handle reaches every policy capability, with supports, reason codes and provenance.
 
 One test per acceptance case of the public-workflow area, on simulated linear chains with known
 structure (``a -> b -> c``) and the pricing chain. Results are compared with the library's own
@@ -15,7 +15,6 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent.errors import CausalError, CausalUnsupportedError
-from antecedent.estimation import PreparedAnalysis
 from antecedent.gcm import fitted_intrinsic_influence, intrinsic_influence
 from antecedent.graph import Dag
 from antecedent.graph_falsification import evaluate_graph
@@ -44,6 +43,8 @@ from antecedent.intervention_programs import (
     transform,
     var,
 )
+from antecedent.outcomes import require_success
+from antecedent.prepared import PreparedAnalysis
 
 from _pricing_chain import (
     LINEAR_EDGES,
@@ -76,13 +77,16 @@ def test_the_fitted_handle_reaches_expression_policies_selection_influence_and_n
 
     # Expression interventions: the one-shot call and the prepared handle are one executor.
     floor = transform("b", maximum(0, generated()))
-    one_shot = sample_policy(fitted, [floor], 2000, seed=3)
+    one_shot = sample_policy(fitted, [floor], 2000, execution=antecedent.Execution(seed=3))
     prepared = prepare_policy(fitted, [floor])
-    np.testing.assert_array_equal(_bits(one_shot.draws), _bits(prepared.sample(2000, seed=3).draws))
+    np.testing.assert_array_equal(
+        _bits(one_shot.draws),
+        _bits(require_success(prepared.sample(2000, execution=antecedent.Execution(seed=3))).draws),
+    )
     assert one_shot.draws[fitted.names.index("b")].min() >= 0.0
     # A hard level has the closed-form answer: do(a = 1) puts c at 1.5 * 2 = 3.
-    level = fitted.sample_do({"a": 1.0}, 4000, seed=2)
-    assert abs(level.draws[fitted.names.index("c")].mean() - 3.0) < 0.1
+    level = fitted.sample_do({"a": 1.0}, 4000, execution=antecedent.Execution(seed=2))
+    assert abs(level.draws[fitted.names.index("c")].mean() - 3.0) < 0.05  # observed 0.010
 
     # Mechanism selection: a candidate set and a constraint reach the fit, and the record says so.
     constrained = fit(
@@ -97,15 +101,18 @@ def test_the_fitted_handle_reaches_expression_policies_selection_influence_and_n
     assert record["constraint"]["required"] == "linear_gaussian"
     # The named families in order, then `constant` (admissible only for a degenerate column).
     assert record["candidate_set"] == ["linear_gaussian", "linear_spline", "constant"]
-    assert "linear_gaussian" in {c["family"] for c in record["candidates"]}
+    assert {c["family"] for c in record["candidates"]} == {"linear_gaussian"}
     # The spline-interaction family needs two parents; with one it is a recorded failure.
-    assert "linear_spline" in {f["family"] for f in record["failed"]} | {
-        c["family"] for c in record["candidates"]
-    }
+    assert "linear_spline" in {f["family"] for f in record["failed"]}
     assert record["provenance_id"] == "estimate.gcm.fit"
 
     # Intrinsic influence from the handle equals the standalone call on the same data and seed.
-    options = {"independent_noise": True, "outer_draws": 600, "inner_draws": 30, "seed": 3}
+    options = {
+        "independent_noise": True,
+        "outer_draws": 600,
+        "inner_draws": 30,
+        "execution": antecedent.Execution(seed=3),
+    }
     from_handle = fitted_intrinsic_influence(fitted, "c", **options)
     standalone = intrinsic_influence(data, LINEAR_EDGES, "c", **options)
     assert [s.contribution for s in from_handle.sources] == [
@@ -113,17 +120,23 @@ def test_the_fitted_handle_reaches_expression_policies_selection_influence_and_n
     ]
     by_source = {s.source: s.contribution for s in from_handle.sources}
     # Closed form: the noise terms of a, b and c reach c with coefficients 3, 2 and 0.5.
-    for source, truth in {"a": 9.0, "b": 4.0, "c": 0.25}.items():
-        assert abs(by_source[source] - truth) < 0.35 * truth, (source, by_source[source])
+    # Observed relative errors 2.9%, 8.0% and 23% (the small source c is the noisiest at 600 outer
+    # draws); the bounds are about three times those.
+    for source, (truth, relative) in {
+        "a": (9.0, 0.09),
+        "b": (4.0, 0.25),
+        "c": (0.25, 0.35),
+    }.items():
+        assert abs(by_source[source] - truth) < relative * truth, (source, by_source[source])
 
     # Noise replay: the retained noise reproduces the draws and gives the counterfactual.
-    draws, noise = fitted.sample_noise({}, 1000, seed=4)
+    draws, noise = fitted.sample_noise({}, 1000, execution=antecedent.Execution(seed=4))
     again = fitted.replay_noise(noise, {})
     np.testing.assert_array_equal(_bits(draws.draws), _bits(again.draws))
     counterfactual = fitted.replay_noise(noise, {"a": 2.0})
     a, b = draws.draws[0], draws.draws[1]
     assert np.all(counterfactual.draws[0] == 2.0)
-    assert np.abs((counterfactual.draws[1] - b) - 1.5 * (2.0 - a)).max() < 0.2
+    assert np.abs((counterfactual.draws[1] - b) - 1.5 * (2.0 - a)).max() < 0.1  # observed 0.035
     with pytest.raises(CausalError):
         fitted.replay_noise(noise[:2], {})
     with pytest.raises(CausalError):
@@ -132,35 +145,48 @@ def test_the_fitted_handle_reaches_expression_policies_selection_influence_and_n
         )
 
 
-def test_a_prepared_policy_reuses_one_licence_and_equals_the_one_shot_results():
+def test_a_prepared_policy_reuses_one_support_and_equals_the_one_shot_results():
     data = pricing_chain(5000, 6512894)
     fitted = fit_pricing_chain(5000, 6512894)
     policy = [transform("price", maximum(1, 0.85 * generated()))]
     handle = prepare_policy(fitted, policy)
 
     support = handle.support
-    assert support.simulation.licensed and support.counterfactual.licensed
-    assert not support.identification.licensed
-    assert support.identification.reason_code == "policy_route_not_licensed"
+    assert support.simulation.supported and support.counterfactual.supported
+    assert not support.identification.supported
+    assert support.identification.reason_code == "policy_route_not_supported"
     assert support.provenance_id == "model.intervention_programs"
     assert handle.identity == policy_program_identity(list(data), policy)
 
     for seed in (1, 2):
         np.testing.assert_array_equal(
-            _bits(handle.sample(1500, seed=seed).draws),
-            _bits(sample_policy(fitted, policy, 1500, seed=seed).draws),
+            _bits(
+                require_success(
+                    handle.sample(1500, execution=antecedent.Execution(seed=seed))
+                ).draws
+            ),
+            _bits(
+                sample_policy(fitted, policy, 1500, execution=antecedent.Execution(seed=seed)).draws
+            ),
         )
-    outcomes = handle.counterfactual(["demand", "revenue"], seed=1)
-    one_shot = counterfactual_policy(fitted, policy, ["demand", "revenue"], seed=1)
+    outcomes = handle.counterfactual(["demand", "revenue"], execution=antecedent.Execution(seed=1))
+    one_shot = counterfactual_policy(
+        fitted, policy, ["demand", "revenue"], execution=antecedent.Execution(seed=1)
+    )
     for name in outcomes:
         np.testing.assert_array_equal(outcomes[name], one_shot[name])
 
-    value = handle.value("demand", n=4000, seed=5)
-    assert value == policy_value(fitted, policy, "demand", n=4000, seed=5)
+    value = handle.value("demand", n=4000, execution=antecedent.Execution(seed=5))
+    assert value == policy_value(
+        fitted, policy, "demand", n=4000, execution=antecedent.Execution(seed=5)
+    )
     # Cutting price by 15% raises demand by 0.8 * 0.15 * mean(price): the closed form of the
     # generating model, within a few simulation errors and the fitted slope's error.
     expected = 0.8 * 0.15 * data["price"].mean()
-    assert abs(value.mean_difference - expected) < 0.25, (value.mean_difference, expected)
+    assert abs(value.mean_difference - expected) < 0.1, (
+        value.mean_difference,
+        expected,
+    )  # observed 0.032
     assert value.difference_simulation_stderr < 0.1
     assert value.model_uncertainty == "unquantified"
     assert value.provenance_id == "model.intervention_programs"
@@ -175,8 +201,12 @@ def test_the_temporal_counterfactual_replays_a_panel_through_the_shared_rollout(
     # Without a lag read the first step (the data the model was fitted on) is the static
     # counterfactual, and later steps replay their own noise through the same policy.
     floor = transform("price", maximum(10, 0.85 * generated()))
-    path = counterfactual_temporal_policy(fitted, [floor], data, window=0, seed=1)
-    static = counterfactual_policy(fitted, [floor], ["price", "demand", "revenue"], seed=1)
+    path = counterfactual_temporal_policy(
+        fitted, [floor], data, window=0, execution=antecedent.Execution(seed=1)
+    )
+    static = counterfactual_policy(
+        fitted, [floor], ["price", "demand", "revenue"], execution=antecedent.Execution(seed=1)
+    )
     for index, name in enumerate(["price", "demand", "revenue"]):
         np.testing.assert_array_equal(path[0].draws[index], static[name])
     assert len(path) == steps
@@ -187,7 +217,7 @@ def test_the_temporal_counterfactual_replays_a_panel_through_the_shared_rollout(
     start = {name: values[:rows] for name, values in pricing_chain(rows, 77).items()}
     recursion = assign("price", maximum(10, 0.85 * lag("price", 1)))
     rolled = counterfactual_temporal_policy(
-        fitted, [recursion], data, window=1, history=[start], seed=1
+        fitted, [recursion], data, window=1, history=[start], execution=antecedent.Execution(seed=1)
     )
     previous = start["price"]
     for step in rolled:
@@ -195,18 +225,30 @@ def test_the_temporal_counterfactual_replays_a_panel_through_the_shared_rollout(
         np.testing.assert_allclose(step.draws[0], previous, rtol=0, atol=1e-12)
     # The counterfactual and the sampled rollout are the same executor on different noise.
     drawn = sample_temporal_policy(
-        fitted, [recursion], n_rows=rows, n_steps=steps, window=1, history=[start], seed=1
+        fitted,
+        [recursion],
+        n_rows=rows,
+        n_steps=steps,
+        window=1,
+        history=[start],
+        execution=antecedent.Execution(seed=1),
     )
     for sampled, replayed in zip(drawn, rolled, strict=True):
         np.testing.assert_allclose(sampled.draws[0], replayed.draws[0], rtol=0, atol=1e-12)
 
     # A look-back before the first step, and a panel missing a variable, are refused.
     with pytest.raises(CausalError) as early:
-        counterfactual_temporal_policy(fitted, [recursion], data, window=1, seed=1)
+        counterfactual_temporal_policy(
+            fitted, [recursion], data, window=1, execution=antecedent.Execution(seed=1)
+        )
     assert early.value.reason_code == "policy_history_unavailable"
     with pytest.raises(CausalError):
         counterfactual_temporal_policy(
-            fitted, [floor], [{"price": data[0]["price"]}], window=0, seed=1
+            fitted,
+            [floor],
+            [{"price": data[0]["price"]}],
+            window=0,
+            execution=antecedent.Execution(seed=1),
         )
 
 
@@ -218,11 +260,17 @@ def test_every_new_workflow_refuses_with_a_registered_code_and_names_its_provena
 
     # Policy: a transform has no observational identification; a read cycle is refused.
     support = policy_support(fitted, [transform("b", maximum(0, generated()))])
-    codes["policy_licence"] = support.identification.reason_code
+    codes["policy_support"] = support.identification.reason_code
     with pytest.raises(CausalError) as cycle:
-        sample_policy(fitted, [assign("a", var("b"))], 10, seed=1)
+        sample_policy(fitted, [assign("a", var("b"))], 10, execution=antecedent.Execution(seed=1))
     codes["policy_cycle"] = _code(cycle.value)
-    value = policy_value(fitted, [transform("b", maximum(0, generated()))], "c", n=500, seed=1)
+    value = policy_value(
+        fitted,
+        [transform("b", maximum(0, generated()))],
+        "c",
+        n=500,
+        execution=antecedent.Execution(seed=1),
+    )
 
     # Callback: a runtime binding cannot leave the process.
     callback = InterventionCallback(lambda b: b, inputs=["b"], name="identity_b")
@@ -252,6 +300,14 @@ def test_every_new_workflow_refuses_with_a_registered_code_and_names_its_provena
         fitted_intrinsic_influence(fitted, "c")
     codes["intrinsic_influence"] = _code(influence.value)
 
+    assert codes == {
+        "policy_support": "policy_route_not_supported",
+        "policy_cycle": "policy_dependency_circular",
+        "callback": "policy_callback_not_portable",
+        "mechanism_selection": "mechanism_candidates_invalid",
+        "graph_falsification": "invalid_argument",
+        "intrinsic_influence": "route_not_supported",
+    }
     for workflow, code in codes.items():
         assert code in REGISTERED, (workflow, code)
 
@@ -353,8 +409,8 @@ def test_an_artifact_in_the_released_layout_still_loads_and_replays_unchanged():
     # Replayed, it gives the draws of the program built directly.
     (loaded,) = decode_policy_program(names, saved)
     np.testing.assert_array_equal(
-        _bits(sample_policy(fitted, [loaded], 2000, seed=9).draws),
-        _bits(sample_policy(fitted, [program], 2000, seed=9).draws),
+        _bits(sample_policy(fitted, [loaded], 2000, execution=antecedent.Execution(seed=9)).draws),
+        _bits(sample_policy(fitted, [program], 2000, execution=antecedent.Execution(seed=9)).draws),
     )
 
 
@@ -363,37 +419,56 @@ def test_prepare_reruns_the_policy_workflow_without_recompiling_and_equals_the_o
     policy = [transform("price", maximum(1, 0.85 * generated()))]
     query = PolicyProgramValue(policy, "demand", n_draws=4000)
     handle = antecedent.prepare(
-        data, query=query, graph=Dag.from_edges(list(data), PRICING_EDGES), seed=5
+        data,
+        query=query,
+        graph=Dag.from_edges(list(data), PRICING_EDGES),
+        execution=antecedent.Execution(seed=5),
     )
     assert isinstance(handle, PreparedAnalysis)
 
-    # The program is compiled once, at prepare; every rerun reuses it.
-    before = handle.preparation
-    assert (before.program_compilations, before.model_bindings, before.runs) == (1, 1, 0)
-    first = handle.estimate()
-    other_seed = handle.estimate(seed=9)
-    third = handle.estimate(seed=2)
-    receipt = handle.preparation
-    assert (receipt.program_compilations, receipt.model_bindings, receipt.runs) == (1, 1, 3)
-    assert first.preparation.runs == 1 and third.preparation.runs == 3
-    assert handle.last_result is third
+    # The program is compiled once, at prepare; the fit is deferred to execution.
+    prepared = handle.inspect()
+    assert prepared.stage == "prepared"
+    assert prepared.details["phase"] == "compiled" and not prepared.details["fit_materialized"]
+    first_outcome = antecedent.estimate(handle)
+    first = require_success(first_outcome)
+    other_seed = require_success(
+        antecedent.estimate(antecedent.reconfigure(handle, execution=antecedent.Execution(seed=9)))
+    )
+    third = require_success(
+        antecedent.estimate(antecedent.reconfigure(handle, execution=antecedent.Execution(seed=2)))
+    )
+    # The preparation is immutable: executing its branches leaves it unexecuted.
+    assert handle.inspect().stage == "prepared"
+    for result in (first, other_seed, third):
+        assert (
+            result.preparation.program_compilations,
+            result.preparation.model_bindings,
+            result.preparation.runs,
+        ) == (1, 1, 1)
     assert first.value != other_seed.value
 
     # Every rerun is the one-shot result on the same fitted model, program and seed, to the bit.
     fitted = fit_pricing_chain(5000, 6512894)
-    assert first.value == policy_value(fitted, policy, "demand", n=4000, seed=5)
-    assert other_seed.value == policy_value(fitted, policy, "demand", n=4000, seed=9)
-    assert third.value == policy_value(fitted, policy, "demand", n=4000, seed=2)
+    assert first.value == policy_value(
+        fitted, policy, "demand", n=4000, execution=antecedent.Execution(seed=5)
+    )
+    assert other_seed.value == policy_value(
+        fitted, policy, "demand", n=4000, execution=antecedent.Execution(seed=9)
+    )
+    assert third.value == policy_value(
+        fitted, policy, "demand", n=4000, execution=antecedent.Execution(seed=2)
+    )
     # Cutting price by 15% raises demand by 0.8 * 0.15 * mean(price), the generating model's
     # closed form, within the fitted slope's error.
     expected = 0.8 * 0.15 * data["price"].mean()
-    assert abs(first.value.mean_difference - expected) < 0.25, (first.value, expected)
+    assert abs(first.value.mean_difference - expected) < 0.1, (first.value, expected)
 
     # Support decision, contract and provenance are reported on the result.
     support = first.support
-    assert support.simulation.licensed and support.counterfactual.licensed
-    assert not support.identification.licensed
-    assert support.identification.reason_code == "policy_route_not_licensed"
+    assert support.simulation.supported and support.counterfactual.supported
+    assert not support.identification.supported
+    assert support.identification.reason_code == "policy_route_not_supported"
     assert first.provenance_id == "model.intervention_programs"
     contract = first.contract
     assert contract.route == "simulation"
@@ -401,41 +476,51 @@ def test_prepare_reruns_the_policy_workflow_without_recompiling_and_equals_the_o
     assert contract.program_identity == policy_program_identity(list(data), policy)
     assert any("independent" in assumption for assumption in contract.assumptions)
     assert set(contract.mechanisms) == set(data)
-    report = handle.inspect()
+    report = first_outcome.study.inspect()
     assert report.stage == "executed" and report.program_id == contract.program_identity
     assert report.details["provenance_id"] == "model.intervention_programs"
 
-    # A hard level is licensed for observational identification as well, with the same executor.
+    # A hard level is supported for observational identification as well, with the same executor.
     level = antecedent.prepare(
         data,
         query=PolicyProgramValue([assign("price", 20.0)], "demand", n_draws=500),
         graph=PRICING_EDGES,
+        execution=antecedent.Execution(seed=1),
     )
-    assert level.estimate(seed=1).support.identification.licensed
+    assert require_success(antecedent.estimate(level)).support.identification.supported
 
-    # Refreshed data refits the model and rebinds the program: still one compilation, and the
-    # result is the one-shot result on the refit model, which the handle keeps.
+    # New observations refit the model on a branch and rebind the program: still one compilation,
+    # and the result is the one-shot result on the refit model. The preparation is unchanged.
     fresh = pricing_chain(5000, 777)
-    refreshed = handle.refresh(fresh, seed=5)
+    branch = antecedent.rebind(handle, data=fresh)
+    refreshed = require_success(antecedent.estimate(branch))
     assert refreshed.preparation.program_compilations == 1
-    assert refreshed.preparation.model_bindings == 2
+    assert refreshed.preparation.model_bindings == 1
     assert refreshed.value == policy_value(
-        fit(fresh, PRICING_EDGES), policy, "demand", n=4000, seed=5
+        fit(fresh, PRICING_EDGES), policy, "demand", n=4000, execution=antecedent.Execution(seed=5)
     )
-    assert handle.estimate(seed=5).value == refreshed.value
-    # A transient estimate on other data leaves the retained model alone.
-    handle.estimate(pricing_chain(5000, 778), seed=5)
-    assert handle.estimate(seed=5).value == refreshed.value
+    assert require_success(antecedent.estimate(handle)).value == first.value
+    # Branching on other data never alters the retained model of the original preparation.
+    require_success(antecedent.estimate(antecedent.rebind(handle, data=pricing_chain(5000, 778))))
+    assert require_success(antecedent.estimate(handle)).value == first.value
 
     # Operations that need an identified estimand are refused, as are options it does not take.
-    for operation in (handle.refute, handle.export, lambda: handle.identification):
+    for operation in (handle.refute, lambda: handle.identification):
         with pytest.raises(CausalUnsupportedError) as refused:
             operation()
         assert _code(refused.value) == "option_not_applicable"
     with pytest.raises(CausalUnsupportedError):
         antecedent.prepare(data, query=query, graph=PRICING_EDGES, estimator="linear")
-    with pytest.raises(CausalUnsupportedError):
-        antecedent.analyze(data, query=query, graph=PRICING_EDGES)
+    # The one-shot verb is exactly prepare followed by estimate, so it answers the same question.
+    one_shot = require_success(
+        antecedent.analyze(
+            data,
+            query=query,
+            graph=Dag.from_edges(list(data), PRICING_EDGES),
+            execution=antecedent.Execution(seed=5),
+        )
+    )
+    assert one_shot.value == first.value
     with pytest.raises(CausalError):
         antecedent.prepare(
             data, query=PolicyProgramValue(policy, "missing", n_draws=100), graph=PRICING_EDGES

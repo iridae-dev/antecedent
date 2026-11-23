@@ -25,7 +25,7 @@ use crate::decision_contract::{
 };
 use crate::decision_eval::{
     ActionOutcome, ConstraintExclusion, DecisionResult, MeanSource, SourceReceipt, Verdict,
-    evaluate_contract,
+    criterion_label_of, evaluate_contract,
 };
 
 /// Maximum artifact bytes accepted before any decode allocation.
@@ -428,6 +428,20 @@ pub fn source_digest(source: &DistributionArtifact) -> String {
     hasher.finish_hex()
 }
 
+/// Stable digest of every published decision value and its declared source
+/// identity. A composite artifact can retain this fingerprint when its source
+/// is a replayable compiler program instead of a distribution artifact.
+///
+/// # Errors
+/// A failure encoding the checked decision body.
+pub fn decision_result_fingerprint(
+    result: &DecisionResult,
+    source_identity: &str,
+) -> Result<String, IoError> {
+    let body = to_cbor(&result_to_body(result, source_identity))?;
+    Ok(CanonicalWriter::new("antecedent.decision_result_fingerprint.v1").bytes(&body).finish_hex())
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ExclusionWire {
@@ -629,9 +643,12 @@ fn body_to_result(body: ResultBody) -> Result<DecisionResult, IoError> {
     if body.version != 1 {
         return Err(IoError::UnsupportedVersion { version: u32::from(body.version) });
     }
+    let criterion = body.criterion.into();
+    let criterion_label = criterion_label_of(criterion, &body.assumptions);
     Ok(DecisionResult {
         contract_identity: body.contract_identity,
-        criterion: body.criterion.into(),
+        criterion,
+        criterion_label,
         actions: body
             .actions
             .into_iter()
@@ -814,7 +831,7 @@ pub fn contract_from_json_refusal(
         RefusalBuilder::new(
             antecedent_core::reason_code!("invalid_argument"),
             "declare",
-            "decision_contract.invalid_declaration",
+            antecedent_core::reason_details::decision_contract::INVALID_DECLARATION,
         )
         .offending(why)
         .remedy("declare the contract with the documented fields")

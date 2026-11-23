@@ -1,40 +1,50 @@
 //! Axis naming: which matrix query name and graph-class label a query and a
 //! supplied graph occupy.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CausalQuery, DerivativeScale, ResponseFunctional, TemporalPolicy};
 
 use crate::accepted::{AcceptedGraph, GraphClass, GraphRef};
 
+use super::cell::SupportQuery;
+
 /// Matrix query name for `query` on `graph_class`, if the query is on the public axis.
 #[must_use]
 pub fn query_axis_name(query: &CausalQuery, graph_class: GraphClass) -> Option<&'static str> {
+    query_axis(query, graph_class).map(SupportQuery::as_str)
+}
+
+/// Matrix query axis value for `query` on `graph_class`, if the query is on the public axis.
+#[must_use]
+pub fn query_axis(query: &CausalQuery, graph_class: GraphClass) -> Option<SupportQuery> {
     match query {
-        CausalQuery::AverageEffect(_) => Some("AverageEffect"),
-        CausalQuery::ConditionalEffect(_) => Some("ConditionalEffect"),
-        CausalQuery::Counterfactual(_) => Some("Counterfactual"),
-        CausalQuery::NestedCounterfactual(_) => Some("NestedCounterfactualEffect"),
-        CausalQuery::Distribution(_) => Some("InterventionalDistribution"),
-        CausalQuery::PathSpecific(_) => Some("PathSpecificEffect"),
+        CausalQuery::AverageEffect(_) => Some(SupportQuery::AverageEffect),
+        CausalQuery::ConditionalEffect(_) => Some(SupportQuery::ConditionalEffect),
+        CausalQuery::Counterfactual(_) => Some(SupportQuery::Counterfactual),
+        CausalQuery::NestedCounterfactual(_) => Some(SupportQuery::NestedCounterfactualEffect),
+        CausalQuery::Distribution(_) => Some(SupportQuery::InterventionalDistribution),
+        CausalQuery::PathSpecific(_) => Some(SupportQuery::PathSpecificEffect),
         CausalQuery::Mediation(_) => match graph_class {
             GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag => {
-                Some("TemporalMediationEffect")
+                Some(SupportQuery::TemporalMediationEffect)
             }
             GraphClass::Dag
             | GraphClass::Admg
             | GraphClass::Cpdag
             | GraphClass::Pag
-            | GraphClass::TemporalAdmg => Some("MediationEffect"),
+            | GraphClass::TemporalAdmg => Some(SupportQuery::MediationEffect),
             GraphClass::RandomizedTrial => None,
         },
         CausalQuery::TemporalEffect(q) => match &q.policy {
-            TemporalPolicy::Pulse { .. } if q.effect_modifiers.is_empty() => Some("PulseEffect"),
-            TemporalPolicy::Sustained { .. } if q.effect_modifiers.is_empty() => {
-                Some("SustainedEffect")
+            TemporalPolicy::Pulse { .. } if q.effect_modifiers.is_empty() => {
+                Some(SupportQuery::PulseEffect)
             }
-            TemporalPolicy::Pulse { .. } => Some("TemporalConditionalPulse"),
-            TemporalPolicy::Sustained { .. } => Some("TemporalConditionalSustained"),
+            TemporalPolicy::Sustained { .. } if q.effect_modifiers.is_empty() => {
+                Some(SupportQuery::SustainedEffect)
+            }
+            TemporalPolicy::Pulse { .. } => Some(SupportQuery::TemporalConditionalPulse),
+            TemporalPolicy::Sustained { .. } => Some(SupportQuery::TemporalConditionalSustained),
             // A dynamic rule is classified by its evaluated schedule shape so it
             // cannot dodge the matrix: one active step rides the Pulse cell
             // (the engine estimates it as a rule-tagged pulse), any longer
@@ -44,9 +54,9 @@ pub fn query_axis_name(query: &CausalQuery, graph_class: GraphClass) -> Option<&
             TemporalPolicy::Dynamic { .. } if !q.effect_modifiers.is_empty() => None,
             TemporalPolicy::Dynamic { active_at, .. } => {
                 if active_at.len() == 1 {
-                    Some("PulseEffect")
+                    Some(SupportQuery::PulseEffect)
                 } else {
-                    Some("SustainedEffect")
+                    Some(SupportQuery::SustainedEffect)
                 }
             }
             // `TemporalPolicy` is `#[non_exhaustive]`; every variant that
@@ -60,28 +70,38 @@ pub fn query_axis_name(query: &CausalQuery, graph_class: GraphClass) -> Option<&
             );
             // Static response on a temporal graph (and temporal attachment on a
             // static graph) are typed impossibilities, not matrix cells.
-            if q.is_temporal() != temporal_graph {
+            // A TemporalAdmg carries both: a static response is read on its contemporaneous
+            // projection and a temporal derivative runs on its lagged template.
+            if q.is_temporal() != temporal_graph
+                && !(q.is_temporal() && graph_class == GraphClass::TemporalAdmg)
+            {
                 return None;
             }
             match &q.functional {
-                ResponseFunctional::MeanCurve { .. } => Some("ResponseCurve"),
-                ResponseFunctional::AverageDerivative { .. } => Some("AverageDerivative"),
+                ResponseFunctional::MeanCurve { .. } => Some(SupportQuery::ResponseCurve),
+                ResponseFunctional::AverageDerivative { .. } => {
+                    Some(SupportQuery::AverageDerivative)
+                }
                 ResponseFunctional::PointDerivative { scale, .. } => match scale {
-                    DerivativeScale::Identity => Some("PointDerivative"),
+                    DerivativeScale::Identity => Some(SupportQuery::PointDerivative),
                     DerivativeScale::LogTreatment | DerivativeScale::LogOutcome => {
-                        Some("SemiElasticity")
+                        Some(SupportQuery::SemiElasticity)
                     }
-                    DerivativeScale::LogLog => Some("Elasticity"),
+                    DerivativeScale::LogLog => Some(SupportQuery::Elasticity),
                 },
-                ResponseFunctional::DirectionalDerivative { .. } => Some("DirectionalDerivative"),
-                ResponseFunctional::Jacobian { .. } => Some("ResponseJacobian"),
-                ResponseFunctional::InterventionResponse { .. } => Some("InterventionResponse"),
+                ResponseFunctional::DirectionalDerivative { .. } => {
+                    Some(SupportQuery::DirectionalDerivative)
+                }
+                ResponseFunctional::Jacobian { .. } => Some(SupportQuery::ResponseJacobian),
+                ResponseFunctional::InterventionResponse { .. } => {
+                    Some(SupportQuery::InterventionResponse)
+                }
             }
         }
-        CausalQuery::Transport(_) => Some("TransportQuery"),
-        CausalQuery::Interference(_) => Some("InterferenceQuery"),
-        CausalQuery::AnomalyAttribution(_) => Some("AnomalyAttribution"),
-        CausalQuery::ChangeAttribution(_) => Some("ChangeAttribution"),
+        CausalQuery::Transport(_) => Some(SupportQuery::TransportQuery),
+        CausalQuery::Interference(_) => Some(SupportQuery::InterferenceQuery),
+        CausalQuery::AnomalyAttribution(_) => Some(SupportQuery::AnomalyAttribution),
+        CausalQuery::ChangeAttribution(_) => Some(SupportQuery::ChangeAttribution),
         // Off the public axis: the mechanism-change and unit-change queries
         // that exist today, and any variant added after this release.
         //
@@ -120,12 +140,12 @@ pub(super) fn naming_class(matrix: &str) -> Option<GraphClass> {
 /// behavior instead of the raw class tag, per each collapse's one-line
 /// justification below. Each collapse is scoped to exactly the query family
 /// `analysis/execute/compile.rs` wires it for — applying it more broadly would
-/// license cells the engine cannot actually run (see the `ResponseCurve` note).
+/// support cells the engine cannot actually run (see the `ResponseCurve` note).
 ///
-/// - **ADMG with no bidirected edges, under `AverageEffect`**: `compile.rs`'s
+/// - **ADMG with no bidirected edges, under `AverageEffect` or `ConditionalEffect`**: `compile.rs`'s
 ///   `(AverageEffect, GraphClass::Admg)` arm and `dispatch.rs`'s
 ///   `GraphClass::Admg` arm both branch on [`Admg::has_bidirected`](antecedent_graph::Admg::has_bidirected) and run the
-///   *static DAG* path when it is false — the Dag cell's license is the
+///   *static DAG* path when it is false — the Dag cell's support is the
 ///   honest claim. Bidirected `CausalQuery::Response` now compiles through
 ///   `general.id` + `functional.effect`; a DAG-coerced ADMG (no bidirected
 ///   edges) still falls through to the Dag response path. The collapse must
@@ -147,7 +167,10 @@ pub(super) fn naming_class(matrix: &str) -> Option<GraphClass> {
 #[must_use]
 pub(crate) fn effective_graph_class(graph: &AcceptedGraph, query: &CausalQuery) -> GraphClass {
     match (graph.graph_ref(), query) {
-        (GraphRef::Admg(admg), CausalQuery::AverageEffect(_)) => {
+        (
+            GraphRef::Admg(admg),
+            CausalQuery::AverageEffect(_) | CausalQuery::ConditionalEffect(_),
+        ) => {
             if admg.has_bidirected() {
                 GraphClass::Admg
             } else {

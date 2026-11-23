@@ -5,8 +5,8 @@ Covers two branch-review defects fixed together:
 * The native response preparation (python/src/response_api.rs) now consults the
   generated support matrix itself (`antecedent::support::refuse_if_not_applicable`)
   instead of being enforced only by hand-typed Python literals that could drift
-  from `parity/support_closed.toml`. Admg InterventionResponse cheap/full is
-  licensed on the plugin-level suite; this file pins that the closed rule is gone.
+  from `parity/support_refusal_reasons.toml`. Admg InterventionResponse cheap/full is
+  supported on the plugin-level suite; this file pins that the closed rule is gone.
 * `AcceptedGraph.analyze(..., query=ResponseCurve(...))` now threads
   `structure_accepted` down to the native call's `accepted=` parameter, so the
   response family is not silently misclassified as `explicit` structure the way
@@ -17,11 +17,14 @@ from __future__ import annotations
 
 import antecedent
 import numpy as np
+import pytest
+from antecedent.errors import CausalEstimateError
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_toml
 
 _REPO_ROOT = REPO_ROOT
-_SUPPORT_CLOSED_TOML = _REPO_ROOT / "parity" / "support_closed.toml"
+_SUPPORT_REFUSAL_REASONS_TOML = _REPO_ROOT / "parity" / "support_refusal_reasons.toml"
 
 
 def _curve_table(n: int = 60, seed: int = 7):
@@ -36,11 +39,15 @@ _EDGES = [("t", "y")]
 _DAG = antecedent.Dag.from_edges(["t", "y"], _EDGES)
 _ACCEPTED = antecedent.AcceptedGraph.from_graph(_DAG, algorithm_id="hand")
 _CURVE = antecedent.ResponseCurve("t", "y", grid=[0.5, 1.0, 1.5])
+# `t -> y` has no confounder, so the interventional curve is the observational regression line
+# (the data are 2 t + noise; the fitted line is the independent reference).
+_SLOPE, _INTERCEPT = np.polyfit(_DATA["t"], _DATA["y"], 1)
+_LINE = [_INTERCEPT + _SLOPE * g for g in (0.5, 1.0, 1.5)]
 
 
 def test_admg_intervention_cheap_is_not_a_closed_rule():
-    """Admg IR cheap/full is licensed plugin-level; closed rule #3 is gone."""
-    rules = load_toml(_SUPPORT_CLOSED_TOML)["closed"]
+    """Admg IR cheap/full is supported plugin-level; closed rule #3 is gone."""
+    rules = load_toml(_SUPPORT_REFUSAL_REASONS_TOML)["closed"]
     matches = [
         rule
         for rule in rules
@@ -53,44 +60,57 @@ def test_admg_intervention_cheap_is_not_a_closed_rule():
 
 def test_accepted_graph_analyze_response_curve_threads_accepted():
     """The retained contract preserves reviewed versus explicit structure."""
-    result = _ACCEPTED.analyze(_DATA, query=_CURVE, refute=False, seed=1)
+    result = require_success(
+        _ACCEPTED.analyze(_DATA, query=_CURVE, refute=False, execution=antecedent.Execution(seed=1))
+    )
     assert result.response is not None
     assert np.isfinite(result.response.values).all()
-    assert antecedent.artifacts.loads(result.export()).contract["structure_source"] == "accepted"
+    np.testing.assert_allclose(np.asarray(result.response.values).flatten(), _LINE, atol=0.05)
+    assert (
+        antecedent.artifacts.loads(bytes(result.export())).contract["structure_source"]
+        == "accepted"
+    )
 
-    result = antecedent.analyze(_DATA, graph=_DAG, query=_CURVE, refute=False, seed=1)
+    result = require_success(
+        antecedent.analyze(
+            _DATA, graph=_DAG, query=_CURVE, refute=False, execution=antecedent.Execution(seed=1)
+        )
+    )
     assert result.response is not None
-    assert antecedent.artifacts.loads(result.export()).contract["structure_source"] == "explicit"
+    assert (
+        antecedent.artifacts.loads(bytes(result.export())).contract["structure_source"]
+        == "explicit"
+    )
 
 
-def test_path_distribution_literals_match_support_closed_toml():
-    """The prepare routing-gate refusal must not drift from the TOML.
+def test_path_distribution_graph_posterior_is_supported_and_the_prepare_gate_is_gone():
+    """A graph posterior of path-restricted effects or distributions executes, supported.
 
-    It fires before the native support-matrix consultation, so it cannot be
-    derived from the TOML across the language boundary. Pin source text
-    against the TOML reason so either side changing alone fails loudly.
+    Every atom is answered by the executor its own structure has. The cell is supported, so no
+    closed rule remains for it, and the prepare routing gate that once refused it is gone.
     """
-    import inspect
-    import re
-
-    import antecedent._prepare_route as prepare_route
-
-    rules = load_toml(_SUPPORT_CLOSED_TOML)["closed"]
+    rules = load_toml(_SUPPORT_REFUSAL_REASONS_TOML)["closed"]
     matches = [
         rule
         for rule in rules
-        if set(rule.get("queries", [])) == {"PathSpecificEffect", "InterventionalDistribution"}
-        and set(rule.get("structures", [])) == {"graph_posterior"}
+        if {"PathSpecificEffect", "InterventionalDistribution"} & set(rule.get("queries", []))
+        and "graph_posterior" in rule.get("structures", [])
     ]
-    assert len(matches) == 1, matches
-    reason = matches[0]["reason"]
-    source = inspect.getsource(prepare_route)
-    # The literal is wrapped across adjacent string fragments; normalize.
-    collapsed = re.sub(r'"\s*\n\s*"', "", source)
-    count = collapsed.count(reason.rstrip("."))
-    assert count >= 1, (
-        f"expected the TOML reason at the prepare routing gate; found {count}: {reason!r}"
+    assert matches == [], matches
+    rng = np.random.default_rng(5)
+    treatment = (rng.random(200) < 0.5).astype(float)
+    outcome = (rng.random(200) < 0.3 + 0.4 * treatment).astype(float)
+    columns = {"t": treatment, "y": outcome}
+    prepared = antecedent.prepare(
+        columns,
+        query=antecedent.PathSpecificEffect("t", "y"),
+        discovery=antecedent.discovery.ExactDagPosterior().run(
+            columns, execution=antecedent.Execution(seed=1)
+        ),
+        refute=False,
+        inference=antecedent.Frequentist(bootstrap=0),
     )
+    assert prepared is not None
 
 
 def _handle_response_kwargs(**overrides):
@@ -113,24 +133,49 @@ def _handle_response_kwargs(**overrides):
 
 
 def test_handle_response_bayesian_curve_uses_staged_path():
-    """analyze is prepare().estimate(); Bayesian ResponseCurve stays licensed."""
-    result = antecedent.analyze(
-        _DATA,
-        query=_CURVE,
-        graph=_DAG,
-        inference=antecedent.Bayesian(backend="conjugate", n_draws=256),
-        refute=False,
+    """analyze is prepare().estimate(); Bayesian ResponseCurve stays supported."""
+    result = require_success(
+        antecedent.analyze(
+            _DATA,
+            query=_CURVE,
+            graph=_DAG,
+            inference=antecedent.Bayesian(backend="conjugate", n_draws=256),
+            refute=False,
+        )
     )
     assert result.response is not None
     assert np.isfinite(result.response.values).all()
+    # The conjugate posterior mean of the curve sits on the regression line (observed gap 1e-3).
+    np.testing.assert_allclose(np.asarray(result.response.values).flatten(), _LINE, atol=0.01)
 
 
-def test_handle_response_bayesian_derivative_is_licensed():
-    result = antecedent.analyze(
-        _DATA,
-        query=antecedent.AverageDerivative("t", "y"),
-        graph=_DAG,
-        inference=antecedent.Bayesian(backend="conjugate", n_draws=32),
-        refute=False,
+def test_handle_response_bayesian_derivative_is_supported():
+    result = require_success(
+        antecedent.analyze(
+            _DATA,
+            query=antecedent.AverageDerivative("t", "y"),
+            graph=_DAG,
+            inference=antecedent.Bayesian(n_draws=32),
+            refute=False,
+        )
     )
-    assert result is not None
+    # The data are 2 t + noise: the average derivative is the fitted slope (observed gap 0.09).
+    assert abs(_SLOPE - 2.0) < 0.1
+    assert result.effect == pytest.approx(_SLOPE, abs=0.15)
+    assert result.evidence_status == "supported"
+
+
+def test_bayesian_derivative_refuses_a_backend_it_does_not_use():
+    """The derivative posterior is a Rubin Bayesian bootstrap, so a selected backend is refused."""
+    with pytest.raises(CausalEstimateError) as refusal:
+        require_success(
+            antecedent.analyze(
+                _DATA,
+                query=antecedent.AverageDerivative("t", "y"),
+                graph=_DAG,
+                inference=antecedent.Bayesian(backend="conjugate", n_draws=32),
+                refute=False,
+            )
+        )
+    assert refusal.value.reason_code == "option_not_applicable"
+    assert "Rubin Bayesian bootstrap" in str(refusal.value)

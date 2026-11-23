@@ -1,33 +1,74 @@
-"""Data constructors and Arrow / float64 conversion probes.
+"""Owned immutable data constructors and explicit conversion probes.
 
-Analysis and prepared-study calls may borrow Arrow C Data Interface buffers
-without copying. Keep exported buffers unchanged while their data or prepared
-handles retain them, including writable NumPy aliases backing Arrow arrays.
-Use new backing arrays and ``result.refresh(new_data)`` to replace data.
-Ordinary mappings of NumPy columns are copied during native ingest.
+Tables and frame partitions own mutable numeric input once. Their read-only
+views share native buffers with preparation, branching and compatible consumers.
+Tables also retain immutable label and time columns for declared design adapters;
+those columns never become numeric category codes implicitly.
+Explicit borrowed Arrow storage must remain unchanged for its retained lifetime.
+File sources retain their bounded, lazy ingestion contracts.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from numbers import Integral
 from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
 
-from ._data import as_columns, as_multi_env_columns, to_f64
-from ._native import ArrowLoadInfo, load_float64_arrow_c_columns, load_float64_columns
+from ._data import (
+    ColumnCopy,
+    IngestionReceipt,
+    ingestion_receipt,
+    to_f64,
+)
+from ._native import (
+    ArrowLoadInfo,
+    load_float64_arrow_c_columns,
+    load_float64_columns,
+    load_float64_panel_columns,
+)
+from ._table_file import (
+    GaussianSummary,
+    MemoryQuote,
+    TableColumn,
+    TableFile,
+    from_arrow_ipc,
+    from_parquet,
+)
+from ._table_snapshot import Table as Table
+from ._table_snapshot import table as table
+from ._validate import count as _count
+from .errors import CausalValueError
 
 
 @dataclass(frozen=True)
 class EventFrame:
     """Irregular event marks + timestamps; aligned via ``align_interval_ns`` before temporal algos."""
 
-    names: list[str]
-    columns: list[NDArray[np.float64]]
+    names: Sequence[str]
+    columns: Sequence[NDArray[np.float64]]
     event_times_ns: NDArray[np.int64]
     align_interval_ns: int
+    _snapshots: tuple[Table, ...] = field(default=(), repr=False, compare=False, kw_only=True)
+    _index: Any = field(default=None, repr=False, compare=False, kw_only=True)
+
+    def __post_init__(self) -> None:
+        from . import _native
+        from .execution import _integer
+
+        _integer(self.align_interval_ns, "align_interval_ns", positive=True)
+        snapshots = _own_frame_parts(self.names, (self.columns,), self._snapshots)
+        index = _native._IndexSnapshot(self.event_times_ns) if self._index is None else self._index
+        if len(index) != snapshots[0].num_rows:
+            raise ValueError("event timestamps and observations must have the same length")
+        object.__setattr__(self, "names", tuple(self.names))
+        object.__setattr__(self, "columns", tuple(snapshots[0].values()))
+        object.__setattr__(self, "_snapshots", snapshots)
+        object.__setattr__(self, "_index", index)
+        object.__setattr__(self, "event_times_ns", np.asarray(index))
 
 
 @dataclass(frozen=True)
@@ -39,17 +80,54 @@ class PanelFrame:
     (frequentist) or ``BayesianTemporalGcomp`` when ``inference=Bayesian``.
     """
 
-    names: list[str]
-    unit_columns: list[list[NDArray[np.float64]]]
-    unit_ids: list[int]
+    names: Sequence[str]
+    unit_columns: Sequence[Sequence[NDArray[np.float64]]]
+    unit_ids: Sequence[int]
+    _snapshots: tuple[Table, ...] = field(default=(), repr=False, compare=False, kw_only=True)
+
+    def __post_init__(self) -> None:
+        snapshots = _own_frame_parts(self.names, self.unit_columns, self._snapshots)
+        # Identifiers are integers; a fractional or boolean id is refused, never truncated.
+        ids = tuple(
+            _count(
+                unit,
+                f"unit_ids[{index}]",
+                minimum=0,
+                maximum=2**32 - 1,
+                type_error=CausalValueError,
+            )
+            for index, unit in enumerate(self.unit_ids)
+        )
+        if len(ids) != len(snapshots) or len(set(ids)) != len(ids):
+            raise ValueError("panel needs one distinct unit id per series")
+        object.__setattr__(self, "names", tuple(self.names))
+        object.__setattr__(self, "unit_ids", ids)
+        object.__setattr__(self, "unit_columns", tuple(tuple(part.values()) for part in snapshots))
+        object.__setattr__(self, "_snapshots", snapshots)
 
 
 @dataclass(frozen=True)
 class MultiEnvFrame:
     """Multi-environment series (J-PCMCI+ discovery)."""
 
-    names: list[str]
-    env_columns: list[list[NDArray[np.float64]]]
+    names: Sequence[str]
+    env_columns: Sequence[Sequence[NDArray[np.float64]]]
+    _snapshots: tuple[Table, ...] = field(default=(), repr=False, compare=False, kw_only=True)
+
+    def __post_init__(self) -> None:
+        snapshots = _own_frame_parts(self.names, self.env_columns, self._snapshots)
+        object.__setattr__(self, "names", tuple(self.names))
+        object.__setattr__(self, "env_columns", tuple(tuple(part.values()) for part in snapshots))
+        object.__setattr__(self, "_snapshots", snapshots)
+
+
+def _own_frame_parts(
+    names: Sequence[str], parts: Sequence[Sequence[Any]], retained: tuple[Table, ...]
+) -> tuple[Table, ...]:
+    snapshots = retained or tuple(table(dict(zip(names, part, strict=True))) for part in parts)
+    if not snapshots or any(tuple(part) != tuple(names) for part in snapshots):
+        raise ValueError("frame partitions must share one ordered schema")
+    return snapshots
 
 
 def event(
@@ -59,19 +137,21 @@ def event(
     align_interval_ns: int,
 ) -> EventFrame:
     """Build an [`EventFrame`] for ``analyze`` (duration-bin align → temporal path)."""
-    if align_interval_ns <= 0:
-        raise ValueError("align_interval_ns must be > 0")
-    names, columns = as_columns(data)
-    times = np.asarray(event_times_ns, dtype=np.int64)
-    if times.ndim != 1:
-        raise ValueError(f"event_times_ns must be 1-d, got shape {times.shape}")
-    if len(times) != len(columns[0]):
-        raise ValueError(f"event_times_ns length {len(times)} != column length {len(columns[0])}")
+    from . import _native
+    from .execution import _integer
+
+    _integer(align_interval_ns, "align_interval_ns", positive=True)
+    snapshot = table(data)
+    if np.ndim(event_times_ns) != 1:
+        raise CausalValueError("event_times_ns must be 1-d")
+    index = _native._IndexSnapshot(event_times_ns)
     return EventFrame(
-        names=names,
-        columns=columns,
-        event_times_ns=times,
-        align_interval_ns=int(align_interval_ns),
+        names=tuple(snapshot),
+        columns=tuple(snapshot.values()),
+        event_times_ns=np.asarray(index),
+        align_interval_ns=align_interval_ns,
+        _snapshots=(snapshot,),
+        _index=index,
     )
 
 
@@ -80,6 +160,8 @@ def panel(
 ) -> PanelFrame:
     """Build a [`PanelFrame`] from a sequence of unit frames or ``{unit_id: frame}``."""
     if isinstance(units, Mapping):
+        if any(isinstance(k, (bool, np.bool_)) or not isinstance(k, Integral) for k in units):
+            raise CausalValueError("panel unit IDs must be integers")
         ids = [int(k) for k in units]
 
         frames = list(units.values())
@@ -88,32 +170,50 @@ def panel(
         ids = list(range(len(frames)))
     if not frames:
         raise ValueError("panel needs ≥1 unit")
-    names, first = as_columns(frames[0])
-    unit_columns = [first]
-    for i, frame in enumerate(frames[1:], start=1):
-        n, cols = as_columns(frame)
-        if n != names:
-            raise ValueError(f"unit {i} column names {n!r} do not match unit 0 {names!r}")
-        unit_columns.append(cols)
-    return PanelFrame(names=names, unit_columns=unit_columns, unit_ids=ids)
+    snapshots = tuple(table(frame) for frame in frames)
+    names = tuple(snapshots[0])
+    return PanelFrame(
+        names=names,
+        unit_columns=tuple(tuple(part.values()) for part in snapshots),
+        unit_ids=ids,
+        _snapshots=snapshots,
+    )
 
 
 def multi_env(
     envs: Sequence[Mapping[str, Any] | Any],
 ) -> MultiEnvFrame:
     """Build a [`MultiEnvFrame`] (sequence of environment frames for J-PCMCI+)."""
-    names, env_columns = as_multi_env_columns(envs)
-    return MultiEnvFrame(names=names, env_columns=env_columns)
+    snapshots = tuple(table(env) for env in envs)
+    if not snapshots:
+        raise ValueError("multi_env needs at least one environment")
+    return MultiEnvFrame(
+        names=tuple(snapshots[0]),
+        env_columns=tuple(tuple(part.values()) for part in snapshots),
+        _snapshots=snapshots,
+    )
 
 
 __all__ = [
     "ArrowLoadInfo",
+    "ColumnCopy",
     "EventFrame",
+    "GaussianSummary",
+    "IngestionReceipt",
+    "MemoryQuote",
     "MultiEnvFrame",
     "PanelFrame",
+    "Table",
+    "table",
+    "TableColumn",
+    "TableFile",
     "event",
+    "from_arrow_ipc",
+    "from_parquet",
+    "ingestion_receipt",
     "load_float64_arrow_c_columns",
     "load_float64_columns",
+    "load_float64_panel_columns",
     "multi_env",
     "panel",
     "to_f64",

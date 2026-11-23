@@ -1,6 +1,6 @@
 //! Convert between domain types and wire types.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use core::num::NonZeroU32;
 use std::sync::Arc;
@@ -29,16 +29,39 @@ pub const MAX_GRAPH_NODES: u32 = 100_000;
 /// Largest edge list accepted from an untrusted graph document.
 pub const MAX_GRAPH_EDGES: usize = 1_000_000;
 
-/// Refuse a graph document whose node or edge count would allocate without bound.
-pub(crate) fn check_graph_budget(node_count: u32, edge_count: usize) -> Result<(), IoError> {
-    if node_count > MAX_GRAPH_NODES {
+/// Bounds on a graph document read from untrusted input. The defaults are
+/// [`MAX_GRAPH_NODES`] and [`MAX_GRAPH_EDGES`]; the `*_with_limits` decoders take a caller's.
+/// Exceeding a bound refuses the document.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GraphLimits {
+    /// Largest `node_count`.
+    pub max_nodes: u32,
+    /// Largest edge list.
+    pub max_edges: usize,
+}
+
+impl Default for GraphLimits {
+    fn default() -> Self {
+        Self { max_nodes: MAX_GRAPH_NODES, max_edges: MAX_GRAPH_EDGES }
+    }
+}
+
+/// Refuse a graph document whose node or edge count exceeds `limits`.
+pub(crate) fn check_graph_budget_within(
+    node_count: u32,
+    edge_count: usize,
+    limits: &GraphLimits,
+) -> Result<(), IoError> {
+    if node_count > limits.max_nodes {
         return Err(IoError::Convert(format!(
-            "node_count {node_count} exceeds the maximum of {MAX_GRAPH_NODES}"
+            "node_count {node_count} exceeds the maximum of {}",
+            limits.max_nodes
         )));
     }
-    if edge_count > MAX_GRAPH_EDGES {
+    if edge_count > limits.max_edges {
         return Err(IoError::Convert(format!(
-            "edge count {edge_count} exceeds the maximum of {MAX_GRAPH_EDGES}"
+            "edge count {edge_count} exceeds the maximum of {}",
+            limits.max_edges
         )));
     }
     Ok(())
@@ -123,21 +146,6 @@ pub fn schema_wire_from_v01(v01: &SchemaWireV01) -> SchemaWire {
     }
 }
 
-/// Try decode schema section bytes as 0.2 then 0.1.
-///
-/// # Errors
-///
-/// CBOR failure for both layouts.
-pub fn schema_wire_from_cbor_bytes(bytes: &[u8]) -> Result<SchemaWire, IoError> {
-    if let Ok(w) = crate::convert::from_cbor::<SchemaWire>(bytes) {
-        if !w.variables.is_empty() {
-            return Ok(w);
-        }
-    }
-    let v01: SchemaWireV01 = crate::convert::from_cbor(bytes)?;
-    Ok(schema_wire_from_v01(&v01))
-}
-
 fn value_type_to_wire(v: &ValueType) -> ValueTypeWire {
     match v {
         ValueType::Continuous => ValueTypeWire::Continuous,
@@ -203,7 +211,16 @@ pub fn dag_to_wire(dag: &Dag) -> Result<DagWire, IoError> {
 ///
 /// Invalid edges / cycles.
 pub fn dag_from_wire(wire: &DagWire) -> Result<Dag, IoError> {
-    check_graph_budget(wire.node_count, wire.edges.len())?;
+    dag_from_wire_with_limits(wire, &GraphLimits::default())
+}
+
+/// [`dag_from_wire`] under the caller's graph bounds.
+///
+/// # Errors
+///
+/// As [`dag_from_wire`]; a bound of `limits` exceeded is refused.
+pub fn dag_from_wire_with_limits(wire: &DagWire, limits: &GraphLimits) -> Result<Dag, IoError> {
+    check_graph_budget_within(wire.node_count, wire.edges.len(), limits)?;
     let mut dag = Dag::with_variables(wire.node_count);
     for &(from, to) in &wire.edges {
         dag.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to))
@@ -261,7 +278,16 @@ pub fn pag_to_wire(pag: &Pag) -> Result<PagWire, IoError> {
 ///
 /// Invalid marks / edges.
 pub fn pag_from_wire(wire: &PagWire) -> Result<Pag, IoError> {
-    check_graph_budget(wire.node_count, wire.edges.len())?;
+    pag_from_wire_with_limits(wire, &GraphLimits::default())
+}
+
+/// [`pag_from_wire`] under the caller's graph bounds.
+///
+/// # Errors
+///
+/// As [`pag_from_wire`]; a bound of `limits` exceeded is refused.
+pub fn pag_from_wire_with_limits(wire: &PagWire, limits: &GraphLimits) -> Result<Pag, IoError> {
+    check_graph_budget_within(wire.node_count, wire.edges.len(), limits)?;
     let mut pag = Pag::with_variables(wire.node_count);
     for e in &wire.edges {
         let edge = MarkedEdge {
@@ -311,7 +337,20 @@ pub fn cpdag_to_wire(cpdag: &Cpdag) -> Result<CpdagWire, IoError> {
 ///
 /// Invalid edges / cycles.
 pub fn cpdag_from_wire(wire: &CpdagWire) -> Result<Cpdag, IoError> {
-    check_graph_budget(wire.node_count, wire.directed.len().saturating_add(wire.undirected.len()))?;
+    cpdag_from_wire_with_limits(wire, &GraphLimits::default())
+}
+
+/// [`cpdag_from_wire`] under the caller's graph bounds.
+///
+/// # Errors
+///
+/// As [`cpdag_from_wire`]; a bound of `limits` exceeded is refused.
+pub fn cpdag_from_wire_with_limits(
+    wire: &CpdagWire,
+    limits: &GraphLimits,
+) -> Result<Cpdag, IoError> {
+    let edges = wire.directed.len().saturating_add(wire.undirected.len());
+    check_graph_budget_within(wire.node_count, edges, limits)?;
     let mut g = Cpdag::with_variables(wire.node_count);
     for &(from, to) in &wire.directed {
         g.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to))
@@ -353,7 +392,17 @@ pub fn admg_to_wire(admg: &Admg) -> Result<AdmgWire, IoError> {
 ///
 /// Invalid edges / cycles.
 pub fn admg_from_wire(wire: &AdmgWire) -> Result<Admg, IoError> {
-    check_graph_budget(wire.node_count, wire.directed.len().saturating_add(wire.bidirected.len()))?;
+    admg_from_wire_with_limits(wire, &GraphLimits::default())
+}
+
+/// [`admg_from_wire`] under the caller's graph bounds.
+///
+/// # Errors
+///
+/// As [`admg_from_wire`]; a bound of `limits` exceeded is refused.
+pub fn admg_from_wire_with_limits(wire: &AdmgWire, limits: &GraphLimits) -> Result<Admg, IoError> {
+    let edges = wire.directed.len().saturating_add(wire.bidirected.len());
+    check_graph_budget_within(wire.node_count, edges, limits)?;
     let mut g = Admg::with_variables(wire.node_count);
     for &(from, to) in &wire.directed {
         g.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to))
@@ -374,7 +423,7 @@ pub fn admg_from_wire(wire: &AdmgWire) -> Result<Admg, IoError> {
 /// CBOR failure.
 pub fn to_cbor<T: serde::Serialize>(value: &T) -> Result<Vec<u8>, IoError> {
     let mut buf = Vec::new();
-    ciborium::into_writer(value, &mut buf).map_err(|e| IoError::Cbor(e.to_string()))?;
+    ciborium::into_writer(value, &mut buf).map_err(IoError::cbor_encode)?;
     Ok(buf)
 }
 
@@ -385,13 +434,16 @@ pub fn to_cbor<T: serde::Serialize>(value: &T) -> Result<Vec<u8>, IoError> {
 /// CBOR failure.
 pub fn from_cbor<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> Result<T, IoError> {
     let mut reader = bytes;
-    let value = ciborium::from_reader(&mut reader).map_err(|e| IoError::Cbor(e.to_string()))?;
+    let value = ciborium::from_reader(&mut reader).map_err(IoError::cbor_decode)?;
     // A section is one CBOR item. Bytes after it would ride under the section checksum
     // while no consumer reads them.
     if reader.is_empty() {
         Ok(value)
     } else {
-        Err(IoError::Cbor(format!("{} trailing bytes after the CBOR item", reader.len())))
+        Err(IoError::Cbor(crate::error::CborFailure::new(
+            crate::error::CborFault::TrailingBytes,
+            format!("{} trailing bytes after the CBOR item", reader.len()),
+        )))
     }
 }
 

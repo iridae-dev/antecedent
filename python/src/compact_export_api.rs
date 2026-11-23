@@ -7,7 +7,7 @@
 //! type.
 //!
 //! The export evaluates a point prediction and a model-based standard error only; the standard
-//! error is labelled `model_based_sqrt_phi_v_phi` with calibration unmeasured and is never an
+//! error is labelled `model_based_sqrt_phi_v_phi` with calibration `not_measured` and is never an
 //! interval.
 
 use std::collections::BTreeMap;
@@ -17,14 +17,14 @@ use antecedent::analysis::compact_export::{
     CompactExport, ExportInput, ExportLimits, ExportQuery, ExportRefusal, ExportSpec, MaskRegion,
     PointWithSe, QueryValue, TermSpec,
 };
-use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent::io::quantity_wire::ScientificQuantityWire;
 use pyo3::prelude::*;
 
 use crate::{detach_catch, value_err_code};
 
 /// A bounded-input error carrying the registered `invalid_argument` code.
 fn invalid_argument(message: String) -> PyErr {
-    value_err_code(antecedent_core::reason_code!("invalid_argument"), message)
+    value_err_code(antecedent::reason::reason_code!("invalid_argument"), message)
 }
 
 /// Largest declaration / query JSON accepted.
@@ -129,12 +129,12 @@ fn build_compact_export(
 #[pyo3(signature = (artifact, expected_identity, max_bytes=None))]
 fn consume_compact_export(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expected_identity: String,
     max_bytes: Option<usize>,
 ) -> PyResult<ConsumePayload> {
     let limits = limits_of(max_bytes);
-    detach_catch(py, move || match CompactExport::consume(&artifact, &limits, &expected_identity) {
+    detach_catch(py, move || match CompactExport::consume(artifact, &limits, &expected_identity) {
         Ok(export) => Ok((Some(body_json(&export)?), None)),
         Err(error) => Ok((None, Some(refusal_json(&error, "consume")))),
     })
@@ -149,7 +149,7 @@ fn consume_compact_export(
 #[pyo3(signature = (artifact, expected_identity, queries_json, max_bytes=None))]
 fn evaluate_compact_export(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expected_identity: String,
     queries_json: &str,
     max_bytes: Option<usize>,
@@ -173,7 +173,7 @@ fn evaluate_compact_export(
         })
         .collect();
     let limits = limits_of(max_bytes);
-    detach_catch(py, move || match CompactExport::consume(&artifact, &limits, &expected_identity) {
+    detach_catch(py, move || match CompactExport::consume(artifact, &limits, &expected_identity) {
         Ok(export) => {
             let results: Vec<serde_json::Value> = queries
                 .iter()

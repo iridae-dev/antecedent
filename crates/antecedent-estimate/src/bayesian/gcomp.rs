@@ -25,7 +25,8 @@ use crate::adjustment::{PreparedEstimationProblem, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::serial_dependence::{
-    DEPENDENCE_ASSUMPTION_ID, DependenceScope, SerialDependence, long_run_tempering_factor,
+    DEPENDENCE_ASSUMPTION_ID, DependenceScope, ResidualFitReuse, SerialDependence,
+    long_run_tempering_factor,
 };
 use crate::util::require_explicit_override;
 
@@ -43,6 +44,66 @@ use super::{
 /// (type-6) interval of its draws rather than the type-7 interval its records were measured with
 /// at this count and above. Keyed separately (`rank_quantile_interval`).
 pub const LAPLACE_RANK_INTERVAL_BELOW_DRAWS: usize = 1000;
+
+fn reusable_gaussian_design(
+    ctx: &ExecutionContext,
+    likelihood: BayesLikelihood,
+    backend: BayesianBackendKind,
+    whitened: bool,
+    tempered: bool,
+) -> bool {
+    ctx.cache_policy.enabled
+        && ctx.cache_policy.max_bytes.is_none()
+        && ctx.admission.byte_budget() == u64::MAX
+        && likelihood == BayesLikelihood::GaussianIdentity
+        && !whitened
+        && !tempered
+        && backend != BayesianBackendKind::Hmc
+}
+
+fn summarize_gcomp_draws(
+    draws: &PosteriorDraws,
+    backend: BayesianBackendKind,
+    n_draws: usize,
+) -> antecedent_prob::PosteriorSummary {
+    let summaries = draws.summarize();
+    // A Laplace interval is the type-7 quantile interval of the draws, whose expected posterior
+    // mass `0.95(m-1)/(m+1)` is 0.921 at 64 draws and 0.949 at 1,000. Below the measured draw
+    // count the effect's interval is the exchangeable-rank (type-6) interval of the same
+    // draws instead, whose expected mass is exactly 0.95 at every count. It is a function of
+    // the embedded draws alone, so artifacts stay self-verifying, and the declared draws,
+    // their count and every other summary are untouched.
+    let mut summaries = summaries;
+    if matches!(backend, BayesianBackendKind::Laplace)
+        && n_draws < LAPLACE_RANK_INTERVAL_BELOW_DRAWS
+    {
+        let column = draws
+            .schema
+            .quantities
+            .iter()
+            .position(|quantity| matches!(quantity, PosteriorQuantityKind::Effect { .. }));
+        let values = column.and_then(|column| draws.column(column).ok());
+        if let (Some(column), Some(values)) = (column, values)
+            && values.len() >= 2
+            && values.iter().all(|value| value.is_finite())
+        {
+            let mut sorted = values.to_vec();
+            sorted.sort_by(f64::total_cmp);
+            let (lower, upper) = antecedent_stats::equal_tail_interval_sorted(
+                &sorted,
+                0.95,
+                antecedent_stats::QuantileRule::ExchangeableRank,
+            );
+            let mut q025 = summaries.q025.to_vec();
+            let mut q975 = summaries.q975.to_vec();
+            q025[column] = lower;
+            q975[column] = upper;
+            summaries.q025 = Arc::from(q025);
+            summaries.q975 = Arc::from(q975);
+        }
+    }
+    summaries
+}
 
 /// Which inference backend to use for Bayesian g-computation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -200,6 +261,35 @@ impl BayesianGComputationAte {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedBayesianProblem, EstimationError> {
+        self.prepare_for_population(data, estimand, query, None)
+    }
+
+    /// [`Self::prepare`] for a query whose target population may be a custom distribution
+    /// registered in `registry` (a declared weighted target).
+    ///
+    /// The model-based effect on a weighted population is the treatment coefficient of the
+    /// outcome model with the treatment-by-covariate interactions centred at the weighted
+    /// means of the covariates: averaged over the weights the centred interactions vanish, so
+    /// on the identity link `(active - control) b_T` is the contrast on that population for
+    /// every posterior draw. The weights must depend only on the adjustment set, whose
+    /// covariates carry the interactions.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::prepare`], and a custom target without its registered weights, with weights
+    /// that depend on a variable outside the adjustment set, with all-zero weights on the
+    /// complete rows, or under a link other than Gaussian identity.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one preparation that centres the interactions on the declared population"
+    )]
+    pub fn prepare_for_population(
+        &self,
+        data: &TabularData,
+        estimand: &IdentifiedEstimand,
+        query: &AverageEffectQuery,
+        registry: Option<&antecedent_core::PopulationRegistry>,
+    ) -> Result<PreparedBayesianProblem, EstimationError> {
         require_explicit_override(
             self.overlap,
             "BayesianGComputationAte requires ExplicitOverride overlap policy",
@@ -211,14 +301,60 @@ impl BayesianGComputationAte {
         }
         query.validate()?;
         if !query.effect_modifiers.is_empty() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("option_not_applicable"),
                 "Bayesian g-comp does not support effect modifiers",
             ));
         }
-        if query.target_population != TargetPopulation::AllObserved {
+        let weighted = if let TargetPopulation::CustomDistribution(id) = &query.target_population {
+            let depends =
+                registry.and_then(|r| r.distribution_dependencies(*id)).ok_or_else(|| {
+                    EstimationError::unsupported_coded(
+                        antecedent_core::reason_code!("required_option_missing"),
+                        "a custom target needs its registered weights with declared dependencies",
+                    )
+                })?;
+            if depends.iter().any(|v| *v == query.treatment || !estimand.adjustment_set.contains(v))
+            {
+                return Err(EstimationError::unsupported(
+                    "Bayesian g-comp custom weights must depend only on the certified adjustment set",
+                ));
+            }
+            if self.effective_likelihood() != BayesLikelihood::GaussianIdentity {
+                return Err(EstimationError::refused(
+                    antecedent_core::reason_code!("population_not_estimable"),
+                    "the Bayesian model-based effect on a weighted population is the treatment \
+                     coefficient of the Gaussian identity outcome model; use that model",
+                ));
+            }
+            let selection = query
+                .target_population
+                .resolve(data.row_count(), None, registry)
+                .map_err(|error| EstimationError::data_msg(error.to_string()))?;
+            selection.weights
+        } else {
+            None
+        };
+        let reference_arm = match &query.target_population {
+            TargetPopulation::AllObserved | TargetPopulation::CustomDistribution(_) => None,
+            TargetPopulation::Treated => Some(ReferenceArm::Active),
+            TargetPopulation::Untreated => Some(ReferenceArm::Control),
+            _ => {
+                return Err(EstimationError::refused(
+                    antecedent_core::reason_code!("population_not_estimable"),
+                    "Bayesian g-comp supports TargetPopulation::AllObserved, and Treated or \
+                     Untreated as a model-based effect under the Gaussian identity outcome model",
+                ));
+            }
+        };
+        if reference_arm.is_some()
+            && self.effective_likelihood() != BayesLikelihood::GaussianIdentity
+        {
             return Err(EstimationError::refused(
                 antecedent_core::reason_code!("population_not_estimable"),
-                "Bayesian g-comp only supports TargetPopulation::AllObserved",
+                "the Bayesian model-based effect on the treated or untreated centres treatment \
+                 interactions on the arm, which makes the treatment coefficient that arm's \
+                 contrast on the identity link only; use the Gaussian identity outcome model",
             ));
         }
         let active = intervention_f64(&query.active)?;
@@ -235,25 +371,45 @@ impl BayesianGComputationAte {
         ids.push(treatment);
         ids.push(outcome);
         ids.extend_from_slice(&estimand.adjustment_set);
-        let row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
-        let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
-        let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
-        let mut covs: Vec<(VariableId, Vec<f64>)> = Vec::new();
-        for &z in estimand.adjustment_set.iter() {
-            covs.push((z, data.float64_masked(z, &row_mask).map_err(EstimationError::from)?));
-        }
-        let cov_refs: Vec<(VariableId, &[f64])> =
-            covs.iter().map(|(id, v)| (*id, v.as_slice())).collect();
-        let selected_rows: Vec<usize> =
-            row_mask.iter().enumerate().filter_map(|(i, keep)| keep.then_some(i)).collect();
-        let design = CompiledDesign::linear_adjustment(&t, &cov_refs, &y, &selected_rows)
-            .map_err(EstimationError::from)?;
+        let crate::prepare::AdmittedColumns { data, row_mask, receipt } =
+            crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
+        let design = crate::prepare::direct_adjustment_design(
+            data,
+            treatment,
+            outcome,
+            &estimand.adjustment_set,
+            &[],
+            &row_mask,
+        )?;
         let schema = data.schema();
-        let treatment_name = schema.get(treatment).map(|v| v.name.as_ref()).unwrap_or("treatment");
+        let treatment_name = schema.get(treatment).map_or("treatment", |v| v.name.as_ref());
         let coef_names = coefficient_names_from_design(&design, treatment_name, |id| {
             schema.get(id).ok().map(|v| Arc::clone(&v.name))
         });
+        let (design, coef_names, target_moments) = match (reference_arm, weighted) {
+            (None, Some(full)) => {
+                let aligned: Vec<f64> = row_mask
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, keep)| **keep)
+                    .map(|(i, _)| full.get(i).copied().unwrap_or(0.0))
+                    .collect();
+                let ((design, names), moments) =
+                    center_interactions_on_weights(&design, &coef_names, &aligned)?;
+                (design, names, Some(moments))
+            }
+            (Some(arm), _) => {
+                let level = match arm {
+                    ReferenceArm::Active => active,
+                    ReferenceArm::Control => control,
+                };
+                let (design, names) = center_interactions_on_arm(&design, &coef_names, level)?;
+                (design, names, None)
+            }
+            (None, None) => (design, coef_names, None),
+        };
         Ok(PreparedBayesianProblem {
+            target_moments,
             design,
             method: Arc::clone(&estimand.method),
             adjustment_set: Arc::clone(&estimand.adjustment_set),
@@ -263,6 +419,7 @@ impl BayesianGComputationAte {
             coef_names: Some(coef_names),
             unit_ids: None,
             serial_dependence: SerialDependence::Iid,
+            preparation: Some(crate::prepare::preparation_summary(&receipt)),
         })
     }
 
@@ -292,30 +449,34 @@ impl BayesianGComputationAte {
         let mut ids = vec![q.treatment, q.outcome];
         ids.extend_from_slice(&q.effect_modifiers);
         ids.extend_from_slice(&estimand.adjustment_set);
-        let mask = data.complete_case_mask(&ids)?;
-        let t = data.float64_masked(q.treatment, &mask)?;
-        let y = data.float64_masked(q.outcome, &mask)?;
+        let crate::prepare::AdmittedColumns { data, row_mask: mask, receipt } =
+            crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
+        let t = data.float64_selected(q.treatment, &mask)?;
+        let y = data.float64_selected(q.outcome, &mask)?;
         if t.len() < 8 {
             return Err(EstimationError::data_msg("too few conditional complete rows"));
         }
-        let mut modifier_covariates = Vec::with_capacity(q.effect_modifiers.len());
-        let mut interaction_covariates = Vec::with_capacity(q.effect_modifiers.len());
+        let mut modifier_covariates: Vec<(VariableId, std::borrow::Cow<'_, [f64]>)> =
+            Vec::with_capacity(q.effect_modifiers.len());
+        let mut interaction_covariates: Vec<(VariableId, std::borrow::Cow<'_, [f64]>)> =
+            Vec::with_capacity(q.effect_modifiers.len());
         for &modifier in q.effect_modifiers.iter() {
-            let w = data.float64_masked(modifier, &mask)?;
+            let w = data.float64_selected(modifier, &mask)?;
             let mean = w.iter().sum::<f64>() / w.len() as f64;
-            let interaction: Vec<_> = t.iter().zip(&w).map(|(t, w)| t * (w - mean)).collect();
+            let interaction: Vec<_> = t.iter().zip(w.iter()).map(|(t, w)| t * (w - mean)).collect();
             modifier_covariates.push((modifier, w));
-            interaction_covariates.push((modifier, interaction));
+            interaction_covariates.push((modifier, std::borrow::Cow::Owned(interaction)));
         }
         let mut covs = modifier_covariates;
         covs.extend(interaction_covariates);
         for &id in estimand.adjustment_set.iter().filter(|&&id| !q.effect_modifiers.contains(&id)) {
-            covs.push((id, data.float64_masked(id, &mask)?));
+            covs.push((id, data.float64_selected(id, &mask)?));
         }
-        let refs: Vec<_> = covs.iter().map(|(id, values)| (*id, values.as_slice())).collect();
+        let refs: Vec<_> = covs.iter().map(|(id, values)| (*id, &values[..])).collect();
         let rows: Vec<_> =
             mask.iter().enumerate().filter_map(|(i, &keep)| keep.then_some(i)).collect();
         prep.design = CompiledDesign::linear_adjustment(&t, &refs, &y, &rows)?;
+        prep.preparation = Some(crate::prepare::preparation_summary(&receipt));
         let mut names: Vec<Arc<str>> =
             vec![Arc::from("intercept"), Arc::from("treatment_at_mean_modifier")];
         for &modifier in q.effect_modifiers.iter() {
@@ -342,6 +503,7 @@ impl BayesianGComputationAte {
     #[must_use]
     pub fn from_prepared_estimation(prep: &PreparedEstimationProblem) -> PreparedBayesianProblem {
         PreparedBayesianProblem {
+            target_moments: None,
             design: prep.design.clone(),
             method: Arc::clone(&prep.method),
             adjustment_set: Arc::clone(&prep.adjustment_set),
@@ -351,6 +513,7 @@ impl BayesianGComputationAte {
             coef_names: None,
             unit_ids: None,
             serial_dependence: SerialDependence::Iid,
+            preparation: None,
         }
     }
 
@@ -406,10 +569,6 @@ impl BayesianGComputationAte {
     /// # Errors
     ///
     /// Backend / evaluation failures.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "one linear fit: draw, optional interval supplement, then summaries"
-    )]
     pub fn fit(
         &self,
         problem: &PreparedBayesianProblem,
@@ -423,7 +582,8 @@ impl BayesianGComputationAte {
 
         let likelihood = self.effective_likelihood();
         let (max_draws, mut extra_notes) = self.draw_budget()?;
-        let tempering_weights = temper_likelihood(problem, &mut assumptions, &mut extra_notes)?;
+        let tempering_weights =
+            temper_likelihood(problem, &mut assumptions, &mut extra_notes, ctx)?;
         let (laplace_adaptive, initial_draws) =
             self.adaptive_schedule(likelihood, &prior, ctx, max_draws)?;
 
@@ -440,6 +600,23 @@ impl BayesianGComputationAte {
             weights: tempering_weights.as_deref(),
             offsets: None,
         };
+        if reusable_gaussian_design(
+            ctx,
+            likelihood,
+            self.backend,
+            whitened.is_some(),
+            tempering_weights.is_some(),
+        ) {
+            workspace
+                .laplace
+                .bind_immutable_gaussian_design(
+                    Arc::clone(&problem.design.matrix),
+                    Arc::clone(&problem.design.outcome),
+                    problem.design.nrows,
+                    problem.design.ncols,
+                )
+                .map_err(prob_err)?;
+        }
         let opts = BayesFitOptions {
             n_draws: initial_draws,
             seed: self.seed,
@@ -449,8 +626,10 @@ impl BayesianGComputationAte {
             BackendInputs { likelihood, design: design_ref, prior: &prior, opts, max_draws }
                 .fit(self.backend, workspace, ctx)
                 .map_err(prob_err)?;
-        if !fit.diagnostics.allows_posterior() {
-            return Err(EstimationError::stats_msg("Bayesian fit refused without diagnostics"));
+        if let Some(error) =
+            fit.diagnostics.publication_error("Bayesian fit refused without diagnostics")
+        {
+            return Err(error.into());
         }
         fit.diagnostics.notes.extend(extra_notes);
 
@@ -468,25 +647,16 @@ impl BayesianGComputationAte {
         // columns so batch merges match `PosteriorSchema::coefficients`.
         let coef_draws = coefficient_only_draws(&fit.draws)?;
 
-        let n_draws = fit.draws.n_draws;
-        let (mechanism_draws, effects, n_draws, early_stopped) = if laplace_adaptive {
-            let cov = fit.cov.as_deref().ok_or_else(|| {
-                EstimationError::stats_msg("Laplace adaptive draws require posterior covariance")
-            })?;
-            let plan = AdaptiveRedraw {
-                map: &fit.map,
-                cov,
-                seed: self.seed,
+        let EvaluatedDraws { mechanism_draws, effects, n_draws, early_stopped } = eval
+            .evaluate_draws(
+                &fit,
+                coef_draws,
+                laplace_adaptive,
                 max_draws,
-                budget: ctx.adaptive_draws,
-            };
-            let outcome = eval.redraw(&plan, &coef_draws, n_draws, workspace, ctx)?;
-            let mechanism_draws = concat_coefficient_draws(&coef_draws, &outcome.extra_blocks)?;
-            (mechanism_draws, outcome.effects, outcome.n_draws, outcome.early_stopped)
-        } else {
-            let effects = eval.effects(&coef_draws, n_draws, workspace, ctx)?;
-            (coef_draws, effects, n_draws, false)
-        };
+                self.seed,
+                workspace,
+                ctx,
+            )?;
 
         // Adaptive MVN path only runs for known-σ² Laplace, whose residual column is
         // the constant σ², so it is re-attached at the final draw count.
@@ -498,41 +668,7 @@ impl BayesianGComputationAte {
             &effects,
             self.seed,
         )?;
-        let summaries = draws.summarize();
-        // A Laplace interval is the type-7 quantile interval of the draws, whose expected posterior
-        // mass `0.95(m-1)/(m+1)` is 0.921 at 64 draws and 0.949 at 1,000. Below the measured draw
-        // count the effect's interval is the exchangeable-rank (type-6) interval of the same
-        // draws instead, whose expected mass is exactly 0.95 at every count. It is a function of
-        // the embedded draws alone, so artifacts stay self-verifying, and the declared draws,
-        // their count and every other summary are untouched.
-        let mut summaries = summaries;
-        if matches!(self.backend, BayesianBackendKind::Laplace)
-            && n_draws < LAPLACE_RANK_INTERVAL_BELOW_DRAWS
-        {
-            let column = draws
-                .schema
-                .quantities
-                .iter()
-                .position(|quantity| matches!(quantity, PosteriorQuantityKind::Effect { .. }));
-            let values = column.and_then(|column| draws.column(column).ok());
-            if let (Some(column), Some(values)) = (column, values) {
-                if values.len() >= 2 && values.iter().all(|value| value.is_finite()) {
-                    let mut sorted = values.to_vec();
-                    sorted.sort_by(f64::total_cmp);
-                    let (lower, upper) = antecedent_stats::equal_tail_interval_sorted(
-                        &sorted,
-                        0.95,
-                        antecedent_stats::QuantileRule::ExchangeableRank,
-                    );
-                    let mut q025 = summaries.q025.to_vec();
-                    let mut q975 = summaries.q975.to_vec();
-                    q025[column] = lower;
-                    q975[column] = upper;
-                    summaries.q025 = Arc::from(q025);
-                    summaries.q975 = Arc::from(q975);
-                }
-            }
-        }
+        let summaries = summarize_gcomp_draws(&draws, self.backend, n_draws);
         Ok(CausalPosterior {
             subsampled_out_mass: 0.0,
             unevaluable_mass: 0.0,
@@ -547,6 +683,7 @@ impl BayesianGComputationAte {
             early_stopped,
             treatment_contrast: (self.glm_family() == GlmFamily::GaussianIdentity)
                 .then_some(problem.active - problem.control),
+            preparation: problem.preparation.clone(),
         })
     }
 
@@ -747,29 +884,40 @@ fn temper_likelihood(
     problem: &PreparedBayesianProblem,
     assumptions: &mut AssumptionSet,
     extra_notes: &mut Vec<Arc<str>>,
+    ctx: &ExecutionContext,
 ) -> Result<Option<Vec<f64>>, EstimationError> {
     let tempering = match &problem.serial_dependence {
         SerialDependence::Iid => None,
         SerialDependence::LongRunTempering(scope) => {
             if problem.unit_ids.is_some() {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("option_not_applicable"),
                     "long-run tempering applies to one time-ordered series, not stacked \
                      panel units",
                 ));
             }
-            Some(long_run_tempering_factor(&problem.design, scope)?)
+            Some(antecedent_core::numerical_admission::with_context(ctx, || {
+                long_run_tempering_factor(
+                    &problem.design,
+                    scope,
+                    ResidualFitReuse::for_context(ctx),
+                )
+            })?)
         }
         SerialDependence::SegmentedTempering { scope, segments } => {
             if problem.unit_ids.is_some() {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("option_not_applicable"),
                     "segmented tempering applies to one series with gaps, not stacked panel units",
                 ));
             }
-            Some(crate::serial_dependence::segmented_tempering_factor(
-                &problem.design,
-                scope,
-                segments,
-            )?)
+            Some(antecedent_core::numerical_admission::with_context(ctx, || {
+                crate::serial_dependence::segmented_tempering_factor(
+                    &problem.design,
+                    scope,
+                    segments,
+                )
+            })?)
         }
     };
     let weights = tempering
@@ -810,12 +958,10 @@ fn whiten_design(
     likelihood: BayesLikelihood,
     extra_notes: &mut Vec<Arc<str>>,
 ) -> Result<Option<WhitenedDesign>, EstimationError> {
-    if let Some(ids) = problem.unit_ids.as_deref() {
-        if ids.len() != problem.design.nrows {
-            return Err(EstimationError::data_msg(
-                "unit_ids length must match the design row count",
-            ));
-        }
+    if let Some(ids) = problem.unit_ids.as_deref()
+        && ids.len() != problem.design.nrows
+    {
+        return Err(EstimationError::data_msg("unit_ids length must match the design row count"));
     }
     Ok(match (likelihood, problem.unit_ids.as_deref()) {
         (BayesLikelihood::GaussianIdentity, Some(ids)) => {
@@ -892,7 +1038,46 @@ struct EffectEvaluation<'a> {
     ncols: usize,
 }
 
+struct EvaluatedDraws {
+    mechanism_draws: PosteriorDraws,
+    effects: Vec<f64>,
+    n_draws: usize,
+    early_stopped: bool,
+}
+
 impl EffectEvaluation<'_> {
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "evaluation coordinates the fitted draws and adaptive schedule"
+    )]
+    fn evaluate_draws(
+        &self,
+        fit: &BayesFitResult,
+        coef_draws: PosteriorDraws,
+        laplace_adaptive: bool,
+        max_draws: usize,
+        seed: u64,
+        workspace: &mut BayesianGCompWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<EvaluatedDraws, EstimationError> {
+        let n_draws = fit.draws.n_draws;
+        let (mechanism_draws, effects, n_draws, early_stopped) = if laplace_adaptive {
+            let cov = fit.cov.as_deref().ok_or_else(|| {
+                EstimationError::stats_msg("Laplace adaptive draws require posterior covariance")
+            })?;
+            let plan =
+                AdaptiveRedraw { map: &fit.map, cov, seed, max_draws, budget: ctx.adaptive_draws };
+            let outcome = self.redraw(&plan, &coef_draws, n_draws, workspace, ctx)?;
+            let mechanism_draws = concat_coefficient_draws(&coef_draws, &outcome.extra_blocks)?;
+            (mechanism_draws, outcome.effects, outcome.n_draws, outcome.early_stopped)
+        } else {
+            let effects = self.effects(&coef_draws, n_draws, workspace, ctx)?;
+            (coef_draws, effects, n_draws, false)
+        };
+
+        Ok(EvaluatedDraws { mechanism_draws, effects, n_draws, early_stopped })
+    }
+
     /// Effect of each of the first `n` draws of `coefficients`.
     fn effects(
         &self,
@@ -1006,6 +1191,7 @@ fn assemble_posterior_draws(
     let effect_idx = quantities.len();
     quantities.push(PosteriorQuantityKind::Effect { name: Arc::from("ate") });
     let n_q = quantities.len();
+    let _admitted = crate::util::admit_bound_array::<f64>(n_draws, n_q)?;
     let mut values = vec![0.0; n_draws * n_q];
     for (qi, q) in mechanism_draws.schema.quantities.iter().enumerate() {
         let dest = quantities.iter().position(|qq| qq == q).ok_or_else(|| {
@@ -1030,12 +1216,77 @@ fn assemble_posterior_draws(
         effect_idx,
         seed,
     );
+    add_target_mean_uncertainty(problem, &quantities, &mut values, n_draws, effect_idx, seed);
     PosteriorDraws::from_column_major(
         PosteriorSchema { quantities: Arc::from(quantities) },
         n_draws,
         values,
     )
     .map_err(EstimationError::from)
+}
+
+/// Carry the sampling uncertainty of the weighted target population's covariate means into
+/// the effect draws.
+///
+/// The interactions are centred at the weighted means `m_k` of the observed rows, so the
+/// coefficient `b_T` is the effect at `m_k`, not at the target population's own means. With
+/// one Rubin Bayesian-bootstrap vector `omega` per draw, the target means are
+/// `m*_k = sum(omega w x_k) / sum(omega w)` and the effect at them is
+/// `(active - control) (b_T + sum_k d_k (m*_k - m_k))` on the identity link, which is the only
+/// link a weighted target admits. Without this the interval covers the effect at the observed
+/// weighted means and under-covers the target population's effect.
+fn add_target_mean_uncertainty(
+    problem: &PreparedBayesianProblem,
+    quantities: &[PosteriorQuantityKind],
+    values: &mut [f64],
+    n_draws: usize,
+    effect_idx: usize,
+    seed: u64,
+) {
+    let Some(moments) = problem.target_moments.as_ref() else {
+        return;
+    };
+    let nrows = problem.design.nrows;
+    let mass: f64 = moments.weights.iter().sum();
+    if n_draws == 0 || nrows == 0 || moments.weights.len() != nrows || mass.is_nan() || mass <= 0.0
+    {
+        return;
+    }
+    let column_of = |coef_index: usize| {
+        quantities.iter().position(|q| {
+            matches!(q, PosteriorQuantityKind::Coefficient { index, .. } if *index == coef_index)
+        })
+    };
+    let mut slopes = Vec::with_capacity(moments.covariates.len());
+    for &(covariate, interaction) in &moments.covariates {
+        let Some(slope_column) = column_of(interaction) else {
+            return;
+        };
+        let x = &problem.design.matrix[covariate * nrows..(covariate + 1) * nrows];
+        let mean = x.iter().zip(moments.weights.iter()).map(|(v, w)| v * w).sum::<f64>() / mass;
+        slopes.push((x, mean, slope_column));
+    }
+    let contrast = problem.active - problem.control;
+    let mut rng = antecedent_core::CausalRng::from_seed(seed ^ 0x5441_5247_4554_4D45);
+    for d in 0..n_draws {
+        let omega = antecedent_kernels::bayesian_bootstrap_weights(&mut rng, nrows, false);
+        let total: f64 = omega.iter().zip(moments.weights.iter()).map(|(o, w)| o * w).sum();
+        if total.is_nan() || total <= 0.0 {
+            continue;
+        }
+        let mut shift = 0.0;
+        for &(x, mean, slope_column) in &slopes {
+            let drawn = omega
+                .iter()
+                .zip(moments.weights.iter())
+                .zip(x)
+                .map(|((o, w), v)| o * w * v)
+                .sum::<f64>()
+                / total;
+            shift += values[slope_column * n_draws + d] * (drawn - mean);
+        }
+        values[effect_idx * n_draws + d] += contrast * shift;
+    }
 }
 
 /// Bayesian g-computation on a lag-aligned temporal design.
@@ -1186,10 +1437,10 @@ pub(super) fn add_modifier_mean_uncertainty(
 /// Apply durable names onto coefficient quantities (in place).
 fn apply_coefficient_names(quantities: &mut [PosteriorQuantityKind], names: &[Arc<str>]) {
     for q in quantities {
-        if let PosteriorQuantityKind::Coefficient { index, name } = q {
-            if let Some(n) = names.get(*index) {
-                *name = Some(Arc::clone(n));
-            }
+        if let PosteriorQuantityKind::Coefficient { index, name } = q
+            && let Some(n) = names.get(*index)
+        {
+            *name = Some(Arc::clone(n));
         }
     }
 }
@@ -1277,6 +1528,130 @@ pub(super) fn random_intercept_gls_whiten(
     Some((x_star, y_star))
 }
 
+/// The arm whose rows a model-based Bayesian effect is averaged over.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ReferenceArm {
+    /// Rows observed at the active treatment level (the effect on the treated).
+    Active,
+    /// Rows observed at the control level (the effect on the untreated).
+    Control,
+}
+
+/// A design with its coefficient names.
+type CenteredDesign = (CompiledDesign, Arc<[Arc<str>]>);
+
+/// Append one treatment-by-covariate interaction per covariate column, each covariate
+/// centred at its mean over the rows observed at `level`.
+///
+/// The outcome model is then `y = b0 + b_T t + g'z + d' t (z - zbar_arm)`. Averaged over the
+/// reference arm the centred interactions vanish, so on the identity link `(active - control)
+/// b_T` is the model-based contrast on that arm for every posterior draw. It is the effect of
+/// the declared outcome model, not a matching estimand.
+fn center_interactions_on_arm(
+    design: &CompiledDesign,
+    names: &Arc<[Arc<str>]>,
+    level: f64,
+) -> Result<CenteredDesign, EstimationError> {
+    let n = design.nrows;
+    let treatment = &design.matrix[n..2 * n];
+    let in_arm: Vec<bool> = treatment.iter().map(|&t| (t - level).abs() <= 1e-12).collect();
+    let arm_rows = in_arm.iter().filter(|&&flag| flag).count();
+    if arm_rows < 2 {
+        return Err(EstimationError::data_msg(
+            "the Bayesian model-based effect on an arm needs at least two rows observed at that \
+             arm's treatment level",
+        ));
+    }
+    let covariate_cols: Vec<usize> = design
+        .columns
+        .iter()
+        .enumerate()
+        .filter(|(_, column)| matches!(column.role, DesignColumnRole::Covariate(_)))
+        .map(|(index, _)| index)
+        .collect();
+    if design.ncols + covariate_cols.len() >= n {
+        return Err(EstimationError::data_msg(
+            "the Bayesian model-based effect on an arm needs more rows than coefficients",
+        ));
+    }
+    let mut matrix = design.matrix.to_vec();
+    let mut roles: Vec<DesignColumnRole> =
+        design.columns.iter().map(|column| column.role).collect();
+    let mut all_names: Vec<Arc<str>> = names.to_vec();
+    for &col in &covariate_cols {
+        let values = &design.matrix[col * n..(col + 1) * n];
+        let mean =
+            values.iter().zip(&in_arm).filter(|(_, flag)| **flag).map(|(v, _)| *v).sum::<f64>()
+                / arm_rows as f64;
+        matrix.extend(treatment.iter().zip(values).map(|(t, x)| t * (x - mean)));
+        roles.push(roles[col]);
+        let base = names.get(col).map_or("covariate", |name| name.as_ref());
+        all_names
+            .push(Arc::from(format!("treatment_x_centered_{}", base.trim_start_matches("coef_"))));
+    }
+    let ncols = roles.len();
+    let widened = CompiledDesign {
+        ncols,
+        matrix: Arc::from(matrix),
+        columns: antecedent_stats::DesignColumnMap::from_roles(roles),
+        ..design.clone()
+    };
+    Ok((widened, Arc::from(all_names)))
+}
+
+/// [`center_interactions_on_arm`] with each covariate centred at its weighted mean over the
+/// complete rows: the model-based contrast on the weighted population.
+fn center_interactions_on_weights(
+    design: &CompiledDesign,
+    names: &Arc<[Arc<str>]>,
+    weights: &[f64],
+) -> Result<(CenteredDesign, TargetMoments), EstimationError> {
+    let n = design.nrows;
+    let mass: f64 = weights.iter().sum();
+    if weights.len() != n || !(mass.is_finite() && mass > 0.0) || weights.iter().any(|w| *w < 0.0) {
+        return Err(EstimationError::data_msg(
+            "the target weights are not non-negative with positive mass on the complete rows",
+        ));
+    }
+    let treatment = &design.matrix[n..2 * n];
+    let covariate_cols: Vec<usize> = design
+        .columns
+        .iter()
+        .enumerate()
+        .filter(|(_, column)| matches!(column.role, DesignColumnRole::Covariate(_)))
+        .map(|(index, _)| index)
+        .collect();
+    if design.ncols + covariate_cols.len() >= n {
+        return Err(EstimationError::data_msg(
+            "the Bayesian model-based effect on a weighted population needs more rows than \
+             coefficients",
+        ));
+    }
+    let mut matrix = design.matrix.to_vec();
+    let mut roles: Vec<DesignColumnRole> =
+        design.columns.iter().map(|column| column.role).collect();
+    let mut all_names: Vec<Arc<str>> = names.to_vec();
+    let mut covariates = Vec::with_capacity(covariate_cols.len());
+    for &col in &covariate_cols {
+        covariates.push((col, roles.len()));
+        let values = &design.matrix[col * n..(col + 1) * n];
+        let mean = values.iter().zip(weights).map(|(v, w)| v * w).sum::<f64>() / mass;
+        matrix.extend(treatment.iter().zip(values).map(|(t, x)| t * (x - mean)));
+        roles.push(roles[col]);
+        let base = names.get(col).map_or("covariate", |name| name.as_ref());
+        all_names
+            .push(Arc::from(format!("treatment_x_centered_{}", base.trim_start_matches("coef_"))));
+    }
+    let ncols = roles.len();
+    let widened = CompiledDesign {
+        ncols,
+        matrix: Arc::from(matrix),
+        columns: antecedent_stats::DesignColumnMap::from_roles(roles),
+        ..design.clone()
+    };
+    Ok(((widened, Arc::from(all_names)), TargetMoments { weights: Arc::from(weights), covariates }))
+}
+
 /// Prepared Bayesian g-comp problem.
 #[derive(Clone, Debug)]
 pub struct PreparedBayesianProblem {
@@ -1300,9 +1675,51 @@ pub struct PreparedBayesianProblem {
     /// Pulse / Sustained designs and every horizon of a temporal response use
     /// [`SerialDependence::LongRunTempering`].
     pub serial_dependence: SerialDependence,
+    /// How the columns this problem was built from were prepared, when they were admitted
+    /// through the preparation path.
+    pub preparation: Option<Arc<crate::PreparationSummary>>,
+    /// The declared weighted target population whose covariate means the interactions are
+    /// centred at, so each draw can carry the sampling uncertainty of those means.
+    pub target_moments: Option<TargetMoments>,
+}
+
+/// The weighted target population of a model-based effect: the row weights and, for each
+/// covariate, its design column and the column of its treatment interaction (centred at the
+/// weighted mean of the covariate).
+#[derive(Clone, Debug)]
+pub struct TargetMoments {
+    /// Target weights aligned to the design rows.
+    pub weights: Arc<[f64]>,
+    /// `(covariate column, centred interaction column)` per covariate.
+    pub covariates: Vec<(usize, usize)>,
 }
 
 impl PreparedBayesianProblem {
+    /// Add treatment-by-covariate terms centered on declared target weights.
+    /// This changes the conditional outcome model; callers must bind that model
+    /// and compute nonlinear target functionals from the joint coefficients.
+    ///
+    /// # Errors
+    /// Invalid target weights, coefficient names or insufficient rows.
+    pub fn with_target_interactions(mut self, weights: &[f64]) -> Result<Self, EstimationError> {
+        let names = self.coef_names.as_ref().ok_or_else(|| {
+            EstimationError::data_msg("target interactions need coefficient names")
+        })?;
+        let ((design, names), moments) =
+            center_interactions_on_weights(&self.design, names, weights)?;
+        self.design = design;
+        self.coef_names = Some(names);
+        self.target_moments = Some(moments);
+        Ok(self)
+    }
+
+    /// Record how the columns were prepared.
+    #[must_use]
+    pub fn with_preparation(mut self, preparation: Option<Arc<crate::PreparationSummary>>) -> Self {
+        self.preparation = preparation;
+        self
+    }
+
     /// Set the row-dependence model (see [`crate::serial_dependence`]).
     #[must_use]
     pub fn with_serial_dependence(mut self, dependence: SerialDependence) -> Self {
@@ -1318,4 +1735,86 @@ pub struct BayesianGCompWorkspace {
     pub laplace: LaplaceWorkspace,
     /// Posterior functional eval scratch.
     pub eval: PosteriorEvalWorkspace,
+}
+
+#[cfg(test)]
+mod summary_tests {
+    use super::*;
+
+    #[test]
+    fn gaussian_design_reuse_respects_cache_backend_and_transforms() {
+        let mut ctx = ExecutionContext::for_tests(0);
+        ctx.cache_policy = antecedent_core::CachePolicy::enabled(None);
+        let eligible = |ctx: &ExecutionContext, likelihood, backend, whitened, tempered| {
+            reusable_gaussian_design(ctx, likelihood, backend, whitened, tempered)
+        };
+        assert!(eligible(
+            &ctx,
+            BayesLikelihood::GaussianIdentity,
+            BayesianBackendKind::Laplace,
+            false,
+            false
+        ));
+        assert!(!eligible(
+            &ctx,
+            BayesLikelihood::GaussianIdentity,
+            BayesianBackendKind::Hmc,
+            false,
+            false
+        ));
+        assert!(!eligible(
+            &ctx,
+            BayesLikelihood::GaussianIdentity,
+            BayesianBackendKind::Laplace,
+            true,
+            false
+        ));
+        assert!(!eligible(
+            &ctx,
+            BayesLikelihood::GaussianIdentity,
+            BayesianBackendKind::Laplace,
+            false,
+            true
+        ));
+        ctx.cache_policy = antecedent_core::CachePolicy::enabled(Some(1024));
+        assert!(!eligible(
+            &ctx,
+            BayesLikelihood::GaussianIdentity,
+            BayesianBackendKind::Laplace,
+            false,
+            false
+        ));
+    }
+
+    #[test]
+    fn small_laplace_summary_updates_only_effect_interval() {
+        let schema = PosteriorSchema {
+            quantities: vec![
+                PosteriorQuantityKind::Coefficient { index: 0, name: None },
+                PosteriorQuantityKind::Effect { name: Arc::from("ate") },
+            ]
+            .into(),
+        };
+        let draws = PosteriorDraws::from_column_major(
+            schema,
+            4,
+            vec![2.0, 3.0, 4.0, 5.0, 0.0, 1.0, 2.0, 3.0],
+        )
+        .unwrap();
+        let baseline = draws.summarize();
+        let untouched = summarize_gcomp_draws(&draws, BayesianBackendKind::ConjugateGaussian, 4);
+        assert_eq!(untouched, baseline);
+        let actual = summarize_gcomp_draws(&draws, BayesianBackendKind::Laplace, 4);
+        let (lower, upper) = antecedent_stats::equal_tail_interval_sorted(
+            &[0.0, 1.0, 2.0, 3.0],
+            0.95,
+            antecedent_stats::QuantileRule::ExchangeableRank,
+        );
+        assert_eq!(actual.q025[0].to_bits(), baseline.q025[0].to_bits());
+        assert_eq!(actual.q975[0].to_bits(), baseline.q975[0].to_bits());
+        assert_eq!(actual.q025[1].to_bits(), lower.to_bits());
+        assert_eq!(actual.q975[1].to_bits(), upper.to_bits());
+        assert_eq!(actual.mean, baseline.mean);
+        assert_eq!(actual.sd, baseline.sd);
+    }
 }

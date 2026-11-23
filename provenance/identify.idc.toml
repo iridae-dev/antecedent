@@ -24,4 +24,46 @@ test_sources = [
  "frozen IDC fixture metadata; the executable test consumes only the unconditional reduction case (conformance/identify/idc)",
  "unconditional reduction unit test (crates/antecedent-identify/src/idc.rs)",
  "exact enumeration of latent binary SCMs on all three-node ADMGs against P_x(y,z)/P_x(z), including post-treatment conditioning variables (crates/antecedent-identify/tests/id_completeness.rs)",
+ "exhaustive rule-2 closure reference for IDC: every three-node ADMG and every four-node ADMG (4096 graphs) with every assignment of nodes to outcome, intervention, conditioning or unused, comparing the product with a closure taken in every order over independent simple-path m-separation (crates/antecedent-identify/tests/idc_rule2_enumeration.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "IdcIdentifier::identify_conditional in crates/antecedent-identify/src/idc.rs for hard-set interventions on a static ADMG: the line-1 move of conditioning variables into the intervention set under rule 2 (Y independent of z given X and the rest of Z in the graph without arrows into X and out of z), the choice among moves, and the hand-off to ID of the unconditional law over Y and the unmoved Z (line 2) with its identified or refused status. Not a review of ID itself (covered by its hedge enumeration), of the emitted functional's numerical value beyond the existing three-node finite-SCM sweep, of baked-level evaluation, or of soft or non-Set interventions, which are refused. ID expression-building definitions moved to id/expression.rs and bound items were compared unchanged apart from internal visibility and formatting. ID recursive definitions moved to id/recursion.rs and bound items were compared unchanged apart from internal visibility and formatting."
+assumptions = ["Causal sufficiency is not assumed: latent confounding is represented by bidirected edges of the ADMG and the graph is acyclic.", "m-separation in an ADMG is decided by simple paths with the collider rule: a collider needs the node or a descendant in the conditioning set, a non-collider must be outside it; mutilation by G_{X-bar z-underline} removes every arrowhead at X and every arrow leaving z.", "The status of the unconditional law over Y and Z'' after the moves is that of ID, which is checked separately against the hedge definition; a reduced query with no intervention is the observational law and is identified."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed."
+limitations = "The primary source was not re-read in this review (no downloads were made and no copy was read from this environment); the rule-2 statement and the reduction of the conditional query to ID on Y union Z are the standard ones and a mistake in how they are stated would not be detected here. The final unconditional question is put to the product's own ID, so a defect shared by the IDC front end and ID's refusal logic is outside the check; ID's refusals are compared with an independent hedge enumeration in a separate test. The functional's numerical value is exercised only by the existing three-node finite-SCM sweep and the baked-level tests. Graphs are ordered so that arrows run from lower to higher index, so every topological order is covered by relabeling nodes only up to that fixed ordering. Five-node and larger graphs use the same code. Calibration remains deferred."
+sources = ["https://doi.org/10.48550/arXiv.1206.6876", "https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["Over all 64 three-node ADMGs and all 4096 four-node ADMGs, with every assignment of the nodes to outcome, intervention, conditioning or unused (outcome and conditioning non-empty), IdcIdentifier reports the same status as the reference on 1152 three-node and 450560 four-node queries (92 and 88092 refused, 1060 and 362468 identified); in 350 and 107316 of them rule 2 moved at least one conditioning variable.", "The reference explores every order in which the rule-2 moves can be taken; every order ends in one status on every query, so the product's first-found choice cannot change the verdict. No defect was found and no product code changed."]
+record_sha256 = "7b5060d4ac2dde5dede540a22b11eb244d001c06dcf37c5454c3b5a93281da29"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/idc.rs"
+items = ["enum IdcOk", "fn distribution_query_from_sets", "fn drop_outgoing_from", "fn idc_recurse", "fn identify", "fn identify_conditional", "fn identify_conditional_with", "fn intern_bitset_vars", "fn mutilate_bar_x", "fn new", "fn prepare", "fn y_separated_from", "struct ConditionalRequest", "struct IdcIdentifier", "struct IdcProblem", "struct IdcRun"]
+sha256 = "6eba0e977b8b3ab46c3e5b5fef8b61e0cd6911876c1a84b79571a194f1314b69"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/id.rs"
+items = ["enum DistCtx", "enum Factor", "enum IdOutcome", "fn enter", "fn expectation_contrast", "fn get", "fn identify", "fn identify_ate", "fn identify_ate_impl", "fn identify_response", "fn identify_sets", "fn insert", "fn intervention_value", "fn leave", "fn len", "fn new", "fn not_identified_with_hedge", "fn prepare", "fn prepare_with_assumptions", "fn require_disjoint", "fn subproblem_hash", "fn admitted", "fn validate_distribution_query", "fn var", "fn with_causal_markov", "struct IdIdentifier", "struct IdMemo", "struct IdMeter", "struct IdQuery", "struct IdRun", "struct Law", "struct SubproblemKey", "type Assign"]
+sha256 = "afdcc63d41eeed72d7f4dc6d31344104ea0ea61ab7a538910377ea0a53aa1bf6"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/id/recursion.rs"
+items = ["fn id_body", "fn id_lines_5_to_7", "fn id_recurse", "fn id_recurse_shared", "fn marginal_conditionals"]
+sha256 = "4fcd9ab6713df50c603b87fe21dd6cdff1bfe1c9bf83af0cd3716ac25df4793b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/id/expression.rs"
+items = ["fn c_component_expression", "fn conditionals", "fn dist_marginal", "fn emit", "fn intern_nodes", "fn intervention_for_factor", "fn marginalize", "fn markov_product", "fn observational_marginal", "fn product_of", "fn q_component_product", "fn sum_out_if_any"]
+sha256 = "6a025af0a0c2cbe983e1178b8e30031345578345f88a1f719595cc3424e557a1"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/tests/idc_rule2_enumeration.rs"
+items = ["fn admg", "fn ancestors_of", "fn closures", "fn connected", "fn d", "fn edges", "fn extend", "fn from_masks", "fn idc_matches_the_rule_two_closure_on_every_three_node_admg", "fn idc_matches_the_rule_two_closure_on_sampled_four_node_admgs", "fn members", "fn mutilated", "fn run", "fn separated", "fn set_query", "fn the_reference_separation_recovers_textbook_cases", "fn v", "struct Graph"]
+sha256 = "ac1b4ad2927afafb33ccb44528a729a17a8fa87662162fc45c698ed02673ed2e"

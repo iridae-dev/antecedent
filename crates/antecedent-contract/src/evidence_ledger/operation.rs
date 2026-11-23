@@ -1,12 +1,13 @@
 //! Ledger operations, derived results and their downstream effects.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalWriter, SemanticDigest};
 
 use super::ids::{ObservationId, OperationId, ResultId, SourceId, digest_word};
 use super::overlap::MassAccount;
 use super::source::SourceDeclaration;
+use antecedent_core::named_variants;
 
 /// The distinct ways evidence can be combined or re-used. None implies
 /// another, and each has its own overlap policy in the ledger.
@@ -25,33 +26,13 @@ pub enum SynthesisKind {
     RepeatedObservationUse,
 }
 
-impl SynthesisKind {
-    /// Every kind in a fixed order.
-    pub const ALL: [Self; 5] = [
-        Self::StatisticalPooling,
-        Self::BayesianBorrowing,
-        Self::CausalTransport,
-        Self::EvidenceReuse,
-        Self::RepeatedObservationUse,
-    ];
-
-    /// Stable `snake_case` name. The first four coincide with the names of
-    /// the design-layer composition operations.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::StatisticalPooling => "statistical_pooling",
-            Self::BayesianBorrowing => "bayesian_borrowing",
-            Self::CausalTransport => "causal_transport",
-            Self::EvidenceReuse => "evidence_reuse",
-            Self::RepeatedObservationUse => "repeated_observation_use",
-        }
-    }
-
-    /// Parse a wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
+named_variants! {
+    SynthesisKind {
+        StatisticalPooling => "statistical_pooling",
+        BayesianBorrowing => "bayesian_borrowing",
+        CausalTransport => "causal_transport",
+        EvidenceReuse => "evidence_reuse",
+        RepeatedObservationUse => "repeated_observation_use",
     }
 }
 
@@ -69,7 +50,7 @@ pub enum PoolingDependence {
         has_cross_covariance: bool,
     },
     /// Dependence is unknown; only a structural envelope over a common
-    /// correlation range is licensed. Never a point, interval or posterior.
+    /// correlation range is supported. Never a point, interval or posterior.
     AssumptionRange {
         /// Lower correlation bound.
         rho_lo: f64,
@@ -214,11 +195,11 @@ pub struct CombinationRequest {
     pub replaces: Option<ResultId>,
 }
 
-/// What kind of statement a result licenses.
+/// What kind of statement a result supports.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum ClaimClass {
-    /// A point value. No interval or posterior is licensed by the ledger.
+    /// A point value. No interval or posterior is supported by the ledger.
     PointOnly,
     /// A structural envelope over a declared dependence range.
     AssumptionRange,
@@ -309,7 +290,7 @@ pub struct ResultRecord {
     pub operation: SynthesisOperation,
     /// Observation mass, each observation counted once.
     pub mass: MassAccount,
-    /// What the result licenses.
+    /// What the result supports.
     pub claim_class: ClaimClass,
     /// Digest of the sorted distinct observations counted (absent when any
     /// contributing observation set is unknown).
@@ -320,7 +301,7 @@ pub struct ResultRecord {
     /// is not independent confirmation.
     pub data_reuse: bool,
     /// Overlap-accounted dependence note: `true` when a declared covariance
-    /// or assumption range, not independence, licensed the combination.
+    /// or assumption range, not independence, supported the combination.
     pub dependence_declared: bool,
     /// Result this one recomputes.
     pub replaces: Option<ResultId>,

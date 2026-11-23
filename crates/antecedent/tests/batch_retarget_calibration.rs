@@ -1,5 +1,5 @@
 //! Coverage of the unpublished family-level max-t band of a batch retarget (record
-//! `estimate.batch_retarget_covariance`, closed route
+//! `estimate.batch_retarget_covariance`, unsupported route
 //! `antecedent.PreparedBatch.simultaneous_interval`).
 //!
 //! Four retargeted AIPW claims share one row snapshot: two binary treatments and two
@@ -10,25 +10,25 @@
 //! one, "all four truths inside the band", recorded as the unit interval against 0.5
 //! (covered) or 2.0 (missed), the same way the response-curve simultaneous band is scored.
 //!
-//! `batch_retarget_max_t_simultaneous_band` is registered in `scripts/gate_calibration.sh`
-//! (`run_br`, measured over the sample-size grid); its coverage is unmeasured, so the
-//! published interval stays closed (`cell_not_licensed`) and no coverage record exists. The evaluator is `antecedent::simultaneous_band_unpublished`.
+//! `batch_retarget_max_t_simultaneous_band` is registered in `parity/calibration_groups.toml`
+//! (`run_br`, measured over the sample-size grid); its coverage is `not_measured`, so the
+//! published interval stays closed (`not_supported`) and no coverage record exists. The evaluator is `BatchRetargetReport::simultaneous_interval`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 
 use antecedent::{
     BatchRetargetRequest, BatchStudy, EstimatorId, PreparedBatch, RefuteSuite, RetargetClaim,
-    SimultaneousBand, simultaneous_band_unpublished,
+    SimultaneousBand,
 };
 use antecedent_core::{AverageEffectQuery, ExecutionContext, StreamDomain, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_kernels::standard_normal;
 use common::calibration::{
-    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n, map_replicates,
-    n_sim,
+    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n, grid_seed,
+    map_replicates, n_sim,
 };
 
 const INTERVAL: &str = "simultaneous_band";
@@ -88,9 +88,11 @@ fn prepare(fx: &Fixture, ctx: &ExecutionContext) -> PreparedBatch {
 
 /// The four claims on the snapshot's rows: two unweighted and two reweighted by
 /// `exp(± 0.4 z)`. Constant effects make the truth the same under every weighting.
-fn request(fx: &Fixture, rows: &[u32]) -> BatchRetargetRequest {
+fn request(fx: &Fixture, rows: &[antecedent_data::GlobalId]) -> BatchRetargetRequest {
     let tilt = |sign: f64| -> Vec<f64> {
-        rows.iter().map(|&r| (sign * 0.4 * fx.z[r as usize]).exp()).collect()
+        rows.iter()
+            .map(|r| (sign * 0.4 * fx.z[usize::try_from(r.get()).expect("row")]).exp())
+            .collect()
     };
     let claim = |name: &str, query_index: usize, weights: Vec<f64>| RetargetClaim {
         name: name.into(),
@@ -118,7 +120,7 @@ fn replicate(n: usize, data_seed: u64, band_seed: u64) -> Option<SimultaneousBan
     let scores = prepared.prepared_scores();
     let rows = scores.common_rows().ok()??;
     let report = prepared.retarget(&scores, &request(&fx, &rows), &ctx).ok()?;
-    simultaneous_band_unpublished(&report, REPORTED_LEVEL, band_seed, BAND_DRAWS, &ctx).ok()
+    report.simultaneous_interval(REPORTED_LEVEL, band_seed, BAND_DRAWS, &ctx).ok()
 }
 
 fn construction() -> Construction {
@@ -140,7 +142,7 @@ fn construction() -> Construction {
 }
 
 /// The band's structure on one replicate at a large sample: four members in claim order,
-/// each centred on its point near the known truth, with `c` between the pointwise and the
+/// each within four standard errors of the known truth, with `c` between the pointwise and the
 /// independent four-claim critical value.
 #[test]
 fn the_unpublished_band_has_the_declared_members_and_a_max_t_critical_value() {
@@ -148,7 +150,13 @@ fn the_unpublished_band_has_the_declared_members_and_a_max_t_critical_value() {
     assert_eq!(band.members.len(), TRUTHS.len());
     for (i, (member, truth)) in band.members.iter().zip(TRUTHS).enumerate() {
         assert_eq!(member.name, format!("c{i}"));
-        assert!((member.value - truth).abs() < 0.5, "{}: {} vs {truth}", member.name, member.value);
+        assert!(
+            (member.value - truth).abs() < 4.0 * member.std_error,
+            "{}: {} vs {truth} (se {})",
+            member.name,
+            member.value,
+            member.std_error
+        );
         assert!(member.std_error > 0.0 && member.std_error.is_finite());
         assert!(
             (member.upper - member.value - band.critical_value * member.std_error).abs() < 1e-12
@@ -158,7 +166,10 @@ fn the_unpublished_band_has_the_declared_members_and_a_max_t_critical_value() {
         );
     }
     // 1.96 is the single-claim value and about 2.57 the independent four-claim value.
-    assert!(band.critical_value > 1.96 && band.critical_value < 2.7, "{}", band.critical_value);
+    // The upper bound is the independent four-claim value at level 0.95, 2.4909 (Sidak: positive
+    // or negative correlation can only lower the max-t critical value), plus 0.05 for the
+    // 10,000-draw Monte-Carlo error of the critical value; observed 2.399.
+    assert!(band.critical_value > 1.96 && band.critical_value < 2.54, "CV {}", band.critical_value);
 }
 
 #[test]
@@ -166,7 +177,7 @@ fn the_unpublished_band_has_the_declared_members_and_a_max_t_critical_value() {
 fn batch_retarget_max_t_simultaneous_band() {
     // The asymptotic max-t band undercovered at 200 and 400 rows (0.930 and
     // 0.939 at 2,000 repetitions). Measure a scope starting at 800 rows;
-    // smaller families remain outside its interval license.
+    // smaller families remain outside its interval support.
     let n = grid_n(1_600);
     let mut tally = CoverageTally::for_record(
         RecordKey {
@@ -176,13 +187,14 @@ fn batch_retarget_max_t_simultaneous_band() {
         },
         REPORTED_LEVEL,
     );
-    let bands = map_replicates(n_sim(), |rep| replicate(n, 41_000 + rep, rep));
+    let bands =
+        map_replicates(n_sim(), |rep| replicate(n, grid_seed(41_000 + rep), grid_seed(rep)));
     for band in bands {
         let Some(band) = band else {
             tally.skip();
             continue;
         };
-        tally.bind(
+        tally.bind_validation(
             &construction(),
             ScopeFacts {
                 row_count: n as u64,
@@ -190,6 +202,7 @@ fn batch_retarget_max_t_simultaneous_band() {
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         let covered =
             band.members.iter().zip(TRUTHS).all(|(m, truth)| m.lower <= truth && truth <= m.upper);

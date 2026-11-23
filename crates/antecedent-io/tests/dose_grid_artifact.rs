@@ -4,7 +4,7 @@
 //! `m'(d) = 0.5 + 0.5 d` and `m(3) - m(1) = 3`; a Gaussian-kernel local quadratic
 //! reproduces a quadratic exactly on noise-free data. An alternating deterministic
 //! perturbation gives non-degenerate standard errors. No coverage is claimed anywhere:
-//! every interval is `unmeasured`. A fresh consumer must reproduce the stored result from
+//! every interval is `not_measured`. A fresh consumer must reproduce the stored result from
 //! the embedded table alone and refuse every change, including one resealed with
 //! recomputed digests.
 #![allow(
@@ -15,9 +15,11 @@
 
 use antecedent_io::IoError;
 use antecedent_io::dose_grid_functional_artifact::{
-    DOSE_GRID_ARTIFACT_VERSION, DOSE_GRID_BAND_CLOSED, DOSE_GRID_CALIBRATION,
-    DOSE_GRID_INFERENCE_CLAIM, DoseClaimsWire, DoseFunctionalWire, DoseGridArtifactError,
-    DoseGridArtifactWire, DoseGridConsumeLimits, DoseGridRequestWire, dose_support_table,
+    DOSE_GRID_ARTIFACT_VERSION, DOSE_GRID_BAND_BIAS_AWARE, DOSE_GRID_BAND_CLOSED,
+    DOSE_GRID_BIAS_AWARE_FEATURE, DOSE_GRID_CALIBRATION, DOSE_GRID_DECLARED_ROWS_FEATURE,
+    DOSE_GRID_INFERENCE_CLAIM, DoseBiasAwareRequestWire, DoseClaimsWire, DoseFunctionalWire,
+    DoseGridArtifactError, DoseGridArtifactWire, DoseGridConsumeLimits, DoseGridRequestWire,
+    dose_support_table,
 };
 
 const N: usize = 201;
@@ -63,6 +65,10 @@ fn request(kind: &str, noise: f64) -> DoseGridRequestWire {
         },
         dose,
         outcome,
+        bias_aware: None,
+        sampling_weights: None,
+        cluster: None,
+        serial_lag: None,
     }
 }
 
@@ -113,7 +119,8 @@ fn artifact_derivative_and_contrast_replay_to_closed_form() {
 
     let contrast = consume(&seal("contrast", 0.1).export().unwrap()).unwrap();
     let item = contrast.result.contrast.as_ref().unwrap();
-    assert!((item.estimate - 3.0).abs() < 0.05, "{}", item.estimate);
+    // The alternating perturbation cancels in the symmetric design, so the contrast is exact.
+    assert!((item.estimate - 3.0).abs() < 1e-9, "{}", item.estimate);
     assert!(item.standard_error.is_finite() && item.standard_error > 0.0);
     assert!(item.lower < item.estimate && item.estimate < item.upper);
     assert_eq!((item.from_support.as_str(), item.to_support.as_str()), ("supported", "supported"));
@@ -122,7 +129,7 @@ fn artifact_derivative_and_contrast_replay_to_closed_form() {
 }
 
 #[test]
-fn artifact_records_support_unmeasured_calibration_and_closed_band() {
+fn artifact_records_support_not_measured_calibration_and_no_band() {
     let wire = seal("level", 0.1);
     assert_eq!(wire.result.support.len(), GRID.len());
     for (row, dose) in wire.result.support.iter().zip(GRID) {
@@ -151,7 +158,10 @@ fn resealed_table_change_is_refused() {
     let error = consume(&reseal(wire)).unwrap_err();
     assert_eq!(error, DoseGridArtifactError::ResultMismatch);
     let (code, detail) = error.refusal();
-    assert_eq!((code, detail.as_str()), ("invalid_argument", "dose_grid.result_replay_mismatch"));
+    assert_eq!(
+        (code, detail.as_str()),
+        ("invalid_argument", antecedent_core::reason_details::dose_grid::RESULT_REPLAY_MISMATCH)
+    );
 }
 
 #[test]
@@ -203,7 +213,7 @@ fn unresealed_changes_hit_the_digests() {
 }
 
 #[test]
-fn seal_refuses_closed_unsupported_and_uncertified_requests() {
+fn seal_refuses_unsupported_and_uncertified_requests() {
     let detail = |request: DoseGridRequestWire| match DoseGridArtifactWire::seal(request) {
         Err(error) => error.refusal(),
         Ok(_) => panic!("the request must be refused"),
@@ -211,32 +221,50 @@ fn seal_refuses_closed_unsupported_and_uncertified_requests() {
     let mut band = request("level", 0.1);
     band.claims.simultaneous_band = true;
     let (code, why) = detail(band);
-    assert_eq!((code, why.as_str()), ("route_not_supported", "dose_grid.simultaneous_band_closed"));
+    assert_eq!(
+        (code, why.as_str()),
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::dose_grid::NO_SIMULTANEOUS_BAND_METHOD
+        )
+    );
 
     let mut observational = request("level", 0.1);
     observational.design = "observational".into();
     let (code, why) = detail(observational);
-    assert_eq!((code, why.as_str()), ("effect_not_identified", "dose_grid.graph_not_certified"));
+    assert_eq!(
+        (code, why.as_str()),
+        ("effect_not_identified", antecedent_core::reason_details::dose_grid::GRAPH_NOT_CERTIFIED)
+    );
 
     let mut outside = request("level", 0.1);
     outside.grid.push(10.0);
     let (code, why) = detail(outside);
-    assert_eq!((code, why.as_str()), ("cell_not_licensed", "dose_grid.unsupported_dose"));
+    assert_eq!(
+        (code, why.as_str()),
+        ("positivity_violated", antecedent_core::reason_details::dose_grid::UNSUPPORTED_DOSE)
+    );
 
     let mut weak = request("level", 0.1);
     weak.minimum_local_ess = 1_000.0;
     let (code, why) = detail(weak);
-    assert_eq!((code, why.as_str()), ("cell_not_licensed", "dose_grid.insufficient_local_weight"));
+    assert_eq!(
+        (code, why.as_str()),
+        (
+            "positivity_violated",
+            antecedent_core::reason_details::dose_grid::INSUFFICIENT_LOCAL_WEIGHT
+        )
+    );
 
     let mut derivative_without_claim = request("derivative", 0.1);
     derivative_without_claim.claims.derivative = false;
     let (_, why) = detail(derivative_without_claim);
-    assert_eq!(why, "dose_grid.derivative_without_claim");
+    assert_eq!(why, antecedent_core::reason_details::dose_grid::DERIVATIVE_WITHOUT_CLAIM);
 
     let mut bandwidth = request("level", 0.1);
     bandwidth.bandwidth = 2.0;
     let (_, why) = detail(bandwidth);
-    assert_eq!(why, "dose_grid.bandwidth_outside_range");
+    assert_eq!(why, antecedent_core::reason_details::dose_grid::BANDWIDTH_OUTSIDE_RANGE);
 }
 
 #[test]
@@ -305,7 +333,10 @@ fn support_table_labels_every_dose_without_refusing() {
     assert!(weak[0].local_ess > 10.0 && weak[0].local_ess < 1_000.0);
     // Bad inputs are the row's typed invalid-request refusal.
     let (code, why) = dose_support_table(&dose, &[], 0.4, 10.0).unwrap_err().refusal();
-    assert_eq!((code, why.as_str()), ("invalid_argument", "dose_grid.invalid_request"));
+    assert_eq!(
+        (code, why.as_str()),
+        ("invalid_argument", antecedent_core::reason_details::dose_grid::INVALID_REQUEST)
+    );
 }
 
 #[test]
@@ -320,7 +351,7 @@ fn quadratic_mean_scope_replays_truth_across_fixed_bandwidths() {
             assert_eq!(consumed, wire);
             assert!(consumed.request.quadratic_mean);
             assert!(consumed.result.smoothing_bias_included);
-            assert_eq!(consumed.result.calibration, "unmeasured");
+            assert_eq!(consumed.result.calibration, "not_measured");
             assert_eq!(
                 consumed.required_features,
                 ["dose_grid_functional_row_v1", "dose_grid_quadratic_mean_v1",]
@@ -357,20 +388,372 @@ fn quadratic_mean_premise_and_required_feature_cannot_be_silently_changed() {
     // Exact-model scope changes the bias premise, not the sampling-variance engine.
     for (old, new) in generic.result.levels.iter().zip(&scoped.result.levels) {
         assert_eq!(old.standard_error, new.standard_error);
-        assert_eq!(new.calibration, "unmeasured");
+        assert_eq!(new.calibration, "not_measured");
         assert!(!old.smoothing_bias_included && new.smoothing_bias_included);
     }
     let mut missing_feature = scoped.clone();
     missing_feature.required_features.pop();
-    assert!(consume(&missing_feature.export().unwrap()).is_err());
+    assert!(matches!(
+        consume(&missing_feature.export().unwrap()),
+        Err(DoseGridArtifactError::UnsupportedSemantics(_))
+    ));
     let mut changed_premise = scoped.clone();
     changed_premise.request.quadratic_mean = false;
     changed_premise.required_features.pop();
-    assert!(consume(&reseal(changed_premise)).is_err());
+    assert!(matches!(
+        consume(&reseal(changed_premise)),
+        Err(DoseGridArtifactError::UnsupportedSemantics(_))
+    ));
     let mut changed_result = scoped;
     changed_result.result.levels[0].smoothing_bias_included = false;
     assert_eq!(
         consume(&reseal(changed_result)).unwrap_err(),
         DoseGridArtifactError::ResultMismatch
     );
+}
+
+#[test]
+fn admission_errors_preserve_cancellation_and_resource_classification() {
+    use antecedent_core::execution::AdmissionError;
+    use antecedent_estimate::EstimationError;
+    use antecedent_stats::StatsError;
+
+    for error in [
+        EstimationError::Admission(AdmissionError::Cancelled),
+        EstimationError::Stats(StatsError::Admission(AdmissionError::Cancelled)),
+        EstimationError::Stats(StatsError::Cancelled),
+    ] {
+        let refusal = DoseGridArtifactError::from(error);
+        assert_eq!(
+            refusal.refusal(),
+            (
+                "transport_budget_cancel",
+                antecedent_core::reason_details::dose_grid::CANCELLED.to_owned()
+            )
+        );
+    }
+    for error in [
+        EstimationError::Admission(AdmissionError::Overflow),
+        EstimationError::Stats(StatsError::Admission(AdmissionError::WorkerSpawn)),
+        EstimationError::Stats(StatsError::ResourceLimit {
+            message: "workspace",
+            required_bytes: 10,
+            limit_bytes: 0,
+        }),
+    ] {
+        let refusal = DoseGridArtifactError::from(error);
+        assert_eq!(
+            refusal.refusal(),
+            (
+                "transport_budget_cancel",
+                antecedent_core::reason_details::dose_grid::RESOURCE_LIMIT.to_owned()
+            )
+        );
+    }
+    let invalid = DoseGridArtifactError::from(EstimationError::Stats(StatsError::Shape {
+        message: "invalid shape",
+    }));
+    assert_eq!(
+        invalid.refusal(),
+        (
+            "invalid_argument",
+            antecedent_core::reason_details::dose_grid::INVALID_REQUEST.to_owned()
+        )
+    );
+}
+
+#[test]
+fn entry_cancellation_and_workspace_exhaustion_are_distinct_for_grid_and_contrast() {
+    for kind in ["level", "contrast"] {
+        let cancelled = antecedent_core::ExecutionContext::production(11, 1);
+        cancelled.cancellation.cancel();
+        let before = cancelled.admission.available();
+        let error =
+            DoseGridArtifactWire::seal_with_context(request(kind, 0.01), &cancelled).unwrap_err();
+        assert_eq!(
+            error.refusal(),
+            (
+                "transport_budget_cancel",
+                antecedent_core::reason_details::dose_grid::CANCELLED.to_owned()
+            )
+        );
+        assert_eq!(cancelled.admission.available(), before);
+
+        let limited =
+            antecedent_core::ExecutionContext::production(11, 1).with_memory_limit(Some(0));
+        let before = limited.admission.available();
+        let error =
+            DoseGridArtifactWire::seal_with_context(request(kind, 0.01), &limited).unwrap_err();
+        assert_eq!(
+            error.refusal(),
+            (
+                "transport_budget_cancel",
+                antecedent_core::reason_details::dose_grid::RESOURCE_LIMIT.to_owned()
+            )
+        );
+        assert_eq!(limited.admission.available(), before);
+    }
+    let mut invalid = request("level", 0.01);
+    invalid.outcome.pop();
+    let error = DoseGridArtifactWire::seal(invalid).unwrap_err();
+    assert_eq!(
+        error.refusal(),
+        (
+            "invalid_argument",
+            antecedent_core::reason_details::dose_grid::INVALID_REQUEST.to_owned()
+        )
+    );
+}
+
+#[test]
+fn context_cancellation_during_grid_work_never_seals_a_partial_artifact() {
+    let mut ctx = antecedent_core::ExecutionContext::production(11, 1);
+    // Admission or a grid worker can observe cancellation; neither may seal a partial result.
+    ctx.cancellation = antecedent_core::CancellationToken::cancel_after_checks(3);
+    let available = ctx.admission.available();
+    let error = DoseGridArtifactWire::seal_with_context(request("level", 0.01), &ctx)
+        .expect_err("an incomplete grid cannot produce a sealed artifact");
+    assert!(matches!(
+        error,
+        DoseGridArtifactError::Refused { ref detail, .. } if detail == antecedent_core::reason_details::dose_grid::CANCELLED
+    ));
+    assert!(ctx.cancellation.is_requested());
+    assert_eq!(ctx.admission.available(), available);
+}
+
+fn bias_aware(kind: &str, noise: f64) -> DoseGridRequestWire {
+    let mut declared = request(kind, noise);
+    declared.bias_aware = Some(DoseBiasAwareRequestWire {
+        curvature_bound: 0.5,
+        band_replicates: 400,
+        band_seed: 11,
+    });
+    declared
+}
+
+#[test]
+fn a_declared_curvature_bound_seals_bias_aware_intervals_and_the_band() {
+    let mut declared = bias_aware("level", 0.1);
+    declared.claims.simultaneous_band = true;
+    let sealed = DoseGridArtifactWire::seal(declared).unwrap();
+    assert!(sealed.required_features.iter().any(|f| f == DOSE_GRID_BIAS_AWARE_FEATURE));
+    assert_eq!(sealed.result.simultaneous_band, DOSE_GRID_BAND_BIAS_AWARE);
+    let section = sealed.result.bias_aware.as_ref().unwrap();
+    let band_lower = section.band_lower.as_ref().unwrap();
+    let band_upper = section.band_upper.as_ref().unwrap();
+    for (j, point) in sealed.result.levels.iter().enumerate() {
+        assert!(section.smoothing_bias_bound[j] > 0.0);
+        assert!(section.lower[j] <= point.lower && point.upper <= section.upper[j]);
+        assert!(band_lower[j] <= section.lower[j] && section.upper[j] <= band_upper[j]);
+        assert!(
+            band_lower[j] <= truth_level(point.dose) && truth_level(point.dose) <= band_upper[j]
+        );
+    }
+    // A fresh consumer replays the band from the stored seed, whatever its own context.
+    let bytes = sealed.export().unwrap();
+    let consumed = DoseGridArtifactWire::consume_typed_with_context(
+        &bytes,
+        DoseGridConsumeLimits::default(),
+        &antecedent_core::ExecutionContext::for_tests(99),
+    )
+    .unwrap();
+    assert_eq!(consumed, sealed);
+
+    let mut widened = sealed.clone();
+    widened.result.bias_aware.as_mut().unwrap().band_upper.as_mut().unwrap()[0] += 1.0;
+    assert!(matches!(consume(&reseal(widened)), Err(DoseGridArtifactError::ResultMismatch)));
+    let mut stripped = sealed.clone();
+    stripped.result.bias_aware = None;
+    assert!(matches!(
+        consume(&reseal(stripped)),
+        Err(DoseGridArtifactError::UnsupportedSemantics(_))
+    ));
+    let mut closed = sealed;
+    closed.result.simultaneous_band = DOSE_GRID_BAND_CLOSED.to_owned();
+    assert!(matches!(
+        consume(&reseal(closed)),
+        Err(DoseGridArtifactError::UnsupportedSemantics(_))
+    ));
+}
+
+#[test]
+fn a_band_whose_replicate_row_grid_product_is_unbounded_is_refused_before_any_fit() {
+    let mut declared = bias_aware("level", 0.1);
+    let rows = 100_000;
+    declared.dose = (0..rows).map(|i| 4.0 * f64::from(i) / f64::from(rows - 1)).collect();
+    declared.outcome = declared.dose.iter().map(|d| truth_level(*d)).collect();
+    declared.grid = (0..1_024).map(|i| 4.0 * f64::from(i) / 1_023.0).collect();
+    declared.bias_aware.as_mut().unwrap().band_replicates = 100_000;
+    declared.claims.simultaneous_band = true;
+    assert_eq!(
+        DoseGridArtifactWire::seal(declared).unwrap_err(),
+        DoseGridArtifactError::LimitsExceeded("band work")
+    );
+}
+
+#[test]
+fn a_contrast_under_a_curvature_bound_has_no_band() {
+    let sealed = DoseGridArtifactWire::seal(bias_aware("contrast", 0.1)).unwrap();
+    assert_eq!(sealed.result.simultaneous_band, DOSE_GRID_BAND_CLOSED);
+    let section = sealed.result.bias_aware.as_ref().unwrap();
+    assert!(section.band_lower.is_none() && section.band_replicates == 0);
+    assert_eq!(consume(&sealed.export().unwrap()).unwrap(), sealed);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Declared rows: sampling weights, clusters and a serial lag are read, sealed and replayed.
+// ---------------------------------------------------------------------------------------------
+
+fn declared(kind: &str, noise: f64) -> DoseGridRequestWire {
+    let mut declared = request(kind, noise);
+    declared.sampling_weights =
+        Some((0..N).map(|i| if i == 7 { 0.0 } else { 0.5 + (i % 5) as f64 * 0.3 }).collect());
+    declared
+}
+
+#[test]
+fn declared_sampling_weights_seal_replay_and_account_for_the_deleted_row() {
+    let sealed = DoseGridArtifactWire::seal(declared("level", 0.1)).unwrap();
+    assert!(sealed.required_features.iter().any(|f| f == DOSE_GRID_DECLARED_ROWS_FEATURE));
+    let accounting = sealed.result.declared_rows.as_ref().expect("the declaration is accounted");
+    assert_eq!(usize::try_from(accounting.rows_used).expect("fixture row count fits"), N - 1);
+    assert_eq!(accounting.zero_weight_rows, 1);
+    assert_eq!(sealed.result.n_rows, N - 1);
+    assert!(accounting.weight_effective_sample_size.unwrap() < (N - 1) as f64);
+    assert_eq!(accounting.interval_reference, "normal");
+    // The weighted fit differs from the unweighted one on the same table, and replays bit for bit.
+    let plain = seal("level", 0.1);
+    assert_ne!(plain.result.levels[2].value.to_bits(), sealed.result.levels[2].value.to_bits());
+    // Independent reference: Gaussian-kernel x sampling-weight local quadratic, solved by
+    // weighted normal equations (Gaussian elimination) at each grid dose.
+    let (dose, outcome) = table(0.1);
+    let weights = declared("level", 0.1).sampling_weights.unwrap();
+    for (point, grid_dose) in sealed.result.levels.iter().zip(GRID) {
+        let mut a = [[0.0f64; 4]; 3];
+        for i in 0..N {
+            let u = dose[i] - grid_dose;
+            let w = weights[i] * (-0.5 * (u / 0.4) * (u / 0.4)).exp();
+            let x = [1.0, u, u * u];
+            for r in 0..3 {
+                for c in 0..3 {
+                    a[r][c] += w * x[r] * x[c];
+                }
+                a[r][3] += w * x[r] * outcome[i];
+            }
+        }
+        for col in 0..3 {
+            let pivot =
+                (col..3).max_by(|&p, &q| a[p][col].abs().total_cmp(&a[q][col].abs())).unwrap();
+            a.swap(col, pivot);
+            for r in col + 1..3 {
+                let f = a[r][col] / a[col][col];
+                for c in col..4 {
+                    a[r][c] -= f * a[col][c];
+                }
+            }
+        }
+        let c2 = a[2][3] / a[2][2];
+        let c1 = (a[1][3] - a[1][2] * c2) / a[1][1];
+        let c0 = (a[0][3] - a[0][1] * c1 - a[0][2] * c2) / a[0][0];
+        assert!((point.value - c0).abs() < 1e-8, "dose {grid_dose}: {} vs {c0}", point.value);
+    }
+    let consumed = consume(&sealed.export().unwrap()).unwrap();
+    assert_eq!(consumed, sealed);
+    // The plain request keeps the historical format: no feature, no accounting.
+    assert!(plain.result.declared_rows.is_none());
+    assert!(!plain.required_features.iter().any(|f| f == DOSE_GRID_DECLARED_ROWS_FEATURE));
+}
+
+#[test]
+fn a_changed_weight_cluster_or_lag_is_refused_even_when_the_digests_are_resealed() {
+    let mut weighted = DoseGridArtifactWire::seal(declared("level", 0.1)).unwrap();
+    weighted.request.sampling_weights.as_mut().unwrap()[40] *= 3.0;
+    assert!(matches!(consume(&reseal(weighted)), Err(DoseGridArtifactError::ResultMismatch)));
+
+    let mut clustered = declared("level", 0.1);
+    clustered.cluster =
+        Some((0..u32::try_from(N).expect("fixture row count fits")).map(|i| i % 9).collect());
+    let sealed = DoseGridArtifactWire::seal(clustered).unwrap();
+    let accounting = sealed.result.declared_rows.as_ref().unwrap();
+    assert_eq!(accounting.clusters, Some(9));
+    assert_eq!(accounting.interval_reference, "student_t_clusters_minus_one");
+    assert_eq!(consume(&sealed.export().unwrap()).unwrap(), sealed);
+    let mut moved = sealed.clone();
+    moved.request.cluster.as_mut().unwrap()[3] = 4;
+    assert!(matches!(consume(&reseal(moved)), Err(DoseGridArtifactError::ResultMismatch)));
+    // Without resealing, the digests catch the edit first.
+    let mut stale = sealed.clone();
+    stale.request.cluster.as_mut().unwrap()[3] = 4;
+    assert!(matches!(consume(&stale.export().unwrap()), Err(DoseGridArtifactError::DataMismatch)));
+
+    let mut serial = request("level", 0.1);
+    serial.serial_lag = Some(3);
+    let sealed = DoseGridArtifactWire::seal(serial).unwrap();
+    assert_eq!(sealed.result.declared_rows.as_ref().unwrap().serial_lag, Some(3));
+    assert_eq!(consume(&sealed.export().unwrap()).unwrap(), sealed);
+    let mut longer = sealed.clone();
+    longer.request.serial_lag = Some(5);
+    assert!(matches!(consume(&reseal(longer)), Err(DoseGridArtifactError::ResultMismatch)));
+    // Stripping the accounting or the feature marker is refused.
+    let mut stripped = sealed.clone();
+    stripped.result.declared_rows = None;
+    assert!(matches!(
+        consume(&reseal(stripped)),
+        Err(DoseGridArtifactError::UnsupportedSemantics(_))
+    ));
+    let mut unmarked = sealed;
+    unmarked.required_features.retain(|f| f != DOSE_GRID_DECLARED_ROWS_FEATURE);
+    assert!(matches!(
+        consume(&reseal(unmarked)),
+        Err(DoseGridArtifactError::UnsupportedSemantics(_))
+    ));
+}
+
+#[test]
+fn clusters_and_a_serial_lag_together_and_malformed_declarations_are_refused_by_name() {
+    let mut both = request("level", 0.1);
+    both.cluster = Some(vec![0; N]);
+    both.serial_lag = Some(2);
+    assert!(matches!(
+        DoseGridArtifactWire::seal(both),
+        Err(DoseGridArtifactError::UnsupportedSemantics(text)) if text.contains("not offered together")
+    ));
+    let mut short = request("level", 0.1);
+    short.sampling_weights = Some(vec![1.0; N - 1]);
+    let (code, detail) = DoseGridArtifactWire::seal(short).expect_err("must refuse").refusal();
+    assert_eq!(
+        (code, detail.as_str()),
+        ("invalid_argument", antecedent_core::reason_details::dose_grid::INVALID_REQUEST)
+    );
+    let mut negative = request("level", 0.1);
+    negative.sampling_weights = Some((0..N).map(|i| if i == 2 { -1.0 } else { 1.0 }).collect());
+    let (code, detail) = DoseGridArtifactWire::seal(negative).unwrap_err().refusal();
+    assert_eq!(
+        (code, detail.as_str()),
+        ("sampling_weights_invalid", antecedent_core::reason_details::sampling_weights::INVALID)
+    );
+    let mut single = request("level", 0.1);
+    single.cluster = Some(vec![5; N]);
+    let (_, detail) = DoseGridArtifactWire::seal(single).unwrap_err().refusal();
+    assert_eq!(detail, antecedent_core::reason_details::dose_grid::TOO_FEW_CLUSTERS);
+    for lag in [0, N as u64, N as u64 + 9] {
+        let mut serial = request("level", 0.1);
+        serial.serial_lag = Some(lag);
+        let (_, detail) = DoseGridArtifactWire::seal(serial).unwrap_err().refusal();
+        assert_eq!(detail, antecedent_core::reason_details::dose_grid::INVALID_LAG, "lag {lag}");
+    }
+}
+
+#[test]
+fn declared_rows_compose_with_the_curvature_bound_and_its_cluster_band() {
+    let mut request = bias_aware("level", 0.1);
+    request.claims.simultaneous_band = true;
+    request.cluster =
+        Some((0..u32::try_from(N).expect("fixture row count fits")).map(|i| i % 11).collect());
+    request.sampling_weights = Some((0..N).map(|i| 0.4 + (i % 4) as f64 * 0.5).collect());
+    let sealed = DoseGridArtifactWire::seal(request).unwrap();
+    assert_eq!(sealed.result.simultaneous_band, DOSE_GRID_BAND_BIAS_AWARE);
+    let band = sealed.result.bias_aware.as_ref().unwrap();
+    assert!(band.band_critical_value.is_some() && band.band_lower.is_some());
+    assert_eq!(consume(&sealed.export().unwrap()).unwrap(), sealed);
 }

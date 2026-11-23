@@ -1,13 +1,16 @@
 //! Retained adjusted regression: the fitted coefficients and covariance remain live;
 //! compatible contrasts and predictions perform no fitting.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::EstimationError;
 use crate::categorical_treatment::{
     CategoricalTreatmentInput, CategoricalTreatmentSpec, count_levels, dummy_columns, validate_spec,
 };
-use crate::vector_treatment::{VectorTreatmentInput, VectorTreatmentOptions, fit_joint_retained};
+use crate::vector_treatment::{
+    NamedColumn, VectorTreatmentInput, VectorTreatmentOptions, fit_joint_retained,
+};
 use antecedent_stats::{FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace};
+use std::borrow::Cow;
 use std::cell::Cell;
 
 thread_local! { static FITS: Cell<u64> = const { Cell::new(0) }; }
@@ -19,6 +22,15 @@ pub fn count_adjusted_model_fits<R>(work: impl FnOnce() -> R) -> (R, u64) {
 }
 pub(crate) fn record_model_fit() {
     FITS.with(|c| c.set(c.get().saturating_add(1)));
+}
+
+/// Why a retained fit refuses a set of prediction rows.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PredictionRefusal {
+    /// A row has the wrong number of features or a non-finite value.
+    SchemaMismatch,
+    /// A row's treatment features lie outside the fitted treatment support.
+    OutOfSupport,
 }
 
 /// Retained model over a complete row snapshot. Columns: intercept, adjustment, treatments.
@@ -53,10 +65,10 @@ impl AdjustedFit {
         let ncols = coefficients.len();
         let mut matrix = vec![1.; nrows];
         for z in &input.adjustment {
-            matrix.extend(&z.values);
+            matrix.extend_from_slice(&z.values);
         }
         for t in &input.treatments {
-            matrix.extend(&t.values);
+            matrix.extend_from_slice(&t.values);
         }
         Self {
             coefficients,
@@ -78,9 +90,9 @@ impl AdjustedFit {
         let order = validate_spec(spec)?;
         count_levels(input, spec, &order)?;
         let vector = VectorTreatmentInput {
-            outcome: input.outcome.clone(),
-            row_snapshot: input.row_snapshot.clone(),
-            adjustment: input.adjustment.clone(),
+            outcome: Cow::Borrowed(&*input.outcome),
+            row_snapshot: Cow::Borrowed(&*input.row_snapshot),
+            adjustment: input.adjustment.iter().map(NamedColumn::borrowed).collect(),
             treatments: dummy_columns(input, &order, &spec.reference),
         };
         let (_, beta, cov) = fit_joint_retained(
@@ -114,10 +126,10 @@ impl AdjustedFit {
                 let p = 1 + input.adjustment.len() + input.treatments.len();
                 let mut x = vec![1.; n];
                 for z in &input.adjustment {
-                    x.extend(&z.values);
+                    x.extend_from_slice(&z.values);
                 }
                 for t in &input.treatments {
-                    x.extend(&t.values);
+                    x.extend_from_slice(&t.values);
                 }
                 let mut ws = LeastSquaresWorkspace::default();
                 let fit = crate::glm_adjustment::solve_adjustment_glm(
@@ -173,18 +185,18 @@ impl AdjustedFit {
     /// Validate prediction feature shape and declared treatment support without fitting.
     #[must_use]
     #[allow(clippy::float_cmp, reason = "binary and dummy variables require exact coded levels")]
-    pub fn prediction_refusal(&self, rows: &[Vec<f64>]) -> Option<&'static str> {
+    pub fn prediction_refusal(&self, rows: &[Vec<f64>]) -> Option<PredictionRefusal> {
         for row in rows {
             if row.len() != self.ncols - 1 || row.iter().any(|x| !x.is_finite()) {
-                return Some("recalc.adjusted_prediction_schema_mismatch");
+                return Some(PredictionRefusal::SchemaMismatch);
             }
             let t = &row[self.first_treatment - 1..];
             if self.levels.is_some() {
                 if t.iter().any(|x| *x != 0. && *x != 1.) || t.iter().sum::<f64>() > 1. {
-                    return Some("recalc.adjusted_prediction_out_of_support");
+                    return Some(PredictionRefusal::OutOfSupport);
                 }
             } else if !t.iter().zip(&self.support).all(|(x, b)| in_support(*x, b)) {
-                return Some("recalc.adjusted_prediction_out_of_support");
+                return Some(PredictionRefusal::OutOfSupport);
             }
         }
         None
@@ -257,10 +269,10 @@ impl AdjustedFit {
                         "adjusted contrast outside observed treatment support",
                     ));
                 }
-                if let Some(w) = weights {
-                    if w.len() != self.nrows || w.iter().any(|v| !v.is_finite() || *v < 0.) {
-                        return Err(EstimationError::data_msg("invalid adjusted target weights"));
-                    }
+                if let Some(w) = weights
+                    && (w.len() != self.nrows || w.iter().any(|v| !v.is_finite() || *v < 0.))
+                {
+                    return Err(EstimationError::data_msg("invalid adjusted target weights"));
                 }
                 let mass = weights.map_or(self.nrows as f64, |w| w.iter().sum());
                 if !mass.is_finite() || mass <= 0. {

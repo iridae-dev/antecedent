@@ -1,9 +1,10 @@
 //! Coordinate-specific closure evidence for ADMG functional-effect response curves.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, CellStatus, EstimatorId, IdentifierId, InferenceMode,
     RefuteSuite, StructureSource, Study,
@@ -18,7 +19,7 @@ use antecedent_discovery::{
     GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_admg,
 };
 use antecedent_graph::{Admg, DenseNodeId};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use antecedent_prob::InferenceDiagnostics;
 
 fn fixture() -> (TabularData, Admg, ResponseQuery) {
@@ -108,7 +109,7 @@ fn verify_coordinate(coordinate: &str, accepted: bool, bayesian: bool) {
         if accepted { StructureSource::Accepted } else { StructureSource::Explicit },
         "{coordinate} source"
     );
-    assert_eq!(prepared.support_status(), Some(CellStatus::Licensed), "{coordinate}");
+    assert_eq!(prepared.support_status(), Some(CellStatus::Supported), "{coordinate}");
     let contract = prepared.contract().unwrap();
     assert_eq!(contract.query_kind.as_ref(), "ResponseCurve", "{coordinate}");
     assert_eq!(contract.identifier.as_deref(), Some("general.id"), "{coordinate}");
@@ -124,9 +125,9 @@ fn verify_coordinate(coordinate: &str, accepted: bool, bayesian: bool) {
     assert_eq!(prepared.plan().logical.record.estimator.as_deref(), Some("functional.effect"));
     assert_eq!(prepared.plan().logical.record.validation_suite, None);
 
-    let members = prepared
-        .checked_functional_effect_response_members()
-        .unwrap_or_else(|| panic!("{coordinate} omitted retained checked grid members"));
+    let RetainedOperation::AdmgResponseCurve(members) = prepared.retained_operation() else {
+        panic!("{coordinate} omitted retained checked grid members")
+    };
     assert_eq!(members.len(), 2, "{coordinate} member count");
     for (member, expected_level) in members.iter().zip([0.0_f64, 1.0_f64]) {
         assert_eq!(member.grid_value().to_bits(), expected_level.to_bits(), "{coordinate} order");
@@ -232,39 +233,51 @@ fn verify_coordinate(coordinate: &str, accepted: bool, bayesian: bool) {
             antecedent_core::IntervalMethod::BootstrapSe,
             "{coordinate} interval method"
         );
+        assert_eq!(
+            result.performance.bootstrap_replicates_requested,
+            Some(199),
+            "{coordinate} requested replicates"
+        );
     }
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert_eq!(means(&refreshed), means(&result), "{coordinate} refresh");
     assert!(
-        prepared.checked_functional_effect_response_members().is_some(),
+        matches!(prepared.retained_operation(), RetainedOperation::AdmgResponseCurve(..)),
         "{coordinate} refresh discarded members"
     );
 
     let artifact = prepared
         .encode_contracted_result(&refreshed, &format!("response-curve-{coordinate}"), &ctx)
         .unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     if bayesian {
+        // The posterior draws, plus the identification criterion: a response curve is
+        // not a query the consumer re-derives, so its estimands are not replayable.
         assert_eq!(
             consumed.acceptance.unresolved.len(),
-            1,
+            2,
             "{coordinate}: {:?}",
             consumed.acceptance.unresolved
         );
-        assert!(
-            consumed.acceptance.unresolved.iter().any(|reason| {
-                reason.as_ref() == "dependencies.functional_effect_response_posterior_draws"
-            }),
-            "{coordinate}: {:?}",
-            consumed.acceptance.unresolved
-        );
-        assert!(!consumed.acceptance.accepts_as_verified_program());
+        for expected in [
+            "dependencies.functional_effect_response_posterior_draws",
+            "dependencies.identification_estimand_criterion",
+        ] {
+            assert!(
+                consumed.acceptance.unresolved.iter().any(|reason| reason.as_ref() == expected),
+                "{coordinate}: {:?}",
+                consumed.acceptance.unresolved
+            );
+        }
+        assert!(!consumed.acceptance.accepts_as_replayed_program());
     } else {
-        assert!(
-            consumed.acceptance.accepts_as_verified_program(),
-            "{coordinate}: {:?}",
-            consumed.acceptance.unresolved
+        // The only open item names an identification the consumer cannot re-derive.
+        assert_eq!(
+            consumed.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<_>>(),
+            vec!["dependencies.identification_estimand_criterion"],
+            "{coordinate}"
         );
+        assert!(!consumed.acceptance.accepts_as_replayed_program(), "{coordinate}");
     }
     let wire_means =
         match &consumed.body.response.as_ref().expect("portable response payload").estimate {
@@ -318,15 +331,22 @@ fn graph_posterior_admg_response_curve_is_sealed_for_both_inference_modes() {
         let builder = Study::tabular(data.clone())
             .graph_posterior(posterior.clone())
             .query(CausalQuery::Response(query.clone()))
-            .inference(inference);
+            .inference(inference)
+            .refute(RefuteSuite::None);
         let study = builder.clone().build().unwrap();
         let mut prepared = study.prepare(&ctx).unwrap();
         drop(builder);
         drop(study);
-        assert!(prepared.has_checked_admg_graph_posterior_response_operation());
-        let plan = prepared.checked_admg_graph_posterior_response_info().unwrap();
+        assert!(matches!(
+            prepared.retained_operation(),
+            RetainedOperation::AdmgGraphPosteriorResponse(..)
+        ));
+        let RetainedOperation::AdmgGraphPosteriorResponse(plan) = prepared.retained_operation()
+        else {
+            panic!("{coordinate}: retained ADMG graph-posterior response plan")
+        };
         assert_eq!(plan.query, query);
-        assert_eq!(plan.graph_keys.as_ref(), posterior.graph_keys.as_ref());
+        assert_eq!(plan.graph_keys.as_ref(), posterior.graph_keys().as_ref());
         assert_eq!(plan.weights.as_ref(), &[0.65, 0.35]);
         assert!(
             plan.identified.iter().all(|flag| *flag == antecedent_prob::GraphIdentFlag::Identified)
@@ -342,14 +362,14 @@ fn graph_posterior_admg_response_curve_is_sealed_for_both_inference_modes() {
         for (actual, expected) in means(&result).iter().zip([0.314_f64, 0.596]) {
             assert!((actual - expected).abs() < if bayesian { 0.08 } else { 1e-12 });
         }
-        let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+        let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
         for (actual, expected) in means(&refreshed).iter().zip([0.314_f64, 0.596]) {
             assert!((actual - expected).abs() < if bayesian { 0.08 } else { 1e-12 });
         }
         let artifact = prepared.encode_contracted_result(&refreshed, &coordinate, &ctx).unwrap();
-        let consumed = consume_analysis_result(&artifact).unwrap();
+        let consumed = replay_analysis_result(&artifact).unwrap();
         assert!(
-            consumed.acceptance.accepts_as_verified_program()
+            consumed.acceptance.accepts_as_replayed_program()
                 || !consumed.acceptance.unresolved.is_empty(),
             "independent consumer must verify the curve or explain its dependency refusal"
         );
@@ -377,4 +397,17 @@ fn admg_response_curve_explicit_frequentist_publishes_bootstrap_band() {
 #[test]
 fn admg_response_curve_explicit_bayesian_none() {
     verify_coordinate("ResponseCurve:Admg:explicit:Bayesian:none", false, true);
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

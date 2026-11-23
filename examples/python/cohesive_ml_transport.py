@@ -1,6 +1,12 @@
-"""Shared prepare/estimate/inspect/export/load lifecycle for ML and transport.
+"""Do a fitted learner and a transported estimate survive export and load unchanged?
 
-Run with the release-built Python package. Intervals below are not calibrated.
+A doubly robust learner's fitted effect model is exported and loaded, and the loaded model must
+predict exactly what the fitted one does. A trial is then transported to a target population:
+the trial's effect is exactly 2, the transported effect must equal it, and the loaded result
+keeps the same answer. Loading checks integrity and recomputes nothing. Each reported interval
+carries its own calibration status.
+
+Run: ``python examples/python/cohesive_ml_transport.py``.
 """
 
 import antecedent as ac
@@ -8,6 +14,7 @@ import numpy as np
 from antecedent import transport as tr
 from antecedent.estimators import DRLearner
 from antecedent.learners import Linear, Logistic, Ridge
+from antecedent.outcomes import require_success
 from antecedent.prediction import FittedEffectModel
 
 
@@ -25,20 +32,21 @@ def ml_prepare():
         graph=[("z", "a"), ("z", "y"), ("a", "y")],
         query=ac.AverageEffect(treatment="a", outcome="y"),
         estimator=DRLearner(outcome=Ridge(0.1), treatment=Logistic(), final_learner=Linear()),
-        bootstrap=0,
+        inference=ac.Frequentist(bootstrap=0),
         refute=False,
-        seed=9,
-        threads=1,
+        execution=ac.Execution(seed=9, threads=1),
     )
-    return study
+    return study, data
 
 
 def ml_example():
-    study = ml_prepare()
-    result = study.estimate()
-    model = FittedEffectModel.load(result.fitted_model.export())
+    study, data = ml_prepare()
+    result = require_success(ac.estimate(study))
+    # The portable fitted model contains the source rows; share it accordingly.
+    fitted = result.fitted_model_from_source(data)
+    model = FittedEffectModel.load(fitted.export())
     predictions = model.predict({"z": [-1.0, 0.0, 1.0]})
-    assert predictions == result.fitted_model.predict({"z": [-1.0, 0.0, 1.0]})
+    assert predictions == fitted.predict({"z": [-1.0, 0.0, 1.0]})
     return study, result, model
 
 
@@ -56,7 +64,10 @@ def transport_example():
         target="target",
         evidence=tr.Evidence(
             source=tr.Source(
-                "trial", kind="experimental", interventions=["a"], sampling="independent"
+                "trial",
+                kind="experimental",
+                interventions=["a"],
+                sampling="independent",
             ),
             target_sampling="representative_sample",
         ),
@@ -66,9 +77,11 @@ def transport_example():
         graph=ac.Admg.from_edges(["a", "y"], [("a", "y")]),
         query=query,
         provider=tr.TrialAipw(outcome=Linear(), folds=3),
-        inference=tr.TransportInference(bootstrap=9, seed=8),
+        inference=tr.TransportInference(bootstrap=9),
+        execution=ac.Execution(seed=8),
     )
-    loaded = ac.load(result.export())
+    artifact = result.export()
+    loaded = ac.load(artifact, expected=artifact.expectation)
     assert loaded.answer.kind == result.answer.kind
     assert loaded.answer.value == result.answer.value
     assert abs(result.answer.value - 2.0) < 1e-10

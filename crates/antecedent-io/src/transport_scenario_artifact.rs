@@ -34,6 +34,7 @@
 //! artifact that carries a version-2 field, and a version-2 artifact without a
 //! conditional question.
 
+use crate::exact_transport_laws::canonical_laws;
 use crate::{
     IoError, admg_from_wire, admg_to_wire, exact_law_wire::ExactLawWire,
     mz_transport_artifact::MzTransportPointWire, query_wire::ValueWire,
@@ -58,6 +59,9 @@ use antecedent_identify::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+/// Most graph nodes the scenarios of one artifact may declare between them.
+const MAX_SCENARIO_NODES: usize = 1_000_000;
+
 /// The artifact format this reader writes and accepts.
 pub const TRANSPORT_SCENARIO_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
@@ -75,10 +79,7 @@ pub use antecedent_io_core::transport_errors::TransportScenarioArtifactError;
 #[doc(hidden)]
 #[allow(clippy::needless_pass_by_value, reason = "A `map_err` adapter")]
 pub fn scenario_refusal(refusal: ScenarioSetRefusal) -> IoError {
-    IoError::Refused {
-        code: refusal.code,
-        message: format!("{}: {}", refusal.detail, refusal.message),
-    }
+    crate::refusal::refused(refusal.code, refusal.detail, &refusal.message)
 }
 
 /// Consumer bounds. Nothing the artifact stores raises them.
@@ -608,20 +609,6 @@ fn question_of(wire: &ScenarioQueryWire) -> ScenarioQuestion {
     }
 }
 
-fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoError> {
-    let mut laws = data
-        .laws()
-        .iter()
-        .map(|law| {
-            let wire = ExactLawWire::from_law(law);
-            crate::to_cbor(&(&wire.population, wire.regime, &wire.interventions))
-                .map(|key| (key, wire))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    laws.sort_by(|a, b| a.0.cmp(&b.0));
-    Ok(laws.into_iter().map(|(_, law)| law).collect())
-}
-
 impl TransportScenarioArtifactWire {
     /// Build an artifact from a prepared set and the report it produced. The
     /// limits recorded are the ones the decision ran under.
@@ -781,11 +768,10 @@ impl TransportScenarioArtifactWire {
             return Err(exceeded("scenario budget"));
         }
         if let (Some(producer), Some(consumer)) =
-            (self.scenario_memory_bytes, ctx.memory.hard_limit_bytes)
+            (self.scenario_memory_bytes, ctx.memory_limit_bytes())
+            && producer > consumer
         {
-            if producer > consumer {
-                return Err(exceeded("scenario memory"));
-            }
+            return Err(exceeded("scenario memory"));
         }
         if self.operation_limit > limits.evaluation.operations
             || self.depth_limit > limits.evaluation.depth
@@ -832,6 +818,16 @@ impl TransportScenarioArtifactWire {
             .map(ScenarioCoordinateWire::to_coordinate)
             .collect::<Result<Vec<_>, _>>()?;
         let coordinates = Arc::<[ScenarioCoordinate]>::from(coordinates);
+        // Every graph is built before the set is checked, so bound the sum of their sizes first.
+        let total_nodes = wire
+            .scenarios
+            .iter()
+            .try_fold(0usize, |total, s| total.checked_add(s.graph.node_count as usize));
+        if total_nodes.is_none_or(|total| total > MAX_SCENARIO_NODES) {
+            return Err(IoError::Convert(format!(
+                "scenario graphs hold more than {MAX_SCENARIO_NODES} nodes in total"
+            )));
+        }
         let ids = |raw: &[u32]| raw.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>();
         let scenarios = wire
             .scenarios
@@ -866,7 +862,7 @@ impl TransportScenarioArtifactWire {
         // hard limit already bounds, so a memory truncation reproduces.
         let mut replay = ctx.clone();
         if wire.scenario_memory_bytes.is_some() {
-            replay.memory.hard_limit_bytes = wire.scenario_memory_bytes;
+            replay.set_memory_limit(wire.scenario_memory_bytes);
         }
         let ctx = &replay;
         let request = Assignment::from_pairs(

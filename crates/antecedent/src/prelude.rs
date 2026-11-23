@@ -1,10 +1,14 @@
-//! Day-1 imports for the `antecedent` facade.
+//! The imports a first study needs: builder, schema, data, graph, query, result and error.
 //!
-//! ```rust,ignore
+//! Import everything with one glob; reach for named modules (`antecedent::estimate`,
+//! `antecedent::gcm` and so on) when a task needs more. The glob import below is compiled as a
+//! doctest, so every re-export resolves.
+//!
+//! ```
 //! use antecedent::prelude::*;
 //! ```
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use crate::accepted::{AcceptedGraph, GraphClass};
 pub use crate::analysis::{
@@ -14,9 +18,8 @@ pub use crate::analysis::{
 };
 pub use crate::class_prior::ClassPrior;
 pub use crate::error::CausalError;
-pub use crate::identify_api::{Identification, identify, identify_with};
+pub use crate::identify_api::Identification;
 pub use crate::inference::{BayesianConfig, InferenceMode};
-pub use crate::options::FdrControl;
 pub use crate::result::StudyResult;
 pub use crate::strategy_table::{EstimatorId, IdentifierId};
 

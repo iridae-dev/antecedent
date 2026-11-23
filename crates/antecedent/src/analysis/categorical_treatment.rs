@@ -9,7 +9,7 @@
 //! declared order of an unordered level list does not change a number.
 //!
 //! Every p-value (Wald, Holm, chi-square, monotonicity) is asymptotic and its calibration is
-//! **unmeasured**. The monotonicity p-value is a conservative union-intersection bound whose
+//! **`not_measured`**. The monotonicity p-value is a conservative union-intersection bound whose
 //! rejection is evidence against monotonicity; failing to reject does not prove it.
 //!
 //! The fit has no row ceiling, and every covariance kind (HC0 to HC3 included) exports a
@@ -18,7 +18,7 @@
 //! cancellation, [`CategoricalTreatment::export_within`] under an export byte budget, and
 //! [`CategoricalTreatment::verify_data`] checks held rows against the digest.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_estimate::categorical_treatment::{
     CATEGORICAL_OMNIBUS_NULL, LevelScale, MONOTONICITY_NON_DECREASING_NULL,
@@ -26,11 +26,14 @@ pub use antecedent_estimate::categorical_treatment::{
 };
 pub use antecedent_estimate::effect_constancy::CalibrationStatus;
 pub use antecedent_io::categorical_treatment_artifact::{
-    AdjacentStepWire, CATEGORICAL_HC_ROW_CAP, CATEGORICAL_TREATMENT_ARTIFACT_VERSION,
-    CATEGORICAL_TREATMENT_CALIBRATION, CategoricalResultWire, CategoricalSpecWire,
-    CategoricalTreatmentArtifact, CategoricalTreatmentArtifactError, CategoricalTreatmentIdentity,
-    CategoricalTreatmentReportWire, CategoricalTreatmentRequest, LevelContrastWire, LevelCountWire,
-    MonotonicityWire, PairContrastWire,
+    AdjacentStepWire, CATEGORICAL_DECLARED_ROWS_FORMAT, CATEGORICAL_HC_ROW_CAP,
+    CATEGORICAL_TREATMENT_ARTIFACT_VERSION, CATEGORICAL_TREATMENT_CALIBRATION,
+    CategoricalPosteriorDeclaration, CategoricalPosteriorWire, CategoricalResultWire,
+    CategoricalRowsRequest, CategoricalSpecWire, CategoricalTreatmentArtifact,
+    CategoricalTreatmentArtifactError, CategoricalTreatmentIdentity,
+    CategoricalTreatmentReportWire, CategoricalTreatmentRequest, CovarianceKindWire,
+    DeclaredRowsWire, LevelContrastWire, LevelCountWire, LevelScaleWire, MonotonicityDirectionWire,
+    MonotonicityWire, PairContrastWire, PosteriorContrastWire, PosteriorMonotonicityWire,
 };
 
 use antecedent_core::ExecutionContext;
@@ -68,6 +71,63 @@ impl CategoricalTreatment {
         ctx: &ExecutionContext,
     ) -> Result<Self, CategoricalTreatmentArtifactError> {
         Ok(Self { artifact: CategoricalTreatmentArtifact::seal_with(request, ctx)? })
+    }
+
+    /// Fit the declared regime under declared sampling weights, clusters or a Newey-West lag.
+    ///
+    /// Sampling weights follow the shared contract (rows of weight zero are deleted and counted,
+    /// the rest are normalized to mean one, a sandwich covariance is required); clusters are read
+    /// by the `cluster_robust` covariance and the lag by `newey_west`. A declaration its covariance
+    /// kind does not read, or a kind whose declaration is missing, is refused, never dropped. The
+    /// Gaussian posterior is refused for declared rows. With nothing declared this is
+    /// [`Self::evaluate_with`].
+    ///
+    /// # Errors
+    /// The refusals of [`Self::evaluate_with`]; `sampling_weights_invalid`; and
+    /// `vector_treatment.weights_need_robust_covariance`, `.cluster_ids_required`,
+    /// `.cluster_unread`, `.too_few_clusters`, `.lag_required`, `.lag_unread`, `.invalid_lag`.
+    pub fn evaluate_declared(
+        request: &CategoricalTreatmentRequest,
+        rows: &CategoricalRowsRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CategoricalTreatmentArtifactError> {
+        Ok(Self { artifact: CategoricalTreatmentArtifact::seal_declared(request, rows, ctx)? })
+    }
+
+    /// Check rows still held, with their declared weights and clusters, against the digest.
+    ///
+    /// # Errors
+    /// As [`Self::verify_data`].
+    pub fn verify_data_declared(
+        &self,
+        request: &CategoricalTreatmentRequest,
+        rows: &CategoricalRowsRequest,
+    ) -> Result<(), CategoricalTreatmentArtifactError> {
+        self.artifact.verify_data_declared(request, rows)
+    }
+
+    /// Attach the Bayesian counterpart of the fit under a declared prior: the posterior of the
+    /// same dummy-coefficient contrasts under Gaussian homoskedastic errors, a Student-t
+    /// marginal for each level and requested pair, and the Bonferroni/Frechet bounds of the
+    /// declared monotonicity. The estimand is the superpopulation coefficient contrast of the
+    /// stated linear model, not the finite-population average of the rows' effects; the section
+    /// is unsupported, its calibration is `not_measured`, and it is recomputed from the stored design
+    /// when the artifact is consumed. The covariance kind of the declared design is not read:
+    /// the model-based likelihood is the posterior's.
+    ///
+    /// # Errors
+    /// `invalid_argument` for a prior or credible level outside its range.
+    pub fn with_posterior(
+        self,
+        declaration: &CategoricalPosteriorDeclaration,
+    ) -> Result<Self, CategoricalTreatmentArtifactError> {
+        Ok(Self { artifact: self.artifact.with_posterior(declaration)? })
+    }
+
+    /// The posterior section, when one was attached.
+    #[must_use]
+    pub fn posterior(&self) -> Option<&CategoricalPosteriorWire> {
+        self.artifact.posterior()
     }
 
     /// Consume an exported artifact by recomputing every coefficient, contrast, Holm value and

@@ -18,6 +18,8 @@ autotests = false
 workspace = true
 
 [features]
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent-core/development", "antecedent-contract/development", "antecedent-counterfactual/development", "antecedent-data/development", "antecedent-discovery/development", "antecedent-expr/development", "antecedent-graph/development", "antecedent-identify/development", "antecedent-kernels/development", "antecedent-learn/development", "antecedent-model/development", "antecedent-prob/development", "antecedent-stats/development"]
 # Hidden seams that seal and open artifact containers from raw parts, for the
 # tamper and resealed-edit tests. Not part of the supported API.
 test-util = []
@@ -26,6 +28,7 @@ test-util = []
 antecedent-core = { workspace = true }
 antecedent-contract = { workspace = true }
 antecedent-counterfactual = { workspace = true }
+antecedent-data = { workspace = true }
 antecedent-discovery = { workspace = true }
 antecedent-expr = { workspace = true }
 antecedent-graph = { workspace = true }
@@ -38,12 +41,13 @@ antecedent-stats = { workspace = true }
 blake3 = { workspace = true }
 ciborium = { workspace = true }
 memmap2 = { workspace = true }
-serde = { workspace = true }
+serde = { workspace = true, features = ["rc"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 zstd = { workspace = true }
 
 [dev-dependencies]
+antecedent-core = { workspace = true, features = ["test-support"] }
 antecedent-test-support = { workspace = true }
 
 [[test]]

@@ -35,7 +35,7 @@ def test_ipcw_survival_known_truth_and_explicit_point_semantics():
     assert result.minimum_censoring_survival == pytest.approx(0.5)
     assert result.minimum_event_risk_set_control == 2
     assert result.uncertainty == "point_only"
-    assert result.support_status == "unlicensed_point_utility"
+    assert result.support_status == "unsupported_point_utility"
     assert result.censoring_survival_provenance == "caller_supplied_not_fitted_or_verified"
     assert "correct_caller_supplied_conditional_censoring_survival" in result.assumptions
 
@@ -108,7 +108,7 @@ def test_ipcw_competing_risks_known_truth_and_diagnostics():
     assert result.minimum_censoring_survival == pytest.approx(0.5)
     assert result.minimum_event_risk_set_control == 4
     assert result.uncertainty == "point_only"
-    assert result.support_status == "unlicensed_point_utility"
+    assert result.support_status == "unsupported_point_utility"
     assert result.censoring_survival_provenance == "caller_supplied_not_fitted_or_verified"
     assert "all_event_causes_coded_distinctly" in result.assumptions
 
@@ -145,3 +145,42 @@ def test_ipcw_competing_risks_refuses_invalid_codes_grid_and_positivity():
             times=[0.0, 1.0, 2.0],
             censoring_survival=np.ones((8, 3)),
         )
+
+
+@pytest.mark.parametrize("competing", [False, True])
+def test_ipcw_grid_ties_tau_boundaries_and_error_precedence(competing):
+    from antecedent import _native
+
+    duration = np.array([1.0, 1.0, 2.0, 3.0, 1.0, 1.0, 2.0, 3.0])
+    treated = [False] * 4 + [True] * 4
+    grid = [0.0, 1.0, 2.0]
+    # A strided view checks that the admitted copy follows logical row order.
+    matrix = np.ones((8, 6))[:, ::2]
+    assert not matrix.flags.c_contiguous
+    if competing:
+
+        def invoke(d, t, g):
+            return _native.randomized_cumulative_incidence_ipcw(
+                d, [1, 2, 0, 0] * 2, treated, t, g, 2.0, 1, 0.1
+            )
+    else:
+
+        def invoke(d, t, g):
+            return _native.randomized_survival_ipcw(
+                d, [True, False, False, False] * 2, treated, t, g, 2.0, 0.1
+            )
+
+    result = invoke(duration, grid, matrix)
+    assert result[0] == grid
+    bad_duration = duration.copy()
+    bad_duration[0] = np.nextafter(1.0, 2.0)
+    invalid = matrix.copy()
+    invalid[0, 1] = 0.01
+    with pytest.raises(CausalValueError, match="include every observed duration"):
+        invoke(bad_duration, grid, invalid)
+    with pytest.raises(CausalValueError, match="positivity floor"):
+        invoke(duration, grid, invalid)
+    nonmonotone = matrix.copy()
+    nonmonotone[0, 1:] = [0.5, 0.8]
+    with pytest.raises(CausalValueError, match="non-increasing"):
+        invoke(duration, grid, nonmonotone)

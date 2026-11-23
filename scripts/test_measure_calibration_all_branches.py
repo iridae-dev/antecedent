@@ -1,0 +1,46 @@
+import os
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+
+SCRIPT = Path(__file__).with_name("measure_calibration.sh").resolve()
+
+class StubbedDriverBranches(unittest.TestCase):
+    def test_pilot_and_run_forward_options_to_mocks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            capture = root / "capture"
+            fake = {
+                "git": "#!/bin/sh\ncase \"$1\" in rev-parse) echo 0123456789012345678901234567890123456789;; esac\n",
+                "python3": "#!/bin/sh\nprintf 'PY' >> \"$CAPTURE\"; printf ' <%s>' \"$@\" >> \"$CAPTURE\"; printf '\n' >> \"$CAPTURE\"\n",
+                "bash": "#!/bin/sh\nprintf 'BASH' >> \"$CAPTURE\"; printf ' <%s>' \"$@\" >> \"$CAPTURE\"; printf '\n' >> \"$CAPTURE\"\n",
+            }
+            fake["python3"] += 'if [ "$2" = run ]; then exit "${RUN_EXIT:-0}"; fi\n'
+            for name, content in fake.items():
+                path = root / name
+                path.write_text(content, encoding="utf-8")
+                path.chmod(0o755)
+            env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ.get("PATH", ""), CAPTURE=str(capture))
+            for options, expected in [
+                (["--pilot", "--group", "two words", "--replicates", "17"], ["<pilot>", "<two words>", "<17>"]),
+                (["--group", "two words", "--replace-record", "r one"], ["<run>", "<two words>", "<--keep-existing>", "<r one>"]),
+                ([], ["<run>", "<--keep-not_measured>"]),
+                (["--owed"], ["<run>", "<--keep-existing>", "<--passing-only>", "<--owed-completions-from>"]),
+                (["--all"], ["<run>", "<--all>", "<scripts/collect_coverage_records.py>"]),
+                (["--missing-only"], ["<run>", "<--missing-only>", "<--keep-existing>"])
+            ]:
+                with self.subTest(options=options):
+                    capture.write_text("", encoding="utf-8")
+                    result = subprocess.run(["/bin/bash", str(SCRIPT), "--jobs", "1", *options], env=env, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    calls = capture.read_text(encoding="utf-8")
+                    for token in expected:
+                        self.assertIn(token, calls)
+            capture.write_text("", encoding="utf-8")
+            result = subprocess.run(
+                ["/bin/bash", str(SCRIPT), "--jobs", "1", "--owed"],
+                env={**env, "RUN_EXIT": "3"}, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 3)
+            self.assertIn("<--owed-completions-from>", capture.read_text(encoding="utf-8"))

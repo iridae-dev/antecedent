@@ -13,15 +13,20 @@ use antecedent::analysis::inverse_sources::{
 };
 use antecedent::analysis::transport_sensitivity::{
     TransportRoute, TransportSensitivityEntryRefusal, TransportSensitivityRequest, ViolationFamily,
-    transport_range,
+    transport_range, transport_sensitivity_artifact,
 };
 use antecedent::analysis::{BoundDecisionContract, SupportPolicy, TransportedDemand};
-use antecedent_contract::ScientificQuantity;
-use antecedent_core::SupportStatus;
-use antecedent_design::composition_boundary::UnsupportedActionPolicy;
-use antecedent_design::decision_robust_artifact::admissible_contract_from_json_refusal;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent::design::composition_boundary::UnsupportedActionPolicy;
+use antecedent::design::decision_robust_artifact::admissible_contract_from_json_refusal;
+use antecedent::design::transported_decision_artifact::{
+    consume_transported_decision, export_transported_decision,
+};
+use antecedent::io::IoError;
+use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::query::SupportStatus;
+use antecedent::scientific::ScientificQuantity;
 use pyo3::prelude::*;
+use pyo3::types::PyBytes;
 use serde::Deserialize;
 use serde_json::{Value as Json, json};
 
@@ -99,13 +104,16 @@ pub(crate) fn quantity_of(text: &str, what: &str) -> PyResult<ScientificQuantity
     ScientificQuantity::try_from(wire).map_err(crate::value_err)
 }
 
-fn value_json(response: &TransportedResponse) -> Json {
+fn value_json(response: &TransportedResponse) -> PyResult<Json> {
     let coordinates: Vec<Json> = response
         .coordinates()
         .iter()
-        .map(|q| serde_json::to_value(ScientificQuantityWire::from(q)).unwrap_or(Json::Null))
-        .collect();
-    match response.value() {
+        .map(|q| {
+            serde_json::to_value(ScientificQuantityWire::from(q))
+                .map_err(|error| crate::serialization_err(error.to_string()))
+        })
+        .collect::<PyResult<_>>()?;
+    Ok(match response.value() {
         TransportedValue::Means(mean) => json!({
             "kind": "point",
             "coordinates": coordinates,
@@ -115,20 +123,21 @@ fn value_json(response: &TransportedResponse) -> Json {
             "causal_contract_id": mean.causal_contract_id,
         }),
         TransportedValue::Law(_) => json!({"kind": "law", "coordinates": coordinates}),
-    }
+    })
 }
 
 #[pymethods]
 impl TransportedResponseHandle {
     /// The receipt (route, populations, transport identities, assumptions, support label,
     /// representation, uncalibrated standard error) as JSON.
-    fn receipt_json(&self) -> String {
-        serde_json::to_string(self.inner.receipt()).unwrap_or_default()
+    fn receipt_json(&self) -> PyResult<String> {
+        serde_json::to_string(self.inner.receipt())
+            .map_err(|error| crate::serialization_err(error.to_string()))
     }
 
     /// The value (coordinates and means for a point, coordinates for a law) as JSON.
-    fn value_json(&self) -> String {
-        value_json(&self.inner).to_string()
+    fn value_json(&self) -> PyResult<String> {
+        Ok(value_json(&self.inner)?.to_string())
     }
 
     /// Canonical identity of the receipt.
@@ -148,11 +157,13 @@ fn transported_response_declared_point(
     means: Vec<f64>,
     declaration_json: &str,
 ) -> PyResult<Refused<TransportedResponseHandle>> {
-    let coordinates = quantities_of(coordinates_json, "transported coordinates")?;
-    let declaration = declaration_of(declaration_json)?;
-    Ok(match TransportedResponse::declared_point(coordinates, means, &declaration) {
-        Ok(inner) => (Some(TransportedResponseHandle { inner }), None),
-        Err(refusal) => (None, Some(transported_refusal_json(&refusal))),
+    crate::catch_ffi(|| {
+        let coordinates = quantities_of(coordinates_json, "transported coordinates")?;
+        let declaration = declaration_of(declaration_json)?;
+        Ok(match TransportedResponse::declared_point(coordinates, means, &declaration) {
+            Ok(inner) => (Some(TransportedResponseHandle { inner }), None),
+            Err(refusal) => (None, Some(transported_refusal_json(&refusal))),
+        })
     })
 }
 
@@ -162,10 +173,12 @@ fn transported_response_declared_law(
     law: PyRef<'_, PyJointDistributionArtifact>,
     declaration_json: &str,
 ) -> PyResult<Refused<TransportedResponseHandle>> {
-    let declaration = declaration_of(declaration_json)?;
-    Ok(match TransportedResponse::declared_law(law.inner().clone(), &declaration) {
-        Ok(inner) => (Some(TransportedResponseHandle { inner }), None),
-        Err(refusal) => (None, Some(transported_refusal_json(&refusal))),
+    crate::catch_ffi(|| {
+        let declaration = declaration_of(declaration_json)?;
+        Ok(match TransportedResponse::declared_law(law.inner().clone(), &declaration) {
+            Ok(inner) => (Some(TransportedResponseHandle { inner }), None),
+            Err(refusal) => (None, Some(transported_refusal_json(&refusal))),
+        })
     })
 }
 
@@ -235,47 +248,151 @@ fn transported_decision_evaluate(
     unsupported: &str,
     weakest_support: &str,
 ) -> PyResult<Refused<String>> {
-    check_size(declaration_json, "decision declaration")?;
-    let demand = parse_demand(demand)?;
-    let policy = SupportPolicy {
+    crate::catch_ffi(|| {
+        check_size(declaration_json, "decision declaration")?;
+        let demand = parse_demand(demand)?;
+        let policy = SupportPolicy {
+            unsupported: parse_unsupported(unsupported)?,
+            weakest_support: SupportStatus::from_name(weakest_support).ok_or_else(|| {
+                crate::value_err(format!("unknown support status {weakest_support:?}"))
+            })?,
+        };
+        let admissible = match admissible_contract_from_json_refusal(declaration_json) {
+            Ok(contract) => contract,
+            Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
+        };
+        let causal = prepared.inner.inspect().map_err(crate::py_err)?;
+        let bound = match BoundDecisionContract::bind(&causal, admissible) {
+            Ok(bound) => bound,
+            Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
+        };
+        Ok(match bound.evaluate_transported(&response.inner, demand, &policy) {
+            Ok(decided) => {
+                let receipt = serde_json::to_value(decided.receipt())
+                    .map_err(|error| crate::serialization_err(error.to_string()))?;
+                let inner = decided.decision();
+                let inspection = decided.inspect();
+                (
+                    Some(
+                        json!({
+                            "decision": crate::composition_api::supported_json(&inner.decision),
+                            "receipt": receipt,
+                            "assumptions": inner.assumptions,
+                            "inference": inner.inference,
+                            "native_target_data": inspection.native_target_data,
+                            "identity": decided.identity(),
+                            "decision_identity": inner.identity,
+                            "bound_identity": decided.bound_identity(),
+                            "causal_target": decided.causal_target(),
+                            "causal_identification": decided.causal_identification(),
+                        })
+                        .to_string(),
+                    ),
+                    None,
+                )
+            }
+            Err(refusal) => (None, Some(external_refusal_json(&refusal))),
+        })
+    })
+}
+
+const DECISION_ARTIFACT_STAGE: &str = "transported_decision";
+
+fn decision_artifact_refusal(error: &IoError) -> String {
+    match error {
+        IoError::Refused { code, message } => {
+            RefusalJson::from_coded_message(code, DECISION_ARTIFACT_STAGE, message).json()
+        }
+        other => RefusalJson::new(
+            antecedent::reason::reason_code!("invalid_argument"),
+            DECISION_ARTIFACT_STAGE,
+            antecedent::reason::reason_details::transported_decision_artifact::INVALID,
+            &other.to_string(),
+        )
+        .json(),
+    }
+}
+
+pub(crate) fn support_policy_of(
+    unsupported: &str,
+    weakest_support: &str,
+) -> PyResult<SupportPolicy> {
+    Ok(SupportPolicy {
         unsupported: parse_unsupported(unsupported)?,
         weakest_support: SupportStatus::from_name(weakest_support).ok_or_else(|| {
             crate::value_err(format!("unknown support status {weakest_support:?}"))
         })?,
-    };
-    let admissible = match admissible_contract_from_json_refusal(declaration_json) {
-        Ok(contract) => contract,
-        Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
-    };
-    let causal = prepared.inner.inspect().map_err(crate::py_err)?;
-    let bound = match BoundDecisionContract::bind(&causal, admissible) {
-        Ok(bound) => bound,
-        Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
-    };
-    Ok(match bound.evaluate_transported(&response.inner, demand, &policy) {
-        Ok(decided) => {
-            let inner = decided.decision();
-            let inspection = decided.inspect();
-            (
-                Some(
-                    json!({
-                        "decision": crate::composition_api::supported_json(&inner.decision),
-                        "receipt": serde_json::to_value(decided.receipt()).unwrap_or(Json::Null),
-                        "assumptions": inner.assumptions,
-                        "inference": inner.inference,
-                        "native_target_data": inspection.native_target_data,
-                        "identity": decided.identity(),
-                        "decision_identity": inner.identity,
-                        "bound_identity": decided.bound_identity(),
-                        "causal_target": decided.causal_target(),
-                        "causal_identification": decided.causal_identification(),
-                    })
-                    .to_string(),
-                ),
-                None,
-            )
-        }
-        Err(refusal) => (None, Some(external_refusal_json(&refusal))),
+    })
+}
+
+/// Seal a decision made on a transported point: the contract, the carried point with its
+/// receipt, the support policy that accepted it and the values the decision produced.
+///
+/// A transported law is refused (`route_not_supported`): it is exported as its distribution
+/// artifact.
+#[pyfunction]
+fn transported_decision_export(
+    py: Python<'_>,
+    declaration_json: &str,
+    response: PyRef<'_, TransportedResponseHandle>,
+    unsupported: &str,
+    weakest_support: &str,
+    artifact_id: &str,
+) -> PyResult<Refused<Py<PyBytes>>> {
+    crate::catch_ffi(|| {
+        check_size(declaration_json, "decision declaration")?;
+        let policy = support_policy_of(unsupported, weakest_support)?;
+        let admissible = match admissible_contract_from_json_refusal(declaration_json) {
+            Ok(contract) => contract,
+            Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
+        };
+        Ok(
+            match export_transported_decision(
+                &admissible.contract,
+                &response.inner,
+                &policy,
+                artifact_id,
+            ) {
+                Ok(bytes) => (Some(PyBytes::new(py, &bytes).unbind()), None),
+                Err(error) => (None, Some(decision_artifact_refusal(&error))),
+            },
+        )
+    })
+}
+
+/// Consume a transported decision artifact: rebuild the contract, validate the receipt,
+/// re-evaluate the decision and require the stored identity and every action value to match bit
+/// for bit. Returns the re-derived decision JSON and the carried response.
+#[pyfunction]
+#[pyo3(signature = (artifact, expected_identity=None))]
+fn transported_decision_consume(
+    artifact: &[u8],
+    expected_identity: Option<&str>,
+) -> PyResult<(Option<String>, Option<TransportedResponseHandle>, Option<String>)> {
+    crate::catch_ffi(|| {
+        Ok(match consume_transported_decision(artifact, expected_identity) {
+            Ok(consumed) => {
+                let receipt = serde_json::to_value(&consumed.decision.receipt)
+                    .map_err(|error| crate::serialization_err(error.to_string()))?;
+                (
+                    Some(
+                        json!({
+                            "decision": crate::composition_api::supported_json(
+                                &consumed.decision.decision
+                            ),
+                            "receipt": receipt,
+                            "assumptions": consumed.decision.assumptions,
+                            "inference": consumed.decision.inference,
+                            "decision_identity": consumed.decision.identity,
+                        })
+                        .to_string(),
+                    ),
+                    Some(TransportedResponseHandle { inner: consumed.response }),
+                    None,
+                )
+            }
+            Err(error) => (None, None, Some(decision_artifact_refusal(&error))),
+        })
     })
 }
 
@@ -307,54 +424,62 @@ fn transport_sensitivity_build(
     coordinate: usize,
     route: Option<&str>,
 ) -> PyResult<(Option<PySensitivityArtifact>, Option<String>, Option<String>)> {
-    let family = match family {
-        "additive_shift" => ViolationFamily::AdditiveShift { bound },
-        "proportional_shift" => ViolationFamily::ProportionalShift { bound },
-        other => return Err(crate::value_err(format!("unknown violation family {other:?}"))),
-    };
-    let route = match route {
-        None => None,
-        Some(name) => Some(
-            TransportRoute::ALL
-                .into_iter()
-                .find(|candidate| candidate.as_str() == name)
-                .ok_or_else(|| crate::value_err(format!("unknown transport route {name:?}")))?,
-        ),
-    };
-    let reference = quantity_of(reference_json, "reference quantity")?;
-    let request = TransportSensitivityRequest { coordinate, route, family, grid_points };
-    let range = match transport_range(&response.inner, &request) {
-        Ok(range) => range,
-        Err(error) => return Ok((None, None, Some(entry_refusal_json(&error)))),
-    };
-    let artifact = match range.to_artifact(&reference, reference_value) {
-        Ok(artifact) => artifact,
-        Err(error) => {
-            let error = TransportSensitivityEntryRefusal::from(error);
-            return Ok((None, None, Some(entry_refusal_json(&error))));
-        }
-    };
-    let (low, high) = range.range_at_bound();
-    let summary = json!({
-        "route": range.route().as_str(),
-        "premise": range.premise().as_str(),
-        "family": range.family().scale(),
-        "bound": range.family().bound(),
-        "point_value": range.point_value(),
-        "grid": range.grid(),
-        "lower": range.lower(),
-        "upper": range.upper(),
-        "range_at_bound": [low, high],
-        "reference_value": reference_value,
-        "reference_reached_at": range.reference_reached_at(reference_value),
-        "statement": range.statement(),
-        "identity": range.identity().to_hex(),
-    });
-    Ok((
-        Some(PySensitivityArtifact { artifact, source: std::sync::Mutex::new(None), recipe: None }),
-        Some(summary.to_string()),
-        None,
-    ))
+    crate::catch_ffi(|| {
+        let family = match family {
+            "additive_shift" => ViolationFamily::AdditiveShift { bound },
+            "proportional_shift" => ViolationFamily::ProportionalShift { bound },
+            other => return Err(crate::value_err(format!("unknown violation family {other:?}"))),
+        };
+        let route = match route {
+            None => None,
+            Some(name) => Some(
+                TransportRoute::ALL
+                    .into_iter()
+                    .find(|candidate| candidate.as_str() == name)
+                    .ok_or_else(|| crate::value_err(format!("unknown transport route {name:?}")))?,
+            ),
+        };
+        let reference = quantity_of(reference_json, "reference quantity")?;
+        let request = TransportSensitivityRequest { coordinate, route, family, grid_points };
+        let range = match transport_range(&response.inner, &request) {
+            Ok(range) => range,
+            Err(error) => return Ok((None, None, Some(entry_refusal_json(&error)))),
+        };
+        let artifact = match transport_sensitivity_artifact(
+            &response.inner,
+            &request,
+            &reference,
+            reference_value,
+        ) {
+            Ok(artifact) => artifact,
+            Err(error) => return Ok((None, None, Some(entry_refusal_json(&error)))),
+        };
+        let (low, high) = range.range_at_bound();
+        let summary = json!({
+            "route": range.route().as_str(),
+            "premise": range.premise().as_str(),
+            "family": range.family().scale(),
+            "bound": range.family().bound(),
+            "point_value": range.point_value(),
+            "grid": range.grid(),
+            "lower": range.lower(),
+            "upper": range.upper(),
+            "range_at_bound": [low, high],
+            "reference_value": reference_value,
+            "reference_reached_at": range.reference_reached_at(reference_value),
+            "statement": range.statement(),
+            "identity": range.identity().to_hex(),
+        });
+        Ok((
+            Some(PySensitivityArtifact {
+                artifact,
+                source: std::sync::Mutex::new(None),
+                recipe: None,
+            }),
+            Some(summary.to_string()),
+            None,
+        ))
+    })
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -363,6 +488,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(transported_response_declared_law, module)?)?;
     module.add_function(wrap_pyfunction!(transported_response_from_shifted_cohort, module)?)?;
     module.add_function(wrap_pyfunction!(transported_decision_evaluate, module)?)?;
+    module.add_function(wrap_pyfunction!(transported_decision_export, module)?)?;
+    module.add_function(wrap_pyfunction!(transported_decision_consume, module)?)?;
     module.add_function(wrap_pyfunction!(transport_sensitivity_build, module)?)?;
     Ok(())
 }

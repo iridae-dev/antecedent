@@ -18,6 +18,8 @@ autotests = false
 workspace = true
 
 [features]
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent-core/development", "antecedent-data/development", "antecedent-expr/development", "antecedent-graph/development", "antecedent-kernels/development"]
 # Frozen-oracle DOT parser (`oracle_dot`) for tests and parity fixtures. It panics on
 # malformed input by design, so it is not part of the default public API.
 test-util = []
@@ -27,10 +29,12 @@ antecedent-core = { workspace = true }
 antecedent-data = { workspace = true }
 antecedent-expr = { workspace = true }
 antecedent-graph = { workspace = true }
+antecedent-kernels = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 
 [dev-dependencies]
+antecedent-core = { workspace = true, features = ["test-support"] }
 criterion = { workspace = true }
 serde_json = { workspace = true }
 
@@ -61,3 +65,63 @@ path = "tests/transport_exact_scm.rs"
 [[test]]
 name = "suite_01"
 path = "tests/suite_01.rs"
+
+[[test]]
+name = "idc_baked_levels"
+path = "tests/idc_baked_levels.rs"
+
+[[test]]
+name = "temporal_iv"
+path = "tests/temporal_iv.rs"
+
+[[test]]
+name = "idc_rule2_enumeration"
+path = "tests/idc_rule2_enumeration.rs"
+
+[[test]]
+name = "tiered_closure_enumeration"
+path = "tests/tiered_closure_enumeration.rs"
+
+[[test]]
+name = "path_specific_enumeration"
+path = "tests/path_specific_enumeration.rs"
+
+[[test]]
+name = "hedge_definition_enumeration"
+path = "tests/hedge_definition_enumeration.rs"
+
+[[test]]
+name = "cpdag_class_exhaustive"
+path = "tests/cpdag_class_exhaustive.rs"
+
+[[test]]
+name = "efficient_backdoor_optimality"
+path = "tests/efficient_backdoor_optimality.rs"
+
+[[test]]
+name = "cpdag_adjustment_envelope_exhaustive"
+path = "tests/cpdag_adjustment_envelope_exhaustive.rs"
+
+[[test]]
+name = "clamp_experiment_constraints"
+path = "tests/clamp_experiment_constraints.rs"
+
+[[test]]
+name = "temporal_mediation_population_regression"
+path = "tests/temporal_mediation_population_regression.rs"
+
+[[test]]
+name = "experimental_recovery_reference"
+path = "tests/experimental_recovery_reference.rs"
+
+[[test]]
+name = "identify_fixture_cases_fixtures_01"
+path = "tests/identify_fixture_cases_fixtures_01.rs"
+
+[[test]]
+name = "panel_unrolled_exact_scm"
+path = "tests/panel_unrolled_exact_scm.rs"
+
+[[test]]
+name = "scenario_invariance_numeric"
+path = "tests/scenario_invariance_numeric.rs"

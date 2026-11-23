@@ -4,11 +4,11 @@
 //! [`Pag`] from a declared tier order and certifies the tier-closure
 //! adjustment set in `O(p)` when same-tier nodes are [`WithinTier::CoDetermined`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalSchema, VariableId};
+use antecedent_core::{CanonicalEncode, CanonicalWriter, CausalSchema, VariableId};
 
 use crate::admg::Admg;
 use crate::error::GraphError;
@@ -32,6 +32,50 @@ pub struct TieredBackground {
     pub tiers: Arc<[Arc<[VariableId]>]>,
     /// Within-tier interpretation.
     pub within_tier: WithinTier,
+    index: TierIndex,
+}
+
+/// Variable → tier lookup built once from a tier list, so a tier query is one hash lookup
+/// instead of a nested scan.
+///
+/// It remembers which tier list it indexes: `tiers` is a public field, and a list swapped in
+/// after construction is detected by identity and answered by a scan instead of a stale map.
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct TierIndex {
+    source: Arc<[Arc<[VariableId]>]>,
+    tier_of: std::collections::HashMap<VariableId, usize>,
+}
+
+impl TierIndex {
+    fn build(tiers: &Arc<[Arc<[VariableId]>]>) -> Self {
+        let mut tier_of = std::collections::HashMap::new();
+        for (index, tier) in tiers.iter().enumerate() {
+            for &variable in tier.iter() {
+                tier_of.entry(variable).or_insert(index);
+            }
+        }
+        Self { source: Arc::clone(tiers), tier_of }
+    }
+}
+
+/// Tiers keep their causal order; the variables inside one tier are a set and
+/// are written in ascending id order.
+impl CanonicalEncode for TieredBackground {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let within_tier = match self.within_tier {
+            WithinTier::CoDetermined => 1,
+            WithinTier::Unknown => 2,
+        };
+        writer.word(within_tier).word(self.tiers.len() as u64);
+        for tier in self.tiers.iter() {
+            let mut sorted = tier.to_vec();
+            sorted.sort_unstable();
+            writer.word(sorted.len() as u64);
+            for variable in &sorted {
+                variable.encode(writer);
+            }
+        }
+    }
 }
 
 impl TieredBackground {
@@ -60,7 +104,8 @@ impl TieredBackground {
                 }
             }
         }
-        Ok(Self { tiers, within_tier })
+        let index = TierIndex::build(&tiers);
+        Ok(Self { tiers, within_tier, index })
     }
 
     /// Named-tier constructor (`schema` resolves names to ids).
@@ -90,7 +135,10 @@ impl TieredBackground {
     /// Tier index of `id`, if declared.
     #[must_use]
     pub fn tier_of(&self, id: VariableId) -> Option<usize> {
-        self.tiers.iter().position(|t| t.iter().any(|&v| v == id))
+        if Arc::ptr_eq(&self.index.source, &self.tiers) {
+            return self.index.tier_of.get(&id).copied();
+        }
+        self.tiers.iter().position(|t| t.contains(&id))
     }
 
     /// Tier-closure adjustment set: all nodes in tiers `≤ k` except `treatment`,
@@ -302,7 +350,7 @@ mod tests {
         let t = s.id_of("t").unwrap();
         let y = s.id_of("y").unwrap();
         let set = bg.tier_closure(t, y).unwrap();
-        assert!(!set.iter().any(|&v| v == t));
+        assert!(!set.contains(&t));
         assert!(set.iter().any(|&v| v == s.id_of("era").unwrap()));
         assert!(set.iter().any(|&v| v == s.id_of("design").unwrap()));
         assert!(!set.iter().any(|&v| v == s.id_of("m").unwrap()));

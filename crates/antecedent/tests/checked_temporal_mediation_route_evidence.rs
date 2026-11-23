@@ -3,6 +3,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, MediationContrast,
@@ -150,9 +151,10 @@ fn checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates() {
                     .build()
                     .unwrap();
                 let mut prepared = builder.prepare(&context).unwrap();
-                let info = prepared
-                    .checked_temporal_mediation_info()
-                    .expect("checked temporal mediation plan retained");
+                let RetainedOperation::TemporalMediation(info) = prepared.retained_operation()
+                else {
+                    panic!("checked temporal mediation plan retained")
+                };
                 assert_eq!(info.query, query);
                 assert_eq!(info.horizons.as_ref(), &[1]);
                 assert_eq!(info.validation, suite);
@@ -164,9 +166,9 @@ fn checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates() {
                 let tolerance =
                     if expected_estimator == EstimatorId::TemporalMediation { 1e-6 } else { 0.08 };
                 assert!(
-                    (first.estimate.as_effect().unwrap().ate - MEDIATED_TRUTH).abs() < tolerance,
+                    (first.estimate().as_effect().unwrap().ate - MEDIATED_TRUTH).abs() < tolerance,
                     "accepted={accepted} estimator={expected_estimator} suite={suite:?}: {}",
-                    first.estimate.as_effect().unwrap().ate
+                    first.estimate().as_effect().unwrap().ate
                 );
                 assert_eq!(
                     first.posterior.is_some(),
@@ -177,23 +179,24 @@ fn checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates() {
 
                 let refreshed = prepared.refresh_series(series(0.4, false), &context).unwrap();
                 assert!(
-                    (refreshed.estimate.as_effect().unwrap().ate - MEDIATED_TRUTH).abs()
+                    (refreshed.estimate().as_effect().unwrap().ate - MEDIATED_TRUTH).abs()
                         < tolerance,
                     "intercept shift must not change the mediated contrast"
                 );
-                assert_eq!(
-                    prepared.checked_temporal_mediation_info().unwrap().graph_signature,
-                    info.graph_signature
-                );
+                let RetainedOperation::TemporalMediation(retained) = prepared.retained_operation()
+                else {
+                    panic!("checked temporal mediation plan retained after refresh")
+                };
+                assert_eq!(retained.graph_signature, info.graph_signature);
 
                 let artifact = prepared
                     .encode_contracted_result(&refreshed, "checked-temporal-mediation", &context)
                     .unwrap();
-                let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
                 assert!(consumed.acceptance.unresolved.iter().any(|dependency| {
                     dependency.as_ref() == "dependencies.checked_temporal_mediation_operation"
                 }));
-                assert!(!consumed.acceptance.accepts_as_verified_program());
+                assert!(!consumed.acceptance.accepts_as_replayed_program());
             }
         }
     }
@@ -224,9 +227,14 @@ fn checked_temporal_mediation_refuses_schema_changes_and_makes_no_joint_horizon_
         .unwrap()
         .prepare(&context)
         .unwrap();
+    let RetainedOperation::TemporalMediation(prepared_info) = prepared.retained_operation() else {
+        panic!("checked temporal mediation plan retained")
+    };
+    let RetainedOperation::TemporalMediation(other_info) = other.retained_operation() else {
+        panic!("checked temporal mediation plan retained")
+    };
     assert_ne!(
-        prepared.checked_temporal_mediation_info().unwrap().graph_signature,
-        other.checked_temporal_mediation_info().unwrap().graph_signature,
+        prepared_info.graph_signature, other_info.graph_signature,
         "the prepared graph identity must include disconnected lagged nodes"
     );
     let other_result = other.estimate_series(&initial, &context).unwrap();
@@ -245,7 +253,9 @@ fn checked_temporal_mediation_refuses_schema_changes_and_makes_no_joint_horizon_
         .unwrap()
         .prepare(&context)
         .unwrap();
-    let info = multi.checked_temporal_mediation_info().unwrap();
+    let RetainedOperation::TemporalMediation(info) = multi.retained_operation() else {
+        panic!("checked temporal mediation plan retained")
+    };
     assert_eq!(info.query, multi_query);
     assert_eq!(info.horizons.as_ref(), &[1, 2]);
     let at = |horizon: u32| {
@@ -288,7 +298,7 @@ fn checked_temporal_mediation_refuses_schema_changes_and_makes_no_joint_horizon_
         "a pointwise horizon posterior must not be presented as joint"
     );
     assert!(
-        result.estimate.as_effect().unwrap().ate.is_nan(),
+        result.estimate().as_effect().unwrap().ate.is_nan(),
         "no single horizon is promoted to the scalar result"
     );
 }

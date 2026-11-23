@@ -2,7 +2,7 @@
 
 **Suite path:** `conformance/bayesian/temporal_class_prior_transfer`
 
-Same-design and mapped mechanism-prior transfer onto licensed Bayesian
+Same-design and mapped mechanism-prior transfer onto supported Bayesian
 cells on `TemporalCpdag`. The prior binds separately against each
 completion's design through the existing `PriorCatalog.filter_compatible`
 filter. It is a mechanism prior, not a class prior: it cannot upgrade
@@ -30,4 +30,4 @@ in `crates/antecedent/tests/temporal_class_bayesian_envelope.rs`, plus
 
 ## Expected summary
 
-Top-level keys: `compatibility_filter, conflict_does_not_flip_identification, fixture_id, n, n_draws, notes, outcome, seed, sequence_refuses, source_cells, target_cells, treatment` (12 fields).
+Top-level keys: `compatibility_filter, conflict_does_not_flip_identification, evidence_kind, evidence_proposition, evidence_roles, evidence_source, fixture_id, limitations, n, n_draws, notes, oracle, outcome, seed, sequence_refuses, source_cells, target_cells, treatment` (18 fields).

@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study,
 };
@@ -106,7 +107,9 @@ fn bayesian_temporal_responses_are_sealed_refreshable_and_have_precise_artifact_
             .unwrap();
             let one_shot = builder.run(&context).unwrap();
             let mut prepared = builder.prepare(&context).unwrap();
-            let info = prepared.checked_temporal_response_info().expect("sealed temporal plan");
+            let RetainedOperation::TemporalDagResponse(info) = prepared.retained_operation() else {
+                panic!("sealed temporal plan")
+            };
             assert_eq!(info.query, query);
             assert_eq!(info.identifier, IdentifierId::TemporalBackdoorUnfolded);
             assert_eq!(info.estimator, EstimatorId::TemporalResponseBayesian);
@@ -135,24 +138,29 @@ fn bayesian_temporal_responses_are_sealed_refreshable_and_have_precise_artifact_
                 assert!((a - b).abs() < 1e-9, "one-shot and prepared clicks agree: {a} vs {b}");
             }
             for (estimate, expected) in actual.iter().zip(truth(intervention, 0.0)) {
+                // The data are exact, so the posterior mean differs from the generating value
+                // only by the weak prior's shrinkage (observed at most 0.005).
                 assert!(
-                    (estimate - expected).abs() < 0.1,
+                    (estimate - expected).abs() < 0.02,
                     "intervention={intervention} accepted={accepted}: {estimate} != {expected}"
                 );
             }
 
             let refreshed = prepared.refresh_series(series(0.5), &context).unwrap();
             for (estimate, expected) in means(&refreshed).iter().zip(truth(intervention, 0.5)) {
-                assert!((estimate - expected).abs() < 0.1, "refresh: {estimate} != {expected}");
+                assert!((estimate - expected).abs() < 0.02, "refresh: {estimate} != {expected}");
             }
             let widened = TimeSeriesData::from_f64_columns(
                 [("t", &[0.0; 16][..]), ("y", &[0.0; 16][..]), ("extra", &[0.0; 16][..])],
                 1,
             )
             .unwrap();
+            let refused = prepared.refresh_series(widened, &context).err();
             assert!(
-                prepared.refresh_series(widened, &context).is_err(),
-                "schema-changing refresh must be refused"
+                refused.as_ref().is_some_and(|error| error
+                    .to_string()
+                    .contains("prepared temporal analysis requires the same schema")),
+                "schema-changing refresh must be refused for its schema: {refused:?}"
             );
             let artifact = prepared
                 .encode_contracted_result(
@@ -161,11 +169,11 @@ fn bayesian_temporal_responses_are_sealed_refreshable_and_have_precise_artifact_
                     &context,
                 )
                 .unwrap();
-            let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+            let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
             assert!(consumed.acceptance.unresolved.iter().any(|dependency| {
                 dependency.as_ref() == "dependencies.checked_temporal_response_operation"
             }));
-            assert!(!consumed.acceptance.accepts_as_verified_program());
+            assert!(!consumed.acceptance.accepts_as_replayed_program());
         }
     }
 }

@@ -1,6 +1,6 @@
-# Design ranking: which study to run next
+# Rank further studies by what they would resolve
 
-`antecedent.design` is one package with one entry point, `rank_designs`, and one
+Choose which study to run next by comparing candidate studies on what each would add: the chance that a query becomes identified, or the value of the information for a decision you declare, net of cost. `antecedent.design` is one package with one entry point, `rank_designs`, and one
 result, `DesignRankingResult`. The result's `basis` says what its order means, and
 different objectives answer different questions and are never mixed in one result.
 
@@ -17,19 +17,26 @@ design.rank_designs(
 | `"evsi"` | `decision=DesignDecision(...)`, no cost map | `Candidate` studies | expected value of sample information, costs reported separately |
 | `"net_value"` | `decision=` and `cost_map=` | `Candidate` studies | EVSI net of study cost under the cost map |
 | `"structural_sufficiency_cost"` | `StructuralCandidate` declarations | structural declarations | caller-declared sufficiency, cost units, budget, id |
-| `"graph_entropy"` | `objective=GraphEntropy()`, `prior=` | plans | original heuristic graph-channel entropy reduction |
+| `"graph_entropy"` | `objective=GraphEntropy()`, `prior=` | plans | heuristic graph-channel entropy reduction |
 | `"effect_width"` | `objective=EffectWidth(...)` | plans | signed linear-model treatment standard-error reduction |
-| `"model_distinction"` | `objective=ModelDistinction(...)` | plans | original reliability-scaled pairwise log-likelihood-gap heuristic |
+| `"model_distinction"` | `objective=ModelDistinction(...)` | plans | reliability-scaled pairwise log-likelihood-gap heuristic |
 | `"decision_regret"` | `objective=DecisionRegret(...)` | plans | preposterior EVSI using a callable utility |
 
 Claim labels: every value is **point-only**. A Monte Carlo value (when a signal has
 no exact integral) is a `monte_carlo_estimate` with no coverage claim. The Monte
-Carlo error, `rank_uncertain` and the whole ranking's `calibration == "unmeasured"`
-are diagnostics, not licensed intervals. A ranking recommends an action; it does
+Carlo error, `rank_uncertain` and the whole ranking's `calibration == "not_measured"`
+are diagnostics, not supported intervals. A ranking recommends an action; it does
 not run it.
 
-The former `design_ranking` module is gone; there is no second ranking surface.
-`rank_structural` remains a compatibility view of `rank_designs` for structural
+A candidate's sample size can come from a plan: `design.plan_experiment` (see
+[power and sample size](guides/power-and-sample-size.md)) solves the size of a randomized
+design for a target power, assurance or posterior precision, and the plan's
+`sampling_plan()` or `experiment_plan(targets)` is a plan for `rank_designs` whose sample
+budget is that planned size. In Rust, `PlanningResult::sampling_candidate`,
+`experiment_candidate` and `future_data` give the `CandidateDesign` for `rank_designs_bound`
+and the future data of a value-of-information evaluation.
+
+`rank_structural` is a view of `rank_designs` for structural
 declarations (see the end of this page).
 
 ## Ranking plans by identification
@@ -117,6 +124,20 @@ ranking.candidate("two-flips").evsi <= ranking.evpi
 
 (`examples/python/rank_designs_evsi.py` runs this fixture. Its oracle: with
 `n = 2`, `EVSI = 1/16` and `EVPI = 1/8`.)
+
+The quantities, for a state `theta` with the declared prior, actions `a` with
+utility `u(a, theta) = intercept_a + slope_a * theta`, and the observation `S` a
+candidate study would produce:
+
+- `EVSI = E_S[max_a E[u(a, theta) | S]] - max_a E[u(a, theta)]`, the expected gain
+  from deciding after seeing `S` rather than now;
+- `EVPI = E_theta[max_a u(a, theta)] - max_a E[u(a, theta)]`, the gain from
+  learning `theta` exactly, an upper bound on every EVSI;
+- `net_value = EVSI - cost * utility_per_cost`, the EVSI less the study cost in
+  utility units under the `CostMap`.
+
+In the coin fixture deciding now is worth 0 (both actions have expected utility
+0), and knowing the bias is worth `1/2 * 1/4 = 1/8`.
 
 The declaration types:
 
@@ -207,6 +228,47 @@ ranked.gate.rejected      # ids that failed the gate and were left out of the va
 A candidate without a plan under `prior=` raises `CausalValueError` ("needs a
 plan"). Identifiability is a gate, not a score: it never mixes into the value.
 
+## Binding a ranking to a prepared study, and previewing it
+
+Pass a prepared study as `study=` to bind the ranking to that study's identification contract. A
+plan that leaves the study structurally unidentified is reported as an `unsupported_candidate`
+violation, is never scored, and keeps the position it was declared at. `decision_target=` must name
+the study's own target digest. `design.preview_ranking(study, plans, prior=...)` reads the same
+obligations and violations without scoring or fitting anything.
+
+```python
+import numpy as np
+import antecedent as ant
+from antecedent import design
+
+n = 120
+z = np.sin(np.arange(n) / 7.0)
+t = (z + np.cos(np.arange(n) / 5.0) > 0).astype(float)
+study = ant.prepare(
+    {"t": t, "y": 1.0 + 2.0 * t + 0.5 * z, "z": z},
+    graph=[("z", "t"), ("z", "y"), ("t", "y")],
+    query=ant.AverageEffect("t", "y"),
+    refute="none",
+    inference=ant.Frequentist(bootstrap=0),
+    execution=ant.Execution(seed=3),
+)
+prior = design.StructurePrior((3.0, 1.0), (True, False), (1, 2))
+plans = [design.Sampling(1, id="unchanged"), design.Measurement((5,), id="unlock")]
+
+preview = design.preview_ranking(study, plans, prior=prior, variable_unlocks={0: [5]})
+print([o.id for o in preview.obligations])
+print(preview.unidentified_mass, [(v.id, v.constraint) for v in preview.violations])
+
+ranked = design.rank_designs(plans, prior=prior, variable_unlocks={0: [5]}, study=study)
+print(ranked.candidate("unlock").score, [v.id for v in ranked.violations])
+```
+
+The preview lists the declared check obligations (`design.update_rule` and the others), the
+unidentified mass of the structure prior, and the plans the objective cannot score; `unresolved`
+says that a required utility cannot be evaluated and a ranking would be incomplete. Previewing a
+study without an identification product, or an identification ranking whose structure prior
+renormalizes the identified mass of the study's contract, is refused.
+
 ## Reading a value ranking
 
 Each `CandidateValue` has `evsi`, `evpi` (the upper bound), `net_value` (when a
@@ -270,7 +332,7 @@ joint law only by its source digest (`source_digests=`).
 | `DesignRankingRefusal` | `evsi.*`, `design_ranking.*` | a changed terminal action set, bound violations, incompatible artifact |
 
 Catch `CausalUnsupportedError` to handle all of them; see
-[refusals](refusal-and-partial-knowledge.md#structured-refusals-and-their-remedies).
+[refusals](reference/refusal-codes.md#structured-refusals-and-their-remedies).
 
 ## Structural declarations through the shared ranker
 
@@ -281,8 +343,8 @@ sufficiency flag, then cost units, sample budget and semantic id. The flag is no
 an identification proof produced by the ranker. Entries have no numeric `score`
 or `probability`; no identification probability or value of information is inferred.
 The structural ordering identity is invariant to input order. `rank_structural`
-delegates to the same implementation and returns the existing `StructuralRanking`
-compatibility view; composite structural consumers continue using that view.
+delegates to the same implementation and returns a `StructuralRanking`
+view, which composite structural consumers read.
 
 ```python
 ranking = design.rank_designs([
@@ -310,7 +372,7 @@ ranking.best.implemented_functional  # "ols_gram_se_reduction"
 ```
 
 `GraphEntropy()` uses `prior=StructurePrior(...)` and its optional graph features.
-It exposes the existing soft-observation heuristic, not likelihood-based expected
+It is a soft-observation heuristic, not likelihood-based expected
 information gain. `EffectWidth` uses declared linear-model Gram information;
 `MeasurementColumn`, `DesignInformation` and `EnvironmentInformation` supply
 prospective covariate, intervention and environment information. Sampling and
@@ -339,31 +401,131 @@ ranking = design.rank_designs(
 
 The utility returns a contiguous flat `float64` action-by-outcome array and must be
 deterministic. Native callback refusals retain the original exception as their
-cause. Only native-licensed plans are scored; unsupported candidates appear in
+cause. Only native-supported plans are scored; unsupported candidates appear in
 `violations`. `DecisionRegret` scores EVSI before cost, without subtracting or
 converting study costs. For affine utilities and portable signal-provider study
-artifacts, continue using `decision=DesignDecision(...)` and `cost_map=`.
+artifacts, use `decision=DesignDecision(...)` and `cost_map=`.
 
 These native objective results expose `ObjectiveCandidate` entries, each retaining
-`implemented_functional`, `evaluation`, `stderr` and `rank_uncertain`. Their original
-native scoring semantics are unchanged. None has an identification probability or
+`implemented_functional`, `evaluation`, `stderr` and `rank_uncertain`. Each keeps its
+native scoring semantics. None has an identification probability or
 portable artifact. Bounds use `max_cost` and `max_sample_budget`; unrelated value
-or gate arguments refuse rather than being silently applied. Calibration remains
-`unmeasured` for every objective.
+or gate arguments refuse rather than being silently applied. Calibration is
+`not_measured` for every objective.
 
-Runnable examples: [`rank_designs.py`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/rank_designs.py)
-(identification basis), [`rank_designs_evsi.py`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/rank_designs_evsi.py)
-(net value) and [`decision_lifecycle.py`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/decision_lifecycle.py)
-(contract to ranking).
+Runnable examples: [`rank_designs.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/rank_designs.py)
+(identification basis), [`rank_designs_evsi.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/rank_designs_evsi.py)
+(net value) and [`experiment_to_next_study.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/experiment_to_next_study.py)
+(experiment to ranked next studies).
+
+## From a failed identification to a ranked evidence plan
+
+Runnable example: [`examples/python/evidence_plan.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/evidence_plan.py).
+
+A not-identified result owes evidence, and several kinds of study can supply it.
+`repair.FailureContract` freezes the failure (graph, treatment, outcome, the variables
+measured so far and, optionally, a non-robust `repair.SensitivityFinding`) as every
+theorem route a study could repair: back-door, front-door, instrument, hedge and the
+sensitivity confounder. Three steps follow.
+
+**Candidate templates.** `repair.candidate_templates(contract)` restates the verified
+obligations as unfinished studies. The kind, population, hard interventions, measured
+variables, joint measurement and expected evidence come from the obligations; an
+instrument route also proposes an `instrument` study and a `natural_experiment`, the
+repeated-measurement alternative a `panel`. Cost, timing, recruitment, unit rules,
+feasibility and sample size are facts about a real study that only you know, so a
+template refuses `validate()` (`study_candidate.declarations_required`) and becomes a
+`StudyCandidate` only through `template.complete(...)`, where each is required and none is
+defaulted. An assumption (an instrument's validity, the time invariance a panel relies on)
+is never addressed by a study; it is returned in `generation.unmatched` with its reason.
+
+**Verification and order.** `design.evidence_plan(contract, candidates)` asks every route's
+own theorem checker which declared studies (or bounded subsets) would identify the effect.
+The options are ordered by the identification gate first (`verified_sufficient`, then
+`not_certified` with its reason, `insufficient`, `unevaluated`, `invalid`) and only then,
+with `value=design.EvidenceValue(...)`, by expected value of sample information net of the
+declared `CostMap`: a study never outranks a verified one because it promises more
+information. All studies must declare one cost unit (`design_cost_units_mismatch`
+otherwise). Each option states what it resolves, what it costs and what remains
+unresolved, including the assumptions no study can establish. A subset of studies has no
+value of its own (values do not add), so it is listed unvalued. A search a budget stopped is
+`budget_exhausted` and never an impossibility claim; the ordering is `point_only` with
+calibration `not_measured`.
+
+```python
+contract = repair.FailureContract(graph=graph, treatment="t", outcome="y",
+                                  population="study", observed=["t", "y"])
+cohort = repair.candidate_templates(contract)[0].complete(
+    sample_size=200, recruitment="registry", timing="baseline", unit="patient",
+    cost=5, cost_unit="usd", sample_budget=200, feasible=True)
+plan = design.evidence_plan(contract, [cohort])
+plan.best.resolves, plan.best.unresolved, plan.explain()
+design.consume_plan(plan.export())           # independent replay of every route and value
+```
+
+**Unlocks and structure from the evidence.** `plan.variable_unlocks()` is the list for
+`rank_designs(variable_unlocks=...)`, derived from the studies a repair search verified
+sufficient on their own; a study that merely names a variable, or only adds rows, is
+listed unverified and never credited. In Rust, `design::rank_studies_bound` does the same
+for a prepared contract: unverified studies are reported as `unsupported_candidate`
+violations, so a `Measure` candidate is supported by the verified obligation instead of a
+hand-written list. `design.StructurePrior.from_graphs(...)` derives the `identified` flags
+of a graph posterior by running the complete ID algorithm on each structure, and
+`identified_under_intervention` on each structure's mutilated graph (every edge into the
+intervened variables removed).
+
+**Valuing the confounder a sensitivity analysis names.** The assumption range of a
+sensitivity surface says what is possible, not what is probable, so it cannot be valued
+by itself. `design.confounder_decision(artifact, design.ConfounderPrior(declared_by, basis,
+draws_per_coordinate))` reads the surface's exact per-coordinate utilities (nothing is
+interpolated between grid points) and values learning the coordinate only under the prior
+you declare, which is recorded in the ranking's sources. A surface with an assumption
+range, or an unevaluated grid point, is refused (`confounder_value.range_surface`,
+`confounder_value.unevaluated_point`).
+
+## Bind a repair and a ranking into proposals, and read a study when it arrives
+
+A repair search says which studies would resolve a failed identification; a ranking says what each is worth for a decision. `proposals.ProposalBundle.build(repaired.export(), ranked.export(), contract=contract)` binds the two for every candidate the ranking values, by identities and digests and never by copy, and `bundle.verify(...)` recomputes every receipt from the two retained artifacts. A receipt describes a hypothetical study (`evidence_state` is `"hypothetical"`): the delta and the derivation it retains are never available evidence. Once the study delivers, two readings are available.
+
+`bundle.on_arrival(candidate, evidence)` re-runs the repair family's own identification on the arrived evidence alone and answers `Verified`, `StillInsufficient` or `Invalidated` (a population or regime other than the premises the derivation was verified under). It is a structural check of what arrived.
+
+`bundle.estimate_arrival(candidate_id, study)` goes on to evaluate actual finite counts through the original checked transport formula. The study is a `proposal_arrival.ArrivedStudy`: the graph, an evidence catalog that keeps the original catalog and adds one available delivered regime with its snapshot binding, the laws that arrived with their `empirical_counts`, and the `assignment` whose mean you want. Distinct treatment worlds are disjoint study arms whose observed counts must sum to the planned sample size.
+
+```python
+from antecedent import Execution
+from antecedent.proposal_arrival import ArrivedStudy, consume_arrival
+
+# bundle, identifier, catalog, graph and laws come from the repair, ranking and
+# evidence-catalog steps above; the executing test builds them in python/tests/test_proposals.py.
+study = ArrivedStudy(graph, catalog, laws, {"x": 1.0})
+result = bundle.estimate_arrival(identifier, study)
+result.mean, result.to_dict()["inference"], result.to_dict()["calibration"]
+
+replay = consume_arrival(
+    bytes(result.export()), expected_proposal=bundle.identity, execution=Execution(seed=77)
+)
+replay.to_dict() == result.to_dict()
+```
+
+In the maintained fixture, arm counts of 200 and 50 against 50 and 200 for a binary outcome give an active mean of 0.8 and a control mean of 0.2 (`assignment={"x": 0.0}` for the control), so the contrast is 0.6. The result is `empirical_point_only` with calibration `not_measured`: counts give a point value, not an interval. `consume_arrival` replays the original repair and ranking artifacts and the complete raw count providers in a fresh process, and refuses an `expected_proposal` identity that does not match. Changed counts, snapshots, populations, assignments, exactness, budgets or schemas are refused, as is an unrepresented sampling design; a bundle loaded from a dictionary needs the original producer artifacts passed explicitly.
 
 ## Where it fits
 
-Study candidates also come from [identification repair](decisions-breadth.md#repair),
+Study candidates also come from [identification repair](decisions.md#repair),
 which names the evidence a failed contract owes; the ranking values the studies
-that would supply it. A ranking exported here is a `study_ranking` bundle node (see
-[composition](composition.md)), and the full path from analysis to ranking is the
-[lifecycle](lifecycle.md). The route-by-route scope table is in
-[decisions, design, repair and estimator breadth](decisions-breadth.md#signals-evsi-and-design-ranking).
+that would supply it. A failed identification owes evidence per identifier: back-door
+adjustment (a joint law over the adjustment set), front-door adjustment (a mediator
+set), an instrument (its validity stays an assumption no study satisfies), a hedge
+(experiments on the treatment or on a verified surrogate on the hedge) and a
+non-robust sensitivity finding (the unmeasured confounder to measure). Each is a
+repair contract that refuses `not_a_failure` when the observed law already
+identifies the effect, and the obligations it exposes are the unlocks a design
+ranking should value; see
+[evidence that would resolve a not-identified result](reference/refusal-codes.md#evidence-that-would-resolve-a-not-identified-result). A ranking exported here is a `study_ranking` bundle node (see
+[composition](composition.md)); the full path from analysis to ranking is told in
+[Experiment to next study](tutorials/experiment-to-next-study.md) and
+[Decide under uncertainty](tutorials/decide-under-uncertainty.md). The route-by-route scope table is in
+[decision routes at a glance](decisions.md#signals-evsi-and-design-ranking).
 
 ## Original posterior sources and future studies
 
@@ -400,7 +562,7 @@ ranked = design.rank_designs(
 The source quantity must name one retained scalar/effect column in the original
 catalog artifact. Draws are decoded natively. Summary-only and coefficient-only
 priors refuse, as do incomplete or nonconverged posteriors. Weights, strength,
-conflict shrinkage and affine source-to-target maps are checked by the existing
+conflict shrinkage and affine source-to-target maps are checked by the
 adapter. A population change needs an explicit `transport_policy_id`. The mapped
 state's scientific quantity and population, prior identity and signal family are
 bound and checked again by ranking. Original observation identities are retained;
@@ -411,13 +573,17 @@ in the original adaptation request.
 allocated draws, transfer policy, observation checks and source digest. The adapter
 uses deterministic resampling of the original sampled posterior. Exact finite-law
 integration is exact conditional on that discrete prior, not an exact computation
-under an unknown continuous posterior. Calibration remains `unmeasured`.
+under an unknown continuous posterior. Calibration is `not_measured`.
 
 Population, physical units, affine transfer and historical observation/lineage
-identities are explicit scientific declarations: legacy posterior artifacts do not
+identities are explicit scientific declarations: retained posterior artifacts do not
 carry enough information to independently authenticate those declarations. Catalog
-compatibility does not issue a new causal identification license. The ranking's
+compatibility does not issue a new causal identification evidence. The ranking's
 source digests bind original artifact bytes and transfer declarations, and retained
 expectations detect a changed source binding. Export/consume independently replays
 the embedded numerical prior and signal law; it does not independently reauthenticate
 the posterior's producing analysis or the truth of declared observation identities.
+
+For a connected example combining historical human behavior, agent sessions and a small human pilot, see [the smallest defensible test](tutorials/synthetic-users-launch.md).
+
+For a connected HCI investigation spanning planning, follow-up selection and a final claim audit, see [from day zero to publication](tutorials/research-from-day-zero.md).

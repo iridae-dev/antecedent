@@ -5,6 +5,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 
 def _lag1_unit(n: int = 100, seed: int = 3):
@@ -27,25 +28,34 @@ def test_panel_pooled_pcmci_smoke():
     names the ``temporal.parent_adjustment`` derivation.
     """
     panel = antecedent.data.panel([_lag1_unit(seed=3), _lag1_unit(seed=4), _lag1_unit(seed=5)])
-    result = antecedent.analyze(
-        panel,
-        discovery=antecedent.discovery.PCMCI(max_lag=1, alpha=0.2, fdr=False),
-        query=antecedent.PulseEffect(
-            treatment="x",
-            outcome="y",
-            treatment_lag=1,
-            horizon_steps=1,
-            active_level=1.0,
-        ),
-        bootstrap=0,
-        seed=1,
-        refute=False,
+    result = require_success(
+        antecedent.analyze(
+            panel,
+            graph=antecedent.discovery.discover(
+                panel,
+                method=antecedent.discovery.PCMCI(max_lag=1, alpha=0.2, fdr=False),
+                execution=antecedent.Execution(seed=1),
+                accept_discovered=True,
+            ),
+            query=antecedent.PulseEffect(
+                treatment="x",
+                outcome="y",
+                treatment_lag=1,
+                horizon_steps=1,
+                active_level=1.0,
+            ),
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+            refute=False,
+        )
     )
     assert result.answer.kind == "point"
     assert result.answer.value == pytest.approx(0.55, abs=0.05)
     assert result.identification.adjustment_set == tuple(["x"])
     product = (
-        antecedent.load(result.export()).inspect().to_dict()["contract"]["identification_product"]
+        require_success(antecedent.load(bytes(result.export())))
+        .inspect()
+        .to_dict()["contract"]["identification_product"]
     )
     assert product["derivation_rules"][0] == "temporal.parent_adjustment"
 
@@ -55,19 +65,26 @@ def test_panel_pooled_rejects_rpcmci():
     with pytest.raises(
         antecedent.errors.CausalUnsupportedError, match="single observation sequence"
     ):
-        antecedent.analyze(
-            panel,
-            discovery=antecedent.discovery.RPCMCI(max_lag=1, alpha=0.2, fdr=False),
-            query=antecedent.PulseEffect(
-                treatment="x",
-                outcome="y",
-                treatment_lag=1,
-                horizon_steps=1,
-                active_level=1.0,
-            ),
-            bootstrap=0,
-            seed=1,
-            refute=False,
+        require_success(
+            antecedent.analyze(
+                panel,
+                graph=antecedent.discovery.discover(
+                    panel,
+                    method=antecedent.discovery.RPCMCI(max_lag=1, alpha=0.2, fdr=False),
+                    execution=antecedent.Execution(seed=1),
+                    accept_discovered=True,
+                ),
+                query=antecedent.PulseEffect(
+                    treatment="x",
+                    outcome="y",
+                    treatment_lag=1,
+                    horizon_steps=1,
+                    active_level=1.0,
+                ),
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
+                refute=False,
+            )
         )
 
 
@@ -75,6 +92,17 @@ def _pooled(units):
     names = list(units[0])
     columns = [np.concatenate([u[n] for u in units]) for n in names]
     return names, columns, [len(u[names[0]]) for u in units]
+
+
+def test_panel_lengths_reject_usize_overflow_as_typed_refusal():
+    import sys
+
+    from antecedent import _native
+
+    half = sys.maxsize + 1
+    with pytest.raises(antecedent.CausalError) as caught:
+        _native.discover_pcmci(["x"], [np.array([0.0, 1.0, 2.0])], unit_lengths=[half, half + 3])
+    assert caught.value.reason_code == "invalid_argument"
 
 
 def test_native_panel_pcmci_builds_lag_windows_inside_each_unit():
@@ -101,5 +129,12 @@ def test_native_panel_pcmci_builds_lag_windows_inside_each_unit():
 
 def test_panel_dbn_posterior_pools_per_unit_rows():
     panel = antecedent.data.panel([_lag1_unit(n=60, seed=s) for s in range(20, 24)])
-    posterior = antecedent.discovery.DbnPosterior(max_lag=1).run(panel, seed=1)
+    posterior = antecedent.discovery.DbnPosterior(max_lag=1).run(
+        panel, execution=antecedent.Execution(seed=1)
+    )
     assert posterior.n_graphs >= 1
+    # Lag-one edge marginals in (source, target) order x->x, x->y, y->x, y->y: the planted
+    # x[t-1] -> y[t] link is certain and the three absent links are improbable.
+    x_x, x_y, y_x, y_y = posterior.lagged_edge_marginals
+    assert x_y > 0.99
+    assert max(x_x, y_x, y_y) < 0.3

@@ -5,10 +5,11 @@
 //! built-in validation suite.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, reason = "one loop covers every licensed coordinate")]
+#![allow(clippy::too_many_lines, reason = "one loop covers every supported coordinate")]
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{BayesianConfig, CellStatus, InferenceMode, RefuteSuite, Study};
 use antecedent_contract::SlotAvailability;
 use antecedent_core::{
@@ -16,7 +17,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use antecedent_prob::{GraphIdentFlag, InferenceDiagnostics};
 
 /// Balanced confounded blocks with `Y = shift + 2T + slope * Z + eps`.
@@ -176,10 +177,14 @@ fn retained_plan(
 ) -> RetainedPlan {
     match (graph_class, bayesian) {
         ("Dag", false) => {
-            let info = prepared
-                .checked_graph_posterior_effect_info()
-                .expect("frequentist DAG graph-posterior operation retained");
-            assert!(prepared.checked_bayesian_graph_posterior_ate_info().is_none());
+            let RetainedOperation::GraphPosteriorEffect(info) = prepared.retained_operation()
+            else {
+                panic!("frequentist DAG graph-posterior operation retained")
+            };
+            assert!(!matches!(
+                prepared.retained_operation(),
+                RetainedOperation::BayesianGraphPosteriorAte(..)
+            ));
             RetainedPlan {
                 query: info.query,
                 conditional: info.conditional,
@@ -191,11 +196,15 @@ fn retained_plan(
             }
         }
         ("Dag", true) => {
-            let info = prepared
-                .checked_bayesian_graph_posterior_ate_info()
-                .expect("Bayesian DAG graph-posterior operation retained");
+            let RetainedOperation::BayesianGraphPosteriorAte(info) = prepared.retained_operation()
+            else {
+                panic!("Bayesian DAG graph-posterior operation retained")
+            };
             assert!(info.inference.starts_with("bayesian:"));
-            assert!(!prepared.has_checked_graph_posterior_effect_operation());
+            assert!(!matches!(
+                prepared.retained_operation(),
+                RetainedOperation::GraphPosteriorEffect(..)
+            ));
             RetainedPlan {
                 query: info.query,
                 conditional: info.conditional,
@@ -207,10 +216,14 @@ fn retained_plan(
             }
         }
         _ => {
-            let info = prepared
-                .checked_class_graph_posterior_effect_info()
-                .expect("class graph-posterior operation retained");
-            assert!(prepared.has_checked_class_graph_posterior_effect_operation());
+            let RetainedOperation::ClassGraphPosteriorEffect(info) = prepared.retained_operation()
+            else {
+                panic!("class graph-posterior operation retained")
+            };
+            assert!(matches!(
+                prepared.retained_operation(),
+                RetainedOperation::ClassGraphPosteriorEffect(..)
+            ));
             assert_eq!(
                 info.inference.starts_with("bayesian:"),
                 bayesian,
@@ -305,7 +318,7 @@ fn graph_posterior_conditional_effect_body() {
                 let mut prepared = builder.prepare(&ctx).unwrap();
                 drop(builder);
 
-                assert_eq!(prepared.support_status(), Some(CellStatus::Licensed), "{coordinate}");
+                assert_eq!(prepared.support_status(), Some(CellStatus::Supported), "{coordinate}");
                 match &prepared.contract().unwrap().reasoning.support {
                     SlotAvailability::Available(slot) => {
                         assert_eq!(slot.matrix_coordinate.as_deref(), Some(coordinate.as_str()));
@@ -317,9 +330,9 @@ fn graph_posterior_conditional_effect_body() {
                 assert_eq!(plan.query, query.inner, "{coordinate}");
                 assert_eq!(plan.estimator, estimator, "{coordinate}");
                 assert_eq!(plan.validation, suite, "{coordinate}");
-                assert_eq!(plan.graph_keys.as_ref(), fixture.posterior.graph_keys.as_ref());
-                assert_eq!(plan.weights.as_ref(), fixture.posterior.weights.as_ref());
-                assert_eq!(plan.identified.len(), fixture.posterior.n_graphs);
+                assert_eq!(plan.graph_keys.as_ref(), fixture.posterior.graph_keys().as_ref());
+                assert_eq!(plan.weights.as_ref(), fixture.posterior.weights().as_ref());
+                assert_eq!(plan.identified.len(), fixture.posterior.n_graphs());
                 assert_eq!(
                     plan.identified.iter().filter(|f| **f == GraphIdentFlag::Unidentified).count(),
                     1,
@@ -328,7 +341,7 @@ fn graph_posterior_conditional_effect_body() {
 
                 let result = prepared.estimate(&fixture.base, &ctx).unwrap();
                 assert_eq!(result.logical_plan.estimator.as_deref(), Some(estimator));
-                assert_eq!(result.support_status.map(CellStatus::as_str), Some("licensed"));
+                assert_eq!(result.support_status().map(CellStatus::as_str), Some("supported"));
                 let mixture = result.structural_response.as_ref().expect("graph mixture");
                 assert!((mixture.unidentified_mass - 0.2).abs() < 1e-9, "{coordinate}");
                 assert!((mixture.identified_mass - 0.8).abs() < 1e-9, "{coordinate}");
@@ -339,13 +352,13 @@ fn graph_posterior_conditional_effect_body() {
                 }
                 if fixture.scalar_mixable {
                     assert!(
-                        (result.estimate.as_effect().unwrap().ate - 2.0).abs() < tolerance,
+                        (result.estimate().as_effect().unwrap().ate - 2.0).abs() < tolerance,
                         "{coordinate}: {}",
-                        result.estimate.as_effect().unwrap().ate
+                        result.estimate().as_effect().unwrap().ate
                     );
                 } else {
                     assert!(
-                        result.estimate.as_effect().unwrap().ate.is_nan(),
+                        result.estimate().as_effect().unwrap().ate.is_nan(),
                         "{coordinate}: distinct adjustment certificates withhold the scalar"
                     );
                 }
@@ -358,13 +371,13 @@ fn graph_posterior_conditional_effect_body() {
                 // The one-shot facade executes the same retained operation.
                 assert_eq!(one_shot.logical_plan.estimator.as_deref(), Some(estimator));
                 assert_eq!(
-                    one_shot.estimate.as_effect().unwrap().ate.is_nan(),
-                    result.estimate.as_effect().unwrap().ate.is_nan()
+                    one_shot.estimate().as_effect().unwrap().ate.is_nan(),
+                    result.estimate().as_effect().unwrap().ate.is_nan()
                 );
-                if !one_shot.estimate.as_effect().unwrap().ate.is_nan() {
+                if !one_shot.estimate().as_effect().unwrap().ate.is_nan() {
                     assert!(
-                        (one_shot.estimate.as_effect().unwrap().ate
-                            - result.estimate.as_effect().unwrap().ate)
+                        (one_shot.estimate().as_effect().unwrap().ate
+                            - result.estimate().as_effect().unwrap().ate)
                             .abs()
                             < tolerance
                     );
@@ -377,7 +390,8 @@ fn graph_posterior_conditional_effect_body() {
 
                 // Compatible data refreshes through the retained atoms; the
                 // outcome shift leaves every conditional effect unchanged.
-                let refreshed = prepared.refresh(fixture.shifted.clone(), &ctx).unwrap();
+                let refreshed =
+                    rebind_estimate(&mut prepared, fixture.shifted.clone(), &ctx).unwrap();
                 let retained = retained_plan(&prepared, fixture.graph_class, bayesian);
                 assert_eq!(retained.graph_keys, plan.graph_keys);
                 assert_eq!(retained.weights, plan.weights);
@@ -388,14 +402,22 @@ fn graph_posterior_conditional_effect_body() {
                     assert!((value - 2.0).abs() < tolerance, "{coordinate}: refreshed {value}");
                 }
                 assert_eq!(
-                    refreshed.estimate.as_effect().unwrap().ate.is_nan(),
-                    result.estimate.as_effect().unwrap().ate.is_nan()
+                    refreshed.estimate().as_effect().unwrap().ate.is_nan(),
+                    result.estimate().as_effect().unwrap().ate.is_nan()
                 );
 
                 // A different semantic schema is refused by refresh.
-                assert!(
-                    prepared.refresh(reordered_data(), &ctx).is_err(),
-                    "{coordinate}: reordered columns must be refused"
+                assert_eq!(
+                    rebind_estimate(&mut prepared, reordered_data(), &ctx)
+                        .err()
+                        .unwrap_or_else(|| {
+                            panic!("{coordinate}: reordered columns must be refused")
+                        })
+                        .to_string(),
+                    "prepared analysis refresh requires the same schema (variable names, types, \
+                     and order) as prepare-time data; next attempt: supply data with the \
+                     prepare-time schema, or prepare the study again on the new schema",
+                    "{coordinate}"
                 );
 
                 let artifact = prepared
@@ -405,7 +427,7 @@ fn graph_posterior_conditional_effect_body() {
                         &ctx,
                     )
                     .unwrap();
-                let consumed = consume_analysis_result(&artifact).unwrap();
+                let consumed = replay_analysis_result(&artifact).unwrap();
                 assert!(
                     consumed
                         .acceptance
@@ -415,7 +437,7 @@ fn graph_posterior_conditional_effect_body() {
                     "{coordinate}: independent consumers must report {dependency}; got {:?}",
                     consumed.acceptance.unresolved
                 );
-                assert!(!consumed.acceptance.accepts_as_verified_program());
+                assert!(!consumed.acceptance.accepts_as_replayed_program());
             }
         }
     }
@@ -429,4 +451,17 @@ fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
         .unwrap()
         .join()
         .unwrap();
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

@@ -14,9 +14,11 @@ import math
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalError, CausalValueError
-from antecedent.estimation import CandidateScreen, PreparedBatch, RetargetClaim
+from antecedent.estimation import CandidateScreen, RetargetClaim
 from antecedent.estimators import Aipw, ClusterDml
+from antecedent.outcomes import require_success
 
 from _native_ate import native_ate
 from _refusal import assert_registered_refusal
@@ -86,34 +88,71 @@ def test_the_dataclass_wires_the_declared_unit_and_validates_it():
 def test_a_cluster_dml_aipw_reports_the_cluster_sandwich_se_and_the_scores():
     data, cluster = clustered()
     cfg = Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=cluster.tolist(), min_clusters=20))
-    result = ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=7)
-    assert result.effect == pytest.approx(2.0, abs=0.7)
+    result = require_success(
+        ant.analyze(
+            data,
+            graph=GRAPH,
+            query=QUERY,
+            estimator=cfg,
+            refute=False,
+            execution=ant.Execution(seed=7),
+        )
+    )
     estimate = result.estimate
     assert math.isfinite(estimate.se_analytic) and estimate.se_analytic > 0.0
+    # Oracle: the data-generating realized mean of the per-cluster effects (the draws are replayed
+    # from the same generator); the cross-fitted point sits within a few cluster-sandwich SEs of it,
+    # while the unadjusted contrast, confounded through z0, does not.
+    rng = np.random.default_rng(7)
+    rng.normal(size=40)
+    rng.normal(size=40)
+    realized = float(np.mean(2.0 + rng.normal(size=40)))
+    assert abs(result.effect - realized) < 0.03, (result.effect, realized, estimate.se_analytic)
+    naive = float(data["y"][data["t"] == 1].mean() - data["y"][data["t"] == 0].mean())
+    assert abs(naive - realized) > 0.2, (naive, realized)
     assert estimate.se_bootstrap is None
     assert estimate.joint_covariance is None and estimate.score_inference is None
     assert estimate.score_table is not None
-    again = ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=7)
+    again = require_success(
+        ant.analyze(
+            data,
+            graph=GRAPH,
+            query=QUERY,
+            estimator=cfg,
+            refute=False,
+            execution=ant.Execution(seed=7),
+        )
+    )
     assert again.effect == result.effect
 
 
 def test_a_cluster_batch_band_uses_the_cluster_reference():
     data, cluster = clustered(groups=12, size=20)
     cfg = Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=cluster.tolist(), min_clusters=10))
-    batch = PreparedBatch.prepare(
-        data, graph=GRAPH, queries=[QUERY], estimator=cfg, refute=False, seed=7
+    batch = require_success(
+        ant.estimation.prepare_many(
+            data,
+            graph=GRAPH,
+            queries=[QUERY],
+            estimator=cfg,
+            refute=False,
+            execution=ant.Execution(seed=7),
+        ).estimate()
     )
     rows = batch.retarget_rows()
     assert rows is not None
-    report = batch.retarget(
-        [RetargetClaim("effect", 0, np.ones(len(rows)), depends_on=[])],
-        simultaneous_level=0.95,
-        simultaneous_seed=29,
-        simultaneous_draws=20_000,
+    report = require_success(
+        batch.retarget(
+            [RetargetClaim("effect", 0, np.ones(len(rows)), depends_on=[])],
+            simultaneous_level=0.95,
+            simultaneous_seed=29,
+            simultaneous_draws=20_000,
+        )
     )
+    assert report.scores_source == "estimated"
     band = report.simultaneous_interval()
     assert report.complete and len(band.members) == 1
-    assert band.critical_value > 2.1  # t_11, above the iid normal critical 1.96
+    assert band.critical_value == pytest.approx(2.2010, abs=0.06), band.critical_value
     member = band.members[0]
     assert member.lower == pytest.approx(member.value - band.critical_value * member.std_error)
 
@@ -122,7 +161,16 @@ def test_few_clusters_are_refused_with_a_registered_reason_code():
     data, cluster = clustered(groups=12, size=20)
     cfg = Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=cluster.tolist(), min_clusters=20))
     with pytest.raises(CausalError) as error:
-        ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=1)
+        require_success(
+            ant.analyze(
+                data,
+                graph=GRAPH,
+                query=QUERY,
+                estimator=cfg,
+                refute=False,
+                execution=ant.Execution(seed=1),
+            )
+        )
     assert "too_few_clusters" in refusal_text(error.value)
     assert_registered_refusal(error.value)
 
@@ -155,14 +203,33 @@ def test_a_two_way_cluster_dml_aipw_reports_the_two_way_se_and_the_scores():
             cluster_ids=first, second_cluster_ids=second, unit="dyad", min_clusters=20
         ),
     )
-    result = ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=7)
-    assert result.effect == pytest.approx(2.0, abs=0.7)
+    result = require_success(
+        ant.analyze(
+            data,
+            graph=GRAPH,
+            query=QUERY,
+            estimator=cfg,
+            refute=False,
+            execution=ant.Execution(seed=7),
+        )
+    )
     estimate = result.estimate
     assert math.isfinite(estimate.se_analytic) and estimate.se_analytic > 0.0
+    # Oracle: the effect is the constant 2 in every row of the design.
+    assert result.effect == pytest.approx(2.0, abs=0.25), (result.effect, estimate.se_analytic)
     assert estimate.se_bootstrap is None
     assert estimate.joint_covariance is None and estimate.score_inference is None
     assert estimate.score_table is not None
-    again = ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=7)
+    again = require_success(
+        ant.analyze(
+            data,
+            graph=GRAPH,
+            query=QUERY,
+            estimator=cfg,
+            refute=False,
+            execution=ant.Execution(seed=7),
+        )
+    )
     assert again.effect == result.effect
     # Other second-endpoint labels with the same structure are another declaration, but the
     # same components give the same folds and so the same point.
@@ -175,7 +242,16 @@ def test_a_two_way_cluster_dml_aipw_reports_the_two_way_se_and_the_scores():
             min_clusters=20,
         ),
     )
-    other = ant.analyze(data, graph=GRAPH, query=QUERY, estimator=relabeled, refute=False, seed=7)
+    other = require_success(
+        ant.analyze(
+            data,
+            graph=GRAPH,
+            query=QUERY,
+            estimator=relabeled,
+            refute=False,
+            execution=ant.Execution(seed=7),
+        )
+    )
     assert other.effect == result.effect
 
 
@@ -193,8 +269,17 @@ def test_unsupported_dyadic_structures_stay_closed_with_a_registered_reason_code
             cluster_dml=ClusterDml(cluster_ids=first, second_cluster_ids=labels, unit="dyad"),
         )
         with pytest.raises(CausalError) as error:
-            ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=1)
-        assert "dyadic_dependence_not_licensed" in refusal_text(error.value)
+            require_success(
+                ant.analyze(
+                    data,
+                    graph=GRAPH,
+                    query=QUERY,
+                    estimator=cfg,
+                    refute=False,
+                    execution=ant.Execution(seed=1),
+                )
+            )
+        assert "dyadic_dependence_not_supported" in refusal_text(error.value)
         assert detail in refusal_text(error.value)
         assert_registered_refusal(error.value)
 
@@ -206,7 +291,16 @@ def test_few_components_per_fold_are_refused_with_a_registered_reason_code():
         cluster_dml=ClusterDml(cluster_ids=first, second_cluster_ids=second, unit="dyad"),
     )
     with pytest.raises(CausalError) as error:
-        ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=1)
+        require_success(
+            ant.analyze(
+                data,
+                graph=GRAPH,
+                query=QUERY,
+                estimator=cfg,
+                refute=False,
+                execution=ant.Execution(seed=1),
+            )
+        )
     assert "too_few_clusters" in refusal_text(error.value)
     assert_registered_refusal(error.value)
 
@@ -225,7 +319,9 @@ def test_flexible_learners_refuse_cluster_options(estimator, option):
     data, cluster = clustered(groups=30, size=10)
     names = ["z0", "z1", "t", "y"]
     columns = [data[name] for name in names]
-    with pytest.raises(ValueError, match="cluster_dml.flexible_learner_closed") as error:
+    with pytest.raises(
+        ValueError, match=reason_details.cluster_dml.FLEXIBLE_LEARNER_NOT_SUPPORTED
+    ) as error:
         native_ate(
             names,
             columns,
@@ -238,7 +334,7 @@ def test_flexible_learners_refuse_cluster_options(estimator, option):
             estimator_config={option: [int(c) for c in cluster]},
         )
     assert "route_not_supported" in refusal_text(error.value)
-    assert "cluster_dml.flexible_learner_closed" in str(error.value)
+    assert reason_details.cluster_dml.FLEXIBLE_LEARNER_NOT_SUPPORTED in str(error.value)
     assert "unknown estimator_config key" not in str(error.value)
     assert_registered_refusal(error.value)
 
@@ -254,6 +350,23 @@ def test_the_entity_screen_split_never_shares_an_entity_and_records_seed_and_dig
     again = CandidateScreen.from_units("s", "max_t", entity_ids=entities, seed=5)
     assert again == screen
     assert CandidateScreen.from_units("s", "max_t", entity_ids=entities, seed=6) != screen
+    # The receipt states what was dealt: 30 distinct entities split 15/15 by the default
+    # fraction, the seed, and the same unit digest the recorded screen id carries.
+    receipt = screen.receipt
+    assert receipt is not None
+    assert (receipt.seed, receipt.unit_kind) == (5, "entity")
+    assert (receipt.n_units, receipt.screen_units, receipt.estimate_units) == (30, 15, 15)
+    assert screen.screen_id.endswith(f";units={receipt.unit_digest}")
+    assert len(receipt.unit_digest) == 64
+    assert len(set(entities[i] for i in screen.screen_rows)) == receipt.screen_units
+    assert len(set(entities[i] for i in screen.estimate_rows)) == receipt.estimate_units
+    # The digest names the set of units, not their order: permuting the rows keeps it.
+    permuted = CandidateScreen.from_units("s", "max_t", entity_ids=entities[::-1], seed=5)
+    assert permuted.receipt is not None
+    assert permuted.receipt.unit_digest == receipt.unit_digest
+    # A split declared directly from row lists records no receipt and compares equal on rows.
+    declared = CandidateScreen("s", "max_t", screen.screen_rows, screen.estimate_rows)
+    assert declared.receipt is None
 
 
 def test_the_dyad_screen_split_keeps_connected_endpoints_together_and_refuses_one_component():
@@ -265,6 +378,12 @@ def test_the_dyad_screen_split_keeps_connected_endpoints_together_and_refuses_on
         return {first[i] for i in rows} | {second[i] for i in rows}
 
     assert endpoints(screen.screen_rows).isdisjoint(endpoints(screen.estimate_rows))
+    # One chain {0..3}, one star {10..13} and twelve isolated pairs: 1 + 1 + 12 = 14 units.
+    receipt = screen.receipt
+    assert receipt is not None
+    assert (receipt.seed, receipt.unit_kind) == (3, "dyad_component")
+    assert receipt.n_units == 14
+    assert receipt.screen_units + receipt.estimate_units == receipt.n_units
     with pytest.raises(CausalError) as error:
         CandidateScreen.from_units("d", "bh", first=[0, 1, 2], second=[1, 2, 0], seed=1)
     assert "invalid_argument" in refusal_text(error.value)

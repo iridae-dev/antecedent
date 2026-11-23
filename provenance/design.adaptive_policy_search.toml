@@ -1,0 +1,67 @@
+feature_id = "design.adaptive_policy_search"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = [{ title = "The Cross-Entropy Method for Combinatorial and Continuous Optimization", url = "https://doi.org/10.1023/A:1010091220143", sections = ["Section 4: continuous multi-extremal optimization by elite refitting of a Gaussian sampling law"] }]
+implementation_deviations = [
+  "Derivative-free elite-refit evolution strategy with a seeded uniform first generation, smoothed Gaussian refits, a coordinate pattern polish and a fixed evaluation budget. No derivative is estimated and no global-optimality certificate is claimed; an exhausted budget is reported as an incomplete result.",
+  "Policies are bounded families (open-loop schedule, threshold, piecewise-constant, clipped linear feedback and small complete trees) over a closed parameter box. Each is lowered to a value program that the temporal rollout executes, and the lowered program and the direct rule agree exactly.",
+  "Cumulative cost, cumulative exposure and realised per-step action constraints are checked on rollout paths as hard feasibility conditions with chance-constraint style reporting. The Wilson upper bound on the violation probability is an approximation; a finite sample never certifies a zero violation probability. No objective penalty stands in for feasibility.",
+  "Every proposal is evaluated on the same shared draws (common random numbers across policies and parameter draws), so policy values and paired contrasts share draws. The optimisation and held-out splits use independent noise.",
+  "The result is labelled a fitted-model optimisation unless an identified policy effect is requested and the response source states an identification basis; otherwise the request is refused. The selected policy's in-sample value is optimistic; a held-out value on independent draws or held-out units is reported, and a design with none is refused or flagged.",
+  "Independent evidence: a stationary-state treatment threshold with a closed-form optimum and a linear-quadratic feedback problem with a Riccati optimum and a closed-form best open-loop schedule, each simulated by a separate generator and recomputed by a standalone script.",
+]
+upstream_implementations_observed = []
+modules = [
+  "crates/antecedent-design/src/adaptive_policy.rs",
+  "crates/antecedent-design/src/adaptive_policy_search.rs",
+]
+
+test_sources = [
+  "crates/antecedent-design/src/adaptive_policy.rs",
+  "crates/antecedent-design/tests/adaptive_policy_search.rs",
+  "crates/antecedent/tests/adaptive_policy_model_source.rs",
+  "python/tests/test_adaptive_policy.py",
+  "conformance/design/adaptive_policy_search/reference.py",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "PolicySearch execution in crates/antecedent-design/src/adaptive_policy_search.rs (the seeded uniform first generation, elite-refit Gaussian generations, coordinate pattern polish, the evaluation budget, hard and chance constraints with the Wilson upper bound on the violation rate, shared common-random-number draws, the held-out re-evaluation and selection-optimism report, the standing label) and the policy families of adaptive_policy.rs (open-loop schedule, threshold, clipped linear feedback) as exercised on two problems with closed-form optima: a treat-above-threshold rule on a stationary Gaussian state and a linear-quadratic feedback problem with its Riccati gain and best open-loop cost. Not piecewise-constant or tree families beyond their lowering, not the facade model-source binding, and not any claim of global optimality."
+assumptions = ["The fitted response model is taken as the data-generating process of the search; the search optimizes inside it and the standing label says so.", "The closed-form optima are exact for the stated models: stage utility u (z - k) with z stationary N(0, s^2), and x' = a x + u + w with stage cost q x^2 + r u^2 and terminal weight equal to the steady-state Riccati solution, for which the finite-horizon gain is stationary."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the search and family code named in its scope and the retained closed-form generator conformance/design/adaptive_policy_search/reference.py (standard library only, imports no Antecedent code, with its own seeded Monte Carlo cross-check), and ran the executing assertions; no upstream implementation or test source was consulted or copied. The cited Cross-Entropy paper was not retrieved in this review: the correspondence is between the product code and the elite-refit idea it names, and the product records its departures (smoothed refits, a pattern-search polish, a seeded uniform first generation) as deviations."
+redistribution = "The cited paper is linked, not redistributed. The generator, its lock file and expected.json are repository-authored (MIT OR Apache-2.0); the generator uses only the Python standard library and was run with python3 --check for this review."
+limitations = "Two problems only, each with one fixed seed in the assertions: the threshold rule must reach the closed-form value within four held-out standard errors plus 0.08 and a threshold near k, and the feedback rule must reach the Riccati cost within five standard errors plus 0.05, with a fitted slope within 0.12 of the Riccati gain; the best open-loop schedule must land within five standard errors plus 0.3 of its closed form. These tolerances are statistical bands, not 1e-9 agreement, so a search that is slightly suboptimal inside the band would pass. The Wilson violation bound is checked for its ordering (rate at most the bound) and for the zero-tolerance case never being certified, not against a reference value. The hard-constraint and cost-cap cases are checked for feasibility and monotone relaxation, not against a constrained closed form. No reference exists for piecewise-constant or tree families, for multi-dimensional action boxes beyond the two problems, or for multimodal objectives, where an elite-refit search can stall in a local optimum; no global-optimality certificate is claimed and the product says so. Search convergence rates and the coverage of the held-out interval are not measured. The Cross-Entropy paper was not retrieved."
+sources = ["https://doi.org/10.1023/A:1010091220143"]
+findings_resolved = ["No defect found in the exercised routes: every PolicySearchOptions field is read by the search (seed, evaluation budget, population, elite fraction, generation limit, spread tolerance, polish, standing and held-out requirement), the search reaches the closed-form optima within the stated bands, the best fixed schedule is never, a hard exposure bound is never certified by a finite sample, and an identification-unsupported standing request is refused."]
+record_sha256 = "6fce0a3d88174f9437e9dc41d2512eb88227a569b403eef49590c077e2e09f83"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/adaptive_policy.rs"
+items = ["const MAX_PIECEWISE_CUTS", "const MAX_POLICY_FEATURES", "const MAX_SCHEDULE_STEPS", "const MAX_TREE_DEPTH", "enum PolicyFeature", "enum PolicyRule", "fn action_bounds", "fn bad", "fn bound", "fn bounds", "fn features", "fn id", "fn lag", "fn new", "fn rule", "fn variable", "struct AdaptivePolicyError", "struct AdaptivePolicyFamily", "struct ParameterBound"]
+sha256 = "0fde40ec45df8fa5f1b4ddae0deac78c934c58afc35aa74079cf5a29d908e601"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/adaptive_policy_search.rs"
+items = ["const WILSON_Z", "enum AdaptivePolicySearchError", "enum DrawSplit", "enum HeldOutDesign", "enum HeldOutRequirement", "enum PolicyObjective", "enum PolicyStanding", "enum SearchStop", "enum StandingRequest", "fn cancelled", "fn check_source", "fn compare", "fn compile", "fn contrasts", "fn default", "fn evaluate", "fn execute", "fn fractional_lower_tail_mean", "fn invalid", "fn mean_and_se", "fn memory_quote", "fn observable_variables", "fn search_family", "fn standard_normal", "fn try_candidate", "fn wilson_upper", "struct AdaptivePolicySearchResult", "struct ChanceBound", "struct ConstraintReport", "struct FamilySearchResult", "struct FamilyState", "struct PairedContrast", "struct PolicyAttempt", "struct PolicyConstraints", "struct PolicyEvaluation", "struct PolicyPath", "struct PolicySearchOptions", "struct PreparedAdaptivePolicySearch", "struct ResponseStanding", "struct Score", "trait PolicyRolloutSource"]
+sha256 = "da3b5ef4a9696a97ab430297b92e351d298cd33ddb2f9b04fa2495656d8d9ea7"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/adaptive_policy_search.rs"
+items = ["const STATE", "enum Dynamics", "fn feedback_family", "fn horizon", "fn linear_feedback_reaches_the_riccati_optimum_and_beats_the_open_loop_optimum", "fn lq", "fn lq_p", "fn new", "fn next", "fn norm_cdf", "fn norm_pdf", "fn options", "fn refusals_are_typed_for_unobserved_features_invalid_problems_budget_and_cancellation", "fn run", "fn schedule_family", "fn state_dependent_threshold_beats_the_best_fixed_schedule_at_the_closed_form_optimum", "fn the_in_test_closed_forms_match_the_conformance_document", "fn threshold_family", "fn treatment", "fn treatment_step_value", "struct Sim"]
+sha256 = "7ce815cfaec67da739812bbb037c6956d9f4a339329d87c181be0986046b7c51"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "conformance/design/adaptive_policy_search/reference.py"
+sha256 = "04a5457d3b0bc542be1329b588146e5ac43879e2d77ba5c0c8fb80c8e3f07811"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "conformance/design/adaptive_policy_search/expected.json"
+sha256 = "a9e4b89dbc36d9ca3f4df6272545883c3b139fd19fb0cd2e79e659d3cbf3b6dc"

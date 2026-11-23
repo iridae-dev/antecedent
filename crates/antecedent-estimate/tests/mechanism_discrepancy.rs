@@ -122,7 +122,7 @@ fn discrepancy_ols_fits_and_summed_covariance_match_hand_algebra() {
     close(r.source.standard_errors[0], 0.63_f64.sqrt(), "se intercept");
     close(r.source.standard_errors[1], 0.18_f64.sqrt(), "se slope");
     assert_eq!(r.null, MECHANISM_DISCREPANCY_NULL);
-    assert_eq!(r.calibration, CalibrationStatus::Unmeasured);
+    assert_eq!(r.calibration, CalibrationStatus::NotMeasured);
 }
 
 #[test]
@@ -260,8 +260,8 @@ fn discrepancy_non_rejection_never_certifies_invariance() {
     assert_eq!(r.conclusion, DiscrepancyConclusion::NotRejected);
     assert!(!r.non_rejection_certifies_invariance);
     assert!(r.caveat.contains("does not certify"));
-    assert!(r.power_caveat.contains("unmeasured"));
-    assert_eq!(r.calibration, CalibrationStatus::Unmeasured);
+    assert!(r.power_caveat.contains("not_measured"));
+    assert_eq!(r.calibration, CalibrationStatus::NotMeasured);
     assert_eq!(r.informs_selection_on, ["V"]);
     assert!(r.alignment.contains("non-rejection leaves a selection node"));
     assert!(r.alignment.contains("cannot be excluded"));
@@ -376,49 +376,49 @@ fn discrepancy_degenerate_inputs_refuse() {
     let tiny = sample("target", &[1.0, 3.0, 2.0], &[("x", "cm", &[0.0, 1.0, 2.0])]);
     assert_eq!(
         detail_of(test_mechanism_discrepancy(&source, &tiny, &opts(true)).unwrap_err()),
-        "mechanism_discrepancy.sample_too_small"
+        antecedent_core::reason_details::mechanism_discrepancy::SAMPLE_TOO_SMALL
     );
     // Rank deficient: a constant parent is collinear with the intercept.
     let constant = sample("target", &YT_BOTH, &[("x", "cm", &[2.0; 4])]);
     assert_eq!(
         detail_of(test_mechanism_discrepancy(&source, &constant, &opts(true)).unwrap_err()),
-        "mechanism_discrepancy.rank_deficient_design"
+        antecedent_core::reason_details::mechanism_discrepancy::RANK_DEFICIENT_DESIGN
     );
     // Non-finite value.
     let nan = sample("target", &[1.0, f64::NAN, 3.0, 4.0], &[("x", "cm", &X)]);
     assert_eq!(
         detail_of(test_mechanism_discrepancy(&source, &nan, &opts(true)).unwrap_err()),
-        "mechanism_discrepancy.non_finite_value"
+        antecedent_core::reason_details::mechanism_discrepancy::NON_FINITE_VALUE
     );
     // Both populations fit exactly: the summed covariance is zero.
     let exact_s = one_parent("source", &[0.0, 1.0, 2.0, 3.0]);
     let exact_t = one_parent("target", &[1.0, 3.0, 5.0, 7.0]);
     assert_eq!(
         detail_of(test_mechanism_discrepancy(&exact_s, &exact_t, &opts(true)).unwrap_err()),
-        "mechanism_discrepancy.degenerate_covariance"
+        antecedent_core::reason_details::mechanism_discrepancy::DEGENERATE_COVARIANCE
     );
     // Row-count mismatch.
     let ragged = sample("target", &YT_BOTH, &[("x", "cm", &[0.0, 1.0, 2.0])]);
     assert_eq!(
         detail_of(test_mechanism_discrepancy(&source, &ragged, &opts(true)).unwrap_err()),
-        "mechanism_discrepancy.row_count_mismatch"
+        antecedent_core::reason_details::mechanism_discrepancy::ROW_COUNT_MISMATCH
     );
     // Levels.
     let bad_alpha = DiscrepancyOptions { alpha: 1.0, ..opts(true) };
     assert_eq!(
         detail_of(test_mechanism_discrepancy(&source, &source, &bad_alpha).unwrap_err()),
-        "mechanism_discrepancy.invalid_alpha"
+        antecedent_core::reason_details::mechanism_discrepancy::INVALID_ALPHA
     );
     let bad_power = DiscrepancyOptions { power: 0.3, ..opts(true) };
     assert_eq!(
         detail_of(test_mechanism_discrepancy(&source, &source, &bad_power).unwrap_err()),
-        "mechanism_discrepancy.invalid_power"
+        antecedent_core::reason_details::mechanism_discrepancy::INVALID_POWER
     );
     // A parent-free node with the intercept excluded compares nothing.
     let bare = |label: &str| sample(label, &YS, &[]);
     assert_eq!(
         detail_of(test_mechanism_discrepancy(&bare("s"), &bare("t"), &opts(false)).unwrap_err()),
-        "mechanism_discrepancy.no_compared_coefficients"
+        antecedent_core::reason_details::mechanism_discrepancy::NO_COMPARED_COEFFICIENTS
     );
 }
 
@@ -464,7 +464,7 @@ fn mechanism_posterior_mean_stays_at_the_hand_coefficients() {
 }
 
 #[test]
-fn mechanism_posterior_refuses_an_unmeasured_band() {
+fn mechanism_posterior_refuses_an_not_measured_band() {
     let result = test_mechanism_discrepancy(
         &one_parent("source", &YS),
         &one_parent("target", &YT_BOTH),
@@ -473,11 +473,15 @@ fn mechanism_posterior_refuses_an_unmeasured_band() {
     .unwrap();
     let err = antecedent_estimate::posterior_mean::mechanism_coefficient_posterior(
         &result.source_summary,
-        antecedent_estimate::posterior_mean::PosteriorRequest::UnmeasuredBand,
+        antecedent_estimate::posterior_mean::PosteriorRequest::CredibleBand,
     )
     .unwrap_err();
     let (_, message) = refusal(err);
-    assert!(message.contains("mechanism_posterior.unmeasured_band"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::mechanism_posterior::BAND_NOT_CONSTRUCTED),
+        "{message}"
+    );
 }
 
 #[test]

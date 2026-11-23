@@ -20,7 +20,7 @@
 //! statistic `mean / se` is a labelled diagnostic: no p-value, interval or
 //! coverage statement is attached, because none has measured calibration.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::reason_code;
 
@@ -56,9 +56,9 @@ pub struct ScoreDifference {
     pub fit_overlap: Option<u64>,
     /// Always `diagnostic`.
     pub label: &'static str,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: &'static str,
-    /// Always `not_reported`: a score-difference interval is closed.
+    /// Always `not_reported`: a score-difference interval is not supported.
     pub interval: &'static str,
 }
 
@@ -87,7 +87,13 @@ pub fn variance_of_mean(
         ));
     }
     let nf = n as f64;
-    let center = mean(d);
+    // Deviations are taken from the first case, then from the mean of those: a difference far
+    // from zero but with a small spread would otherwise leave the rounding of its own mean in
+    // every centred value (the mean of doubles near 1e8 is only good to about 1.5e-8).
+    let origin = d[0];
+    let shifted: Vec<f64> = d.iter().map(|x| x - origin).collect();
+    let center = mean(&shifted);
+    let d = &shifted[..];
     match dependence {
         DependenceDeclaration::Iid => {
             let s2 = d.iter().map(|x| (x - center).powi(2)).sum::<f64>() / (nf - 1.0);

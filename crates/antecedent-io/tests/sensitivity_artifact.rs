@@ -12,12 +12,12 @@ use antecedent_io::error::IoError;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use antecedent_io::sensitivity_artifact::{
     ActionUtility, AssumptionCoordinate, AssumptionRangeStatement, AxisTipping, DecisionSwitch,
-    JointFactor, JointFactorBound, JointMechanismSensitivityResult, JointSensitivityLimits,
-    JointSensitivityRange, JointSensitivityReceipt, JointSensitivityUncertainty,
-    MAX_SENSITIVITY_ARTIFACT_BYTES, PointSupport, SamplingInterval, SamplingStatus,
-    SensitivityArtifact, SensitivityOutcome, SensitivityParts, SensitivityProvenance,
-    SurfaceQuantity, TippingBracket, TippingStatus, UncertaintyRelationship, UtilityTerm,
-    decode_parts, encode_parts,
+    JointFactor, JointFactorBound, JointMechanismSensitivityResult, JointSensitivityInterval,
+    JointSensitivityLimits, JointSensitivityRange, JointSensitivityReceipt,
+    JointSensitivityUncertainty, MAX_SENSITIVITY_ARTIFACT_BYTES, PointSupport, SamplingInterval,
+    SamplingStatus, SensitivityArtifact, SensitivityOutcome, SensitivityParts,
+    SensitivityProvenance, SurfaceQuantity, TippingBracket, TippingStatus, UncertaintyRelationship,
+    UtilityTerm, decode_parts, encode_parts,
 };
 
 fn scientific(name: &str) -> ScientificQuantity {
@@ -55,8 +55,8 @@ fn withheld() -> UncertaintyRelationship {
         },
         identified_bound: None,
         sampling: SamplingStatus::Withheld {
-            reason_code: "cell_not_licensed".into(),
-            detail: "joint_sensitivity.interval_withheld".into(),
+            reason_code: "not_supported".into(),
+            detail: antecedent_core::reason_details::joint_sensitivity::NO_INTERVAL_METHOD.into(),
         },
     }
 }
@@ -119,8 +119,38 @@ fn assert_wrong_contract(result: Result<SensitivityArtifact, IoError>, needle: &
     let error = result.unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "decision_contract_unsatisfied");
-    assert!(message.starts_with("sensitivity_decision_composition.wrong_contract"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT
+        ),
+        "{message}"
+    );
     assert!(message.contains(needle), "{message}");
+}
+
+#[test]
+fn ranged_nonlinear_utility_does_not_claim_vertex_winner_is_invariant() {
+    let mut parts = frozen_parts();
+    parts.quantities = vec![surface("q", &[-1.0; 3], &[1.0; 3])];
+    parts.actions = vec![
+        ActionUtility {
+            id: "A".into(),
+            utility: UtilityTerm::product(UtilityTerm::quantity("q"), UtilityTerm::quantity("q")),
+        },
+        ActionUtility { id: "B".into(), utility: UtilityTerm::Const(0.5) },
+    ];
+    // A wins at both vertices, but B wins at q=0.
+    let error = SensitivityArtifact::new(parts.clone()).unwrap_err();
+    let (code, message) = refusal(&error);
+    assert_eq!(code, "invalid_argument");
+    assert!(message.contains("multilinear"));
+
+    // A nonlinear expression over a point quantity remains valid, even if another
+    // unrelated quantity has a range.
+    parts.quantities[0] = surface("q", &[2.0; 3], &[2.0; 3]);
+    SensitivityArtifact::new(parts.clone()).unwrap();
+    parts.quantities.push(surface("unused", &[-1.0; 3], &[1.0; 3]));
+    SensitivityArtifact::new(parts).unwrap();
 }
 
 #[test]
@@ -228,18 +258,33 @@ fn unknown_versions_and_malformed_payloads_are_refused() {
     short.truncate(short.len() - 8);
     let resealed = encode_parts(&meta, &short, "sensitivity-1").unwrap();
     let error = SensitivityArtifact::from_bytes(&resealed, None).unwrap_err();
-    assert!(refusal(&error).1.starts_with("sensitivity_decision_composition.invalid_surface"));
+    assert!(refusal(&error).1.starts_with(
+        antecedent_core::reason_details::sensitivity_decision_composition::INVALID_SURFACE
+    ));
 
     let mut nan = numbers.clone();
     set(&mut nan, 4, f64::NAN);
     let resealed = encode_parts(&meta, &nan, "sensitivity-1").unwrap();
-    assert!(SensitivityArtifact::from_bytes(&resealed, None).is_err());
+    let error = SensitivityArtifact::from_bytes(&resealed, None).unwrap_err();
+    assert_eq!(
+        refusal(&error),
+        (
+            "invalid_argument",
+            "sensitivity_decision_composition.invalid_surface: surface values must be finite with lower <= upper"
+        )
+    );
 
     let mut oversized = bytes.clone();
     oversized.resize(MAX_SENSITIVITY_ARTIFACT_BYTES + 1, 0);
     assert!(matches!(SensitivityArtifact::from_bytes(&oversized, None), Err(IoError::TooLarge)));
-    assert!(SensitivityArtifact::from_bytes(&bytes[..bytes.len() / 2], None).is_err());
-    assert!(artifact.to_bytes("  ").is_err());
+    match SensitivityArtifact::from_bytes(&bytes[..bytes.len() / 2], None).unwrap_err() {
+        IoError::Io(failure) => assert_eq!(failure.message(), "failed to fill whole buffer"),
+        other => panic!("a truncated artifact is an unexpected end of input, got {other:?}"),
+    }
+    assert!(matches!(
+        artifact.to_bytes("  "),
+        Err(IoError::Convert(m)) if m == "missing artifact id"
+    ));
 }
 
 #[test]
@@ -267,14 +312,15 @@ fn range_and_sampling_interval_stay_separate_fields() {
     let build = |interval_lower: f64| {
         let mut p = frozen_parts();
         p.quantities[0] = surface("ua", &[2.5, 1.5, 0.5], &[3.5, 2.5, 1.5]);
-        p.uncertainty.sampling = SamplingStatus::Reported(SamplingInterval {
+        p.uncertainty.sampling = SamplingStatus::Reported(Box::new(SamplingInterval {
             quantity: "ua".into(),
             level: 0.9,
             method: "percentile_bootstrap".into(),
             composed: None,
+            calibration: None,
             lower: vec![interval_lower; 3],
             upper: vec![9.0; 3],
-        });
+        }));
         SensitivityArtifact::new(p).unwrap()
     };
     let (first, second) = (build(-3.0), build(-2.0));
@@ -294,20 +340,23 @@ fn range_and_sampling_interval_stay_separate_fields() {
     assert_eq!(interval.upper, vec![9.0; 3]);
     assert_eq!(restored.quantities()[0].lower, vec![2.5, 1.5, 0.5]);
 
-    // Composition with the assumption range is refused: no method is licensed.
+    // Composition with the assumption range is refused: no method is supported.
     let mut composed = frozen_parts();
-    composed.uncertainty.sampling = SamplingStatus::Reported(SamplingInterval {
+    composed.uncertainty.sampling = SamplingStatus::Reported(Box::new(SamplingInterval {
         quantity: "ua".into(),
         level: 0.9,
         method: "percentile_bootstrap".into(),
         composed: Some("conservative_endpoint_percentile_bootstrap".into()),
+        calibration: None,
         lower: vec![0.0; 3],
         upper: vec![9.0; 3],
-    });
+    }));
     let error = SensitivityArtifact::new(composed).unwrap_err();
     let (code, message) = refusal(&error);
-    assert_eq!(code, "cell_not_licensed");
-    assert!(message.starts_with("sensitivity_decision_composition.composition_not_licensed"));
+    assert_eq!(code, "route_not_supported");
+    assert!(message.starts_with(
+        antecedent_core::reason_details::sensitivity_decision_composition::COMPOSITION_NOT_SUPPORTED
+    ));
 }
 
 #[test]
@@ -322,34 +371,61 @@ fn bad_coordinates_and_surfaces_are_refused() {
     // A grid point outside the declared assumption range.
     let (code, detail) = refused(&|p| p.grid[2] = 3.0);
     assert_eq!(code, "quantity_semantics_mismatch");
-    assert_eq!(detail, "sensitivity_decision_composition.unsupported_coordinate");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::sensitivity_decision_composition::UNSUPPORTED_COORDINATE
+    );
     // Duplicate grid points, lower above upper and mismatched lengths.
     let (_, detail) = refused(&|p| p.grid[1] = 0.0);
-    assert_eq!(detail, "sensitivity_decision_composition.invalid_surface");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::sensitivity_decision_composition::INVALID_SURFACE
+    );
     let (_, detail) = refused(&|p| p.quantities[0] = surface("ua", &[3.0; 3], &[2.0; 3]));
-    assert_eq!(detail, "sensitivity_decision_composition.invalid_surface");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::sensitivity_decision_composition::INVALID_SURFACE
+    );
     let (_, detail) = refused(&|p| {
         p.support.pop();
     });
-    assert_eq!(detail, "sensitivity_decision_composition.invalid_surface");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::sensitivity_decision_composition::INVALID_SURFACE
+    );
     // Fewer than two actions, an action reading a missing quantity, mixed populations.
     let (_, detail) = refused(&|p| p.actions.truncate(1));
-    assert_eq!(detail, "sensitivity_decision_composition.wrong_contract");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT
+    );
     let (_, detail) = refused(&|p| p.actions[0] = act("A", "missing"));
-    assert_eq!(detail, "sensitivity_decision_composition.wrong_contract");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT
+    );
     let (_, detail) = refused(&|p| p.quantities[1].quantity.population_id = "other".into());
-    assert_eq!(detail, "sensitivity_decision_composition.wrong_contract");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT
+    );
     // A surface range that is not declared an assumption range.
     let (_, detail) =
         refused(&|p| p.uncertainty.assumption_range.kind = "confidence_interval".into());
-    assert_eq!(detail, "sensitivity_decision_composition.wrong_contract");
-    // More ranged quantities than the vertex enumeration admits.
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT
+    );
+    // More ranged quantities than the evaluation budget of the vertex enumeration admits.
     let (code, detail) = refused(&|p| {
-        p.quantities = (0..4).map(|k| surface(&format!("q{k}"), &[0.0; 3], &[1.0; 3])).collect();
+        p.quantities = (0..25).map(|k| surface(&format!("q{k}"), &[0.0; 3], &[1.0; 3])).collect();
         p.actions = vec![act("A", "q0"), act("B", "q1")];
     });
     assert_eq!(code, "route_not_supported");
-    assert_eq!(detail, "sensitivity_decision_composition.bounds_exceeded");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::sensitivity_decision_composition::BOUNDS_EXCEEDED
+    );
 }
 
 fn joint_result(
@@ -396,6 +472,7 @@ fn joint_result(
         interpretation: "assumption range over the declared joint contamination box; not a confidence interval and not a sampling interval",
         inference_claim: "assumption_range",
         uncertainty: JointSensitivityUncertainty::withheld(),
+        sampling: None,
     }
 }
 
@@ -435,7 +512,7 @@ fn a_joint_result_is_adapted_exactly_and_travels_through_the_wire() {
     assert_eq!(artifact.uncertainty().assumption_range.kind, "assumption_range");
     assert!(matches!(
         &artifact.uncertainty().sampling,
-        SamplingStatus::Withheld { detail, .. } if detail == "joint_sensitivity.interval_withheld"
+        SamplingStatus::Withheld { detail, .. } if detail == antecedent_core::reason_details::joint_sensitivity::NO_INTERVAL_METHOD
     ));
     assert_eq!(artifact.provenance().decision_threshold, Some(0.25));
     assert_eq!(artifact.provenance().source_tipping[0].analytic, Some(5.0 / 30.0));
@@ -481,16 +558,24 @@ fn a_joint_result_that_cannot_be_filled_exactly_or_is_not_a_range_is_refused() {
             .unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "route_not_supported");
-    assert!(message.starts_with("sensitivity_decision_composition.unsupported_adaptation"));
+    assert!(message.starts_with(
+        antecedent_core::reason_details::sensitivity_decision_composition::UNSUPPORTED_ADAPTATION
+    ));
 
     let empty = joint_result(
         vec![JointFactorBound { factor: JointFactor::OutcomeKernel, max_fraction: 0.0 }],
         0.5,
         (0.5, 0.5),
     );
-    assert!(
+    let error =
         SensitivityArtifact::from_joint_result(&empty, &effect, 5, adopt_against(0.0), "checked")
-            .is_err()
+            .unwrap_err();
+    assert_eq!(
+        refusal(&error),
+        (
+            "route_not_supported",
+            "sensitivity_decision_composition.unsupported_adaptation: the declared contamination bound is empty"
+        )
     );
 
     let mut interval = joint_result(
@@ -525,4 +610,172 @@ fn the_producer_kind_is_recorded_text_and_keeps_its_own_identity() {
         assert_eq!(restored, artifact);
         assert_eq!(restored.outcome(), Some(&frozen_switch()));
     }
+}
+
+#[test]
+#[allow(
+    clippy::items_after_statements,
+    reason = "the fixture keeps its local helpers with their use"
+)]
+fn caller_intake_limits_refuse_what_the_defaults_admit() {
+    use antecedent_io::sensitivity_artifact::SensitivityLimits;
+    let defaults = SensitivityLimits::default();
+    let artifact = SensitivityArtifact::new_within(frozen_parts(), &defaults).expect("defaults");
+    let bytes = artifact.to_bytes("tight").expect("encode");
+    SensitivityArtifact::from_bytes_within(&bytes, None, &defaults).expect("default consume");
+
+    const BOUNDS: &str = "route_not_supported";
+    const ALL_THREE: &str = "sensitivity_decision_composition.bounds_exceeded: grid points, quantities or actions are outside the bounds";
+    const GRID_QUANTITY: &str = "sensitivity_decision_composition.bounds_exceeded: grid points or quantities are outside the bounds";
+    const EVALUATIONS: &str = "sensitivity_decision_composition.bounds_exceeded: the range vertices of the surface need more utility evaluations than the bound";
+    const DEPTH: &str = "sensitivity_decision_composition.invalid_surface: utility expression is too deep or not finite";
+    for (limits, built, consumed) in [
+        (
+            SensitivityLimits { max_grid_points: 2, ..defaults },
+            (BOUNDS, ALL_THREE),
+            (BOUNDS, GRID_QUANTITY),
+        ),
+        (
+            SensitivityLimits { max_quantities: 1, ..defaults },
+            (BOUNDS, ALL_THREE),
+            (BOUNDS, GRID_QUANTITY),
+        ),
+        (
+            SensitivityLimits { max_actions: 1, ..defaults },
+            (BOUNDS, ALL_THREE),
+            (BOUNDS, ALL_THREE),
+        ),
+        (
+            SensitivityLimits { max_scenario_evaluations: 0, ..defaults },
+            (BOUNDS, EVALUATIONS),
+            (BOUNDS, EVALUATIONS),
+        ),
+        (
+            SensitivityLimits { max_utility_depth: 0, ..defaults },
+            ("invalid_argument", DEPTH),
+            ("invalid_argument", DEPTH),
+        ),
+    ] {
+        let error = SensitivityArtifact::new_within(frozen_parts(), &limits).unwrap_err();
+        assert_eq!(refusal(&error), built, "{limits:?}");
+        let error = SensitivityArtifact::from_bytes_within(&bytes, None, &limits).unwrap_err();
+        assert_eq!(refusal(&error), consumed, "{limits:?}");
+    }
+    let tight = SensitivityLimits { max_bytes: bytes.len() - 1, ..defaults };
+    assert!(matches!(
+        SensitivityArtifact::from_bytes_within(&bytes, None, &tight),
+        Err(IoError::TooLarge)
+    ));
+    assert!(matches!(artifact.to_bytes_within("tight", bytes.len() - 1), Err(IoError::TooLarge)));
+    assert_eq!(artifact.to_bytes_within("tight", bytes.len()).expect("fits"), bytes);
+}
+
+/// A balanced sum of `leaves` copies of the quantity `ua`: `2 * leaves - 1` nodes at a depth of
+/// about `log2(leaves)`, so the depth bound alone never refuses it.
+fn balanced_sum(leaves: usize) -> UtilityTerm {
+    if leaves == 1 {
+        return UtilityTerm::quantity("ua");
+    }
+    let half = leaves / 2;
+    UtilityTerm::sum(balanced_sum(half), balanced_sum(leaves - half))
+}
+
+#[test]
+fn utility_trees_are_bounded_by_node_count_and_by_node_weighted_work() {
+    use antecedent_io::sensitivity_artifact::{MAX_SENSITIVITY_UTILITY_NODES, SensitivityLimits};
+    const BOUNDS: &str = "route_not_supported";
+    const NODES: &str = "sensitivity_decision_composition.bounds_exceeded: a utility expression has more nodes than the bound";
+    const NODE_WORK: &str = "sensitivity_decision_composition.bounds_exceeded: the utility expressions of the surface need more node evaluations than the bound";
+    assert_eq!(MAX_SENSITIVITY_UTILITY_NODES, 1024);
+    let with_first_action = |utility: UtilityTerm| {
+        let mut parts = frozen_parts();
+        parts.actions[0].utility = utility;
+        parts
+    };
+    // A negated sum of 512 leaves holds exactly 1024 nodes: admitted by the producer and by
+    // the consumer. A sum of 513 leaves holds 1025 and is refused one past the bound.
+    let at_bound = UtilityTerm::Neg(Box::new(balanced_sum(512)));
+    let artifact = SensitivityArtifact::new(with_first_action(at_bound)).expect("at the bound");
+    let bytes = artifact.to_bytes("nodes").expect("encode");
+    SensitivityArtifact::from_bytes(&bytes, None).expect("consume at the bound");
+    let error = SensitivityArtifact::new(with_first_action(balanced_sum(513))).unwrap_err();
+    assert_eq!(refusal(&error), (BOUNDS, NODES));
+
+    // The work is weighted by the nodes of every action: the frozen surface has three grid
+    // points, one vertex and two one-node actions, so it needs six node evaluations.
+    let defaults = SensitivityLimits::default();
+    let exact = SensitivityLimits { max_scenario_node_evaluations: 6, ..defaults };
+    SensitivityArtifact::new_within(frozen_parts(), &exact).expect("exact node work");
+    let tight = SensitivityLimits { max_scenario_node_evaluations: 5, ..defaults };
+    let error = SensitivityArtifact::new_within(frozen_parts(), &tight).unwrap_err();
+    assert_eq!(refusal(&error), (BOUNDS, NODE_WORK));
+    // A negated first action has two nodes, which raises the surface to nine node evaluations.
+    let wider = |utility: &str| {
+        let mut parts = frozen_parts();
+        parts.actions[0].utility = UtilityTerm::Neg(Box::new(UtilityTerm::quantity(utility)));
+        parts
+    };
+    let error = SensitivityArtifact::new_within(wider("ua"), &exact).unwrap_err();
+    assert_eq!(refusal(&error), (BOUNDS, NODE_WORK));
+    let nodes_one = SensitivityLimits { max_utility_nodes: 1, ..defaults };
+    SensitivityArtifact::new_within(frozen_parts(), &nodes_one).expect("one node each");
+    let error = SensitivityArtifact::new_within(wider("ua"), &nodes_one).unwrap_err();
+    assert_eq!(refusal(&error), (BOUNDS, NODES));
+}
+
+/// Construction check of the reported joint sampling interval: five replicates whose ranges are
+/// `[z - 0.6, z + 0.6]` about baselines `z = 0.4, 0.45, 0.5, 0.55, 0.6`, at level 0.5. The type-7
+/// quantile at 0.25 of five ordered values is exactly the second (position 1.0) and at 0.75 the
+/// fourth (position 3.0), so at box scale `s` the interval is
+/// `[0.45 - 0.6 s, 0.55 + 0.6 s]` on the grid `s = 0, 0.25, 0.5, 0.75, 1`.
+#[test]
+fn a_joint_result_with_endpoint_replicates_reports_its_sampling_interval_by_hand() {
+    let zeros = vec![0.4, 0.45, 0.5, 0.55, 0.6];
+    let interval = JointSensitivityInterval {
+        lower: -0.15,
+        upper: 1.15,
+        pointwise_at_zero: (0.45, 0.55),
+        level: 0.5,
+        method: "conservative_endpoint_percentile_bootstrap",
+        coverage_target: "one_sided",
+        replicates_requested: 5,
+        replicates_ok: 5,
+        replicates_failed: 0,
+        replicate_minima: zeros.iter().map(|z| z - 0.6).collect(),
+        replicate_maxima: zeros.iter().map(|z| z + 0.6).collect(),
+        replicate_baselines: zeros,
+        calibration: antecedent_io::contract_section::CalibrationSlotWire::not_measured(
+            "estimator_grid_not_measured",
+        ),
+    };
+    let result = joint_result(
+        vec![JointFactorBound { factor: JointFactor::OutcomeKernel, max_fraction: 0.4 }],
+        0.5,
+        (-0.1, 1.1),
+    )
+    .with_sampling_interval(interval);
+    let artifact = SensitivityArtifact::from_joint_result(
+        &result,
+        &scientific("effect"),
+        5,
+        adopt_against(-0.5),
+        "checked",
+    )
+    .unwrap();
+    let SamplingStatus::Reported(reported) = &artifact.uncertainty().sampling else {
+        panic!("the sampling interval is reported");
+    };
+    assert_eq!(reported.quantity, "effect");
+    assert!((reported.level - 0.5).abs() < 1e-15);
+    for (actual, expected) in reported.lower.iter().zip([0.45, 0.3, 0.15, 0.0, -0.15]) {
+        assert!((actual - expected).abs() <= 1e-12, "{actual} vs {expected}");
+    }
+    for (actual, expected) in reported.upper.iter().zip([0.55, 0.7, 0.85, 1.0, 1.15]) {
+        assert!((actual - expected).abs() <= 1e-12, "{actual} vs {expected}");
+    }
+    // Calibration annotates the interval; it never withholds it.
+    assert_eq!(reported.calibration.as_ref().unwrap().status, "not_measured");
+    // The assumption range itself is unchanged and stays separate.
+    assert_eq!(artifact.uncertainty().assumption_range.kind, "assumption_range");
+    assert_eq!(artifact.quantities()[0].upper[4].to_bits(), 1.1_f64.to_bits());
 }

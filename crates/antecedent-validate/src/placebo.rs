@@ -1,6 +1,6 @@
 //! Placebo treatment refuter.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -121,8 +121,9 @@ impl PlaceboTreatment {
             EstimationWorkspace::default,
             |problem, refit, workspace, ctx, r| {
                 let mut perm = factual.clone();
-                let mut rng =
-                    ctx.rng.stream(crate::streams::PLACEBO_SHUFFLE.wrapping_add(u64::from(r)));
+                let mut rng = ctx
+                    .rng
+                    .stream(crate::streams::replicate_stream(crate::streams::PLACEBO_SHUFFLE, r));
                 let mut shuffled = observed.clone();
                 shuffle(&mut rng, &mut shuffled);
                 for (&row, value) in eligible.iter().zip(shuffled) {

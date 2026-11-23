@@ -1,11 +1,11 @@
 //! Structured refusals for decision contracts, evaluation, structures and design.
 //!
 //! Each typed error maps to one registered reason code and a namespaced detail
-//! (`family.slot`). Every detail is a string literal so the promotion gate can
+//! (`family.slot`). Every detail is a string literal so the capability gate can
 //! match it against the declared refusals; nothing is parsed out of a message.
 //! The existing reason codes are unchanged.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ExternalRefusal;
 
@@ -37,45 +37,61 @@ impl DecisionContractError {
         let invalid = antecedent_core::reason_code!("invalid_argument");
         let quantity = antecedent_core::reason_code!("quantity_semantics_mismatch");
         match self {
-            Self::InvalidDeclaration(why) => {
-                refusal(invalid, "declare", "decision_contract.invalid_declaration")
-                    .expected(*why)
-                    .build()
-            }
-            Self::DuplicateId(id) => refusal(invalid, "declare", "decision_contract.duplicate_id")
-                .offending(id.clone())
-                .build(),
-            Self::InvalidQuantity { action, input } => {
-                refusal(quantity, "declare", "decision_contract.invalid_quantity")
-                    .offending(format!("{action}[{input}]"))
-                    .remedy("declare a complete scientific quantity for this input")
-                    .build()
-            }
-            Self::OutsideDecisionScope { action, input } => {
-                refusal(quantity, "declare", "decision_contract.outside_decision_scope")
-                    .offending(format!("{action}[{input}]"))
-                    .remedy("read inputs for the decision's target population and horizon")
-                    .build()
-            }
-            Self::UnknownInput(position) => {
-                refusal(invalid, "declare", "decision_contract.unknown_input")
-                    .offending(position.to_string())
-                    .build()
-            }
-            Self::UnknownAction(id) => {
-                refusal(invalid, "declare", "decision_contract.unknown_action")
-                    .offending(id.clone())
-                    .build()
-            }
-            Self::InvalidParameter(name) => {
-                refusal(invalid, "declare", "decision_contract.invalid_parameter")
-                    .offending(*name)
-                    .build()
-            }
+            Self::InvalidDeclaration(why) => refusal(
+                invalid,
+                "declare",
+                antecedent_core::reason_details::decision_contract::INVALID_DECLARATION,
+            )
+            .expected(*why)
+            .build(),
+            Self::DuplicateId(id) => refusal(
+                invalid,
+                "declare",
+                antecedent_core::reason_details::decision_contract::DUPLICATE_ID,
+            )
+            .offending(id.clone())
+            .build(),
+            Self::InvalidQuantity { action, input } => refusal(
+                quantity,
+                "declare",
+                antecedent_core::reason_details::decision_contract::INVALID_QUANTITY,
+            )
+            .offending(format!("{action}[{input}]"))
+            .remedy("declare a complete scientific quantity for this input")
+            .build(),
+            Self::OutsideDecisionScope { action, input } => refusal(
+                quantity,
+                "declare",
+                antecedent_core::reason_details::decision_contract::OUTSIDE_DECISION_SCOPE,
+            )
+            .offending(format!("{action}[{input}]"))
+            .remedy("read inputs for the decision's target population and horizon")
+            .build(),
+            Self::UnknownInput(position) => refusal(
+                invalid,
+                "declare",
+                antecedent_core::reason_details::decision_contract::UNKNOWN_INPUT,
+            )
+            .offending(position.to_string())
+            .build(),
+            Self::UnknownAction(id) => refusal(
+                invalid,
+                "declare",
+                antecedent_core::reason_details::decision_contract::UNKNOWN_ACTION,
+            )
+            .offending(id.clone())
+            .build(),
+            Self::InvalidParameter(name) => refusal(
+                invalid,
+                "declare",
+                antecedent_core::reason_details::decision_contract::INVALID_PARAMETER,
+            )
+            .offending(*name)
+            .build(),
             Self::MissingSource { needed } => refusal(
                 antecedent_core::reason_code!("decision_contract_unsatisfied"),
                 "declare",
-                "decision_contract.missing_source",
+                antecedent_core::reason_details::decision_contract::MISSING_SOURCE,
             )
             .expected(needed.iter().map(|r| representation_name(*r)).collect::<Vec<_>>().join(","))
             .remedy("supply one of the needed source representations")
@@ -94,7 +110,7 @@ impl DecisionEvalError {
             Self::Contract(error) => at_stage(error.to_refusal(), "evaluate"),
             Self::JointLawRequired { action, supplied_alignment } => at(
                 antecedent_core::reason_code!("joint_law_required"),
-                "decision_evaluation.joint_law_required",
+                antecedent_core::reason_details::decision_evaluation::JOINT_LAW_REQUIRED,
             )
             .offending_opt(action.clone())
             .expected("joint")
@@ -102,40 +118,46 @@ impl DecisionEvalError {
             .remedy("supply aligned joint draws, not independent marginals")
             .build(),
             Self::QuantityNotFound { action, input } => {
-                at(quantity, "decision_evaluation.quantity_not_found")
+                at(quantity, antecedent_core::reason_details::decision_evaluation::QUANTITY_NOT_FOUND)
                     .offending(format!("{action}[{input}]"))
                     .remedy("supply a source coordinate with this input's exact quantity")
                     .build()
             }
             Self::UnsupportedCoordinate { action, input } => {
-                at(quantity, "decision_evaluation.unsupported_coordinate")
+                at(quantity, antecedent_core::reason_details::decision_evaluation::UNSUPPORTED_COORDINATE)
                     .offending(format!("{action}[{input}]"))
                     .remedy("supply support for this coordinate or remove the action")
                     .build()
             }
             Self::MeaningMismatch { action, input } => at(
                 antecedent_core::reason_code!("distribution_meaning_mismatch"),
-                "decision_evaluation.distribution_meaning",
+                antecedent_core::reason_details::decision_evaluation::DISTRIBUTION_MEANING,
             )
             .offending(format!("{action}[{input}]"))
             .remedy("supply interventional predictive draws for outcome-law inputs")
             .build(),
+            Self::AnalyticLawUnsupported(why) => at(
+                antecedent_core::reason_code!("route_not_supported"),
+                antecedent_core::reason_details::decision_evaluation::ANALYTIC_LAW_UNSUPPORTED,
+            ).expected(*why)
+            .remedy("use an affine risk functional or quadratic utility on one Gaussian outcome, or supply an explicitly joint law to the draw evaluator")
+            .build(),
             Self::StructureInputsRequired(why) => at(
                 antecedent_core::reason_code!("route_not_supported"),
-                "decision_evaluation.structure_inputs_required",
+                antecedent_core::reason_details::decision_evaluation::STRUCTURE_INPUTS_REQUIRED,
             )
             .expected(*why)
             .remedy("evaluate under structures with evaluate_structural")
             .build(),
             Self::NonFiniteUtility { action } => at(
                 antecedent_core::reason_code!("decision_contract_unsatisfied"),
-                "decision_evaluation.non_finite_utility",
+                antecedent_core::reason_details::decision_evaluation::NON_FINITE_UTILITY,
             )
             .offending(action.clone())
             .build(),
             Self::MeanSourceInsufficient { needed } => at(
                 antecedent_core::reason_code!("decision_contract_unsatisfied"),
-                "decision_evaluation.mean_source_insufficient",
+                antecedent_core::reason_details::decision_evaluation::MEAN_SOURCE_INSUFFICIENT,
             )
             .expected(needed.iter().map(|r| representation_name(*r)).collect::<Vec<_>>().join(","))
             .supplied("mean")
@@ -157,20 +179,22 @@ impl StructuralError {
             Self::Contract(error) => at_stage(error.to_refusal(), "structural"),
             Self::InvalidAtoms => at(
                 antecedent_core::reason_code!("invalid_argument"),
-                "decision_structural.invalid_atoms",
+                antecedent_core::reason_details::decision_structural::INVALID_ATOMS,
             )
             .remedy("supply at least one structure with a distinct, non-blank identity")
             .build(),
-            Self::InvalidProbabilities => {
-                at(unsatisfied, "decision_structural.invalid_probabilities")
-                    .remedy("give every structure a finite positive probability summing to one")
-                    .build()
-            }
-            Self::ProbabilitiesRequired => {
-                at(unsatisfied, "decision_structural.probabilities_required")
-                    .remedy("supply genuine structure probabilities for Bayes over structures")
-                    .build()
-            }
+            Self::InvalidProbabilities => at(
+                unsatisfied,
+                antecedent_core::reason_details::decision_structural::INVALID_PROBABILITIES,
+            )
+            .remedy("give every structure a finite positive probability summing to one")
+            .build(),
+            Self::ProbabilitiesRequired => at(
+                unsatisfied,
+                antecedent_core::reason_details::decision_structural::PROBABILITIES_REQUIRED,
+            )
+            .remedy("supply genuine structure probabilities for Bayes over structures")
+            .build(),
         }
     }
 }
@@ -185,6 +209,12 @@ impl DesignError {
         let invalid = antecedent_core::reason_code!("invalid_argument");
         let at = |code, detail: &str| refusal(code, "design", detail);
         match self {
+            Self::Resource(message) => at(
+                antecedent_core::reason_code!("execution_resource_limit"),
+                "design_refusal.resource",
+            )
+            .supplied(message.clone())
+            .build(),
             Self::EmptyCandidates => at(invalid, "design_refusal.empty_candidates").build(),
             Self::EmptyPosterior => at(invalid, "design_refusal.empty_posterior").build(),
             Self::Shape(message) => {
@@ -211,6 +241,13 @@ impl DesignError {
             )
             .offending(name.clone())
             .supplied(message.clone())
+            .build(),
+            Self::CallbackFailed { name, failure } => at(
+                antecedent_core::reason_code!("decision_contract_unsatisfied"),
+                "design_refusal.callback",
+            )
+            .offending(name.clone())
+            .supplied(failure.to_string())
             .build(),
             Self::Cancelled => {
                 at(antecedent_core::reason_code!("cancelled_no_claim"), "design_refusal.cancelled")
@@ -289,7 +326,7 @@ mod tests {
             &value,
             "decision_contract_unsatisfied",
             "declare",
-            "decision_contract.missing_source",
+            antecedent_core::reason_details::decision_contract::MISSING_SOURCE,
             None,
         );
         assert_eq!(value.expected.as_deref(), Some("joint_draws,mean_and_covariance"));
@@ -309,7 +346,7 @@ mod tests {
             &value,
             "joint_law_required",
             "evaluate",
-            "decision_evaluation.joint_law_required",
+            antecedent_core::reason_details::decision_evaluation::JOINT_LAW_REQUIRED,
             Some("risky"),
         );
         assert_eq!(value.expected.as_deref(), Some("joint"));
@@ -322,7 +359,7 @@ mod tests {
             &value,
             "quantity_semantics_mismatch",
             "evaluate",
-            "decision_evaluation.quantity_not_found",
+            antecedent_core::reason_details::decision_evaluation::QUANTITY_NOT_FOUND,
             Some("treat[2]"),
         );
         let value = E::UnsupportedCoordinate { action: a(), input: 0 }.to_refusal();
@@ -330,7 +367,7 @@ mod tests {
             &value,
             "quantity_semantics_mismatch",
             "evaluate",
-            "decision_evaluation.unsupported_coordinate",
+            antecedent_core::reason_details::decision_evaluation::UNSUPPORTED_COORDINATE,
             Some("treat[0]"),
         );
         let value = E::MeaningMismatch { action: a(), input: 1 }.to_refusal();
@@ -338,7 +375,7 @@ mod tests {
             &value,
             "distribution_meaning_mismatch",
             "evaluate",
-            "decision_evaluation.distribution_meaning",
+            antecedent_core::reason_details::decision_evaluation::DISTRIBUTION_MEANING,
             Some("treat[1]"),
         );
         assert_eq!(
@@ -350,7 +387,7 @@ mod tests {
             &value,
             "route_not_supported",
             "evaluate",
-            "decision_evaluation.structure_inputs_required",
+            antecedent_core::reason_details::decision_evaluation::STRUCTURE_INPUTS_REQUIRED,
             None,
         );
         assert_eq!(value.expected.as_deref(), Some("regret"));
@@ -360,7 +397,7 @@ mod tests {
             &value,
             "decision_contract_unsatisfied",
             "evaluate",
-            "decision_evaluation.non_finite_utility",
+            antecedent_core::reason_details::decision_evaluation::NON_FINITE_UTILITY,
             Some("treat"),
         );
         let nested = E::Contract(DecisionContractError::UnknownInput(1)).to_refusal();
@@ -368,7 +405,7 @@ mod tests {
             &nested,
             "invalid_argument",
             "evaluate",
-            "decision_contract.unknown_input",
+            antecedent_core::reason_details::decision_contract::UNKNOWN_INPUT,
             Some("1"),
         );
         for error in [joint(None), E::StructureInputsRequired("x")] {
@@ -381,16 +418,28 @@ mod tests {
         use StructuralError as E;
         let unsatisfied = "decision_contract_unsatisfied";
         let value = E::InvalidAtoms.to_refusal();
-        check(&value, "invalid_argument", "structural", "decision_structural.invalid_atoms", None);
+        check(
+            &value,
+            "invalid_argument",
+            "structural",
+            antecedent_core::reason_details::decision_structural::INVALID_ATOMS,
+            None,
+        );
         assert!(value.remedy.is_some());
         let value = E::InvalidProbabilities.to_refusal();
-        check(&value, unsatisfied, "structural", "decision_structural.invalid_probabilities", None);
+        check(
+            &value,
+            unsatisfied,
+            "structural",
+            antecedent_core::reason_details::decision_structural::INVALID_PROBABILITIES,
+            None,
+        );
         let value = E::ProbabilitiesRequired.to_refusal();
         check(
             &value,
             unsatisfied,
             "structural",
-            "decision_structural.probabilities_required",
+            antecedent_core::reason_details::decision_structural::PROBABILITIES_REQUIRED,
             None,
         );
         assert!(value.remedy.is_some());
@@ -399,7 +448,7 @@ mod tests {
             &nested,
             "invalid_argument",
             "structural",
-            "decision_contract.duplicate_id",
+            antecedent_core::reason_details::decision_contract::DUPLICATE_ID,
             Some("t"),
         );
         for error in [E::InvalidAtoms, E::InvalidProbabilities, E::ProbabilitiesRequired] {
@@ -413,6 +462,12 @@ mod tests {
         let unsatisfied = "decision_contract_unsatisfied";
         let cases = [
             (DesignError::EmptyCandidates, invalid, "design_refusal.empty_candidates", None),
+            (
+                DesignError::Resource("worker unavailable".into()),
+                "execution_resource_limit",
+                "design_refusal.resource",
+                Some("worker unavailable"),
+            ),
             (DesignError::EmptyPosterior, invalid, "design_refusal.empty_posterior", None),
             (DesignError::Shape("s".into()), invalid, "design_refusal.shape", Some("s")),
             (DesignError::Config("c".into()), invalid, "design_refusal.config", Some("c")),

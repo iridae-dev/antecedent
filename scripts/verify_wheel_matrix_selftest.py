@@ -12,8 +12,12 @@ STALE_VERSION = "9.8.6"
 with tempfile.TemporaryDirectory() as temp:
     root = Path(temp)
     for minor in (11, 12, 13, 14):
-        for platform in ("manylinux_2_17_x86_64", "manylinux_2_17_aarch64",
-                         "macosx_11_0_arm64", "win_amd64"):
+        for platform in (
+            "manylinux_2_17_x86_64",
+            "manylinux_2_17_aarch64",
+            "macosx_11_0_arm64",
+            "win_amd64",
+        ):
             (root / f"antecedent-{VERSION}-cp3{minor}-cp3{minor}-{platform}.whl").touch()
     assert not problems(root, VERSION)
 

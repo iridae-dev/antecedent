@@ -11,7 +11,7 @@
 //! the matrix names is its own test, because evidence for one does not
 //! transfer to another.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::needless_range_loop,
@@ -27,7 +27,7 @@ use std::collections::BTreeMap;
 use antecedent_kernels::{norm_pdf, norm_sf};
 use antecedent_stats::adaptive_inference::{
     AdaptiveInferenceError as Error, AssignmentRule, Attribution, BetaPosterior, BetaPrior,
-    ContractGap, DERIVED_UNMEASURED, Estimand, EstimandStatement, ExposureModel, FinalSelection,
+    ContractGap, DERIVED_NOT_MEASURED, Estimand, EstimandStatement, ExposureModel, FinalSelection,
     Functional, InversionGrid, ObservedTerminal, OutcomeKernel, OutcomeModelPrior,
     OutcomeObservation, ProcedureDeclaration, ProcedureSpec, Sidedness, SimulationRequest,
     SpendingFunction, StagewiseLook, StoppingRule, UncertaintyParadigm, WeightScheme, admit,
@@ -186,32 +186,32 @@ fn every_missing_element_of_the_procedure_is_its_own_refusal() {
         (
             |d| d.assignment = None,
             ContractGap::AssignmentPolicyMissing,
-            "adaptive_inference.policy_history_missing",
+            antecedent_core::reason_details::adaptive_inference::POLICY_HISTORY_MISSING,
         ),
         (
             |d| d.enrolment = None,
             ContractGap::EnrolmentScheduleMissing,
-            "adaptive_inference.interim_analyses_missing",
+            antecedent_core::reason_details::adaptive_inference::INTERIM_ANALYSES_MISSING,
         ),
         (
             |d| d.observation = None,
             ContractGap::OutcomeObservationMissing,
-            "adaptive_inference.outcome_availability_missing",
+            antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_MISSING,
         ),
         (
             |d| d.exposure = None,
             ContractGap::ExposureModelMissing,
-            "adaptive_inference.exposure_history_missing",
+            antecedent_core::reason_details::adaptive_inference::EXPOSURE_HISTORY_MISSING,
         ),
         (
             |d| d.stopping = None,
             ContractGap::StoppingRuleMissing,
-            "adaptive_inference.stopping_rule_missing",
+            antecedent_core::reason_details::adaptive_inference::STOPPING_RULE_MISSING,
         ),
         (
             |d| d.selection = None,
             ContractGap::FinalSelectionMissing,
-            "adaptive_inference.policy_selection_missing",
+            antecedent_core::reason_details::adaptive_inference::POLICY_SELECTION_MISSING,
         ),
     ];
     for (remove, gap, detail) in cases {
@@ -241,12 +241,22 @@ fn inconsistent_elements_are_refused_with_their_own_details() {
     };
     let base = declaration(thompson(), vec![2, 2]);
     let gaps = invalid(base.clone(), |d| d.enrolment = Some(vec![0, 3]));
-    assert_eq!(gaps, vec![ContractGap::Invalid("adaptive_inference.looks_not_ordered")]);
+    assert_eq!(
+        gaps,
+        vec![ContractGap::Invalid(
+            antecedent_core::reason_details::adaptive_inference::LOOKS_NOT_ORDERED
+        )]
+    );
     let gaps = invalid(base.clone(), |d| {
         d.observation =
             Some(OutcomeObservation { lag_looks: 1, retain_success: 0.0, retain_failure: 1.0 });
     });
-    assert_eq!(gaps, vec![ContractGap::Invalid("adaptive_inference.outcome_availability_invalid")]);
+    assert_eq!(
+        gaps,
+        vec![ContractGap::Invalid(
+            antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_INVALID
+        )]
+    );
     let gaps = invalid(base.clone(), |d| {
         d.exposure = Some(ExposureModel {
             failure_probability: vec![0.1, 0.1],
@@ -254,7 +264,12 @@ fn inconsistent_elements_are_refused_with_their_own_details() {
             attribution: Attribution::Delivered,
         });
     });
-    assert_eq!(gaps, vec![ContractGap::Invalid("adaptive_inference.exposure_invalid")]);
+    assert_eq!(
+        gaps,
+        vec![ContractGap::Invalid(
+            antecedent_core::reason_details::adaptive_inference::EXPOSURE_INVALID
+        )]
+    );
     // Boundaries need one critical value per look and two arms.
     let gaps = invalid(base.clone(), |d| {
         d.stopping = Some(StoppingRule::WaldBoundaries {
@@ -262,11 +277,21 @@ fn inconsistent_elements_are_refused_with_their_own_details() {
             sidedness: Sidedness::OneSidedUpper,
         });
     });
-    assert_eq!(gaps, vec![ContractGap::Invalid("adaptive_inference.rule_mismatch")]);
+    assert_eq!(
+        gaps,
+        vec![ContractGap::Invalid(
+            antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH
+        )]
+    );
     let gaps = invalid(base, |d| {
         d.assignment = Some(AssignmentRule::Fixed { probabilities: vec![0.7, 0.7] });
     });
-    assert_eq!(gaps, vec![ContractGap::Invalid("adaptive_inference.rule_mismatch")]);
+    assert_eq!(
+        gaps,
+        vec![ContractGap::Invalid(
+            antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH
+        )]
+    );
 }
 
 #[test]
@@ -369,7 +394,12 @@ fn thompson_with_an_exploration_floor_clamps_the_enumerated_probabilities() {
         let rule =
             AssignmentRule::ThompsonBetaFloored { prior: BetaPrior::UNIFORM, min_probability: bad };
         let refused = ProcedureSpec::new(declaration(rule, vec![1, 1])).unwrap_err();
-        assert_eq!(refused.gaps, vec![ContractGap::Invalid("adaptive_inference.rule_mismatch")]);
+        assert_eq!(
+            refused.gaps,
+            vec![ContractGap::Invalid(
+                antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH
+            )]
+        );
     }
 }
 
@@ -479,7 +509,9 @@ fn futility_stops_on_the_enumerated_exceedance_probability_and_decides_for_the_c
             Some(StoppingRule::PosteriorFutility { margin, threshold, prior: BetaPrior::UNIFORM });
         assert_eq!(
             ProcedureSpec::new(bad).unwrap_err().gaps,
-            vec![ContractGap::Invalid("adaptive_inference.rule_mismatch")]
+            vec![ContractGap::Invalid(
+                antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH
+            )]
         );
     }
 }
@@ -802,7 +834,7 @@ fn bayesian_report_matches_closed_forms() {
     let spec = build(declaration(thompson(), vec![1, 1]));
     // Arm 0: 3 successes, 1 failure -> Beta(4, 2); arm 1: Beta(2, 2).
     let report = bayesian_report(&spec, BetaPrior::UNIFORM, &[3, 1, 1, 1], &never).unwrap();
-    assert_eq!(report.calibration, DERIVED_UNMEASURED);
+    assert_eq!(report.calibration, DERIVED_NOT_MEASURED);
     close(report.posteriors[0].mean(), 4.0 / 6.0, 1e-15, "posterior mean");
     let best_zero = 1.0 - miller_b_exceeds_a((4, 2), (2, 2));
     close(report.probability_best[0], best_zero, 1e-9, "probability best");
@@ -834,7 +866,7 @@ fn expected_loss_rule_decides_at_the_first_look_with_closed_form_regret() {
     close(report.decision_probabilities[0], decide_zero, 1e-9, "decide arm 0");
     close(report.wrong_decision_probability, decide_zero, 1e-9, "wrong decision");
     close(report.expected_regret, decide_zero * 0.3, 1e-9, "regret");
-    assert_eq!(report.calibration, DERIVED_UNMEASURED);
+    assert_eq!(report.calibration, DERIVED_NOT_MEASURED);
     // A fixed-sample design is not a decision-theoretic procedure.
     let plain = build(declaration(fixed_half(), vec![2]));
     assert!(matches!(decision_report(&plain, &truth, &never), Err(Error::PremiseFailed { .. })));
@@ -916,7 +948,10 @@ fn anytime_premise_fails_for_contexts() {
     let spec = build(d);
     assert!(matches!(
         admit(&spec, UncertaintyParadigm::AnytimeValidFrequentist),
-        Err(Error::PremiseFailed { detail: "adaptive_inference.anytime_premise_contexts", .. })
+        Err(Error::PremiseFailed {
+            detail: antecedent_core::reason_details::adaptive_inference::ANYTIME_PREMISE_CONTEXTS,
+            ..
+        })
     ));
 }
 
@@ -927,7 +962,11 @@ fn fixed_sample_and_group_sequential_are_refused_for_adaptive_designs() {
     let adaptive = build(declaration(thompson(), vec![5, 5]));
     assert!(matches!(
         admit(&adaptive, UncertaintyParadigm::FrequentistFixedSample),
-        Err(Error::PremiseFailed { detail: "adaptive_inference.fixed_sample_design_adaptive", .. })
+        Err(Error::PremiseFailed {
+            detail:
+                antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_DESIGN_ADAPTIVE,
+            ..
+        })
     ));
     let mut d = declaration(thompson(), vec![5, 5]);
     d.stopping = Some(StoppingRule::WaldBoundaries {
@@ -937,7 +976,7 @@ fn fixed_sample_and_group_sequential_are_refused_for_adaptive_designs() {
     assert!(matches!(
         admit(&build(d), UncertaintyParadigm::FrequentistGroupSequential),
         Err(Error::PremiseFailed {
-            detail: "adaptive_inference.group_sequential_assignment_adaptive",
+            detail: antecedent_core::reason_details::adaptive_inference::GROUP_SEQUENTIAL_ASSIGNMENT_ADAPTIVE,
             ..
         })
     ));
@@ -946,7 +985,7 @@ fn fixed_sample_and_group_sequential_are_refused_for_adaptive_designs() {
     assert!(matches!(
         admit(&build(data_dependent), UncertaintyParadigm::FrequentistFixedSample),
         Err(Error::PremiseFailed {
-            detail: "adaptive_inference.fixed_sample_data_dependent_stopping",
+            detail: antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_DATA_DEPENDENT_STOPPING,
             ..
         })
     ));
@@ -1068,7 +1107,7 @@ fn inversion_matches_the_enumerated_supremum_tests() {
         InversionGrid { contrasts: vec![-0.4, 0.0, 0.2, 0.4, 0.8], baselines: vec![0.1, 0.3, 0.5] };
     let alpha = 0.3;
     let interval = inversion_interval(&spec, &observed, &grid, alpha, &never).unwrap();
-    assert_eq!(interval.calibration, DERIVED_UNMEASURED);
+    assert_eq!(interval.calibration, DERIVED_NOT_MEASURED);
     // Independent enumeration of the supremum tail probabilities.
     let choose = |n: u32, k: u32| -> f64 {
         (0..k).fold(1.0, |acc, i| acc * f64::from(n - i) / f64::from(i + 1))

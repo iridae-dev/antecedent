@@ -5,7 +5,7 @@
 //! per outer fold, folds x strata for the joint cell), and the counted folds are checked
 //! against the folds an executed run records.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{
     BatchRetargetRequest, BatchStudy, EstimatorId, RefuteSuite, RetargetClaim, RetargetContrast,
@@ -74,12 +74,12 @@ fn study(
 
 fn ridge(grid: &[f64], inner_folds: usize) -> AipwAte {
     AipwAte {
-        bootstrap_replicates: 0,
         propensity: PropensityNuisance::ridge_logistic(
             RidgeTuning::new(grid, inner_folds).unwrap(),
         ),
         ..AipwAte::new()
     }
+    .with_bootstrap_replicates(0)
 }
 
 /// 3 penalties x (4 inner folds + 1 refit) = 15 propensity fits per outer fold, over 5 folds:
@@ -101,7 +101,7 @@ fn penalized_aipw_cost_is_the_grid_times_inner_folds_per_outer_fold() {
     assert!(cost.seconds.is_none() && !cost.seconds_basis.is_empty());
 
     let result = study.run(&ctx).unwrap();
-    let effect = result.estimate.as_effect().unwrap();
+    let effect = result.estimate().as_effect().unwrap();
     assert_eq!(effect.crossfit.folds, cost.crossfit_folds.map(|f| usize::try_from(f).unwrap()));
     assert_eq!(
         effect.crossfit.learner_provenance.len(),
@@ -133,13 +133,10 @@ fn study_cost(
 fn clustered_dml_cost_counts_folds_and_whole_clusters() {
     let (data, graph) = data_and_graph(400, 4);
     let clusters: Vec<u32> = (0..400_u32).map(|i| i / 10).collect();
-    let plain = study_cost(&data, &graph, AipwAte { bootstrap_replicates: 0, ..AipwAte::new() });
-    let declared = AipwAte {
-        bootstrap_replicates: 0,
-        cluster_ids: Some(clusters),
-        cluster_dml: Some(ClusterDml::new(20).unwrap()),
-        ..AipwAte::new()
-    };
+    let plain = study_cost(&data, &graph, AipwAte::new().with_bootstrap_replicates(0));
+    let declared = AipwAte { cluster_dml: Some(ClusterDml::new(20).unwrap()), ..AipwAte::new() }
+        .with_bootstrap_replicates(0)
+        .with_cluster_ids(clusters);
     let cost = study_cost(&data, &graph, declared);
     assert_eq!(cost.fit_route, "aipw.cluster_dml(unit=cluster)");
     assert_eq!(cost.cluster_labels, Some(40));
@@ -168,7 +165,7 @@ fn dml_cost_uses_the_declared_folds_and_score() {
 
     let ctx = ExecutionContext::for_tests(5);
     let result = study(&data, &graph, DmlAte::new().with_folds(7)).run(&ctx).unwrap();
-    assert_eq!(result.estimate.as_effect().unwrap().crossfit.folds, Some(7));
+    assert_eq!(result.estimate().as_effect().unwrap().crossfit.folds, Some(7));
 }
 
 /// A retarget fits nothing: the cost is the claim, contrast and row counts the reweighting reads.
@@ -268,9 +265,15 @@ fn a_declaration_the_fit_refuses_is_not_costed() {
     let config = FactorizedJointConfig::new(RidgeTuning::default());
     for orderings in [vec![], vec![vec![0, 1], vec![0, 1]], vec![vec![0, 0]]] {
         let error = estimate_joint_cell_cost(&config, 2, &orderings, None).unwrap_err();
-        assert!(error.to_string().contains("joint_cells.ordering"), "{error}");
+        assert!(
+            error.to_string().contains(antecedent_core::reason_details::joint_cells::ORDERING),
+            "{error}"
+        );
     }
     let bad = FactorizedJointConfig { folds: 1, ..config };
     let error = estimate_joint_cell_cost(&bad, 2, &[vec![0, 1]], None).unwrap_err();
-    assert!(error.to_string().contains("joint_cells.config"), "{error}");
+    assert!(
+        error.to_string().contains(antecedent_core::reason_details::joint_cells::CONFIG),
+        "{error}"
+    );
 }

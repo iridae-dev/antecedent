@@ -1,8 +1,87 @@
 {
+  "oracle": {
+    "kind": "enumeration",
+    "method": "enumeration of 640 exogenous configurations",
+    "independence_basis": "Enumeration of the 640 exogenous configurations recovers the observational law; the interventional response E[Y|do(a1,a2)] under a target S0 law is integrated from the structural probabilities and equals the g-formula applied to the enumerated observational counts, for both target laws; the additive paired-candidate response 7.165 and paired effect 5 are derived from the stated additive model with balanced histories. Responses are integrated directly from the structural equations and cross-checked by an independent g-formula over enumerated counts; no Antecedent code, identification routine or fit is used. The additive candidate arithmetic depends on the 'balanced complete histories' statement of the fixture.",
+    "generator": "conformance/recalculation/temporal_history/reference.py",
+    "command": "uv run --frozen --script conformance/recalculation/temporal_history/reference.py --check",
+    "environment_lock": "conformance/recalculation/temporal_history/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "target response and effect pins for P(S0=1)=0.8 and 0.25",
+      "paired additive candidate response_11 and effect_11_vs_00"
+    ],
+    "context_only_outputs": [
+      "control_first_unit_y_to_zero (adapter perturbation control, not a structural quantity)",
+      "effect_10_vs_01 and non-asserted response entries (verified here)",
+      "scope, rule and coordinate-order labels"
+    ],
+    "historical_exposure": "Written during this review from the fixture README and the asserting tests; no product implementation source was consulted. Authorship of the original enumeration is unrecorded.",
+    "reference_review": {
+      "scope": "One binary two-step DAG with an S0 initial-state shift; 640 exogenous cells, exact rational responses compared at 1e-12.",
+      "independence_basis": "Responses are integrated directly from the structural equations and cross-checked by an independent g-formula over enumerated counts; no Antecedent code, identification routine or fit is used. The additive candidate arithmetic depends on the 'balanced complete histories' statement of the fixture.",
+      "historical_exposure": "Written during this review from the fixture README and the asserting tests; no product implementation source was consulted. Authorship of the original enumeration is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Binary structure, point values only; the perturbation pin is unreviewed; the intervals of the temporal route are separately attested elsewhere and not touched by this fixture. Calibration not_measured.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/recalculation/temporal_history/reference.py",
+          "sha256": "8b9283146551e0554457d7409486782c8cd09cc9c2538c4d6304627c4d8d7e34"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/recalculation/temporal_history/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/recalc_temporal.rs",
+          "items": [
+            "fn checked_response_retired_intervals_refuse_before_resampling",
+            "fn close",
+            "fn ctx",
+            "fn effect",
+            "fn mean",
+            "fn pin",
+            "fn request",
+            "fn run",
+            "fn temporal_history_artifact_rechecks_resealed_data_and_binds_unit_ownership",
+            "fn temporal_history_closed_candidate_replays_whole_unit_identities_without_coverage_claim",
+            "fn temporal_history_empirical_artifact_is_independently_checked_from_raw_units",
+            "fn temporal_history_new_sequence_and_new_raw_histories_invalidate_only_real_work",
+            "fn temporal_history_portable_flags_cannot_supply_fits_and_raw_resume_rebuilds",
+            "fn temporal_history_resource_window_and_support_refusals_preserve_previous_fit",
+            "fn temporal_history_response_and_effect_match_enumerated_longitudinal_truth",
+            "fn temporal_history_source_program_uses_only_reachable_actual_observational_source_leaves",
+            "fn temporal_history_uncertainty_rejects_not_measured_scope_and_checks_graph",
+            "fn temporal_history_unchanged_utility_and_initial_law_reuse_actual_source_fits"
+          ],
+          "sha256": "14854138b7c230d0e673b369055237d912166c26ebda33fba319eb922ffdeffc"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-estimate/src/temporal_history_fit.rs",
+          "items": [
+            "fn unit"
+          ],
+          "sha256": "87d76c500882f7d0194f7fb97974656b361f99fb05f760d0d9e8f3f4725aacff"
+        }
+      ],
+      "fixture_payload_sha256": "79d2a5245aac4810b0724df3c7d68a30bd306293584dc006afaed69d942d7284"
+    }
+  },
   "case": "observational_dag_root_initial_state_shift",
   "rule": "dag_root_initial_shift_v1",
   "scope": "binary two-step DAG; root S0 is the only population-varying mechanism; empirical point only",
-  "coordinate_order": ["s0", "a1", "l2", "a2", "y"],
+  "coordinate_order": [
+    "s0",
+    "a1",
+    "l2",
+    "a2",
+    "y"
+  ],
   "source_units": 640,
   "identical_histories_per_unit": 2,
   "structural_model": {
@@ -38,6 +117,6 @@
     "effect_11_vs_00": 5.0,
     "model": "1+s0+2*a1+3*a2+0.5*l2+0.01*unit; balanced complete histories duplicated within unit",
     "replicates": 20,
-    "calibration": "unmeasured"
+    "calibration": "not_measured"
   }
 }

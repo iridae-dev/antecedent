@@ -23,7 +23,7 @@
 //! replay; [`decode_policy_program`] has no implementations to offer and refuses a
 //! program that needs them.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -111,6 +111,20 @@ pub fn policy_program_identity(interventions: &[Intervention]) -> Result<[u8; 32
     payload_digest_of(identity_kind(recoverable), &wires)
 }
 
+/// Canonical identity of a portable expression in the existing programmable syntax.
+///
+/// This identifies the expression tree and exact variable IDs; feature scale and column
+/// bindings belong to the enclosing compiled program. No fake intervention target is needed.
+///
+/// # Errors
+/// Malformed expressions, runtime-bound callbacks or wire encoding failures are refused.
+pub fn value_expression_identity(expr: &antecedent_core::ValueExpr) -> Result<[u8; 32], IoError> {
+    expr.validate_program(true, &expr.reads())
+        .map_err(|error| IoError::Convert(error.to_string()))?;
+    let wire = ValueExprWire::from_domain(expr)?;
+    payload_digest_of("value_expression.v1", &wire)
+}
+
 /// Encode a program with its encoding version and identity.
 ///
 /// # Errors
@@ -129,7 +143,7 @@ pub fn encode_policy_program(interventions: &[Intervention]) -> Result<Vec<u8>, 
         interventions,
     };
     let mut bytes = POLICY_PROGRAM_MAGIC.to_vec();
-    ciborium::into_writer(&envelope, &mut bytes).map_err(|e| IoError::Cbor(e.to_string()))?;
+    ciborium::into_writer(&envelope, &mut bytes).map_err(IoError::cbor_encode)?;
     if bytes.len() > POLICY_PROGRAM_MAX_BYTES {
         return Err(IoError::TooLarge);
     }
@@ -138,28 +152,32 @@ pub fn encode_policy_program(interventions: &[Intervention]) -> Result<Vec<u8>, 
 
 /// Read the envelope and verify version, identity and shape. The interventions are not yet
 /// decoded.
+#[allow(clippy::items_after_statements, reason = "the local helper is scoped to the validation")]
 fn open_envelope(bytes: &[u8]) -> Result<PolicyProgramEnvelope, IoError> {
     if bytes.len() > POLICY_PROGRAM_MAX_BYTES {
         return Err(IoError::TooLarge);
     }
     let body = bytes.strip_prefix(POLICY_PROGRAM_MAGIC).ok_or(IoError::BadMagic)?;
-    let value: ciborium::Value =
-        ciborium::from_reader(body).map_err(|e| IoError::Cbor(e.to_string()))?;
-    let version = value
-        .as_map()
-        .and_then(|entries| {
-            entries.iter().find_map(|(key, found)| {
-                (key.as_text() == Some("version")).then(|| found.as_integer())
-            })
-        })
-        .flatten()
-        .and_then(|raw| u32::try_from(i128::from(raw)).ok())
-        .ok_or(IoError::ManifestMismatch { message: "policy program has no encoding version" })?;
+    // Read the version alone first so an unsupported encoding is refused before the
+    // body is interpreted, without building a value tree of every expression.
+    #[derive(Deserialize)]
+    struct Peek {
+        version: Option<u64>,
+    }
+    let no_version =
+        IoError::ManifestMismatch { message: "policy program has no encoding version" };
+    let version = match ciborium::from_reader::<Peek, _>(body) {
+        Ok(peek) => peek.version,
+        Err(ciborium::de::Error::Semantic(..)) => return Err(no_version),
+        Err(error) => return Err(IoError::cbor_decode(error)),
+    }
+    .and_then(|raw| u32::try_from(raw).ok())
+    .ok_or(no_version)?;
     if !POLICY_PROGRAM_SUPPORTED_VERSIONS.iter().any(|v| u32::from(*v) == version) {
         return Err(IoError::UnsupportedVersion { version });
     }
     let envelope: PolicyProgramEnvelope =
-        value.deserialized().map_err(|e| IoError::Cbor(e.to_string()))?;
+        ciborium::from_reader(body).map_err(IoError::cbor_decode)?;
     if envelope.interventions.len() > POLICY_PROGRAM_MAX_INTERVENTIONS {
         return Err(IoError::TooLarge);
     }
@@ -304,13 +322,13 @@ pub fn interventions_from_named_json(
                 .get_mut("expr")
                 .map(serde_json::Value::take)
                 .ok_or_else(|| IoError::Convert("policy program: missing `expr`".into()))?;
-            rename_variables(&mut expr, &|v| match v {
-                serde_json::Value::String(name) => {
-                    resolve(name).map(serde_json::Value::from).ok_or_else(|| {
+            rename_variables(&mut expr, &|v| {
+                if let serde_json::Value::String(name) = v {
+                    *v = resolve(name).map(serde_json::Value::from).ok_or_else(|| {
                         IoError::Convert(format!("policy program: unknown variable {name:?}"))
-                    })
+                    })?;
                 }
-                other => Ok(other.clone()),
+                Ok(())
             })?;
             let expr = serde_json::from_value::<ValueExprWire>(expr)
                 .map_err(|e| IoError::Convert(format!("policy program expression: {e}")))?
@@ -358,9 +376,12 @@ pub fn named_json_from_interventions(
             }
         };
         let mut expr = serde_json::to_value(&expr).map_err(|e| IoError::Convert(e.to_string()))?;
-        rename_variables(&mut expr, &|v| match v.as_u64().and_then(|id| u32::try_from(id).ok()) {
-            Some(id) => spell(id).map(|name| serde_json::Value::from(name.as_str())),
-            None => Err(IoError::Convert("policy program: variable id is not a u32".into())),
+        rename_variables(&mut expr, &|v| {
+            let id = v.as_u64().and_then(|id| u32::try_from(id).ok()).ok_or_else(|| {
+                IoError::Convert("policy program: variable id is not a u32".into())
+            })?;
+            *v = serde_json::Value::from(spell(id)?.as_str());
+            Ok(())
         })?;
         out.push(serde_json::json!({
             "mode": mode,
@@ -374,14 +395,14 @@ pub fn named_json_from_interventions(
 /// Rewrite the `variable` field of every `var` and `lag` node of an expression tree.
 fn rename_variables(
     node: &mut serde_json::Value,
-    rewrite: &dyn Fn(&serde_json::Value) -> Result<serde_json::Value, IoError>,
+    rewrite: &dyn Fn(&mut serde_json::Value) -> Result<(), IoError>,
 ) -> Result<(), IoError> {
     match node {
         serde_json::Value::Object(map) => {
             for (tag, child) in map.iter_mut() {
                 if matches!(tag.as_str(), "var" | "lag") {
                     if let Some(field) = child.get_mut("variable") {
-                        *field = rewrite(field)?;
+                        rewrite(field)?;
                     }
                 } else {
                     rename_variables(child, rewrite)?;
@@ -497,7 +518,7 @@ mod tests {
     #[test]
     fn the_price_floor_program_has_a_pinned_identity() {
         let digest = policy_program_identity(&[floor(0.85)]).unwrap();
-        let hex = blake3::Hash::from_bytes(digest).to_hex().to_string();
+        let hex = antecedent_core::to_hex(&digest);
         assert_eq!(hex, "4828012ed5bdb86f66847911617623031457a3373151fb18a2b4c54d3a051d04");
     }
 
@@ -723,7 +744,7 @@ mod tests {
             ciborium::from_reader(&bytes[POLICY_PROGRAM_MAGIC.len()..]).unwrap();
         assert_eq!(envelope.version, 1);
         assert_eq!(
-            blake3::Hash::from_bytes(envelope.identity).to_hex().to_string(),
+            antecedent_core::to_hex(&envelope.identity),
             "4828012ed5bdb86f66847911617623031457a3373151fb18a2b4c54d3a051d04"
         );
     }
@@ -751,5 +772,31 @@ mod tests {
                 other => panic!("expected a coded refusal, got {other:?}"),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod expression_identity_tests {
+    use super::*;
+    use antecedent_core::{ValueExpr, VariableId};
+    #[test]
+    fn expression_identity_survives_existing_wire_roundtrip_and_binds_reads() {
+        let a = VariableId::from_raw(1);
+        let b = VariableId::from_raw(2);
+        let expr = ValueExpr::var(a)
+            .mul(ValueExpr::var(b))
+            .clip(ValueExpr::constant(0.0), ValueExpr::constant(10.0));
+        let wire = ValueExprWire::from_domain(&expr).unwrap();
+        let bytes = crate::convert::to_cbor(&wire).unwrap();
+        let restored: ValueExprWire = crate::convert::from_cbor(&bytes).unwrap();
+        assert_eq!(
+            value_expression_identity(&expr).unwrap(),
+            value_expression_identity(&restored.to_domain()).unwrap()
+        );
+        assert_ne!(
+            value_expression_identity(&expr).unwrap(),
+            value_expression_identity(&ValueExpr::var(a).mul(ValueExpr::var(a))).unwrap()
+        );
+        assert!(value_expression_identity(&ValueExpr::constant(f64::NAN)).is_err());
     }
 }

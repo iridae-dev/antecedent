@@ -5,11 +5,17 @@ import sys
 import tomllib
 from pathlib import Path
 
-from _repo import ensure_scripts_on_path
+from _repo import ensure_scripts_on_path, load_toml, load_toml_binary
+from evidence_kinds import (
+    EVIDENCE_KINDS,
+    EXTERNAL_KINDS,
+    fixture_kind_problems,
+    inline_reference_problems,
+)
 
 root = Path(".")
 
-STATUS_VALUES = {"pending", "in_progress", "done"}
+STATUS_VALUES = {"pending", "done"}
 # "none" is for Rust-only primitives. Recording them as "thin" would claim a Python
 # surface that does not exist; omitting the row would leave a shipped capability, and
 # its paper provenance, outside the inventory entirely.
@@ -18,31 +24,11 @@ BASE_REQUIRED = ("id", "status")
 
 # What kind of proposition the row's evidence actually demonstrates. Required on
 # every `done` row (release.toml exempt — its rows are release infrastructure
-# with their own evidence map in gate_release.sh, not scientific capabilities).
+# with their own evidence map in check_parity_inventories.py, not scientific capabilities).
 # The 2026-08 audit found rows whose notes read as external-package agreement
 # while the fixture's own oracle block recorded clean-room enumeration; this
 # field makes the claim strength machine-readable so wording cannot outrun it.
-EVIDENCE_KINDS = {
-    # code + ordinary unit tests; no numerical evidence against a truth
-    "implementation_exists",
-    # conformance fixture/test against closed-form, analytic, or clean-room truth
-    "internal_known_truth",
-    # agreement with another Antecedent estimator/module only
-    "internal_cross_check",
-    # frozen fixture recording an actual pinned upstream-package run, consumed
-    # by an executing test
-    "frozen_external_oracle",
-    # agreement with an upstream package across a range of inputs
-    "behavioral_parity",
-    # theorem-level / method-contract argument
-    "contract_equivalence",
-    # frozen output of this library itself: a change detector, never truth (no
-    # known_truth_fixture; limitations name what is pinned)
-    "regression_pin",
-    # a release-process property enforced by a named gate or workflow, with no
-    # test that could execute it (release.toml only; see the done-row rule below)
-    "process_attested",
-}
+
 # An implementation_exists row that produces one of these is a statistical procedure
 # a reader would take as validated; it must say that no numerical truth backs it.
 # A term matches at a word start or inside a CamelCase name (`PosteriorWidth`,
@@ -55,7 +41,6 @@ STATISTICAL_QUANTITY = re.compile(
     re.I,
 )
 # Kinds that assert an upstream package produced the truth being matched.
-EXTERNAL_KINDS = {"frozen_external_oracle", "behavioral_parity"}
 
 # An external claim is a three-link evidence contract, not just prose on an
 # inventory row: immutable baseline metadata, a frozen JSON fixture, and an
@@ -63,8 +48,7 @@ EXTERNAL_KINDS = {"frozen_external_oracle", "behavioral_parity"}
 # reader gate_evidence_reachability.sh uses).
 baseline_versions = {}
 for path in sorted(root.glob("parity/baselines/*.toml")):
-    with open(path, "rb") as handle:
-        baseline = tomllib.load(handle)
+    baseline = load_toml_binary(path)
     project = str(baseline.get("project", "")).lower()
     if not project:
         continue
@@ -85,14 +69,15 @@ def has_consuming_test(fixture: str) -> bool:
     asserts: not a file that merely mentions the basename and asserts elsewhere."""
     path = Path(fixture)
     directory = path.parent if path.suffix == ".json" else path
-    return bool(test_evidence.fixture_consumers(directory.as_posix()))
+    return test_evidence.fixture_has_consumer(directory.as_posix())
+
 
 # Inventory manifests and the extra keys each one requires beyond BASE_REQUIRED.
 # Kept explicit rather than inferred from whichever keys the majority of rows
 # happen to carry: the richer schema is what exposed the row that motivated this
 # gate, so it has to be a stated contract, not a statistical accident.
 # Second tuple element: whether `done` rows must carry `evidence_kind`.
-# Only release.toml is exempt (infrastructure rows, evidence map in gate_release.sh).
+# Only release.toml is exempt (infrastructure rows, evidence map in check_parity_inventories.py).
 MANIFESTS = {
     "parity/estimate.toml": (("group", "description", "owner"), True),
     "parity/discovery.toml": (("group", "description", "owner"), True),
@@ -150,9 +135,7 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
 
         status = row.get("status")
         if isinstance(status, str) and status.strip() and status not in STATUS_VALUES:
-            problems.append(
-                f"{rel}: {label} status={status!r} not in {sorted(STATUS_VALUES)}"
-            )
+            problems.append(f"{rel}: {label} status={status!r} not in {sorted(STATUS_VALUES)}")
 
         facade = row.get("python_facade")
         if facade is not None and facade not in FACADE_VALUES:
@@ -204,9 +187,11 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
             if smoke is not None and (not isinstance(smoke, str) or not (root / smoke).exists()):
                 problems.append(f"{rel}: {label} smoke_fixture {smoke!r} does not exist")
             described = " ".join(str(row.get(key, "")) for key in ("description", "notes"))
-            if status == "done" and STATISTICAL_QUANTITY.search(described) and not str(
-                row.get("limitations", "")
-            ).strip():
+            if (
+                status == "done"
+                and STATISTICAL_QUANTITY.search(described)
+                and not str(row.get("limitations", "")).strip()
+            ):
                 problems.append(
                     f"{rel}: {label} is a done implementation_exists row naming an interval, "
                     "test, posterior or decision quantity without limitations; state that no "
@@ -215,18 +200,15 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
         elif row.get("smoke_fixture") is not None:
             problems.append(f"{rel}: {label} smoke_fixture is only legal on implementation_exists")
 
-        if fixture is not None and (
-            not isinstance(fixture, str) or not (root / fixture).exists()
-        ):
-            problems.append(
-                f"{rel}: {label} known_truth_fixture {fixture!r} does not exist"
-            )
+        if fixture is not None and (not isinstance(fixture, str) or not (root / fixture).exists()):
+            problems.append(f"{rel}: {label} known_truth_fixture {fixture!r} does not exist")
+        problems.extend(f"{rel}: {label}: {p}" for p in inline_reference_problems(row))
+        problems.extend(f"{rel}: {label}: {p}" for p in fixture_kind_problems(root, row))
 
         if kind in EXTERNAL_KINDS:
             if not isinstance(oracle, str) or not oracle.strip():
                 problems.append(
-                    f"{rel}: {label} claims {kind} without external_oracle "
-                    "(project + pin)"
+                    f"{rel}: {label} claims {kind} without external_oracle (project + pin)"
                 )
             elif not isinstance(fixture, str):
                 problems.append(
@@ -250,7 +232,9 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
                     )
 
                 fixture_path = root / fixture
-                expected = fixture_path if fixture_path.is_file() else fixture_path / "expected.json"
+                expected = (
+                    fixture_path if fixture_path.is_file() else fixture_path / "expected.json"
+                )
                 if not expected.is_file():
                     problems.append(
                         f"{rel}: {label} external fixture {fixture!r} has no expected.json"
@@ -275,7 +259,9 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
                 fdir = root / fixture
                 files = [fdir] if fdir.is_file() else sorted(fdir.glob("*"))
                 blob = "\n".join(
-                    f.read_text(errors="ignore", encoding="utf-8").lower() for f in files if f.is_file()
+                    f.read_text(errors="ignore", encoding="utf-8").lower()
+                    for f in files
+                    if f.is_file()
                 )
                 token = oracle.split()[0].lower()
                 if token not in blob:
@@ -320,13 +306,9 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
         elif isinstance(test_rel, str) and isinstance(assertion, str):
             test_path = root / test_rel
             if not test_path.is_file():
-                problems.append(
-                    f"{rel}: {label} evidence_test {test_rel!r} does not exist"
-                )
+                problems.append(f"{rel}: {label} evidence_test {test_rel!r} does not exist")
             elif test_path.suffix not in {".rs", ".py"}:
-                problems.append(
-                    f"{rel}: {label} evidence_test must be Rust or Python test code"
-                )
+                problems.append(f"{rel}: {label} evidence_test must be Rust or Python test code")
             else:
                 # The one static resolver (comments/strings masked, #[ignore],
                 # cfg-disabled and uncompiled modules rejected).
@@ -358,6 +340,7 @@ if problems:
     sys.exit(1)
 
 total = sum(
-    len(tomllib.loads((root / rel).read_text(encoding="utf-8"))["capabilities"]) for rel in MANIFESTS
+    len(load_toml(root / rel)["capabilities"])
+    for rel in MANIFESTS
 )
 print(f"parity manifest schema: ok ({total} rows across {len(MANIFESTS)} manifests)")

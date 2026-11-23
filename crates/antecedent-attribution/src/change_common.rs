@@ -1,7 +1,8 @@
 //! Shared change-attribution allocation / measure helpers.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use antecedent_core::{AllocationMethod, ComponentId, ExecutionContext, StreamDomain, VariableId};
@@ -9,6 +10,7 @@ use antecedent_graph::DenseNodeId;
 use antecedent_model::{CompiledCausalModel, MechanismWorkspace, sample_observational_into};
 use antecedent_stats::{gaussian_kl, mean_var};
 
+use crate::coalition::Coalition;
 use crate::error::AttributionError;
 use crate::result::ChangeAttributionResult;
 use crate::shapley::{CoalitionPayoff, ShapleyEstimate, estimate_shapley, sequential_allocate};
@@ -19,11 +21,12 @@ use crate::shapley::{CoalitionPayoff, ShapleyEstimate, estimate_shapley, sequent
 pub enum DifferenceMeasure {
     /// `E[Y_comparison-like] − E[Y_baseline-like]`.
     MeanDiff,
-    /// Variance difference.
+    /// Difference in population variances, including zero or arbitrarily small variances.
     VarianceDiff,
     /// Gaussian KL `KL(N(μ_S, σ_S²) ‖ N(μ₀, σ₀²))` of the hybrid outcome law vs the
     /// all-baseline coalition (the default target functional in Budhathoki, Janzing,
-    /// Bloebaum & Ng 2021).
+    /// Bloebaum & Ng 2021). Both Gaussian variances must be finite and positive;
+    /// no variance regularization is applied.
     GaussianKl,
 }
 
@@ -45,6 +48,23 @@ impl ChangeOptions {
     pub const fn default_mean() -> Self {
         Self::new(DifferenceMeasure::MeanDiff, 2_000, 0)
     }
+}
+
+/// Validate a per-coalition Monte Carlo sample count before any sampling work.
+pub(crate) fn validate_change_sample_count(
+    measure: DifferenceMeasure,
+    n_samples: usize,
+) -> Result<(), AttributionError> {
+    let minimum = match measure {
+        DifferenceMeasure::MeanDiff => 1,
+        DifferenceMeasure::VarianceDiff | DifferenceMeasure::GaussianKl => 2,
+    };
+    if n_samples < minimum {
+        return Err(AttributionError::invalid_input(
+            "change attribution requires at least one draw for a mean and two draws for variance or Gaussian KL",
+        ));
+    }
+    Ok(())
 }
 
 /// Stream domain of the distribution-change coalition payoff.
@@ -86,7 +106,7 @@ pub(crate) fn attribution_stream(
     ctx.rng.stream_for(StreamDomain::Attribution, stream_tag(domain, seed))
 }
 
-/// Mean and (floored) variance of the outcome under `model`, from `n_samples` ancestral
+/// Mean and population variance of the outcome under `model`, from `n_samples` ancestral
 /// draws on the `(domain, seed)` attribution stream.
 ///
 /// Every coalition of a change attribution uses the same stream, so coalition values share
@@ -102,7 +122,12 @@ pub(crate) fn sample_outcome_law(
     buf: &mut Vec<f64>,
 ) -> Result<(f64, f64), AttributionError> {
     let mut rng = ctx.rng.stream_for(StreamDomain::Attribution, stream);
-    let n_rows = n_samples.max(1);
+    if n_samples == 0 {
+        return Err(AttributionError::invalid_input(
+            "change attribution requires at least one draw",
+        ));
+    }
+    let n_rows = n_samples;
     let need = n_rows.saturating_mul(model.n_nodes());
     if buf.len() < need {
         buf.resize(need, 0.0);
@@ -110,13 +135,13 @@ pub(crate) fn sample_outcome_law(
     sample_observational_into(model, n_rows, &mut rng, ws, &mut buf[..need], ctx)?;
     let start = outcome.as_usize() * n_rows;
     let (mu, var) = mean_var(&buf[start..start + n_rows]);
-    Ok((mu, var.max(1e-12)))
+    Ok((mu, var))
 }
 
 /// The outcome-summary change between two observed samples under `measure`
 /// (`comparison` relative to `baseline`), on the same scale as the coalition payoff:
 /// difference of means, difference of (population) variances, or
-/// `KL(N(μ_c, σ_c²) ‖ N(μ_b, σ_b²))` with the payoff's variance floor.
+/// `KL(N(μ_c, σ_c²) ‖ N(μ_b, σ_b²))` for positive variances.
 pub(crate) fn observed_change(
     measure: DifferenceMeasure,
     baseline: &[f64],
@@ -130,9 +155,7 @@ pub(crate) fn observed_change(
     match measure {
         DifferenceMeasure::MeanDiff => Ok(mu_c - mu_b),
         DifferenceMeasure::VarianceDiff => Ok(var_c - var_b),
-        DifferenceMeasure::GaussianKl => {
-            Ok(gaussian_kl(mu_c, var_c.max(1e-12), mu_b, var_b.max(1e-12))?)
-        }
+        DifferenceMeasure::GaussianKl => Ok(gaussian_kl(mu_c, var_c, mu_b, var_b)?),
     }
 }
 
@@ -148,7 +171,7 @@ pub(crate) fn total_change(measure: DifferenceMeasure, v0: f64, v_full: f64) -> 
 /// Evaluate a difference measure given hybrid `(μ, var)` and optional baseline law.
 pub(crate) fn measure_value(
     measure: DifferenceMeasure,
-    mask: u64,
+    coalition: &Coalition,
     mu: f64,
     var: f64,
     baseline_law: Option<(f64, f64)>,
@@ -157,7 +180,8 @@ pub(crate) fn measure_value(
         DifferenceMeasure::MeanDiff => Ok(mu),
         DifferenceMeasure::VarianceDiff => Ok(var),
         DifferenceMeasure::GaussianKl => {
-            if mask == 0 {
+            if coalition.is_empty() {
+                gaussian_kl(mu, var, mu, var)?;
                 Ok(0.0)
             } else {
                 let (mu0, var0) = baseline_law.ok_or_else(|| {
@@ -169,35 +193,71 @@ pub(crate) fn measure_value(
     }
 }
 
+/// Outcome laws `(mean, variance)` already computed by a hybrid-outcome-law payoff, by coalition.
+///
+/// The law of a coalition is a pure function of it (every sampling stream restarts at the
+/// same key on each call, which is what makes the coalition values common random numbers), so
+/// the Monte Carlo allocations, which revisit the same few coalitions thousands of times,
+/// can reuse it without changing a bit of any value. The memo is bounded and holds only
+/// successful evaluations; once it is full a new coalition is computed and not kept.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct LawMemo {
+    laws: HashMap<Coalition, (f64, f64)>,
+}
+
+impl LawMemo {
+    /// Most coalitions kept: 4096 entries of a coalition key and two floats.
+    const MAX_ENTRIES: usize = 4096;
+
+    fn get(&self, coalition: &Coalition) -> Option<(f64, f64)> {
+        self.laws.get(coalition).copied()
+    }
+
+    fn insert(&mut self, coalition: &Coalition, law: (f64, f64)) {
+        if self.laws.len() < Self::MAX_ENTRIES {
+            self.laws.insert(coalition.clone(), law);
+        }
+    }
+}
+
 /// Shared [`CoalitionPayoff::value`] caching shape for hybrid-outcome-law payoffs.
 ///
 /// Both `MechanismSwapPayoff` ([`crate::distribution_change`]) and
 /// `StructureSwapPayoff` ([`crate::structure_change`]) memoize the mask-0
 /// all-baseline outcome law once (only needed for [`DifferenceMeasure::GaussianKl`])
-/// and then evaluate the coalition's difference measure at `mask`; they differ only
+/// and then evaluate the coalition's difference measure; they differ only
 /// in how they compute the outcome law itself ([`Self::law_at`]).
 pub(crate) trait CachedOutcomeLawPayoff {
+    /// The payoff's memo of outcome laws already computed.
+    fn law_memo(&mut self) -> &mut LawMemo;
     /// The configured difference measure.
     fn measure(&self) -> DifferenceMeasure;
     /// The cached all-baseline `(μ₀, σ₀²)`, once computed.
     fn baseline_law(&self) -> Option<(f64, f64)>;
     /// Store the computed all-baseline law.
     fn set_baseline_law(&mut self, law: (f64, f64));
-    /// Compute `(μ, σ²)` of the hybrid outcome law at `mask`.
-    fn law_at(&mut self, mask: u64) -> Result<(f64, f64), AttributionError>;
+    /// Compute `(μ, σ²)` of the hybrid outcome law of `coalition`.
+    fn law_at(&mut self, coalition: &Coalition) -> Result<(f64, f64), AttributionError>;
 
     /// Shared `CoalitionPayoff::value` body.
-    fn cached_payoff_value(&mut self, mask: u64) -> Result<f64, AttributionError> {
+    fn cached_payoff_value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
         if matches!(self.measure(), DifferenceMeasure::GaussianKl) && self.baseline_law().is_none()
         {
-            let (mu0, var0) = self.law_at(0)?;
+            let (mu0, var0) = self.law_at(&Coalition::empty())?;
+            gaussian_kl(mu0, var0, mu0, var0)?;
             self.set_baseline_law((mu0, var0));
-            if mask == 0 {
+            if coalition.is_empty() {
                 return Ok(0.0);
             }
         }
-        let (mu, var) = self.law_at(mask)?;
-        measure_value(self.measure(), mask, mu, var, self.baseline_law())
+        let (mu, var) = if let Some(law) = self.law_memo().get(coalition) {
+            law
+        } else {
+            let law = self.law_at(coalition)?;
+            self.law_memo().insert(coalition, law);
+            law
+        };
+        measure_value(self.measure(), coalition, mu, var, self.baseline_law())
     }
 }
 
@@ -302,11 +362,10 @@ fn path_based_change_allocation<P: CoalitionPayoff>(
     // split a player's already-correct total across its individual directed
     // paths to the outcome for reporting; they never determine how much of the
     // total change that player receives.
-    let v0 = payoff.value(0)?;
+    let v0 = payoff.value(&Coalition::empty())?;
     let mut raw_players = Vec::with_capacity(players.len());
     for i in 0..players.len() {
-        let bit = 1u64 << i;
-        let v_i = payoff.value(bit)?;
+        let v_i = payoff.value(&Coalition::empty().with(i))?;
         raw_players.push(v_i - v0);
     }
 
@@ -439,8 +498,8 @@ mod tests {
     struct AdditivePayoff;
 
     impl CoalitionPayoff for AdditivePayoff {
-        fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
-            Ok(f64::from(mask.count_ones()))
+        fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
+            Ok(coalition.len() as f64)
         }
     }
 
@@ -530,6 +589,87 @@ mod tests {
         let got = observed_change(DifferenceMeasure::GaussianKl, &base, &cmp).unwrap();
         assert!((got - expected).abs() < 1e-12, "got={got} expected={expected}");
         assert!(observed_change(DifferenceMeasure::MeanDiff, &[], &cmp).is_err());
+    }
+
+    #[test]
+    fn sample_count_respects_measure() {
+        for measure in [
+            DifferenceMeasure::MeanDiff,
+            DifferenceMeasure::VarianceDiff,
+            DifferenceMeasure::GaussianKl,
+        ] {
+            assert!(matches!(
+                validate_change_sample_count(measure, 0),
+                Err(AttributionError::InvalidInput { .. })
+            ));
+            assert!(validate_change_sample_count(measure, 2).is_ok());
+        }
+        assert!(validate_change_sample_count(DifferenceMeasure::MeanDiff, 1).is_ok());
+        assert!(validate_change_sample_count(DifferenceMeasure::VarianceDiff, 1).is_err());
+        assert!(validate_change_sample_count(DifferenceMeasure::GaussianKl, 1).is_err());
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp, reason = "the test checks exact boundary values")]
+    fn tiny_and_degenerate_variances_are_not_regularized() {
+        let empty = Coalition::empty();
+        let full = Coalition::from_bits(1);
+        let tiny = 1e-14;
+        let larger = 4e-14;
+        let v0 = measure_value(DifferenceMeasure::VarianceDiff, &empty, 0.0, tiny, None).unwrap();
+        let v1 = measure_value(DifferenceMeasure::VarianceDiff, &full, 0.0, larger, None).unwrap();
+        assert!((v1 - v0 - 3e-14).abs() < 1e-28);
+        assert_eq!(
+            measure_value(DifferenceMeasure::VarianceDiff, &empty, 0.0, 0.0, None).unwrap(),
+            0.0
+        );
+        let kl =
+            measure_value(DifferenceMeasure::GaussianKl, &full, 0.0, larger, Some((0.0, tiny)))
+                .unwrap();
+        let expected = 0.5 * (3.0 - 4.0_f64.ln());
+        assert!((kl - expected).abs() < 1e-12);
+        assert!(matches!(
+            measure_value(DifferenceMeasure::GaussianKl, &empty, 0.0, 0.0, None),
+            Err(AttributionError::Stats(_))
+        ));
+        assert!(matches!(
+            measure_value(DifferenceMeasure::GaussianKl, &full, 1.0, 0.0, Some((0.0, tiny))),
+            Err(AttributionError::Stats(_))
+        ));
+        assert!(matches!(
+            observed_change(DifferenceMeasure::GaussianKl, &[0.0, 0.0], &[1.0, 1.0]),
+            Err(AttributionError::Stats(_))
+        ));
+        assert_eq!(observed_change(DifferenceMeasure::VarianceDiff, &[1.0], &[2.0]).unwrap(), 0.0);
+    }
+
+    #[test]
+    fn sampled_tiny_variance_remains_visible() {
+        use antecedent_graph::Dag;
+        use antecedent_model::{CompiledMechanismStore, MechanismSlot};
+        let model = CompiledCausalModel::compile(Dag::with_variables(1)).unwrap();
+        let make = |sigma| {
+            model.clone().with_mechanisms(CompiledMechanismStore {
+                slots: Arc::from([MechanismSlot::LinearGaussian {
+                    intercept: 0.0,
+                    coeffs: Arc::from([]),
+                    sigma,
+                }]),
+            })
+        };
+        let ctx = ExecutionContext::for_tests(7);
+        let mut ws = MechanismWorkspace::default();
+        let mut buf = Vec::new();
+        let sample = |model: &CompiledCausalModel,
+                      ws: &mut MechanismWorkspace,
+                      buf: &mut Vec<f64>| {
+            sample_outcome_law(model, DenseNodeId::from_raw(0), 128, 17, &ctx, ws, buf).unwrap().1
+        };
+        let a = sample(&make(1e-7), &mut ws, &mut buf);
+        let b = sample(&make(2e-7), &mut ws, &mut buf);
+        assert!(0.0 < a && a < 1e-12);
+        assert!((b / a - 4.0).abs() < 1e-10);
+        assert!(b > a);
     }
 
     #[test]

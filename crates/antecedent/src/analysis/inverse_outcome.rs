@@ -1,10 +1,10 @@
-//! Finite-action inverse-outcome query over a licensed forward response.
+//! Finite-action inverse-outcome query over a supported forward response.
 //!
 //! The question is "which of these enumerated interventions reach a target
 //! mean?": `E[Y^do(a)] >= threshold` (or `<=`) for a caller-supplied finite
 //! action grid, each action with a declared cost and named constraints. The
 //! module owns no estimator. The forward response `a -> E[Y^do(a)]` is
-//! evaluated by an existing, licensed response route and handed in as a
+//! evaluated by an existing, supported response route and handed in as a
 //! [`ForwardEvaluation`]; this module classifies every enumerated action
 //! against it and refuses what it cannot answer:
 //!
@@ -32,19 +32,13 @@
 //! The report carries an order-invariant identity digest of every input and
 //! is a pure function of them, so an independent consumer recomputes it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_core::{
     CancellationToken, CanonicalWriter, IntervalInterpretation, SupportStatus, reason_code,
 };
-
-/// Most actions one query may enumerate.
-pub const MAX_INVERSE_ACTIONS: usize = 4096;
-
-/// Most rows of the forward evaluation the classifier reads.
-pub const MAX_INVERSE_FORWARD_POINTS: usize = 65_536;
 
 /// What a result is and is not, carried on every report.
 pub const INVERSE_SCOPE_NOTE: &str = "Classification is relative to the enumerated action set and the forward response's declared assumptions; an action that was not enumerated is unresolved, not excluded. Feasibility is point-based; a robustly-feasible flag uses the forward route's own interval as published and adds no coverage claim.";
@@ -65,11 +59,18 @@ fn invalid(detail: &'static str, message: impl Into<String>) -> InverseOutcomeEr
     InverseOutcomeError { code: reason_code!("invalid_argument"), detail, message: message.into() }
 }
 
-fn not_licensed(detail: &'static str, message: impl Into<String>) -> InverseOutcomeError {
-    InverseOutcomeError { code: reason_code!("cell_not_licensed"), detail, message: message.into() }
+fn functional_unsupported(detail: &'static str, message: impl Into<String>) -> InverseOutcomeError {
+    InverseOutcomeError {
+        code: reason_code!("inverse_functional_unsupported"),
+        detail,
+        message: message.into(),
+    }
 }
 
-fn not_supported(detail: &'static str, message: impl Into<String>) -> InverseOutcomeError {
+fn route_not_supported_err(
+    detail: &'static str,
+    message: impl Into<String>,
+) -> InverseOutcomeError {
     InverseOutcomeError {
         code: reason_code!("route_not_supported"),
         detail,
@@ -77,33 +78,14 @@ fn not_supported(detail: &'static str, message: impl Into<String>) -> InverseOut
     }
 }
 
-/// Which side of the threshold is the goal.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TargetDirection {
-    /// `E[Y^do(a)] >= threshold`.
-    AtLeast,
-    /// `E[Y^do(a)] <= threshold`.
-    AtMost,
-}
-
-impl TargetDirection {
-    /// Stable `snake_case` spelling used on the Python wire.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::AtLeast => "at_least",
-            Self::AtMost => "at_most",
-        }
-    }
-
-    /// Parse the wire spelling.
-    #[must_use]
-    pub fn parse(name: &str) -> Option<Self> {
-        match name {
-            "at_least" => Some(Self::AtLeast),
-            "at_most" => Some(Self::AtMost),
-            _ => None,
-        }
+super::string_enum! {
+    /// Which side of the threshold is the goal.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum TargetDirection, lookup = parse {
+        /// `E[Y^do(a)] >= threshold`.
+        AtLeast => "at_least",
+        /// `E[Y^do(a)] <= threshold`.
+        AtMost => "at_most",
     }
 }
 
@@ -135,63 +117,25 @@ pub enum InverseQuery {
     ObservationalScenarios,
 }
 
-/// Whether the forward evaluation carries per-point or one surface-wide support label.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SupportBasis {
-    /// One label per evaluated point (a temporal dose-by-horizon surface).
-    PerPoint,
-    /// The worst label over the whole surface, copied to every point (a static curve).
-    SurfaceWorstCase,
-}
-
-impl SupportBasis {
-    /// Stable `snake_case` spelling.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::PerPoint => "per_point",
-            Self::SurfaceWorstCase => "surface_worst_case",
-        }
-    }
-
-    /// Parse the wire spelling.
-    #[must_use]
-    pub fn parse(name: &str) -> Option<Self> {
-        match name {
-            "per_point" => Some(Self::PerPoint),
-            "surface_worst_case" => Some(Self::SurfaceWorstCase),
-            _ => None,
-        }
+super::string_enum! {
+    /// Whether the forward evaluation carries per-point or one surface-wide support label.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum SupportBasis, lookup = parse {
+        /// One label per evaluated point (a temporal dose-by-horizon surface).
+        PerPoint => "per_point",
+        /// The worst label over the whole surface, copied to every point (a static curve).
+        SurfaceWorstCase => "surface_worst_case",
     }
 }
 
-/// Coverage scope of the forward interval.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum IntervalScope {
-    /// One interval per grid point, no joint coverage.
-    Pointwise,
-    /// One band calibrated over the whole evaluated grid.
-    Simultaneous,
-}
-
-impl IntervalScope {
-    /// Stable `snake_case` spelling.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Pointwise => "pointwise",
-            Self::Simultaneous => "simultaneous",
-        }
-    }
-
-    /// Parse the wire spelling.
-    #[must_use]
-    pub fn parse(name: &str) -> Option<Self> {
-        match name {
-            "pointwise" => Some(Self::Pointwise),
-            "simultaneous" => Some(Self::Simultaneous),
-            _ => None,
-        }
+super::string_enum! {
+    /// Coverage scope of the forward interval.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum IntervalScope, lookup = parse {
+        /// One interval per grid point, no joint coverage.
+        Pointwise => "pointwise",
+        /// One band calibrated over the whole evaluated grid.
+        Simultaneous => "simultaneous",
     }
 }
 
@@ -210,7 +154,7 @@ pub struct ForwardInterval {
     pub upper: Vec<f64>,
 }
 
-/// The forward response `a -> E[Y^do(a)]` as the licensed route evaluated it.
+/// The forward response `a -> E[Y^do(a)]` as the supported route evaluated it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ForwardEvaluation {
     /// Outcome name.
@@ -265,29 +209,43 @@ pub struct ActionSpec {
     pub constraints: Vec<ActionConstraint>,
 }
 
-/// Classification of one action.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ActionStatus {
-    /// Evaluated, supported, within constraints, and the target is met.
-    Feasible,
-    /// A constraint or budget is violated, or the evaluated target is missed.
-    Infeasible,
-    /// The forward route reports no empirical support (or no support evidence) here.
-    Unsupported,
-    /// The forward route did not produce a finite estimate for this action.
-    Unevaluated,
+super::string_enum! {
+    /// Classification of one action.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum ActionStatus, lookup = parse {
+        /// Evaluated, supported, within constraints, and the target is met.
+        Feasible => "feasible",
+        /// A constraint or budget is violated, or the evaluated target is missed.
+        Infeasible => "infeasible",
+        /// The forward route reports no empirical support (or no support evidence) here.
+        Unsupported => "unsupported",
+        /// The forward route did not produce a finite estimate for this action.
+        Unevaluated => "unevaluated",
+    }
 }
 
-impl ActionStatus {
-    /// Stable `snake_case` spelling.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Feasible => "feasible",
-            Self::Infeasible => "infeasible",
-            Self::Unsupported => "unsupported",
-            Self::Unevaluated => "unevaluated",
-        }
+super::string_enum! {
+    /// Why an action received its [`ActionStatus`].
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum ActionReason, lookup = parse {
+        /// A declared constraint is violated.
+        ConstraintViolated => "constraint_violated",
+        /// The declared cost exceeds the budget.
+        OverBudget => "over_budget",
+        /// The action's point is not on the forward evaluation's grid.
+        NotOnEvaluatedGrid => "not_on_evaluated_grid",
+        /// The forward route reports the point outside empirical support.
+        OutsideEmpiricalSupport => "outside_empirical_support",
+        /// The forward route gave no support evidence for the point.
+        MissingEvidence => "missing_evidence",
+        /// The estimate reaches the target within the tolerance.
+        MeetsTarget => "meets_target",
+        /// The estimate misses the target by more than the tolerance.
+        MissesTarget => "misses_target",
+        /// The signed distance to the threshold overflowed.
+        NumericalMarginOverflow => "numerical_margin_overflow",
+        /// The forward estimate is not finite.
+        NonFiniteEstimate => "non_finite_estimate",
     }
 }
 
@@ -303,7 +261,7 @@ pub struct ActionOutcome {
     /// Classification.
     pub status: ActionStatus,
     /// Stable reason for the classification.
-    pub reason: &'static str,
+    pub reason: ActionReason,
     /// Names of the violated constraints, sorted.
     pub violated_constraints: Vec<String>,
     /// Forward point estimate, when finite and on the grid.
@@ -321,26 +279,16 @@ pub struct ActionOutcome {
     pub robustly_feasible: Option<bool>,
 }
 
-/// What the enumeration as a whole established.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EnumeratedStatus {
-    /// At least one enumerated action is feasible.
-    Reachable,
-    /// Every enumerated action is infeasible: the target is unreachable within the set.
-    UnreachableWithinSet,
-    /// No action is feasible but some are unsupported or unevaluated: unresolved.
-    Undetermined,
-}
-
-impl EnumeratedStatus {
-    /// Stable `snake_case` spelling.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Reachable => "reachable",
-            Self::UnreachableWithinSet => "unreachable_within_set",
-            Self::Undetermined => "undetermined",
-        }
+super::string_enum! {
+    /// What the enumeration as a whole established.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum EnumeratedStatus, lookup = parse {
+        /// At least one enumerated action is feasible.
+        Reachable => "reachable",
+        /// Every enumerated action is infeasible: the target is unreachable within the set.
+        UnreachableWithinSet => "unreachable_within_set",
+        /// No action is feasible but some are unsupported or unevaluated: unresolved.
+        Undetermined => "undetermined",
     }
 }
 
@@ -522,15 +470,15 @@ fn validate_forward(
     forward: &ForwardEvaluation,
 ) -> Result<BTreeMap<Vec<u64>, usize>, InverseOutcomeError> {
     if !forward.mean_response {
-        return Err(not_supported(
-            "inverse.forward_not_mean_response",
+        return Err(route_not_supported_err(
+            antecedent_core::reason_details::inverse::FORWARD_NOT_MEAN_RESPONSE,
             "the forward route's estimand is not a mean response a -> E[Y^do(a)] (a derivative, \
              contrast or other functional carries no target-mean reading)",
         ));
     }
     if !forward.point_identified {
-        return Err(not_supported(
-            "inverse.forward_not_point_identified",
+        return Err(route_not_supported_err(
+            antecedent_core::reason_details::inverse::FORWARD_NOT_POINT_IDENTIFIED,
             "the forward response is not point identified (an identified set, a class mixture or \
              an unidentified response has no single mean to compare with a threshold)",
         ));
@@ -542,30 +490,22 @@ fn validate_forward(
         || forward.support.len() != rows
     {
         return Err(invalid(
-            "inverse.invalid_forward",
+            antecedent_core::reason_details::inverse::INVALID_FORWARD,
             "the forward evaluation needs at least one point, one dose coordinate with an \
              optional horizon coordinate, and one mean and support label per point",
-        ));
-    }
-    if rows > MAX_INVERSE_FORWARD_POINTS {
-        return Err(not_supported(
-            "inverse.bounds_exceeded",
-            format!(
-                "the forward evaluation has {rows} points; the limit is {MAX_INVERSE_FORWARD_POINTS}"
-            ),
         ));
     }
     let mut index = BTreeMap::new();
     for (row, point) in forward.points.iter().enumerate() {
         if point.len() != forward.dimension || point.iter().any(|value| !value.is_finite()) {
             return Err(invalid(
-                "inverse.invalid_forward",
+                antecedent_core::reason_details::inverse::INVALID_FORWARD,
                 "every forward point needs `dimension` finite coordinates",
             ));
         }
         if index.insert(point_key(point), row).is_some() {
             return Err(invalid(
-                "inverse.invalid_forward",
+                antecedent_core::reason_details::inverse::INVALID_FORWARD,
                 "the forward evaluation repeats a point, so its mean is not a function of the action",
             ));
         }
@@ -578,7 +518,7 @@ fn validate_forward(
             && interval.lower.iter().zip(&interval.upper).all(|(lo, hi)| lo <= hi);
         if !bounded {
             return Err(invalid(
-                "inverse.invalid_forward",
+                antecedent_core::reason_details::inverse::INVALID_FORWARD,
                 "the forward interval needs ordered, non-NaN endpoints per point and a level in (0, 1)",
             ));
         }
@@ -588,12 +528,9 @@ fn validate_forward(
 
 fn validate_actions(actions: &[ActionSpec], dimension: usize) -> Result<(), InverseOutcomeError> {
     if actions.is_empty() {
-        return Err(invalid("inverse.invalid_action", "the action grid is empty"));
-    }
-    if actions.len() > MAX_INVERSE_ACTIONS {
-        return Err(not_supported(
-            "inverse.bounds_exceeded",
-            format!("{} actions enumerated; the limit is {MAX_INVERSE_ACTIONS}", actions.len()),
+        return Err(invalid(
+            antecedent_core::reason_details::inverse::INVALID_ACTION,
+            "the action grid is empty",
         ));
     }
     let mut labels = BTreeSet::new();
@@ -601,13 +538,13 @@ fn validate_actions(actions: &[ActionSpec], dimension: usize) -> Result<(), Inve
     for action in actions {
         if action.label.trim().is_empty() || !labels.insert(action.label.as_str()) {
             return Err(invalid(
-                "inverse.invalid_action",
+                antecedent_core::reason_details::inverse::INVALID_ACTION,
                 "action labels must be non-empty and unique",
             ));
         }
         if action.point.len() != dimension || action.point.iter().any(|value| !value.is_finite()) {
             return Err(invalid(
-                "inverse.invalid_action",
+                antecedent_core::reason_details::inverse::INVALID_ACTION,
                 format!("action `{}` needs {dimension} finite coordinates", action.label),
             ));
         }
@@ -615,14 +552,14 @@ fn validate_actions(actions: &[ActionSpec], dimension: usize) -> Result<(), Inve
             let current = canonical_bits(action.point[1]);
             if horizon.replace(current).is_some_and(|first| first != current) {
                 return Err(invalid(
-                    "inverse.invalid_action",
+                    antecedent_core::reason_details::inverse::INVALID_ACTION,
                     "one inverse-outcome enumeration must use one fixed outcome horizon",
                 ));
             }
         }
         if !action.cost.is_finite() || action.cost < 0.0 {
             return Err(invalid(
-                "inverse.invalid_action",
+                antecedent_core::reason_details::inverse::INVALID_ACTION,
                 format!("action `{}` needs a finite non-negative cost", action.label),
             ));
         }
@@ -630,7 +567,7 @@ fn validate_actions(actions: &[ActionSpec], dimension: usize) -> Result<(), Inve
         for constraint in &action.constraints {
             if constraint.name.trim().is_empty() || !names.insert(constraint.name.as_str()) {
                 return Err(invalid(
-                    "inverse.invalid_action",
+                    antecedent_core::reason_details::inverse::INVALID_ACTION,
                     format!("action `{}` needs non-empty, distinct constraint names", action.label),
                 ));
             }
@@ -670,26 +607,25 @@ fn classify_action(
         gap.is_finite().then_some(gap)
     });
     let (status, reason) = if !violated.is_empty() {
-        (ActionStatus::Infeasible, "constraint_violated")
+        (ActionStatus::Infeasible, ActionReason::ConstraintViolated)
     } else if budget.is_some_and(|limit| action.cost > limit) {
-        (ActionStatus::Infeasible, "over_budget")
+        (ActionStatus::Infeasible, ActionReason::OverBudget)
     } else if row.is_none() {
-        (ActionStatus::Unevaluated, "not_on_evaluated_grid")
-    } else if let Some(
-        label @ (SupportStatus::OutsideEmpiricalSupport | SupportStatus::MissingEvidence),
-    ) = support_status
-    {
-        (ActionStatus::Unsupported, label.as_str())
+        (ActionStatus::Unevaluated, ActionReason::NotOnEvaluatedGrid)
+    } else if support_status == Some(SupportStatus::OutsideEmpiricalSupport) {
+        (ActionStatus::Unsupported, ActionReason::OutsideEmpiricalSupport)
+    } else if support_status == Some(SupportStatus::MissingEvidence) {
+        (ActionStatus::Unsupported, ActionReason::MissingEvidence)
     } else if let Some(gap) = margin {
         if gap >= -tolerance {
-            (ActionStatus::Feasible, "meets_target")
+            (ActionStatus::Feasible, ActionReason::MeetsTarget)
         } else {
-            (ActionStatus::Infeasible, "misses_target")
+            (ActionStatus::Infeasible, ActionReason::MissesTarget)
         }
     } else if estimate.is_some() {
-        (ActionStatus::Unevaluated, "numerical_margin_overflow")
+        (ActionStatus::Unevaluated, ActionReason::NumericalMarginOverflow)
     } else {
-        (ActionStatus::Unevaluated, "non_finite_estimate")
+        (ActionStatus::Unevaluated, ActionReason::NonFiniteEstimate)
     };
     let robustly_feasible = match (status, interval) {
         (ActionStatus::Feasible, Some((lower, upper))) => {
@@ -725,7 +661,7 @@ fn labels_where(outcomes: &[ActionOutcome], keep: impl Fn(&ActionOutcome) -> boo
 }
 
 /// Accepts only a target-mean query and a finite threshold, tolerance and budget, refusing every other target before inputs are read.
-fn licensed_target(
+fn supported_target(
     query: &InverseQuery,
     tolerance: f64,
     budget: Option<f64>,
@@ -733,46 +669,49 @@ fn licensed_target(
     let (threshold, direction) = match *query {
         InverseQuery::TargetMean { threshold, direction } => (threshold, direction),
         InverseQuery::ChanceConstraint { .. } => {
-            return Err(not_licensed(
-                "inverse.probability_target",
+            return Err(functional_unsupported(
+                antecedent_core::reason_details::inverse::PROBABILITY_TARGET,
                 "a mean response cannot establish a chance constraint P(Y^do(a) >= y) >= q; that \
                  needs a separately identified and calibrated interventional-distribution cell",
             ));
         }
         InverseQuery::Quantile { .. } => {
-            return Err(not_licensed(
-                "inverse.quantile_target",
+            return Err(functional_unsupported(
+                antecedent_core::reason_details::inverse::QUANTILE_TARGET,
                 "a target-quantile inverse query needs the interventional distribution and is \
-                 not licensed without a calibrated interventional-distribution cell",
+                 not supported without a calibrated interventional-distribution cell",
             ));
         }
         InverseQuery::ObservationalScenarios => {
-            return Err(not_licensed(
-                "inverse.observational_scenarios",
+            return Err(functional_unsupported(
+                antecedent_core::reason_details::inverse::OBSERVATIONAL_SCENARIOS,
                 "observational scenarios compatible with an outcome (P(X | Y)) are not actions \
-                 and are closed; ask for feasible interventions instead",
+                 and are not supported; ask for feasible interventions instead",
             ));
         }
     };
     if !threshold.is_finite() {
-        return Err(invalid("inverse.invalid_target", "the threshold must be finite"));
+        return Err(invalid(
+            antecedent_core::reason_details::inverse::INVALID_TARGET,
+            "the threshold must be finite",
+        ));
     }
     if !tolerance.is_finite() || tolerance < 0.0 {
         return Err(invalid(
-            "inverse.invalid_target",
+            antecedent_core::reason_details::inverse::INVALID_TARGET,
             "the tolerance must be finite and non-negative",
         ));
     }
     if budget.is_some_and(|limit| !limit.is_finite() || limit < 0.0) {
         return Err(invalid(
-            "inverse.invalid_target",
+            antecedent_core::reason_details::inverse::INVALID_TARGET,
             "the budget must be finite and non-negative",
         ));
     }
     Ok((threshold, direction))
 }
 
-/// Classify every enumerated action against a licensed forward response.
+/// Classify every enumerated action against a supported forward response.
 ///
 /// `query` must be a target-mean query; the probability, quantile and
 /// observational-scenario queries are refused before any input is read.
@@ -789,7 +728,7 @@ pub fn classify_inverse_outcome(
     tolerance: f64,
     cancel: &CancellationToken,
 ) -> Result<InverseOutcomeReport, InverseOutcomeError> {
-    let (threshold, direction) = licensed_target(query, tolerance, budget)?;
+    let (threshold, direction) = supported_target(query, tolerance, budget)?;
     let index = validate_forward(forward)?;
     validate_actions(actions, forward.dimension)?;
     let mut outcomes = Vec::with_capacity(actions.len());
@@ -797,7 +736,7 @@ pub fn classify_inverse_outcome(
         if cancel.is_cancelled() {
             return Err(InverseOutcomeError {
                 code: reason_code!("transport_budget_cancel"),
-                detail: "inverse.cancelled",
+                detail: antecedent_core::reason_details::inverse::CANCELLED,
                 message: "the enumeration was cancelled before every action was classified; no \
                           verdict is reported"
                     .to_owned(),
@@ -923,7 +862,7 @@ mod tests {
         // The boundary action sits exactly on the threshold and is within tolerance.
         let boundary = report.outcomes.iter().find(|o| o.label == "dose_1").unwrap();
         assert!(boundary.within_tolerance);
-        assert_eq!(boundary.reason, "meets_target");
+        assert_eq!(boundary.reason, ActionReason::MeetsTarget);
         // An upper-side goal inverts the set: 1 + 2a <= 3 holds for a <= 1.
         let upper = InverseQuery::TargetMean { threshold: 3.0, direction: TargetDirection::AtMost };
         let report = run(&upper, &linear_forward(&GRID), &grid_actions(&GRID)).unwrap();
@@ -946,7 +885,7 @@ mod tests {
         assert!(report.feasible.is_empty());
         assert_eq!(report.enumerated, EnumeratedStatus::UnreachableWithinSet);
         assert!(report.cheapest_feasible.is_empty());
-        assert!(report.outcomes.iter().all(|o| o.reason == "misses_target"));
+        assert!(report.outcomes.iter().all(|o| o.reason == ActionReason::MissesTarget));
     }
 
     #[test]
@@ -980,7 +919,7 @@ mod tests {
         assert_eq!(report.feasible, vec!["dose_1", "dose_2"]);
         assert_eq!(report.enumerated, EnumeratedStatus::Reachable);
         let missed = report.outcomes.iter().find(|o| o.label == "between").unwrap();
-        assert_eq!((missed.reason, missed.estimate), ("not_on_evaluated_grid", None));
+        assert_eq!((missed.reason, missed.estimate), (ActionReason::NotOnEvaluatedGrid, None));
         // Without any feasible action the missing evaluations keep the answer open.
         let report = run(&at_least(100.0), &forward, &actions).unwrap();
         assert_eq!(report.enumerated, EnumeratedStatus::Undetermined);
@@ -1008,11 +947,14 @@ mod tests {
         )
         .unwrap();
         let capped = report.outcomes.iter().find(|o| o.label == "dose_2").unwrap();
-        assert_eq!(capped.reason, "constraint_violated");
+        assert_eq!(capped.reason, ActionReason::ConstraintViolated);
         assert_eq!(capped.violated_constraints, vec!["regulatory_cap"]);
         // Dose 1.5 meets the target (1 + 3 = 4) but costs 1.5 > the 1.2 budget.
         let costly = report.outcomes.iter().find(|o| o.label == "dose_1.5").unwrap();
-        assert_eq!((costly.status, costly.reason), (ActionStatus::Infeasible, "over_budget"));
+        assert_eq!(
+            (costly.status, costly.reason),
+            (ActionStatus::Infeasible, ActionReason::OverBudget)
+        );
         assert_eq!(report.feasible, vec!["dose_1"]);
     }
 
@@ -1112,18 +1054,18 @@ mod tests {
         for (query, detail, code) in [
             (
                 InverseQuery::ChanceConstraint { threshold: 3.0, probability: 0.9 },
-                "inverse.probability_target",
-                "cell_not_licensed",
+                antecedent_core::reason_details::inverse::PROBABILITY_TARGET,
+                "inverse_functional_unsupported",
             ),
             (
                 InverseQuery::Quantile { level: 0.9, threshold: 3.0 },
-                "inverse.quantile_target",
-                "cell_not_licensed",
+                antecedent_core::reason_details::inverse::QUANTILE_TARGET,
+                "inverse_functional_unsupported",
             ),
             (
                 InverseQuery::ObservationalScenarios,
-                "inverse.observational_scenarios",
-                "cell_not_licensed",
+                antecedent_core::reason_details::inverse::OBSERVATIONAL_SCENARIOS,
+                "inverse_functional_unsupported",
             ),
         ] {
             let refusal = run(&query, &forward, &actions).unwrap_err();
@@ -1135,7 +1077,7 @@ mod tests {
         let refusal =
             run(&InverseQuery::ChanceConstraint { threshold: 0.0, probability: 0.5 }, &broken, &[])
                 .unwrap_err();
-        assert_eq!(refusal.detail, "inverse.probability_target");
+        assert_eq!(refusal.detail, antecedent_core::reason_details::inverse::PROBABILITY_TARGET);
     }
 
     #[test]
@@ -1145,12 +1087,18 @@ mod tests {
         let refusal = run(&at_least(3.0), &derivative, &grid_actions(&GRID)).unwrap_err();
         assert_eq!(
             (refusal.detail, refusal.code),
-            ("inverse.forward_not_mean_response", "route_not_supported")
+            (
+                antecedent_core::reason_details::inverse::FORWARD_NOT_MEAN_RESPONSE,
+                "route_not_supported"
+            )
         );
         let mut set = linear_forward(&GRID);
         set.point_identified = false;
         let refusal = run(&at_least(3.0), &set, &grid_actions(&GRID)).unwrap_err();
-        assert_eq!(refusal.detail, "inverse.forward_not_point_identified");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::inverse::FORWARD_NOT_POINT_IDENTIFIED
+        );
     }
 
     #[test]
@@ -1162,7 +1110,10 @@ mod tests {
             assert_eq!(error.code, "invalid_argument", "{error}");
             error.detail
         };
-        assert_eq!(detail(run(&at_least(f64::NAN), &forward, &actions)), "inverse.invalid_target");
+        assert_eq!(
+            detail(run(&at_least(f64::NAN), &forward, &actions)),
+            antecedent_core::reason_details::inverse::INVALID_TARGET
+        );
         let negative = classify_inverse_outcome(
             &at_least(1.0),
             &forward,
@@ -1171,23 +1122,35 @@ mod tests {
             -1.0,
             &CancellationToken::new(),
         );
-        assert_eq!(detail(negative), "inverse.invalid_target");
-        assert_eq!(detail(run(&at_least(1.0), &forward, &[])), "inverse.invalid_action");
+        assert_eq!(detail(negative), antecedent_core::reason_details::inverse::INVALID_TARGET);
+        assert_eq!(
+            detail(run(&at_least(1.0), &forward, &[])),
+            antecedent_core::reason_details::inverse::INVALID_ACTION
+        );
         let mut duplicate = actions.clone();
         duplicate[1].label = duplicate[0].label.clone();
-        assert_eq!(detail(run(&at_least(1.0), &forward, &duplicate)), "inverse.invalid_action");
+        assert_eq!(
+            detail(run(&at_least(1.0), &forward, &duplicate)),
+            antecedent_core::reason_details::inverse::INVALID_ACTION
+        );
         let mut wrong_dimension = actions.clone();
         wrong_dimension[0].point = vec![0.0, 1.0];
         assert_eq!(
             detail(run(&at_least(1.0), &forward, &wrong_dimension)),
-            "inverse.invalid_action"
+            antecedent_core::reason_details::inverse::INVALID_ACTION
         );
         let mut priced = actions.clone();
         priced[0].cost = f64::NAN;
-        assert_eq!(detail(run(&at_least(1.0), &forward, &priced)), "inverse.invalid_action");
+        assert_eq!(
+            detail(run(&at_least(1.0), &forward, &priced)),
+            antecedent_core::reason_details::inverse::INVALID_ACTION
+        );
         let mut repeated = forward.clone();
         repeated.points[1] = repeated.points[0].clone();
-        assert_eq!(detail(run(&at_least(1.0), &repeated, &actions)), "inverse.invalid_forward");
+        assert_eq!(
+            detail(run(&at_least(1.0), &repeated, &actions)),
+            antecedent_core::reason_details::inverse::INVALID_FORWARD
+        );
         let mut backwards = forward;
         backwards.interval = Some(ForwardInterval {
             scope: IntervalScope::Pointwise,
@@ -1196,22 +1159,32 @@ mod tests {
             lower: vec![1.0; GRID.len()],
             upper: vec![0.0; GRID.len()],
         });
-        assert_eq!(detail(run(&at_least(1.0), &backwards, &actions)), "inverse.invalid_forward");
+        assert_eq!(
+            detail(run(&at_least(1.0), &backwards, &actions)),
+            antecedent_core::reason_details::inverse::INVALID_FORWARD
+        );
     }
 
     #[test]
-    fn the_action_grid_is_bounded_and_cancellation_is_never_a_verdict() {
+    fn string_enums_round_trip_through_every_conversion() {
+        for &reason in ActionReason::ALL {
+            assert_eq!(ActionReason::parse(reason.as_str()), Some(reason));
+            assert_eq!(reason.to_string().parse::<ActionReason>().unwrap(), reason);
+        }
+        assert_eq!(TargetDirection::parse("at_least"), Some(TargetDirection::AtLeast));
+        assert_eq!("simultaneous".parse::<IntervalScope>().unwrap(), IntervalScope::Simultaneous);
+        assert_eq!(SupportBasis::parse("pointwise"), None);
+        let refusal = "pointwise".parse::<SupportBasis>().unwrap_err().to_string();
+        assert!(refusal.contains("per_point|surface_worst_case"), "{refusal}");
+    }
+
+    #[test]
+    fn a_large_grid_is_classified_without_a_count_cap_and_cancellation_is_never_a_verdict() {
         let forward = linear_forward(&GRID);
         let many: Vec<ActionSpec> =
-            (0..=MAX_INVERSE_ACTIONS).map(|i| action(&format!("a{i}"), 0.0, 0.0)).collect();
-        let refusal = run(&at_least(1.0), &forward, &many).unwrap_err();
-        assert_eq!(
-            (refusal.detail, refusal.code),
-            ("inverse.bounds_exceeded", "route_not_supported")
-        );
-        let at_cap: Vec<ActionSpec> =
-            (0..MAX_INVERSE_ACTIONS).map(|i| action(&format!("a{i}"), 0.0, 0.0)).collect();
-        assert!(run(&at_least(1.0), &forward, &at_cap).is_ok());
+            (0..10_000).map(|i| action(&format!("a{i}"), 0.0, 0.0)).collect();
+        let report = run(&at_least(1.0), &forward, &many).unwrap();
+        assert_eq!(report.outcomes.len(), 10_000);
         let token = CancellationToken::cancel_after_checks(2);
         let refusal = classify_inverse_outcome(
             &at_least(3.0),
@@ -1224,7 +1197,7 @@ mod tests {
         .unwrap_err();
         assert_eq!(
             (refusal.detail, refusal.code),
-            ("inverse.cancelled", "transport_budget_cancel")
+            (antecedent_core::reason_details::inverse::CANCELLED, "transport_budget_cancel")
         );
     }
 
@@ -1280,7 +1253,7 @@ mod tests {
         let report = run(&at_least(-f64::MAX), &forward, &[action("a", 0.0, 0.0)]).unwrap();
         let outcome = &report.outcomes[0];
         assert_eq!(outcome.status, ActionStatus::Unevaluated);
-        assert_eq!(outcome.reason, "numerical_margin_overflow");
+        assert_eq!(outcome.reason, ActionReason::NumericalMarginOverflow);
         assert_eq!(outcome.estimate, Some(f64::MAX));
         assert_eq!(outcome.margin, None);
         assert_eq!(report.enumerated, EnumeratedStatus::Undetermined);
@@ -1296,7 +1269,10 @@ mod tests {
             ActionSpec { point: vec![1.0, 2.0], ..action("late", 1.0, 0.0) },
         ];
         let error = run(&at_least(2.0), &forward, &actions).unwrap_err();
-        assert_eq!((error.code, error.detail), ("invalid_argument", "inverse.invalid_action"));
+        assert_eq!(
+            (error.code, error.detail),
+            ("invalid_argument", antecedent_core::reason_details::inverse::INVALID_ACTION)
+        );
         assert!(error.message.contains("one fixed outcome horizon"));
     }
 }

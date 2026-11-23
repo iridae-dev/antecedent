@@ -6,9 +6,9 @@ One command after a calibration run:
     python3 scripts/collect_coverage_records.py
 
 It reads `target/calibration-records/*.log` (written by
-`scripts/gate_calibration.sh`), writes `parity/coverage_records.toml` stamped
+`scripts/calibration_groups.py run`), writes `parity/coverage_records.toml` stamped
 with the SHA of the commit the logs were measured at, rewrites the
-`calibration` / `calibration_reason` pair for each already-bound licensed support
+`calibration` / `calibration_reason` pair for each already-bound supported support
 cell using only its existing record IDs, refreshes estimator rows, and regenerates
 `crates/antecedent-io-core/data/coverage_records.json`
 (loaded by `crates/antecedent-io-core/src/coverage_records_data.rs`;
@@ -44,28 +44,31 @@ the recheck's verdict is the one the gate takes. When the gate re-ran only some
 of a group's tests (a whole-file group; the log names them in
 `calibration-rechecked-test` lines), only those tests' records are replaced.
 
-Every record is written with `facets`: the parts of the statistical surface it
-depends on, derived by `scripts/calibration_facets.py` from the record itself.
-A record stands until one of those facets changes, so a partial re-measurement
-is enough when only some facets drifted:
+Every record measured at HEAD is written with `fingerprint`: the dependency
+fingerprint of its `test` target (`scripts/evidence_fingerprint.py`) at the
+commit it was measured at. `scripts/calibration_status.py` compares it with the
+fingerprint of the tree to say whether the record is current; nothing here or
+there fails a code change. Existing records the logs do not re-measure stay in
+the registry with the fingerprint they were measured with:
 
-    python3 scripts/collect_coverage_records.py --keep-attested
+    python3 scripts/collect_coverage_records.py --keep-not_measured
 
-keeps every existing record the logs do not re-measure whose facets are
-unchanged since its own `calibration_sha` (or that a valid replay waiver in
-`parity/calibration_waivers.toml` attests), and drops (and names) the ones
-that still owe a re-measurement. Without it the registry is exactly the logs.
+Without it the registry is exactly the logs.
 
-`--retag` rewrites only the `facets` of the existing records (after a change
-to `scripts/calibration_surface.list`); nothing is measured or re-stamped.
+Each `calibration-record` line carries `prefix_digests`: the chained digests of
+the first 10 / 32 / 100 / 320 / 1000 replicates of that grid point. The merge
+stores them as the record's `probe` table (`probe = { p0 = { 10 = "…", … }, p1 =
+…, p2 = … }`), which `scripts/calibration_probe.py` later compares against a
+re-run at another commit. A line without digests leaves the record without a
+`probe`; such a record can only become current again by a re-measurement.
 
 For a small independently measured set of cells while older records still owe
 re-measurement, `--append-attested --only-cell QUERY:GRAPH:STRUCTURE:INFERENCE:VALIDATION=ID,ID`
 adds only new IDs from valid, stamped logs, rejects collisions, preserves every
 older record with its original SHA (including stale records), and syncs only
-the named licensed cells to exactly the named record IDs after checking their
+the named supported cells to exactly the named record IDs after checking their
 coordinate and declared estimator ownership. It leaves the global gate ledger and estimator rows
-alone; preserving an older row does not attest or re-license it.
+alone; preserving an older row does not attest or re-support it.
 
 `--smoke --log-dir <dir> --out <file>` collects the lines of a wiring smoke run
 (`ANTECEDENT_CALIBRATION_SMOKE=1` at a reduced replicate count) into a scratch
@@ -74,22 +77,23 @@ registry. Smoke lines measure nothing: every other invocation refuses them, and
 
 Every log must show a passing `test result: ok. N passed` with N >= 1 and no
 failure, and end with the `calibration-measured-at <sha>` line the gate wrote
-(scripts/gate_calibration.sh); all logs must agree on that sha and it must equal
+(scripts/calibration_runner.py); all logs must agree on that sha and it must equal
 the stamped one. A run whose groups failed, matched no test, or was measured at
-another commit than the one being stamped is refused. Without `--keep-attested`
+another commit than the one being stamped is refused. Without `--keep-not_measured`
 the registry is exactly the logs, and the collector refuses to drop a record id
 the registry already holds unless it is named with `--allow-removal <id>`.
 
 `--sha <sha>` stamps that commit instead of HEAD (for logs measured at another
 commit, which must say so in their `calibration-measured-at` line); `--no-cells` leaves the registries alone. Without `--sha` the
-collector refuses to stamp HEAD while the worktree's statistical surface
-differs from HEAD, because the logs would then describe uncommitted code.
+collector refuses to stamp HEAD while the sources a fingerprint reads differ
+from HEAD, because the logs would then describe uncommitted code.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -98,10 +102,11 @@ from pathlib import Path
 
 import calibration_decision as coverage_decision
 import calibration_decision_logs as coverage_decision_logs
-import calibration_facets as facets
 import calibration_family
+import calibration_probe
+import calibration_status
 from _repo import REPO_ROOT as ROOT
-from _repo import read_text, write_text
+from _repo import load_toml, read_text, strict_git_head, write_text
 
 # The schema reader consumes this module's historical configuration reader.
 coverage_family = calibration_family
@@ -109,7 +114,7 @@ coverage_family = calibration_family
 LOG_DIR = ROOT / "target" / "calibration-records"
 OUT = ROOT / "parity" / "coverage_records.toml"
 GATES = ROOT / "parity" / "calibration_gates.toml"
-LICENSED = ROOT / "parity" / "support_licensed.toml"
+SUPPORTED = ROOT / "parity" / "support_cells.toml"
 ESTIMATE = ROOT / "parity" / "estimate.toml"
 GENERATOR = ROOT / "scripts" / "generate_support_matrix_docs.py"
 
@@ -121,9 +126,9 @@ HEADER = """# Coverage records bound onto executions at claim time.
 # of the commit the logs were measured at. Do not edit rows by hand; re-run
 # the collector. `scripts/gate_parity_schema.sh` checks every row. The pass/fail
 # groups that emit no record are attested in parity/calibration_gates.toml. Each
-# row's `surface_list_blob` is the git blob of scripts/calibration_surface.list at
-# `calibration_sha`, so the surface a record was attested against is stored, not
-# only re-derived from history.
+# row's `fingerprint` is the dependency fingerprint of its `test` target at
+# `calibration_sha` (scripts/evidence_fingerprint.py); scripts/calibration_status.py
+# compares it with the tree. It is an annotation: no code change fails on it.
 """
 
 FIELDS = (
@@ -154,9 +159,7 @@ FIELDS = (
     "grid",
     "dgp",
     "test",
-    "facets",
     "calibration_sha",
-    "surface_list_blob",
 )
 
 # Fields only some records carry, written after `role` when present: a
@@ -166,7 +169,16 @@ FIELDS = (
 # A boundary record that passed an independent confirmation also states the
 # confirmation's points (shaped like `grid`) and the `confirmed_passing_range`
 # they establish (`confirmed_passing_range`).
-OPTIONAL_FIELDS = ("decision_protocol", "one_sided", "conservative_point", "confirmation", "confirmed_passing_range")
+OPTIONAL_FIELDS = (
+    "validation_schema",
+    "validation",
+    "decision_protocol",
+    "one_sided",
+    "conservative_point",
+    "confirmation",
+    "confirmed_passing_range",
+    "probe",
+)
 # Coverage roles a grid point may carry. `gated` passes the two-sided band and
 # precision floor/ceiling; `named_boundary` is a documented under-coverage;
 # `reported_level` is an unasserted second level; `one_sided` passes a floor at
@@ -192,11 +204,16 @@ def conservative_point_problem(record: dict) -> str | None:
     if claim != GAUSSIAN_STUDY_T_CLAIM:
         return "conservative_point requires the Gaussian study-mean theorem and target"
     expected = {
-        "query": "PooledEffect", "graph_class": "NoGraph", "structure": "fixed",
-        "modality": "summary", "inference": "Frequentist",
+        "query": "PooledEffect",
+        "graph_class": "NoGraph",
+        "structure": "fixed",
+        "modality": "summary",
+        "inference": "Frequentist",
         "estimator": "evidence.synthesis.equal_study_gaussian",
         "interval_method": "independent_gaussian_study_t",
-        "se_kind": "empirical_study_variance", "dependence": "independent", "posterior": "",
+        "se_kind": "empirical_study_variance",
+        "dependence": "independent",
+        "posterior": "",
         "identification": "point",
         "functional": "pooled_mean;equal_study_gaussian;studies=5-30",
     }
@@ -216,7 +233,11 @@ def conservative_point_problem(record: dict) -> str | None:
 ESTIMATOR_ROW_IDS = {
     "estimate.linear_regression": {"linear.adjustment.ate", "temporal.linear.adjustment"},
     "estimate.glm": {"glm.adjustment"},
-    "estimate.propensity": {"propensity.weighting", "propensity.matching", "propensity.stratification"},
+    "estimate.propensity": {
+        "propensity.weighting",
+        "propensity.matching",
+        "propensity.stratification",
+    },
     "estimate.matching": {"distance.matching"},
     "estimate.doubly_robust": {"aipw", "cell.aipw"},
     "estimate.iv": {"iv.wald", "iv.2sls"},
@@ -236,6 +257,8 @@ GRID_POINTS = 3
 # Fields measured per grid point; every other emitted field is the construction
 # and provenance, which must be the same at every point.
 POINT_FIELDS = (
+    "interval_counts",
+    "overlap_refusals",
     "decision_protocol",
     "n_min",
     "n_max",
@@ -249,7 +272,11 @@ POINT_FIELDS = (
     "boundary",
     "role",
     "grid_point",
+    "prefix_digests",
 )
+# Prefix lengths a `prefix_digests` table may carry (`DIGEST_PREFIXES` in
+# crates/antecedent/tests/common/calibration.rs).
+DIGEST_PREFIXES = (10, 32, 100, 320, 1000)
 GRID_ENTRY_FIELDS = (
     "point",
     "n_min",
@@ -268,9 +295,35 @@ RECHECKED_TEST = re.compile(r"^calibration-rechecked-test (\S+)$", re.M)
 def rechecked_tests(recheck_log: Path) -> set[str] | None:
     """The test functions a recheck log re-ran, when the gate re-ran only some
     of a group's tests (`calibration-rechecked-test` lines, written by
-    scripts/gate_calibration.sh); `None` when it re-ran the whole group."""
+    scripts/calibration_runner.py); `None` when it re-ran the whole group."""
     found = RECHECKED_TEST.findall(read_text(recheck_log, errors="ignore"))
     return {name.rpartition("::")[2] for name in found} or None
+
+
+def study_record_lines(text: str) -> list[dict]:
+    """Join an optional count report to its own measured construction and grid point."""
+    records = []
+    counts = {}
+    for line in text.splitlines():
+        if line.startswith("calibration-record "):
+            records.append(json.loads(line.partition(" ")[2]))
+        elif line.startswith("calibration-design-counts "):
+            report = json.loads(line.partition(" ")[2])
+            key = (report["id"], report["grid_point"])
+            values = report["counts"]
+            if key in counts or not isinstance(values, dict) or set(values) not in (
+                {"interval_counts"}, {"overlap_refusals"},
+            ):
+                raise ValueError(f"invalid or duplicate design counts for {key}")
+            counts[key] = values
+    for record in records:
+        values = counts.pop((record["id"], record.get("grid_point")), {})
+        if values.keys() & record.keys():
+            raise ValueError(f"conflicting design counts for {record['id']}")
+        record.update(values)
+    if counts:
+        raise ValueError(f"design counts have no matching measurement: {list(counts)}")
+    return records
 
 
 def record_lines(
@@ -295,11 +348,10 @@ def record_lines(
                 superseded = rechecked_tests(partner)
                 if superseded is None:
                     continue  # the whole group was re-run
-        for line in read_text(log, errors="ignore").splitlines():
-            if not line.startswith("calibration-record "):
-                continue
-            payload = json.loads(line.split(" ", 1)[1])
+        for payload in study_record_lines(read_text(log, errors="ignore")):
             rid = str(payload["id"])
+            if problem := validation_record_problem(payload):
+                raise SystemExit(f"{log.name}: record {rid}: {problem}")
             if superseded and str(payload["test"]).rpartition("::")[2] in superseded:
                 continue
             if bool(payload.pop("smoke", False)) != smoke:
@@ -330,49 +382,129 @@ def record_lines(
             if "grid_point" not in payload:
                 raise SystemExit(
                     f"{log.name}: record {rid} carries no grid_point; it was measured before "
-                    "the sample-size grid, so re-measure it with scripts/gate_calibration.sh"
+                    "the sample-size grid, so re-measure it with scripts/measure_calibration.sh"
                 )
             validate_point_decision(payload)
             point = int(payload["grid_point"])
             if not 0 <= point < GRID_POINTS:
                 raise SystemExit(f"{log.name}: record {rid} at grid point {point}")
             seen = out.setdefault(rid, {}).get(point)
-            if seen is not None and not recheck:
-                if seen["replicates"] == payload["replicates"]:
-                    raise SystemExit(
-                        f"duplicate record id {rid} at grid point {point} in {log.name}: "
-                        "two tallies emit the same id"
-                    )
-                # The same measurement re-run at more replicates: keep the
-                # more precise one (a precision recheck, however it was run).
-                if seen["replicates"] > payload["replicates"]:
-                    continue
+            if seen is not None:
+                raise SystemExit(
+                    f"duplicate record id {rid} at grid point {point} in {log.name}: "
+                    "two tallies emit the same id"
+                )
             out[rid][point] = payload
     return out
 
 
-def validate_point_decision(payload: dict, *, expected_config: dict | None = None,
-                            final: bool = False) -> None:
+def validate_point_decision(
+    payload: dict, *, expected_config: dict | None = None, final: bool = False
+) -> None:
     """Audit stored counts; only the governing final look claims compatibility."""
     value = payload.get("decision_protocol")
     if value is None:
         return
     try:
-        coverage_decision.validate_decision(value, float(payload["nominal"]),
-            observed=float(payload["observed"]), replicates=int(payload["replicates"]),
-            expected_config=expected_config, role=str(payload["role"]) if final else None)
+        coverage_decision.validate_decision(
+            value,
+            float(payload["nominal"]),
+            observed=float(payload["observed"]),
+            replicates=int(payload["replicates"]),
+            expected_config=expected_config,
+            role=str(payload["role"]) if final else None,
+        )
     except (ValueError, TypeError, KeyError) as error:
         raise SystemExit(f"invalid coverage decision: {error}") from error
 
 
-def grid_fields_valid(point: dict) -> bool:
-    return set(point) in (set(GRID_ENTRY_FIELDS), set(GRID_ENTRY_FIELDS) | {"decision_protocol"})
+def valid_interval_counts(counts: object, point: dict) -> bool:
+    if not isinstance(counts, dict) or set(counts) != {"attempted", "returned", "covered"}:
+        return False
+    if any(type(n) is not int for n in counts.values()):
+        return False
+    attempted, returned, covered = counts["attempted"], counts["returned"], counts["covered"]
+    decision = point.get("decision_protocol", {})
+    observed = point.get("observed")
+    return (
+        0 <= covered <= returned <= attempted
+        and returned > 0
+        and returned == point.get("replicates")
+        and returned == point.get("bound_replicates", returned)
+        and isinstance(decision, dict)
+        and attempted == decision.get("planned_replicates", attempted)
+        and covered == decision.get("covered", covered)
+        and type(observed) in (int, float)
+        and abs(covered / returned - observed) < 1e-9
+    )
+
+
+def panel_counts_expected(record: dict) -> bool:
+    functional = record.get("functional")
+    return (
+        record.get("query") == "SyntheticControl"
+        and isinstance(functional, str)
+        and functional.startswith("synthetic_control/")
+    )
+
+
+def panel_prediction_problem(record: dict, point: dict) -> str | None:
+    """Verify nominal coverage for the four prespecified short-history panel cells."""
+    if record.get("query") != "SyntheticControl" or str(record.get("dgp", "")).rpartition("::")[-1] != "convex_donor_panel_iid_noise":
+        return None
+    averages = {"synthetic_control/posterior_average+donors=40+post_periods=5",
+                "synthetic_control/predictive_path_average+donors=40+post_periods=5"}
+    if record.get("functional") not in averages or point.get("n_min") not in (30, 40):
+        return None
+    if point.get("n_min") != point.get("n_max") or point.get("role") != "gated" or point.get("boundary") is not False:
+        return "nominal panel coverage requires a gated observation at the exact measured design"
+    counts = point.get("interval_counts")
+    if not valid_interval_counts(counts, point) or counts["attempted"] != 2000:
+        return "nominal panel coverage requires 2000 independent attempts"
+    observed, n = counts["covered"], counts["returned"]
+    attempted = counts["attempted"]
+    if (attempted - n) / attempted > 0.01 + 2 * (0.01 * 0.99 / attempted) ** 0.5:
+        return "nominal panel exceeded the convergence refusal limit"
+    prediction = 0.95
+    rate = observed / n
+    lower = coverage_decision.binomial_p_value(n, n - observed, 1 - (prediction - 0.025), True)
+    upper = coverage_decision.binomial_p_value(n, observed, prediction + 0.025, True)
+    if (rate * (1 - rate) / n) ** 0.5 > 0.01 or max(lower, upper) > 0.05 / 4:
+        return "held-out frequency lacks the precision or agreement required for nominal panel coverage"
+    return None
+
+
+def requires_overlap_counts(record: dict) -> bool:
+    return (
+        record.get("query") == "SequentialContrast"
+        and str(record.get("dgp", "")).rpartition("::")[-1] == "sequential_panel_wide_probabilities"
+    )
+
+
+def grid_fields_valid(point: dict, record: dict) -> bool:
+    if panel_prediction_problem(record, point):
+        return False
+    if requires_overlap_counts(record) and "overlap_refusals" not in point:
+        return False
+    if panel_counts_expected(record) != ("interval_counts" in point):
+        return False
+    if "interval_counts" in point and not valid_interval_counts(point["interval_counts"], point):
+        return False
+    if "overlap_refusals" in point and (type(point["overlap_refusals"]) is not int or point["overlap_refusals"] < 0):
+        return False
+    return set(point) - {"decision_protocol", "overlap_refusals", "interval_counts"} == set(GRID_ENTRY_FIELDS)
 
 
 def grid_entry(payload: dict) -> dict:
     """The registry's `grid` entry of one measured point."""
     return {
-        **({"decision_protocol": payload["decision_protocol"]} if "decision_protocol" in payload else {}),
+        **(
+            {"decision_protocol": payload["decision_protocol"]}
+            if "decision_protocol" in payload
+            else {}
+        ),
+        **({"interval_counts": payload["interval_counts"]} if "interval_counts" in payload else {}),
+        **({"overlap_refusals": payload["overlap_refusals"]} if "overlap_refusals" in payload else {}),
         "point": int(payload["grid_point"]),
         "n_min": int(payload["n_min"]),
         "n_max": int(payload["n_max"]),
@@ -411,7 +543,9 @@ def attach_confirmation(rid: str, record: dict, points: dict[int, dict]) -> None
     sample sizes and roles as the measurement; ignored for records with nothing
     to recover (not a boundary, or a named boundary, which documents a limit)."""
     if "decision_protocol" in record or any("decision_protocol" in p for p in points.values()):
-        raise SystemExit(f"record {rid}: fresh-seed confirmation is not allocated risk in suite coverage protocol v1")
+        raise SystemExit(
+            f"record {rid}: fresh-seed confirmation is not allocated risk in suite coverage protocol v1"
+        )
     if not record["boundary"] or record["role"] == "named_boundary":
         return
     entries = []
@@ -419,9 +553,7 @@ def attach_confirmation(rid: str, record: dict, points: dict[int, dict]) -> None
         payload = points[k]
         measured = record["grid"][k]
         differs = sorted(
-            key
-            for key in payload
-            if key not in POINT_FIELDS and payload[key] != record.get(key)
+            key for key in payload if key not in POINT_FIELDS and payload[key] != record.get(key)
         )
         if differs:
             raise SystemExit(
@@ -446,7 +578,7 @@ def attach_confirmation(rid: str, record: dict, points: dict[int, dict]) -> None
         record["confirmed_passing_range"] = recovered
 
 
-def merge_grid(rid: str, points: dict[int, dict]) -> dict:
+def merge_grid(rid: str, points: dict[int, dict], *, smoke: bool = False) -> dict:
     """One registry row from a record's per-point payloads.
 
     The row's scope spans the points; it is a boundary when any point is, and
@@ -461,15 +593,44 @@ def merge_grid(rid: str, points: dict[int, dict]) -> dict:
         )
     ordered = [points[k] for k in range(GRID_POINTS)]
     first = ordered[0]
-    configs = [{key: p["decision_protocol"][key] for key in coverage_decision.CONFIG_FIELDS}
-               if "decision_protocol" in p else None for p in ordered]
+    configs = [
+        {key: p["decision_protocol"][key] for key in coverage_decision.CONFIG_FIELDS}
+        if "decision_protocol" in p
+        else None
+        for p in ordered
+    ]
     active_configs = [config for config in configs if config is not None]
-    if (any(config != active_configs[0] for config in active_configs)
-            or (active_configs and any(config is None and p['role']!='named_boundary'
-                                      for config,p in zip(configs,ordered,strict=True)))):
-        raise SystemExit(f"record {rid}: grid points mix coverage decision families or legacy protocols")
+    if any(config != active_configs[0] for config in active_configs) or (
+        active_configs
+        and any(
+            config is None and p["role"] != "named_boundary"
+            for config, p in zip(configs, ordered, strict=True)
+        )
+    ):
+        raise SystemExit(
+            f"record {rid}: grid points mix coverage decision families or legacy protocols"
+        )
     for payload in ordered:
         validate_point_decision(payload, final=True)
+        if not smoke and (problem := panel_prediction_problem(payload, payload)):
+            raise SystemExit(f"record {rid}: {problem}")
+    for payload in ordered:
+        panel = panel_counts_expected(payload)
+        if panel != ("interval_counts" in payload) or (
+            panel and not valid_interval_counts(payload["interval_counts"], payload)
+        ):
+            raise SystemExit(f"record {rid}: inconsistent returned-interval counts")
+    conditional = "overlap_refusals" in first
+    if requires_overlap_counts(first) and not conditional:
+        raise SystemExit(f"record {rid}: missing overlap refusal count on a conditional study")
+    for payload in ordered:
+        if ("overlap_refusals" in payload) != conditional:
+            raise SystemExit(f"record {rid}: different coverage denominators across the grid")
+        if conditional and (
+            type(payload["overlap_refusals"]) is not int or payload["overlap_refusals"] < 0
+            or payload.get("bound_replicates") != payload["replicates"]
+        ):
+            raise SystemExit(f"record {rid}: conditional coverage requires a bound interval per replicate and a valid refusal count")
     for payload in ordered[1:]:
         differs = sorted(
             key
@@ -535,7 +696,37 @@ def merge_grid(rid: str, points: dict[int, dict]) -> dict:
     )
     if "decision_protocol" in governing:
         record["decision_protocol"] = governing["decision_protocol"]
+    if probe := probe_table(rid, ordered):
+        record["probe"] = probe
     return record
+
+
+def probe_table(rid: str, ordered: list[dict]) -> dict[str, dict[str, str]] | None:
+    """The record's `probe`: each grid point's prefix digests, or `None` when the
+    lines carry none. Digests must be well formed at every point or absent at all."""
+    tables = [p.get("prefix_digests") for p in ordered]
+    if all(t is None for t in tables):
+        return None
+    out: dict[str, dict[str, str]] = {}
+    for payload, table in zip(ordered, tables, strict=True):
+        point = int(payload["grid_point"])
+        ok = (
+            isinstance(table, dict)
+            and table
+            and all(
+                str(k).isdigit()
+                and int(k) in DIGEST_PREFIXES
+                and isinstance(v, str)
+                and re.fullmatch(r"[0-9a-f]{32}", v)
+                for k, v in table.items()
+            )
+        )
+        if not ok:
+            raise SystemExit(
+                f"record {rid}: grid point {point} carries malformed or missing prefix_digests"
+            )
+        out[f"p{point}"] = {str(k): v for k, v in sorted(table.items(), key=lambda kv: int(kv[0]))}
+    return out
 
 
 CONFIRMATION_LOG = re.compile(r"\.p\d+\.confirm(\.recheck)?\.log$")
@@ -553,8 +744,7 @@ def merged_records(
     independent confirmation of each boundary record that has one."""
     measured = [log for log in logs if not is_confirmation_log(log)]
     records = {
-        rid: merge_grid(rid, points)
-        for rid, points in record_lines(measured, smoke, sha).items()
+        rid: merge_grid(rid, points, smoke=smoke) for rid, points in record_lines(measured, smoke, sha).items()
     }
     confirmations = record_lines(
         [log for log in logs if is_confirmation_log(log)], smoke, sha, confirmation=True
@@ -599,6 +789,17 @@ def log_problems(log: Path) -> tuple[list[str], set[str]]:
     text = read_text(log, errors="ignore")
     results = CARGO_RESULT.findall(text)
     problems = []
+    if re.search(r"^(?:test \S+ \.\.\. )?calibration-smoke ", text, re.M):
+        problems.append(f"{log.name}: a smoke slice cannot earn a calibration record")
+    from graph_reliability_report import check_report, parse_report, required_report
+    required = required_report(log.stem)
+    if required is not None:
+        try:
+            report = parse_report(text)
+            if (report["score"], report["design"]) != required or check_report(report):
+                raise ValueError("incorrect study identity or failed reliability bins")
+        except (KeyError, TypeError, ValueError, OverflowError) as error:
+            problems.append(f"{log.name}: invalid directed-edge reliability evidence: {error}")
     if any(status == "FAILED" or int(failed) for status, _, failed in results):
         problems.append(f"{log.name}: a test failed")
     if sum(int(passed) for _, passed, _ in results) < 1:
@@ -609,15 +810,27 @@ def log_problems(log: Path) -> tuple[list[str], set[str]]:
 def check_logs(logs: list[Path], sha: str) -> None:
     """Refuse logs of a failed or empty group, or measured at another commit than `sha`."""
     problems: list[str] = []
+    selected = set(logs)
     for log in logs:
         found, measured = log_problems(log)
         problems += found
+        if not log.name.endswith(".recheck.log"):
+            output = read_text(log, errors="ignore")
+            if re.search(r"^(?:test \S+ \.\.\. )?calibration-recheck ", output, re.M):
+                partner = log.with_suffix(".recheck.log")
+                if partner not in selected:
+                    problems.append(f"{log.name}: requested recheck is missing from the collection")
+                else:
+                    reran = rechecked_tests(partner)
+                    requested = set(re.findall(r"^calibration-recheck-test (\S+)", output, re.M))
+                    if reran is not None and requested - reran:
+                        problems.append(f"{log.name}: requested tests are missing from the recheck")
         if not measured:
-            problems.append(f"{log.name}: no calibration-measured-at line (not written by the gate)")
-        elif measured != {sha}:
             problems.append(
-                f"{log.name}: measured at {', '.join(sorted(measured))}, not at {sha}"
+                f"{log.name}: no calibration-measured-at line (not written by the gate)"
             )
+        elif measured != {sha}:
+            problems.append(f"{log.name}: measured at {', '.join(sorted(measured))}, not at {sha}")
     if problems:
         raise SystemExit("cannot collect these logs:\n  " + "\n  ".join(problems))
     try:
@@ -629,7 +842,7 @@ def check_logs(logs: list[Path], sha: str) -> None:
 GATES_HEADER = """# Pass/fail calibration groups that emit no coverage record (CI Type I error,
 # permutation uniformity, discovery FPR/power, SBC, response calibration).
 #
-# One row per group log `scripts/gate_calibration.sh` wrote and
+# One row per group log the calibration gate (`scripts/calibration_groups.py`) wrote and
 # `scripts/collect_coverage_records.py` accepted: the group ran, passed at least
 # one test and failed none, at `calibration_sha`. Do not edit rows by hand; re-run
 # the collector. `scripts/gate_parity_schema.sh` checks every row.
@@ -643,10 +856,13 @@ def gate_ledger(logs: list[Path], sha: str) -> dict[str, dict]:
         decisions = coverage_decision_logs.audit_logs(logs, sha)
     except (ValueError, KeyError, OSError, subprocess.CalledProcessError) as error:
         raise SystemExit(f"invalid frozen-family decision ledger: {error}") from error
+    decision_order = {name: index for index, name in enumerate(decisions)}
     for log in logs:
         text = read_text(log, errors="ignore")
-        if is_confirmation_log(log) or log.name.endswith(".recheck.log") or any(
-            line.startswith("calibration-record ") for line in text.splitlines()
+        if (
+            is_confirmation_log(log)
+            or log.name.endswith(".recheck.log")
+            or any(line.startswith("calibration-record ") for line in text.splitlines())
         ):
             continue
         passed = sum(int(n) for _, n, _ in CARGO_RESULT.findall(text))
@@ -655,16 +871,42 @@ def gate_ledger(logs: list[Path], sha: str) -> dict[str, dict]:
             "passed": passed,
             "calibration_sha": sha,
         }
-        raw = [{"log": name, **row, "record_id": row["record_id"] or ""} for name, entries in decisions.items()
-               if name in {log.name, log.name.removesuffix(".log") + ".recheck.log"}
-               for row in entries]
-        contexts = [json.loads(line.partition(" ")[2]) for line in text.splitlines()
-                    if line.startswith("calibration-decision-context ")]
+        from graph_reliability_report import check_report, parse_report, required_report
+        if required := required_report(log.stem):
+            report = parse_report(text)
+            if (report["score"], report["design"]) != required or check_report(report):
+                raise ValueError(f"{log.name}: cannot record a failed or mismatched reliability study")
+            rows[log.stem]["graph_reliability"] = report
+        capture = log.with_name(log.name.removesuffix(".log") + ".coverage.json")
+        if capture.is_file():
+            import gate_carry
+
+            files = gate_carry.executed_files(json.loads(read_text(capture)))
+            if files:
+                rows[log.name.removesuffix(".log")]["executed_files"] = files
+        raw = [
+            {"log": name, **row, "record_id": row["record_id"] or ""}
+            for name in sorted(
+                (log.name, log.name.removesuffix(".log") + ".recheck.log"),
+                key=lambda name: decision_order.get(name, len(decisions)),
+            )
+            for row in decisions.get(name, [])
+        ]
+        contexts = [
+            json.loads(line.partition(" ")[2])
+            for line in text.splitlines()
+            if line.startswith("calibration-decision-context ")
+        ]
         if contexts:
             rows[log.name.removesuffix(".log")]["coverage_decisions"] = raw
             rows[log.name.removesuffix(".log")]["decision_protocol"] = contexts[0]
-        protocols = {line.removeprefix("CALIBRATION_GATE_PROTOCOL ").strip()
-                     for line in text.splitlines() if line.startswith("CALIBRATION_GATE_PROTOCOL ")}
+        # A test that prints while libtest shows its output shares the line libtest opened
+        # with `test <name> ... `, so the marker is read after that prefix too.
+        protocols = {
+            marker.group(1).strip()
+            for line in text.splitlines()
+            if (marker := re.match(r"(?:test \S+ \.\.\. )?CALIBRATION_GATE_PROTOCOL (.*)", line))
+        }
         if protocols:
             if len(protocols) != 1 or not re.fullmatch(r"[a-z][a-z0-9_]*", next(iter(protocols))):
                 raise SystemExit(f"{log.name}: invalid or conflicting calibration protocol markers")
@@ -683,13 +925,38 @@ def write_gate_ledger(rows: dict[str, dict], keep: dict[str, dict] | None = None
             f"passed = {int(row['passed'])}",
             f"calibration_sha = {toml_value('calibration_sha', row['calibration_sha'])}",
         ]
-        for optional in ("decision_protocol", "coverage_decisions"):
+        for optional in ("decision_protocol", "coverage_decisions", "executed_files", "graph_reliability"):
             if optional in row:
                 lines.append(f"{optional} = {toml_value(optional, row[optional])}")
         if "protocol" in row:
             lines.append(f"protocol = {toml_value('protocol', row['protocol'])}")
         lines.append("")
     write_text(GATES, "\n".join(lines))
+
+
+def completed_owed_logs(log_dir: Path, sha: str, offset: int) -> list[Path]:
+    """Only complete groups whose runner verdicts were appended in this invocation."""
+    from calibration_groups import TIMINGS, gate_groups, task_label
+
+    if offset < 0:
+        raise SystemExit("invalid timing file offset")
+    if not TIMINGS.is_file():
+        return []
+    with TIMINGS.open("rb") as timings:
+        timings.seek(offset)
+        entries = [line.decode().rstrip("\n").split("\t") for line in timings]
+    passed = {row[0]: row[2] == "0" for row in entries if len(row) == 6 and row[3] == sha}
+    logs = []
+    for group in gate_groups():
+        if not all(passed.get(task_label(group, point)) for point in group.points):
+            continue
+        stems = [group.safe if point is None else f"{group.safe}.p{point}" for point in group.points]
+        first = [log_dir / f"{stem}.log" for stem in stems]
+        if not all(path.is_file() for path in first):
+            raise SystemExit(f"runner completed {group.label} but its logs are missing")
+        logs.extend(first)
+        logs.extend(path for stem in stems if (path := log_dir / f"{stem}.recheck.log").is_file())
+    return sorted(logs)
 
 
 def passing_group_logs(logs: list[Path], sha: str) -> list[Path]:
@@ -702,8 +969,9 @@ def passing_group_logs(logs: list[Path], sha: str) -> list[Path]:
     accepted = []
     for group, members in sorted(by_group.items()):
         reasons = []
-        points = {int(m.group(1)) for log in members
-                  if (m := re.search(r"\.p([012])\.log$", log.name))}
+        points = {
+            int(m.group(1)) for log in members if (m := re.search(r"\.p([012])\.log$", log.name))
+        }
         if points and points != {0, 1, 2}:
             reasons.append(f"incomplete sample grid: {sorted(points)}")
         if not any(not log.name.endswith((".recheck.log", ".confirm.log")) for log in members):
@@ -720,6 +988,45 @@ def passing_group_logs(logs: list[Path], sha: str) -> list[Path]:
     return sorted(accepted)
 
 
+def require_frozen_collection_decisions(logs: list[Path]) -> None:
+    """New collection needs frozen decision evidence, never inferred from legacy logs.
+
+    Named boundary records are diagnostic and cannot establish a passing range.
+    The current family protocol has no independent confirmation allocation, so
+    confirmations cannot be collected as passing evidence under that protocol.
+
+    A pass/fail group (Type I error, power, uniformity, SBC, posterior agreement,
+    precision, a reported-only or probe cell) measures no coverage record and makes
+    no coverage decision. Its log is collected as a gate-ledger row when it carries
+    the one frozen context (which `audit_logs` checks against the family at the
+    measured commit) and its tests passed, at least one and none failing; it never
+    becomes a coverage record.
+    """
+    for log in logs:
+        if is_confirmation_log(log):
+            raise SystemExit(f"{log.name}: confirmation has no allocated decision protocol")
+        text = read_text(log, errors="strict")
+        contexts = [line for line in text.splitlines() if line.startswith("calibration-decision-context ")]
+        decisions = [line for line in text.splitlines() if line.startswith("calibration-decision ")]
+        records = [json.loads(line.partition(" ")[2]) for line in text.splitlines()
+                   if line.startswith("calibration-record ")]
+        if len(contexts) != 1:
+            raise SystemExit(f"{log.name}: collection requires one frozen decision context")
+        if not records and not decisions:
+            results = CARGO_RESULT.findall(text)
+            passed = sum(int(n) for _, n, _ in results)
+            failed = sum(int(f) for _, _, f in results)
+            if not results or passed == 0 or failed:
+                raise SystemExit(f"{log.name}: collection requires allocated decision evidence")
+            continue
+        for record in records:
+            if record.get("role") == "named_boundary":
+                continue
+            if "decision_protocol" not in record:
+                raise SystemExit(f"{log.name}: statistical record lacks decision protocol")
+            validate_point_decision(record)
+
+
 def load_records(
     sha: str,
     log_dir: Path = LOG_DIR,
@@ -730,10 +1037,12 @@ def load_records(
     allow_empty: bool = False,
 ) -> dict[str, dict]:
     if not log_dir.is_dir():
-        raise SystemExit(f"missing {log_dir}: run scripts/gate_calibration.sh first")
+        raise SystemExit(f"missing {log_dir}: run scripts/measure_calibration.sh first")
     logs = sorted(log_dir.glob("*.log")) if selected_logs is None else selected_logs
     if not logs and allow_empty:
         return {}
+    if not smoke:
+        require_frozen_collection_decisions(logs)
     if verify_logs and not smoke:
         logs = drop_failed_confirmations(logs)
         check_logs(logs, sha)
@@ -744,7 +1053,7 @@ def load_records(
             raise SystemExit(f"invalid frozen-family decision log: {error}") from error
     records = merged_records(logs, smoke, None if smoke or not verify_logs else sha)
     # A pass/fail-only re-run (the record-less groups) measures no record but still
-    # refreshes the group ledger; --keep-attested keeps every record that stands.
+    # refreshes the group ledger; --keep-not_measured keeps every existing record.
     if not records and allow_gate_only and gate_ledger(logs, sha):
         return records
     if not records:
@@ -753,23 +1062,7 @@ def load_records(
         )
     for record in records.values():
         record["calibration_sha"] = sha
-        record["surface_list_blob"] = surface_list_blob(sha)
     return records
-
-
-def surface_list_blob(sha: str) -> str:
-    """The git blob of the surface list at `sha`: what the record's facets were derived from."""
-    done = subprocess.run(
-        ["git", "rev-parse", f"{sha}:scripts/calibration_surface.list"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-    )
-    if done.returncode != 0:
-        raise SystemExit(
-            f"cannot read scripts/calibration_surface.list at {sha}: {done.stderr.strip()}"
-        )
-    return done.stdout.strip()
 
 
 def toml_value(key: str, value) -> str:
@@ -783,52 +1076,119 @@ def toml_value(key: str, value) -> str:
         return "[\n" + "".join(f"  {toml_value(key, item)},\n" for item in value) + "]"
     if isinstance(value, list):
         return "[" + ", ".join(toml_value(key, item) for item in value) + "]"
-    return '"' + str(value).replace('"', '\\"') + '"'
+    text = str(value)
+    if any(0xD800 <= ord(char) <= 0xDFFF for char in text):
+        raise ValueError("TOML strings cannot contain Unicode surrogate code points")
+    return json.dumps(text, ensure_ascii=False).replace("\x7f", "\\u007f")
 
 
-def tag_facets(records: dict[str, dict]) -> None:
-    """Set each record's `facets` from the record itself and the surface list."""
-    if not records:
+FINGERPRINT_INPUTS = ("crates", "python", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "rust-toolchain")
+
+
+_BIND = None
+
+
+def _bind_forked(rid: str):
+    """Pool entry point: the binder `stamp_fingerprints` set before forking."""
+    return _BIND(rid)
+
+
+def stamp_fingerprints(records: dict[str, dict], sha: str, log_dir: Path = LOG_DIR,
+                       *, selected_logs: list[Path] | None = None) -> None:
+    """Stamp each record with the fingerprint of its test target in the tree.
+
+    Only a tree equal to HEAD in everything a fingerprint reads, measured at HEAD,
+    can say what the measurement depended on; logs stamped with another `--sha`
+    carry no fingerprint and stay owed to a probe or a re-measurement."""
+    head = strict_git_head(ROOT)
+    if sha != head or not records:
         return
-    surface = facets.load_surface()
-    if surface.errors:
-        raise SystemExit("scripts/calibration_surface.list: " + "; ".join(surface.errors))
-    refs = facets.references(surface)
-    for rec in records.values():
-        rec["facets"] = facets.record_facets(rec, surface, refs)
+    dirty = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=normal", "--", *FINGERPRINT_INPUTS],
+        cwd=ROOT, capture_output=True, text=True, check=True,
+    ).stdout.splitlines()
+    if dirty:
+        raise SystemExit(
+            "the sources a record's fingerprint reads differ from HEAD, so these logs do not "
+            "describe a commit; commit first (or pass --sha):\n  " + "\n  ".join(dirty)
+        )
+    from calibration_runner import record_runs, run_evidence
+    from evidence_earning import Snapshot, measurement_binding, publish_executed
+    from evidence_fingerprint import coverage_row
+
+    fp = calibration_status.tree_fingerprinter()
+    fingerprints = calibration_status.identity_fingerprints(list(records.values()), fp)
+    if selected_logs is None:
+        runs = record_runs(log_dir)
+    else:
+        runs = {}
+        for log in selected_logs:
+            stem = log.name.removesuffix(".log").removesuffix(".recheck")
+            for line in read_text(log).splitlines():
+                if line.startswith("calibration-record "):
+                    rid = json.loads(line.partition(" ")[2])["id"]
+                    runs.setdefault(rid, set()).add(stem)
+    import evidence_earning
+    # Each record's manifest is independent and content-addressed, so records are bound in
+    # parallel: workers forked after the first record share its warm source scans, build
+    # their manifests without writing (every record checks the checkout is clean), and the
+    # stores are written once all are built.
+    stored_writes: list[tuple[Path, str, bytes]] = []
+    real_write = evidence_earning._write_addressed
+
+    def recording_write(directory: Path, address: str, data: bytes, root: Path) -> str:
+        stored_writes.append((directory, address, data))
+        return str((directory / f"{address}.json").relative_to(root))
+
+    def bind(rid: str) -> tuple[str, str, list]:
+        stored_writes.clear()
+        rec = records[rid]
+        built, coverage = run_evidence(ROOT, log_dir, runs.get(rid, set()))
+        snapshot = Snapshot(ROOT, coverage_row(rec['test'], rec.get('dgp', '')),
+                            measurement_binding(rec), fp, nix_build=built, allowed_outputs={})
+        snapshot.verify_commit(sha)
+        return rid, publish_executed(snapshot, built, coverage), list(stored_writes)
+
+    evidence_earning._write_addressed = recording_write
+    todo = [rid for rid in records if fingerprints.get(rid)]
+    for rid in todo:
+        records[rid]["fingerprint"] = fingerprints[rid]
+    results = [bind(todo[0])] if todo else []
+    if len(todo) > 1:
+        import multiprocessing
+        global _BIND
+        _BIND = bind
+        with multiprocessing.get_context("fork").Pool(os.cpu_count() or 4) as pool:
+            results += pool.map(_bind_forked, todo[1:], chunksize=4)
+    evidence_earning._write_addressed = real_write
+    for rid, ref, writes in results:
+        records[rid]['dependency_manifest'] = ref
+        for directory, address, data in writes:
+            real_write(directory, address, data, ROOT)
 
 
-def keep_attested(measured: dict[str, dict]) -> dict[str, dict]:
-    """Existing records the logs did not re-measure and that still stand."""
-    surface = facets.load_surface()
-    registry = facets.load_records(OUT)
-    existing = [rec for rec in registry if rec["id"] not in measured]
-    kept: dict[str, dict] = {}
-    # A record attested_by_replay under a valid waiver is not stale, so it is
-    # kept; the waiver's evidence is checked against the registry as it stood.
-    for assessment in facets.assess(surface, existing, registry=registry):
-        stale = {rec["id"] for rec in assessment.stale}
-        for rec in assessment.records:
-            if assessment.resolved and rec["id"] not in stale:
-                kept[rec["id"]] = rec
-            else:
-                print(f"dropped {rec['id']}: owes a re-measurement the logs do not contain")
-    return kept
+def existing_records() -> dict[str, dict]:
+    return {rec["id"]: rec for rec in calibration_status.load_records(OUT)}
 
 
-def write_registry(records: dict[str, dict], out: Path = OUT, *, retag: bool = True) -> None:
-    if retag:
-        tag_facets(records)
+def keep_not_measured(measured: dict[str, dict]) -> dict[str, dict]:
+    """Existing records the logs did not re-measure; their status stays an annotation."""
+    return {rid: rec for rid, rec in existing_records().items() if rid not in measured}
+
+
+def write_registry(records: dict[str, dict], out: Path = OUT) -> None:
     lines = [HEADER]
     for rid in sorted(records):
         rec = records[rid]
-        if "surface_list_blob" not in rec:
-            rec["surface_list_blob"] = surface_list_blob(rec["calibration_sha"])
         lines.append("[[record]]")
         for key in FIELDS:
             if key not in rec:
                 raise SystemExit(f"record {rid} is missing {key}; re-run the coverage tests")
             lines.append(f"{key} = {toml_value(key, rec[key])}")
+            if key == "calibration_sha" and rec.get("fingerprint"):
+                lines.append(f"fingerprint = {toml_value('fingerprint', rec['fingerprint'])}")
+                if rec.get('dependency_manifest'):
+                    lines.append(f"dependency_manifest = {toml_value('dependency_manifest', rec['dependency_manifest'])}")
             if key == "role":
                 lines += [
                     f"{opt} = {toml_value(opt, rec[opt])}"
@@ -837,6 +1197,12 @@ def write_registry(records: dict[str, dict], out: Path = OUT, *, retag: bool = T
                 ]
         lines.append("")
     write_text(out, "\n".join(lines))
+    if out == OUT:
+        # Probe rows describe a measurement; a record measured again or removed
+        # leaves its old rows describing nothing.
+        dropped = calibration_probe.prune_attestations(list(records.values()))
+        if dropped:
+            print(f"dropped {dropped} probe attestation(s) of measurements this registry replaces")
 
 
 REPORTED_LEVEL = 0.95
@@ -865,8 +1231,15 @@ def replace_pair(
         for line in block.splitlines()
         if not line.startswith("calibration = ") and not line.startswith("calibration_reason = ")
     ]
-    while kept and not kept[-1].strip():
-        kept.pop()
+    # The last cell of a generated region is followed in the same chunk by that
+    # region's end marker and the next region's begin marker: the pair belongs
+    # to the cell, so it goes before those comment lines, never after them.
+    tail: list[str] = []
+    while kept and (not kept[-1].strip() or kept[-1].startswith("#")):
+        tail.append(kept.pop())
+    tail.reverse()
+    while tail and not tail[-1].strip():
+        tail.pop()
     if calibration:
         ids = ", ".join(f'"{rid}"' for rid in calibration)
         kept.append(f"calibration = [{ids}]")
@@ -874,6 +1247,7 @@ def replace_pair(
             kept.append('calibration_reason = "boundary_record"')
     else:
         kept.append(f'calibration_reason = "{reason}"')
+    kept.extend(tail)
     return "\n".join(kept) + "\n\n"
 
 
@@ -890,9 +1264,15 @@ def conditional_record_dgp_labels(path: Path) -> set[str]:
     return {label for pair in re.findall(pattern, code) for label in pair}
 
 
-CALIBRATION_OWNER_FIELDS = frozenset({
-    "estimator", "source", "source_symbol", "evidence_test", "evidence_assertion",
-})
+CALIBRATION_OWNER_FIELDS = frozenset(
+    {
+        "estimator",
+        "source",
+        "source_symbol",
+        "evidence_test",
+        "evidence_assertion",
+    }
+)
 
 
 def calibration_estimator_evidence_problems(cell: dict, root: Path = ROOT) -> list[str]:
@@ -901,7 +1281,7 @@ def calibration_estimator_evidence_problems(cell: dict, root: Path = ROOT) -> li
     This ownership declaration never changes selectable estimator names or grants
     calibration to another method. Native execution/current records remain required.
     """
-    from promotion_source import assertion_problems, nontest_rust
+    from capability_source import assertion_problems, nontest_rust
     from test_evidence import static_rust_test
 
     entries = cell.get("calibration_estimators", [])
@@ -910,29 +1290,46 @@ def calibration_estimator_evidence_problems(cell: dict, root: Path = ROOT) -> li
     errors = []
     seen = set()
     for entry in entries:
-        if (not isinstance(entry, dict) or set(entry) != CALIBRATION_OWNER_FIELDS
-                or any(not isinstance(value, str) or not value for value in entry.values())):
-            errors.append("calibration_estimators entries require exact nonempty native/evidence fields")
+        if (
+            not isinstance(entry, dict)
+            or set(entry) != CALIBRATION_OWNER_FIELDS
+            or any(not isinstance(value, str) or not value for value in entry.values())
+        ):
+            errors.append(
+                "calibration_estimators entries require exact nonempty native/evidence fields"
+            )
             continue
         name = entry["estimator"]
         if name in seen or name in cell.get("estimators", []):
             errors.append(f"duplicate scientific calibration owner {name}")
         seen.add(name)
         source, test = root / entry["source"], root / entry["evidence_test"]
-        if (not entry["source"].startswith("crates/") or "/src/" not in entry["source"]
-                or source.suffix != ".rs" or not source.is_file()
-                or not source.resolve().is_relative_to(root.resolve())):
+        if (
+            not entry["source"].startswith("crates/")
+            or "/src/" not in entry["source"]
+            or source.suffix != ".rs"
+            or not source.is_file()
+            or not source.resolve().is_relative_to(root.resolve())
+        ):
             errors.append(f"{name}: scientific native source must exist inside crates/*/src")
         elif not re.search(r"\b" + re.escape(entry["source_symbol"]) + r"\b", nontest_rust(source)):
             errors.append(f"{name}: native source symbol is absent outside comments/tests")
-        if (not entry["evidence_test"].startswith("crates/") or test.suffix != ".rs"
-                or not test.is_file() or not test.resolve().is_relative_to(root.resolve())):
+        if (
+            not entry["evidence_test"].startswith("crates/")
+            or test.suffix != ".rs"
+            or not test.is_file()
+            or not test.resolve().is_relative_to(root.resolve())
+        ):
             errors.append(f"{name}: native scientific ownership evidence must exist")
         else:
-            errors.extend(f"{name}: {error}" for error in
-                          static_rust_test(test, entry["evidence_assertion"]).problems)
-            errors.extend(f"{name}: {error}" for _, error in
-                          assertion_problems(test, entry["evidence_assertion"]))
+            errors.extend(
+                f"{name}: {error}"
+                for error in static_rust_test(test, entry["evidence_assertion"]).problems
+            )
+            errors.extend(
+                f"{name}: {error}"
+                for _, error in assertion_problems(test, entry["evidence_assertion"])
+            )
     return errors
 
 
@@ -941,23 +1338,64 @@ def scientific_calibration_estimators(cell: dict) -> set[str]:
     entries = cell.get("calibration_estimators", [])
     if not isinstance(entries, list):
         return set()
-    return {entry["estimator"] for entry in entries if isinstance(entry, dict)
-            and set(entry) == CALIBRATION_OWNER_FIELDS
-            and all(isinstance(value, str) and value for value in entry.values())}
+    return {
+        entry["estimator"]
+        for entry in entries
+        if isinstance(entry, dict)
+        and set(entry) == CALIBRATION_OWNER_FIELDS
+        and all(isinstance(value, str) and value for value in entry.values())
+    }
 
 
-def licensed_record_matches(cell: dict, record: dict) -> bool:
+def validation_record_problem(record: dict) -> str | None:
+    """A record binds its validation mode and a shared-test structure into its identity."""
+    schema, validation = record.get("validation_schema"), record.get("validation")
+    if schema != 2 or validation not in {"not_applicable", "none", "cheap", "full"}:
+        return "invalid validation schema or mode"
+    markers = [part.removeprefix("v2_validation_") for part in str(record.get("id", "")).split(".") if part.startswith("v2_validation_")]
+    if markers != [validation]:
+        return "validation mode does not match versioned record identity"
+    structures = [part.removeprefix("v2_structure_") for part in str(record.get("id", "")).split(".") if part.startswith("v2_structure_")]
+    # A structure that shares a test with the fixed graph is named in the id.
+    named = [record["structure"]] if record.get("structure") in ("accepted", "graph_posterior") else []
+    if structures != named:
+        return "structure does not match versioned record identity"
+    return None
+
+
+def resolved_record_validation(record: dict) -> str | None:
+    """The validation a well-formed record stamps; never guessed."""
+    return None if validation_record_problem(record) else record.get("validation")
+
+
+def supported_record_structure(cell: dict, record: dict) -> str:
+    """The `structure` a record of `cell` carries (an explicit graph is keyed `fixed`)."""
+    structure = cell.get("structure")
+    return structure if structure in ("accepted", "graph_posterior") else "fixed"
+
+
+def supported_record_matches(cell: dict, record: dict) -> bool:
     """Exact support coordinates and declared estimator ownership, never axes alone."""
-    structure = "graph_posterior" if cell.get("structure") == "graph_posterior" else "fixed"
+    structure = supported_record_structure(cell, record)
+    validation = resolved_record_validation(record)
+    if validation not in {"none", "cheap", "full"} or cell.get("validation") != validation:
+        return False
     return (
-        record.get("query"), record.get("graph_class"), record.get("inference"),
+        record.get("query"),
+        record.get("graph_class"),
+        record.get("inference"),
         record.get("structure"),
     ) == (
-        cell.get("query"), cell.get("graph_class"), cell.get("inference"), structure,
-    ) and record.get("estimator") in (set(cell.get("estimators", [])) | scientific_calibration_estimators(cell))
+        cell.get("query"),
+        cell.get("graph_class"),
+        cell.get("inference"),
+        structure,
+    ) and record.get("estimator") in (
+        set(cell.get("estimators", [])) | scientific_calibration_estimators(cell)
+    )
 
 
-def licensed_cell_calibration_problems(cell: dict, records: dict[str, dict]) -> list[str]:
+def supported_cell_calibration_problems(cell: dict, records: dict[str, dict]) -> list[str]:
     """Require all owned coordinate records and refuse foreign/missing bindings.
 
     Ownership is declared by the support cell, not inferred from a new passing
@@ -969,31 +1407,34 @@ def licensed_cell_calibration_problems(cell: dict, records: dict[str, dict]) -> 
         record = records.get(rid)
         if record is None:
             errors.append(f"unknown bound record {rid}")
-        elif not licensed_record_matches(cell, record):
+        elif not supported_record_matches(cell, record):
             errors.append(f"bound record {rid} has foreign estimator or scientific coordinate")
-    owned = {rid for rid, record in records.items() if licensed_record_matches(cell, record)}
+    owned = {rid for rid, record in records.items() if supported_record_matches(cell, record)}
     missing = sorted(owned - set(bound))
     if missing:
         errors.append(f"missing required owned records {missing}")
     return errors
 
 
-def sync_licensed_cells(
+def sync_supported_cells(
     records: dict[str, dict],
     only_cells: dict[tuple[str, str, str, str, str], list[str]] | None = None,
 ) -> int:
     # Collection refreshes measurements, not public-route ownership. New bindings
     # require explicit --only-cell authorization and estimator compatibility.
-    cells = tomllib.loads(read_text(LICENSED)).get("cell", [])
-    text = read_text(LICENSED)
+    cells = load_toml(SUPPORTED).get("cell", [])
+    text = read_text(SUPPORTED)
     blocks = text.split("[[cell]]")
     out = [blocks[0]]
     changed = 0
     seen: set[tuple[str, str, str, str, str]] = set()
     for block, cell in zip(blocks[1:], cells, strict=True):
         cell_key = (
-            cell["query"], cell["graph_class"], cell["structure"],
-            cell["inference"], cell["validation"],
+            cell["query"],
+            cell["graph_class"],
+            cell["structure"],
+            cell["inference"],
+            cell["validation"],
         )
         if only_cells is not None and cell_key not in only_cells:
             out.append(block)
@@ -1001,20 +1442,23 @@ def sync_licensed_cells(
         seen.add(cell_key)
         evidence_errors = calibration_estimator_evidence_problems(cell)
         if evidence_errors:
-            raise SystemExit(f"licensed cell {cell_key}: invalid scientific ownership: {evidence_errors}")
-        structures = ["graph_posterior"] if cell["structure"] == "graph_posterior" else ["fixed"]
+            raise SystemExit(
+                f"supported cell {cell_key}: invalid scientific ownership: {evidence_errors}"
+            )
         if only_cells is None:
             ids = list(cell.get("calibration", []))
             missing = [rid for rid in ids if rid not in records]
             if missing:
-                raise SystemExit(f"licensed cell {cell_key}: bound calibration records absent: {missing}")
-            incompatible = [rid for rid in ids if not licensed_record_matches(cell, records[rid])]
+                raise SystemExit(
+                    f"supported cell {cell_key}: bound calibration records absent: {missing}"
+                )
+            incompatible = [rid for rid in ids if not supported_record_matches(cell, records[rid])]
             if incompatible:
                 raise SystemExit(
-                    f"licensed cell {cell_key}: bound records not owned by the licensed cell: {incompatible}"
+                    f"supported cell {cell_key}: bound records not owned by the supported cell: {incompatible}"
                 )
             if not ids:
-                # An unmeasured cell must not acquire a claim from an unrelated
+                # A not_measured cell must not acquire a claim from an unrelated
                 # new estimator sharing broad support axes.
                 out.append(block)
                 continue
@@ -1023,29 +1467,38 @@ def sync_licensed_cells(
             for rid in ids:
                 rec = records.get(rid)
                 if rec is None or (
-                    rec["query"], rec["graph_class"], rec["inference"], rec["structure"]
-                ) != (cell["query"], cell["graph_class"], cell["inference"], structures[0]):
+                    rec["query"],
+                    rec["graph_class"],
+                    rec["inference"],
+                    rec["structure"],
+                ) != (
+                    cell["query"],
+                    cell["graph_class"],
+                    cell["inference"],
+                    supported_record_structure(cell, rec),
+                ):
                     raise SystemExit(f"--only-cell {cell_key}: incompatible or absent record {rid}")
-                if not licensed_record_matches(cell, rec):
+                if not supported_record_matches(cell, rec):
                     raise SystemExit(
                         f"--only-cell {cell_key}: record {rid} estimator {rec.get('estimator')!r} "
-                        "is not owned by the licensed cell"
+                        "is not owned by the supported cell"
                     )
         # A point-only cell states `no_interval_reported` itself and keeps it: the
         # runtime publishes no interval there, so there is nothing to measure.
-        point_only = (
+        # A cell that states `estimator_grid_not_measured` reports an interval with no
+        # record yet (a temporal or posterior twin of a point-only query); the query
+        # family does not make it point only.
+        point_only = cell.get("calibration_reason") == "no_interval_reported" or (
             cell["query"] in NO_INTERVAL_QUERIES
-            or cell.get("calibration_reason") == "no_interval_reported"
+            and cell.get("calibration_reason") != "estimator_grid_not_measured"
         )
-        reason = (
-            "no_interval_reported" if not ids and point_only else "estimator_grid_not_measured"
-        )
+        reason = "no_interval_reported" if not ids and point_only else "estimator_grid_not_measured"
         new_block = replace_pair(block, ids, reason, all_boundary_at_reported_level(ids, records))
         changed += int(new_block != block)
         out.append(new_block)
     if only_cells is not None and seen != only_cells.keys():
         raise SystemExit(f"unknown --only-cell coordinates: {sorted(only_cells.keys() - seen)}")
-    write_text(LICENSED, "[[cell]]".join(out))
+    write_text(SUPPORTED, "[[cell]]".join(out))
     return changed
 
 
@@ -1068,15 +1521,33 @@ def sync_estimator_rows(records: dict[str, dict]) -> int:
     return changed
 
 
+def owed_updates(existing: dict[str, dict], measured: dict[str, dict],
+                 replacements: list[str]) -> tuple[dict[str, dict], list[str]]:
+    """Remeasure owed IDs, preserving current evidence co-emitted by the same group."""
+    collisions = [existing[rid] for rid in measured.keys() & existing.keys()]
+    if not collisions:
+        return measured, replacements
+    current = calibration_status.tree_fingerprints(collisions)
+    allowed = set(replacements) | {rid for rid, manifest in current.items() if manifest is None}
+    updates = {rid: rec for rid, rec in measured.items() if rid not in current or rid in allowed}
+    return updates, sorted(allowed)
+
+
 def append_attested_records(
-    existing: dict[str, dict], measured: dict[str, dict], *,
-    mode: str = "--append-attested", replace_ids: list[str] | None = None,
+    existing: dict[str, dict],
+    measured: dict[str, dict],
+    *,
+    mode: str = "--append-attested",
+    replace_ids: list[str] | None = None,
 ) -> dict[str, dict]:
     """Preserve old evidence except explicitly named, freshly measured records."""
     allowed = set(replace_ids or [])
     invalid = sorted(allowed - (existing.keys() & measured.keys()))
     if invalid:
-        raise SystemExit("--replace-record requires each ID in both existing and new evidence:\n  " + "\n  ".join(invalid))
+        raise SystemExit(
+            "--replace-record requires each ID in both existing and new evidence:\n  "
+            + "\n  ".join(invalid)
+        )
     collisions = sorted((existing.keys() & measured.keys()) - allowed)
     if collisions:
         raise SystemExit(f"{mode} refuses existing record ids:\n  " + "\n  ".join(collisions))
@@ -1086,6 +1557,10 @@ def append_attested_records(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sha", help="commit the logs were measured at (default: HEAD)")
+    parser.add_argument(
+        "--inspect-legacy-logs", action="store_true",
+        help="read-only inspection of legacy logs; does not collect, rewrite or attest evidence",
+    )
     parser.add_argument(
         "--append-attested",
         action="store_true",
@@ -1097,38 +1572,44 @@ def main() -> int:
         action="append",
         default=[],
         metavar="QUERY:GRAPH:STRUCTURE:INFERENCE:VALIDATION=ID,ID",
-        help="exact licensed cell and record IDs to sync when appending (repeat per cell)",
+        help="exact supported cell and record IDs to sync when appending (repeat per cell)",
     )
     parser.add_argument(
-        "--defer-generated", action="store_true",
+        "--defer-generated",
+        action="store_true",
         help="with --no-cells, collect evidence only; regenerate support assets after the final harvest",
     )
     parser.add_argument(
         "--no-cells",
         action="store_true",
-        help="do not rewrite support_licensed.toml / estimate.toml",
+        help="do not rewrite support_cells.toml / estimate.toml",
     )
     parser.add_argument(
-        "--keep-existing", action="store_true",
+        "--keep-existing",
+        action="store_true",
         help="append only new record IDs, preserving existing rows and gate evidence even when stale",
     )
     parser.add_argument(
-        "--passing-only", action="store_true",
+        "--owed-completions-from", type=int, metavar="BYTE_OFFSET",
+        help="collect completed owed groups from this run, preserving existing current records",
+    )
+    parser.add_argument(
+        "--passing-only",
+        action="store_true",
         help="with --keep-existing, harvest only whole completed passing groups; retain failures in logs",
     )
     parser.add_argument(
-        "--replace-record", action="append", default=[], metavar="ID",
+        "--replace-record",
+        action="append",
+        default=[],
+        metavar="ID",
         help="with --keep-existing, permit fresh evidence to replace this existing record (repeatable)",
     )
     parser.add_argument(
-        "--keep-attested",
+        "--keep-not_measured",
+        dest="keep_attested",
         action="store_true",
-        help="keep existing records the logs do not re-measure whose facets have not drifted",
-    )
-    parser.add_argument(
-        "--retag",
-        action="store_true",
-        help="only recompute the facets of the existing records",
+        help="keep every existing record the logs do not re-measure",
     )
     parser.add_argument(
         "--smoke",
@@ -1141,21 +1622,45 @@ def main() -> int:
         default=[],
         metavar="ID",
         help="record ids the registry holds that this run is allowed to drop "
-        "(without --keep-attested the registry becomes exactly the logs)",
+        "(without --keep-not_measured the registry becomes exactly the logs)",
     )
     parser.add_argument("--log-dir", type=Path, default=LOG_DIR, help="logs to collect")
     parser.add_argument("--out", type=Path, help="scratch registry path (with --smoke only)")
     args = parser.parse_args()
+    if args.owed_completions_from is not None and not (args.keep_existing and args.passing_only):
+        raise SystemExit("--owed-completions-from requires --keep-existing and --passing-only")
+    if args.inspect_legacy_logs:
+        if (args.append_attested or args.only_cell or args.defer_generated or args.no_cells
+            or args.keep_existing or args.passing_only or args.replace_record or args.keep_attested
+            or args.smoke or args.allow_removal or args.out):
+            raise SystemExit("--inspect-legacy-logs cannot be combined with collection options")
+        if not args.log_dir.is_dir():
+            raise SystemExit(f"missing {args.log_dir}")
+        logs = sorted(args.log_dir.glob("*.log"))
+        if not logs:
+            raise SystemExit("no logs to inspect")
+        for log in logs:
+            problems, stamps = log_problems(log)
+            print(f"{log.name}: stamps={','.join(sorted(stamps)) or '<none>'}; "
+                  + ("; ".join(problems) if problems else "no group failure detected"))
+        print("legacy inspection only; no records or attestations written")
+        return 0
     if args.defer_generated and not args.no_cells:
         raise SystemExit("--defer-generated requires --no-cells")
     if args.passing_only and not args.keep_existing:
         raise SystemExit("--passing-only requires --keep-existing")
     if args.replace_record and not args.keep_existing:
         raise SystemExit("--replace-record requires --keep-existing")
-    if args.keep_existing and (args.keep_attested or args.append_attested or args.retag or args.allow_removal):
-        raise SystemExit("--keep-existing forbids --keep-attested/--append-attested/--retag/--allow-removal")
+    if args.keep_existing and (
+        args.keep_attested or args.append_attested or args.allow_removal
+    ):
+        raise SystemExit(
+            "--keep-existing forbids --keep-not_measured/--append-attested/--allow-removal"
+        )
     if args.append_attested and (args.keep_attested or args.no_cells or not args.only_cell):
-        raise SystemExit("--append-attested requires --only-cell and forbids --keep-attested/--no-cells")
+        raise SystemExit(
+            "--append-attested requires --only-cell and forbids --keep-not_measured/--no-cells"
+        )
     if args.only_cell and not args.append_attested:
         raise SystemExit("--only-cell is only valid with --append-attested")
     only_cells = {}
@@ -1163,7 +1668,12 @@ def main() -> int:
         coordinate, separator, id_list = raw.partition("=")
         parts = tuple(coordinate.split(":"))
         ids = id_list.split(",") if separator else []
-        if len(parts) != 5 or any(not part for part in parts) or not ids or any(not rid for rid in ids):
+        if (
+            len(parts) != 5
+            or any(not part for part in parts)
+            or not ids
+            or any(not rid for rid in ids)
+        ):
             raise SystemExit(f"bad --only-cell coordinate: {raw}")
         if parts in only_cells or len(set(ids)) != len(ids):
             raise SystemExit(f"duplicate --only-cell coordinate or record ID: {raw}")
@@ -1173,85 +1683,91 @@ def main() -> int:
             raise SystemExit("--smoke and --out go together: a smoke run writes a scratch registry")
         if args.out.resolve() == OUT.resolve():
             raise SystemExit(f"--smoke never writes {OUT.relative_to(ROOT)}")
-        sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+        sha = strict_git_head(ROOT)
         records = load_records(sha, args.log_dir, smoke=True)
         write_registry(records, args.out)
         print(
             f"wrote {len(records)} smoke records to {args.out} (not a registry; measures nothing)"
         )
         return 0
-    if args.retag:
-        existing = {rec["id"]: rec for rec in facets.load_records(OUT)}
-        write_registry(existing)
-        print(f"retagged the facets of {len(existing)} records in {OUT.relative_to(ROOT)}")
-        return 0
-    sha = args.sha or subprocess.check_output(
-        ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
-    ).strip()
+    sha = (
+        args.sha
+        or strict_git_head(ROOT)
+    )
     if not re.fullmatch(r"[0-9a-f]{40}", sha):
         raise SystemExit(f"calibration SHA must be 40 hex, got {sha!r}")
     collection_logs = sorted(args.log_dir.glob("*.log"))
+    if args.owed_completions_from is not None:
+        collection_logs = completed_owed_logs(args.log_dir, sha, args.owed_completions_from)
+        if not collection_logs:
+            print("no complete passing owed groups from this run")
+            return 0
+    completed_count = len(collection_logs)
     if args.passing_only:
         collection_logs = passing_group_logs(collection_logs, sha)
-    records = load_records(sha, args.log_dir, allow_gate_only=args.keep_attested or args.keep_existing,
-                           selected_logs=collection_logs, allow_empty=args.passing_only)
-    if not args.sha:
-        tag_facets(records)
-        surface = facets.load_surface()
-        depended = set().union(*(rec["facets"] for rec in records.values()))
-        dirty = [
-            rel
-            for rel in facets.changed_paths(surface, sha)
-            if (surface.facet_of(rel) or facets.CORE) in depended
-        ]
-        if dirty:
-            raise SystemExit(
-                "the statistical surface differs from HEAD, so these logs do not describe "
-                "a commit; commit first (or pass --sha):\n  " + "\n  ".join(dirty)
-            )
+    incomplete_harvest = args.owed_completions_from is not None and len(collection_logs) < completed_count
+    if incomplete_harvest and not collection_logs:
+        raise SystemExit("none of the completed groups passed collection checks")
+    records = load_records(
+        sha,
+        args.log_dir,
+        allow_gate_only=args.keep_attested or args.keep_existing,
+        selected_logs=collection_logs,
+        allow_empty=args.passing_only,
+    )
+    if args.owed_completions_from is not None:
+        records, args.replace_record = owed_updates(existing_records(), records, args.replace_record)
+    stamp_fingerprints(records, sha, args.log_dir, selected_logs=collection_logs)
     if args.append_attested:
-        tag_facets(records)
-        existing = {rec["id"]: rec for rec in facets.load_records(OUT)}
+        existing = existing_records()
         records = append_attested_records(existing, records)
     elif args.keep_existing:
-        if args.sha:
-            tag_facets(records)
-        existing = {rec["id"]: rec for rec in facets.load_records(OUT)}
+        existing = existing_records()
         replacements = args.replace_record
         if args.passing_only:
             unknown = set(replacements) - existing.keys()
             if unknown:
-                raise SystemExit("--replace-record does not exist in old evidence: " + ", ".join(sorted(unknown)))
+                raise SystemExit(
+                    "--replace-record does not exist in old evidence: " + ", ".join(sorted(unknown))
+                )
             deferred = set(replacements) - records.keys()
             if deferred:
-                print(f"passing-only deferred {len(deferred)} replacements whose groups did not complete successfully")
+                print(
+                    f"passing-only deferred {len(deferred)} replacements whose groups did not complete successfully"
+                )
             replacements = [rid for rid in replacements if rid in records]
-        records = append_attested_records(existing, records, mode="--keep-existing", replace_ids=replacements)
-        print(f"preserved {len(existing) - len(set(replacements))} existing records; replaced {len(set(replacements))} explicitly named records with fresh evidence")
+        records = append_attested_records(
+            existing, records, mode="--keep-existing", replace_ids=replacements
+        )
+        print(
+            f"preserved {len(existing) - len(set(replacements))} existing records; replaced {len(set(replacements))} explicitly named records with fresh evidence"
+        )
     elif not args.keep_attested:
         dropped = sorted(
-            {rec["id"] for rec in facets.load_records(OUT)} - set(records) - set(args.allow_removal)
+            set(existing_records()) - set(records) - set(args.allow_removal)
         )
         if dropped:
             raise SystemExit(
                 f"the logs do not re-measure {len(dropped)} record(s) the registry holds, so this "
                 "run would silently delete them (a renamed or unrun group?). Run the missing "
-                "groups, use --keep-attested, or name each id in --allow-removal:\n  "
+                "groups, use --keep-not_measured, or name each id in --allow-removal:\n  "
                 + "\n  ".join(dropped)
             )
     if args.keep_attested:
-        kept = keep_attested(records)
-        print(f"kept {len(kept)} attested records the logs did not re-measure")
+        kept = keep_not_measured(records)
+        print(f"kept {len(kept)} existing records the logs did not re-measure")
         records = {**kept, **records}
-    write_registry(records, retag=not (args.append_attested or args.keep_existing))
+    write_registry(records)
     print(f"wrote {len(records)} records to {OUT.relative_to(ROOT)} at {sha}")
     if args.append_attested:
-        cells = sync_licensed_cells(records, only_cells)
-        print(f"appended {len(records) - len(existing)} records; synced {cells} selected licensed cells")
+        cells = sync_supported_cells(records, only_cells)
+        print(
+            f"appended {len(records) - len(existing)} records; synced {cells} selected supported cells"
+        )
         subprocess.run([sys.executable, str(GENERATOR)], cwd=ROOT, check=True)
         return 0
     previous = (
-        {g["group"]: g for g in tomllib.loads(read_text(GATES)).get("gate", [])}
+        {g["group"]: g for g in load_toml(GATES).get("gate", [])}
         if (args.keep_attested or args.keep_existing) and GATES.is_file()
         else None
     )
@@ -1261,13 +1777,16 @@ def main() -> int:
     )
     print(f"wrote the record-less group ledger to {GATES.relative_to(ROOT)}")
     if not args.no_cells:
-        cells = sync_licensed_cells(records)
+        cells = sync_supported_cells(records)
         rows = sync_estimator_rows(records)
-        print(f"rewrote the calibration pair on {cells} licensed cells and {rows} estimator rows")
+        print(f"rewrote the calibration pair on {cells} supported cells and {rows} estimator rows")
     if args.defer_generated:
         print("deferred generated support assets; evidence registries are preserved")
     else:
         subprocess.run([sys.executable, str(GENERATOR)], cwd=ROOT, check=True)
+    if incomplete_harvest:
+        print("collected the valid groups; some completed groups failed collection checks")
+        return 1
     return 0
 
 

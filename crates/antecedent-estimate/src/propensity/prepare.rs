@@ -1,6 +1,6 @@
 //! Propensity problem preparation and shared workspace.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -14,10 +14,10 @@ use antecedent_stats::{
     fit_propensity,
 };
 
+use crate::arm::TreatmentArm;
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::propensity::levels::{DeclaredTreatmentLevels, OtherLevels, classify_treatment_levels};
-use crate::util::stats_err;
 
 /// Prepared covariate design + treatment/outcome shared by every propensity estimator.
 ///
@@ -25,8 +25,7 @@ use crate::util::stats_err;
 #[derive(Clone, Debug)]
 pub struct PreparedPropensityProblem {
     /// Shared learner nuisance cache; changing any fit input invalidates reuse.
-    pub(crate) learner_cache:
-        Arc<std::sync::Mutex<Vec<Arc<crate::learn_nuisance::AipwCacheEntry>>>>,
+    pub(crate) learner_cache: Arc<crate::crossfit_cache::LearnerNuisanceStore>,
     /// Column-major `[1 | Z…]` design used to fit the propensity model.
     pub design_matrix: Arc<[f64]>,
     /// Number of design columns (`1 + adjustment_set.len()`).
@@ -36,6 +35,10 @@ pub struct PreparedPropensityProblem {
     /// Arm indicator, length `nrows`: `1.0` at the active level and `0.0` at the control
     /// level declared on the query, whatever the treatment column's own coding.
     pub treatment: Arc<[f64]>,
+    /// The arm of every row of [`Self::treatment`], classified once at preparation. Estimators
+    /// that read arms (the Hájek weighting helpers) take this column instead of re-reading
+    /// the indicator; [`Self::set_treatment`] keeps the two in step.
+    pub arms: Arc<[TreatmentArm]>,
     /// The declared levels the treatment was recoded from, and the rows at neither level
     /// that preparation excluded under an explicit policy.
     pub treatment_levels: DeclaredTreatmentLevels,
@@ -56,7 +59,7 @@ pub struct PreparedPropensityProblem {
     /// `None` for all other target populations. Length equals [`Self::nrows`] when present.
     pub target_weights: Option<Arc<[f64]>>,
     /// Original data-frame row index of each complete-case row.
-    pub row_index: Arc<[u32]>,
+    pub row_index: Arc<[antecedent_data::GlobalId]>,
     /// Treatment variable id (for score-table provenance).
     pub treatment_id: VariableId,
     /// Optional complete-case fold ids. `None` draws a seeded, arm-stratified, unit-level
@@ -89,9 +92,43 @@ pub struct PreparedPropensityProblem {
     /// what they did to the analysis. `None` when none were declared. Every row of the
     /// problem has a positive weight: rows of weight zero never enter it.
     pub sampling_weights: Option<crate::sampling_weights::RetainedSamplingWeights>,
+    /// Preparation receipt for the finite table this problem was read from.
+    pub preparation: antecedent_data::materialize::PreparationReceipt,
+    /// Names of the design columns (`intercept`, then `coef_<covariate>` per adjustment
+    /// variable), which an outcome-nuisance prior maps its coefficients onto. `None` for a
+    /// problem built without a schema.
+    pub design_names: Option<Arc<[Arc<str>]>>,
 }
 
 impl PreparedPropensityProblem {
+    /// Replace the arm indicator column, re-classifying [`Self::arms`] with it.
+    pub(crate) fn set_treatment(&mut self, treatment: Arc<[f64]>) {
+        self.arms = Arc::from(TreatmentArm::classify(&treatment));
+        self.treatment = treatment;
+    }
+
+    /// Source-table indices of the complete-case rows, converted once from their identities and
+    /// refusing an identity the address space cannot hold. Only source-row cluster labels read
+    /// them, so a caller without those labels passes `needed = false` and gets an empty list.
+    pub(crate) fn source_rows(&self, needed: bool) -> Result<Vec<usize>, EstimationError> {
+        if !needed {
+            return Ok(Vec::new());
+        }
+        self.row_index
+            .iter()
+            .map(|id| {
+                usize::try_from(id.get()).map_err(|_| {
+                    EstimationError::data_msg("a row identity exceeds the addressable table size")
+                })
+            })
+            .collect()
+    }
+
+    /// The summary an estimate built from this problem records for its preparation receipt.
+    pub(crate) fn preparation_summary(&self) -> Arc<crate::PreparationSummary> {
+        crate::prepare::preparation_summary(&self.preparation)
+    }
+
     /// The per-row weights the cross-fitted scores are averaged under: the target weights, the
     /// sampling weights, or their product; `None` when neither is declared.
     pub(crate) fn score_weights(&self) -> Option<std::borrow::Cow<'_, [f64]>> {
@@ -112,7 +149,10 @@ impl PreparedPropensityProblem {
     /// `0`/`1` column keeps the plan its arm indicator always gave.
     pub(crate) fn fold_strata(&self) -> Vec<u32> {
         let active_is_higher = self.treatment_levels.active > self.treatment_levels.control;
-        self.treatment.iter().map(|&t| u32::from((t > 0.5) == active_is_higher)).collect()
+        self.treatment
+            .iter()
+            .map(|&t| u32::from((TreatmentArm::is_treated_indicator(t)) == active_is_higher))
+            .collect()
     }
 }
 
@@ -144,6 +184,7 @@ impl PropensityModel {
         workspace: &mut PropensityWorkspace,
         options: &GlmOptions,
     ) -> Result<Self, EstimationError> {
+        let options = &propensity_glm_options(options, problem.overlap);
         let fit = match problem.sampling_weights.as_ref() {
             Some(sampling) => antecedent_stats::fit_propensity_weighted(
                 &problem.design_matrix,
@@ -165,8 +206,7 @@ impl PropensityModel {
                 options,
             ),
         }
-        .map_err(stats_err)?;
-        fit.glm.require_ok().map_err(stats_err)?;
+        .map_err(propensity_fit_error)?;
         let clip = clip_of(problem.overlap);
         let mut clipped_scores = fit.scores.clone();
         if let Some(c) = clip {
@@ -202,11 +242,69 @@ pub(crate) fn clamp_linear_predictor(eta: f64, clip: Option<f64>) -> f64 {
     }
 }
 
+/// GLM options for a propensity fit under `overlap`: a declared clip or trim governs rows
+/// whose probability reaches the boundary, so such a fit is admitted; an undeclared default
+/// does not, and the fit refuses as `positivity_violated`
+/// ([`GlmOptions::admit_boundary_saturation`]) and the policy applies to those rows.
+pub(crate) fn propensity_glm_options(options: &GlmOptions, overlap: OverlapPolicy) -> GlmOptions {
+    options.admitting_boundary_saturation(admits_boundary_saturation(overlap))
+}
+
+/// Whether `overlap` governs propensities at the boundary: a declared policy with a clip or
+/// a trim. An undeclared default does not.
+pub(crate) fn admits_boundary_saturation(overlap: OverlapPolicy) -> bool {
+    let (clip, trim) = overlap_clip_trim(overlap);
+    overlap.is_declared() && (clip.is_some() || trim.is_some())
+}
+
+/// The refusal of a failed propensity fit. A converged fit whose probabilities reach within
+/// `1e-8` of 0 or 1 (refused only when no overlap clip or trim is declared) means some rows
+/// have essentially no chance of the other treatment: a positivity problem in the data, not a
+/// numerical one. It refuses as `positivity_violated`, keeping the fit's diagnostics and
+/// naming the overlap policies that would support an answer. Every other failure keeps its
+/// own refusal.
+pub(crate) fn propensity_fit_error(error: antecedent_stats::StatsError) -> EstimationError {
+    let saturated = matches!(
+        error,
+        antecedent_stats::StatsError::GlmRefused {
+            kind: antecedent_stats::GlmRefusalKind::BoundarySaturated,
+            ..
+        }
+    );
+    let refused = EstimationError::from(error);
+    if !saturated {
+        return refused;
+    }
+    let mut fields = refused.refusal_fields().map(std::borrow::Cow::into_owned).unwrap_or_default();
+    let rows = fields.boundary_count.map_or_else(
+        || "some rows".to_owned(),
+        |count| format!("{count} row{}", if count == 1 { "" } else { "s" }),
+    );
+    fields.remedy = Some(
+        "declare an overlap trim to estimate on the common-support population (the target \
+         changes and the excluded fraction is reported), declare a clip that bounds the weights, \
+         restrict the population or covariates to where both treatments occur, or obtain data \
+         or a design that produces both treatments there"
+            .to_owned(),
+    );
+    EstimationError::refused_detail_with_fields(
+        antecedent_core::reason_code!("positivity_violated"),
+        "propensity.boundary_saturated",
+        format!(
+            "the propensity model gives {rows} a probability of treatment within 1e-8 of 0 or 1, \
+             so those rows have essentially no chance of the other treatment and an \
+             inverse-probability weight is unsupported there. Declare an overlap trim or clip, \
+             or restrict the population to where both treatments occur"
+        ),
+        fields,
+    )
+}
+
 /// Refuse propensities that are exactly 0 or 1 (or not finite): they carry an infinite
 /// inverse-probability weight. With a clip they cannot occur; without one the user asked for
 /// no floor, so the fit is refused instead of silently flooring at a hidden constant.
 pub(crate) fn require_interior_propensities(scores: &[f64]) -> Result<(), EstimationError> {
-    if scores.iter().any(|&e| !(e > 0.0 && e < 1.0)) {
+    if !antecedent_learn::dr_replay::propensities_are_interior(scores) {
         return Err(EstimationError::OverlapWithFields {
             message: "a fitted propensity is 0 or 1 (or not finite) and no clip is set;                       the inverse-probability weight is infinite — set an overlap clip",
             fields: Box::new(crate::overlap::propensity_score_fields(scores)),
@@ -251,6 +349,9 @@ pub struct PropensityEstimationWorkspace {
     pub matching_index_builds: u32,
     /// Clipped propensity scores for matching bootstrap (raw scores stay on `propensity`).
     pub clip_scratch: Vec<f64>,
+    /// Most operations an exact matching pass may take, when the caller declares one. A pass
+    /// whose quote exceeds it is refused before any index or buffer is built.
+    pub exact_work_limit: Option<u64>,
 }
 
 impl PropensityEstimationWorkspace {
@@ -275,7 +376,7 @@ impl PropensityEstimationWorkspace {
         if needs_rebuild {
             let donor_ids: Vec<usize> = (0..n_donors).collect();
             let index = MatchingIndex::exact_within(donor_features, dim, &donor_ids, distance, ctx)
-                .map_err(stats_err)?;
+                .map_err(crate::error::EstimationError::from)?;
             self.matching_index = Some(index);
             self.matching_index_key = key;
             self.matching_index_builds = self.matching_index_builds.saturating_add(1);
@@ -310,14 +411,12 @@ pub(crate) fn feature_key(values: &[f64]) -> u64 {
     hash.finish()
 }
 
-/// Default overlap policy for all propensity estimators: diagnostics mandatory,
-/// propensities clipped into `[0.01, 0.99]`, no trimming.
+/// Default overlap policy for all propensity estimators when the caller declares none:
+/// diagnostics mandatory, propensities clipped into `[0.01, 0.99]`, no trimming, and
+/// saturated propensities refused ([`OverlapPolicy::Default`]).
 #[must_use]
 pub const fn default_propensity_overlap() -> OverlapPolicy {
-    OverlapPolicy::RequireDiagnostics {
-        clip: Some(crate::overlap::DEFAULT_PROPENSITY_CLIP),
-        trim: None,
-    }
+    OverlapPolicy::Default
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -375,7 +474,8 @@ pub(crate) fn prepare_propensity_problem_with_levels(
     }
     query.validate()?;
     if !query.effect_modifiers.is_empty() {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("option_not_applicable"),
             "propensity estimators do not support effect modifiers",
         ));
     }
@@ -387,7 +487,8 @@ pub(crate) fn prepare_propensity_problem_with_levels(
     ids.push(treatment);
     ids.push(outcome);
     ids.extend_from_slice(&estimand.adjustment_set);
-    let mut row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
+    let crate::prepare::AdmittedColumns { data, mut row_mask, receipt: preparation } =
+        crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
     let n_full = data.row_count();
     let mut full_weights: Option<Arc<[f64]>> = None;
     match &query.target_population {
@@ -400,10 +501,7 @@ pub(crate) fn prepare_propensity_problem_with_levels(
             )?;
         }
         TargetPopulation::CustomDistribution(_) => {
-            let sel = query
-                .target_population
-                .resolve(n_full, None, registry)
-                .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+            let sel = query.target_population.resolve(n_full, None, registry)?;
             // Keep complete-case rows; weights apply at estimation time (aligned below).
             full_weights = sel.weights;
         }
@@ -411,7 +509,7 @@ pub(crate) fn prepare_propensity_problem_with_levels(
     }
     let zero_weight_rows =
         sampling.map(|weights| weights.drop_zero_weight_rows(&mut row_mask)).transpose()?;
-    let t_source = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
+    let t_source = data.float64_selected(treatment, &row_mask).map_err(EstimationError::from)?;
     if t_source.is_empty() {
         return Err(EstimationError::data_msg("no complete-case rows for propensity design"));
     }
@@ -433,7 +531,8 @@ pub(crate) fn prepare_propensity_problem_with_levels(
         .filter(|&(_, &kept)| kept)
         .map(|(&ti, _)| if ti == active { 1.0 } else { 0.0 })
         .collect();
-    let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
+    let selected = crate::prepare::SelectedRows::from_mask(&row_mask);
+    let y = selected.gather(data, outcome)?;
     let nrows = t.len();
     let sampling_weights = sampling
         .zip(zero_weight_rows)
@@ -465,7 +564,7 @@ pub(crate) fn prepare_propensity_problem_with_levels(
     design[..nrows].fill(1.0);
     let mut covariate_cols: Vec<Arc<[f64]>> = Vec::with_capacity(estimand.adjustment_set.len());
     for (i, &z) in estimand.adjustment_set.iter().enumerate() {
-        let col = data.float64_masked(z, &row_mask).map_err(EstimationError::from)?;
+        let col = selected.gather(data, z)?;
         let base = (1 + i) * nrows;
         design[base..base + nrows].copy_from_slice(&col[..nrows]);
         covariate_cols.push(Arc::from(col));
@@ -476,6 +575,7 @@ pub(crate) fn prepare_propensity_problem_with_levels(
         design_matrix: Arc::from(design),
         design_ncols: ncols,
         nrows,
+        arms: Arc::from(TreatmentArm::classify(&t)),
         treatment: Arc::from(t),
         treatment_levels,
         outcome: Arc::from(y),
@@ -489,9 +589,11 @@ pub(crate) fn prepare_propensity_problem_with_levels(
             let mut idx = Vec::with_capacity(nrows);
             for (i, &keep) in row_mask.iter().enumerate() {
                 if keep {
-                    idx.push(u32::try_from(i).map_err(|_| {
-                        EstimationError::data_msg("row index exceeds the u32 row-id capacity")
-                    })?);
+                    idx.push(antecedent_data::GlobalId::new(u64::try_from(i).map_err(|_| {
+                        EstimationError::data_msg(
+                            "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                        )
+                    })?));
                 }
             }
             Arc::from(idx)
@@ -504,7 +606,26 @@ pub(crate) fn prepare_propensity_problem_with_levels(
         shared_design: false,
         propensity: crate::propensity::PropensityNuisance::default(),
         sampling_weights,
+        preparation,
+        design_names: Some(design_column_names(data.schema(), &estimand.adjustment_set)),
     }))
+}
+
+/// Design-column names of a `[1 | Z…]` outcome design, in the convention of the Bayesian
+/// coefficient names (`intercept`, `coef_<covariate>`).
+fn design_column_names(
+    schema: &antecedent_core::CausalSchema,
+    adjustment_set: &[VariableId],
+) -> Arc<[Arc<str>]> {
+    let mut names: Vec<Arc<str>> = Vec::with_capacity(1 + adjustment_set.len());
+    names.push(Arc::from("intercept"));
+    for &id in adjustment_set {
+        names.push(schema.get(id).ok().map_or_else(
+            || Arc::from(format!("coef_var_{}", id.raw())),
+            |variable| Arc::from(format!("coef_{}", variable.name)),
+        ));
+    }
+    Arc::from(names)
 }
 
 pub(crate) fn clip_of(overlap: OverlapPolicy) -> Option<f64> {
@@ -529,18 +650,8 @@ pub(crate) fn trim_retained_rows(
     raw_scores: &[f64],
     trim: Option<f64>,
 ) -> Result<Option<Vec<usize>>, EstimationError> {
-    let Some(t) = trim else { return Ok(None) };
-    let retained: Vec<usize> = raw_scores
-        .iter()
-        .enumerate()
-        .filter_map(|(i, &p)| (p >= t && p <= 1.0 - t).then_some(i))
-        .collect();
-    if retained.is_empty() {
-        return Err(EstimationError::data_msg(
-            "overlap trim removed every row; no common-support units remain",
-        ));
-    }
-    Ok(Some(retained))
+    antecedent_learn::dr_replay::trim_retained_rows(raw_scores, trim)
+        .map_err(EstimationError::data_msg)
 }
 
 /// Restrict `(treatment, outcome, features)` to `retained` rows (`features` row-major with
@@ -605,9 +716,9 @@ pub(crate) fn gather_optional_multiway(
 }
 
 pub(crate) fn overlap_clip_trim(overlap: OverlapPolicy) -> (Option<f64>, Option<f64>) {
-    match overlap {
+    match overlap.canonical() {
         OverlapPolicy::RequireDiagnostics { clip, trim, .. } => (clip, trim),
-        OverlapPolicy::ExplicitOverride => (None, None),
+        OverlapPolicy::ExplicitOverride | OverlapPolicy::Default => (None, None),
     }
 }
 
@@ -632,7 +743,7 @@ pub(crate) fn split_by_treatment(treatment: &[f64]) -> (Vec<usize>, Vec<usize>) 
     let mut treated = Vec::new();
     let mut control = Vec::new();
     for (i, &t) in treatment.iter().enumerate() {
-        if t > 0.5 {
+        if TreatmentArm::is_treated_indicator(t) {
             treated.push(i);
         } else {
             control.push(i);
@@ -642,13 +753,12 @@ pub(crate) fn split_by_treatment(treatment: &[f64]) -> (Vec<usize>, Vec<usize>) 
 }
 
 pub(crate) fn gather(values: &[f64], idx: &[usize]) -> Vec<f64> {
-    idx.iter().map(|&i| values[i]).collect()
+    crate::util::gather(values, idx)
 }
 
 /// [`gather`] into a reused buffer for replicate loops.
 pub(crate) fn gather_into(out: &mut Vec<f64>, values: &[f64], idx: &[usize]) {
-    out.clear();
-    out.extend(idx.iter().map(|&i| values[i]));
+    crate::util::gather_into(out, values, idx);
 }
 
 pub(crate) fn gather_rowmajor(matrix: &[f64], dim: usize, idx: &[usize]) -> Vec<f64> {
@@ -730,7 +840,7 @@ mod tests {
     fn logit_from_the_linear_predictor_stays_finite_where_the_score_rounds_to_one() {
         // At η = 40 the fitted probability is exactly 1.0 in f64, so ln(e/(1−e)) is +∞.
         let e = 1.0 / (1.0 + (-40.0_f64).exp());
-        assert!(e == 1.0);
+        assert_eq!(e, 1.0);
         assert!(((e / (1.0 - e)).ln()).is_infinite());
         assert_eq!(clamp_linear_predictor(40.0, None), 40.0);
         assert_eq!(clamp_linear_predictor(-40.0, None), -40.0);

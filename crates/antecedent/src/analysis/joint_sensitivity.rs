@@ -26,7 +26,7 @@
 //! digest, not by replay. The replay proves the numbers follow from the stored
 //! premises, not that the premises are the scientifically right ones.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalWriter, ExecutionContext, SearchStop, reason_code};
 use antecedent_io::z_transport_artifact::{ZTransportArtifactWire, ZTransportConsumeLimits};
@@ -409,7 +409,7 @@ impl JointSensitivityArtifactWire {
             sampling: JointSamplingWire {
                 method: result.uncertainty.method.to_owned(),
                 coverage_target: result.uncertainty.coverage_target.to_owned(),
-                status: "withheld".into(),
+                status: "no_interval_method".into(),
                 reason_code: result.uncertainty.reason_code.to_owned(),
                 interval: None,
             },
@@ -511,7 +511,7 @@ impl JointSensitivityArtifactWire {
         })?;
         let declared = &wire.body.perturbation;
         let effective = wire.body.receipt.memory_limit_bytes;
-        let affordable = ctx.memory.hard_limit_bytes.is_none_or(|hard| hard >= effective);
+        let affordable = ctx.memory_limit_bytes().is_none_or(|hard| hard >= effective);
         if declared.operations > limits.max_operations
             || declared.depth > limits.max_depth
             || declared.memory_bytes > limits.max_memory_bytes
@@ -542,8 +542,8 @@ impl JointSensitivityArtifactWire {
         }
         if wire.body.sampling.interval.is_some() {
             return Err(IoError::Refused {
-                code: reason_code!("cell_not_licensed"),
-                message: "joint_sensitivity.interval_withheld: an artifact carrying a sampling interval is refused; the interval route is not licensed".into(),
+                code: reason_code!("route_not_supported"),
+                message: "joint_sensitivity.no_interval_method: an artifact carrying a sampling interval is refused; the interval route is not supported".into(),
             });
         }
         if wire.body.inference_claim
@@ -599,7 +599,7 @@ impl JointSensitivityArtifactWire {
 
     /// The declared spec the replay runs under: stored factors, threshold,
     /// tolerance, grid and limits, with the stored effective memory cap.
-    fn replay_spec(&self) -> Result<JointDeviationSpec, IoError> {
+    pub(super) fn replay_spec(&self) -> Result<JointDeviationSpec, IoError> {
         let declared = &self.body.perturbation;
         let factors = declared
             .factors

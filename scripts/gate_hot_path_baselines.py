@@ -9,11 +9,14 @@ out of markdown or out of ``docs/hot_paths.md``.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import sys
 import tomllib
 from pathlib import Path
+
+from _repo import load_toml
 
 ROOT = Path(".")
 REGISTRY = Path("benches/baselines/baselines.toml")
@@ -29,7 +32,7 @@ COMMIT_LINE = re.compile(r"(?i)^commit:\s*[0-9a-f]{7,}")
 
 def load_registry(path: Path | None = None) -> dict:
     path = path or (ROOT / REGISTRY)
-    return tomllib.loads(path.read_text(encoding="utf-8"))
+    return load_toml(path)
 
 
 def render_markdown(rec: dict) -> str:
@@ -42,9 +45,7 @@ def render_markdown(rec: dict) -> str:
     for line in narrative.splitlines():
         if ESTABLISHED_LINE.match(line):
             note = rec.get("established_note") or ""
-            lines.append(
-                f"Established: {rec['established']}" + (f" {note}" if note else "")
-            )
+            lines.append(f"Established: {rec['established']}" + (f" {note}" if note else ""))
         elif MACHINE_LINE.match(line):
             lines.append(f"Machine class: {rec['machine_class']}")
         elif COMMIT_LINE.match(line):
@@ -124,9 +125,7 @@ def registry_problems(data: dict | None = None) -> list[str]:
         if waiver not in ("", "none published"):
             problems.append(f"{bid}: waiver must be empty or 'none published'")
         if not timings and not gates and waiver != "none published":
-            problems.append(
-                f"{bid}: no timings and no 'none published' waiver"
-            )
+            problems.append(f"{bid}: no timings and no 'none published' waiver")
         if not isinstance(timings, list) or not isinstance(gates, list):
             problems.append(f"{bid}: timings and gates must be arrays")
             continue
@@ -178,7 +177,9 @@ def markdown_problems(data: dict) -> list[str]:
         path = ROOT / BASELINE_DIR / f"{bid}.md"
         expected = render_markdown(rec)
         if not path.is_file():
-            problems.append(f"generated baseline missing: {BASELINE_DIR / bid}.md (run with --write)")
+            problems.append(
+                f"generated baseline missing: {BASELINE_DIR / bid}.md (run with --write)"
+            )
             continue
         actual = path.read_text(encoding="utf-8")
         if actual != expected:
@@ -217,7 +218,13 @@ def mean_ns(estimates: Path) -> float | None:
         return None
     mean = data.get("mean") or {}
     val = mean.get("point_estimate")
-    return float(val) if isinstance(val, (int, float)) else None
+    if type(val) not in (int, float):
+        return None
+    try:
+        number = float(val)
+    except OverflowError:
+        return None
+    return number if math.isfinite(number) and number >= 0.0 else None
 
 
 def criterion_problems(gates: list[tuple[str, str, float, str, str]]) -> list[str]:
@@ -230,22 +237,35 @@ def criterion_problems(gates: list[tuple[str, str, float, str, str]]) -> list[st
     estimates = list(criterion.glob("**/new/estimates.json"))
     if not estimates:
         return ["GATE_CRITERION_MEANS=1 but no target/criterion/**/new/estimates.json"]
+    matched: set[int] = set()
     for est in estimates:
-        fn = est.parent.parent.name
+        try:
+            metadata = json.loads((est.parent / "benchmark.json").read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            fail.append(f"{est}: missing or malformed Criterion benchmark metadata")
+            continue
+        full_id = metadata.get("full_id")
+        if not isinstance(full_id, str) or not full_id:
+            fail.append(f"{est}: Criterion benchmark full_id is missing")
+            continue
+        names = [full_id] + [metadata[k] for k in ("group_id", "function_id")
+                             if isinstance(metadata.get(k), str) and metadata[k]]
         measured = mean_ns(est)
         if measured is None:
+            fail.append(f"{full_id}: Criterion mean is missing or nonfinite")
             continue
-        for bid, workload, limit, unit, narrative in gates:
-            if workload != "*" and workload not in fn and fn not in workload:
+        for index, (bid, workload, limit, unit, narrative) in enumerate(gates):
+            if workload != "*" and workload not in full_id:
                 continue
-            if workload == "*" and fn not in narrative:
+            if workload == "*" and not any(name in narrative for name in names):
                 continue
+            matched.add(index)
             ns_limit = limit * UNIT_NS[unit]
             if measured > ns_limit * 1.001:
-                fail.append(
-                    f"{fn}: Criterion mean {measured / 1e3:.2f} µs exceeds gate "
-                    f"{limit} {unit} ({bid})"
-                )
+                fail.append(f"{full_id}: Criterion mean {measured / 1e3:.2f} µs exceeds gate {limit} {unit} ({bid})")
+    for index, (bid, workload, _, _, _) in enumerate(gates):
+        if index not in matched:
+            fail.append(f"{bid}: numeric gate {workload!r} matched no Criterion mean")
     return fail
 
 
@@ -293,10 +313,9 @@ def main(argv: list[str]) -> int:
             print(" -", item)
         return 1
     n = len(data.get("baseline", []))
-    print(
-        f"Hot-path baseline metadata OK ({n} baseline records, "
-        f"{len(gates)} numeric gates)"
-    )
+    evaluated = os.environ.get("GATE_CRITERION_MEANS") == "1"
+    status = f"{len(gates)} numeric gates evaluated" if evaluated else f"{len(gates)} numeric gates not evaluated"
+    print(f"Hot-path baseline metadata OK ({n} baseline records; {status})")
     return 0
 
 

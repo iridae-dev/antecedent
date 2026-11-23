@@ -27,7 +27,7 @@
 //! population's run, identity and claims are recomputed while every other population's are
 //! kept. Relabelling rows as another population is refused, not absorbed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::convert::Infallible;
@@ -102,7 +102,7 @@ pub fn add_per_population_claims(
 ///
 /// Always refuses: a difference between two discovered structures is a difference between two
 /// estimates, not a statement that a mechanism differs, and no error rate is attached to it.
-/// The refusal names the number of differing edges and what would license a selection
+/// The refusal names the number of differing edges and what would support a selection
 /// diagram: targets the caller declares.
 ///
 /// # Errors
@@ -116,7 +116,7 @@ pub fn request_selection_targets_from_differences(
     let differing = report.differing_edges().len();
     Err(DiscoveredStructureRefusal {
         code: antecedent_core::reason_code!("discovered_structure_unresolved"),
-        detail: "selective_discovery.differences_are_not_selection_targets",
+        detail: antecedent_core::reason_details::selective_discovery::DIFFERENCES_ARE_NOT_SELECTION_TARGETS,
         unresolved_edges: Vec::new(),
         bounded_search_receipts: Vec::new(),
         remedy: format!(

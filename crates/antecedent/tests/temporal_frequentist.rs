@@ -11,11 +11,11 @@
 //! where the series is too short for the score's memory: the short-series
 //! warning must fire, and coverage is recorded.
 //!
-//! Ignored coverage tests run via `scripts/gate_calibration.sh`. The
+//! Ignored coverage tests run via `scripts/measure_calibration.sh`. The
 //! non-ignored tests pin that the circular-block path is the one taken and the
 //! short-series threshold of each one-series family on fixed series.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,
@@ -182,7 +182,7 @@ fn effect_coverage(
         )
     });
     for (study, result) in &runs {
-        let est = &result.estimate;
+        let est = &result.estimate();
         assert_eq!(result.estimand.adjustment_set.len(), 0, "{what}: unexpected adjustment");
         assert!(
             est.as_effect().unwrap().se_analytic().is_nan(),
@@ -349,7 +349,7 @@ fn headline_coverage(
         )
     });
     for (study, result) in &runs {
-        let est = &result.estimate;
+        let est = &result.estimate();
         assert!(
             est.as_effect().unwrap().se_analytic().is_nan(),
             "{what}: no analytic SE is calibrated"
@@ -478,7 +478,7 @@ fn mediation_coverage_on(
             };
             let points = &slice.estimate;
             assert!(
-                result.estimate.as_effect().unwrap().se_analytic().is_nan(),
+                result.estimate().as_effect().unwrap().se_analytic().is_nan(),
                 "iid analytic SE must be withheld"
             );
             if i == 0 {
@@ -577,7 +577,7 @@ fn confounded_mediation_coverage(test: &'static str) -> Coverage {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_dag_mediation_confounded_iid_n160_nominal_90_coverage() {
     let coverage = confounded_mediation_coverage(
         "temporal_dag_mediation_confounded_iid_n160_nominal_90_coverage",
@@ -591,7 +591,7 @@ fn temporal_dag_mediation_confounded_iid_n160_nominal_90_coverage() {
 macro_rules! effect_gate {
     ($name:ident, $scenario:expr, $what:expr, $query:expr, $truth:expr, $offset:expr) => {
         #[test]
-        #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+        #[ignore = "calibration: run via scripts/measure_calibration.sh"]
         fn $name() {
             gate(&effect_coverage(stringify!($name), $scenario, $what, &$query, $truth, $offset));
         }
@@ -601,7 +601,7 @@ macro_rules! effect_gate {
 macro_rules! effect_boundary_gate {
     ($name:ident, $scenario:expr, $what:expr, $query:expr, $truth:expr, $offset:expr, $measured:expr) => {
         #[test]
-        #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+        #[ignore = "calibration: run via scripts/measure_calibration.sh"]
         fn $name() {
             boundary_gate(
                 &effect_coverage(stringify!($name), $scenario, $what, &$query, $truth, $offset),
@@ -614,7 +614,7 @@ macro_rules! effect_boundary_gate {
 macro_rules! mediation_gate {
     ($name:ident, $scenario:expr $(, $measured:expr)?) => {
         #[test]
-        #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+        #[ignore = "calibration: run via scripts/measure_calibration.sh"]
         fn $name() {
             mediation_gate!(@run stringify!($name), $scenario $(, $measured)?);
         }
@@ -636,7 +636,7 @@ effect_gate!(
     0
 );
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_dag_pulse_ar05_n160_nominal_90_coverage() {
     gate_at(
         &effect_coverage(
@@ -818,7 +818,7 @@ fn sequential_coverage(test: &'static str, label: &str, rho: f64, n: usize, seed
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_dag_multistep_sustained_ar05_n160_nominal_90_coverage() {
     gate(&sequential_coverage(
         "temporal_dag_multistep_sustained_ar05_n160_nominal_90_coverage",
@@ -830,7 +830,7 @@ fn temporal_dag_multistep_sustained_ar05_n160_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_dag_multistep_sustained_ar09_n400_nominal_90_coverage() {
     gate(&sequential_coverage(
         "temporal_dag_multistep_sustained_ar09_n400_nominal_90_coverage",
@@ -850,7 +850,7 @@ fn temporal_dag_multistep_sustained_ar09_n400_nominal_90_coverage() {
 // recorded.
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_dag_pulse_ar1_treatment_rho09_n60_short_series_boundary() {
     boundary(&headline_coverage(
         "temporal_dag_pulse_ar1_treatment_rho09_n60_short_series_boundary",
@@ -866,7 +866,7 @@ fn temporal_dag_pulse_ar1_treatment_rho09_n60_short_series_boundary() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_dag_mediation_ar1_treatment_rho09_n60_short_series_boundary() {
     const SEED: u64 = 810_000;
     boundary(&mediation_coverage_on(
@@ -880,7 +880,7 @@ fn temporal_dag_mediation_ar1_treatment_rho09_n60_short_series_boundary() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_dag_multistep_sustained_ar1_treatment_rho095_n60_short_series_boundary() {
     boundary(&headline_coverage(
         "temporal_dag_multistep_sustained_ar1_treatment_rho095_n60_short_series_boundary",
@@ -912,13 +912,21 @@ fn temporal_dag_pulse_publishes_circular_block_se_only() {
     // 159 lag-aligned rows: ⌈159^(1/3)⌉ = 6 beats the two-slice unfolded window.
     assert!(diag.message.contains("circular-block length 6"), "{}", diag.message);
     assert!(diag.message.contains("n=159 lag-aligned rows"), "{}", diag.message);
-    let est = &result.estimate;
+    let est = &result.estimate();
     assert!(est.as_effect().unwrap().se_bootstrap().is_some_and(|se| se.is_finite() && se > 0.0));
     assert!(
         est.as_effect().unwrap().se_analytic().is_nan(),
         "the iid OLS SE must not be published on lagged rows"
     );
     assert_eq!(est.as_effect().unwrap().uncertainty.bootstrap.replicates_ok, Some(24));
+    // The point estimate recovers the population truth to within four of its own
+    // calibrated standard errors (a biased or mis-lagged estimate fails this).
+    let pulse_se = est.as_effect().unwrap().se_bootstrap().unwrap();
+    assert!(
+        (est.as_effect().unwrap().ate - BETA).abs() < 4.0 * pulse_se,
+        "pulse ate {} vs truth {BETA} (se {pulse_se})",
+        est.as_effect().unwrap().ate
+    );
     assert!(!has_diagnostic(&result, "estimate.temporal.circular_block_se.short_series"));
 
     // Without replicates there is no calibrated SE, and the result says so.
@@ -929,9 +937,11 @@ fn temporal_dag_pulse_publishes_circular_block_se_only() {
         0,
         7,
     );
-    assert!(bare.estimate.as_effect().unwrap().se_bootstrap().is_none());
-    assert!(bare.estimate.as_effect().unwrap().se_analytic().is_nan());
-    assert!((bare.estimate.as_effect().unwrap().ate - est.as_effect().unwrap().ate).abs() < 1e-12);
+    assert!(bare.estimate().as_effect().unwrap().se_bootstrap().is_none());
+    assert!(bare.estimate().as_effect().unwrap().se_analytic().is_nan());
+    assert!(
+        (bare.estimate().as_effect().unwrap().ate - est.as_effect().unwrap().ate).abs() < 1e-12
+    );
     let bare_diag = bare
         .diagnostics
         .iter()
@@ -951,7 +961,7 @@ fn temporal_mediation_shares_one_block_replicate_across_contrasts() {
     );
     assert!(has_diagnostic(&result, "estimate.temporal.circular_block_se"));
     assert!(
-        result.estimate.as_effect().unwrap().se_analytic().is_nan(),
+        result.estimate().as_effect().unwrap().se_analytic().is_nan(),
         "iid Total SE must be withheld by default"
     );
     let slice = &result.mediation_grid().unwrap().slices[0];
@@ -961,11 +971,26 @@ fn temporal_mediation_shares_one_block_replicate_across_contrasts() {
         panic!("expected shared circular-block uncertainty, got {:?}", slice.uncertainty);
     };
     assert_eq!(*requested, block.total);
-    assert_eq!(result.estimate.as_effect().unwrap().se_bootstrap(), block.total);
+    assert_eq!(result.estimate().as_effect().unwrap().se_bootstrap(), block.total);
     assert_eq!(block.replicates_attempted, 24);
     for se in [block.total, block.direct, block.mediated] {
         assert!(se.is_some_and(|se| se.is_finite() && se > 0.0));
     }
+    // Each contrast's point estimate sits within four of its own block SEs of the
+    // population value (C + A*B, C, A*B).
+    let points = &slice.estimate;
+    for (point, se, truth) in [
+        (points.total, block.total, C + A * B),
+        (points.direct, block.direct, C),
+        (points.mediated, block.mediated, A * B),
+    ] {
+        let (point, se) = (point.unwrap(), se.unwrap());
+        assert!((point - truth).abs() < 4.0 * se, "point {point} vs truth {truth} (se {se})");
+    }
+    // The mediated and direct parts add to the total.
+    assert!(
+        (points.total.unwrap() - points.direct.unwrap() - points.mediated.unwrap()).abs() < 1e-9
+    );
 
     // No replicates: every iid analytic SE stays NaN and no interval is claimed.
     let none = run(
@@ -975,8 +1000,8 @@ fn temporal_mediation_shares_one_block_replicate_across_contrasts() {
         0,
         3,
     );
-    assert!(none.estimate.as_effect().unwrap().se_analytic().is_nan());
-    assert!(none.estimate.as_effect().unwrap().se_bootstrap().is_none());
+    assert!(none.estimate().as_effect().unwrap().se_analytic().is_nan());
+    assert!(none.estimate().as_effect().unwrap().se_bootstrap().is_none());
     assert!(matches!(
         none.mediation_grid().unwrap().slices[0].uncertainty,
         TemporalMediationUncertainty::FrequentistPointwise { standard_error: None }

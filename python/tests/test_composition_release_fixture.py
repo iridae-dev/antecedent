@@ -13,7 +13,7 @@ One scenario whose numbers are checked by hand (``conformance/composition/releas
   risk 0.024 and ``act`` worth -6.
 
 Every stage is point-only: each request for an interval, a posterior decision or a ranking
-guarantee is refused with ``cell_not_licensed``. Nothing here uses an internal constructor or a
+guarantee is refused with ``not_supported``. Nothing here uses an internal constructor or a
 test-only hook. The fresh-process consumer is ``consumer.py`` from the fixture directory; the
 oracle in it is a closed form written there.
 """
@@ -29,18 +29,21 @@ from typing import Any
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import composition_verification as cv
 from antecedent import decision
 from antecedent import evidence_ledger as el
 from antecedent import interface_contract as ic
 from antecedent import joint_law_propagation as jl
 from antecedent import measurement_models as mm
+from antecedent import mechanism_composition as mc
 from antecedent.errors import StructuredRefusal
 from antecedent.joint_distribution import (
     DistributionIdentity,
     JointDistributionArtifact,
     ScientificQuantity,
 )
+from antecedent.outcomes import require_success
 
 import _release_boundary as rb
 from _refusal import assert_registered_refusal
@@ -62,7 +65,7 @@ def assert_refusal(error: StructuredRefusal, entry: dict[str, Any]) -> None:
 
 def refused(call: Any, kind: type[StructuredRefusal] = StructuredRefusal) -> StructuredRefusal:
     with pytest.raises(kind) as caught:
-        call()
+        require_success(call())
     return caught.value
 
 
@@ -158,7 +161,7 @@ def test_shared_evidence_is_counted_once_and_dependence_is_declared_or_refused()
     )  # fmt: skip
     assert (error.reason_code, error.detail) == (
         "evidence_double_counted",
-        "evidence_ledger.diagonal_covariance_shared_rows",
+        reason_details.evidence_ledger.DIAGONAL_COVARIANCE_SHARED_ROWS,
     )
     assert ledger.head == head
 
@@ -166,7 +169,7 @@ def test_shared_evidence_is_counted_once_and_dependence_is_declared_or_refused()
     error = refused(lambda: rb.pool(ledger, "vendor", [(a, est_a, var_a), (vendor, est_c, var_c)]))
     assert_refusal(error, VARIANTS["dependence_gap_ledger"])
 
-    # A declared covariance with cross terms licenses the shared pair: generalized least
+    # A declared covariance with cross terms supports the shared pair: generalized least
     # squares of y = (0.10, 0.20), S = [[0.0004, 0.0002], [0.0002, 0.0004]]: weights (1/2, 1/2),
     # estimate 0.15, variance (0.0004 + 0.0002) / 2 = 0.0003.
     pooled = rb.pool(
@@ -183,23 +186,24 @@ def test_shared_evidence_is_counted_once_and_dependence_is_declared_or_refused()
     # The joint-law rule reads the same overlap: the shared rows carry one evidence identity.
     shared = [jl.MomentInput("study_a", a, est_a), jl.MomentInput("study_c", a, est_c)]
     error = refused(
-        lambda: jl.linear_moments(
+        lambda: require_success(jl.linear_moments(
             "weighted_sum", shared, [0.5, 0.5], [[var_a, 0.0], [0.0, var_c]],
             dependence="declared_independent",
-        ),
+        )),
         jl.JointLawPropagationRefusal,
     )  # fmt: skip
     assert_refusal(error, VARIANTS["shared_evidence_declared_independent"])
-    claim = jl.linear_moments(
+    claim = require_success(jl.linear_moments(
         "weighted_sum", shared, [0.5, 0.5], [[var_a, cov], [cov, var_c]],
         dependence="covariance", covariance_id="shared-rows-300-500",
-    )  # fmt: skip
+    ))  # fmt: skip
     assert claim.value("mean") == pytest.approx(0.15, abs=EXACT)
     # The rule's variance is the ledger's generalized-least-squares variance.
     assert claim.value("variance") == pytest.approx(pooled.variance, abs=EXACT)
     assert claim.label == "point_only"
     error = refused(claim.interval, jl.JointLawPropagationRefusal)
-    assert error.reason_code == VARIANTS["interval"]["code"]
+    # A point-only propagation has no uncertainty representation to read an interval from.
+    assert error.reason_code == "uncertainty_representation_insufficient"
 
     # Unknown dependence is a gap, not an independence.
     distinct = [
@@ -207,8 +211,14 @@ def test_shared_evidence_is_counted_once_and_dependence_is_declared_or_refused()
         jl.MomentInput("study_b", "evidence-b", 0.20),
     ]
     error = refused(
-        lambda: jl.linear_moments(
-            "weighted_sum", distinct, [0.5, 0.5], [[var_a, 0.0], [0.0, var_a]], dependence="unknown"
+        lambda: require_success(
+            jl.linear_moments(
+                "weighted_sum",
+                distinct,
+                [0.5, 0.5],
+                [[var_a, 0.0], [0.0, var_a]],
+                dependence="unknown",
+            )
         ),
         jl.JointLawPropagationRefusal,
     )
@@ -242,7 +252,7 @@ def test_unpaired_marginals_are_never_paired_by_index_and_an_enumerated_joint_la
     mx = jl.PropagationDraws.from_artifact_column("prevalence", marginals, 0)
     my = jl.PropagationDraws.from_artifact_column("effect", marginals, 1)
     error = refused(
-        lambda: jl.aligned_functional("nonlinear_functional", mx, my, "minimum"),
+        lambda: require_success(jl.aligned_functional("nonlinear_functional", mx, my, "minimum")),
         jl.JointLawPropagationRefusal,
     )
     assert_refusal(error, VARIANTS["unpaired_marginals"])
@@ -253,23 +263,24 @@ def test_unpaired_marginals_are_never_paired_by_index_and_an_enumerated_joint_la
     joint = _artifact("lattice", "joint", [p for p, _ in lattice], [d for _, d in lattice])
     jx = jl.PropagationDraws.from_artifact_column("prevalence", joint, 0)
     jy = jl.PropagationDraws.from_artifact_column("effect", joint, 1)
-    claim = jl.aligned_functional("product", jx, jy, "product")
+    claim = require_success(jl.aligned_functional("product", jx, jy, "product"))
     assert claim.value("mean") == pytest.approx(VALUES["aligned_product_mean"], abs=EXACT)
     assert claim.route == "aligned_joint_law"
     assert claim.label == "point_only"
     # The aligned moment is the point claim of the composed model.
     assert claim.value("mean") == pytest.approx(World.build().excess_risk, abs=DECISION)
     assert (
-        refused(claim.posterior, jl.JointLawPropagationRefusal).reason_code == "cell_not_licensed"
+        refused(claim.posterior, jl.JointLawPropagationRefusal).reason_code
+        == "uncertainty_representation_insufficient"
     )
 
 
 # --------------------------------------------------------------------------- 4
 
 
-def test_the_decision_reads_the_licensed_mean_and_matches_the_hand_computed_utilities():
+def test_the_decision_reads_the_supported_mean_and_matches_the_hand_computed_utilities():
     world = World.build()
-    result = world.result
+    result = require_success(world.result)
     # 1000 * 0.045 - 30 = 15 for act; the hold action is worth 0.
     assert rb.value_of(result, "act") == pytest.approx(VALUES["act"], abs=DECISION)
     assert rb.value_of(result, "hold") == pytest.approx(VALUES["hold"], abs=DECISION)
@@ -280,8 +291,13 @@ def test_the_decision_reads_the_licensed_mean_and_matches_the_hand_computed_util
     assert result.n_draws == 0
 
     # The decision follows the declaration: a programme costing 50 is worth 1000 * 0.045 - 50 = -5.
-    dearer = rb.decide(
-        rb.declaration(cost=50.0), world.excess_risk, world.ledger.state_digest, world.plan_identity
+    dearer = require_success(
+        rb.decide(
+            rb.declaration(cost=50.0),
+            world.excess_risk,
+            world.ledger.state_digest,
+            world.plan_identity,
+        )
     )
     assert rb.value_of(dearer, "act") == pytest.approx(-5.0, abs=DECISION)
     assert dearer.selected == ("hold",)
@@ -313,7 +329,7 @@ def test_new_observations_revalidate_the_claim_graph_and_the_decision_is_reevalu
     error = refused(lambda: world.ledger.synthesis(before), el.EvidenceLedgerRefusal)
     assert (error.reason_code, error.detail) == (
         "evidence_source_withdrawn",
-        "evidence_ledger.result_not_valid",
+        reason_details.evidence_ledger.RESULT_NOT_VALID,
     )
 
     # Recompute on the grown study, naming the result replaced:
@@ -340,15 +356,17 @@ def test_new_observations_revalidate_the_claim_graph_and_the_decision_is_reevalu
     assert rb.value_of(revised.result, "act") == pytest.approx(REVISED["act"], abs=DECISION)
     assert rb.value_of(revised.result, "hold") == pytest.approx(REVISED["hold"], abs=DECISION)
     # The decision flips: the programme no longer pays for itself.
-    assert revised.result.selected == (REVISED["selected"],)
+    assert require_success(revised.result).selected == (REVISED["selected"],)
     assert revised.plan_identity != world.plan_identity
 
-    # The classification against the earlier graph: what rested on study B is recomputed;
+    # The classification against the earlier graph: the old claims that rested on study B lose
+    # authority when its evidence changes (they are withdrawn, none left to recompute);
     # what did not is still valid and keeps its numbers.
     moved = rb.verify(world.graph, revised.graph, revised.ledger, pooled.result)
-    assert moved.keys_of("recompute") == (
+    assert moved.keys_of("withdrawn") == (
         "claim", "decision", "mechanisms", "pooled_effect", "study_b",
     )  # fmt: skip
+    assert moved.keys_of("recompute") == ()
     assert moved.keys_of("still_valid") == ("measurement", "study_a", "survey")
     # And the recomputed decision is usable against its own graph.
     assert revised.gate().classify("decision").klass == "still_valid"
@@ -381,13 +399,13 @@ def test_duplicated_evidence_cannot_be_counted_twice(tmp_path):
     error = refused(lambda: rb.pool(ledger, "twice", [(a, est, var), (copy, est, var)]))
     assert (error.reason_code, error.detail) == (
         "evidence_double_counted",
-        "evidence_ledger.reentry_duplicate",
+        reason_details.evidence_ledger.REENTRY_DUPLICATE,
     )
     # The same source listed twice.
     error = refused(lambda: rb.pool(ledger, "listed_twice", [(a, est, var), (a, est, var)]))
     assert (error.reason_code, error.detail) == (
         "evidence_double_counted",
-        "evidence_ledger.repeated_source",
+        reason_details.evidence_ledger.REPEATED_SOURCE,
     )
     assert ledger.head == head
     assert ledger.results == ()
@@ -542,7 +560,7 @@ def test_a_fresh_process_consumer_recomputes_the_decision_and_every_mutation_is_
 def test_a_claim_graph_verified_at_another_ledger_state_is_refused_by_the_consumer():
     world = World.build()
     verification = rb.verify(world.graph, world.graph, world.ledger, world.pooled.result)
-    exported = verification.artifact()
+    exported = verification.export()
     consumed = cv.consume_composition_verification_artifact(
         exported.data, exported.expectation.identity
     )
@@ -553,7 +571,7 @@ def test_a_claim_graph_verified_at_another_ledger_state_is_refused_by_the_consum
     )
     assert (error.reason_code, error.detail) == (
         "invalid_argument",
-        "composition_verification.ledger_mismatch",
+        reason_details.composition_verification.LEDGER_MISMATCH,
     )
 
 
@@ -564,7 +582,11 @@ def test_an_upstream_withdrawal_makes_the_downstream_decision_refuse_end_to_end(
     world = World.build()
     world.gate()
     # Consent for study A is withdrawn.
-    world.ledger.revise_source(el.SourceRevision.withdraw(world.study_a, "consent withdrawn"))
+    require_success(
+        world.ledger.revise_source(
+            require_success(el.SourceRevision.withdraw(world.study_a, "consent withdrawn"))
+        )
+    )
     pooled = world.pooled.result
     assert world.ledger.standing(pooled) == "withdrawn"
 
@@ -592,7 +614,7 @@ def test_an_upstream_withdrawal_makes_the_downstream_decision_refuse_end_to_end(
     )
     assert (error.reason_code, error.detail) == (
         "evidence_source_withdrawn",
-        "evidence_ledger.source_withdrawn",
+        reason_details.evidence_ledger.SOURCE_WITHDRAWN,
     )
 
 
@@ -622,17 +644,23 @@ def test_a_dependence_gap_makes_the_downstream_decision_refuse_end_to_end():
     # The joint-law rule refuses the same gap when asked for the combination.
     inputs = [jl.MomentInput("study_a", a, 0.10), jl.MomentInput("vendor", vendor, 0.20)]
     error = refused(
-        lambda: jl.linear_moments(
-            "weighted_sum", inputs, [0.5, 0.5], [[0.0004, 0.0], [0.0, 0.0004]], dependence="unknown"
+        lambda: require_success(
+            jl.linear_moments(
+                "weighted_sum",
+                inputs,
+                [0.5, 0.5],
+                [[0.0004, 0.0], [0.0, 0.0004]],
+                dependence="unknown",
+            )
         ),
         jl.JointLawPropagationRefusal,
     )
     assert error.reason_code == VARIANTS["dependence_gap_rule"]["code"]
 
-    # Declaring the dependence is what licenses the combination: the vendor discloses its
+    # Declaring the dependence is what supports the combination: the vendor discloses its
     # rows, and a declared covariance pools it.
     covered = ledger.add_source(rb.study("vendor_rows", "cohort", [400, 900]))
-    licensed = rb.pool(
+    supported = rb.pool(
         ledger,
         "pooled_with_declared_dependence",
         [
@@ -641,7 +669,7 @@ def test_a_dependence_gap_makes_the_downstream_decision_refuse_end_to_end():
         ],
         covariance=[0.0004, 0.0002, 0.0002, 0.0004],
     )
-    assert licensed.variance == pytest.approx(0.0003, abs=EXACT)
+    assert supported.variance == pytest.approx(0.0003, abs=EXACT)
 
 
 # --------------------------------------------------------------------------- point-only
@@ -649,12 +677,13 @@ def test_a_dependence_gap_makes_the_downstream_decision_refuse_end_to_end():
 
 def test_every_stage_is_point_only_and_no_interval_or_posterior_decision_ships():
     world = World.build()
-    # The ledger: a pooled interval is never licensed.
-    error = refused(
-        lambda: world.ledger.pooled_interval(world.pooled.result), el.EvidenceLedgerRefusal
-    )
-    assert error.reason_code == VARIANTS["interval"]["code"]
-    # The measurement: an interval is never licensed.
+    # The ledger: a pooled interval is reported with a calibration status, never `calibrated`
+    # for two studies.
+    pooled_interval = world.ledger.pooled_interval(world.pooled.result)
+    assert pooled_interval["lower"] < pooled_interval["estimate"] < pooled_interval["upper"]
+    assert pooled_interval["calibration"]["status"] != "calibrated"
+    # The measurement: the estimate's interval is reported with a not_measured calibration slot,
+    # and a prepared model with no estimate has none to bound.
     prepared = mm.prepare_measurement_model(
         rb.measurement_model(),
         mm.AnalysisBinding(
@@ -667,11 +696,17 @@ def test_every_stage_is_point_only_and_no_interval_or_posterior_decision_ships()
             SCENARIO["measurement"]["events"], SCENARIO["measurement"]["total"]
         ),
     )
-    error = refused(prepared.estimate().interval, mm.MeasurementModelRefusal)
-    assert error.reason_code == VARIANTS["interval"]["code"]
-    # The composition: the variance carries no measured coverage.
-    error = refused(world.composition.interval)
-    assert error.reason_code == VARIANTS["interval"]["code"]
+    measured_interval = require_success(prepared.estimate()).interval(0.95)
+    assert measured_interval.lower <= measured_interval.upper
+    assert measured_interval.calibration["status"] == "not_measured"
+    error = refused(prepared.interval, mm.MeasurementModelRefusal)
+    assert error.reason_code == "uncertainty_representation_insufficient"
+    # The composition: the parameter dependence of its mechanisms is undeclared, so the
+    # first-order interval is a joint-law refusal, never an independence default.
+    error = refused(
+        lambda: world.composition.interval(mc.MeanContrast.ate("Y", "X", 1.0, 0.0), 0.95)
+    )
+    assert error.reason_code == "joint_law_required"
     # The claim graph holds no calibration record: the decision is a point value.
     assert world.gate().classify("decision").calibration.state == "not_applicable"
     # A criterion beyond a mean is refused, not approximated.
@@ -680,6 +715,6 @@ def test_every_stage_is_point_only_and_no_interval_or_posterior_decision_ships()
         decision.DecisionRefusal,
     )
     assert refusal.reason_code == "decision_contract_unsatisfied"
-    assert FIXTURE["calibration"] == "unmeasured"
+    assert FIXTURE["calibration"] == "not_measured"
     assert FIXTURE["label"] == "point_only"
-    assert world.result.evpi is None
+    assert require_success(world.result).evpi is None

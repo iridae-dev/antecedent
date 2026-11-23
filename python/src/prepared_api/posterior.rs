@@ -1,23 +1,21 @@
 //! Graph-posterior mixtures compiled into a prepared study.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent::discovery::{
-    BayesianDiscoverParams, GraphMcmcSchedule, discover_dbn_posterior, discover_exact_dag_posterior,
-};
-use antecedent::{CausalContract, Study};
-use antecedent_core::{CausalQuery, CausalSchema, MediationQuery, ResponseQuery};
-use antecedent_data::{TableView, TabularData, TimeSeriesData};
+use antecedent::data::TableView;
+use antecedent::discovery::{BayesianDiscoverParams, GraphMcmcSchedule};
+use antecedent::prelude::{CausalSchema, TabularData, TimeSeriesData};
+use antecedent::query::{CausalQuery, MediationQuery, ResponseQuery};
+use antecedent::{CausalContract, DiscoveredStructure, DiscoverySpec, Study};
 use pyo3::prelude::*;
 
 use super::{PrepareRequest, PyPreparedAnalysis, apply_estimator, with_response_options};
-use crate::py_err;
 
-pub(super) fn contract_to_map(
+pub(crate) fn contract_to_map(
     contract: &CausalContract,
     schema: &CausalSchema,
     query: &CausalQuery,
-    registry: Option<&antecedent_core::PopulationRegistry>,
+    registry: Option<&antecedent::query::PopulationRegistry>,
 ) -> std::collections::HashMap<String, String> {
     let mut out = std::collections::HashMap::new();
     out.insert("target".into(), contract.identities.target.to_hex());
@@ -34,6 +32,11 @@ pub(super) fn contract_to_map(
     out.insert("graph_class".into(), contract.graph_class.as_str().to_string());
     out.insert("structure_source".into(), contract.structure_source.as_str().to_string());
     out.insert("accepted_version".into(), contract.accepted_version.to_string());
+    if let Some(score) =
+        contract.structure_provenance.as_deref().and_then(|source| source.graph_score())
+    {
+        out.insert("structure_provenance.graph_score".into(), score.to_string());
+    }
     if let Some(algorithm) = &contract.discovery_algorithm {
         out.insert("discovery_algorithm".into(), algorithm.to_string());
     }
@@ -44,7 +47,7 @@ pub(super) fn contract_to_map(
     if let Some(status) = contract.support_status {
         out.insert("matrix_status".into(), status.as_str().to_string());
     } else if let Some(support) = contract.reasoning.support.as_ref() {
-        // Graphless families leave the license enum unset and record `off_axis`
+        // Graphless families leave the support enum unset and record `off_axis`
         // on the support slot. The sealed artifact already publishes that
         // string; the live contract has to carry the same one.
         out.insert("matrix_status".into(), support.matrix_status.to_string());
@@ -88,6 +91,48 @@ pub(super) fn contract_to_map(
         })).collect();
         out.insert("assumption_obligations".into(), serde_json::json!(obligations).to_string());
     }
+    // The capability report beside the identities: what the contract would do next, which
+    // supported neighbors exist, which obligations are unmet, and, for a not-identified
+    // product, the evidence that would resolve it.
+    let capability = contract.capability();
+    out.insert(
+        "next_actions".into(),
+        serde_json::json!(
+            capability
+                .next_actions
+                .iter()
+                .map(|a| serde_json::json!({
+                    "id": a.id.as_ref(),
+                    "description": a.description.as_ref(),
+                }))
+                .collect::<Vec<_>>()
+        )
+        .to_string(),
+    );
+    out.insert(
+        "neighbors".into(),
+        serde_json::json!(antecedent::host::neighbor_records(&capability.neighbors)).to_string(),
+    );
+    out.insert(
+        "unmet_obligations".into(),
+        serde_json::json!(antecedent::host::unmet_obligation_records(
+            &capability.unmet_obligations
+        ))
+        .to_string(),
+    );
+    let names: Vec<String> =
+        schema.variables().iter().map(|variable| variable.name.to_string()).collect();
+    out.insert(
+        "evidence_obligations".into(),
+        serde_json::json!(
+            contract
+                .evidence_obligations
+                .iter()
+                .map(|o| crate::repair_api::obligation_json(o, &names))
+                .collect::<Vec<_>>()
+        )
+        .to_string(),
+    );
     out.insert("uncertainty".into(), contract.reasoning.uncertainty.label(|_| "available".into()));
     out.insert(
         "variable_names".into(),
@@ -98,8 +143,8 @@ pub(super) fn contract_to_map(
             .collect::<Vec<_>>()
             .join(","),
     );
-    if let Ok(wire) = antecedent_io::causal_query_to_wire_with_registry(query, registry) {
-        for (key, value) in antecedent_io::executed_functional_labels(&wire) {
+    if let Ok(wire) = antecedent::io::causal_query_to_wire_with_registry(query, registry) {
+        for (key, value) in antecedent::io::executed_functional_labels(&wire) {
             out.insert(key, value);
         }
     }
@@ -109,11 +154,15 @@ pub(super) fn contract_to_map(
 /// Flat inspect keys for the score-reuse and target-weights identities.
 pub(super) fn insert_reuse_identities(
     report: &mut std::collections::HashMap<String, String>,
-    score_reuse: Option<antecedent_core::SemanticDigest>,
-    target_weights: Option<antecedent_core::SemanticDigest>,
+    score_reuse: Option<antecedent::scientific::SemanticDigest>,
+    adjusted_fit_reuse: Option<antecedent::scientific::SemanticDigest>,
+    target_weights: Option<antecedent::scientific::SemanticDigest>,
 ) {
     if let Some(digest) = score_reuse {
         report.insert("score_reuse".into(), digest.to_hex());
+    }
+    if let Some(digest) = adjusted_fit_reuse {
+        report.insert("adjusted_fit_reuse".into(), digest.to_hex());
     }
     if let Some(digest) = target_weights {
         report.insert("target_weights".into(), digest.to_hex());
@@ -130,7 +179,7 @@ pub(super) fn require_prepared_names(
             crate::value_err(format!(
                 "prepared {op} requires the same column names (order) as prepare"
             )),
-            antecedent_core::reason_code!("schema_mismatch"),
+            antecedent::reason::reason_code!("schema_mismatch"),
         ));
     }
     Ok(())
@@ -138,29 +187,100 @@ pub(super) fn require_prepared_names(
 
 pub(super) fn take_supplied_posterior(
     posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
-    names: &[String],
+    req: &PrepareRequest,
 ) -> PyResult<Option<antecedent::discovery::GraphPosterior>> {
     posterior
         .map(|bound| {
             let posterior = bound.borrow();
-            posterior.require_bound_to(names)?;
+            posterior.require_bound_to(&req.names)?;
+            if let Some(accepted) = posterior.configured_exact() {
+                req.accepted_posterior.set(Some(accepted.clone()));
+            }
             posterior.to_rust()
         })
         .transpose()
 }
 
+/// The default Bayesian parameters of a search over the schema's variables, under the per-edge
+/// prior and soft tiers the study declared, if any.
+fn declared_params(
+    prior: Option<&crate::bayesian::PriorArgs>,
+    schema: &CausalSchema,
+    vars: &[antecedent::prelude::VariableId],
+) -> PyResult<BayesianDiscoverParams> {
+    match prior {
+        None => Ok(BayesianDiscoverParams::default()),
+        Some(prior) => {
+            let names: Vec<String> =
+                schema.variables().iter().map(|v| v.name.to_string()).collect();
+            prior.clone().params_over(&names, vars)
+        }
+    }
+}
+
 pub(super) fn exact_dag_posterior(
     supplied: Option<antecedent::discovery::GraphPosterior>,
     data: &TabularData,
-    ctx: &antecedent_core::ExecutionContext,
+    req: &PrepareRequest,
+    ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<antecedent::discovery::GraphPosterior> {
+    let prior = req.opts.structure_prior.as_ref();
+    let opts = &req.opts;
+    let configured =
+        prior.is_some() || opts.exact_score.is_some() || opts.exact_max_parents.is_some();
     if let Some(gp) = supplied {
+        if configured {
+            return Err(crate::value_err(
+                "a supplied posterior is not fitted, so posterior search options describe a search \
+                 that never ran; drop the search options",
+            ));
+        }
         return Ok(gp);
     }
     let vars: Vec<_> = data.schema().variables().iter().map(|v| v.id).collect();
-    discover_exact_dag_posterior(data, &vars, &BayesianDiscoverParams::default(), ctx)
-        .map_err(py_err)
+    let mut params = declared_params(prior, data.schema(), &vars)?;
+    if let Some(family) = opts.exact_score {
+        params.score_family = family;
+    }
+    params.prior.constraints.max_parents = opts.exact_max_parents;
+    compiled_posterior(
+        DiscoverySpec::exact_dag_posterior(params),
+        crate::compiled_route_api::DiscoverInput::Tabular(data.clone()),
+        &vars,
+        ctx,
+        configured.then_some(req),
+    )
 }
+
+/// The posterior a compiled structure-posterior search returns.
+///
+/// With `declared_on`, the search ran under a per-edge prior the caller declared: the accepted
+/// posterior, which states that prior in its provenance, is kept on the request so the study
+/// built from the posterior carries the statement. A search without one leaves it untouched.
+fn compiled_posterior(
+    spec: DiscoverySpec,
+    input: crate::compiled_route_api::DiscoverInput,
+    variables: &[antecedent::prelude::VariableId],
+    ctx: &antecedent::prelude::ExecutionContext,
+    declared_on: Option<&PrepareRequest>,
+) -> PyResult<antecedent::discovery::GraphPosterior> {
+    let (posterior, route) =
+        crate::discovery_api::compiled_search(spec, input, variables, ctx, |structure| {
+            match structure {
+                DiscoveredStructure::Posterior(posterior) => Some(posterior),
+                _ => None,
+            }
+        })?;
+    if let Some(req) = declared_on {
+        req.accepted_posterior.set(Some(route.accepted_posterior()?));
+    }
+    Ok(posterior)
+}
+
+const DBN_DEFAULT_MAX_LAG: u32 = 1;
+const DBN_DEFAULT_CHAINS: u32 = 2;
+const DBN_DEFAULT_WARMUP: u32 = 200;
+const DBN_DEFAULT_DRAWS: u32 = 400;
 
 pub(super) fn dbn_posterior(
     supplied: Option<antecedent::discovery::GraphPosterior>,
@@ -170,23 +290,43 @@ pub(super) fn dbn_posterior(
     n_chains: u32,
     n_warmup: u32,
     mcmc_draws: u32,
-    ctx: &antecedent_core::ExecutionContext,
+    req: &PrepareRequest,
+    ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<antecedent::discovery::GraphPosterior> {
+    let prior = req.opts.structure_prior.as_ref();
     if let Some(gp) = supplied {
+        if prior.is_some() {
+            return Err(crate::value_err(
+                "a supplied posterior is not fitted, so a structure prior describes a search \
+                 that never ran; drop the prior",
+            ));
+        }
+        // A supplied posterior is not fitted, so fitting options that differ from the
+        // defaults describe a search that never ran.
+        if max_lag != DBN_DEFAULT_MAX_LAG
+            || force_mcmc
+            || n_chains != DBN_DEFAULT_CHAINS
+            || n_warmup != DBN_DEFAULT_WARMUP
+            || mcmc_draws != DBN_DEFAULT_DRAWS
+        {
+            return Err(crate::value_err(
+                "max_lag, force_mcmc, n_chains, n_warmup and mcmc_draws configure the posterior \
+                 search; a supplied posterior is not fitted, so drop them",
+            ));
+        }
         return Ok(gp);
     }
     let vars: Vec<_> = series.schema().variables().iter().map(|v| v.id).collect();
+    crate::bridge::check_mcmc_schedule(n_chains, n_warmup, mcmc_draws, 1)?;
     let schedule = GraphMcmcSchedule { n_chains, n_warmup, n_draws: mcmc_draws, thin: 1 };
-    discover_dbn_posterior(
-        series,
+    let params = declared_params(prior, series.schema(), &vars)?;
+    compiled_posterior(
+        DiscoverySpec::dbn_posterior(params, max_lag, force_mcmc, schedule),
+        crate::compiled_route_api::DiscoverInput::Series(series.clone()),
         &vars,
-        &BayesianDiscoverParams::default(),
-        max_lag,
-        force_mcmc,
-        &schedule,
         ctx,
+        prior.is_some().then_some(req),
     )
-    .map_err(py_err)
 }
 
 pub(super) fn finish_static_graph_posterior(
@@ -195,28 +335,36 @@ pub(super) fn finish_static_graph_posterior(
     gp: antecedent::discovery::GraphPosterior,
     query: CausalQuery,
     spec: Option<antecedent::EstimatorSpec>,
-    response_options: Option<antecedent_estimate::ContinuousResponseOptions>,
-    ctx: &antecedent_core::ExecutionContext,
+    response_options: Option<antecedent::estimate::ContinuousResponseOptions>,
+    ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<PyPreparedAnalysis> {
     req.refuse_prior("a graph-posterior mixture")?;
     if spec.is_some() && req.opts.inference.is_bayesian() {
         return Err(crate::refusal(
-            antecedent_core::reason_code!("option_not_applicable"),
+            antecedent::reason::reason_code!("option_not_applicable"),
             "a Bayesian graph-posterior mixture fits \
              Bayesian g-computation per atom; a configured Frequentist estimator does not apply",
         ));
     }
-    let builder = with_response_options(
-        Study::tabular(data).graph_posterior(gp).query(query),
-        response_options,
-    );
+    let study = Study::tabular(data);
+    let study = match req.accepted_posterior.take() {
+        Some(accepted) => study.accepted_graph_posterior(accepted),
+        None => study.graph_posterior(gp),
+    };
+    let builder_has_spec = spec.is_some();
+    let builder = with_response_options(study.query(query), response_options);
     let builder = apply_estimator(req.opts.apply_budget_for(builder, spec.is_some()), None, spec)?;
+    // A configured estimator was parsed for the requested id and owns that choice: selecting
+    // the bare id again when compiling would replace it with the unconfigured default.
+    if builder_has_spec {
+        req.opts.estimator = None;
+    }
     let builder = req.opts.apply_inference(builder)?;
     req.compile_with(builder, false, ctx)
 }
 
 pub(super) enum SeriesGraphQuery {
-    Temporal(antecedent_core::TemporalEffectQuery),
+    Temporal(antecedent::query::TemporalEffectQuery),
     Mediation(MediationQuery),
     Response(ResponseQuery),
 }
@@ -226,10 +374,14 @@ pub(super) fn finish_series_graph_posterior(
     mut req: PrepareRequest,
     gp: antecedent::discovery::GraphPosterior,
     query: SeriesGraphQuery,
-    ctx: &antecedent_core::ExecutionContext,
+    ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<PyPreparedAnalysis> {
     req.refuse_prior("a DBN graph-posterior mixture")?;
-    let mut builder = Study::series(series).graph_posterior(gp);
+    let study = Study::series(series);
+    let mut builder = match req.accepted_posterior.take() {
+        Some(accepted) => study.accepted_graph_posterior(accepted),
+        None => study.graph_posterior(gp),
+    };
     builder = match query {
         SeriesGraphQuery::Temporal(q) => builder.temporal_query(q),
         SeriesGraphQuery::Mediation(q) => builder.query(CausalQuery::Mediation(q)),

@@ -13,7 +13,7 @@
 //! | B | `Z -> T`, `Z -> Y`, `T -> Y` (adjust `Z`) | adjusted |
 //! | C | `Y -> T` | unidentified |
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -157,7 +157,7 @@ fn repeated_static_atom_frequentist_ate_is_the_mass_weighted_mixture() {
     let data = binary_data(0x2A70);
     let only = |mask: u64| {
         run(&data, posterior(&[mask], &[1.0]), ate_query(), InferenceMode::Frequentist)
-            .estimate
+            .estimate()
             .as_effect()
             .unwrap()
             .ate
@@ -170,10 +170,10 @@ fn repeated_static_atom_frequentist_ate_is_the_mass_weighted_mixture() {
     // withheld under GraphDependentAtoms; coalescing repeated listings must not
     // change masses or the identified set.
     assert!(
-        result.estimate.as_effect().unwrap().ate.is_nan(),
+        result.estimate().as_effect().unwrap().ate.is_nan(),
         "scalar ate withheld under GraphDependentAtoms"
     );
-    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+    assert!(result.estimate().as_effect().unwrap().se_analytic().is_nan());
     let structural = result.structural_response.as_ref().unwrap();
     let set = structural.identified_set.as_ref().unwrap();
     assert_eq!(set.lower.len(), 1);
@@ -186,7 +186,7 @@ fn repeated_static_atom_frequentist_ate_is_the_mass_weighted_mixture() {
     assert!((identified + unidentified - 1.0).abs() < 1e-12);
 
     let reference = run(&data, coalesced(), ate_query(), InferenceMode::Frequentist);
-    assert!(reference.estimate.as_effect().unwrap().ate.is_nan());
+    assert!(reference.estimate().as_effect().unwrap().ate.is_nan());
     let ref_set = reference.structural_response.as_ref().unwrap().identified_set.as_ref().unwrap();
     assert!((set.lower[0] - ref_set.lower[0]).abs() < 1e-12);
     assert!((set.upper[0] - ref_set.upper[0]).abs() < 1e-12);
@@ -203,10 +203,19 @@ fn repeated_static_atom_bayesian_ate_is_the_mass_weighted_mixture() {
     assert!((post.summaries.mean[0] - ref_post.summaries.mean[0]).abs() < 1e-12);
     assert!((post.summaries.sd[0] - ref_post.summaries.sd[0]).abs() < 1e-12);
     assert!((post.unidentified_mass - 0.25).abs() < 1e-12);
-    let expected = (2.0 * 3.0 + 2.0) / 3.0;
+    // The mixture is 2/3 of the unadjusted atom and 1/3 of the adjusted one, each fitted
+    // alone (about 2.93 and 2.05 on this sample, near the population 3 and 2); counting the
+    // repeated atom once instead (1/2 each) would move the mean by 0.15.
+    let alone = |mask: u64| {
+        let single = run(&data, posterior(&[mask], &[1.0]), ate_query(), bayesian());
+        single.posterior.as_ref().unwrap().summaries.mean[0]
+    };
+    let (mean_a, mean_b) = (alone(direct()), alone(adjusted()));
+    assert!((mean_a - 3.0).abs() < 0.15 && (mean_b - 2.0).abs() < 0.15, "{mean_a} {mean_b}");
+    let expected = (2.0 * mean_a + mean_b) / 3.0;
     assert!(
-        (post.summaries.mean[0] - expected).abs() < 0.2,
-        "Bayesian mixture mean {} vs population mixture {expected}",
+        (post.summaries.mean[0] - expected).abs() < 1e-9,
+        "Bayesian mixture mean {} vs mass-weighted mixture {expected}",
         post.summaries.mean[0]
     );
 }
@@ -217,7 +226,7 @@ fn scalar(value: &ResponseValue) -> f64 {
 }
 
 #[test]
-fn repeated_static_atom_response_is_the_mass_weighted_mixture() {
+fn repeated_static_atom_response_keeps_each_graph_at_its_combined_mass() {
     let data = continuous_data(0x2A72);
     let query =
         CausalQuery::Response(ResponseQuery::new(ResponseFunctional::InterventionResponse {
@@ -227,19 +236,31 @@ fn repeated_static_atom_response_is_the_mass_weighted_mixture() {
     for inference in [InferenceMode::Frequentist, bayesian()] {
         let only = |mask: u64| {
             let result = run(&data, posterior(&[mask], &[1.0]), query.clone(), inference.clone());
-            scalar(result.structural_response.unwrap().conditional_on_identified.as_ref().unwrap())
+            scalar(
+                result
+                    .structural_response
+                    .as_ref()
+                    .unwrap()
+                    .conditional_on_identified
+                    .as_ref()
+                    .unwrap(),
+            )
         };
         let (value_a, value_b) = (only(direct()), only(adjusted()));
         assert!((value_a - value_b).abs() > 0.1, "atoms must identify different responses");
-        let expected = (2.0 * value_a + value_b) / 3.0;
 
+        // The unadjusted and the adjusted atom name different estimands, so the response
+        // withholds the mean as the ATE route does: the atoms keep their own values and the
+        // range of those values is the identified set. Coalescing repeated listings must not
+        // change masses, per-graph weights or that set.
         let result = run(&data, repeated(), query.clone(), inference.clone());
         let structural = result.structural_response.as_ref().unwrap();
-        let mixed = scalar(structural.conditional_on_identified.as_ref().unwrap());
-        assert!(
-            (mixed - expected).abs() < 1e-10,
-            "repeated-atom response {mixed} != 2/3·{value_a} + 1/3·{value_b} = {expected}"
-        );
+        assert!(structural.conditional_on_identified.is_none());
+        let set = structural.identified_set.as_ref().unwrap();
+        assert_eq!(set.lower.len(), 1);
+        assert!((set.lower[0] - value_a.min(value_b)).abs() < 1e-10);
+        assert!((set.upper[0] - value_a.max(value_b)).abs() < 1e-10);
+        assert!(matches!(result.response().unwrap().uncertainty, ResponseUncertainty::None));
         assert!((structural.identified_mass - 0.75).abs() < 1e-12);
         assert!((structural.unidentified_mass - 0.25).abs() < 1e-12);
         assert!(structural.unevaluable_mass.abs() < 1e-12);
@@ -249,45 +270,38 @@ fn repeated_static_atom_response_is_the_mass_weighted_mixture() {
         for atom in &structural.atoms {
             assert_eq!(atom.value.is_some(), atom.graph_key != unidentified(), "{atom:?}");
         }
+        let keys = repeated().graph_keys().clone();
+        let weight_of = |key: u64| -> f64 {
+            structural.atoms.iter().filter(|atom| atom.graph_key == key).map(|a| a.weight).sum()
+        };
+        assert!((weight_of(keys[0]) - 0.5).abs() < 1e-12, "the repeated graph keeps its mass");
+        assert!((weight_of(keys[2]) - 0.25).abs() < 1e-12);
 
         let reference = run(&data, coalesced(), query.clone(), inference.clone());
-        let ref_mixed = scalar(
-            reference
-                .structural_response
-                .as_ref()
-                .unwrap()
-                .conditional_on_identified
-                .as_ref()
-                .unwrap(),
-        );
-        assert!((mixed - ref_mixed).abs() < 1e-12);
-        if matches!(inference, InferenceMode::Frequentist) {
-            let se = |r: &StudyResult| match r.response().unwrap().uncertainty {
-                ResponseUncertainty::Scalar { standard_error, .. } => standard_error,
-                ref other => panic!("joint-IF scalar interval expected, got {other:?}"),
-            };
-            let (se, reference_se) = (se(&result), se(&reference));
-            assert!(
-                se.is_finite() && (se - reference_se).abs() < 1e-12,
-                "se={se} reference={reference_se}"
-            );
-        }
+        let reference = reference.structural_response.as_ref().unwrap();
+        assert!(reference.conditional_on_identified.is_none());
+        let ref_set = reference.identified_set.as_ref().unwrap();
+        assert!((set.lower[0] - ref_set.lower[0]).abs() < 1e-12);
+        assert!((set.upper[0] - ref_set.upper[0]).abs() < 1e-12);
     }
 }
 
 #[test]
-fn one_graph_key_for_different_masks_is_refused() {
-    let mut gp = posterior(&[direct(), adjusted()], &[0.5, 0.5]);
-    gp.graph_keys = Arc::from([7_u64, 7]);
-    let error = Study::tabular(binary_data(0x2A73))
-        .graph_posterior(gp)
-        .query(ate_query())
-        .inference(InferenceMode::Frequentist)
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(11))
-        .unwrap_err();
-    assert!(error.to_string().contains("graph key"), "{error}");
+fn graph_keys_follow_the_atoms_repeated_atoms_share_one_and_distinct_atoms_differ() {
+    // Keys are derived from the atoms: a corrupted key table cannot be built, so the invariant
+    // that remains reachable is that equal atoms share one key and distinct atoms never do.
+    let gp = repeated();
+    let keys = gp.graph_keys();
+    assert_eq!(keys.len(), 4);
+    assert_eq!(keys[0], keys[1], "the repeated atom keeps one key");
+    let distinct: std::collections::BTreeSet<u64> = keys.iter().copied().collect();
+    assert_eq!(distinct.len(), 3, "A, B and C keep three distinct keys");
+    assert_ne!(keys[0], keys[2]);
+    assert_ne!(keys[0], keys[3]);
+    assert_ne!(keys[2], keys[3]);
+    let single = coalesced();
+    assert_eq!(single.graph_keys().len(), 3);
+    assert_eq!(single.graph_keys()[0], keys[0]);
+    assert_eq!(single.graph_keys()[1], keys[2]);
+    assert_eq!(single.graph_keys()[2], keys[3]);
 }

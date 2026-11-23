@@ -1,0 +1,23 @@
+feature_id = "transport.synthesis_transported_prior"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Introduction to Meta-Analysis (Borenstein, Hedges, Higgins, Rothstein, 2009)", sections = ["chapter 11: fixed-effect model, inverse-variance weights", "chapter 13: random-effects model (hierarchical normal borrowing across exchangeable studies)"] },
+ { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl, Bareinboim, 2014)", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
+]
+
+implementation_deviations = [
+ "A transported claim with variance s^2 + tau_t^2 (its sampling variance plus the declared transport variance) is used as the normal prior of a native likelihood and updated by the standard conjugate normal-normal rule; treating the transported claim as a prior in this way is an original construction of this repository.",
+ "The transported prior may not overlap the native likelihood's observations (checked through the evidence ledger); the claim is a posterior mean and variance only.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-stats/src/synthesis_transport.rs",
+ "crates/antecedent-design/tests/transported_synthesis.rs",
+]

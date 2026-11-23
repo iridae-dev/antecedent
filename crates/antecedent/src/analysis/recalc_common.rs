@@ -4,9 +4,9 @@
 //! typed, length-delimited field: never through `Debug` or `Display`, whose output is not a
 //! stability contract.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::recalc_receipt::RecalcRunError;
+use super::recalc_receipt::{RecalcRequestCode, RecalcRunError};
 use crate::graph::{Dag, DenseNodeId};
 use antecedent_core::NodeRef;
 use antecedent_core::recalc::StageIdentity;
@@ -29,6 +29,11 @@ pub(super) fn float_bytes(values: &[f64]) -> Vec<u8> {
     values.iter().flat_map(|v| v.to_bits().to_le_bytes()).collect()
 }
 
+/// Bit pattern of a value with `-0.0` identified with `0.0`, for keying and equality on levels.
+pub(super) fn canonical_bits(value: f64) -> u64 {
+    (value + 0.0).to_bits()
+}
+
 /// Canonical CBOR of a wire value.
 ///
 /// A value that cannot be encoded gets a process-unique marker, so it never shares an
@@ -48,7 +53,7 @@ pub(super) fn wire_bytes<T: serde::Serialize>(value: &T) -> Vec<u8> {
 pub(super) fn dag_from_edges(
     columns: usize,
     edges: &[(u32, u32)],
-    code: &'static str,
+    code: RecalcRequestCode,
 ) -> Result<Dag, RecalcRunError> {
     let n = u32::try_from(columns).map_err(|_| RecalcRunError::Request(code))?;
     let mut graph = Dag::with_variables(n);

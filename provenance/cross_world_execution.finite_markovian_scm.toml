@@ -20,8 +20,54 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-counterfactual/tests/finite_scm_reference.rs (brute-force exact-fraction enumeration of 120 random models and a 131072-state chain by variable elimination)",
   "crates/antecedent-counterfactual/tests/cross_world_execution.rs",
   "crates/antecedent-counterfactual/tests/cross_world_execution_temporal.rs",
   "crates/antecedent-io-core/tests/cross_world_execution_artifact.rs",
   "crates/antecedent/tests/cross_world_execution_facade.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The finite structural-model executor in crates/antecedent-counterfactual/src/selective/finite_scm.rs and finite_executor.rs: validation of the declared mechanisms and exogenous laws, exact abduction of each unit's posterior over the joint exogenous states, evaluation of named worlds with hard interventions and cross-world routes (a child reading one parent from another world) under one shared exogenous state, the Probability, JointProbability and MeanContrast quantities, the unit mean and per-unit evidence probability, and the switch to exact variable elimination (factorized.rs) when the joint space exceeds 65536 states. Not the sampled and interval readings, temporal or transported rows (separate records), the retained-abduction cache keys, or the uncalibrated parameter-redraw routes."
+assumptions = ["The model is fully declared: every mechanism table and every exogenous mass is given, so the counterfactual is point-valued and carries no identification question.", "One exogenous state is shared by every mechanism reading it, in every world (the structural form of latent confounding and of the cross-world coupling).", "Evidence is factual (no intervention); a unit whose evidence has zero mass under the model is refused, not conditioned."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the semantics of abduction, action and prediction by enumerating every joint exogenous state with exact fractions (standard library only); no upstream implementation was consulted. The cited texts were not retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; no third-party code or data is used. The cited works are not redistributed."
+limitations = "Pearl's Causality, Balke and Pearl and Pearl 2001 were not retrieved (nothing downloaded, no local copy); the semantics are those stated in the module documentation and the record. The comparison covers 120 random models with three to six variables of two or three levels, shared exogenous terms in 90 of them, two or three worlds with up to two interventions each and cross-world routes in 93, one to three units per request with evidence on a random subset of variables (including none), and all three quantities, with dyadic masses so that every value is exact; and a chain of seventeen binary exogenous terms with a route and an intervention, executed by variable elimination, against the same enumeration. Values and evidence probabilities agree to 1e-12. It does not examine models near the 65536-state boundary, evidence of very small positive mass (the executor refuses underflow), levels above three, or multi-parent routes across more than three worlds. Scoped 2026-11-07 source re-review compared enumeration admission to the previously bound executor: the same saturating abduction and evaluation work bounds are checked in the same order only for joint enumeration, before matrix decisions or retained-state mutation; variable elimination is unchanged. Subsequent scoped source comparison verified that dependency closure preserves query and evidence seeds, reverse topological traversal, intervention cutoffs, world routing and exogenous-term selection. Subsequent scoped comparison verified initial factor holders, adjacency, deterministic weight ordering and query-node exclusion are unchanged when graph initialization moves to its helper. Subsequent scoped source comparison verifies unchanged answer-table order, normalization, query lookup and intervention/evidence constant fallback. A further scoped comparison verified factor ordering, intervention handling, parent routing, assignment enumeration, bounds and cancellation polling are unchanged in the extracted factor builder. The exact enumeration-boundary engineering test does not extend the independent reference; no independent reference or calibration artifact was regenerated."
+sources = ["https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["No defect found: unit values, evidence probabilities and the mean over units agree with the exact enumeration for all 120 random models on the enumerating route and for the 17-term chain on the variable-elimination route, so the two exact engines agree with each other and with the definition.", "The coupling premise holds in the executor as declared: a variable shared by several mechanisms takes one state in every world, and a route reads the source world's value of the parent evaluated under the same state."]
+record_sha256 = "50f3f1ed33a274d060880cd8628e159c97f9d9106c4ee97a63ac47bb1eb8357d"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-counterfactual/src/selective/finite_scm.rs"
+items = ["const MAX_WORLDS", "enum FiniteQuantity", "fn bounds", "fn from_validated", "fn new", "fn unique_nonempty", "fn validate_unique_routes", "fn validate_worlds", "struct ExogenousVariable", "struct FactualUnit", "struct FiniteScm", "struct FiniteVariable", "struct FiniteWorld", "struct WorldAtom", "struct WorldRoute"]
+sha256 = "fe9e9bb0ab6e4f220575f032de99e75d556c9ed577b324095485bcf735b16e64"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-counterfactual/src/selective/finite_executor.rs"
+items = ["const INFERENCE_LABEL", "const MAX_RETAINED", "const SPREAD_LABEL", "enum ExogenousInference", "enum ExogenousMethod", "enum NoiseCoupling", "fn abduction_identity", "fn check_pairing", "fn check_enumeration_work", "fn classify", "fn counters", "fn default", "fn digest", "fn draws_digest", "fn execute", "fn execute_eliminated", "fn matrix_error", "fn max_retained", "fn name", "fn new", "fn noise_spread", "fn receipts", "fn retained", "fn static_checks", "fn unit_spread", "fn with_max_retained", "struct EliminationReceipt", "struct ExecutionReceipt", "struct FiniteExecutionRequest", "struct FiniteExecutionResult", "struct FiniteScmExecutor", "struct NoiseSpread", "struct RetainedAbduction", "struct UnitAnswer", "struct UnitSpread"]
+sha256 = "ed0855ef3682bd1ab3d8762ff2d756727481255805cc29cca91bd99e6b70f41d"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-counterfactual/src/selective/factorized.rs"
+items = ["module"]
+sha256 = "fbd81117d23d7d897125fa8b9db0551fbbb76399886fc568081fc6a42c7feb4b"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-counterfactual/tests/finite_scm_reference.rs"
+items = ["fn a_model_beyond_the_enumeration_bound_is_executed_exactly_by_variable_elimination", "fn atom", "fn check", "fn index", "fn random_finite_models_match_brute_force_enumeration", "fn reference", "fn request", "fn scm"]
+sha256 = "3548506d0a2d3a36890648440cd61fb84868e802d53740ef9f59eb3c0fe51430"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-counterfactual/tests/oracle_data/finite_scm_reference.py"
+sha256 = "e574fb316a27f47661910c82ba84b57b82b61d41c3da96b34734ecec457e7b04"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-counterfactual/tests/oracle_data/finite_scm_reference.json"
+sha256 = "300aa112966ecf475a40406532e3004ac41d0b24dd7d4ea8e4da52fc65a531b1"

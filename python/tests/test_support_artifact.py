@@ -11,6 +11,7 @@ from pathlib import Path
 import antecedent
 import numpy as np
 from antecedent import external
+from antecedent.outcomes import require_success
 
 _ORDER = (
     "supported",
@@ -75,7 +76,7 @@ def test_three_ordered_doses_exclude_only_the_middle_and_keep_order_through_expo
     assert claim.support_status == "weak_overlap"
     assert claim.support_status == _worst(claim.support)
 
-    reloaded = spec.load(claim.export(), expected_identity=claim.identity)
+    reloaded = spec.load(bytes(claim.export()), expected_identity=claim.identity)
     assert reloaded.support == declared
     assert reloaded.support_status == "weak_overlap"
     assert np.allclose(reloaded.values, [1.0, 3.0, 5.0])
@@ -150,10 +151,12 @@ def test_static_response_artifact_is_readable_by_a_fresh_process_with_its_coordi
     treatment = rng.normal(size=400)
     outcome = 2.0 * treatment + rng.normal(scale=0.2, size=400)
     grid = [-0.5, 0.0, 0.5]
-    result = antecedent.analyze(
-        {"a": treatment, "y": outcome},
-        query=antecedent.ResponseCurve("a", "y", grid=grid),
-        graph=[("a", "y")],
+    result = require_success(
+        antecedent.analyze(
+            {"a": treatment, "y": outcome},
+            query=antecedent.ResponseCurve("a", "y", grid=grid),
+            graph=[("a", "y")],
+        )
     )
     labels = list(result.support.point_status)
     assert labels == ["supported"] * 3
@@ -161,7 +164,7 @@ def test_static_response_artifact_is_readable_by_a_fresh_process_with_its_coordi
     assert by_id["response.local_ess"].scope == "per_coordinate"
     assert len(by_id["response.local_ess"].values) == len(grid)
 
-    data = result.export()
+    data = bytes(result.export())
     handle = tmp_path / "analysis.bin"
     handle.write_bytes(data)
     done = subprocess.run(

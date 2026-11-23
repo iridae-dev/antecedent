@@ -29,7 +29,9 @@
 //! Model adequacy, consistency and Markovianity remain named premises that no
 //! check verifies.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::sync::Arc;
 
 use antecedent_core::EdgeRoute;
 use antecedent_core::{
@@ -223,9 +225,10 @@ pub struct CrossWorldArtifactWire {
     pub mechanism: String,
     /// The estimand named by [`CROSS_WORLD_ESTIMAND`].
     pub estimand: String,
-    /// The factual table, one column per variable in id order.
-    pub columns: Vec<Vec<f64>>,
-    /// The derivation that licensed the estimand.
+    /// The factual table, one column per variable in id order. Shared, so the producer's
+    /// retained table and the wire it seals are one allocation.
+    pub columns: Arc<[Vec<f64>]>,
+    /// The derivation that supported the estimand.
     pub witness: CrossWorldWitness,
     /// IEEE bits of the point.
     pub point_bits: u64,
@@ -277,21 +280,49 @@ pub fn cross_world_identity(wire: &CrossWorldArtifactWire) -> Result<String, IoE
     )
 }
 
+/// Intake bounds for a stored cross-world table. The defaults are
+/// [`CROSS_WORLD_MAX_NODES`] variables and [`CROSS_WORLD_MAX_ROWS`] rows; a caller with a
+/// larger budget passes its own through [`CrossWorldArtifactWire::check_bounds_within`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CrossWorldIntakeLimits {
+    /// Most variables.
+    pub max_variables: usize,
+    /// Most rows.
+    pub max_rows: usize,
+}
+
+impl Default for CrossWorldIntakeLimits {
+    fn default() -> Self {
+        Self { max_variables: CROSS_WORLD_MAX_NODES, max_rows: CROSS_WORLD_MAX_ROWS }
+    }
+}
+
 impl CrossWorldArtifactWire {
-    /// Refuse a table outside the format's bounds: one to
-    /// [`CROSS_WORLD_MAX_NODES`] variables, one to [`CROSS_WORLD_MAX_ROWS`] rows,
-    /// one column per variable. The producer and the consumer both call this, so
-    /// an artifact this writer exports is one this reader accepts.
+    /// Refuse a table outside the default intake bounds; see [`Self::check_bounds_within`].
     ///
     /// # Errors
     /// [`CrossWorldArtifactError::LimitsExceeded`] or `Malformed`.
     pub fn check_bounds(&self) -> Result<(), CrossWorldArtifactError> {
+        self.check_bounds_within(&CrossWorldIntakeLimits::default())
+    }
+
+    /// Refuse a table outside the caller's bounds: one to `limits.max_variables`
+    /// variables, one to `limits.max_rows` rows, one column per variable. The producer and
+    /// the consumer both call this, so an artifact this writer exports is one this reader
+    /// accepts under the same limits.
+    ///
+    /// # Errors
+    /// [`CrossWorldArtifactError::LimitsExceeded`] or `Malformed`.
+    pub fn check_bounds_within(
+        &self,
+        limits: &CrossWorldIntakeLimits,
+    ) -> Result<(), CrossWorldArtifactError> {
         let n = self.variable_names.len();
-        if n == 0 || n > CROSS_WORLD_MAX_NODES {
+        if n == 0 || n > limits.max_variables {
             return Err(CrossWorldArtifactError::LimitsExceeded("variables"));
         }
         let rows = self.columns.first().map_or(0, Vec::len);
-        if rows > CROSS_WORLD_MAX_ROWS {
+        if rows > limits.max_rows {
             return Err(CrossWorldArtifactError::LimitsExceeded("rows"));
         }
         if self.columns.len() != n || self.columns.iter().any(|c| c.len() != rows) || rows == 0 {
@@ -373,7 +404,7 @@ mod tests {
             query,
             mechanism: "linear_gaussian".into(),
             estimand: CROSS_WORLD_ESTIMAND.into(),
-            columns: vec![vec![0.0, 1.0, 2.0], vec![1.0, 3.0, 2.0]],
+            columns: vec![vec![0.0, 1.0, 2.0], vec![1.0, 3.0, 2.0]].into(),
             witness,
             point_bits: 0,
             data_digest: String::new(),
@@ -404,7 +435,7 @@ mod tests {
     #[test]
     fn the_producer_enforces_the_row_bound_the_consumer_enforces() {
         let mut w = wire();
-        w.columns = vec![vec![0.5; CROSS_WORLD_MAX_ROWS + 1]; 2];
+        w.columns = vec![vec![0.5; CROSS_WORLD_MAX_ROWS + 1]; 2].into();
         assert_eq!(w.check_bounds(), Err(CrossWorldArtifactError::LimitsExceeded("rows")));
         assert_eq!(
             w.clone().sealed().unwrap_err(),
@@ -412,7 +443,7 @@ mod tests {
         );
         assert_eq!(w.export().unwrap_err(), CrossWorldArtifactError::LimitsExceeded("rows"));
         let mut w = wire();
-        w.columns = vec![vec![0.5; CROSS_WORLD_MAX_ROWS]; 2];
+        w.columns = vec![vec![0.5; CROSS_WORLD_MAX_ROWS]; 2].into();
         assert!(w.check_bounds().is_ok());
     }
 
@@ -420,7 +451,9 @@ mod tests {
     fn the_data_digest_binds_the_table_and_the_premises_digest_binds_the_data_digest() {
         let w = wire();
         let mut edited = w.clone();
-        edited.columns[1][0] += 1.0;
+        let mut table = edited.columns.to_vec();
+        table[1][0] += 1.0;
+        edited.columns = table.into();
         assert_ne!(
             cross_world_data_digest(&edited.variable_names, &edited.columns).unwrap(),
             w.data_digest

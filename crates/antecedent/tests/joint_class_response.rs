@@ -1,6 +1,6 @@
 //! Joint intervention certificates must cover every treatment.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
@@ -10,6 +10,20 @@ use antecedent_core::{
 use antecedent_data::TabularData;
 use antecedent_graph::{Cpdag, Dag, DenseNodeId, MarkedEdge, Pag};
 use std::sync::Arc;
+
+/// The identification the compiled study derives for `graph` and `query`, over a table that
+/// names `variables` columns and holds no rows.
+fn identify(
+    graph: &AcceptedGraph,
+    query: &CausalQuery,
+    variables: usize,
+) -> Result<antecedent::Identification, antecedent::CausalError> {
+    let names: Vec<String> = (0..variables).map(|index| format!("v{index}")).collect();
+    let empty: &[f64] = &[];
+    let data =
+        TabularData::from_f64_columns(names.iter().map(|name| (name.as_str(), empty))).unwrap();
+    Study::tabular(data).graph(graph.clone()).query(query.clone()).identify_structure()
+}
 
 fn pin() -> serde_json::Value {
     serde_json::from_str(include_str!(
@@ -67,7 +81,7 @@ fn data() -> TabularData {
 fn joint_certificate_and_estimate_cover_both_targets() {
     let (dag, cpdag, pag) = graphs();
     for graph in [AcceptedGraph::from(dag), AcceptedGraph::from(cpdag), AcceptedGraph::from(pag)] {
-        let identification = antecedent::identify(&graph, &CausalQuery::Response(query())).unwrap();
+        let identification = identify(&graph, &CausalQuery::Response(query()), 6).unwrap();
         assert!(identification.is_identified());
         assert_eq!(
             identification.estimands()[0].adjustment_set.as_ref(),
@@ -112,11 +126,9 @@ fn bayesian_joint_response_uses_the_same_certificate() {
             ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => *value,
             other => panic!("expected a joint scalar, got {other:?}"),
         };
-        assert!(
-            (value - pin()["mean"].as_f64().unwrap()).abs()
-                < pin()["bayesian_tolerance"].as_f64().unwrap(),
-            "got {value}"
-        );
+        // The data are noiseless, so the posterior mean sits within 2e-5 of the pinned 8.0;
+        // the pinned 0.05 is far above that, so the test holds 1e-3.
+        assert!((value - pin()["mean"].as_f64().unwrap()).abs() < 1e-3, "got {value}");
     }
 }
 
@@ -131,7 +143,7 @@ fn hidden_confounding_of_second_target_is_not_hidden_by_first_target() {
         pag.insert_marked(edge).unwrap();
     }
     let identified =
-        antecedent::identify(&AcceptedGraph::from(pag), &CausalQuery::Response(query())).unwrap();
+        identify(&AcceptedGraph::from(pag), &CausalQuery::Response(query()), 4).unwrap();
     assert!(!identified.is_identified());
 }
 
@@ -186,7 +198,7 @@ fn incomplete_joint_envelope_preserves_distinct_adjustments_and_caps() {
     assert_eq!(envelope.lower.len(), 1);
     assert!((envelope.lower[0] - expected_lo).abs() < tol, "lower={}", envelope.lower[0]);
     assert!((envelope.upper[0] - expected_hi).abs() < tol, "upper={}", envelope.upper[0]);
-    let structural = result.structural_response.expect("completion metadata");
+    let structural = result.structural_response.as_ref().expect("completion metadata");
     assert_eq!(
         structural.weight_basis,
         antecedent::result::StructuralWeightBasis::CompletionEnumeration
@@ -195,7 +207,7 @@ fn incomplete_joint_envelope_preserves_distinct_adjustments_and_caps() {
         structural.conditional_on_identified.is_none(),
         "completion enumeration must not publish a probability-weighted causal summary"
     );
-    let bounds = structural.identified_set.expect("identified set");
+    let bounds = structural.identified_set.as_ref().expect("identified set");
     assert!((bounds.lower[0] - expected_lo).abs() < tol);
     assert!((bounds.upper[0] - expected_hi).abs() < tol);
 }
@@ -232,7 +244,8 @@ fn bayesian_joint_stochastic_policies_integrate_the_linear_response() {
             else {
                 panic!("scalar policy mean");
             };
-            assert!((mean - 7.0).abs() < 0.05, "mean={mean}");
+            // 1 + 2 * 0.5 + 3 + 4 * 0.5 = 7 for each policy mean 0.5 (observed error 1e-5).
+            assert!((mean - 7.0).abs() < 1e-3, "mean={mean}");
             assert!(
                 response
                     .support

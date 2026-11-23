@@ -1,6 +1,6 @@
 //! Attribution errors.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::VariableId;
 use thiserror::Error;
@@ -132,5 +132,37 @@ impl AttributionError {
     #[must_use]
     pub const fn invalid_input(message: &'static str) -> Self {
         Self::InvalidInput { message }
+    }
+
+    /// A typed refusal: the registered reason code, the namespaced detail and the message,
+    /// rendered `reason=<code>: <detail>: <message>`.
+    #[must_use]
+    pub fn refused(
+        code: &'static str,
+        detail: &'static str,
+        message: impl std::fmt::Display,
+    ) -> Self {
+        Self::Message(format!(
+            "{}{code}: {detail}: {message}",
+            antecedent_core::reason_code::PREFIX
+        ))
+    }
+}
+
+impl<E> From<antecedent_core::execution::MapExecutionError<E>> for AttributionError
+where
+    Self: From<E>,
+{
+    fn from(error: antecedent_core::execution::MapExecutionError<E>) -> Self {
+        match error {
+            antecedent_core::execution::MapExecutionError::Admission(error) => {
+                if matches!(error, antecedent_core::execution::AdmissionError::Cancelled) {
+                    Self::Cancelled
+                } else {
+                    Self::Budget { message: error.to_string() }
+                }
+            }
+            antecedent_core::execution::MapExecutionError::Work(error) => Self::from(error),
+        }
     }
 }

@@ -5,7 +5,7 @@
 //! immutable schema references. Name lookup is allowed at API boundaries and
 //! diagnostics, not inside traversal or numerical loops.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use core::fmt;
 use core::num::NonZeroU32;

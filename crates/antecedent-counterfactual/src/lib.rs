@@ -1,6 +1,6 @@
 //! Abduction-action-prediction counterfactual evaluation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -15,7 +15,7 @@ pub mod transported_path_specific;
 
 pub use engine::{
     AbductionMissingPolicy, CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualResult,
-    CounterfactualWorld, ExogenousPosterior, NestedSpec, NoiseInferenceKind,
+    CounterfactualWorld, ExogenousPosterior, NestedSpec, NoiseInferenceKind, OutcomeMean,
     RANK_PRESERVING_ASSUMPTION, nested_counterfactual, nested_counterfactual_with_exo,
     nested_hard_counterfactual, simultaneous_hard_counterfactual,
 };

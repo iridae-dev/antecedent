@@ -1,0 +1,220 @@
+{
+  "identity": "f8707b2daf28c09e50289279cf2f866068df4fb5f74f772dce9031d061faf0aa",
+  "answer": {
+    "family": "worlds",
+    "result": [
+      {
+        "world": 0,
+        "family": "linear_equilibrium",
+        "variables": [
+          0,
+          1
+        ],
+        "actions": [],
+        "outcome": {
+          "status": "gaussian_law",
+          "mean": [
+            0.0,
+            0.0
+          ],
+          "covariance": [
+            1.8125,
+            1.40625,
+            1.40625,
+            1.953125
+          ],
+          "residual_inf": 0.0
+        },
+        "certificate": {
+          "certified": true,
+          "basis": "linear_family_contraction",
+          "gap": null,
+          "rho_abs_upper": 0.4472135954999579,
+          "certified_draws": null,
+          "uncertified_draws": null,
+          "failed_draws": null,
+          "withheld_draws": null,
+          "next_attempt": null
+        },
+        "solved_by": {
+          "method": "strongly_connected_blocks",
+          "order": [],
+          "blocks": [
+            [
+              0,
+              1
+            ]
+          ],
+          "dag_refusal": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted",
+          "accepted_steps": null,
+          "rejected_steps": null
+        },
+        "failed_mass": 0.0,
+        "withheld_mass": 0.0,
+        "physical_stability": "unclaimed"
+      },
+      {
+        "world": 1,
+        "family": "linear_equilibrium",
+        "variables": [
+          0,
+          1
+        ],
+        "actions": [
+          {
+            "kind": "hard_clamp",
+            "variable": 0,
+            "node": 0
+          }
+        ],
+        "outcome": {
+          "status": "gaussian_law",
+          "mean": [
+            0.0,
+            0.0
+          ],
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "residual_inf": 0.0
+        },
+        "certificate": {
+          "certified": true,
+          "basis": "linear_family_contraction",
+          "gap": null,
+          "rho_abs_upper": 0.4472135954999579,
+          "certified_draws": null,
+          "uncertified_draws": null,
+          "failed_draws": null,
+          "withheld_draws": null,
+          "next_attempt": null
+        },
+        "solved_by": {
+          "method": "acyclic_order",
+          "order": [
+            1
+          ],
+          "blocks": [],
+          "dag_refusal": null,
+          "accepted_steps": null,
+          "rejected_steps": null
+        },
+        "failed_mass": 0.0,
+        "withheld_mass": 0.0,
+        "physical_stability": "unclaimed"
+      },
+      {
+        "world": 2,
+        "family": "linear_equilibrium",
+        "variables": [
+          0,
+          1
+        ],
+        "actions": [
+          {
+            "kind": "hard_clamp",
+            "variable": 0,
+            "node": 0
+          }
+        ],
+        "outcome": {
+          "status": "gaussian_law",
+          "mean": [
+            1.0,
+            0.5
+          ],
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "residual_inf": 0.0
+        },
+        "certificate": {
+          "certified": true,
+          "basis": "linear_family_contraction",
+          "gap": null,
+          "rho_abs_upper": 0.4472135954999579,
+          "certified_draws": null,
+          "uncertified_draws": null,
+          "failed_draws": null,
+          "withheld_draws": null,
+          "next_attempt": null
+        },
+        "solved_by": {
+          "method": "acyclic_order",
+          "order": [
+            1
+          ],
+          "blocks": [],
+          "dag_refusal": null,
+          "accepted_steps": null,
+          "rejected_steps": null
+        },
+        "failed_mass": 0.0,
+        "withheld_mass": 0.0,
+        "physical_stability": "unclaimed"
+      },
+      {
+        "world": 3,
+        "family": "linear_equilibrium",
+        "variables": [
+          0,
+          1
+        ],
+        "actions": [
+          {
+            "kind": "additive_shock",
+            "variable": 0,
+            "node": 0
+          }
+        ],
+        "outcome": {
+          "status": "gaussian_law",
+          "mean": [
+            1.25,
+            0.625
+          ],
+          "covariance": [
+            1.8125,
+            1.40625,
+            1.40625,
+            1.953125
+          ],
+          "residual_inf": 0.0
+        },
+        "certificate": {
+          "certified": true,
+          "basis": "linear_family_contraction",
+          "gap": null,
+          "rho_abs_upper": 0.4472135954999579,
+          "certified_draws": null,
+          "uncertified_draws": null,
+          "failed_draws": null,
+          "withheld_draws": null,
+          "next_attempt": null
+        },
+        "solved_by": {
+          "method": "strongly_connected_blocks",
+          "order": [],
+          "blocks": [
+            [
+              0,
+              1
+            ]
+          ],
+          "dag_refusal": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted",
+          "accepted_steps": null,
+          "rejected_steps": null
+        },
+        "failed_mass": 0.0,
+        "withheld_mass": 0.0,
+        "physical_stability": "unclaimed"
+      }
+    ]
+  }
+}

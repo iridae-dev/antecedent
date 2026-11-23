@@ -17,7 +17,7 @@
 //!
 //! Every law and every truth is enumerated from latent SCMs.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "../../antecedent-estimate/tests/common/admg_conditional_scm.rs"]
 mod admg_conditional_scm;
@@ -193,7 +193,7 @@ fn conditional_scenarios_enter_the_envelope_and_the_truth_lies_inside_it() {
     assert!(matches!(prepared.prepared().decision().question, ScenarioQuestion::Conditional(_)));
     // No cross-scenario inference with shared data.
     let refusal = prepared.aggregate_interval().unwrap_err();
-    assert!(refusal.to_string().contains("scenario_aggregate_not_licensed"), "{refusal}");
+    assert!(refusal.to_string().contains("scenario_aggregate_not_supported"), "{refusal}");
 }
 
 #[test]
@@ -244,15 +244,26 @@ fn an_s_hedge_scenario_carries_its_checked_record_and_only_a_witness_proves() {
     let detail = row(&report, "shifted").detail.clone().unwrap();
     match &shifted.outcome {
         ScenarioOutcome::ConditionalNotCertified { obligations, candidate } => {
-            assert_eq!(&*obligations[0], "admg_transport.not_certified");
+            assert_eq!(
+                &*obligations[0],
+                antecedent_core::reason_details::admg_transport::NOT_CERTIFIED
+            );
             let candidate = candidate.as_ref().expect("the reduced joint's s-hedge is kept");
             candidate.recheck(&shifted.scenario.diagram, question, &ctx).unwrap();
-            assert!(detail.starts_with("admg_transport.not_certified"), "{detail}");
+            assert!(
+                detail.starts_with(antecedent_core::reason_details::admg_transport::NOT_CERTIFIED),
+                "{detail}"
+            );
             assert!(detail.contains("inspection-only candidate (not a proof)"), "{detail}");
         }
         ScenarioOutcome::ConditionalProvenNonTransportable(proof) => {
             proof.recheck(&shifted.scenario.diagram, question, &ctx).unwrap();
-            assert!(detail.starts_with("admg_transport.proven_non_transportable"), "{detail}");
+            assert!(
+                detail.starts_with(
+                    antecedent_core::reason_details::admg_transport::PROVEN_NON_TRANSPORTABLE
+                ),
+                "{detail}"
+            );
         }
         other => panic!("an s-hedge scenario is never {}", other.status()),
     }
@@ -434,7 +445,11 @@ fn a_zero_mass_conditioning_event_is_a_scenario_local_support_failure() {
     .unwrap();
     assert_eq!(row(&report, "chain").status, "support_failure");
     assert!(
-        row(&report, "chain").detail.clone().unwrap().contains("admg_transport.support_failure")
+        row(&report, "chain")
+            .detail
+            .clone()
+            .unwrap()
+            .contains(antecedent_core::reason_details::admg_transport::SUPPORT_FAILURE)
     );
     assert_eq!(row(&report, "parent").status, "identified");
     assert_eq!(report.envelope.as_ref().unwrap().scenarios.len(), 1);
@@ -459,7 +474,10 @@ fn route_bounds_requests_and_counted_laws_refuse_with_their_frozen_codes() {
         BUDGET,
     ));
     assert_eq!(code, "invalid_argument");
-    assert!(message.contains("admg_transport.invalid_request"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::admg_transport::INVALID_REQUEST),
+        "{message}"
+    );
     // A conditioned variable outside the shared schema.
     let mut outside = query(&[1], &[0], &[2]);
     outside.conditioned_on = Arc::from([VariableId::from_raw(9)]);
@@ -474,38 +492,50 @@ fn route_bounds_requests_and_counted_laws_refuse_with_their_frozen_codes() {
     );
     let (code, message) = refused(result);
     assert_eq!(code, "schema_mismatch");
-    assert!(message.starts_with("scenarios.coordinate_mismatch"), "{message}");
-    // Counted laws are not licensed for a conditional question.
-    let mut laws = data.laws().to_vec();
-    let first = &laws[0];
-    let cells = first.probabilities().len();
-    laws[0] = antecedent_expr::ExactDiscreteLaw::try_new(
-        first.population(),
-        first.regime(),
-        first.interventions().to_vec(),
-        first.axes().to_vec(),
-        vec![1.0 / f64::from(u32::try_from(cells).unwrap()); cells],
-        first.snapshot_identity(),
-        antecedent_expr::LawTolerance::default(),
-    )
-    .unwrap()
-    .with_empirical_counts(vec![1; cells])
-    .unwrap();
-    let counted = ExactTransportData::try_new(laws, 1_000_000).unwrap();
-    let (code, message) = refused(try_prepare(
-        scenarios(&ALL, None),
-        catalog,
-        counted,
-        request(&[0], &[2], LEVEL),
-        BUDGET,
-    ));
-    assert_eq!(code, "cell_not_licensed");
-    assert!(message.contains("admg_transport.interval_withheld"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::scenarios::COORDINATE_MISMATCH),
+        "{message}"
+    );
+    // Counted laws are not supported for a conditional question; a development build runs them.
+    #[cfg(not(feature = "development"))]
+    {
+        let mut laws = data.laws().to_vec();
+        let first = &laws[0];
+        let cells = first.probabilities().len();
+        laws[0] = antecedent_expr::ExactDiscreteLaw::try_new(
+            first.population(),
+            first.regime(),
+            first.interventions().to_vec(),
+            first.axes().to_vec(),
+            vec![1.0 / f64::from(u32::try_from(cells).unwrap()); cells],
+            first.snapshot_identity(),
+            antecedent_expr::LawTolerance::default(),
+        )
+        .unwrap()
+        .with_empirical_counts(vec![1; cells])
+        .unwrap();
+        let counted = ExactTransportData::try_new(laws, 1_000_000).unwrap();
+        let (code, message) = refused(try_prepare(
+            scenarios(&ALL, None),
+            catalog,
+            counted,
+            request(&[0], &[2], LEVEL),
+            BUDGET,
+        ));
+        assert_eq!(code, "not_supported");
+        assert!(
+            message.contains(
+                antecedent_core::reason_details::admg_transport::COUNTED_LAWS_UNSUPPORTED
+            ),
+            "{message}"
+        );
+    }
 }
 
 #[test]
 fn a_graph_beyond_the_conditional_class_refuses_the_whole_set() {
-    // Seven observed variables: inside the scenario system's 12-variable bound, outside the conditional row's 6.
+    // Seven observed variables: the conditional class has no variable-count bound, so the set
+    // is prepared like a smaller one; only the evidence it is asked about can refuse it.
     let mut graph = antecedent_graph::Admg::with_variables(7);
     graph
         .insert_directed(
@@ -539,9 +569,13 @@ fn a_graph_beyond_the_conditional_class_refuses_the_whole_set() {
         ExactEvaluationLimits::default(),
         &ExecutionContext::for_tests(1),
     );
-    let (code, message) = refused(result);
-    assert_eq!(code, "route_not_supported");
-    assert!(message.starts_with("admg_transport.bounds_exceeded"), "{message}");
+    let report = result
+        .unwrap_or_else(|e| panic!("a seven-variable set must prepare: {e:?}"))
+        .estimate(&ExecutionContext::for_tests(1))
+        .unwrap();
+    assert_eq!(report.scenarios.len(), 1);
+    assert_eq!(&*report.scenarios[0].name, "wide");
+    assert_eq!(report.scenarios[0].status, "identified");
 }
 
 fn consume(bytes: &[u8]) -> Result<ScenarioSetReport, IoError> {
@@ -570,7 +604,10 @@ fn a_conditional_artifact_is_version_two_replays_and_fails_on_mutation() {
         replayed.scenarios.iter().map(|s| s.status).collect::<Vec<_>>(),
         report.scenarios.iter().map(|s| s.status).collect::<Vec<_>>()
     );
-    assert!((p_one(&replayed, "chain") - p_one(&report, "chain")).abs() == 0.0);
+    assert_eq!(
+        (p_one(&replayed, "chain") - p_one(&report, "chain")).abs().to_bits(),
+        0.0_f64.to_bits()
+    );
     let original = TransportScenarioArtifactWire::decode(&bytes).unwrap();
     assert_eq!(original.version, TRANSPORT_SCENARIO_CONDITIONAL_ARTIFACT_VERSION);
     assert_eq!(

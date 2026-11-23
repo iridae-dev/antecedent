@@ -167,7 +167,14 @@ fn source_projection_original_native_mean_and_affine_utility_match_independent_t
         assert!(artifact.report().output["actions"][i]["standard_error"].is_null());
     }
     assert_eq!(artifact.report().output["calibration"], truth["calibration"]);
-    assert_eq!(artifact.report().unresolved, vec!["dependencies.checked_response_grid_operation"]);
+    assert_eq!(
+        artifact.report().unresolved,
+        // The second names an identification the consumer cannot re-derive.
+        vec![
+            "dependencies.checked_response_grid_operation",
+            "dependencies.identification_estimand_criterion",
+        ]
+    );
     let bytes = artifact.export().unwrap();
     let (replayed, fits) = antecedent_learn::fit_counts::observe_resolved_fits(|| {
         SourceProjectionArtifact::consume(&bytes, artifact.identity()).unwrap()
@@ -193,7 +200,7 @@ fn source_projection_bundle_requires_actual_checked_execution_and_reuses_one_opa
         SourceResolution::execute(&evidence, &prepared, &ctx).unwrap()
     });
     assert_eq!(fits, 0, "this original local-polynomial response does not execute a learner fit");
-    let consumer = source_resolved_consumer(vec![receipt]).unwrap();
+    let consumer = source_resolved_consumer(vec![receipt]);
     let (consumed, fits) = antecedent_learn::fit_counts::observe_resolved_fits(|| {
         consumer.consume(&bytes, &limits, bundle.identity(), &SuppliedSources::default()).unwrap()
     });
@@ -209,13 +216,13 @@ fn source_projection_bundle_requires_actual_checked_execution_and_reuses_one_opa
     }
 }
 #[test]
-fn source_projection_changed_data_seed_source_and_unlicensed_mean_functionals_refuse() {
+fn source_projection_changed_data_seed_source_and_unsupported_mean_functionals_refuse() {
     let (evidence, _, _) = source();
     for (shift, seed) in [(1., 51), (0., 52)] {
         let (changed, ctx, _) = prepared(shift, seed);
         assert_eq!(
             SourceResolution::execute(&evidence, &changed, &ctx).unwrap_err().detail,
-            "source_evidence.source_binding_mismatch"
+            antecedent_core::reason_details::source_evidence::SOURCE_BINDING_MISMATCH
         );
     }
     let mut nonlinear = contract(&evidence);
@@ -228,7 +235,7 @@ fn source_projection_changed_data_seed_source_and_unlicensed_mean_functionals_re
         )
         .unwrap_err()
         .to_string()
-        .contains("source_projection.affine_contract_refused")
+        .contains(antecedent_core::reason_details::source_projection::AFFINE_CONTRACT_REFUSED)
     );
     let mut wrong = contract(&evidence);
     wrong.actions[0].inputs[0].units = "unconverted_units".into();
@@ -239,7 +246,7 @@ fn source_projection_changed_data_seed_source_and_unlicensed_mean_functionals_re
         )
         .unwrap_err()
         .to_string()
-        .contains("source_projection.coordinate_mismatch")
+        .contains(antecedent_core::reason_details::source_projection::COORDINATE_MISMATCH)
     );
 }
 #[test]
@@ -279,24 +286,28 @@ fn source_projection_original_artifact_replay_refuses_resealed_numerical_changes
             SourceProjectionArtifact::consume(&resealed, &mutant.identity)
                 .unwrap_err()
                 .to_string()
-                .contains("source_projection.replay_mismatch"),
+                .contains(antecedent_core::reason_details::source_projection::REPLAY_MISMATCH),
             "{field}"
         );
     }
     let mut bytes = artifact.export().unwrap();
     bytes.pop();
-    assert!(SourceProjectionArtifact::consume(&bytes, artifact.identity()).is_err());
-    assert!(
+    assert_eq!(
+        SourceProjectionArtifact::consume(&bytes, artifact.identity()).unwrap_err().to_string(),
+        "reason=invalid_argument: source_projection.invalid_artifact"
+    );
+    assert_eq!(
         SourceProjectionArtifact::consume(
             &artifact.export().unwrap(),
             "different_retained_identity"
         )
-        .is_err()
+        .unwrap_err()
+        .to_string(),
+        "reason=invalid_argument: source_projection.identity_mismatch"
     );
     let (_, actual, ctx) = source();
     let receipt = SourceResolution::execute(&evidence, &actual, &ctx).unwrap();
     let imported = source_resolved_consumer(vec![receipt])
-        .unwrap()
         .consume(
             &bundle(&evidence).to_bytes("replay", &BundleLimits::default()).unwrap(),
             &BundleLimits::default(),
@@ -440,7 +451,7 @@ fn source_projection_external_attestation_and_exact_coordinates_bind_actual_mean
             &SuppliedSources::default(),
         )
         .unwrap();
-    assert!(consumed.nodes().iter().any(|node|matches!(&node.status,NodeStatus::Failed{stage:BundleStage::SwappedEvidence,reason} if reason=="composition_bundle.swapped_evidence")));
+    assert!(consumed.nodes().iter().any(|node|matches!(&node.status,NodeStatus::Failed{stage:BundleStage::SwappedEvidence,reason} if reason==antecedent_core::reason_details::composition_bundle::SWAPPED_EVIDENCE)));
 }
 
 #[test]
@@ -491,7 +502,7 @@ fn selected_affine_functional_replays_full_original_request_and_refuses_unsuppor
         )
         .unwrap_err()
         .to_string()
-        .contains("source_projection.limits_exceeded")
+        .contains(antecedent_core::reason_details::source_projection::LIMITS_EXCEEDED)
     );
     for projection in [
         SourceProjection::AffineDecision { contract: declaration.clone() },
@@ -504,7 +515,7 @@ fn selected_affine_functional_replays_full_original_request_and_refuses_unsuppor
             )
             .unwrap_err()
             .to_string()
-            .contains("source_projection.unsupported_coordinate")
+            .contains(antecedent_core::reason_details::source_projection::UNSUPPORTED_COORDINATE)
         );
     }
 }

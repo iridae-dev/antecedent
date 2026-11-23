@@ -1,6 +1,6 @@
 """One omitted-default table, owned by the Rust study builder.
 
-`analyze` / `prepare` / `PreparedAnalysis.prepare` never fill an omitted
+`analyze` / `prepare` never fill an omitted
 `refute` / `bootstrap` / `latency`: the omission reaches the builder, which
 applies its own table, the latency-tier mapping and the refute downgrade. These
 tests read the executed plan back, so a change to the builder's table changes
@@ -9,13 +9,15 @@ what they observe — they do not compare a Python literal with itself.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import antecedent as ant
 import numpy as np
 import pytest
 from antecedent._defaults import OMITTED, is_temporal_query, resolve_threads
 from antecedent._native import default_user_threads, omitted_defaults
-from antecedent.estimation import PreparedAnalysis
 from antecedent.inference import Bayesian
+from antecedent.outcomes import require_success
 
 GRAPH = [("z", "t"), ("z", "y"), ("t", "y")]
 
@@ -27,10 +29,15 @@ def _data(n: int = 80, seed: int = 1) -> dict[str, np.ndarray]:
     return {"t": t, "y": t + z, "z": z}
 
 
-def _analyze(**kwargs):
+def _analyze(*, bootstrap=None, latency=None, inference=None, **kwargs):
+    """Declare the budget and tier on the scientific inference, never as loose arguments."""
+    if inference is None and (bootstrap is not None or latency is not None):
+        inference = ant.Frequentist(bootstrap=bootstrap, profile=latency)
+    elif isinstance(inference, ant.Bayesian) and latency is not None:
+        inference = replace(inference, profile=latency)
     kwargs.setdefault("graph", GRAPH)
     kwargs.setdefault("query", ant.AverageEffect("t", "y"))
-    return ant.analyze(_data(), **kwargs)
+    return require_success(ant.analyze(_data(), inference=inference, **kwargs))
 
 
 def test_omitted_threads_use_the_machine():
@@ -85,10 +92,12 @@ def test_static_responses_do_not_report_a_replicate_budget():
     rng = np.random.default_rng(4)
     z = rng.normal(size=200)
     t = z + rng.normal(scale=0.4, size=200)
-    result = ant.analyze(
-        {"t": t, "y": t + z + rng.normal(scale=0.2, size=200), "z": z},
-        graph=GRAPH,
-        query=ant.ResponseCurve("t", "y", grid=[-0.5, 0.0, 0.5]),
+    result = require_success(
+        ant.analyze(
+            {"t": t, "y": t + z + rng.normal(scale=0.2, size=200), "z": z},
+            graph=GRAPH,
+            query=ant.ResponseCurve("t", "y", grid=[-0.5, 0.0, 0.5]),
+        )
     )
     assert result.uncertainty.replicates in (None, 0)
 
@@ -110,9 +119,13 @@ def test_bayesian_omitted_n_draws_is_not_explicit():
 def test_entry_points_agree():
     data = _data()
     query = ant.AverageEffect("t", "y")
-    analyzed = ant.analyze(data, graph=GRAPH, query=query, refute="none")
-    prepared = PreparedAnalysis.prepare(data, graph=GRAPH, query=query, refute="none").estimate()
-    workflow = ant.prepare(data, graph=GRAPH, query=query, refute="none").estimate()
+    analyzed = require_success(ant.analyze(data, graph=GRAPH, query=query, refute="none"))
+    prepared = require_success(
+        ant.estimate(ant.prepare(data, graph=GRAPH, query=query, refute="none"))
+    )
+    workflow = require_success(
+        ant.prepare(data, graph=GRAPH, query=query, refute="none").estimate()
+    )
     assert analyzed.performance.bootstrap_requested == prepared.performance.bootstrap_requested
     assert prepared.performance.bootstrap_requested == workflow.performance.bootstrap_requested
     assert analyzed.performance.latency_mode == prepared.performance.latency_mode
@@ -136,9 +149,8 @@ def test_omitted_bayesian_draws_follow_the_backend_default():
 @pytest.mark.parametrize("latency", ["interactive", "standard", "report"])
 def test_a_tier_cuts_the_omitted_draw_budget(latency):
     result = _analyze(inference=ant.Bayesian(), latency=latency, refute="none", bootstrap=0)
-    assert result.performance.n_draws is not None
-    if latency == "interactive":
-        assert result.performance.n_draws < OMITTED["n_draws"]
+    expected = {"interactive": 64, "standard": OMITTED["n_draws"], "report": 4000}[latency]
+    assert result.performance.n_draws == expected
 
 
 def _native_defaults(parameter: str):

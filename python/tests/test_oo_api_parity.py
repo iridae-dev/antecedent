@@ -8,6 +8,9 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent import _native, design
+from antecedent.errors import CausalStateError, CausalValueError
+from antecedent.execution import CachePolicy, Execution
+from antecedent.outcomes import require_success
 
 
 def _ate_data(n: int = 200, seed: int = 0):
@@ -22,57 +25,86 @@ def test_dag_from_edges_parents_children():
     g = antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
     assert set(g.nodes()) == {"z", "t", "y"}
     assert ("z", "t") in g.edges()
-    assert g.parents("y") == ["z", "t"] or set(g.parents("y")) == {"z", "t"}
-    assert "t" in g.children("z")
+    assert set(g.edges()) == {("z", "t"), ("z", "y"), ("t", "y")}
+    assert set(g.parents("y")) == {"z", "t"}
+    assert g.parents("z") == []
+    assert set(g.children("z")) == {"t", "y"}
+    assert g.children("y") == []
 
 
 def test_analyze_with_dag_object_and_levels():
     data = _ate_data()
     g = antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
-    r0 = antecedent.analyze(
-        data,
-        graph=g,
-        query=antecedent.AverageEffect("t", "y", control_level=0.0, active_level=1.0),
-        refute=False,
-        bootstrap=0,
+    r0 = require_success(
+        antecedent.analyze(
+            data,
+            graph=g,
+            query=antecedent.AverageEffect("t", "y", control_level=0.0, active_level=1.0),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
-    r1 = antecedent.analyze(
-        data,
-        graph=g,
-        query=antecedent.AverageEffect("t", "y", control_level=0.0, active_level=2.0),
-        refute=False,
-        bootstrap=0,
+    swapped = require_success(
+        antecedent.analyze(
+            data,
+            graph=g,
+            query=antecedent.AverageEffect("t", "y", control_level=1.0, active_level=0.0),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
-    assert r0.ate != pytest.approx(r1.ate, abs=1e-9) or abs(r1.ate) > abs(r0.ate) * 1.2
+    # The back-door adjusted contrast of a linear outcome is the treatment coefficient of the
+    # least-squares fit of y on an intercept, t and z, computed here.
+    design_matrix = np.column_stack([np.ones(len(data["y"])), data["t"], data["z"]])
+    coefficients, *_ = np.linalg.lstsq(design_matrix, data["y"], rcond=None)
+    assert r0.ate == pytest.approx(coefficients[1], abs=1e-9)
+    # Naming the arms in the other order negates the contrast.
+    assert swapped.ate == pytest.approx(-r0.ate, rel=1e-9)
+    # A contrast level that no row carries is refused, not read as a dose.
+    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="arm_not_populated"):
+        require_success(
+            antecedent.analyze(
+                data,
+                graph=g,
+                query=antecedent.AverageEffect("t", "y", control_level=0.0, active_level=2.0),
+                refute=False,
+                inference=antecedent.Frequentist(bootstrap=0),
+            )
+        )
 
 
 def test_sustained_vs_pulse_policy_accepted():
     rng = np.random.default_rng(1)
     n = 120
-    data = {
-        "a": rng.normal(size=n),
-        "b": rng.normal(size=n),
-    }
+    a = rng.normal(size=n)
+    b = np.zeros(n)
+    b[1:] = 0.8 * a[:-1]
+    data = {"a": a, "b": b}
     # a@1 → b@0
     edges = [("a", 1, "b", 0)]
-    pulse = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
-        bootstrap=0,
-        refute=False,
+    pulse = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
+            inference=antecedent.Frequentist(bootstrap=0),
+            refute=False,
+        )
     )
-    # Licensed SustainedEffect is the single-step window at -treatment_lag,
+    # Supported SustainedEffect is the single-step window at -treatment_lag,
     # so it matches Pulse at the same lag under temporal linear adjustment.
-    sustained = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.SustainedEffect("a", "b", treatment_lag=1, horizon_steps=1),
-        bootstrap=0,
-        refute=False,
+    sustained = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.SustainedEffect("a", "b", treatment_lag=1, horizon_steps=1),
+            inference=antecedent.Frequentist(bootstrap=0),
+            refute=False,
+        )
     )
-    assert np.isfinite(pulse.ate)
-    assert np.isfinite(sustained.ate)
+    # b[t] = 0.8 a[t-1] exactly, so a unit step of a at lag 1 moves b by 0.8 under either policy.
+    assert pulse.ate == pytest.approx(0.8, abs=1e-9)
+    assert sustained.ate == pytest.approx(0.8, abs=1e-9)
     assert sustained.ate == pytest.approx(pulse.ate, abs=1e-10)
     assert pulse.validation.passed is False
     assert pulse.validation.ran is False
@@ -94,12 +126,14 @@ def test_temporal_refute_runs_by_default():
     y[0] = 0.0
     for t in range(1, n):
         y[t] = 0.8 * x[t - 1]
-    result = antecedent.analyze(
-        {"a": x, "b": y},
-        graph=[("a", 1, "b", 0)],
-        query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            {"a": x, "b": y},
+            graph=[("a", 1, "b", 0)],
+            query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
     )
     assert result.validation.ran
     assert result.validation.count >= 1
@@ -114,13 +148,15 @@ def test_refute_true_is_rejected():
     for t in range(1, n):
         y[t] = 0.8 * x[t - 1]
     with pytest.raises(TypeError, match="refute=True is ambiguous"):
-        antecedent.analyze(
-            {"a": x, "b": y},
-            graph=[("a", 1, "b", 0)],
-            query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
-            refute=True,
-            bootstrap=0,
-            seed=1,
+        require_success(
+            antecedent.analyze(
+                {"a": x, "b": y},
+                graph=[("a", 1, "b", 0)],
+                query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
+                refute=True,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
+            )
         )
 
 
@@ -132,18 +168,19 @@ def test_temporal_accepts_bayesian_pulse():
     y[0] = 0.0
     for t in range(1, n):
         y[t] = 0.8 * x[t - 1]
-    result = antecedent.analyze(
-        {"a": x, "b": y},
-        graph=[("a", 1, "b", 0)],
-        query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
-        inference=antecedent.Bayesian(n_draws=64),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            {"a": x, "b": y},
+            graph=[("a", 1, "b", 0)],
+            query=antecedent.PulseEffect("a", "b", treatment_lag=1, horizon_steps=1),
+            inference=antecedent.Bayesian(n_draws=64),
+            refute=False,
+            execution=antecedent.Execution(seed=1),
+        )
     )
     assert result.posterior is not None
     assert np.isfinite(result.posterior.p_below_zero)
-    assert abs(result.posterior.effect_mean - 0.8) < 0.15
+    assert abs(result.posterior.effect_mean - 0.8) < 0.01
     assert result.estimate.estimator_id == "bayesian.temporal.gcomp"
 
 
@@ -153,13 +190,16 @@ def test_fitted_gcm_sample_do():
     cols = [data[n] for n in names]
     edges = [("z", "t"), ("z", "y"), ("t", "y")]
     gcm = antecedent.model.fit_gcm(names, cols, edges)
-    out = gcm.sample_do({"t": 1.0}, n=50, seed=3)
+    out = gcm.sample_do({"t": 1.0}, n=50, execution=antecedent.Execution(seed=3))
     assert out.n_draws == 50
-    assert out.draws.shape[1] == 50
+    assert out.draws.shape == (3, 50)
+    # Rows follow the node order z, t, y; the intervened node is pinned to its value in every draw.
+    assert np.all(out.draws[1] == 1.0)
+    assert out.draws[0].std() > 0.0 and out.draws[2].std() > 0.0
 
 
 def test_antecedent_state_append_data():
-    state = antecedent.state.CausalState(cache_bytes=1 << 20)
+    state = antecedent.state.CausalState(execution=Execution(cache=CachePolicy.bounded(1 << 20)))
     v0 = state.version
     data = _ate_data(n=20)
     names = list(data.keys())
@@ -185,7 +225,7 @@ def test_antecedent_state_append_data():
     cov = state.cov_get("c1")
     assert cov["n"] == 1
 
-    state.particle_filter_init("pf", 32, seed=2)
+    state.particle_filter_init("pf", 32, execution=Execution(seed=2))
     state.particle_filter_step("pf", 0.0)
     pf = state.particle_filter_get("pf")
     assert pf["n_obs"] == 1
@@ -193,7 +233,9 @@ def test_antecedent_state_append_data():
 
     ver, qid = state.register_average_effect(0, 1)
     assert ver >= state.version - 1
-    state.refresh_results([(qid, 1, 8)])
+    computed_at = state.version
+    computed = [(qid, 1, 8)]
+    state.refresh_results_at(computed_at, computed)
     assert state.stale_query_count() == 0
 
     v_rep = state.replace_data(names, cols)
@@ -201,7 +243,9 @@ def test_antecedent_state_append_data():
     assert len(state.batch_ids()) == 1
     # Replace invalidates registered query results until explicit refresh (ADR 0016).
     assert state.stale_query_count() >= 1
-    state.refresh_results([(qid, 1, 8)])
+    computed_at = state.version
+    computed = [(qid, 1, 8)]
+    state.refresh_results_at(computed_at, computed)
     assert state.stale_query_count() == 0
 
 
@@ -213,7 +257,7 @@ def test_antecedent_state_ols_append_matches_full_recompute():
     beta_true = np.array([0.5, -1.25])
     y = x @ beta_true + rng.normal(size=30) * 0.05
 
-    state = antecedent.state.CausalState(cache_bytes=1 << 20)
+    state = antecedent.state.CausalState(execution=Execution(cache=CachePolicy.bounded(1 << 20)))
     state.ols_ensure("ols", 2)
     # Two append batches (online path).
     for i in range(0, 12):
@@ -234,7 +278,9 @@ def test_antecedent_state_ols_append_matches_full_recompute():
     assert np.allclose(beta_inc, beta_full, rtol=0, atol=1e-9)
 
     _, qid = state.register_average_effect(0, 1)
-    state.refresh_results([(qid, 2, 16)])
+    computed_at = state.version
+    computed = [(qid, 2, 16)]
+    state.refresh_results_at(computed_at, computed)
     assert state.stale_query_count() == 0
     # Append data must not auto-refresh results.
     state.append_data(["t", "y"], [y[:5], y[5:10]])
@@ -242,7 +288,7 @@ def test_antecedent_state_ols_append_matches_full_recompute():
 
 
 def test_antecedent_state_rejected_replace_preserves_existing_data():
-    state = antecedent.state.CausalState(cache_bytes=1 << 20)
+    state = antecedent.state.CausalState(execution=Execution(cache=CachePolicy.bounded(1 << 20)))
     state.append_data(
         ["t", "y"],
         [np.array([0.0, 1.0]), np.array([1.0, 3.0])],
@@ -301,7 +347,7 @@ def test_rank_designs_full_surface():
     assert ranking.explain().startswith("Basis: identification.")
     assert ranking.to_dict()["basis"] == "identification"
     with pytest.raises(antecedent.errors.CausalValueError, match="decision ranking"):
-        ranking.export()
+        bytes(ranking.export())
 
 
 def test_native_rank_designs_decision_regret_is_conjugate_normal_evsi():
@@ -309,7 +355,7 @@ def test_native_rank_designs_decision_regret_is_conjugate_normal_evsi():
     # directly; the typed surface is `antecedent.design.rank_designs`.
     ranking = _native.rank_designs(
         [1.0],
-        [1],
+        b"\x01",
         [1],
         [
             {"kind": "increase_sampling_rate", "additional_samples": 4},
@@ -330,7 +376,7 @@ def test_native_rank_designs_decision_regret_is_conjugate_normal_evsi():
     )
     assert [r.candidate_index for r in ranking.ranked] == [1, 0]
     assert [(v.candidate_index, v.constraint) for v in ranking.violations] == [
-        (2, "unlicensed_candidate")
+        (2, "unsupported_candidate")
     ]
 
     # EVSI(n) = |Δβ| s_n G(|μ_b − μ₀| / s_n), s_n² = τ⁴n / (nτ² + σ²),
@@ -368,7 +414,7 @@ def test_native_rank_designs_decision_regret_callable_utility_on_draws():
     }
     exact = _native.rank_designs(
         [1.0],
-        [1],
+        b"\x01",
         [1],
         [{"kind": "increase_sampling_rate", "additional_samples": 1}],
         decision={
@@ -393,7 +439,7 @@ def test_native_rank_designs_decision_regret_callable_utility_on_draws():
 
     mc = _native.rank_designs(
         [1.0],
-        [1],
+        b"\x01",
         [1],
         [{"kind": "increase_sampling_rate", "additional_samples": 3}],
         decision={
@@ -412,7 +458,7 @@ def test_native_rank_designs_decision_regret_requires_a_decision_model():
     with pytest.raises(antecedent.errors.CausalDesignError, match="decisions context"):
         _native.rank_designs(
             [1.0],
-            [1],
+            b"\x01",
             [1],
             [{"kind": "increase_sampling_rate", "additional_samples": 1}],
             objective="reduce_decision_regret",
@@ -428,8 +474,14 @@ def test_exact_dag_posterior_tiny():
     data = {"x": x, "y": y}
     post = antecedent.discovery.ExactDagPosterior().run(data)
     assert post.n_vars == 2
-    assert post.n_graphs >= 1
-    assert len(post.weights) == post.n_graphs
+    # Two variables have exactly three DAGs: empty, x -> y and y -> x. The two directed graphs are
+    # Markov equivalent so BIC scores them identically; the empty graph is negligible at rho ~ 0.92.
+    assert post.n_graphs == 3
+    weights = sorted(post.weights)
+    assert sum(weights) == pytest.approx(1.0, abs=1e-12)
+    assert weights[0] < 1e-12
+    assert weights[1] == pytest.approx(0.5, abs=1e-9) and weights[2] == pytest.approx(0.5, abs=1e-9)
+    assert list(post.edge_marginals) == pytest.approx([0.0, 0.5, 0.5, 0.0], abs=1e-9)
 
 
 def test_discovery_result_alias_and_ges_config():
@@ -462,22 +514,27 @@ def test_path_specific_and_distribution_queries():
         "y": np.asarray(y_vals, dtype=np.float64),
     }
     edges = [("t", "m"), ("m", "y")]
-    path = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
-        refute=False,
-        bootstrap=0,
+    path = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
     assert abs(path.ate - 0.3) < 1e-9
-    dist = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
-        refute=False,
-        bootstrap=0,
+    dist = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
-    assert np.isfinite(dist.ate)
+    # No confounder: P(y = 1 | do(t = 1)) = P(y = 1 | t = 1) = (10 + 70) / 100.
+    assert dist.ate == pytest.approx(0.8, abs=1e-9)
 
 
 def test_extensibility_exported():
@@ -489,32 +546,32 @@ def test_extensibility_exported():
     [
         (
             "joint_bayesian_transport",
-            "sources target features graph graph_class dependence varying sharing draws seed identification priors treatment outcome max_unsupported_mass conflict_z_threshold level memory_limit_bytes cancel",
+            "sources target features graph graph_class dependence varying sharing draws identification priors treatment outcome max_unsupported_mass conflict_z_threshold level execution",
             "MeasuredInference",
         ),
         (
             "learned_joint_transport",
-            "sources target features graph graph_class dependence varying sharing basis_degree draws seed identification priors treatment outcome max_unsupported_mass conflict_z_threshold level memory_limit_bytes cancel",
+            "sources target features graph graph_class dependence varying sharing basis_degree draws identification priors treatment outcome max_unsupported_mass conflict_z_threshold level execution",
             "MeasuredInference",
         ),
         (
             "temporal_dependent_interval",
-            "panel sequence estimand fixed_state target_law replicates seed level method min_units max_failed_fraction memory_limit_bytes cancel",
+            "panel sequence estimand fixed_state target_law replicates level method min_units max_failed_fraction execution",
             "MeasuredInference",
         ),
         (
             "binary_nested_markov",
-            "graph regimes max_iterations tolerance prior seed memory_limit_bytes cancel",
+            "graph regimes max_iterations tolerance prior execution",
             "MeasuredInference",
         ),
         (
             "binary_nested_markov_fisher_interval",
-            "graph regimes nominal_level max_iterations tolerance memory_limit_bytes cancel",
+            "graph regimes nominal_level max_iterations tolerance execution",
             "MeasuredInference",
         ),
         (
             "sampled_observation_recovery",
-            "stage query rows snapshot replicates seed interval_method memory_limit_bytes cancel",
+            "stage query rows snapshot replicates interval_method execution",
             "MeasuredInference",
         ),
         (
@@ -560,3 +617,135 @@ def test_checked_prior_bridge_signature_and_identity_defaults():
     assert signature.parameters["candidate_observation_ids"].default == ()
     for required in ("sources", "state", "target_population", "prior_id"):
         assert signature.parameters[required].default is inspect.Parameter.empty
+
+
+def test_graph_evidence_is_versioned_and_listed_in_the_order_it_was_added():
+    state = antecedent.state.CausalState(execution=Execution(cache=CachePolicy.bounded(1 << 20)))
+    assert state.graph_evidence() == []
+    v0 = state.version
+    v1 = state.add_graph_evidence("pc-run", 7, 128)
+    assert v1 > v0 and state.version == v1
+    assert state.graph_evidence() == [("pc-run", 7, 128)]
+    v2 = state.add_graph_evidence("ges-run", 9, 64)
+    assert v2 > v1
+    assert state.graph_evidence() == [("pc-run", 7, 128), ("ges-run", 9, 64)]
+    assert state.constraints() == [], "evidence is not a constraint"
+
+
+def _chain_columns(n: int = 60) -> list[np.ndarray]:
+    i = np.arange(n, dtype=np.float64)
+    x0 = np.sin(0.37 * i) + 0.1 * i / n
+    x1 = 2.0 * x0 + 0.3 * np.cos(1.9 * i)
+    x2 = x1 - 0.5 * x0 + 0.25 * np.sin(3.1 * i + 0.4)
+    return [x0, x1, x2]
+
+
+def _gaussian_bic(columns: list[np.ndarray], node: int, parents: tuple[int, ...]) -> float:
+    """-n/2 (1 + ln 2pi + ln sigma^2) - (k/2) ln n, sigma^2 = SSE/n; k counts intercept, parents and variance."""
+    y = columns[node]
+    n = len(y)
+    design = np.column_stack([np.ones(n), *[columns[p] for p in parents]])
+    beta, *_ = np.linalg.lstsq(design, y, rcond=None)
+    sigma2 = float(np.sum((y - design @ beta) ** 2)) / n
+    return -0.5 * n * (1.0 + math.log(2.0 * math.pi) + math.log(sigma2)) - (
+        0.5 * (len(parents) + 2) * math.log(n)
+    )
+
+
+def test_a_parent_set_change_rescores_one_node_and_matches_a_full_recomputation():
+    columns = _chain_columns()
+    cache = antecedent.state.GraphScoreCache(columns)
+    assert (cache.n_rows, cache.n_vars) == (60, 3)
+    empty = sum(_gaussian_bic(columns, j, ()) for j in range(3))
+    assert cache.score() == pytest.approx(empty, rel=1e-9)
+
+    delta, total = cache.set_parents(1, [0])
+    expected = _gaussian_bic(columns, 1, (0,)) - _gaussian_bic(columns, 1, ())
+    assert delta == pytest.approx(expected, rel=1e-7)
+    assert delta > 0, "x0 explains x1"
+    assert total == pytest.approx(empty + delta, rel=1e-9)
+    assert cache.parents_of(1) == [0] and cache.parents_of(0) == []
+
+    # Parents are stored sorted and deduplicated; the running total follows each change.
+    delta2, total2 = cache.set_parents(2, [1, 0, 1])
+    assert cache.parents_of(2) == [0, 1]
+    assert total2 == pytest.approx(total + delta2, rel=1e-9)
+    graph_score = (
+        _gaussian_bic(columns, 0, ())
+        + _gaussian_bic(columns, 1, (0,))
+        + _gaussian_bic(columns, 2, (0, 1))
+    )
+    assert total2 == pytest.approx(graph_score, rel=1e-7)
+    assert total2 == pytest.approx(cache.full_score({1: [0], 2: [0, 1]}), rel=1e-9)
+
+    # Removing the parents again returns to the score before the change.
+    delta3, total3 = cache.set_parents(2, [])
+    assert delta3 == pytest.approx(-delta2, rel=1e-7)
+    assert total3 == pytest.approx(total, rel=1e-9)
+    assert cache.retained_bytes > 0
+    cache.clear()
+    assert cache.parents_of(1) == [] and cache.retained_bytes == 0
+
+
+def test_a_graph_score_cache_refuses_self_parents_unknown_nodes_and_malformed_data():
+    columns = _chain_columns()
+    cache = antecedent.state.GraphScoreCache(columns)
+    with pytest.raises(CausalStateError, match="own parent"):
+        cache.set_parents(1, [1])
+    with pytest.raises(CausalStateError, match="out of range"):
+        cache.set_parents(7, [0])
+    assert cache.parents_of(1) == [], "a refused change leaves the parent sets alone"
+    with pytest.raises(CausalValueError, match="same number of rows"):
+        antecedent.state.GraphScoreCache([columns[0], columns[1][:-1]])
+    with pytest.raises(CausalValueError, match="finite"):
+        antecedent.state.GraphScoreCache([np.array([0.0, np.nan, 1.0]), np.array([0.0, 1.0, 2.0])])
+    with pytest.raises(CausalValueError, match="family"):
+        antecedent.state.GraphScoreCache(columns, family="no_such_family")
+    laplace = antecedent.state.GraphScoreCache(columns, family="laplace_bic")
+    delta, total = laplace.set_parents(1, [0])
+    assert total == pytest.approx(laplace.full_score({1: [0]}), rel=1e-6)
+    assert delta > 0
+
+
+def test_rolling_mechanism_diagnostics_fit_the_last_window_of_rows():
+    n, window = 30, 10
+    i = np.arange(n, dtype=np.float64)
+    design = np.column_stack([np.ones(n), i])
+    y = 1.5 + 0.25 * i + 0.1 * np.sin(1.7 * i)
+    diag = antecedent.state.RollingMechanismDiagnostics(2, window)
+    assert (diag.ncols, diag.window, diag.n, diag.beta) == (2, window, 0, [])
+    for row, response in zip(design[:20], y[:20], strict=True):
+        diag.append_row([float(v) for v in row], float(response))
+    rest = design[20:]
+    diag.append_batch([float(v) for v in rest.ravel()], [float(v) for v in y[20:]])
+    assert diag.n == window, "older rows left the window"
+    diag.refresh()
+
+    rows, ys = design[-window:], y[-window:]
+    beta, *_ = np.linalg.lstsq(rows, ys, rcond=None)
+    residuals = ys - rows @ beta
+    assert diag.beta == pytest.approx(list(beta), abs=1e-7)
+    assert diag.residual_sse == pytest.approx(float(np.sum(residuals**2)), abs=1e-9)
+    assert diag.residual_var == pytest.approx(float(np.sum(residuals**2)) / (window - 2), abs=1e-9)
+    assert diag.mean_abs_residual == pytest.approx(float(np.mean(np.abs(residuals))), abs=1e-9)
+    assert diag.max_abs_cusum is not None and diag.max_abs_cusum >= 0.0
+    assert 0 < diag.bytes <= diag.worst_case_bytes
+
+
+def test_rolling_mechanism_diagnostics_report_what_a_short_window_cannot_support():
+    diag = antecedent.state.RollingMechanismDiagnostics(1, 4)
+    with pytest.raises(CausalStateError):
+        diag.refresh()
+    diag.append_row([2.0], 4.0)
+    diag.refresh()
+    assert diag.beta == pytest.approx([2.0])
+    assert diag.residual_var is None, "one row cannot estimate a variance for one column"
+    assert diag.max_abs_cusum is None, "fewer than four residuals carry no CUSUM"
+    with pytest.raises(CausalStateError):
+        diag.append_row([1.0, 2.0], 1.0)
+    with pytest.raises(CausalStateError):
+        diag.append_row([1.0], float("nan"))
+    with pytest.raises(CausalStateError):
+        antecedent.state.RollingMechanismDiagnostics(0, 4)
+    with pytest.raises(CausalStateError):
+        antecedent.state.RollingMechanismDiagnostics(2, 0)

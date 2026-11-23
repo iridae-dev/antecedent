@@ -1,6 +1,6 @@
 //! Graph-sensitive root-cause ranking.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[cfg(test)]
 use std::sync::Arc;
@@ -78,10 +78,24 @@ pub fn root_cause_rank(
         ));
     }
 
-    if let (Some(gs), Some(draws)) = (graph_samples, contribution_draws) {
-        return rank_with_graph_uncertainty(attribution, gs, draws);
+    match (graph_samples, contribution_draws) {
+        (Some(gs), Some(draws)) => return rank_with_graph_uncertainty(attribution, gs, draws),
+        (None, None) => {}
+        // One half of the ensemble is a declaration the plain ranking cannot honour: falling
+        // through would report unweighted point scores with no graph uncertainty as though
+        // the ensemble had been used.
+        _ => {
+            return Err(AttributionError::invalid_input(
+                "graph_samples and contribution_draws must be given together",
+            ));
+        }
     }
 
+    if attribution.contributions.iter().any(|c| !c.contribution.is_finite()) {
+        return Err(AttributionError::invalid_input(
+            "root_cause_rank requires finite contributions",
+        ));
+    }
     let mut ranks: Vec<RootCauseRank> = attribution
         .contributions
         .iter()
@@ -91,11 +105,11 @@ pub fn root_cause_rank(
             graph_std: None,
         })
         .collect();
-    ranks.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    ranks.sort_by(|a, b| b.score.total_cmp(&a.score));
     Ok(ranks)
 }
 
-/// Aggregate attribution results over a [`ModelCollection`](antecedent_model::ModelCollection) by weighted mean.
+/// Aggregate attribution results over a weighted set of per-graph models by weighted mean.
 ///
 /// # Errors
 ///
@@ -135,7 +149,7 @@ pub(crate) fn aggregate_model_collection_ranks(
         moments.add((total - moments.mass()).max(0.0), 0.0)?;
         ranks.push(moments.rank(component));
     }
-    ranks.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    ranks.sort_by(|a, b| b.score.total_cmp(&a.score));
     Ok(ranks)
 }
 
@@ -182,7 +196,7 @@ pub(crate) fn posterior_contribution_ranks(
         .zip(components)
         .map(|(moment, &component)| moment.rank(component))
         .collect::<Vec<_>>();
-    ranks.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    ranks.sort_by(|a, b| b.score.total_cmp(&a.score));
     Ok(ranks)
 }
 
@@ -212,7 +226,7 @@ fn rank_with_graph_uncertainty(
         }
         ranks.push(moments.rank(component.component));
     }
-    ranks.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    ranks.sort_by(|a, b| b.score.total_cmp(&a.score));
     Ok(ranks)
 }
 

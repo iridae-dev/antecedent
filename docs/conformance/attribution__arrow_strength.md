@@ -4,4 +4,4 @@
 
 ## Expected summary
 
-Top-level keys: `abs_beta_ranking_is_inverted, child, do_contrast, edges, oracle, parents, schema_version, tolerance` (8 fields).
+Top-level keys: `abs_beta_ranking_is_inverted, child, correlated_parents, do_contrast, edges, oracle, parents, schema_version, tolerance` (9 fields).

@@ -12,29 +12,33 @@
 //! issued; a claim of native trust is forwarded so the contract refuses it by
 //! name.
 
+use antecedent::analysis::continuous_measurement::{
+    CorrectionMethod, ErrorLocation, OutcomeLink, SimexExtrapolant,
+};
 use antecedent::analysis::transported_measurement::{
     ErrorParameter, InvarianceDeclaration, PopulationErrorStructure, TransportBasis,
     TransportReceipt, transport_measurement_estimate, verify_measurement_transport,
 };
-use antecedent::{
-    CategoricalTarget, ConsumedMeasurement, MeasurementAnalysisBinding, MeasurementDetail,
-    MeasurementEstimate, MeasurementInput, MeasurementModelRefusal, PreparedMeasurementModel,
-    StudyBuilder, consume_measurement_model_artifact,
-};
-use antecedent_contract::measurement::MeasurementOperation;
-use antecedent_contract::{
+use antecedent::contract::measurement::MeasurementOperation;
+use antecedent::contract::{
     ExternalCapability, ExternalPosteriorKind, ExternalScientificObject, ExternalTrustState,
-    PosteriorProviderContract, ProviderObjectIdentity, ScientificQuantity, capability_from_name,
+    PosteriorProviderContract, ProviderObjectIdentity, capability_from_name,
 };
-use antecedent_core::measurement_model::{
+use antecedent::estimate::measurement::PosteriorCombination;
+use antecedent::inference::measurement_error::{ObservedClassSummary, TwoByTwoCounts};
+use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::scientific::{
     ArmBinding, BinaryArmRates, DifferentialAxis, ErrorStructure, MappingSemantics,
     MeasurementBinding, MeasurementKind, MeasurementModel, MeasurementParameters, MeasurementRoute,
     MeasurementVariable, ParameterEvidence, PosteriorReference, RepresentationMapping,
-    RepresentationVersion,
+    RepresentationVersion, ScientificQuantity,
 };
-use antecedent_estimate::measurement::PosteriorCombination;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
-use antecedent_stats::measurement_error::{ObservedClassSummary, TwoByTwoCounts};
+use antecedent::{
+    CategoricalTarget, ConsumedMeasurement, ContinuousErrorInput, ContinuousMeasurementEstimate,
+    MeasurementAnalysisBinding, MeasurementDetail, MeasurementEstimate, MeasurementInput,
+    MeasurementModelRefusal, PreparedMeasurementModel, StudyBuilder,
+    consume_measurement_model_artifact,
+};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
@@ -43,7 +47,7 @@ use crate::provider_api::PyProviderVerificationReceipt;
 use crate::transport_common::execution_context;
 
 /// Largest declaration this bridge parses, in bytes of JSON text.
-const MAX_DECLARATION_BYTES: usize = 64 * 1024 * 1024;
+const MAX_DECLARATION_BYTES: usize = 16 * 1024 * 1024;
 
 // ---------------------------------------------------------------------------
 // JSON access: malformed declarations are input errors, never refusals.
@@ -141,6 +145,29 @@ fn small_list(map: &Map<String, Json>, key: &str) -> PyResult<Vec<u32>> {
         .collect()
 }
 
+/// Refuse a member of `map` that `allowed` does not name, so a misspelled key is not dropped.
+pub(crate) fn reject_unknown_keys(
+    map: &Map<String, Json>,
+    allowed: &[&str],
+    what: &str,
+) -> PyResult<()> {
+    match map.keys().find(|key| !allowed.contains(&key.as_str())) {
+        Some(key) => Err(crate::value_err(format!(
+            "unknown field `{key}` in {what}; expected one of {allowed:?}"
+        ))),
+        None => Ok(()),
+    }
+}
+
+/// A boolean that may be absent; a present value of any other type is an input error.
+pub(crate) fn opt_flag(map: &Map<String, Json>, key: &str) -> PyResult<Option<bool>> {
+    match map.get(key) {
+        None | Some(Json::Null) => Ok(None),
+        Some(Json::Bool(value)) => Ok(Some(*value)),
+        Some(_) => Err(crate::value_err(format!("field `{key}` must be a boolean or null"))),
+    }
+}
+
 pub(crate) fn present<'a>(map: &'a Map<String, Json>, key: &str) -> Option<&'a Json> {
     match map.get(key) {
         None | Some(Json::Null) => None,
@@ -153,15 +180,13 @@ pub(crate) fn present<'a>(map: &'a Map<String, Json>, key: &str) -> Option<&'a J
 // ---------------------------------------------------------------------------
 
 fn refusal_json(refusal: &MeasurementModelRefusal) -> String {
-    json!({
-        "code": refusal.code,
-        "stage": "measurement_model",
-        "detail": refusal.detail,
-        "message": refusal.message,
-        "offending": Json::Null,
-        "remedy": refusal.remedy,
-    })
-    .to_string()
+    crate::bridge::compact_refusal_json(
+        refusal.code,
+        "measurement_model",
+        &refusal.detail,
+        &refusal.message,
+        refusal.remedy.as_deref(),
+    )
 }
 
 fn declaration_refusal(code: &'static str, detail: &str, message: &str) -> MeasurementModelRefusal {
@@ -547,6 +572,65 @@ fn parse_input(value: &Json) -> PyResult<MeasurementInput> {
     }
 }
 
+fn parse_continuous_method(value: &Json) -> PyResult<CorrectionMethod> {
+    let map = object(value, "correction method")?;
+    match text(map, "kind")?.as_str() {
+        "regression_calibration" => Ok(CorrectionMethod::RegressionCalibration),
+        "simex" => Ok(CorrectionMethod::Simex {
+            lambdas: reals(map, "lambdas")?,
+            replicates: small(map, "replicates")?,
+            extrapolant: match text(map, "extrapolant")?.as_str() {
+                "linear" => SimexExtrapolant::Linear,
+                "quadratic" => SimexExtrapolant::Quadratic,
+                "rational" => SimexExtrapolant::Rational,
+                "automatic" => SimexExtrapolant::Automatic,
+                other => {
+                    return Err(crate::value_err(format!("unknown SIMEX extrapolant `{other}`")));
+                }
+            },
+        }),
+        other => Err(crate::value_err(format!("unknown correction method `{other}`"))),
+    }
+}
+
+fn parse_continuous_input(value: &Json) -> PyResult<ContinuousErrorInput> {
+    let map = object(value, "continuous measurement data")?;
+    let location = match text(map, "location")?.as_str() {
+        "treatment" => ErrorLocation::Treatment,
+        "covariate" => {
+            ErrorLocation::Covariate { treatment_column: index(map, "treatment_column")? }
+        }
+        "outcome" => ErrorLocation::Outcome,
+        other => return Err(crate::value_err(format!("unknown error location `{other}`"))),
+    };
+    let link = match text(map, "link")?.as_str() {
+        "identity" => OutcomeLink::Identity,
+        "logit" => OutcomeLink::Logit,
+        other => return Err(crate::value_err(format!("unknown outcome link `{other}`"))),
+    };
+    Ok(ContinuousErrorInput {
+        outcome: reals(map, "outcome")?,
+        regressor: reals(map, "regressor")?,
+        covariates: reals(map, "covariates")?,
+        covariate_count: index(map, "covariate_count")?,
+        replicate_values: match present(map, "replicate_values") {
+            Some(_) => Some(reals(map, "replicate_values")?),
+            None => None,
+        },
+        replicate_counts: match present(map, "replicate_counts") {
+            Some(_) => Some(small_list(map, "replicate_counts")?),
+            None => None,
+        },
+        spec: antecedent::analysis::continuous_measurement::ContinuousCorrectionSpec {
+            location,
+            link,
+            method: parse_continuous_method(member(map, "method")?)?,
+            bootstrap_replicates: small(map, "bootstrap_replicates")?,
+            seed: unsigned(map, "seed")?,
+        },
+    })
+}
+
 fn operation_from_name(name: &str) -> PyResult<MeasurementOperation> {
     [
         MeasurementOperation::LinearAdjustedEffect,
@@ -627,8 +711,8 @@ fn trust_of(
                 Ok(ExternalTrustState::ExactRequestVerified(Box::new(receipt.inner.clone())))
             }
             None => Err(declaration_refusal(
-                antecedent_core::reason_code!("measurement_posterior_not_trusted"),
-                "measurement_model.posterior_receipt",
+                antecedent::reason::reason_code!("measurement_posterior_not_trusted"),
+                antecedent::reason::reason_details::measurement_model::POSTERIOR_RECEIPT,
                 "exact-request verification needs the verification receipt the library issued; \
                  a label is not a receipt",
             )),
@@ -637,16 +721,16 @@ fn trust_of(
             let attestor = provider.attestor.as_deref().unwrap_or("");
             ExternalTrustState::attest(&provider.object, attestor).map_err(|error| {
                 declaration_refusal(
-                    antecedent_core::reason_code!("measurement_posterior_not_trusted"),
-                    "measurement_model.posterior_declaration",
+                    antecedent::reason::reason_code!("measurement_posterior_not_trusted"),
+                    antecedent::reason::reason_details::measurement_model::POSTERIOR_DECLARATION,
                     &format!("the provider declaration cannot be attested: {error:?}"),
                 )
             })
         }
-        "native_licensed" => Ok(ExternalTrustState::NativeLicensed),
+        "native_supported" => Ok(ExternalTrustState::NativeSupported),
         _ => Err(declaration_refusal(
-            antecedent_core::reason_code!("measurement_posterior_not_trusted"),
-            "measurement_model.posterior_declaration",
+            antecedent::reason::reason_code!("measurement_posterior_not_trusted"),
+            antecedent::reason::reason_details::measurement_model::POSTERIOR_DECLARATION,
             "a provider posterior is externally attested or exact-request verified; \
              nothing else is a trust state a caller can state",
         )),
@@ -657,7 +741,7 @@ fn trust_of(
 // Results as data.
 // ---------------------------------------------------------------------------
 
-fn record_json(record: &antecedent_core::measurement_model::CorrectedFunctionalRecord) -> Json {
+fn record_json(record: &antecedent::schema::measurement_model::CorrectedFunctionalRecord) -> Json {
     json!({
         "model_identity": record.model_identity.to_hex(),
         "route": record.route.as_str(),
@@ -682,7 +766,7 @@ fn estimate_json(estimate: &MeasurementEstimate) -> Json {
     summary["provider_trust"] = json!(
         estimate
             .provider_trust()
-            .map(antecedent_contract::measurement::LatentPosteriorTrust::as_str)
+            .map(antecedent::contract::measurement::LatentPosteriorTrust::as_str)
     );
     summary["representation_mapping_id"] = json!(estimate.representation_mapping_id());
     summary["interval"] = Json::Null;
@@ -738,6 +822,38 @@ fn detail_json(estimate: &MeasurementEstimate) -> Json {
     }
 }
 
+fn continuous_json(estimate: &ContinuousMeasurementEstimate) -> Json {
+    let effect = estimate.effect();
+    let summary = &effect.summary;
+    let mut out = record_json(estimate.record());
+    out["method"] = json!(summary.method.as_str());
+    out["link"] = json!(summary.link.as_str());
+    out["location"] = json!(summary.location.as_str());
+    out["treatment_column"] = match summary.location {
+        ErrorLocation::Covariate { treatment_column } => json!(treatment_column),
+        _ => Json::Null,
+    };
+    out["error_variance"] = json!(summary.error_variance);
+    out["error_variance_standard_error"] = json!(summary.error_variance_standard_error);
+    out["reliability"] = json!(summary.reliability);
+    out["bootstrap_replicates"] = json!(summary.bootstrap_replicates);
+    out["failed_bootstrap_replicates"] = json!(summary.failed_bootstrap_replicates);
+    out["seed"] = json!(summary.seed);
+    out["coefficients"] = json!(effect.coefficients);
+    out["naive_coefficients"] = json!(effect.naive_coefficients);
+    out["coefficient_index"] = json!(effect.coefficient_index);
+    out["simex"] = effect.simex.as_ref().map_or(Json::Null, |fit| {
+        json!({
+            "lambdas": fit.lambdas,
+            "means": fit.lambda_means,
+            "extrapolant": fit.extrapolant.as_str(),
+            "replicates": fit.replicates,
+        })
+    });
+    out["interval"] = Json::Null;
+    out
+}
+
 fn route_card_json(prepared: &PreparedMeasurementModel) -> Json {
     let card = prepared.route_card();
     json!({
@@ -766,6 +882,29 @@ pub(crate) struct PreparedMeasurementHandle {
 #[pyclass(name = "MeasurementEstimateHandle", skip_from_py_object)]
 pub(crate) struct MeasurementEstimateHandle {
     inner: MeasurementEstimate,
+}
+
+/// A continuous correction bound to its model, kept to report its interval.
+#[pyclass(name = "ContinuousMeasurementEstimateHandle", skip_from_py_object)]
+pub(crate) struct ContinuousMeasurementEstimateHandle {
+    inner: ContinuousMeasurementEstimate,
+}
+
+#[pymethods]
+impl ContinuousMeasurementEstimateHandle {
+    /// The equal-tailed Wald interval of the corrected coefficient at `level` with its
+    /// calibration slot as JSON (`not_measured`), or the route's refusal.
+    fn interval(&self, level: f64) -> (Option<(f64, f64, String)>, Option<String>) {
+        match self.inner.interval(level) {
+            Ok((lower, upper)) => {
+                let slot = antecedent::io::contract_section::CalibrationSlotWire::not_measured(
+                    antecedent::io::calibration::CONSTRUCTION_NOT_MEASURED,
+                );
+                (Some((lower, upper, serde_json::to_string(&slot).unwrap_or_default())), None)
+            }
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        }
+    }
 }
 
 /// A consumed artifact: the model, the stored record and the replayed values.
@@ -823,7 +962,7 @@ impl PreparedMeasurementHandle {
             "evidence": identities.evidence.to_hex(),
             "model": identities.model.to_hex(),
             "operation": self.inner.operation().as_str(),
-            "provider_trust": self.inner.provider_trust().map(antecedent_contract::measurement::LatentPosteriorTrust::as_str),
+            "provider_trust": self.inner.provider_trust().map(antecedent::contract::measurement::LatentPosteriorTrust::as_str),
         })
         .to_string()
     }
@@ -833,7 +972,7 @@ impl PreparedMeasurementHandle {
         route_card_json(&self.inner).to_string()
     }
 
-    /// The refusal of `operation` for this binding, or `None` when licensed.
+    /// The refusal of `operation` for this binding, or `None` when supported.
     fn check_operation(&self, operation: &str) -> PyResult<Option<String>> {
         let operation = operation_from_name(operation)?;
         Ok(self.inner.check_operation(operation).err().map(|r| refusal_json(&r)))
@@ -862,6 +1001,33 @@ impl PreparedMeasurementHandle {
         Ok(match outcome {
             Ok(estimate) => (Some(MeasurementEstimateHandle { inner: estimate }), None),
             Err(refusal) => (None, Some(refusal_json(&refusal))),
+        })
+    }
+
+    /// Correct one coefficient for continuous classical measurement error
+    /// (regression calibration or SIMEX, linear or logistic outcome model).
+    /// Returns the result as JSON or the structured refusal.
+    #[pyo3(signature = (input_json, *, cancel=None))]
+    fn estimate_continuous(
+        &self,
+        py: Python<'_>,
+        input_json: &str,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<(Option<String>, Option<ContinuousMeasurementEstimateHandle>, Option<String>)>
+    {
+        let input = parse_continuous_input(&parse(input_json, "continuous measurement data")?)?;
+        let inner = self.inner.clone();
+        let outcome = crate::detach_catch(py, move || {
+            let ctx = execution_context(0, None, cancel);
+            Ok(inner.estimate_continuous(input, &ctx))
+        })?;
+        Ok(match outcome {
+            Ok(estimate) => (
+                Some(continuous_json(&estimate).to_string()),
+                Some(ContinuousMeasurementEstimateHandle { inner: estimate }),
+                None,
+            ),
+            Err(refusal) => (None, None, Some(refusal_json(&refusal))),
         })
     }
 
@@ -917,11 +1083,18 @@ impl MeasurementEstimateHandle {
         detail_json(&self.inner).to_string()
     }
 
-    /// Always the typed refusal: no coverage record measures the method.
-    fn interval(&self) -> String {
-        match self.inner.interval() {
-            Err(refusal) => refusal_json(&refusal),
-            Ok(never) => match never {},
+    /// The equal-tailed Wald interval of the corrected functional at `level` with its
+    /// calibration slot as JSON (no coverage record measures the method, so the slot is
+    /// `not_measured`), or the route's refusal.
+    fn interval(&self, level: f64) -> (Option<(f64, f64, String)>, Option<String>) {
+        match self.inner.interval(level) {
+            Ok((lower, upper)) => {
+                let slot = antecedent::io::contract_section::CalibrationSlotWire::not_measured(
+                    antecedent::io::calibration::CONSTRUCTION_NOT_MEASURED,
+                );
+                (Some((lower, upper, serde_json::to_string(&slot).unwrap_or_default())), None)
+            }
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
         }
     }
 
@@ -970,7 +1143,7 @@ impl ConsumedMeasurementHandle {
 
     /// Whether the stored result was computed from data with this identity.
     fn covers_data_identity(&self, identity_hex: &str) -> PyResult<bool> {
-        let digest = antecedent_contract::evidence_ledger::parse_digest_hex(identity_hex)
+        let digest = antecedent::contract::evidence_ledger::parse_digest_hex(identity_hex)
             .ok_or_else(|| crate::value_err("a data identity is 64 hexadecimal characters"))?;
         Ok(self.inner.covers_data_identity(&digest))
     }
@@ -1035,13 +1208,21 @@ fn measurement_model_prepare(
 /// identity the consumer retained.
 #[pyfunction]
 fn measurement_model_consume(
+    py: Python<'_>,
     artifact: &[u8],
     expected_model_identity: &str,
-) -> (Option<ConsumedMeasurementHandle>, Option<String>) {
-    match consume_measurement_model_artifact(artifact, expected_model_identity) {
+) -> PyResult<(Option<ConsumedMeasurementHandle>, Option<String>)> {
+    crate::bridge::check_declared_len(
+        artifact.len(),
+        crate::bridge::MAX_SEALED_ARTIFACT_BYTES,
+        "measurement model artifact",
+    )?;
+    let outcome =
+        py.detach(|| consume_measurement_model_artifact(artifact, expected_model_identity));
+    Ok(match outcome {
         Ok(inner) => (Some(ConsumedMeasurementHandle { inner }), None),
         Err(refusal) => (None, Some(refusal_json(&refusal))),
-    }
+    })
 }
 
 /// The identities of a model declaration without preparing anything.
@@ -1229,6 +1410,7 @@ fn measurement_model_transport_verify(
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PreparedMeasurementHandle>()?;
     module.add_class::<MeasurementEstimateHandle>()?;
+    module.add_class::<ContinuousMeasurementEstimateHandle>()?;
     module.add_class::<ConsumedMeasurementHandle>()?;
     module.add_function(wrap_pyfunction!(measurement_model_prepare, module)?)?;
     module.add_function(wrap_pyfunction!(measurement_model_consume, module)?)?;
@@ -1236,4 +1418,23 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(measurement_model_transport, module)?)?;
     module.add_function(wrap_pyfunction!(measurement_model_transport_verify, module)?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod compact_refusal_caller_tests {
+    use super::{MeasurementModelRefusal, refusal_json};
+
+    #[test]
+    fn measurement_remedy_none_and_empty_remain_distinct() {
+        for remedy in [None, Some(String::new()), Some("retry\nnow".to_owned())] {
+            let value = MeasurementModelRefusal {
+                code: "invalid_argument",
+                detail: "measurement_model.example".into(),
+                message: "invalid input".into(),
+                remedy: remedy.clone(),
+            };
+            let expected = serde_json::json!({"code":"invalid_argument", "stage":"measurement_model", "detail":"measurement_model.example", "message":"invalid input", "offending":null, "remedy":remedy}).to_string();
+            assert_eq!(refusal_json(&value), expected);
+        }
+    }
 }

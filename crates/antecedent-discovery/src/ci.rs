@@ -5,7 +5,7 @@
 //! Concrete test constructors live in `antecedent-stats` (use
 //! [`ci_from_name`] or import the type from that crate).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_stats::{StatsError, ensure_alpha_resolvable};
@@ -47,6 +47,112 @@ pub(crate) fn run_ci_batch(
         ci.test_batch(prepared, &sub, &mut CiWorkspace::default(), inner).map(|out| out.results)
     })?;
     Ok(chunks.into_iter().flatten().collect())
+}
+
+/// The statistic and p-value of `result`, refused when either is not finite.
+///
+/// # Errors
+///
+/// [`DiscoveryError::Stats`] for a non-finite statistic or p-value: a NaN must not pass as
+/// evidence either way.
+pub(crate) fn finite_outcome(result: &CiResult) -> Result<(f64, f64), DiscoveryError> {
+    if result.statistic.is_finite() && result.p_value.is_finite() {
+        Ok((result.statistic, result.p_value))
+    } else {
+        Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"))
+    }
+}
+
+/// Whether `error` says the CI test has no answer for this query (a constant variable or a
+/// collinear conditioning set), as opposed to the run being broken.
+///
+/// An unanswerable query carries no information about independence, so constraint-based
+/// search must neither delete the edge on it nor count it as a rejection.
+#[must_use]
+pub(crate) fn is_untestable(error: &DiscoveryError) -> bool {
+    matches!(
+        error,
+        DiscoveryError::Stats(StatsError::Unsupported { message })
+            if message.starts_with(UNDEFINED_PARTIAL_CORRELATION)
+    )
+}
+
+/// Leading words of the statistics crate's refusal of an undefined partial correlation.
+const UNDEFINED_PARTIAL_CORRELATION: &str = "partial correlation is undefined";
+
+/// One single-query CI batch, its only result checked for finiteness.
+///
+/// # Errors
+///
+/// A CI failure (including [`is_untestable`] queries), an empty result, or a non-finite
+/// statistic or p-value.
+pub(crate) fn single_finite(
+    ci: &(dyn ConditionalIndependence + Sync),
+    prepared: &PreparedCiTest,
+    request: &CiBatchRequest<'_>,
+    workspace: &mut CiWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<(f64, f64), DiscoveryError> {
+    let results =
+        run_ci_batch(ci, prepared, request, workspace, ctx).map_err(DiscoveryError::from)?;
+    let result =
+        results.first().ok_or_else(|| DiscoveryError::stats_msg("CI batch returned no results"))?;
+    finite_outcome(result)
+}
+
+/// [`single_finite`] where a query the test cannot answer ([`is_untestable`]) is `Ok(None)`.
+///
+/// # Errors
+///
+/// Every failure of [`single_finite`] other than an untestable query.
+pub(crate) fn single_finite_or_untestable(
+    ci: &(dyn ConditionalIndependence + Sync),
+    prepared: &PreparedCiTest,
+    request: &CiBatchRequest<'_>,
+    workspace: &mut CiWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<Option<(f64, f64)>, DiscoveryError> {
+    match single_finite(ci, prepared, request, workspace, ctx) {
+        Ok(outcome) => Ok(Some(outcome)),
+        Err(error) if is_untestable(&error) => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+/// [`run_ci_batch`] where a query the test cannot answer ([`is_untestable`]) is `None`.
+///
+/// One unanswerable query fails its whole batch, so on that failure each query is run by
+/// itself and only the unanswerable ones are `None`. The results are what the batch would
+/// have returned, because a query's result never depends on its batch.
+///
+/// # Errors
+///
+/// Every failure other than an untestable query, or a non-finite statistic or p-value.
+pub(crate) fn run_ci_batch_or_untestable(
+    ci: &(dyn ConditionalIndependence + Sync),
+    prepared: &PreparedCiTest,
+    request: &CiBatchRequest<'_>,
+    workspace: &mut CiWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<Vec<Option<(f64, f64)>>, DiscoveryError> {
+    match run_ci_batch(ci, prepared, request, workspace, ctx) {
+        Ok(results) => results.iter().map(|result| finite_outcome(result).map(Some)).collect(),
+        Err(error) => {
+            let error = DiscoveryError::from(error);
+            if !is_untestable(&error) {
+                return Err(error);
+            }
+            (0..request.queries.len())
+                .map(|index| {
+                    let one = CiBatchRequest {
+                        queries: &request.queries[index..=index],
+                        ..request.clone()
+                    };
+                    single_finite_or_untestable(ci, prepared, &one, workspace, ctx)
+                })
+                .collect()
+        }
+    }
 }
 
 /// Sizes of the successive chunks of a scan that stops at its first hit.
@@ -97,10 +203,11 @@ impl ChunkSchedule {
 pub(crate) fn ensure_ci_decisions_meaningful(
     ci: &dyn ConditionalIndependence,
     significance: SignificanceMethod,
+    rows: usize,
     alpha: f64,
     fdr_requested: bool,
 ) -> Result<(), DiscoveryError> {
-    ensure_alpha_resolvable(ci.min_attainable_p(significance), alpha)?;
+    ensure_alpha_resolvable(ci.min_resolvable_p(significance, rows), alpha)?;
     if fdr_requested && !ci.p_value_is_frequentist() {
         return Err(DiscoveryError::unsupported(
             "FDR adjustment requires frequentist p-values; this CI test reports a posterior \
@@ -122,10 +229,11 @@ pub(crate) fn ensure_ci_decisions_meaningful(
 pub(crate) fn fdr_resolution_diagnostic(
     ci: &dyn ConditionalIndependence,
     significance: SignificanceMethod,
+    rows: usize,
     alpha: f64,
     family_size: usize,
 ) -> Option<crate::result::DiscoveryDiagnostic> {
-    let floor = ci.min_attainable_p(significance);
+    let floor = ci.min_resolvable_p(significance, rows);
     if family_size < 2 || floor <= alpha / family_size as f64 || !floor.is_finite() {
         return None;
     }
@@ -137,7 +245,8 @@ pub(crate) fn fdr_resolution_diagnostic(
             "multiple-testing correction over {family_size} hypotheses keeps a lone link only at \
              p <= {:.3e}, below this CI test's smallest attainable p-value {floor:.3e}; at least \
              {needed} links must reach that floor together for any to survive. Use at least \
-             {replicates} permutation replicates or disable the correction",
+             {replicates} permutation replicates and enough distinct block arrangements \
+             (smaller blocks or more aligned rows), or disable the correction",
             alpha / family_size as f64
         )),
     })
@@ -272,16 +381,57 @@ mod tests {
     }
 
     #[test]
+    fn block_arrangements_limit_decisions_and_fdr_resolution() {
+        let significance = SignificanceMethod::BlockShuffle { replicates: 999, block_size: 50 };
+        assert!(
+            ensure_ci_decisions_meaningful(&PartialCorrelation, significance, 100, 0.05, false)
+                .is_err()
+        );
+        assert!(
+            ensure_ci_decisions_meaningful(&PartialCorrelation, significance, 1000, 0.05, false)
+                .is_ok()
+        );
+        let diagnostic =
+            fdr_resolution_diagnostic(&PartialCorrelation, significance, 100, 0.05, 2).unwrap();
+        assert!(diagnostic.message.contains("5.000e-1"), "{}", diagnostic.message);
+        assert!(diagnostic.message.contains("distinct block arrangements"));
+    }
+
+    #[test]
     fn posterior_probability_tests_are_refused_under_fdr_but_not_without_it() {
         let significance = SignificanceMethod::Analytic;
         for ci in
             [&BayesFactorCi::new() as &dyn ConditionalIndependence, &PosteriorDependenceCi::new()]
         {
-            assert!(ensure_ci_decisions_meaningful(ci, significance, 0.05, true).is_err());
-            assert!(ensure_ci_decisions_meaningful(ci, significance, 0.05, false).is_ok());
+            assert!(ensure_ci_decisions_meaningful(ci, significance, 100, 0.05, true).is_err());
+            assert!(ensure_ci_decisions_meaningful(ci, significance, 100, 0.05, false).is_ok());
         }
         assert!(
-            ensure_ci_decisions_meaningful(&PartialCorrelation, significance, 0.05, true).is_ok()
+            ensure_ci_decisions_meaningful(&PartialCorrelation, significance, 100, 0.05, true)
+                .is_ok()
         );
+    }
+
+    #[test]
+    fn undefined_partial_correlation_is_untestable_not_independent() {
+        let n = 60usize;
+        let constant = vec![1.5; n];
+        let y: Vec<f64> = (0..n).map(|i| (i as f64 * 0.31).sin()).collect();
+        let z: Vec<f64> = (0..n).map(|i| (i as f64 * 0.17).cos()).collect();
+        let columns: [&[f64]; 3] = [&constant, &y, &z];
+        let ctx = ExecutionContext::for_tests(5);
+        let ci = PartialCorrelation;
+        let plan = CiPreparationPlan {
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
+        };
+        let prepared = ci.prepare(&columns, &plan, &ctx).unwrap();
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let z_flat = [2usize];
+        let request = ci_batch_request(&columns, &queries, &z_flat, SignificanceMethod::Analytic);
+        let mut workspace = CiWorkspace::default();
+        let outcome =
+            single_finite_or_untestable(&ci, &prepared, &request, &mut workspace, &ctx).unwrap();
+        assert!(outcome.is_none(), "a constant variable has no partial correlation: {outcome:?}");
     }
 }

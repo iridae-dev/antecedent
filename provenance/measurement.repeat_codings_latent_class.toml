@@ -1,0 +1,30 @@
+feature_id = "measurement.repeat_codings_latent_class"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Maximum Likelihood Estimation of Observer Error-Rates Using the EM Algorithm", doi = "10.2307/2346806", sections = ["EM for per-coder response laws and latent true levels"] },
+ { title = "Estimating the Error Rates of Diagnostic Tests", doi = "10.2307/2530508", sections = ["Two-test binary latent-class model and the constraints under which it is identified"] },
+ { title = "Three-way arrays: rank and uniqueness of trilinear decompositions, with application to arithmetic complexity and statistics", doi = "10.1016/0024-3795(77)90069-6", sections = ["Uniqueness of trilinear decompositions; the k-rank condition for identifiability of the latent-class model"] },
+ { title = "Exploratory latent structure analysis using both identifiable and unidentifiable models", doi = "10.1093/biomet/61.2.215", sections = ["Latent-class model with conditionally independent indicators; identifiability"] },
+ { title = "Maximum Likelihood from Incomplete Data Via the EM Algorithm", doi = "10.1111/j.2517-6161.1977.tb01600.x", sections = ["EM algorithm"] },
+]
+
+implementation_deviations = [
+ "Conditional independence of codings given the latent level is assumed and not tested.",
+ "Identification is checked by Kruskal's sufficient k-rank condition over a split of the codings; designs that are identified but fail that sufficient condition are refused, except two exchangeable codings of a binary facet with a declared lowest-class law (a Hui-Walter style constraint).",
+ "The fit is EM from several starts; the covariance is the inverse outer product of per-unit scores in a softmax parametrization carried by the delta method, reported only when invertible. This is not the observed-information matrix.",
+ "Classes are ordered by expected coding score to remove label switching; nearly equal class-conditional laws are refused.",
+ "Coverage and robustness to dependence between codings are not inherited.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-stats/src/measurement_error/exposure_tests.rs (three_binary_codings_recover_the_planted_latent_class_model, two_codings_identify_only_under_declared_constraints, ordinal_codings_recover_a_three_level_facet)",
+ "crates/antecedent-estimate/tests/measurement_exposure_reference.rs (latent_class_fit_matches_the_multiprecision_maximum_likelihood_oracle, repeat_codings_that_cannot_identify_the_latent_classes_refuse_with_the_registered_code)",
+ "python/tests/test_measurement_exposure.py (test_three_binary_codings_recover_the_planted_latent_class_model)",
+]

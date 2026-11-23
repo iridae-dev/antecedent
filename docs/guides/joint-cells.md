@@ -1,14 +1,8 @@
-# Joint cells and derived treatments
+# Estimate joint binary interventions on cross-sectional data
 
-A *joint cell* is the joint intervention `do(T_1 = a_1, .., T_k = a_k)` on up to {{bound:estimate.factorized_joint_cells.max_components}}
-binary components. This guide covers the two pieces added for it: an explicit
-**derived-treatment declaration** (`antecedent.derived.DerivedTreatment`, Rust
-`DerivedTreatmentDeclaration`) and a **factorized-propensity AIPW** over the cells
-(`factorized_joint_cells`, Rust `fit_factorized_joint_cells`). The claim is `point_only`.
-The record is `estimate.factorized_joint_cells` in `parity/promotion.toml`; no
-calibration is run for it.
+Estimate the outcome under each joint setting of several binary treatments, such as `do(T_1 = a_1, .., T_k = a_k)` for up to {{bound:estimate.factorized_joint_cells.max_components}} components, and contrast the settings (for example the interaction of two treatments). You declare how a derived treatment is built from its source columns (`antecedent.derived.DerivedTreatment`, Rust `DerivedTreatmentDeclaration`), and a factorized-propensity doubly robust estimator evaluates the cells (`factorized_joint_cells`, Rust `fit_factorized_joint_cells`). The claim is `point_only`: you get point estimates for the cells and contrasts, with no interval. For coordinated programs over time, see [fit and compare coordinated intervention programs](joint-intervention-responses.md).
 
-One fit accepts at most {{bound:estimate.factorized_joint_cells.max_folds}} cross-fitting folds and at most {{bound:estimate.factorized_joint_cells.max_orderings}} orderings.
+The route limits bound what is admitted and do not imply measured coverage for every admitted configuration. The fit requires at least {{bound:estimate.factorized_joint_cells.runtime_min_folds}} folds; its fold plan separately limits folds by the row count and its {{bound:estimate.factorized_joint_cells.runtime_fold_index_capacity}}-value index representation. It accepts at most {{bound:estimate.factorized_joint_cells.max_orderings}} orderings.
 
 ```python
 from antecedent.derived import DerivedTreatment, SourceColumn, factorized_joint_cells
@@ -29,6 +23,8 @@ result = factorized_joint_cells(
 for cell in result.cells:           # one entry per cell; an unsupported cell says why
     print(cell.levels, cell.status, cell.estimate)
 ```
+
+Each cell estimate is the mean potential outcome `mu_c = E[Y(do(T = c))]` over the rows, where `c` is a cell code (here bit 0 is `a` and bit 1 is `b`, so cell 3 is `a = 1, b = 1`), identified by adjustment for the declared set `Z` (here `age`). The identifying premises are yours: `Z` blocks every back-door path from the components to `Y`, and every cell has positive probability given `Z`. `cell_minus_control:3` is `mu_3 - mu_0`, and `interaction` is `mu_3 - mu_1 - mu_2 + mu_0`, the change in the effect of `a` when `b` is set to 1. `result.contrasts` holds the contrasts, `result.sensitivity` the [ordering sensitivity](#checks) and `result.claim` is `"point_only"`. A cell that cannot be estimated keeps a `refusal` naming why ([per-cell support](#read-per-cell-support-and-refusals)).
 
 ## The derived-treatment declaration
 
@@ -67,11 +63,11 @@ meaning of an intervention, and any exclusions:
 | A numerically rank-deficient adjustment design | `joint_cells.derived_rank_deficient` (`design_rank_deficient`) |
 
 The duplicate, tracking and rank findings are read from the preflight machinery
-(`preflight_design`, see `preflight-diagnostics.md`). That machinery *detects*; it is never
+(`preflight_design`, see [preflight diagnostics](preflight-diagnostics.md)). That machinery *detects*; it is never
 used to choose a column to drop. Fixing a dependency is a declaration: name the column as a
 source and exclude it under a causal rule, or remove it yourself.
 
-## The factorized propensity
+## Estimate the cells with a factorized propensity
 
 For an ordering `o` of the components, the cell propensity is the chain-rule product
 
@@ -105,7 +101,7 @@ learner, with its default hyperparameters. It runs under its own cross-fitting c
 - **Out of fold only.** The same seeded, cell-stratified unit fold plan is used. A learner is
   fit on a fold's training rows (restricted to the prefix stratum for a conditional, to the cell
   for an outcome model) and predicts only that fold's rows, so no row trains and predicts the
-  same fold. A recording learner in the unit tests checks this model by model.
+  same fold.
 - **No silent fallback.** A fit that fails, or a probability outside `[0, 1]`, makes the factor
   unsupported and refuses the cells that need it (`joint_cells.conditional_unsupported` or
   `joint_cells.outcome_model_unsupported`, naming the fold and the learner's error); the other
@@ -119,17 +115,17 @@ learner, with its default hyperparameters. It runs under its own cross-fitting c
   `fold_seed=` (the config seed of the fold plan) and `ctx_seed=` (the execution context seed
   the learners draw from). The same declaration, seeds and data replay bit-identically.
 - **Point only.** The result keeps the aligned `ScoreTable` and the family contrasts, but no
-  interval or covariance: a flexible nuisance needs its own remainder-rate and coverage license
-  and none is granted. A requested interval refuses `ml_nuisance_not_licensed`
-  (`joint_cells.ml_interval_withheld`).
+  interval or covariance: a flexible nuisance needs its own remainder-rate and coverage support,
+  and no record grants one. A requested interval refuses `ml_nuisance_not_supported`
+  (`joint_cells.no_ml_interval_method`).
 
 Other machine-learning names (`ml`, `neural_network`, `gradient_boosting`, ...) are not declared
-learners and refuse `ml_nuisance_not_licensed` (`joint_cells.ml_learner_not_declared`). The
+learners and refuse `ml_nuisance_not_supported` (`joint_cells.ml_learner_not_declared`). The
 default ridge route is unchanged by the option. The tests recover a known effect with OLS and
 logistic learners and, in a build with the forest provider, a random forest; no coverage or
 calibration of the learner route is claimed.
 
-## Per-cell support and refusals
+## Read per-cell support and refusals
 
 A cell is evaluated or refused individually, with the others kept
 (`joint_cell_unsupported`, or `arm_not_populated` for an empty cell). Under the declared
@@ -173,7 +169,7 @@ not supported is withheld with `joint_cell_unsupported` rather than computed on 
   intercept); it does not show the ridge conditionals fit a law with covariates, which the
   known-law recovery tests assess, and no comparison to the multinomial route is claimed.
 
-## The score table and what is closed
+## Contrasts and why there is no interval
 
 The declared ordering's scores for the supported cells are retained in an aligned
 `ScoreTable` (Rust `FactorizedJointFit::scores`) so a family contrast
@@ -181,13 +177,12 @@ The declared ordering's scores for the supported cells are retained in an aligne
 supported) has per-row scores. Point contrasts are the difference of the cell means. The
 table's provenance carries the ridge tag (or the learner marker, see above), so the
 established rule applies: **no interval or joint covariance is published** for a penalized
-propensity (see `penalized-aipw.md`) or a learner-supplied nuisance. A requested interval
-refuses `penalized_interval_not_licensed` (`joint_cells.interval_withheld`) on the ridge route
-and `ml_nuisance_not_licensed` (`joint_cells.ml_interval_withheld`) with a declared learner. No
-calibration record exists for this route.
+propensity (see [penalized AIPW](penalized-aipw.md)) or a learner-supplied nuisance. A requested interval
+refuses `penalized_interval_not_supported` (`joint_cells.no_interval_method`) on the ridge route
+and `ml_nuisance_not_supported` (`joint_cells.no_ml_interval_method`) with a declared learner. Calibration status stays `not_measured`.
 
-Lasso is closed (`selection_inference_not_licensed`); a machine-learning name that is not a
-declared learner refuses `ml_nuisance_not_licensed`; an unknown provider name is an invalid
+Lasso is closed (`selection_inference_not_supported`); a machine-learning name that is not a
+declared learner refuses `ml_nuisance_not_supported`; an unknown provider name is an invalid
 argument.
 
 ## Limits
@@ -203,6 +198,24 @@ Cancellation is observed once per cell, once per prefix-stratum conditional, onc
 a ridge conditional and once per cell and fold of a declared learner's outcome models. A
 cancelled fit is `cancelled_no_claim` (`joint_cells.cancelled`) with no fit and no score table.
 `estimate_joint_cell_cost` states the planned conditional and outcome fits from the same
-declaration (see the cost section of the preflight guide).
+declaration (see the cost section of [preflight diagnostics](preflight-diagnostics.md)).
 
 Implementation limits are listed in [supported input bounds](../supported-bounds.md).
+
+## Why a joint-cell family has no interval or joint covariance
+
+A refusal here is scientific, not a calibration gap. The conditional propensities of the
+factorized joint cells are ridge-penalized (`penalized_interval_not_supported`): a penalized
+nuisance carries shrinkage bias of order `lambda / n` per cell that the estimator neither
+estimates nor shows negligible, so the plug-in score variance is not the variance of the
+estimator around its target. Learner-supplied cells (`ml_nuisance_not_supported`) carry an
+arbitrary learner's remainder, whose convergence rate cannot be checked from the cells; a
+cross-fitted interval is valid only under a verified product-rate condition. No construction
+of the interval or covariance is valid without those conditions, so the point estimates and the
+aligned score table are the whole result. Calibration plays no part in this refusal.
+
+## Related
+
+- [Fit and compare coordinated intervention programs](joint-intervention-responses.md)
+- [Joint distributions](../joint-distributions.md)
+- [Refusal codes](../reference/refusal-codes.md#other-registered-refusal-codes): `derived_treatment_invalid`, `joint_cell_unsupported`, `arm_not_populated`, `penalized_interval_not_supported` and `ml_nuisance_not_supported`

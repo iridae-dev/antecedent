@@ -3,7 +3,7 @@
 //! Hot path: one [`LaggedFrame`] per run; CI tests index columns and reuse
 //! workspace scratch (no per-test sample-plan rebuild).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -13,7 +13,7 @@
     )
 )]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
@@ -32,9 +32,6 @@ use crate::result::{
     LaggedLink, PcSepsets, ScoredLink, discovery_assumptions,
 };
 
-/// A tested link and its conditioning set.
-type CiKey = (LaggedLink, Vec<(VariableId, Lag)>);
-
 /// The lagged frame and the link a scan of conditioning sets tests on it.
 #[derive(Clone, Copy)]
 pub(crate) struct CiProbe<'a> {
@@ -48,9 +45,43 @@ pub(crate) struct CiProbe<'a> {
 /// is answered from here instead of being run again.
 #[derive(Debug, Default)]
 pub(crate) struct CiMemo {
-    outcomes: HashMap<CiKey, (f64, f64)>,
+    outcomes: HashMap<LaggedLink, CiMemoOutcomes>,
     /// Tests actually run (memo misses).
     pub computed: u64,
+}
+
+type CiMemoOutcomes = HashMap<Box<[(VariableId, Lag)]>, Option<(f64, f64)>>;
+
+/// `cond` in the canonical order the memo is keyed by: a conditioning set is a set, so the order
+/// a caller lists it in must not decide whether the test has been run.
+fn canonical_cond(cond: &[(VariableId, Lag)]) -> std::borrow::Cow<'_, [(VariableId, Lag)]> {
+    let key = |&(v, l): &(VariableId, Lag)| (v.raw(), l.raw());
+    if cond.windows(2).all(|w| key(&w[0]) <= key(&w[1])) {
+        return std::borrow::Cow::Borrowed(cond);
+    }
+    let mut sorted = cond.to_vec();
+    sorted.sort_unstable_by_key(key);
+    std::borrow::Cow::Owned(sorted)
+}
+
+impl CiMemo {
+    /// The remembered outcome of a test; `Some(None)` is a remembered untestable query.
+    #[allow(
+        clippy::option_option,
+        reason = "outer None is a cache miss; inner None is an untestable query"
+    )]
+    fn get(&self, link: LaggedLink, canonical: &[(VariableId, Lag)]) -> Option<Option<(f64, f64)>> {
+        self.outcomes.get(&link)?.get(canonical).copied()
+    }
+
+    fn insert(
+        &mut self,
+        link: LaggedLink,
+        canonical: &[(VariableId, Lag)],
+        outcome: Option<(f64, f64)>,
+    ) {
+        self.outcomes.entry(link).or_default().insert(canonical.into(), outcome);
+    }
 }
 
 /// Live bytes of one partial-correlation CI query on `n_rows` rows with `z_len`
@@ -66,7 +97,7 @@ fn ci_query_bytes(n_rows: usize, z_len: usize) -> u64 {
 /// memory limit; unbounded when no limit is set. The kernel allocates its workspace from the
 /// query, so memory is the only ceiling on the conditioning-set size.
 pub(crate) fn ci_conditioning_capacity(frame: &LaggedFrame, ctx: &ExecutionContext) -> usize {
-    let Some(hard) = ctx.memory.hard_limit_bytes else {
+    let Some(hard) = ctx.memory_limit_bytes() else {
         return usize::MAX;
     };
     let n_rows = frame_rows(frame);
@@ -89,7 +120,7 @@ fn ensure_ci_query_fits(
     z_len: usize,
     ctx: &ExecutionContext,
 ) -> Result<(), DiscoveryError> {
-    match ctx.memory.hard_limit_bytes {
+    match ctx.memory_limit_bytes() {
         Some(hard) if ci_query_bytes(n_rows, z_len) > hard => {
             Err(DiscoveryError::Resource(format!(
                 "a CI query with {z_len} conditioning columns on {n_rows} rows needs {} bytes, \
@@ -152,6 +183,8 @@ pub struct DiscoveryWorkspace {
     pub col_idxs: Vec<usize>,
     /// Flat conditioning indexes into the active CI column list (`2..`).
     pub z_flat: Vec<usize>,
+    /// Query scratch of a batched static scan, reused across its chunks.
+    pub queries: Vec<CiQuery>,
     /// Scratch “others” list while iterating PC candidates.
     pub others: Vec<(VariableId, Lag)>,
     /// Scratch removal list for one conditioning-size pass.
@@ -172,6 +205,36 @@ pub struct DiscoveryWorkspace {
     /// against the next in [`crate::rpcmci::Rpcmci::run`]), and a mask cached for a larger frame
     /// would otherwise be replayed against a smaller one and read past its rows.
     pub keep_cache: HashMap<(usize, Vec<usize>), Arc<[bool]>>,
+    /// Allocation of the per-frame column pointer table, reused across unmasked CI tests.
+    column_views: ColumnViewScratch,
+}
+
+/// Recycled allocation for the `&[f64]` table of a frame's columns.
+///
+/// The table borrows the frame, so a `Vec<&[f64]>` cannot be stored in the workspace under the
+/// borrow's lifetime. The buffer is kept empty with a `'static` lifetime instead: [`Self::lend`]
+/// refills it under the frame's lifetime and [`Self::recover`] empties it again. An empty vector
+/// holds no reference, so no borrow outlives the frame.
+#[derive(Clone, Debug, Default)]
+struct ColumnViewScratch {
+    buffer: Vec<&'static [f64]>,
+}
+
+impl ColumnViewScratch {
+    /// Every column of `frame`, in column order.
+    fn lend<'a>(&mut self, frame: &'a LaggedFrame) -> Vec<&'a [f64]> {
+        let mut views: Vec<&'a [f64]> = std::mem::take(&mut self.buffer);
+        views.clear();
+        views.extend((0..frame.ncols()).map(|i| frame.column(i)));
+        views
+    }
+
+    /// Take the allocation back from a table that is no longer in use.
+    fn recover(&mut self, mut views: Vec<&[f64]>) {
+        views.clear();
+        // The vector is empty, so the closure never runs; the collect reuses the allocation.
+        self.buffer = views.into_iter().map(|_| -> &'static [f64] { &[] }).collect();
+    }
 }
 
 /// Shared PCMCI engine core.
@@ -254,6 +317,7 @@ impl PcmciEngine {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<(Vec<(VariableId, Lag)>, u64), DiscoveryError> {
+        self.constraints.validate_temporal_ci_options()?;
         let mut parents = self.constraints.candidate_sources(variables, target);
         parents.retain(|&(src, slag)| {
             let link = LaggedLink {
@@ -313,22 +377,25 @@ impl PcmciEngine {
                     };
                     let result = self.ci_statistic(frame, link, &combo, workspace, ctx);
                     let outcome = match result {
-                        Ok(pair) => pair,
+                        Ok(outcome) => outcome,
                         Err(e) => {
                             workspace.combo = combo;
                             return Err(e);
                         }
                     };
                     ci_tests += 1;
-                    record_pc_parent_outcome(
-                        link,
-                        outcome,
-                        &combo,
-                        compiled,
-                        self.constraints.alpha,
-                        &mut min_stat[pi],
-                        workspace,
-                    );
+                    // An untestable parent keeps its place: missing information never removes it.
+                    if let Some(outcome) = outcome {
+                        record_pc_parent_outcome(
+                            link,
+                            outcome,
+                            &combo,
+                            compiled,
+                            self.constraints.alpha,
+                            &mut min_stat[pi],
+                            workspace,
+                        );
+                    }
                     workspace.combo = combo;
                 }
             }
@@ -414,15 +481,21 @@ impl PcmciEngine {
             .prepared_ci
             .as_ref()
             .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
-        let results = crate::ci::run_ci_batch(&*self.ci, prepared, &req, &mut workspace.ci, ctx)
-            .map_err(DiscoveryError::from)?;
+        let results = crate::ci::run_ci_batch_or_untestable(
+            &*self.ci,
+            prepared,
+            &req,
+            &mut workspace.ci,
+            ctx,
+        )?;
         if results.len() != parents.len() {
             return Err(DiscoveryError::stats_msg("CI batch result length mismatch"));
         }
         for (pi, (result, combo)) in results.into_iter().zip(combos).enumerate() {
-            if !result.statistic.is_finite() || !result.p_value.is_finite() {
-                return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
-            }
+            // An untestable parent keeps its place: missing information never removes it.
+            let Some((statistic, p_value)) = result else {
+                continue;
+            };
             let (src, slag) = parents[pi];
             let link = LaggedLink {
                 source: src,
@@ -432,7 +505,7 @@ impl PcmciEngine {
             };
             record_pc_parent_outcome(
                 link,
-                (result.statistic, result.p_value),
+                (statistic, p_value),
                 &combo,
                 search.compiled,
                 self.constraints.alpha,
@@ -464,6 +537,7 @@ impl PcmciEngine {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<(ScoredLink, u64), DiscoveryError> {
+        self.constraints.validate_temporal_ci_options()?;
         let capacity = ci_conditioning_capacity(frame, ctx);
         let truncated =
             mci_conditioning(link, parents_target, parents_source, capacity, &mut workspace.others);
@@ -471,8 +545,13 @@ impl PcmciEngine {
         let cond = std::mem::take(&mut workspace.others);
         let result = self.ci_statistic(frame, link, &cond, workspace, ctx);
         workspace.others = cond;
-        let (stat, p) = result?;
-        Ok((ScoredLink { link, statistic: stat, p_value: p, adjusted_p_value: None }, truncated))
+        let scored = match result? {
+            Some((statistic, p_value)) => {
+                ScoredLink { link, statistic, p_value, adjusted_p_value: None }
+            }
+            None => untestable_link(link),
+        };
+        Ok((scored, truncated))
     }
 
     /// Run PC parents for all targets then MCI on the full constrained candidate family.
@@ -496,8 +575,9 @@ impl PcmciEngine {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<DagDiscoveryResult, DiscoveryError> {
+        self.constraints.validate_temporal_ci_options()?;
         let frame =
-            LaggedFrame::from_series(data, variables, self.frame_depth(), &ctx.kernel_policy)
+            LaggedFrame::from_series(data, variables, self.frame_depth()?, &ctx.kernel_policy)
                 .map_err(DiscoveryError::from)?;
         self.run_pc_mci_on_frame(&frame, variables, workspace, ctx)
     }
@@ -517,8 +597,9 @@ impl PcmciEngine {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<DagDiscoveryResult, DiscoveryError> {
+        self.constraints.validate_temporal_ci_options()?;
         let frame =
-            LaggedFrame::from_panel(units, variables, self.frame_depth(), &ctx.kernel_policy)
+            LaggedFrame::from_panel(units, variables, self.frame_depth()?, &ctx.kernel_policy)
                 .map_err(DiscoveryError::from)?;
         self.run_pc_mci_on_frame(&frame, variables, workspace, ctx)
     }
@@ -527,8 +608,14 @@ impl PcmciEngine {
     ///
     /// Aligned with the pinned baseline's default `cut_off='2xtau_max'`: both use a frame
     /// materializing lags up to `2·max_lag` (same effective sample count).
-    pub(crate) fn frame_depth(&self) -> u32 {
-        2 * self.constraints.temporal.max_lag.raw()
+    pub(crate) fn frame_depth(&self) -> Result<u32, DiscoveryError> {
+        self.constraints.validate_temporal_ci_options()?;
+        self.constraints
+            .temporal
+            .max_lag
+            .raw()
+            .checked_mul(2)
+            .ok_or_else(|| DiscoveryError::unsupported("discovery doubled max_lag exceeds u32"))
     }
 
     /// [`Self::run_pc_mci`] on a pre-built lagged frame of depth `Self::frame_depth`.
@@ -543,12 +630,13 @@ impl PcmciEngine {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<DagDiscoveryResult, DiscoveryError> {
-        if let Some(hard) = ctx.memory.hard_limit_bytes {
-            if frame.values_bytes() > hard {
-                return Err(DiscoveryError::Unsupported {
-                    message: "lagged frames exceed ExecutionContext memory hard limit",
-                });
-            }
+        self.constraints.validate_temporal_ci_options()?;
+        if let Some(hard) = ctx.memory_limit_bytes()
+            && frame.values_bytes() > hard
+        {
+            return Err(DiscoveryError::Unsupported {
+                message: "lagged frames exceed ExecutionContext memory hard limit",
+            });
         }
 
         let (ci, column_blocks, search_vars) = resolve_vector_ci(
@@ -561,6 +649,7 @@ impl PcmciEngine {
         crate::ci::ensure_ci_decisions_meaningful(
             &*ci,
             self.constraints.significance,
+            frame.n_effective(),
             self.constraints.alpha,
             false,
         )?;
@@ -570,6 +659,9 @@ impl PcmciEngine {
         let threads = ctx.parallelism.max_threads.get().max(1);
         let compiled = engine.constraints.compile(&search_vars)?;
 
+        // A cached keep mask belongs to the frame it was built from: a reused workspace meets
+        // frames of the same shape whose validity differs, so none outlives its frame.
+        workspace.keep_cache.clear();
         // : prepare CI once for the lagged frame (unmasked fast path).
         if frame.is_fully_valid() {
             let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
@@ -581,7 +673,6 @@ impl PcmciEngine {
             )?);
         } else {
             workspace.prepared_ci = None;
-            workspace.keep_cache.clear();
         }
 
         let (all_parents, iterations, mut ci_tests) =
@@ -637,6 +728,7 @@ impl PcmciEngine {
     ) -> Result<(Vec<TargetParents>, Vec<DiscoveryIteration>, u64), DiscoveryError> {
         if threads <= 1 || variables.len() <= 1 {
             let mut all_parents = Vec::with_capacity(variables.len());
+            // One record per variable, so graph-sized, not data-sized.
             let mut iterations = Vec::with_capacity(variables.len());
             let mut ci_tests = 0u64;
             for &target in variables {
@@ -839,21 +931,23 @@ impl PcmciEngine {
             .prepared_ci
             .as_ref()
             .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
-        let results = crate::ci::run_ci_batch(&*self.ci, prepared, &req, &mut workspace.ci, ctx)
-            .map_err(DiscoveryError::from)?;
+        let results = crate::ci::run_ci_batch_or_untestable(
+            &*self.ci,
+            prepared,
+            &req,
+            &mut workspace.ci,
+            ctx,
+        )?;
         if results.len() != links.len() {
             return Err(DiscoveryError::stats_msg("CI batch result length mismatch"));
         }
         let mut scored = Vec::with_capacity(links.len());
         for (link, result) in links.into_iter().zip(results) {
-            if !result.statistic.is_finite() || !result.p_value.is_finite() {
-                return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
-            }
-            scored.push(ScoredLink {
-                link,
-                statistic: result.statistic,
-                p_value: result.p_value,
-                adjusted_p_value: None,
+            scored.push(match result {
+                Some((statistic, p_value)) => {
+                    ScoredLink { link, statistic, p_value, adjusted_p_value: None }
+                }
+                None => untestable_link(link),
             });
         }
         Ok((scored, truncated))
@@ -958,35 +1052,47 @@ impl PcmciEngine {
                 return Ok(None);
             }
 
-            let mut missing: Vec<&[(VariableId, Lag)]> = Vec::new();
-            for cond in &chunk {
-                let known = memo.outcomes.contains_key(&(link, cond.clone()))
-                    || missing.iter().any(|m| *m == cond.as_slice());
-                if !known {
-                    missing.push(cond);
+            // The sets the memo does not hold, once per canonical set (indexes into `chunk`).
+            let canonical: Vec<_> = chunk.iter().map(|cond| canonical_cond(cond)).collect();
+            let mut seen: HashSet<&[(VariableId, Lag)]> = HashSet::new();
+            let mut missing: Vec<usize> = Vec::new();
+            for (index, key) in canonical.iter().enumerate() {
+                if memo.get(link, key).is_none() && seen.insert(key) {
+                    missing.push(index);
                 }
             }
-            if let Some(results) = self.ci_batch(frame, link, &missing, workspace, ctx) {
-                for (cond, r) in missing.iter().zip(results) {
+            let missing_conds: Vec<&[(VariableId, Lag)]> =
+                missing.iter().map(|&index| chunk[index].as_slice()).collect();
+            if let Some(results) = self.ci_batch(frame, link, &missing_conds, workspace, ctx) {
+                for (&index, r) in missing.iter().zip(results) {
                     // A non-finite outcome is left out so that it errors where it is visited.
                     if r.statistic.is_finite() && r.p_value.is_finite() {
-                        memo.outcomes.insert((link, cond.to_vec()), (r.statistic, r.p_value));
+                        memo.insert(link, &canonical[index], Some((r.statistic, r.p_value)));
                         memo.computed += 1;
                     }
                 }
             }
+            drop(seen);
+            drop(canonical);
 
-            for cond in chunk {
-                let key = (link, cond);
-                let (stat, p) = if let Some(&hit) = memo.outcomes.get(&key) {
+            for entry in &mut chunk {
+                let cond = std::mem::take(entry);
+                let key = canonical_cond(&cond);
+                let outcome = if let Some(hit) = memo.get(link, &key) {
                     hit
                 } else {
-                    let out = self.ci_statistic(frame, link, &key.1, workspace, ctx)?;
-                    memo.outcomes.insert(key.clone(), out);
+                    let out = self.ci_statistic(frame, link, &cond, workspace, ctx)?;
+                    memo.insert(link, &key, out);
                     memo.computed += 1;
                     out
                 };
-                if let std::ops::ControlFlow::Break(b) = visit(key.1, stat, p) {
+                drop(key);
+                // An untestable set carries no information: it is never visited, so it can
+                // neither separate the link nor count against it.
+                let Some((stat, p)) = outcome else {
+                    continue;
+                };
+                if let std::ops::ControlFlow::Break(b) = visit(cond, stat, p) {
                     return Ok(Some(b));
                 }
             }
@@ -997,6 +1103,10 @@ impl PcmciEngine {
     }
 
     /// CI test of `link.source ⊥ link.target | cond` on `frame`.
+    ///
+    /// `Ok(None)` is a query the test cannot answer (a constant variable or a collinear
+    /// conditioning set, see [`crate::ci::is_untestable`]): missing information, which is
+    /// neither independence nor dependence.
     #[allow(
         clippy::too_many_lines,
         reason = "fast unmasked path, then the masked complete-case path; both share the column indexes and workspace"
@@ -1008,7 +1118,7 @@ impl PcmciEngine {
         cond: &[(VariableId, Lag)],
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
-    ) -> Result<(f64, f64), DiscoveryError> {
+    ) -> Result<Option<(f64, f64)>, DiscoveryError> {
         let LaggedLink { source: x, source_lag: x_lag, target: y, target_lag: y_lag } = link;
         ensure_ci_query_fits(frame_rows(frame), cond.len(), ctx)?;
         let xi = frame.column_index(x, x_lag).ok_or_else(|| {
@@ -1026,8 +1136,8 @@ impl PcmciEngine {
         }
 
         if frame.is_fully_valid() {
-            let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
             self.ensure_prepared_ci(frame, workspace, ctx)?;
+            let cols = workspace.column_views.lend(frame);
             let queries = [CiQuery { x: xi, y: yi, z_start: 0, z_len: workspace.z_flat.len() }];
             let req = crate::ci::ci_batch_request(
                 &cols,
@@ -1035,19 +1145,20 @@ impl PcmciEngine {
                 &workspace.z_flat,
                 self.constraints.significance,
             );
-            let prepared = workspace
-                .prepared_ci
-                .as_ref()
-                .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
-            let result = crate::ci::run_ci_batch(&*self.ci, prepared, &req, &mut workspace.ci, ctx)
-                .map_err(DiscoveryError::from)?
-                .into_iter()
-                .next()
-                .ok_or_else(|| DiscoveryError::stats_msg("CI batch returned no results"))?;
-            if !result.statistic.is_finite() || !result.p_value.is_finite() {
-                return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
-            }
-            return Ok((result.statistic, result.p_value));
+            let outcome = match workspace.prepared_ci.as_ref() {
+                Some(prepared) => crate::ci::single_finite_or_untestable(
+                    &*self.ci,
+                    prepared,
+                    &req,
+                    &mut workspace.ci,
+                    ctx,
+                ),
+                None => {
+                    Err(DiscoveryError::Unsupported { message: "CI test used before prepare()" })
+                }
+            };
+            workspace.column_views.recover(cols);
+            return outcome;
         }
 
         // Masked / incomplete series: complete-case over selected (y,x,z) roles per mask_type,
@@ -1061,15 +1172,12 @@ impl PcmciEngine {
             expand_into(&mut workspace.involved_cols, yi, &self.column_blocks);
         }
         if mask_type.includes_z() {
-            let z_copy: Vec<usize> = workspace.z_flat.clone();
-            for &zi in &z_copy {
-                expand_into(&mut workspace.involved_cols, zi, &self.column_blocks);
+            let DiscoveryWorkspace { z_flat, involved_cols, .. } = &mut *workspace;
+            for &zi in z_flat.iter() {
+                expand_into(involved_cols, zi, &self.column_blocks);
             }
         }
-        if workspace.involved_cols.is_empty() {
-            // Degenerate mask_type with no participants: keep all rows.
-            workspace.involved_cols.clear();
-        }
+        // A `mask_type` with no participants leaves `involved_cols` empty: keep all rows.
         workspace.involved_cols.sort_unstable();
         workspace.involved_cols.dedup();
 
@@ -1084,7 +1192,7 @@ impl PcmciEngine {
                 let mask = frame
                     .keep_mask_for_columns(&workspace.involved_cols)
                     .map_err(DiscoveryError::from)?;
-                let arc: Arc<[bool]> = Arc::from(mask);
+                let arc: Arc<[bool]> = Arc::from(mask.to_bools());
                 workspace.keep_cache.insert(key, Arc::clone(&arc));
                 arc
             }
@@ -1095,6 +1203,13 @@ impl PcmciEngine {
                 "insufficient complete-case samples after mask/missingness",
             ));
         }
+        crate::ci::ensure_ci_decisions_meaningful(
+            &*self.ci,
+            self.constraints.significance,
+            n_keep,
+            self.constraints.alpha,
+            false,
+        )?;
 
         // Compact only the columns this query reads — x, y, then Z, with the
         // query remapped onto that dense layout. The historical loop compacted
@@ -1121,32 +1236,16 @@ impl PcmciEngine {
                 }
             }
         }
-        {
-            let cols: Vec<&[f64]> = (0..n_sel)
-                .map(|c| &workspace.compact_values[c * n_keep..(c + 1) * n_keep])
-                .collect();
-            workspace.prepared_ci =
-                Some(crate::ci::prepare_ci(&*self.ci, &cols, self.constraints.significance, ctx)?);
-        }
         let cols: Vec<&[f64]> =
             (0..n_sel).map(|c| &workspace.compact_values[c * n_keep..(c + 1) * n_keep]).collect();
+        // The compacted-shape preparation is local: `workspace.prepared_ci` stays the frame's,
+        // so the next unmasked test does not re-prepare.
+        let prepared = crate::ci::prepare_ci(&*self.ci, &cols, self.constraints.significance, ctx)?;
         let z_remap: Vec<usize> = (2..2 + z_len).collect();
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len }];
         let req =
             crate::ci::ci_batch_request(&cols, &queries, &z_remap, self.constraints.significance);
-        let prepared = workspace
-            .prepared_ci
-            .as_ref()
-            .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
-        let result = crate::ci::run_ci_batch(&*self.ci, prepared, &req, &mut workspace.ci, ctx)
-            .map_err(DiscoveryError::from)?
-            .into_iter()
-            .next()
-            .ok_or_else(|| DiscoveryError::stats_msg("CI batch returned no results"))?;
-        if !result.statistic.is_finite() || !result.p_value.is_finite() {
-            return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
-        }
-        Ok((result.statistic, result.p_value))
+        crate::ci::single_finite_or_untestable(&*self.ci, &prepared, &req, &mut workspace.ci, ctx)
     }
 }
 
@@ -1156,6 +1255,15 @@ fn pc_parent_combo(
     cond_size: usize,
 ) -> Vec<(VariableId, Lag)> {
     parents.iter().enumerate().filter(|(j, _)| *j != pi).map(|(_, x)| *x).take(cond_size).collect()
+}
+
+/// The score of a candidate link whose MCI test the data cannot answer.
+///
+/// The full constrained family stays in the multiplicity denominator, so the link is kept with
+/// no association and `p = 1`: it is never reported as an effect, and never as a tested
+/// independence either (it enters no separating set).
+fn untestable_link(link: LaggedLink) -> ScoredLink {
+    ScoredLink { link, statistic: 0.0, p_value: 1.0, adjusted_p_value: None }
 }
 
 /// Fold one PC1 outcome for `link` into the candidate's `min_stat` slot, queueing it for
@@ -1212,7 +1320,7 @@ fn resolve_vector_ci(
 
 fn expand_into(out: &mut Vec<usize>, col: usize, blocks: &[Arc<[usize]>]) {
     for block in blocks {
-        if block.iter().any(|&c| c == col) {
+        if block.contains(&col) {
             for &m in block.iter() {
                 if !out.contains(&m) {
                     out.push(m);
@@ -1242,7 +1350,7 @@ pub(crate) fn parents_of_target(
 fn sort_by_strength(parents: &mut Vec<(VariableId, Lag)>, min_stat: &mut Vec<f64>) {
     let mut order: Vec<usize> = (0..parents.len()).collect();
     order.sort_by(|&i, &j| {
-        min_stat[j].partial_cmp(&min_stat[i]).unwrap_or(std::cmp::Ordering::Equal).then_with(|| {
+        min_stat[j].total_cmp(&min_stat[i]).then_with(|| {
             let (vi, li) = parents[i];
             let (vj, lj) = parents[j];
             (vi.raw(), li.raw()).cmp(&(vj.raw(), lj.raw()))
@@ -1316,3 +1424,18 @@ pub(crate) fn refuse_truncated_mci(dropped: u64) -> Result<(), DiscoveryError> {
 #[cfg(test)]
 #[path = "engine_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod numeric_option_regressions {
+    use super::*;
+    #[test]
+    fn doubled_lag_is_checked_before_frame_building() {
+        let mut engine = PcmciEngine::new();
+        engine.constraints.temporal.max_lag = Lag::from_raw(u32::MAX);
+        assert!(engine.frame_depth().is_err());
+        engine.constraints.temporal.max_lag = Lag::from_raw(u32::MAX / 2);
+        assert_eq!(engine.frame_depth().unwrap(), u32::MAX - 1);
+        engine.constraints.alpha = f64::NAN;
+        assert!(engine.frame_depth().is_err());
+    }
+}

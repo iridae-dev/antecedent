@@ -1,14 +1,14 @@
 //! The calibration key of a composed interval, and its resolution against the
 //! shipped coverage records.
 //!
-//! A composed interval is licensed only by a coverage record the registry
+//! A composed interval is supported only by a coverage record the registry
 //! holds for exactly its composed coordinate and construction. The caller
 //! supplies no record: the key is derived from the sealed claim, and the
 //! resolver answers whether a currently attesting record governs it. The
 //! calibration harness binds the same key, so a record describes exactly the
 //! construction a claim reports.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -22,8 +22,6 @@ use antecedent_io::calibration::{
 pub const COMPOSED_QUERY: &str = "ComposedQuantity";
 /// Nominal level the composed constructions are measured at.
 pub const COMPOSED_LEVEL: f64 = 0.95;
-/// Wire name of the normal approximation to the propagated variance.
-pub const COMPOSED_NORMAL_CONSTRUCTION: &str = "normal_approximation";
 
 /// The stable label of a dependence declaration in the calibration key.
 #[must_use]
@@ -70,6 +68,7 @@ pub fn composed_basis(
         None,
         0.0,
     )
+    .with_validation("not_applicable")
 }
 
 /// What the registry says about a composed key.
@@ -92,11 +91,16 @@ pub enum Resolution {
     },
 }
 
-/// Resolve a key against the shipped records.
+/// The calibration slot of a composed key against the shipped records.
 #[must_use]
-pub fn resolve(basis: &CalibrationBasis) -> Resolution {
-    let wire = CalibrationBasisWire {
+pub fn slot(basis: &CalibrationBasis) -> antecedent_io::contract_section::CalibrationSlotWire {
+    calibration_slot(&wire_of(basis))
+}
+
+fn wire_of(basis: &CalibrationBasis) -> CalibrationBasisWire {
+    CalibrationBasisWire {
         key: CalibrationKeyWire {
+            validation: basis.validation.to_string(),
             query: basis.query.to_string(),
             graph_class: basis.graph_class.to_string(),
             structure: basis.structure.to_string(),
@@ -117,8 +121,13 @@ pub fn resolve(basis: &CalibrationBasis) -> Resolution {
             posterior_draws: basis.posterior_draws,
             unidentified_mass: basis.unidentified_mass,
         },
-    };
-    let slot = calibration_slot(&wire);
+    }
+}
+
+/// Resolve a key against the shipped records.
+#[must_use]
+pub fn resolve(basis: &CalibrationBasis) -> Resolution {
+    let slot = calibration_slot(&wire_of(basis));
     match (slot.status.as_str(), slot.record_id) {
         ("calibrated", Some(record_id)) => Resolution::Calibrated { record_id },
         (_, Some(record_id)) => Resolution::NotAttesting {

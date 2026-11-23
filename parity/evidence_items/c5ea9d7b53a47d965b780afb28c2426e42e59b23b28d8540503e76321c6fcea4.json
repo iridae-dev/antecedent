@@ -1,0 +1,1 @@
+["use:super::plan::{ReadOptions,ReadPlan,zero_chunk};#0","use:super::{Arc,ColumnClosure,ColumnRole,DataType,FileColumn,FileColumnKind,FileSourceError,Path,PathBuf,Schema,SchemaRef,TableFileFormat,convert,};#0","struct:SchemaView#0","impl:SchemaView#0","impl:SchemaView#0/fn:new#0","impl:SchemaView#0/fn:plan#0","fn:arrow_decode_width#0","fn:same_schema#0","fn:list_dataset#0"]

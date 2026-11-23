@@ -6,7 +6,7 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Chapter 7 (structural counterfactuals and the abduction-action-prediction procedure)"] },
+ { title = "Causality", citation_note = "Previously recorded title and bibliographic detail: Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Chapter 7 (structural counterfactuals and the abduction-action-prediction procedure)"] },
 ]
 
 implementation_deviations = [
@@ -23,4 +23,28 @@ test_sources = [
  "conformance/gcm/gcm_cf_ite",
  "conformance/gcm/nested_temporal_counterfactual",
  "crates/antecedent-counterfactual/src/engine.rs unit tests (outcomes-only streaming means equal the full-retention column mean; nested_freezes_only_the_named_mediator_not_every_other_node; nested_reevaluates_descendants_of_the_inner_target)",
+ "independent structural recursion on a confounded mediation diamond with known linear-Gaussian mechanisms: noise recovered by inverting the equations on observed units, then single, joint, root and mediator hard interventions, unit subsets and the individual treatment effect compared with the engine to 1e-12 (crates/antecedent-counterfactual/tests/abduction_action_prediction_reference.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "CounterfactualEngine::abduct, predict and individual_treatment_effect in crates/antecedent-counterfactual/src/engine.rs for invertible additive-noise (linear-Gaussian) mechanisms and hard Set interventions: abduction of per-unit noise from fully observed factual rows, the overlay that overwrites intervened nodes and recomputes descendants from their own mechanisms with the retained noise, unit-row selection, and the per-unit contrast. Not a review of the categorical posterior-noise path (a single rank-preserving draw, disclosed in the record), of LGSSM and discrete mechanisms, of ZeroFill prior imputation of absent columns, of nested counterfactuals beyond their existing unit tests, or of the temporal rollout."
+assumptions = ["Structural equations are invertible in their noise, with the model's coefficients as the truth (the review fixes them; fitting is not in scope).", "Abduction-action-prediction: the unit's noise is held fixed, the intervened nodes are set by the action, and every other node is recomputed from its parents in topological order.", "A unit-row selection reports counterfactuals on the selected rows and NaN elsewhere, in factual row coordinates."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed."
+limitations = "Chapter 7 of the cited book was not re-read in this review (no downloads were made and no copy was read from this environment); the three-step procedure is the standard statement and a mistake in how it is stated would not be detected here. Only linear-Gaussian mechanisms with known coefficients were used; nonlinear additive-noise families share the inversion code path but were not compared with closed forms, and every non-invertible family keeps the single-draw limitation the record states. The ZeroFill branch (absent columns filled with prior noise) was not exercised, so its documented deviation is unreviewed. Calibration remains deferred."
+sources = ["https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["On a five-world design (no intervention; do(x); do(m); do(x, m); do(w, x)) over 40 units and all four nodes, the engine equals the hand recursion to 1e-12, including that setting the mediator severs its cause and that an intervened root also moves its descendants.", "The empty world reproduces the observed rows; a row subset reports NaN off the subset in original row coordinates; and the per-unit treatment effect equals the closed-form total effect (direct plus indirect) for every unit under additive noise. No defect was found and no product code changed."]
+record_sha256 = "2ceddfc0f0a4907126ff61b8c1260bc41916d748be8a4161dc7fc29c09eaffed"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-counterfactual/src/engine.rs"
+items = ["const ABDUCTION_STREAM", "const PREDICT_STREAM", "const RANK_PRESERVING_ASSUMPTION", "enum AbductionMissingPolicy", "enum NoiseInferenceKind", "fn abduct", "fn abduct_impl", "fn admit_counterfactual", "fn allows_missing", "fn counterfactual_refusal", "fn evaluate_world_into", "fn from", "fn get", "fn individual_treatment_effect", "fn n_nodes", "fn n_units", "fn new", "fn outcome_column", "fn predict", "fn predict_impl", "fn predict_retaining_outcomes", "fn predict_world_stream", "fn resolve_outcomes", "fn retained_nodes", "fn shared", "fn slot_of", "fn stored_width", "fn try_get", "fn validate_prediction_inputs", "fn values", "struct CompiledCounterfactualPlan", "struct CounterfactualEngine", "struct CounterfactualResult", "struct CounterfactualWorld", "struct ExogenousPosterior", "struct PredictMode", "struct WorldEvaluation"]
+sha256 = "916c362b26b31382d2de0eb078735072569dde93d268dcb691683206e84d1f4c"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-counterfactual/tests/abduction_action_prediction_reference.rs"
+items = ["const M", "const M0", "const MX", "const W", "const X", "const X0", "const XW", "const Y", "const Y0", "const YM", "const YW", "const YX", "fn a_unit_subset_and_the_individual_treatment_effect_follow_the_same_recursion", "fn engine", "fn every_unit_and_node_matches_the_structural_recursion_under_single_and_joint_interventions", "fn table", "fn the_empty_world_returns_the_observed_units", "fn units", "fn world", "struct Units"]
+sha256 = "056142c0b0e4d2c46470d4bbe4d5442478ad973bfbdb21a243d296f20dc43c65"

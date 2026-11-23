@@ -1,4 +1,4 @@
-"""Latency tiers + cancel mid-bootstrap (Python dual of Rust backlog A)."""
+"""Inference profiles + cancel mid-bootstrap (Python dual of Rust backlog A)."""
 
 from __future__ import annotations
 
@@ -7,34 +7,41 @@ import math
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _scm import confounded_scm
 
 
 def test_interactive_vs_standard_effort():
     data, edges = confounded_scm(n=600, seed=7)
-    interactive = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        latency="interactive",
-        seed=1,
+    interactive = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Frequentist(profile="interactive"),
+            execution=antecedent.Execution(seed=1),
+        )
     )
     assert math.isfinite(interactive.ate)
-    assert abs(interactive.ate - 2.0) < 0.5
+    # Structural ATE is 2 (the unadjusted slope is 2.69); observed 1.989, se 0.035.
+    assert abs(interactive.ate - 2.0) < 0.1
     assert interactive.performance.latency_mode == "interactive"
     assert interactive.performance.bootstrap_replicates_requested == 0
     assert interactive.identification.status
 
-    standard = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        latency="standard",
-        refute=False,
-        seed=1,
+    standard = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Frequentist(profile="standard"),
+            refute=False,
+            execution=antecedent.Execution(seed=1),
+        )
     )
-    assert math.isfinite(standard.ate)
+    assert abs(standard.ate - 2.0) < 0.1
+    assert standard.ate == interactive.ate, "the profile changes effort, never the point estimate"
     assert standard.performance.latency_mode == "standard"
     assert standard.performance.bootstrap_replicates_requested == 199
     assert standard.performance.bootstrap_replicates_ok == 199
@@ -45,13 +52,15 @@ def test_interactive_vs_standard_effort():
 def test_cancel_mid_bootstrap_partial():
     data, edges = confounded_scm(n=400, seed=11)
     requested = 80
-    full = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        bootstrap=requested,
-        refute=False,
-        seed=3,
+    full = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Frequentist(bootstrap=requested),
+            refute=False,
+            execution=antecedent.Execution(seed=3),
+        )
     )
     full_ok = full.performance.bootstrap_replicates_ok or 0
     # Production contexts evaluate the full request; there is no early-stop budget.
@@ -66,16 +75,17 @@ def test_cancel_mid_bootstrap_partial():
             seen["bootstrap"] = True
             token.cancel()
 
-    partial = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        bootstrap=requested,
-        refute=False,
-        seed=3,
-        threads=1,
-        cancel=token,
-        on_progress=on_progress,
+    partial = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Frequentist(bootstrap=requested),
+            refute=False,
+            execution=antecedent.Execution(
+                seed=3, threads=1, cancel=token, on_progress=on_progress
+            ),
+        )
     )
     assert math.isfinite(partial.ate)
     assert partial.performance.cancelled
@@ -97,14 +107,15 @@ def test_progressive_stages_callback_order():
         if stage == "uncertainty":
             assert payload.get("se_bootstrap") is not None
 
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        bootstrap=40,
-        refute=False,
-        seed=11,
-        on_stage=on_stage,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Frequentist(bootstrap=40),
+            refute=False,
+            execution=antecedent.Execution(seed=11, on_stage=on_stage),
+        )
     )
     assert stages == ["identify", "estimate_point", "uncertainty", "validate"]
     assert point_ate and math.isfinite(point_ate[0])
@@ -132,15 +143,15 @@ def test_interactive_class_envelope_reports_subsampled_out_mass_separately():
     data, graph = _star_cpdag_study()
 
     def run(latency: str):
-        return antecedent.analyze(
-            data,
-            graph=graph,
-            query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
-            latency=latency,
-            refute=False,
-            bootstrap=0,
-            seed=5,
+        return require_success(
+            antecedent.analyze(
+                data,
+                graph=graph,
+                query=antecedent.AverageEffect(treatment="t", outcome="y"),
+                inference=antecedent.Bayesian(n_draws=64, backend="conjugate", profile=latency),
+                refute=False,
+                execution=antecedent.Execution(seed=5),
+            )
         )
 
     standard = run("standard")
@@ -168,3 +179,29 @@ def test_interactive_class_envelope_reports_subsampled_out_mass_separately():
     assert any(
         "reported as subsampled_out_mass" in diagnostic for diagnostic in interactive.diagnostics
     )
+
+
+def test_hmc_requires_the_report_profile():
+    data, edges = confounded_scm(n=120, seed=9)
+    query = antecedent.AverageEffect(treatment="t", outcome="y")
+
+    def run(profile: str):
+        return require_success(
+            antecedent.analyze(
+                data,
+                graph=edges,
+                query=query,
+                inference=antecedent.Bayesian(n_draws=4000, backend="hmc", profile=profile),
+                refute=False,
+                execution=antecedent.Execution(seed=2),
+            )
+        )
+
+    for profile in ("interactive", "standard"):
+        with pytest.raises(antecedent.errors.CausalUnsupportedError, match="HMC requires"):
+            run(profile)
+    report = run("report")
+    assert report.posterior is not None
+    # Structural ATE 2; the adjusted Frequentist estimate on this sample is 1.955.
+    assert report.posterior.effect_mean == pytest.approx(1.955, abs=0.06)
+    assert report.performance.latency_mode == "report"

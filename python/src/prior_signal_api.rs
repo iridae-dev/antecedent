@@ -7,12 +7,12 @@ use crate::value_err;
 use antecedent::analysis::design_ranking::{
     DesignRankingRequestWire, PriorDeclWire, ProviderDeclWire,
 };
-use antecedent_design::preposterior::DecisionPrior;
-use antecedent_design::prior_signal::{
+use antecedent::design::DecisionPrior;
+use antecedent::design::prior_signal::{
     CandidateSignalPrior, CandidateSignalSource, NativeSignalFamily, PriorSignalRequest,
     PriorSourceInput, SourceToTarget, TransportPolicyDecl, adapt_prior_to_signal,
 };
-use antecedent_io::{
+use antecedent::io::{
     EncodedArtifact, EstimandFingerprint, PosteriorQuantityWire, PriorCatalog, PriorSourceRef,
     TargetDesign, decode_posterior_artifact,
 };
@@ -21,7 +21,6 @@ use pyo3::types::{PyBytes, PyDict, PyList};
 use serde::Deserialize;
 
 const MAX_BYTES: usize = MAX_DECLARED_ARTIFACT_BYTES;
-const MAX_SOURCES: usize = 64;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -51,7 +50,7 @@ struct RequestWire {
     outcome: String,
     variables: Vec<String>,
     signal: ProviderDeclWire,
-    state: antecedent_io::quantity_wire::ScientificQuantityWire,
+    state: antecedent::io::quantity_wire::ScientificQuantityWire,
 }
 
 /// Immutable adapter result: the posterior rows are never supplied back from Python.
@@ -59,7 +58,7 @@ struct RequestWire {
 pub(crate) struct CheckedPriorSignal {
     adapted: CandidateSignalPrior,
     family: NativeSignalFamily,
-    state: antecedent_io::quantity_wire::ScientificQuantityWire,
+    state: antecedent::io::quantity_wire::ScientificQuantityWire,
     observations: Vec<String>,
     source_digests: Vec<String>,
     #[pyo3(get)]
@@ -70,14 +69,23 @@ impl CheckedPriorSignal {
     pub(crate) fn bind(&self, request: &mut DesignRankingRequestWire) -> Result<(), String> {
         if !matches!(&request.decision.prior, PriorDeclWire::Draws { states } if states.is_empty())
         {
-            return Err(refusal("prior_signal.prior_projection_mismatch", "invalid_argument"));
+            return Err(refusal(
+                antecedent::reason::reason_details::prior_signal::PRIOR_PROJECTION_MISMATCH,
+                "invalid_argument",
+            ));
         }
         for candidate in &request.candidates {
             if candidate.signal.state_quantity != self.state {
-                return Err(refusal("prior_signal.state_quantity_mismatch", "invalid_argument"));
+                return Err(refusal(
+                    antecedent::reason::reason_details::prior_signal::STATE_QUANTITY_MISMATCH,
+                    "invalid_argument",
+                ));
             }
             if candidate.signal.prior_id != self.adapted.prior_id {
-                return Err(refusal("prior_signal.prior_identity_mismatch", "invalid_argument"));
+                return Err(refusal(
+                    antecedent::reason::reason_details::prior_signal::PRIOR_IDENTITY_MISMATCH,
+                    "invalid_argument",
+                ));
             }
             let matches = match (&candidate.provider, self.family) {
                 (ProviderDeclWire::Binomial, NativeSignalFamily::Binomial) => true,
@@ -89,13 +97,16 @@ impl CheckedPriorSignal {
             };
             if !matches {
                 return Err(refusal(
-                    "prior_signal.signal_family_mismatch",
+                    antecedent::reason::reason_details::prior_signal::SIGNAL_FAMILY_MISMATCH,
                     "design_signal_invalid",
                 ));
             }
         }
         let DecisionPrior::Draws(draws) = &self.adapted.prior else {
-            return Err(refusal("prior_signal.adapted_prior_not_draws", "invalid_argument"));
+            return Err(refusal(
+                antecedent::reason::reason_details::prior_signal::ADAPTED_PRIOR_NOT_DRAWS,
+                "invalid_argument",
+            ));
         };
         request.decision.prior = PriorDeclWire::Draws { states: draws.clone() };
         request.prior_observation_ids.extend(self.observations.iter().cloned());
@@ -119,40 +130,18 @@ fn refusal(detail: &str, code: &str) -> String {
     RefusalJson::bare(code, "declare", detail).json()
 }
 
-#[pyfunction]
-pub(crate) fn adapt_prior_signal(
+struct LoadedSources {
+    refs: Vec<PriorSourceRef>,
+    inputs: Vec<PriorSourceInput>,
+    posterior_diagnostics: Vec<serde_json::Value>,
+    observations: Vec<String>,
+    digests: Vec<String>,
+}
+
+fn load_sources(
     sources: &Bound<'_, PyList>,
-    request_json: &str,
-) -> PyResult<(Option<CheckedPriorSignal>, Option<String>)> {
-    if sources.len() > MAX_SOURCES {
-        return Err(value_err("too many prior signal sources"));
-    }
-    check_declared_size(request_json, MAX_BYTES, "prior signal")?;
-    let wire: RequestWire = serde_json::from_str(request_json)
-        .map_err(|e| value_err(format!("prior_signal.invalid_request: {e}")))?;
-    if wire.sources.len() > MAX_SOURCES {
-        return Err(value_err("too many prior signal sources"));
-    }
-    if wire.state.population_id != wire.target_population {
-        return Ok((
-            None,
-            Some(refusal("prior_signal.target_population_mismatch", "invalid_argument")),
-        ));
-    }
-    let _: antecedent_contract::ScientificQuantity =
-        wire.state.clone().try_into().map_err(|e| value_err(format!("{e:?}")))?;
-    let family = match wire.signal {
-        ProviderDeclWire::Binomial => NativeSignalFamily::Binomial,
-        ProviderDeclWire::GaussianMean { noise_variance } => {
-            NativeSignalFamily::GaussianMean { noise_variance }
-        }
-        ProviderDeclWire::External(_) => {
-            return Ok((
-                None,
-                Some(refusal("prior_signal.unsupported_signal_provider", "route_not_supported")),
-            ));
-        }
-    };
+    declared_sources: &[SourceWire],
+) -> PyResult<Result<LoadedSources, String>> {
     let mut refs = Vec::new();
     let mut inputs = Vec::new();
     let mut posterior_diagnostics = Vec::new();
@@ -176,19 +165,19 @@ pub(crate) fn adapt_prior_signal(
         } else {
             None
         };
-        if let Some(input) = wire.sources.iter().find(|s| s.artifact_id == meta.artifact_id) {
+        if let Some(input) = declared_sources.iter().find(|s| s.artifact_id == meta.artifact_id) {
             let Some(bytes) = &bytes else {
-                return Ok((
-                    None,
-                    Some(refusal("prior_signal.posterior_draws_required", "design_signal_invalid")),
-                ));
+                return Ok(Err(refusal(
+                    antecedent::reason::reason_details::prior_signal::POSTERIOR_DRAWS_REQUIRED,
+                    "design_signal_invalid",
+                )));
             };
             let artifact = EncodedArtifact::read_from(bytes.as_slice()).map_err(crate::py_err)?;
             if meta.tags.get("population").is_some_and(|p| p != &input.source_population) {
-                return Ok((
-                    None,
-                    Some(refusal("prior_signal.source_population_mismatch", "invalid_argument")),
-                ));
+                return Ok(Err(refusal(
+                    antecedent::reason::reason_details::prior_signal::SOURCE_POPULATION_MISMATCH,
+                    "invalid_argument",
+                )));
             }
             let (posterior, draws) = decode_posterior_artifact(&artifact).map_err(crate::py_err)?;
             if !matches!(
@@ -198,13 +187,10 @@ pub(crate) fn adapt_prior_signal(
                     | "IdentifiedUnderParametricRestrictions"
                     | "identified_under_parametric_restrictions"
             ) {
-                return Ok((
-                    None,
-                    Some(refusal(
-                        "prior_signal.original_posterior_unidentified",
+                return Ok(Err(refusal(
+                        antecedent::reason::reason_details::prior_signal::ORIGINAL_POSTERIOR_UNIDENTIFIED,
                         "design_signal_invalid",
-                    )),
-                ));
+                    )));
             }
             let indices: Vec<_> = posterior
                 .quantities
@@ -221,22 +207,19 @@ pub(crate) fn adapt_prior_signal(
                 })
                 .collect();
             if indices.len() != 1 || draws.is_empty() {
-                return Ok((
-                    None,
-                    Some(refusal(
-                        "prior_signal.named_state_draws_required",
-                        "design_signal_invalid",
-                    )),
-                ));
+                return Ok(Err(refusal(
+                    antecedent::reason::reason_details::prior_signal::NAMED_STATE_DRAWS_REQUIRED,
+                    "design_signal_invalid",
+                )));
             }
             if posterior.unidentified_mass > 0.0
                 || posterior.subsampled_out_mass > 0.0
                 || !posterior.converged
             {
-                return Ok((
-                    None,
-                    Some(refusal("prior_signal.incomplete_posterior", "design_signal_invalid")),
-                ));
+                return Ok(Err(refusal(
+                    antecedent::reason::reason_details::prior_signal::INCOMPLETE_POSTERIOR,
+                    "design_signal_invalid",
+                )));
             }
             posterior_diagnostics.push(
                 serde_json::json!({"artifact_id": input.artifact_id, "posterior": posterior}),
@@ -258,71 +241,121 @@ pub(crate) fn adapt_prior_signal(
                 },
             });
             observations.extend(input.observation_ids.iter().cloned());
-            digests.push(antecedent_core::blake3_hex(bytes));
+            digests.push(antecedent::identity::blake3_hex(bytes));
         }
         refs.push(match bytes {
             Some(bytes) => PriorSourceRef::with_bytes(meta, bytes),
             None => PriorSourceRef::from_meta(meta),
         });
     }
-    // Preserve declared duplicate/missing inputs so the checked adapter issues its own refusal.
-    if inputs.len() != wire.sources.len() {
-        return Ok((
-            None,
-            Some(refusal(
-                "prior_signal.source_not_in_catalog_or_duplicate",
-                "design_signal_invalid",
-            )),
-        ));
-    }
-    let target = TargetDesign::new(
-        EstimandFingerprint::new(wire.query_kind, wire.treatment, wire.outcome),
-        wire.variables,
-    );
-    let request = PriorSignalRequest {
-        prior_id: wire.prior_id,
-        sources: inputs,
-        signal: CandidateSignalSource::Native(family),
-        target_population: wire.target_population,
-        transport: wire.transport_policy_id.map(|policy_id| TransportPolicyDecl { policy_id }),
-        candidate_observation_ids: wire.candidate_observation_ids,
-        resolution: wire.resolution,
-    };
-    let adapted = match adapt_prior_to_signal(&PriorCatalog::from_sources(refs), &target, &request)
-    {
-        Ok(adapted) => adapted,
-        Err(error) => {
-            return Ok((None, Some(external_refusal_json(&error.to_refusal()))));
+    Ok(Ok(LoadedSources { refs, inputs, posterior_diagnostics, observations, digests }))
+}
+
+#[pyfunction]
+pub(crate) fn adapt_prior_signal(
+    sources: &Bound<'_, PyList>,
+    request_json: &str,
+) -> PyResult<(Option<CheckedPriorSignal>, Option<String>)> {
+    crate::catch_ffi(|| {
+        check_declared_size(request_json, MAX_BYTES, "prior signal")?;
+        let wire: RequestWire = serde_json::from_str(request_json)
+            .map_err(|e| value_err(format!("prior_signal.invalid_request: {e}")))?;
+        if wire.state.population_id != wire.target_population {
+            return Ok((
+                None,
+                Some(refusal(
+                    antecedent::reason::reason_details::prior_signal::TARGET_POPULATION_MISMATCH,
+                    "invalid_argument",
+                )),
+            ));
         }
-    };
-    let DecisionPrior::Draws(rows) = &adapted.prior else {
-        return Ok((
+        let _: antecedent::scientific::ScientificQuantity =
+            wire.state.clone().try_into().map_err(|e| value_err(format!("{e:?}")))?;
+        let family = match wire.signal {
+            ProviderDeclWire::Binomial => NativeSignalFamily::Binomial,
+            ProviderDeclWire::GaussianMean { noise_variance } => {
+                NativeSignalFamily::GaussianMean { noise_variance }
+            }
+            ProviderDeclWire::External(_) => {
+                return Ok((
+                    None,
+                    Some(refusal(
+                        antecedent::reason::reason_details::prior_signal::UNSUPPORTED_SIGNAL_PROVIDER,
+                        "route_not_supported",
+                    )),
+                ));
+            }
+        };
+        let LoadedSources { refs, inputs, posterior_diagnostics, observations, mut digests } =
+            match load_sources(sources, &wire.sources)? {
+                Ok(loaded) => loaded,
+                Err(reason) => return Ok((None, Some(reason))),
+            };
+        // Preserve declared duplicate/missing inputs so the checked adapter issues its own refusal.
+        if inputs.len() != wire.sources.len() {
+            return Ok((
+                None,
+                Some(refusal(
+                    antecedent::reason::reason_details::prior_signal::SOURCE_NOT_IN_CATALOG_OR_DUPLICATE,
+                    "design_signal_invalid",
+                )),
+            ));
+        }
+        let target = TargetDesign::new(
+            EstimandFingerprint::new(wire.query_kind, wire.treatment, wire.outcome),
+            wire.variables,
+        );
+        let request = PriorSignalRequest {
+            prior_id: wire.prior_id,
+            sources: inputs,
+            signal: CandidateSignalSource::Native(family),
+            target_population: wire.target_population,
+            transport: wire.transport_policy_id.map(|policy_id| TransportPolicyDecl { policy_id }),
+            candidate_observation_ids: wire.candidate_observation_ids,
+            resolution: wire.resolution,
+        };
+        let adapted =
+            match adapt_prior_to_signal(&PriorCatalog::from_sources(refs), &target, &request) {
+                Ok(adapted) => adapted,
+                Err(error) => {
+                    return Ok((None, Some(external_refusal_json(&error.to_refusal()))));
+                }
+            };
+        let DecisionPrior::Draws(rows) = &adapted.prior else {
+            return Ok((
+                None,
+                Some(refusal(
+                    antecedent::reason::reason_details::prior_signal::ADAPTED_PRIOR_NOT_DRAWS,
+                    "invalid_argument",
+                )),
+            ));
+        };
+        if !rows.iter().all(|v| v.is_finite()) || !adapted.diagnostics.pooled_mean.is_finite() {
+            return Ok((
+                None,
+                Some(refusal(
+                    antecedent::reason::reason_details::prior_signal::NONFINITE_MAPPED_PRIOR,
+                    "invalid_argument",
+                )),
+            ));
+        }
+        let d = &adapted.diagnostics;
+        let diagnostics_json = serde_json::json!({"source_posteriors":posterior_diagnostics,"prior_approximation":"deterministic_resampled_original_posterior_draws","calibration":"not_measured","source_ids":d.source_ids,"effective_weights":d.effective_weights,"draws_allocated":d.draws_allocated,"pooled_mean":d.pooled_mean,"lineage":d.lineage,"observations_checked":d.observations_checked,"overlapping_observations":d.overlapping_observations,"transport_policy_id":d.transport_policy_id,"source_digest":d.source_digest}).to_string();
+        digests.push(d.source_digest.clone());
+        // Bind population/maps/declared observation lineage, not only numerical adapter rows.
+        digests.push(antecedent::identity::blake3_hex(request_json.as_bytes()));
+        Ok((
+            Some(CheckedPriorSignal {
+                adapted,
+                family,
+                state: wire.state,
+                observations,
+                source_digests: digests,
+                diagnostics_json,
+            }),
             None,
-            Some(refusal("prior_signal.adapted_prior_not_draws", "invalid_argument")),
-        ));
-    };
-    if !rows.iter().all(|v| v.is_finite()) || !adapted.diagnostics.pooled_mean.is_finite() {
-        return Ok((
-            None,
-            Some(refusal("prior_signal.nonfinite_mapped_prior", "invalid_argument")),
-        ));
-    }
-    let d = &adapted.diagnostics;
-    let diagnostics_json = serde_json::json!({"source_posteriors":posterior_diagnostics,"prior_approximation":"deterministic_resampled_original_posterior_draws","calibration":"unmeasured","source_ids":d.source_ids,"effective_weights":d.effective_weights,"draws_allocated":d.draws_allocated,"pooled_mean":d.pooled_mean,"lineage":d.lineage,"observations_checked":d.observations_checked,"overlapping_observations":d.overlapping_observations,"transport_policy_id":d.transport_policy_id,"source_digest":d.source_digest}).to_string();
-    digests.push(d.source_digest.clone());
-    // Bind population/maps/declared observation lineage, not only numerical adapter rows.
-    digests.push(antecedent_core::blake3_hex(request_json.as_bytes()));
-    Ok((
-        Some(CheckedPriorSignal {
-            adapted,
-            family,
-            state: wire.state,
-            observations,
-            source_digests: digests,
-            diagnostics_json,
-        }),
-        None,
-    ))
+        ))
+    })
 }
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<CheckedPriorSignal>()?;

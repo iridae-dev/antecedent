@@ -128,7 +128,7 @@ def test_coerce_data_refuses_environment_pooling():
     )
     with pytest.raises(antecedent.errors.CausalUnsupportedError, match="mixture") as info:
         _coerce.coerce_data(frame)
-    assert info.value.reason_code == "data_modality_not_licensed"
+    assert info.value.reason_code == "data_modality_not_supported"
     with pytest.raises(antecedent.errors.CausalUnsupportedError, match="mixture"):
         _coerce.discovery_table([{"x": [0.0, 1.0]}, {"x": [5.0, 6.0]}])
 
@@ -143,7 +143,7 @@ def test_coerce_data_refuses_lagged_panel_pooling():
     )
     with pytest.raises(antecedent.errors.CausalUnsupportedError, match="unit boundary") as info:
         _coerce.coerce_data(panel, temporal=True)
-    assert info.value.reason_code == "data_modality_not_licensed"
+    assert info.value.reason_code == "data_modality_not_supported"
     # A lagged algorithm with a per-unit design keeps the panel as a panel.
     assert _coerce.discovery_table(panel, temporal=True) is panel
     static = _coerce.discovery_table(panel)

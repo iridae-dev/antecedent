@@ -31,7 +31,7 @@
 //! claim is one whose declared inputs did not change; it is not a statement
 //! that the claim is true, and the artifact carries no interval or posterior.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
@@ -43,11 +43,11 @@ use antecedent_contract::transport_revalidation::{
     SceneCalibration, SceneClaim, SceneClaimKind, SceneSource, SceneTarget, TransportReason,
     TransportRevalidation, TransportScene, revalidate_transport,
 };
+use antecedent_core::refusal::{changed_identity, replay_mismatch};
 use antecedent_core::{IdentityDomain, SemanticDigest};
 use serde::{Deserialize, Serialize};
 
 use crate::composition_verification_artifact::EffectWire;
-use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const TRANSPORT_REVALIDATION_ARTIFACT_VERSION: u16 = 1;
@@ -90,14 +90,11 @@ impl TransportRevalidationArtifactError {
     #[must_use]
     pub fn refusal(&self) -> Option<(&'static str, String, String)> {
         match self {
-            Self::IdentityMismatch { field } => Some((
-                antecedent_core::reason_code!("route_not_supported"),
-                "transport_revalidation.identity_mismatch".to_owned(),
-                format!("{field} changed"),
-            )),
-            Self::ReplayMismatch(what) => Some((
-                antecedent_core::reason_code!("invalid_argument"),
-                "transport_revalidation.replay_mismatch".to_owned(),
+            Self::IdentityMismatch { field } => {
+                Some(changed_identity("transport_revalidation.identity_mismatch", field))
+            }
+            Self::ReplayMismatch(what) => Some(replay_mismatch(
+                "transport_revalidation.replay_mismatch",
                 format!("the stored {what} does not replay from the stored scenes"),
             )),
             _ => None,
@@ -238,10 +235,6 @@ pub struct TransportRevalidationMeta {
 
 // -- conversions --------------------------------------------------------------------------------
 
-fn hex(digest: SemanticDigest) -> String {
-    digest.to_hex()
-}
-
 fn digest_of(text: &str, what: &'static str) -> Result<SemanticDigest, Failure> {
     parse_digest_hex(text)
         .filter(|digest| digest.to_hex() == text)
@@ -287,15 +280,15 @@ fn calibration_to_wire(calibration: &SceneCalibration) -> SceneCalibrationWire {
         SceneCalibration::Held { record, established_at_target } => SceneCalibrationWire {
             kind: "held".to_owned(),
             from: None,
-            record: Some(hex(*record)),
-            established_at_target: Some(hex(*established_at_target)),
+            record: Some(record.to_hex()),
+            established_at_target: Some(established_at_target.to_hex()),
         },
         SceneCalibration::Inherited { from, record, established_at_target } => {
             SceneCalibrationWire {
                 kind: "inherited".to_owned(),
                 from: Some(from.clone()),
-                record: Some(hex(*record)),
-                established_at_target: Some(hex(*established_at_target)),
+                record: Some(record.to_hex()),
+                established_at_target: Some(established_at_target.to_hex()),
             }
         } // `SceneCalibration` is not marked non-exhaustive; keep the match total.
     }
@@ -337,7 +330,7 @@ fn scene_to_wire(scene: &TransportScene) -> SceneWire {
     let mut sources: Vec<SceneSourceWire> = scene
         .sources
         .iter()
-        .map(|s| SceneSourceWire { key: s.key.clone(), identity: hex(s.identity) })
+        .map(|s| SceneSourceWire { key: s.key.clone(), identity: s.identity.to_hex() })
         .collect();
     sources.sort_by(|a, b| a.key.cmp(&b.key));
     let mut claims: Vec<SceneClaimWire> = scene
@@ -346,9 +339,9 @@ fn scene_to_wire(scene: &TransportScene) -> SceneWire {
         .map(|c| SceneClaimWire {
             key: c.key.clone(),
             kind: kind_name(c.kind).to_owned(),
-            identity: hex(c.identity),
-            structure: c.structure.map(hex),
-            quantity: hex(c.quantity),
+            identity: c.identity.to_hex(),
+            structure: c.structure.map(|digest| digest.to_hex()),
+            quantity: c.quantity.to_hex(),
             sources: sorted_distinct(&c.sources),
             rests_on: sorted_distinct(&c.rests_on),
             unsupported: unsupported_of(&c.support),
@@ -358,9 +351,9 @@ fn scene_to_wire(scene: &TransportScene) -> SceneWire {
         .collect();
     claims.sort_by(|a, b| a.key.cmp(&b.key));
     SceneWire {
-        target_identity: hex(scene.target.identity),
+        target_identity: scene.target.identity.to_hex(),
         target_unsupported: unsupported_of(&scene.target.support),
-        selection_diagram: hex(scene.selection_diagram),
+        selection_diagram: scene.selection_diagram.to_hex(),
         sources,
         claims,
     }
@@ -558,7 +551,7 @@ fn build_meta(
         effects: effects_to_wire(effects)?,
         claims: report_to_wire(report),
         removed: report.removed().to_vec(),
-        revalidation: hex(report.identity()),
+        revalidation: report.identity().to_hex(),
         identity: String::new(),
     };
     meta.identity = compute_identity(&meta)?;
@@ -572,9 +565,10 @@ fn check(
     if meta.version != TRANSPORT_REVALIDATION_ARTIFACT_VERSION {
         return Err(Failure::UnsupportedVersion { version: meta.version });
     }
-    if meta.feature != TRANSPORT_REVALIDATION_ARTIFACT_FEATURE {
-        return Err(Failure::UnsupportedSemantics("feature marker"));
-    }
+    crate::artifact_codec::require_semantics::<Failure>(
+        meta.feature == TRANSPORT_REVALIDATION_ARTIFACT_FEATURE,
+        "feature marker",
+    )?;
     if !meta.required_features.is_empty() {
         return Err(Failure::UnsupportedSemantics("required feature"));
     }
@@ -586,10 +580,13 @@ fn check(
     let current = scene_from_wire(&meta.current)?;
     let previous = meta.previous.as_ref().map(scene_from_wire).transpose()?;
     let effects = effects_from_wire(&meta.effects)?;
+    if effects_to_wire(&effects)? != meta.effects {
+        return Err(malformed("effects are not in canonical key order"));
+    }
     // The classification is derived again from the stored scenes; no stored
     // class, reason, authority or calibration state is believed.
     let report = derive(previous.as_ref(), &current, &effects)?;
-    if meta.revalidation != hex(report.identity()) {
+    if meta.revalidation != report.identity().to_hex() {
         return Err(Failure::ReplayMismatch("classification identity"));
     }
     if meta.claims != report_to_wire(&report) {
@@ -609,11 +606,7 @@ fn check(
 }
 
 fn encode_meta(meta: &TransportRevalidationMeta, artifact_id: &str) -> Result<Vec<u8>, Failure> {
-    if artifact_id.trim().is_empty() {
-        return Err(Failure::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta).map_err(|error| Failure::Encode(error.to_string()))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "transport_revalidation",
@@ -621,33 +614,22 @@ fn encode_meta(meta: &TransportRevalidationMeta, artifact_id: &str) -> Result<Ve
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection {
-            id: META_SECTION,
-            content_type: crate::CONTENT_CBOR,
-            bytes: &meta_bytes,
-        }],
+        META_SECTION,
+        meta,
+        &[],
     )
-    .map_err(|error| crate::map_artifact_check!(error, TransportRevalidationArtifactError))
 }
 
-fn decode_meta(bytes: &[u8]) -> Result<TransportRevalidationMeta, Failure> {
-    let parts = crate::decode_container(
+fn decode_meta(bytes: &[u8], max_bytes: usize) -> Result<TransportRevalidationMeta, Failure> {
+    crate::artifact_codec::decode_sectioned(
         ARTIFACT_KIND,
-        MAX_TRANSPORT_REVALIDATION_ARTIFACT_BYTES,
-        &[META_SECTION],
+        max_bytes,
+        META_SECTION,
+        &[],
+        TRANSPORT_REVALIDATION_ARTIFACT_VERSION,
         bytes,
     )
-    .map_err(|error| crate::map_artifact_check!(error, TransportRevalidationArtifactError))?;
-    let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(Failure::Malformed("unsupported container layout".into()));
-    };
-    crate::decode_with_version(&meta_bytes, |version: u16| {
-        if version == TRANSPORT_REVALIDATION_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(Failure::UnsupportedVersion { version })
-        }
-    })
+    .map(|(meta, _)| meta)
 }
 
 // -- public type ----------------------------------------------------------------------------------
@@ -707,7 +689,19 @@ impl TransportRevalidationArtifact {
     /// bound exceeded, a scene the library refuses, a stored classification that
     /// does not replay, or an identity that does not match.
     pub fn from_bytes(bytes: &[u8], expected_identity: Option<&str>) -> Result<Self, Failure> {
-        check(&decode_meta(bytes)?, expected_identity)
+        Self::from_bytes_within(bytes, expected_identity, MAX_TRANSPORT_REVALIDATION_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::from_bytes`] under the caller's byte bound instead of [`MAX_TRANSPORT_REVALIDATION_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a file over `max_bytes` is `LimitsExceeded`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        max_bytes: usize,
+    ) -> Result<Self, Failure> {
+        check(&decode_meta(bytes, max_bytes)?, expected_identity)
     }
 
     /// Read the stored metadata without replaying it.
@@ -715,7 +709,7 @@ impl TransportRevalidationArtifact {
     /// # Errors
     /// Corruption, another major version or a malformed container.
     pub fn inspect(bytes: &[u8]) -> Result<TransportRevalidationMeta, Failure> {
-        decode_meta(bytes)
+        decode_meta(bytes, MAX_TRANSPORT_REVALIDATION_ARTIFACT_BYTES)
     }
 
     /// The re-derived classification.
@@ -751,7 +745,7 @@ impl TransportRevalidationArtifact {
     /// The classification identity (hex).
     #[must_use]
     pub fn revalidation_identity(&self) -> String {
-        hex(self.report.identity())
+        self.report.identity().to_hex()
     }
 
     /// Validate metadata as a consumer would, for tests that reseal edits.

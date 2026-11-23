@@ -2,38 +2,36 @@
 //!
 //! A program is the JSON of `antecedent.intervention_programs`: transforms and assignments
 //! whose expressions name variables. It is parsed by the library
-//! (`antecedent_io::policy_program_artifact`), compiled by the same overlay and executed by
+//! (`antecedent::io::policy_program_artifact`), compiled by the same overlay and executed by
 //! the same per-node executor as every Rust route: forward sampling, counterfactual execution
 //! on abduced noise, and the temporal rollout that reads earlier steps. Nothing here
 //! evaluates an expression.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use antecedent::SimulationOutcome;
+use antecedent::data::TableView;
 use antecedent::gcm::{
-    PolicySupport, PolicyValue, PreparedPolicy, RouteDecision, TemporalPlan,
-    counterfactual_policy as facade_counterfactual_policy,
-    counterfactual_temporal_policy as facade_counterfactual_temporal_policy,
-    policy_support as facade_policy_support, policy_value as facade_policy_value,
-    sample_do as facade_sample_do, sample_temporal_policy as facade_sample_temporal_policy,
+    PolicyRoute, PolicySupport, PolicyValue, PreparedPolicy, RouteDecision, ValueBatch,
+    policy_support as facade_policy_support,
 };
-use antecedent_core::{
-    CausalRng, Intervention, InterventionSequence, SequencedIntervention, TemporalPolicy,
+use antecedent::io::{IoError, policy_program_artifact as artifact};
+use antecedent::prelude::Intervention;
+use antecedent::query::{
+    InterventionSequence, SequencedIntervention, SimulationTarget, TemporalPolicy,
 };
-use antecedent_data::TableView;
-use antecedent_io::IoError;
-use antecedent_io::policy_program_artifact as artifact;
-use antecedent_model::ValueBatch;
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyDictMethods};
 
+use crate::compiled_route_api::{RouteRecord, outcome_mismatch};
 use crate::gcm_api::{PyFittedGcm, value_batch_to_sample_result};
 use crate::{
     GcmSampleResult, detach_catch, py_err, py_execution_context, py_msg, refusal,
-    resolve_user_threads, tabular_from_numpy, value_err,
+    resolve_user_threads, value_err,
 };
 
 /// A library refusal keeps its registered reason code; a malformed program is a value error.
@@ -48,7 +46,7 @@ pub(crate) fn io_err(error: IoError) -> PyErr {
 fn programs_of(fitted: &PyFittedGcm, text: &str) -> PyResult<Vec<Intervention>> {
     let schema = fitted.data.schema();
     artifact::interventions_from_named_json(text, &|name| {
-        schema.id_of(name).ok().map(antecedent_core::VariableId::raw)
+        schema.id_of(name).ok().map(antecedent::prelude::VariableId::raw)
     })
     .map_err(io_err)
 }
@@ -65,13 +63,23 @@ fn run_sample(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<GcmSampleResult> {
-    let inner = Arc::clone(&fitted.inner);
-    let batch = detach_catch(py, move || {
+    let source = fitted.source();
+    let (batch, route) = detach_catch(py, move || {
         let ctx = py_execution_context(seed, resolve_user_threads(threads));
-        let mut rng = CausalRng::from_seed(seed);
-        facade_sample_do(&inner.model, &interventions, n, &mut rng, &ctx).map_err(py_err)
+        let target = SimulationTarget::InterventionalSample {
+            interventions: Arc::from(interventions),
+            draws: n,
+            seed,
+        };
+        let (outcome, route) = source.simulate(target, &ctx)?;
+        let SimulationOutcome::Sample(batch) = outcome else {
+            return Err(outcome_mismatch());
+        };
+        Ok((batch, route))
     })?;
-    value_batch_to_sample_result(py, batch)
+    let mut result = value_batch_to_sample_result(py, batch)?;
+    result.route = Some(route);
+    Ok(result)
 }
 
 fn run_counterfactual<'py>(
@@ -87,22 +95,30 @@ fn run_counterfactual<'py>(
         .map(|name| fitted.data.schema().id_of(name).map_err(py_err))
         .collect::<PyResult<Vec<_>>>()?;
     let inner = Arc::clone(&fitted.inner);
-    let data = Arc::clone(&fitted.data);
-    let columns = detach_catch(py, move || {
+    let source = fitted.source();
+    let (columns, route) = detach_catch(py, move || {
         let ctx = py_execution_context(seed, resolve_user_threads(threads));
-        let result =
-            facade_counterfactual_policy(inner.model.clone(), &data, &interventions, &ids, &ctx)
-                .map_err(py_err)?;
-        ids.iter()
+        let target = SimulationTarget::Counterfactual {
+            interventions: Arc::from(interventions),
+            outcomes: Arc::from(ids.as_slice()),
+        };
+        let (outcome, route) = source.simulate(target, &ctx)?;
+        let SimulationOutcome::Counterfactual(result) = outcome else {
+            return Err(outcome_mismatch());
+        };
+        let columns = ids
+            .iter()
             .map(|id| {
                 let dense = inner
                     .model
                     .dense_of(*id)
                     .ok_or_else(|| value_err(format!("outcome {id} is not in the model")))?;
-                Ok((0..result.n_units).map(|unit| result.get(0, dense, unit)).collect::<Vec<_>>())
+                Ok((0..result.n_units()).map(|unit| result.get(0, dense, unit)).collect::<Vec<_>>())
             })
-            .collect::<PyResult<Vec<_>>>()
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok((columns, route))
     })?;
+    fitted.record(route);
     let out = PyDict::new(py);
     for (name, column) in outcomes.iter().zip(columns) {
         out.set_item(name, PyArray1::from_vec(py, column))?;
@@ -110,10 +126,10 @@ fn run_counterfactual<'py>(
     Ok(out)
 }
 
-/// One route's decision as `{licensed, assumption, reason_code, detail, message}`.
+/// One route's decision as `{supported, assumption, reason_code, detail, message}`.
 fn decision_dict<'py>(py: Python<'py>, decision: &RouteDecision) -> PyResult<Bound<'py, PyDict>> {
     let out = PyDict::new(py);
-    out.set_item("licensed", decision.is_licensed())?;
+    out.set_item("supported", decision.is_supported())?;
     out.set_item("assumption", decision.assumption())?;
     let (code, detail, message) = match decision {
         RouteDecision::Refused { code, detail, message } => {
@@ -129,9 +145,13 @@ fn decision_dict<'py>(py: Python<'py>, decision: &RouteDecision) -> PyResult<Bou
 
 fn support_dict<'py>(py: Python<'py>, support: &PolicySupport) -> PyResult<Bound<'py, PyDict>> {
     let out = PyDict::new(py);
-    out.set_item("simulation", decision_dict(py, &support.simulation)?)?;
-    out.set_item("counterfactual", decision_dict(py, &support.counterfactual)?)?;
-    out.set_item("identification", decision_dict(py, &support.identification)?)?;
+    for (key, route) in [
+        ("simulation", PolicyRoute::Simulation),
+        ("counterfactual", PolicyRoute::CounterfactualExecution),
+        ("identification", PolicyRoute::ObservationalIdentification),
+    ] {
+        out.set_item(key, decision_dict(py, support.decision(route))?)?;
+    }
     Ok(out)
 }
 
@@ -163,11 +183,21 @@ fn run_value<'py>(
     threads: Option<u32>,
 ) -> PyResult<Bound<'py, PyDict>> {
     let id = fitted.data.schema().id_of(outcome).map_err(py_err)?;
-    let inner = Arc::clone(&fitted.inner);
-    let value = detach_catch(py, move || {
+    let source = fitted.source();
+    let (value, route) = detach_catch(py, move || {
         let ctx = py_execution_context(seed, resolve_user_threads(threads));
-        facade_policy_value(&inner.model, &interventions, id, n, &ctx).map_err(py_err)
+        let target = SimulationTarget::PolicyValue {
+            interventions: Arc::from(interventions),
+            outcome: id,
+            draws: n,
+        };
+        let (outcome, route) = source.simulate(target, &ctx)?;
+        let SimulationOutcome::PolicyValue(value) = outcome else {
+            return Err(outcome_mismatch());
+        };
+        Ok((value, route))
     })?;
+    fitted.record(route);
     value_dict(py, outcome, &value)
 }
 
@@ -201,7 +231,7 @@ pub(crate) fn counterfactual_policy<'py>(
     run_counterfactual(py, &fitted, programs_of(&fitted, policies)?, &outcomes, seed, threads)
 }
 
-/// The licence of each route (simulation, counterfactual execution, observational
+/// The support of each route (simulation, counterfactual execution, observational
 /// identification) for a program on the fitted model, with the reason code of every refusal.
 #[pyfunction]
 pub(crate) fn policy_support<'py>(
@@ -228,7 +258,7 @@ pub(crate) fn policy_value<'py>(
     run_value(py, &fitted, programs_of(&fitted, policies)?, outcome, n, seed, threads)
 }
 
-/// A program compiled and licensed once against one fitted model, rerun on any route without
+/// A program compiled and supported once against one fitted model, rerun on any route without
 /// being compiled again: the retained handle of the policy workflow. Every method calls the
 /// same executor as the free functions; `value` runs it on the retained compiled overlay.
 #[pyclass(name = "PreparedPolicy", frozen)]
@@ -236,6 +266,16 @@ pub struct PyPreparedPolicy {
     fitted: Py<PyFittedGcm>,
     core: PreparedPolicy,
     identity: Option<String>,
+}
+
+impl PyPreparedPolicy {
+    pub(crate) fn from_template(
+        fitted: Py<PyFittedGcm>,
+        core: PreparedPolicy,
+        identity: Option<String>,
+    ) -> Self {
+        Self { fitted, core, identity }
+    }
 }
 
 #[pymethods]
@@ -246,7 +286,7 @@ impl PyPreparedPolicy {
         // A runtime-bound program has no identity; every other program does.
         let identity = artifact::policy_program_identity(&interventions)
             .ok()
-            .map(|digest| blake3::Hash::from_bytes(digest).to_hex().to_string());
+            .map(|digest| antecedent::identity::to_hex(&digest));
         let core = PreparedPolicy::prepare(&fitted.bind(py).borrow().inner.model, interventions)
             .map_err(py_err)?;
         Ok(Self { fitted, core, identity })
@@ -264,13 +304,13 @@ impl PyPreparedPolicy {
         self.core.program_compilations()
     }
 
-    /// How many fitted models the program's overlay and licence were resolved against.
+    /// How many fitted models the program's overlay and support were resolved against.
     #[getter]
     fn model_bindings(&self) -> u64 {
         self.core.model_bindings()
     }
 
-    /// The licence of each route, fixed when the policy was prepared.
+    /// The support of each route, fixed when the policy was prepared.
     fn support<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         support_dict(py, self.core.support())
     }
@@ -330,11 +370,10 @@ impl PyPreparedPolicy {
     ) -> PyResult<Bound<'py, PyDict>> {
         let fitted = self.fitted.bind(py).borrow();
         let id = fitted.data.schema().id_of(outcome).map_err(py_err)?;
-        let inner = Arc::clone(&fitted.inner);
-        let core = self.core.clone();
-        let value = detach_catch(py, move || {
+        let model = Arc::clone(&fitted.inner);
+        let value = detach_catch(py, || {
             let ctx = py_execution_context(seed, resolve_user_threads(threads));
-            core.value(&inner.model, id, n, &ctx).map_err(py_err)
+            self.core.value(&model.model, id, n, &ctx).map_err(py_err)
         })?;
         value_dict(py, outcome, &value)
     }
@@ -349,6 +388,13 @@ fn initial_history(
     let n_nodes = fitted.inner.model.n_nodes();
     let mut initial = Vec::new();
     for step in history.iter().flatten() {
+        // The supplied columns are the only evidence of `n_rows`: check them before sizing.
+        if let Some((name, column)) = step.iter().find(|(_, column)| column.len() != n_rows) {
+            return Err(value_err(format!(
+                "history column {name:?} has {} values for {n_rows} rows",
+                column.len()
+            )));
+        }
         let mut values = vec![0.0; n_rows.saturating_mul(n_nodes)];
         let mut seen = 0usize;
         for (name, column) in step {
@@ -376,6 +422,40 @@ fn initial_history(
         initial.push(ValueBatch { n_rows, n_nodes, values: Arc::from(values) });
     }
     Ok(initial)
+}
+
+/// History batches flattened step by step, as a temporal simulation target holds them.
+fn flat_history(initial: &[ValueBatch]) -> Vec<f64> {
+    initial.iter().flat_map(|batch| batch.values.iter().copied()).collect()
+}
+
+/// One sample result per step, each carrying the route the path came from.
+fn with_route(
+    py: Python<'_>,
+    batches: Vec<ValueBatch>,
+    route: &RouteRecord,
+) -> PyResult<Vec<GcmSampleResult>> {
+    batches
+        .into_iter()
+        .map(|batch| {
+            let mut result = value_batch_to_sample_result(py, batch)?;
+            result.route = Some(route.clone());
+            Ok(result)
+        })
+        .collect()
+}
+
+/// A sustained program must be active at some step of the rollout.
+fn check_schedule_window(start: i32, n_steps: usize) -> PyResult<()> {
+    let Ok(n_steps_i32) = i32::try_from(n_steps) else {
+        return Err(value_err("n_steps does not fit the schedule's step range"));
+    };
+    if start >= n_steps_i32 {
+        return Err(value_err(format!(
+            "start {start} is at or beyond the {n_steps}-step rollout; the program would never act"
+        )));
+    }
+    Ok(())
 }
 
 /// The program as a schedule active from step `start` to the end of the rollout.
@@ -411,25 +491,27 @@ pub(crate) fn sample_temporal_policy(
     history: Option<Vec<HashMap<String, Vec<f64>>>>,
     threads: Option<u32>,
 ) -> PyResult<Vec<GcmSampleResult>> {
+    check_schedule_window(start, n_steps)?;
     let interventions = programs_of(&fitted, policies)?;
-    let inner = Arc::clone(&fitted.inner);
-    let initial = initial_history(&fitted, history, n_rows)?;
-    let batches = detach_catch(py, move || {
-        let schedule = sustained_schedule(interventions, start, n_steps);
-        let plan = TemporalPlan {
-            sequence: &schedule,
-            n_steps,
-            n_rows,
-            window,
-            initial_history: &initial,
-        };
+    let history = flat_history(&initial_history(&fitted, history, n_rows)?);
+    let source = fitted.source();
+    let (batches, route) = detach_catch(py, move || {
         let ctx = py_execution_context(seed, resolve_user_threads(threads));
-        let mut rng = CausalRng::from_seed(seed);
-        facade_sample_temporal_policy(&inner.model, &plan, &mut rng, &ctx)
-            .map(|path| path.steps)
-            .map_err(py_err)
+        let target = SimulationTarget::TemporalRollout {
+            schedule: sustained_schedule(interventions, start, n_steps),
+            n_rows,
+            n_steps,
+            window,
+            history: Arc::from(history),
+            seed,
+        };
+        let (outcome, route) = source.simulate(target, &ctx)?;
+        let SimulationOutcome::Temporal(path) = outcome else {
+            return Err(outcome_mismatch());
+        };
+        Ok((path.steps, route))
     })?;
-    batches.into_iter().map(|batch| value_batch_to_sample_result(py, batch)).collect()
+    with_route(py, batches, &route)
 }
 
 /// Replay a factual panel under a program that may read earlier steps.
@@ -453,52 +535,62 @@ pub(crate) fn counterfactual_temporal_policy(
     threads: Option<u32>,
 ) -> PyResult<Vec<GcmSampleResult>> {
     let interventions = programs_of(&fitted, policies)?;
-    let tables = steps
-        .iter()
-        .map(|step| {
-            let columns = fitted
-                .names
-                .iter()
-                .map(|name| {
-                    step.get_item(name)?
-                        .ok_or_else(|| {
-                            value_err(format!("a panel step does not hold variable {name:?}"))
-                        })?
-                        .extract::<PyReadonlyArray1<'_, f64>>()
-                        .map_err(PyErr::from)
-                })
-                .collect::<PyResult<Vec<_>>>()?;
-            if step.len() != columns.len() {
-                return Err(value_err(
-                    "a panel step names variables the model does not have; supply exactly the \
-                     model's variables",
-                ));
+    // The panel in the study schema's column order, step by step: the layout the
+    // temporal counterfactual target holds.
+    let schema_names: Vec<String> =
+        fitted.data.schema().variables().iter().map(|variable| variable.name.to_string()).collect();
+    let mut panel = Vec::new();
+    let mut n_rows = None::<usize>;
+    for step in &steps {
+        if step.len() != schema_names.len() {
+            return Err(value_err(
+                "a panel step names variables the model does not have; supply exactly the \
+                 model's variables",
+            ));
+        }
+        for name in &schema_names {
+            let column = step
+                .get_item(name)?
+                .ok_or_else(|| value_err(format!("a panel step does not hold variable {name:?}")))?
+                .extract::<PyReadonlyArray1<'_, f64>>()?;
+            let values = column.as_slice()?;
+            match n_rows {
+                None => n_rows = Some(values.len()),
+                Some(rows) if rows != values.len() => {
+                    return Err(value_err(
+                        "every panel step needs the same, non-zero number of units",
+                    ));
+                }
+                Some(_) => {}
             }
-            tabular_from_numpy(&fitted.names, &columns)
-        })
-        .collect::<PyResult<Vec<_>>>()?;
-    let n_rows = tables.first().map_or(0, TableView::row_count);
-    if n_rows == 0 || tables.iter().any(|table| table.row_count() != n_rows) {
+            panel.extend_from_slice(values);
+        }
+    }
+    let n_rows = n_rows.unwrap_or(0);
+    if n_rows == 0 {
         return Err(value_err("every panel step needs the same, non-zero number of units"));
     }
-    let n_steps = tables.len();
-    let initial = initial_history(&fitted, history, n_rows)?;
-    let inner = Arc::clone(&fitted.inner);
-    let batches = detach_catch(py, move || {
-        let schedule = sustained_schedule(interventions, start, n_steps);
-        let plan = TemporalPlan {
-            sequence: &schedule,
-            n_steps,
-            n_rows,
-            window,
-            initial_history: &initial,
-        };
+    let n_steps = steps.len();
+    check_schedule_window(start, n_steps)?;
+    let history = flat_history(&initial_history(&fitted, history, n_rows)?);
+    let source = fitted.source();
+    let (batches, route) = detach_catch(py, move || {
         let ctx = py_execution_context(seed, resolve_user_threads(threads));
-        facade_counterfactual_temporal_policy(inner.model.clone(), &tables, &plan, &ctx)
-            .map(|path| path.steps)
-            .map_err(py_err)
+        let target = SimulationTarget::TemporalCounterfactual {
+            schedule: sustained_schedule(interventions, start, n_steps),
+            n_rows,
+            n_steps,
+            window,
+            panel: Arc::from(panel),
+            history: Arc::from(history),
+        };
+        let (outcome, route) = source.simulate(target, &ctx)?;
+        let SimulationOutcome::Temporal(path) = outcome else {
+            return Err(outcome_mismatch());
+        };
+        Ok((path.steps, route))
     })?;
-    batches.into_iter().map(|batch| value_batch_to_sample_result(py, batch)).collect()
+    with_route(py, batches, &route)
 }
 
 /// Encode a program (variables spelled by `names`) as a versioned portable artifact.
@@ -527,7 +619,7 @@ pub(crate) fn policy_program_identity(names: Vec<String>, policies: &str) -> PyR
     let interventions = artifact::interventions_from_named_json(policies, &index_resolver(&names))
         .map_err(io_err)?;
     let digest = artifact::policy_program_identity(&interventions).map_err(io_err)?;
-    Ok(blake3::Hash::from_bytes(digest).to_hex().to_string())
+    Ok(antecedent::identity::to_hex(&digest))
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

@@ -1,7 +1,7 @@
 //! Cross-world execution artifact (`cross_world_execution_v1`).
 //!
 //! A bounded, checksummed, sectioned container holding one finite Markovian
-//! cross-world answer and everything a licensed resume needs:
+//! cross-world answer and everything a supported resume needs:
 //!
 //! * `cross_world_execution_meta` (CBOR): version, feature marker, the point-only
 //!   claim, the matrix row, the **declarations** (mechanisms, factual
@@ -23,7 +23,7 @@
 //! a premise, and a transported or latent-confounded request is refused.
 //! Unknown major versions refuse.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::RequestedReading;
 use antecedent_core::ExecutionContext;
@@ -36,8 +36,6 @@ use antecedent_counterfactual::selective::{
     FiniteVariable, FiniteWorld, NoiseCoupling, WorldAtom, WorldRoute,
 };
 use serde::{Deserialize, Serialize};
-
-use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const CROSS_WORLD_EXECUTION_ARTIFACT_VERSION: u16 = 1;
@@ -64,7 +62,7 @@ pub struct CrossWorldExecutionRefusalWire {
     pub detail: String,
     /// Offending subject, when there is one.
     pub offending: Option<String>,
-    /// What would license the request, when known.
+    /// What would support the request, when known.
     pub remedy: Option<String>,
     /// Named unmet prerequisites.
     pub missing: Vec<String>,
@@ -75,7 +73,7 @@ crate::sectioned_artifact_enum! {
     #[derive(Clone, Debug, PartialEq, Eq)]
     CrossWorldExecutionArtifactError {
         noun: "cross-world execution",
-        identity: "cross_world_execution.artifact_changed",
+        identity: antecedent_core::reason_details::cross_world_execution::ARTIFACT_CHANGED,
         variants {
             /// A stored value, state set or digest differs from the recomputed one.
             ResultMismatch(&'static str),
@@ -103,7 +101,8 @@ impl CrossWorldExecutionArtifactError {
             Self::IdentityMismatch { field } => Some(CrossWorldExecutionRefusalWire {
                 code: antecedent_core::reason_code!("route_not_supported").to_owned(),
                 stage: "consume".to_owned(),
-                detail: "cross_world_execution.artifact_changed".to_owned(),
+                detail: antecedent_core::reason_details::cross_world_execution::ARTIFACT_CHANGED
+                    .to_owned(),
                 offending: Some((*field).to_owned()),
                 remedy: Some(
                     "consume the artifact the producer exported, or retain the identity of the \
@@ -308,7 +307,7 @@ pub struct CrossWorldExecutionMeta {
     pub feature: String,
     /// Always `point_only`.
     pub inference_claim: String,
-    /// The matrix row that licensed the request.
+    /// The matrix row that supported the request.
     pub matrix_row: String,
     /// The declarations.
     pub request: CrossWorldRequestWire,
@@ -610,13 +609,8 @@ fn encode_parts_impl(
     values: &[f64],
     artifact_id: &str,
 ) -> Result<Vec<u8>, CrossWorldExecutionArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(CrossWorldExecutionArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta)
-        .map_err(|error| CrossWorldExecutionArtifactError::Encode(error.to_string()))?;
     let values = crate::artifact_codec::f64s_to_le_bytes(values);
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "cross_world_execution_exact_enumeration_point_only",
@@ -624,20 +618,14 @@ fn encode_parts_impl(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[
-            crate::OutSection {
-                id: META_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &meta_bytes,
-            },
-            crate::OutSection {
-                id: VALUES_SECTION,
-                content_type: crate::CONTENT_BYTES,
-                bytes: &values,
-            },
-        ],
+        META_SECTION,
+        meta,
+        &[crate::OutSection {
+            id: VALUES_SECTION,
+            content_type: crate::CONTENT_BYTES,
+            bytes: &values,
+        }],
     )
-    .map_err(|error| crate::map_artifact_check!(error, CrossWorldExecutionArtifactError))
 }
 
 /// Encode a metadata section and a values section as a checksummed container.
@@ -668,7 +656,7 @@ pub fn encode_parts(
 pub fn decode_parts(
     bytes: &[u8],
 ) -> Result<(CrossWorldExecutionMeta, Vec<f64>), CrossWorldExecutionArtifactError> {
-    CrossWorldExecutionArtifact::decode(bytes)
+    CrossWorldExecutionArtifact::decode(bytes, MAX_CROSS_WORLD_EXECUTION_ARTIFACT_BYTES)
 }
 
 /// A produced or consumed cross-world execution artifact.
@@ -738,7 +726,7 @@ impl CrossWorldExecutionArtifact {
     }
 
     /// The executor holding the verified abductions: an action-only change
-    /// executed through it reuses them (the licensed resume).
+    /// executed through it reuses them (the supported resume).
     pub fn executor_mut(&mut self) -> &mut FiniteScmExecutor {
         &mut self.executor
     }
@@ -753,26 +741,24 @@ impl CrossWorldExecutionArtifact {
 
     fn decode(
         bytes: &[u8],
+        max_bytes: usize,
     ) -> Result<(CrossWorldExecutionMeta, Vec<f64>), CrossWorldExecutionArtifactError> {
-        let parts = crate::decode_container(
+        let (meta, parts) = crate::artifact_codec::decode_sectioned::<
+            CrossWorldExecutionArtifactError,
+            CrossWorldExecutionMeta,
+        >(
             ARTIFACT_KIND,
-            MAX_CROSS_WORLD_EXECUTION_ARTIFACT_BYTES,
-            &[META_SECTION, VALUES_SECTION],
+            max_bytes,
+            META_SECTION,
+            &[VALUES_SECTION],
+            CROSS_WORLD_EXECUTION_ARTIFACT_VERSION,
             bytes,
-        )
-        .map_err(|error| crate::map_artifact_check!(error, CrossWorldExecutionArtifactError))?;
-        let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
+        )?;
+        let Ok([payload]) = <[Vec<u8>; 1]>::try_from(parts) else {
             return Err(CrossWorldExecutionArtifactError::Malformed(
                 "unsupported container layout".into(),
             ));
         };
-        let meta: CrossWorldExecutionMeta = crate::decode_with_version(&meta_bytes, |version| {
-            if version == CROSS_WORLD_EXECUTION_ARTIFACT_VERSION {
-                Ok(())
-            } else {
-                Err(CrossWorldExecutionArtifactError::UnsupportedVersion { version })
-            }
-        })?;
         if payload.len() % 8 != 0 {
             return Err(CrossWorldExecutionArtifactError::Malformed(
                 "values section length".into(),
@@ -796,10 +782,25 @@ impl CrossWorldExecutionArtifact {
         expected: Option<&CrossWorldExecutionIdentity>,
         ctx: &ExecutionContext,
     ) -> Result<Self, CrossWorldExecutionArtifactError> {
-        let (meta, stored) = Self::decode(bytes)?;
-        if meta.feature != CROSS_WORLD_EXECUTION_ARTIFACT_FEATURE {
-            return Err(CrossWorldExecutionArtifactError::UnsupportedSemantics("feature marker"));
-        }
+        Self::from_bytes_within(bytes, expected, ctx, MAX_CROSS_WORLD_EXECUTION_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::from_bytes`] under the caller's byte bound instead of
+    /// [`MAX_CROSS_WORLD_EXECUTION_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a file over `max_bytes` is `LimitsExceeded`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected: Option<&CrossWorldExecutionIdentity>,
+        ctx: &ExecutionContext,
+        max_bytes: usize,
+    ) -> Result<Self, CrossWorldExecutionArtifactError> {
+        let (meta, stored) = Self::decode(bytes, max_bytes)?;
+        crate::artifact_codec::require_semantics::<CrossWorldExecutionArtifactError>(
+            meta.feature == CROSS_WORLD_EXECUTION_ARTIFACT_FEATURE,
+            "feature marker",
+        )?;
         if meta.inference_claim != CROSS_WORLD_EXECUTION_INFERENCE_CLAIM {
             return Err(CrossWorldExecutionArtifactError::UnsupportedSemantics("inference claim"));
         }
@@ -824,10 +825,10 @@ impl CrossWorldExecutionArtifact {
                 "values, evidence probabilities or posterior weights",
             ));
         }
-        if let Some(expected) = expected {
-            if let Some(field) = identity_diff(expected, &recomputed) {
-                return Err(CrossWorldExecutionArtifactError::IdentityMismatch { field });
-            }
+        if let Some(expected) = expected
+            && let Some(field) = identity_diff(expected, &recomputed)
+        {
+            return Err(CrossWorldExecutionArtifactError::IdentityMismatch { field });
         }
         if meta.shared_draws.iter().any(|d| d.states.len() > MAX_JOINT_STATES) {
             return Err(CrossWorldExecutionArtifactError::LimitsExceeded("posterior states"));

@@ -27,7 +27,7 @@
 //! The selection diagram and invariance declarations are premises, never tested. The
 //! parameter covariance of a carried mechanism is that of its source fit; the transport
 //! assumption adds no variance term and the result says so ([`UNCERTAINTY_SCOPE`]). The
-//! variance is first-order and uncalibrated and the interval route stays closed
+//! variance is first-order and uncalibrated and the interval route is not supported
 //! ([`TransportedMechanismComposition::interval`]). The receipt's inference label is
 //! `point_only`, its support label is `extrapolative`. The route executes fitted
 //! additive-noise linear-Gaussian mechanisms only; a finite table is decided by the finite
@@ -53,7 +53,7 @@
 //! data for a target-native mechanism replaces that refit in the declaration. The diagram
 //! and invariances are kept only by being passed again.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use super::mechanism_exports::model_crate::mechanism_transport::{
     DETAIL_DIAGRAM_SOURCE_MISMATCH, DETAIL_DIAGRAM_TARGET_MISMATCH, DETAIL_DUPLICATE_MECHANISM,
@@ -87,12 +87,13 @@ pub const MECHANISM_TRANSPORT_SUPPORT: &str = "extrapolative";
 pub const MECHANISM_TRANSPORT_INFERENCE: &str = "point_only";
 /// The retained transport identity is not the recomputed one.
 pub const DETAIL_TRANSPORT_IDENTITY_MISMATCH: &str =
-    "mechanism_transport.transport_identity_mismatch";
+    antecedent_core::reason_details::mechanism_transport::TRANSPORT_IDENTITY_MISMATCH;
 /// A target refit names a variable the composition has no mechanism for.
 pub const DETAIL_REFIT_UNKNOWN_VARIABLE: &str =
-    "mechanism_composition.identity_declaration_unknown_variable";
+    antecedent_core::reason_details::mechanism_composition::IDENTITY_DECLARATION_UNKNOWN_VARIABLE;
 /// A target refit changes the family of a mechanism.
-pub const DETAIL_REFIT_FAMILY_CHANGED: &str = "mechanism_composition.family_mixed";
+pub const DETAIL_REFIT_FAMILY_CHANGED: &str =
+    antecedent_core::reason_details::mechanism_composition::FAMILY_MIXED;
 
 /// What a transport of a prepared composition to a target population declares.
 #[derive(Clone, Debug, PartialEq)]
@@ -123,6 +124,8 @@ pub struct TransportedMechanismReceipt {
     pub identity: String,
     /// Plan identity of the prepared composition the mechanisms were carried from.
     pub source_plan_identity: String,
+    /// Version of the source plan's semantic identity encoding.
+    pub source_plan_identity_version: u64,
     /// Population the mechanisms were fitted in.
     pub source_population: String,
     /// Population the composition is about.
@@ -176,19 +179,19 @@ fn model_error(error: CompositionError) -> MechanismCompositionRefusal {
         }
         CompositionError::Cancelled => one(
             antecedent_core::reason_code!("cancelled_no_claim"),
-            "mechanism_composition.cancelled",
+            antecedent_core::reason_details::mechanism_composition::CANCELLED,
             "transport".to_owned(),
             "retry; cancellation is not a verdict on the mechanisms",
         ),
         CompositionError::Numerical { message } => one(
             antecedent_core::reason_code!("invalid_argument"),
-            "mechanism_composition.numerical_failure",
+            antecedent_core::reason_details::mechanism_composition::NUMERICAL_FAILURE,
             message,
             "check the mechanisms' numbers",
         ),
         other => one(
             antecedent_core::reason_code!("route_not_supported"),
-            "mechanism_composition.request_unsupported",
+            antecedent_core::reason_details::mechanism_composition::REQUEST_UNSUPPORTED,
             other.to_string(),
             "use a linear-Gaussian composition of fitted mechanisms",
         ),
@@ -336,6 +339,7 @@ impl PreparedMechanismComposition {
             route: MECHANISM_TRANSPORT_ROUTE,
             identity,
             source_plan_identity: self.plan_identity_hex(),
+            source_plan_identity_version: self.plan_identity_version(),
             source_population: source_context.population,
             target_population: declaration.target_population_id.clone(),
             target_regime: declaration.target_regime_id.clone(),
@@ -408,7 +412,7 @@ impl TransportedMechanismComposition {
 
     /// The standing this composition states as a claim in a composition graph:
     /// built from mechanisms the library composed, so no provider trust; the
-    /// interval route is closed ([`Self::interval`]), so no calibration record is
+    /// interval route is not supported ([`Self::interval`]), so no calibration record is
     /// claimed; support `extrapolative` ([`MECHANISM_TRANSPORT_SUPPORT`]).
     #[must_use]
     pub fn claim_standing(&self) -> super::composition_verification::ClaimStanding {
@@ -470,19 +474,23 @@ impl TransportedMechanismComposition {
         self.inner.mean_contrast_uncertainty(contrast).map_err(model_error)
     }
 
-    /// An interval for a transported contrast.
+    /// The first-order interval of a transported contrast at `level`, with its calibration
+    /// slot. The interval is conditional on the declared transport premises, which the
+    /// variance does not contain ([`UNCERTAINTY_SCOPE`]).
     ///
     /// # Errors
-    /// Always `cell_not_licensed`: no measured coverage stands behind the variance, and
-    /// none includes the transport assumption.
-    pub fn interval(&self) -> Result<std::convert::Infallible, MechanismCompositionRefusal> {
-        Err(refit_refusal(
-            antecedent_core::reason_code!("cell_not_licensed"),
-            "mechanism_transport.interval_route_closed",
-            "interval".to_owned(),
-            "the first-order parameter variance omits the transport assumption and has no \
-             measured coverage; the point and the labelled variance are the result",
-        ))
+    /// As [`Self::mean_contrast_uncertainty`], and a level outside `(0, 1)`.
+    pub fn interval(
+        &self,
+        contrast: &MeanContrast,
+        level: f64,
+    ) -> Result<super::mechanism_composition::FirstOrderInterval, MechanismCompositionRefusal> {
+        let uncertainty = self.mean_contrast_uncertainty(contrast)?;
+        super::mechanism_composition::FirstOrderInterval::wald(
+            uncertainty.functional.point,
+            uncertainty.functional.variance,
+            level,
+        )
     }
 
     /// Seal the transported premises (with the selection diagram and invariances) and one
@@ -505,7 +513,7 @@ impl TransportedMechanismComposition {
                     ExternalRefusal::new(
                         antecedent_core::reason_code!("mechanism_composition_incoherent"),
                         "export",
-                        "mechanism_composition.artifact_invalid",
+                        antecedent_core::reason_details::mechanism_composition::ARTIFACT_INVALID,
                     )
                     .with_offending(error.to_string()),
                 ],
@@ -515,7 +523,7 @@ impl TransportedMechanismComposition {
                 ExternalRefusal::new(
                     antecedent_core::reason_code!("invalid_argument"),
                     "export",
-                    "mechanism_composition.artifact_invalid",
+                    antecedent_core::reason_details::mechanism_composition::ARTIFACT_INVALID,
                 )
                 .with_offending(error.to_string()),
             ],

@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import Execution
+from antecedent import _reason_details as reason_details
 from antecedent import selective_discovery as sd
 from antecedent.errors import CausalValueError
 
@@ -39,7 +41,11 @@ def chain_table(seed: int, rows: int = 6000) -> dict[str, np.ndarray]:
 
 def test_the_effect_adjusts_for_the_treatments_parents_and_covers_the_truth() -> None:
     estimate = sd.sample_split_effect(
-        collider_table(1), treatment="x", outcome="y", split_seed=SPLIT_SEED, seed=SEED
+        collider_table(1),
+        treatment="x",
+        outcome="y",
+        split_seed=SPLIT_SEED,
+        execution=Execution(seed=SEED),
     )
     assert set(estimate.adjustment_set) == {"z1", "w"}
     assert estimate.discovery_rows == 3000
@@ -54,7 +60,11 @@ def test_the_effect_adjusts_for_the_treatments_parents_and_covers_the_truth() ->
 
 def test_the_basis_is_keyed_under_the_split_structure_not_a_known_graph() -> None:
     estimate = sd.sample_split_effect(
-        collider_table(2), treatment="x", outcome="y", split_seed=SPLIT_SEED, seed=SEED
+        collider_table(2),
+        treatment="x",
+        outcome="y",
+        split_seed=SPLIT_SEED,
+        execution=Execution(seed=SEED),
     )
     basis = estimate.basis
     assert basis["structure"] == "discovered_sample_split"
@@ -68,14 +78,14 @@ def test_the_basis_is_keyed_under_the_split_structure_not_a_known_graph() -> Non
 def test_the_same_inputs_give_the_same_estimate() -> None:
     data = collider_table(3)
     first = sd.sample_split_effect(
-        data, treatment="x", outcome="y", split_seed=SPLIT_SEED, seed=SEED
+        data, treatment="x", outcome="y", split_seed=SPLIT_SEED, execution=Execution(seed=SEED)
     )
     again = sd.sample_split_effect(
-        data, treatment="x", outcome="y", split_seed=SPLIT_SEED, seed=SEED
+        data, treatment="x", outcome="y", split_seed=SPLIT_SEED, execution=Execution(seed=SEED)
     )
     assert first == again
     other = sd.sample_split_effect(
-        data, treatment="x", outcome="y", split_seed=SPLIT_SEED + 1, seed=SEED
+        data, treatment="x", outcome="y", split_seed=SPLIT_SEED + 1, execution=Execution(seed=SEED)
     )
     assert other.receipt_identity != first.receipt_identity
 
@@ -83,37 +93,51 @@ def test_the_same_inputs_give_the_same_estimate() -> None:
 def test_an_unresolved_structure_reports_no_interval() -> None:
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
         sd.sample_split_effect(
-            chain_table(4), treatment="b", outcome="d", split_seed=SPLIT_SEED, seed=SEED
+            chain_table(4),
+            treatment="b",
+            outcome="d",
+            split_seed=SPLIT_SEED,
+            execution=Execution(seed=SEED),
         )
     assert_registered_refusal(info.value)
-    assert info.value.reason_code == "cell_not_licensed"
-    assert info.value.detail == "split_effect.structure_unresolved"
+    assert info.value.reason_code == "discovered_structure_unresolved"
+    assert info.value.detail == reason_details.split_effect.STRUCTURE_UNRESOLVED
 
 
-def test_a_table_outside_five_to_seven_variables_is_refused() -> None:
+def test_a_table_outside_five_to_seven_variables_is_not_refused_for_its_count() -> None:
     rng = np.random.default_rng(5)
     data = {name: rng.normal(size=60) for name in ("a", "b", "c")}
-    with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
-        sd.sample_split_effect(data, treatment="a", outcome="b", split_seed=1, seed=SEED)
-    assert info.value.reason_code == "cell_not_licensed"
-    assert info.value.detail == "split_effect.variable_count_not_measured"
+    try:
+        sd.sample_split_effect(
+            data, treatment="a", outcome="b", split_seed=1, execution=Execution(seed=SEED)
+        )
+    except sd.SelectiveDiscoveryRefusal as refusal:
+        assert refusal.detail != "split_effect.variable_count_not_measured"
 
 
 def test_unknown_roles_are_rejected_before_any_native_work() -> None:
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r"treatment 'missing' is not a column of data"):
         sd.sample_split_effect(
-            collider_table(6), treatment="missing", outcome="y", split_seed=1, seed=SEED
+            collider_table(6),
+            treatment="missing",
+            outcome="y",
+            split_seed=1,
+            execution=Execution(seed=SEED),
         )
 
 
-def test_an_interval_outside_the_measured_row_range_is_never_attested() -> None:
+def test_an_interval_outside_the_measured_row_range_is_reported_uncalibrated() -> None:
     estimate = sd.sample_split_effect(
-        collider_table(7), treatment="x", outcome="y", split_seed=SPLIT_SEED, seed=SEED
+        collider_table(7),
+        treatment="x",
+        outcome="y",
+        split_seed=SPLIT_SEED,
+        execution=Execution(seed=SEED),
     )
-    with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
-        estimate.measure()
-    assert_registered_refusal(info.value)
-    assert info.value.reason_code == "cell_not_licensed"
+    measured = estimate.measure()
+    scalar = measured.scalars[0]
+    assert scalar.interval[0] <= scalar.point <= scalar.interval[1]
+    assert scalar.calibration != "calibrated"
 
 
 def test_reusing_the_rows_that_selected_is_still_refused() -> None:
@@ -121,9 +145,9 @@ def test_reusing_the_rows_that_selected_is_still_refused() -> None:
         variables=("z1", "w", "x", "y", "z3"), alpha=0.01, fdr=None, seed=SEED
     )
     split = sd.discover_on_split(
-        contract, collider_table(8), discovery_fraction=0.5, seed=SPLIT_SEED
+        contract, collider_table(8), discovery_fraction=0.5, split_seed=SPLIT_SEED
     )
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
         split.request_unsplit_interval()
-    assert info.value.reason_code == "cell_not_licensed"
-    assert info.value.detail == "selective_discovery.downstream_interval_not_licensed"
+    assert info.value.reason_code == "selection_inference_not_supported"
+    assert info.value.detail == reason_details.selective_discovery.DOWNSTREAM_INTERVAL_NOT_SUPPORTED

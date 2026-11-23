@@ -185,5 +185,5 @@ fn observed_bayesian_sequence_changes_every_assigned_time() {
             < pin()["sequence_atol"].as_f64().unwrap(),
         "{value}"
     );
-    assert!(result.posterior.unwrap().diagnostics.allows_posterior());
+    assert!(result.posterior.as_ref().unwrap().diagnostics.allows_posterior());
 }

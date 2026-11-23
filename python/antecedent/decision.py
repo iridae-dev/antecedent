@@ -4,6 +4,8 @@ A decision names its actions by stable ID, the scientific quantities each
 action's utility reads, and a closed utility expression you build with ordinary
 operators. Hard constraints exclude actions; they never become penalties::
 
+    from antecedent import require_success
+
     p, q = decision.x(0), decision.x(1)
     contract = decision.Contract(
         actions=[
@@ -14,14 +16,15 @@ operators. Hard constraints exclude actions; they never become penalties::
         criterion=decision.Criterion.expected_utility(),
         target_population="target",
     )
-    result = contract.evaluate(joint_distribution)   # aligned draws, not marginals
+    outcome = contract.evaluate(joint_distribution)
+    result = require_success(outcome)  # explicit refusal handling; aligned joint draws
     print(result.explain())
 
 The draws are a :class:`~antecedent.joint_distribution.JointDistributionArtifact`:
 a nonlinear utility over several quantities needs genuine joint rows, and
 independent marginals refuse with ``joint_law_required``. Rust owns the
 identity, validation, evaluation, artifacts and refusal rules; this module
-builds declarations and raises each refusal as
+builds declarations and returns scientific refusals as Outcome readings backed by
 :class:`DecisionRefusal`, a :class:`~antecedent.errors.CausalUnsupportedError`
 with its registered ``reason_code``.
 """
@@ -34,6 +37,15 @@ from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, Literal, get_args
 
+from antecedent import _reason_details
+
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._native import composition_lineage as _composition_lineage
 from ._native import decision_contract_normalize as _normalize
@@ -44,11 +56,14 @@ from ._native import export_decision_contract as _export_contract
 from ._native import export_decision_result as _export_result
 from ._native import load_decision_contract as _load_contract
 from ._native import replay_decision_result as _replay
+from ._native import score_published_decision as _score_published
 from ._refusal import raise_refusal
+from ._scientific import ScientificResult
 from ._validate import real, text
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError, StructuredRefusal
 from .external import BoundExternalClaim, LineageLink
 from .joint_distribution import JointDistributionArtifact, ScientificQuantity
+from .outcomes import Answer, outcome_operation, require_success
 from .results.sources import MeanSource
 
 if TYPE_CHECKING:
@@ -404,7 +419,7 @@ def _result_mean_source(
             causal_contract_id=fields["causal_contract_id"],
             rng_id=fields["rng_id"],
             _original_effect=(source, value, outcome_units, population),
-            trust="native_licensed",
+            trust="native_supported",
         )
     from .results.response import CausalResponseView
 
@@ -508,6 +523,7 @@ class Contract:
         """Canonical digest: unchanged by reordering actions, changed by any semantic edit."""
         return str(self._normalized()["identity"])
 
+    @outcome_operation
     def evaluate(
         self,
         source: JointDistributionArtifact | BoundExternalClaim | MeanSource | Any,
@@ -558,8 +574,10 @@ class Contract:
         ``decision_contract_unsatisfied`` (``decision_evaluation.mean_source_insufficient``).
         Regret and EVPI are unavailable for such a decision.
         """
+        from .outcomes import require_success
         from .results.sources import adapt_mean_source, is_mean_producer
 
+        source = require_success(source)
         if is_mean_producer(source):
             source = adapt_mean_source(source)
         cohort_source = getattr(source, "_cohort_mean_source", None)
@@ -618,6 +636,7 @@ class Contract:
         assert result is not None
         return Decision(self, source, json.loads(result))
 
+    @outcome_operation
     def evaluate_transported(
         self,
         response: Any,
@@ -635,15 +654,23 @@ class Contract:
         from .transported_response import evaluate_transported
 
         return evaluate_transported(
-            self, response, analysis=analysis, demand=demand, support_policy=support_policy
+            self,
+            require_success(response),
+            analysis=require_success(analysis),
+            demand=demand,
+            support_policy=support_policy,
         )
 
-    def export(self, *, artifact_id: str = "decision-contract") -> bytes:
-        return bytes(_export_contract(json.dumps(self._wire()), artifact_id))
+    @artifact_export
+    def export(self, *, artifact_id: str = "decision-contract") -> ExportedArtifact:
+        return artifact_from_receipt(
+            self, bytes(_export_contract(json.dumps(self._wire()), artifact_id))
+        )
 
     @classmethod
     def load(cls, data: bytes, *, expected_identity: str) -> Contract:
         """Load only under the identity the consumer retained independently."""
+        data = container_bytes(data)
         return cls._from_wire(json.loads(_load_contract(data, expected_identity)))
 
     @classmethod
@@ -677,7 +704,7 @@ class Contract:
         )
 
 
-class Decision:
+class Decision(ScientificResult):
     """A decision result with the evidence behind it; exportable and replayable."""
 
     def __init__(
@@ -694,6 +721,15 @@ class Decision:
     def source(self) -> Any:
         """The immutable scientific source, including retained adapter provenance."""
         return self._source
+
+    @property
+    def answer(self) -> Answer:
+        """The native decision verdict, without treating a chosen action as an effect."""
+        return Answer(
+            "structured",
+            detail="decision." + self.verdict.kind,
+            structured={"selected": self.selected, "contract_identity": self.contract_identity},
+        )
 
     @property
     def contract_identity(self) -> str:
@@ -880,7 +916,8 @@ class Decision:
             text += "; sampled-law point ranking only; Monte Carlo error is not certified"
         return text + "."
 
-    def export(self, *, artifact_id: str = "decision-result") -> bytes:
+    @artifact_export
+    def export(self, *, artifact_id: str = "decision-result") -> ExportedArtifact:
         """The result bound to its contract identity and source digest, replayable.
 
         Only a joint-draw source can be exported and replayed; a decision computed
@@ -891,21 +928,33 @@ class Decision:
                 {
                     "code": "route_not_supported",
                     "stage": "export",
-                    "detail": "decision_evaluation.mean_source_not_replayable",
+                    "detail": _reason_details.decision_evaluation.MEAN_SOURCE_NOT_REPLAYABLE,
                     "offending": None,
                     "expected": "joint_draws",
                     "supplied": "mean",
                     "remedy": "export a decision evaluated on aligned joint draws",
                 }
             )
-        return bytes(
-            _export_result(json.dumps(self._contract._wire()), self._source._native, artifact_id)
+        return artifact_from_receipt(
+            self,
+            bytes(
+                _export_result(
+                    json.dumps(self._contract._wire()), self._source._native, artifact_id
+                )
+            ),
         )
 
     def __repr__(self) -> str:
         return f"<Decision {self.verdict.kind} {self.selected}>"
 
 
+@outcome_operation
+@artifact_consumer(
+    proof="Independent native decision replay rebuilds declared inputs and compares stored identity, numbers and standing.",
+    replayable=True,
+    identity=("contract", "source"),
+    input="data",
+)
 def replay(data: bytes, *, contract: Contract, source: JointDistributionArtifact) -> Decision:
     """Recompute a stored decision from its inputs and require an exact match.
 
@@ -913,6 +962,8 @@ def replay(data: bytes, *, contract: Contract, source: JointDistributionArtifact
     different contract or from different draws, or one whose numbers were edited,
     refuses.
     """
+    data = container_bytes(data)
+    source = require_success(source)
     if not isinstance(contract, Contract):
         raise CausalTypeError(f"replay needs a decision.Contract, not {type(contract).__name__}")
     if not isinstance(source, JointDistributionArtifact):
@@ -935,6 +986,64 @@ def source_digest(source: JointDistributionArtifact) -> str:
     return str(_source_digest(source._native))
 
 
+@dataclass(frozen=True, slots=True)
+class PublishedScore:
+    """An affine decision score and the carrier of the published answer that produced it."""
+
+    value: float
+    """``slope * location + intercept``."""
+    carrier: str
+    """``parameter_posterior`` or ``mean``; never a confidence interval."""
+
+
+@outcome_operation
+def score_published_answer(
+    demand: Literal["affine_posterior", "affine_mean", "nonlinear", "risk"],
+    *,
+    mean: float,
+    posterior_mean: float | None = None,
+    slope: float | None = None,
+    intercept: float | None = None,
+) -> PublishedScore:
+    """Score a decision demand from what an answer published.
+
+    An ``affine_posterior`` demand (utility ``slope * answer + intercept``) reads the posterior
+    mean and needs the answer to be a posterior; an ``affine_mean`` demand reads the published
+    point answer ``mean`` and needs no posterior. A ``nonlinear`` utility or an individual outcome
+    ``risk`` cannot be carried by a mean.
+
+    Raises:
+        DecisionRefusal: the answer cannot publish the carrier the demand needs; the refusal
+            names the missing carrier (``parameter_posterior`` or ``outcome_law``).
+    """
+    scored, missing = _score_published(
+        demand,
+        real(mean, "mean", finite=True),
+        None if posterior_mean is None else real(posterior_mean, "posterior_mean", finite=True),
+        None if slope is None else real(slope, "slope", finite=True),
+        None if intercept is None else real(intercept, "intercept", finite=True),
+    )
+    if scored is None:
+        raise DecisionRefusal(
+            {
+                "code": "distribution_meaning_mismatch",
+                "stage": "score_published_answer",
+                "detail": "decision.carrier_missing",
+                "message": (
+                    f"the {demand} demand needs the {missing} carrier, which the published "
+                    "answer does not carry"
+                ),
+                "offending": missing,
+                "remedy": (
+                    "demand a parameter posterior or an outcome law, or declare the utility's "
+                    "affine form"
+                ),
+            }
+        )
+    value, carrier = scored
+    return PublishedScore(value=value, carrier=carrier)
+
+
 __all__ = [
     "Action",
     "ActionOutcome",
@@ -946,11 +1055,13 @@ __all__ = [
     "DecisionRefusal",
     "Expr",
     "MeanSource",
+    "PublishedScore",
     "Verdict",
     "const",
     "maximum",
     "minimum",
     "replay",
+    "score_published_answer",
     "source_digest",
     "x",
 ]

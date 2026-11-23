@@ -15,7 +15,7 @@
 //! ([`CpdagCompletionSampler::search_stop`]) and counted by [`CpdagCompletionSampler::hit_cap`].
 //! The search itself is shared with the temporal sampler (`crate::mec_search`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, SearchLimits, SearchReceipt, SearchStop};
 
@@ -174,6 +174,16 @@ mod tests {
         for c in &collected {
             assert!(is_mec_member(&g, &c.graph));
         }
+        // Hand enumeration of the four orientations of A-B-C: the collider A->B<-C is excluded
+        // (a new unshielded v-structure), leaving exactly the chain, the reverse chain and the
+        // fork. Encode each completion as (A->B?, C->B?) from the parent lists.
+        let mut orientations: Vec<(bool, bool)> = collected
+            .iter()
+            .map(|d| (d.graph.parents(b).contains(&a), d.graph.parents(b).contains(&c)))
+            .collect();
+        orientations.sort_unstable();
+        // chain A->B->C: (true,false); reverse chain A<-B<-C: (false,true); fork A<-B->C: (false,false).
+        assert_eq!(orientations, vec![(false, false), (false, true), (true, false)]);
     }
 
     #[test]
@@ -339,7 +349,7 @@ mod tests {
         // force and what it consumed.
         let g = complete_undirected(8);
         let mut ctx = ExecutionContext::for_tests(0);
-        ctx.memory.hard_limit_bytes = Some(64 * 1024 * 1024);
+        ctx.set_memory_limit(Some(64 * 1024 * 1024));
         let limits = SearchLimits { operations: 500, depth: 40 };
         let mut sampler =
             CpdagCompletionSampler::with_budget(g.clone(), usize::MAX, limits, &ctx).unwrap();
@@ -356,7 +366,7 @@ mod tests {
 
         // A memory limit that cannot hold one partial orientation reports itself as the stop.
         let mut tight = ExecutionContext::for_tests(0);
-        tight.memory.hard_limit_bytes = Some(1);
+        tight.set_memory_limit(Some(1));
         let limits = SearchLimits { operations: 1_000_000, depth: usize::MAX };
         let mut sampler =
             CpdagCompletionSampler::with_budget(g, usize::MAX, limits, &tight).unwrap();
@@ -365,6 +375,34 @@ mod tests {
         assert_eq!(receipt.stop, SearchStop::Memory);
         assert_eq!(receipt.memory_limit_bytes, Some(1));
         assert_eq!(receipt.operations_limit, 1_000_000);
+    }
+
+    #[test]
+    fn partial_orientation_storage_is_leased_before_it_is_allocated() {
+        use antecedent_core::execution::AdmissionPool;
+        let g = complete_undirected(6);
+        let limits = SearchLimits { operations: 1_000_000, depth: usize::MAX };
+        // A pool with one byte free funds no block of states: the search stops on memory
+        // before it stacks anything, yields nothing, and leases nothing.
+        let pool = AdmissionPool::fixed(1, 1 << 20);
+        let ctx = ExecutionContext::for_tests(0).with_admission(pool.clone());
+        let held = ctx.acquire_admission(0, (1 << 20) - 1).unwrap();
+        let mut sampler = CpdagCompletionSampler::with_budget(g.clone(), 64, limits, &ctx).unwrap();
+        assert!(sampler.next().is_none());
+        assert_eq!(sampler.search_stop(), Some(SearchStop::Memory));
+        assert_eq!(pool.available().bytes(), 1);
+        drop(sampler);
+        drop(held);
+        assert_eq!(pool.available().bytes(), 1 << 20);
+        // The same class under an ample pool completes, and the leases return with the sampler.
+        let ample = AdmissionPool::fixed(1, 1 << 30);
+        let ctx = ExecutionContext::for_tests(0).with_admission(ample.clone());
+        let mut sampler = CpdagCompletionSampler::with_budget(g, 1_000, limits, &ctx).unwrap();
+        assert_eq!(sampler.by_ref().count(), 720);
+        assert_eq!(sampler.search_stop(), None);
+        assert!(ample.available().bytes() < 1 << 30);
+        drop(sampler);
+        assert_eq!(ample.available().bytes(), 1 << 30);
     }
 
     #[test]
@@ -500,7 +538,7 @@ mod tests {
     fn a_memory_limit_below_one_partial_orientation_stops_the_search() {
         let g = complete_undirected(4);
         let mut ctx = ExecutionContext::for_tests(0);
-        ctx.memory.hard_limit_bytes = Some(1);
+        ctx.set_memory_limit(Some(1));
         let limits = SearchLimits { operations: 1_000_000, depth: usize::MAX };
         let mut sampler = CpdagCompletionSampler::with_budget(g, usize::MAX, limits, &ctx).unwrap();
         assert!(sampler.next().is_none());

@@ -1,6 +1,6 @@
 //! Robust, weighted, and multivariate partial-correlation CI tests.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, StreamDomain};
 use antecedent_kernels::sanitize_weight;
@@ -265,7 +265,7 @@ impl ConditionalIndependenceTest for WeightedPartialCorrelation {
 /// observed correlation, so it stayed favourable under permutation. Measured Type I
 /// at nominal α = 0.05 was ≈0.34 at `px = py = 2` and ≈0.81 at `px = py = 3`, rising
 /// with `n`. It is now ≈0.05 across shapes; see `multivariate_block_calibration_gate`
-/// in `crate::ci::calibration` (internal calibration suite, run via `gate_calibration.sh`).
+/// in `crate::ci::calibration` (internal calibration suite, run via `measure_calibration.sh`).
 #[derive(Clone, Debug, Default)]
 pub struct MultivariatePartialCorrelation {
     inner: PartialCorrelation,
@@ -363,7 +363,7 @@ impl MultivariatePartialCorrelation {
                 let q = z_flat.len() as f64 + 1.0;
                 let n_resid = n as f64 - q;
                 let df = (px * py) as f64;
-                let multiplier = n_resid - ((px + py) as f64 + 1.0) / 2.0;
+                let multiplier = n_resid - f64::midpoint((px + py) as f64, 1.0);
                 if multiplier <= 0.0 {
                     return Err(StatsError::Shape { message: "non-positive residual df" });
                 }
@@ -621,7 +621,7 @@ fn residual_canonical(
     // working precision: the blocks are perfectly dependent. That is a valid
     // answer (Λ = 0, chi-square = +inf, p = 0), not an error, so floor Λ at the
     // smallest positive normal rather than propagating a failure.
-    let leading_eigen = leading_psd_eigenvalue(&gram, k);
+    let leading_eigen = leading_psd_eigenvalue(&gram, k)?;
     let ln_lambda = if let Some(l) = cholesky_spd(&eye_minus, k) {
         chol_log_det(&l, k)
     } else {
@@ -637,32 +637,22 @@ fn residual_canonical(
     Ok(ResidualCanonical { ln_lambda, leading_rho: leading_eigen.sqrt().min(1.0) })
 }
 
-/// Largest eigenvalue of a small symmetric Gram matrix via power iteration.
-fn leading_psd_eigenvalue(gram: &[f64], k: usize) -> f64 {
+/// Largest eigenvalue of a small symmetric positive semidefinite Gram matrix.
+///
+/// Taken from the symmetric eigendecomposition. A power iteration from a fixed start vector
+/// returns a wrong value when that vector is orthogonal to the leading eigenvector (an
+/// exchangeable block with a difference-direction dependence gives `[[g, -g], [-g, g]]`, whose
+/// product with the uniform start is exactly zero and was reported as no dependence at all),
+/// and converges slowly when the two leading eigenvalues are close.
+fn leading_psd_eigenvalue(gram: &[f64], k: usize) -> Result<f64, StatsError> {
     if k == 0 {
-        return 0.0;
+        return Ok(0.0);
     }
     if k == 1 {
-        return gram[0].max(0.0);
+        return Ok(gram[0].max(0.0));
     }
-    let mut v = vec![1.0 / (k as f64).sqrt(); k];
-    let mut lambda = 0.0;
-    for _ in 0..64 {
-        let mut w = vec![0.0; k];
-        for i in 0..k {
-            for j in 0..k {
-                w[i] += gram[i * k + j] * v[j];
-            }
-        }
-        lambda = w.iter().map(|x| x * x).sum::<f64>().sqrt();
-        if lambda == 0.0 {
-            return 0.0;
-        }
-        for i in 0..k {
-            v[i] = w[i] / lambda;
-        }
-    }
-    lambda.max(0.0)
+    let (values, _) = crate::covariance::symmetric_eigen(gram, k)?;
+    Ok(values.into_iter().fold(0.0_f64, f64::max))
 }
 
 #[cfg(test)]
@@ -1011,6 +1001,36 @@ mod tests {
         assert!((out[0] - out[1]).abs() < 1e-15);
         assert!((out[0] + 0.318_639_363_964_375_1).abs() < 1e-9, "{out:?}");
         assert!((out[2] - q75).abs() < 1e-9, "{out:?}");
+    }
+
+    /// The robust statistic itself, against an independent 60-digit reference: van der Waerden
+    /// scores of the midranks of every column (ties present), residualisation of x and y on
+    /// `[1, z]`, Pearson correlation of the residuals, and the two-sided Student-t p-value with
+    /// `n - 2 - |Z|` degrees of freedom.
+    #[test]
+    fn robust_partial_correlation_matches_the_independent_reference_statistic_and_p_value() {
+        let x = [3.0, 1.0, 4.0, 1.0, 5.0, 9.0, 2.0, 6.0, 5.0, 3.5, 8.0, 7.0];
+        let y = [2.0, 7.0, 1.0, 8.0, 2.0, 8.0, 1.0, 8.0, 2.0, 8.5, 4.0, 5.0];
+        let z = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0];
+        let cols: [&[f64]; 3] = [&x, &y, &z];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let z_flat = [2usize];
+        let ctx = ExecutionContext::for_tests(1);
+        let mut ws = CiWorkspace::default();
+        let out = RobustPartialCorrelation::new()
+            .test_batch_adhoc(&analytic_req(&cols, &queries, &z_flat), &mut ws, &ctx)
+            .unwrap();
+        let result = &out.results[0];
+        assert!(
+            (result.statistic - (-0.049_863_723_895_505_89)).abs() < 1e-12,
+            "statistic {}",
+            result.statistic
+        );
+        assert!(
+            (result.p_value - 0.884_242_941_130_385_5).abs() < 1e-10,
+            "p-value {}",
+            result.p_value
+        );
     }
 
     /// Weighted / multivariate residualisation used uncentred normal equations and refused a

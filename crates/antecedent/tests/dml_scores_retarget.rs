@@ -9,7 +9,7 @@
 //! refuses `score_table_unavailable` instead of reweighting another construction. DR-Learner
 //! and `CausalForest` keep the marginal AIPW score table of the ATE they report.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{
     BatchRetargetReport, BatchRetargetRequest, BatchScores, BatchStudy, EstimatorSpec, RefuteSuite,
@@ -73,8 +73,8 @@ fn claim(name: &str, query_index: usize, weights: Vec<f64>) -> RetargetClaim {
     }
 }
 
-fn tilt(fx: &Fixture, rows: &[u32], sign: f64) -> Vec<f64> {
-    rows.iter().map(|&r| (sign * 0.4 * fx.z[r as usize]).exp()).collect()
+fn tilt(fx: &Fixture, rows: &[antecedent_data::GlobalId], sign: f64) -> Vec<f64> {
+    rows.iter().map(|r| (sign * 0.4 * fx.z[usize::try_from(r.get()).expect("row")]).exp()).collect()
 }
 
 fn close(a: f64, b: f64, what: &str) {
@@ -113,7 +113,7 @@ fn a_dml_batch_retargets_its_own_scores_with_the_joint_covariance() {
     assert_eq!(estimated.source(), ScoreSource::Estimated);
     for (i, result) in results.iter().enumerate() {
         let table = result
-            .estimate
+            .estimate()
             .as_effect()
             .unwrap()
             .scores
@@ -130,10 +130,14 @@ fn a_dml_batch_retargets_its_own_scores_with_the_joint_covariance() {
         let uniform = run(&prepared, &estimated, vec![claim("u", i, vec![1.0; rows.len()])]);
         let point = uniform.claims[0].outcome.as_ref().unwrap();
         // Score-mean identity and the iid plug-in covariance of the route's own scores.
-        close(point.value, result.estimate.as_effect().unwrap().ate, "uniform retarget = DML ate");
+        close(
+            point.value,
+            result.estimate().as_effect().unwrap().ate,
+            "uniform retarget = DML ate",
+        );
         close(
             point.std_error.unwrap(),
-            result.estimate.as_effect().unwrap().se_analytic(),
+            result.estimate().as_effect().unwrap().se_analytic(),
             "uniform se = DML se",
         );
         assert!(point.nuisance_provenance.starts_with("dml.crossfit.v1;route=dml;"));
@@ -198,15 +202,20 @@ fn a_dml_fit_without_scores_refuses_the_retarget() {
         let report = prepared.retarget(&before, &request(rows), &ctx).unwrap();
         let failure = report.claims[0].outcome.as_ref().unwrap_err();
         assert_eq!(failure.reason_code.as_deref(), Some("score_table_unavailable"));
-        assert_eq!(failure.detail.as_deref(), Some("batch_retarget.scores_unavailable"));
+        assert_eq!(
+            failure.detail.as_deref(),
+            Some(antecedent_core::reason_details::batch_retarget::SCORES_UNAVAILABLE)
+        );
         let (results, estimated) = prepared.estimate_scored(&fx.data, &ctx).unwrap();
-        assert!(results[0].estimate.as_effect().unwrap().scores.table.is_none());
+        assert!(results[0].estimate().as_effect().unwrap().scores.table.is_none());
         let report = prepared.retarget(&estimated, &request(rows), &ctx).unwrap();
         let failure = report.claims[0].outcome.as_ref().unwrap_err();
         assert_eq!(failure.reason_code.as_deref(), Some("score_table_unavailable"));
         assert_eq!(
             failure.detail.as_deref(),
-            Some("batch_retarget.scores_unavailable_after_estimate")
+            Some(
+                antecedent_core::reason_details::batch_retarget::SCORES_UNAVAILABLE_AFTER_ESTIMATE
+            )
         );
         assert!(report.complete_family().is_err());
     }
@@ -220,7 +229,7 @@ fn assert_marginal_scores_retarget(spec: EstimatorSpec, route: &str) {
     let prepared = batch(&fx, spec).prepare(&[ate(T1)], &ctx).unwrap();
     let (results, estimated) = prepared.estimate_scored(&fx.data, &ctx).unwrap();
     let table = results[0]
-        .estimate
+        .estimate()
         .as_effect()
         .unwrap()
         .scores
@@ -234,12 +243,12 @@ fn assert_marginal_scores_retarget(spec: EstimatorSpec, route: &str) {
     let point = report.claims[0].outcome.as_ref().unwrap();
     close(
         point.value,
-        results[0].estimate.as_effect().unwrap().ate,
+        results[0].estimate().as_effect().unwrap().ate,
         "uniform retarget = reported ATE",
     );
     close(
         point.std_error.unwrap(),
-        results[0].estimate.as_effect().unwrap().se_analytic(),
+        results[0].estimate().as_effect().unwrap().se_analytic(),
         "uniform se",
     );
 }

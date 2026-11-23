@@ -1,4 +1,4 @@
-//! Actual nested-model executions licensed only by current method-specific records.
+//! Actual nested-model executions, each scalar annotated by its method-specific records.
 use super::{
     MeasuredExpectation, MeasuredInference, ScalarExecution, authorize, compare_replay, decode,
 };
@@ -16,7 +16,7 @@ use antecedent_learn::nested_markov_bayesian::{Options, Prior};
 
 fn outside(message: &str) -> IoError {
     IoError::Refused {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
+        code: antecedent_core::reason_code!("route_not_supported"),
         message: format!("nested_markov.measured_scope: {message}"),
     }
 }
@@ -35,7 +35,7 @@ fn fit_scope(options: &FitOptions) -> Result<(), IoError> {
         || options.refuse_constraint_residual_above != frozen.refuse_constraint_residual_above
     {
         return Err(outside(
-            "only the measured default constrained-likelihood fitting protocol is licensed",
+            "only the measured default constrained-likelihood fitting protocol is supported",
         ));
     }
     Ok(())
@@ -59,14 +59,23 @@ fn bayesian_scope(prior: &Prior, options: &Options) -> Result<(), IoError> {
     }
     Ok(())
 }
+/// A basis for a protocol no record measured: the estimator names it, so calibration reports
+/// `not_measured` and the interval is still reported.
+fn tag(
+    measured: bool,
+    mut basis: antecedent_core::CalibrationBasis,
+) -> antecedent_core::CalibrationBasis {
+    if !measured {
+        basis.estimator = format!("{}+outside_measured_protocol", basis.estimator).into();
+    }
+    basis
+}
 fn fisher_authority(
     artifact: &NestedFisherArtifact,
     actual: &NestedMarkovUncertainty,
 ) -> Result<MeasuredInference, IoError> {
-    wire_fit_scope(artifact.point.options)?;
-    if actual.nominal_level.to_bits() != 0.95_f64.to_bits() {
-        return Err(outside("only nominal level 0.95 is measured"));
-    }
+    let measured = wire_fit_scope(artifact.point.options).is_ok()
+        && actual.nominal_level.to_bits() == 0.95_f64.to_bits();
     let points = [
         artifact.point.receipt.contrast.model_means[0],
         artifact.point.receipt.contrast.model_means[1],
@@ -83,7 +92,7 @@ fn fisher_authority(
         name: name.into(),
         point: points[i],
         interval: (actual.interval_candidates[i][0], actual.interval_candidates[i][1]),
-        basis: actual.calibration_basis(functional),
+        basis: tag(measured, actual.calibration_basis(functional)),
     })
     .collect();
     authorize(
@@ -96,8 +105,8 @@ fn fisher_authority(
     )
 }
 fn bayesian_authority(artifact: &Artifact) -> Result<MeasuredInference, IoError> {
-    wire_fit_scope(artifact.point.options)?;
-    bayesian_scope(&artifact.prior, &artifact.options)?;
+    let measured = wire_fit_scope(artifact.point.options).is_ok()
+        && bayesian_scope(&artifact.prior, &artifact.options).is_ok();
     if artifact.posterior.diagnostics.len() != 14
         || artifact.posterior.diagnostics.iter().any(|d| {
             !d.rank_rhat.is_finite()
@@ -109,9 +118,12 @@ fn bayesian_authority(artifact: &Artifact) -> Result<MeasuredInference, IoError>
                 || d.tail_ess < 400.0
         })
     {
-        return Err(outside(
-            "all fourteen original posterior diagnostics must pass the frozen Rhat/ESS criteria",
-        ));
+        return Err(IoError::Refused {
+            code: antecedent_core::reason_code!("posterior_draws_not_converged"),
+            message: "nested_markov.measured_scope: all fourteen original posterior diagnostics \
+                      must pass the frozen Rhat/ESS criteria"
+                .to_owned(),
+        });
     }
     let executions = [
         ("mean0", BayesianFunctional::Mean0),
@@ -124,7 +136,7 @@ fn bayesian_authority(artifact: &Artifact) -> Result<MeasuredInference, IoError>
         name: name.into(),
         point: artifact.posterior.mean[11 + i],
         interval: (artifact.posterior.credible[11 + i][0], artifact.posterior.credible[11 + i][1]),
-        basis: artifact.calibration_basis(functional),
+        basis: tag(measured, artifact.calibration_basis(functional)),
     })
     .collect();
     authorize(
@@ -138,9 +150,10 @@ fn bayesian_authority(artifact: &Artifact) -> Result<MeasuredInference, IoError>
 }
 impl NestedFisherArtifact {
     /// Execute the original Fisher engine and authorize every reported scalar.
-    /// The original candidate retains its unmeasured standing.
+    /// The original candidate retains its `not_measured` standing.
     /// # Errors
-    /// Unsupported protocol, native estimation refusal, or missing current calibration.
+    /// Labels over the measured byte bound or a native estimation refusal; a fit protocol
+    /// outside the measured one is reported with calibration `not_measured`.
     pub fn build_measured(
         input: &NestedMarkovInput,
         options: &FitOptions,
@@ -148,10 +161,6 @@ impl NestedFisherArtifact {
         ctx: &ExecutionContext,
     ) -> Result<(Self, MeasuredInference), IoError> {
         label_scope(&input.graph.variables)?;
-        fit_scope(options)?;
-        if level.to_bits() != 0.95_f64.to_bits() {
-            return Err(outside("only nominal level 0.95 is measured"));
-        }
         let (artifact, actual) = Self::build_with_uncertainty(input, options, level, ctx)?;
         let measured = fisher_authority(&artifact, &actual)?;
         Ok((artifact, measured))
@@ -171,10 +180,6 @@ impl NestedFisherArtifact {
         }
         let declared: Self = crate::from_cbor(&wire.source)?;
         label_scope(&declared.point.graph.variables)?;
-        wire_fit_scope(declared.point.options)?;
-        if declared.nominal_level.to_bits() != 0.95_f64.to_bits() {
-            return Err(outside("only nominal level 0.95 is measured"));
-        }
         drop(declared);
         let original = NestedMarkovExpectation {
             premises_digest: Some(expected.premises_digest.clone()),
@@ -190,7 +195,9 @@ impl NestedFisherArtifact {
 impl Artifact {
     /// Execute the unchanged eleven-dimensional posterior and authorize three scalars.
     /// # Errors
-    /// Unsupported prior/fit/sampler, original refusal, or missing current calibration.
+    /// Labels over the measured byte bound, an original refusal, or posterior diagnostics
+    /// that fail the frozen Rhat/ESS criteria; an unmeasured prior, fit or sampler is
+    /// reported with calibration `not_measured`.
     pub fn build_measured(
         input: &NestedMarkovInput,
         fit_options: &FitOptions,
@@ -199,13 +206,11 @@ impl Artifact {
         ctx: &ExecutionContext,
     ) -> Result<(Self, MeasuredInference), IoError> {
         label_scope(&input.graph.variables)?;
-        fit_scope(fit_options)?;
-        bayesian_scope(&prior, &options)?;
         let artifact = Self::build(input, fit_options, prior, options, ctx)?;
         let measured = bayesian_authority(&artifact)?;
         Ok((artifact, measured))
     }
-    /// Independently replay the checked point and every posterior draw before licensing.
+    /// Independently replay the checked point and every posterior draw before support.
     /// # Errors
     /// Changed source/question/receipt, bounded native refusal, or nonattesting records.
     pub fn consume_measured(
@@ -222,8 +227,6 @@ impl Artifact {
         }
         let declared: Self = crate::from_cbor(&wire.source)?;
         label_scope(&declared.point.graph.variables)?;
-        wire_fit_scope(declared.point.options)?;
-        bayesian_scope(&declared.prior, &declared.options)?;
         drop(declared);
         let original = Expectation {
             premises_digest: Some(expected.premises_digest.clone()),
@@ -290,12 +293,12 @@ mod tests {
         )
         .unwrap_err();
         assert!(
-            matches!(error,IoError::Refused{code,..} if code==antecedent_core::reason_code!("cell_not_licensed"))
+            matches!(error,IoError::Refused{code,..} if code==antecedent_core::reason_code!("route_not_supported"))
         );
         assert!(error.to_string().contains("256 UTF-8 byte bound"));
     }
     #[test]
-    fn unsupported_nested_settings_refuse_before_even_invalid_data_is_fitted() {
+    fn not_measured_nested_settings_no_longer_gate_so_invalid_data_is_what_refuses() {
         let input = NestedMarkovInput {
             graph: antecedent_estimate::nested_markov_binary::AdmgDeclaration::selected(),
             regimes: vec![],
@@ -303,7 +306,9 @@ mod tests {
         let ctx = ExecutionContext::for_tests(0);
         let err = NestedFisherArtifact::build_measured(&input, &FitOptions::default(), 0.9, &ctx)
             .unwrap_err();
-        assert!(err.to_string().contains("measured_scope"));
+        // A level no record measured is not a scope refusal: the empty regimes are, at the
+        // pilot's own input validation.
+        assert_pilot_regime_refusal(&err);
         let err = Artifact::build_measured(
             &input,
             &FitOptions::default(),
@@ -319,6 +324,24 @@ mod tests {
             &ctx,
         )
         .unwrap_err();
-        assert!(err.to_string().contains("measured_scope"));
+        assert_pilot_regime_refusal(&err);
+    }
+    fn assert_pilot_regime_refusal(err: &IoError) {
+        match err {
+            IoError::Refused { code, message } => {
+                assert_eq!(*code, antecedent_core::reason_code!("route_not_supported"), "{err}");
+                assert!(
+                    message.contains(
+                        antecedent_core::reason_details::nested_markov::OUTSIDE_BINARY_SCOPE
+                    ),
+                    "{err}"
+                );
+                assert!(
+                    message.contains("the pilot needs exactly the observational regime"),
+                    "{err}"
+                );
+            }
+            other => panic!("expected the pilot's input refusal, got {other:?}"),
+        }
     }
 }

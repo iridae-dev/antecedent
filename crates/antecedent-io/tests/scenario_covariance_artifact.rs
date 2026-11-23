@@ -274,7 +274,10 @@ fn covariance_artifact_bootstrap_replays_bit_identically_and_is_seed_sensitive()
     // A changed seed (re-sealed) replays to a different matrix and is refused.
     let (code, message) = refused(consume(&reseal(edit(&bytes, |w| w.method = bootstrap(43)))));
     assert_eq!(code, "invalid_argument");
-    assert!(message.starts_with("scenario_covariance.replay_mismatch"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::scenario_covariance::REPLAY_MISMATCH),
+        "{message}"
+    );
 }
 
 #[test]
@@ -299,7 +302,11 @@ fn covariance_artifact_resealed_changes_are_refused() {
     let mismatch = |wire: ScenarioCovarianceArtifactWire| {
         let (code, message) = refused(consume(&reseal(wire)));
         assert_eq!(code, "invalid_argument");
-        assert!(message.starts_with("scenario_covariance.replay_mismatch"), "{message}");
+        assert!(
+            message
+                .starts_with(antecedent_core::reason_details::scenario_covariance::REPLAY_MISMATCH),
+            "{message}"
+        );
     };
     // A changed row snapshot: one cell of one row.
     mismatch(edit(&bytes, |w| w.table.rows[0][2] = 1));
@@ -315,10 +322,19 @@ fn covariance_artifact_resealed_changes_are_refused() {
     // Un-resealed, the digests refuse first.
     let (_, message) =
         refused(consume(&edit(&bytes, |w| w.table.rows[0][2] = 1).export().unwrap()));
-    assert!(message.starts_with("scenario_covariance.data_identity_mismatch"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::scenario_covariance::DATA_IDENTITY_MISMATCH
+        ),
+        "{message}"
+    );
     let (_, message) =
         refused(consume(&edit(&bytes, |w| w.scenarios.swap(0, 1)).export().unwrap()));
-    assert!(message.starts_with("scenario_covariance.premises_mismatch"), "{message}");
+    assert!(
+        message
+            .starts_with(antecedent_core::reason_details::scenario_covariance::PREMISES_MISMATCH),
+        "{message}"
+    );
 }
 
 #[test]
@@ -329,26 +345,43 @@ fn covariance_artifact_scenario_on_a_different_snapshot_refuses_unknown_dependen
     };
     let (code, message) = refused(consume(&reseal(edit(&bytes, other))));
     assert_eq!(code, "route_not_supported");
-    assert!(message.starts_with("scenario_covariance.unknown_dependence"), "{message}");
+    assert!(
+        message
+            .starts_with(antecedent_core::reason_details::scenario_covariance::UNKNOWN_DEPENDENCE),
+        "{message}"
+    );
     // The producer refuses the same declaration before any artifact exists.
     let mut declared = spec(&["a", "b"], exact(0.0));
     declared.scenarios[1].snapshot = "snapshot:rows-v2".into();
     let (code, message) = refused(declared.compute(&ctx()));
     assert_eq!(code, "route_not_supported");
-    assert!(message.starts_with("scenario_covariance.unknown_dependence"), "{message}");
+    assert!(
+        message
+            .starts_with(antecedent_core::reason_details::scenario_covariance::UNKNOWN_DEPENDENCE),
+        "{message}"
+    );
     // Declared-independent or unknown dependence, and a different unit list, refuse alike.
     for dependence in ["independent_sample", "unknown"] {
         let mut declared = spec(&["a", "b"], exact(0.0));
         declared.scenarios[1].dependence = dependence.into();
         let (code, message) = refused(declared.compute(&ctx()));
         assert_eq!(code, "route_not_supported");
-        assert!(message.starts_with("scenario_covariance.unknown_dependence"), "{message}");
+        assert!(
+            message.starts_with(
+                antecedent_core::reason_details::scenario_covariance::UNKNOWN_DEPENDENCE
+            ),
+            "{message}"
+        );
     }
     let mut declared = spec(&["a", "b"], exact(0.0));
     declared.scenarios[1].unit_ids = Some((0..N).map(|i| format!("w{i}")).collect());
     let (code, message) = refused(declared.compute(&ctx()));
     assert_eq!(code, "route_not_supported");
-    assert!(message.starts_with("scenario_covariance.unknown_dependence"), "{message}");
+    assert!(
+        message
+            .starts_with(antecedent_core::reason_details::scenario_covariance::UNKNOWN_DEPENDENCE),
+        "{message}"
+    );
 }
 
 #[test]
@@ -364,11 +397,21 @@ fn covariance_artifact_version_features_and_consumer_limits_refuse() {
         edit(&bytes, |w| w.required_features.push("other_feature_v9".into())).export().unwrap();
     let (code, message) = refused(consume(&foreign));
     assert_eq!(code, "route_not_supported");
-    assert!(message.starts_with("scenario_covariance.unsupported_semantics"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::scenario_covariance::UNSUPPORTED_SEMANTICS
+        ),
+        "{message}"
+    );
     // A matrix claiming to be an interval is not this format.
     let interval = edit(&bytes, |w| w.result.interpretation = "confidence_interval".into());
     let (_, message) = refused(consume(&interval.export().unwrap()));
-    assert!(message.starts_with("scenario_covariance.unsupported_semantics"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::scenario_covariance::UNSUPPORTED_SEMANTICS
+        ),
+        "{message}"
+    );
 
     let strict = |limits: ScenarioCovarianceConsumeLimits| {
         let result = ScenarioCovarianceArtifactWire::consume_with_limits(&bytes, limits, &ctx());
@@ -377,12 +420,16 @@ fn covariance_artifact_version_features_and_consumer_limits_refuse() {
     let base = ScenarioCovarianceConsumeLimits::default();
     for limits in [
         ScenarioCovarianceConsumeLimits { max_rows: N - 1, ..base },
-        ScenarioCovarianceConsumeLimits { max_columns: 2, ..base },
         ScenarioCovarianceConsumeLimits { max_replicates: 299, ..base },
     ] {
         let (code, message) = strict(limits);
-        assert_eq!(code, "cell_not_licensed");
-        assert!(message.starts_with("scenario_covariance.consumer_limit_exceeded"), "{message}");
+        assert_eq!(code, "execution_resource_limit");
+        assert!(
+            message.starts_with(
+                antecedent_core::reason_details::scenario_covariance::CONSUMER_LIMIT_EXCEEDED
+            ),
+            "{message}"
+        );
     }
 }
 
@@ -395,18 +442,81 @@ fn covariance_artifact_invalid_declarations_refuse_with_typed_details() {
         assert_eq!(code, "invalid_argument", "{message}");
         assert!(message.starts_with(detail), "{message}");
     };
-    invalid(&|s| s.table.rows[0].pop().map_or((), |_| ()), "scenario_covariance.invalid_row_table");
-    invalid(&|s| s.table.columns[1] = "z".into(), "scenario_covariance.invalid_row_table");
+    invalid(
+        &|s| s.table.rows[0].pop().map_or((), |_| ()),
+        antecedent_core::reason_details::scenario_covariance::INVALID_ROW_TABLE,
+    );
+    invalid(
+        &|s| s.table.columns[1] = "z".into(),
+        antecedent_core::reason_details::scenario_covariance::INVALID_ROW_TABLE,
+    );
     invalid(
         &|s| s.scenarios[0].dependence = "maybe".into(),
-        "scenario_covariance.invalid_dependence",
+        antecedent_core::reason_details::scenario_covariance::INVALID_DEPENDENCE,
     );
     invalid(
         &|s| {
             s.scenarios[0].functional =
                 FunctionalWire::LinearScore { terms: vec![term(1.0, &[("nope", 1)])] };
         },
-        "scenario_covariance.invalid_functional",
+        antecedent_core::reason_details::scenario_covariance::INVALID_FUNCTIONAL,
     );
-    invalid(&|s| s.scenarios[1].id = "a".into(), "scenario_covariance.duplicate_scenario_id");
+    invalid(
+        &|s| s.scenarios[1].id = "a".into(),
+        antecedent_core::reason_details::scenario_covariance::DUPLICATE_SCENARIO_ID,
+    );
+}
+
+#[test]
+fn covariance_artifact_refuses_a_linear_score_with_too_many_terms() {
+    let mut declared = spec(&["a"], exact(0.0));
+    declared.scenarios[0].functional = FunctionalWire::LinearScore {
+        terms: vec![
+            term(1.0, &[("z", 1)]);
+            antecedent_io::scenario_covariance_artifact::MAX_SCORE_TERMS + 1
+        ],
+    };
+    let (code, message) = refused(declared.compute(&ctx()));
+    assert_eq!(code, "execution_resource_limit");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::scenario_covariance::TOO_MANY_TERMS),
+        "{message}"
+    );
+}
+
+#[test]
+fn covariance_artifact_rejects_empty_table_before_constructing_estimators() {
+    for name in ["a", "adjusted"] {
+        let mut declared = spec(&[name], exact(0.0));
+        declared.table.rows.clear();
+        declared.table.unit_ids.clear();
+        let Err(IoError::Refused { code, message }) = declared.estimators() else {
+            panic!("expected a coded refusal");
+        };
+        assert_eq!(code, "invalid_argument");
+        assert!(
+            message.starts_with(
+                antecedent_core::reason_details::scenario_covariance::INVALID_ROW_TABLE
+            ),
+            "{message}"
+        );
+    }
+}
+
+#[test]
+fn covariance_artifact_consumer_row_bound_is_configurable_on_the_producer_too() {
+    let declared = spec(&["a", "b"], exact(0.0));
+    let base = ScenarioCovarianceConsumeLimits::default();
+    declared.compute_within(&ctx(), &base).unwrap();
+    let tight = ScenarioCovarianceConsumeLimits { max_rows: N - 1, ..base };
+    let (code, message) = refused(declared.compute_within(&ctx(), &tight));
+    assert_eq!(code, "execution_resource_limit");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::scenario_covariance::TABLE_TOO_LARGE),
+        "{message}"
+    );
+    assert_eq!(
+        declared.estimators_within(&tight).err().unwrap().to_string(),
+        "reason=execution_resource_limit: scenario_covariance.table_too_large: at most 5 rows"
+    );
 }

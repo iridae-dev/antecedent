@@ -1,12 +1,16 @@
 //! Independent point-result artifacts for single-source z transport.
 //!
-//! Format version 2. A consumer trusts nothing in the artifact: the proof is
+//! Format version 4. A consumer trusts nothing in the artifact: the proof is
 //! re-verified, the catalog re-bound, the laws re-validated and re-counted, the
 //! program re-checked and the point recomputed, all under the consumer's own
 //! limits. The limits an artifact records are provenance; a stored limit larger
 //! than the consumer's refuses. Version 1 artifacts carried an optional program
-//! and a `Debug`-rendered graph signature and are refused as unsupported.
+//! and a `Debug`-rendered graph signature and are refused as unsupported. Version 2 artifacts carried no
+//! variable-name mapping and are refused too: the digest now binds the names. Version 3
+//! artifacts carried no evidence digest, so their laws, request, program and result were bound
+//! by no digest, and are refused as well.
 
+use crate::exact_transport_laws::canonical_laws;
 use crate::{
     IoError, admg_from_wire, admg_to_wire,
     exact_law_wire::ExactLawWire,
@@ -32,9 +36,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// The artifact format this reader writes and accepts.
-pub const Z_TRANSPORT_ARTIFACT_VERSION: u32 = 2;
+pub const Z_TRANSPORT_ARTIFACT_VERSION: u32 = 4;
 /// The feature marker of the accepted format.
-pub const Z_TRANSPORT_ARTIFACT_FEATURE: &str = "checked_z_transport_point_v2";
+pub const Z_TRANSPORT_ARTIFACT_FEATURE: &str = "checked_z_transport_point_v4";
 /// The one interval status this point format reports.
 pub const Z_TRANSPORT_NO_INTERVAL: &str = "no_interval_reported";
 
@@ -80,10 +84,16 @@ pub struct ZTransportArtifactWire {
     pub result: ZTransportPointWire,
     /// This format never reports an interval.
     pub interval_status: String,
+    /// Variable name of every graph coordinate, or empty. Bound by the premises digest.
+    pub variable_names: Vec<String>,
     /// Semantic digest of the canonical premises: sorted graph, selections,
-    /// query, proof record and expression. Stable across re-encodings of the
+    /// query, proof record, expression and variable names. Stable across re-encodings of the
     /// same premises, unlike a digest of the artifact bytes.
     pub premises_digest: String,
+    /// Digest of the whole stored artifact but this field: the request, catalog, program,
+    /// laws (probabilities included), limits and reported point that the premises digest
+    /// leaves out.
+    pub evidence_digest: String,
 }
 
 /// Complete point distribution in canonical atom order.
@@ -152,6 +162,7 @@ fn premises_digest(
     query: &ZTransportQueryWire,
     proof: &ZTransportDerivationRecord,
     expression: &ExprArenaWire,
+    variable_names: &[String],
 ) -> Result<String, IoError> {
     let mut graph = graph.clone();
     graph.directed.sort_unstable();
@@ -160,24 +171,8 @@ fn premises_digest(
     selections.sort_unstable();
     crate::digest_hex(
         IdentityDomain::TransportCertificate,
-        &("z_transport_point_v2", graph, selections, query, proof, expression),
+        &("z_transport_point_v3", graph, selections, query, proof, expression, variable_names),
     )
-}
-
-/// Sort laws into a canonical order so the same evidence supplied in another
-/// order produces the same artifact.
-fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoError> {
-    let mut laws = data
-        .laws()
-        .iter()
-        .map(|law| {
-            let wire = ExactLawWire::from_law(law);
-            let key = crate::to_cbor(&(&wire.population, wire.regime, &wire.interventions));
-            key.map(|key| (key, wire))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    laws.sort_by(|a, b| a.0.cmp(&b.0));
-    Ok(laws.into_iter().map(|(_, law)| law).collect())
 }
 
 impl ZTransportArtifactWire {
@@ -185,6 +180,10 @@ impl ZTransportArtifactWire {
     ///
     /// # Errors
     /// The premises do not encode, or the program does not match the functional.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "one artifact: premises, data, point, the names that bind it, and the context"
+    )]
     pub fn checked(
         diagram: &SelectionDiagram,
         functional: &BoundZTransportFunctional,
@@ -193,14 +192,16 @@ impl ZTransportArtifactWire {
         limits: ExactEvaluationLimits,
         result: &ExactDistribution,
         program: &FunctionalProgram,
+        variable_names: &[String],
     ) -> Result<Self, IoError> {
         let graph = admg_to_wire(diagram.causal_graph())?;
         let selections = diagram.selection_targets().iter().map(|v| v.raw()).collect::<Vec<_>>();
         let query = ZTransportQueryWire::from_query(functional.derivation().query());
         let proof = functional.derivation().to_record();
         let expression = expr_arena_to_wire(functional.derivation().arena())?;
-        let premises_digest = premises_digest(&graph, &selections, &query, &proof, &expression)?;
-        let wire = Self {
+        let premises_digest =
+            premises_digest(&graph, &selections, &query, &proof, &expression, variable_names)?;
+        let mut wire = Self {
             version: Z_TRANSPORT_ARTIFACT_VERSION,
             required_features: vec![Z_TRANSPORT_ARTIFACT_FEATURE.into()],
             graph,
@@ -221,11 +222,24 @@ impl ZTransportArtifactWire {
             max_support_rows: data.max_support_rows(),
             result: ZTransportPointWire::from_distribution(result),
             interval_status: Z_TRANSPORT_NO_INTERVAL.into(),
+            variable_names: variable_names.to_vec(),
             premises_digest,
+            evidence_digest: String::new(),
         };
+        wire.evidence_digest = wire.expected_evidence_digest()?;
         wire.validate_shape()?;
         validate_functional_program(program, functional)?;
         Ok(wire)
+    }
+
+    /// The evidence digest the stored artifact should carry.
+    ///
+    /// # Errors
+    /// The artifact does not encode.
+    pub fn expected_evidence_digest(&self) -> Result<String, IoError> {
+        crate::evidence_digest::evidence_digest("z_transport_evidence_v4", self, |wire| {
+            wire.evidence_digest = String::new();
+        })
     }
 
     fn validate_shape(&self) -> Result<(), ZTransportArtifactError> {
@@ -240,7 +254,28 @@ impl ZTransportArtifactWire {
         {
             return Err(ZTransportArtifactError::UnsupportedSemantics("point result shape"));
         }
+        if !self.variable_names.is_empty()
+            && (u32::try_from(self.variable_names.len()).ok() != Some(self.graph.node_count)
+                || self.variable_names.iter().any(|name| name.trim().is_empty())
+                || self.variable_names.iter().collect::<std::collections::BTreeSet<_>>().len()
+                    != self.variable_names.len())
+        {
+            return Err(ZTransportArtifactError::UnsupportedSemantics("variable names"));
+        }
         Ok(())
+    }
+
+    /// Check a caller's variable names against the verified name mapping.
+    ///
+    /// # Errors
+    /// [`ZTransportArtifactError::NamesMismatch`] unless `names` equals the stored
+    /// mapping (an artifact without a mapping accepts none but the empty one).
+    pub fn check_variable_names(&self, names: &[String]) -> Result<(), ZTransportArtifactError> {
+        if self.variable_names.as_slice() == names {
+            Ok(())
+        } else {
+            Err(ZTransportArtifactError::NamesMismatch)
+        }
     }
 
     /// Encode the versioned artifact as CBOR.
@@ -301,6 +336,7 @@ impl ZTransportArtifactWire {
                 &wire.query,
                 &wire.proof,
                 &wire.expression,
+                &wire.variable_names,
             ),
             std::convert::identity,
             || ZTransportArtifactError::PremisesMismatch.into(),
@@ -399,6 +435,12 @@ impl ZTransportArtifactWire {
         if !wire.result.replays(&ZTransportPointWire::from_distribution(&distribution)) {
             return Err(ZTransportArtifactError::PointMismatch.into());
         }
+        crate::require_digest(
+            &wire.evidence_digest,
+            wire.expected_evidence_digest(),
+            std::convert::identity,
+            || ZTransportArtifactError::EvidenceMismatch.into(),
+        )?;
         Ok(ConsumedZTransport {
             diagram,
             functional,

@@ -1,25 +1,25 @@
 //! Python bindings for the temporal extensions of the finite two-step sequence:
 //! the uncertain initial state and the new-period refresh (both point
-//! only and licensed), and measured dependent intervals.
+//! only and supported), and measured dependent intervals.
 //!
 //! Python builds the declarations; every identity, check and refusal rule is Rust's.
 //! A refusal comes back as structured JSON for the Python layer to raise as its own
 //! exception type.
 use crate::bridge::RefusalJson;
-use antecedent::{IntervalEstimand, TemporalInitialState, TemporalWindow};
-use antecedent_core::reason_code;
-use antecedent_estimate::temporal_dependent_interval::{
+use antecedent::estimate::temporal_dependent_interval::{
     DependentIntervalConfig, IntervalMethod, SequenceHistory, UnitHistories,
 };
-use antecedent_estimate::temporal_initial_state::{
+use antecedent::estimate::temporal_initial_state::{
     InitialStateLaw, InitialStatePopulation, InitialStateSpec,
 };
-use antecedent_estimate::temporal_refresh::ObservationPeriod;
-use antecedent_io::IoError;
-use antecedent_io::temporal_initial_state_artifact::{
+use antecedent::estimate::temporal_refresh::ObservationPeriod;
+use antecedent::io::IoError;
+use antecedent::io::temporal_initial_state_artifact::{
     TemporalInitialStateConsumeLimits, TemporalPremisesWire,
 };
-use antecedent_io::temporal_refresh_artifact::{ReceiptWire, WindowIdentityWire};
+use antecedent::io::temporal_refresh_artifact::{ReceiptWire, WindowIdentityWire};
+use antecedent::reason::reason_code;
+use antecedent::{IntervalEstimand, TemporalInitialState, TemporalWindow};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use std::collections::BTreeSet;
@@ -72,13 +72,8 @@ fn units_of(units: Option<Vec<UnitTuple>>) -> Option<Vec<UnitHistories>> {
                 unit_id,
                 histories: histories
                     .into_iter()
-                    .map(|(time_id, s0, a1, l2, a2, y)| SequenceHistory {
-                        time_id,
-                        s0,
-                        a1,
-                        l2,
-                        a2,
-                        y,
+                    .map(|(time_id, s0, a1, l2, a2, y)| {
+                        SequenceHistory::two_step(time_id, s0, a1, l2, a2, y)
                     })
                     .collect(),
             })
@@ -89,8 +84,8 @@ fn units_of(units: Option<Vec<UnitTuple>>) -> Option<Vec<UnitHistories>> {
 fn panel_of(
     snapshot_id: &str,
     units: Option<Vec<UnitTuple>>,
-) -> Result<antecedent_estimate::temporal_dependent_interval::TemporalUnitPanel, IoError> {
-    Ok(antecedent_estimate::temporal_dependent_interval::TemporalUnitPanel::new(
+) -> Result<antecedent::estimate::temporal_dependent_interval::TemporalUnitPanel, IoError> {
+    Ok(antecedent::estimate::temporal_dependent_interval::TemporalUnitPanel::new(
         snapshot_id,
         units_of(units),
     )?)
@@ -154,6 +149,15 @@ fn to_value(value: &impl serde::Serialize) -> serde_json::Value {
     serde_json::to_value(value).unwrap_or(serde_json::Value::Null)
 }
 
+fn invalidation_target_label(target: &antecedent::state::InvalidationTarget) -> String {
+    use antecedent::state::InvalidationTarget as T;
+    match target {
+        T::TemporalProduct(product) => format!("temporal_product:{}", product.label()),
+        T::AllResults => "all_results".to_owned(),
+        other => format!("{other:?}"),
+    }
+}
+
 fn state_payload(state: &TemporalInitialState) -> String {
     let marginalized = state.marginalized();
     let refresh = state.receipt().map(|receipt| {
@@ -161,6 +165,13 @@ fn state_payload(state: &TemporalInitialState) -> String {
             "receipt": to_value(&ReceiptWire::from_receipt(receipt)),
             "previous_value": state.previous_value(),
             "interval_invalidated": state.interval_invalidated(),
+            "invalidations": state.refresh_invalidations().map(|log| {
+                log.entries.iter().map(|entry| serde_json::json!({
+                    "at_version": entry.at_version.raw(),
+                    "target": invalidation_target_label(&entry.target),
+                    "reason": &*entry.reason,
+                })).collect::<Vec<_>>()
+            }),
         })
     });
     serde_json::json!({
@@ -332,12 +343,12 @@ fn consume_temporal_refresh_artifact(
     }))
 }
 
-/// The closed dependent-interval route: validates the arguments through the Rust
-/// core, then returns the structured refusal. Never returns an interval.
+/// Validate the dependent-interval arguments through the Rust core: `None` when they are
+/// valid, otherwise the structured refusal.
 #[pyfunction]
 #[pyo3(signature = (snapshot_id, units, sequence, estimand, fixed_state, law, point, replicates, seed, level, method, min_units, max_failed_fraction))]
 #[allow(clippy::too_many_arguments)]
-fn temporal_dependent_interval_closed(
+fn temporal_dependent_interval_scope(
     snapshot_id: &str,
     units: Option<Vec<UnitTuple>>,
     sequence: (u32, u32),
@@ -351,7 +362,8 @@ fn temporal_dependent_interval_closed(
     method: &str,
     min_units: usize,
     max_failed_fraction: f64,
-) -> PyResult<String> {
+) -> PyResult<Option<String>> {
+    crate::bridge::check_count("replicates", replicates as u64, crate::bridge::MAX_RESAMPLES)?;
     let method = match method {
         "studentized" => IntervalMethod::Studentized,
         other => {
@@ -389,24 +401,19 @@ fn temporal_dependent_interval_closed(
         )
     });
     match outcome {
-        Ok(()) => Ok(refusal_json(
-            reason_code!("cell_not_licensed"),
-            "temporal_interval.route_frozen: the historical candidate diagnostic does not authorize inference",
-        )),
-        Err(IoError::Refused { code, message }) => Ok(refusal_json(code, &message)),
+        Ok(()) => Ok(None),
+        Err(IoError::Refused { code, message }) => Ok(Some(refusal_json(code, &message))),
         Err(other) => Err(crate::value_err(other.to_string())),
     }
 }
 
-/// Internal acceptance carrier; never labels an unmeasured candidate licensed.
-#[cfg(feature = "calibration-internal")]
+/// Internal acceptance carrier; never labels a `not_measured` candidate supported.
 #[pyclass]
 #[doc(hidden)]
 struct NativeTemporalIntervalCandidate {
-    wire: antecedent_io::temporal_interval_artifact::TemporalIntervalArtifactWire,
+    wire: antecedent::io::temporal_interval_artifact::TemporalIntervalArtifactWire,
 }
 
-#[cfg(feature = "calibration-internal")]
 #[pymethods]
 impl NativeTemporalIntervalCandidate {
     fn payload(&self) -> PyResult<String> {
@@ -421,7 +428,6 @@ impl NativeTemporalIntervalCandidate {
 }
 
 /// Actual public-route preparation, available only in internal acceptance builds.
-#[cfg(feature = "calibration-internal")]
 #[doc(hidden)]
 #[pyfunction]
 #[pyo3(signature = (snapshot_id, units, sequence, estimand, fixed_state, law, point, replicates, seed, level, method, min_units, max_failed_fraction))]
@@ -442,8 +448,9 @@ fn temporal_dependent_interval_candidate(
     min_units: usize,
     max_failed_fraction: f64,
 ) -> Outcome<NativeTemporalIntervalCandidate> {
+    crate::bridge::check_count("replicates", replicates as u64, crate::bridge::MAX_RESAMPLES)?;
     // Preserve the released entry's complete argument validation and refusals.
-    let refusal = temporal_dependent_interval_closed(
+    let refusal = temporal_dependent_interval_scope(
         snapshot_id,
         units.clone(),
         sequence,
@@ -458,9 +465,7 @@ fn temporal_dependent_interval_candidate(
         min_units,
         max_failed_fraction,
     )?;
-    let detail = serde_json::from_str::<serde_json::Value>(&refusal)
-        .map_err(|e| crate::value_err(e.to_string()))?;
-    if detail["detail"] != "temporal_interval.route_frozen" {
+    if let Some(refusal) = refusal {
         return Ok((None, Some(refusal)));
     }
     let method = match method {
@@ -516,9 +521,10 @@ fn temporal_dependent_interval_measured(
     memory_limit_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> Outcome<crate::measured_inference_api::NativeMeasuredInference> {
+    crate::bridge::check_count("replicates", replicates as u64, crate::bridge::MAX_RESAMPLES)?;
     let numerical_bytes = units
         .as_ref()
-        .map_or(0, |u| u.iter().map(|(_, h)| h.len()).sum::<usize>())
+        .map_or(0, |u| u.iter().fold(0_usize, |total, (_, h)| total.saturating_add(h.len())))
         .saturating_mul(128);
     crate::measured_inference_api::before_work(
         0,
@@ -527,7 +533,7 @@ fn temporal_dependent_interval_measured(
         cancel.as_ref(),
     )?;
     // Preserve complete original-domain validation before scoped inference.
-    let refusal = temporal_dependent_interval_closed(
+    let refusal = temporal_dependent_interval_scope(
         snapshot_id,
         units.clone(),
         sequence,
@@ -542,9 +548,7 @@ fn temporal_dependent_interval_measured(
         min_units,
         max_failed_fraction,
     )?;
-    let detail = serde_json::from_str::<serde_json::Value>(&refusal)
-        .map_err(|e| crate::value_err(e.to_string()))?;
-    if detail["detail"] != "temporal_interval.route_frozen" {
+    if let Some(refusal) = refusal {
         return Ok((None, Some(refusal)));
     }
     let method = match method {
@@ -578,10 +582,10 @@ fn temporal_dependent_interval_measured(
         };
         let bytes = source.export().map_err(crate::transport_common::error)?;
         let measured =
-            antecedent_io::temporal_interval_artifact::TemporalIntervalArtifactWire::measure(
+            antecedent::io::temporal_interval_artifact::TemporalIntervalArtifactWire::measure(
                 &bytes,
                 &source.seal,
-                &antecedent_io::temporal_interval_artifact::TemporalIntervalConsumeLimits::default(
+                &antecedent::io::temporal_interval_artifact::TemporalIntervalConsumeLimits::default(
                 ),
                 &ctx,
             );
@@ -595,7 +599,6 @@ fn temporal_dependent_interval_measured(
 }
 
 /// Fresh internal consumer reruns the original whole-unit estimator/resampling.
-#[cfg(feature = "calibration-internal")]
 #[doc(hidden)]
 #[pyfunction]
 fn consume_temporal_interval_candidate(
@@ -603,7 +606,7 @@ fn consume_temporal_interval_candidate(
     artifact: &[u8],
     expected_identity: &str,
 ) -> Outcome<NativeTemporalIntervalCandidate> {
-    use antecedent_io::temporal_interval_artifact::{
+    use antecedent::io::temporal_interval_artifact::{
         TemporalIntervalArtifactWire, TemporalIntervalConsumeLimits,
     };
     let artifact = artifact.to_vec();
@@ -632,7 +635,6 @@ fn consume_temporal_interval_candidate(
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(temporal_dependent_interval_measured, module)?)?;
-    #[cfg(feature = "calibration-internal")]
     {
         module.add_class::<NativeTemporalIntervalCandidate>()?;
         module.add_function(wrap_pyfunction!(temporal_dependent_interval_candidate, module)?)?;
@@ -642,6 +644,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(temporal_initial_state_prepare, module)?)?;
     module.add_function(wrap_pyfunction!(consume_temporal_initial_state_artifact, module)?)?;
     module.add_function(wrap_pyfunction!(consume_temporal_refresh_artifact, module)?)?;
-    module.add_function(wrap_pyfunction!(temporal_dependent_interval_closed, module)?)?;
+    module.add_function(wrap_pyfunction!(temporal_dependent_interval_scope, module)?)?;
+    crate::period_refresh_api::register(module)?;
     Ok(())
 }

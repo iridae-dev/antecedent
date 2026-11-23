@@ -15,15 +15,20 @@ use antecedent_core::measurement_model::{
     MeasurementModel, MeasurementParameters, MeasurementRoute, MeasurementVariable,
     ParameterEvidence, RepresentationVersion,
 };
+use antecedent_io_core::distribution_artifact::DrawAlignment;
 use antecedent_io_core::measurement_model_wire::model_to_wire;
 use antecedent_io_core::{
-    MeasuredSlotWire, ObservationQueryArtifactError, ObservationQueryArtifactWire,
-    ObservationQueryWire, ObservationResultWire, observation_query_identity,
+    MeasuredSlotWire, OBSERVATION_QUERY_GENERAL_ARTIFACT_VERSION,
+    OBSERVATION_QUERY_GENERAL_FEATURE, OBSERVATION_QUERY_JOINT_MEASURED_FEATURE,
+    OBSERVATION_QUERY_JOINT_MEASURED_VERSION, ObservationQueryArtifactError,
+    ObservationQueryArtifactWire, ObservationQueryWire, ObservationResultWire, RedrawPriorWire,
+    RedrawTargetWire, RetainedMechanismWire, observation_query_identity,
 };
 use antecedent_model::compose::{
     ComposedModelSpec, Domain, MechanismContext, MechanismDescriptor, MechanismForm,
     MechanismOrigin, MechanismProvenance, ParentBinding, PosteriorDependence, TabularRow,
 };
+use antecedent_model::observation_uncertainty::MAX_REDRAWS;
 
 const TOL: f64 = 1e-12;
 
@@ -181,6 +186,63 @@ fn measured_slot(model: &MeasurementModel) -> MeasuredSlotWire {
         representation_version: 1,
         model: model_to_wire(model),
     }
+}
+
+#[test]
+fn joint_indicators_use_one_declared_likelihood_and_replay_v3() {
+    let first = measured_slot(&assay(0.9, "C"));
+    let mut second_model = assay(0.7, "C");
+    second_model.model_id = "assay-2".into();
+    second_model.indicator.id = "test_result_2".into();
+    let mut second = measured_slot(&second_model);
+    second.indicator_id = "test_result_2".into();
+    let query = ObservationQueryWire::JointMeasuredOutcome {
+        outcome: "Y".into(),
+        interventions: Vec::new(),
+        observed: Vec::new(),
+        measured: vec![second.clone(), first.clone()],
+        dependence: "conditionally_independent_given_construct".into(),
+    };
+    let artifact = ObservationQueryArtifactWire::seal(
+        Some(&construct_spec()),
+        query,
+        InferenceBasis::DeclaredModel,
+        &ctx(),
+    )
+    .expect("joint measurement");
+    assert_eq!(artifact.version, OBSERVATION_QUERY_JOINT_MEASURED_VERSION);
+    assert_eq!(
+        artifact.required_features,
+        vec![OBSERVATION_QUERY_JOINT_MEASURED_FEATURE.to_owned()]
+    );
+    let ObservationResultWire::Conditional { levels, construct_posterior, .. } = &artifact.result
+    else {
+        panic!("joint conditional result");
+    };
+    near(
+        level_bits(construct_posterior.as_ref().expect("construct posterior"), "1"),
+        0.063 / 0.099,
+    );
+    near(level_bits(levels, "1"), (0.1 * 0.036 + 0.7 * 0.063) / 0.099);
+    let bytes = artifact.export().expect("v3 bytes");
+    let decoded = ObservationQueryArtifactWire::decode(&bytes).expect("v3 decode");
+    decoded.consume(Some(&artifact.identity), &ctx()).expect("independent replay");
+    let unsupported = ObservationQueryWire::JointMeasuredOutcome {
+        outcome: "Y".into(),
+        interventions: Vec::new(),
+        observed: Vec::new(),
+        measured: vec![first, second],
+        dependence: "unspecified".into(),
+    };
+    assert!(
+        ObservationQueryArtifactWire::seal(
+            Some(&construct_spec()),
+            unsupported,
+            InferenceBasis::DeclaredModel,
+            &ctx(),
+        )
+        .is_err()
+    );
 }
 
 fn pair(a: &str, b: &str) -> (String, String) {
@@ -484,7 +546,10 @@ fn a_measured_signal_is_inverted_through_its_model_and_a_swapped_model_changes_t
     match error {
         ObservationQueryArtifactError::Refused { refusals } => {
             assert_eq!(refusals[0].code, "measurement_binding_mismatch");
-            assert_eq!(refusals[0].detail, "observation_query.construct_mismatch");
+            assert_eq!(
+                refusals[0].detail,
+                antecedent_core::reason_details::observation_query::CONSTRUCT_MISMATCH
+            );
         }
         other => panic!("unexpected {other:?}"),
     }
@@ -509,7 +574,10 @@ fn an_unreachable_level_cannot_be_sealed_and_states_the_supremum() {
     match error {
         ObservationQueryArtifactError::Refused { refusals } => {
             assert_eq!(refusals[0].code, "evidence_cannot_reach_level");
-            assert_eq!(refusals[0].detail, "observation_query.level_unreachable");
+            assert_eq!(
+                refusals[0].detail,
+                antecedent_core::reason_details::observation_query::LEVEL_UNREACHABLE
+            );
             let supremum: f64 = refusals[0].supplied.as_deref().unwrap().parse().unwrap();
             assert!((supremum - 0.78).abs() <= TOL);
         }
@@ -561,7 +629,10 @@ fn declared_bayes_queries_replay_and_a_zero_probability_observation_is_refused()
     .unwrap_err()
     {
         ObservationQueryArtifactError::Refused { refusals } => {
-            assert_eq!(refusals[0].detail, "observation_query.zero_probability_evidence");
+            assert_eq!(
+                refusals[0].detail,
+                antecedent_core::reason_details::observation_query::ZERO_PROBABILITY_EVIDENCE
+            );
         }
         other => panic!("unexpected {other:?}"),
     }
@@ -650,4 +721,424 @@ fn replay_observes_cancellation() {
         wire.consume(None, &cancelled).unwrap_err(),
         ObservationQueryArtifactError::Cancelled
     );
+}
+
+// ------------------------------------------------------------ general queries
+
+fn bits(value: f64) -> u64 {
+    value.to_bits()
+}
+
+fn real_binding(var: &str) -> ParentBinding {
+    ParentBinding {
+        variable: var.into(),
+        units: "u".into(),
+        transform: "identity".into(),
+        domain: Domain::Real,
+    }
+}
+
+fn lg(var: &str, intercept: f64, sigma: f64, parents: &[(&str, f64)]) -> MechanismDescriptor {
+    MechanismDescriptor {
+        variable: var.into(),
+        form: MechanismForm::LinearGaussian {
+            intercept,
+            sigma,
+            coefficients: parents.iter().map(|(p, c)| ((*p).to_owned(), *c)).collect(),
+        },
+        parents: parents.iter().map(|(p, _)| real_binding(p)).collect(),
+        conditioning_set: parents.iter().map(|(p, _)| (*p).to_owned()).collect(),
+        output_units: "u".into(),
+        output_transform: "identity".into(),
+        output_support: Domain::Real,
+        context: MechanismContext { population: "pop".into(), regime: "observational".into() },
+        provenance: MechanismProvenance {
+            origin: MechanismOrigin::Fitted,
+            artifact_id: format!("fit:{var}"),
+            evidence_id: format!("data:{var}"),
+        },
+        latents: Vec::new(),
+        uncertainty: None,
+    }
+}
+
+/// X ~ N(1, 4); M = 0.5 + 2 X + e; Y = -1 + 0.5 X + 3 M + 0.5 e.
+fn gaussian_chain() -> ComposedModelSpec {
+    spec_of(vec![
+        lg("X", 1.0, 2.0, &[]),
+        lg("M", 0.5, 1.0, &[("X", 2.0)]),
+        lg("Y", -1.0, 0.5, &[("X", 0.5), ("M", 3.0)]),
+    ])
+}
+
+fn gaussian_query(interventions: &[(&str, f64)], observed: &[(&str, f64)]) -> ObservationQueryWire {
+    let pairs = |values: &[(&str, f64)]| {
+        values.iter().map(|(n, v)| ((*n).to_owned(), bits(*v))).collect::<Vec<_>>()
+    };
+    ObservationQueryWire::GaussianOutcome {
+        outcome: "Y".into(),
+        interventions: pairs(interventions),
+        observed: pairs(observed),
+    }
+}
+
+#[test]
+fn a_gaussian_claim_is_a_version_two_artifact_whose_bytes_a_version_one_reader_refuses() {
+    let spec = gaussian_chain();
+    let wire = ObservationQueryArtifactWire::seal(
+        Some(&spec),
+        gaussian_query(&[("X", 2.0)], &[("M", 5.0)]),
+        InferenceBasis::DeclaredModel,
+        &ctx(),
+    )
+    .unwrap();
+    assert_eq!(wire.version, OBSERVATION_QUERY_GENERAL_ARTIFACT_VERSION);
+    assert_eq!(wire.required_features, [OBSERVATION_QUERY_GENERAL_FEATURE]);
+    let ObservationResultWire::GaussianConditional {
+        operation,
+        mean_bits,
+        variance_bits,
+        evidence_log_density_bits,
+    } = &wire.result
+    else {
+        panic!("wrong result kind");
+    };
+    // do(X=2), M=5: the structural equation at X=2, M=5 -> N(15, 0.25).
+    assert_eq!(operation, "conditional_intervention");
+    near(*mean_bits, 15.0);
+    near(*variance_bits, 0.25);
+    // The density of M=5 under N(4.5, 1).
+    let density = -0.5 * ((2.0 * std::f64::consts::PI).ln() + 0.25);
+    near(evidence_log_density_bits.unwrap(), density);
+    assert_eq!(wire.query.operation(), "conditional_intervention");
+
+    let bytes = wire.export().unwrap();
+    let decoded = ObservationQueryArtifactWire::decode(&bytes).unwrap();
+    assert_eq!(decoded, wire);
+    assert_eq!(decoded.consume(Some(&wire.identity), &ctx()).unwrap().result, wire.result);
+
+    // A reader of the original format gates on the version before it interprets the payload:
+    // the stored version is the general one, so it is refused as another version.
+    assert_ne!(wire.version, antecedent_io_core::OBSERVATION_QUERY_ARTIFACT_VERSION);
+
+    // Forcing the version back to 1, or the feature back to the original marker, is refused.
+    let mut downgraded = wire.clone();
+    downgraded.version = antecedent_io_core::OBSERVATION_QUERY_ARTIFACT_VERSION;
+    assert!(matches!(
+        downgraded.consume(None, &ctx()).unwrap_err(),
+        ObservationQueryArtifactError::UnsupportedVersion { version: 1 }
+    ));
+    let mut relabelled = wire.clone();
+    relabelled.required_features =
+        vec![antecedent_io_core::OBSERVATION_QUERY_ARTIFACT_FEATURE.to_owned()];
+    assert!(matches!(
+        relabelled.consume(None, &ctx()).unwrap_err(),
+        ObservationQueryArtifactError::UnsupportedSemantics(_)
+    ));
+
+    // A resealed edit of the observed value changes the replayed result.
+    let mut edited = wire.clone();
+    edited.query = gaussian_query(&[("X", 2.0)], &[("M", 6.0)]);
+    reseal(&mut edited);
+    assert_eq!(
+        edited.consume(None, &ctx()).unwrap_err(),
+        ObservationQueryArtifactError::ResultMismatch
+    );
+    // An edit that is not resealed is an identity mismatch.
+    let mut stale = wire.clone();
+    stale.query = gaussian_query(&[("X", 2.0)], &[("M", 6.0)]);
+    assert_eq!(
+        stale.consume(None, &ctx()).unwrap_err(),
+        ObservationQueryArtifactError::IdentityMismatch
+    );
+}
+
+#[test]
+fn the_gaussian_operation_and_the_listing_order_are_part_of_the_identity() {
+    let spec = gaussian_chain();
+    let seal = |q: ObservationQueryWire| {
+        ObservationQueryArtifactWire::seal(Some(&spec), q, InferenceBasis::DeclaredModel, &ctx())
+            .unwrap()
+    };
+    let conditioning = seal(gaussian_query(&[], &[("M", 5.0)]));
+    let intervention = seal(gaussian_query(&[("X", 2.0)], &[]));
+    let both = seal(gaussian_query(&[("X", 2.0)], &[("M", 5.0)]));
+    assert_eq!(conditioning.query.operation(), "conditioning");
+    assert_eq!(intervention.query.operation(), "intervention");
+    assert_ne!(conditioning.identity, intervention.identity);
+    assert_ne!(conditioning.identity, both.identity);
+    assert_ne!(intervention.identity, both.identity);
+    let forward = seal(gaussian_query(&[], &[("M", 5.0), ("X", 1.0)]));
+    let reversed = seal(gaussian_query(&[], &[("X", 1.0), ("M", 5.0)]));
+    assert_eq!(forward.identity, reversed.identity);
+    assert_eq!(forward.result, reversed.result);
+    // A finite-model query keeps its own, original format.
+    let finite = ObservationQueryArtifactWire::seal(
+        Some(&confounded(MechanismOrigin::Declared)),
+        paired_query(),
+        InferenceBasis::DeclaredModel,
+        &ctx(),
+    )
+    .unwrap();
+    assert_eq!(finite.version, antecedent_io_core::OBSERVATION_QUERY_ARTIFACT_VERSION);
+}
+
+#[test]
+fn a_gaussian_query_on_a_finite_model_and_a_set_and_seen_variable_are_refused() {
+    let wrong_family = ObservationQueryArtifactWire::seal(
+        Some(&confounded(MechanismOrigin::Declared)),
+        gaussian_query(&[], &[("M", 1.0)]),
+        InferenceBasis::DeclaredModel,
+        &ctx(),
+    )
+    .unwrap_err();
+    assert!(matches!(wrong_family, ObservationQueryArtifactError::Replay(_)));
+    let both = ObservationQueryArtifactWire::seal(
+        Some(&gaussian_chain()),
+        gaussian_query(&[("X", 2.0)], &[("X", 2.0)]),
+        InferenceBasis::DeclaredModel,
+        &ctx(),
+    )
+    .unwrap_err();
+    match both {
+        ObservationQueryArtifactError::Refused { refusals } => {
+            assert_eq!(
+                refusals[0].detail,
+                antecedent_core::reason_details::observation_query::MIXED_CONDITIONING_AND_INTERVENTION
+            );
+        }
+        other => panic!("unexpected {other:?}"),
+    }
+}
+
+#[test]
+fn observation_after_intervention_on_a_finite_model_replays_to_the_hand_value() {
+    let spec = confounded(MechanismOrigin::Declared);
+    let query = ObservationQueryWire::ConditionalInterventionalOutcome {
+        outcome: "Y".into(),
+        interventions: vec![pair("S", "1")],
+        observed: vec![pair("Z", "1")],
+        measured: None,
+    };
+    let wire = ObservationQueryArtifactWire::seal(
+        Some(&spec),
+        query,
+        InferenceBasis::DeclaredModel,
+        &ctx(),
+    )
+    .unwrap();
+    let ObservationResultWire::Conditional {
+        operation,
+        evidence_probability_bits,
+        levels,
+        construct_posterior: None,
+    } = &wire.result
+    else {
+        panic!("wrong result kind");
+    };
+    assert_eq!(operation, "conditional_intervention");
+    near(*evidence_probability_bits, 0.5);
+    near(level_bits(levels, "1"), 0.9);
+    assert!(wire.consume(None, &ctx()).is_ok());
+    assert_eq!(wire.version, OBSERVATION_QUERY_GENERAL_ARTIFACT_VERSION);
+
+    // The same assignment as a pure intervention is a different claim.
+    let pure = ObservationQueryArtifactWire::seal(
+        Some(&spec),
+        ObservationQueryWire::InterventionalOutcome {
+            outcome: "Y".into(),
+            interventions: vec![pair("S", "1")],
+        },
+        InferenceBasis::DeclaredModel,
+        &ctx(),
+    )
+    .unwrap();
+    assert_ne!(pure.identity, wire.identity);
+
+    // A measured signal on the intervened construct is refused with the mixed detail.
+    let measured = ObservationQueryArtifactWire::seal(
+        Some(&construct_spec()),
+        ObservationQueryWire::ConditionalInterventionalOutcome {
+            outcome: "Y".into(),
+            interventions: vec![pair("C", "1")],
+            observed: Vec::new(),
+            measured: Some(measured_slot(&assay(0.9, "C"))),
+        },
+        InferenceBasis::DeclaredModel,
+        &ctx(),
+    )
+    .unwrap_err();
+    match measured {
+        ObservationQueryArtifactError::Refused { refusals } => {
+            assert_eq!(
+                refusals[0].detail,
+                antecedent_core::reason_details::observation_query::MIXED_CONDITIONING_AND_INTERVENTION
+            );
+        }
+        other => panic!("unexpected {other:?}"),
+    }
+}
+
+fn redraw_query(seed: u64, draws: u32) -> ObservationQueryWire {
+    let x: Vec<f64> = (0..40_u32).map(|i| f64::from(i) / 8.0).collect();
+    let y: Vec<f64> =
+        x.iter().enumerate().map(|(i, v)| 0.5 + 1.5 * v + 0.4 * (3.0 * i as f64).cos()).collect();
+    let n = x.len() as f64;
+    let sx: f64 = x.iter().sum();
+    let sxx: f64 = x.iter().map(|v| v * v).sum();
+    let sy: f64 = y.iter().sum();
+    let sxy: f64 = x.iter().zip(&y).map(|(a, b)| a * b).sum();
+    let syy: f64 = y.iter().map(|v| v * v).sum();
+    ObservationQueryWire::ParameterRedraw {
+        target: RedrawTargetWire::Gaussian {
+            outcome: "Y".into(),
+            interventions: vec![("X".into(), bits(2.0))],
+            observed: Vec::new(),
+        },
+        retained: vec![RetainedMechanismWire::Gaussian {
+            variable: "Y".into(),
+            parents: vec!["X".into()],
+            gram_bits: [n, sx, sx, sxx].iter().map(|v| bits(*v)).collect(),
+            xty_bits: [sy, sxy].iter().map(|v| bits(*v)).collect(),
+            yty_bits: bits(syy),
+            rows: 40,
+        }],
+        prior: RedrawPriorWire {
+            dirichlet_alpha_bits: bits(1.0),
+            coefficient_precision_bits: bits(1e-6),
+            variance_shape_bits: bits(1e-3),
+            variance_scale_bits: bits(1e-3),
+        },
+        draws,
+        seed,
+    }
+}
+
+fn regression_spec() -> ComposedModelSpec {
+    spec_of(vec![lg("X", 0.0, 1.0, &[]), lg("Y", 0.5, 0.4, &[("X", 1.5)])])
+}
+
+#[test]
+fn redrawn_parameters_are_aligned_draws_with_the_distribution_alignment_identity() {
+    let spec = regression_spec();
+    let wire = ObservationQueryArtifactWire::seal(
+        Some(&spec),
+        redraw_query(9, 300),
+        InferenceBasis::DeclaredModel,
+        &ctx(),
+    )
+    .unwrap();
+    assert_eq!(wire.query.operation(), "parameter_redraw");
+    let ObservationResultWire::ParameterDraws {
+        quantities,
+        draws,
+        point_bits,
+        values_bits,
+        alignment_identity,
+        reading,
+    } = &wire.result
+    else {
+        panic!("wrong result kind");
+    };
+    assert_eq!(quantities, &["conditional_mean", "conditional_variance"]);
+    assert_eq!(*draws, 300);
+    assert_eq!(values_bits.len(), 600);
+    // The point value is the composition's own: 0.5 + 1.5 * 2 and sigma^2 = 0.16.
+    near(point_bits[0], 3.5);
+    near(point_bits[1], 0.16);
+    // The draws are labelled a spread: no coverage is claimed.
+    assert_eq!(reading, "uncalibrated_spread");
+
+    // The repo's distribution artifact: joint alignment, not_measured, the same identity.
+    let distribution = wire.distribution().unwrap();
+    assert_eq!(distribution.shape(), [300, 2]);
+    assert_eq!(distribution.metadata().identity.alignment, DrawAlignment::Joint);
+    assert_eq!(&distribution.alignment_identity().unwrap(), alignment_identity);
+    assert_eq!(distribution.metadata().identity.quantities[0].regime_id, "do(X=2)");
+
+    let consumed = ObservationQueryArtifactWire::decode(&wire.export().unwrap())
+        .unwrap()
+        .consume(Some(&wire.identity), &ctx())
+        .unwrap();
+    assert_eq!(consumed.result, wire.result);
+
+    // A different seed is a different claim with different draws and a different alignment.
+    let other = ObservationQueryArtifactWire::seal(
+        Some(&spec),
+        redraw_query(10, 300),
+        InferenceBasis::DeclaredModel,
+        &ctx(),
+    )
+    .unwrap();
+    assert_ne!(other.identity, wire.identity);
+    assert_ne!(other.result, wire.result);
+    let ObservationResultWire::ParameterDraws { alignment_identity: other_alignment, .. } =
+        &other.result
+    else {
+        panic!("wrong result kind");
+    };
+    assert_ne!(other_alignment, alignment_identity);
+
+    // A forged draw is not the replay of the premises.
+    let mut forged = wire.clone();
+    if let ObservationResultWire::ParameterDraws { values_bits, .. } = &mut forged.result {
+        values_bits[0] = bits(99.0);
+    }
+    assert_eq!(
+        forged.consume(None, &ctx()).unwrap_err(),
+        ObservationQueryArtifactError::ResultMismatch
+    );
+
+    // A last-digit difference (another platform's libm) replays; a visible one does not.
+    let nudge = |relative: f64| {
+        let mut edited = wire.clone();
+        if let ObservationResultWire::ParameterDraws { values_bits, point_bits, .. } =
+            &mut edited.result
+        {
+            let first = f64::from_bits(values_bits[0]);
+            values_bits[0] = (first + first.abs().max(1.0) * relative).to_bits();
+            point_bits[0] += 1;
+        }
+        edited
+    };
+    assert!(nudge(1e-14).consume(None, &ctx()).is_ok());
+    assert_eq!(
+        nudge(1e-6).consume(None, &ctx()).unwrap_err(),
+        ObservationQueryArtifactError::ResultMismatch
+    );
+}
+
+#[test]
+fn a_redraw_refuses_a_draw_count_outside_its_range_and_oversized_data() {
+    let spec = regression_spec();
+    let error = ObservationQueryArtifactWire::seal(
+        Some(&spec),
+        redraw_query(1, 1),
+        InferenceBasis::DeclaredModel,
+        &ctx(),
+    )
+    .unwrap_err();
+    match error {
+        ObservationQueryArtifactError::Refused { refusals } => {
+            assert_eq!(refusals[0].code, "invalid_argument");
+            assert_eq!(
+                refusals[0].detail,
+                antecedent_core::reason_details::observation_query::INVALID_DECLARATION
+            );
+            assert!(
+                refusals[0].offending.as_deref().is_some_and(|text| text.contains("draw count")),
+                "{:?}",
+                refusals[0]
+            );
+        }
+        other => panic!("unexpected {other:?}"),
+    }
+    let error = ObservationQueryArtifactWire::seal(
+        Some(&spec),
+        redraw_query(1, MAX_REDRAWS + 1),
+        InferenceBasis::DeclaredModel,
+        &ctx(),
+    )
+    .unwrap_err();
+    assert!(matches!(error, ObservationQueryArtifactError::LimitsExceeded(_)));
 }

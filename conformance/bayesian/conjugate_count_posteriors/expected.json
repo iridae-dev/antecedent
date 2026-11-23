@@ -1,0 +1,92 @@
+{
+  "tol": 1e-09,
+  "beta_binomial_posterior": {
+    "prior": [
+      2.0,
+      3.0
+    ],
+    "successes": 7,
+    "trials": 20,
+    "expected_alpha": 9.0,
+    "expected_beta": 16.0,
+    "expected_mean": 0.36,
+    "expected_log_marginal_likelihood": -2.5376572151735304
+  },
+  "exceedance": {
+    "prior": [
+      1.0,
+      1.0
+    ],
+    "outcomes": [
+      1.0,
+      2.0,
+      2.0,
+      3.0,
+      5.0
+    ],
+    "threshold": 2.0,
+    "expected_successes": 2,
+    "expected_alpha": 3.0,
+    "expected_beta": 4.0
+  },
+  "gamma_poisson_posterior": {
+    "prior": [
+      2.0,
+      1.0
+    ],
+    "counts": [
+      3,
+      0,
+      4,
+      2
+    ],
+    "expected_shape": 11.0,
+    "expected_rate": 5.0,
+    "expected_mean": 2.2,
+    "expected_log_marginal_likelihood": -8.262364943835534
+  },
+  "empirical_bayes_beta": {
+    "base": [
+      1.0,
+      1.0
+    ],
+    "source": [
+      40,
+      100
+    ],
+    "target": [
+      12,
+      40
+    ],
+    "grid": [
+      0.0,
+      0.25,
+      0.5,
+      0.75,
+      1.0
+    ],
+    "expected_scores": [
+      -3.7135720667043017,
+      -2.8262787412898334,
+      -2.7898263962397465,
+      -2.789536139427227,
+      -2.7946591381576553
+    ],
+    "expected_selected_alpha": 0.75
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "Conjugate Beta-Binomial and Gamma-Poisson posteriors evaluated at 50 digits with mpmath, independent of the library (README).",
+    "formula": "Beta(a + k, b + n - k) and Gamma(a + sum y, b + sum t); quantiles by inverting the regularized incomplete beta and gamma; marginal likelihoods and beta-binomial / negative-binomial predictives in closed form; empirical-Bayes discount as the grid maximizer of the marginal likelihood.",
+    "generator": "conformance/bayesian/conjugate_count_posteriors/reference.py",
+    "command": "uv run --frozen --script conformance/bayesian/conjugate_count_posteriors/reference.py --check",
+    "environment_lock": "conformance/bayesian/conjugate_count_posteriors/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "beta_binomial_posterior",
+      "exceedance",
+      "gamma_poisson_posterior",
+      "empirical_bayes_beta"
+    ]
+  }
+}

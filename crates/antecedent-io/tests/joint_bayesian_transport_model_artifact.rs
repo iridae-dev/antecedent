@@ -1,9 +1,9 @@
 //! The joint Bayesian transport model artifact
 //! (model, priors with provenance, data identities, exact posterior, aligned joint
-//! draws, diagnostics, identification, calibration `unmeasured`) replays independently.
+//! draws, diagnostics, identification, calibration `not_measured`) replays independently.
 //!
 //! The oracle is closed-form Gauss-Jordan algebra on the posterior precision and never
-//! calls the code under test. The public interval route stays closed; nothing here
+//! calls the code under test. The public interval route is not supported; nothing here
 //! asserts coverage.
 #![allow(
     clippy::cast_precision_loss,
@@ -58,27 +58,29 @@ fn source(id: &str, offset: usize, effect: f64) -> SourceData {
     }
 }
 
-fn factor() -> PopulationFactor {
-    PopulationFactor {
-        population: Arc::from("source"),
-        regime: None,
-        variables: Arc::from([]),
-        conditioned_on: Arc::from([]),
-        interventions: Arc::from([]),
-    }
-}
-
 fn identified() -> TransportIdentification {
     TransportIdentification::Transportable {
         formula: TransportFormula::Standardize {
             over: Arc::from([VariableId::from_raw(FEATURE)]),
-            source_response: factor(),
-            target_law: factor(),
+            source_response: PopulationFactor {
+                population: Arc::from("source"),
+                regime: None,
+                variables: Arc::from([VariableId::from_raw(100)]),
+                conditioned_on: Arc::from([VariableId::from_raw(FEATURE)]),
+                interventions: Arc::from([VariableId::from_raw(101)]),
+            },
+            target_law: PopulationFactor {
+                population: Arc::from("target"),
+                regime: None,
+                variables: Arc::from([VariableId::from_raw(FEATURE)]),
+                conditioned_on: Arc::from([]),
+                interventions: Arc::from([]),
+            },
         },
         certificate: TransportCertificate {
-            rule: Arc::from("standardization"),
-            selection_targets: Arc::from([]),
-            premises: Arc::from([]),
+            rule: Arc::from("transport.sid.standardize"),
+            selection_targets: Arc::from([VariableId::from_raw(FEATURE)]),
+            premises: Arc::from([Arc::from("standardizers are pre-treatment")]),
         },
     }
 }
@@ -243,8 +245,8 @@ fn joint_posterior_artifact_replays_value_for_value_against_the_exact_oracle() {
     assert_eq!(loaded.result.draws.values, fit.draws.values);
     assert_eq!(loaded.result.draws.n_draws, DRAWS);
     assert_eq!(loaded.result.draws.alignment, "joint");
-    assert_eq!(loaded.calibration, "unmeasured");
-    assert_eq!(loaded.result.diagnostics.calibration, "unmeasured");
+    assert_eq!(loaded.calibration, "not_measured");
+    assert_eq!(loaded.result.diagnostics.calibration, "not_measured");
     assert_eq!(loaded.result.identification_status, "identified");
     assert_eq!(loaded.result.identification_formula, "standardize");
     assert_ne!(loaded.premises_digest, loaded.data_digest);
@@ -331,13 +333,22 @@ fn joint_posterior_artifact_refuses_resealed_semantic_mutations() {
     }
     // A changed covariate declaration is refused by the engine itself.
     let message = refusal(&resealed(&wire, |w| w.model.features = vec![8]));
-    assert!(message.contains("bayesian_transport.feature_mismatch"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::bayesian_transport::FEATURE_MISMATCH),
+        "{message}"
+    );
     // A changed graph class is refused as unsupported before any fit.
     let message = refusal(&resealed(&wire, |w| w.model.graph = GraphClassCode::Admg));
-    assert!(message.contains("bayesian_transport.unsupported_graph"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::bayesian_transport::UNSUPPORTED_GRAPH),
+        "{message}"
+    );
     // Undeclared source dependence is refused.
     let message = refusal(&resealed(&wire, |w| w.model.dependence = SourceDependenceCode::Unknown));
-    assert!(message.contains("bayesian_transport.source_dependence"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::bayesian_transport::SOURCE_DEPENDENCE),
+        "{message}"
+    );
     // Without resealing, an edited observation breaks the data identity digest.
     let mut edited = wire.clone();
     edited.sources[0].outcome[0] += 1.0;
@@ -368,7 +379,11 @@ fn joint_posterior_artifact_refuses_prior_bank_and_likelihood_double_use() {
     )
     .expect_err("the producer refuses double use");
     assert_eq!(produced.reason_code(), Some("invalid_argument"));
-    assert!(produced.to_string().contains("bayesian_transport.prior_data_overlap"));
+    assert!(
+        produced
+            .to_string()
+            .contains(antecedent_core::reason_details::bayesian_transport::PRIOR_DATA_OVERLAP)
+    );
     // A consumer given a resealed artifact whose prior bank consumed a source refuses too.
     let (wire, _) = built();
     let message = refusal(&resealed(&wire, |w| {
@@ -380,7 +395,10 @@ fn joint_posterior_artifact_refuses_prior_bank_and_likelihood_double_use() {
             }],
         };
     }));
-    assert!(message.contains("bayesian_transport.prior_data_overlap"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::bayesian_transport::PRIOR_DATA_OVERLAP),
+        "{message}"
+    );
     // A bank built from other observations is accepted and stays recorded.
     let mut disjoint = model();
     disjoint.priors.varying.provenance = PriorProvenance::Bank {
@@ -415,13 +433,25 @@ fn joint_posterior_artifact_refuses_an_unknown_version_foreign_feature_and_claim
     ));
     let mut foreign = wire.clone();
     foreign.required_features = vec!["something_else".into()];
-    assert!(JointBayesianArtifactWire::decode(&foreign.export().expect("export")).is_err());
+    let message = JointBayesianArtifactWire::decode(&foreign.export().expect("export"))
+        .expect_err("foreign artifact is refused")
+        .to_string();
+    assert!(message.contains("unsupported semantics: required features"), "{message}");
     let mut calibrated = wire.clone();
     calibrated.calibration = "calibrated".into();
-    assert!(JointBayesianArtifactWire::decode(&calibrated.export().expect("export")).is_err());
+    let message = JointBayesianArtifactWire::decode(&calibrated.export().expect("export"))
+        .expect_err("calibrated artifact is refused")
+        .to_string();
+    assert!(message.contains("unsupported semantics: calibration is not_measured"), "{message}");
     let mut marginals = wire;
     marginals.result.draws.alignment = "independent_marginals".into();
-    assert!(JointBayesianArtifactWire::decode(&marginals.export().expect("export")).is_err());
+    let message = JointBayesianArtifactWire::decode(&marginals.export().expect("export"))
+        .expect_err("marginals artifact is refused")
+        .to_string();
+    assert!(
+        message.contains("unsupported semantics: draws must be aligned joint draws"),
+        "{message}"
+    );
 }
 
 #[test]

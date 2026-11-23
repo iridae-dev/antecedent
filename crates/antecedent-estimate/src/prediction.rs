@@ -9,7 +9,7 @@
 //! none of that is checked here. Identified interventional quantities, with assumptions,
 //! support and uncertainty, come from the temporal analysis path of the `antecedent` facade.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -22,8 +22,9 @@
 use std::sync::Arc;
 
 use antecedent_core::{KernelPolicy, Lag, VariableId};
-use antecedent_data::{LaggedColumn, LaggedSampleWorkspace, TimeSeriesData};
-use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
+use antecedent_data::{LaggedColumn, TimeSeriesData};
+use antecedent_model::history_operators::{HistoryScan, SequentialRegression};
+use antecedent_stats::LeastSquaresWorkspace;
 
 use crate::error::EstimationError;
 
@@ -58,11 +59,9 @@ impl TemporalLinearPredictor {
         let mut cols = Vec::with_capacity(1 + parents.len());
         cols.push(LaggedColumn { variable: target, lag: Lag::CONTEMPORANEOUS });
         cols.extend_from_slice(&parents);
-        let plan = data
-            .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
+        let mut scan = HistoryScan::plan(data, max_lag, Arc::<[LaggedColumn]>::from(cols))
             .map_err(EstimationError::from)?;
-        let mut ws = LaggedSampleWorkspace::default();
-        let prep = plan.prepare(data, &mut ws, policy).map_err(EstimationError::from)?;
+        let prep = scan.complete(data, policy).map_err(EstimationError::from)?;
         let n = prep.n;
         let y = prep.column(0);
         let ncols = 1 + parents.len();
@@ -82,8 +81,7 @@ impl TemporalLinearPredictor {
                 "lagged linear predictor needs finite target and parent values",
             ));
         }
-        let fit = FaerBackend
-            .least_squares(&design, n, ncols, y, &mut ws)
+        let fit = SequentialRegression::solve_design(&design, n, ncols, y, None, &mut ws)
             .map_err(EstimationError::from)?;
         Ok(Self { target, parents, coefficients: Arc::from(fit.coefficients), max_lag })
     }
@@ -116,11 +114,9 @@ impl TemporalLinearPredictor {
         let mut cols = Vec::with_capacity(1 + self.parents.len());
         cols.push(LaggedColumn { variable: self.target, lag: Lag::CONTEMPORANEOUS });
         cols.extend_from_slice(&self.parents);
-        let plan = data
-            .plan_lagged_sample(self.max_lag, Arc::<[LaggedColumn]>::from(cols))
+        let mut scan = HistoryScan::plan(data, self.max_lag, Arc::<[LaggedColumn]>::from(cols))
             .map_err(EstimationError::from)?;
-        let mut ws = LaggedSampleWorkspace::default();
-        let prep = plan.prepare(data, &mut ws, policy).map_err(EstimationError::from)?;
+        let prep = scan.complete(data, policy).map_err(EstimationError::from)?;
         let n = prep.n;
         let mut out = vec![0.0; n];
         for (i, slot) in out.iter_mut().enumerate() {

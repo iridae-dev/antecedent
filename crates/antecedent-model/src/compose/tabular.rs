@@ -8,7 +8,7 @@
 //! is bounded by [`MAX_FINITE_STATES`]; parameter uncertainty is not propagated
 //! for this family.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
@@ -16,7 +16,9 @@ use antecedent_core::ExecutionContext;
 
 use super::coherence::check_composition;
 use super::descriptor::{ComposedModelSpec, MAX_FINITE_STATES, MechanismFamily, MechanismForm};
-use super::{COMPOSITION_STREAM_DOMAIN, CompositionError, noise_stream_index};
+use super::{
+    COMPOSITION_STREAM_DOMAIN, CompositionError, cyclic_simulation_refusal, noise_stream_index,
+};
 
 #[allow(
     clippy::float_cmp,
@@ -227,9 +229,11 @@ impl ComposedFinite {
         while order.len() < n {
             let next = (0..n).find(|&v| !done[v] && parents[v].iter().all(|&p| done[p]));
             let Some(v) = next else {
-                return Err(CompositionError::Numerical {
-                    message: "no topological order after coherence check".into(),
-                });
+                return Err(cyclic_simulation_refusal(
+                    "composed_finite",
+                    "CyclicDigraph::condensation for the feedback structure; \
+                     this executor has no cyclic support and does not enumerate a cycle",
+                ));
             };
             done[v] = true;
             order.push(v);

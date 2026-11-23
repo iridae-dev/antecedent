@@ -2,7 +2,7 @@
 //! against hand-computable dependency graphs, calibration inheritance,
 //! lineage and shared-data views, and order invariance.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
@@ -164,7 +164,7 @@ fn a_change_leaves_the_sibling_valid_and_recomputes_every_dependent() {
         vec!["indicator_provider", "sibling_claim", "sibling_data", "target"]
     );
     assert!(keys(&r, Revalidation::Withdrawn).is_empty());
-    // numerical invalidation only: no license is withdrawn and none is retained for old numbers
+    // numerical invalidation only: no support is withdrawn and none is retained for old numbers
     for key in keys(&r, Revalidation::Recompute) {
         let claim = r.claim(key).expect("claim");
         assert!(claim.withdrawals.is_empty(), "{key}");
@@ -174,7 +174,10 @@ fn a_change_leaves_the_sibling_valid_and_recomputes_every_dependent() {
     // a refusal names the changed origin and does not call it a withdrawal
     let refusal = r.require_valid("decision").expect_err("stale decision");
     assert_eq!(refusal.code, "claim_revalidation_required");
-    assert_eq!(refusal.detail, "composition_verification.recompute_required");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_verification::RECOMPUTE_REQUIRED
+    );
     assert_eq!(refusal.expected.as_deref(), Some("origin cohort"));
 }
 
@@ -245,13 +248,16 @@ fn a_withdrawn_provider_trust_withdraws_dependents_without_stale_numbers() {
         keys(&r, Revalidation::StillValid),
         vec!["cohort", "sibling_claim", "sibling_data", "target"]
     );
-    // withdrawal of a license is not numerical invalidation
+    // withdrawal of support is not numerical invalidation
     assert!(r.claims().all(|c| c.numerical.is_empty()));
     let decision = r.claim("decision").expect("claim");
     assert!(decision.withdrawn_for(WithdrawalKind::ProviderTrust));
     let refusal = r.require_valid("decision").expect_err("withdrawn");
-    assert_eq!(refusal.code, "claim_license_withdrawn");
-    assert_eq!(refusal.detail, "composition_verification.provider_trust_withdrawn");
+    assert_eq!(refusal.code, "claim_support_withdrawn");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_verification::PROVIDER_TRUST_WITHDRAWN
+    );
     assert_eq!(refusal.offending.as_deref(), Some("decision"));
 }
 
@@ -261,8 +267,8 @@ fn an_unsupported_target_withdraws_only_what_rests_on_its_support() {
     let after = build(&Params { target_unsupported: true, ..params() });
     let r = revalidate(&before, &after, &no_effects()).expect("revalidate");
     assert_eq!(keys(&r, Revalidation::Withdrawn), vec!["target", "transported"]);
-    assert!(r.claim("decision").expect("claim").class == Revalidation::StillValid);
-    assert!(r.claim("result").expect("claim").class == Revalidation::StillValid);
+    assert_eq!(r.claim("decision").expect("claim").class, Revalidation::StillValid);
+    assert_eq!(r.claim("result").expect("claim").class, Revalidation::StillValid);
     let transported = r.claim("transported").expect("claim");
     assert_eq!(transported.withdrawals.len(), 1);
     let w = &transported.withdrawals[0];
@@ -273,7 +279,7 @@ fn an_unsupported_target_withdraws_only_what_rests_on_its_support() {
 }
 
 #[test]
-fn calibration_inherited_from_an_object_that_no_longer_holds_it_is_refused() {
+fn calibration_inherited_from_an_object_that_no_longer_holds_it_is_withdrawn_not_refused() {
     let before = build(&params());
     // the upstream result no longer states a guarantee: point value only
     let after =
@@ -288,9 +294,8 @@ fn calibration_inherited_from_an_object_that_no_longer_holds_it_is_refused() {
     // the point value was never touched: the claim is withdrawn for calibration only
     assert!(reported.numerical.is_empty());
     assert!(reported.withdrawn_for(WithdrawalKind::Calibration));
-    let refusal = r.require_valid("reported_effect").expect_err("refused");
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(refusal.detail, "composition_verification.calibration_not_held");
+    // a lost calibration annotates the interval; the claim is not refused
+    assert!(r.require_valid("reported_effect").is_ok());
     // a point-only dependent does not lose its value to a calibration withdrawal
     assert_eq!(r.claim("decision").expect("claim").class, Revalidation::StillValid);
     assert_eq!(r.claim("result").expect("claim").class, Revalidation::StillValid);
@@ -374,7 +379,7 @@ fn transported_calibration_is_never_inherited_by_a_different_target() {
 }
 
 #[test]
-fn a_removed_input_is_a_retired_license_not_a_stale_number() {
+fn a_removed_input_is_a_retired_support_not_a_stale_number() {
     let before = build(&params());
     let mut after = CompositionGraph::new();
     for n in before.nodes().filter(|n| n.key != "target") {
@@ -508,7 +513,10 @@ fn the_view_reports_lineage_boundaries_versions_and_unsupported_coordinates() {
     let reported = CompositionView::of(&g, &r, "reported_effect", &[]).expect("view");
     assert_eq!(reported.claim.calibration.state, CalibrationState::Inherited);
     assert_eq!(reported.claim.calibration.from.as_deref(), Some("result"));
-    assert!(CompositionView::of(&g, &r, "absent", &[]).is_err());
+    assert!(matches!(
+        CompositionView::of(&g, &r, "absent", &[]),
+        Err(ViewError::Graph(GraphError::UnknownNode(key))) if key == "absent"
+    ));
 }
 
 #[test]
@@ -724,9 +732,9 @@ fn a_reused_claim_does_not_keep_authority_across_a_trust_standing_that_moved() {
     let provider = r.claim("indicator_provider").expect("claim");
     assert_eq!(provider.numerical[0].cause, NumericalCause::TrustChanged);
     assert_eq!(provider.authority, PriorAuthority::NotRetained);
-    // a numerical reason, not a lost license
+    // a numerical reason, not a lost support
     assert!(r.claims().all(|c| c.withdrawals.is_empty()));
-    assert!(r.claim("sibling_claim").expect("claim").authority == PriorAuthority::Retained);
+    assert_eq!(r.claim("sibling_claim").expect("claim").authority, PriorAuthority::Retained);
 }
 
 #[test]
@@ -752,7 +760,7 @@ fn a_replaced_calibration_record_recomputes_its_owner_and_refuses_its_heirs() {
 }
 
 #[test]
-fn a_provider_standing_nobody_stated_is_not_a_license() {
+fn a_provider_standing_nobody_stated_is_not_a_support() {
     let g = build(&Params { trust: TrustStanding::Undeclared, ..params() });
     let r = revalidate(&g, &g, &no_effects()).expect("revalidate");
     let provider = r.claim("indicator_provider").expect("claim");
@@ -765,7 +773,7 @@ fn a_provider_standing_nobody_stated_is_not_a_license() {
 }
 
 #[test]
-fn restored_support_recomputes_the_claims_that_were_never_licensed_there() {
+fn restored_support_recomputes_the_claims_that_were_never_supported_there() {
     let before = build(&Params { target_unsupported: true, ..params() });
     let after = build(&params());
     let r = revalidate(&before, &after, &no_effects()).expect("revalidate");
@@ -805,4 +813,64 @@ fn another_vocabulary_adapts_onto_the_one_class() {
         ObservedEffect::from_revalidation(Revalidation::Withdrawn, "stage"),
         Some(ObservedEffect::Withdrawn { cause: "stage".to_owned() })
     );
+}
+
+#[test]
+fn replaced_scientific_premises_withdraw_old_authority_and_descendants() {
+    let mut ledger = EvidenceLedger::new();
+    let a =
+        ledger.add_source(SourceDeclaration::new("premise-a", SourceKind::ExternalClaim)).unwrap();
+    let b =
+        ledger.add_source(SourceDeclaration::new("premise-b", SourceKind::ExternalClaim)).unwrap();
+    let base = node("premise", NodeKind::Data, 7)
+        .with_assumptions(vec!["one".into(), "two".into()])
+        .with_transformation("map-a")
+        .with_evidence(vec![a, b]);
+    let graph = |premise: CompositionNode| {
+        let mut graph = CompositionGraph::new();
+        graph.add_node(premise).unwrap();
+        graph.add_node(node("derived", NodeKind::Claim, 8)).unwrap();
+        graph.add_node(node("sibling", NodeKind::Claim, 9)).unwrap();
+        graph.add_edge("derived", "premise", DependencyKind::Data).unwrap();
+        graph
+    };
+    let before = graph(base.clone());
+    let mut variants = Vec::new();
+    let mut kind = base.clone();
+    kind.kind = NodeKind::CohortSource;
+    variants.push((kind, "node_kind_changed"));
+    let mut assumptions = base.clone();
+    assumptions.assumptions.push("three".into());
+    variants.push((assumptions, "assumptions_changed"));
+    let mut transformation = base.clone();
+    transformation.transformation = Some("map-b".into());
+    variants.push((transformation, "transformation_changed"));
+    let mut evidence = base.clone();
+    evidence.evidence.pop();
+    variants.push((evidence, "evidence_changed"));
+    for (variant, detail) in variants {
+        let mut effects = no_effects();
+        effects
+            .insert("premise".into(), ObservedEffect::Recomputed { cause: "fresh-numbers".into() });
+        let result = revalidate(&before, &graph(variant), &effects).unwrap();
+        let premise = result.claim("premise").unwrap();
+        assert_eq!(premise.class, Revalidation::Withdrawn);
+        assert_eq!(premise.authority, PriorAuthority::NotRetained);
+        assert!(
+            premise
+                .withdrawals
+                .iter()
+                .any(|w| w.kind == WithdrawalKind::Retired && w.detail == detail)
+        );
+        let downstream = result.claim("derived").unwrap();
+        assert_eq!(downstream.class, Revalidation::Withdrawn);
+        assert!(downstream.withdrawals.iter().any(|w| w.origin == "premise" && w.detail == detail));
+        assert_eq!(result.claim("sibling").unwrap().class, Revalidation::StillValid);
+    }
+    let mut equivalent = base;
+    equivalent.assumptions = vec!["two".into(), "one".into(), "one".into()];
+    equivalent.evidence = vec![b, a, a];
+    let result = revalidate(&before, &graph(equivalent), &no_effects()).unwrap();
+    assert_eq!(result.claim("premise").unwrap().class, Revalidation::StillValid);
+    assert_eq!(result.claim("derived").unwrap().class, Revalidation::StillValid);
 }

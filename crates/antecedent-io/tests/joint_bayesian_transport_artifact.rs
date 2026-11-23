@@ -3,7 +3,7 @@
 //!
 //! Dependency direction verified: `antecedent-io` depends on `antecedent-estimate`
 //! (its Cargo.toml), so this test lives here rather than in `antecedent-estimate`, which
-//! cannot depend on `antecedent-io`. Calibration is unmeasured and the artifact says so.
+//! cannot depend on `antecedent-io`. Calibration is `not_measured` and the artifact says so.
 #![allow(clippy::cast_precision_loss, reason = "small deterministic fixtures")]
 
 use antecedent_contract::{QuantityRole, ScientificQuantity};
@@ -52,27 +52,29 @@ fn source(id: &str, offset: usize, effect: f64) -> SourceData {
     }
 }
 
-fn factor() -> PopulationFactor {
-    PopulationFactor {
-        population: Arc::from("source"),
-        regime: None,
-        variables: Arc::from([]),
-        conditioned_on: Arc::from([]),
-        interventions: Arc::from([]),
-    }
-}
-
 fn run() -> JointTransportFit {
     let id = TransportIdentification::Transportable {
         formula: TransportFormula::Standardize {
             over: Arc::from([VariableId::from_raw(7)]),
-            source_response: factor(),
-            target_law: factor(),
+            source_response: PopulationFactor {
+                population: Arc::from("source"),
+                regime: None,
+                variables: Arc::from([VariableId::from_raw(100)]),
+                conditioned_on: Arc::from([VariableId::from_raw(7)]),
+                interventions: Arc::from([VariableId::from_raw(101)]),
+            },
+            target_law: PopulationFactor {
+                population: Arc::from("target"),
+                regime: None,
+                variables: Arc::from([VariableId::from_raw(7)]),
+                conditioned_on: Arc::from([]),
+                interventions: Arc::from([]),
+            },
         },
         certificate: TransportCertificate {
-            rule: Arc::from("standardization"),
-            selection_targets: Arc::from([]),
-            premises: Arc::from([]),
+            rule: Arc::from("transport.sid.standardize"),
+            selection_targets: Arc::from([VariableId::from_raw(7)]),
+            premises: Arc::from([Arc::from("standardizers are pre-treatment")]),
         },
     };
     let model = JointTransportModel {
@@ -156,7 +158,7 @@ fn artifact(fit: &JointTransportFit, alignment: DrawAlignment) -> DistributionAr
             shape: [fit.draws.n_draws, names.len()],
             weights: None,
             supported: None,
-            calibration: DistributionCalibration::Unmeasured,
+            calibration: DistributionCalibration::NotMeasured,
             trust: DistributionTrust::Unverified,
             legacy_posterior: None,
             legacy_bindings: None,
@@ -175,7 +177,7 @@ fn posterior_hydration_aligned_joint_draws_round_trip_with_expected_identity() {
     let loaded =
         DistributionArtifact::from_bytes(&bytes, &identity(&fit, DrawAlignment::Joint)).unwrap();
     assert_eq!(loaded.shape(), [DRAWS, 3]);
-    assert_eq!(loaded.metadata().calibration, DistributionCalibration::Unmeasured);
+    assert_eq!(loaded.metadata().calibration, DistributionCalibration::NotMeasured);
     assert_eq!(loaded.metadata().identity.alignment, DrawAlignment::Joint);
     assert_eq!(loaded.draws(), original.draws());
     let e = fit.effect_names.len();
@@ -211,17 +213,34 @@ fn posterior_hydration_refuses_changed_meaning_and_independent_marginals() {
     // The consumer expects a different target population: refused.
     let mut wrong = identity(&fit, DrawAlignment::Joint);
     wrong.quantities[2].population_id = "another_target".into();
-    assert!(DistributionArtifact::from_bytes(&bytes, &wrong).is_err());
+    let mismatch = "reason=quantity_semantics_mismatch: aligned_joint_draws.identity_expected: \
+                    distribution identity differs from expected causal contract";
+    assert_eq!(
+        DistributionArtifact::from_bytes(&bytes, &wrong).err().expect("refused").to_string(),
+        mismatch
+    );
     // The consumer expects a different model contract: refused.
     let mut other_model = identity(&fit, DrawAlignment::Joint);
     other_model.causal_contract_id = "another-model".into();
-    assert!(DistributionArtifact::from_bytes(&bytes, &other_model).is_err());
+    assert_eq!(
+        DistributionArtifact::from_bytes(&bytes, &other_model).err().expect("refused").to_string(),
+        mismatch
+    );
     // The same draws labelled as independent marginals carry no covariance.
     let marginal = artifact(&fit, DrawAlignment::IndependentMarginals);
-    assert!(marginal.covariance(0, 2).is_err());
-    assert!(marginal.joint_expectation(0, 2, |s, t| s * t).is_err());
+    let not_joint = "reason=joint_law_required: aligned_joint_draws.marginals_not_joint: independent \
+                     marginals do not define covariance or nonlinear joint expectations";
+    assert_eq!(marginal.covariance(0, 2).err().expect("refused").to_string(), not_joint);
+    assert_eq!(
+        marginal.joint_expectation(0, 2, |s, t| s * t).err().expect("refused").to_string(),
+        not_joint
+    );
     let bytes = marginal.to_bytes("marginals").unwrap();
-    assert!(
-        DistributionArtifact::from_bytes(&bytes, &identity(&fit, DrawAlignment::Joint)).is_err()
+    assert_eq!(
+        DistributionArtifact::from_bytes(&bytes, &identity(&fit, DrawAlignment::Joint))
+            .err()
+            .expect("independent marginals do not satisfy a joint expectation")
+            .to_string(),
+        mismatch
     );
 }

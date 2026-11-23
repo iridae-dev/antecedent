@@ -5,7 +5,7 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-# A portable composed result: a typed directed acyclic graph (fifteen node kinds) whose nodes are
+# A portable composed result: a typed directed acyclic graph whose nodes are
 # either embedded artifacts a consumer decodes and verifies itself or references that need a
 # supplied provider or data source, whose edges carry the Merkle digest of the upstream node, bound
 # by one bundle identity. The digest construction is a hash DAG (each link digest covers the link
@@ -17,7 +17,7 @@ copied_tests = false
 papers = []
 
 implementation_deviations = [
-  "Claim policy: the bundle is point-only. It certifies that embedded artifacts decode and recompute and that the declared bindings hold; it grants no causal, interval, coverage or probability license. Every uncertainty diagnostic carried inside an embedded artifact keeps that artifact's own status (calibration 'unmeasured' where it declares so).",
+  "Claim policy: the bundle is point-only. It certifies that embedded artifacts decode and recompute and that the declared bindings hold; it grants no causal, interval, coverage or probability support. Every uncertainty diagnostic carried inside an embedded artifact keeps that artifact's own status (calibration 'not_measured' where it declares so).",
   "The digests are BLAKE3 throughout (node content digest, link digest over id, stage and parent digests, bundle identity). The chain is a Merkle DAG over dependency order, not a balanced Merkle tree: it gives tamper evidence along dependency edges, not logarithmic inclusion proofs. A changed upstream identity changes the digest of every dependent node and of the bundle.",
   "A node digest binds an embedded node's bytes by their BLAKE3 hash and a reference node's declared identity, requirement, facts and inspected values. An embedded node's facts are never taken from producer-written text: each verifier publishes them from the decoded artifact's fields, and the claim label (point_only_attested or joint_draw) is derived from ancestor facts, never from bytes.",
   "A reference node is verified only as 'matched a supplied source': a consumer-supplied provider (provider, snapshot and exact request fingerprint) or data digest is compared with the node's declaration. It is NEVER replayed, never claimed to have been replayed, and its declared inspected numbers are kept for inspection but are not verified values. A bundle never claims that a serialized result recreates an executable study.",
@@ -38,3 +38,29 @@ test_sources = [
 
 # Additive independently consumed receipt and frozen-score nodes bind the actual producing
 # snapshot/fit identity. Historical counts are inspectable records, not executable state.
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Portable composed-result container: a typed directed graph of embedded or referenced nodes whose edges carry the Merkle digest of the upstream node. Each node is decoded by the verifier registered for its artifact kind: a standard verifier, or for the host-replayed fit, predictive chain-decision and sequential reliability kinds, a verifier the composition facade registers with its execution context. from_bytes rebuilds a bundle from its container and refuses it unless the recomputed edges equal the stored edges and the recomputed identity equals both the stored identity and the independently retained one. Cancellation and execution or admission budget refusals are reported at their own stages."
+no_independent_algorithm = "Graph construction, digest recomputation and cross-edge fact comparison only; no estimator, interval or density appears in the module."
+covered_by = ["composition.verifiers", "composition.provenance", "composition.multi_source"]
+record_sha256 = "d8e6bfd77912ff6c53dc359f5616bc3f8d88a44f35d47b1a71bb8051509fff20"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/composition_bundle.rs"
+items = ["const BINDING_FACTS", "const BODY_SECTION", "const BUNDLE_KIND", "const BUNDLE_VERSION", "const FACT_EVIDENCE_DIGEST", "const FACT_LAW", "const FACT_QUANTITY_DIGEST", "const FACT_REQUEST", "const FACT_REQUIRES_LAW", "const FACT_SNAPSHOT", "const LAW_JOINT", "const LAW_MEAN_ONLY", "enum BundleError", "enum BundleStage", "enum ClaimLabel", "enum NodeStatus", "fn adjacency", "fn all_verified", "fn as_str", "fn body", "fn bundle_identity", "fn chain_digest", "fn chain_refusal", "fn claim_label", "fn code", "fn consume", "fn decode", "fn derive", "fn detail", "fn edges", "fn embedded_section", "fn evaluate", "fn failed", "fn find_conflict", "fn from", "fn from_bytes", "fn graph_error", "fn identity", "fn is_failed", "fn new", "fn node", "fn node_digest", "fn node_from_wire", "fn node_to_wire", "fn nodes", "fn refused", "fn register", "fn require_verified", "fn resolve_reference", "fn stage", "fn to_bytes", "fn to_refusal", "fn topological", "fn validate_nodes", "fn value", "fn verify_embedded", "fn with_data", "fn with_provider", "struct BodyWire", "struct BundleConsumer", "struct CompositionBundle", "struct ConsumedBundle", "struct ConsumedNode", "struct Decoded", "struct Derived", "struct EdgeWire", "struct NodeFailure", "struct NodeState", "struct NodeWire", "struct SuppliedData", "struct SuppliedProvider", "struct SuppliedSources", "struct UpstreamNode", "struct VerifiedNode", "trait NodeVerifier", "type Adjacency"]
+sha256 = "0720a5d0b23cd75e29c34672c5b7e565d1fba0e80b736cc9bc81bf098eb4f5a9"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/composition_bundle/vocabulary.rs"
+items = ["enum EvidenceRelationship", "enum NodeKind", "enum NodeSource", "enum ProviderOrData", "fn canonical", "fn default", "fn embedded", "fn identity_mismatch_stage", "fn reference", "fn stage", "fn with_fact", "fn with_inspected", "struct BundleEdge", "struct BundleLimits", "struct BundleNode"]
+sha256 = "a33a963741032208260c50dad0c340e79de4af8cee8e01c6a503ca1b4575eb67"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/composition_bundle.rs"
+items = ["const BODY", "fn bundle", "fn bundle_changed_provider_request_is_refused", "fn bundle_changed_upstream_identity_cascades_into_every_dependent_digest", "fn bundle_embedded_node_without_a_registered_verifier_never_verifies", "fn bundle_external_mean_decision_is_point_only_attested_and_preserved", "fn bundle_graph_or_snapshot_mismatch_fails_the_bound_node", "fn bundle_identity_is_invariant_to_node_and_edge_declaration_order", "fn bundle_joint_decision_over_a_mean_only_claim_retains_the_aligned_law_requirement", "fn bundle_oversize_and_graph_bounds_are_refused", "fn bundle_reference_node_is_unresolved_without_a_source_and_verified_with_one", "fn bundle_resealed_container_edits_are_refused_at_their_stage", "fn bundle_round_trip_verifies_every_node_and_reports_the_hand_computed_decision", "fn bundle_stages_map_to_registered_codes_and_namespaced_details", "fn bundle_swapped_evidence_fails_the_evidence_node", "fn bundle_tampered_quantity_fails_the_dependent_node", "fn close", "fn columns", "fn consume", "fn consumer", "fn contract", "fn deps", "fn external_mean_bundle", "fn failed_stage", "fn kind", "fn mean_consume", "fn new", "fn node_mut", "fn nodes", "fn pairs", "fn quantity", "fn quantity_text", "fn reseal", "fn snapshot_supplied", "fn source", "fn source_identity", "fn stage_of", "fn status_of", "fn text_digest", "struct ContractVerifier", "struct DistributionVerifier", "struct EvidenceVerifier", "struct Fixture", "struct QuantityVerifier", "struct ResultVerifier"]
+sha256 = "874a8b9cb5102d6703e6d88508e1c38fd994e2fc4c0e4ffe3094d4999cd12c70"

@@ -1,6 +1,6 @@
 //! Numerical evidence for temporal latent-confounded MAG adjustment.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::{AcceptedGraph, RefuteSuite, Study};
 use antecedent_core::{
     CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet,
@@ -134,7 +134,7 @@ fn latent_temporal_effect_preserves_query_and_prepared_estimation() {
                     assert_eq!(envelope.indexers[0].key_of(z.raw()).unwrap().offset, -1);
 
                     assert!(
-                        (result.estimate.as_effect().unwrap().ate
+                        (result.estimate().as_effect().unwrap().ate
                             - pin["effect"].as_f64().unwrap())
                         .abs()
                             < pin["absolute_tolerance"].as_f64().unwrap()

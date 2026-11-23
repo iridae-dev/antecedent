@@ -28,7 +28,8 @@ papers = [
 implementation_deviations = [
  "Model-based, not design-based: the estimand is the finite-network mean potential-outcome contrast under the declared additive Gaussian model, and the interval is model-conditional with no repeated-sampling coverage record.",
  "Residual variance is fixed to one and is neither estimated nor given a prior; the same unit disturbance is assumed shared across that unit's exposures.",
- "Licensed only for Bernoulli assignment with the NeighborCount exposure mapping on a caller-supplied fixed network; complete or cluster randomization and other mappings are refused.",
+ "Supported only for Bernoulli assignment with the NeighborCount exposure mapping on a caller-supplied fixed network; complete or cluster randomization and other mappings are refused.",
+ "The posterior conditions on the realised assignment, so the declared Bernoulli probabilities are support tag and do not enter it; a probability vector that is neither scalar nor one per unit is refused (invalid_argument). NeighborCount counts treated in-neighbours whatever the edge weight, so weights do not enter it either; a weighted or fractional mapping is refused (route_not_supported) rather than approximated.",
  "Both requested exposure levels must appear in the realized assignment, and the observed [1, own, neighbors] design must be full rank; otherwise the fit is refused rather than extrapolated.",
  "Every posterior draw retains the network and realized assignment frozen at prepare; a refresh refits changed outcomes under that frozen design.",
 ]
@@ -40,4 +41,38 @@ test_sources = [
  "crates/antecedent/tests/staged_attribution_transport_interference.rs (bayesian_interference_fixed_network_posterior_matches_known_truth, interference_click_executes_on_the_clicked_outcomes)",
  "conformance/estimate/bayesian_interference (four-unit fixed-network fixture with outcomes y = 2 + 3*own + 4*treated_neighbors and expected contrast -1.0)",
  "conformance/response/randomized_interference (exact-enumeration fixture for the shared exposure mapping)",
+ "crates/antecedent-estimate/tests/bayesian_interference_reference.rs (exact conjugate exposure-contrast posterior on weighted 48-unit networks, fixed unit variance, and independence from edge weights and the declared probability)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "estimate_interference_bayesian of crates/antecedent-estimate/src/interference.rs: the neighbour-count exposures of a weighted fixed network under the realised assignment, the design [1, own, treated neighbours], the known-variance (sigma^2 = 1) Normal posterior under independent N(0, prior_sd^2) priors, the exposure-level contrast c'b with c = (0, own' - own, k' - k), its posterior mean and variance and the seeded contrast draws; and that edge weights and the declared Bernoulli probability do not enter the posterior. Not the design-based cells of the same file (Horvitz-Thompson, cluster totals, saturation), the support and rank refusals beyond what the existing in-module tests pin, or any coverage claim."
+assumptions = ["Additive Gaussian potential-outcome model Y_i(z, g) = a + b z + g k + e_i with residual variance fixed at one, so the posterior is conditional on that variance and its spread does not depend on the outcome scale.", "The posterior conditions on the realised assignment: the Bernoulli probability in the query is only support tag, and NeighborCount counts treated in-neighbours regardless of edge weight.", "Both requested exposure levels must occur in the realised assignment."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with an exact conjugate Normal posterior in 40-digit arithmetic written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "The generic exposure estimator now checks complete and cluster realized assignments against their declared randomization support; this separate guard is outside this review. Two 48-unit networks with 144 weighted edges each (prior sd 100 and 0.9; contrasts (0,1) to (1,2) and (0,0) to (1,2)), 400,000 draws: the mean is asserted within five Monte Carlo standard errors and the draw sd within 8/sqrt(draws) relative error. The noise in the outcome is deterministic and small, and the residual variance of one is a fixed model choice; with a different true variance the interval is not calibrated, as the record states. Cluster or complete randomization and a refit after refresh are not exercised; the refusals of a mis-sized probability vector and of the weighted and fractional mappings are asserted by an added test."
+sources = ["https://doi.org/10.1214/16-AOAS1005", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The contrast posterior mean and sd equal the exact conjugate values on both networks; the prior sd 100 mean is within 2e-4 of the least-squares contrast 3 + 4, and the tight prior shrinks it to 10.50 exactly as the reference does.", "Scaling the outcome by ten leaves the draw spread identical and moves the mean, confirming the fixed unit variance.", "Edge weights and the declared Bernoulli probability do not move the posterior (identical draws): the declaration is support tag, not a model input, which the model-based record already states and the test now pins.", "No product defect was found in this record."]
+record_sha256 = "908134ea1d123aac8474d1a1a9c44730a4a07e4157b17285057106d0939109bb"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/interference.rs"
+items = ["fn estimate_interference_bayesian", "struct BayesianInterferenceEstimate"]
+sha256 = "897a27a86ce90a0733ec339669f821778c1a9db56f34319175a895e8a5f58749"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/bayesian_interference_reference.rs"
+items = ["const DRAWS", "fn cases", "fn code_of", "fn declarations_the_posterior_cannot_honour_are_refused_with_a_typed_refusal", "fn edge_weights_and_the_declared_assignment_probability_do_not_enter_the_posterior", "fn floats", "fn level", "fn rescaling_the_outcome_moves_the_mean_but_not_the_fixed_variance_spread", "fn run", "fn run_with", "fn the_exposure_contrast_posterior_matches_the_exact_gaussian_reference"]
+sha256 = "31b859239a143d912b3fdf6e5f380bef97af2bfee99d175d35fad16c82defa30"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/bayesian_interference_reference.py"
+sha256 = "25d50eb0affa11220ddc0303e5f482db80b367c8936b7d65194c029d91c6d024"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/bayesian_interference_reference.json"
+sha256 = "9a4e7b8d63e2aa7d4705240a9b0a029109fe3627074a72a142bec21769d319a3"

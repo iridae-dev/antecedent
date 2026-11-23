@@ -6,12 +6,13 @@ import argparse
 import hashlib
 import json
 import re
+import struct
 import subprocess
 import tempfile
 import tomllib
 from pathlib import Path
 
-from _repo import REPO_ROOT, read_text
+from _repo import REPO_ROOT, load_toml, read_text
 
 RECORD_ID = (
     "cov.recovered_effect.m_graph.frequentist.bootstrap_bca.l95."
@@ -21,6 +22,106 @@ MEASUREMENT_SHA = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 COLLECTION_SHA = "e4bc216c0f01bf913f373df721863e0730e0ed14"
 RECORD_SHA256 = "9302ebf37b4ce12679561198caf2c2cf0319b826e0cf3b37d08de53d5ccdffaa"
 FUNCTIONAL_SHA256 = "0067df569dc7b83db8c7f9b8a465e35ab298b4c750a25af619870026a0a0f33a"
+
+
+# Stored fields that are bookkeeping, not measurement output.
+NOT_EMITTED = frozenset({"calibration_sha", "fingerprint"})
+
+
+def _bit_equal(a: object, b: object) -> bool:
+    if isinstance(a, bool) or isinstance(b, bool):
+        return type(a) is type(b) and a == b
+    if isinstance(a, float) or isinstance(b, float):
+        return (
+            isinstance(a, float)
+            and isinstance(b, float)
+            and struct.pack("<d", a) == struct.pack("<d", b)
+        )
+    if isinstance(a, list) and isinstance(b, list):
+        return len(a) == len(b) and all(_bit_equal(x, y) for x, y in zip(a, b, strict=True))
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(_bit_equal(a[k], b[k]) for k in a)
+    return type(a) is type(b) and a == b
+
+
+def compare_replay(
+    stored: dict, payload: dict, aliases: list[dict] | None = None, source_sha: str | None = None
+) -> list[str]:
+    """Every emitted field of `stored` that the replayed payload does not reproduce
+    bit for bit, named. The covered count is derived from observed × replicates."""
+    rid = stored.get("id")
+    # Only independently verified native construction migrations may normalize
+    # one exact functional label. No statistical field or provenance is changed.
+    for alias in aliases or []:
+        if (
+            alias.get("record_id") == rid
+            and alias.get("original_functional") == stored.get("functional")
+            and alias.get("canonical_functional") == payload.get("functional")
+            and source_sha is not None
+            and alias.get("source_sha") == source_sha
+        ):
+            payload = payload | {"functional": stored["functional"]}
+    differences = []
+
+    def covered(rec: dict) -> object:
+        observed, replicates = rec.get("observed"), rec.get("replicates")
+        if isinstance(observed, float) and isinstance(replicates, int):
+            return round(observed * replicates)
+        return None
+
+    if covered(stored) != covered(payload):
+        differences.append(
+            f"{rid}: covered stored {covered(stored)!r} replayed {covered(payload)!r}"
+        )
+    for key in sorted(set(stored) - NOT_EMITTED):
+        if key not in payload:
+            differences.append(f"{rid}: {key} not emitted by the replay")
+        elif not _bit_equal(stored[key], payload[key]):
+            differences.append(f"{rid}: {key} stored {stored[key]!r} replayed {payload[key]!r}")
+    return differences
+
+
+def replay_payloads(label_logs: list[Path]) -> dict[str, dict]:
+    """Records of one group's logs, merged over their grid points exactly as
+    scripts/collect_coverage_records.py merges them (a point's recheck wins)."""
+    import collect_coverage_records
+
+    return collect_coverage_records.merged_records([p for p in label_logs if p.is_file()])
+
+
+def load_replay_capture(out_dir: Path, source_sha: str, records: list[str]) -> dict[str, dict]:
+    """Verify raw captured logs against an exact source/selection, without running work."""
+    capture = json.loads(read_text(out_dir / "raw-replay-capture.json"))
+    if capture.get("version") == 3:
+        from _temporal_capture_transfer import load_composite
+
+        return load_composite(
+            out_dir, capture, source_sha, records, REPO_ROOT, replay_payloads, _bit_equal
+        )
+    if capture.get("version") == 2:
+        from _temporal_capture_transfer import load_transfer
+
+        return load_transfer(
+            out_dir, capture, source_sha, records, REPO_ROOT, replay_payloads, _bit_equal
+        )
+    if capture.get("version") != 1 or capture.get("source_sha") != source_sha:
+        raise ValueError("capture does not bind this exact source commit")
+    if capture.get("records") != records:
+        raise ValueError("capture does not bind this exact replay selection")
+    logs = capture.get("logs")
+    if not isinstance(logs, dict) or not logs:
+        raise ValueError("capture requires original raw replay logs")
+    for name, digest in logs.items():
+        if (
+            not isinstance(name, str)
+            or Path(name).name != name
+            or hashlib.sha256((out_dir / name).read_bytes()).hexdigest() != digest
+        ):
+            raise ValueError("captured raw replay log changed")
+    payloads = replay_payloads([out_dir / name for name in logs])
+    if not _bit_equal(payloads, capture.get("payloads")):
+        raise ValueError("capture does not reproduce original raw replay logs")
+    return payloads
 
 
 def archived_capture_branch() -> str:
@@ -45,7 +146,7 @@ def canonical_digest(value: object) -> str:
 
 def validated_aliases(root: Path) -> list[dict[str, str]]:
     """Return only proven mappings; pending declarations confer no authority."""
-    data = tomllib.loads((root / "parity/calibration_key_aliases.toml").read_text(encoding="utf-8"))
+    data = load_toml(root / "parity/calibration_key_aliases.toml")
     if set(data) != {"version", "alias"} or data["version"] != 1:
         raise ValueError("unsupported calibration identity mapping schema")
     aliases = data["alias"]
@@ -67,18 +168,21 @@ def validated_aliases(root: Path) -> list[dict[str, str]]:
         raise ValueError("mapping must bind the exact original recovery measurement")
     subprocess.run(
         ["git", "merge-base", "--is-ancestor", COLLECTION_SHA, "HEAD"],
-        cwd=root, check=True, capture_output=True,
+        cwd=root,
+        check=True,
+        capture_output=True,
     )
     original_text = subprocess.run(
         ["git", "show", f"{COLLECTION_SHA}:parity/coverage_records.toml"],
-        cwd=root, check=True, capture_output=True, text=True,
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
     ).stdout
     original = next(
         record for record in tomllib.loads(original_text)["record"] if record["id"] == RECORD_ID
     )
-    current_records = tomllib.loads(
-        (root / "parity/coverage_records.toml").read_text(encoding="utf-8")
-    )["record"]
+    current_records = load_toml(root / "parity/coverage_records.toml")["record"]
     current = [record for record in current_records if record["id"] == RECORD_ID]
     if len(current) != 1 or current[0] != original or canonical_digest(original) != RECORD_SHA256:
         raise ValueError("original recovery coverage record must remain unchanged")
@@ -88,9 +192,19 @@ def validated_aliases(root: Path) -> list[dict[str, str]]:
         if set(row) != set(expected) | {"status"}:
             raise ValueError("pending mapping cannot carry unchecked runtime claims")
         return []
-    receipt_fields = {"native_receipt", "native_receipt_sha256", "replay_receipt", "replay_receipt_sha256"}
-    if row.get("status") != "verified_identity_replay" or set(row) != set(expected) | {"status"} | receipt_fields:
-        raise ValueError("identity mapping requires reviewed native construction and replay evidence")
+    receipt_fields = {
+        "native_receipt",
+        "native_receipt_sha256",
+        "replay_receipt",
+        "replay_receipt_sha256",
+    }
+    if (
+        row.get("status") != "verified_identity_replay"
+        or set(row) != set(expected) | {"status"} | receipt_fields
+    ):
+        raise ValueError(
+            "identity mapping requires reviewed native construction and replay evidence"
+        )
     native = read_receipt(root, row["native_receipt"], row["native_receipt_sha256"])
     replay = read_receipt(root, row["replay_receipt"], row["replay_receipt_sha256"])
     evidence = validate_evidence(root, original, native, replay)
@@ -104,8 +218,10 @@ def validated_aliases(root: Path) -> list[dict[str, str]]:
 # Producers and consumers only know the current name; the measured record keeps
 # the original token as immutable evidence.
 IDENTITY_RENAMES = (
-    ("recovery_scientific.v1:x10.recovery.v1|",
-     "recovery_scientific.v1:binary_observation_recovery.v1|"),
+    (
+        "recovery_scientific.v1:x10.recovery.v1|",
+        "recovery_scientific.v1:binary_observation_recovery.v1|",
+    ),
 )
 
 
@@ -135,8 +251,11 @@ def read_receipt(root: Path, relative: str, digest: str) -> dict:
     if not isinstance(relative, str):
         raise ValueError("identity evidence must name a registry JSON receipt")
     path = root / relative
-    if (not relative.startswith("parity/")
-            or path.suffix != ".json" or not path.resolve().is_relative_to(root.resolve())):
+    if (
+        not relative.startswith("parity/")
+        or path.suffix != ".json"
+        or not path.resolve().is_relative_to(root.resolve())
+    ):
         raise ValueError("identity evidence must be a bounded registry JSON receipt")
     if path.stat().st_size > MAX_RECEIPT_BYTES:
         raise ValueError("identity evidence exceeds receipt bounds")
@@ -150,66 +269,104 @@ def read_receipt(root: Path, relative: str, digest: str) -> dict:
 
 
 def parse_native_log(log: str) -> dict:
-    proofs = [json.loads(line[len(PROOF_MARKER):]) for line in log.splitlines()
-              if line.startswith(PROOF_MARKER)]
-    if (len(proofs) != 1 or not isinstance(proofs[0], dict)
-            or "test result: ok. 1 passed; 0 failed;" not in log):
+    proofs = [
+        json.loads(line[len(PROOF_MARKER) :])
+        for line in log.splitlines()
+        if line.startswith(PROOF_MARKER)
+    ]
+    if (
+        len(proofs) != 1
+        or not isinstance(proofs[0], dict)
+        or "test result: ok. 1 passed; 0 failed;" not in log
+    ):
         raise ValueError("native construction evidence requires one actual passing proof test")
     return proofs[0]
 
 
 def validate_evidence(root: Path, original: dict, native: dict, replay: dict) -> dict[str, str]:
     """Check actual producer logs and every emitted value before one exact alias."""
-    import calibration_facets
     import collect_coverage_records
 
     source = native.get("source_sha")
-    if (native.get("version") != 1 or replay.get("version") != 1
-            or not isinstance(source, str) or not re.fullmatch(r"[0-9a-f]{40}", source)
-            or replay.get("source_sha") != source or replay.get("record_id") != RECORD_ID
-            or native.get("branch") != archived_capture_branch()
-            or replay.get("branch") != archived_capture_branch()):
+    if (
+        native.get("version") != 1
+        or replay.get("version") != 1
+        or not isinstance(source, str)
+        or not re.fullmatch(r"[0-9a-f]{40}", source)
+        or replay.get("source_sha") != source
+        or replay.get("record_id") != RECORD_ID
+        or native.get("branch") != archived_capture_branch()
+        or replay.get("branch") != archived_capture_branch()
+    ):
         raise ValueError("identity evidence must bind one real main-branch source commit")
-    subprocess.run(["git", "merge-base", "--is-ancestor", source, "HEAD"],
-                   cwd=root, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "merge-base", "--is-ancestor", source, "HEAD"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
     log = native.get("log")
     if not isinstance(log, str) or sha256(log) != native.get("log_sha256"):
         raise ValueError("native construction log digest changed")
     proof = parse_native_log(log)
-    if not calibration_facets._bit_equal(proof, native.get("proof")):
+    if not _bit_equal(proof, native.get("proof")):
         raise ValueError("native construction proof differs from actual test output")
     config = {
-        "interval_method": "bootstrap_bca", "replicates": 2000, "seed": 0x46ab0000 + 100000,
+        "interval_method": "bootstrap_bca",
+        "replicates": 2000,
+        "seed": 0x46AB0000 + 100000,
         "max_failed_fraction_bits": "0000000000000000",
-        "normalization_tolerance_bits": "3fb999999999999a", "small_cell_count_bits": "4014000000000000",
-        "treated_level_bits": "3ff0000000000000", "control_level_bits": "0000000000000000",
+        "normalization_tolerance_bits": "3fb999999999999a",
+        "small_cell_count_bits": "4014000000000000",
+        "treated_level_bits": "3ff0000000000000",
+        "control_level_bits": "0000000000000000",
     }
     negatives = proof.get("negative_mutations")
-    if (proof.get("version") != 1 or proof.get("record_id") != RECORD_ID
-            or proof.get("original_functional") != original["functional"]
-            or proof.get("config") != config or proof.get("rows") != 1000
-            or proof.get("identical_repeated_native_receipt") is not True
-            or any(not isinstance(proof.get(field), str)
-                   or not re.fullmatch(r"[0-9a-f]{32}", proof[field])
-                   for field in ("input_digest", "receipt_digest"))
-            or not isinstance(negatives, dict) or set(negatives) != {"graph", "effect", "sampling"}
-            or any(value not in {"refused", "different_scientific_identity"} for value in negatives.values())):
-        raise ValueError("native construction does not prove the original BCa graph/effect/row protocol")
+    if (
+        proof.get("version") != 1
+        or proof.get("record_id") != RECORD_ID
+        or proof.get("original_functional") != original["functional"]
+        or proof.get("config") != config
+        or proof.get("rows") != 1000
+        or proof.get("identical_repeated_native_receipt") is not True
+        or any(
+            not isinstance(proof.get(field), str) or not re.fullmatch(r"[0-9a-f]{32}", proof[field])
+            for field in ("input_digest", "receipt_digest")
+        )
+        or not isinstance(negatives, dict)
+        or set(negatives) != {"graph", "effect", "sampling"}
+        or any(
+            value not in {"refused", "different_scientific_identity"}
+            for value in negatives.values()
+        )
+    ):
+        raise ValueError(
+            "native construction does not prove the original BCa graph/effect/row protocol"
+        )
     identity = proof.get("scientific_derivation_identity")
     if not isinstance(identity, str) or not identity.startswith("recovery_scientific.v1:"):
         raise ValueError("canonical identity must come from checked native recovery")
-    canonical = "recovered_effect:" + identity + ":treated=3ff0000000000000:control=0000000000000000"
+    canonical = (
+        "recovered_effect:" + identity + ":treated=3ff0000000000000:control=0000000000000000"
+    )
     if proof.get("canonical_functional") != canonical or canonical == original["functional"]:
-        raise ValueError("canonical functional differs from the original native scalar construction")
+        raise ValueError(
+            "canonical functional differs from the original native scalar construction"
+        )
     logs = replay.get("logs")
     if not isinstance(logs, dict) or not 1 <= len(logs) <= 6:
         raise ValueError("replay evidence must retain the actual bounded recovery logs")
     with tempfile.TemporaryDirectory() as directory:
         paths = []
         for name, entry in logs.items():
-            if (not isinstance(name, str) or Path(name).name != name or not isinstance(entry, dict)
-                    or set(entry) != {"text", "sha256"} or not isinstance(entry["text"], str)
-                    or sha256(entry["text"]) != entry["sha256"]):
+            if (
+                not isinstance(name, str)
+                or Path(name).name != name
+                or not isinstance(entry, dict)
+                or set(entry) != {"text", "sha256"}
+                or not isinstance(entry["text"], str)
+                or sha256(entry["text"]) != entry["sha256"]
+            ):
                 raise ValueError("replay evidence log digest changed")
             path = Path(directory) / name
             path.write_text(entry["text"], encoding="utf-8")
@@ -224,23 +381,36 @@ def validate_evidence(root: Path, original: dict, native: dict, replay: dict) ->
     if set(actual) != {RECORD_ID}:
         raise ValueError("identity evidence must replay only its governing recovery record")
     raw = actual.get(RECORD_ID)
-    if not isinstance(raw, dict) or not calibration_facets._bit_equal(raw, replay.get("raw_main_replay_record")):
+    if not isinstance(raw, dict) or not _bit_equal(
+        raw, replay.get("raw_main_replay_record")
+    ):
         raise ValueError("raw recovery replay record differs from actual emitted logs")
     if raw.get("functional") != canonical:
         raise ValueError("replay functional differs from original checked native construction")
-    differences = calibration_facets.compare_replay(original, raw | {"functional": original["functional"]})
+    differences = compare_replay(
+        original, raw | {"functional": original["functional"]}
+    )
     if differences:
-        raise ValueError("recovery replay changes measured values or scope: " + "; ".join(differences))
-    return {"record_id": RECORD_ID, "measurement_sha": MEASUREMENT_SHA,
-            "original_functional": original["functional"], "canonical_functional": canonical,
-            "source_sha": source}
+        raise ValueError(
+            "recovery replay changes measured values or scope: " + "; ".join(differences)
+        )
+    return {
+        "record_id": RECORD_ID,
+        "measurement_sha": MEASUREMENT_SHA,
+        "original_functional": original["functional"],
+        "canonical_functional": canonical,
+        "source_sha": source,
+    }
 
 
 def clean_main_source(root: Path) -> str:
     """Captures must execute on a clean checkout of the archived capture branch."""
+
     def git(*args: str) -> str:
-        return subprocess.run(["git", *args], cwd=root, check=True, capture_output=True,
-                              text=True).stdout.strip()
+        return subprocess.run(
+            ["git", *args], cwd=root, check=True, capture_output=True, text=True
+        ).stdout.strip()
+
     branch = archived_capture_branch()
     if not (root / ".git").is_dir() or git("branch", "--show-current") != branch:
         raise ValueError(f"capture requires the primary {branch} branch checkout")
@@ -251,24 +421,42 @@ def clean_main_source(root: Path) -> str:
 
 def capture_native(root: Path) -> dict:
     source = clean_main_source(root)
-    result = subprocess.run([
-        "cargo", "test", "-p", "antecedent-estimate", "--test", "recovery_whole_method_calibration",
-        "recovery_bca_original_measurement_identity_receipt", "--", "--exact", "--nocapture",
-    ], cwd=root, check=True, capture_output=True, text=True)
+    result = subprocess.run(
+        [
+            "cargo",
+            "test",
+            "-p",
+            "antecedent-estimate",
+            "--test",
+            "recovery_whole_method_calibration",
+            "recovery_bca_original_measurement_identity_receipt",
+            "--",
+            "--exact",
+            "--nocapture",
+        ],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     if clean_main_source(root) != source:
         raise ValueError("source changed during native construction capture")
-    return {"version": 1, "source_sha": source, "branch": archived_capture_branch(), "log": result.stdout,
-            "log_sha256": sha256(result.stdout), "proof": parse_native_log(result.stdout)}
+    return {
+        "version": 1,
+        "source_sha": source,
+        "branch": archived_capture_branch(),
+        "log": result.stdout,
+        "log_sha256": sha256(result.stdout),
+        "proof": parse_native_log(result.stdout),
+    }
 
 
 def capture_replay(root: Path, path: Path) -> dict:
-    import calibration_facets
-
     source = clean_main_source(root)
     if path.stat().st_size > MAX_RECEIPT_BYTES:
         raise ValueError("raw replay capture exceeds receipt bounds")
     raw = json.loads(path.read_text(encoding="utf-8"))
-    payloads = calibration_facets.load_replay_capture(path.parent, source, raw["records"])
+    payloads = load_replay_capture(path.parent, source, raw["records"])
     if RECORD_ID not in payloads:
         raise ValueError("actual replay selection lacks the original recovery record")
     logs = {}
@@ -278,8 +466,14 @@ def capture_replay(root: Path, path: Path) -> dict:
             logs[name] = {"text": text, "sha256": sha256(text)}
     if clean_main_source(root) != source:
         raise ValueError("source changed during raw replay capture")
-    return {"version": 1, "source_sha": source, "branch": archived_capture_branch(), "record_id": RECORD_ID,
-            "logs": logs, "raw_main_replay_record": payloads[RECORD_ID]}
+    return {
+        "version": 1,
+        "source_sha": source,
+        "branch": archived_capture_branch(),
+        "record_id": RECORD_ID,
+        "logs": logs,
+        "raw_main_replay_record": payloads[RECORD_ID],
+    }
 
 
 def main() -> None:
@@ -299,7 +493,9 @@ def main() -> None:
     if len(encoded.encode("utf-8")) > MAX_RECEIPT_BYTES:
         raise ValueError("captured receipt exceeds evidence bounds")
     args.output.write_text(encoded, encoding="utf-8")
-    print(f"Captured actual main-source evidence at {receipt['source_sha']}; alias remains pending.")
+    print(
+        f"Captured actual main-source evidence at {receipt['source_sha']}; alias remains pending."
+    )
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@
 //! call to [`CoalitionPayoff::value`]) so that only the swapped mechanisms differ between
 //! masks, keeping the Shapley differences numerically stable at a practical sample count.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -28,7 +28,7 @@ use antecedent_model::{
 };
 
 use crate::change_common::{ROBUST_STREAM, attribution_stream};
-use crate::coalition::full_coalition_mask;
+use crate::coalition::{Coalition, full_coalition_mask};
 use crate::distribution_change::mechanism_players;
 use crate::error::AttributionError;
 use crate::prep::{
@@ -69,6 +69,48 @@ pub fn distribution_change_robust(
     options: &RobustChangeOptions,
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, AttributionError> {
+    robust_impl(graph_model, data, query, options, None, ctx)
+}
+
+/// [`distribution_change_robust`] after refitting both populations under `refit`, the
+/// mechanism families held at the ones selected on the unweighted populations: one replicate
+/// of the row bootstrap (counts) or one draw of the posterior over the mechanisms (row
+/// weights).
+///
+/// # Errors
+///
+/// As [`distribution_change_robust`], and weights that do not match the resolved populations.
+pub fn distribution_change_robust_with_refit(
+    graph_model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &ChangeAttributionQuery,
+    options: &RobustChangeOptions,
+    refit: &crate::distribution_change::PopulationRefit<'_>,
+    ctx: &ExecutionContext,
+) -> Result<ChangeAttributionResult, AttributionError> {
+    robust_impl(graph_model, data, query, options, Some(refit), ctx)
+}
+
+fn robust_samples_per_eval(all_linear: bool, n_samples: usize) -> Result<usize, AttributionError> {
+    if all_linear {
+        Ok(1)
+    } else {
+        crate::change_common::validate_change_sample_count(
+            crate::change_common::DifferenceMeasure::MeanDiff,
+            n_samples,
+        )?;
+        Ok(n_samples)
+    }
+}
+
+fn robust_impl(
+    graph_model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &ChangeAttributionQuery,
+    options: &RobustChangeOptions,
+    refit: Option<&crate::distribution_change::PopulationRefit<'_>>,
+    ctx: &ExecutionContext,
+) -> Result<ChangeAttributionResult, AttributionError> {
     query.validate()?;
     require_mechanism_components(
         query.components,
@@ -90,16 +132,28 @@ pub fn distribution_change_robust(
     let outcome_dense = resolve_outcome_dense(graph_model, query.outcome)?;
     let players = mechanism_players(graph_model, outcome_dense, query.max_components)?;
 
-    let (baseline_mechs, _) = MechanismRegistry::standard().assign_and_fit(
-        graph_model,
-        &baseline_data,
-        SelectionPolicy::BestScore,
-    )?;
-    let (comparison_mechs, _) = MechanismRegistry::standard().assign_and_fit(
-        graph_model,
-        &comparison_data,
-        SelectionPolicy::BestScore,
-    )?;
+    let (baseline_mechs, comparison_mechs) = match refit {
+        None => {
+            let (baseline_mechs, _) = MechanismRegistry::standard().assign_and_fit(
+                graph_model,
+                &baseline_data,
+                SelectionPolicy::BestScore,
+            )?;
+            let (comparison_mechs, _) = MechanismRegistry::standard().assign_and_fit(
+                graph_model,
+                &comparison_data,
+                SelectionPolicy::BestScore,
+            )?;
+            (baseline_mechs, comparison_mechs)
+        }
+        Some(refit) => crate::distribution_change::refit_populations(
+            graph_model,
+            &baseline_data,
+            &comparison_data,
+            refit,
+            ctx,
+        )?,
+    };
 
     let all_linear = players.iter().all(|c| {
         model_slot_is_linear(&baseline_mechs, graph_model, c.variable())
@@ -110,13 +164,13 @@ pub fn distribution_change_robust(
         &query.allocation,
         "distribution_change_robust currently supports Shapley allocation",
     )?;
-    // `n_samples` is the budget the caller declared for each coalition. The
-    // linear payoff does not draw, but a declared budget past the ceiling is
-    // still refused, the same rule `distribution_change` uses.
+    // Linear composition performs no outcome draws; still bound coalition work.
+    // The nonlinear path uses the declared count and requires at least one draw.
+    let samples_per_eval = robust_samples_per_eval(all_linear, options.n_samples)?;
     crate::shapley::check_coalition_sample_budget(
         players.len(),
         &query.allocation,
-        options.n_samples.max(1),
+        samples_per_eval,
     )?;
 
     let (v0, v_full, estimate) = if all_linear {
@@ -131,12 +185,13 @@ pub fn distribution_change_robust(
             n_rows: 0,
         };
         payoff.fit(&baseline_mechs, &comparison_mechs)?;
-        let v0 = payoff.value(0)?;
+        let v0 = payoff.value(&Coalition::empty())?;
         let full = full_coalition_mask(players.len())?;
-        let v_full = payoff.value(full)?;
+        let v_full = payoff.value(&full)?;
         let estimate = estimate_shapley(&players, approximation, &mut payoff, ctx)?;
         (v0, v_full, estimate)
     } else {
+        let _scratch = admit_payoff_scratch(ctx, options.n_samples, graph_model.n_nodes())?;
         let mut payoff = RobustMechanismPayoff::new(
             graph_model.clone(),
             baseline_mechs,
@@ -146,9 +201,9 @@ pub fn distribution_change_robust(
             McSampling { n_samples: options.n_samples, seed: options.seed },
             ctx,
         );
-        let v0 = payoff.value(0)?;
+        let v0 = payoff.value(&Coalition::empty())?;
         let full = full_coalition_mask(players.len())?;
-        let v_full = payoff.value(full)?;
+        let v_full = payoff.value(&full)?;
         let estimate = estimate_shapley(&players, approximation, &mut payoff, ctx)?;
         (v0, v_full, estimate)
     };
@@ -184,6 +239,7 @@ fn model_slot_is_linear(
 }
 
 /// Where a regression input column comes from at payoff-evaluation time.
+#[derive(Clone, Copy)]
 enum ParentSource {
     /// Predicted column of an earlier player (index into the player list).
     Player(usize),
@@ -191,6 +247,7 @@ enum ParentSource {
     Column(usize),
 }
 
+#[derive(Clone)]
 struct NodeRegression {
     baseline_beta: Vec<f64>,
     comparison_beta: Vec<f64>,
@@ -314,7 +371,21 @@ fn linear_beta(slot: &MechanismSlot, n_parents: usize) -> Result<Vec<f64>, Attri
 }
 
 impl CoalitionPayoff for RobustLinearPayoff<'_> {
-    fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
+    fn fork<'a>(&'a self) -> Option<Box<dyn CoalitionPayoff + Send + 'a>> {
+        // The fitted regressions are read-only: the value is a pure function of the coalition.
+        Some(Box::new(RobustLinearPayoff {
+            model: self.model,
+            baseline: self.baseline,
+            players: self.players.clone(),
+            outcome: self.outcome,
+            fitted: self.fitted.clone(),
+            column_means: self.column_means.clone(),
+            outcome_idx: self.outcome_idx,
+            n_rows: self.n_rows,
+        }))
+    }
+
+    fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
         let Some(outcome_idx) = self.outcome_idx else {
             return Err(AttributionError::unsupported(
                 "robust payoff: outcome is not among Shapley players",
@@ -329,7 +400,7 @@ impl CoalitionPayoff for RobustLinearPayoff<'_> {
         for i in 0..self.players.len() {
             let fit = &self.fitted[i];
             let beta =
-                if mask & (1u64 << i) != 0 { &fit.comparison_beta } else { &fit.baseline_beta };
+                if coalition.contains(i) { &fit.comparison_beta } else { &fit.baseline_beta };
             let mut yhat = beta[0];
             for (pi, src) in fit.sources.iter().enumerate() {
                 let x = match *src {
@@ -396,6 +467,27 @@ struct McSampling {
     seed: u64,
 }
 
+/// Lease the sample matrix and noise column each payoff holds: one for the caller and one
+/// per forked worker, before any is allocated.
+fn admit_payoff_scratch(
+    ctx: &ExecutionContext,
+    n_samples: usize,
+    n_nodes: usize,
+) -> Result<antecedent_core::execution::AdmissionLease, AttributionError> {
+    let holders = usize::try_from(ctx.parallelism.max_threads.get()).unwrap_or(usize::MAX);
+    let bytes = n_samples
+        .checked_mul(n_nodes.saturating_add(1))
+        .and_then(|cells| cells.checked_mul(size_of::<f64>()))
+        .and_then(|bytes| bytes.checked_mul(holders.max(1)))
+        .and_then(|bytes| u64::try_from(bytes).ok())
+        .ok_or_else(|| AttributionError::Budget {
+            message: "robust payoff scratch size overflow".to_owned(),
+        })?;
+    ctx.acquire_admission(0, bytes).map_err(|error| AttributionError::Budget {
+        message: format!("admission pool cannot fund the robust payoff scratch: {error}"),
+    })
+}
+
 impl<'a> RobustMechanismPayoff<'a> {
     fn new(
         template: CompiledCausalModel,
@@ -408,7 +500,6 @@ impl<'a> RobustMechanismPayoff<'a> {
     ) -> Self {
         let McSampling { n_samples, seed } = sampling;
         let n_nodes = template.n_nodes();
-        let n_samples = n_samples.max(1);
         let mut node_player = vec![None; n_nodes];
         for (i, comp) in players.iter().enumerate() {
             if let Some(dense) = template.dense_of(comp.variable()) {
@@ -450,7 +541,7 @@ impl CoalitionPayoff for RobustMechanismPayoff<'_> {
         }))
     }
 
-    fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
+    fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
         let n = self.n_samples;
         // Ancestral Monte Carlo walk (`parent_gathers` is aligned with `node_order`,
         // so this iteration is the `node_order` + `gather_for` walk without the O(n)
@@ -469,7 +560,7 @@ impl CoalitionPayoff for RobustMechanismPayoff<'_> {
                 values: &self.parent_scratch[..n_parents.saturating_mul(n)],
             };
             let use_comparison =
-                matches!(self.node_player[node.as_usize()], Some(i) if mask & (1u64 << i) != 0);
+                matches!(self.node_player[node.as_usize()], Some(i) if coalition.contains(i));
             let slot =
                 if use_comparison { self.comparison.get(node) } else { self.baseline.get(node) };
             // A node-local stream prevents an upstream mechanism's draw count from
@@ -616,6 +707,10 @@ mod tests {
         // across both populations, so it should contribute ~nothing in either path.
         assert!(robust_y > 1.0, "robust_y={robust_y}");
         assert!(sampled_y > 1.0, "sampled_y={sampled_y}");
+        // Hand truth, independent of both routes: y = x in rows 0..30 and y = x + 2 in rows
+        // 30..60 with x unchanged, so the mean change is exactly 2 and all of it is Y's.
+        assert!((robust_result.total_change - 2.0).abs() < 0.05, "{}", robust_result.total_change);
+        assert!((robust_y - 2.0).abs() < 0.05, "robust_y={robust_y}");
     }
 
     #[test]
@@ -712,8 +807,10 @@ mod tests {
         let refused = run(Some((DifferenceMeasure::GaussianKl, 10, 1))).unwrap_err();
         assert!(matches!(refused, AttributionError::Unsupported { .. }), "{refused:?}");
         let plain = run(None).unwrap();
-        let sampled = run(Some((DifferenceMeasure::MeanDiff, 1_000, 9))).unwrap();
-        assert_eq!(plain.total_change.to_bits(), sampled.total_change.to_bits());
+        for n in [0, 1, 1_000, usize::MAX] {
+            let sampled = run(Some((DifferenceMeasure::MeanDiff, n, 9))).unwrap();
+            assert_eq!(plain.total_change.to_bits(), sampled.total_change.to_bits());
+        }
     }
 
     /// Swapping a zero-effect root from a constant to a Gaussian family must not change
@@ -748,9 +845,20 @@ mod tests {
             &ctx,
         );
 
-        let unchanged_x = payoff.value(0).unwrap();
-        let changed_x_only = payoff.value(1).unwrap();
+        let unchanged_x = payoff.value(&Coalition::empty()).unwrap();
+        let changed_x_only = payoff.value(&Coalition::from_bits(1)).unwrap();
         assert_eq!(unchanged_x.to_bits(), changed_x_only.to_bits());
+    }
+
+    #[test]
+    fn robust_sample_budget_respects_the_selected_path() {
+        assert_eq!(robust_samples_per_eval(true, 0).unwrap(), 1);
+        assert_eq!(robust_samples_per_eval(true, usize::MAX).unwrap(), 1);
+        assert!(matches!(
+            robust_samples_per_eval(false, 0),
+            Err(AttributionError::InvalidInput { .. })
+        ));
+        assert_eq!(robust_samples_per_eval(false, 1).unwrap(), 1);
     }
 
     /// `X -> Y`, `Y = X²` exactly (zero-noise quadratic mechanism), `X`'s mean held
@@ -805,6 +913,16 @@ mod tests {
         ];
         let outcome = DenseNodeId::from_raw(1);
         let ctx = ExecutionContext::for_tests(7);
+        let mut one_draw = RobustMechanismPayoff::new(
+            template.clone(),
+            baseline.clone(),
+            comparison.clone(),
+            &players,
+            outcome,
+            McSampling { n_samples: 1, seed: 11 },
+            &ctx,
+        );
+        assert!(one_draw.value(&Coalition::empty()).unwrap().is_finite());
         let mut payoff = RobustMechanismPayoff::new(
             template,
             baseline,
@@ -815,10 +933,10 @@ mod tests {
             &ctx,
         );
 
-        let v_baseline = payoff.value(0).unwrap();
+        let v_baseline = payoff.value(&Coalition::empty()).unwrap();
         // Swap only X (player index 0) to its comparison (higher-variance) marginal;
         // Y stays at its baseline (identical, here) mechanism.
-        let v_x_swapped = payoff.value(1).unwrap();
+        let v_x_swapped = payoff.value(&Coalition::from_bits(1)).unwrap();
         let observed = v_x_swapped - v_baseline;
         let true_delta = 3.0; // Var(X): 4 - 1, means both 0.
 
@@ -851,13 +969,29 @@ mod tests {
             .unwrap_err();
         assert!(matches!(err, AttributionError::Unsupported { .. }), "{err:?}");
 
+        // This exact linear path makes no draws, even when a huge draw count
+        // is supplied through the builder. Its coalition-work ceiling still applies.
+        let result = ChangeAttribution::new()
+            .outcome(outcome)
+            .baseline(baseline.clone())
+            .comparison(comparison.clone())
+            .allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() })
+            .robust(true)
+            .with_sampling(DifferenceMeasure::MeanDiff, usize::MAX, 1)
+            .run(&model, &data, &ctx)
+            .unwrap();
+        assert!((result.total_change - 2.0).abs() < 1e-12);
+        assert_eq!(result.budget.samples, 0);
+
         let err = ChangeAttribution::new()
             .outcome(outcome)
             .baseline(baseline)
             .comparison(comparison)
-            .allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() })
+            .allocation(AllocationMethod::Shapley {
+                approximation: ShapleyConfig::exact().with_sample_budget(3),
+            })
             .robust(true)
-            .with_sampling(DifferenceMeasure::MeanDiff, 30_000_000, 1)
+            .with_sampling(DifferenceMeasure::MeanDiff, 0, 1)
             .run(&model, &data, &ctx)
             .unwrap_err();
         assert!(matches!(err, AttributionError::SizeLimit { .. }), "{err:?}");

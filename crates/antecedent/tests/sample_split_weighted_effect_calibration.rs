@@ -42,10 +42,10 @@
 //! 0.93 at the nominal 0.95 is asserted at every size. The other grid points are measured for
 //! their coverage.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build). The interval stays
-//! labelled unmeasured until this design has been measured.
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build). The interval stays
+//! labelled `not_measured` until this design has been measured.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,
@@ -168,7 +168,7 @@ fn replicate(rep: u64) -> Option<((f64, f64), f64)> {
     let topology = topologies[usize::try_from(rep).ok()? % topologies.len()];
     let seed = stream_seed(0x5E7_0057 + VARIABLES as u64, rep);
     let scm =
-        Scm::with_degree(topology, VARIABLES, stream_seed(seed, 1), Variant::Licensed, MAX_DEGREE);
+        Scm::with_degree(topology, VARIABLES, stream_seed(seed, 1), Variant::Supported, MAX_DEGREE);
     let rows = grid_n(BASE_PARTICIPANTS);
     let columns = scm.simulate(rows, stream_seed(seed, 2));
     let table = weighted_table(&scm, &columns, survey_weights(rows, stream_seed(seed, 3)));
@@ -264,7 +264,7 @@ fn weighted_split_effect_interval_calibrated() {
     let runs = map_replicates(n_sim(), replicate);
     let total = u32::try_from(runs.len()).expect("replicate count fits u32");
     for run in runs {
-        tally.bind(
+        tally.bind_validation(
             &construction_for_protocol(protocol_version()),
             ScopeFacts {
                 row_count: rows as u64,
@@ -272,6 +272,7 @@ fn weighted_split_effect_interval_calibrated() {
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         if let Some((interval, truth)) = run {
             reported += 1;

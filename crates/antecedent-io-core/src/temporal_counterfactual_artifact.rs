@@ -23,9 +23,12 @@
 //! counterfactual is not identified, and the Markov and model-adequacy premises are named, not
 //! checked. Unknown major versions refuse.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalWriter, ExecutionContext};
+use antecedent_counterfactual::temporal_cross_world::staged::{
+    TemporalExecution, TemporalExecutor,
+};
 use antecedent_counterfactual::temporal_cross_world::{
     FactualUnitHistory, HistoryId, MAX_UNITS, MECHANISM_CLASS, NamedActionHistory, NodeMechanism,
     RefusingWitness, SharedAbductionReceipt, SnapshotId, TemporalCounterfactualError,
@@ -33,8 +36,6 @@ use antecedent_counterfactual::temporal_cross_world::{
     TemporalNode, UnitId, evaluate_temporal_counterfactual,
 };
 use serde::{Deserialize, Serialize};
-
-use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION: u16 = 1;
@@ -110,7 +111,7 @@ crate::sectioned_artifact_enum! {
     #[derive(Clone, Debug, PartialEq)]
     TemporalCounterfactualArtifactError {
         noun: "temporal counterfactual",
-        identity: "temporal_counterfactual.artifact_changed",
+        identity: antecedent_core::reason_details::temporal_counterfactual::ARTIFACT_CHANGED,
         variants {
             /// A stored outcome, mean or receipt differs from the recomputed one.
             ResultMismatch(&'static str),
@@ -140,7 +141,8 @@ impl TemporalCounterfactualArtifactError {
             Self::IdentityMismatch { field } => Some(TemporalCounterfactualRefusalWire {
                 code: antecedent_core::reason_code!("route_not_supported").to_owned(),
                 stage: "consume".to_owned(),
-                detail: "temporal_counterfactual.artifact_changed".to_owned(),
+                detail: antecedent_core::reason_details::temporal_counterfactual::ARTIFACT_CHANGED
+                    .to_owned(),
                 offending: Some((*field).to_owned()),
                 remedy: Some(
                     "consume the artifact the producer exported, or retain the identity of the \
@@ -477,11 +479,9 @@ pub struct TemporalCounterfactualReportWire {
 }
 
 fn node_of(name: &str) -> Result<TemporalNode, TemporalCounterfactualArtifactError> {
-    TemporalNode::ALL
-        .iter()
-        .copied()
-        .find(|node| node.name() == name)
-        .ok_or_else(|| invalid("temporal_counterfactual.invalid_graph", name))
+    TemporalNode::ALL.iter().copied().find(|node| node.name() == name).ok_or_else(|| {
+        invalid(antecedent_core::reason_details::temporal_counterfactual::INVALID_GRAPH, name)
+    })
 }
 
 fn spec_of(
@@ -695,12 +695,7 @@ fn encode_parts_impl(
     values: &[u8],
     artifact_id: &str,
 ) -> Result<Vec<u8>, TemporalCounterfactualArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(TemporalCounterfactualArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta)
-        .map_err(|error| TemporalCounterfactualArtifactError::Encode(error.to_string()))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "temporal_counterfactual_shared_abduction_point_only",
@@ -708,20 +703,14 @@ fn encode_parts_impl(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[
-            crate::OutSection {
-                id: META_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &meta_bytes,
-            },
-            crate::OutSection {
-                id: VALUES_SECTION,
-                content_type: crate::CONTENT_BYTES,
-                bytes: values,
-            },
-        ],
+        META_SECTION,
+        meta,
+        &[crate::OutSection {
+            id: VALUES_SECTION,
+            content_type: crate::CONTENT_BYTES,
+            bytes: values,
+        }],
     )
-    .map_err(|error| crate::map_artifact_check!(error, TemporalCounterfactualArtifactError))
 }
 
 /// Decode the two sections of a container, refusing another version before the metadata is
@@ -736,31 +725,29 @@ fn encode_parts_impl(
 pub fn decode_parts(
     bytes: &[u8],
 ) -> Result<(TemporalCounterfactualMeta, Vec<u8>), TemporalCounterfactualArtifactError> {
-    decode_parts_impl(bytes)
+    decode_parts_impl(bytes, MAX_TEMPORAL_COUNTERFACTUAL_ARTIFACT_BYTES)
 }
 
 fn decode_parts_impl(
     bytes: &[u8],
+    max_bytes: usize,
 ) -> Result<(TemporalCounterfactualMeta, Vec<u8>), TemporalCounterfactualArtifactError> {
-    let parts = crate::decode_container(
+    let (meta, parts) = crate::artifact_codec::decode_sectioned::<
+        TemporalCounterfactualArtifactError,
+        TemporalCounterfactualMeta,
+    >(
         ARTIFACT_KIND,
-        MAX_TEMPORAL_COUNTERFACTUAL_ARTIFACT_BYTES,
-        &[META_SECTION, VALUES_SECTION],
+        max_bytes,
+        META_SECTION,
+        &[VALUES_SECTION],
+        TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION,
         bytes,
-    )
-    .map_err(|error| crate::map_artifact_check!(error, TemporalCounterfactualArtifactError))?;
-    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
+    )?;
+    let Ok([payload]) = <[Vec<u8>; 1]>::try_from(parts) else {
         return Err(TemporalCounterfactualArtifactError::Malformed(
             "unsupported container layout".into(),
         ));
     };
-    let meta = crate::decode_with_version(&meta_bytes, |version| {
-        if version == TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(TemporalCounterfactualArtifactError::UnsupportedVersion { version })
-        }
-    })?;
     Ok((meta, payload))
 }
 
@@ -935,7 +922,21 @@ impl TemporalCounterfactualArtifact {
         expected: Option<&TemporalCounterfactualIdentity>,
         ctx: &ExecutionContext,
     ) -> Result<Self, TemporalCounterfactualArtifactError> {
-        let (meta, values) = decode_parts_impl(bytes)?;
+        Self::from_bytes_within(bytes, expected, ctx, MAX_TEMPORAL_COUNTERFACTUAL_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::from_bytes`] under the caller's byte bound instead of
+    /// [`MAX_TEMPORAL_COUNTERFACTUAL_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a file over `max_bytes` is `LimitsExceeded`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected: Option<&TemporalCounterfactualIdentity>,
+        ctx: &ExecutionContext,
+        max_bytes: usize,
+    ) -> Result<Self, TemporalCounterfactualArtifactError> {
+        let (meta, values) = decode_parts_impl(bytes, max_bytes)?;
         if meta.feature != TEMPORAL_COUNTERFACTUAL_ARTIFACT_FEATURE {
             return Err(TemporalCounterfactualArtifactError::UnsupportedSemantics(
                 "feature marker",
@@ -979,13 +980,73 @@ impl TemporalCounterfactualArtifact {
         if !means_replay {
             return Err(TemporalCounterfactualArtifactError::ResultMismatch("means"));
         }
-        if let Some(expected) = expected {
-            if let Some(field) = identity_diff(expected, &recomputed) {
-                return Err(TemporalCounterfactualArtifactError::IdentityMismatch { field });
-            }
+        if let Some(expected) = expected
+            && let Some(field) = identity_diff(expected, &recomputed)
+        {
+            return Err(TemporalCounterfactualArtifactError::IdentityMismatch { field });
         }
         Ok(Self { meta, request, result })
     }
+}
+
+/// One selective execution of the fixed-population row: the report an artifact of the same
+/// request would carry, with the stage receipts and the work observed by this execution.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SelectiveTemporalReport {
+    /// The self-describing report, bit-identical to the one-shot evaluator's.
+    pub report: TemporalCounterfactualReportWire,
+    /// Stage identities, how each was obtained (declared, computed or reused) and the work.
+    pub execution: TemporalExecution,
+}
+
+/// Execute `request` on a selective executor that retains abductions across calls.
+///
+/// A request whose graph, mechanism fit, snapshot and factual histories are unchanged reuses the
+/// retained abduction and replays only the named action histories; a change of any of those four
+/// is a different abduction identity and abduces again. The answer is bit-identical to
+/// [`TemporalCounterfactualArtifact::seal`] on the same request.
+///
+/// # Errors
+/// The one-shot evaluator's refusals, cancellation and the format's bounds.
+pub fn execute_selective(
+    executor: &mut TemporalExecutor,
+    request: &TemporalCounterfactualRequestWire,
+    ctx: &ExecutionContext,
+) -> Result<SelectiveTemporalReport, TemporalCounterfactualArtifactError> {
+    if request.factual.len() > MAX_UNITS {
+        return Err(TemporalCounterfactualArtifactError::LimitsExceeded("units"));
+    }
+    let mut request = request.clone();
+    request.factual.sort_by(|a, b| a.unit.cmp(&b.unit));
+    let spec = spec_of(&request)?;
+    let execution = executor.execute(&spec, ctx).map_err(from_core)?;
+    let result = &execution.result;
+    let report = TemporalCounterfactualReportWire {
+        version: TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION,
+        feature: TEMPORAL_COUNTERFACTUAL_ARTIFACT_FEATURE.to_owned(),
+        mechanism_class: MECHANISM_CLASS.to_owned(),
+        inference_claim: TEMPORAL_COUNTERFACTUAL_INFERENCE_CLAIM.to_owned(),
+        snapshot: request.snapshot.clone(),
+        plus_name: request.plus.name.clone(),
+        minus_name: request.minus.name.clone(),
+        units: result
+            .units
+            .iter()
+            .map(|u| UnitOutcomeWire {
+                unit: u.unit.as_str().to_owned(),
+                history: u.history.as_str().to_owned(),
+                factual_outcome: u.factual_outcome,
+                plus_outcome: u.plus_outcome,
+                minus_outcome: u.minus_outcome,
+            })
+            .collect(),
+        mean_plus: result.mean_plus,
+        mean_minus: result.mean_minus,
+        mean_contrast: result.mean_contrast,
+        receipt: ReceiptWire::from_receipt(&result.receipt)?,
+        identity: identity_of(&request, &result.receipt),
+    };
+    Ok(SelectiveTemporalReport { report, execution })
 }
 
 #[cfg(test)]

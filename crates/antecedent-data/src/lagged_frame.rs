@@ -5,7 +5,7 @@
 //! column missingness are recorded per lagged column so masked MCI can keep
 //! complete-case windows without requiring a fully contiguous unmasked series.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -104,8 +104,8 @@ impl LaggedFrame {
     ///
     /// Each unit's lag windows are built inside that unit, so no row takes a lagged parent
     /// from the previous unit's tail: the pooled design is the per-unit lagged design of
-    /// one common structural model, not one long series with seams. Units shorter than
-    /// `max_lag + 1` contribute no rows.
+    /// one common structural model, not one long series with seams. Each unit must have
+    /// at least `max_lag + 1` time points; a shorter unit refuses the whole panel.
     ///
     /// # Errors
     ///
@@ -159,17 +159,63 @@ impl LaggedFrame {
         max_lag: u32,
         reference: ReferencePointPolicy,
         options: LaggedFrameOptions,
-        _policy: &KernelPolicy,
+        policy: &KernelPolicy,
     ) -> Result<Self, DataError> {
+        Self::from_series_options_inner(data, variables, max_lag, reference, options, policy, None)
+    }
+
+    /// Materialize with cancellation polling; callers must admit the quoted buffers.
+    /// # Errors
+    /// Invalid input or cancellation.
+    pub fn from_series_with_options_and_context(
+        data: &TimeSeriesData,
+        variables: &[VariableId],
+        max_lag: u32,
+        reference: ReferencePointPolicy,
+        options: LaggedFrameOptions,
+        policy: &KernelPolicy,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, DataError> {
+        Self::from_series_options_inner(
+            data,
+            variables,
+            max_lag,
+            reference,
+            options,
+            policy,
+            Some(ctx),
+        )
+    }
+
+    #[allow(
+        clippy::trivially_copy_pass_by_ref,
+        reason = "The shared frame API borrows the caller’s kernel policy."
+    )]
+    fn from_series_options_inner(
+        data: &TimeSeriesData,
+        variables: &[VariableId],
+        max_lag: u32,
+        reference: ReferencePointPolicy,
+        options: LaggedFrameOptions,
+        _policy: &KernelPolicy,
+        ctx: Option<&antecedent_core::ExecutionContext>,
+    ) -> Result<Self, DataError> {
+        if ctx.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+            return Err(DataError::Cancelled);
+        }
         if variables.is_empty() {
-            return Err(DataError::InvalidArgument {
-                message: "lagged frame needs ≥1 variable".into(),
-            });
+            return Err(DataError::empty("lagged frame variables"));
         }
         let lag_map = LagMap::with_reference(data.row_count(), max_lag, reference)?;
         let n_effective = lag_map.n_effective();
-        let n_lags = max_lag as usize + 1;
-        let n_cols = variables.len().saturating_mul(n_lags);
+        let n_lags = usize::try_from(max_lag)
+            .ok()
+            .and_then(|n| n.checked_add(1))
+            .ok_or_else(|| DataError::overflow("lag count"))?;
+        let n_cols = variables
+            .len()
+            .checked_mul(n_lags)
+            .ok_or_else(|| DataError::overflow("lagged column count"))?;
         let mut sources = Vec::with_capacity(variables.len());
         let mut validity = Vec::with_capacity(n_cols);
         let base_t = lag_map.base_row();
@@ -179,6 +225,9 @@ impl LaggedFrame {
         // Shared by every column whose source and mask are fully valid.
         let all_valid = ValidityBitmap::all_valid(n_effective);
         for &var in variables {
+            if ctx.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+                return Err(DataError::Cancelled);
+            }
             let ColumnView::Float64(src) = data.column(var)? else {
                 return Err(DataError::TypeMismatch { id: var, expected: "float64" });
             };
@@ -188,20 +237,22 @@ impl LaggedFrame {
                     message: "missing values under ErrorOnMissing policy",
                 });
             }
-            if options.mask == MaskPolicy::Honor && options.missing == MissingPolicy::ErrorOnMissing
+            if options.mask == MaskPolicy::Honor
+                && options.missing == MissingPolicy::ErrorOnMissing
+                && let Some(mask) = analysis
+                && !mask.is_all_valid()
             {
-                if let Some(mask) = analysis {
-                    if !mask.is_all_valid() {
-                        return Err(DataError::IncompleteSeries {
-                            id: None,
-                            message: "analysis mask hides rows under ErrorOnMissing policy",
-                        });
-                    }
-                }
+                return Err(DataError::IncompleteSeries {
+                    id: None,
+                    message: "analysis mask hides rows under ErrorOnMissing policy",
+                });
             }
             let clean = src.validity.is_all_valid()
                 && (options.mask == MaskPolicy::Ignore || mask_all_valid);
             for lag in 0..n_lags {
+                if ctx.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+                    return Err(DataError::Cancelled);
+                }
                 if clean {
                     validity.push(all_valid.clone());
                 } else {
@@ -214,6 +265,9 @@ impl LaggedFrame {
             sources.push(src.values.clone());
         }
 
+        if ctx.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+            return Err(DataError::Cancelled);
+        }
         let variables: Arc<[VariableId]> = Arc::from(variables);
         let slot_index = slot_map(&variables);
         let values = ColumnValues::Shared { sources, base_t };
@@ -299,35 +353,31 @@ impl LaggedFrame {
         &self.validity[idx]
     }
 
-    /// Keep-mask for a set of lagged column indexes: AND of their validity bitmaps.
+    /// Keep-mask for a set of lagged column indexes: the word-wise AND of their validity
+    /// bitmaps, one bit per effective row.
     ///
     /// # Errors
     ///
     /// Empty column list or out-of-range index.
-    pub fn keep_mask_for_columns(&self, cols: &[usize]) -> Result<Vec<bool>, DataError> {
+    pub fn keep_mask_for_columns(&self, cols: &[usize]) -> Result<ValidityBitmap, DataError> {
         if cols.is_empty() {
-            return Err(DataError::InvalidArgument {
-                message: "keep_mask_for_columns needs ≥1 column".into(),
-            });
+            return Err(DataError::empty("keep_mask_for_columns columns"));
         }
-        let mut keep = vec![true; self.n_effective];
+        let mut parts: Vec<&ValidityBitmap> = Vec::with_capacity(cols.len());
         for &c in cols {
             if c >= self.ncols() {
-                return Err(DataError::InvalidArgument {
-                    message: format!("keep_mask_for_columns: column {c} out of range"),
-                });
+                return Err(DataError::out_of_range(
+                    "keep_mask_for_columns column",
+                    c,
+                    self.ncols(),
+                ));
             }
-            let v = &self.validity[c];
-            for (i, slot) in keep.iter_mut().enumerate() {
-                if *slot && !v.is_valid(i) {
-                    *slot = false;
-                }
-            }
+            parts.push(&self.validity[c]);
         }
-        Ok(keep)
+        ValidityBitmap::intersection(self.n_effective, &parts)
     }
 
-    /// Compact to effective rows where `keep[i]` is true.
+    /// Compact to the effective rows `keep` marks valid.
     ///
     /// Used for regime-masked CI: the full series is materialized first so lag
     /// alignment is correct, then only windows wholly inside a regime are retained.
@@ -335,21 +385,20 @@ impl LaggedFrame {
     /// # Errors
     ///
     /// Length mismatch or empty keep set.
-    pub fn retain_effective(&self, keep: &[bool]) -> Result<Self, DataError> {
+    pub fn retain_effective(&self, keep: &ValidityBitmap) -> Result<Self, DataError> {
         if keep.len() != self.n_effective {
-            return Err(DataError::InvalidArgument {
-                message: format!(
-                    "retain_effective keep length {} != n_effective {}",
-                    keep.len(),
-                    self.n_effective
-                ),
+            return Err(DataError::LengthMismatch {
+                expected: self.n_effective,
+                actual: keep.len(),
+                context: "retain_effective keep mask",
             });
         }
-        let n_new = keep.iter().filter(|&&k| k).count();
+        let n_new = keep.count_valid();
         if n_new == 0 {
-            return Err(DataError::InvalidArgument {
-                message: "retain_effective: no effective rows retained".into(),
-            });
+            return Err(DataError::invalid_value(
+                "retain_effective",
+                "must retain at least one effective row",
+            ));
         }
         let n_cols = self.ncols();
         let mut values = vec![0.0; n_cols.saturating_mul(n_new)];
@@ -357,12 +406,8 @@ impl LaggedFrame {
         for c in 0..n_cols {
             let src = self.column(c);
             let dst = &mut values[c * n_new..(c + 1) * n_new];
-            let mut j = 0;
-            for (i, &k) in keep.iter().enumerate() {
-                if k {
-                    dst[j] = src[i];
-                    j += 1;
-                }
+            for (slot, row) in dst.iter_mut().zip(keep.iter_valid()) {
+                *slot = src[row];
             }
             validity.push(self.validity[c].compact(keep)?);
         }
@@ -386,31 +431,28 @@ impl LaggedFrame {
     /// Empty input, or mismatched variables / `max_lag` across frames.
     pub fn stack(frames: &[Self]) -> Result<Self, DataError> {
         let Some(first) = frames.first() else {
-            return Err(DataError::InvalidArgument {
-                message: "LaggedFrame::stack needs ≥1 frame".into(),
-            });
+            return Err(DataError::empty("LaggedFrame::stack frames"));
         };
-        for (i, f) in frames.iter().enumerate().skip(1) {
+        for f in frames.iter().skip(1) {
             if f.variables.as_ref() != first.variables.as_ref() {
-                return Err(DataError::InvalidArgument {
-                    message: format!("LaggedFrame::stack: variables mismatch at frame {i}"),
-                });
+                return Err(DataError::mismatch("LaggedFrame::stack variables"));
             }
             if f.max_lag != first.max_lag || f.n_lags != first.n_lags {
-                return Err(DataError::InvalidArgument {
-                    message: format!("LaggedFrame::stack: max_lag mismatch at frame {i}"),
-                });
+                return Err(DataError::mismatch("LaggedFrame::stack max_lag"));
             }
         }
         let n_eff: usize = frames.iter().map(Self::n_effective).sum();
         if n_eff == 0 {
-            return Err(DataError::InvalidArgument {
-                message: "LaggedFrame::stack: zero effective rows".into(),
-            });
+            return Err(DataError::invalid_value(
+                "LaggedFrame::stack",
+                "needs at least one effective row",
+            ));
         }
         let n_cols = first.ncols();
         let mut values = vec![0.0; n_cols.saturating_mul(n_eff)];
         let mut validity = Vec::with_capacity(n_cols);
+        // One reference list for every column; each column refills it.
+        let mut parts: Vec<&ValidityBitmap> = Vec::with_capacity(frames.len());
         for c in 0..n_cols {
             let mut offset = 0usize;
             for f in frames {
@@ -419,7 +461,8 @@ impl LaggedFrame {
                 dst.copy_from_slice(src);
                 offset += f.n_effective;
             }
-            let parts: Vec<&ValidityBitmap> = frames.iter().map(|f| &f.validity[c]).collect();
+            parts.clear();
+            parts.extend(frames.iter().map(|f| &f.validity[c]));
             validity.push(ValidityBitmap::concat(&parts)?);
         }
         Ok(Self {
@@ -453,18 +496,17 @@ impl LaggedFrame {
         let mut vars = self.variables.to_vec();
         for (id, col) in columns {
             if col.len() != self.n_effective {
-                return Err(DataError::InvalidArgument {
-                    message: format!(
-                        "append_constant_lag_columns: column len {} != n_effective {}",
-                        col.len(),
-                        self.n_effective
-                    ),
+                return Err(DataError::LengthMismatch {
+                    expected: self.n_effective,
+                    actual: col.len(),
+                    context: "append_constant_lag_columns column",
                 });
             }
             if vars.contains(id) {
-                return Err(DataError::InvalidArgument {
-                    message: format!("append_constant_lag_columns: duplicate variable {id}"),
-                });
+                return Err(DataError::invalid_column(
+                    *id,
+                    "is already a variable of the lagged frame",
+                ));
             }
             vars.push(*id);
         }
@@ -534,6 +576,22 @@ mod tests {
         reason = "exact constants: the values compared are representable results, not measurements"
     )]
     #[test]
+    fn panel_frame_refuses_a_unit_shorter_than_the_lag_window() {
+        let units = [float_series(6, 2), float_series(1, 2)];
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        assert!(
+            LaggedFrame::from_panel(
+                &units,
+                &vars,
+                1,
+                &antecedent_core::KernelPolicy::default_policy()
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp, reason = "The fixture checks exact integer-valued lag differences.")]
     fn panel_frame_builds_every_lag_window_inside_its_unit() {
         // v0 = t within a unit, so a row's contemporaneous value exceeds its lag-1 value by
         // exactly 1 unless the window reaches across a unit boundary.
@@ -590,8 +648,8 @@ mod tests {
         let i0 = frame.column_index(vars[0], Lag::CONTEMPORANEOUS).unwrap();
         assert!(!frame.column_valid(i0).is_valid(3));
         let keep = frame.keep_mask_for_columns(&[i0]).unwrap();
-        assert!(!keep[3]);
-        assert!(keep[0]);
+        assert!(!keep.is_valid(3));
+        assert!(keep.is_valid(0));
     }
 
     #[test]
@@ -692,6 +750,6 @@ mod tests {
         let keep = frame.keep_mask_for_columns(&cols).unwrap();
         let compacted = frame.retain_effective(&keep).unwrap();
         assert!(compacted.is_fully_valid());
-        assert_eq!(compacted.n_effective(), keep.iter().filter(|&&k| k).count());
+        assert_eq!(compacted.n_effective(), keep.count_valid());
     }
 }

@@ -9,7 +9,7 @@ import json
 import antecedent as ac
 import numpy as np
 import pytest
-from antecedent.estimation import PreparedAnalysis
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT
 
@@ -78,19 +78,24 @@ def test_bayesian_path_prepare_estimate():
     )
     data = {"t": t, "m": m, "y": y}
     dag = ac.Dag.from_edges(["t", "m", "y"], [("t", "m"), ("m", "y")])
-    prepared = PreparedAnalysis.prepare(
+    prepared = ac.prepare(
         data,
         graph=dag,
         query=ac.PathSpecificEffect("t", "y", path_nodes=["m"]),
         inference=ac.Bayesian(n_draws=64),
         refute="none",
     )
-    result = prepared.estimate(data)
+    result = require_success(prepared.estimate())
     assert result.estimate.estimator_id == "functional.effect"
     assert any("exec.identify.cached" in item for item in result.diagnostics)
     assert result.posterior is not None
     assert result.identification
     assert result.assumptions is not None
+    # The only path is t -> m -> y, so the path-specific effect is the total effect of the
+    # counts: P(y=1 | t=1) - P(y=1 | t=0) = 80/100 - 50/100. The posterior mean sits within
+    # the Dirichlet smoothing of it (observed 0.011); the graph-factorised value 0.168 or a
+    # zero effect is far outside.
+    assert result.effect == pytest.approx(0.8 - 0.5, abs=0.03)
 
 
 def test_bayesian_mediation_four_axes():
@@ -101,7 +106,7 @@ def test_bayesian_mediation_four_axes():
     y = 3 * a + 4 * m + 0.1 * np.sin(i * 0.31)
     data = {"a": a, "m": m, "y": y}
     dag = ac.Dag.from_edges(["a", "m", "y"], [("a", "m"), ("a", "y"), ("m", "y")])
-    prepared = PreparedAnalysis.prepare(
+    prepared = ac.prepare(
         data,
         graph=dag,
         query=ac.MediationEffect(
@@ -115,13 +120,13 @@ def test_bayesian_mediation_four_axes():
         inference=ac.Bayesian(n_draws=64),
         refute="none",
     )
-    result = prepared.estimate(data)
+    result = require_success(prepared.estimate())
     assert result.estimate.estimator_id == "mediation.linear"
     assert result.posterior is not None
     assert result.identification
     assert result.assumptions
     assert result.mediation is not None
-    assert result.effect == pytest.approx(kinds["direct"], abs=0.2)
+    assert result.effect == pytest.approx(kinds["direct"], abs=kinds["tolerance"])
 
 
 def test_bayesian_counterfactual_unit_posterior():
@@ -138,24 +143,33 @@ def test_bayesian_counterfactual_unit_posterior():
         control_level=kinds["control"],
         active_level=kinds["active"],
     )
-    bayes = PreparedAnalysis.prepare(
-        data,
-        graph=dag,
-        query=query,
-        inference=ac.Bayesian(n_draws=64),
-        refute="none",
-    ).estimate(data)
-    freq = PreparedAnalysis.prepare(
-        data,
-        graph=dag,
-        query=query,
-        inference=ac.Frequentist(),
-        refute="none",
-    ).estimate(data)
+    bayes = require_success(
+        ac.prepare(
+            data,
+            graph=dag,
+            query=query,
+            inference=ac.Bayesian(n_draws=64),
+            refute="none",
+        ).estimate()
+    )
+    freq = require_success(
+        ac.prepare(
+            data,
+            graph=dag,
+            query=query,
+            inference=ac.Frequentist(),
+            refute="none",
+        ).estimate()
+    )
     assert bayes.unit_effects is not None
     assert freq.unit_effects is not None
-    assert bayes.mean_ite == pytest.approx(kinds["counterfactual_mean"], abs=0.25)
-    assert float(np.mean(bayes.unit_effects)) == pytest.approx(bayes.mean_ite, abs=0.05)
+    assert bayes.mean_ite == pytest.approx(kinds["counterfactual_mean"], abs=kinds["tolerance"])
+    assert float(np.mean(bayes.unit_effects)) == pytest.approx(bayes.mean_ite, abs=1e-9)
+    # The structural model is additive, so every unit's counterfactual contrast is the same
+    # closed-form 11 * (0.8 - 0.2) = 6.6 whatever its disturbance (observed spread 4e-15).
+    truth = kinds["counterfactual_mean"]
+    assert np.all(np.abs(np.asarray(bayes.unit_effects) - truth) < kinds["tolerance"])
+    assert np.all(np.abs(np.asarray(freq.unit_effects) - truth) < kinds["tolerance"])
     assert not np.allclose(bayes.unit_effects, freq.unit_effects)
 
 
@@ -170,63 +184,108 @@ def test_bayesian_mediation_mapped_prior_is_used():
     y = 3 * a + 4 * m + 0.1 * np.sin(i * 0.31)
     data = {"a": a, "m": m, "y": y}
     dag = ac.Dag.from_edges(["a", "m", "y"], [("a", "m"), ("a", "y"), ("m", "y")])
-    source = ac.analyze(
-        data,
-        graph=dag,
-        query=ac.AverageEffect(
-            "a",
-            "y",
-            control_level=kinds["control"],
-            active_level=kinds["active"],
-        ),
-        inference=ac.Bayesian(n_draws=64, backend="conjugate"),
-        refute=False,
-        seed=int(pin["seed"]),
-        return_posterior_artifact=True,
+    source = require_success(
+        ac.analyze(
+            data,
+            graph=dag,
+            query=ac.AverageEffect(
+                "a",
+                "y",
+                control_level=kinds["control"],
+                active_level=kinds["active"],
+            ),
+            inference=ac.Bayesian(n_draws=64, backend="conjugate"),
+            refute=False,
+            execution=ac.Execution(seed=int(pin["seed"])),
+        )
     )
     assert source.posterior is not None
-    artifact = bytes(source.posterior.artifact)
-    transferred = ac.analyze(
-        data,
-        graph=dag,
-        query=ac.MediationEffect(
-            "a",
-            "y",
-            mediators=["m"],
-            contrast="natural_direct",
-            control_level=kinds["control"],
-            active_level=kinds["active"],
-        ),
-        inference=ac.Bayesian(
-            n_draws=64,
-            backend="conjugate",
-            prior_from=artifact,
-            mapping=PriorMapping.effect_functional("ate"),
-        ),
-        refute=False,
-        seed=int(pin["seed"]),
+    artifact = bytes(source.export(quantity="posterior"))
+    transferred = require_success(
+        ac.analyze(
+            data,
+            graph=dag,
+            query=ac.MediationEffect(
+                "a",
+                "y",
+                mediators=["m"],
+                contrast="natural_direct",
+                control_level=kinds["control"],
+                active_level=kinds["active"],
+            ),
+            inference=ac.Bayesian(
+                n_draws=64,
+                backend="conjugate",
+                prior_from=artifact,
+                mapping=PriorMapping.effect_functional("ate"),
+            ),
+            refute=False,
+            execution=ac.Execution(seed=int(pin["seed"])),
+        )
     )
-    isotropic = ac.analyze(
-        data,
-        graph=dag,
-        query=ac.MediationEffect(
-            "a",
-            "y",
-            mediators=["m"],
-            contrast="natural_direct",
-            control_level=kinds["control"],
-            active_level=kinds["active"],
-        ),
-        inference=ac.Bayesian(n_draws=64, backend="conjugate"),
-        refute=False,
-        seed=int(pin["seed"]),
+    isotropic = require_success(
+        ac.analyze(
+            data,
+            graph=dag,
+            query=ac.MediationEffect(
+                "a",
+                "y",
+                mediators=["m"],
+                contrast="natural_direct",
+                control_level=kinds["control"],
+                active_level=kinds["active"],
+            ),
+            inference=ac.Bayesian(n_draws=64, backend="conjugate"),
+            refute=False,
+            execution=ac.Execution(seed=int(pin["seed"])),
+        )
     )
     assert transferred.posterior is not None
     text = " ".join(str(a) for a in transferred.assumptions)
     assert "mapped ATE/Δ prior hydrated onto outcome-mechanism" in text
     assert "implied NDE/ATE mean" in text
-    assert source.effect == pytest.approx(kinds["total"], abs=0.25)
+    assert source.effect == pytest.approx(kinds["total"], abs=kinds["tolerance"])
     assert isotropic.effect == pytest.approx(kinds["direct"], abs=kinds["tolerance"])
+    # The mapped source posterior (total effect 6.6, tightly concentrated) is the prior on the
+    # outcome-mechanism treatment slope: it pulls the natural direct effect from the
+    # isotropic fit's 1.8 toward the source's 6.6 (observed 6.02). A route that ignored the
+    # mapped prior would reproduce the isotropic value.
+    assert transferred.effect - isotropic.effect > 2.0
+    assert isotropic.effect < transferred.effect < source.effect
+
+
+def test_bayesian_mediation_refuses_a_prior_source_that_is_not_a_posterior_artifact():
+    from antecedent.priors import PriorMapping
+
+    kinds = _load("conformance/estimate/staged_static_kinds/expected.json")
+    i = np.arange(200, dtype=float)
+    a = np.sin(i * 0.71)
+    m = 2 * a + np.cos(i * 1.13)
+    y = 3 * a + 4 * m + 0.1 * np.sin(i * 0.31)
+    dag = ac.Dag.from_edges(["a", "m", "y"], [("a", "m"), ("a", "y"), ("m", "y")])
+    with pytest.raises(ac.errors.CausalSerializationError, match="bad artifact magic"):
+        require_success(
+            ac.analyze(
+                {"a": a, "m": m, "y": y},
+                graph=dag,
+                query=ac.MediationEffect(
+                    "a",
+                    "y",
+                    mediators=["m"],
+                    contrast="natural_direct",
+                    control_level=kinds["control"],
+                    active_level=kinds["active"],
+                ),
+                inference=ac.Bayesian(
+                    n_draws=64,
+                    backend="conjugate",
+                    prior_from=b"not a posterior artifact",
+                    mapping=PriorMapping.effect_functional("ate"),
+                ),
+                refute=False,
+                execution=ac.Execution(seed=1),
+            )
+        )
 
 
 def test_staged_native_signatures_match_type_stubs():
@@ -250,19 +309,17 @@ def test_staged_native_signatures_match_type_stubs():
 @pytest.mark.parametrize("refute", ["none", "cheap", "full"])
 @pytest.mark.parametrize("accepted", [False, True])
 def test_bayesian_conditional_distribution_without_scalar_mean(refute, accepted):
-    from antecedent.inference import decode_posterior_artifact
-
     rows = np.array([(t, y, z) for t in [0.0, 1.0] for y in [0.0, 1.0] for z in [0.0, 1.0]] * 40)
     data = dict(zip(["t", "y", "z"], rows.T, strict=True))
     graph = ac.Dag.from_edges(list(data), [("z", "t"), ("z", "y"), ("t", "y")])
-    prepared = PreparedAnalysis.prepare(
+    prepared = ac.prepare(
         data,
         graph=ac.AcceptedGraph(graph) if accepted else graph,
         query=ac.InterventionalDistribution("y", interventions={"t": 1.0}, conditioning=["z"]),
         inference=ac.Bayesian(n_draws=64),
         refute=refute,
     )
-    result = prepared.estimate(data)
+    result = require_success(prepared.estimate())
     assert result.effect is None
     assert result.posterior is not None
     assert result.posterior.n_draws == 64
@@ -271,12 +328,15 @@ def test_bayesian_conditional_distribution_without_scalar_mean(refute, accepted)
     assert result.posterior.p_below_zero is None
     assert "empty" not in repr(result.posterior)
     assert "No posterior computed" not in result.posterior._repr_html_()
-    posterior = decode_posterior_artifact(prepared.export_artifact())
+    posterior = require_success(ac.load(result.export(quantity="posterior")))
     assert posterior.n_draws == 64
     assert list(posterior.quantity_names) == [f"probability_atom_{i}" for i in range(4)]
-    draws = np.asarray(posterior).reshape((64, 4), order="F")
+    draws = np.column_stack([posterior.quantity(name).draws for name in posterior.quantity_names])
     assert np.all(np.isfinite(draws))
     assert np.all((draws >= 0) & (draws <= 1))
     # Atom order is conditioning assignment, then outcome support.
     assert np.allclose(draws[:, :2].sum(axis=1), 1.0)
     assert np.allclose(draws[:, 2:].sum(axis=1), 1.0)
+    # Every (t, y, z) cell holds 40 rows, so P(y | do(t=1), z) is 1/2 for each z (posterior
+    # means 0.510, 0.490, 0.497, 0.503; Monte-Carlo error of 64 draws about 0.007).
+    assert np.allclose(draws.mean(axis=0), 0.5, atol=0.03)

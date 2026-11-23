@@ -3,7 +3,7 @@
 //! back-door adjustment. Expected outcomes are derived by hand from the
 //! theorems, not from the code under test.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -19,7 +19,7 @@ use antecedent_core::{
 use antecedent_design::obligation_adapters::{
     delta_obligations, factor_obligations, support_obligations,
 };
-use antecedent_design::repair::{REPAIR_MAX_CANDIDATES, RepairClassification};
+use antecedent_design::repair::{REPAIR_MAX_OPERATIONS, RepairClassification};
 use antecedent_design::{
     BackdoorRepairFamily, DurableStudyCandidate, ExpectedEvidence, RepairFamily, RepairLimits,
     RepairObjective, RepairOutcome, RepairReport, StudyCostDeclaration, StudyKind,
@@ -283,7 +283,10 @@ fn insufficient_candidate_keeps_its_failure_reasons_and_the_report_is_wrong_cont
     assert!(report.ranked_sufficient.is_empty());
     assert_eq!(
         report.status(),
-        Some(("transport_not_certified", "identification_repair.wrong_contract"))
+        Some((
+            "transport_not_certified",
+            antecedent_core::reason_details::identification_repair::WRONG_CONTRACT
+        ))
     );
 }
 
@@ -331,7 +334,8 @@ fn invalid_candidates_are_reported_and_never_searched() {
         assert!(!o.reasons.is_empty());
     }
     assert!(
-        outcome(&report, &[&free]).reasons[0].contains("study_candidate.wrong_contract"),
+        outcome(&report, &[&free]).reasons[0]
+            .contains(antecedent_core::reason_details::study_candidate::WRONG_CONTRACT),
         "{:?}",
         outcome(&report, &[&free]).reasons
     );
@@ -386,7 +390,10 @@ fn objective_ranks_sufficient_subsets_and_cost_units_must_agree() {
     .unwrap_err();
     assert_eq!(
         (error.code, error.detail),
-        ("design_cost_units_mismatch", "identification_repair.cost_units_mismatch")
+        (
+            "design_cost_units_mismatch",
+            antecedent_core::reason_details::identification_repair::COST_UNITS_MISMATCH
+        )
     );
 }
 
@@ -415,7 +422,13 @@ fn budget_truncated_search_keeps_explored_and_unevaluated_and_never_says_impossi
     assert_eq!(count(RepairClassification::Insufficient), 3);
     assert_eq!(count(RepairClassification::VerifiedSufficient), 0);
     // Exhaustion is a resource outcome, not a verdict.
-    assert_eq!(report.status(), Some(("transport_budget_cancel", "identification_repair.budget")));
+    assert_eq!(
+        report.status(),
+        Some((
+            "transport_budget_cancel",
+            antecedent_core::reason_details::identification_repair::BUDGET
+        ))
+    );
     // A memory cap below the live-state estimate stops before any subset.
     let memory = RepairLimits { memory_limit_bytes: 100, ..defaults() };
     let starved = run(&backdoor_family(), &candidates, RepairObjective::MinimizeCost, memory);
@@ -438,14 +451,24 @@ fn subsets_larger_than_the_declared_depth_are_not_examined_and_say_so() {
 #[test]
 fn bounds_and_cancellation_are_refusals_or_reports_not_verdicts() {
     let family = backdoor_family();
-    let many: Vec<_> = (0..=REPAIR_MAX_CANDIDATES as u64)
-        .map(|n| observation(&format!("n{n}"), &[T, Y, Z1], n + 1))
-        .collect();
-    let error =
-        repair(&family, &many, RepairObjective::MinimizeCost, defaults(), &ctx()).unwrap_err();
+    let too_many_operations = RepairLimits {
+        search: SearchLimits { operations: REPAIR_MAX_OPERATIONS + 1, depth: 1 },
+        ..defaults()
+    };
+    let error = repair(
+        &family,
+        &[observation("a", &[T, Y, Z1], 1)],
+        RepairObjective::MinimizeCost,
+        too_many_operations,
+        &ctx(),
+    )
+    .unwrap_err();
     assert_eq!(
         (error.code, error.detail),
-        ("invalid_argument", "identification_repair.bounds_exceeded")
+        (
+            "invalid_argument",
+            antecedent_core::reason_details::identification_repair::BOUNDS_EXCEEDED
+        )
     );
     let cancelled = ctx();
     cancelled.cancellation.cancel();
@@ -459,7 +482,7 @@ fn bounds_and_cancellation_are_refusals_or_reports_not_verdicts() {
     .unwrap_err();
     assert_eq!(
         (error.code, error.detail),
-        ("transport_budget_cancel", "identification_repair.budget")
+        ("transport_budget_cancel", antecedent_core::reason_details::identification_repair::BUDGET)
     );
     assert!(error.receipt.is_some());
 }
@@ -489,11 +512,17 @@ fn establish_assumption_is_never_marked_satisfied_by_a_study() {
     // assumption, so the subset is not verified sufficient.
     assert_eq!(repaired.classification, RepairClassification::NotCertified);
     assert!(repaired.derivation.as_ref().is_some_and(|d| d.verified));
-    assert!(repaired.reasons[0].contains("evidence_obligations.wrong_contract"));
+    assert!(
+        repaired.reasons[0]
+            .contains(antecedent_core::reason_details::evidence_obligations::WRONG_CONTRACT)
+    );
     assert!(report.ranked_sufficient.is_empty());
     assert_eq!(
         report.status(),
-        Some(("transport_missing_evidence", "evidence_obligations.wrong_contract"))
+        Some((
+            "transport_missing_evidence",
+            antecedent_core::reason_details::evidence_obligations::WRONG_CONTRACT
+        ))
     );
 }
 
@@ -503,7 +532,7 @@ fn a_contract_that_already_identifies_is_not_a_repair_target() {
     graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     let error =
         BackdoorRepairFamily::try_new(graph, v(0), v(1), "pop", [v(0), v(1)], &[]).unwrap_err();
-    assert_eq!(error.detail, "identification_repair.not_a_failure");
+    assert_eq!(error.detail, antecedent_core::reason_details::identification_repair::NOT_A_FAILURE);
 }
 
 // ----------------------------------------------------------------- transport
@@ -641,8 +670,11 @@ fn leveled_experiment_is_a_restricted_domain_and_does_not_supply_an_unrestricted
     let report = run(&family, &[leveled.clone()], RepairObjective::MinimizeCost, defaults());
     // A value-restricted assignment cannot supply an unrestricted symbolic
     // response, so the transport theorem's factor stays unmet.
-    assert_ne!(
+    assert_eq!(
         outcome(&report, &[&leveled]).classification,
-        RepairClassification::VerifiedSufficient
+        RepairClassification::Insufficient,
+        "{:?}",
+        outcome(&report, &[&leveled]).reasons
     );
+    assert!(report.best().is_none());
 }

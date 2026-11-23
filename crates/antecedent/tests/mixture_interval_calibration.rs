@@ -1,4 +1,4 @@
-//! Coverage of licensed temporal / mixture intervals.
+//! Coverage of supported temporal / mixture intervals.
 //!
 //! Every coverage test scores the interval the result actually reports over
 //! `n_sim()` datasets (default 400) with a two-sided `level ± 3·MCSE` band
@@ -20,9 +20,9 @@
 //!   structure it averages over. Coverage of the weighted mean is printed as
 //!   an `info` line for the record.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh`.
+//! Ignored tests run via `scripts/measure_calibration.sh`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,
@@ -259,8 +259,8 @@ fn run_bayes(
 fn freq_interval_at(result: &StudyResult, level: f64) -> Option<(f64, f64)> {
     let z = if (level - LEVEL).abs() < 1e-12 { Z90 } else { Z95 };
     normal_interval(
-        result.estimate.as_effect().unwrap().ate,
-        result.estimate.as_effect().unwrap().se_bootstrap(),
+        result.estimate().as_effect().unwrap().ate,
+        result.estimate().as_effect().unwrap().se_bootstrap(),
         z,
     )
 }
@@ -392,11 +392,11 @@ impl FreqTally {
         bind_all(&mut [&mut self.tally, &mut self.reported], study, result);
         self.tally.record(freq_interval_at(result, LEVEL), self.truth);
         self.reported.record(freq_interval_at(result, REPORTED_LEVEL), self.truth);
-        if result.estimate.as_effect().unwrap().ate.is_finite() {
-            self.estimates.push(result.estimate.as_effect().unwrap().ate);
+        if result.estimate().as_effect().unwrap().ate.is_finite() {
+            self.estimates.push(result.estimate().as_effect().unwrap().ate);
         }
         if let Some(se) =
-            result.estimate.as_effect().unwrap().se_bootstrap().filter(|se| se.is_finite())
+            result.estimate().as_effect().unwrap().se_bootstrap().filter(|se| se.is_finite())
         {
             self.ses.push(se);
         }
@@ -509,7 +509,7 @@ fn calibration_rule_band_recheck_and_precision_floor() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_dbn_pulse_shared_block_nominal_90_coverage() {
     let truth = fixtures::dbn_mixture_truth(fixtures::dbn_pulse_atom_truths(0.0));
     frequentist_dbn_case(
@@ -524,7 +524,7 @@ fn frequentist_dbn_pulse_shared_block_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_dbn_sustained_shared_block_nominal_90_coverage() {
     let truth = fixtures::dbn_mixture_truth(fixtures::dbn_pulse_atom_truths(0.0));
     frequentist_dbn_case(
@@ -539,7 +539,7 @@ fn frequentist_dbn_sustained_shared_block_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_dbn_multistep_sustained_shared_block_nominal_90_coverage() {
     let truth = fixtures::dbn_mixture_truth(fixtures::dbn_multistep_atom_truths(0.0));
     frequentist_dbn_case(
@@ -555,7 +555,7 @@ fn frequentist_dbn_multistep_sustained_shared_block_nominal_90_coverage() {
 
 /// Single-atom baseline: the same shared-block path with one contributing atom.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_dbn_pulse_single_atom_baseline_nominal_90_coverage() {
     let mut tally = FreqTally::new(
         "frequentist_dbn_pulse_single_atom_baseline_nominal_90_coverage",
@@ -575,12 +575,12 @@ fn frequentist_dbn_pulse_single_atom_baseline_nominal_90_coverage() {
 
 // Serially dependent errors (AR(1) in the exogenous confounder and the
 // outcome innovation). The shared circular block is the dependence-honest
-// interval these cells license, so these assert nominal coverage.
+// interval these cells support, so these assert nominal coverage.
 
 macro_rules! frequentist_dbn_ar1 {
     ($name:ident, $label:literal, $query:expr, $truths:path, $rho:expr, $n:expr, $seed:expr) => {
         #[test]
-        #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+        #[ignore = "calibration: run via scripts/measure_calibration.sh"]
         fn $name() {
             let truth = fixtures::dbn_mixture_truth($truths($rho));
             frequentist_dbn_case(stringify!($name), $label, &$query, truth, $rho, $n, $seed);
@@ -609,7 +609,7 @@ frequentist_dbn_ar1!(
 /// on most replicates (the mixture short-series threshold is set by this
 /// bias). The assertion is the band around the measured coverage.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_dbn_pulse_ar1_rho09_n400_boundary_within_band() {
     let truth = fixtures::dbn_mixture_truth(fixtures::dbn_pulse_atom_truths(0.9));
     frequentist_dbn_tally(
@@ -709,7 +709,7 @@ fn frequentist_cpdag_tally(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_cpdag_pulse_envelope_nominal_90_coverage() {
     frequentist_cpdag_case(
         "frequentist_temporal_cpdag_pulse_envelope_nominal_90_coverage",
@@ -722,7 +722,7 @@ fn frequentist_temporal_cpdag_pulse_envelope_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_cpdag_sustained_envelope_nominal_90_coverage() {
     frequentist_cpdag_case(
         "frequentist_temporal_cpdag_sustained_envelope_nominal_90_coverage",
@@ -735,7 +735,7 @@ fn frequentist_temporal_cpdag_sustained_envelope_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage() {
     frequentist_cpdag_case(
         "frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage",
@@ -761,7 +761,7 @@ fn frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage() {
 const CPDAG_RHO09_MEASURED: [f64; GRID_POINTS] = [0.875, 0.885, 0.910];
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_cpdag_pulse_ar1_rho09_n400_boundary_within_band() {
     frequentist_cpdag_tally(
         "frequentist_temporal_cpdag_pulse_ar1_rho09_n400_boundary_within_band",
@@ -775,7 +775,7 @@ fn frequentist_temporal_cpdag_pulse_ar1_rho09_n400_boundary_within_band() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_cpdag_pulse_ar1_rho05_n60_nominal_90_coverage() {
     frequentist_cpdag_case(
         "frequentist_temporal_cpdag_pulse_ar1_rho05_n60_nominal_90_coverage",
@@ -791,7 +791,7 @@ fn frequentist_temporal_cpdag_pulse_ar1_rho05_n60_nominal_90_coverage() {
 /// (unidentified, mass 1/2), `t <-> z` identifies via MAG adjustment on
 /// `z[t-1]`. The reported aggregate is that single identified atom.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_pag_pulse_envelope_nominal_90_coverage() {
     let truth = pag_identified_truth();
     let mut tally = FreqTally::new(
@@ -824,7 +824,7 @@ fn frequentist_temporal_pag_pulse_envelope_nominal_90_coverage() {
 /// Single-step Pulse through `Study::series(..).build().run`, so the
 /// staged prior / dispatch path is what gets calibrated.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_temporal_dag_pulse_staged_nominal_90_coverage() {
     let key = RecordKey {
         test: "bayesian_temporal_dag_pulse_staged_nominal_90_coverage",
@@ -855,7 +855,7 @@ fn bayesian_temporal_dag_pulse_staged_nominal_90_coverage() {
 /// Both intervened lags carry distinct nonzero effects, so the composed
 /// truth `B1 + B2` tests propagation through every intervened time.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_temporal_dag_multistep_sustained_nominal_90_coverage() {
     let key = RecordKey {
         test: "bayesian_temporal_dag_multistep_sustained_nominal_90_coverage",
@@ -887,7 +887,7 @@ fn single_atom_two_lag_dbn_posterior() -> GraphPosterior {
     GraphPosterior::from_atoms(
         2,
         vec![1.0],
-        vec![0],
+        vec![0_u64],
         vec![0.0; 4],
         vec![0.0; 4],
         SamplingSummary {
@@ -899,7 +899,7 @@ fn single_atom_two_lag_dbn_posterior() -> GraphPosterior {
     .unwrap()
     .with_lagged_marginals(2, vec![0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0])
     .unwrap()
-    .with_lag_masks(vec![34])
+    .with_lag_masks(vec![34_u64])
     .unwrap()
     .with_algorithm("known_truth_two_lag_dag_atom")
 }
@@ -908,7 +908,7 @@ fn single_atom_two_lag_dbn_posterior() -> GraphPosterior {
 /// A single posterior atom removes between-graph uncertainty, leaving only
 /// the within-DBN Bayesian parameter interval to assess.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_temporal_dag_graph_posterior_sustained_effect_multistep_nominal_coverage() {
     let key = RecordKey {
         test: "bayesian_temporal_dag_graph_posterior_sustained_effect_multistep_nominal_coverage",
@@ -938,7 +938,7 @@ fn bayesian_temporal_dag_graph_posterior_sustained_effect_multistep_nominal_cove
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_temporal_dag_response_curve_pointwise_band_coverage() {
     let query = CausalQuery::Response(
         ResponseQuery::new(ResponseFunctional::MeanCurve {
@@ -994,7 +994,7 @@ fn single_atom_xy_dbn_posterior() -> GraphPosterior {
     GraphPosterior::from_atoms(
         2,
         vec![1.0],
-        vec![0],
+        vec![0_u64],
         vec![0.0; 4],
         vec![0.0; 4],
         SamplingSummary {
@@ -1008,7 +1008,7 @@ fn single_atom_xy_dbn_posterior() -> GraphPosterior {
     .unwrap()
     .with_lagged_marginals(1, vec![0.0, 1.0, 0.0, 0.0])
     .unwrap()
-    .with_lag_masks(vec![2])
+    .with_lag_masks(vec![2_u64])
     .unwrap()
     .with_algorithm("known_truth_single_temporal_dag_atom")
 }
@@ -1018,7 +1018,7 @@ fn single_atom_xy_dbn_posterior() -> GraphPosterior {
 /// this scores the within-atom pointwise posterior interval without conflating
 /// between-graph dispersion or an identified-set range with interval width.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_temporal_dag_graph_posterior_response_curve_x1_nominal_coverage() {
     let test = "bayesian_temporal_dag_graph_posterior_response_curve_x1_nominal_coverage";
     let key = RecordKey {
@@ -1079,7 +1079,7 @@ fn bayesian_temporal_dag_graph_posterior_response_curve_x1_nominal_coverage() {
 /// under `noisy_xy`. As above, the posterior has one DBN atom, so this scores
 /// parameter uncertainty conditional on the graph rather than graph spread.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_temporal_dag_graph_posterior_intervention_response_nominal_coverage() {
     let key = RecordKey {
         test: "bayesian_temporal_dag_graph_posterior_intervention_response_nominal_coverage",
@@ -1165,7 +1165,7 @@ fn freq_response_interval(result: &StudyResult, index: usize) -> Option<(f64, f6
 /// identified DBN atom, so this scores the shared circular-block interval
 /// conditional on the graph rather than graph spread.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_dag_graph_posterior_intervention_response_nominal_coverage() {
     const TEST: &str =
         "frequentist_temporal_dag_graph_posterior_intervention_response_nominal_coverage";
@@ -1228,7 +1228,7 @@ fn frequentist_temporal_dag_graph_posterior_intervention_response_nominal_covera
 /// `a = 1`. Each grid point is scored against its own derived truth via the
 /// shared circular-block pointwise band.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_dag_graph_posterior_response_curve_x1_nominal_coverage() {
     const TEST: &str =
         "frequentist_temporal_dag_graph_posterior_response_curve_x1_nominal_coverage";
@@ -1344,7 +1344,7 @@ fn bayesian_cpdag_class_prior_case(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_temporal_cpdag_pulse_class_prior_nominal_90_coverage() {
     bayesian_cpdag_class_prior_case(
         "bayesian_temporal_cpdag_pulse_class_prior_nominal_90_coverage",
@@ -1356,7 +1356,7 @@ fn bayesian_temporal_cpdag_pulse_class_prior_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_temporal_cpdag_sustained_class_prior_nominal_90_coverage() {
     bayesian_cpdag_class_prior_case(
         "bayesian_temporal_cpdag_sustained_class_prior_nominal_90_coverage",
@@ -1369,7 +1369,7 @@ fn bayesian_temporal_cpdag_sustained_class_prior_nominal_90_coverage() {
 
 /// Unequal masses: the mixture must weight atoms by the caller's class prior.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn class_prior_mixture_functional_nominal_90_coverage() {
     bayesian_cpdag_class_prior_case(
         "class_prior_mixture_functional_nominal_90_coverage",
@@ -1384,7 +1384,7 @@ fn class_prior_mixture_functional_nominal_90_coverage() {
 /// identified completion is that atom's posterior, and the unidentified
 /// completion's 0.4 must stay a separate axis.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_temporal_pag_pulse_nominal_90_coverage() {
     let prior = ClassPrior::from_ordered([0.4, 0.6]).unwrap();
     let truth = pag_identified_truth();
@@ -1417,7 +1417,7 @@ fn bayesian_temporal_pag_pulse_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_dbn_posterior_pulse_nominal_90_coverage() {
     let truths = fixtures::dbn_pulse_atom_truths(0.0);
     let mut tally = BmaTally::new(
@@ -1485,10 +1485,10 @@ fn bayesian_cpdag_mediation_case(name: &str, kappa: f64, seed: u64) {
         // NaN; its replicate-mean is checked against the analytic truth below, the
         // same bias check `mean` already runs per completion.
         assert!(
-            result.estimate.as_effect().unwrap().ate.is_finite(),
+            result.estimate().as_effect().unwrap().ate.is_finite(),
             "class mediation with agreeing completions must publish a shared-design effect"
         );
-        mean_ate += result.estimate.as_effect().unwrap().ate / f64::from(n_sim());
+        mean_ate += result.estimate().as_effect().unwrap().ate / f64::from(n_sim());
         let atoms = &result.structural_response.as_ref().expect("atoms").atoms;
         assert_eq!(atoms.len(), truths.len());
         for (i, ((atom, truth), tally)) in atoms.iter().zip(&truths).zip(&mut tallies).enumerate() {
@@ -1515,7 +1515,7 @@ fn bayesian_cpdag_mediation_case(name: &str, kappa: f64, seed: u64) {
 /// Mediator-outcome confounding through `z[t-1] -> w[t-1] -> y` that does not
 /// confound `t -> y`: both completions identify the path product.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage() {
     bayesian_cpdag_mediation_case("Bayesian TemporalCpdag mediation", fixtures::MED_KAPPA, 25_000);
 }
@@ -1523,7 +1523,7 @@ fn bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage() {
 /// Same class without mediator-outcome confounding (`kappa = 0`): isolates
 /// interval calibration from the adjustment-set question.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage() {
     bayesian_cpdag_mediation_case("Bayesian TemporalCpdag mediation (kappa=0)", 0.0, 26_000);
 }
@@ -1547,7 +1547,7 @@ fn confounded_contrasts() -> [(&'static str, MediationContrast, f64); 3] {
 /// tally scores one functional of that draw against its own truth and is judged
 /// on its own marginal coverage, never combined into a joint claim.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_temporal_dag_mediation_confounded_nominal_90_coverage() {
     let key = RecordKey {
         test: "bayesian_temporal_dag_mediation_confounded_nominal_90_coverage",
@@ -1670,7 +1670,7 @@ fn run_single_atom_mediation(
 /// three executions of a replicate share one simulated series (one functional of
 /// a draw per tally, each judged on its own marginal coverage).
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_nominal_coverage() {
     let key = RecordKey {
         test: "bayesian_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_nominal_coverage",
@@ -1725,7 +1725,7 @@ fn bayesian_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_n
 /// to `kappa` because the mediation adjustment set blocks the `w` confounding
 /// path.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_nominal_coverage()
 {
     const TEST: &str = "frequentist_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_nominal_coverage";
@@ -1820,23 +1820,23 @@ fn heterogeneous_dbn_fixture_has_disagreeing_atoms_and_unidentified_mass() {
         let [ta, tb] = fixtures::dbn_pulse_atom_truths(rho);
         let a = run_freq_dbn(data.clone(), pulse_query(), fixtures::dbn_atom_a_only(), 0, 41);
         let b = run_freq_dbn(data.clone(), pulse_query(), fixtures::dbn_atom_b_only(), 0, 41);
-        close("DBN atom A Pulse plim", a.estimate.as_effect().unwrap().ate, ta, 0.03);
-        close("DBN atom B Pulse plim", b.estimate.as_effect().unwrap().ate, tb, 0.03);
+        close("DBN atom A Pulse plim", a.estimate().as_effect().unwrap().ate, ta, 0.03);
+        close("DBN atom B Pulse plim", b.estimate().as_effect().unwrap().ate, tb, 0.03);
         assert!(tb - ta > 0.4, "DBN atoms must disagree materially");
         let mix = run_freq_dbn(data.clone(), pulse_query(), heterogeneous_dbn(), 0, 41);
         close(
             "DBN mixture = frozen-weight mean of atom fits",
-            mix.estimate.as_effect().unwrap().ate,
-            (DBN_WEIGHTS[0] * a.estimate.as_effect().unwrap().ate
-                + DBN_WEIGHTS[1] * b.estimate.as_effect().unwrap().ate)
+            mix.estimate().as_effect().unwrap().ate,
+            (DBN_WEIGHTS[0] * a.estimate().as_effect().unwrap().ate
+                + DBN_WEIGHTS[1] * b.estimate().as_effect().unwrap().ate)
                 / DBN_IDENTIFIED_MASS,
             1e-10,
         );
         let [ma, mb] = fixtures::dbn_multistep_atom_truths(rho);
         let a = run_freq_dbn(data.clone(), multi_sustained(), fixtures::dbn_atom_a_only(), 0, 41);
         let b = run_freq_dbn(data, multi_sustained(), fixtures::dbn_atom_b_only(), 0, 41);
-        close("DBN atom A multi-step plim", a.estimate.as_effect().unwrap().ate, ma, 0.04);
-        close("DBN atom B multi-step plim", b.estimate.as_effect().unwrap().ate, mb, 0.04);
+        close("DBN atom A multi-step plim", a.estimate().as_effect().unwrap().ate, ma, 0.04);
+        close("DBN atom B multi-step plim", b.estimate().as_effect().unwrap().ate, mb, 0.04);
         assert!(mb - ma > 0.3, "DBN multi-step atoms must disagree materially");
     }
 }
@@ -1881,9 +1881,9 @@ fn heterogeneous_dbn_shared_block_se_carries_cross_atom_covariance() {
     let mix = run_freq_dbn(data.clone(), pulse_query(), heterogeneous_dbn(), boot, 41);
     let a = run_freq_dbn(data.clone(), pulse_query(), fixtures::dbn_atom_a_only(), boot, 41);
     let b = run_freq_dbn(data, pulse_query(), fixtures::dbn_atom_b_only(), boot, 41);
-    let se = mix.estimate.as_effect().unwrap().se_bootstrap().expect("shared-block SE");
-    let se_a = a.estimate.as_effect().unwrap().se_bootstrap().expect("atom A SE");
-    let se_b = b.estimate.as_effect().unwrap().se_bootstrap().expect("atom B SE");
+    let se = mix.estimate().as_effect().unwrap().se_bootstrap().expect("shared-block SE");
+    let se_a = a.estimate().as_effect().unwrap().se_bootstrap().expect("atom A SE");
+    let se_b = b.estimate().as_effect().unwrap().se_bootstrap().expect("atom B SE");
     let (wa, wb) = (DBN_WEIGHTS[0] / DBN_IDENTIFIED_MASS, DBN_WEIGHTS[1] / DBN_IDENTIFIED_MASS);
     let independent = ((wa * se_a).powi(2) + (wb * se_b).powi(2)).sqrt();
     eprintln!("DBN shared SE {se:.5}; atoms {se_a:.5}, {se_b:.5}; independent {independent:.5}");
@@ -1914,8 +1914,8 @@ fn heterogeneous_cpdag_fixture_has_disagreeing_completions() {
         assert_eq!(structural.unidentified_mass, 0.0);
         close(
             "CPDAG mixture",
-            result.estimate.as_effect().unwrap().ate,
-            (values[0].unwrap() + values[1].unwrap()) / 2.0,
+            result.estimate().as_effect().unwrap().ate,
+            f64::midpoint(values[0].unwrap(), values[1].unwrap()),
             1e-10,
         );
     }
@@ -1938,19 +1938,19 @@ fn heterogeneous_cpdag_shared_block_se_carries_cross_atom_covariance() {
     let values = atom_values(&mix);
     close(
         "oriented t->z matches completion 0",
-        a.estimate.as_effect().unwrap().ate,
+        a.estimate().as_effect().unwrap().ate,
         values[0].unwrap(),
         1e-10,
     );
     close(
         "oriented z->t matches completion 1",
-        b.estimate.as_effect().unwrap().ate,
+        b.estimate().as_effect().unwrap().ate,
         values[1].unwrap(),
         1e-10,
     );
-    let se = mix.estimate.as_effect().unwrap().se_bootstrap().expect("shared-block SE");
-    let se_a = a.estimate.as_effect().unwrap().se_bootstrap().expect("completion 0 SE");
-    let se_b = b.estimate.as_effect().unwrap().se_bootstrap().expect("completion 1 SE");
+    let se = mix.estimate().as_effect().unwrap().se_bootstrap().expect("shared-block SE");
+    let se_a = a.estimate().as_effect().unwrap().se_bootstrap().expect("completion 0 SE");
+    let se_b = b.estimate().as_effect().unwrap().se_bootstrap().expect("completion 1 SE");
     let independent = ((0.5 * se_a).powi(2) + (0.5 * se_b).powi(2)).sqrt();
     eprintln!("CPDAG shared SE {se:.5}; atoms {se_a:.5}, {se_b:.5}; independent {independent:.5}");
     assert!(se > 0.5 * se_a && se > 0.5 * se_b);
@@ -1998,7 +1998,7 @@ fn mediation_cpdag_fixture_has_two_completions_with_own_posteriors() {
         // truth each completion's own posterior already does below.
         close(
             &format!("shared-design mediation ate (kappa={kappa})"),
-            result.estimate.as_effect().unwrap().ate,
+            result.estimate().as_effect().unwrap().ate,
             fixtures::mediation_truth(),
             0.02,
         );
@@ -2081,7 +2081,7 @@ fn confounded_mediation_recovers_total_direct_mediated_in_both_modes() {
         for (contrast, truth) in truths {
             let label = format!("{inference:?} {contrast:?}");
             let result = run_confounded_mediation(SANITY_N, contrast, inference.clone(), 0, 13, 41);
-            close(&label, result.estimate.as_effect().unwrap().ate, truth, 0.02);
+            close(&label, result.estimate().as_effect().unwrap().ate, truth, 0.02);
             let slice = &result.mediation_grid().expect("mediation grid").slices[0];
             let adjustment: Vec<(u32, i32)> =
                 slice.adjustment.iter().map(|k| (k.variable.raw(), k.offset)).collect();
@@ -2114,7 +2114,12 @@ fn two_lag_fixture_composes_both_lags() {
     let data = two_lag_series(SANITY_N, 17);
     let result =
         run_freq_class(data, two_lag_dag(), CausalQuery::TemporalEffect(multi_sustained()), 0, 41);
-    close("two-lag multi-step Sustained", result.estimate.as_effect().unwrap().ate, B1 + B2, 0.03);
+    close(
+        "two-lag multi-step Sustained",
+        result.estimate().as_effect().unwrap().ate,
+        B1 + B2,
+        0.03,
+    );
 }
 
 #[test]

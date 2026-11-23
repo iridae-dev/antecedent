@@ -5,6 +5,8 @@ reliable. :func:`assess` takes per-draw utilities of a finite candidate set
 (:class:`DecisionDraws`, built from numpy arrays with the stream each came from and the declared
 dependence) and reports three uncertainties **separately**, never summed::
 
+    from antecedent import require_success
+
     import numpy as np
     from antecedent import decision_reliability as dr
 
@@ -16,7 +18,8 @@ dependence) and reports three uncertainties **separately**, never summed::
         coupling="shared_simulation",
         within_stream="independent",
     )
-    result = dr.assess(draws, dr.ReliabilityRequest(ranking=dr.RankingRequest(baseline="b")))
+    outcome = dr.assess(draws, dr.ReliabilityRequest(ranking=dr.RankingRequest(baseline="b")))
+    result = require_success(outcome)
     result.report.source_uncertainty      # spread of the utility under the supplied law
     result.report.monte_carlo_error       # standard errors and effective sample sizes
     result.report.selection_uncertainty   # in-sample value, winner's-curse bound, validation
@@ -34,8 +37,9 @@ dependence) and reports three uncertainties **separately**, never summed::
 Everything is a point diagnostic labelled uncalibrated. Ranking probabilities (best, top-``k``,
 better than a baseline) are Monte Carlo estimates under the supplied law over the candidates as
 supplied, refused for adaptively generated candidates without a :class:`CandidateSearchRecord`.
-:meth:`DecisionReliability.publish` and :func:`publish` return only where a current coverage record
-measured the route at its coordinate and raise ``cell_not_licensed`` everywhere else, and
+:meth:`DecisionReliability.publish` and :func:`publish` always return the route's calibration
+slot (``calibrated`` only where a current coverage record measured the route at its coordinate),
+and
 :meth:`DecisionReliability.combined_uncertainty` always raises
 ``uncertainty_components_not_combined``.
 
@@ -50,8 +54,7 @@ copied from the report, the Monte Carlo component (Wald intervals for utilities 
 intervals at the effective sample size for ranking probabilities) and the selection component (a
 confidence set for the best candidate and a selection-corrected interval, next to the held-out
 interval when the decision was re-evaluated). The derivation is a construction, not a claim:
-:meth:`DerivedUncertainty.publish` returns only where a current coverage record measured the route
-at its coordinate and raises ``cell_not_licensed`` everywhere else, and :func:`coverage_design`
+:meth:`DerivedUncertainty.publish` always returns the route's calibration slot, and :func:`coverage_design`
 returns the measurement design as data. A derivation is never stored beside the artifact: :func:`consume_derived_uncertainty`
 recomputes it from the carried draws.
 
@@ -61,19 +64,36 @@ recomputes it from the carried draws.
 semantic coordinates. A point-only output (:class:`PointOnlyOutput`) is refused with a typed
 reason (``joint_law_required`` for a cohort mean, ``diagnostic_not_available`` for a rollout or
 off-policy mean).
+
+**Fixed sequential policies.** :func:`sequential_policy_reliability` compiles a declared
+:mod:`~antecedent.sequential_evaluation` model, two or more fixed policies and an evaluation
+mode (common-stream rollouts, or a whole-trajectory bootstrap of a logged behaviour policy) into
+one program, evaluates every policy and assesses the decision among them. The result
+(:class:`SequentialPolicyReliability`) exports the raw declaration, and
+:func:`consume_sequential_policy_reliability` re-evaluates it from scratch. Its producer, draws
+and diagnostic embed in a composition bundle with
+:meth:`antecedent.composition_bundle.BundleBuilder.add_sequential_policy_reliability`.
 """
 
 from __future__ import annotations
 
 import json
-import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
 from . import _native
+from ._artifact_protocol import (
+    ArtifactAcceptance,
+    ArtifactExpectation,
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._freeze import freeze, thaw
 from ._refusal import StructuredRefusal, raise_refusal
 from ._reliability_records import (
@@ -86,7 +106,20 @@ from ._reliability_records import (
 )
 from ._scientific import ScientificResult
 from ._validate import count as _count
+from ._validate import finite_float_protocol as _real
+from ._validate import name as _name
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution
+from .outcomes import outcome_operation, require_success
+
+if TYPE_CHECKING:
+    from .sequential_evaluation import (
+        FiniteModel,
+        LearnedFromEvaluationData,
+        LoggedTrajectory,
+        Policy,
+        ReweightedStaticScores,
+    )
 
 __all__ = [
     "MonteCarloErrorReport",
@@ -116,14 +149,17 @@ __all__ = [
     "PointOnlyOutput",
     "ProducerCarrier",
     "RolloutUtilityDraws",
+    "SequentialPolicyReliability",
     "assess",
     "consume_decision_reliability_artifact",
     "consume_derived_uncertainty",
+    "consume_sequential_policy_reliability",
     "coverage_design",
     "derive_uncertainty",
     "publish",
     "rank",
     "reach_carrier",
+    "sequential_policy_reliability",
 ]
 
 _PURPOSES = ("source", "selection", "validation", "evaluation")
@@ -157,9 +193,17 @@ class DecisionReliabilityRefusal(StructuredRefusal):
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code``
     (``candidate_search_record_required``, ``validation_stream_not_independent``,
     ``uncertainty_components_not_combined``, ``joint_law_required``,
-    ``sampling_dependence_unknown``, ``cell_not_licensed``, ...) and a
+    ``sampling_dependence_unknown``, ``not_supported``, ...) and a
     ``decision_reliability.*`` ``detail``.
     """
+
+
+def _execution_policy(value: Execution | None) -> Execution:
+    if value is None:
+        return Execution()
+    if not isinstance(value, Execution):
+        raise CausalTypeError("execution must be an Execution declaration")
+    return value
 
 
 def _refuse(payload: str | None) -> None:
@@ -170,15 +214,6 @@ def _check_choice(value: object, allowed: tuple[str, ...], what: str) -> str:
     if not isinstance(value, str) or value not in allowed:
         raise CausalValueError(f"{what} must be one of {allowed}; got {value!r}")
     return value
-
-
-def _real(value: object, what: str) -> float:
-    if isinstance(value, bool) or not hasattr(value, "__float__"):
-        raise CausalTypeError(f"{what} must be a real number")
-    number = float(value)
-    if not math.isfinite(number):
-        raise CausalValueError(f"{what} must be finite")
-    return number
 
 
 def _dumps(value: object) -> str:
@@ -597,11 +632,6 @@ class ReliabilityReport(ScientificResult):
         return CalibrationCoordinate.from_wire(self.raw["coordinate"])
 
     @property
-    def closed_routes(self) -> list[dict[str, Any]]:
-        """Published routes closed at the coordinate, each with its refusal code."""
-        return [dict(route) for route in self.raw["closed_routes"]]
-
-    @property
     def label(self) -> dict[str, Any]:
         """Standing of every number: a point diagnostic, uncalibrated."""
         return dict(self.raw["label"])
@@ -651,6 +681,7 @@ class DecisionReliability(ScientificResult):
         validation: DecisionDraws | None,
     ) -> None:
         #: The three-component report.
+        artifact = container_bytes(artifact)
         self.report = report
         #: Plain-data summary of the assessment.
         self.inspection: Mapping[str, Any] = freeze(inspection)
@@ -659,40 +690,44 @@ class DecisionReliability(ScientificResult):
         self._request = request
         self._validation = validation
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[ConsumedDecisionReliability]:
         """The ``decision_reliability_v1`` artifact bytes."""
-        return self._artifact
+        return artifact_from_receipt(self, self._artifact)
 
     def digests(self) -> tuple[str, str]:
         """``(draws digest, candidate-set digest)`` of the selection draws."""
         return self._draws.digests()
 
-    def publish(self, route: str) -> None:
-        """Publish a ranking probability, confidence set or interval as a calibrated claim.
+    @outcome_operation
+    def publish(self, route: str) -> dict[str, Any]:
+        """Publish a ranking probability, confidence set or interval with its calibration slot.
 
-        Raises:
-            DecisionReliabilityRefusal: ``cell_not_licensed`` unless a current coverage record
-                measured the route at this report's coordinate (at the default level 0.95).
+        The route is always published; the returned slot has ``status`` ``calibrated`` only where
+        a current coverage record measured the route at this report's coordinate (at the default
+        level 0.95), and otherwise names why not.
         """
-        publish(route, self.report.coordinate)
+        return require_success(publish(route, self.report.coordinate))
 
+    @outcome_operation
     def derive_uncertainty(
         self,
         interval: IntervalRequest | None = None,
         *,
-        seed: int = 0,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> DerivedUncertainty:
-        """Derive the three components for this decision (derived, unmeasured)."""
-        return derive_uncertainty(
-            self._draws,
-            self._request,
-            interval,
-            validation=self._validation,
-            seed=seed,
-            cancel=cancel,
+        """Derive the three components for this decision (derived, not_measured)."""
+        return require_success(
+            derive_uncertainty(
+                self._draws,
+                self._request,
+                interval,
+                validation=self._validation,
+                execution=execution,
+            )
         )
 
+    @outcome_operation
     def combined_uncertainty(self) -> float:
         """One combined uncertainty number.
 
@@ -705,7 +740,7 @@ class DecisionReliability(ScientificResult):
             batch_plan=self._request.batch_plan,
             reporting="combined",
         )
-        assess(self._draws, request, validation=None)
+        require_success(assess(self._draws, request, validation=None))
         raise AssertionError("a combined request is always refused")  # pragma: no cover
 
 
@@ -720,14 +755,14 @@ class ConsumedDecisionReliability(ScientificResult):
 # --------------------------------------------------------------------------- operations
 
 
+@outcome_operation
 def assess(
     draws: DecisionDraws,
     request: ReliabilityRequest | None = None,
     *,
     validation: DecisionDraws | None = None,
-    seed: int = 0,
+    execution: Execution | None = None,
     artifact_id: str = _DEFAULT_ARTIFACT_ID,
-    cancel: Any = None,
 ) -> DecisionReliability:
     """Assess the reliability of a decision from its draws.
 
@@ -739,16 +774,18 @@ def assess(
             (``validation_stream_not_independent``), a combined request
             (``uncertainty_components_not_combined``) or a malformed carrier or request.
     """
+    policy = _execution_policy(execution)
     if not isinstance(draws, DecisionDraws):
         raise CausalTypeError("draws must be a DecisionDraws")
     request = request or ReliabilityRequest()
-    result, refusal = _native.decision_reliability_assess(
+    result, refusal = policy._call(
+        _native.decision_reliability_assess,
         _dumps(draws.to_wire()),
         None if validation is None else _dumps(validation.to_wire()),
         _dumps(request.to_wire()),
         artifact_id,
-        _count(seed, "seed", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"),
-        cancel,
+        policy.seed,
+        policy.cancel,
     )
     _refuse(refusal)
     assert result is not None
@@ -763,44 +800,60 @@ def assess(
     )
 
 
+@outcome_operation
 def rank(
     draws: DecisionDraws,
     request: RankingRequest | None = None,
     *,
-    seed: int = 0,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> RankingReport:
     """Rank a finite candidate set: best, top-``k`` and better-than-baseline probabilities.
 
     Raises:
         DecisionReliabilityRefusal: as :func:`assess` for the carrier and its dependence.
     """
+    policy = _execution_policy(execution)
     request = request or RankingRequest()
-    report, refusal = _native.decision_reliability_rank(
+    report, refusal = policy._call(
+        _native.decision_reliability_rank,
         _dumps(draws.to_wire()),
         _dumps(request.to_wire()),
-        _count(seed, "seed", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"),
-        cancel,
+        policy.seed,
+        policy.cancel,
     )
     _refuse(refusal)
     assert report is not None
     return RankingReport(json.loads(report))
 
 
-def publish(route: str, coordinate: Mapping[str, Any]) -> None:
-    """Publish a ranking or optimality route at a calibration coordinate.
+@outcome_operation
+def publish(route: str, coordinate: Mapping[str, Any]) -> dict[str, Any]:
+    """Publish a ranking or optimality route at a calibration coordinate, with its slot.
 
-    A route is published only where a current coverage record measured it at its coordinate
-    (candidate-set size, Monte Carlo budget, selection rule, coupling, serial dependence); every
-    other request refuses with ``cell_not_licensed``.
-
-    Raises:
-        DecisionReliabilityRefusal: ``cell_not_licensed``.
+    The route is always published. The returned calibration slot is ``calibrated`` only where a
+    current coverage record measured it at its coordinate (candidate-set size, Monte Carlo
+    budget, selection rule, coupling, serial dependence), and otherwise names why not.
     """
     _check_choice(route, _ROUTES, "route")
-    _refuse(_native.decision_reliability_publish(route, _dumps(dict(coordinate))))
+    payload, refusal = _native.decision_reliability_publish(route, _dumps(dict(coordinate)))
+    _refuse(refusal)
+    assert payload is not None
+    return dict(json.loads(payload))
 
 
+@outcome_operation
+@artifact_consumer(
+    proof="decision_reliability.consume_decision_reliability_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+    identity=(
+        "draws_digest",
+        "candidate_set_digest",
+        "selection_stream",
+        "validation_stream",
+        "utility_unit",
+        "decided_id",
+    ),
+)
 def consume_decision_reliability_artifact(
     artifact: bytes,
     *,
@@ -810,7 +863,7 @@ def consume_decision_reliability_artifact(
     validation_stream: StreamId | None = None,
     utility_unit: str | None = None,
     decided_id: str | None = None,
-    seed: int = 0,
+    execution: Execution | None = None,
 ) -> ConsumedDecisionReliability:
     """Independently consume ``decision_reliability_v1`` bytes by recomputation.
 
@@ -821,6 +874,8 @@ def consume_decision_reliability_artifact(
         DecisionReliabilityRefusal: a damaged container, an edited draw, stream, declaration or
             claimed value, or a retained expectation that differs.
     """
+    policy = _execution_policy(execution)
+    artifact = container_bytes(artifact)
     expected = {
         "draws_digest": draws_digest,
         "candidate_set_digest": candidate_set_digest,
@@ -829,11 +884,12 @@ def consume_decision_reliability_artifact(
         "utility_unit": utility_unit,
         "decided_id": decided_id,
     }
-    result, refusal = _native.decision_reliability_consume(
+    result, refusal = policy._call(
+        _native.decision_reliability_consume,
         bytes(artifact),
         _dumps(expected),
-        _count(seed, "seed", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"),
-        None,
+        policy.seed,
+        policy.cancel,
     )
     _refuse(refusal)
     assert result is not None
@@ -864,9 +920,9 @@ class IntervalRequest:
 
 
 class DerivedUncertainty(ScientificResult):
-    """Three separate derived uncertainty components, labelled derived and unmeasured.
+    """Three separate derived uncertainty components, labelled derived and not_measured.
 
-    The components are never summed. ``standing`` is always ``"derived_unmeasured"``.
+    The components are never summed. ``standing`` is always ``"derived_not_measured"``.
     """
 
     def __init__(self, wire: Mapping[str, Any]) -> None:
@@ -879,7 +935,7 @@ class DerivedUncertainty(ScientificResult):
 
     @property
     def standing(self) -> str:
-        """Always ``"derived_unmeasured"``."""
+        """Always ``"derived_not_measured"``."""
         return str(self.raw["standing"])
 
     @property
@@ -917,31 +973,38 @@ class DerivedUncertainty(ScientificResult):
         """Assumptions the derivation rests on."""
         return tuple(self.raw["assumptions"])
 
-    def publish(self, route: str) -> None:
-        """Publish a route from this derivation as a calibrated claim.
+    @outcome_operation
+    def publish(self, route: str) -> dict[str, Any]:
+        """Publish a route from this derivation with its calibration slot.
 
-        Raises:
-            DecisionReliabilityRefusal: ``cell_not_licensed`` unless a current coverage record
-                measured the route at :attr:`coordinate` and at the derivation's level (ranking
-                probabilities and utilities only for marginal intervals).
+        The slot is ``calibrated`` only where a current coverage record measured the route at
+        :attr:`coordinate` and at the derivation's level (ranking probabilities and utilities
+        only for marginal intervals), and otherwise names why not.
         """
         _check_choice(route, _ROUTES, "route")
-        _refuse(_native.decision_reliability_publish_derived(route, _dumps(self.raw)))
+        payload, refusal = _native.decision_reliability_publish_derived(route, _dumps(self.raw))
+        _refuse(refusal)
+        assert payload is not None
+        return dict(json.loads(payload))
 
-    def verify(self, artifact: bytes, *, seed: int = 0) -> None:
+    @outcome_operation
+    def verify(self, artifact: bytes, *, execution: Execution | None = None) -> None:
         """Re-derive this derivation from an artifact's carried draws and compare.
 
         Raises:
             DecisionReliabilityRefusal: a damaged artifact or a derivation that does not
                 recompute.
         """
+        policy = _execution_policy(execution)
+        artifact = container_bytes(artifact)
         _refuse(
-            _native.decision_reliability_verify_derived(
+            policy._call(
+                _native.decision_reliability_verify_derived,
                 bytes(artifact),
                 _dumps(self.raw),
                 None,
-                _count(seed, "seed", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"),
-                None,
+                policy.seed,
+                policy.cancel,
             )
         )
 
@@ -953,43 +1016,42 @@ def _interval_wire(interval: IntervalRequest | None) -> str:
     return _dumps((interval or IntervalRequest()).to_wire())
 
 
-def _seed(seed: int) -> int:
-    return _count(seed, "seed", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument")
-
-
+@outcome_operation
 def derive_uncertainty(
     draws: DecisionDraws,
     request: ReliabilityRequest | None = None,
     interval: IntervalRequest | None = None,
     *,
     validation: DecisionDraws | None = None,
-    seed: int = 0,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> DerivedUncertainty:
     """Derive the three uncertainty components (source, Monte Carlo, selection) from draws.
 
-    The result is a construction; publishing it as a calibrated claim refuses
-    ``cell_not_licensed`` outside a measured record.
+    The result is a construction; publishing it returns the calibration slot, which is
+    ``calibrated`` only inside a measured record.
 
     Raises:
         DecisionReliabilityRefusal: anything :func:`assess` refuses, a level outside
             ``[0.5, 0.9999]``, or an effective sample size below the normal-approximation floor.
     """
+    policy = _execution_policy(execution)
     if not isinstance(draws, DecisionDraws):
         raise CausalTypeError("draws must be a DecisionDraws")
-    text, refusal = _native.decision_reliability_derive(
+    text, refusal = policy._call(
+        _native.decision_reliability_derive,
         _dumps(draws.to_wire()),
         None if validation is None else _dumps(validation.to_wire()),
         _dumps((request or ReliabilityRequest()).to_wire()),
         _interval_wire(interval),
-        _seed(seed),
-        cancel,
+        policy.seed,
+        policy.cancel,
     )
     _refuse(refusal)
     assert text is not None
     return DerivedUncertainty(json.loads(text))
 
 
+@outcome_operation
 def consume_derived_uncertainty(
     artifact: bytes,
     interval: IntervalRequest | None = None,
@@ -1000,7 +1062,7 @@ def consume_derived_uncertainty(
     validation_stream: StreamId | None = None,
     utility_unit: str | None = None,
     decided_id: str | None = None,
-    seed: int = 0,
+    execution: Execution | None = None,
 ) -> DerivedUncertainty:
     """Consume ``decision_reliability_v1`` bytes and re-derive the components from its draws.
 
@@ -1008,6 +1070,8 @@ def consume_derived_uncertainty(
         DecisionReliabilityRefusal: as :func:`consume_decision_reliability_artifact`, or a
             derivation refusal.
     """
+    policy = _execution_policy(execution)
+    artifact = container_bytes(artifact)
     expected = {
         "draws_digest": draws_digest,
         "candidate_set_digest": candidate_set_digest,
@@ -1016,8 +1080,13 @@ def consume_derived_uncertainty(
         "utility_unit": utility_unit,
         "decided_id": decided_id,
     }
-    text, refusal = _native.decision_reliability_consume_derived(
-        bytes(artifact), _dumps(expected), _interval_wire(interval), _seed(seed), None
+    text, refusal = policy._call(
+        _native.decision_reliability_consume_derived,
+        bytes(artifact),
+        _dumps(expected),
+        _interval_wire(interval),
+        policy.seed,
+        policy.cancel,
     )
     _refuse(refusal)
     assert text is not None
@@ -1218,24 +1287,26 @@ class ProducerCarrier(ScientificResult):
         """The carrier's draws, with stream identity from the producer's semantic coordinates."""
         return DecisionDraws(thaw(self.raw["draws"]))
 
+    @outcome_operation
     def assess(
         self,
         request: ReliabilityRequest | None = None,
         *,
         validation: DecisionDraws | None = None,
-        seed: int = 0,
+        execution: Execution | None = None,
         artifact_id: str = _DEFAULT_ARTIFACT_ID,
-        cancel: Any = None,
     ) -> DecisionReliability:
         """Assess the carrier's decision, honouring what the producer allows it to claim."""
+        policy = _execution_policy(execution)
         request = request or ReliabilityRequest()
-        result, refusal = _native.decision_reliability_assess_producer(
+        result, refusal = policy._call(
+            _native.decision_reliability_assess_producer,
             _dumps(self._output.to_wire()),
             None if validation is None else _dumps(validation.to_wire()),
             _dumps(request.to_wire()),
             artifact_id,
-            _seed(seed),
-            cancel,
+            policy.seed,
+            policy.cancel,
         )
         _refuse(refusal)
         assert result is not None
@@ -1249,23 +1320,25 @@ class ProducerCarrier(ScientificResult):
             validation,
         )
 
+    @outcome_operation
     def derive_uncertainty(
         self,
         request: ReliabilityRequest | None = None,
         interval: IntervalRequest | None = None,
         *,
         validation: DecisionDraws | None = None,
-        seed: int = 0,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> DerivedUncertainty:
-        """Derive the three components for the carrier's decision (derived, unmeasured)."""
-        text, refusal = _native.decision_reliability_derive_producer(
+        """Derive the three components for the carrier's decision (derived, not_measured)."""
+        policy = _execution_policy(execution)
+        text, refusal = policy._call(
+            _native.decision_reliability_derive_producer,
             _dumps(self._output.to_wire()),
             None if validation is None else _dumps(validation.to_wire()),
             _dumps((request or ReliabilityRequest()).to_wire()),
             _interval_wire(interval),
-            _seed(seed),
-            cancel,
+            policy.seed,
+            policy.cancel,
         )
         _refuse(refusal)
         assert text is not None
@@ -1333,3 +1406,218 @@ def coverage_design() -> CoverageDesign:
     _refuse(refusal)
     assert text is not None
     return CoverageDesign(json.loads(text))
+
+
+# --------------------------------------------------------------------------- sequential policies
+
+
+_SEQUENTIAL_KIND = "sequential_policy_reliability_v1"
+
+
+@dataclass(repr=False, frozen=True)
+class SequentialPolicyReliability(ScientificResult):
+    """The reliability diagnostic of a decision among fixed sequential policies.
+
+    ``draws`` holds, for every policy, its aligned per-rollout utilities (common random streams
+    from the declared model) or its whole-trajectory bootstrap estimates (logged trajectories
+    under a logging policy). ``report`` is the expected-utility decision among the policies on
+    those draws, with the three uncertainty components reported separately; every number is a
+    point diagnostic and no coverage is claimed. ``program_identity`` identifies the compiled
+    program a consumer retains to replay it; ``acceptance`` is set on a replayed result.
+    """
+
+    draws: DecisionDraws
+    report: ReliabilityReport
+    program_identity: str
+    acceptance: ArtifactAcceptance | None = field(default=None, compare=False)
+    _native: Any = field(default=None, repr=False, compare=False)
+    _artifact_bytes: bytes | None = field(default=None, repr=False, compare=False)
+
+    @property
+    def route(self) -> str | None:
+        """The compiled route of a diagnostic computed here; ``None`` for a replayed one."""
+        return None if self._native is None else str(self._native.route)
+
+    def to_dict(self) -> dict[str, Any]:
+        """The draws, the report and the program identity as plain data."""
+        return {
+            "draws": self.draws.to_wire(),
+            "report": thaw(self.report.raw),
+            "program_identity": self.program_identity,
+        }
+
+    def export(
+        self, *, execution: Execution | None = None
+    ) -> ExportedArtifact[SequentialPolicyReliability]:
+        """The raw declaration and the diagnostic digests, for independent recomputation.
+
+        The model, the policies and the evaluation mode are evaluated again and must reproduce
+        these draws and this report before they are sealed. A replayed result exports the
+        bytes it was consumed from. The expectation carries :attr:`program_identity`.
+        """
+        expectation = ArtifactExpectation(_SEQUENTIAL_KIND, self.program_identity)
+        if self._native is None:
+            if self._artifact_bytes is None:
+                raise CausalValueError("this diagnostic holds neither a program nor its artifact")
+            return ExportedArtifact(self._artifact_bytes, _SEQUENTIAL_KIND, expectation)
+        policy = _execution_policy(execution)
+        data, refusal = policy._call(self._native.export, policy.cancel)
+        _refuse(refusal)
+        assert data is not None
+        return ExportedArtifact(bytes(data), _SEQUENTIAL_KIND, expectation)
+
+
+def _sequential(parts: tuple[str, str, str], native: Any = None) -> SequentialPolicyReliability:
+    draws, report, identity = parts
+    return SequentialPolicyReliability(
+        DecisionDraws(json.loads(draws)),
+        ReliabilityReport(json.loads(report)),
+        identity,
+        _native=native,
+    )
+
+
+def _sequential_mode(
+    seed: int,
+    rollouts: int | None,
+    behaviour: Policy | None,
+    log: Sequence[LoggedTrajectory] | None,
+    replicates: int | None,
+    minimum_effective_sample_size: float | None,
+) -> dict[str, Any]:
+    off_policy = (behaviour, log, replicates, minimum_effective_sample_size)
+    if all(value is None for value in off_policy):
+        if rollouts is None:
+            raise CausalValueError(
+                "declare rollouts= for model rollouts, or behaviour=, log=, replicates= and "
+                "minimum_effective_sample_size= for a bootstrap of logged trajectories"
+            )
+        count = _count(rollouts, "rollouts", minimum=0, reason_code="invalid_argument")
+        return {"rollout": {"seed": seed, "rollouts": count}}
+    if rollouts is not None or any(value is None for value in off_policy):
+        raise CausalValueError(
+            "a bootstrap of logged trajectories needs behaviour=, log=, replicates= and "
+            "minimum_effective_sample_size=, and no rollouts="
+        )
+    from .sequential_evaluation import LoggedTrajectory, Policy
+
+    if not isinstance(behaviour, Policy):
+        raise CausalTypeError("behaviour must be a sequential_evaluation.Policy")
+    trajectories = list(log or ())
+    if any(not isinstance(item, LoggedTrajectory) for item in trajectories):
+        raise CausalTypeError("log must hold sequential_evaluation.LoggedTrajectory records")
+    return {
+        "off_policy": {
+            "behaviour": behaviour.to_wire(),
+            "log": [item._wire() for item in trajectories],
+            "seed": seed,
+            "replicates": _count(
+                replicates, "replicates", minimum=0, reason_code="invalid_argument"
+            ),
+            "minimum_effective_sample_size": _real(
+                minimum_effective_sample_size, "minimum_effective_sample_size"
+            ),
+        }
+    }
+
+
+@outcome_operation
+def sequential_policy_reliability(
+    model: FiniteModel,
+    policies: Sequence[Policy | ReweightedStaticScores | LearnedFromEvaluationData],
+    *,
+    unit: str,
+    seed: int,
+    rollouts: int | None = None,
+    behaviour: Policy | None = None,
+    log: Sequence[LoggedTrajectory] | None = None,
+    replicates: int | None = None,
+    minimum_effective_sample_size: float | None = None,
+    execution: Execution | None = None,
+) -> SequentialPolicyReliability:
+    """Evaluate fixed sequential policies and assess the decision among them.
+
+    ``model`` and ``policies`` are :mod:`antecedent.sequential_evaluation` declarations; every
+    policy must be a fixed contingent policy (a static score table or a policy learned from the
+    data being evaluated is refused by name) and at least two distinct policies are needed.
+    ``unit`` names the utility unit. With ``rollouts``, each policy is simulated on the same
+    common random streams of ``seed``; with ``behaviour``, ``log``, ``replicates`` and
+    ``minimum_effective_sample_size``, whole logged trajectories are resampled under ``seed``
+    and each policy's ordinary importance-weighted estimate is recomputed per replicate. Every
+    reachable history is first enumerated, so an unsupported action refuses rather than going
+    unsampled. The compiler binds the model, the policies and the mode into one program before
+    any policy is evaluated.
+
+    Raises:
+        CausalTypeError: a declaration of the wrong type.
+        CausalValueError: neither or both evaluation modes, or an incomplete one.
+        DecisionReliabilityRefusal: a learned or static-score policy, duplicate policies, an
+            invalid model or mode, an unsupported action, or a reliability refusal.
+    """
+    from .sequential_evaluation import FiniteModel, _spec_wire
+
+    if not isinstance(model, FiniteModel):
+        raise CausalTypeError("model must be a sequential_evaluation.FiniteModel")
+    if isinstance(policies, (str, bytes)) or not isinstance(policies, Sequence):
+        raise CausalTypeError("policies must be a sequence of sequential policies")
+    policy = _execution_policy(execution)
+    mode = _sequential_mode(
+        _count(seed, "seed", minimum=0, reason_code="invalid_argument"),
+        rollouts,
+        behaviour,
+        log,
+        replicates,
+        minimum_effective_sample_size,
+    )
+    handle, refusal = policy._call(
+        _native.sequential_policy_reliability_compile,
+        _dumps(model.to_wire()),
+        _dumps([_spec_wire(item) for item in policies]),
+        _name(unit, "unit"),
+        _dumps(mode),
+        policy.seed,
+        policy.cancel,
+    )
+    _refuse(refusal)
+    assert handle is not None
+    return _sequential(handle.parts, native=handle)
+
+
+@outcome_operation
+@artifact_consumer(
+    proof="decision_reliability.consume_sequential_policy_reliability: the native consumer "
+    "recompiles the raw model, policies and mode, re-evaluates them and compares the draws and "
+    "report digests",
+    replayable=True,
+)
+def consume_sequential_policy_reliability(
+    artifact: bytes | ExportedArtifact[Any],
+    *,
+    expected_identity: str | None = None,
+    execution: Execution | None = None,
+) -> SequentialPolicyReliability:
+    """Independently recompute a sealed sequential reliability diagnostic.
+
+    The raw model, policies and evaluation mode carried by ``artifact`` are compiled and
+    evaluated again and the draws and report are compared with the sealed digests. With
+    ``expected_identity`` (the :attr:`SequentialPolicyReliability.program_identity` retained
+    beside the bytes) the recompiled program must also have that identity.
+
+    Raises:
+        CausalTypeError: ``artifact`` is not bytes or an exported artifact.
+        CausalValueError: ``expected_identity`` is not 64 hexadecimal characters.
+        DecisionReliabilityRefusal: another program identity (``external_binding_mismatch``),
+            a diagnostic that does not replay, or an evaluation refusal.
+    """
+    policy = _execution_policy(execution)
+    parts, refusal = policy._call(
+        _native.sequential_policy_reliability_consume,
+        container_bytes(artifact),
+        None if expected_identity is None else _name(expected_identity, "expected_identity"),
+        policy.seed,
+        policy.cancel,
+    )
+    _refuse(refusal)
+    assert parts is not None
+    # The consumer decorator records the acceptance and the consumed bytes on the result.
+    return _sequential(parts)

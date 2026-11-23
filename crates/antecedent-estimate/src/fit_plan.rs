@@ -7,7 +7,7 @@
 //! otherwise an upper bound (a stratum with no training row, or only one class, is skipped
 //! or fit as a constant), and it is never a runtime guarantee.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 
@@ -40,7 +40,7 @@ impl PropensityNuisance {
     /// logistic, the penalty selection's for a ridge or lasso grid
     /// ([`RidgeTuning::planned_fits_per_outer_fold`]), plus the fallback destination's
     /// selection when a ridge or lasso fallback is declared (it runs only when the GLM fit
-    /// fails). A declared ML fallback is closed and adds no fit.
+    /// fails). A declared ML fallback is unsupported and adds no fit.
     #[must_use]
     pub fn planned_fits_per_fold(&self) -> u64 {
         let primary = match self.penalty() {

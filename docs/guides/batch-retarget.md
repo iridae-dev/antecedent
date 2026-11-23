@@ -1,26 +1,55 @@
-# Configured batches and batch retarget
+# Answer many effects at once and retarget a family of claims
 
-A batch answers many average-effect questions on one table. Two additions: the batch
-entry points take the same typed estimator configurations as `analyze`, and a prepared batch
-can **retarget** a declared family of claims to caller-declared populations and report their
-joint covariance and named contrasts. The points and plug-in covariance are `point_only`;
-the 95% max-t simultaneous band is licensed for complete families at its measured
-coordinate (see [The simultaneous interval](#the-simultaneous-interval)). The record is
-`estimate.batch_retarget_covariance` in `parity/promotion.toml`.
+Use a batch when several average-effect questions share one table and graph: the batch
+prepares them together, shares the nuisance fits that are provably identical, and returns
+one result per question. A completed batch can then **retarget** a declared family of
+claims to populations you declare by row weights, without refitting, and report their joint
+covariance and named contrasts. The points and plug-in covariance are `point_only`; the 95%
+max-t simultaneous band of a complete family is supported only at the coordinate its
+coverage record measures (see [The simultaneous interval](#the-simultaneous-interval)).
+
+| Step | Python | What you get |
+| --- | --- | --- |
+| Answer several questions in one call | `ant.estimation.analyze_many` | `Outcome[BatchResult]`, one member per query |
+| Prepare first, estimate later | `ant.estimation.prepare_many`, then `ant.estimate(study)` | a `PreparedBatch`, then `Outcome[BatchResult]` |
+| Retarget a family of claims | `batch.retarget(claims, contrasts)` | a `BatchRetarget` report: points, joint covariance, contrasts, failed members |
+
+The batch entry points take the same typed estimator configurations as `analyze`.
 
 ## Typed estimator configurations
 
-`analyze_many`, `PreparedBatch.prepare` and `PreparedBatch.prepare_cells` accept
-`estimator=` as a string id (unchanged), an `antecedent.estimators` configuration such as
+`ant.estimation.analyze_many` and `ant.estimation.prepare_many` accept
+`estimator=` as a string id, an `antecedent.estimators` configuration such as
 `Aipw(bootstrap=0, propensity_penalty=PropensityPenalty(...))`, or the `estimator_config=`
 dict `analyze` takes (same keys, same refusals). Rust: `BatchStudy::estimator_spec(spec)`.
-One configuration governs every query.
+One configuration governs every query. Joint-cell batches additionally accept
+`family=ant.estimation.CellFamily(contrast="interaction", posterior_draws=300)`;
+`contrast=None` omits family contrast testing. `CellFamily` settings are rejected on
+average-effect batches, so a scientific request cannot be silently ignored.
 
 ```python
+import antecedent as ant
+import numpy as np
+from antecedent.estimation import RetargetClaim, RetargetContrast
 from antecedent.estimators import Aipw, PropensityPenalty
+from antecedent.outcomes import require_success
 
+rng = np.random.default_rng(19)
+z = rng.normal(size=800)
+t = (rng.random(800) < 1 / (1 + np.exp(-0.4 * z))).astype(float)
+y = 2 * t + z + rng.normal(scale=0.3, size=800)
+data = ant.data.table({"t": t, "y": y, "y2": 0.5 * y - z, "z": z})
+graph = [("z", "t"), ("z", "y"), ("z", "y2"), ("t", "y"), ("t", "y2")]
+queries = [ant.AverageEffect("t", "y"), ant.AverageEffect("t", "y2")]
+execution = ant.Execution(seed=19, threads=2)
 cfg = Aipw(bootstrap=0, propensity_penalty=PropensityPenalty())
-results = ant.estimation.analyze_many(data, graph=graph, queries=queries, estimator=cfg)
+outcome = ant.estimation.analyze_many(
+    data, graph=graph, queries=queries, estimator=cfg,
+    execution=execution, refute=False,
+)
+results = require_success(outcome)
+first = require_success(results.member(0))  # explicit quantity selection
+assert abs(first.effect - 2) < 0.3
 ```
 
 A nuisance fit is shared between two queries only when every input it reads is
@@ -36,21 +65,59 @@ including the propensity nuisance's canonical key); it is recorded on every resu
 ## Batch retarget
 
 ```python
-batch = ant.estimation.PreparedBatch.prepare(data, graph=graph, queries=queries,
-                                             estimator="aipw", bootstrap=0)
-rows = batch.retarget_rows()          # original rows the weights must align with
-report = batch.retarget(
+study = ant.estimation.prepare_many(
+    data, graph=graph, queries=queries, estimator="aipw",
+    inference=ant.Frequentist(bootstrap=0), execution=execution, refute=False,
+)
+# Preparation, inspection and branching do not fit nuisance models.
+assert study.inspect().stage == "prepared"
+batch = require_success(ant.estimate(study))
+rows = batch.retarget_rows()  # original rows this completion's weights must align with
+assert rows is not None
+w_a = np.exp(0.2 * np.asarray(data["z"])[list(rows)])
+w_b = np.exp(-0.2 * np.asarray(data["z"])[list(rows)])
+report = require_success(batch.retarget(
     [RetargetClaim("holder_a", queries[0], w_a, depends_on=["z"]),
      RetargetClaim("holder_b", queries[0], w_b, depends_on=["z"])],
     [RetargetContrast("a_minus_b", {"holder_a": 1.0, "holder_b": -1.0})],
-)
-report.claims, report.contrasts       # points and plug-in standard errors
-report.covariance_between("holder_a", "holder_b")
-report.to_rows()                      # tidy export
+    expected_snapshot=batch.retarget_snapshot(),
+))
+assert report.complete and report.scores_source == "estimated"
+assert report.covariance_between("holder_a", "holder_b") > 0
+report.to_rows()  # explicit tidy materialization
+
+new_data = {**data, "y": np.asarray(data["y"]) + 1}
+branch = ant.rebind(batch.study, data=new_data)
+updated = require_success(ant.estimate(branch))
+assert batch is not updated
+assert batch.member(0).inspect().data_snapshot_id != updated.member(0).inspect().data_snapshot_id
+# A retarget snapshot identifies row alignment; the native data identity also tracks values.
+# The earlier batch and its scores still refer to their original observations.
+assert report.snapshot_id == batch.retarget_snapshot()
 ```
 
+### Read the report
+
+| Field or method | Meaning |
+| --- | --- |
+| `report.claims`, `report.contrasts` | one `RetargetMember` each: `name`, `status` (`ok`, `point_only` or `failed`), `value`, `std_error`, and the refusal code, detail and message of a failed member |
+| `report.complete`, `report.failed_members`, `report.point_only_members` | whether every member has a point and covariance, and which do not |
+| `report.covariance_between(a, b)` | the plug-in score covariance of two claims |
+| `report.simultaneous_interval()` | the max-t band of a complete family; a typed refusal otherwise |
+| `report.complete_family()` | the report itself when the family is complete; a typed refusal otherwise |
+| `report.snapshot_id`, `report.scores_source`, `report.estimator_fingerprint` | the row snapshot, the origin of the scores and the estimator identity the claims rest on |
+| `report.to_rows()` | one tidy row per claim and contrast (see [Tidy export](#tidy-export)) |
+
+A `std_error` is the square root of a plug-in score variance. It is not an interval, and it
+carries no coverage claim.
+
+### Estimand
+
 A claim reweights one plan's cross-fitted score table `phi` (an `AllObserved` iid AIPW or
-cell-AIPW plan) under fixed declared row weights `w`: `theta = sum w phi / sum w`. The same
+cell-AIPW plan) under fixed declared row weights `w`: `theta = sum w phi / sum w`, where
+`phi_r` is row `r`'s score contrast. With weights that are fixed functions of certified
+adjustment covariates, `theta` estimates the average effect in the population the weights
+describe; uniform weights return the fitted average effect. The same
 plan may appear in several claims (a contrast of two declared holders) and several plans may
 share the family. `depends_on` is checked exactly as for a single `retarget`.
 
@@ -88,26 +155,25 @@ For a cluster-DML family the sampler gives every Gaussian draw one shared
 degrees of freedom; one claim then has the ordinary two-sided Student-t critical. Rust:
 `BatchRetargetReport::simultaneous_interval(level, seed, draws, ctx)` returning a
 `SimultaneousBand`; Python: `BatchRetarget.simultaneous_interval()`, computed at
-`PreparedBatch.retarget(..., simultaneous_level=0.95, simultaneous_seed=0,
+`batch.retarget(..., simultaneous_level=0.95, simultaneous_seed=0,
 simultaneous_draws=100000)`. The band is a nominal asymptotic construction (the Gaussian
 limit of the studentized retargeted points, plug-in `Sigma`) under the single-claim
 retarget's conditions: iid rows or the declared independent cluster units, fixed declared
 weights, positivity and nuisance convergence.
 Selection and weight-estimation uncertainty and the Monte-Carlo error of `c` are excluded.
-The 95% iid interval's coverage record has been measured for 800–3200 rows, and the
-complete-family route is licensed at that coordinate:
-`crates/antecedent/tests/batch_retarget_calibration.rs` scores the joint "all four claims
-covered" event, was run through `scripts/gate_calibration.sh`;
-other levels, smaller samples and cluster or dyadic dependence coordinates are not covered
-by this record, even though the corresponding band can be computed.
+The calibration design, `crates/antecedent/tests/batch_retarget_calibration.rs`, scores the
+joint "all four claims covered" event of the 95% iid band at 800–3200 rows. The
+complete-family band is supported only at the coordinate a current coverage record measures;
+other levels, smaller samples and cluster or dyadic dependence coordinates are outside that
+record, even though the corresponding band can be computed.
 
 `c` is a Monte-Carlo quantile on the library's one max-t sampler: a deterministic function of
-`(R, level, seed, draws, reference_df)`, with `draws` bounded to 1000 through 2000000, the stop signal
+`(R, level, seed, draws, reference_df)`, with `draws` at least `level / (1 - level)` (the fewest for which the empirical quantile exists) and within the context's memory budget (8 bytes per draw), the stop signal
 polled every 1024 draws (a cancelled context returns `cancelled_no_claim`, never a value),
 and a matrix that is not a unit-diagonal positive semidefinite correlation refused
 (`batch_retarget.covariance_unavailable`; an invalid level or draw count refuses
 `batch_retarget.max_t_invalid_level` / `batch_retarget.max_t_draws_out_of_range`). A partial
-or point-only family has no band and refuses `cell_not_licensed`
+or point-only family has no band and refuses `route_not_supported`
 (`batch_retarget.partial_family` / `batch_retarget.point_only_member`); the Python result
 reports that refusal when `simultaneous_interval()` is called.
 
@@ -125,18 +191,33 @@ band is strictly wider than each marginal band. It is a test, not a coverage rec
 
 ### Score-table lifetime
 
-`PreparedBatch.estimate(data)` retains the score tables of that estimate on the handle, so a
-later `retarget` reweights that estimate's rows (`retarget_rows()` and `retarget_snapshot()`
-describe them; `report.scores_source` is `"estimated"`). Before any estimate the
-prepare-time tables are used (`"prepared"`). A plan whose estimate kept no table (a trimmed
-or non-iid AIPW, or an estimator that keeps no cross-fitted scores) fails its members with
-`score_table_unavailable` (`batch_retarget.scores_unavailable_after_estimate`); the
-prepare-time rows are never substituted. Weights aligned with other rows (a different length)
-fail their member (`batch_retarget.incompatible_target`).
+`ant.estimation.prepare_many(...)` owns the input once and identifies plans without
+fitting. `ant.estimate(study)` returns `Outcome[BatchResult]`; the successful result owns
+its immutable completed score snapshot. `batch.retarget(...)` also returns a common
+`Outcome[BatchRetarget]`; use `require_success` or inspect its typed scientific refusal. `batch.retarget_rows()` and
+`batch.retarget_snapshot()` describe that completion, and `report.scores_source` is
+`"estimated"`. Retargeting belongs to the completed result, so preparation has no
+prepare-time scores to reweight.
 
-In Rust, `PreparedBatch::estimate_scored` returns the results with the `BatchScores` to pass to
-`PreparedBatch::retarget`. A single `PreparedStudy::retarget` still reweights the table frozen
-at prepare (or rebuilt by `refresh`); `estimate(&self)` never replaces it.
+Use `ant.rebind(batch.study, data=new_data)` to branch onto different observations;
+use `ant.reconfigure(batch.study, queries=other_queries)` for a scientific alternative.
+Both operations return new preparations. Earlier results and their score snapshots remain
+unchanged. Rebinding invalidates dependent fits and scores; compatible completed branches
+share native retained state, with reuse and invalidation exposed on `study.reuse`.
+A plan whose completion kept no score table fails its retarget members with
+`score_table_unavailable`. Weights aligned with another row snapshot fail their member
+(`batch_retarget.incompatible_target`); old rows are never substituted.
+
+`batch.member(index)` selects one typed outcome for composition or `export()`.
+Its native artifact preserves joint covariance, simultaneous intervals and declared family
+contrasts. Loading the artifact checks acceptance through the independent native consumer
+and reconstructs no live dataset or executable study. The artifact encoding does
+not retain `family_contrast_posterior` draws; those aligned draws remain a live-result
+capability, and loading a member does not supply that distribution.
+
+In Rust, `PreparedBatch::execute_retained` produces a `CompletedBatch` whose preparation
+and `BatchScores` share native ownership. The Rust `estimate_scored` operation also
+returns results alongside explicit scores; Python uses the retained completion lifecycle.
 
 ### Cluster-DML families
 
@@ -153,13 +234,13 @@ family refuses `batch_retarget.covariance_unavailable`.
 Every claim and contrast is reported. A member that cannot be retargeted (weighted overlap
 failure, misaligned weights, no scores, a quantile or exceedance grid) is a failed member with
 its typed refusal; a contrast reading a failed claim fails with it, and the covariance covers
-only the surviving members. `complete_family()` raises `cell_not_licensed`
+only the surviving members. `complete_family()` raises `route_not_supported`
 (`batch_retarget.partial_family`) naming the failed members: surviving members are never a
 complete-family claim.
 
 A penalized-propensity score table (`Aipw(propensity_penalty=...)`) retargets like an
 unpenalized one: its members are `ok`, the family carries the plug-in score covariance and its
-contrasts have standard errors. Only a table whose interval is not licensed (a learner-supplied
+contrasts have standard errors. Only a table whose interval is not supported (a learner-supplied
 or factorized joint-cell table) retargets to a point: its members are `point_only`, the family
 carries no covariance, and a complete-family request refuses
 (`batch_retarget.point_only_member`).
@@ -174,8 +255,38 @@ digest of the declared family, snapshot, scores source and estimator fingerprint
 the refusal code, detail and message of a failed member, `diagnostics`, `scores_source`,
 `snapshot_id`, `estimator_fingerprint` and `nuisance_provenance`.
 
+## Refusals
+
+A malformed family refuses the whole call; a member that cannot be retargeted is reported as
+`failed` inside the report with its own code and detail. Every refusal carries the fields described in
+[refusal codes and remedies](../reference/refusal-codes.md#structured-refusals-and-their-remedies).
+
+| What happened | Code | Detail |
+| --- | --- | --- |
+| The plan kept no score table | `score_table_unavailable` | `batch_retarget.scores_unavailable`, `batch_retarget.scores_unavailable_after_estimate` |
+| Claims read plans on different row snapshots | `row_weights_bound_to_snapshot` | `batch_retarget.mixed_snapshot` |
+| Weights are aligned with another row snapshot | `invalid_argument` | `batch_retarget.incompatible_target` |
+| An empty family, a duplicate or unknown claim name, a malformed contrast, or scores that do not match the plans | `invalid_argument` | `batch_retarget.empty_family`, `batch_retarget.duplicate_name`, `batch_retarget.unknown_claim`, `batch_retarget.invalid_contrast`, `batch_retarget.scores_mismatch` |
+| The weighted overlap gate fails for a member | `positivity_violated` | `batch_retarget.weighted_overlap_failed` |
+| A quantile or exceedance claim | `route_not_supported` | `batch_retarget.functional_not_supported` |
+| A contrast reads a failed claim | `route_not_supported` | `batch_retarget.contrast_member_failed` |
+| A complete-family request on a family with a failed member | `route_not_supported` | `batch_retarget.partial_family` |
+| A complete-family request on a family with a point-only member | `route_not_supported` | `batch_retarget.point_only_member` |
+| A mixed iid and cluster family, or a correlation that is not unit-diagonal positive semidefinite | `route_not_supported` | `batch_retarget.covariance_unavailable` |
+| A simultaneous level outside `(0, 1)` | `invalid_argument` | `batch_retarget.max_t_invalid_level` |
+| Too few draws for the level, or more than the memory budget admits | `invalid_argument` | `batch_retarget.max_t_draws_out_of_range` |
+| The execution was cancelled | `cancelled_no_claim` | `batch_retarget.cancelled` |
+
 ## Not in this cell
 
 DR-Learner and CausalForest keep their own inferential cells; no score table or interval is
 inferred from a CATE prediction. Quantile and exceedance claims keep the single-claim
-`retarget`. No calibration was run for this cell.
+`retarget`. The family covariance and contrast standard errors carry no coverage claim.
+
+## Related pages
+
+- Runnable example of preparing, rebinding and reconfiguring a batch:
+  [`examples/python/branch_and_reuse.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/branch_and_reuse.py).
+- [Reuse DML scores to retarget](dml-scores.md): the score table a DML, DR-Learner or CausalForest plan contributes.
+- [Clusters](clustered-dml.md): the cluster-DML plans a clustered family is built from.
+- [Penalized propensity for AIPW](penalized-aipw.md): the penalized configurations a batch accepts.

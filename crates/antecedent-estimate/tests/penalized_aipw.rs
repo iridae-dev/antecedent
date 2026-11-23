@@ -3,10 +3,10 @@
 //! identity, overlap report and retargeting, publish the cross-fitted influence-function SE and
 //! the refit-bootstrap SE (which repeats penalty selection in every replicate), and the
 //! declared GLM-to-penalized fallback runs and records the failed fit it replaced. A scope
-//! outside the license, a machine-learning fallback and a design the outcome stage cannot fit
+//! outside the support, a machine-learning fallback and a design the outcome stage cannot fit
 //! are refused with their reason codes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,
@@ -133,28 +133,28 @@ fn build(raw: &Raw) -> (TabularData, IdentifiedEstimand, AverageEffectQuery) {
 
 fn ridge(grid: &[f64], inner_folds: usize) -> AipwAte {
     AipwAte {
-        bootstrap_replicates: 0,
         propensity: PropensityNuisance::ridge_logistic(
             RidgeTuning::new(grid, inner_folds).unwrap(),
         ),
         ..AipwAte::new()
     }
+    .with_bootstrap_replicates(0)
 }
 
 fn lasso(grid: &[f64], inner_folds: usize) -> AipwAte {
     AipwAte {
-        bootstrap_replicates: 0,
         propensity: PropensityNuisance::lasso_with(RidgeTuning::new(grid, inner_folds).unwrap()),
         ..AipwAte::new()
     }
+    .with_bootstrap_replicates(0)
 }
 
 fn plain() -> AipwAte {
-    AipwAte { bootstrap_replicates: 0, ..AipwAte::new() }
+    AipwAte::new().with_bootstrap_replicates(0)
 }
 
 fn with_bootstrap(est: AipwAte, replicates: u32) -> AipwAte {
-    AipwAte { bootstrap_replicates: replicates, ..est }
+    est.with_bootstrap_replicates(replicates)
 }
 
 /// The plain GLM route with a declared fallback destination.
@@ -393,7 +393,7 @@ fn ridge_propensity_recovers_the_effect_where_the_unpenalized_fit_is_refused() {
     let refused = run(&plain(), &raw, 7).unwrap_err();
     assert!(matches!(refused, EstimationError::Stats(_)), "{refused}");
     let estimate = run(&ridge(&[1.0, 10.0, 100.0, 1000.0], 4), &raw, 7).unwrap();
-    assert!((estimate.ate - 2.0).abs() < 0.4, "ate = {}", estimate.ate);
+    assert!((estimate.ate - 2.0).abs() < 0.2, "ate = {}", estimate.ate);
     assert!(selected_lambdas(&estimate).iter().all(|l| [1.0, 10.0, 100.0, 1000.0].contains(l)));
 }
 
@@ -445,7 +445,7 @@ fn a_penalized_fit_publishes_scores_a_point_and_the_cross_fitted_influence_inter
     assert!(!provenance_withholds_interval(&t.nuisance_provenance));
     // A dependence-robust analytic kind is accepted too, computed by the shared SE routine,
     // and the iid-only joint covariance is then not published.
-    let hc1 = AipwAte { se_kind: AnalyticSeKind::Hc1, ..ridge(&[0.5, 5.0, 50.0], 4) };
+    let hc1 = ridge(&[0.5, 5.0, 50.0], 4).with_se_kind(AnalyticSeKind::Hc1);
     let robust = run(&hc1, &raw, 11).unwrap();
     assert_eq!(robust.ate.to_bits(), estimate.ate.to_bits());
     assert_eq!(robust.uncertainty.analytic.kind, Some(AnalyticSeKind::Hc1));
@@ -726,9 +726,9 @@ fn a_cancelled_refit_bootstrap_is_a_stop_with_no_se() {
 
 /// Outside the untrimmed `AllObserved` mean ATE a penalty has no route: ridge is
 /// `route_not_supported`, and a lasso (which would select on the rows it scores outside the
-/// cross-fit) is `selection_inference_not_licensed`.
+/// cross-fit) is `selection_inference_not_supported`.
 #[test]
-fn a_scope_outside_the_license_is_refused() {
+fn a_scope_outside_the_support_is_refused() {
     let raw = draw(200, 3, 4, Regime::Moderate);
     let (data, estimand, query) = build(&raw);
     let trim = OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: Some(0.05) };
@@ -737,7 +737,7 @@ fn a_scope_outside_the_license_is_refused() {
     assert!(error.to_string().contains("route_not_supported"), "{error}");
     let trimmed_lasso = AipwAte { overlap: trim, ..lasso(&[1.0], 3) };
     let error = trimmed_lasso.prepare(&data, &estimand, &query).unwrap_err();
-    assert!(error.to_string().contains("selection_inference_not_licensed"), "{error}");
+    assert!(error.to_string().contains("selection_inference_not_supported"), "{error}");
     // A fallback beside a penalized primary could never run, so it is refused, not ignored.
     let incoherent = AipwAte {
         propensity: PropensityNuisance::ridge_logistic(RidgeTuning::default())
@@ -757,7 +757,7 @@ fn a_lasso_propensity_recovers_the_support_and_the_effect_and_records_it_per_fol
     let raw = draw(600, 10, 61, Regime::Moderate);
     let est = lasso(&[3.0, 10.0, 30.0, 100.0], 4);
     let estimate = run(&est, &raw, 13).unwrap();
-    assert!((estimate.ate - 2.0).abs() < 0.35, "ate = {}", estimate.ate);
+    assert!((estimate.ate - 2.0).abs() < 0.2, "ate = {}", estimate.ate);
     let report =
         estimate.diagnostics.penalized.as_ref().expect("a lasso records its selected support");
     assert!(report.fallback.is_none() && report.variance.is_none());
@@ -845,7 +845,7 @@ fn a_lasso_propensity_fits_where_the_plain_logistic_is_refused() {
     let raw = draw(400, 8, 31, Regime::Separated);
     assert!(matches!(run(&plain(), &raw, 7).unwrap_err(), EstimationError::Stats(_)));
     let estimate = run(&lasso(&[5.0, 20.0, 80.0], 4), &raw, 7).unwrap();
-    assert!((estimate.ate - 2.0).abs() < 0.5, "ate = {}", estimate.ate);
+    assert!((estimate.ate - 2.0).abs() < 0.2, "ate = {}", estimate.ate);
     assert!(estimate.se_analytic().is_finite() && estimate.se_analytic() > 0.0);
 }
 
@@ -875,7 +875,7 @@ fn a_machine_learning_fallback_is_refused_with_the_failed_fit_recorded() {
     assert!(matches!(run(&plain(), &separated, 2).unwrap_err(), EstimationError::Stats(_)));
     let error = run(&fallback, &separated, 2).unwrap_err();
     let message = error.to_string();
-    assert!(message.contains("nuisance_fallback_not_licensed"), "{message}");
+    assert!(message.contains("nuisance_fallback_not_supported"), "{message}");
     assert!(message.contains("primary nuisance fit failed"), "{message}");
 
     let healthy = draw(300, 3, 8, Regime::Moderate);
@@ -895,7 +895,7 @@ fn a_failed_glm_fit_runs_the_declared_ridge_fallback_and_records_both() {
     let fallback = glm_with_fallback(NuisanceFallback::RidgeLogistic(tuning.clone()));
     let separated = draw(300, 3, 8, Regime::Separated);
     let estimate = run(&fallback, &separated, 2).unwrap();
-    assert!((estimate.ate - 2.0).abs() < 0.5, "ate = {}", estimate.ate);
+    assert!((estimate.ate - 2.0).abs() < 0.2, "ate = {}", estimate.ate);
 
     let record = estimate
         .diagnostics
@@ -1051,7 +1051,10 @@ fn penalized_posterior_refuses_a_mapped_prior() {
     )
     .unwrap_err();
     let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
-    assert!(message.contains("penalized_posterior.mapped_prior"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::penalized_posterior::MAPPED_PRIOR),
+        "{message}"
+    );
 }
 
 #[test]
@@ -1090,16 +1093,21 @@ fn batch_retarget_posterior_mean_stays_near_the_cross_fitted_score() {
 }
 
 #[test]
-fn batch_retarget_posterior_refuses_an_unmeasured_band() {
+fn batch_retarget_posterior_refuses_an_not_measured_band() {
     let error = score_contrast_posterior(
         &[0.0, 1.0],
         &[1.0, 3.0],
-        PosteriorRequest::UnmeasuredBand,
+        PosteriorRequest::CredibleBand,
         ScoreNamespace::BatchRetarget,
     )
     .unwrap_err();
     let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
-    assert!(message.contains("batch_retarget_posterior.unmeasured_band"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::batch_retarget_posterior::BAND_NOT_CONSTRUCTED
+        ),
+        "{message}"
+    );
 }
 
 #[test]

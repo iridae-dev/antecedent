@@ -1,0 +1,415 @@
+"""Engineering tests for the fail-closed manifest currency checker."""
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+import evidence_manifests as em
+
+
+class ManifestTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.write("tools/evidence-analyzer/pin.toml",
+                   'release = "1.85.1"\ncommit = "abc"\n')
+        self.write("src/a.rs", "fn a() { 1; }\n")
+        self.binding = {"kind": "scientific", "key": "crate::test", "fingerprint": "old", "measurement": None}
+
+    def write(self, path, value):
+        target = self.root / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(value, encoding="utf-8")
+        return target
+
+    def item_entries(self, rel, executed):
+        """Item inputs of a record that executed the items at `executed` in `rel`."""
+        import evidence_items as ei
+        inventory = ei.Inventory.read([json.dumps({"t": "mod", "key": "r#", "file": rel, "chain": [],
+                                                   "parent": None, "name": ""})])
+        selection = ei.Selection(self.root, inventory)
+        selection.file(rel)
+        for offset in executed:
+            selection.execute(rel, offset)
+        entries, tables = selection.entries(em.Checker(self.root, {}), ["src"], "src")
+        for address, data in tables.items():
+            self.write(f"{ei.STORE}/{address}.json", data.decode())
+        return entries
+
+    def manifest(self, kind="file", key="src/a.rs"):
+        checker = em.Checker(self.root, {})
+        return {
+            "schema": 1, "normalization": em.NORMALIZATION,
+            "record": self.binding, "compiler": {"release": "1.85.1", "commit": "abc"},
+            "analyzer": em.ANALYZER,
+            "inputs": [{"kind": kind, "name" if kind in ("env", "build_env") else "path": key,
+                        "digest": checker.input_digest(kind, key), "role": "selection"}],
+            "fallbacks": [],
+        }
+
+    def store(self, manifest):
+        stored, groups = em.grouped(manifest)
+        for address, data in groups.items():
+            self.write(f"{em.INPUT_GROUPS}/{address}.json", data.decode())
+        ref = em.manifest_id(stored)
+        self.write(f"{em.STORE}/{ref}.json", json.dumps(stored))
+        return ref
+
+    def test_shared_inputs_are_stored_once_and_a_stored_manifest_restores_them(self):
+        manifest = self.manifest()
+        stored, groups = em.grouped(manifest)
+        self.assertNotIn("inputs", stored)
+        self.assertEqual(stored["input_groups"], sorted(groups))
+        ref = self.store(manifest)
+        checker = em.Checker(self.root, {})
+        self.assertEqual(sorted(checker.load(ref)["inputs"], key=json.dumps),
+                         sorted(manifest["inputs"], key=json.dumps))
+        # A group file whose content does not match its address is refused.
+        first = stored["input_groups"][0]
+        self.write(f"{em.INPUT_GROUPS}/{first}.json", "[]")
+        self.assertFalse(em.Checker(self.root, {}).check(self.binding, ref)["current"])
+
+    def check(self, manifest, binding=None):
+        return em.Checker(self.root, {}).check(binding or self.binding, self.store(manifest))
+
+    def test_a_matching_manifest_is_current(self):
+        result = self.check(self.manifest())
+        self.assertTrue(result["current"])
+        self.assertEqual(result["reasons"], [])
+
+    def test_a_locked_package_binds_its_lock_entry_only(self):
+        lock = ('version = 4\n\n[[package]]\nname = "dep"\nversion = "1.0.0"\n'
+                'source = "registry+https://github.com/rust-lang/crates.io-index"\n'
+                f'checksum = "{"a" * 64}"\n\n[[package]]\nname = "other"\nversion = "2.0.0"\n'
+                'source = "registry+https://github.com/rust-lang/crates.io-index"\n'
+                f'checksum = "{"b" * 64}"\n')
+        self.write("Cargo.lock", lock)
+        manifest = self.manifest()
+        manifest["inputs"].append({"kind": "locked_package", "name": "dep 1.0.0", "digest": "a" * 64,
+                                   "role": "compile"})
+        self.assertTrue(self.check(manifest)["current"])
+        # Another package's bump does not owe the record.
+        self.write("Cargo.lock", lock.replace('"2.0.0"', '"2.1.0"').replace("b" * 64, "c" * 64))
+        self.assertTrue(self.check(manifest)["current"])
+        # Its own package's bump does.
+        self.write("Cargo.lock", lock.replace('"1.0.0"', '"1.0.1"'))
+        self.assertEqual(self.check(manifest)["reasons"], ["input_changed:locked_package:dep 1.0.0"])
+        manifest["inputs"][-1]["name"] = "no version"
+        self.assertFalse(self.check(manifest)["current"])
+
+    def test_nix_build_claim_is_not_silently_accepted(self):
+        for receipt in (None, {}, {"sandbox_verified": True, "binary_sha256": "a" * 64}):
+            with self.subTest(receipt=receipt):
+                manifest = self.manifest()
+                manifest["nix_build"] = receipt
+                result = self.check(manifest)
+                self.assertFalse(result["current"])
+                self.assertIn("manifest_owed:Nix build provenance is not yet supported", result["reasons"])
+
+    def test_a_release_binary_is_bound_only_for_a_calibration_measurement(self):
+        nar = "sha256-" + "A" * 43 + "="
+        recipe = {rel: "1" * 64 for rel in ("nix/evidence-target.nix", "nix/evidence-deps.nix",
+                                            "nix/evidence-common.nix", "nix/evidence-driver.nix",
+                                            "nix/evidence-toolchain.nix", "flake.lock")}
+        release_recipe = {rel: "2" * 64 if rel == "nix/calibration-release.nix" else "1" * 64
+                          for rel in ("nix/calibration-release.nix", "nix/evidence-common.nix",
+                                      "nix/evidence-toolchain.nix", "flake.lock")}
+        source = {"commit": "c" * 40, "store_path": "/nix/store/" + "a" * 32 + "-source", "nar_hash": nar}
+        artifact = {"schema": 2, "crate": "c", "target_kind": "test", "target_name": "t",
+                    "binary": "targets/c/test/t/bin/test", "binary_sha256": "b" * 64,
+                    "build_targets": [{"crate": "c", "kind": "test", "name": "t"}],
+                    "source": source["store_path"], "source_nar_hash": nar, "output_nar_hash": nar,
+                    "recipe_sha256": recipe}
+        receipt = {"schema": "nix-build-v1", "execution": "exact-binary", "artifact": artifact,
+                   "source": source, "tools": {"rustc": "1", "rustc_commit": "x", "cargo": "c", "host": "aarch64-apple-darwin"},
+                   "policy": {"id": "nix-darwin-private-tmp-audit-v1", "source_projection_allowed": True,
+                              "target": "aarch64-apple-darwin",
+                              "audit_selection_sha256": "d" * 64},
+                   "compiler_graph_sha256": "e" * 64,
+                   "release": {"binary": artifact["binary"], "binary_sha256": "f" * 64,
+                               "recipe_sha256": release_recipe}}
+        inputs = [{"kind": "evidence_file", "path": rel, "digest": digest}
+                  for rel, digest in {**recipe, **release_recipe}.items()]
+        calibration = {"kind": "calibration", "key": "record-id"}
+        em.validate_nix_receipt(receipt, calibration, inputs)
+        with self.assertRaises(em.InvalidManifest):  # a scientific assertion never runs it
+            em.validate_nix_receipt(receipt, {"kind": "scientific", "key": "c::t::x"}, inputs)
+        unbound = [i for i in inputs if i["path"] != "nix/calibration-release.nix"]
+        with self.assertRaises(em.InvalidManifest):  # its recipe must be an input
+            em.validate_nix_receipt(receipt, calibration, unbound)
+        other = {**receipt, "release": {**receipt["release"], "binary": "targets/c/test/u/bin/test"}}
+        with self.assertRaises(em.InvalidManifest):  # the same target as the instrumented build
+            em.validate_nix_receipt(other, calibration, inputs)
+
+    def test_body_edit_detected_even_with_preserved_timestamp_and_size(self):
+        manifest = self.manifest()
+        path = self.root / "src/a.rs"
+        stat = path.stat()
+        path.write_text("fn a() { 2; }\n", encoding="utf-8")
+        os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+        self.assertIn("input_changed:file:src/a.rs", self.check(manifest)["reasons"])
+
+    def test_directory_guard_detects_add_remove_rename_and_untracked_files(self):
+        manifest = self.manifest("tree", "src")
+        self.write("src/new.rs", "fn new() {}")
+        self.assertFalse(self.check(manifest)["current"])
+        (self.root / "src/new.rs").unlink()
+        (self.root / "src/a.rs").rename(self.root / "src/b.rs")
+        self.assertFalse(self.check(manifest)["current"])
+        (self.root / "src/b.rs").unlink()
+        self.assertFalse(self.check(manifest)["current"])
+
+    def test_unrelated_file_outside_dependencies_does_not_change_snapshot(self):
+        manifest = self.manifest()
+        self.write("unrelated.rs", "fn unrelated() {}")
+        self.assertTrue(self.check(manifest)["current"])
+
+    def test_environment_distinguishes_unset_and_empty(self):
+        manifest = self.manifest("env", "ANTECEDENT_EXAMPLE")
+        ref = self.store(manifest)
+        result = em.Checker(self.root, {"ANTECEDENT_EXAMPLE": ""}).check(self.binding, ref)
+        self.assertFalse(result["current"])
+
+    def test_missing_deleted_corrupt_or_misaddressed_manifest_owes(self):
+        checker = em.Checker(self.root)
+        for ref in (None, "../../escape", "a" * 64):
+            self.assertFalse(checker.check(self.binding, ref)["current"])
+        ref = self.store(self.manifest())
+        path = self.root / em.STORE / f"{ref}.json"
+        path.write_text("{", encoding="utf-8")
+        self.assertFalse(em.Checker(self.root).check(self.binding, ref)["current"])
+        path.write_text(json.dumps({"schema": 9}), encoding="utf-8")
+        self.assertFalse(em.Checker(self.root).check(self.binding, ref)["current"])
+
+    def test_deleted_input_owes(self):
+        manifest = self.manifest()
+        (self.root / "src/a.rs").unlink()
+        self.assertFalse(self.check(manifest)["current"])
+
+    def test_manifest_cannot_attest_another_record(self):
+        manifest = self.manifest()
+        self.assertFalse(self.check(manifest, {**self.binding, "key": "other"})["current"])
+        self.assertFalse(self.check(manifest, {**self.binding, "fingerprint": "new"})["current"])
+
+    def test_symlink_input_or_tree_member_owes(self):
+        manifest = self.manifest("tree", "src")
+        (self.root / "src/link").symlink_to(self.root / "src/a.rs")
+        self.assertFalse(self.check(manifest)["current"])
+
+    def test_identity_version_and_policy_fail_closed(self):
+        for field, value in (("schema", 2), ("normalization", "unknown"),
+                             ("compiler", {"release": "different", "commit": "abc"}),
+                             ("analyzer", "different")):
+            manifest = self.manifest()
+            manifest[field] = value
+            self.assertFalse(self.check(manifest)["current"], field)
+
+    def test_no_unsupported_item_projection_silently_accepted(self):
+        manifest = self.manifest()
+        manifest["inputs"][0]["kind"] = "item"
+        self.assertFalse(self.check(manifest)["current"])
+
+    def test_item_inputs_track_executed_items_and_ignore_the_rest(self):
+        source = 'fn used() -> i32 { 1 }\nfn unused() -> i32 { 7 }\n'
+        self.write('src/a.rs', source)
+        manifest = self.manifest()
+        manifest['inputs'] = self.item_entries('src/a.rs', [source.index('{ 1 }')])
+        self.assertTrue(self.check(manifest)['current'])
+        self.write('src/a.rs', source.replace('{ 7 }', '{ 8 }'))
+        self.assertTrue(self.check(manifest)['current'])
+        self.write('src/a.rs', '// a comment\n' + source.replace('{ 7 }', '{ 8 }'))
+        self.assertTrue(self.check(manifest)['current'])
+        self.write('src/a.rs', source.replace('{ 1 }', '{ 2 }'))
+        self.assertFalse(self.check(manifest)['current'])
+        self.write('src/a.rs', source.replace('fn used', '#[cfg(any())]\nfn used'))
+        self.assertFalse(self.check(manifest)['current'])
+
+    def test_prune_keeps_what_a_record_reaches_and_deletes_the_rest(self):
+        import evidence_items as ei
+        source = 'fn used() -> i32 { 1 }\n'
+        self.write('src/a.rs', source)
+        kept = self.manifest()
+        kept['inputs'] = self.item_entries('src/a.rs', [source.index('{ 1 }')])
+        kept_ref = self.store(kept)
+        # A withdrawn pass: its manifest, group and table are reached by no record.
+        earlier = 'fn other() {}\n' + source
+        self.write('src/a.rs', earlier)
+        old = self.manifest()
+        old['inputs'] = self.item_entries('src/a.rs', [earlier.index('{ 1 }')])
+        self.write('src/a.rs', source)
+        old_ref = self.store(old)
+        self.write('parity/scientific_records.toml',
+                   f'[[record]]\ntest = "crate::test"\nfingerprint = "old"\ndependency_manifest = "{kept_ref}"\n')
+        orphans = em.unreachable_evidence(self.root)
+        self.assertIn(f"{em.STORE}/{old_ref}.json", orphans)
+        self.assertNotIn(f"{em.STORE}/{kept_ref}.json", orphans)
+        self.assertTrue(any(o.startswith(ei.STORE + "/") for o in orphans))
+        self.assertEqual(em.prune_evidence(self.root), orphans)
+        self.assertEqual(em.unreachable_evidence(self.root), [])
+        self.assertTrue(em.Checker(self.root, {}).check(self.binding, kept_ref)['current'])
+
+    def test_item_inputs_owe_a_vanished_item_or_missing_table(self):
+        source = 'fn used() -> i32 { 1 }\n'
+        self.write('src/a.rs', source)
+        manifest = self.manifest()
+        manifest['inputs'] = self.item_entries('src/a.rs', [source.index('{ 1 }')])
+        self.write('src/a.rs', 'fn renamed() -> i32 { 1 }\n')
+        self.assertFalse(self.check(manifest)['current'])
+        self.write('src/a.rs', source + 'fn more() {}\n')
+        self.assertTrue(self.check(manifest)['current'])
+        table = next(e['table'] for e in manifest['inputs'] if e['kind'] == 'rust_items')
+        (self.root / 'parity/evidence_items' / f'{table}.json').unlink()
+        self.assertFalse(self.check(manifest)['current'])
+
+    def test_fallback_must_hash_its_boundary(self):
+        manifest = self.manifest()
+        manifest["fallbacks"] = [{"path": "src", "reason": "opaque expansion"}]
+        self.assertFalse(self.check(manifest)["current"])
+        manifest = self.manifest("tree", "src")
+        manifest["fallbacks"] = [{"path": "src", "reason": "opaque expansion"}]
+        self.assertTrue(self.check(manifest)["current"])
+
+    def test_deduplicates_shared_inputs_across_records_without_subprocess(self):
+        manifest = self.manifest()
+        ref = self.store(manifest)
+        em._FILE_DIGESTS.clear()  # count this report's reads, not earlier checkers'
+        with patch("subprocess.run", side_effect=AssertionError("compiler invoked")), \
+             patch("subprocess.check_output", side_effect=AssertionError("compiler invoked")):
+            report = em.Checker(self.root, {}).report([(self.binding, ref)] * 1000)
+        self.assertEqual(report["counts"]["current"], 1000)
+        self.assertEqual(report["timings"]["files_hashed"], 1)
+
+    def test_record_inventory_binds_probes_to_exact_measurement(self):
+        self.write("parity/scientific_records.toml", '[[record]]\ntest="t"\nfingerprint="f"\n')
+        self.write("parity/coverage_records.toml", '[[record]]\nid="c"\ncalibration_sha="m"\nfingerprint="f"\n')
+        self.write("parity/calibration_probe_attestations.toml", '[[attestation]]\nrecord_id="c"\ncalibration_sha="m"\nsha="p"\nk=100\nbound=0.03\nresult="pass"\nfingerprint="f"\n')
+        rows = em.inventory(self.root)
+        self.assertEqual([binding["kind"] for binding, _ in rows], ["scientific", "calibration", "probe"])
+        self.assertEqual(rows[-1][0]["measurement"], "m")
+        self.assertEqual(rows[-1][0]["sha"], "p")
+        self.assertEqual(rows[-1][0]["k"], 100)
+        self.assertTrue(all(ref is None for _, ref in rows))
+
+    def test_canonical_address_does_not_depend_on_object_key_order(self):
+        manifest = self.manifest()
+        self.assertEqual(em.manifest_id(manifest), em.manifest_id(dict(reversed(list(manifest.items())))))
+
+    def test_unsafe_paths_are_rejected(self):
+        for path in ("../outside", "/tmp/outside", "src/../a", "src//a", "src/./a", "src\\a"):
+            with self.assertRaises(em.InvalidManifest, msg=path):
+                em.relative_path(path)
+
+    def test_the_checking_process_environment_is_never_an_input(self):
+        ref = self.store(self.manifest("env", "ANTECEDENT_EXAMPLE"))
+        build = self.manifest("build_env", "RUSTFLAGS")
+        with patch.dict(os.environ, {"ANTECEDENT_EXAMPLE": "set", "RUSTFLAGS": "--cfg other"}):
+            self.assertTrue(em.Checker(self.root).check(self.binding, ref)["current"])
+            self.assertTrue(self.check(build)["current"])
+
+    def test_lint_levels_are_not_build_configuration(self):
+        self.assertEqual(em.noncanonical_environment({"RUSTFLAGS": "-D warnings -Wunused --deny=x"}, []), [])
+        self.assertEqual(em.noncanonical_environment({"CARGO_ENCODED_RUSTFLAGS": "-D\x1fwarnings"}, []), [])
+        self.assertTrue(em.noncanonical_environment({"RUSTFLAGS": "-D warnings -C target-cpu=native"}, []))
+        self.assertTrue(em.noncanonical_environment({"CARGO_PROFILE_TEST_OPT_LEVEL": "3"}, []))
+        self.assertEqual(em.noncanonical_environment({"ANTECEDENT_X": ""}, ["ANTECEDENT_X"]), ["ANTECEDENT_X=''"])
+
+    def test_unknown_build_environment_input_is_rejected(self):
+        manifest = self.manifest("build_env", "RUSTFLAGS")
+        manifest["inputs"][0]["name"] = "PATH"
+        self.assertFalse(self.check(manifest)["current"])
+
+    def test_another_targets_declaration_is_not_an_input_of_a_binary(self):
+        git = lambda *args: subprocess.run(["git", *args], cwd=self.root, check=True, capture_output=True, text=True)  # noqa: E731
+        base = ('[package]\nname = "c"\nautotests = false\n\n[features]\nslow = []\n\n'
+                '[[test]]\nname = "mine"\npath = "tests/mine.rs"\nrequired-features = ["slow"]\n')
+        self.write("crates/c/Cargo.toml", base)
+        git("init", "-q")
+        git("-c", "user.email=t@t", "-c", "user.name=t", "add", "crates/c/Cargo.toml")
+        git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "bound")
+        commit = git("rev-parse", "HEAD").stdout.strip()
+        bound = em.digest((self.root / "crates/c/Cargo.toml").read_bytes())
+        test = {"nix_build": {"source": {"commit": commit},
+                              "artifact": {"target_kind": "test", "target_name": "mine"}}}
+        lib = {"nix_build": {"source": {"commit": commit},
+                             "artifact": {"target_kind": "lib", "target_name": "c"}}}
+        same = lambda manifest: em.Checker(self.root, {}).same_build_manifest_as_bound(  # noqa: E731
+            "crates/c/Cargo.toml", bound, manifest)
+        added = base + '\n[[test]]\nname = "new"\npath = "tests/new.rs"\nrequired-features = ["slow"]\n'
+        self.write("crates/c/Cargo.toml", added + '\n[[bench]]\nname = "b"\n\n[[example]]\nname = "e"\n')
+        self.assertTrue(same(test))
+        self.assertTrue(same(lib))
+        # The record's own declaration, and every table a build reads, stay inputs.
+        self.write("crates/c/Cargo.toml", base.replace('required-features = ["slow"]', 'harness = false'))
+        self.assertFalse(same(test))
+        self.assertTrue(same(lib))
+        self.write("crates/c/Cargo.toml", added.replace("slow = []", 'slow = ["dep:x"]'))
+        self.assertFalse(same(test))
+        self.assertFalse(same(lib))
+        self.write("crates/c/Cargo.toml", added + '\n[[bin]]\nname = "tool"\n')
+        self.assertFalse(same(test))
+        # Bytes the bound commit does not hold, or no build provenance, owe.
+        self.write("crates/c/Cargo.toml", added)
+        self.assertFalse(em.Checker(self.root, {}).same_build_manifest_as_bound(
+            "crates/c/Cargo.toml", em.digest(b"other"), test))
+        self.assertFalse(same({}))
+
+        # A reviewed carry can bind the exact bytes of a subsequent revision.
+        git("add", "crates/c/Cargo.toml")
+        git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "later target")
+        carried = em.digest(added.encode())
+        checker = em.Checker(self.root, {})
+        self.write("crates/c/Cargo.toml", added + '\n[[example]]\nname = "demo"\n')
+        self.assertTrue(checker.same_build_manifest_as_bound("crates/c/Cargo.toml", carried, test))
+        self.write("crates/c/Cargo.toml", added.replace('slow = []', 'slow = ["new"]'))
+        self.assertFalse(checker.same_build_manifest_as_bound("crates/c/Cargo.toml", carried, test))
+
+    def test_effective_integration_target_survives_explicit_discovery(self):
+        base = b'[package]\nname = "c"\n'
+        explicit = base + b'autotests = false\n[[test]]\nname = "mine"\n'
+        bound = em.build_manifest_digest(base, "mine", True)
+        self.assertEqual(bound, em.build_manifest_digest(explicit, "mine", True))
+        self.assertEqual(em.build_manifest_digest(base, None), em.build_manifest_digest(explicit, None))
+        for changed in (base + b'autotests = false\n', explicit + b'path = "tests/other.rs"\n',
+                        explicit + b'required-features = ["slow"]\n', explicit + b'harness = false\n'):
+            self.assertNotEqual(bound, em.build_manifest_digest(changed, "mine", True))
+        self.assertNotEqual(bound, em.build_manifest_digest(base, "mine", False))
+
+    def test_membership_in_a_git_work_tree_skips_ignored_files_only(self):
+        git = lambda *args: subprocess.run(["git", *args], cwd=self.root, check=True, capture_output=True)  # noqa: E731
+        self.write(".gitignore", ".DS_Store\n*.so\n")
+        git("init", "-q")
+        git("add", "src/a.rs", ".gitignore")
+        manifest = self.manifest("tree", "src")
+        membership = self.manifest("membership", "src")
+        for path in ("src/.DS_Store", "src/native.so"):
+            self.write(path, "ignored host file or build product")
+        self.assertTrue(self.check(manifest)["current"])
+        self.assertTrue(self.check(membership)["current"])
+        self.write("src/new.csv", "a runtime input added after earning")
+        self.assertFalse(self.check(manifest)["current"])
+        self.assertFalse(self.check(membership)["current"])
+
+    def test_a_shallow_clone_refuses_instead_of_owing_current_records(self):
+        git = lambda *args, cwd=self.root: subprocess.run(  # noqa: E731
+            ["git", "-c", "user.email=t@t", "-c", "user.name=t", *args], cwd=cwd, check=True, capture_output=True)
+        git("init", "-q")
+        git("add", "src/a.rs", "tools")
+        git("commit", "-qm", "first")
+        self.write("src/a.rs", "fn a() { 2; }\n")
+        git("commit", "-qam", "second")
+        shallow = self.root / "shallow"
+        git("clone", "-q", "--depth", "1", self.root.as_uri(), str(shallow))
+        with self.assertRaises(em.ShallowClone):
+            em.Checker(shallow, {})
+        git("fetch", "-q", "--unshallow", cwd=shallow)
+        em.Checker(shallow, {})
+
+
+if __name__ == "__main__":
+    unittest.main()

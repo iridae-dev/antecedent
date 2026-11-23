@@ -15,7 +15,7 @@ The observed margin is the nine-cell pattern law :class:`PatternLaw`
 ``P(R1, R2, X*1, X*2)``; the target is the full law ``P(X1, X2)``. With the head ``h`` and
 tail ``t`` the recovered cell is ``both(x_h, x_t) / (P(R_h=1) q(x_h))`` where ``q(x_h)`` is
 ``P(R_h=1, R_t=1, X*_h=x_h) / P(R_h=1, X*_h=x_h)`` when the tail response depends on the head
-variable and ``P(R_h=1, R_t=1) / P(R_h=1)`` otherwise. This is graph-licensed recovery: not
+variable and ``P(R_h=1, R_t=1) / P(R_h=1)`` otherwise. This is graph-supported recovery: not
 complete-case analysis, MAR or inverse-probability weighting.
 
 A **self-censoring edge** (``X_i -> R_i``) with every other edge in the class is refused as
@@ -24,7 +24,7 @@ the m-graph that agree on all nine observed cells and differ on the target. The 
 are degenerate, so nothing is claimed under faithful or generic parameters. An edge outside the
 row is ``route_not_supported`` (neither recoverable nor nonrecoverable is claimed); a missing
 cell is ``transport_support_failure``. Exact laws only: a sampled provider composed on this row
-is calibrated separately, and that calibration is unmeasured and closed.
+is calibrated separately, and that calibration is not_measured and not supported.
 
 :meth:`RecoveredChain.export` writes an artifact; :func:`consume_recovery_chain_artifact`
 re-decides, re-evaluates and re-verifies the witness and refuses any change, even one resealed
@@ -42,11 +42,20 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from antecedent import _reason_details
+
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._native import consume_recovery_chain_artifact as _consume
 from ._native import recover_recovery_chain as _recover
 from ._refusal import raise_refusal
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+from .execution import Execution, resolve_execution
 from .graph import Admg
 
 __all__ = [
@@ -142,7 +151,7 @@ class PatternLaw:
         if not all(math.isfinite(c) for c in [*self._cells(), self.neither]):
             raise _refusal_of(
                 "invalid_argument",
-                "recovery_chain.invalid_observed_law",
+                _reason_details.recovery_chain.INVALID_OBSERVED_LAW,
                 "an observed pattern cell is negative or not finite",
             )
         return json.dumps(
@@ -218,6 +227,7 @@ class RecoveryChainRefusal(StructuredRefusal):
         witness: ChainWitness | None = None,
         artifact: bytes | None = None,
     ) -> None:
+        artifact = container_bytes(artifact) if artifact is not None else None
         detail = str(refusal["detail"])
         message = refusal.get("message")
         super().__init__(refusal, text=f"{detail}: {message}" if message else detail)
@@ -262,6 +272,7 @@ def _plan(plan: Mapping[str, Any]) -> ChainPlan:
 
 
 def _witness_refusal(report: Mapping[str, Any], artifact: bytes | None) -> RecoveryChainRefusal:
+    artifact = container_bytes(artifact) if artifact is not None else None
     witness = _witness(report)
     edge = witness.self_censoring_edge
     return RecoveryChainRefusal(
@@ -288,20 +299,21 @@ class ChainDecision:
     witness: ChainWitness | None
     artifact: bytes | None = field(default=None, repr=False, compare=False)
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The artifact of a nonrecoverable decision (a recovered one has none until evaluated)."""
         if self.artifact is None:
             raise _refusal_of(
                 "invalid_argument",
-                "recovery_chain.not_evaluated",
+                _reason_details.recovery_chain.NOT_EVALUATED,
                 "evaluate the recovered decision on an observed pattern law before exporting",
             )
-        return self.artifact
+        return artifact_from_receipt(self, self.artifact)
 
 
 @dataclass(frozen=True, slots=True)
 class RecoveredChain:
-    """The recovered law ``P(X1, X2)`` with the plan and artifact that license it."""
+    """The recovered law ``P(X1, X2)`` with the plan and artifact that support it."""
 
     plan: ChainPlan
     observed: PatternLaw
@@ -317,9 +329,10 @@ class RecoveredChain:
         """The recovered law as a ``2 x 2`` array, axes in declaration order."""
         return np.asarray(self.cells, dtype=np.float64)
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The artifact: graph, query, plan, observed law, recovered law and both digests."""
-        return self.artifact
+        return artifact_from_receipt(self, self.artifact)
 
     def to_dict(self) -> dict[str, Any]:
         """A JSON-ready mapping of the result."""
@@ -403,6 +416,7 @@ def _call(
 
 
 def _recovered(report: Mapping[str, Any], artifact: bytes) -> RecoveredChain:
+    artifact = container_bytes(artifact)
     observed = report["observed"]
     recovered = report["recovered"]
     cells = recovered["cells"]
@@ -426,9 +440,7 @@ def decide_chain(
     graph: Admg | Mapping[str, Any],
     query: RecoveryChainQuery,
     *,
-    seed: int = 0,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ChainDecision:
     """Decide whether ``P(X1, X2)`` is recoverable, without evaluating a law.
 
@@ -437,8 +449,14 @@ def decide_chain(
     A graph or role outside the row raises :class:`RecoveryChainRefusal`
     (``recovery_chain.unsupported_mechanism`` / ``.invalid_query``).
     """
+    execution = resolve_execution(execution)
     report, artifact = _call(
-        graph, query, None, seed=seed, memory_bytes=memory_bytes, cancel=cancel
+        graph,
+        query,
+        None,
+        seed=execution.seed,
+        memory_bytes=execution.limits.memory_bytes,
+        cancel=execution.cancel,
     )
     if report["outcome"] == "nonrecoverable":
         return ChainDecision("nonrecoverable", None, _witness(report), artifact)
@@ -450,9 +468,7 @@ def recover_chain(
     query: RecoveryChainQuery,
     pattern_law: PatternLaw | Mapping[str, Any],
     *,
-    seed: int = 0,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> RecoveredChain:
     """Recover ``P(X1, X2)`` from the observed nine-cell ``pattern_law`` on the m-graph.
 
@@ -465,9 +481,15 @@ def recover_chain(
     ``transport_support_failure`` / ``recovery_chain.positivity`` (a required cell or denominator
     has no mass) and ``invalid_argument`` (``.invalid_query``, ``.invalid_observed_law``).
     """
+    execution = resolve_execution(execution)
     law_json = _law(pattern_law)
     report, artifact = _call(
-        graph, query, law_json, seed=seed, memory_bytes=memory_bytes, cancel=cancel
+        graph,
+        query,
+        law_json,
+        seed=execution.seed,
+        memory_bytes=execution.limits.memory_bytes,
+        cancel=execution.cancel,
     )
     if report["outcome"] == "nonrecoverable":
         raise _witness_refusal(report, artifact)
@@ -479,9 +501,7 @@ def recover_chain(
 def consume_recovery_chain_artifact(
     artifact: bytes,
     *,
-    seed: int = 0,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> RecoveredChain:
     """Re-decide, re-evaluate and re-verify an exported artifact; accept only an identical one.
 
@@ -494,10 +514,17 @@ def consume_recovery_chain_artifact(
     ``.decision_replay_mismatch`` / ``.recovered_replay_mismatch``). Corruption and unknown
     versions raise :class:`~antecedent.errors.CausalSerializationError`.
     """
+    execution = resolve_execution(execution)
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     data = bytes(artifact)
-    report, refusal = _consume(data, seed=seed, memory_bytes=memory_bytes, cancel=cancel)
+    report, refusal = _consume(
+        data,
+        seed=execution.seed,
+        memory_bytes=execution.limits.memory_bytes,
+        cancel=execution.cancel,
+    )
     raise_refusal(refusal, RecoveryChainRefusal)
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")

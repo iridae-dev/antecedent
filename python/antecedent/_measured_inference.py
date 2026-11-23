@@ -1,4 +1,4 @@
-"""Measured scalar inference authorized by retained native source and calibration records."""
+"""Measured scalar inference: every interval with its calibration status."""
 
 from __future__ import annotations
 
@@ -6,9 +6,15 @@ import json
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._transport_results import _freeze as freeze
 from ._transport_results import _thaw as detached
@@ -18,15 +24,16 @@ from .errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from .execution import Execution, native_controls, resolve_execution
 
 MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
 
-
-def _integer(name: str, value: int, lower: int, upper: int) -> None:
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise CausalTypeError(f"{name} must be an integer")
-    if not lower <= value <= upper:
-        raise CausalValueError(f"{name} must be in {lower}..={upper}")
+CalibrationStatus = Literal[
+    "calibrated", "outside_measured_scope", "measured_below_nominal", "not_measured"
+]
+_STATUSES = frozenset(
+    ("calibrated", "outside_measured_scope", "measured_below_nominal", "not_measured")
+)
 
 
 def _level(value: float) -> None:
@@ -38,15 +45,6 @@ def _level(value: float) -> None:
         valid = False
     if not valid:
         raise CausalValueError("level must be finite and strictly between zero and one")
-
-
-def _production_limits(
-    memory_limit_bytes: int | None, cancel: _native.CancellationToken | None
-) -> None:
-    if memory_limit_bytes is not None:
-        _integer("memory_limit_bytes", memory_limit_bytes, 0, 2**64 - 1)
-    if cancel is not None and not isinstance(cancel, _native.CancellationToken):
-        raise CausalTypeError("cancel must be a CancellationToken")
 
 
 def _bounded_name(name: str, value: str) -> None:
@@ -147,21 +145,31 @@ class MeasuredScalar:
         return float(self._body["level"])
 
     @property
-    def calibration(self) -> Literal["calibrated"]:
-        return "calibrated"
+    def calibration(self) -> CalibrationStatus:
+        """Calibration status annotating this interval; it never withholds the interval."""
+        return cast(CalibrationStatus, self._body["calibration"]["status"])
 
     @property
-    def record_id(self) -> str:
-        return str(self._body["calibration"]["record_id"])
+    def calibration_reason(self) -> str | None:
+        """Reason code when the interval is not ``calibrated``."""
+        reason = self._body["calibration"].get("reason")
+        return None if reason is None else str(reason)
 
     @property
-    def calibration_sha(self) -> str:
+    def record_id(self) -> str | None:
+        """Governing coverage record, when one matches the construction."""
+        value = self._body["calibration"].get("record_id")
+        return None if value is None else str(value)
+
+    @property
+    def calibration_sha(self) -> str | None:
         """Git commit of the governing measurement; this is not a content checksum."""
-        return str(self._body["calibration"]["calibration_sha"])
+        value = self._body["calibration"].get("calibration_sha")
+        return None if value is None else str(value)
 
     @property
     def basis(self) -> dict[str, Any]:
-        return dict(detached(self._body["calibration"]["basis"]))
+        return dict(detached(self._body["calibration"].get("basis") or {}))
 
     def inspect(self) -> dict[str, Any]:
         return dict(detached(self._body))
@@ -169,7 +177,7 @@ class MeasuredScalar:
 
 @dataclass(frozen=True, slots=True, init=False)
 class MeasuredInference:
-    """Immutable measured scalar carrier, separate from its original unmeasured source."""
+    """Immutable measured scalar carrier, separate from its original not_measured source."""
 
     _native: Any = field(repr=False)
     _body: Mapping[str, Any] = field(repr=False)
@@ -185,7 +193,7 @@ class MeasuredInference:
         if kind is None or not isinstance(native, kind):
             raise CausalTypeError("measured inference requires original native authority")
         body = json.loads(native.payload())
-        if body.get("version") != 1 or body.get("calibration") != "calibrated":
+        if body.get("version") != 1 or body.get("calibration") not in _STATUSES:
             raise CausalSerializationError("unsupported measured inference standing")
         identity = MeasuredInferenceIdentity._from_wire(body["identity"])
         rows = body["scalars"]
@@ -197,14 +205,18 @@ class MeasuredInference:
         scalars = []
         for row in rows:
             slot = row["calibration"]
+            status = slot.get("status")
             if (
-                slot.get("status") != "calibrated"
-                or not slot.get("record_id")
-                or not slot.get("calibration_sha")
-                or not slot.get("basis")
+                status not in _STATUSES
                 or row["level"] != identity.level
+                or (
+                    status == "calibrated"
+                    and not (
+                        slot.get("record_id") and slot.get("calibration_sha") and slot.get("basis")
+                    )
+                )
             ):
-                raise CausalSerializationError("measured scalar lacks its governing native record")
+                raise CausalSerializationError("measured scalar lacks its calibration slot")
             scalar = object.__new__(MeasuredScalar)
             coerce_fields(scalar, _authority=native)
             coerce_fields(scalar, _body=freeze(row))
@@ -221,8 +233,9 @@ class MeasuredInference:
         return self._identity.route
 
     @property
-    def calibration(self) -> Literal["calibrated"]:
-        return "calibrated"
+    def calibration(self) -> CalibrationStatus:
+        """``calibrated`` only when every scalar is; otherwise the most severe status."""
+        return cast(CalibrationStatus, self._body["calibration"])
 
     @property
     def expected_identity(self) -> MeasuredInferenceIdentity:
@@ -245,15 +258,16 @@ class MeasuredInference:
     def inspect(self) -> dict[str, Any]:
         return dict(detached(self._body))
 
-    def export(self) -> bytes:
-        return bytes(self._native.export())
+    @artifact_export
+    def export(self) -> ExportedArtifact:
+        return artifact_from_receipt(self, bytes(self._native.export()))
 
     def source_report(self) -> dict[str, Any]:
         """Detached original candidate report; its calibration standing is unchanged."""
         return dict(json.loads(self._native.source_report()))
 
     def source_artifact(self) -> bytes:
-        """Original candidate bytes, retaining their own unmeasured calibration label."""
+        """Original candidate bytes, retaining their own not_measured calibration label."""
         return bytes(self._native.source_artifact())
 
     @classmethod
@@ -262,30 +276,28 @@ class MeasuredInference:
         artifact: bytes,
         *,
         expected: MeasuredInferenceIdentity,
-        max_bytes: int = MAX_ARTIFACT_BYTES,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> MeasuredInference:
+        execution = resolve_execution(execution)
+        artifact = container_bytes(artifact)
         if not isinstance(artifact, bytes):
             raise CausalTypeError("artifact must be bytes")
         if not isinstance(expected, MeasuredInferenceIdentity):
             raise CausalTypeError("expected must be a retained MeasuredInferenceIdentity")
-        _integer("max_bytes", max_bytes, 1, MAX_ARTIFACT_BYTES)
-        if len(artifact) > max_bytes:
+        if len(artifact) > MAX_ARTIFACT_BYTES:
             raise CausalValueError("measured inference artifact exceeds the byte bound")
-        _production_limits(memory_limit_bytes, cancel)
         consume = getattr(_native, "consume_measured_inference", None)
         if consume is None:
             raise CausalUnsupportedError(
                 "measured inference native authority unavailable",
-                reason_code="cell_not_licensed",
+                reason_code="not_supported",
             )
-        native = consume(
+        native = execution._call(
+            consume,
             artifact,
             json.dumps(expected._wire(), allow_nan=False),
-            max_bytes=max_bytes,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
+            max_bytes=MAX_ARTIFACT_BYTES,
+            **native_controls(execution, cancel="cancel", memory="memory_limit_bytes"),
         )
         return cls._from_native(native)
 

@@ -7,14 +7,13 @@ package. When it is absent, the workspace package version in ``Cargo.toml`` is
 the fallback. A missing file is not an error.
 """
 
-import tomllib
 from pathlib import Path
+
+from _repo import load_toml_binary
 
 notes = Path("docs/release-notes/preparation.toml")
 if notes.is_file():
-    with notes.open("rb") as handle:
-        data = tomllib.load(handle)
+    data = load_toml_binary(notes)
 else:
-    with Path("Cargo.toml").open("rb") as handle:
-        data = tomllib.load(handle)["workspace"]["package"]
+    data = load_toml_binary("Cargo.toml")["workspace"]["package"]
 print(data.get("target_version", data.get("version")))

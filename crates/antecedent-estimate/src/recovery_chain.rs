@@ -10,9 +10,9 @@
 //! complete-case cell have mass, and the head-variable margin used by a
 //! dependent tail has mass) is checked before any division. Exact laws only: no
 //! sampled provider is composed here, and calibration of one is separate and
-//! unmeasured.
+//! `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_identify::{ChainRecoveryDetail, ChainRecoveryError, ChainRecoveryPlan};
 

@@ -1,0 +1,620 @@
+//! Chunk streams and readers over an opened table.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+use super::schema::SchemaView;
+use super::{
+    AdmissionLease, Arc, ArrowCStream, BatchProvider, ChunkIndex, ColumnClosure, ColumnDigest,
+    ColumnState, DecodeNeed, ExecutionContext, FileColumn, FileContentIdentity, FileSourceError,
+    GlobalId, MemoryStage, OwnedColumn, PathBuf, ReadOptions, ReadPlan, RecordBatch, RowCursor,
+    TableFileFormat, admit_file_bytes, chunk_local_index, fmt, provider,
+};
+
+/// An Arrow C stream read once, in bounded chunks.
+pub struct TableStream {
+    pub(super) view: SchemaView,
+    pub(super) reader: arrow_array::ffi_stream::RecordBatchStreamReader,
+}
+
+impl fmt::Debug for TableStream {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TableStream").field("columns", &self.view.columns).finish_non_exhaustive()
+    }
+}
+
+impl TableStream {
+    /// Import the schema of `stream`. No batch is read.
+    ///
+    /// # Errors
+    ///
+    /// The stream schema cannot be imported.
+    pub fn new(stream: ArrowCStream) -> Result<Self, FileSourceError> {
+        use arrow_array::RecordBatchReader;
+
+        let reader = stream.into_reader()?;
+        let schema = reader.schema();
+        let width = schema.fields().len();
+        Ok(Self { view: SchemaView::new(schema, vec![None; width], 0), reader })
+    }
+
+    /// Every column of the stream schema.
+    #[must_use]
+    pub fn columns(&self) -> &[FileColumn] {
+        &self.view.columns
+    }
+
+    /// Plan a read of the columns `closure` requires.
+    ///
+    /// # Errors
+    ///
+    /// As [`TableFile::plan`].
+    pub fn plan(
+        &self,
+        closure: &ColumnClosure,
+        options: ReadOptions,
+    ) -> Result<ReadPlan, FileSourceError> {
+        self.view.plan(closure, options)
+    }
+
+    /// Chunked reader for `plan`. The stream is consumed and cannot be rewound.
+    ///
+    /// # Errors
+    ///
+    /// The plan does not belong to this schema.
+    pub fn reader(
+        self,
+        plan: &ReadPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<TableChunkReader, FileSourceError> {
+        let provider = provider::StreamBatches::new(self.reader, plan.projection.clone());
+        TableChunkReader::new(Origin::Stream, plan.clone(), ctx, Box::new(provider))
+    }
+}
+
+pub(super) enum Origin {
+    File { format: TableFileFormat, paths: Vec<PathBuf>, stamps: Arc<[provider::FileStamp]> },
+    Stream,
+}
+
+pub(super) struct Pending {
+    pub(super) batch: RecordBatch,
+    pub(super) offset: usize,
+    pub(super) held_bytes: u64,
+    pub(super) _leases: Vec<AdmissionLease>,
+}
+
+/// One bounded chunk of library-owned columns.
+///
+/// The chunk holds the admission lease that paid for its columns; dropping
+/// the chunk returns it.
+pub struct FileChunk {
+    pub(super) start: GlobalId,
+    pub(super) rows: usize,
+    pub(super) columns: Vec<OwnedColumn>,
+    pub(super) names: Arc<[Arc<str>]>,
+    pub(super) lease: AdmissionLease,
+}
+
+impl fmt::Debug for FileChunk {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FileChunk")
+            .field("start", &self.start)
+            .field("rows", &self.rows)
+            .field("names", &self.names)
+            .finish_non_exhaustive()
+    }
+}
+
+impl FileChunk {
+    /// Global id of the first row.
+    #[must_use]
+    pub const fn start(&self) -> GlobalId {
+        self.start
+    }
+
+    /// Rows in the chunk.
+    #[must_use]
+    pub const fn rows(&self) -> usize {
+        self.rows
+    }
+
+    /// Columns in plan order.
+    #[must_use]
+    pub fn columns(&self) -> &[OwnedColumn] {
+        &self.columns
+    }
+
+    /// Column names in plan order.
+    #[must_use]
+    pub fn names(&self) -> &[Arc<str>] {
+        &self.names
+    }
+
+    /// Column named `name`.
+    #[must_use]
+    pub fn column(&self, name: &str) -> Option<&OwnedColumn> {
+        self.names
+            .iter()
+            .position(|candidate| &**candidate == name)
+            .map(|index| &self.columns[index])
+    }
+
+    /// Bytes the chunk's lease still holds.
+    #[must_use]
+    pub fn held_bytes(&self) -> u64 {
+        self.lease.remainder().bytes()
+    }
+
+    /// Local offset of global row `row` in this chunk.
+    ///
+    /// # Errors
+    ///
+    /// The row is not inside this chunk.
+    pub fn local_index(&self, row: GlobalId) -> Result<ChunkIndex, FileSourceError> {
+        let index = chunk_local_index(self.start, row)?;
+        if (index.get() as usize) < self.rows {
+            Ok(index)
+        } else {
+            Err(FileSourceError::InvalidOptions {
+                detail: format!("row {} is past the chunk at {}", row.get(), self.start.get()),
+            })
+        }
+    }
+}
+
+/// What a complete scan read.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ScanReceipt {
+    pub(super) rows: GlobalId,
+    pub(super) chunks: u64,
+    pub(super) identity: FileContentIdentity,
+    pub(super) columns: Vec<FileColumn>,
+    pub(super) levels: Vec<Vec<Arc<str>>>,
+    pub(super) peak_chunk_bytes: u64,
+}
+
+impl ScanReceipt {
+    /// Rows read.
+    #[must_use]
+    pub const fn rows(&self) -> GlobalId {
+        self.rows
+    }
+
+    /// Chunks delivered.
+    #[must_use]
+    pub const fn chunks(&self) -> u64 {
+        self.chunks
+    }
+
+    /// Full-content identity of the projected columns.
+    #[must_use]
+    pub const fn identity(&self) -> FileContentIdentity {
+        self.identity
+    }
+
+    /// Columns read, in plan order.
+    #[must_use]
+    pub fn columns(&self) -> &[FileColumn] {
+        &self.columns
+    }
+
+    /// Category labels of the column at plan position `position`, in domain order.
+    #[must_use]
+    pub fn levels(&self, position: usize) -> &[Arc<str>] {
+        self.levels.get(position).map_or(&[], Vec::as_slice)
+    }
+
+    /// Largest bytes leased at once for one chunk (decoded batch plus owned columns).
+    #[must_use]
+    pub const fn peak_chunk_bytes(&self) -> u64 {
+        self.peak_chunk_bytes
+    }
+}
+
+/// Reads a planned table in bounded chunks, charging each to the admission pool.
+pub struct TableChunkReader {
+    pub(super) origin: Origin,
+    pub(super) plan: ReadPlan,
+    pub(super) ctx: ExecutionContext,
+    pub(super) provider: Option<Box<dyn BatchProvider>>,
+    pub(super) states: Vec<ColumnState>,
+    pub(super) names: Arc<[Arc<str>]>,
+    pub(super) cursor: RowCursor,
+    pub(super) pending: Option<Pending>,
+    pub(super) chunks: u64,
+    pub(super) exhausted: bool,
+    pub(super) peak_chunk_bytes: u64,
+    pub(super) receipt: Option<ScanReceipt>,
+    // Partial conversion or an already-consumed unadmitted batch invalidates this pass.
+    pub(super) terminal_failure: Option<FileSourceError>,
+}
+
+impl fmt::Debug for TableChunkReader {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TableChunkReader")
+            .field("names", &self.names)
+            .field("position", &self.cursor.position())
+            .field("chunks", &self.chunks)
+            .field("exhausted", &self.exhausted)
+            .finish_non_exhaustive()
+    }
+}
+
+impl TableChunkReader {
+    pub(super) fn new(
+        origin: Origin,
+        plan: ReadPlan,
+        ctx: &ExecutionContext,
+        provider: Box<dyn BatchProvider>,
+    ) -> Result<Self, FileSourceError> {
+        let mut states = Vec::with_capacity(plan.columns.len());
+        for (position, column) in plan.columns.iter().enumerate() {
+            let position = u32::try_from(position).map_err(|_| FileSourceError::CountOverflow {
+                context: "projected column count",
+            })?;
+            states.push(ColumnState::new(column.clone(), position));
+        }
+        let names: Arc<[Arc<str>]> = plan.names().into();
+        Ok(Self {
+            origin,
+            plan,
+            ctx: ctx.clone(),
+            provider: Some(provider),
+            states,
+            names,
+            cursor: RowCursor::new(),
+            pending: None,
+            chunks: 0,
+            exhausted: false,
+            peak_chunk_bytes: 0,
+            receipt: None,
+            terminal_failure: None,
+        })
+    }
+
+    /// The plan being read.
+    #[must_use]
+    pub fn plan(&self) -> &ReadPlan {
+        &self.plan
+    }
+
+    /// Global id of the next row.
+    #[must_use]
+    pub const fn position(&self) -> GlobalId {
+        self.cursor.position()
+    }
+
+    /// Whether every row has been delivered.
+    #[must_use]
+    pub const fn is_exhausted(&self) -> bool {
+        self.exhausted
+    }
+
+    /// Next chunk of at most [`ReadPlan::chunk_rows`] rows, or `None` at the end.
+    ///
+    /// The decode quote is leased before a batch is decoded, and the owned
+    /// quote before its columns are built. A refused lease returns an error and
+    /// leaves the pool and the read position unchanged.
+    ///
+    /// # Errors
+    ///
+    /// A memory refusal, a decode or conversion refusal, or cancellation. A conversion
+    /// refusal, or post-decode admission failure, is repeated until explicit rewind because
+    /// the pass cannot safely resume.
+    ///
+    /// # Panics
+    /// Panics only if the pending batch invariant is violated during conversion.
+    pub fn next_chunk(&mut self) -> Result<Option<FileChunk>, FileSourceError> {
+        loop {
+            if let Some(error) = &self.terminal_failure {
+                return Err(error.clone());
+            }
+            if self.ctx.cancellation.is_cancelled() {
+                self.pending = None;
+                return Err(FileSourceError::Cancelled);
+            }
+            if self.exhausted {
+                return Ok(None);
+            }
+            let Some(pending) = self.pending.as_ref() else {
+                if !self.pull()? {
+                    self.exhausted = true;
+                    return Ok(None);
+                }
+                continue;
+            };
+            let total = pending.batch.num_rows();
+            if pending.offset >= total {
+                self.pending = None;
+                continue;
+            }
+            let take = (total - pending.offset).min(self.plan.chunk_rows);
+            let held = pending.held_bytes;
+            let quote = self.plan.quote_rows(take)?;
+            let lease = self.lease(MemoryStage::ChunkColumns, quote.owned_bytes)?;
+            self.peak_chunk_bytes =
+                self.peak_chunk_bytes.max(held.saturating_add(quote.owned_bytes));
+            let Some(pending) = self.pending.as_mut() else {
+                continue;
+            };
+            let slice = pending.batch.slice(pending.offset, take);
+            match self.convert(&slice, take, lease) {
+                Ok(chunk) => {
+                    self.pending
+                        .as_mut()
+                        .expect("pending batch remains during conversion")
+                        .offset += take;
+                    return Ok(Some(chunk));
+                }
+                Err(error) => {
+                    self.terminal_failure = Some(error.clone());
+                    return Err(error);
+                }
+            }
+        }
+    }
+
+    pub(super) fn pull(&mut self) -> Result<bool, FileSourceError> {
+        let quote = self.plan.chunk_quote()?;
+        let provider = self.provider.as_mut().ok_or(FileSourceError::NotRewindable)?;
+        // A provider that can size its next batch from metadata is leased for
+        // the whole decode (message body, inflated buffers, array structure)
+        // before one byte is read, so a writer-sized batch is refused here and
+        // never materialized.
+        let (reserve, stage) = match provider.next_decode_need()? {
+            DecodeNeed::Exhausted => return Ok(false),
+            DecodeNeed::Bytes(need) if need > quote.decode_bytes => {
+                (need, MemoryStage::DecodedBatch)
+            }
+            DecodeNeed::Bytes(_) | DecodeNeed::Unknown => {
+                (quote.decode_bytes, MemoryStage::ChunkDecode)
+            }
+        };
+        let decode = self.lease(stage, reserve)?;
+        let provider = self.provider.as_mut().ok_or(FileSourceError::NotRewindable)?;
+        let Some(batch) = provider.next_batch()? else {
+            return Ok(false);
+        };
+        // Arrow reports a decoded column's whole backing allocation, so columns sliced from one
+        // message body would each be charged for all of it. The sliced span is what they own.
+        let actual = batch
+            .columns()
+            .iter()
+            .map(|column| {
+                column
+                    .to_data()
+                    .get_slice_memory_size()
+                    .unwrap_or_else(|_| column.get_array_memory_size())
+            })
+            .sum::<usize>() as u64;
+        let mut held = reserve;
+        let mut leases = vec![decode];
+        if actual > reserve {
+            let extra = actual - reserve;
+            leases.push(match self.lease(MemoryStage::DecodedBatch, extra) {
+                Ok(lease) => lease,
+                Err(error) => {
+                    // The provider already consumed this batch. Retrying would silently
+                    // skip it, and retaining unleased buffers would exceed admission.
+                    let error = self.producer_remedy(error, actual);
+                    self.terminal_failure = Some(error.clone());
+                    return Err(error);
+                }
+            });
+            held = actual;
+        }
+        self.pending = Some(Pending { batch, offset: 0, held_bytes: held, _leases: leases });
+        Ok(true)
+    }
+
+    pub(super) fn convert(
+        &mut self,
+        slice: &RecordBatch,
+        rows: usize,
+        lease: AdmissionLease,
+    ) -> Result<FileChunk, FileSourceError> {
+        let start = self.cursor.position();
+        let mut columns = Vec::with_capacity(self.states.len());
+        for (state, &position) in self.states.iter_mut().zip(&self.plan.batch_position) {
+            columns.push(state.convert(slice.column(position).as_ref(), start)?);
+        }
+        self.cursor.advance(rows as u64)?;
+        self.chunks += 1;
+        Ok(FileChunk { start, rows, columns, names: Arc::clone(&self.names), lease })
+    }
+
+    /// An Arrow C stream's batch was sized by its producer, so the remedy names the producer.
+    pub(super) fn producer_remedy(
+        &self,
+        error: FileSourceError,
+        batch_bytes: u64,
+    ) -> FileSourceError {
+        match (&self.origin, error) {
+            (
+                Origin::Stream,
+                FileSourceError::MemoryRefused {
+                    stage: MemoryStage::DecodedBatch,
+                    required_bytes,
+                    available_bytes,
+                    chunk_rows,
+                    ..
+                },
+            ) => FileSourceError::MemoryRefused {
+                stage: MemoryStage::DecodedBatch,
+                required_bytes,
+                available_bytes,
+                chunk_rows,
+                next_attempt: format!(
+                    "the producer sent a {batch_bytes}-byte batch; request batches of at most \
+                     {chunk_rows} rows from the producer before export (for example pyarrow \
+                     `to_reader(max_chunksize={chunk_rows})`), or raise the admission pool by {} \
+                     bytes",
+                    required_bytes.saturating_sub(available_bytes)
+                ),
+            },
+            (_, error) => error,
+        }
+    }
+
+    pub(super) fn lease(
+        &self,
+        stage: MemoryStage,
+        bytes: u64,
+    ) -> Result<AdmissionLease, FileSourceError> {
+        admit_file_bytes(&self.ctx, stage, bytes, self.plan.chunk_rows)
+    }
+
+    /// Start a new pass from the first row.
+    ///
+    /// Category codes assigned in an earlier pass are kept. The identity of
+    /// the new pass is computed afresh.
+    ///
+    /// # Errors
+    ///
+    /// [`FileSourceError::NotRewindable`] for an Arrow C stream, the files
+    /// cannot be reopened, or a file changed since the table was opened
+    /// ([`FileSourceError::SourceChanged`]).
+    pub fn rewind(&mut self) -> Result<(), FileSourceError> {
+        let Origin::File { format, paths, stamps } = &self.origin else {
+            return Err(FileSourceError::NotRewindable);
+        };
+        self.pending = None;
+        self.provider = None;
+        // A changed file is refused before the position or the pass state is reset.
+        provider::verify_all(*format, paths, stamps)?;
+        self.provider = Some(provider::open_all(
+            *format,
+            paths,
+            stamps,
+            &self.plan.projection,
+            self.plan.chunk_rows,
+        ));
+        for state in &mut self.states {
+            state.restart();
+        }
+        self.cursor = RowCursor::new();
+        self.chunks = 0;
+        self.exhausted = false;
+        self.receipt = None;
+        self.terminal_failure = None;
+        Ok(())
+    }
+
+    /// Receipt of the completed pass, with the content identity.
+    ///
+    /// # Errors
+    ///
+    /// [`FileSourceError::ScanIncomplete`] before the last chunk was read.
+    pub fn finish(&mut self) -> Result<ScanReceipt, FileSourceError> {
+        if let Some(error) = &self.terminal_failure {
+            return Err(error.clone());
+        }
+        if let Some(receipt) = &self.receipt {
+            return Ok(receipt.clone());
+        }
+        if !self.exhausted {
+            return Err(FileSourceError::ScanIncomplete);
+        }
+        let rows = self.cursor.position();
+        let digests: Vec<[u8; 32]> = self.states.iter_mut().map(ColumnState::take_digest).collect();
+        let parts: Vec<ColumnDigest<'_>> = self
+            .states
+            .iter()
+            .zip(&digests)
+            .map(|(state, digest)| ColumnDigest {
+                name: &state.column.name,
+                kind: &state.column.kind,
+                levels: state.levels(),
+                digest: *digest,
+            })
+            .collect();
+        let identity = FileContentIdentity::seal(rows, &parts);
+        let receipt = ScanReceipt {
+            rows,
+            chunks: self.chunks,
+            identity,
+            columns: self.plan.columns.clone(),
+            levels: self.states.iter().map(|state| state.levels().to_vec()).collect(),
+            peak_chunk_bytes: self.peak_chunk_bytes,
+        };
+        self.receipt = Some(receipt.clone());
+        Ok(receipt)
+    }
+
+    pub(crate) fn final_domain(
+        &mut self,
+        position: usize,
+    ) -> Result<Option<Arc<crate::categorical::CategoryDomain>>, FileSourceError> {
+        match self.states.get_mut(position) {
+            Some(state) => state.domain(),
+            None => Ok(None),
+        }
+    }
+}
+
+#[cfg(all(test, feature = "ipc"))]
+mod retry_tests {
+    use super::super::TableFile;
+    use super::*;
+    use arrow_array::{ArrayRef, RecordBatch, StringArray};
+    use arrow_schema::{DataType, Field, Schema};
+    use std::sync::Arc;
+
+    struct Underquoted {
+        batches: std::vec::IntoIter<RecordBatch>,
+    }
+    impl BatchProvider for Underquoted {
+        fn next_batch(&mut self) -> Result<Option<RecordBatch>, FileSourceError> {
+            Ok(self.batches.next())
+        }
+    }
+
+    #[test]
+    fn post_decode_lease_refusal_cannot_skip_the_consumed_batch() {
+        let schema = Arc::new(Schema::new(vec![Field::new("category", DataType::Utf8, false)]));
+        let make = |value: &str| {
+            RecordBatch::try_new(
+                Arc::clone(&schema),
+                vec![Arc::new(StringArray::from(vec![value])) as ArrayRef],
+            )
+            .unwrap()
+        };
+        let path =
+            std::env::temp_dir().join(format!("antecedent-retry-{}.arrow", std::process::id()));
+        let file = std::fs::File::create(&path).unwrap();
+        let mut writer = arrow_ipc::writer::FileWriter::try_new(file, &schema).unwrap();
+        writer.write(&make("original")).unwrap();
+        writer.finish().unwrap();
+        let table = TableFile::open(&path).unwrap();
+        let plan = table.plan_columns(&["category"], ReadOptions::with_chunk_rows(1)).unwrap();
+        let ctx = ExecutionContext::for_tests(1)
+            .with_admission(antecedent_core::execution::AdmissionPool::fixed(1, 65_536));
+        let huge = "x".repeat(1_000_000);
+        let fake = Underquoted { batches: vec![make(&huge), make("skipped")].into_iter() };
+        let mut reader = TableChunkReader::new(
+            Origin::File {
+                format: TableFileFormat::ArrowIpcFile,
+                paths: vec![path.clone()],
+                stamps: vec![
+                    provider::FileStamp::capture(&path, TableFileFormat::ArrowIpcFile).unwrap(),
+                ]
+                .into(),
+            },
+            plan,
+            &ctx,
+            Box::new(fake),
+        )
+        .unwrap();
+        let error = reader.next_chunk().unwrap_err();
+        assert!(matches!(
+            error,
+            FileSourceError::MemoryRefused { stage: MemoryStage::DecodedBatch, .. }
+        ));
+        assert_eq!(reader.position(), GlobalId::new(0));
+        assert_eq!(reader.next_chunk().unwrap_err(), error);
+        assert_eq!(reader.finish().unwrap_err(), error);
+        reader.rewind().unwrap();
+        assert_eq!(reader.next_chunk().unwrap().unwrap().rows(), 1);
+        std::fs::remove_file(path).unwrap();
+    }
+}

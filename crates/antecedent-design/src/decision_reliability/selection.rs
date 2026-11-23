@@ -9,7 +9,7 @@
 //!   quadrature when the noise is declared independent, and by the dependence-free
 //!   union bound `s_max * sqrt(2 ln N)` otherwise. An observed nonnegative sample
 //!   covariance is only a diagnostic; it does not establish nonnegative population
-//!   covariance and cannot license the Sudakov-Fernique comparison. The bound is an
+//!   covariance and cannot support the Sudakov-Fernique comparison. The bound is an
 //!   expectation over repetitions of the whole selection, not an interval for this
 //!   realization;
 //! * a **held-out re-evaluation** of the selected candidate on a stream independent of
@@ -21,7 +21,7 @@
 //! through the search record's count; the unseen candidates are assumed to carry the
 //! largest supplied standard error, an assumption that is stated in the output.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
@@ -127,20 +127,30 @@ pub fn select_in_sample(
     plan: BatchPlan,
 ) -> Result<InSampleSelection, ReliabilityError> {
     draws.validate()?;
-    select_validated(draws, functional, plan)
+    select_validated(draws, functional, plan, None)
 }
 
 pub(crate) fn select_validated(
     draws: &DecisionDraws,
     functional: &Functional,
     plan: BatchPlan,
+    context: Option<&antecedent_core::ExecutionContext>,
 ) -> Result<InSampleSelection, ReliabilityError> {
     let weights = draws.weights.as_deref();
     let mut estimates = Vec::with_capacity(draws.n_candidates());
     for &i in &draws.canonical_order() {
         let candidate = &draws.candidates[i];
-        let estimated =
-            estimate(&candidate.utilities, weights, draws.within_stream, plan, functional)?;
+        let estimated = match context {
+            Some(ctx) => super::mc_error::estimate_in_context(
+                &candidate.utilities,
+                weights,
+                draws.within_stream,
+                plan,
+                functional,
+                ctx,
+            )?,
+            None => estimate(&candidate.utilities, weights, draws.within_stream, plan, functional)?,
+        };
         estimates
             .push(CandidateEstimate { id: candidate.id.clone(), estimate: estimated.estimate });
     }
@@ -176,16 +186,38 @@ pub enum NoiseDependence {
 /// Most candidates whose pairwise covariance signs are checked.
 const MAX_COVARIANCE_CHECK: usize = 128;
 
-/// Noise dependence of the candidates' Monte Carlo errors.
-#[must_use]
-pub fn noise_dependence(draws: &DecisionDraws) -> NoiseDependence {
+fn initial_noise_dependence(draws: &DecisionDraws) -> Option<NoiseDependence> {
     if draws.candidates.len() < 2 || draws.coupling == CandidateCoupling::DeclaredIndependent {
-        return NoiseDependence::IndependentStreams;
+        return Some(NoiseDependence::IndependentStreams);
     }
     if draws.candidates.len() > MAX_COVARIANCE_CHECK
         || draws.coupling != CandidateCoupling::SharedSimulation
     {
-        return NoiseDependence::Unassessed;
+        return Some(NoiseDependence::Unassessed);
+    }
+    None
+}
+
+pub(crate) fn noise_dependence_in_context(
+    draws: &DecisionDraws,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<NoiseDependence, ReliabilityError> {
+    if let Some(known) = initial_noise_dependence(draws) {
+        return Ok(known);
+    }
+    let _values = super::workspace::reserve::<f64>(
+        ctx,
+        super::workspace::product(draws.n_candidates(), draws.n_draws())?,
+    )?;
+    let _columns = super::workspace::reserve::<Vec<f64>>(ctx, draws.n_candidates())?;
+    Ok(noise_dependence(draws))
+}
+
+/// Noise dependence of the candidates' Monte Carlo errors.
+#[must_use]
+pub fn noise_dependence(draws: &DecisionDraws) -> NoiseDependence {
+    if let Some(known) = initial_noise_dependence(draws) {
+        return known;
     }
     let n = draws.n_draws() as f64;
     let centred: Vec<Vec<f64>> = draws
@@ -250,7 +282,8 @@ pub struct WinnersCurseBound {
 /// Exact `E[max_j Z_j]` for independent `Z_j ~ N(0, s_j^2)`, as
 /// `int_0^inf (1 - F(x)) dx - int_0^inf F(-x) dx` with `F(x) = prod_j Phi(x / s_j)`.
 ///
-/// Composite Simpson on `[0, 9 s_max]`; the neglected tails are below `N * 1e-18`.
+/// Composite Simpson on `[0, 9 s_max]`, graded to the distinct scales; the neglected tails are
+/// below `N * 1e-18`.
 /// `groups` are `(standard error, multiplicity)` pairs.
 fn expected_maximum_independent(groups: &[(f64, u64)]) -> f64 {
     let s_max = groups.iter().map(|g| g.0).fold(0.0_f64, f64::max);
@@ -272,15 +305,50 @@ fn expected_maximum_independent(groups: &[(f64, u64)]) -> f64 {
             })
             .sum()
     };
-    let integrand = |x: f64| -> f64 { (1.0 - log_cdf(x).exp()) - log_cdf(-x).exp() };
-    let upper = 9.0 * s_max;
-    let h = upper / QUADRATURE_PANELS as f64;
-    let mut sum = integrand(0.0) + integrand(upper);
-    for k in 1..QUADRATURE_PANELS {
-        let weight = if k % 2 == 1 { 4.0 } else { 2.0 };
-        sum += weight * integrand(k as f64 * h);
+    // `F(-x)` for the lower half-line is the limit from `x > 0`: a candidate with no noise is
+    // at zero, so `P(Z <= -x)` is 0 for every `x > 0`. Evaluated at `x = 0` itself the point
+    // mass would count as 1 and put a jump of that size on the Simpson end point, an error of
+    // `h / 6` in the expected maximum.
+    let has_point_mass = groups.iter().any(|g| g.0 <= 0.0);
+    let lower = |x: f64| -> f64 { if has_point_mass { 0.0 } else { log_cdf(-x).exp() } };
+    let integrand = |x: f64| -> f64 { (1.0 - log_cdf(x).exp()) - lower(x) };
+    // Composite Simpson, with the mesh graded to the distinct scales when they are far apart.
+    // A single mesh sized by `s_max` has `4000 / 9` panels per `s_max`, which resolves any
+    // scale within a factor of four of it; a candidate whose standard error is orders of
+    // magnitude smaller is under-resolved (a relative error of order `1 / panels` in the
+    // expected maximum when the scales differ by `1e3`). For those, a breakpoint sits at nine
+    // times each scale below `s_max / 4` that is at least twice the previous breakpoint's
+    // scale, and the panels are shared among the segments, never fewer than 400 each. With no
+    // such scale the mesh is the single segment `[0, 9 s_max]`.
+    let mut breaks = vec![0.0_f64];
+    let mut scales: Vec<f64> =
+        groups.iter().map(|g| g.0).filter(|s| *s > 0.0 && *s < 0.25 * s_max).collect();
+    scales.sort_unstable_by(f64::total_cmp);
+    for s in scales {
+        let edge = 9.0 * s;
+        let last = breaks[breaks.len() - 1];
+        if edge >= 2.0 * last {
+            breaks.push(edge);
+        }
     }
-    sum * h / 3.0
+    let top = 9.0 * s_max;
+    if breaks[breaks.len() - 1] < top {
+        breaks.push(top);
+    }
+    let segments = breaks.len() - 1;
+    let panels = ((QUADRATURE_PANELS / segments).max(400) / 2) * 2;
+    let mut total = 0.0;
+    for window in breaks.windows(2) {
+        let (lo, hi) = (window[0], window[1]);
+        let h = (hi - lo) / panels as f64;
+        let mut sum = integrand(lo) + integrand(hi);
+        for k in 1..panels {
+            let weight = if k % 2 == 1 { 4.0 } else { 2.0 };
+            sum += weight * integrand(lo + k as f64 * h);
+        }
+        total += sum * h / 3.0;
+    }
+    total
 }
 
 /// Bound the expected upward bias of the maximum of noisy estimates.
@@ -319,8 +387,8 @@ pub fn winners_curse_bound(
     let padded = n_considered - n_supplied;
     let union_bound = s_max * (2.0 * (n_considered as f64).ln()).sqrt();
     let mut ses: Vec<f64> = estimates.iter().map(|e| e.standard_error).collect();
-    ses.sort_by(f64::total_cmp);
-    let mut groups: Vec<(f64, u64)> = Vec::new();
+    ses.sort_unstable_by(f64::total_cmp);
+    let mut groups: Vec<(f64, u64)> = Vec::with_capacity(estimates.len());
     for s in ses {
         let repeated = groups.last().is_some_and(|g| g.0.to_bits() == s.to_bits());
         if repeated {
@@ -342,7 +410,7 @@ pub fn winners_curse_bound(
         (groups.len() <= MAX_QUADRATURE_GROUPS).then(|| expected_maximum_independent(&groups));
     // The sample covariance route is descriptive only. Its sign does not establish
     // the population covariance ordering required by Sudakov-Fernique, so only an
-    // independent-stream declaration licenses the exact independent Gaussian maximum.
+    // independent-stream declaration supports the exact independent Gaussian maximum.
     let gaussian_valid = noise_dependence == NoiseDependence::IndependentStreams;
     let (bound, bound_kind) = match gaussian {
         Some(g) if gaussian_valid && g <= union_bound => (g, BoundKind::GaussianExpectedMaximum),
@@ -511,11 +579,11 @@ pub fn held_out_evaluation(
     clippy::cast_sign_loss,
     reason = "split sizes are derived from bounded draw counts"
 )]
-pub fn split_draws(
+fn split_layout(
     draws: &DecisionDraws,
     selection_fraction: f64,
     gap: u64,
-) -> Result<(DecisionDraws, DecisionDraws), ReliabilityError> {
+) -> Result<(usize, usize), ReliabilityError> {
     draws.validate()?;
     if !(selection_fraction.is_finite() && selection_fraction > 0.0 && selection_fraction < 1.0) {
         return Err(ReliabilityError::invalid("selection_fraction", "must lie in (0, 1)"));
@@ -538,6 +606,40 @@ pub fn split_draws(
             "each part of a split needs at least the minimum number of draws",
         ));
     }
+    Ok((n_sel, start_val))
+}
+
+pub(crate) struct ContextualSplit {
+    pub selection: DecisionDraws,
+    pub validation: DecisionDraws,
+    _rows: antecedent_core::execution::AdmissionLease,
+}
+
+pub(crate) fn split_draws_in_context(
+    draws: &DecisionDraws,
+    fraction: f64,
+    gap: u64,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<ContextualSplit, ReliabilityError> {
+    let (selection_rows, validation_start) = split_layout(draws, fraction, gap)?;
+    let rows = selection_rows + draws.n_draws() - validation_start;
+    let columns = draws.n_candidates() + usize::from(draws.weights.is_some());
+    let lease = super::workspace::reserve::<f64>(ctx, super::workspace::product(rows, columns)?)?;
+    let (selection, validation) = split_draws(draws, fraction, gap)?;
+    Ok(ContextualSplit { selection, validation, _rows: lease })
+}
+
+/// Split the validated carrier into selection and held-out streams.
+///
+/// # Errors
+/// Invalid fraction, insufficient rows, or an unseparated dependent stream.
+pub fn split_draws(
+    draws: &DecisionDraws,
+    selection_fraction: f64,
+    gap: u64,
+) -> Result<(DecisionDraws, DecisionDraws), ReliabilityError> {
+    let (n_sel, start_val) = split_layout(draws, selection_fraction, gap)?;
+    let n = draws.n_draws();
     let n_val = n - start_val;
     let part = |from: usize, len: usize, keep_search: bool| DecisionDraws {
         utility_unit: draws.utility_unit.clone(),

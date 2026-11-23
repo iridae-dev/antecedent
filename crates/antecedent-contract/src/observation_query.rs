@@ -5,7 +5,7 @@
 //! model, and a value read off an instrument is not the construct the
 //! instrument measures. This module decides whether a *request* is of the kind
 //! the numerical layer may execute at all, and says which request it refused
-//! and what declaration would license it. It computes no probability.
+//! and what declaration would support it. It computes no probability.
 //!
 //! Refusals are [`ExternalRefusal`]s under the `observation_query` detail
 //! namespace, each with a registered reason code and an actionable remedy:
@@ -13,16 +13,18 @@
 //! - an intervention (or any value that was assigned rather than recorded)
 //!   placed in a conditioning slot, and an intervention supplied to a
 //!   conditioning query;
-//! - a conditional intervention (observations and an intervention in one
-//!   request), which has no bounded route here;
+//! - a conditional intervention in which a recorded variable is itself
+//!   intervened on (the mechanism an intervention removes is set, not
+//!   observed); observations of other variables after an intervention are the
+//!   composition of the interventional law with conditioning and are admitted;
 //! - the recorded value of an indicator used as the construct it measures,
 //!   unless a measurement model relating the two is declared and applies in
 //!   the request's population, regime and arm;
 //! - a level that no admissible evidence reaches, stating the most extreme
 //!   value that is reachable;
-//! - an interval or a calibrated-probability claim, both closed.
+//! - an interval or a calibrated-probability claim, both not supported.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 
@@ -179,7 +181,7 @@ pub fn check_observation_slots(
     if blank(request.outcome_id) {
         return Err(refuse(
             invalid,
-            "observation_query.blank_field",
+            antecedent_core::reason_details::observation_query::BLANK_FIELD,
             "outcome_id",
             "name the outcome variable",
         ));
@@ -188,7 +190,7 @@ pub fn check_observation_slots(
         if blank(&slot.variable_id) || blank(&slot.level) {
             return Err(refuse(
                 invalid,
-                "observation_query.blank_field",
+                antecedent_core::reason_details::observation_query::BLANK_FIELD,
                 "conditioning",
                 "name the variable and the level of every conditioning slot",
             ));
@@ -199,7 +201,7 @@ pub fn check_observation_slots(
             return Err(ExternalRefusal::new(
                 antecedent_core::reason_code!("quantity_semantics_mismatch"),
                 OBSERVATION_QUERY_STAGE,
-                "observation_query.intervention_in_conditioning_slot",
+                antecedent_core::reason_details::observation_query::INTERVENTION_IN_CONDITIONING_SLOT,
             )
             .with_offending(slot.variable_id.clone())
             .with_expected(SlotProvenance::Recorded.as_str())
@@ -214,7 +216,7 @@ pub fn check_observation_slots(
             return Err(ExternalRefusal::new(
                 antecedent_core::reason_code!("quantity_semantics_mismatch"),
                 OBSERVATION_QUERY_STAGE,
-                "observation_query.intervention_in_conditioning_slot",
+                antecedent_core::reason_details::observation_query::INTERVENTION_IN_CONDITIONING_SLOT,
             )
             .with_offending(variable.clone())
             .with_expected(ObservationOperation::Conditioning.as_str())
@@ -223,16 +225,12 @@ pub fn check_observation_slots(
                 "an intervention is its own claim: ask for the interventional distribution as an intervention query, and for the conditional distribution as a conditioning query",
             ));
         }
-    } else if !request.conditioning.is_empty() {
-        return Err(ExternalRefusal::new(
-            antecedent_core::reason_code!("route_not_supported"),
-            OBSERVATION_QUERY_STAGE,
-            "observation_query.mixed_conditioning_and_intervention",
-        )
-        .with_offending(request.conditioning[0].variable_id.clone())
-        .with_remedy(
-            "a distribution that conditions on observations after an intervention has no bounded route; ask the conditional and the interventional claims separately",
-        ));
+    } else if let Some(slot) = request
+        .conditioning
+        .iter()
+        .find(|slot| request.interventions.iter().any(|(v, _)| *v == slot.variable_id))
+    {
+        return Err(mixed_conditioning_refusal(&slot.variable_id));
     }
     let mut seen = BTreeSet::new();
     let assigned = request
@@ -244,7 +242,7 @@ pub fn check_observation_slots(
         if variable == request.outcome_id {
             return Err(refuse(
                 invalid,
-                "observation_query.outcome_assigned",
+                antecedent_core::reason_details::observation_query::OUTCOME_ASSIGNED,
                 variable,
                 "ask about an outcome that is not itself conditioned on or intervened on",
             ));
@@ -252,7 +250,7 @@ pub fn check_observation_slots(
         if !seen.insert(variable) {
             return Err(refuse(
                 invalid,
-                "observation_query.repeated_slot",
+                antecedent_core::reason_details::observation_query::REPEATED_SLOT,
                 variable,
                 "assign each variable at most once",
             ));
@@ -268,7 +266,7 @@ pub fn check_observation_slots(
             ) {
                 return Err(refuse(
                     invalid,
-                    "observation_query.indicator_kind",
+                    antecedent_core::reason_details::observation_query::INDICATOR_KIND,
                     indicator.indicator_id.clone(),
                     "a measured value is offered for a noisy, assigned, learned or derived indicator; an error-free recorded value is a direct slot",
                 ));
@@ -281,10 +279,195 @@ pub fn check_observation_slots(
     if measured > 1 {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "observation_query.multiple_measured_signals",
+            antecedent_core::reason_details::observation_query::MULTIPLE_MEASURED_SIGNALS,
             "conditioning",
             "condition on one measured signal per query; several indicators need a joint measurement model",
         ));
+    }
+    Ok(())
+}
+
+/// Check a joint observation of several noisy indicators of one construct.
+/// The existing one-indicator checker remains unchanged; this additive route
+/// requires an explicit measurement-error independence declaration and checks
+/// every indicator under the same interventions and direct observations.
+///
+/// # Errors
+/// An invalid indicator, repeated identity, mixed construct or incomplete
+/// dependence declaration, plus every refusal of [`check_observation_slots`].
+#[allow(clippy::result_large_err, reason = "a scientific refusal is the cold path")]
+pub fn check_joint_measured_slots(
+    request: &ObservationSlotsRequest<'_>,
+    dependence: &str,
+) -> Result<(), ExternalRefusal> {
+    if dependence != "conditionally_independent_given_construct"
+        || request
+            .conditioning
+            .iter()
+            .filter(|slot| matches!(&slot.value, SlotValue::Measured(_)))
+            .count()
+            < 2
+        || request.conditioning.len() > 32
+    {
+        return Err(refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
+            "joint measurement",
+            "declare 2-16 indicators and conditional independence of their errors given one construct",
+        ));
+    }
+    let mut direct = Vec::new();
+    let mut measured = Vec::new();
+    for slot in request.conditioning {
+        match &slot.value {
+            SlotValue::Direct => direct.push(slot.clone()),
+            SlotValue::Measured(indicator) => measured.push((slot, indicator)),
+        }
+    }
+    if measured.len() > 16 {
+        return Err(refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
+            "joint measurement",
+            "declare at most 16 indicators of one construct",
+        ));
+    }
+    let construct = measured[0].0.variable_id.clone();
+    let mut ids = BTreeSet::new();
+    for (slot, indicator) in measured {
+        if slot.variable_id != construct || !ids.insert(indicator.indicator_id.as_str()) {
+            return Err(refuse(
+                antecedent_core::reason_code!("invalid_argument"),
+                antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
+                indicator.indicator_id.clone(),
+                "name distinct indicators of the same latent construct",
+            ));
+        }
+        let mut one = direct.clone();
+        one.push(slot.clone());
+        check_observation_slots(&ObservationSlotsRequest {
+            operation: request.operation,
+            outcome_id: request.outcome_id,
+            conditioning: &one,
+            interventions: request.interventions,
+        })?;
+    }
+    Ok(())
+}
+
+/// The refusal of a variable that is both recorded and intervened on.
+#[must_use]
+pub fn mixed_conditioning_refusal(variable: &str) -> ExternalRefusal {
+    ExternalRefusal::new(
+        antecedent_core::reason_code!("route_not_supported"),
+        OBSERVATION_QUERY_STAGE,
+        antecedent_core::reason_details::observation_query::MIXED_CONDITIONING_AND_INTERVENTION,
+    )
+    .with_offending(variable.to_owned())
+    .with_remedy(
+        "an intervention removes the mechanism of the variable it sets, so that variable is set and not observed and cannot also be a recorded value or a measured signal; condition on recorded variables that are not intervened on (a descendant of the intervention carries information about the unobserved causes of the outcome), or ask the interventional claim alone",
+    )
+}
+
+/// A request with real-valued evidence and interventions, to be checked before
+/// any probability is formed. The values are typed: a continuous variable is
+/// never conditioned on a level string.
+#[derive(Clone, Debug)]
+pub struct ContinuousSlotsRequest<'a> {
+    /// The operation the request performs.
+    pub operation: ObservationOperation,
+    /// The outcome variable.
+    pub outcome_id: &'a str,
+    /// `(variable, value)` recorded without error.
+    pub observed: &'a [(String, f64)],
+    /// `(variable, value)` assignments of `do()`.
+    pub interventions: &'a [(String, f64)],
+}
+
+/// Check the evidence of a request on continuous variables.
+///
+/// # Errors
+/// The first failed check, as a coded structured refusal: a blank name; a value
+/// that is not finite; an intervention supplied to a conditioning query; the
+/// outcome among the assigned variables; a variable assigned twice; a variable
+/// both recorded and intervened on.
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
+pub fn check_continuous_assignments(
+    request: &ContinuousSlotsRequest<'_>,
+) -> Result<(), ExternalRefusal> {
+    let invalid = antecedent_core::reason_code!("invalid_argument");
+    if blank(request.outcome_id) {
+        return Err(refuse(
+            invalid,
+            antecedent_core::reason_details::observation_query::BLANK_FIELD,
+            "outcome_id",
+            "name the outcome variable",
+        ));
+    }
+    for (variable, value) in request.observed.iter().chain(request.interventions) {
+        if blank(variable) {
+            return Err(refuse(
+                invalid,
+                antecedent_core::reason_details::observation_query::BLANK_FIELD,
+                "continuous",
+                "name the variable of every observed value and intervention",
+            ));
+        }
+        if !value.is_finite() {
+            return Err(refuse(
+                invalid,
+                antecedent_core::reason_details::observation_query::VALUE_NOT_FINITE,
+                variable.clone(),
+                "supply a finite real value",
+            ));
+        }
+    }
+    if request.operation == ObservationOperation::Conditioning
+        && let Some((variable, _)) = request.interventions.first()
+    {
+        return Err(ExternalRefusal::new(
+                antecedent_core::reason_code!("quantity_semantics_mismatch"),
+                OBSERVATION_QUERY_STAGE,
+                antecedent_core::reason_details::observation_query::INTERVENTION_IN_CONDITIONING_SLOT,
+            )
+            .with_offending(variable.clone())
+            .with_expected(ObservationOperation::Conditioning.as_str())
+            .with_supplied(ObservationOperation::Intervention.as_str())
+            .with_remedy(
+                "an intervention is its own claim: ask for the interventional distribution as an intervention query, and for the conditional distribution as a conditioning query",
+            ));
+    }
+    let mut seen = BTreeSet::new();
+    for variable in request
+        .observed
+        .iter()
+        .map(|(v, _)| v.as_str())
+        .chain(request.interventions.iter().map(|(v, _)| v.as_str()))
+    {
+        if variable == request.outcome_id {
+            return Err(refuse(
+                invalid,
+                antecedent_core::reason_details::observation_query::OUTCOME_ASSIGNED,
+                variable,
+                "ask about an outcome that is not itself conditioned on or intervened on",
+            ));
+        }
+        if !seen.insert(variable) {
+            let intervened = request.interventions.iter().any(|(v, _)| v == variable);
+            let observed = request.observed.iter().any(|(v, _)| v == variable);
+            if intervened && observed {
+                return Err(mixed_conditioning_refusal(variable));
+            }
+            return Err(refuse(
+                invalid,
+                antecedent_core::reason_details::observation_query::REPEATED_SLOT,
+                variable,
+                "assign each variable at most once",
+            ));
+        }
     }
     Ok(())
 }
@@ -293,7 +476,7 @@ fn measured_as_construct(slot: &ObservedSlot, indicator: &MeasuredIndicator) -> 
     ExternalRefusal::new(
         antecedent_core::reason_code!("proxy_offered_as_construct"),
         OBSERVATION_QUERY_STAGE,
-        "observation_query.measured_as_construct",
+        antecedent_core::reason_details::observation_query::MEASURED_AS_CONSTRUCT,
     )
     .with_offending(slot.variable_id.clone())
     .with_supplied(format!("{}:{}", indicator.kind.as_str(), indicator.indicator_id))
@@ -354,7 +537,7 @@ pub fn measured_likelihood(
     let SlotValue::Measured(indicator) = &slot.value else {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "observation_query.indicator_kind",
+            antecedent_core::reason_details::observation_query::INDICATOR_KIND,
             slot.variable_id.clone(),
             "only a measured slot has an indicator likelihood",
         ));
@@ -365,40 +548,40 @@ pub fn measured_likelihood(
     model.validate().map_err(|error| model_refusal(&error))?;
     if indicator.indicator_id != model.indicator.id {
         return Err(mismatch(
-            "observation_query.indicator_mismatch",
+            antecedent_core::reason_details::observation_query::INDICATOR_MISMATCH,
             &model.indicator.id,
             &indicator.indicator_id,
         ));
     }
     if slot.variable_id != model.construct.id {
         return Err(mismatch(
-            "observation_query.construct_mismatch",
+            antecedent_core::reason_details::observation_query::CONSTRUCT_MISMATCH,
             &model.construct.id,
             &slot.variable_id,
         ));
     }
     if context.population_id != model.binding.population_id {
         return Err(mismatch(
-            "observation_query.population_mismatch",
+            antecedent_core::reason_details::observation_query::POPULATION_MISMATCH,
             &model.binding.population_id,
             context.population_id,
         ));
     }
     if context.regime_id != model.binding.regime_id {
         return Err(mismatch(
-            "observation_query.regime_mismatch",
+            antecedent_core::reason_details::observation_query::REGIME_MISMATCH,
             &model.binding.regime_id,
             context.regime_id,
         ));
     }
-    if let ArmBinding::Arm(bound) = &model.binding.arm {
-        if context.arm_id != Some(bound.as_str()) {
-            return Err(mismatch(
-                "observation_query.arm_mismatch",
-                bound,
-                context.arm_id.unwrap_or("all_arms"),
-            ));
-        }
+    if let ArmBinding::Arm(bound) = &model.binding.arm
+        && context.arm_id != Some(bound.as_str())
+    {
+        return Err(mismatch(
+            antecedent_core::reason_details::observation_query::ARM_MISMATCH,
+            bound,
+            context.arm_id.unwrap_or("all_arms"),
+        ));
     }
     check_representation_transfer(
         &model.representation,
@@ -411,7 +594,7 @@ pub fn measured_likelihood(
         return Err(ExternalRefusal::new(
             antecedent_core::reason_code!("differential_error_not_pooled"),
             OBSERVATION_QUERY_STAGE,
-            "observation_query.differential_error_unsupported",
+            antecedent_core::reason_details::observation_query::DIFFERENTIAL_ERROR_UNSUPPORTED,
         )
         .with_offending(indicator.indicator_id.clone())
         .with_remedy(
@@ -421,7 +604,7 @@ pub fn measured_likelihood(
     if !construct_levels.iter().any(|l| l == &slot.level) {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "observation_query.unknown_level",
+            antecedent_core::reason_details::observation_query::UNKNOWN_LEVEL,
             slot.level.clone(),
             "name a recorded level in the construct's level coding",
         ));
@@ -436,7 +619,7 @@ pub fn measured_likelihood(
         _ => Err(ExternalRefusal::new(
             antecedent_core::reason_code!("route_not_supported"),
             OBSERVATION_QUERY_STAGE,
-            "observation_query.measurement_route",
+            antecedent_core::reason_details::observation_query::MEASUREMENT_ROUTE,
         )
         .with_supplied(model.route.as_str())
         .with_remedy(
@@ -459,7 +642,7 @@ fn binary_likelihood(
     let Some(positive) = indicator.positive_level.as_deref() else {
         return Err(refuse(
             invalid,
-            "observation_query.positive_level",
+            antecedent_core::reason_details::observation_query::POSITIVE_LEVEL,
             indicator.indicator_id.clone(),
             "declare which level of the construct is the positive class the sensitivity refers to",
         ));
@@ -467,7 +650,7 @@ fn binary_likelihood(
     if construct_levels.len() != 2 || !construct_levels.iter().any(|l| l == positive) {
         return Err(refuse(
             invalid,
-            "observation_query.positive_level",
+            antecedent_core::reason_details::observation_query::POSITIVE_LEVEL,
             positive.to_owned(),
             "a binary indicator needs a construct with exactly two levels, one of them the declared positive level",
         ));
@@ -475,7 +658,7 @@ fn binary_likelihood(
     let Some(rate) = rates.first() else {
         return Err(refuse(
             invalid,
-            "observation_query.invalid_declaration",
+            antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
             indicator.indicator_id.clone(),
             "the binary model carries no sensitivity and specificity",
         ));
@@ -510,7 +693,7 @@ fn categorical_likelihood(
         construct_levels.len() == k && construct_levels.iter().all(|l| model_levels.contains(l));
     if !same_set {
         return Err(mismatch(
-            "observation_query.construct_mismatch",
+            antecedent_core::reason_details::observation_query::CONSTRUCT_MISMATCH,
             &model_levels.join(","),
             &construct_levels.join(","),
         ));
@@ -518,7 +701,7 @@ fn categorical_likelihood(
     let Some(observed) = model_levels.iter().position(|l| l == &slot.level) else {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "observation_query.unknown_level",
+            antecedent_core::reason_details::observation_query::UNKNOWN_LEVEL,
             slot.level.clone(),
             "name a recorded level in the confusion model's level coding",
         ));
@@ -533,7 +716,7 @@ fn categorical_likelihood(
         .collect())
 }
 
-// ------------------------------------------------------------ closed routes
+// ------------------------------------------------------------ unsupported routes
 
 /// The refusal of a sampling interval for the value of a declared model: its posterior
 /// probability is an exact number with no sampling distribution. A probability computed
@@ -541,9 +724,9 @@ fn categorical_likelihood(
 #[must_use]
 pub fn interval_refusal() -> ExternalRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("cell_not_licensed"),
+        antecedent_core::reason_code!("uncertainty_representation_insufficient"),
         OBSERVATION_QUERY_STAGE,
-        "observation_query.declared_model_has_no_sampling_interval",
+        antecedent_core::reason_details::observation_query::DECLARED_MODEL_HAS_NO_SAMPLING_INTERVAL,
     )
     .with_remedy(
         "a declared model's posterior probability is an exact number with no sampling distribution, so it has no sampling interval; for a probability computed from tables fitted to counts, request the count-fitted interval, which reports posterior quantiles bound to a currently attesting coverage record",
@@ -554,9 +737,9 @@ pub fn interval_refusal() -> ExternalRefusal {
 #[must_use]
 pub fn calibration_refusal() -> ExternalRefusal {
     ExternalRefusal::new(
-        antecedent_core::reason_code!("cell_not_licensed"),
+        antecedent_core::reason_code!("uncertainty_representation_insufficient"),
         OBSERVATION_QUERY_STAGE,
-        "observation_query.calibrated_probability_closed",
+        antecedent_core::reason_details::observation_query::NO_CALIBRATED_PROBABILITY,
     )
     .with_remedy(
         "a declared model's probability is an exact number and makes no claim about how often it is right; a probability computed from tables fitted to counts is reported with posterior quantiles only through the count-fitted interval, bound to a currently attesting whole-method coverage record",
@@ -576,7 +759,7 @@ pub fn level_unreachable_refusal(
     ExternalRefusal::new(
         antecedent_core::reason_code!("evidence_cannot_reach_level"),
         OBSERVATION_QUERY_STAGE,
-        "observation_query.level_unreachable",
+        antecedent_core::reason_details::observation_query::LEVEL_UNREACHABLE,
     )
     .with_offending(format!("{direction}:{bound}"))
     .with_expected(format!("{level}"))
@@ -592,7 +775,7 @@ pub fn zero_probability_evidence_refusal() -> ExternalRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("invalid_argument"),
         OBSERVATION_QUERY_STAGE,
-        "observation_query.zero_probability_evidence",
+        antecedent_core::reason_details::observation_query::ZERO_PROBABILITY_EVIDENCE,
     )
     .with_remedy(
         "condition on values the declared model gives positive probability, or revise the model's support",
@@ -729,7 +912,10 @@ mod tests {
             let smuggled = [direct("signal", "1", provenance)];
             let refusal = check_observation_slots(&conditioning(&smuggled)).unwrap_err();
             assert_eq!(refusal.code, "quantity_semantics_mismatch");
-            assert_eq!(refusal.detail, "observation_query.intervention_in_conditioning_slot");
+            assert_eq!(
+                refusal.detail,
+                antecedent_core::reason_details::observation_query::INTERVENTION_IN_CONDITIONING_SLOT
+            );
             assert_eq!(refusal.offending.as_deref(), Some("signal"));
             assert_eq!(refusal.supplied.as_deref(), Some(provenance.as_str()));
             assert!(refusal.remedy.is_some());
@@ -738,7 +924,8 @@ mod tests {
     }
 
     #[test]
-    fn an_intervention_supplied_to_a_conditioning_query_is_refused_and_mixing_is_closed() {
+    fn an_intervention_supplied_to_a_conditioning_query_is_refused_and_an_intervened_variable_cannot_be_observed()
+     {
         let interventions = [("signal".to_owned(), "1".to_owned())];
         let request = ObservationSlotsRequest {
             operation: ObservationOperation::Conditioning,
@@ -747,9 +934,14 @@ mod tests {
             interventions: &interventions,
         };
         let refusal = check_observation_slots(&request).unwrap_err();
-        assert_eq!(refusal.detail, "observation_query.intervention_in_conditioning_slot");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::observation_query::INTERVENTION_IN_CONDITIONING_SLOT
+        );
         assert_eq!(refusal.supplied.as_deref(), Some("intervention"));
 
+        // Observations of other variables after an intervention are the interventional
+        // law conditioned on them.
         let observed = [direct("other", "0", SlotProvenance::Recorded)];
         let mixed = ObservationSlotsRequest {
             operation: ObservationOperation::Intervention,
@@ -757,9 +949,23 @@ mod tests {
             conditioning: &observed,
             interventions: &interventions,
         };
-        let refusal = check_observation_slots(&mixed).unwrap_err();
+        assert!(check_observation_slots(&mixed).is_ok());
+
+        // A variable cannot be both recorded and set.
+        let set_and_seen = [direct("signal", "1", SlotProvenance::Recorded)];
+        let both = ObservationSlotsRequest {
+            operation: ObservationOperation::Intervention,
+            outcome_id: "outcome",
+            conditioning: &set_and_seen,
+            interventions: &interventions,
+        };
+        let refusal = check_observation_slots(&both).unwrap_err();
         assert_eq!(refusal.code, "route_not_supported");
-        assert_eq!(refusal.detail, "observation_query.mixed_conditioning_and_intervention");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::observation_query::MIXED_CONDITIONING_AND_INTERVENTION
+        );
+        assert!(refusal.remedy.is_some());
 
         let alone = ObservationSlotsRequest {
             operation: ObservationOperation::Intervention,
@@ -771,6 +977,56 @@ mod tests {
     }
 
     #[test]
+    fn continuous_evidence_is_typed_and_checked() {
+        let observed = [("x".to_owned(), 1.5)];
+        let interventions = [("s".to_owned(), 2.0)];
+        let ok = ContinuousSlotsRequest {
+            operation: ObservationOperation::Intervention,
+            outcome_id: "y",
+            observed: &observed,
+            interventions: &interventions,
+        };
+        assert!(check_continuous_assignments(&ok).is_ok());
+
+        let nan = [("x".to_owned(), f64::NAN)];
+        let refusal =
+            check_continuous_assignments(&ContinuousSlotsRequest { observed: &nan, ..ok.clone() })
+                .unwrap_err();
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::observation_query::VALUE_NOT_FINITE
+        );
+
+        let both = [("s".to_owned(), 0.0)];
+        let refusal =
+            check_continuous_assignments(&ContinuousSlotsRequest { observed: &both, ..ok.clone() })
+                .unwrap_err();
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::observation_query::MIXED_CONDITIONING_AND_INTERVENTION
+        );
+
+        let refusal = check_continuous_assignments(&ContinuousSlotsRequest {
+            operation: ObservationOperation::Conditioning,
+            ..ok.clone()
+        })
+        .unwrap_err();
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::observation_query::INTERVENTION_IN_CONDITIONING_SLOT
+        );
+
+        let outcome = [("y".to_owned(), 0.0)];
+        let refusal =
+            check_continuous_assignments(&ContinuousSlotsRequest { observed: &outcome, ..ok })
+                .unwrap_err();
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::observation_query::OUTCOME_ASSIGNED
+        );
+    }
+
+    #[test]
     fn repeated_slots_and_an_assigned_outcome_are_refused() {
         let repeated = [
             direct("signal", "1", SlotProvenance::Recorded),
@@ -778,17 +1034,17 @@ mod tests {
         ];
         assert_eq!(
             check_observation_slots(&conditioning(&repeated)).unwrap_err().detail,
-            "observation_query.repeated_slot"
+            antecedent_core::reason_details::observation_query::REPEATED_SLOT
         );
         let outcome = [direct("outcome", "1", SlotProvenance::Recorded)];
         assert_eq!(
             check_observation_slots(&conditioning(&outcome)).unwrap_err().detail,
-            "observation_query.outcome_assigned"
+            antecedent_core::reason_details::observation_query::OUTCOME_ASSIGNED
         );
         let blank_level = [direct("signal", " ", SlotProvenance::Recorded)];
         assert_eq!(
             check_observation_slots(&conditioning(&blank_level)).unwrap_err().detail,
-            "observation_query.blank_field"
+            antecedent_core::reason_details::observation_query::BLANK_FIELD
         );
     }
 
@@ -797,13 +1053,19 @@ mod tests {
         let bare = [measured_slot(None, "1")];
         let refusal = check_observation_slots(&conditioning(&bare)).unwrap_err();
         assert_eq!(refusal.code, "proxy_offered_as_construct");
-        assert_eq!(refusal.detail, "observation_query.measured_as_construct");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::observation_query::MEASURED_AS_CONSTRUCT
+        );
         assert_eq!(refusal.offending.as_deref(), Some("disease"));
         assert!(refusal.remedy.is_some());
         assert!(refusal.validate().is_ok());
         // The likelihood function refuses the same way.
         let same = measured_likelihood(&bare[0], &levels(), &CONTEXT).unwrap_err();
-        assert_eq!(same.detail, "observation_query.measured_as_construct");
+        assert_eq!(
+            same.detail,
+            antecedent_core::reason_details::observation_query::MEASURED_AS_CONSTRUCT
+        );
 
         let modelled = [measured_slot(Some(binary_model()), "1")];
         assert!(check_observation_slots(&conditioning(&modelled)).is_ok());
@@ -815,7 +1077,7 @@ mod tests {
         }
         assert_eq!(
             check_observation_slots(&conditioning(&[wrong_kind])).unwrap_err().detail,
-            "observation_query.indicator_kind"
+            antecedent_core::reason_details::observation_query::INDICATOR_KIND
         );
 
         // Two measured signals are not combined.
@@ -828,7 +1090,10 @@ mod tests {
         ];
         let refusal = check_observation_slots(&conditioning(&two)).unwrap_err();
         assert_eq!(refusal.code, "route_not_supported");
-        assert_eq!(refusal.detail, "observation_query.multiple_measured_signals");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::observation_query::MULTIPLE_MEASURED_SIGNALS
+        );
     }
 
     #[test]
@@ -875,7 +1140,7 @@ mod tests {
         let narrower: Vec<String> = vec!["a".into(), "b".into()];
         assert_eq!(
             measured_likelihood(&slot, &narrower, &CONTEXT).unwrap_err().detail,
-            "observation_query.construct_mismatch"
+            antecedent_core::reason_details::observation_query::CONSTRUCT_MISMATCH
         );
     }
 
@@ -885,21 +1150,24 @@ mod tests {
         let other_population = ObservationContext { population_id: "hospital", ..CONTEXT };
         let refusal = measured_likelihood(&slot, &levels(), &other_population).unwrap_err();
         assert_eq!(refusal.code, "measurement_binding_mismatch");
-        assert_eq!(refusal.detail, "observation_query.population_mismatch");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::observation_query::POPULATION_MISMATCH
+        );
         assert_eq!(refusal.expected.as_deref(), Some("clinic"));
         assert_eq!(refusal.supplied.as_deref(), Some("hospital"));
 
         let other_regime = ObservationContext { regime_id: "randomized", ..CONTEXT };
         assert_eq!(
             measured_likelihood(&slot, &levels(), &other_regime).unwrap_err().detail,
-            "observation_query.regime_mismatch"
+            antecedent_core::reason_details::observation_query::REGIME_MISMATCH
         );
 
         let mut wrong_construct = slot.clone();
         wrong_construct.variable_id = "something_else".into();
         assert_eq!(
             measured_likelihood(&wrong_construct, &levels(), &CONTEXT).unwrap_err().detail,
-            "observation_query.construct_mismatch"
+            antecedent_core::reason_details::observation_query::CONSTRUCT_MISMATCH
         );
 
         let mut wrong_indicator = slot.clone();
@@ -908,7 +1176,7 @@ mod tests {
         }
         assert_eq!(
             measured_likelihood(&wrong_indicator, &levels(), &CONTEXT).unwrap_err().detail,
-            "observation_query.indicator_mismatch"
+            antecedent_core::reason_details::observation_query::INDICATOR_MISMATCH
         );
 
         let mut differential = binary_model();
@@ -937,7 +1205,10 @@ mod tests {
             measured_likelihood(&measured_slot(Some(differential), "1"), &levels(), &CONTEXT)
                 .unwrap_err();
         assert_eq!(refusal.code, "differential_error_not_pooled");
-        assert_eq!(refusal.detail, "observation_query.differential_error_unsupported");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::observation_query::DIFFERENTIAL_ERROR_UNSUPPORTED
+        );
 
         let mut moved = slot.clone();
         if let SlotValue::Measured(m) = &mut moved.value {
@@ -950,7 +1221,7 @@ mod tests {
     }
 
     #[test]
-    fn closed_routes_and_unreachable_levels_carry_registered_codes_and_remedies() {
+    fn unsupported_routes_and_unreachable_levels_carry_registered_codes_and_remedies() {
         for refusal in [
             interval_refusal(),
             calibration_refusal(),
@@ -964,8 +1235,12 @@ mod tests {
         assert_eq!(unreachable.code, "evidence_cannot_reach_level");
         assert_eq!(unreachable.expected.as_deref(), Some("0.9"));
         assert_eq!(unreachable.supplied.as_deref(), Some("0.78"));
-        assert_eq!(interval_refusal().code, "cell_not_licensed");
-        assert_eq!(calibration_refusal().detail, "observation_query.calibrated_probability_closed");
+        assert_eq!(interval_refusal().code, "uncertainty_representation_insufficient");
+        assert_eq!(calibration_refusal().code, "uncertainty_representation_insufficient");
+        assert_eq!(
+            calibration_refusal().detail,
+            antecedent_core::reason_details::observation_query::NO_CALIBRATED_PROBABILITY
+        );
     }
 
     #[test]

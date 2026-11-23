@@ -3,10 +3,18 @@
 Every substantive algorithm must have a machine-readable provenance record in
 this directory.
 
+For a worked reading of a method record and its numerical evidence, see
+[How Antecedent checks its scientific methods](../docs/guides/scientific-verification.md#aipw-start-with-the-method-record).
+
 Copy [`_template.toml`](_template.toml) to a descriptive name
 (e.g. `discovery.pcmci.toml`) and fill all fields truthfully. The `feature_id`
 must match the filename stem, and should match the corresponding
 [`parity/`](../parity) capability id where one exists.
+
+Results cite these records: each result names the records behind the route it executed, with
+their sources and `implementation_deviations`, through a table generated from this directory
+(`scripts/generate_method_provenance.py`). After editing a record, regenerate it. See
+[Cite the methods behind a study](../docs/guides/citing-a-study.md).
 
 ## Rules
 
@@ -109,3 +117,64 @@ source. See
 [`state.rolling_mechanism_diag.toml`](state.rolling_mechanism_diag.toml), which
 declines to cite Page's 1954 CUSUM work because the module computes a
 fixed-window max-|partial sum| scan, not a sequential control-chart procedure.
+
+### Recording the judgment: `[non_algorithm_review]`
+
+A comment is not checked. A record with `papers = []` that was read against its modules and found
+to be a wrapper, contract, derivation or closed variant carries a `[non_algorithm_review]` table
+that the gate reads (`scripts/provenance_links.py::non_algorithm_review_problems`):
+
+```toml
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"                      # wrapper | contract | derivation | unsupported_variant
+rationale = "what the module does"
+no_independent_algorithm = "why nothing numerical of its own remains"
+covered_by = ["record.stem"]          # records that carry the numerics (required for wrapper)
+derivation = "..."                    # required for derivation: the identity relied on
+inline_tests = true                   # only when the mapped file holds its own #[cfg(test)] assertions
+record_sha256 = "..."
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"               # the module files that were read
+path = "crates/.../module.rs"
+items = ["fn route", "impl Declaration"]   # the items the review read; the digest hashes only these
+sha256 = "..."
+[[non_algorithm_review.artifacts]]
+role = "assertion"                    # required for derivation and unsupported_variant
+path = "crates/.../tests/module.rs"
+items = ["fn refuses_unknown_arm"]
+sha256 = "..."
+```
+
+A source or test artifact binds named items (`fn name`, `impl Type`, `mod name`, `const NAME`,
+`struct`/`enum`/`trait`/`type Name`, or `module` for all non-test code of a file that is reviewed as a
+whole). The digest hashes the normalized text of those items, so an edit to another function, a
+comment or formatting leaves the review bound, and an edit inside a named item stales it. A data
+artifact (fixture, oracle generator or reference, environment lock) binds the whole file. The same
+rule holds for `[[method_review.artifacts]]` and `oracle.reference_review.artifacts`
+(`scripts/review_items.py`).
+
+- `wrapper` delegates every numerical step to the `covered_by` records. `contract` is a declaration,
+  binding, lineage or refusal check over supplied identities and numbers. `derivation` is closed-form
+  or enumerative arithmetic on a textbook identity that the table states. `unsupported_variant` implements
+  nothing and refuses; its assertion must execute the refusal.
+- The gate fails a mapping with an unknown kind, a missing rationale, a `covered_by` that names a
+  missing record or the record itself, a missing mapped module, a stale module or record digest, a
+  record that lists papers, a record that also carries `method_review`, or a derivation or closed
+  variant with no executing assertion.
+- Before mapping, read the module: a file that contains its own square roots, logarithms,
+  exponentials, solves or sampling is a method and needs `papers` and a `[method_review]`.
+  Do not map such a record to quiet it.
+- A mapping states that no independent source is owed. It is not an implementation review of a
+  primary source and the evidence report counts it separately from `method_review`.
+- After editing the record or a mapped file, run
+  `scripts/bind_review_digests.py mapping provenance/<id>.toml`.
+
+## Records that name the modules they cover
+
+A record may carry `modules = [...]`, the implementation files its method is. `scripts/provenance_links.py` links a method to its records by that field, by the module path or file name in the record, by a feature id, or by the explicit table of modules an existing record documents without naming. A module that executes or orchestrates other methods and implements no algorithm of its own is listed with its reason instead.
+
+## Method review
+
+`parity/method_specs/specs.toml` records, for each admitted method, the provenance records that cover its module and whether its public surface is in the reviewed API snapshot (`parity/public_api/`). `scripts/gate_provenance_schema.py` fails an admitted method that links no record and gives no reason, a linked record that does not state all four clean-room flags false, a record whose `modules` names a missing file, and a method whose public items are in no reviewed snapshot. The admission state is the one the specifications derive from the executing evidence, so a method cannot be advertised as supported or executing without a provenance record and a reviewed surface.

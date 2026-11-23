@@ -1,11 +1,12 @@
 //! Builder independent execution evidence for the Bayesian IV and sharp-RD specialists.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, CausalQuery, ExecutionContext, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 struct Fixture {
     data: TabularData,
@@ -47,7 +48,7 @@ fn iv_fixture() -> Fixture {
             1.0,
         ),
         truth: expected["true_structural_effect"].as_f64().unwrap(),
-        tolerance: 0.2,
+        tolerance: 0.01,
         identifier: IdentifierId::Iv,
         estimator: EstimatorId::BayesianIvJointLinear,
         bandwidth: None,
@@ -82,7 +83,7 @@ fn rd_fixture() -> Fixture {
         graph,
         query: AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)),
         truth: expected["true_jump"].as_f64().unwrap(),
-        tolerance: 0.08,
+        tolerance: 0.012,
         identifier: IdentifierId::RdSharp,
         estimator: EstimatorId::BayesianRdLocalLinear,
         bandwidth: Some(expected["fixed_bandwidth"].as_f64().unwrap()),
@@ -126,8 +127,9 @@ fn bayesian_specialists_execute_from_retained_plan_after_builder_drop_body() {
         let mut prepared = builder.prepare(&ctx).unwrap();
         drop(builder);
 
-        let plan =
-            prepared.checked_bayesian_specialist_info().expect("retained Bayesian specialist plan");
+        let RetainedOperation::BayesianSpecialist(plan) = prepared.retained_operation() else {
+            panic!("retained Bayesian specialist plan")
+        };
         // The sharp design binds its target to the cutoff population at build.
         assert_eq!(CausalQuery::AverageEffect(plan.query.clone()), *prepared.query());
         assert_eq!(plan.query.treatment, fixture.query.treatment);
@@ -140,10 +142,10 @@ fn bayesian_specialists_execute_from_retained_plan_after_builder_drop_body() {
 
         let result = prepared.estimate(&fixture.data, &ctx).unwrap();
         assert!(
-            (result.estimate.as_effect().unwrap().ate - fixture.truth).abs() < fixture.tolerance,
+            (result.estimate().as_effect().unwrap().ate - fixture.truth).abs() < fixture.tolerance,
             "{:?} effect {}",
             fixture.estimator,
-            result.estimate.as_effect().unwrap().ate
+            result.estimate().as_effect().unwrap().ate
         );
         assert!(result.diagnostics.iter().any(|item| item.code.as_ref() == "exec.identify.cached"));
         assert_eq!(result.logical_plan.estimator.as_deref(), Some(fixture.estimator.as_str()));
@@ -155,7 +157,8 @@ fn bayesian_specialists_execute_from_retained_plan_after_builder_drop_body() {
         );
         // The one-shot facade executes the same retained model and seed.
         assert!(
-            (one_shot.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate)
+            (one_shot.estimate().as_effect().unwrap().ate
+                - result.estimate().as_effect().unwrap().ate)
                 .abs()
                 < 1e-12
         );
@@ -164,19 +167,19 @@ fn bayesian_specialists_execute_from_retained_plan_after_builder_drop_body() {
             posterior.draws.values.as_ref()
         );
 
-        let refreshed = prepared.refresh(fixture.data.clone(), &ctx).unwrap();
+        let refreshed = rebind_estimate(&mut prepared, fixture.data.clone(), &ctx).unwrap();
         assert!(
-            (refreshed.estimate.as_effect().unwrap().ate
-                - result.estimate.as_effect().unwrap().ate)
+            (refreshed.estimate().as_effect().unwrap().ate
+                - result.estimate().as_effect().unwrap().ate)
                 .abs()
                 < 1e-12
         );
-        assert!(prepared.has_checked_bayesian_specialist_operation());
+        assert!(matches!(prepared.retained_operation(), RetainedOperation::BayesianSpecialist(..)));
 
         let bytes = prepared
             .encode_contracted_result(&refreshed, "checked-bayesian-specialist", &ctx)
             .unwrap();
-        let consumed = consume_analysis_result(&bytes).unwrap();
+        let consumed = replay_analysis_result(&bytes).unwrap();
         assert!(
             consumed
                 .acceptance
@@ -186,9 +189,11 @@ fn bayesian_specialists_execute_from_retained_plan_after_builder_drop_body() {
             "{:?}",
             consumed.acceptance.unresolved
         );
-        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert!(!consumed.acceptance.accepts_as_replayed_program());
 
-        assert!(prepared.refresh(widened(&fixture.data), &ctx).is_err());
+        let refused =
+            rebind_estimate(&mut prepared, widened(&fixture.data), &ctx).unwrap_err().to_string();
+        assert!(refused.contains("refresh requires the same schema"), "{refused}");
     }
 }
 
@@ -202,4 +207,17 @@ fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
         .expect("spawn evidence thread")
         .join()
         .expect("evidence body panicked");
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

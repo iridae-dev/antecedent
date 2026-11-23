@@ -7,7 +7,7 @@ evidence, and the scientific quantities they all refer to) each freeze their
 own identities, so that a change in one thing is visible as that change and a
 consumer can hold one identity independently of the bytes it reads.
 
-This page states what the code does today: which identity types exist, the
+This page states what the code does: which identity types exist, the
 digest domain or tag and version of each, what each binds, what is
 deliberately not bound, and how shared latents, aligned draws and overlapping
 observations stay coupled from execution into artifacts. Every identity is a
@@ -85,7 +85,7 @@ Declared in `antecedent_contract::mechanism_composition` and
 
 | Identity | Domain / tag and version | Binds |
 | --- | --- | --- |
-| plan | `antecedent.mechanism_composition_plan`, `MECHANISM_PLAN_IDENTITY_VERSION = 1` | target population and regime; per mechanism the variable, units, transform, population, regime, origin (fitted, external binding, declared), fit artifact id, evidence id, parents with units and transform, conditioning set and latent causes with the mechanisms that share each; the edges; every admission (coordinate, source, target, selection-diagram targets or invariance assumption); the dependence declaration |
+| plan | `antecedent.mechanism_composition_plan`, `MECHANISM_PLAN_IDENTITY_VERSION = 2` | target population and regime; per mechanism the variable, units, transform, population, regime, origin (fitted, external binding, declared), fit artifact id, evidence id, parents with units and transform, conditioning set and latent causes with the mechanisms that share each; the edges; every admission (coordinate, source, target, selection-diagram targets or invariance assumption); the dependence declaration |
 | premises and query | `IdentityDomain::Program` (`antecedent.identity.program.v1`) over the canonical wire encoding with the label `mechanism_composition_v1` and artifact version 1 | the plan's content plus every number: coefficients, intercepts, scales, tables, fitted domains, loadings, parameter covariances and cross-covariances, and the query (interventions, outcome, arms, sample size). The stored result is excluded: it is an output replayed from the premises |
 | fit and evidence identities | caller supplied strings | which fit produced a mechanism and which data it was estimated from, so shared evidence is visible to the dependence check |
 
@@ -148,7 +148,7 @@ never from a provenance label. A result counts each observation once (declared
 slots, distinct observations and repeated slots are all reported). A source
 with no declared observations is unknown, not independent: independent
 pooling and a diagonal covariance refuse, and only a covariance with cross
-terms or an explicit assumption range is licensed. A transported claim is
+terms or an explicit assumption range is supported. A transported claim is
 never counted as native target data, even with a declared covariance. A
 provenance or lineage label proves bookkeeping, not independence.
 
@@ -161,14 +161,14 @@ edit and an operation the ledger itself refuses.
 
 Declared in `antecedent_io_core::counterfactual_transport_wire` and, for the
 sampled route, `antecedent_estimate::counterfactual_transport_sampled` and
-`antecedent_io::sampled_counterfactual_transport_artifact`. Both artifact
-kinds are at version 1 and are hashed canonical CBOR of typed wire structures
-under `IdentityDomain::TransportCertificate`
+`antecedent_io::sampled_counterfactual_transport_artifact`. The exact artifact
+is at version 2 and the sampled artifact at version 1; both are hashed
+canonical CBOR of typed wire structures under `IdentityDomain::TransportCertificate`
 (`antecedent.identity.transport_certificate.v1`).
 
 | Identity | Tag | Binds |
 | --- | --- | --- |
-| premises digest (exact) | `counterfactual_transport_v1` | status, problem (graph, levels, selection targets), query (worlds, interventions as bits, routes, event, conditioning, sources), variable names, search limits, evaluation limits, derivation and obstruction |
+| premises digest (exact) | `counterfactual_transport_v2` | status, problem (graph, levels, selection targets), query (worlds, interventions as bits, routes, event, conditioning, sources), variable names, search limits, evaluation limits, derivation and obstruction |
 | data digest (exact) | `counterfactual_transport_data_v1` | the evidence catalog (environments, regimes and bindings each sorted, and the target sampling contract) and every law table, sorted |
 | count table | `antecedent.estimate.counterfactual_transport_sampled.counts.v1` | population, regime, intervention levels as bits, axes and levels, every count, snapshot identity and sampling design |
 | sampled evidence | `antecedent.estimate.counterfactual_transport_sampled.evidence.v1` | every table's identity in canonical order, the overlap declaration, the unseen-cell rule and its parameter, minimum table total, sparsity and envelope limits and evaluation limits |

@@ -110,7 +110,7 @@ DistributionAvailabilityName = Literal["joint", "separate_marginals"]
 TargetSamplingName = Literal[
     "supplied_population_law",
     "representative_sample",
-    "licensed_weighted_design",
+    "supported_weighted_design",
     "convenience_sample",
 ]
 DependenceGroupName = Literal["independent_studies", "linked_units", "unknown_dependence"]
@@ -248,7 +248,7 @@ class RegimeBinding:
         if self.dataset_identity is not None and not self.dataset_identity.strip():
             raise CausalValueError("dataset identity, when supplied, must be a non-empty name")
         if self.weights_snapshot is not None and self.weights_snapshot != self.snapshot_identity:
-            raise CausalValueError("weights must be licensed for the bound snapshot")
+            raise CausalValueError("weights must be supported for the bound snapshot")
         if self.sampling not in get_args(SamplingDesignName):
             raise CausalValueError(f"unknown sampling design {self.sampling!r}")
         if self.dependence not in get_args(DependenceGroupName):

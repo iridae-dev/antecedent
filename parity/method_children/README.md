@@ -1,0 +1,9 @@
+# Method children
+
+`children.toml` is a descriptive catalog of methods. Each leaf is one family method crossed with static or temporal and frequentist or Bayesian, or a named method that must not collapse into a family row: categorical and multi-arm trials, factorial trials, switchback (P09); continuous dose, smoothed dose, dose grids, quantiles (P07); regression discontinuity, fuzzy and kink local ratios, augmented panel difference-in-differences, staggered event studies, synthetic control (P11).
+
+A child records what the method is: its `target`, implementing `module` (`none` when no module implements it), `inference`, `owner`, `fixtures`, `consumer`, `notes`, and its `route` when an executing route of `parity/capabilities/route_manifest.toml` carries it. A child with no route omits the field. The catalog says nothing about whether a method is supported; support status comes only from the support model (`parity/support_cells.toml`, `parity/capability_records.toml`, `scripts/gate_support.py` and the `crates/antecedent/data/support_matrix.json` it generates).
+
+This is not the support-matrix product in `parity/support_axes.toml` (queries, graph classes, structures, inferences, validations).
+
+Every child names its acceptance fixtures and its artifact consumer as `;`-separated tokens. A fixture is `path` or `path::test`: the file exists, a registered Cargo target, python test, gate script or evidence record runs it, a named test is a real test function, and at least one fixture file mentions the method it accepts. A consumer is `path` or `path::symbol`: the file exists and mentions the symbol, and at least one consumer is a non-test source that reads the artifact (the test that exercises it may follow). A family id, a prose description or `unlisted` is a placeholder and fails `python3 scripts/check_method_children.py`. A named route must be a route id of the manifest.

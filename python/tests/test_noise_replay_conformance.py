@@ -61,7 +61,9 @@ def fitted():
 def test_replaying_the_sampled_noise_reproduces_the_draws_bit_for_bit(fitted):
     model, _, _ = fitted
     for interventions in ({}, {"price": 10.0}):
-        draws, noise = model.sample_noise(interventions, N_ROWS, seed=11)
+        draws, noise = model.sample_noise(
+            interventions, N_ROWS, execution=antecedent.Execution(seed=11)
+        )
         assert noise.shape == (len(NAMES), N_ROWS)
         replayed = model.replay_noise(noise, interventions)
         np.testing.assert_array_equal(_matrix(replayed), _matrix(draws))
@@ -69,7 +71,7 @@ def test_replaying_the_sampled_noise_reproduces_the_draws_bit_for_bit(fitted):
 
 def test_replay_does_not_depend_on_how_the_noise_array_is_encoded(fitted):
     model, _, _ = fitted
-    draws, noise = model.sample_noise({}, N_ROWS, seed=12)
+    draws, noise = model.sample_noise({}, N_ROWS, execution=antecedent.Execution(seed=12))
     expected = _matrix(draws)
 
     buffer = io.BytesIO()
@@ -87,7 +89,7 @@ def test_replay_does_not_depend_on_how_the_noise_array_is_encoded(fitted):
 
 def test_replaying_the_noise_under_another_policy_is_that_policys_counterfactual(fitted):
     model, _, _ = fitted
-    factual, noise = model.sample_noise({}, N_ROWS, seed=13)
+    factual, noise = model.sample_noise({}, N_ROWS, execution=antecedent.Execution(seed=13))
     counterfactual = _matrix(model.replay_noise(noise, {"price": 10.0}))
     price, demand = _matrix(factual)
     assert (counterfactual[0] == 10.0).all()
@@ -100,7 +102,7 @@ def test_replaying_the_noise_under_another_policy_is_that_policys_counterfactual
 
 def test_replay_is_bit_reproducible_in_a_fresh_process(fitted, tmp_path):
     model, price, demand = fitted
-    draws, noise = model.sample_noise({}, N_ROWS, seed=14)
+    draws, noise = model.sample_noise({}, N_ROWS, execution=antecedent.Execution(seed=14))
     np.savez(tmp_path / "data.npz", price=price, demand=demand)
     np.save(tmp_path / "noise.npy", noise)
     np.save(tmp_path / "draws.npy", _matrix(draws))

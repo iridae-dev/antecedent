@@ -1,7 +1,7 @@
 //! Typed refusals of selective discovery: a registered reason code, a namespaced detail and
-//! the declaration, evidence or action that would license the request.
+//! the declaration, evidence or action that would support the request.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::DiscoveryError;
 
@@ -19,7 +19,7 @@ pub enum SelectiveDiscoveryError {
         code: &'static str,
         /// Namespaced `selective_discovery.*` detail.
         detail: &'static str,
-        /// What would license the request.
+        /// What would support the request.
         remedy: String,
     },
 }
@@ -46,6 +46,33 @@ impl SelectiveDiscoveryError {
         match self {
             Self::Refused { detail, .. } => Some(*detail),
             Self::Discovery(_) => None,
+        }
+    }
+}
+
+pub(super) fn invalid(detail: &'static str, remedy: impl Into<String>) -> SelectiveDiscoveryError {
+    SelectiveDiscoveryError::refused(
+        antecedent_core::reason_code!("invalid_argument"),
+        detail,
+        remedy,
+    )
+}
+
+#[cfg(test)]
+mod invalid_refusal_tests {
+    use super::{SelectiveDiscoveryError, invalid};
+
+    #[test]
+    fn invalid_refusal_keeps_code_detail_and_remedy() {
+        for remedy in ["", "retry"] {
+            assert_eq!(
+                invalid("selective.example", remedy),
+                SelectiveDiscoveryError::Refused {
+                    code: "invalid_argument",
+                    detail: "selective.example",
+                    remedy: remedy.into(),
+                }
+            );
         }
     }
 }

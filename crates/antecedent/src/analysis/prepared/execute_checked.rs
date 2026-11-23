@@ -1,6 +1,6 @@
 //! Stamping and checked-operation execution for prepared estimate clicks.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     CheckedAipwOperation, CheckedDistributionOperation, CheckedFrontDoorOperation,
@@ -13,10 +13,11 @@ use crate::analysis::checked_propensity::{
     CheckedPropensityOperation, CheckedPropensityProcedure, CheckedPropensityUncertainty,
 };
 use crate::analysis::helpers::{
-    AssembleArgs, RefutationRun, assemble_result, overlap_diagnostic, provenance_pair,
-    stamp_result_context,
+    AssembleArgs, RefutationRun, assemble_result, overlap_diagnostic, overlap_limit_diagnostic,
+    provenance_pair, stamp_result_context,
 };
 use crate::analysis::missing_data::MissingRoute;
+use crate::analysis::stage::elapsed_ns;
 use crate::analysis::{CheckedConditionalOperation, ConditionalProcedure};
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
@@ -32,6 +33,16 @@ use antecedent_expr::IdentifiedEstimand;
 use antecedent_identify::IdentificationResult;
 use std::sync::Arc;
 use std::time::Instant;
+
+pub(super) struct GlmFitCapture {
+    pub(super) point: antecedent_estimate::RetainedGlmPoint,
+    pub(super) retention: Arc<antecedent_core::execution::AdmissionLease>,
+}
+
+pub(super) struct CheckedGlmRun {
+    pub(super) result: StudyResult,
+    pub(super) capture: Option<GlmFitCapture>,
+}
 
 /// What a checked static operation fitted: the estimator that ran, its estimate and timing.
 struct CheckedStaticEffectRun {
@@ -50,12 +61,18 @@ impl PreparedStudy {
         refute: RefuteSuite,
         defer: bool,
         result: &mut StudyResult,
+        ctx: &ExecutionContext,
     ) -> Result<(), CausalError> {
+        result.executed_input =
+            Some(crate::analysis::target_validation::executed_input_identity(data, ctx)?);
+        result.stamp_lowered_program(self.plan.require_lowered(None)?);
+        crate::analysis::target_validation::stamp_route_refutations(result);
         if let (DataInput::Tabular(tabular), Some(MissingRoute::Static)) =
             (data, MissingRoute::of(&self.study().query, &self.study().data))
         {
             self.study().report_static_missing_data(tabular, result)?;
         }
+        result.stamp_would_refuse(&self.study().would_refuse, ctx);
         if !defer {
             result.executed_contract = Some(self.executed_contract(data, refute, None)?);
         }
@@ -70,6 +87,7 @@ impl PreparedStudy {
         inference: &InferenceMode,
         mut result: StudyResult,
         defer: bool,
+        ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let input = DataInput::Tabular(data.clone());
         crate::analysis::execute::push_gaussian_likelihood_disclosure(
@@ -77,7 +95,7 @@ impl PreparedStudy {
             inference,
             &input,
         );
-        self.stamp_deferrable(&input, result, defer)
+        self.stamp_deferrable(&input, result, defer, ctx)
     }
 
     /// Stamp the contract `result` was executed under on `data`.
@@ -85,8 +103,9 @@ impl PreparedStudy {
         &self,
         data: &DataInput,
         result: StudyResult,
+        ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        self.stamp_deferrable(data, result, false)
+        self.stamp_deferrable(data, result, false, ctx)
     }
 
     /// [`Self::stamp`], leaving the contract to the caller when `defer`.
@@ -95,13 +114,16 @@ impl PreparedStudy {
         data: &DataInput,
         mut result: StudyResult,
         defer: bool,
+        ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        // Bind the outer caller input, including when an internal imputation or
+        // refit used a derived table before returning this engine-owned result.
         crate::analysis::execute::push_gaussian_likelihood_disclosure(
             &mut result,
-            &self.analysis.inference,
+            &self.analysis.settings.inference,
             data,
         );
-        self.bind_executed_contract(data, self.analysis.refute, defer, &mut result)?;
+        self.bind_executed_contract(data, self.analysis.settings.refute, defer, &mut result, ctx)?;
         Ok(result)
     }
 
@@ -111,13 +133,14 @@ impl PreparedStudy {
         operation: &CheckedDistributionOperation,
         mut result: StudyResult,
         defer: bool,
+        ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         crate::analysis::execute::push_gaussian_likelihood_disclosure(
             &mut result,
             &operation.inference,
             data,
         );
-        self.bind_executed_contract(data, operation.refute, defer, &mut result)?;
+        self.bind_executed_contract(data, operation.refute, defer, &mut result, ctx)?;
         Ok(result)
     }
 
@@ -127,13 +150,14 @@ impl PreparedStudy {
         operation: &CheckedLinearOperation,
         mut result: StudyResult,
         defer: bool,
+        ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         crate::analysis::execute::push_gaussian_likelihood_disclosure(
             &mut result,
             &operation.inference,
             data,
         );
-        self.bind_executed_contract(data, operation.refute, defer, &mut result)?;
+        self.bind_executed_contract(data, operation.refute, defer, &mut result, ctx)?;
         Ok(result)
     }
 
@@ -159,7 +183,7 @@ impl PreparedStudy {
                 .binding()
                 .estimator
                 .is(crate::strategy_table::EstimatorId::FrontDoorTwoStage)
-            || !matches!(self.analysis.inference, InferenceMode::Frequentist)
+            || !matches!(self.analysis.settings.inference, InferenceMode::Frequentist)
         {
             return Err(CausalError::Compile {
                 message:
@@ -180,7 +204,7 @@ impl PreparedStudy {
             CheckedStaticEffectRun {
                 estimator_id: crate::strategy_table::EstimatorId::FrontDoorTwoStage,
                 estimate,
-                bootstrap_requested: Some(operation.fitter.bootstrap_replicates),
+                bootstrap_requested: Some(operation.fitter.inference.bootstrap_replicates),
                 started,
             },
             ctx,
@@ -211,7 +235,7 @@ impl PreparedStudy {
             || !matches!(query.active, Intervention::Set { variable, ref value } if variable == query.treatment && value.as_f64() == Some(lowering.active))
             || !matches!(query.control, Intervention::Set { variable, ref value } if variable == query.treatment && value.as_f64() == Some(lowering.control))
             || !self.plan.binding().estimator.is(estimator)
-            || !matches!(self.analysis.inference, InferenceMode::Frequentist)
+            || !matches!(self.analysis.settings.inference, InferenceMode::Frequentist)
         {
             return Err(CausalError::Compile {
                 message: "retained checked IV operation no longer matches its query or target"
@@ -247,7 +271,7 @@ impl PreparedStudy {
         data: &TabularData,
         operation: &CheckedGlmAdjustmentOperation,
         ctx: &ExecutionContext,
-    ) -> Result<StudyResult, CausalError> {
+    ) -> Result<CheckedGlmRun, CausalError> {
         let started = Instant::now();
         if operation.query
             != *operation.cache.identification.average_effect().unwrap_or(&operation.query)
@@ -267,14 +291,26 @@ impl PreparedStudy {
             || operation.preparation.adjustment_set != operation.cache.estimand.adjustment_set
             || !matches!(operation.query.outcome_functional, OutcomeFunctional::Mean)
             || self.analysis.query != CausalQuery::AverageEffect(operation.query.clone())
-            || self.analysis.refute != operation.refute
+            || self.analysis.settings.refute != operation.refute
         {
             return Err(CausalError::Compile {
                 message: "retained GLM operation no longer matches its checked target or estimator"
                     .into(),
             });
         }
-        let mut workspace = antecedent_estimate::GlmAdjustmentWorkspace::default();
+        let retention = operation
+            .adjusted_reuse_descriptor()
+            .map(|_| {
+                let bytes = operation.retained_fit_bytes()?;
+                ctx.acquire_admission(0, bytes)
+                    .map(Arc::new)
+                    .map_err(|e| CausalError::Resource { message: e.to_string() })
+            })
+            .transpose()?;
+        let mut workspace = antecedent_estimate::GlmAdjustmentWorkspace {
+            retain_point: retention.is_some(),
+            ..antecedent_estimate::GlmAdjustmentWorkspace::default()
+        };
         let estimate = operation
             .fitter
             .fit(
@@ -284,7 +320,7 @@ impl PreparedStudy {
                 operation.cache.identification.required_assumptions.clone(),
             )
             .map_err(CausalError::from)?;
-        Self::assemble_checked_operation_effect(
+        let result = Self::assemble_checked_operation_effect(
             data,
             &static_result_metadata(
                 &operation.common,
@@ -294,10 +330,16 @@ impl PreparedStudy {
                 &operation.cache.estimand,
             ),
             estimate,
-            Some(operation.fitter.bootstrap_replicates),
+            Some(operation.fitter.inference.bootstrap_replicates),
             started,
             ctx,
-        )
+        )?;
+        let capture = workspace
+            .retained_point
+            .take()
+            .zip(retention)
+            .map(|(point, retention)| GlmFitCapture { point, retention });
+        Ok(CheckedGlmRun { result, capture })
     }
 
     pub(super) fn execute_checked_rd(
@@ -327,7 +369,7 @@ impl PreparedStudy {
             || operation.preparation.target().functional != operation.cache.estimand.functional
             || !matches!(operation.query.outcome_functional, OutcomeFunctional::Mean)
             || self.analysis.query != CausalQuery::AverageEffect(operation.source_query.clone())
-            || self.analysis.refute != operation.refute
+            || self.analysis.settings.refute != operation.refute
         {
             return Err(CausalError::Compile {
                 message:
@@ -351,7 +393,7 @@ impl PreparedStudy {
                 &operation.cache.estimand,
             ),
             estimate,
-            Some(operation.fitter.bootstrap_replicates),
+            Some(operation.fitter.inference.bootstrap_replicates),
             started,
             ctx,
         )
@@ -448,7 +490,7 @@ impl PreparedStudy {
         // identification. Preserve the class envelope in the public result
         // certificate so completion masses and individual cases remain
         // inspectable just as they are for the ordinary class-aware routes.
-        result.certificate = match &operation.class_proof {
+        result.view.certificate = match &operation.class_proof {
             Some(crate::analysis::checked_conditional::ConditionalClassProof::Pag {
                 cache,
                 ..
@@ -473,7 +515,7 @@ impl PreparedStudy {
                 query: operation.source_query.clone(),
                 graph_class: operation.graph_class(),
             }),
-            None => result.certificate,
+            None => result.view.certificate.take(),
         };
         if let Some(diagnostic) = crate::analysis::helpers::conditional_quantile_grid_diagnostic(
             data,
@@ -492,7 +534,7 @@ impl PreparedStudy {
             result.diagnostics.iter().map(|diagnostic| Arc::clone(&diagnostic.code)).collect();
         if let Some(effect) = result.estimate.as_effect() {
             crate::analysis::execute::push_grid_scalar_cleared(
-                &mut result.diagnostics,
+                &mut result.view.diagnostics,
                 &mut seen,
                 effect,
             );
@@ -508,10 +550,11 @@ impl PreparedStudy {
                 message: "checked static operation requires an average-effect query".into(),
             });
         };
-        let cache =
-            self.analysis.identification_cache.as_deref().ok_or_else(|| CausalError::Compile {
+        let cache = self.analysis.static_cache().map(|cache| &**cache).ok_or_else(|| {
+            CausalError::Compile {
                 message: "checked static operation lost its identification product".into(),
-            })?;
+            }
+        })?;
         Ok((query.clone(), cache.identification.clone(), cache.estimand.clone()))
     }
 
@@ -527,7 +570,7 @@ impl PreparedStudy {
         let CheckedStaticEffectRun { estimator_id, estimate, bootstrap_requested, started } = run;
         let cancelled = estimate.uncertainty.bootstrap.cancelled || ctx.cancellation.is_cancelled();
         let (refutations, mut extra_diagnostics) =
-            if cancelled || self.analysis.refute == RefuteSuite::None {
+            if cancelled || self.analysis.settings.refute == RefuteSuite::None {
                 (Vec::new(), Vec::new())
             } else {
                 let mut workspace = EstimationWorkspace::default();
@@ -537,9 +580,9 @@ impl PreparedStudy {
                     estimand: &estimand,
                     query,
                     estimate: &estimate,
-                    suite: self.analysis.refute,
+                    suite: self.analysis.settings.refute,
                     estimator: estimator_id.as_str(),
-                    custom: &self.analysis.custom_validators,
+                    custom: &self.analysis.declared.custom_validators,
                     temporal: None,
                 }
                 .reports(&mut workspace, Some(&mut propensity), ctx)?;
@@ -547,12 +590,8 @@ impl PreparedStudy {
             };
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
-        diagnostics.push(antecedent_core::Diagnostic::new(
-            "exec.identify.cached",
-            antecedent_core::DiagnosticKind::Execution,
-            antecedent_core::DiagnosticSeverity::Info,
-            "identification reused from the checked prepared operation",
-        ));
+        diagnostics.extend(overlap_limit_diagnostic(estimate.diagnostics.overlap_report.as_ref()));
+        diagnostics.push(crate::analysis::execute::identify_cached_checked_operation_diagnostic());
         diagnostics.append(&mut extra_diagnostics);
         let identifier_id = self.plan.binding().identifier_or(RouteDefaults::STATIC_ATE)?;
         let bootstrap_ok = estimate.uncertainty.bootstrap.replicates_ok;
@@ -583,7 +622,7 @@ impl PreparedStudy {
             provenance,
             treatment: query.treatment,
             outcome: query.outcome,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            wall_time_ns: elapsed_ns(started),
             latency_mode: self.analysis.latency_mode.map(|mode| Arc::from(mode.as_str())),
             stage_timings_ns: Vec::new(),
             bootstrap_replicates_requested: bootstrap_requested,
@@ -605,6 +644,7 @@ impl PreparedStudy {
         });
         let custom_validator_names = self
             .analysis
+            .declared
             .custom_validators
             .iter()
             .map(|validator| Arc::from(validator.name()))
@@ -613,10 +653,13 @@ impl PreparedStudy {
             &mut result,
             self.analysis.support_status,
             self.analysis.structure_source,
-            self.analysis.population_registry.as_ref(),
+            self.analysis.declared.population_registry.as_ref(),
             &custom_validator_names,
         );
-        crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
+        crate::analysis::helpers::mirror_refuted_evalue(
+            &mut result.estimate,
+            &result.view.refutations,
+        );
         Ok(result)
     }
 
@@ -650,13 +693,10 @@ impl PreparedStudy {
             };
         let mut diagnostics = metadata.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+        diagnostics.extend(overlap_limit_diagnostic(estimate.diagnostics.overlap_report.as_ref()));
         if metadata.identifier != crate::strategy_table::IdentifierId::RdSharp {
-            diagnostics.push(antecedent_core::Diagnostic::new(
-                "exec.identify.cached",
-                antecedent_core::DiagnosticKind::Execution,
-                antecedent_core::DiagnosticSeverity::Info,
-                "identification reused from the checked prepared operation",
-            ));
+            diagnostics
+                .push(crate::analysis::execute::identify_cached_checked_operation_diagnostic());
         }
         diagnostics.append(&mut extra_diagnostics);
         if let Some((tier, configured)) = metadata.latency_bootstrap_not_applied {
@@ -697,7 +737,7 @@ impl PreparedStudy {
             provenance,
             treatment: metadata.query.treatment,
             outcome: metadata.query.outcome,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            wall_time_ns: elapsed_ns(started),
             latency_mode: metadata.latency_mode.map(|mode| Arc::from(mode.as_str())),
             stage_timings_ns: Vec::new(),
             bootstrap_replicates_requested: bootstrap_requested,
@@ -724,7 +764,10 @@ impl PreparedStudy {
             metadata.population_registry,
             metadata.custom_validator_names,
         );
-        crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
+        crate::analysis::helpers::mirror_refuted_evalue(
+            &mut result.estimate,
+            &result.view.refutations,
+        );
         Ok(result)
     }
 
@@ -734,13 +777,14 @@ impl PreparedStudy {
         operation: &CheckedAipwOperation,
         mut result: StudyResult,
         defer: bool,
+        ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         crate::analysis::execute::push_gaussian_likelihood_disclosure(
             &mut result,
             &operation.inference,
             data,
         );
-        self.bind_executed_contract(data, operation.refute, defer, &mut result)?;
+        self.bind_executed_contract(data, operation.refute, defer, &mut result, ctx)?;
         Ok(result)
     }
 }

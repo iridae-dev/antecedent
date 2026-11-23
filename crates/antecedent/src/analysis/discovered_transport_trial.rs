@@ -11,7 +11,7 @@
 //! are retained. The original structural report is unchanged. Intervals remain conditional
 //! on discovery and refinement; complete-procedure calibration must include both steps.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![expect(
     clippy::result_large_err,
@@ -31,6 +31,10 @@ use super::discovered_transport_estimate::{
     estimate_selected_discovered_transport, validate_evidence_query, verify_trial_member_estimate,
 };
 
+mod fisher;
+
+use fisher::fisher_exact;
+
 const PROOF_FORMAT: &str = "antecedent.discovered_transport.trial_compatibility.v1";
 const ESTIMATE_FORMAT: &str = "antecedent.discovered_transport.trial_estimate.v1";
 const LEGACY_ESTIMATION_STRATEGY: &str = "minimal_pretreatment_standardization";
@@ -42,6 +46,25 @@ fn legacy_estimation_strategy() -> String {
 
 const MAX_TRIAL_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 const MAX_TRIAL_ARTIFACT_MEMBERS: usize = 4096;
+
+/// What a verifier will decode: the largest artifact it reads and the most original members
+/// it replays.
+///
+/// The defaults bound artifacts of hostile origin; a caller replaying its own larger receipts
+/// (a wide class, a long trial) raises them through the `_within` verifiers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TrialArtifactBudget {
+    /// Largest artifact, in bytes, that is decoded.
+    pub max_bytes: usize,
+    /// Most original members that are replayed.
+    pub max_members: usize,
+}
+
+impl Default for TrialArtifactBudget {
+    fn default() -> Self {
+        Self { max_bytes: MAX_TRIAL_ARTIFACT_BYTES, max_members: MAX_TRIAL_ARTIFACT_MEMBERS }
+    }
+}
 
 /// Actual assignment design asserted for the source trial.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -145,9 +168,13 @@ pub struct TrialCompatibilityProof {
 }
 
 impl TrialCompatibilityProof {
-    fn validate_replay_budget(&self, limits: ExactEvaluationLimits) -> Result<usize, IoError> {
+    fn validate_replay_budget(
+        &self,
+        limits: ExactEvaluationLimits,
+        budget: TrialArtifactBudget,
+    ) -> Result<usize, IoError> {
         let exceeded = || IoError::Convert("trial compatibility replay budget exceeded".into());
-        if self.members.len() > MAX_TRIAL_ARTIFACT_MEMBERS {
+        if self.members.len() > budget.max_members {
             return Err(exceeded());
         }
         let mut work = self
@@ -295,7 +322,7 @@ impl TrialCompatibilityProof {
         }
         // Counts must first be reconstructed from the bounded rows. Untrusted
         // u64 counts must never reach Fisher's margin additions or mass loop.
-        if fisher_exact(counts)? != self.p_value {
+        if fisher_exact(counts).map_err(IoError::from)? != self.p_value {
             return Err(bad());
         }
         for (index, member) in self.members.iter().enumerate() {
@@ -365,19 +392,39 @@ struct TrialEstimateWire {
 /// # Errors
 /// An artifact above 16 MiB or 4096 original members, a proof exceeding the
 /// caller's operation budget, or a test, decision, identity or grid that does not replay.
+/// See [`verify_trial_compatible_transport_estimate_within`] to set the artifact budget.
 pub fn verify_trial_compatible_transport_estimate(
     bytes: &[u8],
     limits: ExactEvaluationLimits,
     ctx: &ExecutionContext,
 ) -> Result<(TrialCompatibilityProof, VerifiedEstimate), IoError> {
-    if bytes.len() > MAX_TRIAL_ARTIFACT_BYTES {
+    verify_trial_compatible_transport_estimate_within(
+        bytes,
+        limits,
+        TrialArtifactBudget::default(),
+        ctx,
+    )
+}
+
+/// [`verify_trial_compatible_transport_estimate`] under a caller-chosen artifact budget.
+///
+/// # Errors
+/// As [`verify_trial_compatible_transport_estimate`], with the artifact bytes and original
+/// members bounded by `budget`.
+pub fn verify_trial_compatible_transport_estimate_within(
+    bytes: &[u8],
+    limits: ExactEvaluationLimits,
+    budget: TrialArtifactBudget,
+    ctx: &ExecutionContext,
+) -> Result<(TrialCompatibilityProof, VerifiedEstimate), IoError> {
+    if bytes.len() > budget.max_bytes {
         return Err(IoError::Convert("trial compatibility artifact byte budget exceeded".into()));
     }
     let wire: TrialEstimateWire = antecedent_io::from_cbor(bytes)?;
     if wire.format != ESTIMATE_FORMAT {
         return Err(IoError::Convert("unsupported trial estimate format".into()));
     }
-    wire.proof.validate_replay_budget(limits)?;
+    wire.proof.validate_replay_budget(limits, budget)?;
     wire.proof.validate()?;
     let retained = wire.proof.retained_members();
     let mut verified = verify_trial_member_estimate(&wire.estimate, limits, ctx, retained.len())?;
@@ -425,7 +472,7 @@ pub fn estimate_trial_compatible_discovered_transport(
     if retained.is_empty() {
         return Err(DiscoveredTransportError::Refused(DiscoveredTransportRefusal {
             code: antecedent_core::reason_code!("discovered_structure_unresolved"),
-            detail: "discovered_transport.trial_rejects_every_member",
+            detail: antecedent_core::reason_details::discovered_transport::TRIAL_REJECTS_EVERY_MEMBER,
             unresolved: report.envelope().unresolved().to_vec(),
             exhausted_search_bounds: 0,
             unknown_selection_targets: Vec::new(),
@@ -473,27 +520,27 @@ fn trial_compatibility_proof(
         || !(alpha > 0.0 && alpha < 0.5)
     {
         return Err(refuse(
-            "discovered_transport.trial_compatibility_invalid",
+            antecedent_core::reason_details::discovered_transport::TRIAL_COMPATIBILITY_INVALID,
             "declare an independence-test level in (0,.5) and independent randomized trial rows"
                 .into(),
         ));
     }
     if !report.envelope().enumeration_complete() {
         return Err(refuse(
-            "discovered_transport.class_enumeration_partial",
+            antecedent_core::reason_details::discovered_transport::CLASS_ENUMERATION_PARTIAL,
             "experimental compatibility cannot certify unenumerated members".into(),
         ));
     }
     let (treatment, outcome) = query.response.functional.primary_pair().ok_or_else(|| {
         refuse(
-            "discovered_transport.trial_compatibility_invalid",
+            antecedent_core::reason_details::discovered_transport::TRIAL_COMPATIBILITY_INVALID,
             "the query needs one treatment and outcome".into(),
         )
     })?;
     let columns = columns_of(evidence.source, &[treatment, outcome])?;
     if columns[&treatment].len() > 1_000_000 {
         return Err(refuse(
-            "discovered_transport.trial_compatibility_invalid",
+            antecedent_core::reason_details::discovered_transport::TRIAL_COMPATIBILITY_INVALID,
             "the bounded exact test accepts at most one million source rows".into(),
         ));
     }
@@ -502,7 +549,7 @@ fn trial_compatibility_proof(
     for (x, y) in columns[&treatment].iter().zip(&columns[&outcome]) {
         let (Some(x), Some(y)) = (*x, *y) else {
             return Err(refuse(
-                "discovered_transport.trial_compatibility_invalid",
+                antecedent_core::reason_details::discovered_transport::TRIAL_COMPATIBILITY_INVALID,
                 "the binary trial has a missing assignment or outcome".into(),
             ));
         };
@@ -517,15 +564,15 @@ fn trial_compatibility_proof(
         };
         let (Some(x), Some(y)) = (code(x), code(y)) else {
             return Err(refuse(
-                "discovered_transport.trial_compatibility_invalid",
+                antecedent_core::reason_details::discovered_transport::TRIAL_COMPATIBILITY_INVALID,
                 "this exact test requires binary zero/one assignments and outcomes".into(),
             ));
         };
         counts[x * 2 + y] += 1;
         source_trial_rows.push([u8::from(x == 1), u8::from(y == 1)]);
     }
-    let p_value =
-        fisher_exact(counts).map_err(|e| DiscoveredTransportError::Estimation(e.to_string()))?;
+    let p_value = fisher_exact(counts)
+        .map_err(|error| DiscoveredTransportError::Estimation(error.to_string()))?;
     let members = report
         .envelope()
         .members()
@@ -708,19 +755,32 @@ impl TrialCompatibleTransportConfidenceSet {
         Ok(writer.finish())
     }
     /// Export a receipt for replay **against the original report, query and datasets**.
-    /// This receipt is not a self-contained data container or a calibration license.
+    /// This receipt is not a self-contained data container or a calibration support.
     ///
     /// # Errors
     /// Encoding failure or the shared 16 MiB artifact bound is exceeded.
     pub fn export(&self) -> Result<Vec<u8>, IoError> {
+        self.export_within(TrialArtifactBudget::default())
+    }
+
+    /// [`Self::export`] under a caller-chosen artifact budget.
+    ///
+    /// # Errors
+    /// Encoding failure or `budget.max_bytes` is exceeded.
+    pub fn export_within(&self, budget: TrialArtifactBudget) -> Result<Vec<u8>, IoError> {
         let bytes = antecedent_io::to_cbor(&self.wire)?;
-        if bytes.len() > MAX_TRIAL_ARTIFACT_BYTES {
+        if bytes.len() > budget.max_bytes {
             return Err(IoError::Convert(
                 "trial confidence-set artifact byte budget exceeded".into(),
             ));
         }
         Ok(bytes)
     }
+}
+
+/// Cancellation, kept distinct from an invalid-evidence failure so a caller can tell them apart.
+fn cancelled() -> DiscoveredTransportError {
+    DiscoveredTransportError::Identification(antecedent_identify::IdentificationError::Cancelled)
 }
 
 fn confidence_set_invalid(message: impl Into<String>) -> DiscoveredTransportError {
@@ -746,7 +806,7 @@ fn confidence_set_input_identity(
     query.validate().map_err(|e| confidence_set_invalid(e.to_string()))?;
     validate_evidence_query(query)?;
     if ctx.cancellation.is_cancelled() {
-        return Err(confidence_set_invalid("cancelled"));
+        return Err(cancelled());
     }
     let ResponseFunctional::MeanCurve { outcome, treatment } = &query.response.functional else {
         return Err(confidence_set_invalid(
@@ -814,13 +874,9 @@ fn confidence_set_input_identity(
                     confidence_set_invalid("confidence-set evidence requires complete finite rows")
                 })?;
                 if ctx.cancellation.is_cancelled() {
-                    return Err(confidence_set_invalid("cancelled"));
+                    return Err(cancelled());
                 }
-                if value < 0.0
-                    || value.fract() != 0.0
-                    || value
-                        >= f64::from(super::discovered_transport_estimate::MAX_LEVELS_PER_VARIABLE)
-                {
+                if value < 0.0 || value.fract() != 0.0 || value >= f64::from(u32::MAX) {
                     return Err(confidence_set_invalid(
                         "confidence-set evidence requires supported nonnegative integer codes",
                     ));
@@ -840,7 +896,7 @@ fn confidence_set_input_identity(
 // The legacy summary detail prefers unidentified over unestimable when both occur.
 // Permit only completed scientific verdicts, never mixed provider/support/budget failures.
 fn scientific_nonidentification(refusal: &DiscoveredTransportRefusal) -> bool {
-    refusal.detail == "discovered_transport.class_not_identified"
+    refusal.detail == antecedent_core::reason_details::discovered_transport::CLASS_NOT_IDENTIFIED
         && refusal.exhausted_search_bounds == 0
         && refusal.unknown_selection_targets.is_empty()
         && !refusal.member_reasons.is_empty()
@@ -877,12 +933,12 @@ pub fn estimate_trial_compatible_transport_confidence_set(
         confidence_set_input_identity(report, query, evidence, options, support, ctx)?;
     let proof = trial_compatibility_proof(report, query, evidence, options)?;
     if ctx.cancellation.is_cancelled() {
-        return Err(confidence_set_invalid("cancelled"));
+        return Err(cancelled());
     }
     proof
-        .validate_replay_budget(evidence.limits)
+        .validate_replay_budget(evidence.limits, TrialArtifactBudget::default())
         .and_then(|_| proof.validate_with_empty(true))
-        .map_err(|e| confidence_set_invalid(e.to_string()))?;
+        .map_err(super::discovered_transport_estimate::discovered_transport_io_failure)?;
     let retained = proof.retained_members();
     let mut retained_estimate = None;
     let reason = if retained.is_empty() {
@@ -936,7 +992,7 @@ pub fn estimate_trial_compatible_transport_confidence_set(
         .as_ref()
         .map(TrialCompatibleTransportEstimate::export)
         .transpose()
-        .map_err(|e| confidence_set_invalid(e.to_string()))?;
+        .map_err(super::discovered_transport_estimate::discovered_transport_io_failure)?;
     Ok(TrialCompatibleTransportConfidenceSet {
         wire: TrialConfidenceSetWire {
             format: CONFIDENCE_SET_FORMAT.into(),
@@ -977,12 +1033,44 @@ pub fn verify_trial_compatible_transport_confidence_set_against(
     support: TransportOutcomeSupport,
     ctx: &ExecutionContext,
 ) -> Result<TrialCompatibleTransportConfidenceSet, IoError> {
+    verify_trial_compatible_transport_confidence_set_against_within(
+        bytes,
+        report,
+        query,
+        evidence,
+        options,
+        support,
+        TrialArtifactBudget::default(),
+        ctx,
+    )
+}
+
+/// [`verify_trial_compatible_transport_confidence_set_against`] under a caller-chosen
+/// artifact budget for the receipt and its embedded estimate.
+///
+/// # Errors
+/// As [`verify_trial_compatible_transport_confidence_set_against`], with the artifact bytes
+/// and original members bounded by `budget`.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "replay requires the complete original scientific request, caller bounds and decode budget"
+)]
+pub fn verify_trial_compatible_transport_confidence_set_against_within(
+    bytes: &[u8],
+    report: &DiscoveredTransportReport,
+    query: &TransportQuery,
+    evidence: &TransportEvidence<'_>,
+    options: TrialCompatibilityOptions,
+    support: TransportOutcomeSupport,
+    budget: TrialArtifactBudget,
+    ctx: &ExecutionContext,
+) -> Result<TrialCompatibleTransportConfidenceSet, IoError> {
     let bad = || {
         IoError::Convert(
             "trial confidence-set receipt does not replay against supplied inputs".into(),
         )
     };
-    if bytes.len() > MAX_TRIAL_ARTIFACT_BYTES {
+    if bytes.len() > budget.max_bytes {
         return Err(bad());
     }
     let wire: TrialConfidenceSetWire = antecedent_io::from_cbor(bytes)?;
@@ -994,11 +1082,15 @@ pub fn verify_trial_compatible_transport_confidence_set_against(
     if wire.input_identity != input || wire.support != support {
         return Err(bad());
     }
-    wire.proof.validate_replay_budget(evidence.limits)?;
+    wire.proof.validate_replay_budget(evidence.limits, budget)?;
     wire.proof.validate_with_empty(true)?;
     if let Some(estimate) = &wire.estimate {
-        let (proof, _) =
-            verify_trial_compatible_transport_estimate(estimate, evidence.limits, ctx)?;
+        let (proof, _) = verify_trial_compatible_transport_estimate_within(
+            estimate,
+            evidence.limits,
+            budget,
+            ctx,
+        )?;
         if proof != wire.proof {
             return Err(bad());
         }
@@ -1007,28 +1099,30 @@ pub fn verify_trial_compatible_transport_confidence_set_against(
         report, query, evidence, options, support, ctx,
     )
     .map_err(|_| bad())?;
-    if replay.wire != wire || replay.export()?.as_slice() != bytes {
+    if replay.wire != wire || replay.export_within(budget)?.as_slice() != bytes {
         return Err(bad());
     }
     Ok(replay)
 }
 
 fn has_directed_path(edges: &[(u32, u32)], treatment: u32, outcome: u32) -> bool {
+    let mut children: std::collections::BTreeMap<u32, Vec<u32>> = std::collections::BTreeMap::new();
+    for (from, to) in edges {
+        children.entry(*from).or_default().push(*to);
+    }
     let mut reached = std::collections::BTreeSet::from([treatment]);
-    loop {
-        let before = reached.len();
-        for (from, to) in edges {
-            if reached.contains(from) {
-                reached.insert(*to);
-            }
-        }
-        if reached.contains(&outcome) {
+    let mut stack = vec![treatment];
+    while let Some(node) = stack.pop() {
+        if node == outcome {
             return true;
         }
-        if reached.len() == before {
-            return false;
+        for child in children.get(&node).into_iter().flatten() {
+            if reached.insert(*child) {
+                stack.push(*child);
+            }
         }
     }
+    false
 }
 
 fn trial_identity(treatment: u32, outcome: u32, rows: &[[u8; 2]]) -> [u8; 32] {
@@ -1038,39 +1132,6 @@ fn trial_identity(treatment: u32, outcome: u32, rows: &[[u8; 2]]) -> [u8; 32] {
         writer.word(u64::from(*x)).word(u64::from(*y));
     }
     writer.finish()
-}
-
-#[allow(
-    clippy::cast_precision_loss,
-    reason = "all counts are bounded by one million and exactly represented as f64"
-)]
-fn fisher_exact(counts: [u64; 4]) -> Result<f64, IoError> {
-    let invalid = || IoError::Convert("invalid binary trial contingency table".into());
-    let n = counts.iter().try_fold(0u64, |sum, c| sum.checked_add(*c)).ok_or_else(invalid)?;
-    if n == 0 || n > 1_000_000 {
-        return Err(invalid());
-    }
-    let draws = counts[2] + counts[3];
-    let successes = counts[1] + counts[3];
-    let choose = |n: u64, k: u64| {
-        antecedent_stats::ln_gamma(n as f64 + 1.0)
-            - antecedent_stats::ln_gamma(k as f64 + 1.0)
-            - antecedent_stats::ln_gamma((n - k) as f64 + 1.0)
-    };
-    let log_probability =
-        |k| choose(successes, k) + choose(n - successes, draws - k) - choose(n, draws);
-    let observed = log_probability(counts[3]);
-    let lo = draws.saturating_sub(n - successes);
-    let hi = draws.min(successes);
-    let mut probability = 0.0;
-    for k in lo..=hi {
-        let log_p = log_probability(k);
-        // Include numerical ties conservatively even at the one-million-row capacity.
-        if log_p <= observed + 1e-7 {
-            probability += log_p.exp();
-        }
-    }
-    Ok(probability.min(1.0))
 }
 
 #[cfg(test)]
@@ -1636,7 +1697,7 @@ mod tests {
     fn mixed_missing_evidence_is_not_scientific_nonidentification() {
         let refusal = |reasons: Vec<&str>| DiscoveredTransportRefusal {
             code: antecedent_core::reason_code!("discovered_structure_unresolved"),
-            detail: "discovered_transport.class_not_identified",
+            detail: antecedent_core::reason_details::discovered_transport::CLASS_NOT_IDENTIFIED,
             unresolved: Vec::new(),
             exhausted_search_bounds: 0,
             unknown_selection_targets: Vec::new(),
@@ -1822,12 +1883,36 @@ mod tests {
         assert!(error.to_string().contains("byte budget"));
     }
     #[test]
+    fn a_smaller_caller_budget_refuses_before_decoding() {
+        let budget = TrialArtifactBudget { max_bytes: 8, max_members: 1 };
+        let error = verify_trial_compatible_transport_estimate_within(
+            &[0; 9],
+            ExactEvaluationLimits::default(),
+            budget,
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("byte budget"));
+        assert_eq!(TrialArtifactBudget::default().max_bytes, MAX_TRIAL_ARTIFACT_BYTES);
+    }
+    #[test]
     fn fisher_exact_matches_hand_enumerated_margin_conditioning() {
         // Margins (2,2),(2,2): masses 1/6,4/6,1/6. Extreme two-sided p=1/3.
         assert!((fisher_exact([2, 0, 0, 2]).unwrap() - 1.0 / 3.0).abs() < 1e-12);
         assert!((fisher_exact([1, 1, 1, 1]).unwrap() - 1.0).abs() < 1e-12);
         assert_eq!(fisher_exact([10, 0, 10, 0]).unwrap().to_bits(), 1.0_f64.to_bits());
         assert!(fisher_exact([0, 0, 0, 0]).is_err());
+    }
+
+    #[test]
+    fn fisher_exact_is_stable_at_the_row_capacity() {
+        let balanced = fisher_exact([250_000, 250_000, 250_000, 250_000]).unwrap();
+        assert!((balanced - 1.0).abs() < 1e-9, "{balanced}");
+        let separated = fisher_exact([500_000, 0, 0, 500_000]).unwrap();
+        assert!((0.0..1e-12).contains(&separated), "{separated}");
+        let skewed = fisher_exact([499_000, 1_000, 1_000, 499_000]).unwrap();
+        assert!((0.0..1e-12).contains(&skewed), "{skewed}");
+        assert!(fisher_exact([1_000_000, 1, 0, 0]).is_err());
     }
 
     #[test]

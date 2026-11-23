@@ -1,0 +1,224 @@
+# Describe the data and plan evidence when the effect is not identified
+
+Use this page when `ant.analyze(...)` refuses a causal query because the declared graph does
+not identify it (`effect_not_identified`, `cross_world_not_identified`) and you still need
+something to report or a way forward. The refusal is the answer to the causal question, and
+it stays so. Two things are available beside it: a description of what the observed data
+show, labelled noncausal, and the evidence that would make the causal question answerable.
+Both are opt-in through `on_refusal="describe"`, and neither replaces the refusal.
+
+```python
+import numpy as np
+import antecedent as ant
+
+rng = np.random.default_rng(11)
+z = rng.normal(size=240)
+t = (z + rng.normal(size=240) > 0).astype(float)
+data = {"z": z, "t": t, "y": 1.0 + 2.0 * t + z + rng.normal(scale=0.3, size=240)}
+
+# z -> t, z -> y, t -> y, and an unmeasured common cause of t and y (t <-> y).
+graph = ant.Admg.from_edges(
+    ["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")], [("t", "y")]
+)
+query = ant.AverageEffect("t", "y")
+
+# Default: the refusal is the answer.
+refused = ant.analyze(data, graph=graph, query=query)
+print(refused.accepted, refused.refusal.code)   # False effect_not_identified
+
+outcome = ant.analyze(data, graph=graph, query=query, on_refusal="describe")
+outcome.refusal           # the unchanged refusal (code, remedy, fields)
+outcome.associational     # a labelled-noncausal outcome: outcome.associational.answer.kind
+outcome.evidence_plan     # obligations, next actions, templates (and a ranked plan)
+print(ant.fallback.described(outcome).explain())
+```
+
+## What comes back
+
+`analyze(..., on_refusal="describe")` returns the refusal `Outcome` with the two extra parts attached only when the causal
+query is refused for identification (`effect_not_identified`, `cross_world_not_identified`). A
+query that succeeds returns its ordinary outcome. `antecedent.fallback.described(outcome)` reads the refusal,
+association and evidence plan together as an `AnalysisWithFallback` for `explain()`, `report()` and `to_dict()`. A search a budget stopped, a cancellation, a
+resource limit, an invalid argument and every data or estimation error are raised exactly as
+without the option.
+
+* `refusal` is the original refusal object, unchanged. It is the answer to the causal question.
+* `associational` is the compiled associational route
+  ([noncausal associations](#describe-the-observed-data-directly)) over the same outcome, treatment and
+  adjustment variables. The adjustment variables are chosen by a declared rule: the measured
+  parents of the treatment in the declared directed or bidirected graph, plus the query's
+  declared effect modifier. The study is built through the same compiler as any other (`Study`
+  compile, retained execution, plan view), is labelled noncausal
+  (`answer.kind == "associational"`), carries the refusal's reason code in its identification
+  layer (`refused_after`), and keeps the inference you chose (Bayesian posterior or analytic and
+  resampling standard errors, all not_measured for coverage). It ranks no action.
+* `evidence_plan` is the evidence the failure determines. `obligations` are the verified evidence
+  obligations, each with its proof step; `next_actions` are the evidence-gathering actions they
+  imply (`measure_variable:<name>`, `run_experiment:<name>`, `find_instrument`,
+  `collect_panel`); `templates` are the unfinished studies they determine. An assumption (an
+  instrument's validity, the time-invariance a panel relies on) is listed as an obligation and is
+  satisfied by no study.
+
+Each of `associational` and `evidence_plan` is either present or a `FallbackUnavailable` with a
+registered code, a stable `fallback.*` detail and the next attempt: no association form exists for
+the query kind (a counterfactual, a distribution), a variable is not measured, the data are a
+panel, the declared graph is not a directed or bidirected one, or the declared graph identifies
+the effect (so the refusal came from the estimator and no structural gap is owed). The
+details and their codes are tabulated under
+[an opt-in description beside the refusal](../reference/refusal-codes.md#an-opt-in-description-beside-the-refusal).
+
+## Ranking the options that would close the gap
+
+Declare the studies you could run and the plan ranks them. Cost, timing, recruitment and sample
+size are yours; nothing is defaulted.
+
+```python
+from antecedent import repair
+
+trial = repair.StudyCandidate.experiment(
+    "randomized trial", population="study", interventions=["t"], measured=["y"],
+    cost=9, sample_size=100, recruitment="consecutive recruitment", timing="baseline",
+    unit="patient", cost_unit="usd", sample_budget=100, feasible=True,
+)
+outcome = ant.analyze(
+    data, graph=graph, query=query, on_refusal="describe", evidence_candidates=[trial]
+)
+plan = outcome.evidence_plan.plan
+plan.best.labels, plan.best.gate     # each option is checked by the theorem of its route
+```
+
+The plan is hypothetical identification, not an estimate: the ordering is `point_only` and its
+calibration `not_measured`. Plan again over other candidates, or with a declared value and cost
+map, with `antecedent.design.evidence_plan(outcome.evidence_plan.contract, ...)`. Refusals of
+the plan itself are listed under
+[ranked evidence plans](../reference/refusal-codes.md#ranked-evidence-plans).
+
+Runnable example: [`examples/python/evidence_plan.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/evidence_plan.py)
+orders declared studies for a not-identified effect, values them net of cost and checks the
+plan against a hand computation.
+
+## What the description is not
+
+The associational result is **not an answer to the causal question.** It describes the observed
+law of the columns, with whatever confounding, selection and reverse direction that carries. It is
+not the effect of an intervention, it is not identified, and it ranks no action; a scientific
+bridge refuses it wherever a causal quantity is required. `repr`, `explain()` and `report()` of the
+described object say so, and the host record (`antecedent.host.fallback_response`) shows
+`causal_status: unsupported` beside the status of the noncausal claim.
+
+## Describe the observed data directly
+
+`CausalQuery::Association` (Rust) and `antecedent.descriptive.Association` (Python) describe how
+an outcome varies with predictors in the observed data. It answers a different question from a
+causal query. Identification is **not claimed**, the result is never the effect of an
+intervention, and it ranks no action. One quantity has support rows (family `association` of
+the [graphless support matrix](../graphless-support-matrix.md)): the slope of a linear regression
+of a real outcome on one numeric predictor, unweighted, with nothing held fixed and no row
+dropped, at 100 rows or steps or more. `result.association.supported` is true when the fit meets
+its row; the claim is the slope's uncertainty only. Every other standard error, spread and
+posterior it reports is unsupported, and the calibration label is `not_measured`.
+
+```python
+import antecedent as ant
+from antecedent.descriptive import Association
+
+result = ant.analyze(table, query=Association("y", "x"))
+result.value.association    # AssociationEstimate
+result.answer.kind          # "associational"
+```
+
+Use it when a causal query was refused and the data still describe something worth stating: pass
+`refused_after=` the refusal's reason code and the description carries the reason beside
+it; `on_refusal="describe"` on the causal call does this for you (see above). The description answers none of what the refusal declined to claim.
+
+### The selection rule
+
+The analysis is chosen by one declared, deterministic rule (`association_selection_rule`). The same
+query on the same data always picks the same analysis, and the program records it.
+
+1. **Outcome scale.** A declared `outcome_scale=` wins. Otherwise a schema `binary` column is
+   binary; a column whose observed complete values are exactly 0 and 1 is binary; a `count` or
+   unspecified column of non-negative integers is a count; every other real column is
+   continuous. A categorical, ordinal or vector outcome is refused with the next attempt (code one
+   level as a 0/1 indicator).
+2. **Functional.** `auto` reads the predictors. No predictor is the marginal law of the outcome.
+   Predictors and conditioning columns that are all discrete in the schema give the law in each
+   stratum. A numeric predictor gives the regression of the outcome scale. An explicit functional
+   is honoured.
+
+| `functional=` | Continuous outcome | 0/1 outcome | Count outcome |
+| --- | --- | --- | --- |
+| `conditional` | mean in each stratum | probability in each stratum | mean in each stratum |
+| `coefficients` | linear regression | logistic regression (log-odds) | Poisson regression (log-rate) |
+| `pearson_correlation`, `distance_correlation` | one predictor, nothing held fixed | same | same |
+| `predictive` | linear model, log score and CRPS | logistic model, Brier score | Poisson model, log score and CRPS |
+
+A predictive model is scored on held-out folds with the proper scores of the predictive
+assessment contract, beside the training-mean baseline on the same cases. A table is split by a
+seeded random assignment; a series is split into consecutive blocks. The scores are point values.
+
+### Rows or a series
+
+A table's rows are independent units (`ProgramCell` `AssociationStatic`). With
+`Association(..., temporal=True)` the rows are the consecutive points of one series
+(`AssociationTemporal`). The data modality changes the uncertainty, not the analysis:
+
+| | Table | Series |
+| --- | --- | --- |
+| Analytic standard error | leverage-adjusted sandwich with a Student-t factor (`sandwich_leverage_student`), linearised influence for strata | Newey-West error of the influence series with leverage, kernel-bias and Student-t factors |
+| `bootstrap=` | row bootstrap; the spread of a regression coefficient is the studentized (bootstrap-t) interval, a percentile range otherwise | circular-block bootstrap, block length from the outcome's own persistence; the spread is the percentile range widened by the fixed-b and kernel-bias factors |
+| Declared design | independent subjects, or none | dependent time series, or none; any other design is refused naming the next attempt |
+| Bayesian, Gaussian outcome, no `weight=` | conjugate Normal-Inverse-Gamma marginals | Bayesian bootstrap on contiguous blocks |
+| Bayesian, anything else | Bayesian bootstrap (Dirichlet row weights) | Bayesian bootstrap on contiguous blocks |
+
+The independent-error conjugate likelihood does not describe a dependent series, which is why a
+series uses the block Bayesian bootstrap whatever the outcome. The conjugate prior is weakly
+informative and scaled to the outcome (`prior_scale` in standard deviations of the outcome per
+standard deviation of a predictor).
+
+A standard error is published so that the estimate plus or minus 1.96 standard errors is the 95%
+interval of its own reference distribution. The supported slope rows are: that interval for a
+table and for a series; the studentized spread of at least 399 row-bootstrap replicates; the
+fixed-b spread of at least 399 circular-block replicates; the conjugate posterior interval of a
+table, when the prior moves the slope by at most a hundredth of its posterior standard deviation;
+and the block Bayesian bootstrap interval of a series with at least 400 draws. Series coverage
+was measured at AR(1) persistence 0.5; stronger dependence is not checked. Stratified laws,
+logistic and Poisson coefficients, correlations, predictive models, several predictors, weighted
+rows and the Bayesian bootstrap of a table have no row.
+
+### What it will not do
+
+An association is refused wherever a causal quantity is required: the claim kind is
+`associational`, the contract states identification as `not_claimed`, a scientific bridge refuses
+it as a source (`association_as_intervention`), and a decision or experiment-planning goal over it
+is refused. It is no substitute for an identified effect, and a good predictive score is not
+evidence of a causal relation. The assumptions it carries say so beside every number:
+`descriptive_only`, `no_confounding_adjustment`, the sampling premise of its modality, and
+`uncalibrated_uncertainty` (outside the supported slope rows no coverage record measures the
+reported uncertainty).
+
+## From Rust
+
+```rust
+use antecedent::analysis::fallback::{FallbackOutcome, FallbackRequest};
+
+match study.analyze_with_fallback(&FallbackRequest::default(), &ctx)? {
+    FallbackOutcome::Causal(result) => { /* the ordinary result */ }
+    FallbackOutcome::Described(fallback) => {
+        // fallback.refusal, fallback.associational, fallback.evidence
+        println!("{}", antecedent::report::render_fallback_report(
+            &fallback, antecedent::report::ReportFormat::Markdown));
+    }
+    _ => {}
+}
+```
+
+Pass `FallbackRequest { evidence: Some(request) }` to rank declared studies. Any other error
+(`CausalError::Cancelled`, a resource limit, a capped search) is returned as the error it is.
+
+## Where next
+
+* [Recover from refusals](refusal-recipes.md) for the general refusal-handling pattern.
+* [Rank further studies](../design-ranking.md) for valuing candidate studies against a decision.
+* [Compare raw and adjusted estimates](descriptive-comparison.md) for the other descriptive
+  computations in `antecedent.descriptive`.

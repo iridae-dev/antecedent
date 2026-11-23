@@ -16,7 +16,7 @@
 //! recomputed from the evaluated numbers), so a refreshed set with the same
 //! decision reports the same invariances.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -123,7 +123,7 @@ impl ScenarioSetInvarianceReport {
 }
 
 fn refuse(error: &InvarianceReportError) -> EstimationError {
-    EstimationError::refused(error.code, format!("{}: {}", error.detail, error.message))
+    EstimationError::refused_detail(error.code, error.detail, &error.message)
 }
 
 /// Build the invariance reports of a decided scenario set beside its evaluated

@@ -5,11 +5,11 @@
 //! is that function; the per-procedure conversions it dispatches to are pure
 //! readers of the checked preparation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
-use antecedent_core::CausalQuery;
+use antecedent_core::{CausalQuery, Intervention, TargetPopulation, Value, VariableId};
 use antecedent_io::{
     CheckedAipwLoweringWire, CheckedFrontDoorLoweringWire, CheckedFunctionalResponseGridWire,
     CheckedFunctionalResponseMemberWire, CheckedIvLoweringWire,
@@ -26,8 +26,11 @@ use crate::support::StructureSource;
 
 use super::super::execute::Study;
 use super::super::prepared::CheckedProgramBinding;
-use super::{data_schema, io_err, overlap_policy_tag};
+use super::{DataInput, data_schema, io_err, missing_data, overlap_policy_tag};
 use antecedent_identify::IdentificationResult;
+use antecedent_io_core::{
+    CHECKED_DR_LOWERING_FORMAT, CHECKED_DR_PROCEDURE, CheckedDrLoweringWire, CheckedLearnerWire,
+};
 
 /// The estimator and query a checked binding is only valid for.
 ///
@@ -53,7 +56,12 @@ pub(super) fn binding_agrees(
         }
         CheckedProgramBinding::FunctionalEffect(_) => {
             selected == Some(EstimatorId::FunctionalEffect)
-                && matches!(query, CausalQuery::AverageEffect(_) | CausalQuery::PathSpecific(_))
+                && matches!(
+                    query,
+                    CausalQuery::AverageEffect(_)
+                        | CausalQuery::PathSpecific(_)
+                        | CausalQuery::ConditionalEffect(_)
+                )
         }
         CheckedProgramBinding::FunctionalResponse(_) => {
             selected == Some(EstimatorId::FunctionalEffect)
@@ -110,7 +118,7 @@ impl ProgramLowerings {
                 lowerings.iv = Some(wire);
             }
             CheckedProgramBinding::Linear(operation) => {
-                if linear_lowering_licensed(study, resolved_estimator) {
+                if linear_lowering_supported(study, resolved_estimator) {
                     let (wire, se_kind) = linear_adjustment_lowering(operation, commitments)?;
                     commitments.se_kind = Some(se_kind);
                     lowerings.linear_adjustment = Some(wire);
@@ -137,6 +145,113 @@ impl ProgramLowerings {
     }
 }
 
+/// The estimator a DR-learner study executes: the configured one verbatim, or the default
+/// one with the study's declared overlap policy, exactly as the static executor builds it.
+///
+/// A configured estimator owns its overlap policy, so a study that also declares a different
+/// one has no single executed configuration.
+fn executed_dr_learner(study: &Study) -> Option<antecedent_estimate::DrLearner> {
+    use crate::estimator_spec::EstimatorSpec;
+    let declared_overlap = study.declared.overlap_policy;
+    match study.declared.estimator_spec.as_deref() {
+        Some(EstimatorSpec::DrLearner(config)) => {
+            if declared_overlap.is_some_and(|policy| policy != config.overlap) {
+                return None;
+            }
+            Some((**config).clone())
+        }
+        Some(EstimatorSpec::Default(EstimatorId::DrLearner)) | None
+            if study.declared.estimator == Some(EstimatorId::DrLearner) =>
+        {
+            let mut learner = antecedent_estimate::DrLearner::new();
+            if let Some(policy) = declared_overlap {
+                learner.overlap = policy;
+            }
+            Some(learner)
+        }
+        _ => None,
+    }
+}
+
+/// Whether `intervention` assigns exactly `level` to `variable`.
+fn assigns_level(intervention: &Intervention, variable: VariableId, level: f64) -> bool {
+    matches!(
+        intervention,
+        Intervention::Set { variable: assigned, value: Value::Float64(value), .. }
+            if *assigned == variable && value.to_bits() == level.to_bits()
+    )
+}
+
+/// The declaration of a cross-fitted DR-learner execution an independent verifier can replay
+/// from the complete source table, or `None` for every execution outside that operation.
+///
+/// Supported: a plain tabular study over an explicit or accepted DAG, frequentist, with an
+/// all-observed mean contrast of a treatment coded exactly 0/1 and no effect modifiers, no
+/// declared sampling design, participants, population registry or missing-data policy, and a
+/// configured estimator that is unweighted, declares no independence units and uses only
+/// learners with a canonical wire form. The settings are read from the executed estimator
+/// ([`executed_dr_learner`]) and the identified estimand the executor selects, never from
+/// defaults; the master seed of the fold plan is an execution fact the result body records.
+pub(super) fn dr_lowering(
+    study: &Study,
+    cached: Option<&IdentificationResult>,
+    binding: CheckedProgramBinding<'_>,
+    selected: Option<EstimatorId>,
+) -> Option<CheckedDrLoweringWire> {
+    if selected != Some(EstimatorId::DrLearner) || !matches!(binding, CheckedProgramBinding::None) {
+        return None;
+    }
+    let CausalQuery::AverageEffect(query) = &study.query else { return None };
+    let declared = &study.declared;
+    if !matches!(study.data, DataInput::Tabular(_))
+        || study.graph.class() != GraphClass::Dag
+        || !matches!(study.structure_source, StructureSource::Explicit | StructureSource::Accepted)
+        || !matches!(study.settings.inference, InferenceMode::Frequentist)
+        || !matches!(query.target_population, TargetPopulation::AllObserved)
+        || !query.outcome_functional.is_mean()
+        || !query.effect_modifiers.is_empty()
+        || !assigns_level(&query.control, query.treatment, 0.0)
+        || !assigns_level(&query.active, query.treatment, 1.0)
+        || missing_data::policy_wire(study).is_some()
+        || declared.sampling_design.is_some()
+        || declared.participants.is_some()
+        || declared.population_registry.is_some()
+        || declared.tiered.is_some()
+        || study.interference.is_some()
+    {
+        return None;
+    }
+    let learner = executed_dr_learner(study)?;
+    if learner.units.spec.is_some() || learner.sampling_weights.is_some() {
+        return None;
+    }
+    let overlap = learner.overlap.replay_overlap()?;
+    let estimand = crate::strategy_table::select_estimand(cached?, EstimatorId::DrLearner).ok()?;
+    if !estimand.is_adjustment_shaped()
+        || !estimand.instruments.is_empty()
+        || !estimand.mediators.is_empty()
+    {
+        return None;
+    }
+    Some(CheckedDrLoweringWire {
+        format: CHECKED_DR_LOWERING_FORMAT,
+        treatment: query.treatment.raw(),
+        outcome: query.outcome.raw(),
+        adjustment: estimand.adjustment_set.iter().map(|id| id.raw()).collect(),
+        population: "all_observed".into(),
+        procedure: CHECKED_DR_PROCEDURE.into(),
+        folds: u64::try_from(learner.folds).ok()?,
+        outcome_learner: CheckedLearnerWire::from_spec(learner.outcome)?,
+        treatment_learner: CheckedLearnerWire::from_spec(learner.treatment)?,
+        final_learner: CheckedLearnerWire::from_spec(learner.final_learner)?,
+        overlap_clip_bits: overlap.clip.map(f64::to_bits),
+        overlap_trim_bits: overlap.trim.map(f64::to_bits),
+        overlap_declared: overlap.declared,
+        active_level_above_control: true,
+        intercept: true,
+    })
+}
+
 fn se_lag(se_kind: antecedent_estimate::AnalyticSeKind) -> Option<u64> {
     match se_kind {
         antecedent_estimate::AnalyticSeKind::NeweyWest { lag }
@@ -161,7 +276,7 @@ fn aipw_lowering(
         se_kind: lowering.se_kind.as_str().into(),
         se_lag: se_lag(lowering.se_kind),
         bootstrap_replicates: lowering.bootstrap_replicates,
-        trim_bits: match lowering.overlap {
+        trim_bits: match lowering.overlap.canonical() {
             antecedent_estimate::OverlapPolicy::RequireDiagnostics { trim: Some(trim), .. } => {
                 Some(trim.to_bits())
             }
@@ -217,7 +332,7 @@ fn iv_lowering(
         if lowering.se_kind == antecedent_estimate::AnalyticSeKind::Homoskedastic {
             "anderson_rubin_if_weak"
         } else {
-            "withheld_non_homoskedastic"
+            "robust_se_without_weak_instrument_interval"
         };
     let wire = CheckedIvLoweringWire {
         format: 1,
@@ -240,11 +355,11 @@ fn iv_lowering(
 
 /// The linear adjustment lowering is a program commitment only for the
 /// frequentist route over an explicit or accepted DAG.
-fn linear_lowering_licensed(study: &Study, resolved_estimator: Option<&str>) -> bool {
+fn linear_lowering_supported(study: &Study, resolved_estimator: Option<&str>) -> bool {
     resolved_estimator == Some("linear.adjustment.ate")
         && study.graph.class() == GraphClass::Dag
         && matches!(study.structure_source, StructureSource::Explicit | StructureSource::Accepted)
-        && matches!(study.inference, InferenceMode::Frequentist)
+        && matches!(study.settings.inference, InferenceMode::Frequentist)
 }
 
 fn linear_adjustment_lowering(
@@ -272,7 +387,7 @@ fn linear_adjustment_lowering(
             DesignColumnRole::Covariate(id) => format!("covariate:{}", id.raw()),
         })
         .collect();
-    let se_kind = operation.fitter.se_kind;
+    let se_kind = operation.fitter.inference.se_kind;
     let wire = CheckedLinearAdjustmentLoweringWire {
         format: 1,
         functional: lowering.source.raw(),
@@ -289,7 +404,7 @@ fn linear_adjustment_lowering(
         backend: "faer".into(),
         se_kind: se_kind.as_str().into(),
         se_lag: se_lag(se_kind),
-        bootstrap_replicates: operation.fitter.bootstrap_replicates,
+        bootstrap_replicates: operation.fitter.inference.bootstrap_replicates,
         interval_method: commitments.interval_method.clone(),
         complete_case_rows: problem.design.nrows as u64,
         arena: antecedent_io::expr_arena_to_wire(checked.program().arena())
@@ -346,39 +461,47 @@ pub(super) fn functional_program(
     let wire = |program: &antecedent_expr::FunctionalProgram| {
         functional_program_to_wire(program).map_err(|error| io_err(&error))
     };
+    let derived = |estimator: EstimatorId| {
+        cached
+            .map(|identification| {
+                let estimand = crate::strategy_table::select_estimand(identification, estimator)?;
+                let program_schema = antecedent_expr::ProgramSchema::new(
+                    data_schema(&study.data).variables().iter().map(|variable| {
+                        (
+                            variable.id,
+                            antecedent_expr::ProgramVariable { name: Arc::clone(&variable.name) },
+                        )
+                    }),
+                );
+                let program = antecedent_expr::FunctionalProgram::new(
+                    identification.arena.clone(),
+                    program_schema,
+                    estimand.functional,
+                    estimand.functional,
+                    antecedent_expr::ProgramLimits::default(),
+                )?;
+                wire(&program)
+            })
+            .transpose()
+    };
     match selected {
         Some(EstimatorId::FunctionalEffect) => match binding {
             CheckedProgramBinding::FunctionalEffect(program) => wire(program).map(Some),
+            // A path-restricted effect executed through the lowered route retains no
+            // operation of its own; its program is the identified functional.
+            CheckedProgramBinding::None
+                if matches!(
+                    study.query,
+                    CausalQuery::PathSpecific(_) | CausalQuery::NestedCounterfactual(_)
+                ) =>
+            {
+                derived(EstimatorId::FunctionalEffect)
+            }
             _ => Ok(None),
         },
         Some(EstimatorId::FunctionalDistribution) => match binding {
             CheckedProgramBinding::Distribution(program) => wire(program).map(Some),
-            _ => cached
-                .map(|identification| {
-                    let estimand = crate::strategy_table::select_estimand(
-                        identification,
-                        EstimatorId::FunctionalDistribution,
-                    )?;
-                    let program_schema = antecedent_expr::ProgramSchema::new(
-                        data_schema(&study.data).variables().iter().map(|variable| {
-                            (
-                                variable.id,
-                                antecedent_expr::ProgramVariable {
-                                    name: Arc::clone(&variable.name),
-                                },
-                            )
-                        }),
-                    );
-                    let program = antecedent_expr::FunctionalProgram::new(
-                        identification.arena.clone(),
-                        program_schema,
-                        estimand.functional,
-                        estimand.functional,
-                        antecedent_expr::ProgramLimits::default(),
-                    )?;
-                    wire(&program)
-                })
-                .transpose(),
+            _ => derived(EstimatorId::FunctionalDistribution),
         },
         _ => Ok(None),
     }

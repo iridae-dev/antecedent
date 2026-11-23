@@ -10,17 +10,23 @@
 //!    the one requested (a proxy is never the construct), that the population,
 //!    regime, arm and representation of the analysis are the ones the model
 //!    was established for, that the declared error structure is the one the
-//!    analysis assumes, and that the route licenses the downstream operation.
+//!    analysis assumes, and that the route supports the downstream operation.
 //!    These are `antecedent_contract::measurement` checks; the data's own
 //!    binding is derived from the same fields, so the two cannot disagree.
 //! 2. **Estimate** ([`PreparedMeasurementModel::estimate`]) runs the corrected
 //!    functional of `antecedent_estimate::measurement` and keeps the result
 //!    bound to the model identity. The standard error is an uncalibrated
 //!    delta-method estimate that includes the uncertainty of the estimated
-//!    measurement parameters where the record says it was propagated. No
-//!    interval is produced: [`MeasurementEstimate::interval`] refuses with
-//!    `cell_not_licensed` until the whole measurement-plus-estimation method
-//!    has a measured coverage record.
+//!    measurement parameters where the record says it was propagated.
+//!    [`MeasurementEstimate::interval`] forms the equal-tailed Wald interval
+//!    `point -/+ z * standard_error` for a level in `(0, 1)`; its coverage is
+//!    not measured, so the interval carries no calibrated status. A bad level
+//!    refuses with `invalid_argument` (`measurement_model.interval_level`) and a
+//!    record without a standard error with `route_not_supported`
+//!    (`measurement_model.interval_requires_estimate`).
+//!    [`PreparedMeasurementModel::interval`] always refuses
+//!    (`uncertainty_representation_insufficient`): a prepared model holds no
+//!    corrected value to put an interval around.
 //! 3. **Export** ([`MeasurementEstimate::export`]) writes the model, its
 //!    identities and the result with its sufficient inputs.
 //! 4. **Consume** ([`consume_measurement_model_artifact`]) recomputes the
@@ -58,7 +64,9 @@
 //! intervention meaning unless it declares the evidence for it, and the
 //! coordinates of a learned vector representation are not intervenable.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::fmt::Write as _;
 
 use antecedent_contract::measurement::{
     LatentPosteriorTrust, MeasurementOperation, MeasurementRequest, check_latent_posterior,
@@ -80,7 +88,7 @@ use antecedent_estimate::measurement::{
     DataBinding, LinearMeasuredData, MeasurementError, PosteriorCombination, PosteriorLinearData,
     RiskDifferenceInput, correct_binary_prevalence, correct_binary_risk_difference,
     correct_categorical, correct_classical_linear_effect, correct_latent_posterior_linear_effect,
-    correct_repeated_linear_effect, interval_not_licensed,
+    correct_repeated_linear_effect,
 };
 use antecedent_io::IoError;
 use antecedent_io::measurement_model_wire::{
@@ -93,16 +101,16 @@ use super::StudyBuilder;
 
 /// One refusal as plain data: registered reason code, namespaced
 /// `measurement_model.*` detail and the explanation of what was refused and
-/// what would license it.
+/// what would support it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MeasurementModelRefusal {
     /// Registered runtime reason code.
     pub code: &'static str,
     /// Namespaced detail, `measurement_model.<slot>`.
     pub detail: String,
-    /// What was refused and what would license it.
+    /// What was refused and what would support it.
     pub message: String,
-    /// The declaration or evidence that would license the request, when known.
+    /// The declaration or evidence that would support the request, when known.
     pub remedy: Option<String>,
 }
 
@@ -149,16 +157,16 @@ impl MeasurementModelRefusal {
     fn from_contract(refusal: &ExternalRefusal) -> Self {
         let mut message = format!("refused at stage `{}`", refusal.stage);
         if let Some(offending) = &refusal.offending {
-            message.push_str(&format!("; offending `{offending}`"));
+            let _ = write!(message, "; offending `{offending}`");
         }
         if let Some(expected) = &refusal.expected {
-            message.push_str(&format!("; expected `{expected}`"));
+            let _ = write!(message, "; expected `{expected}`");
         }
         if let Some(supplied) = &refusal.supplied {
-            message.push_str(&format!("; supplied `{supplied}`"));
+            let _ = write!(message, "; supplied `{supplied}`");
         }
         if let Some(remedy) = refusal.remedy {
-            message.push_str(&format!("; {remedy}"));
+            let _ = write!(message, "; {remedy}");
         }
         Self {
             code: refusal.code,
@@ -176,13 +184,15 @@ impl MeasurementModelRefusal {
         match error {
             IoError::Refused { message, .. } => Self {
                 code: antecedent_core::reason_code!("measurement_binding_mismatch"),
-                detail: "measurement_model.artifact_refused".to_owned(),
+                detail: antecedent_core::reason_details::measurement_model::ARTIFACT_REFUSED
+                    .to_owned(),
                 message: message.clone(),
                 remedy: None,
             },
             other => Self {
                 code: antecedent_core::reason_code!("invalid_argument"),
-                detail: "measurement_model.artifact_invalid".to_owned(),
+                detail: antecedent_core::reason_details::measurement_model::ARTIFACT_INVALID
+                    .to_owned(),
                 message: other.to_string(),
                 remedy: None,
             },
@@ -192,7 +202,7 @@ impl MeasurementModelRefusal {
     fn cancelled() -> Self {
         Self {
             code: antecedent_core::reason_code!("cancelled_no_claim"),
-            detail: "measurement_model.cancelled".to_owned(),
+            detail: antecedent_core::reason_details::measurement_model::CANCELLED.to_owned(),
             message: "cancelled before a corrected functional was formed; this is not a verdict on the data"
                 .to_owned(),
             remedy: None,
@@ -507,7 +517,8 @@ fn check_provider(
     match (model.route, provider) {
         (MeasurementRoute::ExternalLatentPosterior, None) => Err(MeasurementModelRefusal {
             code: antecedent_core::reason_code!("measurement_posterior_not_trusted"),
-            detail: "measurement_model.posterior_identity".to_owned(),
+            detail: antecedent_core::reason_details::measurement_model::POSTERIOR_IDENTITY
+                .to_owned(),
             message: "the model names an external provider posterior and none was supplied; \
                       supply the exact provider object with an attestation or verification receipt"
                 .to_owned(),
@@ -528,7 +539,7 @@ impl StudyBuilder {
     /// the measured column is never offered in its place; the population,
     /// regime, arm and representation match (a changed representation needs
     /// the explicit mapping on `binding`); the assumed error structure is the
-    /// declared one; the route licenses the operation `input` enters; and, for
+    /// declared one; the route supports the operation `input` enters; and, for
     /// the posterior route, the provider object is the exact one the model
     /// names and is attested or verified, never natively trusted.
     ///
@@ -547,6 +558,41 @@ impl StudyBuilder {
         let trust = check_provider(&model, provider)?;
         Ok(PreparedMeasurementModel { model, binding, input, trust })
     }
+}
+
+type MeasurementParts = (CorrectedFunctionalRecord, MeasurementReplay, MeasurementDetail);
+
+fn linear_measurement_parts(effect: CorrectedLinearEffect) -> MeasurementParts {
+    let replay =
+        MeasurementReplay::Linear { moments: effect.moments.clone(), coefficient_index: 1 };
+    (effect.record.clone(), replay, MeasurementDetail::Linear(effect))
+}
+
+fn posterior_measurement_parts(
+    effect: CorrectedPosteriorLinearEffect,
+) -> Result<MeasurementParts, MeasurementModelRefusal> {
+    let replay = match (effect.combination, &effect.imputations, &effect.moments) {
+        (PosteriorCombination::MultipleImputation, Some(combined), _) => {
+            MeasurementReplay::MultipleImputation {
+                coefficients: combined.draw_coefficients.clone(),
+                covariances: combined.draw_covariances.clone(),
+                coefficient_index: 1,
+            }
+        }
+        (_, _, Some(moments)) => {
+            MeasurementReplay::Linear { moments: moments.clone(), coefficient_index: 1 }
+        }
+        _ => {
+            return Err(MeasurementModelRefusal {
+                code: antecedent_core::reason_code!("invalid_argument"),
+                detail: antecedent_core::reason_details::measurement_model::INPUT_INVALID
+                    .to_owned(),
+                message: "the posterior route returned no replayable inputs".to_owned(),
+                remedy: None,
+            });
+        }
+    };
+    Ok((effect.record.clone(), replay, MeasurementDetail::PosteriorLinear(effect)))
 }
 
 impl PreparedMeasurementModel {
@@ -599,10 +645,10 @@ impl PreparedMeasurementModel {
         route_card(self.model.route)
     }
 
-    /// Whether the route licenses `operation` for this binding.
+    /// Whether the route supports `operation` for this binding.
     ///
     /// # Errors
-    /// The coded refusal naming what would license the operation. Conditioning
+    /// The coded refusal naming what would support the operation. Conditioning
     /// on the construct inside an identification proof, intervening on the
     /// representation, transporting to another population, a nonlinear outcome
     /// model and an interval are refused for every route.
@@ -613,13 +659,18 @@ impl PreparedMeasurementModel {
         check_request(&self.model, &self.binding, operation)
     }
 
-    /// An interval for the corrected functional.
+    /// An interval for the corrected functional of a prepared model, before any data.
     ///
     /// # Errors
-    /// Always `cell_not_licensed`: no coverage record measures the whole
-    /// measurement-plus-estimation method.
+    /// Always `uncertainty_representation_insufficient`: a prepared model holds no
+    /// corrected value to put an interval around; ask the estimate for its interval.
     pub fn interval(&self) -> Result<std::convert::Infallible, MeasurementModelRefusal> {
-        Err(MeasurementModelRefusal::from_estimate(&interval_not_licensed()))
+        Err(MeasurementModelRefusal {
+            code: antecedent_core::reason_code!("uncertainty_representation_insufficient"),
+            detail: antecedent_core::reason_details::measurement_model::INTERVAL_REQUIRES_ESTIMATE.to_owned(),
+            message: "a prepared measurement model carries no corrected functional; request the interval from the estimate".to_owned(),
+            remedy: None,
+        })
     }
 
     /// Form the corrected functional from the retained data.
@@ -666,11 +717,7 @@ impl PreparedMeasurementModel {
                 let effect =
                     correct_classical_linear_effect(&self.model, &data_binding, &data, ctx)
                         .map_err(from_estimate)?;
-                let replay = MeasurementReplay::Linear {
-                    moments: effect.moments.clone(),
-                    coefficient_index: 1,
-                };
-                (effect.record.clone(), replay, MeasurementDetail::Linear(effect))
+                linear_measurement_parts(effect)
             }
             MeasurementInput::RepeatedLinear {
                 outcome,
@@ -690,11 +737,7 @@ impl PreparedMeasurementModel {
                     ctx,
                 )
                 .map_err(from_estimate)?;
-                let replay = MeasurementReplay::Linear {
-                    moments: effect.moments.clone(),
-                    coefficient_index: 1,
-                };
-                (effect.record.clone(), replay, MeasurementDetail::Linear(effect))
+                linear_measurement_parts(effect)
             }
             MeasurementInput::BinaryPrevalence { events, total } => {
                 let corrected =
@@ -753,27 +796,7 @@ impl PreparedMeasurementModel {
                 let effect =
                     correct_latent_posterior_linear_effect(&self.model, &data_binding, &data, ctx)
                         .map_err(from_estimate)?;
-                let replay = match (effect.combination, &effect.imputations, &effect.moments) {
-                    (PosteriorCombination::MultipleImputation, Some(combined), _) => {
-                        MeasurementReplay::MultipleImputation {
-                            coefficients: combined.draw_coefficients.clone(),
-                            covariances: combined.draw_covariances.clone(),
-                            coefficient_index: 1,
-                        }
-                    }
-                    (_, _, Some(moments)) => {
-                        MeasurementReplay::Linear { moments: moments.clone(), coefficient_index: 1 }
-                    }
-                    _ => {
-                        return Err(MeasurementModelRefusal {
-                            code: antecedent_core::reason_code!("invalid_argument"),
-                            detail: "measurement_model.input_invalid".to_owned(),
-                            message: "the posterior route returned no replayable inputs".to_owned(),
-                            remedy: None,
-                        });
-                    }
-                };
-                (effect.record.clone(), replay, MeasurementDetail::PosteriorLinear(effect))
+                posterior_measurement_parts(effect)?
             }
         };
         Ok(MeasurementEstimate {
@@ -807,7 +830,8 @@ impl PreparedMeasurementModel {
         if !self.input.same_question(&input) {
             return Err(MeasurementModelRefusal {
                 code: antecedent_core::reason_code!("route_not_supported"),
-                detail: "measurement_model.route_mismatch".to_owned(),
+                detail: antecedent_core::reason_details::measurement_model::ROUTE_MISMATCH
+                    .to_owned(),
                 message: "refresh keeps the question: new data of another route family, \
                           functional or arm pair is a different request and needs a new preparation"
                     .to_owned(),
@@ -847,7 +871,8 @@ impl PreparedMeasurementModel {
         if parameters.route() != self.model.route {
             return Err(MeasurementModelRefusal {
                 code: antecedent_core::reason_code!("route_not_supported"),
-                detail: "measurement_model.route_mismatch".to_owned(),
+                detail: antecedent_core::reason_details::measurement_model::ROUTE_MISMATCH
+                    .to_owned(),
                 message: format!(
                     "the model declares route `{}`; the supplied parameters belong to `{}`",
                     self.model.route.as_str(),
@@ -860,19 +885,19 @@ impl PreparedMeasurementModel {
             MeasurementParameters::ExternalPosterior { reference: old, .. },
             MeasurementParameters::ExternalPosterior { reference: new, .. },
         ) = (&self.model.parameters, &parameters)
+            && old != new
         {
-            if old != new {
-                return Err(MeasurementModelRefusal {
-                    code: antecedent_core::reason_code!("measurement_posterior_not_trusted"),
-                    detail: "measurement_model.posterior_identity".to_owned(),
-                    message: format!(
-                        "the provider object changed from `{}/{}` to `{}/{}`; the new object needs \
+            return Err(MeasurementModelRefusal {
+                code: antecedent_core::reason_code!("measurement_posterior_not_trusted"),
+                detail: antecedent_core::reason_details::measurement_model::POSTERIOR_IDENTITY
+                    .to_owned(),
+                message: format!(
+                    "the provider object changed from `{}/{}` to `{}/{}`; the new object needs \
                          its own attestation or verification through a new preparation",
-                        old.provider_id, old.object_id, new.provider_id, new.object_id
-                    ),
-                    remedy: Some("supply the exact provider object the model names".to_owned()),
-                });
-            }
+                    old.provider_id, old.object_id, new.provider_id, new.object_id
+                ),
+                remedy: Some("supply the exact provider object the model names".to_owned()),
+            });
         }
         let mut model = self.model.clone();
         model.parameters = parameters;
@@ -921,7 +946,7 @@ impl MeasurementEstimate {
     }
 
     /// The delta-method standard error. It is uncalibrated: no coverage has
-    /// been measured and no interval follows from it.
+    /// been measured, so a Wald interval formed from it has no calibrated status.
     #[must_use]
     pub const fn standard_error(&self) -> Option<f64> {
         self.record.standard_error
@@ -971,12 +996,14 @@ impl MeasurementEstimate {
         self.binding.representation_mapping.as_ref().map(|m| m.mapping_id.as_str())
     }
 
-    /// An interval for the corrected functional.
+    /// The equal-tailed Wald interval of the corrected functional at `level`
+    /// (`antecedent_estimate::corrected_functional_interval`).
     ///
     /// # Errors
-    /// Always `cell_not_licensed` with `measurement_model.interval_closed`.
-    pub fn interval(&self) -> Result<std::convert::Infallible, MeasurementModelRefusal> {
-        Err(MeasurementModelRefusal::from_estimate(&interval_not_licensed()))
+    /// The estimate's refusal: a record without a standard error, or a level outside `(0, 1)`.
+    pub fn interval(&self, level: f64) -> Result<(f64, f64), MeasurementModelRefusal> {
+        antecedent_estimate::measurement::corrected_functional_interval(&self.record, level)
+            .map_err(|error| MeasurementModelRefusal::from_estimate(&error))
     }
 
     /// Value and variance of a linear functional of the corrected coefficient
@@ -1006,7 +1033,8 @@ impl MeasurementEstimate {
                 if weights.len() != d || weights.iter().any(|w| !w.is_finite()) {
                     return Err(MeasurementModelRefusal {
                         code: antecedent_core::reason_code!("invalid_argument"),
-                        detail: "measurement_model.input_invalid".to_owned(),
+                        detail: antecedent_core::reason_details::measurement_model::INPUT_INVALID
+                            .to_owned(),
                         message: "functional weights do not match the design".to_owned(),
                         remedy: None,
                     });
@@ -1021,8 +1049,9 @@ impl MeasurementEstimate {
                 Ok((value, variance))
             }
             _ => Err(MeasurementModelRefusal {
-                code: antecedent_core::reason_code!("cell_not_licensed"),
-                detail: "measurement_model.operation_not_licensed".to_owned(),
+                code: antecedent_core::reason_code!("route_not_supported"),
+                detail: antecedent_core::reason_details::measurement_model::OPERATION_NOT_SUPPORTED
+                    .to_owned(),
                 message: "this route has no coefficient vector to take a functional of".to_owned(),
                 remedy: None,
             }),

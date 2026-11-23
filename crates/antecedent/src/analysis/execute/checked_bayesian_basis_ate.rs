@@ -9,15 +9,18 @@ use super::{
     ExecutionContext, GraphClass, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
     IdentifiedResultContext, IdentifierId, InferenceMode, Instant, PhysicalExecutionPlan, Strategy,
     StudyResult, TableView, TabularData, bayesian_draw_count, elapsed_ns,
-    finish_identified_execute_with_context, identify_static_query, project_for_ate_estimate,
-    select_claim,
+    finish_identified_execute_with_context, project_for_ate_estimate, select_claim,
 };
 use crate::analysis::prepared::Inspect;
-use crate::analysis::proof_support::{proof_supplies, verify_proof_against_graph};
+use crate::analysis::proof_support::{
+    RetainedProof, proof_supplies, verify_proof_against_graph, verify_retained_static,
+};
 use antecedent_core::{TargetPopulation, VariableId};
 use antecedent_learn::{BasisTargetPopulation, BayesianBasisGComputation, BayesianBasisSpec};
 
-/// The checked graph proof, target, prior and physical plan for the licensed basis ATE.
+const PROOF_REFUSED: &str = "Bayesian basis proof is not justified by its retained graph";
+
+/// The checked graph proof, target, prior and physical plan for the supported basis ATE.
 #[derive(Clone)]
 pub(crate) struct CheckedBayesianBasisAteExecution {
     graph: Dag,
@@ -73,8 +76,9 @@ impl CheckedBayesianBasisAteExecution {
         cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
         inference: InferenceMode,
         context: IdentifiedResultContext,
-        physical: std::sync::Arc<PhysicalExecutionPlan>,
+        compilation: crate::analysis::proof_support::CheckedCompileContext<'_>,
     ) -> Result<Self, CausalError> {
+        let crate::analysis::proof_support::CheckedCompileContext { physical, ctx } = compilation;
         let (identification, estimand) = (&cache.identification, &cache.estimand);
         let CausalQuery::AverageEffect(target) = &context.query else {
             return Err(CausalError::Compile {
@@ -106,9 +110,9 @@ impl CheckedBayesianBasisAteExecution {
             });
         }
         let InferenceMode::Bayesian(config) = inference else {
-            return Err(CausalError::Unsupported {
-                message: "bayesian.basis.gcomp requires inference=Bayesian",
-            });
+            return Err(CausalError::unsupported_inference(
+                "bayesian.basis.gcomp requires inference=Bayesian",
+            ));
         };
         if config.likelihood != antecedent_prob::BayesLikelihood::GaussianIdentity
             || config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
@@ -127,21 +131,28 @@ impl CheckedBayesianBasisAteExecution {
                 message: "Bayesian basis estimand is not supplied by its retained proof".into(),
             });
         }
-        let (checked_identification, checked_estimand) = select_claim(
-            identify_static_query(
-                IdentifierId::BackdoorAdjustment,
-                graph,
-                &CausalQuery::AverageEffect(query.clone()),
-            )?,
-            EstimatorId::BayesianBasisGcomp,
-        )?;
-        verify_proof_against_graph(
-            &checked_identification,
-            &checked_estimand,
-            identification,
-            estimand,
-            "Bayesian basis proof is not justified by its retained graph",
-        )?;
+
+        if verify_retained_static(&physical, identification, estimand, PROOF_REFUSED)?
+            == RetainedProof::NotRetained
+        {
+            let (checked_identification, checked_estimand) = select_claim(
+                crate::strategy_table::identify_static_query_in_context(
+                    IdentifierId::BackdoorAdjustment,
+                    graph,
+                    &CausalQuery::AverageEffect(query.clone()),
+                    None,
+                    Some(ctx),
+                )?,
+                EstimatorId::BayesianBasisGcomp,
+            )?;
+            verify_proof_against_graph(
+                &checked_identification,
+                &checked_estimand,
+                identification,
+                estimand,
+                PROOF_REFUSED,
+            )?;
+        }
         Ok(Self {
             graph: graph.clone(),
             query,
@@ -197,7 +208,6 @@ impl CheckedBayesianBasisAteExecution {
                 outcome: query_est.outcome,
                 adjustment_set: &estimand_est.adjustment_set,
             },
-            "bayesian.basis.gcomp row index exceeds row id capacity",
         )?;
         let model = BayesianBasisGComputation;
         let fit = model.fit(

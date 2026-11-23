@@ -4,7 +4,7 @@
 //! first missing cell and the policies it can execute, so the caller sees exactly what to
 //! declare. A declared policy the route cannot execute is refused the same way.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_data::{MissingCell, MissingPolicy};
 
@@ -20,7 +20,7 @@ pub fn policy_required(
 ) -> EstimationError {
     refuse(
         antecedent_core::reason_code!("missing_policy_required"),
-        "missing_data.policy_required",
+        antecedent_core::reason_details::missing_data::POLICY_REQUIRED,
         &antecedent_data::policy_required_text(cell, route, available),
     )
 }
@@ -35,11 +35,33 @@ pub fn policy_not_applicable(
 ) -> EstimationError {
     refuse(
         antecedent_core::reason_code!("missing_policy_not_applicable"),
-        "missing_data.policy_not_applicable",
+        antecedent_core::reason_details::missing_data::POLICY_NOT_APPLICABLE,
         &format!(
             "{route} cannot execute missing-data policy `{}`: {reason}; use one of: {}",
             declared.name(),
             policy_names(supported),
+        ),
+    )
+}
+
+/// A declared policy the route cannot execute, naming the supported policy to declare next.
+#[must_use]
+pub fn policy_not_applicable_next(
+    declared: MissingPolicy,
+    route: &str,
+    reason: &str,
+    supported: &[MissingPolicy],
+    next: MissingPolicy,
+) -> EstimationError {
+    refuse(
+        antecedent_core::reason_code!("missing_policy_not_applicable"),
+        antecedent_core::reason_details::missing_data::POLICY_NOT_APPLICABLE,
+        &format!(
+            "{route} cannot execute missing-data policy `{}`: {reason}; use one of: {}; next \
+             attempt: declare `{}`",
+            declared.name(),
+            policy_names(supported),
+            next.name(),
         ),
     )
 }
@@ -49,7 +71,7 @@ pub fn policy_not_applicable(
 pub fn covariates_incomplete(cell: &MissingCell, route: &str) -> EstimationError {
     refuse(
         antecedent_core::reason_code!("missing_policy_not_applicable"),
-        "missing_data.covariates_incomplete",
+        antecedent_core::reason_details::missing_data::COVARIATES_INCOMPLETE,
         &format!(
             "{route} models the probability of an observed outcome on declared covariates, and \
              covariate `{}` is missing at row {}; the covariates must be complete (a missing \

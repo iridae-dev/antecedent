@@ -19,7 +19,7 @@ implementation_deviations = [
   "A native response carries no population or outcome functional of its own: the population, regime kind, horizon, functional and transform of its coordinates are taken from the program binding the caller supplies, and only the outcome, treatment, grid and (when declared) units are read from the response. The claim therefore certifies that the response matches the program on those, not that its estimator targeted that population.",
   "A mean response never becomes an outcome law. A mean source answers only the expectation of an affine utility; a requirement for a probability, quantile, nonlinear utility or EVSI source refuses with a source-not-supplied detail. An aligned joint law is supplied only when the response retained credible draws of every coordinate, and it is a posterior over the causal mean curve, not an interventional outcome law, so outcome-threshold inputs on it still refuse.",
   "Coordinates whose support is outside empirical support or missing evidence are withheld from the decision source (left out of a mean source, masked in a joint law) and reported with their label; they are never silently used. A source with no supported coordinate refuses.",
-  "Only a point-identified static mean curve is accepted. An envelope, graph-dependent or unidentified response, a grid that is not the estimand's grid, a missing or unlabeled point support, a variable unknown to the schema and a unit that contradicts the program's outcome units each refuse. A calibration status comes only from the measured record (unmeasured or point_only); the caller cannot assert a calibrated status here.",
+  "Only a point-identified static mean curve is accepted. An envelope, graph-dependent or unidentified response, a grid that is not the estimand's grid, a missing or unlabeled point support, a variable unknown to the schema and a unit that contradicts the program's outcome units each refuse. A calibration status comes only from the measured record (not_measured or point_only); the caller cannot assert a calibrated status here.",
   "Python NativeClaim requires retained opaque checked producer execution, validates full projection/provenance/scientific premise identity, and preserves original credible aligned rows when present. Mean-only responses cannot produce draws; a causal mean posterior remains distinct from an interventional outcome law. No caller JSON, snapshot/RNG label or reconstructed DTO creates native authority.",
 ]
 
@@ -30,3 +30,23 @@ test_sources = [
   "python/tests/test_program_claims.py",
   "python/tests/test_recalc_static.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Typed adapter from a native response to the claim a decision or inverse flow consumes: one scientific quantity per grid point derived from the response's own estimand and checked against the program binding."
+no_independent_algorithm = "The module reads values the response estimator already computed and attaches coordinates, support labels, trust and program identity; it computes no estimate."
+covered_by = ["composition.program_binding", "support.native_response_coordinates"]
+record_sha256 = "2851b103a0024e1005ec0441a21171e39b915f8f8e75d618a21850af5cfee45c"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/native_claims.rs"
+items = ["enum NativeDecisionSource", "fn aligned_draws", "fn bind_refusal", "fn calibration", "fn check", "fn coordinates", "fn decision_source", "fn from_response", "fn has_joint_law", "fn into_decision_source", "fn joint_artifact", "fn mean_curve", "fn mean_source", "fn means", "fn names", "fn native_response_coordinates", "fn point_status", "fn point_surface", "fn program_identity", "fn provenance_id", "fn refusal", "fn representation_name", "fn support_status", "fn trust", "fn variable_name", "struct NativeDecisionInput", "struct NativeResponseClaim", "struct NativeResponseContext", "struct WithheldCoordinate"]
+sha256 = "25bb2b0be8aadb5f5a0161ef6a6e10816a7c8d0a5a674e70794e2bfec7efafdb"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/native_claims.rs"
+items = ["fn artifact_contract", "fn close", "fn context", "fn contract", "fn contract_expected_utility", "fn joint_response", "fn mean_response", "fn native_joint_response_supplies_an_aligned_law_for_nonlinear_functionals", "fn native_mean_only_result_is_refused_for_probability_and_quantile_sources", "fn native_mean_response_feeds_an_affine_decision_on_hand_values", "fn native_non_point_or_unlabeled_responses_are_refused", "fn native_response_exposes_coordinates_support_and_native_trust", "fn native_response_for_another_request_is_refused_against_the_program", "fn native_unsupported_coordinates_are_withheld_not_silently_used", "fn program", "fn quantity", "fn response_on", "fn schema", "fn supported"]
+sha256 = "1332ea557f2fa07b40d19b37ea9f580f4b8f69ff56d8090c28c44a5fe7de7553"

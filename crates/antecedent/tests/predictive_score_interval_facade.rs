@@ -6,9 +6,9 @@
 //! clusters of five (800 to 3200 cases) and a stationary AR(1) series (1600 to 6400
 //! cases), at level 0.95, for the CRPS, the log score and the CRPS difference of two
 //! forecasts. The serial CRPS mean interval was measured as a named boundary and is not
-//! licensed.
+//! supported.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,
@@ -179,32 +179,41 @@ fn the_serial_log_score_and_difference_are_measured_but_the_serial_crps_mean_is_
             level: 0.95,
         })
         .expect("measured");
-    let refused = prepared
+    let boundary = prepared
         .expected_score_interval(&mean_query(ScoreKind::Crps))
-        .expect_err("a named boundary licenses nothing");
-    assert_eq!(refused.code, "cell_not_licensed");
-    assert_eq!(refused.detail, "predictive_assessment.interval_scope_outside_measured");
+        .expect("a named boundary is reported, annotated");
+    assert!(boundary.lower < boundary.upper);
+    assert_ne!(
+        boundary.calibration.status,
+        antecedent_io_core::contract_section::CalibrationStatus::Calibrated
+    );
 }
 
 #[test]
-fn a_design_no_record_measured_is_refused_with_the_typed_reason() {
+fn a_design_no_record_measured_is_reported_not_calibrated() {
     // Below the measured number of cases, at another level, and for a different dependence
     // declaration at the same cases.
     let small = assess(&spec(Design::Iid, 100, FitDeclaration::NotFitted, true));
-    let refused = small.expected_score_interval(&mean_query(ScoreKind::Crps)).unwrap_err();
-    assert_eq!(refused.code, "cell_not_licensed");
-    assert_eq!(refused.detail, "predictive_assessment.interval_scope_outside_measured");
+    let reported = small.expected_score_interval(&mean_query(ScoreKind::Crps)).unwrap();
+    assert_ne!(
+        reported.calibration.status,
+        antecedent_io_core::contract_section::CalibrationStatus::Calibrated
+    );
     let measured = assess(&spec(Design::Iid, 800, FitDeclaration::NotFitted, true));
     let mut ninety = mean_query(ScoreKind::Crps);
     ninety.level = 0.9;
-    assert_eq!(
-        measured.expected_score_interval(&ninety).unwrap_err().detail,
-        "predictive_assessment.interval_scope_outside_measured"
+    assert_ne!(
+        measured.expected_score_interval(&ninety).unwrap().calibration.status,
+        antecedent_io_core::contract_section::CalibrationStatus::Calibrated
     );
     let serial_short = assess(&spec(Design::Serial, 800, FitDeclaration::NotFitted, true));
-    assert_eq!(
-        serial_short.expected_score_interval(&mean_query(ScoreKind::Log)).unwrap_err().detail,
-        "predictive_assessment.interval_scope_outside_measured"
+    assert_ne!(
+        serial_short
+            .expected_score_interval(&mean_query(ScoreKind::Log))
+            .unwrap()
+            .calibration
+            .status,
+        antecedent_io_core::contract_section::CalibrationStatus::Calibrated
     );
 }
 
@@ -213,17 +222,23 @@ fn an_in_sample_predictor_and_an_undeclared_dependence_are_refused() {
     let in_sample = assess(&spec(Design::Iid, 800, FitDeclaration::FittedOn(Vec::new()), true));
     let refused = in_sample.expected_score_interval(&mean_query(ScoreKind::Crps)).unwrap_err();
     assert_eq!(refused.code, "evidence_double_counted");
-    assert_eq!(refused.detail, "predictive_assessment.in_sample");
+    assert_eq!(refused.detail, antecedent_core::reason_details::predictive_assessment::IN_SAMPLE);
     let undeclared = assess(&spec(Design::Iid, 800, FitDeclaration::NotFitted, false));
     let refused = undeclared.expected_score_interval(&mean_query(ScoreKind::Crps)).unwrap_err();
     assert_eq!(refused.code, "sampling_dependence_unknown");
-    assert_eq!(refused.detail, "predictive_assessment.interval_dependence_undeclared");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::predictive_assessment::INTERVAL_DEPENDENCE_UNDECLARED
+    );
 }
 
 #[test]
 fn the_unscoped_request_stays_refused() {
     let prepared = assess(&spec(Design::Iid, 800, FitDeclaration::NotFitted, true));
     let refused = prepared.request_score_interval().unwrap_err();
-    assert_eq!(refused.code, "cell_not_licensed");
-    assert_eq!(refused.detail, "predictive_assessment.interval_not_licensed");
+    assert_eq!(refused.code, "quantity_semantics_mismatch");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::predictive_assessment::INTERVAL_NOT_SUPPORTED
+    );
 }

@@ -15,15 +15,21 @@
 //! never takes cannot be evaluated from the log. Every logged action and
 //! observation is recorded once in the evidence ledger.
 //!
-//! The result is a point estimate. Its standard error is an uncalibrated
-//! diagnostic of the weighted returns; no interval is produced.
+//! The result is the point estimate with a Wald interval from the standard error of
+//! the weighted returns, `mean(w G) +- z * sqrt(var(w G) / n)` with `z` the normal
+//! quantile of the nominal level ([`OFF_POLICY_INTERVAL_LEVEL`]). The interval treats the
+//! weighted returns as independent and the normal approximation as adequate; no coverage
+//! record measures it, so it is reported with the calibration status `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::evidence_ledger::{
     EvidenceLedger, MAX_OBSERVATIONS_PER_SOURCE, ObservationId, SourceDeclaration, SourceKind,
 };
-use antecedent_core::{CanonicalWriter, ExecutionContext};
+use antecedent_core::{CanonicalWriter, ExecutionContext, RngFactory, StreamDomain};
+use antecedent_io_core::calibration::CONSTRUCTION_NOT_MEASURED;
+use antecedent_io_core::contract_section::CalibrationSlotWire;
+use antecedent_stats::special::normal_ppf;
 
 use super::belief::{branch_for, from_ledger, record_id};
 use super::gformula::{EvaluationLimits, walk};
@@ -59,7 +65,44 @@ pub struct LoggedTrajectory {
     pub outcome_utility: f64,
 }
 
-/// A point estimate of a policy's value from logged trajectories.
+/// Nominal level of the Wald interval of an importance-weighted estimate.
+pub const OFF_POLICY_INTERVAL_LEVEL: f64 = 0.95;
+
+/// A Wald interval of an importance-weighted estimate with its calibration status.
+#[derive(Clone, Debug, PartialEq)]
+pub struct OffPolicyInterval {
+    /// Nominal level.
+    pub level: f64,
+    /// Lower limit `ordinary - z * se`.
+    pub lower: f64,
+    /// Upper limit `ordinary + z * se`.
+    pub upper: f64,
+    /// Calibration of the interval: no coverage record measures the importance-weighted
+    /// construction, so it is `not_measured`.
+    pub calibration: CalibrationSlotWire,
+}
+
+impl OffPolicyInterval {
+    /// The Wald interval `estimate +- z * standard_error` at `level`.
+    #[must_use]
+    pub fn wald(estimate: f64, standard_error: f64, level: f64) -> Self {
+        let half = normal_ppf(0.5 + level / 2.0) * standard_error;
+        Self {
+            level,
+            lower: estimate - half,
+            upper: estimate + half,
+            calibration: Self::calibration_slot(),
+        }
+    }
+
+    /// The calibration slot of every importance-weighted interval.
+    #[must_use]
+    pub fn calibration_slot() -> CalibrationSlotWire {
+        CalibrationSlotWire::not_measured(CONSTRUCTION_NOT_MEASURED)
+    }
+}
+
+/// A policy value from logged trajectories, with an interval from its standard error.
 #[derive(Clone, Debug, PartialEq)]
 pub struct OffPolicyEstimate {
     /// Ordinary importance-weighted estimate `mean(w G)`.
@@ -74,9 +117,11 @@ pub struct OffPolicyEstimate {
     /// Trajectories used.
     pub trajectories: u64,
     /// Standard error of the ordinary estimate treating the weighted returns
-    /// as independent; `None` below two trajectories. An uncalibrated
-    /// diagnostic, never an interval.
+    /// as independent; `None` below two trajectories.
     pub uncalibrated_standard_error: Option<f64>,
+    /// Wald interval of the ordinary estimate at [`OFF_POLICY_INTERVAL_LEVEL`], with its
+    /// calibration status; `None` below two trajectories.
+    pub interval: Option<OffPolicyInterval>,
     /// Target policy version.
     pub policy_version: String,
     /// Target policy identity (hex).
@@ -345,6 +390,7 @@ pub fn evaluate_off_policy(
     let mut sum_w = 0.0;
     let mut sum_w2 = 0.0;
     let mut sum_wg2 = 0.0;
+    let mut weighted_returns = antecedent_kernels::Welford::new();
     let mut max_weight = 0.0_f64;
     for (index, trajectory) in ordered.iter().enumerate() {
         if index % 256 == 0 && ctx.cancellation.is_cancelled() {
@@ -356,6 +402,7 @@ pub fn evaluate_off_policy(
         sum_w += weighted.weight;
         sum_w2 += weighted.weight * weighted.weight;
         sum_wg2 += product * product;
+        weighted_returns.push(product);
         max_weight = max_weight.max(weighted.weight);
         if !(sum_wg.is_finite() && sum_w.is_finite() && sum_w2.is_finite() && sum_wg2.is_finite()) {
             return Err(refusal!(
@@ -374,9 +421,58 @@ pub fn evaluate_off_policy(
             "log data where the logging policy takes the actions the target policy takes",
         ));
     }
+    let (staged, records_counted, reused) = stage_logged_records(behaviour, &ordered, ledger)?;
+    let state = staged.state_digest().to_hex();
+    let nf = n as f64;
+    let ordinary = sum_wg / nf;
+    let uncalibrated_standard_error = (n > 1).then(|| {
+        let variance = weighted_returns.sample_variance().unwrap_or(f64::NAN);
+        (variance / nf).sqrt()
+    });
+    if !(ordinary.is_finite()
+        && self_normalized_is_finite(sum_wg, sum_w)
+        && max_weight.is_finite()
+        && uncalibrated_standard_error.is_none_or(f64::is_finite))
+    {
+        return Err(refusal!(
+            "invalid_argument",
+            "sequential_evaluation.weighted_estimate_overflow",
+            "the importance-weighted estimate or its numerical diagnostic is not finite",
+            "rescale outcomes or use a policy with less extreme importance ratios",
+        ));
+    }
+    *ledger = staged;
+    let interval = uncalibrated_standard_error
+        .map(|se| OffPolicyInterval::wald(ordinary, se, OFF_POLICY_INTERVAL_LEVEL));
+    Ok(OffPolicyEstimate {
+        ordinary,
+        self_normalized: sum_wg / sum_w,
+        effective_sample_size: sum_w * sum_w / sum_w2,
+        max_weight,
+        trajectories: n as u64,
+        uncalibrated_standard_error,
+        interval,
+        policy_version: target.version().to_owned(),
+        policy_identity: target.identity_hex(),
+        behaviour_version: behaviour.version().to_owned(),
+        behaviour_identity: behaviour.identity_hex(),
+        model_identity: compiled.identity.clone(),
+        positivity_histories_checked: support.nodes_visited,
+        records_counted,
+        reused_recorded_log: reused,
+        ledger_state: state,
+        inference: SEQUENTIAL_EVALUATION_INFERENCE,
+    })
+}
+
+fn stage_logged_records(
+    behaviour: &ContingentPolicy,
+    ordered: &[&LoggedTrajectory],
+    ledger: &EvidenceLedger,
+) -> SequentialResult<(EvidenceLedger, u64, bool)> {
     // Record every action and observation once.
     let scope = format!("logged:{}", behaviour.identity_hex());
-    let mut ids = ledger_records(&scope, &ordered);
+    let mut ids = ledger_records(&scope, ordered);
     ids.sort_unstable();
     if ids.windows(2).any(|pair| pair[0] == pair[1]) {
         return Err(refusal!(
@@ -414,46 +510,155 @@ pub fn evaluate_off_policy(
         }
     }
     let records_counted = ids.len() as u64;
-    let state = staged.state_digest().to_hex();
-    let nf = n as f64;
-    let ordinary = sum_wg / nf;
-    let uncalibrated_standard_error = (n > 1).then(|| {
-        let variance = ((sum_wg2 - nf * ordinary * ordinary) / (nf - 1.0)).max(0.0);
-        (variance / nf).sqrt()
-    });
-    if !(ordinary.is_finite()
-        && self_normalized_is_finite(sum_wg, sum_w)
-        && max_weight.is_finite()
-        && uncalibrated_standard_error.is_none_or(f64::is_finite))
-    {
-        return Err(refusal!(
-            "invalid_argument",
-            "sequential_evaluation.weighted_estimate_overflow",
-            "the importance-weighted estimate or its numerical diagnostic is not finite",
-            "rescale outcomes or use a policy with less extreme importance ratios",
-        ));
-    }
-    *ledger = staged;
-    Ok(OffPolicyEstimate {
-        ordinary,
-        self_normalized: sum_wg / sum_w,
-        effective_sample_size: sum_w * sum_w / sum_w2,
-        max_weight,
-        trajectories: n as u64,
-        uncalibrated_standard_error,
-        policy_version: target.version().to_owned(),
-        policy_identity: target.identity_hex(),
-        behaviour_version: behaviour.version().to_owned(),
-        behaviour_identity: behaviour.identity_hex(),
-        model_identity: compiled.identity.clone(),
-        positivity_histories_checked: support.nodes_visited,
-        records_counted,
-        reused_recorded_log: reused,
-        ledger_state: state,
-        inference: SEQUENTIAL_EVALUATION_INFERENCE,
-    })
+    Ok((staged, records_counted, reused))
 }
 
 fn self_normalized_is_finite(sum_wg: f64, sum_w: f64) -> bool {
     (sum_wg / sum_w).is_finite()
+}
+
+/// Paired bootstrap estimates of ordinary importance-weighted policy values.
+/// Each column uses the same whole-trajectory resample for every policy.
+#[derive(Clone, Debug, PartialEq)]
+pub struct OffPolicyBootstrap {
+    /// Original estimates in policy order.
+    pub estimates: Vec<OffPolicyEstimate>,
+    /// Replicate values in policy order, then replicate order.
+    pub replicates: Vec<Vec<f64>>,
+    /// Identity of the canonically ordered raw logged trajectories.
+    pub log_identity: String,
+    /// Bootstrap master seed.
+    pub seed: u64,
+    /// This is a sampling distribution, not a posterior distribution.
+    pub source_paradigm: &'static str,
+    /// No coverage calibration is claimed.
+    pub calibration: &'static str,
+}
+
+/// Evaluate fixed policies and bootstrap whole logged trajectories using common resamples.
+/// The ledger is changed only after all candidates and replicates succeed.
+///
+/// # Errors
+/// Any underlying evaluation refusal, insufficient effective support, invalid
+/// bootstrap size, nonfinite replicate, or cancellation.
+#[allow(clippy::too_many_arguments, reason = "the inputs describe one bootstrap evaluation")]
+#[allow(clippy::too_many_lines, reason = "one pass from validation through resampling")]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "replicates is bounded by MAX_ROLLOUTS; resampled indices are clamped below the log"
+)]
+pub fn bootstrap_off_policy(
+    model: &FiniteSequentialModel,
+    targets: &[ContingentPolicy],
+    behaviour: &ContingentPolicy,
+    log: &[LoggedTrajectory],
+    ledger: &mut EvidenceLedger,
+    limits: EvaluationLimits,
+    seed: u64,
+    replicates: u64,
+    minimum_effective_sample_size: f64,
+    ctx: &ExecutionContext,
+) -> SequentialResult<OffPolicyBootstrap> {
+    if targets.len() < 2
+        || !(2..=super::MAX_ROLLOUTS).contains(&replicates)
+        || !minimum_effective_sample_size.is_finite()
+        || minimum_effective_sample_size < 2.0
+    {
+        return Err(refusal!(
+            "invalid_argument",
+            antecedent_core::reason_details::sequential_evaluation::BOOTSTRAP_CONFIG,
+            "bootstrap requires at least two policies and replicates and a finite minimum effective sample size of at least two",
+            "supply a bounded bootstrap configuration and minimum support"
+        ));
+    }
+    if (targets.len() as u128) * ((log.len() as u128) + u128::from(replicates)) > 10_000_000
+        || (log.len() as u128) * u128::from(replicates) > 10_000_000
+    {
+        return Err(limit_exceeded("bootstrap retained values", 10_000_000));
+    }
+    let mut staged = ledger.clone();
+    let mut estimates = Vec::with_capacity(targets.len());
+    for target in targets {
+        let estimate =
+            evaluate_off_policy(model, target, behaviour, log, &mut staged, limits, ctx)?;
+        if estimate.effective_sample_size < minimum_effective_sample_size {
+            return Err(refusal!(
+                "history_support_violated",
+                antecedent_core::reason_details::sequential_evaluation::LOW_EFFECTIVE_SUPPORT,
+                "a policy has insufficient effective sample size in the log",
+                "supply more overlapping trajectories or restrict the policy set"
+            ));
+        }
+        estimates.push(estimate);
+    }
+    let compiled = model.compile()?;
+    let mut ordered: Vec<&LoggedTrajectory> = log.iter().collect();
+    ordered.sort_by(|a, b| a.id.cmp(&b.id));
+    let mut log_writer = CanonicalWriter::new("antecedent.sequential_evaluation.bootstrap_log.v1");
+    log_writer.word(ordered.len() as u64);
+    for trajectory in &ordered {
+        log_writer
+            .text(&trajectory.id)
+            .word(trajectory.outcome_utility.to_bits())
+            .word(trajectory.steps.len() as u64);
+        for step in &trajectory.steps {
+            log_writer
+                .word(step.action as u64)
+                .word(step.observation.map_or(u64::MAX, |value| value as u64))
+                .word(step.assignment_probability.to_bits());
+        }
+    }
+    let log_identity = log_writer.finish_hex();
+    let mut values = Vec::with_capacity(targets.len());
+    for target in targets {
+        let mut row = Vec::with_capacity(ordered.len());
+        for trajectory in &ordered {
+            let weighted = weigh(&compiled, target, behaviour, trajectory)?;
+            row.push(weighted.weight * weighted.ret);
+        }
+        values.push(row);
+    }
+    let mut output = vec![Vec::with_capacity(replicates as usize); targets.len()];
+    for replicate in 0..replicates {
+        if replicate % 256 == 0 && ctx.cancellation.is_cancelled() {
+            return Err(cancelled());
+        }
+        let mut totals = vec![0.0; targets.len()];
+        for draw in 0..ordered.len() {
+            let mut writer = CanonicalWriter::new("antecedent.sequential_evaluation.bootstrap.v1");
+            writer.word(replicate).word(draw as u64);
+            let digest = writer.finish();
+            let mut word = [0_u8; 8];
+            word.copy_from_slice(&digest[..8]);
+            let u = RngFactory::from_seed(seed)
+                .stream_for(StreamDomain::Design, u64::from_le_bytes(word))
+                .next_f64();
+            let index = ((u * ordered.len() as f64) as usize).min(ordered.len() - 1);
+            for (total, row) in totals.iter_mut().zip(&values) {
+                *total += row[index];
+            }
+        }
+        for (row, total) in output.iter_mut().zip(totals) {
+            let value = total / ordered.len() as f64;
+            if !value.is_finite() {
+                return Err(refusal!(
+                    "invalid_argument",
+                    antecedent_core::reason_details::sequential_evaluation::BOOTSTRAP_OVERFLOW,
+                    "a bootstrap estimate is not finite",
+                    "rescale the outcome utilities"
+                ));
+            }
+            row.push(value);
+        }
+    }
+    *ledger = staged;
+    Ok(OffPolicyBootstrap {
+        estimates,
+        replicates: output,
+        log_identity,
+        seed,
+        source_paradigm: "sampling_distribution",
+        calibration: "not_measured",
+    })
 }

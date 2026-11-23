@@ -16,7 +16,7 @@
 //! estimate as `estimate_sequence_mechanisms`, but its resampling is driven entirely by
 //! the caller's anchors.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -29,10 +29,11 @@
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, IdentificationStatus, Lag, TemporalNodeKey, VariableId};
-use antecedent_data::{LaggedColumn, LaggedSampleWorkspace};
+use antecedent_data::LaggedColumn;
 use antecedent_expr::EstimandMethod;
 use antecedent_graph::DenseNodeId;
-use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
+use antecedent_model::history_operators::{HistoryScan, SequentialRegression};
+use antecedent_stats::LeastSquaresWorkspace;
 
 use crate::EstimationError;
 use crate::temporal_sequential::{SequenceTarget, SequentialMechanismOverlay, SequentialProblem};
@@ -124,30 +125,23 @@ pub fn prepare_sequence_level(
                 | IdentificationStatus::IdentifiedUnderParametricRestrictions
         )
     {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("strategy_incompatible"),
             "sequential overlay requires an identified unfolded design",
         ));
     }
-    let unfolded =
-        graph.unfold(indexer.clone()).map_err(|e| EstimationError::data_msg(e.to_string()))?;
+    let unfolded = graph.unfold(indexer.clone())?;
     let dag = &unfolded.dag;
     let node_count = dag.node_count();
-    let key_of = |dense: usize| {
-        indexer
-            .key_of(u32::try_from(dense).unwrap_or(u32::MAX))
-            .map_err(|e| EstimationError::data_msg(e.to_string()))
-    };
-    let outcome = indexer
-        .dense_id(TemporalNodeKey { variable: outcome, offset: outcome_offset })
-        .map_err(|e| EstimationError::data_msg(e.to_string()))? as usize;
+    let key_of = |dense: usize| indexer.key_of(u32::try_from(dense).unwrap_or(u32::MAX));
+    let outcome =
+        indexer.dense_id(TemporalNodeKey { variable: outcome, offset: outcome_offset })? as usize;
     let mut overlay_at = vec![None; node_count];
     for &overlay in overlays {
-        let dense = indexer
-            .dense_id(TemporalNodeKey {
-                variable: overlay.node.variable,
-                offset: overlay.node.offset,
-            })
-            .map_err(|e| EstimationError::data_msg(e.to_string()))? as usize;
+        let dense = indexer.dense_id(TemporalNodeKey {
+            variable: overlay.node.variable,
+            offset: overlay.node.offset,
+        })? as usize;
         if overlay_at[dense].is_some() {
             return Err(EstimationError::unsupported(
                 "Sequence assigns the same (variable, time) twice; refuse rather than collapse",
@@ -198,9 +192,8 @@ pub fn prepare_sequence_level(
         column_of[i] = columns.len();
         columns.push(LaggedColumn { variable: key.variable, lag: Lag::from_raw(lag) });
     }
-    let plan = data.plan_lagged_sample(max_lag, Arc::from(columns.clone()))?;
-    let mut workspace = LaggedSampleWorkspace::default();
-    let sample = plan.prepare(data, &mut workspace, &ctx.kernel_policy)?;
+    let mut scan = HistoryScan::plan(data, max_lag, Arc::from(columns.clone()))?;
+    let sample = scan.complete(data, &ctx.kernel_policy)?;
     let n = sample.n;
     if n < 3 {
         return Err(EstimationError::unsupported(
@@ -408,7 +401,8 @@ impl PreparedSequenceLevel {
                 x_boot[(k + 1) * m..(k + 2) * m].copy_from_slice(&gathered[self.column_of[parent]]);
             }
             let y = &gathered[self.column_of[i]];
-            coefficients[i] = FaerBackend.least_squares(x_boot, m, p, y, ls_ws).ok()?.coefficients;
+            coefficients[i] =
+                SequentialRegression::solve_design(x_boot, m, p, y, None, ls_ws).ok()?.coefficients;
         }
         let value = crate::temporal_sequential::propagate_linear_level(
             &self.order,

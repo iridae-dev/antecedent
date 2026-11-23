@@ -31,7 +31,7 @@
 //! element or an inconsistency is refused, one detail per defect), recomputes
 //! the canonical identity, asks the contract to admit the stored paradigm
 //! (so a fixed-sample analysis of an adaptive design, or a paradigm the
-//! procedure cell is not licensed for, is refused), recomputes the boundaries
+//! procedure cell is not supported for, is refused), recomputes the boundaries
 //! by numerical integration and replays the observation accounting through the
 //! evidence ledger. Given a procedure section it also rebuilds the declared
 //! procedure through its own checks, recomputes the allocation of every batch
@@ -45,9 +45,9 @@
 //! contract of another experiment.
 //!
 //! The artifact makes no statistical claim. It carries no interval, posterior
-//! or coverage statement; the guarantee routes of every cell are closed.
+//! or coverage statement; the guarantee routes of every cell are not supported.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ExternalRefusal;
 use antecedent_contract::adaptive_design::{
@@ -57,7 +57,8 @@ use antecedent_contract::adaptive_design::{
     StoppingRuleDeclaration, StoppingRuleKind, StoppingSpec,
 };
 use antecedent_contract::evidence_ledger::parse_digest_hex;
-use antecedent_core::{CanonicalWriter, SemanticDigest};
+use antecedent_core::CanonicalWriter;
+use antecedent_core::refusal::{changed_identity, replay_mismatch};
 use antecedent_stats::adaptive_inference::{
     AdaptiveInferenceError, AnytimeSettings, ArmPrior, BetaPrior, BorrowingPlan, Boundaries,
     CapacityError, CorrelationPrior, DecisionRules, FutilityRule, HistoricalPrior, LookDecision,
@@ -66,7 +67,7 @@ use antecedent_stats::adaptive_inference::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
+use crate::replay_tolerance::{ReplayNonFinite, ReplayScale, ReplayTolerance};
 
 /// The artifact major version this reader writes and accepts.
 pub const ADAPTIVE_MONITORING_CONTRACT_VERSION: u16 = 1;
@@ -89,7 +90,7 @@ crate::sectioned_artifact_enum! {
     #[derive(Clone, Debug, PartialEq, Eq)]
     AdaptiveMonitoringContractError {
         noun: "adaptive monitoring contract",
-        identity: "adaptive_inference.wrong_contract",
+        identity: antecedent_core::reason_details::adaptive_inference::WRONG_CONTRACT,
         variants {
             /// The contract or paradigm checks refused the stored declaration.
             Refused {
@@ -125,14 +126,12 @@ impl AdaptiveMonitoringContractError {
             Self::Refused { code, detail, message } => {
                 Some((*code, detail.clone(), message.clone()))
             }
-            Self::IdentityMismatch { field } => Some((
-                antecedent_core::reason_code!("route_not_supported"),
-                "adaptive_inference.wrong_contract".to_owned(),
-                format!("{field} changed"),
+            Self::IdentityMismatch { field } => Some(changed_identity(
+                antecedent_core::reason_details::adaptive_inference::WRONG_CONTRACT,
+                field,
             )),
-            Self::ReplayMismatch(what) => Some((
-                antecedent_core::reason_code!("invalid_argument"),
-                "adaptive_inference.report_replay_mismatch".to_owned(),
+            Self::ReplayMismatch(what) => Some(replay_mismatch(
+                antecedent_core::reason_details::adaptive_inference::REPORT_REPLAY_MISMATCH,
                 format!("the stored {what} does not replay"),
             )),
             _ => None,
@@ -407,7 +406,7 @@ pub struct MonitoringContractMeta {
     pub contract_identity: String,
     /// Procedure cell identifier.
     pub procedure: String,
-    /// Class of the cell in the procedure matrix (`licensed`).
+    /// Class of the cell in the procedure matrix (`supported`).
     pub cell_class: String,
     /// Stopping boundaries of an alpha-spending rule.
     pub boundaries: Option<BoundaryWire>,
@@ -430,7 +429,9 @@ fn reals(values: &[u64]) -> Vec<f64> {
     values.iter().map(|v| f64::from_bits(*v)).collect()
 }
 
-fn rule_to_wire(rule: &StoppingRuleDeclaration) -> RuleWire {
+/// A stopping rule on the wire.
+#[must_use]
+pub fn rule_to_wire(rule: &StoppingRuleDeclaration) -> RuleWire {
     let mut wire = RuleWire {
         kind: rule.kind.as_str().to_owned(),
         ended_by_rule: rule.ended_by_rule,
@@ -471,7 +472,11 @@ fn rule_to_wire(rule: &StoppingRuleDeclaration) -> RuleWire {
     wire
 }
 
-fn rule_from_wire(wire: &RuleWire) -> Result<StoppingRuleDeclaration, Error> {
+/// The stopping rule a wire states, not yet validated.
+///
+/// # Errors
+/// An unknown rule kind, spending function, sidedness or specification, or a missing parameter.
+pub fn rule_from_wire(wire: &RuleWire) -> Result<StoppingRuleDeclaration, Error> {
     let kind = StoppingRuleKind::from_name(&wire.kind)
         .ok_or(Error::UnsupportedSemantics("stopping rule kind"))?;
     let parameter = || {
@@ -671,10 +676,16 @@ pub fn contract_boundaries(
         .map_err(|_| Error::ReplayMismatch("boundaries"))
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "the error is the contract's own refusal type, returned once per encode; boxing would change its API"
+)]
 fn evidence_of(contract: &AdaptiveDesignContract) -> Result<EvidenceWire, Error> {
     let evidence = contract.interim_evidence().map_err(|r| refused_with(&[r]))?;
-    let look_sizes =
-        (0..contract.looks()).map(|l| contract.analysis_units(l).len() as u64).collect();
+    let look_sizes = (0..contract.looks())
+        .map(|l| contract.analysis_units(l).map(|units| units.len() as u64))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|r| refused_with(&[r]))?;
     let independent_pooling_detail =
         contract.refuse_independent_pooling_of_looks(&evidence).err().map(|refusal| refusal.detail);
     Ok(EvidenceWire {
@@ -784,7 +795,7 @@ fn procedure_error(error: AdaptiveInferenceError) -> Error {
         ),
         other => (
             antecedent_core::reason_code!("invalid_argument"),
-            "adaptive_inference.input_invalid".to_owned(),
+            antecedent_core::reason_details::adaptive_inference::INPUT_INVALID.to_owned(),
             other.to_string(),
         ),
     };
@@ -955,7 +966,7 @@ fn history_of(
         declaration.assignment_probabilities.as_ref(),
     ) else {
         return Err(procedure_refusal(
-            "adaptive_inference.interim_analyses_missing",
+            antecedent_core::reason_details::adaptive_inference::INTERIM_ANALYSES_MISSING,
             "the contract is not complete",
         ));
     };
@@ -974,7 +985,7 @@ fn history_of(
             let available = availability.available_at_look[unit];
             if available.is_some_and(|at| at as usize != look + lag) {
                 return Err(procedure_refusal(
-                    "adaptive_inference.outcome_availability_invalid",
+                    antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_INVALID,
                     "an outcome became available at a look other than its enrolment look plus the declared delay",
                 ));
             }
@@ -985,7 +996,7 @@ fn history_of(
                 Some(u32::try_from(ones).unwrap_or(u32::MAX))
             } else {
                 return Err(procedure_refusal(
-                    "adaptive_inference.measurements_invalid",
+                    antecedent_core::reason_details::adaptive_inference::MEASUREMENTS_INVALID,
                     "a participant's responses are not the declared number of responses per participant",
                 ));
             });
@@ -1023,7 +1034,7 @@ fn replay_procedure(
         )
     {
         return Err(procedure_refusal(
-            "adaptive_inference.rule_mismatch",
+            antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
             "a procedure section describes Thompson allocation of participants with repeated binary responses, interim looks and decision-theoretic stopping",
         ));
     }
@@ -1062,7 +1073,7 @@ fn replay_procedure(
     });
     if !rule_agrees {
         return Err(procedure_refusal(
-            "adaptive_inference.rule_mismatch",
+            antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
             "the contract's stopping rule is not the procedure's expected-loss decision",
         ));
     }
@@ -1073,7 +1084,7 @@ fn replay_procedure(
     });
     if declaration.stopping_rule.is_some_and(|rule| rule.ended_by_rule != ended_by_rule) {
         return Err(procedure_refusal(
-            "adaptive_inference.rule_mismatch",
+            antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
             "whether a decision ended the procedure disagrees with the contract's stopping rule",
         ));
     }
@@ -1092,12 +1103,13 @@ fn replay_procedure(
 
 // -- consumption --------------------------------------------------------------------------
 
+/// Stored boundaries and readings reproduce the recomputed ones to an absolute bound.
+const BOUNDARY_REPLAY: ReplayTolerance =
+    ReplayTolerance::new(BOUNDARY_REPLAY_TOLERANCE, ReplayScale::Absolute, ReplayNonFinite::Refuse);
+
 fn within(stored: &[u64], recomputed: &[f64]) -> bool {
     stored.len() == recomputed.len()
-        && stored
-            .iter()
-            .zip(recomputed)
-            .all(|(s, r)| (f64::from_bits(*s) - r).abs() <= BOUNDARY_REPLAY_TOLERANCE)
+        && stored.iter().zip(recomputed).all(|(s, r)| BOUNDARY_REPLAY.close(f64::from_bits(*s), *r))
 }
 
 fn check(
@@ -1107,9 +1119,10 @@ fn check(
     if meta.version != ADAPTIVE_MONITORING_CONTRACT_VERSION {
         return Err(Error::UnsupportedVersion { version: meta.version });
     }
-    if meta.feature != ADAPTIVE_MONITORING_CONTRACT_FEATURE {
-        return Err(Error::UnsupportedSemantics("feature marker"));
-    }
+    crate::artifact_codec::require_semantics::<Error>(
+        meta.feature == ADAPTIVE_MONITORING_CONTRACT_FEATURE,
+        "feature marker",
+    )?;
     let contract = AdaptiveDesignContract::new(declaration_from_wire(&meta.declaration)?)?;
     if contract.identity().to_hex() != meta.contract_identity {
         return Err(Error::IdentityMismatch { field: "contract_identity" });
@@ -1120,7 +1133,7 @@ fn check(
     if meta.procedure != contract.cell().identifier() {
         return Err(Error::ReplayMismatch("procedure"));
     }
-    if meta.cell_class != "licensed" {
+    if meta.cell_class != "supported" {
         return Err(Error::ReplayMismatch("cell class"));
     }
     let boundaries = contract_boundaries(&contract)?;
@@ -1158,7 +1171,8 @@ fn check(
 fn export_refusal(needed: usize, budget: usize) -> Error {
     Error::Refused {
         code: antecedent_core::reason_code!("route_not_supported"),
-        detail: "adaptive_inference.artifact_size_exceeded".to_owned(),
+        detail: antecedent_core::reason_details::adaptive_inference::ARTIFACT_SIZE_EXCEEDED
+            .to_owned(),
         message: format!(
             "the artifact needs {needed} bytes, over the export budget of {budget} bytes; the run is complete and its result stays in memory; retain fewer looks or participants, or raise the export budget"
         ),
@@ -1170,11 +1184,7 @@ fn encode_meta_within(
     artifact_id: &str,
     export_budget: usize,
 ) -> Result<Vec<u8>, Error> {
-    if artifact_id.trim().is_empty() {
-        return Err(Error::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta).map_err(|error| Error::Encode(error.to_string()))?;
-    let bytes = crate::encode_container(
+    let bytes = crate::artifact_codec::encode_sectioned::<Error, _>(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "adaptive_monitoring_contract",
@@ -1182,13 +1192,10 @@ fn encode_meta_within(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection {
-            id: META_SECTION,
-            content_type: crate::CONTENT_CBOR,
-            bytes: &meta_bytes,
-        }],
-    )
-    .map_err(|error| crate::map_artifact_check!(error, AdaptiveMonitoringContractError))?;
+        META_SECTION,
+        meta,
+        &[],
+    )?;
     if bytes.len() > export_budget.min(MAX_ADAPTIVE_MONITORING_CONTRACT_BYTES) {
         return Err(export_refusal(
             bytes.len(),
@@ -1199,23 +1206,15 @@ fn encode_meta_within(
 }
 
 fn decode_meta(bytes: &[u8]) -> Result<MonitoringContractMeta, Error> {
-    let parts = crate::decode_container(
+    crate::artifact_codec::decode_sectioned(
         ARTIFACT_KIND,
         MAX_ADAPTIVE_MONITORING_CONTRACT_BYTES,
-        &[META_SECTION],
+        META_SECTION,
+        &[],
+        ADAPTIVE_MONITORING_CONTRACT_VERSION,
         bytes,
     )
-    .map_err(|error| crate::map_artifact_check!(error, AdaptiveMonitoringContractError))?;
-    let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(Error::Malformed("unsupported container layout".into()));
-    };
-    crate::decode_with_version(&meta_bytes, |version| {
-        if version == ADAPTIVE_MONITORING_CONTRACT_VERSION {
-            Ok(())
-        } else {
-            Err(Error::UnsupportedVersion { version })
-        }
-    })
+    .map(|(meta, _)| meta)
 }
 
 // -- public type -----------------------------------------------------------------------------
@@ -1236,7 +1235,7 @@ impl AdaptiveMonitoringContractArtifact {
     /// consumer applies; the sealed metadata is returned alongside it.
     ///
     /// # Errors
-    /// A paradigm the contract's cell is not licensed for, a delay or exposure
+    /// A paradigm the contract's cell is not supported for, a delay or exposure
     /// that fails the authorization, a boundary that does not solve, or a
     /// ledger bound.
     pub fn seal(
@@ -1284,7 +1283,7 @@ impl AdaptiveMonitoringContractArtifact {
             paradigm: paradigm.as_str().to_owned(),
             contract_identity: contract.identity().to_hex(),
             procedure: contract.cell().identifier(),
-            cell_class: "licensed".to_owned(),
+            cell_class: "supported".to_owned(),
             boundaries: boundaries.as_ref().map(boundaries_to_wire),
             evidence: evidence_of(contract)?,
             participant_procedure: procedure_wire,
@@ -1418,7 +1417,7 @@ impl AdaptiveMonitoringContractArtifact {
     ///
     /// # Errors
     /// Corruption, another major version, a missing or inconsistent contract
-    /// element, a paradigm the cell is not licensed for, a stored derived value
+    /// element, a paradigm the cell is not supported for, a stored derived value
     /// that does not replay, or an identity that does not match.
     pub fn from_bytes(bytes: &[u8], expected_identity: Option<&str>) -> Result<Self, Error> {
         check(&decode_meta(bytes)?, expected_identity)
@@ -1450,10 +1449,4 @@ impl AdaptiveMonitoringContractArtifact {
     pub fn decode_unchecked(bytes: &[u8]) -> Result<MonitoringContractMeta, Error> {
         decode_meta(bytes)
     }
-}
-
-/// The digest of a contract's identity, for callers that retain it.
-#[must_use]
-pub fn contract_identity_hex(digest: SemanticDigest) -> String {
-    digest.to_hex()
 }

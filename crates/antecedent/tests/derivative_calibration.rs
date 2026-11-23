@@ -1,4 +1,4 @@
-//! Coverage of the licensed derivative family.
+//! Coverage of the supported derivative family.
 //!
 //! Every in-assumption DGP here is inside the stated cell assumptions: an
 //! additive outcome surface, a homoskedastic Gaussian treatment law given the
@@ -6,7 +6,7 @@
 //! genuine third-order curvature at the evaluation point (`m(a) = 5 + 2 sin a`,
 //! `m'''(0.5) ≈ -1.76`), so a local-quadratic interval that ignores smoothing
 //! bias under-covers there at a mean-squared-error-sized bandwidth. The
-//! licensed estimand is the true derivative `m'(a)`, not a bandwidth-smoothed
+//! supported estimand is the true derivative `m'(a)`, not a bandwidth-smoothed
 //! surrogate, so every point-type truth below is the analytic derivative.
 //! The uncorrected local-quadratic interval covered 0.820 here; it is now robust
 //! bias-corrected (local cubic at the caller bandwidth).
@@ -30,15 +30,15 @@
 //! band (`plugin_gradient_interval_internal`) is scored on the same DGP and
 //! seeds by `response_jacobian_dag_frequentist_nominal_90_coverage` and
 //! `directional_derivative_dag_frequentist_nominal_90_coverage`, and the public
-//! route stays closed until those records are measured.
+//! route is not supported until those records are measured.
 //!
 //! The skewed / heteroskedastic treatment-law ADE run is a misspecification
 //! probe outside the Gaussian-score assumption: it records coverage and checks
 //! that the assumption is stated, but does not gate on nominal coverage.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh`.
+//! Ignored tests run via `scripts/measure_calibration.sh`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -242,7 +242,7 @@ fn directional_query() -> F {
 }
 
 fn bayes() -> InferenceMode {
-    InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(DRAWS))
+    InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(DRAWS))
 }
 
 fn run(
@@ -485,7 +485,7 @@ fn ade_truth() -> f64 {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn ade_frequentist_gaussian_treatment_nominal_90_coverage() {
     scalar_coverage(
         "ade_frequentist_gaussian_treatment",
@@ -508,7 +508,7 @@ fn ade_frequentist_gaussian_treatment_nominal_90_coverage() {
 /// conservative-direction overcoverage of this posterior at the larger
 /// sample size, not band noise. Grid point 2 is a named boundary.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn ade_bayesian_gaussian_treatment_nominal_90_coverage() {
     scalar_coverage(
         "ade_bayesian_gaussian_treatment",
@@ -523,7 +523,7 @@ fn ade_bayesian_gaussian_treatment_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn ade_skewed_heteroskedastic_treatment_probe() {
     // Monte-Carlo truth E[2 cos A] under the skewed treatment law.
     let mut z = gaussian(0x5EED_ADE0);
@@ -554,7 +554,7 @@ fn ade_skewed_heteroskedastic_treatment_probe() {
 // --- Point derivative and its scales -----------------------------------------
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn point_derivative_frequentist_curvature_nominal_90_coverage() {
     scalar_coverage(
         "point_derivative_frequentist_curvature",
@@ -569,7 +569,7 @@ fn point_derivative_frequentist_curvature_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn point_derivative_bayesian_curvature_nominal_90_coverage() {
     scalar_coverage(
         "point_derivative_bayesian_curvature",
@@ -594,7 +594,7 @@ fn second_order_query() -> F {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn point_derivative_order_2_frequentist_curvature_nominal_90_coverage() {
     scalar_coverage(
         "point_derivative_order_2_frequentist_curvature",
@@ -617,7 +617,7 @@ fn point_derivative_order_2_frequentist_curvature_nominal_90_coverage() {
 /// no excess kurtosis. The Frequentist order-2 interval on the same DGP is
 /// nominal.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn point_derivative_order_2_bayesian_curvature_nominal_90_coverage() {
     scalar_coverage(
         "point_derivative_order_2_bayesian_curvature",
@@ -632,7 +632,7 @@ fn point_derivative_order_2_bayesian_curvature_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn semi_elasticity_log_treatment_frequentist_nominal_90_coverage() {
     scalar_coverage(
         "semi_elasticity_log_treatment_frequentist",
@@ -647,7 +647,7 @@ fn semi_elasticity_log_treatment_frequentist_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn semi_elasticity_log_treatment_bayesian_nominal_90_coverage() {
     scalar_coverage(
         "semi_elasticity_log_treatment_bayesian",
@@ -662,7 +662,7 @@ fn semi_elasticity_log_treatment_bayesian_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn semi_elasticity_log_outcome_bayesian_nominal_90_coverage() {
     scalar_coverage(
         "semi_elasticity_log_outcome_bayesian",
@@ -677,7 +677,7 @@ fn semi_elasticity_log_outcome_bayesian_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn elasticity_bayesian_nominal_90_coverage() {
     scalar_coverage(
         "elasticity_bayesian",
@@ -759,7 +759,7 @@ fn elasticity_frequentist_coverage(
                     let methods: Vec<_> =
                         common::calibration_bind::constructions(&contract, result)
                             .into_iter()
-                            .map(|(c, _)| c.interval_method)
+                            .map(|(c, _, _)| c.interval_method)
                             .collect();
                     assert!(
                         methods.iter().any(|m| m == "analytic_se"),
@@ -790,14 +790,14 @@ fn elasticity_frequentist_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn elasticity_dag_frequentist_nominal_90_coverage() {
     elasticity_frequentist_coverage("elasticity_dag_frequentist_nominal_90_coverage", false, LEVEL)
         .assert();
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn elasticity_dag_accepted_frequentist_nominal_90_coverage() {
     elasticity_frequentist_coverage(
         "elasticity_dag_accepted_frequentist_nominal_90_coverage",
@@ -808,14 +808,14 @@ fn elasticity_dag_accepted_frequentist_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn elasticity_dag_frequentist_nominal_95_coverage() {
     elasticity_frequentist_coverage("elasticity_dag_frequentist_nominal_95_coverage", false, 0.95)
         .assert();
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn elasticity_dag_accepted_frequentist_nominal_95_coverage() {
     elasticity_frequentist_coverage(
         "elasticity_dag_accepted_frequentist_nominal_95_coverage",
@@ -826,7 +826,7 @@ fn elasticity_dag_accepted_frequentist_nominal_95_coverage() {
 }
 
 #[test]
-#[ignore = "probe: weak positive denominator is not a finite-interval license"]
+#[ignore = "probe: weak positive denominator is not a finite-interval support"]
 fn elasticity_weak_positive_level_fieller_probe() {
     let truth = AT * mu_prime(AT) / 0.25;
     let mut tally = CoverageTally::new("elasticity_weak_positive_level_fieller_probe", 0.95);
@@ -1007,7 +1007,7 @@ fn assert_all_boundary(tallies: &[CoverageTally], measured: &[[f64; GRID_POINTS]
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_jacobian_bayesian_boundary_within_band() {
     let tallies = gam_coverage(
         "response_jacobian_bayesian_boundary_within_band",
@@ -1035,7 +1035,7 @@ fn assert_all_nominal(tallies: &[CoverageTally]) {
 /// 0.893 / 0.890 at 2000 replicates (0.880 / 0.878 before the exchangeable-rank
 /// quantiles and the degrees-of-freedom inflation, see `JACOBIAN_MEASURED`).
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn directional_derivative_bayesian_nominal_90_coverage() {
     let tallies = gam_coverage(
         "directional_derivative_bayesian_nominal_90_coverage",
@@ -1048,11 +1048,10 @@ fn directional_derivative_bayesian_nominal_90_coverage() {
 
 // --- Multivariate GAM plug-in, Frequentist: the closed band ------------------
 //
-// The Frequentist Jacobian / directional derivative publishes the point only
-// (`response.derivative_interval_withheld`). Its coefficient-sandwich band is
-// built by `ContinuousResponseEstimator::plugin_gradient_interval_internal` and
-// stays closed while these records are unmeasured; the two
-// tests below score that internal band on the Bayesian cells' DGP and seeds.
+// The Frequentist Jacobian / directional derivative reports its coefficient-sandwich band
+// around the published point, annotated by calibration. The band is built by
+// `ContinuousResponseEstimator::plugin_gradient_interval_internal`; the two
+// tests below score it on the Bayesian cells' DGP and seeds.
 
 /// The construction the closed band is keyed under once the route opens: the
 /// Frequentist analytic interval of `response.gam_derivative` on the explicit
@@ -1136,7 +1135,7 @@ fn gam_frequentist_coverage(
         match scored {
             Ok((rows, (values, bands))) => {
                 for (j, tally) in tallies.iter_mut().enumerate() {
-                    tally.bind(
+                    tally.bind_validation(
                         &construction,
                         ScopeFacts {
                             row_count: *rows,
@@ -1144,6 +1143,7 @@ fn gam_frequentist_coverage(
                             posterior_draws: None,
                             unidentified_mass: 0.0,
                         },
+                        "not_applicable",
                     );
                     tally.record(Some(bands[j]), truth[j]);
                 }
@@ -1161,7 +1161,7 @@ fn gam_frequentist_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_jacobian_dag_frequentist_nominal_90_coverage() {
     let tallies = gam_frequentist_coverage(
         "response_jacobian_dag_frequentist_nominal_90_coverage",
@@ -1174,7 +1174,7 @@ fn response_jacobian_dag_frequentist_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn directional_derivative_dag_frequentist_nominal_90_coverage() {
     let tallies = gam_frequentist_coverage(
         "directional_derivative_dag_frequentist_nominal_90_coverage",
@@ -1197,6 +1197,10 @@ fn directional_derivative_dag_frequentist_nominal_90_coverage() {
 // additive-GAM plug-in does not yet expose (see the calibration-readiness audit).
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn frequentist_point_derivative_transforms_publish_a_delta_method_interval() {
     let data = point_data(400, 7);
     let graph = point_graph();
@@ -1212,13 +1216,17 @@ fn frequentist_point_derivative_transforms_publish_a_delta_method_interval() {
             .support
             .warnings
             .iter()
-            .any(|w| w.code.as_ref() == "response.derivative_interval_withheld")
+            .any(|w| w.code.as_ref() == "response.no_derivative_interval_method")
     };
     // Each transform publishes a Confidence scalar. Elasticity uses Fieller
     // bounds; the remaining transforms use a delta-method interval.
-    for (label, functional) in [
-        ("elasticity", point_query(DerivativeScale::LogLog)),
-        ("semi_elasticity_log_outcome", point_query(DerivativeScale::LogOutcome)),
+    for (label, functional, truth) in [
+        ("elasticity", point_query(DerivativeScale::LogLog), Some(AT * mu_prime(AT) / mu(AT))),
+        (
+            "semi_elasticity_log_outcome",
+            point_query(DerivativeScale::LogOutcome),
+            Some(mu_prime(AT) / mu(AT)),
+        ),
         (
             "semi_elasticity_log_treatment_order_2",
             F::PointDerivative {
@@ -1228,6 +1236,7 @@ fn frequentist_point_derivative_transforms_publish_a_delta_method_interval() {
                 order: 2,
                 scale: DerivativeScale::LogTreatment,
             },
+            None,
         ),
     ] {
         let response = run(&data, &graph, functional, Some(BANDWIDTH), None, 7).unwrap();
@@ -1235,6 +1244,19 @@ fn frequentist_point_derivative_transforms_publish_a_delta_method_interval() {
         let (lower, upper) =
             scalar_interval(&response).unwrap_or_else(|| panic!("{label}: interval must publish"));
         assert!(lower <= upper, "{label}: interval must be ordered");
+        if let Some(truth) = truth {
+            let value = scalar_value(&response);
+            assert!(lower <= value && value <= upper, "{label}: the point lies in its interval");
+            assert!(
+                lower <= truth && truth <= upper,
+                "{label}: the interval ({lower}, {upper}) covers the true {truth}"
+            );
+            let half = (upper - lower) / 2.0;
+            assert!(
+                (value - truth).abs() <= half,
+                "{label}: {value} vs truth {truth}, half {half}"
+            );
+        }
         assert!(
             matches!(
                 response.uncertainty,
@@ -1258,31 +1280,46 @@ fn frequentist_point_derivative_transforms_publish_a_delta_method_interval() {
         assert!(no_withheld(&response), "{label}: must not withhold");
     }
     // The identity / log-treatment order-1 cases keep their direct-SE interval.
-    for (label, functional) in [
-        ("semi_elasticity_log_treatment", point_query(DerivativeScale::LogTreatment)),
-        ("point_derivative", point_query(DerivativeScale::Identity)),
+    for (label, functional, truth) in [
+        (
+            "semi_elasticity_log_treatment",
+            point_query(DerivativeScale::LogTreatment),
+            AT * mu_prime(AT),
+        ),
+        ("point_derivative", point_query(DerivativeScale::Identity), mu_prime(AT)),
     ] {
         let response = run(&data, &graph, functional, Some(BANDWIDTH), None, 7).unwrap();
-        assert!(scalar_interval(&response).is_some(), "{label}: interval is published");
+        let (lower, upper) =
+            scalar_interval(&response).unwrap_or_else(|| panic!("{label}: interval is published"));
+        let value = scalar_value(&response);
+        assert!(lower <= value && value <= upper, "{label}: the point lies in its interval");
+        assert!(
+            lower <= truth && truth <= upper,
+            "{label}: the interval ({lower}, {upper}) covers the true {truth}"
+        );
+        let half = (upper - lower) / 2.0;
+        assert!((value - truth).abs() <= half, "{label}: {value} vs truth {truth}, half {half}");
     }
-    // The multivariate GAM plug-in still withholds the Frequentist interval and
-    // says why; the closed band the gate measures is around the published point.
-    let gam = gam_data(300, 7);
+    // The multivariate GAM plug-in reports its coefficient-sandwich band around the published
+    // point; the band is not disclosed as withheld.
+    let gam = gam_data(3_000, 7);
     for (label, functional) in
         [("jacobian", jacobian_query()), ("directional", directional_query())]
     {
         let response = run(&gam, &gam_graph(), functional.clone(), None, None, 7).unwrap();
+        let ResponseUncertainty::PointwiseBand { lower, upper, .. } = &response.uncertainty else {
+            panic!(
+                "{label}: Frequentist GAM plug-in reports a band, got {:?}",
+                response.uncertainty
+            );
+        };
         assert!(
-            matches!(response.uncertainty, ResponseUncertainty::None),
-            "{label}: Frequentist GAM plug-in still publishes no interval"
-        );
-        assert!(
-            response
+            !response
                 .support
                 .warnings
                 .iter()
-                .any(|w| w.code.as_ref() == "response.derivative_interval_withheld"),
-            "{label}: the withheld interval is disclosed"
+                .any(|w| w.code.as_ref() == "response.no_derivative_interval_method"),
+            "{label}: a published band is not disclosed as withheld"
         );
         let ResponseIdentification::PointIdentified(
             ResponseValue::Jacobian { values, .. } | ResponseValue::Vector(values),
@@ -1292,6 +1329,18 @@ fn frequentist_point_derivative_transforms_publish_a_delta_method_interval() {
         };
         let (internal, bands) = gam_internal_band(&gam, &functional);
         assert_eq!(internal, values.to_vec(), "{label}: the gate measures the published point");
+        assert_eq!(lower.len(), values.len(), "{label}: one lower bound per coordinate");
+        assert_eq!(upper.len(), values.len(), "{label}: one upper bound per coordinate");
+        for ((lo, hi), value) in lower.iter().zip(upper.iter()).zip(values.iter()) {
+            assert!(lo <= value && value <= hi, "{label}: {lo} <= {value} <= {hi}");
+        }
+        let truth: &[f64] = if label == "jacobian" { &JACOBIAN_TRUTH } else { &DIRECTIONAL_TRUTH };
+        assert_eq!(values.len(), truth.len(), "{label}: dimension");
+        for (value, truth) in values.iter().zip(truth) {
+            // n = 3,000 spline plug-in (observed error at most 0.08; it shrinks to 0.05 at
+            // 20,000 rows): a transposed or sign-flipped Jacobian is off by 0.5 or more.
+            assert!((value - truth).abs() < 0.15, "{label}: {value} vs truth {truth}");
+        }
         assert!(bands.iter().zip(&internal).all(|(&(lo, hi), &v)| lo < v && v < hi));
     }
 }

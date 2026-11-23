@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import Execution
+from antecedent import _reason_details as reason_details
 from antecedent.gcm import IntrinsicInfluence, intrinsic_influence
 
 EDGES = [("x", "y"), ("y", "z")]
@@ -36,7 +38,7 @@ def test_contributions_match_the_closed_form_within_the_reported_uncertainty():
         outer_draws=400,
         inner_draws=20,
         fit_bootstrap=20,
-        seed=3,
+        execution=Execution(seed=3),
     )
     assert isinstance(result, IntrinsicInfluence)
     assert result.method["shapley"] == {"kind": "exact"}
@@ -53,14 +55,17 @@ def test_contributions_match_the_closed_form_within_the_reported_uncertainty():
 
 
 def test_efficiency_gap_is_reported_and_small():
-    result = intrinsic_influence(_data(), EDGES, "z", independent_noise=True, seed=1)
+    result = intrinsic_influence(
+        _data(), EDGES, "z", independent_noise=True, execution=Execution(seed=1)
+    )
     total = sum(s.contribution for s in result.sources)
     assert result.allocation_residual == pytest.approx(result.total_variance - total)
     assert abs(result.allocation_residual) <= 6 * max(result.allocation_residual_stderr, 0.3)
-    assert result.total_variance == pytest.approx(sum(TRUTH.values()), rel=0.1)
+    assert result.total_variance == pytest.approx(sum(TRUTH.values()), rel=0.05)
+    assert result.total_variance == pytest.approx(float(np.var(_data()["z"], ddof=1)), rel=0.01)
 
 
-def test_unmeasured_mechanism_fit_is_marked_unquantified_not_zero():
+def test_not_measured_mechanism_fit_is_marked_unquantified_not_zero():
     result = intrinsic_influence(_data(), EDGES, "z", independent_noise=True)
     for source in result.sources:
         fit = source.component("mechanism_fit")
@@ -80,22 +85,60 @@ def test_unmeasured_mechanism_fit_is_marked_unquantified_not_zero():
     for source in sampled.sources:
         assert source.component("permutation_sampling").status == "quantified"
         assert source.component("mechanism_fit").status == "quantified"
+        whole = source.whole_procedure
+        assert whole is not None and whole.status == "quantified"
+        # The whole procedure keeps the noise the mechanism-fit component removes.
+        assert whole.stderr >= source.component("mechanism_fit").stderr
+        assert whole.ci_low <= source.contribution <= whole.ci_high
+    for source in result.sources:
+        assert source.whole_procedure is not None
+        assert source.whole_procedure.status == "unquantified"
+
+
+def test_the_posterior_over_the_mechanisms_covers_the_closed_form_shares():
+    result = intrinsic_influence(
+        _data(),
+        EDGES,
+        "z",
+        independent_noise=True,
+        outer_draws=200,
+        inner_draws=20,
+        posterior_draws=20,
+        execution=Execution(seed=3),
+    )
+    posterior = result.posterior
+    assert posterior is not None and posterior.draws == 20
+    assert result.method["fit_resampling"] == "dirichlet_row_weights"
+    assert result.budget["refits"] == 20
+    for name, truth in TRUTH.items():
+        share = posterior.source(name)
+        assert share.sd > 0.0
+        assert share.ci_low <= share.mean <= share.ci_high
+        assert abs(share.mean - truth) <= 6 * max(share.sd, 0.05 * truth)
+
+
+def test_a_frequentist_run_carries_no_posterior():
+    result = intrinsic_influence(_data(), EDGES, "z", independent_noise=True)
+    assert result.posterior is None
+    assert result.method["fit_resampling"] == "row_bootstrap"
 
 
 def test_same_seed_reproduces_and_a_different_seed_does_not():
     kwargs = {"independent_noise": True, "outer_draws": 100, "inner_draws": 10}
-    a = intrinsic_influence(_data(), EDGES, "z", seed=2, **kwargs)
-    b = intrinsic_influence(_data(), EDGES, "z", seed=2, **kwargs)
-    c = intrinsic_influence(_data(), EDGES, "z", seed=3, **kwargs)
+    a = intrinsic_influence(_data(), EDGES, "z", execution=Execution(seed=2), **kwargs)
+    b = intrinsic_influence(_data(), EDGES, "z", execution=Execution(seed=2), **kwargs)
+    c = intrinsic_influence(_data(), EDGES, "z", execution=Execution(seed=3), **kwargs)
     assert [s.contribution for s in a.sources] == [s.contribution for s in b.sources]
     assert [s.contribution for s in a.sources] != [s.contribution for s in c.sources]
 
 
 def test_undeclared_and_latent_confounded_noise_is_refused_with_its_reason():
-    with pytest.raises(Exception, match="intrinsic_influence.noise_independence_undeclared") as e:
+    with pytest.raises(
+        Exception, match=reason_details.intrinsic_influence.NOISE_INDEPENDENCE_UNDECLARED
+    ) as e:
         intrinsic_influence(_data(), EDGES, "z")
     assert getattr(e.value, "reason_code", None) == "route_not_supported"
-    with pytest.raises(Exception, match="intrinsic_influence.correlated_noise") as e:
+    with pytest.raises(Exception, match=reason_details.intrinsic_influence.CORRELATED_NOISE) as e:
         intrinsic_influence(_data(), EDGES, "z", bidirected_edges=[("x", "z")])
     assert getattr(e.value, "reason_code", None) == "route_not_supported"
 
@@ -119,7 +162,7 @@ def test_exact_enumeration_reports_exactly_zero_permutation_error_and_keeps_simu
         allocation="exact",
         outer_draws=2500,
         inner_draws=10,
-        seed=2,
+        execution=Execution(seed=2),
     )
     assert result.method["shapley"] == {"kind": "exact"}
     assert result.budget["permutations"] == 0 and result.budget["exact_coalitions"] == 16

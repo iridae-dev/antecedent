@@ -6,7 +6,7 @@
 //! The thresholds are the fixture's; the SEMs are defined here. There is no external
 //! oracle: this is internal known-truth evidence.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,
@@ -97,7 +97,7 @@ fn index(names: &[&str], name: &str) -> usize {
 
 /// Posterior mass of the directed edge `from -> to` (`edge_marginals[from * n + to]`).
 fn directed(post: &GraphPosterior, n: usize, from: usize, to: usize) -> f64 {
-    post.edge_marginals[from * n + to]
+    post.edge_marginals()[from * n + to]
 }
 
 /// Runs every static engine the fixture names with its default configuration.
@@ -140,6 +140,11 @@ fn static_engines(
 }
 
 #[test]
+#[allow(clippy::items_after_statements, reason = "the local helper belongs to this test setup")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the exhaustive fixture keeps its setup and checks together"
+)]
 fn dag_posterior_engines_put_fixture_mass_on_the_true_structure() {
     let fx = fixture();
     assert_eq!(fx["score_family"].as_str(), Some("GaussianBic"));
@@ -203,7 +208,214 @@ fn dag_posterior_engines_put_fixture_mass_on_the_true_structure() {
     let series = ["x", "y"];
     let (from, to) =
         (index(&series, edge[0].as_str().unwrap()), index(&series, edge[1].as_str().unwrap()));
-    let lagged = post.lagged_edge_marginals.as_ref().expect("lagged marginals");
+    let lagged = post.lagged_edge_marginals().expect("lagged marginals");
     let mass = lagged[from * 2 + to];
     assert!(mass >= min_mass, "DbnPosterior: P(x_(t-1) -> y_t) = {mass} < {min_mass}");
+
+    // Exact reference: the configured min_lag=1 excludes contemporaneous edges. Enumerate
+    // the empty contemporaneous DAG times the 2^4 lag-1 edge sets under the uniform prior,
+    // and weight each by the Gaussian BIC of the aligned design, exactly as for the
+    // static enumeration. The design rows are t = 1..n-1 with columns (x_t, y_t, x_(t-1),
+    // y_(t-1)); a node's parents are its contemporaneous parents and its lagged sources.
+    use antecedent_data::TableView;
+    let series_x = data.float64_values(vars[0]).unwrap().clone();
+    let series_y = data.float64_values(vars[1]).unwrap().clone();
+    let rows = series_x.len() - 1;
+    let design: Vec<Vec<f64>> = vec![
+        series_x[1..].to_vec(),
+        series_y[1..].to_vec(),
+        series_x[..rows].to_vec(),
+        series_y[..rows].to_vec(),
+    ];
+    let n = rows as f64;
+    let contemporaneous: [&[(usize, usize)]; 1] = [&[]];
+    let mut logs = Vec::new();
+    let mut lag_sets = Vec::new();
+    let mut cmasks = Vec::new();
+    for (ci, edges) in contemporaneous.iter().enumerate() {
+        for lword in 0_u32..16 {
+            // lag bit = from * 2 + to
+            let lag_edge = |from: usize, to: usize| lword >> (from * 2 + to) & 1 == 1;
+            let log_weight: f64 = (0..2)
+                .map(|node| {
+                    let mut parents: Vec<usize> =
+                        edges.iter().filter(|e| e.1 == node).map(|e| e.0).collect();
+                    parents
+                        .extend((0..2).filter(|&from| lag_edge(from, node)).map(|from| 2 + from));
+                    -(n / 2.0) * (ols_rss(&design, node, &parents) / n).ln()
+                        - (parents.len() as f64 / 2.0) * n.ln()
+                })
+                .sum();
+            logs.push(log_weight);
+            lag_sets.push(lword);
+            cmasks.push(ci);
+        }
+    }
+    let top = logs.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let total: f64 = logs.iter().map(|w| (w - top).exp()).sum();
+    let mut lag_marginals = [0.0_f64; 4];
+    for ((w, lword), _) in logs.iter().zip(&lag_sets).zip(&cmasks) {
+        for (bit, slot) in lag_marginals.iter_mut().enumerate() {
+            if lword >> bit & 1 == 1 {
+                *slot += (w - top).exp() / total;
+            }
+        }
+    }
+    for (bit, want) in lag_marginals.iter().enumerate() {
+        assert!(
+            (lagged[bit] - want).abs() < 1e-6,
+            "DbnPosterior lag-1 marginal of edge {} -> {}: {} vs enumeration {want}",
+            bit / 2,
+            bit % 2,
+            lagged[bit]
+        );
+    }
+    // The true edge x_(t-1) -> y_t carries essentially all the mass, and the enumeration says
+    // exactly how much.
+    assert!((mass - lag_marginals[1]).abs() < 1e-6);
+    assert!(lag_marginals[1] > 0.999, "enumerated mass {}", lag_marginals[1]);
+}
+
+/// Residual sum of squares of `target` regressed on an intercept and `parents` (normal
+/// equations by Gaussian elimination with partial pivoting; the designs here are 1-3 columns of
+/// well-conditioned data). Independent of the crate's score code.
+fn ols_rss(columns: &[Vec<f64>], target: usize, parents: &[usize]) -> f64 {
+    let n = columns[0].len();
+    let k = parents.len() + 1;
+    let design = |row: usize, j: usize| if j == 0 { 1.0 } else { columns[parents[j - 1]][row] };
+    let mut a = vec![vec![0.0; k + 1]; k];
+    for row in 0..n {
+        for i in 0..k {
+            for j in 0..k {
+                a[i][j] += design(row, i) * design(row, j);
+            }
+            a[i][k] += design(row, i) * columns[target][row];
+        }
+    }
+    for col in 0..k {
+        let pivot = (col..k).max_by(|&x, &y| a[x][col].abs().total_cmp(&a[y][col].abs())).unwrap();
+        a.swap(col, pivot);
+        for r in 0..k {
+            if r != col {
+                let f = a[r][col] / a[col][col];
+                for c in col..=k {
+                    a[r][c] -= f * a[col][c];
+                }
+            }
+        }
+    }
+    let beta: Vec<f64> = (0..k).map(|i| a[i][k] / a[i][i]).collect();
+    (0..n)
+        .map(|row| {
+            let fit: f64 = (0..k).map(|j| beta[j] * design(row, j)).sum();
+            (columns[target][row] - fit).powi(2)
+        })
+        .sum()
+}
+
+/// Exact BIC posterior edge marginals over all DAGs on `columns.len() <= 4` nodes with a uniform
+/// prior over DAGs: weight `exp(sum_v [-(n/2) ln(RSS_v / n) - (|pa(v)| / 2) ln n])`. Terms that
+/// do not depend on the graph (2-pi, the intercept and variance parameters) cancel.
+fn reference_edge_marginals(columns: &[Vec<f64>]) -> Vec<f64> {
+    let (v, n) = (columns.len(), columns[0].len() as f64);
+    let pairs: Vec<(usize, usize)> =
+        (0..v).flat_map(|i| (0..v).filter(move |&j| j != i).map(move |j| (i, j))).collect();
+    let mut log_weights = Vec::new();
+    let mut graphs = Vec::new();
+    for bits in 0..(1_u32 << pairs.len()) {
+        let edges: Vec<(usize, usize)> =
+            pairs.iter().enumerate().filter(|(b, _)| bits >> b & 1 == 1).map(|(_, e)| *e).collect();
+        // Acyclic: repeatedly remove a node with no remaining parents.
+        let mut remaining: Vec<usize> = (0..v).collect();
+        while let Some(pos) = remaining
+            .iter()
+            .position(|&x| !edges.iter().any(|&(f, t)| t == x && remaining.contains(&f)))
+        {
+            remaining.remove(pos);
+        }
+        if !remaining.is_empty() {
+            continue;
+        }
+        let log_weight: f64 = (0..v)
+            .map(|node| {
+                let parents: Vec<usize> =
+                    edges.iter().filter(|e| e.1 == node).map(|e| e.0).collect();
+                -(n / 2.0) * (ols_rss(columns, node, &parents) / n).ln()
+                    - (parents.len() as f64 / 2.0) * n.ln()
+            })
+            .sum();
+        log_weights.push(log_weight);
+        graphs.push(edges);
+    }
+    let max = log_weights.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let total: f64 = log_weights.iter().map(|w| (w - max).exp()).sum();
+    let mut marginals = vec![0.0; v * v];
+    for (edges, w) in graphs.iter().zip(&log_weights) {
+        for &(f, t) in edges {
+            marginals[f * v + t] += (w - max).exp() / total;
+        }
+    }
+    marginals
+}
+
+fn columns_of(data: &TabularData, names: &[&str]) -> Vec<Vec<f64>> {
+    use antecedent_data::TableView;
+    (0..names.len() as u32)
+        .map(|i| data.float64_values(VariableId::from_raw(i)).unwrap().clone())
+        .collect()
+}
+
+#[test]
+fn exact_engine_reproduces_an_independent_bic_enumeration_and_samplers_agree_with_it() {
+    let fx = fixture();
+    let engines: Vec<&str> =
+        fx["engines"].as_array().unwrap().iter().map(|e| e.as_str().unwrap()).collect();
+    let names = ["a", "b", "c"];
+    for (label, (data, vars), gate) in
+        [("chain", chain(200), true), ("collider", collider(400), false)]
+    {
+        let reference = reference_edge_marginals(&columns_of(&data, &names));
+        // The in-test enumeration must itself agree with the fixture's marginals, which the
+        // retained exact-rational generator (reference.py) writes from the SplitMix64 stream.
+        let frozen: Vec<f64> = fx["exact_marginals"][label]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_f64().unwrap())
+            .collect();
+        assert_eq!(frozen.len(), reference.len(), "{label}");
+        for (cell, (a, b)) in reference.iter().zip(&frozen).enumerate() {
+            assert!((a - b).abs() < 1e-9, "{label}: in-test enumeration cell {cell}: {a} vs {b}");
+        }
+        for (engine, post) in static_engines(&data, &vars, &engines, gate) {
+            // The exact engine is the enumeration itself; the samplers estimate it from
+            // finite chains, so they get a Monte Carlo budget.
+            // Observed seeded deviations are at most 0.04 (finite chains, a few thousand draws).
+            let budget = if engine == "ExactDagPosterior" { 1e-6 } else { 0.06 };
+            if engine == "ExactDagPosterior" {
+                for (cell, want) in frozen.iter().enumerate() {
+                    assert!(
+                        (post.edge_marginals()[cell] - want).abs() < 1e-6,
+                        "{label}: exact engine cell {cell} vs frozen enumeration {want}"
+                    );
+                }
+            }
+            for cell in 0..9 {
+                let got = post.edge_marginals()[cell];
+                if engine == "CiScreenedPosterior" {
+                    // Screening removes graphs, so only the edges the full posterior keeps
+                    // must survive; edges it rules out may be zeroed or sharpened.
+                    if reference[cell] >= 0.5 {
+                        assert!(got >= reference[cell] - budget, "{label} {engine}: edge {cell}");
+                    }
+                    continue;
+                }
+                assert!(
+                    (got - reference[cell]).abs() < budget,
+                    "{label} {engine}: P(edge {cell}) = {got}, enumeration {}",
+                    reference[cell]
+                );
+            }
+        }
+    }
 }

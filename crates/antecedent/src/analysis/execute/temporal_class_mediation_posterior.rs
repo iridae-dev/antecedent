@@ -1,6 +1,6 @@
 //! TemporalCpdag/Pag graph-posterior mediation: class envelope per atom, then policy.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::atom_mix::{
     AtomBoundRule, AtomEvalView, AtomMixInput, AtomRefuterBatch, ScalarRefuterMix,
@@ -57,7 +57,7 @@ impl super::Study {
         let mut witness = TemporalEffectQuery::pulse(query.treatment, query.outcome, 1.0);
         witness.horizon_steps = horizon;
         let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
-        Ok(if let Some(cache) = self.temporal_class_posterior_identification_cache.as_ref() {
+        Ok(if let Some(cache) = self.temporal_class_posterior_cache() {
             (Arc::clone(cache), true)
         } else {
             (
@@ -66,7 +66,7 @@ impl super::Study {
                         gp,
                         &vars,
                         &witness,
-                        self.max_completions,
+                        self.declared.max_completions,
                         ctx,
                     )?,
                 ),
@@ -76,6 +76,7 @@ impl super::Study {
     }
 
     /// Mix TemporalCpdag/Pag posterior atoms through the class mediation envelope.
+    #[allow(clippy::too_many_lines, reason = "one linear execution: admit, fit, aggregate, label")]
     pub(super) fn execute_temporal_class_graph_posterior_mediation(
         &self,
         data: &TimeSeriesData,
@@ -84,14 +85,18 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        super::series_weights::refuse_unread_series_weights(
+            data,
+            "class graph-posterior mediation",
+        )?;
         if query.horizons.len() != 1 {
             return Err(CausalError::Unsupported {
-                message: "Frequentist TemporalCpdag/Pag graph-posterior mediation is licensed \
+                message: "Frequentist TemporalCpdag/Pag graph-posterior mediation is supported \
                           for one horizon; multi-horizon grids need their own joint uncertainty \
                           contract",
             });
         }
-        if self.inference.is_bayesian() {
+        if self.settings.inference.is_bayesian() {
             return self.execute_temporal_class_graph_posterior_mediation_bayesian(
                 data, gp, query, physical, ctx,
             );
@@ -208,6 +213,7 @@ impl super::Study {
                 inner,
             )
         })
+        .map_err(Into::into)
     }
 
     /// The shared circular-block bootstrap over the evaluated atoms' prepared
@@ -240,12 +246,12 @@ impl super::Study {
             &refs,
             &weights,
             query.contrast,
-            self.bootstrap_replicates,
+            self.settings.bootstrap_replicates,
             mediation_block_stream(MediationRoute::TemporalClass, horizon),
             ctx,
         );
         let requested_se = shared.as_ref().and_then(|s| s.requested).filter(|s| s.is_finite());
-        let replicates_requested = self.bootstrap_replicates > 0;
+        let replicates_requested = self.settings.bootstrap_replicates > 0;
         let (replicates_ok, replicates_attempted) = shared
             .as_ref()
             .map_or((0, 0), |s| (s.block.replicates_ok, s.block.replicates_attempted));
@@ -276,7 +282,7 @@ impl super::Study {
         ),
         block: &ClassMediationBlock,
     ) -> Vec<Diagnostic> {
-        if self.inference.is_bayesian() && posterior_withheld {
+        if self.settings.inference.is_bayesian() && posterior_withheld {
             diagnostics.push(graph_posterior_withheld_diagnostic());
         }
         diagnostics.push(Diagnostic::new(
@@ -310,7 +316,7 @@ impl super::Study {
                 diagnostics.extend(short_series_warning(s.block.effective_rows, block.family));
             }
             _ => diagnostics.push(Diagnostic::new(
-                "estimate.temporal_class.mediation.uncertainty_withheld",
+                "estimate.temporal_class.mediation.no_uncertainty_method",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
                 if block.replicates_requested {
@@ -334,10 +340,10 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         use antecedent_estimate::bayesian_mediation::require_gaussian_mediation;
-        let InferenceMode::Bayesian(cfg) = &self.inference else {
-            return Err(CausalError::Unsupported {
-                message: "Bayesian TemporalCpdag/Pag graph-posterior mediation requires Bayesian inference",
-            });
+        let InferenceMode::Bayesian(cfg) = &self.settings.inference else {
+            return Err(CausalError::unsupported_inference(
+                "Bayesian TemporalCpdag/Pag graph-posterior mediation requires Bayesian inference",
+            ));
         };
         let cfg = cfg.clone();
         let estimator = bayesian_gcomp(&cfg, ctx);
@@ -366,7 +372,7 @@ impl super::Study {
             horizon,
         )?;
         let mut diagnostics = mixed.identification.diagnostics.clone();
-        if self.inference.is_bayesian() && mixed.posterior.is_none() {
+        if self.settings.inference.is_bayesian() && mixed.posterior.is_none() {
             diagnostics.push(graph_posterior_withheld_diagnostic());
         }
         diagnostics.push(Diagnostic::new(
@@ -528,7 +534,7 @@ fn fit_class_mediation_case_posterior(
     ctx: &ExecutionContext,
 ) -> Result<CausalPosterior, CausalError> {
     use antecedent_estimate::bayesian_mediation::{
-        compose_temporal_mediation, prepare_temporal_mediation_adjusted,
+        compose_temporal_mediation_mechanisms, prepare_temporal_mediation_adjusted,
     };
     let preparations =
         prepare_temporal_mediation_adjusted(data, estimand, horizon_query, adjustment, ctx)
@@ -544,12 +550,15 @@ fn fit_class_mediation_case_posterior(
                 .map_err(CausalError::from)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let [natural_direct, natural_indirect] = mechanisms.as_slice() else {
-        return Err(CausalError::Compile {
-            message: "temporal mediation must fit exactly two mechanisms".into(),
-        });
-    };
-    compose_temporal_mediation(natural_direct, natural_indirect, horizon_query, status)
+    let mechanisms = antecedent_estimate::bayesian_mediation::couple_mediation_mechanisms(
+        &preparations,
+        mechanisms,
+        horizon as usize,
+        mediation_mechanism_seed(bayes.seed, horizon, preparations.len()),
+        ctx,
+    );
+    // One mechanism per mediator, then the outcome mechanism last.
+    compose_temporal_mediation_mechanisms(&mechanisms, horizon_query, status)
         .map_err(CausalError::from)
 }
 
@@ -558,9 +567,30 @@ fn single_mediation_horizon(query: &antecedent_core::MediationQuery) -> Result<u
     match query.horizons.as_ref() {
         [horizon] => Ok(*horizon),
         _ => Err(CausalError::Unsupported {
-            message: "TemporalCpdag/Pag graph-posterior mediation is licensed for one horizon",
+            message: "TemporalCpdag/Pag graph-posterior mediation is supported for one horizon",
         }),
     }
+}
+
+/// Checked preparation has already bound the actual mediation functional. One-shot
+/// callers with an enumeration witness still use the same refinement before fitting.
+fn retained_or_refined_mediation_envelope<'a>(
+    atom: &'a CachedTemporalClassPosteriorAtomIdentification,
+    query: &antecedent_core::MediationQuery,
+    horizon: u32,
+) -> Result<std::borrow::Cow<'a, antecedent_identify::TemporalClassEnvelope>, CausalError> {
+    if atom.identification.query == CausalQuery::Mediation(query.clone())
+        && atom.envelope.indexers.iter().all(|indexer| indexer.horizon() == horizon)
+    {
+        return Ok(std::borrow::Cow::Borrowed(&atom.envelope));
+    }
+    let mut envelope = (*atom.envelope).clone();
+    crate::identify_api::refine_temporal_class_identification(
+        &mut envelope,
+        &CausalQuery::Mediation(query.clone()),
+        horizon,
+    )?;
+    Ok(std::borrow::Cow::Owned(envelope))
 }
 
 fn evaluate_temporal_class_mediation_atom_frequentist(
@@ -572,12 +602,7 @@ fn evaluate_temporal_class_mediation_atom_frequentist(
     estimator: &TemporalMediationEstimator,
     ctx: &ExecutionContext,
 ) -> Result<TemporalClassMediationAtomEval, CausalError> {
-    let mut class_envelope = antecedent_identify::TemporalClassEnvelope::clone(&atom.envelope);
-    crate::identify_api::refine_temporal_class_identification(
-        &mut class_envelope,
-        &CausalQuery::Mediation(query.clone()),
-        horizon,
-    )?;
+    let class_envelope = retained_or_refined_mediation_envelope(atom, query, horizon)?;
     let envelope = &class_envelope.envelope;
     let mut horizon_query = query.clone();
     horizon_query.horizons = Arc::from([horizon]);
@@ -673,12 +698,7 @@ fn evaluate_temporal_class_mediation_atom_bayesian(
     ctx: &ExecutionContext,
 ) -> Result<TemporalClassMediationAtomEval, CausalError> {
     let bayes = bayesian_gcomp(cfg, ctx);
-    let mut class_envelope = antecedent_identify::TemporalClassEnvelope::clone(&atom.envelope);
-    crate::identify_api::refine_temporal_class_identification(
-        &mut class_envelope,
-        &CausalQuery::Mediation(query.clone()),
-        horizon,
-    )?;
+    let class_envelope = retained_or_refined_mediation_envelope(atom, query, horizon)?;
     let envelope = &class_envelope.envelope;
     let mut horizon_query = query.clone();
     horizon_query.horizons = Arc::from([horizon]);
@@ -690,7 +710,7 @@ fn evaluate_temporal_class_mediation_atom_bayesian(
     let mut primary_estimand = None;
     let mut atom_posterior = None;
     let mut refute_atom = None;
-    for (case, indexer) in envelope.cases.iter().zip(atom.envelope.indexers.iter()) {
+    for (case, indexer) in envelope.cases.iter().zip(class_envelope.indexers.iter()) {
         if !identification_status_ok_for_case(case.result.status)
             || case.result.estimands.is_empty()
         {
@@ -878,11 +898,12 @@ fn refute_temporal_class_mediation_posterior(
     policy: StructuralAggregationPolicy,
     ctx: &ExecutionContext,
 ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
-    if study.refute == RefuteSuite::None {
+    if study.settings.refute == RefuteSuite::None {
         return Ok((Vec::new(), Vec::new()));
     }
     let mix_scalar = matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean);
-    let plan = QueryRefutationPlan::temporal_mediation(study.refute == RefuteSuite::Full);
+    let plan = QueryRefutationPlan::temporal_mediation(study.settings.refute == RefuteSuite::Full);
+    let gaps = study.declares_complete_case();
     let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
     drive_posterior_refuters(
         evals,
@@ -901,7 +922,15 @@ fn refute_temporal_class_mediation_posterior(
             let mut horizon_query = query.clone();
             horizon_query.horizons = Arc::from([single_mediation_horizon(query)?]);
             let reports = plan
-                .refute_temporal_atom(data, estimand, &horizon_query, estimate, adjustment, ctx)
+                .refute_temporal_atom_with_gaps(
+                    data,
+                    estimand,
+                    &horizon_query,
+                    estimate,
+                    adjustment,
+                    gaps,
+                    ctx,
+                )
                 .map_err(CausalError::from)?;
             Ok(vec![AtomRefuterBatch { weight, reports, notes: Vec::new() }])
         },

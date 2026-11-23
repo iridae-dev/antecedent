@@ -6,11 +6,12 @@
 //!   `[Supported, Extrapolative]` exports a support mask `[true, false]`: only a
 //!   `Supported` coordinate is read as supported by the aligned law, the same
 //!   reading the mean route gives it. Extrapolation is never promoted.
-//! * A Bayesian temporal mean curve over two horizons is two separate
-//!   conjugate fits, so its per-horizon draws are independent marginals. No
-//!   aligned joint law may be exported from it: the claim either cannot be bound
-//!   to a one-dimensional dose grid or exposes no joint law, and a quantile
-//!   (nonlinear) functional is refused with `source_not_supplied`.
+//! * A Bayesian temporal mean curve over two horizons is two conjugate fits.
+//!   Their draws are retained only when the horizons were tied into one joint
+//!   trajectory law; otherwise they are independent marginals and none are
+//!   retained. No aligned joint law may be exported from it: the claim either
+//!   cannot be bound to a one-dimensional dose grid or exposes no joint law, and
+//!   a quantile (nonlinear) functional is refused with `source_not_supplied`.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
@@ -64,7 +65,7 @@ fn context() -> NativeResponseContext {
         },
         snapshot_id: "snap-1".into(),
         rng_id: "pcg:seed=7".into(),
-        calibration: DistributionCalibration::Unmeasured,
+        calibration: DistributionCalibration::NotMeasured,
     }
 }
 
@@ -207,23 +208,27 @@ fn multi_horizon_bayesian_responses_supply_no_aligned_joint_law() {
     let result = study.run(&ExecutionContext::for_tests(17)).unwrap();
     let response = result.response().expect("temporal response");
 
-    // Separate per-horizon fits retain no draws that could be read as one law.
-    if let ResponseUncertainty::PointwiseBand { draws, .. } = &response.uncertainty {
-        assert!(draws.is_none(), "independent horizon draws must not be retained");
-    }
-
-    let contract = quantile_contract();
-    let requirement = contract.source_requirement().unwrap().unwrap();
-    match NativeResponseClaim::from_response(response, &schema(), &context()) {
-        // The two-horizon grid is not the one-dimensional dose grid of the program.
-        Err(refusal) => assert!(refusal.validate().is_ok()),
-        Ok(claim) => {
-            assert!(!claim.has_joint_law());
-            let refusal = claim.decision_source(&requirement).unwrap_err();
-            assert_eq!(refusal.code, "decision_contract_unsatisfied");
-            assert_eq!(refusal.detail, "native_claims.source_not_supplied");
-            assert_eq!(refusal.expected.as_deref(), Some("joint_draws,marginal_draws"));
-            assert_eq!(refusal.supplied.as_deref(), Some("mean"));
+    // Per-horizon fits retain draws only as one joint trajectory law; independent
+    // horizon draws are never retained to be read as one law.
+    if let ResponseUncertainty::PointwiseBand { draws, lower, .. } = &response.uncertainty {
+        let independent =
+            response.support.warnings.iter().any(|warning| {
+                warning.code.as_ref() == "response.temporal_bayesian.joint_unavailable"
+            });
+        if independent {
+            assert!(draws.is_none(), "independent horizon draws must not be retained");
+        } else if let Some(draws) = draws {
+            assert_eq!(draws.n_coordinates(), lower.len(), "one joint draw column per cell");
         }
     }
+
+    // The two-horizon grid (0, 1) is not the one-dimensional dose grid (1, 2) of the program,
+    // so no claim, and hence no aligned joint law, can be bound from it.
+    let refusal = NativeResponseClaim::from_response(response, &schema(), &context())
+        .expect_err("a horizon grid is not the program's dose grid");
+    assert!(refusal.validate().is_ok());
+    assert_eq!(refusal.code, "quantity_semantics_mismatch");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::program_binding::DOSE_GRID_CHANGED);
+    assert_eq!(refusal.expected.as_deref(), Some("1,2"));
+    assert_eq!(refusal.supplied.as_deref(), Some("0,1"));
 }

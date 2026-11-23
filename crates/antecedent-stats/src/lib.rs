@@ -1,6 +1,6 @@
 //! Statistical algorithms and linear-algebra backends.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -8,6 +8,7 @@
 pub mod adaptive_inference;
 pub mod ci;
 pub mod cluster;
+pub mod continuous_error;
 pub mod covariance;
 mod cox_ipcw;
 pub mod dcor;
@@ -16,6 +17,7 @@ pub mod design;
 pub mod divergence;
 pub mod error;
 pub mod faer_backend;
+pub mod faer_scope;
 pub mod fdr;
 pub mod fit_counts;
 pub mod gam;
@@ -24,12 +26,16 @@ pub mod gram;
 pub mod identified_set;
 pub mod interference;
 pub mod joint_law;
+pub mod layout_rules;
 pub mod linalg;
 pub mod longitudinal_regime;
 pub mod m_estimate;
 pub mod matching;
+pub mod matching_boxtree;
 pub mod measurement_error;
 pub mod observation;
+pub mod power;
+pub mod propagation_chain;
 pub use cox_ipcw::{CoxBreslowFit, CoxIpcwFit, cox_breslow, cox_ipcw};
 pub mod propensity;
 pub mod quantile;
@@ -44,6 +50,7 @@ pub mod synthesis_transport;
 #[cfg(test)]
 mod test_util;
 pub mod twosls;
+mod weight_validation;
 mod welford;
 
 pub use ci::{
@@ -58,16 +65,16 @@ pub use ci::{
 #[cfg(test)]
 pub(crate) use cluster::panel_effective_lag;
 pub use cluster::{
-    MAX_CLUSTER_DIMENSIONS, bartlett_weight, cluster_meat_scalar, combine_inclusion_exclusion,
-    effective_nw_lag, few_cluster_t_ratio, intern_cluster_tuples, multiway_subset_masks,
-    newey_west_meat_scalar, panel_hac_meat_scalar,
+    MAX_CLUSTER_DIMENSIONS, MAX_MULTIWAY_WORK, bartlett_weight, cluster_meat_scalar,
+    combine_inclusion_exclusion, effective_nw_lag, few_cluster_t_ratio, intern_cluster_tuples,
+    multiway_subset_masks, multiway_work, newey_west_meat_scalar, panel_hac_meat_scalar,
 };
 pub use covariance::{
     Hc2Coefficient, SandwichKind, coefficient_covariance, hc2_coefficient_bell_mccaffrey,
     score_coefficient_covariance, symmetric_eigen,
 };
 pub use dcor::distance_correlation;
-pub use describe::{iid_se, mean_and_se};
+pub use describe::{iid_se, mean_and_sample_variance, mean_and_se};
 pub use design::{
     BasisKind, CompiledDesign, ContrastCodingKind, DesignColumn, DesignColumnMap, DesignColumnRole,
     RecordedContrast, RecordedSmooth, StandardizationRecord, StandardizedColumn,
@@ -86,25 +93,28 @@ pub use fdr::{
     bonferroni, holm,
 };
 pub use gam::{
-    AdditiveDesign, GamFit, GamOptions, GamWorkspace, PredictorMatrix, SmoothSpec, expand_bspline,
-    fit_gam, fit_gam_weighted, fit_gam_weighted_design, predict_gam,
+    AdditiveDesign, GamFit, GamOptions, GamWorkspace, PredictorMatrix, RoughnessPenalty,
+    SmoothSpec, expand_bspline, fit_gam, fit_gam_fixed_weighted_design, fit_gam_weighted,
+    fit_gam_weighted_design, predict_gam,
 };
 pub use glm::{
-    DEFAULT_RIDGE_ON_SEPARATION, GlmDesignRef, GlmFamily, GlmFit, GlmOptions, MultinomialDesignRef,
-    MultinomialFit, NbAlphaPolicy, fit_glm, fit_glm_ridge, fit_glm_ridge_weighted,
-    fit_glm_weighted, fit_logistic_weighted, fit_multinomial_logit, fit_multinomial_logit_weighted,
+    DEFAULT_RIDGE_ON_SEPARATION, GlmDesignRef, GlmFamily, GlmFit, GlmLaplaceFit, GlmOptions,
+    MultinomialDesignRef, MultinomialFit, NbAlphaPolicy, fit_glm, fit_glm_ridge,
+    fit_glm_ridge_weighted, fit_glm_weighted, fit_logistic_weighted, fit_logit_laplace,
+    fit_multinomial_logit, fit_multinomial_logit_weighted, logit_working_row,
 };
 pub use gram::{
     accumulate_xtx_xty_row, chol_log_det, chol_solve, cholesky_spd, column_is_constant, form_xtx,
-    form_xty, invert_square,
+    form_xty, invert_square, solve_spd,
 };
 pub use identified_set::{
     IdentifiedSetInterval, IdentifiedSetIntervalMethod, imbens_manski_critical_value,
-    imbens_manski_posterior_draws, imbens_manski_shared_replicates,
+    imbens_manski_influence, imbens_manski_posterior_draws, imbens_manski_shared_replicates,
 };
 pub use interference::{
     ExposureProbabilities, ExposureProbabilityMethod, RandomizationContrast, RandomizationMean,
-    exposure_probabilities, exposures, randomization_contrast, randomization_mean,
+    exposure_probabilities, exposure_probabilities_with_context, exposures, randomization_contrast,
+    randomization_mean,
 };
 pub use joint_law::{
     CALIBRATION_STATUS, CORRELATION_RANGE_LABEL, CorrelationRangeEnvelope,
@@ -122,13 +132,19 @@ pub use joint_law::{
 };
 pub use linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresFit, LeastSquaresWorkspace};
 pub use m_estimate::{MEstimateFit, MEstimateOptions, fit_huber_m};
-#[allow(deprecated, reason = "the retained released name stays reachable")]
-pub use matching::EXACT_MATCHING_ROW_LIMIT;
 pub use matching::{MatchingDistance, MatchingIndex, nearest_euclidean_scalar};
+pub use matching_boxtree::BoxTreeIndex;
 pub use observation::{
     GaussianObservation, KaplanMeierIpcw, ObservationProbabilityFit, censoring_tail_restriction,
-    fit_observation_logistic, gaussian_observation_log_likelihood, kaplan_meier_ipcw,
-    selected_outcome_pseudo_values,
+    fit_observation_logistic, fit_observation_logistic_admitting,
+    gaussian_observation_log_likelihood, kaplan_meier_ipcw, selected_outcome_pseudo_values,
+};
+pub use propagation_chain::{
+    ChainError, Coefficient, ColumnSummary, Combine, Decision, Enclosure, Evaluated, ExprTerm,
+    MAX_EXPRESSION_TERMS, PoolOutcome, Preposterior, PreposteriorOutcome, StageOp, StageSpec,
+    UnaryFn, decide, evaluate_columns, evaluate_enclosures, independent_product_table,
+    moment_matched_normal_table, moment_matched_normal_table_with_work_limit, preposterior,
+    shared_row_correlation, summarize, validate_spec, weights_from_log,
 };
 pub use propensity::{
     PropensityFit, PropensityWorkspace, fit_propensity, fit_propensity_diagnostic,
@@ -139,20 +155,22 @@ pub use quantile::{
     QuantileRule, equal_tail_interval_sorted, mad_sigma, median_sorted, quantile_sorted,
 };
 pub use regularized::{
-    LassoFit, LassoOptions, first_col_is_exact_ones, fit_lasso, fit_lasso_with_ones_column,
-    fit_ridge, predict_lasso, ridge_gram_inverse,
+    LassoFit, LassoOptions, RidgeIntercept, first_col_is_exact_ones, fit_lasso,
+    fit_lasso_with_ones_column, fit_ridge_with, predict_lasso, ridge_gram_inverse,
+    ridge_gram_inverse_with, soft_threshold,
 };
 pub use response::{
     GaussianMixtureDensity, LocalPolynomialBiasCorrected, LocalPolynomialInfluence,
     LocalPolynomialPoint, LocalQuadraticWorkspace, diagonal_low_rank_quadratic_traces,
     gaussian_density, gaussian_local_quadratic_adjusted_influence_prechecked,
-    gaussian_local_quadratic_bias_corrected, gaussian_local_quadratic_influence,
-    gaussian_local_quadratic_influence_prechecked, gaussian_local_quadratic_influence_with,
+    gaussian_local_quadratic_bias_corrected, gaussian_local_quadratic_bias_corrected_influence,
+    gaussian_local_quadratic_influence, gaussian_local_quadratic_influence_prechecked,
+    gaussian_local_quadratic_influence_weighted_with, gaussian_local_quadratic_influence_with,
     gaussian_local_quadratic_weighted, silverman_bandwidth, silverman_normal_reference_factor,
 };
 pub use special::{
-    NORMAL_Q975, chi_square_sf, gamma_q, gauss_hermite_standard_normal, ln_gamma, normal_ppf,
-    student_t_ppf, student_t_sf,
+    NORMAL_Q975, chi_square_sf, gamma_q, gauss_hermite_standard_normal, gauss_legendre, ln_beta,
+    ln_gamma, normal_ppf, regularized_incomplete_beta, student_t_ppf, student_t_sf,
 };
 pub use synthesis::{
     BetweenStudyMethod, CovarianceCheck, DEPENDENCE_ENVELOPE_LABEL, DependenceEnvelope,
@@ -162,7 +180,9 @@ pub use synthesis::{
     random_effects_dersimonian_laird, random_effects_reml,
 };
 pub use twosls::{
-    FirstStageDiagnostics, IvBlocks, TwoSlsFit, anderson_rubin_confidence_set,
-    anderson_rubin_kf_critical, anderson_rubin_statistic, f_critical, fit_2sls, fit_wls,
+    FirstStageDiagnostics, IvBlocks, IvMoments, JointTwoSlsFit, TwoSlsFit, TwoSlsMomentFit,
+    anderson_rubin_confidence_set, anderson_rubin_confidence_set_from_moments,
+    anderson_rubin_kf_critical, anderson_rubin_statistic, f_critical, fit_2sls,
+    fit_2sls_from_moments, fit_joint_2sls, fit_wls,
 };
 pub use welford::Welford;

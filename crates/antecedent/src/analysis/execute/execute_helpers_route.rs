@@ -23,6 +23,17 @@ pub(crate) fn gcm_query_vars(query: &CausalQuery) -> Result<(VariableId, Variabl
             Ok((outcome, outcome))
         }
         CausalQuery::UnitChange(q) => Ok((q.outcome, q.outcome)),
+        CausalQuery::Attribute(q) => {
+            let outcome = q.outcome()?;
+            Ok((outcome, outcome))
+        }
+        CausalQuery::Simulate(q) => {
+            // An unintervened sample names no variable; the record names the
+            // model's first one, as a plain observational draw reads them all.
+            let (treatment, outcome) = q.endpoints();
+            let first = VariableId::from_raw(0);
+            Ok((treatment.or(outcome).unwrap_or(first), outcome.or(treatment).unwrap_or(first)))
+        }
         _ => Err(CausalError::Compile { message: "gcm_query_vars: unsupported query".into() }),
     }
 }
@@ -79,6 +90,14 @@ pub(crate) enum AnalysisRoute {
     LocalPolynomialRatio,
     Survival,
     LongitudinalRegime,
+    SequentialContrast,
+    HistoryMatch,
+    Discover,
+    Attribute,
+    Simulate,
+    TemporalDesign,
+    IvBounds,
+    Association,
 }
 
 #[derive(Clone, Copy)]
@@ -150,8 +169,12 @@ pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Opt
         (DataModality::TemporalOrEvent, CausalQuery::ChangeAttribution(_)) => {
             AnalysisRoute::ChangeAttribution
         }
-        (DataModality::Tabular, CausalQuery::MechanismChange(_)) => AnalysisRoute::MechanismChange,
-        (DataModality::Tabular, CausalQuery::UnitChange(_)) => AnalysisRoute::UnitChange,
+        (DataModality::Tabular | DataModality::TemporalOrEvent, CausalQuery::MechanismChange(_)) => {
+            AnalysisRoute::MechanismChange
+        }
+        (DataModality::Tabular | DataModality::TemporalOrEvent, CausalQuery::UnitChange(_)) => {
+            AnalysisRoute::UnitChange
+        }
         (DataModality::TemporalOrEvent, CausalQuery::TemporalEffect(_)) => {
             AnalysisRoute::TemporalEffect
         }
@@ -182,16 +205,37 @@ pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Opt
         (DataModality::Tabular, CausalQuery::LongitudinalRegime(_)) => {
             AnalysisRoute::LongitudinalRegime
         }
+        (DataModality::Tabular, CausalQuery::HistoryMatch(_)) => AnalysisRoute::HistoryMatch,
+        (DataModality::Tabular, CausalQuery::SequentialContrast(_)) => {
+            AnalysisRoute::SequentialContrast
+        }
+        // Every modality: the method decides which data it searches, and
+        // admission refuses a method on data it does not run on.
+        (_, CausalQuery::Discover(_)) => AnalysisRoute::Discover,
+        (DataModality::Tabular | DataModality::TemporalOrEvent, CausalQuery::Attribute(_)) => {
+            AnalysisRoute::Attribute
+        }
+        (DataModality::Tabular | DataModality::TemporalOrEvent, CausalQuery::Simulate(_)) => {
+            AnalysisRoute::Simulate
+        }
+        (DataModality::Tabular, CausalQuery::TemporalDesign(_)) => AnalysisRoute::TemporalDesign,
+        (DataModality::Tabular, CausalQuery::IvBounds(_)) => AnalysisRoute::IvBounds,
+        (DataModality::Tabular | DataModality::TemporalOrEvent, CausalQuery::Association(_)) => {
+            AnalysisRoute::Association
+        }
         _ => return None,
     })
 }
 
 pub(super) enum GcmSlot {
     Counterfactual(crate::gcm::IteResult),
+    CounterfactualContrasts(Box<crate::gcm::CounterfactualContrasts>),
     Anomaly(Vec<antecedent_attribution::AnomalyScores>),
     Change(antecedent_attribution::ChangeAttributionResult),
     Mechanism(Vec<antecedent_attribution::MechanismChangeDetection>),
     Unit(antecedent_attribution::UnitChangeResult),
+    Attribution(Box<crate::analysis::structure_route::AttributionPayload>),
+    Simulation(Box<crate::analysis::structure_route::SimulationPayload>),
 }
 
 impl GcmSlot {
@@ -199,10 +243,15 @@ impl GcmSlot {
         use crate::result::ResultPayload;
         match self {
             Self::Counterfactual(value) => ResultPayload::Counterfactual(value),
+            Self::CounterfactualContrasts(value) => {
+                ResultPayload::CounterfactualContrasts(value)
+            }
             Self::Anomaly(value) => ResultPayload::Anomaly(value),
             Self::Change(value) => ResultPayload::ChangeAttribution(value),
             Self::Mechanism(value) => ResultPayload::MechanismChange(value),
             Self::Unit(value) => ResultPayload::UnitChange(value),
+            Self::Attribution(value) => ResultPayload::Attribution(value),
+            Self::Simulation(value) => ResultPayload::Simulation(value),
         }
     }
 }
@@ -225,12 +274,26 @@ pub(super) fn is_gcm_route(route: AnalysisRoute) -> bool {
     )
 }
 
-pub(super) fn identify_cached_diagnostic() -> Diagnostic {
+/// Diagnostic code recording that a result reused the prepare-time identification.
+pub(crate) const IDENTIFY_CACHED_CODE: &str = "exec.identify.cached";
+
+pub(crate) fn identify_cached_diagnostic() -> Diagnostic {
     Diagnostic::new(
-        "exec.identify.cached",
+        IDENTIFY_CACHED_CODE,
         DiagnosticKind::Execution,
         DiagnosticSeverity::Info,
         "identification reused from the prepare-time cache".to_string(),
+    )
+}
+
+/// The cached-identification diagnostic of a checked prepared operation, which reports the reuse
+/// under its own wording.
+pub(crate) fn identify_cached_checked_operation_diagnostic() -> Diagnostic {
+    Diagnostic::new(
+        IDENTIFY_CACHED_CODE,
+        DiagnosticKind::Execution,
+        DiagnosticSeverity::Info,
+        "identification reused from the checked prepared operation".to_string(),
     )
 }
 

@@ -2,8 +2,10 @@
 //!
 //! Hot paths bind [`VariableId`](crate::ids::VariableId)s; names are resolved only at API boundaries.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+mod association;
+mod attribute;
 mod attribution;
 mod average;
 mod continuous_dose;
@@ -11,31 +13,49 @@ mod counterfactual;
 mod counterfactual_event;
 mod cross_world;
 mod did;
+mod discover;
 mod distribution;
 mod error;
+mod fault;
 mod functional;
+mod history_match;
 mod interference;
+mod iv_bounds;
 mod local_polynomial_ratio;
 mod longitudinal_regime;
 mod mediation;
 mod nested_counterfactual;
 mod policy_value;
 mod population;
+mod probability;
+mod probability_rows;
 mod randomized;
 mod response;
+mod sequential_contrast;
+mod simulate;
 mod smoothed_dose;
 mod survival;
 mod synthetic_control;
 mod target;
 mod temporal;
+mod temporal_design;
 mod transport;
 mod transport_catalog;
 mod transport_contract;
 mod transport_delta;
 mod transport_distribution;
+mod variants;
 
 pub use crate::intervention::TemporalPolicy;
 
+pub use association::{
+    AssociationFunctional, AssociationMeasure, AssociationOutcome, AssociationQuery,
+    MAX_REFUSED_AFTER_BYTES, MIN_PREDICTIVE_FOLDS,
+};
+pub use attribute::{
+    AttributeQuery, AttributeTarget, ChangeEstimator, ChangeMeasure, InfluenceAllocation,
+    IntrinsicInfluenceTarget, MechanismChangeTest, NoiseDeclaration,
+};
 pub use attribution::{
     AllocationMethod, AnomalyAttributionQuery, AnomalyReference, AttributionComponents,
     ChangeAttributionQuery, MechanismChangeQuery, OrderedFloatBits, PopulationSelector,
@@ -46,18 +66,35 @@ pub use continuous_dose::{ContinuousDoseResponseQuery, FixedGroupDosePolicy};
 pub use counterfactual::CounterfactualQuery;
 pub use counterfactual_event::{CounterfactualEvent, CounterfactualEventQuery};
 pub use cross_world::{
-    CrossWorldQuery, EdgeRoute, ExogenousCoupling, MAX_CROSS_WORLDS, WorldId, WorldObservation,
-    WorldSpec,
+    CrossWorldQuery, EdgeRoute, ExogenousCoupling, WorldId, WorldObservation, WorldSpec,
 };
-pub use did::{DidSamplingDesign, PanelDidQuery};
+pub use did::{
+    AttritionShiftBound, DidAggregation, DidBasePeriod, DidComparisonGroup, DidNuisanceMethod,
+    DidResampling, DidResamplingScheme, DidSamplingDesign, HeterogeneityRobustDid, PanelDidQuery,
+    PanelObservationProcess, RolloutDidEstimator,
+};
+pub use discover::{
+    DiscoverQuery, DiscoveredClass, DiscoveryInference, DiscoveryMethod, ScreenWeight,
+    SearchBounds, SearchSchedule, StructurePriorSpec,
+};
 pub use distribution::{InterventionalDistributionQuery, PathSpecificEffectQuery};
-pub use error::QueryError;
+pub use error::{QueryError, RandomizedEffectFault};
+pub use fault::{
+    AssociationFault, AttributeFault, DiscoverFault, HistoryMatchFault, InterferenceFault,
+    InterventionFault, IvBoundsFault, LocalPolynomialRatioFault, LongitudinalRegimeFault,
+    PanelDesignFault, PolicyValueFault, ResponseFault, SequentialContrastFault, SimulateFault,
+    SurvivalFault, TemporalDesignFault, TransportFault,
+};
 pub use functional::OutcomeFunctional;
+pub use history_match::HistoryMatchQuery;
 pub use interference::{
     AssignmentDesign, EXPOSURE_LEVEL_TOLERANCE, ExposureLevel, ExposureMapping,
     ExposurePropensityProvenance, InterferenceFunctional, InterferenceQuery,
 };
-pub use local_polynomial_ratio::LocalPolynomialRatioQuery;
+pub use iv_bounds::IvBoundsQuery;
+pub use local_polynomial_ratio::{
+    LocalBandwidthRule, LocalPolynomialRatioQuery, LocalRatioOptions,
+};
 pub use longitudinal_regime::{LongitudinalRegimeMethod, LongitudinalRegimeQuery};
 pub use mediation::{ConditionalEffectQuery, MediationContrast, MediationQuery};
 pub use nested_counterfactual::NestedCounterfactualQuery;
@@ -66,26 +103,36 @@ pub use policy_value::{
     policy_graphless_coordinate,
 };
 pub use population::{PopulationRegistry, PopulationSelection};
+pub use probability::policy_assignment_cost_within_budget;
+pub use probability_rows::{ProbabilityRows, ProbabilityTable};
 pub use randomized::{
     RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand, randomized_graphless_coordinate,
 };
 pub use response::{
-    ContinuousDomain, DerivativeScale, DerivativeWeighting, GridSpec,
-    MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS, MAX_TEMPORAL_RESPONSE_HORIZONS,
-    ObservationAssumption, ObservationSpec, ResponseFunctional, ResponseQuery,
-    TEMPORAL_OBSERVATION_UNLICENSED, TemporalResponseLicense, TemporalResponseSpec,
+    ContinuousDomain, DerivativeScale, DerivativeWeighting, FeedbackDeclaration, GridSpec,
+    MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS, ObservationAssumption,
+    ObservationSpec, ResponseFunctional, ResponseQuery, TEMPORAL_OBSERVATION_UNSUPPORTED,
+    TemporalResponseSpec, TemporalResponseSupport,
 };
+pub use sequential_contrast::SequentialContrastQuery;
+pub use simulate::{SimulateQuery, SimulationTarget};
 pub use smoothed_dose::{SmoothedDoseTransportQuery, SmoothingKernel};
 pub use survival::{KnownCensoringSurvival, SurvivalFunctional, SurvivalQuery};
-pub use synthetic_control::{SyntheticControlQuery, SyntheticPanelMethod};
+pub use synthetic_control::{
+    SyntheticControlQuery, SyntheticInterval, SyntheticPanelMethod, SyntheticRollout,
+};
 pub use target::{PredicateExpr, TargetPopulation};
 pub use temporal::TemporalEffectQuery;
-pub use transport::TransportQuery;
+pub use temporal_design::{
+    OutcomeMisclassification, TemporalAssignment, TemporalDesignFunctional, TemporalDesignQuery,
+    TemporalDoseTarget, TemporalRegimeMethod,
+};
+pub use transport::{TransportQuery, TransportTargetKernel, TransportWeightedTarget};
 pub use transport_catalog::{
     DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
     EvidenceProjection, EvidenceRegime, FactorNeed, InterventionAssignment, LawOrigin,
-    LicensedWeights, RegimeBinding, RegimeKind, SamplingDesign, SamplingSelection, TargetSampling,
-    UnmetDependency, VariableCoordinate, VariableDomain,
+    MAX_CATEGORICAL_CARDINALITY, RegimeBinding, RegimeKind, SamplingDesign, SamplingSelection,
+    SupportedWeights, TargetSampling, UnmetDependency, VariableCoordinate, VariableDomain,
 };
 pub use transport_contract::{
     ComputationLimits, ExperimentFamily, GraphAssumptionSet, OutcomeGuarantee, TheoremFamily,
@@ -95,407 +142,7 @@ pub use transport_contract::{
 };
 pub use transport_delta::EvidenceCatalogDelta;
 pub use transport_distribution::{CatalogDistribution, SharedData};
-
-/// Top-level causal query enum.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub enum CausalQuery {
-    /// Average / population effect (static).
-    AverageEffect(AverageEffectQuery),
-    /// Temporal effect over a discrete horizon.
-    TemporalEffect(TemporalEffectQuery),
-    /// Counterfactual / unit-level what-if query .
-    Counterfactual(CounterfactualQuery),
-    /// Fixed-contract nested natural direct effect.
-    NestedCounterfactual(NestedCounterfactualQuery),
-    /// Anomaly attribution for one or more units .
-    AnomalyAttribution(AnomalyAttributionQuery),
-    /// Distribution / population change attribution .
-    ChangeAttribution(ChangeAttributionQuery),
-    /// Mechanism-change detection — not attribution .
-    MechanismChange(MechanismChangeQuery),
-    /// Per-unit change attribution .
-    UnitChange(UnitChangeQuery),
-    /// Mediation (direct / mediated / natural effects).
-    Mediation(MediationQuery),
-    /// Conditional average effect given modifiers.
-    ConditionalEffect(ConditionalEffectQuery),
-    /// Interventional distribution P(Y | do(...)).
-    Distribution(InterventionalDistributionQuery),
-    /// Path-specific effect / contribution.
-    PathSpecific(PathSpecificEffectQuery),
-    /// Continuous response, derivative, policy response, or Jacobian.
-    Response(ResponseQuery),
-    /// Structurally transported response between populations.
-    Transport(TransportQuery),
-    /// Randomization-based causal effect under interference.
-    Interference(InterferenceQuery),
-    /// Bernoulli randomized two-arm intention-to-treat effect.
-    RandomizedEffect(RandomizedEffectQuery),
-    /// Fixed randomized binary or multi-action policy value.
-    PolicyValue(PolicyValueQuery),
-    /// Local conditional continuous-dose response with supplied dose density.
-    ContinuousDoseResponse(ContinuousDoseResponseQuery),
-    /// Balanced two-period panel difference in differences.
-    PanelDid(PanelDidQuery),
-    /// Balanced-panel synthetic control with one treated unit and donor pool.
-    SyntheticControl(SyntheticControlQuery),
-    /// Fixed-bandwidth local fuzzy discontinuity or regression kink ratio.
-    LocalPolynomialRatio(LocalPolynomialRatioQuery),
-    /// Randomized right-censored survival or competing-risk functional.
-    Survival(SurvivalQuery),
-    /// Prespecified longitudinal regime value over subject histories.
-    LongitudinalRegime(LongitudinalRegimeQuery),
-}
-
-/// The variant of a [`CausalQuery`] without its payload.
-///
-/// Unlike [`CausalQuery`] this enum is deliberately exhaustive. It exists so a
-/// per-query table (which graph classes a query is licensed on, which queries
-/// are design-based) can be one `match` with no wildcard arm: adding a
-/// [`CausalQuery`] variant extends [`CausalQuery::kind`], which extends this
-/// enum, which fails to compile every such table until its new row is written.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum CausalQueryKind {
-    /// [`CausalQuery::AverageEffect`].
-    AverageEffect,
-    /// [`CausalQuery::TemporalEffect`].
-    TemporalEffect,
-    /// [`CausalQuery::Counterfactual`].
-    Counterfactual,
-    /// [`CausalQuery::NestedCounterfactual`].
-    NestedCounterfactual,
-    /// [`CausalQuery::AnomalyAttribution`].
-    AnomalyAttribution,
-    /// [`CausalQuery::ChangeAttribution`].
-    ChangeAttribution,
-    /// [`CausalQuery::MechanismChange`].
-    MechanismChange,
-    /// [`CausalQuery::UnitChange`].
-    UnitChange,
-    /// [`CausalQuery::Mediation`].
-    Mediation,
-    /// [`CausalQuery::ConditionalEffect`].
-    ConditionalEffect,
-    /// [`CausalQuery::Distribution`].
-    Distribution,
-    /// [`CausalQuery::PathSpecific`].
-    PathSpecific,
-    /// [`CausalQuery::Response`].
-    Response,
-    /// [`CausalQuery::Transport`].
-    Transport,
-    /// [`CausalQuery::Interference`].
-    Interference,
-    /// [`CausalQuery::RandomizedEffect`].
-    RandomizedEffect,
-    /// [`CausalQuery::PolicyValue`].
-    PolicyValue,
-    /// [`CausalQuery::ContinuousDoseResponse`].
-    ContinuousDoseResponse,
-    /// [`CausalQuery::PanelDid`].
-    PanelDid,
-    /// [`CausalQuery::SyntheticControl`].
-    SyntheticControl,
-    /// [`CausalQuery::LocalPolynomialRatio`].
-    LocalPolynomialRatio,
-    /// [`CausalQuery::Survival`].
-    Survival,
-    /// [`CausalQuery::LongitudinalRegime`].
-    LongitudinalRegime,
-}
-
-impl CausalQuery {
-    /// The payload-free variant of this query.
-    #[must_use]
-    pub const fn kind(&self) -> CausalQueryKind {
-        match self {
-            Self::AverageEffect(_) => CausalQueryKind::AverageEffect,
-            Self::TemporalEffect(_) => CausalQueryKind::TemporalEffect,
-            Self::Counterfactual(_) => CausalQueryKind::Counterfactual,
-            Self::NestedCounterfactual(_) => CausalQueryKind::NestedCounterfactual,
-            Self::AnomalyAttribution(_) => CausalQueryKind::AnomalyAttribution,
-            Self::ChangeAttribution(_) => CausalQueryKind::ChangeAttribution,
-            Self::MechanismChange(_) => CausalQueryKind::MechanismChange,
-            Self::UnitChange(_) => CausalQueryKind::UnitChange,
-            Self::Mediation(_) => CausalQueryKind::Mediation,
-            Self::ConditionalEffect(_) => CausalQueryKind::ConditionalEffect,
-            Self::Distribution(_) => CausalQueryKind::Distribution,
-            Self::PathSpecific(_) => CausalQueryKind::PathSpecific,
-            Self::Response(_) => CausalQueryKind::Response,
-            Self::Transport(_) => CausalQueryKind::Transport,
-            Self::Interference(_) => CausalQueryKind::Interference,
-            Self::RandomizedEffect(_) => CausalQueryKind::RandomizedEffect,
-            Self::PolicyValue(_) => CausalQueryKind::PolicyValue,
-            Self::ContinuousDoseResponse(_) => CausalQueryKind::ContinuousDoseResponse,
-            Self::PanelDid(_) => CausalQueryKind::PanelDid,
-            Self::SyntheticControl(_) => CausalQueryKind::SyntheticControl,
-            Self::LocalPolynomialRatio(_) => CausalQueryKind::LocalPolynomialRatio,
-            Self::Survival(_) => CausalQueryKind::Survival,
-            Self::LongitudinalRegime(_) => CausalQueryKind::LongitudinalRegime,
-        }
-    }
-}
-
-impl CausalQuery {
-    /// Construct an average-effect query.
-    #[must_use]
-    pub fn average_effect(query: AverageEffectQuery) -> Self {
-        Self::AverageEffect(query)
-    }
-
-    /// Construct a temporal-effect query.
-    #[must_use]
-    pub fn temporal_effect(query: TemporalEffectQuery) -> Self {
-        Self::TemporalEffect(query)
-    }
-
-    /// Construct a counterfactual query.
-    #[must_use]
-    pub fn counterfactual(query: CounterfactualQuery) -> Self {
-        Self::Counterfactual(query)
-    }
-
-    /// Construct a nested counterfactual query.
-    #[must_use]
-    pub fn nested_counterfactual(query: NestedCounterfactualQuery) -> Self {
-        Self::NestedCounterfactual(query)
-    }
-
-    /// Construct an anomaly attribution query.
-    #[must_use]
-    pub fn anomaly_attribution(query: AnomalyAttributionQuery) -> Self {
-        Self::AnomalyAttribution(query)
-    }
-
-    /// Construct a change attribution query.
-    #[must_use]
-    pub fn change_attribution(query: ChangeAttributionQuery) -> Self {
-        Self::ChangeAttribution(query)
-    }
-
-    /// Construct a mechanism-change detection query.
-    #[must_use]
-    pub fn mechanism_change(query: MechanismChangeQuery) -> Self {
-        Self::MechanismChange(query)
-    }
-
-    /// Construct a unit-change attribution query.
-    #[must_use]
-    pub fn unit_change(query: UnitChangeQuery) -> Self {
-        Self::UnitChange(query)
-    }
-
-    /// Construct a mediation query.
-    #[must_use]
-    pub fn mediation(query: MediationQuery) -> Self {
-        Self::Mediation(query)
-    }
-
-    /// Construct a conditional-effect query.
-    #[must_use]
-    pub fn conditional_effect(query: ConditionalEffectQuery) -> Self {
-        Self::ConditionalEffect(query)
-    }
-
-    /// Construct an interventional-distribution query.
-    #[must_use]
-    pub fn distribution(query: InterventionalDistributionQuery) -> Self {
-        Self::Distribution(query)
-    }
-
-    /// Construct a path-specific effect query.
-    #[must_use]
-    pub fn path_specific(query: PathSpecificEffectQuery) -> Self {
-        Self::PathSpecific(query)
-    }
-
-    /// Construct a continuous-response query.
-    #[must_use]
-    pub fn response(query: ResponseQuery) -> Self {
-        Self::Response(query)
-    }
-
-    /// Construct a transportability query.
-    #[must_use]
-    pub fn transport(query: TransportQuery) -> Self {
-        Self::Transport(query)
-    }
-
-    /// Construct an interference query.
-    #[must_use]
-    pub fn interference(query: InterferenceQuery) -> Self {
-        Self::Interference(query)
-    }
-
-    /// Construct a randomized ITT query.
-    #[must_use]
-    pub fn randomized_effect(query: RandomizedEffectQuery) -> Self {
-        Self::RandomizedEffect(query)
-    }
-
-    /// Construct a held-out policy value query.
-    #[must_use]
-    pub fn policy_value(query: PolicyValueQuery) -> Self {
-        Self::PolicyValue(query)
-    }
-
-    /// Construct a balanced-panel `DiD` query.
-    #[must_use]
-    pub fn panel_did(query: PanelDidQuery) -> Self {
-        Self::PanelDid(query)
-    }
-
-    /// Construct a synthetic-control query.
-    #[must_use]
-    pub fn synthetic_control(query: SyntheticControlQuery) -> Self {
-        Self::SyntheticControl(query)
-    }
-
-    /// Construct a local fuzzy-discontinuity or regression-kink query.
-    #[must_use]
-    pub fn local_polynomial_ratio(query: LocalPolynomialRatioQuery) -> Self {
-        Self::LocalPolynomialRatio(query)
-    }
-
-    /// Construct a randomized survival or competing-risk query.
-    #[must_use]
-    pub fn survival(query: SurvivalQuery) -> Self {
-        Self::Survival(query)
-    }
-
-    /// Construct a prespecified longitudinal regime value query.
-    #[must_use]
-    pub fn longitudinal_regime(query: LongitudinalRegimeQuery) -> Self {
-        Self::LongitudinalRegime(query)
-    }
-}
-
-impl From<AverageEffectQuery> for CausalQuery {
-    fn from(query: AverageEffectQuery) -> Self {
-        Self::AverageEffect(query)
-    }
-}
-
-impl From<TemporalEffectQuery> for CausalQuery {
-    fn from(query: TemporalEffectQuery) -> Self {
-        Self::TemporalEffect(query)
-    }
-}
-
-impl From<CounterfactualQuery> for CausalQuery {
-    fn from(query: CounterfactualQuery) -> Self {
-        Self::Counterfactual(query)
-    }
-}
-
-impl From<NestedCounterfactualQuery> for CausalQuery {
-    fn from(query: NestedCounterfactualQuery) -> Self {
-        Self::NestedCounterfactual(query)
-    }
-}
-
-impl From<MediationQuery> for CausalQuery {
-    fn from(query: MediationQuery) -> Self {
-        Self::Mediation(query)
-    }
-}
-
-impl From<ConditionalEffectQuery> for CausalQuery {
-    fn from(query: ConditionalEffectQuery) -> Self {
-        Self::ConditionalEffect(query)
-    }
-}
-
-impl From<InterventionalDistributionQuery> for CausalQuery {
-    fn from(query: InterventionalDistributionQuery) -> Self {
-        Self::Distribution(query)
-    }
-}
-
-impl From<PathSpecificEffectQuery> for CausalQuery {
-    fn from(query: PathSpecificEffectQuery) -> Self {
-        Self::PathSpecific(query)
-    }
-}
-
-impl From<AnomalyAttributionQuery> for CausalQuery {
-    fn from(query: AnomalyAttributionQuery) -> Self {
-        Self::AnomalyAttribution(query)
-    }
-}
-
-impl From<ChangeAttributionQuery> for CausalQuery {
-    fn from(query: ChangeAttributionQuery) -> Self {
-        Self::ChangeAttribution(query)
-    }
-}
-
-impl From<MechanismChangeQuery> for CausalQuery {
-    fn from(query: MechanismChangeQuery) -> Self {
-        Self::MechanismChange(query)
-    }
-}
-
-impl From<UnitChangeQuery> for CausalQuery {
-    fn from(query: UnitChangeQuery) -> Self {
-        Self::UnitChange(query)
-    }
-}
-
-impl From<ResponseQuery> for CausalQuery {
-    fn from(query: ResponseQuery) -> Self {
-        Self::Response(query)
-    }
-}
-
-impl From<TransportQuery> for CausalQuery {
-    fn from(query: TransportQuery) -> Self {
-        Self::Transport(query)
-    }
-}
-
-impl From<InterferenceQuery> for CausalQuery {
-    fn from(query: InterferenceQuery) -> Self {
-        Self::Interference(query)
-    }
-}
-
-impl From<RandomizedEffectQuery> for CausalQuery {
-    fn from(query: RandomizedEffectQuery) -> Self {
-        Self::RandomizedEffect(query)
-    }
-}
-
-impl From<PanelDidQuery> for CausalQuery {
-    fn from(query: PanelDidQuery) -> Self {
-        Self::PanelDid(query)
-    }
-}
-
-impl From<SyntheticControlQuery> for CausalQuery {
-    fn from(query: SyntheticControlQuery) -> Self {
-        Self::SyntheticControl(query)
-    }
-}
-
-impl From<LocalPolynomialRatioQuery> for CausalQuery {
-    fn from(query: LocalPolynomialRatioQuery) -> Self {
-        Self::LocalPolynomialRatio(query)
-    }
-}
-
-impl From<SurvivalQuery> for CausalQuery {
-    fn from(query: SurvivalQuery) -> Self {
-        Self::Survival(query)
-    }
-}
-
-impl From<LongitudinalRegimeQuery> for CausalQuery {
-    fn from(query: LongitudinalRegimeQuery) -> Self {
-        Self::LongitudinalRegime(query)
-    }
-}
+pub use variants::{CausalQuery, CausalQueryKind, QueryVariant};
 
 impl CausalQuery {
     /// Target population of a population-scoped query.
@@ -528,7 +175,15 @@ impl CausalQuery {
             | Self::SyntheticControl(_)
             | Self::LocalPolynomialRatio(_)
             | Self::Survival(_)
-            | Self::LongitudinalRegime(_) => None,
+            | Self::LongitudinalRegime(_)
+            | Self::SequentialContrast(_)
+            | Self::HistoryMatch(_)
+            | Self::Discover(_)
+            | Self::Attribute(_)
+            | Self::Simulate(_)
+            | Self::TemporalDesign(_)
+            | Self::IvBounds(_)
+            | Self::Association(_) => None,
         }
     }
 
@@ -557,40 +212,15 @@ impl CausalQuery {
             | Self::SyntheticControl(_)
             | Self::LocalPolynomialRatio(_)
             | Self::Survival(_)
-            | Self::LongitudinalRegime(_) => None,
-        }
-    }
-
-    /// Validate the inner query.
-    ///
-    /// # Errors
-    ///
-    /// Propagates inner [`QueryError`].
-    pub fn validate(&self) -> Result<(), QueryError> {
-        match self {
-            Self::AverageEffect(q) => q.validate(),
-            Self::TemporalEffect(q) => q.validate(),
-            Self::Counterfactual(q) => q.validate(),
-            Self::NestedCounterfactual(q) => q.validate(),
-            Self::AnomalyAttribution(q) => q.validate(),
-            Self::ChangeAttribution(q) => q.validate(),
-            Self::MechanismChange(q) => q.validate(),
-            Self::UnitChange(q) => q.validate(),
-            Self::Mediation(q) => q.validate(),
-            Self::ConditionalEffect(q) => q.validate(),
-            Self::Distribution(q) => q.validate(),
-            Self::PathSpecific(q) => q.validate(),
-            Self::Response(q) => q.validate(),
-            Self::Transport(q) => q.validate(),
-            Self::Interference(q) => q.validate(),
-            Self::RandomizedEffect(q) => q.validate(),
-            Self::PolicyValue(q) => q.validate(),
-            Self::ContinuousDoseResponse(q) => q.validate(),
-            Self::PanelDid(q) => q.validate(),
-            Self::SyntheticControl(q) => q.validate(),
-            Self::LocalPolynomialRatio(q) => q.validate(),
-            Self::Survival(q) => q.validate(),
-            Self::LongitudinalRegime(q) => q.validate(),
+            | Self::LongitudinalRegime(_)
+            | Self::SequentialContrast(_)
+            | Self::HistoryMatch(_)
+            | Self::Discover(_)
+            | Self::Attribute(_)
+            | Self::Simulate(_)
+            | Self::TemporalDesign(_)
+            | Self::IvBounds(_)
+            | Self::Association(_) => None,
         }
     }
 }
@@ -598,3 +228,7 @@ impl CausalQuery {
 #[cfg(test)]
 #[path = "tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "encode_tests.rs"]
+mod encode_tests;

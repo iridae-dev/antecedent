@@ -1,7 +1,7 @@
 //! Coverage of the composed interval of a linear combination of two estimates.
 //!
 //! The whole method is the component estimators (sample means of two rows
-//! columns), their sampling covariance and the licensed dependence route, and
+//! columns), their sampling covariance and the supported dependence route, and
 //! the normal-approximation interval built on the composed value. Every design
 //! scores the interval a sealed claim reports against the known composed truth
 //! and binds the calibration key the claim itself derives
@@ -21,20 +21,16 @@
 //! govern every honest declaration): it is a plain assertion that such a claim
 //! under-covers, which is why the declaration is a premise.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh`.
+//! Ignored tests run via `scripts/measure_calibration.sh`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_sign_loss,
     clippy::cast_possible_truncation,
     reason = "bounded replicate indices in a calibration fixture"
 )]
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    reason = "bounded simulation sizes and small indices"
-)]
+#![allow(clippy::cast_precision_loss, reason = "bounded simulation sizes and small indices")]
 
 mod common;
 
@@ -120,7 +116,7 @@ fn covariance(x: &[f64], y: &[f64]) -> [f64; 4] {
 }
 
 fn bind_basis(tally: &mut CoverageTally, basis: &CalibrationBasis) {
-    tally.bind(
+    tally.bind_validation(
         &Construction {
             query: basis.query.to_string(),
             graph_class: basis.graph_class.to_string(),
@@ -142,6 +138,7 @@ fn bind_basis(tally: &mut CoverageTally, basis: &CalibrationBasis) {
             posterior_draws: basis.posterior_draws,
             unidentified_mass: basis.unidentified_mass,
         },
+        &basis.validation,
     );
 }
 
@@ -326,7 +323,7 @@ fn composed_contrast_aligned_bootstrap_skewed_pair_l95() {
 }
 
 /// A violated declaration of independence is undetectable, and its interval
-/// under-covers: the declaration is a premise of the licence, not something the
+/// under-covers: the declaration is a premise of the support, not something the
 /// route checks. No record is emitted, because a boundary under the independent
 /// key would govern every honest declaration.
 #[test]

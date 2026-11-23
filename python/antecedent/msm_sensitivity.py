@@ -23,8 +23,8 @@ Three things stay distinct and are never merged:
 * the **identified value** is the ``Lambda = 1`` stratified ATE (no unmeasured confounding);
 * the **sampling interval** is withheld (``sampling interval: not reported``): the strata are
   supplied as exact quantities, so nothing here is estimated, and composing a sampling
-  interval with the range refuses (``cell_not_licensed`` /
-  ``msm_sensitivity.composition_not_licensed``). Calibration is unmeasured.
+  interval with the range refuses (``not_supported`` /
+  ``msm_sensitivity.composition_not_supported``). Calibration is not_measured.
 
 Rust owns the bounds, the bisection tipping point, the artifact and every refusal; this module
 builds declarations and raises each refusal as :class:`MsmSensitivityRefusal`, a
@@ -51,6 +51,7 @@ from ._refusal import raise_refusal
 from ._validate import real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .joint_distribution import ScientificQuantity
+from .outcomes import require_success
 from .sensitivity_decision import SensitivityAction, SensitivityArtifact
 
 __all__ = [
@@ -75,7 +76,7 @@ class MsmSensitivityRefusal(StructuredRefusal):
 
     A :class:`~antecedent.errors.StructuredRefusal`: ``code`` (the registered reason code),
     ``detail``, ``offending`` and ``remedy`` are machine-readable. ``detail`` is the namespaced
-    ``msm_sensitivity.<slot>`` (``composition_not_licensed``, ``lambda_below_one``,
+    ``msm_sensitivity.<slot>`` (``composition_not_supported``, ``lambda_below_one``,
     ``lambda_range_empty``, ``positivity``, ``stratum_mass``, ``outcome_law``,
     ``invalid_threshold``, ``invalid_tolerance``, ``bounds_exceeded``) or, for the artifact, the
     engine's own ``sensitivity_decision_composition.<slot>``; ``message`` is the human-readable
@@ -499,7 +500,7 @@ class MsmResult:
         raise_refusal(refusal, MsmSensitivityRefusal)
         if data is None:  # pragma: no cover - the native contract
             raise CausalValueError("the native artifact returned neither a result nor a refusal")
-        return SensitivityArtifact.consume(data)
+        return require_success(SensitivityArtifact.consume(data))
 
 
 def _result(wire: Mapping[str, Any], request: _Request) -> MsmResult:
@@ -556,16 +557,16 @@ def msm_ate_sensitivity(
     """Sharp marginal-sensitivity-model bounds of the stratified ATE over a ``Lambda`` grid.
 
     ``strata`` are the exact adjustment-set strata (mass, propensity, treated and control
-    outcome laws). ``lambda_max`` (above one, at most 1000) is the largest odds-ratio bound;
+    outcome laws). ``lambda_max`` (above one, at most ``1e12``) is the largest odds-ratio bound;
     the grid has ``grid_points`` equally spaced values from ``1`` to ``lambda_max`` (2 to
-    1024). With a ``decision_threshold`` the result carries the tipping point: the smallest
+    8192). With a ``decision_threshold`` the result carries the tipping point: the smallest
     ``Lambda`` at which the identified-side bound reaches it, found by bisection to
     ``tolerance`` (``1e-12`` to ``1e-3``).
 
     ``sampling_composition`` requests composing a sampling interval with the assumption range
-    by a named method; no method is licensed, so any value refuses with
-    :class:`MsmSensitivityRefusal` (``cell_not_licensed`` /
-    ``msm_sensitivity.composition_not_licensed``). Other refusals: ``Lambda`` below one
+    by a named method; no method is supported, so any value refuses with
+    :class:`MsmSensitivityRefusal` (``not_supported`` /
+    ``msm_sensitivity.composition_not_supported``). Other refusals: ``Lambda`` below one
     (``lambda_below_one``) or not above one (``lambda_range_empty``), a propensity outside
     ``(0, 1)`` (``positivity``), masses that do not sum to one (``stratum_mass``), a malformed
     outcome law (``outcome_law``), or exceeded bounds (``bounds_exceeded``).
@@ -631,9 +632,11 @@ def from_analysis(
     its own digest. Continuous covariates require explicitly declared finite strata.
     """
     from ._data import as_columns
+    from .outcomes import require_success
     from .query import AverageEffect
     from .results import AnalysisResult
 
+    result = require_success(result)
     if not isinstance(result, AnalysisResult) or not isinstance(result.query, AverageEffect):
         raise CausalTypeError("MSM from_analysis requires an AverageEffect analysis result")
     if not result.identification:
@@ -746,7 +749,7 @@ def from_analysis(
         interpretation="sharp bounds for the empirical distribution; population bounds estimated",
         uncertainty=MsmUncertainty(
             sampling_interval="sampling interval: not reported",
-            reason_code="cell_not_licensed",
-            detail="empirical plug-in bounds have unmeasured sampling uncertainty",
+            reason_code="not_supported",
+            detail="empirical plug-in bounds have not_measured sampling uncertainty",
         ),
     )

@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
-"""Estimate an effect when some causal directions are unknown.
+"""What is identified when one edge direction is unknown?
 
-A CPDAG represents several possible causal graphs. First, we leave one edge
-undirected and get an answer that preserves that uncertainty. Then we supply
-its direction and pass the resulting adjustment set to an EconML handoff.
-The graph object remains a Cpdag in both cases.
+A CPDAG stands for every DAG in one equivalence class. With the z - t edge left undirected,
+z is a confounder in one completion and a mediator in the other, so the effect of t on y is
+partially identified and the answer carries no point. Supplying the direction z -> t identifies the
+effect with adjustment set {z}, which is passed to an EconML handoff specification. The graph
+object remains a Cpdag in both cases.
 
-Install with `python -m pip install antecedent`; see examples/README.md."""
+The fixture is noise-free with structural effect 2. The script asserts the partial status,
+the absent point and the adjustment set; it does not assert the estimate. The orientation is
+a reviewer's declaration, not learned from the data.
+
+Run: ``python examples/python/class_preserving_cpdag.py``."""
 
 from __future__ import annotations
 
+import antecedent as _ant_api
 import numpy as np
 from antecedent import AverageEffect, Cpdag, analyze, identify
 from antecedent.handoff import econml
@@ -36,13 +42,19 @@ def main() -> None:
     print(f"partial status={identified.status} method={identified.method}")
     assert identified.status == "PartiallyIdentified"
 
-    envelope = analyze(data, graph=partial, query=query, refute="none", bootstrap=0)
+    envelope = analyze(
+        data,
+        graph=partial,
+        query=query,
+        refute="none",
+        inference=_ant_api.Frequentist(bootstrap=0),
+    )
     print("Partial answer:", envelope.answer)
     print("Identification:", envelope.inspect().identification)
-    print("Calibration:", envelope.calibration.status)
+    print("Calibration:", envelope.value.calibration.status)
     assert envelope.answer.kind in {"bounds", "partial"}
     assert envelope.answer.value is None
-    assert envelope.study.estimate().answer == envelope.answer
+    assert _ant_api.estimate(envelope.study).answer == envelope.answer
 
     oriented = Cpdag.from_directed_undirected(
         names,

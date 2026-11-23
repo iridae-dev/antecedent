@@ -1,20 +1,18 @@
 //! Checked empirical two-step history adapter; dependent intervals remain closed.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::recalc_api::{RunPayload, bounded_context, context, invalid, parse_json, refusal_json};
 use crate::recalc_bounds::check_values;
 use crate::recalc_family_api::{caps, payload, resume, run_error};
-use antecedent::analysis::recalc_receipt::RecalcRunError;
+use antecedent::analysis::recalc_receipt::{RecalcRequestCode, RecalcRunError};
 use antecedent::analysis::recalc_temporal::{
-    TemporalOutcome, TemporalRequest, TemporalRunError, TemporalSession,
-    consume_temporal_recalc_artifact, execute_temporal_with_receipt,
+    TemporalHistoryWire, TemporalOutcome, TemporalRequest, TemporalRunError, TemporalSession,
+    TemporalUnitWire, consume_temporal_recalc_artifact, execute_temporal_with_receipt,
 };
-use antecedent_core::ExecutionContext;
-use antecedent_io::recalc_receipt_artifact::{CapabilitiesWire, identities_to_wire, plan_to_wire};
-use antecedent_io::temporal_recalc_artifact::{TemporalHistoryWire, TemporalUnitWire};
+use antecedent::io::recalc_receipt_artifact::{CapabilitiesWire, identities_to_wire, plan_to_wire};
+use antecedent::prelude::ExecutionContext;
 use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 
-#[cfg(feature = "calibration-internal")]
 mod candidate;
 
 /// Numbers carried by one history window: its time id and five binary states.
@@ -42,7 +40,7 @@ fn request(
     let mut request: TemporalRequest = parse_json(text, "temporal histories")?;
     if !request.units.is_empty() {
         return Err(invalid(
-            "recalc.invalid_declaration",
+            antecedent::reason::reason_details::recalc::INVALID_DECLARATION,
             "temporal histories travel as columns, not in the declaration",
         ));
     }
@@ -59,7 +57,7 @@ fn request(
         || total != Some(rows)
     {
         return Err(invalid(
-            "recalc.invalid_declaration",
+            antecedent::reason::reason_details::recalc::INVALID_DECLARATION,
             "history columns must agree with the per-unit window counts",
         ));
     }
@@ -74,13 +72,15 @@ fn request(
         .map(|(&unit_id, &len)| {
             let end = next + usize::try_from(len).unwrap_or(0);
             let histories = (next..end)
-                .map(|i| TemporalHistoryWire {
-                    time_id: time_ids[i],
-                    s0: states[0][i],
-                    a1: states[1][i],
-                    l2: states[2][i],
-                    a2: states[3][i],
-                    y: y[i],
+                .map(|i| {
+                    TemporalHistoryWire::two_step(
+                        time_ids[i],
+                        states[0][i],
+                        states[1][i],
+                        states[2][i],
+                        states[3][i],
+                        y[i],
+                    )
                 })
                 .collect();
             next = end;
@@ -89,136 +89,145 @@ fn request(
         .collect();
     Ok(request)
 }
+/// The code of a refusal a lower layer's support gate raised, when `cause` is one.
+fn gated_code(cause: &antecedent::CausalError) -> Option<&'static str> {
+    match cause.peeled() {
+        antecedent::CausalError::Estimate(
+            antecedent::estimate::EstimationError::Refused { code, .. }
+            | antecedent::estimate::EstimationError::RefusedWithFields { code, .. },
+        ) if *code == "not_supported" => Some(*code),
+        _ => None,
+    }
+}
 fn error(error: &TemporalRunError) -> String {
     match error {
         TemporalRunError::Recalc(RecalcRunError::Execution(cause))
-            if matches!(cause.peeled(), antecedent::CausalError::Estimate(
-                antecedent_estimate::EstimationError::Refused {code,..}
-                | antecedent_estimate::EstimationError::RefusedWithFields {code,..}
-            ) if *code == "cell_not_licensed") =>
+            if gated_code(cause).is_some() =>
         {
             refusal_json(
-                antecedent_core::reason_code!("cell_not_licensed"),
+                gated_code(cause).unwrap_or_default(),
                 "inference",
-                "temporal_interval.route_frozen",
+                antecedent::reason::reason_details::temporal_interval::INTERVAL_NOT_SUPPORTED,
                 None,
                 None,
                 &error.to_string(),
                 None,
             )
         }
-        TemporalRunError::Io(antecedent_io::IoError::Refused { code, .. })
-            if *code == "cell_not_licensed" =>
+        TemporalRunError::Io(antecedent::io::IoError::Refused { code, .. })
+            if *code == "not_supported" =>
         {
             refusal_json(
-                antecedent_core::reason_code!("cell_not_licensed"),
+                code,
                 "inference",
-                "temporal_interval.route_frozen",
+                antecedent::reason::reason_details::temporal_interval::INTERVAL_NOT_SUPPORTED,
                 None,
                 None,
                 &error.to_string(),
                 None,
             )
         }
-        TemporalRunError::Recalc(error) => run_error(error, "recalc.temporal_fit_refused"),
-        TemporalRunError::Io(antecedent_io::IoError::Refused { code, .. })
+        TemporalRunError::Recalc(error) => {
+            run_error(error, antecedent::reason::reason_details::recalc::TEMPORAL_FIT_REFUSED)
+        }
+        TemporalRunError::Io(antecedent::io::IoError::Refused { code, .. })
             if *code == "route_not_supported" =>
         {
             refusal_json(
-                antecedent_core::reason_code!("route_not_supported"),
+                antecedent::reason::reason_code!("route_not_supported"),
                 "identification",
-                "recalc.temporal_scope_unsupported",
+                antecedent::reason::reason_details::recalc::TEMPORAL_SCOPE_UNSUPPORTED,
                 None,
                 None,
                 &error.to_string(),
                 None,
             )
         }
-        TemporalRunError::Io(antecedent_io::IoError::Refused { code, .. })
+        TemporalRunError::Io(antecedent::io::IoError::Refused { code, .. })
             if *code == "invalid_argument" =>
         {
             refusal_json(
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
                 "score_artifact",
-                "recalc.temporal_artifact_invalid",
+                antecedent::reason::reason_details::recalc::TEMPORAL_ARTIFACT_INVALID,
                 None,
                 None,
                 &error.to_string(),
                 None,
             )
         }
-        TemporalRunError::Io(antecedent_io::IoError::Refused { code, .. })
+        TemporalRunError::Io(antecedent::io::IoError::Refused { code, .. })
             if *code == "transport_missing_evidence" =>
         {
             refusal_json(
-                antecedent_core::reason_code!("transport_missing_evidence"),
+                antecedent::reason::reason_code!("transport_missing_evidence"),
                 "identification",
-                "recalc.temporal_missing_evidence",
+                antecedent::reason::reason_details::recalc::TEMPORAL_MISSING_EVIDENCE,
                 None,
                 None,
                 &error.to_string(),
                 None,
             )
         }
-        TemporalRunError::Io(antecedent_io::IoError::Refused { code, .. })
+        TemporalRunError::Io(antecedent::io::IoError::Refused { code, .. })
             if *code == "transport_budget_cancel" =>
         {
             refusal_json(
-                antecedent_core::reason_code!("transport_budget_cancel"),
+                antecedent::reason::reason_code!("transport_budget_cancel"),
                 "identification",
-                "recalc.temporal_budget_cancel",
+                antecedent::reason::reason_details::recalc::TEMPORAL_BUDGET_CANCEL,
                 None,
                 None,
                 &error.to_string(),
                 None,
             )
         }
-        TemporalRunError::Io(antecedent_io::IoError::Refused { code, .. })
+        TemporalRunError::Io(antecedent::io::IoError::Refused { code, .. })
             if *code == "transport_support_failure" =>
         {
             refusal_json(
-                antecedent_core::reason_code!("transport_support_failure"),
+                antecedent::reason::reason_code!("transport_support_failure"),
                 "law",
-                "recalc.temporal_support_failure",
+                antecedent::reason::reason_details::recalc::TEMPORAL_SUPPORT_FAILURE,
                 None,
                 None,
                 &error.to_string(),
                 None,
             )
         }
-        TemporalRunError::Io(antecedent_io::IoError::Refused { code, .. })
+        TemporalRunError::Io(antecedent::io::IoError::Refused { code, .. })
             if *code == "transport_missing_provider" =>
         {
             refusal_json(
-                antecedent_core::reason_code!("transport_missing_provider"),
+                antecedent::reason::reason_code!("transport_missing_provider"),
                 "score_artifact",
-                "recalc.temporal_missing_provider",
+                antecedent::reason::reason_details::recalc::TEMPORAL_MISSING_PROVIDER,
                 None,
                 None,
                 &error.to_string(),
                 None,
             )
         }
-        TemporalRunError::Io(antecedent_io::IoError::Refused { code, .. })
+        TemporalRunError::Io(antecedent::io::IoError::Refused { code, .. })
             if *code == "transport_unsupported_evaluator" =>
         {
             refusal_json(
-                antecedent_core::reason_code!("transport_unsupported_evaluator"),
+                antecedent::reason::reason_code!("transport_unsupported_evaluator"),
                 "score_artifact",
-                "recalc.temporal_evaluator_unsupported",
+                antecedent::reason::reason_details::recalc::TEMPORAL_EVALUATOR_UNSUPPORTED,
                 None,
                 None,
                 &error.to_string(),
                 None,
             )
         }
-        TemporalRunError::Io(antecedent_io::IoError::Refused { code, .. })
+        TemporalRunError::Io(antecedent::io::IoError::Refused { code, .. })
             if *code == "transport_numerical_failure" =>
         {
             refusal_json(
-                antecedent_core::reason_code!("transport_numerical_failure"),
+                antecedent::reason::reason_code!("transport_numerical_failure"),
                 "score_artifact",
-                "recalc.temporal_numerical_failure",
+                antecedent::reason::reason_details::recalc::TEMPORAL_NUMERICAL_FAILURE,
                 None,
                 None,
                 &error.to_string(),
@@ -226,81 +235,81 @@ fn error(error: &TemporalRunError) -> String {
             )
         }
         TemporalRunError::Estimation(
-            antecedent_estimate::EstimationError::Refused { code, .. }
-            | antecedent_estimate::EstimationError::RefusedWithFields { code, .. },
+            antecedent::estimate::EstimationError::Refused { code, .. }
+            | antecedent::estimate::EstimationError::RefusedWithFields { code, .. },
         ) if *code == "route_not_supported" => refusal_json(
-            antecedent_core::reason_code!("route_not_supported"),
+            antecedent::reason::reason_code!("route_not_supported"),
             "data_snapshot",
-            "recalc.temporal_history_unsupported",
+            antecedent::reason::reason_details::recalc::TEMPORAL_HISTORY_UNSUPPORTED,
             None,
             None,
             &error.to_string(),
             None,
         ),
         TemporalRunError::Estimation(
-            antecedent_estimate::EstimationError::Refused { code, .. }
-            | antecedent_estimate::EstimationError::RefusedWithFields { code, .. },
+            antecedent::estimate::EstimationError::Refused { code, .. }
+            | antecedent::estimate::EstimationError::RefusedWithFields { code, .. },
         ) if *code == "transport_support_failure" => refusal_json(
-            antecedent_core::reason_code!("transport_support_failure"),
+            antecedent::reason::reason_code!("transport_support_failure"),
             "law",
-            "recalc.temporal_support_failure",
+            antecedent::reason::reason_details::recalc::TEMPORAL_SUPPORT_FAILURE,
             None,
             None,
             &error.to_string(),
             None,
         ),
         TemporalRunError::Estimation(
-            antecedent_estimate::EstimationError::Refused { code, .. }
-            | antecedent_estimate::EstimationError::RefusedWithFields { code, .. },
+            antecedent::estimate::EstimationError::Refused { code, .. }
+            | antecedent::estimate::EstimationError::RefusedWithFields { code, .. },
         ) if *code == "invalid_argument" => refusal_json(
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
             "data_snapshot",
-            "recalc.temporal_data_invalid",
+            antecedent::reason::reason_details::recalc::TEMPORAL_DATA_INVALID,
             None,
             None,
             &error.to_string(),
             None,
         ),
         TemporalRunError::Estimation(
-            antecedent_estimate::EstimationError::Refused { code, .. }
-            | antecedent_estimate::EstimationError::RefusedWithFields { code, .. },
+            antecedent::estimate::EstimationError::Refused { code, .. }
+            | antecedent::estimate::EstimationError::RefusedWithFields { code, .. },
         ) if *code == "cancelled_no_claim" => refusal_json(
-            antecedent_core::reason_code!("cancelled_no_claim"),
+            antecedent::reason::reason_code!("cancelled_no_claim"),
             "score_artifact",
-            "recalc.cancelled",
+            antecedent::reason::reason_details::recalc::CANCELLED,
             None,
             None,
             &error.to_string(),
             None,
         ),
         TemporalRunError::Estimation(
-            antecedent_estimate::EstimationError::Refused { code, .. }
-            | antecedent_estimate::EstimationError::RefusedWithFields { code, .. },
-        ) if *code == "cell_not_licensed" => refusal_json(
-            antecedent_core::reason_code!("cell_not_licensed"),
+            antecedent::estimate::EstimationError::Refused { code, .. }
+            | antecedent::estimate::EstimationError::RefusedWithFields { code, .. },
+        ) if *code == "not_supported" => refusal_json(
+            code,
             "inference",
-            "temporal_interval.route_frozen",
+            antecedent::reason::reason_details::temporal_interval::INTERVAL_NOT_SUPPORTED,
             None,
             None,
             &error.to_string(),
             None,
         ),
         TemporalRunError::Estimation(
-            antecedent_estimate::EstimationError::Data(_)
-            | antecedent_estimate::EstimationError::Query(_),
+            antecedent::estimate::EstimationError::Data(_)
+            | antecedent::estimate::EstimationError::Query(_),
         ) => refusal_json(
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
             "data_snapshot",
-            "recalc.temporal_data_invalid",
+            antecedent::reason::reason_details::recalc::TEMPORAL_DATA_INVALID,
             None,
             None,
             &error.to_string(),
             None,
         ),
         _ => refusal_json(
-            antecedent_core::reason_code!("route_not_supported"),
+            antecedent::reason::reason_code!("route_not_supported"),
             "score_artifact",
-            "recalc.temporal_fit_refused",
+            antecedent::reason::reason_details::recalc::TEMPORAL_FIT_REFUSED,
             None,
             None,
             &error.to_string(),
@@ -309,9 +318,9 @@ fn error(error: &TemporalRunError) -> String {
     }
 }
 fn outcome(
-    previous: &antecedent_core::recalc::StageIdentities,
+    previous: &antecedent::execution::recalc::StageIdentities,
     session: &TemporalSession,
-    capabilities: &antecedent_core::recalc::RecalcCapabilities,
+    capabilities: &antecedent::execution::recalc::RecalcCapabilities,
     out: &TemporalOutcome,
 ) -> PyResult<RunPayload> {
     payload(
@@ -381,32 +390,32 @@ impl PyTemporalSession {
         let request = request(specification, &histories, &ctx)?;
         let previous = self.inner.identities().clone();
         let capabilities = caps(self.inner.boundary());
-        let mut session = std::mem::take(&mut self.inner);
-        let (session, ran) = crate::detach_catch(py, move || {
-            let ran = execute_temporal_with_receipt(&mut session, &request, &ctx);
-            Ok((session, ran))
+        let session = &mut self.inner;
+        let ran = crate::detach_catch(py, move || {
+            let ran = execute_temporal_with_receipt(session, &request, &ctx);
+            Ok(ran)
         })?;
-        self.inner = session;
         match ran {
             Ok(out) => outcome(&previous, &self.inner, &capabilities, &out),
             Err(cause) => Ok((None, None, Some(error(&cause)))),
         }
     }
-    #[pyo3(signature=(*,seed=1,threads=None))]
+    #[pyo3(signature=(*,seed=1,threads=None,cancel=None))]
     fn export_result(
         &self,
         py: Python<'_>,
         seed: u64,
         threads: Option<u32>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<(Option<Vec<u8>>, Option<String>)> {
-        let ctx = context(seed, threads);
+        let ctx = crate::recalc_api::bounded_context(seed, threads, None, cancel);
         crate::detach_catch(py, || {
             if ctx.cancellation.is_cancelled() {
                 return Ok((
                     None,
                     Some(run_error(
-                        &RecalcRunError::Request("recalc.cancelled"),
-                        "recalc.temporal_fit_refused",
+                        &RecalcRunError::Request(RecalcRequestCode::Cancelled),
+                        antecedent::reason::reason_details::recalc::TEMPORAL_FIT_REFUSED,
                     )),
                 ));
             }
@@ -425,13 +434,16 @@ impl PyTemporalSession {
         threads: Option<u32>,
     ) -> PyResult<ReplayPayload> {
         if artifact.len() > crate::bridge::MAX_DECLARED_ARTIFACT_BYTES {
-            return Err(invalid("recalc.limits_exceeded", "temporal artifact exceeds byte bound"));
+            return Err(invalid(
+                antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
+                "temporal artifact exceeds byte bound",
+            ));
         }
         let bytes = artifact.to_vec();
         let ctx = context(seed, threads);
         crate::detach_catch(py, move || match consume_temporal_recalc_artifact(&bytes, &ctx) {
             Ok((session, out)) => {
-                let previous = antecedent_core::recalc::StageIdentities::new();
+                let previous = antecedent::execution::recalc::StageIdentities::new();
                 let (result, receipt, refusal) =
                     outcome(&previous, &session, &caps(session.boundary()), &out)?;
                 Ok((Some(Self { inner: session }), result, receipt, refusal))
@@ -439,7 +451,6 @@ impl PyTemporalSession {
             Err(cause) => Ok((None, None, None, Some(error(&cause)))),
         })
     }
-    #[cfg(feature = "calibration-internal")]
     #[pyo3(signature=(config_json,*,memory_limit_bytes=None,cancel=None))]
     fn interval_candidate(
         &self,
@@ -459,7 +470,7 @@ impl PyTemporalSession {
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<(Option<crate::measured_inference_api::NativeMeasuredInference>, Option<String>)>
     {
-        let config: antecedent_io::temporal_interval_artifact::IntervalConfigWire =
+        let config: antecedent::io::temporal_interval_artifact::IntervalConfigWire =
             parse_json(config_json, "checked temporal interval config")?;
         let config = config.to_config().map_err(crate::py_msg)?;
         crate::measured_inference_api::before_work(
@@ -492,20 +503,28 @@ impl PyTemporalSession {
         if self.inner.source_factor().is_none() {
             return error(&TemporalRunError::Recalc(
                 antecedent::analysis::recalc_receipt::RecalcRunError::NoLiveState(
-                    antecedent_core::recalc::Stage::ScoreArtifact,
+                    antecedent::execution::recalc::Stage::ScoreArtifact,
                 ),
             ));
         }
-        error(&TemporalRunError::Io(antecedent_io::IoError::Refused {
-            code: antecedent_core::reason_code!("cell_not_licensed"),
+        let refused = TemporalRunError::Io(antecedent::io::IoError::Refused {
+            code: antecedent::reason::reason_code!("route_not_supported"),
             message:
-                "temporal_interval.route_frozen: use the measured original-source interval entry"
+                "temporal_interval.interval_not_supported: use the measured original-source interval entry"
                     .into(),
-        }))
+        });
+        refusal_json(
+            antecedent::reason::reason_code!("route_not_supported"),
+            "inference",
+            antecedent::reason::reason_details::temporal_interval::INTERVAL_NOT_SUPPORTED,
+            None,
+            None,
+            &refused.to_string(),
+            None,
+        )
     }
 }
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    #[cfg(feature = "calibration-internal")]
     candidate::register(module)?;
     module.add_class::<PyTemporalSession>()
 }

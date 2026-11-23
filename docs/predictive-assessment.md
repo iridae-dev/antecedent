@@ -1,8 +1,11 @@
-# Predictive assessment: proper scores, calibration diagnostics and held-out checks
+# Assess a predictive law with proper scores and held-out checks
 
-A predictive law is assessed against realized observations. The assessment
-reports how the law performed on those observations, under a declared
-validation design, and nothing more. It is a model-independent contract, not a
+Use predictive assessment to score a predictive law against realized
+observations, compare two laws on the same observations, and read calibration
+diagnostics (whether the law's stated probabilities match observed frequencies). The
+assessment reports how the law performed on those observations, under a
+declared validation design, and nothing more. The [Python section](#python)
+has a minimal call and a runnable example. It is a model-independent contract, not a
 model zoo and not a forecasting application: laws come from native finite and
 closed-form families, or are supplied by an external provider and declared
 through the provider contract.
@@ -20,7 +23,7 @@ not a guarantee for other observations.
 | Design | held-out split, rolling origin, blocked or clustered, simulation stream | a rolling-origin design whose horizon is not the target's |
 | Dependence | iid (declared), serial with a truncation lag, cluster | iid for a rolling-origin or blocked design: `sampling_dependence_unknown`; a lag shorter than horizon minus one; one cluster |
 | Overlap | held out verified, in sample, unverified, not fitted, decided from row identities | held-out requirement with an in-sample predictor (`evidence_double_counted`) or an undeclared one (`evidence_overlap_unknown`) |
-| Uncertainty | point scores, paired differences, a labelled statistic, and the interval of an expected score or score difference inside a measured design | an unscoped interval request, an interval for an in-sample or unverified predictor, an undeclared dependence, a design no coverage record measured, a significance level: `cell_not_licensed` |
+| Uncertainty | point scores, paired differences, a labelled statistic, and the interval of an expected score or score difference, reported with its calibration status | an unscoped interval request (`quantity_semantics_mismatch`), an interval for an in-sample predictor (`evidence_double_counted`) or one whose fit set is not declared (`evidence_overlap_unknown`), an undeclared dependence (`sampling_dependence_unknown`), laws of more than one family (`route_not_supported`) |
 | Meaning | a loss of a law on the observations | a causal claim or the probability of a claim: `route_not_supported` |
 
 ## Scores
@@ -80,53 +83,47 @@ difference) at one level.
 | `serial`, lag `L`, `(L + 1) / n <= 0.1` | `mean +- t * se` with the Bartlett long-run variance | Student-t, `n / (L + 1) - 1` degrees of freedom |
 | `cluster`, at least ten clusters | `mean +- t * se` with the cluster-robust variance | Student-t, `G - 1` degrees of freedom |
 
-It is published only for a predictor verified held out of the cases (or never
-fitted) and only where a current coverage record measured the construction at
-the design, score, law family (Gaussian here), level (0.95) and number of cases.
-The record is read from the shipped coverage table: a declaration cannot open
-the route. The measured design is a fixed Gaussian forecast against known
-generators, for the CRPS, the log score and the CRPS difference of two
-forecasts. The number of cases must lie inside the range measured for the
-declared dependence; there is no extrapolation above the largest count or below
-the smallest, and a count outside it refuses with `cell_not_licensed`. The
-coverage records form contiguous grids of three case counts each (half the
-base, the base and twice the base):
+It is reported only for a predictor verified held out of the cases (or never
+fitted), with its calibration status: `calibrated` only where a current coverage
+record measured the construction at the design, score, law family (Gaussian
+here), level (0.95) and number of cases. The record is read from the shipped
+coverage table; a declaration cannot supply one. The measured design is a fixed
+Gaussian forecast against known generators, for the CRPS, the log score and the
+CRPS difference of two forecasts. A case count outside the range measured for the
+declared dependence is reported `outside_measured_scope`: no record is extrapolated
+above its largest count or below its smallest. The coverage designs form
+contiguous grids of three case counts each (half the base, the base and twice
+the base):
 
-| Declared dependence | Measured generator | Cases in the measurement design | Cases in the shipped records |
-| --- | --- | --- | --- |
-| `iid` | independent standard normal outcomes | 400 to 1,600; 1,600 to 6,400; 6,400 to 25,600; 25,600 to 102,400 (so 10,000, 30,000 and 100,000 cases lie inside) | 400 to 102,400 |
-| `cluster` | clusters of five cases with a shared cluster effect | 800 to 3,200 (160 to 640 clusters) | 800 to 3,200 |
-| `serial` | stationary AR(1) outcomes, `phi = 0.5`, lag `floor(n^(1/3))` | 1,600 to 6,400 | 1,600 to 6,400 |
+| Declared dependence | Measured generator | Cases in the measurement design |
+| --- | --- | --- |
+| `iid` | independent standard normal outcomes | 400 to 1,600; 1,600 to 6,400; 6,400 to 25,600; 25,600 to 102,400 (so 10,000, 30,000 and 100,000 cases lie inside) |
+| `cluster` | clusters of five cases with a shared cluster effect | 800 to 3,200 (160 to 640 clusters) |
+| `serial` | stationary AR(1) outcomes, `phi = 0.5`, lag `floor(n^(1/3))` | 1,600 to 6,400 |
 
-A case count is licensed only inside the last column: the range the gated records
-in the shipped coverage table measured. The measurement design column is the
-range the calibration designs cover; a range of it that no shipped record has
-measured yet is not licensed, and a count there refuses like any other count
-outside the shipped records. `scripts/check_predictive_score_scope.py` fails
-when this table, the designs, the records, the Python documentation and the
-release notes disagree.
+Whether a count inside the design is `calibrated` depends on the coverage records
+current in your build; read the interval's `calibration`.
 
 The iid interval is a Student-t interval of a mean of independent case scores,
 whose validity grows with the case count, and 102,400 cases is the upper limit
-of the measurement design: more cases refuse. Computing it is linear in the
+of the measurement design: more cases are reported `outside_measured_scope`. Computing it is linear in the
 cases up to the sort of the observation identities (scoring, the variance and
 the interval are single passes).
 
 The minimum of ten clusters and the bandwidth limit of the serial interval are
 requirements of the construction, not a measured range: a cluster count or
 series length that satisfies them but lies outside the measured case counts
-still refuses. A serial interval for the CRPS of a single forecast is a named
-boundary (0.925 at 6,400 cases) and is not published; the serial log score and
-CRPS difference are. A heavy-tailed truth is also recorded as a named boundary
-and does not license the route. The interval states its assumptions: cases
+is reported `outside_measured_scope`. A serial interval for the CRPS of a single forecast is a named
+boundary of the coverage design and reports `measured_below_nominal`. A heavy-tailed
+truth is also a named boundary of the design. The interval states its assumptions: cases
 independent or dependent as declared, a finite score variance, a law fixed
 before the cases were seen, and for a rolling-origin design the average
 expected score over the forecast origins.
 
 ## Calibration diagnostics
 
-All diagnostics are labelled `diagnostic` with `calibration = unmeasured`: no
-coordinate of this route has measured calibration.
+All diagnostics are labelled `diagnostic` with `calibration = not_measured`: they
+describe the assessed cases and make no coverage claim.
 
 - **PIT histogram.** For a discrete or ensemble law each case spreads its unit
   mass uniformly over `[F(y-), F(y)]` (non-randomized PIT; Czado, Gneiting and
@@ -152,7 +149,7 @@ observations from the evidence ledger (derivation lineage applied) with
 | --- | --- |
 | `held_out_verified` | the declared fit set is disjoint from the assessed observations |
 | `in_sample` | some assessed observations were used to fit the law; labelled, or refused when held-out observations are required |
-| `unverified` | what the law was fitted on is not declared (the usual case of a provider law); never promoted to held out |
+| `unverified` | what the law was fitted on is not declared (the usual case of a provider law); never treated as held out |
 | `not_fitted` | the law was fixed without data |
 
 ## Exact finite-law scoring
@@ -170,6 +167,50 @@ is one scoring surface. The replicates are drawn at parameters fitted to the
 observed rows: declare the fit set accordingly, and an assessment of the rows
 the posterior was conditioned on is `in_sample`.
 
+In Python, declare the replicates on the study with
+`Bayesian(predictive_replicates=ReplicateBounds(n_sims, max_rows))` and read them back
+from the executed result. The fit builds `n_sims` replicates (capped by the posterior
+draws it holds) of every design row for a design of at most `max_rows` rows, and the
+`Execution` memory limit must admit them for as long as the result holds them. A study that
+did not declare them refuses `posterior_replicates` with `option_not_applicable`.
+
+```python
+import numpy as np
+import antecedent as ant
+from antecedent import predictive_assessment as pa
+
+rng = np.random.default_rng(41)
+z = rng.normal(size=60)
+t = (z + rng.normal(size=60) > 0).astype(float)
+data = {"z": z, "t": t, "y": 1.5 * t + z + 0.5 * rng.normal(size=60)}
+
+outcome = ant.analyze(
+    data,
+    graph=[("z", "t"), ("z", "y"), ("t", "y")],
+    query=ant.AverageEffect("t", "y"),
+    inference=ant.Bayesian(n_draws=300, predictive_replicates=pa.ReplicateBounds(120, 500)),
+    execution=ant.Execution(seed=5),
+    refute="none",
+)
+replicates = pa.posterior_replicates(outcome.value)    # PosteriorReplicates: one law per design row
+assessment = pa.assess(
+    replicates.observations(),
+    [replicates.predictor()],
+    pa.ValidationDesign.held_out_split(),
+    scores=("crps",),
+    dependence=pa.Dependence.iid(),
+)
+scored = assessment.report.predictor("posterior_predictive")
+print(scored.score("crps").mean, scored.overlap.label)   # in_sample
+```
+
+The replicates are fitted to the very rows they are scored on, so `replicates.predictor()`
+declares an in-sample fit. Passing `require_held_out=True` to `pa.assess` refuses it
+(`evidence_double_counted`, `predictive_assessment.in_sample`), and a fit declared with
+`FitDeclaration.undeclared(...)` is refused as `evidence_overlap_unknown`. A score is a
+point value, a good in-sample score is not predictive validity, and a target other than the
+one the laws describe is refused rather than converted.
+
 ## Artifact
 
 `predictive_assessment_v1` stores the laws, the observations (in canonical case
@@ -179,7 +220,7 @@ order), the declarations and the results. A consumer re-scores every case
 identity. A resealed edit of a law, an outcome, a declaration or a stored value
 is refused, and a consumer that retained the identity independently refuses a
 consistently resealed assessment of other laws or observations. The artifact
-carries no interval and states `point_only`, `unmeasured` and
+carries no interval and states `point_only`, `not_measured` and
 `not_established` (causal validity).
 
 ## Relation to the scientific bridge
@@ -195,6 +236,8 @@ declared prior and likelihood.
 
 `antecedent.predictive_assessment` builds the declarations and presents the
 results; every score, identity and refusal is Rust's.
+
+Runnable example: [`examples/python/predictive_assessment.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/predictive_assessment.py).
 
 ```python
 from antecedent import predictive_assessment as pa
@@ -217,18 +260,25 @@ pa.consume_predictive_assessment_artifact(artifact, result.identity)
 `pa.keys(domain, rows)` returns the evidence ledger's observation identities, so
 `pa.FitDeclaration.from_ledger(ledger, sources)` and `pa.ledger_observations`
 decide held out from the same rows. `result.score_interval("forecast", "crps")`
-(and `reference=`, `level=`) returns the interval inside a measured design and
-raises `cell_not_licensed` elsewhere; `result.score_interval()` with no
+(and `reference=`, `level=`) returns the interval with its calibration status (`calibrated`
+inside a measured design, otherwise `outside_measured_scope`, `measured_below_nominal`
+or `not_measured`)
+and raises the refusal above for an in-sample or unverified predictor or an
+undeclared dependence; `result.score_interval()` with no
 predictor is the unscoped request and always raises. `result.causal_validity()`
 and `result.score_as_probability()` raise the typed refusals of the closed
 routes. `pa.replicate_laws` turns posterior predictive
 replicates into sample laws for the same scoring surface.
 
-## Closed routes
+## Refused routes
 
-| Route | Reason | What would license it |
+Every refusal is a `PredictiveAssessmentRefusal` with a registered code and a
+`predictive_assessment.*` detail; see [refusal codes and remedies](reference/refusal-codes.md).
+
+| Route | Reason | What would support it |
 | --- | --- | --- |
-| unscoped interval request, or a scoped one outside a measured design | `cell_not_licensed` | name the predictor, score and level, declare the dependence, and assess a held-out or unfitted predictor inside a design a current coverage record measured || callback law | `route_not_supported` | the law as a native family, or as provider-evaluated values declared through the provider contract |
+| unscoped interval request | `quantity_semantics_mismatch` | name the predictor, score and level, declare the dependence, and assess a held-out or unfitted predictor; the interval then carries the calibration status of the matching coverage record |
+| callback law | `route_not_supported` | the law as a native family, or as provider-evaluated values declared through the provider contract |
 | score as causal validity or as a probability | `route_not_supported` | an identification argument and refutation; a declared prior and likelihood |
 
 ## References

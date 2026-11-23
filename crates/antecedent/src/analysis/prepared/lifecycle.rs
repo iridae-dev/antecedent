@@ -1,6 +1,6 @@
 //! Refresh, refute and modality-specific entry points of a prepared handle.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::estimate::{ClickNotes, ClickScores, Rebound};
 use super::sealed::{SeriesCall, SeriesEntry};
@@ -23,6 +23,194 @@ use std::sync::Arc;
 use std::time::Instant;
 
 impl PreparedStudy {
+    /// Requote retained declarations and data under new execution controls without fitting.
+    ///
+    /// # Errors
+    /// Returns declaration, resource, or cancellation errors during preparation.
+    pub fn reconfigure_execution(&self, ctx: &ExecutionContext) -> Result<Self, CausalError> {
+        self.analysis.prepare_deferred_retaining(&self.plan, ctx)
+    }
+
+    /// Branch onto compatible tabular observations without fitting.
+    ///
+    /// # Errors
+    /// Returns schema, declaration, resource, or cancellation errors.
+    pub fn rebind_data(
+        &self,
+        data: TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        self.ensure_schema_compatible(&data)?;
+        if let Some(design) = self.analysis.shared_batch_design.as_ref() {
+            // An individual result from a batch is also a scalar prepared study. Its
+            // materialization must see covariates and fold metadata for the new rows,
+            // rather than the data-dependent design frozen on the original batch.
+            let shared = Arc::new(design.rebind(&data)?);
+            return self.rebind_batch_data(data, Some(shared), ctx);
+        }
+        self.rebind_input(DataInput::Tabular(data), ctx)
+    }
+
+    /// Bind a batch member and its shared design before materializing statistical state.
+    pub(crate) fn rebind_batch_data(
+        &self,
+        data: TabularData,
+        shared: Option<Arc<crate::analysis::batch::SharedBatchDesign>>,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        self.ensure_schema_compatible(&data)?;
+        let mut analysis = self.analysis.clone();
+        analysis.data = DataInput::Tabular(data);
+        analysis.shared_batch_design = shared;
+        let mut next = analysis.prepare_deferred_retaining(&self.plan, ctx)?;
+        next.retained = self.branch_retention();
+        Ok(next)
+    }
+
+    /// The operation a branch rebound from this one offers to its own materialization: this
+    /// branch's, when it owns one, else the one it was itself offered.
+    fn branch_retention(&self) -> Option<Arc<super::RetainedBranch>> {
+        if self.materialized {
+            Some(Arc::new(super::RetainedBranch {
+                execution: self.execution.clone(),
+                // Only a checked mean ATE estimate publishes the table it builds; every other
+                // route reads its frozen scores while it estimates.
+                scored: self
+                    .score_table
+                    .as_ref()
+                    .filter(|_| self.execution.aipw_operation().is_some())
+                    .map(antecedent_estimate::ScoreTable::reads_shared_design),
+            }))
+        } else {
+            self.retained.clone()
+        }
+    }
+
+    /// Whether the branch already owns a materialized statistical operation.
+    pub(crate) fn is_materialized(&self) -> bool {
+        self.materialized
+    }
+
+    /// Requote unchanged batch observations, retaining only compatible statistical state.
+    ///
+    /// The batch checks seed equality before calling this operation. A physical backend or
+    /// lowered-program change keeps the explicitly rebuilt deferred plan instead of using
+    /// an operation sealed for a different execution strategy.
+    pub(crate) fn requote_batch_execution(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        let mut next = self.analysis.prepare_deferred_retaining(&self.plan, ctx)?;
+        if self.materialized
+            && self.plan.lowered_program_semantic_identity().is_some()
+            && self.plan.lowered_program_semantic_identity()
+                == next.plan.lowered_program_semantic_identity()
+            && self.plan.binding() == next.plan.binding()
+            && self.plan.choice.selected() == next.plan.choice.selected()
+        {
+            next.execution = self.execution.clone();
+            next.score_table.clone_from(&self.score_table);
+            next.materialized = true;
+            next.program_cache = std::sync::OnceLock::new();
+            next.contract_cache = std::sync::OnceLock::new();
+            next.inspection_header = std::sync::OnceLock::new();
+        } else {
+            next.retained = self.branch_retention();
+        }
+        next.seal_inspection_metadata()?;
+        Ok(next)
+    }
+
+    /// Branch onto compatible temporal observations without fitting.
+    ///
+    /// # Errors
+    /// Returns schema, regularity, declaration, resource, or cancellation errors.
+    pub fn rebind_series(
+        &self,
+        data: TimeSeriesData,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        self.ensure_series_compatible(&data)?;
+        self.rebind_input(series_input(&self.analysis.data, data), ctx)
+    }
+
+    /// Branch onto a compatible panel without fitting.
+    ///
+    /// # Errors
+    /// Returns modality, schema, regularity, resource, or cancellation errors.
+    pub fn rebind_panel(
+        &self,
+        data: PanelData,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        self.ensure_panel_compatible(&data)?;
+        self.rebind_input(DataInput::Panel(data), ctx)
+    }
+
+    /// Branch onto compatible environments without fitting.
+    ///
+    /// # Errors
+    /// Returns modality, schema, regularity, resource, or cancellation errors.
+    pub fn rebind_multi_env(
+        &self,
+        data: antecedent_data::MultiEnvironmentData,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        self.ensure_multi_env_compatible(&data)?;
+        self.rebind_input(DataInput::MultiEnv(data), ctx)
+    }
+
+    fn rebind_input(&self, data: DataInput, ctx: &ExecutionContext) -> Result<Self, CausalError> {
+        let mut analysis = self.analysis.clone();
+        if let DataInput::Tabular(units) = &data {
+            // The fixed interference network and assignment describe the units of
+            // the retained table; a branch on new observations of the same units
+            // binds them to that table, as a fresh preparation on it would.
+            analysis.interference =
+                analysis.interference.as_ref().map(|spec| spec.bound_to(units)).transpose()?;
+        }
+        analysis.data = data;
+        // Identification caches are immutable, key-checked scientific products. A new
+        // physical plan admits the new row count; preparation retains no old fitted law.
+        let tabular = matches!(analysis.data, DataInput::Tabular(_));
+        let mut next = analysis.prepare_deferred_retaining(&self.plan, ctx)?;
+        if tabular {
+            next.retained = self.branch_retention();
+        }
+        Ok(next)
+    }
+
+    /// The retained snapshot, operation, caches, scores and invalidation log
+    /// change together only after execution and final publication both succeed.
+    fn commit_refresh(
+        &mut self,
+        ctx: &ExecutionContext,
+        build: impl FnOnce(&mut Self) -> Result<StudyResult, CausalError>,
+    ) -> Result<StudyResult, CausalError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "refresh" });
+        }
+        let mut candidate = self.clone();
+        let result = build(&mut candidate)?;
+        // Native estimators may return a usable partial bootstrap result after
+        // cancellation. A mutating transaction must never publish that candidate.
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "refresh" });
+        }
+        candidate.state.data_diagnostics = candidate
+            .analysis
+            .data_diagnostics
+            .as_ref()
+            .map(|policy| {
+                super::super::data_diagnostics::evaluate(&candidate.analysis, policy, ctx, true)
+            })
+            .transpose()?;
+        candidate.inspection_header = std::sync::OnceLock::new();
+        candidate.seal_inspection_metadata()?;
+        *self = candidate;
+        Ok(result)
+    }
+
     /// Refresh a retained AIPW study after changing only its numerical estimator options.
     ///
     /// The checked graph/query and cached identification are immutable inputs to this
@@ -43,12 +231,12 @@ impl PreparedStudy {
         use crate::estimator_spec::EstimatorSpec;
         use crate::strategy_table::EstimatorId;
 
-        if self.analysis.estimator != Some(EstimatorId::Aipw)
+        if self.analysis.declared.estimator != Some(EstimatorId::Aipw)
             || !matches!(self.analysis.query, CausalQuery::AverageEffect(_))
-            || self.analysis.identification_cache.is_none()
+            || self.analysis.static_cache().is_none()
             || !matches!(
                 self.execution,
-                PreparedExecution::OrdinaryDispatch | PreparedExecution::CheckedAipw(_)
+                PreparedExecution::EstimatorRoute(_) | PreparedExecution::CheckedAipw(_)
             )
         {
             return Err(CausalError::Unsupported {
@@ -59,58 +247,121 @@ impl PreparedStudy {
         self.transform_capability(antecedent_contract::TransformIntent::CompatibleDataReplace)?;
         self.ensure_schema_compatible(&data)?;
 
-        // Work on a candidate so config installation, score rebuilding and execution fail
-        // atomically from the session's point of view.
-        let mut candidate = self.clone();
-        let spec = EstimatorSpec::Aipw(Box::new(estimator.clone()));
-        Arc::make_mut(&mut candidate.analysis.config).estimator_spec_identity =
-            Some(crate::analysis::contract_identity::estimator_spec_identity(&spec));
-        candidate.analysis.estimator_spec = Some(Arc::new(spec));
-        candidate.program_cache = std::sync::OnceLock::new();
-
-        if let PreparedExecution::CheckedAipw(operation) = &mut candidate.execution {
-            let identification = &operation.cache.identification;
-            let estimand_index = identification
-                .estimands
-                .iter()
-                .position(|estimand| estimand == &operation.cache.estimand)
-                .ok_or(CausalError::Unsupported {
-                    message: "retained AIPW estimand is absent from cached identification",
-                })?;
-            let preparation = estimator
-                .prepare_checked(&data, identification, estimand_index)
-                .map_err(CausalError::from)?;
-            operation.fitter = estimator;
-            operation.preparation = preparation;
-        }
-
-        let result = candidate.refresh(data, ctx)?;
-        *self = candidate;
-        Ok(result)
+        self.commit_refresh(ctx, |candidate| {
+            let spec = EstimatorSpec::Aipw(Box::new(estimator));
+            candidate.install_numerical_spec(spec);
+            candidate.reconfigure_numerical_plan(&data, ctx)?;
+            candidate.refresh_candidate(data, ctx)
+        })
     }
 
-    /// Replace retained data and re-estimate (same semantics as [`Self::estimate`]).
+    /// A configured estimator owns its overlap policy and replicate budget, as
+    /// it does at initial build. Keep the resolved study fields and identity
+    /// projection synchronized instead of adding a second overlap declaration.
+    fn install_numerical_spec(&mut self, spec: crate::estimator_spec::EstimatorSpec) {
+        Arc::make_mut(&mut self.analysis.config).estimator_spec_identity =
+            Some(crate::analysis::contract_identity::estimator_spec_identity(&spec));
+        if let Some(replicates) = spec.bootstrap_replicates() {
+            self.analysis.settings.bootstrap_replicates = replicates;
+        }
+        self.analysis.declared.overlap_policy = None;
+        self.analysis.declared.estimator_spec = Some(Arc::new(spec));
+        self.program_cache = std::sync::OnceLock::new();
+        self.contract_cache = std::sync::OnceLock::new();
+        self.inspection_header = std::sync::OnceLock::new();
+    }
+
+    /// Rebuild statistical work and admission from the new options and rows,
+    /// retaining the key-validated causal proof already held by this plan.
+    fn reconfigure_numerical_plan(
+        &mut self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<(), CausalError> {
+        self.ensure_schema_compatible(data)?;
+        let mut analysis = self.analysis.clone();
+        analysis.data = DataInput::Tabular(data.clone());
+        let mut plan = (*self.plan).clone();
+        crate::analysis::lowering::reconfigure_retained(&analysis, &mut plan, ctx)?;
+        let plan = Arc::new(plan);
+        let binding = plan.binding();
+        let execution = super::sealers::seal_execution(&super::sealers::SealContext {
+            source: &analysis,
+            analysis: &analysis,
+            plan: &plan,
+            binding: &binding,
+            ctx,
+            route: analysis.route_input_classified(),
+            counterfactual: None,
+            nested_counterfactual: None,
+            previous: Some(&self.execution),
+        })?;
+        self.analysis = analysis;
+        self.plan = plan;
+        self.execution = execution;
+        Ok(())
+    }
+
+    /// Replace retained data and re-estimate as one transaction, for a bound-preview refresh.
     ///
     /// Everything the click derives from the new rows is handed to the
     /// handle rather than derived again: the rebound sealed operation, the
     /// frozen scores of a functional click, and, through one shared
     /// nuisance scope, the cross-fitted nuisances of the click and of the
     /// frozen score table (see [`Self::refresh_scoped`]).
-    ///
-    /// # Errors
-    ///
-    /// Schema incompatibility, identification / estimation / validation failures.
-    pub fn refresh(
+    pub(crate) fn refresh_in_place(
+        &mut self,
+        data: TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        self.commit_refresh(ctx, |candidate| candidate.refresh_candidate(data, ctx))
+    }
+
+    /// Build a complete replacement, including its executed contract, before commit.
+    fn refresh_candidate(
         &mut self,
         data: TabularData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         self.transform_capability(antecedent_contract::TransformIntent::CompatibleDataReplace)?;
         self.ensure_schema_compatible(&data)?;
-        antecedent_estimate::CrossfitNuisanceCache::within_scope(|| self.refresh_scoped(data, ctx))
+        if crate::analysis::functional_validation::requested(&self.analysis) {
+            let mut result = crate::analysis::functional_validation::validate_data(
+                &self.analysis,
+                DataInput::Tabular(data.clone()),
+                ctx,
+            )?;
+            let mut refreshed = self.analysis.clone();
+            refreshed.data = DataInput::Tabular(data);
+            self.replace_study(refreshed);
+            result.stamp_would_refuse(&self.analysis.would_refuse, ctx);
+            // Bound once, to the snapshot the handle now retains.
+            result.executed_contract = Some(self.executed_contract(
+                &self.analysis.data,
+                self.analysis.settings.refute,
+                None,
+            )?);
+            return Ok(result);
+        }
+        // The refreshed result carries the same native observations a fresh estimate does, so
+        // its claim identity agrees with the one the retained handle reproduces.
+        let mut observed = antecedent_core::execution_attempt::observe_with_context(ctx, || {
+            antecedent_estimate::prepare::with_preparation_budget(
+                crate::planner::PhysicalExecutionPlan::preparation_budget(ctx),
+                || {
+                    antecedent_estimate::CrossfitNuisanceCache::within_scope(|| {
+                        self.refresh_scoped(data, ctx)
+                    })
+                },
+            )
+        });
+        if let Ok(result) = &mut observed.result {
+            result.view.performance.native_execution.clone_from(&observed.facts);
+        }
+        observed.result
     }
 
-    /// The body of [`Self::refresh`], run inside one nuisance scope.
+    /// The body of [`Self::refresh_in_place`], run inside one nuisance scope.
     ///
     /// The click and the frozen score table of the refreshed study fit the
     /// same cross-fitted nuisances: the same design, treatment coding, fold
@@ -132,7 +383,7 @@ impl PreparedStudy {
         // through it before replacing the retained data snapshot; otherwise the
         // generic Study refresh route would rederive an unchecked preparation.
         let mut notes = ClickNotes::deferred();
-        let click = if matches!(self.execution, PreparedExecution::OrdinaryDispatch) {
+        let click = if self.execution.runs_shared_dispatch() {
             None
         } else {
             Some(
@@ -160,10 +411,10 @@ impl PreparedStudy {
                 ClickScores::NotBuilt => None,
             };
             self.replace_study(refreshed);
-            // Receipts that bind complete-case rows (linear, GLM, RD, AIPW,
-            // front-door, IV, conditional, cell-AIPW) must describe the
-            // retained snapshot, or the published contract would carry
-            // prepare-time row counts.
+            // Row-bound receipts and empirical factor providers must describe
+            // the retained snapshot. Keep the click's exact rebound operation
+            // so contract publication neither rescans rows nor carries stale
+            // prepare-time laws or row counts.
             if let Some(rebound) = rebound {
                 self.install_rebound(rebound);
             }
@@ -173,23 +424,30 @@ impl PreparedStudy {
             // any data-bound evidence (such as the fixed interference
             // network), so the result is bound once, to the snapshot the
             // handle actually retains.
-            result.executed_contract =
-                Some(self.executed_contract(&self.analysis.data, self.analysis.refute, None)?);
+            result.stamp_would_refuse(&self.analysis.would_refuse, ctx);
+            result.executed_contract = Some(self.executed_contract(
+                &self.analysis.data,
+                self.analysis.settings.refute,
+                None,
+            )?);
             return Ok(result);
         }
-        let mut result = refreshed.execute_shared(&self.plan, ctx)?;
+        let mut result = refreshed.execute_shared(&self.plan, Some(&self.execution), ctx)?;
         let scores = refreshed.prepare_score_table(ctx)?;
         overlay_prepared_score_functional(&refreshed.query, scores.as_ref(), &mut result)?;
         self.replace_study(refreshed);
         self.score_table = scores;
         let data = self.analysis.data.clone();
-        self.stamp(&data, result)
+        self.stamp(&data, result, ctx)
     }
 
     /// Install a click's rebound operation. Out of line so the refresh frame
     /// never holds a second execution value.
     #[inline(never)]
     fn install_rebound(&mut self, rebound: Rebound) {
+        if let Rebound::Linear(operation) = &rebound {
+            self.plan = Arc::clone(&operation.common.physical);
+        }
         self.execution = rebound.into_execution();
     }
 
@@ -215,6 +473,7 @@ impl PreparedStudy {
     pub(crate) fn rebind_static_functional_data(
         &mut self,
         data: TabularData,
+        ctx: &ExecutionContext,
     ) -> Result<(), CausalError> {
         self.ensure_schema_compatible(&data)?;
         let operation = self
@@ -226,8 +485,15 @@ impl PreparedStudy {
             .rebind(&data)?;
         let mut study = self.analysis.clone();
         study.data = DataInput::Tabular(data);
+        let diagnostics = study
+            .data_diagnostics
+            .as_ref()
+            .map(|policy| super::super::data_diagnostics::evaluate(&study, policy, ctx, true))
+            .transpose()?;
         self.replace_study(study);
+        self.state.data_diagnostics = diagnostics;
         self.execution = PreparedExecution::AdmgResponseCurve(operation);
+        self.seal_inspection_metadata()?;
         Ok(())
     }
 
@@ -241,20 +507,19 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         use crate::strategy_table::EstimatorId;
         if !matches!(spec.id(), EstimatorId::Dml | EstimatorId::DrLearner)
-            || self.analysis.estimator != Some(spec.id())
-            || !matches!(self.execution, PreparedExecution::OrdinaryDispatch)
-            || self.analysis.identification_cache.is_none()
+            || self.analysis.declared.estimator != Some(spec.id())
+            || !self.execution.runs_shared_dispatch()
+            || self.analysis.static_cache().is_none()
         {
             return Err(CausalError::Unsupported {
                 message: "DML/DR configuration refresh requires the same checked estimator family",
             });
         }
-        Arc::make_mut(&mut self.analysis.config).estimator_spec_identity =
-            Some(crate::analysis::contract_identity::estimator_spec_identity(&spec));
-        self.analysis.overlap_policy = spec.propensity_overlap();
-        self.analysis.estimator_spec = Some(Arc::new(spec));
-        self.program_cache = std::sync::OnceLock::new();
-        self.refresh(data, ctx)
+        self.commit_refresh(ctx, |candidate| {
+            candidate.install_numerical_spec(spec);
+            candidate.reconfigure_numerical_plan(&data, ctx)?;
+            candidate.refresh_candidate(data, ctx)
+        })
     }
 
     /// Second-click / background refute: replace validation on a prior estimate.
@@ -274,6 +539,11 @@ impl PreparedStudy {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         self.ensure_schema_compatible(data)?;
+        let _checked = crate::analysis::target_validation::checked_refutation_input(
+            prior,
+            crate::analysis::target_validation::PreparedTargetData::Tabular(data),
+            ctx,
+        )?;
         if let CausalQuery::Mediation(query) = &self.analysis.query {
             return self.refute_mediation(prior, data, suite, query, ctx);
         }
@@ -293,11 +563,11 @@ impl PreparedStudy {
                 )
             }
             _ => {
-                return Err(CausalError::Support {
-                    id: crate::support::SupportRefusal::Refused,
-                    message: "PreparedStudy::refute is licensed for AverageEffect and scalar \
-                              InterventionResponse",
-                });
+                return Err(crate::unsupported_reason!(
+                    "route_not_supported",
+                    "PreparedStudy::refute is supported for AverageEffect and scalar \
+                     InterventionResponse"
+                ));
             }
         };
         if prior.treatment != Some(query.treatment) || prior.outcome != query.outcome {
@@ -306,9 +576,10 @@ impl PreparedStudy {
                     .into(),
             });
         }
-        if matches!(self.analysis.inference, InferenceMode::Bayesian(_)) {
+        if matches!(self.analysis.settings.inference, InferenceMode::Bayesian(_)) {
             return self.refute_bayesian_rerun(prior, data, suite, ctx);
         }
+        let support_status = self.support_after_refute(prior, suite, ctx)?;
         let estimator = self.plan.binding().estimator_or(RouteDefaults::STATIC_ATE)?;
 
         let (data_est, query_est, estimand_est) =
@@ -331,7 +602,7 @@ impl PreparedStudy {
             estimate: effect,
             suite,
             estimator: estimator.as_str(),
-            custom: &self.analysis.custom_validators,
+            custom: &self.analysis.declared.custom_validators,
             temporal: None,
         }
         .reports(&mut workspace, None, ctx)?;
@@ -339,8 +610,9 @@ impl PreparedStudy {
         let validate_ns = u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
 
         let mut out = prior.clone();
+        out.support_status = support_status;
         out.refutations = reports;
-        crate::analysis::helpers::mirror_refuted_evalue(&mut out.estimate, &out.refutations);
+        crate::analysis::helpers::mirror_refuted_evalue(&mut out.estimate, &out.view.refutations);
         out.diagnostics.extend(na_diagnostics);
         out.performance.stage_timings_ns.push((Arc::from(STAGE_VALIDATE), validate_ns));
         out.performance.wall_time_ns =
@@ -353,6 +625,34 @@ impl PreparedStudy {
             format!("second-click refute suite={suite_label}"),
         ));
         self.stamp_refuted(prior, data, suite, out)
+    }
+
+    /// The support status of a prior result once a second click validates it under `suite`.
+    ///
+    /// The status is a property of the validation axis too, so a suite whose cell the build
+    /// would have refused is refused here rather than inheriting the prior's status.
+    fn support_after_refute(
+        &self,
+        prior: &StudyResult,
+        suite: RefuteSuite,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<crate::support::CellStatus>, CausalError> {
+        let analysis = &self.analysis;
+        let class = if analysis.graph_posterior.is_some() {
+            analysis.graph.class().as_str()
+        } else {
+            crate::support::matrix_graph_class(
+                &analysis.graph,
+                &analysis.query,
+                analysis.declared.tiered.as_ref(),
+            )
+        };
+        support_after_suite_change(
+            prior.support_status,
+            (&analysis.query, class, analysis.structure_source, &analysis.settings.inference),
+            (analysis.settings.refute, suite),
+            ctx,
+        )
     }
 
     /// Second-click refute of a static mediation prior under `suite`.
@@ -372,6 +672,7 @@ impl PreparedStudy {
                 message: "refute prior does not match mediation query".into(),
             });
         }
+        let support_status = self.support_after_refute(prior, suite, ctx)?;
         let graph =
             self.analysis.graph.as_dag().ok_or(CausalError::Unsupported {
                 message: "static mediation refute requires Dag",
@@ -380,6 +681,7 @@ impl PreparedStudy {
             message: "refute requires prior mediation result",
         })?;
         let mut result = prior.clone();
+        result.support_status = support_status;
         result.refutations = if suite == RefuteSuite::None {
             Vec::new()
         } else {
@@ -407,16 +709,26 @@ impl PreparedStudy {
         // (and, for Full, prior sensitivity/MCMC diagnostics). Re-running the
         // frozen physical plan is the only path that constructs those artifacts;
         // retain the prior point/identification while replacing validation state.
+        let support_status = self.support_after_refute(prior, suite, ctx)?;
         let started = Instant::now();
         let mut analysis = self.analysis.clone();
-        analysis.refute = suite;
-        let validated = analysis.execute_on(&DataInput::Tabular(data.clone()), &self.plan, ctx)?;
+        analysis.settings.refute = suite;
+        let validated = analysis.execute_on(
+            &DataInput::Tabular(data.clone()),
+            &self.plan,
+            Some(&self.execution),
+            None,
+            ctx,
+        )?;
         let validate_ns = u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
         let mut out = prior.clone();
-        out.refutations = validated.refutations;
-        crate::analysis::helpers::mirror_refuted_evalue(&mut out.estimate, &out.refutations);
-        out.predictive_checks = validated.predictive_checks;
-        out.posterior = validated.posterior;
+        out.refutations = validated.view.refutations;
+        crate::analysis::helpers::mirror_refuted_evalue(&mut out.estimate, &out.view.refutations);
+        out.predictive_checks = validated.view.predictive_checks;
+        out.posterior = validated.view.posterior;
+        // A suite whose cell executes unsupported (the Bayesian intervention-level
+        // refuter state) must not inherit the supported status of the estimate.
+        out.support_status = support_status;
         out.performance.stage_timings_ns.push((Arc::from(STAGE_VALIDATE), validate_ns));
         out.performance.wall_time_ns =
             Some(out.performance.wall_time_ns.unwrap_or(0).saturating_add(validate_ns));
@@ -452,6 +764,13 @@ impl PreparedStudy {
         } else {
             None
         };
+        // Only a checked same-execution second click may replace an issued report
+        // vector. Validate the supplied prior before issuing the new binding.
+        crate::analysis::target_validation::validate_runtime_refutation_proof(prior)?;
+        if same_execution {
+            out.authority = crate::result::RuntimeRefutationAuthority::Fresh;
+        }
+        crate::analysis::target_validation::stamp_route_refutations(&mut out);
         Ok(out)
     }
 
@@ -488,12 +807,51 @@ impl PreparedStudy {
         })
     }
 
+    /// Refuse replacement rows that the declared participant binding cannot label.
+    ///
+    /// The binding is the digest of one label per original row, so it is positional: a
+    /// replacement with another row count cannot be the same participants, and the retained
+    /// snapshot would otherwise keep labelling it with the original binding. A replacement that
+    /// carries its own [`antecedent_data::UnitKey`] must state the same unit assignment; one
+    /// without a key inherits the declared binding.
+    fn ensure_participants_fit(
+        &self,
+        rows: usize,
+        key: Option<&antecedent_data::UnitKey>,
+    ) -> Result<(), CausalError> {
+        let Some(binding) = &self.analysis.declared.participants else {
+            return Ok(());
+        };
+        if !usize::try_from(binding.rows).is_ok_and(|bound| bound == rows) {
+            return Err(CausalError::Compile {
+                message: format!(
+                    "prepared analysis declares participants for {} rows, but the replacement \
+                     has {rows} rows; next attempt: prepare the study again with a participant \
+                     binding for the new rows",
+                    binding.rows
+                ),
+            });
+        }
+        if key.is_some_and(|key| !binding.names(key)) {
+            return Err(CausalError::Compile {
+                message: "the replacement rows belong to other participants than the declared \
+                          binding (other labels, or the same labels on other rows); next \
+                          attempt: prepare the study again with the new participant binding"
+                    .into(),
+            });
+        }
+        Ok(())
+    }
+
     pub(super) fn ensure_schema_compatible(&self, data: &TabularData) -> Result<(), CausalError> {
         self.ensure_modality(PreparedModality::Tabular)?;
+        self.ensure_participants_fit(data.row_count(), data.unit_key())?;
         if data.schema() != &self.schema {
             return Err(CausalError::Compile {
                 message: "prepared analysis refresh requires the same schema \
-                    (variable names, types, and order) as prepare-time data"
+                    (variable names, types, and order) as prepare-time data; next attempt: \
+                    supply data with the prepare-time schema, or prepare the study again on \
+                    the new schema"
                     .into(),
             });
         }
@@ -502,14 +860,31 @@ impl PreparedStudy {
 
     fn ensure_series_compatible(&self, data: &TimeSeriesData) -> Result<(), CausalError> {
         self.ensure_modality(PreparedModality::Series)?;
+        self.ensure_participants_fit(data.row_count(), None)?;
         if data.schema() != &self.schema {
             return Err(CausalError::Compile {
                 message: "prepared temporal analysis requires the same schema \
-                    (variable names, types, and order) as prepare-time data"
+                    (variable names, types, and order) as prepare-time data; next attempt: \
+                    supply a series with the prepare-time schema, or prepare the study again \
+                    on the new schema"
                     .into(),
             });
         }
-        self.ensure_regularity(&data.time_index().regularity)
+        self.ensure_regularity(&data.time_index().regularity)?;
+        if let Some(split) = &self.analysis.declared.split
+            && split.series_len != data.row_count()
+        {
+            return Err(CausalError::Compile {
+                message: format!(
+                    "prepared temporal analysis discovery-estimation split is bound to {} \
+                         rows, but the new series has {} rows; next attempt: prepare the study \
+                         again with a split declared for the new series length",
+                    split.series_len,
+                    data.row_count(),
+                ),
+            });
+        }
+        Ok(())
     }
 
     /// Re-estimate a prepared temporal response on series data (no re-identify).
@@ -522,14 +897,105 @@ impl PreparedStudy {
         data: &TimeSeriesData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.estimate_series_with_provenance(data, None, ctx)
+    }
+
+    pub(crate) fn estimate_series_with_provenance(
+        &self,
+        data: &TimeSeriesData,
+        provenance: Option<&crate::analysis::execute::TemporalRowProvenance>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        if !self.materialized {
+            return self.materialize(ctx)?.estimate_series_with_provenance(data, provenance, ctx);
+        }
         self.ensure_series_compatible(data)?;
         let input = series_input(&self.analysis.data, data.clone());
-        let result =
-            match self.run_sealed_series(&self.analysis, &input, ctx, SeriesEntry::Estimate)? {
+        // A provenance-bearing call is already an internal outer refit; it
+        // evaluates the target once, rather than nesting another validation and
+        // losing the gathered source coordinates.
+        if provenance.is_none() && crate::analysis::functional_validation::requested(&self.analysis)
+        {
+            let result = crate::analysis::functional_validation::validate_data(
+                &self.analysis,
+                input.clone(),
+                ctx,
+            )?;
+            return self.stamp(&input, result, ctx);
+        }
+        let mut refit_study = None;
+        if provenance.is_some() && crate::analysis::functional_validation::requested(&self.analysis)
+        {
+            let mut study = self.analysis.clone();
+            study.settings.refute = crate::analysis::builder::RefuteSuite::None;
+            refit_study = Some(study);
+        }
+        let execution_study = refit_study.as_ref().unwrap_or(&self.analysis);
+        let mut result = if crate::analysis::missing_imputation::imputes_series(execution_study) {
+            self.estimate_series_imputed(
+                execution_study,
+                data,
+                SeriesEntry::Estimate,
+                provenance,
+                ctx,
+            )?
+        } else {
+            match self.run_sealed_series(
+                execution_study,
+                &input,
+                ctx,
+                SeriesEntry::Estimate,
+                provenance,
+            )? {
                 Some(result) => result,
-                None => self.analysis.execute_on(&input, &self.plan, ctx)?,
-            };
-        self.stamp(&input, result)
+                None => execution_study.execute_on(
+                    &input,
+                    &self.plan,
+                    Some(&self.execution),
+                    provenance,
+                    ctx,
+                )?,
+            }
+        };
+        crate::analysis::execute::push_lag_zero_average_effect_disclosure(
+            &self.analysis,
+            &mut result,
+        );
+        self.stamp(&input, result, ctx)
+    }
+
+    /// The series click under a declared multiple imputation: the retained operation runs on
+    /// every completed series and the fits are pooled. The click runs on complete series, so it
+    /// runs under a study that declares no policy; the declaration is the pooling's.
+    #[inline(never)]
+    fn estimate_series_imputed(
+        &self,
+        study: &Study,
+        data: &TimeSeriesData,
+        entry: SeriesEntry,
+        provenance: Option<&crate::analysis::execute::TemporalRowProvenance>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let mut complete = study.clone();
+        complete.declared.missing = None;
+        crate::analysis::missing_imputation::impute_fit_pool_series(
+            study,
+            data,
+            ctx,
+            |table, ctx| {
+                let input = series_input(&study.data, table.clone());
+                match self.run_sealed_series(&complete, &input, ctx, entry, provenance)? {
+                    Some(result) => Ok(result),
+                    None => complete.execute_on(
+                        &input,
+                        &self.plan,
+                        Some(&self.execution),
+                        provenance,
+                        ctx,
+                    ),
+                }
+            },
+        )
     }
 
     /// Execute the retained series operation, if any, over `study` and
@@ -543,16 +1009,19 @@ impl PreparedStudy {
         input: &DataInput,
         ctx: &ExecutionContext,
         entry: SeriesEntry,
+        provenance: Option<&crate::analysis::execute::TemporalRowProvenance>,
     ) -> Result<Option<StudyResult>, CausalError> {
         let (DataInput::Temporal(series) | DataInput::Event(series)) = input else {
             unreachable!("series execution constructs temporal data")
         };
+        let scoped = ctx.enter_lowered_dispatch(self.plan.require_lowered(None)?.identity());
         self.execution.operation().estimate_series(&SeriesCall {
             handle: self,
             study,
             input,
             series,
-            ctx,
+            provenance,
+            ctx: &scoped,
             entry,
         })
     }
@@ -571,10 +1040,23 @@ impl PreparedStudy {
         data: &PanelData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        if !self.materialized {
+            return self.materialize(ctx)?.estimate_panel(data, ctx);
+        }
+        self.execution.operation().require_retained_program(&self.plan)?;
         self.ensure_panel_compatible(data)?;
         let input = DataInput::Panel(data.clone());
-        let result = self.analysis.execute_on(&input, &self.plan, ctx)?;
-        self.stamp(&input, result)
+        if crate::analysis::functional_validation::requested(&self.analysis) {
+            let result = crate::analysis::functional_validation::validate_data(
+                &self.analysis,
+                input.clone(),
+                ctx,
+            )?;
+            return self.stamp(&input, result, ctx);
+        }
+        let result =
+            self.analysis.execute_on(&input, &self.plan, Some(&self.execution), None, ctx)?;
+        self.stamp(&input, result, ctx)
     }
 
     /// Replace retained panel data and re-estimate without re-identifying.
@@ -587,14 +1069,29 @@ impl PreparedStudy {
         data: PanelData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.commit_refresh(ctx, |candidate| candidate.refresh_panel_candidate(data, ctx))
+    }
+
+    /// Build a complete replacement, including its executed contract, before commit.
+    fn refresh_panel_candidate(
+        &mut self,
+        data: PanelData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
         self.transform_capability(antecedent_contract::TransformIntent::CompatibleDataReplace)?;
+        self.execution.operation().require_retained_program(&self.plan)?;
         self.ensure_panel_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
         refreshed.data = DataInput::Panel(data);
-        let result = refreshed.execute_shared(&self.plan, ctx)?;
+        if crate::analysis::functional_validation::requested(&refreshed) {
+            let result = crate::analysis::functional_validation::run_validated(&refreshed, ctx)?;
+            self.replace_study(refreshed);
+            return Ok(result);
+        }
+        let result = refreshed.execute_shared(&self.plan, Some(&self.execution), ctx)?;
         self.replace_study(refreshed);
         let data = self.analysis.data.clone();
-        self.stamp(&data, result)
+        self.stamp(&data, result, ctx)
     }
 
     /// Re-estimate a prepared multi-environment temporal analysis (no re-identify).
@@ -607,10 +1104,23 @@ impl PreparedStudy {
         data: &antecedent_data::MultiEnvironmentData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        if !self.materialized {
+            return self.materialize(ctx)?.estimate_multi_env(data, ctx);
+        }
+        self.execution.operation().require_retained_program(&self.plan)?;
         self.ensure_multi_env_compatible(data)?;
         let input = DataInput::MultiEnv(data.clone());
-        let result = self.analysis.execute_on(&input, &self.plan, ctx)?;
-        self.stamp(&input, result)
+        if crate::analysis::functional_validation::requested(&self.analysis) {
+            let result = crate::analysis::functional_validation::validate_data(
+                &self.analysis,
+                input.clone(),
+                ctx,
+            )?;
+            return self.stamp(&input, result, ctx);
+        }
+        let result =
+            self.analysis.execute_on(&input, &self.plan, Some(&self.execution), None, ctx)?;
+        self.stamp(&input, result, ctx)
     }
 
     /// Replace retained multi-environment data and re-estimate without re-identifying.
@@ -623,14 +1133,29 @@ impl PreparedStudy {
         data: antecedent_data::MultiEnvironmentData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.commit_refresh(ctx, |candidate| candidate.refresh_multi_env_candidate(data, ctx))
+    }
+
+    /// Build a complete replacement, including its executed contract, before commit.
+    fn refresh_multi_env_candidate(
+        &mut self,
+        data: antecedent_data::MultiEnvironmentData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
         self.transform_capability(antecedent_contract::TransformIntent::CompatibleDataReplace)?;
+        self.execution.operation().require_retained_program(&self.plan)?;
         self.ensure_multi_env_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
         refreshed.data = DataInput::MultiEnv(data);
-        let result = refreshed.execute_shared(&self.plan, ctx)?;
+        if crate::analysis::functional_validation::requested(&refreshed) {
+            let result = crate::analysis::functional_validation::run_validated(&refreshed, ctx)?;
+            self.replace_study(refreshed);
+            return Ok(result);
+        }
+        let result = refreshed.execute_shared(&self.plan, Some(&self.execution), ctx)?;
         self.replace_study(refreshed);
         let data = self.analysis.data.clone();
-        self.stamp(&data, result)
+        self.stamp(&data, result, ctx)
     }
 
     fn ensure_multi_env_compatible(
@@ -701,17 +1226,140 @@ impl PreparedStudy {
         data: TimeSeriesData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.commit_refresh(ctx, |candidate| candidate.refresh_series_candidate(data, ctx))
+    }
+
+    /// Build a complete replacement, including its executed contract, before commit.
+    fn refresh_series_candidate(
+        &mut self,
+        data: TimeSeriesData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
         self.transform_capability(antecedent_contract::TransformIntent::CompatibleDataReplace)?;
         self.ensure_series_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
         refreshed.data = series_input(&self.analysis.data, data);
-        let result =
-            match self.run_sealed_series(&refreshed, &refreshed.data, ctx, SeriesEntry::Refresh)? {
+        if crate::analysis::functional_validation::requested(&refreshed) {
+            let result = crate::analysis::functional_validation::run_validated(&refreshed, ctx)?;
+            self.replace_study(refreshed);
+            return Ok(result);
+        }
+        let snapshot_before =
+            self.contract().ok().map(|contract| contract.identities.data_snapshot);
+        let imputes = crate::analysis::missing_imputation::imputes_series(&refreshed);
+        let result = match &refreshed.data {
+            DataInput::Temporal(series) if imputes => {
+                self.estimate_series_imputed(&refreshed, series, SeriesEntry::Refresh, None, ctx)?
+            }
+            _ => match self.run_sealed_series(
+                &refreshed,
+                &refreshed.data,
+                ctx,
+                SeriesEntry::Refresh,
+                None,
+            )? {
                 Some(result) => result,
-                None => refreshed.execute_shared(&self.plan, ctx)?,
-            };
+                None => refreshed.execute_shared(&self.plan, Some(&self.execution), ctx)?,
+            },
+        };
         self.replace_study(refreshed);
         let data = self.analysis.data.clone();
-        self.stamp(&data, result)
+        // A series whose data snapshot is unchanged is not a new period: no product read a
+        // changed input, so nothing is invalidated.
+        let snapshot_after = self.contract().ok().map(|contract| contract.identities.data_snapshot);
+        if snapshot_before.is_some() && snapshot_before == snapshot_after {
+            return self.stamp(&data, result, ctx);
+        }
+        // A refreshed series is a new observation period of the same declared study: the
+        // graph, query, history, horizon, cadence and initial law are unchanged (the schema
+        // and the sampling regularity were checked), so the period is the one factor that
+        // moved. The mechanism is not declared invariant across periods, so the products
+        // that read the period or the model are invalidated and the identification is reused.
+        let version = antecedent_core::StateVersion::from_raw(
+            self.temporal_log.entries.last().map_or(2, |entry| entry.at_version.raw() + 1),
+        );
+        let moved = std::collections::BTreeSet::from([antecedent_state::TemporalFactor::Period]);
+        self.temporal_log.push_temporal_change(
+            version,
+            &moved,
+            false,
+            "series period replaced on refresh",
+        );
+        self.stamp(&data, result, ctx)
+    }
+
+    /// The prepared temporal products each refreshed period invalidated, one log entry per
+    /// product that read the changed period; a product with no entry (the identification) was
+    /// reused.
+    #[must_use]
+    pub fn temporal_invalidations(&self) -> &antecedent_state::InvalidationLog {
+        &self.temporal_log
+    }
+}
+
+/// The support status after a second click under `suite` of a handle built under `built`.
+///
+/// A suite whose cell is supported keeps the prior status. A cell the closed rules mark as
+/// executing unsupported runs and reports `Refused`. Any other unsupported cell refuses the click,
+/// as the build would have refused it, provided the cell of the built suite is supported (a
+/// coordinate the matrix cannot place is not evidence against the click).
+fn support_after_suite_change(
+    prior: Option<crate::support::CellStatus>,
+    (query, class, source, inference): (
+        &CausalQuery,
+        &'static str,
+        crate::support::StructureSource,
+        &InferenceMode,
+    ),
+    (built, suite): (RefuteSuite, RefuteSuite),
+    ctx: &ExecutionContext,
+) -> Result<Option<crate::support::CellStatus>, CausalError> {
+    use crate::support::{CellStatus, classify, support_cell_named};
+    let Some(cell) = support_cell_named(query, class, source, inference, suite) else {
+        return Ok(prior);
+    };
+    if classify(cell) == CellStatus::Supported {
+        return Ok(prior);
+    }
+    let built_supported = support_cell_named(query, class, source, inference, built)
+        .is_some_and(|built_cell| classify(built_cell) == CellStatus::Supported);
+    if built_supported {
+        crate::support::refuse_if_not_applicable_in(cell, ctx).map(Some)
+    } else {
+        Ok(prior)
+    }
+}
+
+#[cfg(test)]
+mod suite_support_tests {
+    use super::*;
+    use crate::support::{CellStatus, StructureSource};
+
+    #[test]
+    fn a_second_click_suite_the_build_would_refuse_is_refused() {
+        let query = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+            antecedent_core::VariableId::from_raw(0),
+            antecedent_core::VariableId::from_raw(1),
+        ));
+        let coordinates =
+            (&query, "CoDetermined", StructureSource::Explicit, &InferenceMode::Frequentist);
+        let kept = support_after_suite_change(
+            Some(CellStatus::Supported),
+            coordinates,
+            (RefuteSuite::None, RefuteSuite::None),
+            &ExecutionContext::for_tests(0),
+        );
+        assert_eq!(kept.unwrap(), Some(CellStatus::Supported));
+        let refused = support_after_suite_change(
+            Some(CellStatus::Supported),
+            coordinates,
+            (RefuteSuite::None, RefuteSuite::Full),
+            &ExecutionContext::for_tests(0),
+        );
+        // A release build refuses; a development build runs it and reports the status.
+        #[cfg(not(feature = "development"))]
+        assert!(matches!(refused, Err(CausalError::Support { .. })), "{refused:?}");
+        #[cfg(feature = "development")]
+        assert_eq!(refused.unwrap(), Some(CellStatus::NotSupported));
     }
 }

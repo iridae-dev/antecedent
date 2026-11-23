@@ -4,7 +4,7 @@
 //! frozen posterior weight when [`StructuralAggregationPolicy`] is
 //! `SameEstimandWeightedMean`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::response_path::{
     estimate_general_id_response, graph_posterior_response_supported, mix_response_values,
@@ -80,9 +80,11 @@ impl super::Study {
         let mut bound = self.clone();
         bound.query = CausalQuery::Response(operation.query().clone());
         bound.graph_posterior = Some(operation.posterior().clone());
-        bound.graph_posterior_identification_cache = Some(Arc::clone(operation.identification()));
-        bound.inference = operation.inference().clone();
-        bound.refute = operation.validation();
+        bound.install_identification(crate::analysis::IdentificationCache::GraphPosterior(
+            Arc::clone(operation.identification()),
+        ));
+        bound.settings.inference = operation.inference().clone();
+        bound.settings.refute = operation.validation();
         bound.execute_admg_graph_posterior_response(
             data,
             operation.posterior(),
@@ -93,6 +95,10 @@ impl super::Study {
     }
 
     /// Mix ADMG posterior atoms through `identify_admg_query` + `functional.effect`.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the mixed response and its retained source witness share one execution"
+    )]
     pub(super) fn execute_admg_graph_posterior_response(
         &self,
         data: &TabularData,
@@ -103,7 +109,7 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         if !matches!(
-            gp.atom_kind,
+            gp.atom_kind(),
             antecedent_discovery::GraphPosteriorAtomKind::Admg
                 | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
         ) {
@@ -115,7 +121,7 @@ impl super::Study {
         graph_posterior_response_supported(query)?;
         let (treatment, outcome) = response_primary_pair(&query.functional)?;
         let (identified, identify_cached) =
-            self.admg_posterior_response_identification(gp, query, ctx)?;
+            self.admg_posterior_response_identification(gp, query, physical, ctx)?;
         if identified.atoms.is_empty() && identified.graphs.identified_mass() <= 0.0 {
             return Err(CausalError::Compile {
                 message: "ADMG graph-posterior response: no identified ADMG atoms".into(),
@@ -158,7 +164,7 @@ impl super::Study {
 
         let algo =
             physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
-        Ok(self.finish_identified_execute(
+        let mut result = self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
                 identification,
@@ -195,22 +201,66 @@ impl super::Study {
                     conditional_on_identified: Some(conditional),
                     full_mass_scope: true,
                     truncated_atoms: 0,
+                    aggregation_policy: Some(aggregation_policy),
                 }),
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
             }),
-        ))
+        );
+        if self.retain_response_witnesses
+            && matches!(
+                gp.atom_kind(),
+                antecedent_discovery::GraphPosteriorAtomKind::Admg
+                    | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
+            )
+        {
+            let count = gp.atoms().len();
+            let bytes = count
+                .checked_mul(std::mem::size_of::<antecedent_discovery::AdjacencyMask>())
+                .and_then(|v| {
+                    v.checked_add(std::mem::size_of::<
+                            crate::result::StaticPosteriorSourceWitness,
+                        >())
+                })
+                .and_then(|v| v.checked_add(8 * std::mem::size_of::<usize>()))
+                .and_then(|v| u64::try_from(v).ok());
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "posterior source witness" });
+            }
+            if let Some(bytes) = bytes {
+                match ctx.acquire_admission(0, bytes) {
+                    Ok(lease) => {
+                        result.static_posterior_source =
+                            Some(Arc::new(crate::result::StaticPosteriorSourceWitness {
+                                source: Arc::downgrade(gp.atoms()),
+                                _lease: lease,
+                            }))
+                    }
+                    Err(antecedent_core::execution::AdmissionError::Cancelled) => {
+                        return Err(CausalError::Cancelled { stage: "posterior source witness" });
+                    }
+                    Err(_) => {}
+                }
+            }
+        }
+        Ok(result)
     }
 
-    /// The prepared ADMG posterior identification cache, or a live build of it.
+    /// The prepared ADMG posterior identification cache, the product the plan's lowered
+    /// program retained at compile, or a live build of it.
     fn admg_posterior_response_identification(
         &self,
         gp: &GraphPosterior,
         query: &ResponseQuery,
+        physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<(Arc<CachedGraphPosteriorIdentification>, bool), CausalError> {
-        if let Some(cache) = self.graph_posterior_identification_cache.as_ref() {
+        if let Some(cache) = self.graph_posterior_cache() {
             Ok((Arc::clone(cache), true))
+        } else if let Some(cache) =
+            crate::analysis::lowering::plan_retained_graph_posterior(self, physical)
+        {
+            Ok((cache, false))
         } else {
             Ok((
                 Arc::new(
@@ -263,7 +313,7 @@ impl super::Study {
                 self,
                 run.data,
                 run.query,
-                AtomAdjacency { mask, n_vars: run.gp.n_vars },
+                AtomAdjacency { mask, n_vars: run.gp.n_vars() },
                 &atom.identification,
                 &atom.estimand,
                 inner,
@@ -443,10 +493,10 @@ impl super::Study {
         ];
         if weighted.len() > 1 {
             diagnostics.push(Diagnostic::new(
-                "estimate.response.admg_graph_posterior.uncertainty_withheld",
+                "estimate.response.admg_graph_posterior.no_uncertainty_method",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
-                if self.inference.is_bayesian() {
+                if self.settings.inference.is_bayesian() {
                     "multi-atom Bayesian ADMG graph-posterior response withholds an aggregate \
                      credible band: graph-specific dispersion and a frozen-weight aggregate are \
                      different objects"
@@ -485,16 +535,17 @@ impl super::Study {
         if is_intervention
             && scalar.is_finite()
             && matches!(aggregation_policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
-            && (!matches!(self.refute, RefuteSuite::None) || !self.custom_validators.is_empty())
+            && (!matches!(self.settings.refute, RefuteSuite::None)
+                || !self.declared.custom_validators.is_empty())
         {
             let ate_query = AverageEffectQuery::binary_ate(run.treatment, run.outcome);
             let mut refute_ws = EstimationWorkspace::default();
-            if matches!(self.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
+            if matches!(self.settings.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
                 diagnostics.push(Diagnostic::new(
                     "refute.evalue.not_a_contrast",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    "contrast-shaped refuters are not licensed for a plugin intervention level; \
+                    "contrast-shaped refuters are not supported for a plugin intervention level; \
                      cheap runs overlap only and full runs overlap plus sampling-stability of the \
                      identified intervention mean",
                 ));
@@ -504,14 +555,14 @@ impl super::Study {
                 estimand,
                 query: &ate_query,
                 estimate: &pooled.estimate,
-                suite: self.refute,
+                suite: self.settings.refute,
                 estimator: EstimatorId::FunctionalEffect.as_str(),
-                custom: &self.custom_validators,
+                custom: &self.declared.custom_validators,
                 temporal: None,
             }
             .plugin_level(&mut refute_ws, run.ctx)
         } else {
-            if !matches!(self.refute, RefuteSuite::None) {
+            if !matches!(self.settings.refute, RefuteSuite::None) {
                 diagnostics.push(Diagnostic::new(
                     "refute.response.skipped",
                     DiagnosticKind::Scientific,
@@ -537,18 +588,18 @@ fn mask_for_atom_key(
     gp: &GraphPosterior,
     key: u64,
 ) -> Result<antecedent_discovery::AdjacencyMask, CausalError> {
-    gp.graph_keys
+    gp.graph_keys()
         .iter()
-        .zip(gp.atoms.iter())
+        .zip(gp.atoms().iter())
         .find(|(candidate, _)| **candidate == key)
-        .map(|(_, mask)| *mask)
+        .map(|(_, mask)| mask.clone())
         .ok_or_else(|| CausalError::Compile {
             message: format!("ADMG graph-posterior atom missing adjacency mask for key {key:x}"),
         })
 }
 
 /// An ADMG posterior atom's adjacency bitmask and the variable count it indexes.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct AtomAdjacency {
     mask: antecedent_discovery::AdjacencyMask,
     n_vars: usize,
@@ -564,16 +615,16 @@ fn estimate_admg_posterior_atom_response(
     ctx: &ExecutionContext,
 ) -> Result<(CausalResponse, Option<antecedent_estimate::CausalPosterior>), CausalError> {
     let (treatment, outcome) = response_primary_pair(&query.functional)?;
-    let bayesian = study.inference.is_bayesian();
+    let bayesian = study.settings.inference.is_bayesian();
     match &query.functional {
         ResponseFunctional::InterventionResponse { .. } => {
-            let replicates = if bayesian { 0 } else { study.bootstrap_replicates };
+            let replicates = if bayesian { 0 } else { study.settings.bootstrap_replicates };
             let (mut response, _) = estimate_general_id_response(
                 data,
                 query,
                 identification,
                 estimand,
-                replicates,
+                study.functional_bootstrap(replicates)?,
                 ctx,
             )?;
             if !bayesian {
@@ -602,7 +653,7 @@ fn estimate_admg_posterior_atom_response(
             estimate_admg_mean_curve(study, data, query, adjacency, identification, estimand, ctx)
         }
         _ => Err(CausalError::Unsupported {
-            message: "ADMG graph-posterior response is licensed for InterventionResponse and \
+            message: "ADMG graph-posterior response is supported for InterventionResponse and \
                       ResponseCurve",
         }),
     }
@@ -623,10 +674,10 @@ fn estimate_admg_mean_curve(
     ctx: &ExecutionContext,
 ) -> Result<(CausalResponse, Option<antecedent_estimate::CausalPosterior>), CausalError> {
     let AtomAdjacency { mask, n_vars } = adjacency;
-    let bayesian = study.inference.is_bayesian();
+    let bayesian = study.settings.inference.is_bayesian();
     let ResponseFunctional::MeanCurve { outcome, treatment: tx } = &query.functional else {
         return Err(CausalError::Unsupported {
-            message: "ADMG graph-posterior response is licensed for InterventionResponse and \
+            message: "ADMG graph-posterior response is supported for InterventionResponse and \
                       ResponseCurve",
         });
     };
@@ -638,7 +689,7 @@ fn estimate_admg_mean_curve(
     let mut credible_bounds: Vec<(f64, f64)> = Vec::new();
     let mut first_posterior = None;
     let mut support = None;
-    let replicates = if bayesian { 0 } else { study.bootstrap_replicates };
+    let replicates = if bayesian { 0 } else { study.settings.bootstrap_replicates };
     for level in levels {
         let level_query = admg_response_at_level(query, tx.variable, *outcome, level);
         let (level_id, level_est) = if means.is_empty() {
@@ -675,7 +726,7 @@ fn estimate_admg_mean_curve(
                 &level_query,
                 &level_id,
                 &level_est,
-                replicates,
+                study.functional_bootstrap(replicates)?,
                 ctx,
             )?;
             if let ResponseUncertainty::Scalar { lower, upper, .. } = &response.uncertainty {

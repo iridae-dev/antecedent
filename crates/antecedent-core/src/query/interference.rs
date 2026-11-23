@@ -1,10 +1,13 @@
 //! Randomized interference queries.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::InterferenceFault;
 use std::sync::Arc;
 
 use crate::VariableId;
+use crate::canonical_encode::{CanonicalEncode, count, encode_u32s, flag};
+use crate::identity::CanonicalWriter;
 
 use super::QueryError;
 
@@ -133,6 +136,116 @@ pub struct InterferenceQuery {
     pub probability_draws: u32,
 }
 
+impl CanonicalEncode for ExposurePropensityProvenance {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let tag = match self {
+            Self::Known => 1,
+            Self::ExternallyEstimated => 2,
+        };
+        writer.word(tag);
+    }
+}
+
+/// Every array is unit- or cluster-aligned and keeps its order.
+impl CanonicalEncode for AssignmentDesign {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Bernoulli { probabilities } => {
+                writer.word(1).reals(probabilities);
+            }
+            Self::CompleteRandomization { treated } => {
+                writer.word(2).word(count(*treated));
+            }
+            Self::ClusterRandomization { clusters, treated_clusters } => {
+                writer.word(3);
+                encode_u32s(writer, clusters);
+                writer.word(count(*treated_clusters));
+            }
+            Self::TwoStageSaturation {
+                clusters,
+                low_probability,
+                high_probability,
+                high_clusters,
+                realized_saturation,
+            } => {
+                writer.word(4);
+                encode_u32s(writer, clusters);
+                writer
+                    .real(*low_probability)
+                    .real(*high_probability)
+                    .word(count(*high_clusters))
+                    .reals(realized_saturation);
+            }
+            Self::ObservedExposure {
+                clusters,
+                propensity_from,
+                propensity_to,
+                provenance,
+                assume_network_exchangeability,
+            } => {
+                writer.word(5);
+                encode_u32s(writer, clusters);
+                writer.reals(propensity_from).reals(propensity_to);
+                provenance.encode(writer);
+                writer.word(flag(*assume_network_exchangeability));
+            }
+        }
+    }
+}
+
+impl CanonicalEncode for ExposureMapping {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::OwnTreatment => {
+                writer.word(1);
+            }
+            Self::NeighborCount => {
+                writer.word(2);
+            }
+            Self::NeighborFraction => {
+                writer.word(3);
+            }
+            Self::WeightedNeighborExposure => {
+                writer.word(4);
+            }
+            Self::Custom(name) => {
+                writer.word(5).text(name);
+            }
+        }
+    }
+}
+
+impl CanonicalEncode for ExposureLevel {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer.real(self.own).real(self.neighbors);
+    }
+}
+
+/// `from` and `to` keep their roles.
+impl CanonicalEncode for InterferenceFunctional {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::ExposureContrast { outcome, from, to } => {
+                writer.word(1);
+                outcome.encode(writer);
+                from.encode(writer);
+                to.encode(writer);
+            }
+        }
+    }
+}
+
+/// Every field is written; `probability_draws` sets the Monte Carlo exposure
+/// probabilities and so changes the estimate.
+impl CanonicalEncode for InterferenceQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.assignment.encode(writer);
+        self.exposure.encode(writer);
+        self.functional.encode(writer);
+        writer.word(u64::from(self.probability_draws));
+    }
+}
+
 impl InterferenceQuery {
     /// Construct with 10,000 exposure-probability simulations when required.
     #[must_use]
@@ -156,21 +269,19 @@ impl InterferenceQuery {
                     || probabilities.iter().any(|p| !p.is_finite() || *p <= 0.0 || *p >= 1.0) =>
             {
                 return Err(QueryError::InvalidInterference(
-                    "Bernoulli probabilities must be finite and strictly between zero and one"
-                        .into(),
+                    InterferenceFault::BernoulliProbabilities,
                 ));
             }
             AssignmentDesign::CompleteRandomization { treated } if *treated == 0 => {
                 return Err(QueryError::InvalidInterference(
-                    "complete randomization requires at least one treated unit".into(),
+                    InterferenceFault::CompleteTreatedUnits,
                 ));
             }
             AssignmentDesign::ClusterRandomization { clusters, treated_clusters }
                 if clusters.is_empty() || *treated_clusters == 0 =>
             {
                 return Err(QueryError::InvalidInterference(
-                    "cluster randomization requires clusters and at least one treated cluster"
-                        .into(),
+                    InterferenceFault::ClusterTreatedClusters,
                 ));
             }
             AssignmentDesign::TwoStageSaturation {
@@ -188,9 +299,7 @@ impl InterferenceQuery {
                 || low_probability >= high_probability
                 || *high_clusters == 0 =>
             {
-                return Err(QueryError::InvalidInterference(
-                    "two-stage saturation requires aligned clusters, 0 < low < high < 1, and high_clusters > 0".into(),
-                ));
+                return Err(QueryError::InvalidInterference(InterferenceFault::TwoStageSaturation));
             }
             AssignmentDesign::ObservedExposure {
                 clusters,
@@ -207,9 +316,7 @@ impl InterferenceQuery {
                     .chain(propensity_to.iter())
                     .any(|p| !p.is_finite() || *p <= 0.0 || *p > 1.0) =>
             {
-                return Err(QueryError::InvalidInterference(
-                    "observational exposure requires aligned positive propensities and an explicit network exchangeability assumption".into(),
-                ));
+                return Err(QueryError::InvalidInterference(InterferenceFault::ObservedExposure));
             }
             _ => {}
         }
@@ -218,10 +325,7 @@ impl InterferenceQuery {
             || exposure_levels_match(*from, *to)
             || self.probability_draws == 0
         {
-            return Err(QueryError::InvalidInterference(
-                "exposure levels must be finite/distinct and probability_draws must be positive"
-                    .into(),
-            ));
+            return Err(QueryError::InvalidInterference(InterferenceFault::ExposureLevels));
         }
         Ok(())
     }
@@ -248,6 +352,7 @@ mod tests {
 
     #[test]
     fn distinct_exposure_levels_validate() {
+        // Acceptance baseline for the within-tolerance refusal test below.
         let query = query_with_levels(
             ExposureLevel { own: 0.0, neighbors: 0.0 },
             ExposureLevel { own: 1.0, neighbors: 0.0 },

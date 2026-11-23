@@ -75,7 +75,7 @@ fn a_compliant_m_graph_is_recovered_with_margins_bound_to_the_named_distribution
         };
         assert_eq!(*regime, Some(RegimeId::from_raw(7)));
         assert_eq!(arena.population(*population), POPULATION);
-        assert!(margin.identity.starts_with("catalog_distribution.v1|source_regime=7"));
+        assert!(margin.identity.starts_with("catalog_distribution.v2|source_regime=7"));
         if margin.variables.len() < observed.measured.len() {
             assert!(margin.identity.contains("projections=marginalize:"), "{}", margin.identity);
         }
@@ -105,14 +105,30 @@ fn self_censoring_is_nonrecoverable_with_a_verified_witness() {
     // Every observed-law cell agrees exactly (integer masses) and the targets differ.
     assert!(check.observed_cells >= 8, "{}", check.observed_cells);
     assert_ne!(check.masses.0, check.masses.1);
-    assert_eq!(check.denominator, 60u128.pow(5));
+    // The masses are `60 P(X0 = 0)` times `30^(s-1) 60^(n-s)` over `60^n` for the `s = 3`
+    // substantive variables among `n = 5` mechanisms, which is `60 P(X0 = 0)` over
+    // `60 * 2^(s-1)`; the check reports them in lowest terms.
+    let zero = |model: &[antecedent_identify::WitnessMechanism]| {
+        u128::from(60 - model.iter().find(|m| m.node == 0).unwrap().numerators[0])
+    };
+    let (first, second, unreduced) = (zero(&witness.first), zero(&witness.second), 60 * 4);
+    assert_eq!(check.masses.0 * unreduced, first * check.denominator);
+    assert_eq!(check.masses.1 * unreduced, second * check.denominator);
+    assert_eq!(unreduced % check.denominator, 0);
+    let gcd = |mut a: u128, mut b: u128| {
+        while b != 0 {
+            (a, b) = (b, a % b);
+        }
+        a
+    };
+    assert_eq!(gcd(gcd(check.masses.0, check.masses.1), check.denominator), 1);
     assert_eq!(
         antecedent_identify::RecoveryDetail::NonrecoverableWitness.reason_code(),
         "transport_proven_non_transportable"
     );
     assert_eq!(
         antecedent_identify::RecoveryDetail::NonrecoverableWitness.detail(),
-        "recovery.nonrecoverable_witness"
+        antecedent_core::reason_details::recovery::NONRECOVERABLE_WITNESS
     );
 }
 
@@ -263,15 +279,13 @@ fn each_unsupported_mechanism_is_refused() {
 }
 
 #[test]
-fn bounds_refuse_at_the_cap_plus_one() {
+fn role_counts_are_bounded_only_by_the_budget() {
     // Three partially observed and two fully observed are accepted.
     let at_cap = MModel::new(3, 2, &[(3, 0), (4, 1)], &[vec![3], vec![4], vec![0]], 2).unwrap();
     assert!(matches!(decide(&at_cap).unwrap(), RecoveryDecision::Recovered(_)));
     for (k, m) in [(4, 0), (1, 3)] {
         let over = MModel::new(k, m, &[], &vec![vec![]; k as usize], 2).unwrap();
-        let error = decide(&over).unwrap_err();
-        assert_eq!(error.detail, RecoveryDetail::BoundsExceeded, "k={k} m={m}");
-        assert_eq!(error.reason_code(), "route_not_supported");
+        assert!(matches!(decide(&over).unwrap(), RecoveryDecision::Recovered(_)), "k={k} m={m}");
     }
     let model = two_partial();
     for limits in [
@@ -471,7 +485,7 @@ fn memory_and_cancellation_are_observed_by_the_shared_budget() {
     assert_eq!(receipt.memory_limit_bytes, Some(64));
     // The context's hard limit also bounds the cap.
     let mut limited = ctx();
-    limited.memory.hard_limit_bytes = Some(100);
+    limited.set_memory_limit(Some(100));
     let error = decide_observation_recovery(
         &model.graph,
         &model.query(),
@@ -561,6 +575,7 @@ fn the_effect_is_identified_by_ordinary_target_id_on_the_causal_restriction() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines, reason = "the test keeps one scientific scenario together")]
 fn a_tampered_record_or_arena_fails_verification() {
     let model = two_partial();
     let effect = RecoveredEffectQuery {
@@ -612,6 +627,18 @@ fn a_tampered_record_or_arena_fails_verification() {
     margin.margins[0].identity.push('x');
     assert_eq!(
         verify(&margin, d.arena(), Some(&e_arena)).detail,
+        RecoveryDetail::InvalidDerivation
+    );
+    // Legacy descriptors remain inspectable but cannot verify as v2 leaves.
+    let mut legacy = d.record().clone();
+    assert!(legacy.margins[0].identity.starts_with("catalog_distribution.v2|"));
+    legacy.margins[0].identity = legacy.margins[0].identity.replacen(
+        "catalog_distribution.v2|",
+        "catalog_distribution.v1|",
+        1,
+    );
+    assert_eq!(
+        verify(&legacy, d.arena(), Some(&e_arena)).detail,
         RecoveryDetail::InvalidDerivation
     );
     // A premise edited.

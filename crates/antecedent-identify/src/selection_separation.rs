@@ -20,7 +20,7 @@
 //! agreement of independent encodings is the evidence. Everything else in this crate
 //! (closures, edge lists, node iteration) goes through the graph crate's owners.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_graph::{Admg, BitSet, DSeparationWorkspace, DenseNodeId};
 
@@ -43,7 +43,7 @@ impl MutilatedSelection {
         targets: &[DenseNodeId],
     ) -> Result<Self, IdentificationError> {
         let n = original.node_count();
-        let capacity = || IdentificationError::msg("selection graph capacity");
+        let capacity = || IdentificationError::out_of_range("selection graph capacity");
         let extra = u32::try_from(targets.len()).map_err(|_| capacity())?;
         let mut graph = original.copy_filtered(
             antecedent_graph::CopyLabels::StaticIndex { extra },

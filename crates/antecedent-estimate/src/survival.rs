@@ -3,7 +3,7 @@
 //! These point estimators consume an already identified randomized contrast.
 //! Independent censoring and entry are scientific assumptions supplied by the
 //! query; this module cannot verify them from observed follow-up.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 
@@ -42,7 +42,8 @@ pub struct SurvivalRows<'a> {
 pub struct KnownCensoring<'a> {
     /// Increasing time grid from zero through the restriction horizon.
     pub times: &'a [f64],
-    /// Row-major censoring survival, one value per subject and grid time.
+    /// Row-major left-limit censoring survival `G(t−) = P(C >= t)`, one value per
+    /// subject and grid time. Events take priority over censoring at tied times.
     pub survival: &'a [f64],
     /// Declared positivity floor the survival values must stay above.
     pub minimum_probability: f64,
@@ -106,6 +107,24 @@ pub struct SurvivalDifferenceBand {
     pub replicates_ok: u32,
 }
 
+/// Visit each within-arm bootstrap draw in arm order, advancing the caller's stream once per draw.
+fn for_each_resampled_subject(
+    arms: &[Vec<usize>; 2],
+    rng: &mut u64,
+    mut visit: impl FnMut(usize, bool),
+) {
+    for (arm_index, arm) in arms.iter().enumerate() {
+        for _ in 0..arm.len() {
+            #[allow(
+                clippy::cast_possible_truncation,
+                reason = "u64 PRNG output is reduced modulo arm length to a valid index"
+            )]
+            let i = arm[(splitmix64(rng) as usize) % arm.len()];
+            visit(i, arm_index == 1);
+        }
+    }
+}
+
 /// Build a simultaneous curve-difference band by subject resampling within arms.
 ///
 /// At least 80 subjects per arm and 399 valid replicates are required. The
@@ -152,18 +171,11 @@ pub fn randomized_survival_bootstrap_difference_band(
         let mut d = Vec::with_capacity(duration.len());
         let mut e = Vec::with_capacity(duration.len());
         let mut a = Vec::with_capacity(duration.len());
-        for (arm_index, arm) in arms.iter().enumerate() {
-            for _ in 0..arm.len() {
-                #[allow(
-                    clippy::cast_possible_truncation,
-                    reason = "u64 PRNG output is reduced modulo arm length to a valid index"
-                )]
-                let i = arm[(splitmix64(&mut rng) as usize) % arm.len()];
-                d.push(duration[i]);
-                e.push(event_code[i]);
-                a.push(arm_index == 1);
-            }
-        }
+        for_each_resampled_subject(&arms, &mut rng, |i, arm| {
+            d.push(duration[i]);
+            e.push(event_code[i]);
+            a.push(arm);
+        });
         let rows = SurvivalRows { duration: &d, event_code: &e, treated: &a, delayed_entry: None };
         let Ok(sample) = randomized_survival_summary(&rows, tau, endpoint) else {
             continue;
@@ -180,12 +192,13 @@ pub fn randomized_survival_bootstrap_difference_band(
             .fold(0.0_f64, f64::max);
         suprema.push(sup);
     }
-    let ok = u32::try_from(suprema.len()).map_err(|_| "too many survival band draws")?;
-    if ok < 399 || ok < replicates.saturating_sub(replicates / 10) {
-        return Err(
-            "survival simultaneous band lost more than 10% of subject draws to support failures",
-        );
-    }
+    let ok = bootstrap_support_count(
+        suprema.len(),
+        replicates,
+        399,
+        "too many survival band draws",
+        "survival simultaneous band lost more than 10% of subject draws to support failures",
+    )?;
     suprema.sort_by(f64::total_cmp);
     #[allow(
         clippy::cast_possible_truncation,
@@ -249,24 +262,17 @@ pub fn randomized_survival_bootstrap_intervals(
         let mut a = Vec::with_capacity(duration.len());
         let mut left = delayed_entry.map(|_| Vec::with_capacity(duration.len()));
         let mut g = known_censoring.map(|_| Vec::with_capacity(duration.len() * grid_width));
-        for (arm_index, arm) in arms.iter().enumerate() {
-            for _ in 0..arm.len() {
-                #[allow(
-                    clippy::cast_possible_truncation,
-                    reason = "u64 PRNG output is reduced modulo arm length to a valid index"
-                )]
-                let i = arm[(splitmix64(&mut rng) as usize) % arm.len()];
-                d.push(duration[i]);
-                e.push(event_code[i]);
-                a.push(arm_index == 1);
-                if let (Some(source), Some(out)) = (delayed_entry, left.as_mut()) {
-                    out.push(source[i]);
-                }
-                if let (Some(known), Some(out)) = (known_censoring, g.as_mut()) {
-                    out.extend_from_slice(&known.survival[i * grid_width..(i + 1) * grid_width]);
-                }
+        for_each_resampled_subject(&arms, &mut rng, |i, arm| {
+            d.push(duration[i]);
+            e.push(event_code[i]);
+            a.push(arm);
+            if let (Some(source), Some(out)) = (delayed_entry, left.as_mut()) {
+                out.push(source[i]);
             }
-        }
+            if let (Some(known), Some(out)) = (known_censoring, g.as_mut()) {
+                out.extend_from_slice(&known.survival[i * grid_width..(i + 1) * grid_width]);
+            }
+        });
         let replicate = SurvivalRows {
             duration: &d,
             event_code: &e,
@@ -296,10 +302,13 @@ pub fn randomized_survival_bootstrap_intervals(
             }
         }
     }
-    let ok = u32::try_from(draws_tau.len()).map_err(|_| "too many survival bootstrap draws")?;
-    if ok < 199 || ok < replicates.saturating_sub(replicates / 10) {
-        return Err("survival bootstrap lost more than 10% of subject draws to support failures");
-    }
+    let ok = bootstrap_support_count(
+        draws_tau.len(),
+        replicates,
+        199,
+        "too many survival bootstrap draws",
+        "survival bootstrap lost more than 10% of subject draws to support failures",
+    )?;
     if endpoint == SurvivalEndpoint::Survival && draws_rmst.len() != draws_tau.len() {
         return Err("survival bootstrap lost RMST estimates");
     }
@@ -314,7 +323,7 @@ pub fn randomized_survival_bootstrap_intervals(
 
 /// The 95% bootstrap percentile interval of `draws`: type-7 quantiles at 2.5% and 97.5%,
 /// the crate's rule for resampling percentiles (`statistical_transport::percentile_interval`).
-fn percentile_95(draws: &mut [f64]) -> [f64; 2] {
+pub(crate) fn percentile_95(draws: &mut [f64]) -> [f64; 2] {
     draws.sort_by(f64::total_cmp);
     let (lower, upper) = antecedent_stats::equal_tail_interval_sorted(
         draws,
@@ -322,6 +331,21 @@ fn percentile_95(draws: &mut [f64]) -> [f64; 2] {
         antecedent_stats::QuantileRule::Interpolated,
     );
     [lower, upper]
+}
+
+/// Apply the survival bootstrap's minimum count and maximum support-loss policy.
+pub(crate) fn bootstrap_support_count(
+    draws: usize,
+    requested: u32,
+    minimum: u32,
+    overflow_error: &'static str,
+    support_error: &'static str,
+) -> Result<u32, &'static str> {
+    let ok = u32::try_from(draws).map_err(|_| overflow_error)?;
+    if ok < minimum || ok < requested.saturating_sub(requested / 10) {
+        return Err(support_error);
+    }
+    Ok(ok)
 }
 
 /// Compute randomized arm curves with optional left truncation.
@@ -350,14 +374,13 @@ pub fn randomized_survival_summary(
     if duration.iter().any(|&time| !time.is_finite() || time < 0.0) {
         return Err("durations must be finite and nonnegative");
     }
-    if let Some(entry) = delayed_entry {
-        if entry
+    if let Some(entry) = delayed_entry
+        && entry
             .iter()
             .zip(duration)
             .any(|(&left, &right)| !left.is_finite() || left < 0.0 || left >= right)
-        {
-            return Err("entry times must be finite, nonnegative, and earlier than exit");
-        }
+    {
+        return Err("entry times must be finite, nonnegative, and earlier than exit");
     }
     match endpoint {
         SurvivalEndpoint::Survival => {
@@ -390,10 +413,10 @@ pub fn randomized_survival_summary(
         if rows.iter().all(|&index| duration[index] < tau) {
             return Err("tau exceeds observed follow-up in one arm");
         }
-        if let Some(entry) = delayed_entry {
-            if rows.iter().all(|&index| entry[index] != 0.0) {
-                return Err("RMST or incidence from zero requires a time-zero entrant in each arm");
-            }
+        if let Some(entry) = delayed_entry
+            && rows.iter().all(|&index| entry[index] != 0.0)
+        {
+            return Err("RMST or incidence from zero requires a time-zero entrant in each arm");
         }
     }
 
@@ -426,8 +449,9 @@ pub fn randomized_survival_summary(
 
 /// Evaluate arm curves with a caller supplied, subject-specific censoring survival grid.
 ///
-/// [`KnownCensoring::survival`] is row-major with one value per subject and time. The
-/// probabilities must be known independently of the outcomes used here; this
+/// [`KnownCensoring::survival`] is row-major with one value per subject and time;
+/// each value is `P(C >= t)` so subjects censored at `t` remain in the event risk set.
+/// The probabilities must be known independently of the outcomes used here; this
 /// point kernel does not fit or verify a censoring model. No interval is
 /// constructed by this function. Optional marginally independent left entry
 /// ([`SurvivalRows::delayed_entry`]) and censoring probabilities remain attached
@@ -709,6 +733,39 @@ mod tests {
     use super::*;
 
     #[test]
+    fn bootstrap_support_count_preserves_thresholds_and_errors() {
+        let check = |draws, requested, minimum| {
+            bootstrap_support_count(draws, requested, minimum, "overflow", "support")
+        };
+        assert_eq!(check(199, 199, 199), Ok(199));
+        assert_eq!(check(198, 199, 199), Err("support"));
+        assert_eq!(check(900, 1000, 199), Ok(900));
+        assert_eq!(check(899, 1000, 199), Err("support"));
+        assert_eq!(check(399, 399, 399), Ok(399));
+        assert_eq!(check(398, 399, 399), Err("support"));
+        if let Ok(overflow) = usize::try_from(u64::from(u32::MAX) + 1) {
+            assert_eq!(check(overflow, 199, 199), Err("overflow"));
+        }
+    }
+
+    #[test]
+    fn subject_draws_keep_arm_order_and_stream_position() {
+        let arms = [vec![10, 20], vec![30, 40, 50]];
+        let mut seed = 0;
+        let mut draws = Vec::new();
+        for_each_resampled_subject(&arms, &mut seed, |index, treated| {
+            draws.push((index, treated));
+        });
+        let expected = if usize::BITS == 32 {
+            [(20, false), (10, false), (30, true), (30, true), (40, true)]
+        } else {
+            [(20, false), (10, false), (40, true), (40, true), (40, true)]
+        };
+        assert_eq!(draws, expected);
+        assert_eq!(seed, 0x1715_609F_7C74_6C69);
+    }
+
+    #[test]
     #[allow(
         clippy::too_many_lines,
         reason = "one fixture exercised end to end: build the arms, bootstrap twice for determinism, then refuse thin arms"
@@ -973,10 +1030,10 @@ mod tests {
     #[test]
     fn delayed_entry_scalar_bootstrap_support_boundary_covers_known_truth() {
         // Delayed-entry (left-truncated) known-truth coverage gate for the
-        // graphless license. Entry is independent of the source event time; a
+        // graphless support. Entry is independent of the source event time; a
         // subject entering at one with an event at one is unobserved. The two
         // arm laws imply S(3) and RMST differences of .15 and .25. Sampling is
-        // repeated at the licensed 160 observed subjects per arm and the
+        // repeated at the supported 160 observed subjects per arm and the
         // minimum 299 accepted subject-bootstrap draws.
         const REPLICATIONS: usize = 2_000;
         let mut state = 0xD3E1_A7E0_2000_6B63_u64;
@@ -1046,7 +1103,7 @@ mod tests {
     #[test]
     fn fixed_g_ipcw_scalar_bootstrap_support_boundary_covers_known_truth() {
         // Fixed-known-G IPCW known-truth coverage gate for the graphless
-        // license, with no delayed entry. Event risk is randomized and
+        // support, with no delayed entry. Event risk is randomized and
         // independent of the heterogeneous, subject-fixed censoring survival G.
         // The source-population S(3) and RMST differences are .15 and .30.
         // Sampling is repeated at 160 subjects per arm and the minimum 299
@@ -1771,6 +1828,31 @@ mod tests {
             covered += u32::from(interval[0] <= -0.10 && -0.10 <= interval[1]);
         }
         assert!(covered >= 216, "fixed-G competing-risk CIF coverage: {covered}/240");
+    }
+
+    #[test]
+    fn known_censoring_left_limit_handles_event_censor_ties() {
+        let g = [
+            1.0, 0.5, 0.25, 1.0, 0.5, 0.25, 1.0, 1.0, 0.5, 1.0, 1.0, 0.5, 1.0, 1.0, 0.5, 1.0, 1.0,
+            0.5,
+        ];
+        let (summary, _) = randomized_survival_ipcw_summary(
+            &SurvivalRows {
+                duration: &[1.0, 1.0, 2.0, 1.0, 1.0, 2.0],
+                event_code: &[1, 0, 0, 1, 0, 0],
+                treated: &[false, false, false, true, true, true],
+                delayed_entry: None,
+            },
+            &KnownCensoring { times: &[0.0, 1.0, 2.0], survival: &g, minimum_probability: 0.1 },
+            2.0,
+            SurvivalEndpoint::Survival,
+        )
+        .unwrap();
+        // At time 1 the tied censor remains at risk: control weighted event 2,
+        // risk 2+2+1=5; treated event 1 and risk 3.
+        assert!((summary.control[1] - 0.6).abs() < 1e-12);
+        assert!((summary.treated[1] - 2.0 / 3.0).abs() < 1e-12);
+        assert!((summary.rmst_control.unwrap() - 1.6).abs() < 1e-12);
     }
 
     #[test]

@@ -19,7 +19,7 @@ answered here, and each has its own typed result so none can be relabeled as ano
   the finite validated binary two-step whole-unit protocol, with explicit target
   initial-state law and current method-specific evidence. Other scopes refuse with
   their structured causal errors. Original internal candidate artifacts and numerical
-  diagnostics retain unmeasured standing; a measured scalar cannot relabel them.
+  diagnostics retain not_measured standing; a measured scalar cannot relabel them.
 
 Rust owns every identity, check, replay and refusal rule; this module builds declarations
 and raises each refusal as :class:`TemporalExtensionRefusal`, a
@@ -34,8 +34,17 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
+from antecedent import _reason_details
+
+from .._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .._columns import coerce_fields
-from .._measured_inference import MeasuredInference, _production_limits
+from .._measured_inference import MeasuredInference
 from .._native import (
     consume_temporal_initial_state_artifact as _consume_initial_state,
 )
@@ -43,13 +52,16 @@ from .._native import (
     consume_temporal_refresh_artifact as _consume_refresh,
 )
 from .._native import (
-    temporal_dependent_interval_closed as _dependent_interval_closed,
+    temporal_dependent_interval_scope as _dependent_interval_scope,
 )
 from .._native import (
     temporal_initial_state_prepare as _initial_state_prepare,
 )
 from .._refusal import raise_refusal
+from .._scientific import ScientificResult
 from ..errors import CausalTypeError, CausalValueError, StructuredRefusal
+from ..execution import Execution
+from ._controls import call_native, resolve
 
 MARGINALIZED_LABEL = "marginalized_initial_state"
 FIXED_LABEL = "fixed_initial_state"
@@ -66,7 +78,7 @@ class TemporalExtensionRefusal(StructuredRefusal):
 
     ``reason_code`` and ``remedy`` are inherited and the code is registered. ``detail`` is
     the namespaced ``family.slot`` (for example ``initial_state.target_law_missing``,
-    ``temporal_refresh.horizon_changed`` or ``temporal_interval.route_frozen``); it is
+    ``temporal_refresh.horizon_changed`` or ``temporal_interval.too_few_units``); it is
     empty for a plain argument refusal. ``stage`` names the refusing stage.
     """
 
@@ -342,13 +354,16 @@ def _contributions(rows: Iterable[Mapping[str, Any]]) -> tuple[StateContribution
 
 
 @dataclass(frozen=True, slots=True, eq=False)
-class TemporalInitialStateResult:
+class TemporalInitialStateResult(ScientificResult):
     """The sequence response marginalized over a target initial-state law (point only).
 
     ``label`` is always ``marginalized_initial_state``; ``fixed`` is the separate
     fixed-state estimand (label ``fixed_initial_state``) when one was requested, and
     neither converts into the other. ``interval`` is always ``None``: this route is point
-    only. A result produced by a refresh carries its ``receipt`` and ``previous_value``.
+    only. A result produced by a refresh carries its ``receipt`` and ``previous_value``, and
+    ``invalidated_products`` names the prepared products (``identification``, ``design``,
+    ``model``, ``evidence``, ``prior_refresh``) that read a window factor the refresh changed;
+    the others are reused.
     """
 
     label: str
@@ -364,6 +379,7 @@ class TemporalInitialStateResult:
     receipt: RefreshReceipt | None
     previous_value: float | None
     interval_invalidated: bool
+    invalidated_products: tuple[str, ...]
     _native: Any
 
     interval: None = None
@@ -387,18 +403,27 @@ class TemporalInitialStateResult:
             receipt=None if refresh is None else RefreshReceipt._from(refresh["receipt"]),
             previous_value=None if refresh is None else refresh["previous_value"],
             interval_invalidated=False if refresh is None else refresh["interval_invalidated"],
+            invalidated_products=()
+            if refresh is None
+            else tuple(
+                entry["target"].removeprefix("temporal_product:")
+                for entry in refresh["invalidations"]
+                if entry["target"].startswith("temporal_product:")
+            ),
             _native=native,
         )
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
         """The independently consumable initial-state artifact (framed bytes)."""
-        return bytes(self._native.export())
+        return artifact_from_receipt(self, bytes(self._native.export()))
 
-    def export_refresh(self) -> bytes:
+    @artifact_export
+    def export_refresh(self) -> ExportedArtifact[Any]:
         """The artifact of the refresh that produced this result (framed bytes)."""
         data, refusal = self._native.export_refresh()
         raise_refusal(refusal, TemporalExtensionRefusal)
-        return bytes(data)
+        return artifact_from_receipt(self, bytes(data))
 
 
 def temporal_initial_state(
@@ -451,7 +476,7 @@ def _law_args(
 
 
 @dataclass(frozen=True, slots=True, eq=False)
-class TemporalRefreshResult:
+class TemporalRefreshResult(ScientificResult):
     """A held result re-evaluated on a new observation period (point only).
 
     ``value`` is a fresh evaluation on the replacement panel, never the old value
@@ -470,9 +495,10 @@ class TemporalRefreshResult:
     result: TemporalInitialStateResult
     interval: None = None
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
         """The independently consumable refresh artifact (framed bytes)."""
-        return self.result.export_refresh()
+        return artifact_from_receipt(self, self.result.export_refresh())
 
 
 def temporal_new_period_refresh(
@@ -521,10 +547,10 @@ def temporal_new_period_refresh(
 
 
 @dataclass(frozen=True, slots=True, init=False)
-class TemporalIntervalCandidate:
+class TemporalIntervalCandidate(ScientificResult):
     """Original whole-unit candidate, available only in internal acceptance builds.
 
-    Calibration is unmeasured; this object is not a released interval license.
+    Calibration is not_measured; this object is not a released interval support.
     The native artifact retains the entire panel, estimator and replicate identities.
     """
 
@@ -556,8 +582,8 @@ class TemporalIntervalCandidate:
             )
         payload = json.loads(native.payload())
         row = payload["result"]
-        if row["calibration"] != "unmeasured":
-            raise CausalValueError("temporal interval candidate must remain unmeasured")
+        if row["calibration"] != "not_measured":
+            raise CausalValueError("temporal interval candidate must remain not_measured")
         result = object.__new__(cls)
         coerce_fields(
             result,
@@ -577,27 +603,35 @@ class TemporalIntervalCandidate:
         )
         return result
 
-    def export(self) -> bytes:
-        """Export the original full-panel replay artifact, still unmeasured."""
-        return bytes(self._native.export())
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
+        """Export the original full-panel replay artifact, still not_measured."""
+        return artifact_from_receipt(self, bytes(self._native.export()))
 
     def to_dict(self) -> dict[str, Any]:
         """Inspect original estimator, panel, design and replicate identities."""
         return cast(dict[str, Any], json.loads(self._native.payload()))
 
     @classmethod
+    @artifact_consumer(
+        proof="native temporal interval consumer recomputes all original panel replicates under the independent execution identity",
+        replayable=True,
+        resumable=False,
+        identity=("expected_identity",),
+    )
     def load(cls, artifact: bytes, *, expected_identity: str) -> TemporalIntervalCandidate:
         """Recompute every original replicate in a fresh internal consumer."""
+        artifact = container_bytes(artifact)
         from .. import _native
 
         consumer = getattr(_native, "consume_temporal_interval_candidate", None)
         if consumer is None:
             raise TemporalExtensionRefusal(
                 {
-                    "code": "cell_not_licensed",
+                    "code": "not_supported",
                     "stage": "temporal_extension",
-                    "detail": "temporal_interval.route_frozen",
-                    "message": "the interval consumer remains closed pending calibration",
+                    "detail": _reason_details.temporal_interval.CONSUMER_UNAVAILABLE,
+                    "message": "the interval consumer is unavailable in this build",
                 }
             )
         if not isinstance(artifact, bytes) or not isinstance(expected_identity, str):
@@ -615,13 +649,11 @@ def temporal_dependent_interval(
     fixed_state: int | None = None,
     target_law: InitialStateLaw | int | None = None,
     replicates: int = 500,
-    seed: int = 0,
     level: float = 0.95,
     method: Literal["studentized"] = "studentized",
     min_units: int = 20,
     max_failed_fraction: float = 0.05,
-    memory_limit_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> MeasuredInference:
     """Measured 95% whole-unit response with complete balanced binary histories.
 
@@ -630,6 +662,7 @@ def temporal_dependent_interval(
     full interval receipt are independently replayed. Other histories, laws
     and methods refuse rather than borrowing this construction's evidence.
     """
+    execution = resolve(execution)
     return cast(
         MeasuredInference,
         _temporal_interval_entry(
@@ -639,14 +672,13 @@ def temporal_dependent_interval(
             fixed_state=fixed_state,
             target_law=target_law,
             replicates=replicates,
-            seed=seed,
+            seed=execution.seed,
             level=level,
             method=method,
             min_units=min_units,
             max_failed_fraction=max_failed_fraction,
             measured=True,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
+            execution=execution,
         ),
     )
 
@@ -654,7 +686,7 @@ def temporal_dependent_interval(
 def _temporal_dependent_interval_candidate(
     panel: TemporalUnitPanel, **kwargs: Any
 ) -> TemporalIntervalCandidate:
-    """Explicit internal historical interval; retains unmeasured standing."""
+    """Explicit internal historical interval; retains not_measured standing."""
     return cast(
         TemporalIntervalCandidate, _temporal_interval_entry(panel, measured=False, **kwargs)
     )
@@ -674,11 +706,10 @@ def _temporal_interval_entry(
     min_units: int = 20,
     max_failed_fraction: float = 0.05,
     measured: bool,
-    memory_limit_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> MeasuredInference | TemporalIntervalCandidate:
     """Shared source validation; candidate and measured authority remain separate."""
-    _production_limits(memory_limit_bytes, cancel)
+    execution = resolve(execution)
     if method != "studentized":
         raise CausalValueError("direct temporal intervals require method='studentized'")
     if not isinstance(panel, TemporalUnitPanel):
@@ -709,9 +740,12 @@ def _temporal_interval_entry(
         float(max_failed_fraction),
     )
     if candidate is not None:
-        native, refusal = candidate(
+        native, refusal = call_native(
+            execution,
+            candidate,
             *arguments,
-            **({"memory_limit_bytes": memory_limit_bytes, "cancel": cancel} if measured else {}),
+            cancel="cancel" if measured else None,
+            memory="memory_limit_bytes" if measured else None,
         )
         raise_refusal(refusal, TemporalExtensionRefusal)
         return (
@@ -719,12 +753,14 @@ def _temporal_interval_entry(
             if measured
             else TemporalIntervalCandidate._from_native(native)
         )
-    refusal = _dependent_interval_closed(*arguments)
-    raise TemporalExtensionRefusal(json.loads(refusal))
+    refusal = _dependent_interval_scope(*arguments)
+    if refusal is not None:
+        raise TemporalExtensionRefusal(json.loads(refusal))
+    raise CausalTypeError("the dependent interval native entries are unavailable")
 
 
 @dataclass(frozen=True, slots=True)
-class ConsumedInitialState:
+class ConsumedInitialState(ScientificResult):
     """What an independent consumer replayed from an initial-state artifact."""
 
     label: str
@@ -741,6 +777,12 @@ class ConsumedInitialState:
     inference_claim: str
 
 
+@artifact_consumer(
+    proof="native initial-state consumer rebuilds the target law and replays marginalized and fixed values",
+    replayable=True,
+    resumable=False,
+    identity=(),
+)
 def consume_temporal_initial_state_artifact(
     artifact: bytes,
     *,
@@ -755,6 +797,7 @@ def consume_temporal_initial_state_artifact(
     and values must match bit for bit, so a changed population, snapshot or law is refused
     even when the artifact is resealed.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
     payload, refusal = _consume_initial_state(
@@ -781,7 +824,7 @@ def consume_temporal_initial_state_artifact(
 
 
 @dataclass(frozen=True, slots=True)
-class ConsumedRefresh:
+class ConsumedRefresh(ScientificResult):
     """What an independent consumer re-decided and replayed from a refresh artifact."""
 
     decision: str
@@ -798,6 +841,12 @@ class ConsumedRefresh:
     inference_claim: str
 
 
+@artifact_consumer(
+    proof="native refresh consumer re-decides window identities and re-evaluates both retained points",
+    replayable=True,
+    resumable=False,
+    identity=(),
+)
 def consume_temporal_refresh_artifact(
     artifact: bytes,
     *,
@@ -812,6 +861,7 @@ def consume_temporal_refresh_artifact(
     whose refreshed result carries an interval refuses as
     ``temporal_refresh.stale_interval``.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
     payload, refusal = _consume_refresh(

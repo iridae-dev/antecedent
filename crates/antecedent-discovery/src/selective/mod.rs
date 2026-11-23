@@ -4,11 +4,12 @@
 //!
 //! # Claims this module makes
 //!
-//! * **Algorithmic match.** A selective run returns, bit for bit, the result a full run of
-//!   the same contract on the same data returns. A statistic is retained only at an
+//! * **Algorithmic match.** A selective run returns, bit for bit, the result a fresh
+//!   selective adapter returns for the same contract and data. A statistic is retained only at an
 //!   identical input coordinate, and the retained value is the value the test returned for
 //!   it. The result identity ([`outcome::DiscoveryOutcome::result_identity`]) makes the
-//!   comparison executable.
+//!   comparison executable. This does not claim bitwise identity with an unwrapped PC run:
+//!   the wrapper does not use that run's covariance-session optimization.
 //! * **Work.** The counters in [`work::WorkUnits`] are observed where tests reach the test
 //!   implementation, where orientation rounds run and where search passes are recorded, and
 //!   a retained statistic is not work.
@@ -17,8 +18,8 @@
 //!
 //! * **No recovery guarantee.** Matching a full run says nothing about whether the output is
 //!   the true graph. No recovery, faithfulness-adequacy, false-discovery or error-control
-//!   statement is made for the output graph, and none is licensed: the route that would
-//!   state one is closed with a typed `cell_not_licensed` refusal until the complete
+//!   statement is made for the output graph, and none is supported: the route that would
+//!   state one is not supported with a typed `not_supported` refusal until the complete
 //!   discovery-plus-analysis method, including reuse of the discovery data in the later
 //!   analysis and any sample splitting, has been calibrated (see
 //!   `docs/selective-discovery.md` for the recorded calibration design).
@@ -35,7 +36,7 @@
 //! * transport of a discovered structure (refusal; see [`transport`]),
 //! * derived sufficient-statistic updates (a separate row that needs its own validation).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub mod adapter;
 pub mod claims;
@@ -70,8 +71,8 @@ pub use stages::{
     STATISTIC_COMPONENTS, StageDecision, StageInputs,
 };
 pub use store::{
-    DEFAULT_STORE_CAPACITY, MAX_PORTABLE_RECEIPTS, SelectiveCi, StatisticReceipt, StatisticStore,
-    StoreCounters, StoreMode,
+    DEFAULT_STORE_CAPACITY, MAX_PORTABLE_RECEIPTS, SelectiveCi, SelectiveLimits, StatisticReceipt,
+    StatisticStore, StoreCounters, StoreMode,
 };
 pub use structure::{
     DiscoveredStructure, Mark, StructureClass, StructureEdge, StructureNode, UnresolvedEdge,

@@ -1,6 +1,6 @@
 //! Pin: `TemporalMediation` I(1) ≠ I(2) on a confounded pulse-style DGP.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -256,7 +256,7 @@ fn temporal_mediation_i1_not_equal_i2_on_confounded_pulse() {
         vec![(0, 0), (3, 0)]
     );
     assert!(
-        multi.estimate.as_effect().unwrap().ate.is_nan(),
+        multi.estimate().as_effect().unwrap().ate.is_nan(),
         "multi-horizon results have no scalar representative"
     );
     assert!(multi.mediation().is_none());
@@ -286,14 +286,16 @@ fn temporal_mediation_i1_not_equal_i2_on_confounded_pulse() {
         match inference {
             InferenceMode::Frequentist => {
                 assert!(
-                    (click.estimate.as_effect().unwrap().ate - structural_mediated()).abs() < 1e-6
+                    (click.estimate().as_effect().unwrap().ate - structural_mediated()).abs()
+                        < 1e-6
                 );
             }
             InferenceMode::Bayesian(_) => {
                 assert!(
-                    (click.estimate.as_effect().unwrap().ate - structural_mediated()).abs() < 0.08,
+                    (click.estimate().as_effect().unwrap().ate - structural_mediated()).abs()
+                        < 0.08,
                     "Bayesian I(1) ate {} vs structural {}",
-                    click.estimate.as_effect().unwrap().ate,
+                    click.estimate().as_effect().unwrap().ate,
                     structural_mediated()
                 );
             }
@@ -415,7 +417,7 @@ fn temporal_cpdag_mediation_returns_per_horizon_identified_sets() {
         assert_horizon_one_mediated(&result, 1e-6, &case);
         assert!(result.refutations.is_empty(), "{case}: none runs no refuter");
         assert!(result.mediation().is_none());
-        assert!(result.estimate.as_effect().unwrap().ate.is_nan());
+        assert!(result.estimate().as_effect().unwrap().ate.is_nan());
     }
 }
 
@@ -449,16 +451,16 @@ fn temporal_cpdag_mediation_cheap_and_full_run_per_completion() {
             // scalar estimate beside the set.
             assert_horizon_one_mediated(&result, 1e-6, &case);
             assert!(
-                (result.estimate.as_effect().unwrap().ate - structural_mediated()).abs() < 1e-6,
+                (result.estimate().as_effect().unwrap().ate - structural_mediated()).abs() < 1e-6,
                 "{case}: estimate {} vs structural {}",
-                result.estimate.as_effect().unwrap().ate,
+                result.estimate().as_effect().unwrap().ate,
                 structural_mediated()
             );
             assert!(result.mediation().is_some(), "{case}");
             assert!(result.mediation_grid().is_some_and(|grid| {
                 grid.slices[0].identified_set.is_some_and(|set| {
-                    set.lower == result.estimate.as_effect().unwrap().ate
-                        && set.upper == result.estimate.as_effect().unwrap().ate
+                    set.lower == result.estimate().as_effect().unwrap().ate
+                        && set.upper == result.estimate().as_effect().unwrap().ate
                 })
             }));
         }
@@ -487,7 +489,7 @@ fn temporal_class_bayesian_mediation_returns_identified_sets() {
         // Same tolerance as the Bayesian I(1) pin on the oriented TemporalDag.
         assert_horizon_one_mediated(&result, 0.08, &case);
         assert!(result.refutations.is_empty(), "{case}: none runs no refuter");
-        assert!(result.estimate.as_effect().unwrap().ate.is_nan());
+        assert!(result.estimate().as_effect().unwrap().ate.is_nan());
     }
 }
 
@@ -516,7 +518,7 @@ fn temporal_class_bayesian_mediation_cheap_and_full_run() {
 }
 
 #[test]
-fn temporal_pag_mediation_refuses_as_cross_world_theory_boundary() {
+fn temporal_pag_mediation_is_a_window_route_and_reads_one_horizon() {
     let (data, _) = confounded_mediation_series();
     let mut graph = TemporalPag::empty();
     let t1 = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
@@ -525,19 +527,19 @@ fn temporal_pag_mediation_refuses_as_cross_world_theory_boundary() {
     graph.insert_directed(t1, m0).unwrap();
     graph.insert_directed(t1, y0).unwrap();
     graph.insert_directed(m0, y0).unwrap();
+    // The cell is no longer a theory boundary: it builds, and a request for two horizons is
+    // refused as such, with its next attempt.
     let error = Study::series(data)
         .graph(graph)
         .query(CausalQuery::Mediation(query(&[1, 2])))
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
         .build()
+        .and_then(|built| built.run(&ExecutionContext::for_tests(34)))
         .unwrap_err();
     let message = error.to_string();
     assert!(
-        message.contains("Latent-confounded")
-            && message.contains("cross-world")
-            && !message.contains("1.10")
-            && !message.contains("1.7"),
-        "TemporalPag mediation must refuse as a mathematical boundary, got {message}"
+        message.contains("one outcome horizon") && !message.contains("cross-world theory"),
+        "TemporalPag mediation reads one horizon per study, got {message}"
     );
 }

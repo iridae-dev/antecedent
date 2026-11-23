@@ -1,6 +1,6 @@
 //! Checked-target and execution inspection on `PreparedAnalysis`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -16,6 +16,92 @@ use crate::{AteAnalysisResult, py_err, py_execution_context_ext};
 
 #[pymethods]
 impl PyPreparedAnalysis {
+    /// The weighted target population declared at prepare, with its overlap diagnostics.
+    fn weighted_target_report<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyDict>>> {
+        self.inner
+            .weighted_target_report()
+            .map(|report| crate::weighted_target_api::report_to_dict(py, report))
+            .transpose()
+    }
+
+    /// Independent execution header sharing immutable native prepared storage.
+    fn fork(&self) -> Self {
+        Self {
+            inner: Arc::clone(&self.inner),
+            names: self.names.clone(),
+            last: None,
+            last_study: None,
+            last_seed: self.last_seed,
+            last_threads: self.last_threads,
+            series: self.series,
+        }
+    }
+
+    /// Requote the same native snapshot under explicit execution controls, without fitting.
+    #[pyo3(signature = (*, seed=1, threads=None))]
+    fn reconfigure_execution(
+        &self,
+        py: Python<'_>,
+        seed: u64,
+        threads: Option<u32>,
+    ) -> PyResult<Self> {
+        let inner = Arc::clone(&self.inner);
+        let names = self.names.clone();
+        let series = self.series;
+        crate::detach_catch(py, move || {
+            let resolved_threads = crate::resolve_user_threads(threads);
+            let ctx = py_execution_context_ext(
+                seed,
+                resolved_threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let prepared = inner.reconfigure_execution(&ctx).map_err(py_err)?;
+            Ok(super::finished_prepared_under(prepared, names, series, seed, resolved_threads))
+        })
+    }
+
+    /// Branch onto a new owned snapshot; never execute the resulting study.
+    #[pyo3(signature = (columns, *, frame=None, seed=1, threads=None))]
+    fn bind_snapshot(
+        &self,
+        py: Python<'_>,
+        columns: Vec<Bound<'_, PyAny>>,
+        frame: Option<&Bound<'_, PyDict>>,
+        seed: u64,
+        threads: Option<u32>,
+    ) -> PyResult<Self> {
+        let data = FrameInput::ingest(py, &self.names, columns, frame)?;
+        let inner = Arc::clone(&self.inner);
+        let names = self.names.clone();
+        let series = self.series;
+        crate::detach_catch(py, move || {
+            let resolved_threads = crate::resolve_user_threads(threads);
+            let ctx = py_execution_context_ext(
+                seed,
+                resolved_threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let rebound = match data {
+                FrameInput::Series(data) if !series => inner.rebind_data(data, &ctx),
+                input => match input.materialize()? {
+                    super::FrameData::Series(data) => inner.rebind_series(data, &ctx),
+                    super::FrameData::Panel(data) => inner.rebind_panel(data, &ctx),
+                    super::FrameData::MultiEnv(data) => inner.rebind_multi_env(data, &ctx),
+                    super::FrameData::Events(data, interval, _retention) => inner.rebind_series(
+                        data.align_to_grid_in(interval, &ctx).map_err(py_err)?,
+                        &ctx,
+                    ),
+                },
+            }
+            .map_err(py_err)?;
+            Ok(super::finished_prepared_under(rebound, names, series, seed, resolved_threads))
+        })
+    }
+
     /// Cached identification product; never identifies or fits again.
     fn identification_json(&self) -> PyResult<String> {
         let mut details = self.inner.identification_details().map_err(crate::py_err)?;
@@ -23,194 +109,130 @@ impl PyPreparedAnalysis {
         serde_json::to_string(&details).map_err(|error| crate::value_err(error.to_string()))
     }
 
-    /// Inspect the checked conditional target and its bound scalar procedure.
-    fn checked_conditional_effect_info(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
-        let Some(info) = self.inner.checked_conditional_effect_info() else {
-            return Ok(None);
-        };
-        let name = |id: antecedent_core::VariableId| {
-            self.names.get(id.as_usize()).cloned().unwrap_or_else(|| id.to_string())
-        };
-        let descriptor = PyDict::new(py);
-        descriptor.set_item("query", format!("{:?}", info.query))?;
-        descriptor.set_item("treatment", name(info.query.inner.treatment))?;
-        descriptor.set_item("outcome", name(info.query.inner.outcome))?;
-        descriptor.set_item(
-            "modifiers",
-            info.query.inner.effect_modifiers.iter().copied().map(&name).collect::<Vec<_>>(),
-        )?;
-        descriptor.set_item("control", format!("{:?}", info.query.inner.control))?;
-        descriptor.set_item("active", format!("{:?}", info.query.inner.active))?;
-        descriptor.set_item("functional", format!("{:?}", info.query.inner.outcome_functional))?;
-        descriptor.set_item("population", format!("{:?}", info.query.inner.target_population))?;
-        descriptor.set_item("identifier", info.identifier.as_str())?;
-        descriptor.set_item("estimator", info.estimator.as_str())?;
-        descriptor.set_item("procedure", info.procedure.as_ref())?;
-        descriptor
-            .set_item("validation", info.validation.validation_suite_id().unwrap_or("none"))?;
-        descriptor.set_item(
-            "design_roles",
-            info.design_roles.iter().copied().map(&name).collect::<Vec<_>>(),
-        )?;
-        descriptor.set_item("source_rows", info.source_rows.as_ref())?;
-        Ok(Some(descriptor.unbind()))
+    /// One view over every layer of the prepared program as JSON: the lowered
+    /// program, the identification preparation installed, the physical plan and
+    /// the sealed operation retained, with that operation's inspection record
+    /// under `operation_detail`. Never identifies, fits or scans.
+    fn plan_view_json(&self, py: Python<'_>) -> PyResult<String> {
+        crate::detach_catch(py, || {
+            let view = self.inner.plan_view().map_err(py_err)?;
+            let mut json = view.to_json();
+            json["names"] = serde_json::json!(self.names);
+            json["operation_detail"] = self.operation_detail();
+            serde_json::to_string(&json).map_err(|error| crate::value_err(error.to_string()))
+        })
     }
 
-    /// Inspect the retained static mediation contrast, graph, and procedure.
-    fn checked_static_mediation_info(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
-        let Some(info) = self.inner.checked_static_mediation_info() else {
-            return Ok(None);
+    /// Readable report of this handle as Markdown or HTML: the executed claim when an
+    /// estimate has run, otherwise the prepared contract, with the plan view of the program.
+    /// The Rust renderer reads the records only; it identifies, fits and scans nothing.
+    #[pyo3(signature = (format="markdown"))]
+    fn report(&self, py: Python<'_>, format: &str) -> PyResult<String> {
+        let format = antecedent::report::ReportFormat::from_name(format).ok_or_else(|| {
+            crate::value_err(format!(
+                "unknown report format {format:?}; use \"markdown\" or \"html\""
+            ))
+        })?;
+        let ctx = py_execution_context_ext(
+            self.last_seed,
+            self.last_threads,
+            None,
+            None,
+            Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+        );
+        // The report reads the handle the last execution ran on, so a retarget or a
+        // second-click refute is reported under the contract it executed under.
+        let inner = if self.last.is_some() {
+            self.last_study.as_ref().unwrap_or(&self.inner)
+        } else {
+            &self.inner
         };
-        let name = |id: antecedent_core::VariableId| {
-            self.names.get(id.as_usize()).cloned().unwrap_or_else(|| id.to_string())
-        };
-        let descriptor = PyDict::new(py);
-        descriptor.set_item("query", format!("{:?}", info.query))?;
-        descriptor.set_item("treatment", name(info.query.treatment))?;
-        descriptor.set_item("outcome", name(info.query.outcome))?;
-        descriptor.set_item(
-            "mediators",
-            info.query.mediators.iter().copied().map(&name).collect::<Vec<_>>(),
-        )?;
-        descriptor.set_item("contrast", format!("{:?}", info.query.contrast))?;
-        descriptor.set_item("control", format!("{:?}", info.query.control))?;
-        descriptor.set_item("active", format!("{:?}", info.query.active))?;
-        descriptor.set_item("population", format!("{:?}", info.query.target_population))?;
-        descriptor.set_item("identifier", info.identifier.as_str())?;
-        descriptor.set_item("estimator", info.estimator.as_str())?;
-        descriptor
-            .set_item("validation", info.validation.validation_suite_id().unwrap_or("none"))?;
-        descriptor.set_item("bootstrap_replicates", info.bootstrap_replicates)?;
-        descriptor.set_item(
-            "adjustment_set",
-            info.adjustment_set.iter().copied().map(&name).collect::<Vec<_>>(),
-        )?;
-        descriptor.set_item("functional_roots", info.functional_roots)?;
-        descriptor.set_item("graph_edges", info.graph_edges.as_ref())?;
-        Ok(Some(descriptor.unbind()))
+        crate::detach_catch(py, || inner.report(self.last.as_deref(), &ctx, format).map_err(py_err))
     }
 
-    /// Inspect the retained DAG Bayesian ATE target, prior source, and validation.
-    fn checked_bayesian_dag_ate_info(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
-        let Some(operation) = self.inner.checked_bayesian_gcomp_operation() else {
-            return Ok(None);
-        };
-        let antecedent::InferenceMode::Bayesian(config) = operation.inference() else {
-            return Ok(None);
-        };
-        let name = |id: antecedent_core::VariableId| {
-            self.names.get(id.as_usize()).cloned().unwrap_or_else(|| id.to_string())
-        };
-        let query = operation.query();
-        let descriptor = PyDict::new(py);
-        descriptor.set_item("query", format!("{query:?}"))?;
-        descriptor.set_item("treatment", name(query.treatment))?;
-        descriptor.set_item("outcome", name(query.outcome))?;
-        descriptor.set_item("population", format!("{:?}", query.target_population))?;
-        descriptor.set_item("identifier", "backdoor.adjustment")?;
-        descriptor.set_item("estimator", "bayesian.gcomp")?;
-        descriptor.set_item("backend", format!("{:?}", config.backend))?;
-        descriptor.set_item("likelihood", format!("{:?}", config.likelihood))?;
-        descriptor.set_item("n_draws", config.n_draws)?;
-        descriptor.set_item("prior_scale", config.prior_scale)?;
-        descriptor.set_item("transferred_prior", config.prior_artifact.is_some())?;
-        descriptor.set_item("composed_prior", config.external_compose.is_some())?;
-        descriptor.set_item(
-            "validation",
-            self.inner
-                .checked_bayesian_gcomp_validation()
-                .and_then(antecedent::RefuteSuite::validation_suite_id)
-                .unwrap_or("none"),
-        )?;
-        descriptor.set_item(
-            "adjustment_set",
-            operation.estimand().adjustment_set.iter().copied().map(&name).collect::<Vec<_>>(),
-        )?;
-        Ok(Some(descriptor.unbind()))
+    /// Whether the last execution carries the contract it ran under. A functional-validation
+    /// result does not: the handle's contract names a run with no validation, which does not
+    /// describe it.
+    fn has_execution_contract(&self) -> bool {
+        self.last.as_ref().is_some_and(|result| result.executed_contract().is_some())
     }
 
-    /// Read-only inspection of a retained checked static DAG response operation.
-    ///
-    /// The descriptor is built from the prepared handle rather than the Python
-    /// query object, so callers can inspect the exact functional, procedure,
-    /// validation suite, and frozen curve members after discarding their builder.
-    fn checked_static_dag_response_info(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
-        let Some(info) = self.inner.checked_static_dag_response_info() else {
-            return Ok(None);
-        };
-        let descriptor = PyDict::new(py);
-        descriptor.set_item("query", format!("{:?}", info.query.functional))?;
-        descriptor.set_item("identifier", info.identifier.as_str())?;
-        descriptor.set_item("estimator", info.estimator.as_str())?;
-        descriptor
-            .set_item("validation", info.validation.validation_suite_id().unwrap_or("none"))?;
-        descriptor.set_item("grid_members", info.grid_members.as_ref())?;
-        Ok(Some(descriptor.unbind()))
+    /// Whether retained response checks describe completions rather than the whole result.
+    fn response_checks_are_scoped(&self) -> bool {
+        self.last.as_ref().is_some_and(|result| result.response_checks_are_scoped())
     }
 
-    /// Inspect frozen DAG graph-posterior atoms and the selected frequentist procedure.
-    fn checked_graph_posterior_effect_info(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
-        let Some(info) = self.inner.checked_graph_posterior_effect_info() else {
-            return Ok(None);
-        };
-        let descriptor = PyDict::new(py);
-        descriptor.set_item("query", format!("{:?}", info.query))?;
-        descriptor.set_item("conditional", info.conditional)?;
-        descriptor.set_item("estimator", info.estimator.as_str())?;
-        descriptor
-            .set_item("validation", info.validation.validation_suite_id().unwrap_or("none"))?;
-        descriptor.set_item("graph_keys", info.graph_keys.as_ref())?;
-        descriptor.set_item("weights", info.weights.as_ref())?;
-        descriptor.set_item(
-            "identified",
-            info.identified.iter().map(|flag| format!("{flag:?}")).collect::<Vec<_>>(),
-        )?;
-        descriptor.set_item("bootstrap_replicates", info.bootstrap_replicates)?;
-        Ok(Some(descriptor.unbind()))
-    }
-
-    /// Inspect the frozen temporal contrast, proof binding, and estimator choice.
-    fn checked_temporal_effect_info(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
-        let Some(info) = self.inner.checked_temporal_effect_info() else {
-            return Ok(None);
-        };
-        let descriptor = PyDict::new(py);
-        descriptor.set_item("query", format!("{:?}", info.query))?;
-        descriptor.set_item("policy", format!("{:?}", info.query.policy))?;
-        descriptor.set_item("control", format!("{:?}", info.query.control))?;
-        descriptor.set_item("active", format!("{:?}", info.query.active))?;
-        descriptor.set_item("horizon_steps", info.query.horizon_steps)?;
-        descriptor.set_item("population", format!("{:?}", info.query.target_population))?;
-        descriptor.set_item("identifier", info.identifier.as_str())?;
-        descriptor.set_item("estimator", info.estimator.as_str())?;
-        descriptor
-            .set_item("validation", info.validation.validation_suite_id().unwrap_or("none"))?;
-        descriptor.set_item("bootstrap_replicates", info.bootstrap_replicates)?;
-        descriptor.set_item(
-            "adjustment_set",
-            info.adjustment_set.iter().map(|key| format!("{key:?}")).collect::<Vec<_>>(),
-        )?;
-        descriptor.set_item("graph_signature", info.graph_signature.as_ref())?;
-        Ok(Some(descriptor.unbind()))
-    }
-
-    /// Inspect a fixed temporal DAG response grid and its frozen procedure.
-    fn checked_temporal_response_info(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
-        let Some(info) = self.inner.checked_temporal_response_info() else {
-            return Ok(None);
-        };
-        let descriptor = PyDict::new(py);
-        descriptor.set_item("query", format!("{:?}", info.query.functional))?;
-        descriptor.set_item("identifier", info.identifier.as_str())?;
-        descriptor.set_item("estimator", info.estimator.as_str())?;
-        descriptor.set_item("uncertainty", info.uncertainty.as_ref())?;
-        descriptor.set_item("grid_members", info.grid_members.as_ref())?;
-        descriptor.set_item("horizons", info.horizons.as_ref())?;
-        Ok(Some(descriptor.unbind()))
+    /// Capture native contract and evidence at the explicit execution boundary.
+    /// Posterior draw payloads and response values are not serialized into this record.
+    #[pyo3(signature = (*, outcome_units=None, population="target", transform="identity"))]
+    fn execution_record_json(
+        &self,
+        py: Python<'_>,
+        outcome_units: Option<&str>,
+        population: &str,
+        transform: &str,
+    ) -> PyResult<String> {
+        let result = self
+            .last
+            .as_ref()
+            .ok_or_else(|| crate::value_err("estimate before capturing an execution record"))?;
+        let inner = self.last_study.as_ref().unwrap_or(&self.inner);
+        let ctx = py_execution_context_ext(
+            self.last_seed,
+            self.last_threads,
+            None,
+            None,
+            Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+        );
+        let labels =
+            outcome_units.map(|outcome_units| antecedent::contract::ResponseCoordinateLabels {
+                outcome_units,
+                population_id: population,
+                transform_id: transform,
+            });
+        let (section, body) = crate::detach_catch(py, || {
+            inner
+                .execution_record_with_quantity_labels(result, &ctx, labels.as_ref())
+                .map_err(py_err)
+        })?;
+        let response = body.response.as_ref().map(|response| {
+            serde_json::json!({
+                "uncertainty": response.uncertainty,
+                "support": response.support,
+            })
+        });
+        let structural = body.structural_response.as_ref().map(|response| {
+            serde_json::json!({
+                "identified_set_interval": response.identified_set_interval,
+            })
+        });
+        serde_json::to_string(&serde_json::json!({
+            "contract": section,
+            "evidence": {
+                "lowered_program_id": result.lowered_program_identity().map(|id| id.to_hex()),
+                "identification": body.identification,
+                "identification_variables": body.identification_variables,
+                "assumptions": body.assumptions,
+                "refutations": body.refutations,
+                "diagnostics": body.diagnostics,
+                "standard_error": body.standard_error,
+                "unit_effects": body.unit_effects,
+                "response": response,
+                "structural_response": structural,
+            },
+        }))
+        .map_err(|error| crate::value_err(error.to_string()))
     }
 
     /// Inspection of the frozen execution, using the executed reasoning slots.
-    fn execution_contract(&self) -> PyResult<std::collections::HashMap<String, String>> {
+    #[pyo3(signature = (*, outcome_units=None, population="target", transform="identity"))]
+    fn execution_contract(
+        &self,
+        py: Python<'_>,
+        outcome_units: Option<&str>,
+        population: &str,
+        transform: &str,
+    ) -> PyResult<std::collections::HashMap<String, String>> {
         let result = self
             .last
             .as_ref()
@@ -226,14 +248,25 @@ impl PyPreparedAnalysis {
         // The contract the execution ran under, with the identities the export
         // carries: a retarget moves the target population and its weighting
         // identity, and a second-click refute moves the validation suite.
-        let (mut contract, claim) = inner.execution_contract(result, &ctx).map_err(py_err)?;
+        let labels =
+            outcome_units.map(|outcome_units| antecedent::contract::ResponseCoordinateLabels {
+                outcome_units,
+                population_id: population,
+                transform_id: transform,
+            });
+        let (mut contract, claim) = crate::detach_catch(py, || {
+            inner
+                .execution_contract_with_quantity_labels(result, &ctx, labels.as_ref())
+                .map_err(py_err)
+        })?;
         contract.reasoning = claim.reasoning;
         let mut report =
             contract_to_map(&contract, inner.schema(), inner.query(), inner.population_registry());
         insert_reuse_identities(
             &mut report,
             inner.score_reuse_identity().map_err(py_err)?,
-            result.row_weights.as_ref().map(|binding| binding.target_weights),
+            inner.adjusted_fit_reuse_identity().map_err(py_err)?,
+            result.row_weights().as_ref().map(|binding| binding.target_weights),
         );
         report.insert("claim_id".into(), claim.claim_id.to_hex());
         report.insert("calibration_status".into(), claim.calibration.status.to_string());
@@ -252,6 +285,25 @@ impl PyPreparedAnalysis {
         if let Some(sha) = &claim.calibration.calibration_sha {
             report.insert("calibration_sha".into(), sha.to_string());
         }
+        if let Some(level) = claim.calibration.nominal {
+            report.insert("calibration_level".into(), level.to_string());
+        }
+        if let Some(observed) = claim.calibration.observed {
+            report.insert("calibration_observed_coverage".into(), observed.to_string());
+        }
+        if let Some(basis) = &claim.calibration.basis
+            && basis.query.as_ref() == "SyntheticControl"
+            && basis.functional.starts_with("synthetic_control/")
+        {
+            report.insert("calibration_panel_functional".into(), basis.functional.to_string());
+            report.insert("calibration_pre_treatment_periods".into(), basis.row_count.to_string());
+            report.insert("calibration_level".into(), basis.level.to_string());
+        }
+        if let Some(counts) = claim.calibration.interval_counts {
+            report.insert("calibration_attempted_panels".into(), counts.attempted.to_string());
+            report.insert("calibration_returned_intervals".into(), counts.returned.to_string());
+            report.insert("calibration_covered_intervals".into(), counts.covered.to_string());
+        }
         Ok(report)
     }
 
@@ -262,10 +314,11 @@ impl PyPreparedAnalysis {
     #[pyo3(signature = (*, cancel=None))]
     fn tier_diagnostics_json(
         &self,
+        py: Python<'_>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
         use antecedent::analysis::{TierDesign, tier_diagnostics};
-        use antecedent_estimate::Availability;
+        use antecedent::estimate::Availability;
 
         let result = self
             .last
@@ -278,15 +331,15 @@ impl PyPreparedAnalysis {
             None,
             Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
         );
-        let name_of = |id: antecedent_core::VariableId| {
+        let name_of = |id: antecedent::prelude::VariableId| {
             self.names.get(id.as_usize()).cloned().unwrap_or_else(|| id.to_string())
         };
-        let unavailable = |u: &antecedent_estimate::Unavailable| {
+        let unavailable = |u: &antecedent::estimate::Unavailable| {
             serde_json::json!({
                 "available": false, "code": u.code, "detail": u.detail, "reason": u.reason,
             })
         };
-        let report = tier_diagnostics(result, &ctx).map_err(|error| {
+        let report = py.detach(|| tier_diagnostics(result, &ctx)).map_err(|error| {
             crate::refusal(error.code, format!("{}: {}", error.detail, error.message))
         })?;
         let design = match &report.design {
@@ -358,7 +411,6 @@ impl PyPreparedAnalysis {
             last_study: self.last_study.clone(),
             last_seed: self.last_seed,
             last_threads: self.last_threads,
-            borrowed_bytes: self.borrowed_bytes,
             series: self.series,
         })
     }
@@ -397,10 +449,9 @@ impl PyPreparedAnalysis {
 
     /// Execute on a panel, multi-environment, or event frame of the prepared schema.
     ///
-    /// `refresh=True` also replaces the retained data. Returns the ATE-shaped
-    /// result, or the response result when `response=True`.
+    /// Returns the ATE-shaped result, or the response result when `response=True`.
     #[pyo3(signature = (
-        names, columns, frame, *, response=false, refresh=false, seed=1, threads=None,
+        names, columns, frame, *, response=false, seed=1, threads=None,
         cancel=None, on_progress=None, on_stage=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -411,7 +462,6 @@ impl PyPreparedAnalysis {
         columns: Vec<Bound<'_, PyAny>>,
         frame: Bound<'_, PyDict>,
         response: bool,
-        refresh: bool,
         seed: u64,
         threads: Option<u32>,
         cancel: Option<crate::PyCancellationToken>,
@@ -422,11 +472,10 @@ impl PyPreparedAnalysis {
         let controls = ClickControls::parse(cancel, on_progress.as_ref(), on_stage.as_ref())?;
         let data = FrameInput::ingest(py, &names, columns, Some(&frame))?;
         if response {
-            let out =
-                self.click(py, data, refresh, seed, threads, controls, response_from_study)?;
+            let out = self.click(py, data, seed, threads, controls, response_from_study)?;
             Ok(Py::new(py, out)?.into_any())
         } else {
-            let out = self.click(py, data, refresh, seed, threads, controls, map_ate)?;
+            let out = self.click(py, data, seed, threads, controls, map_ate)?;
             Ok(Py::new(py, out)?.into_any())
         }
     }
@@ -444,8 +493,22 @@ impl PyPreparedAnalysis {
     fn rebind_validators(&mut self, validators: Bound<'_, PyAny>) -> PyResult<()> {
         let parsed = crate::callbacks::parse_validators(Some(&validators))?;
         let mut study = (*self.inner).clone();
-        study.rebind_custom_validators(parsed).map_err(py_err)?;
+        study.rebind_custom_validators(parsed.clone()).map_err(py_err)?;
+        // The study the last execution ran on carries its own frozen callbacks; a
+        // second-click refutation and a snapshot read it, so it is rebound with the
+        // same callables. Both are replaced only once both rebinds succeed.
+        let last_study = match &self.last_study {
+            Some(last) => {
+                let mut rebound = (**last).clone();
+                rebound.rebind_custom_validators(parsed).map_err(py_err)?;
+                Some(Arc::new(rebound))
+            }
+            None => None,
+        };
         self.inner = Arc::new(study);
+        if last_study.is_some() {
+            self.last_study = last_study;
+        }
         Ok(())
     }
 

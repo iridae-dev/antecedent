@@ -41,9 +41,19 @@ is refused over a mean-only claim as ``unsupported_law``. A bundle never claims
 that a serialized result recreates an executable study. Independently checked
 ``recalculation_receipt`` nodes report historical work and supply no live state
 or provider authentication. ``frozen_scores`` nodes retain their original
-snapshot and executed-fit identities for the separately licensed same-row
+snapshot and executed-fit identities for the separately supported same-row
 retarget operation. Connecting a receipt to scores checks both bindings; a
 changed fit refuses even when the data snapshot is the same.
+
+A sequential policy reliability
+(:func:`antecedent.decision_reliability.sequential_policy_reliability`) embeds as three
+connected nodes with :meth:`BundleBuilder.add_sequential_policy_reliability`: its sealed raw
+producer, its decision draws and its diagnostic, each verified by recomputation.
+:func:`compile_sequential_reliability_node_bundle` compiles the built bundle into one program
+that replays the producer and reassesses the diagnostic from the retained draws
+(:class:`SequentialReliabilityBundleReceipt`, a point diagnostic), and
+:func:`consume_portable_sequential_reliability_node_bundle` reconstructs and recomputes the
+sealed bundle under the retained bundle and program identities.
 
 Rust owns the graph, the digests, the verifiers and every refusal; this module
 raises each as a :class:`CompositionBundleRefusal`, a
@@ -58,19 +68,58 @@ import json
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from inspect import signature as _signature
-from typing import Any, Literal, TypeAlias
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias
+
+from antecedent import _reason_details
 
 from . import _native
+from ._artifact_protocol import (
+    ArtifactAcceptance,
+    ArtifactExpectation,
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._refusal import raise_refusal
 from ._scientific import ScientificResult
+from ._validate import count
+from ._validate import name as _name
 from .decision import Contract
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+from .execution import Execution, native_controls, resolve_execution
+from .joint_distribution import JointDistributionArtifact
+from .outcomes import outcome_operation, require_success
+
+if TYPE_CHECKING:
+    from .propagation_chain import PropagationChain
+
+if TYPE_CHECKING:
+    from .execution import Execution
+    from .graph_imputation_decision import GraphImputationDecisionArtifact
+
+if TYPE_CHECKING:
+    from .decision_reliability import SequentialPolicyReliability
 
 _UNSET: Any = object()
 
 NodeKind = Literal[
     "causal_contract",
     "execution_or_fit",
+    "cyclic_posterior_fit",
+    "trial_ipw_transport_fit",
+    "graph_imputation_transport_fit",
+    "joint_transport_effect_fit",
+    "joint_transport_predictive_fit",
+    "trial_ipw_predictive_fit",
+    "cyclic_target_feedback_fit",
+    "graph_imputation_predictive_fit",
+    "assessed_bridge_posterior_fit",
+    "sequential_policy_reliability_fit",
+    "sequential_decision_draws",
+    "sequential_reliability_diagnostic",
+    "predictive_chain_decision",
     "external_claim",
     "attestation",
     "evidence_relationship",
@@ -87,6 +136,9 @@ NodeKind = Literal[
     "repair_report",
     "recalculation_receipt",
     "frozen_scores",
+    "observation_query",
+    "scientific_bridge",
+    "propagation_chain",
 ]
 """The kind of a bundle node, named for the part of a composed decision it carries (a
 distribution, a decision contract or result, a sensitivity artifact, a study ranking, ...).
@@ -103,6 +155,19 @@ ClaimLabel = Literal["point_only_attested", "joint_draw"]
 NODE_KINDS: tuple[str, ...] = (
     "causal_contract",
     "execution_or_fit",
+    "cyclic_posterior_fit",
+    "trial_ipw_transport_fit",
+    "graph_imputation_transport_fit",
+    "joint_transport_effect_fit",
+    "joint_transport_predictive_fit",
+    "trial_ipw_predictive_fit",
+    "cyclic_target_feedback_fit",
+    "graph_imputation_predictive_fit",
+    "assessed_bridge_posterior_fit",
+    "sequential_policy_reliability_fit",
+    "sequential_decision_draws",
+    "sequential_reliability_diagnostic",
+    "predictive_chain_decision",
     "external_claim",
     "attestation",
     "evidence_relationship",
@@ -119,6 +184,9 @@ NODE_KINDS: tuple[str, ...] = (
     "repair_report",
     "recalculation_receipt",
     "frozen_scores",
+    "observation_query",
+    "scientific_bridge",
+    "propagation_chain",
 )
 #: Kinds whose artifacts can be embedded (the rest are carried as references).
 EMBEDDABLE_KINDS: tuple[str, ...] = (
@@ -138,6 +206,9 @@ EMBEDDABLE_KINDS: tuple[str, ...] = (
     "repair_report",
     "recalculation_receipt",
     "frozen_scores",
+    "observation_query",
+    "scientific_bridge",
+    "propagation_chain",
 )
 RELATIONSHIPS: tuple[str, ...] = (
     "shared_data",
@@ -145,6 +216,36 @@ RELATIONSHIPS: tuple[str, ...] = (
     "shared_fitted_model",
     "unknown_dependence",
     "independent",
+)
+PredictiveFitKind = Literal[
+    "joint_transport_predictive_fit",
+    "trial_ipw_predictive_fit",
+    "cyclic_target_feedback_fit",
+    "graph_imputation_predictive_fit",
+    "assessed_bridge_posterior_fit",
+]
+"""The node kind of a native predictive producer embedded with
+:meth:`BundleBuilder.add_predictive_fit`."""
+#: Kinds :meth:`BundleBuilder.add_predictive_fit` embeds.
+PREDICTIVE_FIT_KINDS: tuple[str, ...] = (
+    "joint_transport_predictive_fit",
+    "trial_ipw_predictive_fit",
+    "cyclic_target_feedback_fit",
+    "graph_imputation_predictive_fit",
+    "assessed_bridge_posterior_fit",
+)
+RecomputationRoute = Literal[
+    "chain", "predictive_decision", "posterior_decision", "predictive_fit_decision"
+]
+"""The terminal a :class:`CompiledBundleRecomputation` executes live: a propagation chain, a
+decision result scored on a predictive law or on a parameter posterior, or a predictive producer
+-> chain -> decision path."""
+#: Routes :func:`consume_bundle_recomputation` replays.
+RECOMPUTATION_ROUTES: tuple[str, ...] = (
+    "chain",
+    "predictive_decision",
+    "posterior_decision",
+    "predictive_fit_decision",
 )
 STAGES: tuple[str, ...] = (
     "tampered_quantity",
@@ -163,19 +264,19 @@ STAGES: tuple[str, ...] = (
 # --------------------------------------------------------------------------- refusals
 
 
-_INVALID = "composition_bundle.invalid_container"
+_INVALID = _reason_details.composition_bundle.INVALID_CONTAINER
 _STAGE_DETAILS: dict[str, str] = {
-    "tampered_quantity": "composition_bundle.tampered_quantity",
-    "swapped_evidence": "composition_bundle.swapped_evidence",
-    "graph_or_snapshot_mismatch": "composition_bundle.graph_or_snapshot_mismatch",
-    "unsupported_law": "composition_bundle.unsupported_law",
-    "provider_request_changed": "composition_bundle.provider_request_changed",
-    "callback_unavailable": "composition_bundle.callback_unavailable",
-    "incompatible_version": "composition_bundle.incompatible_version",
-    "oversized": "composition_bundle.oversized",
-    "unknown_node_kind": "composition_bundle.unknown_node_kind",
-    "edge_digest_mismatch": "composition_bundle.edge_digest_mismatch",
-    "expected_identity_mismatch": "composition_bundle.expected_identity_mismatch",
+    "tampered_quantity": _reason_details.composition_bundle.TAMPERED_QUANTITY,
+    "swapped_evidence": _reason_details.composition_bundle.SWAPPED_EVIDENCE,
+    "graph_or_snapshot_mismatch": _reason_details.composition_bundle.GRAPH_OR_SNAPSHOT_MISMATCH,
+    "unsupported_law": _reason_details.composition_bundle.UNSUPPORTED_LAW,
+    "provider_request_changed": _reason_details.composition_bundle.PROVIDER_REQUEST_CHANGED,
+    "callback_unavailable": _reason_details.composition_bundle.CALLBACK_UNAVAILABLE,
+    "incompatible_version": _reason_details.composition_bundle.INCOMPATIBLE_VERSION,
+    "oversized": _reason_details.composition_bundle.OVERSIZED,
+    "unknown_node_kind": _reason_details.composition_bundle.UNKNOWN_NODE_KIND,
+    "edge_digest_mismatch": _reason_details.composition_bundle.EDGE_DIGEST_MISMATCH,
+    "expected_identity_mismatch": _reason_details.composition_bundle.EXPECTED_IDENTITY_MISMATCH,
 }
 
 
@@ -368,6 +469,9 @@ class SuppliedSources:
 
 
 def _bytes(data: object) -> bytes:
+    from .outcomes import require_success
+
+    data = require_success(data)
     from ._artifact_protocol import ExportedArtifact, container_bytes
 
     if isinstance(data, (bytes, bytearray, memoryview, ExportedArtifact)):
@@ -396,6 +500,12 @@ def _bytes(data: object) -> bytes:
             return container_bytes(export())
         return container_bytes(export(artifact_id="composition-bundle-node"))
     raise CausalTypeError("an artifact is bytes, ExportedArtifact, or an exporting object")
+
+
+def _controls(execution: Execution) -> dict[str, Any]:
+    return native_controls(
+        execution, seed="seed", threads="threads", cancel="cancel", memory="memory_bytes"
+    )
 
 
 def _kind(kind: str, *, allow_auto: bool) -> str:
@@ -511,6 +621,93 @@ class BundleBuilder:
         self._last = node_id
         return self
 
+    def add_graph_imputation_transport_fit(
+        self,
+        artifact: GraphImputationDecisionArtifact,
+        *,
+        node_id: str,
+        execution: Execution | None = None,
+    ) -> BundleBuilder:
+        """Embed a transported graph-imputation effect decision as a refittable fit node.
+
+        ``artifact`` is the export of a ``transport`` route of
+        :func:`antecedent.graph_imputation_decision.compile_graph_imputation_decision`. It is
+        consumed under its program identity before it is added (the source reimputed, the
+        graphs reselected, the target standardized and the decision replayed), and the replay
+        seed (``execution.seed``) is recorded so a consumer refits it the same way. Connect it
+        to the ``propagation_chain`` node its decision read
+        (:meth:`~antecedent.graph_imputation_decision.CompiledGraphImputationDecision.chain_artifact`).
+
+        Raises:
+            CausalTypeError: ``artifact`` is not a graph-imputation decision artifact.
+            CompositionBundleRefusal: the fit does not replay, or ``node_id`` is already used.
+        """
+        from .execution import resolve_execution
+        from .graph_imputation_decision import GraphImputationDecisionArtifact
+
+        if not isinstance(artifact, GraphImputationDecisionArtifact):
+            raise CausalTypeError(
+                "artifact must be the GraphImputationDecisionArtifact of a transported decision"
+            )
+        execution = resolve_execution(execution)
+        refusal = execution._call(
+            _native.graph_imputation_transport_bundle_add_fit,
+            self._native,
+            node_id,
+            artifact.data,
+            artifact.program,
+            execution.seed,
+        )
+        raise_refusal(refusal, _refusal_type)
+        self._ids.append(node_id)
+        self._last = node_id
+        return self
+
+    def add_sequential_policy_reliability(
+        self,
+        reliability: SequentialPolicyReliability,
+        *,
+        producer: str = "sequential_producer",
+        draws: str = "sequential_draws",
+        diagnostic: str = "sequential_diagnostic",
+        execution: Execution | None = None,
+    ) -> BundleBuilder:
+        """Embed a sequential policy reliability as three connected nodes.
+
+        ``reliability`` comes from
+        :func:`antecedent.decision_reliability.sequential_policy_reliability`. ``producer``
+        holds its sealed raw declaration, ``draws`` its aligned decision draws and
+        ``diagnostic`` its report on those draws, connected producer to draws to diagnostic.
+        Each node is verified by recomputation before it is accepted: the producer is
+        re-evaluated under the seed it was computed with and the diagnostic is reassessed from
+        the draws. On a refusal the builder is unchanged. ``execution`` supplies threads,
+        limits and cancellation. :func:`compile_sequential_reliability_node_bundle` recomputes
+        the three nodes of the built bundle.
+
+        Raises:
+            CausalTypeError: ``reliability`` is not a computed sequential policy reliability.
+            CompositionBundleRefusal: a node id already in use, or a node that does not verify.
+        """
+        native = getattr(reliability, "_native", None)
+        if not isinstance(native, _native.SequentialPolicyReliabilityHandle):
+            raise CausalTypeError(
+                "reliability must be a SequentialPolicyReliability computed in this process by "
+                "decision_reliability.sequential_policy_reliability"
+            )
+        ids = (_name(producer, "producer"), _name(draws, "draws"), _name(diagnostic, "diagnostic"))
+        execution = resolve_execution(execution)
+        refusal = execution._call(
+            _native.composition_add_sequential_policy_reliability,
+            self._native,
+            native,
+            *ids,
+            execution.cancel,
+        )
+        raise_refusal(refusal, _refusal_type)
+        self._ids.extend(ids)
+        self._last = ids[-1]
+        return self
+
     def _require_nodes(self, *node_ids: str) -> None:
         for node_id in node_ids:
             if node_id not in self._ids:
@@ -518,7 +715,7 @@ class BundleBuilder:
                     {
                         "code": "invalid_argument",
                         "stage": "build",
-                        "detail": "composition_bundle.node_not_found",
+                        "detail": _reason_details.composition_bundle.NODE_NOT_FOUND,
                         "offending": node_id,
                         "message": f"no node `{node_id}` has been added to this builder",
                         "remedy": f"add `{node_id}` first; nodes so far: {sorted(self._ids)}",
@@ -558,6 +755,87 @@ class BundleBuilder:
             raise CausalValueError("the native builder returned neither a node nor a refusal")
         self._ids.append(added)
         self._last = added
+        return self
+
+    def add_predictive_fit(
+        self,
+        kind: PredictiveFitKind,
+        artifact: object,
+        *,
+        program: str,
+        node_id: str,
+        execution: Execution | None = None,
+    ) -> BundleBuilder:
+        """Embed a native predictive producer: its exported artifact and its program identity.
+
+        ``kind`` is one of :data:`PREDICTIVE_FIT_KINDS` (a joint transport, a trial IPW transport,
+        a cyclic target-feedback fit, a graph-imputation fit or an assessed scientific bridge
+        posterior) and ``program`` the identity of the producer's compiled program. The producer
+        is reidentified and refitted from its raw evidence under ``execution`` before the node is
+        accepted. The execution's seed is recorded with the node and every replay refits under
+        it, so pass the execution the producer ran under. The producer's chain and its
+        :meth:`add_predictive_chain_decision` terminal follow it by :meth:`connect` edges, and
+        :func:`compile_predictive_fit_decision_bundle` recomputes the path.
+
+        Raises:
+            CausalValueError: ``kind`` is not a predictive fit kind or ``program`` is not a
+                64-hex identity.
+            CausalTypeError: the artifact is neither container bytes nor an exporting object.
+            CompositionBundleRefusal: the node id is used, or the artifact does not replay as that
+                producer under ``program`` (``swapped_evidence``).
+        """
+        if kind not in PREDICTIVE_FIT_KINDS:
+            raise CausalValueError(
+                f"`{kind}` is not a predictive fit kind; use one of {PREDICTIVE_FIT_KINDS}"
+            )
+        if not isinstance(program, str) or not isinstance(node_id, str):
+            raise CausalTypeError("program and node_id must be strings")
+        policy = resolve_execution(execution)
+        refusal = policy._call(
+            self._native.add_predictive_fit,
+            kind,
+            node_id,
+            _bytes(artifact),
+            program,
+            **_controls(policy),
+        )
+        raise_refusal(refusal, _refusal_type)
+        self._ids.append(node_id)
+        self._last = node_id
+        return self
+
+    def add_predictive_chain_decision(
+        self,
+        decision: object,
+        *,
+        node_id: str,
+        execution: Execution | None = None,
+    ) -> BundleBuilder:
+        """Embed a chain decision as a terminal that is recompiled and scored live.
+
+        ``decision`` is a :class:`~antecedent.propagation_chain.ChainDecision` (or its exported
+        bytes) over a ``predictive`` chain law: an action-world decision follows a joint
+        transport, trial IPW, cyclic target-feedback or graph-imputation producer, a plain one an
+        assessed bridge posterior. The decision is consumed independently before the node is
+        accepted; the execution's seed is recorded with the node.
+
+        Raises:
+            CausalTypeError: ``decision`` is neither container bytes nor an exporting object.
+            CompositionBundleRefusal: the node id is used, or the artifact does not replay as a
+                predictive chain decision (``swapped_evidence``).
+        """
+        if not isinstance(node_id, str):
+            raise CausalTypeError("node_id must be a string")
+        policy = resolve_execution(execution)
+        refusal = policy._call(
+            self._native.add_predictive_chain_decision,
+            node_id,
+            _bytes(decision),
+            **_controls(policy),
+        )
+        raise_refusal(refusal, _refusal_type)
+        self._ids.append(node_id)
+        self._last = node_id
         return self
 
     def build(self) -> Bundle:
@@ -625,7 +903,10 @@ class Bundle:
         wire = json.loads(self._native.edges_json)
         return tuple(Edge(e["from"], e["to"], e["upstream_digest"]) for e in wire)
 
-    def export(self, *, artifact_id: str = "composition-bundle") -> bytes:
+    @artifact_export
+    def export(
+        self, *, artifact_id: str = "composition-bundle"
+    ) -> ExportedArtifact[ConsumedBundle]:
         """Serialize through the checksummed container (one section per embedded node).
 
         Raises:
@@ -635,7 +916,7 @@ class Bundle:
         raise_refusal(refusal, _refusal_type)
         if data is None:  # pragma: no cover - the native contract
             raise CausalValueError("the native export returned neither a result nor a refusal")
-        return data
+        return artifact_from_receipt(self, data)
 
     def __repr__(self) -> str:
         return (
@@ -710,6 +991,7 @@ class ConsumedNode(ScientificResult):
     values: Mapping[str, float] = field(default_factory=dict)
     inspected: Mapping[str, float] = field(default_factory=dict)
     claim_label: ClaimLabel | None = None
+    replayed: bool = False
 
     @property
     def verified(self) -> bool:
@@ -753,6 +1035,8 @@ class ConsumedBundle(ScientificResult):
 
     def __init__(self, wire: Mapping[str, Any]) -> None:
         self._identity: str = wire["identity"]
+        self._all_verified: bool = wire["all_verified"]
+        self._all_replayed: bool = wire["all_replayed"]
         self._nodes: tuple[ConsumedNode, ...] = tuple(
             ConsumedNode(
                 n["id"],
@@ -764,6 +1048,7 @@ class ConsumedBundle(ScientificResult):
                 {key: float(value) for key, value in n["values"]},
                 {key: float(value) for key, value in n["inspected"]},
                 _label(n["claim_label"]),
+                replayed=n["replayed"],
             )
             for n in wire["nodes"]
         )
@@ -852,6 +1137,7 @@ class ConsumedBundle(ScientificResult):
             "identity": self._identity,
             "claim_label": self.claim_label,
             "all_verified": self.all_verified,
+            "all_replayed": self._all_replayed,
             "nodes": [
                 {
                     "id": node.id,
@@ -859,6 +1145,7 @@ class ConsumedBundle(ScientificResult):
                     "identity": node.identity,
                     "chain_digest": node.chain_digest,
                     "status": _status_dict(node.status),
+                    "replayed": node.replayed,
                     "facts": dict(node.facts),
                     "values": dict(node.values),
                     "inspected": dict(node.inspected),
@@ -871,6 +1158,11 @@ class ConsumedBundle(ScientificResult):
                 for e in self._edges
             ],
         }
+
+    @property
+    def all_replayed(self) -> bool:
+        """Native receipt: every node passed its embedded artifact consumer."""
+        return self._all_replayed
 
     def require_verified(self) -> None:
         """Require every node to have verified.
@@ -896,19 +1188,47 @@ class ConsumedBundle(ScientificResult):
                     {
                         "code": "external_capability_missing",
                         "stage": "bind",
-                        "detail": "composition_bundle.callback_unavailable",
+                        "detail": _reason_details.composition_bundle.CALLBACK_UNAVAILABLE,
                         "offending": node.id,
                         "supplied": "a node needs a provider or data source that was not supplied",
                     }
                 )
 
 
+def _bundle_acceptance(result: ConsumedBundle, identity_bound: bool) -> ArtifactAcceptance:
+    unresolved = tuple(
+        node.id
+        + ":"
+        + (node.status.stage if isinstance(node.status, Failed) else "reference_unresolved")
+        for node in result.nodes
+        if not node.verified
+    )
+    return ArtifactAcceptance(
+        "replayed" if result._all_verified else "unavailable",
+        identity_bound,
+        result._all_replayed,
+        False,
+        proof="BundleConsumer::consume runtime node replay receipts",
+        unresolved=unresolved,
+    )
+
+
+@outcome_operation
+@artifact_consumer(
+    proof="BundleConsumer::consume runtime node replay receipts",
+    acceptance=_bundle_acceptance,
+    input="data",
+)
 def consume_bundle(
     data: bytes,
     *,
     expected_identity: str | None = None,
     supplied: SuppliedSources | None = None,
     actual_claims: Mapping[str, object] | None = None,
+    max_bundle_bytes: int | None = None,
+    max_nodes: int | None = None,
+    max_edges: int | None = None,
+    max_embedded_bytes: int | None = None,
 ) -> ConsumedBundle:
     """Consume exported bundle bytes under the identity the consumer retained.
 
@@ -919,6 +1239,11 @@ def consume_bundle(
     without hiding the rest of the bundle. ``actual_claims`` binds original source
     digests to opaque claims from actual executions; each source's original engine
     executes once to resolve its native operation. Serialized metadata is insufficient.
+
+    ``max_bundle_bytes``, ``max_nodes``, ``max_edges`` and ``max_embedded_bytes`` are the
+    consumer's own bounds (each omitted one keeps its default); a bundle beyond any of them
+    refuses as :class:`OversizedRefusal` before a node is verified. They are not available
+    together with ``actual_claims``.
 
     ``expected_identity`` is required: the bundle identity (``Bundle.identity``) the consumer
     retained independently of the bytes. It is a keyword so a forgotten identity is named in
@@ -931,6 +1256,7 @@ def consume_bundle(
         CompositionBundleRefusal: the container does not verify (see the stage-specific
             subclasses, for example :class:`ExpectedIdentityMismatchRefusal`).
     """
+    data = container_bytes(data)
     if not isinstance(data, (bytes, bytearray, memoryview)):
         raise CausalTypeError(
             f"consume_bundle expects the exported bundle bytes, not {type(data).__name__}; "
@@ -943,11 +1269,26 @@ def consume_bundle(
         )
     if not isinstance(expected_identity, str):
         raise CausalTypeError("expected_identity must be the bundle identity string")
+    bounds = {
+        name: count(value, name, minimum=1)
+        for name, value in (
+            ("max_bundle_bytes", max_bundle_bytes),
+            ("max_nodes", max_nodes),
+            ("max_edges", max_edges),
+            ("max_embedded_bytes", max_embedded_bytes),
+        )
+        if value is not None
+    }
     if actual_claims is None:
         wire, refusal = _native.consume_composition_bundle(
-            bytes(data), expected_identity, None if supplied is None else supplied._json()
+            bytes(data),
+            expected_identity,
+            None if supplied is None else supplied._json(),
+            **bounds,
         )
     else:
+        if bounds:
+            raise CausalValueError("consumer bounds are not available with actual_claims")
         from .program_claims import NativeClaim
 
         if len(actual_claims) > 64:
@@ -1039,16 +1380,528 @@ def detect_kind(data: object) -> str | None:
     return _native.composition_detect_kind(_bytes(data))
 
 
+# ------------------------------------------------------------------- recomputation
+
+
+def _recomputed(pair: tuple[Any, str | None]) -> Any:
+    value, refusal = pair
+    raise_refusal(refusal, _refusal_type)
+    if value is None:  # pragma: no cover - the native contract
+        raise CausalValueError("the native recomputation returned neither a result nor a refusal")
+    return value
+
+
+@dataclass(frozen=True)
+class ReplayedDependency:
+    """One embedded dependency that passed its own artifact consumer in this run."""
+
+    node_id: str
+    artifact_identity: str
+    chain_digest: str
+
+
+@dataclass(repr=False, frozen=True, slots=True)
+class BundleRecomputation(ScientificResult):
+    """The receipt of a bundle terminal executed live by its compiled program.
+
+    Every embedded dependency passed its own consumer in this run (``dependencies``, in bundle
+    order, with the recomputed identity and Merkle digest of each) and the terminal was executed
+    by the program ``program_identity``. A ``chain`` route names the recomputed
+    ``terminal_identity``; a ``predictive_decision`` or ``posterior_decision`` route the
+    ``decision_fingerprint`` of the decision freshly scored on the bound source law; a
+    ``predictive_fit_decision`` route the refitted ``chain_identity``, the live
+    ``decision_fingerprint`` and the ``producer_program_identity``. Nothing outside the embedded
+    evidence is refitted and no calibration is earned. ``replayed`` is ``True`` for a receipt an
+    independent consumer recomputed from a portable artifact.
+    """
+
+    route: RecomputationRoute
+    bundle_identity: str
+    program_identity: str
+    dependencies: tuple[ReplayedDependency, ...]
+    terminal_node: str | None = None
+    terminal_identity: str | None = None
+    chain_identity: str | None = None
+    decision_fingerprint: str | None = None
+    producer_program_identity: str | None = None
+    replayed: bool = False
+    _handle: Any = field(repr=False, compare=False, default=None)
+
+    @artifact_export
+    def export(
+        self, *, execution: Execution | None = None
+    ) -> ExportedArtifact[BundleRecomputation]:
+        """Re-execute, require this receipt, and embed the bundle with it for a fresh process.
+
+        :func:`consume_bundle_recomputation` rebuilds the graph, recompiles the terminal program
+        and requires the same live receipt; its expectation is :attr:`program_identity`. A
+        replayed receipt forwards the bytes it was read from.
+
+        Raises:
+            CompositionBundleRefusal: the live receipt changed or the artifact exceeds its bound.
+        """
+        kind = f"{self.route}_bundle_recomputation"
+        if self._handle is None:
+            data = getattr(self, "_artifact_bytes", None)
+            if data is None:
+                raise CausalTypeError("this receipt retains neither its compiled program nor bytes")
+        else:
+            plan, run = self._handle
+            policy = resolve_execution(execution)
+            data = _recomputed(policy._call(plan.export_portable, run, **_controls(policy)))
+        return ExportedArtifact(bytes(data), kind, ArtifactExpectation(kind, self.program_identity))
+
+
+def _recomputation_of(run: Any, *, plan: Any) -> BundleRecomputation:
+    body = json.loads(run.receipt_json())
+    return BundleRecomputation(
+        route=body["route"],
+        bundle_identity=str(body["bundle_identity"]),
+        program_identity=str(body["program_identity"]),
+        dependencies=tuple(
+            ReplayedDependency(
+                str(item["node_id"]), str(item["artifact_identity"]), str(item["chain_digest"])
+            )
+            for item in body["dependencies"]
+        ),
+        terminal_node=body["terminal_node"],
+        terminal_identity=body["terminal_identity"],
+        chain_identity=body["chain_identity"],
+        decision_fingerprint=body["decision_fingerprint"],
+        producer_program_identity=body["producer_program_identity"],
+        replayed=plan is None,
+        _handle=None if plan is None else (plan, run),
+    )
+
+
+class CompiledBundleRecomputation:
+    """A sealed bundle and its live terminal compiled into one six-layer program.
+
+    The graph, every node identity and the terminal declaration are bound before anything runs.
+    :attr:`route` names the terminal, :attr:`program_identity` is the identity a consumer retains
+    with :attr:`bundle_identity`, :meth:`plan_view` shows every layer and :meth:`execute` replays
+    the dependencies and runs the terminal.
+    """
+
+    def __init__(self, handle: Any, bundle_identity: str) -> None:
+        self._handle = handle
+        self._bundle_identity = bundle_identity
+
+    @property
+    def route(self) -> RecomputationRoute:
+        """``chain``, ``predictive_decision``, ``posterior_decision`` or
+        ``predictive_fit_decision``."""
+        route: RecomputationRoute = self._handle.route
+        return route
+
+    @property
+    def program_identity(self) -> str:
+        """Identity of the compiled program (lowercase hex)."""
+        return str(self._handle.program_identity)
+
+    @property
+    def bundle_identity(self) -> str:
+        """Identity of the compiled bundle."""
+        return self._bundle_identity
+
+    def plan_view(self) -> dict[str, Any]:
+        """Every layer of the compiled program, with nothing executed."""
+        return dict(json.loads(self._handle.plan_view_json()))
+
+    @outcome_operation
+    def execute(self, *, execution: Execution | None = None) -> BundleRecomputation:
+        """Replay every embedded dependency through its own consumer and execute the terminal.
+
+        A reference node, a failed dependency or a terminal that differs from its live result
+        refuses; a cancelled run raises :class:`~antecedent.errors.CausalCancelledError`.
+
+        Raises:
+            CompositionBundleRefusal: a dependency or the live terminal does not replay.
+        """
+        policy = resolve_execution(execution)
+        run = _recomputed(policy._call(self._handle.execute, **_controls(policy)))
+        return _recomputation_of(run, plan=self._handle)
+
+    def __repr__(self) -> str:
+        return (
+            f"CompiledBundleRecomputation(route={self.route!r}, "
+            f"program_identity={self.program_identity[:12]!r})"
+        )
+
+
+def _bundle(bundle: object) -> Bundle:
+    bundle = require_success(bundle)
+    if not isinstance(bundle, Bundle):
+        raise CausalTypeError(f"bundle must be a built Bundle, not {type(bundle).__name__}")
+    return bundle
+
+
+def _node(value: object, what: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise CausalTypeError(f"{what} must be a node id")
+    return value
+
+
+@outcome_operation
+def compile_chain_bundle_recomputation(
+    bundle: Bundle,
+    terminal: str,
+    *,
+    chain: PropagationChain | None = None,
+    execution: Execution | None = None,
+) -> CompiledBundleRecomputation:
+    """Compile a fully embedded bundle with its propagation-chain terminal into one program.
+
+    ``terminal`` is an embedded ``propagation_chain`` node. Its own record is compiled unless
+    ``chain`` gives the live :class:`~antecedent.propagation_chain.PropagationChain` the terminal
+    must equal; either way execution requires the embedded record and the live result to agree.
+
+    Raises:
+        CausalTypeError: ``bundle``, ``terminal`` or ``chain`` has the wrong type.
+        CompositionBundleRefusal: the terminal is absent, a reference or not a chain, or the chain
+            declaration refuses.
+    """
+    from .propagation_chain import PropagationChain
+
+    built = _bundle(bundle)
+    record = None
+    if chain is not None:
+        chain = require_success(chain)
+        if not isinstance(chain, PropagationChain):
+            raise CausalTypeError("chain must be a PropagationChain")
+        record = chain._record
+    policy = resolve_execution(execution)
+    handle = _recomputed(
+        policy._call(
+            _native.chain_bundle_recomputation_compile,
+            built._native,
+            _node(terminal, "terminal"),
+            record,
+            cancel=policy.cancel,
+        )
+    )
+    return CompiledBundleRecomputation(handle, built.identity)
+
+
+@outcome_operation
+def compile_decision_bundle_recomputation(
+    bundle: Bundle,
+    terminal: str,
+    *,
+    contract: Contract,
+    source: JointDistributionArtifact,
+    carrier: Literal["predictive", "parameter_posterior"] = "predictive",
+) -> CompiledBundleRecomputation:
+    """Compile a bundle whose terminal decision result is rescored live on its source law.
+
+    ``terminal`` is an embedded ``decision_result`` node evaluated from ``contract`` on
+    ``source``, a jointly aligned :class:`~antecedent.joint_distribution.JointDistributionArtifact`.
+    ``carrier="predictive"`` needs a predictive outcome law; ``"parameter_posterior"`` a
+    parameter-posterior law, an expected-utility or expected-loss criterion and no ``outcome``
+    functional, because posterior parameter draws are not outcome risk. The contract, the source,
+    the graph and the node all enter the program identity before any utility is scored. A
+    portable consumer reconstructs the contract and the source from the bundle's own
+    ``decision_contract`` and ``distribution`` nodes.
+
+    Raises:
+        CausalTypeError: an argument has the wrong type.
+        CausalValueError: ``carrier`` is not ``predictive`` or ``parameter_posterior``.
+        CompositionBundleRefusal: the terminal is absent or a reference, the contract is invalid,
+            or the law cannot carry the decision (``decision_contract_unsatisfied``).
+    """
+    built = _bundle(bundle)
+    contract = require_success(contract)
+    source = require_success(source)
+    if not isinstance(contract, Contract):
+        raise CausalTypeError("contract must be a decision.Contract")
+    if not isinstance(source, JointDistributionArtifact):
+        raise CausalTypeError("source must be a JointDistributionArtifact")
+    if carrier not in ("predictive", "parameter_posterior"):
+        raise CausalValueError("carrier must be predictive or parameter_posterior")
+    handle = _recomputed(
+        _native.decision_bundle_recomputation_compile(
+            built._native,
+            _node(terminal, "terminal"),
+            json.dumps(contract._wire()),
+            source._native,
+            posterior=carrier == "parameter_posterior",
+        )
+    )
+    return CompiledBundleRecomputation(handle, built.identity)
+
+
+@outcome_operation
+def compile_predictive_fit_decision_bundle(
+    bundle: Bundle,
+    *,
+    producer: str,
+    chain: str,
+    terminal: str,
+    execution: Execution | None = None,
+) -> CompiledBundleRecomputation:
+    """Compile a native producer -> predictive chain -> live decision path of a bundle.
+
+    ``producer`` is a node added with :meth:`BundleBuilder.add_predictive_fit`; its kind selects
+    the producer's compiler. ``chain`` is the embedded ``propagation_chain`` the producer's
+    decision retained and ``terminal`` the :meth:`BundleBuilder.add_predictive_chain_decision`
+    node, joined by the edges ``producer -> chain -> terminal``. Execution refits the producer
+    from its raw evidence, executes the predictive chain and rescores the decision; it earns no
+    calibration.
+
+    Raises:
+        CausalTypeError: ``bundle`` or a node id has the wrong type.
+        CompositionBundleRefusal: the producer is not a predictive fit node, an edge is missing,
+            a node is a reference or of another kind, or the decision and chain differ.
+    """
+    built = _bundle(bundle)
+    policy = resolve_execution(execution)
+    handle = _recomputed(
+        policy._call(
+            _native.predictive_fit_decision_bundle_compile,
+            built._native,
+            _node(producer, "producer"),
+            _node(chain, "chain"),
+            _node(terminal, "terminal"),
+            **_controls(policy),
+        )
+    )
+    return CompiledBundleRecomputation(handle, built.identity)
+
+
+# ------------------------------------------------------------ sequential reliability bundle
+
+_SEQUENTIAL_KIND = "sequential_reliability_bundle_v1"
+
+
+@dataclass(repr=False, frozen=True)
+class SequentialReliabilityBundleReceipt(ScientificResult):
+    """A recomputed producer, draw carrier and diagnostic of a sequential reliability bundle.
+
+    ``bundle_identity`` is the bundle that was consumed, ``draws_digest`` and
+    ``diagnostic_digest`` identify the retained decision draws and the live reassessment of
+    them, and ``producer_program_identity`` the producer program that was re-evaluated.
+    ``program_identity`` is the compiled recomputation a consumer retains to replay it, and
+    ``dependencies`` lists every replayed node as ``node_id``, ``artifact_identity`` and
+    ``chain_digest``. The diagnostic is a point diagnostic: no calibration is claimed.
+    ``acceptance`` is set on a replayed receipt.
+    """
+
+    bundle_identity: str
+    draws_digest: str
+    diagnostic_digest: str
+    producer_program_identity: str
+    program_identity: str
+    dependencies: tuple[Mapping[str, str], ...]
+    acceptance: ArtifactAcceptance | None = field(default=None, compare=False)
+    _native: Any = field(default=None, repr=False, compare=False)
+    _artifact_bytes: bytes | None = field(default=None, repr=False, compare=False)
+
+    @property
+    def route(self) -> str | None:
+        """The compiled route of a receipt computed here; ``None`` for a replayed one."""
+        return None if self._native is None else str(self._native.route)
+
+    def export(
+        self, *, execution: Execution | None = None
+    ) -> ExportedArtifact[SequentialReliabilityBundleReceipt]:
+        """The bundle and this receipt, sealed for
+        :func:`consume_portable_sequential_reliability_node_bundle`.
+
+        The bundle is recomputed again and must reproduce this receipt before it is sealed. A
+        replayed receipt exports the bytes it was consumed from. The expectation carries the
+        bundle identity and :attr:`program_identity`.
+        """
+        expectation = ArtifactExpectation(
+            _SEQUENTIAL_KIND,
+            {"bundle_identity": self.bundle_identity, "program_identity": self.program_identity},
+        )
+        if self._native is None:
+            if self._artifact_bytes is None:
+                raise CausalValueError("this receipt holds neither a program nor its artifact")
+            return ExportedArtifact(self._artifact_bytes, _SEQUENTIAL_KIND, expectation)
+        execution = resolve_execution(execution)
+        data, refusal = execution._call(self._native.export, execution.cancel)
+        raise_refusal(refusal, _refusal_type)
+        assert data is not None
+        return ExportedArtifact(bytes(data), _SEQUENTIAL_KIND, expectation)
+
+
+def _sequential_receipt(text: str, native: Any = None) -> SequentialReliabilityBundleReceipt:
+    wire = json.loads(text)
+    return SequentialReliabilityBundleReceipt(
+        bundle_identity=wire["bundle_identity"],
+        draws_digest=wire["draws_digest"],
+        diagnostic_digest=wire["diagnostic_digest"],
+        producer_program_identity=wire["producer_program_identity"],
+        program_identity=wire["program_identity"],
+        dependencies=tuple(wire["dependencies"]),
+        _native=native,
+    )
+
+
+@outcome_operation
+def compile_sequential_reliability_node_bundle(
+    bundle: Bundle,
+    *,
+    producer: str = "sequential_producer",
+    draws: str = "sequential_draws",
+    diagnostic: str = "sequential_diagnostic",
+    execution: Execution | None = None,
+) -> SequentialReliabilityBundleReceipt:
+    """Compile and recompute the producer, draws and diagnostic nodes of a built bundle.
+
+    The three nodes are those :meth:`BundleBuilder.add_sequential_policy_reliability` embeds:
+    an embedded sequential producer, its decision draws and its diagnostic, joined by direct
+    producer to draws and draws to diagnostic edges. The compiled program consumes the whole
+    bundle, replays every node, re-evaluates the producer and reassesses the diagnostic from
+    the draws; the producer, the carrier and the live diagnostic must agree.
+
+    Raises:
+        CausalTypeError: ``bundle`` is not a :class:`Bundle`.
+        CompositionBundleRefusal: a missing, misplaced or non-embedded node or edge
+            (``edge_digest_mismatch``), a node that does not replay or a producer, carrier and
+            diagnostic that disagree (``swapped_evidence``).
+    """
+    if not isinstance(bundle, Bundle):
+        raise CausalTypeError("bundle must be a built composition_bundle.Bundle")
+    execution = resolve_execution(execution)
+    handle, refusal = execution._call(
+        _native.sequential_reliability_bundle_compile,
+        bundle._native,
+        _name(producer, "producer"),
+        _name(draws, "draws"),
+        _name(diagnostic, "diagnostic"),
+        execution.seed,
+        execution.cancel,
+    )
+    raise_refusal(refusal, _refusal_type)
+    assert handle is not None
+    return _sequential_receipt(handle.receipt_json, native=handle)
+
+
+@outcome_operation
+@artifact_consumer(
+    proof="composition_bundle.consume_bundle_recomputation: rebuilds the portable bundle under the "
+    "retained bundle identity, recompiles its terminal program under the retained program "
+    "identity, replays every dependency, executes the terminal and requires the stored receipt",
+    replayable=True,
+    identity=("expected_bundle", "expected_program"),
+)
+def consume_bundle_recomputation(
+    artifact: bytes,
+    *,
+    route: RecomputationRoute,
+    expected_bundle: str,
+    expected_program: str,
+    execution: Execution | None = None,
+) -> BundleRecomputation:
+    """Independently consume a portable bundle recomputation.
+
+    The bundle is rebuilt under ``expected_bundle``, the terminal's program recompiled and
+    compared with ``expected_program``, every dependency replayed by its own consumer and the
+    terminal executed again; the live receipt must equal the stored one. ``route`` is the
+    :attr:`BundleRecomputation.route` the producer handed over with the two identities: a
+    ``predictive_decision`` or ``posterior_decision`` rebuilds the contract and the source law from
+    the bundle's own nodes, and a ``predictive_fit_decision`` refits its producer.
+
+    Raises:
+        CausalValueError: ``route`` is not one of :data:`RECOMPUTATION_ROUTES`, or
+            ``expected_program`` is not a 64-hex identity.
+        CompositionBundleRefusal: a foreign feature, a changed graph or program
+            (``external_binding_mismatch``), a failed dependency or a changed live terminal.
+    """
+    if route not in RECOMPUTATION_ROUTES:
+        raise CausalValueError(f"route must be one of {RECOMPUTATION_ROUTES}")
+    if not isinstance(expected_bundle, str) or not isinstance(expected_program, str):
+        raise CausalTypeError("expected_bundle and expected_program must be identity strings")
+    data = container_bytes(artifact)
+    policy = resolve_execution(execution)
+    controls = _controls(policy)
+    if route == "chain":
+        pair = policy._call(
+            _native.chain_bundle_recomputation_consume,
+            data,
+            expected_bundle,
+            expected_program,
+            **controls,
+        )
+    elif route == "predictive_fit_decision":
+        pair = policy._call(
+            _native.predictive_fit_decision_bundle_consume,
+            data,
+            expected_bundle,
+            expected_program,
+            **controls,
+        )
+    else:
+        pair = policy._call(
+            _native.decision_bundle_recomputation_consume,
+            data,
+            expected_bundle,
+            expected_program,
+            posterior=route == "posterior_decision",
+            **controls,
+        )
+    return _recomputation_of(_recomputed(pair), plan=None)
+
+
+@outcome_operation
+@artifact_consumer(
+    proof="composition_bundle.consume_portable_sequential_reliability_node_bundle: the native "
+    "consumer rebuilds the bundle under the retained identity, recompiles the recomputation "
+    "under the retained program identity, re-evaluates the producer and compares the receipt",
+    replayable=True,
+    identity=("expected_bundle", "expected_identity"),
+)
+def consume_portable_sequential_reliability_node_bundle(
+    artifact: bytes | ExportedArtifact[Any],
+    *,
+    expected_bundle: str,
+    expected_identity: str,
+    execution: Execution | None = None,
+) -> SequentialReliabilityBundleReceipt:
+    """Independently reconstruct and recompute a sealed sequential reliability bundle.
+
+    ``expected_bundle`` is the bundle identity and ``expected_identity`` the
+    :attr:`SequentialReliabilityBundleReceipt.program_identity`, both retained beside the
+    bytes. The bundle is rebuilt and recompiled, the producer is re-evaluated and the live
+    receipt must equal the sealed one.
+
+    Raises:
+        CausalTypeError: ``artifact`` is not bytes or an exported artifact.
+        CausalValueError: ``expected_identity`` is not 64 hexadecimal characters.
+        ExpectedIdentityMismatchRefusal: another bundle identity, program identity or receipt.
+        CompositionBundleRefusal: a node that does not replay.
+    """
+    execution = resolve_execution(execution)
+    text, refusal = execution._call(
+        _native.sequential_reliability_bundle_consume,
+        container_bytes(artifact),
+        _name(expected_bundle, "expected_bundle"),
+        _name(expected_identity, "expected_identity"),
+        execution.seed,
+        execution.cancel,
+    )
+    raise_refusal(refusal, _refusal_type)
+    assert text is not None
+    # The consumer decorator records the acceptance and the consumed bytes on the result.
+    return _sequential_receipt(text)
+
+
 __all__ = [
     "EMBEDDABLE_KINDS",
     "NODE_KINDS",
+    "PREDICTIVE_FIT_KINDS",
+    "RECOMPUTATION_ROUTES",
     "RELATIONSHIPS",
     "STAGES",
     "ArtifactDescription",
     "Bundle",
     "BundleBuilder",
+    "BundleRecomputation",
     "CallbackUnavailableRefusal",
     "ClaimLabel",
+    "CompiledBundleRecomputation",
     "CompositionBundleRefusal",
     "ConsumedBundle",
     "ConsumedNode",
@@ -1064,18 +1917,28 @@ __all__ = [
     "NodeStatus",
     "NodeSummary",
     "OversizedRefusal",
+    "PredictiveFitKind",
     "ProviderRequestChangedRefusal",
     "ProviderRequirement",
+    "RecomputationRoute",
     "ReferenceUnresolved",
     "Relationship",
+    "ReplayedDependency",
     "Requirement",
+    "SequentialReliabilityBundleReceipt",
     "SuppliedSources",
     "SwappedEvidenceRefusal",
     "TamperedQuantityRefusal",
     "UnknownNodeKindRefusal",
     "UnsupportedLawRefusal",
     "Verified",
+    "compile_chain_bundle_recomputation",
+    "compile_decision_bundle_recomputation",
+    "compile_predictive_fit_decision_bundle",
+    "compile_sequential_reliability_node_bundle",
     "consume_bundle",
+    "consume_bundle_recomputation",
+    "consume_portable_sequential_reliability_node_bundle",
     "describe_artifact",
     "detect_kind",
     "mean_decision",

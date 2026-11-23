@@ -21,3 +21,23 @@ upstream_implementations_observed = []
 test_sources = [
  "conformance/design_state/rolling_mechanism_diag_match (exercised via crates/antecedent-state/tests/rolling_mechanism_oracle.rs)",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Rolling linear-Gaussian mechanism diagnostics under CausalState: composes the ring-buffered OLS summary update and the max-|CUSUM| statistic under a bounded retention window."
+no_independent_algorithm = "The module composes suff_stats.rs and the divergence statistic; the solve calls reuse the state's Gram solver. No new algorithm beyond bounded retention."
+covered_by = ["state.incremental_ols", "stats.divergence"]
+record_sha256 = "6544286660ccf6c797b4db9b8ab6a15e67b6f90e34b4706b22e169c368e6e7e3"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-state/src/mechanism_diag.rs"
+items = ["fn append_batch", "fn append_row", "fn bytes_estimate", "fn bytes_for", "fn evict_oldest", "fn ncols", "fn new", "fn rebuild_ols_from_ring", "fn refresh_summaries", "struct RollingMechanismDiagnostics"]
+sha256 = "99ec92ec538832aa9542b2293276f8e7f56412eb61d49a722d20e207a9147b36"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-state/tests/rolling_mechanism_oracle.rs"
+items = ["const FIXTURE", "fn close", "fn idx_f64", "fn json_usize", "fn rolling_summaries_match_independent_batch_windows", "fn row", "fn row_and_batch_append_replay_identically"]
+sha256 = "bab2946632031f7a309dfa51a6a8a7cbf71f1278584d5963e3fa0e174fbc1ca7"

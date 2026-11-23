@@ -112,7 +112,7 @@ fn discrete_and_hierarchical_glm_match_their_independent_oracles() {
     assert!((coefficients[2] - unpen_intercept).abs() <= tolerance);
     assert!((coefficients[3] - unpen_slope).abs() <= tolerance);
 
-    // MM-014: EB λ must shrink the slope on non-separated data via always-on ridge,
+    // EB λ must shrink the slope on non-separated data via always-on ridge,
     // not only as a separation fallback.
     let hierarchical = chain_model(&data, MechanismFamily::HierarchicalGlm);
     let MechanismSlot::Discrete { logit_coeffs: Some(coefficients), .. } =
@@ -120,17 +120,22 @@ fn discrete_and_hierarchical_glm_match_their_independent_oracles() {
     else {
         panic!("hierarchical GLM slot");
     };
-    let ridge = expected["reference"]["ridge_logit_coefficients"].as_array().unwrap();
+    // The retained two-cell reference independently derives the current logistic-pilot EB
+    // strength and solves the penalized score. The older reviewed fixture used an OLS pilot.
+    let logistic_eb: JsonValue =
+        serde_json::from_str(include_str!("oracle_data/hierarchical_logit_eb_reference.json"))
+            .unwrap();
+    let ridge = logistic_eb["coefficients"].as_array().unwrap();
     let ridge_intercept = ridge[0].as_f64().unwrap();
     let ridge_slope = ridge[1].as_f64().unwrap();
     assert!((coefficients[2] - ridge_intercept).abs() <= tolerance);
     assert!((coefficients[3] - ridge_slope).abs() <= tolerance);
     assert!(
-        (ridge_slope - unpen_slope).abs() > 0.1,
+        (ridge_slope - unpen_slope).abs() > 0.05,
         "fixture must keep a clear EB-ridge vs unpenalized gap"
     );
     assert!(
-        (coefficients[3] - unpen_slope).abs() > 0.1,
+        (coefficients[3] - unpen_slope).abs() > 0.05,
         "HierarchicalGlm must apply EB ridge on ordinary data (got slope {})",
         coefficients[3]
     );
@@ -165,9 +170,9 @@ fn minnesota_bvar_matches_independent_standardized_ridge_solve() {
     };
     let tolerance = expected["acceptance"]["atol"].as_f64().unwrap();
     assert!((*intercept - expected["reference"]["intercept"].as_f64().unwrap()).abs() <= tolerance);
-    for (actual, target) in
-        coeffs.iter().zip(expected["reference"]["coefficients"].as_array().unwrap())
-    {
+    let targets = expected["reference"]["coefficients"].as_array().unwrap();
+    assert_eq!(coeffs.len(), targets.len(), "one slope per parent");
+    for (actual, target) in coeffs.iter().zip(targets) {
         assert!((*actual - target.as_f64().unwrap()).abs() <= tolerance);
     }
     assert!(
@@ -276,10 +281,11 @@ fn do_samplers_calibrate_to_analytic_linear_gaussian_target() {
             (mean - mean_target).abs()
                 <= expected["acceptance"]["mean_atol"]["kde"].as_f64().unwrap()
         );
-        assert!(
-            (variance - variance_target).abs()
-                <= expected["acceptance"]["variance_atol"]["kde"].as_f64().unwrap()
-        );
+        let variance_atol = expected["acceptance"]["variance_atol"]["kde"].as_f64().unwrap();
+        assert!((variance - variance_target).abs() <= variance_atol);
+        // Observed deviation across the seeds is <= 0.007: a KDE sampler that inflates or deflates
+        // the spread by 10% (0.025 of variance) must not pass.
+        assert!((variance - variance_target).abs() <= 0.02, "seed {seed}: KDE variance={variance}");
 
         let mut rng = CausalRng::from_seed(seed);
         let mcmc = McmcDoSampler::new(VariableId::from_raw(1))
@@ -292,11 +298,16 @@ fn do_samplers_calibrate_to_analytic_linear_gaussian_target() {
                 &ctx,
             )
             .unwrap();
-        let (mean, _) = moments(&mcmc.values);
+        let (mean, mcmc_variance) = moments(&mcmc.values);
         assert!(
             (mean - mean_target).abs()
                 <= expected["acceptance"]["mean_atol"]["mcmc"].as_f64().unwrap(),
             "seed {seed}: MCMC mean={mean}"
+        );
+        // The chain's spread is the analytic 0.5^2; observed deviation across seeds <= 0.006.
+        assert!(
+            (mcmc_variance - variance_target).abs() <= 0.03,
+            "seed {seed}: MCMC variance={mcmc_variance} vs {variance_target}"
         );
         let rate = mcmc.accept_rate.unwrap();
         let band = expected["acceptance"]["mcmc_accept_rate"].as_array().unwrap();

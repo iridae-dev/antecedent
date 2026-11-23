@@ -1,6 +1,6 @@
 //! Bayesian conformance: load every `conformance/bayesian/*/expected.json`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -106,7 +106,7 @@ fn shared_functional_ate() {
     );
     let query = AverageEffectQuery::binary_ate(t, y);
 
-    let freq = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+    let freq = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
     let prep = freq.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
     let freq_est = freq
@@ -135,6 +135,9 @@ fn shared_functional_ate() {
     assert!((freq_est.ate - true_ate).abs() < 1e-6);
     assert!((mean - true_ate).abs() < tol, "bayes={mean} truth={true_ate}");
     assert!((mean - freq_est.ate).abs() < tol, "bayes={mean} freq={}", freq_est.ate);
+    // The data are noise free, so the posterior concentrates on the adjusted coefficient: the
+    // 0.05 band alone would also admit the unadjusted contrast (1.95), which this excludes.
+    assert!((mean - true_ate).abs() < 1e-3, "bayes={mean} truth={true_ate}");
 
     let bytes = encode_causal_posterior_bytes(&post, "shared-functional").unwrap();
     let (meta, _) = decode_causal_posterior_bytes(&bytes).unwrap();
@@ -310,6 +313,8 @@ fn ppc() {
         .unwrap();
     assert_eq!(post_rep.kind, PredictiveCheckKind::Posterior);
     assert!(post_rep.p_value.is_finite());
+    assert!((0.0..=1.0).contains(&prior_rep.p_value), "prior p = {}", prior_rep.p_value);
+    assert!((0.0..=1.0).contains(&post_rep.p_value), "posterior p = {}", post_rep.p_value);
 
     // Facade attaches both prior and posterior PPC when refute ≠ none.
     let mut dag = Dag::with_variables(3);
@@ -365,6 +370,13 @@ fn prior_sensitivity() {
     if expected["require_finite_effect_means"].as_bool().unwrap() {
         assert!(summary.effect_means.iter().all(|m| m.is_finite()));
     }
+    // Y = 2T + 0.5Z without noise: a weaker prior shrinks the effect less, so the distance to
+    // the generating effect 2 never grows with the scale, and the widest prior recovers it.
+    let dist: Vec<f64> = summary.effect_means.iter().map(|m| (m - 2.0).abs()).collect();
+    for w in dist.windows(2) {
+        assert!(w[1] <= w[0] + 1e-9, "shrinkage must fall as the prior scale grows: {dist:?}");
+    }
+    assert!(*dist.last().unwrap() < 1e-3, "widest prior should recover 2: {dist:?}");
 }
 
 /// The `temporal_pulse` fixture's series and lag-1 `TemporalDag`:
@@ -430,6 +442,10 @@ fn pulse_scm_series(n: usize, true_ate: f64) -> (TimeSeriesData, TemporalDag) {
     (series, g)
 }
 
+/// The pulse series is noise free, so the conjugate posterior mean sits within this of the
+/// generating coefficient (about 40 times tighter than the fixture band).
+const PULSE_EXACT_TOL: f64 = 1e-3;
+
 #[test]
 fn temporal_pulse() {
     let expected = load_expected_json(&fixture_dir("temporal_pulse"));
@@ -457,8 +473,14 @@ fn temporal_pulse() {
     let eq = post.effect_column().unwrap();
     let mean = post.summaries.mean[eq];
     assert!((mean - true_ate).abs() < tol, "mean={mean} expected={true_ate}");
+    // The series is noise free, so the posterior concentrates on the generating coefficient; the
+    // 0.05 band alone is wide enough to admit a mis-lagged or shrunk estimate.
+    assert!((mean - true_ate).abs() < PULSE_EXACT_TOL, "mean={mean} expected={true_ate}");
     if expected["require_finite_p_below_zero"].as_bool().unwrap() {
-        assert!(post.probability_below(0.0).unwrap().is_finite());
+        let p_below = post.probability_below(0.0).unwrap();
+        assert!(p_below.is_finite());
+        // A positive effect 0.9 with a degenerate posterior has essentially no mass below zero.
+        assert!(p_below < 1e-6, "P(effect < 0) = {p_below}");
     }
     if expected["require_artifact_round_trip"].as_bool().unwrap() {
         let bytes = encode_causal_posterior_bytes(post, "temporal-pulse").unwrap();
@@ -467,7 +489,7 @@ fn temporal_pulse() {
     }
 }
 
-/// Bayesian `PulseEffect × TemporalDag` on every licensed coordinate: explicit
+/// Bayesian `PulseEffect × TemporalDag` on every supported coordinate: explicit
 /// and accepted structure × `none` / `cheap` / `full`, through the staged
 /// `prepare` → `estimate_series` handle. The posterior mean must recover the
 /// `temporal_pulse` fixture's effect. `none` runs no report; cheap runs the
@@ -507,7 +529,7 @@ fn temporal_pulse_staged_all_structures_and_suites() {
             );
             let ctx = ExecutionContext::for_tests(42);
             let result = study.prepare(&ctx).unwrap().estimate_series(&series, &ctx).unwrap();
-            assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{label}");
+            assert_eq!(result.support_status().unwrap().as_str(), "supported", "{label}");
             assert!(
                 result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
                 "{label}: the prepared click must reuse identification"
@@ -515,6 +537,10 @@ fn temporal_pulse_staged_all_structures_and_suites() {
             let post = result.posterior.as_ref().expect("posterior");
             let mean = post.summaries.mean[post.effect_column().unwrap()];
             assert!((mean - true_ate).abs() < tol, "{label}: mean={mean} expected={true_ate}");
+            assert!(
+                (mean - true_ate).abs() < PULSE_EXACT_TOL,
+                "{label}: noise-free mean={mean} expected={true_ate}"
+            );
             let names: Vec<&str> = result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
             let has_check = |kind| result.predictive_checks.iter().any(|c| c.kind == kind);
             if suite == RefuteSuite::None {
@@ -696,11 +722,11 @@ fn temporal_sustained_multi_step_keeps_earlier_causal_time() {
         .build()
         .unwrap();
     let result = analysis.run(&ExecutionContext::for_tests(42)).unwrap();
-    assert!((result.estimate.as_effect().unwrap().ate - 0.7).abs() < 0.1);
+    assert!((result.estimate().as_effect().unwrap().ate - 0.7).abs() < 0.01);
     assert_eq!(result.logical_plan.estimator.as_deref().unwrap(), "temporal.sequential.gcomp");
 }
 
-/// Exercise one of the six licensed `SustainedEffect × TemporalDag × Bayesian`
+/// Exercise one of the six supported `SustainedEffect × TemporalDag × Bayesian`
 /// coordinates on the **staged** `Study::prepare()` → `PreparedStudy::estimate_series()`
 /// path (not the one-shot `.build().unwrap().run(&ctx)` sugar), for a given
 /// structure source (`explicit` graph vs. `accepted` graph) and validation suite.
@@ -741,6 +767,9 @@ fn assert_sustained_mean(result: &antecedent::StudyResult) {
     let eq = post.effect_column().unwrap();
     let mean = post.summaries.mean[eq];
     assert!((mean - true_ate).abs() < tol, "mean={mean} expected={true_ate}");
+    // Noise sd 0.05 gives a slope standard error of about 0.0035, so the mean stays within 0.01
+    // of 0.7; the 0.05 fixture band would also admit a lag-1 or shrunk estimate.
+    assert!((mean - true_ate).abs() < 0.01, "mean={mean} expected={true_ate}");
     if expected["require_finite_p_below_zero"].as_bool().unwrap() {
         assert!(post.probability_below(0.0).unwrap().is_finite());
     }
@@ -749,7 +778,7 @@ fn assert_sustained_mean(result: &antecedent::StudyResult) {
         let (meta, _) = decode_causal_posterior_bytes(&bytes).unwrap();
         assert_eq!(meta.n_draws as usize, post.draws.n_draws);
     }
-    assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(result.support_status().unwrap().as_str(), "supported");
 }
 
 #[test]
@@ -979,6 +1008,7 @@ fn prior_bank_catalog() {
             hessian_condition: 1.0,
             draws_encoding: "f64_le_colmajor".into(),
             treatment_contrast: Some(1.0),
+            preparation: None,
         };
         // Draws (-1, 0, 1) per quantity: mean 0, sample SD 1, type-7 quantiles -0.95 / 0.95.
         let draws = (0..n_q).flat_map(|_| [-1.0f64, 0.0, 1.0]).collect::<Vec<_>>();
@@ -1084,7 +1114,6 @@ fn prior_bank_catalog() {
 fn prior_bank_effect_map() {
     use std::sync::Arc;
 
-    use antecedent::inference::{hydrate_mapping_from_io, hydrate_prior_from_posterior_bytes};
     use antecedent::io::encode_causal_posterior_bytes;
     use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
     use antecedent_core::{
@@ -1096,7 +1125,6 @@ fn prior_bank_effect_map() {
     };
     use antecedent_graph::{Dag, DenseNodeId};
     use antecedent_io::PriorMapping;
-    use antecedent_prob::PriorSet;
 
     let expected = load_expected_json(&fixture_dir("prior_bank_effect_map"));
     let tol = expected["mapped_mean_tol"].as_f64().unwrap();
@@ -1229,8 +1257,8 @@ fn prior_bank_effect_map() {
     }
 
     // Unset mapping auto-selects EffectFunctional for heterogeneous designs.
-    let auto = Study::tabular(data_b)
-        .graph(dag_b)
+    let auto = Study::tabular(data_b.clone())
+        .graph(dag_b.clone())
         .query(AverageEffectQuery::binary_ate(t, y))
         .inference(InferenceMode::Bayesian(
             BayesianConfig::conjugate()
@@ -1259,22 +1287,20 @@ fn prior_bank_effect_map() {
         "auto-mapped path should record external_effect_prior"
     );
 
-    let names: Vec<Arc<str>> =
-        ["intercept", "coef_T", "coef_Z", "coef_W"].into_iter().map(Arc::from).collect();
-    let baseline_prior = PriorSet::weakly_informative(4);
-    let mapping = hydrate_mapping_from_io(&PriorMapping::IdenticalCoefficientSubspace);
-    assert!(
-        hydrate_prior_from_posterior_bytes(
-            &bytes,
-            &mapping,
-            &baseline_prior,
-            &names,
-            Some(1),
-            None
-        )
-        .is_err(),
-        "identical mapping should fail on ncols mismatch"
-    );
+    // An identical-subspace mapping onto a target with a different column count is refused.
+    let refused = Study::tabular(data_b)
+        .graph(dag_b)
+        .query(AverageEffectQuery::binary_ate(t, y))
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate()
+                .n_draws(80)
+                .prior_scale(10.0)
+                .prior_from_artifact(bytes, Some(PriorMapping::IdenticalCoefficientSubspace)),
+        ))
+        .refute(RefuteSuite::None)
+        .build()
+        .map_or(true, |study| study.run(&ExecutionContext::for_tests(1)).is_err());
+    assert!(refused, "identical mapping should fail on ncols mismatch");
 }
 
 #[test]
@@ -1614,6 +1640,108 @@ fn prior_conjugate_moment_match() {
         );
         assert!(err.is_err(), "expected rejection: {}", row["reason"]);
     }
+}
+
+#[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "fixture counts are stored as JSON numbers"
+)]
+fn conjugate_count_posteriors() {
+    use antecedent_prob::{
+        AlphaCriterion, AlphaSelectionOptions, BetaBinomialPosterior, BetaHyperparameters,
+        BetaSource, GammaHyperparameters, GammaPoissonPosterior, select_beta_power_prior,
+    };
+
+    let expected = load_expected_json(&fixture_dir("conjugate_count_posteriors"));
+    let tol = expected["tol"].as_f64().unwrap();
+    let pair = |value: &serde_json::Value| -> [f64; 2] {
+        let a = value.as_array().unwrap();
+        [a[0].as_f64().unwrap(), a[1].as_f64().unwrap()]
+    };
+
+    // -- beta_binomial_posterior: Beta(a + k, b + n - k) and the count's marginal likelihood. --
+    let b = &expected["beta_binomial_posterior"];
+    let [a0, b0] = pair(&b["prior"]);
+    let post = BetaBinomialPosterior::new(
+        BetaHyperparameters { alpha: a0, beta: b0 },
+        b["successes"].as_u64().unwrap(),
+        b["trials"].as_u64().unwrap(),
+    )
+    .unwrap();
+    assert!((post.posterior().alpha - b["expected_alpha"].as_f64().unwrap()).abs() < tol);
+    assert!((post.posterior().beta - b["expected_beta"].as_f64().unwrap()).abs() < tol);
+    assert!((post.mean() - b["expected_mean"].as_f64().unwrap()).abs() < tol);
+    assert!(
+        (post.log_marginal_likelihood() - b["expected_log_marginal_likelihood"].as_f64().unwrap())
+            .abs()
+            < tol
+    );
+
+    // -- exceedance: successes are the outcomes strictly above the threshold. --
+    let e = &expected["exceedance"];
+    let [ea, eb] = pair(&e["prior"]);
+    let mut set = PriorSet::new();
+    set.push(PriorSpec::Beta(BetaHyperparameters { alpha: ea, beta: eb }));
+    let outcomes: Vec<f64> =
+        e["outcomes"].as_array().unwrap().iter().map(|y| y.as_f64().unwrap()).collect();
+    let exceed =
+        BetaBinomialPosterior::from_exceedance(&set, &outcomes, e["threshold"].as_f64().unwrap())
+            .unwrap();
+    assert_eq!(exceed.successes(), e["expected_successes"].as_u64().unwrap());
+    assert!((exceed.posterior().alpha - e["expected_alpha"].as_f64().unwrap()).abs() < tol);
+    assert!((exceed.posterior().beta - e["expected_beta"].as_f64().unwrap()).abs() < tol);
+    // A Gaussian regression refuses a set that carries a count prior.
+    assert!(set.reject_count_priors().is_err());
+
+    // -- gamma_poisson_posterior: Gamma(a + sum y, b + n) and the Poisson marginal likelihood. --
+    let g = &expected["gamma_poisson_posterior"];
+    let [ga, gb] = pair(&g["prior"]);
+    let counts: Vec<u64> =
+        g["counts"].as_array().unwrap().iter().map(|c| c.as_u64().unwrap()).collect();
+    let gp = GammaPoissonPosterior::from_counts(
+        GammaHyperparameters { shape: ga, rate: gb },
+        &counts,
+        None,
+    )
+    .unwrap();
+    assert!((gp.posterior().shape - g["expected_shape"].as_f64().unwrap()).abs() < tol);
+    assert!((gp.posterior().rate - g["expected_rate"].as_f64().unwrap()).abs() < tol);
+    assert!((gp.mean() - g["expected_mean"].as_f64().unwrap()).abs() < tol);
+    assert!(
+        (gp.log_marginal_likelihood() - g["expected_log_marginal_likelihood"].as_f64().unwrap())
+            .abs()
+            < tol
+    );
+
+    // -- empirical_bayes_beta: the discount maximizing the target's marginal likelihood. --
+    let eb_case = &expected["empirical_bayes_beta"];
+    let [base_a, base_b] = pair(&eb_case["base"]);
+    let [k0, n0] = pair(&eb_case["source"]);
+    let [k, n] = pair(&eb_case["target"]);
+    let grid: Vec<f64> =
+        eb_case["grid"].as_array().unwrap().iter().map(|a| a.as_f64().unwrap()).collect();
+    let target: Vec<bool> = (0..n as usize).map(|i| i < k as usize).collect();
+    let mut options = AlphaSelectionOptions::new(AlphaCriterion::EmpiricalBayes);
+    options.grid = grid;
+    let report = select_beta_power_prior(
+        BetaSource {
+            base: BetaHyperparameters { alpha: base_a, beta: base_b },
+            successes: k0 as u64,
+            trials: n0 as u64,
+        },
+        &target,
+        &options,
+    )
+    .unwrap();
+    for (row, want) in report.sensitivity.iter().zip(eb_case["expected_scores"].as_array().unwrap())
+    {
+        assert!((row.score - want.as_f64().unwrap()).abs() < tol);
+    }
+    assert!(
+        (report.selected_alpha - eb_case["expected_selected_alpha"].as_f64().unwrap()).abs() < tol
+    );
 }
 
 #[test]
@@ -2050,10 +2178,11 @@ fn temporal_composed_prior_conflict_and_alpha_grid() {
         .graph(g)
         .temporal_query(q)
         .inference(InferenceMode::Bayesian(
-            BayesianConfig::conjugate().n_draws(n_draws).prior_from_composed(
+            BayesianConfig::conjugate().n_draws(n_draws).prior_from_composed_with_baseline(
                 Arc::clone(&sources),
                 composed.clone(),
                 Some(policy),
+                baseline.clone(),
             ),
         ))
         .refute(RefuteSuite::None)
@@ -2100,4 +2229,107 @@ fn temporal_composed_prior_conflict_and_alpha_grid() {
     assert!(!summary.alphas.is_empty());
     assert!(summary.effect_means.iter().all(|m| m.is_finite()));
     let _ = &mut est; // keep mut for parity with execute path
+}
+
+#[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "fixture counts are stored as JSON numbers"
+)]
+fn prior_bank_weighted_target() {
+    use std::sync::Arc;
+
+    use antecedent_prob::{
+        ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, KernelFamily, PriorSet,
+        PriorSpec, ProbError, TransportKernel, TransportPolicy, WeightedTarget,
+        apply_weighted_target_transport,
+    };
+
+    let expected = load_expected_json(&fixture_dir("prior_bank_weighted_target"));
+    let tol = expected["tol"].as_f64().unwrap();
+    let source_variance = expected["source_variance"].as_f64().unwrap();
+    let floats = |value: &serde_json::Value| -> Vec<f64> {
+        value.as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect()
+    };
+    let source = || {
+        let mut prior = PriorSet::new();
+        prior.push(PriorSpec::GaussianCoefficients(
+            GaussianCoefficientPrior::shared(
+                1,
+                expected["source_mean"].as_f64().unwrap(),
+                source_variance,
+            )
+            .unwrap(),
+        ));
+        ExternalPriorSource {
+            id: Arc::from("src"),
+            prior,
+            weight: ExternalPriorWeight::power(0.5).unwrap(),
+            ess: None,
+        }
+    };
+    let policy = TransportPolicy::InvariantConditionalOutcome;
+
+    let k = &expected["kernel_weights"];
+    let distances = floats(&k["distances"]);
+    let bandwidth = k["bandwidth"].as_f64().unwrap();
+    for (name, family) in [
+        ("gaussian", KernelFamily::Gaussian),
+        ("epanechnikov", KernelFamily::Epanechnikov),
+        ("tricube", KernelFamily::Tricube),
+    ] {
+        let got = TransportKernel::new(family, bandwidth).unwrap().weights(&distances).unwrap();
+        for (g, w) in got.iter().zip(floats(&k[name])) {
+            assert!((g - w).abs() < tol, "{name}: {g} vs {w}");
+        }
+    }
+
+    let r = &expected["graded_rows"];
+    let n = r["n_rows"].as_u64().unwrap() as usize;
+    let effects: Vec<f64> = (0..n).map(|i| i as f64).collect();
+    let weights: Vec<f64> = (0..n).map(|i| i as f64 + 1.0).collect();
+    let target = WeightedTarget::from_row_weights(effects, weights).unwrap();
+    let (out, overlap) =
+        apply_weighted_target_transport(&[source()], policy, &target, None).unwrap();
+    let coef = out[0].prior.gaussian_coefficients().unwrap();
+    assert!((coef.mean[0] - r["expected_mean"].as_f64().unwrap()).abs() < tol);
+    assert!((overlap.kish_ess - r["expected_kish_ess"].as_f64().unwrap()).abs() < tol);
+    let added = r["expected_sampling_variance"].as_f64().unwrap();
+    assert!((coef.variance[0] - (source_variance + added)).abs() < tol);
+
+    let nb = &expected["neighbourhood_rows"];
+    let rows = nb["n_rows"].as_u64().unwrap() as usize;
+    let inside = nb["neighbourhood_rows"].as_u64().unwrap() as usize;
+    let effects: Vec<f64> = (0..rows)
+        .map(|i| {
+            if i < inside {
+                nb["inside_effect"].as_f64().unwrap()
+            } else {
+                nb["outside_effect"].as_f64().unwrap()
+            }
+        })
+        .collect();
+    let weights: Vec<f64> = (0..rows).map(|i| if i < inside { 1.0 } else { 0.0 }).collect();
+    let target = WeightedTarget::from_row_weights(effects, weights).unwrap();
+    let (out, overlap) =
+        apply_weighted_target_transport(&[source()], policy, &target, None).unwrap();
+    let coef = out[0].prior.gaussian_coefficients().unwrap();
+    assert!((coef.mean[0] - nb["expected_mean"].as_f64().unwrap()).abs() < tol);
+    let variance_added = nb["expected_variance_added"].as_f64().unwrap();
+    assert!((coef.variance[0] - (source_variance + variance_added)).abs() < tol);
+    assert!((overlap.kish_ess - nb["expected_kish_ess"].as_f64().unwrap()).abs() < tol);
+
+    let f = &expected["refusals"];
+    let thin = f["equal_weight_rows_below_floor"].as_u64().unwrap() as usize;
+    let target = WeightedTarget::from_row_weights(
+        (0..thin).map(|i| i as f64).collect::<Vec<_>>(),
+        vec![1.0; thin],
+    )
+    .unwrap();
+    let error = apply_weighted_target_transport(&[source()], policy, &target, None).unwrap_err();
+    match error {
+        ProbError::Refused { code, .. } => assert_eq!(code, f["code"].as_str().unwrap()),
+        other => panic!("expected a refusal, got {other:?}"),
+    }
 }

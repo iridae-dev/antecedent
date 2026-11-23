@@ -14,6 +14,7 @@ import math
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.inverse import (
     Action,
@@ -23,6 +24,7 @@ from antecedent.inverse import (
     TargetQuantile,
     inverse_outcome,
 )
+from antecedent.outcomes import require_success
 from antecedent.query import AverageDerivative, ResponseCurve
 from antecedent.results import IdentificationView
 from antecedent.results.response import (
@@ -104,15 +106,19 @@ def test_forward_inverse_round_trip_on_a_known_structural_law_through_a_real_rou
     t = z + np.array([math.cos(i / 11.0) for i in range(n)])
     data = {"t": t, "y": 1.0 + 2.0 * t + 0.8 * z, "z": z}
     grid = [-0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0]
-    forward = ant.prepare(
-        data,
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=ant.ResponseCurve("t", "y", grid=grid),
-        estimator="response.kennedy_dr",
-        refute="none",
-        bootstrap=0,
-        seed=4,
-    ).estimate(data, seed=4)
+    forward = require_success(
+        ant.estimate(
+            ant.prepare(
+                data,
+                graph=[("z", "t"), ("z", "y"), ("t", "y")],
+                query=ant.ResponseCurve("t", "y", grid=grid),
+                estimator="response.kennedy_dr",
+                refute="none",
+                inference=ant.Frequentist(bootstrap=0),
+                execution=ant.Execution(seed=4),
+            )
+        )
+    )
     # The structural truth, computed from the generating law and the data's own mean of z.
     intercept = 1.0 + 0.8 * float(np.mean(z))
     # E[Y | do(a)] = intercept + 2a >= intercept + 0.75 exactly when a >= 0.375.
@@ -129,7 +135,7 @@ def test_forward_inverse_round_trip_on_a_known_structural_law_through_a_real_rou
     for result in report.actions:
         # Finite-sample nuisance tolerance around the exact structural margin.
         assert result.margin == pytest.approx(
-            intercept + 2.0 * result.point[0] - threshold, abs=0.1
+            intercept + 2.0 * result.point[0] - threshold, abs=0.05
         )
     assert report.inference_claim == "point_only"
     assert report.enumerated == "reachable"
@@ -268,24 +274,24 @@ def test_action_and_forward_row_order_and_cost_ties_never_change_a_result():
 
 def test_a_probability_target_is_refused_because_a_mean_is_not_a_chance_constraint():
     _refused(
-        "cell_not_licensed",
-        "inverse.probability_target",
+        "inverse_functional_unsupported",
+        reason_details.inverse.PROBABILITY_TARGET,
         lambda: inverse_outcome(_forward(), query=ChanceConstraint(3.0, 0.9), actions=_actions()),
     )
 
 
 def test_a_quantile_target_is_refused_until_the_interventional_distribution_cell():
     _refused(
-        "cell_not_licensed",
-        "inverse.quantile_target",
+        "inverse_functional_unsupported",
+        reason_details.inverse.QUANTILE_TARGET,
         lambda: inverse_outcome(_forward(), query=TargetQuantile(0.9, 3.0), actions=_actions()),
     )
 
 
 def test_observational_scenarios_are_refused_not_turned_into_an_action():
     _refused(
-        "cell_not_licensed",
-        "inverse.observational_scenarios",
+        "inverse_functional_unsupported",
+        reason_details.inverse.OBSERVATIONAL_SCENARIOS,
         lambda: inverse_outcome(_forward(), query=ObservationalScenarios(), actions=_actions()),
     )
 
@@ -293,7 +299,7 @@ def test_observational_scenarios_are_refused_not_turned_into_an_action():
 def test_a_forward_route_that_is_not_a_point_identified_mean_curve_is_refused():
     _refused(
         "route_not_supported",
-        "inverse.forward_not_point_identified",
+        reason_details.inverse.FORWARD_NOT_POINT_IDENTIFIED,
         lambda: inverse_outcome(
             _forward(status="PartiallyIdentified"), query=TargetMean(3.0), actions=_actions()
         ),
@@ -301,7 +307,7 @@ def test_a_forward_route_that_is_not_a_point_identified_mean_curve_is_refused():
     derivative = _forward(estimand=AverageDerivative("t", "y"))
     _refused(
         "route_not_supported",
-        "inverse.forward_not_mean_response",
+        reason_details.inverse.FORWARD_NOT_MEAN_RESPONSE,
         lambda: inverse_outcome(derivative, query=TargetMean(3.0), actions=_actions()),
     )
     with pytest.raises(CausalTypeError):
@@ -327,12 +333,8 @@ def test_malformed_actions_and_targets_are_invalid_arguments():
         inverse_outcome(forward, query=TargetMean(3.0), actions=_actions(), tolerance=-1.0)
     with pytest.raises(CausalTypeError):
         inverse_outcome(forward, query=TargetMean(3.0), actions=[(0.0, 1.0)])  # type: ignore[list-item]
-    too_many = [Action(f"a{i}", 0.0) for i in range(4097)]
-    _refused(
-        "route_not_supported",
-        "inverse.bounds_exceeded",
-        lambda: inverse_outcome(forward, query=TargetMean(3.0), actions=too_many),
-    )
+    many = [Action(f"a{i}", 0.0) for i in range(4097)]
+    assert len(inverse_outcome(forward, query=TargetMean(3.0), actions=many).actions) == 4097
 
 
 def test_a_published_interval_adds_only_a_robustly_feasible_flag():
@@ -390,7 +392,7 @@ def test_temporal_style_simultaneous_band_is_preferred_to_the_pointwise_band():
     assert report.action("dose_1.5").interval == (2.5, 5.5)
 
 
-def test_forward_claim_and_snapshot_identity_are_bound_and_unlicensed_input_refuses():
+def test_forward_claim_and_snapshot_identity_are_bound_and_unsupported_input_refuses():
     forward = _forward().model_copy(
         update={
             "claim_id": "claim-a",
@@ -415,10 +417,10 @@ def test_forward_claim_and_snapshot_identity_are_bound_and_unlicensed_input_refu
         != report.identity
     )
     _refused(
-        "cell_not_licensed",
-        "inverse.forward_not_licensed",
+        "not_supported",
+        reason_details.inverse.FORWARD_NOT_SUPPORTED,
         lambda: inverse_outcome(
-            forward.model_copy(update={"evidence_status": "allowed_unlicensed"}),
+            forward.model_copy(update={"evidence_status": "not_supported"}),
             query=TargetMean(3.0),
             actions=_actions(),
         ),
@@ -575,8 +577,13 @@ def test_verify_recomputes_the_report_and_detects_an_edited_one():
     cancel.cancel()
     _refused(
         "transport_budget_cancel",
-        "inverse.cancelled",
+        reason_details.inverse.CANCELLED,
         lambda: inverse_outcome(
-            _forward(), query=TargetMean(3.0), actions=_actions(), cancel=cancel
+            _forward(),
+            query=TargetMean(3.0),
+            actions=_actions(),
+            execution=ant.Execution(cancel=cancel),
         ),
     )
+    with pytest.raises(TypeError, match="unexpected keyword"):
+        inverse_outcome(_forward(), query=TargetMean(3.0), actions=_actions(), cancel=cancel)

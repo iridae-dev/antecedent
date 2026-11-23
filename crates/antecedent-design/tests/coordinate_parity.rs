@@ -389,6 +389,18 @@ fn a_consumer_derives_the_same_chain_from_the_exported_bytes() {
     };
     let consumed = consume(&bytes, &expectation).unwrap();
     assert_eq!(consumed.identity, wire.digest);
+    // The hand-derived values of the frozen guess decision (prior 1/2, accuracies 3/4 and
+    // 5/8): EVSI 1/4 and 1/8, EVPI 1/2, study cost 1/10, so net values 3/20 and 1/40.
+    let entries = &consumed.ranking.entries;
+    assert_eq!(entries.len(), 2);
+    for (entry, (id, evsi, net)) in
+        entries.iter().zip([("cand-1", 0.25, 0.15), ("cand-2", 0.125, 0.025)])
+    {
+        assert_eq!(entry.semantic_id, id);
+        assert!((entry.evsi - evsi).abs() < 1e-12, "{id}: evsi {}", entry.evsi);
+        assert!((entry.evpi - 0.5).abs() < 1e-12, "{id}: evpi {}", entry.evpi);
+        assert!((entry.net_value.unwrap() - net).abs() < 1e-12, "{id}: net {:?}", entry.net_value);
+    }
     let loaded = DesignRankingArtifactWire::from_bytes(&bytes).unwrap();
     assert_eq!(loaded.provenance_chain().unwrap(), chain);
 }
@@ -417,6 +429,15 @@ fn python_composition_lineage_rows_reproduce_the_ranking_digests() {
     assert_eq!(computed.len(), chain.links().len());
     for row in &computed {
         assert_eq!(row.digest, digest_of(&chain, &row.id), "{}", row.id);
+    }
+    // Both paths are also checked against the documented byte layout, recomputed here.
+    let mut independent: std::collections::BTreeMap<&str, String> =
+        std::collections::BTreeMap::new();
+    for (id, stage, parents) in &rows {
+        let parent_digests: Vec<&str> = parents.iter().map(|p| independent[p].as_str()).collect();
+        let digest = expected_link_digest(id, stage, &parent_digests);
+        assert_eq!(digest, digest_of(&chain, id), "{id}");
+        independent.insert(id, digest);
     }
 }
 
@@ -469,8 +490,9 @@ fn invariant_parts() -> SensitivityParts {
             },
             identified_bound: None,
             sampling: SamplingStatus::Withheld {
-                reason_code: "cell_not_licensed".into(),
-                detail: "joint_sensitivity.interval_withheld".into(),
+                reason_code: "uncertainty_representation_insufficient".into(),
+                detail: antecedent_core::reason_details::joint_sensitivity::NO_INTERVAL_METHOD
+                    .into(),
             },
         },
         provenance: SensitivityProvenance {
@@ -590,7 +612,7 @@ fn inverse_design_signal_update_evsi_and_cost_unit_refusals_validate_and_stay_di
         &Expect {
             code: "joint_law_required",
             stage: "inverse_query",
-            detail: "decision_evaluation.joint_law_required",
+            detail: antecedent_core::reason_details::decision_evaluation::JOINT_LAW_REQUIRED,
         },
     );
     assert_eq!(joint.offending.as_deref(), Some("risky"));
@@ -625,7 +647,7 @@ fn inverse_design_signal_update_evsi_and_cost_unit_refusals_validate_and_stay_di
         &Expect {
             code: "design_signal_invalid",
             stage: "declare",
-            detail: "signal_provider.sample_size_mismatch",
+            detail: antecedent_core::reason_details::signal_provider::SAMPLE_SIZE_MISMATCH,
         },
     );
     assert_eq!(signal.expected.as_deref(), Some("1"));
@@ -637,7 +659,7 @@ fn inverse_design_signal_update_evsi_and_cost_unit_refusals_validate_and_stay_di
         &Expect {
             code: "external_capability_missing",
             stage: "declare",
-            detail: "signal_provider.capability_missing",
+            detail: antecedent_core::reason_details::signal_provider::CAPABILITY_MISSING,
         },
     );
     assert_eq!(capability.capability, Some(ExternalCapability::Update));
@@ -648,7 +670,7 @@ fn inverse_design_signal_update_evsi_and_cost_unit_refusals_validate_and_stay_di
         &Expect {
             code: "design_signal_invalid",
             stage: "declare",
-            detail: "signal_provider.posterior_incoherent",
+            detail: antecedent_core::reason_details::signal_provider::POSTERIOR_INCOHERENT,
         },
     );
 
@@ -659,7 +681,7 @@ fn inverse_design_signal_update_evsi_and_cost_unit_refusals_validate_and_stay_di
         &Expect {
             code: "design_signal_invalid",
             stage: "declare",
-            detail: "signal_provider.posterior_incoherent",
+            detail: antecedent_core::reason_details::signal_provider::POSTERIOR_INCOHERENT,
         },
     );
 
@@ -689,7 +711,11 @@ fn evsi_and_cost_unit_refusals()
     let overlap = EvsiError::SourceOverlap(vec!["o1".into(), "o2".into()]).to_refusal();
     check(
         &overlap,
-        &Expect { code: "design_signal_invalid", stage: "evaluate", detail: "evsi.source_overlap" },
+        &Expect {
+            code: "design_signal_invalid",
+            stage: "evaluate",
+            detail: antecedent_core::reason_details::evsi::SOURCE_OVERLAP,
+        },
     );
     assert_eq!(overlap.offending.as_deref(), Some("o1,o2"));
     assert!(overlap.remedy.is_some());
@@ -700,7 +726,7 @@ fn evsi_and_cost_unit_refusals()
         &Expect {
             code: "design_cost_units_mismatch",
             stage: "evaluate",
-            detail: "evsi.cost_units_mismatch",
+            detail: antecedent_core::reason_details::evsi::COST_UNITS_MISMATCH,
         },
     );
     assert_eq!(units.offending.as_deref(), Some("candidate study cost unit usd"));
@@ -712,7 +738,7 @@ fn evsi_and_cost_unit_refusals()
         &Expect {
             code: "design_cost_units_mismatch",
             stage: "evaluate",
-            detail: "evsi.cost_map_required",
+            detail: antecedent_core::reason_details::evsi::COST_MAP_REQUIRED,
         },
     );
 
@@ -722,7 +748,7 @@ fn evsi_and_cost_unit_refusals()
         &Expect {
             code: "design_cost_units_mismatch",
             stage: "consume",
-            detail: "design_ranking.cost_units_mismatch",
+            detail: antecedent_core::reason_details::design_ranking::COST_UNITS_MISMATCH,
         },
     );
     assert!(ranking.remedy.is_some());
@@ -733,7 +759,7 @@ fn evsi_and_cost_unit_refusals()
         &Expect {
             code: "design_signal_invalid",
             stage: "consume",
-            detail: "design_ranking.digest_mismatch",
+            detail: antecedent_core::reason_details::design_ranking::DIGEST_MISMATCH,
         },
     );
 
@@ -769,7 +795,7 @@ fn inverse_functional_artifact_failures_convert_to_structured_refusals() {
         &Expect {
             code: "inverse_functional_unsupported",
             stage: "inverse_query",
-            detail: "functional_inverse_query.wrong_contract",
+            detail: antecedent_core::reason_details::functional_inverse_query::WRONG_CONTRACT,
         },
     );
     assert_eq!(wrong.offending.as_deref(), Some("retained identity differs"));
@@ -783,7 +809,8 @@ fn inverse_functional_artifact_failures_convert_to_structured_refusals() {
         &Expect {
             code: "inverse_functional_unsupported",
             stage: "inverse_query",
-            detail: "functional_inverse_query.global_feasibility_claim",
+            detail:
+                antecedent_core::reason_details::functional_inverse_query::GLOBAL_FEASIBILITY_CLAIM,
         },
     );
 
@@ -792,7 +819,10 @@ fn inverse_functional_artifact_failures_convert_to_structured_refusals() {
         code: "inverse_functional_unsupported",
         message: "no detail written".into(),
     });
-    assert_eq!(bare.detail, "functional_inverse_query.wrong_contract");
+    assert_eq!(
+        bare.detail,
+        antecedent_core::reason_details::functional_inverse_query::WRONG_CONTRACT
+    );
 
     let other = artifact_refusal(&IoError::Convert("truncated payload".into()));
     check(
@@ -800,7 +830,7 @@ fn inverse_functional_artifact_failures_convert_to_structured_refusals() {
         &Expect {
             code: "invalid_argument",
             stage: "inverse_query",
-            detail: "functional_inverse_query.invalid_artifact",
+            detail: antecedent_core::reason_details::functional_inverse_query::INVALID_ARTIFACT,
         },
     );
     assert!(other.offending.as_deref().is_some_and(|text| text.contains("truncated payload")));
@@ -852,7 +882,7 @@ fn backdoor_obligation_has_the_derived_identity_and_the_python_visible_fields() 
 fn obligation_refusals_use_the_registered_codes_and_details_python_reports() {
     let wrong = EvidenceObligationError::wrong_contract("a study never proves an assumption");
     assert_eq!(wrong.code, "transport_missing_evidence");
-    assert_eq!(wrong.detail, "evidence_obligations.wrong_contract");
+    assert_eq!(wrong.detail, antecedent_core::reason_details::evidence_obligations::WRONG_CONTRACT);
     let invalid = EvidenceObligation::try_new(EvidenceObligationSpec {
         quantities: std::collections::BTreeMap::new(),
         kind: EvidenceObligationKind::Measure,
@@ -871,7 +901,10 @@ fn obligation_refusals_use_the_registered_codes_and_details_python_reports() {
     })
     .unwrap_err();
     assert_eq!(invalid.code, "invalid_argument");
-    assert_eq!(invalid.detail, "evidence_obligations.invalid_obligation");
+    assert_eq!(
+        invalid.detail,
+        antecedent_core::reason_details::evidence_obligations::INVALID_OBLIGATION
+    );
 }
 
 // -- (4) cross-surface fixture hooks (ignored until regenerated) ---------------------------
@@ -894,6 +927,7 @@ fn regenerate_rust_fixtures() {
         Ok("1"),
         "set ANTECEDENT_WRITE_FIXTURES=1 to write fixtures"
     );
+    antecedent_core::support_gate::forbid_fixture_write();
     let dir = fixture_dir();
     let ranking = seal_guess();
     // The artifact id is part of the committed fixture bytes.
@@ -927,7 +961,7 @@ fn consume_python_fixtures() {
     assert_eq!(consumed.ranking.entries[0].semantic_id, "cand-1");
     assert!((consumed.ranking.entries[0].net_value.unwrap() - 0.15).abs() < 1e-12);
     assert!((consumed.ranking.entries[1].net_value.unwrap() - 0.025).abs() < 1e-12);
-    assert_eq!(consumed.calibration, "unmeasured");
+    assert_eq!(consumed.calibration, "not_measured");
     // Python's chain over the same bytes equals Rust's over the same constants.
     let loaded = DesignRankingArtifactWire::from_bytes(&bytes).unwrap();
     assert_eq!(loaded.provenance_chain().unwrap().links().len(), 8);

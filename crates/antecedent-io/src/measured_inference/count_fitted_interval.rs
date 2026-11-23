@@ -17,10 +17,11 @@
 //! Monte Carlo standard errors and refuses an interval whose larger error exceeds
 //! [`MAX_ENDPOINT_MCSE_FRACTION`] of its width: the draws have not converged enough
 //! for the endpoints to mean what they say.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{
     MeasuredExpectation, MeasuredInference, ScalarExecution, authorize, compare_replay, decode,
 };
+use super::{invalid, refused};
 use crate::IoError;
 use antecedent_core::IdentityDomain;
 use antecedent_estimate::count_fitted_posterior::{
@@ -41,18 +42,24 @@ pub const MEASURED_DRAWS: u32 = 2000;
 /// Largest accepted ratio of an endpoint's Monte Carlo standard error to the interval
 /// width; one rule shared with every posterior-draw route.
 pub use antecedent_estimate::count_fitted_posterior::MAX_ENDPOINT_MCSE_FRACTION;
-const MAX_NODES: usize = 16;
-const MAX_LEVELS: usize = 16;
-
-fn refused(detail: &str, message: &str) -> IoError {
-    IoError::Refused {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
-        message: format!("{detail}: {message}"),
-    }
-}
 
 fn protocol(message: &str) -> IoError {
-    refused("measured_interval.protocol_not_measured", message)
+    invalid(antecedent_core::reason_details::measured_interval::INVALID_SOURCE, message)
+}
+
+#[allow(clippy::needless_pass_by_value, reason = "used as an owned map_err callback")]
+fn estimation_error(error: antecedent_estimate::EstimationError) -> IoError {
+    if error.reason_code() == Some(antecedent_core::reason_code!("transport_budget_cancel")) {
+        IoError::Refused {
+            code: antecedent_core::reason_code!("transport_budget_cancel"),
+            message: error.to_string(),
+        }
+    } else {
+        invalid(
+            antecedent_core::reason_details::measured_inference::INVALID_REPORT,
+            &error.to_string(),
+        )
+    }
 }
 
 /// One node of the retained model.
@@ -106,25 +113,22 @@ struct Resolved {
 
 impl CountFittedIntervalArtifactWire {
     fn resolve(&self) -> Result<Resolved, IoError> {
-        if self.version != 1 || self.nodes.is_empty() || self.nodes.len() > MAX_NODES {
-            return Err(refused(
-                "measured_inference.artifact_mismatch",
-                "count-fitted source is not a version 1 model within bounds",
+        if self.version != 1 || self.nodes.is_empty() {
+            return Err(invalid(
+                antecedent_core::reason_details::measured_inference::ARTIFACT_MISMATCH,
+                "count-fitted source is not a version 1 model with at least one node",
             ));
         }
         let mut nodes = Vec::with_capacity(self.nodes.len());
         for node in &self.nodes {
-            if node.levels.len() > MAX_LEVELS {
-                return Err(protocol("a node exceeds the measured level bound"));
-            }
             let table = match (&node.counts, &node.declared_bits) {
                 (Some(counts), None) => NodeTable::Counts(counts.clone()),
                 (None, Some(bits)) => {
                     NodeTable::Declared(bits.iter().map(|b| f64::from_bits(*b)).collect())
                 }
                 _ => {
-                    return Err(refused(
-                        "measured_inference.artifact_mismatch",
+                    return Err(invalid(
+                        antecedent_core::reason_details::measured_inference::ARTIFACT_MISMATCH,
                         "a node carries both or neither of counts and a declared table",
                     ));
                 }
@@ -137,27 +141,26 @@ impl CountFittedIntervalArtifactWire {
         }
         // Complete rows: every fitted node was counted from exactly `rows` observations.
         for node in &nodes {
-            if let NodeTable::Counts(counts) = &node.table {
-                if counts.iter().sum::<u64>() != self.rows {
-                    return Err(protocol(
-                        "every fitted node must be counted from the same complete rows",
-                    ));
-                }
+            if let NodeTable::Counts(counts) = &node.table
+                && counts.iter().try_fold(0u64, |n, k| n.checked_add(*k)) != Some(self.rows)
+            {
+                return Err(protocol(
+                    "every fitted node must be counted from the same complete rows",
+                ));
             }
         }
-        let model = CountFittedModel::new(nodes, self.rows)
-            .map_err(|e| refused("measured_inference.invalid_report", &e.to_string()))?;
+        let model = CountFittedModel::new(nodes, self.rows).map_err(estimation_error)?;
         let find = |name: &str, level: &str| -> Result<(usize, usize), IoError> {
-            let node = self
-                .nodes
-                .iter()
-                .position(|n| n.name == name)
-                .ok_or_else(|| refused("observation_query.unknown_variable", name))?;
-            let l = self.nodes[node]
-                .levels
-                .iter()
-                .position(|l| l == level)
-                .ok_or_else(|| refused("observation_query.unknown_level", level))?;
+            let node = self.nodes.iter().position(|n| n.name == name).ok_or_else(|| {
+                refused(
+                    antecedent_core::reason_code!("unknown_variable"),
+                    antecedent_core::reason_details::observation_query::UNKNOWN_VARIABLE,
+                    name,
+                )
+            })?;
+            let l = self.nodes[node].levels.iter().position(|l| l == level).ok_or_else(|| {
+                invalid(antecedent_core::reason_details::observation_query::UNKNOWN_LEVEL, level)
+            })?;
             Ok((node, l))
         };
         let (target, level_index) = find(&self.target, &self.target_level)?;
@@ -177,10 +180,12 @@ impl CountFittedIntervalArtifactWire {
     /// A malformed source, an unknown variable or level, or evidence of probability zero.
     pub fn point(&self) -> Result<f64, IoError> {
         let resolved = self.resolve()?;
-        resolved
-            .model
-            .point(&resolved.query, resolved.prior_alpha)
-            .map_err(|e| refused("measured_inference.invalid_report", &e.to_string()))
+        resolved.model.point(&resolved.query, resolved.prior_alpha).map_err(|e| {
+            invalid(
+                antecedent_core::reason_details::measured_inference::INVALID_REPORT,
+                &e.to_string(),
+            )
+        })
     }
 
     /// Serialize a retained count-fitted source.
@@ -191,14 +196,16 @@ impl CountFittedIntervalArtifactWire {
         crate::to_cbor(self)
     }
 
-    /// The draw count lies in the supported range, from the minimum to the bound.
+    /// The draw count lies in the computable range. A count below [`MEASURED_DRAWS`] is computed
+    /// and reported; its calibration is `outside_measured_scope`, and the Monte Carlo error rule
+    /// refuses an interval whose endpoints have not converged.
     ///
     /// # Errors
-    /// A count below [`MEASURED_DRAWS`] or above the estimator's draw bound.
+    /// No draws, or a count above the estimator's draw bound.
     pub fn check_draws(&self) -> Result<(), IoError> {
-        if self.draws < MEASURED_DRAWS || self.draws as usize > MAX_DRAWS {
+        if self.draws == 0 || self.draws as usize > MAX_DRAWS {
             return Err(protocol(&format!(
-                "posterior draws must lie in {MEASURED_DRAWS}..={MAX_DRAWS}, got {}",
+                "posterior draws must lie in 1..={MAX_DRAWS}, got {}",
                 self.draws
             )));
         }
@@ -231,9 +238,6 @@ impl CountFittedIntervalArtifactWire {
     /// and the Monte Carlo error of the endpoints against `mcse_tolerance`.
     fn replay(&self, mcse_tolerance: f64) -> Result<PosteriorInterval, IoError> {
         let resolved = self.resolve()?;
-        if resolved.prior_alpha.to_bits() != MEASURED_PRIOR_ALPHA.to_bits() {
-            return Err(protocol("only the uniform Dirichlet prior was measured"));
-        }
         self.check_draws()?;
         let interval = resolved
             .model
@@ -244,11 +248,12 @@ impl CountFittedIntervalArtifactWire {
                 self.draws,
                 self.seed,
             )
-            .map_err(|e| refused("measured_inference.invalid_report", &e.to_string()))?;
+            .map_err(estimation_error)?;
         let fraction = interval.mcse_width_fraction();
         if fraction.is_nan() || fraction > mcse_tolerance {
             return Err(refused(
-                "measured_interval.draws_not_converged",
+                antecedent_core::reason_code!("posterior_draws_not_converged"),
+                antecedent_core::reason_details::measured_interval::DRAWS_NOT_CONVERGED,
                 &format!(
                     "the Monte Carlo standard error of an interval endpoint ({:.3e} lower, \
                      {:.3e} upper) is {fraction:.3} of the interval width, above the \
@@ -264,16 +269,15 @@ impl CountFittedIntervalArtifactWire {
     /// current calibration evidence.
     ///
     /// # Errors
-    /// A non-canonical or malformed source, a construction outside the measured
-    /// protocol (prior, a draw count below the supported minimum or above the bound,
-    /// complete rows), endpoints whose Monte Carlo error exceeds
-    /// [`MAX_ENDPOINT_MCSE_FRACTION`] of the width, evidence of probability zero, or a
-    /// construction with no currently attesting record.
+    /// A non-canonical or malformed source, a draw count of zero or above the bound,
+    /// incomplete rows, endpoints whose Monte Carlo error exceeds
+    /// [`MAX_ENDPOINT_MCSE_FRACTION`] of the width, or evidence of probability zero. A prior or
+    /// draw count no record measured still reports its interval, annotated by calibration.
     pub fn measure(bytes: &[u8]) -> Result<MeasuredInference, IoError> {
         let wire: Self = crate::from_cbor(bytes)?;
         if crate::to_cbor(&wire)? != bytes {
-            return Err(refused(
-                "measured_inference.artifact_mismatch",
+            return Err(invalid(
+                antecedent_core::reason_details::measured_inference::ARTIFACT_MISMATCH,
                 "count-fitted source is not canonical",
             ));
         }
@@ -318,7 +322,17 @@ impl CountFittedIntervalArtifactWire {
                 name: FUNCTIONAL_ID.into(),
                 point: interval.point,
                 interval: (interval.lower, interval.upper),
-                basis: calibration_basis(interval.rows, interval.level, interval.draws),
+                basis: {
+                    let mut basis =
+                        calibration_basis(interval.rows, interval.level, interval.draws);
+                    if f64::from_bits(wire.prior_alpha_bits).to_bits()
+                        != MEASURED_PRIOR_ALPHA.to_bits()
+                    {
+                        // Another prior is another posterior: no record measured it.
+                        basis.posterior = "dirichlet.prior_not_measured".into();
+                    }
+                    basis
+                },
             }],
         )
     }
@@ -384,6 +398,32 @@ mod tests {
     }
 
     #[test]
+    fn malformed_parent_lists_and_excessive_replay_work_are_refused() {
+        let mut malformed = wire(MEASURED_DRAWS);
+        malformed.nodes[1].parents = vec![0; usize::BITS as usize];
+        malformed.nodes[1].counts = None;
+        malformed.nodes[1].declared_bits = Some(vec![]);
+        let error = malformed.resolve().err().expect("duplicate parents refused");
+        assert!(error.to_string().contains("duplicate parent"));
+
+        let mut excessive = wire(MEASURED_DRAWS);
+        excessive.nodes = (0..20)
+            .map(|i| CountFittedNodeWire {
+                name: format!("n{i}"),
+                levels: levels(),
+                parents: vec![],
+                counts: Some(vec![50, 50]),
+                declared_bits: None,
+            })
+            .collect();
+        excessive.target = "n0".into();
+        excessive.evidence.clear();
+        let error = excessive.replay(1.0).unwrap_err();
+        assert!(matches!(error, IoError::Refused { code: "transport_budget_cancel", .. }));
+        assert!(error.to_string().contains("enumeration-work limit"));
+    }
+
+    #[test]
     fn every_draw_count_from_the_supported_minimum_replays() {
         let mut fractions = Vec::new();
         for draws in [2000, 3000, 4000, 8000] {
@@ -408,22 +448,22 @@ mod tests {
     }
 
     #[test]
-    fn draws_below_the_supported_minimum_or_above_the_bound_are_refused() {
-        for draws in [0, 2, 1000, MEASURED_DRAWS - 1, u32::try_from(MAX_DRAWS).unwrap() + 1] {
+    fn zero_draws_or_draws_above_the_bound_are_refused() {
+        for draws in [0, u32::try_from(MAX_DRAWS).unwrap() + 1] {
             let error = wire(draws).replay(MAX_ENDPOINT_MCSE_FRACTION).unwrap_err();
             let message = detail(&error);
-            assert!(message.contains("protocol_not_measured"), "{draws}: {message}");
+            assert!(message.contains("invalid_source"), "{draws}: {message}");
             assert!(message.contains(&format!("got {draws}")), "{message}");
         }
         assert!(wire(u32::try_from(MAX_DRAWS).unwrap()).replay(1.0).is_ok());
     }
 
     #[test]
-    fn a_non_measured_prior_is_still_refused() {
+    fn a_non_measured_prior_is_computed_and_replays() {
         let other =
             CountFittedIntervalArtifactWire { prior_alpha_bits: 0.5_f64.to_bits(), ..wire(2000) };
-        let message = detail(&other.replay(1.0).unwrap_err());
-        assert!(message.contains("protocol_not_measured"), "{message}");
+        let interval = other.replay(1.0).expect("another prior is computed");
+        assert!(interval.lower < interval.upper);
     }
 
     #[test]
@@ -435,21 +475,20 @@ mod tests {
         // just below it, naming the error, the fraction and the tolerance.
         assert!(source.replay(fraction * 1.001).is_ok());
         let message = detail(&source.replay(fraction * 0.999).unwrap_err());
-        assert!(message.contains("measured_interval.draws_not_converged"), "{message}");
+        assert!(
+            message
+                .contains(antecedent_core::reason_details::measured_interval::DRAWS_NOT_CONVERGED),
+            "{message}"
+        );
         assert!(message.contains("more posterior draws"), "{message}");
     }
 
     #[test]
     fn a_draw_count_below_the_supported_minimum_is_refused_naming_it() {
-        let error = wire(200).replay(MAX_ENDPOINT_MCSE_FRACTION).unwrap_err();
-        let message = detail(&error);
-        assert!(message.contains("measured_interval.protocol_not_measured"), "{message}");
-        assert!(message.contains("2000..=100000, got 200"), "{message}");
         assert_eq!(MEASURED_DRAWS, 2000);
-        assert!(wire(200).check_draws().is_err() && wire(MEASURED_DRAWS).check_draws().is_ok());
-        // The refusal comes before any draw is made, so no interval can carry the count.
-        assert!(wire(1999).replay(1.0).is_err());
+        assert!(wire(0).check_draws().is_err() && wire(200).check_draws().is_ok());
         assert!(wire(MEASURED_DRAWS).replay(1.0).is_ok());
+        assert!(wire(1999).replay(1.0).is_ok());
     }
 
     #[test]
@@ -462,7 +501,11 @@ mod tests {
         // error these draws have, as draws that mix poorly would leave) is refused with
         // the diagnostic, both endpoint errors and the tolerance named.
         let message = detail(&source.replay(fraction * 0.5).unwrap_err());
-        assert!(message.contains("measured_interval.draws_not_converged"), "{message}");
+        assert!(
+            message
+                .contains(antecedent_core::reason_details::measured_interval::DRAWS_NOT_CONVERGED),
+            "{message}"
+        );
         assert!(message.contains("Monte Carlo standard error"), "{message}");
         assert!(message.contains(&format!("{:.3e} lower", interval.lower_mcse)), "{message}");
         assert!(message.contains(&format!("{:.3e} upper", interval.upper_mcse)), "{message}");

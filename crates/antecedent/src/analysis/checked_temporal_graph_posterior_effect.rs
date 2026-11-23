@@ -1,6 +1,6 @@
 //! Checked pulse and sustained effect operation over a temporal graph posterior.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::analysis::prepared::Inspect;
 use crate::analysis::route_guards::inference_label;
@@ -12,6 +12,7 @@ use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind};
 use antecedent_prob::WeightedGraphSamples;
 
 use super::builder::{DataInput, RefuteSuite};
+use super::checked_sealed_procedure::{PlanBindingScope, SealedProcedure};
 use super::execute::Study;
 use super::posterior_binding::{
     CacheKeys, PosteriorProof, identified_key_set, validate_posterior_cache,
@@ -43,17 +44,11 @@ pub(crate) struct CheckedTemporalGraphPosteriorEffect {
     posterior: Arc<GraphPosterior>,
     query: TemporalEffectQuery,
     proof: CheckedTemporalGraphPosteriorProof,
-    inference: InferenceMode,
-    identifier: IdentifierId,
-    estimator: EstimatorId,
-    bootstrap_replicates: u32,
     split: Option<DiscoveryEstimationSplit>,
-    max_completions: Option<usize>,
-    validation: RefuteSuite,
-    physical: std::sync::Arc<PhysicalExecutionPlan>,
+    sealed: SealedProcedure,
 }
 
-/// The frozen premises of [`CheckedTemporalGraphPosteriorEffect::prepare`], carried together.
+/// The sealed premises of [`CheckedTemporalGraphPosteriorEffect::prepare`], carried together.
 pub(crate) struct CheckedTemporalGraphPosteriorEffectPremises<'a> {
     pub(crate) posterior: GraphPosterior,
     pub(crate) query: TemporalEffectQuery,
@@ -81,18 +76,23 @@ impl CheckedTemporalGraphPosteriorEffect {
         };
         matches!(study.data, DataInput::Temporal(_) | DataInput::Event(_))
             && matches!(
-                posterior.atom_kind,
+                posterior.atom_kind(),
                 GraphPosteriorAtomKind::Dag
                     | GraphPosteriorAtomKind::Cpdag
                     | GraphPosteriorAtomKind::Pag
             )
-            && study.tiered.is_none()
-            && study.custom_validators.is_empty()
+            && study.declared.tiered.is_none()
+            && study.declared.custom_validators.is_empty()
             && study.point_validation()
             && query.policy.is_pulse_or_sustained()
+            // A conditional effect is not this operation. Over TemporalDag atoms it is answered
+            // atom by atom with the interval of the whole procedure; over class atoms the plan
+            // binds the completion-weighted linear producer under generalized adjustment, which
+            // this operation's sealer does not retain.
+            && query.effect_modifiers.is_empty()
             && study
-                .estimator
-                .is_none_or(|id| id == EstimatorId::temporal_effect_for(query, &study.inference))
+                .declared.estimator
+                .is_none_or(|id| id == EstimatorId::temporal_effect_for(query, &study.settings.inference))
     }
 
     pub(crate) fn prepare(
@@ -121,7 +121,7 @@ impl CheckedTemporalGraphPosteriorEffect {
                 message: "checked temporal graph-posterior effect supports none, cheap, or full validation",
             });
         }
-        match (&proof, posterior.atom_kind) {
+        match (&proof, posterior.atom_kind()) {
             (CheckedTemporalGraphPosteriorProof::Dbn(_), GraphPosteriorAtomKind::Dag)
             | (
                 CheckedTemporalGraphPosteriorProof::Class(_),
@@ -133,7 +133,7 @@ impl CheckedTemporalGraphPosteriorEffect {
                 });
             }
         }
-        if posterior.lag_masks.is_none() || posterior.max_lag.is_none() {
+        if posterior.lag_masks().is_none() || posterior.max_lag().is_none() {
             return Err(CausalError::Unsupported {
                 message: "checked temporal graph-posterior effect requires per-atom lag masks",
             });
@@ -146,27 +146,27 @@ impl CheckedTemporalGraphPosteriorEffect {
             });
         }
         let target = CausalQuery::TemporalEffect(query.clone());
-        if physical.logical.query != target || !physical.binding().names(identifier, estimator) {
-            return Err(CausalError::Compile {
-                message:
-                    "temporal graph-posterior physical plan disagrees with its retained procedure"
-                        .into(),
-            });
-        }
-        validate_proof_binding(&posterior, &target, &proof)?;
-        Ok(Self {
-            posterior: Arc::new(posterior),
-            query,
-            proof,
-            inference,
+        let sealed = SealedProcedure::new(
             identifier,
             estimator,
+            inference,
             bootstrap_replicates,
-            split,
-            max_completions,
             validation,
             physical,
-        })
+            max_completions,
+        );
+        sealed.validate_plan_binding(
+            &target,
+            PlanBindingScope::Procedure,
+            "temporal graph-posterior physical plan disagrees with its retained procedure",
+        )?;
+        validate_proof_binding(&posterior, &target, &proof)?;
+        Ok(Self { posterior: Arc::new(posterior), query, proof, split, sealed })
+    }
+
+    /// The procedure settings sealed with the proof.
+    pub(crate) fn sealed(&self) -> &SealedProcedure {
+        &self.sealed
     }
 
     #[must_use]
@@ -186,22 +186,22 @@ impl CheckedTemporalGraphPosteriorEffect {
 
     #[must_use]
     pub(crate) fn inference(&self) -> &InferenceMode {
-        &self.inference
+        self.sealed.inference()
     }
 
     #[must_use]
     pub(crate) const fn identifier(&self) -> IdentifierId {
-        self.identifier
+        self.sealed.identifier()
     }
 
     #[must_use]
     pub(crate) const fn estimator(&self) -> EstimatorId {
-        self.estimator
+        self.sealed.estimator()
     }
 
     #[must_use]
     pub(crate) const fn bootstrap_replicates(&self) -> u32 {
-        self.bootstrap_replicates
+        self.sealed.bootstrap_replicates()
     }
 
     #[must_use]
@@ -210,18 +210,13 @@ impl CheckedTemporalGraphPosteriorEffect {
     }
 
     #[must_use]
-    pub(crate) const fn max_completions(&self) -> Option<usize> {
-        self.max_completions
-    }
-
-    #[must_use]
     pub(crate) const fn validation(&self) -> RefuteSuite {
-        self.validation
+        self.sealed.validation()
     }
 
     #[must_use]
     pub(crate) fn physical(&self) -> &PhysicalExecutionPlan {
-        &self.physical
+        self.sealed.physical()
     }
 
     #[must_use]
@@ -233,18 +228,18 @@ impl CheckedTemporalGraphPosteriorEffect {
     #[must_use]
     pub(crate) fn matches_posterior(&self, posterior: &GraphPosterior) -> bool {
         let sealed = &*self.posterior;
-        sealed.atom_kind == posterior.atom_kind
-            && sealed.n_vars == posterior.n_vars
-            && sealed.n_graphs == posterior.n_graphs
-            && sealed.max_lag == posterior.max_lag
+        sealed.atom_kind() == posterior.atom_kind()
+            && sealed.n_vars() == posterior.n_vars()
+            && sealed.n_graphs() == posterior.n_graphs()
+            && sealed.max_lag() == posterior.max_lag()
             && sealed
-                .weights
+                .weights()
                 .iter()
-                .zip(posterior.weights.iter())
+                .zip(posterior.weights().iter())
                 .all(|(a, b)| a.to_bits() == b.to_bits())
-            && sealed.atoms == posterior.atoms
-            && sealed.graph_keys == posterior.graph_keys
-            && sealed.lag_masks == posterior.lag_masks
+            && sealed.atoms() == posterior.atoms()
+            && sealed.graph_keys() == posterior.graph_keys()
+            && sealed.lag_masks() == posterior.lag_masks()
     }
 
     /// Number of identified atoms carrying a retained proof.
@@ -357,7 +352,7 @@ impl Inspect for CheckedTemporalGraphPosteriorEffect {
         let (graph_keys, weights, identified) = self.sample_mass();
         CheckedTemporalGraphPosteriorEffectInfo {
             query: self.query().clone(),
-            atom_kind: self.posterior().atom_kind,
+            atom_kind: self.posterior().atom_kind(),
             identifier: self.identifier(),
             estimator: self.estimator(),
             validation: self.validation(),

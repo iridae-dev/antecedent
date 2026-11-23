@@ -5,7 +5,7 @@
 //! Every route calls the same per-node precedence and program executor, so on identical
 //! noise the values agree bit for bit; independent hand computations pin the values.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -327,6 +327,36 @@ fn a_transform_with_a_lag_read_matches_the_hand_recursion_and_the_static_route_w
 }
 
 #[test]
+fn temporal_rollout_admits_history_and_retained_path_before_allocating() {
+    let model = price_model();
+    let schedule = InterventionSequence::new(vec![]);
+    let limited = ExecutionContext::for_tests(9).with_memory_limit(Some(50_000));
+    let mut ws = MechanismWorkspace::default();
+    let mut rng = CausalRng::from_seed(1);
+    let small = TemporalPlan {
+        sequence: &schedule,
+        n_steps: 2,
+        n_rows: 32,
+        window: 0,
+        initial_history: &[],
+    };
+    let path =
+        rollout_temporal(&model, &small, TemporalNoise::Draw(&mut rng), &mut ws, &limited).unwrap();
+    assert_eq!(path.column(0, 0).unwrap().len(), 32);
+    let huge = TemporalPlan { window: 1_000_000, ..small };
+    assert!(matches!(
+        rollout_temporal(&model, &huge, TemporalNoise::Draw(&mut rng), &mut ws, &limited),
+        Err(antecedent_model::ModelError::ResourceLimit { .. })
+    ));
+    let cancelled = ExecutionContext::for_tests(9);
+    cancelled.cancellation.cancel();
+    assert!(matches!(
+        rollout_temporal(&model, &small, TemporalNoise::Draw(&mut rng), &mut ws, &cancelled),
+        Err(antecedent_model::ModelError::Cancelled)
+    ));
+}
+
+#[test]
 fn history_the_route_cannot_supply_is_refused() {
     let model = price_model();
     let ctx = ExecutionContext::for_tests(9);
@@ -383,4 +413,42 @@ fn history_the_route_cannot_supply_is_refused() {
             .unwrap_err()
             .to_string();
     assert!(error.contains("policy_history_unavailable"), "{error}");
+}
+
+#[test]
+fn history_availability_refuses_only_the_cells_the_active_policy_reads() {
+    let model = price_model();
+    let ctx = ExecutionContext::for_tests(7);
+    let initial = [ValueBatch { n_rows: 1, n_nodes: 2, values: Arc::from([30.0, f64::NAN]) }];
+    let availability = [true, false];
+    let run = |read: VariableId, from: i32, steps: usize| {
+        let schedule = InterventionSequence::new(vec![SequencedIntervention::new(
+            Intervention::assign(PRICE, ValueExpr::lag(read, 1)),
+            TemporalPolicy::sustained(from, 10),
+        )]);
+        let plan = TemporalPlan {
+            sequence: &schedule,
+            n_steps: steps,
+            n_rows: 1,
+            window: 1,
+            initial_history: &initial,
+        };
+        let mut rng = CausalRng::from_seed(5);
+        let mut ws = MechanismWorkspace::default();
+        antecedent_model::rollout_temporal_with_history_availability(
+            &model,
+            &plan,
+            Some(&availability),
+            TemporalNoise::Draw(&mut rng),
+            &mut ws,
+            &ctx,
+        )
+    };
+    let actual = run(PRICE, 0, 1).unwrap();
+    assert_eq!(actual.column(0, 0).unwrap(), &[30.0]);
+    let error = run(DEMAND, 0, 1).unwrap_err().to_string();
+    assert!(error.contains("unavailable history"), "{error}");
+    // At step 1 the previous demand has been generated, so the missing
+    // pre-origin demand cell is no longer needed.
+    assert!(run(DEMAND, 1, 2).is_ok());
 }

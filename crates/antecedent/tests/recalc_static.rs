@@ -1,8 +1,8 @@
 //! Actual-work and independent finite-law oracles for static recalculation.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #[path = "../../antecedent-estimate/tests/common/mod.rs"]
 mod common;
-use antecedent::analysis::recalc_receipt::{RecalcRunError, UtilitySpec};
+use antecedent::analysis::recalc_receipt::{RecalcRequestCode, RecalcRunError, UtilitySpec};
 use antecedent::analysis::recalc_static::{
     MzRecalcRequest, MzRecalcSession, StaticResponseRequest, StaticResponseSession,
     execute_mz_with_receipt, execute_static_response_with_receipt,
@@ -14,8 +14,8 @@ use antecedent_expr::{Assignment, ExactEvaluationLimits};
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_identify::MZ_TRANSPORT_DEFAULT_LIMITS;
 use antecedent_identify::execution_counts::count_checked_identifications;
-use antecedent_io::consume_analysis_result;
 use antecedent_io::mz_transport_artifact::MzTransportConsumeLimits;
+use antecedent_io::replay_analysis_result;
 
 fn static_oracle() -> serde_json::Value {
     serde_json::from_str(include_str!(concat!(
@@ -46,7 +46,7 @@ fn response() -> StaticResponseRequest {
     graph.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
     graph.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
     StaticResponseRequest {
-        columns,
+        columns: columns.into(),
         graph,
         treatment: VariableId::from_raw(0),
         outcome: VariableId::from_raw(2),
@@ -92,7 +92,10 @@ fn frontdoor_actual_components_and_coordinate_reuse() {
             execute_static_response_with_receipt(&mut StaticResponseSession::new(), &invalid, &ctx)
         })
     });
-    assert!(matches!(refusal, Err(RecalcRunError::Request("recalc.static_action_out_of_support"))));
+    assert!(matches!(
+        refusal,
+        Err(RecalcRunError::Request(RecalcRequestCode::StaticActionOutOfSupport))
+    ));
     assert_eq!(checks, 0);
     assert_eq!(work, StaticWorkCounts::default());
     let ((out, checks), work) = count_static_work(|| {
@@ -118,7 +121,7 @@ fn frontdoor_actual_components_and_coordinate_reuse() {
                 [..]
         )
     );
-    consume_analysis_result(&session.export_result(&ctx).unwrap()).unwrap();
+    replay_analysis_result(&session.export_result(&ctx).unwrap()).unwrap();
     let ids = session.factor_identities();
     let same = execute_static_response_with_receipt(&mut session, &request, &ctx).unwrap();
     assert_eq!(same.receipt.totals().total(), 0);
@@ -135,7 +138,7 @@ fn frontdoor_actual_components_and_coordinate_reuse() {
     request.actions[0] = 2.0;
     assert!(matches!(
         execute_static_response_with_receipt(&mut session, &request, &ctx),
-        Err(RecalcRunError::Request("recalc.static_action_out_of_support"))
+        Err(RecalcRunError::Request(RecalcRequestCode::StaticActionOutOfSupport))
     ));
     request.actions[0] = 1.0;
     assert_eq!(
@@ -270,11 +273,14 @@ fn refusal_is_transactional_and_receipts_do_not_grant_live_factors() {
     let mut session = StaticResponseSession::new();
     execute_static_response_with_receipt(&mut session, &request, &ctx).unwrap();
     let mut budget = ExecutionContext::for_tests(9);
-    budget.memory.hard_limit_bytes = Some(1);
+    budget.set_memory_limit(Some(1));
     request.columns[2].1[0] = 1.0;
     let (failed, work) =
         count_static_work(|| execute_static_response_with_receipt(&mut session, &request, &budget));
-    assert!(failed.is_err());
+    assert!(
+        matches!(failed, Err(RecalcRunError::Request(RecalcRequestCode::MemoryBudgetExceeded))),
+        "a one-byte memory budget is refused before any factor is built"
+    );
     assert_eq!(work.factor_builds, 0);
     request = response();
     assert_eq!(
@@ -344,7 +350,7 @@ fn verma_checked_scalar_functionals_match_enumerated_latent_scm() {
     }
     graph.insert_bidirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(3)).unwrap();
     let request = StaticResponseRequest {
-        columns,
+        columns: columns.into(),
         graph,
         treatment: VariableId::from_raw(1),
         outcome: VariableId::from_raw(3),
@@ -364,7 +370,7 @@ fn verma_checked_scalar_functionals_match_enumerated_latent_scm() {
         (result.means[1] - static_oracle()["verma_do_means"][1].as_f64().unwrap()).abs() < 1e-12
     );
     assert!((result.contrast - static_oracle()["verma_contrast"].as_f64().unwrap()).abs() < 1e-12);
-    consume_analysis_result(&session.export_result(&ctx).unwrap()).unwrap();
+    replay_analysis_result(&session.export_result(&ctx).unwrap()).unwrap();
 }
 #[test]
 fn bounded_search_missing_provider_and_shared_evidence_keep_point_only_contract() {
@@ -404,7 +410,7 @@ fn bounded_search_missing_provider_and_shared_evidence_keep_point_only_contract(
     let bytes = session.export_result(&ctx).unwrap();
     let wire =
         antecedent_io::mz_transport_artifact::MzTransportArtifactWire::decode(&bytes).unwrap();
-    assert_eq!(wire.uncertainty.status, antecedent_io::mz_transport_artifact::MZ_WITHHELD);
+    assert_eq!(wire.uncertainty.status, antecedent_io::mz_transport_artifact::MZ_NOMINAL_INTERVAL);
     consume_mz_transport_artifact(&bytes, MzTransportConsumeLimits::default(), &ctx).unwrap();
 }
 #[test]
@@ -415,7 +421,13 @@ fn graph_and_query_substitution_recheck_identification() {
     let mut session = StaticResponseSession::new();
     execute_static_response_with_receipt(&mut session, &request, &ctx).unwrap();
     request.graph.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    assert!(execute_static_response_with_receipt(&mut session, &request, &ctx).is_err());
+    assert!(
+        matches!(
+            execute_static_response_with_receipt(&mut session, &request, &ctx),
+            Err(RecalcRunError::Execution(antecedent::CausalError::NotIdentified { .. }))
+        ),
+        "a bidirected X-Y edge makes the effect not identified"
+    );
     assert_eq!(
         execute_static_response_with_receipt(&mut session, &original, &ctx)
             .unwrap()
@@ -462,7 +474,7 @@ fn generic_refresh_exports_actual_refreshed_factor_snapshot() {
     for y in &mut request.columns[2].1 {
         *y = 1.0 - *y;
     }
-    let result = prepared.refresh(data(&request.columns), &ctx).unwrap();
+    let result = rebind_estimate(&mut prepared, data(&request.columns), &ctx).unwrap();
     let antecedent_core::ResponseIdentification::PointIdentified(
         antecedent_core::ResponseValue::Surface { mean, .. },
     ) = &result.response().unwrap().estimate
@@ -471,7 +483,7 @@ fn generic_refresh_exports_actual_refreshed_factor_snapshot() {
     };
     assert!((mean[1] - mean[0] + 0.282).abs() < 1e-12);
     let bytes = prepared.encode_contracted_result(&result, "changed-factor-refresh", &ctx).unwrap();
-    consume_analysis_result(&bytes).unwrap();
+    replay_analysis_result(&bytes).unwrap();
 }
 
 #[test]
@@ -493,11 +505,14 @@ fn dense_factor_workspace_respects_budget_before_provider_construction() {
     }
     request.graph.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
     let mut ctx = ExecutionContext::for_tests(31);
-    ctx.memory.hard_limit_bytes = Some(65_536);
+    ctx.set_memory_limit(Some(65_536));
     let (result, work) = count_static_work(|| {
         execute_static_response_with_receipt(&mut StaticResponseSession::new(), &request, &ctx)
     });
-    assert!(matches!(result, Err(RecalcRunError::Request("recalc.memory_budget_exceeded"))));
+    assert!(matches!(
+        result,
+        Err(RecalcRunError::Request(RecalcRequestCode::MemoryBudgetExceeded))
+    ));
     assert_eq!(work.factor_builds, 0);
     assert_eq!(work.provider_bindings, 0);
 }
@@ -509,13 +524,29 @@ fn adjacent_dag_and_unsorted_grid_refuse_before_work() {
     let (result, work) = count_static_work(|| {
         execute_static_response_with_receipt(&mut StaticResponseSession::new(), &request, &ctx)
     });
-    assert!(matches!(result, Err(RecalcRunError::Request("recalc.static_invalid_query"))));
+    assert!(matches!(result, Err(RecalcRunError::Request(RecalcRequestCode::StaticInvalidQuery))));
     assert_eq!(work.factor_builds, 0);
     request = response();
     request.graph = Admg::with_variables(3);
     let (result, work) = count_static_work(|| {
         execute_static_response_with_receipt(&mut StaticResponseSession::new(), &request, &ctx)
     });
-    assert!(matches!(result, Err(RecalcRunError::Request("recalc.static_graph_unsupported"))));
+    assert!(matches!(
+        result,
+        Err(RecalcRunError::Request(RecalcRequestCode::StaticGraphUnsupported))
+    ));
     assert_eq!(work.provider_bindings, 0);
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

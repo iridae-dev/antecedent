@@ -1,17 +1,73 @@
 //! Field checks for a decoded analysis-result body.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::graphless::{
     graphless_status_ok, validate_continuous_dose_graphless, validate_did_graphless,
-    validate_longitudinal_graphless, validate_policy_graphless, validate_randomized_graphless,
-    validate_ratio_graphless, validate_survival_graphless,
+    validate_history_match_graphless, validate_longitudinal_graphless, validate_policy_graphless,
+    validate_randomized_graphless, validate_ratio_graphless,
+    validate_sequential_contrast_graphless, validate_survival_graphless,
 };
 use super::{
     AnalysisResultWire, StructuralResponseMixtureWire, TemporalMediationGridWire,
     TemporalMediationUncertaintyWire, UnitEffectsWire, identified_set_interval_from_wire,
 };
 use crate::{CausalQueryWire, IdentificationResultWire, IoError};
+use std::collections::HashMap;
+
+// Equality matches `ValueWire` for finite values, including signed zero. Non-finite
+// values never match a valid atom and are refused by the existing validation below.
+#[derive(Clone, Eq, Hash, PartialEq)]
+enum DistributionValueKey<'a> {
+    Float64(u64),
+    Int64(i64),
+    Bool(bool),
+    Category(u32),
+    Label(&'a str),
+}
+
+type DistributionAssignmentKey<'a> = Vec<(u32, DistributionValueKey<'a>)>;
+type DistributionAtomKey<'a> = (DistributionAssignmentKey<'a>, DistributionAssignmentKey<'a>);
+
+fn distribution_assignment_key(
+    assignment: &[(u32, crate::ValueWire)],
+) -> Option<DistributionAssignmentKey<'_>> {
+    assignment
+        .iter()
+        .map(|(id, value)| {
+            let value = match value {
+                crate::ValueWire::Float64(value) if value.is_finite() => {
+                    DistributionValueKey::Float64(
+                        crate::query_wire::canonical_zero(*value).to_bits(),
+                    )
+                }
+                crate::ValueWire::Float64(_) => return None,
+                crate::ValueWire::Int64(value) => DistributionValueKey::Int64(*value),
+                crate::ValueWire::Bool(value) => DistributionValueKey::Bool(*value),
+                crate::ValueWire::Category(value) => DistributionValueKey::Category(*value),
+                crate::ValueWire::Label(value) => DistributionValueKey::Label(value),
+            };
+            Some((*id, value))
+        })
+        .collect()
+}
+
+// Count the entire list before checking each atom. The existing refusal order
+// detects a later duplicate even when that later atom has invalid probability.
+fn distribution_atom_counts(
+    atoms: &[super::DistributionAtomWire],
+) -> HashMap<DistributionAtomKey<'_>, usize> {
+    let mut counts = HashMap::with_capacity(atoms.len());
+    for atom in atoms {
+        if let (Some(conditioning), Some(outcomes)) = (
+            distribution_assignment_key(&atom.conditioning),
+            distribution_assignment_key(&atom.outcomes),
+        ) {
+            *counts.entry((conditioning, outcomes)).or_insert(0) += 1;
+        }
+    }
+    counts
+}
 
 // allow(too_many_lines): single dispatch over every result-variant validator; splitting hides the total contract
 #[allow(
@@ -34,6 +90,11 @@ pub(super) fn validate_result(
         }
         if model.features.iter().any(|v| *v as usize >= variable_names.len()) {
             return Err(IoError::Convert("fitted effect names an unknown feature".into()));
+        }
+    }
+    for report in &result.refutations {
+        if let Some(scope) = &report.scope {
+            crate::analysis_wire::validate_refutation_scope(scope)?;
         }
     }
     validate_variable_names(variable_names)?;
@@ -72,14 +133,12 @@ pub(super) fn validate_result(
         if let Some(interval) = &inference.interval {
             if let crate::AssignmentDesignWire::ObservedExposure { provenance, .. } =
                 &query.assignment
-            {
-                if provenance != "known"
+                && (provenance != "known"
                     || inference.from_exposed_clusters < 8
                     || inference.to_exposed_clusters < 8
-                    || interval.degrees_of_freedom < 29.0
-                {
-                    return Err(IoError::Convert("observational exposure interval requires known probabilities and independent-cluster support".into()));
-                }
+                    || interval.degrees_of_freedom < 29.0)
+            {
+                return Err(IoError::Convert("observational exposure interval requires known probabilities and independent-cluster support".into()));
             }
             if !interval.lower.is_finite()
                 || !interval.upper.is_finite()
@@ -104,17 +163,17 @@ pub(super) fn validate_result(
             }
         }
         // A published, support-passing interval on one of the three off-axis
-        // cluster designs is exactly the licensed condition; every invalid or
+        // cluster designs is exactly the supported condition; every invalid or
         // unsupported interval was already refused above, so recomputing the
-        // license from the published interval catches a forged status.
-        let graphless_licensed = inference.interval.is_some();
+        // support from the published interval catches a forged status.
+        let graphless_supported = inference.interval.is_some();
         if !graphless_status_ok(
             inference.graphless_support_status.as_deref(),
-            graphless_licensed,
+            graphless_supported,
             allow_legacy_graphless_missing,
         ) {
             return Err(IoError::Convert(
-                "interference graphless license does not match the published interval support"
+                "interference graphless support does not match the published interval support"
                     .into(),
             ));
         }
@@ -122,19 +181,65 @@ pub(super) fn validate_result(
     if matches!(&result.query, crate::CausalQueryWire::RandomizedEffect(query)
         if matches!(query.design, crate::RandomizationDesignWire::Switchback))
         && result.randomized_effect.is_none()
+        && result.posterior_artifact.is_none()
     {
         return Err(IoError::Convert(
             "switchback artifact is missing its randomized result section".into(),
         ));
     }
     validate_randomized_graphless(result, allow_legacy_graphless_missing)?;
-    if matches!(result.query, crate::CausalQueryWire::PanelDid(_)) && result.panel_did.is_none() {
+    // A Bayesian design posterior states its support row in a coded diagnostic. The stated row
+    // must admit the support stated with it, and only a result with a posterior can state one.
+    if result.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == crate::graphless_support::DESIGN_POSTERIOR_ROW_CODE
+            && (result.posterior_artifact.is_none()
+                || !crate::graphless_support::design_posterior_row_stated(&diagnostic.fields))
+    }) {
+        return Err(IoError::Convert(
+            "a design posterior states a graphless support row that does not admit it".into(),
+        ));
+    }
+    // A design section states its support row in a coded diagnostic too; the row is
+    // recomputed from the stored query and section.
+    super::stated_section_rows::validate_stated_section_rows(result)?;
+    // A Bayesian design result carries its posterior in place of the design-specific frequentist
+    // section; exactly one of the two must be present.
+    let design_posterior = result.posterior_artifact.is_some();
+    // A rollout design result carries its rollout section in place of the design's own one.
+    let rollout = result.quasi_rollout.is_some();
+    // A Bayesian rollout section rides beside its posterior; the section validator checks the
+    // pairing, so here it only counts as present beside the posterior.
+    let bayesian_rollout = result
+        .quasi_rollout
+        .as_ref()
+        .is_some_and(|section| section.uncertainty.starts_with("bayesian_"));
+    let frequentist_rollout = rollout && !bayesian_rollout;
+    if matches!(result.query, crate::CausalQueryWire::PanelDid(_))
+        && ((result.panel_did.is_some() || frequentist_rollout) == design_posterior
+            || (result.panel_did.is_some() && rollout))
+    {
         return Err(IoError::Convert(
             "panel DiD artifact is missing its design-specific result section".into(),
         ));
     }
     if let crate::CausalQueryWire::SyntheticControl(query) = &result.query {
-        if query.difference_in_differences {
+        if rollout {
+            if design_posterior != bayesian_rollout
+                || result.synthetic_did.is_some()
+                || result.synthetic_control.is_some()
+            {
+                return Err(IoError::Convert(
+                    "a synthetic rollout section replaces the weight sections and the posterior"
+                        .into(),
+                ));
+            }
+        } else if design_posterior {
+            if result.synthetic_did.is_some() || result.synthetic_control.is_some() {
+                return Err(IoError::Convert(
+                    "a synthetic-control posterior replaces the frequentist weight sections".into(),
+                ));
+            }
+        } else if query.difference_in_differences {
             if result.synthetic_did.is_none() || result.synthetic_control.is_some() {
                 return Err(IoError::Convert(
                     "synthetic DiD artifact requires its distinct weight result section".into(),
@@ -147,14 +252,56 @@ pub(super) fn validate_result(
         }
     }
     if matches!(result.query, crate::CausalQueryWire::LocalPolynomialRatio(_))
-        && result.local_polynomial_ratio.is_none()
+        && ((result.local_polynomial_ratio.is_some() || frequentist_rollout) == design_posterior
+            || (result.local_polynomial_ratio.is_some() && rollout))
     {
         return Err(IoError::Convert(
             "local ratio artifact is missing its design-specific result section".into(),
         ));
     }
     validate_ratio_graphless(result)?;
-    if matches!(result.query, crate::CausalQueryWire::Survival(_)) && result.survival.is_none() {
+    if let Some(row) = &result.posterior_row {
+        if row.randomized_ipow.is_some()
+            && !matches!(result.query, crate::CausalQueryWire::RandomizedEffect(_))
+        {
+            return Err(IoError::Convert(
+                "IPW replay inputs require a randomized-effect query".into(),
+            ));
+        }
+        // A posterior row replaces the frequentist section of exactly the queries that have a
+        // Bayesian counterpart on the same coordinate, and rides with its posterior artifact.
+        let attached = match &result.query {
+            crate::CausalQueryWire::RandomizedEffect(query) => {
+                let Some(source) = &row.randomized_ipow else {
+                    return Err(IoError::Convert(
+                        "a randomized posterior row needs IPW replay inputs".into(),
+                    ));
+                };
+                source.validate_query(query, &row.coordinates, variable_names.len())?;
+                result.randomized_effect.is_none() && row.supported
+            }
+            crate::CausalQueryWire::Survival(_) => result.survival.is_none(),
+            crate::CausalQueryWire::ContinuousDoseResponse(query) => {
+                query.fixed_policy.is_some() && result.continuous_dose_response.is_none()
+            }
+            // The randomized quantile posterior rides beside the ordinary scalar posterior of
+            // the quantile treatment effect.
+            crate::CausalQueryWire::AverageEffect { .. } => {
+                row.estimator == "bayesian.randomized_quantile"
+            }
+            _ => false,
+        };
+        if !attached || result.posterior_artifact.is_none() {
+            return Err(IoError::Convert(
+                "a posterior row is attached to a query without its Bayesian counterpart, beside a frequentist section or without its posterior artifact".into(),
+            ));
+        }
+        row.validate()?;
+    }
+    if matches!(result.query, crate::CausalQueryWire::Survival(_))
+        && result.survival.is_none()
+        && result.posterior_row.is_none()
+    {
         return Err(IoError::Convert(
             "survival artifact is missing its curve result section".into(),
         ));
@@ -167,6 +314,17 @@ pub(super) fn validate_result(
         ));
     }
     validate_longitudinal_graphless(result, allow_legacy_graphless_missing)?;
+    validate_sequential_contrast_graphless(result)?;
+    super::stated_section_rows::validate_history_match_section(
+        result,
+        validate_history_match_graphless,
+    )?;
+    super::quasi_rollout::validate_quasi_rollout(result)?;
+    super::temporal_design::validate_temporal_design(result)?;
+    // A stated support row rests on counts; those the query and payload carry are recounted.
+    super::recomputed_support::validate_recomputed_support(result)?;
+    super::iv_bounds::validate_iv_bounds(result)?;
+    super::association::validate_association(result)?;
     crate::causal_query_from_wire(&result.query)?;
     let identification_count = match &result.identification_variables {
         Some(variables) => {
@@ -194,22 +352,25 @@ pub(super) fn validate_result(
             "identification.query does not match the enclosing query".into(),
         ));
     }
-    if let crate::CausalQueryWire::TemporalEffect { horizon_steps, .. } = &result.query {
-        if !result.temporal_identification.is_empty()
-            && !result.temporal_identification.iter().any(|item| item.horizon == *horizon_steps)
-        {
-            return Err(IoError::Convert(
-                "temporal certificate horizon does not match the enclosing query".into(),
-            ));
-        }
+    if let crate::CausalQueryWire::TemporalEffect { horizon_steps, .. } = &result.query
+        && !result.temporal_identification.is_empty()
+        && !result.temporal_identification.iter().any(|item| item.horizon == *horizon_steps)
+    {
+        return Err(IoError::Convert(
+            "temporal certificate horizon does not match the enclosing query".into(),
+        ));
     }
     if result.estimate.is_some_and(|estimate| !estimate.is_finite()) {
         return Err(IoError::Convert(
             "analysis scalar estimate must be finite when present".into(),
         ));
     }
-    if matches!(result.query, crate::CausalQueryWire::ContinuousDoseResponse(_))
-        != result.continuous_dose_response.is_some()
+    let dose_query = matches!(result.query, crate::CausalQueryWire::ContinuousDoseResponse(_));
+    let dose_section = result.continuous_dose_response.is_some();
+    // A posterior row also rides on survival and quantile results, so only the dose query
+    // is required to carry a dose section or a row, and only it may carry the dose section.
+    if (dose_query && !dose_section && result.posterior_row.is_none())
+        || (!dose_query && dose_section)
     {
         return Err(IoError::Convert(
             "continuous-dose query and result section must appear together".into(),
@@ -229,24 +390,7 @@ pub(super) fn validate_result(
                 "synthetic-control result is attached to a synthetic DiD query".into(),
             ));
         }
-        let donors: std::collections::BTreeSet<&str> = query
-            .units
-            .iter()
-            .map(String::as_str)
-            .filter(|unit| *unit != query.treated_unit.as_str())
-            .collect();
-        let pre: std::collections::BTreeSet<i64> = query
-            .periods
-            .iter()
-            .copied()
-            .filter(|period| *period < query.intervention_period)
-            .collect();
-        let post: std::collections::BTreeSet<i64> = query
-            .periods
-            .iter()
-            .copied()
-            .filter(|period| *period >= query.intervention_period)
-            .collect();
+        let (donors, pre, post, window_matches) = synthetic_support(query, fit);
         let weight_names: Vec<&str> =
             fit.donor_weights.iter().map(|(unit, _)| unit.as_str()).collect();
         let squared_mass: f64 = fit.donor_weights.iter().map(|(_, weight)| weight * weight).sum();
@@ -275,9 +419,10 @@ pub(super) fn validate_result(
             || fit.placebo_effects.iter().any(|effect| !effect.is_finite())
             || fit.n_pre_periods != pre.len()
             || fit.n_post_periods != post.len()
+            || !window_matches
             || (!query.uniform_unit_randomization
                 && ((query.augmentation_ridge.is_none()
-                    && fit.uncertainty != "point_only_with_unlicensed_placebo_rank")
+                    && fit.uncertainty != "point_only_with_unsupported_placebo_rank")
                     || fit.randomization_p_value.is_some()
                     || fit.randomization_null_effect.is_some()
                     || !fit.randomization_statistics.is_empty()))
@@ -396,6 +541,7 @@ pub(super) fn validate_result(
             || (fit.time_weights.iter().map(|(_, weight)| weight).sum::<f64>() - 1.0).abs() > 1e-8
             || (!query.uniform_unit_randomization
                 && (fit.uncertainty != "point_only_no_interval"
+                    || fit.randomization_ranking_tolerance.is_some()
                     || fit.randomization_p_value.is_some()
                     || fit.randomization_null_effect.is_some()
                     || !fit.randomization_statistics.is_empty()))
@@ -425,15 +571,19 @@ pub(super) fn validate_result(
                         .randomization_statistics
                         .iter()
                         .any(|(_, statistic)| !statistic.is_finite() || *statistic < 0.0)
+                    || fit
+                        .randomization_ranking_tolerance
+                        .is_some_and(|tolerance| !tolerance.is_finite() || tolerance <= 0.0)
                     || fit.randomization_p_value
                         != fit
                             .randomization_statistics
                             .iter()
                             .find(|(unit, _)| unit == &query.treated_unit)
                             .map(|(_, observed)| {
+                                let tolerance = fit.randomization_ranking_tolerance.unwrap_or(0.0);
                                 fit.randomization_statistics
                                     .iter()
-                                    .filter(|(_, statistic)| statistic >= observed)
+                                    .filter(|(_, statistic)| *statistic >= observed - tolerance)
                                     .count() as f64
                                     / fit.randomization_statistics.len() as f64
                             })))
@@ -444,9 +594,9 @@ pub(super) fn validate_result(
         }
     }
     validate_survival_graphless(result)?;
-    if result.estimate.is_some() && !licenses_scalar_estimate(&result.identification.status) {
+    if result.estimate.is_some() && !supports_scalar_estimate(&result.identification.status) {
         return Err(IoError::Convert(
-            "identification status does not license a scalar estimate".into(),
+            "identification status does not support a scalar estimate".into(),
         ));
     }
     if result.standard_error.is_some_and(|se| !se.is_finite() || se < 0.0) {
@@ -471,7 +621,11 @@ pub(super) fn validate_result(
     if let Some(unit_effects) = &result.unit_effects {
         validate_unit_effects(unit_effects)?;
     }
+    if let Some(section) = &result.counterfactual_contrasts {
+        super::counterfactual_contrasts::validate(result, section, variable_names.len())?;
+    }
     validate_cate_and_learner_metrics(result)?;
+    validate_family_inference(result)?;
     if let Some(structural) = &result.structural_response {
         validate_structural_response(structural, variable_names.len())?;
     }
@@ -500,7 +654,9 @@ pub(crate) fn validate_interventional_distribution(
     }
     let expected_outcomes = &query.outcomes;
     let expected_conditioning = &query.conditioning;
-    let mut groups: Vec<(Vec<(u32, crate::ValueWire)>, f64)> = Vec::new();
+    let mut atom_counts = None;
+    let mut groups: Vec<f64> = Vec::new();
+    let mut group_indices = HashMap::new();
     let mut numeric_mean = 0.0;
     for atom in &distribution.atoms {
         if !atom.probability.is_finite()
@@ -533,28 +689,34 @@ pub(crate) fn validate_interventional_distribution(
         } else {
             numeric_mean = f64::NAN;
         }
-        if let Some((_, mass)) =
-            groups.iter_mut().find(|(conditioning, _)| *conditioning == atom.conditioning)
-        {
-            *mass += atom.probability;
-        } else {
-            groups.push((atom.conditioning.clone(), atom.probability));
-        }
-        if distribution
-            .atoms
-            .iter()
-            .filter(|other| {
-                other.conditioning == atom.conditioning && other.outcomes == atom.outcomes
-            })
-            .count()
-            != 1
-        {
+        let Some(conditioning) = distribution_assignment_key(&atom.conditioning) else {
+            return Err(IoError::Convert(
+                "interventional distribution atom contains a non-finite value".into(),
+            ));
+        };
+        let Some(outcomes) = distribution_assignment_key(&atom.outcomes) else {
+            return Err(IoError::Convert(
+                "interventional distribution atom contains a non-finite value".into(),
+            ));
+        };
+        let counts =
+            atom_counts.get_or_insert_with(|| distribution_atom_counts(&distribution.atoms));
+        if counts.get(&(conditioning.clone(), outcomes)) != Some(&1) {
             return Err(IoError::Convert(
                 "interventional distribution contains duplicate atoms".into(),
             ));
         }
+        match group_indices.entry(conditioning) {
+            std::collections::hash_map::Entry::Occupied(entry) => {
+                groups[*entry.get()] += atom.probability;
+            }
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(groups.len());
+                groups.push(atom.probability);
+            }
+        }
     }
-    if groups.iter().any(|(_, mass)| (mass - 1.0).abs() > 1e-9) {
+    if groups.iter().any(|mass| (mass - 1.0).abs() > 1e-9) {
         return Err(IoError::Convert(
             "interventional distribution atom masses must sum to one per conditioning assignment"
                 .into(),
@@ -623,10 +785,10 @@ fn validate_structural_response(
     Ok(())
 }
 
-/// A point scalar is licensed only when identification does not refuse the estimand.
-/// `not_identified` never licenses one; partial / graph-dependent mixtures may still
+/// A point scalar is supported only when identification does not refuse the estimand.
+/// `not_identified` never supports one; partial / graph-dependent mixtures may still
 /// publish a conditional or retained identified-mass summary.
-fn licenses_scalar_estimate(status: &str) -> bool {
+fn supports_scalar_estimate(status: &str) -> bool {
     status != "not_identified"
 }
 
@@ -634,6 +796,8 @@ fn validate_mediation_grid(
     grid: &TemporalMediationGridWire,
     base_variable_count: usize,
 ) -> Result<(), IoError> {
+    use crate::IdentificationStatusWire as Status;
+
     if grid.slices.is_empty() {
         return Err(IoError::Convert("mediation grid must contain at least one slice".into()));
     }
@@ -654,19 +818,40 @@ fn validate_mediation_grid(
                 ));
             }
         }
-        let optionals = [slice.total, slice.direct, slice.mediated];
-        if !slice.effect.is_finite() || optionals.iter().any(|v| v.is_some_and(|x| !x.is_finite()))
-        {
+        let optionals = [slice.effect, slice.total, slice.direct, slice.mediated];
+        if optionals.iter().any(|v| v.is_some_and(|x| !x.is_finite())) {
             return Err(IoError::Convert(
                 "mediation grid effects must be finite when present".into(),
             ));
         }
-        if let Some([lower, upper]) = slice.identified_set {
-            if !lower.is_finite() || !upper.is_finite() || lower > upper {
-                return Err(IoError::Convert(
-                    "mediation grid identified set must be finite and ordered".into(),
-                ));
-            }
+        if slice.effect.is_none()
+            && (!matches!(
+                slice.identification_status,
+                Status::GraphDependent | Status::PartiallyIdentified | Status::NotIdentified
+            ) || slice.total.is_some()
+                || slice.direct.is_some()
+                || slice.mediated.is_some()
+                || !matches!(
+                    slice.uncertainty,
+                    super::TemporalMediationUncertaintyWire::Unavailable
+                ))
+        {
+            return Err(IoError::Convert(
+                "mediation grid without a point cannot claim a point decomposition or uncertainty"
+                    .into(),
+            ));
+        }
+        if slice.identification_status == Status::NotIdentified && slice.effect.is_some() {
+            return Err(IoError::Convert(
+                "unidentified mediation horizon cannot claim a point effect".into(),
+            ));
+        }
+        if let Some([lower, upper]) = slice.identified_set
+            && (!lower.is_finite() || !upper.is_finite() || lower > upper)
+        {
+            return Err(IoError::Convert(
+                "mediation grid identified set must be finite and ordered".into(),
+            ));
         }
         validate_mediation_uncertainty(&slice.uncertainty)?;
     }
@@ -715,29 +900,28 @@ fn validate_mediation_uncertainty(
     Ok(())
 }
 
-fn validate_unit_effects(unit_effects: &UnitEffectsWire) -> Result<(), IoError> {
+pub(super) fn validate_unit_effects(unit_effects: &UnitEffectsWire) -> Result<(), IoError> {
     if unit_effects.effects.is_empty()
         || unit_effects.effects.iter().any(|effect| !effect.is_finite())
     {
         return Err(IoError::Convert("unit effects must be a non-empty finite vector".into()));
     }
     let n = unit_effects.effects.len();
-    if let Some(intervals) = &unit_effects.intervals {
-        if intervals.lower.len() != n
+    if let Some(intervals) = &unit_effects.intervals
+        && (intervals.lower.len() != n
             || intervals.upper.len() != n
             || intervals.lower.iter().any(|v| !v.is_finite())
             || intervals.upper.iter().any(|v| !v.is_finite())
             || intervals.lower.iter().zip(&intervals.upper).any(|(lo, hi)| lo > hi)
             || !(0.0..=1.0).contains(&intervals.level)
             || !intervals.level.is_finite()
-            || intervals.method.trim().is_empty()
-        {
-            return Err(IoError::Convert(
-                "unit effect intervals must match effects length with finite ordered bounds, \
+            || intervals.method.trim().is_empty())
+    {
+        return Err(IoError::Convert(
+            "unit effect intervals must match effects length with finite ordered bounds, \
                  level in [0, 1], and a non-blank method"
-                    .into(),
-            ));
-        }
+                .into(),
+        ));
     }
     if unit_effects.extrapolative.as_ref().is_some_and(|flags| flags.len() != n) {
         return Err(IoError::Convert(
@@ -754,12 +938,12 @@ fn validate_cate_and_learner_metrics(result: &AnalysisResultWire) -> Result<(), 
             "cate standard errors and leaf dispersion require cate point predictions".into(),
         ));
     }
-    if let (Some(cate), Some(dispersion)) = (&result.cate, &result.cate_leaf_dispersion) {
-        if dispersion.len() != cate.len() || dispersion.iter().any(|v| !v.is_finite() || *v < 0.0) {
-            return Err(IoError::Convert(
-                "cate leaf dispersion must match cate length and be finite nonnegative".into(),
-            ));
-        }
+    if let (Some(cate), Some(dispersion)) = (&result.cate, &result.cate_leaf_dispersion)
+        && (dispersion.len() != cate.len() || dispersion.iter().any(|v| !v.is_finite() || *v < 0.0))
+    {
+        return Err(IoError::Convert(
+            "cate leaf dispersion must match cate length and be finite nonnegative".into(),
+        ));
     }
     match (&result.cate, &result.cate_se) {
         (None, _) => {}
@@ -769,13 +953,12 @@ fn validate_cate_and_learner_metrics(result: &AnalysisResultWire) -> Result<(), 
                     "cate predictions must be a non-empty finite vector".into(),
                 ));
             }
-            if let Some(se) = cate_se {
-                if se.len() != cate.len() || se.iter().any(|v| !v.is_finite() || *v < 0.0) {
-                    return Err(IoError::Convert(
-                        "cate standard errors must match cate length and be finite nonnegative"
-                            .into(),
-                    ));
-                }
+            if let Some(se) = cate_se
+                && (se.len() != cate.len() || se.iter().any(|v| !v.is_finite() || *v < 0.0))
+            {
+                return Err(IoError::Convert(
+                    "cate standard errors must match cate length and be finite nonnegative".into(),
+                ));
             }
         }
     }
@@ -855,4 +1038,140 @@ fn validate_temporal_namespace(
         }
     }
     Ok(())
+}
+
+/// Most functionals a recorded family covariance may span.
+///
+/// The positive-semidefinite check is a cubic Cholesky factorization of the carried matrix, so
+/// the dimension read from the bytes is bounded before it sizes any work. It equals the
+/// largest family table a producer builds (`1024 * 1024` cells).
+pub(crate) const MAX_FAMILY_COVARIANCE_DIM: usize = 1024;
+
+/// Validate recorded family summaries without claiming to replay their science.
+fn validate_family_inference(result: &AnalysisResultWire) -> Result<(), IoError> {
+    let invalid = |detail: &str| IoError::Convert(format!("invalid family inference: {detail}"));
+    if let Some(covariance) = &result.joint_covariance {
+        let n = covariance.dim;
+        if n > MAX_FAMILY_COVARIANCE_DIM {
+            return Err(invalid("covariance dimension exceeds the format bound"));
+        }
+        if n == 0 || n.checked_mul(n) != Some(covariance.values.len()) {
+            return Err(invalid("covariance dimensions"));
+        }
+        if covariance.values.iter().any(|value| !value.is_finite()) {
+            return Err(invalid("covariance contains a non-finite value"));
+        }
+        let scale = covariance.values.iter().fold(0.0_f64, |scale, value| scale.max(value.abs()));
+        for i in 0..n {
+            if covariance.values[i * n + i] < 0.0 {
+                return Err(invalid("covariance has a negative variance"));
+            }
+            for j in 0..i {
+                if (covariance.values[i * n + j] - covariance.values[j * n + i]).abs()
+                    > 1e-12 * scale
+                {
+                    return Err(invalid("covariance is asymmetric"));
+                }
+            }
+        }
+        let mut factor = vec![0.0; covariance.values.len()];
+        antecedent_kernels::cholesky::cholesky_psd_into(&covariance.values, n, 1e-10, &mut factor)
+            .map_err(|_| invalid("covariance is not positive semidefinite"))?;
+    }
+    let check_interval = |interval: (f64, f64, f64)| {
+        let (lower, upper, level) = interval;
+        lower.is_finite()
+            && upper.is_finite()
+            && lower <= upper
+            && level.is_finite()
+            && level > 0.0
+            && level < 1.0
+    };
+    if let Some(interval) = result.simultaneous_interval
+        && (!check_interval(interval) || result.joint_covariance.is_none())
+    {
+        return Err(invalid("simultaneous interval requires valid covariance and bounds"));
+    }
+    if let Some((bh, by)) = result.adjusted_p_values {
+        // Degenerate native Wald statistics are recorded as NaN, never as discoveries.
+        if [bh, by]
+            .iter()
+            .any(|value| !value.is_nan() && (!value.is_finite() || !(0.0..=1.0).contains(value)))
+        {
+            return Err(invalid("adjusted p-value is outside [0, 1]"));
+        }
+    }
+    if let Some((value, standard_error)) = result.family_contrast
+        && (!value.is_finite() || !standard_error.is_finite() || standard_error < 0.0)
+    {
+        return Err(invalid("contrast requires a finite value and nonnegative standard error"));
+    }
+    if let Some(interval) = result.family_contrast_interval
+        && (!check_interval(interval)
+            || result.family_contrast.is_none()
+            || result.joint_covariance.is_none())
+    {
+        return Err(invalid("contrast interval requires its contrast and covariance"));
+    }
+    Ok(())
+}
+
+/// The donors and pre/post periods a synthetic-control fit must have read, and whether the
+/// fit's observed-window report agrees with them.
+///
+/// A balanced query reads every other unit and every period, and carries no report. An
+/// observed-window query reads the treated unit's own observed periods and the units observed
+/// in every one of them; the report must state exactly that, recomputed here from the frozen
+/// unit and period labels.
+fn synthetic_support<'a>(
+    query: &'a crate::query_wire::SyntheticControlQueryWire,
+    fit: &super::SyntheticControlWire,
+) -> (
+    std::collections::BTreeSet<&'a str>,
+    std::collections::BTreeSet<i64>,
+    std::collections::BTreeSet<i64>,
+    bool,
+) {
+    use std::collections::{BTreeMap, BTreeSet};
+    let treated = query.treated_unit.as_str();
+    if !query.observed_window_support {
+        let donors =
+            query.units.iter().map(String::as_str).filter(|unit| *unit != treated).collect();
+        let pre =
+            query.periods.iter().copied().filter(|p| *p < query.intervention_period).collect();
+        let post =
+            query.periods.iter().copied().filter(|p| *p >= query.intervention_period).collect();
+        return (donors, pre, post, fit.observed_window.is_none());
+    }
+    let mut observed: BTreeMap<&str, BTreeSet<i64>> = BTreeMap::new();
+    for (unit, period) in query.units.iter().zip(&query.periods) {
+        observed.entry(unit.as_str()).or_default().insert(*period);
+    }
+    let own = observed.get(treated).cloned().unwrap_or_default();
+    let pre: BTreeSet<i64> =
+        own.iter().copied().filter(|p| *p < query.intervention_period).collect();
+    let post: BTreeSet<i64> =
+        own.iter().copied().filter(|p| *p >= query.intervention_period).collect();
+    let mut donors = BTreeSet::new();
+    let mut dropped = Vec::new();
+    for (unit, periods) in &observed {
+        if *unit == treated {
+            continue;
+        }
+        let missed = own.iter().filter(|period| !periods.contains(period)).count();
+        if missed == 0 {
+            donors.insert(*unit);
+        } else {
+            dropped.push(((*unit).to_string(), missed));
+        }
+    }
+    let read_rows = (donors.len() + 1) * own.len();
+    let matches = fit.observed_window.as_ref().is_some_and(|window| {
+        window.pre_periods == pre.iter().copied().collect::<Vec<_>>()
+            && window.post_periods == post.iter().copied().collect::<Vec<_>>()
+            && window.donors_used == donors.len()
+            && window.donors_dropped == dropped
+            && window.unread_rows == query.units.len().saturating_sub(read_rows)
+    });
+    (donors, pre, post, matches)
 }

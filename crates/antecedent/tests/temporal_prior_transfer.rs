@@ -1,6 +1,6 @@
-//! Fail-closed prior transfer onto licensed Bayesian temporal cells.
+//! Fail-closed prior transfer onto supported Bayesian temporal cells.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -215,6 +215,30 @@ fn same_design_pulse_consumes_named_source_target_and_filter() {
         (mean - truth).abs() < atol,
         "same-design pulse mean={mean} truth={truth} source={source_mean}"
     );
+    // The series is nearly noise-free (uniform noise of half-width 0.05 over 240 rows), so the
+    // lag-one coefficient is pinned far below the fixture's band; a band of 0.01 still
+    // separates the true 0.9 from any prior-dominated or mis-mapped coefficient.
+    assert!((mean - truth).abs() < 0.01, "same-design pulse mean={mean} truth={truth}");
+    // The transferred prior is consumed, not ignored: the same target fitted with the same seed
+    // and no prior artifact has a different posterior.
+    let flat = Study::series(target_series.clone())
+        .graph(graph_xy())
+        .temporal_query(pulse_query())
+        .inference(InferenceMode::Bayesian(bayes(n_draws)))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap()
+        .estimate_series(&target_series, &ctx)
+        .unwrap();
+    let flat_mean = flat.posterior.as_ref().unwrap().summaries.mean
+        [flat.posterior.as_ref().unwrap().effect_column().unwrap()];
+    assert!(
+        (mean - flat_mean).abs() > 0.0,
+        "the prior from the named source did not change the posterior: {mean} vs {flat_mean}"
+    );
 }
 
 #[test]
@@ -263,6 +287,7 @@ fn same_design_sustained_and_response_curve_ride_staged_path() {
     let mean = clicked.posterior.as_ref().unwrap().summaries.mean
         [clicked.posterior.as_ref().unwrap().effect_column().unwrap()];
     assert!((mean - truth).abs() < atol, "same-design sustained mean={mean}");
+    assert!((mean - truth).abs() < 0.01, "same-design sustained mean={mean} truth={truth}");
 
     let curve_catalog = catalog_for(
         "match",
@@ -296,6 +321,17 @@ fn same_design_sustained_and_response_curve_ride_staged_path() {
     let prepared = analysis.prepare(&ctx).unwrap();
     let clicked = prepared.estimate_series(&curve_series, &ctx).unwrap();
     assert!(clicked.response().is_some(), "temporal ResponseCurve must estimate under transfer");
+    // The curve is intercept 0 and slope 0.9 over the pinned grid [0, 1] (noise half-width 0.05).
+    match &clicked.response().unwrap().estimate {
+        antecedent_core::ResponseIdentification::PointIdentified(
+            antecedent_core::ResponseValue::Surface { mean, .. },
+        ) => {
+            assert_eq!(mean.len(), 2, "{mean:?}");
+            assert!(mean[0].abs() < 0.02, "curve at 0: {mean:?}");
+            assert!((mean[1] - truth).abs() < 0.02, "curve at 1: {mean:?}");
+        }
+        other => panic!("expected a point-identified response surface, got {other:?}"),
+    }
 }
 
 #[test]
@@ -349,9 +385,11 @@ fn mapped_effect_transfer_and_incompatible_catalog_fail_closed() {
         [baseline.posterior.as_ref().unwrap().effect_column().unwrap()];
     let mapped_mean = clicked.posterior.as_ref().unwrap().summaries.mean
         [clicked.posterior.as_ref().unwrap().effect_column().unwrap()];
+    // The target data carry effect 0.2 while the source posterior centres on 0.9: the transferred
+    // effect prior must pull the posterior measurably toward the source, not leave it unchanged.
     assert!(
-        (mapped_mean - source_truth).abs() < (base - source_truth).abs() + 1e-9,
-        "mapped pulse should not sit farther from the source effect than the weak baseline \
+        (mapped_mean - source_truth).abs() + 0.05 < (base - source_truth).abs(),
+        "mapped pulse should sit closer to the source effect than the weak baseline \
          mapped={mapped_mean} baseline={base}"
     );
 

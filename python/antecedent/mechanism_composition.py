@@ -53,7 +53,8 @@ What this is, and is not:
   pair), or independence by design with its justification. Otherwise the refusal is
   ``joint_law_required``. The variance is a first-order parameter-covariance variance only; it
   omits second-order terms, holds residual scales fixed and carries no coverage claim. The interval
-  route is closed: :meth:`PreparedMechanismComposition.interval` raises ``cell_not_licensed``.
+  is :meth:`PreparedMechanismComposition.interval`, a :class:`FirstOrderInterval` whose calibration
+  slot is ``not_measured``.
 * **Refresh** (:meth:`PreparedMechanismComposition.refresh_mechanisms`) takes mechanisms refitted on
   new outcome-only data, keeps the plan, recomputes the numbers and the provenance, and refuses a
   refit that changes a mechanism's parents or family. A dependence declared for the earlier fit is
@@ -76,13 +77,24 @@ from typing import Any
 import numpy as np
 
 from . import _native
-from ._artifact_protocol import ExportedArtifact, bytes_export
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._freeze import thaw
 from ._mean_binding import bind_mean_reading
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count as _count
+from ._validate import finite_number as _number
+from ._validate import name as _name
+from .counterfactual import native_gcm
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
+from .outcomes import Answer, outcome_operation
 
 __all__ = [
     "Admission",
@@ -99,6 +111,7 @@ __all__ = [
     "Dependence",
     "FiniteDistributionResult",
     "FiniteLaw",
+    "FirstOrderInterval",
     "FunctionalUncertainty",
     "GaussianFunctionalResult",
     "GaussianLawResult",
@@ -143,21 +156,6 @@ class MechanismCompositionRefusal(StructuredRefusal):
 
 
 # --------------------------------------------------------------------------- helpers
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
-
-
-def _number(value: object, what: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float, np.integer, np.floating)):
-        raise CausalTypeError(f"{what} must be a real number")
-    number = float(value)
-    if not math.isfinite(number):
-        raise CausalValueError(f"{what} must be finite")
-    return number
 
 
 def _dumps(value: object) -> str:
@@ -460,7 +458,11 @@ class Mechanism:
         """
         target = variable if variable is not None else declaration.output.variable_id
         source = json.loads(
-            _unwrap(_native.mechanism_composition_fitted_source(model, _name(target, "variable")))
+            _unwrap(
+                _native.mechanism_composition_fitted_source(
+                    native_gcm(model), _name(target, "variable")
+                )
+            )
         )
         return cls(
             declaration=declaration,
@@ -547,7 +549,9 @@ class MechanismRefit:
         """A refit read from a model fitted on new data."""
         source = json.loads(
             _unwrap(
-                _native.mechanism_composition_fitted_source(model, _name(variable_id, "variable"))
+                _native.mechanism_composition_fitted_source(
+                    native_gcm(model), _name(variable_id, "variable")
+                )
             )
         )
         return cls(
@@ -730,6 +734,31 @@ class JointGaussianLaw(ScientificResult):
     mean: np.ndarray
     covariance: np.ndarray
 
+    @property
+    def answer(self) -> Answer:
+        return Answer("distribution", detail="joint_gaussian_law")
+
+    def inspect(self) -> Any:
+        from .results._report import SlotModel
+
+        return ScientificResult.inspect(self).model_copy(
+            update={
+                "uncertainty": SlotModel(
+                    available=True,
+                    reason="conditional_on_declared_composition",
+                    summary="joint Gaussian mean and covariance",
+                    payload={"variables": len(self.variables)},
+                )
+            }
+        )
+
+    def _summary_fields(self) -> dict[str, Any]:
+        # A bounded display: the first few declared means, never the whole matrix.
+        shown: dict[str, Any] = {"n_variables": len(self.variables)}
+        for index, name in enumerate(self.variables[:6]):
+            shown[f"mean[{name}]"] = float(self.mean[index])
+        return shown
+
     def _index(self, variable: str) -> int:
         try:
             return self.variables.index(variable)
@@ -750,6 +779,34 @@ class JointGaussianLaw(ScientificResult):
         return float(self.covariance[self._index(first), self._index(second)])
 
 
+@dataclass(frozen=True, slots=True)
+class FirstOrderInterval:
+    """The first-order (delta-method) Wald interval of a contrast with its calibration slot.
+
+    ``calibration`` annotates the interval: its ``status`` is ``not_measured`` until a coverage
+    record measures the construction. The interval is reported regardless of the status.
+    """
+
+    point: float
+    standard_error: float
+    lower: float
+    upper: float
+    level: float
+    calibration: Mapping[str, Any]
+
+
+def _first_order_interval(wire: Mapping[str, Any]) -> FirstOrderInterval:
+    """Decode the native interval wire."""
+    return FirstOrderInterval(
+        point=float(wire["point"]),
+        standard_error=float(wire["standard_error"]),
+        lower=float(wire["lower"]),
+        upper=float(wire["upper"]),
+        level=float(wire["level"]),
+        calibration=dict(wire["calibration"]),
+    )
+
+
 @dataclass(repr=False, frozen=True, slots=True)
 class FunctionalUncertainty(ScientificResult):
     """Parameter-uncertainty propagation for a contrast of interventional means.
@@ -766,6 +823,34 @@ class FunctionalUncertainty(ScientificResult):
     dependence: str
     method: str
 
+    @property
+    def answer(self) -> Answer:
+        return Answer("point", value=self.point, detail="first_order_parameter_uncertainty")
+
+    def inspect(self) -> Any:
+        from .results._report import SlotModel
+
+        payload = {
+            "variance": self.variance,
+            "standard_error": self.standard_error,
+            "meaning": self.meaning,
+            "dependence": self.dependence,
+            "method": self.method,
+        }
+        scope = getattr(self, "scope", None)
+        if scope is not None:
+            payload["scope"] = scope
+        return ScientificResult.inspect(self).model_copy(
+            update={
+                "uncertainty": SlotModel(
+                    available=True,
+                    reason="uncalibrated_no_interval_claim",
+                    summary=self.method,
+                    payload=payload,
+                )
+            }
+        )
+
 
 @dataclass(repr=False, frozen=True, slots=True, eq=False)
 class FiniteLaw(ScientificResult):
@@ -777,6 +862,10 @@ class FiniteLaw(ScientificResult):
     variables: tuple[str, ...]
     levels: tuple[tuple[str, ...], ...]
     probabilities: np.ndarray
+
+    @property
+    def answer(self) -> Answer:
+        return Answer("distribution", detail="finite_joint_law")
 
     def probability(self, event: Mapping[str, str]) -> float:
         """Probability that every named variable takes its named level."""
@@ -889,24 +978,19 @@ class PreparedMechanismComposition(ScientificResult):
     variables: tuple[str, ...]
     declared_mechanisms: tuple[str, ...]
     _handle: Any = field(repr=False, compare=False)
+    plan_identity_version: int | None = None
     _scope: Mapping[str, Any] | None = field(default=None, repr=False, compare=False)
 
-    def artifact(
-        self,
-        query: MeanContrast | Mapping[str, Any],
-        *,
-        outcome: str | None = None,
-        cancel: Any = None,
-    ) -> ExportedArtifact[ConsumedComposition]:
-        """Bytes and producer metadata; load returns the typed consumed result."""
-        from ._artifact_protocol import exported_artifact
+    def interval(self, contrast: MeanContrast, level: float = 0.95) -> FirstOrderInterval:
+        """The first-order interval of a contrast at ``level`` with its calibration slot.
 
-        return exported_artifact(self, query, outcome=outcome, cancel=cancel)
+        The slot status is ``not_measured`` while no coverage record measures the delta-method
+        construction. Raises ``joint_law_required`` when the parameter dependence is unknown.
+        """
+        wire = json.loads(_unwrap(self._handle.interval(_dumps(contrast.to_wire()), level)))
+        return _first_order_interval(wire)
 
-    def interval(self) -> None:
-        """Always raises ``cell_not_licensed``: the variance carries no measured coverage."""
-        raise_refusal(self._handle.interval(), MechanismCompositionRefusal)
-
+    @outcome_operation
     def intervention_law(
         self, interventions: Mapping[str, float] | None = None
     ) -> JointGaussianLaw:
@@ -924,10 +1008,12 @@ class PreparedMechanismComposition(ScientificResult):
             covariance=np.asarray(law["covariance"], dtype=np.float64).reshape(n, n),
         )
 
+    @outcome_operation
     def mean_contrast(self, contrast: MeanContrast) -> float:
         """``sum_k weight_k * E[outcome | do(arm_k)]``, exact given the declared mechanisms."""
         return float(_unwrap(self._handle.mean_contrast(_dumps(contrast.to_wire()))))
 
+    @outcome_operation
     def mean_contrast_uncertainty(self, contrast: MeanContrast) -> FunctionalUncertainty:
         """The first-order delta-method variance of a contrast, from the declared parameter law.
 
@@ -956,19 +1042,21 @@ class PreparedMechanismComposition(ScientificResult):
             method=str(wire["method"]),
         )
 
+    @outcome_operation
     def sample(
         self,
         interventions: Mapping[str, float] | None = None,
         *,
         n_rows: int,
-        seed: int = 0,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> dict[str, np.ndarray]:
         """Draw ``n_rows`` units from the (possibly intervened) joint model.
 
         The noise of each variable is keyed by its name, so a variable's draws do not depend on
-        the other variables or their order. The same ``seed`` gives the same table.
+        the other variables or their order. The seed of ``execution``
+        fixes the table: the same seed gives the same table.
         """
+        execution = resolve_execution(execution)
         wire = {"interventions": _pairs(interventions or {}, "variable")}
         for pair in wire["interventions"]:
             pair[1] = _number(pair[1], "intervention value")
@@ -978,8 +1066,8 @@ class PreparedMechanismComposition(ScientificResult):
                 _count(
                     n_rows, "n_rows", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"
                 ),
-                _count(seed, "seed", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"),
-                cancel=cancel,
+                execution.seed,
+                cancel=execution.cancel,
             )
         )
         return {
@@ -987,12 +1075,14 @@ class PreparedMechanismComposition(ScientificResult):
             for name, column in zip(variables, columns, strict=True)
         }
 
+    @outcome_operation
     def finite_law(
-        self, interventions: Mapping[str, str] | None = None, *, cancel: Any = None
+        self, interventions: Mapping[str, str] | None = None, *, execution: Execution | None = None
     ) -> FiniteLaw:
         """The exact finite joint law under ``do(interventions)`` by truncated factorization."""
+        execution = resolve_execution(execution)
         wire = {"interventions": _pairs(interventions or {}, "variable")}
-        law = json.loads(_unwrap(self._handle.finite_law(_dumps(wire), cancel=cancel)))
+        law = json.loads(_unwrap(self._handle.finite_law(_dumps(wire), cancel=execution.cancel)))
         return FiniteLaw(
             variables=tuple(law["variables"]),
             levels=tuple(tuple(levels) for levels in law["levels"]),
@@ -1004,7 +1094,7 @@ class PreparedMechanismComposition(ScientificResult):
         refits: Sequence[MechanismRefit],
         dependence: Dependence | None = None,
         *,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> PreparedMechanismComposition:
         """Replace the named mechanisms with their refits and recompile.
 
@@ -1013,17 +1103,18 @@ class PreparedMechanismComposition(ScientificResult):
         law or cross-covariance describes the estimates it was declared for); omitted, it keeps an
         earlier declaration only when still valid.
         """
+        execution = resolve_execution(execution)
         handle = _unwrap(
             self._handle.refresh_mechanisms(
                 _dumps([r.to_wire() for r in refits]),
                 None if dependence is None else _dumps(dependence.to_wire()),
-                cancel=cancel,
+                cancel=execution.cancel,
             )
         )
         return _prepared(handle, self._scope)
 
     def transport_to(
-        self, transport: MechanismTransport, *, cancel: Any = None
+        self, transport: MechanismTransport, *, execution: Execution | None = None
     ) -> TransportedMechanismComposition:
         """Carry this composition's fitted mechanisms into a target population's model.
 
@@ -1039,13 +1130,15 @@ class PreparedMechanismComposition(ScientificResult):
             MechanismCompositionRefusal: every unmet premise, each with a registered code and a
                 ``mechanism_transport.*`` (or ``mechanism_composition.*``) detail.
         """
+        execution = resolve_execution(execution)
         if not isinstance(transport, MechanismTransport):
             raise CausalTypeError("transport must be a MechanismTransport")
         handle, receipt = _unwrap(
-            self._handle.transport_to(_dumps(transport.to_wire()), cancel=cancel)
+            self._handle.transport_to(_dumps(transport.to_wire()), cancel=execution.cancel)
         )
         return _transported(handle, receipt, self._scope)
 
+    @outcome_operation
     def verify_transport(
         self, transport: MechanismTransport, *, expected_identity: str
     ) -> MechanismTransportReceipt:
@@ -1063,26 +1156,26 @@ class PreparedMechanismComposition(ScientificResult):
         )
         return _receipt_of(json.loads(text))
 
-    def inverse_forward_source(
+    def derive_inverse_source(
         self,
         actions: Sequence[Any],
         *,
         transport: Any = None,
         accepts_transported: bool = False,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> Any:
         """The composition as a forward source of an inverse query, one replayed query per action.
 
-        See :func:`antecedent.inverse_sources.composed_forward_source`.
+        See :func:`antecedent.inverse_sources.derive_composed_source`.
         """
-        from .inverse_sources import composed_forward_source
+        from .inverse_sources import derive_composed_source
 
-        return composed_forward_source(
+        return derive_composed_source(
             self,
             actions,
             transport=transport,
             accepts_transported=accepts_transported,
-            cancel=cancel,
+            execution=execution,
         )
 
     def discretize(
@@ -1090,24 +1183,25 @@ class PreparedMechanismComposition(ScientificResult):
         levels: Mapping[str, int] | int,
         *,
         method: str = "equal_probability_quantile",
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> Any:
         """Discretize a linear-Gaussian composition into an executable finite model.
 
         See :func:`antecedent.discretized_composition.discretize`.
         """
+        execution = resolve_execution(execution)
         from .discretized_composition import discretize
 
-        return discretize(self, levels, method=method, cancel=cancel)
+        return discretize(self, levels, method=method, execution=execution)
 
-    @bytes_export
+    @artifact_export
     def export(
         self,
-        query: MeanContrast | Mapping[str, Any],
+        query: MeanContrast | Mapping[str, object],
         *,
         outcome: str | None = None,
-        cancel: Any = None,
-    ) -> CompositionExport:
+        execution: Execution | None = None,
+    ) -> ExportedArtifact[ConsumedComposition]:
         """Seal the premises and one query into a ``mechanism_composition_v1`` artifact.
 
         ``query`` is a :class:`MeanContrast` (a contrast of interventional means with parameter
@@ -1115,12 +1209,18 @@ class PreparedMechanismComposition(ScientificResult):
         of the linear-Gaussian composition, or, with level names, the distribution of one outcome
         of a finite composition). An uncertainty claim without a declared joint law is refused.
         """
+        execution = resolve_execution(execution)
         wire = _query_wire(self.family, query, outcome)
-        artifact, digest, result = _unwrap(self._handle.export(_dumps(wire), cancel=cancel))
-        return CompositionExport(
-            artifact=bytes(artifact),
-            premises_digest=digest,
-            result=_result(json.loads(result)),
+        artifact, digest, result = _unwrap(
+            self._handle.export(_dumps(wire), cancel=execution.cancel)
+        )
+        return artifact_from_receipt(
+            self,
+            CompositionExport(
+                artifact=bytes(artifact),
+                premises_digest=digest,
+                result=_result(json.loads(result)),
+            ),
         )
 
 
@@ -1160,6 +1260,7 @@ def _query_wire(
 def _prepared(handle: Any, scope: Mapping[str, Any] | None = None) -> PreparedMechanismComposition:
     return PreparedMechanismComposition(
         plan_identity=handle.plan_identity(),
+        plan_identity_version=handle.plan_identity_version(),
         family=handle.family(),
         variables=tuple(handle.variables()),
         declared_mechanisms=tuple(handle.declared_mechanisms()),
@@ -1177,7 +1278,8 @@ def compose_mechanisms(
     admissions: Sequence[Admission] = (),
     dependence: Dependence | None = None,
     admit_declared_mechanisms: bool = False,
-    cancel: Any = None,
+    ledger: Any = None,
+    execution: Execution | None = None,
 ) -> PreparedMechanismComposition:
     """Prepare a declared composition of independently fitted mechanisms.
 
@@ -1188,10 +1290,20 @@ def compose_mechanisms(
     compiled under the model-level coherence checker (acyclicity, parents equal conditioning set,
     support overlap, shared latents, provenance, aligned uncertainty).
 
+    With ``ledger`` (an :class:`~antecedent.evidence_ledger.EvidenceLedger`) a composition declared
+    ``Dependence.independent_by_design`` has its independence decided from the ledger's
+    observation rows, reading each mechanism's ``evidence_id`` as a ledger source identity: two
+    mechanisms whose sources share observations are refused
+    (``mechanism_composition.posterior_dependence_shared_evidence_declared_independent``) and
+    sources whose overlap the ledger cannot compute are unknown, never independent
+    (``posterior_dependence_evidence_overlap_unknown``). Without a ledger only equal identity
+    strings are caught.
+
     Raises:
         MechanismCompositionRefusal: every defect found, each with a registered code, a namespaced
-            detail and the declaration that would license the composition.
+            detail and the declaration that would support the composition.
     """
+    execution = resolve_execution(execution)
     listed = list(mechanisms)
     if not all(isinstance(m, Mechanism) for m in listed):
         raise CausalTypeError("mechanisms must be Mechanism objects")
@@ -1209,7 +1321,15 @@ def compose_mechanisms(
         "dependence": (dependence or Dependence.unknown()).to_wire(),
         "admit_declared_mechanisms": bool(admit_declared_mechanisms),
     }
-    handle = _unwrap(_native.mechanism_composition_prepare(_dumps(wire), cancel=cancel))
+    if ledger is not None:
+        ledger_handle = getattr(ledger, "_handle", None)
+        if ledger_handle is None:
+            raise CausalTypeError("ledger must be an EvidenceLedger")
+        raise_refusal(
+            _native.mechanism_composition_check_ledger_independence(_dumps(wire), ledger_handle),
+            MechanismCompositionRefusal,
+        )
+    handle = _unwrap(_native.mechanism_composition_prepare(_dumps(wire), cancel=execution.cancel))
     return _prepared(
         handle,
         {
@@ -1219,12 +1339,17 @@ def compose_mechanisms(
     )
 
 
+@outcome_operation
 @bind_mean_reading
+@artifact_consumer(
+    proof="mechanism_composition.consume_mechanism_composition_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def consume_mechanism_composition_artifact(
     artifact: bytes,
     expected_identity: str | None = None,
     *,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ConsumedComposition:
     """Independently consume a composition artifact.
 
@@ -1239,11 +1364,15 @@ def consume_mechanism_composition_artifact(
             compose, and ``mechanism_composition.artifact_invalid`` for corrupt or unsupported
             bytes.
     """
+    execution = resolve_execution(execution)
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     wire = json.loads(
         _unwrap(
-            _native.mechanism_composition_consume(bytes(artifact), expected_identity, cancel=cancel)
+            _native.mechanism_composition_consume(
+                bytes(artifact), expected_identity, cancel=execution.cancel
+            )
         )
     )
     from ._artifact_protocol import inspect_artifact
@@ -1381,6 +1510,7 @@ class MechanismTransportReceipt:
     support: str
     inference: str
     assumptions: tuple[str, ...]
+    source_plan_identity_version: int | None = None
 
     @property
     def transported_variables(self) -> tuple[str, ...]:
@@ -1396,9 +1526,16 @@ class MechanismTransportReceipt:
         """The shared :class:`antecedent.transported_response.TransportReceipt` of this route."""
         from .transported_response import TransportReceipt
 
+        if (
+            type(self.source_plan_identity_version) is not int
+            or self.source_plan_identity_version != 2
+        ):
+            raise CausalValueError(
+                "unknown or legacy mechanism plan identity version; reissue from source premises"
+            )
         return TransportReceipt(
             route="mechanism",
-            source_identity=self.source_plan_identity,
+            source_identity=f"antecedent.mechanism_plan.v2:{self.source_plan_identity}",
             source_populations=(self.source_population,),
             target_population=self.target_population,
             transport_identities=(self.identity,),
@@ -1413,6 +1550,7 @@ def _receipt_of(wire: Mapping[str, Any]) -> MechanismTransportReceipt:
         route=str(wire["route"]),
         identity=str(wire["identity"]),
         source_plan_identity=str(wire["source_plan_identity"]),
+        source_plan_identity_version=wire.get("source_plan_identity_version"),
         source_population=str(wire["source_population"]),
         target_population=str(wire["target_population"]),
         target_regime=str(wire["target_regime"]),
@@ -1455,7 +1593,7 @@ class TransportedMechanismComposition(ScientificResult):
 
     Every component says whether it was carried from the source fit or refitted in the target.
     The numbers are exact given the mechanisms; the variance is first-order, uncalibrated and
-    scoped; the interval route is closed.
+    scoped; the interval route is not supported.
     """
 
     identity: str
@@ -1468,10 +1606,12 @@ class TransportedMechanismComposition(ScientificResult):
     def transported_variables(self) -> tuple[str, ...]:
         return self.receipt.transported_variables
 
+    @outcome_operation
     def mean_contrast(self, contrast: MeanContrast) -> float:
         """``sum_k weight_k * E[outcome | do(arm_k)]`` in the target composition."""
         return float(_unwrap(self._handle.mean_contrast(_dumps(contrast.to_wire()))))
 
+    @outcome_operation
     def mean_contrast_uncertainty(self, contrast: MeanContrast) -> TransportedFunctionalUncertainty:
         """The first-order parameter variance of a contrast, scoped by the transport receipt.
 
@@ -1501,28 +1641,40 @@ class TransportedMechanismComposition(ScientificResult):
             scope=str(wire["scope"]),
         )
 
-    def interval(self) -> None:
-        """Always raises ``cell_not_licensed``: no coverage includes the transport assumption."""
-        raise_refusal(self._handle.interval(), MechanismCompositionRefusal)
+    def interval(self, contrast: MeanContrast, level: float = 0.95) -> FirstOrderInterval:
+        """The first-order interval of a transported contrast at ``level``.
 
-    def export(  # type: ignore[override]  # a sealed export carries its query and receipt, not bare bytes
+        Carries its calibration slot (``not_measured`` while no coverage record measures the
+        construction) and is conditional on the declared transport premises.
+        """
+        wire = json.loads(_unwrap(self._handle.interval(_dumps(contrast.to_wire()), level)))
+        return _first_order_interval(wire)
+
+    @artifact_export
+    def export(
         self,
-        query: MeanContrast | Mapping[str, Any],
+        query: MeanContrast | Mapping[str, object],
         *,
         outcome: str | None = None,
-        cancel: Any = None,
-    ) -> CompositionExport:
+        execution: Execution | None = None,
+    ) -> ExportedArtifact[ConsumedComposition]:
         """Seal the transported premises (with the diagram and invariances) and one query.
 
         The artifact is the existing ``mechanism_composition_v1`` one;
         :func:`consume_mechanism_composition_artifact` recompiles it under the coherence checker.
         """
+        execution = resolve_execution(execution)
         wire = _query_wire("linear_gaussian", query, outcome)
-        artifact, digest, result = _unwrap(self._handle.export(_dumps(wire), cancel=cancel))
-        return CompositionExport(
-            artifact=bytes(artifact),
-            premises_digest=digest,
-            result=_result(json.loads(result)),
+        artifact, digest, result = _unwrap(
+            self._handle.export(_dumps(wire), cancel=execution.cancel)
+        )
+        return artifact_from_receipt(
+            self,
+            CompositionExport(
+                artifact=bytes(artifact),
+                premises_digest=digest,
+                result=_result(json.loads(result)),
+            ),
         )
 
 

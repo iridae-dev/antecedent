@@ -1,8 +1,9 @@
 //! Public lifecycle evidence for bounded DAG joint-cell AIPW response routes.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, EstimatorId, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, Intervention, ResponseFunctional, ResponseIdentification, ResponseQuery,
@@ -10,7 +11,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 fn data(shift: f64) -> TabularData {
     let n = 1200;
@@ -93,9 +94,9 @@ fn accepted_and_explicit_dag_cell_aipw_body() {
             let one_shot = builder.run(&context).unwrap();
             let mut prepared = builder.prepare(&context).unwrap();
             drop(builder);
-            let plan = prepared
-                .checked_cell_aipw_response_info()
-                .expect("preparation retains the checked cell AIPW route");
+            let RetainedOperation::CellAipwResponse(plan) = prepared.retained_operation() else {
+                panic!("preparation retains the checked cell AIPW route")
+            };
             assert_eq!(plan.estimator, EstimatorId::CellAipw);
             assert_eq!(plan.requested_arm, 3);
             assert_eq!(
@@ -107,7 +108,7 @@ fn accepted_and_explicit_dag_cell_aipw_body() {
                 }
             );
             let result = prepared.estimate(&initial, &context).unwrap();
-            assert!((result_value(&result) - 10.5).abs() < 0.2);
+            assert!((result_value(&result) - 10.5).abs() < 1e-3);
             assert!((result_value(&result) - result_value(&one_shot)).abs() < 1e-12);
             assert_eq!(result.refutations.is_empty(), suite == RefuteSuite::None);
 
@@ -118,22 +119,26 @@ fn accepted_and_explicit_dag_cell_aipw_body() {
             assert!((result_value(&retargeted) - result_value(&result)).abs() < 1e-12);
 
             let refreshed_data = data(0.4);
-            let refreshed = prepared.refresh(refreshed_data.clone(), &context).unwrap();
-            assert!((result_value(&refreshed) - 10.9).abs() < 0.2);
+            let refreshed =
+                rebind_estimate(&mut prepared, refreshed_data.clone(), &context).unwrap();
+            assert!((result_value(&refreshed) - 10.9).abs() < 1e-3);
             let refreshed_scores = prepared.score_table().expect("refresh retains cell scores");
             let refreshed_retargeted = prepared
                 .retarget(&vec![1.0; refreshed_scores.n_rows], &[], &context)
                 .expect("refresh must rebuild the scores used for retargeting");
             assert!((result_value(&refreshed_retargeted) - result_value(&refreshed)).abs() < 1e-12);
-            assert!(prepared.checked_cell_aipw_response_info().is_some());
+            assert!(matches!(
+                prepared.retained_operation(),
+                RetainedOperation::CellAipwResponse(..)
+            ));
             let artifact = prepared
                 .encode_contracted_result(&refreshed, "checked-cell-aipw", &context)
                 .unwrap();
-            let consumed = consume_analysis_result(&artifact).unwrap();
+            let consumed = replay_analysis_result(&artifact).unwrap();
             assert!(consumed.acceptance.unresolved.iter().any(|reason| {
                 reason.as_ref() == "dependencies.checked_intervention_response_operation"
             }));
-            assert!(!consumed.acceptance.accepts_as_verified_program());
+            assert!(!consumed.acceptance.accepts_as_replayed_program());
         }
     }
 }
@@ -146,16 +151,16 @@ fn checked_cell_aipw_quantile_is_sealed_and_executes() {
     let context = antecedent_core::ExecutionContext::for_tests(822);
     let mut prepared = study.prepare(&context).unwrap();
     drop(study);
-    assert!(prepared.checked_cell_aipw_response_info().is_some());
+    assert!(matches!(prepared.retained_operation(), RetainedOperation::CellAipwResponse(..)));
     assert!(prepared.score_table().is_some());
 
     let result = prepared.estimate(&data(0.0), &context).unwrap();
     let value = result_value(&result);
     assert!(value.is_finite());
-    assert!((value - 10.5).abs() < 0.2, "median response {value}");
+    assert!((value - 10.5).abs() < 1e-3, "median response {value}");
 
-    let refreshed = prepared.refresh(data(0.4), &context).unwrap();
-    assert!((result_value(&refreshed) - 10.9).abs() < 0.2);
+    let refreshed = rebind_estimate(&mut prepared, data(0.4), &context).unwrap();
+    assert!((result_value(&refreshed) - 10.9).abs() < 1e-3);
 }
 
 #[test]
@@ -171,4 +176,17 @@ fn cell_aipw_route_refuses_nonbinary_intervention_levels() {
         .run(&antecedent_core::ExecutionContext::for_tests(821))
         .unwrap_err();
     assert!(error.to_string().contains("binary 0/1 Set levels"), "{error}");
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

@@ -1,8 +1,9 @@
 //! Inference backend interface and reusable workspaces.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{ExecutionContext, Fnv1a64};
+use antecedent_core::{CanonicalWriter, ExecutionContext};
+use std::sync::Arc;
 
 use crate::diagnostics::InferenceDiagnostics;
 use crate::error::ProbError;
@@ -130,6 +131,66 @@ pub struct LaplaceWorkspace {
     pub(crate) conjugate_n_eff: f64,
     /// Design-matrix identity last used to fill the conjugate `XᵀX` cache.
     pub(crate) conjugate_key: Option<ConjugateGramKey>,
+    /// Owned immutable buffers that certify the unweighted Gaussian validation
+    /// and content key. Keeping owners prevents allocator-address reuse.
+    immutable_gaussian: Option<ImmutableGaussianDesign>,
+}
+
+/// One ephemeral nuisance-fit workspace. Its private owner cannot be cloned,
+/// resized by callers, or reused under another admission pool. Field drop order
+/// releases the buffers before returning their admission.
+pub(crate) struct AdmittedLaplaceWorkspace {
+    pub(crate) workspace: LaplaceWorkspace,
+    _admission: Option<antecedent_core::execution::AdmissionLease>,
+}
+
+impl AdmittedLaplaceWorkspace {
+    pub(crate) fn new(nrows: usize, ncols: usize, draws: usize) -> Result<Self, ProbError> {
+        let overflow = || ProbError::Shape { message: "Laplace workspace size overflow" };
+        let square = ncols.checked_mul(ncols).ok_or_else(overflow)?;
+        let draw_cells = draws.checked_mul(ncols).ok_or_else(overflow)?.max(ncols);
+        let cells = square
+            .checked_mul(2)
+            .and_then(|cells| ncols.checked_mul(5).and_then(|cols| cells.checked_add(cols)))
+            .and_then(|cells| nrows.checked_mul(2).and_then(|rows| cells.checked_add(rows)))
+            .and_then(|cells| cells.checked_add(draw_cells))
+            .ok_or_else(overflow)?;
+        // Admit before allocating. Fresh boxed slices ensure each reported Vec
+        // capacity equals its declared buffer length, with no growth slack.
+        let admission = crate::admission::admit_cells(None, cells)?;
+        let buffer = |len| vec![0.0; len].into_boxed_slice().into_vec();
+        let workspace = LaplaceWorkspace {
+            grad: buffer(ncols),
+            neg_hessian: buffer(square),
+            factor: buffer(square),
+            step: buffer(ncols),
+            beta: buffer(ncols),
+            q: buffer(ncols),
+            p: buffer(ncols),
+            eta: buffer(nrows),
+            work_w: buffer(nrows),
+            draw_scratch: buffer(draw_cells),
+            grow_count: u32::from(cells > 0),
+            ..LaplaceWorkspace::default()
+        };
+        Ok(Self { workspace, _admission: admission })
+    }
+}
+
+#[derive(Clone, Debug)]
+struct ImmutableGaussianDesign {
+    x: Arc<[f64]>,
+    y: Arc<[f64]>,
+    key: ConjugateGramKey,
+    moments: Option<GaussianMoments>,
+}
+
+#[derive(Clone, Debug)]
+struct GaussianMoments {
+    xtx: Vec<f64>,
+    xty: Vec<f64>,
+    yty: f64,
+    n_eff: f64,
 }
 
 /// Content/shape key for [`LaplaceWorkspace`]'s conjugate **`XᵀX`** cache.
@@ -139,47 +200,136 @@ pub struct LaplaceWorkspace {
 /// of the key so equal-length outcome reallocations still recompute `Xᵀy`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct ConjugateGramKey {
-    content: u64,
+    content: [u8; 32],
     nrows: usize,
     ncols: usize,
 }
 
 impl ConjugateGramKey {
     pub(crate) fn from_design(design: &BayesDesignRef<'_>) -> Self {
-        Self {
-            content: hash_design_contents(design.x_colmajor, design.weights),
-            nrows: design.nrows,
-            ncols: design.ncols,
-        }
+        Self { content: hash_design_contents(design), nrows: design.nrows, ncols: design.ncols }
     }
 }
 
-fn hash_design_contents(x: &[f64], weights: Option<&[f64]>) -> u64 {
-    let mut h = Fnv1a64::new();
-    h.fold(x.len() as u64);
-    for &v in x {
-        h.fold(v.to_bits());
-    }
-    match weights {
+fn hash_design_contents(design: &BayesDesignRef<'_>) -> [u8; 32] {
+    let mut h = CanonicalWriter::new("antecedent.prob.conjugate_gram.v1");
+    h.word(design.nrows as u64).word(design.ncols as u64).reals(design.x_colmajor);
+    match design.weights {
         None => {
-            h.fold(0);
+            h.word(0);
         }
         Some(w) => {
-            h.fold(1);
-            h.fold(w.len() as u64);
-            for &v in w {
-                h.fold(v.to_bits());
-            }
+            h.word(1).reals(w);
         }
     }
     h.finish()
 }
 
 impl LaplaceWorkspace {
+    /// Bind owned immutable, unweighted Gaussian columns for repeated fits.
+    ///
+    /// Validates once per buffer binding. Later calls with these exact buffers
+    /// can reuse validation and the design digest; priors, outcomes under another
+    /// binding, and draws are still evaluated for each fit.
+    ///
+    /// # Errors
+    ///
+    /// Invalid shape or non-finite Gaussian data.
+    pub fn bind_immutable_gaussian_design(
+        &mut self,
+        x: Arc<[f64]>,
+        y: Arc<[f64]>,
+        nrows: usize,
+        ncols: usize,
+    ) -> Result<(), ProbError> {
+        let design =
+            BayesDesignRef { x_colmajor: &x, y: &y, nrows, ncols, weights: None, offsets: None };
+        if self.immutable_gaussian_key(design).is_some() {
+            return Ok(());
+        }
+        crate::likelihood_terms::validate_design(BayesLikelihood::GaussianIdentity, design)?;
+        let key = ConjugateGramKey::from_design(&design);
+        self.immutable_gaussian = Some(ImmutableGaussianDesign { x, y, key, moments: None });
+        Ok(())
+    }
+
+    pub(crate) fn immutable_gaussian_key(
+        &self,
+        design: BayesDesignRef<'_>,
+    ) -> Option<ConjugateGramKey> {
+        let bound = self.immutable_gaussian.as_ref()?;
+        (design.weights.is_none()
+            && design.offsets.is_none()
+            && design.nrows == bound.key.nrows
+            && design.ncols == bound.key.ncols
+            && std::ptr::eq(design.x_colmajor, bound.x.as_ref())
+            && std::ptr::eq(design.y, bound.y.as_ref()))
+        .then_some(bound.key)
+    }
+
+    pub(crate) fn restore_immutable_gaussian_moments(
+        &mut self,
+        design: BayesDesignRef<'_>,
+    ) -> Option<(f64, f64)> {
+        self.immutable_gaussian_key(design)?;
+        let moments = self.immutable_gaussian.as_ref()?.moments.as_ref()?;
+        self.neg_hessian[..moments.xtx.len()].copy_from_slice(&moments.xtx);
+        self.grad[..moments.xty.len()].copy_from_slice(&moments.xty);
+        Some((moments.yty, moments.n_eff))
+    }
+
+    pub(crate) fn cache_immutable_gaussian_moments(
+        &mut self,
+        design: BayesDesignRef<'_>,
+        yty: f64,
+        n_eff: f64,
+    ) {
+        if self.immutable_gaussian_key(design).is_none() {
+            return;
+        }
+        if let Some(bound) = self.immutable_gaussian.as_mut() {
+            bound.moments = Some(GaussianMoments {
+                xtx: self.neg_hessian[..design.ncols * design.ncols].to_vec(),
+                xty: self.grad[..design.ncols].to_vec(),
+                yty,
+                n_eff,
+            });
+        }
+    }
+
+    /// Logical retained buffer bytes (shared immutable buffers counted in full).
+    #[must_use]
+    pub fn retained_buffer_bytes(&self) -> usize {
+        let vectors = [
+            &self.grad,
+            &self.neg_hessian,
+            &self.factor,
+            &self.step,
+            &self.beta,
+            &self.q,
+            &self.p,
+            &self.eta,
+            &self.work_w,
+            &self.draw_scratch,
+            &self.conjugate_xtx,
+        ];
+        let mut cells = vectors.iter().fold(0usize, |n, v| n.saturating_add(v.capacity()));
+        if let Some(bound) = &self.immutable_gaussian {
+            cells = cells.saturating_add(bound.x.len()).saturating_add(bound.y.len());
+            if let Some(moments) = &bound.moments {
+                cells = cells
+                    .saturating_add(moments.xtx.capacity())
+                    .saturating_add(moments.xty.capacity());
+            }
+        }
+        cells.saturating_mul(size_of::<f64>())
+    }
+
     /// Invalidate cached sufficient statistics after changing a design in place.
     /// Retains allocated buffers for data-augmentation and other refit loops.
     pub fn invalidate_design(&mut self) {
         self.conjugate_key = None;
+        self.immutable_gaussian = None;
     }
     /// Ensure capacity for a design of the given shape (grows, does not shrink).
     pub fn prepare(&mut self, nrows: usize, ncols: usize, n_draws: usize) {
@@ -213,6 +363,120 @@ fn resize_min(buf: &mut Vec<f64>, need: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gram_cache_digest_tracks_contents_shape_and_weights_not_allocation() {
+        let x = [1.0, 1.0, 1.0, 0.0, 1.0, 2.0];
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 3,
+            ncols: 2,
+            y: &[1.0, 2.0, 3.0],
+            weights: None,
+            offsets: None,
+        };
+        let key = ConjugateGramKey::from_design(&design);
+        let copy = x.to_vec();
+        assert_eq!(
+            key,
+            ConjugateGramKey::from_design(&BayesDesignRef { x_colmajor: &copy, ..design })
+        );
+        let mut changed = x;
+        changed[4] = -changed[4]; // Same column sums of squares, different cross-product.
+        assert_ne!(
+            key,
+            ConjugateGramKey::from_design(&BayesDesignRef { x_colmajor: &changed, ..design })
+        );
+        assert_ne!(
+            key,
+            ConjugateGramKey::from_design(&BayesDesignRef { nrows: 2, ncols: 3, ..design })
+        );
+        let weighted = BayesDesignRef { weights: Some(&[1.0, 2.0, 1.0]), ..design };
+        assert_ne!(key, ConjugateGramKey::from_design(&weighted));
+        assert_ne!(
+            ConjugateGramKey::from_design(&weighted),
+            ConjugateGramKey::from_design(&BayesDesignRef {
+                weights: Some(&[2.0, 1.0, 1.0]),
+                ..design
+            })
+        );
+    }
+
+    #[test]
+    fn nuisance_workspace_owner_charges_exact_capacities_until_buffers_drop() {
+        let ctx = ExecutionContext::for_tests(1).with_memory_limit(Some(4096));
+        let owner = antecedent_core::numerical_admission::with_context(&ctx, || {
+            AdmittedLaplaceWorkspace::new(10, 2, 3).unwrap()
+        });
+        let ws = &owner.workspace;
+        let buffers = [
+            &ws.grad,
+            &ws.neg_hessian,
+            &ws.factor,
+            &ws.step,
+            &ws.beta,
+            &ws.q,
+            &ws.p,
+            &ws.eta,
+            &ws.work_w,
+            &ws.draw_scratch,
+        ];
+        assert!(buffers.iter().all(|buffer| buffer.len() == buffer.capacity()));
+        let bytes = buffers.iter().map(|buffer| buffer.capacity() as u64 * 8).sum::<u64>();
+        assert_eq!(bytes, 352);
+        assert_eq!(ctx.admission().available().bytes(), 4096 - bytes);
+        let other = ExecutionContext::for_tests(2).with_memory_limit(Some(bytes - 1));
+        let refused = antecedent_core::numerical_admission::with_context(&other, || {
+            AdmittedLaplaceWorkspace::new(10, 2, 3)
+        });
+        assert!(refused.is_err(), "another pool must fund its own new workspace");
+        assert_eq!(ctx.admission().available().bytes(), 4096 - bytes);
+        assert_eq!(other.admission().available().bytes(), bytes - 1);
+        drop(owner);
+        assert_eq!(ctx.admission().available().bytes(), 4096);
+        let unbound = AdmittedLaplaceWorkspace::new(10, 2, 3).unwrap();
+        #[allow(clippy::used_underscore_binding, reason = "verify the retained lease is absent")]
+        let no_lease = unbound._admission.is_none();
+        assert!(no_lease, "direct unbound Rust allocations belong to caller");
+    }
+
+    #[test]
+    fn immutable_gaussian_binding_never_certifies_other_buffers_or_weights() {
+        let x: Arc<[f64]> = Arc::from([1.0, 1.0, 0.0, 1.0]);
+        let y: Arc<[f64]> = Arc::from([2.0, 4.0]);
+        let mut ws = LaplaceWorkspace::default();
+        ws.bind_immutable_gaussian_design(Arc::clone(&x), Arc::clone(&y), 2, 2).unwrap();
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            y: &y,
+            nrows: 2,
+            ncols: 2,
+            weights: None,
+            offsets: None,
+        };
+        assert!(ws.immutable_gaussian_key(design).is_some());
+        // The cache keeps ownership: an allocator cannot recycle these addresses.
+        assert_eq!(Arc::strong_count(&x), 2);
+        let changed_y = [2.0, f64::NAN];
+        assert!(ws.immutable_gaussian_key(BayesDesignRef { y: &changed_y, ..design }).is_none());
+        assert!(
+            ws.bind_immutable_gaussian_design(Arc::clone(&x), Arc::from(changed_y), 2, 2).is_err()
+        );
+        assert!(
+            ws.immutable_gaussian_key(BayesDesignRef { weights: Some(&[1.0, 2.0]), ..design })
+                .is_none()
+        );
+        assert!(
+            ws.immutable_gaussian_key(BayesDesignRef { offsets: Some(&[0.0, 1.0]), ..design })
+                .is_none()
+        );
+        assert!(
+            ws.immutable_gaussian_key(BayesDesignRef { nrows: 1, ncols: 4, ..design }).is_none()
+        );
+        ws.invalidate_design();
+        assert!(ws.immutable_gaussian_key(design).is_none());
+        assert_eq!(Arc::strong_count(&x), 1);
+    }
 
     #[test]
     fn workspace_reuses_buffers() {

@@ -1,8 +1,8 @@
 //! Executed, attested finite mean callbacks under the original shared planner.
 //! Planning never invokes a provider. Metadata establishes no native causal proof or coupling.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::recalc_common::Fields;
-use super::recalc_receipt::{Counter, RecalcReceipt, ReceiptRecorder};
+use super::recalc_receipt::{Columns, Counter, RecalcReceipt, ReceiptRecorder};
 use antecedent_contract::{
     BoundExternalClaim, CheckedCausalContract, DistributionMeaning, EquivalenceScope,
     ExternalProgramClaim, ExternalResponse, ExternalResult, ExternalTrustState,
@@ -92,7 +92,7 @@ pub struct ExternalCallbackRequest {
     /// Required actual provider implementation/environment.
     pub descriptor: ProviderDescriptor,
     /// Actual named raw numeric payload, all rows included in identity.
-    pub columns: Vec<(String, Vec<f64>)>,
+    pub columns: Columns,
     /// Declared finite model parameters, in canonical supplied order.
     pub model_parameters: Vec<(String, f64)>,
     /// Actual callback RNG seed, including deterministic callbacks' declared input identity.
@@ -174,7 +174,7 @@ impl ExternalCallbackError {
                 .entries()
                 .iter()
                 .find_map(|entry| {
-                    if let StageStatus::Refused { reason } = entry.status {
+                    if let StageStatus::Refused { reason } = &entry.status {
                         Some(reason.reason_code())
                     } else {
                         None
@@ -182,14 +182,16 @@ impl ExternalCallbackError {
                 })
                 .unwrap_or(antecedent_core::reason_code!("route_not_supported")),
             Self::Request(detail) | Self::Attempt { detail, .. } => match *detail {
-                "recalc.cancelled" => antecedent_core::reason_code!("cancelled_no_claim"),
-                "recalc.unavailable_provider" => {
+                antecedent_core::reason_details::recalc::CANCELLED => {
+                    antecedent_core::reason_code!("cancelled_no_claim")
+                }
+                antecedent_core::reason_details::recalc::UNAVAILABLE_PROVIDER => {
                     antecedent_core::reason_code!("score_table_unavailable")
                 }
-                "external_recalc.policy_unsupported"
-                | "external_recalc.quantity_unsupported"
-                | "external_recalc.replay_unsupported"
-                | "external_recalc.retry_unsafe" => {
+                antecedent_core::reason_details::external_recalc::POLICY_UNSUPPORTED
+                | antecedent_core::reason_details::external_recalc::QUANTITY_UNSUPPORTED
+                | antecedent_core::reason_details::external_recalc::REPLAY_UNSUPPORTED
+                | antecedent_core::reason_details::external_recalc::RETRY_UNSAFE => {
                     antecedent_core::reason_code!("route_not_supported")
                 }
                 _ => antecedent_core::reason_code!("invalid_argument"),
@@ -234,24 +236,52 @@ pub struct ExternalCallbackSession {
     attempts: BTreeSet<StageIdentity>,
     idempotency_bindings: BTreeMap<StageIdentity, StageIdentity>,
     epoch: u64,
+    attempt_limit: usize,
+    metadata_limits: ExternalMetadataLimits,
+}
+/// Distinct side-effecting attempts a session admits unless its owner declares another limit.
+pub const DEFAULT_ATTEMPT_LIMIT: usize = 256;
+
+/// Bounds on the identifier and metadata text an attested program, contract and provider response
+/// carry. They exist because an untrusted provider supplies that text; table sizes, doses and
+/// quantities are not limited here (the dose grid fixes the response shape).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ExternalMetadataLimits {
+    /// Longest identifier, name or conditioning text, in bytes.
+    pub max_text_bytes: usize,
+    /// Most evidence ids and most assumption ids a contract or response header may name.
+    pub max_ids: usize,
+    /// Most accepted meanings a contract may list.
+    pub max_meanings: usize,
+    /// Most capabilities a response law may declare.
+    pub max_capabilities: usize,
+    /// Most conditioning entries on one quantity.
+    pub max_conditioning: usize,
+}
+impl Default for ExternalMetadataLimits {
+    fn default() -> Self {
+        Self {
+            max_text_bytes: 256,
+            max_ids: 128,
+            max_meanings: 32,
+            max_capabilities: 32,
+            max_conditioning: 64,
+        }
+    }
 }
 impl Default for ExternalCallbackSession {
     fn default() -> Self {
         Self::new()
     }
 }
-thread_local! { static INVOCATIONS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) }; }
-/// Observe actual callback entries; nested observers see the same actual calls.
-pub fn count_external_invocations<T>(work: impl FnOnce() -> T) -> (T, u64) {
-    let before = INVOCATIONS.get();
-    let result = work();
-    (result, INVOCATIONS.get().saturating_sub(before))
-}
 fn text_identity(domain: &str, text: &str) -> StageIdentity {
     StageIdentity::of(domain, &[text.as_bytes()])
 }
-pub(crate) fn quantity_bounded(quantity: &antecedent_contract::ScientificQuantity) -> bool {
-    quantity.conditioning.len() <= 64
+pub(crate) fn quantity_bounded(
+    quantity: &antecedent_contract::ScientificQuantity,
+    limits: &ExternalMetadataLimits,
+) -> bool {
+    quantity.conditioning.len() <= limits.max_conditioning
         && [
             &quantity.variable_id,
             &quantity.variable_name,
@@ -262,12 +292,12 @@ pub(crate) fn quantity_bounded(quantity: &antecedent_contract::ScientificQuantit
             &quantity.transform_id,
         ]
         .into_iter()
-        .all(|text| !text.is_empty() && text.len() <= 256)
+        .all(|text| !text.is_empty() && text.len() <= limits.max_text_bytes)
         && quantity.conditioning.iter().all(|condition| {
             !condition.variable_id.is_empty()
-                && condition.variable_id.len() <= 256
+                && condition.variable_id.len() <= limits.max_text_bytes
                 && !condition.value_id.is_empty()
-                && condition.value_id.len() <= 256
+                && condition.value_id.len() <= limits.max_text_bytes
         })
 }
 /// Invokes the provider once under the request seed and validates the response shape, identity and uncertainty.
@@ -276,6 +306,7 @@ fn invoke_attested_provider(
     provider: &mut dyn ExternalMeanProvider,
     digest: StageIdentity,
     ctx: &ExecutionContext,
+    limits: &ExternalMetadataLimits,
 ) -> Result<(ExternalResponse, InvocationAttempt), ExternalCallbackError> {
     let report = InvocationAttempt { request_digest: digest, invocations: 1 };
     let callback_context = CallbackContext {
@@ -287,25 +318,25 @@ fn invoke_attested_provider(
         || provider.invoke(request, &callback_context),
     )
     .map_err(|failure| ExternalCallbackError::Attempt {
-        detail: "external_recalc.callback_failed",
+        detail: antecedent_core::reason_details::external_recalc::CALLBACK_FAILED,
         report: report.clone(),
         message: failure.message.chars().take(1024).collect(),
     })?;
     if ctx.cancellation.is_cancelled() {
         return Err(ExternalCallbackError::Attempt {
-            detail: "recalc.cancelled",
+            detail: antecedent_core::reason_details::recalc::CANCELLED,
             report,
             message: "cooperative cancellation after callback".into(),
         });
     }
-    if !response_bounded(&response)
+    if !response_bounded(&response, request.program.dose_grid.len(), limits)
         || response.values.len() != request.program.dose_grid.len()
         || response.values.iter().any(|value| !value.is_finite())
         || response.header.object.identity() != &request.descriptor.identity
         || response.uncertainty != ExternalUncertaintyMeaning::None
     {
         return Err(ExternalCallbackError::Attempt {
-            detail: "external_recalc.invalid_output",
+            detail: antecedent_core::reason_details::external_recalc::INVALID_OUTPUT,
             report,
             message: "response shape, finite means, provider identity or uncertainty mismatch"
                 .into(),
@@ -317,25 +348,30 @@ fn invoke_attested_provider(
     Ok((response, report))
 }
 
-fn response_bounded(response: &ExternalResponse) -> bool {
+/// Whether the response header is well-formed; it names at most one quantity per requested dose.
+fn response_bounded(
+    response: &ExternalResponse,
+    doses: usize,
+    limits: &ExternalMetadataLimits,
+) -> bool {
     let antecedent_contract::ExternalScientificObject::Law(law) = &response.header.object else {
         return false;
     };
-    response.header.graph_id.len() <= 256
-        && response.header.quantities.len() <= 64
-        && response.header.quantities.iter().all(quantity_bounded)
-        && law.quantities.len() <= 64
-        && law.quantities.iter().all(quantity_bounded)
-        && law.capabilities.len() <= 32
+    response.header.graph_id.len() <= limits.max_text_bytes
+        && response.header.quantities.len() <= doses
+        && response.header.quantities.iter().all(|q| quantity_bounded(q, limits))
+        && law.quantities.len() <= doses
+        && law.quantities.iter().all(|q| quantity_bounded(q, limits))
+        && law.capabilities.len() <= limits.max_capabilities
         && law.capabilities.contains(&antecedent_contract::ExternalCapability::Mean)
-        && response.header.evidence_ids.len() <= 128
-        && response.header.assumption_ids.len() <= 128
+        && response.header.evidence_ids.len() <= limits.max_ids
+        && response.header.assumption_ids.len() <= limits.max_ids
         && response
             .header
             .evidence_ids
             .iter()
             .chain(&response.header.assumption_ids)
-            .all(|text| !text.is_empty() && text.len() <= 256)
+            .all(|text| !text.is_empty() && text.len() <= limits.max_text_bytes)
 }
 /// Digest of ordered quantity coordinates, by their canonical field encoding.
 fn quantities_digest(quantities: &[ScientificQuantity]) -> [u8; 32] {
@@ -435,34 +471,40 @@ impl ExternalCallbackRequest {
             &parts.iter().map(Vec::as_slice).collect::<Vec<_>>(),
         )
     }
-    pub(crate) fn validate(&self) -> Result<(), ExternalCallbackError> {
+    pub(crate) fn validate(
+        &self,
+        limits: &ExternalMetadataLimits,
+    ) -> Result<(), ExternalCallbackError> {
         if self.branch.index() >= antecedent_core::recalc::MAX_EXTERNAL_BRANCHES
             || self.descriptor.policy == CallbackPolicy::Unknown
         {
-            return Err(ExternalCallbackError::Request("external_recalc.policy_unsupported"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::POLICY_UNSUPPORTED,
+            ));
         }
-        self.metadata_guard()?;
+        self.metadata_guard(limits)?;
         if self.idempotency_key.is_some() && !self.descriptor.idempotency_supported {
-            return Err(ExternalCallbackError::Request("external_recalc.idempotency_unsupported"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::IDEMPOTENCY_UNSUPPORTED,
+            ));
         }
-        let rows = self.columns.first().map_or(0, |(_, values)| values.len());
-        if self.columns.len() > 64
-            || rows > 100_000
-            || rows.saturating_mul(self.columns.len()) > 1_000_000
-            || self.columns.iter().any(|(name, values)| {
-                name.is_empty()
-                    || name.len() > 256
-                    || values.len() != rows
-                    || values.iter().any(|v| !v.is_finite())
-            })
-            || self.model_parameters.len() > 128
-            || self
-                .model_parameters
-                .iter()
-                .any(|(name, value)| name.is_empty() || name.len() > 256 || !value.is_finite())
-            || self.idempotency_key.as_ref().is_some_and(|key| key.is_empty() || key.len() > 256)
+        // Table size is bounded by the caller's memory budget at execution, not by a literal.
+        let rows = self.columns.n_rows();
+        if self.columns.iter().any(|(name, values)| {
+            name.is_empty()
+                || name.len() > limits.max_text_bytes
+                || values.len() != rows
+                || values.iter().any(|v| !v.is_finite())
+        }) || self.model_parameters.iter().any(|(name, value)| {
+            name.is_empty() || name.len() > limits.max_text_bytes || !value.is_finite()
+        }) || self
+            .idempotency_key
+            .as_ref()
+            .is_some_and(|key| key.is_empty() || key.len() > limits.max_text_bytes)
         {
-            return Err(ExternalCallbackError::Request("external_recalc.invalid_request"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::INVALID_REQUEST,
+            ));
         }
         let column_names = self.columns.iter().map(|(name, _)| name).collect::<BTreeSet<_>>();
         let parameter_names =
@@ -470,32 +512,36 @@ impl ExternalCallbackRequest {
         if column_names.len() != self.columns.len()
             || parameter_names.len() != self.model_parameters.len()
         {
-            return Err(ExternalCallbackError::Request("external_recalc.invalid_request"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::INVALID_REQUEST,
+            ));
         }
         antecedent_contract::check_external_against_program(&self.program, &self.claim)
             .map_err(|error| ExternalCallbackError::Binding(Box::new(error)))?;
         if self.program.functional_id != "mean" || self.program.transform_id != "identity" {
-            return Err(ExternalCallbackError::Request("external_recalc.quantity_unsupported"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::QUANTITY_UNSUPPORTED,
+            ));
         }
         if self.contract.graph_id != self.program.graph_id
             || self.contract.estimand != self.program.expected_quantities()
         {
-            return Err(ExternalCallbackError::Request("external_recalc.contract_mismatch"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::CONTRACT_MISMATCH,
+            ));
         }
         Ok(())
     }
-    fn metadata_guard(&self) -> Result<(), ExternalCallbackError> {
-        let bounded = |text: &String| !text.is_empty() && text.len() <= 256;
+    fn metadata_guard(&self, limits: &ExternalMetadataLimits) -> Result<(), ExternalCallbackError> {
+        let bounded = |text: &String| !text.is_empty() && text.len() <= limits.max_text_bytes;
         let p = &self.program;
         let c = &self.claim;
         let d = &self.descriptor;
-        if p.dose_grid.len() > 64
-            || c.doses.len() > 64
-            || c.quantities.len() > 64
-            || self.contract.estimand.len() > 64
-            || self.contract.required_evidence_ids.len() > 128
-            || self.contract.accepted_meanings.len() > 32
-            || self.contract.required_assumption_ids.len() > 128
+        // The dose grid, its claim and its quantities are the caller's own request size; each
+        // dose is one callback value and the response shape must match them exactly.
+        if self.contract.required_evidence_ids.len() > limits.max_ids
+            || self.contract.accepted_meanings.len() > limits.max_meanings
+            || self.contract.required_assumption_ids.len() > limits.max_ids
             || !self.contract.equivalences.is_empty()
             || [
                 &p.graph_id,
@@ -532,7 +578,7 @@ impl ExternalCallbackRequest {
                 .chain(&self.contract.required_assumption_ids)
                 .any(|text| !bounded(text))
             || self.claim.quantities.iter().chain(&self.contract.estimand).any(|quantity| {
-                quantity.conditioning.len() > 64
+                quantity.conditioning.len() > limits.max_conditioning
                     || [
                         &quantity.variable_id,
                         &quantity.variable_name,
@@ -549,7 +595,9 @@ impl ExternalCallbackRequest {
                     })
             })
         {
-            return Err(ExternalCallbackError::Request("external_recalc.invalid_request"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::INVALID_REQUEST,
+            ));
         }
         Ok(())
     }
@@ -584,7 +632,23 @@ impl ExternalCallbackSession {
             attempts: BTreeSet::new(),
             idempotency_bindings: BTreeMap::new(),
             epoch: 0,
+            attempt_limit: DEFAULT_ATTEMPT_LIMIT,
+            metadata_limits: ExternalMetadataLimits::default(),
         }
+    }
+    /// The same session admitting up to `limit` distinct side-effecting attempts. The ledger
+    /// of attempted side effects is retained for the life of the session, so the limit is the
+    /// owner's bound on how many external effects one session may cause.
+    #[must_use]
+    pub const fn with_attempt_limit(mut self, limit: usize) -> Self {
+        self.attempt_limit = limit;
+        self
+    }
+    /// The same session validating request and response metadata under `limits`.
+    #[must_use]
+    pub const fn with_metadata_limits(mut self, limits: ExternalMetadataLimits) -> Self {
+        self.metadata_limits = limits;
+        self
     }
     /// Actual issued claim, absent until successful native transaction finalization.
     #[must_use]
@@ -601,7 +665,7 @@ impl ExternalCallbackSession {
         request: &ExternalCallbackRequest,
         supplied: bool,
     ) -> (StageIdentities, StageIdentities, RecalcCapabilities) {
-        let supported = request.validate().is_ok();
+        let supported = request.validate(&self.metadata_limits).is_ok();
         let epoch = if matches!(
             request.descriptor.policy,
             CallbackPolicy::Stateful | CallbackPolicy::SideEffecting
@@ -633,7 +697,7 @@ impl ExternalCallbackSession {
                 request: if supported {
                     RequestSupport::OnGrid
                 } else {
-                    RequestSupport::Unsupported { licensed_route: None }
+                    RequestSupport::Unsupported { supported_route: None }
                 },
                 boundary: if self.portable.is_some() {
                     Boundary::FreshProcess(ResumeContext {
@@ -676,7 +740,9 @@ impl ExternalCallbackSession {
     pub fn export_output(&self) -> Result<Vec<u8>, ExternalCallbackError> {
         self.live
             .as_ref()
-            .ok_or(ExternalCallbackError::Request("external_recalc.output_unavailable"))?
+            .ok_or(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::OUTPUT_UNAVAILABLE,
+            ))?
             .artifact
             .export()
             .map_err(|error| ExternalCallbackError::Artifact(error.to_string()))
@@ -688,12 +754,25 @@ impl ExternalCallbackSession {
         bytes: &[u8],
         request: &ExternalCallbackRequest,
     ) -> Result<Self, ExternalCallbackError> {
-        request.validate()?;
+        Self::resume_with_limits(bytes, request, ExternalMetadataLimits::default())
+    }
+    /// [`Self::resume`] validating request metadata under `limits`; the resumed session keeps
+    /// them.
+    /// # Errors
+    /// As [`Self::resume`].
+    pub fn resume_with_limits(
+        bytes: &[u8],
+        request: &ExternalCallbackRequest,
+        limits: ExternalMetadataLimits,
+    ) -> Result<Self, ExternalCallbackError> {
+        request.validate(&limits)?;
         if !matches!(
             request.descriptor.policy,
             CallbackPolicy::Deterministic | CallbackPolicy::Seeded
         ) {
-            return Err(ExternalCallbackError::Request("external_recalc.replay_unsupported"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::REPLAY_UNSUPPORTED,
+            ));
         }
         let artifact = ExternalCallbackArtifact::consume(
             bytes,
@@ -702,9 +781,11 @@ impl ExternalCallbackSession {
         )
         .map_err(|error| ExternalCallbackError::Artifact(error.to_string()))?;
         if artifact.policy != request.descriptor.policy.label() {
-            return Err(ExternalCallbackError::Request("external_recalc.replay_mismatch"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::REPLAY_MISMATCH,
+            ));
         }
-        let mut session = Self::new();
+        let mut session = Self::new().with_metadata_limits(limits);
         session.previous = request.identities(0);
         session.portable = Some(Arc::new(artifact));
         Ok(session)
@@ -719,12 +800,16 @@ impl ExternalCallbackSession {
         provider: Option<&mut dyn ExternalMeanProvider>,
         ctx: &ExecutionContext,
     ) -> Result<ExternalCallbackOutcome, ExternalCallbackError> {
-        request.validate()?;
+        request.validate(&self.metadata_limits)?;
         if ctx.cancellation.is_cancelled() {
-            return Err(ExternalCallbackError::Request("recalc.cancelled"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::recalc::CANCELLED,
+            ));
         }
         if provider.as_ref().is_some_and(|provider| provider.descriptor() != &request.descriptor) {
-            return Err(ExternalCallbackError::Request("external_recalc.provider_mismatch"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::PROVIDER_MISMATCH,
+            ));
         }
         let (previous, requested, capabilities) = self.plan_inputs(request, provider.is_some());
         let plan = RecalcPlan::plan(&previous, &requested, &capabilities);
@@ -733,13 +818,15 @@ impl ExternalCallbackSession {
         }
         let stage = Stage::ProviderRequest(request.branch);
         let changed = matches!(plan.status(stage), Some(StageStatus::Recomputed { .. }));
-        let mut recorder = ReceiptRecorder::new();
+        let mut recorder = ReceiptRecorder::charged_to(ctx);
         if !changed {
             let claim = Arc::clone(
                 &self
                     .live
                     .as_ref()
-                    .ok_or(ExternalCallbackError::Request("external_recalc.output_unavailable"))?
+                    .ok_or(ExternalCallbackError::Request(
+                        antecedent_core::reason_details::external_recalc::OUTPUT_UNAVAILABLE,
+                    ))?
                     .claim,
             );
             let receipt = recorder
@@ -754,10 +841,12 @@ impl ExternalCallbackSession {
                 capabilities,
             });
         }
-        let provider =
-            provider.ok_or(ExternalCallbackError::Request("recalc.unavailable_provider"))?;
+        let provider = provider.ok_or(ExternalCallbackError::Request(
+            antecedent_core::reason_details::recalc::UNAVAILABLE_PROVIDER,
+        ))?;
         let digest = self.admit_attempt(request, &*provider, ctx)?;
-        let (response, report) = invoke_attested_provider(request, provider, digest, ctx)?;
+        let (response, report) =
+            invoke_attested_provider(request, provider, digest, ctx, &self.metadata_limits)?;
         let (claim, artifact) = self.bind_attested_output(request, response, digest, report)?;
         recorder.record(Counter::ExternalInvocation(request.branch), 1);
         let receipt = recorder
@@ -780,17 +869,15 @@ impl ExternalCallbackSession {
             request.columns.iter().fold(0_usize, |n, (_, values)| n.saturating_add(values.len()));
         let bytes =
             u64::try_from(values).unwrap_or(u64::MAX).saturating_mul(16).saturating_add(4_000_000);
-        if ctx
-            .memory
-            .hard_limit_bytes
-            .into_iter()
-            .chain(ctx.memory.soft_limit_bytes)
-            .any(|limit| bytes > limit)
-        {
-            return Err(ExternalCallbackError::Request("recalc.memory_budget_exceeded"));
+        if ctx.memory_limit_bytes().into_iter().any(|limit| bytes > limit) {
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::recalc::MEMORY_BUDGET_EXCEEDED,
+            ));
         }
         if provider.descriptor() != &request.descriptor {
-            return Err(ExternalCallbackError::Request("external_recalc.provider_mismatch"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::PROVIDER_MISMATCH,
+            ));
         }
         let digest = request.digest();
         let key_binding = request.idempotency_key.as_ref().map(|key| {
@@ -804,19 +891,25 @@ impl ExternalCallbackSession {
                 self.idempotency_bindings.get(&key).is_some_and(|prior| *prior != digest)
             })
         {
-            return Err(ExternalCallbackError::Request("external_recalc.idempotency_conflict"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::IDEMPOTENCY_CONFLICT,
+            ));
         }
         if request.descriptor.policy == CallbackPolicy::SideEffecting
             && self.attempts.contains(&digest)
             && request.idempotency_key.is_none()
         {
-            return Err(ExternalCallbackError::Request("external_recalc.retry_unsafe"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::RETRY_UNSAFE,
+            ));
         }
         if request.descriptor.policy == CallbackPolicy::SideEffecting
-            && self.attempts.len() >= 256
+            && self.attempts.len() >= self.attempt_limit
             && !self.attempts.contains(&digest)
         {
-            return Err(ExternalCallbackError::Request("external_recalc.attempt_limit"));
+            return Err(ExternalCallbackError::Request(
+                antecedent_core::reason_details::external_recalc::ATTEMPT_LIMIT,
+            ));
         }
         if request.descriptor.policy == CallbackPolicy::SideEffecting {
             self.attempts.insert(digest);
@@ -825,7 +918,6 @@ impl ExternalCallbackSession {
             }
         }
         self.epoch = self.epoch.saturating_add(1);
-        INVOCATIONS.set(INVOCATIONS.get().saturating_add(1));
         Ok(digest)
     }
 
@@ -860,20 +952,18 @@ impl ExternalCallbackSession {
                 .to_bytes("executed-attested-callback")
                 .map_err(|error| ExternalCallbackError::Artifact(error.to_string()))?,
         };
-        if let Some(portable) = &self.portable {
-            if artifact.identity != portable.identity
+        if let Some(portable) = &self.portable
+            && (artifact.identity != portable.identity
                 || scientific.values()
                     != ExternalClaimArtifact::from_bytes(&portable.artifact, &portable.identity)
                         .map_err(|error| ExternalCallbackError::Artifact(error.to_string()))?
-                        .values()
-            {
-                return Err(ExternalCallbackError::Attempt {
-                    detail: "external_recalc.replay_mismatch",
-                    report,
-                    message: "provided callback did not reproduce the portable attested output"
-                        .into(),
-                });
-            }
+                        .values())
+        {
+            return Err(ExternalCallbackError::Attempt {
+                detail: antecedent_core::reason_details::external_recalc::REPLAY_MISMATCH,
+                report,
+                message: "provided callback did not reproduce the portable attested output".into(),
+            });
         }
         Ok((claim, artifact))
     }

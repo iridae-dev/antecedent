@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError
 from antecedent.graph import Admg
 from antecedent.recovery_chain import (
@@ -140,14 +141,14 @@ def test_decide_reports_the_checked_plan_without_a_law() -> None:
     assert decision.plan.operations_consumed > 0
     assert any(p.startswith("response_chain:") for p in decision.plan.premises)
     with pytest.raises(RecoveryChainRefusal):
-        decision.export()
+        bytes(decision.export())
 
 
 def test_self_censoring_edge_refuses_with_a_verified_exact_witness() -> None:
     law, _ = scm(0, True)
     error = refused(
         lambda: recover_chain(graph(0, True, extra=[("x2", "r2")]), QUERY, law),
-        "recovery_chain.nonrecoverable_witness",
+        reason_details.recovery_chain.NONRECOVERABLE_WITNESS,
         "transport_proven_non_transportable",
     )
     witness = error.witness
@@ -164,7 +165,7 @@ def test_self_censoring_edge_refuses_with_a_verified_exact_witness() -> None:
     decision = decide_chain(graph(0, True, extra=[("x2", "r2")]), QUERY)
     assert decision.outcome == "nonrecoverable" and decision.plan is None
     assert decision.witness == witness
-    assert decision.export() == error.artifact
+    assert bytes(decision.export()) == error.artifact
 
 
 def test_head_self_censoring_with_an_independent_tail_is_also_witnessed() -> None:
@@ -177,7 +178,7 @@ def test_head_self_censoring_with_an_independent_tail_is_also_witnessed() -> Non
 
 def test_graphs_outside_the_row_are_not_supported_never_nonrecoverable() -> None:
     law, _ = scm(0, True)
-    unsupported = "recovery_chain.unsupported_mechanism"
+    unsupported = reason_details.recovery_chain.UNSUPPORTED_MECHANISM
     # A response drives the other variable's proxy.
     refused(
         lambda: recover_chain(graph(0, True, extra=[("r1", "p2")]), QUERY, law),
@@ -211,7 +212,7 @@ def test_malformed_roles_are_invalid_queries() -> None:
     broken["edges"] = [e for e in broken["edges"] if e != ("r2", "p2")]
     refused(
         lambda: recover_chain(broken, QUERY, law),
-        "recovery_chain.invalid_query",
+        reason_details.recovery_chain.INVALID_QUERY,
         "invalid_argument",
     )
     with pytest.raises(ValueError, match="three distinct"):
@@ -233,7 +234,7 @@ def test_zero_mass_cell_and_invalid_laws_refuse() -> None:
     )
     refused(
         lambda: recover_chain(graph(0, True), QUERY, broken),
-        "recovery_chain.positivity",
+        reason_details.recovery_chain.POSITIVITY,
         "transport_support_failure",
     )
     not_normalized = PatternLaw(
@@ -241,7 +242,7 @@ def test_zero_mass_cell_and_invalid_laws_refuse() -> None:
     )
     refused(
         lambda: recover_chain(graph(0, True), QUERY, not_normalized),
-        "recovery_chain.invalid_observed_law",
+        reason_details.recovery_chain.INVALID_OBSERVED_LAW,
         "invalid_argument",
     )
     with_nan = PatternLaw(
@@ -249,7 +250,7 @@ def test_zero_mass_cell_and_invalid_laws_refuse() -> None:
     )
     refused(
         lambda: recover_chain(graph(0, True), QUERY, with_nan),
-        "recovery_chain.invalid_observed_law",
+        reason_details.recovery_chain.INVALID_OBSERVED_LAW,
         "invalid_argument",
     )
     with pytest.raises(ValueError, match="2 x 2"):
@@ -259,7 +260,7 @@ def test_zero_mass_cell_and_invalid_laws_refuse() -> None:
 def test_export_consume_round_trip_recomputes_the_recovered_law() -> None:
     law, truth = scm(1, True)
     result = recover_chain(graph(1, True), QUERY, law)
-    artifact = result.export()
+    artifact = bytes(result.export())
     assert isinstance(artifact, bytes)
     fresh = consume_recovery_chain_artifact(artifact)
     np.testing.assert_allclose(fresh.law, truth, atol=1e-12)
@@ -267,7 +268,7 @@ def test_export_consume_round_trip_recomputes_the_recovered_law() -> None:
     assert fresh.plan == result.plan
     assert fresh.premises_digest == result.premises_digest
     assert fresh.data_digest == result.data_digest
-    assert fresh.export() == artifact
+    assert bytes(fresh.export()) == artifact
     # A mapping is accepted for the law.
     mapping = {
         "both": [list(row) for row in law.both],
@@ -286,7 +287,7 @@ def test_nonrecoverable_artifact_reverifies_its_witness() -> None:
     assert artifact is not None
     error = refused(
         lambda: consume_recovery_chain_artifact(artifact),
-        "recovery_chain.nonrecoverable_witness",
+        reason_details.recovery_chain.NONRECOVERABLE_WITNESS,
         "transport_proven_non_transportable",
     )
     assert error.witness == info.value.witness
@@ -294,7 +295,7 @@ def test_nonrecoverable_artifact_reverifies_its_witness() -> None:
 
 def test_corrupt_truncated_and_foreign_artifacts_refuse() -> None:
     law, _ = scm(0, True)
-    artifact = recover_chain(graph(0, True), QUERY, law).export()
+    artifact = bytes(recover_chain(graph(0, True), QUERY, law).export())
     with pytest.raises(CausalSerializationError):
         consume_recovery_chain_artifact(artifact[:-5])
     with pytest.raises(CausalSerializationError):
@@ -303,5 +304,5 @@ def test_corrupt_truncated_and_foreign_artifacts_refuse() -> None:
     corrupt[len(corrupt) // 2] ^= 0xFF
     with pytest.raises((CausalSerializationError, RecoveryChainRefusal)):
         consume_recovery_chain_artifact(bytes(corrupt))
-    with pytest.raises(TypeError, match="artifact must be bytes"):
+    with pytest.raises(TypeError, match="an artifact is bytes or ExportedArtifact"):
         consume_recovery_chain_artifact("text")  # type: ignore[arg-type]

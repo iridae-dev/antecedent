@@ -10,7 +10,7 @@
 //! scored on the rows it was learned from is refused, that selection inflates an in-sample
 //! plug-in where cross-fitting does not, and that every refusal carries its own detail.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -174,7 +174,7 @@ fn a_policy_learned_on_held_out_rows_is_scored_on_independent_rows() {
     // Each level holds out the ceiling of 40 percent of its rows.
     assert!((3200..=3202).contains(&result.evaluation_rows), "{}", result.evaluation_rows);
     assert_eq!(result.evaluation_rows + result.learning_rows, 8000);
-    let evaluated: std::collections::HashSet<u32> = result.row_index.iter().copied().collect();
+    let evaluated: std::collections::HashSet<_> = result.row_index.iter().copied().collect();
     assert_eq!(evaluated.len() as u64, result.evaluation_rows);
     // The split is seeded: the same seed holds out the same rows, another does not.
     let again = estimate(&data, &request, 5).unwrap();
@@ -182,8 +182,11 @@ fn a_policy_learned_on_held_out_rows_is_scored_on_independent_rows() {
     let other = estimate(&data, &request, 6).unwrap();
     assert_ne!(result.row_index, other.row_index);
     // Each treatment level is held out in proportion.
-    let held_treated =
-        result.row_index.iter().filter(|&&i| data.treatment[i as usize] == 1.0).count() as f64;
+    let held_treated = result
+        .row_index
+        .iter()
+        .filter(|i| data.treatment[usize::try_from(i.get()).expect("row")] == 1.0)
+        .count() as f64;
     let all_treated = data.treatment.iter().sum::<f64>();
     assert!((held_treated / all_treated - 0.4).abs() < 0.01);
 }
@@ -303,10 +306,16 @@ fn known_propensities_replace_the_fitted_model_and_are_validated() {
     // Probabilities that do not sum to one, or fall below the floor, are refused.
     request.known_propensity = Some(KnownPropensity::Constant(Arc::from([0.5, 0.6])));
     let text = estimate(&data, &request, 2).unwrap_err().to_string();
-    assert!(text.contains("policy_value.invalid_known_propensity"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::policy_value::INVALID_KNOWN_PROPENSITY),
+        "{text}"
+    );
     request.known_propensity = Some(KnownPropensity::Constant(Arc::from([0.995, 0.005])));
     let text = estimate(&data, &request, 2).unwrap_err().to_string();
-    assert!(text.contains("policy_value.action_propensity_below_floor"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::policy_value::ACTION_PROPENSITY_BELOW_FLOOR),
+        "{text}"
+    );
 }
 
 #[test]
@@ -318,7 +327,12 @@ fn a_policy_declared_as_learned_on_the_scoring_rows_is_refused() {
     });
     let error = estimate(&data, &request, 1).unwrap_err();
     let text = error.to_string();
-    assert!(text.contains("policy_value.policy_learned_on_evaluation_rows"), "{text}");
+    assert!(
+        text.contains(
+            antecedent_core::reason_details::policy_value::POLICY_LEARNED_ON_EVALUATION_ROWS
+        ),
+        "{text}"
+    );
     assert!(text.contains("held_out") && text.contains("cross_fitted_learning"), "{text}");
 }
 
@@ -332,7 +346,10 @@ fn a_policy_action_outside_the_declared_support_names_the_action() {
         origin: PolicyOrigin::Prespecified,
     });
     let text = estimate(&data, &request, 1).unwrap_err().to_string();
-    assert!(text.contains("policy_value.action_outside_support"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::policy_value::ACTION_OUTSIDE_SUPPORT),
+        "{text}"
+    );
     assert!(text.contains('5'), "{text}");
 }
 
@@ -342,7 +359,10 @@ fn an_observed_treatment_outside_the_support_and_an_unpopulated_action_are_refus
     data.treatment[3] = 2.0;
     let request = binary_request(PolicyEvaluation::CrossFitted);
     let text = estimate(&data, &request, 1).unwrap_err().to_string();
-    assert!(text.contains("policy_value.undeclared_level"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::policy_value::UNDECLARED_LEVEL),
+        "{text}"
+    );
 
     let data = binary_study(1000, 27, 1.5, 0, 1.0);
     let wide = ObservationalPolicyValue::new(
@@ -351,7 +371,10 @@ fn an_observed_treatment_outside_the_support_and_an_unpopulated_action_are_refus
         PolicyEvaluation::CrossFitted,
     );
     let text = estimate(&data, &wide, 1).unwrap_err().to_string();
-    assert!(text.contains("policy_value.action_not_populated"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::policy_value::ACTION_NOT_POPULATED),
+        "{text}"
+    );
 }
 
 #[test]
@@ -363,7 +386,10 @@ fn an_action_with_propensity_below_the_floor_is_a_positivity_refusal() {
         origin: PolicyOrigin::Prespecified,
     });
     let text = estimate(&data, &request, 1).unwrap_err().to_string();
-    assert!(text.contains("policy_value.action_propensity_below_floor"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::policy_value::ACTION_PROPENSITY_BELOW_FLOOR),
+        "{text}"
+    );
 }
 
 #[test]
@@ -375,14 +401,14 @@ fn malformed_declarations_are_refused_with_their_own_details() {
         estimate(&data, &request, 1)
             .unwrap_err()
             .to_string()
-            .contains("policy_value.reference_outside_support")
+            .contains(antecedent_core::reason_details::policy_value::REFERENCE_OUTSIDE_SUPPORT)
     );
     let request = binary_request(PolicyEvaluation::HeldOut { evaluation_fraction: 1.5 });
     assert!(
         estimate(&data, &request, 1)
             .unwrap_err()
             .to_string()
-            .contains("policy_value.invalid_evaluation_fraction")
+            .contains(antecedent_core::reason_details::policy_value::INVALID_EVALUATION_FRACTION)
     );
     let mut request = binary_request(PolicyEvaluation::CrossFitted);
     request.folds = 1;
@@ -390,7 +416,7 @@ fn malformed_declarations_are_refused_with_their_own_details() {
         estimate(&data, &request, 1)
             .unwrap_err()
             .to_string()
-            .contains("policy_value.invalid_folds")
+            .contains(antecedent_core::reason_details::policy_value::INVALID_FOLDS)
     );
     let request = ObservationalPolicyValue::new(
         vec![0.0, 0.0],
@@ -401,7 +427,7 @@ fn malformed_declarations_are_refused_with_their_own_details() {
         estimate(&data, &request, 1)
             .unwrap_err()
             .to_string()
-            .contains("policy_value.invalid_support")
+            .contains(antecedent_core::reason_details::policy_value::INVALID_SUPPORT)
     );
     let short = Arc::<[f64]>::from(vec![0.0; 10]);
     let request = binary_request(PolicyEvaluation::Prespecified {
@@ -409,7 +435,10 @@ fn malformed_declarations_are_refused_with_their_own_details() {
         origin: PolicyOrigin::Prespecified,
     });
     assert!(
-        estimate(&data, &request, 1).unwrap_err().to_string().contains("policy_value.invalid_data")
+        estimate(&data, &request, 1)
+            .unwrap_err()
+            .to_string()
+            .contains(antecedent_core::reason_details::policy_value::INVALID_DATA)
     );
 }
 
@@ -489,6 +518,28 @@ fn a_three_action_policy_recovers_its_closed_form_value() {
     )
     .unwrap();
     assert!(learned.value > 1.0);
+    // The optimal policy picks the best conditional mean at each z; its value is the normal
+    // expectation of max(0, 1 + z/2, 1/2 - z), by quadrature.
+    let optimum = normal_expectation(|z| 0.0_f64.max(1.0 + z / 2.0).max(0.5 - z));
+    assert!(optimum > 1.0, "optimal value {optimum}");
+    assert!(
+        within(learned.value, learned.se, optimum, 4.0) || (learned.value - optimum).abs() < 0.05,
+        "learned {} (se {}) vs optimum {optimum}",
+        learned.value,
+        learned.se
+    );
+}
+
+/// `E[f(z)]` for standard normal `z` by trapezoid quadrature.
+fn normal_expectation(f: impl Fn(f64) -> f64) -> f64 {
+    let steps = 40_000;
+    let h = 20.0 / f64::from(steps);
+    (0..=steps)
+        .map(|k| {
+            let z = -10.0 + h * f64::from(k);
+            f(z) * dgp::phi(z) * h
+        })
+        .sum()
 }
 
 #[test]
@@ -506,6 +557,19 @@ fn minimizing_picks_the_action_with_the_smallest_predicted_outcome() {
     .unwrap();
     // Action 0 has mean 0 everywhere; action 2 is lower for z > 1/2, action 1 for z < -2.
     // The minimizer's value is E[min(0, 1/2 - z, 1 + z/2)], well below the maximizer's.
-    assert!(learned.value < 0.0);
-    assert!(learned.action_values[0].policy_share > 0.4);
+    let optimum = normal_expectation(|z| 0.0_f64.min(1.0 + z / 2.0).min(0.5 - z));
+    assert!(optimum < 0.0, "minimal value {optimum}");
+    assert!(
+        within(learned.value, learned.se, optimum, 4.0) || (learned.value - optimum).abs() < 0.05,
+        "learned {} (se {}) vs minimum {optimum}",
+        learned.value,
+        learned.se
+    );
+    // Action 0 is the minimiser where 0 < 1/2 - z and 0 < 1 + z/2, i.e. -2 < z < 1/2.
+    let share = normal_expectation(|z| f64::from(u8::from(z > -2.0 && z < 0.5)));
+    assert!(
+        (learned.action_values[0].policy_share - share).abs() < 0.05,
+        "share {} vs {share}",
+        learned.action_values[0].policy_share
+    );
 }

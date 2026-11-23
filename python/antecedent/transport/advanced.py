@@ -1,6 +1,6 @@
 """Theorem-stage and modality request types. Prefer :class:`antecedent.transport.Transport`.
 
-The licensed trial-IPW cell is :class:`TransportQuery`. Compiler request types
+The supported trial-IPW cell is :class:`TransportQuery`. Compiler request types
 and stage verbs live here; they are not re-exported from
 :mod:`antecedent.transport`.
 """
@@ -13,12 +13,7 @@ from ._admg_conditional import (
     consume_admg_conditional_transport_artifact,
     identify_admg_conditional_transport,
 )
-from ._augmented_grid import (
-    AugmentedResponseGrid,
-    SelectionOverlap,
-    estimate_augmented_response_grid,
-)
-from ._closed_pilots import (
+from ._advanced_producers import (
     NestedFisherCandidate,
     NestedMarkovPosteriorCandidate,
     NestedMarkovPrior,
@@ -26,6 +21,11 @@ from ._closed_pilots import (
     binary_nested_markov_fisher_interval,
     joint_bayesian_transport,
     sampled_observation_recovery,
+)
+from ._augmented_grid import (
+    AugmentedResponseGrid,
+    SelectionOverlap,
+    estimate_augmented_response_grid,
 )
 from ._counterfactual import (
     CounterfactualEvent,
@@ -121,15 +121,15 @@ from ._impl import (
     inspect_catalog,
     inspect_proof_graph,
     plan_z_transport_evidence,
-    prepare,
-    prepare_exact,
-    prepare_response_grid,
-    prepare_statistical,
-    prepare_trial,
     reload_lowered_expression,
     reload_lowered_program,
     replay_z_transport_proposal,
     restore_lowered_program,
+)
+from ._joint_interval_artifact import (
+    JointSensitivityIntervalArtifact,
+    consume_joint_sensitivity_interval,
+    export_joint_sensitivity_interval,
 )
 from ._joint_sensitivity import (
     JointDeviation,
@@ -160,6 +160,16 @@ from ._multi_source import (
     consume_multi_source_z_transport_artifact,
     identify_multi_source_z_transport,
 )
+from ._period_refresh import (
+    ConsumedPeriodRefresh,
+    PeriodPrior,
+    PeriodRefresh,
+    PeriodRefreshOutcome,
+    PeriodRefreshSummary,
+    PeriodRowCounts,
+    PeriodWindow,
+    consume_period_refresh_artifact,
+)
 from ._recovery import (
     ObservationRecoveryQuery,
     PartiallyObservedVariable,
@@ -180,8 +190,11 @@ from ._smoothed_dose import (
     SmoothedDoseEstimate,
     SmoothedDoseGridPoint,
     SmoothedDoseOptions,
+    SmoothedDosePosterior,
+    SmoothedDosePosteriorModel,
     SmoothedDoseQuery,
     consume_smoothed_dose,
+    consume_smoothed_dose_posterior,
     prepare_smoothed_dose,
     smoothed_dose_estimator_menu,
 )
@@ -256,6 +269,9 @@ __all__ = [
     "export_joint_mechanism_sensitivity",
     "joint_mechanism_sensitivity",
     "joint_mechanism_sensitivity_interval",
+    "JointSensitivityIntervalArtifact",
+    "export_joint_sensitivity_interval",
+    "consume_joint_sensitivity_interval",
     "EstimatorMenu",
     "EstimatorMenuEntry",
     "LearnedContinuousEstimate",
@@ -279,7 +295,10 @@ __all__ = [
     "SmoothedDoseGridPoint",
     "SmoothedDoseOptions",
     "SmoothedDoseQuery",
+    "SmoothedDosePosterior",
+    "SmoothedDosePosteriorModel",
     "consume_smoothed_dose",
+    "consume_smoothed_dose_posterior",
     "prepare_smoothed_dose",
     "smoothed_dose_estimator_menu",
     "ClassicalTransportIdentification",
@@ -358,11 +377,6 @@ __all__ = [
     "replay_study_plan",
     "inspect_catalog",
     "inspect_proof_graph",
-    "prepare",
-    "prepare_exact",
-    "prepare_response_grid",
-    "prepare_statistical",
-    "prepare_trial",
     "prepare_temporal_transport_sequence",
     "UnrolledSequence",
     "unroll_two_slice",
@@ -374,6 +388,14 @@ __all__ = [
     "TemporalUnitPanel",
     "TemporalIntervalCandidate",
     "TemporalWindow",
+    "ConsumedPeriodRefresh",
+    "PeriodPrior",
+    "PeriodRowCounts",
+    "PeriodRefresh",
+    "PeriodRefreshOutcome",
+    "PeriodRefreshSummary",
+    "PeriodWindow",
+    "consume_period_refresh_artifact",
     "consume_temporal_initial_state_artifact",
     "consume_temporal_refresh_artifact",
     "temporal_dependent_interval",

@@ -9,15 +9,21 @@
 //!    conditioning slot holds only recorded values; an assigned or
 //!    hypothetical value, or an intervention supplied to a conditioning query,
 //!    is refused as an intervention smuggled into a conditioning slot. A
+//!    recorded variable that is itself intervened on is refused (it is set, not
+//!    observed); recorded values of other variables after an intervention are
+//!    the interventional law conditioned on them. A
 //!    recorded value of an *indicator* offered about a construct is refused as
 //!    `observation_query.measured_as_construct` unless a measurement model
 //!    relating the two is declared and applies in the model's population,
 //!    regime and arm.
 //! 2. **Execute** (`antecedent_model::observation_query`) on the composed
-//!    finite model of [`PreparedMechanismComposition`] (exact enumeration), or
-//!    on a declared finite or conjugate Bayes model: outcome probability given
-//!    a signal, posterior after new evidence, the observations that cross a
-//!    threshold, and the evidence required to reach a level.
+//!    model of [`PreparedMechanismComposition`]: exact enumeration for a finite
+//!    model, the Schur complement of the observed block of the (possibly
+//!    intervened) joint law for a linear-Gaussian model whose evidence is typed
+//!    real values ([`ContinuousAssignments`]); or on a declared finite or
+//!    conjugate Bayes model: outcome probability given a signal, posterior
+//!    after new evidence, the observations that cross a threshold, and the
+//!    evidence required to reach a level.
 //! 3. **Export** seals the premises, the query, the operation and the reading
 //!    into `observation_query_v1`; **consume** recomputes the identity,
 //!    recompiles the premises and replays the query to identical result bits.
@@ -41,6 +47,18 @@
 //! (non-differential error); error declared to differ by arm, population or
 //! time is refused rather than pooled.
 //!
+//! # Parameter uncertainty
+//!
+//! [`PreparedMechanismComposition::observe_with_parameter_uncertainty`] redraws
+//! the parameters of mechanisms whose fitting data was retained (sufficient
+//! statistics for a regression, parent-configuration counts for a table) from
+//! their conjugate posterior and re-answers the query under each draw. The
+//! result is aligned draws (one row is one joint realization of every queried
+//! quantity) carried in the distribution artifact's alignment identity. Their
+//! spread is labelled `uncalibrated_spread`; an interval is returned only
+//! through the composed-interval gate and a currently attesting coverage record
+//! ([`ObservationClaim::parameter_interval`]), and is otherwise refused.
+//!
 //! # Lifecycle
 //!
 //! A claim holds the premises it was computed from. Refreshing the composition
@@ -48,26 +66,48 @@
 //! returns a new composition; a query asked of it is a new claim with a new
 //! identity, and the earlier claim is unchanged.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_contract::{
-    ExternalRefusal, InferenceBasis, MeasuredIndicator, ObservationOperation,
-    ObservationSlotsRequest, ObservedSlot, SlotValue, calibration_refusal, check_observation_slots,
-    interval_refusal,
+use crate::planner::lowered::{
+    ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
+    EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
+    NonGraphicalIdentification, PhysicalLayer, ProblemTarget, ProgramCell, ProgramIdentityScope,
+    ScientificProblem, StandaloneCompositionLoweredParts, UncertaintyReading,
 };
-use antecedent_core::ExecutionContext;
+use crate::planner::statistical::{ModelRole, ModelSlot, Realization, StatisticalProgram};
+use crate::planner::{PlanStage, PlanView};
+use antecedent_contract::{ClaimKind, DataClassification};
+use antecedent_contract::{
+    ComposedCoordinate, ContinuousSlotsRequest, CoverageRecord, ExternalRefusal, InferenceBasis,
+    InputAlignment, InputRole, MeasuredIndicator, ObservationOperation, ObservationSlotsRequest,
+    ObservedSlot, PropagationDependence, PropagationInput, PropagationOperation,
+    PropagationRequest, RequestedReading, SlotProvenance, SlotValue, calibration_refusal,
+    check_composed_interval, check_continuous_assignments, check_joint_measured_slots,
+    check_observation_slots, check_propagation, interval_refusal,
+};
+use antecedent_core::{
+    ByteEstimates, CanonicalWriter, ExecutionContext, PhysicalEffect, PhysicalOperator,
+    SemanticDigest,
+};
 use antecedent_io::IoError;
 use antecedent_io::measurement_model_wire::model_to_wire;
+use antecedent_io::mechanism_composition_artifact::MechanismCompositionPremisesWire;
 use antecedent_io::observation_query_artifact::{
     ObservationQueryArtifactError, ObservationQueryArtifactWire,
 };
+use std::sync::Arc;
 
 pub use super::mechanism_exports::model_crate::observation_query::Direction;
+pub use super::mechanism_exports::model_crate::observation_uncertainty::RedrawPrior;
 pub use antecedent_io::observation_query_artifact::{
-    MeasuredSlotWire, ObservationQueryWire, ObservationResultWire,
+    DependentMeasurementWire, MeasuredSlotWire, ObservationQueryWire, ObservationResultWire,
+    RedrawPriorWire, RedrawTargetWire, RetainedMechanismWire,
 };
 
 use super::PreparedMechanismComposition;
+use super::joint_law_composed_basis::{Resolution, composed_basis, resolve};
+use super::mechanism_exports::model_crate::compose::MechanismFamily;
+use super::mechanism_exports::model_crate::observation_uncertainty::GaussianSufficient;
 
 /// The refusals of an observation query: each with a registered reason code, a
 /// namespaced `observation_query.*` detail, the offending subject, expected
@@ -151,7 +191,7 @@ fn cancelled() -> ObservationQueryRefusal {
     ObservationQueryRefusal::of(
         antecedent_core::reason_code!("cancelled_no_claim"),
         "observe",
-        "observation_query.cancelled",
+        antecedent_core::reason_details::observation_query::CANCELLED,
         "cancelled before a value was formed; this is not a verdict on the model",
     )
 }
@@ -167,14 +207,14 @@ fn artifact_refusal(error: ObservationQueryArtifactError) -> ObservationQueryRef
         | ObservationQueryArtifactError::ResultMismatch => ObservationQueryRefusal::of(
             antecedent_core::reason_code!("invalid_argument"),
             "consume",
-            "observation_query.artifact_refused",
+            antecedent_core::reason_details::observation_query::ARTIFACT_REFUSED,
             "the premises, query and reading do not hash to the stored or the retained identity, \
              or the stored result is not their replay",
         ),
         other => ObservationQueryRefusal::of(
             antecedent_core::reason_code!("invalid_argument"),
             "consume",
-            "observation_query.artifact_invalid",
+            antecedent_core::reason_details::observation_query::ARTIFACT_INVALID,
             other.to_string(),
         ),
     }
@@ -191,6 +231,17 @@ fn levels_of(bits: &[(String, u64)]) -> Vec<(String, f64)> {
     bits.iter().map(|(l, p)| (l.clone(), f64::from_bits(*p))).collect()
 }
 
+/// Typed real values for a composition of continuous variables: never a level
+/// string. Used with a linear-Gaussian composition in place of the conditioning
+/// slots and the level assignments, which belong to a finite composition.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ContinuousAssignments {
+    /// `(variable, value)` recorded without error.
+    pub observed: Vec<(String, f64)>,
+    /// `(variable, value)` assignments of `do()`.
+    pub interventions: Vec<(String, f64)>,
+}
+
 /// What is asked of a composed causal model.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ObservationRequest {
@@ -198,10 +249,132 @@ pub struct ObservationRequest {
     pub operation: ObservationOperation,
     /// The outcome variable.
     pub outcome: String,
-    /// Values placed in conditioning slots.
+    /// Values placed in conditioning slots (a finite composition).
     pub conditioning: Vec<ObservedSlot>,
-    /// `(variable, level)` assignments of `do()`.
+    /// `(variable, level)` assignments of `do()` (a finite composition).
     pub interventions: Vec<(String, String)>,
+    /// Real-valued evidence and interventions (a linear-Gaussian composition).
+    pub continuous: ContinuousAssignments,
+}
+
+/// A request together with the retained data its parameters are redrawn from.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ParameterRedrawRequest {
+    /// The conditional functional whose parameter uncertainty is asked.
+    pub request: ObservationRequest,
+    /// The data the redrawn mechanisms were fitted from.
+    pub retained: Vec<RetainedMechanismWire>,
+    /// The priors of the redraw.
+    pub prior: RedrawPrior,
+    /// Number of posterior draws.
+    pub draws: u32,
+    /// Seed of the draw streams.
+    pub seed: u64,
+}
+
+/// Retain the sufficient statistics of `y` regressed on an intercept and the
+/// named parent columns, for a parameter redraw of a linear-Gaussian mechanism.
+///
+/// # Errors
+/// No rows, columns of unequal length, a non-finite value or too many regressors.
+pub fn retain_regression(
+    variable: &str,
+    parents: &[(&str, &[f64])],
+    y: &[f64],
+) -> Result<RetainedMechanismWire, ObservationQueryRefusal> {
+    let stats = GaussianSufficient::from_columns(variable, parents, y).map_err(|error| {
+        ObservationQueryRefusal::of(
+            antecedent_core::reason_code!("invalid_argument"),
+            "observe",
+            antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
+            error.to_string(),
+        )
+    })?;
+    Ok(RetainedMechanismWire::Gaussian {
+        variable: stats.variable,
+        parents: stats.parents,
+        gram_bits: stats.gram.iter().map(|v| v.to_bits()).collect(),
+        xty_bits: stats.xty.iter().map(|v| v.to_bits()).collect(),
+        yty_bits: stats.yty.to_bits(),
+        rows: stats.rows,
+    })
+}
+
+/// Retain the parent-configuration counts a finite mechanism was fitted from.
+///
+/// `rows` is one `(parent configuration, (level, count))` entry per
+/// configuration of the mechanism's table.
+#[must_use]
+#[allow(
+    clippy::type_complexity,
+    reason = "preserve the public versioned parent-configuration and level-count wire tuple"
+)]
+pub fn retain_counts(
+    variable: &str,
+    rows: Vec<(Vec<(String, String)>, Vec<(String, u64)>)>,
+) -> RetainedMechanismWire {
+    RetainedMechanismWire::Table { variable: variable.to_owned(), rows }
+}
+
+/// The aligned posterior draws of a parameter-redraw claim.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PosteriorDraws {
+    /// Functional ids of the quantities, in column order.
+    pub quantities: Vec<String>,
+    /// Number of draws.
+    pub draws: usize,
+    /// The quantities under the composition's own (fitted) numbers.
+    pub point: Vec<f64>,
+    /// Draw-major values: draw `i` occupies `i * quantities.len()..`.
+    pub values: Vec<f64>,
+    /// Alignment identity: rows are realizations of one joint law only under
+    /// this identity.
+    pub alignment_identity: String,
+    /// The reading of the spread: always `uncalibrated_spread`.
+    pub reading: String,
+}
+
+impl PosteriorDraws {
+    /// The draws of one quantity.
+    #[must_use]
+    pub fn column(&self, quantity: usize) -> Vec<f64> {
+        let width = self.quantities.len();
+        (0..self.draws).map(|d| self.values[d * width + quantity]).collect()
+    }
+
+    /// Mean and sample standard deviation of one quantity over the draws. A
+    /// spread of exact posterior draws; it makes no coverage statement.
+    #[must_use]
+    pub fn spread(&self, quantity: usize) -> (f64, f64) {
+        let column = self.column(quantity);
+        let n = column.len() as f64;
+        let mean = column.iter().sum::<f64>() / n;
+        let ss: f64 = column.iter().map(|v| (v - mean) * (v - mean)).sum();
+        (mean, (ss / (n - 1.0)).sqrt())
+    }
+}
+
+/// An interval of redrawn quantities that a currently attesting coverage record
+/// supported.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ParameterInterval {
+    /// The quantity.
+    pub quantity: String,
+    /// The composed coordinate the record was matched against.
+    pub coordinate_id: String,
+    /// The governing coverage record, when one matched.
+    pub record_id: Option<String>,
+    /// Calibration of this interval.
+    pub calibration: antecedent_io::contract_section::CalibrationSlotWire,
+    /// The construction the interval was built with.
+    pub construction: String,
+    /// The nominal level.
+    pub nominal_level: f64,
+    /// The label of the result.
+    pub label: &'static str,
+    /// The equal-tailed bounds of the aligned draws; present for the draw
+    /// constructions.
+    pub bounds: Option<(f64, f64)>,
 }
 
 /// One answered observation query: the value, how it is to be read, and the
@@ -239,6 +412,23 @@ impl ObservationClaim {
         &self.wire.inference_basis
     }
 
+    /// Re-open a sealed claim from its artifact bytes, after the independent
+    /// consumer has recomputed the identity, recompiled the premises and
+    /// replayed the query to identical result bits.
+    ///
+    /// # Errors
+    /// Any refusal of [`consume_observation_query_artifact`].
+    pub fn from_artifact(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, ObservationQueryRefusal> {
+        check_cancelled(ctx)?;
+        let wire = ObservationQueryArtifactWire::decode(bytes).map_err(artifact_refusal)?;
+        wire.consume(expected_identity, ctx).map_err(artifact_refusal)?;
+        Ok(Self { wire })
+    }
+
     /// The stored result, as bit patterns.
     #[must_use]
     pub const fn result(&self) -> &ObservationResultWire {
@@ -262,7 +452,8 @@ impl ObservationClaim {
     /// An interval for any observation-conditioned value.
     ///
     /// # Errors
-    /// Always `cell_not_licensed` with `observation_query.declared_model_has_no_sampling_interval`.
+    /// Always `uncertainty_representation_insufficient` with
+    /// `observation_query.declared_model_has_no_sampling_interval`: the value is exact.
     pub fn interval(&self) -> Result<std::convert::Infallible, ObservationQueryRefusal> {
         Err(ObservationQueryRefusal::one(interval_refusal()))
     }
@@ -270,8 +461,8 @@ impl ObservationClaim {
     /// A calibration claim for a posterior or decision probability.
     ///
     /// # Errors
-    /// Always `cell_not_licensed` with
-    /// `observation_query.calibrated_probability_closed`: no measured
+    /// Always `uncertainty_representation_insufficient` with
+    /// `observation_query.no_calibrated_probability`: no measured
     /// whole-method record exists at any query's coordinate.
     pub fn calibrated_probability(
         &self,
@@ -301,6 +492,177 @@ impl ObservationClaim {
             }
             _ => None,
         }
+    }
+
+    /// `(conditional mean, conditional variance, log density of the evidence)`
+    /// of a Gaussian claim; the log density is `None` when nothing was observed.
+    #[must_use]
+    pub fn gaussian_conditional(&self) -> Option<(f64, f64, Option<f64>)> {
+        match &self.wire.result {
+            ObservationResultWire::GaussianConditional {
+                mean_bits,
+                variance_bits,
+                evidence_log_density_bits,
+                ..
+            } => Some((
+                f64::from_bits(*mean_bits),
+                f64::from_bits(*variance_bits),
+                evidence_log_density_bits.map(f64::from_bits),
+            )),
+            _ => None,
+        }
+    }
+
+    /// The aligned posterior draws of a parameter-redraw claim.
+    #[must_use]
+    pub fn parameter_draws(&self) -> Option<PosteriorDraws> {
+        match &self.wire.result {
+            ObservationResultWire::ParameterDraws {
+                quantities,
+                draws,
+                point_bits,
+                values_bits,
+                alignment_identity,
+                reading,
+            } => Some(PosteriorDraws {
+                quantities: quantities.clone(),
+                draws: *draws as usize,
+                point: point_bits.iter().map(|b| f64::from_bits(*b)).collect(),
+                values: values_bits.iter().map(|b| f64::from_bits(*b)).collect(),
+                alignment_identity: alignment_identity.clone(),
+                reading: reading.clone(),
+            }),
+            _ => None,
+        }
+    }
+
+    /// The aligned draws of a parameter-redraw claim as the repo's
+    /// distribution artifact (alignment `Joint`, calibration `NotMeasured`).
+    ///
+    /// # Errors
+    /// A claim that redraws nothing, or draws that do not form a distribution.
+    pub fn distribution(
+        &self,
+    ) -> Result<antecedent_io::distribution_artifact::DistributionArtifact, ObservationQueryRefusal>
+    {
+        self.wire.distribution().map_err(artifact_refusal)
+    }
+
+    /// The interval of one redrawn quantity, supported only by a currently
+    /// attesting coverage record the registry holds for exactly this composed
+    /// coordinate, construction, nominal level and evidence size. The caller
+    /// supplies no record. Without one the interval is not supported with the typed
+    /// refusal and the spread of the draws is the labelled
+    /// `uncalibrated_spread` ([`PosteriorDraws::spread`]).
+    ///
+    /// `evidence_rows` is declared, not authenticated: the number of
+    /// observations behind the least-supported retained mechanism.
+    ///
+    /// # Errors
+    /// A claim without parameter draws, an unknown quantity, or the refusals of
+    /// `antecedent_contract::check_composed_interval` (a missing or
+    /// non-attesting record).
+    pub fn parameter_interval(
+        &self,
+        quantity: &str,
+        construction: &str,
+        evidence_rows: u64,
+    ) -> Result<ParameterInterval, ObservationQueryRefusal> {
+        let Some(draws) = self.parameter_draws() else {
+            return Err(ObservationQueryRefusal::of(
+                antecedent_core::reason_code!("invalid_argument"),
+                "observe",
+                antecedent_core::reason_details::observation_query::NO_PARAMETER_DRAWS,
+                "this claim carries no parameter draws; ask for parameter uncertainty with a retained-data redraw",
+            ));
+        };
+        let Some(index) = draws.quantities.iter().position(|q| q == quantity) else {
+            return Err(ObservationQueryRefusal::of(
+                antecedent_core::reason_code!("invalid_argument"),
+                "observe",
+                antecedent_core::reason_details::observation_query::UNKNOWN_QUANTITY,
+                quantity,
+            ));
+        };
+        let request = PropagationRequest {
+            operation: PropagationOperation::LinearTransform,
+            inputs: vec![PropagationInput {
+                id: format!("observation_query:{quantity}"),
+                evidence_id: self.wire.identity.clone(),
+                role: InputRole::Estimate,
+                alignment: InputAlignment::Aligned {
+                    alignment_id: draws.alignment_identity.clone(),
+                },
+            }],
+            dependence: PropagationDependence::AlignedJointLaw,
+            reading: RequestedReading::Interval,
+        };
+        let spread = PropagationRequest { reading: RequestedReading::Spread, ..request.clone() };
+        let propagation = check_propagation(&spread).map_err(ObservationQueryRefusal::one)?;
+        let coordinate = ComposedCoordinate::of(&spread, &propagation);
+        let coordinate_id = coordinate.id();
+        let basis = composed_basis(
+            &coordinate_id,
+            propagation.route.as_str(),
+            &request.dependence,
+            construction,
+            evidence_rows,
+        );
+        let record = match resolve(&basis) {
+            Resolution::NoRecord => None,
+            Resolution::NotAttesting { record_id, .. } => Some(CoverageRecord {
+                record_id,
+                coordinate_id,
+                construction: construction.to_owned(),
+                nominal_level: super::joint_law_composed_basis::COMPOSED_LEVEL,
+                measured: false,
+            }),
+            Resolution::Calibrated { record_id } => Some(CoverageRecord {
+                record_id,
+                coordinate_id,
+                construction: construction.to_owned(),
+                nominal_level: super::joint_law_composed_basis::COMPOSED_LEVEL,
+                measured: true,
+            }),
+        };
+        let plan = check_composed_interval(&request, record.as_ref(), construction)
+            .map_err(ObservationQueryRefusal::one)?;
+        let rule = if construction == antecedent_stats::DRAW_EXCHANGEABLE_RANK_CONSTRUCTION {
+            Some(antecedent_stats::QuantileRule::ExchangeableRank)
+        } else if construction == antecedent_stats::DRAW_INTERPOLATED_CONSTRUCTION {
+            Some(antecedent_stats::QuantileRule::Interpolated)
+        } else {
+            None
+        };
+        let bounds = match rule {
+            Some(rule) => {
+                let candidate = antecedent_stats::draw_interval_candidate(
+                    &draws.column(index),
+                    plan.nominal_level,
+                    rule,
+                )
+                .map_err(|error| {
+                    ObservationQueryRefusal::of(
+                        antecedent_core::reason_code!("invalid_argument"),
+                        "observe",
+                        antecedent_core::reason_details::observation_query::INVALID_INTERVAL,
+                        error.to_string(),
+                    )
+                })?;
+                Some((candidate.lower, candidate.upper))
+            }
+            None => None,
+        };
+        Ok(ParameterInterval {
+            quantity: quantity.to_owned(),
+            coordinate_id: plan.coordinate.id(),
+            record_id: plan.record_id,
+            calibration: super::joint_law_composed_basis::slot(&basis),
+            construction: plan.construction,
+            nominal_level: plan.nominal_level,
+            label: plan.label,
+            bounds,
+        })
     }
 
     /// `(level, probability)` of the construct given a measured signal.
@@ -416,7 +778,7 @@ fn measured_wire(
         return Err(ObservationQueryRefusal::of(
             antecedent_core::reason_code!("proxy_offered_as_construct"),
             "observe",
-            "observation_query.measured_as_construct",
+            antecedent_core::reason_details::observation_query::MEASURED_AS_CONSTRUCT,
             slot.variable_id.clone(),
         ));
     };
@@ -456,58 +818,657 @@ fn seal(
     Ok(ObservationClaim { wire })
 }
 
-impl PreparedMechanismComposition {
-    /// Answer one observation query on this composed finite model.
-    ///
-    /// The request is checked first: an assigned value in a conditioning slot,
-    /// an intervention supplied to a conditioning query, observations mixed
-    /// with an intervention, and a recorded indicator value without a
-    /// measurement model are each refused with their own detail.
+/// Recorded conditioning and the optional measured signal occupy separate axes.
+struct ConditioningSlots {
+    observed: Vec<(String, String)>,
+    measured: Option<MeasuredSlotWire>,
+}
+
+/// Split conditioning slots into direct recorded values and the one measured
+/// signal, if any.
+fn split_slots(slots: &[ObservedSlot]) -> Result<ConditioningSlots, ObservationQueryRefusal> {
+    let mut observed = Vec::new();
+    let mut measured = None;
+    for slot in slots {
+        match &slot.value {
+            SlotValue::Direct => observed.push((slot.variable_id.clone(), slot.level.clone())),
+            SlotValue::Measured(indicator) => measured = Some(measured_wire(slot, indicator)?),
+        }
+    }
+    Ok(ConditioningSlots { observed, measured })
+}
+
+/// A finite-model query with several recorded noisy indicators of one
+/// construct. Their measurement errors are explicitly declared independent
+/// conditional on that construct; the resulting law remains model conditional.
+#[derive(Clone, Debug, PartialEq)]
+pub struct JointMeasuredObservationRequest {
+    /// Outcome whose conditional level law is requested.
+    pub outcome: String,
+    /// Direct recorded values and measured indicator slots.
+    pub conditioning: Vec<ObservedSlot>,
+    /// Optional hard interventions applied before conditioning.
+    pub interventions: Vec<(String, String)>,
+    /// Must be `conditionally_independent_given_construct`.
+    pub dependence: String,
+}
+
+/// A complete joint indicator-error law for one finite construct. The law
+/// gives every indicator combination under each construct level, so dependent
+/// errors do not need an artificial conditional-independence premise.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DependentMeasuredObservationRequest {
+    /// Outcome whose conditional level law is requested.
+    pub outcome: String,
+    /// Exact direct observations.
+    pub observed: Vec<(String, String)>,
+    /// Recorded indicator identity and level.
+    pub measured: Vec<(String, String)>,
+    /// Optional hard interventions applied before conditioning.
+    pub interventions: Vec<(String, String)>,
+    /// Complete scoped joint error law, including its evidence identity.
+    pub error_law: DependentMeasurementWire,
+}
+
+/// The same retained six-layer observation plan under the version-4
+/// dependent-error measurement rule.
+pub type DependentMeasuredObservationPlan = JointMeasuredObservationPlan;
+
+/// A retained six-layer program for a joint measured-signal observation.
+#[derive(Clone, Debug)]
+pub struct JointMeasuredObservationPlan {
+    composition: PreparedMechanismComposition,
+    query: ObservationQueryWire,
+    lowered: Arc<LoweredProgram>,
+}
+
+impl JointMeasuredObservationPlan {
+    /// Every layer of the compiled measurement and observation program.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
+
+    /// Inspect the program without evaluating the requested law.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+    }
+
+    /// Condition the intervened or observational finite law on the joint
+    /// measurement likelihood inside the retained compiler dispatch.
     ///
     /// # Errors
-    /// Any refusal of the slot check; a linear-Gaussian composition (the
-    /// queries are exact finite-law queries); an unknown variable or level;
-    /// evidence of probability zero; incoherent mechanisms; cancellation.
+    /// An invalid model, impossible evidence or cancellation.
+    pub fn execute(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<ObservationClaim, ObservationQueryRefusal> {
+        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        seal(
+            Some(self.composition.spec()),
+            self.query.clone(),
+            InferenceBasis::DeclaredModel,
+            &scoped,
+        )
+    }
+
+    /// Recompile and reexecute the same model and query, then independently
+    /// consume an exported v3 observation artifact and compare every result bit.
+    ///
+    /// # Errors
+    /// A different program identity, query, premise or numerical result.
+    pub fn consume(
+        &self,
+        bytes: &[u8],
+        expected_program: SemanticDigest,
+        ctx: &ExecutionContext,
+    ) -> Result<ObservationClaim, ObservationQueryRefusal> {
+        if expected_program != self.lowered.identity() {
+            return Err(ObservationQueryRefusal::of(
+                antecedent_core::reason_code!("invalid_argument"),
+                "observe",
+                antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
+                "joint measurement program identity mismatch",
+            ));
+        }
+        let replayed = ObservationClaim::from_artifact(bytes, None, ctx)?;
+        let produced = self.execute(ctx)?;
+        if replayed.query() != &self.query
+            || replayed.identity() != produced.identity()
+            || replayed.result() != produced.result()
+        {
+            return Err(ObservationQueryRefusal::of(
+                antecedent_core::reason_code!("invalid_argument"),
+                "observe",
+                antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
+                "joint measurement artifact differs from its compiler program",
+            ));
+        }
+        Ok(replayed)
+    }
+}
+
+impl PreparedMechanismComposition {
+    /// Compile a joint noisy-indicator observation on the complete finite
+    /// model. Existing one-indicator queries retain their original semantics.
+    ///
+    /// # Errors
+    /// A non-finite model, invalid slots, missing measurement model or
+    /// undeclared error dependence is refused before evaluation.
+    #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
+    pub fn compile_joint_measured_observation(
+        &self,
+        request: &JointMeasuredObservationRequest,
+    ) -> Result<JointMeasuredObservationPlan, ObservationQueryRefusal> {
+        if self.family() != MechanismFamily::Tabular {
+            return Err(ObservationQueryRefusal::of(
+                antecedent_core::reason_code!("route_not_supported"),
+                "observe",
+                antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
+                "joint measured indicators require a finite composed model",
+            ));
+        }
+        let slots = ObservationSlotsRequest {
+            operation: if request.interventions.is_empty() {
+                ObservationOperation::Conditioning
+            } else {
+                ObservationOperation::Intervention
+            },
+            outcome_id: &request.outcome,
+            conditioning: &request.conditioning,
+            interventions: &request.interventions,
+        };
+        check_joint_measured_slots(&slots, &request.dependence)
+            .map_err(ObservationQueryRefusal::one)?;
+        let mut observed = Vec::new();
+        let mut measured = Vec::new();
+        for slot in &request.conditioning {
+            match &slot.value {
+                SlotValue::Direct => observed.push((slot.variable_id.clone(), slot.level.clone())),
+                SlotValue::Measured(indicator) => measured.push(measured_wire(slot, indicator)?),
+            }
+        }
+        let query = ObservationQueryWire::JointMeasuredOutcome {
+            outcome: request.outcome.clone(),
+            interventions: request.interventions.clone(),
+            observed,
+            measured,
+            dependence: request.dependence.clone(),
+        }
+        .canonical();
+        let premises = MechanismCompositionPremisesWire::from_spec(self.spec());
+        let premises_bytes = antecedent_io::to_cbor(&premises).map_err(|error| {
+            ObservationQueryRefusal::of(
+                antecedent_core::reason_code!("invalid_argument"),
+                "observe",
+                antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
+                error.to_string(),
+            )
+        })?;
+        let query_bytes = antecedent_io::to_cbor(&query).map_err(|error| {
+            ObservationQueryRefusal::of(
+                antecedent_core::reason_code!("invalid_argument"),
+                "observe",
+                antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
+                error.to_string(),
+            )
+        })?;
+        let mut writer = CanonicalWriter::new("antecedent.joint_measured_observation_program.v1");
+        writer.bytes(&premises_bytes).bytes(&query_bytes);
+        let digest = writer.finish();
+        let model_digest = CanonicalWriter::digest_bytes(
+            "antecedent.joint_measured_observation_model.v1",
+            &premises_bytes,
+        );
+        let scientific = ScientificProblem {
+            runtime_query: None,
+            identity_scope: ProgramIdentityScope::Semantic,
+            target: ProblemTarget::QueryFunctional {
+                kind: FunctionalKind::ConditionalObservation,
+                outcome: None,
+                query: digest,
+            },
+            plan_id: Arc::from("joint_measured_observation.v1"),
+            data: DataClassification::Tabular,
+            graph_class: "composed_finite_model",
+            query_variables: Arc::from(Vec::new()),
+            source_digest: Some(model_digest),
+            support_coordinate: None,
+            supported: false,
+            support_status: None,
+        };
+        let identification = IdentificationLayer::NonGraphical(Arc::new(
+            NonGraphicalIdentification::SpecifiedModelConditional { model: model_digest },
+        ));
+        let models = query.clone();
+        let ObservationQueryWire::JointMeasuredOutcome { measured, .. } = models else {
+            unreachable!("the compiler created a joint measured query")
+        };
+        let slots: Vec<ModelSlot> = measured
+            .iter()
+            .map(|indicator| ModelSlot {
+                role: ModelRole::Mechanism,
+                family: Arc::from(format!("joint_measurement.{}", indicator.indicator_id)),
+                inputs: Arc::from(Vec::new()),
+                output: None,
+            })
+            .collect();
+        let design = DesignShape::not_design_based(
+            "exact finite model enumeration with declared measurement likelihood",
+        );
+        let statistical = StatisticalProgram {
+            identifier: None,
+            estimator: None,
+            realization: Realization::ExactPoint {
+                evaluator: Arc::from("joint_measured_observation.conditional_law"),
+            },
+            models: Arc::from(slots),
+            folds: None,
+            resampling: None,
+            posterior: None,
+            design,
+            operators: Arc::from(Vec::new()),
+        };
+        let evidence = EvidenceDecisionProgram {
+            sources: Arc::from(vec![
+                EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(model_digest) },
+                EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(digest) },
+            ]),
+            composition: Composition::Chained { stages: measured.len() + 1 },
+            decision: None,
+            planning: None,
+            chain: None,
+        };
+        let quote = (measured.len() as u64 + 1).saturating_mul(1024);
+        let mut operators = Vec::with_capacity(measured.len() + 2);
+        for effect in std::iter::once(PhysicalEffect::Read)
+            .chain(std::iter::repeat_n(PhysicalEffect::Condition, measured.len() + 1))
+        {
+            operators.push(
+                PhysicalOperator::declare(effect)
+                    .estimates(ByteEstimates::absent().with_output(quote))
+                    .build()
+                    .map_err(|error| {
+                        ObservationQueryRefusal::of(
+                            antecedent_core::reason_code!("invalid_argument"),
+                            "observe",
+                            antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
+                            error.to_string(),
+                        )
+                    })?,
+            );
+        }
+        let physical = PhysicalLayer { operators: Arc::from(operators), design };
+        let claim =
+            ClaimDemand { uncertainty: UncertaintyReading::None, kind: Some(ClaimKind::Point) };
+        let lowered = Arc::new(
+            StandaloneCompositionLoweredParts {
+                cell: ProgramCell::JointMeasuredObservation,
+                scientific,
+                identification,
+                statistical,
+                evidence,
+                physical,
+                claim,
+            }
+            .finish(),
+        );
+        Ok(JointMeasuredObservationPlan { composition: self.clone(), query, lowered })
+    }
+
+    /// Compile conditioning on a complete dependent-error indicator table.
+    /// The table and its evidence identity are bound to a separate scientific
+    /// program and version-4 artifact. All numeric conditioning occurs only
+    /// after compilation and is replayed by the artifact consumer.
+    ///
+    /// # Errors
+    /// Non-finite composition, invalid direct observations or intervention,
+    /// missing scope, or physical program refusal.
+    #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
+    pub fn compile_dependent_measured_observation(
+        &self,
+        request: &DependentMeasuredObservationRequest,
+    ) -> Result<DependentMeasuredObservationPlan, ObservationQueryRefusal> {
+        let invalid = |detail: String| {
+            ObservationQueryRefusal::of(
+                antecedent_core::reason_code!("invalid_argument"),
+                "observe",
+                antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
+                detail,
+            )
+        };
+        if self.family() != MechanismFamily::Tabular {
+            return Err(invalid("dependent indicators require a finite composed model".into()));
+        }
+        if request.error_law.construct.trim().is_empty()
+            || request.error_law.population_id != self.spec().target.population
+            || request.error_law.evidence_id.trim().is_empty()
+            || request.observed.iter().any(|(variable, _)| variable == &request.error_law.construct)
+        {
+            return Err(invalid(
+                "dependent measurement needs one scoped, evidenced latent construct".into(),
+            ));
+        }
+        let direct: Vec<ObservedSlot> = request
+            .observed
+            .iter()
+            .map(|(variable, level)| ObservedSlot {
+                variable_id: variable.clone(),
+                level: level.clone(),
+                provenance: SlotProvenance::Recorded,
+                value: SlotValue::Direct,
+            })
+            .collect();
+        check_observation_slots(&ObservationSlotsRequest {
+            operation: if request.interventions.is_empty() {
+                ObservationOperation::Conditioning
+            } else {
+                ObservationOperation::Intervention
+            },
+            outcome_id: &request.outcome,
+            conditioning: &direct,
+            interventions: &request.interventions,
+        })
+        .map_err(ObservationQueryRefusal::one)?;
+        let query = ObservationQueryWire::DependentMeasuredOutcome {
+            outcome: request.outcome.clone(),
+            interventions: request.interventions.clone(),
+            observed: request.observed.clone(),
+            measured: request.measured.clone(),
+            error_law: request.error_law.clone(),
+        }
+        .canonical();
+        antecedent_io::observation_query_artifact::check_query_bounds(&query)
+            .map_err(artifact_refusal)?;
+        let premises = MechanismCompositionPremisesWire::from_spec(self.spec());
+        let premises_bytes =
+            antecedent_io::to_cbor(&premises).map_err(|error| invalid(error.to_string()))?;
+        let query_bytes =
+            antecedent_io::to_cbor(&query).map_err(|error| invalid(error.to_string()))?;
+        let mut writer =
+            CanonicalWriter::new("antecedent.dependent_measured_observation_program.v1");
+        writer.bytes(&premises_bytes).bytes(&query_bytes);
+        let digest = writer.finish();
+        let model_digest = CanonicalWriter::digest_bytes(
+            "antecedent.dependent_measured_observation_model.v1",
+            &premises_bytes,
+        );
+        let scientific = ScientificProblem {
+            runtime_query: None,
+            identity_scope: ProgramIdentityScope::Semantic,
+            target: ProblemTarget::QueryFunctional {
+                kind: FunctionalKind::ConditionalObservation,
+                outcome: None,
+                query: digest,
+            },
+            plan_id: Arc::from("dependent_measured_observation.v1"),
+            data: DataClassification::Tabular,
+            graph_class: "composed_finite_model_dependent_measurement",
+            query_variables: Arc::from(Vec::new()),
+            source_digest: Some(model_digest),
+            support_coordinate: None,
+            supported: false,
+            support_status: None,
+        };
+        let identification = IdentificationLayer::NonGraphical(Arc::new(
+            NonGraphicalIdentification::SpecifiedModelConditional { model: model_digest },
+        ));
+        let statistical = StatisticalProgram {
+            identifier: None,
+            estimator: None,
+            realization: Realization::ExactPoint {
+                evaluator: Arc::from("dependent_measured_observation.joint_likelihood"),
+            },
+            models: Arc::from(vec![ModelSlot {
+                role: ModelRole::Mechanism,
+                family: Arc::from("joint_dependent_measurement"),
+                inputs: Arc::from(Vec::new()),
+                output: None,
+            }]),
+            folds: None,
+            resampling: None,
+            posterior: None,
+            design: DesignShape::not_design_based(
+                "exact finite model enumeration with declared joint error law",
+            ),
+            operators: Arc::from(Vec::new()),
+        };
+        let evidence = EvidenceDecisionProgram {
+            sources: Arc::from(vec![
+                EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(model_digest) },
+                EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(digest) },
+            ]),
+            composition: Composition::Chained { stages: 2 },
+            decision: None,
+            planning: None,
+            chain: None,
+        };
+        let design = DesignShape::not_design_based(
+            "exact finite model enumeration with declared joint error law",
+        );
+        let quote = (request.error_law.probability_bits.len() as u64)
+            .saturating_mul(8)
+            .saturating_add(1024);
+        let physical = PhysicalLayer {
+            operators: Arc::from([
+                PhysicalOperator::declare(PhysicalEffect::Read)
+                    .estimates(ByteEstimates::absent().with_output(quote))
+                    .build()
+                    .map_err(|error| invalid(error.to_string()))?,
+                PhysicalOperator::declare(PhysicalEffect::Condition)
+                    .estimates(ByteEstimates::absent().with_output(quote))
+                    .build()
+                    .map_err(|error| invalid(error.to_string()))?,
+            ]),
+            design,
+        };
+        let claim =
+            ClaimDemand { uncertainty: UncertaintyReading::None, kind: Some(ClaimKind::Point) };
+        let lowered = Arc::new(
+            StandaloneCompositionLoweredParts {
+                cell: ProgramCell::DependentMeasuredObservation,
+                scientific,
+                identification,
+                statistical,
+                evidence,
+                physical,
+                claim,
+            }
+            .finish(),
+        );
+        Ok(JointMeasuredObservationPlan { composition: self.clone(), query, lowered })
+    }
+}
+
+fn real_bits(pairs: &[(String, f64)]) -> Vec<(String, u64)> {
+    pairs.iter().map(|(name, value)| (name.clone(), value.to_bits())).collect()
+}
+
+impl PreparedMechanismComposition {
+    /// Answer one observation query on this composed model.
+    ///
+    /// On a finite composition the request is checked first: an assigned value
+    /// in a conditioning slot, an intervention supplied to a conditioning
+    /// query, a recorded variable that is also intervened on, and a recorded
+    /// indicator value without a measurement model are each refused with their
+    /// own detail. Recorded values of other variables together with an
+    /// intervention are the interventional law conditioned on them,
+    /// `P(y | do(s), z)`. On a linear-Gaussian composition the evidence and the
+    /// interventions are the typed real values of
+    /// [`ObservationRequest::continuous`], and the answer is the conditional
+    /// mean and variance of the outcome (Schur complement of the observed
+    /// block of the possibly intervened joint law).
+    ///
+    /// # Errors
+    /// Any refusal of the slot check; level strings given to a linear-Gaussian
+    /// composition or real values given to a finite one; an unknown variable
+    /// or level; evidence of probability zero or of singular covariance;
+    /// incoherent mechanisms; cancellation.
     pub fn observe(
         &self,
         request: &ObservationRequest,
         ctx: &ExecutionContext,
     ) -> Result<ObservationClaim, ObservationQueryRefusal> {
         check_cancelled(ctx)?;
-        check_observation_slots(&ObservationSlotsRequest {
-            operation: request.operation,
-            outcome_id: &request.outcome,
-            conditioning: &request.conditioning,
-            interventions: &request.interventions,
-        })
-        .map_err(ObservationQueryRefusal::one)?;
-        let query = if request.operation == ObservationOperation::Intervention {
-            ObservationQueryWire::InterventionalOutcome {
-                outcome: request.outcome.clone(),
-                interventions: request.interventions.clone(),
+        let query = self.query_of(request)?;
+        seal(Some(self.spec()), query, InferenceBasis::DeclaredModel, ctx)
+    }
+
+    /// The wire query a request states, after the slot checks of its family.
+    fn query_of(
+        &self,
+        request: &ObservationRequest,
+    ) -> Result<ObservationQueryWire, ObservationQueryRefusal> {
+        match self.family() {
+            MechanismFamily::LinearGaussian => {
+                if !request.conditioning.is_empty() || !request.interventions.is_empty() {
+                    return Err(ObservationQueryRefusal::one(
+                        ExternalRefusal::new(
+                            antecedent_core::reason_code!("invalid_argument"),
+                            "observe",
+                            antecedent_core::reason_details::observation_query::LEVELS_FOR_CONTINUOUS_MODEL,
+                        )
+                        .with_offending(
+                            request
+                                .conditioning
+                                .first()
+                                .map(|s| s.variable_id.clone())
+                                .or_else(|| request.interventions.first().map(|(v, _)| v.clone()))
+                                .unwrap_or_default(),
+                        )
+                        .with_remedy(
+                            "state the evidence and the interventions of a linear-Gaussian composition as typed real values (the `continuous` assignments), not as levels",
+                        ),
+                    ));
+                }
+                check_continuous_assignments(&ContinuousSlotsRequest {
+                    operation: request.operation,
+                    outcome_id: &request.outcome,
+                    observed: &request.continuous.observed,
+                    interventions: &request.continuous.interventions,
+                })
+                .map_err(ObservationQueryRefusal::one)?;
+                Ok(ObservationQueryWire::GaussianOutcome {
+                    outcome: request.outcome.clone(),
+                    interventions: real_bits(&request.continuous.interventions),
+                    observed: real_bits(&request.continuous.observed),
+                })
             }
-        } else {
-            {
-                let mut observed = Vec::new();
-                let mut measured = None;
-                for slot in &request.conditioning {
-                    match &slot.value {
-                        SlotValue::Direct => {
-                            observed.push((slot.variable_id.clone(), slot.level.clone()));
-                        }
-                        SlotValue::Measured(indicator) => {
-                            measured = Some(measured_wire(slot, indicator)?);
+            MechanismFamily::Tabular => {
+                if let Some((variable, _)) = request
+                    .continuous
+                    .observed
+                    .first()
+                    .or_else(|| request.continuous.interventions.first())
+                {
+                    return Err(ObservationQueryRefusal::one(
+                        ExternalRefusal::new(
+                            antecedent_core::reason_code!("invalid_argument"),
+                            "observe",
+                            antecedent_core::reason_details::observation_query::REAL_VALUES_FOR_FINITE_MODEL,
+                        )
+                        .with_offending(variable.clone())
+                        .with_remedy(
+                            "state the evidence and the interventions of a finite composition as levels of the variable (conditioning slots and level assignments), not as real values",
+                        ),
+                    ));
+                }
+                check_observation_slots(&ObservationSlotsRequest {
+                    operation: request.operation,
+                    outcome_id: &request.outcome,
+                    conditioning: &request.conditioning,
+                    interventions: &request.interventions,
+                })
+                .map_err(ObservationQueryRefusal::one)?;
+                let ConditioningSlots { observed, measured } = split_slots(&request.conditioning)?;
+                Ok(match request.operation {
+                    ObservationOperation::Intervention if request.conditioning.is_empty() => {
+                        ObservationQueryWire::InterventionalOutcome {
+                            outcome: request.outcome.clone(),
+                            interventions: request.interventions.clone(),
                         }
                     }
-                }
-                ObservationQueryWire::ConditionalOutcome {
-                    outcome: request.outcome.clone(),
-                    observed,
-                    measured,
-                }
+                    ObservationOperation::Intervention => {
+                        ObservationQueryWire::ConditionalInterventionalOutcome {
+                            outcome: request.outcome.clone(),
+                            interventions: request.interventions.clone(),
+                            observed,
+                            measured,
+                        }
+                    }
+                    ObservationOperation::Conditioning => {
+                        ObservationQueryWire::ConditionalOutcome {
+                            outcome: request.outcome.clone(),
+                            observed,
+                            measured,
+                        }
+                    }
+                })
+            }
+        }
+    }
+
+    /// The parameter uncertainty of a conditional query, by retained-data
+    /// redraw: the parameters of every mechanism with retained data are drawn
+    /// from their conjugate posterior (Normal-Inverse-Gamma for a regression,
+    /// Dirichlet for a table), the query is re-answered under each draw and the
+    /// quantities are returned as aligned draws.
+    ///
+    /// Intervals are not produced here: the spread is labelled
+    /// `uncalibrated_spread`, and an interval is available only through
+    /// [`ObservationClaim::parameter_interval`] and a currently attesting
+    /// coverage record. A measured signal is not redrawn (its error rates are
+    /// declared, not fitted from retained data).
+    ///
+    /// # Errors
+    /// The refusals of [`Self::observe`]; a measured signal; retained data that
+    /// does not match the composition; a prior outside its range; a draw count
+    /// outside the supported range; evidence of probability zero under a draw.
+    pub fn observe_with_parameter_uncertainty(
+        &self,
+        request: &ParameterRedrawRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<ObservationClaim, ObservationQueryRefusal> {
+        check_cancelled(ctx)?;
+        let query = self.query_of(&request.request)?;
+        let target = match query {
+            ObservationQueryWire::GaussianOutcome { outcome, interventions, observed } => {
+                RedrawTargetWire::Gaussian { outcome, interventions, observed }
+            }
+            ObservationQueryWire::ConditionalOutcome { outcome, observed, measured: None } => {
+                RedrawTargetWire::Finite { outcome, interventions: Vec::new(), observed }
+            }
+            ObservationQueryWire::InterventionalOutcome { outcome, interventions } => {
+                RedrawTargetWire::Finite { outcome, interventions, observed: Vec::new() }
+            }
+            ObservationQueryWire::ConditionalInterventionalOutcome {
+                outcome,
+                interventions,
+                observed,
+                measured: None,
+            } => RedrawTargetWire::Finite { outcome, interventions, observed },
+            other => {
+                return Err(ObservationQueryRefusal::of(
+                    antecedent_core::reason_code!("route_not_supported"),
+                    "observe",
+                    antecedent_core::reason_details::observation_query::MEASURED_SIGNAL_NOT_REDRAWN,
+                    other.operation(),
+                ));
             }
         };
-        seal(Some(self.spec()), query, InferenceBasis::DeclaredModel, ctx)
+        seal(
+            Some(self.spec()),
+            ObservationQueryWire::ParameterRedraw {
+                target,
+                retained: request.retained.clone(),
+                prior: RedrawPriorWire::from(&request.prior),
+                draws: request.draws,
+                seed: request.seed,
+            },
+            InferenceBasis::DeclaredModel,
+            ctx,
+        )
     }
 
     /// `P(outcome | observed values)`: the conditioning claim.
@@ -526,6 +1487,7 @@ impl PreparedMechanismComposition {
                 outcome: outcome.to_owned(),
                 conditioning: conditioning.to_vec(),
                 interventions: Vec::new(),
+                continuous: ContinuousAssignments::default(),
             },
             ctx,
         )
@@ -547,6 +1509,40 @@ impl PreparedMechanismComposition {
                 outcome: outcome.to_owned(),
                 conditioning: Vec::new(),
                 interventions: interventions.to_vec(),
+                continuous: ContinuousAssignments::default(),
+            },
+            ctx,
+        )
+    }
+
+    /// `P(outcome | do(interventions), observed values)` on a linear-Gaussian
+    /// composition: the conditional mean and variance of the outcome given
+    /// typed real values. Either list may be empty; with no interventions this
+    /// is conditioning and with no observed values it is intervention.
+    ///
+    /// # Errors
+    /// As [`Self::observe`].
+    pub fn observe_continuous(
+        &self,
+        outcome: &str,
+        interventions: &[(String, f64)],
+        observed: &[(String, f64)],
+        ctx: &ExecutionContext,
+    ) -> Result<ObservationClaim, ObservationQueryRefusal> {
+        self.observe(
+            &ObservationRequest {
+                operation: if interventions.is_empty() {
+                    ObservationOperation::Conditioning
+                } else {
+                    ObservationOperation::Intervention
+                },
+                outcome: outcome.to_owned(),
+                conditioning: Vec::new(),
+                interventions: Vec::new(),
+                continuous: ContinuousAssignments {
+                    observed: observed.to_vec(),
+                    interventions: interventions.to_vec(),
+                },
             },
             ctx,
         )
@@ -629,7 +1625,7 @@ impl PreparedMechanismComposition {
                 return Err(ObservationQueryRefusal::of(
                     antecedent_core::reason_code!("route_not_supported"),
                     "observe",
-                    "observation_query.measured_background",
+                    antecedent_core::reason_details::observation_query::MEASURED_BACKGROUND,
                     slot.variable_id.clone(),
                 ));
             }

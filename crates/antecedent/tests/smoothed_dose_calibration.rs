@@ -2,7 +2,7 @@
 //! closed-form smoothed target.
 //!
 //! The estimator measured is the whole composed one the public route withholds
-//! (`cell_not_licensed`) until these records exist: cross-fitted outcome and membership
+//! (`not_supported`) until these records exist: cross-fitted outcome and membership
 //! nuisances, the quadrature, every support and quadrature refusal, the augmented score
 //! and the pointwise joint outer refit percentile bootstrap, grouped per design
 //! (`antecedent_estimate::smoothed_dose_interval_internal`).
@@ -18,9 +18,9 @@
 //! * `smoothed_dose_transport_weak_overlap_boundary` asserts the far-target boundary
 //!   refuses in at least 90% of datasets; it emits no record.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 #[path = "smoothed_dose_dgp/mod.rs"]
@@ -28,7 +28,7 @@ mod dgp;
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::{
-    SMOOTHED_DOSE_BOUNDS, SmoothedDoseInput, SmoothedDoseOptions, smoothed_dose_interval_internal,
+    SmoothedDoseInput, SmoothedDoseOptions, smoothed_dose_interval_internal,
 };
 use antecedent_identify::TransportIdentifier;
 use common::calibration::{
@@ -39,7 +39,7 @@ use dgp::{Design, Scenario, diagram, draw, query};
 
 const INTERVAL: &str = "percentile_bootstrap";
 /// Bootstrap replicates per execution: the frozen replicate floor of the cell.
-const REPLICATES: u32 = SMOOTHED_DOSE_BOUNDS.min_bootstrap;
+const REPLICATES: u32 = 199;
 const H: f64 = 0.5;
 
 fn smoothed_dose_nested_cohort_quadratic_curve(
@@ -143,7 +143,7 @@ fn record(design: Design, test: &'static str, dgp_name: &'static str) {
     for row in rows {
         match row {
             Some((bands, replicates_ok)) => {
-                tally.bind(
+                tally.bind_validation(
                     &construction(),
                     ScopeFacts {
                         row_count: (n.0 + n.1) as u64,
@@ -151,6 +151,7 @@ fn record(design: Design, test: &'static str, dgp_name: &'static str) {
                         posterior_draws: None,
                         unidentified_mass: 0.0,
                     },
+                    "not_applicable",
                 );
                 tally.record(Some(bands[0]), truth);
             }

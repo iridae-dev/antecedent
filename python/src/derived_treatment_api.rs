@@ -4,14 +4,13 @@
 //! dataclasses. A refusal keeps its registered reason code and structured fields; an interval
 //! request and a machine-learning nuisance are refused before any data is read.
 
+use antecedent::estimate::{
+    CellStatus, DEFAULT_RIDGE_GRID, EstimationError, FactorizedJointConfig, FactorizedJointFit,
+    JointCellReport, JointContrast, RidgeTuning, declared_joint_nuisance, orderings_for,
+};
 use antecedent::{
     CausalError, ConstituentRole, DerivedTreatmentDeclaration, check_derived_treatment,
     estimate_derived_joint_cells, estimate_joint_cell_cost,
-};
-use antecedent_estimate::{
-    CellStatus, DEFAULT_RIDGE_GRID, EstimationError, FactorizedJointConfig, FactorizedJointFit,
-    JointCellReport, JointContrast, RidgeTuning, declared_joint_nuisance, orderings_for,
-    refuse_joint_inference, refuse_joint_learner_inference,
 };
 use pyo3::prelude::*;
 use serde_json::{Value, json};
@@ -51,7 +50,7 @@ fn derived_treatment_check_json(
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<String> {
     let declaration = parse_declaration(declaration)?;
-    let (data, _) = tabular_from_py_columns(names, columns)?;
+    let data = tabular_from_py_columns(names, columns)?;
     let ctx = py_execution_context_cancel(seed, resolve_user_threads(threads), cancel);
     detach_catch(py, move || {
         let plan = check_derived_treatment(&data, &declaration, outcome, &adjustment, &ctx)
@@ -139,7 +138,7 @@ fn factorized_joint_cells_json(
     ordering: Option<Vec<String>>,
     all_orderings: bool,
     nuisance: &str,
-    penalties: Option<Vec<f64>>,
+    penalties: Option<Bound<'_, PyAny>>,
     inner_folds: usize,
     folds: usize,
     seed: u64,
@@ -156,12 +155,15 @@ fn factorized_joint_cells_json(
     let learner = declared_joint_nuisance(nuisance).map_err(estimation_err)?;
     if interval {
         return Err(estimation_err(if learner.is_some() {
-            refuse_joint_learner_inference()
+            antecedent::refusal::joint_learner_interval_unsupported()
         } else {
-            refuse_joint_inference()
+            antecedent::refusal::joint_interval_unsupported()
         }));
     }
-    let grid = penalties.unwrap_or_else(|| DEFAULT_RIDGE_GRID.to_vec());
+    let grid = match penalties {
+        Some(raw) => crate::estimator_config::bounded_penalty_values(&raw, "penalties")?,
+        None => DEFAULT_RIDGE_GRID.to_vec(),
+    };
     let tuning = RidgeTuning::new(&grid, inner_folds).map_err(estimation_err)?;
     let requested = contrasts
         .unwrap_or_default()
@@ -197,7 +199,7 @@ fn factorized_joint_cells_json(
     config.min_cell_ess = min_cell_ess;
     config.normalization_tolerance = normalization_tolerance;
     config.ordering_tolerance_sd = ordering_tolerance_sd;
-    let (data, _) = tabular_from_py_columns(names, columns)?;
+    let data = tabular_from_py_columns(names, columns)?;
     let ctx = py_execution_context_cancel(seed, resolve_user_threads(threads), cancel);
     detach_catch(py, move || {
         let (plan, fit) = estimate_derived_joint_cells(
@@ -242,14 +244,22 @@ fn joint_cell_cost_json(
     ordering: Option<Vec<usize>>,
     all_orderings: bool,
     nuisance: &str,
-    penalties: Option<Vec<f64>>,
+    penalties: Option<Bound<'_, PyAny>>,
     inner_folds: usize,
     folds: usize,
     rows: Option<usize>,
 ) -> PyResult<String> {
     let learner = declared_joint_nuisance(nuisance).map_err(estimation_err)?;
-    let grid = penalties.unwrap_or_else(|| DEFAULT_RIDGE_GRID.to_vec());
+    let grid = match penalties {
+        Some(raw) => crate::estimator_config::bounded_penalty_values(&raw, "penalties")?,
+        None => DEFAULT_RIDGE_GRID.to_vec(),
+    };
     let tuning = RidgeTuning::new(&grid, inner_folds).map_err(estimation_err)?;
+    // Ask the native validator for its existing typed refusal before a default
+    // ordering can allocate from an unchecked component count.
+    if !(1..=31).contains(&components) {
+        orderings_for(components, &[], false).map_err(estimation_err)?;
+    }
     let declared = ordering.unwrap_or_else(|| (0..components).collect());
     let orderings = orderings_for(components, &declared, all_orderings).map_err(estimation_err)?;
     let mut config = FactorizedJointConfig::new(tuning);
@@ -260,7 +270,13 @@ fn joint_cell_cost_json(
     json_text(&serde_json::to_value(&estimate).map_err(|e| value_err(e.to_string()))?)
 }
 
+#[pyfunction(name = "_penalty_grid_max_items")]
+fn penalty_grid_max_items() -> u64 {
+    RidgeTuning::context_free_max_grid_len()
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_function(wrap_pyfunction!(penalty_grid_max_items, module)?)?;
     module.add_function(wrap_pyfunction!(derived_treatment_check_json, module)?)?;
     module.add_function(wrap_pyfunction!(joint_cell_cost_json, module)?)?;
     module.add_function(wrap_pyfunction!(factorized_joint_cells_json, module)?)?;

@@ -7,17 +7,18 @@
 //! mapping, and refute downgrade apply. Unknown keys are refused rather than
 //! ignored.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
+use antecedent::query::{PopulationRegistry, TargetPopulation};
+use antecedent::validate::CustomEffectValidator;
 use antecedent::{LatencyMode, RefuteSuite, StudyBuilder};
-use antecedent_core::{PopulationRegistry, TargetPopulation};
-use antecedent_validate::CustomEffectValidator;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
 const KEYS: &[&str] = &[
+    "data_diagnostics",
     "refute",
     "bootstrap",
     "latency",
@@ -25,6 +26,7 @@ const KEYS: &[&str] = &[
     "target_population",
     "population_predicates",
     "population_distributions",
+    "weighted_target",
     "cancel",
     "on_progress",
     "inference",
@@ -32,6 +34,14 @@ const KEYS: &[&str] = &[
     "participants",
     "missing",
     "sampling_weights",
+    "sampling_design",
+    "identifier",
+    "estimator",
+    "retain_joint_horizons",
+    "fallback",
+    "structure_prior",
+    "exact_score",
+    "exact_max_parents",
 ];
 
 /// Declared inference: mode plus the Bayesian prior and draw budget.
@@ -45,26 +55,35 @@ pub(crate) struct InferenceSpec {
     pub n_draws: Option<usize>,
     pub prior_scale: f64,
     pub prior_artifact: Option<Vec<u8>>,
-    pub prior_mapping: Option<antecedent_io::PriorMapping>,
+    pub prior_mapping: Option<antecedent::io::PriorMapping>,
     pub composed_prior: Option<crate::prior_bank::OwnedComposedPrior>,
+    /// Beta or Gamma prior of a conjugate count posterior (a Bayesian association).
+    pub count_prior: Option<antecedent::inference::PriorSet>,
     /// Outcome likelihood; `None` keeps the Gaussian identity-link default.
-    pub likelihood: Option<antecedent_prob::BayesLikelihood>,
+    pub likelihood: Option<antecedent::inference::BayesLikelihood>,
     /// Numerical draw controls; `None` leaves the draw count unconstrained.
     pub draw_controls: Option<antecedent::PosteriorDrawControls>,
+    /// Declared white-innovation gate `(max_lag, level)`; `None` keeps the tempered posterior.
+    pub white_innovation: Option<(usize, f64)>,
+    /// Declared likelihood and prior of a randomized-design Bayesian estimator.
+    pub design_model: Option<antecedent::DesignPosteriorModel>,
+    /// Declared bounds `(n_sims, max_rows)` of the retained posterior predictive replicates.
+    pub predictive_replicates: Option<(u32, u32)>,
 }
 
 impl InferenceSpec {
+    #[allow(clippy::float_cmp, reason = "exact comparison recognizes the declared default options")]
     pub(crate) fn parse(dict: &Bound<'_, PyDict>) -> PyResult<Self> {
         let item = |key: &str| -> PyResult<Option<Bound<'_, PyAny>>> {
             Ok(dict.get_item(key)?.filter(|value| !value.is_none()))
         };
-        Ok(Self {
+        let spec = Self {
             mode: item("mode")?.map(|value| value.extract()).transpose()?,
             n_draws: item("n_draws")?.map(|value| value.extract()).transpose()?,
             prior_scale: item("prior_scale")?
                 .map(|value| value.extract())
                 .transpose()?
-                .ok_or_else(|| crate::value_err("inference requires prior_scale"))?,
+                .unwrap_or(10.0),
             prior_artifact: item("prior_artifact")?.map(|value| value.extract()).transpose()?,
             prior_mapping: item("prior_mapping")?
                 .map(|value| crate::prior_bank::mapping_from_dict(value.cast::<PyDict>()?))
@@ -74,13 +93,64 @@ impl InferenceSpec {
                     crate::prior_bank::owned_composed_prior_from_dict(value.cast::<PyDict>()?)
                 })
                 .transpose()?,
+            count_prior: item("count_prior")?
+                .map(|value| crate::prior_bank::count_prior_from_dict(value.cast::<PyDict>()?))
+                .transpose()?,
             likelihood: item("likelihood")?
                 .map(|value| parse_likelihood(&value.extract::<String>()?))
                 .transpose()?,
             draw_controls: item("draw_controls")?
                 .map(|value| parse_draw_controls(&value.extract::<String>()?))
                 .transpose()?,
-        })
+            white_innovation: item("white_innovation")?
+                .map(|value| value.extract::<(usize, f64)>())
+                .transpose()?,
+            design_model: item("design_model")?
+                .map(|value| crate::design_model_api::parse_design_model(value.cast::<PyDict>()?))
+                .transpose()?,
+            predictive_replicates: item("predictive_replicates")?
+                .map(|value| value.extract::<(u32, u32)>())
+                .transpose()?,
+        };
+        if !spec.prior_scale.is_finite() || spec.prior_scale <= 0.0 {
+            return Err(crate::value_err("prior_scale must be finite and positive"));
+        }
+        if spec.white_innovation.is_some_and(|(lag, level)| {
+            lag == 0 || !level.is_finite() || !(0.0 < level && level < 1.0)
+        }) {
+            return Err(crate::value_err(
+                "white_innovation requires max_lag >= 1 and level in (0, 1)",
+            ));
+        }
+        if spec.prior_mapping.is_some() && spec.prior_artifact.is_none() {
+            return Err(crate::value_err("prior_mapping requires prior_artifact"));
+        }
+        if spec.prior_artifact.is_some() && spec.composed_prior.is_some() {
+            return Err(crate::value_err("choose either prior_artifact or composed_prior"));
+        }
+        if spec.count_prior.is_some()
+            && (spec.prior_artifact.is_some() || spec.composed_prior.is_some())
+        {
+            return Err(crate::value_err(
+                "choose either a count prior or a posterior artifact / composed Gaussian prior",
+            ));
+        }
+        if !spec.is_bayesian()
+            && (spec.n_draws.is_some()
+                || spec.prior_artifact.is_some()
+                || spec.prior_mapping.is_some()
+                || spec.composed_prior.is_some()
+                || spec.count_prior.is_some()
+                || spec.likelihood.is_some()
+                || spec.draw_controls.is_some()
+                || spec.white_innovation.is_some()
+                || spec.design_model.is_some()
+                || spec.predictive_replicates.is_some()
+                || spec.prior_scale != 10.0)
+        {
+            return Err(crate::value_err("Bayesian inference options require a Bayesian mode"));
+        }
+        Ok(spec)
     }
 
     /// Whether this is a Bayesian declaration.
@@ -90,8 +160,8 @@ impl InferenceSpec {
 }
 
 /// Rust likelihood of a Python `Bayesian(likelihood=...)` name.
-fn parse_likelihood(name: &str) -> PyResult<antecedent_prob::BayesLikelihood> {
-    use antecedent_prob::BayesLikelihood;
+fn parse_likelihood(name: &str) -> PyResult<antecedent::inference::BayesLikelihood> {
+    use antecedent::inference::BayesLikelihood;
     Ok(match name {
         "gaussian" => BayesLikelihood::GaussianIdentity,
         "logit" => BayesLikelihood::BernoulliLogit,
@@ -99,7 +169,7 @@ fn parse_likelihood(name: &str) -> PyResult<antecedent_prob::BayesLikelihood> {
         "poisson" => BayesLikelihood::PoissonLog,
         other => {
             return Err(crate::refusal(
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
                 format!("unknown Bayesian likelihood {other:?}; use gaussian|logit|probit|poisson"),
             ));
         }
@@ -111,7 +181,7 @@ fn parse_draw_controls(name: &str) -> PyResult<antecedent::PosteriorDrawControls
     match name {
         "measured" => Ok(antecedent::PosteriorDrawControls::Measured),
         other => Err(crate::refusal(
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
             format!("unknown Bayesian draw controls {other:?}; use measured"),
         )),
     }
@@ -120,24 +190,48 @@ fn parse_draw_controls(name: &str) -> PyResult<antecedent::PosteriorDrawControls
 /// Parsed shared prepare options.
 #[derive(Default)]
 pub(crate) struct PrepareOptions {
+    #[allow(
+        clippy::option_option,
+        reason = "absent, disabled, and configured are distinct options"
+    )]
+    pub data_diagnostics: Option<Option<antecedent::DataDiagnostics>>,
     pub refute: Option<RefuteSuite>,
     pub bootstrap: Option<u32>,
     pub latency: Option<LatencyMode>,
     pub validators: Vec<Arc<dyn CustomEffectValidator>>,
     pub target_population: Option<TargetPopulation>,
     pub registry: Option<PopulationRegistry>,
-    pub cancel: Option<antecedent_core::CancellationToken>,
-    pub progress: Option<Arc<dyn antecedent_core::ProgressSink>>,
+    /// A weighted target population, resolved by the facade against the table at build.
+    pub weighted_target: Option<antecedent::WeightedTargetDeclaration>,
+    pub cancel: Option<antecedent::execution::CancellationToken>,
+    pub progress: Option<Arc<dyn antecedent::execution::ProgressSink>>,
     pub inference: InferenceSpec,
     /// Discovery algorithm of an accepted structure (provenance only).
     pub discovery_algorithm: Option<String>,
     /// Participant labels bound to the data rows (digests only).
-    pub participants: Option<antecedent_io::ParticipantBindingWire>,
+    pub participants: Option<antecedent::io::ParticipantBindingWire>,
     /// Declared handling of missing values.
-    pub missing: Option<antecedent_data::MissingDeclaration>,
+    pub missing: Option<antecedent::data::MissingDeclaration>,
     /// One sampling weight per row of the table, read by the routes that estimate in the
     /// weighted population (randomized ITT, balanced panel DiD); every other route refuses it.
     pub sampling_weights: Option<Arc<[f64]>>,
+    /// Declared sampling design of the rows, held by every estimator that bootstraps or splits.
+    pub sampling_design: Option<antecedent::schema::DeclaredSamplingDesign>,
+    /// Identifier a route that accepts a family of them was asked for; the compiler validates it.
+    pub identifier: Option<antecedent::IdentifierId>,
+    /// Estimator a route that accepts a family of them was asked for; the compiler validates it.
+    pub estimator: Option<antecedent::EstimatorId>,
+    /// Keep the replicates coupled across the horizons of a temporal response, so the draws of
+    /// a quantity built from several horizons can be read back.
+    pub retain_joint_horizons: bool,
+    /// The descriptive fallback to run on a study refused for identification, when declared.
+    pub fallback: Option<crate::fallback_stage_api::FallbackDeclaration>,
+    /// The explicitly configured local score and parent-set limit for an exact DAG search.
+    pub exact_score: Option<antecedent::state::GraphScoreFamily>,
+    pub exact_max_parents: Option<usize>,
+    /// Per-edge prior probabilities and soft tiers of the structure posterior a graph-posterior
+    /// route searches; read by those routes only.
+    pub structure_prior: Option<crate::bayesian::PriorArgs>,
 }
 
 impl PrepareOptions {
@@ -181,6 +275,9 @@ impl PrepareOptions {
             predicates.as_ref().map(|value| value.cast::<PyDict>()).transpose()?,
             distributions.as_ref().map(|value| value.cast::<PyDict>()).transpose()?,
         )?;
+        let weighted_target = item("weighted_target")?
+            .map(|value| crate::weighted_target_api::parse(value.cast::<PyDict>()?))
+            .transpose()?;
         let cancel = item("cancel")?
             .map(|value| {
                 value
@@ -204,7 +301,7 @@ impl PrepareOptions {
                         crate::value_err(format!("participants option is missing {key:?}"))
                     })
                 };
-                Ok(antecedent_io::ParticipantBindingWire {
+                Ok(antecedent::io::ParticipantBindingWire {
                     rows: field("rows")?.extract()?,
                     labels: field("labels")?.extract()?,
                     codes: field("codes")?.extract()?,
@@ -217,13 +314,62 @@ impl PrepareOptions {
         let sampling_weights = item("sampling_weights")?
             .map(|value| value.extract::<Vec<f64>>().map(Arc::from))
             .transpose()?;
+        let sampling_design = item("sampling_design")?
+            .map(|value| -> PyResult<_> {
+                let name: String = value.extract()?;
+                antecedent::schema::DeclaredSamplingDesign::ALL
+                    .into_iter()
+                    .find(|design| design.as_str() == name)
+                    .ok_or_else(|| {
+                        crate::value_err(format!(
+                            "unknown sampling_design {name:?}; use \
+                             independent_subject_trajectories|clustered_panel|\
+                             dependent_time_series"
+                        ))
+                    })
+            })
+            .transpose()?;
+        let unknown = |err: antecedent::strategy_table::UnknownStrategy| {
+            crate::with_reason_code(
+                crate::value_err(err.to_string()),
+                antecedent::reason::reason_code!("unknown_strategy"),
+            )
+        };
+        let identifier = item("identifier")?
+            .map(|value| -> PyResult<_> {
+                value.extract::<String>()?.parse::<antecedent::IdentifierId>().map_err(unknown)
+            })
+            .transpose()?;
+        let estimator = item("estimator")?
+            .map(|value| -> PyResult<_> {
+                value.extract::<String>()?.parse::<antecedent::EstimatorId>().map_err(unknown)
+            })
+            .transpose()?;
+        let retain_joint_horizons = item("retain_joint_horizons")?
+            .map(|value| value.extract::<bool>())
+            .transpose()?
+            .unwrap_or(false);
+        let fallback = item("fallback")?
+            .map(|value| {
+                crate::fallback_stage_api::FallbackDeclaration::parse(value.cast::<PyDict>()?)
+            })
+            .transpose()?;
+        let structure_prior = item("structure_prior")?
+            .map(|value| crate::bayesian::PriorArgs::from_dict(value.cast::<PyDict>()?))
+            .transpose()?;
         Ok(Self {
+            data_diagnostics: item("data_diagnostics")?
+                .map(|value| {
+                    crate::data_diagnostics_api::policy_setting(&value.extract::<String>()?)
+                })
+                .transpose()?,
             refute,
             bootstrap,
             latency,
             validators,
             target_population,
             registry,
+            weighted_target,
             cancel,
             progress,
             inference,
@@ -231,7 +377,31 @@ impl PrepareOptions {
             participants,
             missing,
             sampling_weights,
+            sampling_design,
+            identifier,
+            estimator,
+            retain_joint_horizons,
+            fallback,
+            exact_score: item("exact_score")?
+                .map(|value| crate::bayesian::exact_score_family(&value.extract::<String>()?))
+                .transpose()?,
+            exact_max_parents: item("exact_max_parents")?
+                .map(|value| value.extract())
+                .transpose()?,
+            structure_prior,
         })
+    }
+
+    /// Select the identifier and estimator the caller named for a route that accepts several.
+    pub(crate) fn apply_selection(&self, builder: StudyBuilder) -> StudyBuilder {
+        let builder = match self.identifier {
+            Some(id) => builder.identifier(id),
+            None => builder,
+        };
+        match self.estimator {
+            Some(id) => builder.estimator(id),
+            None => builder,
+        }
     }
 
     /// Discovery algorithm of the accepted structure, when it came from discovery.
@@ -241,13 +411,20 @@ impl PrepareOptions {
 
     /// Apply the declared inference, moving any prior transfer onto the builder.
     pub(crate) fn apply_inference(&mut self, builder: StudyBuilder) -> PyResult<StudyBuilder> {
+        let builder = match &self.data_diagnostics {
+            Some(policy) => builder.data_diagnostics(policy.clone()),
+            None => builder,
+        };
         let spec = &mut self.inference;
         let builder = match spec.draw_controls {
             Some(controls) => builder.draw_controls(controls),
             None => builder,
         };
         let artifact = spec.prior_artifact.take();
-        crate::temporal_api::apply_temporal_inference_transfer(
+        let white_innovation = spec.white_innovation;
+        let design_model = spec.design_model.take();
+        let predictive_replicates = spec.predictive_replicates;
+        let builder = crate::temporal_api::apply_temporal_inference_transfer(
             builder,
             spec.mode.as_deref(),
             spec.n_draws,
@@ -255,17 +432,36 @@ impl PrepareOptions {
             artifact.as_deref(),
             spec.prior_mapping.take(),
             spec.composed_prior.take(),
-            spec.likelihood.unwrap_or(antecedent_prob::BayesLikelihood::GaussianIdentity),
-        )
+            spec.count_prior.take(),
+            spec.likelihood.unwrap_or(antecedent::inference::BayesLikelihood::GaussianIdentity),
+        )?;
+        let builder = match design_model {
+            Some(model) => builder.bayesian_design_model(model),
+            None => builder,
+        };
+        let builder = match predictive_replicates {
+            Some((n_sims, max_rows)) => builder.bayesian_predictive_replicates(n_sims, max_rows),
+            None => builder,
+        };
+        Ok(match white_innovation {
+            Some((max_lag, level)) => {
+                builder.bayesian_white_innovation(antecedent::estimate::InnovationWhitenessGate {
+                    max_lag,
+                    level,
+                })
+            }
+            None => builder,
+        })
     }
 
-    /// Refuse prior transfer on a route whose executor cannot hydrate a prior.
-    pub(crate) fn refuse_prior_transfer(&self, route: &str) -> PyResult<()> {
-        let spec = &self.inference;
+    /// Refuse declarations a route never reads, so none is dropped silently.
+    pub(crate) fn refuse_unread_declarations(&self, route: &str) -> PyResult<()> {
         let named: Vec<&str> = [
-            ("prior_artifact", spec.prior_artifact.is_some()),
-            ("prior_mapping", spec.prior_mapping.is_some()),
-            ("composed_prior", spec.composed_prior.is_some()),
+            ("sampling_weights", self.sampling_weights.is_some()),
+            ("identifier", self.identifier.is_some()),
+            ("estimator", self.estimator.is_some()),
+            ("fallback", self.fallback.is_some()),
+            ("retain_joint_horizons", self.retain_joint_horizons),
         ]
         .into_iter()
         .filter_map(|(name, set)| set.then_some(name))
@@ -274,7 +470,38 @@ impl PrepareOptions {
             return Ok(());
         }
         Err(crate::refusal(
-            antecedent_core::reason_code!("prior_transfer_not_hydrated"),
+            antecedent::reason::reason_code!("option_not_applicable"),
+            format!("{route} reads no {}; drop them", named.join(", ")),
+        ))
+    }
+
+    /// Refuse prior transfer on a route whose executor cannot hydrate a prior.
+    pub(crate) fn refuse_prior_transfer(&self, route: &str) -> PyResult<()> {
+        self.refuse_prior_transfer_except_count(route, false)
+    }
+
+    /// As [`Self::refuse_prior_transfer`], except that a route consuming a count prior
+    /// (the conjugate association cells) accepts one.
+    pub(crate) fn refuse_prior_transfer_except_count(
+        &self,
+        route: &str,
+        accepts_count: bool,
+    ) -> PyResult<()> {
+        let spec = &self.inference;
+        let named: Vec<&str> = [
+            ("prior_artifact", spec.prior_artifact.is_some()),
+            ("prior_mapping", spec.prior_mapping.is_some()),
+            ("composed_prior", spec.composed_prior.is_some()),
+            ("count_prior", spec.count_prior.is_some() && !accepts_count),
+        ]
+        .into_iter()
+        .filter_map(|(name, set)| set.then_some(name))
+        .collect();
+        if named.is_empty() {
+            return Ok(());
+        }
+        Err(crate::refusal(
+            antecedent::reason::reason_code!("prior_transfer_not_hydrated"),
             format!(
                 "{route} fits its Bayesian model under the isotropic prior_scale and does not \
                  hydrate {}",
@@ -285,6 +512,9 @@ impl PrepareOptions {
 
     /// Write only what the caller supplied onto the builder.
     pub(crate) fn apply(&self, mut builder: StudyBuilder) -> StudyBuilder {
+        if let Some(policy) = &self.data_diagnostics {
+            builder = builder.data_diagnostics(policy.clone());
+        }
         if let Some(suite) = self.refute {
             builder = builder.refute(suite);
         }
@@ -300,11 +530,17 @@ impl PrepareOptions {
         if let Some(registry) = &self.registry {
             builder = builder.population_registry(registry.clone());
         }
+        if let Some(target) = &self.weighted_target {
+            builder = builder.weighted_target(target.clone());
+        }
         if let Some(participants) = &self.participants {
             builder = builder.participants(participants.clone());
         }
         if let Some(missing) = &self.missing {
             builder = builder.missing(missing.clone());
+        }
+        if let Some(design) = self.sampling_design {
+            builder = builder.sampling_design(design);
         }
         builder
     }
@@ -316,12 +552,14 @@ impl PrepareOptions {
             return self.apply(builder);
         }
         let without_bootstrap = Self {
+            data_diagnostics: self.data_diagnostics.clone(),
             refute: self.refute,
             bootstrap: None,
             latency: self.latency,
             validators: self.validators.clone(),
             target_population: None,
             registry: self.registry.clone(),
+            weighted_target: self.weighted_target.clone(),
             cancel: None,
             progress: None,
             inference: InferenceSpec::default(),
@@ -329,6 +567,14 @@ impl PrepareOptions {
             participants: self.participants.clone(),
             missing: self.missing.clone(),
             sampling_weights: self.sampling_weights.clone(),
+            sampling_design: self.sampling_design,
+            identifier: self.identifier,
+            estimator: self.estimator,
+            retain_joint_horizons: self.retain_joint_horizons,
+            fallback: None,
+            exact_score: None,
+            exact_max_parents: None,
+            structure_prior: None,
         };
         without_bootstrap.apply(builder)
     }
@@ -347,7 +593,7 @@ impl PrepareOptions {
         match &self.target_population {
             Some(population) if *population != TargetPopulation::AllObserved => {
                 Err(crate::refusal(
-                    antecedent_core::reason_code!("population_not_estimable"),
+                    antecedent::reason::reason_code!("population_not_estimable"),
                     format!(
                         "{route} estimates the all-observed population; this route has no \
                          weighting or subpopulation estimator for another target"
@@ -359,7 +605,11 @@ impl PrepareOptions {
     }
 
     /// Execution context for prepare-time identification.
-    pub(crate) fn ctx(&self, seed: u64, threads: Option<u32>) -> antecedent_core::ExecutionContext {
+    pub(crate) fn ctx(
+        &self,
+        seed: u64,
+        threads: Option<u32>,
+    ) -> antecedent::prelude::ExecutionContext {
         crate::py_execution_context_ext(
             seed,
             crate::resolve_user_threads(threads),
@@ -367,5 +617,44 @@ impl PrepareOptions {
             self.progress.clone(),
             Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
         )
+    }
+}
+
+#[cfg(test)]
+mod inference_declaration_tests {
+    use super::InferenceSpec;
+    use pyo3::prelude::*;
+    use pyo3::types::PyDict;
+
+    #[test]
+    fn inference_rejects_ignored_options_and_invalid_scales() {
+        Python::initialize();
+        Python::attach(|py| {
+            let empty = PyDict::new(py);
+            assert!(InferenceSpec::parse(&empty).is_ok());
+            let frequentist = PyDict::new(py);
+            frequentist.set_item("mode", "frequentist").unwrap();
+            frequentist.set_item("prior_scale", 10.0).unwrap();
+            assert!(InferenceSpec::parse(&frequentist).is_ok());
+            frequentist.set_item("n_draws", 12).unwrap();
+            assert!(InferenceSpec::parse(&frequentist).is_err());
+            let absent_mode = PyDict::new(py);
+            absent_mode.set_item("prior_artifact", vec![1u8]).unwrap();
+            assert!(InferenceSpec::parse(&absent_mode).is_err());
+            for scale in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+                let bayesian = PyDict::new(py);
+                bayesian.set_item("mode", "bayesian").unwrap();
+                bayesian.set_item("prior_scale", scale).unwrap();
+                assert!(InferenceSpec::parse(&bayesian).is_err());
+            }
+            let bayesian = PyDict::new(py);
+            bayesian.set_item("mode", "bayesian").unwrap();
+            bayesian.set_item("white_innovation", (0usize, 0.5)).unwrap();
+            assert!(InferenceSpec::parse(&bayesian).is_err());
+            bayesian.set_item("white_innovation", (1usize, 1.0)).unwrap();
+            assert!(InferenceSpec::parse(&bayesian).is_err());
+            bayesian.set_item("white_innovation", (1usize, 0.05)).unwrap();
+            assert!(InferenceSpec::parse(&bayesian).is_ok());
+        });
     }
 }

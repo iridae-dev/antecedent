@@ -45,7 +45,7 @@
 //! or a native population other than the target's, is refused
 //! (`target_population_mismatch`); a retired source is refused by the ledger.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 
@@ -60,9 +60,6 @@ use antecedent_stats::synthesis_transport::{
     SummaryOrigin, TransportAwareSummary, TransportedSynthesisError, borrow_transported,
     pool_transported, transport_aware_covariance, transported_prior_update,
 };
-
-/// Version of the transported-synthesis result semantics.
-pub const TRANSPORTED_SYNTHESIS_RESULT_VERSION: u32 = 1;
 
 const TAG_COVARIANCE: &str = "antecedent.design.transported_synthesis.covariance";
 
@@ -150,7 +147,7 @@ pub struct TransportedSynthesis {
     pub native_population: Option<String>,
     /// Observation mass the ledger counted, each observation once.
     pub mass: MassAccount,
-    /// What the ledger says the result licenses.
+    /// What the ledger says the result supports.
     pub claim_class: ClaimClass,
 }
 
@@ -170,7 +167,7 @@ pub enum TransportedSynthesisRefusal {
         detail: &'static str,
         /// The source at fault, when one is.
         source: Option<SourceId>,
-        /// What would license the request.
+        /// What would support the request.
         remedy: &'static str,
     },
 }
@@ -215,37 +212,45 @@ impl TransportedSynthesisRefusal {
 
 /// A transported claim was contributed without the variance of its transport.
 pub const DETAIL_TRANSPORT_VARIANCE_UNDECLARED: &str =
-    "transported_synthesis.transport_variance_undeclared";
+    antecedent_core::reason_details::transported_synthesis::TRANSPORT_VARIANCE_UNDECLARED;
 /// A native source was contributed with a transport variance.
 pub const DETAIL_TRANSPORT_VARIANCE_ON_NATIVE: &str =
-    "transported_synthesis.transport_variance_on_native_source";
+    antecedent_core::reason_details::transported_synthesis::TRANSPORT_VARIANCE_ON_NATIVE_SOURCE;
 /// A source was contributed more than once.
-pub const DETAIL_SOURCE_LISTED_TWICE: &str = "transported_synthesis.source_listed_twice";
+pub const DETAIL_SOURCE_LISTED_TWICE: &str =
+    antecedent_core::reason_details::transported_synthesis::SOURCE_LISTED_TWICE;
 /// A contribution names a source that is not in the ledger.
-pub const DETAIL_UNKNOWN_SOURCE: &str = "transported_synthesis.unknown_source";
+pub const DETAIL_UNKNOWN_SOURCE: &str =
+    antecedent_core::reason_details::transported_synthesis::UNKNOWN_SOURCE;
 /// No contribution was supplied.
-pub const DETAIL_NO_CONTRIBUTIONS: &str = "transported_synthesis.no_contributions";
+pub const DETAIL_NO_CONTRIBUTIONS: &str =
+    antecedent_core::reason_details::transported_synthesis::NO_CONTRIBUTIONS;
 /// The transported-prior route was not given a transported prior among its
 /// contributions, or the likelihood was not native.
-pub const DETAIL_PRIOR_ROLE: &str = "transported_synthesis.prior_role_mismatch";
+pub const DETAIL_PRIOR_ROLE: &str =
+    antecedent_core::reason_details::transported_synthesis::PRIOR_ROLE_MISMATCH;
 /// One transport serves several claims on a route that cannot share its error.
-pub const DETAIL_SHARED_TRANSPORT: &str = "transported_synthesis.shared_transport_needs_covariance";
+pub const DETAIL_SHARED_TRANSPORT: &str =
+    antecedent_core::reason_details::transported_synthesis::SHARED_TRANSPORT_NEEDS_COVARIANCE;
 /// Shared transport error was declared, but the sources' observations are
 /// shared or unknown and no sampling covariance models that.
-pub const DETAIL_OVERLAP_NOT_MODELLED: &str = "transported_synthesis.overlap_not_modelled";
+pub const DETAIL_OVERLAP_NOT_MODELLED: &str =
+    antecedent_core::reason_details::transported_synthesis::OVERLAP_NOT_MODELLED;
 /// The transported contributions were carried to different target
 /// populations, or the native contributions' declared population is not the
 /// target.
 pub const DETAIL_TARGET_POPULATION_MISMATCH: &str =
-    "transported_synthesis.target_population_mismatch";
+    antecedent_core::reason_details::transported_synthesis::TARGET_POPULATION_MISMATCH;
 /// A transported source's identity names no assumption, or its target is one of
 /// its own source populations.
 pub const DETAIL_TRANSPORT_IDENTITY_INCOMPLETE: &str =
-    "transported_synthesis.transport_identity_incomplete";
+    antecedent_core::reason_details::transported_synthesis::TRANSPORT_IDENTITY_INCOMPLETE;
 /// The declared native population is blank.
-pub const DETAIL_NATIVE_POPULATION_BLANK: &str = "transported_synthesis.native_population_blank";
+pub const DETAIL_NATIVE_POPULATION_BLANK: &str =
+    antecedent_core::reason_details::transported_synthesis::NATIVE_POPULATION_BLANK;
 /// The numerical routine refused its input.
-pub const DETAIL_NUMERIC: &str = "transported_synthesis.numeric_refused";
+pub const DETAIL_NUMERIC: &str =
+    antecedent_core::reason_details::transported_synthesis::NUMERIC_REFUSED;
 
 fn declaration(
     detail: &'static str,
@@ -431,14 +436,14 @@ fn target_population_of(
         ));
     }
     let target_population = targets.iter().next().map(|t| (*t).to_owned());
-    if let (Some(native), Some(target)) = (native_population, target_population.as_deref()) {
-        if native != target {
-            return Err(declaration(
-                DETAIL_TARGET_POPULATION_MISMATCH,
-                classified.iter().find(|c| c.transport_digest.is_none()).map(|c| c.source),
-                "the native contributions were observed in another population than the transports' target; transport them too, or drop them",
-            ));
-        }
+    if let (Some(native), Some(target)) = (native_population, target_population.as_deref())
+        && native != target
+    {
+        return Err(declaration(
+            DETAIL_TARGET_POPULATION_MISMATCH,
+            classified.iter().find(|c| c.transport_digest.is_none()).map(|c| c.source),
+            "the native contributions were observed in another population than the transports' target; transport them too, or drop them",
+        ));
     }
     Ok(target_population)
 }

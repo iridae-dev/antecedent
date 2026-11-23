@@ -1,0 +1,76 @@
+feature_id = "design.evidence_plan"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Original engineering: restating the evidence a failed identification owes as
+# unfinished study candidates, collecting the verdicts of each theorem route's repair
+# search into one ordered list of options, and valuing a single study by the existing
+# preposterior expected value of sample information under a decision, prior and signal
+# the caller declares. The checkers it relies on (back-door, front-door, instrument and
+# hedge identification, d-separation) and the value of sample information (Raiffa and
+# Schlaifer, Applied Statistical Decision Theory, 1961, ch. 4) carry their own provenance
+# records (design.identification_repair, design.evsi); nothing here re-derives or extends
+# their theorems, so papers is explicitly empty.
+papers = []
+
+implementation_deviations = [
+  "Options are ordered by the identification gate first and only then by the declared value of a single study, never the reverse: a study that promises more information does not outrank a verified one. A subset of studies has no value of its own because values of studies do not add; it is listed unvalued.",
+  "The value of measuring a named confounder is an expected value of sample information under a prior the caller declares over the evaluated grid coordinates of a sensitivity surface. An assumption range is never a probability; a surface with an assumption range, or an unevaluated grid point, is refused and nothing is interpolated between grid points.",
+  "The repeated-measurement (panel) alternative owes obligations but has no theorem checker: it is listed as an unscored route, never as an option, and the time invariance it relies on is an assumption no study establishes.",
+  "A study that only names a variable, or only adds rows, is never credited with an unlock: the unlock list names the variables of the studies a repair search verified sufficient on their own.",
+  "The evidence_plan_v1 artifact embeds the sealed repair_search_receipt_v1 container of every route and the design_ranking_v1 container of the value evaluation and replays both; its digests are content fingerprints, not cryptographic guarantees against a producer that states another contract and re-seals honestly.",
+  "The ordering is a point ordering conditional on the declared decision, prior, signals and cost map; its calibration is not measured and no rank confidence or realized-study guarantee is claimed. A budget stop is reported as a budget, never as an impossibility.",
+  "No causal, interval or calibration claim is made.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-design/tests/evidence_plan.rs",
+  "crates/antecedent-design/src/candidate_generation.rs",
+  "crates/antecedent-design/src/confounder_value.rs",
+  "crates/antecedent-design/src/structure_identification.rs",
+  "crates/antecedent/src/analysis/evidence_plan.rs",
+  "python/tests/test_evidence_plan.py",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Restating the evidence a failed identification owes as study candidates, ordering the repair options by the identification gate and then by declared value, and valuing one study with the existing preposterior expected value of sample information."
+no_independent_algorithm = "evidence_plan.rs, candidate_generation.rs, structure_identification.rs and confounder_value.rs order options, list obligations and build the decision problem on the grid coordinates; the value is computed by the covered EVSI and the identification verdicts by the covered repair search."
+covered_by = ["design.evsi", "design.identification_repair"]
+record_sha256 = "69d750df8408177ae9dd9cc20cf7278bb65c5e771c23e9c64dfcbf9c3c20ec2d"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/evidence_plan.rs"
+items = ["const PLAN_CALIBRATION", "const PLAN_RANKING_GUARANTEE", "const SUBSET_VALUE_NOTE", "enum PlanOutcome", "enum PlanValueBasis", "fn as_str", "fn build", "fn calibration", "fn closing", "fn compare", "fn from_ranking", "fn gate_rank", "fn identity", "fn invalid", "fn mark_close_calls", "fn obligation", "fn of", "fn rank_options", "fn ranking_guarantee", "fn score", "fn status", "fn units", "fn value_of", "struct EvidencePlan", "struct EvidencePlanError", "struct OptionValue", "struct PlanCost", "struct PlanInputs", "struct PlanOption", "struct PlanRoute", "struct PlanValuation", "struct PlanValue", "struct PlanValueRow", "struct RouteBudget", "struct UnverifiedRoute"]
+sha256 = "0414203aad15cee0c781c23d5ee7f380506e487863d2b54564e19c8ee86d17e2"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/candidate_generation.rs"
+items = ["fn complete", "fn generate_candidates", "fn id_list", "fn kinds_for", "fn label_of", "fn raw", "fn refusal", "fn sorted", "fn validate", "struct CandidateGeneration", "struct CandidateTemplate", "struct StudyDeclarations", "struct UnmatchedObligation", "type TemplateKey"]
+sha256 = "1c81a06bbb29986540c35a29e6ce838ae4b23492be41e535d5a99f5c27392992"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/structure_identification.rs"
+items = ["fn budget"]
+sha256 = "26f569a83c3559ba8f4ea075d759b036bd4a594262a4f79e10c04d79f42c4b2b"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/confounder_value.rs"
+items = ["const MAX_PRIOR_DRAWS", "fn decision_prior", "fn from_table", "fn identity", "fn new", "fn prior", "fn prior_draws", "fn problem", "fn rows", "fn source_digests", "fn states", "fn surface", "struct ConfounderPriorDeclaration", "struct ConfounderValueError", "struct ConfounderValueFrame", "struct GridUtility"]
+sha256 = "fd272f3acf67120a6b5b3008e1a56fb16e2bdc7de61e6a5b47b6ad6fcf15059c"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/evidence_plan.rs"
+items = ["const T", "const Y", "const Z", "fn a_hedge_is_answered_by_experiments_and_a_sampling_candidate_is_never_verified", "fn a_resealed_edit_of_an_option_a_value_or_the_outcome_is_refused", "fn a_study_of_part_of_the_adjustment_set_does_not_identify", "fn admg", "fn an_instrument_is_not_certified_by_a_study_and_the_assumptions_remain", "fn artifact_fixture", "fn backdoor", "fn bet", "fn budget_exhaustion_is_reported_as_a_budget_and_never_as_impossibility", "fn costs_are_compared_only_in_one_unit", "fn ctx", "fn dag", "fn evaluate", "fn evsi_candidate", "fn gate_of", "fn limits", "fn measuring_a_named_confounder_is_valued_under_the_declared_prior", "fn observation", "fn plan_of", "fn quantity", "fn request", "fn routes_without_a_theorem_checker_are_listed_and_not_scored", "fn run", "fn several_routes_are_compared_in_one_plan_each_stating_what_it_resolves", "fn study", "fn the_plan_artifact_round_trips_and_replays_every_route_and_value", "fn v", "fn value_of", "fn vars", "fn verified_options_come_first_and_are_ordered_by_net_value_under_the_declared_cost_map"]
+sha256 = "641942c3c653c28c5f38c61325a91b5272f6f4a8364f0f34179cc604c355634f"

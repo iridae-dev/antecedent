@@ -23,7 +23,7 @@
 //! strictly growing sample sizes, and the unset variable to be exactly the
 //! base point (so the base point's data is the data measured before the grid).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -139,8 +139,7 @@ fn analytic_cell(base: u64) -> Fingerprint {
 }
 
 fn analytic_cell_rows(rows: usize, base: u64) -> Fingerprint {
-    let estimator =
-        LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::default() };
+    let estimator = LinearAdjustmentAte::default().with_bootstrap_replicates(0);
     let ctx = ExecutionContext::for_tests(base);
     let mut tally = CoverageTally::new("determinism.linear_adjustment", 0.95);
     let mut estimates = Vec::new();
@@ -157,10 +156,7 @@ fn analytic_cell_rows(rows: usize, base: u64) -> Fingerprint {
 
 /// Bootstrap-SE Hajek IPW: every replicate resamples from the context's seeded RNG.
 fn bootstrap_cell(base: u64) -> Fingerprint {
-    let estimator = PropensityWeighting {
-        bootstrap_replicates: BOOTSTRAP_REPLICATES,
-        ..PropensityWeighting::new()
-    };
+    let estimator = PropensityWeighting::new().with_bootstrap_replicates(BOOTSTRAP_REPLICATES);
     let mut tally = CoverageTally::new("determinism.ipw_bootstrap", 0.95);
     let mut estimates = Vec::new();
     for replicate in 0..REPLICATES {
@@ -192,10 +188,7 @@ fn bootstrap_coverage_tally_is_reproducible_bit_for_bit() {
     let first = bootstrap_cell(5_100);
     assert_eq!(first, bootstrap_cell(5_100), "same seeds, different bootstrap tally");
     // Same data, another resampling stream: only the bootstrap seed differs.
-    let estimator = PropensityWeighting {
-        bootstrap_replicates: BOOTSTRAP_REPLICATES,
-        ..PropensityWeighting::new()
-    };
+    let estimator = PropensityWeighting::new().with_bootstrap_replicates(BOOTSTRAP_REPLICATES);
     let data = confounded(5_100);
     let prepared = estimator.prepare(&data, &backdoor_z(), &query()).unwrap();
     let se = |seed| {
@@ -255,9 +248,12 @@ fn grid_point_fingerprint_probe() {
 }
 
 fn probe(point: Option<usize>) -> String {
+    let prefix =
+        module_path!().split_once("::").map_or(String::new(), |(_, rest)| format!("{rest}::"));
+    let test_name = format!("{prefix}grid_point_fingerprint_probe");
     let mut command = std::process::Command::new(std::env::current_exe().unwrap());
     command
-        .args(["--exact", "grid_point_fingerprint_probe", "--nocapture", "--test-threads", "1"])
+        .args(["--exact", &test_name, "--nocapture", "--test-threads", "1"])
         .env("ANTECEDENT_GRID_DETERMINISM_PROBE", "1")
         .env_remove(GRID_POINT_ENV);
     if let Some(point) = point {
@@ -265,6 +261,10 @@ fn probe(point: Option<usize>) -> String {
     }
     let output = command.output().unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("running 1 test"),
+        "the probe child selected no test"
+    );
     String::from_utf8_lossy(&output.stdout)
         .lines()
         .find_map(|line| line.find("grid-probe ").map(|at| line[at..].to_string()))

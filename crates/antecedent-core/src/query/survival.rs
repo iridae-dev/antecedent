@@ -1,23 +1,36 @@
 //! Randomized survival and competing-risk query contract.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::SurvivalFault;
 use super::{ObservationAssumption, QueryError};
+use crate::canonical_encode::{CanonicalEncode, encode_option, encode_variables, i64_bits};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 use std::sync::Arc;
 
 /// Caller-supplied censoring survival on a common time grid.
 ///
-/// Each column contains the probability of remaining uncensored through its
-/// corresponding time for every observation. The probabilities are treated as
+/// Each column contains the left-limit survival G(t-) = P(C >= t) at its
+/// corresponding time for every observation, including subjects censored exactly
+/// at t. The probabilities are treated as
 /// known; this query does not fit or validate a censoring model.
 #[derive(Clone, Debug, PartialEq)]
 pub struct KnownCensoringSurvival {
     /// Common time grid beginning at zero and ending at the query horizon.
     pub times: Arc<[f64]>,
-    /// Data columns holding each subject's censoring survival at those times.
+    /// Data columns holding each subject's left-limit G(t-) = P(C >= t).
     pub columns: Arc<[VariableId]>,
     /// Strict positivity floor applied to every supplied probability.
     pub minimum_probability: f64,
+}
+
+/// `columns` are aligned with `times` and keep their order.
+impl CanonicalEncode for KnownCensoringSurvival {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer.reals(&self.times);
+        encode_variables(writer, &self.columns);
+        writer.real(self.minimum_probability);
+    }
 }
 
 /// Requested functional of a right-censored event-time distribution.
@@ -30,6 +43,19 @@ pub enum SurvivalFunctional {
         /// Target event code; zero is reserved for censoring.
         target_cause: i64,
     },
+}
+
+impl CanonicalEncode for SurvivalFunctional {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::SurvivalAndRmst => {
+                writer.word(1);
+            }
+            Self::CumulativeIncidence { target_cause } => {
+                writer.word(2).word(i64_bits(*target_cause));
+            }
+        }
+    }
 }
 
 /// A randomized two-arm event-time query with an explicit observation claim.
@@ -60,6 +86,20 @@ pub struct SurvivalQuery {
     pub functional: SurvivalFunctional,
 }
 
+/// Every field is written.
+impl CanonicalEncode for SurvivalQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.duration.encode(writer);
+        self.event.encode(writer);
+        self.treatment.encode(writer);
+        writer.real(self.tau);
+        encode_option(writer, self.delayed_entry.as_ref());
+        encode_option(writer, self.known_censoring.as_ref());
+        self.observation_assumption.encode(writer);
+        self.functional.encode(writer);
+    }
+}
+
 impl SurvivalQuery {
     /// Validate identifiers, horizon, functional, and observation contract.
     ///
@@ -70,7 +110,7 @@ impl SurvivalQuery {
     /// finite and positive, a cumulative-incidence target cause is not a
     /// positive event code, delayed entry is combined with known censoring
     /// under a non-marginal observation assumption, or a supplied known
-    /// censoring schedule is malformed.
+    /// censoring schedule is malformed or its probability columns overlap entry.
     pub fn validate(&self) -> Result<(), QueryError> {
         if self.duration == self.event
             || self.duration == self.treatment
@@ -79,26 +119,20 @@ impl SurvivalQuery {
                 entry == self.duration || entry == self.event || entry == self.treatment
             })
         {
-            return Err(QueryError::InvalidSurvival(
-                "duration, event, treatment, and entry must name distinct columns".into(),
-            ));
+            return Err(QueryError::InvalidSurvival(SurvivalFault::ColumnsNotDistinct));
         }
         if !self.tau.is_finite() || self.tau <= 0.0 {
-            return Err(QueryError::InvalidSurvival("tau must be finite and positive".into()));
+            return Err(QueryError::InvalidSurvival(SurvivalFault::Horizon));
         }
         if matches!(self.functional, SurvivalFunctional::CumulativeIncidence { target_cause } if target_cause <= 0)
         {
-            return Err(QueryError::InvalidSurvival(
-                "target cause must be a positive event code".into(),
-            ));
+            return Err(QueryError::InvalidSurvival(SurvivalFault::TargetCause));
         }
         if let Some(known) = &self.known_censoring {
             if self.delayed_entry.is_some()
                 && !matches!(&self.observation_assumption, ObservationAssumption::IndependentGiven(vars) if vars.is_empty())
             {
-                return Err(QueryError::InvalidSurvival(
-                    "combined delayed entry and known censoring requires marginal IndependentGiven(())".into(),
-                ));
+                return Err(QueryError::InvalidSurvival(SurvivalFault::EntryWithKnownCensoring));
             }
             if known.times.len() < 2
                 || known.columns.len() != known.times.len()
@@ -109,26 +143,24 @@ impl SurvivalQuery {
                 || !known.minimum_probability.is_finite()
                 || !(0.0..=1.0).contains(&known.minimum_probability)
                 || known.minimum_probability == 0.0
-                || known
-                    .columns
-                    .iter()
-                    .any(|id| *id == self.duration || *id == self.event || *id == self.treatment)
+                || known.columns.iter().any(|id| {
+                    *id == self.duration
+                        || *id == self.event
+                        || *id == self.treatment
+                        || self.delayed_entry == Some(*id)
+                })
                 || known
                     .columns
                     .iter()
                     .enumerate()
                     .any(|(index, id)| known.columns[..index].contains(id))
             {
-                return Err(QueryError::InvalidSurvival(
-                    "known censoring requires aligned columns, increasing times from zero through tau, and a positive probability floor".into(),
-                ));
+                return Err(QueryError::InvalidSurvival(SurvivalFault::KnownCensoring));
             }
         }
         if !matches!(&self.observation_assumption, ObservationAssumption::IndependentGiven(vars) if self.known_censoring.is_some() || vars.is_empty())
         {
-            return Err(QueryError::InvalidSurvival(
-                "randomized survival requires IndependentGiven; conditional censoring also requires known censoring survival".into(),
-            ));
+            return Err(QueryError::InvalidSurvival(SurvivalFault::RandomizedCensoring));
         }
         Ok(())
     }
@@ -154,6 +186,7 @@ mod tests {
 
     #[test]
     fn accepts_explicit_marginal_observation_contract() {
+        // Acceptance baseline for the refusal tests that mutate this query.
         assert!(query().validate().is_ok());
     }
 
@@ -184,5 +217,35 @@ mod tests {
         assert!(q.validate().is_err());
         q.observation_assumption = ObservationAssumption::IndependentGiven(Arc::from([]));
         assert!(q.validate().is_ok());
+    }
+
+    #[test]
+    fn known_censoring_columns_cannot_alias_survival_input_columns() {
+        let mut q = query();
+        q.delayed_entry = Some(VariableId::from_raw(3));
+        q.known_censoring = Some(KnownCensoringSurvival {
+            times: Arc::from([0.0, 1.0, 2.0]),
+            columns: Arc::from([
+                VariableId::from_raw(4),
+                VariableId::from_raw(5),
+                VariableId::from_raw(6),
+            ]),
+            minimum_probability: 0.01,
+        });
+        assert!(q.validate().is_ok());
+        for alias in [q.duration, q.event, q.treatment, q.delayed_entry.unwrap()] {
+            q.known_censoring.as_mut().unwrap().columns =
+                Arc::from([VariableId::from_raw(4), alias, VariableId::from_raw(6)]);
+            assert!(matches!(
+                q.validate(),
+                Err(QueryError::InvalidSurvival(SurvivalFault::KnownCensoring))
+            ));
+        }
+        q.known_censoring.as_mut().unwrap().columns =
+            Arc::from([VariableId::from_raw(4), VariableId::from_raw(4), VariableId::from_raw(6)]);
+        assert!(matches!(
+            q.validate(),
+            Err(QueryError::InvalidSurvival(SurvivalFault::KnownCensoring))
+        ));
     }
 }

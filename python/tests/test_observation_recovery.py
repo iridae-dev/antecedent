@@ -5,7 +5,7 @@ structural mechanisms, independently of the library. Treatment ``t`` and outcome
 ``y`` are item-missing with response indicators ``rt`` and ``ry`` and proxies
 ``t_obs`` and ``y_obs`` (levels 0, 1 and "?"); the confounder ``z`` is always
 observed. ``rt`` depends on ``z`` and ``ry`` on ``t``: no response depends on
-its own variable, so the full law is recoverable (graph-licensed recovery, not
+its own variable, so the full law is recoverable (graph-supported recovery, not
 MAR/IPCW), and the backdoor effect of ``t`` on ``y`` follows from it.
 """
 
@@ -14,7 +14,10 @@ import json
 
 import pytest
 from antecedent import Admg
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from antecedent.execution import Execution
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 NAMES = ["t", "y", "z", "rt", "ry", "t_obs", "y_obs"]
@@ -148,11 +151,11 @@ def test_identify_observation_recovery_decides_once_and_executes_its_plan_after_
     builder = decide()
     assert builder.outcome == "recovered"
     decision = builder.decision()
-    assert decision["route"] == "graph-licensed recovery, not MAR/IPCW"
+    assert decision["route"] == "graph-supported recovery, not MAR/IPCW"
     assert [f["conditioning"] for f in decision["factors"]] == [["z"], ["rt", "t_obs"]]
     prepared = builder.prepare_exact(observed_law(), REQUESTS)
     del builder
-    result = json.loads(prepared.estimate())
+    result = json.loads(require_success(prepared.estimate()))
     assert result["recovered"]["probabilities"] == pytest.approx(truth(), abs=1e-12)
     assert prepared.plan()["effect"]["treatments"] == ["t"]
 
@@ -163,8 +166,8 @@ def test_prepare_exact_compiles_the_retained_derivation_after_builder_disposal()
     del builder
     plan = prepared.plan()
     assert plan["rule_version"] == "binary_observation_recovery.v1"
-    assert all(m["identity"].startswith("catalog_distribution.v1") for m in plan["margins"])
-    result = json.loads(prepared.estimate())
+    assert all(m["identity"].startswith("catalog_distribution.v2") for m in plan["margins"])
+    result = json.loads(require_success(prepared.estimate()))
     assert result["recovered"]["origin"] == "recovered"
     assert result["recovered"]["variables"] == ["t", "y", "z"]
 
@@ -173,7 +176,7 @@ def test_estimate_executes_every_request_from_the_retained_plan():
     builder = decide()
     prepared = builder.prepare_exact(observed_law(), REQUESTS)
     del builder
-    result = json.loads(prepared.estimate())
+    result = json.loads(require_success(prepared.estimate()))
     assert [e["assignment"] for e in result["effects"]] == [{"t": 0.0}, {"t": 1.0}]
     for level, effect in enumerate(result["effects"]):
         assert p_one(effect) == pytest.approx(effect_truth(level), abs=1e-12)
@@ -185,26 +188,26 @@ def test_refresh_rebinds_the_snapshot_law_and_re_executes_the_retained_plan():
     builder = decide()
     prepared = builder.prepare_exact(observed_law(), REQUESTS)
     del builder
-    before = json.loads(prepared.estimate())
-    prepared.refresh(observed_law())
-    after = json.loads(prepared.estimate())
+    before = json.loads(require_success(prepared.estimate()))
+    require_success(prepared.refresh(observed_law()))
+    after = json.loads(require_success(prepared.estimate()))
     assert after["recovered"]["probabilities"] == before["recovered"]["probabilities"]
     assert prepared.plan()["rule_version"] == "binary_observation_recovery.v1"
     with pytest.raises(CausalUnsupportedError) as refused:
-        prepared.refresh(observed_law(snapshot="snap-2"))
+        require_success(prepared.refresh(observed_law(snapshot="snap-2")))
     assert refused.value.reason_code == "invalid_argument"
-    assert "recovery.invalid_observed_law" in str(refused.value)
+    assert reason_details.recovery.INVALID_OBSERVED_LAW in str(refused.value)
 
 
 def test_export_binds_names_and_the_consumer_recomputes_after_builder_disposal():
     builder = decide()
     prepared = builder.prepare_exact(observed_law(), REQUESTS)
     del builder
-    live = json.loads(prepared.estimate())
+    live = json.loads(require_success(prepared.estimate()))
     plan = prepared.plan()
-    artifact = prepared.export()
+    artifact = bytes(prepared.export())
     del prepared
-    consumed = json.loads(transport.consume_observation_recovery_artifact(artifact))
+    consumed = transport.consume_observation_recovery_artifact(artifact).to_dict()
     assert consumed["recovered"]["probabilities"] == live["recovered"]["probabilities"]
     assert consumed["effects"] == live["effects"]
     assert consumed["derivation"]["identity"] == plan["identity"]
@@ -214,10 +217,10 @@ def test_consumer_refuses_an_edited_artifact_and_limits_below_the_stored_ones():
     builder = decide()
     prepared = builder.prepare_exact(observed_law(), REQUESTS)
     del builder
-    live = json.loads(prepared.estimate())
+    live = json.loads(require_success(prepared.estimate()))
     plan = prepared.plan()
-    artifact = prepared.export()
-    consumed = json.loads(transport.consume_observation_recovery_artifact(artifact))
+    artifact = bytes(prepared.export())
+    consumed = transport.consume_observation_recovery_artifact(artifact).to_dict()
     assert consumed["effects"] == live["effects"]
     assert consumed["derivation"]["factors"] == plan["factors"]
     edited = bytearray(artifact)
@@ -241,21 +244,23 @@ def test_self_censoring_is_nonrecoverable_with_a_verified_witness():
     with pytest.raises(CausalUnsupportedError) as refused:
         stage.prepare_exact(observed_law(self_censoring=True))
     assert refused.value.reason_code == "transport_proven_non_transportable"
-    assert "recovery.nonrecoverable_witness" in str(refused.value)
+    assert reason_details.recovery.NONRECOVERABLE_WITNESS in str(refused.value)
 
 
-def test_counted_laws_are_not_licensed_on_the_recovery_route():
+def test_counted_laws_are_not_supported_on_the_recovery_route():
     stage = decide()
-    with pytest.raises(CausalUnsupportedError, match="cell_not_licensed") as refused:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.recovery.EMPIRICAL_NOT_SUPPORTED
+    ) as refused:
         stage.prepare_empirical(observed_law(), REQUESTS)
-    assert refused.value.reason_code == "cell_not_licensed"
+    assert refused.value.reason_code == "route_not_supported"
 
 
 def test_separate_marginals_refuse_as_a_missing_margin():
     with pytest.raises(CausalUnsupportedError) as refused:
         decide(catalog=catalog(distribution="separate_marginals"))
     assert refused.value.reason_code == "transport_missing_evidence"
-    assert "recovery.missing_margin" in str(refused.value)
+    assert reason_details.recovery.MISSING_MARGIN in str(refused.value)
 
 
 def test_proxy_relabelling_is_refused_never_aligned():
@@ -268,14 +273,14 @@ def test_proxy_relabelling_is_refused_never_aligned():
             graph=graph(), query=query(swapped), catalog=catalog()
         )
     assert refused.value.reason_code == "invalid_argument"
-    assert "recovery.invalid_query" in str(refused.value)
+    assert reason_details.recovery.INVALID_QUERY in str(refused.value)
 
 
 def test_budget_stop_is_a_receipt_never_a_verdict():
     with pytest.raises(CausalUnsupportedError) as refused:
         decide(max_operations=3)
     assert refused.value.reason_code == "transport_budget_cancel"
-    assert "recovery.budget" in str(refused.value)
+    assert reason_details.recovery.BUDGET in str(refused.value)
 
 
 def test_python_values_are_validated():
@@ -302,6 +307,6 @@ def test_a_budget_or_cancellation_stop_shows_its_receipt():
     token = CancellationToken()
     token.cancel()
     with pytest.raises(CausalError) as cancelled:
-        decide(cancel=token)
+        decide(execution=Execution(cancel=token))
     assert cancelled.value.reason_code == "transport_budget_cancel"
     assert "receipt: stop search.cancelled" in str(cancelled.value)

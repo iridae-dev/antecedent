@@ -21,21 +21,22 @@
 //! [`crate::ObligationRecord`] of the existing assumption records; no existing
 //! identifier changes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::fmt::Write as _;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
 
 use crate::{ObligationRecord, ObligationScope, ScientificQuantity};
+use antecedent_core::named_variants;
 use antecedent_core::{EvidenceCatalog, FactorNeed, VariableId};
 
-/// Declared bound on the variable coordinates of one obligation.
+/// Default bound on the variable coordinates of one obligation that a producer of obligations
+/// from untrusted input applies. Validation is linear in the coordinates, so the obligation
+/// itself carries no bound.
 pub const MAX_OBLIGATION_COORDINATES: usize = 1024;
-
-/// Longest contract slot name, in bytes.
-const MAX_SLOT_BYTES: usize = 256;
 
 /// What kind of evidence an obligation asks for.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
@@ -61,42 +62,21 @@ pub enum EvidenceObligationKind {
     EstablishAssumption,
 }
 
+named_variants! {
+    EvidenceObligationKind {
+        Measure => "measure",
+        Intervene => "intervene",
+        ObservePopulation => "observe_population",
+        ObserveEnvironment => "observe_environment",
+        IncreaseSample => "increase_sample",
+        ProvideJointLaw => "provide_joint_law",
+        ProvideConditionalLaw => "provide_conditional_law",
+        EstablishSupport => "establish_support",
+        EstablishAssumption => "establish_assumption",
+    }
+}
+
 impl EvidenceObligationKind {
-    /// Every kind, in declaration order.
-    pub const ALL: [Self; 9] = [
-        Self::Measure,
-        Self::Intervene,
-        Self::ObservePopulation,
-        Self::ObserveEnvironment,
-        Self::IncreaseSample,
-        Self::ProvideJointLaw,
-        Self::ProvideConditionalLaw,
-        Self::EstablishSupport,
-        Self::EstablishAssumption,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Measure => "measure",
-            Self::Intervene => "intervene",
-            Self::ObservePopulation => "observe_population",
-            Self::ObserveEnvironment => "observe_environment",
-            Self::IncreaseSample => "increase_sample",
-            Self::ProvideJointLaw => "provide_joint_law",
-            Self::ProvideConditionalLaw => "provide_conditional_law",
-            Self::EstablishSupport => "establish_support",
-            Self::EstablishAssumption => "establish_assumption",
-        }
-    }
-
-    /// Parse the spelling of [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
-    }
-
     /// Whether a proposed study could ever address this kind. Only
     /// [`Self::EstablishAssumption`] cannot: a study produces evidence, it does
     /// not prove an assumption.
@@ -181,7 +161,7 @@ impl EvidenceObligationError {
     fn invalid(message: impl Into<String>) -> Self {
         Self {
             code: antecedent_core::reason_code!("invalid_argument"),
-            detail: "evidence_obligations.invalid_obligation",
+            detail: antecedent_core::reason_details::evidence_obligations::INVALID_OBLIGATION,
             message: message.into(),
         }
     }
@@ -192,7 +172,7 @@ impl EvidenceObligationError {
     pub fn wrong_contract(message: impl Into<String>) -> Self {
         Self {
             code: antecedent_core::reason_code!("transport_missing_evidence"),
-            detail: "evidence_obligations.wrong_contract",
+            detail: antecedent_core::reason_details::evidence_obligations::WRONG_CONTRACT,
             message: message.into(),
         }
     }
@@ -493,20 +473,14 @@ fn validate_spec(spec: &EvidenceObligationSpec) -> Result<(), EvidenceObligation
     {
         return Err(invalid("an obligation needs a reason and a provenance family and source"));
     }
-    if spec.required_slots.iter().any(|slot| slot.trim().is_empty() || slot.len() > MAX_SLOT_BYTES)
-    {
-        return Err(invalid("a required contract slot is empty or too long"));
+    if spec.required_slots.iter().any(|slot| slot.trim().is_empty()) {
+        return Err(invalid("a required contract slot is empty"));
     }
-    let coordinates =
-        spec.variables.len() + spec.regime.interventions.len() + spec.regime.conditioned_on.len();
-    if coordinates > MAX_OBLIGATION_COORDINATES
-        || !distinct(&spec.variables)
+    if !distinct(&spec.variables)
         || !distinct(&spec.regime.interventions)
         || !distinct(&spec.regime.conditioned_on)
     {
-        return Err(invalid(
-            "obligation variables must be distinct and within the coordinate bound",
-        ));
+        return Err(invalid("obligation variables must be distinct"));
     }
     if spec.quantities.values().map(|quantity| &quantity.variable_id).collect::<BTreeSet<_>>().len()
         != spec.quantities.len()
@@ -585,11 +559,7 @@ fn canonical_content(spec: &EvidenceObligationSpec) -> String {
     );
     // Preserve existing structural IDs, while binding every declared semantic dimension.
     for (variable, quantity) in &spec.quantities {
-        content.push_str(&format!(
-            ";quantity:{}:{}",
-            variable.raw(),
-            quantity.canonical_identity()
-        ));
+        let _ = write!(content, ";quantity:{}:{}", variable.raw(), quantity.canonical_identity());
     }
     content
 }

@@ -8,11 +8,11 @@
 //!   the observation accounting);
 //! * the request: which look, which route and its parameters; and
 //! * the stored values, the method name, the point-only claim, the
-//!   **unmeasured** calibration status and the closed guarantee.
+//!   **`not_measured`** calibration status and the unsupported claim (a stopping rule's error rate), if any.
 //!
 //! A consumer trusts none of the stored values. It replays the embedded
 //! contract through the contract checks (so a missing element, an inconsistent
-//! record or a paradigm the cell is not licensed for is refused), requires the
+//! record or a paradigm the cell is not supported for is refused), requires the
 //! contract's paradigm to be the request's, and recomputes the result from the
 //! retained history with the estimators. A resealed edit of the stopping rule,
 //! of a probability, of an outcome, of the paradigm or of a stored value is
@@ -20,11 +20,11 @@
 //! consistently resealed result of another experiment.
 //!
 //! What this does **not** say: no interval, credible interval, significance
-//! level or coverage statement for the whole procedure (closed:
-//! `cell_not_licensed`), and no claim that the result transfers to another
+//! level or coverage statement for the whole procedure (not supported:
+//! `not_supported`), and no claim that the result transfers to another
 //! assignment policy, outcome structure, monitoring strategy or stopping rule.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::adaptive_design::{
     AdaptiveDesignContract, BoundarySidedness, InferenceParadigm, SpendingKind, StoppingSpec,
@@ -39,16 +39,15 @@ use antecedent_estimate::adaptive_inference::{
 use antecedent_io_core::adaptive_monitoring_contract_artifact::{
     AdaptiveMonitoringContractArtifact, AdaptiveMonitoringContractError, MonitoringContractMeta,
 };
+use antecedent_io_core::replay_tolerance::{ReplayNonFinite, ReplayScale, ReplayTolerance};
 use serde::{Deserialize, Serialize};
-
-use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const ADAPTIVE_INFERENCE_RESULT_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
 pub const ADAPTIVE_INFERENCE_RESULT_ARTIFACT_FEATURE: &str = "adaptive_inference_result_v1";
 /// Calibration status: no whole-procedure coverage record measures any route.
-pub const ADAPTIVE_INFERENCE_CALIBRATION: &str = "unmeasured";
+pub const ADAPTIVE_INFERENCE_CALIBRATION: &str = "not_measured";
 /// Most bytes an artifact may occupy.
 pub const MAX_ADAPTIVE_INFERENCE_RESULT_BYTES: usize = 256 * 1024 * 1024;
 /// Relative tolerance when comparing a stored value with its recomputation
@@ -78,12 +77,13 @@ impl From<AdaptiveMonitoringContractError> for Error {
     fn from(error: AdaptiveMonitoringContractError) -> Self {
         match error {
             AdaptiveMonitoringContractError::Refused { code, detail, message } => {
-                let message = if message.starts_with(&detail) {
-                    message
-                } else {
-                    format!("{detail}: {message}")
+                // The contract's message may already begin with its detail.
+                let explanation = match message.strip_prefix(detail.as_str()) {
+                    Some("") => "",
+                    Some(rest) => rest.strip_prefix(": ").unwrap_or(&message),
+                    None => &message,
                 };
-                Self::Refused { code, message }
+                Self::refused(code, detail.clone(), explanation)
             }
             AdaptiveMonitoringContractError::IdentityMismatch { field } => {
                 Self::IdentityMismatch { field }
@@ -195,8 +195,9 @@ pub struct AdaptiveResult {
     pub method: &'static str,
     /// Values in the order documented on [`compute_adaptive_result`].
     pub values: Vec<f64>,
-    /// Detail of the closed guarantee that goes with the values.
-    pub closed_guarantee: &'static str,
+    /// The claim with no construction that goes with the values (an error rate of a stopping
+    /// rule); `None` when every claim of the result is reported through an interval route.
+    pub unsupported_claim: Option<&'static str>,
 }
 
 /// A refusal to compute a result.
@@ -206,7 +207,7 @@ pub struct AdaptiveResultError {
     pub code: &'static str,
     /// Namespaced detail.
     pub detail: String,
-    /// What was refused and what would license it.
+    /// What was refused and what would support it.
     pub message: String,
 }
 
@@ -235,7 +236,7 @@ fn contract_refusal(refusal: &antecedent_contract::ExternalRefusal) -> AdaptiveR
 fn request_invalid(message: &str) -> AdaptiveResultError {
     AdaptiveResultError {
         code: antecedent_core::reason_code!("invalid_argument"),
-        detail: "adaptive_inference.input_invalid".to_owned(),
+        detail: antecedent_core::reason_details::adaptive_inference::INPUT_INVALID.to_owned(),
         message: message.to_owned(),
     }
 }
@@ -252,7 +253,7 @@ fn require_single_outcome(contract: &AdaptiveDesignContract) -> Result<(), Adapt
     } else {
         Err(AdaptiveResultError {
             code: antecedent_core::reason_code!("invalid_argument"),
-            detail: "adaptive_inference.measurements_invalid".to_owned(),
+            detail: antecedent_core::reason_details::adaptive_inference::MEASUREMENTS_INVALID.to_owned(),
             message: "a posterior over units with several measurements is the participant-level procedure's, not the one-outcome Beta-Bernoulli posterior; analyse it with the participant procedure".to_owned(),
         })
     }
@@ -276,7 +277,7 @@ fn look_data(
     }
     let declaration = contract.declaration();
     let arms = contract.arms();
-    let units = contract.analysis_units(look);
+    let units = contract.analysis_units(look).map_err(|r| contract_refusal(&r))?;
     let rows = declaration.assignment_probabilities.as_ref().expect("validated contract");
     let mut assigned = Vec::with_capacity(units.len());
     let mut probabilities = Vec::with_capacity(units.len() * arms);
@@ -320,6 +321,70 @@ fn estimand_of(
     }
 }
 
+fn compute_group_sequential_result(
+    contract: &AdaptiveDesignContract,
+    data: &LookData,
+    look: usize,
+    control_arm: u32,
+    treatment_arm: u32,
+    paradigm: InferenceParadigm,
+    ctx: &ExecutionContext,
+) -> Result<AdaptiveResult, AdaptiveResultError> {
+    let declaration = contract.declaration();
+    let rule = declaration.stopping_rule.map(|r| r.spec);
+    let Some(StoppingSpec::AlphaSpending { spending, total_alpha, sidedness }) = rule else {
+        return Err(request_invalid("the contract's stopping rule is not alpha spending"));
+    };
+    if control_arm == treatment_arm
+        || control_arm as usize >= data.arms
+        || treatment_arm as usize >= data.arms
+    {
+        return Err(request_invalid("control and treatment must be two declared arms"));
+    }
+    let looks = declaration.interim_analyses.as_ref().expect("validated contract");
+    let plan = GroupSequentialPlan {
+        fractions: looks.iter().map(|l| l.information_fraction).collect(),
+        alpha: total_alpha,
+        spending: match spending {
+            SpendingKind::PocockType => SpendingFunction::PocockType,
+            _ => SpendingFunction::OBrienFlemingType,
+        },
+        sidedness: match sidedness {
+            BoundarySidedness::OneSidedUpper => Sidedness::OneSidedUpper,
+            _ => Sidedness::TwoSidedSymmetric,
+        },
+    };
+    let mut statistics = Vec::with_capacity(look + 1);
+    for performed in 0..=look {
+        let at = look_data(contract, performed)?;
+        let pick = |arm: u32| -> Vec<f64> {
+            at.units
+                .iter()
+                .zip(&at.assigned)
+                .filter(|(_, a)| **a == arm as usize)
+                .map(|(&u, _)| unit_outcome(contract, u))
+                .collect()
+        };
+        statistics.push(standardized_difference(&pick(control_arm), &pick(treatment_arm))?);
+    }
+    let outcome = group_sequential_decision(&plan, &statistics, ctx)?;
+    let mut values = vec![outcome.stopped_at.map_or(-1.0, |k| k as f64)];
+    let spent = outcome.spend_increments.iter();
+    for ((critical, statistic), spend) in
+        outcome.critical.iter().zip(&outcome.statistics).zip(spent)
+    {
+        values.extend([*critical, *statistic, *spend]);
+    }
+    Ok(AdaptiveResult {
+        paradigm,
+        method: "lan_demets_alpha_spending_group_sequential",
+        values,
+        unsupported_claim: Some(
+            antecedent_core::reason_details::adaptive_inference::NO_STAGEWISE_ADJUSTMENT_PROCEDURE,
+        ),
+    })
+}
+
 #[allow(
     clippy::too_many_lines,
     reason = "one arm per paradigm keeps each route's data preparation next to its estimator call"
@@ -327,7 +392,7 @@ fn estimand_of(
 /// Compute the result a request asks of a contract.
 ///
 /// The route is authorized first: the paradigm must be one the contract's
-/// procedure cell is licensed for, the exposure must equal the assignment and
+/// procedure cell is supported for, the exposure must equal the assignment and
 /// the delay must not depend on the outcome. Value order:
 ///
 /// * Bayesian posterior: per arm `alpha, beta, mean, variance,
@@ -369,7 +434,7 @@ pub fn compute_adaptive_result(
                 paradigm,
                 method: "beta_bernoulli_conjugate_posterior",
                 values,
-                closed_guarantee: posterior.guarantee.detail,
+                unsupported_claim: None,
             })
         }
         AdaptiveResultSpec::PosteriorStopping { prior_alpha, prior_beta, .. } => {
@@ -399,7 +464,7 @@ pub fn compute_adaptive_result(
                     decision.expected_loss,
                     f64::from(u8::from(decision.stop)),
                 ],
-                closed_guarantee: decision.guarantee.detail,
+                unsupported_claim: Some(antecedent_core::reason_details::adaptive_inference::NO_STOPPING_RELIABILITY_PROCEDURE),
             })
         }
         AdaptiveResultSpec::AdaptiveWeighting {
@@ -445,7 +510,7 @@ pub fn compute_adaptive_result(
                     fit.effective_units,
                     fit.max_weight_share,
                 ],
-                closed_guarantee: fit.guarantee.detail,
+                unsupported_claim: None,
             })
         }
         AdaptiveResultSpec::ConfidenceSequence { alpha, tuning_samples, contrast, .. } => {
@@ -468,62 +533,19 @@ pub fn compute_adaptive_result(
                 paradigm,
                 method: "mixture_hoeffding_confidence_sequence",
                 values,
-                closed_guarantee: sequences.guarantee.detail,
+                unsupported_claim: None,
             })
         }
         AdaptiveResultSpec::GroupSequential { control_arm, treatment_arm, .. } => {
-            let rule = declaration.stopping_rule.map(|r| r.spec);
-            let Some(StoppingSpec::AlphaSpending { spending, total_alpha, sidedness }) = rule
-            else {
-                return Err(request_invalid("the contract's stopping rule is not alpha spending"));
-            };
-            if control_arm == treatment_arm
-                || *control_arm as usize >= data.arms
-                || *treatment_arm as usize >= data.arms
-            {
-                return Err(request_invalid("control and treatment must be two declared arms"));
-            }
-            let looks = declaration.interim_analyses.as_ref().expect("validated contract");
-            let plan = GroupSequentialPlan {
-                fractions: looks.iter().map(|l| l.information_fraction).collect(),
-                alpha: total_alpha,
-                spending: match spending {
-                    SpendingKind::PocockType => SpendingFunction::PocockType,
-                    _ => SpendingFunction::OBrienFlemingType,
-                },
-                sidedness: match sidedness {
-                    BoundarySidedness::OneSidedUpper => Sidedness::OneSidedUpper,
-                    _ => Sidedness::TwoSidedSymmetric,
-                },
-            };
-            let mut statistics = Vec::with_capacity(look + 1);
-            for performed in 0..=look {
-                let at = look_data(contract, performed)?;
-                let pick = |arm: u32| -> Vec<f64> {
-                    at.units
-                        .iter()
-                        .zip(&at.assigned)
-                        .filter(|(_, a)| **a == arm as usize)
-                        .map(|(&u, _)| unit_outcome(contract, u))
-                        .collect()
-                };
-                statistics
-                    .push(standardized_difference(&pick(*control_arm), &pick(*treatment_arm))?);
-            }
-            let outcome = group_sequential_decision(&plan, &statistics, ctx)?;
-            let mut values = vec![outcome.stopped_at.map_or(-1.0, |k| k as f64)];
-            let spent = outcome.spend_increments.iter();
-            for ((critical, statistic), spend) in
-                outcome.critical.iter().zip(&outcome.statistics).zip(spent)
-            {
-                values.extend([*critical, *statistic, *spend]);
-            }
-            Ok(AdaptiveResult {
+            compute_group_sequential_result(
+                contract,
+                &data,
+                look,
+                *control_arm,
+                *treatment_arm,
                 paradigm,
-                method: "lan_demets_alpha_spending_group_sequential",
-                values,
-                closed_guarantee: outcome.guarantee.detail,
-            })
+                ctx,
+            )
         }
     }
 }
@@ -568,10 +590,10 @@ pub struct AdaptiveResultMeta {
     pub value_bits: Vec<u64>,
     /// Claim class: always `point_only`.
     pub claim: String,
-    /// Calibration status: always `unmeasured`.
+    /// Calibration status: always `not_measured`.
     pub calibration: String,
-    /// Detail of the closed guarantee.
-    pub closed_guarantee: String,
+    /// The claim with no construction, when the result has one.
+    pub unsupported_claim: Option<String>,
     /// BLAKE3 identity (hex) of everything above.
     pub identity: String,
 }
@@ -697,19 +719,27 @@ fn compute_identity(meta: &AdaptiveResultMeta) -> String {
     for bit in &meta.value_bits {
         writer.word(*bit);
     }
-    writer.text(&meta.claim).text(&meta.calibration).text(&meta.closed_guarantee);
+    writer
+        .text(&meta.claim)
+        .text(&meta.calibration)
+        .text(meta.unsupported_claim.as_deref().unwrap_or(""));
     writer.finish_hex()
 }
 
+/// A stored result reproduces the recomputed one relative to the recomputed value (absolute
+/// below one); an undefined (NaN) value must be undefined in both.
+const REPLAY: ReplayTolerance = ReplayTolerance::new(
+    ADAPTIVE_RESULT_REPLAY_TOLERANCE,
+    ReplayScale::ReplayedOrOne,
+    ReplayNonFinite::NanMatchesNan,
+);
+
 fn close(stored: f64, recomputed: f64) -> bool {
-    if stored.is_nan() || recomputed.is_nan() {
-        return stored.is_nan() && recomputed.is_nan();
-    }
-    (stored - recomputed).abs() <= ADAPTIVE_RESULT_REPLAY_TOLERANCE * recomputed.abs().max(1.0)
+    REPLAY.close(stored, recomputed)
 }
 
 fn result_refusal(error: &AdaptiveResultError) -> Error {
-    Error::Refused { code: error.code, message: format!("{}: {}", error.detail, error.message) }
+    Error::refused(error.code, error.detail.clone(), error.message.clone())
 }
 
 fn check(
@@ -720,9 +750,10 @@ fn check(
     if meta.version != ADAPTIVE_INFERENCE_RESULT_ARTIFACT_VERSION {
         return Err(Error::UnsupportedVersion { version: meta.version });
     }
-    if meta.feature != ADAPTIVE_INFERENCE_RESULT_ARTIFACT_FEATURE {
-        return Err(Error::UnsupportedSemantics("feature marker"));
-    }
+    crate::artifact_codec::require_semantics::<Error>(
+        meta.feature == ADAPTIVE_INFERENCE_RESULT_ARTIFACT_FEATURE,
+        "feature marker",
+    )?;
     if meta.claim != "point_only" || meta.calibration != ADAPTIVE_INFERENCE_CALIBRATION {
         return Err(Error::UnsupportedSemantics("claim or calibration status"));
     }
@@ -733,8 +764,10 @@ fn check(
     }
     let recomputed = compute_adaptive_result(contract_artifact.contract(), &spec, ctx)
         .map_err(|error| result_refusal(&error))?;
-    if recomputed.method != meta.method || recomputed.closed_guarantee != meta.closed_guarantee {
-        return Err(Error::ResultMismatch("method or closed guarantee"));
+    if recomputed.method != meta.method
+        || recomputed.unsupported_claim.map(str::to_owned) != meta.unsupported_claim
+    {
+        return Err(Error::ResultMismatch("method or unsupported claim"));
     }
     let stored: Vec<f64> = meta.value_bits.iter().map(|b| f64::from_bits(*b)).collect();
     if stored.len() != recomputed.values.len()
@@ -758,11 +791,7 @@ fn check(
 }
 
 fn encode_meta(meta: &AdaptiveResultMeta, artifact_id: &str) -> Result<Vec<u8>, Error> {
-    if artifact_id.trim().is_empty() {
-        return Err(Error::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta).map_err(|error| Error::Encode(error.to_string()))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "adaptive_inference_result",
@@ -770,33 +799,22 @@ fn encode_meta(meta: &AdaptiveResultMeta, artifact_id: &str) -> Result<Vec<u8>, 
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection {
-            id: META_SECTION,
-            content_type: crate::CONTENT_CBOR,
-            bytes: &meta_bytes,
-        }],
+        META_SECTION,
+        meta,
+        &[],
     )
-    .map_err(|error| crate::map_artifact_check!(error, AdaptiveInferenceResultArtifactError))
 }
 
 fn decode_meta(bytes: &[u8]) -> Result<AdaptiveResultMeta, Error> {
-    let parts = crate::decode_container(
+    crate::artifact_codec::decode_sectioned(
         ARTIFACT_KIND,
         MAX_ADAPTIVE_INFERENCE_RESULT_BYTES,
-        &[META_SECTION],
+        META_SECTION,
+        &[],
+        ADAPTIVE_INFERENCE_RESULT_ARTIFACT_VERSION,
         bytes,
     )
-    .map_err(|error| crate::map_artifact_check!(error, AdaptiveInferenceResultArtifactError))?;
-    let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(Error::Malformed("unsupported container layout".into()));
-    };
-    crate::decode_with_version(&meta_bytes, |version| {
-        if version == ADAPTIVE_INFERENCE_RESULT_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(Error::UnsupportedVersion { version })
-        }
-    })
+    .map(|(meta, _)| meta)
 }
 
 // -- public type -----------------------------------------------------------------------------
@@ -835,7 +853,7 @@ impl AdaptiveInferenceResultArtifact {
             value_bits: result.values.iter().map(|v| v.to_bits()).collect(),
             claim: "point_only".to_owned(),
             calibration: ADAPTIVE_INFERENCE_CALIBRATION.to_owned(),
-            closed_guarantee: result.closed_guarantee.to_owned(),
+            unsupported_claim: result.unsupported_claim.map(str::to_owned),
             identity: String::new(),
         };
         meta.identity = compute_identity(&meta);

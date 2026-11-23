@@ -1,0 +1,49 @@
+{
+  "scope": "A 24-row clean table and the same table with one planted high-leverage, off-line row. A 20-period series and the same series with one planted high-leverage period.",
+  "independence_basis": "The generator rebuilds both tables from the stated formulas, computes every leverage and the least-squares slope with and without the planted row in exact rational arithmetic on the float inputs, and imports no Antecedent code and no statistics package. The shared object is the stated table.",
+  "historical_exposure": "Written for this fixture from the stated tables and the definition of leverage; no product implementation source was consulted and no earlier pinned numbers are reused.",
+  "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+  "limitations": "The reference derives the design property (one row decides the fit) and not the refuter's p-value, which depends on the seeded subsets; the verdicts are asserted against the design. Only the anomaly attribution is held; a change attribution whose populations are position ranges is not (a plain row bootstrap scrambles its populations). No uncertainty or calibration.",
+  "sources": [],
+  "artifacts": [
+    {
+      "role": "generator",
+      "path": "conformance/estimate/attribution_refuter_states/reference.py",
+      "sha256": "7375070706d53d73cdf21270c8979fdcd27cf8b448aba4535ec24b14605d5534"
+    },
+    {
+      "role": "environment_lock",
+      "path": "conformance/estimate/attribution_refuter_states/reference.py.lock",
+      "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+    },
+    {
+      "role": "assertion_source",
+      "path": "crates/antecedent/tests/attribution_refuter_known_truth.rs",
+      "items": [
+        "fn a_change_attribution_validation_is_refused_for_want_of_a_detectable_violation",
+        "fn a_masked_attribution_is_the_attribution_of_the_visible_rows",
+        "fn anomaly_attribution_refuter_states_known_truth",
+        "fn clean_random_temporal_series_pass_every_stability_check_across_seeds",
+        "fn clean_temporal_series_pass_bootstrap_stability_at_every_length",
+        "fn dag",
+        "fn fixture",
+        "fn masked_body",
+        "fn next",
+        "fn noisy_series",
+        "fn on_large_stack",
+        "fn query",
+        "fn report",
+        "fn series",
+        "fn states_body",
+        "fn table",
+        "fn temporal_anomaly_attribution_refuter_states_known_truth",
+        "fn temporal_dag",
+        "fn temporal_states_body",
+        "fn uniform",
+        "struct Normals"
+      ],
+      "sha256": "81bf1013766fb97ac2df8bc90106bf637d5f64de2bb3d8ed1daa57899fdb9bfc"
+    }
+  ],
+  "fixture_payload_sha256": "abafc5216d3fd9efa335023065dc886b596a25873c7fcb8abd4b6626fff2dc86"
+}

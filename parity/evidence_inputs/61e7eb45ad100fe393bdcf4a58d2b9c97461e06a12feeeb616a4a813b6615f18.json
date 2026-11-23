@@ -1,0 +1,1 @@
+[{"digest":"06cd701a7b31bad7fd92d5372e74b4e7249b875cac16e9ae820386e5aef0160d","kind":"evidence_file","path":"crates/antecedent-io-core/src/panel_calibration_design.rs","role":"compile"},{"digest":"6edbe8dec045934bbe4debe6d3d74122ff1a263f7110b380c72e0c6b2a6ce362","kind":"evidence_file","path":"crates/antecedent-io-core/src/query_wire.rs","role":"compile"}]

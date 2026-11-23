@@ -4,7 +4,7 @@
 //! model, on the common adjustment set already certified. Interaction
 //! contrasts are identified; they are not structurally zero.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -21,6 +21,7 @@ use antecedent_data::TabularData;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, GlmOptions};
 
 use crate::aipw::predict_colmajor;
+use crate::arm::TreatmentArm;
 use crate::crossfit_aipw::{DEFAULT_AIPW_FOLDS, thresholds_of};
 use crate::crossfit_plan::{
     CrossfitPlan, FoldRows, FoldSource, SHARED_FOLD_ID_ERRORS, rows_colmajor,
@@ -29,7 +30,6 @@ use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::propensity::clip_of;
 use crate::scores::{LinearContrast, ScoreColumn, ScoreSummary, ScoreTable};
-use crate::util::stats_err;
 
 thread_local! {
     /// Cell models (multinomial propensity or per-cell outcome regression) fitted on this
@@ -52,11 +52,18 @@ pub fn count_cell_model_fits<R>(work: impl FnOnce() -> R) -> (R, u64) {
     (out, after.saturating_sub(before))
 }
 
-/// Maximum jointly intervened binary coordinates (8 cells at k=3).
-pub const MAX_JOINT_BINARY: usize = 3;
+/// Widest joint binary intervention a cell arm code can address: the arm is a `u32` bitmask with
+/// one bit per coordinate.
+///
+/// This is a representation bound only. The estimator fits any `k` whose `2^k` joint cells are
+/// all populated by the complete-case rows, and positivity is what limits `k` in practice: every
+/// joint cell must appear in every cross-fit training fold with more rows than design columns
+/// (an empty or sparse cell is refused with its own error, before any score is formed), and the
+/// score and propensity tables are admitted against the workflow's memory account.
+pub const MAX_JOINT_BINARY: usize = 31;
 
 /// Named refuse: coarsened `continuous_cell` is not a point CDE.
-pub const POINT_CDE_UNLICENSED: &str = "point controlled direct effect is unlicensed; continuous_cell coarsens D onto a grid and is not do(D=d0)";
+pub const POINT_CDE_UNSUPPORTED: &str = "point controlled direct effect is unsupported; continuous_cell coarsens D onto a grid and is not do(D=d0)";
 
 /// Cell-saturated joint AIPW estimator.
 #[derive(Clone, Debug)]
@@ -107,17 +114,18 @@ impl CellSaturatedAipw {
     ///
     /// # Errors
     ///
-    /// Too many treatments, empty cells needed for a requested contrast,
+    /// No treatments, more joint cells than complete-case rows, empty cells needed for a requested contrast,
     /// a fold missing a cell that appears in the data, or a continuous cell
-    /// (point CDE is unlicensed).
+    /// (point CDE is unsupported).
     pub fn fit_scores(
         &self,
         data: &TabularData,
         spec: &CellScoreSpec<'_>,
     ) -> Result<ScoreTable, EstimationError> {
-        if spec.treatments.is_empty() || spec.treatments.len() > MAX_JOINT_BINARY {
-            return Err(EstimationError::unsupported(
-                "cell-saturated AIPW supports 1..=3 binary treatments",
+        if spec.treatments.is_empty() {
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "cell-saturated AIPW requires at least one binary treatment",
             ));
         }
         self.fit_scores_with_assignment(data, spec, SharedCellInputs::default())
@@ -136,17 +144,97 @@ impl CellSaturatedAipw {
         spec: &CellScoreSpec<'_>,
         shared: SharedCellInputs<'_>,
     ) -> Result<ScoreTable, EstimationError> {
+        if data.storage().weights().is_some() {
+            return Err(crate::sampling_weights::unsupported_route(
+                "the table carries observation weights, which this unweighted cell-saturated \
+                 fit would not read, so the scores would describe the unweighted rows. Next \
+                 attempt: fit through the weighted entry point, or drop the weights from the table",
+            ));
+        }
+        self.fit_scores_inner(data, spec, shared, None)
+    }
+
+    /// Fit cell scores for the weighted population the table's observation weights declare.
+    ///
+    /// Zero-weight rows are dropped before any fold or fit (the scores equal those of the
+    /// table with the rows deleted), the multinomial propensity maximizes the weighted
+    /// likelihood and each cell outcome model is weighted least squares, so a score is the
+    /// augmented inverse-probability score of the weighted population. The retained weights
+    /// (mean one over the analysed rows, in score-row order) and their record are returned
+    /// beside the table; its means and variances are the weighted ones only when summarized
+    /// with those weights.
+    ///
+    /// # Errors
+    ///
+    /// The refusals of [`Self::fit_scores`], and `sampling_weights_invalid` when the table
+    /// carries no weights or none of the analysed rows has positive weight.
+    pub fn fit_scores_sampling_weighted(
+        &self,
+        data: &TabularData,
+        spec: &CellScoreSpec<'_>,
+        shared: SharedCellInputs<'_>,
+    ) -> Result<(ScoreTable, crate::sampling_weights::RetainedSamplingWeights), EstimationError>
+    {
+        let Some(source) = data.storage().weights() else {
+            return Err(crate::sampling_weights::invalid(
+                "the weighted cell-saturated fit needs observation weights on the table",
+            ));
+        };
+        let declared = crate::sampling_weights::SamplingWeights::new(Arc::<[f64]>::from(source))?;
+        self.fit_scores_inner_weighted(data, spec, shared, &declared)
+    }
+
+    fn fit_scores_inner_weighted(
+        &self,
+        data: &TabularData,
+        spec: &CellScoreSpec<'_>,
+        shared: SharedCellInputs<'_>,
+        declared: &crate::sampling_weights::SamplingWeights,
+    ) -> Result<(ScoreTable, crate::sampling_weights::RetainedSamplingWeights), EstimationError>
+    {
+        let (table, retained) = self.fit_scores_core(data, spec, shared, Some(declared))?;
+        let retained = retained.ok_or_else(|| {
+            crate::sampling_weights::invalid("the weighted fit retained no sampling weights")
+        })?;
+        Ok((table, retained))
+    }
+
+    fn fit_scores_inner(
+        &self,
+        data: &TabularData,
+        spec: &CellScoreSpec<'_>,
+        shared: SharedCellInputs<'_>,
+        declared: Option<&crate::sampling_weights::SamplingWeights>,
+    ) -> Result<ScoreTable, EstimationError> {
+        self.fit_scores_core(data, spec, shared, declared).map(|(table, _)| table)
+    }
+
+    fn fit_scores_core(
+        &self,
+        data: &TabularData,
+        spec: &CellScoreSpec<'_>,
+        shared: SharedCellInputs<'_>,
+        declared: Option<&crate::sampling_weights::SamplingWeights>,
+    ) -> Result<
+        (ScoreTable, Option<crate::sampling_weights::RetainedSamplingWeights>),
+        EstimationError,
+    > {
         let CellScoreSpec { treatments, outcome, adjustment, functional, continuous } = *spec;
         let SharedCellInputs { fold_ids, design } = shared;
-        if treatments.is_empty() || treatments.len() > MAX_JOINT_BINARY {
-            return Err(EstimationError::unsupported(
-                "cell-saturated AIPW supports 1..=3 binary treatments",
+        if treatments.is_empty() {
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "cell-saturated AIPW requires at least one binary treatment",
             ));
         }
         if continuous.is_some() {
-            return Err(EstimationError::unsupported(POINT_CDE_UNLICENSED));
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                POINT_CDE_UNSUPPORTED,
+            ));
         }
-        let mut prepared = prepare_cells(data, treatments, outcome, adjustment, continuous)?;
+        let mut prepared =
+            prepare_cells(data, treatments, outcome, adjustment, continuous, declared)?;
         if let Some(ids) = fold_ids {
             if ids.len() != prepared.n {
                 return Err(EstimationError::data_msg(
@@ -172,7 +260,8 @@ impl CellSaturatedAipw {
         } else {
             thresholds_of(functional)
         };
-        crossfit_cell_scores(&prepared, &thresholds, self)
+        let table = crossfit_cell_scores(&prepared, &thresholds, self)?;
+        Ok((table, prepared.weights))
     }
 }
 
@@ -180,7 +269,7 @@ impl CellSaturatedAipw {
 /// outcome and its functional, and the adjustment set.
 #[derive(Clone, Copy, Debug)]
 pub struct CellScoreSpec<'a> {
-    /// Binary treatments intervened on jointly (1..=[`MAX_JOINT_BINARY`]).
+    /// Binary treatments intervened on jointly (at least one).
     pub treatments: &'a [VariableId],
     /// Outcome variable.
     pub outcome: VariableId,
@@ -188,7 +277,7 @@ pub struct CellScoreSpec<'a> {
     pub adjustment: &'a [VariableId],
     /// Outcome functional the score table is built for.
     pub functional: &'a OutcomeFunctional,
-    /// Discretized continuous coordinate; refused as an unlicensed point CDE.
+    /// Discretized continuous coordinate; refused as an unsupported point CDE.
     pub continuous: Option<ContinuousCellSpec<'a>>,
 }
 
@@ -218,11 +307,14 @@ struct PreparedCells {
     cell: Vec<u32>,
     n_cells: usize,
     outcome: Vec<f64>,
-    row_index: Vec<u32>,
+    row_index: Vec<antecedent_data::GlobalId>,
     adjustment_set: Arc<[VariableId]>,
     treatments: Arc<[VariableId]>,
     fold_assignment: Option<Vec<u32>>,
     shared_design: bool,
+    preparation: Arc<crate::PreparationSummary>,
+    /// Sampling weights of the analysed rows (mean one), when the fit is weighted.
+    weights: Option<crate::sampling_weights::RetainedSamplingWeights>,
 }
 
 #[allow(
@@ -235,29 +327,47 @@ fn prepare_cells(
     outcome: VariableId,
     adjustment: &[VariableId],
     continuous: Option<ContinuousCellSpec<'_>>,
+    declared: Option<&crate::sampling_weights::SamplingWeights>,
 ) -> Result<PreparedCells, EstimationError> {
     let mut ids = Vec::with_capacity(2 + treatments.len() + adjustment.len());
     ids.extend_from_slice(treatments);
     ids.push(outcome);
     ids.extend_from_slice(adjustment);
     if continuous.is_some() {
-        return Err(EstimationError::unsupported(POINT_CDE_UNLICENSED));
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
+            POINT_CDE_UNSUPPORTED,
+        ));
     }
     if let Some(c) = continuous {
         ids.push(c.variable);
     }
-    let mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
-    let t_cols: Vec<Vec<f64>> = treatments
+    let crate::prepare::AdmittedColumns { data, row_mask: mut mask, receipt } =
+        crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
+    // Rows of weight zero stand for no population unit: they leave before any cell, fold or
+    // fit, so every score equals the one computed on the table with those rows deleted.
+    let weights = declared.map(|declared| declared.restrict(&mut mask)).transpose()?;
+    // Read-only columns borrow the table when the cohort is one run; the outcome and the
+    // design are retained, so each is gathered exactly once into what is kept.
+    let t_cols: Vec<std::borrow::Cow<'_, [f64]>> = treatments
         .iter()
-        .map(|&id| data.float64_masked(id, &mask).map_err(EstimationError::from))
+        .map(|&id| data.float64_selected(id, &mask).map_err(EstimationError::from))
         .collect::<Result<_, _>>()?;
-    let y = data.float64_masked(outcome, &mask).map_err(EstimationError::from)?;
+    let y = data.float64_selected(outcome, &mask).map_err(EstimationError::from)?.into_owned();
     let n = y.len();
     if n == 0 {
         return Err(EstimationError::data_msg("no complete-case rows for cell AIPW"));
     }
     let k = treatments.len();
-    let mut n_cells = 1usize << k;
+    // Every joint cell needs rows, so a `2^k` that exceeds the row count is an empty cell
+    // before any table is built (and keeps the shifts below in range).
+    let mut n_cells = u32::try_from(k)
+        .ok()
+        .and_then(|k| 1usize.checked_shl(k))
+        .filter(|cells| *cells <= n)
+        .ok_or_else(|| {
+            EstimationError::unsupported("unsupported cell: empty joint treatment combination")
+        })?;
     let mut extra: Option<Vec<usize>> = None;
     if let Some(spec) = continuous {
         if spec.grid.is_empty()
@@ -271,9 +381,9 @@ fn prepare_cells(
                 "continuous cell grid must be finite, increasing, non-empty and use a distinct coordinate",
             ));
         }
-        let d = data.float64_masked(spec.variable, &mask).map_err(EstimationError::from)?;
+        let d = data.float64_selected(spec.variable, &mask).map_err(EstimationError::from)?;
         let snapped: Vec<usize> = d.iter().map(|&v| nearest_index(spec.grid, v)).collect();
-        n_cells *= spec.grid.len();
+        n_cells = n_cells.saturating_mul(spec.grid.len());
         extra = Some(snapped);
     }
     let mut cell = vec![0u32; n];
@@ -286,7 +396,7 @@ fn prepare_cells(
                     "cell-saturated AIPW requires binary 0/1 treatments",
                 ));
             }
-            if v > 0.5 {
+            if TreatmentArm::is_treated_indicator(v) {
                 code |= 1 << j;
             }
         }
@@ -295,29 +405,33 @@ fn prepare_cells(
         }
         cell[i] = code;
     }
-    {
-        for c in 0..n_cells {
-            if !cell.iter().any(|&code| code as usize == c) {
-                return Err(EstimationError::unsupported(
-                    "unsupported cell: empty joint treatment combination",
-                ));
-            }
+    let mut populated = vec![false; n_cells];
+    for &code in &cell {
+        if let Some(slot) = populated.get_mut(code as usize) {
+            *slot = true;
         }
+    }
+    if populated.iter().any(|seen| !seen) {
+        return Err(EstimationError::unsupported(
+            "unsupported cell: empty joint treatment combination",
+        ));
     }
     let ncols = 1 + adjustment.len();
     let mut design = vec![0.0; n * ncols];
     design[..n].fill(1.0);
     for (j, &z) in adjustment.iter().enumerate() {
-        let col = data.float64_masked(z, &mask).map_err(EstimationError::from)?;
         let base = (1 + j) * n;
-        design[base..base + n].copy_from_slice(&col[..n]);
+        data.float64_selected_into(z, &mask, &mut design[base..base + n])
+            .map_err(EstimationError::from)?;
     }
     let mut row_index = Vec::with_capacity(n);
     for (i, &keep) in mask.iter().enumerate() {
         if keep {
-            row_index.push(u32::try_from(i).map_err(|_| {
-                EstimationError::data_msg("row index exceeds the u32 row-id capacity")
-            })?);
+            row_index.push(antecedent_data::GlobalId::new(u64::try_from(i).map_err(|_| {
+                        EstimationError::data_msg(
+                            "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                        )
+                    })?));
         }
     }
     Ok(PreparedCells {
@@ -337,6 +451,8 @@ fn prepare_cells(
             .into(),
         fold_assignment: None,
         shared_design: false,
+        preparation: crate::prepare::preparation_summary(&receipt),
+        weights,
     })
 }
 
@@ -389,6 +505,10 @@ fn crossfit_cell_scores(
                     });
                 }
             }
+            // The score and propensity tables are `n` rows by one column per cell and
+            // threshold: admitted before they are allocated.
+            let _tables =
+                crate::util::admit_bound_array::<f64>(n, columns.len().saturating_mul(2))?;
             let mut scores = vec![0.0; n * columns.len()];
             let mut propensities = vec![0.0; n * columns.len()];
             let source = match prepared.fold_assignment.as_deref() {
@@ -401,6 +521,7 @@ fn crossfit_cell_scores(
             };
             let plan = CrossfitPlan::derive(n, folds, source, &SHARED_FOLD_ID_ERRORS)?;
             let clip = clip_of(est.overlap);
+            let row_weights: Option<&[f64]> = prepared.weights.as_ref().map(|w| &*w.weights);
             let mut out_ws = crate::aipw::AipwWorkspace::default();
 
             plan.run(
@@ -418,15 +539,18 @@ fn crossfit_cell_scores(
                         }
                     }
                     if seen_cells.iter().any(|seen| !seen) {
-                        return Err(EstimationError::unsupported(
+                        return Err(EstimationError::unsupported_coded(antecedent_core::reason_code!("positivity_violated"), 
                             "unsupported cell: cross-fit training fold is missing a joint treatment combination",
                         ));
                     }
                     let train_cells: Vec<_> =
                         train.iter().map(|&i| prepared.cell[i] as usize).collect();
+                    let train_weights: Option<Vec<f64>> =
+                        row_weights.map(|w| train.iter().map(|&i| w[i]).collect());
                     let e_valid = multinomial_propensity(
                         DesignRows { values: &design_train, rows: train.len() },
                         &train_cells,
+                        train_weights.as_deref(),
                         DesignRows { values: &design_valid, rows: valid.len() },
                         prepared.ncols,
                         n_cells,
@@ -475,9 +599,23 @@ fn crossfit_cell_scores(
                                     "sparse cell: a cross-fit training cell has no more rows than design columns, so its outcome model has no residual degrees of freedom",
                                 ));
                             }
-                            let design_c =
+                            let mut design_c =
                                 rows_colmajor(&prepared.design, n, prepared.ncols, &cell_train);
-                            let y_c: Vec<f64> = cell_train.iter().map(|&i| y_all[i]).collect();
+                            let mut y_c: Vec<f64> = cell_train.iter().map(|&i| y_all[i]).collect();
+                            if let Some(w) = row_weights {
+                                // Weighted least squares: every row of the design and the
+                                // outcome scaled by the root of its weight.
+                                let root: Vec<f64> =
+                                    cell_train.iter().map(|&i| w[i].sqrt()).collect();
+                                for column in design_c.chunks_exact_mut(cell_train.len()) {
+                                    for (value, scale) in column.iter_mut().zip(&root) {
+                                        *value *= scale;
+                                    }
+                                }
+                                for (value, scale) in y_c.iter_mut().zip(&root) {
+                                    *value *= scale;
+                                }
+                            }
                             let fit = est
                                 .backend
                                 .least_squares(
@@ -487,7 +625,7 @@ fn crossfit_cell_scores(
                                     &y_c,
                                     &mut out_ws.outcome,
                                 )
-                                .map_err(stats_err)?;
+                                .map_err(crate::error::EstimationError::from)?;
                             note_cell_model_fit();
                             let mut pred = Vec::new();
                             predict_colmajor(
@@ -521,18 +659,48 @@ fn crossfit_cell_scores(
                 columns: Arc::from(columns),
                 adjustment_set: Arc::clone(&prepared.adjustment_set),
                 nuisance_provenance: Arc::from(
-                    if prepared.fold_assignment.is_some() || prepared.shared_design {
-                        "cell.aipw.crossfit.multinomial_logit.ols.v1;batch.shared_design"
-                    } else {
-                        "cell.aipw.crossfit.multinomial_logit.ols.v1"
+                    match (
+                        prepared.fold_assignment.is_some() || prepared.shared_design,
+                        prepared.weights.is_some(),
+                    ) {
+                        (true, false) => {
+                            "cell.aipw.crossfit.multinomial_logit.ols.v1;batch.shared_design"
+                        }
+                        (false, false) => "cell.aipw.crossfit.multinomial_logit.ols.v1",
+                        (true, true) => {
+                            "cell.aipw.crossfit.multinomial_logit.ols.v1;batch.shared_design;sampling_weights"
+                        }
+                        (false, true) => {
+                            "cell.aipw.crossfit.multinomial_logit.ols.v1;sampling_weights"
+                        }
                     },
                 ),
                 propensity_clip: clip,
                 treatment: prepared.treatments[0],
                 intervened: Arc::clone(&prepared.treatments),
+                preparation: Some(Arc::clone(&prepared.preparation)),
             })
         },
     )
+}
+
+fn multinomial_workspace_cells(n: usize, nv: usize, p: usize, k: usize) -> Option<usize> {
+    let d = k.checked_sub(1)?.checked_mul(p)?;
+    n.checked_mul(2)?
+        .checked_add(nv)?
+        .checked_mul(k)?
+        .checked_add(d.checked_mul(d)?.checked_mul(2)?)?
+        .checked_add(d.checked_mul(8)?)
+}
+
+fn multinomial_poll() -> Result<(), EstimationError> {
+    if antecedent_core::numerical_admission::is_cancelled() {
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("cancelled_no_claim"),
+            "cell AIPW multinomial fit was cancelled",
+        ));
+    }
+    Ok(())
 }
 
 // Reference-cell multinomial likelihood with Newton steps and backtracking.
@@ -549,9 +717,11 @@ struct DesignRows<'a> {
     clippy::too_many_lines,
     reason = "one multinomial fit-and-predict over the shared train and validation design rows"
 )]
+#[allow(clippy::verbose_bit_mask, reason = "the mask controls a bounded periodic check")]
 fn multinomial_propensity(
     train: DesignRows<'_>,
     cells: &[usize],
+    row_weights: Option<&[f64]>,
     valid: DesignRows<'_>,
     p: usize,
     k: usize,
@@ -562,81 +732,118 @@ fn multinomial_propensity(
     antecedent_core::execution_attempt::run_operation(
         antecedent_core::execution_attempt::Operation::GlmFit,
         || {
+            let workspace_cells = multinomial_workspace_cells(n, nv, p, k).ok_or(
+                EstimationError::Admission(antecedent_core::execution::AdmissionError::Overflow),
+            )?;
+            multinomial_poll()?;
+            let _parent_lease = crate::util::admit_bound_array::<f64>(workspace_cells, 1)?;
             let d = (k - 1) * p;
             let mut beta = vec![0.0; d];
-            let probabilities = |x: &[f64], rows: usize, b: &[f64]| {
-                let mut out = vec![0.0; rows * k];
-                for r in 0..rows {
-                    let mut max_eta: f64 = 0.0;
-                    for c in 0..k - 1 {
-                        let eta = (0..p).map(|j| x[j * rows + r] * b[c * p + j]).sum::<f64>();
-                        out[c * rows + r] = eta;
-                        max_eta = max_eta.max(eta);
+            let probabilities =
+                |x: &[f64], rows: usize, b: &[f64]| -> Result<Vec<f64>, EstimationError> {
+                    let mut out = vec![0.0; rows * k];
+                    let mut work = 0usize;
+                    for r in 0..rows {
+                        if r % 64 == 0 {
+                            multinomial_poll()?;
+                        }
+                        let mut max_eta: f64 = 0.0;
+                        for c in 0..k - 1 {
+                            let mut eta = 0.0;
+                            for j in 0..p {
+                                if work & 1023 == 0 {
+                                    multinomial_poll()?;
+                                }
+                                work = work.wrapping_add(1);
+                                eta += x[j * rows + r] * b[c * p + j];
+                            }
+                            out[c * rows + r] = eta;
+                            max_eta = max_eta.max(eta);
+                        }
+                        let mut mass = (-max_eta).exp();
+                        out[(k - 1) * rows + r] = mass;
+                        for c in 0..k - 1 {
+                            out[c * rows + r] = (out[c * rows + r] - max_eta).exp();
+                            mass += out[c * rows + r];
+                        }
+                        for c in 0..k {
+                            out[c * rows + r] /= mass;
+                        }
                     }
-                    let mut mass = (-max_eta).exp();
-                    out[(k - 1) * rows + r] = mass;
-                    for c in 0..k - 1 {
-                        out[c * rows + r] = (out[c * rows + r] - max_eta).exp();
-                        mass += out[c * rows + r];
-                    }
-                    for c in 0..k {
-                        out[c * rows + r] /= mass;
-                    }
-                }
-                out
-            };
+                    Ok(out)
+                };
+            // Weighted likelihood: `row_weight(r)` is the sampling weight of training row `r`
+            // (one when unweighted), and the objective is the weighted mean.
+            let row_weight = |r: usize| row_weights.map_or(1.0, |w| w[r]);
+            let weight_total: f64 = (0..n).map(row_weight).sum();
             let loss = |prob: &[f64]| -> f64 {
                 cells
                     .iter()
                     .enumerate()
-                    .map(|(r, &c)| -prob[c * n + r].max(f64::MIN_POSITIVE).ln())
+                    .map(|(r, &c)| -row_weight(r) * prob[c * n + r].max(f64::MIN_POSITIVE).ln())
                     .sum::<f64>()
-                    / n as f64
+                    / weight_total
             };
-            let score = |prob: &[f64]| {
+            let score = |prob: &[f64]| -> Result<Vec<f64>, EstimationError> {
                 let mut gradient = vec![0.0; d];
+                let mut work = 0usize;
                 for r in 0..n {
                     for c in 0..k - 1 {
                         for j in 0..p {
-                            gradient[c * p + j] += train[j * n + r]
+                            if work & 1023 == 0 {
+                                multinomial_poll()?;
+                            }
+                            work = work.wrapping_add(1);
+                            gradient[c * p + j] += row_weight(r)
+                                * train[j * n + r]
                                 * (prob[c * n + r] - f64::from(cells[r] == c))
-                                / n as f64;
+                                / weight_total;
                         }
                     }
                 }
-                gradient
+                Ok(gradient)
             };
             let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
             for iteration in 0..100 {
-                let prob = probabilities(train, n, &beta);
-                let gradient = score(&prob);
+                multinomial_poll()?;
+                let prob = probabilities(train, n, &beta)?;
+                let gradient = score(&prob)?;
                 let mut hessian = vec![0.0; d * d];
+                let mut work = 0usize;
                 for r in 0..n {
+                    if r % 64 == 0 {
+                        multinomial_poll()?;
+                    }
                     for c in 0..k - 1 {
                         for j in 0..p {
                             let a = c * p + j;
                             for e in 0..k - 1 {
                                 for l in 0..p {
+                                    if work & 1023 == 0 {
+                                        multinomial_poll()?;
+                                    }
+                                    work = work.wrapping_add(1);
                                     let b = e * p + l;
-                                    hessian[b * d + a] += train[j * n + r]
+                                    hessian[b * d + a] += row_weight(r)
+                                        * train[j * n + r]
                                         * train[l * n + r]
                                         * prob[c * n + r]
                                         * (f64::from(c == e) - prob[e * n + r])
-                                        / n as f64;
+                                        / weight_total;
                                 }
                             }
                         }
                     }
                 }
                 if gradient.iter().all(|v| v.abs() < 1e-8) {
-                    return Ok(probabilities(valid, nv, &beta));
+                    return probabilities(valid, nv, &beta);
                 }
                 for j in 0..d {
                     hessian[j * d + j] += 1e-10;
                 }
                 let step = backend
                     .least_squares(&hessian, d, d, &gradient, &mut ws)
-                    .map_err(stats_err)?
+                    .map_err(crate::error::EstimationError::from)?
                     .coefficients;
                 let old = loss(&prob);
                 let mut scale = 1.0;
@@ -644,7 +851,7 @@ fn multinomial_propensity(
                 for _ in 0..30 {
                     let trial: Vec<_> =
                         beta.iter().zip(&step).map(|(b, s)| b - scale * s).collect();
-                    let trial_prob = probabilities(train, n, &trial);
+                    let trial_prob = probabilities(train, n, &trial)?;
                     if loss(&trial_prob) < old {
                         beta = trial;
                         accepted = true;
@@ -654,8 +861,8 @@ fn multinomial_propensity(
                     // final Newton decrease (O(score²)). Certify that trial using
                     // the SAME unpenalized score tolerance as the iteration entry;
                     // never accept mere loss equality or a small parameter step.
-                    if score(&trial_prob).iter().all(|v| v.abs() < 1e-8) {
-                        return Ok(probabilities(valid, nv, &trial));
+                    if score(&trial_prob)?.iter().all(|v| v.abs() < 1e-8) {
+                        return probabilities(valid, nv, &trial);
                     }
                     scale *= 0.5;
                 }
@@ -672,12 +879,13 @@ fn multinomial_propensity(
     )
 }
 
-/// 2×2 interaction contrast `(μ_11 − μ_10) − (μ_01 − μ_00)` on the first
-/// four cells of a mean-functional table.
+/// Highest-order interaction contrast of a mean-functional table over `k >= 2` binary factors:
+/// `(μ_11 − μ_10) − (μ_01 − μ_00)` for two factors, the three-way difference of differences for
+/// three, and so on (see [`interaction_coefficients`]).
 ///
 /// # Errors
 ///
-/// Fewer than four mean columns.
+/// A grid of thresholds, or a mean-column count that is not `2^k` with `k >= 2`.
 pub fn interaction_contrast(table: &ScoreTable) -> Result<LinearContrast, EstimationError> {
     contrast_named(table, "interaction")
 }
@@ -696,8 +904,8 @@ pub fn cell_minus_control_contrast(
 
 /// Named cell contrast and its per-row score-difference influence.
 ///
-/// `cell_minus_control` is requested cell minus arm 0. `interaction` is
-/// `+μ00 −μ10 −μ01 +μ11` on a 2×2 table.
+/// `cell_minus_control` is requested cell minus arm 0. `interaction` is the highest-order
+/// interaction of a `2^k` table (`+μ00 −μ10 −μ01 +μ11` on a 2×2 table).
 ///
 /// # Errors
 ///
@@ -714,9 +922,10 @@ pub fn family_cell_contrast(
             let coeffs = interaction_coefficients(table)?;
             let first = table.columns.first().and_then(|c| c.threshold);
             let n_mean = table.columns.iter().filter(|c| c.threshold == first).count();
-            if n_mean != 4 {
-                return Err(EstimationError::unsupported(
-                    "family interaction contrast requires a 2×2 cell table",
+            if n_mean < 4 || !n_mean.is_power_of_two() {
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
+                    "family interaction contrast requires a 2^k cell table with k >= 2 factors",
                 ));
             }
             coeffs
@@ -741,8 +950,9 @@ pub fn cell_minus_control_coefficients(
     requested_arm: u32,
 ) -> Result<Vec<f64>, EstimationError> {
     if table.distinct_threshold_count() > 1 {
-        return Err(EstimationError::unsupported(
-            "cell_minus_control on an exceedance grid is not licensed; request a single threshold",
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
+            "cell_minus_control on an exceedance grid is not supported; request a single threshold",
         ));
     }
     let first = table.columns.first().and_then(|c| c.threshold);
@@ -764,15 +974,19 @@ pub fn cell_minus_control_coefficients(
     Ok(coeffs)
 }
 
-/// Coefficients `+μ00 −μ10 −μ01 +μ11` on the first four mean cells.
+/// Coefficients of the highest-order interaction of the `k` binary factors of a `2^k` cell table
+/// (`k >= 2`), on the first threshold slice: the cell with arm code `a` carries
+/// `(-1)^(k - popcount(a))`. On a 2×2 table this is `+μ00 −μ10 −μ01 +μ11`; on a 2×2×2 table
+/// it is the three-way difference of differences of differences.
 ///
 /// # Errors
 ///
-/// An exceedance grid or fewer than four mean columns.
+/// An exceedance grid, or a mean-column count that is not `2^k` with `k >= 2`.
 pub fn interaction_coefficients(table: &ScoreTable) -> Result<Vec<f64>, EstimationError> {
     if table.distinct_threshold_count() > 1 {
-        return Err(EstimationError::unsupported(
-            "interaction contrast on an exceedance grid is not licensed; request a single Exceedance threshold or a raw coefficient vector",
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
+            "interaction contrast on an exceedance grid is not supported; request a single Exceedance threshold or a raw coefficient vector",
         ));
     }
     let first_threshold = table.columns.first().and_then(|c| c.threshold);
@@ -783,20 +997,30 @@ pub fn interaction_coefficients(table: &ScoreTable) -> Result<Vec<f64>, Estimati
         .filter(|(_, c)| c.threshold == first_threshold)
         .map(|(i, _)| i)
         .collect();
-    if mean_cols.len() < 4 {
-        return Err(EstimationError::unsupported("interaction contrast requires a 2×2 cell table"));
+    if mean_cols.len() < 4 || !mean_cols.len().is_power_of_two() {
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
+            "interaction contrast requires a 2^k cell table with k >= 2 factors",
+        ));
     }
+    let factors = mean_cols.len().trailing_zeros();
     let mut coeffs = vec![0.0; table.n_columns()];
-    coeffs[mean_cols[0]] = 1.0;
-    coeffs[mean_cols[1]] = -1.0;
-    coeffs[mean_cols[2]] = -1.0;
-    coeffs[mean_cols[3]] = 1.0;
+    for &column in &mean_cols {
+        let arm = table.columns[column].arm;
+        if arm as usize >= mean_cols.len() {
+            return Err(EstimationError::unsupported(
+                "interaction contrast requires arm codes 0..2^k on the mean cells",
+            ));
+        }
+        coeffs[column] = if (factors - arm.count_ones()).is_multiple_of(2) { 1.0 } else { -1.0 };
+    }
     Ok(coeffs)
 }
 
 /// Named or raw linear cell contrast.
 ///
-/// `interaction` is the 2×2 interaction on cells `00,01,10,11`.
+/// `interaction` is the highest-order interaction on cells in ascending arm-code order
+/// (`00,01,10,11` on a 2×2 table).
 /// A raw contrast is `c0,c1,...` coefficients matching the mean columns.
 ///
 /// # Errors
@@ -816,7 +1040,8 @@ pub(crate) fn contrast_from_summary(
     let coeffs = if spec == "interaction" {
         interaction_coefficients(table)?
     } else if spec == "cell_minus_control" {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("required_option_missing"),
             "cell_minus_control requires a requested arm; use family_cell_contrast",
         ));
     } else if let Some(raw) = parse_coefficients(spec) {
@@ -865,6 +1090,30 @@ mod tests {
     use antecedent_kernels::standard_normal;
 
     #[test]
+    fn multinomial_scratch_preflight_and_inherited_cancellation() {
+        use antecedent_core::execution::AdmissionPool;
+        assert!(multinomial_workspace_cells(usize::MAX, 1, 1, 2).is_none());
+        let call = || {
+            multinomial_propensity(
+                DesignRows { values: &[1.0, 1.0], rows: 2 },
+                &[0, 1],
+                None,
+                DesignRows { values: &[1.0], rows: 1 },
+                1,
+                2,
+                FaerBackend,
+            )
+        };
+        let low = ExecutionContext::for_tests(4).with_admission(AdmissionPool::fixed(1, 1));
+        assert!(antecedent_core::numerical_admission::with_context(&low, call).is_err());
+        let cancelled = ExecutionContext::for_tests(4);
+        cancelled.cancellation.cancel();
+        let error =
+            antecedent_core::numerical_admission::with_context(&cancelled, call).unwrap_err();
+        assert_eq!(error.reason_code(), Some("cancelled_no_claim"));
+    }
+
+    #[test]
     fn multinomial_propensity_matches_exact_two_stratum_frequencies() {
         // With [1,Z] and Z in {-1,+1}, each reference-cell log odds is
         // independently parameterized in both strata. Its MLE is the observed
@@ -886,6 +1135,7 @@ mod tests {
             let probabilities = super::multinomial_propensity(
                 super::DesignRows { values: &train, rows: n },
                 &cells,
+                None,
                 super::DesignRows { values: &[1.0, 1.0, -1.0, 1.0], rows: 2 },
                 2,
                 4,
@@ -999,14 +1249,41 @@ mod tests {
             cell: vec![1, 0, 0, 0, 0, 1, 0, 0, 0, 0],
             n_cells: 2,
             outcome: vec![1.0; 10],
-            row_index: (0..10).collect(),
+            row_index: (0..10u64).map(antecedent_data::GlobalId::new).collect(),
             adjustment_set: Arc::from([]),
             treatments: Arc::from([VariableId::from_raw(0)]),
             fold_assignment: Some(vec![0, 1, 1, 1, 1, 0, 1, 1, 1, 1]),
             shared_design: false,
+            preparation: Arc::new(crate::PreparationSummary::from_parts(
+                "in_memory".into(),
+                "rows_only".into(),
+                Some(10),
+                "00".into(),
+            )),
+            weights: None,
         };
         let err = crossfit_cell_scores(&prepared, &[None], &CellSaturatedAipw::new()).unwrap_err();
         assert!(err.to_string().contains("training fold"));
+    }
+
+    #[test]
+    fn score_table_records_the_preparation_receipt() {
+        let data = interaction_dgp(400);
+        let table = CellSaturatedAipw::new()
+            .fit_scores(
+                &data,
+                &CellScoreSpec {
+                    treatments: &[VariableId::from_raw(0), VariableId::from_raw(1)],
+                    outcome: VariableId::from_raw(2),
+                    adjustment: &[VariableId::from_raw(3)],
+                    functional: &OutcomeFunctional::Mean,
+                    continuous: None,
+                },
+            )
+            .unwrap();
+        let receipt = table.preparation.as_ref().expect("the table carries the receipt");
+        assert_eq!(receipt.backend, "direct_arrow");
+        assert_eq!(receipt.rows_admitted, Some(table.n_rows as u64));
     }
 
     #[test]
@@ -1057,6 +1334,89 @@ mod tests {
             contrast.se
         );
         assert!(contrast.se > 0.0);
+    }
+
+    #[test]
+    fn three_factor_interaction_recovers_the_three_way_term() {
+        let n = 4_000;
+        let mut rng = ExecutionContext::for_tests(9).rng.stream_for(StreamDomain::Estimate, 0xC12);
+        let mut cols: Vec<Vec<f64>> = (0..5).map(|_| Vec::with_capacity(n)).collect();
+        for _ in 0..n {
+            let zi = standard_normal(&mut rng);
+            let a = f64::from(rng.next_f64() < 0.5);
+            let b = f64::from(rng.next_f64() < 0.5);
+            let c = f64::from(rng.next_f64() < 0.5);
+            let y = 2.0 * a * b * c + a * b + 0.2 * zi + 0.25 * standard_normal(&mut rng);
+            for (col, v) in cols.iter_mut().zip([a, b, c, y, zi]) {
+                col.push(v);
+            }
+        }
+        let mut builder = CausalSchemaBuilder::new();
+        for (name, hint) in [
+            ("a", RoleHint::TreatmentCandidate),
+            ("b", RoleHint::TreatmentCandidate),
+            ("c", RoleHint::TreatmentCandidate),
+            ("y", RoleHint::OutcomeCandidate),
+            ("z", RoleHint::Context),
+        ] {
+            builder
+                .add_variable(
+                    name,
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(hint),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        let schema = builder.build().unwrap();
+        let columns = cols
+            .into_iter()
+            .enumerate()
+            .map(|(i, v)| {
+                OwnedColumn::Float64(
+                    Float64Column::new(
+                        VariableId::from_raw(i as u32),
+                        Arc::from(v),
+                        ValidityBitmap::all_valid(n),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect();
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap());
+        let table = CellSaturatedAipw::new()
+            .fit_scores(
+                &data,
+                &CellScoreSpec {
+                    treatments: &[
+                        VariableId::from_raw(0),
+                        VariableId::from_raw(1),
+                        VariableId::from_raw(2),
+                    ],
+                    outcome: VariableId::from_raw(3),
+                    adjustment: &[VariableId::from_raw(4)],
+                    functional: &OutcomeFunctional::Mean,
+                    continuous: None,
+                },
+            )
+            .unwrap();
+        let coefficients = interaction_coefficients(&table).unwrap();
+        let signs: Vec<f64> = (0..8_u32)
+            .map(|arm| if (3 - arm.count_ones()) % 2 == 0 { 1.0 } else { -1.0 })
+            .collect();
+        assert_eq!(coefficients, signs);
+        let contrast = interaction_contrast(&table).unwrap();
+        assert!(
+            (contrast.value - 2.0).abs() < 0.5,
+            "three-way={} se={}",
+            contrast.value,
+            contrast.se
+        );
+        let (family, _) = family_cell_contrast(&table, 7, "interaction").unwrap();
+        assert_eq!(family.value.to_bits(), contrast.value.to_bits());
     }
 
     #[test]
@@ -1137,3 +1497,7 @@ mod tests {
         assert!(err.to_string().contains("sparse cell"), "{err}");
     }
 }
+
+#[cfg(test)]
+#[path = "cell_aipw_oracle_tests.rs"]
+mod oracle_tests;

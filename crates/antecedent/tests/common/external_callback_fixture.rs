@@ -1,5 +1,5 @@
 //! Independent foreign mean callbacks, actual invocation receipts and portable replay.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::analysis::recalc_external::*;
 use antecedent_contract::{
     CheckedCausalContract, DistributionMeaning, ExternalCapability, ExternalProgramClaim,
@@ -49,7 +49,7 @@ pub(crate) fn request(branch: u8, policy: CallbackPolicy) -> ExternalCallbackReq
             idempotency_supported: false,
         },
         program,
-        columns: vec![("z".into(), vec![-1.0, 1.0])],
+        columns: vec![("z".into(), vec![-1.0, 1.0])].into(),
         model_parameters: vec![("intercept".into(), 3.0), ("gain".into(), 0.5)],
         seed: 41,
         idempotency_key: None,

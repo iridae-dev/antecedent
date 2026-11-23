@@ -1,5 +1,5 @@
 //! Observe original synchronous native component work without issuing scientific authority.
-use antecedent_core::execution_attempt::{Operation, observe_execution};
+use antecedent::analysis::recalc_attempt::{Operation, execute_with_attempt};
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
@@ -33,41 +33,43 @@ fn observe_native_attempts(
     py: Python<'_>,
     operation: &Bound<'_, PyAny>,
 ) -> PyResult<ObservationPayload> {
-    if !operation.is_callable() {
-        return Err(crate::with_reason_code(
-            crate::value_err(
-                "native_attempt.invalid_callable: a synchronous zero-argument callable is required",
-            ),
-            antecedent_core::reason_code!("invalid_argument"),
-        ));
-    }
-    // Execute once. Original callbacks, cancellation and transaction policies remain in force.
-    let execution = observe_execution(|| operation.call0().map(Bound::unbind));
-    let rows = execution
-        .report
-        .operations()
-        .map(|(kind, counts)| {
-            (
-                label(kind),
-                serde_json::json!({
-                    "attempted":counts.attempted,"completed":counts.completed,
-                    "failed":counts.failed,"unfinished":counts.unfinished(),
-                }),
-            )
+    crate::catch_ffi(|| {
+        if !operation.is_callable() {
+            return Err(crate::with_reason_code(
+                crate::value_err(
+                    "native_attempt.invalid_callable: a synchronous zero-argument callable is required",
+                ),
+                antecedent::reason::reason_code!("invalid_argument"),
+            ));
+        }
+        // Execute once. Original callbacks, cancellation and transaction policies remain in force.
+        let execution = execute_with_attempt(|| operation.call0().map(Bound::unbind));
+        let rows = execution
+            .report
+            .operations()
+            .map(|(kind, counts)| {
+                (
+                    label(kind),
+                    serde_json::json!({
+                        "attempted":counts.attempted,"completed":counts.completed,
+                        "failed":counts.failed,"unfinished":counts.unfinished(),
+                    }),
+                )
+            })
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let report = serde_json::json!({
+            "scope":"synchronous_original_native_components",
+            "operations":rows,
+            "is_empty":execution.report.is_empty(),
+            "is_complete":execution.report.is_complete(),
         })
-        .collect::<std::collections::BTreeMap<_, _>>();
-    let report = serde_json::json!({
-        "scope":"synchronous_original_native_components",
-        "operations":rows,
-        "is_empty":execution.report.is_empty(),
-        "is_complete":execution.report.is_complete(),
+        .to_string();
+        let (value, error) = match execution.result {
+            Ok(value) => (Some(value), None),
+            Err(error) => (None, Some(error.into_value(py).into_any())),
+        };
+        Ok((value, error, report))
     })
-    .to_string();
-    let (value, error) = match execution.result {
-        Ok(value) => (Some(value), None),
-        Err(error) => (None, Some(error.into_value(py).into_any())),
-    };
-    Ok((value, error, report))
 }
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(observe_native_attempts, module)?)

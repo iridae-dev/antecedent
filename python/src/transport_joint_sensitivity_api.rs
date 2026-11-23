@@ -1,14 +1,17 @@
 //! Python bindings for joint mechanism deviations of the registered
 //! surrogate z formula. Every function here backs one routed wrapper in
 //! `antecedent.transport._joint_sensitivity` and is reached only through it.
-use antecedent::{JointSensitivityArtifactWire, JointSensitivityConsumeLimits};
-use antecedent_core::reason_code;
-use antecedent_io::IoError;
-use antecedent_io::z_transport_artifact::ZTransportConsumeLimits;
-use antecedent_validate::{
+#[path = "transport_joint_sensitivity_api/interval.rs"]
+mod interval;
+
+use antecedent::io::IoError;
+use antecedent::io::z_transport_artifact::ZTransportConsumeLimits;
+use antecedent::reason::reason_code;
+use antecedent::validate::{
     JointDeviationSpec, JointFactor, JointFactorBound, JointMechanismSensitivityResult,
     JointSensitivityLimits, TippingBracket,
 };
+use antecedent::{JointSensitivityArtifactWire, JointSensitivityConsumeLimits};
 use pyo3::prelude::*;
 use serde_json::json;
 
@@ -117,12 +120,12 @@ fn result_json(result: &JointMechanismSensitivityResult) -> serde_json::Value {
             "operations_consumed": result.receipt.operations_consumed,
             "depth_reached": result.receipt.depth_reached,
             "live_state_bytes": result.receipt.live_state_bytes,
-            "stop": result.receipt.stop.map(antecedent_core::SearchStop::code),
+            "stop": result.receipt.stop.map(antecedent::execution::SearchStop::code),
             "explored": result.receipt.explored,
             "unevaluated": result.receipt.unevaluated,
         },
         "uncertainty": {
-            "status": "withheld",
+            "status": "no_interval_method",
             "method": result.uncertainty.method,
             "coverage_target": result.uncertainty.coverage_target,
             "reason_code": result.uncertainty.reason_code,
@@ -239,7 +242,7 @@ fn consume_z_transport_joint_sensitivity_artifact(
     let defaults = ZTransportConsumeLimits::default();
     let limits = JointSensitivityConsumeLimits {
         baseline: ZTransportConsumeLimits {
-            evaluation: antecedent_expr::ExactEvaluationLimits {
+            evaluation: antecedent::estimate::ExactEvaluationLimits {
                 operations: max_operations,
                 depth: max_depth,
             },
@@ -269,12 +272,14 @@ fn consume_z_transport_joint_sensitivity_artifact(
 
 /// Conservative endpoint percentile bootstrap of the joint range.
 ///
-/// Returns `(lower, upper, coverage_target)`. Only level 0.95 and 199 to 2000
-/// replicates are admitted.
+/// Returns `(lower, upper, coverage_target, calibration_json, replicates_ok,
+/// replicates_failed)`. Any level inside `(0, 1)` and 2 to 2000 replicates are computed; the
+/// calibration slot says whether a record measured the request.
 #[pyfunction]
 #[pyo3(signature=(stage, factors, *, replicates=199, level=0.95, decision_threshold=None, memory_bytes=None, cancel=None))]
 #[doc(hidden)]
 fn z_transport_joint_sensitivity_interval(
+    py: Python<'_>,
     stage: PyRef<'_, PreparedZTransportStage>,
     factors: Vec<(String, f64)>,
     replicates: u32,
@@ -282,18 +287,32 @@ fn z_transport_joint_sensitivity_interval(
     decision_threshold: Option<f64>,
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
-) -> PyResult<(f64, f64, String)> {
+) -> PyResult<(f64, f64, String, String, u32, u32)> {
     let mut spec = JointDeviationSpec::new(parse_factors(factors)?);
     spec.decision_threshold = decision_threshold;
     let ctx = stage.ctx(memory_bytes, cancel);
-    let interval = stage
-        .prepared()
-        .joint_mechanism_sensitivity_interval(&spec, replicates, level, &ctx)
-        .map_err(joint_py_err)?;
-    Ok((interval.lower, interval.upper, interval.coverage_target.to_owned()))
+    let prepared = stage.prepared().clone();
+    drop(stage);
+    let interval = crate::detach_catch(py, move || {
+        prepared
+            .joint_mechanism_sensitivity_interval(&spec, replicates, level, &ctx)
+            .map_err(joint_py_err)
+    })?;
+    // The calibration slot annotates the interval; it never withholds it.
+    let calibration = serde_json::to_string(&interval.calibration)
+        .map_err(|error| crate::value_err(error.to_string()))?;
+    Ok((
+        interval.lower,
+        interval.upper,
+        interval.coverage_target.to_owned(),
+        calibration,
+        interval.replicates_ok,
+        interval.replicates_failed,
+    ))
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    interval::register(module)?;
     module.add_function(wrap_pyfunction!(z_transport_joint_sensitivity, module)?)?;
     module.add_function(wrap_pyfunction!(export_z_transport_joint_sensitivity, module)?)?;
     module

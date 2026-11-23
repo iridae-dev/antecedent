@@ -14,6 +14,7 @@
 //! The mixture-average effect is `0.6 * 1 + 0.4 * (-2) = -0.2`. Bootstrap calibration is
 //! deliberately NOT measured here.
 
+use antecedent_core::ExecutionContext;
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::effect_constancy::CalibrationStatus;
 use antecedent_estimate::latent_class_effects::{
@@ -74,6 +75,7 @@ fn fit(data: &Data, config: &LatentClassConfig) -> Result<LatentClassResult, Est
     fit_latent_class_effects(
         &LatentClassData { outcome: &data.y, treatment: &data.a, covariates: &data.x },
         config,
+        &ExecutionContext::for_tests(1),
     )
 }
 
@@ -83,7 +85,7 @@ fn close(actual: f64, expected: f64, tolerance: f64) {
 
 fn refusal(result: Result<LatentClassResult, EstimationError>) -> (&'static str, String) {
     match result {
-        Err(EstimationError::Refused { code, message }) => (code, message),
+        Err(EstimationError::Refused { code, message }) => (code, message.into_string()),
         other => panic!("expected a refusal, got {other:?}"),
     }
 }
@@ -230,11 +232,26 @@ fn latent_deterministic_replay_given_seed_and_bootstrap_uncertainty() {
     let closed_form_p = (NOISE_VARIANCE / (24.0 * 0.25)).sqrt();
     let se_q = first.classes[0].effect_se.expect("se q");
     let se_p = first.classes[1].effect_se.expect("se p");
-    assert!(se_q > 0.5 * closed_form_q && se_q < 2.0 * closed_form_q, "{se_q} vs {closed_form_q}");
-    assert!(se_p > 0.5 * closed_form_p && se_p < 2.0 * closed_form_p, "{se_p} vs {closed_form_p}");
+    // The bootstrap SE of a 60-replicate run scatters by about 10 percent around the closed form
+    // (observed ratios 1.06 and 1.00; across seeds 7-10 the ratio stays within 0.96-1.24).
+    assert!(se_q > 0.8 * closed_form_q && se_q < 1.3 * closed_form_q, "{se_q} vs {closed_form_q}");
+    assert!(se_p > 0.8 * closed_form_p && se_p < 1.3 * closed_form_p, "{se_p} vs {closed_form_p}");
+    // Delta-method SE of the mixture average sum_k pi_k tau_k when the rows are resampled:
+    // Var = sum pi_k^2 Var(tau_k) + (tau_P - tau_Q)^2 Var(pi) with Var(pi) = 0.4 * 0.6 / 40 and
+    // the class effects independent, giving 0.264 (observed 0.25-0.29 across seeds 7-10).
     let avg_se = first.mixture_average_se.expect("average se");
-    assert!(avg_se.is_finite() && avg_se > 0.0);
-    assert!(first.classes[0].weight_se.expect("weight se") > 0.0);
+    let delta_method =
+        (0.36 * closed_form_p.powi(2) + 0.16 * closed_form_q.powi(2) + 9.0 * (0.4 * 0.6 / 40.0))
+            .sqrt();
+    assert!(
+        avg_se > 0.8 * delta_method && avg_se < 1.25 * delta_method,
+        "{avg_se} vs {delta_method}"
+    );
+    // Binomial SE of a class weight under row resampling: sqrt(0.4 * 0.6 / 40) = 0.0775
+    // (observed 0.070-0.086), identical for the two classes because the weights sum to one.
+    let weight_se = first.classes[0].weight_se.expect("weight se");
+    assert!((weight_se - (0.4_f64 * 0.6 / 40.0).sqrt()).abs() < 0.02, "{weight_se}");
+    assert!((first.classes[1].weight_se.expect("weight se") - weight_se).abs() < 1e-9);
 
     // A different seed resamples differently (different SE) around the same point estimate.
     let mut other_cfg = cfg.clone();
@@ -243,8 +260,8 @@ fn latent_deterministic_replay_given_seed_and_bootstrap_uncertainty() {
     assert!((other.classes[0].effect_se.expect("se") - se_q).abs() > 0.0);
     close(other.classes[0].effect, first.classes[0].effect, 1e-9);
 
-    // Honest scope: calibration unmeasured, premises declared vs checked are distinguished.
-    assert_eq!(first.calibration, CalibrationStatus::Unmeasured);
+    // Honest scope: calibration not_measured, premises declared vs checked are distinguished.
+    assert_eq!(first.calibration, CalibrationStatus::NotMeasured);
     let randomization = first
         .premises
         .iter()
@@ -260,7 +277,10 @@ fn latent_weak_class_weight_refuses() {
     cfg.min_class_weight = 0.5; // the smaller class has weight 0.4
     let (code, message) = refusal(fit(&data, &cfg));
     assert_eq!(code, "population_not_estimable");
-    assert!(message.contains("latent_class.weak_class"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::latent_class::WEAK_CLASS),
+        "{message}"
+    );
 }
 
 #[test]
@@ -280,9 +300,19 @@ fn latent_overlapping_classes_are_never_reported_as_separated() {
             assert!(message.contains("latent_class."), "{message}");
         }
         Ok(result) => {
-            // If a split is found at all it must satisfy the declared guards.
+            // If a split is found at all it must satisfy the declared guards ...
             assert!(result.separation >= cfg.min_separation);
             assert!(result.classes.iter().all(|c| c.weight >= cfg.min_class_weight));
+            // ... and, because the generating effect is 1 in both regimes (only the intercept
+            // differs), it must not claim effect heterogeneity: every class effect is 1, the
+            // classes are reported as not separately identified in effect (gap 0), and the
+            // mixture average is the common effect. (The deterministic noise lets EM split the
+            // rows by noise value, which is why a split is found at all.)
+            for class in &result.classes {
+                close(class.effect, 1.0, 1e-8);
+            }
+            close(result.min_effect_gap, 0.0, 1e-8);
+            close(result.mixture_average_effect, 1.0, 1e-8);
         }
         Err(other) => panic!("unexpected error {other:?}"),
     }
@@ -295,7 +325,10 @@ fn latent_single_class_is_degenerate() {
     one.classes = 1;
     let (code, message) = refusal(fit(&data, &one));
     assert_eq!(code, "population_not_estimable");
-    assert!(message.contains("latent_class.degenerate_class"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::latent_class::DEGENERATE_CLASS),
+        "{message}"
+    );
 
     // A single exact regime (no noise): every start collapses a class onto a perfect fit.
     let mut single = Data { y: vec![], a: vec![], x: vec![vec![]], class: vec![] };
@@ -311,7 +344,10 @@ fn latent_single_class_is_degenerate() {
     }
     let (code, message) = refusal(fit(&single, &config(1)));
     assert_eq!(code, "population_not_estimable");
-    assert!(message.contains("latent_class.degenerate_class"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::latent_class::DEGENERATE_CLASS),
+        "{message}"
+    );
 }
 
 #[test]
@@ -320,19 +356,40 @@ fn latent_premise_and_configuration_refusals() {
     let undeclared = LatentClassConfig::new(2, 1);
     let (code, message) = refusal(fit(&data, &undeclared));
     assert_eq!(code, "required_option_missing");
-    assert!(message.contains("latent_class.randomization_not_declared"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::latent_class::RANDOMIZATION_NOT_DECLARED),
+        "{message}"
+    );
 
     let mut many = config(1);
-    many.classes = 5;
+    many.classes = 100_000;
     let (code, message) = refusal(fit(&data, &many));
     assert_eq!(code, "invalid_argument");
-    assert!(message.contains("latent_class.too_many_classes"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::latent_class::TOO_FEW_ROWS),
+        "{message}"
+    );
+
+    for (restarts, max_iterations) in [(usize::MAX, 500), (10, usize::MAX)] {
+        let mut heavy = config(1);
+        heavy.restarts = restarts;
+        heavy.max_iterations = max_iterations;
+        let (code, message) = refusal(fit(&data, &heavy));
+        assert_eq!(code, "invalid_argument");
+        assert!(
+            message.contains(antecedent_core::reason_details::latent_class::INVALID_CONFIG),
+            "{message}"
+        );
+    }
 
     let mut constant = build();
     constant.a = vec![1.0; constant.a.len()];
     let (code, message) = refusal(fit(&constant, &config(1)));
     assert_eq!(code, "effect_not_identified");
-    assert!(message.contains("latent_class.treatment_constant"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::latent_class::TREATMENT_CONSTANT),
+        "{message}"
+    );
 
     let mut not_converged = config(1);
     not_converged.initial_labels = Some(
@@ -346,7 +403,10 @@ fn latent_premise_and_configuration_refusals() {
     not_converged.max_iterations = 1;
     let (code, message) = refusal(fit(&data, &not_converged));
     assert_eq!(code, "mechanism_fit_not_converged");
-    assert!(message.contains("latent_class.not_converged"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::latent_class::NOT_CONVERGED),
+        "{message}"
+    );
 }
 
 #[test]
@@ -376,7 +436,12 @@ fn latent_class_posterior_refuses_an_external_power_prior() {
     let EstimationError::Refused { message, .. } = err else {
         panic!("expected a refusal");
     };
-    assert!(message.contains("latent_class_posterior.external_power_prior"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::latent_class_posterior::EXTERNAL_POWER_PRIOR
+        ),
+        "{message}"
+    );
 }
 
 #[test]
@@ -400,5 +465,25 @@ fn latent_class_posterior_consumer_replays_the_class_design() {
     let EstimationError::Refused { message, .. } = empty else {
         panic!("expected a refusal");
     };
-    assert!(message.contains("latent_class_posterior.empty_design"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::latent_class_posterior::EMPTY_DESIGN),
+        "{message}"
+    );
+}
+
+#[test]
+fn a_cancelled_context_stops_the_fit_without_a_claim() {
+    let data = build();
+    let ctx = ExecutionContext::for_tests(1);
+    ctx.cancellation.cancel();
+    let error = fit_latent_class_effects(
+        &LatentClassData { outcome: &data.y, treatment: &data.a, covariates: &data.x },
+        &config(7),
+        &ctx,
+    )
+    .unwrap_err();
+    assert!(
+        error.to_string().contains(antecedent_core::reason_details::latent_class::CANCELLED),
+        "{error}"
+    );
 }

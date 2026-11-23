@@ -12,7 +12,7 @@
 //! | --- | --- |
 //! | Format tag | `IDENTITY_FORMAT` (little-endian `u16`) prefixes the hash; the same tag is stored on every payload. |
 //! | Ordered fields | Schema variables, query lists, partitions, and estimands keep writer order. |
-//! | Graphs | Edge lists are sorted; temporal-DAG nodes are sorted by `(variable, lag)` and edges re-indexed. Insertion order never reaches a digest. |
+//! | Graphs | Edge lists are sorted; temporal-DAG, temporal-ADMG and temporal-class nodes are sorted by their key, repeated nodes merged, and edges re-indexed (class edges re-oriented to ascending endpoints with marks swapped); the class kinds are `temporal_cpdag.v2` and `temporal_pag.v2`. Insertion order never reaches a digest. |
 //! | Set-valued fields | Observation tags (with their variable arguments), named prior-parameter pairs (a CBOR list of `(source, target)` tuples), selection targets, and class-prior pairs are sorted then deduplicated. Graph-posterior atoms are sorted by their encoding with the position-derived execution key cleared. |
 //! | Configuration | Estimator, prior, response, observation, and execution settings are structured wires of scalar fields; data-sized vectors are [`PayloadDigestWire`]s. Nothing is rendered through `Debug` or `Display`. |
 //! | Sub-digests | [`payload_digest`] (derive-key `antecedent.identity.payload`, a `kind` label, then little-endian bytes) is the only sub-digest convention. |
@@ -23,7 +23,7 @@
 //! is each atom's structure (static DAG, or lagged and contemporaneous DBN
 //! edges) plus its posterior weight, over the premises' schema names.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     CausalSchema, ExecutionContext, IDENTITY_FORMAT, IdentityDomain, NodeRef, SemanticDigest,
@@ -56,9 +56,9 @@ use crate::error::IoError;
 
 pub use crate::claim_identity::{ClaimIdentityWire, claim_digest};
 use crate::expr_wire::{ExprArenaWire, expr_arena_to_wire};
-use crate::query_wire::{
-    CausalQueryWire, InterventionWire, OutcomeFunctionalWire, TargetPopulationWire, ValueWire,
-};
+#[cfg(test)]
+use crate::query_wire::InterventionWire;
+use crate::query_wire::{CausalQueryWire, TargetPopulationWire};
 use crate::to_cbor;
 use crate::trace::{AssumptionRecordWire, assumptions_to_wire};
 use crate::wire::{AdmgWire, CpdagWire, DagWire, EndpointWire, PagWire, SchemaWire};
@@ -70,10 +70,10 @@ use crate::wire::{AdmgWire, CpdagWire, DagWire, EndpointWire, PagWire, SchemaWir
 /// changes the advertised digest. See the module docs for the encoding table.
 #[must_use]
 pub fn digest_canonical(domain: IdentityDomain, payload: &[u8]) -> SemanticDigest {
-    let mut hasher = blake3::Hasher::new_derive_key(domain.derive_key());
-    hasher.update(&IDENTITY_FORMAT.to_le_bytes());
-    hasher.update(payload);
-    SemanticDigest::from_bytes(*hasher.finalize().as_bytes())
+    SemanticDigest::from_bytes(antecedent_core::derive_key_digest(
+        domain.derive_key(),
+        &[&IDENTITY_FORMAT.to_le_bytes(), payload],
+    ))
 }
 
 /// Digest a serializable payload.
@@ -87,7 +87,7 @@ pub fn digest_wire<T: Serialize>(
 ) -> Result<SemanticDigest, IoError> {
     let mut hasher = blake3::Hasher::new_derive_key(domain.derive_key());
     hasher.update(&IDENTITY_FORMAT.to_le_bytes());
-    ciborium::into_writer(value, &mut hasher).map_err(|error| IoError::Cbor(error.to_string()))?;
+    ciborium::into_writer(value, &mut hasher).map_err(IoError::cbor_encode)?;
     Ok(SemanticDigest::from_bytes(*hasher.finalize().as_bytes()))
 }
 
@@ -102,481 +102,35 @@ pub fn digest_wire_hex<T: Serialize>(domain: IdentityDomain, value: &T) -> Resul
     Ok(digest_wire(domain, value)?.to_hex())
 }
 
-/// Host/Python view of the executed functional: human-readable label pairs for
-/// inspection reports.
-///
-/// The query kind and estimand tags are stable; several value labels render
-/// collections with `Debug` and reals with `to_string()`, so they are display text
-/// only. They feed no digest and no equality check; identity is carried by
-/// [`digest_wire`] over the typed wire, which encodes reals by bit pattern. Do not
-/// compare or hash these labels.
-///
-/// Every query kind reports through this owner so consume and prepare do not
-/// re-decide science in the adapter.
-#[must_use]
-pub fn executed_functional_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
-    match query {
-        CausalQueryWire::AverageEffect {
-            treatment,
-            outcome,
-            control,
-            active,
-            target_population,
-            outcome_functional,
-            ..
-        } => contrast_labels(ContrastLabels {
-            kind: "average_effect",
-            treatment: *treatment,
-            outcome: *outcome,
-            control,
-            active,
-            population: target_population,
-            functional: Some(outcome_functional),
-            temporal: "none".into(),
-        }),
-        CausalQueryWire::TemporalEffect {
-            treatment,
-            outcome,
-            control,
-            active,
-            horizon_steps,
-            target_population,
-            ..
-        } => contrast_labels(ContrastLabels {
-            kind: "temporal_effect",
-            treatment: *treatment,
-            outcome: *outcome,
-            control,
-            active,
-            population: target_population,
-            functional: None,
-            temporal: format!("horizon:{horizon_steps}"),
-        }),
-        CausalQueryWire::ConditionalEffect { inner } => {
-            let mut labels = executed_functional_labels(inner);
-            labels.retain(|(key, _)| key != "query_kind");
-            let mut out = vec![("query_kind".into(), "conditional_effect".into())];
-            out.extend(labels);
-            out
-        }
-        CausalQueryWire::Mediation {
-            treatment,
-            outcome,
-            control,
-            active,
-            target_population,
-            horizons,
-            ..
-        } => contrast_labels(ContrastLabels {
-            kind: "mediation",
-            treatment: *treatment,
-            outcome: *outcome,
-            control,
-            active,
-            population: target_population,
-            functional: None,
-            temporal: horizons_label(horizons),
-        }),
-        CausalQueryWire::NestedCounterfactual {
-            treatment,
-            mediator,
-            outcome,
-            control_bits,
-            active_bits,
-        } => vec![
-            ("query_kind".into(), "nested_counterfactual".into()),
-            ("estimand".into(), "natural_direct_shared_exogenous".into()),
-            ("treatment".into(), treatment.to_string()),
-            ("mediator".into(), mediator.to_string()),
-            ("outcome".into(), outcome.to_string()),
-            ("control".into(), f64::from_bits(*control_bits).to_string()),
-            ("active".into(), f64::from_bits(*active_bits).to_string()),
-            ("temporal_coordinates".into(), "none".into()),
-        ],
-        CausalQueryWire::PathSpecific(path) => contrast_labels(ContrastLabels {
-            kind: "path_specific",
-            treatment: path.treatment,
-            outcome: path.outcome,
-            control: &path.control,
-            active: &path.active,
-            population: &path.target_population,
-            functional: None,
-            temporal: "none".into(),
-        }),
-        other => other_query_labels(other),
-    }
-}
+mod inference;
+mod reuse;
+mod snapshot;
 
-struct ContrastLabels<'a> {
-    kind: &'static str,
-    treatment: u32,
-    outcome: u32,
-    control: &'a InterventionWire,
-    active: &'a InterventionWire,
-    population: &'a TargetPopulationWire,
-    functional: Option<&'a OutcomeFunctionalWire>,
-    temporal: String,
-}
+pub use inference::{
+    BayesianBindingWire, EstimatorConfigWire, EstimatorSpecWire, ExternalComposeIdentityWire,
+    ExternalPriorSourceIdentityWire, GlmOptionsWire, InferenceBindingWire, ObservationOptionsWire,
+    OverlapPolicyWire, PriorMappingIdentityWire, PriorSetIdentityWire, PriorSpecIdentityWire,
+    ResponseOptionsWire, SplitIdentityWire, inference_binding_digest,
+};
 
-fn contrast_labels(contrast: ContrastLabels<'_>) -> Vec<(String, String)> {
-    let mut out = vec![
-        ("query_kind".into(), contrast.kind.into()),
-        ("treatment".into(), contrast.treatment.to_string()),
-        ("outcome".into(), contrast.outcome.to_string()),
-        ("control".into(), intervention_label(contrast.control)),
-        ("active".into(), intervention_label(contrast.active)),
-        ("population".into(), population_label(contrast.population)),
-        ("temporal_coordinates".into(), contrast.temporal),
-    ];
-    if let Some(functional) = contrast.functional {
-        out.push(("outcome_functional".into(), outcome_functional_label(functional)));
-    }
-    out
-}
+pub use reuse::{
+    AdjustedFitReuseIdentityWire, ROW_WEIGHTS_PAYLOAD, ScoreReuseIdentityWire, ScoreTableKey,
+    TargetWeightsIdentityWire, adjusted_fit_reuse_digest, score_reuse_digest,
+    target_weights_digest,
+};
 
-// allow(too_many_lines): flat per-variant label mapping; splitting would obscure the query taxonomy
-#[allow(
-    clippy::too_many_lines,
-    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
-)]
-fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
-    match query {
-        CausalQueryWire::Counterfactual { outcomes, interventions, .. } => vec![
-            ("query_kind".into(), "counterfactual".into()),
-            ("outcome".into(), join_ids(outcomes)),
-            (
-                "active".into(),
-                interventions.iter().map(intervention_label).collect::<Vec<_>>().join(";"),
-            ),
-            ("temporal_coordinates".into(), "none".into()),
-        ],
-        CausalQueryWire::Distribution(distribution) => vec![
-            ("query_kind".into(), "distribution".into()),
-            ("outcome".into(), join_ids(&distribution.outcomes)),
-            ("population".into(), population_label(&distribution.target_population)),
-            ("temporal_coordinates".into(), "none".into()),
-        ],
-        CausalQueryWire::Response(response) => vec![
-            ("query_kind".into(), "response".into()),
-            ("population".into(), population_label(&response.target_population)),
-            ("outcome_functional".into(), outcome_functional_label(&response.outcome_functional)),
-            (
-                "temporal_coordinates".into(),
-                response
-                    .temporal
-                    .as_ref()
-                    .map_or_else(|| "none".into(), |spec| horizons_label(&spec.horizons)),
-            ),
-        ],
-        CausalQueryWire::Transport(transport) => vec![
-            ("query_kind".into(), "transport".into()),
-            (
-                "population".into(),
-                format!(
-                    "source:{}->target:{}",
-                    transport.source_population, transport.target_population
-                ),
-            ),
-            ("temporal_coordinates".into(), "none".into()),
-        ],
-        CausalQueryWire::Interference(_) => vec![
-            ("query_kind".into(), "interference".into()),
-            ("temporal_coordinates".into(), "none".into()),
-        ],
-        CausalQueryWire::RandomizedEffect(query) => vec![
-            ("query_kind".into(), "randomized_effect".into()),
-            (
-                "randomized_estimand".into(),
-                match query.estimand {
-                    crate::RandomizedEstimandWire::Itt => "itt".into(),
-                    crate::RandomizedEstimandWire::CaceLate => "cace_late".into(),
-                    crate::RandomizedEstimandWire::TreatmentOnTreated => {
-                        "treatment_on_treated".into()
-                    }
-                },
-            ),
-            ("exact_randomization_test".into(), query.exact_randomization_test.to_string()),
-            ("outcome".into(), query.outcome.to_string()),
-            (
-                "randomization_design".into(),
-                match &query.design {
-                    crate::RandomizationDesignWire::Bernoulli => "bernoulli".into(),
-                    crate::RandomizationDesignWire::Switchback => "switchback".into(),
-                    crate::RandomizationDesignWire::Complete { .. } => "complete".into(),
-                    crate::RandomizationDesignWire::Cluster { .. } => "cluster".into(),
-                    crate::RandomizationDesignWire::Stratified => "stratified".into(),
-                    crate::RandomizationDesignWire::Factorial2x2 => "factorial_2x2".into(),
-                    crate::RandomizationDesignWire::MultiArm => "multi_arm".into(),
-                },
-            ),
-            (
-                "treatment_arms".into(),
-                format!("{}->{}", query.treatment_arms.0, query.treatment_arms.1),
-            ),
-            (
-                "precision_adjustment".into(),
-                if query.ancova_covariates.is_empty() {
-                    query.fixed_cuped.map_or_else(
-                        || "none".into(),
-                        |(id, coefficient)| format!("fixed_cuped:{id}:{coefficient}"),
-                    )
-                } else {
-                    format!("ancova:{:?}", query.ancova_covariates)
-                },
-            ),
-            ("switchback_periods".into(), query.periods.join(",")),
-            (
-                "factorial_second_assignment".into(),
-                query
-                    .second_factor_assignment
-                    .iter()
-                    .map(|value| if *value { '1' } else { '0' })
-                    .collect(),
-            ),
-            ("factorial_cell_counts".into(), format!("{:?}", query.factorial_cell_counts)),
-            ("factorial_second_arms".into(), format!("{:?}", query.second_factor_arms)),
-            ("temporal_coordinates".into(), "none".into()),
-        ],
-        CausalQueryWire::PanelDid(query) => {
-            // Same precedence as the wire decoder's design selection.
-            let design = if query.augmented.is_some() {
-                "augmented_panel"
-            } else if query.staggered_event_study {
-                "staggered_event_study"
-            } else if query.staggered_target.is_some() {
-                "staggered_group_time"
-            } else if query.repeated_cross_section {
-                "repeated_cross_section"
-            } else {
-                "balanced_two_period_panel"
-            };
-            let mut dimensions = vec![
-                ("query_kind".into(), "panel_did".into()),
-                ("outcome".into(), query.outcome.to_string()),
-                ("augmented_nuisance".into(), format!("{:?}", query.augmented)),
-                ("design".into(), design.into()),
-                ("temporal_coordinates".into(), "pre_post".into()),
-            ];
-            if let Some((cohort, period)) = query.staggered_target {
-                dimensions
-                    .push(("staggered_target".into(), format!("cohort={cohort},period={period}")));
-            }
-            dimensions
-        }
-        CausalQueryWire::SyntheticControl(query) => {
-            let mut dimensions = vec![
-                (
-                    "query_kind".into(),
-                    if query.difference_in_differences {
-                        "synthetic_did"
-                    } else {
-                        "synthetic_control"
-                    }
-                    .into(),
-                ),
-                ("outcome".into(), query.outcome.to_string()),
-                ("treated_unit".into(), query.treated_unit.clone()),
-                ("intervention_period".into(), query.intervention_period.to_string()),
-                (
-                    "donor_pool_size".into(),
-                    query
-                        .units
-                        .iter()
-                        .collect::<std::collections::BTreeSet<_>>()
-                        .len()
-                        .saturating_sub(1)
-                        .to_string(),
-                ),
-            ];
-            if query.uniform_unit_randomization {
-                dimensions.push(("uniform_unit_randomization".into(), "true".into()));
-            }
-            if let Some(effect) = query.sharp_null_effect {
-                dimensions.push(("sharp_null_effect".into(), effect.to_string()));
-            }
-            if let Some(ridge) = query.augmentation_ridge {
-                dimensions.push(("augmentation_ridge".into(), ridge.to_string()));
-            }
-            dimensions
-        }
-        CausalQueryWire::LocalPolynomialRatio(query) => vec![
-            ("query_kind".into(), if query.kink { "regression_kink" } else { "fuzzy_rd" }.into()),
-            ("outcome".into(), query.outcome.to_string()),
-            ("treatment".into(), query.treatment.to_string()),
-            ("running".into(), query.running.to_string()),
-            ("cutoff".into(), query.cutoff.to_string()),
-            ("bandwidth".into(), query.bandwidth.to_string()),
-        ],
-        CausalQueryWire::PolicyValue(query) => {
-            let mut dimensions = vec![
-                ("query_kind".into(), "policy_value".into()),
-                ("outcome".into(), query.outcome.to_string()),
-                (
-                    "policy_actions".into(),
-                    query
-                        .multi_action
-                        .as_ref()
-                        .map_or(query.actions.len(), |multi| multi.actions.len())
-                        .to_string(),
-                ),
-                ("temporal_coordinates".into(), "none".into()),
-            ];
-            if let Some(multi) = &query.multi_action {
-                dimensions.push(("action_count".into(), multi.action_labels.len().to_string()));
-            }
-            dimensions
-        }
-        CausalQueryWire::ContinuousDoseResponse(query) => vec![
-            ("query_kind".into(), "continuous_dose_response".into()),
-            ("outcome".into(), query.outcome.to_string()),
-            ("dose".into(), query.dose.to_string()),
-            ("dose_density".into(), query.dose_density.to_string()),
-            ("group_count".into(), query.baseline_groups.len().to_string()),
-            ("target_doses".into(), format!("{:?}", query.target_doses)),
-            ("bandwidth".into(), query.bandwidth.to_string()),
-            ("density_provenance".into(), query.density_provenance.clone()),
-        ],
-        CausalQueryWire::Survival(query) => vec![
-            ("query_kind".into(), "survival".into()),
-            ("duration".into(), query.duration.to_string()),
-            ("event".into(), query.event.to_string()),
-            ("treatment".into(), query.treatment.to_string()),
-            ("tau".into(), query.tau.to_string()),
-            (
-                "target_cause".into(),
-                query.target_cause.map_or_else(|| "none".into(), |cause| cause.to_string()),
-            ),
-            (
-                "delayed_entry".into(),
-                query.delayed_entry.map_or_else(|| "none".into(), |entry| entry.to_string()),
-            ),
-            ("observation".into(), "independent_marginal".into()),
-            ("temporal_coordinates".into(), "event_time".into()),
-        ],
-        CausalQueryWire::LongitudinalRegime(query) => vec![
-            ("query_kind".into(), "longitudinal_regime".into()),
-            ("method".into(), query.method.clone()),
-            ("outcome".into(), query.outcome.to_string()),
-            ("periods".into(), query.periods.to_string()),
-            ("subjects".into(), query.subject_ids.len().to_string()),
-            ("temporal_coordinates".into(), "subject_history".into()),
-        ],
-        CausalQueryWire::AnomalyAttribution { targets, .. } => {
-            named_outcomes("anomaly_attribution", targets)
-        }
-        CausalQueryWire::ChangeAttribution { outcome, .. } => {
-            named_outcomes("change_attribution", &[*outcome])
-        }
-        CausalQueryWire::UnitChange { outcome, .. } => named_outcomes("unit_change", &[*outcome]),
-        CausalQueryWire::MechanismChange { targets, .. } => {
-            named_outcomes("mechanism_change", targets)
-        }
-        // Contrast queries are labeled by `executed_functional_labels` before this
-        // function is called. Matching them here keeps the match exhaustive, so a
-        // new query kind is a compile error instead of a runtime panic.
-        CausalQueryWire::AverageEffect { .. }
-        | CausalQueryWire::TemporalEffect { .. }
-        | CausalQueryWire::ConditionalEffect { .. }
-        | CausalQueryWire::Mediation { .. }
-        | CausalQueryWire::NestedCounterfactual { .. }
-        | CausalQueryWire::PathSpecific(_) => Vec::new(),
-    }
-}
+pub use snapshot::{
+    CROSS_PRODUCT_INTERCEPT, CrossProductMomentsWire, DataPartitionIdentityWire,
+    DataSnapshotIdentityWire, ImputationSpecWire, InterferenceSnapshotWire, LinearFitMomentsWire,
+    MissingPolicyWire, NestedCounterfactualFitWire, ObservationIdentityWire,
+    ParticipantBindingWire, data_snapshot_digest, observation_identity_wire,
+};
 
-fn named_outcomes(kind: &'static str, outcomes: &[u32]) -> Vec<(String, String)> {
-    vec![
-        ("query_kind".into(), kind.into()),
-        ("outcome".into(), join_ids(outcomes)),
-        ("temporal_coordinates".into(), "none".into()),
-    ]
-}
+mod labels;
 
-fn join_ids(ids: &[u32]) -> String {
-    ids.iter().map(ToString::to_string).collect::<Vec<_>>().join(",")
-}
-
-fn horizons_label(horizons: &[u32]) -> String {
-    if horizons.is_empty() {
-        "none".into()
-    } else {
-        format!(
-            "horizons:{}",
-            horizons.iter().map(ToString::to_string).collect::<Vec<_>>().join(",")
-        )
-    }
-}
-
-fn population_label(population: &TargetPopulationWire) -> String {
-    match population {
-        TargetPopulationWire::AllObserved => "all_observed".into(),
-        TargetPopulationWire::Treated => "treated".into(),
-        TargetPopulationWire::Untreated => "untreated".into(),
-        TargetPopulationWire::Environment(id) => format!("environment:{id}"),
-        TargetPopulationWire::PredicateNamed { name, .. } => format!("predicate:{name}"),
-        TargetPopulationWire::PredicateRows(rows) => {
-            format!("rows:{}", rows.iter().map(ToString::to_string).collect::<Vec<_>>().join(","))
-        }
-        TargetPopulationWire::CustomDistribution { handle, .. } => {
-            format!("custom_distribution:{handle}")
-        }
-        TargetPopulationWire::RowWeights { .. } => "row_weights".into(),
-        TargetPopulationWire::LocalAtCutoff { running, cutoff } => {
-            format!("local_at_cutoff:{running}:{cutoff}")
-        }
-    }
-}
-
-fn outcome_functional_label(functional: &OutcomeFunctionalWire) -> String {
-    match functional {
-        OutcomeFunctionalWire::Mean => "mean".into(),
-        OutcomeFunctionalWire::Exceedance(threshold) => format!("exceedance:{threshold}"),
-        OutcomeFunctionalWire::ExceedanceGrid(grid) => format!(
-            "exceedance_grid:{}",
-            grid.iter().map(ToString::to_string).collect::<Vec<_>>().join(",")
-        ),
-        OutcomeFunctionalWire::Quantile(tau) => format!("quantile:{tau}"),
-    }
-}
-
-fn intervention_label(intervention: &InterventionWire) -> String {
-    match intervention {
-        InterventionWire::Set { variable, value } => {
-            format!("set:{variable}={}", value_label(value))
-        }
-        InterventionWire::Shift { variable, delta } => {
-            format!("shift:{variable}={}", value_label(delta))
-        }
-        InterventionWire::Stochastic { variable, .. } => format!("stochastic:{variable}"),
-        InterventionWire::Soft { variable, .. } => format!("soft:{variable}"),
-        // A program enters identity as its full tree and declared reads under its kind tag,
-        // so two different programs (or a transform and an assignment of one expression)
-        // never share a label. Released variants above are unchanged.
-        InterventionWire::Transform { variable, expr, reads } => {
-            format!("transform:{variable}:{expr:?}:{reads:?}")
-        }
-        InterventionWire::Assign { variable, expr, reads } => {
-            format!("assign:{variable}:{expr:?}:{reads:?}")
-        }
-        InterventionWire::Sequence { steps } => format!(
-            "sequence:{}",
-            steps
-                .iter()
-                .map(|step| intervention_label(&step.intervention))
-                .collect::<Vec<_>>()
-                .join(",")
-        ),
-    }
-}
-
-fn value_label(value: &ValueWire) -> String {
-    match value {
-        ValueWire::Float64(value) => value.to_string(),
-        ValueWire::Int64(value) => value.to_string(),
-        ValueWire::Bool(value) => value.to_string(),
-        ValueWire::Category(value) => format!("cat:{value}"),
-        ValueWire::Label(value) => value.clone(),
-    }
-}
+pub use labels::executed_functional_labels;
+#[cfg(test)]
+use labels::intervention_label;
 
 /// Target-layer payload: schema bindings plus the typed query.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -595,11 +149,37 @@ impl TargetIdentityWire {
     /// population change keeps identification and moves target and program.
     #[must_use]
     pub fn question(&self) -> Self {
-        let mut question = self.clone();
-        if let Some(population) = question.query.target_population_mut() {
+        self.clone().into_question()
+    }
+
+    /// [`Self::question`] for an owned payload: the population is replaced in
+    /// place and nothing is cloned.
+    #[must_use]
+    pub fn into_question(mut self) -> Self {
+        if let Some(population) = self.query.target_population_mut() {
             *population = TargetPopulationWire::AllObserved;
         }
-        question
+        self
+    }
+
+    /// Target digest of the population-free question, without cloning the
+    /// payload: the population is set aside while the question is hashed and put
+    /// back before this returns, error or not.
+    ///
+    /// # Errors
+    ///
+    /// The payload does not encode.
+    pub fn question_digest(&mut self) -> Result<antecedent_core::SemanticDigest, IoError> {
+        let set_aside = self
+            .query
+            .target_population_mut()
+            .map(|population| std::mem::replace(population, TargetPopulationWire::AllObserved));
+        let digest = digest_wire(IdentityDomain::Target, self);
+        if let (Some(original), Some(population)) = (set_aside, self.query.target_population_mut())
+        {
+            *population = original;
+        }
+        digest
     }
 }
 
@@ -617,27 +197,27 @@ impl TargetIdentityWire {
 /// it is a [`antecedent_core::CanonicalWriter`] stream with its own domain tag.
 #[must_use]
 pub fn payload_digest(kind: &str, bytes: &[u8]) -> [u8; 32] {
-    *payload_hasher(kind, |hasher| {
-        hasher.update(bytes);
-    })
-    .finalize()
-    .as_bytes()
+    let mut hasher = payload_hasher(kind);
+    hasher.update(bytes);
+    *hasher.finalize().as_bytes()
 }
 
 /// Same framing as [`payload_digest`], writing the CBOR of `value` straight
 /// into the hasher. The digest bytes match `payload_digest(kind, &to_cbor(value)?)`.
 pub(crate) fn payload_digest_of<T: Serialize>(kind: &str, value: &T) -> Result<[u8; 32], IoError> {
-    let mut hasher = payload_hasher(kind, |_| {});
-    ciborium::into_writer(value, &mut hasher).map_err(|error| IoError::Cbor(error.to_string()))?;
+    let mut hasher = payload_hasher(kind);
+    ciborium::into_writer(value, &mut hasher).map_err(IoError::cbor_encode)?;
     Ok(*hasher.finalize().as_bytes())
 }
 
-fn payload_hasher(kind: &str, prime: impl FnOnce(&mut blake3::Hasher)) -> blake3::Hasher {
-    let mut hasher = blake3::Hasher::new_derive_key("antecedent.identity.payload");
+/// Key-derivation context of [`payload_digest`] and [`payload_digest_of`].
+const PAYLOAD_CONTEXT: &str = "antecedent.identity.payload";
+
+fn payload_hasher(kind: &str) -> blake3::Hasher {
+    let mut hasher = blake3::Hasher::new_derive_key(PAYLOAD_CONTEXT);
     hasher.update(&IDENTITY_FORMAT.to_le_bytes());
     hasher.update(&(kind.len() as u64).to_le_bytes());
     hasher.update(kind.as_bytes());
-    prime(&mut hasher);
     hasher
 }
 
@@ -650,48 +230,77 @@ pub struct PayloadDigestWire {
     pub len: u64,
 }
 
+/// Digest `values` as consecutive `N`-byte words under `kind`, streaming through a small
+/// stack buffer instead of materializing the payload. Digest-identical to
+/// [`payload_digest`] over the concatenated words.
+fn digest_words<T: Copy, const N: usize>(
+    kind: &str,
+    values: &[T],
+    encode: impl Fn(T) -> [u8; N],
+) -> [u8; 32] {
+    const CHUNK: usize = 8192;
+    let mut hasher = payload_hasher(kind);
+    let mut chunk = [0_u8; CHUNK];
+    let mut used = 0;
+    for &value in values {
+        if used + N > CHUNK {
+            hasher.update(&chunk[..used]);
+            used = 0;
+        }
+        chunk[used..used + N].copy_from_slice(&encode(value));
+        used += N;
+    }
+    hasher.update(&chunk[..used]);
+    *hasher.finalize().as_bytes()
+}
+
 impl PayloadDigestWire {
     /// Digest little-endian `u32` values.
     #[must_use]
     pub fn u32s(kind: &str, values: &[u32]) -> Self {
-        let mut bytes = Vec::with_capacity(values.len() * 4);
-        for value in values {
-            bytes.extend_from_slice(&value.to_le_bytes());
-        }
-        Self { digest: payload_digest(kind, &bytes), len: values.len() as u64 }
+        Self { digest: digest_words(kind, values, u32::to_le_bytes), len: values.len() as u64 }
+    }
+
+    /// Digest little-endian `u64` row ids.
+    #[must_use]
+    pub fn u64s(kind: &str, values: &[u64]) -> Self {
+        Self { digest: digest_words(kind, values, u64::to_le_bytes), len: values.len() as u64 }
     }
 
     /// Digest little-endian `i64` values.
     #[must_use]
     pub fn i64s(kind: &str, values: &[i64]) -> Self {
-        let mut bytes = Vec::with_capacity(values.len() * 8);
-        for value in values {
-            bytes.extend_from_slice(&value.to_le_bytes());
-        }
-        Self { digest: payload_digest(kind, &bytes), len: values.len() as u64 }
+        Self { digest: digest_words(kind, values, i64::to_le_bytes), len: values.len() as u64 }
     }
 
     /// Digest exact IEEE-754 bits of `f64` values.
     #[must_use]
     pub fn f64s(kind: &str, values: &[f64]) -> Self {
-        let mut bytes = Vec::with_capacity(values.len() * 8);
-        for value in values {
-            bytes.extend_from_slice(&value.to_bits().to_le_bytes());
+        Self {
+            digest: digest_words(kind, values, |value| value.to_bits().to_le_bytes()),
+            len: values.len() as u64,
         }
-        Self { digest: payload_digest(kind, &bytes), len: values.len() as u64 }
     }
 
     /// Digest length-prefixed groups of `u32` values.
     #[must_use]
     pub fn u32_groups(kind: &str, groups: &[Vec<u32>]) -> Self {
-        let mut bytes = Vec::new();
+        let mut hasher = payload_hasher(kind);
+        let mut chunk = [0_u8; 8192];
         for group in groups {
-            bytes.extend_from_slice(&(group.len() as u64).to_le_bytes());
+            hasher.update(&(group.len() as u64).to_le_bytes());
+            let mut used = 0;
             for value in group {
-                bytes.extend_from_slice(&value.to_le_bytes());
+                if used + 4 > chunk.len() {
+                    hasher.update(&chunk[..used]);
+                    used = 0;
+                }
+                chunk[used..used + 4].copy_from_slice(&value.to_le_bytes());
+                used += 4;
             }
+            hasher.update(&chunk[..used]);
         }
-        Self { digest: payload_digest(kind, &bytes), len: groups.len() as u64 }
+        Self { digest: *hasher.finalize().as_bytes(), len: groups.len() as u64 }
     }
 
     /// Digest raw bytes.
@@ -701,560 +310,16 @@ impl PayloadDigestWire {
     }
 }
 
-/// Temporal ADMG identity: lagged nodes plus directed and bidirected edges.
-///
-/// Node order is `(variable, lag)`. Edge endpoints are indexes into that order.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct TemporalAdmgIdentityWire {
-    /// Lagged nodes.
-    pub nodes: Vec<TemporalNodeKeyWire>,
-    /// Directed edges `(from, to)`.
-    pub directed: Vec<(u32, u32)>,
-    /// Bidirected edges `(a, b)` with `a < b`.
-    pub bidirected: Vec<(u32, u32)>,
-}
+mod graph;
 
-/// Graph payload for identification identity. Uses existing wire types.
-///
-/// Edge lists are in canonical (sorted) order, so a graph's identity never
-/// depends on insertion order.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum GraphIdentityWire {
-    /// Static DAG.
-    Dag(DagWire),
-    /// Static ADMG.
-    Admg(AdmgWire),
-    /// Static CPDAG.
-    Cpdag(CpdagWire),
-    /// Static PAG.
-    Pag(PagWire),
-    /// Temporal DAG (nodes sorted by `(variable, lag)`).
-    TemporalDag(TemporalGraphWire),
-    /// Temporal ADMG (nodes sorted by `(variable, lag)`; edges re-indexed).
-    TemporalAdmg(TemporalAdmgIdentityWire),
-    /// Temporal class with lagged/context nodes and marked edges.
-    TemporalClass(TemporalClassIdentityWire),
-    /// No causal graph was supplied; design metadata defines the experiment.
-    RandomizedTrial,
-    /// Graph-posterior atoms: every atom's structure and weight.
-    GraphPosterior {
-        /// Declared graph class of the posterior atoms.
-        graph_class: String,
-        /// Number of retained atoms.
-        n_atoms: u64,
-        /// Atom graphs and weights, in posterior order.
-        atoms: Vec<PosteriorAtomIdentityWire>,
-    },
-}
-
-impl GraphIdentityWire {
-    /// Scientific projection hashed into identification premises.
-    ///
-    /// Posterior atoms are a weighted set: atoms are sorted canonically and
-    /// the position-derived [`PosteriorAtomIdentityWire::execution_key`] is
-    /// cleared, so reordering atoms or renumbering cache keys preserves
-    /// identity while any graph or weight change moves it.
-    #[must_use]
-    pub fn premises(&self) -> Self {
-        match self {
-            Self::GraphPosterior { graph_class, n_atoms, atoms } => {
-                let mut keyed: Vec<(Vec<u8>, PosteriorAtomIdentityWire)> = atoms
-                    .iter()
-                    .map(|atom| {
-                        let atom = PosteriorAtomIdentityWire { execution_key: 0, ..atom.clone() };
-                        (to_cbor(&atom).unwrap_or_default(), atom)
-                    })
-                    .collect();
-                keyed.sort_by(|left, right| left.0.cmp(&right.0));
-                Self::GraphPosterior {
-                    graph_class: graph_class.clone(),
-                    n_atoms: *n_atoms,
-                    atoms: keyed.into_iter().map(|(_, atom)| atom).collect(),
-                }
-            }
-            other => other.clone(),
-        }
-    }
-}
-
-/// Temporal CPDAG / PAG identity: lagged edges plus contemporaneous marks.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct TemporalClassIdentityWire {
-    /// `temporal_cpdag` or `temporal_pag`.
-    pub kind: String,
-    /// Nodes in dense order.
-    pub nodes: Vec<IdentityNodeWire>,
-    /// Marked edges, including middle marks.
-    pub edges: Vec<IdentityMarkedEdgeWire>,
-}
-
-/// Node identity that includes lagged and contemporaneous bindings.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum IdentityNodeWire {
-    /// Static variable.
-    Static {
-        /// Variable raw id.
-        variable: u32,
-    },
-    /// Lagged temporal node.
-    Lagged {
-        /// Variable raw id.
-        variable: u32,
-        /// Lag magnitude (`0` = contemporaneous).
-        lag: u32,
-    },
-    /// Slot of a finite unfolding (`variable` at signed `offset` from the analysis origin).
-    Unfolded {
-        /// Variable raw id.
-        variable: u32,
-        /// Signed time offset (negative = history).
-        offset: i32,
-    },
-    /// Context / environment node.
-    Context {
-        /// Variable raw id.
-        variable: u32,
-        /// Optional environment id.
-        environment: Option<u32>,
-    },
-}
-
-impl IdentityNodeWire {
-    fn from_node(node: NodeRef) -> Self {
-        match node {
-            NodeRef::Static(variable) => Self::Static { variable: variable.raw() },
-            NodeRef::Lagged { variable, lag } => {
-                Self::Lagged { variable: variable.raw(), lag: lag.raw() }
-            }
-            NodeRef::Unfolded { variable, offset } => {
-                Self::Unfolded { variable: variable.raw(), offset }
-            }
-            NodeRef::Context { variable, environment } => Self::Context {
-                variable: variable.raw(),
-                environment: environment.map(antecedent_core::EnvironmentId::raw),
-            },
-        }
-    }
-}
-
-/// Marked edge with middle mark (LPCMCI).
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct IdentityMarkedEdgeWire {
-    /// Endpoint A.
-    pub a: u32,
-    /// Endpoint B.
-    pub b: u32,
-    /// Mark at A.
-    pub at_a: EndpointWire,
-    /// Mark at B.
-    pub at_b: EndpointWire,
-    /// Middle mark (`unknown`, `left`, `right`, `both`, `empty`).
-    pub middle: String,
-}
-
-fn middle_wire(mark: antecedent_graph::MiddleMark) -> &'static str {
-    match mark {
-        antecedent_graph::MiddleMark::Unknown => "unknown",
-        antecedent_graph::MiddleMark::Left => "left",
-        antecedent_graph::MiddleMark::Right => "right",
-        antecedent_graph::MiddleMark::Both => "both",
-        antecedent_graph::MiddleMark::Empty => "empty",
-    }
-}
-
-fn marked_identity_edge(edge: MarkedEdge) -> IdentityMarkedEdgeWire {
-    IdentityMarkedEdgeWire {
-        a: edge.a.raw(),
-        b: edge.b.raw(),
-        at_a: endpoint_to_wire(edge.at_a),
-        at_b: endpoint_to_wire(edge.at_b),
-        middle: middle_wire(edge.middle).into(),
-    }
-}
-
-/// DAG wire with edges in canonical `(from, to)` order.
-///
-/// # Errors
-///
-/// Non-directed edges.
-pub fn canonical_dag_wire(dag: &Dag) -> Result<DagWire, IoError> {
-    let mut wire = dag_to_wire(dag)?;
-    wire.edges.sort_unstable();
-    Ok(wire)
-}
-
-/// Temporal-DAG wire with nodes sorted by `(variable, lag)` and edges
-/// re-indexed and sorted, so equal graphs built in any order encode equally.
-///
-/// # Errors
-///
-/// Non-lagged nodes.
-pub fn canonical_temporal_dag_wire(graph: &TemporalDag) -> Result<TemporalGraphWire, IoError> {
-    let wire = temporal_dag_to_wire(graph)?;
-    let mut order: Vec<usize> = (0..wire.nodes.len()).collect();
-    order.sort_by_key(|&index| (wire.nodes[index].variable, wire.nodes[index].lag));
-    let mut position = vec![0u32; wire.nodes.len()];
-    for (new, &old) in order.iter().enumerate() {
-        position[old] = u32::try_from(new).map_err(|_| IoError::TooLarge)?;
-    }
-    let remap = |index: u32| {
-        position.get(index as usize).copied().ok_or_else(|| {
-            IoError::Convert("temporal edge references a node outside the graph".into())
-        })
-    };
-    let mut directed = wire
-        .directed
-        .iter()
-        .map(|&(from, to)| Ok((remap(from)?, remap(to)?)))
-        .collect::<Result<Vec<_>, IoError>>()?;
-    directed.sort_unstable();
-    Ok(DiscoveryTemporalGraphWire {
-        kind: wire.kind,
-        nodes: order.iter().map(|&index| wire.nodes[index]).collect(),
-        directed,
-    })
-}
-
-/// Encode a DAG for identification identity.
-///
-/// # Errors
-///
-/// Non-directed edges.
-pub fn dag_identity(dag: &Dag) -> Result<GraphIdentityWire, IoError> {
-    Ok(GraphIdentityWire::Dag(canonical_dag_wire(dag)?))
-}
-
-/// Encode an ADMG for identification identity (sorted edge lists).
-///
-/// # Errors
-///
-/// Capacity overflow.
-pub fn admg_identity(admg: &Admg) -> Result<GraphIdentityWire, IoError> {
-    Ok(GraphIdentityWire::Admg(canonical_admg_wire(admg)?))
-}
-
-fn canonical_admg_wire(admg: &Admg) -> Result<AdmgWire, IoError> {
-    let mut wire = admg_to_wire(admg)?;
-    wire.directed.sort_unstable();
-    for pair in &mut wire.bidirected {
-        if pair.0 > pair.1 {
-            *pair = (pair.1, pair.0);
-        }
-    }
-    wire.bidirected.sort_unstable();
-    wire.bidirected.dedup();
-    Ok(wire)
-}
-
-/// Encode a CPDAG for identification identity (sorted edge lists).
-///
-/// # Errors
-///
-/// Unexpected marks.
-pub fn cpdag_identity(cpdag: &Cpdag) -> Result<GraphIdentityWire, IoError> {
-    let mut wire = cpdag_to_wire(cpdag)?;
-    wire.directed.sort_unstable();
-    wire.undirected.sort_unstable();
-    Ok(GraphIdentityWire::Cpdag(wire))
-}
-
-/// Encode a PAG for identification identity (edges sorted by endpoints).
-///
-/// # Errors
-///
-/// Non-static nodes.
-pub fn pag_identity(pag: &Pag) -> Result<GraphIdentityWire, IoError> {
-    let mut wire = pag_to_wire(pag)?;
-    wire.edges.sort_by_key(|edge| (edge.a, edge.b));
-    Ok(GraphIdentityWire::Pag(wire))
-}
-
-/// Encode a temporal DAG for identification identity.
-///
-/// # Errors
-///
-/// Non-lagged nodes.
-pub fn temporal_dag_identity(graph: &TemporalDag) -> Result<GraphIdentityWire, IoError> {
-    Ok(GraphIdentityWire::TemporalDag(canonical_temporal_dag_wire(graph)?))
-}
-
-/// Encode a temporal ADMG for identification identity.
-///
-/// # Errors
-///
-/// Non-lagged nodes or an edge index outside the node list.
-pub fn temporal_admg_identity(graph: &TemporalAdmg) -> Result<GraphIdentityWire, IoError> {
-    Ok(GraphIdentityWire::TemporalAdmg(canonical_temporal_admg_wire(graph)?))
-}
-
-fn canonical_temporal_admg_wire(graph: &TemporalAdmg) -> Result<TemporalAdmgIdentityWire, IoError> {
-    use antecedent_core::NodeRef;
-    let mut nodes = Vec::with_capacity(graph.node_count());
-    for node in graph.nodes() {
-        match node {
-            NodeRef::Lagged { variable, lag } => {
-                nodes.push(TemporalNodeKeyWire { variable: variable.raw(), lag: lag.raw() });
-            }
-            other => {
-                return Err(IoError::Convert(format!(
-                    "temporal ADMG identity requires lagged nodes, got {other:?}"
-                )));
-            }
-        }
-    }
-    let mut order: Vec<usize> = (0..nodes.len()).collect();
-    order.sort_by_key(|&index| (nodes[index].variable, nodes[index].lag));
-    let mut position = vec![0u32; nodes.len()];
-    for (new, &old) in order.iter().enumerate() {
-        position[old] = u32::try_from(new).map_err(|_| IoError::TooLarge)?;
-    }
-    let remap = |index: u32| {
-        position.get(index as usize).copied().ok_or_else(|| {
-            IoError::Convert("temporal ADMG edge references a node outside the graph".into())
-        })
-    };
-    let mut directed = Vec::new();
-    let mut bidirected = Vec::new();
-    for edge in graph.edges() {
-        if edge.is_bidirected() {
-            let mut a = remap(edge.a.raw())?;
-            let mut b = remap(edge.b.raw())?;
-            if a > b {
-                std::mem::swap(&mut a, &mut b);
-            }
-            bidirected.push((a, b));
-        } else if let Some((from, to)) = edge.parent_child() {
-            directed.push((remap(from.raw())?, remap(to.raw())?));
-        }
-    }
-    directed.sort_unstable();
-    bidirected.sort_unstable();
-    bidirected.dedup();
-    Ok(TemporalAdmgIdentityWire {
-        nodes: order.into_iter().map(|index| nodes[index]).collect(),
-        directed,
-        bidirected,
-    })
-}
-
-/// Encode a temporal CPDAG, including lagged and contemporaneous edges.
-#[must_use]
-pub fn temporal_cpdag_identity(graph: &TemporalCpdag) -> GraphIdentityWire {
-    temporal_class_identity("temporal_cpdag", graph.nodes(), graph.edges())
-}
-
-/// Encode a temporal PAG, including lagged and contemporaneous edges.
-#[must_use]
-pub fn temporal_pag_identity(graph: &TemporalPag) -> GraphIdentityWire {
-    temporal_class_identity("temporal_pag", graph.nodes(), graph.edges())
-}
-
-fn temporal_class_identity(
-    kind: &'static str,
-    nodes: &[NodeRef],
-    edges: impl IntoIterator<Item = MarkedEdge>,
-) -> GraphIdentityWire {
-    GraphIdentityWire::TemporalClass(TemporalClassIdentityWire {
-        kind: kind.into(),
-        nodes: nodes.iter().copied().map(IdentityNodeWire::from_node).collect(),
-        edges: edges.into_iter().map(marked_identity_edge).collect(),
-    })
-}
-
-/// Structure of one graph-posterior atom.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum PosteriorAtomGraphWire {
-    /// Static DAG over the schema variables (canonical edge order).
-    Static(DagWire),
-    /// Static ADMG (canonical directed and bidirected edge order).
-    Admg(AdmgWire),
-    /// Static CPDAG (canonical directed and undirected edge order).
-    Cpdag(CpdagWire),
-    /// Static PAG (canonical marked edge order).
-    Pag(PagWire),
-    /// Lagged and contemporaneous DBN structure (canonical temporal wire).
-    Temporal(TemporalGraphWire),
-    /// Lagged ADMG atom (canonical temporal mixed-graph wire).
-    TemporalAdmg(TemporalAdmgIdentityWire),
-    /// Temporal class structure (lagged/context nodes and marked edges).
-    TemporalClass(TemporalClassIdentityWire),
-    /// Posterior weight whose mask is not a graph of the atom class.
-    ///
-    /// Execution keeps this weight as unidentified mass. It is not rewritten
-    /// into another graph class.
-    Unrepresentable,
-}
-
-/// Durable graph-posterior atom: structure plus posterior weight.
-///
-/// The variable namespace is the enclosing premises' `schema_names`.
-/// `execution_key` maps the atom to the local cache key used by the frozen
-/// handle; it is audit data and is excluded from the hashed premises.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct PosteriorAtomIdentityWire {
-    /// Identity format.
-    pub format: u16,
-    /// Posterior weight as IEEE-754 bits.
-    pub weight_bits: u64,
-    /// Atom structure.
-    pub graph: PosteriorAtomGraphWire,
-    /// Local envelope key for this frozen handle (not hashed).
-    pub execution_key: u64,
-}
-
-/// Durable identities for every graph-posterior atom, static or DBN.
-///
-/// # Errors
-///
-/// Invalid adjacency or lag masks, or graph encode failure.
-pub fn graph_posterior_atom_identities(
-    posterior: &GraphPosterior,
-) -> Result<Vec<PosteriorAtomIdentityWire>, IoError> {
-    let ids: Vec<VariableId> = (0..posterior.n_vars)
-        .map(|i| u32::try_from(i).map(VariableId::from_raw).map_err(|_| IoError::TooLarge))
-        .collect::<Result<_, _>>()?;
-    let max_lag = posterior.max_lag.unwrap_or(1);
-    let mut atoms = Vec::with_capacity(posterior.n_graphs);
-    for (index, (&adjacency, &weight)) in
-        posterior.atoms.iter().zip(posterior.weights.iter()).enumerate()
-    {
-        let graph = posterior_atom_graph_wire(posterior, index, adjacency, max_lag, &ids)?;
-        atoms.push(PosteriorAtomIdentityWire {
-            format: IDENTITY_FORMAT,
-            weight_bits: weight.to_bits(),
-            graph,
-            execution_key: crate::error::fit_u64(index)?,
-        });
-    }
-    Ok(atoms)
-}
-
-#[allow(
-    clippy::too_many_lines,
-    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
-)]
-fn posterior_atom_graph_wire(
-    posterior: &GraphPosterior,
-    index: usize,
-    adjacency: AdjacencyMask,
-    max_lag: u32,
-    ids: &[VariableId],
-) -> Result<PosteriorAtomGraphWire, IoError> {
-    if let Some(lag_masks) = posterior.lag_masks.as_ref() {
-        let lag_mask = *lag_masks
-            .get(index)
-            .ok_or_else(|| IoError::Convert("posterior lag masks must align with atoms".into()))?;
-        return match posterior.atom_kind {
-            GraphPosteriorAtomKind::Cpdag => {
-                let graph = temporal_cpdag_from_dbn_atoms(
-                    adjacency,
-                    lag_mask,
-                    posterior.n_vars,
-                    max_lag,
-                    ids,
-                )
-                .map_err(|err| IoError::Convert(err.to_string()))?;
-                let GraphIdentityWire::TemporalClass(wire) = temporal_cpdag_identity(&graph) else {
-                    return Err(IoError::Convert(
-                        "temporal CPDAG posterior atom must encode as TemporalClass".into(),
-                    ));
-                };
-                Ok(PosteriorAtomGraphWire::TemporalClass(wire))
-            }
-            GraphPosteriorAtomKind::TemporalAdmg => {
-                return Err(IoError::Convert(
-                    "TemporalAdmg posterior identity keeps lag masks; they are not a temporal DAG"
-                        .into(),
-                ));
-            }
-            GraphPosteriorAtomKind::Pag => {
-                let mark_mask = posterior
-                    .mark_atoms
-                    .as_ref()
-                    .and_then(|masks| masks.get(index))
-                    .copied()
-                    .unwrap_or(AdjacencyMask::EMPTY);
-                let graph = temporal_pag_from_dbn_atoms(
-                    adjacency,
-                    lag_mask,
-                    mark_mask,
-                    posterior.n_vars,
-                    max_lag,
-                    ids,
-                )
-                .map_err(|err| IoError::Convert(err.to_string()))?;
-                let GraphIdentityWire::TemporalClass(wire) = temporal_pag_identity(&graph) else {
-                    return Err(IoError::Convert(
-                        "temporal PAG posterior atom must encode as TemporalClass".into(),
-                    ));
-                };
-                Ok(PosteriorAtomGraphWire::TemporalClass(wire))
-            }
-            _ => {
-                let graph = temporal_dag_from_dbn_atoms(
-                    adjacency,
-                    lag_mask,
-                    posterior.n_vars,
-                    max_lag,
-                    ids,
-                )
-                .map_err(|err| IoError::Convert(err.to_string()))?;
-                Ok(PosteriorAtomGraphWire::Temporal(canonical_temporal_dag_wire(&graph)?))
-            }
-        };
-    }
-    match posterior.atom_kind {
-        GraphPosteriorAtomKind::Admg => {
-            let Ok(admg) = admg_from_adjacency_mask(adjacency, posterior.n_vars) else {
-                return Ok(PosteriorAtomGraphWire::Unrepresentable);
-            };
-            Ok(PosteriorAtomGraphWire::Admg(canonical_admg_wire(&admg)?))
-        }
-        GraphPosteriorAtomKind::TemporalAdmg => {
-            let Ok(admg) = admg_from_adjacency_mask(adjacency, posterior.n_vars) else {
-                return Ok(PosteriorAtomGraphWire::Unrepresentable);
-            };
-            let temporal = TemporalAdmg::from_static_contemporaneous(&admg)
-                .map_err(|err| IoError::Convert(err.to_string()))?;
-            let GraphIdentityWire::TemporalAdmg(wire) = temporal_admg_identity(&temporal)? else {
-                return Err(IoError::Convert(
-                    "temporal ADMG posterior atom must encode as TemporalAdmg".into(),
-                ));
-            };
-            Ok(PosteriorAtomGraphWire::TemporalAdmg(wire))
-        }
-        GraphPosteriorAtomKind::Cpdag => {
-            let cpdag = cpdag_from_adjacency_mask(adjacency, posterior.n_vars)
-                .map_err(|err| IoError::Convert(err.to_string()))?;
-            let GraphIdentityWire::Cpdag(wire) = cpdag_identity(&cpdag)? else {
-                return Err(IoError::Convert("CPDAG posterior atom must encode as Cpdag".into()));
-            };
-            Ok(PosteriorAtomGraphWire::Cpdag(wire))
-        }
-        GraphPosteriorAtomKind::Pag => {
-            let mark_mask = posterior
-                .mark_atoms
-                .as_ref()
-                .and_then(|masks| masks.get(index))
-                .copied()
-                .unwrap_or(AdjacencyMask::EMPTY);
-            let pag = pag_from_adjacency_mask(adjacency, mark_mask, posterior.n_vars)
-                .map_err(|err| IoError::Convert(err.to_string()))?;
-            let GraphIdentityWire::Pag(wire) = pag_identity(&pag)? else {
-                return Err(IoError::Convert("PAG posterior atom must encode as Pag".into()));
-            };
-            Ok(PosteriorAtomGraphWire::Pag(wire))
-        }
-        _ => {
-            let dag = dag_from_adjacency_mask(adjacency, posterior.n_vars)
-                .map_err(|err| IoError::Convert(err.to_string()))?;
-            Ok(PosteriorAtomGraphWire::Static(canonical_dag_wire(&dag)?))
-        }
-    }
-}
+use graph::canonical_admg_wire;
+pub use graph::{
+    GraphIdentityWire, IdentityMarkedEdgeWire, IdentityNodeWire, PosteriorAtomGraphWire,
+    PosteriorAtomIdentityWire, TemporalAdmgIdentityWire, TemporalClassIdentityWire, admg_identity,
+    canonical_dag_wire, canonical_temporal_dag_wire, cpdag_identity, dag_identity,
+    graph_posterior_atom_identities, pag_identity, temporal_admg_identity, temporal_cpdag_identity,
+    temporal_dag_identity, temporal_pag_identity,
+};
 
 /// RD configuration hashed with identification premises.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -1500,359 +565,7 @@ pub fn identification_product_digest(
     identification_product_digest_wire(&identification_product_wire(result, search_capped)?)
 }
 
-/// Observation-contract payload (schema only; not row contents).
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct ObservationIdentityWire {
-    /// Identity format.
-    pub format: u16,
-    /// Schema.
-    pub schema: SchemaWire,
-    /// Observation tags with their variable arguments, sorted and deduplicated.
-    pub observation: Vec<String>,
-}
-
-/// Observation-contract payload for digest and durable rehash.
-///
-/// Tags are a set: they are sorted and deduplicated. Each tag carries its
-/// variable arguments (for example `independent_given:0,2`), so assumptions
-/// that differ only in their conditioning set are distinct.
-#[must_use]
-pub fn observation_identity_wire(
-    schema: &CausalSchema,
-    observation: impl IntoIterator<Item = impl Into<String>>,
-) -> ObservationIdentityWire {
-    let mut observation: Vec<String> = observation.into_iter().map(Into::into).collect();
-    observation.sort();
-    observation.dedup();
-    ObservationIdentityWire { format: IDENTITY_FORMAT, schema: schema_to_wire(schema), observation }
-}
-
-/// Ordered storage partition in a data snapshot.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct DataPartitionIdentityWire {
-    /// Digest from `OwnedColumnarStorage::content_digest` (storage encoding v1).
-    pub content: [u8; 32],
-    /// Row count for this partition.
-    pub row_count: u64,
-    /// Panel unit label; absent for tabular/series/environment partitions.
-    pub unit_id: Option<u32>,
-    /// Sampling regularity for this partition, when temporal.
-    pub regularity: Option<String>,
-}
-
-/// Fixed interference network and realized assignment bound with the data.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct InterferenceSnapshotWire {
-    /// Unit table content partition.
-    pub units: DataPartitionIdentityWire,
-    /// Edges `(from, to, weight bits)` in `(from, to)` order.
-    pub edges: PayloadDigestWire,
-    /// Realized binary assignment in unit-row order.
-    pub assignment: PayloadDigestWire,
-}
-
-/// Participant labels bound to the rows of a data snapshot: the row count, a digest of the
-/// distinct labels in first-seen order, and a digest of every row's label code. Labels that
-/// differ in text or in row assignment give another digest.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ParticipantBindingWire {
-    /// Rows labelled.
-    pub rows: u64,
-    /// Digest (hex) of the distinct labels in first-seen order.
-    pub labels: String,
-    /// Digest (hex) of the per-row label codes.
-    pub codes: String,
-}
-
-/// A declared missing-data policy that differs from the route's default, with the covariates
-/// of its observation model. Identifies how the analysed rows were chosen or weighted.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct MissingPolicyWire {
-    /// Policy name (`error`, `complete_case`, `inverse_probability`, `balanced_panel`,
-    /// `available_case`).
-    pub policy: String,
-    /// Names of the observation-model covariates, in declared order.
-    pub covariates: Vec<String>,
-}
-
-/// Data-snapshot payload binding contents and ordered unit/environment partitions.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct DataSnapshotIdentityWire {
-    /// Identity format.
-    pub format: u16,
-    /// Observation digest.
-    pub observation: [u8; 32],
-    /// `tabular`, `series`, or `panel`.
-    pub modality: String,
-    /// Sampling regularity label, when temporal.
-    pub regularity: Option<String>,
-    /// Row or time-step count.
-    pub row_count: u64,
-    /// Unit count for panels; `None` for tabular/series.
-    pub unit_count: Option<u64>,
-    /// Ordered partitions, including content, masks, weights, and temporal metadata.
-    pub partitions: Vec<DataPartitionIdentityWire>,
-    /// Interference network and assignment, when the study carries one.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub interference: Option<InterferenceSnapshotWire>,
-    /// Portable finite-discrete provider tables for checked distribution or scalar
-    /// functional replay. Bound to this data snapshot and absent on older artifacts.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub distribution_factor_laws: Option<DistributionFactorLawsWire>,
-    /// Portable outcome-regression moments for the checked linear-Gaussian
-    /// natural direct effect. Older artifacts omit them and remain readable.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub nested_counterfactual_fit: Option<NestedCounterfactualFitWire>,
-    /// Portable moments for replaying checked static linear adjustment when its
-    /// fit and uncertainty contract is inside the supported replay subset.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub linear_fit_moments: Option<LinearFitMomentsWire>,
-    /// Participant labels bound to the rows, when the study declares them. Absent on older
-    /// artifacts and on studies without participants, whose digests are unchanged.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub participants: Option<ParticipantBindingWire>,
-    /// Missing-data policy, when the study declares one that differs from its route's default.
-    /// Absent on older artifacts and on studies that keep the default, whose digests are
-    /// unchanged.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub missing: Option<MissingPolicyWire>,
-}
-
-/// Sufficient statistics for replaying a checked homoskedastic OLS fit.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct LinearFitMomentsWire {
-    /// Wire format.
-    pub format: u16,
-    /// Number of complete-case rows.
-    pub complete_case_rows: u64,
-    /// Number of ordered design columns.
-    pub columns: u32,
-    /// Row-major `X'X`.
-    pub gram: Vec<f64>,
-    /// `X'Y` in design order.
-    pub outcome_cross: Vec<f64>,
-    /// `Y'Y`.
-    pub outcome_square: f64,
-}
-
-/// Sufficient statistics for the ordered design `[intercept, treatment, mediator]`.
-/// These are bound to the data snapshot, rather than the causal program.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct NestedCounterfactualFitWire {
-    /// Wire format.
-    pub format: u16,
-    /// Number of complete rows used by the outcome regression.
-    pub complete_case_rows: u64,
-    /// Row-major `X'X` for the three design columns.
-    pub gram: [f64; 9],
-    /// `X'Y` in design order.
-    pub outcome_cross: [f64; 3],
-}
-
-/// Digest a data snapshot identity.
-///
-/// # Errors
-///
-/// CBOR encode failure.
-pub fn data_snapshot_digest(wire: &DataSnapshotIdentityWire) -> Result<SemanticDigest, IoError> {
-    digest_wire(IdentityDomain::DataSnapshot, wire)
-}
-
-/// Score / batch reuse key. Stricter than identification: matching names and
-/// shapes are not enough. Shared design is not shared nuisance fits.
-///
-/// Row-sized vectors enter as length-prefixed digests so the payload stays
-/// small enough to travel in every contract section that advertises it.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct ScoreReuseIdentityWire {
-    /// Identity format.
-    pub format: u16,
-    /// `score_table` or `batch_share`.
-    pub kind: String,
-    /// Identification digest when the key is query-specific.
-    pub identification: Option<[u8; 32]>,
-    /// Data snapshot the scores or folds were fit on.
-    pub data_snapshot: [u8; 32],
-    /// Complete-case row index, or the full-table index for a shared design.
-    pub row_index: PayloadDigestWire,
-    /// Fold assignment aligned with [`Self::row_index`].
-    pub fold_ids: PayloadDigestWire,
-    /// Fold count used to assign [`Self::fold_ids`].
-    pub n_folds: u32,
-    /// Certified adjustment set, writer order.
-    pub adjustment_set: Vec<u32>,
-    /// Nuisance provenance tag. Absent on a design-only share key.
-    pub nuisance_provenance: Option<String>,
-    /// Treatment variable. Absent on a design-only share key.
-    pub treatment: Option<u32>,
-    /// Additional intervened coordinates.
-    pub intervened: Vec<u32>,
-    /// Requested bootstrap / shared-draw count.
-    pub bootstrap_replicates: u32,
-    /// Inference binding the scores were produced under: the estimator configuration, GLM
-    /// options, overlap policy and backend all change the cross-fitted scores while the
-    /// provenance tag stays constant. Absent on a design-only share key.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub inference_binding: Option<[u8; 32]>,
-}
-
-/// Everything a query-specific score-table key is derived from.
-#[derive(Debug, Clone, Copy)]
-pub struct ScoreTableKey<'a> {
-    /// Identification the scores answer.
-    pub identification: SemanticDigest,
-    /// Data snapshot the nuisances were fitted on.
-    pub data_snapshot: SemanticDigest,
-    /// Row index of the scored rows.
-    pub row_index: &'a [u32],
-    /// Cross-fitting fold of each row.
-    pub fold_ids: &'a [u32],
-    /// Number of folds.
-    pub n_folds: u32,
-    /// Adjustment covariates.
-    pub adjustment_set: &'a [VariableId],
-    /// Provenance tag of the cross-fitted nuisances.
-    pub nuisance_provenance: &'a str,
-    /// Treatment variable.
-    pub treatment: VariableId,
-    /// Additional intervened coordinates.
-    pub intervened: &'a [VariableId],
-    /// Requested bootstrap / shared-draw count.
-    pub bootstrap_replicates: u32,
-    /// Inference binding (estimator configuration, overlap policy, backend).
-    pub inference_binding: SemanticDigest,
-}
-
-impl ScoreReuseIdentityWire {
-    /// Query-specific score-table key.
-    #[must_use]
-    pub fn score_table(key: &ScoreTableKey<'_>) -> Self {
-        let ScoreTableKey {
-            identification,
-            data_snapshot,
-            row_index,
-            fold_ids,
-            n_folds,
-            adjustment_set,
-            nuisance_provenance,
-            treatment,
-            intervened,
-            bootstrap_replicates,
-            inference_binding,
-        } = *key;
-        Self {
-            format: IDENTITY_FORMAT,
-            kind: "score_table".into(),
-            identification: Some(*identification.as_bytes()),
-            data_snapshot: *data_snapshot.as_bytes(),
-            row_index: PayloadDigestWire::u32s("score_reuse.row_index", row_index),
-            fold_ids: PayloadDigestWire::u32s("score_reuse.fold_ids", fold_ids),
-            n_folds,
-            adjustment_set: vars_to_raw(adjustment_set),
-            nuisance_provenance: Some(nuisance_provenance.into()),
-            treatment: Some(treatment.raw()),
-            intervened: vars_to_raw(intervened),
-            bootstrap_replicates,
-            inference_binding: Some(*inference_binding.as_bytes()),
-        }
-    }
-
-    /// Shared-design key: folds and covariates, not per-query nuisances.
-    #[must_use]
-    pub fn batch_share(
-        data_snapshot: SemanticDigest,
-        fold_ids: &[u32],
-        n_folds: u32,
-        adjustment_set: &[VariableId],
-    ) -> Self {
-        let row_index: Vec<u32> =
-            (0..fold_ids.len()).map(|index| u32::try_from(index).unwrap_or(u32::MAX)).collect();
-        Self {
-            format: IDENTITY_FORMAT,
-            kind: "batch_share".into(),
-            identification: None,
-            data_snapshot: *data_snapshot.as_bytes(),
-            row_index: PayloadDigestWire::u32s("score_reuse.row_index", &row_index),
-            fold_ids: PayloadDigestWire::u32s("score_reuse.fold_ids", fold_ids),
-            n_folds,
-            adjustment_set: vars_to_raw(adjustment_set),
-            nuisance_provenance: None,
-            treatment: None,
-            intervened: Vec::new(),
-            bootstrap_replicates: 0,
-            inference_binding: None,
-        }
-    }
-}
-
-/// Digest a score / batch reuse identity.
-///
-/// # Errors
-///
-/// CBOR encode failure.
-pub fn score_reuse_digest(wire: &ScoreReuseIdentityWire) -> Result<SemanticDigest, IoError> {
-    digest_wire(IdentityDomain::ScoreReuse, wire)
-}
-
-/// Row-weight identity bound to one data snapshot and one score table.
-///
-/// Its digest is the `RowWeights` population's `weights` field, so the target
-/// identity and every claim over it name exactly this weighting.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct TargetWeightsIdentityWire {
-    /// Identity format.
-    pub format: u16,
-    /// The weight vector under the one data-sized payload convention
-    /// ([`PayloadDigestWire::f64s`], kind `target_weights.rows`).
-    pub weights: [u8; 32],
-    /// Row count the weights cover (score-table rows).
-    pub row_count: u64,
-    /// Data snapshot digest.
-    pub data_snapshot: [u8; 32],
-    /// Score-reuse digest of the table the weights reweight.
-    pub score_reuse: [u8; 32],
-    /// Covariates the weights are declared to depend on.
-    pub depends_on: Vec<u32>,
-}
-
-impl TargetWeightsIdentityWire {
-    /// Bind `weights` to a snapshot and score table.
-    #[must_use]
-    pub fn new(
-        weights: &[f64],
-        data_snapshot: SemanticDigest,
-        score_reuse: SemanticDigest,
-        depends_on: &[VariableId],
-    ) -> Self {
-        let rows = PayloadDigestWire::f64s(ROW_WEIGHTS_PAYLOAD, weights);
-        Self {
-            format: IDENTITY_FORMAT,
-            weights: rows.digest,
-            row_count: rows.len,
-            data_snapshot: *data_snapshot.as_bytes(),
-            score_reuse: *score_reuse.as_bytes(),
-            depends_on: vars_to_raw(depends_on),
-        }
-    }
-}
-
-/// Payload kind of the row-weight vector inside a `RowWeights` population and
-/// the target-weights identity. One owner, so the population digest a query
-/// carries and the identity that binds it agree by construction.
-pub const ROW_WEIGHTS_PAYLOAD: &str = "target_weights.rows";
-
-/// Digest target weights.
-///
-/// # Errors
-///
-/// CBOR encode failure.
-pub fn target_weights_digest(wire: &TargetWeightsIdentityWire) -> Result<SemanticDigest, IoError> {
-    digest_wire(IdentityDomain::TargetWeights, wire)
-}
-
-/// Licensed inferential commitments (not numeric knobs).
+/// Supported inferential commitments (not numeric knobs).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct InferentialCommitmentsWire {
     /// Identity format.
@@ -1875,6 +588,24 @@ pub struct InferentialCommitmentsWire {
     pub prior_required: bool,
 }
 
+/// Versioned temporal attribution row semantics. An absent field in an older
+/// program remains a legacy/unknown convention; it is not reinterpreted as v2.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TemporalAttributionRowsWire {
+    /// Complete observed windows and run-aware block resampling. V2 keeps each
+    /// primary block draw and derives additional segment streams by hashing its
+    /// domain, replicate key, primary draw bits, block, run and segment positions
+    /// in that order through `derive_stream`; population-specific draws derive
+    /// the replicate key from the replicate and the population index. A sampled
+    /// segment wraps circularly within its own run, and a global end-to-start
+    /// wrap starts a derived segment even for a single run. Mechanism-change
+    /// permutations retain the parent Fisher–Yates stream; split segments use
+    /// separate `0x6d65_6368_7061_7232` parent and `0x6d65_6368_7365_6732`
+    /// segment domains keyed by target stream, permutation and source positions.
+    CompleteObservedDerivedRunBlocksV2,
+}
+
 /// Program-layer payload.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct ProgramIdentityWire {
@@ -1891,8 +622,11 @@ pub struct ProgramIdentityWire {
     /// Temporal-class completion search budget, when capped by the caller.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub completion_budget: Option<u64>,
-    /// Licensed inferential commitments.
+    /// Supported inferential commitments.
     pub commitments: InferentialCommitmentsWire,
+    /// Absent in older programs; newer temporal attribution binds its row law.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub temporal_attribution_rows: Option<TemporalAttributionRowsWire>,
     /// Retained checked program for high-level functional-distribution and scalar
     /// functional-effect results. Omitted by older artifacts and other estimators.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1921,6 +655,101 @@ pub struct ProgramIdentityWire {
     /// Checked linear-Gaussian shared-exogenous natural direct effect operation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub checked_nested_counterfactual: Option<CheckedNestedCounterfactualWire>,
+    /// Checked semantic lowering of a cross-fitted doubly-robust learner average effect.
+    /// Older artifacts and executions outside the supported operation omit it and cannot be
+    /// independently replayed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checked_dr_lowering: Option<crate::CheckedDrLoweringWire>,
+    /// Per-atom checked programs and the mixing rule of a functional effect or
+    /// interventional distribution answered over a graph posterior. Such a result is
+    /// answered per atom and mixed, so it has no single program; this carries what each
+    /// atom was answered by.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub graph_posterior_programs: Option<GraphPosteriorProgramsWire>,
+    /// Digest of the provenance of a discovered structure the program runs on:
+    /// the search method, its configuration and bounds, the data snapshot it
+    /// read, the discovery program and claim, and the review that accepted it.
+    /// Absent for a supplied structure. Identification excludes the discovery
+    /// algorithm as audit data (re-accepting a graph must not invalidate its
+    /// identification); the program that fits and estimates on it binds it here.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub structure_provenance: Option<[u8; 32]>,
+}
+
+/// Mixing rule of a graph-posterior functional result: the posterior-weighted mean over the
+/// atoms that identify and evaluate, with unidentified and unevaluable mass kept apart and
+/// never redistributed.
+pub const GRAPH_POSTERIOR_MIXING_RULE: &str = "posterior_weighted_mean_over_identified_atoms";
+
+/// What one distinct graph of a posterior was answered by.
+///
+/// A single-structure atom (DAG, ADMG) is answered by one checked functional program; a
+/// class atom (CPDAG, PAG) is answered per completion, so it carries the class's
+/// identification product instead. An atom the identifier refuses carries neither.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct GraphPosteriorAtomProgramWire {
+    /// Key of the atom in the result's structural mixture.
+    pub graph_key: u64,
+    /// Total posterior weight of the atom as IEEE-754 bits: the sum of its samples.
+    pub weight_bits: u64,
+    /// Indices of the identification atoms (posterior samples) this atom aggregates.
+    pub samples: Vec<u64>,
+    /// Checked program the atom was answered by.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub functional_program: Option<crate::FunctionalProgramWire>,
+    /// Class identification product the atom was answered by.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identification_product: Option<IdentificationProductWire>,
+}
+
+/// Per-atom programs of a graph-posterior functional result, chained by digest.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct GraphPosteriorProgramsWire {
+    /// Identity format.
+    pub format: u16,
+    /// Mixing rule, [`GRAPH_POSTERIOR_MIXING_RULE`].
+    pub mixing: String,
+    /// One entry per distinct graph, in order of first appearance.
+    pub atoms: Vec<GraphPosteriorAtomProgramWire>,
+    /// Digest chain over the mixing rule and every atom's key, weight, samples, program and
+    /// product, in order.
+    pub chain: [u8; 32],
+}
+
+impl GraphPosteriorProgramsWire {
+    /// Recompute the digest chain of the mixing rule and atoms.
+    ///
+    /// # Errors
+    ///
+    /// CBOR encode failure.
+    pub fn compute_chain(
+        mixing: &str,
+        atoms: &[GraphPosteriorAtomProgramWire],
+    ) -> Result<[u8; 32], IoError> {
+        const DOMAIN: &str = "antecedent.identity.graph_posterior_programs.v1";
+        let header = to_cbor(&(mixing, u64::try_from(atoms.len()).unwrap_or(u64::MAX)))?;
+        let mut link = antecedent_core::derive_key_digest(DOMAIN, &[&header]);
+        for atom in atoms {
+            let encoded = to_cbor(atom)?;
+            link = antecedent_core::derive_key_digest(DOMAIN, &[&link, &encoded]);
+        }
+        Ok(link)
+    }
+
+    /// Seal the atoms under the mixing rule.
+    ///
+    /// # Errors
+    ///
+    /// CBOR encode failure.
+    pub fn seal(atoms: Vec<GraphPosteriorAtomProgramWire>) -> Result<Self, IoError> {
+        let chain = Self::compute_chain(GRAPH_POSTERIOR_MIXING_RULE, &atoms)?;
+        Ok(Self {
+            format: IDENTITY_FORMAT,
+            mixing: GRAPH_POSTERIOR_MIXING_RULE.to_owned(),
+            atoms,
+            chain,
+        })
+    }
 }
 
 /// Fixed three-node Markovian natural direct effect procedure.
@@ -2126,382 +955,6 @@ pub fn program_digest(wire: &ProgramIdentityWire) -> Result<SemanticDigest, IoEr
     digest_wire(IdentityDomain::Program, wire)
 }
 
-/// Coefficient / residual prior contents.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct PriorSetIdentityWire {
-    /// Prior specifications in declaration order.
-    pub specs: Vec<PriorSpecIdentityWire>,
-    /// Contrast coding for categorical predictors, when declared.
-    pub contrast: Option<String>,
-    /// Categorical predictor variable ids.
-    pub categorical: Vec<u32>,
-    /// Prior-restriction assumption ids.
-    pub restrictions: Vec<String>,
-}
-
-/// One prior specification.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum PriorSpecIdentityWire {
-    /// Gaussian coefficient prior: mean and variance vectors.
-    GaussianCoefficients {
-        /// Coefficient means.
-        mean: PayloadDigestWire,
-        /// Coefficient variances.
-        variance: PayloadDigestWire,
-    },
-    /// Inverse-gamma residual variance prior.
-    ResidualInvGamma {
-        /// Shape bits.
-        shape_bits: u64,
-        /// Scale bits.
-        scale_bits: u64,
-    },
-    /// Known residual variance bits.
-    KnownResidualVariance(u64),
-    /// Correlation of a dense coefficient prior scale `V0` (row-major).
-    CoefficientCorrelation {
-        /// Dimension `p`.
-        dim: u64,
-        /// Row-major `p × p` correlation entries.
-        matrix: PayloadDigestWire,
-    },
-}
-
-/// Transferred-prior mapping.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum PriorMappingIdentityWire {
-    /// Identical coefficient subspace.
-    IdenticalCoefficientSubspace,
-    /// Effect functional bridge.
-    EffectFunctional {
-        /// Source posterior quantity name.
-        source_quantity: String,
-    },
-    /// Named parameter pairs `(source, target)`, a sorted and deduplicated set.
-    NamedParameters {
-        /// Source → target parameter pairs.
-        pairs: Vec<(String, String)>,
-    },
-}
-
-impl PriorMappingIdentityWire {
-    /// Canonical mapping (named pairs sorted and deduplicated).
-    #[must_use]
-    pub fn from_mapping(mapping: &crate::PriorMapping) -> Self {
-        match mapping {
-            crate::PriorMapping::IdenticalCoefficientSubspace => Self::IdenticalCoefficientSubspace,
-            crate::PriorMapping::EffectFunctional { source_quantity } => {
-                Self::EffectFunctional { source_quantity: source_quantity.to_string() }
-            }
-            crate::PriorMapping::NamedParameters { pairs } => {
-                let mut pairs: Vec<(String, String)> = pairs
-                    .iter()
-                    .map(|(source, target)| (source.to_string(), target.to_string()))
-                    .collect();
-                pairs.sort();
-                pairs.dedup();
-                Self::NamedParameters { pairs }
-            }
-        }
-    }
-}
-
-/// One external prior-bank source retained for conflict re-evaluation.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ExternalPriorSourceIdentityWire {
-    /// Caller-stable source id.
-    pub id: String,
-    /// Mapped source prior.
-    pub prior: PriorSetIdentityWire,
-    /// Power-prior alpha bits.
-    pub alpha_bits: u64,
-    /// Mixture weight bits, when a mixture component.
-    pub mixture_weight_bits: Option<u64>,
-    /// Declared prior-strength ESS bits.
-    pub ess_bits: Option<u64>,
-}
-
-/// External prior-bank composition inputs.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ExternalComposeIdentityWire {
-    /// Sources in composition order.
-    pub sources: Vec<ExternalPriorSourceIdentityWire>,
-    /// Conflict policy `(p_min bits, kl_scale bits)`, when re-shrinking.
-    pub conflict_policy: Option<(u64, u64)>,
-}
-
-/// Bayesian configuration bound into the inference layer.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct BayesianBindingWire {
-    /// Backend (`conjugate_gaussian`, `laplace`, `hmc`).
-    pub backend: String,
-    /// Likelihood / link.
-    pub likelihood: String,
-    /// Posterior draws requested.
-    pub n_draws: u64,
-    /// Isotropic prior scale bits, when no explicit prior or artifact is set.
-    pub prior_scale_bits: Option<u64>,
-    /// Explicit prior contents.
-    pub prior: Option<PriorSetIdentityWire>,
-    /// Posterior-artifact bytes used for a deferred mapped hydrate.
-    pub prior_artifact: Option<PayloadDigestWire>,
-    /// Concrete source snapshot recorded by a checked prior-source producer.
-    /// This records ownership; distinct full snapshots do not prove absence of partial overlap.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub prior_source_snapshot: Option<String>,
-    /// Mapping for the prior artifact.
-    pub prior_mapping: Option<PriorMappingIdentityWire>,
-    /// External prior-bank composition.
-    pub external_compose: Option<ExternalComposeIdentityWire>,
-    /// Numerical draw controls requested on the posterior (`measured`); absent when none
-    /// were, so a configuration without them keeps its identity.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub draw_controls: Option<String>,
-}
-
-/// Discovery / estimation window split.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct SplitIdentityWire {
-    /// Discovery window `[start, end)`.
-    pub discovery: (u64, u64),
-    /// Estimation window `[start, end)`.
-    pub estimation: (u64, u64),
-    /// Gap between the windows.
-    pub gap: u64,
-    /// Series length the split was validated against.
-    pub series_len: u64,
-}
-
-/// Observation-mechanism estimator options.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ObservationOptionsWire {
-    /// Selected-outcome correction (`ipw` / `aipw`).
-    pub selected_correction: String,
-    /// Observation-probability floor bits.
-    pub observation_probability_floor_bits: u64,
-    /// Censoring-survival floor bits.
-    pub censoring_survival_floor_bits: u64,
-    /// Cross-fitting folds.
-    pub crossfit_folds: u64,
-}
-
-/// Inference-binding payload: numeric knobs, prior contents, and resampling.
-///
-/// Independent of structure: a different graph with the same numeric
-/// configuration has the same inference binding and a different program.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct InferenceBindingWire {
-    /// Identity format.
-    pub format: u16,
-    /// `frequentist` or `bayesian`; must equal the program commitments.
-    pub inference: String,
-    /// Bootstrap replicates (frequentist).
-    pub bootstrap_replicates: u32,
-    /// Bayesian backend, likelihood, draws, and prior contents.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub bayesian: Option<BayesianBindingWire>,
-    /// Validation suite id; must equal the program commitments.
-    pub validation_suite: Option<String>,
-    /// Overlap policy tag.
-    pub overlap_policy: Option<String>,
-    /// Typed estimator configuration, when the caller supplied one.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub estimator_spec: Option<EstimatorSpecWire>,
-    /// Response options, when a response surface is configured.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub response_options: Option<ResponseOptionsWire>,
-    /// Observation-mechanism estimator options.
-    pub observation_options: ObservationOptionsWire,
-    /// Discovery / estimation split, when declared.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub split: Option<SplitIdentityWire>,
-}
-
-/// Overlap policy of a configured estimator.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum OverlapPolicyWire {
-    /// Caller overrides overlap diagnostics.
-    ExplicitOverride,
-    /// Diagnostics required, with optional clip / trim bits.
-    RequireDiagnostics {
-        /// Propensity clip bits.
-        clip_bits: Option<u64>,
-        /// Propensity trim bits.
-        trim_bits: Option<u64>,
-    },
-}
-
-/// GLM fitting options of a configured estimator.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct GlmOptionsWire {
-    /// Maximum IRLS iterations.
-    pub max_iter: u32,
-    /// Convergence tolerance bits.
-    pub tol_bits: u64,
-    /// Negative-binomial dispersion policy.
-    pub nb_alpha: String,
-    /// Ridge applied on separation, as bits.
-    pub ridge_on_separation_bits: Option<u64>,
-}
-
-/// Scalar configuration of one configured estimator.
-///
-/// Data-sized fields (cluster ids, multiway ids, panel times, registry
-/// weights) are [`PayloadDigestWire`]s computed once when the study is built.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct EstimatorConfigWire {
-    /// Linear-algebra backend.
-    pub backend: String,
-    /// Bootstrap replicates.
-    pub bootstrap_replicates: u32,
-    /// Overlap policy.
-    pub overlap: OverlapPolicyWire,
-    /// GLM options, when the estimator fits a GLM.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub glm: Option<GlmOptionsWire>,
-    /// Analytic SE kind, when configurable.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub se_kind: Option<String>,
-    /// Caliper bits, when matching.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub caliper_bits: Option<u64>,
-    /// Caliper scale, when matching on the propensity.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub caliper_scale: Option<String>,
-    /// Propensity strata.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub n_strata: Option<u32>,
-    /// GLM outcome family.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub family: Option<String>,
-    /// Linear fit kind and penalty bits.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub fit_kind: Option<(String, Option<u64>)>,
-    /// Cluster ids, when present.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cluster_ids: Option<PayloadDigestWire>,
-    /// Multiway cluster ids, when present.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub multiway_ids: Option<PayloadDigestWire>,
-    /// Panel times, when present.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub panel_times: Option<PayloadDigestWire>,
-    /// Population registry contents, when present.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub population_registry: Option<PayloadDigestWire>,
-    /// Cross-fit folds (`dml` / `dr.learner`).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub folds: Option<u32>,
-    /// Outcome nuisance spec name.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub outcome: Option<String>,
-    /// Treatment nuisance spec name.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub treatment: Option<String>,
-    /// DML score name.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub score: Option<String>,
-    /// `dr.learner` final-stage spec name.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub final_learner: Option<String>,
-    /// Full outcome learner configuration, including hyperparameters.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub outcome_config: Option<String>,
-    /// Full treatment learner configuration, including hyperparameters.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub treatment_config: Option<String>,
-    /// Full final-stage learner configuration, including hyperparameters.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub final_learner_config: Option<String>,
-    /// Causal-forest tree count.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub n_trees: Option<u32>,
-    /// Causal-forest minimum leaf size.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub min_leaf: Option<u32>,
-    /// Causal-forest maximum depth.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_depth: Option<u32>,
-    /// Causal-forest honesty flag.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub honesty: Option<bool>,
-    /// Declared exclusion of treatment rows at neither declared level; absent when the
-    /// estimator refuses such rows (the default), so existing digests are unchanged.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub other_levels: Option<String>,
-    /// Digest of the declared sampling weights of every source row; absent when none are
-    /// declared, so existing digests are unchanged.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub sampling_weights: Option<PayloadDigestWire>,
-}
-
-/// Portable estimator-spec identity (mirrors `antecedent::EstimatorSpec` variants).
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum EstimatorSpecWire {
-    /// Id only.
-    Default(String),
-    /// Caller-configured OLS / linear adjustment.
-    LinearAdjustmentAte(EstimatorConfigWire),
-    /// Caller-configured inverse-probability weighting.
-    PropensityWeighting(EstimatorConfigWire),
-    /// Caller-configured propensity-score matching.
-    PropensityMatching(EstimatorConfigWire),
-    /// Caller-configured propensity stratification.
-    PropensityStratification(EstimatorConfigWire),
-    /// Caller-configured covariate distance matching.
-    DistanceMatching(EstimatorConfigWire),
-    /// Caller-configured augmented IPW.
-    Aipw(EstimatorConfigWire),
-    /// Caller-configured GLM adjustment.
-    GlmAdjustment(EstimatorConfigWire),
-    /// Caller-configured front-door two-stage.
-    FrontDoorTwoStage(EstimatorConfigWire),
-    /// Caller-configured Wald IV.
-    IvWald(EstimatorConfigWire),
-    /// Caller-configured two-stage least squares.
-    Iv2Sls(EstimatorConfigWire),
-    /// Caller-configured DML / AIPW.
-    Dml(EstimatorConfigWire),
-    /// Caller-configured DR-Learner.
-    DrLearner(EstimatorConfigWire),
-    /// Caller-configured causal forest.
-    CausalForest(EstimatorConfigWire),
-}
-
-/// Portable response-surface options (every field that changes the estimate).
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ResponseOptionsWire {
-    /// Cross-fitting folds.
-    pub folds: u64,
-    /// Nuisance spline basis count.
-    pub nuisance_basis: u64,
-    /// Nuisance roughness penalty bits.
-    pub nuisance_lambda_bits: u64,
-    /// Kernel bandwidth bits, when set (normal reference otherwise).
-    pub bandwidth_bits: Option<u64>,
-    /// Weak-support ESS threshold bits.
-    pub minimum_local_ess_bits: u64,
-    /// Pointwise confidence level bits.
-    pub confidence_level_bits: u64,
-    /// Simultaneous-band multiplier replicates, when requested.
-    pub simultaneous_replicates: Option<u32>,
-    /// Multiplier seed for the simultaneous band.
-    pub multiplier_seed: u64,
-}
-
-/// Digest an inference binding.
-///
-/// # Errors
-///
-/// CBOR encode failure.
-pub fn inference_binding_digest(wire: &InferenceBindingWire) -> Result<SemanticDigest, IoError> {
-    digest_wire(IdentityDomain::InferenceBinding, wire)
-}
-
 /// Kernel selection policy that ran.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct KernelPolicyWire {
@@ -2636,6 +1089,14 @@ pub fn prior_set_identity(prior: &antecedent_prob::PriorSet) -> PriorSetIdentity
                         ),
                     }
                 }
+                PriorSpec::Beta(beta) => PriorSpecIdentityWire::Beta {
+                    alpha_bits: beta.alpha.to_bits(),
+                    beta_bits: beta.beta.to_bits(),
+                },
+                PriorSpec::Gamma(gamma) => PriorSpecIdentityWire::Gamma {
+                    shape_bits: gamma.shape.to_bits(),
+                    rate_bits: gamma.rate.to_bits(),
+                },
             })
             .collect(),
         contrast: prior.contrast.map(|contrast| {
@@ -2673,11 +1134,58 @@ pub fn external_compose_identity(
             .collect(),
         conflict_policy: conflict_policy
             .map(|(p_min, kl_scale)| (p_min.to_bits(), kl_scale.to_bits())),
+        baseline: None,
     }
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn imputation_domains_preserve_legacy_wire_and_identity_when_absent() {
+        #[derive(serde::Serialize)]
+        struct Legacy<'a> {
+            model: &'a str,
+            imputations: u32,
+            iterations: u32,
+            seed: u64,
+            assumption: &'a str,
+            unit: &'a str,
+        }
+        let old = Legacy {
+            model: "chained_equations",
+            imputations: 20,
+            iterations: 10,
+            seed: 0,
+            assumption: "missing_at_random",
+            unit: "row",
+        };
+        let mut wire = super::ImputationSpecWire {
+            model: old.model.into(),
+            imputations: old.imputations,
+            iterations: old.iterations,
+            seed: old.seed,
+            assumption: old.assumption.into(),
+            unit: old.unit.into(),
+            bootstrap_replicates: 0,
+            assumptions_digest: None,
+            domains: Vec::new(),
+        };
+        assert_eq!(crate::to_cbor(&old).unwrap(), crate::to_cbor(&wire).unwrap());
+        let old_digest =
+            super::digest_wire(antecedent_core::IdentityDomain::DataSnapshot, &old).unwrap();
+        assert_eq!(
+            old_digest,
+            super::digest_wire(antecedent_core::IdentityDomain::DataSnapshot, &wire).unwrap()
+        );
+        wire.domains.push(("x".into(), "binary".into()));
+        let encoded = crate::to_cbor(&wire).unwrap();
+        let decoded: super::ImputationSpecWire = crate::from_cbor(&encoded).unwrap();
+        assert_eq!(decoded, wire);
+        assert_ne!(
+            old_digest,
+            super::digest_wire(antecedent_core::IdentityDomain::DataSnapshot, &wire).unwrap()
+        );
+    }
     #[test]
     fn programmed_interventions_have_canonical_distinct_identities() {
         use antecedent_core::{Intervention, Value, ValueExpr, VariableId};
@@ -2773,6 +1281,7 @@ mod tests {
                     se_kind: None,
                     prior_required: false,
                 },
+                temporal_attribution_rows: None,
                 functional_program: None,
                 checked_aipw_lowering: None,
                 checked_frontdoor_lowering: None,
@@ -2780,6 +1289,9 @@ mod tests {
                 checked_linear_adjustment_lowering: None,
                 checked_functional_response_grid: None,
                 checked_nested_counterfactual: None,
+                checked_dr_lowering: None,
+                graph_posterior_programs: None,
+                structure_provenance: None,
             })
             .unwrap();
             (target_digest, question, program)
@@ -2801,6 +1313,55 @@ mod tests {
     use super::*;
     use crate::{causal_query_to_wire, from_cbor, to_cbor};
     use antecedent_discovery::SamplingSummary;
+
+    #[test]
+    fn graph_posterior_program_chain_matches_direct_framing() {
+        let atoms = [
+            GraphPosteriorAtomProgramWire {
+                graph_key: 3,
+                weight_bits: 0.25_f64.to_bits(),
+                samples: vec![0, 2],
+                functional_program: None,
+                identification_product: None,
+            },
+            GraphPosteriorAtomProgramWire {
+                graph_key: 7,
+                weight_bits: 0.75_f64.to_bits(),
+                samples: vec![1],
+                functional_program: None,
+                identification_product: None,
+            },
+        ];
+        let mixing = GRAPH_POSTERIOR_MIXING_RULE;
+        let reference = |items: &[GraphPosteriorAtomProgramWire]| {
+            let mut hasher =
+                blake3::Hasher::new_derive_key("antecedent.identity.graph_posterior_programs.v1");
+            hasher.update(&to_cbor(&(mixing, u64::try_from(items.len()).unwrap())).unwrap());
+            let mut link = *hasher.finalize().as_bytes();
+            for atom in items {
+                let mut hasher = blake3::Hasher::new_derive_key(
+                    "antecedent.identity.graph_posterior_programs.v1",
+                );
+                hasher.update(&link);
+                hasher.update(&to_cbor(atom).unwrap());
+                link = *hasher.finalize().as_bytes();
+            }
+            link
+        };
+        assert_eq!(GraphPosteriorProgramsWire::compute_chain(mixing, &[]).unwrap(), reference(&[]));
+        assert_eq!(
+            GraphPosteriorProgramsWire::compute_chain(mixing, &atoms).unwrap(),
+            reference(&atoms)
+        );
+        assert_ne!(
+            GraphPosteriorProgramsWire::compute_chain(mixing, &atoms).unwrap(),
+            GraphPosteriorProgramsWire::compute_chain(
+                mixing,
+                &[atoms[1].clone(), atoms[0].clone()]
+            )
+            .unwrap()
+        );
+    }
 
     fn schema_and_query() -> (CausalSchema, CausalQuery, Dag) {
         let mut builder = CausalSchemaBuilder::new();
@@ -3155,6 +1716,78 @@ mod tests {
     }
 
     #[test]
+    fn temporal_class_identity_ignores_node_insertion_order() {
+        let build_pag = |order: [(u32, u32); 3]| {
+            let mut graph = TemporalPag::empty();
+            let mut ids = std::collections::HashMap::new();
+            for (variable, lag) in order {
+                ids.insert(
+                    (variable, lag),
+                    graph.add_lagged(VariableId::from_raw(variable), Lag::from_raw(lag)).unwrap(),
+                );
+            }
+            graph.insert_directed(ids[&(0, 1)], ids[&(0, 0)]).unwrap();
+            graph
+                .insert_circle_circle_with_middle(
+                    ids[&(0, 0)],
+                    ids[&(1, 0)],
+                    antecedent_graph::MiddleMark::Empty,
+                )
+                .unwrap();
+            graph
+        };
+        let first = build_pag([(0, 1), (0, 0), (1, 0)]);
+        let second = build_pag([(1, 0), (0, 0), (0, 1)]);
+        assert_ne!(first.nodes(), second.nodes());
+        assert_eq!(temporal_pag_identity(&first).unwrap(), temporal_pag_identity(&second).unwrap());
+
+        let build_cpdag = |order: [(u32, u32); 3]| {
+            let mut graph = TemporalCpdag::empty();
+            let mut ids = std::collections::HashMap::new();
+            for (variable, lag) in order {
+                ids.insert(
+                    (variable, lag),
+                    graph.add_lagged(VariableId::from_raw(variable), Lag::from_raw(lag)).unwrap(),
+                );
+            }
+            graph.insert_directed(ids[&(0, 1)], ids[&(0, 0)]).unwrap();
+            graph.insert_undirected(ids[&(0, 0)], ids[&(1, 0)]).unwrap();
+            graph
+        };
+        assert_eq!(
+            temporal_cpdag_identity(&build_cpdag([(0, 1), (0, 0), (1, 0)])).unwrap(),
+            temporal_cpdag_identity(&build_cpdag([(1, 0), (0, 0), (0, 1)])).unwrap()
+        );
+        assert_ne!(
+            temporal_cpdag_identity(&build_cpdag([(0, 1), (0, 0), (1, 0)])).unwrap(),
+            temporal_pag_identity(&first).unwrap()
+        );
+    }
+
+    #[test]
+    fn a_temporal_class_that_repeats_a_node_digests_as_the_merged_graph() {
+        let node = |graph: &mut TemporalPag, variable: u32, lag: u32| {
+            graph.add_lagged(VariableId::from_raw(variable), Lag::from_raw(lag)).unwrap()
+        };
+        let mut repeated = TemporalPag::empty();
+        let (t_a, z) = (node(&mut repeated, 0, 1), node(&mut repeated, 2, 1));
+        let (t_b, y) = (node(&mut repeated, 0, 1), node(&mut repeated, 1, 0));
+        repeated
+            .insert_circle_circle_with_middle(t_a, z, antecedent_graph::MiddleMark::Empty)
+            .unwrap();
+        repeated.insert_directed(t_b, y).unwrap();
+        let mut merged = TemporalPag::empty();
+        let (t, y) = (node(&mut merged, 0, 1), node(&mut merged, 1, 0));
+        let z = node(&mut merged, 2, 1);
+        merged.insert_directed(t, y).unwrap();
+        merged.insert_circle_circle_with_middle(t, z, antecedent_graph::MiddleMark::Empty).unwrap();
+        assert_eq!(
+            temporal_pag_identity(&repeated).unwrap(),
+            temporal_pag_identity(&merged).unwrap()
+        );
+    }
+
+    #[test]
     fn content_snapshot_round_trip_retains_partition_bindings() {
         let original = DataSnapshotIdentityWire {
             format: IDENTITY_FORMAT,
@@ -3181,8 +1814,10 @@ mod tests {
             distribution_factor_laws: None,
             nested_counterfactual_fit: None,
             linear_fit_moments: None,
+            cross_product_moments: None,
             participants: None,
             missing: None,
+            sampling_design: None,
         };
         let decoded: DataSnapshotIdentityWire = from_cbor(&to_cbor(&original).unwrap()).unwrap();
         assert_eq!(original, decoded);
@@ -3215,6 +1850,25 @@ mod tests {
             data_snapshot_digest(&networked).unwrap(),
             data_snapshot_digest(&reassigned).unwrap()
         );
+    }
+
+    #[test]
+    fn derive_key_helpers_reproduce_the_streamed_idioms() {
+        let payload = b"payload bytes";
+        let mut hasher = blake3::Hasher::new_derive_key(IdentityDomain::Target.derive_key());
+        hasher.update(&IDENTITY_FORMAT.to_le_bytes());
+        hasher.update(payload);
+        assert_eq!(
+            digest_canonical(IdentityDomain::Target, payload),
+            SemanticDigest::from_bytes(*hasher.finalize().as_bytes())
+        );
+
+        let mut hasher = blake3::Hasher::new_derive_key("antecedent.identity.payload");
+        hasher.update(&IDENTITY_FORMAT.to_le_bytes());
+        hasher.update(&(4_u64).to_le_bytes());
+        hasher.update(b"kind");
+        hasher.update(payload);
+        assert_eq!(payload_digest("kind", payload), *hasher.finalize().as_bytes());
     }
 
     #[test]
@@ -3264,6 +1918,9 @@ mod tests {
                 prior_mapping: None,
                 external_compose: None,
                 draw_controls: None,
+                design_model: None,
+                white_innovation: None,
+                predictive_replicates: None,
             }),
             validation_suite: None,
             overlap_policy: None,
@@ -3276,6 +1933,7 @@ mod tests {
                 crossfit_folds: 5,
             },
             split: None,
+            joint_horizons: false,
         };
         let plus_zero = inference_binding_digest(&binding).unwrap();
         binding.bayesian.as_mut().unwrap().prior_scale_bits = Some((-0.0f64).to_bits());
@@ -3397,6 +2055,10 @@ mod tests {
         assert_eq!(labels.get("active").map(String::as_str), Some("1"));
     }
 
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "the helper retains the error or fixture callback signature"
+    )]
     fn static_posterior(weights: [f64; 3], graphs: [AdjacencyMask; 3]) -> GraphPosterior {
         let sum_sq: f64 = weights.iter().map(|w| w * w).sum();
         GraphPosterior::from_atoms(
@@ -3417,7 +2079,7 @@ mod tests {
     fn posterior_premises(posterior: &GraphPosterior) -> SemanticDigest {
         identification_digest(&premises(GraphIdentityWire::GraphPosterior {
             graph_class: "Dag".into(),
-            n_atoms: posterior.n_graphs as u64,
+            n_atoms: posterior.n_graphs() as u64,
             atoms: graph_posterior_atom_identities(posterior).unwrap(),
         }))
         .unwrap()
@@ -3427,12 +2089,15 @@ mod tests {
     fn static_posterior_identity_binds_atom_graphs_and_weights() {
         use antecedent_discovery::adjacency_mask::set_edge;
         let direct = set_edge(0, 3, 0, 1, true);
-        let adjusted = set_edge(set_edge(direct, 3, 2, 0, true), 3, 2, 1, true);
+        let adjusted = set_edge(set_edge(&direct, 3, 2, 0, true), 3, 2, 1, true);
         let reversed = set_edge(0, 3, 1, 0, true);
         let confounded = set_edge(set_edge(0, 3, 2, 0, true), 3, 2, 1, true);
-        let base = static_posterior([0.5, 0.3, 0.2], [direct, adjusted, reversed]);
-        let reweighted = static_posterior([0.2, 0.3, 0.5], [direct, adjusted, reversed]);
-        let regraphed = static_posterior([0.5, 0.3, 0.2], [direct, adjusted, confounded]);
+        let base =
+            static_posterior([0.5, 0.3, 0.2], [direct.clone(), adjusted.clone(), reversed.clone()]);
+        let reweighted =
+            static_posterior([0.2, 0.3, 0.5], [direct.clone(), adjusted.clone(), reversed.clone()]);
+        let regraphed =
+            static_posterior([0.5, 0.3, 0.2], [direct.clone(), adjusted.clone(), confounded]);
         let reordered = static_posterior([0.2, 0.5, 0.3], [reversed, direct, adjusted]);
         assert_ne!(posterior_premises(&base), posterior_premises(&reweighted));
         assert_ne!(posterior_premises(&base), posterior_premises(&regraphed));
@@ -3456,8 +2121,8 @@ mod tests {
         let built = set_edge(set_edge(AdjacencyMask::EMPTY, n, 0, 1, true), n, 2, 0, true);
         assert_eq!(from_word, built);
         let empty = AdjacencyMask::EMPTY;
-        let legacy = static_posterior([0.5, 0.3, 0.2], [from_word, empty, empty]);
-        let wide = static_posterior([0.5, 0.3, 0.2], [built, empty, empty]);
+        let legacy = static_posterior([0.5, 0.3, 0.2], [from_word, empty.clone(), empty.clone()]);
+        let wide = static_posterior([0.5, 0.3, 0.2], [built, empty.clone(), empty]);
         assert_eq!(posterior_premises(&legacy), posterior_premises(&wide));
         let mut dag = Dag::with_variables(3);
         dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
@@ -3536,8 +2201,8 @@ mod tests {
         assert_eq!(mask, built);
         assert_eq!(mask.to_word(), Some(stored));
         assert_eq!(mask.key(), stored, "an eight-variable atom keeps its word as its key");
-        let posterior = equal_weight_posterior(eight, vec![mask, AdjacencyMask::EMPTY]);
-        assert_eq!(posterior.graph_keys[0], stored);
+        let posterior = equal_weight_posterior(eight, vec![mask.clone(), AdjacencyMask::EMPTY]);
+        assert_eq!(posterior.graph_keys()[0], stored);
         let atoms = graph_posterior_atom_identities(&posterior).unwrap();
         let mut dag = Dag::with_variables(8);
         for &(from, to) in &edges {
@@ -3561,7 +2226,7 @@ mod tests {
         assert_eq!(wide.to_word(), None, "bit {} is past the first word", bit(nine, 8, 7));
         assert_eq!(bit(nine, 8, 7), 71);
         assert_ne!(wide.key(), wide.words()[0], "a wide atom's key is a hash of every word");
-        let posterior = equal_weight_posterior(nine, vec![wide, AdjacencyMask::EMPTY]);
+        let posterior = equal_weight_posterior(nine, vec![wide.clone(), AdjacencyMask::EMPTY]);
         let atoms = graph_posterior_atom_identities(&posterior).unwrap();
         let PosteriorAtomGraphWire::Static(wire) = &atoms[0].graph else {
             panic!("a nine-variable DAG atom encodes as a static graph");
@@ -3590,7 +2255,7 @@ mod tests {
         let posterior = GraphPosterior::from_atoms(
             3,
             vec![0.5, 0.5],
-            vec![contemporaneous; 2],
+            vec![contemporaneous.clone(), contemporaneous],
             vec![0.0; 9],
             vec![0.0; 9],
             SamplingSummary {
@@ -3604,7 +2269,7 @@ mod tests {
         .unwrap()
         .with_lag_masks(vec![confounder_to_outcome, treatment_to_outcome])
         .unwrap();
-        assert_eq!(posterior.graph_keys[0], posterior.graph_keys[1]);
+        assert_eq!(posterior.graph_keys()[0], posterior.graph_keys()[1]);
         let atoms = graph_posterior_atom_identities(&posterior).unwrap();
         assert_eq!(atoms.len(), 2);
         assert!(matches!(atoms[0].graph, PosteriorAtomGraphWire::Temporal(_)));

@@ -3,8 +3,8 @@
 //! fields) replays independently.
 //!
 //! The oracle is the enumerated latent-variable SCM of the engine's own tests, summed out
-//! by hand; it calls nothing in the code under test. Calibration is unmeasured, the
-//! public interval route stays closed, and nothing here asserts coverage.
+//! by hand; it calls nothing in the code under test. Calibration is `not_measured`, the
+//! public interval route is not supported, and nothing here asserts coverage.
 #![allow(clippy::cast_precision_loss, reason = "binary levels and tiny fixed enumerations")]
 
 use antecedent_core::ExecutionContext;
@@ -106,10 +106,23 @@ fn nested_fisher_candidate_replays_covariance_and_refuses_semantic_mutations() {
     .unwrap();
     assert_eq!(consumer.effect_covariance, producer.effect_covariance);
     assert_eq!(consumer.interval_candidates, producer.interval_candidates);
-    assert_eq!(consumer.calibration, "unmeasured");
+    assert_eq!(consumer.calibration, "not_measured");
+    // Independent point value: the SCM chain X2 -> X3 -> X4 gives the contrast
+    // (p3(1) - p3(0)) * 0.35 = 0.5 * 0.35 = 0.175, and the enumerated truth agrees.
+    let truth = truth_mean(1) - truth_mean(0);
+    assert!((truth - 0.175).abs() < 1e-12, "{truth}");
+    assert!((consumer.point.receipt.contrast.model_contrast - 0.175).abs() < 1e-9);
+    // The normal-delta candidate for the contrast is centred on that value with half-width
+    // z_{0.975} * sd (observed ratio 1.95996), computed here from the stored covariance.
+    let [lo, hi] = consumer.interval_candidates[2];
+    assert!((f64::midpoint(lo, hi) - 0.175).abs() < 1e-9);
+    let half = (hi - lo) / 2.0;
+    let z = half / consumer.effect_covariance[2][2].sqrt();
+    assert!((z - 1.959_963_984_540_054).abs() < 1e-6, "{z}");
+    // The point reader refuses the candidate envelope by its schema (it carries `method`).
     assert!(
-        NestedMarkovArtifactWire::decode(&bytes).is_err(),
-        "point reader cannot mint an interval license"
+        matches!(NestedMarkovArtifactWire::decode(&bytes), Err(IoError::Cbor(_))),
+        "point reader cannot mint an interval support"
     );
     for mutation in
         ["covariance", "interval", "sampling", "calibration", "method", "count", "version"]
@@ -128,16 +141,26 @@ fn nested_fisher_candidate_replays_covariance_and_refuses_semantic_mutations() {
             "version" => bad.version = 99,
             _ => unreachable!(),
         }
-        assert!(
-            NestedFisherArtifact::consume(
-                &bad.export().unwrap(),
-                &expected,
-                NestedMarkovConsumeLimits::default(),
-                &ExecutionContext::for_tests(22)
-            )
-            .is_err(),
-            "{mutation}"
-        );
+        let error = NestedFisherArtifact::consume(
+            &bad.export().unwrap(),
+            &expected,
+            NestedMarkovConsumeLimits::default(),
+            &ExecutionContext::for_tests(22),
+        )
+        .expect_err(mutation);
+        match mutation {
+            "version" => assert!(matches!(error, IoError::UnsupportedVersion { version: 99 })),
+            "count" => assert!(
+                matches!(&error, IoError::Refused { code: "invalid_argument", message }
+                    if message.contains("data identity")),
+                "{mutation}: {error:?}"
+            ),
+            _ => assert!(
+                matches!(&error, IoError::Refused { code: "invalid_argument", message }
+                    if message == "nested markov artifact: fit receipt does not replay"),
+                "{mutation}: {error:?}"
+            ),
+        }
     }
 }
 
@@ -193,11 +216,11 @@ fn nested_fit_replay_exact_counts_replay_value_for_value_against_the_scm() {
     assert!(loaded.receipt.diagnostics.empirical_residuals.max_abs < 1e-9);
     assert_eq!(loaded.receipt.diagnostics.method, "saturated_feasible");
     assert!(loaded.receipt.diagnostics.normalization.is_some_and(|n| n.normalized && n.positive));
-    // Three separate status fields; calibration unmeasured; no interval anywhere.
+    // Three separate status fields; calibration not_measured; no interval anywhere.
     assert_eq!(loaded.receipt.status.identification, "nonparametrically_identified");
     assert_eq!(loaded.receipt.status.likelihood_fit, "converged_constraints_satisfied");
-    assert_eq!(loaded.receipt.status.inference, "interval_withheld_calibration_unmeasured");
-    assert_eq!(loaded.calibration, "unmeasured");
+    assert_eq!(loaded.receipt.status.inference, "interval_candidates_calibration_annotated");
+    assert_eq!(loaded.calibration, "not_measured");
     assert_ne!(loaded.premises_digest, loaded.data_digest);
 }
 
@@ -232,7 +255,11 @@ fn nested_fit_replay_refuses_resealed_semantic_mutations() {
     // An adjacent graph (the bidirected edge removed) is outside the one selected pilot.
     let error = refusal(&resealed(&wire, |w| w.graph.bidirected.clear()));
     assert_eq!(error.reason_code(), Some("route_not_supported"));
-    assert!(error.to_string().contains("nested_markov.outside_binary_pilot"));
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::nested_markov::OUTSIDE_BINARY_SCOPE)
+    );
     // So is a different directed edge.
     let error = refusal(&resealed(&wire, |w| w.graph.directed.push((0, 3))));
     assert_eq!(error.reason_code(), Some("route_not_supported"));
@@ -242,7 +269,11 @@ fn nested_fit_replay_refuses_resealed_semantic_mutations() {
         w.regimes[0].fixed = vec![1];
     }));
     assert_eq!(error.reason_code(), Some("route_not_supported"));
-    assert!(error.to_string().contains("nested_markov.outside_binary_pilot"));
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::nested_markov::OUTSIDE_BINARY_SCOPE)
+    );
     // A non-binary domain is outside the pilot.
     let error = refusal(&resealed(&wire, |w| w.regimes[0].levels = vec![2, 3, 2, 2]));
     assert_eq!(error.reason_code(), Some("route_not_supported"));
@@ -306,13 +337,22 @@ fn nested_fit_replay_refuses_an_unknown_version_foreign_feature_and_claim() {
     ));
     let mut foreign = wire.clone();
     foreign.required_features = vec!["something_else".into()];
-    assert!(NestedMarkovArtifactWire::decode(&foreign.export().expect("export")).is_err());
+    assert!(matches!(
+        NestedMarkovArtifactWire::decode(&foreign.export().expect("export")),
+        Err(IoError::Refused { code: "invalid_argument", message }) if message == "nested markov artifact: unsupported semantics: required features"
+    ));
     let mut calibrated = wire.clone();
     calibrated.calibration = "calibrated".into();
-    assert!(NestedMarkovArtifactWire::decode(&calibrated.export().expect("export")).is_err());
+    assert!(matches!(
+        NestedMarkovArtifactWire::decode(&calibrated.export().expect("export")),
+        Err(IoError::Refused { code: "invalid_argument", message }) if message == "nested markov artifact: unsupported semantics: calibration is not_measured"
+    ));
     let mut interval = wire;
     interval.receipt.status.inference = "interval_published".into();
-    assert!(NestedMarkovArtifactWire::decode(&interval.export().expect("export")).is_err());
+    assert!(matches!(
+        NestedMarkovArtifactWire::decode(&interval.export().expect("export")),
+        Err(IoError::Refused { code: "invalid_argument", message }) if message == "nested markov artifact: unsupported semantics: this pilot artifact publishes the fit and point contrast only"
+    ));
 }
 
 #[test]
@@ -341,6 +381,9 @@ fn nested_fit_replay_producer_refuses_outside_the_pilot_without_a_nonidentificat
         .expect_err("an adjacent ADMG is refused");
     assert_eq!(error.reason_code(), Some("route_not_supported"));
     let message = error.to_string();
-    assert!(message.contains("nested_markov.outside_binary_pilot"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::nested_markov::OUTSIDE_BINARY_SCOPE),
+        "{message}"
+    );
     assert!(!message.contains("nonidentif") && !message.contains("not_identified"), "{message}");
 }

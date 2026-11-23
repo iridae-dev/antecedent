@@ -6,8 +6,8 @@ Prediction is restricted to the fitted schema and observed treatment support.
 Receipts are portable records. They contain no fitted model or raw training data;
 a fresh process resumes only by supplying data and recomputing the fit.
 
-Analytic standard errors retain their producing model assumptions and unmeasured
-calibration standing. Fit reuse adds no confidence-interval or coverage license.
+Analytic standard errors retain their producing model assumptions and not_measured
+calibration standing. Fit reuse adds no confidence-interval or coverage support.
 """
 
 from __future__ import annotations
@@ -23,6 +23,8 @@ from . import _native
 from ._recalc_bounds import _admit, _check_resources, _columns
 from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
+from .execution import Execution
+from .outcomes import outcome_operation
 from .recalc import (
     Capabilities,
     Decision,
@@ -31,14 +33,17 @@ from .recalc import (
     RecalcReceipt,
     RecalcResult,
     ResumeContext,
+    SessionStanding,
     Stage,
     TargetWeights,
     Utility,
     _column,
     _declared,
     _declared_json,
+    _execution,
+    _native_controls,
     _refusal_type,
-    _seed,
+    session_standing,
 )
 
 Covariance = Literal["model_based", "hc0", "hc1", "hc2", "hc3"]
@@ -211,6 +216,11 @@ class AdjustedSession:
         return session
 
     @property
+    def standing(self) -> SessionStanding:
+        """The standing inputs this session family's stage identities declare."""
+        return session_standing("adjusted")
+
+    @property
     def is_live(self) -> bool:
         """Whether a checked native fit is retained in this process."""
         return self._handle.is_live()
@@ -231,12 +241,13 @@ class AdjustedSession:
         columns = self._handle.prediction_columns()
         return None if columns is None else tuple(columns)
 
+    @outcome_operation
     def predict(
         self,
         rows: Sequence[Sequence[float]],
         *,
         columns: Sequence[str],
-        memory_limit_bytes: int | None = None,
+        execution: Execution | None = None,
     ) -> AdjustedPrediction:
         """Predict rows in native adjustment-then-treatment design order.
 
@@ -245,14 +256,15 @@ class AdjustedSession:
         incompatible schemas, unsupported actions and absent retained state.
         Values are fitted conditional means, with no prediction intervals.
         """
+        memory_limit_bytes = _execution(execution).limits.memory_bytes
         _check_resources(memory_limit_bytes, None)
         _admit(sum(len(row) for row in rows), memory_limit_bytes)
         try:
             features = [[float(value) for value in row] for row in rows]
         except (TypeError, ValueError) as error:
             raise CausalValueError("prediction rows must contain numeric features") from error
-        report, refusal = self._handle.predict(
-            features, list(columns), memory_limit_bytes=memory_limit_bytes
+        report, refusal = _execution(execution)._call(
+            self._handle.predict, features, list(columns), memory_limit_bytes=memory_limit_bytes
         )
         raise_refusal(refusal, _refusal_type)
         if report is None:  # pragma: no cover - native invariant
@@ -264,51 +276,36 @@ class AdjustedSession:
         self,
         request: AdjustedRequest,
         *,
-        seed: int = 1,
-        threads: int | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> RecalcPlan:
         """Inspect the shared stage plan without fitting or predicting."""
+        run = _execution(execution)
+        ctl = _native_controls(run)
         names, columns = _columns(
-            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+            request.data, memory_limit_bytes=ctl["memory_limit_bytes"], cancel=ctl["cancel"]
         )
-        wire = self._handle.plan(
-            names,
-            columns,
-            json.dumps(_spec(request)),
-            seed=_seed(seed),
-            threads=threads,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
-        )
+        wire = run._call(self._handle.plan, names, columns, json.dumps(_spec(request)), **ctl)
         return RecalcPlan.from_wire(json.loads(wire))
 
+    @outcome_operation
     def execute(
         self,
         request: AdjustedRequest,
         *,
-        seed: int = 1,
-        threads: int | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> RecalcResult:
         """Run invalidated stages and return the shared law, decision and sealed receipt.
 
-        ``memory_limit_bytes`` bounds the input copies and the fit's planned working set,
-        and ``cancel`` stops the run; both refuse with ``recalc.*`` details.
+        The execution's memory limit bounds the input copies and the fit's planned working
+        set, and its cancellation token stops the run; both refuse with ``recalc.*`` details.
         """
+        run = _execution(execution)
+        ctl = _native_controls(run)
         names, columns = _columns(
-            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+            request.data, memory_limit_bytes=ctl["memory_limit_bytes"], cancel=ctl["cancel"]
         )
-        result, artifact, refusal = self._handle.execute(
-            names,
-            columns,
-            json.dumps(_spec(request)),
-            seed=_seed(seed),
-            threads=threads,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
+        result, artifact, refusal = run._call(
+            self._handle.execute, names, columns, json.dumps(_spec(request)), **ctl
         )
         raise_refusal(refusal, _refusal_type)
         if result is None or artifact is None:  # pragma: no cover - native invariant

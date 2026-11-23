@@ -132,7 +132,7 @@ class Soft:
 
 @dataclass(frozen=True, slots=True)
 class Sequence:
-    """Temporal sequence of Set/Shift/Soft steps (licensed on temporal InterventionResponse)."""
+    """Temporal sequence of Set/Shift/Soft steps (supported on temporal InterventionResponse)."""
 
     steps: SequenceValues[object]
 
@@ -150,7 +150,7 @@ def encode_temporal_step(spec: object) -> tuple[str, str, list[float]]:
     """Map one Set/Shift/Soft leaf to native ``(variable, kind, params)``."""
     if isinstance(spec, Sequence):
         raise CausalUnsupportedError(
-            "refused: nested Sequence interventions are not licensed for temporal "
+            "refused: nested Sequence interventions are not supported for temporal "
             "InterventionResponse"
         )
     if isinstance(spec, Set):
@@ -163,7 +163,7 @@ def encode_temporal_step(spec: object) -> tuple[str, str, list[float]]:
         if spec.mechanism in ("additive_shift", "multiplicative", "truncated_shift"):
             return spec.variable, f"soft_{spec.mechanism}", list(spec.parameters)
         raise CausalUnsupportedError(
-            f"Soft mechanism {spec.mechanism!r} is not licensed temporally"
+            f"Soft mechanism {spec.mechanism!r} is not supported temporally"
         )
     raise TypeError(
         "temporal InterventionResponse supports Set/Shift/Soft and Sequence of those steps"
@@ -171,11 +171,11 @@ def encode_temporal_step(spec: object) -> tuple[str, str, list[float]]:
 
 
 def encode_temporal_steps(spec: object) -> list[tuple[str, str, list[float]]]:
-    """Flatten a licensed Sequence or a single Set/Shift/Soft into overlay steps."""
+    """Flatten a supported Sequence or a single Set/Shift/Soft into overlay steps."""
     if isinstance(spec, Sequence):
         if any(isinstance(step, Sequence) for step in spec.steps):
             raise CausalUnsupportedError(
-                "refused: nested Sequence interventions are not licensed for temporal "
+                "refused: nested Sequence interventions are not supported for temporal "
                 "InterventionResponse"
             )
         return [encode_temporal_step(step) for step in spec.steps]

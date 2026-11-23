@@ -6,7 +6,7 @@
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::{
     EstimationError, MATCHED_ESTIMAND, MATCHED_SAMPLING, conditional_odds_ratio,
-    parse_matched_estimand, parse_matched_sampling, refuse_matched_interval,
+    parse_matched_estimand, parse_matched_sampling,
 };
 
 #[path = "common/checks.rs"]
@@ -191,7 +191,11 @@ fn no_informative_set_is_refused_with_the_counts() {
     sets.push(vec![(1.0, 1.0)]);
     let (code, message) = refused(fit(&sets).unwrap_err());
     assert_eq!(code, "effect_not_identified");
-    assert!(message.contains("matched_case_control.no_informative_sets"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::matched_case_control::NO_INFORMATIVE_SETS),
+        "{message}"
+    );
     assert!(message.contains("6 matched sets"), "{message}");
 }
 
@@ -203,7 +207,12 @@ fn a_monotone_likelihood_has_no_finite_estimate() {
     for error in [up, down] {
         let (code, message) = refused(error);
         assert_eq!(code, "route_not_supported");
-        assert!(message.contains("matched_case_control.estimate_not_finite"), "{message}");
+        assert!(
+            message.contains(
+                antecedent_core::reason_details::matched_case_control::ESTIMATE_NOT_FINITE
+            ),
+            "{message}"
+        );
     }
 }
 
@@ -221,7 +230,10 @@ fn malformed_rows_are_refused() {
         let (code, message) =
             refused(conditional_odds_ratio(&stratum, &case, &exposed, &ctx()).unwrap_err());
         assert_eq!(code, "invalid_argument");
-        assert!(message.contains("matched_case_control.invalid_data"), "{message}");
+        assert!(
+            message.contains(antecedent_core::reason_details::matched_case_control::INVALID_DATA),
+            "{message}"
+        );
     }
 }
 
@@ -231,11 +243,21 @@ fn risk_scale_estimands_are_refused_without_prevalence() {
     for name in ["population_risk", "absolute_risk", "risk_difference", "risk_ratio"] {
         let (code, message) = refused(parse_matched_estimand(name).unwrap_err());
         assert_eq!(code, "effect_not_identified", "{name}");
-        assert!(message.contains("matched_case_control.absolute_risk_not_identified"), "{message}");
+        assert!(
+            message.contains(
+                antecedent_core::reason_details::matched_case_control::ABSOLUTE_RISK_NOT_IDENTIFIED
+            ),
+            "{message}"
+        );
     }
     let (code, message) = refused(parse_matched_estimand("hazard_ratio").unwrap_err());
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("matched_case_control.estimand_not_supported"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::matched_case_control::ESTIMAND_NOT_SUPPORTED
+        ),
+        "{message}"
+    );
 }
 
 #[test]
@@ -244,15 +266,34 @@ fn only_the_declared_sampling_design_is_accepted() {
     for name in ["cohort", "unmatched_case_control", ""] {
         let (code, message) = refused(parse_matched_sampling(name).unwrap_err());
         assert_eq!(code, "invalid_argument");
-        assert!(message.contains("matched_case_control.sampling_design"), "{message}");
+        assert!(
+            message
+                .contains(antecedent_core::reason_details::matched_case_control::SAMPLING_DESIGN),
+            "{message}"
+        );
     }
 }
 
 #[test]
-fn the_interval_route_is_closed() {
-    let (code, message) = refused(refuse_matched_interval());
-    assert_eq!(code, "cell_not_licensed");
-    assert!(message.contains("matched_case_control.interval_withheld"), "{message}");
+fn the_wald_interval_equals_the_one_to_one_closed_form() {
+    // 1:1 matching with b = 12 pairs whose case is exposed and c = 4 whose control is: the
+    // estimate is theta = b / c and the information is b c / (b + c), so the log-scale
+    // variance is 1/b + 1/c and the 95% interval is ln(b/c) -/+ 1.959963984540054 sqrt(1/b + 1/c).
+    let (b, c) = (12.0_f64, 4.0_f64);
+    let mut sets = repeat(&[(1.0, 1.0), (0.0, 0.0)], 12);
+    sets.extend(repeat(&[(1.0, 0.0), (0.0, 1.0)], 4));
+    let (stratum, case, exposed) = rows(&sets);
+    let fit = conditional_odds_ratio(&stratum, &case, &exposed, &ctx()).unwrap();
+    let z = 1.959_963_984_540_054;
+    let half = z * (1.0 / b + 1.0 / c).sqrt();
+    assert!((fit.information - b * c / (b + c)).abs() < 1e-6, "{}", fit.information);
+    let (lo, hi) = fit.log_odds_ratio_interval(0.95).unwrap();
+    assert!((lo - ((b / c).ln() - half)).abs() < 1e-6, "lower {lo}");
+    assert!((hi - ((b / c).ln() + half)).abs() < 1e-6, "upper {hi}");
+    let (olo, ohi) = fit.odds_ratio_interval(0.95).unwrap();
+    assert!((olo - (b / c) * (-half).exp()).abs() < 1e-5);
+    assert!((ohi - (b / c) * half.exp()).abs() < 1e-5);
+    assert!(fit.odds_ratio_interval(1.0).is_none());
 }
 
 #[test]
@@ -265,7 +306,10 @@ fn a_cancelled_solve_is_a_budget_stop_never_a_verdict() {
     let (code, message) =
         refused(conditional_odds_ratio(&stratum, &case, &exposed, &cancelled).unwrap_err());
     assert_eq!(code, "transport_budget_cancel");
-    assert!(message.contains("matched_case_control.budget"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::matched_case_control::BUDGET),
+        "{message}"
+    );
     // The same rows then solve under a live context.
     assert!(conditional_odds_ratio(&stratum, &case, &exposed, &ctx()).is_ok());
 }

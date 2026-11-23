@@ -19,9 +19,11 @@ def test_fit_gcm_discovered_lingam_smoke():
     y = 1.5 * t + 0.6 * z + e_y
     data = {"z": z, "t": t, "y": y}
     fitted, edges = antecedent.gcm.fit_gcm_discovered(
-        data, discovery=antecedent.discovery.LiNGAM(), seed=1
+        data, discovery=antecedent.discovery.LiNGAM(), execution=antecedent.Execution(seed=1)
     )
-    assert edges
+    # The generating graph is z -> t, z -> y, t -> y; LiNGAM orients all three.
+    assert set(edges) == {("z", "t"), ("z", "y"), ("t", "y")}
+    assert len(edges) == 3
     assert fitted is not None
 
 
@@ -39,5 +41,7 @@ def test_fit_gcm_discovered_refuses_fci_and_incomplete_pc():
     # Weak PC often leaves undirected marks — compose must fail closed.
     with pytest.raises(ValueError, match="cannot coerce|incomplete|orient"):
         antecedent.gcm.fit_gcm_discovered(
-            data, discovery=antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0), seed=1
+            data,
+            discovery=antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0),
+            execution=antecedent.Execution(seed=1),
         )

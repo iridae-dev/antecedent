@@ -9,7 +9,9 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any, cast
 
+from .._artifact_protocol import ExportedArtifact, artifact_export, artifact_from_receipt
 from .._columns import coerce_fields
+from .._scientific import ScientificResult
 from ..errors import CausalSerializationError, CausalUnsupportedError
 from ..results import (
     AnalysisResult,
@@ -45,10 +47,7 @@ from ._impl import (
     StatisticalTransportDistribution,
     TransportResponseGrid,
     TrialAipw,
-    _exact_distribution,
     _learned_trial,
-    _response_grid,
-    _statistical_distribution,
     consume_exact,
     consume_identification,
     consume_response_grid,
@@ -86,7 +85,7 @@ class TransportSection:
     distribution: Any = None
     unavailable: str | None = None
     shape: str | None = None
-    #: Native sampling interval for the reported number, when one was licensed
+    #: Native sampling interval for the reported number, when one was supported
     #: (``LearnedTrialEstimate.interval``, a plug-in ``TransportContrast.interval``,
     #: or the matching entry in ``TransportUncertainty.mean_intervals``). ``None``
     #: means no interval was computed, not that it rounds to a point.
@@ -172,15 +171,16 @@ def _empty_performance() -> PerformanceView:
     return PerformanceView()
 
 
-class _ExportAdapter:
+class _ExportAdapter(ScientificResult):
     def __init__(self, result: Any) -> None:
         self._result = result
 
     def export_contracted_artifact(self, artifact_id: str = "analysis-result") -> bytes:
         return encode_transport_view(self._result)
 
-    def export(self) -> bytes:
-        return encode_transport_view(self._result)
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
+        return artifact_from_receipt(self, encode_transport_view(self._result))
 
 
 def _attach(result: Any, study: Any, specialist: Any, section: TransportSection) -> Any:
@@ -309,7 +309,7 @@ def _identification_snapshot(stage: Mapping[str, Any]) -> bytes | None:
 def _specialist_artifacts(distribution: Any) -> list[bytes]:
     if distribution is None:
         return []
-    artifacts = getattr(distribution, "artifacts", None)
+    artifacts = getattr(distribution, "_artifacts", None)
     if artifacts is not None:
         return [bytes(item) for item in artifacts]
     export = getattr(distribution, "export", None)
@@ -332,16 +332,11 @@ def _consume_specialist_artifact(encoded: bytes) -> Any:
         native = _native.consume_learned_trial(encoded)
         return _learned_trial(native, native.last_result())
     if encoded.startswith(b"ANTECEDENT-EXACT-TRANSPORT\x01"):
-        exact_prepared = consume_exact(encoded)
-        return _exact_distribution(exact_prepared._native, exact_prepared._native.last_result())
+        return consume_exact(encoded)
     if encoded.startswith(b"ANTECEDENT-STATISTICAL-TRANSPORT\x01"):
-        statistical_prepared = consume_statistical(encoded)
-        return _statistical_distribution(
-            statistical_prepared._native, statistical_prepared._native.last_result()
-        )
+        return consume_statistical(encoded)
     if encoded.startswith(b"ANTECEDENT-TRANSPORT-GRID\x01"):
-        grid_prepared = consume_response_grid(encoded)
-        return _response_grid(grid_prepared._native, grid_prepared._native.last_result())
+        return consume_response_grid(encoded)
     if encoded.startswith(Z_TRANSPORT_PREFIX):
         return consume_restricted_artifacts([encoded])
     raise CausalSerializationError("unrecognized transport specialist artifact")
@@ -628,6 +623,12 @@ def _reasoning_from_specialist(specialist: Any) -> ReasoningSlots | None:
         contract=dict(report.contract)
         if isinstance(getattr(report, "contract", None), Mapping)
         else None,
+        next_actions=tuple(dict(item) for item in getattr(report, "next_actions", ())),
+        neighbors=tuple(dict(item) for item in getattr(report, "neighbors", ())),
+        unmet_obligations=tuple(dict(item) for item in getattr(report, "unmet_obligations", ())),
+        evidence_obligations=tuple(
+            dict(item) for item in getattr(report, "evidence_obligations", ())
+        ),
     )
 
 

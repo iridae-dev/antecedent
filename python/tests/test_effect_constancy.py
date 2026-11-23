@@ -12,6 +12,7 @@ from __future__ import annotations
 import math
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import temporal
 from antecedent.errors import (
     CausalSerializationError,
@@ -69,13 +70,13 @@ def test_frozen_acceptance_one_versus_two_has_statistic_two() -> None:
     assert not contrast.rejected
 
 
-def test_calibration_is_unmeasured_and_non_rejection_is_not_proof() -> None:
+def test_calibration_is_not_measured_and_non_rejection_is_not_proof() -> None:
     result = run([("p1", 1.0, 0.5), ("p2", 1.0, 0.5)])
-    assert result.calibration == "unmeasured"
+    assert result.calibration == "not_measured"
     assert result.inference_claim == "point_only"
     assert any("does not prove" in caveat for caveat in result.caveats)
-    assert any("unmeasured" in caveat for caveat in result.caveats)
-    assert result.to_dict()["calibration"] == "unmeasured"
+    assert any("not_measured" in caveat for caveat in result.caveats)
+    assert result.to_dict()["calibration"] == "not_measured"
     assert result.to_dict()["conclusion"] == "not_rejected"
 
 
@@ -136,7 +137,7 @@ def test_dependent_covariance_gives_wald_four() -> None:
 def test_varying_effects_are_rejected() -> None:
     result = run([("a", 0.0, 0.5), ("b", 5.0, 0.5)])
     assert result.statistic == pytest.approx(50.0, abs=1e-9)
-    assert result.p_value < 1e-9
+    assert result.p_value == pytest.approx(math.erfc(5.0), rel=1e-6)  # sf of chi-square(1) at 50
     assert result.conclusion is ConstancyConclusion.REJECTED
     assert result.contrasts[0].rejected
 
@@ -205,8 +206,8 @@ def test_partitions_that_change_the_estimand_refuse(changed: EffectEstimand) -> 
     error = raised.value
     assert isinstance(error, CausalUnsupportedError)
     assert error.reason_code == "route_not_supported"
-    assert error.detail == "effect_constancy.incompatible_partitions"
-    assert "effect_constancy.incompatible_partitions" in str(error)
+    assert error.detail == reason_details.effect_constancy.INCOMPATIBLE_PARTITIONS
+    assert reason_details.effect_constancy.INCOMPATIBLE_PARTITIONS in str(error)
     assert_registered_refusal(error)
 
 
@@ -214,10 +215,10 @@ def test_unsupported_coordinate_and_duplicate_labels_refuse() -> None:
     with pytest.raises(TemporalRefusal) as raised:
         run([Partition("a", 1.0, 0.5), Partition("b", 1.0, 0.5, support="unsupported")])
     assert raised.value.reason_code == "route_not_supported"
-    assert raised.value.detail == "effect_constancy.unsupported_partition"
+    assert raised.value.detail == reason_details.effect_constancy.UNSUPPORTED_PARTITION
     with pytest.raises(TemporalRefusal) as raised:
         run([("a", 1.0, 0.5), ("a", 2.0, 0.5)])
-    assert raised.value.detail == "effect_constancy.incompatible_partitions"
+    assert raised.value.detail == reason_details.effect_constancy.INCOMPATIBLE_PARTITIONS
     # A partially supported coordinate is reported, not refused.
     partial = run([Partition("a", 1.0, 0.5), Partition("b", 1.0, 0.5, support="partial")])
     assert partial.partitions[1].support == "partial"
@@ -231,11 +232,11 @@ def test_invalid_numbers_refuse_with_exact_details() -> None:
 
     assert detail([("a", 1.0, 0.5)]) == (
         "invalid_argument",
-        "effect_constancy.too_few_partitions",
+        reason_details.effect_constancy.TOO_FEW_PARTITIONS,
     )
     assert detail([("a", 1.0, 0.5), ("b", 1.0, 0.0)]) == (
         "invalid_argument",
-        "effect_constancy.invalid_standard_error",
+        reason_details.effect_constancy.INVALID_STANDARD_ERROR,
     )
     for covariance in (
         [[0.25, 0.1], [0.2, 0.25]],  # not symmetric
@@ -247,20 +248,20 @@ def test_invalid_numbers_refuse_with_exact_details() -> None:
     ):
         assert detail([("a", 1.0, 0.5), ("b", 2.0, 0.5)], covariance=covariance) == (
             "invalid_argument",
-            "effect_constancy.invalid_covariance",
+            reason_details.effect_constancy.INVALID_COVARIANCE,
         ), covariance
     assert detail([("a", 1.0, 0.5), ("b", 2.0, 0.5)], against="zzz") == (
         "invalid_argument",
-        "effect_constancy.unknown_reference",
+        reason_details.effect_constancy.UNKNOWN_REFERENCE,
     )
     assert detail([("a", 1.0, 0.5), ("b", 2.0, 0.5)], alpha=1.5) == (
         "invalid_argument",
-        "effect_constancy.invalid_alpha",
+        reason_details.effect_constancy.INVALID_ALPHA,
     )
     for bad in (float("nan"), float("inf")):
         with pytest.raises(TemporalRefusal) as raised:
             Partition("a", bad, 0.5)
-        assert raised.value.detail == "effect_constancy.non_finite_estimate"
+        assert raised.value.detail == reason_details.effect_constancy.NON_FINITE_ESTIMATE
 
 
 def test_a_missing_shared_estimand_is_never_assumed() -> None:
@@ -272,7 +273,7 @@ def test_a_missing_shared_estimand_is_never_assumed() -> None:
 
 def test_artifact_round_trip_retains_identities_covariance_and_calibration() -> None:
     result = run([("a", 1.0, 0.5), ("b", 2.0, 0.5)], covariance=[[0.25, 0.125], [0.125, 0.25]])
-    artifact = result.export()
+    artifact = bytes(result.export())
     assert isinstance(artifact, bytes)
     fresh = consume_effect_constancy_artifact(artifact, expected_identity=result.identity)
     assert fresh.statistic == result.statistic
@@ -280,10 +281,10 @@ def test_artifact_round_trip_retains_identities_covariance_and_calibration() -> 
     assert fresh.contrasts == result.contrasts
     assert fresh.partitions == result.partitions
     assert fresh.identity == result.identity
-    assert fresh.calibration == "unmeasured"
+    assert fresh.calibration == "not_measured"
     assert fresh.dependence == "covariance"
     assert fresh.estimand == EFFECT
-    assert fresh.export() == artifact
+    assert bytes(fresh.export()) == artifact
     # The identity may also be given as the plain mapping a consumer stored out-of-band.
     assert consume_effect_constancy_artifact(artifact, expected_identity=result.identity._wire())
     assert consume_effect_constancy_artifact(artifact).identity == result.identity
@@ -296,12 +297,16 @@ def test_resealed_mutations_are_refused_against_the_retained_identity() -> None:
 
     def refused(mutated, field: str) -> None:
         # Alone the mutated artifact is internally consistent ...
-        assert consume_effect_constancy_artifact(mutated.export()).identity == mutated.identity
+        assert (
+            consume_effect_constancy_artifact(bytes(mutated.export())).identity == mutated.identity
+        )
         # ... but against the identity the consumer retained it is refused.
         with pytest.raises(TemporalRefusal) as raised:
-            consume_effect_constancy_artifact(mutated.export(), expected_identity=original.identity)
+            consume_effect_constancy_artifact(
+                bytes(mutated.export()), expected_identity=original.identity
+            )
         assert raised.value.reason_code == "route_not_supported"
-        assert raised.value.detail == "effect_constancy.wrong_contract"
+        assert raised.value.detail == reason_details.effect_constancy.WRONG_CONTRACT
         assert raised.value.offending == field, field
 
     refused(run(base_parts, covariance=[[0.25, 0.0625], [0.0625, 0.25]]), "covariance")
@@ -329,7 +334,7 @@ def test_resealed_mutations_are_refused_against_the_retained_identity() -> None:
 
 
 def test_corrupt_truncated_and_foreign_artifacts_refuse() -> None:
-    artifact = run([("a", 1.0, 0.5), ("b", 2.0, 0.5)]).export()
+    artifact = bytes(run([("a", 1.0, 0.5), ("b", 2.0, 0.5)]).export())
     corrupt = bytearray(artifact)
     corrupt[len(corrupt) // 2] ^= 0xFF
     with pytest.raises(CausalSerializationError):
@@ -338,5 +343,5 @@ def test_corrupt_truncated_and_foreign_artifacts_refuse() -> None:
         consume_effect_constancy_artifact(artifact[:-5])
     with pytest.raises(CausalSerializationError):
         consume_effect_constancy_artifact(b"not an artifact")
-    with pytest.raises(TypeError, match="artifact must be bytes"):
+    with pytest.raises(TypeError, match="an artifact is bytes or ExportedArtifact"):
         consume_effect_constancy_artifact("text")  # type: ignore[arg-type]

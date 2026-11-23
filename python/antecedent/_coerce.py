@@ -43,7 +43,7 @@ def _refuse_environment_pooling() -> None:
         "environments makes any two variables whose means or scales shift dependent (a "
         "mixture), so a single-table algorithm would report spurious edges. Discover across "
         "environments with JPCMCIPlus (space dummies), or pass one environment's table",
-        reason_code="data_modality_not_licensed",
+        reason_code="data_modality_not_supported",
     )
 
 
@@ -55,7 +55,7 @@ def _refuse_lagged_pooling() -> None:
         "lagged design of its own (its regime labels run over one series' observations). "
         "PCMCI, PCMCIPlus, LPCMCI and DbnPosterior build every unit's lagged windows inside "
         "that unit; JPCMCIPlus does too, across environments. Or pass one unit's series",
-        reason_code="data_modality_not_licensed",
+        reason_code="data_modality_not_supported",
     )
 
 
@@ -156,16 +156,22 @@ def coerce_query(value: Any) -> Any:
     Every query dataclass in :mod:`antecedent.query` carries a ``kind``
     discriminator; anything without one is not a supported query type.
     """
+    from ._temporal_design import TEMPORAL_DESIGN_QUERIES
+    from .descriptive import Association
     from .experiment import ComplierEffect, RandomizedEffect, SwitchbackEffect, TreatmentOnTreated
     from .interference import InterferenceQuery
     from .policy import ConditionalDoseResponse, MultiActionPolicyValue, PolicyValue
     from .quasi import (
         AugmentedPanelDiD,
+        CovariateAdjustedDiD,
         FuzzyRegressionDiscontinuity,
+        IvBounds,
         PanelDifferenceInDifferences,
+        PeriodHistoryMatch,
         RegressionKink,
         SharpRegressionDiscontinuity,
         StaggeredAdoption,
+        StaggeredRollout,
         SyntheticControl,
         SyntheticDifferenceInDifferences,
     )
@@ -189,9 +195,12 @@ def coerce_query(value: Any) -> Any:
         ResponseJacobian,
         SemiElasticity,
         SustainedEffect,
+        TemporalConditionalPulse,
+        TemporalConditionalSustained,
         TemporalMediationEffect,
+        TemporalQuery,
     )
-    from .regimes import LongitudinalRegime
+    from .regimes import LongitudinalRegime, SequentialContrast
     from .survival import CompetingRisksOutcome, SurvivalOutcome
     from .transport import Transport
     from .transport.advanced import TransportQuery
@@ -208,7 +217,10 @@ def coerce_query(value: Any) -> Any:
         PathSpecificEffect,
         PulseEffect,
         SustainedEffect,
+        TemporalConditionalPulse,
+        TemporalConditionalSustained,
         TemporalMediationEffect,
+        TemporalQuery,
         ResponseCurve,
         AverageDerivative,
         PointDerivative,
@@ -232,12 +244,19 @@ def coerce_query(value: Any) -> Any:
         StaggeredAdoption,
         SyntheticControl,
         SyntheticDifferenceInDifferences,
+        StaggeredRollout,
+        CovariateAdjustedDiD,
         FuzzyRegressionDiscontinuity,
         RegressionKink,
         SharpRegressionDiscontinuity,
         LongitudinalRegime,
+        SequentialContrast,
+        PeriodHistoryMatch,
+        IvBounds,
+        Association,
         SurvivalOutcome,
         CompetingRisksOutcome,
+        *TEMPORAL_DESIGN_QUERIES,
     )
     if isinstance(value, valid):
         return value

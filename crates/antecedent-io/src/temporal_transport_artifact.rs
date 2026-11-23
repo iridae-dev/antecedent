@@ -18,6 +18,7 @@
 //! consumer detects a swapped catalog or law snapshot even when the replayed
 //! point happens not to change.
 
+use crate::exact_transport_laws::canonical_laws;
 use crate::{
     IoError, admg_from_wire, admg_to_wire, exact_law_wire::ExactLawWire,
     mz_transport_artifact::MzTransportPointWire, query_wire::ValueWire,
@@ -43,9 +44,22 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// The artifact format this reader writes and accepts.
-pub const TEMPORAL_TRANSPORT_ARTIFACT_VERSION: u32 = 1;
+pub const TEMPORAL_TRANSPORT_ARTIFACT_VERSION: u32 = 2;
 /// The feature marker of the accepted format.
-pub const TEMPORAL_TRANSPORT_ARTIFACT_FEATURE: &str = "temporal_transport_sequence_v1";
+pub const TEMPORAL_TRANSPORT_ARTIFACT_FEATURE: &str = "temporal_transport_sequence_v2";
+/// The artifact format of a sequence with any other number of steps.
+pub const TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_VERSION: u32 = 3;
+/// The feature marker of that format.
+pub const TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_FEATURE: &str = "temporal_transport_sequence_v3";
+
+/// The format version and feature marker of a sequence with `horizon` steps.
+fn layout(horizon: usize) -> (u32, &'static str) {
+    if horizon == 2 {
+        (TEMPORAL_TRANSPORT_ARTIFACT_VERSION, TEMPORAL_TRANSPORT_ARTIFACT_FEATURE)
+    } else {
+        (TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_VERSION, TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_FEATURE)
+    }
+}
 
 pub use antecedent_io_core::transport_errors::TemporalTransportArtifactError;
 /// A refused sequence, window or bound as a reason-coded refusal.
@@ -54,10 +68,7 @@ pub use antecedent_io_core::transport_errors::TemporalTransportArtifactError;
 // doc(hidden): the facade and the python bindings map refusals through it.
 #[doc(hidden)]
 pub fn temporal_refusal(refusal: TemporalRefusal) -> IoError {
-    IoError::Refused {
-        code: refusal.code,
-        message: format!("{}: {}", refusal.detail, refusal.message),
-    }
+    crate::refusal::refused(refusal.code, refusal.detail, &refusal.message)
 }
 
 /// A decision failure as an IO error: a refusal keeps its code.
@@ -104,10 +115,10 @@ impl Default for TemporalTransportConsumeLimits {
 pub struct TemporalSlotsWire {
     /// Baseline covariates.
     pub baseline: Vec<u32>,
-    /// Covariates observed before each action.
-    pub covariates: [Vec<u32>; 2],
+    /// Covariates observed before each action, one group per step.
+    pub covariates: Vec<Vec<u32>>,
     /// The action of each step.
-    pub actions: [u32; 2],
+    pub actions: Vec<u32>,
     /// The outcome.
     pub outcome: u32,
 }
@@ -259,7 +270,7 @@ pub struct TemporalSequenceArtifactWire {
     pub version: u32,
     /// Required feature marker.
     pub required_features: Vec<String>,
-    /// Horizon (two).
+    /// Horizon: the number of steps.
     pub horizon: usize,
     /// The unrolled causal graph.
     pub graph: AdmgWire,
@@ -301,6 +312,9 @@ pub struct TemporalSequenceArtifactWire {
     /// Digest of the data identity: every catalog binding's snapshot and dataset
     /// ids and every law's snapshot (refresh-replaceable, outside the premises).
     pub data_digest: String,
+    /// Digest of the whole stored artifact but this field: the laws' probabilities, the
+    /// limits and the full report that the other two digests leave out.
+    pub evidence_digest: String,
 }
 
 /// `(regime, snapshot, dataset)` of every catalog binding and
@@ -309,23 +323,8 @@ fn data_digest(
     catalog: &antecedent_core::EvidenceCatalog,
     laws: &[ExactLawWire],
 ) -> Result<String, IoError> {
-    let mut bindings = catalog
-        .bindings
-        .iter()
-        .map(|b| {
-            (
-                b.regime.raw(),
-                b.snapshot_identity.to_string(),
-                b.dataset_identity.as_deref().map(str::to_owned),
-            )
-        })
-        .collect::<Vec<_>>();
-    bindings.sort();
-    let mut snapshots = laws
-        .iter()
-        .map(|law| (law.population.clone(), law.regime, law.snapshot.clone()))
-        .collect::<Vec<_>>();
-    snapshots.sort();
+    let bindings = crate::exact_transport_laws::sorted_catalog_bindings(catalog);
+    let snapshots = crate::exact_transport_laws::sorted_law_snapshots(laws);
     crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("temporal_transport_data_v1", bindings, snapshots),
@@ -391,26 +390,12 @@ fn check_provider(
     Ok(())
 }
 
-fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoError> {
-    let mut laws = data
-        .laws()
-        .iter()
-        .map(|law| {
-            let wire = ExactLawWire::from_law(law);
-            crate::to_cbor(&(&wire.population, wire.regime, &wire.interventions))
-                .map(|key| (key, wire))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    laws.sort_by(|a, b| a.0.cmp(&b.0));
-    Ok(laws.into_iter().map(|(_, law)| law).collect())
-}
-
 fn slots_wire(slots: &TemporalSlots) -> TemporalSlotsWire {
     let raw = |ids: &[VariableId]| ids.iter().map(|v| v.raw()).collect::<Vec<_>>();
     TemporalSlotsWire {
         baseline: raw(&slots.baseline),
-        covariates: [raw(&slots.covariates[0]), raw(&slots.covariates[1])],
-        actions: [slots.actions[0].raw(), slots.actions[1].raw()],
+        covariates: slots.covariates.iter().map(|group| raw(group)).collect(),
+        actions: slots.actions.iter().map(|a| a.raw()).collect(),
         outcome: slots.outcome.raw(),
     }
 }
@@ -432,9 +417,10 @@ impl TemporalSequenceArtifactWire {
         let decision = prepared.decision();
         let limits = prepared.limits();
         let laws = canonical_laws(prepared.data())?;
+        let (version, feature) = layout(decision.spec.horizon());
         let mut wire = Self {
-            version: TEMPORAL_TRANSPORT_ARTIFACT_VERSION,
-            required_features: vec![TEMPORAL_TRANSPORT_ARTIFACT_FEATURE.into()],
+            version,
+            required_features: vec![feature.into()],
             horizon: decision.spec.horizon(),
             graph: admg_to_wire(decision.spec.diagram().causal_graph())?,
             selections: decision
@@ -466,9 +452,21 @@ impl TemporalSequenceArtifactWire {
             depth_limit: limits.depth,
             report: TemporalReportWire::from_report(prepared, report)?,
             premises_digest: String::new(),
+            evidence_digest: String::new(),
         };
         wire.premises_digest = temporal_sequence_identity_impl(&wire)?;
+        wire.evidence_digest = wire.expected_evidence_digest()?;
         Ok(wire)
+    }
+
+    /// The evidence digest the stored artifact should carry.
+    ///
+    /// # Errors
+    /// The artifact does not encode.
+    pub fn expected_evidence_digest(&self) -> Result<String, IoError> {
+        crate::evidence_digest::evidence_digest("temporal_transport_evidence_v2", self, |wire| {
+            wire.evidence_digest = String::new();
+        })
     }
 
     /// The data-identity digest these stored catalog bindings and law
@@ -495,13 +493,16 @@ impl TemporalSequenceArtifactWire {
     /// [`IoError::UnsupportedVersion`], a decoding failure, or a foreign feature.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
         let wire: Self = crate::decode_with_version(bytes, |version| {
-            if version == TEMPORAL_TRANSPORT_ARTIFACT_VERSION {
+            if version == TEMPORAL_TRANSPORT_ARTIFACT_VERSION
+                || version == TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_VERSION
+            {
                 Ok(())
             } else {
                 Err(IoError::UnsupportedVersion { version })
             }
         })?;
-        if wire.required_features != [TEMPORAL_TRANSPORT_ARTIFACT_FEATURE] {
+        let (expected_version, feature) = layout(wire.horizon);
+        if wire.version != expected_version || wire.required_features != [feature] {
             return Err(
                 TemporalTransportArtifactError::UnsupportedSemantics("required features").into()
             );
@@ -521,11 +522,10 @@ impl TemporalSequenceArtifactWire {
             return Err(exceeded("search budget"));
         }
         if let (Some(producer), Some(consumer)) =
-            (self.search_memory_bytes, ctx.memory.hard_limit_bytes)
+            (self.search_memory_bytes, ctx.memory_limit_bytes())
+            && producer > consumer
         {
-            if producer > consumer {
-                return Err(exceeded("search memory"));
-            }
+            return Err(exceeded("search memory"));
         }
         if self.operation_limit > limits.evaluation.operations
             || self.depth_limit > limits.evaluation.depth
@@ -557,11 +557,8 @@ impl TemporalSequenceArtifactWire {
         .map_err(|e| IoError::Convert(e.to_string()))?;
         let slots = TemporalSlots {
             baseline: ids(&self.slots.baseline),
-            covariates: [ids(&self.slots.covariates[0]), ids(&self.slots.covariates[1])],
-            actions: [
-                VariableId::from_raw(self.slots.actions[0]),
-                VariableId::from_raw(self.slots.actions[1]),
-            ],
+            covariates: self.slots.covariates.iter().map(|group| ids(group)).collect(),
+            actions: self.slots.actions.iter().copied().map(VariableId::from_raw).collect(),
             outcome: VariableId::from_raw(self.slots.outcome),
         };
         TemporalSequenceSpec::try_new(self.horizon, slots, diagram, coordinates)
@@ -608,7 +605,7 @@ impl TemporalSequenceArtifactWire {
         // hard limit already bounds, so a memory truncation reproduces.
         let mut replay = ctx.clone();
         if wire.search_memory_bytes.is_some() {
-            replay.memory.hard_limit_bytes = wire.search_memory_bytes;
+            replay.set_memory_limit(wire.search_memory_bytes);
         }
         let ctx = &replay;
         let decision = decide_temporal_transport_sequence(
@@ -632,6 +629,12 @@ impl TemporalSequenceArtifactWire {
         if crate::to_cbor(&replayed)? != crate::to_cbor(&wire.report)? {
             return Err(TemporalTransportArtifactError::ReportMismatch.into());
         }
+        crate::require_digest(
+            &wire.evidence_digest,
+            wire.expected_evidence_digest(),
+            std::convert::identity,
+            || TemporalTransportArtifactError::EvidenceMismatch.into(),
+        )?;
         Ok((wire, report))
     }
 }

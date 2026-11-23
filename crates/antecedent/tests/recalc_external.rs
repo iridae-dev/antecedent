@@ -1,5 +1,5 @@
 //! Independent foreign mean callbacks, actual invocation receipts and portable replay.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::analysis::recalc_external::*;
 use antecedent_core::ExecutionContext;
 use antecedent_core::recalc::Stage;
@@ -13,11 +13,11 @@ fn execute(
     request: &ExternalCallbackRequest,
     provider: &mut Provider,
 ) -> ExternalCallbackOutcome {
-    let ((out, fits), calls) = count_external_invocations(|| {
-        observe_resolved_fits(|| {
-            session.execute(request, Some(provider), &ExecutionContext::for_tests(999)).unwrap()
-        })
+    let before = provider.calls;
+    let (out, fits) = observe_resolved_fits(|| {
+        session.execute(request, Some(&mut *provider), &ExecutionContext::for_tests(999)).unwrap()
     });
+    let calls = provider.calls - before;
     assert_eq!(fits, 0);
     assert_eq!(calls, out.receipt.totals().external_invocations);
     out
@@ -94,8 +94,9 @@ fn callback_request_identity_changes_when_planner_branch_changes() {
         other.requested.own(Stage::ExternalStudy(other_branch.branch)),
     );
     let artifact = session.export_output().unwrap();
-    assert!(
-        ExternalCallbackSession::resume(&artifact, &other_branch).is_err(),
+    assert_eq!(
+        ExternalCallbackSession::resume(&artifact, &other_branch).err().unwrap().to_string(),
+        "Artifact(\"convert error: callback artifact execution identity mismatch\")",
         "an attested result for one callback branch cannot be resumed for another"
     );
 }
@@ -113,7 +114,10 @@ fn side_effect_retry_key_cannot_cross_planner_branches() {
 
     assert!(matches!(
         session.execute(&request, Some(&mut provider), &ExecutionContext::for_tests(999)),
-        Err(ExternalCallbackError::Attempt { detail: "external_recalc.callback_failed", .. })
+        Err(ExternalCallbackError::Attempt {
+            detail: antecedent_core::reason_details::external_recalc::CALLBACK_FAILED,
+            ..
+        })
     ));
     assert_eq!(provider.calls, 1);
 
@@ -121,7 +125,9 @@ fn side_effect_retry_key_cannot_cross_planner_branches() {
     provider.fail = false;
     assert!(matches!(
         session.execute(&request, Some(&mut provider), &ExecutionContext::for_tests(999)),
-        Err(ExternalCallbackError::Request("external_recalc.idempotency_conflict"))
+        Err(ExternalCallbackError::Request(
+            antecedent_core::reason_details::external_recalc::IDEMPOTENCY_CONFLICT
+        ))
     ));
     assert_eq!(provider.calls, 1, "a changed branch must not reuse the first request's key");
 }
@@ -140,10 +146,16 @@ fn seeded_callback_rng_mutations_and_actual_fresh_replay() {
     let mut fresh = ExternalCallbackSession::resume(&bytes, &request).unwrap();
     assert!(fresh.issued_claim().is_none());
     assert!(!fresh.plan(&request).is_executable());
-    let ((), calls) = count_external_invocations(|| {
-        assert!(fresh.execute(&request, None, &ExecutionContext::for_tests(1)).is_err());
-    });
-    assert_eq!(calls, 0);
+    let before = provider.calls;
+    let refusal = format!(
+        "{:?}",
+        fresh.execute(&request, None, &ExecutionContext::for_tests(1)).err().unwrap()
+    );
+    assert!(
+        refusal.starts_with("Refused(") && refusal.contains("stage: ProviderRequest(Branch(0)), status: Refused { reason: Unavailable { missing: Provider } }"),
+        "{refusal}"
+    );
+    assert_eq!(provider.calls, before);
     let replayed = execute(&mut fresh, &request, &mut provider);
     assert_eq!(replayed.claim.values(), changed.claim.values());
     assert_eq!(replayed.receipt.totals().external_invocations, 1);
@@ -151,18 +163,22 @@ fn seeded_callback_rng_mutations_and_actual_fresh_replay() {
     replaced.descriptor.identity.version_id = "v2".into();
     assert!(matches!(
         fresh.execute(&request, Some(&mut replaced), &ExecutionContext::for_tests(1)),
-        Err(ExternalCallbackError::Request("external_recalc.provider_mismatch"))
+        Err(ExternalCallbackError::Request(
+            antecedent_core::reason_details::external_recalc::PROVIDER_MISMATCH
+        ))
     ));
     let mut stale = ExternalCallbackSession::resume(&bytes, &request).unwrap();
     provider.offset = 1.0;
-    let (failure, calls) = count_external_invocations(|| {
-        stale.execute(&request, Some(&mut provider), &ExecutionContext::for_tests(1))
-    });
+    let before = provider.calls;
+    let failure = stale.execute(&request, Some(&mut provider), &ExecutionContext::for_tests(1));
     assert!(matches!(
         failure,
-        Err(ExternalCallbackError::Attempt { detail: "external_recalc.replay_mismatch", .. })
+        Err(ExternalCallbackError::Attempt {
+            detail: antecedent_core::reason_details::external_recalc::REPLAY_MISMATCH,
+            ..
+        })
     ));
-    assert_eq!(calls, 1);
+    assert_eq!(provider.calls - before, 1);
     assert!(stale.issued_claim().is_none());
 }
 #[test]
@@ -186,7 +202,10 @@ fn portable_output_is_a_container_and_an_original_frame_still_resumes() {
     let mut corrupt = bytes;
     let last = corrupt.len() - 1;
     corrupt[last] ^= 1;
-    assert!(ExternalCallbackSession::resume(&corrupt, &request).is_err());
+    assert_eq!(
+        ExternalCallbackSession::resume(&corrupt, &request).err().unwrap().to_string(),
+        "Artifact(\"checksum mismatch for section `external_callback.claim`\")"
+    );
 }
 
 #[test]
@@ -197,18 +216,17 @@ fn failures_preserve_success_and_keep_actual_attempt_evidence() {
     let original = execute(&mut session, &request, &mut provider);
     request.columns[0].1[0] = 0.0;
     provider.fail = true;
-    let (failure, calls) = count_external_invocations(|| {
-        session.execute(&request, Some(&mut provider), &ExecutionContext::for_tests(1))
-    });
+    let before = provider.calls;
+    let failure = session.execute(&request, Some(&mut provider), &ExecutionContext::for_tests(1));
     assert!(matches!(
         failure,
         Err(ExternalCallbackError::Attempt {
             report: InvocationAttempt { invocations: 1, .. },
-            detail: "external_recalc.callback_failed",
+            detail: antecedent_core::reason_details::external_recalc::CALLBACK_FAILED,
             ..
         })
     ));
-    assert_eq!(calls, 1);
+    assert_eq!(provider.calls - before, 1);
     assert_eq!(session.issued_claim().unwrap().values(), original.claim.values());
     provider.fail = false;
     provider.wrong_quantity = true;
@@ -230,24 +248,40 @@ fn stateful_recomputes_and_side_effect_failure_never_silently_retries() {
     let changed = execute(&mut session, &request, &mut provider);
     assert_eq!(changed.receipt.totals().external_invocations, 1);
     assert_eq!(changed.claim.values().unwrap(), [3.5, 4.0, 4.5]);
-    assert!(ExternalCallbackSession::resume(&session.export_output().unwrap(), &request).is_err());
+    assert_eq!(
+        ExternalCallbackSession::resume(&session.export_output().unwrap(), &request)
+            .err()
+            .unwrap()
+            .to_string(),
+        "Request(\"external_recalc.replay_unsupported\")"
+    );
     let mut effects = request.clone();
     effects.descriptor.policy = CallbackPolicy::SideEffecting;
     let mut provider = Provider::new(&effects);
     provider.fail = true;
+    let failure = session
+        .execute(&effects, Some(&mut provider), &ExecutionContext::for_tests(1))
+        .err()
+        .unwrap();
     assert!(
-        session.execute(&effects, Some(&mut provider), &ExecutionContext::for_tests(1)).is_err()
+        failure.to_string().starts_with("Attempt { detail: \"external_recalc.callback_failed\"")
+            && failure.to_string().contains("message: \"foreign failure after entering callback\""),
+        "{failure}"
     );
     let before = provider.calls;
     assert!(matches!(
         session.execute(&effects, Some(&mut provider), &ExecutionContext::for_tests(1)),
-        Err(ExternalCallbackError::Request("external_recalc.retry_unsafe"))
+        Err(ExternalCallbackError::Request(
+            antecedent_core::reason_details::external_recalc::RETRY_UNSAFE
+        ))
     ));
     assert_eq!(provider.calls, before);
     effects.idempotency_key = Some("operation-one".into());
     assert!(matches!(
         session.execute(&effects, Some(&mut provider), &ExecutionContext::for_tests(1)),
-        Err(ExternalCallbackError::Request("external_recalc.idempotency_unsupported"))
+        Err(ExternalCallbackError::Request(
+            antecedent_core::reason_details::external_recalc::IDEMPOTENCY_UNSUPPORTED
+        ))
     ));
     effects.descriptor.idempotency_supported = true;
     provider.descriptor = effects.descriptor.clone();
@@ -263,21 +297,26 @@ fn pure_invalid_planning_and_cooperative_budget_and_cancel_refusals() {
     let mut session = ExternalCallbackSession::new();
     let mut provider = Provider::new(&request);
     let mut budget = ExecutionContext::for_tests(1);
-    budget.memory.hard_limit_bytes = Some(1);
+    budget.set_memory_limit(Some(1));
     assert!(matches!(
         session.execute(&request, Some(&mut provider), &budget),
-        Err(ExternalCallbackError::Request("recalc.memory_budget_exceeded"))
+        Err(ExternalCallbackError::Request(
+            antecedent_core::reason_details::recalc::MEMORY_BUDGET_EXCEEDED
+        ))
     ));
     assert_eq!(provider.calls, 0);
     provider.cancel = true;
     let ctx = ExecutionContext::for_tests(1);
-    let (failure, calls) =
-        count_external_invocations(|| session.execute(&request, Some(&mut provider), &ctx));
+    let before = provider.calls;
+    let failure = session.execute(&request, Some(&mut provider), &ctx);
     assert!(matches!(
         failure,
-        Err(ExternalCallbackError::Attempt { detail: "recalc.cancelled", .. })
+        Err(ExternalCallbackError::Attempt {
+            detail: antecedent_core::reason_details::recalc::CANCELLED,
+            ..
+        })
     ));
-    assert_eq!(calls, 1);
+    assert_eq!(provider.calls - before, 1);
     assert!(session.issued_claim().is_none());
 }
 
@@ -292,13 +331,12 @@ fn idempotency_key_is_bound_to_actual_first_attempt_payload() {
     execute(&mut session, &request, &mut provider);
     assert_eq!(provider.calls, 2);
     request.columns[0].1 = vec![0.0, 2.0];
-    let (refusal, calls) = count_external_invocations(|| {
-        session.execute(&request, Some(&mut provider), &ExecutionContext::for_tests(1))
-    });
+    let refusal = session.execute(&request, Some(&mut provider), &ExecutionContext::for_tests(1));
     assert!(matches!(
         refusal,
-        Err(ExternalCallbackError::Request("external_recalc.idempotency_conflict"))
+        Err(ExternalCallbackError::Request(
+            antecedent_core::reason_details::external_recalc::IDEMPOTENCY_CONFLICT
+        ))
     ));
-    assert_eq!(calls, 0);
     assert_eq!(provider.calls, 2);
 }

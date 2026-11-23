@@ -17,6 +17,15 @@ use crate::util::{range, sample_std};
 use super::*;
 use antecedent_core::TemporalPolicy;
 
+fn plan_for_tests(
+    interventions: &[Intervention],
+    spec: &TemporalResponseSpec,
+) -> Result<TemporalInterventionKind, crate::error::EstimationError> {
+    let ctx = ExecutionContext::for_tests(1);
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    Ok(plan_temporal_intervention(interventions, spec, &mut budget, &ctx)?.kind().clone())
+}
+
 #[test]
 fn soft_constant_resolves_to_set() {
     let v = VariableId::from_raw(0);
@@ -35,7 +44,7 @@ fn soft_unknown_family_refuses() {
         0,
     )
     .unwrap_err();
-    assert!(err.to_string().contains("not licensed"));
+    assert!(err.to_string().contains("not supported"));
 }
 
 #[test]
@@ -70,8 +79,8 @@ fn multi_step_sequence_is_consecutive_overlays_not_last_step() {
             },
         ]),
     };
-    let TemporalInterventionPlan::Sequential { overlays } =
-        plan_temporal_intervention(&[Intervention::Sequence(seq)], &spec).unwrap()
+    let TemporalInterventionKind::Sequential { overlays } =
+        plan_for_tests(&[Intervention::Sequence(seq)], &spec).unwrap()
     else {
         panic!("expected sequential overlays");
     };
@@ -93,8 +102,8 @@ fn implicit_single_step_pulse_zero_attaches_to_spec_origin() {
         intervention: Intervention::set(variable, Value::f64(1.0)),
         temporal: TemporalPolicy::pulse(0),
     }]);
-    let TemporalInterventionPlan::Sequential { overlays } =
-        plan_temporal_intervention(&[Intervention::Sequence(sequence)], &spec).unwrap()
+    let TemporalInterventionKind::Sequential { overlays } =
+        plan_for_tests(&[Intervention::Sequence(sequence)], &spec).unwrap()
     else {
         panic!("an implicit Pulse(0) Sequence must resolve to overlays");
     };
@@ -130,13 +139,13 @@ fn sequence_step_order_is_the_schedule_not_a_set() {
             temporal: TemporalPolicy::pulse(0),
         },
     ]);
-    let TemporalInterventionPlan::Sequential { overlays: a } =
-        plan_temporal_intervention(&[Intervention::Sequence(forward)], &spec).unwrap()
+    let TemporalInterventionKind::Sequential { overlays: a } =
+        plan_for_tests(&[Intervention::Sequence(forward)], &spec).unwrap()
     else {
         panic!("expected sequential overlays");
     };
-    let TemporalInterventionPlan::Sequential { overlays: b } =
-        plan_temporal_intervention(&[Intervention::Sequence(reversed)], &spec).unwrap()
+    let TemporalInterventionKind::Sequential { overlays: b } =
+        plan_for_tests(&[Intervention::Sequence(reversed)], &spec).unwrap()
     else {
         panic!("expected sequential overlays");
     };
@@ -161,8 +170,8 @@ fn single_step_sequence_preserves_explicit_pulse_offset() {
         intervention: Intervention::set(variable, Value::f64(2.0)),
         temporal: TemporalPolicy::pulse(-2),
     }]);
-    let TemporalInterventionPlan::Sequential { overlays } =
-        plan_temporal_intervention(&[Intervention::Sequence(sequence)], &spec).unwrap()
+    let TemporalInterventionKind::Sequential { overlays } =
+        plan_for_tests(&[Intervention::Sequence(sequence)], &spec).unwrap()
     else {
         panic!("an explicit Sequence must resolve to overlays");
     };
@@ -182,8 +191,8 @@ fn single_step_sequence_expands_explicit_sustained_policy() {
         intervention: Intervention::shift(variable, Value::f64(0.5)),
         temporal: TemporalPolicy::sustained(-3, -1),
     }]);
-    let TemporalInterventionPlan::Sequential { overlays } =
-        plan_temporal_intervention(&[Intervention::Sequence(sequence)], &spec).unwrap()
+    let TemporalInterventionKind::Sequential { overlays } =
+        plan_for_tests(&[Intervention::Sequence(sequence)], &spec).unwrap()
     else {
         panic!("an explicit Sequence must resolve to overlays");
     };
@@ -213,8 +222,8 @@ fn nested_sequence_fails_closed() {
         }]),
     };
     let spec = TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap();
-    let err = plan_temporal_intervention(&[Intervention::Sequence(outer)], &spec).unwrap_err();
-    assert!(err.to_string().contains("not licensed"));
+    let err = plan_for_tests(&[Intervention::Sequence(outer)], &spec).unwrap_err();
+    assert!(err.to_string().contains("not supported"));
 }
 
 // ---- GAP1: uncertainty is computed but was never asserted anywhere ----
@@ -240,6 +249,23 @@ use super::plan::resolve_one;
 /// Deterministic AR(2)-ish series: `t` is a mildly autocorrelated continuous
 /// treatment, `y` depends on `t` lagged 1 and 2 steps. Non-degenerate `t` mean.
 fn synthetic_series(n: usize) -> (TimeSeriesData, TemporalDag) {
+    series_with_noise(n, 0.0, 0)
+}
+
+/// Standard-normal-ish draw (sum of twelve uniforms) from a seeded linear congruential state.
+fn lcg_normal(state: &mut u64) -> f64 {
+    let mut uniform = || {
+        *state =
+            state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        ((*state >> 11) as f64) / ((1_u64 << 53) as f64)
+    };
+    (0..12).map(|_| uniform()).sum::<f64>() - 6.0
+}
+
+/// `synthetic_series` with innovations of standard deviation `sd` on the treatment and the
+/// outcome (`sd = 0` is the deterministic series).
+fn series_with_noise(n: usize, sd: f64, seed: u64) -> (TimeSeriesData, TemporalDag) {
+    let mut noise_state = seed.wrapping_mul(2_654_435_761).wrapping_add(17);
     let mut b = CausalSchemaBuilder::new();
     for name in ["t", "y"] {
         b.add_variable(
@@ -258,6 +284,10 @@ fn synthetic_series(n: usize) -> (TimeSeriesData, TemporalDag) {
     for i in 2..n {
         t[i] = 0.3 + 0.2 * t[i - 1] + 0.05 * (i as f64).sin();
         y[i] = 1.0 + 2.0 * t[i - 1] + 3.0 * t[i - 2] + 0.01 * (i as f64).cos();
+        if sd > 0.0 {
+            t[i] += 0.5 * sd * lcg_normal(&mut noise_state) + 0.6 * (t[i - 1] - 0.375);
+            y[i] += sd * lcg_normal(&mut noise_state);
+        }
     }
     let cols = vec![
         OwnedColumn::Float64(
@@ -528,8 +558,8 @@ fn sequence_multiple_target_variables_fails_closed() {
         ]),
     };
     let spec = TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap();
-    let TemporalInterventionPlan::Sequential { overlays } =
-        plan_temporal_intervention(&[Intervention::Sequence(seq)], &spec).unwrap()
+    let TemporalInterventionKind::Sequential { overlays } =
+        plan_for_tests(&[Intervention::Sequence(seq)], &spec).unwrap()
     else {
         panic!("joint Sequence must be sequential overlays");
     };
@@ -857,7 +887,7 @@ fn zero_replicates_withhold_the_band_and_the_bootstrap_publishes_it() {
             .support
             .warnings
             .iter()
-            .any(|w| w.code.as_ref() == TEMPORAL_RESPONSE_BAND_WITHHELD),
+            .any(|w| w.code.as_ref() == TEMPORAL_RESPONSE_NO_BAND_METHOD),
         "a withheld band must be diagnosed"
     );
     let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean: mu_a, .. }) =
@@ -936,8 +966,148 @@ fn bootstrap_surface_publishes_simultaneous_band_alongside_pointwise() {
             .support
             .warnings
             .iter()
-            .any(|warning| warning.code.as_ref() == SIMULTANEOUS_BAND_WITHHELD)
+            .any(|warning| warning.code.as_ref() == NO_SIMULTANEOUS_BAND_METHOD)
     );
+}
+
+/// Run the three-horizon surface of `synthetic_series` with joint replicates retained, under
+/// the bootstrap or the block-weight posterior.
+fn joint_surface(weighted: bool, retain: bool) -> CausalResponse {
+    let (data, graph) = synthetic_series(300);
+    let (estimand, indexer) = identify(&graph, 3);
+    let query = surface_query(&[-1.0, 0.0, 1.0, 2.0], vec![1u32, 2, 3]);
+    let ids = [(&estimand, &indexer), (&estimand, &indexer), (&estimand, &indexer)];
+    TemporalResponseEstimator::new()
+        .with_bootstrap_replicates(80)
+        .with_block_weight_posterior(weighted)
+        .with_joint_replicates(retain)
+        .estimate(
+            &data,
+            &ids,
+            &query,
+            IdentificationStatus::NonparametricallyIdentified,
+            AssumptionSet::new(),
+            &ExecutionContext::for_tests(3),
+        )
+        .unwrap()
+}
+
+/// The joint replicates are retained only on request, are replicate-major in the cell layout of
+/// the mean surface, and every row is one realization of all horizons: the weighted draws centre
+/// on the point surface and spread about as the bootstrap does, and their band reads as credible.
+#[test]
+fn joint_horizon_replicates_are_retained_on_request_and_couple_the_horizons() {
+    let off = joint_surface(false, false);
+    assert!(diagnostic(&off, JOINT_HORIZON_REPLICATES).is_none(), "nothing retained by default");
+
+    let boot = joint_surface(false, true);
+    let layout = diagnostic(&boot, JOINT_HORIZON_LAYOUT).expect("layout");
+    let values = diagnostic(&boot, JOINT_HORIZON_REPLICATES).expect("replicates");
+    let (replicates, cells) = (layout[0] as usize, layout[1] as usize);
+    assert_eq!(cells, 12, "four doses by three horizons");
+    assert!(replicates >= 40);
+    assert_eq!(values.len(), replicates * cells);
+    let horizon_of_cell: Vec<usize> = layout[2..].iter().map(|h| *h as usize).collect();
+    assert_eq!(horizon_of_cell, [0, 1, 2].repeat(4), "dose-major, then horizon");
+    let (mean, lower, upper) = pointwise(&boot);
+    let ResponseUncertainty::PointwiseBand { interpretation, .. } = &boot.uncertainty else {
+        panic!("expected a pointwise band");
+    };
+    assert_eq!(*interpretation, antecedent_core::IntervalInterpretation::Confidence);
+    for cell in 0..cells {
+        let column: Vec<f64> = (0..replicates).map(|r| values[r * cells + cell]).collect();
+        let sd = antecedent_stats::sample_std(&column);
+        // The replicates resample the window every horizon shares, while the point surface
+        // fits each horizon on all its own rows, so the replicate centre need not equal the
+        // point: what the band reads is the spread of the replicates about the point.
+        assert!(column.iter().all(|v| v.is_finite()), "cell {cell}");
+        let half = (upper[cell] - lower[cell]) / 2.0;
+        assert!((half / (antecedent_stats::NORMAL_Q975 * sd) - 1.0).abs() < 1e-9, "cell {cell}");
+    }
+
+    let posterior = joint_surface(true, true);
+    let weighted = diagnostic(&posterior, JOINT_HORIZON_REPLICATES).expect("weighted replicates");
+    let weighted_layout = diagnostic(&posterior, JOINT_HORIZON_LAYOUT).expect("layout");
+    assert_eq!(weighted_layout[1] as usize, cells);
+    assert_eq!(weighted.len(), weighted_layout[0] as usize * cells, "replicate-major layout");
+    assert!(weighted.iter().all(|v| v.is_finite()));
+    let ResponseUncertainty::PointwiseBand { interpretation, lower: wl, upper: wu, .. } =
+        &posterior.uncertainty
+    else {
+        panic!("expected a pointwise band");
+    };
+    assert_eq!(*interpretation, antecedent_core::IntervalInterpretation::Credible);
+    let (point, ..) = pointwise(&posterior);
+    for cell in 0..cells {
+        assert!((point[cell] - mean[cell]).abs() < 1e-12, "same full-sample point surface");
+        let ratio = (wu[cell] - wl[cell]) / (upper[cell] - lower[cell]);
+        assert!(
+            (0.25..4.0).contains(&ratio),
+            "cell {cell}: the weighted posterior must spread about as the bootstrap does, \
+             width ratio {ratio}"
+        );
+    }
+}
+
+/// `synthetic_series` with `gap` missing time points starting at `at` (both columns).
+fn gapped_series(n: usize, at: usize, gap: usize) -> (TimeSeriesData, TemporalDag) {
+    let (data, graph) = synthetic_series(n);
+    let mut bytes = vec![0xFFu8; n.div_ceil(8)];
+    for row in at..at + gap {
+        bytes[row / 8] &= !(1 << (row % 8));
+    }
+    let validity = ValidityBitmap::from_bytes(bytes, n).unwrap();
+    let columns = [VariableId::from_raw(0), VariableId::from_raw(1)]
+        .into_iter()
+        .map(|id| {
+            let values: Vec<f64> = data.float64_slice(id).unwrap().to_vec();
+            OwnedColumn::Float64(
+                Float64Column::new(id, Arc::from(values), validity.clone()).unwrap(),
+            )
+        })
+        .collect();
+    let storage =
+        OwnedColumnarStorage::try_new(data.schema().clone(), columns, None, None).unwrap();
+    let gapped = TimeSeriesData::try_new(
+        storage,
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .unwrap();
+    (gapped, graph)
+}
+
+/// On a series with missing time points the block-weight posterior puts its weights on blocks of
+/// the original time axis and only on the times observed in every horizon: it publishes joint
+/// replicates, none of which is built from a row inside the gap.
+#[test]
+fn the_block_weight_posterior_runs_on_a_series_with_missing_time_points() {
+    let (data, graph) = gapped_series(300, 120, 6);
+    let (estimand, indexer) = identify(&graph, 2);
+    let query = surface_query(&[0.0, 1.0], vec![1u32, 2]);
+    let ids = [(&estimand, &indexer), (&estimand, &indexer)];
+    let response = TemporalResponseEstimator::new()
+        .with_allow_gaps(true)
+        .with_bootstrap_replicates(60)
+        .with_block_weight_posterior(true)
+        .with_joint_replicates(true)
+        .estimate(
+            &data,
+            &ids,
+            &query,
+            IdentificationStatus::NonparametricallyIdentified,
+            AssumptionSet::new(),
+            &ExecutionContext::for_tests(5),
+        )
+        .unwrap();
+    let layout = diagnostic(&response, JOINT_HORIZON_LAYOUT).expect("layout");
+    assert!(layout[0] >= 40.0, "replicates {}", layout[0]);
+    assert_eq!(layout[1] as usize, 4, "two doses by two horizons");
+    let ResponseUncertainty::PointwiseBand { interpretation, .. } = &response.uncertainty else {
+        panic!("expected a pointwise band");
+    };
+    assert_eq!(*interpretation, antecedent_core::IntervalInterpretation::Credible);
+    let values = diagnostic(&response, JOINT_HORIZON_REPLICATES).expect("replicates");
+    assert!(values.iter().all(|v| v.is_finite()));
 }
 
 /// Every horizon of one replicate resamples the same calendar times, in circular
@@ -991,20 +1161,74 @@ fn surface_bootstrap_rows_are_calendar_aligned_over_the_common_window() {
 /// persistent score, and reports when the n/3 cap binds.
 #[test]
 fn response_block_length_lengthens_on_persistent_scores() {
+    /// The stated rule, written out from its definition and not from the product code:
+    /// `rule = max(span, ceil(sqrt(rows)))` (capped at `rows`), `testing = ceil(b_PW rows^(1/6))`
+    /// with `b_PW` the largest Politis-White flat-top block length over the scores, and
+    /// `length = max(rule, min(testing, rows / 3))` (at most `rows`).
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
+    fn politis_white(scores: &[f64]) -> usize {
+        let n = scores.len();
+        let nf = n as f64;
+        let mean = scores.iter().sum::<f64>() / nf;
+        let centered: Vec<f64> = scores.iter().map(|s| s - mean).collect();
+        let autocov = |k: usize| -> f64 {
+            centered[..n - k].iter().zip(&centered[k..]).map(|(a, b)| a * b).sum::<f64>() / nf
+        };
+        let gamma0 = autocov(0);
+        let k_n = 5usize.max(nf.log10().sqrt().ceil() as usize);
+        let m_max = (nf.sqrt().ceil() as usize + k_n).min(n - 1);
+        let threshold = 2.0 * (nf.log10() / nf).sqrt();
+        let rho: Vec<f64> = (0..=m_max).map(|k| autocov(k) / gamma0).collect();
+        // first m after which K_n consecutive autocorrelations are insignificant
+        let m_hat = (0..=m_max.saturating_sub(k_n))
+            .find(|&m| (1..=k_n).all(|j| rho.get(m + j).is_none_or(|r| r.abs() < threshold)))
+            .unwrap_or(m_max.saturating_sub(k_n));
+        let big_m = (2 * m_hat).min(m_max).max(1);
+        let (mut g0, mut big_g) = (gamma0, 0.0);
+        for k in 1..=big_m {
+            let t = k as f64 / big_m as f64;
+            let weight = if t <= 0.5 { 1.0 } else { 2.0 * (1.0 - t) } * rho[k] * gamma0;
+            g0 += 2.0 * weight;
+            big_g += 2.0 * k as f64 * weight;
+        }
+        let b = (2.0 * big_g * big_g / (4.0 / 3.0 * g0 * g0)).cbrt() * nf.cbrt();
+        let cap = (3.0 * nf.sqrt()).min(nf / 3.0).ceil();
+        b.clamp(1.0, cap.max(1.0)).ceil() as usize
+    }
+    let stated = |span: usize, rows: usize, scores: &[&[f64]]| -> (usize, usize, usize) {
+        let rule = span.max((rows as f64).sqrt().ceil() as usize).min(rows).max(1);
+        let pw = scores.iter().map(|s| politis_white(s)).max().unwrap_or(0);
+        let testing = (pw as f64 * (rows as f64).powf(1.0 / 6.0)).ceil() as usize;
+        (rule.max(testing.min(rows / 3)).min(rows.max(1)), rule, testing)
+    };
+
     let n = 400;
     let white = gaussian_series(n, 0.0, 3);
     let persistent = gaussian_series(n, 0.9, 5);
     let short = ResponseBlockLength::new(2, n, &[&white]);
+    let (length, rule, testing) = stated(2, n, &[&white]);
     assert_eq!(short.rule, 20);
     assert_eq!(short.length, 20, "{short:?}");
+    assert_eq!((short.length, short.rule, short.testing), (length, rule, testing), "{short:?}");
     assert!(!short.capped());
     let long = ResponseBlockLength::new(2, n, &[&white, &persistent]);
+    let (length, rule, testing) = stated(2, n, &[&white, &persistent]);
+    assert_eq!((long.length, long.rule, long.testing), (length, rule, testing), "{long:?}");
     assert!(long.length > long.rule, "{long:?}");
     assert!(long.length <= n / 3);
     assert_eq!(long.length, long.testing.min(n / 3));
     let tight = ResponseBlockLength::new(2, 60, &[&persistent[..60]]);
+    let (length, rule, testing) = stated(2, 60, &[&persistent[..60]]);
+    assert_eq!((tight.length, tight.rule, tight.testing), (length, rule, testing), "{tight:?}");
     assert!(tight.length <= 20, "{tight:?}");
     assert_eq!(tight.capped(), tight.testing > tight.length);
+    // The stated rule evaluates to these lengths (rule, testing) on the fixed series.
+    assert_eq!((short.length, short.rule, short.testing), (20, 20, 3));
+    assert_eq!((long.length, long.rule, long.testing), (52, 20, 52));
+    assert_eq!((tight.length, tight.rule, tight.testing), (18, 8, 18));
 }
 
 /// Deterministic AR(1) series with Gaussian innovations (Box–Muller on splitmix64).
@@ -1037,8 +1261,13 @@ fn fitted_horizon(
         treatment_delta: 1.0,
         target_population: TargetPopulation::AllObserved,
         treatment: Arc::from(treatment.to_vec()),
+        preparation: antecedent_data::materialize::PreparationReceipt::composed_finite(
+            treatment.len(),
+        )
+        .expect("row count fits u64"),
         active: 1.0,
         control: 0.0,
+        treatment_levels: None,
         sampling_weights: None,
     };
     FittedHorizon::fit(prepared, &mut LeastSquaresWorkspace::default()).expect("OLS fit")
@@ -1245,6 +1474,181 @@ fn bayesian_response_retains_draws_only_for_a_single_horizon() {
     // nothing is retained for a nonlinear functional to evaluate.
     let columns = vec![column.clone(), vec![9.0, 8.0, 7.0]];
     assert!(super::bayes::retained_response_draws(&columns, 2).is_none());
+    // A curve's doses at one horizon share each coefficient draw, so they are retained.
+    let curve = super::bayes::retained_response_draws(&columns, 1)
+        .expect("one horizon's dose columns retain their draws");
+    assert_eq!((curve.n_coordinates(), curve.n_draws), (2, 3));
+    assert_eq!(curve.column(1), Some(&[9.0, 8.0, 7.0][..]));
     // Fewer than two draws is not a retained posterior.
     assert!(super::bayes::retained_response_draws(&[vec![1.0]], 1).is_none());
+}
+
+#[test]
+fn bayesian_response_refuses_an_ordinary_or_non_gaussian_likelihood_and_names_the_next_attempt() {
+    let (data, graph) = synthetic_series(120);
+    let (estimand, indexer) = identify(&graph, 1);
+    let query = surface_query(&[-1.0, 1.0], vec![1]);
+    for likelihood in [
+        antecedent_prob::BayesLikelihood::BernoulliLogit,
+        antecedent_prob::BayesLikelihood::PoissonLog,
+    ] {
+        for backend in [crate::BayesianBackendKind::Laplace, crate::BayesianBackendKind::Hmc] {
+            let estimator = crate::BayesianGComputationAte {
+                backend,
+                likelihood,
+                ..crate::BayesianGComputationAte::new()
+            };
+            let err = TemporalResponseEstimator::new()
+                .estimate_bayesian(
+                    &data,
+                    TemporalIdentification {
+                        horizons: &[(&estimand, &indexer)],
+                        status: IdentificationStatus::NonparametricallyIdentified,
+                        assumptions: AssumptionSet::new(),
+                    },
+                    &query,
+                    &estimator,
+                    &ExecutionContext::for_tests(7),
+                )
+                .unwrap_err();
+            let text = err.to_string();
+            assert!(text.contains("long-run-tempered generalized posterior"), "{text}");
+            assert!(text.contains("serial dependence of the unfolded horizon residuals"), "{text}");
+            assert!(text.contains("Next attempt"), "{text}");
+            assert!(text.contains("GaussianIdentity"), "{text}");
+        }
+    }
+}
+
+#[test]
+fn conjugate_temporal_response_uses_effective_gaussian_likelihood() {
+    let (data, graph) = series_with_noise(260, 1.0, 3);
+    let (estimand, indexer) = identify(&graph, 1);
+    let query = surface_query(&[-1.0, 1.0], vec![1]);
+    let estimate = |likelihood| {
+        let estimator = crate::BayesianGComputationAte {
+            likelihood,
+            n_draws: 100,
+            ..crate::BayesianGComputationAte::conjugate()
+        };
+        TemporalResponseEstimator::new()
+            .estimate_bayesian(
+                &data,
+                TemporalIdentification {
+                    horizons: &[(&estimand, &indexer)],
+                    status: IdentificationStatus::NonparametricallyIdentified,
+                    assumptions: AssumptionSet::new(),
+                },
+                &query,
+                &estimator,
+                &ExecutionContext::for_tests(7),
+            )
+            .unwrap()
+    };
+    let gaussian = estimate(antecedent_prob::BayesLikelihood::GaussianIdentity);
+    let poisson = estimate(antecedent_prob::BayesLikelihood::PoissonLog);
+    assert_eq!(gaussian.estimate, poisson.estimate);
+    assert_eq!(gaussian.uncertainty, poisson.uncertainty);
+}
+
+fn intervention_surface_query(horizons: Vec<u32>) -> ResponseQuery {
+    ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from(vec![Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
+    })
+    .with_temporal(TemporalResponseSpec::new(horizons, TemporalPolicy::pulse(0), None).unwrap())
+}
+
+/// Two-horizon Bayesian intervention response on a noisy series: the cell means and, when
+/// retained, the joint draws of the two cells.
+#[allow(
+    clippy::manual_let_else,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
+fn two_horizon_bayesian(seed: u64) -> (Vec<f64>, Option<antecedent_core::CredibleDraws>) {
+    let (data, graph) = series_with_noise(260, 1.0, seed);
+    let (e1, i1) = identify(&graph, 1);
+    let (e2, i2) = identify(&graph, 2);
+    let response = TemporalResponseEstimator::new()
+        .estimate_bayesian(
+            &data,
+            TemporalIdentification {
+                horizons: &[(&e1, &i1), (&e2, &i2)],
+                status: IdentificationStatus::NonparametricallyIdentified,
+                assumptions: AssumptionSet::new(),
+            },
+            &intervention_surface_query(vec![1, 2]),
+            &crate::BayesianGComputationAte::conjugate(),
+            &ExecutionContext::for_tests(7),
+        )
+        .unwrap();
+    let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
+        &response.estimate
+    else {
+        panic!("expected surface");
+    };
+    let draws = match response.uncertainty {
+        ResponseUncertainty::PointwiseBand { draws, .. } => draws,
+        _ => panic!("expected a pointwise band"),
+    };
+    (mean.to_vec(), draws)
+}
+
+fn sd_of(values: &[f64]) -> f64 {
+    let n = values.len() as f64;
+    let m = values.iter().sum::<f64>() / n;
+    (values.iter().map(|v| (v - m) * (v - m)).sum::<f64>() / (n - 1.0)).sqrt()
+}
+
+fn corr_of(a: &[f64], b: &[f64]) -> f64 {
+    let n = a.len() as f64;
+    let (ma, mb) = (a.iter().sum::<f64>() / n, b.iter().sum::<f64>() / n);
+    let cov: f64 = a.iter().zip(b).map(|(x, y)| (x - ma) * (y - mb)).sum();
+    let va: f64 = a.iter().map(|x| (x - ma) * (x - ma)).sum();
+    let vb: f64 = b.iter().map(|y| (y - mb) * (y - mb)).sum();
+    cov / (va * vb).sqrt()
+}
+
+#[test]
+fn a_nonlinear_cross_horizon_functional_of_the_joint_draws_matches_repeated_simulation() {
+    // Independent reference: the sampling spread of the same functional of the two cell
+    // estimates over fresh simulated series from one data-generating process.
+    let ratio = |a: f64, b: f64| b / a;
+    let (mut ref_ratio, mut ref_first, mut ref_second) = (Vec::new(), Vec::new(), Vec::new());
+    for seed in 1..=60 {
+        let (mean, _) = two_horizon_bayesian(1_000 + seed);
+        ref_ratio.push(ratio(mean[0], mean[1]));
+        ref_first.push(mean[0]);
+        ref_second.push(mean[1]);
+    }
+    let reference_sd = sd_of(&ref_ratio);
+    let reference_corr = corr_of(&ref_first, &ref_second);
+
+    // One observed series: the joint draws are retained for both horizons together.
+    let (mean, draws) = two_horizon_bayesian(5);
+    let draws = draws.expect("a joint trajectory law retains its draws for a functional");
+    assert_eq!(draws.n_coordinates(), 2);
+    let (c1, c2) = (draws.column(0).unwrap(), draws.column(1).unwrap());
+    let joint: Vec<f64> = c1.iter().zip(c2).map(|(a, b)| ratio(*a, *b)).collect();
+    let joint_sd = sd_of(&joint);
+    assert!(
+        joint_sd / reference_sd > 0.5 && joint_sd / reference_sd < 1.8,
+        "joint sd {joint_sd} vs simulation sd {reference_sd}"
+    );
+    // The cell draws carry the dependence the simulation shows.
+    let joint_corr = corr_of(c1, c2);
+    assert!(
+        (joint_corr - reference_corr).abs() < 0.3,
+        "joint correlation {joint_corr} vs simulation {reference_corr}"
+    );
+    // Pairing the same marginals independently (a rotated index) is the product of marginals;
+    // where the simulation shows real dependence it is farther from the reference.
+    let half = c2.len() / 2;
+    let rotated: Vec<f64> =
+        c1.iter().zip(c2.iter().cycle().skip(half)).map(|(a, b)| ratio(*a, *b)).collect();
+    if reference_corr.abs() > 0.4 {
+        let miss = |sd: f64| (sd / reference_sd).ln().abs();
+        assert!(miss(joint_sd) < miss(sd_of(&rotated)), "joint must beat the product of marginals");
+    }
+    assert!(mean.iter().all(|m| m.is_finite()));
 }

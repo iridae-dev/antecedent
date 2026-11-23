@@ -6,25 +6,53 @@
     "source_variance": 1.0,
     "alpha": 0.5,
     "ess": 40.0,
-    "expected_effective_ess": [20.0],
+    "expected_effective_ess": [
+      20.0
+    ],
     "expected_composed_ess": 20.0,
     "expected_kish_ess": 1.0
   },
   "power_partial_coverage": {
     "baseline_mean": 0.0,
     "baseline_variance": 4.0,
-    "source_a": {"mean": 2.0, "variance": 1.0, "alpha": 0.5, "ess": 40.0},
-    "source_b": {"mean": 3.0, "variance": 1.0, "alpha": 0.25, "ess": null},
-    "expected_effective_ess": [20.0, null],
+    "source_a": {
+      "mean": 2.0,
+      "variance": 1.0,
+      "alpha": 0.5,
+      "ess": 40.0
+    },
+    "source_b": {
+      "mean": 3.0,
+      "variance": 1.0,
+      "alpha": 0.25,
+      "ess": null
+    },
+    "expected_effective_ess": [
+      20.0,
+      null
+    ],
     "expected_composed_ess": null,
     "expected_kish_ess": 1.8
   },
   "power_dropped_source": {
     "baseline_mean": 0.0,
     "baseline_variance": 4.0,
-    "source_a": {"mean": 2.0, "variance": 1.0, "alpha": 0.5, "ess": 40.0},
-    "source_b": {"mean": 5.0, "variance": 1.0, "alpha": 0.0, "ess": 999.0},
-    "expected_effective_ess": [20.0, 0.0],
+    "source_a": {
+      "mean": 2.0,
+      "variance": 1.0,
+      "alpha": 0.5,
+      "ess": 40.0
+    },
+    "source_b": {
+      "mean": 5.0,
+      "variance": 1.0,
+      "alpha": 0.0,
+      "ess": 999.0
+    },
+    "expected_effective_ess": [
+      20.0,
+      0.0
+    ],
     "expected_composed_ess": 20.0,
     "expected_kish_ess": 1.0
   },
@@ -36,7 +64,9 @@
     "alpha": 1.0,
     "mixture_weight": 0.4,
     "ess": 50.0,
-    "expected_effective_ess": [50.0],
+    "expected_effective_ess": [
+      50.0
+    ],
     "expected_composed_ess": null,
     "expected_kish_ess": 1.0
   },
@@ -44,6 +74,94 @@
   "notes": "Prior-strength ESS accounting: effective_ess = alpha_applied*ess per source; composed_ess sums it on the power path only when every contributing source declares ess (None otherwise, and always None on the mixture path since moment-matching folds in between-component spread); kish_ess is a Kish (1965) concentration diagnostic over the weights actually used (applied alphas on the power path, mixture weights on the mixture path).",
   "oracle": {
     "kind": "closed_form",
-    "method": "Gaussian precision arithmetic: effective_ess = alpha*ess per source and the composed and Kish ESS values follow from the stated weights (README, four analytic scenarios)"
+    "method": "Gaussian precision arithmetic: effective_ess = alpha*ess per source and the composed and Kish ESS values follow from the stated weights (README, four analytic scenarios)",
+    "generator": "conformance/bayesian/prior_bank_ess/reference.py",
+    "command": "uv run --frozen --script conformance/bayesian/prior_bank_ess/reference.py --check",
+    "environment_lock": "conformance/bayesian/prior_bank_ess/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "effective ESS per source",
+      "composed ESS (or its absence)",
+      "Kish ESS on the power path"
+    ],
+    "context_only_outputs": [
+      "mixture Kish value (not derived here)",
+      "notes text"
+    ],
+    "independence_basis": "The generator applies the stated accounting rules (effective = alpha*ess; composed is the sum only when every source declares ess; Kish 1965 concentration) in plain Python; it imports no Antecedent code and no statistics package. The shared object is the fixture notes that define the accounting.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Four ESS accounting scenarios (single power source, partial coverage, dropped source, mixture). The generator recomputes effective ESS = alpha * ess, the composed ESS rule and the Kish concentration (sum w)^2 / sum w^2 over applied alphas.",
+      "independence_basis": "The generator applies the stated accounting rules (effective = alpha*ess; composed is the sum only when every source declares ess; Kish 1965 concentration) in plain Python; it imports no Antecedent code and no statistics package. The shared object is the fixture notes that define the accounting.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Definitions are the library convention recorded in the fixture notes, not an external benchmark. The mixture scenario checks effective ESS and that composed ESS is absent as the fixture states; the mixture Kish value is not derived here (its weight set is not declared in the scenario). No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/bayesian/prior_bank_ess/reference.py",
+          "sha256": "5d4da2fe18b61ed4f8339dcd5860f6e0e722831aa4e24aaa376de8342e4cf419"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/bayesian/prior_bank_ess/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/bayesian.rs",
+          "items": [
+            "const PULSE_EXACT_TOL",
+            "const SUSTAINED_NOISE_SD",
+            "const SUSTAINED_NOISE_SEED",
+            "fn assert_full_suite_data_subset_refuter_ran",
+            "fn assert_opt",
+            "fn assert_opt_vec",
+            "fn assert_sustained_mean",
+            "fn conjugate_gaussian",
+            "fn fixture_dir",
+            "fn gauss",
+            "fn graph_effect_envelope",
+            "fn laplace_glm",
+            "fn linear_scm_table",
+            "fn new",
+            "fn next_f64",
+            "fn next_gaussian",
+            "fn next_u64",
+            "fn nonidentified_prior",
+            "fn pack",
+            "fn ppc",
+            "fn prior_bank_alpha_sensitivity",
+            "fn prior_bank_catalog",
+            "fn prior_bank_conflict_shrink",
+            "fn prior_bank_effect_map",
+            "fn prior_bank_ess_accounting",
+            "fn prior_bank_power_mixture",
+            "fn prior_bank_transport",
+            "fn prior_conjugate_moment_match",
+            "fn prior_sensitivity",
+            "fn pulse_scm_series",
+            "fn run_staged_sustained",
+            "fn shared_functional_ate",
+            "fn sustained_query",
+            "fn sustained_scm_series",
+            "fn temporal_composed_prior_conflict_and_alpha_grid",
+            "fn temporal_pulse",
+            "fn temporal_pulse_staged_all_structures_and_suites",
+            "fn temporal_sustained_accepted_cheap",
+            "fn temporal_sustained_accepted_full_completes_with_data_subset_refuter",
+            "fn temporal_sustained_accepted_none",
+            "fn temporal_sustained_explicit_cheap",
+            "fn temporal_sustained_explicit_full_completes_with_data_subset_refuter",
+            "fn temporal_sustained_explicit_none",
+            "fn temporal_sustained_multi_step_keeps_earlier_causal_time",
+            "struct SplitMix64"
+          ],
+          "sha256": "232bc406bb1279e2864f317c26aa8e848e875fc8aee2c74d0ee6bc0cc4a1f7cf"
+        }
+      ],
+      "fixture_payload_sha256": "fcaf6e4d0de2383ce8cf5d8b030b66a7c37ad28e8da4e9d9d159ce588a8ef94e"
+    }
   }
 }

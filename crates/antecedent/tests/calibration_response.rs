@@ -19,9 +19,9 @@
 //! with disagreeing completions publishes the unbanded identified set, which
 //! has no interval to score.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -206,23 +206,24 @@ fn mean_z(data: &TabularData) -> f64 {
 // ====================================================== graph-posterior level
 
 /// Atom weights of the graph posterior below, over
-/// [`common::static_dgp::response_data`]: atom A (`t -> y`, no adjustment)
-/// estimates `E[Y | T = 1] = 3 + 0.8·0.3 = 3.24`; atom B (`z -> t`, `z -> y`,
-/// `t -> y`) estimates `E[Y | do(T = 1)] = 3`; atom C (`y -> t`) is
-/// unidentified. The reported frozen-weight aggregate over identified atoms is
-/// [`GP_TRUTH`], `(0.5·3.24 + 0.3·3) / 0.8 = 3.15`, its population value.
+/// [`common::static_dgp::response_data`]: atom A (`t -> y`) and atom B (`z -> y`,
+/// `t -> y`, with `z` not a cause of `t`) both identify `E[Y | do(T = 1)]` by the same
+/// empty adjustment set, so both estimate `E[Y | T = 1] = 3 + 0.8·0.3 = 3.24`; atom C
+/// (`y -> t`) is unidentified. The atoms name one estimand, so the frozen-weight aggregate
+/// over the identified atoms is defined and its population value is [`GP_TRUTH`] `= 3.24`.
+/// Atoms that adjust differently name different estimands and publish no aggregate.
 const GP_WEIGHTS: [f64; 3] = [0.5, 0.3, 0.2];
-const GP_TRUTH: f64 = (0.5 * 3.24 + 0.3 * 3.0) / 0.8;
+const GP_TRUTH: f64 = 3.0 + 0.8 * 0.3;
 
 fn graph_posterior() -> GraphPosterior {
     use antecedent_discovery::adjacency_mask::set_edge;
     let direct = set_edge(0, 3, 0, 1, true);
-    let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
+    let same_adjustment = set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 1, true);
     let unidentified = set_edge(0, 3, 1, 0, true);
     GraphPosterior::from_atoms(
         3,
         GP_WEIGHTS.to_vec(),
-        vec![direct, adjusted, unidentified],
+        vec![direct, same_adjustment, unidentified],
         vec![0.0; 9],
         vec![0.0; 9],
         SamplingSummary {
@@ -275,7 +276,8 @@ fn run_graph_posterior_bayesian_response(
     let mut builder = Study::tabular(data)
         .graph_posterior(single_atom_response_posterior())
         .query(CausalQuery::Response(level_query(1.0)))
-        .inference(bayes());
+        .inference(bayes())
+        .refute(RefuteSuite::None);
     if let Some(level) = level {
         builder = builder.response_options(ContinuousResponseOptions {
             confidence_level: level,
@@ -295,13 +297,13 @@ const GP_BAYES_CELL: Cell = Cell {
     n: 500,
 };
 
-/// Coordinate-specific design for the previously unmeasured Bayesian
+/// Coordinate-specific design for the previously `not_measured` Bayesian
 /// `InterventionResponse / Dag / graph_posterior` coordinate. This deliberately
 /// uses a single posterior atom: multi-atom Bayesian aggregate intervals are
 /// withheld by the runtime, so treating graph dispersion as a sampling band
 /// would measure the wrong object.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_dag_graph_posterior_bayesian_nominal_coverage() {
     let mut tallies = keyed_pair(
         "intervention_response_dag_graph_posterior_bayesian_nominal_coverage",
@@ -357,9 +359,9 @@ const GP_CELL: Cell = Cell {
 };
 
 /// Joint-IF scalar interval of the frozen-weight graph-posterior aggregate
-/// `E[Y | do(T = 1)]` over two disagreeing identified atoms.
+/// `E[Y | do(T = 1)]` over two identified atoms that share one estimand.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_dag_graph_posterior_frequentist_nominal_coverage() {
     let mut tallies = keyed_pair(
         "intervention_response_dag_graph_posterior_frequentist_nominal_coverage",
@@ -544,6 +546,7 @@ fn graph_posterior_class_level_coverage(case: &ClassCase, mut tallies: [Coverage
             .graph_posterior(posterior.clone())
             .query(CausalQuery::Response(level_query(1.0)))
             .inference(bayes())
+            .refute(RefuteSuite::None)
             .build()
             .ok()?;
         let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
@@ -569,7 +572,7 @@ fn graph_posterior_class_level_coverage(case: &ClassCase, mut tallies: [Coverage
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_cpdag_graph_posterior_bayesian_nominal_coverage() {
     let test = "intervention_response_cpdag_graph_posterior_bayesian_nominal_coverage";
     let case = cpdag_case();
@@ -578,7 +581,7 @@ fn intervention_response_cpdag_graph_posterior_bayesian_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_pag_graph_posterior_bayesian_nominal_coverage() {
     let test = "intervention_response_pag_graph_posterior_bayesian_nominal_coverage";
     let case = pag_case();
@@ -621,7 +624,8 @@ fn run_class_graph_posterior(
     let mut builder = Study::tabular(data.clone())
         .graph_posterior(posterior.clone())
         .query(CausalQuery::Response(query))
-        .inference(inference);
+        .inference(inference)
+        .refute(RefuteSuite::None);
     if let Some(level) = level {
         builder = builder.response_options(ContinuousResponseOptions {
             confidence_level: level,
@@ -652,7 +656,7 @@ const CPDAG_GP_FREQ_IR_CELL: Cell = Cell {
 const CPDAG_GP_FREQ_IR_TRUTH: f64 = 1.0;
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_cpdag_graph_posterior_frequentist_nominal_coverage() {
     let test = "intervention_response_cpdag_graph_posterior_frequentist_nominal_coverage";
     let mut tallies = keyed_pair(test, CPDAG_GP_FREQ_IR_CELL);
@@ -711,7 +715,7 @@ fn cpdag_gp_freq_curve_truth(a: f64) -> f64 {
 /// [`PRECISION_N_SIM`] replicates. The reported 0.95 band and the facade's own
 /// 0.90 band come from two runs of the same data and seed.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage() {
     let test = "response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage";
     let cell = CPDAG_GP_FREQ_CURVE_CELL;
@@ -896,7 +900,7 @@ fn dag_curve_cell(estimator: &'static str, interval_method: &'static str) -> Cel
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_dag_graph_posterior_bayesian_pointwise_nominal_coverage() {
     graph_posterior_curve_coverage(
         "response_curve_dag_graph_posterior_bayesian_pointwise_nominal_coverage",
@@ -910,7 +914,7 @@ fn response_curve_dag_graph_posterior_bayesian_pointwise_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage() {
     graph_posterior_curve_coverage(
         "response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage",
@@ -924,7 +928,7 @@ fn response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_cpdag_graph_posterior_bayesian_pointwise_nominal_coverage() {
     let case = cpdag_case();
     graph_posterior_curve_coverage(
@@ -939,7 +943,7 @@ fn response_curve_cpdag_graph_posterior_bayesian_pointwise_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_pag_graph_posterior_bayesian_pointwise_nominal_coverage() {
     let case = pag_case();
     graph_posterior_curve_coverage(
@@ -965,7 +969,7 @@ const PAG_GP_FREQ_CELL: Cell = Cell {
 };
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_pag_graph_posterior_frequentist_pointwise_nominal_coverage() {
     graph_posterior_curve_coverage(
         "response_curve_pag_graph_posterior_frequentist_pointwise_nominal_coverage",
@@ -979,7 +983,7 @@ fn response_curve_pag_graph_posterior_frequentist_pointwise_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_pag_graph_posterior_frequentist_nominal_coverage() {
     let test = "intervention_response_pag_graph_posterior_frequentist_nominal_coverage";
     let cell = Cell { estimator: "response.intervention_gcomp", ..PAG_GP_FREQ_CELL };
@@ -1170,19 +1174,19 @@ fn class_curve_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_cpdag_bayesian_nominal_coverage() {
     class_level_coverage("intervention_response_cpdag_bayesian_nominal_coverage", &cpdag_case());
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_pag_bayesian_nominal_coverage() {
     class_level_coverage("intervention_response_pag_bayesian_nominal_coverage", &pag_case());
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_cpdag_bayesian_pointwise_nominal_coverage() {
     class_curve_coverage(
         "response_curve_cpdag_bayesian_pointwise_nominal_coverage",
@@ -1196,7 +1200,7 @@ fn response_curve_cpdag_bayesian_pointwise_nominal_coverage() {
 const CPDAG_CURVE_MEASURED: [[Option<f64>; 3]; 10] = [[None; 3]; 10];
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_pag_bayesian_pointwise_nominal_coverage() {
     class_curve_coverage(
         "response_curve_pag_bayesian_pointwise_nominal_coverage",
@@ -1271,7 +1275,7 @@ fn run_codetermined(data: TabularData, seed: u64) -> Option<(Study, StudyResult)
 /// `cell.aipw` joint cell mean on the `CoDetermined` closure, the study default
 /// for a same-tier joint intervention.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_codetermined_frequentist_nominal_coverage() {
     let mut tallies = keyed_pair(
         "intervention_response_codetermined_frequentist_nominal_coverage",
@@ -1309,9 +1313,24 @@ fn static_response_coordinates_publish_the_scored_interval() {
     let (_, gp) = run_graph_posterior(response_data(300, seed), RefuteSuite::None, seed)
         .expect("graph-posterior run");
     assert!(response_scalar(&gp).is_some_and(|(_, _, level, _)| level == REPORTED_LEVEL));
+    // The published interval is the point estimate plus or minus the two-sided normal 0.975
+    // quantile (1.959964) times the reported standard error, and the estimate lies within five
+    // standard errors of the population value of the frozen-weight aggregate.
+    let (lo, hi, _, se) = response_scalar(&gp).expect("graph-posterior scalar band");
+    let estimate = f64::midpoint(lo, hi);
+    assert!(se > 0.0 && se < 0.5, "graph-posterior se {se}");
+    assert!((hi - lo - 2.0 * 1.959_964 * se).abs() < 1e-5, "normal-quantile width {lo} {hi} {se}");
+    assert!(
+        (estimate - GP_TRUTH).abs() < 5.0 * se,
+        "graph-posterior estimate {estimate} vs {GP_TRUTH}"
+    );
     let (_, codetermined) =
         run_codetermined(codetermined_data(600, seed), seed).expect("CoDetermined run");
     assert!(response_normal_pair(&codetermined)[0].is_some());
+    let (clo, chi, _, cse) = response_scalar(&codetermined).expect("CoDetermined scalar band");
+    let cestimate = f64::midpoint(clo, chi);
+    assert!((chi - clo - 2.0 * 1.959_964 * cse).abs() < 1e-5, "normal-quantile width");
+    assert!((cestimate - 3.5).abs() < 5.0 * cse, "CoDetermined estimate {cestimate} vs 3.5");
     for case in [cpdag_case(), pag_case()] {
         let data = (case.data)(300, seed);
         let (_, result) =
@@ -1320,6 +1339,14 @@ fn static_response_coordinates_publish_the_scored_interval() {
         assert!(
             response_scalar(&result).is_some_and(|(_, _, level, _)| level == REPORTED_LEVEL),
             "{}: agreeing completions publish the shared posterior interval",
+            case.cell.graph_class
+        );
+        let (lo, hi, _, _) = response_scalar(&result).expect("class-aware scalar band");
+        let estimate = f64::midpoint(lo, hi);
+        let truth = (case.truth)(1.0, mean_z(&data));
+        assert!(
+            lo < truth && truth < hi + 0.5 * (hi - lo) && (estimate - truth).abs() < (hi - lo),
+            "{}: estimate {estimate} and band ({lo}, {hi}) near the sample-covariate truth {truth}",
             case.cell.graph_class
         );
         let (_, curve) =

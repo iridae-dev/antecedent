@@ -78,7 +78,7 @@ fn complete_case(model: &MModel) -> Vec<f64> {
 }
 
 #[test]
-fn k1_recovery_matches_the_enumerated_truth() {
+fn single_censoring_recovery_matches_the_enumerated_truth() {
     // O -> X, O -> R: R _||_ X | O, so P(X, O) = P(X | O, R = 1) P(O).
     let model = MModel::new(1, 1, &[(1, 0)], &[vec![1]], 21).unwrap();
     let derivation = derive(&model, None);
@@ -109,7 +109,7 @@ fn k1_recovery_matches_the_enumerated_truth() {
     assert_eq!(posed.detail, antecedent_identify::RecoveryDetail::InvalidObservedLaw);
     assert!(posed.message.contains("snapshot"), "{posed}");
     // The descriptor never supplies a population law to a catalog route.
-    assert!(recovered.descriptor().origin != LawOrigin::Measured);
+    assert_ne!(recovered.descriptor().origin, LawOrigin::Measured);
     // Closed form P(x | o, R = 1) P(o) straight from the table.
     let law = model.observed_law();
     let p = law.probabilities(); // axes O, R, X* (levels 0, 1, ?)
@@ -125,7 +125,7 @@ fn k1_recovery_matches_the_enumerated_truth() {
 }
 
 #[test]
-fn k2_cross_censoring_matches_the_enumerated_truth() {
+fn cross_censoring_matches_the_enumerated_truth() {
     // X0 -> X1, X0 -> R1, X1 -> R0: each missingness depends on the other variable.
     let model = MModel::new(2, 0, &[(0, 1)], &[vec![1], vec![0]], 8).unwrap();
     let derivation = derive(&model, None);
@@ -328,13 +328,13 @@ fn observed_laws_outside_the_contract_are_refused() {
     probabilities[impossible] += probabilities[complete];
     probabilities[complete] = 0.0;
     assert_eq!(refuse(&relabel(&law, probabilities)).detail, RecoveryDetail::InvalidObservedLaw);
-    // A counted (empirical) law is a sampled provider: not licensed.
+    // A counted (empirical) law is a sampled provider: not supported.
     let counts: Vec<u64> = law.probabilities().iter().map(|_| 1).collect();
     let uniform = relabel(&law, vec![1.0 / counts.len() as f64; counts.len()]);
     let empirical = uniform.with_empirical_counts(counts).unwrap();
     let error = refuse(&empirical);
-    assert_eq!(error.detail, RecoveryDetail::EmpiricalNotLicensed);
-    assert_eq!(error.reason_code(), "cell_not_licensed");
+    assert_eq!(error.detail, RecoveryDetail::EmpiricalNotSupported);
+    assert_eq!(error.reason_code(), "route_not_supported");
     // Another snapshot than the catalog binds.
     let other = ExactDiscreteLaw::try_new(
         POPULATION,
@@ -633,6 +633,9 @@ fn binary_posterior_mean_stays_at_the_enumerated_recovery() {
     {
         assert!((got - expected).abs() < 1e-5, "{got} vs {expected}");
     }
+    // Both equal the enumerated truth, not only each other (the weak prior moves it by ~1e-8).
+    let truth = model.truth();
+    assert!(close(recovered.law().probabilities(), &truth, 1e-6), "{truth:?}");
 }
 
 #[test]
@@ -646,7 +649,12 @@ fn binary_posterior_refuses_an_external_power_prior() {
     let antecedent_estimate::EstimationError::Refused { message, .. } = error else {
         panic!("expected a refusal");
     };
-    assert!(message.contains("binary_recovery_posterior.external_power_prior"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::binary_recovery_posterior::EXTERNAL_POWER_PRIOR
+        ),
+        "{message}"
+    );
 }
 
 #[test]

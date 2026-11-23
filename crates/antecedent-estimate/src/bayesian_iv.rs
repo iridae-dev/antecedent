@@ -8,9 +8,10 @@
 //! variances they are left unweighted. This is not a generic IV guarantee. A first-stage F
 //! statistic below the configured threshold is refused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::EstimationError;
+use crate::linalg::SpdFactor;
 use crate::util::{DrawSpec, dot, mean};
 
 /// Scoped Bayesian IV output. Intervals are equal-tailed posterior intervals conditional on
@@ -66,6 +67,25 @@ impl StageVariances {
         }
         Ok(self)
     }
+}
+
+fn first_stage_f(numerator: f64, residual_variance: f64) -> Result<f64, EstimationError> {
+    let invalid = || EstimationError::stats_msg("Bayesian IV first-stage F is not defined");
+    if !numerator.is_finite()
+        || numerator < 0.0
+        || !residual_variance.is_finite()
+        || residual_variance < 0.0
+    {
+        return Err(invalid());
+    }
+    if residual_variance == 0.0 {
+        return if numerator > 0.0 { Ok(f64::INFINITY) } else { Err(invalid()) };
+    }
+    let result = numerator / residual_variance;
+    if !result.is_finite() {
+        return Err(invalid());
+    }
+    Ok(result)
 }
 
 /// Fit the linear control-function IV model and sample its conditional Gaussian posterior.
@@ -146,7 +166,7 @@ pub fn fit_bayesian_iv_joint_fixed_loading(
     let alpha = tbar - pi * zbar;
     let rss =
         instrument.iter().zip(treatment).map(|(z, t)| (t - alpha - pi * z).powi(2)).sum::<f64>();
-    let first_stage_f = pi * pi * zss / (rss / (n - 2) as f64).max(1e-15);
+    let first_stage_f = first_stage_f(pi * pi * zss, rss / (n - 2) as f64)?;
     if first_stage_f < weak_f_threshold {
         return Err(EstimationError::stats_msg(format!(
             "weak_instrument: first-stage F={first_stage_f:.3} is below threshold {weak_f_threshold:.3}"
@@ -180,6 +200,216 @@ pub fn fit_bayesian_iv_joint_fixed_loading(
         crate::util::normal_draws(posterior_mean[3], covariance[3][3], draws, seed).ok_or_else(
             || EstimationError::stats_msg("joint Bayesian IV covariance is not positive definite"),
         )?;
+    effect_draws.sort_by(f64::total_cmp);
+    Ok(BayesianIvEstimate {
+        mean: effect_draws.iter().sum::<f64>() / draws as f64,
+        lower: quantile(&effect_draws, 0.025),
+        upper: quantile(&effect_draws, 0.975),
+        effect_draws,
+        first_stage_f,
+        prior_sd,
+        model: "joint Gaussian structural IV; fixed unit disturbance loading and declared stage variances",
+    })
+}
+
+/// The observed columns of a joint IV fit with any number of instruments and exogenous
+/// covariates, aligned by row.
+#[derive(Clone, Copy, Debug)]
+pub struct IvDesignSample<'a> {
+    /// Instrument columns, column-major `n × n_instruments`, without an intercept.
+    pub instruments: &'a [f64],
+    /// Number of instrument columns (at least one).
+    pub n_instruments: usize,
+    /// Exogenous covariate columns, column-major `n × n_covariates`, without an intercept.
+    pub covariates: &'a [f64],
+    /// Number of exogenous covariate columns (may be zero).
+    pub n_covariates: usize,
+    /// Treatment values.
+    pub treatment: &'a [f64],
+    /// Outcome values.
+    pub outcome: &'a [f64],
+}
+
+/// Centred OLS residual sum of squares of `y` on the centred `columns` (an intercept is implied).
+fn centred_ols_rss(columns: &[Vec<f64>], y: &[f64]) -> Option<f64> {
+    let p = columns.len();
+    if p == 0 {
+        return Some(y.iter().map(|v| v * v).sum());
+    }
+    let mut gram = vec![0.0; p * p];
+    let mut rhs = vec![0.0; p];
+    for i in 0..p {
+        rhs[i] = dot(&columns[i], y);
+        for j in 0..=i {
+            let value = dot(&columns[i], &columns[j]);
+            gram[i * p + j] = value;
+            gram[j * p + i] = value;
+        }
+    }
+    let beta = SpdFactor::new(&gram, p).and_then(|factor| factor.solve(&rhs))?;
+    Some(
+        (0..y.len())
+            .map(|r| {
+                let fitted: f64 = (0..p).map(|c| columns[c][r] * beta[c]).sum();
+                (y[r] - fitted).powi(2)
+            })
+            .sum(),
+    )
+}
+
+fn centred(column: &[f64]) -> Vec<f64> {
+    let centre = mean(column);
+    column.iter().map(|v| v - centre).collect()
+}
+
+/// Fit the jointly Gaussian fixed-loading structural IV model with `k >= 1` instruments `Z` and
+/// `q >= 0` exogenous covariates `W` in both equations:
+///
+/// `T = alpha + pi'Z + gamma'W + v`, `Y = mu + beta T + delta'W + v + epsilon`.
+///
+/// The declared positive variances are those of independent `v` and `epsilon`; independent
+/// zero-mean `N(0, prior_sd²)` priors are placed on every coefficient
+/// `(alpha, pi, gamma, mu, delta, beta)`. The two equations are stacked into one Gaussian
+/// regression (`T` on its first-stage design, `Y - T` on the negated first-stage design plus the
+/// structural design), so the posterior of `beta` is exactly Gaussian. With one instrument and no
+/// covariates this is the model of [`fit_bayesian_iv_joint_fixed_loading`].
+///
+/// The weak-instrument screen is the partial first-stage F statistic of the instrument block
+/// given the covariates (`k` numerator degrees of freedom).
+///
+/// # Errors
+///
+/// Mismatched or non-finite columns, fewer than eight rows or too few rows for the design, a
+/// constant instrument, an invalid prior or variance, a first-stage F below the threshold, or a
+/// singular posterior precision.
+#[allow(
+    clippy::many_single_char_names,
+    reason = "the model's own symbols: n rows, k instruments, q covariates, p parameters"
+)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
+pub fn fit_bayesian_iv_joint_fixed_loading_design(
+    sample: &IvDesignSample<'_>,
+    prior_sd: f64,
+    variances: StageVariances,
+    sampling: DrawSpec,
+    weak_f_threshold: f64,
+) -> Result<BayesianIvEstimate, EstimationError> {
+    let IvDesignSample {
+        instruments,
+        n_instruments: k,
+        covariates,
+        n_covariates: q,
+        treatment,
+        outcome,
+    } = *sample;
+    let StageVariances { treatment: treatment_variance, outcome: outcome_variance } = variances;
+    let DrawSpec { draws, seed } = sampling;
+    let n = treatment.len();
+    let shape_ok = k >= 1
+        && n >= 8
+        && n > 1 + k + q
+        && outcome.len() == n
+        && k.checked_mul(n) == Some(instruments.len())
+        && q.checked_mul(n) == Some(covariates.len());
+    if !shape_ok
+        || instruments
+            .iter()
+            .chain(covariates)
+            .chain(treatment)
+            .chain(outcome)
+            .any(|v| !v.is_finite())
+        || !prior_sd.is_finite()
+        || prior_sd <= 0.0
+        || !treatment_variance.is_finite()
+        || treatment_variance <= 0.0
+        || !outcome_variance.is_finite()
+        || outcome_variance <= 0.0
+        || draws < 2
+        || !weak_f_threshold.is_finite()
+        || weak_f_threshold < 0.0
+    {
+        return Err(EstimationError::stats_msg(
+            "joint Bayesian IV requires aligned finite columns (n >= 8 and n > 1 + instruments + covariates), at least one instrument, positive prior and stage variances, draws >= 2, and a nonnegative weak-F threshold",
+        ));
+    }
+    let instrument = |j: usize| &instruments[j * n..(j + 1) * n];
+    let covariate = |j: usize| &covariates[j * n..(j + 1) * n];
+    if (0..k).any(|j| antecedent_stats::column_is_constant(instrument(j), n, 0)) {
+        return Err(EstimationError::stats_msg("Bayesian IV instrument has no variation"));
+    }
+    // Partial first-stage F of the instrument block given the covariates.
+    let centred_t = centred(treatment);
+    let restricted: Vec<Vec<f64>> = (0..q).map(|j| centred(covariate(j))).collect();
+    let mut unrestricted = restricted.clone();
+    unrestricted.extend((0..k).map(|j| centred(instrument(j))));
+    let singular_stage =
+        || EstimationError::stats_msg("Bayesian IV first-stage design is singular");
+    let rss_restricted = centred_ols_rss(&restricted, &centred_t).ok_or_else(singular_stage)?;
+    let rss_unrestricted = centred_ols_rss(&unrestricted, &centred_t).ok_or_else(singular_stage)?;
+    let denominator_df = n - 1 - k - q;
+    let first_stage_f = first_stage_f(
+        (rss_restricted - rss_unrestricted).max(0.0) / k as f64,
+        rss_unrestricted / denominator_df as f64,
+    )?;
+    if first_stage_f < weak_f_threshold {
+        return Err(EstimationError::stats_msg(format!(
+            "weak_instrument: first-stage F={first_stage_f:.3} is below threshold {weak_f_threshold:.3}"
+        )));
+    }
+    // Parameters: alpha, pi (k), gamma (q), mu, delta (q), beta.
+    let p = 3 + k + 2 * q;
+    let mu_at = 1 + k + q;
+    let mut precision = vec![0.0; p * p];
+    let mut rhs = vec![0.0; p];
+    let mut first = vec![0.0; p];
+    let mut second = vec![0.0; p];
+    for r in 0..n {
+        first.fill(0.0);
+        second.fill(0.0);
+        first[0] = 1.0;
+        second[0] = -1.0;
+        for j in 0..k {
+            first[1 + j] = instrument(j)[r];
+            second[1 + j] = -instrument(j)[r];
+        }
+        for j in 0..q {
+            first[1 + k + j] = covariate(j)[r];
+            second[1 + k + j] = -covariate(j)[r];
+            second[mu_at + 1 + j] = covariate(j)[r];
+        }
+        second[mu_at] = 1.0;
+        second[p - 1] = treatment[r];
+        let rows = [
+            (&first, treatment[r], 1.0 / treatment_variance),
+            (&second, outcome[r] - treatment[r], 1.0 / outcome_variance),
+        ];
+        for (x, target, weight) in rows {
+            for i in 0..p {
+                if x[i] == 0.0 {
+                    continue;
+                }
+                rhs[i] += weight * x[i] * target;
+                for j in 0..p {
+                    precision[i * p + j] += weight * x[i] * x[j];
+                }
+            }
+        }
+    }
+    for i in 0..p {
+        precision[i * p + i] += 1.0 / prior_sd.powi(2);
+    }
+    let singular = || EstimationError::stats_msg("joint Bayesian IV precision is singular");
+    let factor = SpdFactor::new(&precision, p).ok_or_else(singular)?;
+    let posterior_mean = factor.solve(&rhs).ok_or_else(singular)?;
+    let variance = factor.inverse()[p * p - 1];
+    // Only the effect coordinate is reported, and its marginal posterior is Gaussian.
+    let mut effect_draws = crate::util::normal_draws(posterior_mean[p - 1], variance, draws, seed)
+        .ok_or_else(|| {
+            EstimationError::stats_msg("joint Bayesian IV covariance is not positive definite")
+        })?;
     effect_draws.sort_by(f64::total_cmp);
     Ok(BayesianIvEstimate {
         mean: effect_draws.iter().sum::<f64>() / draws as f64,
@@ -228,7 +458,7 @@ fn fit_bayesian_iv_inner(
     let residual: Vec<f64> =
         instrument.iter().zip(treatment).map(|(z, t)| t - alpha - pi * z).collect();
     let rss = residual.iter().map(|v| v * v).sum::<f64>();
-    let first_stage_f = pi * pi * zss / (rss / (n - 2) as f64).max(1e-15);
+    let first_stage_f = first_stage_f(pi * pi * zss, rss / (n - 2) as f64)?;
     if first_stage_f < weak_f_threshold {
         return Err(EstimationError::stats_msg(format!(
             "weak_instrument: first-stage F={first_stage_f:.3} is below threshold {weak_f_threshold:.3}"
@@ -241,6 +471,7 @@ fn fit_bayesian_iv_inner(
         known_variances.map(|v| v.treatment),
     )?;
     let stage_draws = first_stage_draws(stage_mean, &stage_cov, draws, seed)?;
+    let _admitted = crate::util::admit_bound_array::<f64>(draws, 2)?;
     let mut effect_draws = Vec::with_capacity(draws);
     let mut log_weights = Vec::with_capacity(draws);
     for draw_idx in 0..draws {
@@ -248,7 +479,7 @@ fn fit_bayesian_iv_inner(
         let e: Vec<f64> =
             (0..n).map(|i| treatment[i] - stage[0] - stage[1] * instrument[i]).collect();
         let x: Vec<[f64; 3]> = (0..n).map(|i| [1.0, treatment[i], e[i]]).collect();
-        let (beta, cov, log_evidence) =
+        let NormalPosterior { beta, covariance: cov, log_evidence } =
             normal_posterior(&x, outcome, prior_sd, known_variances.map(|v| v.outcome))?;
         // The effect coordinate's marginal posterior, one seeded draw per first-stage draw.
         let sampled = crate::util::normal_draws(
@@ -292,7 +523,42 @@ fn quantile(sorted: &[f64], p: f64) -> f64 {
     antecedent_stats::quantile_sorted(sorted, p, antecedent_stats::QuantileRule::ExchangeableRank)
 }
 
-type NormalPosterior = ([f64; 3], [[f64; 3]; 3], f64);
+/// Posterior of the control-function outcome regression.
+#[derive(Debug)]
+struct NormalPosterior {
+    /// Posterior mean of `(intercept, effect, control-function loading)`.
+    beta: [f64; 3],
+    /// Posterior covariance of the coefficients.
+    covariance: [[f64; 3]; 3],
+    /// Log marginal likelihood of the outcome under the prior.
+    log_evidence: f64,
+}
+
+/// Plug-in residual variance `rss / df`.
+///
+/// A regression that fits exactly has a residual variance at the rounding floor (a fixed
+/// fraction of the sample variance of the response `y`, so the floor carries the response's
+/// units): the variance estimate is then the floor itself, not a property of the data, and every
+/// posterior built on it would inherit that arbitrary scale. It is refused with a typed
+/// non-positive-variance cause instead; declared stage variances are the way to run on such data.
+fn plug_in_variance(rss: f64, df: usize, y: &[f64]) -> Result<f64, EstimationError> {
+    let n = y.len() as f64;
+    let centre = mean(y);
+    let y_variance = y.iter().map(|v| (v - centre).powi(2)).sum::<f64>() / (n - 1.0).max(1.0);
+    let variance = rss / df as f64;
+    if variance > (VARIANCE_FLOOR_FRACTION * y_variance).max(f64::MIN_POSITIVE) {
+        Ok(variance)
+    } else {
+        Err(EstimationError::Stats(antecedent_stats::StatsError::NonPositiveVariance {
+            message: "the Bayesian IV regression fits exactly, so its plug-in residual variance \
+                      is at the rounding floor; declare the stage variances or supply \
+                      observations with residual noise",
+        }))
+    }
+}
+
+/// Fraction of `var(y)` below which a plug-in residual variance is treated as an exact fit.
+const VARIANCE_FLOOR_FRACTION: f64 = 1e-12;
 
 fn normal_posterior(
     x: &[[f64; 3]],
@@ -300,44 +566,46 @@ fn normal_posterior(
     sd: f64,
     known_variance: Option<f64>,
 ) -> Result<NormalPosterior, EstimationError> {
-    let mut gram = [[0.0; 3]; 3];
+    let singular = || EstimationError::stats_msg("Bayesian IV posterior design is singular");
+    let mut gram = [0.0; 9];
     let mut b = [0.0; 3];
     for (row, yi) in x.iter().zip(y) {
         for i in 0..3 {
             b[i] += row[i] * yi;
             for j in 0..3 {
-                gram[i][j] += row[i] * row[j];
+                gram[i * 3 + j] += row[i] * row[j];
             }
         }
     }
-    let ols_inv = invert(gram)?;
-    let ols_beta = mul_vec(ols_inv, b);
+    let ols_beta = SpdFactor::new(&gram, 3).and_then(|f| f.solve(&b)).ok_or_else(singular)?;
     let rss = x.iter().zip(y).map(|(r, yi)| (yi - dot(r, &ols_beta)).powi(2)).sum::<f64>();
-    let variance = known_variance.unwrap_or_else(|| (rss / (y.len() - 3) as f64).max(1e-12));
-    let mut precision = gram;
+    let variance = match known_variance {
+        Some(variance) => variance,
+        None => plug_in_variance(rss, y.len() - 3, y)?,
+    };
     let ridge = variance / (sd * sd);
-    for (i, row) in precision.iter_mut().enumerate() {
-        row[i] += ridge;
+    let mut precision = gram;
+    for i in 0..3 {
+        precision[i * 4] += ridge;
     }
-    let inv = invert(precision)?;
-    let beta = mul_vec(inv, b);
-    let cov = inv.map(|row| row.map(|v| v * variance));
-    let det = determinant(precision);
+    let factor = SpdFactor::new(&precision, 3).ok_or_else(singular)?;
+    let beta_vec = factor.solve(&b).ok_or_else(singular)?;
+    let beta = [beta_vec[0], beta_vec[1], beta_vec[2]];
+    let inverse = factor.inverse();
+    let cov: [[f64; 3]; 3] =
+        std::array::from_fn(|i| std::array::from_fn(|j| inverse[i * 3 + j] * variance));
     let log_det_covariance =
-        y.len() as f64 * variance.ln() + det.ln() + 3.0 * ((sd * sd) / variance).ln();
-    let quadratic = (y.iter().map(|v| v * v).sum::<f64>()
-        - (0..3).map(|i| b[i] * beta[i]).sum::<f64>())
-        / variance;
+        y.len() as f64 * variance.ln() + factor.log_det() + 3.0 * ((sd * sd) / variance).ln();
+    // `yᵀy − bᵀβ` at the posterior mean is the penalized residual `‖y − Xβ‖² + ridge·‖β‖²`;
+    // the residual form does not cancel a large `yᵀy` against a nearly equal `bᵀβ`.
+    let penalized_rss = x.iter().zip(y).map(|(r, yi)| (yi - dot(r, &beta)).powi(2)).sum::<f64>()
+        + ridge * beta.iter().map(|v| v * v).sum::<f64>();
+    let quadratic = penalized_rss / variance;
     let log_evidence =
         -0.5 * (y.len() as f64 * (std::f64::consts::TAU).ln() + log_det_covariance + quadratic);
-    Ok((beta, cov, log_evidence))
+    Ok(NormalPosterior { beta, covariance: cov, log_evidence })
 }
 
-fn determinant(a: [[f64; 3]; 3]) -> f64 {
-    a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1])
-        - a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0])
-        + a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0])
-}
 fn weighted_resample(values: &[f64], log_weights: &[f64], n: usize, seed: u64) -> Vec<f64> {
     let max = log_weights.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     let weights: Vec<f64> = log_weights.iter().map(|v| (v - max).exp()).collect();
@@ -377,7 +645,10 @@ fn first_stage_posterior(
         ols_inv[1][0] * rhs[0] + ols_inv[1][1] * rhs[1],
     ];
     let rss = z.iter().zip(t).map(|(zi, ti)| (ti - ols[0] - ols[1] * zi).powi(2)).sum::<f64>();
-    let variance = known_variance.unwrap_or_else(|| (rss / (z.len() - 2) as f64).max(1e-12));
+    let variance = match known_variance {
+        Some(variance) => variance,
+        None => plug_in_variance(rss, z.len() - 2, t)?,
+    };
     let ridge = variance / (sd * sd);
     a[0][0] += ridge;
     a[1][1] += ridge;
@@ -407,16 +678,53 @@ fn first_stage_draws(
     })?;
     Ok([draws[..n].to_vec(), draws[n..2 * n].to_vec()])
 }
-fn invert(a: [[f64; 3]; 3]) -> Result<[[f64; 3]; 3], EstimationError> {
-    crate::util::invert_fixed(&a)
-        .ok_or_else(|| EstimationError::stats_msg("Bayesian IV posterior design is singular"))
-}
-fn mul_vec(a: [[f64; 3]; 3], b: [f64; 3]) -> [f64; 3] {
-    std::array::from_fn(|i| (0..3).map(|j| a[i][j] * b[j]).sum())
-}
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
+    fn first_stage_screen_is_scale_invariant_across_three_bayesian_iv_routes() {
+        let z = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0];
+        let u = [-0.2, -0.2, 0.2, 0.2, -0.2, -0.2, 0.2, 0.2];
+        let y = [0.0, 1.0, 0.3, 1.3, -0.1, 0.9, 0.2, 1.2];
+        let variances = StageVariances { treatment: 1.0, outcome: 1.0 };
+        let mut all = Vec::new();
+        for scale in [1.0, 1e-9] {
+            let t: Vec<f64> = z.iter().zip(&u).map(|(z, u)| scale * (z + u)).collect();
+            let sample = IvSample { instrument: &z, treatment: &t, outcome: &y };
+            let draw = DrawSpec::new(8, 3);
+            let separate =
+                fit_bayesian_iv_fixed_variances(&sample, 10.0, variances, draw, 10.0).unwrap();
+            let joint =
+                fit_bayesian_iv_joint_fixed_loading(&sample, 10.0, variances, draw, 10.0).unwrap();
+            let design = fit_bayesian_iv_joint_fixed_loading_design(
+                &IvDesignSample {
+                    instruments: &z,
+                    n_instruments: 1,
+                    covariates: &[],
+                    n_covariates: 0,
+                    treatment: &t,
+                    outcome: &y,
+                },
+                10.0,
+                variances,
+                draw,
+                10.0,
+            )
+            .unwrap();
+            all.push([separate.first_stage_f, joint.first_stage_f, design.first_stage_f]);
+        }
+        for (a, b) in all[0].iter().zip(all[1]) {
+            assert!((a - b).abs() < 1e-8);
+        }
+        assert_eq!(first_stage_f(1.0, 0.0).unwrap(), f64::INFINITY);
+        assert!(first_stage_f(0.0, 0.0).is_err());
+        assert!(first_stage_f(f64::NAN, 1.0).is_err());
+    }
+
     #[test]
     fn consecutive_seeds_start_independent_standard_normal_streams() {
         let first: Vec<f64> = (0..4000_u64)
@@ -467,7 +775,15 @@ mod tests {
         let z: Vec<f64> = (0..n).map(|i| f64::from(i % 2)).collect();
         let u: Vec<f64> = (0..n).map(|i| if i % 4 < 2 { -0.2 } else { 0.2 }).collect();
         let t: Vec<f64> = z.iter().zip(&u).map(|(z, u)| 0.25 + 0.65 * z + u).collect();
-        let y: Vec<f64> = t.iter().zip(&u).map(|(t, u)| 1.0 + 2.0 * t + 1.5 * u).collect();
+        // Independent outcome noise: an exactly fitting regression has no residual variance to
+        // estimate and is refused.
+        let noise = |i: usize| f64::from(u8::try_from(i % 7).unwrap_or(0)) * 0.02 - 0.06;
+        let y: Vec<f64> = t
+            .iter()
+            .zip(&u)
+            .enumerate()
+            .map(|(i, (t, u))| 1.0 + 2.0 * t + 1.5 * u + noise(i))
+            .collect();
         let fit = fit_bayesian_iv(
             &IvSample { instrument: &z, treatment: &t, outcome: &y },
             10.0,
@@ -502,6 +818,108 @@ mod tests {
         assert!((fixed.mean - 2.0).abs() < 0.15);
     }
     #[test]
+    fn the_design_fit_with_one_instrument_and_no_covariates_matches_the_scalar_fit() {
+        let n = 120;
+        let mut rng = antecedent_core::CausalRng::from_seed(5);
+        let z: Vec<f64> = (0..n).map(|i| f64::from(i % 2)).collect();
+        let mut t = Vec::new();
+        let mut y = Vec::new();
+        for &zi in &z {
+            let v = antecedent_kernels::standard_normal(&mut rng);
+            let ti = zi + v;
+            t.push(ti);
+            y.push(1.0 + 2.0 * ti + v + antecedent_kernels::standard_normal(&mut rng));
+        }
+        let variances = StageVariances { treatment: 1.0, outcome: 1.0 };
+        let scalar = fit_bayesian_iv_joint_fixed_loading(
+            &IvSample { instrument: &z, treatment: &t, outcome: &y },
+            10.0,
+            variances,
+            DrawSpec::new(400, 11),
+            10.0,
+        )
+        .unwrap();
+        let design = fit_bayesian_iv_joint_fixed_loading_design(
+            &IvDesignSample {
+                instruments: &z,
+                n_instruments: 1,
+                covariates: &[],
+                n_covariates: 0,
+                treatment: &t,
+                outcome: &y,
+            },
+            10.0,
+            variances,
+            DrawSpec::new(400, 11),
+            10.0,
+        )
+        .unwrap();
+        assert!((scalar.mean - design.mean).abs() < 1e-8, "{} {}", scalar.mean, design.mean);
+        assert!((scalar.first_stage_f - design.first_stage_f).abs() < 1e-8);
+        assert!((scalar.lower - design.lower).abs() < 1e-8);
+    }
+
+    #[test]
+    fn two_instruments_and_a_covariate_recover_the_structural_effect() {
+        let n = 400;
+        let mut rng = antecedent_core::CausalRng::from_seed(77);
+        let z1: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+        let z2: Vec<f64> = (0..n).map(|i| ((i / 2) % 2) as f64).collect();
+        let w: Vec<f64> = (0..n).map(|_| antecedent_kernels::standard_normal(&mut rng)).collect();
+        let mut t = Vec::new();
+        let mut y = Vec::new();
+        for i in 0..n {
+            let v = antecedent_kernels::standard_normal(&mut rng);
+            let ti = 0.8 * z1[i] + 0.8 * z2[i] + 0.5 * w[i] + v;
+            t.push(ti);
+            y.push(1.0 + 2.0 * ti - 0.7 * w[i] + v + antecedent_kernels::standard_normal(&mut rng));
+        }
+        let mut instruments = z1.clone();
+        instruments.extend_from_slice(&z2);
+        let fit = fit_bayesian_iv_joint_fixed_loading_design(
+            &IvDesignSample {
+                instruments: &instruments,
+                n_instruments: 2,
+                covariates: &w,
+                n_covariates: 1,
+                treatment: &t,
+                outcome: &y,
+            },
+            10.0,
+            StageVariances { treatment: 1.0, outcome: 1.0 },
+            DrawSpec::new(800, 3),
+            10.0,
+        )
+        .unwrap();
+        assert!((fit.mean - 2.0).abs() < 0.25, "{}", fit.mean);
+        assert!(fit.lower < 2.0 && fit.upper > 2.0, "[{}, {}]", fit.lower, fit.upper);
+        assert!(fit.first_stage_f > 10.0);
+    }
+
+    #[test]
+    fn an_exactly_fitting_regression_is_refused_with_a_typed_cause() {
+        let n = 240;
+        let z: Vec<f64> = (0..n).map(|i| f64::from(i % 2)).collect();
+        let u: Vec<f64> = (0..n).map(|i| if i % 4 < 2 { -0.2 } else { 0.2 }).collect();
+        let t: Vec<f64> = z.iter().zip(&u).map(|(z, u)| 0.25 + 0.65 * z + u).collect();
+        let y: Vec<f64> = t.iter().zip(&u).map(|(t, u)| 1.0 + 2.0 * t + 1.5 * u).collect();
+        let sample = IvSample { instrument: &z, treatment: &t, outcome: &y };
+        let refused = fit_bayesian_iv(&sample, 10.0, DrawSpec::new(200, 3), 10.0).unwrap_err();
+        assert!(matches!(
+            refused,
+            EstimationError::Stats(antecedent_stats::StatsError::NonPositiveVariance { .. })
+        ));
+        // Declared variances are the supported way to run on noise-free observations.
+        let declared = fit_bayesian_iv_fixed_variances(
+            &sample,
+            10.0,
+            StageVariances { treatment: 0.04, outcome: 0.01 },
+            DrawSpec::new(200, 3),
+            10.0,
+        );
+        assert!(declared.is_ok());
+    }
+    #[test]
     fn weak_instrument_is_refused() {
         let n = 100;
         let z: Vec<f64> = (0..n).map(|i| f64::from((i / 2) % 2)).collect();
@@ -517,12 +935,46 @@ mod tests {
         assert!(e.to_string().contains("weak_instrument"));
     }
     #[test]
-    fn the_posterior_inverse_is_scale_free_and_still_refuses_collinear_designs() {
-        // Pivots of order 1e-16 were refused by the former absolute 1e-12 cutoff.
-        let tiny = [[1e-16, 0.0, 0.0], [0.0, 4e-16, 0.0], [0.0, 0.0, 9e-16]];
-        assert!(invert(tiny).is_ok());
-        let collinear = [[1.0, 2.0, 0.0], [2.0, 4.0, 0.0], [0.0, 0.0, 1.0]];
-        let e = invert(collinear).unwrap_err();
+    fn the_posterior_is_scale_free_and_still_refuses_collinear_designs() {
+        // Columns in units of 1e-8 are well conditioned once the scale is accounted for.
+        let rows = |scale: f64, collinear: bool| -> Vec<[f64; 3]> {
+            (0..12)
+                .map(|i| {
+                    let u = f64::from(i % 5) - 2.0;
+                    let w = if collinear { 2.0 * u } else { f64::from((i * 7) % 4) - 1.5 };
+                    [scale, scale * u, scale * w]
+                })
+                .collect()
+        };
+        let y: Vec<f64> = (0..12).map(|i| f64::from(i % 3) + 0.1 * f64::from(i)).collect();
+        assert!(normal_posterior(&rows(1e-8, false), &y, 10.0, Some(1.0)).is_ok());
+        let e = normal_posterior(&rows(1.0, true), &y, 10.0, Some(1.0)).unwrap_err();
         assert!(e.to_string().contains("Bayesian IV posterior design is singular"), "{e}");
+    }
+
+    #[test]
+    fn the_plug_in_variance_floor_scales_with_the_response() {
+        // The exact-fit boundary is a fixed fraction of var(y), so it moves with the response's
+        // units: the same relative residual is accepted or refused at every scale.
+        let y: Vec<f64> = (0..10).map(|i| 1e6 * f64::from(i)).collect();
+        let small: Vec<f64> = y.iter().map(|v| v * 1e-12).collect();
+        let variance = |y: &[f64]| {
+            let centre = mean(y);
+            y.iter().map(|v| (v - centre).powi(2)).sum::<f64>() / (y.len() - 1) as f64
+        };
+        for column in [&y, &small] {
+            let scale = variance(column);
+            let above = 2.0 * VARIANCE_FLOOR_FRACTION * scale * 7.0;
+            let below = 0.5 * VARIANCE_FLOOR_FRACTION * scale * 7.0;
+            let accepted = plug_in_variance(above, 7, column).unwrap();
+            assert!((accepted / (2.0 * VARIANCE_FLOOR_FRACTION * scale) - 1.0).abs() < 1e-12);
+            assert!(matches!(
+                plug_in_variance(below, 7, column),
+                Err(EstimationError::Stats(
+                    antecedent_stats::StatsError::NonPositiveVariance { .. }
+                ))
+            ));
+            assert!(plug_in_variance(0.0, 7, column).is_err());
+        }
     }
 }

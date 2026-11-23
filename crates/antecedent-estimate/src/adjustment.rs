@@ -1,6 +1,6 @@
 //! Linear adjustment ATE estimator.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -15,7 +15,11 @@ use std::sync::Arc;
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, Intervention, TargetPopulation, VariableId,
 };
-use antecedent_data::{TableView, TabularData};
+use antecedent_data::materialize::{
+    PreparationBudget, PreparationControls, PreparationProduct, PreparationReceipt, StreamingScan,
+    prepare_table,
+};
+use antecedent_data::{Contrast, MissingPolicy, TableView, TabularData};
 use antecedent_expr::{
     CausalExprArena, DomainRef, ExprId, ExprNode, FactorRequirement, FunctionalProgram,
     IdentifiedEstimand, OutcomeExprId, ProgramLimits, ProgramSchema, ProgramVariable,
@@ -23,22 +27,44 @@ use antecedent_expr::{
 use antecedent_identify::{IdentificationResult, IdentificationStatus};
 use antecedent_stats::{
     CompiledDesign, DenseLinearAlgebra, FaerBackend, LassoOptions, LeastSquaresWorkspace,
-    MEstimateOptions, fit_huber_m, fit_lasso_with_ones_column, fit_ridge, predict_lasso,
-    ridge_gram_inverse,
+    MEstimateOptions, RidgeIntercept, fit_huber_m, fit_lasso_with_ones_column, fit_ridge_with,
+    predict_lasso, ridge_gram_inverse,
 };
 
+use crate::arm::TreatmentArm;
 pub use crate::effect_estimate::{
     AnalyticSe, BlockResampling, BlockSeRecord, BootstrapAccounting, CandidateSelectionRecord,
     CrossfitRecord, EffectEstimate, EstimateDiagnostics, EstimateHeterogeneity, EstimateProvenance,
     EstimateScores, EstimateUncertainty, FamilyInference, JointRecord, ScenarioBand,
 };
 use crate::error::EstimationError;
+use crate::inference::InferenceSpec;
 use crate::overlap::OverlapPolicy;
 use crate::prepare::{
     CheckedSelection, require_adjustment_shaped, require_unique_roles, treatment_contrast,
     validate_ate_query_with_targets,
 };
 use crate::se::{AnalyticSeKind, SeSpec, residual_sandwich_coef_se, score_sandwich_coef_se};
+
+mod bootstrap;
+mod checked;
+mod solve;
+
+pub use checked::{CheckedAdjustmentLowering, CheckedLinearAdjustmentAte};
+pub(crate) use solve::intervention_f64;
+
+#[cfg(test)]
+#[allow(
+    unused_imports,
+    clippy::wildcard_imports,
+    reason = "unit tests exercise internal solve operations"
+)]
+use solve::*;
+use solve::{
+    FitVariance, LinearFit, SolvedLinear, bootstrap_fit_failed, curvature_gram_inverse,
+    gcomp_or_coef_ate, huber_homoskedastic_se, linear_fit_from_solved, solve_linear,
+    treatment_coef_influence,
+};
 
 /// Prepared estimation problem (compiled design retained).
 #[derive(Clone, Debug)]
@@ -61,106 +87,16 @@ pub struct PreparedEstimationProblem {
     pub active: f64,
     /// Control treatment level.
     pub control: f64,
+    /// The two contrasted levels and the rows excluded, when the treatment is a discrete column
+    /// with further levels and the restriction to the two levels was declared.
+    pub treatment_levels: Option<crate::propensity::DeclaredTreatmentLevels>,
     /// What declared sampling weights did to this problem. When present the design matrix and
     /// outcome are the weighted-least-squares transform (every row multiplied by the square
     /// root of its mean-one weight), so each normal-equation and sandwich formula downstream
     /// reads the sampling-weighted score `w_i x_i e_i`; `treatment` stays unweighted.
     pub sampling_weights: Option<crate::sampling_weights::SamplingWeightRecord>,
-}
-
-/// Receipt for a linear adjustment preparation checked against an identification result.
-///
-/// The retained arena and target make the proof context inspectable after the builder has
-/// been discarded. `problem` is the physical linear design prepared from that same query.
-#[derive(Clone, Debug)]
-pub struct CheckedLinearAdjustmentAte {
-    /// Selected causal target and its estimator roles.
-    target: IdentifiedEstimand,
-    /// Selected source functional root.
-    source_functional: ExprId,
-    /// One-arm observational adjustment functional derived from the source target.
-    /// Evaluate with treatment bound to each declared arm, then subtract control from active.
-    executable_functional: ExprId,
-    /// Checked role and population receipt for the source-to-executable lowering.
-    lowering: CheckedAdjustmentLowering,
-    /// Structurally checked owner of the source and executable roots.
-    program: FunctionalProgram,
-    /// Provider factors discovered while checking the executable root.
-    factor_requirements: Arc<[FactorRequirement]>,
-    /// Query that was checked and used to bind the source target.
-    query: AverageEffectQuery,
-    /// Assumptions attached to the selected identification claim.
-    required_assumptions: AssumptionSet,
-    /// Checked and prepared linear adjustment design.
-    problem: PreparedEstimationProblem,
-}
-
-impl CheckedLinearAdjustmentAte {
-    /// Selected causal target.
-    #[must_use]
-    pub fn target(&self) -> &IdentifiedEstimand {
-        &self.target
-    }
-    /// Checked program that owns the target and observational execution root.
-    #[must_use]
-    pub fn program(&self) -> &FunctionalProgram {
-        &self.program
-    }
-    /// Checked source root.
-    #[must_use]
-    pub fn source_functional(&self) -> ExprId {
-        self.source_functional
-    }
-    /// Checked executable arm root.
-    #[must_use]
-    pub fn executable_functional(&self) -> ExprId {
-        self.executable_functional
-    }
-    /// Typed source-to-executable lowering.
-    #[must_use]
-    pub fn lowering(&self) -> &CheckedAdjustmentLowering {
-        &self.lowering
-    }
-    /// Checked provider factor requirements.
-    #[must_use]
-    pub fn factor_requirements(&self) -> &[FactorRequirement] {
-        &self.factor_requirements
-    }
-    /// Selected identification assumptions.
-    #[must_use]
-    pub fn required_assumptions(&self) -> &AssumptionSet {
-        &self.required_assumptions
-    }
-    /// Prepared numerical design.
-    #[must_use]
-    pub fn problem(&self) -> &PreparedEstimationProblem {
-        &self.problem
-    }
-}
-
-/// Checked semantic correspondence for a static adjustment ATE lowering.
-///
-/// The executable root is an observational one-arm functional with treatment free as a
-/// conditioning coordinate. Consumers evaluate it twice using the retained active and
-/// control values and subtract control from active.
-#[derive(Clone, Debug, PartialEq)]
-pub struct CheckedAdjustmentLowering {
-    /// Source interventional target root.
-    pub source: ExprId,
-    /// Executable observational root.
-    pub executable: ExprId,
-    /// Treatment role used by both arms.
-    pub treatment: VariableId,
-    /// Outcome role.
-    pub outcome: VariableId,
-    /// Adjustment roles in semantic order.
-    pub adjustment: Arc<[VariableId]>,
-    /// Active intervention value.
-    pub active: f64,
-    /// Control intervention value.
-    pub control: f64,
-    /// Population averaging semantics implemented by this checked lowering.
-    pub population: TargetPopulation,
+    /// Preparation receipt for the finite table this problem was read from.
+    pub preparation: PreparationReceipt,
 }
 
 /// Estimation workspace (reusable across bootstrap replicates).
@@ -171,9 +107,10 @@ pub struct EstimationWorkspace {
 }
 
 /// Linear fit family for [`LinearAdjustmentAte`].
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub enum LinearFitKind {
     /// Ordinary least squares.
+    #[default]
     Ols,
     /// Ridge with penalty `lambda` (intercept unpenalized when constant).
     ///
@@ -207,33 +144,16 @@ pub enum LinearFitKind {
     },
 }
 
-impl Default for LinearFitKind {
-    fn default() -> Self {
-        Self::Ols
-    }
-}
-
 /// Linear adjustment estimator for backdoor ATE.
 #[derive(Clone, Debug)]
 pub struct LinearAdjustmentAte {
     /// Backend.
     pub backend: FaerBackend,
-    /// Bootstrap replicates (0 = skip bootstrap).
-    pub bootstrap_replicates: u32,
+    /// Inference declarations: bootstrap size and interval request, analytic standard-error
+    /// kind, cluster / multiway / panel labels and the sampling design of the rows.
+    pub inference: InferenceSpec,
     /// Overlap policy (must be explicit in).
     pub overlap: OverlapPolicy,
-    /// Analytic SE estimator (default homoskedastic).
-    pub se_kind: AnalyticSeKind,
-    /// Optional cluster ids (length = prepared `nrows`) for cluster / panel SE.
-    pub cluster_ids: Option<Vec<u32>>,
-    /// Optional cluster labels of every row of the source table (length = source rows),
-    /// subset to the retained rows by the design's row selection. Exclusive with
-    /// [`Self::cluster_ids`].
-    pub source_cluster_ids: Option<Vec<u32>>,
-    /// Optional multiway cluster ids for [`AnalyticSeKind::Multiway`].
-    pub multiway_ids: Option<Vec<Vec<u32>>>,
-    /// Optional panel time labels (length = prepared `nrows`) for panel HAC.
-    pub panel_times: Option<Vec<i64>>,
     /// Linear fit family (default OLS).
     pub fit_kind: LinearFitKind,
     /// Registry for named [`TargetPopulation::Predicate`] selections.
@@ -242,6 +162,20 @@ pub struct LinearAdjustmentAte {
     /// with the linearization (sandwich) variance; see [`crate::sampling_weights`] for the
     /// estimand, normalization and zero-weight rules. Only the OLS fit reads them.
     pub sampling_weights: Option<crate::sampling_weights::SamplingWeights>,
+    /// Byte budget for preparation. `None` admits the resident table's payload.
+    pub preparation_budget: Option<PreparationBudget>,
+    /// Explicit contrasts for categorical adjustment columns, in request order.
+    pub contrasts: Vec<(VariableId, Contrast)>,
+    /// Policy for rows at neither contrasted level when the treatment is a discrete column with
+    /// further levels (see [`crate::OtherLevels`]). The default refuses: the treatment enters
+    /// the regression as one numeric column, so a column such as `0/1/2` would be read as a
+    /// dose and "1 against 0" would be its slope, not the contrast of the two levels.
+    pub other_levels: crate::propensity::OtherLevels,
+    /// Read the treatment as a numeric dose: the contrast is the fitted slope times
+    /// `active - control`, and a discrete column with further levels is not a refusal. The
+    /// default is `false`, which keeps the two-level contrast rule above. Set by the
+    /// diagnostics of a dose-response design, whose original estimate is a dose slope.
+    pub dose_reading: bool,
 }
 
 impl Default for LinearAdjustmentAte {
@@ -256,29 +190,81 @@ impl LinearAdjustmentAte {
     pub fn new() -> Self {
         Self {
             backend: FaerBackend,
-            bootstrap_replicates: 200,
+            inference: InferenceSpec::new(200),
             overlap: OverlapPolicy::ExplicitOverride,
-            se_kind: AnalyticSeKind::Homoskedastic,
-            cluster_ids: None,
-            source_cluster_ids: None,
-            multiway_ids: None,
-            panel_times: None,
             fit_kind: LinearFitKind::Ols,
             population_registry: None,
             sampling_weights: None,
+            preparation_budget: None,
+            contrasts: Vec::new(),
+            other_levels: crate::propensity::OtherLevels::default(),
+            dose_reading: false,
         }
     }
 
-    /// Set the number of bootstrap replicates used for the bootstrap standard error.
-    ///
-    /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE
-    /// (`NaN` when [`Self::with_fit_kind`] is [`LinearFitKind::Lasso`] or
-    /// [`LinearFitKind::Ridge`]).
+    /// Read the treatment as a numeric dose (see [`Self::dose_reading`]).
     #[must_use]
-    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
-        self.bootstrap_replicates = replicates;
+    pub const fn with_dose_reading(mut self, dose_reading: bool) -> Self {
+        self.dose_reading = dose_reading;
         self
     }
+
+    /// Declare what to do with rows at neither contrasted level when the treatment is a
+    /// discrete column with further levels. The default refuses; the exclusion restricts the
+    /// target population to the rows at the two levels and is reported on the result.
+    #[must_use]
+    pub const fn with_other_levels(mut self, other_levels: crate::propensity::OtherLevels) -> Self {
+        self.other_levels = other_levels;
+        self
+    }
+
+    crate::inference::with_bootstrap_interval!(inference);
+
+    /// Admit preparation only when the resident payload fits `budget`.
+    #[must_use]
+    pub const fn with_preparation_budget(mut self, budget: PreparationBudget) -> Self {
+        self.preparation_budget = Some(budget);
+        self
+    }
+
+    /// Expand `id` with `contrast` during preparation.
+    #[must_use]
+    pub fn with_contrast(mut self, id: VariableId, contrast: Contrast) -> Self {
+        self.contrasts.push((id, contrast));
+        self
+    }
+
+    fn refuse_unweighted_routes(&self) -> Result<(), EstimationError> {
+        if self.sampling_weights.is_some() && !matches!(self.fit_kind, LinearFitKind::Ols) {
+            return Err(crate::sampling_weights::unsupported_route(
+                "sampling weights are read by the ordinary least-squares fit only; ridge, lasso \
+                 and Huber fits have no sampling-weighted variance",
+            ));
+        }
+        if self.sampling_weights.is_some()
+            && matches!(self.inference.se_kind, AnalyticSeKind::Homoskedastic)
+        {
+            return Err(crate::sampling_weights::unsupported_route(
+                "the classical homoskedastic standard error treats weights as precision and is \
+                 invalid for sampling weights; request a heteroskedasticity-robust kind \
+                 (hc0..hc3) or the cluster sandwich",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Refuse `scan`. Linear adjustment reads a finite table.
+    ///
+    /// Materialize the frame before calling [`Self::prepare`].
+    #[must_use = "the refusal is the decision not to read the scan"]
+    pub fn reject_stream(_scan: &StreamingScan) -> EstimationError {
+        EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
+            "linear adjustment cannot stream; materialize the frame or refuse it",
+        )
+    }
+
+    crate::inference::with_bootstrap_replicates!(inference);
 
     /// Set the overlap policy. `prepare` requires [`OverlapPolicy::ExplicitOverride`] since
     /// this is a regression (not propensity-based) path.
@@ -288,29 +274,13 @@ impl LinearAdjustmentAte {
         self
     }
 
-    /// Set the analytic standard-error kind (default [`AnalyticSeKind::Homoskedastic`]).
-    #[must_use]
-    pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
-        self.se_kind = se_kind;
-        self
-    }
+    crate::inference::with_se_kind!(inference);
 
-    /// Set cluster ids (length must equal the prepared design's row count) for
-    /// [`AnalyticSeKind::Cluster`] / panel SE.
-    #[must_use]
-    pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
-        self.cluster_ids = Some(cluster_ids);
-        self
-    }
+    crate::inference::with_cluster_ids!(inference);
 
-    /// Set cluster labels for every row of the source table (length must equal its row
-    /// count). Rows dropped as incomplete or outside the target population drop their
-    /// labels with them, so the labels stay with their rows.
-    #[must_use]
-    pub fn with_source_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
-        self.source_cluster_ids = Some(cluster_ids);
-        self
-    }
+    crate::inference::with_source_cluster_ids!(inference);
+
+    crate::inference::with_sampling_design!(inference);
 
     /// Declare sampling weights for every row of the source table (OLS only). The classical
     /// homoskedastic SE kind is refused with weights at `prepare`: a model-based variance
@@ -325,21 +295,9 @@ impl LinearAdjustmentAte {
         self
     }
 
-    /// Set multiway cluster ids (one `Vec<u32>` per clustering dimension) for
-    /// [`AnalyticSeKind::Multiway`].
-    #[must_use]
-    pub fn with_multiway_ids(mut self, multiway_ids: Vec<Vec<u32>>) -> Self {
-        self.multiway_ids = Some(multiway_ids);
-        self
-    }
+    crate::inference::with_multiway_ids!(inference);
 
-    /// Set panel time labels (length must equal the prepared design's row count) for
-    /// panel HAC standard errors.
-    #[must_use]
-    pub fn with_panel_times(mut self, panel_times: Vec<i64>) -> Self {
-        self.panel_times = Some(panel_times);
-        self
-    }
+    crate::inference::with_panel_times!(inference);
 
     /// Set the linear fit family (default [`LinearFitKind::Ols`]).
     ///
@@ -374,6 +332,36 @@ impl LinearAdjustmentAte {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedEstimationProblem, EstimationError> {
+        self.prepare_with_backend(
+            data,
+            estimand,
+            query,
+            antecedent_core::physical_choice::PhysicalAlternative::DirectPreparedNumericViews,
+        )
+    }
+
+    fn prepare_with_backend(
+        &self,
+        data: &TabularData,
+        estimand: &IdentifiedEstimand,
+        query: &AverageEffectQuery,
+        backend: antecedent_core::physical_choice::PhysicalAlternative,
+    ) -> Result<PreparedEstimationProblem, EstimationError> {
+        use antecedent_core::physical_choice::PhysicalAlternative;
+        let assemble = match backend {
+            PhysicalAlternative::DirectPreparedNumericViews => {
+                crate::prepare::direct_adjustment_design
+            }
+            PhysicalAlternative::MaterializedDesign => {
+                crate::prepare::materialized_adjustment_design
+            }
+            _ => {
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
+                    "linear adjustment requires retained rows; streamed and lazy preparation are unavailable",
+                ));
+            }
+        };
         crate::util::require_explicit_override(
             self.overlap,
             "LinearAdjustmentAte requires ExplicitOverride overlap policy",
@@ -382,14 +370,15 @@ impl LinearAdjustmentAte {
             estimand,
             "LinearAdjustmentAte expects an adjustment-shaped estimand",
         )?;
+        self.inference.require_declared_design_read("LinearAdjustmentAte")?;
         validate_ate_query_with_targets(query)?;
         let treatment = query.treatment;
         let outcome = query.outcome;
         let (active, control, treatment_delta) = treatment_contrast(&query.active, &query.control)?;
-        if let Some(source) = self.source_cluster_ids.as_deref() {
+        if let Some(source) = self.inference.source_cluster_ids.as_deref() {
             crate::se::require_source_labels(
                 source,
-                self.cluster_ids.as_deref(),
+                self.inference.cluster_ids.as_deref(),
                 data.row_count(),
             )?;
         }
@@ -398,44 +387,47 @@ impl LinearAdjustmentAte {
         ids.push(treatment);
         ids.push(outcome);
         ids.extend_from_slice(&estimand.adjustment_set);
-        let mut row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
+        let mut controls = PreparationControls::finite_resident();
+        controls.budget = self.preparation_budget;
+        let PreparationProduct { expanded, mut row_mask, receipt: preparation } =
+            prepare_table(data, &ids, MissingPolicy::CompleteCase, &self.contrasts, controls)?;
         crate::prepare::intersect_predicate_mask(
             &mut row_mask,
             &query.target_population,
             data.row_count(),
             self.population_registry.as_ref(),
         )?;
-        if self.sampling_weights.is_some() && !matches!(self.fit_kind, LinearFitKind::Ols) {
-            return Err(crate::sampling_weights::unsupported_route(
-                "sampling weights are read by the ordinary least-squares fit only; ridge, lasso \
-                 and Huber fits have no sampling-weighted variance",
-            ));
-        }
-        if self.sampling_weights.is_some() && matches!(self.se_kind, AnalyticSeKind::Homoskedastic)
-        {
-            return Err(crate::sampling_weights::unsupported_route(
-                "the classical homoskedastic standard error treats weights as precision and is \
-                 invalid for sampling weights; request a heteroskedasticity-robust kind \
-                 (hc0..hc3) or the cluster sandwich",
-            ));
-        }
+        let treatment_levels = if self.dose_reading {
+            None
+        } else {
+            crate::prepare::restrict_to_contrast_levels(
+                data,
+                treatment,
+                &mut row_mask,
+                (active, control),
+                self.other_levels,
+            )?
+        };
+        self.refuse_unweighted_routes()?;
         let retained = self
             .sampling_weights
             .as_ref()
             .map(|weights| weights.restrict(&mut row_mask))
             .transpose()?;
-        let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
-        let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
-        let mut covs: Vec<(VariableId, Vec<f64>)> = Vec::new();
-        for &z in estimand.adjustment_set.iter() {
-            covs.push((z, data.float64_masked(z, &row_mask).map_err(EstimationError::from)?));
-        }
-        let cov_refs: Vec<(VariableId, &[f64])> =
-            covs.iter().map(|(id, v)| (*id, v.as_slice())).collect();
-        let selected_rows: Vec<usize> =
-            row_mask.iter().enumerate().filter_map(|(i, keep)| keep.then_some(i)).collect();
-        let design = CompiledDesign::linear_adjustment(&t, &cov_refs, &y, &selected_rows)
-            .map_err(EstimationError::from)?;
+        refuse_non_finite_cells(data, treatment, outcome, &estimand.adjustment_set, &row_mask)?;
+        let design =
+            assemble(data, treatment, outcome, &estimand.adjustment_set, &expanded, &row_mask)?;
+        debug_assert!(
+            crate::design_width::quote_adjustment_design(
+                data,
+                &estimand.adjustment_set,
+                &self.contrasts
+            )
+            .ok()
+            .is_none_or(|quote| quote.columns == design.ncols),
+            "the planner's quoted design width must equal the built design"
+        );
+        let t: Arc<[f64]> = Arc::from(&design.matrix[design.nrows..2 * design.nrows]);
         let design = match &retained {
             Some(retained) => {
                 crate::sampling_weights::root_weight_design(design, &retained.weights)
@@ -449,10 +441,12 @@ impl LinearAdjustmentAte {
             overlap: self.overlap,
             treatment_delta,
             target_population: query.target_population.clone(),
-            treatment: Arc::from(t),
+            treatment: t,
             active,
             control,
+            treatment_levels,
             sampling_weights: retained.map(|retained| retained.record),
+            preparation,
         })
     }
 
@@ -480,6 +474,29 @@ impl LinearAdjustmentAte {
         data: &TabularData,
         identification: &IdentificationResult,
         estimand_index: usize,
+    ) -> Result<CheckedLinearAdjustmentAte, EstimationError> {
+        self.prepare_checked_with_backend(
+            data,
+            identification,
+            estimand_index,
+            antecedent_core::physical_choice::PhysicalAlternative::DirectPreparedNumericViews,
+        )
+    }
+
+    /// Prepare a checked claim using a verified physical design implementation.
+    ///
+    /// # Errors
+    /// Refuses unsupported backends and the same invalid claims as [`Self::prepare_checked`].
+    #[allow(
+        clippy::too_many_lines,
+        reason = "validate the complete checked claim before binding its physical design"
+    )]
+    pub fn prepare_checked_with_backend(
+        &self,
+        data: &TabularData,
+        identification: &IdentificationResult,
+        estimand_index: usize,
+        backend: antecedent_core::physical_choice::PhysicalAlternative,
     ) -> Result<CheckedLinearAdjustmentAte, EstimationError> {
         let CheckedSelection { estimand: target, claim } =
             CheckedSelection::resolve(identification, estimand_index)?;
@@ -509,12 +526,14 @@ impl LinearAdjustmentAte {
             "adjustment roles must be unique and exclude treatment and outcome",
         )?;
         if query.outcome_functional != antecedent_core::OutcomeFunctional::Mean {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "checked linear adjustment currently supports the mean outcome functional",
             ));
         }
         if query.target_population != TargetPopulation::AllObserved {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "checked linear adjustment lowering currently supports AllObserved population averaging",
             ));
         }
@@ -555,12 +574,11 @@ impl LinearAdjustmentAte {
             target.functional,
             executable,
             ProgramLimits::default(),
-        )
-        .map_err(|e| EstimationError::data_msg(format!("checked adjustment program: {e}")))?;
+        )?;
         let factor_requirements: Arc<[FactorRequirement]> =
             Arc::from(program.factor_requirements().to_vec());
 
-        let problem = self.prepare_unchecked(data, target, query)?;
+        let problem = self.prepare_with_backend(data, target, query, backend)?;
         Ok(CheckedLinearAdjustmentAte {
             target: target.clone(),
             source_functional: target.functional,
@@ -580,6 +598,7 @@ impl LinearAdjustmentAte {
             query: query.clone(),
             required_assumptions: claim.required_assumptions.clone(),
             problem,
+            backend,
         })
     }
 
@@ -596,6 +615,20 @@ impl LinearAdjustmentAte {
         &self,
         checked: &CheckedLinearAdjustmentAte,
         data: &TabularData,
+    ) -> Result<CheckedLinearAdjustmentAte, EstimationError> {
+        self.rebind_checked_with_backend(checked, data, checked.backend)
+    }
+
+    /// Rebind retained semantics using a newly selected executable design backend.
+    ///
+    /// # Errors
+    /// Refuses unsupported backends or a changed semantic schema or claim.
+    #[allow(clippy::float_cmp, reason = "retained treatment arms must match exactly")]
+    pub fn rebind_checked_with_backend(
+        &self,
+        checked: &CheckedLinearAdjustmentAte,
+        data: &TabularData,
+        backend: antecedent_core::physical_choice::PhysicalAlternative,
     ) -> Result<CheckedLinearAdjustmentAte, EstimationError> {
         let schema = ProgramSchema::new(
             data.schema()
@@ -629,7 +662,9 @@ impl LinearAdjustmentAte {
             ));
         }
         let mut rebound = checked.clone();
-        rebound.problem = self.prepare_unchecked(data, &checked.target, &checked.query)?;
+        rebound.problem =
+            self.prepare_with_backend(data, &checked.target, &checked.query, backend)?;
+        rebound.backend = backend;
         Ok(rebound)
     }
 
@@ -691,6 +726,18 @@ impl LinearAdjustmentAte {
         workspace: &mut EstimationWorkspace,
         assumptions: AssumptionSet,
     ) -> Result<(EffectEstimate, Option<Vec<f64>>), EstimationError> {
+        antecedent_core::execution_attempt::run_operation(
+            antecedent_core::execution_attempt::Operation::AdjustedFit,
+            || self.fit_point_with_ols_residuals_unobserved(problem, workspace, assumptions),
+        )
+    }
+
+    fn fit_point_with_ols_residuals_unobserved(
+        &self,
+        problem: &PreparedEstimationProblem,
+        workspace: &mut EstimationWorkspace,
+        assumptions: AssumptionSet,
+    ) -> Result<(EffectEstimate, Option<Vec<f64>>), EstimationError> {
         let mut fit = self.fit_coefficients(problem, workspace)?;
         let t_col = problem
             .design
@@ -701,11 +748,15 @@ impl LinearAdjustmentAte {
         let (se_coef, influence) = self.coefficient_se_and_influence(problem, &fit, t_col)?;
         let se_analytic = se_coef * problem.treatment_delta.abs();
 
-        let point = EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+        let mut point = EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
             .with_n_obs(u64::try_from(nrows).unwrap_or(u64::MAX))
-            .with_se_kind(self.se_kind)
+            .with_se_kind(self.inference.se_kind)
             .with_sampling_weights(problem.sampling_weights)
+            .with_preparation(Some(crate::prepare::preparation_summary(&problem.preparation)))
             .with_influence(influence.map(Arc::from));
+        if let Some(levels) = problem.treatment_levels {
+            point = point.with_treatment_levels(levels);
+        }
         let residuals =
             matches!(fit.variance, FitVariance::Ols).then(|| std::mem::take(&mut fit.residuals));
         Ok((point, residuals))
@@ -730,22 +781,25 @@ impl LinearAdjustmentAte {
         let p = ncols as f64;
         let delta = problem.treatment_delta;
         let retained_clusters = self
+            .inference
             .source_cluster_ids
             .as_deref()
             .map(|source| crate::se::retained_row_labels(source, &problem.design.row_selection))
             .transpose()?;
-        let cluster_ids = retained_clusters.as_deref().or(self.cluster_ids.as_deref());
+        let cluster_ids = retained_clusters.as_deref().or(self.inference.cluster_ids.as_deref());
         match &fit.variance {
             FitVariance::Ols => {
                 // `(XᵀX)⁻¹` once: the homoskedastic SE reads its treatment diagonal and
                 // the influence function its treatment row.
                 let xtx_inv = crate::util::xtx_inverse(x, nrows, ncols);
-                let se_coef = if let Some(se) = residual_sandwich_coef_se(
+                let se_coef = if nrows <= ncols {
+                    f64::NAN
+                } else if let Some(se) = residual_sandwich_coef_se(
                     SeSpec {
-                        kind: self.se_kind,
+                        kind: self.inference.se_kind,
                         cluster_ids,
-                        multiway_ids: self.multiway_ids.as_deref(),
-                        panel_times: self.panel_times.as_deref(),
+                        multiway_ids: self.inference.multiway_ids.as_deref(),
+                        panel_times: self.inference.panel_times.as_deref(),
                     },
                     x,
                     nrows,
@@ -755,7 +809,7 @@ impl LinearAdjustmentAte {
                 )? {
                     se
                 } else {
-                    let sigma2 = fit.rss / (n - p).max(1.0);
+                    let sigma2 = fit.rss / (n - p);
                     xtx_inv.as_ref().map_or(f64::NAN, |inv| {
                         (sigma2 * inv[t_col * ncols + t_col].max(0.0)).sqrt()
                     })
@@ -790,10 +844,10 @@ impl LinearAdjustmentAte {
                 let mean_curvature = curvature.iter().sum::<f64>() / n;
                 let se_coef = if let Some(se) = score_sandwich_coef_se(
                     SeSpec {
-                        kind: self.se_kind,
+                        kind: self.inference.se_kind,
                         cluster_ids,
-                        multiway_ids: self.multiway_ids.as_deref(),
-                        panel_times: self.panel_times.as_deref(),
+                        multiway_ids: self.inference.multiway_ids.as_deref(),
+                        panel_times: self.inference.panel_times.as_deref(),
                     },
                     x,
                     nrows,
@@ -825,30 +879,6 @@ impl LinearAdjustmentAte {
         }
     }
 
-    /// Attach bootstrap SE onto a point estimate (progressive uncertainty stage).
-    ///
-    /// # Errors
-    ///
-    /// Bootstrap failure.
-    pub fn attach_bootstrap(
-        &self,
-        problem: &PreparedEstimationProblem,
-        workspace: &mut EstimationWorkspace,
-        ctx: &ExecutionContext,
-        point: EffectEstimate,
-    ) -> Result<EffectEstimate, EstimationError> {
-        let boot = if self.bootstrap_replicates == 0 {
-            None
-        } else {
-            let t_col = problem
-                .design
-                .treatment_column()
-                .ok_or_else(|| EstimationError::stats_msg("missing treatment column"))?;
-            Some(self.bootstrap_se(problem, workspace, ctx, t_col)?)
-        };
-        Ok(point.with_bootstrap(boot))
-    }
-
     fn fit_coefficients(
         &self,
         problem: &PreparedEstimationProblem,
@@ -878,444 +908,6 @@ impl LinearAdjustmentAte {
         };
         linear_fit_from_solved(self.fit_kind, solved)
     }
-
-    /// ATE from the configured linear fit on a row-resample of a prepared design.
-    ///
-    /// `row_src[r]` copies design row `row_src[r]` onto output row `r`. Length must
-    /// equal `problem.design.nrows`. For `AllObserved` / `Predicate` the ATE is
-    /// `β_T · Δ` and does not reread treatment labels.
-    ///
-    /// # Errors
-    ///
-    /// Shape mismatch, out-of-range source row, or fit failure.
-    pub fn ate_on_row_indices(
-        &self,
-        problem: &PreparedEstimationProblem,
-        workspace: &mut EstimationWorkspace,
-        row_src: &[usize],
-    ) -> Result<f64, EstimationError> {
-        let n = problem.design.nrows;
-        let p = problem.design.ncols;
-        if row_src.len() != n {
-            return Err(EstimationError::data_msg(
-                "row resample length must match the prepared design",
-            ));
-        }
-        let mut x_boot = vec![0.0; n * p];
-        let mut y_boot = vec![0.0; n];
-        self.ate_on_row_indices_into(problem, workspace, row_src, &mut x_boot, &mut y_boot)
-    }
-
-    /// [`Self::ate_on_row_indices`] using caller-owned gather buffers.
-    ///
-    /// Here `row_src` may be shorter than the design (a sub-window resample); the
-    /// buffers must hold `row_src.len()` rows (`x_boot`: `row_src.len() · ncols`).
-    ///
-    /// # Errors
-    ///
-    /// Shape mismatch, out-of-range source row, or fit failure.
-    pub fn ate_on_row_indices_into(
-        &self,
-        problem: &PreparedEstimationProblem,
-        workspace: &mut EstimationWorkspace,
-        row_src: &[usize],
-        x_boot: &mut [f64],
-        y_boot: &mut [f64],
-    ) -> Result<f64, EstimationError> {
-        let t_col = problem
-            .design
-            .treatment_column()
-            .ok_or_else(|| EstimationError::stats_msg("missing treatment column"))?;
-        let coefs = self.fit_resampled_coefficients(problem, workspace, row_src, x_boot, y_boot)?;
-        gcomp_or_coef_ate(problem, &coefs, t_col)
-    }
-
-    fn fit_resampled_coefficients(
-        &self,
-        problem: &PreparedEstimationProblem,
-        workspace: &mut EstimationWorkspace,
-        row_src: &[usize],
-        x_boot: &mut [f64],
-        y_boot: &mut [f64],
-    ) -> Result<Vec<f64>, EstimationError> {
-        let rows = problem.design.nrows;
-        let p = problem.design.ncols;
-        // Output rows follow the row map, which may be a sub-window of the design
-        // (a multi-design shared time window); every source row must exist.
-        let n = row_src.len();
-        if y_boot.len() != n || x_boot.len() != n * p {
-            return Err(EstimationError::data_msg("row resample buffers must match the row map"));
-        }
-        for (r, &src) in row_src.iter().enumerate() {
-            if src >= rows {
-                return Err(EstimationError::data_msg("row resample index out of range"));
-            }
-            y_boot[r] = problem.design.outcome[src];
-            for c in 0..p {
-                x_boot[c * n + r] = problem.design.matrix[c * rows + src];
-            }
-        }
-        Ok(solve_linear(self.fit_kind, self.backend, x_boot, n, p, y_boot, &mut workspace.ols)?
-            .coefficients)
-    }
-
-    fn bootstrap_se(
-        &self,
-        problem: &PreparedEstimationProblem,
-        _workspace: &mut EstimationWorkspace,
-        ctx: &ExecutionContext,
-        t_col: usize,
-    ) -> Result<crate::util::BootstrapSeResult, EstimationError> {
-        let n = problem.design.nrows;
-        let p = problem.design.ncols;
-        // Replicates own a cold workspace. The caller's scratch stays untouched: parallel
-        // workers cannot share it, and a warm IRLS start would change the replicate fit.
-        crate::util::bootstrap_se_with_scratch(
-            self.bootstrap_replicates,
-            ctx,
-            0xA7E_u64,
-            n,
-            || (EstimationWorkspace::default(), vec![0.0; n * p], vec![0.0; n]),
-            |(ws, x_boot, y_boot), idx| match self
-                .fit_resampled_coefficients(problem, ws, idx, x_boot, y_boot)
-            {
-                Ok(coefs) => Ok(Some(gcomp_or_coef_ate(problem, &coefs, t_col)?)),
-                Err(error) if bootstrap_fit_failed(&error) => Ok(None),
-                Err(error) => Err(error),
-            },
-        )
-    }
-}
-
-/// Coefficients and raw residuals of one linear solve, before the variance model is attached.
-struct SolvedLinear {
-    coefficients: Vec<f64>,
-    residuals: Vec<f64>,
-    rss: f64,
-    /// Huber IRLS scale. Absent for OLS, ridge, and lasso.
-    huber_scale: Option<f64>,
-}
-
-/// One solver body for the point fit and for bootstrap resamples.
-fn solve_linear(
-    kind: LinearFitKind,
-    backend: FaerBackend,
-    x: &[f64],
-    n: usize,
-    p: usize,
-    y: &[f64],
-    workspace: &mut LeastSquaresWorkspace,
-) -> Result<SolvedLinear, EstimationError> {
-    match kind {
-        LinearFitKind::Ols => {
-            let fit =
-                backend.least_squares(x, n, p, y, workspace).map_err(EstimationError::from)?;
-            Ok(SolvedLinear {
-                coefficients: fit.coefficients,
-                residuals: fit.residuals,
-                rss: fit.rss,
-                huber_scale: None,
-            })
-        }
-        LinearFitKind::Ridge { lambda } => {
-            let fit = fit_ridge(x, n, p, y, lambda, &backend, workspace)
-                .map_err(EstimationError::from)?;
-            Ok(SolvedLinear {
-                coefficients: fit.coefficients,
-                residuals: fit.residuals,
-                rss: fit.rss,
-                huber_scale: None,
-            })
-        }
-        LinearFitKind::Lasso { lambda } => {
-            let fit = fit_lasso_with_ones_column(
-                x,
-                n,
-                p,
-                y,
-                &LassoOptions { lambda, fit_intercept: true, ..LassoOptions::default() },
-            )
-            .map_err(EstimationError::from)?;
-            // An unconverged replicate is a snapshot, not a draw from the estimator's
-            // sampling distribution; the caller counts it as a failed replicate.
-            require_converged(fit.converged, LASSO_UNCONVERGED)?;
-            // Design keeps an all-ones column; stitch intercept back for g-computation.
-            let mut coefficients = Vec::with_capacity(p);
-            coefficients.push(fit.intercept);
-            coefficients.extend_from_slice(&fit.coefficients);
-            let pred = if fit.coefficients.is_empty() {
-                vec![fit.intercept; n]
-            } else {
-                predict_lasso(&fit, &x[n..], n, p - 1).map_err(EstimationError::from)?
-            };
-            let mut residuals = vec![0.0; n];
-            let mut rss = 0.0;
-            for r in 0..n {
-                let e = y[r] - pred[r];
-                residuals[r] = e;
-                rss += e * e;
-            }
-            Ok(SolvedLinear { coefficients, residuals, rss, huber_scale: None })
-        }
-        LinearFitKind::Huber { c } => {
-            let opts = MEstimateOptions { c, ..MEstimateOptions::default() };
-            let fit = fit_huber_m(x, n, p, y, &opts, &backend, workspace)
-                .map_err(EstimationError::from)?;
-            // An unconverged IRLS run is a snapshot of an unfinished reweighting
-            // sequence, not the M-estimator's fixed point; publishing it — and an
-            // analytic SE derived from it — would attach robust-estimand semantics
-            // to a number that has none. Mirrors the GAM backfit gate in
-            // `response.rs::fit_additive`.
-            require_converged(fit.converged, HUBER_UNCONVERGED)?;
-            let mut residuals = vec![0.0; n];
-            let mut rss = 0.0;
-            for r in 0..n {
-                let mut pred = 0.0;
-                for col in 0..p {
-                    pred += x[col * n + r] * fit.coefficients[col];
-                }
-                let e = y[r] - pred;
-                residuals[r] = e;
-                rss += e * e;
-            }
-            Ok(SolvedLinear {
-                coefficients: fit.coefficients,
-                residuals,
-                rss,
-                huber_scale: Some(fit.scale),
-            })
-        }
-    }
-}
-
-fn linear_fit_from_solved(
-    kind: LinearFitKind,
-    solved: SolvedLinear,
-) -> Result<LinearFit, EstimationError> {
-    let variance = match kind {
-        LinearFitKind::Ols => FitVariance::Ols,
-        LinearFitKind::Ridge { lambda } => FitVariance::Ridge { lambda },
-        // Permanent policy: no analytic SE for Lasso (bootstrap only).
-        LinearFitKind::Lasso { .. } => FitVariance::Lasso,
-        LinearFitKind::Huber { c } => {
-            // `solve_linear` records the IRLS scale on the Huber arm before returning.
-            let scale = solved
-                .huber_scale
-                .ok_or_else(|| EstimationError::stats_msg("Huber fit is missing its IRLS scale"))?;
-            let bound = c * scale;
-            // Estimating equation `Σ x_i · s·ψ_c(r_i/s) = 0`: the score is the residual
-            // clipped at `c·s`, and its derivative in the linear predictor is the
-            // indicator of the unclipped region.
-            let scores: Vec<f64> =
-                solved.residuals.iter().map(|r| r.clamp(-bound, bound)).collect();
-            let curvature: Vec<f64> =
-                solved.residuals.iter().map(|r| f64::from(u8::from(r.abs() <= bound))).collect();
-            FitVariance::Huber { scores, curvature }
-        }
-    };
-    Ok(LinearFit {
-        coefficients: solved.coefficients,
-        residuals: solved.residuals,
-        rss: solved.rss,
-        variance,
-    })
-}
-
-/// Fit failures and an empty target arm are failed replicates. A resample can be
-/// singular, unconverged, or contain none of the target arm; those continue.
-/// Shape errors in the caller's buffers propagate.
-fn bootstrap_fit_failed(error: &EstimationError) -> bool {
-    match error {
-        EstimationError::Stats(_) => true,
-        EstimationError::Unsupported { message }
-            if *message == LASSO_UNCONVERGED || *message == HUBER_UNCONVERGED =>
-        {
-            true
-        }
-        EstimationError::Data(antecedent_data::DataError::InvalidArgument { message })
-            if message == "target population left no rows for g-computation" =>
-        {
-            true
-        }
-        _ => false,
-    }
-}
-
-/// G-computation of μ(active,Z)−μ(control,Z) averaged under the target arm’s covariate law.
-///
-/// Under a linear main-effects model this equals `β_T · Δ` for every target, including ATT/ATC.
-fn gcomp_or_coef_ate(
-    problem: &PreparedEstimationProblem,
-    coefficients: &[f64],
-    t_col: usize,
-) -> Result<f64, EstimationError> {
-    match problem.target_population {
-        TargetPopulation::AllObserved | TargetPopulation::Predicate(_) => {
-            Ok(coefficients[t_col] * problem.treatment_delta)
-        }
-        // The design is the weighted transform, which g-computation cannot average over. Under
-        // the main-effects model every target has the effect `β_T · Δ`.
-        TargetPopulation::Treated | TargetPopulation::Untreated
-            if problem.sampling_weights.is_some() =>
-        {
-            Ok(coefficients[t_col] * problem.treatment_delta)
-        }
-        TargetPopulation::Treated | TargetPopulation::Untreated => {
-            let n = problem.design.nrows;
-            let ncols = problem.design.ncols;
-            let want_treated = matches!(problem.target_population, TargetPopulation::Treated);
-            let mut sum = 0.0;
-            let mut count = 0usize;
-            for r in 0..n {
-                let treated = problem.treatment[r] > 0.5;
-                if treated != want_treated {
-                    continue;
-                }
-                let mut pred_a = 0.0;
-                let mut pred_c = 0.0;
-                for (c, &coef) in coefficients.iter().enumerate().take(ncols) {
-                    let x = if c == t_col {
-                        (problem.active, problem.control)
-                    } else {
-                        let v = problem.design.matrix[c * n + r];
-                        (v, v)
-                    };
-                    pred_a += coef * x.0;
-                    pred_c += coef * x.1;
-                }
-                sum += pred_a - pred_c;
-                count += 1;
-            }
-            if count == 0 {
-                return Err(EstimationError::data_msg(
-                    "target population left no rows for g-computation",
-                ));
-            }
-            Ok(sum / count as f64)
-        }
-        _ => Err(EstimationError::TargetPopulation),
-    }
-}
-
-pub(crate) fn intervention_f64(intervention: &Intervention) -> Result<f64, EstimationError> {
-    match intervention {
-        Intervention::Set { value, .. } => value.as_f64().ok_or_else(|| {
-            EstimationError::unsupported(" linear adjustment requires numeric treatment levels")
-        }),
-        _ => Err(EstimationError::unsupported(" linear adjustment requires Set interventions")),
-    }
-}
-
-/// Fitted coefficients plus the variance model of the estimator that produced them.
-struct LinearFit {
-    coefficients: Vec<f64>,
-    /// Raw residuals `y − Xβ̂`.
-    residuals: Vec<f64>,
-    rss: f64,
-    variance: FitVariance,
-}
-
-/// Which sampling-variance formula describes a [`LinearFit`].
-enum FitVariance {
-    Ols,
-    /// Bread `(XᵀX + λP)⁻¹`; no analytic SE (shrinkage bias is outside a sampling variance).
-    Ridge {
-        lambda: f64,
-    },
-    /// No analytic SE, no influence function (post-selection).
-    Lasso,
-    /// `scores[i] = s·ψ(r_i/s)`, `curvature[i] = ψ′(r_i/s)`.
-    Huber {
-        scores: Vec<f64>,
-        curvature: Vec<f64>,
-    },
-}
-
-/// Refuse an iterative fit that stopped at its iteration cap.
-fn require_converged(converged: bool, refusal: &'static str) -> Result<(), EstimationError> {
-    if converged { Ok(()) } else { Err(EstimationError::unsupported(refusal)) }
-}
-
-const LASSO_UNCONVERGED: &str =
-    "Lasso coordinate descent did not converge; refuse rather than publish an unfinished fit";
-const HUBER_UNCONVERGED: &str =
-    "Huber M-estimator did not converge; refuse rather than publish an unfinished fit";
-
-/// `(Σ d_i x_i x_iᵀ)⁻¹` (row-major) for nonnegative row weights `d`; `None` when singular.
-fn curvature_gram_inverse(
-    x_colmajor: &[f64],
-    nrows: usize,
-    ncols: usize,
-    d: &[f64],
-) -> Option<Vec<f64>> {
-    let mut scaled = x_colmajor[..nrows * ncols].to_vec();
-    for col in 0..ncols {
-        for (v, w) in scaled[col * nrows..(col + 1) * nrows].iter_mut().zip(d) {
-            *v *= w.sqrt();
-        }
-    }
-    crate::util::xtx_inverse(&scaled, nrows, ncols)
-}
-
-/// Huber (1981, §7.10) homoskedastic-form treatment SE, used when the sandwich is
-/// unavailable and the mean curvature `m = mean ψ′` is positive.
-fn huber_homoskedastic_se(
-    x: &[f64],
-    nrows: usize,
-    ncols: usize,
-    t_col: usize,
-    scores: &[f64],
-    mean_curvature: f64,
-) -> f64 {
-    let n = nrows as f64;
-    let p = ncols as f64;
-    let kappa = 1.0 + (p / n) * (1.0 - mean_curvature) / mean_curvature;
-    let tau2 =
-        scores.iter().map(|e| e * e).sum::<f64>() / (n - p) / (mean_curvature * mean_curvature);
-    crate::util::xtx_inverse(x, nrows, ncols)
-        .map_or(f64::NAN, |inv| (kappa * kappa * tau2 * inv[t_col * ncols + t_col].max(0.0)).sqrt())
-}
-
-/// Frisch–Waugh influence of the treatment coefficient, scaled by `delta`.
-///
-/// `ψ_i = δ · n · [(XᵀX)⁻¹ x_i]_T · e_i`, which equals
-/// `δ · n · t̃_i e_i / Σ t̃²` with `t̃` the treatment residualized on every
-/// other design column. Centering the treatment alone (`t − t̄`) is only the
-/// unadjusted IF: with covariates correlated with the treatment it understates
-/// the variance by `1 − R²(T | Z)`. Non-invertible designs (`xtx_inv` is
-/// `None`) return NaN so a downstream mixture SE fails closed instead of
-/// reporting zero.
-///
-/// The leverage `[(XᵀX)⁻¹ x_i]_T` accumulates one design column at a time
-/// (contiguous, vectorizable) rather than striding across columns per row.
-fn treatment_coef_influence(
-    matrix: &[f64],
-    nrows: usize,
-    ncols: usize,
-    t_col: usize,
-    residuals: &[f64],
-    delta: f64,
-    xtx_inv: Option<&[f64]>,
-) -> Vec<f64> {
-    if nrows == 0 || residuals.len() != nrows || t_col >= ncols {
-        return vec![0.0; residuals.len()];
-    }
-    let Some(inv) = xtx_inv else {
-        return vec![f64::NAN; nrows];
-    };
-    let row = &inv[t_col * ncols..t_col * ncols + ncols];
-    let scale = delta * nrows as f64;
-    let mut psi = vec![0.0; nrows];
-    for (c, &w) in row.iter().enumerate() {
-        let column = &matrix[c * nrows..(c + 1) * nrows];
-        for (slot, &x) in psi.iter_mut().zip(column) {
-            *slot += w * x;
-        }
-    }
-    for (slot, &e) in psi.iter_mut().zip(residuals) {
-        *slot = scale * *slot * e;
-    }
-    psi
 }
 
 impl crate::estimator::Estimator<TabularData> for LinearAdjustmentAte {
@@ -1369,741 +961,41 @@ fn observational_adjustment_arm(
     })
 }
 
-#[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-
-    use antecedent_core::{
-        AssumptionSet, AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
-        RoleHint, SmallRoleSet, TargetPopulation, ValueType, VariableId,
-    };
-    use antecedent_data::{
-        Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
-    };
-    use antecedent_expr::IdentifiedEstimand;
-    use antecedent_expr::{Assignment, DomainRef, EmpiricalTableProvider, ExprId, FactorSpec};
-    use antecedent_identify::{DerivationTrace, IdentificationPerformanceRecord};
-    use antecedent_stats::{form_xtx, invert_square};
-
-    use crate::overlap::OverlapReport;
-
-    use super::*;
-
-    fn toy() -> (TabularData, IdentifiedEstimand) {
-        toy_with(|_, t, z| 1.0 + 2.0 * t + z)
-    }
-
-    fn toy_with(outcome: impl Fn(usize, f64, f64) -> f64) -> (TabularData, IdentifiedEstimand) {
-        let n = 100usize;
-        let mut b = CausalSchemaBuilder::new();
-        b.add_variable(
-            "t",
-            ValueType::Continuous,
-            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
-            None,
-            None,
-            MeasurementSpec::default(),
-        )
-        .unwrap();
-        b.add_variable(
-            "y",
-            ValueType::Continuous,
-            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
-            None,
-            None,
-            MeasurementSpec::default(),
-        )
-        .unwrap();
-        b.add_variable(
-            "z",
-            ValueType::Continuous,
-            SmallRoleSet::from_hint(RoleHint::Context),
-            None,
-            None,
-            MeasurementSpec::default(),
-        )
-        .unwrap();
-        let schema = b.build().unwrap();
-        let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
-        let z: Vec<f64> = (0..n).map(|i| (i as f64) / n as f64).collect();
-        let y: Vec<f64> = (0..n).map(|i| outcome(i, t[i], z[i])).collect();
-        let cols = vec![
-            OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(0),
-                    Arc::from(t),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(1),
-                    Arc::from(y),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(2),
-                    Arc::from(z),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
-            ),
-        ];
-        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
-        let estimand = IdentifiedEstimand::backdoor(
-            "backdoor.adjustment",
-            Arc::from([VariableId::from_raw(2)]),
-            ExprId::from_raw(0),
-        );
-        (TabularData::new(storage), estimand)
-    }
-
-    fn checked_result(
-        query: AverageEffectQuery,
-        adjustment: &[VariableId],
-    ) -> IdentificationResult {
-        let mut arena = CausalExprArena::new();
-        let active = intervention_f64(&query.active).unwrap();
-        let control = intervention_f64(&query.control).unwrap();
-        let functional = arena.backdoor_ate(
-            query.treatment,
-            query.outcome,
-            adjustment,
-            antecedent_core::Value::f64(active),
-            antecedent_core::Value::f64(control),
-        );
-        IdentificationResult::identified(
-            antecedent_core::CausalQuery::average_effect(query),
-            vec![IdentifiedEstimand::backdoor(
-                "backdoor.adjustment",
-                Arc::from(adjustment.to_vec()),
-                functional,
-            )],
-            arena,
-            DerivationTrace::default(),
-            AssumptionSet::new(),
-            IdentificationPerformanceRecord::default(),
-        )
-    }
-
-    #[test]
-    fn checked_linear_adjustment_retains_selected_target_and_assumptions() {
-        let (data, _) = toy();
-        let query =
-            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let identification = checked_result(query, &[VariableId::from_raw(2)]);
-        let estimator =
-            LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
-        let checked = estimator.prepare_checked(&data, &identification, 0).unwrap();
-        assert_eq!(checked.source_functional, checked.target.functional);
-        assert_ne!(checked.executable_functional, checked.source_functional);
-        assert_eq!(checked.lowering.source, checked.source_functional);
-        assert_eq!(checked.lowering.executable, checked.executable_functional);
-        assert_eq!(checked.lowering.population, TargetPopulation::AllObserved);
-        assert!(checked.factor_requirements.iter().all(|f| f.intervention.is_empty()));
-        assert_eq!(
-            checked.program.arena().node(checked.source_functional),
-            identification.arena.node(checked.source_functional)
-        );
-        assert_eq!(checked.problem.adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
-        assert!(checked.required_assumptions.is_empty());
-        let rebound = estimator.rebind_checked(&checked, &data).unwrap();
-        assert_eq!(rebound.program.mapping(), checked.program.mapping());
-        assert_eq!(rebound.problem.design.nrows, checked.problem.design.nrows);
-
-        let t = [0.0, 1.0];
-        let y = [0.0, 1.0];
-        let z = [0.0, 1.0];
-        let changed_schema = TabularData::from_f64_columns([
-            ("renamed_t", t.as_slice()),
-            ("y", y.as_slice()),
-            ("z", z.as_slice()),
-        ])
-        .unwrap();
-        assert!(estimator.rebind_checked(&checked, &changed_schema).is_err());
-    }
-
-    #[test]
-    fn checked_observational_program_evaluates_with_arm_bindings() {
-        let (data, _) = toy();
-        let query =
-            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let identification = checked_result(query, &[VariableId::from_raw(2)]);
-        let estimator =
-            LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
-        let checked = estimator.prepare_checked(&data, &identification, 0).unwrap();
-
-        let t = VariableId::from_raw(0);
-        let y = VariableId::from_raw(1);
-        let z = VariableId::from_raw(2);
-        let mut provider = EmpiricalTableProvider::new();
-        provider
-            .set_domain(t, [antecedent_core::Value::f64(0.0), antecedent_core::Value::f64(1.0)]);
-        provider
-            .set_domain(y, [antecedent_core::Value::f64(0.0), antecedent_core::Value::f64(1.0)]);
-        provider
-            .set_domain(z, [antecedent_core::Value::f64(0.0), antecedent_core::Value::f64(1.0)]);
-        for (zv, probability) in [(0.0, 0.5), (1.0, 0.5)] {
-            let spec = FactorSpec {
-                variables: &[z],
-                conditioned_on: &[],
-                intervention: &[],
-                domain: DomainRef::Observational,
-                population: "",
-                regime: None,
-            };
-            provider
-                .insert_probability(
-                    &spec,
-                    &Assignment::from_pairs([(z, antecedent_core::Value::f64(zv))]),
-                    probability,
-                )
-                .unwrap();
-        }
-        for (tv, zv, py1) in [(0.0, 0.0, 0.3), (0.0, 1.0, 0.2), (1.0, 0.0, 0.8), (1.0, 1.0, 0.6)] {
-            let spec = FactorSpec {
-                variables: &[y],
-                conditioned_on: &[t, z],
-                intervention: &[],
-                domain: DomainRef::Observational,
-                population: "",
-                regime: None,
-            };
-            for (yv, probability) in [(0.0, 1.0 - py1), (1.0, py1)] {
-                provider
-                    .insert_probability(
-                        &spec,
-                        &Assignment::from_pairs([
-                            (t, antecedent_core::Value::f64(tv)),
-                            (z, antecedent_core::Value::f64(zv)),
-                            (y, antecedent_core::Value::f64(yv)),
-                        ]),
-                        probability,
-                    )
-                    .unwrap();
-            }
-        }
-        let evaluator = checked.program.compile().unwrap();
-        let context = antecedent_expr::EvalContext::default();
-        let active = evaluator
-            .evaluate_with(
-                &provider,
-                &context,
-                &Assignment::from_pairs([(t, antecedent_core::Value::f64(1.0))]),
-            )
-            .unwrap();
-        let control = evaluator
-            .evaluate_with(
-                &provider,
-                &context,
-                &Assignment::from_pairs([(t, antecedent_core::Value::f64(0.0))]),
-            )
-            .unwrap();
-        assert!((active - 0.7).abs() < 1e-12);
-        assert!((control - 0.25).abs() < 1e-12);
-        assert!((active - control - 0.45).abs() < 1e-12);
-    }
-
-    #[test]
-    fn checked_linear_adjustment_rejects_semantic_tampering() {
-        let (data, _) = toy();
-        let query =
-            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let mut reversed = checked_result(query.clone(), &[VariableId::from_raw(2)]);
-        let mut arena = reversed.arena.clone();
-        let functional = arena.backdoor_ate(
-            query.treatment,
-            query.outcome,
-            &[VariableId::from_raw(2)],
-            antecedent_core::Value::f64(0.0),
-            antecedent_core::Value::f64(1.0),
-        );
-        reversed.arena = arena;
-        reversed.estimands[0].functional = functional;
-        let estimator =
-            LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
-        assert!(estimator.prepare_checked(&data, &reversed, 0).is_err());
-
-        let mut changed_arms = checked_result(query.clone(), &[VariableId::from_raw(2)]);
-        let mut different_query = query.clone();
-        different_query.active = antecedent_core::Intervention::set(
-            different_query.treatment,
-            antecedent_core::Value::f64(2.0),
-        );
-        changed_arms.query = antecedent_core::CausalQuery::average_effect(different_query);
-        assert!(estimator.prepare_checked(&data, &changed_arms, 0).is_err());
-
-        let mut changed_covariate = checked_result(query, &[VariableId::from_raw(2)]);
-        changed_covariate.estimands[0].adjustment_set = Arc::from([]);
-        assert!(estimator.prepare_checked(&data, &changed_covariate, 0).is_err());
-
-        let mut changed_population =
-            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        changed_population.target_population = TargetPopulation::Treated;
-        let changed_population = checked_result(changed_population, &[VariableId::from_raw(2)]);
-        assert!(estimator.prepare_checked(&data, &changed_population, 0).is_err());
-    }
-
-    #[test]
-    fn overlap_report_from_propensities() {
-        let ps = [0.1, 0.5, 0.9];
-        let ws = [10.0, 2.0, 1.111];
-        let report = OverlapReport::from_propensities(
-            &ps,
-            Some(&ws),
-            OverlapPolicy::RequireDiagnostics { clip: Some(0.05), trim: Some(0.05) },
-            Some(&[0.0, 0.0, 1.0]),
-            Some(crate::overlap::IpwTarget::Ate),
-            None,
-        );
-        assert!((report.propensity_min - 0.1).abs() < 1e-12);
-        assert!((report.propensity_max - 0.9).abs() < 1e-12);
-        assert_eq!(report.extreme_weight_count, 0); // none strictly > 10
-        assert_eq!(report.clip, Some(0.05));
-        assert!((report.excluded_fraction - 0.0).abs() < 1e-12);
-        assert!((report.target_population_support - 1.0).abs() < 1e-12);
-        assert_eq!(report.excluded_regions.len(), 2);
-        assert!((report.excluded_regions[0].high - 0.05).abs() < 1e-12);
-        let sens = report.clip_sensitivity.as_ref().expect("clip sensitivity");
-        assert!(sens.thresholds.len() >= 2);
-        assert_eq!(sens.ess.len(), sens.thresholds.len());
-    }
-
-    #[test]
-    fn rejects_require_diagnostics_on_linear_path() {
-        let (data, estimand) = toy();
-        let est = LinearAdjustmentAte {
-            overlap: OverlapPolicy::require_diagnostics(),
-            ..LinearAdjustmentAte::new()
+/// Refuse an infinite value in a retained row of the treatment, the outcome or an adjustment
+/// column. A missing cell is the missing-data policy's business; an infinite one is not a
+/// missing value and would otherwise surface as a rank-deficient design.
+fn refuse_non_finite_cells(
+    data: &TabularData,
+    treatment: VariableId,
+    outcome: VariableId,
+    adjustment: &[VariableId],
+    row_mask: &[bool],
+) -> Result<(), EstimationError> {
+    use antecedent_data::ColumnView;
+    for id in [treatment, outcome].into_iter().chain(adjustment.iter().copied()) {
+        let ColumnView::Float64(column) = data.column(id)? else { continue };
+        let values = column.values.as_slice();
+        let Some(row) =
+            values.iter().zip(row_mask).position(|(value, &kept)| kept && value.is_infinite())
+        else {
+            continue;
         };
-        let query =
-            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let err = est.prepare(&data, &estimand, &query).unwrap_err();
-        assert!(matches!(err, EstimationError::Overlap { .. }));
-    }
-
-    /// The residuals the point fit hands back are the ones a separate least-squares solve of
-    /// the same design produces, so the normal-equation scores built from them are identical
-    /// and no second solve is needed; a shrinkage fit publishes no OLS residuals at all.
-    #[test]
-    fn point_fit_residuals_give_the_normal_equation_scores_without_a_second_solve() {
-        let (data, estimand) = toy_with(|i, t, z| 1.0 + 2.0 * t + z + ((i * i) % 7) as f64 - 3.0);
-        let query =
-            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
-        let prep = est.prepare(&data, &estimand, &query).unwrap();
-        let (point, residuals) = est
-            .fit_point_with_ols_residuals(
-                &prep,
-                &mut EstimationWorkspace::default(),
-                AssumptionSet::new(),
-            )
-            .unwrap();
-        let residuals = residuals.expect("OLS fit carries residuals");
-        let (m, n, p) = (&prep.design.matrix, prep.design.nrows, prep.design.ncols);
-        let from_residuals = crate::normal_equation_scores_of_residuals(m, n, p, &residuals);
-        let refit = crate::normal_equation_scores(m, n, p, &prep.design.outcome).unwrap();
-        assert_eq!(from_residuals.len(), refit.len());
-        for (a, b) in from_residuals.iter().flatten().zip(refit.iter().flatten()) {
-            assert!((a - b).abs() < 1e-12, "{a} vs {b}");
-        }
-        // The residuals are non-trivial, so the comparison above is not 0 == 0.
-        assert!(residuals.iter().any(|e| e.abs() > 0.5));
-        assert_eq!(point.provenance.n_obs, Some(n as u64));
-
-        let ridge = LinearAdjustmentAte {
-            fit_kind: LinearFitKind::Ridge { lambda: 1.0 },
-            bootstrap_replicates: 0,
-            ..LinearAdjustmentAte::new()
-        };
-        let (_, none) = ridge
-            .fit_point_with_ols_residuals(
-                &prep,
-                &mut EstimationWorkspace::default(),
-                AssumptionSet::new(),
-            )
-            .unwrap();
-        assert!(none.is_none());
-    }
-
-    #[test]
-    fn bootstrap_replicate_failures_stay_inside_the_replicate() {
-        assert!(bootstrap_fit_failed(&EstimationError::stats_msg("singular design")));
-        assert!(bootstrap_fit_failed(&EstimationError::unsupported(LASSO_UNCONVERGED)));
-        assert!(bootstrap_fit_failed(&EstimationError::unsupported(HUBER_UNCONVERGED)));
-        assert!(bootstrap_fit_failed(&EstimationError::data_msg(
-            "target population left no rows for g-computation",
-        )));
-        assert!(!bootstrap_fit_failed(&EstimationError::TargetPopulation));
-    }
-
-    #[test]
-    fn recovers_ate_two() {
-        let (data, estimand) = toy();
-        let est = LinearAdjustmentAte { bootstrap_replicates: 50, ..LinearAdjustmentAte::new() };
-        let query =
-            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let prep = est.prepare(&data, &estimand, &query).unwrap();
-        let mut ws = EstimationWorkspace::default();
-        let ctx = ExecutionContext::for_tests(1);
-        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
-        assert!((effect.ate - 2.0).abs() < 1e-8);
-        assert!(effect.se_bootstrap().is_some());
-        let identity: Vec<usize> = (0..prep.design.nrows).collect();
-        let resampled = est.ate_on_row_indices(&prep, &mut ws, &identity).unwrap();
-        assert!((resampled - effect.ate).abs() < 1e-12);
-    }
-
-    /// The shared Gram inverse and the column-wise leverage pass reproduce the
-    /// row-by-row Frisch–Waugh influence `δ·n·[(XᵀX)⁻¹x_i]_T·e_i` and the
-    /// homoskedastic SE `√(σ²·[(XᵀX)⁻¹]_TT)` exactly.
-    #[test]
-    fn influence_and_homoskedastic_se_match_the_row_wise_gram_formula() {
-        let (data, estimand) = toy();
-        let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
-        let query =
-            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let prep = est.prepare(&data, &estimand, &query).unwrap();
-        let mut ws = EstimationWorkspace::default();
-        let ctx = ExecutionContext::for_tests(1);
-        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
-        let (n, p) = (prep.design.nrows, prep.design.ncols);
-        let t_col = prep.design.treatment_column().unwrap();
-        let fit = prep.design.fit_ols(&est.backend, &mut ws.ols).unwrap();
-        let mut xtx = vec![0.0; p * p];
-        form_xtx(&prep.design.matrix, n, p, &mut xtx);
-        let inv = invert_square(&xtx, p).unwrap();
-        let sigma2 = fit.rss / (n - p) as f64;
-        let se = (sigma2 * inv[t_col * p + t_col]).sqrt() * prep.treatment_delta.abs();
-        assert_eq!(effect.se_analytic().to_bits(), se.to_bits());
-        let influence = effect.scores.influence.as_ref().unwrap();
-        let row = &inv[t_col * p..(t_col + 1) * p];
-        let scale = prep.treatment_delta * n as f64;
-        for i in 0..n {
-            let leverage: f64 = (0..p).map(|c| row[c] * prep.design.matrix[c * n + i]).sum();
-            let expected = scale * leverage * fit.residuals[i];
-            assert!((influence[i] - expected).abs() == 0.0, "row {i}");
-        }
-    }
-
-    #[test]
-    fn scales_ate_by_level_delta() {
-        let (data, estimand) = toy();
-        let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
-        let query = AverageEffectQuery::with_levels(
-            VariableId::from_raw(0),
-            VariableId::from_raw(1),
-            0.0,
-            2.0,
-        );
-        let prep = est.prepare(&data, &estimand, &query).unwrap();
-        let mut ws = EstimationWorkspace::default();
-        let ctx = ExecutionContext::for_tests(1);
-        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
-        // β_T ≈ 2, delta = 2 → ATE ≈ 4
-        assert!((effect.ate - 4.0).abs() < 1e-8);
-    }
-
-    #[test]
-    fn recovers_att_via_gcomp() {
-        let (data, estimand) = toy();
-        let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
-        let query =
-            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
-                .with_target_population(TargetPopulation::Treated);
-        let prep = est.prepare(&data, &estimand, &query).unwrap();
-        let mut ws = EstimationWorkspace::default();
-        let ctx = ExecutionContext::for_tests(1);
-        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
-        assert!((effect.ate - 2.0).abs() < 1e-8, "att={}", effect.ate);
-    }
-
-    #[test]
-    fn predicate_restricts_prepared_rows() {
-        use antecedent_core::PredicateExpr;
-        let (data, estimand) = toy();
-        let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
-        let all = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let half = all.clone().with_target_population(TargetPopulation::Predicate(
-            PredicateExpr::rows((0..10).collect::<Vec<_>>()),
+        let name = data
+            .schema()
+            .get(id)
+            .map_or_else(|_| format!("#{}", id.raw()), |variable| variable.name.to_string());
+        return Err(EstimationError::refused(
+            antecedent_core::reason_code!("invalid_argument"),
+            format!(
+                "column `{name}` holds a non-finite value ({}) at row {row}, which no linear \
+                 adjustment can read. Next attempt: remove or correct the row, or declare the \
+                 value missing so a missing-data policy handles it",
+                values[row]
+            ),
         ));
-        let prep_all = est.prepare(&data, &estimand, &all).unwrap();
-        let prep_half = est.prepare(&data, &estimand, &half).unwrap();
-        assert_eq!(prep_all.design.nrows, 100);
-        assert_eq!(prep_half.design.nrows, 10);
-        let named =
-            all.with_target_population(TargetPopulation::Predicate(PredicateExpr::named("cohort")));
-        let err = est.prepare(&data, &estimand, &named).unwrap_err();
-        assert!(
-            err.to_string().contains("PopulationRegistry") || err.to_string().contains("named")
-        );
     }
-
-    #[test]
-    fn source_cluster_labels_follow_their_rows_through_the_population_mask() {
-        use antecedent_core::PredicateExpr;
-        let (data, estimand) = toy_with(|i, t, z| 1.0 + 2.0 * t + z + wiggle(i));
-        let query =
-            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
-                .with_target_population(TargetPopulation::Predicate(PredicateExpr::rows(
-                    (10..70).collect::<Vec<_>>(),
-                )));
-        let labels: Vec<u32> = (0..100u32).map(|i| (i * 5) % 7).collect();
-        let se_of = |est: LinearAdjustmentAte| {
-            let prep = est.prepare(&data, &estimand, &query).unwrap();
-            let mut ws = EstimationWorkspace::default();
-            est.fit(&prep, &mut ws, &ExecutionContext::for_tests(1), AssumptionSet::new())
-                .unwrap()
-                .se_analytic()
-        };
-        let base = LinearAdjustmentAte {
-            bootstrap_replicates: 0,
-            se_kind: AnalyticSeKind::Cluster,
-            ..LinearAdjustmentAte::new()
-        };
-        let by_source = se_of(base.clone().with_source_cluster_ids(labels.clone()));
-        let aligned = se_of(base.clone().with_cluster_ids(labels[10..70].to_vec()));
-        let misaligned = se_of(base.clone().with_cluster_ids(labels[..60].to_vec()));
-        assert!(by_source.is_finite() && by_source > 0.0);
-        assert_eq!(by_source.to_bits(), aligned.to_bits());
-        assert_ne!(by_source.to_bits(), misaligned.to_bits());
-    }
-
-    #[test]
-    fn source_cluster_labels_must_cover_the_source_rows_and_exclude_complete_case_labels() {
-        let (data, estimand) = toy();
-        let query =
-            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let base = LinearAdjustmentAte {
-            bootstrap_replicates: 0,
-            se_kind: AnalyticSeKind::Cluster,
-            ..LinearAdjustmentAte::new()
-        };
-        let short = base.clone().with_source_cluster_ids(vec![0; 99]);
-        assert!(short.prepare(&data, &estimand, &query).unwrap_err().to_string().contains("99"));
-        let both = base.with_source_cluster_ids(vec![0; 100]).with_cluster_ids(vec![0; 100]);
-        assert!(
-            both.prepare(&data, &estimand, &query).unwrap_err().to_string().contains("not both")
-        );
-    }
-
-    #[test]
-    fn hc_sandwich_kinds_yield_finite_se() {
-        let (data, estimand) = toy();
-        let query =
-            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        for kind in [
-            AnalyticSeKind::Hc0,
-            AnalyticSeKind::Hc2,
-            AnalyticSeKind::Hc3,
-            AnalyticSeKind::NeweyWest { lag: 2 },
-        ] {
-            let est = LinearAdjustmentAte {
-                bootstrap_replicates: 0,
-                se_kind: kind,
-                ..LinearAdjustmentAte::new()
-            };
-            let prep = est.prepare(&data, &estimand, &query).unwrap();
-            let mut ws = EstimationWorkspace::default();
-            let effect = est
-                .fit(&prep, &mut ws, &ExecutionContext::for_tests(1), AssumptionSet::new())
-                .unwrap();
-            assert!(effect.se_analytic().is_finite() && effect.se_analytic() > 0.0, "{kind:?}");
-        }
-    }
-
-    #[test]
-    fn ridge_lasso_huber_fit_kinds_recover_ate() {
-        let (data, estimand) = toy();
-        let query =
-            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        for kind in [
-            LinearFitKind::Ridge { lambda: 1e-3 },
-            LinearFitKind::Lasso { lambda: 1e-4 },
-            LinearFitKind::Huber { c: 1.345 },
-        ] {
-            let est = LinearAdjustmentAte {
-                bootstrap_replicates: 0,
-                fit_kind: kind,
-                ..LinearAdjustmentAte::new()
-            };
-            let prep = est.prepare(&data, &estimand, &query).unwrap();
-            let mut ws = EstimationWorkspace::default();
-            let effect = est
-                .fit(&prep, &mut ws, &ExecutionContext::for_tests(2), AssumptionSet::new())
-                .unwrap();
-            assert!(effect.ate.is_finite(), "{kind:?}");
-            assert!((effect.ate - 2.0).abs() < 0.05, "ate={} kind={kind:?}", effect.ate);
-        }
-    }
-
-    #[test]
-    fn lasso_analytic_se_nan_bootstrap_finite() {
-        let (data, estimand) = toy();
-        let query =
-            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let no_boot = LinearAdjustmentAte {
-            bootstrap_replicates: 0,
-            fit_kind: LinearFitKind::Lasso { lambda: 1e-4 },
-            ..LinearAdjustmentAte::new()
-        };
-        let prep = no_boot.prepare(&data, &estimand, &query).unwrap();
-        let mut ws = EstimationWorkspace::default();
-        let effect = no_boot
-            .fit(&prep, &mut ws, &ExecutionContext::for_tests(3), AssumptionSet::new())
-            .unwrap();
-        assert!(effect.se_analytic().is_nan(), "lasso se_analytic={}", effect.se_analytic());
-        assert!(effect.se_bootstrap().is_none());
-
-        let with_boot = LinearAdjustmentAte {
-            bootstrap_replicates: 40,
-            fit_kind: LinearFitKind::Lasso { lambda: 1e-4 },
-            ..LinearAdjustmentAte::new()
-        };
-        let effect = with_boot
-            .fit(&prep, &mut ws, &ExecutionContext::for_tests(3), AssumptionSet::new())
-            .unwrap();
-        assert!(effect.se_analytic().is_nan());
-        let boot = effect.se_bootstrap().expect("bootstrap SE");
-        assert!(boot.is_finite() && boot >= 0.0, "se_bootstrap={boot}");
-    }
-
-    /// Deterministic bounded noise in `[-0.1, 0.1]`.
-    fn wiggle(i: usize) -> f64 {
-        0.1 * (7.31 * i as f64).sin()
-    }
-
-    fn fit_kind_effect(
-        data: &TabularData,
-        estimand: &IdentifiedEstimand,
-        fit_kind: LinearFitKind,
-        se_kind: AnalyticSeKind,
-    ) -> EffectEstimate {
-        let query =
-            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let est = LinearAdjustmentAte {
-            bootstrap_replicates: 0,
-            fit_kind,
-            se_kind,
-            ..LinearAdjustmentAte::new()
-        };
-        let prep = est.prepare(data, estimand, &query).unwrap();
-        let mut ws = EstimationWorkspace::default();
-        est.fit(&prep, &mut ws, &ExecutionContext::for_tests(5), AssumptionSet::new()).unwrap()
-    }
-
-    #[test]
-    fn huber_with_unclipped_scores_reproduces_ols_variance_and_influence() {
-        // With c so large that no residual is clipped, ψ(u)=u and ψ′=1, so the Huber
-        // sandwich collapses to the OLS one: τ² = RSS/(n−p), κ = 1, bread (XᵀX)⁻¹.
-        let (data, estimand) = toy_with(|i, t, z| 1.0 + 2.0 * t + z + wiggle(i));
-        for se_kind in [AnalyticSeKind::Homoskedastic, AnalyticSeKind::Hc0, AnalyticSeKind::Hc3] {
-            let ols = fit_kind_effect(&data, &estimand, LinearFitKind::Ols, se_kind);
-            let hub = fit_kind_effect(&data, &estimand, LinearFitKind::Huber { c: 1e9 }, se_kind);
-            assert!((hub.ate - ols.ate).abs() < 1e-8, "{se_kind:?}");
-            let rel = (hub.se_analytic() - ols.se_analytic()).abs() / ols.se_analytic();
-            assert!(
-                rel < 1e-7,
-                "{se_kind:?}: huber {} ols {}",
-                hub.se_analytic(),
-                ols.se_analytic()
-            );
-            let (hi, oi) =
-                (hub.scores.influence.as_ref().unwrap(), ols.scores.influence.as_ref().unwrap());
-            for (a, b) in hi.iter().zip(oi.iter()) {
-                assert!((a - b).abs() < 1e-6 * (1.0 + b.abs()));
-            }
-        }
-    }
-
-    #[test]
-    fn huber_se_ignores_gross_outliers_the_estimator_downweights() {
-        // 10% of rows (one odd, one even index per 20, so both arms) carry a +50 shock. OLS
-        // RSS/(n−p) is dominated by them; Huber's τ² = E[ψ²]/E[ψ′]² only sees them clipped
-        // at c·s, with s ≈ MAD-scale of the ±0.1 noise, so its SE must be far below the OLS
-        // one and the effect stays near 2.
-        let (data, estimand) = toy_with(|i, t, z| {
-            let shock = if i % 20 == 3 || i % 20 == 8 { 50.0 } else { 0.0 };
-            1.0 + 2.0 * t + z + wiggle(i) + shock
-        });
-        let ols =
-            fit_kind_effect(&data, &estimand, LinearFitKind::Ols, AnalyticSeKind::Homoskedastic);
-        let hub = fit_kind_effect(
-            &data,
-            &estimand,
-            LinearFitKind::Huber { c: 1.345 },
-            AnalyticSeKind::Homoskedastic,
-        );
-        assert!((hub.ate - 2.0).abs() < 0.1, "huber ate {}", hub.ate);
-        assert!(
-            hub.se_analytic() < 0.1 * ols.se_analytic(),
-            "huber se {} vs ols se {}",
-            hub.se_analytic(),
-            ols.se_analytic()
-        );
-    }
-
-    #[test]
-    fn ridge_and_lasso_publish_no_analytic_se_and_no_ols_influence() {
-        let (data, estimand) = toy_with(|i, t, z| 1.0 + 2.0 * t + z + wiggle(i));
-        let ols =
-            fit_kind_effect(&data, &estimand, LinearFitKind::Ols, AnalyticSeKind::Homoskedastic);
-        let ridge0 = fit_kind_effect(
-            &data,
-            &estimand,
-            LinearFitKind::Ridge { lambda: 0.0 },
-            AnalyticSeKind::Homoskedastic,
-        );
-        assert!(ridge0.se_analytic().is_nan());
-        // λ = 0 ridge is OLS, so its influence must be the OLS one.
-        let (ri, oi) =
-            (ridge0.scores.influence.as_ref().unwrap(), ols.scores.influence.as_ref().unwrap());
-        for (a, b) in ri.iter().zip(oi.iter()) {
-            assert!((a - b).abs() < 1e-6 * (1.0 + b.abs()));
-        }
-        // Heavy ridge shrinks the treatment coefficient, so its bread differs from (XᵀX)⁻¹.
-        let ridge = fit_kind_effect(
-            &data,
-            &estimand,
-            LinearFitKind::Ridge { lambda: 20.0 },
-            AnalyticSeKind::Homoskedastic,
-        );
-        assert!(ridge.se_analytic().is_nan());
-        assert!(ridge.ate < ols.ate - 1e-3);
-        let heavy = ridge.scores.influence.as_ref().unwrap();
-        assert!(heavy.iter().zip(oi.iter()).any(|(a, b)| (a - b).abs() > 1e-3));
-        let lasso = fit_kind_effect(
-            &data,
-            &estimand,
-            LinearFitKind::Lasso { lambda: 1e-4 },
-            AnalyticSeKind::Homoskedastic,
-        );
-        assert!(lasso.se_analytic().is_nan());
-        assert!(lasso.scores.influence.is_none());
-    }
-
-    #[test]
-    fn unconverged_iterative_fits_are_refused() {
-        assert!(require_converged(true, LASSO_UNCONVERGED).is_ok());
-        for msg in [LASSO_UNCONVERGED, HUBER_UNCONVERGED] {
-            let err = require_converged(false, msg).unwrap_err();
-            assert!(err.to_string().contains("did not converge"), "{err}");
-            assert!(bootstrap_fit_failed(&err));
-        }
-    }
-
-    #[test]
-    fn bootstrap_skips_singular_fits_and_empty_arms_only() {
-        assert!(bootstrap_fit_failed(&EstimationError::stats_msg("singular design")));
-        assert!(bootstrap_fit_failed(&EstimationError::data_msg(
-            "target population left no rows for g-computation",
-        )));
-        assert!(!bootstrap_fit_failed(&EstimationError::data_msg(
-            "row resample buffers must match the row map",
-        )));
-    }
+    Ok(())
 }
+
+#[cfg(test)]
+mod tests;

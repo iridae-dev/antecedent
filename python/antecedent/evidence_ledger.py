@@ -12,17 +12,18 @@ them::
                                                observations=el.rows("cohort", range(0, 40))))
     b = ledger.add_source(el.SourceDeclaration("study_2", "observation_set",
                                                observations=el.rows("cohort", range(40, 90))))
-    pooled = ledger.pool_summaries(
+    outcome = ledger.pool_summaries(
         "pool", [el.StudySummary(a, 1.0, 1.0), el.StudySummary(b, 3.0, 4.0)]
     )
-    pooled.value.estimate       # 1.4 = (1/1 * 1 + 1/4 * 3) / (1/1 + 1/4)
+    pooled = outcome.value              # a SynthesisOutcome (None when refused)
+    pooled.value.estimate               # 1.4 = (1/1 * 1 + 1/4 * 3) / (1/1 + 1/4)
     pooled.mass.distinct_observations   # 90: each observation counted once
 
 What the ledger decides, and what it does not:
 
 * **Overlap first.** Every combination is registered with the ledger *before* any number is
   computed. Shared or unknown overlap declared independent, duplicate and re-entered evidence, and
-  a retired source are refused with a typed reason and the declaration that would license the
+  a retired source are refused with a typed reason and the declaration that would support the
   request (:class:`EvidenceLedgerRefusal`). Overlap that is not declared is ``unknown``, never
   independent.
 * **Point-only.** Pooling is inverse-variance or generalized least squares (a declared covariance
@@ -30,9 +31,9 @@ What the ledger decides, and what it does not:
   likelihood, borrowing uses a declared finite prior on the between-study standard deviation, and a
   dependence range returns the exact extremes over the declared correlation interval, labelled
   ``assumption_range``. An interval is reported only by :meth:`EvidenceLedger.pooled_interval`,
-  bound to a currently attesting coverage record of the exact construction (fixed effect,
-  declared covariance, or random effects by Hartung-Knapp); anything else raises
-  ``cell_not_licensed``.
+  carrying its calibration status for the exact construction (fixed effect,
+  declared covariance, or random effects by Hartung-Knapp); a hierarchical borrowing or a
+  dependence range has no interval construction and raises ``route_not_supported``.
 * **Atomic.** A refused request leaves the session exactly as it was; so does a refused
   :meth:`EvidenceLedger.refresh`, which applies a batch of added and retired evidence to a copy.
 * **No stale use.** Retiring a source reclassifies every result that rested on it as
@@ -51,19 +52,28 @@ declarations and presents the results.
 from __future__ import annotations
 
 import json
-import math
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
 from . import _native
-from ._artifact_protocol import ExportedArtifact, bytes_export
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._freeze import thaw
 from ._mean_binding import bind_mean_reading
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count
+from ._validate import finite_float_protocol as _number
+from ._validate import name as _name
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
+from .outcomes import outcome_operation
 
 __all__ = [
     "ConsumedEvidenceLedger",
@@ -115,7 +125,7 @@ class EvidenceLedgerRefusal(StructuredRefusal):
 
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code`` (for
     example ``evidence_double_counted``, ``evidence_overlap_unknown``,
-    ``evidence_source_withdrawn``, ``cell_not_licensed``) and an ``evidence_ledger.*`` ``detail``;
+    ``evidence_source_withdrawn``, ``not_supported``) and an ``evidence_ledger.*`` ``detail``;
     ``sources`` names the sources the refusal is about.
     """
 
@@ -126,21 +136,6 @@ class EvidenceLedgerRefusal(StructuredRefusal):
 
 
 # --------------------------------------------------------------------------- helpers
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
-
-
-def _number(value: object, what: str) -> float:
-    if isinstance(value, bool) or not hasattr(value, "__float__"):
-        raise CausalTypeError(f"{what} must be a real number")
-    number = float(value)
-    if not math.isfinite(number):
-        raise CausalValueError(f"{what} must be finite")
-    return number
 
 
 def _dumps(value: object) -> str:
@@ -479,7 +474,7 @@ class EqualStudyGaussian:
     """Equal-study mean and empirical variance of the mean.
 
     Independent Gaussian study estimates share a marginal mean but may have
-    arbitrary unequal variances. The study-level Student interval, when licensed,
+    arbitrary unequal variances. The study-level Student interval, when supported,
     has at least 95% coverage; this is not a fitted between-study variance model.
     """
 
@@ -599,7 +594,7 @@ class SynthesisOutcome(ScientificResult):
     """A registered combination and its numbers.
 
     ``claim_class`` and ``claim_label`` are ``"point_only"`` or ``"assumption_range"``: the ledger
-    licenses nothing stronger.
+    supports nothing stronger.
     """
 
     _mean_binding: Any = field(default=None, init=False, repr=False, compare=False)
@@ -801,14 +796,6 @@ class EvidenceLedger(ScientificResult):
 
     __slots__ = ("_handle",)
 
-    def artifact(
-        self, artifact_id: str = _DEFAULT_ARTIFACT_ID
-    ) -> ExportedArtifact[ConsumedEvidenceLedger]:
-        """Bytes and producer metadata; load returns the typed consumed result."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self, artifact_id)
-
     def __init__(self) -> None:
         self._handle = _native.EvidenceLedgerHandle()
 
@@ -907,6 +894,7 @@ class EvidenceLedger(ScientificResult):
             ),
         )
 
+    @outcome_operation
     def pool_summaries(
         self,
         label: str,
@@ -914,15 +902,16 @@ class EvidenceLedger(ScientificResult):
         *,
         covariance: Sequence[float] | None = None,
         replaces: str | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> SynthesisOutcome:
         """Pool the summaries of two or more studies.
 
         The ledger decides first: independent pooling needs every pair known and disjoint; a
-        declared row-major ``covariance`` (in the order of ``summaries``) is licensed when it has
+        declared row-major ``covariance`` (in the order of ``summaries``) is supported when it has
         cross terms or the sources are known and disjoint, and is preserved by generalized least
         squares. Point-only.
         """
+        execution = resolve_execution(execution)
         request = {
             "label": label,
             "summaries": [s.to_wire() for s in summaries],
@@ -938,11 +927,14 @@ class EvidenceLedger(ScientificResult):
         )
         return _outcome(
             _unwrap(
-                self._handle.pool_summaries(_dumps(request), _dumps(dependence), cancel=cancel)
+                self._handle.pool_summaries(
+                    _dumps(request), _dumps(dependence), cancel=execution.cancel
+                )
             ),
             ledger=self,
         )
 
+    @outcome_operation
     def random_effects(
         self,
         label: str,
@@ -950,7 +942,7 @@ class EvidenceLedger(ScientificResult):
         *,
         method: str = "dersimonian_laird",
         replaces: str | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> SynthesisOutcome:
         """Pool independent study estimates about a common population mean.
 
@@ -962,16 +954,18 @@ class EvidenceLedger(ScientificResult):
         Independence requires known disjoint observations. This call is point-only;
         :meth:`pooled_interval` requires evidence for the exact interval method.
         """
+        execution = resolve_execution(execution)
         request = {
             "label": label,
             "summaries": [s.to_wire() for s in summaries],
             "replaces": replaces,
         }
         return _outcome(
-            _unwrap(self._handle.random_effects(_dumps(request), method, cancel=cancel)),
+            _unwrap(self._handle.random_effects(_dumps(request), method, cancel=execution.cancel)),
             ledger=self,
         )
 
+    @outcome_operation
     def hierarchical_borrowing(
         self,
         label: str,
@@ -981,7 +975,7 @@ class EvidenceLedger(ScientificResult):
         tau_prior: TauPrior,
         priors: Sequence[str] = (),
         replaces: str | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> SynthesisOutcome:
         """Hierarchical normal-normal borrowing with a declared finite prior on ``tau``.
 
@@ -989,6 +983,7 @@ class EvidenceLedger(ScientificResult):
         disjoint from them (a prior built from the likelihood's own data is double counting).
         Point-only: a posterior mean and variance, not a calibrated interval.
         """
+        execution = resolve_execution(execution)
         request = {
             "label": label,
             "priors": _ids(priors, "prior"),
@@ -998,10 +993,11 @@ class EvidenceLedger(ScientificResult):
             "replaces": replaces,
         }
         return _outcome(
-            _unwrap(self._handle.hierarchical_borrowing(_dumps(request), cancel=cancel)),
+            _unwrap(self._handle.hierarchical_borrowing(_dumps(request), cancel=execution.cancel)),
             ledger=self,
         )
 
+    @outcome_operation
     def dependence_range(
         self,
         label: str,
@@ -1010,7 +1006,7 @@ class EvidenceLedger(ScientificResult):
         rho_lo: float,
         rho_hi: float,
         replaces: str | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> SynthesisOutcome:
         """The pooled estimate and variance as a common pairwise correlation ranges over
         ``[rho_lo, rho_hi]``: exact extremes, labelled an assumption range.
@@ -1018,6 +1014,7 @@ class EvidenceLedger(ScientificResult):
         Never a point, interval or posterior, and it does not turn unknown dependence into
         independence.
         """
+        execution = resolve_execution(execution)
         request = {
             "label": label,
             "studies": [s.to_wire() for s in studies],
@@ -1026,7 +1023,8 @@ class EvidenceLedger(ScientificResult):
             "replaces": replaces,
         }
         return _outcome(
-            _unwrap(self._handle.dependence_range(_dumps(request), cancel=cancel)), ledger=self
+            _unwrap(self._handle.dependence_range(_dumps(request), cancel=execution.cancel)),
+            ledger=self,
         )
 
     def transport_claim(
@@ -1063,6 +1061,7 @@ class EvidenceLedger(ScientificResult):
             _unwrap(self._handle.repeat_observations(label, _dumps(_ids(sources, "source")), stage))
         )
 
+    @outcome_operation
     def revise_source(self, revision: SourceRevision) -> RevisionReport:
         """Apply one revision; results that rested on the retired source are reclassified."""
         return _report(json.loads(_unwrap(self._handle.revise_source(_dumps(revision.wire)))))
@@ -1073,14 +1072,15 @@ class EvidenceLedger(ScientificResult):
         return {r["result"]: r["class"] for r in classification}
 
     def pooled_interval(self, result: str) -> dict[str, Any]:
-        """The measured 95% interval of a pooled result.
+        """The 95% interval of a pooled result, annotated with its calibration.
 
         Fixed-effect and declared-covariance pooling report the Wald ``z`` interval; random
         effects reports the Hartung-Knapp-Sidik-Jonkman ``t`` interval. The returned mapping
-        carries ``lower``, ``upper``, ``level`` and the governing coverage record under
-        ``calibration``. Raises ``cell_not_licensed`` (:class:`EvidenceLedgerRefusal`) for a
-        result with no numbers, a hierarchical borrowing or dependence range, or a
-        construction, study count or sample size with no currently attesting coverage record.
+        carries ``lower``, ``upper``, ``level`` and the calibration slot under ``calibration``
+        (``status`` is not ``calibrated`` for a construction, study count or sample size no
+        coverage record attests; the interval is reported regardless). Raises
+        :class:`EvidenceLedgerRefusal` for a result with no numbers or a hierarchical borrowing
+        or dependence range.
         """
         raw = _unwrap(self._handle.pooled_interval(_name(result, "result")))
         return dict(json.loads(raw))
@@ -1095,6 +1095,7 @@ class EvidenceLedger(ScientificResult):
         text = _unwrap(self._handle.synthesis(_name(result, "result")))
         return None if text is None else _value(json.loads(text))
 
+    @outcome_operation
     def refresh(self, changes: Sequence[SourceChange]) -> LedgerRefresh:
         """Apply a batch of added and retired evidence to a copy of this session.
 
@@ -1112,20 +1113,30 @@ class EvidenceLedger(ScientificResult):
             classification={r["result"]: r["class"] for r in json.loads(classification)},
         )
 
-    @bytes_export
-    def export(self, artifact_id: str = _DEFAULT_ARTIFACT_ID) -> LedgerExport:
+    @artifact_export
+    def export(
+        self, artifact_id: str = _DEFAULT_ARTIFACT_ID
+    ) -> ExportedArtifact[ConsumedEvidenceLedger]:
         """Write the ledger and the syntheses bound to its results as ``evidence_ledger_v1``."""
         artifact, identity, carried, not_carried = _unwrap(
             self._handle.export(_name(artifact_id, "artifact_id"))
         )
-        return LedgerExport(
-            artifact=bytes(artifact),
-            identity=identity,
-            carried=tuple(carried),
-            not_carried=dict(not_carried),
+        return artifact_from_receipt(
+            self,
+            LedgerExport(
+                artifact=bytes(artifact),
+                identity=identity,
+                carried=tuple(carried),
+                not_carried=dict(not_carried),
+            ),
         )
 
 
+@outcome_operation
+@artifact_consumer(
+    proof="evidence_ledger.consume_evidence_ledger_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def consume_evidence_ledger_artifact(
     artifact: bytes, expected_identity: str | None = None
 ) -> ConsumedEvidenceLedger:
@@ -1141,6 +1152,7 @@ def consume_evidence_ledger_artifact(
             ``evidence_ledger.synthesis_mismatch`` for a stored value that does not recompute, and
             the ledger's own refusal for an operation that does not replay.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     handle = _unwrap(_native.evidence_ledger_consume(bytes(artifact), expected_identity))

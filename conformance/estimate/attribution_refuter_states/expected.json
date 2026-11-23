@@ -1,0 +1,50 @@
+{
+  "fixture_id": "attribution_refuter_states",
+  "dgp": {
+    "rows": 24,
+    "planted_row": 7,
+    "planted_x": 40.0,
+    "lift": 60.0,
+    "text": "x_i = sin(1.37 i) + 0.5 cos(0.91 i); y_i = 1 + 2 x_i + 0.3 sin(2.17 i); the planted table sets x_7 = 40 and adds 60 to y_7."
+  },
+  "clean": {
+    "max_leverage_below": 0.3,
+    "slope_within": 0.05
+  },
+  "planted": {
+    "row_leverage_above": 0.9,
+    "slope_without_row_within": 0.05,
+    "slope_shift_above": 1.0
+  },
+  "expected_verdicts": {
+    "clean_subset_stability_passes": true,
+    "planted_subset_stability_passes": false
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "leverage h_i = 1/n + (x_i - mean x)^2 / S_xx of the regression of y on (1, x): the planted row has h above 0.9 and decides the fitted slope (3.49 with it, 2.00 without), the clean table has no row above 0.3; a refit on random subsets drops the planted row one time in five and so refits a different mechanism, while the clean table refits the same one",
+    "generator": "conformance/estimate/attribution_refuter_states/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/attribution_refuter_states/reference.py --check",
+    "environment_lock": "conformance/estimate/attribution_refuter_states/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "expected_verdicts (the clean table passes subset stability, the planted table fails it), by the leverage and slope derivation",
+      "series.* (the same clean-passes / planted-fails verdicts for the lag-aligned design of a series)"
+    ],
+    "context_only_outputs": [
+      "the bounds (0.3, 0.9, 0.05, 1.0), which are the declared margins of the derivation",
+      "fixture_id and dgp text"
+    ],
+    "independence_basis": "The generator rebuilds both tables from the stated formulas, computes every leverage and the least-squares slope with and without the planted row in exact rational arithmetic on the float inputs, and imports no Antecedent code and no statistics package. The shared object is the stated table.",
+    "historical_exposure": "Written for this fixture from the stated tables and the definition of leverage; no product implementation source was consulted and no earlier pinned numbers are reused."
+  },
+  "series": {
+    "rows": 100,
+    "planted_position": 9,
+    "planted_x": 40.0,
+    "lift": 60.0,
+    "clean_max_leverage_below": 0.4,
+    "row_leverage_above": 0.8,
+    "text": "x_t = sin(0.37 t) + 0.5 cos(1.1 t); y_t = 1 + 2 x_{t-1} + 0.3 sin(2.17 t) (x_{-1} = 0); the planted series sets x_9 = 40 and adds 60 to y_10."
+  }
+}

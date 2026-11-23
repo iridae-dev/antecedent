@@ -1,0 +1,1 @@
+["use:crate::ids::{EnvironmentId,Lag,VariableId};#0","enum:NodeRef#0","impl:NodeRef#0","impl:NodeRef#0/fn:variable#0","impl:NodeRef#0/fn:lag#0","impl:NodeRef#0/fn:is_static_graph_node#0"]

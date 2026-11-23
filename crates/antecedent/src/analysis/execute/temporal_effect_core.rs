@@ -2,15 +2,16 @@
 //!
 //! The sealed operation ([`super::CheckedTemporalEffectExecution`]) and the
 //! one-shot route (`Study::execute_temporal`) both resolve a proof, gate their
-//! own licence, and call [`fit_temporal_effect`]; the estimator, the refuters,
+//! own support, and call [`fit_temporal_effect`]; the estimator, the refuters,
 //! the diagnostics and the provenance names live here only. Callers own what
 //! they admit (the sealed operation admits no split, custom validator or
 //! Bayesian fit, the one-shot route admits them), never how an admitted fit is
 //! computed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::sequential_validation::SequentialValidation;
+use super::series_weights::{SeriesWeightReading, admit_series_weights};
 use super::{
     Arc, BayesianConfig, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
     CausalError, CausalPosterior, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
@@ -125,7 +126,7 @@ impl TemporalEffectFit {
 /// Strip the interval and posterior a point-only fit never publishes.
 pub(super) fn seal_point_only(point_only: bool, mut result: StudyResult) -> StudyResult {
     if point_only {
-        result.interval = None;
+        result.extras.interval = None;
         result.posterior = None;
     }
     result
@@ -153,9 +154,7 @@ pub(super) fn fit_temporal_effect(
         return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_ESTIMATE_POINT });
     }
     require_identified(inputs.identification)?;
-    if inputs.data.storage().weights().is_some() {
-        require_sampling_weight_route(inputs)?;
-    }
+    require_sampling_weight_route(inputs)?;
     if inputs.query.is_multi_step_sustained() {
         fit_sustained(inputs, ctx)
     } else if !inputs.query.effect_modifiers.is_empty() {
@@ -165,16 +164,51 @@ pub(super) fn fit_temporal_effect(
     }
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "the sustained-window fit reads the gap policy, block bootstrap and Bayesian path in one pass over the same design"
-)]
+type SustainedValidation =
+    (Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>, Vec<PredictiveCheckReport>);
+
+fn validate_sustained(
+    inputs: &TemporalEffectInputs<'_>,
+    estimate: &EffectEstimate,
+    mechanisms: Vec<antecedent_estimate::temporal_sequential::SequentialBayesianMechanism>,
+    bayes: Option<&BayesianGComputationAte>,
+    posterior: Option<&mut CausalPosterior>,
+    gaps: bool,
+    ctx: &ExecutionContext,
+) -> Result<SustainedValidation, CausalError> {
+    let atom = super::sequential_validation::SequentialValidationAtom {
+        weight: 1.0,
+        graph: Arc::new(inputs.graph.clone()),
+        _graph_lease: None,
+        indexer: inputs.indexer.clone(),
+        estimand: inputs.estimand.clone(),
+        status: inputs.identification.status,
+        estimate: estimate.clone(),
+        mechanisms,
+    };
+    super::sequential_validation::validate_sequential(
+        SequentialValidation {
+            data: inputs.data,
+            query: inputs.query,
+            suite: inputs.refute,
+            custom: inputs.custom_validators,
+            predictive_sims: crate::analysis::latency::predictive_check_sims(inputs.latency_mode),
+            gaps,
+        },
+        &[atom],
+        bayes,
+        posterior,
+        estimate.ate,
+        ctx,
+    )
+}
+
 fn fit_sustained(
     inputs: &TemporalEffectInputs<'_>,
     ctx: &ExecutionContext,
 ) -> Result<TemporalEffectFit, CausalError> {
-    let TemporalEffectInputs { data, graph, query, identification, estimand, indexer, .. } =
-        *inputs;
+    let data = inputs.data;
+    let identification = inputs.identification;
     if inputs.split.is_some() {
         return Err(CausalError::Unsupported {
             message: "multi-step sustained g-computation currently requires no discovery-estimation split",
@@ -192,126 +226,92 @@ fn fit_sustained(
     };
     let mut assumptions = identification.required_assumptions.clone();
     assumptions.push(sequential_linear_sem_assumption(SUSTAINED_LINEAR_SEM));
+    let inference = antecedent_estimate::SequentialInference {
+        status: identification.status,
+        assumptions,
+        bootstrap_replicates: inputs.bootstrap_replicates,
+        bayesian: bayes.as_ref(),
+    };
     let variables = graph_variables(inputs);
     if let Some(cell) = antecedent_data::first_missing_cell(data, &variables)? {
         require_gap_policy(inputs, &cell, false, true)?;
         if bayes.is_some() {
             require_no_refuters(inputs)?;
         }
-        let mut mechanisms = Vec::new();
-        let (estimate, mut posterior, selection) =
-            antecedent_estimate::temporal_sequential::estimate_sustained_window_with_gaps(
-                &antecedent_estimate::SequentialProblem { data, graph, indexer, estimand },
-                query,
-                antecedent_estimate::SequentialInference {
-                    status: identification.status,
-                    assumptions,
-                    bootstrap_replicates: inputs.bootstrap_replicates,
-                    bayesian: bayes.as_ref(),
-                },
-                ctx,
-                Some(&mut mechanisms),
-            )
-            .map_err(CausalError::from)?;
-        let selection = selection.ok_or(CausalError::Unsupported {
-            message: "gap-aware sequential fit did not report its windows",
-        })?;
-        let report = gap_report(data, &variables, &selection)?;
-        // The refuters refit the intact windows of the perturbed series and resample blocks of
-        // the original window axis, as the interval does.
-        let (refutations, mut diagnostics, predictive_checks) =
-            if inputs.refute == RefuteSuite::None {
-                (Vec::new(), Vec::new(), Vec::new())
-            } else {
-                let atom = super::sequential_validation::SequentialValidationAtom {
-                    weight: 1.0,
-                    graph: graph.clone(),
-                    indexer: indexer.clone(),
-                    estimand: estimand.clone(),
-                    status: identification.status,
-                    estimate: estimate.clone(),
-                    mechanisms,
-                };
-                super::sequential_validation::validate_sequential(
-                    SequentialValidation {
-                        data,
-                        query,
-                        suite: inputs.refute,
-                        custom: inputs.custom_validators,
-                        predictive_sims: crate::analysis::latency::predictive_check_sims(
-                            inputs.latency_mode,
-                        ),
-                        gaps: true,
-                    },
-                    &[atom],
-                    bayes.as_ref(),
-                    posterior.as_mut(),
-                    estimate.ate,
-                    ctx,
-                )?
-            };
-        diagnostics.push(Diagnostic::new(
-            "estimate.temporal.sustained_window_gaps",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            "sustained contrast on the intact lag windows of a series with gaps; every mechanism is fitted on windows at their original times and the block bootstrap draws blocks on the original window axis, so no block joins windows across a gap",
-        ));
-        return Ok(TemporalEffectFit {
-            bootstrap_replicates_ok: estimate.uncertainty.bootstrap.replicates_ok,
-            cancelled: estimate.uncertainty.bootstrap.cancelled,
-            estimate,
-            estimator_id: EstimatorId::TemporalSequentialGcomp,
-            refutations,
-            diagnostics,
-            posterior,
-            predictive_checks,
-            point_only: false,
-            missing_data: Some(report),
-            estimate_provenance: SEQUENTIAL_PROVENANCE,
-        });
+        return fit_sustained_gaps(inputs, inference, &variables, ctx);
     }
+    fit_sustained_complete(inputs, inference, ctx)
+}
+
+fn fit_sustained_gaps(
+    inputs: &TemporalEffectInputs<'_>,
+    inference: antecedent_estimate::SequentialInference<'_>,
+    variables: &[antecedent_core::VariableId],
+    ctx: &ExecutionContext,
+) -> Result<TemporalEffectFit, CausalError> {
+    let TemporalEffectInputs { data, graph, query, estimand, indexer, .. } = *inputs;
+    let bayes = inference.bayesian;
+    let mut mechanisms = Vec::new();
+    let (estimate, mut posterior, selection) =
+        antecedent_estimate::temporal_sequential::estimate_sustained_window_with_gaps(
+            &antecedent_estimate::SequentialProblem { data, graph, indexer, estimand },
+            query,
+            inference,
+            ctx,
+            Some(&mut mechanisms),
+        )
+        .map_err(CausalError::from)?;
+    let selection = selection.ok_or(CausalError::Unsupported {
+        message: "gap-aware sequential fit did not report its windows",
+    })?;
+    let report = gap_report(data, variables, &selection)?;
+    // The refuters refit the intact windows of the perturbed series and resample blocks of
+    // the original window axis, as the interval does.
+    let (refutations, mut diagnostics, predictive_checks) = if inputs.refute == RefuteSuite::None {
+        (Vec::new(), Vec::new(), Vec::new())
+    } else {
+        validate_sustained(inputs, &estimate, mechanisms, bayes, posterior.as_mut(), true, ctx)?
+    };
+    diagnostics.push(Diagnostic::new(
+        "estimate.temporal.sustained_window_gaps",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        "sustained contrast on the intact lag windows of a series with gaps; every mechanism is fitted on windows at their original times and the block bootstrap draws blocks on the original window axis, so no block joins windows across a gap",
+    ));
+    Ok(TemporalEffectFit {
+        bootstrap_replicates_ok: estimate.uncertainty.bootstrap.replicates_ok,
+        cancelled: estimate.uncertainty.bootstrap.cancelled,
+        estimate,
+        estimator_id: EstimatorId::TemporalSequentialGcomp,
+        refutations,
+        diagnostics,
+        posterior,
+        predictive_checks,
+        point_only: false,
+        missing_data: Some(report),
+        estimate_provenance: SEQUENTIAL_PROVENANCE,
+    })
+}
+
+fn fit_sustained_complete(
+    inputs: &TemporalEffectInputs<'_>,
+    inference: antecedent_estimate::SequentialInference<'_>,
+    ctx: &ExecutionContext,
+) -> Result<TemporalEffectFit, CausalError> {
+    let TemporalEffectInputs { data, graph, query, estimand, indexer, .. } = *inputs;
+    let bayes = inference.bayesian;
     let mut mechanisms = Vec::new();
     let (estimate, mut posterior) =
         antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(
             &antecedent_estimate::SequentialProblem { data, graph, indexer, estimand },
             query,
-            antecedent_estimate::SequentialInference {
-                status: identification.status,
-                assumptions,
-                bootstrap_replicates: inputs.bootstrap_replicates,
-                bayesian: bayes.as_ref(),
-            },
+            inference,
             ctx,
             Some(&mut mechanisms),
         )
         .map_err(CausalError::from)?;
-    let atom = super::sequential_validation::SequentialValidationAtom {
-        weight: 1.0,
-        graph: graph.clone(),
-        indexer: indexer.clone(),
-        estimand: estimand.clone(),
-        status: identification.status,
-        estimate: estimate.clone(),
-        mechanisms,
-    };
     let (refutations, mut diagnostics, predictive_checks) =
-        super::sequential_validation::validate_sequential(
-            SequentialValidation {
-                data,
-                query,
-                suite: inputs.refute,
-                custom: inputs.custom_validators,
-                predictive_sims: crate::analysis::latency::predictive_check_sims(
-                    inputs.latency_mode,
-                ),
-                gaps: false,
-            },
-            &[atom],
-            bayes.as_ref(),
-            posterior.as_mut(),
-            estimate.ate,
-            ctx,
-        )?;
+        validate_sustained(inputs, &estimate, mechanisms, bayes, posterior.as_mut(), false, ctx)?;
     // The validation diagnostics are the prebuilt list, so the window note
     // and the dependence caveats join them.
     diagnostics.push(Diagnostic::new(
@@ -321,6 +321,7 @@ fn fit_sustained(
         "the contrast propagates through all intervened times in topological order; no \
          one-node collapse",
     ));
+    diagnostics.extend(intervention_level_support_diagnostics(data, query));
     let estimate = if bayes.is_none() {
         diagnostics.extend(super::temporal_path::sequential_dependence_se_diagnostics(
             &estimate,
@@ -350,23 +351,23 @@ fn fit_conditional(
     ctx: &ExecutionContext,
 ) -> Result<TemporalEffectFit, CausalError> {
     let query = inputs.query;
-    if query.effect_modifiers.len() != 1
+    if query.effect_modifiers.is_empty()
         || matches!(query.policy, antecedent_core::TemporalPolicy::Dynamic { .. })
     {
         return Err(CausalError::Unsupported {
-            message: "temporal conditional effect fits one modifier on a single-step pulse or sustained policy",
+            message: "temporal conditional effect fits a modifier set on a single-step pulse or sustained policy",
         });
     }
     if inputs.refute != RefuteSuite::None {
         return Err(CausalError::Unsupported {
-            message: "temporal conditional effect is point-only; cheap/full refuters are not licensed",
+            message: "temporal conditional effect is point-only; cheap/full refuters are not supported",
         });
     }
     let prior_scale = match inputs.inference {
         InferenceMode::Bayesian(cfg) => {
             if has_mapped_prior(cfg) {
                 return Err(CausalError::Unsupported {
-                    message: "temporal conditional effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",
+                    message: "temporal conditional effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not supported",
                 });
             }
             Some(cfg.prior_scale)
@@ -402,29 +403,96 @@ fn fit_conditional(
             antecedent_data::TableView::row_count(inputs.data.storage()),
         )?,
     };
-    let estimate = EffectEstimate::new(
-        point,
-        f64::NAN,
-        inputs.identification.required_assumptions.clone(),
-        OverlapPolicy::ExplicitOverride,
-    );
+    let uncertainty =
+        conditional_uncertainty(inputs, point, prior_scale, first_gap.is_some(), ctx)?;
+    let mut diagnostics = vec![Diagnostic::new(
+        "estimate.temporal.conditional_marginal",
+        DiagnosticKind::Execution,
+        DiagnosticSeverity::Info,
+        "published value is the marginal effect over the modifier set on the unfolded temporal \
+         design; its interval refits the interaction regression and every modifier mean",
+    )];
+    diagnostics.extend(modifier_set_coverage_note(query.effect_modifiers.len()));
+    diagnostics.extend(uncertainty.diagnostics);
+    let point_only = uncertainty.posterior.is_none() && uncertainty.replicates_ok.is_none();
     Ok(TemporalEffectFit {
-        estimate,
+        estimate: uncertainty.estimate,
         estimator_id: EstimatorId::TemporalLinearAdjustment,
         refutations: Vec::new(),
-        diagnostics: vec![Diagnostic::new(
-            "estimate.temporal.conditional_marginal",
-            DiagnosticKind::Execution,
-            DiagnosticSeverity::Info,
-            "published value is the one-modifier marginal effect on the unfolded temporal design; no interval is published",
-        )],
-        posterior: None,
+        diagnostics,
+        posterior: uncertainty.posterior,
         predictive_checks: Vec::new(),
-        bootstrap_replicates_ok: None,
-        cancelled: false,
-        point_only: true,
+        bootstrap_replicates_ok: uncertainty.replicates_ok,
+        cancelled: uncertainty.cancelled,
+        point_only,
         missing_data,
         estimate_provenance: LINEAR_PROVENANCE,
+    })
+}
+
+/// The disclosure a conditional effect over several modifiers carries: its interval is the same
+/// whole-procedure construction, but the coverage record behind the interval was measured for
+/// one modifier.
+pub(super) fn modifier_set_coverage_note(modifiers: usize) -> Option<Diagnostic> {
+    (modifiers > 1).then(|| {
+        Diagnostic::new(
+            "estimate.temporal.conditional_modifier_set",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "the interval of a conditional effect over several modifiers refits the whole \
+             interaction regression and every modifier mean on shared blocks (or draws its \
+             tempered slope posterior), the construction measured for one modifier; its coverage \
+             with a modifier set has not been measured",
+        )
+    })
+}
+
+/// The whole-procedure uncertainty of a `TemporalDag` conditional
+/// effect: the interaction regression (and the modifier mean) refit on shared
+/// circular blocks of series times, or drawn from its tempered slope posterior.
+fn conditional_uncertainty(
+    inputs: &TemporalEffectInputs<'_>,
+    point: f64,
+    prior_scale: Option<f64>,
+    gaps: bool,
+    ctx: &ExecutionContext,
+) -> Result<super::temporal_class_point::ClassScalarOutcome, CausalError> {
+    use super::temporal_point_uncertainty as point_uncertainty;
+    let atom = point_uncertainty::SlopeAtom::conditional(
+        inputs.data,
+        inputs.estimand,
+        inputs.query,
+        inputs.indexer,
+        ctx.kernel_policy,
+        prior_scale,
+        gaps,
+    )?;
+    let frozen = [atom.freeze()];
+    let assumptions = inputs.identification.required_assumptions.clone();
+    super::temporal_class_point::class_scalar_uncertainty(
+        &frozen,
+        &[1.0],
+        &[point],
+        point,
+        assumptions,
+        false,
+        super::temporal_class_point::ClassPointUncertainty {
+            inference: inputs.inference,
+            bootstrap_replicates: inputs.bootstrap_replicates,
+            structural_span: super::temporal_class_block_span(std::iter::once(inputs.indexer)),
+            block_stream: point_uncertainty::CONDITIONAL_BLOCK_STREAM,
+            posterior_stream: point_uncertainty::CONDITIONAL_POSTERIOR_STREAM,
+        },
+        ctx,
+        |_, source| source.conditional_effect().map(|value| vec![value]),
+    )
+    .map(|mut outcome| {
+        // One regression on one series: the single-window family, not a mixture.
+        if outcome.posterior.is_none() {
+            outcome.estimate.uncertainty.block.family =
+                Some(antecedent_estimate::CircularBlockFamily::SingleWindow);
+        }
+        outcome
     })
 }
 
@@ -457,6 +525,22 @@ fn fit_single_window_bayesian(
             operation,
             data,
             inputs.split,
+            ctx,
+        )?;
+        return Ok((fit.estimate, fit.posterior, (fit.estimator, fit.prepared)));
+    }
+    if cfg.white_innovation.is_some() {
+        if gaps.is_some() {
+            return Err(CausalError::Unsupported {
+                message: "the untempered temporal posterior needs the contiguous lag windows of one \
+                          series; a gapped series is not accepted",
+            });
+        }
+        let fit = crate::analysis::white_innovation_window::fit_white_innovation_window(
+            cfg,
+            prep,
+            query.horizon_steps,
+            identification.status,
             ctx,
         )?;
         return Ok((fit.estimate, fit.posterior, (fit.estimator, fit.prepared)));
@@ -545,6 +629,47 @@ fn single_window_predictive_checks(
     Ok((predictive_checks, posterior))
 }
 
+/// A hard intervention level the treatment series never visited is a regime the window
+/// regression reaches only by linear extrapolation; the support slot names it instead of
+/// presenting the contrast as observed.
+fn intervention_level_support_diagnostics(
+    data: &TimeSeriesData,
+    query: &TemporalEffectQuery,
+) -> Vec<Diagnostic> {
+    use antecedent_core::Intervention;
+    use antecedent_data::TableView;
+    let Ok(values) = data.float64_values(query.treatment) else {
+        return Vec::new();
+    };
+    let (min, max) = values
+        .iter()
+        .filter(|value| value.is_finite())
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &v| (lo.min(v), hi.max(v)));
+    if !(min.is_finite() && max.is_finite()) {
+        return Vec::new();
+    }
+    [("control", &query.control), ("active", &query.active)]
+        .into_iter()
+        .filter_map(|(role, intervention)| match intervention {
+            Intervention::Set { value, .. } => value.as_f64().map(|level| (role, level)),
+            _ => None,
+        })
+        .filter(|(_, level)| !(min..=max).contains(level))
+        .map(|(role, level)| {
+            Diagnostic::new(
+                "estimate.temporal.window.level_outside_support",
+                DiagnosticKind::Support,
+                DiagnosticSeverity::Warning,
+                format!(
+                    "the {role} intervention level {level} lies outside the observed treatment \
+                     range [{min}, {max}]: the window contrast reaches it by linear \
+                     extrapolation of the fitted lag coefficients, not from observed rows"
+                ),
+            )
+        })
+        .collect()
+}
+
 /// The refutation suite of a single-window effect with its dependence-honest
 /// SE and PAG-completion notes.
 fn single_window_refutations(
@@ -583,6 +708,7 @@ fn single_window_refutations(
         diagnostics
             .extend(super::temporal_path::single_window_dependence_se_diagnostics(estimate, info));
     }
+    diagnostics.extend(intervention_level_support_diagnostics(data, query));
     if inputs.completed_to_dag {
         diagnostics.push(Diagnostic::new(
             "temporal.pag.completed_to_dag",
@@ -807,7 +933,7 @@ fn fit_single_window(
     let TemporalEffectInputs { data, query, identification, estimand, indexer, refute, .. } =
         *inputs;
     let mut estimator = TemporalLinearAdjustment::new();
-    estimator.inner.bootstrap_replicates = inputs.bootstrap_replicates;
+    estimator.inner.inference.bootstrap_replicates = inputs.bootstrap_replicates;
     estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
     let variables = single_window_variables(inputs)?;
     let first_gap = antecedent_data::first_missing_cell(data, &variables)?;
@@ -865,15 +991,27 @@ fn fit_single_window(
     };
     let estimate = estimate.with_n_obs(u64::try_from(prep.design.nrows).unwrap_or(u64::MAX));
 
-    let estimator_id = if posterior.is_some() {
+    let white_innovation = matches!(
+        inputs.inference,
+        InferenceMode::Bayesian(cfg) if cfg.white_innovation.is_some()
+    );
+    let estimator_id = if posterior.is_some() && white_innovation {
+        EstimatorId::BayesianTemporalWhiteInnovation
+    } else if posterior.is_some() {
         EstimatorId::BayesianTemporalGcomp
     } else {
         EstimatorId::TemporalLinearAdjustment
     };
+    // The refuters refit the tempered temporal posterior, so they run under its id.
+    let refutation_id = if white_innovation && posterior.is_some() {
+        EstimatorId::BayesianTemporalGcomp
+    } else {
+        estimator_id
+    };
     let (mut refutations, mut diagnostics) = single_window_refutations(
         inputs,
         &estimate,
-        estimator_id,
+        refutation_id,
         dependence_se.as_ref(),
         gap_selection.is_some(),
         ctx,
@@ -883,20 +1021,20 @@ fn fit_single_window(
     // Both run against the resolved prior in force and the fitted (tempered) design.
     let mut posterior = posterior;
     let mut predictive_checks = Vec::new();
-    if !matches!(refute, RefuteSuite::None) {
-        if let (Some(fit), Some(post)) = (bayes_fit.as_ref(), posterior.as_ref()) {
-            let (checks, sensitive) = single_window_predictive_checks(
-                inputs,
-                (&fit.0, &fit.1),
-                post,
-                &estimate,
-                &mut refutations,
-                ctx,
-            )?;
-            predictive_checks = checks;
-            if sensitive.is_some() {
-                posterior = sensitive;
-            }
+    if !matches!(refute, RefuteSuite::None)
+        && let (Some(fit), Some(post)) = (bayes_fit.as_ref(), posterior.as_ref())
+    {
+        let (checks, sensitive) = single_window_predictive_checks(
+            inputs,
+            (&fit.0, &fit.1),
+            post,
+            &estimate,
+            &mut refutations,
+            ctx,
+        )?;
+        predictive_checks = checks;
+        if sensitive.is_some() {
+            posterior = sensitive;
         }
     }
     if let Some(summary) = posterior.as_ref().and_then(|p| p.conflict_summary.as_ref()) {
@@ -927,21 +1065,25 @@ pub(super) fn plan_completed_to_dag(physical: &PhysicalExecutionPlan) -> bool {
         .is_some_and(|a| a.contains("pag_completed_to_dag") || a.contains("completed_to_dag"))
 }
 
-/// Sampling weights are read by the frequentist single-window linear adjustment, whose lag
-/// windows are weighted by the observation they end at; every other temporal construction
-/// (sustained windows, conditional effects, Bayesian fits and the refuters, which refit on the
-/// unweighted series) refuses them rather than ignore them.
+/// Sampling weights are read by the frequentist linear adjustment on a single window and by the
+/// frequentist sustained contrast (single- or multi-step), whose lag windows are weighted by the
+/// observation they end at; every other temporal construction (conditional effects, Bayesian fits
+/// and the refuters, which refit on the unweighted series) refuses them rather than ignore them,
+/// through the one shared admission.
 fn require_sampling_weight_route(inputs: &TemporalEffectInputs<'_>) -> Result<(), CausalError> {
-    let supported = !inputs.query.is_multi_step_sustained()
-        && inputs.query.effect_modifiers.is_empty()
+    let honoured = inputs.query.effect_modifiers.is_empty()
         && matches!(inputs.inference, InferenceMode::Frequentist)
         && inputs.refute == RefuteSuite::None;
-    if supported {
-        return Ok(());
-    }
-    Err(CausalError::Estimate(antecedent_estimate::sampling_weights::unsupported_route(
-        "sampling weights are read by the frequentist single-window temporal linear adjustment \
-         without refuters (refute=False); sustained windows, conditional effects, Bayesian \
-         fits and the refuters have no sampling-weighted construction",
-    )))
+    admit_series_weights(
+        inputs.data.storage().weights().is_some(),
+        "this temporal effect fit",
+        if honoured {
+            SeriesWeightReading::Honoured
+        } else {
+            SeriesWeightReading::unread(
+                "conditional effects, Bayesian fits and the refuters (which refit the \
+                 unweighted series) have no sampling-weighted construction",
+            )
+        },
+    )
 }

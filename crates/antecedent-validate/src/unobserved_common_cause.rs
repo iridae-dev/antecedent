@@ -1,6 +1,6 @@
 //! Simulated unobserved common cause refuter.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -11,7 +11,7 @@ use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 use crate::common::{
     RefutationProblem, RefutationReport, check_replicate_count, complete_case_rows, fill_gaussian,
     float64_full, full_sample_refit_ate, linear_estimator_no_bootstrap, map_problem_replicates,
-    refit_effect_shared, with_replaced_float,
+    masked_sample_sd, refit_effect_shared, with_replaced_float,
 };
 use crate::error::ValidationError;
 use crate::sensitivity::{residual_sd_pair_on_adjustment, temporal_residual_sd_pair};
@@ -122,6 +122,20 @@ impl UnobservedCommonCause {
                           in treatment and outcome",
             });
         }
+        // A residual SD at rounding level (the outcome or treatment is an exact function of the
+        // adjustment set) would scale the confounder to rounding noise and make the verdict a
+        // statement about that noise, so it is refused like a zero SD.
+        if problem.temporal.is_none() {
+            let marginal_t = masked_sample_sd(problem.data, problem.treatment(), &mask)?;
+            let marginal_y = masked_sample_sd(problem.data, problem.outcome(), &mask)?;
+            if sd_t <= 1e-9 * marginal_t || sd_y <= 1e-9 * marginal_y {
+                return Err(ValidationError::NotApplicable {
+                    message: "unobserved common cause requires residual variation in treatment \
+                              and outcome beyond rounding noise (one is determined by the \
+                              adjustment set)",
+                });
+            }
+        }
         let (kt, ky) = (self.effect_on_treatment * sd_t, self.effect_on_outcome * sd_y);
         let centre = full_sample_refit_ate(problem, &self.estimator, workspace, ctx)?;
         let (treatment, outcome) = (problem.treatment(), problem.outcome());
@@ -134,7 +148,7 @@ impl UnobservedCommonCause {
                 fill_gaussian(
                     u,
                     ctx,
-                    crate::streams::UNOBSERVED_COMMON_CAUSE.wrapping_add(u64::from(r)),
+                    crate::streams::replicate_stream(crate::streams::UNOBSERVED_COMMON_CAUSE, r),
                 );
                 let t: Vec<f64> = t0.iter().zip(&*u).map(|(&t, &u)| t + kt * u).collect();
                 let y: Vec<f64> = y0.iter().zip(&*u).map(|(&y, &u)| y + ky * u).collect();

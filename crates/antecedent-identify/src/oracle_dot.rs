@@ -9,7 +9,7 @@
 //! Compiled for tests and under the `test-util` feature only: every error is a panic, which
 //! suits frozen fixtures and not a library API.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashSet;
 
@@ -39,7 +39,7 @@ impl OracleGraph {
         let idx = self.names.iter().position(|n| n == name).unwrap_or_else(|| {
             panic!("oracle DOT has no observed node `{name}`; names={:?}", self.names)
         });
-        VariableId::from_raw(u32::try_from(idx).expect("node index fits u32"))
+        crate::node_map::variable_at(idx)
     }
 
     #[cfg(test)]
@@ -65,10 +65,10 @@ fn parse(dot: &str) -> Parsed {
         if stmt.is_empty() {
             continue;
         }
-        if let Some((name, attrs)) = node_attr(stmt) {
-            if attrs.split([',', ' ']).any(|tok| tok.trim() == "latent") {
-                latents.insert(name);
-            }
+        if let Some((name, attrs)) = node_attr(stmt)
+            && attrs.split([',', ' ']).any(|tok| tok.trim() == "latent")
+        {
+            latents.insert(name);
         }
     }
 
@@ -95,10 +95,10 @@ fn parse(dot: &str) -> Parsed {
             directed.push((from, to));
             continue;
         }
-        if let Some((name, attrs)) = node_attr(stmt) {
-            if !attrs.split([',', ' ']).any(|tok| tok.trim() == "latent") {
-                intern(&name, &mut observed, &mut interned);
-            }
+        if let Some((name, attrs)) = node_attr(stmt)
+            && !attrs.split([',', ' ']).any(|tok| tok.trim() == "latent")
+        {
+            intern(&name, &mut observed, &mut interned);
         }
     }
 
@@ -123,7 +123,7 @@ fn dense(names: &[String], name: &str) -> DenseNodeId {
         .iter()
         .position(|n| n == name)
         .unwrap_or_else(|| panic!("name `{name}` is not an observed oracle node; names={names:?}"));
-    DenseNodeId::from_index(idx)
+    crate::node_map::dense_at(idx)
 }
 
 /// Parse a latent-free oracle DOT into a DAG.

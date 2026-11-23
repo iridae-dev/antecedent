@@ -1,0 +1,66 @@
+{
+  "family": "linear_worlds",
+  "variables": [
+    10,
+    11
+  ],
+  "model": {
+    "coefficients": [
+      0.0,
+      0.4,
+      0.5,
+      0.0
+    ],
+    "intercept": [
+      0.0,
+      0.0
+    ],
+    "noise_mean": [
+      0.0,
+      0.0
+    ],
+    "noise_covariance": [
+      1.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  },
+  "component": {
+    "component_id": "feedback",
+    "source_id": "specification",
+    "certifying_evidence": [
+      "independent-bench-test"
+    ]
+  },
+  "worlds": [
+    {
+      "world": 7,
+      "interventions": [],
+      "initial_states": []
+    },
+    {
+      "world": 8,
+      "interventions": [
+        {
+          "kind": "set",
+          "variable": 10,
+          "value": 2.0
+        }
+      ],
+      "initial_states": []
+    },
+    {
+      "world": 9,
+      "interventions": [
+        {
+          "kind": "shift",
+          "variable": 10,
+          "delta": 1.0
+        }
+      ],
+      "initial_states": []
+    }
+  ],
+  "certificate": "required"
+}

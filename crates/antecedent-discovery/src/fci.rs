@@ -7,7 +7,7 @@
 //! 4. Reset remaining edges to `o–o`
 //! 5. Zhang FCI orientation ([`crate::rule_scheduling::default_fci_rules`])
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -45,6 +45,9 @@ use crate::static_skeleton::{
     skeleton_scored_links, static_ci_test, static_edge_evidence,
 };
 
+/// Identity of this algorithm in its records.
+const ALGORITHM: &str = crate::pipeline::StaticAlgorithm::Fci.as_str();
+
 /// Static FCI discovery result (`Pag` evidence + review).
 pub type StaticPagDiscoveryResult = DiscoveryResult<Pag, PagReview>;
 
@@ -68,6 +71,14 @@ pub struct Fci {
 }
 
 crate::debug_with_ci!(Fci, pds_max_nodes, discriminating_path_budget);
+
+struct PdsWork<'a> {
+    adj: &'a mut UndirectedAdj,
+    sepsets: &'a mut PcSepsets,
+    pag: &'a mut Pag,
+    state: &'a mut OrientationState,
+    workspace: &'a mut DiscoveryWorkspace,
+}
 
 impl Default for Fci {
     fn default() -> Self {
@@ -125,6 +136,84 @@ impl Fci {
         self
     }
 
+    fn prune_possible_d_sep(
+        &self,
+        input: &StaticSkeletonInput<'_>,
+        work: PdsWork<'_>,
+        ctx: &ExecutionContext,
+    ) -> Result<u64, DiscoveryError> {
+        let PdsWork { adj, sepsets, pag, state, workspace } = work;
+        let variables = input.variables;
+        let dense_of = |v: VariableId| crate::pipeline::dense_of(input.var_index, v);
+        let alpha = self.constraints.alpha;
+        let max_cond = self.constraints.max_cond_size;
+        let mut combo_scratch = Vec::new();
+        // --- Phase 3: Possible-D-Sep adjacency ---
+        let mut pds_tests = 0u64;
+        // Same reproducibility hazard as the Phase 1 skeleton loop (see `sorted_edge_pairs`
+        // doc): this loop mutates `pag` (via `pag.remove_edge` below) and later pairs'
+        // `possible_d_sep` traversals read that same `pag`, so which edge is processed
+        // first affects the result.
+        let edges_pds = sorted_edge_pairs(adj);
+        for &(x, y) in &edges_pds {
+            if ctx.cancellation.is_cancelled() {
+                return Err(DiscoveryError::Cancelled);
+            }
+            if !adj.contains(edge_key(x, y)) {
+                continue;
+            }
+            if self.constraints.static_required(x, y) {
+                continue;
+            }
+            let xd = dense_of(x)?;
+            let yd = dense_of(y)?;
+            let pds_x = possible_d_sep(pag, xd, yd, self.pds_max_nodes).map_err(pds_budget_err)?;
+            let pds_y = possible_d_sep(pag, yd, xd, self.pds_max_nodes).map_err(pds_budget_err)?;
+
+            let mut cand_pool: Vec<VariableId> = Vec::new();
+            for d in pds_x.iter().chain(pds_y.iter()) {
+                let v = variables[d.as_usize()];
+                if v != x && v != y {
+                    cand_pool.push(v);
+                }
+            }
+            cand_pool.sort_unstable();
+            cand_pool.dedup();
+
+            let mut independent = false;
+            let mut best_sep: Arc<[VariableId]> = Arc::from([]);
+
+            'pds_depth: for depth in 0..=max_cond.min(cand_pool.len()) {
+                let mut depth_sets = Vec::new();
+                for_each_combination_vars(&cand_pool, depth, &mut combo_scratch, |z| {
+                    depth_sets.push(z.to_vec());
+                    true
+                });
+                for z in &depth_sets {
+                    let outcome = static_ci_test(input, x, y, z, workspace, ctx)?;
+                    pds_tests += 1;
+                    // An untestable query carries no information and never separates.
+                    if outcome.is_some_and(|(_stat, p)| p > alpha) {
+                        independent = true;
+                        best_sep = Arc::from(z.as_slice());
+                        break 'pds_depth;
+                    }
+                }
+            }
+
+            if independent {
+                let key = edge_key(x, y);
+                adj.remove(key);
+                record_sepset(sepsets, x, y, &best_sep);
+                let _ = pag.remove_edge(xd, yd);
+                let dense_sep: Vec<DenseNodeId> =
+                    best_sep.iter().map(|v| dense_of(*v)).collect::<Result<_, _>>()?;
+                state.set_sepset(xd, yd, Arc::from(dense_sep));
+            }
+        }
+        Ok(pds_tests)
+    }
+
     /// Run classic static FCI.
     ///
     /// # Errors
@@ -142,6 +231,7 @@ impl Fci {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<StaticPagDiscoveryResult, DiscoveryError> {
+        self.constraints.validate_ci_options()?;
         self.constraints.validate()?;
         self.constraints
             .check_background_knowledge(KnowledgeScope::EquivalenceClass, variables)
@@ -166,10 +256,18 @@ impl Fci {
             ctx,
         )?;
         let cols: Vec<&[f64]> = col_owned.iter().map(AsRef::as_ref).collect();
+        let covariance = crate::static_skeleton::CovarianceSearch::prepare(
+            &*self.ci,
+            &cols,
+            &self.constraints,
+            self.fdr,
+            ctx,
+        );
 
         let alpha = self.constraints.alpha;
         let max_cond = self.constraints.max_cond_size;
         let input = StaticSkeletonInput {
+            covariance: covariance.as_ref(),
             ci: &*self.ci,
             constraints: &self.constraints,
             cols: &cols,
@@ -187,7 +285,6 @@ impl Fci {
             parent_limit_removed,
             ..
         } = skel;
-        let mut combo_scratch = Vec::new();
         let dense_of = |v: VariableId| crate::pipeline::dense_of(&var_index, v);
 
         // Build circle–circle PAG skeleton.
@@ -202,69 +299,18 @@ impl Fci {
         let collider_rules: [&dyn FciOrientationRule; 1] = [&LpcmciOrientCollider];
         let _ = run_fci_orientation_to_fixed_point(&mut pag, &collider_rules, &mut state)?;
 
-        // --- Phase 3: Possible-D-Sep adjacency ---
-        let mut pds_tests = 0u64;
-        // Same reproducibility hazard as the Phase 1 skeleton loop (see `sorted_edge_pairs`
-        // doc): this loop mutates `pag` (via `pag.remove_edge` below) and later pairs'
-        // `possible_d_sep` traversals read that same `pag`, so which edge is processed
-        // first affects the result.
-        let edges_pds = sorted_edge_pairs(&adj);
-        for &(x, y) in &edges_pds {
-            if ctx.cancellation.is_cancelled() {
-                return Err(DiscoveryError::Cancelled);
-            }
-            if !adj.contains(edge_key(x, y)) {
-                continue;
-            }
-            if self.constraints.static_required(x, y) {
-                continue;
-            }
-            let xd = dense_of(x)?;
-            let yd = dense_of(y)?;
-            let pds_x = possible_d_sep(&pag, xd, yd, self.pds_max_nodes).map_err(pds_budget_err)?;
-            let pds_y = possible_d_sep(&pag, yd, xd, self.pds_max_nodes).map_err(pds_budget_err)?;
-
-            let mut cand_pool: Vec<VariableId> = Vec::new();
-            for d in pds_x.iter().chain(pds_y.iter()) {
-                let v = variables[d.as_usize()];
-                if v != x && v != y {
-                    cand_pool.push(v);
-                }
-            }
-            cand_pool.sort_unstable();
-            cand_pool.dedup();
-
-            let mut independent = false;
-            let mut best_sep: Arc<[VariableId]> = Arc::from([]);
-
-            'pds_depth: for depth in 0..=max_cond.min(cand_pool.len()) {
-                let mut depth_sets = Vec::new();
-                for_each_combination_vars(&cand_pool, depth, &mut combo_scratch, |z| {
-                    depth_sets.push(z.to_vec());
-                    true
-                });
-                for z in &depth_sets {
-                    let (_stat, p) = static_ci_test(&input, x, y, z, workspace, ctx)?;
-                    pds_tests += 1;
-                    ci_tests += 1;
-                    if p > alpha {
-                        independent = true;
-                        best_sep = Arc::from(z.as_slice());
-                        break 'pds_depth;
-                    }
-                }
-            }
-
-            if independent {
-                let key = edge_key(x, y);
-                adj.remove(key);
-                record_sepset(&mut sepsets, x, y, &best_sep);
-                let _ = pag.remove_edge(xd, yd);
-                let dense_sep: Vec<DenseNodeId> =
-                    best_sep.iter().map(|v| dense_of(*v)).collect::<Result<_, _>>()?;
-                state.set_sepset(xd, yd, Arc::from(dense_sep));
-            }
-        }
+        let pds_tests = self.prune_possible_d_sep(
+            &input,
+            PdsWork {
+                adj: &mut adj,
+                sepsets: &mut sepsets,
+                pag: &mut pag,
+                state: &mut state,
+                workspace,
+            },
+            ctx,
+        )?;
+        ci_tests += pds_tests;
         iterations.push(DiscoveryIteration {
             label: Arc::from("fci.possible_d_sep"),
             ci_tests: pds_tests,
@@ -284,8 +330,10 @@ impl Fci {
         let orient_delta = run_fci_orientation_to_fixed_point(&mut pag, &rules, &mut state)?;
 
         let mut diagnostics = Vec::new();
-        diagnostics
-            .extend(crate::static_skeleton::parent_limit_diagnostic(&parent_limit_removed, "fci"));
+        diagnostics.extend(crate::static_skeleton::parent_limit_diagnostic(
+            &parent_limit_removed,
+            ALGORITHM,
+        ));
         if !state.discriminating_skipped.is_empty() {
             diagnostics.push(DiscoveryDiagnostic {
                 code: Arc::from("fci.discriminating_path_budget"),
@@ -296,7 +344,7 @@ impl Fci {
                 )),
             });
         }
-        diagnostics.extend(crate::rule_scheduling::pd_path_budget_diagnostic(&state, "fci"));
+        diagnostics.extend(crate::rule_scheduling::pd_path_budget_diagnostic(&state, ALGORITHM));
         if state.conflicts > 0 || orient_delta.conflicts > 0 {
             diagnostics.push(DiscoveryDiagnostic {
                 code: Arc::from("fci.orientation_conflict"),
@@ -310,21 +358,21 @@ impl Fci {
         // Refresh scored links to surviving edges.
         scored.retain(|s| adj.contains(edge_key(s.link.source, s.link.target)));
 
-        let edge_evidence = static_edge_evidence(&scored, &sepsets, "fci");
+        let edge_evidence = static_edge_evidence(&scored, &sepsets, ALGORITHM);
 
         let evidence = GraphEvidence {
             graph: pag.clone(),
             edge_evidence: Arc::from(edge_evidence),
             links: Arc::from(scored),
-            source: EvidenceSource::Discovery { algorithm: Arc::from("fci") },
+            source: EvidenceSource::Discovery { algorithm: Arc::from(ALGORITHM) },
         };
-        let review = PagReview::from_pag(pag, "fci");
+        let review = PagReview::from_pag(pag, ALGORITHM);
 
         Ok(DiscoveryResult {
             evidence,
             review,
             algorithm: crate::pipeline::algorithm_record(
-                "fci",
+                ALGORITHM,
                 format!(
                     "alpha={},max_cond={},fdr={},pds_max={}{}",
                     alpha,
@@ -334,13 +382,13 @@ impl Fci {
                     self.constraints.knowledge_config()
                 ),
             ),
-            assumptions: discovery_assumptions("fci", false),
+            assumptions: discovery_assumptions(ALGORITHM, false),
             iterations,
             diagnostics,
             performance: DiscoveryPerformanceRecord {
                 ci_tests,
-                links_retained: u64::try_from(adj.len()).unwrap_or(u64::MAX),
-                targets: u64::try_from(variables.len()).unwrap_or(u64::MAX),
+                links_retained: crate::pipeline::count_u64(adj.len())?,
+                targets: crate::pipeline::count_u64(variables.len())?,
                 lagged_frame_bytes: 0,
                 worker_threads: 1,
             },
@@ -403,12 +451,9 @@ pub(crate) fn build_pag_circle_skeleton(
     var_index: &HashMap<VariableId, usize>,
     adj: &UndirectedAdj,
 ) -> Result<Pag, DiscoveryError> {
-    let mut pag = Pag::with_variables(u32::try_from(variables.len()).unwrap_or(u32::MAX));
-    if variables.iter().enumerate().any(|(i, v)| v.raw() as usize != i) {
-        pag = Pag::empty();
-        for &v in variables {
-            pag.add_node(antecedent_graph::NodeRef::Static(v)).map_err(DiscoveryError::from)?;
-        }
+    let mut pag = Pag::empty();
+    for &v in variables {
+        pag.add_node(antecedent_graph::NodeRef::Static(v)).map_err(DiscoveryError::from)?;
     }
     for (lo, hi) in adj.edge_pairs() {
         let a_idx = *var_index
@@ -596,3 +641,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "fci_latent_oracle_tests.rs"]
+mod latent_oracle_tests;

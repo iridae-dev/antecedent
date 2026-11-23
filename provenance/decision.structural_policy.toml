@@ -18,3 +18,23 @@ test_sources = [
   "crates/antecedent-design/tests/decision_acceptance.rs",
   "crates/antecedent-design/tests/decision_structural_artifact.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Decisions under structural uncertainty: each structure is an atom evaluated on its own draws; the contract's policy then decides what may be combined."
+no_independent_algorithm = "The entry point evaluates each atom with the decision evaluator and combines declared probabilities without renormalizing; no estimator. After extracting atom evaluation and action collection, the error mapping, exclusion conditions, leader ordering and weighted ranges were re-read against the prior implementation."
+covered_by = ["decision.functionals", "decision.contract"]
+record_sha256 = "04edb1863fad491e275bb0bf4027e4c4562116382bcf86d994547c0dda51d63d"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_structural.rs"
+items = ["enum AtomEvidence", "enum AtomStatus", "enum StructuralError", "enum StructuralVerdict", "fn collect_structural_actions", "fn evaluate_structural", "fn evaluate_structural_atoms", "fn per_atom_contract", "fn reason_code", "fn structural_verdict", "fn validate_atoms", "struct ActionStructure", "struct AtomSummary", "struct StructuralAtom", "struct StructuralDecisionResult", "type StructuralLeaders"]
+sha256 = "193a9305673590edbbebe8586ef3ddab7c6c3e7fd86ab6b2fd2bc4bb653894e6"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/decision_structural.rs"
+items = ["const NEAR_TOLERANCE", "fn a_constraint_failing_in_any_structure_excludes_the_action_there", "fn atom", "fn bayes_never_averages_component_quantiles_or_maximum_regrets", "fn bayes_roundoff_does_not_invent_unresolved_mass", "fn bayes_weights_by_genuine_probabilities_and_keeps_unresolved_mass", "fn contract", "fn evaluated", "fn invariant_best_action_requires_agreement_in_every_structure", "fn law", "fn malformed_atoms_and_probabilities_refuse", "fn maximin_ranks_by_the_worst_structure", "fn missing_probability_mass_cannot_choose_an_action", "fn near", "fn quantity", "fn unresolved_structures_block_claims_that_need_them", "fn zero_probability_structure_cannot_exclude_a_bayes_action"]
+sha256 = "0ea3de500f0b239c072fb1aa93aac1607c72d400dda570f8460571882576f7b8"

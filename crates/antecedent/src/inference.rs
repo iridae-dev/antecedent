@@ -1,6 +1,11 @@
-//! Bayesian inference configuration for the facade.
+//! Inference mode and Bayesian configuration of a study.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+//! [`InferenceMode`] chooses frequentist or Bayesian inference; [`BayesianConfig`] declares the
+//! backend, likelihood, priors and posterior draws of a Bayesian study, including priors taken
+//! from earlier posteriors. The module also re-exports the prior, likelihood and test types
+//! these declarations use.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -19,19 +24,21 @@ use antecedent_io::quantity_wire::{DistributionMeaningWire, ScientificQuantityWi
 use antecedent_io::{
     CausalPosteriorWire, decode_posterior_artifact, extract_prior_source_meta, read_and_migrate,
 };
-use antecedent_prob::{
-    BayesLikelihood, ComposedPrior, ConflictSummary, ExternalPriorSource, PosteriorQuantityKind,
-    PriorSet,
-};
+use antecedent_prob::PosteriorQuantityKind;
 use antecedent_validate::{ConflictPolicy, PriorPredictiveCheck, compose_with_conflict_policy};
 
 use crate::error::CausalError;
 use crate::io::decode_causal_posterior_bytes;
 
 /// Frequentist vs Bayesian inference mode.
-#[derive(Clone, Debug, PartialEq)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "the Bayesian configuration is declared once per study and moved by value; boxing would change every public pattern match"
+)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub enum InferenceMode {
     /// Classical point-estimate path (default).
+    #[default]
     Frequentist,
     /// Bayesian g-computation / posterior path.
     Bayesian(BayesianConfig),
@@ -51,12 +58,6 @@ impl InferenceMode {
     }
 }
 
-impl Default for InferenceMode {
-    fn default() -> Self {
-        Self::Frequentist
-    }
-}
-
 /// External prior bank composition retained for optional conflict re-shrink.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExternalComposeSpec {
@@ -66,6 +67,8 @@ pub struct ExternalComposeSpec {
     pub composed: ComposedPrior,
     /// When set, α is re-shrunk after design bind using prior-PPC / KL.
     pub conflict_policy: Option<ConflictPolicy>,
+    /// Original baseline used to compose and re-shrink this prior.
+    pub baseline: Option<PriorSet>,
 }
 
 /// Bayesian analysis configuration.
@@ -96,6 +99,40 @@ pub struct BayesianConfig {
     pub prior_mapping: Option<PriorMapping>,
     /// External power-prior / mixture compose (optional conflict re-eval).
     pub external_compose: Option<Box<ExternalComposeSpec>>,
+    /// Declared premise that the outcome innovation of a single-step temporal linear effect is
+    /// serially independent, with the Ljung-Box gate that can refute it. Set with
+    /// [`Self::white_innovation`]. Only the temporal pulse, the one-step sustained effect and a
+    /// response curve at the single horizon of one step ahead, on a fixed `TemporalDag`, read it;
+    /// every other route refuses it rather than ignore it.
+    pub white_innovation:
+        Option<antecedent_estimate::white_innovation_posterior::InnovationWhitenessGate>,
+    /// Declared likelihood-side model of a randomized-design posterior (the hazard partition
+    /// and prior of the survival posterior, the dose curve and prior of the dose policy
+    /// posterior). Set with [`Self::design_model`]; only those routes read it.
+    pub design_model: Option<crate::design_posterior_model::DesignPosteriorModel>,
+    /// Multiplier on every Gaussian coefficient variance of the prior in force, applied after
+    /// the prior is resolved against the bound design: an explicit prior, a prior hydrated from
+    /// a posterior artifact (which exists only once the design is known) or an external
+    /// composition. Prior-sensitivity refits set it; it does nothing when the isotropic
+    /// `prior_scale` is in force (vary that instead). It is not part of the study identity.
+    pub prior_variance_multiplier: Option<f64>,
+    /// Declared bounds of the posterior predictive replicates the study retains for
+    /// predictive assessment. Set with [`crate::StudyBuilder::bayesian_predictive_replicates`];
+    /// only a tabular `AverageEffect` on a fixed `Dag` under Bayesian g-computation reads it.
+    pub(crate) predictive_replicates: Option<PredictiveReplicateBounds>,
+}
+
+/// Declared bounds of the posterior predictive replicates a Bayesian study retains.
+///
+/// The replicates are `n_sims` draws over every design row, so they are retained only when
+/// asked for, only for a design of at most `max_rows` rows, and only after the Execution
+/// memory pool admits them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct PredictiveReplicateBounds {
+    /// Most posterior draws to replicate (capped by the draws the posterior holds).
+    pub(crate) n_sims: u32,
+    /// Most design rows a retained replicate matrix may cover.
+    pub(crate) max_rows: u32,
 }
 
 /// Numerical controls on the posterior draws behind a published interval.
@@ -156,6 +193,10 @@ impl BayesianConfig {
             prior_artifact: None,
             prior_mapping: None,
             external_compose: None,
+            white_innovation: None,
+            design_model: None,
+            prior_variance_multiplier: None,
+            predictive_replicates: None,
         }
     }
 
@@ -172,6 +213,10 @@ impl BayesianConfig {
             prior_artifact: None,
             prior_mapping: None,
             external_compose: None,
+            white_innovation: None,
+            design_model: None,
+            prior_variance_multiplier: None,
+            predictive_replicates: None,
         }
     }
 
@@ -191,7 +236,39 @@ impl BayesianConfig {
             prior_artifact: None,
             prior_mapping: None,
             external_compose: None,
+            white_innovation: None,
+            design_model: None,
+            prior_variance_multiplier: None,
+            predictive_replicates: None,
         }
+    }
+
+    /// Declare serially independent innovations for a single-step temporal linear effect.
+    ///
+    /// The posterior is then the untempered full-likelihood posterior of that effect rather
+    /// than the generalized (tempered) posterior. The premise is declared here, never inferred;
+    /// the `gate` residual test can refute it and a pass does not prove it. A horizon of more
+    /// than one step, a rejecting test, a transferred prior and a non-Gaussian likelihood are
+    /// refused with the next attempt named.
+    #[must_use]
+    pub const fn white_innovation(
+        mut self,
+        gate: antecedent_estimate::white_innovation_posterior::InnovationWhitenessGate,
+    ) -> Self {
+        self.white_innovation = Some(gate);
+        self
+    }
+
+    /// Declare the likelihood-side model of a randomized-design posterior: the hazard
+    /// partition and gamma prior of the survival posterior, or the dose support, coefficient
+    /// scales and residual prior of the dose-policy posterior.
+    #[must_use]
+    pub fn design_model(
+        mut self,
+        model: crate::design_posterior_model::DesignPosteriorModel,
+    ) -> Self {
+        self.design_model = Some(model);
+        self
     }
 
     /// Weakly informative prior scale.
@@ -260,9 +337,28 @@ impl BayesianConfig {
         self.prior = Some(composed.prior.clone());
         self.prior_artifact = None;
         self.prior_mapping = None;
-        self.external_compose =
-            Some(Box::new(ExternalComposeSpec { sources, composed, conflict_policy: conflict }));
+        self.external_compose = Some(Box::new(ExternalComposeSpec {
+            sources,
+            composed,
+            conflict_policy: conflict,
+            baseline: None,
+        }));
         self
+    }
+    /// Use a composed prior and its original baseline for data-bound conflict re-shrink.
+    #[must_use]
+    pub fn prior_from_composed_with_baseline(
+        self,
+        sources: impl Into<Arc<[ExternalPriorSource]>>,
+        composed: ComposedPrior,
+        conflict: Option<ConflictPolicy>,
+        baseline: PriorSet,
+    ) -> Self {
+        let mut config = self.prior_from_composed(sources, composed, conflict);
+        if let Some(external) = &mut config.external_compose {
+            external.baseline = Some(baseline);
+        }
+        config
     }
 }
 
@@ -413,7 +509,8 @@ fn default_hydrate_mapping(
     }
 }
 
-/// Resolve the coefficient prior for a prepared Bayesian problem.
+/// Resolve the coefficient prior for a prepared Bayesian problem, running conflict shrink when `ctx`
+/// is provided and a [`ConflictPolicy`] is configured on the external compose.
 ///
 /// Precedence: [`BayesianConfig::external_compose`] (with optional conflict) →
 /// explicit [`BayesianConfig::prior`] → mapped [`BayesianConfig::prior_artifact`]
@@ -426,37 +523,85 @@ fn default_hydrate_mapping(
 /// # Errors
 ///
 /// Decode / hydrate / conflict composition failures.
-pub fn resolve_bayesian_prior(
-    cfg: &BayesianConfig,
-    prep: &PreparedBayesianProblem,
-) -> Result<Option<PriorSet>, CausalError> {
-    let (prior, _) = resolve_bayesian_prior_with_conflict(cfg, prep, None)?;
-    Ok(prior)
-}
-
-/// Like [`resolve_bayesian_prior`], but runs conflict shrink when `ctx` is
-/// provided and a [`ConflictPolicy`] is configured on the external compose.
-///
-/// # Errors
-///
-/// Decode / hydrate / conflict composition failures.
 pub fn resolve_bayesian_prior_with_conflict(
     cfg: &BayesianConfig,
     prep: &PreparedBayesianProblem,
     ctx: Option<&ExecutionContext>,
 ) -> Result<(Option<PriorSet>, Option<ConflictSummary>), CausalError> {
+    let (prior, conflict) = resolve_unscaled_prior(cfg, prep, ctx)?;
+    let (Some(multiplier), Some(mut prior)) = (cfg.prior_variance_multiplier, prior.clone()) else {
+        return Ok((prior, conflict));
+    };
+    if !(multiplier.is_finite() && multiplier > 0.0) {
+        return Err(CausalError::Unsupported {
+            message: "the prior variance multiplier must be finite and positive",
+        });
+    }
+    let mut found = false;
+    for spec in &mut prior.specs {
+        if let antecedent_prob::PriorSpec::GaussianCoefficients(coefficients) = spec {
+            coefficients.variance =
+                coefficients.variance.iter().map(|variance| variance * multiplier).collect();
+            found = true;
+        }
+    }
+    if !found {
+        return Err(CausalError::Unsupported {
+            message: "the prior in force has no Gaussian coefficient block to scale",
+        });
+    }
+    Ok((Some(prior), conflict))
+}
+
+fn resolve_unscaled_prior(
+    cfg: &BayesianConfig,
+    prep: &PreparedBayesianProblem,
+    ctx: Option<&ExecutionContext>,
+) -> Result<(Option<PriorSet>, Option<ConflictSummary>), CausalError> {
     if let Some(ext) = &cfg.external_compose {
+        if let Some(policy) = ext.conflict_policy {
+            policy.validate().map_err(CausalError::from)?;
+        }
+        if ext.conflict_policy.is_some() && ext.baseline.is_none() {
+            return Err(CausalError::Unsupported {
+                message: "conflict re-shrink requires the original composition baseline; recompose the prior",
+            });
+        }
+        let target = coef_names_for_problem(prep);
+        // A named prior whose coordinates are not the design columns in order is re-indexed by
+        // name; the columns it has no coordinate for take the analysis's declared baseline, the
+        // isotropic `prior_scale` prior an unnamed fit resolves against.
+        let reindex = ext
+            .composed
+            .coefficient_names
+            .as_ref()
+            .filter(|names| ***names != *target)
+            .map(Arc::clone);
         if let (Some(policy), Some(ctx)) = (&ext.conflict_policy, ctx) {
-            let baseline = PriorSet::weakly_informative(prep.design.ncols);
+            let baseline = ext.baseline.as_ref().ok_or(CausalError::Unsupported {
+                message: "conflict re-shrink requires the original composition baseline; recompose the prior",
+            })?;
             let ppc = PriorPredictiveCheck {
                 n_sims: 200,
                 seed: ctx.rng.master_seed(),
                 ..PriorPredictiveCheck::new()
             };
-            let (composed, summary) =
-                compose_with_conflict_policy(&ext.sources, &baseline, policy, prep, ctx, &ppc)
-                    .map_err(CausalError::from)?;
+            let (composed, summary) = if let Some(names) = &reindex {
+                // The shrink is per source and every source is evaluated over the whole design,
+                // so each source and the baseline are first mapped onto the design by name.
+                let fill = declared_design_baseline(cfg, target.len());
+                let (sources, baseline) = project_external_sources(ext, names, &target, &fill)?;
+                compose_with_conflict_policy(&sources, &baseline, policy, prep, ctx, &ppc)
+                    .map_err(CausalError::from)?
+            } else {
+                compose_with_conflict_policy(&ext.sources, baseline, policy, prep, ctx, &ppc)
+                    .map_err(CausalError::from)?
+            };
             return Ok((Some(composed.prior), Some(summary)));
+        }
+        if let Some(names) = &reindex {
+            let fill = declared_design_baseline(cfg, target.len());
+            return Ok((Some(map_named_composed(&ext.composed, names, &target, &fill)?), None));
         }
         return Ok((Some(ext.composed.prior.clone()), None));
     }
@@ -492,6 +637,120 @@ pub fn resolve_bayesian_prior_with_conflict(
         )?),
         None,
     ))
+}
+
+/// Map a named composed prior onto the design columns of a problem by coordinate name.
+///
+/// Source coordinates the design lacks are dropped (a marginal of a Gaussian prior), design
+/// columns the source lacks take the matching coordinate of `baseline` (the analysis's declared
+/// baseline prior over the design columns), and the mapping, with which coordinates came from the
+/// source and which from the baseline, is recorded as a prior restriction. Only a composed prior none of whose coordinates names a design
+/// column is refused.
+///
+/// # Errors
+///
+/// No coordinate of the composed prior names a design column, or the re-indexed prior is
+/// invalid.
+pub fn map_named_composed(
+    composed: &ComposedPrior,
+    names: &[Arc<str>],
+    target: &[Arc<str>],
+    baseline: &PriorSet,
+) -> Result<PriorSet, CausalError> {
+    let selection =
+        antecedent_prob::select_coordinates_by_name(&composed.prior, names, target, baseline)
+            .map_err(CausalError::from)?;
+    if selection.mapped.is_empty() {
+        let list =
+            |items: &[Arc<str>]| items.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(", ");
+        return Err(CausalError::Estimate(antecedent_estimate::EstimationError::refused(
+            antecedent_core::reason_code!("quantity_semantics_mismatch"),
+            format!(
+                "the composed prior's coordinates [{}] map by name onto none of the design \
+                 columns [{}]; name the sources' coefficients as the design columns they inform \
+                 (ExternalPriorSourceSpec.coefficient_names)",
+                list(names),
+                list(target)
+            ),
+        )));
+    }
+    Ok(selection.prior)
+}
+
+/// The declared baseline prior over `ncols` design columns: the isotropic `prior_scale` prior the
+/// fit resolves against when no prior is supplied.
+#[must_use]
+pub fn declared_design_baseline(cfg: &BayesianConfig, ncols: usize) -> PriorSet {
+    let mut baseline = PriorSet::new();
+    baseline.push(antecedent_prob::PriorSpec::GaussianCoefficients(
+        antecedent_prob::GaussianCoefficientPrior::isotropic(ncols, cfg.prior_scale),
+    ));
+    baseline
+}
+
+/// Map every source of an external composition, and its composition baseline, onto the design
+/// columns `target` by coordinate name, so the conflict re-shrink (a per-source, per-coordinate
+/// computation over the whole design) applies to the mapped coordinates.
+///
+/// Source coordinates the design lacks are dropped. A source with no coordinate for some design
+/// column cannot be evaluated over the whole design by the prior-predictive check, and is
+/// refused with the columns it lacks; the baseline takes `fill` on columns it lacks.
+///
+/// # Errors
+///
+/// A source missing a design column, or a mapping failure.
+pub fn project_external_sources(
+    ext: &ExternalComposeSpec,
+    names: &[Arc<str>],
+    target: &[Arc<str>],
+    fill: &PriorSet,
+) -> Result<(Vec<ExternalPriorSource>, PriorSet), CausalError> {
+    let missing: Vec<&str> = target
+        .iter()
+        .filter(|column| !names.iter().any(|name| name == *column))
+        .map(AsRef::as_ref)
+        .collect();
+    if !missing.is_empty() {
+        return Err(CausalError::Compile {
+            message: format!(
+                "conflict re-shrink evaluates each source over the whole design, but the named \
+                 sources have no coordinate for the design columns [{}]; name those coordinates \
+                 on every source, or compose without a conflict policy",
+                missing.join(", ")
+            ),
+        });
+    }
+    let sources = ext
+        .sources
+        .iter()
+        .map(|source| {
+            antecedent_prob::select_coordinates_by_name(&source.prior, names, target, fill)
+                .map(|selection| ExternalPriorSource { prior: selection.prior, ..source.clone() })
+                .map_err(CausalError::from)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let original = ext.baseline.as_ref().ok_or(CausalError::Unsupported {
+        message: "conflict re-shrink requires the original composition baseline; recompose the prior",
+    })?;
+    let baseline = antecedent_prob::select_coordinates_by_name(original, names, target, fill)
+        .map_err(CausalError::from)?
+        .prior;
+    Ok((sources, baseline))
+}
+
+/// Whether the external composition's sources apply positionally over `prep`'s design: an
+/// unnamed composition, or a named one whose coordinates are the design's columns in order.
+/// A named composition that is re-indexed onto the design no longer has sources aligned to its
+/// coefficients, so a per-source re-composition (the α sensitivity grid) does not apply to it.
+#[must_use]
+pub(crate) fn external_compose_is_positional(
+    ext: &ExternalComposeSpec,
+    prep: &PreparedBayesianProblem,
+) -> bool {
+    ext.composed
+        .coefficient_names
+        .as_ref()
+        .is_none_or(|names| **names == *coef_names_for_problem(prep))
 }
 
 /// A static coefficient transfer needs evidence that the source quantity was
@@ -635,7 +894,85 @@ pub fn decode_prior_hydrate_source(
     }))
 }
 
-/// Hydrate from an already decoded posterior. See [`hydrate_prior_from_posterior_bytes`].
+/// Decode a posterior artifact into the outcome-nuisance prior of a cross-fitted AIPW
+/// estimate ([`antecedent_estimate::DmlAte::with_outcome_prior`]).
+///
+/// The artifact's coefficient moments (and, when its draws were retained, the dense coefficient
+/// covariance) are kept; mapping them onto the design columns of the outcome regression happens
+/// when the problem is prepared. `mapping` is the declared mapping; `None` takes the mapping the
+/// artifact declares, else the identical coefficient subspace. The source identity is the
+/// content digest of the artifact bytes.
+///
+/// # Errors
+///
+/// Migration or decode failures, or a mapping that has no coordinate in the outcome regression
+/// (an effect-functional mapping).
+pub fn outcome_prior_source_from_artifact(
+    bytes: &[u8],
+    mapping: Option<&PriorMapping>,
+) -> Result<antecedent_estimate::OutcomePriorSource, CausalError> {
+    let declaration = if mapping.is_some() {
+        MappingDeclaration::CallerSupplied
+    } else {
+        MappingDeclaration::FromArtifact
+    };
+    let source = decode_prior_source(bytes, declaration)?;
+    let mapping = match mapping {
+        Some(declared) => hydrate_mapping_from_io(declared),
+        None => {
+            source.declared_mapping.clone().unwrap_or(HydrateMapping::IdenticalCoefficientSubspace)
+        }
+    };
+    let quantities = wire_quantities_to_kinds(&source.wire.quantities);
+    let covariance =
+        coefficient_covariance_from_draws(&quantities, &source.draws, source.wire.n_draws as usize)
+            .map_err(CausalError::from)?;
+    antecedent_estimate::OutcomePriorSource::new(
+        quantities,
+        source.wire.mean.clone(),
+        source.wire.sd.clone(),
+        covariance,
+        mapping,
+        format!("blake3:{}", antecedent_core::identity::blake3_hex(bytes)),
+    )
+    .map_err(CausalError::from)
+}
+
+/// The outcome-nuisance prior of a cross-fitted AIPW estimate
+/// ([`antecedent_estimate::DmlAte::with_outcome_prior`]) from a composed external prior.
+///
+/// The composed prior (its sources, transport weighting and power-prior discount already
+/// applied) is a Gaussian coefficient prior on the conjugate scale. Its named coordinates map by
+/// name onto the outcome-regression columns when the problem is prepared; an unnamed one is
+/// positional over a design of the same width. The identity is a digest of the prior's
+/// moments, correlation, coordinate names and provenance restrictions, so a different
+/// transport kernel, bandwidth or selected α is a different prior.
+///
+/// # Errors
+///
+/// A composed prior without a Gaussian coefficient block, or with absolute-scale variances.
+pub fn outcome_prior_source_from_composed(
+    composed: &ComposedPrior,
+) -> Result<antecedent_estimate::OutcomePriorSource, CausalError> {
+    let identity = antecedent_io::prior_set_identity(&composed.prior);
+    let names = composed
+        .coefficient_names
+        .as_ref()
+        .map(|names| names.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(","));
+    let canonical = format!("{identity:?};names={names:?}");
+    antecedent_estimate::OutcomePriorSource::from_composed(
+        composed.coefficient_names.clone(),
+        composed.prior.clone(),
+        format!("composed:blake3:{}", antecedent_core::identity::blake3_hex(canonical.as_bytes())),
+    )
+    .map_err(CausalError::from)
+}
+
+/// Hydrate a [`PriorSet`] from an already decoded posterior under a [`HydrateMapping`].
+///
+/// Identical-subspace hydration reads the coefficient covariance from the artifact's draws and
+/// carries it as a dense `V0`; an artifact without draws (summary-only) hydrates the diagonal
+/// prior.
 fn hydrate_prior_from_decoded(
     source: &DecodedPriorSource,
     mapping: &HydrateMapping,
@@ -659,76 +996,73 @@ fn hydrate_prior_from_decoded(
     .map_err(CausalError::from)
 }
 
-/// Hydrate a [`PriorSet`] from posterior artifact bytes under a [`HydrateMapping`].
-///
-/// Identical-subspace hydration reads the coefficient covariance from the
-/// artifact's draws and carries it as a dense `V0`; an artifact without draws
-/// (summary-only) hydrates the diagonal prior, as before.
-///
-/// # Errors
-///
-/// Decode failures or hydrate validation errors.
-pub fn hydrate_prior_from_posterior_bytes(
-    bytes: &[u8],
-    mapping: &HydrateMapping,
-    baseline: &PriorSet,
-    target_coef_names: &[Arc<str>],
-    treatment_col: Option<usize>,
-    fallback_contrast: Option<f64>,
-) -> Result<PriorSet, CausalError> {
-    let source = decode_prior_source(bytes, MappingDeclaration::CallerSupplied)?;
-    hydrate_prior_from_decoded(
-        &source,
-        mapping,
-        baseline,
-        target_coef_names,
-        treatment_col,
-        fallback_contrast,
+/// What a mapped posterior transfer targets: the independently supplied source identity, the
+/// stable-ID map and the target's quantities, snapshot, contract and baseline prior.
+#[derive(Clone, Copy, Debug)]
+pub struct MappedTransferSpec<'a> {
+    /// Source identity, supplied independently of the artifact bytes.
+    pub expected_source: &'a DistributionIdentity,
+    /// One stable source-variable-ID to target-variable-ID pair per coefficient.
+    pub source_to_target: &'a [(String, String)],
+    /// Target quantities in design-column order.
+    pub target_quantities: &'a [ScientificQuantityWire],
+    /// Snapshot id of the target.
+    pub target_snapshot_id: &'a str,
+    /// Causal-contract id of the target.
+    pub target_contract_id: &'a str,
+    /// Baseline prior carrying the target's known residual variance.
+    pub baseline: &'a PriorSet,
+}
+
+/// Relative tolerance, floored at an absolute `1e-12`, within which a source draw's
+/// residual variance equals the target's known variance.
+const RESIDUAL_VARIANCE_TOLERANCE: f64 = 1e-12;
+
+fn transfer_refusal(code: &'static str, detail: &str, message: &str) -> CausalError {
+    crate::error::io_refused(code, detail, message).into()
+}
+
+fn map_refuse(message: &str) -> CausalError {
+    transfer_refusal(
+        antecedent_core::reason_code!("quantity_semantics_mismatch"),
+        antecedent_core::reason_details::mapped_posterior_transfer::COEFFICIENT_MAP,
+        message,
     )
 }
 
-/// Transfer an aligned parameter posterior into a known-variance Gaussian prior.
-///
-/// The caller supplies the source identity independently of the bytes and one
-/// stable source-variable-ID to target-variable-ID pair per coefficient. Target
-/// quantities are in design-column order. This route requires a complete
-/// bijection, a constant residual-variance coordinate equal to the target's
-/// known variance, and identical non-name quantity coordinates. The finite
-/// artifact's full covariance is retained under the named permutation.
-///
-/// # Errors
-/// Incompatible meaning, source identity, mapping, scale, or draw alignment.
-#[allow(
-    clippy::too_many_lines,
-    reason = "keep the complete refusal and transfer boundary together"
-)]
-pub fn mapped_posterior_transfer(
-    bytes: &[u8],
-    expected_source: &DistributionIdentity,
-    source_to_target: &[(String, String)],
-    target_quantities: &[ScientificQuantityWire],
-    target_snapshot_id: &str,
-    target_contract_id: &str,
-    baseline: &PriorSet,
-) -> Result<PriorSet, CausalError> {
-    use antecedent_io::IoError;
-    let map_refuse = |message: &str| IoError::Refused {
-        code: antecedent_core::reason_code!("quantity_semantics_mismatch"),
-        message: format!("mapped_posterior_transfer.coefficient_map: {message}"),
-    };
-    let meaning_refuse = |message: &str| IoError::Refused {
-        code: antecedent_core::reason_code!("distribution_meaning_mismatch"),
-        message: format!("mapped_posterior_transfer.parameter_posterior: {message}"),
-    };
-    let variance_refuse = |message: &str| IoError::Refused {
-        code: antecedent_core::reason_code!("prior_transfer_not_hydrated"),
-        message: format!("mapped_posterior_transfer.residual_variance: {message}"),
-    };
-    let source = DistributionArtifact::from_bytes(bytes, expected_source)?;
-    if target_snapshot_id.trim().is_empty() || target_contract_id.trim().is_empty() {
-        return Err(
-            map_refuse("mapped transfer requires target snapshot and causal contract IDs").into()
-        );
+fn meaning_refuse(message: &str) -> CausalError {
+    transfer_refusal(
+        antecedent_core::reason_code!("distribution_meaning_mismatch"),
+        antecedent_core::reason_details::mapped_posterior_transfer::PARAMETER_POSTERIOR,
+        message,
+    )
+}
+
+fn variance_refuse(message: &str) -> CausalError {
+    transfer_refusal(
+        antecedent_core::reason_code!("prior_transfer_not_hydrated"),
+        antecedent_core::reason_details::mapped_posterior_transfer::RESIDUAL_VARIANCE,
+        message,
+    )
+}
+
+/// One mapped coefficient: its column in the source artifact and in the target, and the stable
+/// ids on both sides.
+struct MappedCoefficient {
+    source_col: usize,
+    target_col: usize,
+    source_id: String,
+    target_id: String,
+}
+
+/// The source must be complete, unweighted, joint parameter-posterior draws; returns the
+/// target's known residual variance, which must be a finite positive number.
+fn check_source_meaning(
+    source: &DistributionArtifact,
+    spec: &MappedTransferSpec<'_>,
+) -> Result<f64, CausalError> {
+    if spec.target_snapshot_id.trim().is_empty() || spec.target_contract_id.trim().is_empty() {
+        return Err(map_refuse("mapped transfer requires target snapshot and causal contract IDs"));
     }
     if source.semantic() != DistributionMeaningWire::ParameterPosterior
         || source.metadata().identity.alignment != DrawAlignment::Joint
@@ -737,26 +1071,43 @@ pub fn mapped_posterior_transfer(
     {
         return Err(meaning_refuse(
             "mapped transfer requires complete, unweighted joint parameter-posterior draws",
-        )
-        .into());
+        ));
     }
-    let sigma2 = baseline.known_residual_variance().ok_or_else(|| {
+    let sigma2 = spec.baseline.known_residual_variance().ok_or_else(|| {
         variance_refuse("mapped transfer requires a target known residual variance")
     })?;
-    if source_to_target.len() != target_quantities.len()
-        || baseline
+    // The getter returns the stored value unchecked, so the comparison below must not rely on
+    // later prior validation to reject a non-finite or non-positive variance.
+    if !sigma2.is_finite() || sigma2 <= 0.0 {
+        return Err(variance_refuse(
+            "mapped transfer requires the target known residual variance to be finite and positive",
+        ));
+    }
+    Ok(sigma2)
+}
+
+/// The complete bijection between the source's and the target's coefficient coordinates, in the
+/// order of `source_to_target`.
+fn build_coefficient_map(
+    source: &DistributionArtifact,
+    spec: &MappedTransferSpec<'_>,
+) -> Result<Vec<MappedCoefficient>, CausalError> {
+    let target_quantities = spec.target_quantities;
+    if spec.source_to_target.len() != target_quantities.len()
+        || spec
+            .baseline
             .gaussian_coefficients()
             .is_none_or(|prior| prior.len() != target_quantities.len())
         || target_quantities.is_empty()
     {
-        return Err(map_refuse("mapped transfer requires a complete coefficient bijection").into());
+        return Err(map_refuse("mapped transfer requires a complete coefficient bijection"));
     }
     let mut used_source = std::collections::HashSet::new();
     let mut used_target = std::collections::HashSet::new();
-    let mut coefficient_columns = Vec::with_capacity(target_quantities.len());
-    for (source_id, target_id) in source_to_target {
+    let mut columns = Vec::with_capacity(target_quantities.len());
+    for (source_id, target_id) in spec.source_to_target {
         if !used_source.insert(source_id) || !used_target.insert(target_id) {
-            return Err(map_refuse("mapped transfer reuses a coefficient identity").into());
+            return Err(map_refuse("mapped transfer reuses a coefficient identity"));
         }
         let source_matches: Vec<_> = source
             .quantities()
@@ -770,7 +1121,7 @@ pub fn mapped_posterior_transfer(
             .filter(|(_, q)| q.variable_id == *target_id && q.functional_id == "coefficient")
             .collect();
         if source_matches.len() != 1 || target_matches.len() != 1 {
-            return Err(map_refuse("mapped transfer needs unique stable coefficient IDs").into());
+            return Err(map_refuse("mapped transfer needs unique stable coefficient IDs"));
         }
         let (source_col, source_q) = source_matches[0];
         let (target_col, target_q) = target_matches[0];
@@ -782,89 +1133,238 @@ pub fn mapped_posterior_transfer(
             || source_q.transform_id != target_q.transform_id
             || source_q.role != target_q.role
         {
-            return Err(map_refuse("mapped transfer coefficient coordinates differ").into());
+            return Err(map_refuse("mapped transfer coefficient coordinates differ"));
         }
-        coefficient_columns.push((source_col, target_col, source_id.clone(), target_id.clone()));
+        columns.push(MappedCoefficient {
+            source_col,
+            target_col,
+            source_id: source_id.clone(),
+            target_id: target_id.clone(),
+        });
     }
+    Ok(columns)
+}
+
+/// The source's one residual-variance coordinate must sit at the target's coordinates and equal
+/// the target's known variance in every draw (see [`RESIDUAL_VARIANCE_TOLERANCE`]).
+fn check_residual_variance(
+    source: &DistributionArtifact,
+    spec: &MappedTransferSpec<'_>,
+    coefficient_count: usize,
+    sigma2: f64,
+) -> Result<(), CausalError> {
     let residuals: Vec<_> = source
         .quantities()
         .iter()
         .enumerate()
         .filter(|(_, q)| q.functional_id == "residual_variance")
         .collect();
-    if residuals.len() != 1 || source.quantities().len() != coefficient_columns.len() + 1 {
+    if residuals.len() != 1 || source.quantities().len() != coefficient_count + 1 {
         return Err(variance_refuse(
             "mapped transfer requires one residual-variance coordinate and no extra parameters",
-        )
-        .into());
+        ));
     }
     let (residual_col, residual_q) = residuals[0];
-    if residual_q.population_id != target_quantities[0].population_id
-        || residual_q.regime_id != target_quantities[0].regime_id
-        || residual_q.horizon != target_quantities[0].horizon
-        || residual_q.conditioning != target_quantities[0].conditioning
+    let target = &spec.target_quantities[0];
+    if residual_q.population_id != target.population_id
+        || residual_q.regime_id != target.regime_id
+        || residual_q.horizon != target.horizon
+        || residual_q.conditioning != target.conditioning
     {
-        return Err(variance_refuse("mapped transfer residual-variance coordinate differs").into());
+        return Err(variance_refuse("mapped transfer residual-variance coordinate differs"));
     }
-    if source
-        .draws()
-        .chunks_exact(source.shape()[1])
-        .any(|row| (row[residual_col] - sigma2).abs() > 1e-12 * sigma2.max(1.0))
-    {
+    if source.draws().chunks_exact(source.shape()[1]).any(|row| {
+        (row[residual_col] - sigma2).abs() > RESIDUAL_VARIANCE_TOLERANCE * sigma2.max(1.0)
+    }) {
         return Err(variance_refuse(
             "mapped transfer residual variance differs from target known variance",
-        )
-        .into());
+        ));
     }
-    coefficient_columns.sort_by_key(|(_, target, _, _)| *target);
+    Ok(())
+}
+
+/// Hydrate the target prior from the source's mapped coefficient moments and full covariance.
+fn hydrate_mapped_prior(
+    source: &DistributionArtifact,
+    spec: &MappedTransferSpec<'_>,
+    mut coefficients: Vec<MappedCoefficient>,
+    sigma2: f64,
+) -> Result<PriorSet, CausalError> {
+    coefficients.sort_by_key(|coefficient| coefficient.target_col);
     let mut quantities = Vec::with_capacity(source.quantities().len());
     let mut mean = Vec::with_capacity(source.quantities().len());
     let mut sd = Vec::with_capacity(source.quantities().len());
-    for (index, (_, _, source_id, _)) in coefficient_columns.iter().enumerate() {
-        let source_col = coefficient_columns[index].0;
+    for (index, coefficient) in coefficients.iter().enumerate() {
         quantities.push(PosteriorQuantityKind::Coefficient {
             index,
-            name: Some(Arc::from(source_id.as_str())),
+            name: Some(Arc::from(coefficient.source_id.as_str())),
         });
-        mean.push(source.mean(source_col)?);
-        sd.push(source.covariance(source_col, source_col)?.sqrt());
+        mean.push(source.mean(coefficient.source_col)?);
+        sd.push(source.covariance(coefficient.source_col, coefficient.source_col)?.sqrt());
     }
     quantities.push(PosteriorQuantityKind::ResidualVariance);
     mean.push(sigma2);
     sd.push(0.0);
-    let n = coefficient_columns.len();
+    let n = coefficients.len();
     let mut covariance = vec![0.0; n * n];
-    for (i, (source_i, _, _, _)) in coefficient_columns.iter().enumerate() {
-        for (j, (source_j, _, _, _)) in coefficient_columns.iter().enumerate() {
-            covariance[i * n + j] = source.covariance(*source_i, *source_j)?;
+    for (i, row) in coefficients.iter().enumerate() {
+        for (j, column) in coefficients.iter().enumerate() {
+            covariance[i * n + j] = source.covariance(row.source_col, column.source_col)?;
         }
     }
     let names: Vec<Arc<str>> =
-        target_quantities.iter().map(|q| Arc::from(q.variable_id.as_str())).collect();
+        spec.target_quantities.iter().map(|q| Arc::from(q.variable_id.as_str())).collect();
     let mapping = HydrateMapping::NamedParameters {
-        pairs: coefficient_columns
+        pairs: coefficients
             .iter()
-            .map(|(_, _, source, target)| (source.clone(), target.clone()))
+            .map(|coefficient| (coefficient.source_id.clone(), coefficient.target_id.clone()))
             .collect(),
     };
     let mut prior = hydrate_prior(
         &mapping,
         &HydrateSource::summaries(&quantities, &mean, &sd)
             .with_coefficient_covariance(Some(&covariance)),
-        &HydrateTarget { baseline, coef_names: &names, treatment_col: None },
+        &HydrateTarget { baseline: spec.baseline, coef_names: &names, treatment_col: None },
     )
     .map_err(CausalError::from)?;
     prior.restrictions.push(antecedent_core::PriorAssumption {
         id: Arc::from("mapped_posterior_transfer"),
         description: Arc::from(format!(
             "source={} snapshot={} contract={}; target snapshot={} contract={}; complete stable-ID map={:?}; known residual variance={sigma2}",
-            expected_source.source_id,
-            expected_source.snapshot_id,
-            expected_source.causal_contract_id,
-            target_snapshot_id,
-            target_contract_id,
-            source_to_target,
+            spec.expected_source.source_id,
+            spec.expected_source.snapshot_id,
+            spec.expected_source.causal_contract_id,
+            spec.target_snapshot_id,
+            spec.target_contract_id,
+            spec.source_to_target,
         )),
     });
     Ok(prior)
+}
+
+/// Transfer an aligned parameter posterior into a known-variance Gaussian prior.
+///
+/// The caller supplies the source identity independently of the bytes and one
+/// stable source-variable-ID to target-variable-ID pair per coefficient. Target
+/// quantities are in design-column order. This route requires a complete
+/// bijection, a constant residual-variance coordinate equal to the target's
+/// known variance (finite and positive), and identical non-name quantity
+/// coordinates. The finite artifact's full covariance is retained under the
+/// named permutation.
+///
+/// # Errors
+/// Incompatible meaning, source identity, mapping, scale, or draw alignment.
+pub fn mapped_posterior_transfer_with(
+    bytes: &[u8],
+    spec: &MappedTransferSpec<'_>,
+) -> Result<PriorSet, CausalError> {
+    let source = DistributionArtifact::from_bytes(bytes, spec.expected_source)?;
+    let sigma2 = check_source_meaning(&source, spec)?;
+    let coefficients = build_coefficient_map(&source, spec)?;
+    check_residual_variance(&source, spec, coefficients.len(), sigma2)?;
+    hydrate_mapped_prior(&source, spec, coefficients, sigma2)
+}
+
+// --- Further items the language bindings use, re-exported from their defining crates ---
+
+/// Inference backend interface and reusable workspaces.
+pub use antecedent_prob::BayesLikelihood;
+/// Inference diagnostics for Laplace / conjugate / MCMC backends.
+pub use antecedent_prob::ConflictSummary;
+/// Probability / inference errors.
+pub use antecedent_prob::ProbError;
+/// Power-prior discount chosen from out-of-sample fit, with a selection-aware interval.
+pub use antecedent_prob::{
+    AlphaCriterion, AlphaSelectionOptions, AlphaSensitivityRow, BetaSource, GammaSource,
+    LinearTarget, SelectedAlphaReport, compose_beta_power_priors, compose_gamma_power_priors,
+    default_alpha_grid, select_beta_power_prior, select_beta_prior, select_gamma_power_prior,
+    select_gamma_prior, select_linear_power_prior, select_linear_prior,
+};
+/// Row-weighted target populations and kernel transport weights.
+pub use antecedent_prob::{
+    BandwidthSensitivityRow, KernelFamily, TARGET_MIN_ESS_FRACTION, TargetOverlap, TransportKernel,
+    WeightedTarget, apply_weighted_target_transport, check_weights_overlap,
+    compose_with_weighted_target_transport, kernel_bandwidth_sensitivity,
+};
+/// Conjugate Beta-Binomial and Gamma-Poisson count posteriors.
+pub use antecedent_prob::{BetaBinomialPosterior, GammaPoissonPosterior};
+/// Conjugate moment-matching converters: Gaussian summary → Beta / Gamma.
+pub use antecedent_prob::{BetaHyperparameters, GammaHyperparameters};
+/// External prior bank: power-prior / mixture composition.
+pub use antecedent_prob::{
+    ComposedPrior, ExternalPriorSource, ExternalPriorWeight, compose_external_priors,
+    compose_external_priors_with_alphas,
+};
+/// Coordinate-name mapping of composed priors.
+pub use antecedent_prob::{CoordinateMapping, rename_coordinates};
+/// Prior specifications.
+pub use antecedent_prob::{GaussianCoefficientPrior, PriorSet, PriorSpec};
+/// Weighted graph samples for effect envelopes.
+pub use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
+/// Transport policy for cross-population prior transfer.
+pub use antecedent_prob::{
+    TransportAdjustment, TransportContext, TransportPolicy, apply_transport, compose_with_transport,
+};
+/// `antecedent-stats` items at the crate root.
+pub use antecedent_stats::ConditionalIndependence;
+/// Joint-law propagation arithmetic.
+pub use antecedent_stats::DecisionVerdict;
+/// Randomization-based kernels for known network assignment designs.
+pub use antecedent_stats::ExposureProbabilityMethod;
+/// Partial-correlation conditional independence test.
+pub use antecedent_stats::PartialCorrelation;
+/// CI request / result types and workspace.
+pub use antecedent_stats::{
+    CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
+    PreparedCiTest, SignificanceMethod,
+};
+/// Multiple-testing / false-discovery-rate helpers.
+pub use antecedent_stats::{FdrAdjustment, MultipleTestingMethod};
+/// GLM fitting: logistic, probit, multinomial logit, Gaussian, Poisson, and NB2 IRLS.
+pub use antecedent_stats::{GlmFamily, GlmOptions};
+/// Stats-layer errors.
+pub use antecedent_stats::{GlmRefusalKind, StatsError};
+/// Numerics for inference from adaptively collected data.
+pub mod adaptive_inference {
+    pub use antecedent_stats::adaptive_inference::{
+        AnalysisEstimator, AnytimeSettings, ArmPrior, AssignmentRule, Attribution, BetaPrior,
+        BorrowingPlan, ComparisonReading, CorrelationPrior, DecisionRules, Estimand,
+        EstimandStatement, EstimatorLaw, ExposureModel, FinalAnalysis, FinalSelection,
+        FutilityRule, GaussianMixtureLaw, HistoricalPrior, InversionGrid, LookDecision,
+        LookReading, MAX_ADAPTIVE_UNITS, ObservedTerminal, OutcomeModelPrior, OutcomeObservation,
+        OutcomeStructure, ParticipantDeclaration, ParticipantHistory, ParticipantSimulationRequest,
+        ProcedureDeclaration, RepeatedMeasuresDeclaration, RepeatedMeasuresRequest,
+        ResolvedArmPrior, ResourceReceipt, SimulationRequest, StoppingRule, UncertaintyParadigm,
+        UnitAssignment, UnitSummary, WeightScheme, WithinUnitCorrelation,
+    };
+    /// Group-sequential boundaries by alpha spending.
+    pub mod group_sequential {
+        pub use antecedent_stats::adaptive_inference::group_sequential::{
+            Sidedness, StagewiseLook,
+        };
+    }
+}
+/// Randomization-based kernels for known network assignment designs.
+pub mod interference {
+    pub use antecedent_stats::interference::admit_exposure_probability_work_for_shape;
+}
+/// Pure corrections for uncertain measurements.
+pub mod measurement_error {
+    pub use antecedent_stats::measurement_error::{
+        BinaryErrorRates, CorrectedExposureAssociation, DetectionAdjusted, DetectionAnchor,
+        DetectionBounds, DetectionData, DetectionDeclaration, DetectionDirection,
+        DetectionFunction, DetectionPoint, ExposureErrorStructure, ExposureOutcomeCounts,
+        FalsePositiveRate, LatentClassConstraints, LatentClassData, LatentClassFit,
+        LatentClassIdentification, LatentClassSettings, LatentClassStandardErrors,
+        ObservedClassSummary, ReliabilityBin, SoftExposureData, SoftExposureReliability,
+        TwoByTwoCounts, exposure_rates_from_validation,
+    };
+}
+/// Items of `antecedent-prob::metropolis`.
+pub mod metropolis {
+    pub use antecedent_prob::metropolis::MetropolisOptions;
+}
+/// Summary-data synthesis: covariance-preserving pooling.
+pub mod synthesis {
+    pub use antecedent_stats::synthesis::{BetweenStudyMethod, MeanPrior, TauPrior};
 }

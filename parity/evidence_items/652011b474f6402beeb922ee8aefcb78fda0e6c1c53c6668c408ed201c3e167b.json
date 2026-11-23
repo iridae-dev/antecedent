@@ -1,0 +1,1 @@
+["use:crate::IoError;#0","use:serde::{Deserialize,Serialize};#0","const:BOUND_PRIOR_MAGIC#0","const:BOUND_PRIOR_MAX_BYTES#0","enum:BoundPriorSpecWire#0","struct:BoundBayesianPriorWire#0","impl:BoundBayesianPriorWire#0","impl:BoundBayesianPriorWire#0/fn:export#0","impl:BoundBayesianPriorWire#0/fn:decode#0"]

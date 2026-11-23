@@ -16,12 +16,14 @@ Target law ``{0: 0.25, 1: 0.75}`` (``E z = 0.75``); source law ``{0: 0.4, 1: 0.4
 """
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.errors import (
     CausalSerializationError,
     CausalTypeError,
     CausalUnsupportedError,
     CausalValueError,
 )
+from antecedent.outcomes import require_success
 from antecedent.temporal_counterfactual import transported_path_specific
 from antecedent.transported_counterfactual import (
     AdditiveNoiseScm,
@@ -105,7 +107,7 @@ def refusal_of(**kwargs):
     return error
 
 
-def test_x8t_hand_values_nde_nie_total():
+def test_hand_values_nde_nie_total():
     nde_result = effect(nde())
     assert nde_result.target_contrast == pytest.approx(4.5 + 1.125 * 0.75, abs=1e-12)
     assert nde_result.target_contrast == pytest.approx(5.34375, abs=1e-12)
@@ -123,7 +125,7 @@ def test_x8t_hand_values_nde_nie_total():
     assert nde_result.inference_claim == nde_result.derivation.claim == "point_only"
 
 
-def test_x8t_derivation_separates_checked_from_declared_assumptions():
+def test_derivation_separates_checked_from_declared_assumptions():
     derivation = effect().derivation
     assert derivation.theorem == "covariate_selected_additive_path_specific_transport"
     assert "no_selection_on_mediator_or_outcome" in derivation.checked
@@ -133,7 +135,7 @@ def test_x8t_derivation_separates_checked_from_declared_assumptions():
     assert not set(derivation.checked) & set(derivation.declared)
 
 
-def test_x8t_the_target_law_moves_the_answer_by_exactly_the_hand_amount():
+def test_the_target_law_moves_the_answer_by_exactly_the_hand_amount():
     base = effect().target_contrast
     moved = effect(target_law=target({0.0: 0.5, 1.0: 0.5})).target_contrast
     # Mass moves from z=1 to z=0: E z goes 0.75 -> 0.5 and the NDE slope is 1.125.
@@ -142,17 +144,17 @@ def test_x8t_the_target_law_moves_the_answer_by_exactly_the_hand_amount():
     assert abs(effect().source_contrast - base) > 0.05
 
 
-def test_x8t_selection_on_a_covariate_or_the_treatment_is_allowed():
+def test_selection_on_a_covariate_or_the_treatment_is_allowed():
     result = effect(selection=MechanismSelection.on("z", "a"))
     assert result.target_contrast == pytest.approx(5.34375, abs=1e-12)
 
 
-def test_x8t_premises_default_to_undeclared_and_each_refuses_with_its_own_detail():
+def test_premises_default_to_undeclared_and_each_refuses_with_its_own_detail():
     args = (scm(), source(), target(), MechanismSelection.on("z"), nde())
     with pytest.raises(TransportedCounterfactualRefusal) as raised:
         transported_path_specific_effect(*args)
-    assert raised.value.detail == "transported_counterfactual.nonadditive_mechanism"
-    assert raised.value.reason_code == "cell_not_licensed"
+    assert raised.value.detail == reason_details.transported_counterfactual.NONADDITIVE_MECHANISM
+    assert raised.value.reason_code == "route_not_supported"
     assert raised.value.offending == "additive_noise"
     cases = {
         "noise_law_not_shared": Premises(additive_noise=True),
@@ -161,14 +163,14 @@ def test_x8t_premises_default_to_undeclared_and_each_refuses_with_its_own_detail
     for detail, premises in cases.items():
         error = refusal_of(premises=premises)
         assert error.detail == f"transported_counterfactual.{detail}"
-        assert error.reason_code == "cell_not_licensed"
+        assert error.reason_code == "route_not_supported"
         assert error.witness is None
 
 
-def test_x8t_selection_on_the_outcome_refuses_with_a_two_model_witness():
+def test_selection_on_the_outcome_refuses_with_a_two_model_witness():
     error = refusal_of(selection=MechanismSelection.on("y"))
     assert error.reason_code == "transport_proven_non_transportable"
-    assert error.detail == "transported_counterfactual.selection_on_mechanism"
+    assert error.detail == reason_details.transported_counterfactual.SELECTION_ON_MECHANISM
     witness = error.witness
     assert witness is not None
     assert (witness.selected_node, witness.perturbed_parent) == ("y", "a")
@@ -182,11 +184,11 @@ def test_x8t_selection_on_the_outcome_refuses_with_a_two_model_witness():
     assert witness.target_contrast_b - witness.target_contrast_a == pytest.approx(1.5, abs=1e-12)
 
 
-def test_x8t_selection_on_a_mediator_is_witnessed_only_when_the_contrast_depends_on_it():
+def test_selection_on_a_mediator_is_witnessed_only_when_the_contrast_depends_on_it():
     # The NDE does not depend on the mediator's equation: refused, no impossibility claimed.
     error = refusal_of(selection=MechanismSelection.on("m"))
-    assert error.reason_code == "cell_not_licensed"
-    assert error.detail == "transported_counterfactual.selection_on_mechanism"
+    assert error.reason_code == "route_not_supported"
+    assert error.detail == reason_details.transported_counterfactual.SELECTION_ON_MECHANISM
     assert error.witness is None and error.offending == "m"
     # The NIE depends on it: witness (perturbing the A coefficient of M by 1 moves it by 6).
     error = refusal_of(assignment=nie(), selection=MechanismSelection.on("m"))
@@ -198,23 +200,23 @@ def test_x8t_selection_on_a_mediator_is_witnessed_only_when_the_contrast_depends
     assert witness.source_contrast == pytest.approx(9.6, abs=1e-12)
 
 
-def test_x8t_target_outside_the_source_support_is_an_overlap_failure():
+def test_target_outside_the_source_support_is_an_overlap_failure():
     error = refusal_of(target_law=target({0.0: 0.5, 3.0: 0.5}))
     assert error.reason_code == "transport_support_failure"
-    assert error.detail == "transported_counterfactual.overlap_failure"
+    assert error.detail == reason_details.transported_counterfactual.OVERLAP_FAILURE
     assert error.offending == "z=3"
 
 
-def test_x8t_absent_regime_evidence_is_factor_missing():
+def test_absent_regime_evidence_is_factor_missing():
     error = refusal_of(evidence=[("source", "observational", "fit")])
     assert error.reason_code == "transport_missing_evidence"
-    assert error.detail == "transported_counterfactual.factor_missing"
+    assert error.detail == reason_details.transported_counterfactual.FACTOR_MISSING
     assert error.missing_factors == ("target:observational",)
     withheld = refusal_of(evidence=())
     assert withheld.missing_factors == ("source:observational", "target:observational")
 
 
-def test_x8t_malformed_inputs_are_refused_or_rejected():
+def test_malformed_inputs_are_refused_or_rejected():
     cyclic = AdditiveNoiseScm(
         "a",
         ("z",),
@@ -223,14 +225,23 @@ def test_x8t_malformed_inputs_are_refused_or_rejected():
     error = refusal_of(model=cyclic)
     assert (error.reason_code, error.detail) == (
         "invalid_argument",
-        "transported_counterfactual.invalid_model",
+        reason_details.transported_counterfactual.INVALID_MODEL,
     )
     not_a_child = EdgeAssignment("y", A1, A0, ("z",))
-    assert refusal_of(assignment=not_a_child).detail == "transported_counterfactual.invalid_query"
+    assert (
+        refusal_of(assignment=not_a_child).detail
+        == reason_details.transported_counterfactual.INVALID_QUERY
+    )
     bad_law = CovariateLaw.univariate("z", {0.0: 0.5, 1.0: 0.25})
-    assert refusal_of(target_law=bad_law).detail == "transported_counterfactual.invalid_law"
+    assert (
+        refusal_of(target_law=bad_law).detail
+        == reason_details.transported_counterfactual.INVALID_LAW
+    )
     nowhere = MechanismSelection.on("nowhere")
-    assert refusal_of(selection=nowhere).detail == "transported_counterfactual.invalid_diagram"
+    assert (
+        refusal_of(selection=nowhere).detail
+        == reason_details.transported_counterfactual.INVALID_DIAGRAM
+    )
     with pytest.raises(CausalValueError):
         Affine(float("nan"))
     with pytest.raises(CausalTypeError):
@@ -243,9 +254,9 @@ def test_x8t_malformed_inputs_are_refused_or_rejected():
         effect(premises=True)
 
 
-def test_x8t_artifact_round_trips_and_replays():
+def test_artifact_round_trips_and_replays():
     original = effect(nie())
-    data = original.export()
+    data = bytes(original.export())
     assert isinstance(data, bytes)
     replayed = consume_transported_counterfactual_artifact(
         data, expected_identity=original.identity
@@ -255,13 +266,13 @@ def test_x8t_artifact_round_trips_and_replays():
     assert replayed.unit_contrasts == original.unit_contrasts
     assert replayed.derivation == original.derivation
     assert replayed.identity == original.identity
-    again = TransportedPathSpecificEffect.consume(data)
+    again = require_success(TransportedPathSpecificEffect.consume(data))
     assert again.target_contrast == pytest.approx(9.75, abs=1e-12)
     # The identity is a function of the request: the same request gives the same digests.
     assert effect(nie()).identity == original.identity
 
 
-def test_x8t_resealed_changes_are_refused_against_the_retained_identity():
+def test_resealed_changes_are_refused_against_the_retained_identity():
     original = effect()
     retained = original.identity
     changed = {
@@ -278,18 +289,20 @@ def test_x8t_resealed_changes_are_refused_against_the_retained_identity():
     }
     for field, forged in changed.items():
         # A forger who reseals consistently is accepted without a retained identity ...
-        assert consume_transported_counterfactual_artifact(forged.export()) is not None
+        assert consume_transported_counterfactual_artifact(bytes(forged.export())) is not None
         # ... and refused with one.
         with pytest.raises(TransportedCounterfactualRefusal) as raised:
-            consume_transported_counterfactual_artifact(forged.export(), expected_identity=retained)
-        assert raised.value.detail == "transported_counterfactual.artifact_changed"
+            consume_transported_counterfactual_artifact(
+                bytes(forged.export()), expected_identity=retained
+            )
+        assert raised.value.detail == reason_details.transported_counterfactual.ARTIFACT_CHANGED
         assert raised.value.reason_code == "route_not_supported"
         assert raised.value.offending == field
         assert_registered_refusal(raised.value)
 
 
-def test_x8t_corrupt_artifacts_are_serialization_errors():
-    data = effect().export()
+def test_corrupt_artifacts_are_serialization_errors():
+    data = bytes(effect().export())
     with pytest.raises(CausalSerializationError):
         consume_transported_counterfactual_artifact(data[: len(data) // 2])
     flipped = bytearray(data)
@@ -300,9 +313,9 @@ def test_x8t_corrupt_artifacts_are_serialization_errors():
         consume_transported_counterfactual_artifact("not bytes")  # type: ignore[arg-type]
 
 
-def test_x8t_the_general_class_stays_closed():
+def test_the_general_class_is_not_supported():
     # The narrow-class cell does not open the closed general route.
     with pytest.raises(CausalUnsupportedError) as raised:
         transported_path_specific()
-    assert raised.value.detail == "transported_counterfactual.route_frozen"
-    assert raised.value.reason_code == "cell_not_licensed"
+    assert raised.value.detail == reason_details.transported_counterfactual.PREREQUISITE_MISSING
+    assert raised.value.reason_code == "transport_missing_evidence"

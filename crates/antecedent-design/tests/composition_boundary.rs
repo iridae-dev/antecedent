@@ -24,14 +24,20 @@ use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, DecisionFunctional,
     StructuralPolicy, Tail, UtilityExpr,
 };
-use antecedent_design::decision_eval::{DecisionEvalError, MeanSource, Verdict};
+use antecedent_design::decision_eval::{DecisionEvalError, MeanEstimate, MeanSource, Verdict};
 use antecedent_design::decision_structural::{AtomEvidence, StructuralAtom};
 use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
 use antecedent_io_core::quantity_wire::DistributionMeaningWire;
-use antecedent_test_support::near_lt_1e12 as near;
+use antecedent_test_support::within;
+
+const NEAR_TOLERANCE: f64 = 1e-12;
+
+fn near(a: f64, b: f64) -> bool {
+    within(a, b, NEAR_TOLERANCE)
+}
 
 fn q(regime: &str, functional: &str) -> ScientificQuantity {
     ScientificQuantity {
@@ -98,7 +104,7 @@ fn labelled_native() -> DistributionArtifact {
     joint(
         "engine",
         "snap-n",
-        DistributionTrust::NativeLicensed,
+        DistributionTrust::NativeSupported,
         DistributionCalibration::Exact,
         None,
     )
@@ -158,6 +164,7 @@ fn mean_input(
             snapshot_id: snapshot.into(),
             causal_contract_id: "checked-contract".into(),
             rng_id: "none:mean_grid".into(),
+            estimate: MeanEstimate::Frequentist,
         },
         statuses,
         &attested(),
@@ -178,7 +185,7 @@ fn joint_input(
             provider,
             snapshot,
             DistributionTrust::Unverified,
-            DistributionCalibration::Unmeasured,
+            DistributionCalibration::NotMeasured,
             None,
         ),
         evidence,
@@ -247,7 +254,10 @@ fn boundary_metadata_only_native_label_is_refused_as_native() {
     .unwrap_err();
     assert_eq!(error, BoundaryError::MetadataOnlyNativeClaim { input: "native".into() });
     let refusal = error.to_refusal();
-    assert_eq!(refusal.detail, "composition_boundary.metadata_only_native_claim");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_boundary::METADATA_ONLY_NATIVE_CLAIM
+    );
     assert_eq!(refusal.code, "attested_not_reverifiable");
     assert_eq!(refusal.offending.as_deref(), Some("native"));
     assert!(refusal.validate().is_ok());
@@ -278,7 +288,7 @@ fn boundary_unbacked_label_is_stored_unverified_and_its_exact_claim_unused() {
     assert_eq!(provenance.receipt, None);
     assert_eq!(provenance.calibration, CalibrationStatus::ExactClaimUnverified);
     let InputSource::JointLaw(stored) = input.source() else { panic!("a joint law") };
-    assert_eq!(stored.metadata().calibration, DistributionCalibration::Unmeasured);
+    assert_eq!(stored.metadata().calibration, DistributionCalibration::NotMeasured);
     assert_eq!(stored.metadata().trust, DistributionTrust::Unverified);
 
     // The same artifact with a matching native record keeps its label and exactness,
@@ -291,7 +301,7 @@ fn boundary_unbacked_label_is_stored_unverified_and_its_exact_claim_unused() {
     )
     .unwrap();
     assert_eq!(native.provenance().provider_kind, ProviderKind::Native);
-    assert_eq!(native.provenance().trust, DistributionTrust::NativeLicensed);
+    assert_eq!(native.provenance().trust, DistributionTrust::NativeSupported);
     assert_eq!(native.provenance().calibration, CalibrationStatus::Exact);
     assert_eq!(
         native.provenance().receipt,
@@ -320,7 +330,10 @@ fn boundary_exact_request_verification_needs_a_matching_receipt() {
     for missing in [TrustEvidence::None, attested(), verified("another-snapshot")] {
         let error = build(&missing).unwrap_err();
         assert_eq!(error, BoundaryError::VerificationReceiptMissing { input: "ext".into() });
-        assert_eq!(error.to_refusal().detail, "composition_boundary.verification_receipt_missing");
+        assert_eq!(
+            error.to_refusal().detail,
+            antecedent_core::reason_details::composition_boundary::VERIFICATION_RECEIPT_MISSING
+        );
         assert_eq!(error.reason_code(), "external_verification_failed");
     }
     let input = build(&verified("snap-x")).unwrap();
@@ -370,14 +383,20 @@ fn boundary_missing_coordinate_beside_supported_action_mean_source() {
         }
     );
     assert_eq!(decision.dispositions[0].input_id.as_deref(), Some("grid"));
-    assert_eq!(CoordinateIssue::NotInSource.detail(), "composition_boundary.coordinate_missing");
+    assert_eq!(
+        CoordinateIssue::NotInSource.detail(),
+        antecedent_core::reason_details::composition_boundary::COORDINATE_MISSING
+    );
 
     // When the contract demands every action, the same inputs refuse.
     let input = mean_input("grid", "snap-x", &[("do(a=0)", 1.0), ("do(a=1)", 3.0)], &SUPPORTED_TWO);
     let error = evaluate_with_support(&mean_contract(), &[input], &SupportPolicy::require_all())
         .unwrap_err();
     assert_eq!(error, BoundaryError::UnsupportedActions { actions: vec!["extend".into()] });
-    assert_eq!(error.to_refusal().detail, "composition_boundary.unsupported_action_not_comparable");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::composition_boundary::UNSUPPORTED_ACTION_NOT_COMPARABLE
+    );
 }
 
 #[test]
@@ -387,7 +406,7 @@ fn boundary_missing_coordinate_beside_supported_action_joint_source() {
         &joint(
             "engine",
             "snap-n",
-            DistributionTrust::NativeLicensed,
+            DistributionTrust::NativeSupported,
             DistributionCalibration::Exact,
             Some(vec![true, true, false]),
         ),
@@ -511,7 +530,7 @@ fn boundary_all_actions_unsupported_is_a_state_not_an_error() {
             "engine",
             "snap-n",
             DistributionTrust::Unverified,
-            DistributionCalibration::Unmeasured,
+            DistributionCalibration::NotMeasured,
             Some(vec![false, false, false]),
         ),
         &TrustEvidence::None,
@@ -590,7 +609,10 @@ fn boundary_a_probability_is_never_answered_from_a_mean() {
         let error = evaluate_functional_on_input(&contract, "treat", functional, &grid, weakest)
             .unwrap_err();
         assert_eq!(error, BoundaryError::MeanIsNotADistribution { action: "treat".into() });
-        assert_eq!(error.to_refusal().detail, "composition_boundary.mean_is_not_a_distribution");
+        assert_eq!(
+            error.to_refusal().detail,
+            antecedent_core::reason_details::composition_boundary::MEAN_IS_NOT_A_DISTRIBUTION
+        );
     }
 
     // A scalar claim is a mean too.
@@ -702,7 +724,7 @@ fn boundary_mean_sources_leave_nonlinear_and_outcome_law_actions_unevaluated() {
     assert!(matches!(decision.dispositions[2].status, ActionStatus::Unsupported { .. }));
     assert_eq!(
         UnevaluatedReason::NonAffineUtilityNeedsJointLaw.detail(),
-        "composition_boundary.non_affine_needs_joint_law"
+        antecedent_core::reason_details::composition_boundary::NON_AFFINE_NEEDS_JOINT_LAW
     );
     let error =
         evaluate_with_support(&contract, &[grid], &SupportPolicy::require_all()).unwrap_err();
@@ -718,6 +740,7 @@ fn boundary_mean_sources_leave_nonlinear_and_outcome_law_actions_unevaluated() {
             snapshot_id: "snap-y".into(),
             causal_contract_id: "checked-contract".into(),
             rng_id: "none:mean_grid".into(),
+            estimate: MeanEstimate::Frequentist,
         },
         &SUPPORTED_TWO,
         &attested(),
@@ -774,7 +797,7 @@ fn boundary_composition_rejects_duplicate_inputs_and_unequal_draw_counts() {
         "lab",
         "snap-b",
         DistributionTrust::Unverified,
-        DistributionCalibration::Unmeasured,
+        DistributionCalibration::NotMeasured,
         None,
     );
     let mut metadata = short.metadata().clone();
@@ -840,14 +863,17 @@ fn boundary_shared_data_refuses_independent_pooling() {
         }
     );
     let refusal = error.to_refusal();
-    assert_eq!(refusal.detail, "composition_boundary.shared_evidence_not_independent");
-    assert_eq!(refusal.code, "scenario_aggregate_not_licensed");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_boundary::SHARED_EVIDENCE_NOT_INDEPENDENT
+    );
+    assert_eq!(refusal.code, "scenario_aggregate_not_supported");
     assert_eq!(refusal.offending.as_deref(), Some("native~external"));
     assert!(refusal.validate().is_ok());
 }
 
 #[test]
-fn boundary_shared_data_refuses_paired_draws_unless_a_joint_law_route_is_licensed() {
+fn boundary_shared_data_refuses_paired_draws_unless_a_joint_law_route_is_supported() {
     let native = joint_input("native", "engine", "snap-n", &native_record("engine", "snap-n"));
     let external = joint_input("external", "lab", "snap-x", &attested());
     let pair = [native, external];
@@ -878,7 +904,7 @@ fn boundary_shared_data_refuses_paired_draws_unless_a_joint_law_route_is_license
     // A covariance cannot pair draws row by row.
     let error = check_paired_draws(&pair, &[shared_data("native", "external", Some(covariance))])
         .unwrap_err();
-    assert!(matches!(error, BoundaryError::DependenceRouteNotLicensed { .. }));
+    assert!(matches!(error, BoundaryError::DependenceRouteNotSupported { .. }));
 }
 
 #[test]
@@ -908,14 +934,17 @@ fn boundary_a_route_must_be_an_aligned_joint_law_of_the_pair() {
         .unwrap_err();
         assert_eq!(
             error,
-            BoundaryError::DependenceRouteNotLicensed {
+            BoundaryError::DependenceRouteNotSupported {
                 left: "native".into(),
                 right: "external".into(),
             }
         );
-        assert_eq!(error.to_refusal().detail, "composition_boundary.dependence_route_not_licensed");
+        assert_eq!(
+            error.to_refusal().detail,
+            antecedent_core::reason_details::composition_boundary::DEPENDENCE_ROUTE_NOT_SUPPORTED
+        );
     }
-    // Where the mean source is the native joint law's partner, a licensed route passes.
+    // Where the mean source is the native joint law's partner, a supported route passes.
     let ok = DependenceRoute {
         kind: RouteKind::JointLaw,
         id: "joint-law-1".into(),
@@ -974,7 +1003,7 @@ fn boundary_unknown_dependence_is_never_independence() {
         );
         assert_eq!(
             error.to_refusal().detail,
-            "composition_boundary.unknown_dependence_is_not_independence"
+            antecedent_core::reason_details::composition_boundary::UNKNOWN_DEPENDENCE_IS_NOT_INDEPENDENCE
         );
         // A pair that was never declared is the same as unknown.
         let silent = check_composition(&inputs, &[], Some(operation)).unwrap_err();
@@ -997,7 +1026,10 @@ fn boundary_an_undeclared_operation_is_refused() {
     };
     let error = check_composition(&inputs, &[independent.clone()], None).unwrap_err();
     assert_eq!(error, BoundaryError::OperationNotDeclared);
-    assert_eq!(error.to_refusal().detail, "composition_boundary.operation_not_declared");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::composition_boundary::OPERATION_NOT_DECLARED
+    );
     // Independent sources pool, and pooling records that independence was assumed.
     let receipt =
         check_composition(&inputs, &[independent], Some(CompositionOperation::StatisticalPooling))
@@ -1088,10 +1120,13 @@ fn boundary_conflicting_atoms_never_become_a_silent_average() {
     let error = check_atom_combination(&atoms, AtomCombination::WeightedByDeclaredProbabilities)
         .unwrap_err();
     assert_eq!(error, BoundaryError::ConflictingAtomsNotAveraged);
-    assert_eq!(error.to_refusal().detail, "composition_boundary.conflicting_atoms_not_averaged");
-    assert_eq!(error.reason_code(), "scenario_aggregate_not_licensed");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::composition_boundary::CONFLICTING_ATOMS_NOT_AVERAGED
+    );
+    assert_eq!(error.reason_code(), "scenario_aggregate_not_supported");
 
-    // Probabilities on only some atoms are still not a license to average.
+    // Probabilities on only some atoms are still not support to average.
     let partial = [atom("graph-a", Some(0.5)), atom("graph-b", None)];
     assert_eq!(
         check_atom_combination(&partial, AtomCombination::WeightedByDeclaredProbabilities)
@@ -1109,7 +1144,7 @@ fn boundary_conflicting_atoms_never_become_a_silent_average() {
         AtomPlan::WorstCase
     );
 
-    // Declared probabilities license the weighted plan; missing mass is not renormalized.
+    // Declared probabilities support the weighted plan; missing mass is not renormalized.
     let declared = [atom("graph-a", Some(0.25)), atom("graph-b", Some(0.5))];
     assert_eq!(
         check_atom_combination(&declared, AtomCombination::WeightedByDeclaredProbabilities)

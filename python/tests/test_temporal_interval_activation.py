@@ -17,7 +17,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from antecedent import _native
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalTypeError, CausalUnsupportedError
 from antecedent.transport._temporal_extensions import (
     _temporal_dependent_interval_candidate as temporal_dependent_interval,
@@ -28,10 +28,6 @@ from antecedent.transport.advanced import (
     TemporalUnitPanel,
 )
 
-_INTERNAL = hasattr(_native, "temporal_dependent_interval_candidate")
-_CANDIDATE = pytest.mark.skipif(
-    not _INTERNAL, reason="requires calibration-internal acceptance wheel"
-)
 _MASK = (1 << 64) - 1
 _GAMMA = 0x9E3779B97F4A7C15
 
@@ -105,16 +101,6 @@ def test_temporal_candidate_requires_original_factory():
         TemporalIntervalCandidate._from_native(SimpleNamespace(payload=lambda: "{}"))
 
 
-@pytest.mark.skipif(_INTERNAL, reason="normal wheels omit the private internal candidate hook")
-@pytest.mark.parametrize("method", ["studentized"])
-def test_temporal_default_route_remains_frozen(method):
-    with pytest.raises(CausalUnsupportedError) as caught:
-        produce(method)
-    assert caught.value.reason_code == "cell_not_licensed"
-    assert caught.value.detail == "temporal_interval.route_frozen"
-
-
-@_CANDIDATE
 @pytest.mark.parametrize("method", ["studentized"])
 def test_temporal_actual_public_candidate_matches_independent_unit_scm_and_fresh_consumer(
     method, tmp_path
@@ -122,8 +108,8 @@ def test_temporal_actual_public_candidate_matches_independent_unit_scm_and_fresh
     result = produce(method)
     assert isinstance(result, TemporalIntervalCandidate)
     assert result.point == pytest.approx(0.49, abs=1e-12)
-    assert result.calibration == "unmeasured"
-    assert result.claim == "dependence_preserving_calibration_unmeasured"
+    assert result.calibration == "not_measured"
+    assert result.claim == "dependence_preserving_calibration_not_measured"
     with pytest.raises(FrozenInstanceError):
         result.calibration = "calibrated"
     with pytest.raises(TypeError, match="unexpected keyword argument"):
@@ -149,7 +135,7 @@ def test_temporal_actual_public_candidate_matches_independent_unit_scm_and_fresh
     np.testing.assert_allclose(receipt["pivots"], pivots, atol=1e-11, rtol=0)
     assert (result.lower, result.upper) == pytest.approx(bounds, abs=1e-12)
     artifact = tmp_path / "whole-unit.cbor"
-    artifact.write_bytes(result.export())
+    artifact.write_bytes(bytes(result.export()))
     code = """
 import json,sys
 from pathlib import Path
@@ -166,7 +152,6 @@ print(json.dumps(r.to_dict()))
     assert json.loads(fresh.stdout) == payload
 
 
-@_CANDIDATE
 @pytest.mark.parametrize(
     "change",
     [
@@ -181,19 +166,18 @@ def test_temporal_changed_panel_refuses_retained_identity(change):
     changed = produce(**change)
     assert changed.identity != original.identity
     with pytest.raises(CausalUnsupportedError) as caught:
-        TemporalIntervalCandidate.load(changed.export(), expected_identity=original.identity)
+        TemporalIntervalCandidate.load(bytes(changed.export()), expected_identity=original.identity)
     assert caught.value.reason_code == "invalid_argument"
     assert caught.value.detail == "temporal_interval_artifact.expected_identity_mismatch"
 
 
-@_CANDIDATE
 def test_temporal_candidate_keeps_unknown_units_and_incompatible_history_refusals():
     with pytest.raises(CausalUnsupportedError) as caught:
         temporal_dependent_interval(TemporalUnitPanel("no-map", None), sequence=(0, 0))
-    assert caught.value.detail == "temporal_interval.unknown_units"
+    assert caught.value.detail == reason_details.temporal_interval.UNKNOWN_UNITS
     with pytest.raises(CausalUnsupportedError) as caught:
         temporal_dependent_interval(panel(), sequence=(7, 7))
-    assert caught.value.detail == "temporal_interval.unsupported_history"
+    assert caught.value.detail == reason_details.temporal_interval.UNSUPPORTED_HISTORY
 
 
 @pytest.mark.parametrize("method", ["percentile", "basic"])

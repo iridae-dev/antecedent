@@ -2,7 +2,7 @@
 //! the container, a refitting consumer that checks the canonical output bit for bit, label
 //! handling, resealed-mutation refusals against a retained identity, the premise records, unknown
 //! versions, the computation, export and replay budgets of a fit with no row ceiling, and the
-//! unmeasured calibration coordinate.
+//! `not_measured` calibration coordinate.
 //!
 //! Oracle (identical to `antecedent-estimate/tests/latent_class_effects.rs`): class `P` (24
 //! rows, `a in {0, 1}`, `x in {-1, 0, 1}`, `y = a + 0.5 x + e`) and class `Q` (16 rows,
@@ -10,7 +10,7 @@
 //! `{+0.5, -0.5, +0.25, -0.25}`. So `pi = (0.6, 0.4)`, `tau = (1, -2)`, the canonical (ascending
 //! `tau`) order is `Q, P`, and the mixture-average effect is `-0.2`.
 
-use antecedent_core::{ExecutionContext, MemoryBudget};
+use antecedent_core::ExecutionContext;
 use antecedent_io::latent_class_artifact::{
     LATENT_CLASS_ARTIFACT_VERSION, LatentClassArtifact, LatentClassArtifactError,
     LatentClassConfigWire, LatentClassDataWire, LatentClassRequestWire, decode_parts, encode_parts,
@@ -145,7 +145,7 @@ fn latent_artifact_summarizes_responsibilities_exactly() {
 }
 
 #[test]
-fn latent_artifact_records_trace_premises_and_unmeasured_calibration() {
+fn latent_artifact_records_trace_premises_and_not_measured_calibration() {
     let (artifact, _) = seal(5, 0);
     let meta = artifact.meta();
     let likelihood = &meta.likelihood;
@@ -160,9 +160,9 @@ fn latent_artifact_records_trace_premises_and_unmeasured_calibration() {
     assert_eq!(status("conditional_randomization_within_class"), Some("declared"));
     assert_eq!(status("gaussian_linear_class_outcome"), Some("declared"));
     assert_eq!(status("class_weight_and_separation"), Some("checked"));
-    assert_eq!(meta.calibration, "unmeasured");
+    assert_eq!(meta.calibration, "not_measured");
     assert_eq!(meta.inference_claim, "point_with_bootstrap_se");
-    assert!(meta.caveat.contains("unmeasured"));
+    assert!(meta.caveat.contains("not_measured"));
 }
 
 #[test]
@@ -218,7 +218,7 @@ fn latent_artifact_refuses_changed_data_even_when_resealed() {
     assert!(LatentClassArtifact::from_bytes(&resealed, None).is_ok());
     let error = LatentClassArtifact::from_bytes(&resealed, Some(artifact.identity())).unwrap_err();
     assert!(matches!(error, LatentClassArtifactError::IdentityMismatch { .. }), "{error:?}");
-    assert_eq!(refusal(&error).1, "latent_class.wrong_contract");
+    assert_eq!(refusal(&error).1, antecedent_core::reason_details::latent_class::WRONG_CONTRACT);
 }
 
 #[test]
@@ -229,7 +229,10 @@ fn latent_artifact_refuses_a_changed_stored_result_or_config() {
     let tampered = encode_parts(&meta, &numbers, "tampered").unwrap();
     let error = LatentClassArtifact::from_bytes(&tampered, None).unwrap_err();
     assert!(matches!(error, LatentClassArtifactError::ResultMismatch(_)), "{error:?}");
-    assert_eq!(refusal(&error).1, "latent_class.report_replay_mismatch");
+    assert_eq!(
+        refusal(&error).1,
+        antecedent_core::reason_details::latent_class::REPORT_REPLAY_MISMATCH
+    );
 
     let (mut meta, numbers) = decode_parts(&bytes).unwrap();
     meta.config.seed = 12;
@@ -244,7 +247,10 @@ fn latent_artifact_refuses_a_changed_stored_result_or_config() {
     meta.config.assume_conditional_randomization = false;
     let tampered = encode_parts(&meta, &numbers, "tampered").unwrap();
     let error = LatentClassArtifact::from_bytes(&tampered, None).unwrap_err();
-    assert_eq!(refusal(&error).1, "latent_class.randomization_not_declared");
+    assert_eq!(
+        refusal(&error).1,
+        antecedent_core::reason_details::latent_class::RANDOMIZATION_NOT_DECLARED
+    );
 }
 
 #[test]
@@ -254,20 +260,32 @@ fn latent_artifact_seal_refuses_undeclared_weak_and_single_class_fits() {
     let error = LatentClassArtifact::seal(&undeclared).unwrap_err();
     assert_eq!(
         refusal(&error),
-        ("required_option_missing", "latent_class.randomization_not_declared".into())
+        (
+            "required_option_missing",
+            antecedent_core::reason_details::latent_class::RANDOMIZATION_NOT_DECLARED.into()
+        )
     );
 
     let mut weak = request(1, 0);
     weak.config.min_class_weight = 0.5;
     let error = LatentClassArtifact::seal(&weak).unwrap_err();
-    assert_eq!(refusal(&error), ("population_not_estimable", "latent_class.weak_class".into()));
+    assert_eq!(
+        refusal(&error),
+        (
+            "population_not_estimable",
+            antecedent_core::reason_details::latent_class::WEAK_CLASS.into()
+        )
+    );
 
     let mut single = request(1, 0);
     single.config.classes = 1;
     let error = LatentClassArtifact::seal(&single).unwrap_err();
     assert_eq!(
         refusal(&error),
-        ("population_not_estimable", "latent_class.degenerate_class".into())
+        (
+            "population_not_estimable",
+            antecedent_core::reason_details::latent_class::DEGENERATE_CLASS.into()
+        )
     );
 }
 
@@ -298,7 +316,11 @@ fn latent_artifact_refuses_unknown_versions_features_and_corruption() {
     let mut corrupt = bytes.clone();
     let middle = corrupt.len() / 2;
     corrupt[middle] ^= 0xFF;
-    assert!(LatentClassArtifact::from_bytes(&corrupt, None).is_err());
+    let error = LatentClassArtifact::from_bytes(&corrupt, None).unwrap_err();
+    assert!(
+        matches!(&error, LatentClassArtifactError::Container(_)),
+        "a flipped byte is a container refusal: {error:?}"
+    );
 }
 
 #[test]
@@ -342,7 +364,7 @@ fn assert_fixed_point(artifact: &LatentClassArtifact, rows: u64) {
 
 fn context_with_memory(hard_limit_bytes: u64) -> ExecutionContext {
     let mut ctx = ExecutionContext::production(0, 1);
-    ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(hard_limit_bytes) };
+    ctx.set_memory_limit(Some(hard_limit_bytes));
     ctx
 }
 
@@ -369,11 +391,17 @@ fn exercise_export_and_replay(
     let (code, detail, text) = error.refusal().expect("a registered refusal");
     assert_eq!(
         (code, detail.as_str()),
-        ("route_not_supported", "latent_class.export_budget_exceeded")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::latent_class::EXPORT_BUDGET_EXCEEDED
+        )
     );
     assert!(text.contains(&format!("{} bytes", embedded.len())), "{text}");
     let error = artifact.to_bytes_within("scaled", 1_000).unwrap_err();
-    assert_eq!(refusal(&error).1, "latent_class.export_budget_exceeded");
+    assert_eq!(
+        refusal(&error).1,
+        antecedent_core::reason_details::latent_class::EXPORT_BUDGET_EXCEEDED
+    );
     // The refusal costs the caller nothing: the fit is still complete in memory.
     assert_eq!(artifact.report().responsibilities.len(), request.data.outcome.len());
     recovered(artifact);
@@ -386,7 +414,13 @@ fn exercise_export_and_replay(
     let identity = artifact.identity();
     let error =
         LatentClassArtifact::from_bytes_with(&bound, Some(identity), None, &ctx).unwrap_err();
-    assert_eq!(refusal(&error), ("route_not_supported", "latent_class.data_required".into()));
+    assert_eq!(
+        refusal(&error),
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::latent_class::DATA_REQUIRED.into()
+        )
+    );
     let replay =
         LatentClassArtifact::from_bytes_with(&bound, Some(identity), Some(&request.data), &ctx)
             .unwrap();
@@ -453,15 +487,20 @@ fn population_request(rows: usize, seed: u64) -> LatentClassRequestWire {
 }
 
 /// The population's classes in canonical (ascending effect) order, within sampling error.
+/// Every tolerance is a multiple of `1 / sqrt(rows)`: the standard error of an effect is about
+/// `1.5 / sqrt(rows)` (noise scale 0.5 over a fair-coin treatment within a class holding 40% to
+/// 60% of the rows), of a class weight `0.5 / sqrt(rows)`, so the bands are a few standard errors
+/// wide at every size and a fit that drifted (a swapped class, a wrong pooled effect) fails them.
 fn assert_population_recovered(artifact: &LatentClassArtifact, rows: usize) {
     let meta = artifact.meta();
     assert_eq!(meta.n_rows, u64::try_from(rows).unwrap());
     assert_eq!(meta.responsibilities.rows, meta.n_rows);
-    close(meta.classes[0].effect, -2.0, 0.08, "tau q");
-    close(meta.classes[0].weight, 0.4, 0.03, "pi q");
-    close(meta.classes[1].effect, 1.0, 0.08, "tau p");
-    close(meta.classes[1].weight, 0.6, 0.03, "pi p");
-    close(meta.mixture_average_effect, -0.2, 0.06, "mixture average");
+    let unit = 1.0 / (rows as f64).sqrt();
+    close(meta.classes[0].effect, -2.0, 6.0 * unit, "tau q");
+    close(meta.classes[0].weight, 0.4, 2.5 * unit, "pi q");
+    close(meta.classes[1].effect, 1.0, 6.0 * unit, "tau p");
+    close(meta.classes[1].weight, 0.6, 2.5 * unit, "pi p");
+    close(meta.mixture_average_effect, -0.2, 4.0 * unit, "mixture average");
 }
 
 /// The fit completes on `rows` rows with its inferential standing exactly that of the small
@@ -476,7 +515,7 @@ fn exercise_population(rows: usize, seed: u64, runtime_seconds: u64) {
     let standing = artifact.meta();
     let small = seal(11, 0).0;
     let reference = small.meta();
-    assert_eq!(standing.calibration, "unmeasured");
+    assert_eq!(standing.calibration, "not_measured");
     assert_eq!(
         (&standing.calibration, &standing.inference_claim, &standing.caveat, &standing.feature),
         (&reference.calibration, &reference.inference_claim, &reference.caveat, &reference.feature),
@@ -497,7 +536,6 @@ fn latent_fit_has_no_row_ceiling_and_export_and_replay_are_budgeted() {
 }
 
 #[test]
-#[ignore = "fits 100,000 rows; run with --ignored"]
 fn latent_fit_runs_at_one_hundred_thousand_rows() {
     exercise_budgets(2_500);
 }
@@ -508,13 +546,11 @@ fn latent_class_fit_beyond_old_row_ceiling_20000() {
 }
 
 #[test]
-#[ignore = "fits 100,000 rows; run with --ignored"]
 fn latent_class_fit_beyond_old_row_ceiling_100000() {
     exercise_population(100_000, 1_689_014, 900);
 }
 
 #[test]
-#[ignore = "fits 100,000 rows; run with --ignored"]
 fn fit_artifact_export_and_replay_budgets_explicit() {
     let rows = 100_000;
     let request = population_request(rows, 8_179_773);
@@ -530,12 +566,18 @@ fn fit_artifact_export_and_replay_budgets_explicit() {
     let (code, detail, text) = computation.unwrap_err().refusal().expect("a registered refusal");
     assert_eq!(
         (code, detail.as_str()),
-        ("route_not_supported", "latent_class.memory_budget_exceeded")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::latent_class::MEMORY_BUDGET_EXCEEDED
+        )
     );
     assert!(text.contains("1000000-byte memory budget"), "{text}");
 
     let export = artifact.to_bytes_within("budgets", embedded.len() - 1).unwrap_err();
-    assert_eq!(refusal(&export).1, "latent_class.export_budget_exceeded");
+    assert_eq!(
+        refusal(&export).1,
+        antecedent_core::reason_details::latent_class::EXPORT_BUDGET_EXCEEDED
+    );
 
     let replay = LatentClassArtifact::from_bytes_with(
         &bound,
@@ -543,7 +585,10 @@ fn fit_artifact_export_and_replay_budgets_explicit() {
         Some(&request.data),
         &context_with_memory(1_000_000),
     );
-    assert_eq!(refusal(&replay.unwrap_err()).1, "latent_class.memory_budget_exceeded");
+    assert_eq!(
+        refusal(&replay.unwrap_err()).1,
+        antecedent_core::reason_details::latent_class::MEMORY_BUDGET_EXCEEDED
+    );
 
     // A roomy replay budget with the dataset replays the fit; the export budget was never in play.
     let replayed =
@@ -555,7 +600,6 @@ fn fit_artifact_export_and_replay_budgets_explicit() {
 }
 
 #[test]
-#[ignore = "fits 100,000 rows; run with --ignored"]
 fn fit_artifact_data_binding_verified() {
     let rows = 100_000;
     let request = population_request(rows, 7_534_003);
@@ -600,7 +644,10 @@ fn fit_never_truncates_data_silently() {
     let (code, detail, text) = error.refusal().expect("a registered refusal");
     assert_eq!(
         (code, detail.as_str()),
-        ("route_not_supported", "latent_class.memory_budget_exceeded")
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::latent_class::MEMORY_BUDGET_EXCEEDED
+        )
     );
     assert!(started.elapsed().as_secs() < 10, "the refusal comes before any work");
     assert!(text.contains("67108864-byte memory budget"), "{text}");
@@ -630,17 +677,26 @@ fn latent_computation_budget_refuses_before_work_and_honours_cancellation() {
     let error = LatentClassArtifact::seal_with(&request, &context_with_memory(1_000)).unwrap_err();
     assert_eq!(
         refusal(&error),
-        ("route_not_supported", "latent_class.memory_budget_exceeded".into())
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::latent_class::MEMORY_BUDGET_EXCEEDED.into()
+        )
     );
     assert!(LatentClassArtifact::seal_with(&request, &context_with_memory(1_000_000)).is_ok());
     let bytes = seal(1, 0).1;
     let error =
         LatentClassArtifact::from_bytes_with(&bytes, None, None, &context_with_memory(1_000))
             .unwrap_err();
-    assert_eq!(refusal(&error).1, "latent_class.memory_budget_exceeded");
+    assert_eq!(
+        refusal(&error).1,
+        antecedent_core::reason_details::latent_class::MEMORY_BUDGET_EXCEEDED
+    );
 
     let cancelled = ExecutionContext::production(0, 1);
     cancelled.cancellation.cancel();
     let error = LatentClassArtifact::seal_with(&request, &cancelled).unwrap_err();
-    assert_eq!(refusal(&error), ("cancelled_no_claim", "latent_class.cancelled".into()));
+    assert_eq!(
+        refusal(&error),
+        ("cancelled_no_claim", antecedent_core::reason_details::latent_class::CANCELLED.into())
+    );
 }

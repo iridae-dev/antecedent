@@ -1,8 +1,8 @@
 use antecedent_core::{
     Assumption, AssumptionSet, CausalResponse, ContinuousDomain, DerivativeScale,
-    DerivativeWeighting, GridSpec, IdentificationStatus, Intervention, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, StochasticPolicy,
-    SupportRegion, SupportReport, SupportStatus, Value, VariableId,
+    DerivativeWeighting, ExecutionContext, GridSpec, IdentificationStatus, Intervention,
+    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
+    StochasticPolicy, SupportRegion, SupportReport, SupportStatus, Value, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_stats::{
@@ -244,6 +244,71 @@ fn inflate_draws_by_edf_scales_spread_and_keeps_mean() {
 }
 
 #[test]
+fn prepared_response_folds_hold_admission_until_last_fold_drops() {
+    use antecedent_core::execution::AdmissionPool;
+    let (data, a, y, x) = confounded_curve(240);
+    let estimator = ContinuousResponseEstimator::new([x]);
+    let sample = CompleteSample::read(&data, y, &[a], &[x]).unwrap();
+    let tiny = ExecutionContext::for_tests(3).with_admission(AdmissionPool::fixed(1, 1));
+    assert!(
+        antecedent_core::numerical_admission::with_context(&tiny, || estimator
+            .cross_fit_folds(&sample))
+        .is_err()
+    );
+    let pool = AdmissionPool::fixed(1, 16_000_000);
+    let ctx = ExecutionContext::for_tests(3).with_admission(pool.clone());
+    let before = pool.available().bytes();
+    let folds = antecedent_core::numerical_admission::with_context(&ctx, || {
+        estimator.cross_fit_folds(&sample)
+    })
+    .unwrap();
+    assert!(pool.available().bytes() < before);
+    drop(folds);
+    assert_eq!(pool.available().bytes(), before);
+}
+
+#[test]
+fn bayesian_derivatives_refuse_nondefault_backend_and_likelihood() {
+    use antecedent_prob::BayesLikelihood;
+    let (data, a, y, x) = confounded_curve(30);
+    let estimator = ContinuousResponseEstimator::new([x]);
+    let query = ResponseQuery::new(ResponseFunctional::PointDerivative {
+        outcome: y,
+        treatment: a,
+        at: 0.2,
+        order: 1,
+        scale: DerivativeScale::Identity,
+    });
+    let mut configurations = Vec::new();
+    for backend in [crate::BayesianBackendKind::ConjugateGaussian, crate::BayesianBackendKind::Hmc]
+    {
+        let mut config = crate::BayesianGComputationAte::new();
+        config.backend = backend;
+        configurations.push(config);
+    }
+    for likelihood in [
+        BayesLikelihood::BernoulliLogit,
+        BayesLikelihood::BernoulliProbit,
+        BayesLikelihood::PoissonLog,
+    ] {
+        configurations.push(crate::BayesianGComputationAte::new().with_likelihood(likelihood));
+    }
+    for config in configurations {
+        let error = estimator
+            .estimate_bayesian(
+                &data,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+                &config,
+                &ExecutionContext::for_tests(18),
+            )
+            .unwrap_err();
+        assert!(error.to_string().contains("Rubin Bayesian bootstrap"), "{error}");
+    }
+}
+
+#[test]
 fn bayesian_point_derivative_refits_nuisances_per_draw() {
     let (data, a, y, x) = confounded_curve(240);
     let mut estimator = ContinuousResponseEstimator::new([x]);
@@ -305,7 +370,7 @@ fn bayesian_point_derivative_refits_nuisances_per_draw() {
             codes.iter().any(|c| c == "response.derivative_interval_bias_corrected"),
             "{codes:?}"
         );
-        assert!(!codes.iter().any(|c| c == "response.derivative_interval_withheld"));
+        assert!(!codes.iter().any(|c| c == "response.no_derivative_interval_method"));
         let note = response
             .support
             .warnings
@@ -338,6 +403,112 @@ fn confounded_curve(n: usize) -> (TabularData, VariableId, VariableId, VariableI
 }
 
 #[test]
+fn kennedy_density_floor_has_the_same_boundary_in_any_treatment_units() {
+    use super::nuisance::kennedy_density_ratio;
+    for relative_density in [0.5 * CONDITIONAL_DENSITY_FLOOR, 2.0 * CONDITIONAL_DENSITY_FLOOR] {
+        let expected = 0.2 / relative_density.max(CONDITIONAL_DENSITY_FLOOR);
+        for sigma in [1e-12, 1.0, 1e12] {
+            let (ratio, floored) =
+                kennedy_density_ratio(relative_density / sigma, 0.2 / sigma, sigma).unwrap();
+            assert_eq!(floored, relative_density <= CONDITIONAL_DENSITY_FLOOR);
+            assert!((ratio / expected - 1.0).abs() < 1e-12);
+        }
+    }
+    for sigma in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+        assert!(kennedy_density_ratio(0.2, 0.3, sigma).is_err());
+    }
+    for invalid in [-1.0, f64::NAN, f64::INFINITY] {
+        assert!(kennedy_density_ratio(invalid, 0.3, 1.0).is_err());
+        assert!(kennedy_density_ratio(0.2, invalid, 1.0).is_err());
+    }
+    assert!(kennedy_density_ratio(f64::MAX, 0.3, 2.0).is_err());
+    assert!(kennedy_density_ratio(0.0, f64::MAX, 2.0).is_err());
+}
+
+#[test]
+fn kennedy_pseudo_outcomes_curves_and_derivatives_respect_treatment_units() {
+    let (data, a, y, x) = confounded_curve(160);
+    let original_a = data.float64_values(a).unwrap();
+    let original_y = data.float64_values(y).unwrap();
+    let original_x = data.float64_values(x).unwrap();
+    let run = |factor: f64| {
+        let treatments: Vec<f64> = original_a.iter().map(|v| factor * v).collect();
+        let scaled = TabularData::from_f64_columns([
+            ("a", treatments.as_slice()),
+            ("y", original_y.as_ref()),
+            ("x", original_x.as_ref()),
+        ])
+        .unwrap();
+        let mut estimator = ContinuousResponseEstimator::new([x]);
+        estimator.options.bandwidth = Some(0.35 * factor);
+        let sample = CompleteSample::read(&scaled, y, &[a], &[x]).unwrap();
+        let pseudo = estimator.cross_fitted_pseudo_outcome(&sample).unwrap();
+        let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: y,
+            treatment: ContinuousDomain::new(
+                a,
+                GridSpec::Values(Arc::from([-0.3 * factor, 0.0, 0.3 * factor])),
+            ),
+        });
+        let curve = estimator
+            .estimate_identified(
+                &scaled,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
+            curve.estimate
+        else {
+            panic!("expected a response curve")
+        };
+        let query = ResponseQuery::new(ResponseFunctional::PointDerivative {
+            outcome: y,
+            treatment: a,
+            at: 0.2 * factor,
+            order: 1,
+            scale: DerivativeScale::Identity,
+        });
+        let derivative = estimator
+            .estimate_identified(
+                &scaled,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        let ResponseIdentification::PointIdentified(ResponseValue::Scalar(slope)) =
+            derivative.estimate
+        else {
+            panic!("expected a scalar derivative")
+        };
+        (pseudo, mean, slope * factor)
+    };
+    let (baseline, curve, slope) = run(1.0);
+    for factor in [1e-6, 1e8] {
+        let (scaled, scaled_curve, scaled_slope) = run(factor);
+        assert_eq!(scaled.density_floor_rows, baseline.density_floor_rows, "scale={factor}");
+        for (actual, expected) in scaled.values.iter().zip(&baseline.values) {
+            assert!(
+                (actual - expected).abs() < 1e-5 * expected.abs().max(1.0),
+                "scale={factor}: pseudo {actual} vs {expected}"
+            );
+        }
+        for (actual, expected) in scaled_curve.iter().zip(curve.iter()) {
+            assert!(
+                (actual - expected).abs() < 1e-5 * expected.abs().max(1.0),
+                "scale={factor}: curve {actual} vs {expected}"
+            );
+        }
+        assert!(
+            (scaled_slope - slope).abs() < 1e-5 * slope.abs().max(1.0),
+            "scale={factor}: derivative {scaled_slope} vs {slope}"
+        );
+    }
+}
+
+#[test]
 fn dr_curve_calibrates_linear_response_and_reports_support() {
     let (data, a, y, x) = confounded_curve(500);
     let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
@@ -357,7 +528,12 @@ fn dr_curve_calibrates_linear_response_and_reports_support() {
     else {
         panic!("expected surface");
     };
-    assert!((mean[2] - mean[0] - 1.6).abs() < 0.25, "means={mean:?}");
+    // y = 1 + 2a + 0.8x + tiny with E[x] = 0, so E[y | do(a)] = 1 + 2a; the unadjusted
+    // regression slope would be about 2.8. Observed smoothing error is at most 0.045.
+    for (got, level) in mean.iter().zip([-0.4, 0.0, 0.4]) {
+        assert!((got - (1.0 + 2.0 * level)).abs() < 0.07, "means={mean:?}");
+    }
+    assert!((mean[2] - mean[0] - 1.6).abs() < 0.15, "means={mean:?}");
     assert_ne!(response.support.status, SupportStatus::OutsideEmpiricalSupport);
     assert_eq!(response.support.diagnostics[0].values.len(), 3);
     assert_eq!(response.provenance_id.as_ref(), "estimate.response.kennedy_dr");
@@ -586,7 +762,7 @@ fn pseudo_outcome_additive_hoist_matches_brute_force_double_loop() {
                 };
                 let raw_density =
                     gaussian_density(sample.treatment_matrix[i], treatment_mean, sigma);
-                let conditional_density = raw_density.max(CONDITIONAL_DENSITY_FLOOR);
+                let conditional_density = (sigma * raw_density).max(CONDITIONAL_DENSITY_FLOOR);
                 let mut marginal_density = 0.0;
                 for &j in &train {
                     let mean_j = match treatment_fit.as_ref() {
@@ -604,7 +780,8 @@ fn pseudo_outcome_additive_hoist_matches_brute_force_double_loop() {
                 }
                 marginal_mu /= n as f64;
                 brute[i] = marginal_mu
-                    + (sample.outcome[i] - mu_observed) * marginal_density / conditional_density;
+                    + (sample.outcome[i] - mu_observed) * (sigma * marginal_density)
+                        / conditional_density;
             }
         }
         for (i, (&fast_i, &brute_i)) in fast.values.iter().zip(&brute).enumerate() {
@@ -755,9 +932,11 @@ fn intervention_response_executes_set_shift_and_stochastic_policies() {
         ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => *value,
         _ => panic!("expected scalar"),
     };
-    assert!((scalar(&set) - 1.5).abs() < 0.2);
-    assert!((scalar(&stochastic) - scalar(&set)).abs() < 0.1);
-    assert!((scalar(&shift) - 1.5).abs() < 0.2);
+    // Linear truth: E[y | do(a=0.25)] = 1 + 2 * 0.25 (E[x] = 0), the same for a shift of 0.25
+    // from E[a] ~ 0 and for a tight Gaussian policy centred at 0.25.
+    assert!((scalar(&set) - 1.5).abs() < 0.05, "{}", scalar(&set));
+    assert!((scalar(&stochastic) - scalar(&set)).abs() < 0.01);
+    assert!((scalar(&shift) - 1.5).abs() < 0.05, "{}", scalar(&shift));
     assert_eq!(set.support.status, SupportStatus::Extrapolative);
     assert_eq!(set.provenance_id.as_ref(), "estimate.response.intervention_gcomp");
     let codes: Vec<_> = set.support.warnings.iter().map(|w| w.code.as_ref()).collect();
@@ -1082,7 +1261,7 @@ fn riesz_ade_calibrates_linear_slope() {
     else {
         panic!("expected scalar");
     };
-    assert!((value - 2.0).abs() < 0.2, "ade={value}");
+    assert!((value - 2.0).abs() < 0.03, "ade={value}");
     assert_eq!(response.provenance_id.as_ref(), "estimate.response.riesz_ade");
     assert!(
         response.support.diagnostics.iter().any(|d| d.id.as_ref() == "response.outcome_tail_ratio")
@@ -1099,13 +1278,16 @@ fn bayesian_ade_refits_nuisances_not_frozen_scores() {
     for (i, weight) in weights.iter_mut().enumerate() {
         *weight = if i < sample.len() / 5 { 8.0 } else { 0.2 };
     }
-    let folds = estimator.cross_fit_folds(&sample).unwrap();
+    let folds = estimator.cross_fit_folds_ade(&sample).unwrap();
     let plugin = estimator.weighted_cross_fitted_ade(&sample, &folds, &weights).unwrap();
     let frozen_mean =
         frozen.scores.iter().zip(&weights).map(|(score, weight)| score * weight).sum::<f64>()
             / weights.iter().sum::<f64>();
     assert!(
-        (plugin - frozen_mean).abs() > 1e-3,
+        // A reweighted frozen score would agree to rounding; the refit moves the mean by about
+        // 3e-4 under the knot-aware penalty (the nuisance fit of a nearly linear curve barely
+        // depends on the weights), five orders above rounding.
+        (plugin - frozen_mean).abs() > 1e-5,
         "weighted-plugin ADE must move with refitted μ,α; plugin={plugin} frozen={frozen_mean}"
     );
 
@@ -1176,7 +1358,8 @@ fn point_elasticity_applies_scale_transform() {
     else {
         panic!("expected scalar");
     };
-    assert!(value.is_finite() && value > 0.2 && value < 0.7, "elasticity={value}");
+    // Elasticity a f'(a) / f(a) of f(a) = 1 + 2a (E[x] = 0) at a = 0.4: 0.8 / 1.8.
+    assert!((value - 0.8 / 1.8).abs() < 0.03, "elasticity={value}");
     // The elasticity publishes a Fieller interval on the joint
     // local-coordinate covariance and a delta-method standard error.
     let ResponseUncertainty::Scalar { standard_error, lower, upper, .. } = response.uncertainty
@@ -1198,7 +1381,7 @@ fn point_elasticity_applies_scale_transform() {
             .support
             .warnings
             .iter()
-            .any(|w| w.code.as_ref() == "response.derivative_interval_withheld"),
+            .any(|w| w.code.as_ref() == "response.no_derivative_interval_method"),
         "log-scale elasticity no longer withholds its interval"
     );
 }
@@ -1465,10 +1648,12 @@ fn plugin_jacobian_recovers_low_dimensional_slopes() {
     else {
         panic!("expected Jacobian");
     };
-    for (got, expected) in values.iter().zip([2.0, -0.5, 0.25, 1.5]) {
-        assert!((got - expected).abs() < 0.25, "got={got}, expected={expected}");
+    for ((got, expected), tolerance) in
+        values.iter().zip([2.0, -0.5, 0.25, 1.5]).zip([0.15, 0.03, 0.12, 0.03])
+    {
+        assert!((got - expected).abs() < tolerance, "got={got}, expected={expected}");
     }
-    assert_eq!(response.support.status, SupportStatus::Extrapolative);
+    assert_eq!(response.support.status, SupportStatus::Supported);
     assert_eq!(response.provenance_id.as_ref(), "estimate.response.gam_derivative");
 }
 
@@ -1549,14 +1734,15 @@ fn plugin_jacobian_warns_when_clamped_outside_support() {
     );
 }
 
-/// The plug-in derivative refusals over more than two treatments keep their
-/// message (no reason code, same class) and name what to do instead in the
-/// structured `remedy` field.
+/// The plug-in derivatives fit one additive smooth per treatment, so a query over more than
+/// two treatments returns one partial per coordinate.
 #[test]
-fn plugin_derivatives_over_two_treatments_name_a_remedy() {
+fn plugin_derivatives_serve_more_than_two_treatments() {
     let n: usize = 60;
     let col = |k: f64| (0..n).map(|i| (i as f64 * k).sin()).collect::<Vec<f64>>();
-    let (a, b, c, y, x) = (col(0.3), col(0.7), col(1.1), col(0.5), col(0.9));
+    let (a, b, c, x) = (col(0.3), col(0.7), col(1.1), col(0.9));
+    // Additive linear truth: the three partials are 2, -1 and 0.5.
+    let y: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * a[i] - b[i] + 0.5 * c[i]).collect();
     let data = TabularData::from_f64_columns([
         ("a", a.as_slice()),
         ("b", b.as_slice()),
@@ -1568,7 +1754,7 @@ fn plugin_derivatives_over_two_treatments_name_a_remedy() {
     let treatments: Arc<[VariableId]> =
         Arc::from([VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)]);
     let estimator = ContinuousResponseEstimator::new([VariableId::from_raw(4)]);
-    let refuse = |functional| {
+    let serve = |functional| {
         estimator
             .estimate_identified(
                 &data,
@@ -1576,43 +1762,63 @@ fn plugin_derivatives_over_two_treatments_name_a_remedy() {
                 IdentificationStatus::IdentifiedUnderParametricRestrictions,
                 AssumptionSet::new(),
             )
-            .unwrap_err()
+            .expect("a plug-in derivative over three treatments is estimable")
     };
-    let jacobian = refuse(ResponseFunctional::Jacobian {
+    let jacobian = serve(ResponseFunctional::Jacobian {
         outcomes: Arc::from([VariableId::from_raw(3)]),
         treatments: treatments.clone(),
         at: Arc::from([0.0, 0.0, 0.0]),
         scale: DerivativeScale::Identity,
     });
-    assert_eq!(jacobian.to_string(), "plug-in response Jacobian supports at most two treatments");
-    assert!(!matches!(jacobian, EstimationError::Refused { .. }));
-    let remedy = jacobian.remedy().expect("the Jacobian refusal names a remedy");
-    assert!(remedy.contains("at most two treatments"), "{remedy}");
-    assert!(remedy.contains("AverageDerivative"), "{remedy}");
-
-    let directional = refuse(ResponseFunctional::DirectionalDerivative {
+    let ResponseIdentification::PointIdentified(ResponseValue::Jacobian {
+        outcomes,
+        treatments: width,
+        values: partials,
+    }) = jacobian.estimate
+    else {
+        panic!("expected a point-identified Jacobian");
+    };
+    assert_eq!((outcomes, width), (1, 3), "one outcome row with one partial per treatment");
+    assert_eq!(partials.len(), 3);
+    for (got, truth) in partials.iter().zip([2.0, -1.0, 0.5]) {
+        assert!((got - truth).abs() < 0.01, "partials {partials:?} vs [2, -1, 0.5]");
+    }
+    let directional = serve(ResponseFunctional::DirectionalDerivative {
         outcomes: Arc::from([VariableId::from_raw(3)]),
         treatments,
         at: Arc::from([0.0, 0.0, 0.0]),
         direction: Arc::from([1.0, 0.0, 0.0]),
     });
-    assert_eq!(
-        directional.to_string(),
-        "plug-in directional derivative supports at most two treatments"
+    // Along the first coordinate axis the directional derivative is the first partial of
+    // the same additive fit.
+    let ResponseIdentification::PointIdentified(value) = directional.estimate else {
+        panic!("expected a point-identified directional derivative");
+    };
+    let along_first = match value {
+        ResponseValue::Scalar(value) => value,
+        ResponseValue::Vector(values) | ResponseValue::Jacobian { values, .. } => values[0],
+        other => panic!("unexpected directional value {other:?}"),
+    };
+    assert!(
+        (along_first - partials[0]).abs() < 1e-9,
+        "directional {along_first} vs first partial {}",
+        partials[0]
     );
-    let remedy = directional.remedy().expect("the directional refusal names a remedy");
-    assert!(remedy.contains("ResponseJacobian"), "{remedy}");
 }
 
 /// Every additive-GAM non-convergence refusal keeps its message and names
 /// the options that let the backfit settle.
 #[test]
+#[allow(
+    clippy::default_trait_access,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn unfinished_gam_fit_refusals_name_a_remedy() {
     let n: usize = 80;
     let x: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
     let y: Vec<f64> = x.iter().map(|v| 1.0 + 2.0 * v).collect();
     let mut workspace = GamWorkspace::default();
-    let mut fit = fit_additive(&x, n, 1, &y, 6, 1.0, &mut workspace).unwrap();
+    let mut fit = fit_additive(&x, n, 1, &y, 6, 1.0, Default::default(), &mut workspace).unwrap();
     assert!(fit.converged);
     fit.converged = false;
     for message in [
@@ -1691,7 +1897,6 @@ fn published(data: &TabularData, functional: ResponseFunctional) -> CausalRespon
         .unwrap()
 }
 
-#[cfg(feature = "calibration-internal")]
 fn internal_band(
     data: &TabularData,
     functional: &ResponseFunctional,
@@ -1714,27 +1919,43 @@ fn internal_band(
     (values, lower.to_vec(), upper.to_vec())
 }
 
-/// The Frequentist Jacobian and directional derivative publish the point only
-/// and say why: the interval route is closed until its coverage is measured.
+/// The Frequentist identity-scale Jacobian and the directional derivative publish the sandwich
+/// band; a transformed-scale Jacobian publishes the point only and says why.
 #[test]
-fn frequentist_plugin_gradient_withholds_its_interval_and_says_why() {
+fn frequentist_plugin_gradient_reports_its_band_and_a_transformed_scale_says_why_not() {
     let data = plugin_gradient_data(1.0, 0.0);
     for functional in [plugin_jacobian(DerivativeScale::Identity), plugin_directional([1.0, 1.0])] {
         let response = published(&data, functional);
-        assert!(matches!(response.uncertainty, ResponseUncertainty::None));
-        let withheld = response
-            .support
-            .warnings
-            .iter()
-            .find(|w| w.code.as_ref() == "response.derivative_interval_withheld")
-            .expect("the withheld interval is disclosed");
-        assert!(withheld.message.contains("not yet measured"), "{}", withheld.message);
-        assert!(withheld.message.contains("Bayesian"), "{}", withheld.message);
+        assert!(matches!(response.uncertainty, ResponseUncertainty::PointwiseBand { .. }));
+        assert!(
+            !response
+                .support
+                .warnings
+                .iter()
+                .any(|w| w.code.as_ref() == "response.no_derivative_interval_method")
+        );
     }
+    // A log-treatment scale needs a positive treatment point, so it is read at (0.2, 0.3).
+    let response = published(
+        &data,
+        ResponseFunctional::Jacobian {
+            outcomes: Arc::from([VariableId::from_raw(2), VariableId::from_raw(3)]),
+            treatments: Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)]),
+            at: Arc::from([0.2, 0.3]),
+            scale: DerivativeScale::LogTreatment,
+        },
+    );
+    assert!(matches!(response.uncertainty, ResponseUncertainty::None));
+    let withheld = response
+        .support
+        .warnings
+        .iter()
+        .find(|w| w.code.as_ref() == "response.no_derivative_interval_method")
+        .expect("the withheld interval is disclosed");
+    assert!(withheld.message.contains("identity scale"), "{}", withheld.message);
 }
 
-/// The closed route's band is the coefficient sandwich of the published point.
-#[cfg(feature = "calibration-internal")]
+/// The band is the coefficient sandwich of the published point.
 #[test]
 fn plugin_gradient_interval_internal_is_a_sandwich_band_around_the_published_point() {
     let data = plugin_gradient_data(1.0, 0.0);
@@ -1788,7 +2009,6 @@ fn plugin_gradient_interval_internal_is_a_sandwich_band_around_the_published_poi
     }
 }
 
-#[cfg(feature = "calibration-internal")]
 #[test]
 fn plugin_gradient_interval_internal_refuses_what_it_does_not_construct() {
     let data = plugin_gradient_data(1.0, 0.0);
@@ -1810,4 +2030,42 @@ fn plugin_gradient_interval_internal_refuses_what_it_does_not_construct() {
         )
         .unwrap_err();
     assert!(error.to_string().contains("Jacobian and directional"), "{error}");
+}
+
+#[test]
+fn intervention_response_respects_analysis_mask_and_matches_selected_rows() {
+    let n = 100_u32;
+    let a: Vec<f64> = (0..n).map(|i| f64::from(i % 50) / 50.0).collect();
+    let y: Vec<f64> =
+        a.iter().enumerate().map(|(i, a)| 2.0 * a + if i < 50 { 1.0 } else { 10.0 }).collect();
+    let full = TabularData::from_f64_columns([("a", a.as_slice()), ("y", y.as_slice())]).unwrap();
+    let selected = TabularData::from_f64_columns([("a", &a[..50]), ("y", &y[..50])]).unwrap();
+    let mask =
+        antecedent_data::ValidityBitmap::from_bools(&(0..n).map(|i| i < 50).collect::<Vec<_>>());
+    let masked = full.with_analysis_mask(mask).unwrap();
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(0.5))]),
+    });
+    let estimate = |data: &TabularData| {
+        let response = ContinuousResponseEstimator::new([])
+            .estimate_identified(
+                data,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        let ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) =
+            response.estimate
+        else {
+            panic!("scalar response")
+        };
+        value
+    };
+    let (masked_value, selected_value, full_value) =
+        (estimate(&masked), estimate(&selected), estimate(&full));
+    assert!((masked_value - selected_value).abs() < 1e-10);
+    assert!((masked_value - 2.0).abs() < 0.01);
+    assert!((full_value - masked_value).abs() > 4.0);
 }

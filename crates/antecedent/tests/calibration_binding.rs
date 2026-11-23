@@ -7,8 +7,9 @@
 //! own calibration key is exactly that construction, so an estimator-level
 //! record cannot describe an interval the facade reports differently.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::float_cmp, reason = "fixture values and categorical codes are compared exactly")]
 #![allow(
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -86,7 +87,7 @@ fn iv_dag() -> Dag {
     dag
 }
 
-/// `t -> m -> y` with an unmeasured `t <- u -> y` (absent from the graph).
+/// `t -> m -> y` with a unmeasured `t <- u -> y` (absent from the graph).
 fn frontdoor_data(seed: u64) -> TabularData {
     let mut g = gaussian(seed);
     let (mut t, mut y, mut m) = (vec![0.0; N], vec![0.0; N], vec![0.0; N]);
@@ -157,46 +158,37 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
             .refute(RefuteSuite::None)
     };
     let study = match test {
-        "linear_adjustment_analytic_ci_coverage" => builder(
-            LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::default() }
+        "linear_adjustment_analytic_ci_coverage" => {
+            builder(LinearAdjustmentAte::default().with_bootstrap_replicates(0).into(), ate_query())
+        }
+        "linear_adjustment_hc1_ci_coverage" => builder(
+            LinearAdjustmentAte::default()
+                .with_bootstrap_replicates(0)
+                .with_se_kind(AnalyticSeKind::Hc1)
                 .into(),
             ate_query(),
         ),
-        "linear_adjustment_hc1_ci_coverage" => builder(
-            LinearAdjustmentAte {
-                bootstrap_replicates: 0,
-                se_kind: AnalyticSeKind::Hc1,
-                ..LinearAdjustmentAte::default()
-            }
-            .into(),
-            ate_query(),
-        ),
-        "ipw_hajek_bootstrap_ci_coverage" => builder(
-            PropensityWeighting { bootstrap_replicates: 60, ..PropensityWeighting::new() }.into(),
-            ate_query(),
-        ),
+        "ipw_hajek_bootstrap_ci_coverage" => {
+            builder(PropensityWeighting::new().with_bootstrap_replicates(60).into(), ate_query())
+        }
         "ipw_hajek_analytic_ci_coverage"
         | "ipw_hajek_analytic_conformance_scm_ci_coverage"
-        | "ipw_hajek_weak_overlap_adversarial_ci_coverage" => builder(
-            PropensityWeighting { bootstrap_replicates: 0, ..PropensityWeighting::new() }.into(),
-            ate_query(),
-        ),
+        | "ipw_hajek_weak_overlap_adversarial_ci_coverage" => {
+            builder(PropensityWeighting::new().with_bootstrap_replicates(0).into(), ate_query())
+        }
         "aipw_analytic_ci_coverage" => {
-            builder(AipwAte { bootstrap_replicates: 0, ..AipwAte::new() }.into(), ate_query())
+            builder(AipwAte::new().with_bootstrap_replicates(0).into(), ate_query())
         }
         "aipw_ate_hc1_ci_coverage" => builder(
-            AipwAte { bootstrap_replicates: 0, se_kind: AnalyticSeKind::Hc1, ..AipwAte::new() }
-                .into(),
+            AipwAte::new().with_bootstrap_replicates(0).with_se_kind(AnalyticSeKind::Hc1).into(),
             ate_query(),
         ),
         "aipw_att_hc1_ci_coverage" => builder(
-            AipwAte { bootstrap_replicates: 0, se_kind: AnalyticSeKind::Hc1, ..AipwAte::new() }
-                .into(),
+            AipwAte::new().with_bootstrap_replicates(0).with_se_kind(AnalyticSeKind::Hc1).into(),
             ate_query().with_target_population(TargetPopulation::Treated),
         ),
         "aipw_atc_hc1_boundary_within_band" => builder(
-            AipwAte { bootstrap_replicates: 0, se_kind: AnalyticSeKind::Hc1, ..AipwAte::new() }
-                .into(),
+            AipwAte::new().with_bootstrap_replicates(0).with_se_kind(AnalyticSeKind::Hc1).into(),
             ate_query().with_target_population(TargetPopulation::Untreated),
         ),
         "aipw_ridge_influence_ci_coverage" | "aipw_ridge_refit_bootstrap_ci_coverage" => {
@@ -204,7 +196,8 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
                 PropensityNuisance::ridge_logistic(RidgeTuning::new(&[0.5, 5.0, 50.0], 3).unwrap());
             let replicates = if test.contains("bootstrap") { 20 } else { 0 };
             builder(
-                AipwAte { bootstrap_replicates: replicates, propensity: ridge, ..AipwAte::new() }
+                AipwAte { propensity: ridge, ..AipwAte::new() }
+                    .with_bootstrap_replicates(replicates)
                     .into(),
                 ate_query(),
             )
@@ -214,13 +207,16 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
                 PropensityNuisance::lasso_with(RidgeTuning::new(&[2.0, 10.0, 40.0], 3).unwrap());
             let replicates = if test.contains("bootstrap") { 20 } else { 0 };
             builder(
-                AipwAte { bootstrap_replicates: replicates, propensity: lasso, ..AipwAte::new() }
+                AipwAte { propensity: lasso, ..AipwAte::new() }
+                    .with_bootstrap_replicates(replicates)
                     .into(),
                 ate_query(),
             )
         }
         "aipw_att_cluster_ci_coverage" => builder(
-            AipwAte { bootstrap_replicates: 0, se_kind: AnalyticSeKind::Cluster, ..AipwAte::new() }
+            AipwAte::new()
+                .with_bootstrap_replicates(0)
+                .with_se_kind(AnalyticSeKind::Cluster)
                 .with_cluster_ids(clusters)
                 .into(),
             ate_query().with_target_population(TargetPopulation::Treated),
@@ -228,30 +224,24 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
         "matching_homoskedastic_ci_coverage"
         | "matching_heteroskedastic_adversarial_ci_coverage"
         | "matching_heterogeneous_att_ci_coverage" => builder(
-            PropensityMatching {
-                bootstrap_replicates: 0,
-                se_kind: AnalyticSeKind::Homoskedastic,
-                ..PropensityMatching::new()
-            }
-            .into(),
+            PropensityMatching::new()
+                .with_bootstrap_replicates(0)
+                .with_se_kind(AnalyticSeKind::Homoskedastic)
+                .into(),
             ate_query().with_target_population(TargetPopulation::Treated),
         ),
         "matching_heterogeneous_atc_ci_coverage" => builder(
-            PropensityMatching {
-                bootstrap_replicates: 0,
-                se_kind: AnalyticSeKind::Homoskedastic,
-                ..PropensityMatching::new()
-            }
-            .into(),
+            PropensityMatching::new()
+                .with_bootstrap_replicates(0)
+                .with_se_kind(AnalyticSeKind::Homoskedastic)
+                .into(),
             ate_query().with_target_population(TargetPopulation::Untreated),
         ),
         "matching_heterogeneous_ate_ci_coverage" => builder(
-            PropensityMatching {
-                bootstrap_replicates: 0,
-                se_kind: AnalyticSeKind::Homoskedastic,
-                ..PropensityMatching::new()
-            }
-            .into(),
+            PropensityMatching::new()
+                .with_bootstrap_replicates(0)
+                .with_se_kind(AnalyticSeKind::Homoskedastic)
+                .into(),
             ate_query(),
         ),
         "wald_iv_analytic_ci_coverage"
@@ -266,7 +256,7 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
                 .graph(iv_dag())
                 .query(continuous_query())
                 .identifier(IdentifierId::Iv)
-                .estimator(WaldIv { bootstrap_replicates: 0, se_kind, ..WaldIv::new() })
+                .estimator(WaldIv::new().with_bootstrap_replicates(0).with_se_kind(se_kind))
                 .refute(RefuteSuite::None)
         }
         "iv_2sls_analytic_ci_coverage" | "iv_2sls_hc1_heteroskedastic_ci_coverage" => {
@@ -279,11 +269,9 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
                 .graph(iv_dag())
                 .query(continuous_query())
                 .identifier(IdentifierId::Iv)
-                .estimator(TwoStageLeastSquares {
-                    bootstrap_replicates: 0,
-                    se_kind,
-                    ..TwoStageLeastSquares::new()
-                })
+                .estimator(
+                    TwoStageLeastSquares::new().with_bootstrap_replicates(0).with_se_kind(se_kind),
+                )
                 .refute(RefuteSuite::None)
         }
         "frontdoor_stacked_hc0_ci_coverage"
@@ -298,11 +286,9 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
                 .graph(frontdoor_dag())
                 .query(continuous_query())
                 .identifier(IdentifierId::Frontdoor)
-                .estimator(FrontDoorTwoStage {
-                    bootstrap_replicates: 0,
-                    se_kind,
-                    ..FrontDoorTwoStage::new()
-                })
+                .estimator(
+                    FrontDoorTwoStage::new().with_bootstrap_replicates(0).with_se_kind(se_kind),
+                )
                 .refute(RefuteSuite::None)
         }
         "frontdoor_functional_saturated_ci_coverage"
@@ -353,21 +339,59 @@ fn estimator_level_records_key_the_facade_construction() {
         let reported = constructions(&contract, &result);
         let expected = case_for(case.test).construction();
         assert!(
-            reported.iter().any(|(construction, _)| *construction == expected),
+            reported.iter().any(|(construction, _, _)| *construction == expected),
             "{}: the facade reports {:#?}, not the construction the record claims {expected:#?}",
             case.test,
-            reported.iter().map(|(c, _)| c).collect::<Vec<_>>()
+            reported.iter().map(|(c, _, _)| c).collect::<Vec<_>>()
         );
     }
 }
 
-fn assert_owned_static_construction(study: &Study, result: &StudyResult, owner: &str) {
+/// Closed-form front-door effect of the 0 -> 1 contrast for binary `t`, `m` (columns 0, 2) and
+/// outcome `y` (column 1), by plug-in counting:
+/// `sum_m P(m | t = a) sum_t' P(t') E[y | t', m]`, then the difference of the two arms.
+fn frontdoor_saturated_effect(data: &TabularData) -> f64 {
+    let column = |id: usize| -> Vec<f64> {
+        match &data.storage().columns()[id] {
+            antecedent_data::OwnedColumn::Float64(c) => c.values.to_vec(),
+            other => panic!("unexpected column {other:?}"),
+        }
+    };
+    let (t, y, m) = (column(0), column(1), column(2));
+    let n = t.len() as f64;
+    let count = |tv: f64, mv: Option<f64>| {
+        (0..t.len()).filter(|&i| t[i] == tv && mv.is_none_or(|v| m[i] == v)).count() as f64
+    };
+    let mean_y = |tv: f64, mv: f64| {
+        let rows: Vec<usize> = (0..t.len()).filter(|&i| t[i] == tv && m[i] == mv).collect();
+        rows.iter().map(|&i| y[i]).sum::<f64>() / rows.len() as f64
+    };
+    let value = |arm: f64| -> f64 {
+        [0.0, 1.0]
+            .iter()
+            .map(|&mv| {
+                let p_m = count(arm, Some(mv)) / count(arm, None);
+                let inner: f64 =
+                    [0.0, 1.0].iter().map(|&tp| count(tp, None) / n * mean_y(tp, mv)).sum();
+                p_m * inner
+            })
+            .sum()
+    };
+    value(1.0) - value(0.0)
+}
+
+fn assert_owned_static_construction(
+    study: &Study,
+    result: &StudyResult,
+    owner: &str,
+    accepted: bool,
+) {
     let reported = constructions(&study.inspect().unwrap(), result);
     assert!(
-        reported.iter().any(|(key, scope)| {
+        reported.iter().any(|(key, scope, _)| {
             key.query == "AverageEffect"
                 && key.graph_class == "Dag"
-                && key.structure == "fixed"
+                && key.structure == (if accepted { "accepted" } else { "fixed" })
                 && key.inference == "Frequentist"
                 && key.estimator == owner
                 && key.interval_method == "analytic_se"
@@ -376,10 +400,10 @@ fn assert_owned_static_construction(study: &Study, result: &StudyResult, owner: 
         }),
         "missing actual scientific owner {owner}: {reported:?}"
     );
-    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(result.estimate().as_effect().unwrap().ate.is_finite());
     assert!(
-        result.estimate.as_effect().unwrap().se_analytic().is_finite()
-            && result.estimate.as_effect().unwrap().se_analytic() > 0.0
+        result.estimate().as_effect().unwrap().se_analytic().is_finite()
+            && result.estimate().as_effect().unwrap().se_analytic() > 0.0
     );
 }
 
@@ -412,16 +436,32 @@ fn checked_score_learner_calibration_owners_execute_all_static_coordinates() {
                     .build()
                     .unwrap();
                 let result = study.run(&context).unwrap();
-                assert_owned_static_construction(&study, &result, owner);
+                assert_owned_static_construction(&study, &result, owner, accepted);
                 let prepared = study.prepare(&context).unwrap();
                 let replay = prepared.estimate(&data, &context).unwrap();
-                assert_eq!(
-                    replay.estimate.as_effect().unwrap().ate.to_bits(),
-                    result.estimate.as_effect().unwrap().ate.to_bits()
+                let contract = prepared.contract_for_result(&replay).unwrap();
+                let expected_validation = match suite {
+                    RefuteSuite::None => "none",
+                    RefuteSuite::Cheap => "cheap",
+                    RefuteSuite::Full => "full",
+                    RefuteSuite::PlaceboAndRcc => {
+                        unreachable!("this fixture only runs these suites")
+                    }
+                };
+                let reported = constructions(&contract, &replay);
+                assert!(
+                    reported.iter().any(|(key, _, validation)| key.structure
+                        == (if accepted { "accepted" } else { "fixed" })
+                        && *validation == expected_validation),
+                    "{reported:?}"
                 );
                 assert_eq!(
-                    replay.estimate.as_effect().unwrap().se_analytic().to_bits(),
-                    result.estimate.as_effect().unwrap().se_analytic().to_bits()
+                    replay.estimate().as_effect().unwrap().ate.to_bits(),
+                    result.estimate().as_effect().unwrap().ate.to_bits()
+                );
+                assert_eq!(
+                    replay.estimate().as_effect().unwrap().se_analytic().to_bits(),
+                    result.estimate().as_effect().unwrap().se_analytic().to_bits()
                 );
                 if suite != RefuteSuite::None {
                     assert!(!result.refutations.is_empty());
@@ -453,16 +493,40 @@ fn checked_frontdoor_functional_calibration_owner_executes_all_static_coordinate
                     .build()
                     .unwrap();
                 let result = study.run(&context).unwrap();
-                assert_owned_static_construction(&study, &result, "frontdoor.functional");
+                assert_owned_static_construction(&study, &result, "frontdoor.functional", accepted);
+                if discrete {
+                    let reference = frontdoor_saturated_effect(&data);
+                    let ate = result.estimate().as_effect().unwrap().ate;
+                    assert!(
+                        (ate - reference).abs() < 1e-9,
+                        "saturated front-door effect {ate} against plug-in counts {reference}"
+                    );
+                }
                 let prepared = study.prepare(&context).unwrap();
                 let replay = prepared.estimate(&data, &context).unwrap();
-                assert_eq!(
-                    replay.estimate.as_effect().unwrap().ate.to_bits(),
-                    result.estimate.as_effect().unwrap().ate.to_bits()
+                let contract = prepared.contract_for_result(&replay).unwrap();
+                let expected_validation = match suite {
+                    RefuteSuite::None => "none",
+                    RefuteSuite::Cheap => "cheap",
+                    RefuteSuite::Full => "full",
+                    RefuteSuite::PlaceboAndRcc => {
+                        unreachable!("this fixture only runs these suites")
+                    }
+                };
+                let reported = constructions(&contract, &replay);
+                assert!(
+                    reported.iter().any(|(key, _, validation)| key.structure
+                        == (if accepted { "accepted" } else { "fixed" })
+                        && *validation == expected_validation),
+                    "{reported:?}"
                 );
                 assert_eq!(
-                    replay.estimate.as_effect().unwrap().se_analytic().to_bits(),
-                    result.estimate.as_effect().unwrap().se_analytic().to_bits()
+                    replay.estimate().as_effect().unwrap().ate.to_bits(),
+                    result.estimate().as_effect().unwrap().ate.to_bits()
+                );
+                assert_eq!(
+                    replay.estimate().as_effect().unwrap().se_analytic().to_bits(),
+                    result.estimate().as_effect().unwrap().se_analytic().to_bits()
                 );
                 if suite != RefuteSuite::None {
                     assert!(!result.refutations.is_empty());
@@ -470,4 +534,50 @@ fn checked_frontdoor_functional_calibration_owner_executes_all_static_coordinate
             }
         }
     }
+}
+
+#[test]
+fn coverage_tally_versions_validation_and_rejects_mixed_replicates() {
+    use common::calibration::{CoverageTally, RecordKey, ScopeFacts};
+    let case = &CASES[0];
+    let key = RecordKey { test: case.test, dgp: "validation_test", interval: case.interval };
+    let construction = case.construction();
+    let scope = ScopeFacts {
+        row_count: 300,
+        replicates_ok: None,
+        posterior_draws: None,
+        unidentified_mass: 0.0,
+    };
+    let mut none = CoverageTally::for_record(key, 0.95);
+    none.bind_validation(&construction, scope, "none");
+    let none_id = none.record_id().unwrap();
+    assert!(none_id.contains(".v2_validation_none"));
+    let mut graphless = CoverageTally::for_record(key, 0.95);
+    graphless.bind_validation(&construction, scope, "not_applicable");
+    assert!(graphless.record_id().unwrap().contains(".v2_validation_not_applicable"));
+    let mut cheap = CoverageTally::for_record(key, 0.95);
+    cheap.bind_validation(&construction, scope, "cheap");
+    assert_ne!(none_id, cheap.record_id().unwrap());
+    let mut accepted_construction = construction.clone();
+    accepted_construction.structure = "accepted".into();
+    let mut accepted = CoverageTally::for_record(key, 0.95);
+    accepted.bind_validation(&accepted_construction, scope, "none");
+    let accepted_id = accepted.record_id().unwrap();
+    assert!(accepted_id.contains(".v2_validation_none.v2_structure_accepted"));
+    assert_ne!(none_id, accepted_id);
+    let mut posterior_construction = construction.clone();
+    posterior_construction.structure = "graph_posterior".into();
+    let mut posterior = CoverageTally::for_record(key, 0.95);
+    posterior.bind_validation(&posterior_construction, scope, "none");
+    let posterior_id = posterior.record_id().unwrap();
+    assert!(posterior_id.contains(".v2_validation_none.v2_structure_graph_posterior"));
+    assert!(
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            none.bind_validation(&construction, scope, "full");
+        }))
+        .is_err()
+    );
+    let mut unknown = CoverageTally::for_record(key, 0.95);
+    unknown.bind(&construction, scope);
+    assert!(unknown.record_id().unwrap().contains(".v2_validation_unknown"));
 }

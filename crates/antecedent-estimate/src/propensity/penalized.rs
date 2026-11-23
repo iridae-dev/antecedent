@@ -19,7 +19,7 @@
 //! orthogonal-score argument under a stated remainder condition; the declared configuration
 //! travels with the score table through its provenance string.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::hash::{Hash, Hasher};
 
@@ -31,11 +31,21 @@ use antecedent_learn::{
 };
 
 use super::penalized_report::{FailedFit, FoldSupport};
+use crate::arm::TreatmentArm;
 use crate::crossfit_plan::{FoldSource, SHARED_FOLD_ID_ERRORS, derive_fold_ids};
 use crate::error::EstimationError;
 use crate::learn_nuisance::{intercept_is_constant, learn_err};
 use crate::splitmix::mix64;
 use crate::util::refuse;
+
+/// Conservative per-declaration configuration cap for penalty grids.
+///
+/// The 256 MiB policy uses a planning allowance of 4096 bytes per input penalty
+/// for copies, Python conversion, and worst-case legacy identity formatting. It is
+/// not a shared reservation: downstream copies and concurrent declarations are
+/// not charged to this cap or to a later execution context.
+const CONTEXT_FREE_GRID_POLICY_BYTES: u64 = 256 * 1024 * 1024;
+const CONTEXT_FREE_GRID_BYTES_PER_PENALTY: u64 = 4096;
 
 /// Inner cross-validation folds used to choose the penalty when none is declared.
 pub(crate) const DEFAULT_RIDGE_INNER_FOLDS: usize = 5;
@@ -46,12 +56,6 @@ pub const DEFAULT_RIDGE_GRID: [f64; 6] = [1e-2, 1e-1, 1.0, 1e1, 1e2, 1e3];
 /// Default lasso penalty grid (sum-scale `lambda`, standardized covariates): from a nearly
 /// unpenalized fit to one that zeroes every slope at moderate sample sizes.
 pub(crate) const DEFAULT_LASSO_GRID: [f64; 8] = [0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0];
-
-/// Largest declared penalty grid.
-const MAX_RIDGE_GRID: usize = 64;
-
-/// Largest declared number of inner cross-validation folds.
-const MAX_RIDGE_INNER_FOLDS: usize = 20;
 
 /// Marker the score table's provenance carries when its propensity was ridge-penalized.
 const RIDGE_PROVENANCE_TAG: &str = ";propensity=ridge_logistic";
@@ -66,9 +70,21 @@ const INNER_PLAN_TAG: u64 = 0x1AE5_17D0_F01D_0001;
 pub(crate) fn invalid(message: &str) -> EstimationError {
     refuse(
         antecedent_core::reason_code!("invalid_argument"),
-        "penalized_propensity.invalid_penalty",
+        antecedent_core::reason_details::penalized_propensity::INVALID_PENALTY,
         message,
     )
+}
+
+fn allocate_penalty_grid(count: usize) -> Result<Vec<f64>, EstimationError> {
+    let mut grid = Vec::new();
+    grid.try_reserve_exact(count).map_err(|_| {
+        refuse(
+            antecedent_core::reason_code!("execution_resource_limit"),
+            antecedent_core::reason_details::penalized_propensity::GRID_ALLOCATION,
+            "could not allocate the declared penalty grid",
+        )
+    })?;
+    Ok(grid)
 }
 
 /// Declared penalty tuning rule: a fixed grid and the inner folds that rank it.
@@ -96,28 +112,54 @@ impl RidgeTuning {
     ///
     /// # Errors
     ///
-    /// A refusal with the `invalid_argument` reason code for an empty or oversized grid, a
-    /// penalty that is not finite and positive, or an inner fold count outside `2..=20`.
+    /// A refusal with the `invalid_argument` reason code for an empty grid, a penalty that is
+    /// not finite and positive, or fewer than two inner folds (the fold plan refuses more
+    /// folds than the training rows hold), or an `execution_resource_limit` refusal if the
+    /// declared grid cannot be allocated or exceeds the finite per-declaration
+    /// configuration cap. This cap does not reserve a later execution budget.
     pub fn new(lambdas: &[f64], inner_folds: usize) -> Result<Self, EstimationError> {
-        if lambdas.is_empty() || lambdas.len() > MAX_RIDGE_GRID {
-            return Err(invalid(&format!(
-                "penalty grid must hold 1 to {MAX_RIDGE_GRID} values, got {}",
-                lambdas.len()
-            )));
+        Self::check_context_free_grid_len(lambdas.len())?;
+        if lambdas.is_empty() {
+            return Err(invalid("penalty grid must hold at least one value"));
         }
         if let Some(bad) = lambdas.iter().find(|l| !l.is_finite() || **l <= 0.0) {
             return Err(invalid(&format!("penalty must be finite and > 0, got {bad}")));
         }
-        if !(2..=MAX_RIDGE_INNER_FOLDS).contains(&inner_folds) {
+        if inner_folds < 2 {
             return Err(invalid(&format!(
-                "penalty selection needs 2 to {MAX_RIDGE_INNER_FOLDS} inner folds, \
-                 got {inner_folds}"
+                "penalty selection needs at least 2 inner folds, got {inner_folds}"
             )));
         }
-        let mut sorted = lambdas.to_vec();
-        sorted.sort_by(f64::total_cmp);
+        let mut sorted = allocate_penalty_grid(lambdas.len())?;
+        sorted.extend_from_slice(lambdas);
+        sorted.sort_unstable_by(f64::total_cmp);
         sorted.dedup_by(|a, b| a.total_cmp(b).is_eq());
         Ok(Self { lambdas: sorted, inner_folds })
+    }
+
+    /// Maximum number of input penalties in one bounded declaration.
+    #[must_use]
+    pub const fn context_free_max_grid_len() -> u64 {
+        CONTEXT_FREE_GRID_POLICY_BYTES / CONTEXT_FREE_GRID_BYTES_PER_PENALTY
+    }
+
+    /// Check the configuration cap before copying or iterating caller input.
+    ///
+    /// # Errors
+    /// Returns `execution_resource_limit` if the input exceeds the cap.
+    pub fn check_context_free_grid_len(count: usize) -> Result<(), EstimationError> {
+        let fits = u64::try_from(count)
+            .ok()
+            .and_then(|n| n.checked_mul(CONTEXT_FREE_GRID_BYTES_PER_PENALTY))
+            .is_some_and(|bytes| bytes <= CONTEXT_FREE_GRID_POLICY_BYTES);
+        if !fits {
+            return Err(refuse(
+                antecedent_core::reason_code!("execution_resource_limit"),
+                antecedent_core::reason_details::penalized_propensity::GRID_ALLOCATION,
+                "penalty grid exceeds the per-declaration configuration cap",
+            ));
+        }
+        Ok(())
     }
 
     /// The default lasso tuning ([`DEFAULT_LASSO_GRID`], five inner folds).
@@ -139,9 +181,16 @@ impl RidgeTuning {
     }
 
     fn key(&self, label: &str) -> String {
-        let grid: Vec<String> =
-            self.lambdas.iter().map(|l| format!("{:016x}", l.to_bits())).collect();
-        format!("{label}.cv(k={},grid={})", self.inner_folds, grid.join(","))
+        use std::fmt::Write;
+        let mut key = format!("{label}.cv(k={},grid=", self.inner_folds);
+        for (index, value) in self.lambdas.iter().enumerate() {
+            if index != 0 {
+                key.push(',');
+            }
+            write!(key, "{:016x}", value.to_bits()).expect("writing to String cannot fail");
+        }
+        key.push(')');
+        key
     }
 
     fn write_identity(&self, stream: &mut CanonicalWriter) {
@@ -150,8 +199,15 @@ impl RidgeTuning {
 
     /// Human-readable grid for a calibration label (shortest round-trip spelling).
     fn label(&self, label: &str) -> String {
-        let grid: Vec<String> = self.lambdas.iter().map(ToString::to_string).collect();
-        format!("{label}:k{}:g{}", self.inner_folds, grid.join("|"))
+        use std::fmt::Write;
+        let mut result = format!("{label}:k{}:g", self.inner_folds);
+        for (index, value) in self.lambdas.iter().enumerate() {
+            if index != 0 {
+                result.push('|');
+            }
+            write!(result, "{value}").expect("writing to String cannot fail");
+        }
+        result
     }
 }
 
@@ -165,7 +221,7 @@ pub enum PropensityPenalty {
     RidgeLogistic(RidgeTuning),
     /// Lasso logistic: penalty and selected support both chosen on each fold's training
     /// rows. Cross-fitted only; a full-sample lasso is refused
-    /// (`selection_inference_not_licensed`) because selection on the evaluation rows is not
+    /// (`selection_inference_not_supported`) because selection on the evaluation rows is not
     /// excluded.
     Lasso(RidgeTuning),
 }
@@ -177,8 +233,8 @@ pub enum NuisanceFallback {
     #[default]
     None,
     /// Fall back to a flexible machine-learning learner (forest, boosting). Closed: that
-    /// destination has no cross-fitted support or uncertainty license, so a failed fit is
-    /// refused with the failure recorded (`nuisance_fallback_not_licensed`).
+    /// destination has no cross-fitted support or uncertainty support, so a failed fit is
+    /// refused with the failure recorded (`nuisance_fallback_not_supported`).
     Ml,
     /// On a failed GLM propensity fit, run the whole cross-fitted route again with a
     /// ridge-logistic propensity of this tuning (same estimand, the destination's claim).
@@ -288,7 +344,7 @@ impl PropensityNuisance {
         if self.is_penalized() && self.fallback != NuisanceFallback::None {
             return Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "penalized_propensity.fallback_with_penalty",
+                antecedent_core::reason_details::penalized_propensity::FALLBACK_WITH_PENALTY,
                 "a nuisance fallback replaces a failed GLM propensity fit; a penalized \
                  propensity is declared as the primary route, so the fallback could never run",
             ));
@@ -301,9 +357,9 @@ impl PropensityNuisance {
     #[must_use]
     pub fn lasso_not_cross_fitted() -> EstimationError {
         refuse(
-            antecedent_core::reason_code!("selection_inference_not_licensed"),
-            "penalized_propensity.selection_closed",
-            "a lasso propensity is licensed only inside the cross-fitted untrimmed AllObserved \
+            antecedent_core::reason_code!("selection_inference_not_supported"),
+            antecedent_core::reason_details::penalized_propensity::SELECTION_NOT_SUPPORTED,
+            "a lasso propensity is supported only inside the cross-fitted untrimmed AllObserved \
              mean ATE, where the support is selected on training rows only; a full-sample \
              lasso selects covariates on the rows it scores, so no interval is valid after \
              that selection",
@@ -319,7 +375,7 @@ impl PropensityNuisance {
     pub fn record_failed_fit(&self, error: EstimationError) -> EstimationError {
         if self.fallback != NuisanceFallback::None && matches!(error, EstimationError::Stats(_)) {
             let tail = if self.fallback == NuisanceFallback::Ml {
-                "the declared ML fallback has no support or uncertainty license for this estimand"
+                "the declared ML fallback has no support or uncertainty support for this estimand"
             } else {
                 "the declared fallback runs only on the cross-fitted untrimmed AllObserved mean \
                  ATE, and this route refits full-sample nuisances"
@@ -333,12 +389,12 @@ impl PropensityNuisance {
         // The failed primary fit's own record (stage, reason, iterations, rank, ...) rides on
         // the refusal; whatever that fit did not measure stays absent.
         let fields = error.refusal_fields().map(std::borrow::Cow::into_owned);
-        EstimationError::refused_with_fields(
-            antecedent_core::reason_code!("nuisance_fallback_not_licensed"),
+        EstimationError::refused_detail_with_fields(
+            antecedent_core::reason_code!("nuisance_fallback_not_supported"),
+            antecedent_core::reason_details::penalized_propensity::FALLBACK_NOT_SUPPORTED,
             format!(
-                "penalized_propensity.fallback_closed: the primary nuisance fit failed \
-                 ({error}); {tail}, so the failed fit is reported and no fallback result is \
-                 produced"
+                "the primary nuisance fit failed ({error}); {tail}, so the failed fit is \
+                 reported and no fallback result is produced"
             ),
             fields.unwrap_or_default(),
         )
@@ -350,8 +406,8 @@ impl PropensityNuisance {
     /// # Errors
     ///
     /// `error` unchanged when no fallback is declared (or the primary is not a GLM fit), and
-    /// `nuisance_fallback_not_licensed` for the machine-learning destination, which has no
-    /// cross-fitted license; both leave the failed fit on the result.
+    /// `nuisance_fallback_not_supported` for the machine-learning destination, which has no
+    /// cross-fitted support; both leave the failed fit on the result.
     pub(crate) fn resolve_failed_fit(
         &self,
         error: EstimationError,
@@ -365,7 +421,7 @@ impl PropensityNuisance {
         match &self.fallback {
             NuisanceFallback::Ml => Err(Self::refuse_fallback(
                 &error,
-                "the declared ML fallback has no support or uncertainty license for this \
+                "the declared ML fallback has no support or uncertainty support for this \
                  estimand",
             )),
             _ => Err(error),
@@ -532,12 +588,12 @@ pub(crate) fn fold_supports(
         .collect()
 }
 
-/// Whether a score table's provenance marks a score table whose interval is not licensed:
+/// Whether a score table's provenance marks a score table whose interval is not supported:
 /// whole-cluster (cluster-DML) cross-fitting, learner-supplied joint-cell nuisances, or a
 /// factorized joint-cell family.
 ///
 /// Such a table is a point-and-score artifact unless a separate dependence receipt
-/// licenses its covariance and interval. The cluster-DML route supplies that receipt;
+/// supports its covariance and interval. The cluster-DML route supplies that receipt;
 /// factorized joint cells do not. Ridge- and lasso-penalized propensity tables are not
 /// withheld: their intervals are the routes of `docs/guides/penalized-aipw.md`.
 #[must_use]
@@ -616,7 +672,7 @@ pub(crate) struct RidgeFoldInput<'a> {
     /// Training treatment, 0/1.
     pub(crate) t_train: &'a [f64],
     /// Unit (original row) identity of each training row.
-    pub(crate) units: &'a [u32],
+    pub(crate) units: &'a [antecedent_data::GlobalId],
     /// Outer fold index.
     pub(crate) fold: usize,
     /// Seed of the fold plan the outer folds were drawn from.
@@ -737,7 +793,8 @@ pub(crate) fn fit_penalized_fold(
         DesignView::from_column_major(&valid, input.n_valid, input.ncols).map_err(learn_err)?;
     let target = TargetView::new(input.t_train);
 
-    let arms: Vec<u32> = input.t_train.iter().map(|&t| u32::from(t > 0.5)).collect();
+    let arms: Vec<u32> =
+        input.t_train.iter().map(|&t| u32::from(TreatmentArm::is_treated_indicator(t))).collect();
     let plan = derive_fold_ids(
         arms.len(),
         tuning.inner_folds,
@@ -757,7 +814,7 @@ pub(crate) fn fit_penalized_fold(
         if ctx.cancellation.is_cancelled() {
             return Err(refuse(
                 antecedent_core::reason_code!("cancelled_no_claim"),
-                "penalized_propensity.cancelled",
+                antecedent_core::reason_details::penalized_propensity::CANCELLED,
                 &format!(
                     "{} penalty selection was cancelled; no estimate is reported",
                     penalty.label()
@@ -855,12 +912,42 @@ mod tests {
             RidgeTuning::new(&[f64::NAN], 5),
             RidgeTuning::new(&[f64::INFINITY], 5),
             RidgeTuning::new(&[1.0], 1),
-            RidgeTuning::new(&[1.0], 21),
-            RidgeTuning::new(&[1.0; 65], 5),
         ] {
             let error = bad.unwrap_err();
             assert!(error.to_string().contains("invalid_argument"), "{error}");
         }
+    }
+
+    #[test]
+    fn grid_allocation_is_fallible_and_large_grids_stay_canonical() {
+        let values = (1_u32..=128).rev().map(f64::from).collect::<Vec<_>>();
+        let tuning = RidgeTuning::new(&values, 3).unwrap();
+        assert_eq!(tuning.lambdas(), &(1_u32..=128).map(f64::from).collect::<Vec<_>>());
+        let error = allocate_penalty_grid(usize::MAX).unwrap_err();
+        assert_eq!(error.reason_code(), Some("execution_resource_limit"));
+    }
+
+    #[test]
+    fn grid_configuration_cap_precedes_input_validation_and_copying() {
+        let max = usize::try_from(RidgeTuning::context_free_max_grid_len()).unwrap();
+        assert!(RidgeTuning::check_context_free_grid_len(max).is_ok());
+        assert!(RidgeTuning::check_context_free_grid_len(max + 1).is_err());
+        let oversized = vec![f64::NAN; max + 1];
+        assert_eq!(
+            RidgeTuning::new(&oversized, 3).unwrap_err().reason_code(),
+            Some("execution_resource_limit")
+        );
+        assert!(max > 128);
+    }
+
+    #[test]
+    fn streamed_grid_text_preserves_canonical_format() {
+        let tuning = RidgeTuning::new(&[10.0, 0.1, 10.0], 3).unwrap();
+        assert_eq!(
+            tuning.key("ridge_logistic"),
+            "ridge_logistic.cv(k=3,grid=3fb999999999999a,4024000000000000)"
+        );
+        assert_eq!(tuning.label("ridge"), "ridge:k3:g0.1|10");
     }
 
     #[test]
@@ -905,7 +992,7 @@ mod tests {
     }
 
     #[test]
-    fn lasso_is_licensed_inside_the_cross_fit_and_refused_outside_it() {
+    fn lasso_is_supported_inside_the_cross_fit_and_refused_outside_it() {
         assert!(PropensityNuisance::lasso().validate_for_execution().is_ok());
         assert!(PropensityNuisance::default().validate_for_execution().is_ok());
         assert!(
@@ -914,7 +1001,7 @@ mod tests {
                 .is_ok()
         );
         let error = PropensityNuisance::lasso_not_cross_fitted();
-        assert!(error.to_string().contains("selection_inference_not_licensed"), "{error}");
+        assert!(error.to_string().contains("selection_inference_not_supported"), "{error}");
         assert!(
             PropensityNuisance::lasso().is_lasso() && !PropensityNuisance::default().is_lasso()
         );
@@ -952,7 +1039,7 @@ mod tests {
             .resolve_failed_fit(failure())
             .unwrap_err();
         let text = error.to_string();
-        assert!(text.contains("nuisance_fallback_not_licensed"), "{text}");
+        assert!(text.contains("nuisance_fallback_not_supported"), "{text}");
         assert!(text.contains("primary nuisance fit failed"), "{text}");
         // No fallback declared: the original failure is the result.
         let plain = PropensityNuisance::default().resolve_failed_fit(failure()).unwrap_err();
@@ -1042,7 +1129,7 @@ mod tests {
     fn standardization_uses_training_statistics_only() {
         let train = [1.0, 1.0, 1.0, 1.0, 2.0, 4.0, 6.0, 8.0, 3.0, 3.0, 3.0, 3.0];
         let valid = [1.0, 1.0, 100.0, -3.0, 5.0, 7.0];
-        let units = [0, 1, 2, 3];
+        let units = [0u64, 1, 2, 3].map(antecedent_data::GlobalId::new);
         let t = [0.0, 1.0, 0.0, 1.0];
         let input = RidgeFoldInput {
             design_train: &train,
@@ -1074,7 +1161,7 @@ mod tests {
         train: Vec<f64>,
         valid: Vec<f64>,
         t: Vec<f64>,
-        units: Vec<u32>,
+        units: Vec<antecedent_data::GlobalId>,
     }
 
     fn duplicated() -> Duplicated {
@@ -1100,7 +1187,7 @@ mod tests {
             train: design(0..n),
             valid: design(n..n + nv),
             t: t[..n].to_vec(),
-            units: (0..80).collect(),
+            units: (0..80).map(antecedent_data::GlobalId::new).collect(),
         }
     }
 
@@ -1232,3 +1319,7 @@ mod tests {
         assert_eq!(ridge.support, None);
     }
 }
+
+#[cfg(test)]
+#[path = "penalized_reference_tests.rs"]
+mod reference_tests;

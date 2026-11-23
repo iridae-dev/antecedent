@@ -24,12 +24,12 @@ What is claimed, and what is not:
 * **No per-dataset recovery guarantee.** The discovered structure is an estimate. Whether it is
   the true graph rests on faithfulness and causal sufficiency, which cannot be tested from the
   table discovery ran on, so no recovery, false-discovery or error-control statement is made
-  about one dataset, and none can be licensed: :meth:`SelectiveDiscovery.request_recovery_claim`
-  refuses with ``cell_not_licensed``. How often the method recovers the graph over a family of
-  generating processes is a measured table in the documentation, not a license.
+  about one dataset, and none can be supported: :meth:`SelectiveDiscovery.request_recovery_claim`
+  refuses with ``not_supported``. How often the method recovers the graph over a family of
+  generating processes is a measured table in the documentation, not support.
 * **A reused row cannot carry an interval.**
-  :meth:`SelectiveDiscovery.request_downstream_interval` refuses with ``cell_not_licensed``;
-  the interval that can be licensed is the one :func:`sample_split_effect` computes on rows
+  :meth:`SelectiveDiscovery.request_downstream_interval` refuses with ``not_supported``;
+  the interval that can be supported is the one :func:`sample_split_effect` computes on rows
   discovery never saw.
 * **A discovered structure is not a selection diagram.**
   :meth:`SelectiveDiscovery.request_selection_diagram` refuses and names every unresolved edge
@@ -39,7 +39,7 @@ What is claimed, and what is not:
   :class:`PerPopulationDiscovery`, nothing pooled and no invariance claimed.
 * **Discovery then analysis.** :func:`discover_on_split` partitions exchangeable rows into a
   discovery part and an analysis part by a declared rule, discovers on the first only and binds
-  the second to the discovery through a receipt. The binding licenses a statement conditional on
+  the second to the discovery through a receipt. The binding supports a statement conditional on
   the selected graph. :func:`sample_split_effect` runs the one construction whose whole-method
   coverage of the true effect is measured (a seeded half split, PC with the partial-correlation
   test, a resolved structure, parent adjustment on the analysis half) and its
@@ -74,18 +74,29 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from antecedent import _reason_details
+
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import encode_identifier
 from ._freeze import freeze
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count as _shared_count
+from ._validate import name as _name
 from .discovery import BackgroundKnowledge, Link
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, native_controls
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
-    from .composition_verification import CompositionGraph
+    from .composition_verification import ClaimClassification, CompositionGraph
     from .evidence_ledger import SourceDeclaration
 
 __all__ = [
@@ -93,6 +104,7 @@ __all__ = [
     "AnalysisBinding",
     "DiscoveryClaimKeys",
     "DiscoveryClaims",
+    "DiscoveryRevalidation",
     "PerPopulationClaims",
     "PerPopulationDiscovery",
     "PerPopulationReport",
@@ -127,6 +139,7 @@ __all__ = [
     "inspect_selective_discovery_artifact",
     "replace",
     "request_score_search_reuse",
+    "revalidate_after_discovery",
 ]
 
 #: The algorithms of each kind.
@@ -143,10 +156,22 @@ class SelectiveDiscoveryRefusal(StructuredRefusal):
     """A typed refusal of selective discovery.
 
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code``
-    (``invalid_argument``, ``route_not_supported``, ``cell_not_licensed``,
+    (``invalid_argument``, ``route_not_supported``, ``not_supported``,
     ``discovery_statistics_invalid``, ``discovered_structure_unresolved``) and a
-    ``selective_discovery.*`` ``detail``; ``remedy`` names what would license the request.
+    ``selective_discovery.*`` ``detail``; ``remedy`` names what would support the request.
     """
+
+
+def _policy(execution: Execution | None) -> Execution:
+    policy = Execution() if execution is None else execution
+    if not isinstance(policy, Execution):
+        raise CausalTypeError("execution must be an antecedent.Execution")
+    return policy
+
+
+def _controls(policy: Execution) -> dict[str, Any]:
+    """The threads and cancellation the native selective-discovery entries take."""
+    return native_controls(policy, threads="threads", cancel="cancel")
 
 
 def _raise(payload: str | None) -> None:
@@ -154,12 +179,6 @@ def _raise(payload: str | None) -> None:
 
 
 # --------------------------------------------------------------------------- declarations
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
 
 
 def _count(value: object, what: str, **kwargs: Any) -> int:
@@ -569,13 +588,25 @@ class SelectiveDiscovery(ScientificResult):
         text = self._handle.outcome_json()
         return None if text is None else _outcome(text, self._names)
 
-    def _call(self, which: str, contract: Any, data: Mapping[str, Any], **options: Any) -> str:
+    def _call(
+        self,
+        which: str,
+        contract: Any,
+        data: Mapping[str, Any],
+        *,
+        execution: Execution | None = None,
+    ) -> str:
         if _kind_of(contract) != self._kind:
             raise CausalTypeError(f"a {self._kind} adapter needs a {self._kind} contract")
+        policy = _policy(execution)
         wire = json.dumps(contract.to_wire(), sort_keys=True)
         columns = _columns(contract, data)
-        text, refusal = getattr(self._handle, which)(
-            wire, list(contract.variables), columns, **options
+        text, refusal = policy._call(
+            getattr(self._handle, which),
+            wire,
+            list(contract.variables),
+            columns,
+            **_controls(policy),
         )
         _raise(refusal)
         self._names = tuple(contract.variables)
@@ -587,8 +618,7 @@ class SelectiveDiscovery(ScientificResult):
         contract: StaticContract | TemporalContract,
         data: Mapping[str, Any],
         *,
-        threads: int | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> RunReport:
         """Discover on ``data`` under ``contract``, reusing retained statistics where it may.
 
@@ -601,38 +631,27 @@ class SelectiveDiscovery(ScientificResult):
             CausalDiscoveryError: the algorithm failed or was cancelled; retained state is
                 unchanged.
         """
-        return _report(self._call("run", contract, data, threads=threads, cancel=cancel))
+        return _report(self._call("run", contract, data, execution=execution))
 
     def plan(
         self,
         contract: StaticContract | TemporalContract,
         data: Mapping[str, Any],
         *,
-        threads: int | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> tuple[PlanEntry, ...]:
         """What :meth:`run` would reuse, without executing anything."""
-        wire = json.loads(self._call("plan", contract, data, threads=threads, cancel=cancel))
+        wire = json.loads(self._call("plan", contract, data, execution=execution))
         return tuple(
             PlanEntry(e["stage"], e["status"], tuple(e["because"]), e["identity"])
             for e in wire["stages"]
         )
 
-    def export(self, artifact_id: str = "selective_discovery") -> bytes:
-        return self.export_state(artifact_id).artifact
-
-    def artifact(
+    @artifact_export
+    def export(
         self, artifact_id: str = "selective_discovery"
     ) -> ExportedArtifact[ConsumedSelectiveDiscovery]:
-        from ._artifact_protocol import ArtifactExpectation, ExportedArtifact
-
-        receipt = self.export_state(artifact_id)
-        return ExportedArtifact(
-            receipt.artifact,
-            "selective_discovery_v1",
-            ArtifactExpectation("selective_discovery_v1", receipt.identity),
-            receipt.summary,
-        )
+        return artifact_from_receipt(self, self.export_state(artifact_id).artifact)
 
     def export_state(self, artifact_id: str = "selective_discovery") -> ExportedState:
         """Export the retained run as a ``selective_discovery_v1`` artifact (no raw data).
@@ -649,7 +668,7 @@ class SelectiveDiscovery(ScientificResult):
                 {
                     "code": "invalid_argument",
                     "stage": "selective_discovery",
-                    "detail": "selective_discovery.nothing_retained",
+                    "detail": _reason_details.selective_discovery.NOTHING_RETAINED,
                     "message": "no discovery has run",
                     "remedy": "run discovery before exporting its state",
                 }
@@ -665,8 +684,7 @@ class SelectiveDiscovery(ScientificResult):
         artifact: bytes,
         expected_identity: str | None = None,
         *,
-        threads: int | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> tuple[SelectiveDiscovery, RunReport]:
         """Resume from an exported artifact: replay the algorithm over its receipts only.
 
@@ -678,19 +696,21 @@ class SelectiveDiscovery(ScientificResult):
                 data, another contract, an unusable receipt or a replay that diverges;
                 ``route_not_supported`` for a retained-identity mismatch.
         """
+        artifact = container_bytes(artifact)
         kind = _kind_of(contract)
         if not isinstance(artifact, (bytes, bytearray, memoryview)):
             raise CausalTypeError("artifact must be bytes")
+        policy = _policy(execution)
         columns = None if data is None else _columns(contract, data)
-        handle, report, refusal = _native.selective_discovery_resume(
+        handle, report, refusal = policy._call(
+            _native.selective_discovery_resume,
             kind,
             json.dumps(contract.to_wire(), sort_keys=True),
             list(contract.variables),
             columns,
             bytes(artifact),
             expected_identity,
-            threads=threads,
-            cancel=cancel,
+            **_controls(policy),
         )
         _raise(refusal)
         assert handle is not None and report is not None
@@ -736,7 +756,7 @@ class SelectiveDiscovery(ScientificResult):
     def request_recovery_claim(self) -> None:
         """Ask for a recovery or error-control statement about the retained structure.
 
-        Always raises :class:`SelectiveDiscoveryRefusal` (``cell_not_licensed``): matching a full
+        Always raises :class:`SelectiveDiscoveryRefusal` (``not_supported``): matching a full
         run is an algorithmic fact, not a statement about the true graph.
         """
         _raise(self._handle.request_recovery_claim())
@@ -744,7 +764,7 @@ class SelectiveDiscovery(ScientificResult):
     def request_downstream_interval(self) -> None:
         """Ask for an interval on a downstream estimate resting on the retained structure.
 
-        Always raises :class:`SelectiveDiscoveryRefusal` (``cell_not_licensed``).
+        Always raises :class:`SelectiveDiscoveryRefusal` (``not_supported``).
         """
         _raise(self._handle.request_downstream_interval())
 
@@ -759,14 +779,48 @@ class SelectiveDiscovery(ScientificResult):
             if name not in self._names:
                 raise CausalValueError(f"{name!r} is not a searched variable")
             ids.append(self._names.index(name))
-        payload = self._handle.request_selection_diagram(ids)
-        wire = json.loads(payload)
-        refusal = SelectiveDiscoveryRefusal(wire)
-        refusal.unresolved_edges = tuple(wire.get("unresolved_edges", ()))  # type: ignore[attr-defined]
-        refusal.bounded_search_receipts = tuple(  # type: ignore[attr-defined]
-            wire.get("bounded_search_receipts", ())
+        raise _structure_refusal(self._handle.request_selection_diagram(ids))
+
+    def accepted_graph_stage_identity(
+        self, declared_by: str, *, completion: tuple[str, str] | None = None
+    ) -> str:
+        """The identity to declare for the graph stage of a recalculation plan.
+
+        It covers the retained structure, the declared completion and ``declared_by`` (who
+        accepted the graph), so a change of any of them reaches every downstream stage through
+        the planner's ordinary dependency rules. ``completion`` is a ``(label, identity)`` pair
+        naming the declared member of the equivalence class (``identity`` is 64 hexadecimal
+        characters); it is required when the structure has unresolved edges.
+
+        Returns:
+            The 64-character hexadecimal stage identity.
+
+        Raises:
+            CausalValueError: discovery has not run, or ``completion`` is malformed.
+            SelectiveDiscoveryRefusal: ``discovered_structure_unresolved`` for a search that
+                exhausted a bound (``selective_discovery.search_incomplete``) or a structure with
+                unresolved edges and no completion (``selective_discovery.unresolved_structure``);
+                the refusal's ``unresolved_edges`` and ``bounded_search_receipts`` say what is
+                undecided.
+        """
+        label, identity = (None, None) if completion is None else _completion(completion)
+        text, refusal = self._handle.accepted_graph_stage_identity(
+            _name(declared_by, "declared_by"), label, identity
         )
-        raise refusal
+        if refusal is not None:
+            raise _structure_refusal(refusal)
+        assert text is not None
+        return text
+
+
+def _structure_refusal(payload: str) -> SelectiveDiscoveryRefusal:
+    wire = json.loads(payload)
+    refusal = SelectiveDiscoveryRefusal(wire)
+    refusal.unresolved_edges = tuple(wire.get("unresolved_edges", ()))  # type: ignore[attr-defined]
+    refusal.bounded_search_receipts = tuple(  # type: ignore[attr-defined]
+        wire.get("bounded_search_receipts", ())
+    )
+    return refusal
 
 
 # --------------------------------------------------------------------------- artifacts
@@ -778,6 +832,7 @@ def inspect_selective_discovery_artifact(artifact: bytes) -> Mapping[str, Any]:
     Raises:
         SelectiveDiscoveryRefusal: for corrupt or foreign bytes.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     text, refusal = _native.selective_discovery_inspect(bytes(artifact))
@@ -808,6 +863,10 @@ class ConsumedSelectiveDiscovery(ScientificResult, Mapping[str, Any]):
         return thaw(self.summary)
 
 
+@artifact_consumer(
+    proof="selective_discovery.consume_selective_discovery_artifact: independent semantic consumer checks declarations, identities and stored result",
+    replayable=False,
+)
 def consume_selective_discovery_artifact(
     artifact: bytes, expected_identity: str | None = None
 ) -> ConsumedSelectiveDiscovery:
@@ -820,6 +879,7 @@ def consume_selective_discovery_artifact(
         SelectiveDiscoveryRefusal: ``discovery_statistics_invalid`` for an unusable receipt or an
             inconsistent identity, ``invalid_argument`` for corrupt bytes.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     text, refusal = _native.selective_discovery_consume(bytes(artifact), expected_identity)
@@ -960,8 +1020,7 @@ class PerPopulationDiscovery(ScientificResult):
         contract: StaticContract,
         populations: Mapping[str, Mapping[str, Any]],
         *,
-        threads: int | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> PerPopulationReport:
         """Run ``contract`` on each population's columns.
 
@@ -981,13 +1040,14 @@ class PerPopulationDiscovery(ScientificResult):
             raise CausalTypeError("populations must map a label to a column mapping")
         labels = [_name(label, "population") for label in populations]
         columns = [_columns(contract, populations[label]) for label in labels]
-        text, refusal = self._handle.run(
+        policy = _policy(execution)
+        text, refusal = policy._call(
+            self._handle.run,
             json.dumps(contract.to_wire(), sort_keys=True),
             labels,
             list(contract.variables),
             columns,
-            threads=threads,
-            cancel=cancel,
+            **_controls(policy),
         )
         _raise(refusal)
         self._names = tuple(contract.variables)
@@ -1060,7 +1120,7 @@ class SplitReceipt:
     Kish effective sample size of each part's weights; ``mask_identity`` is the digest of the
     source mask when it had one.
 
-    ``whole_method_calibration`` is always ``unmeasured`` for an analysis you run yourself on the
+    ``whole_method_calibration`` is always ``not_measured`` for an analysis you run yourself on the
     analysis part. The one whole-method construction with a measured coverage record is
     :func:`sample_split_effect`, which attests its own interval.
     """
@@ -1087,8 +1147,8 @@ class SplitReceipt:
 class AnalysisBinding:
     """What an analysis table passed the split's check under.
 
-    The binding licenses a statement conditional on the selected graph, and no more: the
-    probability that discovery returned a graph that licenses the question is not controlled.
+    The binding supports a statement conditional on the selected graph, and no more: the
+    probability that discovery returned a graph that supports the question is not controlled.
     """
 
     receipt_identity: str
@@ -1293,6 +1353,7 @@ class SampleSplit(ScientificResult):
         Raises:
             SelectiveDiscoveryRefusal: the receipt no longer verifies.
         """
+        snapshot_id = container_bytes(snapshot_id)
         text, refusal = self._handle.evidence_sources(_snapshot(snapshot_id))
         _raise(refusal)
         assert text is not None
@@ -1328,7 +1389,7 @@ class SampleSplit(ScientificResult):
     def request_unsplit_interval(self) -> None:
         """Ask for an interval on account of discovery for an analysis that reused its rows.
 
-        Always raises :class:`SelectiveDiscoveryRefusal` (``cell_not_licensed``).
+        Always raises :class:`SelectiveDiscoveryRefusal` (``not_supported``).
         """
         _raise(self._handle.request_unsplit_interval())
 
@@ -1338,18 +1399,17 @@ def discover_on_split(
     data: Mapping[str, Any],
     *,
     discovery_fraction: float | None = None,
-    seed: int | None = None,
+    split_seed: int | None = None,
     discovery_rows: Sequence[int] | None = None,
     weights: Sequence[float] | None = None,
     mask: Sequence[bool] | None = None,
-    threads: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> SampleSplit:
     """Split the rows of ``data`` and discover on the discovery part only.
 
     Declare the split either as ``discovery_rows`` (original row indices the discovery part
     takes; every other eligible row is an analysis row) or as ``discovery_fraction`` with
-    ``seed`` (a seeded permutation of the eligible rows; the first ``round(fraction * n)`` of
+    ``split_seed`` (a seeded permutation of the eligible rows; the first ``round(fraction * n)`` of
     them are discovery rows). ``data`` must hold every searched variable as a 1-D float array;
     rows are assumed exchangeable.
 
@@ -1371,32 +1431,33 @@ def discover_on_split(
     if not isinstance(contract, StaticContract):
         raise CausalTypeError("contract must be a StaticContract")
     if discovery_rows is not None:
-        if discovery_fraction is not None or seed is not None:
+        if discovery_fraction is not None or split_seed is not None:
             raise CausalValueError(
-                "declare discovery_rows or discovery_fraction with seed, not both"
+                "declare discovery_rows or discovery_fraction with split_seed, not both"
             )
         rule: dict[str, Any] = {
             "kind": "explicit",
             "discovery_rows": [_count(r, "row") for r in discovery_rows],
         }
     else:
-        if discovery_fraction is None or seed is None:
-            raise CausalValueError("declare discovery_rows, or discovery_fraction with seed")
+        if discovery_fraction is None or split_seed is None:
+            raise CausalValueError("declare discovery_rows, or discovery_fraction with split_seed")
         rule = {
             "kind": "seeded_permutation",
-            "seed": _count(seed, "seed"),
+            "seed": _count(split_seed, "split_seed"),
             "discovery_fraction": float(discovery_fraction),
         }
     columns = _columns(contract, data)
-    handle, report, refusal = _native.sample_split_discover(
+    policy = _policy(execution)
+    handle, report, refusal = policy._call(
+        _native.sample_split_discover,
         json.dumps(contract.to_wire(), sort_keys=True),
         list(contract.variables),
         columns,
         json.dumps(rule, sort_keys=True),
         weights=_weights(weights),
         mask=_mask(mask),
-        threads=threads,
-        cancel=cancel,
+        **_controls(policy),
     )
     _raise(refusal)
     assert handle is not None and report is not None
@@ -1432,7 +1493,7 @@ class SplitEffect:
     _source: bytes = field(repr=False)
     _seed: int = field(repr=False)
 
-    def measure(self, *, threads: int | None = None, cancel: Any = None) -> Any:
+    def measure(self, *, execution: Execution | None = None) -> Any:
         """Replay the source and attest the interval from the current coverage records.
 
         Returns:
@@ -1440,13 +1501,14 @@ class SplitEffect:
             governing record.
 
         Raises:
-            SelectiveDiscoveryRefusal: ``cell_not_licensed`` when no current attesting,
+            SelectiveDiscoveryRefusal: ``not_supported`` when no current attesting,
                 non-boundary record measured this construction at this analysis row count.
         """
         from ._measured_inference import MeasuredInference
 
-        native, refusal = _native.sample_split_effect_measure(
-            self._source, self._seed, threads=threads, cancel=cancel
+        policy = _policy(execution)
+        native, refusal = policy._call(
+            _native.sample_split_effect_measure, self._source, self._seed, **_controls(policy)
         )
         _raise(refusal)
         assert native is not None
@@ -1478,9 +1540,7 @@ def sample_split_effect(
     treatment: str,
     outcome: str,
     split_seed: int,
-    seed: int = 0,
-    threads: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> SplitEffect:
     """Discover on half of the rows and estimate the treatment's effect on the other half.
 
@@ -1492,22 +1552,22 @@ def sample_split_effect(
     least-squares interval.
 
     Raises:
-        SelectiveDiscoveryRefusal: a table outside five to seven variables
-            (``split_effect.variable_count_not_measured``), an unresolved structure
+        SelectiveDiscoveryRefusal: an unresolved structure
             (``split_effect.structure_unresolved``), an unfinished search, or an outcome oriented
             into the treatment.
         CausalDiscoveryError: the discovery algorithm failed or was cancelled.
     """
     names, columns = _effect_columns(data, treatment, outcome)
-    text, source, refusal = _native.sample_split_effect(
+    policy = _policy(execution)
+    text, source, refusal = policy._call(
+        _native.sample_split_effect,
         names,
         columns,
         names.index(treatment),
         names.index(outcome),
         _count(split_seed, "split_seed"),
-        _count(seed, "seed"),
-        threads=threads,
-        cancel=cancel,
+        _count(policy.seed, "seed"),
+        **_controls(policy),
     )
     _raise(refusal)
     assert text is not None and source is not None
@@ -1525,7 +1585,7 @@ def sample_split_effect(
         structure_identity=str(wire["structure_identity"]),
         basis=freeze(wire["basis"]),
         _source=bytes(source),
-        _seed=_count(seed, "seed"),
+        _seed=_count(policy.seed, "seed"),
     )
 
 
@@ -1571,22 +1631,24 @@ class ParentSetEffect:
     _source: bytes = field(repr=False)
     _seed: int = field(repr=False)
 
-    def measure(self, *, threads: int | None = None, cancel: Any = None) -> Any:
+    def measure(self, *, execution: Execution | None = None) -> Any:
         """Replay the source and attest the interval from the current coverage records.
+
+        An interval no current attesting, non-boundary record measured at this variable count,
+        degree and analysis row count is still returned; its calibration says so.
 
         Returns:
             A :class:`antecedent.MeasuredInference` carrying the effect, its interval, the
             acceptance reason, the unresolved edges and the governing record.
-
-        Raises:
-            SelectiveDiscoveryRefusal: ``cell_not_licensed`` when no current attesting,
-                non-boundary record measured this construction at this variable count, degree
-                and analysis row count.
         """
         from ._measured_inference import MeasuredInference
 
-        native, refusal = _native.sample_split_parent_set_effect_measure(
-            self._source, self._seed, threads=threads, cancel=cancel
+        policy = _policy(execution)
+        native, refusal = policy._call(
+            _native.sample_split_parent_set_effect_measure,
+            self._source,
+            self._seed,
+            **_controls(policy),
         )
         _raise(refusal)
         assert native is not None
@@ -1605,9 +1667,7 @@ def sample_split_parent_set_effect(
     required: Sequence[tuple[str, str]] = (),
     forbidden: Sequence[tuple[str, str]] = (),
     tiers: Sequence[Sequence[str]] = (),
-    seed: int = 0,
-    threads: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ParentSetEffect:
     """Discover on half of the rows and estimate the treatment's effect on the other half,
     accepting the class when the treatment's parent set is unambiguous.
@@ -1635,9 +1695,7 @@ def sample_split_parent_set_effect(
         SelectiveDiscoveryRefusal: an undeclared transformation
             (``parent_set_effect.transformation_undeclared``, ``invalid_argument``), a
             non-positive log-linear value (``parent_set_effect.log_linear_input_not_positive``,
-            naming the column), a degree above four
-            (``parent_set_effect.degree_above_supported``), a table outside ten to twenty
-            variables, an unfinished search, an undirected edge at the treatment
+            naming the column), an unfinished search, an undirected edge at the treatment
             (``parent_set_effect.treatment_parents_ambiguous``, naming the edges), or an outcome
             oriented into the treatment.
         CausalDiscoveryError: the discovery algorithm failed or was cancelled.
@@ -1663,19 +1721,20 @@ def sample_split_parent_set_effect(
                 "tiers": [[position(v) for v in tier] for tier in tiers],
             }
         )
-    text, source, refusal = _native.sample_split_parent_set_effect(
+    policy = _policy(execution)
+    text, source, refusal = policy._call(
+        _native.sample_split_parent_set_effect,
         names,
         columns,
         names.index(treatment),
         names.index(outcome),
         _count(split_seed, "split_seed"),
-        _count(seed, "seed"),
+        _count(policy.seed, "seed"),
         transformation,
         _count(max_degree, "max_degree"),
         shift,
         knowledge,
-        threads=threads,
-        cancel=cancel,
+        **_controls(policy),
     )
     _raise(refusal)
     assert text is not None and source is not None
@@ -1703,7 +1762,7 @@ def sample_split_parent_set_effect(
         structure_identity=str(wire["structure_identity"]),
         basis=freeze(wire["basis"]),
         _source=bytes(source),
-        _seed=_count(seed, "seed"),
+        _seed=_count(policy.seed, "seed"),
     )
 
 
@@ -1834,6 +1893,7 @@ def discovery_data_source(label: str, snapshot_id: bytes, rows: range) -> Source
 
     ``rows`` is a ``range`` with step 1.
     """
+    snapshot_id = container_bytes(snapshot_id)
     if not isinstance(rows, range) or rows.step != 1:
         raise CausalTypeError("rows must be a range with step 1")
     stop = max(rows.start, rows.stop)
@@ -1850,6 +1910,7 @@ def discovery_rows_source(label: str, snapshot_id: bytes, rows: Sequence[int]) -
 
     As :func:`discovery_data_source`, for a row set such as one part of a sample split.
     """
+    snapshot_id = container_bytes(snapshot_id)
     items = [_count(row, "row", minimum=0) for row in rows]
     text = _native.selective_discovery_rows_source(
         _name(label, "label"), _snapshot(snapshot_id), items
@@ -1867,3 +1928,60 @@ def discovered_graph_source(label: str, data_sources: Sequence[str]) -> SourceDe
     ids = [str(source) for source in data_sources]
     text = _native.selective_discovery_graph_source(_name(label, "label"), ids)
     return _declaration(text)
+
+
+@dataclass(frozen=True, slots=True)
+class DiscoveryRevalidation:
+    """The classification of every claim after a discovery change, with the graph identities."""
+
+    claims: Mapping[str, ClaimClassification]
+    removed: tuple[str, ...]
+    previous_identity: str
+    current_identity: str
+    identity: str
+
+    def classify(self, key: str) -> ClaimClassification:
+        """The classification of one claim."""
+        try:
+            return self.claims[key]
+        except KeyError:
+            raise CausalValueError(f"no claim {key!r} in the current graph") from None
+
+    def keys_of(self, klass: str) -> tuple[str, ...]:
+        """Claim keys with a class (``still_valid``, ``recompute`` or ``withdrawn``), sorted."""
+        return tuple(sorted(k for k, c in self.claims.items() if c.klass == klass))
+
+
+def revalidate_after_discovery(
+    previous: CompositionGraph, current: CompositionGraph
+) -> DiscoveryRevalidation:
+    """Classify every claim of ``current`` against ``previous`` after a discovery change.
+
+    The discovery nodes carry their own identities (the data, the statistics, the discovered
+    graph and a declared completion), so new data, a new threshold, new background knowledge or a
+    changed completion is read as an identity or structure change, and no further observed effect
+    is needed: a claim built on a moved node recomputes, an unrelated one stays valid. Build the
+    graphs with :meth:`SelectiveDiscovery.add_claims` and the like.
+
+    Raises:
+        CompositionVerificationRefusal: ``invalid_argument`` for a graph that does not validate.
+    """
+    from . import composition_verification as cv
+
+    for what, graph in (("previous", previous), ("current", current)):
+        if not isinstance(graph, cv.CompositionGraph):
+            raise CausalTypeError(f"{what} must be a composition_verification.CompositionGraph")
+    text, refusal = _native.selective_discovery_revalidate(
+        json.dumps(previous.to_wire(), sort_keys=True),
+        json.dumps(current.to_wire(), sort_keys=True),
+    )
+    raise_refusal(refusal, cv.CompositionVerificationRefusal)
+    assert text is not None
+    wire = json.loads(text)
+    return DiscoveryRevalidation(
+        claims={c["key"]: cv._classification(c) for c in wire["claims"]},
+        removed=tuple(wire["removed"]),
+        previous_identity=str(wire["previous_identity"]),
+        current_identity=str(wire["current_identity"]),
+        identity=str(wire["identity"]),
+    )

@@ -1,6 +1,6 @@
 //! Public Study execution for Bayesian quadratic-basis g-computation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, AverageEffectQuery, CausalError, CausalPosterior, CausalQuery, Dag, Diagnostic,
@@ -8,8 +8,9 @@ use super::{
     IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, InferenceMode, Instant,
     OverlapPolicy, PhysicalExecutionPlan, Strategy, Study, StudyResult, TabularData,
     bayesian_draw_count, elapsed_ns, identification_from_cache_or, identify_cached_diagnostic,
-    identify_static_query, project_for_ate_estimate, select_claim,
+    project_for_ate_estimate, select_claim,
 };
+use crate::planner::RouteDefaults;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
     ParametricAssumption, PriorAssumption, TargetPopulation,
@@ -30,14 +31,35 @@ impl Study {
         let started = Instant::now();
         let cfg = self.ensure_bayesian_basis_admitted(query)?;
         let (control, active) = binary_levels(query)?;
-        let identifier = self.identifier.unwrap_or(IdentifierId::BackdoorAdjustment);
-        let (identification, estimand, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
-                let identification = identify_static_query(
+        let identifier = self.declared.identifier.unwrap_or(IdentifierId::BackdoorAdjustment);
+        let reused = self.reuse_static_identification_if(physical, |_| {
+            self.rd.is_none()
+                && matches!(self.query, CausalQuery::AverageEffect(_))
+                && physical.binding().resolves_to(
+                    RouteDefaults::STATIC_ATE,
                     identifier,
-                    graph,
-                    &CausalQuery::AverageEffect(query.clone()),
-                )?;
+                    EstimatorId::BayesianBasisGcomp,
+                )
+        });
+        let (identification, estimand, identify_cached) =
+            identification_from_cache_or(ctx, reused, || {
+                let identification = match &self.query {
+                    CausalQuery::ConditionalEffect(conditional) => {
+                        crate::strategy_table::identify_conditional_static_in_context(
+                            identifier,
+                            graph,
+                            conditional,
+                            Some(ctx),
+                        )?
+                    }
+                    _ => crate::strategy_table::identify_static_query_in_context(
+                        identifier,
+                        graph,
+                        &CausalQuery::AverageEffect(query.clone()),
+                        None,
+                        Some(ctx),
+                    )?,
+                };
                 select_claim(identification, EstimatorId::BayesianBasisGcomp)
             })?;
         let (data_est, query_est, estimand_est) = project_for_ate_estimate(data, query, &estimand)?;
@@ -53,7 +75,6 @@ impl Study {
                 outcome: query_est.outcome,
                 adjustment_set: &estimand_est.adjustment_set,
             },
-            "bayesian.basis.gcomp row index exceeds row id capacity",
         )?;
         let model = BayesianBasisGComputation;
         let fit = model.fit(
@@ -61,7 +82,7 @@ impl Study {
             BasisTargetPopulation::AllObserved,
             BayesianBasisSpec {
                 prior_sd: cfg.prior_scale,
-                n_draws: bayesian_draw_count(&self.inference)?,
+                n_draws: bayesian_draw_count(&self.settings.inference)?,
                 seed: ctx.rng.master_seed(),
             },
             ctx,
@@ -120,12 +141,12 @@ impl Study {
                 message: "bayesian.basis.gcomp supports target_population=AllObserved only",
             });
         }
-        let cfg = match &self.inference {
+        let cfg = match &self.settings.inference {
             InferenceMode::Bayesian(cfg) => cfg,
             InferenceMode::Frequentist => {
-                return Err(CausalError::Unsupported {
-                    message: "bayesian.basis.gcomp requires inference=Bayesian",
-                });
+                return Err(CausalError::unsupported_inference(
+                    "bayesian.basis.gcomp requires inference=Bayesian",
+                ));
             }
         };
         if cfg.likelihood != antecedent_prob::BayesLikelihood::GaussianIdentity
@@ -231,6 +252,7 @@ pub(super) fn basis_posterior(
         unevaluable_mass: 0.0,
         early_stopped: false,
         treatment_contrast: Some(treatment_contrast),
+        preparation: None,
     };
     let ate_col = 0;
     let ate = summaries.mean[ate_col];
@@ -248,7 +270,7 @@ pub(super) struct BasisRows {
     outcome: Vec<f64>,
     covariates_colmajor: Vec<f64>,
     n_covariates: usize,
-    row_ids: Vec<u32>,
+    row_ids: Vec<u64>,
 }
 
 /// Prior scale, treatment contrast, and estimator id recorded on a basis posterior.
@@ -272,7 +294,6 @@ impl BasisRows {
     pub(super) fn complete(
         data_est: &TabularData,
         columns: BasisColumns<'_>,
-        row_id_capacity_message: &'static str,
     ) -> Result<Self, CausalError> {
         let BasisColumns { treatment, outcome, adjustment_set } = columns;
         let treatment = data_est.float64_values(treatment)?;
@@ -298,13 +319,8 @@ impl BasisRows {
         let outcome: Vec<f64> = rows.iter().map(|row| outcome[*row]).collect();
         let covariates_colmajor: Vec<f64> =
             covariates.iter().flat_map(|column| rows.iter().map(|row| column[*row])).collect();
-        let row_ids: Vec<u32> = rows
-            .iter()
-            .map(|row| {
-                u32::try_from(*row)
-                    .map_err(|_| CausalError::Compile { message: row_id_capacity_message.into() })
-            })
-            .collect::<Result<_, _>>()?;
+        let row_ids: Vec<u64> =
+            rows.iter().map(|row| u64::try_from(*row).expect("row id")).collect();
         Ok(Self {
             treatment,
             outcome,

@@ -1,0 +1,1 @@
+[{"digest":"b29a9a82460cf371a0d4e86cb2098d1984348dcd102f277fd28f4d47559146dc","file":"e586f46ddac47ea185298bd5e025114f4f04e93e7bbd0900a130a504cbe2fc99","kind":"rust_items","path":"crates/antecedent/src/analysis/graph_imputation/wire.rs","role":"compile","scopes":[[[],true]],"select":{"full":[2,8,9,10]},"table":"d9ea10c8a64b2b2c7d1dc03a2e0996b7a18f9075fcc0743f00c3c1836217006f"}]

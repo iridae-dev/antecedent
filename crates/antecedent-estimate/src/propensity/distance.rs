@@ -3,11 +3,11 @@
 //! Analytic standard errors follow Abadie–Imbens (2006) via
 //! [`super::matching::matching_contrast`]. The nonparametric bootstrap is invalid for
 //! nearest-neighbor matching with a fixed number of matches (Abadie–Imbens 2008); the
-//! licensed uncertainty product is [`EffectEstimate::se_analytic`]. Setting
-//! [`DistanceMatching::bootstrap_replicates`] does **not** populate
+//! supported uncertainty product is [`EffectEstimate::se_analytic`]. Setting
+//! `DistanceMatching`'s declared bootstrap replicates do **not** populate
 //! [`EffectEstimate::se_bootstrap`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry};
 use antecedent_data::TabularData;
@@ -23,9 +23,10 @@ use super::prepare::{
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
+use crate::inference::InferenceSpec;
 use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::sampling_weights::SamplingWeights;
-use crate::se::{AnalyticSeKind, SeSpec};
+use crate::se::SeSpec;
 
 /// Distance matching on z-scored adjustment covariates (Euclidean), not the propensity score.
 ///
@@ -44,31 +45,26 @@ use crate::se::{AnalyticSeKind, SeSpec};
 pub struct DistanceMatching {
     /// Dense linear-algebra backend used for the diagnostic logistic fit.
     pub backend: FaerBackend,
-    /// Accepted for API compatibility; does not populate [`EffectEstimate::se_bootstrap`]
-    /// (Abadie–Imbens 2008 — see module docs). Prefer [`EffectEstimate::se_analytic`].
-    pub bootstrap_replicates: u32,
+    /// Inference declarations. The bootstrap size is accepted for API compatibility and does not
+    /// populate [`EffectEstimate::se_bootstrap`] (Abadie–Imbens 2008 — see module docs; prefer
+    /// [`EffectEstimate::se_analytic`]). The analytic standard-error kind must be
+    /// `Homoskedastic` (Abadie–Imbens): cluster, multiway and HAC kinds are refused
+    /// (`estimator_inference_mismatch`) because no clustered influence function exists for
+    /// fixed-M nearest-neighbour matching; see [`super::matching::matching_contrast`]. Cluster,
+    /// multiway and panel labels are read (and checked against the kind); a bootstrap interval,
+    /// source-table cluster labels and a sampling design are refused rather than ignored.
+    pub inference: InferenceSpec,
     /// Overlap policy; must be [`OverlapPolicy::RequireDiagnostics`].
     pub overlap: OverlapPolicy,
     /// GLM fitting options for the diagnostic propensity model.
     pub glm_options: GlmOptions,
     /// Optional maximum Euclidean distance for an accepted match.
     pub caliper: Option<f64>,
-    /// Analytic SE kind. Only `Homoskedastic` (Abadie–Imbens) is supported: cluster,
-    /// multiway and HAC kinds are refused (`estimator_inference_mismatch`) because no
-    /// clustered influence function exists for fixed-M nearest-neighbour matching; see
-    /// [`super::matching::matching_contrast`].
-    pub se_kind: AnalyticSeKind,
     /// Separate outcome residual noise and population treatment-effect heterogeneity in the
     /// matching variance, declaring linear arm outcome models on the matching features.
     pub population_variance: bool,
-    /// Optional cluster ids aligned to prepared complete-case rows.
-    pub cluster_ids: Option<Vec<u32>>,
     /// Optional bindings for named predicates / custom target distributions.
     pub population_registry: Option<PopulationRegistry>,
-    /// Multiway cluster ids (one `Vec<u32>` per clustering dimension).
-    pub multiway_ids: Option<Vec<Vec<u32>>>,
-    /// Optional panel time labels for panel HAC.
-    pub panel_times: Option<Vec<i64>>,
     /// Sampling weights of every row of the source table (see [`crate::sampling_weights`]).
     /// The diagnostic propensity fit is weighted and the matched effect is the weighted
     /// matched mean of `matching.rs`, with the Abadie–Imbens form for a weighted mean.
@@ -87,16 +83,12 @@ impl DistanceMatching {
     pub fn new() -> Self {
         Self {
             backend: FaerBackend,
-            bootstrap_replicates: 200,
+            inference: InferenceSpec::new(200),
             overlap: default_propensity_overlap(),
             glm_options: GlmOptions::default(),
             caliper: None,
-            se_kind: AnalyticSeKind::Homoskedastic,
             population_variance: false,
-            cluster_ids: None,
             population_registry: None,
-            multiway_ids: None,
-            panel_times: None,
             sampling_weights: None,
         }
     }
@@ -108,17 +100,7 @@ impl DistanceMatching {
         self
     }
 
-    /// Record a bootstrap-replicate count without licensing a bootstrap SE.
-    ///
-    /// The nonparametric bootstrap is invalid for nearest-neighbor matching CIs
-    /// (Abadie–Imbens 2008). This setter keeps the field for callers that still set it;
-    /// [`DistanceMatching::fit`] never writes [`EffectEstimate::se_bootstrap`]. Prefer the
-    /// analytic SE.
-    #[must_use]
-    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
-        self.bootstrap_replicates = replicates;
-        self
-    }
+    crate::inference::with_bootstrap_replicates!(inference);
 
     /// Set the overlap policy. Positivity is mandatory here:
     /// [`OverlapPolicy::ExplicitOverride`] is refused by `prepare`.
@@ -145,12 +127,7 @@ impl DistanceMatching {
         self
     }
 
-    /// Set the analytic SE kind.
-    #[must_use]
-    pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
-        self.se_kind = se_kind;
-        self
-    }
+    crate::inference::with_se_kind!(inference);
 
     /// Declare linear arm outcome models and include both residual donor-reuse noise and
     /// population treatment-effect heterogeneity in the analytic variance. The raw
@@ -161,25 +138,23 @@ impl DistanceMatching {
         self
     }
 
-    /// Set cluster ids aligned to prepared complete-case rows.
-    #[must_use]
-    pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
-        self.cluster_ids = Some(cluster_ids);
-        self
-    }
+    crate::inference::with_cluster_ids!(inference);
 
-    /// Set multiway cluster ids (one `Vec<u32>` per clustering dimension).
-    #[must_use]
-    pub fn with_multiway_ids(mut self, multiway_ids: Vec<Vec<u32>>) -> Self {
-        self.multiway_ids = Some(multiway_ids);
-        self
-    }
+    crate::inference::with_multiway_ids!(inference);
 
-    /// Set panel time labels for panel HAC.
-    #[must_use]
-    pub fn with_panel_times(mut self, panel_times: Vec<i64>) -> Self {
-        self.panel_times = Some(panel_times);
-        self
+    crate::inference::with_panel_times!(inference);
+
+    /// Refuse the inference declarations distance matching does not read.
+    fn require_read_inference(&self) -> Result<(), EstimationError> {
+        self.inference.require_read_declarations(
+            "DistanceMatching",
+            crate::inference::ReadDeclarations {
+                cluster_ids: true,
+                multiway_ids: true,
+                panel_times: true,
+                ..crate::inference::ReadDeclarations::default()
+            },
+        )
     }
 
     /// Prepare the covariate design.
@@ -193,6 +168,7 @@ impl DistanceMatching {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedPropensityProblem, EstimationError> {
+        self.require_read_inference()?;
         prepare_propensity_problem_with_levels(
             data,
             estimand,
@@ -238,7 +214,8 @@ impl DistanceMatching {
         // `bootstrap_replicates` is intentionally unread: the nonparametric bootstrap is
         // invalid for fixed-M NN matching (Abadie–Imbens 2008) and must not land in
         // `se_bootstrap` even when a caller still requests replicates.
-        let _ = self.bootstrap_replicates;
+        let _ = self.inference.bootstrap_replicates;
+        self.require_read_inference()?;
         if problem.adjustment_set.is_empty() {
             return Err(EstimationError::unsupported(
                 "distance matching requires a non-empty adjustment set",
@@ -287,19 +264,19 @@ impl DistanceMatching {
                 ),
             };
         let clusters_used = gather_optional_row_labels(
-            self.cluster_ids.as_deref(),
+            self.inference.cluster_ids.as_deref(),
             problem.nrows,
             retained.as_deref(),
             "cluster_ids",
         )?;
         let times_used = gather_optional_row_labels(
-            self.panel_times.as_deref(),
+            self.inference.panel_times.as_deref(),
             problem.nrows,
             retained.as_deref(),
             "panel_times",
         )?;
         let multiway_used = gather_optional_multiway(
-            self.multiway_ids.as_deref(),
+            self.inference.multiway_ids.as_deref(),
             problem.nrows,
             retained.as_deref(),
         )?;
@@ -318,7 +295,7 @@ impl DistanceMatching {
             self.caliper,
             workspace,
             SeSpec {
-                kind: self.se_kind,
+                kind: self.inference.se_kind,
                 cluster_ids: clusters_used.as_deref(),
                 multiway_ids: multiway_used.as_deref(),
                 panel_times: times_used.as_deref(),
@@ -337,7 +314,8 @@ impl DistanceMatching {
         let overlap_report = Some(overlap_report);
 
         Ok(EffectEstimate::new(result.ate, result.se_analytic, assumptions, problem.overlap)
-            .with_se_kind(self.se_kind)
+            .with_preparation(Some(problem.preparation_summary()))
+            .with_se_kind(self.inference.se_kind)
             .with_n_obs(u64::try_from(result.n_obs).unwrap_or(u64::MAX))
             .with_overlap_report(overlap_report)
             .with_sampling_weights(problem.sampling_weights.as_ref().map(|s| s.record))
@@ -346,6 +324,10 @@ impl DistanceMatching {
 }
 
 /// Z-score each feature column on the current sample (row-major `n × dim`).
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "the comparison deliberately refuses unordered values"
+)]
 fn standardize_rowmajor_inplace(features: &mut [f64], n: usize, dim: usize) {
     if n == 0 || dim == 0 {
         return;
@@ -362,9 +344,14 @@ fn standardize_rowmajor_inplace(features: &mut [f64], n: usize, dim: usize) {
             let d = features[r * dim + c] - mean;
             var += d * d;
         }
-        let sd = (var / nf).sqrt().max(1e-12);
+        let sd = (var / nf).sqrt();
+        // A column is constant when its spread is rounding noise of its own magnitude; an
+        // absolute floor would instead rescale a covariate measured in units of 1e-13.
+        let magnitude = (0..n).fold(0.0_f64, |m, r| m.max(features[r * dim + c].abs()));
+        let constant = !(sd > 1e-12 * magnitude);
         for r in 0..n {
-            features[r * dim + c] = (features[r * dim + c] - mean) / sd;
+            features[r * dim + c] =
+                if constant { 0.0 } else { (features[r * dim + c] - mean) / sd };
         }
     }
 }
@@ -470,7 +457,7 @@ mod tests {
         (TabularData::new(storage), estimand)
     }
 
-    /// Regression: requesting bootstrap replicates must not license an SE in
+    /// Regression: requesting bootstrap replicates must not support an SE in
     /// `se_bootstrap` (Abadie–Imbens 2008). Analytic SE remains the uncertainty product.
     #[test]
     fn bootstrap_replicates_do_not_populate_se_bootstrap() {
@@ -478,7 +465,7 @@ mod tests {
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
                 .with_target_population(TargetPopulation::Treated);
-        let est = DistanceMatching { bootstrap_replicates: 30, ..DistanceMatching::new() };
+        let est = DistanceMatching::new().with_bootstrap_replicates(30);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = PropensityEstimationWorkspace::default();
         let effect =

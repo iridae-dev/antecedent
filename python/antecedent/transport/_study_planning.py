@@ -28,12 +28,16 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from .._artifact_protocol import artifact_consumer, container_bytes
 from .._columns import coerce_fields
 from .._native import plan_studies_stage as _plan_studies_stage
 from .._native import replay_study_plan as _replay_study_plan
 from ..errors import CausalTypeError, CausalValueError
+from ..execution import Execution
 from ..graph import Admg
-from ._impl import EvidenceCatalog, _non_negative, _optional_non_negative
+from ._consumption import TransportConsumption
+from ._controls import call_native
+from ._impl import EvidenceCatalog, _non_negative
 from ._mixed_source import MixedSourceQuery
 from ._multi_source import MultiSourceZTransportQuery, _names
 
@@ -100,8 +104,7 @@ def plan_studies(
     candidates: Sequence[StudyCandidate],
     max_operations: int = _MAX_OPERATIONS,
     max_depth: int | None = None,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> Any:
     """Plan the cheapest subset of at most three candidate studies that repairs the query.
 
@@ -142,7 +145,9 @@ def plan_studies(
     if any(not isinstance(candidate, StudyCandidate) for candidate in candidates):
         raise CausalTypeError("candidates must be StudyCandidate values")
     depth = _MAX_DEPTH[route] if max_depth is None else max_depth
-    return _plan_studies_stage(
+    return call_native(
+        execution,
+        _plan_studies_stage,
         graph,
         route,
         query.target,
@@ -176,20 +181,28 @@ def plan_studies(
         ],
         max_operations=_non_negative("max_operations", max_operations),
         max_depth=_non_negative("max_depth", depth),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+        cancel="cancel",
+        memory="memory_bytes",
     )
 
 
+@artifact_consumer(
+    proof="native study-plan consumer verifies base bindings and digests and replans the declared candidate universe under stored limits",
+    replayable=True,
+    resumable=False,
+    identity=(),
+    unresolved=(
+        "hypothetical study sufficiency establishes no numerical effect or arriving-data acceptance",
+    ),
+)
 def replay_study_plan(
     artifact: bytes,
     *,
     max_operations: int = _MAX_OPERATIONS,
     max_depth: int = 24,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
-) -> str:
-    """Independently replay an exported study plan and return it as JSON.
+    execution: Execution | None = None,
+) -> TransportConsumption:
+    """Independently replay an exported study plan and return its immutable report.
 
     The consumer refuses stored limits above its own before any work, checks
     every digest, then re-plans under the stored limits and accepts only an
@@ -204,14 +217,20 @@ def replay_study_plan(
     snapshot is not detectable by replay; ``receive`` requires the arriving
     catalog to keep every stored base binding exactly.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
-    return _replay_study_plan(
-        artifact,
-        max_operations=_non_negative("max_operations", max_operations),
-        max_depth=_non_negative("max_depth", max_depth),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+    return TransportConsumption.from_checked_json(
+        "study_plan",
+        call_native(
+            execution,
+            _replay_study_plan,
+            artifact,
+            max_operations=_non_negative("max_operations", max_operations),
+            max_depth=_non_negative("max_depth", max_depth),
+            cancel="cancel",
+            memory="memory_bytes",
+        ),
     )
 
 

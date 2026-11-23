@@ -12,12 +12,16 @@ BOUND = re.compile(r"\{\{bound:([\w.]+)\}\}")
 
 
 def publication_exclusions():
-    return tomllib.loads((ROOT / "scripts/docs_publication.toml").read_text(encoding="utf-8"))["excluded"]
+    return tomllib.loads((ROOT / "scripts/docs_publication.toml").read_text(encoding="utf-8"))[
+        "excluded"
+    ]
 
 
 @lru_cache(maxsize=1)
 def bound_values():
-    records = tomllib.loads((ROOT / "parity/promotion.toml").read_text(encoding="utf-8"))["record"]
+    records = tomllib.loads((ROOT / "parity/capability_records.toml").read_text(encoding="utf-8"))[
+        "record"
+    ]
     return {
         f"{record['id']}.{key}": value
         for record in records
@@ -42,16 +46,23 @@ def render_bounds(markdown):
 
 def on_config(config):
     bound_values.cache_clear()
-    config.extra["documentation_version"] = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))[
-        "workspace"
-    ]["package"]["version"]
+    config.extra["documentation_version"] = tomllib.loads(
+        (ROOT / "Cargo.toml").read_text(encoding="utf-8")
+    )["workspace"]["package"]["version"]
     from pathspec import GitIgnoreSpec
 
     config.exclude_docs = GitIgnoreSpec.from_lines(f"/{path}" for path in publication_exclusions())
     return config
 
 
-EXAMPLE = re.compile(r"<!-- example: ([\w./-]+) -->")
+EXAMPLE = re.compile(
+    r"<!-- example: ([\w./-]+) -->"
+    r"(?:\n\n\[Open the Python script\]\(\.\./\.\./\1\)"
+    r"(?:\n\n(```python\n.*?\n```))?)?",
+    re.DOTALL,
+)
+# Notebook cell markers (scripts/generate_notebooks.py) are not shown in embedded source.
+NOTEBOOK_MARKER = re.compile(r"^# %%.*\n", re.M)
 
 
 def render_examples(markdown):
@@ -59,7 +70,11 @@ def render_examples(markdown):
         path = (ROOT / match.group(1)).resolve()
         if not path.is_relative_to(ROOT / "examples") or not path.is_file():
             raise ValueError(f"Unknown documentation example: {match.group(1)}")
-        return "```python\n" + path.read_text(encoding="utf-8").rstrip() + "\n```"
+        source = NOTEBOOK_MARKER.sub("", path.read_text(encoding="utf-8"))
+        block = "```python\n" + source.rstrip() + "\n```"
+        if match.group(2) is not None and match.group(2) != block:
+            raise ValueError(f"Inline example differs from {match.group(1)}")
+        return block
 
     return EXAMPLE.sub(substitute, markdown)
 
@@ -68,15 +83,33 @@ def on_page_markdown(markdown, page, config, files):
     return render_bounds(render_examples(markdown))
 
 
-def split_release(markdown, source_uri):
-    if not source_uri.startswith("release-notes/") or "## Claims by cell" not in markdown:
+CLAIMS_HEADING = "## Claims by cell"
+
+
+def split_claims(markdown):
+    """Readable highlights, and the generated claim inventory when the notes carry one."""
+    if CLAIMS_HEADING not in markdown:
         return markdown, None
-    highlights, inventory = markdown.split("## Claims by cell", 1)
+    highlights, inventory = markdown.split(CLAIMS_HEADING, 1)
+    return highlights, CLAIMS_HEADING + inventory
+
+
+def claims_page_uri(name):
+    """Site source path of the inventory page split out of release notes `name`."""
+    return f"reference/release-claims-{name}.md"
+
+
+def split_release(markdown, source_uri):
+    if not source_uri.startswith("release-notes/"):
+        return markdown, None
+    highlights, inventory = split_claims(markdown)
+    if inventory is None:
+        return markdown, None
     name = Path(source_uri).stem
-    appendix_uri = f"reference/release-claims-{name}.md"
+    appendix_uri = claims_page_uri(name)
     # Inventory originally sits beside the release page; the virtual reference
     # page is at the same depth, preserving its ../ relative links.
-    appendix = f"# {name} claim and support inventory\n\n" + "## Claims by cell" + inventory
+    appendix = f"# {name} claim and support inventory\n\n" + inventory
     highlights += f"## Complete claim inventory\n\n[Per-cell claims, explicit refusals and support inventory](../{appendix_uri}) are generated from the release evidence. Read those exact scopes before using a new route.\n"
     return highlights, (appendix_uri, appendix)
 
@@ -113,8 +146,12 @@ def on_files(files, config):
         raise ValueError(
             "Notebook execution record missing: run python scripts/render_notebooks.py first"
         )
-    records = {record["notebook"]: record for record in json.loads(record_path.read_text(encoding="utf-8"))}
-    release = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]["package"]["version"]
+    records = {
+        record["notebook"]: record for record in json.loads(record_path.read_text(encoding="utf-8"))
+    }
+    release = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))["workspace"][
+        "package"
+    ]["version"]
     for notebook in notebooks:
         record = records.get(notebook.name, {})
         if (

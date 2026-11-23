@@ -6,7 +6,7 @@
 //! of the posterior-weight implementation. Exact binomial and conjugate oracles
 //! are frozen rational/normal-integral values. Every seed runs original full scores.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(clippy::cast_precision_loss, reason = "bounded diagnostic grid dimensions")]
 #[path = "../../antecedent/tests/common/calibration.rs"]
 mod calibration;
@@ -166,7 +166,7 @@ fn evsi_finite_and_conjugate_exact_precision() {
             )
             .unwrap();
             assert!(replay.candidates[0].natively_replayed());
-            assert_eq!(replay.calibration, "unmeasured");
+            assert_eq!(replay.calibration, "not_measured");
         }
     }
     println!(
@@ -221,7 +221,7 @@ fn evsi_monte_carlo_score_error_and_net_value_precision() {
             )
             .unwrap();
             assert_eq!(replay.candidates[0].replay, ReplayKind::MonteCarloNotReplayed);
-            assert_eq!(replay.calibration, "unmeasured");
+            assert_eq!(replay.calibration, "not_measured");
             (row.evsi - truth, row.integration.stderr, row.net_value.unwrap())
         });
         let count = results.len() as f64;

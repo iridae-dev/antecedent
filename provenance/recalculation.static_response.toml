@@ -6,6 +6,26 @@ copied_comments = false
 copied_tests = false
 # Original retention and exact identity binding over existing checked ADMG response and finite multi-source transport engines. Statistical and identification derivations remain owned by their existing engine provenance.
 papers = []
-implementation_deviations = ["ADMG-only static scope and strictly increasing support with at least two points are checked before numerical work. Conservative context memory checks precede provider construction; actual Cartesian CPT allocation has a one-million-cell bound. Missing exact providers retain their typed obstruction and cannot be silently skipped during resampling.", "CPTs bind original complete-case row IDs and their actual columns; unchanged factors may survive other-column refresh without stale aliases.", "Transport factors bind complete source law, population, regime, snapshot and checked proof leaves. Rebinding reuses compatible compiled programs; source mutations invalidate their factors.", "Successful executing component observers count identification, compilation, factor builds, provider binding, factor evaluation, integration and calls. Utility-only changes preserve numerical state. Results are exact finite-grid points, with no statistical uncertainty license."]
+implementation_deviations = ["ADMG-only static scope and strictly increasing support with at least two points are checked before numerical work. Conservative context memory checks precede provider construction; actual Cartesian CPT allocation has a one-million-cell bound. Missing exact providers retain their typed obstruction and cannot be silently skipped during resampling.", "CPTs bind original complete-case row IDs and their actual columns; unchanged factors may survive other-column refresh without stale aliases.", "Transport factors bind complete source law, population, regime, snapshot and checked proof leaves. Rebinding reuses compatible compiled programs; source mutations invalidate their factors.", "Successful executing component observers count identification, compilation, factor builds, provider binding, factor evaluation, integration and calls. Utility-only changes preserve numerical state. Results are exact finite-grid points, with no statistical uncertainty support."]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent/tests/recalc_static.rs", "python/tests/test_recalc_static.py"]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Shared-plan retention and identity binding over the checked finite ADMG response and multi-source transport engines."
+no_independent_algorithm = "recalc_static.rs binds conditional probability tables and transport factors, checks support and memory bounds, and reports the contrast of two supplied response means (a single subtraction with a finiteness check); the responses are the covered engines'. The only arithmetic besides delegated estimator calls is the shared decision net benefit benefit_per_unit * ate - cost (one fused multiply-add) in recalc_receipt.rs."
+covered_by = ["identify.id", "identify.transport_sid", "estimate.response.intervention_gcomp"]
+record_sha256 = "0f642e624c0e9cc1d99afc59d4fb241bd7ed5478fc12c6a8075bfc5afa89afe0"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/recalc_static.rs"
+items = ["fn base_ids", "fn boundary", "fn changed", "fn contrast", "fn data", "fn default", "fn execute_mz_with_receipt", "fn execute_static_response_with_receipt", "fn export_result", "fn factor_identities", "fn factor_workspace_values", "fn graph_identity", "fn guards", "fn identities", "fn io_error", "fn mz_prepared", "fn names_valid", "fn new", "fn plan", "fn prepared", "fn producing_receipt", "fn record_artifact", "fn record_law", "fn response_means", "fn result", "fn resume", "fn scope_plan", "fn static_law", "fn static_prepared", "fn study", "fn summarize_contrast", "fn supported", "fn validate", "struct MzLive", "struct MzRecalcRequest", "struct MzRecalcSession", "struct StaticLaw", "struct StaticLive", "struct StaticRecalcOutcome", "struct StaticResponseRequest", "struct StaticResponseSession"]
+sha256 = "1c72fc20ea8371416314fbcaaade26a13e780e39415e4a2f0f66552d815e70bc"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/recalc_static.rs"
+items = ["fn adjacent_dag_and_unsorted_grid_refuse_before_work", "fn bounded_search_missing_provider_and_shared_evidence_keep_point_only_contract", "fn changed_transport_law_reuses_other_population_factors", "fn complementary_sources_actual_counts_and_independent_artifact", "fn dense_factor_workspace_respects_budget_before_provider_construction", "fn empirical_refresh_reuses_only_unchanged_factor_inputs", "fn frontdoor_actual_components_and_coordinate_reuse", "fn generic_refresh_exports_actual_refreshed_factor_snapshot", "fn graph_and_query_substitution_recheck_identification", "fn mz", "fn rebind_estimate", "fn refusal_is_transactional_and_receipts_do_not_grant_live_factors", "fn response", "fn static_oracle", "fn utility", "fn verma_checked_scalar_functionals_match_enumerated_latent_scm"]
+sha256 = "beafb17fa72d4774d9738017d18385fd67dfcb8faa6d1875b2686dd57105f836"

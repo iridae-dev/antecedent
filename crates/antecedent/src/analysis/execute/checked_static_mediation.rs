@@ -16,6 +16,7 @@ use antecedent_expr::{FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVa
 pub(crate) struct CheckedStaticMediationOperation {
     graph: Dag,
     query: antecedent_core::MediationQuery,
+    target: antecedent_core::ScientificTarget,
     cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
     physical: std::sync::Arc<PhysicalExecutionPlan>,
     program: FunctionalProgram,
@@ -57,14 +58,14 @@ impl CheckedStaticMediationOperation {
             message: "checked static mediation requires a supplied DAG",
         })?;
         query.validate()?;
-        if !matches!(study.inference, InferenceMode::Frequentist)
+        if !matches!(study.settings.inference, InferenceMode::Frequentist)
             || !matches!(
                 study.structure_source,
                 crate::support::StructureSource::Explicit
                     | crate::support::StructureSource::Accepted
             )
-            || !study.refute.is_point_or_placebo()
-            || !study.custom_validators.is_empty()
+            || !study.settings.refute.is_point_or_placebo()
+            || !study.declared.custom_validators.is_empty()
             || cache.identification.query != study.query
             || !matches!(
                 cache.identification.status,
@@ -77,6 +78,11 @@ impl CheckedStaticMediationOperation {
                 .names(IdentifierId::PathSpecificNatural, EstimatorId::StaticMediationLinear)
         {
             return Err(CausalError::Compile { message: "mediation identification or estimator lowering does not match the checked target".into() });
+        }
+        // The mediation bootstrap refits the mechanisms on rows resampled one by one; a declared
+        // clustered panel or dependent series would be read as independent subjects.
+        if study.settings.bootstrap_replicates > 0 {
+            super::gcm_bootstrap::require_subject_resampling(study.declared.sampling_design)?;
         }
         let program_schema = ProgramSchema::new(
             data.schema()
@@ -103,14 +109,21 @@ impl CheckedStaticMediationOperation {
         Ok(Self {
             graph: graph.clone(),
             query: query.clone(),
+            target: theorem_mediation_target(
+                query,
+                data.schema(),
+                &cache.identification.required_assumptions,
+                antecedent_core::InferenceSelection::Frequentist,
+                None,
+            )?,
             cache: Arc::clone(cache),
             physical: physical.clone(),
             program,
             schema: data.schema().clone(),
             design_roles: roles.into(),
             source_rows,
-            bootstrap_replicates: study.bootstrap_replicates,
-            refute: study.refute,
+            bootstrap_replicates: study.settings.bootstrap_replicates,
+            refute: study.settings.refute,
             result_context: IdentifiedResultContext::from_study(study),
         })
     }
@@ -118,6 +131,15 @@ impl CheckedStaticMediationOperation {
     pub(crate) fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
         if data.schema() != &self.schema
             || self.program.mapping().source != self.cache.estimand.functional
+            || self.target.identity()
+                != theorem_mediation_target(
+                    &self.query,
+                    &self.schema,
+                    &self.cache.identification.required_assumptions,
+                    antecedent_core::InferenceSelection::Frequentist,
+                    None,
+                )?
+                .identity()
         {
             return Err(CausalError::Compile {
                 message: "mediation refresh changed its semantic schema or target".into(),
@@ -160,7 +182,9 @@ impl CheckedStaticMediationOperation {
             &bound.graph,
             &bound.query,
             bound.cache.identification.required_assumptions.clone(),
-            bound.bootstrap_replicates,
+            // A multiple-imputation run states its own within-table replicates; they are not
+            // forced through the study's global setting.
+            ctx.imputation_bootstrap().unwrap_or(bound.bootstrap_replicates),
             &[],
             ctx,
         )?;
@@ -208,6 +232,10 @@ impl CheckedStaticMediationOperation {
     }
 }
 
+// The natural-effect theorem target, built once by the lowering for the static and
+// temporal mediation executors.
+pub(super) use crate::analysis::lowering::theorem_mediation_target;
+
 fn bind_rows(data: &TabularData, roles: &[VariableId]) -> Result<Arc<[u32]>, CausalError> {
     data.complete_case_mask(roles)?
         .iter()
@@ -227,6 +255,8 @@ fn bind_rows(data: &TabularData, roles: &[VariableId]) -> Result<Arc<[u32]>, Cau
 pub struct CheckedStaticMediationInfo {
     /// Complete contrast, mediators, intervention levels, and population.
     pub query: antecedent_core::MediationQuery,
+    /// Scientific target retaining the natural-effect theorem's cross-world premises.
+    pub scientific_target: antecedent_core::ScientificTarget,
     /// Prepare-time identifier.
     pub identifier: crate::strategy_table::IdentifierId,
     /// Prepare-time estimator.
@@ -251,6 +281,7 @@ impl Inspect for CheckedStaticMediationOperation {
         let edges = graph.directed_edge_pairs_sorted();
         CheckedStaticMediationInfo {
             query: query.clone(),
+            scientific_target: self.target.clone(),
             identifier: IdentifierId::PathSpecificNatural,
             estimator: EstimatorId::StaticMediationLinear,
             adjustment_set: Arc::clone(&estimand.adjustment_set),

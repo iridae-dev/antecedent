@@ -14,7 +14,7 @@ copied_tests = false
 # source-overlap diagnostic, source digests, RNG seed and rank/tie receipts, sealed by a
 # digest over the canonical body with candidates in semantic-id order. A structural
 # fallback keeps the existing order (verified sufficiency, then cost units, then sample
-# budget, then semantic id) when no probabilistic model is licensed.
+# budget, then semantic id) when no probabilistic model is supported.
 #
 # No primary paper is cited on purpose. This is a serialization, identity and replay
 # design, not an algorithm introduced by a publication; the quantities it carries (EVSI,
@@ -26,15 +26,69 @@ implementation_deviations = [
   "Replay is graded and only the first grade is called native: a native Gaussian-mean (under the normal belief) or binomial (under the finite prior) signal has its law rebuilt from the family parameters and its EVSI, EVPI and net value recomputed (NativeExactRecomputed); an external likelihood or posterior has only the arithmetic recomputed from the retained attested table, never the provider (AttestedLawArithmetic); external decision values are checked for coherence against the prior and combined (AttestedValuesCombined); a Monte Carlo value is bound and bounds-checked but not re-simulated (MonteCarloNotReplayed). External values are retained as attested and never marked native, and a trust or update-mode relabel that the law contradicts refuses even when resealed.",
   "Replay does not protect against a producer that honestly states a different prior or decision table and reseals: the artifact is then the correct ranking of those stated inputs. A consumer binds the contract identity, signal identities, source digests and cost mapping it retained independently through ConsumeExpectation; without a retained expectation a resealed artifact is checked only for internal consistency.",
   "The Gaussian closed-form replay reuses the same expected-maximum-of-affine-functions routine as the evaluator, so the native Gaussian replay is a consistency check on the stored numbers and the stated inputs, not an independent derivation; the independent check is the closed-form constant asserted in the tests.",
-  "Calibration is 'unmeasured': Monte Carlo error coverage and the rank guarantee are not measured, an exact-integration EVSI is a point value, and a truncated catalog (bounded by max_candidates) is recorded in the search receipt and changes the identity but is not a SearchBudget search.",
+  "Calibration is 'not_measured': Monte Carlo error coverage and the rank guarantee are not measured, an exact-integration EVSI is a point value, and a truncated catalog (bounded by max_candidates) is recorded in the search receipt and changes the identity but is not a SearchBudget search.",
   "Independent consumers retain the validated provenance chain, including parent digests, rather than dropping it after arithmetic checks. Rank ordering uses a precomputed semantic-id lookup instead of repeatedly scanning the candidate table inside the comparator.",
   "Decode is bounded before any work (8 MiB, 1,024 candidates, 65,536 states, 4 Mi table cells); stored bounds above the consumer's own maxima refuse. Corruption and truncation are serialization failures, not refusals.",
 ]
 
 upstream_implementations_observed = []
 
+modules = ["crates/antecedent-design/src/design_ranking_artifact.rs", "crates/antecedent-design/src/design_ranking_artifact/replay.rs", "crates/antecedent-design/src/design_ranking_artifact/sealing.rs", "crates/antecedent-design/src/design_ranking_artifact/consuming.rs"]
+
 test_sources = [
+  "crates/antecedent-design/tests/design_ranking_replay_reference.rs (stored and natively replayed binomial and Gaussian EVSI and EVPI against exact-rational and quadrature references)",
   "crates/antecedent-design/tests/design_ranking.rs",
   "crates/antecedent-design/tests/design_ranking_artifact.rs",
   "python/tests/test_design_ranking.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The numerical replay of crates/antecedent-design/src/design_ranking_artifact.rs for natively replayed signals: the finite-prior decision baseline (Bayes action, prior value, EVPI), the binomial likelihood table rebuilt through logarithms from the prior draws and the trial count, the expected value of the information summed over that table, and the normal-belief closed form through expected_max_affine, each compared with the value the evaluator stored, with the replay tolerance and the likelihood mass check; plus the seal that stores those numbers. The replay calculations were moved to design_ranking_artifact/replay.rs after comparing every bound item against the prior source; only module visibility changed. Sealing definitions were subsequently moved to design_ranking_artifact/sealing.rs and all previously bound items were compared unchanged. Consumer definitions were likewise moved to design_ranking_artifact/consuming.rs and compared unchanged except for module visibility. Not the canonical encoding and digest, the graded replay of externally attested laws and decision values, the rank and search receipts, the cost mapping, or the corruption and version handling, which the existing hand-constant tests cover."
+assumptions = ["The decision table is finite (equally weighted prior draws) with constraint-free admissible actions, or a normal belief with affine utilities; the evaluator and the consumer share one expected-maximum-of-affine routine for the Gaussian case, so the Gaussian check is against an independent piecewise Simpson quadrature of the definition, not against a second closed form.", "The reference binomial values use exact rational arithmetic on dyadic draws, so the product receives exactly the inputs the reference used."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared its stored and replayed numbers with definitions evaluated by executing references written for this review (fractions.Fraction for the finite prior, composite Simpson between the crossings of the lines for the normal belief); no upstream implementation or test source was consulted or copied. The record cites no paper by design (serialization and replay), and none was retrieved."
+redistribution = "The reference script and its frozen output are repository-authored (MIT OR Apache-2.0) and shared with the decision review; the script uses only the Python standard library. Its output is frozen in the JSON file and compared by the test."
+limitations = "Forty finite-prior problems of 1 to 7 equally weighted dyadic draws and 2 to 4 affine actions with utility offsets up to 1e6 and exact action ties, at 1, 2, 5, 12 and 60 binomial trials, and seven normal-belief regimes at 1 to 1000 observations are sealed and replayed. Weighted priors and chance-constrained admissible sets are not part of the artifact route and are not exercised; counts above 60 trials, many-draw priors (hundreds of states) and utilities with offsets above 1e6 are not compared with a reference. The Gaussian reference is a quadrature, so it agrees with the closed form to about 1e-9, not to rounding. Monte Carlo values are bound but not replayed and have no reference here. The tolerance of the replay (1e-8 relative to 1 + |value|) is the product's choice; this review shows it is met after the repair below, not that it is the right tolerance."
+sources = ["https://doi.org/10.1177/0272989X04263162"]
+findings_resolved = ["Defect repaired: the consumer replayed a binomial or attested-likelihood EVSI as E[max after information] minus the prior value of the Bayes action, both formed from raw utilities, while the evaluator that stored the value works with gaps to the Bayes action. With a common utility offset of 1e6 (intercepts 999998 and 999999.75, 60 trials) the cancellation put the replayed value outside the 1e-8 tolerance and an honest, freshly sealed artifact was refused with ReplayMismatch on evsi. The replay (and the EVPI baseline) now sums utility gaps to the Bayes action, so a common utility origin cannot enter; the failing-first case is the offset problems of design_ranking_replay_reference.rs."]
+record_sha256 = "62c3c59df55cff437b7401ce151c8640d4f55c4929c0123a99d0ed390fbc4767"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/design_ranking_artifact.rs"
+items = ["const BODY_SECTION", "const DESIGN_RANKING_ARTIFACT_KIND", "const DESIGN_RANKING_ARTIFACT_VERSION", "const DESIGN_RANKING_CALIBRATION", "const DESIGN_RANKING_CLAIM_LINK_ID", "const MASS_TOLERANCE", "const MAX_DESIGN_RANKING_ARTIFACT_BYTES", "const MAX_RANKING_CANDIDATES", "const MAX_RANKING_CELLS", "const MAX_RANKING_STATES", "const REPLAY_TOLERANCE", "enum DesignRankingArtifactError", "enum LawWire", "enum PriorWire", "enum ReplayKind", "enum UtilityWire", "fn as_str", "fn canonical", "fn close", "fn compute_digest", "fn default", "fn from", "fn from_bytes_with_limits", "fn from_scored", "fn parse_method", "fn parse_mode", "fn parse_trust", "fn provenance_chain", "fn rank_basis", "fn reseal", "fn to_bytes", "fn try_from", "struct ConsumeExpectation", "struct ConsumedCandidate", "struct ConsumedDesignRanking", "struct CostMapWire", "struct DecisionWire", "struct DesignRankingArtifactWire", "struct DesignRankingReadLimits", "struct EvsiCandidateWire", "struct ProviderWire", "struct RankConfigWire", "struct SearchWire", "struct SignalRequestWire", "type Error", "type Result"]
+sha256 = "5d7e6bb8f8ffcadc00ff98a4b767d5d64efcde32b10033c25fc441e88f65cf82"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/design_ranking_artifact/replay.rs"
+items = ["fn admissible_indices", "fn baseline", "fn binomial_table", "fn column_masses_ok", "fn finite_rows", "fn is_native", "fn posterior_to_likelihood", "fn probabilities", "fn recompute", "fn rectangular", "fn value_after", "struct Baseline", "struct Recomputed"]
+sha256 = "17c6dd974926a2e462ee824ad9a9c134b01baca7b0c7aa999a35bf9a71d31701"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/design_ranking_artifact/sealing.rs"
+items = ["fn decision_wire", "fn law_wire", "fn likelihood_law", "fn prepared_for_seal", "fn provider_wire", "fn request_wire", "fn seal", "fn seal_with_laws", "struct SealInputs"]
+sha256 = "b5b3218e5805e94efb0f0af5a130a2d699a20cf0fe1152c559641da5fcaadafb"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/design_ranking_artifact/consuming.rs"
+items = ["fn check_bounds", "fn check_costs", "fn check_decision", "fn check_signal", "fn consume", "fn consume_wire_with_limits", "fn consume_with_limits", "fn rank_key", "fn rebuild_ranking", "fn signal_request_of", "fn trust_limit", "fn trust_limit_unreceipted", "fn verify_candidate", "fn verify_order", "fn verify_search"]
+sha256 = "0652b58208cab031cdeb68dbceda8e6a01532442478c26e1e83cfc6a5eddeb8f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/design_ranking_replay_reference.rs"
+items = ["fn candidate", "fn close", "fn floats", "fn quantity", "fn request", "fn seal_and_replay", "fn sealed_and_replayed_binomial_values_match_the_exact_rational_reference", "fn sealed_and_replayed_gaussian_values_match_the_quadrature_reference"]
+sha256 = "a7481883c8be58cd27bc4436854e05b3948b74e580b3e2ac419f6c915dc2be6b"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-design/tests/oracle_data/decision_exact_reference.py"
+sha256 = "6899db90fe32b2738704eccca184b47bb429fed7e9e2f9558be3f45f1eae6838"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-design/tests/oracle_data/decision_exact_reference.json"
+sha256 = "5e68051a42cd53586b75f8428c20aa119bfbdac8ccf8d98f4243f18fec2716fe"

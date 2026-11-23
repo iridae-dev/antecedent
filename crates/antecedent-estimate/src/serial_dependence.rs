@@ -41,8 +41,8 @@
 //! ```
 //!
 //! where `R̂` is the correlation matrix of an AR(q) fitted to the residual by
-//! **restricted maximum likelihood** (REML; `q ≤ 4` by BIC on the REML
-//! likelihood, `−2ℓ_R + q ln(n − p)`). REML maximizes the likelihood of the
+//! **restricted maximum likelihood** (REML; `q` by BIC on the REML
+//! likelihood, `−2ℓ_R + q ln(n − p)`, over orders up to the Schwert rule of the sample). REML maximizes the likelihood of the
 //! residual contrasts, so the projection that decorrelates the OLS residuals is
 //! accounted for exactly (Cheang & Reinsel 2000); a Yule–Walker or Burg fit to
 //! the OLS residuals is biased toward independence by the same `tr(HR)`
@@ -87,13 +87,14 @@
 //! Everything that depends only on the design — the OLS residual, the REML
 //! fit at every candidate order, `X'R̂X` and `tr(HR̂)` on the delta-method
 //! stencil, the observed information — is computed once per design
-//! ([`long_run_tempering_factor`] keeps a small content-keyed cache), and each
+//! ([`long_run_tempering_factor`] keeps a small content-keyed cache when the caller
+//! permits unbounded reuse), and each
 //! REML likelihood evaluation is O(q²p²) from lagged cross-products of the
 //! augmented design accumulated once, so the fit costs about the same at any
 //! `n`. Each combination then adds O(p²) quadratic forms and, only while it can
 //! still drive `κ̂`, the O(n) score HAC bound.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -108,7 +109,9 @@ use std::sync::Arc;
 
 use antecedent_stats::{CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
-use crate::ar_kernel::{MAX_AR_ORDER, MAX_AR_RHO, bic_autoregression, dot, kendall_rho};
+use crate::ar_kernel::{
+    MAX_AR_ORDER, MAX_AR_RHO, bic_autoregression, dot, kendall_rho, schwert_order,
+};
 use crate::error::EstimationError;
 use crate::util::gram;
 
@@ -143,18 +146,24 @@ const MAX_KAPPA_LOG_SD: f64 = 1.0;
 /// delta-method gradient and the observed-information Hessian.
 const DELTA_STEP: f64 = 1e-3;
 
-/// Nelder–Mead initial simplex edge in the unbounded partial-autocorrelation
-/// coordinates `z = artanh(r / 0.97)`.
-const SIMPLEX_STEP: f64 = 0.2;
+/// Largest coordinate move of one optimizer or polish step in the unbounded
+/// partial-autocorrelation coordinates `z = artanh(r / 0.97)`.
+const MAX_STEP: f64 = 0.2;
 
-/// Nelder–Mead convergence: objective range and simplex extent.
-const SIMPLEX_F_TOL: f64 = 1e-12;
-const SIMPLEX_X_TOL: f64 = 1e-8;
+/// Quasi-Newton (BFGS) search for each order's REML optimum: at most this many
+/// iterations per coordinate, a central-difference gradient of step
+/// `GRADIENT_STEP`, and convergence once no gradient coordinate exceeds
+/// `GRADIENT_TOL` (the Newton polish then pins the optimum to rounding).
+/// Each iteration costs `2q` likelihood evaluations plus its line search, so an
+/// order costs `O(q)` evaluations per iteration.
+const BFGS_ITERATIONS_PER_DIM: usize = 50;
+const GRADIENT_STEP: f64 = 1e-5;
+const GRADIENT_TOL: f64 = 1e-4;
+/// Armijo backtracking: sufficient-decrease constant and at most this many halvings.
+const ARMIJO: f64 = 1e-4;
+const LINE_SEARCH_HALVINGS: usize = 40;
 
-/// Nelder–Mead iteration budget per coordinate.
-const SIMPLEX_ITERATIONS_PER_DIM: usize = 500;
-
-/// Newton polish of each order's simplex optimum: at most this many
+/// Newton polish of each order's quasi-Newton optimum: at most this many
 /// fixed-Hessian steps, stopping once a step moves no coordinate by more than
 /// `NEWTON_POLISH_TOL`; a step is accepted only if it does not lower the
 /// likelihood by more than `NEWTON_POLISH_SLACK` of its magnitude (rounding).
@@ -370,7 +379,9 @@ pub fn tempering_inestimable_from_notes(notes: &[Arc<str>]) -> bool {
 /// (every horizon of a temporal response is its own design, but the class atoms
 /// of one adjustment set, a Study's estimate and its checks, or a re-run on the
 /// same series are not) reuse it through a small content-keyed cache
-/// (`residual_fit`). The fit is a pure function of the design, so a cache hit
+/// (`residual_fit`) when `reuse` permits process retention. Disabled or bounded
+/// caller caches compute the same fit without consulting or populating the memo.
+/// The fit is a pure function of the design, so a cache hit
 /// and a recomputation are indistinguishable.
 ///
 /// # Errors
@@ -384,6 +395,7 @@ pub fn tempering_inestimable_from_notes(notes: &[Arc<str>]) -> bool {
 pub(crate) fn long_run_tempering_factor(
     design: &CompiledDesign,
     scope: &DependenceScope,
+    reuse: ResidualFitReuse,
 ) -> Result<TemperingFactor, EstimationError> {
     let n = design.nrows;
     let p = design.ncols;
@@ -417,7 +429,7 @@ pub(crate) fn long_run_tempering_factor(
     if directions.is_empty() {
         return Ok(floor);
     }
-    let fit = residual_fit(design)?;
+    let fit = residual_fit(design, reuse)?;
     // An exact fit leaves only rounding error, whose autocorrelation is an artefact of the
     // arithmetic: there is no residual dependence to correct.
     if fit.exact {
@@ -527,6 +539,13 @@ pub(crate) fn long_run_tempering_factor(
     })
 }
 
+mod segmented;
+
+#[cfg(test)]
+use segmented::segmented_long_run_variance;
+pub(crate) use segmented::segmented_tempering_factor;
+pub use segmented::window_segments;
+
 /// The linear combinations `c` of the coefficients a scope targets.
 fn scope_directions(
     design: &CompiledDesign,
@@ -556,140 +575,6 @@ fn scope_directions(
         DependenceScope::Levels(directions) | DependenceScope::MediationPaths(directions) => {
             directions.iter().map(|direction| check_width(direction)).collect::<Result<_, _>>()?
         }
-    })
-}
-
-/// Segment ids of the intact windows of a series with gaps: windows whose positions on the
-/// original axis are adjacent share a segment, and a gap starts a new one.
-#[must_use]
-pub fn window_segments(complete: &[bool]) -> Arc<[u32]> {
-    let mut ids = Vec::new();
-    let mut segment = 0u32;
-    let mut previous: Option<usize> = None;
-    for (position, intact) in complete.iter().enumerate() {
-        if !*intact {
-            continue;
-        }
-        if previous.is_some_and(|last| last + 1 != position) {
-            segment += 1;
-        }
-        ids.push(segment);
-        previous = Some(position);
-    }
-    Arc::from(ids)
-}
-
-/// Bartlett long-run variance of `u` summed over autocovariances within segments only,
-/// divided by the number of rows (uncentred). Two rows in different segments never
-/// contribute a cross product, so no pair that straddles a gap enters.
-fn segmented_long_run_variance(u: &[f64], segments: &[u32], bandwidth: usize) -> f64 {
-    let n = u.len();
-    let mut total = 0.0;
-    let mut start = 0;
-    while start < n {
-        let mut end = start + 1;
-        while end < n && segments[end] == segments[start] {
-            end += 1;
-        }
-        let part = &u[start..end];
-        let m = part.len();
-        let lags = bandwidth.min(m.saturating_sub(1));
-        total += dot(part, part);
-        for lag in 1..=lags {
-            let weight = 1.0 - lag as f64 / (lags + 1) as f64;
-            total += 2.0 * weight * dot(&part[lag..], &part[..m - lag]);
-        }
-        start = end;
-    }
-    (total / n as f64).max(0.0)
-}
-
-/// The tempering factor of a design whose rows are the intact windows of a series with gaps.
-///
-/// For each targeted combination `c'β`, the row weights `w = X (X'X)⁻¹ c` and the OLS residual
-/// `e` give the estimating score `s_i = w_i e_i`, whose segment-wise Bartlett long-run variance
-/// over its iid variance `Σ s_i²/n` is the factor (floored at 1, capped to leave `p + 2`
-/// effective rows); the largest over the combinations drives `κ̂`. No autocovariance crosses a
-/// gap. This is the HAC ratio only: the REML autoregression and its small-sample scale
-/// correction are defined for consecutive rows and are not applied.
-///
-/// # Errors
-///
-/// A wrong-width direction, a missing treatment column, or a singular `X'X`.
-pub(crate) fn segmented_tempering_factor(
-    design: &CompiledDesign,
-    scope: &DependenceScope,
-    segments: &[u32],
-) -> Result<TemperingFactor, EstimationError> {
-    let n = design.nrows;
-    let p = design.ncols;
-    let bandwidth = newey_west_bandwidth(n);
-    let floor = TemperingFactor {
-        kappa: 1.0,
-        raw_ratio: 1.0,
-        ar_ratio: 1.0,
-        df_loss: p as f64,
-        kappa_log_sd: 0.0,
-        hac_ratio: 1.0,
-        fixed_b: 1.0,
-        score_ar_order: 0,
-        residual_ar_order: 0,
-        bandwidth,
-        nrows: n,
-        bounded: false,
-        capped: false,
-        inestimable: false,
-        scope: scope.label(),
-    };
-    if segments.len() != n {
-        return Err(EstimationError::stats_msg(
-            "segmented tempering needs one segment id per design row",
-        ));
-    }
-    let directions: Vec<Vec<f64>> = scope_directions(design, scope)?
-        .into_iter()
-        .filter(|c| c.iter().all(|v| v.is_finite()) && c.iter().any(|v| *v != 0.0))
-        .collect();
-    if n < MIN_ROWS.max(p + 2) {
-        return Ok(TemperingFactor { inestimable: true, ..floor });
-    }
-    if directions.is_empty() {
-        return Ok(floor);
-    }
-    let x = &design.matrix[..n * p];
-    let y = &design.outcome[..n];
-    let mut xtx = vec![0.0; p * p];
-    let mut xty = vec![0.0; p];
-    for a in 0..p {
-        xty[a] = dot(&x[a * n..(a + 1) * n], y);
-        for b in 0..p {
-            xtx[a * p + b] = dot(&x[a * n..(a + 1) * n], &x[b * n..(b + 1) * n]);
-        }
-    }
-    let beta = crate::util::solve_spd(&xtx, &xty, p)
-        .ok_or_else(|| EstimationError::stats_msg("segmented tempering: singular X'X"))?;
-    let residuals: Vec<f64> =
-        (0..n).map(|t| y[t] - (0..p).map(|k| x[k * n + t] * beta[k]).sum::<f64>()).collect();
-    let mut ratio = 1.0_f64;
-    for c in &directions {
-        let v = crate::util::solve_spd(&xtx, c, p)
-            .ok_or_else(|| EstimationError::stats_msg("segmented tempering: singular X'X"))?;
-        let score: Vec<f64> = (0..n)
-            .map(|t| (0..p).map(|k| x[k * n + t] * v[k]).sum::<f64>() * residuals[t])
-            .collect();
-        let gamma0 = dot(&score, &score) / n as f64;
-        if gamma0 <= 0.0 || !gamma0.is_finite() {
-            continue;
-        }
-        ratio = ratio.max(segmented_long_run_variance(&score, segments, bandwidth) / gamma0);
-    }
-    let cap = (n as f64 / (p + 2) as f64).max(1.0);
-    Ok(TemperingFactor {
-        kappa: ratio.clamp(1.0, cap),
-        raw_ratio: ratio,
-        hac_ratio: ratio,
-        capped: ratio > cap,
-        ..floor
     })
 }
 
@@ -764,7 +649,7 @@ impl ResidualFit {
         if fit.exact {
             return Ok(fit);
         }
-        let kernel = RemlKernel::new(x, &fit.residuals, n, p);
+        let kernel = RemlKernel::new(x, &fit.residuals, n, p)?;
         fit.model = reml_autoregression(&kernel);
         let q = fit.model.z.len();
         // Quadratic forms at z and on the delta-method stencil, each with its projected trace.
@@ -812,10 +697,41 @@ impl ResidualFit {
     }
 }
 
+/// Whether an execution may share a residual fit beyond its own lifetime.
+/// The process memo cannot honor a caller-owned byte lease or a bounded cache policy.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ResidualFitReuse {
+    /// Compute only for this execution; retain no source or fit in the process memo.
+    Uncached,
+    /// Reuse the bounded process memo under an unbounded caller policy.
+    ProcessMemo,
+}
+
+impl ResidualFitReuse {
+    pub(crate) fn for_context(ctx: &antecedent_core::ExecutionContext) -> Self {
+        if ctx.cache_policy.enabled
+            && ctx.cache_policy.max_bytes.is_none()
+            && ctx.admission.byte_budget() == u64::MAX
+        {
+            Self::ProcessMemo
+        } else {
+            Self::Uncached
+        }
+    }
+}
+
+// Per-thread observations avoid resetting shared state or racing other numerical tests.
+#[cfg(test)]
+thread_local! {
+    static FIT_CACHE_ACCESSES: std::cell::Cell<(usize, usize)> = const {
+        std::cell::Cell::new((0, 0))
+    };
+}
+
 /// Cached design-level fits, most recently used first: at most this many
 /// designs, and at most `FIT_CACHE_MAX_ELEMENTS` retained `f64` values across
 /// them (the cache keeps each design's rows alive to verify a hit by content,
-/// so a few large designs evict the rest; the most recent always stays).
+/// so large designs evict older entries; an oversized fit is used without retention).
 const FIT_CACHE_CAPACITY: usize = 16;
 const FIT_CACHE_MAX_ELEMENTS: usize = 1 << 21;
 
@@ -826,6 +742,25 @@ struct CachedFit {
     matrix: Arc<[f64]>,
     outcome: Arc<[f64]>,
     fit: Arc<ResidualFit>,
+}
+
+impl CachedFit {
+    fn retained_elements(&self) -> usize {
+        let fit = &self.fit;
+        [
+            self.matrix.len(),
+            self.outcome.len(),
+            fit.residuals.capacity(),
+            fit.xtx.capacity(),
+            fit.model.phi.capacity(),
+            fit.model.z.capacity(),
+            fit.df_loss.capacity(),
+            fit.info_chol.as_ref().map_or(0, Vec::capacity),
+        ]
+        .into_iter()
+        .chain(fit.quadratic.iter().flatten().map(Vec::capacity))
+        .fold(0, usize::saturating_add)
+    }
 }
 
 static FIT_CACHE: std::sync::Mutex<Vec<CachedFit>> = std::sync::Mutex::new(Vec::new());
@@ -842,7 +777,18 @@ fn design_hash(x: &[f64], y: &[f64]) -> u64 {
 /// The design-level fit of `design`, from the cache when the same rows were fitted
 /// before (a process-wide cache of [`FIT_CACHE_CAPACITY`] designs, keyed on the
 /// row contents so the result is a pure function of the design).
-fn residual_fit(design: &CompiledDesign) -> Result<Arc<ResidualFit>, EstimationError> {
+fn residual_fit(
+    design: &CompiledDesign,
+    reuse: ResidualFitReuse,
+) -> Result<Arc<ResidualFit>, EstimationError> {
+    if reuse == ResidualFitReuse::Uncached {
+        return ResidualFit::new(design).map(Arc::new);
+    }
+    #[cfg(test)]
+    FIT_CACHE_ACCESSES.with(|counts| {
+        let (lookups, insertions) = counts.get();
+        counts.set((lookups + 1, insertions));
+    });
     let n = design.nrows;
     let p = design.ncols;
     let x = &design.matrix[..n * p];
@@ -859,23 +805,29 @@ fn residual_fit(design: &CompiledDesign) -> Result<Arc<ResidualFit>, EstimationE
     }
     drop(cache);
     let fit = Arc::new(ResidualFit::new(design)?);
+    let entry = CachedFit {
+        n,
+        p,
+        hash,
+        matrix: Arc::clone(&design.matrix),
+        outcome: Arc::clone(&design.outcome),
+        fit: Arc::clone(&fit),
+    };
+    if entry.retained_elements() > FIT_CACHE_MAX_ELEMENTS {
+        return Ok(fit);
+    }
     let mut cache = FIT_CACHE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    cache.insert(
-        0,
-        CachedFit {
-            n,
-            p,
-            hash,
-            matrix: Arc::clone(&design.matrix),
-            outcome: Arc::clone(&design.outcome),
-            fit: Arc::clone(&fit),
-        },
-    );
+    cache.insert(0, entry);
+    #[cfg(test)]
+    FIT_CACHE_ACCESSES.with(|counts| {
+        let (lookups, insertions) = counts.get();
+        counts.set((lookups, insertions + 1));
+    });
     cache.truncate(FIT_CACHE_CAPACITY);
-    let retained = |c: &CachedFit| c.matrix.len() + c.outcome.len() + c.fit.residuals.len();
-    let mut total: usize = cache.iter().map(retained).sum();
-    while total > FIT_CACHE_MAX_ELEMENTS && cache.len() > 1 {
-        total -= cache.pop().map_or(0, |c| retained(&c));
+    let mut total = cache.iter().map(CachedFit::retained_elements).fold(0, usize::saturating_add);
+    while total > FIT_CACHE_MAX_ELEMENTS {
+        let Some(evicted) = cache.pop() else { break };
+        total = total.saturating_sub(evicted.retained_elements());
     }
     Ok(fit)
 }
@@ -889,19 +841,17 @@ struct ArErrorModel {
     z: Vec<f64>,
 }
 
-/// Fixed-capacity AR coefficient vector (`q ≤ MAX_AR_ORDER`).
-type ArCoefficients = [f64; MAX_AR_ORDER];
-
 /// Partial autocorrelations `r` (`|r_k| < 1`) to AR coefficients (Levinson step-up).
 fn pacf_to_phi(r: &[f64]) -> Vec<f64> {
-    let mut phi = [0.0; MAX_AR_ORDER];
+    let mut phi = vec![0.0; r.len()];
     pacf_to_phi_into(r, &mut phi);
-    phi[..r.len()].to_vec()
+    phi
 }
 
-fn pacf_to_phi_into(r: &[f64], phi: &mut ArCoefficients) {
-    debug_assert!(r.len() <= MAX_AR_ORDER);
-    let mut next = [0.0; MAX_AR_ORDER];
+/// Levinson step-up into `phi`, which holds at least `r.len()` entries.
+fn pacf_to_phi_into(r: &[f64], phi: &mut [f64]) {
+    debug_assert!(phi.len() >= r.len());
+    let mut next = vec![0.0; r.len()];
     for (m, &k) in r.iter().enumerate() {
         for j in 0..m {
             next[j] = phi[j] - k * phi[m - 1 - j];
@@ -909,6 +859,25 @@ fn pacf_to_phi_into(r: &[f64], phi: &mut ArCoefficients) {
         next[m] = k;
         phi[..=m].copy_from_slice(&next[..=m]);
     }
+}
+
+/// AR coefficients to partial autocorrelations (Levinson step-down); `None`
+/// unless every `|r_k| < 1`, the coefficients of a stationary process.
+fn phi_to_pacf(phi: &[f64]) -> Option<Vec<f64>> {
+    let q = phi.len();
+    let mut r = vec![0.0; q];
+    let mut cur = phi.to_vec();
+    for k in (0..q).rev() {
+        let rk = cur[k];
+        if !(rk.is_finite() && rk.abs() < 1.0) {
+            return None;
+        }
+        r[k] = rk;
+        let denom = 1.0 - rk * rk;
+        let prev: Vec<f64> = (0..k).map(|j| (cur[j] + rk * cur[k - 1 - j]) / denom).collect();
+        cur[..k].copy_from_slice(&prev);
+    }
+    Some(r)
 }
 
 fn z_to_phi(z: &[f64]) -> Vec<f64> {
@@ -919,90 +888,77 @@ fn z_to_phi(z: &[f64]) -> Vec<f64> {
 /// Whitening transform `L` of a stationary AR(q) with unit innovations
 /// (`Γ⁻¹ = L'L`): rows `t < q` are the inverse Cholesky factor of the
 /// stationary `q × q` autocovariance, rows `t ≥ q` the AR filter.
+///
+/// The leading rows come from the Durbin–Levinson recursion on the partial
+/// autocorrelations: row `t < q` is the order-`t` one-step prediction error
+/// `(y_t − Σ_{j=1}^{t} φ^{(t)}_j y_{t−j}) / √P_t`, with prediction variance
+/// `P_t = γ₀ Π_{j≤t} (1 − r_j²)`. That is the Cholesky factorization
+/// `Γ_q = C C'` written as `C⁻¹ = D^{−1/2} M` (`M` unit lower triangular), so
+/// building a model costs `O(q²)`, not the `O(q³)` of solving the Yule–Walker
+/// system and factoring `Γ_q`.
 #[derive(Debug)]
 struct Whitener {
     q: usize,
-    phi: ArCoefficients,
-    /// Lower Cholesky factor `C` of the `q × q` stationary autocovariance (row-major).
-    chol: [f64; MAX_AR_ORDER * MAX_AR_ORDER],
-    /// `log|Γ| = 2 Σ log diag(C)`.
+    /// AR coefficients `φ₁ … φ_q`.
+    phi: Vec<f64>,
+    /// Prediction coefficients of the leading rows, packed: row `t < q` holds
+    /// `φ^{(t)}_1 … φ^{(t)}_t` starting at `t (t − 1) / 2`.
+    predict: Vec<f64>,
+    /// `√P_t` for the leading rows `t < q`.
+    scale: Vec<f64>,
+    /// `log|Γ_q| = Σ_{t<q} log P_t`.
     log_det: f64,
     /// Marginal variance `γ₀` of the process with unit innovations.
     gamma0: f64,
 }
 
 impl Whitener {
-    /// `None` when the implied autocovariance is not positive definite.
+    /// `None` when the coefficients are not those of a stationary process.
     fn new(phi: &[f64]) -> Option<Self> {
-        let q = phi.len();
-        if q > MAX_AR_ORDER {
-            return None;
-        }
-        let mut coefficients = [0.0; MAX_AR_ORDER];
-        coefficients[..q].copy_from_slice(phi);
-        Self::from_coefficients(q, coefficients)
+        Self::from_pacf(&phi_to_pacf(phi)?)
     }
 
     /// The whitener of the model at partial-autocorrelation coordinates `z`.
     fn from_z(z: &[f64]) -> Option<Self> {
-        let q = z.len();
-        if q > MAX_AR_ORDER {
-            return None;
-        }
-        let mut r = [0.0; MAX_AR_ORDER];
-        for (r, v) in r.iter_mut().zip(z) {
-            *r = MAX_PARTIAL_AUTOCORRELATION * v.tanh();
-        }
-        let mut phi = [0.0; MAX_AR_ORDER];
-        pacf_to_phi_into(&r[..q], &mut phi);
-        Self::from_coefficients(q, phi)
+        let r: Vec<f64> = z.iter().map(|v| MAX_PARTIAL_AUTOCORRELATION * v.tanh()).collect();
+        Self::from_pacf(&r)
     }
 
-    fn from_coefficients(q: usize, phi: ArCoefficients) -> Option<Self> {
-        let mut chol = [0.0; MAX_AR_ORDER * MAX_AR_ORDER];
-        if q == 0 {
-            return Some(Self { q, phi, chol, log_det: 0.0, gamma0: 1.0 });
-        }
-        // Yule–Walker: ρ_k = Σ_j φ_j ρ_{|k−j|}, k = 1..q, with ρ_0 = 1.
-        let mut a = [0.0; MAX_AR_ORDER * MAX_AR_ORDER];
-        let mut rho = [0.0; MAX_AR_ORDER];
-        for k in 1..=q {
-            for j in 1..=q {
-                let idx = k.abs_diff(j);
-                if idx == 0 {
-                    rho[k - 1] -= phi[j - 1];
-                } else {
-                    a[(k - 1) * q + idx - 1] += phi[j - 1];
-                }
-            }
-            a[(k - 1) * q + k - 1] -= 1.0;
-        }
-        // `A` is neither symmetric nor positive definite (a Toeplitz-plus-Hankel system), so
-        // it is solved through the shared equilibrated inverse rather than a Cholesky.
-        let inverse = antecedent_stats::invert_square(&a[..q * q], q)?;
-        let rhs = rho;
-        for (k, r) in rho.iter_mut().enumerate().take(q) {
-            *r = (0..q).map(|j| inverse[k * q + j] * rhs[j]).sum();
-        }
-        if !rho[..q].iter().all(|v| v.is_finite()) {
-            return None;
-        }
-        let gamma0 = 1.0 / (1.0 - phi[..q].iter().zip(&rho).map(|(f, r)| f * r).sum::<f64>());
+    /// Durbin–Levinson from partial autocorrelations `r` (`|r_k| < 1`), `O(q²)`.
+    fn from_pacf(r: &[f64]) -> Option<Self> {
+        let q = r.len();
+        let gamma0 = 1.0 / r.iter().map(|v| 1.0 - v * v).product::<f64>();
         if !gamma0.is_finite() || gamma0 <= 0.0 {
             return None;
         }
-        let mut cov = [0.0; MAX_AR_ORDER * MAX_AR_ORDER];
-        for i in 0..q {
-            for j in 0..q {
-                let lag = i.abs_diff(j);
-                cov[i * q + j] = gamma0 * if lag == 0 { 1.0 } else { rho[lag - 1] };
+        let mut predict = Vec::with_capacity(q * q.saturating_sub(1) / 2);
+        let mut scale = Vec::with_capacity(q);
+        let mut log_det = 0.0;
+        let mut phi = vec![0.0; q];
+        let mut next = vec![0.0; q];
+        let mut variance = gamma0;
+        for (m, &k) in r.iter().enumerate() {
+            // Row m predicts from the order-m coefficients, before the step up.
+            predict.extend_from_slice(&phi[..m]);
+            if !(variance.is_finite() && variance > 0.0) {
+                return None;
             }
+            scale.push(variance.sqrt());
+            log_det += variance.ln();
+            for j in 0..m {
+                next[j] = phi[j] - k * phi[m - 1 - j];
+            }
+            next[m] = k;
+            phi[..=m].copy_from_slice(&next[..=m]);
+            variance *= 1.0 - k * k;
         }
-        if !cholesky_into(&cov, &mut chol, q) {
-            return None;
-        }
-        let log_det = 2.0 * (0..q).map(|i| chol[i * q + i].ln()).sum::<f64>();
-        Some(Self { q, phi, chol, log_det, gamma0 })
+        Some(Self { q, phi, predict, scale, log_det, gamma0 })
+    }
+
+    /// Prediction coefficients `φ^{(t)}_1 … φ^{(t)}_t` of leading row `t < q`.
+    fn predictor(&self, t: usize) -> &[f64] {
+        let start = t * t.saturating_sub(1) / 2;
+        &self.predict[start..start + t]
     }
 
     fn order(&self) -> usize {
@@ -1010,7 +966,7 @@ impl Whitener {
     }
 
     fn coefficients(&self) -> &[f64] {
-        &self.phi[..self.q]
+        &self.phi
     }
 
     /// `u = L v`.
@@ -1019,10 +975,10 @@ impl Whitener {
         let q = self.order();
         let n = v.len();
         let mut u = vec![0.0; n];
-        // Forward substitution C u_top = v_top.
-        for i in 0..q.min(n) {
-            let s: f64 = (0..i).map(|j| self.chol[i * q + j] * u[j]).sum();
-            u[i] = (v[i] - s) / self.chol[i * q + i];
+        // Leading rows: the order-t prediction errors over √P_t.
+        for t in 0..q.min(n) {
+            let s: f64 = self.predictor(t).iter().enumerate().map(|(j, f)| f * v[t - 1 - j]).sum();
+            u[t] = (v[t] - s) / self.scale[t];
         }
         for t in q..n {
             u[t] = v[t]
@@ -1048,8 +1004,10 @@ impl Whitener {
     fn solve_into(&self, u: &[f64], v: &mut [f64]) {
         let q = self.order();
         let n = u.len();
-        for (i, vi) in v.iter_mut().enumerate().take(q.min(n)) {
-            *vi = (0..=i).map(|j| self.chol[i * q + j] * u[j]).sum();
+        // Leading rows: v_t = √P_t u_t + Σ_j φ^{(t)}_j v_{t−1−j}.
+        for t in 0..q.min(n) {
+            let s: f64 = self.predictor(t).iter().enumerate().map(|(j, f)| f * v[t - 1 - j]).sum();
+            v[t] = self.scale[t] * u[t] + s;
         }
         // v_t = u_t + Σ_j φ_j v_{t−1−j} for t ≥ q.
         match q {
@@ -1057,7 +1015,8 @@ impl Whitener {
             1 => recolour::<1>(&self.phi, u, v),
             2 => recolour::<2>(&self.phi, u, v),
             3 => recolour::<3>(&self.phi, u, v),
-            _ => recolour::<4>(&self.phi, u, v),
+            4 => recolour::<4>(&self.phi, u, v),
+            _ => recolour_any(&self.phi, u, v),
         }
     }
 
@@ -1071,11 +1030,12 @@ impl Whitener {
             1 => recolour_transpose::<1>(&self.phi, x, z),
             2 => recolour_transpose::<2>(&self.phi, x, z),
             3 => recolour_transpose::<3>(&self.phi, x, z),
-            _ => recolour_transpose::<4>(&self.phi, x, z),
+            4 => recolour_transpose::<4>(&self.phi, x, z),
+            _ => recolour_transpose_any(&self.phi, x, z),
         }
         let top = q.min(n);
-        let mut rhs = [0.0; MAX_AR_ORDER];
-        for (t, r) in rhs.iter_mut().enumerate().take(top) {
+        let mut rhs = vec![0.0; top];
+        for (t, r) in rhs.iter_mut().enumerate() {
             let mut s = x[t];
             for (j, f) in self.coefficients().iter().enumerate() {
                 let row = t + 1 + j;
@@ -1085,9 +1045,16 @@ impl Whitener {
             }
             *r = s;
         }
-        // z_top = C' rhs.
+        // z_top = C' rhs: back substitution M' w = rhs, then z = D^{1/2} w.
+        for i in (0..top).rev() {
+            let mut w = rhs[i];
+            for t in i + 1..top {
+                w += self.predictor(t)[t - 1 - i] * rhs[t];
+            }
+            rhs[i] = w;
+        }
         for (i, zi) in z.iter_mut().enumerate().take(top) {
-            *zi = (i..top).map(|j| self.chol[j * q + i] * rhs[j]).sum();
+            *zi = self.scale[i] * rhs[i];
         }
     }
 
@@ -1106,7 +1073,7 @@ impl Whitener {
 
 /// Forward AR(Q) recolouring `v_t = u_t + Σ_{j<Q} φ_j v_{t−1−j}` for `t ≥ Q`
 /// (rows `t < Q` of `v` are inputs).
-fn recolour<const Q: usize>(phi: &ArCoefficients, u: &[f64], v: &mut [f64]) {
+fn recolour<const Q: usize>(phi: &[f64], u: &[f64], v: &mut [f64]) {
     let n = u.len();
     for t in Q..n {
         let mut s = u[t];
@@ -1119,7 +1086,7 @@ fn recolour<const Q: usize>(phi: &ArCoefficients, u: &[f64], v: &mut [f64]) {
 
 /// Backward AR(Q) recolouring `z_t = x_t + Σ_{j<Q, t+1+j<n} φ_j z_{t+1+j}` for
 /// `t ≥ Q`, in descending `t`.
-fn recolour_transpose<const Q: usize>(phi: &ArCoefficients, x: &[f64], z: &mut [f64]) {
+fn recolour_transpose<const Q: usize>(phi: &[f64], x: &[f64], z: &mut [f64]) {
     let n = x.len();
     // Tail rows with fewer than Q leads available.
     for t in (Q.max(n.saturating_sub(Q))..n).rev() {
@@ -1133,6 +1100,30 @@ fn recolour_transpose<const Q: usize>(phi: &ArCoefficients, x: &[f64], z: &mut [
         let mut s = x[t];
         for j in 0..Q {
             s += phi[j] * z[t + 1 + j];
+        }
+        z[t] = s;
+    }
+}
+
+/// [`recolour`] for an order known only at run time (orders above the unrolled ones).
+fn recolour_any(phi: &[f64], u: &[f64], v: &mut [f64]) {
+    let q = phi.len();
+    for t in q..u.len() {
+        let mut s = u[t];
+        for (j, f) in phi.iter().enumerate() {
+            s += f * v[t - 1 - j];
+        }
+        v[t] = s;
+    }
+}
+
+/// [`recolour_transpose`] for an order known only at run time.
+fn recolour_transpose_any(phi: &[f64], x: &[f64], z: &mut [f64]) {
+    let (q, n) = (phi.len(), x.len());
+    for t in (q..n).rev() {
+        let mut s = x[t];
+        for (j, f) in phi.iter().enumerate().take(n - t - 1) {
+            s += f * z[t + 1 + j];
         }
         z[t] = s;
     }
@@ -1177,23 +1168,63 @@ struct RemlKernel {
     p: usize,
     /// Augmented width `p + 1`.
     m: usize,
-    /// Largest order served (`min(4, n − p − 2)`).
+    /// Largest order served (`min(` [`schwert_order`] `(n), n − p − 2)`).
     max_order: usize,
     /// Rows `t < max_order` of `A`, row-major `max_order × m`.
     top: Vec<f64>,
     /// `S_jk` for `0 ≤ j ≤ k ≤ max_order`, each an `m × m` row-major block at
     /// `block(j, k)`.
     lagged: Vec<f64>,
+    /// Prefix lag products of the leading rows, `R_d(S)[a][b] = Σ_{s<S} a_s[a] a_{s+d}[b]`
+    /// for `0 ≤ d, S ≤ max_order` (each an `m × m` block at `(d (max_order + 1) + S) m²`):
+    /// the filter rows `q ≤ t < max_order` of any order `q` are differences of two of them,
+    /// so an evaluation does not grow with `max_order`.
+    prefix: Vec<f64>,
     /// Per-evaluation scratch: the whitened Gram (`m × m`), its `p × p`
     /// leading block, the factor, `X̃'ẽ`, `β̃` and the
     /// forward-substitution scratch.
     scratch: std::cell::RefCell<Vec<f64>>,
+    _admission: Option<antecedent_core::execution::AdmissionLease>,
+}
+
+fn reml_kernel_bytes(n: usize, p: usize) -> Option<usize> {
+    use std::mem::size_of;
+    let m = p.checked_add(1)?;
+    let q = schwert_order(n).min(n.checked_sub(p)?.saturating_sub(2));
+    let m2 = m.checked_mul(m)?;
+    let blocks = q.checked_add(1)?.checked_mul(q.checked_add(2)?)?.checked_div(2)?;
+    let cells = q
+        .checked_mul(m)?
+        .checked_add(q.checked_add(1)?.checked_mul(m2)?)?
+        .checked_add(blocks.checked_mul(m2)?)?
+        .checked_add(q.checked_add(1)?.checked_mul(q.checked_add(1)?)?.checked_mul(m2)?)?
+        .checked_add(m2)?
+        .checked_add(p.checked_mul(p)?.checked_mul(2)?)?
+        .checked_add(p.checked_mul(3)?)?;
+    cells
+        .checked_mul(size_of::<f64>())?
+        .checked_add(q.checked_mul(2)?.checked_mul(size_of::<usize>())?)
+}
+
+fn reml_poll() -> Result<(), EstimationError> {
+    if antecedent_core::numerical_admission::is_cancelled() {
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("cancelled_no_claim"),
+            "REML kernel construction was cancelled",
+        ));
+    }
+    Ok(())
 }
 
 impl RemlKernel {
-    fn new(x: &[f64], residuals: &[f64], n: usize, p: usize) -> Self {
+    fn new(x: &[f64], residuals: &[f64], n: usize, p: usize) -> Result<Self, EstimationError> {
+        let bytes = reml_kernel_bytes(n, p).ok_or(EstimationError::Admission(
+            antecedent_core::execution::AdmissionError::Overflow,
+        ))?;
+        reml_poll()?;
+        let admission = crate::util::admit_bound_array::<u8>(bytes, 1)?;
         let m = p + 1;
-        let big_q = MAX_AR_ORDER.min((n - p).saturating_sub(2));
+        let big_q = schwert_order(n).min((n - p).saturating_sub(2));
         let column = |c: usize| if c < p { &x[c * n..(c + 1) * n] } else { residuals };
         let mut top = vec![0.0; big_q * m];
         for t in 0..big_q {
@@ -1204,6 +1235,7 @@ impl RemlKernel {
         // Full-range lag products T_d[a][b] = Σ_{s ≥ d} a_s[a] a_{s−d}[b].
         let mut lag_products = vec![0.0; (big_q + 1) * m * m];
         for d in 0..=big_q {
+            reml_poll()?;
             for a in 0..m {
                 let ca = &column(a)[d..n];
                 for b in 0..m {
@@ -1219,6 +1251,7 @@ impl RemlKernel {
         let mut lagged = vec![0.0; blocks * m * m];
         for j in 0..=big_q {
             for k in j..=big_q {
+                reml_poll()?;
                 let d = k - j;
                 let base = Self::block(j, k, big_q) * m * m;
                 lagged[base..base + m * m]
@@ -1234,8 +1267,25 @@ impl RemlKernel {
                 }
             }
         }
+        let stride = big_q + 1;
+        let mut prefix = vec![0.0; stride * stride * m * m];
+        for d in 0..=big_q {
+            reml_poll()?;
+            for s in 0..big_q {
+                let (from, to) = ((d * stride + s) * m * m, (d * stride + s + 1) * m * m);
+                prefix.copy_within(from..to, to);
+                if s + d < big_q {
+                    for a in 0..m {
+                        let u = top[s * m + a];
+                        for b in 0..m {
+                            prefix[to + a * m + b] += u * top[(s + d) * m + b];
+                        }
+                    }
+                }
+            }
+        }
         let scratch = std::cell::RefCell::new(vec![0.0; m * m + 2 * p * p + 3 * p]);
-        Self { n, p, m, max_order: big_q, top, lagged, scratch }
+        Ok(Self { n, p, m, max_order: big_q, top, lagged, prefix, scratch, _admission: admission })
     }
 
     /// Index of block `(j, k)`, `j ≤ k ≤ q`, in the packed upper triangle.
@@ -1246,7 +1296,7 @@ impl RemlKernel {
     /// Whitened Gram `Ã'Ã` (row-major `m × m`) of the AR model `w`, into `g`.
     fn whitened_gram(&self, w: &Whitener, g: &mut [f64]) {
         let (m, q, big_q) = (self.m, w.order(), self.max_order);
-        let mut psi = [0.0; MAX_AR_ORDER + 1];
+        let mut psi = vec![0.0; q + 1];
         psi[0] = 1.0;
         for (j, f) in w.coefficients().iter().enumerate() {
             psi[j + 1] = -f;
@@ -1267,25 +1317,36 @@ impl RemlKernel {
                 }
             }
         }
-        // Filter rows q ≤ t < Q from the stored leading rows.
-        for t in q..big_q {
-            for a in 0..m {
-                let ra: f64 = (0..=q).map(|j| psi[j] * self.top[(t - j) * m + a]).sum();
-                for b in 0..m {
-                    let rb: f64 = (0..=q).map(|j| psi[j] * self.top[(t - j) * m + b]).sum();
-                    g[a * m + b] += ra * rb;
+        // Filter rows q ≤ t < Q: Σ_t (Σ_j ψ_j a_{t−j})(Σ_k ψ_k a_{t−k})', each lag pair a
+        // difference of two prefix lag products (O(q² m²), whatever Q is).
+        let stride = big_q + 1;
+        for j in 0..=q {
+            for k in 0..=q {
+                let c = psi[j] * psi[k];
+                // With s = t − max(j, k) and d = |k − j|, the pair sums s over [q − max, Q − max).
+                let (d, hi, transpose) = if k >= j { (k - j, k, true) } else { (j - k, j, false) };
+                let upper = (d * stride + big_q - hi) * m * m;
+                let lower = (d * stride + q - hi) * m * m;
+                for a in 0..m {
+                    for b in 0..m {
+                        let at = if transpose { b * m + a } else { a * m + b };
+                        g[a * m + b] += c * (self.prefix[upper + at] - self.prefix[lower + at]);
+                    }
                 }
             }
         }
-        // Cholesky-whitened rows t < q: U = C⁻¹ A_top, G += U'U.
+        // Leading rows t < q: U = C⁻¹ A_top (order-t prediction errors over √P_t), G += U'U.
         if q > 0 {
-            let mut u = [0.0; MAX_AR_ORDER];
             let mut top = vec![0.0; q * m];
-            for c in 0..m {
-                for i in 0..q {
-                    let s: f64 = (0..i).map(|j| w.chol[i * q + j] * u[j]).sum();
-                    u[i] = (self.top[i * m + c] - s) / w.chol[i * q + i];
-                    top[i * m + c] = u[i];
+            for i in 0..q {
+                let predictor = w.predictor(i);
+                for c in 0..m {
+                    let s: f64 = predictor
+                        .iter()
+                        .enumerate()
+                        .map(|(j, f)| f * self.top[(i - 1 - j) * m + c])
+                        .sum();
+                    top[i * m + c] = (self.top[i * m + c] - s) / w.scale[i];
                 }
             }
             for i in 0..q {
@@ -1331,92 +1392,121 @@ fn reml_log_likelihood(z: &[f64], kernel: &RemlKernel) -> f64 {
     -0.5 * w.log_det - 0.5 * log_det_g - 0.5 * dof * (rss / dof).ln()
 }
 
-/// A Nelder–Mead vertex: coordinates (`dim ≤ MAX_AR_ORDER`) and objective.
-type Vertex = (ArCoefficients, f64);
+/// Central-difference gradient of `f` at `x` (step `GRADIENT_STEP`).
+fn gradient(f: &impl Fn(&[f64]) -> f64, x: &[f64]) -> Vec<f64> {
+    let mut shifted = x.to_vec();
+    (0..x.len())
+        .map(|i| {
+            shifted[i] = x[i] + GRADIENT_STEP;
+            let plus = f(&shifted);
+            shifted[i] = x[i] - GRADIENT_STEP;
+            let minus = f(&shifted);
+            shifted[i] = x[i];
+            (plus - minus) / (2.0 * GRADIENT_STEP)
+        })
+        .collect()
+}
 
-/// Nelder–Mead minimization of `f` from `x0` (initial simplex edge `SIMPLEX_STEP`).
-fn nelder_mead(f: impl Fn(&[f64]) -> f64, x0: &[f64]) -> (Vec<f64>, f64) {
+/// BFGS minimization of `f` from `x0` with an Armijo backtracking line search and steps
+/// capped at `MAX_STEP` per coordinate. A non-finite objective rejects a trial point; a
+/// non-descent direction restarts from steepest descent.
+fn quasi_newton(f: impl Fn(&[f64]) -> f64, x0: &[f64]) -> (Vec<f64>, f64) {
     let dim = x0.len();
-    debug_assert!(dim <= MAX_AR_ORDER);
-    let eval = |v: &ArCoefficients| f(&v[..dim]);
-    let mut origin = [0.0; MAX_AR_ORDER];
-    origin[..dim].copy_from_slice(x0);
-    let mut simplex: Vec<Vertex> = Vec::with_capacity(dim + 1);
-    simplex.push((origin, eval(&origin)));
-    for i in 0..dim {
-        let mut v = origin;
-        v[i] += SIMPLEX_STEP;
-        let fv = eval(&v);
-        simplex.push((v, fv));
+    let mut x = x0.to_vec();
+    let mut fx = f(&x);
+    if dim == 0 || !fx.is_finite() {
+        return (x, fx);
     }
-    let order = |s: &mut Vec<Vertex>| {
-        s.sort_by(|a, b| a.1.total_cmp(&b.1));
+    let identity = |scale: f64| -> Vec<f64> {
+        let mut h = vec![0.0; dim * dim];
+        for i in 0..dim {
+            h[i * dim + i] = scale;
+        }
+        h
     };
-    order(&mut simplex);
-    for _ in 0..SIMPLEX_ITERATIONS_PER_DIM * dim {
-        let f_range = simplex[dim].1 - simplex[0].1;
-        let x_range = simplex[1..]
-            .iter()
-            .flat_map(|(v, _)| {
-                v[..dim].iter().zip(&simplex[0].0[..dim]).map(|(a, b)| (a - b).abs())
-            })
-            .fold(0.0_f64, f64::max);
-        if f_range.abs() <= SIMPLEX_F_TOL && x_range <= SIMPLEX_X_TOL {
+    let mut h = identity(1.0);
+    // Whether `h` has taken its first curvature scaling since the last (re)start.
+    let mut scaled = false;
+    let mut g = gradient(&f, &x);
+    let mut trial = vec![0.0; dim];
+    for _ in 0..BFGS_ITERATIONS_PER_DIM * dim {
+        if g.iter().any(|v| !v.is_finite()) || g.iter().all(|v| v.abs() <= GRADIENT_TOL) {
             break;
         }
-        let mut centroid = [0.0; MAX_AR_ORDER];
-        for k in 0..dim {
-            centroid[k] = simplex[..dim].iter().map(|(v, _)| v[k]).sum::<f64>() / dim as f64;
+        let mut direction: Vec<f64> =
+            (0..dim).map(|i| -(0..dim).map(|j| h[i * dim + j] * g[j]).sum::<f64>()).collect();
+        let mut slope: f64 = direction.iter().zip(&g).map(|(d, v)| d * v).sum();
+        if slope.is_nan() || slope >= 0.0 {
+            scaled = false;
+            h = identity(1.0);
+            direction = g.iter().map(|v| -v).collect();
+            slope = -g.iter().map(|v| v * v).sum::<f64>();
         }
-        let worst = simplex[dim];
-        let point = |coef: f64| -> ArCoefficients {
-            let mut out = [0.0; MAX_AR_ORDER];
-            for k in 0..dim {
-                out[k] = centroid[k] + coef * (centroid[k] - worst.0[k]);
+        let largest = direction.iter().fold(0.0_f64, |m, d| m.max(d.abs()));
+        let mut alpha = if largest > MAX_STEP { MAX_STEP / largest } else { 1.0 };
+        let mut accepted = None;
+        for _ in 0..LINE_SEARCH_HALVINGS {
+            for ((t, xi), d) in trial.iter_mut().zip(&x).zip(&direction) {
+                *t = xi + alpha * d;
             }
-            out
-        };
-        let reflected = point(1.0);
-        let fr = eval(&reflected);
-        if fr < simplex[0].1 {
-            let expanded = point(2.0);
-            let fe = eval(&expanded);
-            simplex[dim] = if fe < fr { (expanded, fe) } else { (reflected, fr) };
-        } else if fr < simplex[dim - 1].1 {
-            simplex[dim] = (reflected, fr);
-        } else {
-            let contracted = if fr < worst.1 { point(0.5) } else { point(-0.5) };
-            let fc = eval(&contracted);
-            if fc < fr.min(worst.1) {
-                simplex[dim] = (contracted, fc);
-            } else {
-                let best = simplex[0].0;
-                for entry in simplex.iter_mut().skip(1) {
-                    for (v, b) in entry.0.iter_mut().zip(&best).take(dim) {
-                        *v = b + 0.5 * (*v - b);
-                    }
-                    entry.1 = eval(&entry.0);
+            let ft = f(&trial);
+            if ft.is_finite() && ft <= fx + ARMIJO * alpha * slope {
+                accepted = Some(ft);
+                break;
+            }
+            alpha *= 0.5;
+        }
+        let Some(ft) = accepted else { break };
+        let s: Vec<f64> = trial.iter().zip(&x).map(|(a, b)| a - b).collect();
+        let g_new = gradient(&f, &trial);
+        let y: Vec<f64> = g_new.iter().zip(&g).map(|(a, b)| a - b).collect();
+        let sy: f64 = s.iter().zip(&y).map(|(a, b)| a * b).sum();
+        let improved = fx - ft;
+        x.clone_from(&trial);
+        fx = ft;
+        g = g_new;
+        if sy > f64::EPSILON * s.iter().map(|v| v * v).sum::<f64>().sqrt() {
+            if !scaled {
+                scaled = true;
+                let yy: f64 = y.iter().map(|v| v * v).sum();
+                h = identity(sy / yy);
+            }
+            // H ← (I − ρ s y') H (I − ρ y s') + ρ s s', ρ = 1 / (y's).
+            let rho = 1.0 / sy;
+            let hy: Vec<f64> =
+                (0..dim).map(|i| (0..dim).map(|j| h[i * dim + j] * y[j]).sum()).collect();
+            let yhy: f64 = y.iter().zip(&hy).map(|(a, b)| a * b).sum();
+            for i in 0..dim {
+                for j in 0..dim {
+                    h[i * dim + j] += -rho * (hy[i] * s[j] + s[i] * hy[j])
+                        + (rho * rho * yhy + rho) * s[i] * s[j];
                 }
             }
         }
-        order(&mut simplex);
+        if improved <= f64::EPSILON * fx.abs().max(1.0) {
+            break;
+        }
     }
-    let (v, fv) = simplex[0];
-    (v[..dim].to_vec(), fv)
+    (x, fx)
 }
 
 /// REML AR(q) fit of the residual process at the BIC-selected order
-/// (`−2ℓ_R + q ln(n − p)`, `q ≤ 4`), each order warm-started from the previous
-/// and polished by [`newton_polish`].
+/// (`−2ℓ_R + q ln(n − p)`), each order warm-started from the previous and polished by
+/// [`newton_polish`]. The search always covers orders up to [`MAX_AR_ORDER`] and goes on past it
+/// only while the BIC-selected order is within two of the order being tried, up to the Schwert
+/// order of the sample (`kernel.max_order`).
 fn reml_autoregression(kernel: &RemlKernel) -> ArErrorModel {
     let dof = (kernel.n - kernel.p) as f64;
     let mut best = ArErrorModel::default();
     let mut best_bic = -2.0 * reml_log_likelihood(&[], kernel);
     let mut prev: Vec<f64> = Vec::new();
     for q in 1..=kernel.max_order {
+        if q > MAX_AR_ORDER && q > best.phi.len() + 2 {
+            break;
+        }
         let mut start = prev.clone();
         start.push(0.0);
-        let (mut z, mut neg_ll) = nelder_mead(|z| -reml_log_likelihood(z, kernel), &start);
+        let (mut z, mut neg_ll) = quasi_newton(|z| -reml_log_likelihood(z, kernel), &start);
         if !neg_ll.is_finite() {
             break;
         }
@@ -1431,19 +1521,18 @@ fn reml_autoregression(kernel: &RemlKernel) -> ArErrorModel {
     best
 }
 
-/// Newton polish of a REML optimum found by the simplex.
+/// Newton polish of a REML optimum found by the quasi-Newton search.
 ///
-/// The simplex stops on a likelihood range of `SIMPLEX_F_TOL`, which on a
-/// likelihood of curvature `~n` leaves `z` uncertain to `~√(2·10⁻¹²/n)`
-/// (`10⁻⁷` at `n = 400`) and `κ̂` to the same relative order: any change in
-/// the rounding of the likelihood then lands the simplex elsewhere in that
-/// basin. Fixed-Hessian Newton steps (the observed information at the simplex
-/// point, and a Richardson-extrapolated central-difference gradient whose
-/// truncation error is `O(h⁴)`) contract the remaining error by the relative
+/// The search stops on a gradient tolerance, which on a likelihood of curvature
+/// `~n` leaves `z` uncertain to `~GRADIENT_TOL / n` and `κ̂` to the same relative
+/// order: any change in the rounding of the likelihood then lands the search
+/// elsewhere in that basin. Fixed-Hessian Newton steps (the observed information
+/// at the search point, and a Richardson-extrapolated central-difference gradient
+/// whose truncation error is `O(h⁴)`) contract the remaining error by the relative
 /// error of the finite-difference Hessian (`~10⁻⁶`) per step, so two steps pin
-/// `z`, and with it `κ̂`, to rounding. A step is taken only while it improves
-/// the likelihood beyond its own rounding; on a boundary or a non-definite
-/// Hessian the simplex point stands.
+/// `z`, and with it `κ̂`, to rounding. A step is taken only while it improves the
+/// likelihood beyond its own rounding; on a boundary or a non-definite Hessian the
+/// search point stands.
 fn newton_polish(z: &mut Vec<f64>, neg_ll: &mut f64, kernel: &RemlKernel) {
     let q = z.len();
     if q == 0 {
@@ -1473,7 +1562,7 @@ fn newton_polish(z: &mut Vec<f64>, neg_ll: &mut f64, kernel: &RemlKernel) {
         }
         let step = cholesky_solve(&l, &gradient, q);
         let size = step.iter().fold(0.0_f64, |m, s| m.max(s.abs()));
-        if !size.is_finite() || size > SIMPLEX_STEP {
+        if !size.is_finite() || size > MAX_STEP {
             return;
         }
         for (s, d) in shifted.iter_mut().zip(z.iter().zip(&step)) {
@@ -1784,11 +1873,47 @@ mod tests {
     }
 
     #[test]
+    fn reml_kernel_checks_shape_cancellation_and_holds_scratch_lease() {
+        use antecedent_core::{ExecutionContext, execution::AdmissionPool};
+        assert!(reml_kernel_bytes(usize::MAX, usize::MAX).is_none());
+        let n = 100;
+        let p = 2;
+        let x = vec![1.0; n * p];
+        let residuals = vec![0.1; n];
+        let low = ExecutionContext::for_tests(1).with_admission(AdmissionPool::fixed(1, 1));
+        assert!(
+            antecedent_core::numerical_admission::with_context(&low, || RemlKernel::new(
+                &x, &residuals, n, p
+            ))
+            .is_err()
+        );
+        let cancelled = ExecutionContext::for_tests(1);
+        cancelled.cancellation.cancel();
+        let error = antecedent_core::numerical_admission::with_context(&cancelled, || {
+            RemlKernel::new(&x, &residuals, n, p)
+        })
+        .err()
+        .unwrap();
+        assert_eq!(error.reason_code(), Some("cancelled_no_claim"));
+        let pool = AdmissionPool::fixed(1, 16_000_000);
+        let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let before = pool.available().bytes();
+        let kernel = antecedent_core::numerical_admission::with_context(&ctx, || {
+            RemlKernel::new(&x, &residuals, n, p)
+        })
+        .unwrap();
+        assert!(pool.available().bytes() < before);
+        drop(kernel);
+        assert_eq!(pool.available().bytes(), before);
+    }
+
+    #[test]
     fn lagged_kernel_reproduces_the_row_wise_likelihood() {
         for (n, rho, seed) in [(60, 0.7, 1), (233, 0.2, 2), (800, 0.9, 3)] {
             let d = design(n, rho, seed);
             let fit = ResidualFit::new(&d).unwrap();
-            let kernel = RemlKernel::new(&d.matrix[..n * d.ncols], &fit.residuals, n, d.ncols);
+            let kernel =
+                RemlKernel::new(&d.matrix[..n * d.ncols], &fit.residuals, n, d.ncols).unwrap();
             for z in [
                 vec![],
                 vec![0.3],
@@ -1807,6 +1932,111 @@ mod tests {
         }
     }
 
+    fn fit_tempered_design(
+        d: &CompiledDesign,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> crate::bayesian::CausalPosterior {
+        use crate::bayesian::{
+            BayesianGCompWorkspace, BayesianGComputationAte, PreparedBayesianProblem,
+        };
+        let problem = PreparedBayesianProblem {
+            target_moments: None,
+            design: d.clone(),
+            method: Arc::from("residual-cache-policy-regression"),
+            adjustment_set: Arc::from([VariableId::from_raw(2)]),
+            active: 1.0,
+            control: 0.0,
+            overlap: crate::overlap::OverlapPolicy::ExplicitOverride,
+            coef_names: None,
+            unit_ids: None,
+            serial_dependence: SerialDependence::LongRunTempering(DependenceScope::Treatment),
+            preparation: None,
+        };
+        BayesianGComputationAte::conjugate()
+            .with_n_draws(100)
+            .fit(
+                &problem,
+                antecedent_core::IdentificationStatus::NonparametricallyIdentified,
+                &mut BayesianGCompWorkspace::default(),
+                ctx,
+            )
+            .unwrap()
+    }
+
+    #[test]
+    fn production_tempering_honors_disabled_bounded_and_admitted_cache_policy() {
+        use antecedent_core::{CachePolicy, ExecutionContext};
+        let disabled = ExecutionContext::for_tests(33);
+        let mut bounded = disabled.clone();
+        bounded.cache_policy = CachePolicy::enabled(Some(1 << 20));
+        let mut finite_pool = disabled.clone().with_memory_limit(Some(1 << 26));
+        finite_pool.cache_policy = CachePolicy::enabled(None);
+        for (ctx, seed) in [(disabled, 90_100), (bounded, 90_101), (finite_pool, 90_102)] {
+            let d = design(100, 0.7, seed);
+            let source_refs = Arc::strong_count(&d.matrix);
+            let outcome_refs = Arc::strong_count(&d.outcome);
+            FIT_CACHE_ACCESSES.with(|counts| counts.set((0, 0)));
+            let fresh = fit_tempered_design(&d, &ctx);
+            assert_eq!(FIT_CACHE_ACCESSES.with(std::cell::Cell::get), (0, 0));
+            assert_eq!(Arc::strong_count(&d.matrix), source_refs);
+            assert_eq!(Arc::strong_count(&d.outcome), outcome_refs);
+            assert!(
+                FIT_CACHE
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .all(|entry| { !Arc::ptr_eq(&entry.matrix, &d.matrix) })
+            );
+            // A pre-existing identical cached fit must not override this caller's
+            // disabled/bounded policy. Count accesses on this test thread only,
+            // so concurrent eviction or unrelated fits cannot change the assertion.
+            let _warm = residual_fit(&d, ResidualFitReuse::ProcessMemo).unwrap();
+            FIT_CACHE_ACCESSES.with(|counts| counts.set((0, 0)));
+            let warm = fit_tempered_design(&d, &ctx);
+            assert_eq!(FIT_CACHE_ACCESSES.with(std::cell::Cell::get), (0, 0));
+            assert_eq!(fresh.draws.values.as_ref(), warm.draws.values.as_ref());
+        }
+    }
+
+    #[test]
+    fn production_tempering_explicit_unbounded_cache_uses_the_process_memo() {
+        use antecedent_core::{CachePolicy, ExecutionContext};
+        let mut ctx = ExecutionContext::for_tests(33);
+        ctx.cache_policy = CachePolicy::enabled(None);
+        let d = design(100, 0.7, 90_103);
+        FIT_CACHE_ACCESSES.with(|counts| counts.set((0, 0)));
+        let first = fit_tempered_design(&d, &ctx);
+        let (lookups, insertions) = FIT_CACHE_ACCESSES.with(std::cell::Cell::get);
+        assert_eq!((lookups, insertions), (1, 1));
+        let second = fit_tempered_design(&d, &ctx);
+        // Both executions consult the memo. Whether an unrelated concurrent fit
+        // evicts the first entry is immaterial to either result or this policy.
+        assert_eq!(FIT_CACHE_ACCESSES.with(std::cell::Cell::get).0, 2);
+        assert_eq!(first.draws.values.as_ref(), second.draws.values.as_ref());
+    }
+
+    #[test]
+    fn oversized_design_is_fitted_without_process_cache_retention() {
+        let mut d = design(100, 0.4, 912);
+        // Retaining this Arc would retain its unused tail too. The fit itself
+        // reads only the declared n*p design, so this exercises retention without
+        // a large numerical fit.
+        let mut padded = d.matrix.to_vec();
+        padded.resize(FIT_CACHE_MAX_ELEMENTS + 1, 0.0);
+        d.matrix = padded.into();
+        let first = residual_fit(&d, ResidualFitReuse::ProcessMemo).unwrap();
+        let second = residual_fit(&d, ResidualFitReuse::ProcessMemo).unwrap();
+        assert!(!Arc::ptr_eq(&first, &second), "oversized source must not be retained");
+        assert_eq!(first.residuals, second.residuals);
+        assert_eq!(first.model.z, second.model.z);
+        assert_eq!(first.df_loss, second.df_loss);
+        let held = FIT_CACHE.lock().unwrap();
+        assert!(held.iter().all(|entry| !Arc::ptr_eq(&entry.matrix, &d.matrix)));
+        assert!(
+            held.iter().map(CachedFit::retained_elements).sum::<usize>() <= FIT_CACHE_MAX_ELEMENTS
+        );
+    }
+
     #[test]
     fn the_design_fit_is_cached_by_content() {
         let d = design(300, 0.7, 21);
@@ -1817,35 +2047,36 @@ mod tests {
             &[],
         )
         .unwrap();
-        let first = residual_fit(&d).unwrap();
-        let second = residual_fit(&copy).unwrap();
+        let first = residual_fit(&d, ResidualFitReuse::ProcessMemo).unwrap();
+        let second = residual_fit(&copy, ResidualFitReuse::ProcessMemo).unwrap();
         assert!(Arc::ptr_eq(&first, &second), "identical rows share one fit");
-        let other = residual_fit(&design(300, 0.7, 22)).unwrap();
+        let other = residual_fit(&design(300, 0.7, 22), ResidualFitReuse::ProcessMemo).unwrap();
         assert!(!Arc::ptr_eq(&first, &other));
         let direct = ResidualFit::new(&d).unwrap();
         assert_eq!(direct.model.z, first.model.z);
         assert_eq!(direct.df_loss, first.df_loss);
     }
 
-    /// The simplex alone leaves `z` uncertain to `~√(2 SIMPLEX_F_TOL / n)`; the
-    /// Newton polish makes the optimum a function of the design, not of the path
-    /// the simplex took to it.
+    /// The quasi-Newton search stops on a gradient tolerance; the Newton polish makes
+    /// the optimum a function of the design, not of the path the search took to it.
     #[test]
-    fn the_polished_reml_optimum_does_not_depend_on_the_simplex_path() {
+    fn the_polished_reml_optimum_does_not_depend_on_the_search_path() {
         for (n, rho, seed) in [(200, 0.7, 11), (400, 0.9, 12), (2000, 0.5, 13)] {
             let d = design(n, rho, seed);
             let fit = ResidualFit::new(&d).unwrap();
-            let kernel = RemlKernel::new(&d.matrix[..n * d.ncols], &fit.residuals, n, d.ncols);
+            let kernel =
+                RemlKernel::new(&d.matrix[..n * d.ncols], &fit.residuals, n, d.ncols).unwrap();
             assert!(!fit.model.z.is_empty(), "n={n}: {:?}", fit.model);
             for shift in [0.15, -0.3] {
                 let start: Vec<f64> = fit.model.z.iter().map(|z| z + shift).collect();
-                let (mut z, mut neg_ll) = nelder_mead(|z| -reml_log_likelihood(z, &kernel), &start);
+                let (mut z, mut neg_ll) =
+                    quasi_newton(|z| -reml_log_likelihood(z, &kernel), &start);
                 let unpolished = z.clone();
                 newton_polish(&mut z, &mut neg_ll, &kernel);
                 for ((a, b), raw) in z.iter().zip(&fit.model.z).zip(&unpolished) {
                     assert!(
                         (a - b).abs() < 1e-10,
-                        "n={n} shift={shift}: polished {z:?} vs fitted {:?} (simplex {raw})",
+                        "n={n} shift={shift}: polished {z:?} vs fitted {:?} (search {raw})",
                         fit.model.z
                     );
                 }
@@ -1857,8 +2088,12 @@ mod tests {
     fn iid_rows_centre_on_one() {
         let mut ratios = Vec::new();
         for seed in 0..40 {
-            let f = long_run_tempering_factor(&design(400, 0.0, seed), &DependenceScope::Treatment)
-                .unwrap();
+            let f = long_run_tempering_factor(
+                &design(400, 0.0, seed),
+                &DependenceScope::Treatment,
+                ResidualFitReuse::ProcessMemo,
+            )
+            .unwrap();
             assert!(f.kappa >= 1.0);
             assert!(f.fixed_b > 1.0 && f.fixed_b < 1.05, "fixed-b at n = 400: {}", f.fixed_b);
             ratios.push(f.ar_ratio);
@@ -1880,6 +2115,7 @@ mod tests {
             let f = long_run_tempering_factor(
                 &design(2_000, rho, 100 + seed),
                 &DependenceScope::Treatment,
+                ResidualFitReuse::ProcessMemo,
             )
             .unwrap();
             ratios.push(f.kappa);
@@ -1891,20 +2127,36 @@ mod tests {
         assert!((mean / truth - 1.0).abs() < 0.15, "ratio {mean} vs analytic {truth}");
         // The treatment direction written explicitly is the same combination.
         let d = design(500, rho, 7);
-        let a = long_run_tempering_factor(&d, &DependenceScope::Treatment).unwrap();
-        let b =
-            long_run_tempering_factor(&d, &DependenceScope::Direction(Arc::from([0.0, 1.0, 0.0])))
-                .unwrap();
+        let a = long_run_tempering_factor(
+            &d,
+            &DependenceScope::Treatment,
+            ResidualFitReuse::ProcessMemo,
+        )
+        .unwrap();
+        let b = long_run_tempering_factor(
+            &d,
+            &DependenceScope::Direction(Arc::from([0.0, 1.0, 0.0])),
+            ResidualFitReuse::ProcessMemo,
+        )
+        .unwrap();
         assert!((a.raw_ratio - b.raw_ratio).abs() < 1e-9);
     }
 
     #[test]
     fn levels_scope_takes_the_largest_ratio_of_its_combinations() {
         let d = design(800, 0.7, 11);
-        let slope = long_run_tempering_factor(&d, &DependenceScope::Treatment).unwrap();
-        let intercept =
-            long_run_tempering_factor(&d, &DependenceScope::Direction(Arc::from([1.0, 0.0, 0.0])))
-                .unwrap();
+        let slope = long_run_tempering_factor(
+            &d,
+            &DependenceScope::Treatment,
+            ResidualFitReuse::ProcessMemo,
+        )
+        .unwrap();
+        let intercept = long_run_tempering_factor(
+            &d,
+            &DependenceScope::Direction(Arc::from([1.0, 0.0, 0.0])),
+            ResidualFitReuse::ProcessMemo,
+        )
+        .unwrap();
         let levels = long_run_tempering_factor(
             &d,
             &DependenceScope::Levels(Arc::from([
@@ -1912,6 +2164,7 @@ mod tests {
                 Arc::from([1.0, 0.0, 0.0]),
                 Arc::from([0.0, 0.0, 0.0]),
             ])),
+            ResidualFitReuse::ProcessMemo,
         )
         .unwrap();
         assert_eq!(levels.scope, "response_levels");
@@ -1919,22 +2172,50 @@ mod tests {
         let wrong_width = long_run_tempering_factor(
             &d,
             &DependenceScope::Levels(Arc::from([Arc::from([1.0, 0.0])])),
+            ResidualFitReuse::ProcessMemo,
         );
         assert!(wrong_width.is_err());
     }
 
     #[test]
     fn short_or_irrelevant_designs_do_not_temper() {
-        let f = long_run_tempering_factor(&design(6, 0.9, 1), &DependenceScope::Treatment).unwrap();
+        let f = long_run_tempering_factor(
+            &design(6, 0.9, 1),
+            &DependenceScope::Treatment,
+            ResidualFitReuse::ProcessMemo,
+        )
+        .unwrap();
         assert!((f.kappa - 1.0).abs() < f64::EPSILON);
         assert!(f.inestimable);
         let zero = long_run_tempering_factor(
             &design(200, 0.9, 1),
             &DependenceScope::Direction(Arc::from([0.0, 0.0, 0.0])),
+            ResidualFitReuse::ProcessMemo,
         )
         .unwrap();
         assert!((zero.kappa - 1.0).abs() < f64::EPSILON);
         assert!(tempering_kappa_from_notes(&[Arc::from("unrelated")]).is_none());
+    }
+
+    #[test]
+    fn a_whitener_above_the_unrolled_orders_inverts_its_own_transform() {
+        let phi = [0.3, -0.1, 0.05, 0.1, -0.05, 0.02];
+        let w = Whitener::new(&phi).expect("a stationary order-6 model");
+        assert_eq!(w.order(), 6);
+        let u: Vec<f64> = (0..30).map(|i| f64::from(i * 7 % 11) - 5.0).collect();
+        let v = w.solve(&u);
+        let back = w.apply(&v);
+        for (a, b) in u.iter().zip(&back) {
+            assert!((a - b).abs() < 1e-9, "{a} vs {b}");
+        }
+        // z = L'⁻¹ x gives <L p, z> = <p, L' z> = <p, x> for every probe p.
+        let x: Vec<f64> = (0..30).map(|i| f64::from(i * 5 % 13) - 6.0).collect();
+        let mut z = vec![0.0; x.len()];
+        w.solve_transpose_into(&x, &mut z);
+        let probe: Vec<f64> = (0..30).map(|i| f64::from(i * 3 % 7) - 3.0).collect();
+        let lhs: f64 = w.apply(&probe).iter().zip(&z).map(|(a, b)| a * b).sum();
+        let rhs: f64 = probe.iter().zip(&x).map(|(a, b)| a * b).sum();
+        assert!((lhs - rhs).abs() < 1e-8 * rhs.abs().max(1.0), "{lhs} vs {rhs}");
     }
 
     /// Stationary AR(2) with unit innovations after a burn-in.
@@ -1973,7 +2254,12 @@ mod tests {
         let mut picked_high = 0;
         for seed in 0..40 {
             let d = design(400, 0.7, 100 + seed);
-            let f = long_run_tempering_factor(&d, &DependenceScope::Treatment).unwrap();
+            let f = long_run_tempering_factor(
+                &d,
+                &DependenceScope::Treatment,
+                ResidualFitReuse::ProcessMemo,
+            )
+            .unwrap();
             picked_high += usize::from(f.residual_ar_order >= 2);
         }
         assert!(picked_high <= 4, "REML picked q >= 2 on {picked_high}/40 AR(1) designs");
@@ -1989,16 +2275,17 @@ mod tests {
         let ar2 = Whitener::new(&[phi1, phi2]).unwrap();
         let expected = (1.0 - phi2) / ((1.0 + phi2) * ((1.0 - phi2).powi(2) - phi1 * phi1));
         assert!((ar2.gamma0 - expected).abs() < 1e-12, "{} vs {expected}", ar2.gamma0);
-        // The 2x2 covariance block's off-diagonal is gamma0 * rho_1 with the closed form.
+        // The 2x2 covariance block's off-diagonal is gamma0 * rho_1 with the closed form:
+        // the order-one predictor is rho_1 and the order-zero prediction variance gamma0.
         let rho1 = phi1 / (1.0 - phi2);
-        let l = &ar2.chol;
-        assert!((l[2] * l[0] - expected * rho1).abs() < 1e-12, "{}", l[2] * l[0]);
+        let off = ar2.predictor(1)[0] * ar2.scale[0] * ar2.scale[0];
+        assert!((off - expected * rho1).abs() < 1e-12, "{off}");
     }
 
     #[test]
     fn a_unit_root_is_refused_rather_than_solved() {
-        // phi = 1 makes the Yule-Walker system singular; the shared equilibrated inverse
-        // refuses it where the former absolute 1e-300 pivot test would divide by noise.
+        // phi = 1 is a unit root: its partial autocorrelation is 1, so the step-down
+        // refuses it instead of building a covariance that is not positive definite.
         assert!(Whitener::new(&[1.0]).is_none());
         assert!(Whitener::new(&[1.0 - 1e-6]).is_some());
     }
@@ -2013,7 +2300,12 @@ mod tests {
         let (mut kappas, mut oracles) = (Vec::new(), Vec::new());
         for seed in 0..30 {
             let d = ar2_design(200, phi, 300 + seed);
-            let f = long_run_tempering_factor(&d, &DependenceScope::Treatment).unwrap();
+            let f = long_run_tempering_factor(
+                &d,
+                &DependenceScope::Treatment,
+                ResidualFitReuse::ProcessMemo,
+            )
+            .unwrap();
             assert!(f.residual_ar_order >= 2, "{f:?}");
             assert!(!f.bounded, "the score bound must not bind on AR(2): {f:?}");
             kappas.push(f.kappa);
@@ -2047,12 +2339,16 @@ mod tests {
 
     #[test]
     fn kappa_uncertainty_shrinks_with_the_series_length() {
-        let short =
-            long_run_tempering_factor(&ar2_design(80, [0.3, 0.5], 9), &DependenceScope::Treatment)
-                .unwrap();
+        let short = long_run_tempering_factor(
+            &ar2_design(80, [0.3, 0.5], 9),
+            &DependenceScope::Treatment,
+            ResidualFitReuse::ProcessMemo,
+        )
+        .unwrap();
         let long = long_run_tempering_factor(
             &ar2_design(2_000, [0.3, 0.5], 9),
             &DependenceScope::Treatment,
+            ResidualFitReuse::ProcessMemo,
         )
         .unwrap();
         assert!(short.kappa_log_sd > 0.1, "{short:?}");
@@ -2077,7 +2373,12 @@ mod tests {
         let y: Vec<f64> =
             (0..n).map(|i| 2.0 * t[i + 1] + 3.0 * t[i] + 0.03 * (0.73 * i as f64).sin()).collect();
         let d = CompiledDesign::linear_adjustment(&x, &[], &y, &[]).unwrap();
-        let f = long_run_tempering_factor(&d, &DependenceScope::Treatment).unwrap();
+        let f = long_run_tempering_factor(
+            &d,
+            &DependenceScope::Treatment,
+            ResidualFitReuse::ProcessMemo,
+        )
+        .unwrap();
         assert!(f.residual_ar_order >= 2, "{f:?}");
         assert!(f.kappa < 2.0, "the bounded autoregressive factor must not blow kappa up: {f:?}");
         assert!(f.bounded, "{f:?}");
@@ -2100,9 +2401,12 @@ mod tests {
             &[],
         )
         .unwrap();
-        let f =
-            long_run_tempering_factor(&d, &DependenceScope::Direction(Arc::from([0.0, 1.0, 1.0])))
-                .unwrap();
+        let f = long_run_tempering_factor(
+            &d,
+            &DependenceScope::Direction(Arc::from([0.0, 1.0, 1.0])),
+            ResidualFitReuse::ProcessMemo,
+        )
+        .unwrap();
         assert!((f.kappa - 1.0).abs() < f64::EPSILON, "{f:?}");
     }
 }

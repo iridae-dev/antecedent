@@ -12,7 +12,7 @@ implementation_deviations = [
 ]
 
 papers = [
- { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Local Markov condition only; does not source the residual-independence or permutation heuristics"] },
+ { title = "Causality", citation_note = "Previously recorded title and bibliographic detail: Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Local Markov condition only; does not source the residual-independence or permutation heuristics"] },
 ]
 
 upstream_implementations_observed = []
@@ -21,3 +21,26 @@ test_sources = [
  "crates/antecedent-model/src/evaluate.rs unit tests",
  "crates/antecedent-model/src/mechanism.rs unit tests",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "ModelEvaluator::evaluate in crates/antecedent-model/src/evaluate.rs for a compiled linear Gaussian model on complete data: the in-sample mean log-likelihood, the mean absolute residual over non-root nodes, the residual-independence p-values (residual of a node against non-parent non-descendants), the local Markov partial-correlation p-values (node against earlier non-parent nodes given parents), the Bonferroni falsification flag, and the refusal when the conditioning set leaves no residual degrees of freedom. Not a review of non-Gaussian or nonparametric mechanisms, of the permutation baseline as a method (only its exact expectation is checked), or of the cited local Markov result beyond the pairs tested."
+assumptions = ["The model is linear Gaussian and the reference uses its stated parameters; the data are not a sample from the model, so some of the implied independencies fail.", "The partial-correlation test is the two-sided Student-t test with df = n - 2 - |Z| on the correlation of the least-squares residuals with an intercept, as stated in the reference."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are cited and not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the definitions used by the reference are the standard statements, so a mistake in how a record or this reference states a method would not be detected here. One five-node model with a non-identity topological order is compared on 14 rows, so the pair selection is checked on one graph; the p-values are compared to 1e-9 against 40-digit values but only at that sample size and degrees of freedom. The permutation baseline is checked against the exact expectation of the shuffled-outcome log-likelihood with a Monte Carlo tolerance of 0.05 (400 shuffles), not against a seeded stream. The shuffle draws its index as a float scaling of a uniform rather than the unbiased integer draw used elsewhere, a bias of order 2^-53 that is not detectable here. No multiplicity control beyond the Bonferroni flag and no power claim. Calibration remains deferred."
+sources = ["https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["Compared the report with 40-digit mpmath values for the mean log-likelihood, the mean absolute residual (non-root nodes), the sorted local Markov p-values for the pairs the compiled order obliges, and the sorted residual-independence p-values for non-parent non-descendants; all agree to 1e-9, and the Bonferroni flag equals the exact rule for four significance levels.", "Verified that a conditioning set leaving df = 0 is an error rather than a p-value and that empty data are refused.", "Checked the permutation baseline against its exact expectation (the mean over all pairings of the last node's values with its parents' means) within Monte Carlo tolerance.", "No defect requiring a change to evaluate.rs was found. Code edits: a new integration test file (crates/antecedent-model/tests/linear_gaussian_evaluation_reference.rs), with its generator script kept as a trailing comment, only."]
+record_sha256 = "2858d34510c9ec1bd52e79ea64a6778afdd8956fe3253dba9465fce81f6f47d3"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/evaluate.rs"
+items = ["fn add", "fn ci_pvalues", "fn default", "fn evaluate", "fn falsified_bonferroni", "fn local_markov_others", "fn local_markov_tests", "fn mean", "fn mean_loglik", "fn node_loglik", "fn node_terms", "fn parent_matrix", "fn permutation_baseline", "fn residual_independence_tests", "fn residual_summary", "struct ModelEvaluationReport", "struct ModelEvaluator", "struct NodeLoglik", "type ResidualByNode"]
+sha256 = "c15d94b486744b98fecbdf7d9a0c3c136429bd25bfda9138a10aad2867ae52d8"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/linear_gaussian_evaluation_reference.rs"
+items = ["const COL0", "const COL1", "const COL2", "const COL3", "const COL4", "const EDGES", "const INTERCEPT", "const LOCAL_MARKOV_P", "const MEAN_ABS_RESIDUAL", "const MEAN_LOGLIK", "const N", "const RESIDUAL_P", "const SIGMA", "fn a_permutation_baseline_is_a_mean_over_shuffles_of_the_last_node_only", "fn assert_close", "fn data", "fn id", "fn is_descendant", "fn is_parent", "fn model", "fn sorted", "fn the_report_matches_the_high_precision_evaluation", "fn too_few_rows_for_the_conditioning_set_is_an_error_not_a_verdict"]
+sha256 = "6737a38f32be4339382f895dd38020b2b49c90948c410d2d291673475db228d7"

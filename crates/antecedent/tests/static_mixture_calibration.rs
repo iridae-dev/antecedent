@@ -26,9 +26,9 @@
 //!   BMA interval against `θ_{g*}`. Scoring it against the aggregate 2.625
 //!   instead would over-cover by construction.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh`.
+//! Ignored tests run via `scripts/measure_calibration.sh`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,
@@ -129,9 +129,9 @@ fn draw_data(seed: u64, modifier: bool) -> TabularData {
 fn disagreeing_mixture_posterior(modifier: bool) -> GraphPosterior {
     let n = if modifier { 4 } else { 3 };
     let base = if modifier { set_edge(0, n, 3, 1, true) } else { AdjacencyMask::EMPTY };
-    let direct = set_edge(base, n, 0, 1, true);
-    let adjusted = set_edge(set_edge(set_edge(base, n, 0, 1, true), n, 2, 0, true), n, 2, 1, true);
-    let unidentified = set_edge(base, n, 1, 0, true);
+    let direct = set_edge(&base, n, 0, 1, true);
+    let adjusted = set_edge(set_edge(set_edge(&base, n, 0, 1, true), n, 2, 0, true), n, 2, 1, true);
+    let unidentified = set_edge(&base, n, 1, 0, true);
     let cells = n * n;
     GraphPosterior::from_atoms(
         n,
@@ -152,9 +152,9 @@ fn disagreeing_mixture_posterior(modifier: bool) -> GraphPosterior {
 fn same_estimand_mixture_posterior(modifier: bool) -> GraphPosterior {
     let n = if modifier { 4 } else { 3 };
     let base = if modifier { set_edge(0, n, 3, 1, true) } else { AdjacencyMask::EMPTY };
-    let direct = set_edge(base, n, 0, 1, true);
-    let outcome_parent = set_edge(set_edge(base, n, 0, 1, true), n, 2, 1, true);
-    let unidentified = set_edge(base, n, 1, 0, true);
+    let direct = set_edge(&base, n, 0, 1, true);
+    let outcome_parent = set_edge(set_edge(&base, n, 0, 1, true), n, 2, 1, true);
+    let unidentified = set_edge(&base, n, 1, 0, true);
     let cells = n * n;
     GraphPosterior::from_atoms(
         n,
@@ -244,7 +244,7 @@ fn frequentist_coverage(conditional: bool, test: &'static str, name: &str) {
         if r == 0 {
             assert_mixture_shape(&result);
             assert!(
-                result.estimate.as_effect().unwrap().ate.is_finite(),
+                result.estimate().as_effect().unwrap().ate.is_finite(),
                 "{name}: same-estimand fixture must publish a scalar ATE"
             );
             assert!(
@@ -258,21 +258,21 @@ fn frequentist_coverage(conditional: bool, test: &'static str, name: &str) {
         (study, result)
     });
     for (study, result) in &runs {
-        points.push(result.estimate.as_effect().unwrap().ate);
-        se_sum += result.estimate.as_effect().unwrap().se_analytic();
+        points.push(result.estimate().as_effect().unwrap().ate);
+        se_sum += result.estimate().as_effect().unwrap().se_analytic();
         bind_all(&mut [&mut tally, &mut reported], study, result);
         tally.record(
             normal_interval(
-                result.estimate.as_effect().unwrap().ate,
-                Some(result.estimate.as_effect().unwrap().se_analytic()),
+                result.estimate().as_effect().unwrap().ate,
+                Some(result.estimate().as_effect().unwrap().se_analytic()),
                 Z90,
             ),
             TRUTH_SAME_ESTIMAND,
         );
         reported.record(
             normal_interval(
-                result.estimate.as_effect().unwrap().ate,
-                Some(result.estimate.as_effect().unwrap().se_analytic()),
+                result.estimate().as_effect().unwrap().ate,
+                Some(result.estimate().as_effect().unwrap().se_analytic()),
                 Z95,
             ),
             TRUTH_SAME_ESTIMAND,
@@ -332,7 +332,7 @@ fn bayesian_coverage(conditional: bool, test: &'static str) {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage() {
     frequentist_coverage(
         false,
@@ -342,7 +342,7 @@ fn static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn static_graph_posterior_frequentist_cate_joint_if_nominal_90_coverage() {
     frequentist_coverage(
         true,
@@ -352,13 +352,13 @@ fn static_graph_posterior_frequentist_cate_joint_if_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn static_graph_posterior_bayesian_ate_bma_nominal_90_coverage() {
     bayesian_coverage(false, "static_graph_posterior_bayesian_ate_bma_nominal_90_coverage");
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn static_graph_posterior_bayesian_cate_bma_nominal_90_coverage() {
     bayesian_coverage(true, "static_graph_posterior_bayesian_cate_bma_nominal_90_coverage");
 }

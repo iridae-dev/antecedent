@@ -33,11 +33,16 @@
 //!   `gamma ~ N(m_gamma, S_gamma)`, independent across blocks, with full dense
 //!   covariances. A prior carries a [`PriorProvenance`]: a prior built from a prior bank
 //!   names every datum or snapshot it consumed.
-//! * **Overlap condition.** The target covariate rows must lie inside the axis-aligned
-//!   box of at least one source covariate sample. The unsupported target mass must not
-//!   exceed the declared tolerance, else the fit refuses
-//!   (`bayesian_transport.weak_overlap`). A box is a conservative support check, not a
-//!   density-ratio bound.
+//! * **Overlap condition.** The target covariate rows must lie in the estimated support of
+//!   at least one source covariate sample: the union of closed balls (in covariates scaled
+//!   by the source's spread) around its rows, whose radius `n^(-1/(d+2))` depends only on the
+//!   source's row count `n` and the covariate count `d`. This is a support test, not a
+//!   bounding-box test: a hole in the source covariate law is unsupported, and a discrete
+//!   covariate is supported only on its observed atoms. The unsupported target mass must not exceed the declared
+//!   tolerance, else the fit refuses (`bayesian_transport.weak_overlap`). A support test is
+//!   not a density-ratio bound. An exhausted work or memory budget refuses with
+//!   `execution_resource_limit` (`bayesian_transport.support_resource_limit`), never as a
+//!   support verdict.
 //! * **Estimand (posterior predictive).** The average intervention effect in the target
 //!   sample, `psi = mean_target[ E(Y|A=1,x) - E(Y|A=0,x) ] = c_t' theta` with
 //!   `c_t = [1, xbar_t, 0]`, as a function of the posterior of `theta`. The source sample
@@ -63,10 +68,10 @@
 //! * Sources must be independent samples with disjoint units; overlapping or unknown
 //!   dependence refuses. Conflicting sources are never silently pooled: pairwise
 //!   posterior disagreement of the per-source target effects is reported.
-//! * Calibration is **unmeasured**. No coverage is claimed and the public interval route
-//!   stays closed ([`route_frozen_refusal`]).
+//! * Calibration is **`not_measured`**. No coverage is claimed and the public interval route
+//!   is reported with its calibration annotation, never refused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::splitmix::{seed_mix, splitmix64};
 use crate::{EstimationError, RefusalFields};
@@ -79,43 +84,57 @@ use std::fmt;
 pub const JOINT_TRANSPORT_MAX_DRAWS: usize = 100_000;
 /// Most model parameters (invariant plus every varying block) one fit may declare.
 pub const JOINT_TRANSPORT_MAX_PARAMETERS: usize = 256;
-/// Route name of the closed public interval route.
-pub(crate) const JOINT_TRANSPORT_ROUTE: &str = "antecedent.transport.joint_bayesian";
 /// Sampler recorded on exact conjugate fits.
 pub const JOINT_TRANSPORT_SAMPLER: &str = "exact_conjugate_iid";
 
-/// Detail of the route-level refusal of the public interval route.
-pub const DETAIL_ROUTE_FROZEN: &str = "bayesian_transport.route_frozen";
 /// Detail of an unsupported graph class.
-pub const DETAIL_UNSUPPORTED_GRAPH: &str = "bayesian_transport.unsupported_graph";
+pub const DETAIL_UNSUPPORTED_GRAPH: &str =
+    antecedent_core::reason_details::bayesian_transport::UNSUPPORTED_GRAPH;
 /// Detail of observations used by both a prior bank and the likelihood.
-pub const DETAIL_PRIOR_DATA_OVERLAP: &str = "bayesian_transport.prior_data_overlap";
+pub const DETAIL_PRIOR_DATA_OVERLAP: &str =
+    antecedent_core::reason_details::bayesian_transport::PRIOR_DATA_OVERLAP;
 /// Detail of target covariate mass outside the source support.
-pub const DETAIL_WEAK_OVERLAP: &str = "bayesian_transport.weak_overlap";
+pub const DETAIL_WEAK_OVERLAP: &str =
+    antecedent_core::reason_details::bayesian_transport::WEAK_OVERLAP;
+/// Detail of a target support test that exceeded its work or memory limit (never a support
+/// verdict).
+pub const DETAIL_SUPPORT_RESOURCE_LIMIT: &str =
+    antecedent_core::reason_details::bayesian_transport::SUPPORT_RESOURCE_LIMIT;
 /// Detail of a singular or numerically failed fit.
-pub const DETAIL_SINGULAR_FIT: &str = "bayesian_transport.singular_fit";
+pub const DETAIL_SINGULAR_FIT: &str =
+    antecedent_core::reason_details::bayesian_transport::SINGULAR_FIT;
 /// Detail of a draw count outside `1..=JOINT_TRANSPORT_MAX_DRAWS`.
-pub const DETAIL_TOO_MANY_DRAWS: &str = "bayesian_transport.too_many_draws";
+pub const DETAIL_TOO_MANY_DRAWS: &str =
+    antecedent_core::reason_details::bayesian_transport::TOO_MANY_DRAWS;
 /// Detail of a model with more than `JOINT_TRANSPORT_MAX_PARAMETERS` parameters.
-pub const DETAIL_TOO_MANY_PARAMETERS: &str = "bayesian_transport.too_many_parameters";
+pub const DETAIL_TOO_MANY_PARAMETERS: &str =
+    antecedent_core::reason_details::bayesian_transport::TOO_MANY_PARAMETERS;
 /// Detail of a missing target covariate law.
-pub const DETAIL_MISSING_LAW: &str = "bayesian_transport.missing_law";
+pub const DETAIL_MISSING_LAW: &str =
+    antecedent_core::reason_details::bayesian_transport::MISSING_LAW;
 /// Detail of absent source evidence.
-pub const DETAIL_MISSING_SOURCE: &str = "bayesian_transport.missing_source";
+pub const DETAIL_MISSING_SOURCE: &str =
+    antecedent_core::reason_details::bayesian_transport::MISSING_SOURCE;
 /// Detail of undeclared, overlapping or unknown source dependence.
-pub const DETAIL_SOURCE_DEPENDENCE: &str = "bayesian_transport.source_dependence";
-/// Detail of a certificate that does not license the model.
-pub const DETAIL_IDENTIFICATION: &str = "bayesian_transport.identification_not_certified";
+pub const DETAIL_SOURCE_DEPENDENCE: &str =
+    antecedent_core::reason_details::bayesian_transport::SOURCE_DEPENDENCE;
+/// Detail of a certificate that does not support the model.
+pub const DETAIL_IDENTIFICATION: &str =
+    antecedent_core::reason_details::bayesian_transport::IDENTIFICATION_NOT_CERTIFIED;
 /// Detail of covariates that differ from the certified standardizers.
-pub const DETAIL_FEATURE_MISMATCH: &str = "bayesian_transport.feature_mismatch";
+pub const DETAIL_FEATURE_MISMATCH: &str =
+    antecedent_core::reason_details::bayesian_transport::FEATURE_MISMATCH;
 /// Detail of a prior of the wrong dimension.
-pub const DETAIL_PRIOR_DIMENSION: &str = "bayesian_transport.prior_dimension";
+pub const DETAIL_PRIOR_DIMENSION: &str =
+    antecedent_core::reason_details::bayesian_transport::PRIOR_DIMENSION;
 /// Detail of a prior that is not a symmetric positive definite Gaussian.
-pub const DETAIL_INVALID_PRIOR: &str = "bayesian_transport.invalid_prior";
+pub const DETAIL_INVALID_PRIOR: &str =
+    antecedent_core::reason_details::bayesian_transport::INVALID_PRIOR;
 /// Detail of malformed data or options.
-pub const DETAIL_INVALID_INPUT: &str = "bayesian_transport.invalid_input";
+pub const DETAIL_INVALID_INPUT: &str =
+    antecedent_core::reason_details::bayesian_transport::INVALID_INPUT;
 /// Detail of a cancelled fit.
-pub const DETAIL_CANCELLED: &str = "bayesian_transport.cancelled";
+pub const DETAIL_CANCELLED: &str = antecedent_core::reason_details::bayesian_transport::CANCELLED;
 
 /// Graph class a model declaration names.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -201,6 +220,16 @@ impl GaussianPrior {
         }
         Self { mean: vec![mean; dim], covariance, provenance }
     }
+}
+
+pub(crate) fn prior_identity_bits(prior: &GaussianPrior) -> String {
+    let bits: Vec<String> = prior
+        .mean
+        .iter()
+        .chain(&prior.covariance)
+        .map(|value| format!("{:016x}", value.to_bits()))
+        .collect();
+    bits.join(",")
 }
 
 /// Priors of the invariant block and of every varying block.
@@ -335,11 +364,7 @@ impl From<JointTransportRefusal> for EstimationError {
             implicated_columns: refusal.failure.failing_column.into_iter().collect(),
             ..RefusalFields::default()
         };
-        Self::RefusedWithFields {
-            code: refusal.code,
-            message: format!("{}: {}", refusal.detail, refusal.message),
-            fields: Box::new(fields),
-        }
+        Self::refused_detail_with_fields(refusal.code, refusal.detail, refusal.message, fields)
     }
 }
 
@@ -347,24 +372,9 @@ impl From<JointTransportRefusal> for EstimationError {
 /// point unboxes it.
 type Refused = Box<JointTransportRefusal>;
 
-fn invalid(detail: &'static str, message: impl Into<String>) -> JointTransportRefusal {
+pub(crate) fn invalid(detail: &'static str, message: impl Into<String>) -> JointTransportRefusal {
     JointTransportRefusal::new(antecedent_core::reason_code!("invalid_argument"), detail, message)
         .at("validate")
-}
-
-/// The route-level refusal of the public interval route: the native joint posterior route
-/// lacks calibration evidence, so no interval is published.
-#[must_use]
-pub fn route_frozen_refusal() -> JointTransportRefusal {
-    JointTransportRefusal::new(
-        antecedent_core::reason_code!("cell_not_licensed"),
-        DETAIL_ROUTE_FROZEN,
-        format!(
-            "{JOINT_TRANSPORT_ROUTE} lacks likelihood, value and calibration evidence; \
-             the engine's posterior is not a published interval"
-        ),
-    )
-    .at("route")
 }
 
 /// The refusal of a graph class other than the fixed DAG.
@@ -392,8 +402,8 @@ pub struct IdentificationRecord {
 /// Inferential status of a fit.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum JointTransportCalibration {
-    /// Calibration of credible intervals is unmeasured; no coverage is claimed.
-    Unmeasured,
+    /// Calibration of credible intervals is `not_measured`; no coverage is claimed.
+    NotMeasured,
 }
 
 /// Target-effect posterior of one source alone, for disagreement diagnostics.
@@ -431,10 +441,10 @@ pub struct SourceDisagreement {
     pub flagged: bool,
 }
 
-/// Overlap measured against the source support boxes.
+/// Overlap measured against the estimated source supports.
 #[derive(Clone, Debug, PartialEq)]
 pub struct OverlapDiagnostic {
-    /// Target mass outside every source box.
+    /// Target mass outside every source's estimated support.
     pub unsupported_mass: f64,
     /// Declared tolerance.
     pub tolerance: f64,
@@ -457,7 +467,7 @@ pub struct JointTransportDiagnostics {
     pub overlap: OverlapDiagnostic,
     /// Source disagreement.
     pub disagreement: SourceDisagreement,
-    /// Always [`JointTransportCalibration::Unmeasured`].
+    /// Always [`JointTransportCalibration::NotMeasured`].
     pub calibration: JointTransportCalibration,
 }
 
@@ -591,7 +601,8 @@ impl JointTransportFit {
             None,
             Some(draws),
             0.,
-        ))
+        )
+        .with_validation("not_applicable"))
     }
 
     /// Effect columns (source effects then target effect) of the joint draws, draw-major.
@@ -1126,33 +1137,190 @@ pub(crate) fn check_prior_data_overlap(
     Ok(())
 }
 
-/// Fraction of target rows outside every source covariate box.
-fn unsupported_mass(sources: &[SourceData], target: &TargetData) -> f64 {
-    let boxes: Vec<Vec<(f64, f64)>> = sources
-        .iter()
-        .map(|source| {
-            source
-                .covariates
-                .iter()
-                .map(|column| {
-                    column.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| {
-                        (lo.min(*v), hi.max(*v))
-                    })
-                })
-                .collect()
-        })
-        .collect();
-    let outside = (0..target.rows)
-        .filter(|&i| {
-            !boxes.iter().any(|bounds| {
-                bounds
-                    .iter()
-                    .zip(&target.covariates)
-                    .all(|((lo, hi), column)| column[i] >= *lo && column[i] <= *hi)
-            })
-        })
-        .count();
-    outside as f64 / target.rows as f64
+/// Most logical operations (index builds and nearest-source queries, in coordinate touches) one
+/// support test may quote. A test quoted above it refuses with `execution_resource_limit`
+/// before any index is built.
+pub const JOINT_TRANSPORT_MAX_SUPPORT_WORK: u64 = 4_000_000_000;
+
+/// Dimension up to which a k-d tree answers nearest-source queries in logarithmic time; above
+/// it the quote is the exhaustive scan.
+const SUPPORT_TREE_MAX_DIM: u64 = 8;
+
+/// Target rows tested between cancellation checks.
+const SUPPORT_QUERY_CHUNK: usize = 1024;
+
+/// Why the support test could not decide the unsupported mass.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum SupportTestFailure {
+    /// The execution context was cancelled.
+    Cancelled,
+    /// The quoted work or memory exceeded what the context may spend.
+    ResourceLimit(String),
+    /// The covariates cannot be indexed.
+    Invalid(String),
+}
+
+fn support_failure(error: &antecedent_stats::StatsError) -> SupportTestFailure {
+    use antecedent_core::execution::AdmissionError;
+    use antecedent_stats::StatsError;
+    match error {
+        StatsError::Cancelled | StatsError::Admission(AdmissionError::Cancelled) => {
+            SupportTestFailure::Cancelled
+        }
+        StatsError::Admission(_)
+        | StatsError::ResourceLimit { .. }
+        | StatsError::WorkLimit { .. } => SupportTestFailure::ResourceLimit(error.to_string()),
+        _ => SupportTestFailure::Invalid(error.to_string()),
+    }
+}
+
+/// Logical operations one source's support test needs: building its index and answering the
+/// target queries, each touching `dim` coordinates per visited row.
+fn support_work_quote(source_rows: usize, target_rows: usize, dim: usize) -> Option<u64> {
+    let sources = u64::try_from(source_rows).ok()?;
+    let rows = sources.checked_add(u64::try_from(target_rows).ok()?)?;
+    let dim = u64::try_from(dim).ok()?;
+    let visited = if dim <= SUPPORT_TREE_MAX_DIM {
+        u64::from(u64::BITS - sources.leading_zeros()).max(1)
+    } else {
+        sources.max(1)
+    };
+    rows.checked_mul(visited)?.checked_mul(dim)
+}
+
+/// Smallest scale, relative to the column's magnitude, a covariate column is measured in.
+const SUPPORT_MIN_RELATIVE_SCALE: f64 = 1e-8;
+
+/// Spread of a covariate column: its standard deviation, floored at a tiny fraction of the
+/// column's magnitude so that a constant column (one atom) has a vanishing scale: only an exact
+/// match is then within reach of it.
+fn support_scale(column: &[f64]) -> f64 {
+    let n = column.len() as f64;
+    let mean = column.iter().sum::<f64>() / n;
+    let sd = (column.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>() / n).sqrt();
+    if sd.is_finite() { sd.max(SUPPORT_MIN_RELATIVE_SCALE * mean.abs().max(1.0)) } else { 1.0 }
+}
+
+/// Radius of the support balls of a source with `rows` rows in `dim` standardized dimensions:
+/// `rows^(-1 / (dim + 2))`.
+///
+/// It shrinks with the sample (the estimated support converges to the true one) while
+/// `rows * radius^dim` grows without bound (every ball region is eventually populated), the two
+/// conditions of Devroye and Wise (1980), and it is independent of the sample's own spacing, so
+/// one stray row or a covariate that repeats in clumps cannot widen or narrow it. A gap in
+/// the covariate law larger than this fraction of its spread is a hole.
+fn support_radius(rows: usize, dim: usize) -> f64 {
+    (rows as f64).powf(-1.0 / (dim as f64 + 2.0))
+}
+
+/// Fraction of target rows outside the support of every source covariate law.
+///
+/// This is a support test, not a range test. A source's support is estimated by the union of
+/// closed balls, in covariates scaled by that source's own spread, centered on its rows with the
+/// sample-size radius of [`support_radius`] (Devroye and Wise 1980). A target row is supported
+/// when some source ball contains it, so a hole in the covariate law (two clusters, a ring, an
+/// L-shaped design) leaves target rows inside the covariates' bounding box unsupported, a
+/// discrete covariate is supported only on its observed atoms (atoms farther apart than the
+/// radius), a target row far outside every source is unsupported exactly as a range test would
+/// find, and a sparse or clumpy sample (replicated values with gaps between them) still supports
+/// the target rows between its atoms, within the radius.
+///
+/// # Errors
+///
+/// Cancellation, a quoted work above [`JOINT_TRANSPORT_MAX_SUPPORT_WORK`] or memory the context
+/// cannot fund, or covariates that cannot be indexed.
+pub(crate) fn unsupported_mass(
+    sources: &[SourceData],
+    target: &TargetData,
+    ctx: &ExecutionContext,
+) -> Result<f64, SupportTestFailure> {
+    let dim = target.covariates.len();
+    if dim == 0 || target.rows == 0 {
+        return Ok(0.0);
+    }
+    let mut work = 0_u64;
+    for source in sources {
+        work = support_work_quote(source.outcome.len(), target.rows, dim)
+            .and_then(|quote| work.checked_add(quote))
+            .ok_or_else(|| {
+                SupportTestFailure::ResourceLimit("the support test's work quote overflows".into())
+            })?;
+    }
+    if work > JOINT_TRANSPORT_MAX_SUPPORT_WORK {
+        return Err(SupportTestFailure::ResourceLimit(format!(
+            "the support test needs {work} operations, above the limit \
+             {JOINT_TRANSPORT_MAX_SUPPORT_WORK}; next attempt: subsample the source or target \
+             rows, or declare fewer covariates"
+        )));
+    }
+    let mut supported = vec![false; target.rows];
+    let mut query = vec![0.0; dim];
+    for source in sources {
+        if ctx.cancellation.is_cancelled() {
+            return Err(SupportTestFailure::Cancelled);
+        }
+        let rows = source.outcome.len();
+        let scales: Vec<f64> = source.covariates.iter().map(|c| support_scale(c)).collect();
+        let mut features = Vec::with_capacity(rows * dim);
+        for row in 0..rows {
+            features.extend(source.covariates.iter().zip(&scales).map(|(c, scale)| c[row] / scale));
+        }
+        let radius = support_radius(rows, dim);
+        let index = antecedent_stats::MatchingIndex::exact_within(
+            &features,
+            dim,
+            &(0..rows).collect::<Vec<_>>(),
+            antecedent_stats::MatchingDistance::Euclidean,
+            ctx,
+        )
+        .map_err(|error| support_failure(&error))?;
+        for (row, flag) in supported.iter_mut().enumerate() {
+            if row % SUPPORT_QUERY_CHUNK == 0 && ctx.cancellation.is_cancelled() {
+                return Err(SupportTestFailure::Cancelled);
+            }
+            if *flag {
+                continue;
+            }
+            let columns = target.covariates.iter().zip(&scales);
+            for (slot, (column, scale)) in query.iter_mut().zip(columns) {
+                *slot = column[row] / scale;
+            }
+            *flag = index
+                .nearest(&query, Some(radius))
+                .map_err(|error| support_failure(&error))?
+                .is_some();
+        }
+    }
+    let outside = supported.iter().filter(|flag| !**flag).count();
+    Ok(outside as f64 / target.rows as f64)
+}
+
+/// The typed refusal of a support test that could not decide: cancellation, an exhausted
+/// resource (`execution_resource_limit`, never a support verdict) or covariates that cannot be
+/// indexed. `details` are the caller's `(cancelled, resource limit, invalid input)` details.
+pub(crate) fn support_test_refusal(
+    failure: SupportTestFailure,
+    details: (&'static str, &'static str, &'static str),
+) -> JointTransportRefusal {
+    let (cancelled, limit, invalid_input) = details;
+    let (code, detail, message) = match failure {
+        SupportTestFailure::Cancelled => (
+            antecedent_core::reason_code!("transport_budget_cancel"),
+            cancelled,
+            "the target support test was cancelled".to_owned(),
+        ),
+        SupportTestFailure::ResourceLimit(reason) => (
+            antecedent_core::reason_code!("execution_resource_limit"),
+            limit,
+            format!("the target support test cannot run within its resources: {reason}"),
+        ),
+        SupportTestFailure::Invalid(reason) => (
+            antecedent_core::reason_code!("invalid_argument"),
+            invalid_input,
+            format!("the covariates cannot be tested for support: {reason}"),
+        ),
+    };
+    JointTransportRefusal::new(code, detail, message).at("overlap")
 }
 
 /// Box-Muller normals over a `SplitMix64` stream.
@@ -1255,11 +1423,6 @@ fn model_identity_with_source_labels(
     sources: &[SourceData],
     labels: &[&str],
 ) -> String {
-    let prior = |p: &GaussianPrior| {
-        let bits: Vec<String> =
-            p.mean.iter().chain(&p.covariance).map(|v| format!("{:016x}", v.to_bits())).collect();
-        bits.join(",")
-    };
     format!(
         "joint_bayesian_transport_v1|graph=fixed_dag|features={:?}|varying={:?}|sharing={:?}|\
          sources={}|noise={:?}|theta_prior={}|gamma_prior={}|dim={}|max_draws={}|max_parameters={}",
@@ -1268,8 +1431,8 @@ fn model_identity_with_source_labels(
         model.sharing,
         labels.join(","),
         sources.iter().map(|s| s.noise_variance.to_bits()).collect::<Vec<_>>(),
-        prior(&model.priors.invariant),
-        prior(&model.priors.varying),
+        prior_identity_bits(&model.priors.invariant),
+        prior_identity_bits(&model.priors.varying),
         layout.dim(),
         JOINT_TRANSPORT_MAX_DRAWS,
         JOINT_TRANSPORT_MAX_PARAMETERS,
@@ -1303,6 +1466,32 @@ fn draw_joint(
     let dim = posterior.mean.len();
     let width = dim + effects.vectors.len();
     let mut stream = NormalStream::new(options.seed);
+    if ctx.cancellation.is_cancelled() {
+        return Err(JointTransportRefusal::new(
+            antecedent_core::reason_code!("transport_budget_cancel"),
+            DETAIL_CANCELLED,
+            "joint transport draws were cancelled",
+        )
+        .at("draw")
+        .into());
+    }
+    // The retained draws are leased on the pool before they are allocated.
+    let _admitted = options
+        .draws
+        .checked_mul(width)
+        .and_then(|cells| u64::try_from(cells.checked_mul(size_of::<f64>())?).ok())
+        .ok_or("draw buffer size overflow".to_owned())
+        .and_then(|bytes| ctx.acquire_admission(0, bytes).map_err(|error| error.to_string()))
+        .map_err(|detail| {
+            Refused::from(
+                JointTransportRefusal::new(
+                    antecedent_core::reason_code!("transport_budget_cancel"),
+                    antecedent_core::reason_details::bayesian_transport::ADMISSION_REFUSED,
+                    format!("the admission pool cannot fund the joint draws: {detail}"),
+                )
+                .at("draw"),
+            )
+        })?;
     let mut values = Vec::with_capacity(options.draws * width);
     let mut z = vec![0.0; dim];
     for draw in 0..options.draws {
@@ -1386,7 +1575,12 @@ fn fit_inner(
     let gamma = prior_block(&model.priors.varying, layout.r)?;
     check_unit_ownership(sources, target)?;
     check_prior_data_overlap(&model.priors, sources)?;
-    let mass = unsupported_mass(sources, target);
+    let mass = unsupported_mass(sources, target, ctx).map_err(|failure| {
+        Refused::from(support_test_refusal(
+            failure,
+            (DETAIL_CANCELLED, DETAIL_SUPPORT_RESOURCE_LIMIT, DETAIL_INVALID_INPUT),
+        ))
+    })?;
     if mass > model.max_unsupported_mass {
         let mut refusal = JointTransportRefusal::new(
             antecedent_core::reason_code!("transport_support_failure"),
@@ -1450,7 +1644,7 @@ fn fit_inner(
                 tolerance: model.max_unsupported_mass,
             },
             disagreement,
-            calibration: JointTransportCalibration::Unmeasured,
+            calibration: JointTransportCalibration::NotMeasured,
         },
         parameter_names: names,
         posterior_mean: posterior.mean,
@@ -1461,4 +1655,47 @@ fn fit_inner(
         draws,
         identification,
     })
+}
+
+#[cfg(test)]
+mod prior_identity_bits_tests {
+    use super::{GaussianPrior, PriorProvenance, prior_identity_bits};
+
+    #[test]
+    fn prior_identity_preserves_order_and_float_bits() {
+        let prior = GaussianPrior {
+            mean: vec![0.0, -0.0, f64::INFINITY],
+            covariance: vec![f64::from_bits(0x7ff8_0000_0000_1234), -1.0],
+            provenance: PriorProvenance::Declared,
+        };
+        assert_eq!(
+            prior_identity_bits(&prior),
+            "0000000000000000,8000000000000000,7ff0000000000000,7ff8000000001234,bff0000000000000"
+        );
+        let empty = GaussianPrior {
+            mean: vec![],
+            covariance: vec![],
+            provenance: PriorProvenance::Declared,
+        };
+        assert_eq!(prior_identity_bits(&empty), "");
+    }
+}
+
+#[cfg(test)]
+mod invalid_refusal_tests {
+    use super::{FailedFitDiagnostics, invalid};
+
+    #[test]
+    fn joint_invalid_refusal_preserves_all_fields() {
+        for message in ["", "line\nbreak"] {
+            let value = invalid("joint.example", message);
+            assert_eq!(value.code, "invalid_argument");
+            assert_eq!(value.detail, "joint.example");
+            assert_eq!(value.message, message);
+            assert_eq!(
+                value.failure,
+                FailedFitDiagnostics { stage: "validate", ..Default::default() }
+            );
+        }
+    }
 }

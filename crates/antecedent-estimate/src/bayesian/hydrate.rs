@@ -126,13 +126,13 @@ pub fn hydrate_prior_from_coefficient_moments(
             "hydrate_prior_from_posterior: no coefficient columns in posterior",
         ));
     }
-    if let Some(expected) = expected_n_coef {
-        if n_coef != expected {
-            return Err(EstimationError::PriorDimensionMismatch {
-                posterior: n_coef,
-                design: expected,
-            });
-        }
+    if let Some(expected) = expected_n_coef
+        && n_coef != expected
+    {
+        return Err(EstimationError::PriorDimensionMismatch {
+            posterior: n_coef,
+            design: expected,
+        });
     }
     for (i, (index, _)) in coef_cols.iter().enumerate() {
         if *index != i {
@@ -343,7 +343,7 @@ pub(crate) fn hydrate_prior_from_posterior(
 /// cycle). Convert at the facade.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum HydrateMapping {
-    /// Identical coefficient subspace (P1-C sequential Bayes).
+    /// Identical coefficient subspace (sequential Bayes).
     IdenticalCoefficientSubspace,
     /// Effect-functional transfer via a named source quantity (e.g. `"ate"`).
     EffectFunctional {
@@ -531,51 +531,7 @@ pub fn hydrate_prior(
                     Ok(prior)
                 }
                 HydrateMapping::NamedParameters { pairs } => {
-                    if pairs.is_empty() {
-                        return Err(EstimationError::stats_msg(
-                            "hydrate_prior: NamedParameters requires at least one pair",
-                        ));
-                    }
-                    let mut used_sources = std::collections::HashSet::new();
-                    let mut used_targets = std::collections::HashSet::new();
-                    if pairs.iter().any(|(source, target)| {
-                        source.trim().is_empty()
-                            || target.trim().is_empty()
-                            || !used_sources.insert(source)
-                            || !used_targets.insert(target)
-                    }) {
-                        return Err(EstimationError::stats_msg(
-                            "hydrate_prior: NamedParameters requires distinct nonblank source and target names",
-                        ));
-                    }
-                    let target_name_set: std::collections::HashSet<&str> =
-                        target_coef_names.iter().map(AsRef::as_ref).collect();
-                    if target_name_set.len() != n_target {
-                        return Err(EstimationError::stats_msg(
-                            "hydrate_prior: target coefficient names must be unique",
-                        ));
-                    }
-                    for (source, _) in pairs {
-                        let count = quantities
-                            .iter()
-                            .filter(|quantity| match quantity {
-                                PosteriorQuantityKind::Coefficient { name: Some(name), .. }
-                                | PosteriorQuantityKind::Effect { name }
-                                | PosteriorQuantityKind::Scalar { name } => {
-                                    name.as_ref() == source.as_str()
-                                }
-                                PosteriorQuantityKind::ResidualVariance => {
-                                    source == "residual_variance"
-                                }
-                                PosteriorQuantityKind::Coefficient { name: None, .. } => false,
-                            })
-                            .count();
-                        if count != 1 {
-                            return Err(EstimationError::stats_msg(format!(
-                                "hydrate_prior: source quantity `{source}` must be uniquely named"
-                            )));
-                        }
-                    }
+                    validate_named_mapping(pairs, target_coef_names, quantities)?;
                     let mut means: Vec<f64> = base_coef.mean.to_vec();
                     let mut vars: Vec<f64> = base_coef.variance.to_vec();
                     let name_index: std::collections::HashMap<&str, usize> = target_coef_names
@@ -628,20 +584,20 @@ pub fn hydrate_prior(
                     if source_sigma2.is_none() {
                         prior.mark_absolute_coefficient_scale(&mapped);
                     }
-                    if let Some(cov) = coefficient_covariance {
-                        if let Some(permuted) = permute_full_named_coefficient_covariance(
+                    if let Some(cov) = coefficient_covariance
+                        && let Some(permuted) = permute_full_named_coefficient_covariance(
                             quantities,
                             pairs,
                             target_coef_names,
                             cov,
-                        )? {
-                            attach_coefficient_correlation(&mut prior, &permuted, n_target)?;
-                            if prior.coefficient_correlation().is_some() {
-                                prior.restrictions[0].description = Arc::from(format!(
-                                    "external named-parameter prior ({pair_desc}); {}; full coefficient covariance retained under explicit named permutation",
-                                    scale_conversion_note(source_sigma2)
-                                ));
-                            }
+                        )?
+                    {
+                        attach_coefficient_correlation(&mut prior, &permuted, n_target)?;
+                        if prior.coefficient_correlation().is_some() {
+                            prior.restrictions[0].description = Arc::from(format!(
+                                "external named-parameter prior ({pair_desc}); {}; full coefficient covariance retained under explicit named permutation",
+                                scale_conversion_note(source_sigma2)
+                            ));
                         }
                     }
                     merge_baseline_residuals(&mut prior, baseline);
@@ -650,6 +606,55 @@ pub fn hydrate_prior(
             }
         },
     )
+}
+
+fn validate_named_mapping(
+    pairs: &[(String, String)],
+    target_coef_names: &[Arc<str>],
+    quantities: &[PosteriorQuantityKind],
+) -> Result<(), EstimationError> {
+    if pairs.is_empty() {
+        return Err(EstimationError::stats_msg(
+            "hydrate_prior: NamedParameters requires at least one pair",
+        ));
+    }
+    let mut used_sources = std::collections::HashSet::new();
+    let mut used_targets = std::collections::HashSet::new();
+    if pairs.iter().any(|(source, target)| {
+        source.trim().is_empty()
+            || target.trim().is_empty()
+            || !used_sources.insert(source)
+            || !used_targets.insert(target)
+    }) {
+        return Err(EstimationError::stats_msg(
+            "hydrate_prior: NamedParameters requires distinct nonblank source and target names",
+        ));
+    }
+    let target_name_set: std::collections::HashSet<&str> =
+        target_coef_names.iter().map(AsRef::as_ref).collect();
+    if target_name_set.len() != target_coef_names.len() {
+        return Err(EstimationError::stats_msg(
+            "hydrate_prior: target coefficient names must be unique",
+        ));
+    }
+    for (source, _) in pairs {
+        let count = quantities
+            .iter()
+            .filter(|quantity| match quantity {
+                PosteriorQuantityKind::Coefficient { name: Some(name), .. }
+                | PosteriorQuantityKind::Effect { name }
+                | PosteriorQuantityKind::Scalar { name } => name.as_ref() == source.as_str(),
+                PosteriorQuantityKind::ResidualVariance => source == "residual_variance",
+                PosteriorQuantityKind::Coefficient { name: None, .. } => false,
+            })
+            .count();
+        if count != 1 {
+            return Err(EstimationError::stats_msg(format!(
+                "hydrate_prior: source quantity `{source}` must be uniquely named"
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// Return a target-ordered covariance only for a complete named coefficient
@@ -737,8 +742,13 @@ fn merge_baseline_residuals(prior: &mut PriorSet, baseline: &PriorSet) {
                     prior.specs.push(spec.clone());
                 }
             }
-            // The hydrated coefficient block (and its correlation) replaces the baseline's.
-            PriorSpec::GaussianCoefficients(_) | PriorSpec::CoefficientCorrelation(_) => {}
+            // The hydrated coefficient block (and its correlation) replaces the baseline's. A
+            // count-model prior has no place on a Gaussian target prior; the fit refuses a
+            // baseline that carries one, so it is never copied across.
+            PriorSpec::GaussianCoefficients(_)
+            | PriorSpec::CoefficientCorrelation(_)
+            | PriorSpec::Beta(_)
+            | PriorSpec::Gamma(_) => {}
         }
     }
 }

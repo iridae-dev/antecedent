@@ -18,6 +18,8 @@ autotests = false
 workspace = true
 
 [features]
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent-core/development", "antecedent-data/development", "antecedent-estimate/development", "antecedent-expr/development", "antecedent-identify/development", "antecedent-learn/development", "antecedent-io-core/development", "antecedent-discovery/development", "antecedent-graph/development", "antecedent-prob/development", "antecedent-stats/development", "antecedent-kernels/development"]
 default = []
 # Exposes the closed joint-sensitivity endpoint bootstrap
 # (`joint_sensitivity_bootstrap_interval_internal`) to the calibration harness.
@@ -30,6 +32,7 @@ antecedent-data = { workspace = true }
 antecedent-estimate = { workspace = true }
 antecedent-expr = { workspace = true }
 antecedent-identify = { workspace = true }
+antecedent-learn = { workspace = true }
 antecedent-io-core = { workspace = true }
 antecedent-discovery = { workspace = true }
 antecedent-graph = { workspace = true }
@@ -37,8 +40,11 @@ antecedent-prob = { workspace = true }
 antecedent-stats = { workspace = true }
 antecedent-kernels = { workspace = true }
 thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
+antecedent-core = { workspace = true, features = ["test-support"] }
 serde_json = { workspace = true }
 
 [[bench]]
@@ -48,3 +54,79 @@ harness = false
 [[test]]
 name = "suite_01"
 path = "tests/suite_01.rs"
+
+[[test]]
+name = "staleness"
+path = "tests/staleness.rs"
+
+[[test]]
+name = "target_native_numerics_reference"
+path = "tests/target_native_numerics_reference.rs"
+
+[[test]]
+name = "target_native"
+path = "tests/target_native.rs"
+
+[[test]]
+name = "sensitivity_bounds"
+path = "tests/sensitivity_bounds.rs"
+
+[[test]]
+name = "distribution_drift_reference"
+path = "tests/distribution_drift_reference.rs"
+
+[[test]]
+name = "conflict_policy_reference"
+path = "tests/conflict_policy_reference.rs"
+
+[[test]]
+name = "linear_sensitivity_reference"
+path = "tests/linear_sensitivity_reference.rs"
+
+[[test]]
+name = "proper_scores_reference"
+path = "tests/proper_scores_reference.rs"
+
+[[test]]
+name = "diagnostic_propensity_reference"
+path = "tests/diagnostic_propensity_reference.rs"
+
+[[test]]
+name = "predictive_assessment_reference"
+path = "tests/predictive_assessment_reference.rs"
+
+[[test]]
+name = "bootstrap_refute_reference"
+path = "tests/bootstrap_refute_reference.rs"
+
+[[test]]
+name = "robustness_refuters_reference"
+path = "tests/robustness_refuters_reference.rs"
+
+[[test]]
+name = "graph_refute_reference"
+path = "tests/graph_refute_reference.rs"
+
+[[test]]
+name = "msm_sensitivity_reference"
+path = "tests/msm_sensitivity_reference.rs"
+
+[[test]]
+name = "simulated_unobserved_confounder_reference"
+path = "tests/simulated_unobserved_confounder_reference.rs"
+
+[[test]]
+name = "static_mediation_reference"
+path = "tests/static_mediation_reference.rs"
+
+[[test]]
+name = "temporal_mediation_refuter_reference"
+path = "tests/temporal_mediation_refuter_reference.rs"
+
+[[test]]
+name = "joint_uncertainty_reference"
+path = "tests/joint_uncertainty_reference.rs"
+
+[[test]]
+name = "functional_reference"
+path = "tests/functional_reference.rs"

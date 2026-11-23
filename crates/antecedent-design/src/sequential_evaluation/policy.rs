@@ -1,6 +1,6 @@
 //! Observed histories and caller-supplied contingent policies.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -242,7 +242,7 @@ impl ContingentPolicy {
 /// What a caller offers as the policy of an evaluation.
 ///
 /// Only a fixed [`ContingentPolicy`] is evaluated. The other variants exist so
-/// the closed routes are reachable, executed refusals rather than absences.
+/// the unsupported routes are reachable, executed refusals rather than absences.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PolicySpec {
     /// A fixed contingent policy: evaluated.

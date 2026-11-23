@@ -19,9 +19,10 @@
 //! probabilities (best, top-k, better than a baseline) are Monte Carlo estimates under
 //! the supplied law over the candidate set as supplied; they refuse adaptively
 //! generated candidates without a [`CandidateSearchRecord`]. Publishing any ranking
-//! probability or interval ([`PreparedDecisionReliability::publish`]) refuses with
-//! `cell_not_licensed` until a coverage record measures it at its coordinate
-//! (candidate-set size, Monte Carlo budget, selection rule).
+//! probability or interval ([`PreparedDecisionReliability::publish`]) reports it with a
+//! calibration slot: `calibrated` where a coverage record measured it at its coordinate
+//! (candidate-set size, Monte Carlo budget, selection rule), otherwise the status that
+//! names why not.
 //!
 //! # Lifecycle
 //!
@@ -32,7 +33,7 @@
 //! the selecting and validating streams. New draws are a new assessment: nothing is
 //! refreshed in place.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use super::design_exports::design_crate::decision_reliability::{
     BatchPlan, CalibrationCoordinate, CandidateCoupling, CandidateDraws, CandidateOrigin,
@@ -51,22 +52,24 @@ pub use super::design_exports::design_crate::decision_reliability::{
     RolloutNoise, RolloutUtilityDraws, SelectionComponent, SelectionCorrectedInterval, TruthKind,
     UtilityInterval,
 };
+use std::fmt::Write as _;
+
 use antecedent_core::ExecutionContext;
 use antecedent_design::decision_reliability::{
-    ReliabilityError, assess, consume, coverage_design, derive_uncertainty, license_route,
-    reach_carrier,
+    ReliabilityError, assess, consume, coverage_design, derive_uncertainty, reach_carrier,
+    support_route,
 };
 use antecedent_io::IoError;
 
 /// One refusal as plain data: registered reason code, namespaced
-/// `decision_reliability.*` detail and the explanation of what would license the request.
+/// `decision_reliability.*` detail and the explanation of what would support the request.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DecisionReliabilityRefusal {
     /// Registered runtime reason code.
     pub code: &'static str,
     /// Namespaced detail, `decision_reliability.<rule>`.
     pub detail: String,
-    /// What was refused and what would license it.
+    /// What was refused and what would support it.
     pub message: String,
     /// What the caller can change to proceed, when the refusal names it.
     pub remedy: Option<&'static str>,
@@ -77,35 +80,54 @@ impl DecisionReliabilityRefusal {
         let refusal = error.to_refusal();
         let mut message = refusal.detail.clone();
         if let Some(offending) = &refusal.offending {
-            message.push_str(&format!(": {offending}"));
+            let _ = write!(message, ": {offending}");
         }
         if let Some(expected) = &refusal.expected {
-            message.push_str(&format!("; expected {expected}"));
+            let _ = write!(message, "; expected {expected}");
         }
         if let Some(remedy) = refusal.remedy {
-            message.push_str(&format!("; {remedy}"));
+            let _ = write!(message, "; {remedy}");
         }
         Self { code: refusal.code, detail: refusal.detail, message, remedy: refusal.remedy }
     }
 
     fn from_io(error: &IoError) -> Self {
+        if let IoError::Admission(error) = error {
+            let cancelled = *error == antecedent_core::execution::AdmissionError::Cancelled;
+            return Self {
+                code: if cancelled {
+                    antecedent_core::reason_code!("cancelled_no_claim")
+                } else {
+                    antecedent_core::reason_code!("invalid_argument")
+                },
+                detail: if cancelled {
+                    antecedent_core::reason_details::decision_reliability::CANCELLED
+                } else {
+                    antecedent_core::reason_details::decision_reliability::MEMORY_BUDGET_EXCEEDED
+                }
+                .to_owned(),
+                message: error.to_string(),
+                remedy: None,
+            };
+        }
         // The loader's own kind-mismatch detail survives; every other artifact
         // failure keeps the generic detail.
-        if let IoError::Refused { code, message } = error {
-            if let Some(text) =
+        if let IoError::Refused { code, message } = error
+            && let Some(text) =
                 message.strip_prefix("decision_reliability.artifact_kind_mismatch: ")
-            {
-                return Self {
-                    code: *code,
-                    detail: "decision_reliability.artifact_kind_mismatch".to_owned(),
-                    message: text.to_owned(),
-                    remedy: None,
-                };
-            }
+        {
+            return Self {
+                code: *code,
+                detail:
+                    antecedent_core::reason_details::decision_reliability::ARTIFACT_KIND_MISMATCH
+                        .to_owned(),
+                message: text.to_owned(),
+                remedy: None,
+            };
         }
         Self {
             code: error.reason_code().unwrap_or(antecedent_core::reason_code!("invalid_argument")),
-            detail: "decision_reliability.artifact".to_owned(),
+            detail: antecedent_core::reason_details::decision_reliability::ARTIFACT.to_owned(),
             message: error.to_string(),
             remedy: None,
         }
@@ -125,8 +147,6 @@ pub struct DecisionReliabilityInspection {
     pub monte_carlo_error: String,
     /// Selection-induced uncertainty, summarized.
     pub selection_uncertainty: String,
-    /// Routes that are closed at this coordinate, by name.
-    pub closed_routes: Vec<&'static str>,
     /// The coordinate a calibration would have to measure.
     pub coordinate: String,
 }
@@ -161,7 +181,7 @@ impl PreparedDecisionReliability {
         Ok(Self { artifact })
     }
 
-    /// The report: three uncertainty components, ranking statements and closed routes.
+    /// The report: three uncertainty components, ranking statements and unsupported routes.
     #[must_use]
     pub const fn report(&self) -> &ReliabilityReport {
         &self.artifact.report
@@ -184,14 +204,18 @@ impl PreparedDecisionReliability {
             .map_err(|error| DecisionReliabilityRefusal::from_error(&error))
     }
 
-    /// Publish a ranking or optimality probability, or an interval, as a calibrated
-    /// claim at this assessment's coordinate.
+    /// Publish a ranking or optimality probability, or an interval, at this
+    /// assessment's coordinate with its calibration slot: `calibrated` where a
+    /// coverage record measured the route there, otherwise the status that names why not.
     ///
     /// # Errors
-    /// `cell_not_licensed` until a coverage record measures the route at the
-    /// coordinate; the diagnostics in [`Self::report`] remain available.
-    pub fn publish(&self, route: PublishedRoute) -> Result<(), DecisionReliabilityRefusal> {
-        license_route(route, &self.artifact.report.coordinate)
+    /// None today; calibration annotates the route and never refuses it.
+    pub fn publish(
+        &self,
+        route: PublishedRoute,
+    ) -> Result<antecedent_io_core::contract_section::CalibrationSlotWire, DecisionReliabilityRefusal>
+    {
+        support_route(route, &self.artifact.report.coordinate)
             .map_err(|error| DecisionReliabilityRefusal::from_error(&error))
     }
 
@@ -228,7 +252,6 @@ impl PreparedDecisionReliability {
                 mc.value, mc.standard_error, mc.effective_sample_size, mc.method
             ),
             selection_uncertainty: selection,
-            closed_routes: report.closed_routes.iter().map(|r| r.route.as_str()).collect(),
             coordinate: report.coordinate.describe(),
         }
     }
@@ -276,7 +299,7 @@ impl PreparedDecisionReliability {
     /// distribution, Monte Carlo error at the effective sample size, and selection
     /// (confidence set for the best candidate and a selection-corrected interval).
     ///
-    /// The result is labelled [`DerivedStanding::DerivedUnmeasured`]; it is recomputed
+    /// The result is labelled [`DerivedStanding::DerivedNotMeasured`]; it is recomputed
     /// from the carried draws, so nothing here is stored beside the artifact.
     ///
     /// # Errors
@@ -364,15 +387,14 @@ pub fn reach_decision_carrier(
     reach_carrier(output).map_err(|error| DecisionReliabilityRefusal::from_error(&error))
 }
 
-/// Ask to publish a route from a derivation.
+/// Publish a route from a derivation with its calibration slot.
 ///
 /// # Errors
-/// `cell_not_licensed` until a coverage record measures the route at the derivation's
-/// coordinate.
+/// None today; calibration annotates the route and never refuses it.
 pub fn publish_derived_route(
     derived: &DerivedUncertainty,
     route: PublishedRoute,
-) -> Result<(), DecisionReliabilityRefusal> {
+) -> Result<antecedent_io_core::contract_section::CalibrationSlotWire, DecisionReliabilityRefusal> {
     derived.publish(route).map_err(|error| DecisionReliabilityRefusal::from_error(&error))
 }
 
@@ -412,22 +434,21 @@ pub fn consume_decision_reliability_artifact(
 ) -> Result<PreparedDecisionReliability, DecisionReliabilityRefusal> {
     // A readable container of another kind is a recognised artifact this consumer
     // does not read: name both kinds and the consumer that does.
-    if let Some(kind) = antecedent_design::inverse_query_artifact::recognised_artifact_kind(bytes) {
-        if kind != antecedent_design::decision_reliability::DECISION_RELIABILITY_KIND {
-            let message = format!(
-                "decision_reliability.artifact_kind_mismatch: expected {}, supplied {kind}; {}",
-                antecedent_design::decision_reliability::DECISION_RELIABILITY_KIND,
-                antecedent_design::inverse_query_artifact::artifact_kind_remedy(&kind),
-            );
-            return Err(DecisionReliabilityRefusal {
-                code: antecedent_core::reason_code!("invalid_argument"),
-                detail: "decision_reliability.artifact_kind_mismatch".to_owned(),
-                message,
-                remedy: Some(antecedent_design::inverse_query_artifact::artifact_kind_remedy(
-                    &kind,
-                )),
-            });
-        }
+    if let Some(kind) = antecedent_design::inverse_query_artifact::recognised_artifact_kind(bytes)
+        && kind != antecedent_design::decision_reliability::DECISION_RELIABILITY_KIND
+    {
+        let message = format!(
+            "decision_reliability.artifact_kind_mismatch: expected {}, supplied {kind}; {}",
+            antecedent_design::decision_reliability::DECISION_RELIABILITY_KIND,
+            antecedent_design::inverse_query_artifact::artifact_kind_remedy(&kind),
+        );
+        return Err(DecisionReliabilityRefusal {
+            code: antecedent_core::reason_code!("invalid_argument"),
+            detail: antecedent_core::reason_details::decision_reliability::ARTIFACT_KIND_MISMATCH
+                .to_owned(),
+            message,
+            remedy: Some(antecedent_design::inverse_query_artifact::artifact_kind_remedy(&kind)),
+        });
     }
     let artifact = consume(bytes, expected, ctx)
         .map_err(|error| DecisionReliabilityRefusal::from_io(&error))?;

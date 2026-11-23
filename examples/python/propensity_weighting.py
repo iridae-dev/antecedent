@@ -1,21 +1,27 @@
 #!/usr/bin/env python3
-"""Adjust for treatment selection with inverse-probability weights.
+"""What is the average effect when a measured variable drives who gets treated?
 
-The baseline variable z affects both treatment assignment and the outcome.
-A raw group comparison therefore mixes the treatment effect with differences
-in z. Weighting adjusts for that selection; the known treatment effect is 2.
+The data are 1,200 simulated rows. The baseline variable z raises the probability of treatment
+(logistic in z) and also raises the outcome, so a raw group comparison mixes the treatment
+effect with differences in z. Inverse-probability weighting adjusts for that selection; the
+simulated treatment effect is 2.
 
-This example selects propensity.weighting explicitly. It also prints overlap
-diagnostics, which help you check whether the weights rely on too few rows.
-Install with `python -m pip install antecedent`; see examples/README.md."""
+This example selects `propensity.weighting` explicitly and prints the overlap diagnostics,
+which show whether the weights rely on too few rows. The script asserts the estimate lies
+within 0.35 of 2; the overlap numbers are printed, not held to a threshold, and the DAG is
+declared rather than tested.
+
+Run: `python examples/python/propensity_weighting.py`."""
 
 from __future__ import annotations
 
 import math
 import random
 
+import antecedent as _ant_api
 import numpy as np
 from antecedent import AverageEffect, analyze
+from antecedent.outcomes import require_success
 
 
 def main() -> None:
@@ -33,13 +39,15 @@ def main() -> None:
         t[i] = ti
         y[i] = yi
 
-    result = analyze(
-        {"t": t, "y": y, "z": z},
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=AverageEffect(treatment="t", outcome="y"),
-        estimator="propensity.weighting",
-        bootstrap=30,
-        seed=11,
+    result = require_success(
+        analyze(
+            {"t": t, "y": y, "z": z},
+            graph=[("z", "t"), ("z", "y"), ("t", "y")],
+            query=AverageEffect(treatment="t", outcome="y"),
+            estimator="propensity.weighting",
+            inference=_ant_api.Frequentist(bootstrap=30),
+            execution=_ant_api.Execution(seed=11),
+        )
     )
     assert result.answer.kind == "point"
     print("Calibration:", result.calibration.status)

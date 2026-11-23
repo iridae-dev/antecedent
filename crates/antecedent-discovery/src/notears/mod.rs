@@ -16,7 +16,7 @@
 //! Dense soft weights are row-major \(d\times d\) with \(W_{ij}\) the weight of
 //! directed edge \(i\to j\) (NOTEARS / Zheng et al. 2018). Diagonal is always zero.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -51,6 +51,9 @@ use crate::result::{
 };
 
 use solver::{NotearsWorkspace, SolveFailure, SolverConfig, solve_notears};
+
+/// Identity of this algorithm in its records.
+const ALGORITHM: &str = crate::pipeline::StaticAlgorithm::Notears.as_str();
 
 /// NOTEARS discovery result: hard DAG review plus soft weight matrix for mechanism seeding.
 #[derive(Clone, Debug)]
@@ -163,39 +166,12 @@ impl Notears {
         self
     }
 
-    /// Run NOTEARS.
-    ///
-    /// # Errors
-    ///
-    /// Data, numerical non-convergence / non-finite values, or graph failures.
-    /// Fail-closed: never returns an empty soft failure DAG on solver error.
-    #[allow(
-        clippy::too_many_lines,
-        reason = "one algorithm pipeline over shared mutable graph state; the phases are marked in place"
-    )]
-    pub fn run(
+    fn prepare_design(
         &self,
         data: &TabularData,
         variables: &[VariableId],
-        _workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
-    ) -> Result<NotearsDiscoveryResult, DiscoveryError> {
-        self.constraints.validate()?;
-        self.constraints
-            .check_background_knowledge(KnowledgeScope::ScoreSearch, variables)
-            .map_err(DiscoveryError::Knowledge)?;
-        if variables.is_empty() {
-            return Err(DiscoveryError::Unsupported {
-                message: "NOTEARS requires at least one variable",
-            });
-        }
-        if !self.lambda.is_finite() || self.lambda < 0.0 {
-            return Err(DiscoveryError::unsupported("NOTEARS lambda must be finite and >= 0"));
-        }
-        if !self.threshold.is_finite() || self.threshold < 0.0 {
-            return Err(DiscoveryError::unsupported("NOTEARS threshold must be finite and >= 0"));
-        }
-
+    ) -> Result<(Vec<f64>, usize, RowAccounting), DiscoveryError> {
         let mut col_owned = collect_float_columns(data, variables)?;
         let policy = self.missing.unwrap_or(MissingPolicy::ErrorOnMissing);
         if !matches!(
@@ -214,9 +190,10 @@ impl Notears {
             });
         }
         // The analysis mask is not consulted here (as before); only missing cells are.
-        let keep = complete_rows(data, None, variables)?;
+        let keep_bitmap = complete_rows(data, None, variables)?;
+        let keep = keep_bitmap.to_bools();
         let mut row_accounting =
-            RowAccounting::from_selection(data, None, policy, variables, &keep)?;
+            RowAccounting::from_selection(data, None, policy, variables, &keep_bitmap)?;
         let mut pairwise = None;
         if row_accounting.rows_dropped() > 0 {
             if policy == MissingPolicy::ErrorOnMissing {
@@ -289,6 +266,100 @@ impl Notears {
             (x, n)
         };
 
+        Ok((x, n, row_accounting))
+    }
+
+    fn candidate_edges(
+        &self,
+        soft_w: &[f64],
+        variables: &[VariableId],
+        frozen: &[bool],
+    ) -> Vec<(usize, usize, f64)> {
+        let d = variables.len();
+        // Threshold → candidate edges (parent i → child j when |W_ij| >= threshold).
+        let max_parents = self.constraints.max_parents.unwrap_or(d.saturating_sub(1));
+        let mut by_child: Vec<Vec<(usize, f64)>> = vec![Vec::new(); d];
+        for i in 0..d {
+            for j in 0..d {
+                if i == j || frozen[i * d + j] {
+                    continue;
+                }
+                let w = soft_w[i * d + j];
+                if w.abs() >= self.threshold {
+                    by_child[j].push((i, w));
+                }
+            }
+        }
+        for parents in &mut by_child {
+            parents.sort_by(|a, b| b.1.abs().total_cmp(&a.1.abs()));
+            if parents.len() > max_parents {
+                parents.truncate(max_parents);
+            }
+        }
+
+        let mut edge_coefs: Vec<(usize, usize, f64)> = Vec::new();
+        for (child, parents) in by_child.iter().enumerate() {
+            for &(par, w) in parents {
+                edge_coefs.push((par, child, w));
+            }
+        }
+
+        // Seed required edges (contemporaneous) if both endpoints exist.
+        for r in self.constraints.required.iter() {
+            if r.source_lag != Lag::CONTEMPORANEOUS || r.target_lag != Lag::CONTEMPORANEOUS {
+                continue;
+            }
+            let Some(si) = variables.iter().position(|v| *v == r.source) else {
+                continue;
+            };
+            let Some(ti) = variables.iter().position(|v| *v == r.target) else {
+                continue;
+            };
+            if !edge_coefs.iter().any(|&(a, b, _)| a == si && b == ti) {
+                let w = soft_w[si * d + ti];
+                edge_coefs.push((si, ti, if w.abs() > 0.0 { w } else { 1.0 }));
+            }
+        }
+
+        edge_coefs
+    }
+
+    /// Run NOTEARS.
+    ///
+    /// # Errors
+    ///
+    /// Data, numerical non-convergence / non-finite values, or graph failures.
+    /// Fail-closed: never returns an empty soft failure DAG on solver error.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one algorithm pipeline over shared mutable graph state; the phases are marked in place"
+    )]
+    pub fn run(
+        &self,
+        data: &TabularData,
+        variables: &[VariableId],
+        _workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<NotearsDiscoveryResult, DiscoveryError> {
+        self.constraints.validate()?;
+        self.constraints
+            .check_background_knowledge(KnowledgeScope::ScoreSearch, variables)
+            .map_err(DiscoveryError::Knowledge)?;
+        if variables.is_empty() {
+            return Err(DiscoveryError::Unsupported {
+                message: "NOTEARS requires at least one variable",
+            });
+        }
+        if !self.lambda.is_finite() || self.lambda < 0.0 {
+            return Err(DiscoveryError::unsupported("NOTEARS lambda must be finite and >= 0"));
+        }
+        if !self.threshold.is_finite() || self.threshold < 0.0 {
+            return Err(DiscoveryError::unsupported("NOTEARS threshold must be finite and >= 0"));
+        }
+
+        let (x, n, row_accounting) = self.prepare_design(data, variables, ctx)?;
+        let d = variables.len();
+
         // Freeze diagonal + forbidden / tier-forbidden.
         let mut frozen = vec![false; d * d];
         for i in 0..d {
@@ -325,56 +396,15 @@ impl Notears {
             SolveFailure::Message(message) => DiscoveryError::stats_msg(message),
         })?;
 
-        // Threshold → candidate edges (parent i → child j when |W_ij| >= threshold).
-        let max_parents = self.constraints.max_parents.unwrap_or(d.saturating_sub(1));
-        let mut by_child: Vec<Vec<(usize, f64)>> = vec![Vec::new(); d];
-        for i in 0..d {
-            for j in 0..d {
-                if i == j || frozen[i * d + j] {
-                    continue;
-                }
-                let w = soft_w[i * d + j];
-                if w.abs() >= self.threshold {
-                    by_child[j].push((i, w));
-                }
-            }
-        }
-        for parents in &mut by_child {
-            parents.sort_by(|a, b| {
-                b.1.abs().partial_cmp(&a.1.abs()).unwrap_or(std::cmp::Ordering::Equal)
-            });
-            if parents.len() > max_parents {
-                parents.truncate(max_parents);
-            }
-        }
+        let mut edge_coefs = self.candidate_edges(&soft_w, variables, &frozen);
 
-        let mut edge_coefs: Vec<(usize, usize, f64)> = Vec::new();
-        for (child, parents) in by_child.iter().enumerate() {
-            for &(par, w) in parents {
-                edge_coefs.push((par, child, w));
-            }
+        // Stronger edges are inserted first. A directed cycle refuses the whole
+        // set before any edge is given to the DAG.
+        edge_coefs.sort_by(|a, b| b.2.abs().total_cmp(&a.2.abs()));
+        let directed = dense_edge_ids(&edge_coefs);
+        if antecedent_graph::error::directed_edges_contain_cycle(d, &directed) {
+            return Err(DiscoveryError::stats_msg(notears_cycle_refusal()));
         }
-
-        // Seed required edges (contemporaneous) if both endpoints exist.
-        for r in self.constraints.required.iter() {
-            if r.source_lag != Lag::CONTEMPORANEOUS || r.target_lag != Lag::CONTEMPORANEOUS {
-                continue;
-            }
-            let Some(si) = variables.iter().position(|v| *v == r.source) else {
-                continue;
-            };
-            let Some(ti) = variables.iter().position(|v| *v == r.target) else {
-                continue;
-            };
-            if !edge_coefs.iter().any(|&(a, b, _)| a == si && b == ti) {
-                let w = soft_w[si * d + ti];
-                edge_coefs.push((si, ti, if w.abs() > 0.0 { w } else { 1.0 }));
-            }
-        }
-
-        // Insert by decreasing |weight| so stronger edges win if a residual cycle appears.
-        edge_coefs
-            .sort_by(|a, b| b.2.abs().partial_cmp(&a.2.abs()).unwrap_or(std::cmp::Ordering::Equal));
 
         let mut dag = Dag::empty();
         for &v in variables {
@@ -390,9 +420,7 @@ impl Notears {
             match dag.insert_directed(from, to) {
                 Ok(()) => kept.push((par, child, w)),
                 Err(antecedent_graph::GraphError::Cycle { .. }) => {
-                    return Err(DiscoveryError::stats_msg(
-                        "NOTEARS thresholded weights induce a cycle (solver |h| tolerance vs threshold mismatch)",
-                    ));
+                    return Err(DiscoveryError::stats_msg(notears_cycle_refusal()));
                 }
                 Err(e) => return Err(DiscoveryError::from(e)),
             }
@@ -412,7 +440,7 @@ impl Notears {
                 adjusted_p_value: None,
                 interval: None,
                 separating_set: None,
-                provenance: Arc::from([Arc::from("notears")]),
+                provenance: Arc::from([Arc::from(ALGORITHM)]),
             })
             .collect();
 
@@ -427,19 +455,19 @@ impl Notears {
             .collect();
 
         let edge_count = dag.edges().count();
-        let review = DagReview::from_dag(dag.clone(), "notears");
+        let review = DagReview::from_dag(dag.clone(), ALGORITHM);
         let evidence = GraphEvidence {
             graph: dag,
             edge_evidence: Arc::from(edge_evidence),
             links: Arc::from(links),
-            source: EvidenceSource::Discovery { algorithm: Arc::from("notears") },
+            source: EvidenceSource::Discovery { algorithm: Arc::from(ALGORITHM) },
         };
 
         let discovery = DiscoveryResult {
             evidence,
             review,
             algorithm: AlgorithmRecord {
-                id: Arc::from("notears"),
+                id: Arc::from(ALGORITHM),
                 config: Arc::from(format!(
                     "lambda={} threshold={} standardize={} max_iter={} h_tol={}{}",
                     self.lambda,
@@ -450,7 +478,7 @@ impl Notears {
                     self.constraints.knowledge_config()
                 )),
             },
-            assumptions: discovery_assumptions("notears", true),
+            assumptions: discovery_assumptions(ALGORITHM, true),
             iterations: Vec::<DiscoveryIteration>::new(),
             diagnostics: vec![DiscoveryDiagnostic {
                 code: Arc::from("notears.hard_threshold"),
@@ -462,8 +490,8 @@ impl Notears {
             }],
             performance: DiscoveryPerformanceRecord {
                 ci_tests: 0,
-                links_retained: u64::try_from(edge_count).unwrap_or(u64::MAX),
-                targets: u64::try_from(d).unwrap_or(u64::MAX),
+                links_retained: crate::pipeline::count_u64(edge_count)?,
+                targets: crate::pipeline::count_u64(d)?,
                 lagged_frame_bytes: 0,
                 worker_threads: 1,
             },
@@ -487,6 +515,15 @@ struct PairwiseFactor {
 /// Pairwise-available covariance (or correlation when `standardize`), repaired to positive
 /// semidefinite by clipping negative eigenvalues, factored so the NOTEARS least-squares score
 /// `tr((I-W)ᵀ S (I-W)) / 2` is evaluated on it exactly.
+/// Variable positions in a NOTEARS fit are dense indexes of the column list.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "dense node indices are bounded by the graph node limit, far below u32::MAX"
+)]
+fn dense_edge_ids(edges: &[(usize, usize, f64)]) -> Vec<(u32, u32)> {
+    edges.iter().map(|&(parent, child, _)| (parent as u32, child as u32)).collect()
+}
+
 fn pairwise_factor(
     columns: &[Arc<[f64]>],
     valid: &[Vec<bool>],
@@ -590,6 +627,17 @@ fn pairwise_accounting(
     out
 }
 
+/// The refusal for thresholded weights that contain a directed cycle.
+fn notears_cycle_refusal() -> String {
+    antecedent_graph::error::CyclicDagRefusal::unsupported(
+        antecedent_graph::error::DagOperation::Discovery,
+        ALGORITHM,
+        "thresholded weights that contain a directed cycle are not a DAG; read the feedback \
+         from CyclicDigraph::condensation. This search does not drop the weaker edges",
+    )
+    .to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -599,6 +647,22 @@ mod tests {
     use antecedent_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
     };
+
+    #[test]
+    fn candidate_edges_keep_required_edges_after_parent_limit() {
+        let variables = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+        let mut algorithm = Notears::new().with_threshold(0.5);
+        algorithm.constraints.max_parents = Some(1);
+        algorithm.constraints.required = Arc::from([LaggedLink {
+            source: variables[0],
+            source_lag: Lag::CONTEMPORANEOUS,
+            target: variables[2],
+            target_lag: Lag::CONTEMPORANEOUS,
+        }]);
+        let weights = [0.0, 0.0, 0.0, 0.0, 0.0, 0.9, 0.0, 0.0, 0.0];
+        let edges = algorithm.candidate_edges(&weights, &variables, &[false; 9]);
+        assert_eq!(edges, vec![(1, 2, 0.9), (0, 2, 1.0)]);
+    }
 
     /// Linear Gaussian SEM: X0 → X1 → X2.
     fn linear_chain(n: usize) -> (TabularData, Vec<VariableId>) {

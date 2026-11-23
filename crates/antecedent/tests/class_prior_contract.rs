@@ -1,6 +1,6 @@
 //! Class-prior contract: not enumeration, not a graph posterior.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{BayesianConfig, ClassPrior, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{ExecutionContext, Lag, TemporalEffectQuery, VariableId};
@@ -68,7 +68,9 @@ fn class_prior_conflicts_with_graph_posterior() {
         .bootstrap_replicates(0)
         .build()
         .unwrap_err();
-    assert!(err.to_string().contains("class_prior"), "{err}");
+    let message = err.to_string();
+    assert!(message.contains("conflicting configuration for class_prior"), "{message}");
+    assert!(message.contains("distinct structural-mass contracts"), "{message}");
 }
 
 #[test]
@@ -99,7 +101,8 @@ fn temporal_cpdag_graph_posterior_stays_refused() {
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
         .build();
-    assert!(both.is_err(), "graph and graph_posterior must stay exclusive");
+    let conflict = both.err().expect("graph and graph_posterior must stay exclusive").to_string();
+    assert!(conflict.contains("both .graph(..) and .graph_posterior(..) were set"), "{conflict}");
     let err = Study::series(series())
         .graph_posterior(posterior)
         .query(pulse())
@@ -111,11 +114,12 @@ fn temporal_cpdag_graph_posterior_stays_refused() {
         .run(&ExecutionContext::for_tests(1));
     // A stub posterior without lag masks still refuses; completions are not
     // posterior atoms.
-    assert!(err.is_err(), "{err:?}");
+    let refusal = err.expect_err("a stub posterior without lag masks must refuse").to_string();
+    assert!(refusal.contains("DBN posterior missing per-atom lag masks"), "{refusal}");
 }
 
 #[test]
-fn temporal_cpdag_graph_posterior_with_lag_masks_licenses_pulse() {
+fn temporal_cpdag_graph_posterior_with_lag_masks_supports_pulse() {
     use antecedent::CellStatus;
     use antecedent_discovery::{GraphPosteriorAtomKind, set_edge};
 
@@ -149,7 +153,7 @@ fn temporal_cpdag_graph_posterior_with_lag_masks_licenses_pulse() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    assert_eq!(study.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(study.support_status(), Some(CellStatus::Supported));
     let result = study.run(&ctx).unwrap();
     assert!(result.structural_response.is_some());
 }

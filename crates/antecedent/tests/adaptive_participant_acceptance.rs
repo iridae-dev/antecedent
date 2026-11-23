@@ -14,7 +14,7 @@
 //! the expected losses and exceedances the readings themselves report, and coverage with the
 //! simulated truth.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,
@@ -32,7 +32,7 @@ use antecedent::analysis::adaptive_inference::{
 use antecedent::analysis::adaptive_participant_procedure::ParticipantProcedure;
 use antecedent_core::{CancellationToken, ExecutionContext};
 use antecedent_stats::adaptive_inference::{
-    AnytimeSettings, ArmPrior, BetaPrior, BorrowingPlan, DERIVED_UNMEASURED, DecisionRules,
+    AnytimeSettings, ArmPrior, BetaPrior, BorrowingPlan, DERIVED_NOT_MEASURED, DecisionRules,
     FutilityRule, HistoricalPrior, LookDecision, LookReading, ParticipantDeclaration,
     ParticipantHistory, ParticipantSimulationRequest, StopReason,
 };
@@ -146,7 +146,7 @@ fn procedure_runs_to_a_declared_stop(participants: u32, batch: u32, seed: u64) {
     let shape = Shape { participants, batch, arms: 4, responses: 3, lag: 1 };
     let p = procedure(&shape, rules(LOSS_THRESHOLD), uniform(4));
     let report = p.run(&truth(4), Some(CORRELATION), seed, &ctx()).expect("the procedure runs");
-    assert_eq!(report.calibration, DERIVED_UNMEASURED);
+    assert_eq!(report.calibration, DERIVED_NOT_MEASURED);
     let run = &report.run;
     assert!(run.complete, "a run nobody cancelled reaches its stop");
     assert_eq!(run.looks_planned, shape.looks());
@@ -318,22 +318,28 @@ fn adaptive_artifact_size_limit_distinct_refusal() {
     let refusal =
         refused(session.export_contract_with_procedure_within(paradigm, &p, "trial", budget));
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "adaptive_inference.artifact_size_exceeded");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::ARTIFACT_SIZE_EXCEEDED
+    );
     assert!(refusal.message.contains(&full.len().to_string()), "{}", refusal.message);
     assert!(refusal.message.contains(&budget.to_string()), "{}", refusal.message);
     assert!(refusal.message.contains("export budget"), "{}", refusal.message);
     assert!(refusal.message.contains("run is complete"), "{}", refusal.message);
     for other in [
-        "adaptive_inference.retained_record_exceeded",
-        "adaptive_inference.simulation_memory_exceeded",
-        "adaptive_inference.simulation_work_exceeded",
-        "adaptive_inference.declared_units_exceeded",
-        "adaptive_inference.exact_law_states_exceeded",
+        antecedent_core::reason_details::adaptive_inference::RETAINED_RECORD_EXCEEDED,
+        antecedent_core::reason_details::adaptive_inference::SIMULATION_MEMORY_EXCEEDED,
+        antecedent_core::reason_details::adaptive_inference::SIMULATION_WORK_EXCEEDED,
+        antecedent_core::reason_details::adaptive_inference::DECLARED_UNITS_EXCEEDED,
+        antecedent_core::reason_details::adaptive_inference::EXACT_LAW_STATES_EXCEEDED,
     ] {
         assert_ne!(refusal.detail, other, "the artifact limit is not a limit of the run");
     }
     let tiny = refused(session.export_contract_with_procedure_within(paradigm, &p, "trial", 1_024));
-    assert_eq!(tiny.detail, "adaptive_inference.artifact_size_exceeded");
+    assert_eq!(
+        tiny.detail,
+        antecedent_core::reason_details::adaptive_inference::ARTIFACT_SIZE_EXCEEDED
+    );
 
     // The refusal leaves the run and its procedure untouched: the history still reads, and the
     // artifact still exports and is consumed by replay.
@@ -493,7 +499,10 @@ fn adaptive_borrowing_frozen_before_recruitment() {
     for looks in [1, performed] {
         let frozen = refused(p.amend_borrowing(&other, looks));
         assert_eq!(frozen.code, "adaptive_assumption_violated");
-        assert_eq!(frozen.detail, "adaptive_inference.borrowing_frozen");
+        assert_eq!(
+            frozen.detail,
+            antecedent_core::reason_details::adaptive_inference::BORROWING_FIXED_AFTER_FIRST_LOOK
+        );
         assert!(frozen.message.contains("frozen"), "{}", frozen.message);
     }
     // Re-declaring the same plan is no change.
@@ -505,7 +514,10 @@ fn adaptive_borrowing_frozen_before_recruitment() {
     // A procedure with another plan cannot read the history that ran under this one: the
     // allocation it produced does not replay.
     let replay = refused(amended.read_history(&run.history, &ctx()));
-    assert_eq!(replay.detail, "adaptive_inference.assignment_not_replayed");
+    assert_eq!(
+        replay.detail,
+        antecedent_core::reason_details::adaptive_inference::ASSIGNMENT_NOT_REPLAYED
+    );
 }
 
 // -- The minimum exploration probability ---------------------------------------------------------------
@@ -530,10 +542,12 @@ fn adaptive_minimum_exploration_enforced() {
         dominated_arm.iter().any(|&q| (q - FLOOR).abs() < 1e-9),
         "the dominated arm sits on the floor at some look"
     );
-    // The arm keeps being assigned: roughly a tenth of the later participants.
+    // The arm keeps being assigned at the floor, a tenth of the later participants: 1,100 draws
+    // give a binomial standard error of 0.009 and the fixed seed observes 0.111, so the window
+    // [0.09, 0.13] excludes a floor of 0.07 or 0.2 that the former [0.07, 0.2) admitted.
     let later = &history.arms[100..];
     let share = later.iter().filter(|&&arm| arm == 0).count() as f64 / later.len() as f64;
-    assert!((0.07..0.2).contains(&share), "share of the dominated arm {share}");
+    assert!((0.09..0.13).contains(&share), "share of the dominated arm {share}");
     // Each posterior probability of being best is far below the floor for the dominated arm, so
     // it is the floor, not the data, that keeps the arm in the trial.
     let last = run.readings.last().unwrap();
@@ -543,7 +557,10 @@ fn adaptive_minimum_exploration_enforced() {
     let mut too_high = declaration(&shape, rules(NEVER), uniform(4));
     too_high.min_exploration = Some(0.3);
     let refusals = ParticipantProcedure::declare(too_high).unwrap_err();
-    assert_eq!(refusals[0].detail, "adaptive_inference.rule_mismatch");
+    assert_eq!(
+        refusals[0].detail,
+        antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH
+    );
 }
 
 // -- Decisions at completed-participant batch boundaries -----------------------------------------------
@@ -657,23 +674,32 @@ fn adaptive_partial_participant_batch_refused() {
     }
     let refusal = refused(p.read_history(&partial, &ctx()));
     assert_eq!(refusal.code, "adaptive_assumption_violated");
-    assert_eq!(refusal.detail, "adaptive_inference.batch_incomplete");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::BATCH_INCOMPLETE
+    );
     assert!(refusal.message.contains("participants without complete responses"));
     assert!(refusal.message.contains("never on a partial batch"));
     // The same history cannot be retained as a contract either.
     let retained = refused(p.retained_declaration("partial", labels(4), &partial, &ctx()));
-    assert_eq!(retained.detail, "adaptive_inference.batch_incomplete");
+    assert_eq!(
+        retained.detail,
+        antecedent_core::reason_details::adaptive_inference::BATCH_INCOMPLETE
+    );
     // One incomplete participant is enough.
     let mut one = run.history.clone();
     one.successes[49] = None;
-    assert_eq!(refused(p.read_history(&one, &ctx())).detail, "adaptive_inference.batch_incomplete");
+    assert_eq!(
+        refused(p.read_history(&one, &ctx())).detail,
+        antecedent_core::reason_details::adaptive_inference::BATCH_INCOMPLETE
+    );
     // A participant reported complete before the delay elapsed is a different disagreement.
     let mut early = run.history.clone();
     let last = early.successes.len() - 1;
     early.successes[last] = Some(1);
     assert_ne!(
         refused(p.read_history(&early, &ctx())).detail,
-        "adaptive_inference.batch_incomplete"
+        antecedent_core::reason_details::adaptive_inference::BATCH_INCOMPLETE
     );
 }
 
@@ -721,7 +747,7 @@ fn adaptive_confidence_sequence_reported_at_every_look() {
         assert_eq!(reading.look, look);
         let f = &reading.frequentist;
         assert_eq!(f.paradigm, "anytime_valid_frequentist");
-        assert_eq!(f.calibration, DERIVED_UNMEASURED);
+        assert_eq!(f.calibration, DERIVED_NOT_MEASURED);
         assert_eq!(f.sequence, "predictable_plug_in_empirical_bernstein");
         assert!((f.alpha - ALPHA).abs() < 1e-15);
         assert!((f.alpha_per_arm - per_arm).abs() < 1e-15);
@@ -907,7 +933,7 @@ fn adaptive_posterior_and_frequentist_claims_separate() {
         // Two claims, two fields, two paradigms.
         assert_eq!(reading.posterior.paradigm, "bayesian_posterior");
         assert_eq!(reading.frequentist.paradigm, "anytime_valid_frequentist");
-        assert_eq!(reading.frequentist.calibration, DERIVED_UNMEASURED);
+        assert_eq!(reading.frequentist.calibration, DERIVED_NOT_MEASURED);
         assert_eq!(reading.posterior.mean.len(), 4);
         assert_eq!(reading.frequentist.arms.len(), 4);
     }

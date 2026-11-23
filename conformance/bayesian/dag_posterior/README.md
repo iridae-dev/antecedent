@@ -17,3 +17,11 @@ known-truth evidence; no external package generated these values.
 The CI-screened engine's screened space on the collider leaves a single graph,
 so its chains never move and its MCMC publication gate refuses that posterior;
 the test checks the collider posterior with that gate off.
+
+The minimum masses sit just below the exact BIC posterior: an independent
+enumeration of all 25 three-node DAGs (weights from residual sums of squares and the
+BIC penalty; uniform prior) gives skeleton mass 1 on the chain, 0.876 on each
+collider arrow, and the exact engine must reproduce those marginals to 1e-6. The
+sampling engines must stay within 0.06 of the enumeration, and the CI-screened
+engine, whose screened space drops graphs, must keep the edges the full posterior
+puts at least half its mass on.

@@ -6,7 +6,7 @@
 //! ordered containers, so declaration order never changes an identity, a
 //! topological order or a classification.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -14,16 +14,22 @@ use std::fmt;
 use antecedent_core::{CanonicalWriter, SemanticDigest};
 
 use crate::evidence_ledger::SourceId;
+use antecedent_core::named_variants;
 
 /// Version word written into every graph identity.
 pub const COMPOSITION_GRAPH_VERSION: u64 = 1;
-/// Most nodes in one graph.
+// The sizes below are the defaults that decoders of untrusted graph records apply to their own
+// input. Building a graph costs time proportional to what is declared (a cycle check per edge),
+// so the graph itself refuses no declaration on size.
+
+/// Default bound on nodes in a graph record that a decoder of untrusted input applies.
 pub const MAX_NODES: usize = 512;
-/// Most edges in one graph.
+/// Default bound on edges in a graph record that a decoder of untrusted input applies.
 pub const MAX_EDGES: usize = 4_096;
-/// Most assumptions, unsupported coordinates or evidence sources on one node.
+/// Default bound on assumptions, unsupported coordinates or evidence sources per node that a
+/// decoder of untrusted input applies.
 pub const MAX_ITEMS_PER_NODE: usize = 64;
-/// Longest text field in bytes.
+/// Default bound on a text field, in bytes, that a decoder of untrusted input applies.
 pub const MAX_TEXT_BYTES: usize = 1_024;
 
 /// What a node stands for.
@@ -56,48 +62,24 @@ pub enum NodeKind {
     Claim,
 }
 
+named_variants! {
+    NodeKind {
+        CohortSource => "cohort_source",
+        Data => "data",
+        MeasurementModel => "measurement_model",
+        MechanismComposition => "mechanism_composition",
+        Bridge => "bridge",
+        LedgerResult => "ledger_result",
+        TransportedResult => "transported_result",
+        Decision => "decision",
+        ExternalProvider => "external_provider",
+        SelectionDiagram => "selection_diagram",
+        TargetPopulation => "target_population",
+        Claim => "claim",
+    }
+}
+
 impl NodeKind {
-    /// Every kind, in declaration order.
-    pub const ALL: [Self; 12] = [
-        Self::CohortSource,
-        Self::Data,
-        Self::MeasurementModel,
-        Self::MechanismComposition,
-        Self::Bridge,
-        Self::LedgerResult,
-        Self::TransportedResult,
-        Self::Decision,
-        Self::ExternalProvider,
-        Self::SelectionDiagram,
-        Self::TargetPopulation,
-        Self::Claim,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::CohortSource => "cohort_source",
-            Self::Data => "data",
-            Self::MeasurementModel => "measurement_model",
-            Self::MechanismComposition => "mechanism_composition",
-            Self::Bridge => "bridge",
-            Self::LedgerResult => "ledger_result",
-            Self::TransportedResult => "transported_result",
-            Self::Decision => "decision",
-            Self::ExternalProvider => "external_provider",
-            Self::SelectionDiagram => "selection_diagram",
-            Self::TargetPopulation => "target_population",
-            Self::Claim => "claim",
-        }
-    }
-
-    /// Parse a wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
-    }
-
     /// Whether the node is a boundary transformation (it changes the meaning,
     /// population or representation of what flows through it).
     #[must_use]
@@ -134,36 +116,15 @@ pub enum DependencyKind {
     StructuralDerivation,
 }
 
-impl DependencyKind {
-    /// Every kind, in declaration order.
-    pub const ALL: [Self; 7] = [
-        Self::Data,
-        Self::Evidence,
-        Self::ModelVersion,
-        Self::Support,
-        Self::ProviderTrust,
-        Self::Calibration,
-        Self::StructuralDerivation,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Data => "data",
-            Self::Evidence => "evidence",
-            Self::ModelVersion => "model_version",
-            Self::Support => "support",
-            Self::ProviderTrust => "provider_trust",
-            Self::Calibration => "calibration",
-            Self::StructuralDerivation => "structural_derivation",
-        }
-    }
-
-    /// Parse a wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
+named_variants! {
+    DependencyKind {
+        Data => "data",
+        Evidence => "evidence",
+        ModelVersion => "model_version",
+        Support => "support",
+        ProviderTrust => "provider_trust",
+        Calibration => "calibration",
+        StructuralDerivation => "structural_derivation",
     }
 }
 
@@ -172,7 +133,7 @@ impl DependencyKind {
 pub enum SupportStanding {
     /// Every coordinate the node answers lies inside its support.
     Supported,
-    /// These coordinates lie outside the support. The node is not licensed.
+    /// These coordinates lie outside the support. The node is not supported.
     Unsupported {
         /// Named coordinates (sorted, distinct, non-empty).
         coordinates: Vec<String>,
@@ -190,30 +151,20 @@ pub enum TrustStanding {
     /// The provider's trust no longer holds (replaced, unverified, revoked).
     Withdrawn,
     /// The producer did not state whether trust holds. Unknown standing is not
-    /// a license: the node is withdrawn for provider trust until it is stated.
+    /// support: the node is withdrawn for provider trust until it is stated.
     Undeclared,
 }
 
+named_variants! {
+    TrustStanding {
+        NotApplicable => "not_applicable",
+        Held => "held",
+        Withdrawn => "withdrawn",
+        Undeclared => "undeclared",
+    }
+}
+
 impl TrustStanding {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::NotApplicable => "not_applicable",
-            Self::Held => "held",
-            Self::Withdrawn => "withdrawn",
-            Self::Undeclared => "undeclared",
-        }
-    }
-
-    /// Parse a wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::NotApplicable, Self::Held, Self::Withdrawn, Self::Undeclared]
-            .into_iter()
-            .find(|standing| standing.as_str() == name)
-    }
-
     /// The standing of a provider at a verification level. An unverified
     /// provider holds no trust; every other level holds the trust it was
     /// granted. Metadata never raises the level.
@@ -258,7 +209,7 @@ pub enum CalibrationDeclaration {
 /// uncertainty guarantee it states.
 ///
 /// A producing route states all three explicitly when it builds a node, so
-/// that reusing a stage artifact never reads as a license by default. A route
+/// that reusing a stage artifact never reads as support by default. A route
 /// that cannot state one uses [`Self::undeclared`], which is refused rather
 /// than assumed fine.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -488,7 +439,8 @@ pub enum GraphError {
         /// The node depended on.
         upstream: String,
     },
-    /// A bound was exceeded.
+    /// A caller-imposed bound was exceeded. The graph itself imposes none; decoders of
+    /// untrusted records report their own bound with this variant.
     LimitExceeded(&'static str),
     /// An unsupported node declares no coordinates.
     EmptyUnsupported(String),
@@ -514,7 +466,7 @@ impl fmt::Display for GraphError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidText(what) => {
-                write!(f, "composition_verification.invalid_text: {what} is blank or too long")
+                write!(f, "composition_verification.invalid_text: {what} is blank")
             }
             Self::DuplicateNode(key) => {
                 write!(f, "composition_verification.duplicate_node: {key} is declared twice")
@@ -550,11 +502,7 @@ impl fmt::Display for GraphError {
 impl std::error::Error for GraphError {}
 
 fn text(value: &str, what: &'static str) -> Result<(), GraphError> {
-    if value.trim().is_empty() || value.len() > MAX_TEXT_BYTES {
-        Err(GraphError::InvalidText(what))
-    } else {
-        Ok(())
-    }
+    if value.trim().is_empty() { Err(GraphError::InvalidText(what)) } else { Ok(()) }
 }
 
 fn digest(writer: &CanonicalWriter) -> SemanticDigest {
@@ -579,7 +527,7 @@ impl CompositionGraph {
     /// stored sorted and distinct, so declaration order carries no meaning.
     ///
     /// # Errors
-    /// A malformed or duplicate node, or a bound exceeded.
+    /// A malformed or duplicate node.
     pub fn add_node(&mut self, mut node: CompositionNode) -> Result<(), GraphError> {
         text(&node.key, "node key")?;
         if let Some(version) = &node.representation {
@@ -600,9 +548,6 @@ impl CompositionGraph {
             if coordinates.is_empty() {
                 return Err(GraphError::EmptyUnsupported(node.key));
             }
-            if coordinates.len() > MAX_ITEMS_PER_NODE {
-                return Err(GraphError::LimitExceeded("unsupported coordinates"));
-            }
         }
         if let CalibrationDeclaration::Inherited { from, .. } = &node.calibration {
             text(from, "calibration source")?;
@@ -611,14 +556,8 @@ impl CompositionGraph {
         node.assumptions.dedup();
         node.evidence.sort_unstable();
         node.evidence.dedup();
-        if node.assumptions.len() > MAX_ITEMS_PER_NODE || node.evidence.len() > MAX_ITEMS_PER_NODE {
-            return Err(GraphError::LimitExceeded("items on one node"));
-        }
         if self.nodes.contains_key(&node.key) {
             return Err(GraphError::DuplicateNode(node.key));
-        }
-        if self.nodes.len() >= MAX_NODES {
-            return Err(GraphError::LimitExceeded("nodes"));
         }
         self.nodes.insert(node.key.clone(), node);
         Ok(())
@@ -628,7 +567,7 @@ impl CompositionGraph {
     /// twice is a no-op.
     ///
     /// # Errors
-    /// An unknown node, a self-dependency, a cycle or a bound exceeded.
+    /// An unknown node, a self-dependency or a cycle.
     pub fn add_edge(
         &mut self,
         downstream: &str,
@@ -654,9 +593,6 @@ impl CompositionGraph {
             upstream: upstream.to_owned(),
             kind,
         };
-        if !self.edges.contains(&edge) && self.edges.len() >= MAX_EDGES {
-            return Err(GraphError::LimitExceeded("edges"));
-        }
         self.edges.insert(edge);
         Ok(())
     }
@@ -692,11 +628,19 @@ impl CompositionGraph {
     /// The dependencies of `key`: `(upstream, kind)` in canonical order.
     #[must_use]
     pub fn dependencies(&self, key: &str) -> Vec<(&str, DependencyKind)> {
-        self.edges
-            .iter()
-            .filter(|edge| edge.downstream == key)
-            .map(|edge| (edge.upstream.as_str(), edge.kind))
-            .collect()
+        self.edges_of(key).map(|edge| (edge.upstream.as_str(), edge.kind)).collect()
+    }
+
+    /// The edges whose downstream is `key`, in canonical order. Edges sort by downstream
+    /// first, so this is a range read rather than a scan of every edge.
+    fn edges_of<'a>(&'a self, key: &str) -> impl Iterator<Item = &'a CompositionEdge> + 'a {
+        let start = CompositionEdge {
+            downstream: key.to_owned(),
+            upstream: String::new(),
+            kind: DependencyKind::Data,
+        };
+        let key = key.to_owned();
+        self.edges.range(start..).take_while(move |edge| edge.downstream == key)
     }
 
     /// Everything `key` depends on, directly or not (excluding `key`).
@@ -705,7 +649,7 @@ impl CompositionGraph {
         let mut seen: BTreeSet<&str> = BTreeSet::new();
         let mut stack = vec![key];
         while let Some(current) = stack.pop() {
-            for edge in self.edges.iter().filter(|edge| edge.downstream == current) {
+            for edge in self.edges_of(current) {
                 if seen.insert(edge.upstream.as_str()) {
                     stack.push(edge.upstream.as_str());
                 }
@@ -722,7 +666,7 @@ impl CompositionGraph {
             .nodes
             .keys()
             .map(|key| {
-                let count = self.edges.iter().filter(|e| e.downstream == *key).count();
+                let count = self.edges_of(key).count();
                 (key.as_str(), count)
             })
             .collect();

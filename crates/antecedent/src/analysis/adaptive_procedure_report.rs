@@ -13,20 +13,20 @@
 //!   the order-dependent weighted estimator.
 //! * [`AdaptiveProcedure::report`]: one paradigm's statement. Each paradigm
 //!   has a validity premise the declared procedure must meet; when it does
-//!   not the request is refused with `cell_not_licensed` and the premise's
+//!   not the request is refused with `adaptive_assumption_violated` and the premise's
 //!   `adaptive_inference.*` detail, and nothing is computed.
 //!
-//! Every result is labelled `derived_unmeasured`: the numbers are exact (or
+//! Every result is labelled `derived_not_measured`: the numbers are exact (or
 //! simulated with a reported Monte Carlo error) under the stated model, and no
-//! interval or coverage licence follows until the whole-procedure coverage is
+//! interval or coverage support follows until the whole-procedure coverage is
 //! measured.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_stats::adaptive_inference::{
     AdaptiveInferenceError, AnalysisEstimator, AnytimeReport, AssignmentRule, BayesianReport,
-    BetaPrior, CellLabel, DERIVED_UNMEASURED, DecisionReport, Estimand, EstimandStatement,
+    BetaPrior, CellLabel, DERIVED_NOT_MEASURED, DecisionReport, Estimand, EstimandStatement,
     EstimatorLaw, Functional, GaussianMixtureLaw, InversionGrid, InversionInterval,
     ObservedTerminal, OrderingPValues, OutcomeKernel, PosteriorMeanGap, ProcedureLaw,
     RepeatedMeasuresDeclaration, RepeatedMeasuresDerivation, RepeatedMeasuresRequest,
@@ -194,7 +194,7 @@ pub struct ProcedureReport {
     pub contract_identity: Option<String>,
     /// What the arm-level quantity is.
     pub estimand: EstimandStatement,
-    /// Always `derived_unmeasured`.
+    /// Always `derived_not_measured`.
     pub calibration: &'static str,
     /// The numbers.
     pub body: ProcedureReportBody,
@@ -208,7 +208,7 @@ pub struct ProcedureReport {
 pub struct ProcedureLawReport {
     /// Identity (hex) of the declared procedure.
     pub procedure_identity: String,
-    /// Always `derived_unmeasured`.
+    /// Always `derived_not_measured`.
     pub calibration: &'static str,
     /// The terminal atoms and work accounting.
     pub law: ProcedureLaw,
@@ -219,7 +219,7 @@ pub struct ProcedureLawReport {
 pub struct ProcedureSimulationReport {
     /// Identity (hex) of the declared procedure.
     pub procedure_identity: String,
-    /// Always `derived_unmeasured`.
+    /// Always `derived_not_measured`.
     pub calibration: &'static str,
     /// The replicates.
     pub law: SimulatedLaw,
@@ -227,51 +227,63 @@ pub struct ProcedureSimulationReport {
 
 fn premise_remedy(detail: &str) -> &'static str {
     match detail {
-        "adaptive_inference.posterior_premise_outcome_dependent_delay" => {
+        antecedent_core::reason_details::adaptive_inference::POSTERIOR_PREMISE_OUTCOME_DEPENDENT_DELAY => {
             "model the outcome-dependent loss explicitly (a selection model) or use a route that does not condition on observed counts alone"
         }
-        "adaptive_inference.fixed_sample_design_adaptive" => {
+        antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_DESIGN_ADAPTIVE => {
             "analyse an adaptive procedure with the posterior, adaptive-weighting or anytime-valid paradigm"
         }
-        "adaptive_inference.fixed_sample_data_dependent_stopping" => {
+        antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_DATA_DEPENDENT_STOPPING => {
             "analyse a stopped procedure with a paradigm that accounts for the stopping time"
         }
-        "adaptive_inference.group_sequential_assignment_adaptive" => {
+        antecedent_core::reason_details::adaptive_inference::GROUP_SEQUENTIAL_ASSIGNMENT_ADAPTIVE => {
             "use a fixed assignment with pre-specified boundaries, or a paradigm valid under adaptive assignment"
         }
-        "adaptive_inference.outcome_dependent_delay" => {
+        antecedent_core::reason_details::adaptive_inference::OUTCOME_DEPENDENT_DELAY => {
             "declare an ignorable delay and loss, or model the dependence of loss on the outcome"
         }
-        "adaptive_inference.anytime_premise_contexts" => {
+        antecedent_core::reason_details::adaptive_inference::ANYTIME_PREMISE_CONTEXTS => {
             "analyse one context at a time with a fixed within-context assignment, or use a paradigm for contextual assignment"
         }
-        "adaptive_inference.inversion_premise_contexts" => "declare a single-context procedure",
-        "adaptive_inference.independence_assumed_for_dependent_measurements" => {
+        antecedent_core::reason_details::adaptive_inference::INVERSION_PREMISE_CONTEXTS => "declare a single-context procedure",
+        antecedent_core::reason_details::adaptive_inference::INDEPENDENCE_ASSUMED_FOR_DEPENDENT_MEASUREMENTS => {
             "analyse the unit-level summaries with a cluster-robust variance, or declare the within-unit dependence as zero if the measurements are independent"
         }
-        "adaptive_inference.repeated_measures_paradigm_not_derived" => {
+        antecedent_core::reason_details::adaptive_inference::REPEATED_MEASURES_PARADIGM_NOT_DERIVED => {
             "request the fixed-sample paradigm for a fixed assignment or the adaptive-weighting paradigm for an adaptive one; other paradigms are separate cells that are not derived for repeated measures"
         }
-        "adaptive_inference.analysis_route_mismatch" => {
+        antecedent_core::reason_details::adaptive_inference::PARADIGM_RULE_MISMATCH => {
+            "declare the stopping rule the paradigm presumes: boundaries over the looks for group-sequential inference, a posterior expected-loss or futility rule for decision-theoretic stopping"
+        }
+        antecedent_core::reason_details::adaptive_inference::ANALYSIS_ROUTE_MISMATCH => {
             "declare the final analysis whose route is the requested paradigm's"
         }
-        "adaptive_inference.guarantee_not_transferable" => {
+        antecedent_core::reason_details::adaptive_inference::GUARANTEE_NOT_TRANSFERABLE => {
             "derive the guarantee for the cell in question; evidence for one cell is not evidence for another"
         }
-        "adaptive_inference.exact_law_unavailable" => {
+        antecedent_core::reason_details::adaptive_inference::EXACT_LAW_UNAVAILABLE => {
             "use the simulated whole-procedure law, which has no closed form for an adaptive assignment or a weighted score"
         }
-        "adaptive_inference.borrowing_frozen" => {
+        antecedent_core::reason_details::adaptive_inference::BORROWING_FIXED_AFTER_FIRST_LOOK => {
             "declare the borrowing before recruitment and keep it: a new borrowing plan is a new declaration, not an amendment of a procedure that has made a look"
         }
-        "adaptive_inference.assignment_not_replayed" => {
+        antecedent_core::reason_details::adaptive_inference::ASSIGNMENT_NOT_REPLAYED => {
             "retain the allocation probabilities the declared procedure computed, or declare the priors, correlation, exploration floor and decisions the procedure actually ran under"
         }
-        "adaptive_inference.stopping_not_replayed" => {
+        antecedent_core::reason_details::adaptive_inference::STOPPING_NOT_REPLAYED => {
             "retain the looks the declared decisions performed, or declare the decisions the procedure actually ran under"
         }
-        "adaptive_inference.batch_incomplete" => {
+        antecedent_core::reason_details::adaptive_inference::BATCH_INCOMPLETE => {
             "retain the responses of every participant of a batch whose follow-up has elapsed, or end the history at the last batch whose participants all completed"
+        }
+        antecedent_core::reason_details::adaptive_inference::SELECTION_NOT_IGNORABLE => {
+            "model the selection jointly with the outcome, or randomize independently of unobserved quantities"
+        }
+        antecedent_core::reason_details::adaptive_inference::ARM_NOT_OBSERVED => {
+            "observe a completed unit in both contrast arms; a prior alone does not identify the contrast"
+        }
+        antecedent_core::reason_details::adaptive_inference::STRUCTURE_INCOMPLETE => {
+            "declare the within-unit variance and a valid correlation or hierarchy"
         }
         _ => {
             "declare a procedure that meets the paradigm's premise, or choose the paradigm the procedure meets"
@@ -280,12 +292,12 @@ fn premise_remedy(detail: &str) -> &'static str {
 }
 
 /// Details whose premise is an assumption of the retained history or of a
-/// frozen declaration, not the licence of a cell.
+/// frozen declaration, not the support of a cell.
 const ASSUMPTION_DETAILS: [&str; 4] = [
-    "adaptive_inference.borrowing_frozen",
-    "adaptive_inference.assignment_not_replayed",
-    "adaptive_inference.stopping_not_replayed",
-    "adaptive_inference.batch_incomplete",
+    antecedent_core::reason_details::adaptive_inference::BORROWING_FIXED_AFTER_FIRST_LOOK,
+    antecedent_core::reason_details::adaptive_inference::ASSIGNMENT_NOT_REPLAYED,
+    antecedent_core::reason_details::adaptive_inference::STOPPING_NOT_REPLAYED,
+    antecedent_core::reason_details::adaptive_inference::BATCH_INCOMPLETE,
 ];
 
 /// Map a numerical refusal to the facade's coded refusal.
@@ -308,7 +320,8 @@ pub(super) fn refusal_of(error: &AdaptiveInferenceError) -> AdaptiveInferenceRef
         AdaptiveInferenceError::Positivity { unit, arm, probability, floor } => {
             AdaptiveInferenceRefusal {
                 code: antecedent_core::reason_code!("adaptive_assumption_violated"),
-                detail: "adaptive_inference.positivity_floor".to_owned(),
+                detail: antecedent_core::reason_details::adaptive_inference::POSITIVITY_FLOOR
+                    .to_owned(),
                 message: format!(
                     "arm {arm} had assignment probability {probability} below the floor {floor} at unit {unit} of the simulated procedure: the weighted estimator is not supported under a deterministic or near-deterministic rule; use a randomized assignment"
                 ),
@@ -316,25 +329,27 @@ pub(super) fn refusal_of(error: &AdaptiveInferenceError) -> AdaptiveInferenceRef
         }
         AdaptiveInferenceError::Limit(what) => AdaptiveInferenceRefusal {
             code: antecedent_core::reason_code!("invalid_argument"),
-            detail: "adaptive_inference.procedure_limit_exceeded".to_owned(),
+            detail: antecedent_core::reason_details::adaptive_inference::PROCEDURE_LIMIT_EXCEEDED
+                .to_owned(),
             message: format!(
                 "{what}; reduce the units, looks, cells or delay of the declared procedure, or use the simulation route"
             ),
         },
         AdaptiveInferenceError::Numerical(what) => AdaptiveInferenceRefusal {
             code: antecedent_core::reason_code!("invalid_argument"),
-            detail: "adaptive_inference.numerical_failure".to_owned(),
+            detail: antecedent_core::reason_details::adaptive_inference::NUMERICAL_FAILURE
+                .to_owned(),
             message: format!("{what}; no value is reported"),
         },
         AdaptiveInferenceError::Cancelled => AdaptiveInferenceRefusal {
             code: antecedent_core::reason_code!("cancelled_no_claim"),
-            detail: "adaptive_inference.cancelled".to_owned(),
+            detail: antecedent_core::reason_details::adaptive_inference::CANCELLED.to_owned(),
             message: "cancelled before a result was formed; this is not a verdict on the data"
                 .to_owned(),
         },
         other => AdaptiveInferenceRefusal {
             code: antecedent_core::reason_code!("invalid_argument"),
-            detail: "adaptive_inference.input_invalid".to_owned(),
+            detail: antecedent_core::reason_details::adaptive_inference::INPUT_INVALID.to_owned(),
             message: other.to_string(),
         },
     }
@@ -360,7 +375,7 @@ impl AdaptiveProcedure {
         .map_err(|e| refusal_of(&e))?;
         Ok(ProcedureLawReport {
             procedure_identity: self.identity().to_owned(),
-            calibration: DERIVED_UNMEASURED,
+            calibration: DERIVED_NOT_MEASURED,
             law,
         })
     }
@@ -387,7 +402,7 @@ impl AdaptiveProcedure {
             .map_err(|e| refusal_of(&e))?;
         Ok(ProcedureSimulationReport {
             procedure_identity: self.identity().to_owned(),
-            calibration: DERIVED_UNMEASURED,
+            calibration: DERIVED_NOT_MEASURED,
             law,
         })
     }
@@ -395,7 +410,7 @@ impl AdaptiveProcedure {
     /// One paradigm's derived statement.
     ///
     /// # Errors
-    /// `cell_not_licensed` with the premise's detail when the declared
+    /// `adaptive_assumption_violated` with the premise's detail when the declared
     /// procedure does not meet the paradigm's premise; otherwise the shape,
     /// limit, positivity or cancellation refusal of the derivation.
     #[allow(
@@ -458,7 +473,7 @@ impl AdaptiveProcedure {
                 admit(spec, UncertaintyParadigm::FrequentistGroupSequential).map_err(fail)?;
                 let StoppingRule::WaldBoundaries { critical, sidedness } = spec.stopping() else {
                     return Err(refusal_of(&AdaptiveInferenceError::PremiseFailed {
-                        detail: "adaptive_inference.rule_mismatch",
+                        detail: antecedent_core::reason_details::adaptive_inference::PARADIGM_RULE_MISMATCH,
                         message: "group-sequential inference needs declared boundaries over the looks",
                     }));
                 };
@@ -544,7 +559,7 @@ impl AdaptiveProcedure {
             procedure_identity: self.identity().to_owned(),
             contract_identity: self.contract_identity().map(str::to_owned),
             estimand,
-            calibration: DERIVED_UNMEASURED,
+            calibration: DERIVED_NOT_MEASURED,
             body,
             receipt,
         })
@@ -695,7 +710,7 @@ pub struct RepeatedMeasuresReport {
     pub cell: CellLabel,
     /// Name of the analysis route (cluster-robust, pooled, weighted).
     pub route: &'static str,
-    /// Always `derived_unmeasured`.
+    /// Always `derived_not_measured`.
     pub calibration: &'static str,
     /// The numbers.
     pub body: RepeatedMeasuresReportBody,
@@ -824,7 +839,7 @@ impl RepeatedMeasuresProcedure {
     /// One statement about the procedure.
     ///
     /// # Errors
-    /// `cell_not_licensed` with the premise's detail (a fixed-sample analysis
+    /// `adaptive_assumption_violated` with the premise's detail (a fixed-sample analysis
     /// after adaptive assignment, an independence assumption for dependent
     /// measurements, an undeclared paradigm, a cell transfer), or the
     /// derivation's shape, limit, positivity or cancellation refusal.
@@ -876,7 +891,7 @@ impl RepeatedMeasuresProcedure {
             procedure_identity: self.identity.clone(),
             cell: spec.cell(),
             route: spec.route_name(),
-            calibration: DERIVED_UNMEASURED,
+            calibration: DERIVED_NOT_MEASURED,
             body,
         })
     }

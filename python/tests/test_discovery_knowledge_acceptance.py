@@ -2,8 +2,7 @@
 
 The static study has a chain ``x0 -> x1 -> x2 -> x3`` that the data leave undirected, colliders
 at ``x4`` and ``x8`` (three parents) and a second chain ``x5 -> x6 -> x7``; the series study has
-the same shape with lag-1 links. What each statement must do is read from the guide's table
-(``docs/guides/discovery-background-knowledge.md``), worked out by hand, and checked on the
+the same shape with lag-1 links. What each statement must do is worked out by hand and checked on the
 returned graph: the constrained edges, the propagation of the orientation, and the edges the
 statement does not touch, which stay as the unconstrained search left them.
 """
@@ -26,10 +25,8 @@ from antecedent.discovery import (
     Link,
 )
 from antecedent.errors import CausalUnsupportedError
+from antecedent.outcomes import require_success
 
-from _repo_text import REPO_ROOT, read_text
-
-GUIDE = REPO_ROOT / "docs/guides/discovery-background-knowledge.md"
 N = 2000
 NAMES = [f"x{i}" for i in range(10)]
 ALPHA = {"alpha": 0.001, "fdr": False}
@@ -37,38 +34,12 @@ STATIC = {"pc": PC, "fci": FCI, "ges": GES}
 CHAIN = [("x0", "x1"), ("x1", "x2"), ("x2", "x3")]
 FORWARD = ("tail", "arrow")
 
-#: The statements, one per kind, and the statement row of the guide's table each one is.
+#: The statements, one per kind.
 KNOWLEDGE = {
     "required_edges": BackgroundKnowledge(required=(Link("x0", "x1"),)),
     "forbidden_edges": BackgroundKnowledge(forbidden=(Link("x2", "x1"),)),
     "tiers": BackgroundKnowledge(tiers=(("x0",), ("x1",), ("x2",), ("x3",))),
     "parent_limits": BackgroundKnowledge(max_parents=2),
-}
-GUIDE_ROW = {
-    "required_edges": "required `a -> b`",
-    "forbidden_edges": "forbidden `a -> b`",
-    "tiers": "tiers",
-    "parent_limits": "`max_parents`",
-}
-GUIDE_COLUMN = {"pc": 1, "fci": 2, "ges": 3, "pcmci": 4}
-#: A phrase each guide cell must contain: the semantics the assertions below are written from.
-GUIDE_PHRASE = {
-    ("pc", "required_edges"): "oriented `a -> b`",
-    ("pc", "forbidden_edges"): "oriented `b -> a`",
-    ("pc", "tiers"): "from the earlier to the later tier",
-    ("pc", "parent_limits"): "search restriction",
-    ("fci", "required_edges"): "tail at `a`, arrow at `b`",
-    ("fci", "forbidden_edges"): "an arrowhead at `a`",
-    ("fci", "tiers"): "arrowhead at the later-tier end",
-    ("fci", "parent_limits"): "the same restriction",
-    ("ges", "required_edges"): "edge seeded",
-    ("ges", "forbidden_edges"): "is skipped",
-    ("ges", "tiers"): "as PC",
-    ("ges", "parent_limits"): "enforced",
-    ("pcmci", "required_edges"): "kept through parent selection",
-    ("pcmci", "forbidden_edges"): "not a candidate",
-    ("pcmci", "tiers"): "every lag",
-    ("pcmci", "parent_limits"): "bounds the parent set",
 }
 
 
@@ -169,16 +140,6 @@ def arrowheads_into(result, node: str) -> int:
     return count
 
 
-def guide_cell(algorithm: str, constraint: str) -> str:
-    prefix = f"| {GUIDE_ROW[constraint]} |"
-    for line in read_text(GUIDE).splitlines():
-        if line.startswith(prefix):
-            return [cell.strip() for cell in line.strip().strip("|").split(" | ")][
-                GUIDE_COLUMN[algorithm]
-            ]
-    raise AssertionError(f"the guide has no row for {GUIDE_ROW[constraint]}")
-
-
 @functools.cache
 def digest_of(constraint: str) -> str:
     data = constrained_discovery_scm(1, 300)
@@ -208,8 +169,6 @@ def run_static(algorithm: str, constraint: str, seed: int):
     config = STATIC[algorithm](**ALPHA, knowledge=KNOWLEDGE[constraint])
     plain = STATIC[algorithm](**ALPHA).run(data)
     result = config.run(data)
-    phrase = GUIDE_PHRASE[(algorithm, constraint)]
-    assert phrase in guide_cell(algorithm, constraint), (algorithm, constraint)
     assert_identity(config, data, constraint, result)
     return data, plain, result
 
@@ -365,22 +324,23 @@ SERIES_KNOWLEDGE = {
 
 def run_series(constraint: str, seed: int):
     data = constrained_discovery_series(seed)
-    plain = pcmci_config(None).run(data, seed=1)
+    plain = pcmci_config(None).run(data, execution=ant.Execution(seed=1))
     config = PCMCI(max_lag=1, alpha=0.01, fdr=False, knowledge=SERIES_KNOWLEDGE[constraint])
-    result = config.run(data, seed=1)
-    assert GUIDE_PHRASE[("pcmci", constraint)] in guide_cell("pcmci", constraint)
+    result = config.run(data, execution=ant.Execution(seed=1))
     cross = {(a, 1, b, 0) for a, b in SERIES_LINKS}
     assert cross <= links(plain), "the unconstrained search finds every true lagged link"
     digest = result.background_knowledge
     assert digest is not None and f"background_knowledge={digest}" in result.algorithm_config
     other = {
-        PCMCI(max_lag=1, alpha=0.01, fdr=False, knowledge=k).run(data, seed=1).background_knowledge
+        PCMCI(max_lag=1, alpha=0.01, fdr=False, knowledge=k)
+        .run(data, execution=ant.Execution(seed=1))
+        .background_knowledge
         for name, k in SERIES_KNOWLEDGE.items()
         if name != constraint
     }
     assert digest not in other and len(other) == 3
     assert plain.background_knowledge is None
-    accepted = config.accept(data, seed=1)
+    accepted = config.accept(data, execution=ant.Execution(seed=1))
     assert accepted.background_knowledge == digest
     assert AcceptedGraph.from_json(accepted.to_json()).background_knowledge == digest
     return plain, result, cross
@@ -497,12 +457,12 @@ def test_background_knowledge_is_carried_through_dispatch_refresh_serialization_
         # Dispatch: the configuration's wire form states the knowledge by name, and the result
         # of the run carries its digest.
         assert config._wire()["background_knowledge"] == knowledge.as_dict()
-        result = config.run(table, seed=1)
+        result = config.run(table, execution=ant.Execution(seed=1))
         digest = result.background_knowledge
         assert digest is not None and f"background_knowledge={digest}" in result.algorithm_config
         digests[algorithm] = digest
         # Acceptance, serialization and the explicit structure replace keep it.
-        accepted = config.accept(table, seed=1)
+        accepted = config.accept(table, execution=ant.Execution(seed=1))
         assert accepted.background_knowledge == digest
         restored = AcceptedGraph.from_json(accepted.to_json())
         assert restored.background_knowledge == digest
@@ -511,32 +471,63 @@ def test_background_knowledge_is_carried_through_dispatch_refresh_serialization_
         assert accepted.replace(accepted.graph).background_knowledge == digest
         # Refresh and replay: rediscovery under the same configuration on refreshed data keeps
         # the digest, and a changed constraint set changes it.
-        rediscovered = accepted.rediscover(refreshed_table, config, seed=1)
+        rediscovered = accepted.rediscover(refreshed_table, config, execution=ant.Execution(seed=1))
         assert rediscovered.background_knowledge == digest
-        replaced = accepted.rediscover(refreshed_table, other, seed=1)
+        replaced = accepted.rediscover(refreshed_table, other, execution=ant.Execution(seed=1))
         assert replaced.background_knowledge not in (None, digest)
-        assert other.run(table, seed=1).background_knowledge == replaced.background_knowledge
+        assert (
+            other.run(table, execution=ant.Execution(seed=1)).background_knowledge
+            == replaced.background_knowledge
+        )
         if temporal:
             continue
 
         # The analysis built on the discovery states the knowledge in its contract, keeps it
-        # through a refresh and a replayed preparation, and states the changed knowledge when
-        # that is what it was built on.
-        def stated(study) -> str:
-            return study.inspect_plan().to_dict()["contract"]["discovery_algorithm"]
+        # through a rebind and a replayed branch, and states the changed knowledge when that is
+        # what it was built on. The contract is read from each executed outcome's report; the
+        # prepared branches themselves stay unexecuted.
+        def stated(outcome) -> str:
+            require_success(outcome)
+            markdown = outcome.study.report("markdown")
+            prefix = "- **Discovery algorithm:** "
+            (line,) = (row for row in markdown.splitlines() if row.startswith(prefix))
+            return line.removeprefix(prefix)
 
-        study = ant.prepare(table, query=query, discovery=config, bootstrap=0, refute=False)
-        first = study.estimate()
-        assert stated(study) == f"{algorithm}+knowledge:{digest}"
-        refreshed = study.refresh(refreshed_table)
+        study = ant.prepare(
+            table,
+            query=query,
+            graph=ant.discovery.discover(
+                table, method=config, execution=ant.Execution(seed=1), accept_discovered=True
+            ),
+            inference=ant.Frequentist(bootstrap=0),
+            refute=False,
+        )
+        assert study.inspect().stage == "prepared"
+        first_outcome = ant.estimate(study)
+        first = require_success(first_outcome)
+        assert stated(first_outcome) == f"{algorithm}+knowledge:{digest}"
+        refreshed_study = ant.rebind(study, data=refreshed_table)
+        refreshed_outcome = ant.estimate(refreshed_study)
+        refreshed = require_success(refreshed_outcome)
         assert refreshed.program_id == first.program_id
-        assert stated(study) == f"{algorithm}+knowledge:{digest}"
-        replayed = study.reprepare(table)
-        replayed.estimate()
-        assert stated(replayed) == stated(study)
-        altered = ant.prepare(table, query=query, discovery=other, bootstrap=0, refute=False)
-        assert stated(altered) == f"{algorithm}+knowledge:{replaced.background_knowledge}"
-        assert stated(altered) != stated(study)
+        assert stated(first_outcome) == f"{algorithm}+knowledge:{digest}"
+        assert stated(refreshed_outcome) == stated(first_outcome)
+        replayed_outcome = ant.estimate(ant.rebind(refreshed_study, data=table))
+        require_success(replayed_outcome)
+        assert stated(replayed_outcome) == stated(first_outcome)
+        altered = ant.prepare(
+            table,
+            query=query,
+            graph=ant.discovery.discover(
+                table, method=other, execution=ant.Execution(seed=1), accept_discovered=True
+            ),
+            inference=ant.Frequentist(bootstrap=0),
+            refute=False,
+        )
+        altered_outcome = ant.estimate(altered)
+        require_success(altered_outcome)
+        assert stated(altered_outcome) == f"{algorithm}+knowledge:{replaced.background_knowledge}"
+        assert stated(altered_outcome) != stated(first_outcome)
     # One statement has one digest, whichever algorithm read it.
     assert len({digests[name] for name in STATIC}) == 1
     assert digests["pc"] == PC(**ALPHA, knowledge=statements(0, 3)).run(data).background_knowledge

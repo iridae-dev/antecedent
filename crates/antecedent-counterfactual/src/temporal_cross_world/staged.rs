@@ -9,7 +9,7 @@
 //! changed snapshot, graph, fit coefficient or factual value is a different
 //! key and abduces again. Results are bit-identical to the one-shot function.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -26,7 +26,9 @@ use super::{
 use crate::selective::stages::{ExecutionStage, StageReceipt, StageStatus, WorkCounters};
 use crate::temporal_cross_world::FactualUnitHistory;
 
-/// Most abductions a temporal executor retains.
+/// Default most abductions a temporal executor retains. A caller with another budget builds
+/// the executor with [`TemporalExecutor::with_max_retained`] or
+/// [`GeneralTemporalExecutor::with_max_retained`].
 pub const MAX_RETAINED: usize = 64;
 
 #[derive(Debug)]
@@ -47,10 +49,17 @@ pub struct TemporalExecution {
 }
 
 /// A selective executor of the temporal row.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct TemporalExecutor {
     retained: BTreeMap<String, Arc<RetainedHistories>>,
     counters: WorkCounters,
+    max_retained: usize,
+}
+
+impl Default for TemporalExecutor {
+    fn default() -> Self {
+        Self::with_max_retained(MAX_RETAINED)
+    }
 }
 
 fn abduction_key(
@@ -65,10 +74,23 @@ fn abduction_key(
 }
 
 impl TemporalExecutor {
-    /// An executor with nothing retained.
+    /// An executor with nothing retained that keeps at most [`MAX_RETAINED`] abductions.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// An executor with nothing retained that keeps at most `max_retained` abductions (the
+    /// smallest key is evicted first). Zero retains nothing, so every request abduces again.
+    #[must_use]
+    pub fn with_max_retained(max_retained: usize) -> Self {
+        Self { retained: BTreeMap::new(), counters: WorkCounters::default(), max_retained }
+    }
+
+    /// The most abductions this executor retains.
+    #[must_use]
+    pub const fn max_retained(&self) -> usize {
+        self.max_retained
     }
 
     /// Cumulative observed work of successful executions.
@@ -207,7 +229,7 @@ impl TemporalExecutor {
         // Commit only after every stage succeeded.
         if !reused {
             self.retained.insert(key, retained);
-            while self.retained.len() > MAX_RETAINED {
+            while self.retained.len() > self.max_retained {
                 if let Some(first) = self.retained.keys().next().cloned() {
                     self.retained.remove(&first);
                 }
@@ -215,5 +237,325 @@ impl TemporalExecutor {
         }
         self.counters = counters;
         Ok(TemporalExecution { result, stages, work: counters.since(before) })
+    }
+}
+
+use super::general::{
+    GeneralAbductionReceipt, GeneralFactualHistory, GeneralTemporalResult, GeneralTemporalSpec,
+    GeneralUnitCounterfactual, abduce_unit as abduce_general, check_fit,
+    check_inputs as check_general_inputs, digest_draw as digest_general_draw,
+    digest_factual as digest_general_factual, digest_fit as digest_general_fit, digest_world,
+    node_count, outcome_node, replay as replay_general,
+};
+use super::{invalid, unsupported};
+
+#[derive(Debug)]
+struct RetainedGeneral {
+    /// Abduced residuals, `generating nodes` per unit, in unit-id order.
+    noise: Vec<f64>,
+    width: usize,
+    unit_draws: Vec<UnitDrawDigest>,
+}
+
+/// One staged execution of the general temporal row.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GeneralTemporalExecution {
+    /// The answer, bit-identical to the one-shot general evaluator.
+    pub result: GeneralTemporalResult,
+    /// Stage identities and statuses.
+    pub stages: Vec<StageReceipt>,
+    /// Work observed in this execution.
+    pub work: WorkCounters,
+}
+
+/// A selective executor of the general temporal row (any horizon, any number of worlds).
+///
+/// Retains each factual set's abduction under the digest of the snapshot, the horizon and
+/// mechanism fit and the factual histories; a request that changes only the named action
+/// histories reuses it and replays the new worlds.
+#[derive(Debug)]
+pub struct GeneralTemporalExecutor {
+    retained: BTreeMap<String, Arc<RetainedGeneral>>,
+    counters: WorkCounters,
+    max_retained: usize,
+}
+
+impl Default for GeneralTemporalExecutor {
+    fn default() -> Self {
+        Self::with_max_retained(MAX_RETAINED)
+    }
+}
+
+fn general_key(snapshot: &str, fit: &str, factual: &str) -> String {
+    let mut w = digest("selective_general_abduction");
+    w.text(snapshot).text(fit).text(factual);
+    w.finish_hex()
+}
+
+impl GeneralTemporalExecutor {
+    /// An executor with nothing retained that keeps at most [`MAX_RETAINED`] abductions.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// An executor with nothing retained that keeps at most `max_retained` abductions (the
+    /// smallest key is evicted first). Zero retains nothing, so every request abduces again.
+    #[must_use]
+    pub fn with_max_retained(max_retained: usize) -> Self {
+        Self { retained: BTreeMap::new(), counters: WorkCounters::default(), max_retained }
+    }
+
+    /// The most abductions this executor retains.
+    #[must_use]
+    pub const fn max_retained(&self) -> usize {
+        self.max_retained
+    }
+
+    /// Cumulative observed work of successful executions.
+    #[must_use]
+    pub fn counters(&self) -> WorkCounters {
+        self.counters
+    }
+
+    /// Number of retained abductions.
+    #[must_use]
+    pub fn retained_len(&self) -> usize {
+        self.retained.len()
+    }
+
+    /// Execute a request, reusing a retained abduction whose key matches. Validation is the
+    /// one-shot evaluator's and runs first; a failure leaves the retained state unchanged.
+    ///
+    /// # Errors
+    /// The one-shot general evaluator's refusals, or cancellation.
+    #[allow(clippy::too_many_lines, reason = "one staged execution sharing one run state")]
+    pub fn execute(
+        &mut self,
+        spec: &GeneralTemporalSpec,
+        ctx: &ExecutionContext,
+    ) -> Result<GeneralTemporalExecution, TemporalCounterfactualError> {
+        poll(ctx)?;
+        if spec.horizon == 0 {
+            return Err(invalid(
+                antecedent_core::reason_details::temporal_counterfactual::INVALID_GRAPH,
+                Some("horizon".to_owned()),
+            ));
+        }
+        if spec.latent_confounding {
+            return Err(unsupported(
+                antecedent_core::reason_details::temporal_counterfactual::LATENT_CONFOUNDING,
+                None,
+                None,
+            ));
+        }
+        let mechs = check_fit(spec.horizon, &spec.fit)?;
+        let mut factual: Vec<&GeneralFactualHistory> = spec.factual.iter().collect();
+        factual.sort_by(|a, b| a.unit.cmp(&b.unit));
+        check_general_inputs(spec, &factual)?;
+
+        let fit_digest = digest_general_fit(spec.horizon, &spec.fit);
+        let factual_digest = digest_general_factual(&factual);
+        let key = general_key(spec.snapshot.as_str(), &fit_digest, &factual_digest);
+        let mut counters = self.counters;
+        let before = counters;
+        let width = mechs.len();
+        let (retained, reused) = if let Some(found) = self.retained.get(&key) {
+            counters.abductions_reused += factual.len() as u64;
+            (Arc::clone(found), true)
+        } else {
+            let mut noise = vec![0.0; factual.len() * width];
+            let mut unit_draws = Vec::with_capacity(factual.len());
+            for (index, unit) in factual.iter().enumerate() {
+                if index % POLL_EVERY == 0 {
+                    poll(ctx)?;
+                }
+                let slot = &mut noise[index * width..(index + 1) * width];
+                abduce_general(&mechs, unit, slot)?;
+                counters.abductions += 1;
+                unit_draws.push(UnitDrawDigest {
+                    unit: unit.unit.clone(),
+                    history: unit.history.clone(),
+                    digest: digest_general_draw(&spec.snapshot, unit, slot),
+                });
+            }
+            (Arc::new(RetainedGeneral { noise, width, unit_draws }), false)
+        };
+
+        let n_worlds = spec.worlds.len();
+        let mut scratch = vec![0.0; node_count(spec.horizon)];
+        let mut sums = vec![0.0; n_worlds];
+        let mut units = Vec::with_capacity(factual.len());
+        for (index, unit) in factual.iter().enumerate() {
+            if index % POLL_EVERY == 0 {
+                poll(ctx)?;
+            }
+            let noise = &retained.noise[index * retained.width..(index + 1) * retained.width];
+            let mut outcomes = Vec::with_capacity(n_worlds);
+            for (sum, world) in sums.iter_mut().zip(&spec.worlds) {
+                let outcome = replay_general(&mechs, noise, &world.actions, &mut scratch);
+                *sum += outcome;
+                outcomes.push(outcome);
+            }
+            counters.world_predictions += n_worlds as u64;
+            units.push(GeneralUnitCounterfactual {
+                unit: unit.unit.clone(),
+                history: unit.history.clone(),
+                factual_outcome: unit.values[outcome_node(spec.horizon)],
+                outcomes,
+            });
+        }
+        poll(ctx)?;
+        counters.summaries += 1;
+        let n = units.len() as f64;
+        let unit_draws = retained.unit_draws.clone();
+        let mut receipt = GeneralAbductionReceipt {
+            snapshot: spec.snapshot.clone(),
+            fit_digest: fit_digest.clone(),
+            factual_digest,
+            world_digests: spec.worlds.iter().map(digest_world).collect(),
+            exogenous_digest: GeneralAbductionReceipt::exogenous_of(&unit_draws),
+            unit_draws,
+            n_units: units.len(),
+            n_worlds,
+            horizon: spec.horizon,
+            shared_by_all_worlds: true,
+            digest: String::new(),
+        };
+        receipt.digest = receipt.recompute_digest();
+        let result = GeneralTemporalResult {
+            mechanism_class: MECHANISM_CLASS,
+            world_names: spec.worlds.iter().map(|w| w.name.clone()).collect(),
+            units,
+            world_means: sums.iter().map(|s| s / n).collect(),
+            receipt,
+        };
+        let status = if reused { StageStatus::Reused } else { StageStatus::Computed };
+        let mut prediction = digest("selective_general_prediction");
+        prediction.text(&result.receipt.exogenous_digest);
+        for world in &result.receipt.world_digests {
+            prediction.text(world);
+        }
+        let stage = |stage, identity: &str, status| StageReceipt {
+            stage,
+            identity: identity.to_owned(),
+            status,
+        };
+        let stages = vec![
+            stage(ExecutionStage::MechanismFitting, &fit_digest, StageStatus::Declared),
+            stage(ExecutionStage::FactualAbduction, &key, status),
+            stage(ExecutionStage::ExogenousDraws, &result.receipt.exogenous_digest, status),
+            stage(
+                ExecutionStage::ActionPrediction,
+                &prediction.finish_hex(),
+                StageStatus::Computed,
+            ),
+            stage(ExecutionStage::SummaryDecision, &result.receipt.digest, StageStatus::Computed),
+        ];
+        if !reused {
+            self.retained.insert(key, retained);
+            while self.retained.len() > self.max_retained {
+                if let Some(first) = self.retained.keys().next().cloned() {
+                    self.retained.remove(&first);
+                }
+            }
+        }
+        self.counters = counters;
+        Ok(GeneralTemporalExecution { result, stages, work: counters.since(before) })
+    }
+}
+
+#[cfg(test)]
+mod general_tests {
+    use super::*;
+    use crate::temporal_cross_world::general::{
+        GeneralActionHistory, GeneralMechanismFit, GeneralNodeMechanism, covariate_node,
+        evaluate_general_temporal_counterfactual,
+    };
+    use crate::temporal_cross_world::{HistoryId, SnapshotId, UnitId};
+
+    #[allow(clippy::cast_possible_truncation, reason = "the fixture uses bounded graph dimensions")]
+    fn spec(horizon: usize, worlds: &[Vec<f64>]) -> GeneralTemporalSpec {
+        let ids: Vec<UnitId> = (0..4).map(|i| UnitId::new(format!("u{i}"))).collect();
+        let nodes = node_count(horizon);
+        let mut mechanisms = Vec::new();
+        for slice in 0..horizon {
+            let node = covariate_node(slice);
+            let parents = if node == 0 { vec![] } else { vec![(node - 1, 0.5)] };
+            mechanisms.push(GeneralNodeMechanism {
+                node,
+                intercept: 1.0,
+                parent_coefficients: parents,
+                noise_halfwidth: None,
+            });
+        }
+        mechanisms.push(GeneralNodeMechanism {
+            node: nodes - 1,
+            intercept: 0.0,
+            parent_coefficients: vec![(nodes - 2, 2.0)],
+            noise_halfwidth: None,
+        });
+        GeneralTemporalSpec {
+            horizon,
+            latent_confounding: false,
+            fit: GeneralMechanismFit { fit_id: "fit".into(), mechanisms },
+            snapshot: SnapshotId::new("snap"),
+            factual: ids
+                .iter()
+                .enumerate()
+                .map(|(i, u)| GeneralFactualHistory {
+                    unit: u.clone(),
+                    history: HistoryId::new(format!("h{i}")),
+                    times: (0..horizon as u32).collect(),
+                    values: (0..nodes).map(|k| ((i + 1) * (k + 2)) as f64 * 0.1).collect(),
+                })
+                .collect(),
+            worlds: worlds
+                .iter()
+                .enumerate()
+                .map(|(w, a)| GeneralActionHistory {
+                    name: format!("w{w}"),
+                    times: (0..horizon as u32).collect(),
+                    actions: a.clone(),
+                    units: ids.clone(),
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn staged_general_execution_matches_the_one_shot_and_reuses_abduction() {
+        let ctx = ExecutionContext::for_tests(3);
+        let first = spec(4, &[vec![0.0; 4], vec![1.0; 4], vec![1.0, 0.0, 1.0, 0.0]]);
+        let one_shot = evaluate_general_temporal_counterfactual(&first, &ctx).unwrap();
+        let mut exec = GeneralTemporalExecutor::new();
+        let a = exec.execute(&first, &ctx).unwrap();
+        assert_eq!(a.result, one_shot);
+        assert_eq!(a.work.abductions, 4);
+        assert_eq!(a.stages[1].status, StageStatus::Computed);
+        // Only the worlds change: the abduction is reused.
+        let second = spec(4, &[vec![1.0; 4], vec![0.5; 4]]);
+        let b = exec.execute(&second, &ctx).unwrap();
+        assert_eq!(b.result, evaluate_general_temporal_counterfactual(&second, &ctx).unwrap());
+        assert_eq!((b.work.abductions, b.work.abductions_reused), (0, 4));
+        assert_eq!(b.stages[1].status, StageStatus::Reused);
+        assert_eq!(exec.retained_len(), 1);
+    }
+
+    #[test]
+    fn a_caller_retention_bound_evicts_what_the_default_keeps() {
+        let ctx = ExecutionContext::for_tests(3);
+        let request = spec(4, &[vec![0.0; 4], vec![1.0; 4]]);
+        let mut default = GeneralTemporalExecutor::new();
+        assert_eq!(default.max_retained(), MAX_RETAINED);
+        default.execute(&request, &ctx).unwrap();
+        assert_eq!(default.retained_len(), 1);
+
+        let mut none = GeneralTemporalExecutor::with_max_retained(0);
+        none.execute(&request, &ctx).unwrap();
+        assert_eq!(none.retained_len(), 0);
+        // Nothing was retained, so the same request abduces again.
+        let again = none.execute(&request, &ctx).unwrap();
+        assert_eq!(again.work.abductions_reused, 0);
     }
 }

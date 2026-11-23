@@ -1,6 +1,6 @@
 //! Indexed DAG storage with acyclicity validation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -20,6 +20,9 @@ pub struct Dag {
     directed: DirectedCore,
 }
 
+/// Graph equality: the same labeled nodes in the same dense order and the same directed edge
+/// set. The order in which edges were inserted, which fixes each adjacency row's order, is not
+/// part of the graph.
 impl PartialEq for Dag {
     fn eq(&self, other: &Self) -> bool {
         self.directed.same_directed(&other.directed)
@@ -40,15 +43,21 @@ impl Dag {
     /// # Errors
     ///
     /// Window larger than the node-id space.
-    pub fn from_unfolding(indexer: &antecedent_core::TemporalIndexer) -> Result<Self, GraphError> {
-        let mut g = Self::empty();
-        for dense in 0..indexer.dense_len() {
-            let key = indexer
-                .key_of(u32::try_from(dense).map_err(|_| GraphError::TooManyNodes)?)
-                .map_err(|_| GraphError::TooManyNodes)?;
-            g.add_node(NodeRef::Unfolded { variable: key.variable, offset: key.offset })?;
-        }
-        Ok(g)
+    pub fn from_unfolding(
+        indexer: &antecedent_core::TemporalIndexer,
+    ) -> Result<crate::unfold::AdmittedUnfoldedTemporalGraph, GraphError> {
+        crate::temporal::TemporalDag::empty().unfold(indexer.clone())
+    }
+
+    /// Build an admitted empty temporal window with the caller's budget and context.
+    /// # Errors
+    /// Limit, cancellation, admission or invalid coordinate refusal.
+    pub fn from_unfolding_within(
+        indexer: &antecedent_core::TemporalIndexer,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<crate::unfold::AdmittedUnfoldedTemporalGraph, GraphError> {
+        crate::temporal::TemporalDag::empty().unfold_within(indexer.clone(), budget, ctx)
     }
 
     /// Build a DAG with one static node per variable `0..n`.
@@ -61,7 +70,7 @@ impl Dag {
         g
     }
 
-    /// Copy nodes `0..n` and the directed edges `keep` accepts.
+    /// Copy every node, preserving its label and dense id, and the directed edges `keep` accepts.
     ///
     /// # Errors
     ///
@@ -70,8 +79,10 @@ impl Dag {
         &self,
         mut keep: impl FnMut(DenseNodeId, DenseNodeId) -> bool,
     ) -> Result<Self, GraphError> {
-        let n = u32::try_from(self.node_count()).map_err(|_| GraphError::TooManyNodes)?;
-        let mut out = Self::with_variables(n);
+        let mut out = Self::empty();
+        for node in self.nodes() {
+            out.add_node(*node)?;
+        }
         for edge in self.edges() {
             let Some((from, to)) = edge.parent_child() else {
                 continue;
@@ -161,7 +172,8 @@ impl Dag {
     ///
     /// # Errors
     ///
-    /// [`GraphError::TooManyNodes`] on overflow.
+    /// [`GraphError::TooManyNodes`] on overflow, or [`GraphError::InvalidEndpoints`] for a
+    /// non-static node or a `Static` label an earlier node carries.
     pub fn add_node(&mut self, node: NodeRef) -> Result<DenseNodeId, GraphError> {
         if !node.is_static_graph_node() {
             return Err(GraphError::InvalidEndpoints {
@@ -251,7 +263,8 @@ impl Dag {
         self.directed.reaches_with(from, to, ws)
     }
 
-    /// Topological order (Kahn). Returns `None` if a cycle slipped in.
+    /// Topological order (Kahn, smallest label first among the ready nodes). Returns `None` if
+    /// a cycle slipped in.
     #[must_use]
     pub fn topological_order(&self) -> Option<Vec<DenseNodeId>> {
         self.directed.topological_order()
@@ -315,12 +328,8 @@ impl Dag {
         best[from.as_usize()]
     }
 
-    fn validate_node(&self, id: DenseNodeId) -> Result<(), GraphError> {
-        if id.as_usize() >= self.node_count() {
-            Err(GraphError::UnknownNode { id: id.raw() })
-        } else {
-            Ok(())
-        }
+    pub(crate) fn validate_node(&self, id: DenseNodeId) -> Result<(), GraphError> {
+        crate::types::validate_node_index(self.node_count(), id)
     }
 
     /// Every dense node id in ascending order.
@@ -340,29 +349,8 @@ impl Dag {
         self.directed.edge_pairs_sorted()
     }
 
-    /// Enumerate simple directed paths from `from` to `to` (inclusive endpoints).
-    ///
-    /// Bounded by `max_paths` and `max_len` (number of nodes on the path).
-    ///
-    /// The returned set is silently truncated when either bound binds. Callers whose
-    /// correctness depends on seeing *every* path — e.g. a recanting-witness test, which
-    /// concludes "no witness exists" from the absence of one — must use
-    /// [`Self::directed_paths_with_budget`] and fail closed on truncation instead.
-    ///
-    /// # Errors
-    ///
-    /// Unknown nodes.
-    pub fn directed_paths(
-        &self,
-        from: DenseNodeId,
-        to: DenseNodeId,
-        max_paths: usize,
-        max_len: usize,
-    ) -> Result<Vec<Vec<DenseNodeId>>, GraphError> {
-        self.directed_paths_with_budget(from, to, max_paths, max_len).map(|(paths, _)| paths)
-    }
-
-    /// [`Self::directed_paths`] plus a flag reporting whether enumeration was cut short.
+    /// Every directed path from `from` to `to` with at most `max_paths` paths of at most
+    /// `max_len` nodes, plus a flag reporting whether enumeration was cut short.
     ///
     /// The flag is `true` when `max_paths` stopped the search with candidates still
     /// pending, or when `max_len` pruned a partial path that had not yet reached `to`.
@@ -454,6 +442,66 @@ impl Dag {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dag_refuses_a_second_node_with_the_same_static_label() {
+        let label = |raw: u32| NodeRef::Static(antecedent_core::VariableId::from_raw(raw));
+        let mut g = Dag::empty();
+        let first = g.add_node(label(7)).unwrap();
+        assert!(matches!(g.add_node(label(7)), Err(GraphError::InvalidEndpoints { .. })));
+        assert_eq!(g.node_count(), 1, "a refused node leaves no trace");
+        let other = g.add_node(label(8)).unwrap();
+        assert_eq!((first.raw(), other.raw()), (0, 1));
+        // A copy claims independently of the graph it came from.
+        let mut copy = g.clone();
+        assert!(copy.add_node(label(7)).is_err());
+        copy.add_node(label(9)).unwrap();
+        g.add_node(label(9)).unwrap();
+    }
+
+    #[test]
+    fn filtered_copy_preserves_semantic_node_labels() {
+        for labels in [
+            [NodeRef::Static(VariableId::from_raw(7)), NodeRef::Static(VariableId::from_raw(3))],
+            [
+                NodeRef::Unfolded { variable: VariableId::from_raw(7), offset: -1 },
+                NodeRef::Unfolded { variable: VariableId::from_raw(7), offset: 0 },
+            ],
+        ] {
+            let mut graph = Dag::empty();
+            let from = graph.add_node(labels[0]).unwrap();
+            let to = graph.add_node(labels[1]).unwrap();
+            graph.insert_directed(from, to).unwrap();
+            assert_eq!(graph.copy_filtered(|_, _| true).unwrap(), graph);
+            let removed = graph.copy_filtered(|_, _| false).unwrap();
+            assert_eq!(removed.nodes(), graph.nodes());
+            assert!(removed.directed_edge_pairs_sorted().is_empty());
+            assert_eq!(graph.directed_edge_pairs_sorted(), vec![(0, 1)]);
+        }
+    }
+
+    #[test]
+    fn equality_ignores_edge_insertion_order() {
+        let edges = [(0, 1), (0, 2), (0, 3), (1, 3), (2, 3)];
+        let build = |order: &[(u32, u32)]| {
+            let mut g = Dag::with_variables(4);
+            for &(u, v) in order {
+                g.insert_directed(DenseNodeId::from_raw(u), DenseNodeId::from_raw(v)).unwrap();
+            }
+            g
+        };
+        let forward = build(&edges);
+        let mut reversed_edges = edges;
+        reversed_edges.reverse();
+        let reversed = build(&reversed_edges);
+        assert_ne!(
+            forward.children(DenseNodeId::from_raw(0)),
+            reversed.children(DenseNodeId::from_raw(0)),
+            "the rows really are in different orders"
+        );
+        assert_eq!(forward, reversed);
+        assert_ne!(forward, build(&edges[..4]));
+    }
 
     #[test]
     fn directed_edge_pairs_are_sorted_raw_ids() {
@@ -583,7 +631,13 @@ mod tests {
         let c = DenseNodeId::from_raw(2);
         g.insert_directed(a, b).unwrap();
         g.insert_directed(b, c).unwrap();
-        assert!(matches!(g.insert_directed(c, a), Err(GraphError::Cycle { .. })));
+        let err = g.insert_directed(c, a).unwrap_err();
+        assert!(matches!(err, GraphError::Cycle { .. }));
+        let text = err.to_string();
+        assert!(text.contains("condensation"), "{text}");
+        assert!(text.contains("sigma_separates"), "{text}");
+        assert!(g.children(c).is_empty(), "the closing edge was not inserted");
+        assert!(g.topological_order().is_some(), "the chain that remains still has an order");
     }
 
     #[test]
@@ -661,12 +715,11 @@ impl DagReview {
     pub fn from_dag(graph: Dag, algorithm: impl Into<Arc<str>>) -> Self {
         let mut pending = Vec::new();
         for e in graph.edges() {
-            if let Some((from, to)) = e.parent_child() {
-                if let (Some(fv), Some(tv)) =
+            if let Some((from, to)) = e.parent_child()
+                && let (Some(fv), Some(tv)) =
                     (variable_id_of(&graph, from), variable_id_of(&graph, to))
-                {
-                    pending.push((fv, tv));
-                }
+            {
+                pending.push((fv, tv));
             }
         }
         Self { graph, pending_edges: Arc::from(pending), algorithm: algorithm.into() }

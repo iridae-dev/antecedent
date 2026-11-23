@@ -1,6 +1,6 @@
 //! Facade gap closure: PAG execute, conditional/CF/attribution paths, Auto estimand selection.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,
@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use antecedent::estimate::{identify_static_query, select_estimand};
+use antecedent::estimate::select_estimand;
 use antecedent::validate::PredictiveCheckKind;
 use antecedent::{BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
@@ -22,6 +22,27 @@ use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
 };
 use antecedent_graph::{Dag, DenseNodeId, Pag};
+
+/// The static identification of `query` over `graph` by the compiled study (identification
+/// reads structure and query, never rows, so the table is two rows of the graph's variables).
+fn identify_static_query(
+    identifier: IdentifierId,
+    graph: &Dag,
+    query: &CausalQuery,
+) -> Result<antecedent_identify::IdentificationResult, antecedent::CausalError> {
+    let names: Vec<String> = (0..graph.node_count()).map(|i| format!("v{i}")).collect();
+    let rows = [0.0_f64, 1.0];
+    let data =
+        TabularData::from_f64_columns(names.iter().map(|name| (name.as_str(), rows.as_slice())))
+            .unwrap();
+    Study::tabular(data)
+        .graph(graph.clone())
+        .query(query.clone())
+        .identifier(identifier)
+        .refute(RefuteSuite::None)
+        .build()?
+        .identify_only()
+}
 
 fn chain_table(n: usize) -> (TabularData, Dag) {
     let mut b = CausalSchemaBuilder::new();
@@ -100,8 +121,10 @@ fn pag_ate_via_generalized_adjustment() {
         .unwrap();
     let ctx = ExecutionContext::for_tests(1);
     let result = analysis.run(&ctx).unwrap();
-    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
-    assert!((result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2);
+    // y = 1 + 2 t + 0.01 i with t = i mod 2: the adjusted slope on t is 2 plus 0.01 times the
+    // arm difference of the trend i (a gap of exactly 1), i.e. 2.01.
+    let ate = result.estimate().as_effect().unwrap().ate;
+    assert!((ate - 2.01).abs() < 1e-6, "PAG ATE {ate}");
     assert!(!matches!(result.identification.status, IdentificationStatus::NotIdentified));
 }
 
@@ -163,11 +186,12 @@ fn pag_with_circles_ate_via_generalized_adjustment() {
     // the plan is ready to execute.
     let plan = analysis.compile(&ctx).unwrap();
     let result = analysis.execute(&plan, &ctx).unwrap();
-    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(result.estimate().as_effect().unwrap().ate.is_finite());
     // Same `chain_table(80)` fixture and estimator as `pag_ate_via_generalized_adjustment`
     // above (only the input PAG's mark differs: circle-arrow here vs. directed there), so
     // the identified ATE must match that known ground truth, not merely be finite.
-    assert!((result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2);
+    let ate = result.estimate().as_effect().unwrap().ate;
+    assert!((ate - 2.01).abs() < 1e-6, "PAG-with-circles ATE {ate}");
 }
 
 #[test]
@@ -221,9 +245,9 @@ fn conditional_effect_via_causal_analysis() {
     // y = 1 + 2t + 0.5 t w, so the conditional effect at w is 2 + 0.5 w; over the fixture's
     // w = i mod 5 (mean 2, balanced across the two arms) the average conditional effect is 3.
     assert!(
-        (result.estimate.as_effect().unwrap().ate - 3.0).abs() < 0.05,
+        (result.estimate().as_effect().unwrap().ate - 3.0).abs() < 0.05,
         "average CATE {}",
-        result.estimate.as_effect().unwrap().ate
+        result.estimate().as_effect().unwrap().ate
     );
 }
 
@@ -242,7 +266,11 @@ fn counterfactual_and_anomaly_via_causal_analysis() {
         .unwrap()
         .run(&ExecutionContext::for_tests(1))
         .unwrap();
-    assert!(result.counterfactual().is_some());
+    // y = 1 + 2 t + 0.01 i with t = i mod 2 and 60 rows: the fitted slope on t is 2 plus 0.01
+    // times the arm difference in the trend i (odd mean 30, even mean 29, a gap of exactly 1), so
+    // do(t = 1) against the default control level 0 moves every unit by 2.01.
+    let mean_ite = result.counterfactual().expect("counterfactual result").mean_ite;
+    assert!((mean_ite - 2.01).abs() < 1e-6, "mean counterfactual effect {mean_ite}");
 
     let an = AnomalyAttributionQuery::new([VariableId::from_raw(1)], 100);
     let analysis = Study::tabular(data)
@@ -252,11 +280,45 @@ fn counterfactual_and_anomaly_via_causal_analysis() {
         .build()
         .unwrap();
     let result = analysis.run(&ExecutionContext::for_tests(1)).unwrap();
-    assert!(result.anomaly().is_some());
+    // One attribution block for the one queried outcome, one score per row; each score is finite.
+    let blocks = result.anomaly().expect("anomaly result");
+    assert_eq!(blocks.len(), 1);
+    assert_eq!(blocks[0].scores.len(), blocks[0].rows.len());
+    assert_eq!(
+        &*blocks[0].rows,
+        (0..60).collect::<Vec<usize>>().as_slice(),
+        "one score per row, in order"
+    );
+    // Independent scores: the default reference is the target column's median with scale
+    // 1.4826 MAD, and a row scores -ln P(|Z| >= |y - median| / scale) with the Gaussian tail
+    // erfc(z / sqrt 2), computed here from the Maclaurin series of erf (no product code).
+    let y: Vec<f64> = (0..60).map(|i| 1.0 + 2.0 * f64::from(i % 2) + 0.01 * f64::from(i)).collect();
+    let median = |values: &[f64]| {
+        let mut sorted = values.to_vec();
+        sorted.sort_by(f64::total_cmp);
+        f64::midpoint(sorted[29], sorted[30])
+    };
+    let center = median(&y);
+    let mad = median(&y.iter().map(|v| (v - center).abs()).collect::<Vec<_>>());
+    let scale = 1.482_602_218_505_602 * mad;
+    let erfc = |x: f64| {
+        let mut term = x;
+        let mut sum = x;
+        for n in 1..80 {
+            term *= -x * x / f64::from(n);
+            sum += term / f64::from(2 * n + 1);
+        }
+        1.0 - 2.0 / std::f64::consts::PI.sqrt() * sum
+    };
+    for (row, score) in blocks[0].scores.iter().enumerate() {
+        let z = (y[row] - center).abs() / scale;
+        let want = -erfc(z / std::f64::consts::SQRT_2).ln();
+        assert!((score - want).abs() < 1e-9, "row {row}: score {score} vs {want} (z = {z})");
+    }
 }
 
 #[test]
-fn static_mediation_natural_rejected() {
+fn static_mediation_natural_direct_without_a_direct_path_is_identified_zero() {
     let n = 40usize;
     let mut b = CausalSchemaBuilder::new();
     for name in ["t", "m", "y"] {
@@ -308,15 +370,17 @@ fn static_mediation_natural_rejected() {
         [VariableId::from_raw(1)],
         MediationContrast::NaturalDirect,
     );
-    let err = Study::tabular(data)
+    // The only directed path runs through the mediator, so the natural direct effect is zero by
+    // structure and identified, whatever the data say.
+    let ctx = ExecutionContext::for_tests(1);
+    Study::tabular(data)
         .graph(g)
         .query(CausalQuery::Mediation(q))
         .refute(RefuteSuite::None)
         .build()
         .unwrap()
-        .prepare(&ExecutionContext::for_tests(1))
-        .unwrap_err();
-    assert!(err.to_string().contains("identif"), "{err}");
+        .prepare(&ctx)
+        .unwrap();
 }
 
 #[test]
@@ -324,12 +388,11 @@ fn auto_multi_estimand_requires_unique_match() {
     let (data, g) = chain_table(40);
     let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let id = identify_static_query(IdentifierId::Auto, &g, &CausalQuery::AverageEffect(q)).unwrap();
-    if id.estimands.len() > 1 {
-        // `RdSharp` is a real estimator that an auto backdoor identification on a chain
-        // never produces an estimand for, so selection must refuse rather than guess.
-        let err = select_estimand(&id, EstimatorId::RdSharp).unwrap_err();
-        assert!(err.to_string().contains("estimands"));
-    }
+    assert!(id.estimands.len() > 1, "back-door and general ID both identify the chain");
+    // `RdSharp` is a real estimator that an auto backdoor identification on a chain
+    // never produces an estimand for, so selection must refuse rather than guess.
+    let err = select_estimand(&id, EstimatorId::RdSharp).unwrap_err();
+    assert!(err.to_string().contains("estimands"), "{err}");
     let _ = data;
 }
 
@@ -383,20 +446,21 @@ fn pag_compile_ready() {
     // plan actually resolved the supplied static PAG rather than silently compiling an empty
     // or default plan.
     let compiled = analysis.compile(&ExecutionContext::for_tests(1)).unwrap();
-    assert!(compiled.static_pag().is_some());
+    let resolved = compiled.static_pag().expect("the supplied static PAG is resolved");
+    assert_eq!(resolved.node_count(), 2);
+    assert_eq!(resolved.directed_children(DenseNodeId::from_raw(0)), [DenseNodeId::from_raw(1)]);
 }
 
-/// `identify_admg_query` routes a conditional distribution on an ADMG through
-/// IDC. `Study` refuses conditional ADMG distributions at compile, so the
-/// public strategy-table entry point is the one caller that reaches this
-/// branch: `x -> y`, `z -> y`, `x <-> z`, query `P(y | do(x), z)`. IDC line 1
+/// General ID routes a conditional distribution on an ADMG through IDC. `Study` refuses
+/// conditional ADMG distributions at compile, so the identification crate's own algorithm is
+/// the one caller that reaches this branch: `x -> y`, `z -> y`, `x <-> z`, query `P(y | do(x), z)`. IDC line 1
 /// moves `z` into the intervention (it is independent of `y` given `x` once
 /// `x`'s incoming edges and `z`'s outgoing edges are cut), leaving
 /// `P(y | do(x, z)) = P(y | x, z)`.
 #[test]
 fn admg_conditional_distribution_runs_idc() {
-    use antecedent::strategy_table::identify_admg_query;
     use antecedent_core::InterventionalDistributionQuery;
+    use antecedent_identify::{IdIdentifier, IdcIdentifier, IdentificationWorkspace};
 
     let (x, y, z) = (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1), DenseNodeId::from_raw(2));
     let mut admg = antecedent_graph::Admg::with_variables(3);
@@ -408,11 +472,64 @@ fn admg_conditional_distribution_runs_idc() {
         [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
     );
     query.conditioning = Arc::from([VariableId::from_raw(2)]);
-    let result =
-        identify_admg_query(IdentifierId::GeneralId, &admg, &CausalQuery::Distribution(query))
-            .unwrap();
+    let prepared = IdIdentifier::new().prepare(&admg).unwrap();
+    let result = IdcIdentifier::new()
+        .identify(
+            &prepared,
+            &CausalQuery::Distribution(query),
+            &mut IdentificationWorkspace::default(),
+        )
+        .unwrap();
     assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
     let rules: Vec<&str> = result.derivation.steps.iter().map(|s| s.rule.as_ref()).collect();
     assert!(rules.contains(&"general.idc"), "IDC must run: {rules:?}");
     assert!(rules.contains(&"general.idc.line1"), "z moves to the intervention: {rules:?}");
+}
+
+#[test]
+fn conditional_queries_do_not_use_marginal_only_identifiers_or_collider_adjustments() {
+    let v = VariableId::from_raw;
+    let mut graph = Dag::with_variables(4);
+    for (a, b) in [(0, 1), (0, 2), (3, 2), (3, 1)] {
+        graph.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+    }
+    let query = ConditionalEffectQuery::try_new(
+        AverageEffectQuery::binary_ate(v(0), v(1)).with_effect_modifiers([v(2)]),
+    )
+    .unwrap();
+    for id in [
+        IdentifierId::GeneralId,
+        IdentifierId::Frontdoor,
+        IdentifierId::Iv,
+        IdentifierId::BackdoorEfficient,
+        IdentifierId::Auto,
+    ] {
+        assert!(
+            identify_static_query(id, &graph, &CausalQuery::ConditionalEffect(query.clone()))
+                .is_err()
+        );
+    }
+    let x = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0];
+    let y = [0.0, 1.0, 1.0, 2.0, 0.0, 1.0, 1.0, 2.0];
+    let w = [0.0, 1.0, 1.0, 2.0, 0.0, 1.0, 1.0, 2.0];
+    let u = [0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0];
+    let data = TabularData::from_f64_columns([
+        ("x", x.as_slice()),
+        ("y", y.as_slice()),
+        ("w", w.as_slice()),
+        ("u", u.as_slice()),
+    ])
+    .unwrap();
+    for id in
+        [IdentifierId::BackdoorAdjustment, IdentifierId::BackdoorEfficient, IdentifierId::Auto]
+    {
+        let builder = Study::tabular(data.clone())
+            .graph(graph.clone())
+            .query(CausalQuery::ConditionalEffect(query.clone()))
+            .identifier(id)
+            .refute(RefuteSuite::None);
+        assert!(
+            builder.build().and_then(|study| study.run(&ExecutionContext::for_tests(1))).is_err()
+        );
+    }
 }

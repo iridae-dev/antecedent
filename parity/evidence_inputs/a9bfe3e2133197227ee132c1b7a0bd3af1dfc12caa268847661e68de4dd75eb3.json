@@ -1,0 +1,1 @@
+[{"digest":"aab758a734813cd59b5d6c1b1e96fd2b234de09cca8715b8b61a9f60f2e92c66","file":"b62e5aea0c330987d68cb55d3d56cdf71fdc2ac39a889ccc0f6c0f0c39861f5e","kind":"rust_items","path":"crates/antecedent-stats/src/gam/basis.rs","role":"compile","scopes":[[[],true]],"select":{"full":[1,2,3,6,7,8,9],"sig":[10]},"table":"f3376e6744346c038ee771a51753840140e1db0e8c163200d8ebde656cdeec43"}]

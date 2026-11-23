@@ -9,7 +9,7 @@ copied_tests = false
 # sample sizes and ranges are computed by the existing response estimators.
 papers = []
 implementation_deviations = [
-  "Labels each requested coordinate (supported, weak overlap, extrapolative, outside empirical support, missing evidence) and checks that a static grid's summary is the worst label; it makes no overlap or positivity theorem claim and grants no interval or causal license.",
+  "Labels each requested coordinate (supported, weak overlap, extrapolative, outside empirical support, missing evidence) and checks that a static grid's summary is the worst label; it makes no overlap or positivity theorem claim and grants no interval or causal support.",
   "A temporal surface keeps its three-way summary; this record covers the static-grid worst-label contract and the missing-evidence distinction only.",
 ]
 upstream_implementations_observed = []
@@ -18,3 +18,23 @@ test_sources = [
   "crates/antecedent-estimate/src/response/support.rs",
   "python/tests/test_support_artifact.py",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Support labelling and a consistency check: each requested coordinate is labelled supported, weak overlap, extrapolative, outside empirical support or missing evidence, and a static grid's summary is checked to be the worst label."
+no_independent_algorithm = "response.rs defines the label set and severity order and support.rs assigns labels from the local effective sample sizes and ranges the response estimators already computed; the summary is a maximum over severities."
+inline_tests = true
+record_sha256 = "1e76f3c9cad8ba4427d438510958b24c8c3ac303d316486e71d354e863954ebc"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-core/src/response.rs"
+items = ["module"]
+sha256 = "7ec8496d7e71dfbe18c7578e947b55c22ba5ac819bfee33bd25c503c391f29fc"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/response/support.rs"
+items = ["module"]
+sha256 = "d1494c0ca80936babee4d2a69381303339e2c0b85688c17f8138a50989e25ddd"

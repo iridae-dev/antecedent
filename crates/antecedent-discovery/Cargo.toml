@@ -17,6 +17,10 @@ autotests = false
 [lints]
 workspace = true
 
+[features]
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent-core/development", "antecedent-data/development", "antecedent-graph/development", "antecedent-kernels/development", "antecedent-prob/development", "antecedent-state/development", "antecedent-stats/development"]
+
 [dependencies]
 antecedent-core = { workspace = true }
 antecedent-data = { workspace = true }
@@ -28,6 +32,7 @@ antecedent-stats = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+antecedent-core = { workspace = true, features = ["test-support"] }
 antecedent-test-support = { workspace = true }
 criterion = { workspace = true }
 serde_json = { workspace = true }
@@ -52,6 +57,50 @@ harness = false
 name = "ci_search"
 harness = false
 
+[[bench]]
+name = "fci_search"
+harness = false
+
 [[test]]
 name = "suite_01"
 path = "tests/suite_01.rs"
+
+[[test]]
+name = "notears_reference"
+path = "tests/notears_reference.rs"
+
+[[test]]
+name = "exact_marginals_reference"
+path = "tests/exact_marginals_reference.rs"
+
+[[test]]
+name = "edge_prior_reference"
+path = "tests/edge_prior_reference.rs"
+
+[[test]]
+name = "wide_structure_posterior_acceptance"
+path = "tests/wide_structure_posterior_acceptance.rs"
+
+[[test]]
+name = "fci_pag_class_exhaustive"
+path = "tests/fci_pag_class_exhaustive.rs"
+
+[[test]]
+name = "bootstrap_stability_reference"
+path = "tests/bootstrap_stability_reference.rs"
+
+[[test]]
+name = "ci_screened_posterior_reference"
+path = "tests/ci_screened_posterior_reference.rs"
+
+[[test]]
+name = "exact_pag_posterior_reference"
+path = "tests/exact_pag_posterior_reference.rs"
+
+[[test]]
+name = "jpcmci_plus_dsep_oracle"
+path = "tests/jpcmci_plus_dsep_oracle.rs"
+
+[[test]]
+name = "multi_dataset_constraints_reference"
+path = "tests/multi_dataset_constraints_reference.rs"

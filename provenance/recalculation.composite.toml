@@ -8,3 +8,22 @@ papers = []
 implementation_deviations = ["The original checked finite native engine supplies real producing state and its original execution context. Two real foreign mean callbacks execute under their original external program and policy contracts. All three inputs enter the original supported composition boundary as ordered scientific alternatives, preserving native versus externally attested standing. One shared original RecalcPlan/receipt accounts for actual native factors/integrations, branch-specific provider entries and terminal decision work. Utility-only changes do no provider/native work; one foreign request mutation invokes only that provider plus the original decision; native data changes refresh original native factors while compatible providers remain retained. Failed scientific transactions leave prior native/provider/decision state usable while attempted side effects remain recorded. Fresh-process scientific replay explicitly reexecutes supplied raw native requests and compatible supplied callbacks, and independently consumes the original receipt. This finite mean workflow does not create a joint law, arbitrary callback runtime or calibrated ranking guarantee.", "Original integration engineering; existing ordinary ID, native finite evaluation, external contract binder, supported decision and canonical original receipt own their numerical/scientific methods. No new inferential guarantee."]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent/tests/recalc_composite.rs", "python/tests/test_recalc_composite.py", "crates/antecedent-io/tests/native_contract_identity.rs"]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "One shared dependency plan over a retained native response and attested external callbacks: stage identities, dependency binding and refusals when the two sources disagree."
+no_independent_algorithm = "recalc_composite.rs composes the static-response and external-callback sessions and folds identities; it contains no sqrt, ln, exp, solve or loop over data, and the numbers it reports are the two executing sessions' own. The only arithmetic besides delegated estimator calls is the shared decision net benefit benefit_per_unit * ate - cost (one fused multiply-add) in recalc_receipt.rs."
+record_sha256 = "8ac59f7c496846985f009bad2aca46bd5d3813d478e2b8812be4b8783b68537b"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/recalc_composite.rs"
+items = ["const MAX_UTILITY_DEPTH", "enum CompositeError", "fn add_receipt", "fn checked_native", "fn decision", "fn decision_bounded", "fn decision_inputs", "fn execute", "fn from_native", "fn inputs", "fn native", "fn plan", "fn publication", "fn terminal_fields", "struct CompositeOutcome", "struct CompositePublication", "struct CompositeRequest", "struct CompositeSession"]
+sha256 = "47f748f4ad3f1440f55600c5c3ae04310005f91bf13c4208ace15e2c41487da3"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/recalc_composite.rs"
+items = ["fn actual_combined_decision_routes_original_structural_ranking_and_fresh_source_consumption", "fn callback_failure_preserves_combined_native_and_foreign_success", "fn conditional_policy", "fn decision_contract", "fn declared_source_preference_selects_all_three_actual_sources_and_is_terminal_only", "fn execute", "fn fixture", "fn native_data_refresh_counts_real_factors_and_retains_both_providers", "fn native_proof_substitution_refuses_purely_and_preserves_shared_state", "fn native_two_provider_shared_receipt_and_selective_mutation", "fn seal_receipt"]
+sha256 = "239c407bc4776749b6b9a84dcd46e61bc9892091ef0f67a44d434f2ca9b4d04a"

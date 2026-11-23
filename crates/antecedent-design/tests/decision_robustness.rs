@@ -20,7 +20,13 @@ use antecedent_io_core::distribution_artifact::{
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
 use antecedent_io_core::quantity_wire::DistributionMeaningWire;
-use antecedent_test_support::near_lt_1e12 as near;
+use antecedent_test_support::within;
+
+const NEAR_TOLERANCE: f64 = 1e-12;
+
+fn near(a: f64, b: f64) -> bool {
+    within(a, b, NEAR_TOLERANCE)
+}
 
 mod common;
 
@@ -221,7 +227,7 @@ fn robustness_per_input_support_removes_one_action_in_one_structure() {
     };
     let claims = profile(vec![("s1", AtomSupport::supported()), ("s2", s2)]);
     let result = run(&c, &atoms, &claims);
-    // In s2 only A is licensed, so A leads there; B's raw lead in s2 is not used.
+    // In s2 only A is supported, so A leads there; B's raw lead in s2 is not used.
     assert_eq!(
         result.verdict,
         RobustVerdict::SupportDependent { supported_choice: "A".into(), unrestricted_choice: None }
@@ -464,13 +470,19 @@ fn robustness_refuses_a_foreign_result_and_an_unknown_profile_entry() {
     let error = assess_robustness(&other, &structural, &profile(vec![])).unwrap_err();
     assert_eq!(error, RobustnessError::ContractMismatch);
     let refusal = error.to_refusal();
-    assert_eq!(refusal.detail, "decision_robustness.contract_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_robustness::CONTRACT_MISMATCH
+    );
     assert_eq!(refusal.code, "decision_contract_unsatisfied");
 
     let ghost = profile(vec![("ghost", AtomSupport::supported())]);
     let error = assess_robustness(&c, &structural, &ghost).unwrap_err();
     assert!(matches!(error, RobustnessError::InvalidProfile(_)));
-    assert_eq!(error.to_refusal().detail, "decision_robustness.invalid_profile");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::decision_robustness::INVALID_PROFILE
+    );
 
     let twice = profile(vec![("s1", AtomSupport::supported()), ("s1", AtomSupport::supported())]);
     assert!(matches!(
@@ -487,7 +499,10 @@ fn robustness_refuses_a_foreign_result_and_an_unknown_profile_entry() {
         error,
         RobustnessError::Admissibility(AdmissibilityError::UnknownAction("ghost".into()))
     );
-    assert_eq!(error.to_refusal().detail, "decision_admissibility.unknown_action");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::decision_admissibility::UNKNOWN_ACTION
+    );
 }
 
 fn rich_rules() -> AdmissibilityRules {
@@ -587,20 +602,32 @@ fn admissibility_malformed_rules_refuse_with_registered_details() {
     };
     let error = refuse(&|c| c.rules.support_rules = vec![rule("ghost", 0)]);
     assert_eq!(error, AdmissibilityError::UnknownAction("ghost".into()));
-    assert_eq!(error.to_refusal().detail, "decision_admissibility.unknown_action");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::decision_admissibility::UNKNOWN_ACTION
+    );
 
     let error = refuse(&|c| c.rules.support_rules = vec![rule("A", 3)]);
     assert_eq!(error, AdmissibilityError::UnknownInput { action: "A".into(), input: 3 });
-    assert_eq!(error.to_refusal().detail, "decision_admissibility.unknown_input");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::decision_admissibility::UNKNOWN_INPUT
+    );
 
     let error = refuse(&|c| c.rules.support_rules = vec![rule("A", 0), rule("A", 0)]);
     assert_eq!(error, AdmissibilityError::DuplicateRule("A[0]".into()));
-    assert_eq!(error.to_refusal().detail, "decision_admissibility.duplicate_rule");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::decision_admissibility::DUPLICATE_RULE
+    );
 
     let blank = DeclaredExclusion { action_id: "A".into(), reason: "  ".into() };
     let error = refuse(&|c| c.rules.declared_exclusions = vec![blank.clone()]);
     assert!(matches!(error, AdmissibilityError::InvalidRule(_)));
-    assert_eq!(error.to_refusal().detail, "decision_admissibility.invalid_rule");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::decision_admissibility::INVALID_RULE
+    );
 
     let twice = DeclaredExclusion { action_id: "A".into(), reason: "legal".into() };
     let error = refuse(&|c| c.rules.declared_exclusions = vec![twice.clone(), twice.clone()]);
@@ -610,7 +637,10 @@ fn admissibility_malformed_rules_refuse_with_registered_details() {
         c.contract.actions.pop();
     });
     assert!(matches!(error, AdmissibilityError::Contract(_)));
-    assert_eq!(error.to_refusal().detail, "decision_contract.invalid_declaration");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::decision_contract::INVALID_DECLARATION
+    );
 }
 
 #[test]

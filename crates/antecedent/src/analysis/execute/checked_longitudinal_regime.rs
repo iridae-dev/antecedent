@@ -1,5 +1,5 @@
 //! Retained sequential randomized regime value over subject histories.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, CausalError, CausalExprArena, CausalQuery, DerivationMeta, DerivationTrace, Diagnostic,
@@ -15,14 +15,30 @@ use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
 };
 use antecedent_estimate::longitudinal_regime::{
-    RegimeValueSummary, evaluate_g_formula_value, evaluate_regime_value,
+    RegimeKernelError, RegimeValueSummary, evaluate_g_formula_value, evaluate_regime_value,
     evaluate_sequential_dr_value_with_subject_scores, g_formula_fixed_q_pointwise_interval_95,
     sequential_dr_pointwise_interval_95,
 };
 use antecedent_estimate::marginal_structural_model::{MsmIntervals95, MsmSummary, fit_binary_msm};
 
-pub(crate) type CheckedLongitudinalRegimeOperation =
-    RandomizedTrialOperation<antecedent_core::LongitudinalRegimeQuery, ()>;
+pub(crate) type CheckedLongitudinalRegimeOperation = RandomizedTrialOperation<
+    antecedent_core::LongitudinalRegimeQuery,
+    Option<super::BayesianConfig>,
+>;
+
+mod bayesian_regime;
+
+fn kernel_refusal(error: RegimeKernelError) -> CausalError {
+    match error.route() {
+        Some(record) => CausalError::Estimate(antecedent_estimate::EstimationError::Prob(
+            antecedent_prob::ProbError::Route {
+                summary: error.message().to_owned(),
+                diagnostics: vec![record],
+            },
+        )),
+        None => CausalError::Unsupported { message: error.message() },
+    }
+}
 
 impl RandomizedTrialQuery for antecedent_core::LongitudinalRegimeQuery {
     const OPERATION: &'static str = "CheckedLongitudinalRegimeOperation";
@@ -36,6 +52,13 @@ impl RandomizedTrialQuery for antecedent_core::LongitudinalRegimeQuery {
 }
 
 impl CheckedLongitudinalRegimeOperation {
+    /// The design identification this operation records; the route lowering retains it.
+    pub(crate) fn design_identification(
+        query: &antecedent_core::LongitudinalRegimeQuery,
+    ) -> (IdentificationResult, IdentifiedEstimand) {
+        longitudinal_identification(query)
+    }
+
     pub(crate) fn checked(
         study: &Study,
         data: &TabularData,
@@ -51,26 +74,36 @@ impl CheckedLongitudinalRegimeOperation {
             || !query.probabilities_known_by_design
             || study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
-            || !matches!(study.inference, InferenceMode::Frequentist)
-            || study.refute != RefuteSuite::None
-            || study.bootstrap_replicates != 0
-            || !study.custom_validators.is_empty()
+            || study.settings.refute != RefuteSuite::None
+            || study.settings.bootstrap_replicates != 0
+            || !study.declared.custom_validators.is_empty()
             || study.graph_posterior.is_some()
-            || study.tiered.is_some()
+            || study.declared.tiered.is_some()
         {
             return Err(CausalError::Unsupported {
-                message: "retained longitudinal regime value requires known sequential randomization, one outcome row per subject, graphless trial, and point-only frequentist execution",
+                message: "retained longitudinal regime value requires known sequential randomization, one outcome row per subject, graphless trial, and point-only frequentist execution or the Bayesian sequential regime posterior",
             });
         }
-        data.schema().get(query.outcome).map_err(CausalError::rejected)?;
-        let estimator_id = match query.method {
-            LongitudinalRegimeMethod::Ipw => EstimatorId::LongitudinalIpwRegime,
-            LongitudinalRegimeMethod::GFormula => EstimatorId::LongitudinalGFormulaRegime,
-            LongitudinalRegimeMethod::SequentialDoublyRobust => {
-                EstimatorId::LongitudinalSequentialDrRegime
+        let bayesian = match &study.settings.inference {
+            InferenceMode::Frequentist => None,
+            InferenceMode::Bayesian(config) => {
+                bayesian_regime::admit_bayesian_regime(query, config)?;
+                Some(config.clone())
             }
-            LongitudinalRegimeMethod::MarginalStructuralModel => {
-                EstimatorId::LongitudinalMarginalStructuralModel
+        };
+        data.schema().get(query.outcome).map_err(CausalError::rejected)?;
+        let estimator_id = if bayesian.is_some() {
+            EstimatorId::BayesianSequentialRegimeValue
+        } else {
+            match query.method {
+                LongitudinalRegimeMethod::Ipw => EstimatorId::LongitudinalIpwRegime,
+                LongitudinalRegimeMethod::GFormula => EstimatorId::LongitudinalGFormulaRegime,
+                LongitudinalRegimeMethod::SequentialDoublyRobust => {
+                    EstimatorId::LongitudinalSequentialDrRegime
+                }
+                LongitudinalRegimeMethod::MarginalStructuralModel => {
+                    EstimatorId::LongitudinalMarginalStructuralModel
+                }
             }
         };
         if physical.logical.query != study.query
@@ -81,7 +114,7 @@ impl CheckedLongitudinalRegimeOperation {
             });
         }
         let (identification, estimand) = longitudinal_identification(query);
-        Ok(Self::freeze(study, query, data, physical, identification, estimand, ()))
+        Ok(Self::freeze(study, query, data, physical, identification, estimand, bayesian))
     }
 
     pub(crate) fn execute(
@@ -100,10 +133,13 @@ impl CheckedLongitudinalRegimeOperation {
                 });
             }
         };
+        if let Some(config) = self.extra.as_ref() {
+            return self.execute_bayesian(data, outcome, config, ctx);
+        }
         let estimation = self.estimate_regime_value(outcome)?;
         let intervals = self.regime_intervals(&estimation);
         let (diagnostic, description) = published_diagnostic(&estimation, &intervals);
-        let graphless_licensed = self.graphless_licensed(&estimation.summary, &intervals);
+        let graphless_supported = self.graphless_supported(&estimation.summary, &intervals);
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
@@ -131,13 +167,13 @@ impl CheckedLongitudinalRegimeOperation {
         );
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
         result.treatment = None;
-        if graphless_licensed {
-            result.support_status = Some(crate::support::CellStatus::Licensed);
+        if graphless_supported {
+            result.support_status = Some(crate::support::CellStatus::Supported);
         }
         result.payload = crate::result::ResultPayload::LongitudinalRegime(self.regime_payload(
             &estimation,
             &intervals,
-            graphless_licensed,
+            graphless_supported,
         ));
         Ok(result)
     }
@@ -158,13 +194,14 @@ impl CheckedLongitudinalRegimeOperation {
     fn sequential_dr_value(
         &self,
         outcome: &[f64],
-    ) -> Result<(RegimeValueSummary, Vec<f64>), &'static str> {
+    ) -> Result<(RegimeValueSummary, Vec<f64>), RegimeKernelError> {
         let (Some(observation_history), Some(q_predictions)) =
             (self.query.observation_history.as_deref(), self.query.q_predictions.as_deref())
         else {
-            return Err(
-                "sequential doubly robust regime value requires observation history and Q predictions",
-            );
+            return Err(RegimeKernelError::from_message(
+                "sequential doubly robust regime value requires observation history and Q \
+                 predictions",
+            ));
         };
         evaluate_sequential_dr_value_with_subject_scores(
             outcome,
@@ -252,7 +289,7 @@ impl CheckedLongitudinalRegimeOperation {
                     },
                 )?;
                 let fit = fit_binary_msm(outcome, &self.subject_histories(), numerators)
-                    .map_err(|message| CausalError::Unsupported { message })?;
+                    .map_err(kernel_refusal)?;
                 let (min_action, min_censor) = self.probability_floors();
                 let summary = RegimeValueSummary {
                     value: fit.intercept,
@@ -273,7 +310,7 @@ impl CheckedLongitudinalRegimeOperation {
                 )
             }
         };
-        let summary = summary.map_err(|message| CausalError::Unsupported { message })?;
+        let summary = summary.map_err(kernel_refusal)?;
         Ok(RegimeEstimation {
             summary,
             estimator_id,
@@ -357,24 +394,24 @@ impl CheckedLongitudinalRegimeOperation {
         }
     }
 
-    /// Decides the graphless license from the published interval plus the exact retained matrix row.
-    fn graphless_licensed(
+    /// Decides the graphless support from the published interval plus the exact retained matrix row.
+    fn graphless_supported(
         &self,
         summary: &RegimeValueSummary,
         intervals: &RegimeIntervals,
     ) -> bool {
         // The sequential-DR interval only publishes after its narrowed,
-        // calibrated subject support holds, so the graphless license is a
+        // calibrated subject support holds, so the graphless support is a
         // function of that published interval plus the exact two- or
         // three-period row. Observed-outcome, matching-history, and censoring
         // floors are enforced upstream by the interval and stated in the row's
         // limitations; classify_graphless checks the coarse published-interval
-        // support so the license cannot exist without a matching matrix row.
-        let graphless_dr_licensed = self.query.method
+        // support so the support cannot exist without a matching matrix row.
+        let graphless_dr_supported = self.query.method
             == LongitudinalRegimeMethod::SequentialDoublyRobust
             && intervals.dr.is_some()
             && matches!(self.query.periods, 2 | 3)
-            && crate::support::license_if_graphless(
+            && crate::support::support_if_graphless(
                 crate::support::GraphlessSupportKey {
                     family: "longitudinal_regime",
                     design: if self.query.periods == 2 {
@@ -400,14 +437,14 @@ impl CheckedLongitudinalRegimeOperation {
             .is_some();
         // The two-period fixed-known-Q g-formula interval only publishes after
         // its own subject, positivity, and censoring floors hold, so its
-        // graphless license is a function of that published interval plus the
+        // graphless support is a function of that published interval plus the
         // exact two-period fixed-Q row. The fixed-known-Q attestation and the
         // finer floors are enforced upstream by the interval and stated in the
         // row's limitations; classify_graphless checks the coarse row support.
-        let graphless_g_formula_licensed = self.query.method == LongitudinalRegimeMethod::GFormula
+        let graphless_g_formula_supported = self.query.method == LongitudinalRegimeMethod::GFormula
             && intervals.g_formula.is_some()
             && self.query.periods == 2
-            && crate::support::license_if_graphless(
+            && crate::support::support_if_graphless(
                 crate::support::GraphlessSupportKey {
                     family: "longitudinal_regime",
                     design: "known_sequential_randomized_two_period",
@@ -427,13 +464,13 @@ impl CheckedLongitudinalRegimeOperation {
         // The additive MSM publishes separate pointwise subject-clustered CR1
         // intervals for the intercept and every period coefficient only after
         // its subject, observed-outcome, and effective-weight floors hold, so
-        // its license is a function of those published intervals plus the exact
+        // its support is a function of those published intervals plus the exact
         // additive-MSM row. The observed-outcome floor and positive coefficient
         // SEs are enforced upstream by the intervals and stated in the row.
-        let graphless_msm_licensed = self.query.method
+        let graphless_msm_supported = self.query.method
             == LongitudinalRegimeMethod::MarginalStructuralModel
             && intervals.msm.is_some()
-            && crate::support::license_if_graphless(
+            && crate::support::support_if_graphless(
                 crate::support::GraphlessSupportKey {
                     family: "longitudinal_regime",
                     design: "known_sequential_randomized_additive_msm",
@@ -452,7 +489,7 @@ impl CheckedLongitudinalRegimeOperation {
                 },
             )
             .is_some();
-        graphless_dr_licensed || graphless_g_formula_licensed || graphless_msm_licensed
+        graphless_dr_supported || graphless_g_formula_supported || graphless_msm_supported
     }
 
     /// Assembles the retained regime estimate from the estimation and interval phases.
@@ -460,13 +497,13 @@ impl CheckedLongitudinalRegimeOperation {
         &self,
         estimation: &RegimeEstimation,
         intervals: &RegimeIntervals,
-        graphless_licensed: bool,
+        graphless_supported: bool,
     ) -> crate::LongitudinalRegimeEstimate {
         let interval_reason = self.interval_reason(intervals);
         crate::LongitudinalRegimeEstimate {
             method: Arc::from(estimation.method),
-            graphless_support_status: graphless_licensed
-                .then_some(crate::support::CellStatus::Licensed),
+            graphless_support_status: graphless_supported
+                .then_some(crate::support::CellStatus::Supported),
             rule_id: self.query.rule_id.clone(),
             rule_version: self.query.rule_version.clone(),
             rule_provenance: self.query.rule_provenance.clone(),

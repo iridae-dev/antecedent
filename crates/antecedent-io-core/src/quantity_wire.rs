@@ -1,7 +1,7 @@
 //! Versioned wire coordinates for scientific quantities.
 //!
 //! This wire carries semantics only. It does not turn a numerical payload into
-//! a licensed causal estimate or reinterpret a posterior-draw artifact.
+//! a supported causal estimate or reinterpret a posterior-draw artifact.
 
 use antecedent_contract::{
     DistributionMeaning, QuantityCondition, QuantityRole, ScientificQuantity,

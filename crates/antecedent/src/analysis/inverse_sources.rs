@@ -10,7 +10,8 @@
 //!   action's composition query, consumes the artifact again (premises digest
 //!   recomputed, premises recompiled, query replayed to identical bits) and
 //!   hands the replayed results to [`composed_forward_source`]. A linear-Gaussian
-//!   composition supplies a point per action; a finite-table composition the
+//!   intervention with outcome coordinates supplies a conditional analytic law; mean
+//!   coordinates and contrasts remain point estimates. A finite-table composition supplies the
 //!   exact finite law of each action under the caller's numeric coding of the
 //!   outcome levels.
 //! * **Cohort contrast.** [`cohort_source`]: the weighted mean contrast of a
@@ -21,7 +22,7 @@
 //!   target population, as a point or a transported law.
 //!
 //! Every source is refused an interval region
-//! ([`ForwardSourceRefusal::IntervalNotLicensed`]); a point is refused a
+//! ([`ForwardSourceRefusal::IntervalNotSupported`]); a point is refused a
 //! quantile, a probability, a nonlinear utility and an outcome-law input. A
 //! source's own variance is an uncalibrated diagnostic and never becomes a
 //! feasibility statement.
@@ -54,7 +55,7 @@
 //! and the query. The law is an input; new data means a new law and a new
 //! result.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{ExternalRefusal, ScientificQuantity};
 use antecedent_core::ExecutionContext;
@@ -69,12 +70,12 @@ pub use super::design_exports::design_crate::decision_transported_source::{
 pub use super::design_exports::design_crate::inverse_forward_source::{
     ComposedActionResponse, ComposedFamily, ComposedResponse, FORWARD_ORIGIN_VERSION,
     ForwardOrigin, ForwardRepresentation, ForwardSourceKind, ForwardSourceRefusal, InverseDemand,
-    LicensedForwardSource, SourcedInverseResult, forward_claim_digest, query_needs_law,
+    SourcedInverseResult, SupportedForwardSource, forward_claim_digest, query_needs_law,
 };
 pub use super::design_exports::design_crate::inverse_observational_scenarios::{
-    MAX_OBSERVATIONAL_SCENARIOS, OBSERVATIONAL_SCENARIO_SCOPE_NOTE, OBSERVATIONAL_SCENARIO_VERSION,
-    ObservationalScenarioError, ObservationalScenarioQuery, ObservationalScenarioResult,
-    OutcomeEvent, ScenarioCell, ScenarioCondition, ScenarioReport,
+    OBSERVATIONAL_SCENARIO_SCOPE_NOTE, OBSERVATIONAL_SCENARIO_VERSION, ObservationalScenarioError,
+    ObservationalScenarioQuery, ObservationalScenarioResult, OutcomeEvent, ScenarioCell,
+    ScenarioCondition, ScenarioReport,
 };
 pub use antecedent_contract::provider_transport::TransportedInputPolicy;
 use antecedent_design::inverse_forward_source::{
@@ -112,8 +113,11 @@ pub struct ComposedActionQuery {
 /// moment ago did not consume to the same premises, so the origin is not the
 /// one the composition computed.
 fn replay_refusal(error: &MechanismCompositionRefusal) -> ForwardSourceRefusal {
-    let detail =
-        error.details().first().copied().unwrap_or("mechanism_composition.artifact_invalid");
+    let detail = error
+        .details()
+        .first()
+        .copied()
+        .unwrap_or(antecedent_core::reason_details::mechanism_composition::ARTIFACT_INVALID);
     ForwardSourceRefusal::Artifact {
         code: error.code(),
         text: format!("{detail}: the composition's exported query did not replay to its premises"),
@@ -133,7 +137,7 @@ fn retype_export_refusal(
     let [only] = refusal.refusals.as_slice() else {
         return refusal;
     };
-    if only.detail != "mechanism_composition.artifact_invalid" {
+    if only.detail != antecedent_core::reason_details::mechanism_composition::ARTIFACT_INVALID {
         return refusal;
     }
     let text = only.offending.clone().unwrap_or_default();
@@ -143,7 +147,7 @@ fn retype_export_refusal(
                 ExternalRefusal::new(
                     antecedent_core::reason_code!("route_not_supported"),
                     "compose",
-                    "mechanism_composition.request_unsupported",
+                    antecedent_core::reason_details::mechanism_composition::REQUEST_UNSUPPORTED,
                 )
                 .with_offending(format!("action `{action}`: {message}"))
                 .with_remedy(
@@ -161,7 +165,7 @@ fn retype_export_refusal(
                 ExternalRefusal::new(
                     antecedent_core::reason_code!("invalid_argument"),
                     "compose",
-                    "mechanism_composition.numerical_failure",
+                    antecedent_core::reason_details::mechanism_composition::NUMERICAL_FAILURE,
                 )
                 .with_offending(format!("action `{action}`: {message}"))
                 .with_remedy("the composition's numbers could not be solved for this query"),
@@ -212,7 +216,10 @@ impl ComposedSourceRefusal {
     pub fn detail(&self) -> String {
         match self {
             Self::Composition { refusal, .. } => refusal.refusals.first().map_or_else(
-                || "mechanism_composition.artifact_invalid".to_owned(),
+                || {
+                    antecedent_core::reason_details::mechanism_composition::ARTIFACT_INVALID
+                        .to_owned()
+                },
                 |r| r.detail.clone(),
             ),
             Self::Source(source) => source.detail(),
@@ -238,7 +245,7 @@ impl ComposedSourceRefusal {
                     ExternalRefusal::new(
                         refusal.code(),
                         "inverse_forward_source",
-                        "mechanism_composition.artifact_invalid",
+                        antecedent_core::reason_details::mechanism_composition::ARTIFACT_INVALID,
                     )
                 })
             }
@@ -262,11 +269,9 @@ impl ComposedSourceRefusal {
     pub fn into_forward_source_refusal(self) -> ForwardSourceRefusal {
         match self {
             Self::Composition { refusal, .. } => {
-                let detail = refusal
-                    .details()
-                    .first()
-                    .copied()
-                    .unwrap_or("mechanism_composition.artifact_invalid");
+                let detail = refusal.details().first().copied().unwrap_or(
+                    antecedent_core::reason_details::mechanism_composition::ARTIFACT_INVALID,
+                );
                 ForwardSourceRefusal::Artifact {
                     code: refusal.code(),
                     text: format!("{detail}: the mechanism composition refused the action's query"),
@@ -298,7 +303,7 @@ impl From<ForwardSourceRefusal> for ComposedSourceRefusal {
 
 impl PreparedMechanismComposition {
     /// Replay one query per action through the composition artifact and adapt
-    /// the results as a licensed forward source of an inverse query.
+    /// the results as a supported forward source of an inverse query.
     ///
     /// Each action's query is sealed and consumed again before its result is
     /// read, so the numbers handed to the inverse engine are the replayed ones
@@ -322,7 +327,7 @@ impl PreparedMechanismComposition {
         transport: Option<TransportReceipt>,
         accept: TransportedInputPolicy,
         ctx: &ExecutionContext,
-    ) -> Result<LicensedForwardSource, ForwardSourceRefusal> {
+    ) -> Result<SupportedForwardSource, ForwardSourceRefusal> {
         self.inverse_forward_source_typed(actions, transport, accept, ctx)
             .map_err(ComposedSourceRefusal::into_forward_source_refusal)
     }
@@ -348,7 +353,7 @@ impl PreparedMechanismComposition {
         transport: Option<TransportReceipt>,
         accept: TransportedInputPolicy,
         ctx: &ExecutionContext,
-    ) -> Result<LicensedForwardSource, ComposedSourceRefusal> {
+    ) -> Result<SupportedForwardSource, ComposedSourceRefusal> {
         if transport.is_none() && !self.admitted_variables().is_empty() {
             return Err(ComposedSourceRefusal::Source(ForwardSourceRefusal::ComposedInvalid(
                 "a composition with mechanisms admitted from another context carries the \
@@ -402,7 +407,7 @@ impl PreparedMechanismComposition {
 pub fn cohort_source(
     source: &CohortDecisionSource,
     accept: TransportedInputPolicy,
-) -> Result<LicensedForwardSource, ForwardSourceRefusal> {
+) -> Result<SupportedForwardSource, ForwardSourceRefusal> {
     cohort_forward_source(source, accept)
 }
 
@@ -413,7 +418,7 @@ pub fn cohort_source(
 pub fn transported_source(
     response: &TransportedResponse,
     accept: TransportedInputPolicy,
-) -> Result<LicensedForwardSource, ForwardSourceRefusal> {
+) -> Result<SupportedForwardSource, ForwardSourceRefusal> {
     transported_forward_source(response, accept)
 }
 
@@ -423,11 +428,11 @@ pub fn transported_source(
 /// As [`composed_forward_source`].
 pub fn composed_source(
     response: &ComposedResponse,
-) -> Result<LicensedForwardSource, ForwardSourceRefusal> {
+) -> Result<SupportedForwardSource, ForwardSourceRefusal> {
     composed_forward_source(response)
 }
 
-/// Evaluate an inverse query on a licensed source; the result carries the
+/// Evaluate an inverse query on a supported source; the result carries the
 /// source's origin.
 ///
 /// # Errors
@@ -435,7 +440,7 @@ pub fn composed_source(
 /// nonlinear utility or outcome-law input on a point, and any engine refusal.
 pub fn evaluate(
     query: &InverseQuery,
-    source: &LicensedForwardSource,
+    source: &SupportedForwardSource,
     demand: InverseDemand,
 ) -> Result<SourcedInverseResult, ForwardSourceRefusal> {
     evaluate_inverse_on_source(query, source, demand)
@@ -449,7 +454,7 @@ pub fn evaluate(
 /// action separately (use [`seal_per_action`]), and every refusal of [`evaluate`].
 pub fn seal(
     query: InverseQuery,
-    source: &LicensedForwardSource,
+    source: &SupportedForwardSource,
     demand: InverseDemand,
 ) -> Result<InverseQueryArtifact, ForwardSourceRefusal> {
     seal_on_source(query, source, demand)
@@ -461,7 +466,7 @@ pub fn seal(
 /// As [`seal`], for a source that answers each action separately.
 pub fn seal_per_action(
     query: &InverseQuery,
-    source: &LicensedForwardSource,
+    source: &SupportedForwardSource,
     demand: InverseDemand,
 ) -> Result<Vec<(String, InverseQueryArtifact)>, ForwardSourceRefusal> {
     seal_per_action_on_source(query, source, demand)
@@ -476,7 +481,7 @@ pub struct ForwardSourceInspection {
     pub representation: &'static str,
     /// Support label of the claim.
     pub support: String,
-    /// Always `not_licensed`: no source supplies an interval region.
+    /// Always `uncertainty_representation_insufficient`: no source supplies an interval region.
     pub interval_region: &'static str,
     /// Whether the claim was carried from another population.
     pub transported: bool,
@@ -497,7 +502,7 @@ pub fn inspect_origin(origin: &ForwardOrigin) -> ForwardSourceInspection {
         kind: origin.kind.as_str(),
         representation: origin.representation.as_str(),
         support: origin.support.clone(),
-        interval_region: "not_licensed",
+        interval_region: "uncertainty_representation_insufficient",
         transported: origin.transport.is_some(),
         source_populations: origin
             .transport

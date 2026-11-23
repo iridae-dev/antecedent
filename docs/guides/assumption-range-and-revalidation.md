@@ -1,8 +1,6 @@
-# Transport assumption ranges and revalidation
+# Assumption ranges and revalidation
 
-Every transported value rests on a premise the data cannot test. Two routes say
-what happens when the premise fails or the situation changes. Neither measures
-anything.
+You can ask how far a transported value moves if its shared-mechanism premise is wrong, and whether a held transported claim is still valid after the target, the evidence, the diagram or the support changes. Every transported value rests on a premise the data cannot test. These two routes say what follows when the premise fails or the situation changes; neither measures anything.
 
 | Route | Rust surface | Label |
 | --- | --- | --- |
@@ -10,21 +8,44 @@ anything.
 | Revalidation after a change of target, evidence, diagram or support | `antecedent_contract::transport_revalidation::revalidate_transport` | `recompute`, `withdrawn`, `still_valid` |
 
 Python entries: `antecedent.transport.sensitivity.transport_sensitivity`
-(a `TransportSensitivity` whose `.artifact` is a `SensitivityArtifact`),
+(a `TransportSensitivity` whose `.decision_source` is a `SensitivityArtifact`),
 `antecedent.transport.revalidation` (`TransportScene.builder`, `revalidate`,
 `TransportClaimState.observe`, `Calibration`, `ObservedEffect`); the range's
 artifact is decided and exported through `antecedent.sensitivity_decision`.
-Provenance records:
-`transport.assumption_range`, `transport.revalidation`.
+Both start from a `TransportedResponse` (`antecedent.transported_response`),
+which every transport route that reaches a decision produces. For the other
+transport questions, see [which transport page answers your question](transport/carry-an-effect.md#which-transport-page-answers-your-question).
 
 ## Assumption range
+
+In this sketch `response` is a `TransportedResponse` from a cohort decision,
+and `reference` is the `ScientificQuantity` of the alternative the decision
+keeps, in the same population and units:
+
+```python
+from antecedent.transport import sensitivity
+
+result = sensitivity.transport_sensitivity(
+    response,
+    family="additive_shift",       # or "proportional_shift"
+    bound=0.5,                     # your declaration of how far the premise may fail
+    grid_points=3,                 # shifts 0, 0.25 and 0.5
+    reference=reference,
+    reference_value=1.75,
+    route="cohort_decision",
+)
+result.lower, result.upper         # the range at each shift in result.grid
+result.reference_reached_at        # smallest shift that reaches 1.75, or None within the bound
+result.statement                   # the wording that must accompany the range
+result.decision_source             # decide through antecedent.sensitivity_decision
+```
 
 The violation family has one parameter: the transported quantity differs from
 the point value by a shift `s` with `0 <= s <= bound`, additive (in the
 quantity's units) or proportional (a fraction of the point value). At shift `s`
 the range is `[v - s, v + s]` or `[v - s|v|, v + s|v|]`, evaluated at the
-declared grid. It is built into the existing sensitivity artifact, so tipping
-and decision consumption apply unchanged. `reference_reached_at` reports the
+declared grid. It is built into the sensitivity artifact, so tipping
+and decision consumption apply to it directly. `reference_reached_at` reports the
 shift at which a reference value is reached. The range is built from a
 transported response's own point value, coordinate and receipt, so the sealed
 artifact is bound to that target and quantity; a response whose value is a law
@@ -33,30 +54,52 @@ has no single point to shift and is refused
 
 It is an assumption range. It is not a confidence or credible interval, no
 probability attaches to a shift, the `bound` is your declaration and the data do
-not license it, and a sampling interval is not composed into it. The route set
+not support it, and a sampling interval is not composed into it. The route set
 covers cohort decisions, statistical and z-transport, path-specific effects,
 measurement, mechanism, synthesis, bridge, policy, temporal policy, adaptive
 trial source and provider handoff.
 
 ## Revalidation
 
+In this sketch `previous_scene` is the scene you held, the identities are
+content digests of the data each population supplied, and `response` is the
+transported claim:
+
+```python
+from antecedent.transport import revalidation as rv
+
+scene = (
+    rv.TransportScene.builder("clinic_b", target_data_identity)
+    .source("trial", trial_evidence_identity)
+    .transported("effect", response, rv.Calibration.point_only())
+    .decision("treat_or_wait", decision_identity, quantity_identity, rests_on=["effect"])
+    .build()
+)
+report = rv.revalidate(previous_scene, scene)
+report.claim("effect").classification   # "recompute" when the trial's evidence changed
+report.claim("effect").reasons          # such as "source_evidence_changed"
+report.require_valid("effect")          # raises with a stated remedy otherwise
+```
+
 A `TransportScene` declares the target population, sources, selection diagram,
 claims (with their calibration standing) and decisions. `revalidate_transport`
-compares two scenes through the existing claim-level graph:
+compares two scenes through the claim-level graph:
 
 - `recompute`: the target, a source's evidence, the diagram or the claim's own
   derivation changed;
-- `withdrawn`: the target or claim is outside its support, a provider's trust no
-  longer holds, an input was retired, or calibration does not hold at the
+- `withdrawn`: the target or claim is outside its support, a provider's trust does
+  not hold, an input was retired, or calibration does not hold at the
   claim's coordinate;
 - `still_valid`: nothing it rests on changed.
 
-The report exports as the claim-level verification
-(`composition_verification_v1`), which a consumer replays. The io-core crate
-also defines `transport_revalidation_v1`, which carries both scenes, the
-effects and the classification and re-derives the whole report on consume,
-keeping the transport reasons; `TransportRevalidation.export` produces it in
-Python.
+`TransportRevalidation.export` writes the claim-level verification
+(`composition_verification_v1`), which
+`antecedent.composition_verification.consume_composition_verification_artifact`
+replays. In Rust,
+`antecedent_io::transport_revalidation_artifact` also defines
+`transport_revalidation_v1`, which carries both scenes, the effects and the
+classification and re-derives the whole report on consume, keeping the
+transport reasons.
 
 A change of standing is itself a change: a provider's trust moving between
 snapshots, a calibration record replaced, or support restored recomputes the
@@ -64,17 +107,27 @@ claim, and a provider trust the scene leaves undeclared withdraws it. A refused
 refresh leaves the held scene as it was (`TransportClaimState.observe`).
 
 A record held at one target is never read as holding at another: the claim is
-withdrawn for calibration with `CalibrationFromAnotherTarget`, and its point
-value is left as it was.
+withdrawn for calibration (reason `calibration_from_another_target`; Rust
+`CalibrationFromAnotherTarget`), and its point value is left as it was.
 
-## What is refused, and the remedy
+## What is refused, and what to do
 
-| Refused request | Remedy |
+Refusals raise `TransportedResponseRefusal` with a registered `reason_code`, a
+`transport_sensitivity.*` or `transport_revalidation.*` detail and a remedy;
+the full list is in [refusal codes: assumption range and revalidation](../reference/refusal-codes.md#assumption-range-and-revalidation).
+
+| Refused request | Next step |
 | --- | --- |
 | Range for a discovered structure (no scalar family) | Use the structural envelope; declare a graph |
 | Missing shift bound, grid or population/quantity bindings | Declare them; none is chosen for you |
-| Reading the range as an interval or posterior | Not licensed; use as a tipping or sensitivity statement |
+| Reading the range as an interval or posterior | Not supported; use as a tipping or sensitivity statement |
 | Calibration carried from another target | Withdrawn; measure at the new target |
 | Reusing an earlier fit after the diagram changed | `recompute`: derive again |
-| A scene that names a claim twice, an unknown claim, a claim about another target or a source with no declared evidence | `transport_revalidation.duplicate_claim`, `unknown_claim`, `claim_target_mismatch`, `source_undeclared` | Correct the scene |
-| A stored revalidation report that no longer re-derives | `transport_revalidation.replay_mismatch`, `identity_mismatch` | Re-seal from the two scenes; the consumer re-derives |
+| A scene that names a claim twice, an unknown claim, a claim about another target or a source with no declared evidence | Correct the scene (`transport_revalidation.duplicate_claim`, `unknown_claim`, `claim_target_mismatch`, `source_undeclared`) |
+| A stored revalidation report that does not re-derive | Re-seal from the two scenes; the consumer re-derives (`transport_revalidation.replay_mismatch`, `identity_mismatch`) |
+
+## Related
+
+- [Carry an effect to another population](transport/carry-an-effect.md)
+- [Sensitivity and robustness](../sensitivity-and-robustness.md): the source-target mechanism discrepancy diagnostic, which informs a selection node and never certifies invariance
+- [Joint mechanism sensitivity](joint-mechanism-sensitivity.md)

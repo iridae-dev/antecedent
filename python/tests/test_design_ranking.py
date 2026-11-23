@@ -13,9 +13,11 @@ design_ranking_artifact}.rs``, derived by hand and not read from the code under 
 from __future__ import annotations
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import design as dr
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError, CausalValueError
 from antecedent.joint_distribution import ScientificQuantity
+from antecedent.outcomes import require_success
 
 EVSI_GAUSSIAN = 0.04165773529384315
 
@@ -71,11 +73,13 @@ def _external(
 
 
 def _accuracy_posterior(accuracy: float) -> dr.ExternalLaw:
-    return dr.ExternalLaw.posterior(
-        states=[0.0, 1.0],
-        statistics=[0.0, 1.0],
-        predictive=[0.5, 0.5],
-        posterior=[[accuracy, 1.0 - accuracy], [1.0 - accuracy, accuracy]],
+    return require_success(
+        dr.ExternalLaw.posterior(
+            states=[0.0, 1.0],
+            statistics=[0.0, 1.0],
+            predictive=[0.5, 0.5],
+            posterior=[[accuracy, 1.0 - accuracy], [1.0 - accuracy, accuracy]],
+        )
     )
 
 
@@ -102,7 +106,9 @@ def _rank(candidates: list[dr.Candidate], **kw: object) -> dr.DesignRankingResul
 
 def test_independent_consumer_retains_the_checked_derivation_chain() -> None:
     ranked = _rank(_frozen(), source_digests=("source-a", "source-b"))
-    consumed = dr.consume(ranked.export(), expected_identity=ranked.expectation())
+    consumed = require_success(
+        dr.consume(bytes(ranked.export()), expected_identity=ranked.expectation())
+    )
     assert consumed.lineage == ranked.lineage
     assert consumed.lineage[-1].id == dr.RESULT_LINK_ID
     assert {item.stage for item in consumed.lineage} >= {
@@ -114,7 +120,9 @@ def test_independent_consumer_retains_the_checked_derivation_chain() -> None:
     }
     # Input order cannot change either the ranking order or the provenance chain.
     reordered = _rank(list(reversed(_frozen())), source_digests=("source-b", "source-a"))
-    replay = dr.consume(reordered.export(), expected_identity=reordered.expectation())
+    replay = require_success(
+        dr.consume(bytes(reordered.export()), expected_identity=reordered.expectation())
+    )
     assert replay.lineage == consumed.lineage
     assert [entry.id for entry in replay.entries] == [entry.id for entry in consumed.entries]
 
@@ -124,11 +132,13 @@ BET_LIKELIHOOD = dr.ExternalLaw.likelihood(
     statistics=[0.0, 1.0, 2.0],
     probabilities=[[0.5625, 0.0625], [0.375, 0.375], [0.0625, 0.5625]],
 )
-BET_POSTERIOR = dr.ExternalLaw.posterior(
-    states=[0.25, 0.75],
-    statistics=[0.0, 1.0, 2.0],
-    predictive=[0.3125, 0.375, 0.3125],
-    posterior=[[0.9, 0.1], [0.5, 0.5], [0.1, 0.9]],
+BET_POSTERIOR = require_success(
+    dr.ExternalLaw.posterior(
+        states=[0.25, 0.75],
+        statistics=[0.0, 1.0, 2.0],
+        predictive=[0.3125, 0.375, 0.3125],
+        posterior=[[0.9, 0.1], [0.5, 0.5], [0.1, 0.9]],
+    )
 )
 BET_VALUES = dr.ExternalLaw.decision_values(
     branch_probabilities=[0.3125, 0.375, 0.3125],
@@ -169,7 +179,7 @@ def test_native_and_equivalent_external_signal_agree_on_known_truth() -> None:
     for value in (native, external):
         assert value.evsi == pytest.approx(1.0 / 16.0, abs=1e-12)
         assert value.evpi == pytest.approx(0.125, abs=1e-12)
-    assert native.provider_trust == "native_licensed"
+    assert native.provider_trust == "native_supported"
     assert native.natively_replayed
     assert native.provider is None
     assert external.provider_trust == "externally_attested"
@@ -213,9 +223,12 @@ def test_every_update_mode_executes_end_to_end() -> None:
 @pytest.mark.parametrize(
     ("kwargs", "detail"),
     [
-        ({"attested_candidate_id": "someone-else"}, "signal_provider.candidate_mismatch"),
-        ({"attested_prior_id": "other-prior"}, "signal_provider.prior_mismatch"),
-        ({"attested_sample_size": 3}, "signal_provider.sample_size_mismatch"),
+        (
+            {"attested_candidate_id": "someone-else"},
+            reason_details.signal_provider.CANDIDATE_MISMATCH,
+        ),
+        ({"attested_prior_id": "other-prior"}, reason_details.signal_provider.PRIOR_MISMATCH),
+        ({"attested_sample_size": 3}, reason_details.signal_provider.SAMPLE_SIZE_MISMATCH),
     ],
 )
 def test_wrong_candidate_prior_or_sample_id_refuses(kwargs: dict[str, object], detail: str) -> None:
@@ -228,15 +241,17 @@ def test_wrong_candidate_prior_or_sample_id_refuses(kwargs: dict[str, object], d
 
 
 def test_predictive_law_without_a_coherent_update_refuses() -> None:
-    incoherent = dr.ExternalLaw.posterior(
-        states=[0.0, 1.0],
-        statistics=[0.0, 1.0],
-        predictive=[0.5, 0.5],
-        posterior=[[0.9, 0.1], [0.9, 0.1]],  # does not average back to the prior
+    incoherent = require_success(
+        dr.ExternalLaw.posterior(
+            states=[0.0, 1.0],
+            statistics=[0.0, 1.0],
+            predictive=[0.5, 0.5],
+            posterior=[[0.9, 0.1], [0.9, 0.1]],  # does not average back to the prior
+        )
     )
     with pytest.raises(dr.SignalProviderRefusal) as caught:
         dr.evsi(GUESS, dr.Candidate("study", 1, _external(incoherent)), signal=_signal())
-    assert caught.value.detail == "signal_provider.posterior_incoherent"
+    assert caught.value.detail == reason_details.signal_provider.POSTERIOR_INCOHERENT
     unnormalised = dr.ExternalLaw.likelihood(
         states=[0.0, 1.0],
         statistics=[0.0, 1.0],
@@ -244,7 +259,7 @@ def test_predictive_law_without_a_coherent_update_refuses() -> None:
     )
     with pytest.raises(dr.SignalProviderRefusal) as caught:
         dr.evsi(GUESS, dr.Candidate("study", 1, _external(unnormalised)), signal=_signal())
-    assert caught.value.detail == "signal_provider.law_incoherent"
+    assert caught.value.detail == reason_details.signal_provider.LAW_INCOHERENT
 
 
 def test_a_request_without_lineage_or_independence_refuses() -> None:
@@ -256,7 +271,7 @@ def test_a_request_without_lineage_or_independence_refuses() -> None:
     )
     with pytest.raises(dr.SignalProviderRefusal) as caught:
         dr.evsi(_bet(), _bet_candidate("native", dr.BinomialSignal()), signal=bad)
-    assert caught.value.detail == "signal_provider.missing_lineage"
+    assert caught.value.detail == reason_details.signal_provider.MISSING_LINEAGE
     with pytest.raises(CausalValueError):
         dr.evsi(_bet(), _bet_candidate("native", dr.BinomialSignal()))  # no signal request
 
@@ -273,7 +288,7 @@ def test_frozen_values_and_net_value_only_with_a_cost_mapping() -> None:
     assert row.net_value is None and row.study_cost_utility is None
     assert (row.study_cost, row.cost_unit) == (0.1, "usd")
     assert separate.basis == "evsi"
-    assert separate.calibration == "unmeasured"
+    assert separate.calibration == "not_measured"
 
     net = _rank([_guess_candidate("study", 0.75)], cost_map=UTILITY_MAP).candidates[0]
     assert net.study_cost_utility == pytest.approx(0.1, abs=1e-12)
@@ -291,16 +306,16 @@ def test_currency_without_a_mapping_and_missing_maps_refuse() -> None:
     with pytest.raises(dr.CostUnitsRefusal) as caught:
         _rank([_guess_candidate("study", 0.75, 0.1, "usd")], cost_map=UTILITY_MAP)
     assert caught.value.reason_code == "design_cost_units_mismatch"
-    assert caught.value.detail == "evsi.cost_units_mismatch"
+    assert caught.value.detail == reason_details.evsi.COST_UNITS_MISMATCH
     with pytest.raises(dr.CostUnitsRefusal) as caught:
         _rank(
             [_guess_candidate("study", 0.75, 0.1, "usd")],
             cost_map=dr.CostMap("usd", "qaly", 1.0),
         )
-    assert caught.value.detail == "evsi.cost_units_mismatch"
+    assert caught.value.detail == reason_details.evsi.COST_UNITS_MISMATCH
     with pytest.raises(dr.CostUnitsRefusal) as caught:
         _rank([_guess_candidate("study", 0.75, 0.1, "usd")], require_net_value=True)
-    assert caught.value.detail == "evsi.cost_map_required"
+    assert caught.value.detail == reason_details.evsi.COST_MAP_REQUIRED
 
 
 def test_changed_terminal_action_set_refuses() -> None:
@@ -311,7 +326,7 @@ def test_changed_terminal_action_set_refuses() -> None:
     )
     with pytest.raises(dr.DesignRankingRefusal) as caught:
         dr.evsi(_bet(), _bet_candidate("values", _external(other_actions)), signal=_signal())
-    assert caught.value.detail == "evsi.action_set_changed"
+    assert caught.value.detail == reason_details.evsi.ACTION_SET_CHANGED
     assert caught.value.reason_code == "decision_contract_unsatisfied"
     incoherent = dr.ExternalLaw.decision_values(
         branch_probabilities=[0.3125, 0.375, 0.3125],
@@ -320,7 +335,7 @@ def test_changed_terminal_action_set_refuses() -> None:
     )
     with pytest.raises(dr.DesignRankingRefusal) as caught:
         dr.evsi(_bet(), _bet_candidate("values", _external(incoherent)), signal=_signal())
-    assert caught.value.detail == "evsi.decision_values_incoherent"
+    assert caught.value.detail == reason_details.evsi.DECISION_VALUES_INCOHERENT
 
 
 def test_evsi_is_nonnegative_bounded_by_evpi_and_positive_affine_invariant() -> None:
@@ -370,9 +385,12 @@ def test_monte_carlo_value_reports_error_and_makes_no_coverage_claim() -> None:
     assert value.evpi == pytest.approx(1.0 / 12.0, abs=1e-12)
     slack = 4.0 * value.integration.stderr + 1e-9
     assert -slack <= value.evsi <= value.evpi + slack
+    # Independent truth: numerical quadrature over xbar ~ N(theta, 0.25 / 4) of
+    # E[max(0, posterior bet utility)] minus the prior value 0.05 is 0.0538383.
+    assert abs(value.evsi - 0.05383827316648051) <= 4.0 * value.integration.stderr
     assert value.claim == "monte_carlo_estimate"
     assert not value.natively_replayed and value.replay == "monte_carlo_not_replayed"
-    assert ranking.calibration == "unmeasured"
+    assert ranking.calibration == "not_measured"
 
 
 def test_ties_and_truncated_search_are_reported() -> None:
@@ -403,27 +421,29 @@ def test_net_values_are_three_twentieths_and_one_fortieth_in_any_input_order() -
     assert forward.candidates[1].evsi == pytest.approx(0.125, abs=1e-12)
     assert forward.identity == reversed_.identity
     assert forward.ranking_identity == reversed_.ranking_identity
-    assert forward.export() == reversed_.export()
+    assert bytes(forward.export()) == bytes(reversed_.export())
 
 
 def test_export_consume_round_trip_with_retained_expectation() -> None:
     result = _rank(_frozen(), cost_map=UTILITY_MAP, source_digests=("digest-b", "digest-a"))
-    data = result.export()
-    consumed = dr.consume(data, expected_identity=result.expectation())
+    data = bytes(result.export())
+    consumed = require_success(dr.consume(data, expected_identity=result.expectation()))
     assert consumed.identity == result.identity
     assert consumed.ranking_identity == result.ranking_identity
-    assert consumed.calibration == "unmeasured"
+    assert consumed.calibration == "not_measured"
     assert consumed.source_digests == ("digest-a", "digest-b")
     assert [e.id for e in consumed.entries] == ["cand-1", "cand-2"]
     assert consumed.entries[0].net_value == pytest.approx(0.15, abs=1e-12)
     assert consumed.cost_map == UTILITY_MAP
-    unchecked = dr.DesignRankingResult.consume(data, skip_expectation_check=True)
+    unchecked = require_success(dr.DesignRankingResult.consume(data, skip_expectation_check=True))
     assert unchecked.identity == result.identity
     # The integrity check is never skipped silently: one of the two must be named.
     with pytest.raises(CausalValueError, match="skip_expectation_check"):
-        dr.consume(data)
+        require_success(dr.consume(data))
     with pytest.raises(CausalValueError, match="not both"):
-        dr.consume(data, expected_identity=result.expectation(), skip_expectation_check=True)
+        require_success(
+            dr.consume(data, expected_identity=result.expectation(), skip_expectation_check=True)
+        )
     for entry in consumed.entries:
         assert entry.provider_trust == "externally_attested"
         assert entry.update_mode == "external_posterior"
@@ -445,12 +465,14 @@ def test_altered_signal_or_update_refuses_replay_against_retained_identities() -
     assert altered.candidates[0].evsi == pytest.approx(0.25, abs=1e-12)
     assert altered.identity != original.identity
     with pytest.raises(dr.DesignRankingRefusal) as caught:
-        dr.consume(altered.export(), expected_identity=original.expectation())
-    assert caught.value.detail == "design_ranking.identity_mismatch"
+        require_success(
+            dr.consume(bytes(altered.export()), expected_identity=original.expectation())
+        )
+    assert caught.value.detail == reason_details.design_ranking.IDENTITY_MISMATCH
     signals_only = dr.Expectation(signal_identities=original.expectation().signal_identities)
     with pytest.raises(dr.DesignRankingRefusal) as caught:
-        dr.consume(altered.export(), expected_identity=signals_only)
-    assert caught.value.detail == "design_ranking.signal_mismatch"
+        require_success(dr.consume(bytes(altered.export()), expected_identity=signals_only))
+    assert caught.value.detail == reason_details.design_ranking.SIGNAL_MISMATCH
     assert caught.value.offending == "cand-1"
     # An altered RNG seed is a different exact request, hence a different fingerprint.
     reseeded_spec = dr.SignalSpec(
@@ -465,11 +487,13 @@ def test_altered_signal_or_update_refuses_replay_against_retained_identities() -
     )
     assert reseeded.candidates[0].request_fingerprint != original.candidates[0].request_fingerprint
     with pytest.raises(dr.DesignRankingRefusal):
-        dr.consume(
-            reseeded.export(),
-            expected_identity=dr.Expectation(
-                signal_identities=original.expectation().signal_identities
-            ),
+        require_success(
+            dr.consume(
+                bytes(reseeded.export()),
+                expected_identity=dr.Expectation(
+                    signal_identities=original.expectation().signal_identities
+                ),
+            )
         )
 
 
@@ -477,7 +501,7 @@ def test_overlapping_source_data_and_incompatible_cost_units_refuse() -> None:
     overlapping = [_guess_candidate("cand-1", 0.75, reused_observations=("obs-prior",))]
     with pytest.raises(dr.SourceOverlapRefusal) as caught:
         _rank(overlapping, cost_map=UTILITY_MAP, prior_observations=("obs-prior",))
-    assert caught.value.detail == "evsi.source_overlap"
+    assert caught.value.detail == reason_details.evsi.SOURCE_OVERLAP
     assert caught.value.offending == "obs-prior"
     ok = _rank(
         [_guess_candidate("cand-1", 0.75, reused_observations=("obs-future",))],
@@ -490,11 +514,13 @@ def test_overlapping_source_data_and_incompatible_cost_units_refuse() -> None:
     ranking = _rank(_frozen(), cost_map=UTILITY_MAP)
     other = dr.Expectation(cost_map=dr.CostMap("utility", "utility", 2.0))
     with pytest.raises(dr.CostUnitsRefusal) as caught:
-        dr.consume(ranking.export(), expected_identity=other)
+        require_success(dr.consume(bytes(ranking.export()), expected_identity=other))
     assert caught.value.reason_code == "design_cost_units_mismatch"
-    assert caught.value.detail == "design_ranking.cost_units_mismatch"
+    assert caught.value.detail == reason_details.design_ranking.COST_UNITS_MISMATCH
     with pytest.raises(dr.CostUnitsRefusal):
-        dr.consume(ranking.export(), expected_identity=dr.Expectation(no_cost_map=True))
+        require_success(
+            dr.consume(bytes(ranking.export()), expected_identity=dr.Expectation(no_cost_map=True))
+        )
 
 
 def test_external_values_retain_attested_values_and_are_never_marked_native() -> None:
@@ -508,22 +534,24 @@ def test_external_values_retain_attested_values_and_are_never_marked_native() ->
     assert row.update_mode == "external_decision_values"
     assert not row.natively_replayed
     assert "not verified" in row.trust_limit
-    consumed = dr.consume(ranking.export(), expected_identity=ranking.expectation())
+    consumed = require_success(
+        dr.consume(bytes(ranking.export()), expected_identity=ranking.expectation())
+    )
     assert not consumed.entries[0].natively_replayed
     assert consumed.entries[0].replay == "attested_values_combined"
 
 
 def test_corrupt_or_truncated_bytes_raise_a_serialization_error() -> None:
-    data = bytearray(_rank(_frozen(), cost_map=UTILITY_MAP).export())
+    data = bytearray(bytes(_rank(_frozen(), cost_map=UTILITY_MAP).export()))
     flipped = bytearray(data)
     flipped[len(flipped) // 2] ^= 0x55
     with pytest.raises(CausalSerializationError):
-        dr.consume(bytes(flipped), skip_expectation_check=True)
+        require_success(dr.consume(bytes(flipped), skip_expectation_check=True))
     with pytest.raises(CausalSerializationError):
-        dr.consume(bytes(data[: len(data) // 2]), skip_expectation_check=True)
+        require_success(dr.consume(bytes(data[: len(data) // 2]), skip_expectation_check=True))
 
 
-def test_structural_order_is_preserved_when_no_probabilistic_model_is_licensed() -> None:
+def test_structural_order_is_preserved_when_no_probabilistic_model_is_supported() -> None:
     structural = [
         dr.StructuralCandidate("precise", True, 5, 100),
         dr.StructuralCandidate("noisy", True, 1, 100),
@@ -558,7 +586,7 @@ def test_structural_order_is_preserved_when_no_probabilistic_model_is_licensed()
         dr.rank_structural(
             [dr.StructuralCandidate("a", True, 1), dr.StructuralCandidate("a", False, 2)]
         )
-    assert caught.value.detail == "design_ranking.duplicate_candidate"
+    assert caught.value.detail == reason_details.design_ranking.DUPLICATE_CANDIDATE
 
 
 # -- the unified surface: basis, typed plans, gate --------------------------------------------

@@ -21,13 +21,13 @@
 //!   it. Observed work counters name what ran.
 //! * **Export / consume** seal the declarations, the shared exogenous states
 //!   and the numbers into `cross_world_execution_v1`; consume replays them with
-//!   a fresh executor and returns it warm for a licensed resume.
+//!   a fresh executor and returns it warm for a supported resume.
 //!
 //! # What a value means
 //!
 //! A value is a `point_only` result of exact enumeration under a declared
 //! model. Mechanism adequacy is a named premise, not a check. Interval and
-//! posterior readings are closed ([`CrossWorldExecution::interval`] and
+//! posterior readings are not supported ([`CrossWorldExecution::interval`] and
 //! [`CrossWorldExecution::posterior`] refuse): the whole abduction-action-
 //! prediction path has no measured coverage record, and the calibration design
 //! that would open it is recorded in `docs/cross-world-execution.md`.
@@ -53,7 +53,7 @@
 //! passed again; an account is **refused** for a sampled or transported request
 //! and for units with shared evidence declared independent.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use super::mechanism_exports::counterfactual_crate::selective::whole_path_uncertainty::{
     SourceAccount, SourceTreatment, UncertaintySource, UnitSampling, UnitSpread,
@@ -83,21 +83,25 @@ pub struct CrossWorldExecution {
     artifact: CrossWorldExecutionArtifact,
 }
 
-fn closed_reading(reading: &'static str, detail: &'static str) -> CrossWorldExecutionRefusalWire {
+fn closed_reading(
+    code: &'static str,
+    reading: &'static str,
+    detail: &'static str,
+) -> CrossWorldExecutionRefusalWire {
     CrossWorldExecutionRefusalWire {
-        code: antecedent_core::reason_code!("cell_not_licensed").to_owned(),
+        code: code.to_owned(),
         stage: "execute".to_owned(),
         detail: detail.to_owned(),
         offending: Some(reading.to_owned()),
         remedy: Some(
-            "an unqualified interval or posterior of a declared model is closed: the \
-             point value from exact enumeration is the result. The interval of a named unit \
-             sampling is read with measured_interval, licensed only by a currently attesting \
-             whole-path coverage record; a posterior statement has no parameter uncertainty \
-             to describe and stays closed (docs/cross-world-execution.md)"
+            "an interval needs the declared unit sampling (the fixed units or an independent \
+             sample of a population): read it with measured_interval, which reports the \
+             interval with its calibration status. A posterior statement has no parameter \
+             uncertainty to describe: with declared mechanisms the exogenous posterior is \
+             exact (docs/cross-world-execution.md)"
                 .to_owned(),
         ),
-        missing: vec!["whole_path_calibration_record".to_owned()],
+        missing: Vec::new(),
     }
 }
 
@@ -171,31 +175,42 @@ impl CrossWorldExecution {
         clippy::result_large_err,
         reason = "a refusal is the cold path of a once-per-call check; boxing the error would change the public error type"
     )]
-    /// An interval for the quantity. Closed.
+    /// An interval for the quantity without a declared unit sampling.
     ///
     /// # Errors
-    /// Always: `cell_not_licensed` (`cross_world_execution.interval_route_closed`).
+    /// Always: `sampling_dependence_unknown`
+    /// (`cross_world_execution.no_interval_method`); read the interval of a named
+    /// unit sampling with `measured_interval`.
     pub fn interval(&self) -> Result<(f64, f64), CrossWorldExecutionRefusalWire> {
-        Err(closed_reading("interval", "cross_world_execution.interval_route_closed"))
+        Err(closed_reading(
+            antecedent_core::reason_code!("sampling_dependence_unknown"),
+            "interval",
+            antecedent_core::reason_details::cross_world_execution::NO_INTERVAL_METHOD,
+        ))
     }
 
     #[allow(
         clippy::result_large_err,
         reason = "a refusal is the cold path of a once-per-call check; boxing the error would change the public error type"
     )]
-    /// A posterior statement for the quantity. Closed.
+    /// A posterior statement for the quantity. Refused.
     ///
     /// # Errors
-    /// Always: `cell_not_licensed` (`cross_world_execution.posterior_route_closed`).
+    /// Always: `uncertainty_representation_insufficient`
+    /// (`cross_world_execution.no_posterior_method`).
     pub fn posterior(&self) -> Result<(f64, f64), CrossWorldExecutionRefusalWire> {
-        Err(closed_reading("posterior", "cross_world_execution.posterior_route_closed"))
+        Err(closed_reading(
+            antecedent_core::reason_code!("uncertainty_representation_insufficient"),
+            "posterior",
+            antecedent_core::reason_details::cross_world_execution::NO_POSTERIOR_METHOD,
+        ))
     }
 }
 
 /// What an inspection of a whole-path account shows.
 #[derive(Clone, Debug, PartialEq)]
 pub struct WholePathInspection {
-    /// Always `uncalibrated_spread`: no interval or posterior reading is licensed.
+    /// Always `uncalibrated_spread`: no interval or posterior reading is supported.
     pub label: &'static str,
     /// The declared unit sampling.
     pub unit_sampling: &'static str,
@@ -253,7 +268,7 @@ impl WholePathAccount {
                 refusal: antecedent_contract::StructuredRefusal::new(
                     antecedent_core::reason_code!("invalid_argument"),
                     "cross_world_uncertainty",
-                    "cross_world_uncertainty.account_mismatch",
+                    antecedent_core::reason_details::cross_world_uncertainty::ACCOUNT_MISMATCH,
                 )
                 .with_remedy(
                     "derive the account from the consumed execution; a stored account is \
@@ -296,7 +311,7 @@ impl CrossWorldExecution {
     ///
     /// # Errors
     /// Undeclared unit sampling, a sampled or transported request, a coupling the
-    /// joint-law rule does not license, units with shared evidence declared
+    /// joint-law rule does not support, units with shared evidence declared
     /// independent, an exceeded bound, or cancellation.
     pub fn whole_path_uncertainty(
         &self,

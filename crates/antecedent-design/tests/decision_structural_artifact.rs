@@ -13,7 +13,18 @@ use antecedent_io_core::distribution_artifact::{
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
 use antecedent_io_core::quantity_wire::DistributionMeaningWire;
-use antecedent_test_support::near_lt_1e12 as near;
+use antecedent_test_support::within;
+
+const NEAR_TOLERANCE: f64 = 1e-12;
+
+fn assert_refused<T, E: std::fmt::Debug>(result: Result<T, E>, expected: &str) {
+    let text = format!("{:?}", result.err().expect("the artifact must be refused"));
+    assert!(text.contains(expected), "expected {expected}: {text}");
+}
+
+fn near(a: f64, b: f64) -> bool {
+    within(a, b, NEAR_TOLERANCE)
+}
 
 mod common;
 
@@ -176,38 +187,57 @@ fn artifact_refuses_other_contract_other_atom_ids_changed_digests_and_tampering(
     assert!(StructuralResultArtifact::from_bytes(&bytes, &identity, &digests).is_ok());
 
     // Another contract identity.
-    assert!(
-        StructuralResultArtifact::from_bytes(&bytes, "0".repeat(64).as_str(), &digests).is_err()
+    assert_refused(
+        StructuralResultArtifact::from_bytes(&bytes, "0".repeat(64).as_str(), &digests),
+        "decision_artifact.contract_expected",
     );
     let other = contract(StructuralPolicy::ReportOnly).identity().unwrap();
-    assert!(StructuralResultArtifact::from_bytes(&bytes, &other, &digests).is_err());
+    assert_refused(
+        StructuralResultArtifact::from_bytes(&bytes, &other, &digests),
+        "decision_artifact.contract_expected",
+    );
 
     // A renamed atom id.
     let mut renamed = digests.clone();
     renamed[0].0 = "graph-x".into();
-    assert!(StructuralResultArtifact::from_bytes(&bytes, &identity, &renamed).is_err());
+    assert_refused(
+        StructuralResultArtifact::from_bytes(&bytes, &identity, &renamed),
+        "decision_artifact.atoms_expected",
+    );
 
     // A changed or dropped draws digest.
     let mut changed = digests.clone();
     changed[1].1 = Some("0".repeat(64));
-    assert!(StructuralResultArtifact::from_bytes(&bytes, &identity, &changed).is_err());
+    assert_refused(
+        StructuralResultArtifact::from_bytes(&bytes, &identity, &changed),
+        "decision_artifact.atoms_expected",
+    );
     let mut dropped = digests.clone();
     dropped[1].1 = None;
-    assert!(StructuralResultArtifact::from_bytes(&bytes, &identity, &dropped).is_err());
-    assert!(StructuralResultArtifact::from_bytes(&bytes, &identity, &digests[..1]).is_err());
+    assert_refused(
+        StructuralResultArtifact::from_bytes(&bytes, &identity, &dropped),
+        "decision_artifact.atoms_expected",
+    );
+    assert_refused(
+        StructuralResultArtifact::from_bytes(&bytes, &identity, &digests[..1]),
+        "decision_artifact.atoms_expected",
+    );
 
     // Truncation, corruption and oversize refuse.
-    assert!(
-        StructuralResultArtifact::from_bytes(&bytes[..bytes.len() - 5], &identity, &digests)
-            .is_err()
+    assert_refused(
+        StructuralResultArtifact::from_bytes(&bytes[..bytes.len() - 5], &identity, &digests),
+        "UnexpectedEof",
     );
     let mut corrupt = bytes.clone();
     let middle = corrupt.len() / 2;
     corrupt[middle] ^= 0xff;
-    assert!(StructuralResultArtifact::from_bytes(&corrupt, &identity, &digests).is_err());
+    assert_refused(
+        StructuralResultArtifact::from_bytes(&corrupt, &identity, &digests),
+        "ChecksumMismatch",
+    );
     let huge = vec![0_u8; 9 * 1024 * 1024];
-    assert!(StructuralResultArtifact::from_bytes(&huge, &identity, &digests).is_err());
-    assert!(artifact.to_bytes("  ").is_err());
+    assert_refused(StructuralResultArtifact::from_bytes(&huge, &identity, &digests), "TooLarge");
+    assert_refused(artifact.to_bytes("  "), "missing artifact id");
 }
 
 #[test]
@@ -229,25 +259,31 @@ fn replay_recomputes_and_refuses_a_changed_verdict_or_number() {
         flipped.atom_digests(),
     )
     .unwrap();
-    assert!(reloaded.replay(&c, &atoms).is_err());
+    assert_refused(reloaded.replay(&c, &atoms), "decision_artifact.replay_mismatch");
 
     // So does an edited number.
     let mut edited = result.clone();
     edited.actions[0].range = Some((-1.0, 3.0));
-    assert!(StructuralResultArtifact::new(edited, &atoms).replay(&c, &atoms).is_err());
+    assert_refused(
+        StructuralResultArtifact::new(edited, &atoms).replay(&c, &atoms),
+        "decision_artifact.replay_mismatch",
+    );
     let mut mass = result;
     mass.unidentified_mass = Some(0.25);
-    assert!(StructuralResultArtifact::new(mass, &atoms).replay(&c, &atoms).is_err());
+    assert_refused(
+        StructuralResultArtifact::new(mass, &atoms).replay(&c, &atoms),
+        "decision_artifact.replay_mismatch",
+    );
 
     // Another contract or other atoms are not the stored decision.
     let other_contract = contract(StructuralPolicy::ReportOnly);
-    assert!(artifact.replay(&other_contract, &atoms).is_err());
+    assert_refused(artifact.replay(&other_contract, &atoms), "decision_artifact.replay_contract");
     let other_atoms =
         vec![evaluated("graph-1", None, 3.0, 0.0), evaluated("graph-2", None, -1.0, 1.0)];
-    assert!(artifact.replay(&c, &other_atoms).is_err());
+    assert_refused(artifact.replay(&c, &other_atoms), "decision_artifact.replay_atoms");
     let renamed = vec![evaluated("graph-1", None, 2.0, 0.0), evaluated("graph-z", None, -1.0, 1.0)];
-    assert!(artifact.replay(&c, &renamed).is_err());
-    assert!(artifact.replay(&c, &atoms[..1]).is_err());
+    assert_refused(artifact.replay(&c, &renamed), "decision_artifact.replay_atoms");
+    assert_refused(artifact.replay(&c, &atoms[..1]), "decision_artifact.replay_atoms");
 }
 
 #[test]
@@ -279,13 +315,24 @@ fn fresh_process_consumer_rebuilds_atoms_from_constants_and_replays() {
         std::env::temp_dir().join(format!("antecedent-structural-{}-{unique}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join("structural.bin"), artifact.to_bytes("s").unwrap()).unwrap();
+    // The child must select this very test: under a suite crate it is a module member, so its
+    // libtest name carries the module path (a bare name would match nothing and "pass").
+    let prefix =
+        module_path!().split_once("::").map_or(String::new(), |(_, rest)| format!("{rest}::"));
+    let test_name =
+        format!("{prefix}fresh_process_consumer_rebuilds_atoms_from_constants_and_replays");
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .arg("--exact")
-        .arg("fresh_process_consumer_rebuilds_atoms_from_constants_and_replays")
+        .arg(&test_name)
         .env(PATH_ENV, &dir)
         .output()
         .unwrap();
     std::fs::remove_dir_all(&dir).unwrap();
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("running 1 test"),
+        "the child selected no test: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
     assert!(
         output.status.success(),
         "{}{}",

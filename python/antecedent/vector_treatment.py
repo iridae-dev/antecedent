@@ -23,8 +23,8 @@ coefficient is zero::
 What the answer is **not**:
 
 * Every p-value (the per-coefficient and per-contrast Wald values, their Holm adjustment and the
-  joint chi-square) is asymptotic and its calibration is **unmeasured**
-  (``calibration == "unmeasured"``): no coverage, Type I error or power claim is made, and no
+  joint chi-square) is asymptotic and its calibration is **not_measured**
+  (``calibration == "not_measured"``): no coverage, Type I error or power claim is made, and no
   interval is produced.
 * It is a regression-coefficient estimate, not an identification statement. The caller owns that
   the shared adjustment set is valid.
@@ -54,10 +54,20 @@ from typing import Any
 
 import numpy as np
 
+from antecedent import _reason_details
+
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._native import consume_vector_treatment_artifact as _consume
 from ._native import evaluate_vector_treatment as _evaluate
 from ._refusal import StructuredRefusal
+from ._validate import nonempty_name as _name
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
 
 __all__ = [
     "Coefficient",
@@ -85,12 +95,6 @@ class VectorTreatmentRefusal(StructuredRefusal):
     ``vector_treatment.*`` ``detail`` (for example
     ``vector_treatment.adjustment_set_mismatch``).
     """
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value:
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
 
 
 def _column(values: object, what: str) -> np.ndarray:
@@ -137,7 +141,7 @@ class Contrast:
                     {
                         "code": "invalid_argument",
                         "stage": "fit",
-                        "detail": "vector_treatment.non_finite_value",
+                        "detail": _reason_details.vector_treatment.NON_FINITE_VALUE,
                         "offending": self.name,
                         "message": f"contrast {self.name!r} has a non-finite weight",
                     }
@@ -169,7 +173,7 @@ class Coefficient:
     estimate: float
     standard_error: float
     z: float
-    #: Two-sided asymptotic normal p-value (calibration unmeasured).
+    #: Two-sided asymptotic normal p-value (calibration not_measured).
     p_value: float
 
     @property
@@ -206,7 +210,7 @@ class JointWald:
 
     statistic: float
     degrees_of_freedom: int
-    #: Asymptotic chi-square upper-tail p-value (calibration unmeasured).
+    #: Asymptotic chi-square upper-tail p-value (calibration not_measured).
     p_value: float
 
 
@@ -236,7 +240,7 @@ class JointEffects:
     """The joint fit: named coefficients, full covariance, contrasts and the portable artifact.
 
     ``covariance`` is the read-only ``k x k`` matrix in the order of :attr:`names`.
-    ``calibration`` is ``"unmeasured"`` and ``inference_claim`` names the asymptotic Wald basis;
+    ``calibration`` is ``"not_measured"`` and ``inference_claim`` names the asymptotic Wald basis;
     read :attr:`caveats`. ``replay`` is ``"summary"`` (model-based covariance) or
     ``"robust_summary"`` (robust covariance) and states what the artifact embeds.
     """
@@ -262,7 +266,8 @@ class JointEffects:
     artifact: bytes | None = field(repr=False)
     _export_refusal: str | None = field(default=None, repr=False)
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The checksummed ``vector_treatment_v1`` artifact.
 
         Raises :class:`VectorTreatmentRefusal` (``route_not_supported``,
@@ -272,7 +277,7 @@ class JointEffects:
         if self.artifact is None:
             assert self._export_refusal is not None
             raise VectorTreatmentRefusal(json.loads(self._export_refusal))
-        return self.artifact
+        return artifact_from_receipt(self, self.artifact)
 
     @property
     def estimates(self) -> np.ndarray:
@@ -352,6 +357,7 @@ class JointEffects:
 def _result(
     report_json: str, artifact: bytes | None, export_refusal: str | None = None
 ) -> JointEffects:
+    artifact = container_bytes(artifact) if artifact is not None else None
     report = json.loads(report_json)
     result = report["result"]
     names = tuple(report["treatments"])
@@ -503,7 +509,7 @@ def consume_joint_effects(
     artifact: bytes,
     *,
     expected_identity: VectorTreatmentIdentity | Mapping[str, str] | None = None,
-    memory_limit_bytes: int | None = None,
+    execution: Execution | None = None,
 ) -> JointEffects:
     """Recompute an exported joint-fit artifact and accept only an identical one.
 
@@ -516,8 +522,10 @@ def consume_joint_effects(
     ``vector_treatment.wrong_contract``). Corruption and unknown major versions raise
     :class:`~antecedent.errors.CausalSerializationError`.
 
-    ``memory_limit_bytes`` bounds the replay's planned working set (``*.memory_budget_exceeded``).
+    ``execution.limits.memory_bytes`` bounds the replay's planned working set (``*.memory_budget_exceeded``).
     """
+    execution = resolve_execution(execution)
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     if expected_identity is None:
@@ -529,7 +537,9 @@ def consume_joint_effects(
     else:
         raise CausalTypeError("expected_identity must be a VectorTreatmentIdentity or a mapping")
     data = bytes(artifact)
-    report, refusal = _consume(data, expected_json, memory_limit_bytes=memory_limit_bytes)
+    report, refusal = _consume(
+        data, expected_json, memory_limit_bytes=execution.limits.memory_bytes
+    )
     if refusal is not None:
         raise VectorTreatmentRefusal(json.loads(refusal))
     if report is None:  # pragma: no cover - the native contract

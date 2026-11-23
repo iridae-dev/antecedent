@@ -1,18 +1,28 @@
 """Survival and competing-risk outcomes for randomized two-arm studies.
 
-The native estimators use event-time risk sets for right censoring and an
-explicit marginal independent-entry path for left truncation. Retained
-``analyze`` queries can report pointwise bootstrap intervals and simultaneous
-curve bands when their subject-level inference gates pass. Direct estimation
-utilities report points only. Neither path adds a graphless support-matrix
-license or verifies a caller-supplied censoring model.
+Declare a :class:`SurvivalOutcome` (survival curves and restricted mean survival time, RMST)
+or a :class:`CompetingRisksOutcome` (cumulative incidence of one target cause) and pass it to
+``antecedent.analyze(data, query=...)``; the answer is a :class:`SurvivalEstimate` or
+:class:`CumulativeIncidenceEstimate` on ``result.value.survival``. Every contrast is
+treated minus control at the horizon ``tau`` you name.
+
+The native estimators use event-time risk sets for right censoring and an explicit marginal
+independent-entry path for left truncation (delayed entry). Through ``analyze``, a
+``Frequentist(bootstrap=...)`` request can add pointwise bootstrap intervals and a
+simultaneous curve band when their subject-level inference gates pass; whether they meet a
+``survival`` row of the graphless support matrix is reported on ``support_status``. The direct
+utilities :func:`estimate_survival_ipcw` and :func:`estimate_cumulative_incidence_ipcw` report
+points only and carry no support. No path fits or verifies a caller-supplied censoring model.
+
+See the guide ``docs/guides/designs/survival-outcomes.md`` for the full workflow, and
+:mod:`antecedent.observational_survival` when treatment was observed rather than randomized.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from numbers import Integral
+from numbers import Integral, Real
 from typing import Any
 
 import numpy as np
@@ -62,11 +72,26 @@ def _validate_entry_contract(
 
 @dataclass(frozen=True, slots=True)
 class KnownCensoringSurvival:
-    """Known censoring survival columns on a shared grid through ``tau``.
+    """Caller-supplied censoring survival probabilities, as data columns on a grid through ``tau``.
 
-    Columns contain one probability per subject and remain aligned with the
-    data during prepared refresh. The caller owns the censoring model and its
-    independent censoring claim; no model is fitted by this route.
+    Pass as ``known_censoring=`` on :class:`SurvivalOutcome` or :class:`CompetingRisksOutcome`
+    to weight the estimator by inverse probability of censoring (IPCW). Column ``columns[j]``
+    holds, for each subject, the probability of remaining uncensored immediately before
+    ``times[j]``. The columns stay aligned with the data rows when a prepared study is
+    refreshed. You own the censoring model and its independent-censoring claim: no model is
+    fitted, the probabilities are held fixed in every bootstrap resample and never refit, and
+    the result labels them ``caller_supplied_fixed_not_fitted_or_verified``.
+
+    Fields:
+
+    * ``times`` -- strictly increasing finite grid starting at ``0.0``, at least two points;
+      the last point must equal the query's ``tau``.
+    * ``columns`` -- distinct, nonblank column names, one per grid point.
+    * ``minimum_probability`` -- positivity floor in ``(0, 1]``, default ``0.01``; a supplied
+      probability below it is refused when the study runs.
+
+    Raises:
+        CausalValueError: the grid, columns or floor violate the rules above.
     """
 
     times: tuple[float, ...]
@@ -96,13 +121,40 @@ class KnownCensoringSurvival:
 
 @dataclass(frozen=True, slots=True)
 class SurvivalOutcome:
-    """A two-arm randomized survival query using right-censored follow-up.
+    """A two-arm randomized survival query on right-censored follow-up, restricted to ``tau``.
 
-    Set ``randomized=True`` only for individual random assignment. The causal
-    interpretation additionally assumes independent censoring within arm,
-    consistency, and no interference. With ``delayed_entry``, the query also
-    requires the existing observation contract's empty ``IndependentGiven``
-    assumption; the data cannot establish these claims.
+    The estimands are the survival difference ``S_1(tau) - S_0(tau)`` and the RMST difference
+    ``RMST_1(tau) - RMST_0(tau)``, where ``S_a(t) = P(T(a) > t)`` and
+    ``RMST_a(tau) = E[min(T(a), tau)]``. Pass to ``antecedent.analyze(data, query=...)``; the
+    answer is a :class:`SurvivalEstimate` on ``result.value.survival``.
+
+    Fields:
+
+    * ``duration`` -- column of event or censoring times (finite, nonnegative).
+    * ``event_observed`` -- column marking an observed event (``True`` or 1) versus right
+      censoring (``False`` or 0).
+    * ``treatment`` -- binary arm column (1 treated, 0 control).
+    * ``tau`` -- restriction horizon, finite and positive. Both arms need observed follow-up
+      through it.
+    * ``randomized`` -- set ``True`` only for individual random assignment. Default ``False``,
+      which ``analyze`` and the IPCW utilities refuse (``route_not_supported`` from
+      ``analyze``).
+    * ``delayed_entry`` -- optional column of left-truncation entry times. Default ``None``.
+    * ``observation_assumption`` -- an :class:`~antecedent.observation.IndependentGiven`
+      declaration of how censoring (and entry) relate to the event time; ``analyze`` requires
+      it. Without ``known_censoring`` it must be the marginal ``IndependentGiven(())``. With
+      ``known_censoring`` it names the conditioning variables of the supplied probabilities,
+      and must be empty when ``delayed_entry`` is also set. Default ``None``, which the
+      constructor accepts only without ``delayed_entry`` and ``known_censoring``.
+    * ``known_censoring`` -- optional :class:`KnownCensoringSurvival`. Default ``None``.
+
+    The causal reading also assumes consistency and no interference. The data cannot
+    establish any of these assumptions; the result lists them on ``assumptions``.
+
+    Raises:
+        CausalValueError: a column name is blank or repeated, ``tau`` is not finite and
+            positive, ``randomized`` is not a ``bool``, the observation assumption does not
+            match the rules above, or the ``known_censoring`` grid does not end at ``tau``.
     """
 
     duration: str
@@ -125,11 +177,12 @@ class SurvivalOutcome:
             )
         if (
             isinstance(self.tau, bool)
-            or not isinstance(self.tau, (int, float))
+            or not isinstance(self.tau, Real)
             or not np.isfinite(self.tau)
             or self.tau <= 0
         ):
             raise CausalValueError("tau must be finite and positive")
+        coerce_fields(self, tau=float(self.tau))
         if not isinstance(self.randomized, bool):
             raise CausalValueError("randomized must be bool")
         if self.known_censoring is None:
@@ -151,10 +204,26 @@ class SurvivalOutcome:
 
 @dataclass(frozen=True, slots=True)
 class SurvivalDifferenceBand:
-    """A 95% simultaneous band for one treatment-minus-control event-time curve.
+    """A simultaneous 95% band for the treatment-minus-control curve over the event-time grid.
 
-    Coverage is for the complete reported event-time grid. The scalar RMST and
-    fixed-horizon intervals use a separate pointwise bootstrap construction.
+    The band uses one common radius: the 95th percentile of the subject-stratified bootstrap
+    suprema of centred curve differences, so its coverage statement is for the complete
+    reported grid at once. The scalar RMST and fixed-horizon intervals are a separate pointwise
+    construction. Read it from ``SurvivalEstimate.difference_band`` or
+    ``CumulativeIncidenceEstimate.difference_band``.
+
+    Fields:
+
+    * ``times`` -- the observed event-time grid, including zero and the horizon.
+    * ``difference`` -- the treatment-minus-control curve on that grid.
+    * ``lower``, ``upper`` -- simultaneous band endpoints at each grid time.
+    * ``replicates_ok`` -- bootstrap replicates that satisfied the estimator's support
+      contract.
+    * ``level`` -- ``0.95``.
+    * ``method`` -- ``"subject_stratified_bootstrap_supremum"``.
+    * ``support_status`` -- the support-matrix cell status (``"supported"``) when the band and
+      its arm counts match a band row of the graphless support matrix; otherwise
+      ``"unsupported_simultaneous_band"``.
     """
 
     times: tuple[float, ...]
@@ -164,12 +233,46 @@ class SurvivalDifferenceBand:
     replicates_ok: int
     level: float = 0.95
     method: str = "subject_stratified_bootstrap_supremum"
-    support_status: str = "unlicensed_simultaneous_band"
+    support_status: str = "unsupported_simultaneous_band"
 
 
 @dataclass(frozen=True, slots=True)
 class SurvivalEstimate:
-    """Kaplan-Meier step curves and RMST with optional pointwise contrasts."""
+    """Arm survival curves and RMST from ``analyze`` with a :class:`SurvivalOutcome`.
+
+    The curves are Kaplan-Meier (product-limit) step functions; with ``known_censoring`` they
+    are inverse-probability-of-censoring weighted, and with ``delayed_entry`` they use
+    left-truncated risk sets. Read ``rmst_difference`` and the curves first, then
+    ``support_status`` and the intervals.
+
+    Fields:
+
+    * ``times`` -- event-time grid, including zero and ``tau``.
+    * ``control_survival``, ``treated_survival`` -- arm survival at each grid time.
+    * ``rmst_control``, ``rmst_treated`` -- restricted mean survival time up to ``tau``.
+    * ``rmst_difference`` -- ``rmst_treated - rmst_control``.
+    * ``tau`` -- the restriction horizon.
+    * ``uncertainty`` -- ``"subject_stratified_percentile_bootstrap_pointwise_95"`` when the
+      intervals were computed, otherwise ``"point_only_no_interval"``.
+    * ``rmst_difference_interval`` -- pointwise 95% percentile bootstrap interval, or
+      ``None``.
+    * ``survival_at_tau_difference_interval`` -- pointwise 95% interval for
+      ``S_1(tau) - S_0(tau)``, or ``None``. The two intervals cover their contrasts
+      separately.
+    * ``bootstrap_replicates_requested``, ``bootstrap_replicates_ok`` -- requested and valid
+      bootstrap replicates, or ``None`` without a bootstrap.
+    * ``censoring_survival_provenance`` --
+      ``"caller_supplied_fixed_not_fitted_or_verified"`` with ``known_censoring``, else
+      ``None``.
+    * ``difference_band`` -- a :class:`SurvivalDifferenceBand`, or ``None``.
+    * ``band_unavailable_reason`` -- why a bootstrap request produced no band, or ``None``.
+    * ``support_status`` -- ``"supported"`` when the paired RMST and horizon intervals meet a
+      ``survival`` row of the graphless support matrix; otherwise
+      ``"supported_simultaneous_band"``, ``"unsupported_simultaneous_band"``,
+      ``"unsupported_pointwise_interval"`` or ``"unsupported_point_utility"``, describing the
+      most that was published.
+    * ``assumptions`` -- the declared, unverified assumptions the causal reading rests on.
+    """
 
     times: tuple[float, ...]
     control_survival: tuple[float, ...]
@@ -186,7 +289,7 @@ class SurvivalEstimate:
     censoring_survival_provenance: str | None = None
     difference_band: SurvivalDifferenceBand | None = None
     band_unavailable_reason: str | None = None
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     assumptions: tuple[str, ...] = (
         "individual_random_assignment",
         "independent_right_censoring_within_arm",
@@ -197,7 +300,23 @@ class SurvivalEstimate:
 
 @dataclass(frozen=True, slots=True)
 class IPCWSurvivalEstimate:
-    """Caller-censoring-weighted survival/RMST point estimates (no intervals)."""
+    """Point estimates from :func:`estimate_survival_ipcw`: weighted survival curves and RMST.
+
+    Fields as :class:`SurvivalEstimate` for ``times``, the curves, the RMST values and
+    ``tau``, plus:
+
+    * ``minimum_censoring_survival`` -- the smallest supplied censoring probability.
+    * ``minimum_event_risk_set_control``, ``minimum_event_risk_set_treated`` -- the smallest
+      risk set at an event time in each arm, or ``None``.
+    * ``censoring_survival_provenance`` -- always
+      ``"caller_supplied_not_fitted_or_verified"``.
+    * ``uncertainty`` -- always ``"point_only"``; there are no intervals.
+    * ``support_status`` -- always ``"unsupported_point_utility"``.
+    * ``assumptions`` -- the declared, unverified assumptions, including correct supplied
+      censoring probabilities and censoring positivity.
+
+    The minimum probability and risk-set sizes are diagnostics, not inference.
+    """
 
     times: tuple[float, ...]
     control_survival: tuple[float, ...]
@@ -211,7 +330,7 @@ class IPCWSurvivalEstimate:
     minimum_event_risk_set_treated: int | None
     censoring_survival_provenance: str = "caller_supplied_not_fitted_or_verified"
     uncertainty: str = "point_only"
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     assumptions: tuple[str, ...] = (
         "individual_random_assignment",
         "correct_caller_supplied_conditional_censoring_survival",
@@ -224,7 +343,23 @@ class IPCWSurvivalEstimate:
 
 @dataclass(frozen=True, slots=True)
 class IPCWCumulativeIncidenceEstimate:
-    """Caller-censoring-weighted cause-specific CIF point estimates."""
+    """Point estimates from :func:`estimate_cumulative_incidence_ipcw`.
+
+    Weighted arm cumulative incidence functions (CIF) of ``target_cause`` and their difference
+    at ``tau``.
+
+    Fields:
+
+    * ``target_cause`` -- the event code whose incidence is reported.
+    * ``times`` -- the time grid, from zero through ``tau``.
+    * ``control_incidence``, ``treated_incidence`` -- arm cumulative incidence at each time.
+    * ``incidence_difference`` -- treated minus control at ``tau``.
+    * ``tau``, ``minimum_censoring_survival``, ``minimum_event_risk_set_control``,
+      ``minimum_event_risk_set_treated``, ``censoring_survival_provenance``, ``uncertainty``
+      and ``support_status`` -- as :class:`IPCWSurvivalEstimate`.
+    * ``assumptions`` -- the declared, unverified assumptions, including complete and
+      distinct cause coding.
+    """
 
     target_cause: int
     times: tuple[float, ...]
@@ -237,7 +372,7 @@ class IPCWCumulativeIncidenceEstimate:
     minimum_event_risk_set_treated: int | None
     censoring_survival_provenance: str = "caller_supplied_not_fitted_or_verified"
     uncertainty: str = "point_only"
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     assumptions: tuple[str, ...] = (
         "individual_random_assignment",
         "all_event_causes_coded_distinctly",
@@ -251,13 +386,28 @@ class IPCWCumulativeIncidenceEstimate:
 
 @dataclass(frozen=True, slots=True)
 class CompetingRisksOutcome:
-    """A two-arm randomized competing-risks query with coded event causes.
+    """A two-arm randomized competing-risks query: cumulative incidence of one target cause.
 
-    ``event_cause == 0`` denotes right censoring; every positive integer is a
-    distinct event cause. At least two event causes must be observed. The
-    causal interpretation assumes all competing causes are captured and
-    right censoring is independent within arm. Delayed entry uses the same
-    explicit marginal ``IndependentGiven`` observation contract.
+    ``event_cause == 0`` denotes right censoring; every positive integer is a distinct event
+    cause. Other causes are competing events that remove a subject from the event-free risk
+    set; they are never treated as censoring. The estimand is the difference in target-cause
+    cumulative incidence at ``tau``, by the Aalen-Johansen recursion. Pass to
+    ``antecedent.analyze(data, query=...)``; the answer is a
+    :class:`CumulativeIncidenceEstimate` on ``result.value.survival``.
+
+    Fields are as :class:`SurvivalOutcome`, with ``event_cause`` (the column of nonnegative
+    integer cause codes) in place of ``event_observed`` and:
+
+    * ``target_cause`` -- the positive integer code whose incidence is reported. At least two
+      distinct causes must be observed and the target must be among them; this is checked
+      when the study runs.
+
+    The causal reading assumes random assignment, complete and distinct cause coding,
+    independent right censoring within arm, consistency and no interference.
+
+    Raises:
+        CausalValueError: as :class:`SurvivalOutcome`, or ``target_cause`` is not a positive
+            integer that fits in 64 bits.
     """
 
     duration: str
@@ -286,11 +436,12 @@ class CompetingRisksOutcome:
             raise CausalValueError("target_cause must be a positive integer event code")
         if (
             isinstance(self.tau, bool)
-            or not isinstance(self.tau, (int, float))
+            or not isinstance(self.tau, Real)
             or not np.isfinite(self.tau)
             or self.tau <= 0
         ):
             raise CausalValueError("tau must be finite and positive")
+        coerce_fields(self, tau=float(self.tau))
         if not isinstance(self.randomized, bool):
             raise CausalValueError("randomized must be bool")
         if self.known_censoring is None:
@@ -312,7 +463,25 @@ class CompetingRisksOutcome:
 
 @dataclass(frozen=True, slots=True)
 class CumulativeIncidenceEstimate:
-    """Arm-specific Aalen–Johansen curves with an optional pointwise contrast."""
+    """Arm cumulative incidence curves from ``analyze`` with a :class:`CompetingRisksOutcome`.
+
+    The curves are Aalen-Johansen estimates of the target cause's cumulative incidence. Read
+    ``incidence_difference`` first, then ``support_status`` and the interval.
+
+    Fields:
+
+    * ``target_cause`` -- the reported event code.
+    * ``times`` -- event-time grid, including zero and ``tau``.
+    * ``control_incidence``, ``treated_incidence`` -- arm cumulative incidence at each time.
+    * ``incidence_difference`` -- treated minus control at ``tau``.
+    * ``incidence_difference_interval`` -- pointwise 95% bootstrap interval for that
+      difference, or ``None``.
+    * ``tau``, ``uncertainty``, ``bootstrap_replicates_requested``,
+      ``bootstrap_replicates_ok``, ``censoring_survival_provenance``, ``difference_band``,
+      ``band_unavailable_reason``, ``support_status`` and ``assumptions`` -- as
+      :class:`SurvivalEstimate`. The pointwise incidence interval has no support row; a
+      simultaneous band can (``"supported_simultaneous_band"``).
+    """
 
     target_cause: int
     times: tuple[float, ...]
@@ -327,7 +496,7 @@ class CumulativeIncidenceEstimate:
     censoring_survival_provenance: str | None = None
     difference_band: SurvivalDifferenceBand | None = None
     band_unavailable_reason: str | None = None
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     assumptions: tuple[str, ...] = (
         "individual_random_assignment",
         "all_event_causes_coded_distinctly",
@@ -335,6 +504,25 @@ class CumulativeIncidenceEstimate:
         "consistency",
         "no_interference",
     )
+
+
+def difference_at_tau(
+    times: Sequence[float], treated: Sequence[float], control: Sequence[float], tau: float
+) -> float:
+    """``treated - control`` at the grid point equal to ``tau`` (within ``1e-10``).
+
+    ``times``, ``treated`` and ``control`` are aligned sequences, such as the fields of a
+    :class:`SurvivalEstimate`.
+
+    Raises:
+        CausalValueError: the sequences differ in length, or ``tau`` is not a grid point.
+    """
+    if not len(times) == len(treated) == len(control):
+        raise CausalValueError("times and arm curves must have equal lengths")
+    for index, time in enumerate(times):
+        if abs(time - tau) <= 1e-10:
+            return float(treated[index] - control[index])
+    raise CausalValueError(f"tau={tau} is not a point of the returned time grid")
 
 
 def estimate_survival_ipcw(
@@ -345,12 +533,36 @@ def estimate_survival_ipcw(
     censoring_survival: Any,
     minimum_probability: float = 0.01,
 ) -> IPCWSurvivalEstimate:
-    """Estimate weighted survival curves and RMST with supplied censoring ``G``.
+    """Estimate inverse-probability-of-censoring weighted survival curves and RMST.
 
-    ``censoring_survival[i, j]`` must be the subject-specific probability of
-    remaining uncensored immediately before ``times[j]``. The caller supplies
-    and is responsible for fitting/validating these probabilities. This utility
-    has no interval inference and does not support delayed entry.
+    Use this when censoring depends on covariates and you have fitted the censoring survival
+    ``G`` yourself. ``censoring_survival[i, j]`` is subject ``i``'s probability of remaining
+    uncensored immediately before ``times[j]``. The estimator weights event and risk counts
+    by ``1 / G`` at each event time and integrates the right-continuous curve for RMST. You
+    are responsible for fitting and checking ``G``; it is neither fitted nor verified here.
+    For intervals, put the probabilities in data columns and use
+    :class:`KnownCensoringSurvival` with ``analyze`` instead.
+
+    Parameters:
+
+    * ``data`` -- a table holding the query's columns.
+    * ``query`` -- a :class:`SurvivalOutcome` with ``randomized=True``, no ``delayed_entry``
+      and no ``known_censoring``.
+    * ``times`` -- strictly increasing grid from ``0`` through ``query.tau`` that includes
+      every recorded duration at or before ``tau``.
+    * ``censoring_survival`` -- a subjects-by-times matrix; each row starts at one, does not
+      increase, and stays within ``[minimum_probability, 1]``.
+    * ``minimum_probability`` -- positivity floor in ``(0, 1]``, default ``0.01``.
+
+    Returns:
+        An :class:`IPCWSurvivalEstimate` of points only; read ``rmst_difference`` and the
+        curves, then the diagnostics ``minimum_censoring_survival`` and the minimum risk sets.
+
+    Raises:
+        CausalValueError: any input violates the rules above, a column is missing, an
+            event or treatment value is not boolean or 0/1, an arm is empty or not followed
+            through ``tau``, or the weighted event counts exceed the risk set.
+        CausalResourceError: the copied grid exceeds the memory budget.
     """
     if not isinstance(query, SurvivalOutcome):
         raise CausalValueError("query must be a SurvivalOutcome")
@@ -420,12 +632,26 @@ def estimate_cumulative_incidence_ipcw(
     censoring_survival: Any,
     minimum_probability: float = 0.01,
 ) -> IPCWCumulativeIncidenceEstimate:
-    """Estimate an IPCW Aalen–Johansen CIF using caller-supplied censoring ``G``.
+    """Estimate an inverse-probability-of-censoring weighted Aalen-Johansen cumulative incidence.
 
-    ``G[i, j]`` is the subject-specific probability of remaining uncensored
-    immediately before grid time ``times[j]``. Delayed entry is unsupported.
-    The censoring model is neither fitted nor verified here; inference is
-    point-only.
+    The competing-risks counterpart of :func:`estimate_survival_ipcw`: target-cause failures
+    and all-cause event-free survival are weighted by ``1 / G`` inside the Aalen-Johansen
+    recursion. ``censoring_survival[i, j]`` is subject ``i``'s probability of remaining
+    uncensored immediately before ``times[j]``. The censoring model is neither fitted nor
+    verified here, and the result is points only.
+
+    Parameters are as :func:`estimate_survival_ipcw`, with ``query`` a
+    :class:`CompetingRisksOutcome` (``randomized=True``, no ``delayed_entry``, no
+    ``known_censoring``). Cause codes must be nonnegative integers (zero is censoring), at
+    least two distinct causes must be observed and ``target_cause`` must be among them.
+
+    Returns:
+        An :class:`IPCWCumulativeIncidenceEstimate`; read ``incidence_difference`` first.
+
+    Raises:
+        CausalValueError: as :func:`estimate_survival_ipcw`, or the cause codes violate the
+            rules above.
+        CausalResourceError: the copied grid exceeds the memory budget.
     """
     if not isinstance(query, CompetingRisksOutcome):
         raise CausalValueError("query must be a CompetingRisksOutcome")
@@ -495,7 +721,7 @@ def estimate_cumulative_incidence_ipcw(
         tuple(float(value) for value in returned_times),
         tuple(float(value) for value in control),
         tuple(float(value) for value in treated),
-        float(treated[-1] - control[-1]),
+        difference_at_tau(returned_times, treated, control, float(query.tau)),
         float(query.tau),
         float(minimum_g),
         minrisk_control,

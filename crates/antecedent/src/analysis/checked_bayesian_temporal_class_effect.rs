@@ -1,6 +1,6 @@
 //! Checked Bayesian operation for TemporalCpdag/TemporalPag pulse and sustained effects.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::analysis::prepared::Inspect;
 use antecedent_core::CausalQuery;
@@ -57,10 +57,11 @@ impl CheckedBayesianTemporalClassEffectOperation {
         matches!(study.data, DataInput::Temporal(_) | DataInput::Event(_))
             && study.plain_fixed_route()
             && matches!(study.graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag)
-            && matches!(study.inference, InferenceMode::Bayesian(_))
+            && matches!(study.settings.inference, InferenceMode::Bayesian(_))
             && study.point_validation()
             && query.policy.is_pulse_or_sustained()
             && study
+                .declared
                 .estimator
                 .is_none_or(|id| id == EstimatorId::temporal_effect_procedure(query, true))
     }
@@ -221,7 +222,9 @@ mod tests {
     #[test]
     fn bayesian_temporal_class_operation_rejects_frequentist_mode() {
         let error = checked_settings(&InferenceMode::Frequentist, RefuteSuite::None).unwrap_err();
-        assert!(matches!(error, CausalError::Compile { .. }));
+        let records = error.route_diagnostics();
+        assert_eq!(records.len(), 1, "{error}");
+        assert!(records[0].is_unsupported_inference(), "{error}");
     }
 
     #[test]

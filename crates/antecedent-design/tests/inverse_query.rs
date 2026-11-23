@@ -20,7 +20,9 @@ use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, DecisionFunctional,
     StructuralPolicy, Tail, UtilityExpr,
 };
-use antecedent_design::decision_eval::{DecisionEvalError, MeanSource, evaluate_functional};
+use antecedent_design::decision_eval::{
+    DecisionEvalError, MeanEstimate, MeanSource, evaluate_functional,
+};
 use antecedent_design::decision_structural::{AtomEvidence, StructuralAtom};
 use antecedent_design::inverse_query::{
     Comparison, EnumeratedForwardValue, ExistenceClaim, FeasibilityStatus, ForwardClaim,
@@ -37,7 +39,13 @@ use antecedent_io_core::quantity_wire::DistributionMeaningWire;
 use FeasibilityStatus::{
     Feasible, Infeasible, StructurallyAmbiguous, Unevaluated, Unidentified, Unsupported,
 };
-use antecedent_test_support::near_lt_1e9 as near;
+use antecedent_test_support::within;
+
+const NEAR_TOLERANCE: f64 = 1e-9;
+
+fn near(a: f64, b: f64) -> bool {
+    within(a, b, NEAR_TOLERANCE)
+}
 
 const REGIMES: [&str; 3] = ["do(a=0)", "do(a=1)", "do(a=2)"];
 const IDS: [&str; 3] = ["a0", "a1", "a2"];
@@ -337,7 +345,10 @@ fn nonlinear_utility_inverts_on_an_aligned_joint_law_and_refuses_marginals() {
             .unwrap_err();
     assert!(matches!(error, InverseQueryError::Engine(DecisionEvalError::JointLawRequired { .. })));
     let refusal = error.to_refusal();
-    assert_eq!(refusal.detail, "decision_evaluation.joint_law_required");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_evaluation::JOINT_LAW_REQUIRED
+    );
     assert_eq!(refusal.code, "joint_law_required");
 }
 
@@ -349,6 +360,7 @@ fn mean_claim() -> ForwardClaim {
         snapshot_id: "snap-9".into(),
         causal_contract_id: "checked-contract".into(),
         rng_id: "none:mean_grid".into(),
+        estimate: MeanEstimate::Frequentist,
     })
 }
 
@@ -376,7 +388,10 @@ fn a_mean_never_answers_a_probability_or_quantile() {
             error,
             InverseQueryError::Engine(DecisionEvalError::MeanSourceInsufficient { .. })
         ));
-        assert_eq!(error.to_refusal().detail, "decision_evaluation.mean_source_insufficient");
+        assert_eq!(
+            error.to_refusal().detail,
+            antecedent_core::reason_details::decision_evaluation::MEAN_SOURCE_INSUFFICIENT
+        );
     }
 }
 

@@ -91,7 +91,7 @@ fn extra_soft_mean_families_pin_single_joint_and_multistep_in_both_inferences() 
     for (index, intervention) in cases.into_iter().enumerate() {
         let frozen = frozen();
         let expected = frozen["cases"][index]["mean"].as_f64().unwrap();
-        let tolerance = frozen["atol"].as_f64().unwrap();
+        let tolerance = 0.02;
         let query = query(intervention);
         let original = CausalQuery::Response(query.clone());
         let wire = antecedent_io::causal_query_to_wire(&original).unwrap();
@@ -136,21 +136,36 @@ fn extra_soft_mean_families_pin_single_joint_and_multistep_in_both_inferences() 
 
 #[test]
 fn extra_soft_rejects_bad_parameter_shapes_values_and_bounds() {
-    for (family, parameters) in [
-        ("multiplicative", vec![]),
-        ("multiplicative", vec![f64::NAN]),
-        ("multiplicative", vec![1.0, 2.0]),
-        ("truncated_shift", vec![1.0]),
-        ("truncated_shift", vec![1.0, 3.0, 2.0]),
-        ("truncated_shift", vec![1.0, 0.0, f64::INFINITY]),
+    for (family, parameters, message) in [
+        ("multiplicative", vec![], "multiplicative requires one finite mean multiplier"),
+        ("multiplicative", vec![f64::NAN], "multiplicative requires one finite mean multiplier"),
+        ("multiplicative", vec![1.0, 2.0], "multiplicative requires one finite mean multiplier"),
+        (
+            "truncated_shift",
+            vec![1.0],
+            "truncated_shift requires finite [shift, lower, upper] with lower <= upper",
+        ),
+        (
+            "truncated_shift",
+            vec![1.0, 3.0, 2.0],
+            "truncated_shift requires finite [shift, lower, upper] with lower <= upper",
+        ),
+        (
+            "truncated_shift",
+            vec![1.0, 0.0, f64::INFINITY],
+            "truncated_shift requires finite [shift, lower, upper] with lower <= upper",
+        ),
     ] {
-        assert!(
-            antecedent_estimate::plan_from_response_query(&query(soft(
-                0,
-                MechanismOverride::named(family, parameters)
-            )))
-            .is_err()
-        );
+        let ctx = antecedent_core::ExecutionContext::for_tests(1);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let refusal = antecedent_estimate::plan_from_response_query(
+            &query(soft(0, MechanismOverride::named(family, parameters.clone()))),
+            &mut budget,
+            &ctx,
+        )
+        .unwrap_err();
+        assert!(refusal.to_string().contains(message), "{family} {parameters:?}: {refusal}");
     }
 }
 

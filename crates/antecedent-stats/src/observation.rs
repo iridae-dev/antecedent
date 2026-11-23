@@ -1,6 +1,6 @@
 //! Statistical primitives for explicitly modeled outcome-observation mechanisms.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -10,7 +10,8 @@
     )
 )]
 
-use antecedent_kernels::{log_norm_pdf, log_norm_sf, norm_cdf};
+use antecedent_core::diagnostic::{RouteCheck, RouteKind, RouteMass, RouteNativeDiagnostic};
+use antecedent_kernels::{erf, log_norm_pdf, log_norm_sf};
 
 use crate::{
     FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace, StatsError, fit_glm,
@@ -70,11 +71,39 @@ pub fn fit_observation_logistic(
     ncols: usize,
     probability_floor: f64,
 ) -> Result<ObservationProbabilityFit, StatsError> {
+    fit_observation_logistic_admitting(
+        indicator,
+        covariates_colmajor,
+        ncols,
+        probability_floor,
+        false,
+    )
+}
+
+/// [`fit_observation_logistic`], optionally admitting a converged, unseparated fit whose
+/// probabilities reach within `1e-8` of 0 or 1.
+///
+/// With `admit_saturation` the declared `probability_floor` governs those rows (the clamp to
+/// `[floor, 1 - floor]` is what the caller asked for). Without it such a fit refuses as
+/// [`crate::GlmRefusalKind::BoundarySaturated`], which the estimate layer codes as
+/// `positivity_violated`. Separation and non-convergence refuse either way.
+///
+/// # Errors
+///
+/// As [`fit_observation_logistic`].
+#[allow(clippy::float_cmp, reason = "selection indicators must be exactly the coded values 0 or 1")]
+pub fn fit_observation_logistic_admitting(
+    indicator: &[f64],
+    covariates_colmajor: &[f64],
+    ncols: usize,
+    probability_floor: f64,
+    admit_saturation: bool,
+) -> Result<ObservationProbabilityFit, StatsError> {
     let n = indicator.len();
     if n < 3 || covariates_colmajor.len() != n * ncols {
         return Err(StatsError::Shape { message: "observation logistic design shape mismatch" });
     }
-    if !probability_floor.is_finite() || !(0.0..0.5).contains(&probability_floor) {
+    if !probability_floor.is_finite() || probability_floor <= 0.0 || probability_floor >= 0.5 {
         return Err(StatsError::Unsupported {
             message: "observation probability floor must lie in (0, 0.5)",
         });
@@ -108,7 +137,9 @@ pub fn fit_observation_logistic(
                 .into(),
         ));
     }
-    fit.require_ok()?;
+    if !(admit_saturation && fit.converged && !fit.separated) {
+        fit.require_ok()?;
+    }
     let probabilities = (0..n)
         .map(|row| {
             let eta = fit
@@ -178,17 +209,15 @@ pub fn selected_outcome_pseudo_values(
 pub struct KaplanMeierIpcw {
     /// Zero for censored rows; `G(entry_i−) / G(time_i−)` for observed rows.
     pub weights: Vec<f64>,
-    /// The censoring survival's first drop to (or below) `survival_floor`, if any.
+    /// The censoring survival's first drop strictly below `survival_floor`, if any.
     ///
     /// `None` means the estimated censoring survival stays at or above the floor through
     /// every recorded time, so nothing in the data indicates the tail is unidentified.
-    /// `Some(tau)` means every unit still at risk at `tau` was censored there (an
-    /// administrative-censoring boundary, or the numerical equivalent of one): no row's
-    /// event can be observed at or beyond `tau`, so `Y ≥ tau` has probability that is not
-    /// identified from these data. The unweighted mean of the Horvitz–Thompson pseudo-
-    /// outcome `event · Y / G` then estimates the restricted mean `E[Y · 1{Y < tau}]`, not
-    /// `E[Y]`; the caller must label the result accordingly rather than pass it off as the
-    /// unrestricted mean.
+    /// `Some(tau)` marks the first recorded time where survival falls strictly below
+    /// the chosen floor. A positive floor can mark a numerical restriction before
+    /// survival reaches zero; equality with the floor is permitted. When survival
+    /// reaches zero at an administrative censoring boundary, the data do not identify
+    /// the unrestricted tail and callers must label any restricted result accordingly.
     pub tail_restriction: Option<f64>,
 }
 
@@ -234,13 +263,21 @@ pub fn kaplan_meier_ipcw(
             // IPCW is G(L−)/G(T−). Without entry, G(L−)=1 and this collapses to 1/G(T−).
             let at_entry = entry.map_or(1.0, |values| survival_before(values[i]));
             if at_event < survival_floor || at_entry < survival_floor {
-                return Err(StatsError::Unsupported {
+                return Err(StatsError::Route {
                     message: "censoring survival is below the configured positivity floor",
+                    diagnostic: RouteNativeDiagnostic::check(
+                        RouteKind::Censoring,
+                        RouteCheck::new(true, RouteMass::unreported()),
+                    ),
                 });
             }
             if at_event <= 0.0 {
-                return Err(StatsError::Unsupported {
+                return Err(StatsError::Route {
                     message: "censoring survival at the event time is non-positive",
+                    diagnostic: RouteNativeDiagnostic::check(
+                        RouteKind::Censoring,
+                        RouteCheck::new(true, RouteMass::unreported()),
+                    ),
                 });
             }
             Ok(at_entry / at_event)
@@ -269,9 +306,8 @@ pub fn censoring_tail_restriction(
     Ok(first_step_below_floor(&steps, survival_floor))
 }
 
-/// The first jump time at which the whole remaining risk set was censored (survival
-/// reaches, or is driven below, the floor): an administrative-censoring boundary past
-/// which no event can ever be observed. Checked over every jump, rather than only at rows
+/// The first jump time at which survival falls strictly below the selected floor.
+/// A positive floor may be crossed before the risk set is fully censored. Checked over every jump, rather than only at rows
 /// with `event=1`: a data set can have no event past this boundary at all, in which case
 /// a per-row floor check never fires even though the tail is exactly as unidentified.
 fn first_step_below_floor(steps: &[(f64, f64)], survival_floor: f64) -> Option<f64> {
@@ -460,22 +496,66 @@ fn ln_one_minus_exp(d: f64) -> f64 {
     if d > -std::f64::consts::LN_2 { (-d.exp_m1()).ln() } else { (-d.exp()).ln_1p() }
 }
 
+/// `ln(Φ̄(lower) − Φ̄(upper))` for `0 ≤ lower < upper` (an interval in the upper tail).
+///
+/// Writing the mass as `Φ̄(lower) (1 − e^Δ)` with `Δ = ln Φ̄(upper) − ln Φ̄(lower) =
+/// −∫ h(t) dt` and `h = φ/Φ̄` the (smooth) hazard, a narrow interval gets `Δ` by 5-point
+/// Gauss–Legendre quadrature of `h`, so `Δ` keeps full relative accuracy instead of being the
+/// difference of two nearly equal logarithms. Wider or unbounded intervals difference the logs
+/// directly, where the cancellation is a negligible share of `Δ`.
+fn log_upper_tail_interval_mass(lower: f64, upper: f64) -> f64 {
+    const NARROW: f64 = 0.25;
+    const NODES: [f64; 5] = [
+        0.0,
+        0.538_469_310_105_683_1,
+        -0.538_469_310_105_683_1,
+        0.906_179_845_938_664,
+        -0.906_179_845_938_664,
+    ];
+    const WEIGHTS: [f64; 5] = [
+        0.568_888_888_888_888_9,
+        0.478_628_670_499_366_5,
+        0.478_628_670_499_366_5,
+        0.236_926_885_056_189_1,
+        0.236_926_885_056_189_1,
+    ];
+    let log_l = log_norm_sf(lower);
+    let width = upper - lower;
+    let delta = if width <= NARROW {
+        let mid = 0.5 * (lower + upper);
+        let half = 0.5 * width;
+        let integral: f64 = NODES
+            .iter()
+            .zip(WEIGHTS)
+            .map(|(node, weight)| {
+                let t = mid + half * node;
+                weight * (log_norm_pdf(t) - log_norm_sf(t)).exp()
+            })
+            .sum();
+        -half * integral
+    } else {
+        log_norm_sf(upper) - log_l
+    };
+    log_l + ln_one_minus_exp(delta)
+}
+
 /// `ln(Φ(upper) − Φ(lower))` for standardized bounds, computed in the tail nearer to the
 /// interval so neither the mass nor the difference of near-1 CDF values cancels or
 /// underflows.
 fn log_interval_mass(lower: f64, upper: f64) -> Result<f64, StatsError> {
     let log_mass = if lower > 0.0 {
         // Both bounds in the upper tail: Φ̄(l) − Φ̄(u).
-        let log_l = log_norm_sf(lower);
-        log_l + ln_one_minus_exp(log_norm_sf(upper) - log_l)
+        log_upper_tail_interval_mass(lower, upper)
     } else if upper < 0.0 {
-        // Mirror image in the lower tail: Φ(u) − Φ(l), with Φ(z) = Φ̄(−z).
-        let log_u = log_norm_sf(-upper);
-        log_u + ln_one_minus_exp(log_norm_sf(-lower) - log_u)
+        // Mirror image in the lower tail: Φ(u) − Φ(l) = Φ̄(−u) − Φ̄(−l).
+        log_upper_tail_interval_mass(-upper, -lower)
     } else {
-        // The interval contains 0, so its mass is at least the mass of a unit-scale sliver
-        // around it minus nothing that cancels catastrophically.
-        (norm_cdf(upper) - norm_cdf(lower)).ln()
+        // The interval contains 0, where Phi is near one half and differencing two CDF
+        // values loses every digit of a narrow interval. With lower <= 0 <= upper the mass is
+        // (erf(upper/sqrt 2) + erf(|lower|/sqrt 2)) / 2: a sum of non-negative terms, each
+        // evaluated directly by the central-interval erf, so nothing cancels.
+        let half_sqrt2 = std::f64::consts::FRAC_1_SQRT_2;
+        (0.5 * (erf(upper * half_sqrt2) - erf(lower * half_sqrt2))).ln()
     };
     if log_mass.is_finite() {
         Ok(log_mass)
@@ -489,7 +569,21 @@ fn log_interval_mass(lower: f64, upper: f64) -> Result<f64, StatsError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use antecedent_kernels::norm_pdf;
+    use antecedent_kernels::{norm_cdf, norm_pdf};
+
+    #[test]
+    fn observation_probability_floor_must_be_strictly_positive() {
+        let indicator = [0.0, 1.0, 0.0, 1.0];
+        for floor in [0.0, -0.0, -0.01, 0.5, f64::NAN, f64::INFINITY] {
+            for admit_saturation in [false, true] {
+                let error =
+                    fit_observation_logistic_admitting(&indicator, &[], 0, floor, admit_saturation)
+                        .unwrap_err();
+                assert!(error.to_string().contains("probability floor"), "{error}");
+            }
+        }
+        assert!(fit_observation_logistic(&indicator, &[], 0, 0.01).is_ok());
+    }
 
     /// Perfectly separated observation indicators are refused as separation.
     #[test]
@@ -498,6 +592,35 @@ mod tests {
         let r: Vec<f64> = x.iter().map(|&v| f64::from(u8::from(v >= 10.0))).collect();
         let err = fit_observation_logistic(&r, &x, 1, 0.01).unwrap_err();
         assert!(err.to_string().contains("separation"), "{err}");
+    }
+
+    /// 400 rows, observed iff `x > 0` except a few flips at the boundary: converged,
+    /// unseparated, and saturated far from the flips.
+    fn saturated_indicators() -> (Vec<f64>, Vec<f64>) {
+        let x: Vec<f64> = (0..400).map(|i| -3.0 + 6.0 * (f64::from(i) + 0.5) / 400.0).collect();
+        let flips = [190, 193, 196, 198, 201, 203, 206, 209];
+        let r = x
+            .iter()
+            .enumerate()
+            .map(|(i, &v)| f64::from(u8::from((v > 0.0) != flips.contains(&i))))
+            .collect();
+        (x, r)
+    }
+
+    #[test]
+    fn a_saturated_observation_fit_refuses_unless_a_floor_is_declared_to_govern_it() {
+        let (x, r) = saturated_indicators();
+        let err = fit_observation_logistic(&r, &x, 1, 0.01).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                StatsError::GlmRefused { kind: crate::GlmRefusalKind::BoundarySaturated, .. }
+            ),
+            "{err}"
+        );
+        let fit = fit_observation_logistic_admitting(&r, &x, 1, 0.01, true).unwrap();
+        assert!(fit.probabilities.iter().all(|&p| (0.01..=0.99).contains(&p)));
+        assert!(fit.probabilities.iter().any(|&p| p == 0.01 || p == 0.99));
     }
 
     #[test]
@@ -528,6 +651,12 @@ mod tests {
     }
 
     #[test]
+    fn tail_floor_equality_is_not_a_restriction() {
+        assert_eq!(first_step_below_floor(&[(1.0, 0.5), (2.0, 0.25)], 0.5), Some(2.0));
+        assert_eq!(first_step_below_floor(&[(1.0, 0.5)], 0.5), None);
+    }
+
+    #[test]
     fn tail_restriction_is_none_when_censoring_survival_never_reaches_the_floor() {
         // Two events, one censoring jump that leaves half the risk set alive: the
         // censoring survival never drops below the floor, so there is no evidence in the
@@ -535,6 +664,23 @@ mod tests {
         let fit =
             kaplan_meier_ipcw(&[1.0, 2.0, 3.0, 4.0], &[0.0, 1.0, 0.0, 1.0], None, 0.1).unwrap();
         assert_eq!(fit.tail_restriction, None);
+    }
+
+    #[test]
+    fn censoring_survival_below_the_floor_is_a_failed_censoring_check() {
+        let err = kaplan_meier_ipcw(&[1.0, 2.0, 3.0], &[0.0, 1.0, 1.0], None, 0.9).unwrap_err();
+        let record = err.route_diagnostic().expect("censoring record");
+        assert!(record.failed());
+        assert_eq!(record.route_name(), "censoring");
+        assert!(!record.is_model_restriction());
+        assert!(!record.is_unsupported_inference());
+        assert!(!matches!(err, StatsError::Unsupported { .. }));
+    }
+
+    #[test]
+    fn an_administrative_censoring_boundary_is_not_a_failed_censoring_check() {
+        let fit = kaplan_meier_ipcw(&[1.0, 2.0, 3.0], &[1.0, 1.0, 0.0], None, 0.1).unwrap();
+        assert_eq!(fit.tail_restriction, Some(3.0));
     }
 
     #[test]

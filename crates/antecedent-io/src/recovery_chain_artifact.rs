@@ -23,17 +23,17 @@
 //! arithmetic, not that the table describes real data), and the m-graph's untestable
 //! premises (for example that no further self-censoring edge exists): they are
 //! declared, never verified from data. The row evaluates exact laws; any sampled
-//! provider composed on it is calibrated separately and is unmeasured and closed.
+//! provider composed on it is calibrated separately and is `not_measured` and not supported.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, IdentityDomain, VariableId};
 use antecedent_estimate::{ChainPatternLaw, ChainRecoveredLaw, evaluate_chain_recovery};
 use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use antecedent_identify::{
-    ChainPartial, ChainRecoveryDecision, ChainRecoveryDetail, ChainRecoveryError,
-    ChainRecoveryPlan, ChainRecoveryQuery, ChainRecoveryWitness, ChainWitnessCheck,
-    ChainWitnessMechanism, decide_chain_recovery, verify_chain_witness,
+    ChainPartial, ChainRecoveryDecision, ChainRecoveryError, ChainRecoveryPlan, ChainRecoveryQuery,
+    ChainRecoveryWitness, ChainWitnessCheck, ChainWitnessMechanism, decide_chain_recovery,
+    verify_chain_witness,
 };
 use serde::{Deserialize, Serialize};
 
@@ -87,15 +87,28 @@ impl RecoveryChainArtifactError {
         match self {
             Self::UnsupportedSemantics(_) => (
                 antecedent_core::reason_code!("route_not_supported"),
-                "recovery_chain.unsupported_semantics",
+                antecedent_core::reason_details::recovery_chain::UNSUPPORTED_SEMANTICS,
             ),
             Self::Route(error) => (error.reason_code(), error.detail.detail()),
-            Self::DecisionMismatch(_) => (invalid, "recovery_chain.decision_replay_mismatch"),
-            Self::RecoveredMismatch => (invalid, "recovery_chain.recovered_replay_mismatch"),
-            Self::PremisesMismatch => (invalid, "recovery_chain.premises_mismatch"),
-            Self::DataMismatch => (invalid, "recovery_chain.data_identity_mismatch"),
-            Self::NamesMismatch => (invalid, "recovery_chain.names_mismatch"),
-            Self::Undecodable(_) => (invalid, "recovery_chain.undecodable"),
+            Self::DecisionMismatch(_) => {
+                (invalid, antecedent_core::reason_details::recovery_chain::DECISION_REPLAY_MISMATCH)
+            }
+            Self::RecoveredMismatch => (
+                invalid,
+                antecedent_core::reason_details::recovery_chain::RECOVERED_REPLAY_MISMATCH,
+            ),
+            Self::PremisesMismatch => {
+                (invalid, antecedent_core::reason_details::recovery_chain::PREMISES_MISMATCH)
+            }
+            Self::DataMismatch => {
+                (invalid, antecedent_core::reason_details::recovery_chain::DATA_IDENTITY_MISMATCH)
+            }
+            Self::NamesMismatch => {
+                (invalid, antecedent_core::reason_details::recovery_chain::NAMES_MISMATCH)
+            }
+            Self::Undecodable(_) => {
+                (invalid, antecedent_core::reason_details::recovery_chain::UNDECODABLE)
+            }
         }
     }
 }
@@ -734,13 +747,4 @@ impl RecoveryChainArtifactWire {
         }
         Ok(check)
     }
-}
-
-/// Registered detail of a nonrecoverable decision, for callers rendering it.
-#[must_use]
-pub const fn nonrecoverable_detail() -> (&'static str, &'static str) {
-    (
-        ChainRecoveryDetail::NonrecoverableWitness.reason_code(),
-        ChainRecoveryDetail::NonrecoverableWitness.detail(),
-    )
 }

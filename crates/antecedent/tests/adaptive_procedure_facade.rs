@@ -9,7 +9,7 @@
 //! (the posterior mean is a martingale; an anytime-valid sequence excludes the
 //! truth with probability at most alpha).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::adaptive_inference::{
     AdaptiveDesignDeclaration, AdaptiveInferenceRefusal, AdaptiveInferenceSession,
@@ -26,7 +26,7 @@ use antecedent::analysis::adaptive_procedure_report::{
 use antecedent_core::{ExecutionContext, SemanticDigest};
 use antecedent_stats::adaptive_inference::group_sequential::{Sidedness, StagewiseLook};
 use antecedent_stats::adaptive_inference::{
-    AssignmentRule, Attribution, BetaPrior, DERIVED_UNMEASURED, Estimand, ExposureModel,
+    AssignmentRule, Attribution, BetaPrior, DERIVED_NOT_MEASURED, Estimand, ExposureModel,
     FinalSelection, OutcomeModelPrior, OutcomeObservation, ProcedureDeclaration, SimulationRequest,
     StoppingRule, WeightScheme,
 };
@@ -82,7 +82,7 @@ fn assert_premise(
     detail: &str,
 ) {
     let refusal = result.expect_err("the paradigm's premise must fail");
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "adaptive_assumption_violated");
     assert_eq!(refusal.detail, detail);
     assert!(!refusal.message.is_empty());
 }
@@ -100,7 +100,10 @@ fn capacity_refusals_reach_the_facade_with_their_own_detail_code_and_remedy() {
         FinalSelection::NoSelection,
     )
     .unwrap_err();
-    assert_eq!(units[0].detail, "adaptive_inference.declared_units_exceeded");
+    assert_eq!(
+        units[0].detail,
+        antecedent_core::reason_details::adaptive_inference::DECLARED_UNITS_EXCEEDED
+    );
     assert_eq!(units[0].code, "invalid_argument");
     let looks = declare(
         thompson(),
@@ -110,7 +113,10 @@ fn capacity_refusals_reach_the_facade_with_their_own_detail_code_and_remedy() {
         FinalSelection::NoSelection,
     )
     .unwrap_err();
-    assert_eq!(looks[0].detail, "adaptive_inference.declared_looks_exceeded");
+    assert_eq!(
+        looks[0].detail,
+        antecedent_core::reason_details::adaptive_inference::DECLARED_LOOKS_EXCEEDED
+    );
 
     // The exact law is bounded by its live states: eight cells and one batch of thirty pass a
     // million compositions. The refusal names the simulation route.
@@ -126,7 +132,10 @@ fn capacity_refusals_reach_the_facade_with_their_own_detail_code_and_remedy() {
     })
     .expect("a valid declaration");
     let refused = wide.law(&[0.5; 8], &ctx()).unwrap_err();
-    assert_eq!(refused.detail, "adaptive_inference.exact_law_states_exceeded");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::adaptive_inference::EXACT_LAW_STATES_EXCEEDED
+    );
     assert_eq!(refused.code, "invalid_argument");
     assert!(refused.message.contains("simulate"));
 
@@ -151,9 +160,12 @@ fn capacity_refusals_reach_the_facade_with_their_own_detail_code_and_remedy() {
     let report = large.simulate(&[0.4, 0.6], &request, &ctx()).expect("the simulation runs");
     assert_eq!(report.law.receipt.work_done, 3 * 2_400);
     let mut small = ctx();
-    small.memory.hard_limit_bytes = Some(1_000);
+    small.set_memory_limit(Some(1_000));
     let refused = large.simulate(&[0.4, 0.6], &request, &small).unwrap_err();
-    assert_eq!(refused.detail, "adaptive_inference.simulation_memory_exceeded");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::adaptive_inference::SIMULATION_MEMORY_EXCEEDED
+    );
     assert_eq!(refused.code, "invalid_argument");
 }
 
@@ -174,12 +186,12 @@ fn each_missing_element_is_its_own_refusal() {
     assert_eq!(
         details,
         [
-            "adaptive_inference.policy_history_missing",
-            "adaptive_inference.interim_analyses_missing",
-            "adaptive_inference.outcome_availability_missing",
-            "adaptive_inference.exposure_history_missing",
-            "adaptive_inference.stopping_rule_missing",
-            "adaptive_inference.policy_selection_missing",
+            antecedent_core::reason_details::adaptive_inference::POLICY_HISTORY_MISSING,
+            antecedent_core::reason_details::adaptive_inference::INTERIM_ANALYSES_MISSING,
+            antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_MISSING,
+            antecedent_core::reason_details::adaptive_inference::EXPOSURE_HISTORY_MISSING,
+            antecedent_core::reason_details::adaptive_inference::STOPPING_RULE_MISSING,
+            antecedent_core::reason_details::adaptive_inference::POLICY_SELECTION_MISSING,
         ]
     );
     assert!(refusals.iter().all(|r| r.code == "adaptive_contract_incomplete"));
@@ -197,7 +209,10 @@ fn an_invalid_element_is_refused_with_its_own_detail() {
     )
     .expect_err("probabilities that do not sum to one");
     assert_eq!(refusals.len(), 1);
-    assert_eq!(refusals[0].detail, "adaptive_inference.rule_mismatch");
+    assert_eq!(
+        refusals[0].detail,
+        antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH
+    );
     assert_eq!(refusals[0].code, "invalid_argument");
 }
 
@@ -245,7 +260,7 @@ fn the_fixed_design_contrast_law_matches_the_hand_enumeration() {
         },
     )
     .unwrap();
-    assert_eq!(report.calibration, DERIVED_UNMEASURED);
+    assert_eq!(report.calibration, DERIVED_NOT_MEASURED);
     assert_eq!(report.procedure_identity, procedure.identity());
     let ProcedureReportBody::FixedSample { law, ordering } = &report.body else {
         panic!("fixed-sample report body");
@@ -270,7 +285,7 @@ fn the_exact_law_carries_the_terminal_atoms_and_work() {
     )
     .unwrap();
     let law = procedure.law(&[0.3, 0.7], &ctx()).unwrap();
-    assert_eq!(law.calibration, DERIVED_UNMEASURED);
+    assert_eq!(law.calibration, DERIVED_NOT_MEASURED);
     assert_eq!(law.law.cumulative_enrolment, vec![1, 2]);
     let mass: f64 = law.law.atoms.iter().map(|a| a.probability).sum();
     assert!((mass - 1.0).abs() < TOL);
@@ -287,7 +302,7 @@ fn the_exact_law_carries_the_terminal_atoms_and_work() {
 // -- premise refusals --------------------------------------------------------------------------------
 
 #[test]
-fn every_paradigm_whose_premise_fails_is_refused_with_cell_not_licensed() {
+fn every_paradigm_whose_premise_fails_is_refused_as_an_assumption_violation() {
     let adaptive_stopped = declare(
         thompson(),
         &[1, 1, 1],
@@ -306,7 +321,7 @@ fn every_paradigm_whose_premise_fails_is_refused_with_cell_not_licensed() {
                 observed: None,
             },
         ),
-        "adaptive_inference.fixed_sample_design_adaptive",
+        antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_DESIGN_ADAPTIVE,
     );
     assert_premise(
         report_of(
@@ -317,14 +332,14 @@ fn every_paradigm_whose_premise_fails_is_refused_with_cell_not_licensed() {
                 observed: None,
             },
         ),
-        "adaptive_inference.group_sequential_assignment_adaptive",
+        antecedent_core::reason_details::adaptive_inference::GROUP_SEQUENTIAL_ASSIGNMENT_ADAPTIVE,
     );
     assert_premise(
         report_of(
             &adaptive_stopped,
             &ProcedureReportRequest::DecisionTheoretic { truth: vec![0.3, 0.6] },
         ),
-        "adaptive_inference.rule_mismatch",
+        antecedent_core::reason_details::adaptive_inference::PARADIGM_RULE_MISMATCH,
     );
 
     let fixed_stopped = declare(
@@ -345,7 +360,7 @@ fn every_paradigm_whose_premise_fails_is_refused_with_cell_not_licensed() {
                 observed: None,
             },
         ),
-        "adaptive_inference.fixed_sample_data_dependent_stopping",
+        antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_DATA_DEPENDENT_STOPPING,
     );
 
     delay_and_context_premises_are_refused();
@@ -368,7 +383,7 @@ fn delay_and_context_premises_are_refused() {
                 observed: None,
             },
         ),
-        "adaptive_inference.posterior_premise_outcome_dependent_delay",
+        antecedent_core::reason_details::adaptive_inference::POSTERIOR_PREMISE_OUTCOME_DEPENDENT_DELAY,
     );
     assert_premise(
         report_of(
@@ -380,7 +395,7 @@ fn delay_and_context_premises_are_refused() {
                 truth: Some(vec![0.3, 0.6]),
             },
         ),
-        "adaptive_inference.outcome_dependent_delay",
+        antecedent_core::reason_details::adaptive_inference::OUTCOME_DEPENDENT_DELAY,
     );
     let refusal = lossy
         .simulate(
@@ -396,8 +411,11 @@ fn delay_and_context_premises_are_refused() {
             &ctx(),
         )
         .expect_err("adaptive weighting premise");
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(refusal.detail, "adaptive_inference.outcome_dependent_delay");
+    assert_eq!(refusal.code, "adaptive_assumption_violated");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::OUTCOME_DEPENDENT_DELAY
+    );
 
     let contextual = AdaptiveProcedure::declare(ProcedureDeclaration {
         arms: 2,
@@ -420,7 +438,7 @@ fn delay_and_context_premises_are_refused() {
                 truth: None,
             },
         ),
-        "adaptive_inference.anytime_premise_contexts",
+        antecedent_core::reason_details::adaptive_inference::ANYTIME_PREMISE_CONTEXTS,
     );
 }
 
@@ -451,7 +469,7 @@ fn the_expected_loss_rule_decides_with_hand_integrated_losses() {
     assert!((d.decision_probabilities[1] - 0.3).abs() < 1e-8);
     assert!((d.wrong_decision_probability - 0.3).abs() < 1e-8);
     assert!((d.expected_regret - 0.3 * (0.7 - 0.4)).abs() < 1e-8);
-    assert_eq!(report.calibration, DERIVED_UNMEASURED);
+    assert_eq!(report.calibration, DERIVED_NOT_MEASURED);
 }
 
 #[test]
@@ -644,7 +662,10 @@ fn a_deterministic_rule_has_no_weighted_estimate() {
         .simulate(&[0.3, 0.6], &weighting_request(5), &ctx())
         .expect_err("assignment probabilities of zero and one violate the floor");
     assert_eq!(refusal.code, "adaptive_assumption_violated");
-    assert_eq!(refusal.detail, "adaptive_inference.positivity_floor");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::adaptive_inference::POSITIVITY_FLOOR
+    );
 }
 
 // -- the adapter from the retained contract ----------------------------------------------------------
@@ -728,8 +749,15 @@ fn the_adapter_refuses_each_missing_element_and_each_disagreement() {
         .procedure(&ProcedureElements::default(), &ctx())
         .expect_err("no assignment rule and no selection");
     let details: Vec<&str> = missing.iter().map(|r| r.detail.as_str()).collect();
-    assert!(details.contains(&"adaptive_inference.policy_history_missing"));
-    assert!(details.contains(&"adaptive_inference.policy_selection_missing"));
+    assert!(
+        details
+            .contains(&antecedent_core::reason_details::adaptive_inference::POLICY_HISTORY_MISSING)
+    );
+    assert!(
+        details.contains(
+            &antecedent_core::reason_details::adaptive_inference::POLICY_SELECTION_MISSING
+        )
+    );
 
     let mismatch = session
         .procedure(
@@ -740,18 +768,27 @@ fn the_adapter_refuses_each_missing_element_and_each_disagreement() {
             &ctx(),
         )
         .expect_err("realized rows do not replay the declared probabilities");
-    assert_eq!(mismatch[0].detail, "adaptive_inference.rule_mismatch");
+    assert_eq!(
+        mismatch[0].detail,
+        antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH
+    );
 
     let wrong_family = session
         .procedure(&ProcedureElements { assignment: Some(thompson()), ..elements() }, &ctx())
         .expect_err("a Thompson rule against a fixed-randomization cell");
-    assert_eq!(wrong_family[0].detail, "adaptive_inference.rule_mismatch");
+    assert_eq!(
+        wrong_family[0].detail,
+        antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH
+    );
 
     // Exposure that differs from the assignments needs a declared failure model.
     let failing =
         AdaptiveInferenceSession::prepare(contract_declaration(vec![0, 0, 0, 1, 0, 1])).unwrap();
     let missing_exposure = failing.procedure(&elements(), &ctx()).expect_err("no exposure model");
-    assert_eq!(missing_exposure[0].detail, "adaptive_inference.exposure_history_missing");
+    assert_eq!(
+        missing_exposure[0].detail,
+        antecedent_core::reason_details::adaptive_inference::EXPOSURE_HISTORY_MISSING
+    );
     let with_model = failing
         .procedure(
             &ProcedureElements {
@@ -776,5 +813,8 @@ fn the_adapter_refuses_each_missing_element_and_each_disagreement() {
             &ctx(),
         )
         .expect_err("outcome-dependent retention against an immediate contract");
-    assert_eq!(retained[0].detail, "adaptive_inference.outcome_availability_invalid");
+    assert_eq!(
+        retained[0].detail,
+        antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_INVALID
+    );
 }

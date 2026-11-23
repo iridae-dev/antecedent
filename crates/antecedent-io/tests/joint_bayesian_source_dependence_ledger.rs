@@ -69,6 +69,19 @@ fn ledger_prior_bank_overlap_is_derived_and_empty_groups_refuse() {
         prior_data_overlap_from_ledger(&ledger, &[bank], &[undeclared]).unwrap(),
         SourceDependence::Unknown
     );
-    assert!(prior_data_overlap_from_ledger(&ledger, &[], &[disjoint]).is_err());
-    assert!(source_dependence_from_ledger(&ledger, &[]).is_err());
+    assert_eq!(
+        prior_data_overlap_from_ledger(&ledger, &[], &[disjoint])
+            .err()
+            .expect("an empty prior group is refused")
+            .to_string(),
+        "reason=invalid_argument: joint_bayesian_transport.source_dependence: prior and \
+         likelihood sources must both be bound"
+    );
+    assert_eq!(
+        source_dependence_from_ledger(&ledger, &[])
+            .err()
+            .expect("an empty source group is refused")
+            .to_string(),
+        "reason=invalid_argument: joint_bayesian_transport.source_dependence: no sources bound"
+    );
 }

@@ -52,17 +52,18 @@
 //!
 //! A reweighted static score table is not sequential evaluation, learning or
 //! changing a policy inside an evaluation is not evaluation, a different
-//! population or period needs a transport contract, and intervals or
-//! posteriors for any value are not licensed ([`PolicySpec`],
+//! population or period needs a transport contract, and an interval or posterior
+//! of an exact or rollout value is not supported (the interval of a logged-trajectory
+//! estimate is reported with its calibration status; [`PolicySpec`],
 //! [`SequentialRequest`], [`request_interval`]).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Build a typed refusal with its registered reason code, its
 /// `sequential_evaluation.<rule>` detail, the message and the remedy, all
 /// written where the refusal is emitted.
 macro_rules! refusal {
-    ($code:literal, $detail:literal, $message:expr, $remedy:expr $(,)?) => {
+    ($code:literal, $detail:expr, $message:expr, $remedy:expr $(,)?) => {
         $crate::sequential_evaluation::SequentialEvaluationError::new(
             antecedent_core::reason_code!($code),
             $detail,
@@ -78,6 +79,7 @@ mod gformula;
 mod model;
 mod offpolicy;
 mod policy;
+mod reliability;
 mod rollout;
 
 use std::fmt;
@@ -97,8 +99,12 @@ pub use model::{
     ActionRole, ActionSpec, ActionSupport, CensoringRule, DelayedOutcome, FiniteSequentialModel,
     ObservationChannel, StoppingBoundary,
 };
-pub use offpolicy::{LoggedStep, LoggedTrajectory, OffPolicyEstimate, evaluate_off_policy};
+pub use offpolicy::{
+    LoggedStep, LoggedTrajectory, OFF_POLICY_INTERVAL_LEVEL, OffPolicyBootstrap, OffPolicyEstimate,
+    OffPolicyInterval, bootstrap_off_policy, evaluate_off_policy,
+};
 pub use policy::{ContingentPolicy, HistoryKey, HistoryStep, PolicySpec};
+pub use reliability::{bootstrap_decision_draws, rollout_decision_draws};
 pub use rollout::{
     RolloutConfig, RolloutEstimate, STREAM_SCHEME, StreamRole, rollout_policy, stream_uniform,
 };
@@ -108,12 +114,18 @@ pub use rollout::{
 pub const SEQUENTIAL_EVALUATION_IDENTITY_VERSION: u64 = 1;
 /// The only inferential claim any route of this module carries.
 pub const SEQUENTIAL_EVALUATION_INFERENCE: &str = "point_only";
-/// Most latent states of a model.
-pub const MAX_STATES: usize = 32;
+/// Most latent states of a model: a structural bound on the declaration (a transition matrix is
+/// `states x states` per action). What a model may cost is bounded by [`MAX_MODEL_WORK`], not
+/// by each dimension alone.
+pub const MAX_STATES: usize = 4_096;
 /// Most actions of a model.
-pub const MAX_ACTIONS: usize = 16;
+pub const MAX_ACTIONS: usize = 1_024;
 /// Most decision times of a model.
-pub const MAX_HORIZON: usize = 12;
+pub const MAX_HORIZON: usize = 1_024;
+/// Most multiply-adds one backward pass over a model may cost: `states * states * actions *
+/// horizon`, the size of the transition tables applied once per decision time. A model past it
+/// is refused rather than evaluated slowly.
+pub const MAX_MODEL_WORK: u128 = 1 << 34;
 /// Most history entries a policy table may hold.
 pub const MAX_POLICY_ENTRIES: usize = 65_536;
 /// Most logged trajectories one off-policy evaluation accepts.
@@ -129,7 +141,7 @@ pub(crate) const PROBABILITY_TOLERANCE: f64 = 1e-9;
 ///
 /// `code` is a registered runtime-refusal reason code and `detail` is a
 /// `sequential_evaluation.<rule>` (or pass-through measurement) detail slot.
-/// `remedy` names the declaration, evidence or route that would license the
+/// `remedy` names the declaration, evidence or route that would support the
 /// request.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SequentialEvaluationError {
@@ -139,7 +151,7 @@ pub struct SequentialEvaluationError {
     pub detail: String,
     /// What was refused.
     pub message: String,
-    /// What would license the request.
+    /// What would support the request.
     pub remedy: &'static str,
 }
 
@@ -176,7 +188,7 @@ impl From<ExternalRefusal> for SequentialEvaluationError {
             code: refusal.code,
             detail: refusal.detail,
             message: refusal.offending.unwrap_or_default(),
-            remedy: refusal.remedy.unwrap_or("declare a measurement model that licenses the use"),
+            remedy: refusal.remedy.unwrap_or("declare a measurement model that supports the use"),
         }
     }
 }
@@ -187,7 +199,7 @@ pub type SequentialResult<T> = Result<T, SequentialEvaluationError>;
 pub(crate) fn cancelled() -> SequentialEvaluationError {
     SequentialEvaluationError::new(
         antecedent_core::reason_code!("cancelled_no_claim"),
-        "sequential_evaluation.cancelled",
+        antecedent_core::reason_details::sequential_evaluation::CANCELLED,
         "the evaluation was cancelled before it produced a value",
         "re-run the evaluation; a partial enumeration is not a result",
     )
@@ -222,31 +234,31 @@ impl SequentialRequest {
     /// A different population or period: the typed transport refusal naming
     /// the contract that is missing.
     pub fn check(&self, model: &FiniteSequentialModel) -> SequentialResult<()> {
-        if let Some(population) = &self.target_population {
-            if population != &model.population {
-                return Err(refusal!(
-                    "transport_missing_evidence",
-                    "sequential_evaluation.transported_policy_contract_missing",
-                    format!(
-                        "the policy value was requested for population `{population}` but the model describes `{}`",
-                        model.population
-                    ),
-                    "supply a source-to-target selection diagram with the transition and observation mechanisms marked invariant and a target initial-state law with support overlap, through counterfactual transport; or declare a model native to the target population",
-                ));
-            }
+        if let Some(population) = &self.target_population
+            && population != &model.population
+        {
+            return Err(refusal!(
+                "transport_missing_evidence",
+                "sequential_evaluation.transported_policy_contract_missing",
+                format!(
+                    "the policy value was requested for population `{population}` but the model describes `{}`",
+                    model.population
+                ),
+                "supply a source-to-target selection diagram with the transition and observation mechanisms marked invariant and a target initial-state law with support overlap, through counterfactual transport; or declare a model native to the target population",
+            ));
         }
-        if let Some(period) = &self.target_period {
-            if period != &model.period {
-                return Err(refusal!(
-                    "transport_missing_evidence",
-                    "sequential_evaluation.temporal_transport_contract_missing",
-                    format!(
-                        "the policy value was requested for period `{period}` but the model describes `{}`",
-                        model.period
-                    ),
-                    "declare a model established for the target period, or supply a time-invariance contract for the transition and observation mechanisms across the periods; temporal transport is not a bounded route here",
-                ));
-            }
+        if let Some(period) = &self.target_period
+            && period != &model.period
+        {
+            return Err(refusal!(
+                "transport_missing_evidence",
+                "sequential_evaluation.temporal_transport_contract_missing",
+                format!(
+                    "the policy value was requested for period `{period}` but the model describes `{}`",
+                    model.period
+                ),
+                "declare a model established for the target period, or supply a time-invariance contract for the transition and observation mechanisms across the periods; temporal transport is not a bounded route here",
+            ));
         }
         Ok(())
     }
@@ -255,12 +267,15 @@ impl SequentialRequest {
 /// Refuse any interval, posterior or coverage statement for a policy value.
 ///
 /// # Errors
-/// Always: no coverage record measures the whole sequential procedure.
+/// Always: an exact policy value has no sampling uncertainty and a rollout carries only
+/// an uncalibrated diagnostic, so neither representation can carry an interval, posterior
+/// or coverage statement. The interval of a logged-trajectory estimate is
+/// [`OffPolicyEstimate::interval`].
 pub fn request_interval() -> SequentialResult<std::convert::Infallible> {
     Err(refusal!(
-        "cell_not_licensed",
-        "sequential_evaluation.interval_not_licensed",
-        "no interval, posterior or coverage statement is licensed for a sequential policy value",
-        "the whole sequential procedure (model, policy, estimator) needs a measured coverage record; the point value and the uncalibrated diagnostics are reported",
+        "uncertainty_representation_insufficient",
+        "sequential_evaluation.interval_not_supported",
+        "no interval, posterior or coverage statement is supported for an exact or rollout sequential policy value",
+        "the exact value has no sampling uncertainty; the interval of a logged-trajectory estimate is reported with the off-policy estimate and the rollout error stays an uncalibrated diagnostic",
     ))
 }

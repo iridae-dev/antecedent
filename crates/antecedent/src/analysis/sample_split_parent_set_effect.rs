@@ -27,7 +27,7 @@
 //! # Topology and attestation
 //!
 //! Each topology of the measured family has its own coverage record, and a table does not announce
-//! its topology. [`ParentSetEffect::measure`] therefore licenses an interval only when the
+//! its topology. [`ParentSetEffect::measure`] therefore supports an interval only when the
 //! records of every topology in [`TOPOLOGIES`] attest the construction at this variable count,
 //! degree, transformation and analysis row count: the conservative intersection.
 //!
@@ -43,7 +43,7 @@
 //! None of these is testable from the table that discovery runs on, so no per-dataset statement
 //! about the discovered graph is made.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CalibrationBasis, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
@@ -264,7 +264,7 @@ impl ParentSetEffect {
     }
 
     /// The bases of every topology's record, in [`TOPOLOGIES`] order. A table does not announce
-    /// its topology, so [`Self::measure`] licenses the interval only when every one attests.
+    /// its topology, so [`Self::measure`] supports the interval only when every one attests.
     #[must_use]
     pub fn keyed_bases(&self) -> Vec<CalibrationBasis> {
         self.run.keyed_bases()
@@ -280,9 +280,10 @@ impl ParentSetEffect {
     ///
     /// # Errors
     ///
-    /// The refusals of [`estimate_parent_set_effect`], and `cell_not_licensed`
-    /// (`measured_inference.record_not_attesting`) when no current attesting, non-boundary
-    /// record measured this construction at this variable count, degree and analysis row count.
+    /// The refusals of [`estimate_parent_set_effect`]. Where no current attesting, non-boundary
+    /// record measured this construction at this variable count, degree and analysis row count,
+    /// the interval is still reported and its calibration is `not_measured` or
+    /// `outside_measured_scope`.
     pub fn measure(&self, ctx: &ExecutionContext) -> Result<MeasuredInference, IoError> {
         split_parent_set_effect::measure(&self.source, ctx)
     }

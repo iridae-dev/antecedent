@@ -6,11 +6,11 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "A Note on Estimating the Variance of the Sample Median (Maritz and Jarrett, JASA 73, 1978)", doi = "10.1080/01621459.1978.10480027", sections = ["exact bootstrap variance of an order statistic from incomplete-beta weights"] },
-  { title = "Optimization of conditional value-at-risk (Rockafellar and Uryasev, Journal of Risk 2, 2000)", doi = "10.21314/JOR.2000.038", sections = ["the minimization formula for conditional value at risk"] },
-  { title = "Fixed-Width Output Analysis for Markov Chain Monte Carlo (Jones, Haran, Caffo and Neath, JASA 101, 2006)", doi = "10.1198/016214506000000492", sections = ["non-overlapping batch means standard error"] },
-  { title = "Sequential Imputations and Bayesian Missing Data Problems (Kong, Liu and Wong, JASA 89, 1994)", doi = "10.1080/01621459.1994.10476469", sections = ["effective sample size of importance weights"] },
-  { title = "Some Guidelines and Guarantees for Common Random Numbers (Glasserman and Yao, Management Science 38, 1992)", doi = "10.1287/mnsc.38.6.884", sections = ["variance of a difference under common random numbers"] },
+  { title = "A Note on Estimating the Variance of the Sample Median", citation_note = "Previously recorded title and bibliographic detail: A Note on Estimating the Variance of the Sample Median (Maritz and Jarrett, JASA 73, 1978)", doi = "10.1080/01621459.1978.10480027", sections = ["exact bootstrap variance of an order statistic from incomplete-beta weights"] },
+  { title = "Optimization of conditional value-at-risk", citation_note = "Previously recorded title and bibliographic detail: Optimization of conditional value-at-risk (Rockafellar and Uryasev, Journal of Risk 2, 2000)", doi = "10.21314/JOR.2000.038", sections = ["the minimization formula for conditional value at risk"] },
+  { title = "Fixed-Width Output Analysis for Markov Chain Monte Carlo", citation_note = "Previously recorded title and bibliographic detail: Fixed-Width Output Analysis for Markov Chain Monte Carlo (Jones, Haran, Caffo and Neath, JASA 101, 2006)", doi = "10.1198/016214506000000492", sections = ["non-overlapping batch means standard error"] },
+  { title = "Sequential Imputations and Bayesian Missing Data Problems", citation_note = "Previously recorded title and bibliographic detail: Sequential Imputations and Bayesian Missing Data Problems (Kong, Liu and Wong, JASA 89, 1994)", doi = "10.1080/01621459.1994.10476469", sections = ["effective sample size of importance weights"] },
+  { title = "Some Guidelines and Guarantees for Common Random Numbers", citation_note = "Previously recorded title and bibliographic detail: Some Guidelines and Guarantees for Common Random Numbers (Glasserman and Yao, Management Science 38, 1992)", doi = "10.1287/mnsc.38.6.884", sections = ["variance of a difference under common random numbers"] },
 ]
 implementation_deviations = [
   "Maritz-Jarrett is the exact bootstrap standard error of the r-th order statistic r = ceil(n p) (not the Harrell-Davis estimator); weights beyond twelve index standard deviations are dropped and the rest renormalized. It converges at the slow n^(-1/4) rate and is a standard error, not an interval.",
@@ -20,7 +20,43 @@ implementation_deviations = [
   "All outputs are numerical standard errors under the supplied law; no interval, coverage or calibration is claimed.",
 ]
 upstream_implementations_observed = []
+modules = ["crates/antecedent-design/src/decision_reliability/mc_error.rs"]
+
 test_sources = [
+  "crates/antecedent-design/tests/decision_reliability_reference.rs (63 estimates and 42 differences against a definition-level reference)",
   "crates/antecedent-design/tests/decision_reliability.rs",
   "crates/antecedent/tests/decision_reliability_facade.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "estimate and estimate_difference in crates/antecedent-design/src/decision_reliability/mc_error.rs: the iid standard error, non-overlapping batch means with their effective sample size, the self-normalized weighted mean with Kish's effective size (the kish_ess kernel is relied on and exercised through it), the exact Maritz-Jarrett bootstrap standard error of an order statistic (incomplete-beta weights through ln_gamma and a Lentz continued fraction) and the batch-quantile error, the conditional value at risk and its influence-function standard error, threshold probabilities, and the paired (shared stream) and independent-stream difference errors. Not the within-stream dependence declaration, the carrier validation, the ranking, interval, selection or calibration modules."
+assumptions = ["A standard error here is a numerical error under the supplied law and the declared within-stream dependence; the reference takes the same declaration and checks arithmetic only.", "The conditional value at risk influence series is the product's derivation (stated in its deviations), so the reference rebuilds it from the Rockafellar-Uryasev maximum z - E[(z - X)+]/alpha at the smallest maximiser rather than from the paper."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared the product with definitions evaluated by an executing reference written for this review (standard library only; exact rational arithmetic for the Maritz-Jarrett weights); no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review (nothing downloaded): the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. Its output is frozen in the JSON file and compared by the test."
+limitations = "Sixty-three single-series cases (a 60-draw quarter-grid sample with exact ties, an 81-draw lognormal sample, a 5-draw sample, a 200-draw AR(1) stream under three batch plans, a 60-draw sample with lognormal(0, 1.3) weights) over ten functionals (expected utility, two threshold sides, quantiles 0.1, 0.5 and 0.95, lower and upper CVaR at 0.2, 0.25, 0.13 and 1.0) and 42 paired or independent differences are compared at 1e-12 relative on the value and 1e-9 relative on standard errors and effective sizes; the exact Maritz-Jarrett weights are evaluated without the product's twelve-index-standard-deviation truncation, so the truncation error is inside the 1e-9. Draw counts above 200 are not compared, a quantile at an order-index tie of p n within 1e-9 of an integer relies on the product's documented tolerance, and weighted quantiles and CVaR are refused rather than estimated, so no reference exists for them. Batch-mean and batch-quantile errors are not calibrated for coverage and the cited convergence guarantees are not checked for any stream. The papers were not retrieved."
+sources = ["https://doi.org/10.1080/01621459.1978.10480027", "https://doi.org/10.21314/JOR.2000.038", "https://doi.org/10.1198/016214506000000492", "https://doi.org/10.1080/01621459.1994.10476469", "https://doi.org/10.1287/mnsc.38.6.884"]
+findings_resolved = ["No defect found: every standard error, effective sample size and point value agrees with the definition-level reference, including the exact tie structure of the quarter-grid sample, the clamp of the batch effective size to [1, n], the common-random-number cancellation in paired differences, and the upper-tail CVaR by negation."]
+record_sha256 = "b3f5ecd2adbe2017791da172b0805e8c6c56bb59222a64ea0080d6bfb7a3f6a5"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_reliability/mc_error.rs"
+items = ["const EPS", "const MAX_ITERATIONS", "const TINY", "enum BatchPlan", "enum Functional", "enum PairCoupling", "enum RiskTail", "enum StandardErrorMethod", "enum ThresholdSide", "fn batch_means", "fn batch_quantiles", "fn batches", "fn beta_continued_fraction", "fn cvar_lower", "fn estimate", "fn estimate_difference", "fn finite_checked", "fn influence_method", "fn maritz_jarrett_se", "fn mean_like", "fn order_index", "fn quantile_estimate", "fn regularized_beta", "fn series_stats", "fn sorted_copy", "fn validate", "fn welford", "struct DifferenceEstimate", "struct FunctionalEstimate", "struct McEstimate", "struct SeriesStats", "type MeanLikeSeries"]
+sha256 = "912a391bc14710b6abab3750b508a34373348ba0b65f57d77125c89ca829c44d"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/decision_reliability_reference.rs"
+items = ["fn carrier", "fn check_interval", "fn close", "fn dependence", "fn derived_uncertainty_matches_the_definition_level_reference", "fn differences_match_the_definition_level_reference", "fn estimates_match_the_definition_level_reference", "fn floats", "fn functional", "fn plan", "fn reference"]
+sha256 = "015549e251e8b1517c84a556c767ff78f9386c6e569cc291104650a25bd7c1ca"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-design/tests/oracle_data/decision_reliability_reference.py"
+sha256 = "24af126f7a08d9db2df77545fe5069fdba02d2a7379b1ab9392dcdb8cd4f8172"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-design/tests/oracle_data/decision_reliability_reference.json"
+sha256 = "d651e4da09571a0e0447282fdffb97b8cc9c628d3ac53929f221fecb1fb355c7"

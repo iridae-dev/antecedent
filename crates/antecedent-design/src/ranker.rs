@@ -1,6 +1,6 @@
 //! Batched Monte Carlo design ranking.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -11,6 +11,18 @@
     )
 )]
 
+mod decision_scoring;
+mod entropy;
+mod score_helpers;
+use decision_scoring::DecisionScoring;
+use entropy::EntropyChannel;
+#[cfg(test)]
+use entropy::eig_graph_entropy;
+use score_helpers::{
+    baseline_treatment_se, effect_width_reduction, effect_width_reduction_from,
+    model_distinguish_score, model_pair_rows,
+};
+
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -19,12 +31,12 @@ use antecedent_core::{
 };
 use antecedent_kernels::sample_categorical;
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
-use antecedent_stats::{Welford, invert_square, normal_ppf};
+use antecedent_stats::{Welford, normal_ppf};
 
 use crate::candidate::{CandidateDesign, DesignCost};
 use crate::decision::DecisionProblem;
 use crate::error::DesignError;
-use crate::objective::{DesignObjective, ObjectiveChannel, ObjectiveScorer};
+use crate::objective::{ObjectiveChannel, ObjectiveScorer};
 use crate::preposterior::{DecisionPrior, DecisionSignal, PreposteriorAnalysis};
 use crate::result::{ConstraintViolation, RankedCandidate, ScoreEvaluation, ScoredDesignRanking};
 
@@ -66,6 +78,26 @@ impl Default for DesignRankConfig {
 }
 
 impl DesignRankConfig {
+    /// Reject a batch schedule that cannot draw anything or that draws more than the ranker
+    /// allows.
+    ///
+    /// # Errors
+    ///
+    /// [`DesignError::Config`] for zero batches or zero batch size, or a schedule whose draws
+    /// exceed the ranker's bound.
+    pub fn validate(&self) -> Result<(), DesignError> {
+        if self.max_batches == 0 || self.batch_size == 0 {
+            return Err(DesignError::Config("max_batches and batch_size must be > 0".into()));
+        }
+        let draws = u64::from(self.max_batches) * u64::from(self.batch_size);
+        if draws > MAX_RANK_DRAWS {
+            return Err(DesignError::Config(format!(
+                "batch_size * max_batches = {draws} exceeds {MAX_RANK_DRAWS}"
+            )));
+        }
+        Ok(())
+    }
+
     /// Batch counts at which the stopping rule is evaluated: every batch from
     /// `min_batches` through `max_batches`.
     fn n_looks(&self) -> u32 {
@@ -89,7 +121,7 @@ impl DesignRankConfig {
     }
 }
 
-/// Linear-Gaussian effect-width context for [`DesignObjective::ReduceEffectPosteriorWidth`].
+/// Linear-Gaussian effect-width context for [`crate::DesignObjective::ReduceEffectPosteriorWidth`].
 #[derive(Clone, Debug)]
 pub struct EffectWidthContext {
     /// Current Gram `XᵀX` (row-major, `p×p`).
@@ -145,7 +177,7 @@ pub struct InterventionDesignEffect {
     pub n: u64,
 }
 
-/// Per-model log-likelihood draws for [`DesignObjective::DistinguishModels`].
+/// Per-model log-likelihood draws for [`crate::DesignObjective::DistinguishModels`].
 ///
 /// `loglik[model_slot][draw]` — model slots align with `DesignObjective::DistinguishModels.models`.
 #[derive(Clone, Debug)]
@@ -159,7 +191,7 @@ pub struct ModelLoglikDraws {
 }
 
 /// Decision problems plus the Bayesian model a candidate's data updates, for
-/// [`DesignObjective::ReduceDecisionRegret`] (problems keyed by [`crate::DecisionProblemId`]).
+/// [`crate::DesignObjective::ReduceDecisionRegret`] (problems keyed by [`crate::DecisionProblemId`]).
 pub struct DecisionRegistry<A, O> {
     /// Problems keyed by raw id order (sparse holes allowed via Option).
     pub problems: Vec<Option<DecisionProblem<A, O>>>,
@@ -251,19 +283,20 @@ impl DesignRanker {
     /// # Errors
     ///
     /// Empty inputs or invalid config.
-    pub fn rank<A, O>(
+    pub fn rank<S, A, O>(
         &self,
-        objective: &DesignObjective,
+        objective: &S,
         candidates: &[CandidateDesign],
         ctx_eval: &DesignEvaluationContext<'_, A, O>,
         ctx: &ExecutionContext,
     ) -> Result<ScoredDesignRanking, DesignError>
     where
+        S: ObjectiveScorer + Sync,
         A: Clone + Sync,
         O: Clone + Sync,
     {
         self.validate_rank_inputs(candidates, ctx_eval)?;
-        validate_objective_context(objective, ctx_eval)?;
+        objective.validate_context(ctx_eval)?;
         let analysis = prepare_decision(objective, ctx_eval)?;
 
         let (violations, active) = self.filter_active_candidates(candidates, analysis.as_ref());
@@ -275,7 +308,7 @@ impl DesignRanker {
             .map(|&cand_i| {
                 decision
                     .as_ref()
-                    .map_or_else(|| static_evaluation(objective), |d| d.evaluation(cand_i))
+                    .map_or_else(|| objective.static_evaluation(), |d| d.evaluation(cand_i))
             })
             .collect();
 
@@ -323,21 +356,12 @@ impl DesignRanker {
 
     /// Reject a batch schedule that cannot draw anything.
     pub(crate) fn validate_config(&self) -> Result<(), DesignError> {
-        if self.config.max_batches == 0 || self.config.batch_size == 0 {
-            return Err(DesignError::Config("max_batches and batch_size must be > 0".into()));
-        }
-        let draws = u64::from(self.config.max_batches) * u64::from(self.config.batch_size);
-        if draws > MAX_RANK_DRAWS {
-            return Err(DesignError::Config(format!(
-                "batch_size * max_batches = {draws} exceeds {MAX_RANK_DRAWS}"
-            )));
-        }
-        Ok(())
+        self.config.validate()
     }
 
     /// Split `candidates` into hard-constraint violations and the indices that remain
     /// active for MC scoring. Under a decision objective, a candidate the signal has
-    /// no sample size for is recorded as unlicensed rather than scored.
+    /// no sample size for is recorded as unsupported rather than scored.
     fn filter_active_candidates<O>(
         &self,
         candidates: &[CandidateDesign],
@@ -362,9 +386,9 @@ impl DesignRanker {
     /// decision replicate for all candidates, so pairwise differences are paired) alongside
     /// the realized sample count / budget / early-stop flag. When every active candidate is
     /// scored exactly (`all_exact`) a single draw is taken and reported as one sample.
-    fn run_mc_scoring_loop<A, O>(
+    fn run_mc_scoring_loop<S, A, O>(
         &self,
-        objective: &DesignObjective,
+        objective: &S,
         candidates: &[CandidateDesign],
         ctx_eval: &DesignEvaluationContext<'_, A, O>,
         ctx: &ExecutionContext,
@@ -372,34 +396,33 @@ impl DesignRanker {
         z: f64,
     ) -> Result<ScoringRun, DesignError>
     where
+        S: ObjectiveScorer + Sync,
         A: Clone + Sync,
         O: Clone + Sync,
     {
         let (active, decision, all_exact) = (scoring.active, scoring.decision, scoring.all_exact);
+        // Per-candidate draw lists grow only under the Monte Carlo budget below.
         let mut draws: Vec<Vec<f64>> = vec![Vec::new(); active.len()];
         let mut n_samples: u64 = 0;
         let mut budget = MonteCarloBudget::default();
         let mut early_stopped = false;
         let mut rng = ctx.rng.stream_for(StreamDomain::Design, RANK_STREAM);
         // Per-ranking constants of the scoring channels, built once rather than per draw.
-        let channels = ScoringChannels::new(objective, ctx_eval);
+        let prepared = objective.prepare(ctx_eval);
 
         let min_batches = self.config.min_batches.max(1);
         let max_batches = self.config.max_batches.max(min_batches);
         let mut stats = RankDrawStats::new(active.len());
-        // The entropy channel's expectation depends only on the candidate, so it is
-        // computed once per candidate and reported as exact.
-        let entropy_gain: Option<Vec<f64>> =
-            matches!(objective.channel(), ObjectiveChannel::GraphEntropy).then(|| {
-                active
-                    .iter()
-                    .map(|&cand_i| {
-                        channels.entropy.as_ref().map_or(0.0, |channel| {
-                            channel.exact_gain(observation_reliability(&candidates[cand_i]))
-                        })
-                    })
-                    .collect()
-            });
+        // An objective whose expectation depends only on the candidate (the entropy channel)
+        // is computed once per candidate and reported as exact.
+        let entropy_gain: Option<Vec<f64>> = if active.is_empty() {
+            None
+        } else {
+            active
+                .iter()
+                .map(|&cand_i| objective.exact_expectation(&prepared, &candidates[cand_i]))
+                .collect()
+        };
 
         for batch_i in 0..max_batches {
             if ctx.cancellation.is_cancelled() {
@@ -430,11 +453,10 @@ impl DesignRanker {
                     let draw_seed = rng.next_u64();
                     ctx.map_indexed(active.len(), |slot, _ctx| {
                         let mut local = CausalRng::from_seed(draw_seed);
-                        score_candidate(
-                            objective,
+                        objective.score(
+                            &prepared,
                             &candidates[active[slot]],
                             ctx_eval,
-                            &channels,
                             g_idx,
                             &mut local,
                         )
@@ -613,26 +635,26 @@ impl DesignRanker {
     }
 
     fn check_constraints(&self, index: usize, cost: DesignCost) -> Option<ConstraintViolation> {
-        if let Some(max) = self.constraints.max_cost {
-            if cost.amount > max {
-                return Some(ConstraintViolation {
-                    candidate_index: index,
-                    constraint: Arc::from("max_cost"),
-                    detail: Arc::from(format!("cost {} exceeds max_cost {max}", cost.amount)),
-                });
-            }
+        if let Some(max) = self.constraints.max_cost
+            && cost.amount > max
+        {
+            return Some(ConstraintViolation {
+                candidate_index: index,
+                constraint: Arc::from("max_cost"),
+                detail: Arc::from(format!("cost {} exceeds max_cost {max}", cost.amount)),
+            });
         }
-        if let Some(max) = self.constraints.max_sample_budget {
-            if cost.sample_budget > max {
-                return Some(ConstraintViolation {
-                    candidate_index: index,
-                    constraint: Arc::from("max_sample_budget"),
-                    detail: Arc::from(format!(
-                        "sample_budget {} exceeds max {max}",
-                        cost.sample_budget
-                    )),
-                });
-            }
+        if let Some(max) = self.constraints.max_sample_budget
+            && cost.sample_budget > max
+        {
+            return Some(ConstraintViolation {
+                candidate_index: index,
+                constraint: Arc::from("max_sample_budget"),
+                detail: Arc::from(format!(
+                    "sample_budget {} exceeds max {max}",
+                    cost.sample_budget
+                )),
+            });
         }
         None
     }
@@ -727,77 +749,80 @@ impl RankDrawStats {
     }
 }
 
-#[allow(
-    clippy::neg_cmp_op_on_partial_ord,
-    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
-)]
-fn shannon_entropy(weights: &[f64]) -> f64 {
-    let total: f64 = weights.iter().sum();
-    if !(total > 0.0) {
-        return 0.0;
-    }
-    let mut h = 0.0;
-    for w in weights {
-        let p = w / total;
-        if p > 0.0 {
-            h -= p * p.ln();
-        }
-    }
-    h
-}
-
 /// Ranking-invariant precomputation for the per-draw scoring channels, built once per
 /// `rank()` call instead of once per draw per candidate.
-struct ScoringChannels {
+pub struct ScoringChannels {
     entropy: Option<EntropyChannel>,
     /// `(row_i, row_j)` of every requested model pair present in the log-likelihood table.
     model_pairs: Vec<(usize, usize)>,
+    /// Gram side and standard error of the baseline treatment coefficient, which every
+    /// candidate's reduction is measured against.
+    effect_width_baseline: Option<(usize, f64)>,
 }
 
 impl ScoringChannels {
-    fn new<A, O>(objective: &DesignObjective, ctx: &DesignEvaluationContext<'_, A, O>) -> Self {
-        match objective.channel() {
+    /// The constants of `channel` over `ctx`, built once per ranking.
+    pub(crate) fn new<A, O>(
+        channel: ObjectiveChannel<'_>,
+        ctx: &DesignEvaluationContext<'_, A, O>,
+    ) -> Self {
+        match channel {
             ObjectiveChannel::GraphEntropy => Self {
                 entropy: EntropyChannel::new(ctx.graphs, ctx.graph_features),
                 model_pairs: Vec::new(),
+                effect_width_baseline: None,
             },
             ObjectiveChannel::ModelDistinction { models } => Self {
                 entropy: None,
                 model_pairs: ctx
                     .model_loglik
                     .map_or_else(Vec::new, |ll| model_pair_rows(ll, models)),
+                effect_width_baseline: None,
             },
-            _ => Self { entropy: None, model_pairs: Vec::new() },
+            ObjectiveChannel::EffectWidth { .. } => Self {
+                entropy: None,
+                model_pairs: Vec::new(),
+                // A baseline that cannot be solved was refused by `validate_objective_context`.
+                effect_width_baseline: ctx
+                    .effect_width
+                    .and_then(|ew| baseline_treatment_se(ew).ok()),
+            },
+            _ => Self { entropy: None, model_pairs: Vec::new(), effect_width_baseline: None },
         }
+    }
+
+    /// The channel's exact expectation for `candidate` when it does not depend on the draw.
+    pub(crate) fn exact_expectation(&self, candidate: &CandidateDesign) -> Option<f64> {
+        self.entropy.as_ref().map(|channel| channel.exact_gain(observation_reliability(candidate)))
     }
 }
 
 /// Reject malformed per-objective context before any MC work runs. A context that cannot
 /// be evaluated is an error, never a silently "exact" zero score.
-fn validate_objective_context<A, O>(
-    objective: &DesignObjective,
+pub(crate) fn validate_channel_context<A, O>(
+    channel: ObjectiveChannel<'_>,
     ctx: &DesignEvaluationContext<'_, A, O>,
 ) -> Result<(), DesignError> {
     let n = ctx.graphs.n_samples;
-    match objective.channel() {
+    match channel {
         ObjectiveChannel::GraphEntropy => {
-            if let Some(features) = ctx.graph_features {
-                if features.len() != n {
-                    return Err(DesignError::Shape(format!(
-                        "graph_features length {} != graph posterior size {n}",
-                        features.len()
-                    )));
-                }
+            if let Some(features) = ctx.graph_features
+                && features.len() != n
+            {
+                return Err(DesignError::Shape(format!(
+                    "graph_features length {} != graph posterior size {n}",
+                    features.len()
+                )));
             }
         }
         ObjectiveChannel::Identification { .. } => {
-            if let Some(flags) = ctx.identified_under_intervention {
-                if flags.len() != n {
-                    return Err(DesignError::Shape(format!(
-                        "identified_under_intervention length {} != graph posterior size {n}",
-                        flags.len()
-                    )));
-                }
+            if let Some(flags) = ctx.identified_under_intervention
+                && flags.len() != n
+            {
+                return Err(DesignError::Shape(format!(
+                    "identified_under_intervention length {} != graph posterior size {n}",
+                    flags.len()
+                )));
             }
         }
         ObjectiveChannel::EffectWidth { .. } => {
@@ -808,7 +833,7 @@ fn validate_objective_context<A, O>(
             };
             baseline_treatment_se(ew)?;
         }
-        ObjectiveChannel::ModelDistinction { .. } => {
+        ObjectiveChannel::ModelDistinction { models } => {
             let Some(ll) = ctx.model_loglik else {
                 return Err(DesignError::Config(
                     "DistinguishModels requires model_loglik context".into(),
@@ -822,14 +847,33 @@ fn validate_objective_context<A, O>(
                     ll.n_draws
                 )));
             }
+            // A requested model without a table row would silently drop its pairs from the
+            // average (or score zero), and a repeated id would add a zero gap pair.
+            for (i, model) in models.iter().enumerate() {
+                if !ll.models.contains(model) {
+                    return Err(DesignError::Config(format!(
+                        "DistinguishModels model {model:?} has no row in model_loglik"
+                    )));
+                }
+                if models[..i].contains(model) {
+                    return Err(DesignError::Config(format!(
+                        "DistinguishModels model {model:?} is listed more than once"
+                    )));
+                }
+            }
+            if ll.loglik.iter().any(|v| !v.is_finite()) {
+                return Err(DesignError::Config(
+                    "model_loglik contains a non-finite log-likelihood".into(),
+                ));
+            }
         }
         ObjectiveChannel::Decision { .. } => {}
     }
     Ok(())
 }
 
-fn score_candidate<A, O>(
-    objective: &DesignObjective,
+pub(crate) fn score_channel<A, O>(
+    channel: ObjectiveChannel<'_>,
     candidate: &CandidateDesign,
     ctx: &DesignEvaluationContext<'_, A, O>,
     channels: &ScoringChannels,
@@ -840,7 +884,7 @@ where
     A: Clone,
     O: Clone,
 {
-    match objective.channel() {
+    match channel {
         ObjectiveChannel::GraphEntropy => {
             Ok(channels.entropy.as_ref().map_or(0.0, |c| c.draw(candidate, graph_idx, rng)))
         }
@@ -851,7 +895,10 @@ where
                     "ReduceEffectPosteriorWidth requires effect_width context".into(),
                 ));
             };
-            effect_width_reduction(candidate, ew)
+            match channels.effect_width_baseline {
+                Some(baseline) => effect_width_reduction_from(candidate, ew, baseline),
+                None => effect_width_reduction(candidate, ew),
+            }
         }
         ObjectiveChannel::ModelDistinction { models } => {
             let Some(ll) = ctx.model_loglik else {
@@ -865,146 +912,6 @@ where
             "ReduceDecisionRegret is scored through its prepared preposterior analysis".into(),
         )),
     }
-}
-
-/// Discrete soft-observation channel over the posterior's graph categories, with the
-/// candidate-independent parts (category index per graph, prior entropy) computed once.
-struct EntropyChannel {
-    weights: Vec<f64>,
-    /// Category index of every posterior graph.
-    cat_of: Vec<usize>,
-    /// Number of distinct categories (≥ 2).
-    k: usize,
-    prior_h: f64,
-}
-
-impl EntropyChannel {
-    /// `None` when the posterior is empty, the features do not line up with it, or there
-    /// are fewer than two categories — no observation can then change the entropy.
-    fn new(graphs: &WeightedGraphSamples, graph_features: Option<&[u32]>) -> Option<Self> {
-        let n = graphs.n_samples;
-        if n == 0 {
-            return None;
-        }
-        if let Some(feat) = graph_features {
-            if feat.len() != n {
-                return None;
-            }
-        }
-        let labels: Vec<u64> = if let Some(feat) = graph_features {
-            feat.iter().map(|&label| u64::from(label)).collect()
-        } else {
-            graphs.graph_keys.to_vec()
-        };
-        let mut categories = labels.clone();
-        categories.sort_unstable();
-        categories.dedup();
-        let k = categories.len();
-        if k < 2 {
-            return None;
-        }
-        let cat_of = labels.iter().map(|l| categories.binary_search(l).unwrap_or(0)).collect();
-        Some(Self {
-            weights: graphs.weights.to_vec(),
-            cat_of,
-            k,
-            prior_h: shannon_entropy(&graphs.weights),
-        })
-    }
-
-    /// One Monte Carlo draw of information gain for the discrete observation channel:
-    /// sample `y ~ P(y | G★, design)`, then return the signed reduction
-    /// `H(prior) − H(p(G|y))`.
-    ///
-    /// Individual draws may be negative when an observation increases posterior entropy;
-    /// expectation is taken over draws without pointwise clipping (MM-012).
-    fn draw(&self, candidate: &CandidateDesign, graph_idx: usize, rng: &mut CausalRng) -> f64 {
-        let k = self.k;
-        let reliability = observation_reliability(candidate);
-        // Zero reliability is the channel's uninformative point: y is then independent of
-        // the graph and the posterior equals the prior, so the gain is exactly zero.
-        if reliability <= 0.0 {
-            return 0.0;
-        }
-        let true_cat = self.cat_of[graph_idx];
-
-        // Sample the soft observation of the true graph's categorical feature: with
-        // probability `reliability` the true category is reported, otherwise a category
-        // drawn uniformly from all `k` (the true one included).
-        let y = if rng.next_f64() < reliability {
-            true_cat
-        } else {
-            #[allow(
-                clippy::cast_possible_truncation,
-                clippy::cast_sign_loss,
-                reason = "the floored value lies in [0, k) because next_f64 is in [0, 1)"
-            )]
-            let u = (rng.next_f64() * k as f64).floor() as usize;
-            u.min(k - 1)
-        };
-
-        self.prior_h - self.posterior_entropy(reliability, y)
-    }
-
-    /// `p(y | category, reliability)` for the symmetric channel: the reliability-weighted
-    /// mixture of a perfect report and a uniform one,
-    /// `reliability·1[y = category] + (1 − reliability)/k`. Reliability 0 is uninformative
-    /// and 1 is perfect; a lower reliability is a garbling of a higher one, so the
-    /// expected information gain is non-decreasing in reliability.
-    fn likelihood(&self, reliability: f64, y: usize, cat: usize) -> f64 {
-        let uniform = (1.0 - reliability) / self.k as f64;
-        if cat == y { reliability + uniform } else { uniform }
-    }
-
-    /// Entropy of the graph posterior after observing category `y`.
-    fn posterior_entropy(&self, reliability: f64, y: usize) -> f64 {
-        let mut total = 0.0;
-        for (&w, &cat) in self.weights.iter().zip(&self.cat_of) {
-            total += w * self.likelihood(reliability, y, cat);
-        }
-        if total.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
-            return 0.0;
-        }
-        let mut h = 0.0;
-        for (&w, &cat) in self.weights.iter().zip(&self.cat_of) {
-            let p = w * self.likelihood(reliability, y, cat) / total;
-            if p > 0.0 {
-                h -= p * p.ln();
-            }
-        }
-        h
-    }
-
-    /// Exact expected information gain `Σ_g p(g) Σ_y p(y|g) [H(G) − H(G|y)]` by
-    /// enumerating the observation. The expectation depends only on reliability, so
-    /// a ranking reports it directly instead of Monte Carlo draws.
-    fn exact_gain(&self, reliability: f64) -> f64 {
-        let total: f64 = self.weights.iter().sum();
-        (0..self.k)
-            .map(|y| {
-                let p_y: f64 = self
-                    .weights
-                    .iter()
-                    .zip(&self.cat_of)
-                    .map(|(w, &cat)| w / total * self.likelihood(reliability, y, cat))
-                    .sum();
-                p_y * (self.prior_h - self.posterior_entropy(reliability, y))
-            })
-            .sum()
-    }
-}
-
-/// Single-draw entropy channel for tests that need the raw per-draw value.
-#[cfg(test)]
-fn eig_graph_entropy(
-    candidate: &CandidateDesign,
-    graphs: &WeightedGraphSamples,
-    graph_idx: usize,
-    graph_features: Option<&[u32]>,
-    rng: &mut CausalRng,
-) -> f64 {
-    EntropyChannel::new(graphs, graph_features)
-        .map_or(0.0, |channel| channel.draw(candidate, graph_idx, rng))
 }
 
 /// Deterministic observation reliability for the discrete graph-feature channel.
@@ -1025,7 +932,7 @@ fn observation_reliability(candidate: &CandidateDesign) -> f64 {
         }
         CandidateDesign::Intervene(p) => {
             let k = p.targets.len() as f64;
-            (1.0 - (-1.0 * k).exp()).clamp(0.0, 0.99)
+            (1.0 - (-k).exp()).clamp(0.0, 0.99)
         }
         CandidateDesign::ObserveEnvironment(p) => {
             let n = p.additional_rows as f64;
@@ -1039,7 +946,7 @@ fn observation_reliability(candidate: &CandidateDesign) -> f64 {
 }
 
 /// Identification-mass gain of a candidate. `identified_under_intervention`, when present,
-/// has already been checked against the posterior size by [`validate_objective_context`].
+/// has already been checked against the posterior size by [`validate_channel_context`].
 fn id_prob_gain<A, O>(
     candidate: &CandidateDesign,
     ctx: &DesignEvaluationContext<'_, A, O>,
@@ -1066,12 +973,11 @@ fn id_prob_gain<A, O>(
         if !is_id {
             is_id = candidate_unlocks(candidate, unlock, env_unlock);
         }
-        if !is_id {
-            if let CandidateDesign::Intervene(_) = candidate {
-                if let Some(flags) = intervene_flags {
-                    is_id = flags[i] == GraphIdentFlag::Identified;
-                }
-            }
+        if !is_id
+            && let CandidateDesign::Intervene(_) = candidate
+            && let Some(flags) = intervene_flags
+        {
+            is_id = flags[i] == GraphIdentFlag::Identified;
         }
         if is_id {
             identified += w;
@@ -1100,233 +1006,10 @@ fn candidate_unlocks(
     }
 }
 
-/// Standard error of the treatment coefficient, `sqrt(σ² · [(XᵀX)⁻¹]_tt)`.
-///
-/// `what` names the Gram in error messages. A Gram that cannot be inverted is an error:
-/// reporting it as "no information gain" would rank every candidate as an exact tie.
-fn treatment_se(
-    xtx: &[f64],
-    p: usize,
-    treatment_col: usize,
-    sigma2: f64,
-    what: &str,
-) -> Result<f64, DesignError> {
-    if p == 0 || xtx.len() != p * p {
-        return Err(DesignError::Shape(format!(
-            "{what}: Gram must be a non-empty square p×p matrix (got {} entries)",
-            xtx.len()
-        )));
-    }
-    if treatment_col >= p {
-        return Err(DesignError::Shape(format!(
-            "{what}: treatment_col {treatment_col} out of range for p = {p}"
-        )));
-    }
-    if !(sigma2.is_finite() && sigma2 > 0.0) {
-        return Err(DesignError::Config(format!(
-            "{what}: residual variance must be positive and finite (got {sigma2})"
-        )));
-    }
-    let inv = invert_square(xtx, p)
-        .ok_or_else(|| DesignError::Numerical(format!("{what}: Gram is singular")))?;
-    Ok((sigma2 * inv[treatment_col * p + treatment_col].max(0.0)).sqrt())
-}
-
-fn gram_side_len(xtx: &[f64]) -> usize {
-    let n2 = xtx.len();
-    let mut k = 0usize;
-    while k * k < n2 {
-        k += 1;
-    }
-    if k * k == n2 { k } else { 0 }
-}
-
-/// Baseline `(p, se₀)` of the treatment coefficient.
-fn baseline_treatment_se(ew: &EffectWidthContext) -> Result<(usize, f64), DesignError> {
-    let p = gram_side_len(&ew.xtx);
-    let se0 = treatment_se(&ew.xtx, p, ew.treatment_col, ew.sigma2, "baseline")?;
-    Ok((p, se0))
-}
-
-/// Expand `p×p` Gram by appending one column with given cross-products.
-fn expand_gram(xtx: &[f64], p: usize, cross: &[f64], self_dot: f64) -> Option<Vec<f64>> {
-    if cross.len() != p || xtx.len() != p * p {
-        return None;
-    }
-    let p1 = p + 1;
-    let mut out = vec![0.0; p1 * p1];
-    for i in 0..p {
-        for j in 0..p {
-            out[i * p1 + j] = xtx[i * p + j];
-        }
-        out[i * p1 + p] = cross[i];
-        out[p * p1 + i] = cross[i];
-    }
-    out[p * p1 + p] = self_dot;
-    Some(out)
-}
-
-/// Signed reduction `se₀ − se₁` of the treatment-effect standard error.
-///
-/// A design that *raises* the SE (a collinear covariate, a noisier environment) scores
-/// negative and ranks below a neutral one. `0` means the candidate has no modelled effect
-/// (no sample increment, no matching design-analysis columns, no environment / intervention
-/// Gram supplied); a malformed or singular Gram is an error, not a zero.
-fn effect_width_reduction(
-    candidate: &CandidateDesign,
-    ew: &EffectWidthContext,
-) -> Result<f64, DesignError> {
-    let (p, se0) = baseline_treatment_se(ew)?;
-
-    match candidate {
-        CandidateDesign::IncreaseSamplingRate(s) => {
-            if s.additional_samples == 0 {
-                return Ok(0.0);
-            }
-            // XtX scales with n; SE scales as 1/sqrt(n).
-            let n1 = (ew.n + s.additional_samples) as f64;
-            let n0 = ew.n.max(1) as f64;
-            let se1 = se0 * (n0 / n1).sqrt();
-            Ok(se0 - se1)
-        }
-        CandidateDesign::ObserveEnvironment(e) => {
-            if let Some(grams) = ew.environment_grams.as_ref() {
-                if let Some(spec) = grams.iter().find(|s| s.environment == e.environment) {
-                    let p_env = gram_side_len(&spec.xtx);
-                    if p_env != p || spec.xtx.len() != ew.xtx.len() {
-                        return Err(DesignError::Shape(format!(
-                            "environment {:?} Gram has {} entries, expected {}",
-                            e.environment,
-                            spec.xtx.len(),
-                            ew.xtx.len()
-                        )));
-                    }
-                    let mut pooled = ew.xtx.to_vec();
-                    for (a, b) in pooled.iter_mut().zip(spec.xtx.iter()) {
-                        *a += *b;
-                    }
-                    let sigma2 = spec.sigma2.unwrap_or(ew.sigma2);
-                    let se1 =
-                        treatment_se(&pooled, p, ew.treatment_col, sigma2, "pooled environment")?;
-                    return Ok(se0 - se1);
-                }
-            }
-            // No env Gram: fall back to additional-row isotropic scaling for SE only.
-            if e.additional_rows == 0 {
-                return Ok(0.0);
-            }
-            let n1 = (ew.n + e.additional_rows) as f64;
-            let n0 = ew.n.max(1) as f64;
-            let se1 = se0 * (n0 / n1).sqrt();
-            Ok(se0 - se1)
-        }
-        CandidateDesign::Measure(plan) => {
-            let Some(specs) = ew.measure_columns.as_ref() else {
-                // No design-analysis columns → no modelled SE change.
-                return Ok(0.0);
-            };
-            let mut xtx = ew.xtx.to_vec();
-            let mut cur_p = p;
-            let mut sigma2 = ew.sigma2;
-            let mut matched = 0usize;
-            for v in plan.variables.iter() {
-                let Some(spec) = specs.iter().find(|s| s.variable == *v) else {
-                    continue;
-                };
-                let Some(expanded) = expand_gram(&xtx, cur_p, &spec.cross, spec.self_dot) else {
-                    return Err(DesignError::Shape(format!(
-                        "measure column for variable {v:?} has {} cross-products, expected {cur_p}",
-                        spec.cross.len()
-                    )));
-                };
-                xtx = expanded;
-                cur_p += 1;
-                if let Some(s2) = spec.sigma2_after {
-                    sigma2 = s2;
-                }
-                matched += 1;
-            }
-            if matched == 0 {
-                return Ok(0.0);
-            }
-            let se1 = treatment_se(&xtx, cur_p, ew.treatment_col, sigma2, "post-measurement")?;
-            Ok(se0 - se1)
-        }
-        CandidateDesign::Intervene(_) => {
-            let Some(design) = ew.intervention_design.as_ref() else {
-                return Ok(0.0);
-            };
-            let p1 = gram_side_len(&design.xtx);
-            if p1 != p {
-                return Err(DesignError::Shape(format!(
-                    "intervention design Gram has {} entries, expected {}",
-                    design.xtx.len(),
-                    ew.xtx.len()
-                )));
-            }
-            let se1 = treatment_se(
-                &design.xtx,
-                p1,
-                ew.treatment_col,
-                design.sigma2,
-                "post-intervention",
-            )?;
-            Ok(se0 - se1)
-        }
-    }
-}
-
-/// Table rows `(i, j)` of every pair drawn from `models` that is present in `ll`.
-fn model_pair_rows(ll: &ModelLoglikDraws, models: &[ModelId]) -> Vec<(usize, usize)> {
-    let row_of: Vec<Option<usize>> =
-        models.iter().map(|m| ll.models.iter().position(|x| x == m)).collect();
-    let mut pairs = Vec::new();
-    for i in 0..models.len() {
-        for j in (i + 1)..models.len() {
-            if let (Some(ri), Some(rj)) = (row_of[i], row_of[j]) {
-                pairs.push((ri, rj));
-            }
-        }
-    }
-    pairs
-}
-
-fn model_distinguish_score(
-    candidate: &CandidateDesign,
-    ll: &ModelLoglikDraws,
-    n_models: usize,
-    pairs: &[(usize, usize)],
-    rng: &mut CausalRng,
-) -> f64 {
-    if n_models < 2 || ll.n_draws == 0 {
-        return 0.0;
-    }
-    #[allow(
-        clippy::cast_possible_truncation,
-        reason = "the draw is reduced modulo `n_draws`, a usize, so the result is a valid index; only uniform high bits are dropped on 32-bit targets"
-    )]
-    let draw = (rng.next_u64() as usize) % ll.n_draws;
-    let strength = observation_reliability(candidate);
-    // Expected absolute log-score gap over the requested model pairs, scaled by evidence strength.
-    let mut gap = 0.0;
-    for &(ri, rj) in pairs {
-        let a = ll.loglik[ri * ll.n_draws + draw];
-        let b = ll.loglik[rj * ll.n_draws + draw];
-        gap += (a - b).abs();
-    }
-    if pairs.is_empty() { 0.0 } else { strength * gap / pairs.len() as f64 }
-}
-
-/// How non-decision objectives are evaluated: deterministic functionals are exact;
-/// scores that consume per-draw randomness are Monte Carlo estimates.
-fn static_evaluation(objective: &DesignObjective) -> ScoreEvaluation {
-    objective.static_evaluation()
-}
-
-/// Prepare the preposterior analysis for [`DesignObjective::ReduceDecisionRegret`]
+/// Prepare the preposterior analysis for [`crate::DesignObjective::ReduceDecisionRegret`]
 /// (utilities and admissibility evaluated once per ranking).
-fn prepare_decision<'a, A, O>(
-    objective: &DesignObjective,
+fn prepare_decision<'a, S: ObjectiveScorer, A, O>(
+    objective: &S,
     ctx: &DesignEvaluationContext<'a, A, O>,
 ) -> Result<Option<PreposteriorAnalysis<'a, O>>, DesignError> {
     let ObjectiveChannel::Decision { decision } = objective.channel() else {
@@ -1349,7 +1032,7 @@ fn unmapped_decision_candidate<O>(
     let signal = analysis.signal();
     signal.sample_size(candidate).is_none().then(|| ConstraintViolation {
         candidate_index: index,
-        constraint: Arc::from("unlicensed_candidate"),
+        constraint: Arc::from("unsupported_candidate"),
         detail: Arc::from(format!(
             "decision signal `{}` declares no sample size for this candidate",
             signal.name()
@@ -1368,58 +1051,6 @@ pub(crate) struct DecisionCandidateScore {
     pub samples: u64,
 }
 
-/// Per-candidate preposterior scoring: the design's sample size and, where
-/// available, its exact EVSI (computed once and reused by every replicate).
-struct DecisionScoring<'a, O> {
-    analysis: PreposteriorAnalysis<'a, O>,
-    /// `(n, exact EVSI)` by candidate index; `None` for inactive candidates.
-    plans: Vec<Option<(u64, Option<f64>)>>,
-}
-
-impl<'a, O> DecisionScoring<'a, O> {
-    fn new(
-        analysis: PreposteriorAnalysis<'a, O>,
-        candidates: &[CandidateDesign],
-        active: &[usize],
-    ) -> Result<Self, DesignError> {
-        let mut plans = vec![None; candidates.len()];
-        for &cand_i in active {
-            if let Some(n) = analysis.signal().sample_size(&candidates[cand_i]) {
-                plans[cand_i] = Some((n, analysis.exact_evsi(n)?));
-            }
-        }
-        Ok(Self { analysis, plans })
-    }
-
-    fn evaluation(&self, cand_i: usize) -> ScoreEvaluation {
-        match self.plans.get(cand_i).copied().flatten() {
-            Some((_, Some(_))) => ScoreEvaluation::Exact,
-            _ => ScoreEvaluation::MonteCarlo,
-        }
-    }
-
-    fn score(
-        &self,
-        cand_i: usize,
-        crn_seed: u64,
-        log_lik: &mut Vec<f64>,
-        weights: &mut Vec<f64>,
-    ) -> Result<f64, DesignError> {
-        match self.plans.get(cand_i).copied().flatten() {
-            Some((_, Some(exact))) => Ok(exact),
-            Some((n, None)) => self.analysis.draw_evsi_replicate(
-                n,
-                &mut CausalRng::from_seed(crn_seed),
-                log_lik,
-                weights,
-            ),
-            None => Err(DesignError::Config(format!(
-                "candidate {cand_i} has no decision sample size and cannot be scored"
-            ))),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1427,6 +1058,7 @@ mod tests {
         DesignCost, EnvironmentPlan, ExperimentPlan, MeasurementPlan, SamplingPlan,
     };
     use crate::decision::{DecisionConstraint, DecisionProblemId, Utility};
+    use crate::objective::DesignObjective;
     use antecedent_core::{CausalRng, EnvironmentId, VariableId};
     use antecedent_prob::GraphIdentFlag;
 
@@ -1443,7 +1075,7 @@ mod tests {
         .expect("graphs")
     }
 
-    /// MM-012: a mismatched soft observation can raise posterior entropy; the draw
+    /// A mismatched soft observation can raise posterior entropy; the draw
     /// must keep the signed reduction rather than clipping at zero.
     #[test]
     fn entropy_channel_preserves_all_graph_key_bits() {
@@ -1838,7 +1470,7 @@ mod tests {
 
     #[test]
     fn eig_is_nonnegative_and_measure_beats_weak_sampling() {
-        // Individual draws may be negative (MM-012); the expectation may not.
+        // Individual draws may be negative; the expectation may not.
         let graphs = toy_graphs();
         let channel = EntropyChannel::new(&graphs, None).expect("channel");
         let measure = CandidateDesign::Measure(MeasurementPlan {
@@ -2064,7 +1696,9 @@ mod tests {
         let offset = 1e8;
         let draws = alternating(offset, 0.5, n);
         let mut acc = Welford::new();
-        draws.iter().for_each(|&x| acc.push(x));
+        for &x in &draws {
+            acc.push(x);
+        }
         let expected = 0.5 * (n as f64 / (n as f64 - 1.0)).sqrt() / (n as f64).sqrt();
         assert!(
             (acc.stderr_of_mean() / expected - 1.0).abs() < 1e-6,
@@ -2408,7 +2042,7 @@ mod tests {
         assert_eq!(ranking.ranked[0].candidate_index, 1);
         assert_eq!(ranking.violations.len(), 1);
         assert_eq!(ranking.violations[0].candidate_index, 0);
-        assert_eq!(ranking.violations[0].constraint.as_ref(), "unlicensed_candidate");
+        assert_eq!(ranking.violations[0].constraint.as_ref(), "unsupported_candidate");
     }
 
     #[test]
@@ -2509,7 +2143,7 @@ mod tests {
             let direct = fixed_ranker()
                 .score_decision_candidate(&analysis, &candidate, &ctx)
                 .unwrap()
-                .expect("licensed");
+                .expect("supported");
             assert_eq!(direct.score.to_bits(), top.score.to_bits());
             assert_eq!(direct.stderr.to_bits(), top.monte_carlo.stderr.to_bits());
             assert_eq!(direct.evaluation, top.evaluation);

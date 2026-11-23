@@ -124,12 +124,14 @@ fn functional_bayesian_path_distribution_and_admg() {
                 result.posterior.as_ref().unwrap().diagnostics.backend_id.as_ref(),
                 "functional.dirichlet"
             );
+            // Closed-form 0.3; the Dirichlet posterior mean sits 0.002 away on this table, so
+            // a band of 0.01 still passes honest runs and fails a 0.05 bias.
             assert!(
-                (result.estimate.as_effect().unwrap().ate - pin["path_effect"].as_f64().unwrap())
+                (result.estimate().as_effect().unwrap().ate - pin["path_effect"].as_f64().unwrap())
                     .abs()
-                    < 0.08,
+                    < 0.01,
                 "path suite={suite:?} ate={}",
-                result.estimate.as_effect().unwrap().ate
+                result.estimate().as_effect().unwrap().ate
             );
             assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
             let reports = match suite {
@@ -191,13 +193,15 @@ fn functional_bayesian_path_distribution_and_admg() {
     assert_eq!(rider.logical_plan.estimator.as_deref(), Some("functional.effect"));
     assert_ne!(rider.logical_plan.estimator.as_deref(), Some("bayesian.gcomp"));
     assert!(rider.posterior.is_some());
+    // Measured gap between the Dirichlet posterior mean and the frequentist functional is 0.0012.
     assert!(
-        (rider.estimate.as_effect().unwrap().ate - freq.estimate.as_effect().unwrap().ate).abs()
-            < 0.08
+        (rider.estimate().as_effect().unwrap().ate - freq.estimate().as_effect().unwrap().ate)
+            .abs()
+            < 0.01
     );
 }
 
-/// Bayesian front-door ADMG ATE on every licensed coordinate: explicit and
+/// Bayesian front-door ADMG ATE on every supported coordinate: explicit and
 /// accepted structure × `none`/`cheap`/`full`, fresh and prepared. The frozen
 /// binary law has front-door effect 0.282 (`admg_frontdoor_functional`); the
 /// Dirichlet posterior mean must sit within 0.02 of it, and the 90% credible
@@ -239,14 +243,14 @@ fn admg_frontdoor_bayesian_all_structures_and_validation() {
             );
             for result in [&fresh, &click] {
                 let label = format!("accepted={accepted} suite={suite:?}");
-                assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{label}");
+                assert_eq!(result.support_status().unwrap().as_str(), "supported", "{label}");
                 assert_eq!(result.logical_plan.identifier.as_deref(), Some("general.id"));
                 assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.effect"));
                 let posterior = result.posterior.as_ref().expect("Bayesian ADMG posterior");
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate - truth).abs() < 0.02,
+                    (result.estimate().as_effect().unwrap().ate - truth).abs() < 0.02,
                     "{label}: posterior mean {} vs front-door truth {truth}",
-                    result.estimate.as_effect().unwrap().ate
+                    result.estimate().as_effect().unwrap().ate
                 );
                 let col = posterior.effect_column().expect("effect draws");
                 let mut draws = posterior.draws.column(col).unwrap().to_vec();
@@ -261,7 +265,8 @@ fn admg_frontdoor_bayesian_all_structures_and_validation() {
                 }
             }
             assert!(
-                (fresh.estimate.as_effect().unwrap().ate - click.estimate.as_effect().unwrap().ate)
+                (fresh.estimate().as_effect().unwrap().ate
+                    - click.estimate().as_effect().unwrap().ate)
                     .abs()
                     < 1e-12
             );
@@ -327,9 +332,11 @@ fn distribution_bayesian_known_truth() {
         .unwrap();
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.distribution"));
     let dist = result.distribution().unwrap();
-    assert!((dist.mean - pin["distribution_mean"].as_f64().unwrap()).abs() < 0.08);
+    // Measured deviation from the closed-form mean is 0.003; 0.01 still fails a 0.05 bias.
+    assert!((dist.mean - pin["distribution_mean"].as_f64().unwrap()).abs() < 0.01);
     let mass: f64 = dist.atoms.iter().map(|a| a.probability).sum();
-    assert!((mass - 1.0).abs() < 0.05, "bayesian atoms must be a coherent law, mass={mass}");
+    // Posterior-mean atom probabilities of a Dirichlet draw set sum to one to rounding.
+    assert!((mass - 1.0).abs() < 1e-9, "bayesian atoms must be a coherent law, mass={mass}");
     let posterior = result.posterior.as_ref().unwrap();
     let atom_mean: f64 =
         dist.atoms.iter().map(|a| a.probability * a.outcomes[0].1.as_f64().unwrap()).sum();
@@ -342,7 +349,7 @@ fn distribution_bayesian_known_truth() {
         assert!((p1 - posterior.draws.column(0).unwrap()[draw]).abs() < 1e-12);
     }
 
-    // A distribution need not have a scalar mean: the same licensed path
+    // A distribution need not have a scalar mean: the same supported path
     // must produce joint probability draws for joint outcomes and IDC tables.
     for conditional in [false, true] {
         for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
@@ -436,10 +443,11 @@ fn mediation_and_counterfactual_bayesian_pins() {
             .estimate(&data, &ctx)
             .unwrap();
         assert!(result.posterior.is_some());
+        // Closed-form effects (1.8 direct, 4.8 indirect); the posterior mean is within 0.007.
         assert!(
-            (result.estimate.as_effect().unwrap().ate - pin[key].as_f64().unwrap()).abs() < 0.15,
+            (result.estimate().as_effect().unwrap().ate - pin[key].as_f64().unwrap()).abs() < 0.03,
             "{key} {}",
-            result.estimate.as_effect().unwrap().ate
+            result.estimate().as_effect().unwrap().ate
         );
         assert_eq!(result.logical_plan.estimator.as_deref(), Some("mediation.linear"));
     }
@@ -462,7 +470,8 @@ fn mediation_and_counterfactual_bayesian_pins() {
         .unwrap();
     let cf = result.counterfactual().unwrap();
     assert!(result.posterior.is_some());
-    assert!((cf.mean_ite - pin["counterfactual_mean"].as_f64().unwrap()).abs() < 0.25);
+    // Closed-form mean ITE 6.6; the posterior mean is 0.03 away, so 0.08 replaces the old 0.25.
+    assert!((cf.mean_ite - pin["counterfactual_mean"].as_f64().unwrap()).abs() < 0.08);
     assert_eq!(cf.unit_effects.len(), 500);
     let unit_mean = cf.unit_effects.iter().sum::<f64>() / cf.unit_effects.len() as f64;
     assert!(
@@ -634,7 +643,9 @@ fn derivative_bayesian_pins() {
                     bandwidth: Some(0.35),
                     ..Default::default()
                 })
-                .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+                // The derivative route uses Rubin's Bayesian bootstrap; this is the
+                // compatibility declaration, not a Laplace coefficient posterior.
+                .inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(64)))
                 .refute(RefuteSuite::None)
                 .build()
                 .unwrap()
@@ -671,8 +682,16 @@ fn derivative_bayesian_pins() {
             };
             assert_eq!(got.len(), truth.len(), "{label}");
             for j in 0..truth.len() {
+                // Measured deviations on this noise-free law: Jacobian and directional values
+                // within 1e-8, point-type scales within 0.003, the observed-weight average
+                // within 0.05. The shared fixture band (0.15) is wider than any of them.
+                let key_tolerance = match key {
+                    "jacobian" | "directional" => 1e-6,
+                    "average" => 0.1,
+                    _ => 0.02,
+                };
                 assert!(
-                    (got[j] - truth[j]).abs() < tolerance,
+                    (got[j] - truth[j]).abs() < tolerance.min(key_tolerance),
                     "{label}[{j}]: {} != {}",
                     got[j],
                     truth[j]
@@ -717,7 +736,9 @@ fn mixture_gp() -> GraphPosterior {
     .unwrap()
 }
 
-fn mixture_data(n: usize) -> TabularData {
+/// Treatment, outcome and confounder columns of the known-truth mixture: `y = slope * t + 2 z`
+/// plus a deterministic symmetric disturbance, with `z` and `t` positively associated.
+fn mixture_columns(n: usize, slope: f64) -> [Vec<f64>; 3] {
     let mut treatment = Vec::with_capacity(n);
     let mut outcome = Vec::with_capacity(n);
     let mut confounder = Vec::with_capacity(n);
@@ -727,16 +748,24 @@ fn mixture_data(n: usize) -> TabularData {
                 let epsilon = if row % 2 == 0 { -0.2 } else { 0.2 };
                 treatment.push(t);
                 confounder.push(z);
-                outcome.push(2.0 * t + 2.0 * z + epsilon);
+                outcome.push(slope * t + 2.0 * z + epsilon);
             }
         }
     }
+    [treatment, outcome, confounder]
+}
+
+fn mixture_table(columns: &[Vec<f64>; 3]) -> TabularData {
     TabularData::from_f64_columns([
-        ("t", treatment.as_slice()),
-        ("y", outcome.as_slice()),
-        ("z", confounder.as_slice()),
+        ("t", columns[0].as_slice()),
+        ("y", columns[1].as_slice()),
+        ("z", columns[2].as_slice()),
     ])
     .unwrap()
+}
+
+fn mixture_data(n: usize) -> TabularData {
+    mixture_table(&mixture_columns(n, 2.0))
 }
 
 #[test]
@@ -800,9 +829,9 @@ fn conditional_graph_posterior_retains_unidentified_mass() {
     // keep unidentified mass, publish the identified set. Both identified CATE
     // atoms recover the structural slope 2 on Y = 2T + 2Z.
     assert!(
-        bayes.estimate.as_effect().unwrap().ate.is_nan(),
+        bayes.estimate().as_effect().unwrap().ate.is_nan(),
         "disagreeing CATE atoms must withhold estimate.ate, got {}",
-        bayes.estimate.as_effect().unwrap().ate
+        bayes.estimate().as_effect().unwrap().ate
     );
     assert!(
         bayes.diagnostics.iter().any(|d| {
@@ -948,7 +977,7 @@ fn static_mediation_named_prior_hydrates_only_the_outcome_treatment_slope() {
         !assumptions.contains("[y, m]") && !assumptions.contains("[m, y]"),
         "mediator mechanism must keep isotropic prior_scale: {assumptions}"
     );
-    let source_ate = source.estimate.as_effect().unwrap().ate;
+    let source_ate = source.estimate().as_effect().unwrap().ate;
     assert!(
         assumptions.contains("implied NDE/ATE mean"),
         "Δ-scaled slope prior must record implied NDE = source ATE ({source_ate}); assumptions={assumptions}"
@@ -1052,11 +1081,12 @@ fn bayesian_does_not_rewrite_functional_estimators() {
                 .query(CausalQuery::PathSpecific(query))
                 .estimator(antecedent::EstimatorId::BayesianGcomp)
         };
-        let study = builder.build().unwrap();
-        assert!(
-            study.compile(&ExecutionContext::for_tests(1)).is_err(),
-            "an explicit incompatible estimator must not be silently replaced"
-        );
+        // The estimator does not estimate a path-specific query: refused at build, in every
+        // build, not replaced by the functional plug-in.
+        let Err(error) = builder.build() else {
+            panic!("an explicit incompatible estimator must not be silently replaced");
+        };
+        assert_eq!(error.reason_code(), Some("strategy_incompatible"), "{error}");
     }
 }
 
@@ -1129,7 +1159,7 @@ fn static_effect_and_response_prior_transfer() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    assert!((joint.estimate.as_effect().unwrap().ate - 3.0).abs() < 0.1);
+    assert!((joint.estimate().as_effect().unwrap().ate - 3.0).abs() < 0.1);
     let catalog =
         antecedent_io::PriorCatalog::from_sources(vec![antecedent_io::PriorSourceRef::with_bytes(
             antecedent_io::PriorSourceMeta::new(
@@ -1180,7 +1210,7 @@ fn static_effect_and_response_prior_transfer() {
         .unwrap();
     let click = prepared.estimate(&data, &ctx).unwrap();
     assert!(
-        (click.estimate.as_effect().unwrap().ate - pin["true_effect"].as_f64().unwrap()).abs()
+        (click.estimate().as_effect().unwrap().ate - pin["true_effect"].as_f64().unwrap()).abs()
             < pin["atol"].as_f64().unwrap()
     );
 
@@ -1233,7 +1263,7 @@ fn static_effect_and_response_prior_transfer() {
         .unwrap();
     assert!(cate_result.posterior.is_some());
     assert!(
-        (cate_result.estimate.as_effect().unwrap().ate - pin["true_effect"].as_f64().unwrap())
+        (cate_result.estimate().as_effect().unwrap().ate - pin["true_effect"].as_f64().unwrap())
             .abs()
             < pin["atol"].as_f64().unwrap()
     );
@@ -1349,23 +1379,19 @@ fn class_envelope_prior_transfer_is_per_completion() {
         .build()
         .unwrap()
         .run(&ctx);
-    match transferred {
-        Ok(result) => {
-            assert_eq!(format!("{:?}", result.identification.status), status);
-            assert_eq!(result.posterior.as_ref().map(|p| p.unidentified_mass), mass);
-            assert_ne!(status, "NotIdentified");
-        }
-        Err(err) => {
-            let msg = err.to_string();
-            assert!(
-                msg.contains("mapping")
-                    || msg.contains("coefficient")
-                    || msg.contains("hydrate")
-                    || msg.contains("prior"),
-                "class-envelope transfer must fail closed without changing identification: {err}"
-            );
-        }
-    }
+    assert_eq!(status, "PartiallyIdentified");
+    assert_eq!(mass, Some(0.0));
+    // The source posterior has three coefficients (adjusting for the confounder) while the
+    // CPDAG completion without that adjustment has two: the mapping is refused with the typed
+    // dimension reason rather than silently hydrating a subset or changing identification.
+    let err = transferred
+        .expect_err("a three-coefficient source cannot hydrate a two-coefficient completion");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("prior_dimension_mismatch")
+            && msg.contains("posterior coefficient dimension 3 != expected n_coef 2"),
+        "class-envelope transfer must refuse with the dimension mismatch: {msg}"
+    );
 }
 
 #[test]
@@ -1441,7 +1467,7 @@ fn counterfactual_posterior_has_bayesian_bootstrap_variance() {
         .unwrap()
         .run(&ExecutionContext::for_tests(812))
         .unwrap();
-    let posterior = result.posterior.unwrap();
+    let posterior = result.posterior.as_ref().unwrap();
     let column = posterior.effect_column().unwrap();
     assert!((posterior.summaries.mean[column] - 5.0).abs() < 0.1);
     assert!(
@@ -1465,4 +1491,292 @@ fn inference_setter_can_return_to_frequentist_defaults() {
     let result = study.run(&ExecutionContext::for_tests(1)).unwrap();
     assert!(result.posterior.is_none());
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("linear.adjustment.ate"));
+}
+
+#[test]
+fn bayesian_derivative_refuses_unread_backend_and_likelihood() {
+    let treatment: Vec<_> = (0..100).map(|i| f64::from(i) / 25.0).collect();
+    let outcome: Vec<_> = treatment.iter().map(|x| 2.0 * x + 1.0).collect();
+    let data = TabularData::from_f64_columns([
+        ("treatment", treatment.as_slice()),
+        ("outcome", outcome.as_slice()),
+    ])
+    .unwrap();
+    let mut graph = Dag::with_variables(2);
+    graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let query = || {
+        CausalQuery::Response(ResponseQuery::new(ResponseFunctional::PointDerivative {
+            outcome: VariableId::from_raw(1),
+            treatment: VariableId::from_raw(0),
+            at: 2.0,
+            order: 1,
+            scale: DerivativeScale::Identity,
+        }))
+    };
+    let ctx = ExecutionContext::for_tests(18);
+    let study = Study::tabular(data.clone())
+        .graph(graph.clone())
+        .query(query())
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
+    let error = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap_err();
+    assert_eq!(error.reason_code(), Some("option_not_applicable"));
+    assert!(error.to_string().contains("Rubin Bayesian bootstrap"), "{error}");
+
+    let error = Study::tabular(data)
+        .graph(graph)
+        .query(query())
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::laplace().likelihood(antecedent_prob::BayesLikelihood::BernoulliLogit),
+        ))
+        .refute(RefuteSuite::None)
+        .build()
+        .err()
+        .expect("a derivative cannot use a Bernoulli likelihood");
+    assert_eq!(error.reason_code(), Some("likelihood_not_supported"));
+}
+
+fn source_prior_bytes(data: &TabularData, dag: &Dag, treatment: u32, outcome: u32) -> Vec<u8> {
+    let source = Study::tabular(data.clone())
+        .graph(dag.clone())
+        .query(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(treatment),
+            VariableId::from_raw(outcome),
+        ))
+        .inference(bayes())
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(31))
+        .unwrap();
+    antecedent::io::encode_causal_posterior_bytes(source.posterior.as_ref().unwrap(), "source")
+        .unwrap()
+}
+
+/// A transferred prior without a response-specific mapping is refused by the graph-posterior
+/// response, not replaced by an isotropic prior on every atom.
+#[test]
+fn graph_posterior_response_refuses_a_transferred_prior_without_a_mapping() {
+    let data = mixture_data(160);
+    let mut dag = Dag::with_variables(3);
+    for (from, to) in [(2, 0), (2, 1), (0, 1)] {
+        dag.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+    }
+    let bytes = source_prior_bytes(&data, &dag, 0, 1);
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
+    });
+    let ctx = ExecutionContext::for_tests(32);
+    let config = BayesianConfig::conjugate().n_draws(32).prior_from_artifact(bytes, None);
+    let built = Study::tabular(data)
+        .graph_posterior(mixture_gp())
+        .query(CausalQuery::Response(query))
+        .inference(InferenceMode::Bayesian(config))
+        .refute(RefuteSuite::None)
+        .build();
+    let error = match built {
+        Err(error) => error,
+        Ok(study) => study.run(&ctx).expect_err("an unmapped transfer must not run"),
+    };
+    assert!(error.to_string().contains("response-specific mapping"), "{error}");
+}
+
+/// The same refusal holds for the sealed static derivative response.
+#[test]
+fn derivative_response_refuses_a_transferred_prior_without_a_mapping() {
+    let a: Vec<_> = (0..400)
+        .map(|i| 2.0 + (f64::from(i) * 0.71).sin() + 0.2 * (f64::from(i) * 0.13).cos())
+        .collect();
+    let b: Vec<_> = (0..400).map(|i| (f64::from(i) * 1.13).cos()).collect();
+    let y: Vec<_> = a.iter().zip(&b).map(|(a, b)| 5.0 + 2.0 * a - 0.5 * b).collect();
+    let data = TabularData::from_f64_columns([
+        ("a", a.as_slice()),
+        ("b", b.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap();
+    let mut dag = Dag::with_variables(3);
+    for (from, to) in [(0, 2), (1, 2)] {
+        dag.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+    }
+    let bytes = source_prior_bytes(&data, &dag, 0, 2);
+    let functional = ResponseFunctional::PointDerivative {
+        outcome: VariableId::from_raw(2),
+        treatment: VariableId::from_raw(0),
+        at: 2.0,
+        order: 1,
+        scale: DerivativeScale::Identity,
+    };
+    let ctx = ExecutionContext::for_tests(33);
+    let config = BayesianConfig::conjugate().n_draws(32).prior_from_artifact(bytes, None);
+    let built = Study::tabular(data)
+        .graph(dag)
+        .query(CausalQuery::Response(ResponseQuery::new(functional)))
+        .inference(InferenceMode::Bayesian(config))
+        .refute(RefuteSuite::None)
+        .build();
+    let error = match built {
+        Err(error) => error,
+        Ok(study) => study.run(&ctx).expect_err("an unmapped transfer must not run"),
+    };
+    assert!(error.to_string().contains("response-specific mapping"), "{error}");
+}
+
+/// Solve `a x = b` for a small dense system by Gaussian elimination with partial pivoting.
+fn solve_small(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Vec<f64> {
+    let n = b.len();
+    for col in 0..n {
+        let pivot = (col..n).max_by(|&i, &j| a[i][col].abs().total_cmp(&a[j][col].abs())).unwrap();
+        a.swap(col, pivot);
+        b.swap(col, pivot);
+        for row in (col + 1)..n {
+            let factor = a[row][col] / a[col][col];
+            for k in col..n {
+                a[row][k] -= factor * a[col][k];
+            }
+            b[row] -= factor * b[col];
+        }
+    }
+    let mut x = vec![0.0; n];
+    for row in (0..n).rev() {
+        let tail: f64 = ((row + 1)..n).map(|k| a[row][k] * x[k]).sum();
+        x[row] = (b[row] - tail) / a[row][row];
+    }
+    x
+}
+
+/// Posterior mean of the coefficients of a conjugate normal-inverse-gamma regression whose prior
+/// is `beta | sigma^2 ~ N(m0, sigma^2 diag(v0))`: `(V0^-1 + X'X)^-1 (V0^-1 m0 + X'y)`. The
+/// inverse-gamma hyperparameters do not enter the posterior mean of `beta`.
+fn conjugate_posterior_mean(design: &[Vec<f64>], y: &[f64], m0: &[f64], v0: &[f64]) -> Vec<f64> {
+    let p = m0.len();
+    let mut normal = vec![vec![0.0; p]; p];
+    let mut rhs = vec![0.0; p];
+    for (row, outcome) in design.iter().zip(y) {
+        for i in 0..p {
+            rhs[i] += row[i] * outcome;
+            for j in 0..p {
+                normal[i][j] += row[i] * row[j];
+            }
+        }
+    }
+    for i in 0..p {
+        normal[i][i] += 1.0 / v0[i];
+        rhs[i] += m0[i] / v0[i];
+    }
+    solve_small(normal, rhs)
+}
+
+/// A transferred effect prior mapped onto the treatment slope reaches every atom of a graph
+/// posterior, including atoms that adjust for different sets, and each atom's posterior mean of
+/// the intervention level equals the independent conjugate calculation for its own design.
+#[test]
+fn graph_posterior_response_applies_a_mapped_transferred_prior_to_each_adjustment_set() {
+    // Source: a small sample whose treatment effect is 0.5, so its posterior is informative but not
+    // dominant over the 160 target rows, whose adjusted slope is 2 and unadjusted slope is 3.
+    let source_columns = mixture_columns(32, 0.5);
+    let mut dag = Dag::with_variables(3);
+    for (from, to) in [(2, 0), (2, 1), (0, 1)] {
+        dag.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+    }
+    let source = Study::tabular(mixture_table(&source_columns))
+        .graph(dag)
+        .query(AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(4_000)))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(41))
+        .unwrap();
+    let posterior = source.posterior.as_ref().unwrap();
+    let quantities = &posterior.draws.schema.quantities;
+    let effect_column = posterior.effect_column().unwrap();
+    let antecedent_prob::PosteriorQuantityKind::Effect { name: effect_name } =
+        &quantities[effect_column]
+    else {
+        panic!("the source effect column is named");
+    };
+    let residual_column = quantities
+        .iter()
+        .position(|q| matches!(q, antecedent_prob::PosteriorQuantityKind::ResidualVariance))
+        .unwrap();
+    let (source_mean, source_sd, source_sigma2) = (
+        posterior.summaries.mean[effect_column],
+        posterior.summaries.sd[effect_column],
+        posterior.summaries.mean[residual_column],
+    );
+    let bytes = antecedent::io::encode_causal_posterior_bytes(posterior, "source").unwrap();
+
+    // Target: the binary-treatment contrast is one, so the slope prior is the effect prior. Other
+    // coefficients keep the weakly informative baseline (mean 0, relative variance 100).
+    let target_columns = mixture_columns(160, 2.0);
+    let [t, y, z] = &target_columns;
+    let slope_variance = (source_sd * source_sd) / source_sigma2;
+    let level = |design: Vec<Vec<f64>>, m0: &[f64], v0: &[f64]| {
+        let beta = conjugate_posterior_mean(&design, y, m0, v0);
+        let z_mean = z.iter().sum::<f64>() / z.len() as f64;
+        match beta.len() {
+            2 => beta[0] + beta[1],
+            _ => beta[0] + beta[1] + beta[2] * z_mean,
+        }
+    };
+    let direct_design: Vec<Vec<f64>> = t.iter().map(|t| vec![1.0, *t]).collect();
+    let adjusted_design: Vec<Vec<f64>> = t.iter().zip(z).map(|(t, z)| vec![1.0, *t, *z]).collect();
+    let expected_direct =
+        level(direct_design.clone(), &[0.0, source_mean], &[100.0, slope_variance]);
+    let expected_adjusted =
+        level(adjusted_design.clone(), &[0.0, source_mean, 0.0], &[100.0, slope_variance, 100.0]);
+    let isotropic_direct = level(direct_design, &[0.0, 0.0], &[100.0, 100.0]);
+    let isotropic_adjusted = level(adjusted_design, &[0.0, 0.0, 0.0], &[100.0, 100.0, 100.0]);
+    // The transfer must be visible, or the comparison below would not tell it from no transfer.
+    assert!(
+        (expected_direct - isotropic_direct).abs() > 0.05,
+        "{expected_direct} {isotropic_direct}"
+    );
+    assert!(
+        (expected_adjusted - isotropic_adjusted).abs() > 0.05,
+        "{expected_adjusted} {isotropic_adjusted}"
+    );
+
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
+    });
+    let config = BayesianConfig::conjugate().n_draws(4_000).prior_from_artifact(
+        bytes,
+        Some(antecedent_io::PriorMapping::EffectFunctional {
+            source_quantity: effect_name.to_string(),
+        }),
+    );
+    let result = Study::tabular(mixture_table(&target_columns))
+        .graph_posterior(mixture_gp())
+        .query(CausalQuery::Response(query))
+        .inference(InferenceMode::Bayesian(config))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(42))
+        .unwrap();
+    let mixture = result.structural_response.as_ref().unwrap();
+    let level_of = |weight: f64| {
+        let atom = mixture.atoms.iter().find(|atom| (atom.weight - weight).abs() < 1e-12).unwrap();
+        let ResponseValue::Scalar(mean) = atom.value.as_ref().unwrap() else {
+            panic!("an intervention level is a scalar");
+        };
+        *mean
+    };
+    // Atom weights 0.5 (no adjustment) and 0.3 (adjusting for the confounder) are the two
+    // identified atoms; the 0.2 atom reverses the edge and is unidentified.
+    // The posterior sd of a level here is about 0.02, so a mean of 4,000 draws is within a few
+    // 1e-4 of the analytic posterior mean; the transfer shifts it by more than 0.05.
+    for (weight, expected) in [(0.5, expected_direct), (0.3, expected_adjusted)] {
+        let mean = level_of(weight);
+        assert!(
+            (mean - expected).abs() < 0.01,
+            "atom {weight}: posterior mean {mean} vs independent conjugate calculation {expected}"
+        );
+    }
 }

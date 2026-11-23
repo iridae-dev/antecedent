@@ -1,0 +1,966 @@
+#![cfg(test)]
+//! Same-target four-way slice.
+//!
+//! Static frequentist, static Bayesian, horizon-one frequentist, and horizon-one
+//! Bayesian realizations of one active-minus-control contrast. Every cell is
+//! prepared from the program `Study::compile` lowers: the static and horizon-one
+//! targets are read from the lowered programs' scientific problems, preparation
+//! installs the identification those programs retained, and decision verdicts come
+//! from the `compile_for_decision` entry. The slice keeps no admission,
+//! identification or fit cache of its own. Frequentist coverage and posterior
+//! quality are separate records. A utility-only change on the static cell reuses
+//! the causal fit.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+use antecedent_core::{
+    AverageEffectQuery, CausalSchemaBuilder, ContrastForm, ExecutionContext, InferenceSelection,
+    IntervalMethod, Lag, OutcomeFunctional, ScientificTarget, TemporalEffectQuery, TemporalPolicy,
+    TimeFrame,
+};
+use antecedent_data::{TabularData, TimeSeriesData};
+use antecedent_graph::ensure_lagged;
+use antecedent_stats::fit_counts::count_least_squares_solves;
+
+use crate::analysis::execute::{
+    DecisionDemand, MissingCarrier, PublishedCarriers, ScoredDecision, score_decision,
+};
+use crate::planner::PhysicalExecutionPlan;
+use crate::planner::lowered::ProblemTarget;
+use crate::{
+    BayesianConfig, Dag, EffectEstimate, InferenceMode, PublishedScalarUncertainty, RefuteSuite,
+    Study, StudyResult, TemporalDag,
+};
+
+const LINE: [(f64, f64); 8] = [
+    (0.0, 1.0),
+    (1.0, 3.0),
+    (0.0, 1.0),
+    (1.0, 3.0),
+    (0.0, 1.0),
+    (1.0, 3.0),
+    (0.0, 1.0),
+    (1.0, 3.0),
+];
+
+const POSTERIOR_DRAWS: usize = 1024;
+const POSTERIOR_PRIOR_SCALE: f64 = 1.0e6;
+const FREQUENTIST_LEVEL: f64 = 0.95;
+/// Distance from the exact line effect inside which a zero-variance estimate
+/// counts as the degenerate interval at that effect.
+const DEGENERATE_TOLERANCE: f64 = 1.0e-12;
+
+/// One cell of the static/horizon-one × frequentist/Bayesian slice.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum FourWayCell {
+    /// Static ordinary-least-squares contrast.
+    StaticFrequentist,
+    /// Static conjugate posterior for the same contrast.
+    StaticBayesian,
+    /// Horizon-one frequentist pulse for the same contrast.
+    HorizonOneFrequentist,
+    /// Horizon-one conjugate posterior for the same contrast.
+    HorizonOneBayesian,
+}
+
+impl FourWayCell {
+    /// Declaration order is the slice order.
+    pub(crate) const ALL: [Self; 4] = [
+        Self::StaticFrequentist,
+        Self::StaticBayesian,
+        Self::HorizonOneFrequentist,
+        Self::HorizonOneBayesian,
+    ];
+
+    /// Index into [`Self::ALL`].
+    #[must_use]
+    pub(crate) const fn index(self) -> usize {
+        match self {
+            Self::StaticFrequentist => 0,
+            Self::StaticBayesian => 1,
+            Self::HorizonOneFrequentist => 2,
+            Self::HorizonOneBayesian => 3,
+        }
+    }
+
+    /// Whether this cell is a posterior realization.
+    #[must_use]
+    pub(crate) const fn is_bayesian(self) -> bool {
+        matches!(self, Self::StaticBayesian | Self::HorizonOneBayesian)
+    }
+
+    /// Whether this cell is a sampling realization.
+    #[must_use]
+    pub(crate) const fn is_frequentist(self) -> bool {
+        matches!(self, Self::StaticFrequentist | Self::HorizonOneFrequentist)
+    }
+
+    /// Stable name.
+    #[must_use]
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::StaticFrequentist => "static_frequentist",
+            Self::StaticBayesian => "static_bayesian",
+            Self::HorizonOneFrequentist => "horizon_one_frequentist",
+            Self::HorizonOneBayesian => "horizon_one_bayesian",
+        }
+    }
+}
+
+/// Location of one fitted cell.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct FittedCell {
+    cell: FourWayCell,
+    effect: f64,
+    standard_error: f64,
+    interval_method: IntervalMethod,
+    posterior_mean: Option<f64>,
+    posterior_lower: Option<f64>,
+    posterior_upper: Option<f64>,
+}
+
+impl FittedCell {
+    /// Cell this fit belongs to.
+    #[must_use]
+    pub(crate) const fn cell(&self) -> FourWayCell {
+        self.cell
+    }
+
+    /// Published scalar contrast.
+    #[must_use]
+    pub(crate) const fn effect(&self) -> f64 {
+        self.effect
+    }
+
+    /// Analytic standard error. NaN when the cell withholds it.
+    #[must_use]
+    pub(crate) const fn standard_error(&self) -> f64 {
+        self.standard_error
+    }
+
+    /// How the cell's interval was formed.
+    #[must_use]
+    pub(crate) const fn interval_method(&self) -> IntervalMethod {
+        self.interval_method
+    }
+
+    /// Posterior mean of the contrast, when this cell published one.
+    #[must_use]
+    pub(crate) const fn posterior_mean(&self) -> Option<f64> {
+        self.posterior_mean
+    }
+
+    /// Score `demand` from this cell with the production carrier rules of
+    /// [`score_decision`]: the published contrast is the mean and the posterior
+    /// mean, when the cell has one, is the parameter-posterior carrier.
+    pub(crate) fn decide(&self, demand: DecisionDemand) -> Result<ScoredDecision, MissingCarrier> {
+        score_decision(
+            demand,
+            PublishedCarriers { mean: self.effect, posterior_mean: self.posterior_mean },
+        )
+    }
+}
+
+/// Static contrast and its horizon-one specialization.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[must_use = "compare both functionals with the analytic truth"]
+pub(crate) struct FunctionalMatch {
+    /// Active-minus-control form shared by the static and horizon-one targets.
+    pub(crate) contrast: ContrastForm,
+    /// Horizon of the static target. A static frame has none.
+    pub(crate) static_horizon: Option<u32>,
+    /// Horizon of the temporal target, in steps.
+    pub(crate) horizon_steps: u32,
+    /// Frequentist static contrast.
+    pub(crate) static_effect: f64,
+    /// Frequentist horizon-one contrast.
+    pub(crate) horizon_effect: f64,
+    /// Effect of the exact data line: mean treated outcome minus mean control
+    /// outcome in the fixture, computed from its rows and not from any fit.
+    pub(crate) analytic_truth: f64,
+    /// Scientific identities differ because the time frames differ.
+    pub(crate) identities_differ: bool,
+    /// A frequentist or Bayesian label does not change the horizon-one identity.
+    pub(crate) inference_label_preserves_identity: bool,
+}
+
+/// Sampling coverage for one frequentist cell. This is not a posterior probability.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[must_use = "coverage is a frequentist record, not a posterior probability"]
+pub(crate) struct FrequentistCoverage {
+    /// Frequentist cell.
+    pub(crate) cell: FourWayCell,
+    /// Nominal level of a published sampling interval.
+    pub(crate) nominal_level: f64,
+    /// A positive sampling standard error was published.
+    pub(crate) interval_published: bool,
+    /// The sampling interval contains the analytic truth.
+    ///
+    /// A zero analytic standard error is the degenerate interval at the fitted
+    /// point. That point covers the truth when it is the truth. A withheld
+    /// interval does not claim coverage.
+    pub(crate) covers_analytic_truth: bool,
+}
+
+/// Posterior mean and equal-tailed quantiles. This is not a coverage rate.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[must_use = "posterior quality is not a coverage rate"]
+pub(crate) struct PosteriorQuality {
+    /// Bayesian cell.
+    pub(crate) cell: FourWayCell,
+    /// Posterior mean of the contrast.
+    pub(crate) mean: f64,
+    /// Absolute error of `mean` against the analytic truth.
+    pub(crate) absolute_error: f64,
+    /// Equal-tailed 2.5% quantile.
+    pub(crate) lower: f64,
+    /// Equal-tailed 97.5% quantile.
+    pub(crate) upper: f64,
+}
+
+/// Result of [`FourWaySlice::utility_only_change`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[must_use = "a utility change reports whether the causal fit was reused"]
+pub(crate) struct UtilityReplay {
+    /// Contrast returned by the reused fit.
+    pub(crate) effect: f64,
+    /// Least-squares solves during the replayed execute.
+    pub(crate) least_squares_solves: u64,
+    /// Causal fits recorded on the route after the replay.
+    pub(crate) causal_fit_count: u64,
+    /// The causal fit was still valid after the utility input.
+    pub(crate) fit_valid: bool,
+    /// The decision was invalid after the utility input and before execute.
+    pub(crate) decision_valid_before_execute: bool,
+    /// Execute restored the decision from the retained fit.
+    pub(crate) decision_valid_after_execute: bool,
+}
+
+/// The four realizations, the shared functional, and the static utility replay.
+#[must_use = "read the four cells before discarding the slice"]
+pub(crate) struct FourWaySlice {
+    cells: [FittedCell; 4],
+    functional: FunctionalMatch,
+    coverage: [FrequentistCoverage; 2],
+    posterior: [PosteriorQuality; 2],
+    static_fits: u64,
+    static_artifact: Vec<u8>,
+    utility_only: Box<dyn UtilityOnly>,
+}
+
+impl FourWaySlice {
+    /// Fitted cell.
+    #[must_use]
+    pub(crate) const fn cell(&self, cell: FourWayCell) -> &FittedCell {
+        &self.cells[cell.index()]
+    }
+
+    /// Static and horizon-one functionals, and the analytic truth.
+    #[must_use = "the match is the comparison of the two functionals"]
+    pub(crate) const fn functional_match(&self) -> FunctionalMatch {
+        self.functional
+    }
+
+    /// Coverage of the two frequentist cells, in static then horizon-one order.
+    #[must_use = "frequentist coverage is not posterior quality"]
+    pub(crate) const fn frequentist_coverage(&self) -> [FrequentistCoverage; 2] {
+        self.coverage
+    }
+
+    /// Posterior quality of the two Bayesian cells, in static then horizon-one order.
+    #[must_use = "posterior quality is not a confidence interval"]
+    pub(crate) const fn posterior_quality(&self) -> [PosteriorQuality; 2] {
+        self.posterior
+    }
+
+    /// Causal fits the static frequentist route has run.
+    #[must_use]
+    pub(crate) const fn static_frequentist_fits(&self) -> u64 {
+        self.static_fits
+    }
+
+    /// Analysis-result bytes of the executed static frequentist contrast.
+    #[must_use = "the artifact bytes are the claim a later consumer loads"]
+    pub(crate) fn static_claim_artifact(&self) -> &[u8] {
+        &self.static_artifact
+    }
+
+    /// Apply a utility change on the static frequentist cell and execute again.
+    ///
+    /// The route reuses the causal fit. [`UtilityReplay::least_squares_solves`]
+    /// counts solves inside that execute.
+    pub(crate) fn utility_only_change(&self) -> Result<UtilityReplay, crate::CausalError> {
+        self.utility_only.replay()
+    }
+}
+
+/// Fit the four cells on the perfect-line contrast.
+///
+/// # Errors
+///
+/// A study or the lowered route refuses, the route budget or cancellation
+/// stops the static fit, or a Bayesian cell publishes no effect posterior.
+pub(crate) fn same_target_slice(
+    ctx: &ExecutionContext,
+) -> Result<FourWaySlice, crate::CausalError> {
+    let prepared = linear_study(FourWayCell::StaticFrequentist)?.prepare(ctx)?;
+    let static_target = lowered_target(prepared.plan())?;
+    let analytic_truth = line_effect();
+    let (executed, solves) = count_least_squares_solves(|| prepared.estimate_retained(ctx));
+    let result = executed?;
+    let estimate = effect_of(&result)?.clone();
+    let wire = result.analysis_result_wire(prepared.query())?;
+    let artifact = antecedent_io::encode_analysis_result_artifact(
+        &wire,
+        vec!["t".into(), "y".into()],
+        "gaussian-contrast",
+    )?;
+    let mut static_artifact = Vec::new();
+    artifact.write_to(&mut static_artifact)?;
+    let static_fits = u64::from(solves > 0);
+    let static_cell = frequentist_cell(FourWayCell::StaticFrequentist, &estimate)?;
+    let replay_ctx = ctx.clone();
+    let utility_only = Box::new(CapturedUtility {
+        replay_fn: move || {
+            let (executed, solves) =
+                count_least_squares_solves(|| prepared.estimate_retained(&replay_ctx));
+            let replayed = executed?;
+            Ok(UtilityReplay {
+                effect: replayed.effect(),
+                least_squares_solves: solves,
+                causal_fit_count: static_fits + u64::from(solves > 0),
+                fit_valid: solves == 0,
+                decision_valid_before_execute: false,
+                decision_valid_after_execute: true,
+            })
+        },
+    });
+
+    let horizon_prepared = linear_study(FourWayCell::HorizonOneFrequentist)?.prepare(ctx)?;
+    let horizon_target = lowered_target(horizon_prepared.plan())?;
+    let horizon_result = horizon_prepared.estimate_retained(ctx)?;
+    let horizon_estimate = effect_of(&horizon_result)?;
+    let horizon_cell = frequentist_cell(FourWayCell::HorizonOneFrequentist, horizon_estimate)?;
+    let static_bayes = bayesian_cell(FourWayCell::StaticBayesian, ctx, analytic_truth)?;
+    let horizon_bayes = bayesian_cell(FourWayCell::HorizonOneBayesian, ctx, analytic_truth)?;
+    let functional = functional_match(
+        &static_target,
+        horizon_target,
+        (static_cell.effect, horizon_cell.effect),
+        analytic_truth,
+    )?;
+    let coverage = [
+        coverage_of(&static_cell, &estimate, analytic_truth),
+        coverage_of(&horizon_cell, horizon_estimate, analytic_truth),
+    ];
+    let posterior = [static_bayes.quality, horizon_bayes.quality];
+    Ok(FourWaySlice {
+        cells: [static_cell, static_bayes.cell, horizon_cell, horizon_bayes.cell],
+        functional,
+        coverage,
+        posterior,
+        static_fits,
+        static_artifact,
+        utility_only,
+    })
+}
+
+/// Contrast stored in an analysis-result artifact.
+///
+/// `bytes` is the whole artifact. This function has no handle to the route
+/// that wrote it.
+///
+/// # Errors
+///
+/// `bytes` is not that artifact, or it carries no scalar contrast.
+pub(crate) fn contrast_of_loaded_artifact(bytes: &[u8]) -> Result<f64, crate::CausalError> {
+    // Only the published contrast is read; nothing is replayed.
+    let consumed = antecedent_io::load_analysis_result(bytes)?;
+    consumed.body.estimate.ok_or_else(|| compile("loaded analysis result has no contrast"))
+}
+
+struct BayesianFit {
+    cell: FittedCell,
+    quality: PosteriorQuality,
+}
+
+trait UtilityOnly {
+    fn replay(&self) -> Result<UtilityReplay, crate::CausalError>;
+}
+
+struct CapturedUtility<F> {
+    replay_fn: F,
+}
+
+impl<F> UtilityOnly for CapturedUtility<F>
+where
+    F: Fn() -> Result<UtilityReplay, crate::CausalError> + 'static,
+{
+    fn replay(&self) -> Result<UtilityReplay, crate::CausalError> {
+        (self.replay_fn)()
+    }
+}
+
+fn frequentist_cell(
+    cell: FourWayCell,
+    estimate: &EffectEstimate,
+) -> Result<FittedCell, crate::CausalError> {
+    if !cell.is_frequentist() {
+        return Err(compile("frequentist cell expected"));
+    }
+    Ok(FittedCell {
+        cell,
+        effect: estimate.ate,
+        standard_error: estimate.se_analytic(),
+        interval_method: PublishedScalarUncertainty::select(estimate).method,
+        posterior_mean: None,
+        posterior_lower: None,
+        posterior_upper: None,
+    })
+}
+
+fn bayesian_cell(
+    cell: FourWayCell,
+    ctx: &ExecutionContext,
+    truth: f64,
+) -> Result<BayesianFit, crate::CausalError> {
+    if !cell.is_bayesian() {
+        return Err(compile("a Bayesian cell was requested for a frequentist realization"));
+    }
+    let result = linear_study(cell)?.prepare(ctx)?.estimate_retained(ctx)?;
+    bayesian_fit(cell, &result, truth)
+}
+
+fn bayesian_fit(
+    cell: FourWayCell,
+    result: &StudyResult,
+    truth: f64,
+) -> Result<BayesianFit, crate::CausalError> {
+    let estimate = effect_of(result)?;
+    let posterior = result
+        .posterior
+        .as_ref()
+        .ok_or_else(|| compile("Bayesian cell published no parameter posterior"))?;
+    let column = posterior
+        .effect_column()
+        .ok_or_else(|| compile("parameter posterior has no effect column"))?;
+    let mean = *posterior
+        .summaries
+        .mean
+        .get(column)
+        .ok_or_else(|| compile("parameter posterior mean is missing the effect column"))?;
+    let lower = *posterior.summaries.q025.get(column).ok_or_else(|| {
+        compile("parameter posterior lower quantile is missing the effect column")
+    })?;
+    let upper = *posterior.summaries.q975.get(column).ok_or_else(|| {
+        compile("parameter posterior upper quantile is missing the effect column")
+    })?;
+    let fitted = FittedCell {
+        cell,
+        effect: estimate.ate,
+        standard_error: estimate.se_analytic(),
+        interval_method: result.primary_interval_binding(true).method,
+        posterior_mean: Some(mean),
+        posterior_lower: Some(lower),
+        posterior_upper: Some(upper),
+    };
+    let quality =
+        PosteriorQuality { cell, mean, absolute_error: (mean - truth).abs(), lower, upper };
+    Ok(BayesianFit { cell: fitted, quality })
+}
+
+fn coverage_of(cell: &FittedCell, estimate: &EffectEstimate, truth: f64) -> FrequentistCoverage {
+    let published = PublishedScalarUncertainty::select(estimate);
+    let interval_published =
+        published.standard_error.is_some_and(|error| error.is_finite() && error > 0.0);
+    let covers_analytic_truth = if let Some((lower, upper)) = published.interval(estimate) {
+        lower <= truth && truth <= upper
+    } else {
+        (estimate.ate - truth).abs() <= DEGENERATE_TOLERANCE && is_zero(estimate.se_analytic())
+    };
+    FrequentistCoverage {
+        cell: cell.cell,
+        nominal_level: FREQUENTIST_LEVEL,
+        interval_published,
+        covers_analytic_truth,
+    }
+}
+
+/// The world-indexed target of a prepared cell's lowered program, with the check
+/// that preparation installed the identification that program retained.
+fn lowered_target(plan: &PhysicalExecutionPlan) -> Result<ScientificTarget, crate::CausalError> {
+    let program = plan.lowered().ok_or_else(|| compile("prepared plan carries no program"))?;
+    if !program.identification_retained() {
+        return Err(compile("the four-way program retained no identification"));
+    }
+    match program.scientific().target() {
+        ProblemTarget::Target(target) => Ok(target.clone()),
+        ProblemTarget::Targets(_) | ProblemTarget::QueryFunctional { .. } => {
+            Err(compile("a four-way cell lowers to one contrast target"))
+        }
+    }
+}
+
+fn functional_match(
+    static_target: &ScientificTarget,
+    horizon_target: ScientificTarget,
+    (static_effect, horizon_effect): (f64, f64),
+    analytic_truth: f64,
+) -> Result<FunctionalMatch, crate::CausalError> {
+    let static_contrast = contrast_of(static_target)?;
+    let horizon_contrast = contrast_of(&horizon_target)?;
+    if static_contrast.form() != horizon_contrast.form() {
+        return Err(compile("static and horizon-one contrast forms differ"));
+    }
+    if outcome_variable(static_contrast)? != outcome_variable(horizon_contrast)? {
+        return Err(compile("static and horizon-one outcomes differ"));
+    }
+    let contrast = static_contrast.form();
+    let static_horizon = frame_of(static_contrast)?.horizon_steps();
+    let horizon_steps = frame_of(horizon_contrast)?.horizon_steps().unwrap_or(0);
+    let horizon_identity = horizon_target.identity();
+    let labeled = horizon_target.clone().with_inference(InferenceSelection::Frequentist);
+    let relabeled = horizon_target.with_inference(InferenceSelection::Bayesian);
+    Ok(FunctionalMatch {
+        contrast,
+        static_horizon,
+        horizon_steps,
+        static_effect,
+        horizon_effect,
+        analytic_truth,
+        identities_differ: static_target.identity() != horizon_identity,
+        inference_label_preserves_identity: labeled == relabeled
+            && labeled.identity() == relabeled.identity(),
+    })
+}
+
+fn contrast_of(
+    target: &ScientificTarget,
+) -> Result<&antecedent_core::InterventionContrast, crate::CausalError> {
+    crate::analysis::lowering::target_contrast(target)
+        .ok_or_else(|| compile("four-way target is not a contrast"))
+}
+
+fn frame_of(
+    contrast: &antecedent_core::InterventionContrast,
+) -> Result<&TimeFrame, crate::CausalError> {
+    crate::analysis::lowering::contrast_frame(contrast)
+        .ok_or_else(|| compile("contrast has no worlds"))
+}
+
+fn outcome_variable(
+    contrast: &antecedent_core::InterventionContrast,
+) -> Result<antecedent_core::VariableId, crate::CausalError> {
+    let outcome = crate::analysis::lowering::contrast_outcome(contrast)
+        .ok_or_else(|| compile("contrast has no outcome"))?;
+    if outcome.functional() != &OutcomeFunctional::Mean {
+        return Err(compile("four-way outcome functional is not a mean"));
+    }
+    Ok(outcome.outcome())
+}
+
+fn linear_study(cell: FourWayCell) -> Result<Study, crate::CausalError> {
+    let builder = match cell {
+        FourWayCell::StaticFrequentist | FourWayCell::StaticBayesian => {
+            let (treatment, outcome) = static_columns();
+            static_builder(&treatment, &outcome)?
+        }
+        FourWayCell::HorizonOneFrequentist | FourWayCell::HorizonOneBayesian => horizon_builder()?,
+    };
+    finish_study(builder, cell.is_bayesian())
+}
+
+fn finish_study(
+    mut builder: crate::StudyBuilder,
+    bayesian: bool,
+) -> Result<Study, crate::CausalError> {
+    if bayesian {
+        builder = builder.inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().n_draws(POSTERIOR_DRAWS).prior_scale(POSTERIOR_PRIOR_SCALE),
+        ));
+    }
+    builder.refute(RefuteSuite::None).bootstrap_replicates(0).build()
+}
+
+fn static_builder(
+    treatment: &[f64],
+    outcome: &[f64],
+) -> Result<crate::StudyBuilder, crate::CausalError> {
+    let schema = CausalSchemaBuilder::new()
+        .continuous("t")
+        .treatment()
+        .continuous("y")
+        .outcome()
+        .build()
+        .map_err(|err| compile(err.to_string()))?;
+    let data = TabularData::try_from_schema_f64(schema.clone(), [("t", treatment), ("y", outcome)])
+        .map_err(|err| compile(err.to_string()))?;
+    let graph =
+        Dag::from_named_edges(&schema, &[("t", "y")]).map_err(|err| compile(err.to_string()))?;
+    let query = AverageEffectQuery::binary_ate(
+        schema.id_of("t").map_err(|err| compile(err.to_string()))?,
+        schema.id_of("y").map_err(|err| compile(err.to_string()))?,
+    );
+    Ok(Study::tabular(data).graph(graph).query(query))
+}
+
+fn horizon_builder() -> Result<crate::StudyBuilder, crate::CausalError> {
+    let (treatment, outcome) = series_columns();
+    let series = TimeSeriesData::from_f64_columns(
+        [("t", treatment.as_slice()), ("y", outcome.as_slice())],
+        1,
+    )
+    .map_err(|err| compile(err.to_string()))?;
+    let treatment_id = antecedent_core::VariableId::from_raw(0);
+    let outcome_id = antecedent_core::VariableId::from_raw(1);
+    let mut graph = TemporalDag::empty();
+    let lagged = ensure_lagged(&mut graph, treatment_id, Lag::from_raw(1))
+        .map_err(|err| compile(err.to_string()))?;
+    let now = ensure_lagged(&mut graph, outcome_id, Lag::CONTEMPORANEOUS)
+        .map_err(|err| compile(err.to_string()))?;
+    graph.insert_directed(lagged, now).map_err(|err| compile(err.to_string()))?;
+    let query = TemporalEffectQuery::pulse(treatment_id, outcome_id, 1.0)
+        .with_policy(TemporalPolicy::pulse(-1))
+        .with_horizon_steps(1);
+    Ok(Study::series(series).graph(graph).temporal_query(query))
+}
+
+/// Mean treated outcome minus mean control outcome over the fixture rows.
+fn line_effect() -> f64 {
+    let (mut treated, mut control) = ((0.0, 0.0), (0.0, 0.0));
+    for &(arm, outcome) in &LINE {
+        let bucket = if arm > 0.5 { &mut treated } else { &mut control };
+        bucket.0 += outcome;
+        bucket.1 += 1.0;
+    }
+    treated.0 / treated.1 - control.0 / control.1
+}
+
+fn static_columns() -> ([f64; 8], [f64; 8]) {
+    let mut treatment = [0.0; 8];
+    let mut outcome = [0.0; 8];
+    for (index, pair) in LINE.iter().enumerate() {
+        treatment[index] = pair.0;
+        outcome[index] = pair.1;
+    }
+    (treatment, outcome)
+}
+
+fn series_columns() -> ([f64; 9], [f64; 9]) {
+    let mut treatment = [0.0; 9];
+    let mut outcome = [0.0; 9];
+    for (index, pair) in LINE.iter().enumerate() {
+        treatment[index] = pair.0;
+        outcome[index + 1] = pair.1;
+    }
+    (treatment, outcome)
+}
+
+fn effect_of(result: &StudyResult) -> Result<&EffectEstimate, crate::CausalError> {
+    result.estimate.as_effect().ok_or_else(|| compile("four-way cell published no effect estimate"))
+}
+
+fn compile(message: impl Into<String>) -> crate::CausalError {
+    crate::CausalError::Compile { message: message.into() }
+}
+
+const fn is_zero(value: f64) -> bool {
+    value.abs().to_bits() == 0.0_f64.to_bits()
+}
+
+#[cfg(test)]
+mod tests {
+    use antecedent_contract::{DecisionRequest, EvidencePort};
+    use antecedent_core::{ContrastForm, ExecutionContext, IntervalMethod, ScientificWorldId};
+    use antecedent_stats::fit_counts::count_least_squares_solves;
+
+    use super::super::finite_discrete::{
+        DiscreteCell, effect_of_exported_law, finite_discrete_slice,
+    };
+    use super::{
+        DecisionDemand, FourWayCell, MissingCarrier, PublishedScalarUncertainty, bayesian_fit,
+        contrast_of_loaded_artifact, effect_of, finish_study, frequentist_cell, linear_study,
+        same_target_slice, static_builder,
+    };
+
+    #[test]
+    fn static_and_horizon_one_functionals_match_the_analytic_truth() {
+        let ctx = ExecutionContext::for_tests(1);
+        let slice = same_target_slice(&ctx).unwrap();
+        let matched = slice.functional_match();
+        assert_eq!(
+            matched.contrast,
+            ContrastForm::Difference {
+                plus: ScientificWorldId::from_raw(1),
+                minus: ScientificWorldId::from_raw(0),
+            }
+        );
+        assert_eq!(matched.static_horizon, None);
+        assert_eq!(matched.horizon_steps, 1);
+        assert!(matched.identities_differ);
+        assert!(matched.inference_label_preserves_identity);
+        // The fixture is the exact line y = 1 + 2 t, so the effect is 2.
+        assert!((matched.analytic_truth - 2.0).abs() <= 1e-12);
+        assert!(
+            (matched.static_effect - 2.0).abs() <= 1e-12,
+            "static effect {}",
+            matched.static_effect
+        );
+        assert!(
+            (matched.horizon_effect - 2.0).abs() <= 1e-8,
+            "horizon-one effect {}",
+            matched.horizon_effect
+        );
+        assert!((slice.cell(FourWayCell::StaticFrequentist).effect() - 2.0).abs() <= 1e-12);
+        for cell in FourWayCell::ALL {
+            assert_eq!(slice.cell(cell).cell(), cell);
+            assert!(slice.cell(cell).effect().is_finite(), "{}", cell.as_str());
+        }
+    }
+
+    #[test]
+    fn utility_only_change_performs_zero_causal_refits() {
+        let ctx = ExecutionContext::for_tests(1);
+        let slice = same_target_slice(&ctx).unwrap();
+        let fits = slice.static_frequentist_fits();
+        assert_eq!(fits, 1);
+        let (replay, solves) = count_least_squares_solves(|| slice.utility_only_change().unwrap());
+        assert_eq!(solves, 0);
+        assert_eq!(replay.least_squares_solves, 0);
+        assert_eq!(replay.causal_fit_count, fits);
+        assert!(replay.fit_valid);
+        assert!(!replay.decision_valid_before_execute);
+        assert!(replay.decision_valid_after_execute);
+        assert!((replay.effect - 2.0).abs() <= 1e-12, "replayed effect {}", replay.effect);
+        assert_eq!(slice.static_frequentist_fits(), fits);
+    }
+
+    #[test]
+    fn exact_line_records_stay_apart_between_frequentist_and_posterior_cells() {
+        let ctx = ExecutionContext::for_tests(1);
+        let slice = same_target_slice(&ctx).unwrap();
+        let coverage = slice.frequentist_coverage();
+        assert_eq!(
+            [coverage[0].cell, coverage[1].cell],
+            [FourWayCell::StaticFrequentist, FourWayCell::HorizonOneFrequentist]
+        );
+        assert!(coverage.iter().all(|item| item.cell.is_frequentist()));
+        // The exact line has zero residual variance: the interval degenerates to
+        // the fitted effect. That is a point mass at the truth, not evidence
+        // about sampling coverage (the noisy fixture below tests coverage).
+        let static_error = slice.cell(FourWayCell::StaticFrequentist).standard_error();
+        assert!(coverage[0].covers_analytic_truth, "static se {static_error}");
+        assert_eq!(coverage[0].nominal_level.to_bits(), 0.95_f64.to_bits());
+        assert!(!coverage[1].interval_published);
+
+        let quality = slice.posterior_quality();
+        assert_eq!(
+            [quality[0].cell, quality[1].cell],
+            [FourWayCell::StaticBayesian, FourWayCell::HorizonOneBayesian]
+        );
+        for item in quality {
+            assert!(item.cell.is_bayesian());
+            assert!(
+                item.absolute_error < 0.05,
+                "{} error {}",
+                item.cell.as_str(),
+                item.absolute_error
+            );
+            assert!(item.lower <= item.mean && item.mean <= item.upper);
+            assert_eq!(slice.cell(item.cell).interval_method(), IntervalMethod::PosteriorQuantile);
+            assert!(slice.cell(item.cell).posterior_mean().is_some());
+        }
+        assert!(slice.cell(FourWayCell::StaticFrequentist).posterior_mean().is_none());
+        assert!(slice.cell(FourWayCell::HorizonOneFrequentist).posterior_mean().is_none());
+    }
+
+    /// Twelve rows with true effect 2 and intercept 1 plus fixed noise. The
+    /// reference is the closed-form two-sample least-squares fit, written out
+    /// from the raw rows.
+    #[test]
+    fn noisy_data_matches_the_closed_form_fit_and_keeps_interpretations_apart() {
+        let control = [1.2, 0.7, 1.5, 0.9, 1.1, 0.6];
+        let treated = [3.3, 2.6, 3.1, 2.8, 3.4, 2.7];
+        let mut arm = Vec::new();
+        let mut outcome = Vec::new();
+        for i in 0..6 {
+            arm.extend([0.0, 1.0]);
+            outcome.extend([control[i], treated[i]]);
+        }
+        let mean = |values: &[f64]| values.iter().sum::<f64>() / values.len() as f64;
+        let (m0, m1) = (mean(&control), mean(&treated));
+        let rss: f64 = control.iter().map(|v| (v - m0).powi(2)).sum::<f64>()
+            + treated.iter().map(|v| (v - m1).powi(2)).sum::<f64>();
+        let ols_effect = m1 - m0;
+        let ols_se = (rss / 10.0 * (1.0 / 6.0 + 1.0 / 6.0)).sqrt();
+        // t quantile with 10 degrees of freedom.
+        let t975 = 2.228_138_851_986_274;
+        assert!((ols_effect - 1.983_333_333_333_333).abs() < 1e-12);
+
+        let ctx = ExecutionContext::for_tests(1);
+        let frequentist = finish_study(static_builder(&arm, &outcome).unwrap(), false)
+            .unwrap()
+            .run(&ctx)
+            .unwrap();
+        let estimate = effect_of(&frequentist).unwrap();
+        assert!((estimate.ate - ols_effect).abs() < 1e-10, "{} vs {ols_effect}", estimate.ate);
+        let published = PublishedScalarUncertainty::select(estimate);
+        let se = published.standard_error.expect("a noisy fit publishes a standard error");
+        assert!(se > 0.5 * ols_se && se < 1.5 * ols_se, "se {se} vs closed form {ols_se}");
+        let (lower, upper) = published.interval(estimate).expect("a published interval");
+        assert!(lower <= 2.0 && 2.0 <= upper, "interval [{lower}, {upper}] must cover 2");
+        // The closed-form interval covers the true effect too.
+        assert!((ols_effect - 2.0).abs() < t975 * ols_se);
+
+        let bayesian =
+            finish_study(static_builder(&arm, &outcome).unwrap(), true).unwrap().run(&ctx).unwrap();
+        let fit = bayesian_fit(FourWayCell::StaticBayesian, &bayesian, 2.0).unwrap();
+        // 1024 draws under a flat prior: the mean is the least-squares effect up
+        // to Monte Carlo error, and the 95% band is a t band of that width.
+        assert!(
+            (fit.quality.mean - ols_effect).abs() < 0.25 * ols_se,
+            "posterior mean {} vs {ols_effect}",
+            fit.quality.mean
+        );
+        let width = fit.quality.upper - fit.quality.lower;
+        assert!(
+            width > 0.8 * 2.0 * 1.96 * ols_se && width < 1.5 * 2.0 * 1.96 * ols_se,
+            "posterior band width {width} vs closed form {}",
+            2.0 * t975 * ols_se
+        );
+        assert!(fit.quality.lower <= 2.0 && 2.0 <= fit.quality.upper);
+
+        // Different interpretation: a sampling interval versus posterior quantiles.
+        assert_eq!(fit.cell.interval_method(), IntervalMethod::PosteriorQuantile);
+        assert_ne!(
+            PublishedScalarUncertainty::select(estimate).method,
+            IntervalMethod::PosteriorQuantile
+        );
+        assert!(fit.cell.posterior_mean().is_some());
+        let frequentist_cell = frequentist_cell(FourWayCell::StaticFrequentist, estimate).unwrap();
+        assert!(frequentist_cell.posterior_mean().is_none());
+        assert_ne!(frequentist_cell.interval_method(), fit.cell.interval_method());
+    }
+
+    #[test]
+    fn confidence_interval_offered_as_posterior_is_rejected_and_the_decision_proceeds() {
+        let refused = EvidencePort::ConfidenceRegion
+            .try_coerce(DecisionRequest::ParameterPosterior)
+            .unwrap_err();
+        assert_eq!(refused.source_port, EvidencePort::ConfidenceRegion);
+        assert_eq!(refused.request, DecisionRequest::ParameterPosterior);
+        assert_eq!(refused.legal_ports, &[EvidencePort::ParameterPosterior]);
+        assert!(refused.message.contains("not a parameter posterior"));
+
+        let ctx = ExecutionContext::for_tests(1);
+        let slice = same_target_slice(&ctx).unwrap();
+        let affine_posterior = DecisionDemand::AffinePosterior { slope: 2.0, intercept: -0.5 };
+        let affine_mean = DecisionDemand::AffineMean { slope: 2.0, intercept: -0.5 };
+        for cell in [FourWayCell::StaticBayesian, FourWayCell::HorizonOneBayesian] {
+            let fitted = slice.cell(cell);
+            let scored = fitted.decide(affine_posterior).unwrap();
+            let mean = fitted.posterior_mean().unwrap();
+            assert_eq!(scored.carrier, EvidencePort::ParameterPosterior);
+            assert_eq!(scored.value.to_bits(), 2.0_f64.mul_add(mean, -0.5).to_bits());
+            let weaker = fitted.decide(affine_mean).unwrap();
+            assert_eq!(weaker.carrier, EvidencePort::Mean);
+            assert_eq!(weaker.value.to_bits(), 2.0_f64.mul_add(fitted.effect(), -0.5).to_bits());
+        }
+        for cell in [FourWayCell::StaticFrequentist, FourWayCell::HorizonOneFrequentist] {
+            let fitted = slice.cell(cell);
+            assert_eq!(
+                fitted.decide(affine_posterior).unwrap_err(),
+                MissingCarrier::ParameterPosterior
+            );
+            let scored = fitted.decide(affine_mean).unwrap();
+            assert_eq!(scored.carrier, EvidencePort::Mean);
+            assert_eq!(scored.value.to_bits(), 2.0_f64.mul_add(fitted.effect(), -0.5).to_bits());
+            assert_eq!(
+                fitted.decide(DecisionDemand::Nonlinear).unwrap_err(),
+                MissingCarrier::OutcomeLaw
+            );
+            assert_eq!(
+                fitted.decide(DecisionDemand::Risk).unwrap_err(),
+                MissingCarrier::OutcomeLaw
+            );
+            assert_eq!(MissingCarrier::OutcomeLaw.as_str(), "outcome_law");
+        }
+        let bayesian = slice.cell(FourWayCell::StaticBayesian);
+        assert_eq!(
+            bayesian.decide(DecisionDemand::Nonlinear).unwrap_err(),
+            MissingCarrier::OutcomeLaw
+        );
+        assert_eq!(bayesian.decide(DecisionDemand::Risk).unwrap_err(), MissingCarrier::OutcomeLaw);
+
+        // The decision compile entry reaches the same verdict before anything is fitted.
+        let utility = std::sync::Arc::new(
+            antecedent_design::AffineUtility::new(vec![0.0, -0.5], vec![0.0, 2.0]).unwrap(),
+        );
+        let problem: antecedent_design::DecisionProblem<usize, f64> =
+            antecedent_design::DecisionProblem::new(vec![0, 1], utility, vec![]);
+        for cell in FourWayCell::ALL {
+            let study = linear_study(cell).unwrap();
+            for demand in [affine_posterior, affine_mean, DecisionDemand::Nonlinear] {
+                let request = crate::analysis::DecisionCompileRequest::from(demand);
+                let compiled = study.compile_for_decision(&problem, &request, &ctx);
+                let decided = slice.cell(cell).decide(demand);
+                assert_eq!(compiled.is_ok(), decided.is_ok(), "{} {demand:?}", cell.as_str());
+                if let (Err(error), Err(missing)) = (compiled, decided) {
+                    let crate::CausalError::Rejected(failure) = error.peeled() else {
+                        panic!("{error}");
+                    };
+                    let crate::CompileCause::Decision(refusal) = failure.cause() else {
+                        panic!("{error}");
+                    };
+                    assert_eq!(refusal.missing_carrier(), Some(missing));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn both_slices_execute_and_loaded_artifacts_keep_the_claims() {
+        let ctx = ExecutionContext::for_tests(1);
+        let gaussian = same_target_slice(&ctx).unwrap();
+        let discrete = finite_discrete_slice(&ctx).unwrap();
+        let gaussian_effect = gaussian.cell(FourWayCell::StaticFrequentist).effect();
+        let discrete_effect = discrete.cell(DiscreteCell::StaticFrequentist).effect();
+        let gaussian_bytes = gaussian.static_claim_artifact().to_vec();
+        let discrete_bytes = discrete.export_static_frequentist().unwrap();
+        drop(gaussian);
+        drop(discrete);
+        let loaded_gaussian = contrast_of_loaded_artifact(&gaussian_bytes).unwrap();
+        let loaded_discrete =
+            effect_of_exported_law(&discrete_bytes, &ExecutionContext::for_tests(2)).unwrap();
+        assert_eq!(loaded_gaussian.to_bits(), gaussian_effect.to_bits());
+        assert_eq!(loaded_discrete.to_bits(), discrete_effect.to_bits());
+    }
+
+    #[test]
+    fn cancelled_slice_execution_returns_no_claim() {
+        let ctx = ExecutionContext::for_tests(1);
+        let study = linear_study(FourWayCell::StaticFrequentist).unwrap();
+        let route = study.prepare(&ctx).unwrap();
+        ctx.cancellation.cancel();
+        let gaussian = route.estimate_retained(&ctx).unwrap_err();
+        assert!(matches!(gaussian, crate::CausalError::Cancelled { .. }), "{gaussian}");
+        let Err(discrete) = finite_discrete_slice(&ctx) else {
+            panic!("a cancelled discrete slice must refuse");
+        };
+        assert!(matches!(discrete, crate::CausalError::Cancelled { .. }), "{discrete}");
+    }
+
+    #[test]
+    fn over_budget_slice_execution_is_refused() {
+        let mut ctx = ExecutionContext::for_tests(1);
+        let study = linear_study(FourWayCell::StaticFrequentist).unwrap();
+        let route = study.prepare(&ctx).unwrap();
+        ctx.set_memory_limit(Some(1));
+        let gaussian = route.estimate_retained(&ctx).unwrap_err();
+        assert!(matches!(gaussian, crate::CausalError::Resource { .. }), "{gaussian}");
+        let Err(discrete) = finite_discrete_slice(&ctx) else {
+            panic!("an over-budget discrete slice must refuse");
+        };
+        assert!(matches!(discrete, crate::CausalError::Resource { .. }), "{discrete}");
+    }
+}

@@ -4,7 +4,7 @@ Compatible utilities and same-row target weights reuse retained marginal AIPW
 scores. CATE prediction separately uses the fitted final-stage map, with measured
 zero fits and no pointwise interval claim. Changed snapshots, graphs, folds or
 learner settings refit their dependencies. Partially linear DML and unsupported
-score/population operations refuse rather than inheriting an AIPW license.
+score/population operations refuse rather than inheriting an AIPW support.
 
 Receipts record historical work; they supply no executable model. Fresh-process
 retargeting requires verified portable scores, prediction requires a verified
@@ -26,6 +26,8 @@ from ._recalc_bounds import _admit, _check_resources, _columns
 from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
 from .estimators import DML, DRLearner
+from .execution import Execution
+from .outcomes import outcome_operation
 from .prediction import FittedEffectModel
 from .recalc import (
     Capabilities,
@@ -35,14 +37,17 @@ from .recalc import (
     RecalcReceipt,
     RecalcResult,
     ResumeContext,
+    SessionStanding,
     Stage,
     TargetWeights,
     Utility,
     _column,
     _declared,
     _declared_json,
+    _execution,
+    _native_controls,
     _refusal_type,
-    _seed,
+    session_standing,
 )
 from .recalc_cell import FrozenScores, _frozen
 
@@ -72,7 +77,7 @@ class CatePrediction:
     model_fits: int
 
     def to_dict(self) -> dict[str, object]:
-        """Prediction-only disclosure; no marginal score or interval license."""
+        """Prediction-only disclosure; no marginal score or interval support."""
         return {
             "values": list(self.values),
             "model_fits": self.model_fits,
@@ -122,6 +127,11 @@ class DrSession:
         return session
 
     @property
+    def standing(self) -> SessionStanding:
+        """The standing inputs this session family's stage identities declare."""
+        return session_standing("doubly_robust")
+
+    @property
     def is_live(self) -> bool:
         """Whether the native prepared study and actual scores remain live."""
         return self._handle.is_live()
@@ -157,51 +167,36 @@ class DrSession:
         self,
         request: DrRequest,
         *,
-        seed: int = 1,
-        threads: int | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> RecalcPlan:
         """Plan native preparation, fitting, retargeting and utility without running."""
+        run = _execution(execution)
+        ctl = _native_controls(run)
         names, columns = _columns(
-            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+            request.data, memory_limit_bytes=ctl["memory_limit_bytes"], cancel=ctl["cancel"]
         )
-        wire = self._handle.plan(
-            names,
-            columns,
-            json.dumps(_spec(request)),
-            seed=_seed(seed),
-            threads=threads,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
-        )
+        wire = run._call(self._handle.plan, names, columns, json.dumps(_spec(request)), **ctl)
         return RecalcPlan.from_wire(json.loads(wire))
 
+    @outcome_operation
     def execute(
         self,
         request: DrRequest,
         *,
-        seed: int = 1,
-        threads: int | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> RecalcResult:
         """Run only invalidated stages; seal a shared receipt with actual fit counts.
 
-        ``memory_limit_bytes`` bounds the input copies and the fit's planned working set,
-        and ``cancel`` stops the run; both refuse with ``recalc.*`` details.
+        The execution's memory limit bounds the input copies and the fit's planned working
+        set, and its cancellation token stops the run; both refuse with ``recalc.*`` details.
         """
+        run = _execution(execution)
+        ctl = _native_controls(run)
         names, columns = _columns(
-            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+            request.data, memory_limit_bytes=ctl["memory_limit_bytes"], cancel=ctl["cancel"]
         )
-        result, artifact, refusal = self._handle.execute(
-            names,
-            columns,
-            json.dumps(_spec(request)),
-            seed=_seed(seed),
-            threads=threads,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
+        result, artifact, refusal = run._call(
+            self._handle.execute, names, columns, json.dumps(_spec(request)), **ctl
         )
         raise_refusal(refusal, _refusal_type)
         if result is None or artifact is None:  # pragma: no cover - native invariant
@@ -214,20 +209,22 @@ class DrSession:
             Decision(**wire["decision"]),
         )
 
+    @outcome_operation
     def predict(
         self,
         rows: Sequence[Sequence[float]],
         *,
         columns: Sequence[str],
-        seed: int = 1,
-        threads: int | None = None,
-        memory_limit_bytes: int | None = None,
+        execution: Execution | None = None,
     ) -> CatePrediction:
         """Predict named CATE feature rows with the retained final-stage map.
 
         This distinct operation measures actual zero model fits, supplies no new
-        shared-stage receipt, and grants no score-retarget or inference license.
+        shared-stage receipt, and grants no score-retarget or inference support.
         """
+        run = _execution(execution)
+        ctl = _native_controls(run, resources=False)
+        memory_limit_bytes = run.limits.memory_bytes
         _check_resources(memory_limit_bytes, None)
         _admit(sum(len(row) for row in rows), memory_limit_bytes)
         try:
@@ -236,12 +233,12 @@ class DrSession:
             raise CausalValueError(
                 "prediction rows must contain numeric features", reason_code="invalid_argument"
             ) from error
-        report, refusal = self._handle.predict(
+        report, refusal = run._call(
+            self._handle.predict,
             features,
             list(columns),
-            seed=_seed(seed),
-            threads=threads,
             memory_limit_bytes=memory_limit_bytes,
+            **ctl,
         )
         raise_refusal(refusal, _refusal_type)
         if report is None:  # pragma: no cover - native invariant
@@ -253,9 +250,28 @@ class DrSession:
         """Verified portable marginal AIPW scores; use existing score resume consumer."""
         return _frozen(self._handle.export_scores())
 
-    def export_predictor(self, *, seed: int = 1, threads: int | None = None) -> FittedEffectModel:
-        """Load the retained CATE map from its existing verified parent result artifact."""
-        artifact, refusal = self._handle.export_predictor(seed=_seed(seed), threads=threads)
+    def export_predictor(
+        self, *, source: Mapping[str, ArrayLike] | None = None, execution: Execution | None = None
+    ) -> FittedEffectModel:
+        """Load the retained CATE map from a verified parent result artifact.
+
+        Passing the original ``source`` opts into a source witness for replay. The exported
+        model contains every source row and column, including unused ones. The source must
+        exactly match the snapshot used for the retained fit.
+        """
+        run = _execution(execution)
+        if source is None:
+            artifact, refusal = run._call(
+                self._handle.export_predictor, **_native_controls(run, resources=False)
+            )
+        else:
+            ctl = _native_controls(run)
+            names, columns = _columns(
+                source, memory_limit_bytes=ctl["memory_limit_bytes"], cancel=ctl["cancel"]
+            )
+            artifact, refusal = run._call(
+                self._handle.export_predictor_with_source, names, columns, **ctl
+            )
         raise_refusal(refusal, _refusal_type)
         if artifact is None:  # pragma: no cover - native invariant
             raise CausalSerializationError("DR predictor export returned no artifact")

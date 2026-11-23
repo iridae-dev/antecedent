@@ -34,15 +34,15 @@ impl IdentifiedResultContext {
                 && (study.graph.as_dag().is_some() || study.graph.as_admg().is_some()),
             refute_default_downgrade: study.refute_default_downgrade,
             latency_bootstrap_not_applied: study.latency_bootstrap_not_applied,
-            bootstrap_replicates: study.bootstrap_replicates,
-            inference: study.inference.clone(),
-            population_registry: study.population_registry.clone(),
+            bootstrap_replicates: study.settings.bootstrap_replicates,
+            inference: study.settings.inference.clone(),
+            population_registry: study.declared.population_registry.clone(),
             latency_mode: study.latency_mode,
             support_status: study.support_status,
             structure_source: study.structure_source,
-            tiered: study.tiered.clone(),
-            custom_validators: !study.custom_validators.is_empty(),
-            missing: study.missing.clone(),
+            tiered: study.declared.tiered.clone(),
+            custom_validators: !study.declared.custom_validators.is_empty(),
+            missing: study.declared.missing.clone(),
         }
     }
 }
@@ -72,13 +72,16 @@ pub(super) struct IdentifiedExecuteExtras {
     pub bootstrap_replicates_requested: Option<Option<u32>>,
 }
 
+/// The reused static identification (see `Study::reuse_static_identification`:
+/// the prepared cache, then the plan's retained product), else `live`. The flag
+/// is `true` only for a prepared cache.
 pub(super) fn identification_from_cache_or(
     ctx: &ExecutionContext,
-    cache: Option<&crate::analysis::prepared::CachedStaticIdentification>,
+    reused: Option<(Arc<crate::analysis::prepared::CachedStaticIdentification>, bool)>,
     live: impl FnOnce() -> Result<(IdentificationResult, IdentifiedEstimand), CausalError>,
 ) -> Result<(IdentificationResult, IdentifiedEstimand, bool), CausalError> {
-    if let Some(cache) = cache {
-        return Ok((cache.identification.clone(), cache.estimand.clone(), true));
+    if let Some((cache, prepared)) = reused {
+        return Ok((cache.identification.clone(), cache.estimand.clone(), prepared));
     }
     report_identify_compute(ctx);
     let (identification, estimand) = live()?;
@@ -86,18 +89,24 @@ pub(super) fn identification_from_cache_or(
 }
 
 /// [`identification_from_cache_or`] for callers that retain the product: a
-/// cache hit shares the prepared allocation instead of copying it.
+/// reused product shares its allocation instead of copying it.
 pub(super) fn shared_identification_from_cache_or(
     ctx: &ExecutionContext,
-    cache: Option<&Arc<crate::analysis::prepared::CachedStaticIdentification>>,
+    reused: Option<(Arc<crate::analysis::prepared::CachedStaticIdentification>, bool)>,
     live: impl FnOnce() -> Result<(IdentificationResult, IdentifiedEstimand), CausalError>,
 ) -> Result<(Arc<crate::analysis::prepared::CachedStaticIdentification>, bool), CausalError> {
-    if let Some(cache) = cache {
-        return Ok((Arc::clone(cache), true));
+    if let Some(reused) = reused {
+        return Ok(reused);
     }
     report_identify_compute(ctx);
     let (identification, estimand) = live()?;
-    Ok((Arc::new(crate::analysis::prepared::CachedStaticIdentification { identification, estimand }), false))
+    Ok((
+        Arc::new(crate::analysis::prepared::CachedStaticIdentification {
+            identification,
+            estimand,
+        }),
+        false,
+    ))
 }
 
 /// Tell the progress sink that identification is being computed rather than
@@ -158,9 +167,7 @@ pub(super) fn interactive_subsample_graphs_accounted(
         return Ok((graphs, InteractiveSubsampleDrop::default()));
     }
     let mut rng = ctx.rng.stream_for(StreamDomain::Execute, 0xE11E_u64);
-    let sub = graphs
-        .stratified_interactive_subsample(INTERACTIVE_MAX_ENVELOPE_GRAPHS, &mut rng)
-        ?;
+    let sub = graphs.stratified_interactive_subsample(INTERACTIVE_MAX_ENVELOPE_GRAPHS, &mut rng)?;
     let keys: Vec<u64> = graphs
         .identified
         .iter()
@@ -211,6 +218,13 @@ fn interactive_subsample_diagnostic(
             INTERACTIVE_MAX_ENVELOPE_GRAPHS,
         ),
     )
+    .with_fields([
+        ("subsampled_out_atoms", drop.keys.len().to_string()),
+        (
+            "subsampled_out_keys",
+            drop.keys.iter().map(u64::to_string).collect::<Vec<_>>().join(","),
+        ),
+    ])
 }
 
 /// Interactive graph×effect subsample for paths that fit every atom first:
@@ -289,17 +303,25 @@ pub(super) fn envelope_mass_diagnostic(
     code: impl Into<Arc<str>>,
     posterior: &CausalPosterior,
 ) -> Diagnostic {
+    use std::fmt::Write as _;
+
     let mut message = format!("unidentified_mass={}", posterior.unidentified_mass);
     if posterior.unevaluable_mass > 0.0 {
         // Distinct from unidentified_mass: this mass was identified but its
         // estimation failed, which is a refusal, not a negative proof.
-        message.push_str(&format!(", unevaluable_mass={}", posterior.unevaluable_mass));
+        let _ = write!(message, ", unevaluable_mass={}", posterior.unevaluable_mass);
     }
     if posterior.subsampled_out_mass > 0.0 {
-        message.push_str(&format!(", subsampled_out_mass={}", posterior.subsampled_out_mass));
+        let _ = write!(message, ", subsampled_out_mass={}", posterior.subsampled_out_mass);
     }
+    let mut fields = mass_fields(None, posterior.unidentified_mass);
+    if posterior.unevaluable_mass > 0.0
+        && let Ok(mass) = antecedent_core::diagnostic::RouteMass::new(posterior.unevaluable_mass)
+            && let Some(bits) = mass.bits() {
+                fields.push((Arc::from("unevaluable_mass_bits"), Arc::from(bits.to_string())));
+            }
     Diagnostic::new(code, DiagnosticKind::Scientific, DiagnosticSeverity::Info, message)
-        .with_fields(mass_fields(None, posterior.unidentified_mass))
+        .with_fields(fields)
 }
 
 /// Resolve the shared envelope prior from a prepared Bayesian problem.
@@ -354,8 +376,7 @@ pub(crate) fn functional_bayesian_draws(
     let InferenceMode::Bayesian(config) = inference else {
         return Ok(None);
     };
-    if config.has_transfer()
-    {
+    if config.has_transfer() {
         return Err(CausalError::Unsupported { message: FUNCTIONAL_BAYESIAN_PRIOR_REFUSAL });
     }
     Ok(Some(bayesian_draw_count(inference)?))
@@ -382,36 +403,178 @@ pub(crate) fn run_functional(
 }
 
 /// Tail shared by the checked functional, path, distribution, and ADMG-response executes.
+///
+/// [`CheckedResultFinish::new`] takes the fields every execute supplies and defaults the rest
+/// to the plain point-effect result: no refutations, distribution, posterior, response, or
+/// bootstrap accounting, not cancelled, not early-stopped, the refuted E-value mirrored, and the
+/// interval left as derived. Each execute states only where it differs through the `with_*`
+/// methods. The wall time is read from `started` when the result is assembled.
 #[allow(
     clippy::struct_excessive_bools,
     reason = "each flag is an independent switch of the assembled result (cancelled, early-stopped, refutation mirroring, interval rebinding)"
 )]
 pub(crate) struct CheckedResultFinish<'a> {
-    pub common: &'a CheckedStaticCommon,
-    pub identification: &'a IdentificationResult,
-    pub estimand: &'a IdentifiedEstimand,
-    pub estimate: EffectEstimate,
-    pub estimate_assumptions: antecedent_core::AssumptionSet,
-    pub diagnostics: Vec<Diagnostic>,
-    pub refutations: Vec<antecedent_validate::RefutationReport>,
-    pub distribution: Option<antecedent_estimate::InterventionalDistributionEstimate>,
-    pub posterior: Option<CausalPosterior>,
-    pub treatment: VariableId,
-    pub outcome: VariableId,
-    pub wall_time_ns: u64,
-    pub bootstrap_replicates_requested: Option<u32>,
-    pub bootstrap_replicates_ok: Option<u32>,
-    pub n_draws: Option<u32>,
-    pub cancelled: bool,
-    pub early_stopped: bool,
-    pub certificate_query: CausalQuery,
-    pub certificate_graph_class: GraphClass,
-    pub response: Option<CausalResponse>,
-    pub mirror_refuted_evalue: bool,
-    pub rebind_bayesian_interval: bool,
+    common: &'a CheckedStaticCommon,
+    identification: &'a IdentificationResult,
+    estimand: &'a IdentifiedEstimand,
+    estimate: EffectEstimate,
+    estimate_assumptions: antecedent_core::AssumptionSet,
+    diagnostics: Vec<Diagnostic>,
+    refutations: Vec<antecedent_validate::RefutationReport>,
+    distribution: Option<antecedent_estimate::InterventionalDistributionEstimate>,
+    posterior: Option<CausalPosterior>,
+    treatment: VariableId,
+    outcome: VariableId,
+    started: Instant,
+    bootstrap_replicates_requested: Option<u32>,
+    bootstrap_replicates_ok: Option<u32>,
+    n_draws: Option<u32>,
+    cancelled: bool,
+    early_stopped: bool,
+    certificate_query: CausalQuery,
+    certificate_graph_class: GraphClass,
+    response: Option<CausalResponse>,
+    mirror_refuted_evalue: bool,
+    rebind_bayesian_interval: bool,
 }
 
-pub(crate) fn finish_checked_result(finish: CheckedResultFinish<'_>) -> StudyResult {
+impl<'a> CheckedResultFinish<'a> {
+    /// A point-effect finish whose estimate assumptions are the estimate's own.
+    #[must_use]
+    pub(crate) fn new(
+        common: &'a CheckedStaticCommon,
+        identification: &'a IdentificationResult,
+        estimand: &'a IdentifiedEstimand,
+        estimate: EffectEstimate,
+        started: Instant,
+        (treatment, outcome): (VariableId, VariableId),
+        (certificate_query, certificate_graph_class): (CausalQuery, GraphClass),
+    ) -> Self {
+        Self {
+            common,
+            identification,
+            estimand,
+            estimate_assumptions: estimate.provenance.assumptions.clone(),
+            estimate,
+            diagnostics: Vec::new(),
+            refutations: Vec::new(),
+            distribution: None,
+            posterior: None,
+            treatment,
+            outcome,
+            started,
+            bootstrap_replicates_requested: None,
+            bootstrap_replicates_ok: None,
+            n_draws: None,
+            cancelled: false,
+            early_stopped: false,
+            certificate_query,
+            certificate_graph_class,
+            response: None,
+            mirror_refuted_evalue: true,
+            rebind_bayesian_interval: false,
+        }
+    }
+
+    /// The diagnostics the result reports, in order.
+    #[must_use]
+    pub(crate) fn with_diagnostics(mut self, diagnostics: Vec<Diagnostic>) -> Self {
+        self.diagnostics = diagnostics;
+        self
+    }
+
+    /// The refutation reports attached to the result.
+    #[must_use]
+    pub(crate) fn with_refutations(
+        mut self,
+        refutations: Vec<antecedent_validate::RefutationReport>,
+    ) -> Self {
+        self.refutations = refutations;
+        self
+    }
+
+    /// The joint posterior, with the draw count it carries.
+    #[must_use]
+    pub(crate) fn with_posterior(mut self, posterior: Option<CausalPosterior>) -> Self {
+        self.n_draws =
+            posterior.as_ref().map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX));
+        self.posterior = posterior;
+        self
+    }
+
+    /// The draw count, when it is not the posterior's own.
+    #[must_use]
+    pub(crate) fn with_n_draws(mut self, n_draws: Option<u32>) -> Self {
+        self.n_draws = n_draws;
+        self
+    }
+
+    /// The assumptions recorded on the estimate provenance step, when they differ from the
+    /// estimate's own.
+    #[must_use]
+    pub(crate) fn with_estimate_assumptions(
+        mut self,
+        assumptions: antecedent_core::AssumptionSet,
+    ) -> Self {
+        self.estimate_assumptions = assumptions;
+        self
+    }
+
+    /// Bootstrap accounting: the replicates requested and the replicates that succeeded.
+    #[must_use]
+    pub(crate) fn with_bootstrap(mut self, requested: Option<u32>, ok: Option<u32>) -> Self {
+        self.bootstrap_replicates_requested = requested;
+        self.bootstrap_replicates_ok = ok;
+        self
+    }
+
+    /// Mark the result cancelled and/or early-stopped.
+    #[must_use]
+    pub(crate) fn with_stop_flags(mut self, cancelled: bool, early_stopped: bool) -> Self {
+        self.cancelled = cancelled;
+        self.early_stopped = early_stopped;
+        self
+    }
+
+    /// Carry an interventional distribution as the result payload.
+    #[must_use]
+    pub(crate) fn with_distribution(
+        mut self,
+        distribution: antecedent_estimate::InterventionalDistributionEstimate,
+    ) -> Self {
+        self.distribution = Some(distribution);
+        self
+    }
+
+    /// Carry a causal response as the result payload.
+    #[must_use]
+    pub(crate) fn with_response(mut self, response: CausalResponse) -> Self {
+        self.response = Some(response);
+        self
+    }
+
+    /// Skip mirroring a refuted E-value onto the estimate.
+    #[must_use]
+    pub(crate) fn without_evalue_mirror(mut self) -> Self {
+        self.mirror_refuted_evalue = false;
+        self
+    }
+
+    /// Re-derive the interval binding once the payload is attached.
+    #[must_use]
+    pub(crate) fn with_rebound_interval(mut self) -> Self {
+        self.rebind_bayesian_interval = true;
+        self
+    }
+
+    /// Assemble the result, reading the wall time at this point.
+    #[must_use]
+    pub(crate) fn finish(self) -> StudyResult {
+        finish_checked_result(self)
+    }
+}
+
+fn finish_checked_result(finish: CheckedResultFinish<'_>) -> StudyResult {
     let (identify_artifact, identify_operation) =
         crate::strategy_table::identify_provenance_step(finish.common.identifier);
     let (estimate_artifact, estimate_operation) =
@@ -427,15 +590,16 @@ pub(crate) fn finish_checked_result(finish: CheckedResultFinish<'_>) -> StudyRes
         estimand: finish.estimand.clone(),
         estimate: finish.estimate,
         posterior: finish.posterior,
-        payload: finish
-            .distribution
-            .map_or(crate::result::ResultPayload::Scalar, crate::result::ResultPayload::Distribution),
+        payload: finish.distribution.map_or(
+            crate::result::ResultPayload::Scalar,
+            crate::result::ResultPayload::Distribution,
+        ),
         refutations: finish.refutations,
         diagnostics: finish.diagnostics,
         provenance,
         treatment: finish.treatment,
         outcome: finish.outcome,
-        wall_time_ns: finish.wall_time_ns,
+        wall_time_ns: elapsed_ns(finish.started),
         latency_mode: finish.common.latency_mode.map(|mode| Arc::from(mode.as_str())),
         stage_timings_ns: Vec::new(),
         bootstrap_replicates_requested: finish.bootstrap_replicates_requested,
@@ -472,7 +636,7 @@ pub(crate) fn finish_checked_result(finish: CheckedResultFinish<'_>) -> StudyRes
         &finish.common.custom_validator_names,
     );
     if finish.mirror_refuted_evalue {
-        crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
+        crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.view.refutations);
     }
     if finish.rebind_bayesian_interval {
         result.rebind_interval(finish.common.inference.is_bayesian());

@@ -1,7 +1,7 @@
 //! Evidence ledger artifact: a fresh consumer replays the ledger, recomputes
 //! the syntheses and refuses semantic mutations.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::evidence_ledger::{
     CombinationRequest, EvidenceLedger, ObservationId, PoolingDependence, ResultId, Revalidation,
@@ -192,10 +192,9 @@ fn a_fresh_consumer_replays_the_ledger_and_recomputes_the_syntheses() {
     for (value, want) in env.values.iter().zip(expected) {
         close(*value, want, "envelope");
     }
-    // the ledger labels the result an assumption range, and refuses an interval from it
+    // the ledger labels the result an assumption range
     let record = consumed.ledger().result(f.envelope).expect("result");
     assert_eq!(record.claim_class.as_str(), "assumption_range");
-    assert!(consumed.ledger().request_interval(f.envelope).is_err());
 
     let hb = by_result(f.borrowed);
     close(hb.values[0], 56.0 / 31.0, "posterior mean");
@@ -283,7 +282,7 @@ fn a_resealed_synthesis_value_edit_is_refused() {
     assert_eq!(error, EvidenceLedgerArtifactError::SynthesisMismatch("values"));
     let (code, detail, _) = error.refusal().expect("registered refusal");
     assert_eq!(code, "invalid_argument");
-    assert_eq!(detail, "evidence_ledger.synthesis_mismatch");
+    assert_eq!(detail, antecedent_core::reason_details::evidence_ledger::SYNTHESIS_MISMATCH);
 }
 
 #[test]
@@ -316,6 +315,16 @@ fn a_resealed_declaration_edit_is_refused_on_replay() {
         meta.operations[1].source.as_mut().and_then(|s| s.observations.as_mut()).expect("rows");
     rows[0] = first_row;
     let error = EvidenceLedgerArtifact::from_meta(&reseal(meta), None).expect_err("refused");
+    // A semantic refusal found by replay, not corruption or a malformed value: either the
+    // ledger rejects the stored operation or its recomputed identity differs from the stored one.
+    assert!(
+        matches!(
+            error,
+            EvidenceLedgerArtifactError::Refused { .. }
+                | EvidenceLedgerArtifactError::ReplayMismatch("operation identity")
+        ),
+        "{error}"
+    );
     assert!(error.refusal().is_some(), "{error}");
 }
 
@@ -365,7 +374,7 @@ fn a_resealed_covariance_or_range_edit_no_longer_binds_to_the_ledger_result() {
 }
 
 #[test]
-fn a_synthesis_method_that_the_ledger_operation_does_not_license_is_refused() {
+fn a_synthesis_method_that_the_ledger_operation_does_not_support_is_refused() {
     let mut f = fixture();
     // random effects over the assumption-range result: the ledger recorded no independence
     f.records.push(SynthesisRecord {
@@ -414,9 +423,18 @@ fn versions_markers_and_corruption_are_refused() {
         .expect("bytes");
     let middle = bytes.len() / 2;
     bytes[middle] ^= 0xff;
-    assert!(EvidenceLedgerArtifact::from_bytes(&bytes, None).is_err());
-    assert!(EvidenceLedgerArtifact::from_bytes(&bytes[..bytes.len() / 3], None).is_err());
-    assert!(EvidenceLedgerArtifact::to_bytes(&f.ledger, &f.records, "  ").is_err());
+    assert!(matches!(
+        EvidenceLedgerArtifact::from_bytes(&bytes, None),
+        Err(EvidenceLedgerArtifactError::Container(antecedent_io_core::IoError::ChecksumMismatch { section })) if section == "evidence_ledger_meta"
+    ));
+    assert!(matches!(
+        EvidenceLedgerArtifact::from_bytes(&bytes[..bytes.len() / 3], None),
+        Err(EvidenceLedgerArtifactError::Decode(m)) if m.contains("failed to fill whole buffer")
+    ));
+    assert!(matches!(
+        EvidenceLedgerArtifact::to_bytes(&f.ledger, &f.records, "  "),
+        Err(EvidenceLedgerArtifactError::Encode(m)) if m == "missing artifact id"
+    ));
 }
 
 #[test]
@@ -436,7 +454,7 @@ fn an_operation_the_ledger_refuses_cannot_be_smuggled_through_a_resealed_artifac
     assert!(matches!(error, EvidenceLedgerArtifactError::Refused { .. }), "{error}");
     let (code, detail, _) = error.refusal().expect("registered refusal");
     assert_eq!(code, "evidence_double_counted");
-    assert_eq!(detail, "evidence_ledger.repeated_source");
+    assert_eq!(detail, antecedent_core::reason_details::evidence_ledger::REPEATED_SOURCE);
 }
 
 // -- transport, reuse and repeated use through export ----------------------------------------------
@@ -488,6 +506,16 @@ fn a_transported_claim_keeps_its_transport_identity_through_export() {
         .expect("add");
     add_transported.source.as_mut().expect("source").transport = None;
     let error = EvidenceLedgerArtifact::from_meta(&reseal(meta), None).expect_err("refused");
+    // A semantic refusal found by replay, not corruption or a malformed value: either the
+    // ledger rejects the stored operation or its recomputed identity differs from the stored one.
+    assert!(
+        matches!(
+            error,
+            EvidenceLedgerArtifactError::Refused { .. }
+                | EvidenceLedgerArtifactError::ReplayMismatch("operation identity")
+        ),
+        "{error}"
+    );
     assert!(error.refusal().is_some(), "{error}");
 }
 
@@ -545,15 +573,13 @@ fn repeated_observation_use_survives_export_flagged() {
 }
 
 #[test]
-fn an_exported_result_carries_no_interval_license() {
+fn an_exported_result_keeps_its_claim_class() {
     let f = fixture();
     let bytes = EvidenceLedgerArtifact::to_bytes(&f.ledger, &f.records, "evidence-ledger-4")
         .expect("export");
     let consumed = EvidenceLedgerArtifact::from_bytes(&bytes, None).expect("consume");
     for result in [f.pooled, f.covariance, f.envelope, f.borrowed] {
-        let error = consumed.ledger().request_interval(result).expect_err("closed");
-        assert_eq!(error.code, "cell_not_licensed");
-        assert_eq!(error.detail, "evidence_ledger.interval_not_licensed");
+        assert!(consumed.ledger().result(result).is_some());
     }
     assert_eq!(
         consumed.ledger().result(f.envelope).expect("result").claim_class.as_str(),

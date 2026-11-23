@@ -1,6 +1,6 @@
 //! Discovery stability and validation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod env_holdout;
 mod false_positive;
@@ -96,7 +96,7 @@ pub(crate) fn gapped_block_bootstrap(
     block: usize,
     gap: usize,
     rng: &mut CausalRng,
-    scratch: &mut Vec<u32>,
+    scratch: &mut Vec<antecedent_data::GlobalId>,
 ) -> Result<GappedBootstrap, ValidationError> {
     let boot =
         resample_timeseries(data, ResamplingPlan::MovingBlock { length: block }, rng, scratch)
@@ -106,14 +106,14 @@ pub(crate) fn gapped_block_bootstrap(
     let mut layout: Vec<Option<usize>> = Vec::with_capacity(n + gap * (n / block.max(1) + 1));
     let mut source_rows = Vec::with_capacity(layout.capacity());
     for i in 0..n {
-        if i > 0 && scratch[i] != scratch[i - 1] + 1 {
+        if i > 0 && scratch[i].get() != scratch[i - 1].get() + 1 {
             for _ in 0..gap {
                 layout.push(None);
-                source_rows.push(scratch[i - 1] as usize);
+                source_rows.push(usize::try_from(scratch[i - 1].get()).expect("row id"));
             }
         }
         layout.push(Some(i));
-        source_rows.push(scratch[i] as usize);
+        source_rows.push(usize::try_from(scratch[i].get()).expect("row id"));
     }
     let len = layout.len();
     let mut columns = Vec::new();
@@ -215,6 +215,31 @@ mod tests {
             TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
         )
         .unwrap()
+    }
+
+    #[test]
+    fn stability_rejects_a_full_series_moving_block() {
+        let data = series_of_row_indices(20);
+        let variables = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let ctx = ExecutionContext::for_tests(7);
+        let mut workspace = antecedent_discovery::DiscoveryWorkspace::default();
+        // A single contiguous block of all rows has only one possible start: every
+        // replicate is the original series, so its link frequencies are not stability.
+        let pcmci = BlockBootstrapStability { block_size: 20, ..Default::default() };
+        let orientation = OrientationStability { block_size: 20, ..Default::default() };
+        let mut regime = RegimeStability::new(
+            antecedent_discovery::Rpcmci::new(),
+            antecedent_discovery::two_regime_half_split(20),
+        );
+        regime.block_size = 20;
+        for result in [
+            pcmci.run(&data, &variables, &mut workspace, &ctx).map(|_| ()),
+            orientation.run(&data, &variables, &mut workspace, &ctx).map(|_| ()),
+            regime.run(&data, &variables, &mut workspace, &ctx).map(|_| ()),
+        ] {
+            assert!(matches!(result, Err(ValidationError::NotApplicable { message })
+                if message.contains("smaller than series length")));
+        }
     }
 
     #[test]

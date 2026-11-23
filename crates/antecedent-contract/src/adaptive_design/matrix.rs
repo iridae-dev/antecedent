@@ -4,20 +4,20 @@
 //!
 //! Each cell is exactly one of:
 //!
-//! * [`CellStatus::Licensed`]: a design contract, an estimator and an
+//! * [`CellStatus::Supported`]: a design contract, an estimator and an
 //!   uncertainty method exist for the cell, per inferential paradigm listed.
-//!   A licensed cell still reports point values only: the interval and
-//!   guarantee routes stay closed until whole-procedure coverage is measured.
+//!   A supported cell still reports point values only: the interval and
+//!   guarantee routes is not supported.
 //! * [`CellStatus::Closed`]: refused with a typed reason. Either the cell is
 //!   not a coherent procedure, or it pairs components that are each delivered
-//!   but whose pairing is not: a guarantee for two components does not license
+//!   but whose pairing is not: a guarantee for two components does not support
 //!   their pairing.
-//! * [`CellStatus::CarriedForward`]: coherent, not delivered, and owned.
+//! * [`CellStatus::NotDelivered`]: coherent, not delivered, and owned.
 //!
 //! The matrix is a total function of the four axes; [`procedure_cells`]
 //! enumerates the whole product so a cell cannot be left unlisted.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 macro_rules! axis_enum {
     (
@@ -80,6 +80,12 @@ axis_enum! {
         RepeatedMeasures => "repeated_measures",
         /// Units nested in clusters, assigned by cluster.
         HierarchicalClustered => "hierarchical_clustered",
+        /// One choice among a declared set of options per unit, pooled over units. There is
+        /// no assignment among arms: every unit faces the same declared choice set.
+        CategoricalChoice => "categorical_choice",
+        /// Repeated choices among a declared set of options by each respondent, with
+        /// respondent-level heterogeneity in the choice shares.
+        RepeatedChoice => "repeated_choice",
     }
 }
 
@@ -199,22 +205,22 @@ impl ProcedureCell {
 #[non_exhaustive]
 pub enum CellStatus {
     /// An estimator and uncertainty method exist for these paradigms.
-    Licensed {
+    Supported {
         /// Paradigms with a route for this cell.
         paradigms: &'static [InferenceParadigm],
     },
     /// Refused: the cell is not a coherent procedure.
-    ClosedIncoherent {
+    Incoherent {
         /// Why, and what would make it coherent.
         reason: &'static str,
     },
     /// Refused: every component is delivered but the pairing is not.
-    ClosedPairing {
-        /// Why, and what would license it.
+    PairingNotSupported {
+        /// Why, and what would support it.
         reason: &'static str,
     },
     /// Coherent but not delivered; the owner is the named work item.
-    CarriedForward {
+    NotDelivered {
         /// Owning work item.
         owner: &'static str,
         /// What is missing.
@@ -227,16 +233,17 @@ impl CellStatus {
     #[must_use]
     pub const fn class(&self) -> &'static str {
         match self {
-            Self::Licensed { .. } => "licensed",
-            Self::ClosedIncoherent { .. } => "closed_incoherent",
-            Self::ClosedPairing { .. } => "closed_pairing",
-            Self::CarriedForward { .. } => "carried_forward",
+            Self::Supported { .. } => "supported",
+            Self::Incoherent { .. } => "incoherent",
+            Self::PairingNotSupported { .. } => "pairing_not_supported",
+            Self::NotDelivered { .. } => "not_delivered",
         }
     }
 }
 
 const BAYES_AND_SEQUENCE: &[InferenceParadigm] =
     &[InferenceParadigm::BayesianPosterior, InferenceParadigm::AnytimeValidFrequentist];
+const BAYES_ONLY: &[InferenceParadigm] = &[InferenceParadigm::BayesianPosterior];
 const BAYES_AND_DECISION: &[InferenceParadigm] =
     &[InferenceParadigm::BayesianPosterior, InferenceParadigm::DecisionTheoreticStopping];
 const BAYES_DECISION_AND_SEQUENCE: &[InferenceParadigm] = &[
@@ -253,6 +260,11 @@ const FIXED_SAMPLE_ONLY: &[InferenceParadigm] = &[InferenceParadigm::Frequentist
 
 /// What the engine does with `cell`. Total over the product of the axes.
 #[must_use]
+#[allow(
+    clippy::too_many_lines,
+    clippy::match_same_arms,
+    reason = "Separate matrix cells make each supported procedure and its scope explicit."
+)]
 pub fn procedure_status(cell: &ProcedureCell) -> CellStatus {
     use AssignmentFamily as A;
     use MonitoringStrategy as M;
@@ -261,22 +273,29 @@ pub fn procedure_status(cell: &ProcedureCell) -> CellStatus {
 
     // Coherence first.
     if cell.monitoring == M::FinalAnalysisOnly && cell.stopping != S::NoStopping {
-        return CellStatus::ClosedIncoherent {
+        return CellStatus::Incoherent {
             reason: "a stopping rule needs interim analyses to act on; declare interim looks or remove the rule",
         };
     }
     if cell.monitoring != M::FinalAnalysisOnly && cell.stopping == S::NoStopping {
-        return CellStatus::ClosedIncoherent {
+        return CellStatus::Incoherent {
             reason: "interim analyses with no stopping rule have no decision to account for; declare the rule or analyze at the final look only",
         };
     }
     if cell.monitoring == M::GroupSequential && cell.stopping == S::DecisionTheoretic {
-        return CellStatus::ClosedIncoherent {
+        return CellStatus::Incoherent {
             reason: "alpha spending governs error-rate boundaries; a decision-theoretic rule belongs to a different monitoring strategy",
         };
     }
+    if matches!(cell.outcome, O::CategoricalChoice | O::RepeatedChoice)
+        && cell.assignment != A::FixedRandomization
+    {
+        return CellStatus::Incoherent {
+            reason: "a choice outcome has no assignment among arms: every unit faces the same declared choice set, so an assignment policy that adapts to outcomes is not defined for it",
+        };
+    }
     // Delivered cells, each with its own contract, estimator and method.
-    let licensed = match (cell.assignment, cell.outcome, cell.monitoring, cell.stopping) {
+    let supported = match (cell.assignment, cell.outcome, cell.monitoring, cell.stopping) {
         (A::ThompsonBetaBernoulli, O::SingleOutcome, M::FixedInterimLooks, S::Efficacy) => {
             Some(BAYES_AND_SEQUENCE)
         }
@@ -309,10 +328,33 @@ pub fn procedure_status(cell: &ProcedureCell) -> CellStatus {
         (A::FixedRandomization, O::SingleOutcome, M::FinalAnalysisOnly, S::NoStopping) => {
             Some(FIXED_SAMPLE_ONLY)
         }
+        // Categorical choice: a Dirichlet posterior over the option shares, read once at the
+        // end, against a posterior-probability-best rule at fixed looks, or against an
+        // expected-loss rule at fixed looks.
+        (A::FixedRandomization, O::CategoricalChoice, M::FinalAnalysisOnly, S::NoStopping) => {
+            Some(BAYES_ONLY)
+        }
+        (A::FixedRandomization, O::CategoricalChoice, M::FixedInterimLooks, S::Efficacy) => {
+            Some(BAYES_ONLY)
+        }
+        (
+            A::FixedRandomization,
+            O::CategoricalChoice,
+            M::FixedInterimLooks,
+            S::DecisionTheoretic,
+        ) => Some(BAYES_AND_DECISION),
+        // Repeated choice: respondent-level heterogeneity, a posterior over the population
+        // shares and the heterogeneity, read once or against an expected-loss rule at looks.
+        (A::FixedRandomization, O::RepeatedChoice, M::FinalAnalysisOnly, S::NoStopping) => {
+            Some(BAYES_ONLY)
+        }
+        (A::FixedRandomization, O::RepeatedChoice, M::FixedInterimLooks, S::DecisionTheoretic) => {
+            Some(BAYES_AND_DECISION)
+        }
         _ => None,
     };
-    if let Some(paradigms) = licensed {
-        return CellStatus::Licensed { paradigms };
+    if let Some(paradigms) = supported {
+        return CellStatus::Supported { paradigms };
     }
     // Components that are not delivered at all, in a fixed priority order.
     let owner = match cell.assignment {
@@ -356,10 +398,10 @@ pub fn procedure_status(cell: &ProcedureCell) -> CellStatus {
         _ => None,
     });
     if let Some((owner, reason)) = owner {
-        return CellStatus::CarriedForward { owner, reason };
+        return CellStatus::NotDelivered { owner, reason };
     }
-    CellStatus::ClosedPairing {
-        reason: "each component is delivered separately but this pairing has no design contract, estimator or whole-procedure calibration design of its own; a guarantee for two components does not license their pairing",
+    CellStatus::PairingNotSupported {
+        reason: "each component is delivered separately but this pairing has no design contract, estimator or whole-procedure calibration design of its own; a guarantee for two components does not support their pairing",
     }
 }
 
@@ -385,13 +427,13 @@ pub fn procedure_cells() -> Vec<ProcedureCell> {
     cells
 }
 
-/// The cells with at least one licensed paradigm, with those paradigms.
+/// The cells with at least one supported paradigm, with those paradigms.
 #[must_use]
-pub fn licensed_routes() -> Vec<(ProcedureCell, &'static [InferenceParadigm])> {
+pub fn supported_routes() -> Vec<(ProcedureCell, &'static [InferenceParadigm])> {
     procedure_cells()
         .into_iter()
         .filter_map(|cell| match procedure_status(&cell) {
-            CellStatus::Licensed { paradigms } => Some((cell, paradigms)),
+            CellStatus::Supported { paradigms } => Some((cell, paradigms)),
             _ => None,
         })
         .collect()

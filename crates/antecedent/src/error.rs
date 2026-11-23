@@ -1,6 +1,13 @@
-//! Facade errors.
+//! [`CausalError`], the error type of every facade entry point, and its refusal vocabulary.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+//! A failure is either a refusal (the library declines a question it cannot answer under the
+//! declared structure, data or support, and names why) or an error in the input or the
+//! computation. [`CausalError::reason_code`] returns the registered reason code a refusal
+//! carries, and [`CausalError::is_identification_refusal`] separates "the question is not
+//! identified" from budgets, cancellations and invalid arguments. Component-crate errors are
+//! wrapped in their own variants so the original cause stays inspectable.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_attribution::AttributionError;
 use antecedent_core::{QueryError, SchemaError, TemporalIndexError};
@@ -13,6 +20,21 @@ use antecedent_expr::ProgramError;
 use antecedent_graph::GraphError;
 use antecedent_identify::IdentificationError;
 use antecedent_io::IoError;
+
+pub(crate) fn resource_admission_error(
+    error: antecedent_core::execution::AdmissionError,
+    stage: &'static str,
+) -> CausalError {
+    match error {
+        antecedent_core::execution::AdmissionError::Cancelled => CausalError::Cancelled { stage },
+        other => CausalError::Resource { message: other.to_string() },
+    }
+}
+
+pub(crate) fn io_refused(code: &'static str, detail: &str, message: &str) -> IoError {
+    IoError::Refused { code, message: format!("{detail}: {message}") }
+}
+
 use antecedent_learn::LearnError;
 use antecedent_model::ModelError;
 use antecedent_prob::ProbError;
@@ -20,6 +42,13 @@ use antecedent_state::StateError;
 use antecedent_stats::StatsError;
 use antecedent_validate::ValidationError;
 use thiserror::Error;
+
+/// Reason codes of the identification-class refusals: the declared structure does not identify
+/// the question. [`CausalError::is_identification_refusal`] reads this list, and the opt-in
+/// descriptive fallback converts exactly these refusals (never a budget, a cancellation or an
+/// invalid argument).
+pub const IDENTIFICATION_REFUSAL_CODES: [&str; 2] =
+    ["effect_not_identified", "cross_world_not_identified"];
 
 /// Which review artifact is blocking execution.
 ///
@@ -157,12 +186,56 @@ pub enum CompileCause {
     /// An estimator refused its input.
     #[error(transparent)]
     Estimation(#[from] EstimationError),
+    /// An exact discrete law or its transport data failed validation.
+    #[error(transparent)]
+    ExactLaw(#[from] antecedent_expr::ExactLawError),
+    /// An exact expression plan failed to compile or evaluate.
+    #[error(transparent)]
+    ExactEvaluation(#[from] antecedent_expr::EvalError),
     /// An identification routine refused its input.
     #[error(transparent)]
     Identification(#[from] IdentificationError),
     /// An artifact could not be encoded or decoded.
     #[error(transparent)]
     Serialization(#[from] IoError),
+    /// A decision demanded a carrier the statistical program cannot publish.
+    #[error(transparent)]
+    Decision(Box<crate::analysis::DecisionCarrierError>),
+}
+
+impl CompileCause {
+    /// The family of the typed error that made the compile refuse, as a stable `snake_case`
+    /// name (`graph`, `data`, `identification`, ...).
+    #[must_use]
+    pub const fn kind(&self) -> &'static str {
+        match self {
+            Self::Query(_) => "query",
+            Self::Probability(_) => "probability",
+            Self::Schema(_) => "schema",
+            Self::Data(_) => "data",
+            Self::Graph(_) => "graph",
+            Self::TemporalIndex(_) => "temporal_index",
+            Self::Attribution(_) => "attribution",
+            Self::Model(_) => "model",
+            Self::Counterfactual(_) => "counterfactual",
+            Self::Learn(_) => "learn",
+            Self::Discovery(_) => "discovery",
+            Self::Stats(_) => "stats",
+            Self::Program(_) => "program",
+            Self::Estimation(_) => "estimation",
+            Self::ExactLaw(_) => "exact_law",
+            Self::ExactEvaluation(_) => "exact_evaluation",
+            Self::Identification(_) => "identification",
+            Self::Serialization(_) => "serialization",
+            Self::Decision(_) => "decision",
+        }
+    }
+}
+
+impl From<crate::analysis::DecisionCarrierError> for CompileCause {
+    fn from(error: crate::analysis::DecisionCarrierError) -> Self {
+        Self::Decision(Box::new(error))
+    }
 }
 
 /// A compile refusal raised from a typed cause ([`CausalError::Rejected`]).
@@ -174,7 +247,7 @@ pub enum CompileCause {
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
 #[error("{message}")]
 pub struct CompileFailure {
-    message: String,
+    message: Box<str>,
     #[source]
     cause: CompileCause,
 }
@@ -195,7 +268,7 @@ impl CompileFailure {
 
 impl From<CompileCause> for CompileFailure {
     fn from(cause: CompileCause) -> Self {
-        Self { message: cause.to_string(), cause }
+        Self { message: cause.to_string().into_boxed_str(), cause }
     }
 }
 
@@ -208,7 +281,7 @@ pub enum CausalError {
     Identify(IdentificationError),
     /// Estimation failed.
     #[error(transparent)]
-    Estimate(#[from] EstimationError),
+    Estimate(EstimationError),
     /// Validation / refutation failed.
     #[error(transparent)]
     Validate(ValidationError),
@@ -232,10 +305,10 @@ pub enum CausalError {
     Data(#[from] DataError),
     /// Graph construction or validation.
     #[error(transparent)]
-    Graph(#[from] GraphError),
+    Graph(GraphError),
     /// Experiment / measurement design evaluation.
     #[error(transparent)]
-    Design(#[from] DesignError),
+    Design(DesignError),
     /// Incremental antecedent-state update.
     #[error(transparent)]
     State(#[from] StateError),
@@ -310,7 +383,7 @@ pub enum CausalError {
     /// Support-matrix refusal (stable id).
     #[error("{id}: {message}")]
     Support {
-        /// Stable matrix id (`not_applicable` or `refused`).
+        /// Stable matrix id (`not_applicable` or `not_supported`).
         id: crate::support::SupportRefusal,
         /// Human-readable reason (n/a rule text, or a refused-cell explanation).
         message: &'static str,
@@ -375,60 +448,224 @@ const STAGE_DISCOVER: &str = "discover";
 /// attribution call (Shapley allocation, root-cause ranking).
 const STAGE_ATTRIBUTE: &str = "attribute";
 /// Stage id reported on a [`CausalError::Cancelled`] raised by identification.
-const STAGE_IDENTIFY: &str = "identify";
+pub(crate) const STAGE_IDENTIFY: &str = "identify";
 /// Stage id reported on a [`CausalError::Cancelled`] raised by a model fit.
 const STAGE_MODEL: &str = "model";
 /// Stage id reported on a [`CausalError::Cancelled`] raised by counterfactual evaluation.
 const STAGE_COUNTERFACTUAL: &str = "counterfactual";
 
-/// Cooperative cancellation and resource refusals are non-scientific facade
-/// outcomes, not refutation/discovery/attribution findings, so they are
-/// pulled out of the blanket stage conversion before it wraps everything else.
-/// [`CausalError::blocker_id`] relies on this to mark them correctly.
+/// How a stage error classifies at the facade: cancellation and resource exhaustion are
+/// non-scientific outcomes, not findings of the stage, so they are peeled off before the stage
+/// error is wrapped in its own [`CausalError`] variant. [`CausalError::blocker_id`] relies on
+/// this to mark them correctly.
+enum Classified<E> {
+    /// Cooperative cancellation.
+    Cancelled,
+    /// Cooperative cancellation retaining an operation-specific stage.
+    CancelledAt(&'static str),
+    /// A memory, budget or other resource refusal.
+    Resource(String),
+    /// A finding of the stage itself.
+    Finding(E),
+}
+
+/// A stage error that reaches the facade through [`lift_stage_error`].
+trait StageError: Sized {
+    /// Stage id a cancellation of this stage reports.
+    const STAGE: &'static str;
+
+    /// Separate cancellation and resource exhaustion from findings.
+    fn classify(self) -> Classified<Self>;
+
+    /// The facade variant that carries a finding of this stage.
+    fn wrap(self) -> CausalError;
+}
+
+/// The one path every [`StageError`] takes into a [`CausalError`].
+fn lift_stage_error<E: StageError>(error: E) -> CausalError {
+    match error.classify() {
+        Classified::Cancelled => CausalError::Cancelled { stage: E::STAGE },
+        Classified::CancelledAt(stage) => CausalError::Cancelled { stage },
+        Classified::Resource(message) => CausalError::Resource { message },
+        Classified::Finding(finding) => finding.wrap(),
+    }
+}
+
+impl StageError for ValidationError {
+    const STAGE: &'static str = STAGE_VALIDATE;
+
+    fn classify(self) -> Classified<Self> {
+        match self {
+            Self::Estimation(
+                EstimationError::TemporalMaterialization(error)
+                | EstimationError::Graph(GraphError::TemporalMaterialization(error)),
+            ) => {
+                use antecedent_core::TemporalMaterializationError as T;
+                match error {
+                    T::Cancelled
+                    | T::Admission(antecedent_core::execution::AdmissionError::Cancelled) => {
+                        Classified::Cancelled
+                    }
+                    error @ (T::Admission(_) | T::Allocation | T::Limit { .. }) => {
+                        Classified::Resource(error.to_string())
+                    }
+                    other => Classified::Finding(Self::Estimation(
+                        EstimationError::TemporalMaterialization(other),
+                    )),
+                }
+            }
+            Self::Cancelled
+            | Self::Data(DataError::Cancelled)
+            | Self::Estimation(EstimationError::Data(DataError::Cancelled))
+            | Self::Discovery(DiscoveryError::Cancelled)
+            | Self::Stats(StatsError::Cancelled) => Classified::Cancelled,
+            Self::Prob(ProbError::Cancelled { stage })
+            | Self::Estimation(
+                EstimationError::Prob(ProbError::Cancelled { stage })
+                | EstimationError::Learner(LearnError::Probability(ProbError::Cancelled { stage })),
+            ) => Classified::CancelledAt(stage),
+            Self::Stats(StatsError::Admission(error))
+            | Self::Estimation(EstimationError::Admission(error))
+            | Self::Prob(ProbError::Admission(error)) => match error {
+                antecedent_core::execution::AdmissionError::Cancelled => Classified::Cancelled,
+                other => Classified::Resource(other.to_string()),
+            },
+            Self::Resource { message } | Self::Discovery(DiscoveryError::Resource(message)) => {
+                Classified::Resource(message)
+            }
+            other => Classified::Finding(other),
+        }
+    }
+
+    fn wrap(self) -> CausalError {
+        CausalError::Validate(self)
+    }
+}
+
+impl StageError for IdentificationError {
+    const STAGE: &'static str = STAGE_IDENTIFY;
+
+    fn classify(self) -> Classified<Self> {
+        match self {
+            Self::Cancelled => Classified::Cancelled,
+            Self::Budget { .. } => Classified::Resource(self.to_string()),
+            other => Classified::Finding(other),
+        }
+    }
+
+    fn wrap(self) -> CausalError {
+        CausalError::Identify(self)
+    }
+}
+
+impl StageError for DiscoveryError {
+    const STAGE: &'static str = STAGE_DISCOVER;
+
+    fn classify(self) -> Classified<Self> {
+        match self {
+            Self::Cancelled | Self::Stats(StatsError::Cancelled) => Classified::Cancelled,
+            Self::Prob(ProbError::Cancelled { stage }) => Classified::CancelledAt(stage),
+            Self::Stats(StatsError::Admission(error)) | Self::Prob(ProbError::Admission(error)) => {
+                match error {
+                    antecedent_core::execution::AdmissionError::Cancelled => Classified::Cancelled,
+                    other => Classified::Resource(other.to_string()),
+                }
+            }
+            Self::Resource(message) => Classified::Resource(message),
+            other => Classified::Finding(other),
+        }
+    }
+
+    fn wrap(self) -> CausalError {
+        CausalError::Discovery(self)
+    }
+}
+
+impl StageError for ModelError {
+    const STAGE: &'static str = STAGE_MODEL;
+
+    fn classify(self) -> Classified<Self> {
+        match self {
+            Self::Cancelled => Classified::Cancelled,
+            Self::ResourceLimit { .. } => Classified::Resource(self.to_string()),
+            other => Classified::Finding(other),
+        }
+    }
+
+    fn wrap(self) -> CausalError {
+        CausalError::Model(self)
+    }
+}
+
+impl StageError for CounterfactualError {
+    const STAGE: &'static str = STAGE_COUNTERFACTUAL;
+
+    fn classify(self) -> Classified<Self> {
+        match self {
+            Self::Cancelled => Classified::Cancelled,
+            other => Classified::Finding(other),
+        }
+    }
+
+    fn wrap(self) -> CausalError {
+        CausalError::Counterfactual(self)
+    }
+}
+
+impl StageError for AttributionError {
+    const STAGE: &'static str = STAGE_ATTRIBUTE;
+
+    fn classify(self) -> Classified<Self> {
+        match self {
+            Self::Cancelled | Self::Stats(StatsError::Cancelled) => Classified::Cancelled,
+            Self::Prob(ProbError::Cancelled { stage }) => Classified::CancelledAt(stage),
+            Self::Stats(StatsError::Admission(error)) | Self::Prob(ProbError::Admission(error)) => {
+                match error {
+                    antecedent_core::execution::AdmissionError::Cancelled => Classified::Cancelled,
+                    other => Classified::Resource(other.to_string()),
+                }
+            }
+            Self::Budget { .. } => Classified::Resource(self.to_string()),
+            other => Classified::Finding(other),
+        }
+    }
+
+    fn wrap(self) -> CausalError {
+        CausalError::Attribution(self)
+    }
+}
+
+macro_rules! lift_from_stage_error {
+    ($($error:ty),+ $(,)?) => {
+        $(
+            impl From<$error> for CausalError {
+                fn from(error: $error) -> Self {
+                    lift_stage_error(error)
+                }
+            }
+        )+
+    };
+}
+
+lift_from_stage_error!(
+    IdentificationError,
+    DiscoveryError,
+    ModelError,
+    CounterfactualError,
+    AttributionError,
+);
+
 impl From<ValidationError> for CausalError {
     fn from(error: ValidationError) -> Self {
         match error {
-            ValidationError::Cancelled => Self::Cancelled { stage: STAGE_VALIDATE },
-            ValidationError::Discovery(DiscoveryError::Cancelled) => {
-                Self::Cancelled { stage: STAGE_VALIDATE }
+            ValidationError::Estimation(EstimationError::Refused { code, message })
+                if code == antecedent_core::reason_code!("cancelled_no_claim")
+                    && message.detail()
+                        == Some(antecedent_core::reason_details::dml::CANCELLED) =>
+            {
+                Self::Cancelled { stage: antecedent_core::reason_details::dml::CANCELLED }
             }
-            ValidationError::Discovery(DiscoveryError::Resource(message)) => {
-                Self::Resource { message }
-            }
-            other => Self::Validate(other),
-        }
-    }
-}
-
-/// Identification cancellation and budget exhaustion are non-scientific
-/// outcomes: they reach the facade as [`CausalError::Cancelled`] and
-/// [`CausalError::Resource`], never as an identification finding.
-impl From<IdentificationError> for CausalError {
-    fn from(error: IdentificationError) -> Self {
-        match error {
-            IdentificationError::Cancelled => Self::Cancelled { stage: STAGE_IDENTIFY },
-            IdentificationError::Budget { .. } => Self::Resource { message: error.to_string() },
-            other => Self::Identify(other),
-        }
-    }
-}
-
-impl From<DiscoveryError> for CausalError {
-    fn from(error: DiscoveryError) -> Self {
-        match error {
-            DiscoveryError::Cancelled => Self::Cancelled { stage: STAGE_DISCOVER },
-            DiscoveryError::Resource(message) => Self::Resource { message },
-            other => Self::Discovery(other),
-        }
-    }
-}
-
-impl From<ModelError> for CausalError {
-    fn from(error: ModelError) -> Self {
-        match error {
-            ModelError::Cancelled => Self::Cancelled { stage: STAGE_MODEL },
-            ModelError::ResourceLimit { .. } => Self::Resource { message: error.to_string() },
-            other => Self::Model(other),
+            other => lift_stage_error(other),
         }
     }
 }
@@ -444,9 +681,115 @@ impl From<QueryError> for CausalError {
     }
 }
 
+fn lift_admission(
+    error: antecedent_core::execution::AdmissionError,
+    stage: &'static str,
+) -> CausalError {
+    if matches!(error, antecedent_core::execution::AdmissionError::Cancelled) {
+        CausalError::Cancelled { stage }
+    } else {
+        CausalError::Resource { message: error.to_string() }
+    }
+}
+
 impl From<ProbError> for CausalError {
     fn from(error: ProbError) -> Self {
-        Self::rejected(error)
+        match error {
+            ProbError::Cancelled { stage } => Self::Cancelled { stage },
+            ProbError::Admission(error) => lift_admission(error, STAGE_MODEL),
+            error @ ProbError::Refused { code: "hmc_work_budget", .. } => {
+                Self::Resource { message: error.to_string() }
+            }
+            other => Self::rejected(other),
+        }
+    }
+}
+
+fn lift_temporal_materialization(
+    error: antecedent_core::TemporalMaterializationError,
+    stage: &'static str,
+) -> CausalError {
+    use antecedent_core::TemporalMaterializationError as T;
+    match error {
+        T::Cancelled | T::Admission(antecedent_core::execution::AdmissionError::Cancelled) => {
+            CausalError::Cancelled { stage }
+        }
+        T::Admission(error) => lift_admission(error, stage),
+        error @ (T::Limit { .. } | T::Allocation) => {
+            CausalError::Resource { message: error.to_string() }
+        }
+        other => CausalError::Estimate(EstimationError::TemporalMaterialization(other)),
+    }
+}
+
+impl From<GraphError> for CausalError {
+    fn from(error: GraphError) -> Self {
+        match error {
+            GraphError::TemporalMaterialization(error) => {
+                lift_temporal_materialization(error, STAGE_MODEL)
+            }
+            other => Self::Graph(other),
+        }
+    }
+}
+
+impl From<EstimationError> for CausalError {
+    fn from(error: EstimationError) -> Self {
+        match error {
+            EstimationError::TemporalMaterialization(error)
+            | EstimationError::Graph(GraphError::TemporalMaterialization(error)) => {
+                lift_temporal_materialization(error, STAGE_MODEL)
+            }
+            EstimationError::Refused { code, message }
+                if code == antecedent_core::reason_code!("cancelled_no_claim")
+                    && message.detail()
+                        == Some(antecedent_core::reason_details::dml::CANCELLED) =>
+            {
+                Self::Cancelled { stage: antecedent_core::reason_details::dml::CANCELLED }
+            }
+            EstimationError::Prob(ProbError::Cancelled { stage })
+            | EstimationError::Learner(LearnError::Probability(ProbError::Cancelled { stage })) => {
+                Self::Cancelled { stage }
+            }
+            EstimationError::Admission(error)
+            | EstimationError::Stats(StatsError::Admission(error))
+            | EstimationError::Prob(ProbError::Admission(error))
+            | EstimationError::Wave(
+                antecedent_estimate::adaptive_resample_waves::WaveError::Admission(error),
+            )
+            | EstimationError::Tile(antecedent_estimate::TileError::Admission(error))
+            | EstimationError::Learner(
+                LearnError::Admission(error)
+                | LearnError::Stats(StatsError::Admission(error))
+                | LearnError::Probability(ProbError::Admission(error)),
+            ) => lift_admission(error, STAGE_MODEL),
+            EstimationError::Stats(StatsError::Cancelled)
+            | EstimationError::Data(DataError::Cancelled)
+            | EstimationError::Learner(
+                LearnError::Cancelled | LearnError::Stats(StatsError::Cancelled),
+            )
+            | EstimationError::Tile(antecedent_estimate::TileError::Cancelled)
+            | EstimationError::Wave(
+                antecedent_estimate::adaptive_resample_waves::WaveError::Cancelled { .. },
+            ) => Self::Cancelled { stage: STAGE_MODEL },
+            error @ EstimationError::Prob(ProbError::Refused {
+                code: "hmc_work_budget", ..
+            }) => Self::Resource { message: error.to_string() },
+            error @ EstimationError::Learner(LearnError::ResourceLimit { .. }) => {
+                Self::Resource { message: error.to_string() }
+            }
+            other => Self::Estimate(other),
+        }
+    }
+}
+
+impl From<DesignError> for CausalError {
+    fn from(error: DesignError) -> Self {
+        match error {
+            DesignError::Cancelled => Self::Cancelled { stage: STAGE_MODEL },
+            DesignError::Resource(message) => Self::Resource { message },
+            other => Self::Design(other),
+        }
     }
 }
 
@@ -458,13 +801,31 @@ impl From<TemporalIndexError> for CausalError {
 
 impl From<LearnError> for CausalError {
     fn from(error: LearnError) -> Self {
-        Self::rejected(error)
+        match error {
+            LearnError::Cancelled | LearnError::Stats(StatsError::Cancelled) => {
+                Self::Cancelled { stage: STAGE_MODEL }
+            }
+            LearnError::Probability(ProbError::Cancelled { stage }) => Self::Cancelled { stage },
+            LearnError::Admission(error)
+            | LearnError::Stats(StatsError::Admission(error))
+            | LearnError::Probability(ProbError::Admission(error)) => {
+                lift_admission(error, STAGE_MODEL)
+            }
+            error @ LearnError::ResourceLimit { .. } => {
+                Self::Resource { message: error.to_string() }
+            }
+            other => Self::rejected(other),
+        }
     }
 }
 
 impl From<StatsError> for CausalError {
     fn from(error: StatsError) -> Self {
-        Self::rejected(error)
+        match error {
+            StatsError::Cancelled => Self::Cancelled { stage: STAGE_MODEL },
+            StatsError::Admission(error) => lift_admission(error, STAGE_MODEL),
+            other => Self::rejected(other),
+        }
     }
 }
 
@@ -474,22 +835,15 @@ impl From<ProgramError> for CausalError {
     }
 }
 
-impl From<CounterfactualError> for CausalError {
-    fn from(error: CounterfactualError) -> Self {
-        match error {
-            CounterfactualError::Cancelled => Self::Cancelled { stage: STAGE_COUNTERFACTUAL },
-            other => Self::Counterfactual(other),
-        }
+impl From<antecedent_expr::ExactLawError> for CausalError {
+    fn from(error: antecedent_expr::ExactLawError) -> Self {
+        Self::rejected(error)
     }
 }
 
-impl From<AttributionError> for CausalError {
-    fn from(error: AttributionError) -> Self {
-        match error {
-            AttributionError::Cancelled => Self::Cancelled { stage: STAGE_ATTRIBUTE },
-            AttributionError::Budget { .. } => Self::Resource { message: error.to_string() },
-            other => Self::Attribution(other),
-        }
+impl From<antecedent_expr::EvalError> for CausalError {
+    fn from(error: antecedent_expr::EvalError) -> Self {
+        Self::rejected(error)
     }
 }
 
@@ -518,6 +872,21 @@ macro_rules! unsupported_reason {
         );
         $crate::CausalError::Unsupported { message: concat!("reason=", $code, ": ", $message) }
     }};
+    // A message that leads with a registered detail id: `reason=<code>: <detail>: <message>`.
+    // The id is a constant, which `concat!` cannot take, so the text is built once per site
+    // (the message is a format string: it holds no braces).
+    ($code:literal, detail = $detail:expr, $message:literal) => {{
+        const _: () = assert!(
+            $crate::error::is_runtime_refusal_code($code),
+            concat!("`", $code, "` is not a runtime_refusal code in parity/reason_codes.toml")
+        );
+        static TEXT: ::std::sync::OnceLock<String> = ::std::sync::OnceLock::new();
+        $crate::CausalError::Unsupported {
+            message: TEXT
+                .get_or_init(|| format!(concat!("reason=", $code, ": {}: ", $message), $detail))
+                .as_str(),
+        }
+    }};
 }
 
 /// [`unsupported_reason!`] for a support-matrix refusal, which carries the
@@ -525,10 +894,10 @@ macro_rules! unsupported_reason {
 ///
 /// ```
 /// let err = antecedent::support_reason!(
-///     "data_modality_not_licensed",
-///     "that cell is not licensed for this data modality"
+///     "data_modality_not_supported",
+///     "that cell is not supported for this data modality"
 /// );
-/// assert!(err.to_string().contains("reason=data_modality_not_licensed: "));
+/// assert!(err.to_string().contains("reason=data_modality_not_supported: "));
 /// ```
 #[macro_export]
 macro_rules! support_reason {
@@ -538,7 +907,7 @@ macro_rules! support_reason {
             concat!("`", $code, "` is not a runtime_refusal code in parity/reason_codes.toml")
         );
         $crate::CausalError::Support {
-            id: $crate::support::SupportRefusal::Refused,
+            id: $crate::support::SupportRefusal::NotSupported,
             message: concat!("reason=", $code, ": ", $message),
         }
     }};
@@ -553,26 +922,27 @@ pub const fn is_runtime_refusal_code(code: &str) -> bool {
 }
 
 /// Shared with [`crate::PreparedStudy::rank_designs`] and capability reports.
-pub(crate) const RANK_DESIGNS_REQUIRES_LICENSE: &str =
-    "design ranking requires a licensed prepared contract";
+pub(crate) const RANK_DESIGNS_REQUIRES_SUPPORT: &str =
+    "design ranking requires a supported prepared contract";
 pub(crate) const RANK_DESIGNS_REQUIRES_PRODUCT: &str =
     "design ranking requires cached identification products";
 pub(crate) const RANK_DESIGNS_INCOMPARABLE_TARGETS: &str =
     "width ranking refuses incomparable estimands; declare a common decision utility";
 pub(crate) const RANK_DESIGNS_RENORMALIZED_MASS: &str =
     "design ranking must not renormalize unidentified mass onto favorable atoms";
-pub(crate) const RETARGET_REQUIRES_LICENSE: &str = "retarget requires a licensed prepared contract";
-pub(crate) const EXPORT_REQUIRES_LICENSE: &str = "export requires a licensed prepared contract";
-pub(crate) const OPERATION_REQUIRES_LICENSE: &str =
-    "operation requires a licensed prepared contract";
+pub(crate) const RETARGET_REQUIRES_SUPPORT: &str =
+    "retarget requires a supported prepared contract";
+pub(crate) const EXPORT_REQUIRES_SUPPORT: &str = "export requires a supported prepared contract";
+pub(crate) const OPERATION_REQUIRES_SUPPORT: &str =
+    "operation requires a supported prepared contract";
 
-/// Refusals that block an operation for want of a license. Matched by
+/// Refusals that block an operation for want of support. Matched by
 /// constant identity: a reworded message never changes a blocker id.
-pub(crate) const OPERATION_UNLICENSED: [&str; 4] = [
-    RANK_DESIGNS_REQUIRES_LICENSE,
-    RETARGET_REQUIRES_LICENSE,
-    EXPORT_REQUIRES_LICENSE,
-    OPERATION_REQUIRES_LICENSE,
+pub(crate) const OPERATION_UNSUPPORTED: [&str; 4] = [
+    RANK_DESIGNS_REQUIRES_SUPPORT,
+    RETARGET_REQUIRES_SUPPORT,
+    EXPORT_REQUIRES_SUPPORT,
+    OPERATION_REQUIRES_SUPPORT,
 ];
 
 /// [`CausalError::Compile`] whose message carries a registered runtime-refusal
@@ -607,7 +977,17 @@ impl CausalError {
     /// a variant of their own (`.map_err(CausalError::rejected)`).
     #[must_use]
     pub fn rejected(cause: impl Into<CompileCause>) -> Self {
-        Self::Rejected(CompileFailure::from(cause.into()))
+        use antecedent_core::TemporalMaterializationError as T;
+        match cause.into() {
+            CompileCause::Graph(GraphError::TemporalMaterialization(error))
+            | CompileCause::Estimation(
+                EstimationError::TemporalMaterialization(error)
+                | EstimationError::Graph(GraphError::TemporalMaterialization(error)),
+            ) if !matches!(&error, T::Policy(_)) => {
+                lift_temporal_materialization(error, STAGE_MODEL)
+            }
+            cause => Self::Rejected(CompileFailure::from(cause)),
+        }
     }
 
     /// The message of a plan or program compile refusal, whether it carries a
@@ -662,11 +1042,20 @@ impl CausalError {
         } else {
             "the search completed"
         };
+        // A completed search can be described; a capped one is not converted, so it offers nothing.
+        let opt_in = if search_capped {
+            ""
+        } else {
+            ". To keep this refusal and also get a noncausal description of the observed data \
+             and the evidence that would resolve it, use Study::analyze_with_fallback \
+             (Python: analyze(..., on_refusal=\"describe\")); the description is not an answer \
+             to the causal question"
+        };
         Self::NotIdentified {
             status,
             search_capped,
             message: format!(
-                "{REASON_PREFIX}effect_not_identified: {detail} (identification status {}; {search})",
+                "{REASON_PREFIX}effect_not_identified: {detail} (identification status {}; {search}){opt_in}",
                 status.as_str()
             ),
         }
@@ -678,13 +1067,30 @@ impl CausalError {
         let message = match self.peeled() {
             Self::NotIdentified { .. } => return Some("effect_not_identified"),
             Self::Compile { message } => message.as_str(),
-            Self::Rejected(failure) => failure.message(),
+            // A switchback with one period for every sequence never switches back.
+            Self::Rejected(failure)
+                if matches!(
+                    failure.cause(),
+                    CompileCause::Query(QueryError::RandomizedEffectRefused(
+                        antecedent_core::RandomizedEffectFault::SwitchbackSinglePeriod
+                    ))
+                ) =>
+            {
+                return Some(antecedent_core::reason_code!("option_not_applicable"));
+            }
+            // A query that fails its own validation (a malformed or unreadable declaration)
+            // is an invalid argument unless its text names a more specific code.
+            Self::Rejected(failure) => {
+                if matches!(failure.cause(), CompileCause::Query(_))
+                    && antecedent_core::reason_code::split_prefix(failure.message()).is_none()
+                {
+                    return Some(antecedent_core::reason_code!("invalid_argument"));
+                }
+                failure.message()
+            }
             Self::Unsupported { message } | Self::Support { message, .. } => message,
-            Self::Estimate(
-                EstimationError::Refused { code, .. }
-                | EstimationError::RefusedWithFields { code, .. },
-            )
-            | Self::Serialization(IoError::Refused { code, .. })
+            Self::Estimate(error) => return error.reason_code(),
+            Self::Serialization(IoError::Refused { code, .. })
             | Self::Discovery(DiscoveryError::Refused { code, .. }) => return Some(code),
             // The multi-source limited-experiment route's frozen (code, detail) pairs.
             Self::Identify(error) => {
@@ -696,6 +1102,60 @@ impl CausalError {
             _ => return None,
         };
         antecedent_core::reason_code::split_prefix(message).map(|(code, _)| code)
+    }
+
+    /// Whether this is an identification-class refusal: the question has no identified
+    /// estimand under the declared structure (`effect_not_identified`, or a cross-world query
+    /// the declared structure does not identify), and the search finished.
+    ///
+    /// A search that stopped at a budget, a cancellation, a resource limit, an invalid
+    /// argument and every data or estimation error are not identification-class: the opt-in
+    /// descriptive fallback never converts them.
+    #[must_use]
+    pub fn is_identification_refusal(&self) -> bool {
+        match self.peeled() {
+            Self::NotIdentified { search_capped, .. } => !*search_capped,
+            other => {
+                other.reason_code().is_some_and(|code| IDENTIFICATION_REFUSAL_CODES.contains(&code))
+            }
+        }
+    }
+
+    /// Refusal for an inference mode the route does not perform.
+    ///
+    /// The record is unsupported inference, not a failed check or a computational failure.
+    /// The refusal reports no mass, so the mass is unreported. The message is `summary`.
+    #[must_use = "the refusal is dropped if the error is discarded"]
+    pub fn unsupported_inference(summary: impl Into<String>) -> Self {
+        Self::Estimate(EstimationError::Prob(ProbError::Route {
+            summary: summary.into(),
+            diagnostics: vec![
+                antecedent_core::diagnostic::RouteNativeDiagnostic::unsupported_inference(
+                    antecedent_core::diagnostic::RouteMass::unreported(),
+                ),
+            ],
+        }))
+    }
+
+    /// Route records carried by this error.
+    ///
+    /// A failed check is included. Model restriction, computational failure, and
+    /// unsupported inference stay the records they are. Empty when this error
+    /// is not a route outcome.
+    #[must_use = "a failed route check is dropped if the records are discarded"]
+    pub fn route_diagnostics(&self) -> Vec<antecedent_core::diagnostic::RouteNativeDiagnostic> {
+        match self.peeled() {
+            Self::Estimate(EstimationError::Prob(ProbError::Route { diagnostics, .. })) => {
+                diagnostics.clone()
+            }
+            Self::Estimate(EstimationError::Stats(error)) => {
+                error.route_diagnostic().into_iter().collect()
+            }
+            Self::Data(error) | Self::Estimate(EstimationError::Data(error)) => {
+                error.route_diagnostic().into_iter().collect()
+            }
+            _ => Vec::new(),
+        }
     }
 
     /// Structured diagnostics (failing treatment or cell, stage, arm ESS, rank, implicated
@@ -713,12 +1173,16 @@ impl CausalError {
     }
 
     /// What the caller can change to get past this refusal, when the refusal
-    /// names one (an estimator refusal built with a remedy). Additive and
+    /// names one (an estimator refusal built with a remedy, or one whose structured
+    /// diagnostics record it). Additive and
     /// optional: `None` for every other error, and never part of the message.
     #[must_use]
-    pub const fn remedy(&self) -> Option<&'static str> {
+    pub fn remedy(&self) -> Option<&str> {
         match self {
-            Self::Estimate(error) => error.remedy(),
+            Self::Diagnosed { error, fields } => {
+                fields.remedy.as_deref().or_else(|| error.remedy())
+            }
+            Self::Estimate(error) => error.remedy().or_else(|| error.field_remedy()),
             _ => None,
         }
     }
@@ -757,11 +1221,11 @@ impl CausalError {
             Self::Support { id: crate::support::SupportRefusal::NotApplicable, message } => {
                 Some(BlockedOperation::not_applicable(*message))
             }
-            Self::Support { id: crate::support::SupportRefusal::Refused, message } => {
+            Self::Support { id: crate::support::SupportRefusal::NotSupported, message } => {
                 Some(BlockedOperation::refused(*message))
             }
-            Self::Unsupported { message } if OPERATION_UNLICENSED.contains(message) => {
-                Some(BlockedOperation::operation_unlicensed(*message))
+            Self::Unsupported { message } if OPERATION_UNSUPPORTED.contains(message) => {
+                Some(BlockedOperation::operation_unsupported(*message))
             }
             Self::Unsupported { message } if *message == RANK_DESIGNS_REQUIRES_PRODUCT => {
                 Some(BlockedOperation::binding("identification_product"))
@@ -800,12 +1264,126 @@ const _: () = assert!(
 mod tests {
     use super::{AttributionError, CausalError, DiscoveryError, ValidationError};
 
+    #[test]
+    fn facade_error_stays_below_large_error_threshold() {
+        assert!(std::mem::size_of::<CausalError>() < 128);
+    }
+
     // A cancellation token fired mid-refuter, mid-discovery, or mid-Shapley
     // computation must surface at the facade boundary as `CausalError::Cancelled`,
     // not as the stage's scientific error kind — a caller filtering on
     // `except CausalCancelledError` (or `blocker_id().scientific`) would otherwise
     // never see it, and a `CausalValidateError`/`CausalDiscoveryError` would wrongly
     // read as a refutation/discovery finding.
+
+    #[test]
+    fn temporal_operational_errors_survive_compile_rejection_wrappers() {
+        use antecedent_core::TemporalMaterializationError as T;
+        use antecedent_core::execution::AdmissionError;
+        use antecedent_estimate::EstimationError;
+        use antecedent_graph::GraphError;
+        for temporal in [
+            T::Cancelled,
+            T::Admission(AdmissionError::Cancelled),
+            T::Limit { dimension: "bytes" },
+            T::Allocation,
+        ] {
+            let cancelled =
+                matches!(&temporal, T::Cancelled | T::Admission(AdmissionError::Cancelled));
+            let graph = GraphError::TemporalMaterialization(temporal.clone());
+            for error in [
+                CausalError::from(graph.clone()),
+                CausalError::rejected(graph.clone()),
+                CausalError::rejected(EstimationError::Graph(graph)),
+                CausalError::rejected(EstimationError::TemporalMaterialization(temporal.clone())),
+            ] {
+                if cancelled {
+                    assert!(matches!(error, CausalError::Cancelled { .. }), "{error:?}");
+                } else {
+                    assert!(matches!(error, CausalError::Resource { .. }), "{error:?}");
+                }
+                assert!(!error.blocker_id().unwrap().scientific);
+            }
+        }
+        for graph in [
+            GraphError::InvalidEndpoints { message: "invalid graph" },
+            GraphError::TemporalMaterialization(T::Policy(
+                antecedent_core::InterventionError::EmptyDynamicSchedule,
+            )),
+        ] {
+            assert!(matches!(CausalError::rejected(graph), CausalError::Rejected(_)));
+        }
+    }
+
+    #[test]
+    fn probability_cancellation_preserves_hmc_stage_across_wrappers() {
+        use antecedent_estimate::EstimationError;
+        use antecedent_learn::LearnError;
+        use antecedent_prob::ProbError;
+        let error = || ProbError::Cancelled { stage: "hmc.cancelled" };
+        assert!(matches!(
+            CausalError::from(error()),
+            CausalError::Cancelled { stage: "hmc.cancelled" }
+        ));
+        assert!(matches!(
+            CausalError::from(EstimationError::Prob(error())),
+            CausalError::Cancelled { stage: "hmc.cancelled" }
+        ));
+        assert!(matches!(
+            CausalError::from(LearnError::Probability(error())),
+            CausalError::Cancelled { stage: "hmc.cancelled" }
+        ));
+        assert!(matches!(
+            CausalError::from(ValidationError::Prob(error())),
+            CausalError::Cancelled { stage: "hmc.cancelled" }
+        ));
+        assert!(matches!(
+            CausalError::from(ValidationError::Estimation(EstimationError::Prob(error()))),
+            CausalError::Cancelled { stage: "hmc.cancelled" }
+        ));
+    }
+
+    #[test]
+    fn data_cancellation_is_operational_through_estimation_and_validation() {
+        use antecedent_data::DataError;
+        use antecedent_estimate::EstimationError;
+        assert!(matches!(
+            CausalError::from(EstimationError::Data(DataError::Cancelled)),
+            CausalError::Cancelled { stage: super::STAGE_MODEL }
+        ));
+        assert!(matches!(
+            CausalError::from(ValidationError::Estimation(EstimationError::Data(
+                DataError::Cancelled
+            ))),
+            CausalError::Cancelled { stage: super::STAGE_VALIDATE }
+        ));
+    }
+
+    #[test]
+    fn dml_detail_is_preserved_as_an_operational_cancelled_stage() {
+        use antecedent_estimate::EstimationError;
+        let error = || {
+            EstimationError::refused_detail(
+                antecedent_core::reason_code!("cancelled_no_claim"),
+                antecedent_core::reason_details::dml::CANCELLED,
+                "no estimate",
+            )
+        };
+        assert!(matches!(
+            CausalError::from(error()),
+            CausalError::Cancelled { stage: antecedent_core::reason_details::dml::CANCELLED }
+        ));
+        assert!(matches!(
+            CausalError::from(ValidationError::Estimation(error())),
+            CausalError::Cancelled { stage: antecedent_core::reason_details::dml::CANCELLED }
+        ));
+        assert!(matches!(
+            CausalError::from(EstimationError::Admission(
+                antecedent_core::execution::AdmissionError::Cancelled
+            )),
+            CausalError::Cancelled { stage: super::STAGE_MODEL }
+        ));
+    }
 
     /// The facade reads an estimator refusal's remedy through unchanged, and
     /// every other error names none.
@@ -831,7 +1409,9 @@ mod tests {
         let error = CausalError::from(cause.clone());
         assert_eq!(error.to_string(), text);
         assert_eq!(error.compile_message(), Some(text.as_str()));
-        assert_eq!(error.reason_code(), None);
+        // A query that fails its own validation names no code of its own, so it is
+        // classified as an invalid argument.
+        assert_eq!(error.reason_code(), Some("invalid_argument"));
         assert!(error.blocker_id().is_none());
         assert!(matches!(
             &error,
@@ -973,5 +1553,54 @@ mod tests {
             CausalError::from(AttributionError::UnknownPlayer),
             CausalError::Attribution(AttributionError::UnknownPlayer)
         ));
+    }
+}
+
+impl<E> From<antecedent_core::execution::MapExecutionError<E>> for CausalError
+where
+    Self: From<E>,
+{
+    fn from(error: antecedent_core::execution::MapExecutionError<E>) -> Self {
+        match error {
+            antecedent_core::execution::MapExecutionError::Admission(error) => {
+                lift_admission(error, STAGE_MODEL)
+            }
+            antecedent_core::execution::MapExecutionError::Work(error) => Self::from(error),
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "error_worker_tests.rs"]
+mod worker_admission_classification_tests;
+
+#[cfg(test)]
+mod io_refusal_tests {
+    #[test]
+    fn io_parts_preserve_code_and_message() {
+        match super::io_refused("code", "detail", "message:\nnext") {
+            antecedent_io::IoError::Refused { code, message } => {
+                assert_eq!(code, "code");
+                assert_eq!(message, "detail: message:\nnext");
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod point_admission_tests {
+    #[test]
+    fn preserves_cancel_stage_and_resource_text() {
+        use super::{CausalError, resource_admission_error};
+        use antecedent_core::execution::AdmissionError;
+        assert!(matches!(
+            resource_admission_error(AdmissionError::Cancelled, "point"),
+            CausalError::Cancelled { stage: "point" }
+        ));
+        let expected = AdmissionError::Overflow.to_string();
+        assert!(
+            matches!(resource_admission_error(AdmissionError::Overflow, "point"), CausalError::Resource { message } if message == expected)
+        );
     }
 }

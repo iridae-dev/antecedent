@@ -1,0 +1,4 @@
+{
+  "approach": "invertible affine training-coordinate reparameterization, retaining the full original parameter family and a conservative original-coordinate score tolerance; no heldout-based fit selection",
+  "cases": []
+}

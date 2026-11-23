@@ -1,7 +1,12 @@
-"""Read a CSV, check required numeric columns, and prepare an average effect.
+"""How do you take your own CSV table to an average-effect estimate?
 
-Uses a temporary synthetic CSV; replace its path with your own reviewed table.
-Requires pandas in addition to Antecedent. Does not impute or drop observations.
+The script writes a temporary 240-row synthetic CSV (randomized binary treatment, effect 2,
+covariate z affecting the outcome); replace its path with your own reviewed table. It stops
+on missing values in the required columns rather than imputing or dropping rows, and asserts
+the estimate lies within 0.3 of 2. On your own table the effect holds only under the graph you
+declare; the script does not test it. Requires pandas in addition to Antecedent.
+
+Run: ``python examples/python/your_data.py``.
 """
 
 from pathlib import Path
@@ -34,13 +39,18 @@ def main():
             data,
             graph=[("treatment", "outcome"), ("z", "outcome")],
             query=ant.AverageEffect("treatment", "outcome"),
-            bootstrap=0,
+            inference=ant.Frequentist(bootstrap=0),
             refute=False,
         )
-        print(study.inspect_plan())
-        result = study.estimate()
+        print(study.inspect())
+        result = ant.estimate(study)
         print(result.inspect())
-        print("Effect:", result.answer.value, "calibration:", result.calibration.status)
+        print(
+            "Effect:",
+            result.answer.value,
+            "calibration:",
+            result.value.calibration.status,
+        )
         assert result.answer.kind == "point"
         assert abs(result.answer.value - 2) < 0.3
 

@@ -1,0 +1,734 @@
+//! `TransportQuery` over a supplied graph posterior.
+//!
+//! Every posterior atom is a causal graph, so each is a selection diagram with the declared
+//! selection targets, and sID decides it on its own graph. An atom with a certified formula
+//! is estimated by the trial-to-target weighting of the supplied selection and treatment
+//! probabilities; an atom sID does not certify is unidentified mass, and an atom whose
+//! certified formula the weighting cannot evaluate (a recursive factorization) is unevaluable
+//! mass. The atoms mix by their posterior probability, and neither kind of lost mass is
+//! redistributed: the published value is the transported contrast conditional on the atoms
+//! that identify and evaluate, and the result states the mass it does not cover.
+//!
+//! The weighting reads a certified formula only through its certificate, so every evaluable
+//! atom shares one transported contrast and one sampling or posterior law. What the posterior
+//! moves is the identification: which atoms certify a formula, by which rule, and how much
+//! posterior mass certifies none.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::collections::{BTreeMap, HashSet};
+
+use antecedent_data::TableView;
+use antecedent_estimate::TransportEffectEstimate;
+use antecedent_identify::{TransportFormula, TransportIdentification};
+
+use super::atom_mix::{AtomBoundRule, AtomEvalView, AtomMixInput, MixedAtomEvals, mix_atom_evals};
+use super::transport_interference_path::{
+    TrialColumns, TrialDependence, bayesian_transport_estimate, frequentist_transport_estimate,
+    known_probability_assumption, sampling_weights_assumption, transport_point,
+    transport_primary_pair, transport_sid_identification,
+};
+use super::transport_refutation::{TransportRefutationInput, refute_transport};
+use super::{
+    Arc, CausalError, CausalPosterior, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity,
+    EnvelopeOptions, EstimatorId, ExecutionContext, GraphEffectDraws, GraphIdentFlag,
+    GraphPosterior, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
+    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId,
+    InferenceDiagnostics, InferenceMode, Instant, PhysicalExecutionPlan, PosteriorMassSummary,
+    Strategy, StudyResult, TabularData, WeightedGraphSamples, aggregate_effect_envelope,
+    effect_from_posterior, elapsed_ns, overlap_diagnostic, provenance_ids,
+    push_graph_posterior_structural_aggregation_diagnostic, resolve_posterior_status,
+};
+use crate::analysis::identification_cache::TRANSPORT_CLASS_ATOM_CODE;
+use crate::analysis::prepared::CachedGraphPosteriorIdentification;
+
+/// Method tag every posterior atom's transport estimand carries. The certified rule differs
+/// by atom (direct use, standardization, S-admissible standardization); the target they
+/// identify is the one transported contrast, so the estimand identity is the target's.
+const ATOM_ESTIMAND_METHOD: &str = "transport.sid";
+
+/// Detached trial rows shared by atom weighting, uncertainty and refutation.
+struct TransportRows {
+    outcomes: Vec<f64>,
+    treatment: Vec<bool>,
+    trial: Vec<bool>,
+    selection: Vec<f64>,
+    propensity: Vec<f64>,
+    /// Observation weights carried by the table, aligned to its rows.
+    weights: Option<Vec<f64>>,
+}
+
+impl TransportRows {
+    fn read(
+        data: &TabularData,
+        pair: (antecedent_core::VariableId, antecedent_core::VariableId),
+        trial_spec: &crate::analysis::builder::TransportTrialSpec,
+    ) -> Result<Self, CausalError> {
+        let (treatment, outcome) = pair;
+        let outcomes = data.float64_values(outcome).map_err(CausalError::rejected)?;
+        let treatment_col = data.float64_values(treatment).map_err(CausalError::rejected)?;
+        let trial_col = data.float64_values(trial_spec.trial).map_err(CausalError::rejected)?;
+        let selection =
+            data.float64_values(trial_spec.selection_probability).map_err(CausalError::rejected)?;
+        let propensity =
+            data.float64_values(trial_spec.treatment_probability).map_err(CausalError::rejected)?;
+        super::transport_interference_path::refuse_missing_trial_design(
+            &treatment_col,
+            &trial_col,
+        )?;
+        let treatment = treatment_col.iter().map(|v| *v != 0.0).collect();
+        let trial = trial_col.iter().map(|v| *v != 0.0).collect();
+        let weights = data.storage().weights().map(<[f64]>::to_vec);
+        Ok(Self { outcomes, treatment, trial, selection, propensity, weights })
+    }
+
+    fn columns(&self) -> TrialColumns<'_> {
+        TrialColumns {
+            outcomes: &self.outcomes,
+            treatment: &self.treatment,
+            trial: &self.trial,
+            selection: &self.selection,
+            propensity: &self.propensity,
+            weights: self.weights.as_deref(),
+        }
+    }
+}
+
+impl super::Study {
+    /// The identification one posterior atom states for `query` from its certified `identified`
+    /// formula, with the estimand tagged by the target rather than by the atom's rule so atoms
+    /// that identify the one target by different formulas agree. `None` when the formula is not
+    /// certified or the query names no treatment/outcome pair.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one Bayesian transport posterior with its optional target weighting"
+    )]
+    pub(crate) fn transport_posterior_atom(
+        query: &antecedent_core::TransportQuery,
+        identified: &TransportIdentification,
+    ) -> Option<(IdentificationResult, IdentifiedEstimand)> {
+        if !matches!(identified, TransportIdentification::Transportable { .. }) {
+            return None;
+        }
+        let (treatment, outcome) = transport_primary_pair(query).ok()?;
+        let (mut identification, mut estimand) = transport_sid_identification(
+            CausalQuery::Transport(query.clone()),
+            treatment,
+            outcome,
+            identified,
+        );
+        estimand.method = Arc::from(ATOM_ESTIMAND_METHOD);
+        for listed in &mut identification.estimands {
+            listed.method = Arc::from(ATOM_ESTIMAND_METHOD);
+        }
+        Some((identification, estimand))
+    }
+
+    /// Mix the sID-certified trial-to-target contrast over the atoms of a graph posterior.
+    ///
+    /// # Errors
+    ///
+    /// A posterior of class atoms or with DBN lag structure, no atom whose formula sID
+    /// certifies, no atom whose certified formula the weighting can evaluate, invalid
+    /// probability columns, or a cancelled run.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one Bayesian transport posterior with its optional target weighting"
+    )]
+    pub(super) fn execute_transport_graph_posterior(
+        &self,
+        data: &TabularData,
+        gp: &GraphPosterior,
+        query: &antecedent_core::TransportQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        query.validate()?;
+        let trial_spec = self.transport_trial.as_ref().ok_or(CausalError::Unsupported {
+            message: "TransportQuery execute requires transport_trial columns",
+        })?;
+        if self.declared.weighted_transport.is_some() {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "a weighted target population applies to a trial-to-target transport on one \
+                 selection diagram under frequentist inference; a graph class or a graph \
+                 posterior does not carry it"
+            ));
+        }
+        let (treatment, outcome) = transport_primary_pair(query)?;
+        let (identified, identify_cached) =
+            self.transport_posterior_identification(gp, query, physical, ctx)?;
+        if identified.atoms.is_empty() {
+            return Err(CausalError::not_identified(
+                IdentificationStatus::NotIdentified,
+                false,
+                "TransportQuery graph posterior: sID certifies a transport formula for no \
+                 posterior atom",
+            ));
+        }
+
+        let rows = TransportRows::read(data, (treatment, outcome), trial_spec)?;
+        let columns = rows.columns();
+        let atom_estimates = estimate_transport_atoms(&identified, &columns, ctx)?;
+        let (representative, representative_transport, mut transported) =
+            transport_representative(&identified, &atom_estimates)?;
+
+        let mut assumptions =
+            identified.atoms[representative].identification.required_assumptions.clone();
+        assumptions.push(known_probability_assumption());
+        let status = identified.atoms[representative].identification.status;
+        let dependence = self.transport_dependence_of(&columns)?;
+        self.refuse_unread_transport_validation(&columns, &dependence)?;
+        if columns.weights.is_some() {
+            assumptions.push(sampling_weights_assumption());
+        }
+        let (point, representative_posterior, estimator_id, estimator_diagnostic) = self
+            .estimate_transport_posterior_law(
+                &columns,
+                (representative_transport, &dependence),
+                &mut transported,
+                assumptions,
+                status,
+                ctx,
+            )?;
+
+        let (evals, mixed) = mix_transport_atoms(
+            &identified,
+            &atom_estimates,
+            representative_posterior.is_some(),
+            point.ate,
+        )?;
+        let unidentified_mass = identified.graphs.unidentified_mass();
+        let (estimate, posterior) = match representative_posterior {
+            Some(component) => {
+                let posterior = envelope_posterior(&identified, &evals, &component)?;
+                (effect_from_posterior(&posterior)?, Some(posterior))
+            }
+            None if mixed.mixable_scalar => (point, None),
+            None => (mixed.estimate.clone(), None),
+        };
+
+        let refutations = self.refute_transport_posterior(
+            representative_transport,
+            &columns,
+            (transported.overlap, estimate.ate, &dependence),
+            ctx,
+        )?;
+
+        let diagnostics = self.transport_posterior_diagnostics(
+            &identified,
+            &mixed,
+            unidentified_mass,
+            estimator_diagnostic,
+            estimate.provenance.overlap,
+        );
+
+        let algo =
+            physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
+        let policy = mixed.policy;
+        let mut result = self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                mixed.identification,
+                mixed.estimand,
+                estimate,
+                Strategy::new(IdentifierId::TransportSid, estimator_id),
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .cancelled(ctx.cancellation.is_cancelled())
+            .extras(IdentifiedExecuteExtras {
+                identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
+                estimate_provenance: Some(provenance_ids(
+                    "estimate.transport_graph_posterior",
+                    policy.as_str(),
+                )),
+                posterior,
+                diagnostics: Some(diagnostics),
+                structural_response: Some(mixed.mixture),
+                ..Default::default()
+            }),
+        );
+        result.payload = crate::result::ResultPayload::Transport(transported);
+        Ok(result)
+    }
+
+    /// Fit the one trial-to-target law shared by the certified atoms.
+    fn estimate_transport_posterior_law(
+        &self,
+        columns: &TrialColumns<'_>,
+        proof: (&TransportIdentification, &TrialDependence),
+        transported: &mut TransportEffectEstimate,
+        assumptions: antecedent_core::AssumptionSet,
+        status: IdentificationStatus,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        (super::EffectEstimate, Option<CausalPosterior>, EstimatorId, Diagnostic),
+        CausalError,
+    > {
+        let (representative_transport, dependence) = proof;
+        Ok(match &self.settings.inference {
+            InferenceMode::Frequentist => {
+                let (estimate, diagnostic) = frequentist_transport_estimate(
+                    columns,
+                    (transported.ipw, dependence),
+                    assumptions,
+                )?;
+                (estimate, None, EstimatorId::TransportTrialIpw, diagnostic)
+            }
+            InferenceMode::Bayesian(config) => {
+                let (estimate, posterior, diagnostic) = bayesian_transport_estimate(
+                    config,
+                    (representative_transport, dependence),
+                    columns,
+                    None,
+                    assumptions,
+                    status,
+                    ctx,
+                )?;
+                transported.ipw = estimate.ate;
+                (
+                    estimate,
+                    Some(posterior),
+                    EstimatorId::TransportTrialBayesianBootstrap,
+                    diagnostic,
+                )
+            }
+        })
+    }
+
+    fn refute_transport_posterior(
+        &self,
+        transport: &TransportIdentification,
+        columns: &TrialColumns<'_>,
+        publication: (antecedent_estimate::TransportOverlapReport, f64, &TrialDependence),
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<antecedent_validate::RefutationReport>, CausalError> {
+        let (overlap, published, dependence) = publication;
+        refute_transport(
+            &TransportRefutationInput {
+                transport,
+                outcomes: columns.outcomes,
+                treatment: columns.treatment,
+                trial: columns.trial,
+                selection: columns.selection,
+                propensity: columns.propensity,
+                overlap,
+                published,
+                suite: self.settings.refute,
+                dependence: dependence.as_grouping(),
+                replicates: self.settings.bootstrap_replicates,
+            },
+            ctx,
+        )
+    }
+
+    fn transport_posterior_diagnostics(
+        &self,
+        identified: &CachedGraphPosteriorIdentification,
+        mixed: &MixedAtomEvals,
+        unidentified_mass: f64,
+        estimator_diagnostic: Diagnostic,
+        overlap: antecedent_estimate::OverlapPolicy,
+    ) -> Vec<Diagnostic> {
+        let mut diagnostics = mixed.identification.diagnostics.clone();
+        diagnostics.push(self.transport_atom_rule_diagnostic(
+            identified,
+            &mixed.mixture,
+            unidentified_mass,
+        ));
+        diagnostics.extend(Self::transport_class_member_diagnostic(identified));
+        push_graph_posterior_structural_aggregation_diagnostic(
+            &mut diagnostics,
+            mixed.policy,
+            mixed.mixture.identified_mass,
+            mixed.mixture.unidentified_mass,
+            mixed.mixture.unevaluable_mass,
+            mixed.mixture.subsampled_out_mass,
+        );
+        diagnostics.push(estimator_diagnostic);
+        diagnostics.push(overlap_diagnostic(overlap));
+
+        diagnostics
+    }
+
+    /// The frozen per-atom transport identification: the prepared cache, the product the plan's
+    /// lowered program retained at compile, or a fresh run of sID on every atom.
+    fn transport_posterior_identification(
+        &self,
+        gp: &GraphPosterior,
+        query: &antecedent_core::TransportQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<(Arc<CachedGraphPosteriorIdentification>, bool), CausalError> {
+        if let Some(cache) = self.graph_posterior_cache() {
+            return Ok((Arc::clone(cache), true));
+        }
+        if let Some(cache) =
+            crate::analysis::lowering::plan_retained_graph_posterior(self, physical)
+        {
+            return Ok((cache, false));
+        }
+        let targets: Vec<_> = self
+            .selection_diagram
+            .as_ref()
+            .map(|diagram| diagram.selection_targets().to_vec())
+            .unwrap_or_default();
+        Ok((
+            Arc::new(
+                crate::analysis::identification_cache::build_transport_graph_posterior_identification_cache(
+                    gp, query, &targets, ctx,
+                )?,
+            ),
+            false,
+        ))
+    }
+
+    /// Which sID rule certified how much posterior mass, with the mass sID did not certify and
+    /// the mass it certified but the weighting cannot evaluate.
+    fn transport_atom_rule_diagnostic(
+        &self,
+        identified: &CachedGraphPosteriorIdentification,
+        mixture: &crate::result::StructuralResponseMixture,
+        unidentified_mass: f64,
+    ) -> Diagnostic {
+        let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
+        let mut by_rule: BTreeMap<String, f64> = BTreeMap::new();
+        for atom in identified.atoms.iter() {
+            let rule = match atom.transport.as_deref() {
+                Some(TransportIdentification::Transportable { certificate, .. }) => {
+                    certificate.rule.to_string()
+                }
+                _ => "uncertified".to_owned(),
+            };
+            *by_rule.entry(rule).or_insert(0.0) += key_weights.get(atom.key);
+        }
+        let rules = by_rule
+            .iter()
+            .map(|(rule, mass)| format!("{rule}={mass}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let targets = self
+            .selection_diagram
+            .as_ref()
+            .map(|diagram| {
+                diagram
+                    .selection_targets()
+                    .iter()
+                    .map(|target| target.raw().to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            })
+            .unwrap_or_default();
+        Diagnostic::new(
+            "estimate.graph_posterior.transport_sid",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "each posterior atom was run through sID on its own selection diagram \
+                 (selection targets [{targets}]); certified rules by posterior mass: [{rules}]; \
+                 unidentified_mass={unidentified_mass} (sID certifies no formula); \
+                 unevaluable_mass={} (certified, but not estimable by trial-to-target \
+                 weighting); the weighting reads a formula only through its certificate, so the \
+                 published contrast is the one transported contrast conditional on the atoms \
+                 that identify and evaluate, with the supplied selection and treatment \
+                 probabilities held fixed",
+                mixture.unevaluable_mass
+            ),
+        )
+    }
+}
+
+impl super::Study {
+    /// What the classes of selection diagrams that Cpdag and Pag atoms stand for left
+    /// uncertified: the posterior mass of the atoms that are classes and the share of that
+    /// mass whose class members sID did not certify. `None` when no atom is a class.
+    fn transport_class_member_diagnostic(
+        identified: &CachedGraphPosteriorIdentification,
+    ) -> Option<Diagnostic> {
+        let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
+        let mut atoms = 0usize;
+        let mut class_mass = 0.0;
+        let mut uncertified_mass = 0.0;
+        for atom in identified.atoms.iter() {
+            let Some(note) = atom
+                .identification
+                .diagnostics
+                .iter()
+                .find(|note| note.code.as_ref() == TRANSPORT_CLASS_ATOM_CODE)
+            else {
+                continue;
+            };
+            let field = |name: &str| {
+                note.fields
+                    .iter()
+                    .find(|(key, _)| key.as_ref() == name)
+                    .and_then(|(_, value)| value.parse::<f64>().ok())
+            };
+            let (Some(certified), Some(uncertified)) =
+                (field("identified_weight"), field("unidentified_weight"))
+            else {
+                continue;
+            };
+            let mass = key_weights.get(atom.key);
+            atoms += 1;
+            class_mass += mass;
+            if certified + uncertified > 0.0 {
+                uncertified_mass += mass * uncertified / (certified + uncertified);
+            }
+        }
+        (atoms > 0).then(|| {
+            Diagnostic::new(
+                "estimate.graph_posterior.transport_class_members",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "{atoms} identified atom(s) stand for a class of selection diagrams (a Cpdag \
+                     or a Pag): sID decided every DAG completion, or every ADMG sharing the \
+                     m-separation model of a MAG completion, on its own diagram; the identified \
+                     class mass is {class_mass} of which {uncertified_mass} sits on members sID \
+                     did not certify (read as identified conditional on the certified members, \
+                     as the class effect posterior reads its atoms); members that certify \
+                     different formulas are evaluated by the one trial-to-target weighting, \
+                     which reads a formula only through its certificate"
+                ),
+            )
+            .with_fields([
+                ("class_atoms", atoms.to_string()),
+                ("class_mass", class_mass.to_string()),
+                ("uncertified_member_mass", uncertified_mass.to_string()),
+            ])
+        })
+    }
+}
+
+/// Whether the trial-to-target weighting can evaluate the certified formula.
+pub(crate) fn ipw_estimable(transport: &TransportIdentification) -> bool {
+    matches!(
+        transport,
+        TransportIdentification::Transportable { formula, .. }
+            if !matches!(formula, TransportFormula::RecursiveFactorization { .. })
+    )
+}
+
+/// One evaluated posterior atom of an exposure query: the contrast it estimates, `None` when
+/// the atom's certified formula is not evaluable.
+pub(super) struct ScalarAtomEval {
+    pub(super) key: u64,
+    pub(super) status: IdentificationStatus,
+    pub(super) estimand: IdentifiedEstimand,
+    pub(super) value: Option<f64>,
+}
+
+impl AtomEvalView for ScalarAtomEval {
+    fn key(&self) -> u64 {
+        self.key
+    }
+
+    fn status(&self) -> IdentificationStatus {
+        self.status
+    }
+
+    fn estimand(&self) -> Option<&IdentifiedEstimand> {
+        Some(&self.estimand)
+    }
+
+    fn scalar(&self) -> Option<f64> {
+        self.value.filter(|value| value.is_finite())
+    }
+
+    fn posterior(&self) -> Option<&CausalPosterior> {
+        None
+    }
+
+    fn assumptions(&self) -> Option<&antecedent_core::AssumptionSet> {
+        None
+    }
+
+    fn identified_bounds(&self) -> Option<(f64, f64)> {
+        None
+    }
+
+    fn partial(&self) -> bool {
+        false
+    }
+
+    fn analytic_se(&self) -> Option<f64> {
+        None
+    }
+
+    fn influence(&self) -> Option<&[f64]> {
+        None
+    }
+}
+
+/// The posterior of the mixture: every evaluable atom contributes the one Dirichlet
+/// trial-row bootstrap of the contrast with its posterior mass, atoms that are unevaluable are
+/// moved out of the identified mass, and the unidentified and unevaluable masses stay separate
+/// axes that are never redistributed into the effect posterior.
+fn envelope_posterior(
+    identified: &CachedGraphPosteriorIdentification,
+    evals: &[ScalarAtomEval],
+    component: &CausalPosterior,
+) -> Result<CausalPosterior, CausalError> {
+    let column = component.effect_column().ok_or_else(|| CausalError::Compile {
+        message: "transport posterior missing its effect column".into(),
+    })?;
+    let draws: Arc<[f64]> = Arc::from(component.draws.column(column)?.to_vec());
+    let unevaluable: HashSet<u64> =
+        evals.iter().filter(|eval| eval.value.is_none()).map(|eval| eval.key).collect();
+    let flags: Vec<GraphIdentFlag> = identified
+        .graphs
+        .graph_keys
+        .iter()
+        .zip(identified.graphs.identified.iter())
+        .map(
+            |(key, flag)| {
+                if unevaluable.contains(key) { GraphIdentFlag::Unidentified } else { *flag }
+            },
+        )
+        .collect();
+    let effective = WeightedGraphSamples::new(
+        Arc::clone(&identified.graphs.weights),
+        flags,
+        Arc::clone(&identified.graphs.graph_keys),
+    )?;
+    let per_graph: Vec<GraphEffectDraws> = evals
+        .iter()
+        .filter(|eval| eval.value.is_some())
+        .map(|eval| GraphEffectDraws { graph_key: eval.key, effect_draws: Arc::clone(&draws) })
+        .collect();
+    let mut posterior = aggregate_effect_envelope(
+        &effective,
+        &per_graph,
+        InferenceDiagnostics::analytic("transport.graph_posterior_envelope"),
+        EnvelopeOptions::default(),
+    )
+    .map_err(CausalError::from)?;
+    // The aggregator flags an unevaluable atom unidentified (the envelope has no third state);
+    // split that mass back out so a refusal to estimate is never published as
+    // non-identification.
+    let total = identified.graphs.total_weight();
+    let unevaluable_weight: f64 = identified
+        .graphs
+        .graph_keys
+        .iter()
+        .zip(identified.graphs.weights.iter())
+        .zip(identified.graphs.identified.iter())
+        .filter(|((key, _), flag)| {
+            unevaluable.contains(*key) && **flag == GraphIdentFlag::Identified
+        })
+        .map(|((_, weight), _)| *weight)
+        .sum();
+    let unevaluable_mass = if total > 0.0 { unevaluable_weight / total } else { 0.0 };
+    posterior.unevaluable_mass = unevaluable_mass;
+    posterior.unidentified_mass = (posterior.unidentified_mass - unevaluable_mass).max(0.0);
+    posterior.assumptions.entries.extend(component.assumptions.entries.iter().cloned());
+    Ok(posterior)
+}
+
+fn estimate_transport_atoms(
+    identified: &CachedGraphPosteriorIdentification,
+    columns: &TrialColumns<'_>,
+    ctx: &ExecutionContext,
+) -> Result<Vec<Option<TransportEffectEstimate>>, CausalError> {
+    // Every certified atom is run through the weighting's own certificate check; only an
+    // atom whose formula it cannot evaluate is unevaluable, never a data failure.
+    ctx.map_indexed(identified.atoms.len(), |index, _inner| {
+        let Some(transport) = identified.atoms[index].transport.as_deref() else {
+            return Ok::<_, CausalError>(None);
+        };
+        if !ipw_estimable(transport) {
+            return Ok(None);
+        }
+        transport_point(transport, columns).map(Some)
+    })
+    .map_err(Into::into)
+}
+
+fn mix_transport_atoms(
+    identified: &CachedGraphPosteriorIdentification,
+    atom_estimates: &[Option<TransportEffectEstimate>],
+    bayesian: bool,
+    point: f64,
+) -> Result<(Vec<ScalarAtomEval>, MixedAtomEvals), CausalError> {
+    let evals: Vec<ScalarAtomEval> = identified
+        .atoms
+        .iter()
+        .zip(atom_estimates)
+        .map(|(atom, estimated)| ScalarAtomEval {
+            key: atom.key,
+            status: atom.identification.status,
+            estimand: atom.estimand.clone(),
+            value: estimated.map(|each| if bayesian { point } else { each.ipw }),
+        })
+        .collect();
+    let unidentified_mass = identified.graphs.unidentified_mass();
+    let mut mixed = mix_atom_evals(
+        &evals,
+        AtomMixInput {
+            graphs: &identified.graphs,
+            proofs: &identified.atoms,
+            unidentified_mass,
+            full_mass_scope: true,
+            truncated_atoms: 0,
+            bounds: AtomBoundRule::Point,
+            estimand_fallback: true,
+        },
+        |n, mixable| {
+            format!(
+                "transport graph-posterior mix: no evaluable atom values (evals={n}, \
+                     mixable={mixable})"
+            )
+        },
+        || "transport graph-posterior envelope: missing estimand".to_string(),
+    )?;
+    mixed.identification.status = resolve_posterior_status(
+        mixed.identification.status,
+        mixed.policy,
+        PosteriorMassSummary {
+            unidentified: unidentified_mass,
+            unevaluable: mixed.mixture.unevaluable_mass,
+            ..PosteriorMassSummary::default()
+        },
+    );
+
+    // An atom that is a class whose members certify different formulas is partially
+    // identified, and so is the mixture that contains it unless lost mass already made it
+    // graph dependent.
+    if mixed.identification.status == IdentificationStatus::NonparametricallyIdentified
+        && evals.iter().any(|eval| {
+            eval.value.is_some() && eval.status == IdentificationStatus::PartiallyIdentified
+        })
+    {
+        mixed.identification.status = IdentificationStatus::PartiallyIdentified;
+    }
+
+    Ok((evals, mixed))
+}
+
+fn transport_representative<'a>(
+    identified: &'a CachedGraphPosteriorIdentification,
+    atom_estimates: &[Option<TransportEffectEstimate>],
+) -> Result<(usize, &'a TransportIdentification, TransportEffectEstimate), CausalError> {
+    let Some(representative) = atom_estimates.iter().position(Option::is_some) else {
+        return Err(crate::unsupported_reason!(
+            "construction_not_supported",
+            "every certified posterior atom is a RecursiveFactorization, identified but not \
+                 estimable on the supported trial-to-target IPW path"
+        ));
+    };
+    let (Some(representative_transport), Some(transported)) =
+        (identified.atoms[representative].transport.as_deref(), atom_estimates[representative])
+    else {
+        return Err(CausalError::Compile {
+            message: "transport graph-posterior representative atom lost its proof".into(),
+        });
+    };
+
+    Ok((representative, representative_transport, transported))
+}

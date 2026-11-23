@@ -1,7 +1,7 @@
 {
     "upload_type": "software",
     "title": "Antecedent",
-    "description": "Antecedent is an identification-first causal inference engine for Python and Rust. It takes an analysis from causal structure through estimation, diagnostics, interventions, and counterfactuals — without silently treating discovered graphs as ground truth.",
+    "description": "Antecedent is a compiler and evidence-aware runtime for causal science, in Python and Rust. It checks what a causal question needs, compiles an analysis that can be inspected, and executes only routes backed by provenance and an independent scientific check, refusing the rest with a typed reason. Each answer carries its identification, uncertainty, calibration status and the published methods it rests on into the comparisons, decisions and further studies that use it.",
     "creators": [
         {
             "name": "Hinshaw, Charles",

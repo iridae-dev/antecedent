@@ -1,0 +1,1 @@
+["use:antecedent_core::VariableId;#0","use:antecedent_data::{ColumnView,Contrast,TableView,TabularData};#0","use:crate::error::EstimationError;#0","struct:DesignWidthQuote#0","fn:quote_adjustment_design#0","mod:tests#0","mod:tests#0/use:super::*;#0","mod:tests#0/fn:numeric_adjustment_quotes_one_column_each_and_matches_the_built_design#0"]

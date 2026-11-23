@@ -27,6 +27,7 @@ from antecedent import measurement_models as mm
 from antecedent import mechanism_composition as mc
 from antecedent.errors import StructuredRefusal
 from antecedent.joint_distribution import ScientificQuantity
+from antecedent.outcomes import require_success
 
 EXACT = 1e-12
 LOOSE = 1e-9
@@ -94,7 +95,9 @@ def consume_bundle(directory: pathlib.Path) -> dict:
 
     # The evidence state replays under the identity the consumer retained.
     try:
-        ledger = el.consume_evidence_ledger_artifact(blob("ledger.bin"), manifest["ledger_identity"])
+        ledger = require_success(
+            el.consume_evidence_ledger_artifact(blob("ledger.bin"), manifest["ledger_identity"])
+        )
     except StructuredRefusal as error:
         raise Refused("ledger", error) from error
     synthesis = ledger.synthesis_of(manifest["pooled"])
@@ -114,14 +117,16 @@ def consume_bundle(directory: pathlib.Path) -> dict:
                 )
             )
             summaries.append(el.StudySummary(source, s["estimate"], s["variance"]))
-        rederived = fresh.pool_summaries("rederived", summaries)
+        rederived = require_success(fresh.pool_summaries("rederived", summaries))
     except StructuredRefusal as error:
         raise Refused("evidence", error) from error
 
     # The corrected prevalence, recomputed from its artifact.
     try:
-        measurement = mm.consume_measurement_model_artifact(
-            blob("measurement.bin"), manifest["measurement_identity"]
+        measurement = require_success(
+            mm.consume_measurement_model_artifact(
+                blob("measurement.bin"), manifest["measurement_identity"]
+            )
         )
     except StructuredRefusal as error:
         raise Refused("measurement", error) from error
@@ -129,9 +134,14 @@ def consume_bundle(directory: pathlib.Path) -> dict:
 
     # The interventional risks, recomputed from the composition artifacts.
     risks = {}
-    for name, digest in (("exposed", manifest["exposed_digest"]), ("unexposed", manifest["unexposed_digest"])):
+    for name, digest in (
+        ("exposed", manifest["exposed_digest"]),
+        ("unexposed", manifest["unexposed_digest"]),
+    ):
         try:
-            consumed = mc.consume_mechanism_composition_artifact(blob(f"{name}.bin"), digest)
+            consumed = require_success(
+                mc.consume_mechanism_composition_artifact(blob(f"{name}.bin"), digest)
+            )
         except StructuredRefusal as error:
             raise Refused("mechanisms", error) from error
         risks[name] = dict(consumed.result.probabilities)["1"]
@@ -210,7 +220,9 @@ def consume_bundle(directory: pathlib.Path) -> dict:
     quantity = excess_quantity("risk")
     contract = decision.Contract(
         actions=(
-            decision.Action("act", inputs=(quantity,), utility=decision.x(0) * d["benefit"] - d["cost"]),
+            decision.Action(
+                "act", inputs=(quantity,), utility=decision.x(0) * d["benefit"] - d["cost"]
+            ),
             decision.Action("hold", inputs=(quantity,), utility=decision.x(0) * 0.0),
         ),
         utility_units="cases_averted_per_1000_net_of_cost",
@@ -229,15 +241,17 @@ def consume_bundle(directory: pathlib.Path) -> dict:
         causal_contract_id="consumer",
     )
     try:
-        result = contract.evaluate(source)
+        result = require_success(contract.evaluate(source))
     except StructuredRefusal as error:
         raise Refused("decision", error) from error
     values = {a.id: a.expected_utility for a in result.actions}
 
     # The claim graph replays; it is valid at the evidence state consumed.
     try:
-        verification = cv.consume_composition_verification_artifact(
-            blob("verification.bin"), manifest["verification_identity"]
+        verification = require_success(
+            cv.consume_composition_verification_artifact(
+                blob("verification.bin"), manifest["verification_identity"]
+            )
         )
         verification.require_valid("decision")
         graph_valid = True

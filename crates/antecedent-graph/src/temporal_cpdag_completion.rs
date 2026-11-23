@@ -10,7 +10,7 @@
 //! visited states, and a stop is typed and counted by `hit_cap`. The search itself is
 //! shared with the static sampler (`crate::mec_search`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, SearchLimits, SearchReceipt, SearchStop};
 
@@ -110,7 +110,7 @@ impl TemporalCpdagCompletionSampler {
 /// Whether `dag` is a Markov-equivalence member of `cpdag`.
 #[must_use]
 pub(crate) fn is_temporal_mec_member(cpdag: &TemporalCpdag, dag: &TemporalDag) -> bool {
-    mec_search::is_mec_member(cpdag, dag, cpdag.nodes() == dag.nodes())
+    mec_search::is_mec_member(cpdag, dag, cpdag.dag_nodes().is_ok_and(|n| n == dag.nodes()))
 }
 
 impl Iterator for TemporalCpdagCompletionSampler {

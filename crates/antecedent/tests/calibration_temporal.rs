@@ -23,9 +23,9 @@
 //! residuals, truth `BETA`), and the Frequentist `PulseEffect` on a `TemporalDag`
 //! whose autoregressive treatment is identified by parent adjustment.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -173,7 +173,7 @@ fn mediation_coverage(test: &'static str, label: &str, kappa: f64, seed_base: u6
                 [(true, RefuteSuite::None), (false, RefuteSuite::Cheap), (false, RefuteSuite::Full)]
             {
                 let (_, other) =
-                    run(data.clone(), accepted, suite, rep).expect("licensed coordinate");
+                    run(data.clone(), accepted, suite, rep).expect("supported coordinate");
                 assert_eq!(pair(&other), intervals, "accepted={accepted} {suite:?}");
             }
         }
@@ -205,7 +205,7 @@ fn mediation_coverage(test: &'static str, label: &str, kappa: f64, seed_base: u6
 /// Mediator–outcome confounding through `z[t-1] -> w[t-1] -> y`
 /// (`kappa = MED_KAPPA`) that does not confound `t -> y`.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_cpdag_mediation_frequentist_confounded_nominal_coverage() {
     mediation_coverage(
         "temporal_cpdag_mediation_frequentist_confounded_nominal_coverage",
@@ -217,7 +217,7 @@ fn temporal_cpdag_mediation_frequentist_confounded_nominal_coverage() {
 
 /// The same class without mediator–outcome confounding (`kappa = 0`).
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_cpdag_mediation_frequentist_unconfounded_nominal_coverage() {
     mediation_coverage(
         "temporal_cpdag_mediation_frequentist_unconfounded_nominal_coverage",
@@ -232,7 +232,7 @@ const DEFAULT_PULSE: Scenario = Scenario { label: "iid n=160", rho: 0.0, n: N, s
 
 /// The facade's default Bayesian `PulseEffect` on a `TemporalDag`.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn pulse_effect_temporal_dag_bayesian_default_nominal_coverage() {
     let key = RecordKey {
         test: "pulse_effect_temporal_dag_bayesian_default_nominal_coverage",
@@ -280,7 +280,7 @@ const AR_PULSE_N: usize = 240;
 /// under its circular-block SE at the Study's default replicates. The accepted
 /// structure is checked to report the same interval on the first replicate.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage() {
     let key = RecordKey {
         test: "pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage",
@@ -306,10 +306,10 @@ fn pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage()
         Some((study, result))
     };
     let interval_pair = |result: &StudyResult| {
-        result.estimate.as_effect().unwrap().se_bootstrap().map_or([None, None], |se| {
+        result.estimate().as_effect().unwrap().se_bootstrap().map_or([None, None], |se| {
             [
-                normal_at(result.estimate.as_effect().unwrap().ate, se, REPORTED_LEVEL),
-                normal_at(result.estimate.as_effect().unwrap().ate, se, GATE_LEVEL),
+                normal_at(result.estimate().as_effect().unwrap().ate, se, REPORTED_LEVEL),
+                normal_at(result.estimate().as_effect().unwrap().ate, se, GATE_LEVEL),
             ]
         })
     };
@@ -333,7 +333,7 @@ fn pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage()
                 "the construction under test is parent adjustment"
             );
             assert!(intervals[0].is_some(), "the circular-block interval must be published");
-            let (_, accepted) = run_pulse(data, true, rep).expect("licensed coordinate");
+            let (_, accepted) = run_pulse(data, true, rep).expect("supported coordinate");
             assert_eq!(interval_pair(&accepted), intervals, "accepted structure");
         }
         Some((study, result, intervals))
@@ -365,10 +365,16 @@ fn temporal_cpdag_mediation_slice_interval_is_the_shared_design_interval() {
         .unwrap()
         .run(&ExecutionContext::for_tests(3))
         .unwrap();
-    assert_eq!(effect, dag.estimate.as_effect().unwrap().ate, "same contrast");
+    // The shared contrast is also near the path-product truth: 1.0 block SEs away here, so 2.5 SEs
+    // admits the seeded draw and refuses a null (0.3 / 0.07 = 4.3 SEs) or doubled effect.
+    assert!(
+        se > 0.0 && (effect - fixtures::mediation_truth()).abs() < 2.5 * se,
+        "{effect} +- {se}"
+    );
+    assert_eq!(effect, dag.estimate().as_effect().unwrap().ate, "same contrast");
     assert_eq!(
         Some(se),
-        dag.estimate.as_effect().unwrap().se_bootstrap(),
+        dag.estimate().as_effect().unwrap().se_bootstrap(),
         "same circular-block SE"
     );
 }
@@ -383,17 +389,17 @@ fn temporal_cpdag_mediation_class_reports_the_circular_block_interval() {
     let (study, result) = run(data.clone(), false, RefuteSuite::None, 3).unwrap();
     let (effect, se) = slice_effect(&result).expect("block interval on the class slice");
     assert_eq!(
-        result.estimate.as_effect().unwrap().ate,
+        result.estimate().as_effect().unwrap().ate,
         effect,
         "the shared contrast is the result's estimate"
     );
     assert_eq!(
-        result.estimate.as_effect().unwrap().se_bootstrap(),
+        result.estimate().as_effect().unwrap().se_bootstrap(),
         Some(se),
         "under the shared circular-block SE"
     );
     assert_eq!(
-        result.estimate.as_effect().unwrap().uncertainty.block.family,
+        result.estimate().as_effect().unwrap().uncertainty.block.family,
         Some(CircularBlockFamily::Mediation),
         "keyed to the mediation block family"
     );
@@ -401,7 +407,7 @@ fn temporal_cpdag_mediation_class_reports_the_circular_block_interval() {
     let contract = study.inspect().expect("inspect");
     let methods: Vec<String> = constructions(&contract, &result)
         .into_iter()
-        .map(|(construction, _)| construction.interval_method)
+        .map(|(construction, _, _)| construction.interval_method)
         .collect();
     assert_eq!(methods, ["circular_block_se"], "the class publishes a readable interval");
     let set =
@@ -419,14 +425,14 @@ fn temporal_cpdag_mediation_class_reports_the_circular_block_interval() {
         .unwrap();
     let capped = capped_study.run(&ExecutionContext::for_tests(3)).unwrap();
     assert!(
-        capped.estimate.as_effect().unwrap().ate.is_nan(),
+        capped.estimate().as_effect().unwrap().ate.is_nan(),
         "a capped class publishes no scalar"
     );
     assert!(capped.mediation().is_none());
     let capped_contract = capped_study.inspect().expect("inspect");
     let capped_methods: Vec<String> = constructions(&capped_contract, &capped)
         .into_iter()
-        .map(|(construction, _)| construction.interval_method)
+        .map(|(construction, _, _)| construction.interval_method)
         .collect();
     assert_eq!(capped_methods, ["none"], "a capped class reports no interval");
     assert!(

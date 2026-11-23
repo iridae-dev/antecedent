@@ -1,17 +1,25 @@
 #!/usr/bin/env python3
-"""Separate a treatment effect into direct and mediated parts.
+"""How much of a treatment's effect runs directly, and how much through a mediator?
 
-The baseline variable Z affects treatment A, mediator M, and outcome Y.
-For a change from 0.2 to 0.8, the simulated direct effect is 1.8 and the
-indirect effect through M is 4.8. Their total is 6.6, which also equals the
-mean individual effect in this simulation. Omitting Z would bias the analysis.
+The data are 500 deterministic rows of a linear model: the baseline variable z affects treatment
+a, mediator m (m = 2a + 0.5z + ...) and outcome y (y = 3a + 4m + 5z + ...), so z must be adjusted
+for. For a change in a from 0.2 to 0.8 the true natural direct effect is 3 * 0.6 = 1.8, the
+natural indirect effect through m is 4 * 2 * 0.6 = 4.8, and the total is 6.6, which in this
+linear model also equals the mean individual counterfactual effect.
 
-Install with `python -m pip install antecedent`; see examples/README.md."""
+The script asserts each frequentist estimate within 0.03 of its truth with the expected estimator
+(`mediation.linear`, `gcm.fit`), and Bayesian versions within 0.2 (direct) and 0.25 (individual).
+The DAG is declared, not tested; with no unexplained noise these are fixture checks of the
+estimators, not evidence about sampling error.
+
+Run: `python examples/python/staged_static_kinds.py`."""
 
 from __future__ import annotations
 
+import antecedent as _ant_api
 import numpy as np
 from antecedent import Bayesian, Counterfactual, MediationEffect, analyze, prepare
+from antecedent.outcomes import require_success
 
 
 def confounded_scm(n: int = 500) -> tuple[dict[str, np.ndarray], list[tuple[str, str]]]:
@@ -51,19 +59,21 @@ def main() -> None:
                 active_level=active,
             ),
             refute="none",
-            bootstrap=0,
+            inference=_ant_api.Frequentist(bootstrap=0),
         )
-        result = study.estimate()
+        result = require_success(_ant_api.estimate(study))
         print("Calibration:", result.calibration.status)
         print(f"{contrast}={result.effect:.4f} estimator={result.estimate.estimator_id}")
         assert abs(result.effect - expected) < 0.03, result.effect
         assert result.estimate.estimator_id == "mediation.linear"
 
-    ite = analyze(
-        data,
-        graph=graph,
-        query=Counterfactual("a", "y", control_level=control, active_level=active),
-        refute="none",
+    ite = require_success(
+        analyze(
+            data,
+            graph=graph,
+            query=Counterfactual("a", "y", control_level=control, active_level=active),
+            refute="none",
+        )
     )
     print(
         f"mean_ite={ite.mean_ite:.4f} n={len(ite.unit_effects)} "
@@ -73,31 +83,34 @@ def main() -> None:
     assert ite.estimate.estimator_id == "gcm.fit"
     assert len(ite.unit_effects) == len(data["a"])
 
-    bayes = analyze(
-        data,
-        graph=graph,
-        query=MediationEffect(
-            "a",
-            "y",
-            mediators=["m"],
-            contrast="natural_direct",
-            control_level=control,
-            active_level=active,
-        ),
-        inference=Bayesian(n_draws=64),
-        refute="none",
-        bootstrap=0,
+    bayes = require_success(
+        analyze(
+            data,
+            graph=graph,
+            query=MediationEffect(
+                "a",
+                "y",
+                mediators=["m"],
+                contrast="natural_direct",
+                control_level=control,
+                active_level=active,
+            ),
+            inference=Bayesian(n_draws=64),
+            refute="none",
+        )
     )
     print(f"bayesian_nde={bayes.effect:.4f} estimator={bayes.estimate.estimator_id}")
     assert abs(bayes.effect - 1.8) < 0.2, bayes.effect
     assert bayes.posterior is not None
 
-    bayes_cf = analyze(
-        data,
-        graph=graph,
-        query=Counterfactual("a", "y", control_level=control, active_level=active),
-        inference=Bayesian(n_draws=64),
-        refute="none",
+    bayes_cf = require_success(
+        analyze(
+            data,
+            graph=graph,
+            query=Counterfactual("a", "y", control_level=control, active_level=active),
+            inference=Bayesian(n_draws=64),
+            refute="none",
+        )
     )
     print(f"bayesian_ite={bayes_cf.mean_ite:.4f} estimator={bayes_cf.estimate.estimator_id}")
     assert abs(bayes_cf.mean_ite - 6.6) < 0.25, bayes_cf.mean_ite

@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import antecedent
 import numpy as np
+import pytest
+from antecedent import Execution
+from antecedent.outcomes import require_success
 
 
 def _confounded(n: int = 400, seed: int = 11):
@@ -16,13 +19,15 @@ def _confounded(n: int = 400, seed: int = 11):
 
 def test_analyze_refute_full_runs():
     data, edges = _confounded()
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        refute="full",
-        bootstrap=5,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            refute="full",
+            inference=antecedent.Frequentist(bootstrap=5),
+            execution=antecedent.Execution(seed=1),
+        )
     )
     # Full suite includes more than placebo+rcc when applicable.
     assert result.validation.ran is True
@@ -32,6 +37,12 @@ def test_analyze_refute_full_runs():
     reports = result.validation.reports
     assert len(reports) == result.validation.count
     refuter_names = {r.refuter for r in reports}
+    # The graph adjusts for the confounder z and the generating effect is 2: the estimate
+    # recovers it, and the two refuters that a correct adjustment must survive pass.
+    assert result.ate == pytest.approx(2.0, abs=0.06)
+    by_name = {r.refuter: r for r in reports}
+    assert by_name["placebo.treatment"].passed is True
+    assert by_name["random.common_cause"].passed is True
     assert "placebo.treatment" in refuter_names
     assert "random.common_cause" in refuter_names
     for r in reports:
@@ -57,7 +68,7 @@ def test_validate_pcmci_block_bootstrap_smoke():
         fdr=False,
         replicates=5,
         block_size=10,
-        seed=1,
+        execution=Execution(seed=1),
     )
     assert report["replicates"] == 5
     assert report["block_size"] == 10
@@ -66,13 +77,7 @@ def test_validate_pcmci_block_bootstrap_smoke():
 
 def test_validate_synthetic_null_calibration_smoke():
     report = antecedent.validation.validate_synthetic_null_calibration(
-        max_lag=1,
-        alpha=0.2,
-        fdr=False,
-        n_sim=5,
-        n_obs=60,
-        n_vars=2,
-        seed=3,
+        max_lag=1, alpha=0.2, fdr=False, n_sim=5, n_obs=60, n_vars=2, execution=Execution(seed=3)
     )
     assert report["n_sim"] == 5
     assert np.isfinite(report["empirical_fpr"])

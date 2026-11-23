@@ -30,5 +30,5 @@ breaks identification soundness.
 
 ## Consequences
 
-Exit criteria gated by `scripts/gate_pag.sh`. Shapley attribution remains
+Exit criteria gated by `scripts/check_parity_inventories.py`. Shapley attribution remains
 Attribution inventory; J/RPCMCI live under context / pinned baseline.

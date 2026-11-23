@@ -1,20 +1,24 @@
 //! Partially linear DML and cross-fitted AIPW via `antecedent-learn`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
 use antecedent_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation};
 use antecedent_data::{TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_learn::{LearnerSpec, LogisticSpec, PredictionTask, RidgeSpec, diagnose};
+use antecedent_learn::{
+    DesignView, LearnerFactory, LearnerSpec, LogisticSpec, PredictionTask, RidgeSpec, diagnose,
+};
 
 use crate::adjustment::EffectEstimate;
+use crate::arm::TreatmentArm;
 use crate::cluster_dml_aipw::{ClusterDml, DeclaredUnits};
+use crate::dml_outcome_prior::OutcomePriorSource;
 use crate::error::EstimationError;
 use crate::learn_nuisance::{
     AipwPredictions, NuisanceDesign, aipw_scores, cached_aipw_nuisances, cross_fit_nuisance,
-    guarded_propensity, iid_se,
+    guarded_propensity, iid_se, retained_fold_ids,
 };
 use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
 use crate::prepare::{require_adjustment_shaped, validate_ate_query_with_targets};
@@ -37,6 +41,10 @@ pub enum DmlScore {
     /// Robinson partially linear residual-on-residual score.
     PartiallyLinear,
 }
+
+/// Cross-fitted predictions of a prior-regularized outcome fit, the hydrated prior and the
+/// outcome design's column names.
+type PriorOutcomeFit = (AipwPredictions, antecedent_prob::PriorSet, Arc<[Arc<str>]>);
 
 impl DmlScore {
     /// Parse `aipw` / `partially_linear`.
@@ -78,6 +86,12 @@ pub struct DmlAte {
     /// score is averaged under them, and the standard error is that of the weighted score.
     /// A weighted fit keeps no row-identified score table, so it is not retargetable.
     pub sampling_weights: Option<SamplingWeights>,
+    /// A Gaussian coefficient prior on the per-arm outcome-regression nuisance (AIPW score
+    /// only). Each fold fits the posterior mode of the arm's linear outcome model centred on
+    /// the prior mean instead of the [`Self::outcome`] learner; the doubly robust correction,
+    /// the cross-fitting and the influence-function interval are unchanged. `None` runs the
+    /// configured outcome learner exactly as without a prior.
+    pub outcome_prior: Option<OutcomePriorSource>,
 }
 
 impl Default for DmlAte {
@@ -105,7 +119,16 @@ impl DmlAte {
                 second_source: None,
             },
             sampling_weights: None,
+            outcome_prior: None,
         }
+    }
+
+    /// Regularize the per-arm outcome-regression nuisance with a coefficient prior (see
+    /// [`Self::outcome_prior`]). The prior shapes efficiency and never identification.
+    #[must_use]
+    pub fn with_outcome_prior(mut self, prior: OutcomePriorSource) -> Self {
+        self.outcome_prior = Some(prior);
+        self
     }
 
     /// Declare sampling weights for every row of the source table.
@@ -227,7 +250,8 @@ impl DmlAte {
             self.sampling_weights.as_ref(),
         )?;
         if self.units.spec.is_some() && !matches!(self.score, DmlScore::Aipw) {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "a cluster-DML declaration needs the AIPW score, whose per-arm scores the \
                  cluster sandwich reads",
             ));
@@ -260,6 +284,7 @@ impl DmlAte {
         if matches!(self.score, DmlScore::Aipw) {
             require_binary_treatment(problem)?;
         }
+        self.require_outcome_prior_scope()?;
         let estimate = match self.score {
             DmlScore::Aipw => self.fit_aipw(problem, ctx, assumptions),
             DmlScore::PartiallyLinear => self.fit_plr(problem, ctx, assumptions),
@@ -281,6 +306,148 @@ impl DmlAte {
         Ok(estimate.with_treatment_levels(problem.treatment_levels))
     }
 
+    /// Fit the configured DML score using caller-supplied nuisance factories.
+    ///
+    /// Each factory receives the prepared design including its intercept. The returned
+    /// estimate records the fitted predictors' provenance and is not reused from the
+    /// built-in learner cache. This method does not itself verify external providers.
+    ///
+    /// # Errors
+    ///
+    /// Refuses unsupported targets, incompatible factories, invalid predictions,
+    /// and the same invalid folds, overlap and admission conditions as [`Self::fit`].
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one cohesive factory-driven nuisance fit and result-publication path"
+    )]
+    pub fn fit_with_factories(
+        &self,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+        mut assumptions: AssumptionSet,
+        outcome: &dyn LearnerFactory,
+        treatment: &dyn LearnerFactory,
+    ) -> Result<EffectEstimate, EstimationError> {
+        if !matches!(problem.target_population, TargetPopulation::AllObserved) {
+            return Err(EstimationError::TargetPopulation);
+        }
+        if matches!(self.score, DmlScore::Aipw) {
+            require_binary_treatment(problem)?;
+        }
+        if self.outcome_prior.is_some() {
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "an outcome-nuisance prior regularizes the built-in per-arm outcome regression; \
+                 caller-supplied learner factories replace that regression, so declare either \
+                 the prior or the factories",
+            ));
+        }
+        crate::learn_nuisance::declare_unverified_factories(&mut assumptions, "dml");
+        let ids = retained_fold_ids(problem, self.folds, ctx)?;
+        let design = DesignView::from_column_major(
+            &problem.design_matrix,
+            problem.nrows,
+            problem.design_ncols,
+        )
+        .map_err(crate::learn_nuisance::learn_err)?;
+        let outcome = antecedent_learn::IsolatedFactory::new(outcome);
+        let treatment = antecedent_learn::IsolatedFactory::new(treatment);
+        if matches!(self.score, DmlScore::PartiallyLinear) {
+            for (factory, task) in [
+                (&outcome, PredictionTask::Regression),
+                (&treatment, PredictionTask::BinaryProbability),
+            ] {
+                if factory.task() != task {
+                    return Err(crate::learn_nuisance::learn_err(
+                        antecedent_learn::LearnError::TaskMismatch {
+                            requested: task,
+                            supported: factory.task(),
+                        },
+                    ));
+                }
+            }
+            let weights = problem.sampling_weights.as_ref().map(|s| &*s.weights);
+            let m = antecedent_learn::cross_fit_with_folds_weighted(
+                &outcome,
+                design,
+                antecedent_learn::TargetView::new(&problem.outcome),
+                weights,
+                ids.clone(),
+                ctx,
+                None,
+            )
+            .map_err(crate::learn_nuisance::learn_err)?;
+            let e = antecedent_learn::cross_fit_with_folds_weighted(
+                &treatment,
+                design,
+                antecedent_learn::TargetView::new(&problem.treatment),
+                weights,
+                ids,
+                ctx,
+                None,
+            )
+            .map_err(crate::learn_nuisance::learn_err)?;
+            let effect = self.fit_plr_from_nuisances(problem, ctx, assumptions, m, e)?;
+            return Ok(self
+                .units
+                .publish(effect, problem)?
+                .with_treatment_levels(problem.treatment_levels));
+        }
+        let nuisance = antecedent_learn::aipw_crossfit::cross_fit_aipw_with_factories(
+            &outcome,
+            &treatment,
+            design,
+            design,
+            &problem.outcome,
+            &problem.treatment,
+            (self.folds, ids),
+            ctx,
+            problem.sampling_weights.as_ref().map(|s| &*s.weights),
+        )
+        .map_err(crate::learn_nuisance::aipw_cross_fit_error)?;
+        let recorded_folds: Arc<[u32]> =
+            nuisance.3.fold_assignment.iter().map(|&f| u32::from(f)).collect();
+        let marginal = aipw_marginal_from_nuisance(problem, &nuisance, assumptions)?;
+        let mut effect = attach_crossfit_aipw_table(
+            marginal.effect,
+            problem,
+            &nuisance,
+            CrossfitAipwTableContext {
+                folds: self.folds,
+                learners: [self.outcome, self.treatment],
+                route: "dml",
+                seed: ctx.rng.master_seed(),
+                clipped: &marginal.ehat,
+            },
+        )?;
+        effect.crossfit.fold_assignment = Some(recorded_folds);
+        if let Some(table) = effect.scores.table.as_mut() {
+            let unit_suffix =
+                match (problem.fold_assignment.as_deref(), problem.fold_units.as_deref()) {
+                    (None, Some(units)) => {
+                        crate::cluster_dml_aipw::provenance_suffix(units, problem.fold_unit_kind)
+                    }
+                    _ => String::new(),
+                };
+            table.nuisance_provenance = Arc::from(format!(
+                "{DML_CROSSFIT_PROVENANCE};route=dml;outcome=caller_factory;treatment=caller_factory{unit_suffix}"
+            ));
+        }
+        let effect = if problem.sampling_weights.is_some() && self.units.spec.is_some() {
+            let fold_ids: Vec<u32> =
+                nuisance.3.fold_assignment.iter().map(|&f| u32::from(f)).collect();
+            self.units.publish_weighted(
+                effect,
+                problem,
+                &fold_ids,
+                u32::try_from(self.folds).unwrap_or(u32::MAX),
+            )?
+        } else {
+            self.units.publish(effect, problem)?
+        };
+        Ok(effect.with_treatment_levels(problem.treatment_levels))
+    }
+
     /// Form a population ATE interval under independent homoskedastic Gaussian
     /// arm-linear outcomes, including training-fold fit uncertainty and a declared
     /// finite-ridge mean correction. The default robust fit remains unchanged.
@@ -295,13 +462,25 @@ impl DmlAte {
         level: f64,
     ) -> Result<crate::population_aipw::PopulationAipwInterval, EstimationError> {
         if self.units.spec.is_some() || !matches!(self.score, DmlScore::Aipw) {
-            return Err(EstimationError::unsupported("population linear DML requires IID AIPW"));
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "population linear DML requires IID AIPW",
+            ));
+        }
+        if self.outcome_prior.is_some() {
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "the population linear interval corrects a ridge outcome fit and does not cover \
+                 a prior-regularized outcome nuisance; use the cross-fitted influence-function \
+                 interval",
+            ));
         }
         let ridge = match self.outcome {
             LearnerSpec::Linear(_) => 0.0,
             LearnerSpec::Ridge(spec) => spec.lambda,
             _ => {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
                     "population linear interval requires a linear outcome learner",
                 ));
             }
@@ -341,18 +520,175 @@ impl DmlAte {
             return Err(EstimationError::data_msg("DML requires at least two folds"));
         }
         require_binary_treatment(problem)?;
+        if let Some(prior) = &self.outcome_prior {
+            self.require_outcome_prior_scope()?;
+            let (nuisance, _, _) = self.prior_nuisances(prior, problem, ctx)?;
+            let mut table = aipw_score_table(
+                problem,
+                &nuisance,
+                self.folds,
+                [self.outcome, self.treatment],
+                "dml",
+            )?;
+            table.nuisance_provenance = self.prior_provenance(prior, problem);
+            return Ok(Some(table));
+        }
         let nuisance =
             cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
         aipw_score_table(problem, &nuisance, self.folds, [self.outcome, self.treatment], "dml")
             .map(Some)
     }
 
+    /// The cross-fitted per-arm AIPW score table of a prior-regularized outcome nuisance, on
+    /// any target population, with the assumption records the prior adds.
+    ///
+    /// The table is the population-free per-row object (`mu_a + 1{T=a}(Y - mu_a)/e_a`): the
+    /// caller weights it for its target. Unlike [`Self::score_table`] this builds the table for
+    /// a problem whose target is a custom distribution, so a prior-regularized estimate can be
+    /// standardized to a weighted population.
+    ///
+    /// # Errors
+    ///
+    /// No outcome prior declared, a non-binary treatment, a prior scope the route does not
+    /// cover, or a failed nuisance fit.
+    pub(crate) fn prior_score_table(
+        &self,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+        assumptions: &mut AssumptionSet,
+    ) -> Result<ScoreTable, EstimationError> {
+        let Some(prior) = &self.outcome_prior else {
+            return Err(EstimationError::data_msg("no outcome-nuisance prior is declared"));
+        };
+        if self.folds < 2 {
+            return Err(EstimationError::data_msg("DML requires at least two folds"));
+        }
+        require_binary_treatment(problem)?;
+        self.require_outcome_prior_scope()?;
+        let (nuisance, hydrated, names) = self.prior_nuisances(prior, problem, ctx)?;
+        for record in prior.assumptions(&hydrated, &names) {
+            assumptions.push(record);
+        }
+        let mut table = aipw_score_table(
+            problem,
+            &nuisance,
+            self.folds,
+            [self.outcome, self.treatment],
+            "dml",
+        )?;
+        table.nuisance_provenance = self.prior_provenance(prior, problem);
+        Ok(table)
+    }
+
+    /// Refuse the combinations an outcome-nuisance prior does not cover.
+    fn require_outcome_prior_scope(&self) -> Result<(), EstimationError> {
+        if self.outcome_prior.is_none() {
+            return Ok(());
+        }
+        if !matches!(self.score, DmlScore::Aipw) {
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "an outcome-nuisance prior regularizes the per-arm outcome regressions of the \
+                 AIPW score; the partially linear score fits one outcome model with no arm \
+                 coefficients, so use the AIPW score",
+            ));
+        }
+        if self.units.spec.is_some() {
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "an outcome-nuisance prior is not combined with a whole-cluster cross-fit \
+                 declaration; fit the prior under independent rows",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Hydrate the prior over the problem's design columns and cross-fit the AIPW nuisances
+    /// with the prior-regularized per-arm outcome regressions. Returns the nuisance bundle,
+    /// the hydrated prior and the design names the prior was mapped onto.
+    fn prior_nuisances(
+        &self,
+        prior: &OutcomePriorSource,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+    ) -> Result<PriorOutcomeFit, EstimationError> {
+        let names = problem.design_names.clone().ok_or_else(|| {
+            EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "the prepared problem carries no design column names to map the outcome-nuisance \
+                 prior onto; prepare it from a table with `DmlAte::prepare`",
+            )
+        })?;
+        let hydrated = prior.hydrate(&names)?;
+        let factory = antecedent_learn::GaussianPriorRegression::new(hydrated.clone())
+            .map_err(crate::learn_nuisance::learn_err)?;
+        let nuisance = crate::learn_nuisance::prior_outcome_aipw_nuisances(
+            problem,
+            &factory,
+            self.treatment,
+            self.folds,
+            ctx,
+        )?;
+        Ok((nuisance, hydrated, names))
+    }
+
+    /// Score-table provenance of a prior-regularized fit: the prior replaces the outcome
+    /// learner's identity.
+    fn prior_provenance(
+        &self,
+        prior: &OutcomePriorSource,
+        problem: &PreparedPropensityProblem,
+    ) -> Arc<str> {
+        Arc::from(format!(
+            "{DML_CROSSFIT_PROVENANCE};route=dml;outcome={};treatment={}{}",
+            prior.identity_key(),
+            self.treatment.identity(),
+            match (problem.fold_assignment.as_deref(), problem.fold_units.as_deref()) {
+                (None, Some(units)) =>
+                    crate::cluster_dml_aipw::provenance_suffix(units, problem.fold_unit_kind),
+                _ => String::new(),
+            }
+        ))
+    }
+
     fn fit_aipw(
         &self,
         problem: &PreparedPropensityProblem,
         ctx: &ExecutionContext,
-        assumptions: AssumptionSet,
+        mut assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        if let Some(prior) = &self.outcome_prior {
+            let (nuisance, hydrated, names) = self.prior_nuisances(prior, problem, ctx)?;
+            for record in prior.assumptions(&hydrated, &names) {
+                assumptions.push(record);
+            }
+            // The propensity is the cross-fitted unpenalized logistic MLE, so its estimation
+            // moves the estimate by a first-order term that survives a wrong outcome model.
+            let estimated_propensity =
+                matches!(self.treatment, LearnerSpec::Logistic(spec) if spec.ridge_lambda <= 0.0);
+            let marginal = aipw_marginal_from_nuisance_estimated(
+                problem,
+                &nuisance,
+                assumptions,
+                estimated_propensity,
+            )?;
+            let mut effect = attach_crossfit_aipw_table(
+                marginal.effect,
+                problem,
+                &nuisance,
+                CrossfitAipwTableContext {
+                    folds: self.folds,
+                    learners: [self.outcome, self.treatment],
+                    route: "dml",
+                    seed: ctx.rng.master_seed(),
+                    clipped: &marginal.ehat,
+                },
+            )?;
+            if let Some(table) = effect.scores.table.as_mut() {
+                table.nuisance_provenance = self.prior_provenance(prior, problem);
+            }
+            return Ok(effect);
+        }
         let nuisance =
             cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
         let marginal = aipw_marginal_from_nuisance(problem, &nuisance, assumptions)?;
@@ -374,16 +710,19 @@ impl DmlAte {
         &self,
         problem: &PreparedPropensityProblem,
         ctx: &ExecutionContext,
-        mut assumptions: AssumptionSet,
+        assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
         let row_weights = problem.sampling_weights.as_ref().map(|s| &*s.weights);
+        // The same fold plan as the AIPW score: the recorded assignment when the problem carries
+        // one, otherwise the seeded plan stratified by treatment arm.
+        let fold_ids = retained_fold_ids(problem, self.folds, ctx)?;
         let m = cross_fit_nuisance(
             self.outcome,
             PredictionTask::Regression,
             NuisanceDesign::of(problem),
             problem.outcome.as_ref(),
             row_weights,
-            self.folds,
+            fold_ids.clone(),
             ctx,
         )?;
         let e = cross_fit_nuisance(
@@ -392,9 +731,21 @@ impl DmlAte {
             NuisanceDesign::of(problem),
             problem.treatment.as_ref(),
             row_weights,
-            self.folds,
+            fold_ids,
             ctx,
         )?;
+        self.fit_plr_from_nuisances(problem, ctx, assumptions, m, e)
+    }
+
+    fn fit_plr_from_nuisances(
+        &self,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+        mut assumptions: AssumptionSet,
+        m: antecedent_learn::CrossFittedPrediction,
+        e: antecedent_learn::CrossFittedPrediction,
+    ) -> Result<EffectEstimate, EstimationError> {
+        let row_weights = problem.sampling_weights.as_ref().map(|s| &*s.weights);
         let n = problem.nrows;
         let retained = trim_retained_rows(&e.predictions, trim_of(problem.overlap))?;
         let mut keep = vec![true; n];
@@ -456,6 +807,7 @@ impl DmlAte {
             status: antecedent_core::AssumptionStatus::Declared,
         });
         let mut effect = EffectEstimate::new(theta, se, assumptions, problem.overlap)
+            .with_preparation(Some(problem.preparation_summary()))
             .with_overlap_report(Some(report))
             .with_n_obs(u64::try_from(keep.iter().filter(|&&v| v).count()).unwrap_or(u64::MAX))
             .with_se_kind(AnalyticSeKind::Homoskedastic)
@@ -463,6 +815,8 @@ impl DmlAte {
             .with_influence(Some(Arc::from(psi)));
         effect.crossfit.folds = Some(self.folds);
         effect.crossfit.seed = Some(ctx.rng.master_seed());
+        effect.crossfit.fold_assignment =
+            Some(e.fold_assignment.iter().map(|&f| u32::from(f)).collect());
         effect.crossfit.outcome_oof_r2 = m.validation.r2;
         effect.crossfit.treatment_oof_logloss = e.validation.logloss;
         effect.crossfit.learner_provenance = m.model_provenance;
@@ -485,7 +839,7 @@ pub(crate) fn scores_retargetable(problem: &PreparedPropensityProblem) -> bool {
 }
 
 /// Per-arm scores `μ_a + 1{T=a}(Y - μ_a)/e_a` from one cross-fitted nuisance bundle. The same
-/// formulas as the licensed AIPW table (`build_binary_scores`), so `φ¹ - φ⁰` is the AIPW
+/// formulas as the supported AIPW table (`build_binary_scores`), so `φ¹ - φ⁰` is the AIPW
 /// score of the DML, `DR-Learner` and `CausalForest` marginal ATE row by row. `learners` is
 /// `[outcome, treatment]`; `route` names the estimator in the provenance tag.
 pub(crate) fn aipw_score_table(
@@ -535,7 +889,11 @@ fn aipw_score_table_clipped(
             }
             AIPW_SCORE_BUILDS.with(|count| count.set(count.get().saturating_add(1)));
             Ok(ScoreTable {
-                observed_arm: problem.treatment.iter().map(|t| u32::from(*t > 0.5)).collect(),
+                observed_arm: problem
+                    .treatment
+                    .iter()
+                    .map(|t| u32::from(TreatmentArm::is_treated_indicator(*t)))
+                    .collect(),
                 propensities: propensities.into(),
                 observed_outcome: Arc::clone(&problem.outcome),
                 n_rows: n,
@@ -565,6 +923,7 @@ fn aipw_score_table_clipped(
                 propensity_clip: clip,
                 treatment: problem.treatment_id,
                 intervened: Arc::from([]),
+                preparation: None,
             })
         },
     )
@@ -589,6 +948,18 @@ pub(crate) fn aipw_marginal_from_nuisance(
     nuisance: &AipwPredictions,
     assumptions: AssumptionSet,
 ) -> Result<AipwMarginal, EstimationError> {
+    aipw_marginal_from_nuisance_estimated(problem, nuisance, assumptions, false)
+}
+
+/// [`aipw_marginal_from_nuisance`], optionally carrying the first-order term for the estimated
+/// logistic propensity in the influence (see [`propensity_estimation_term`]). Pass `true` only
+/// when the propensity nuisance is the unpenalized logistic MLE.
+pub(crate) fn aipw_marginal_from_nuisance_estimated(
+    problem: &PreparedPropensityProblem,
+    nuisance: &AipwPredictions,
+    assumptions: AssumptionSet,
+    estimated_propensity: bool,
+) -> Result<AipwMarginal, EstimationError> {
     let (mu0, mu1, raw_e, treat) = nuisance;
     let ehat = guarded_propensity(raw_e, clip_of(problem.overlap))?;
     let phi = aipw_scores(problem.treatment.as_ref(), problem.outcome.as_ref(), &ehat, mu0, mu1);
@@ -597,11 +968,17 @@ pub(crate) fn aipw_marginal_from_nuisance(
         .iter()
         .zip(mu0)
         .zip(mu1)
-        .map(|((&ti, &m0), &m1)| if ti > 0.5 { m1 } else { m0 })
+        .map(|((&ti, &m0), &m1)| if TreatmentArm::is_treated_indicator(ti) { m1 } else { m0 })
         .collect();
     let outcome_diag = diagnose(PredictionTask::Regression, problem.outcome.as_ref(), &yhat);
-    let effect =
-        finish_dml(&phi, problem, assumptions, treat.validation.logloss, outcome_diag.r2, raw_e)?;
+    let effect = finish_dml_with(
+        &phi,
+        problem,
+        assumptions,
+        (treat.validation.logloss, outcome_diag.r2),
+        raw_e,
+        estimated_propensity.then_some(EstimatedPropensity { mu0, mu1, clipped: &ehat }),
+    )?;
     Ok(AipwMarginal { phi, ehat, effect })
 }
 
@@ -651,6 +1028,7 @@ fn require_binary_treatment(problem: &PreparedPropensityProblem) -> Result<(), E
     Ok(())
 }
 
+#[cfg(test)]
 pub(crate) fn finish_dml(
     phi: &[f64],
     problem: &PreparedPropensityProblem,
@@ -658,6 +1036,26 @@ pub(crate) fn finish_dml(
     treat_logloss: Option<f64>,
     outcome_r2: Option<f64>,
     raw_e: &[f64],
+) -> Result<EffectEstimate, EstimationError> {
+    finish_dml_with(phi, problem, assumptions, (treat_logloss, outcome_r2), raw_e, None)
+}
+
+/// The out-of-fold outcome means and clipped propensities of a fit whose propensity is the
+/// cross-fitted unpenalized logistic MLE.
+pub(crate) struct EstimatedPropensity<'a> {
+    pub mu0: &'a [f64],
+    pub mu1: &'a [f64],
+    pub clipped: &'a [f64],
+}
+
+/// [`finish_dml`] with the influence optionally extended by the estimated-propensity term.
+fn finish_dml_with(
+    phi: &[f64],
+    problem: &PreparedPropensityProblem,
+    assumptions: AssumptionSet,
+    (treat_logloss, outcome_r2): (Option<f64>, Option<f64>),
+    raw_e: &[f64],
+    estimated: Option<EstimatedPropensity<'_>>,
 ) -> Result<EffectEstimate, EstimationError> {
     let n = phi.len();
     if n < 2 || raw_e.len() != n || phi.iter().any(|p| !p.is_finite()) {
@@ -674,11 +1072,40 @@ pub(crate) fn finish_dml(
     let row_weights = problem.sampling_weights.as_ref().map(|s| &*s.weights);
     let weight_of = |i: usize| row_weights.map_or(1.0, |w| w[i]);
     let mass: f64 = rows.iter().map(|&i| weight_of(i)).sum();
-    let ate = rows.iter().map(|&i| weight_of(i) * phi[i]).sum::<f64>() / mass;
+    let ate = if row_weights.is_none() {
+        antecedent_learn::dr_replay::retained_mean(phi, &rows)
+    } else {
+        rows.iter().map(|&i| weight_of(i) * phi[i]).sum::<f64>() / mass
+    };
     // Embed the retained-population ratio influence in the original row universe.
-    let mut influence = vec![0.0; n];
-    for &i in &rows {
-        influence[i] = weight_of(i) * (phi[i] - ate) * n as f64 / mass;
+    let mut influence = if row_weights.is_none() {
+        antecedent_learn::dr_replay::retained_influence(phi, &rows, ate)
+    } else {
+        let mut influence = vec![0.0; n];
+        for &i in &rows {
+            influence[i] = weight_of(i) * (phi[i] - ate) * n as f64 / mass;
+        }
+        influence
+    };
+    if let Some(estimated) = estimated {
+        let term = propensity_estimation_term(
+            &PropensityTermInputs {
+                design: &problem.design_matrix,
+                ncols: problem.design_ncols,
+                treatment: &problem.treatment,
+                outcome: &problem.outcome,
+                mu0: estimated.mu0,
+                mu1: estimated.mu1,
+                raw: raw_e,
+                clipped: estimated.clipped,
+                weights: row_weights,
+            },
+            &rows,
+            mass,
+        )?;
+        for (value, extra) in influence.iter_mut().zip(term) {
+            *value += extra;
+        }
     }
     let se = iid_se(&influence);
     let report = OverlapReport::from_propensities(
@@ -690,6 +1117,7 @@ pub(crate) fn finish_dml(
         None,
     );
     let mut effect = EffectEstimate::new(ate, se, assumptions, problem.overlap)
+        .with_preparation(Some(problem.preparation_summary()))
         .with_overlap_report(Some(report))
         .with_n_obs(u64::try_from(kept).unwrap_or(u64::MAX))
         .with_se_kind(AnalyticSeKind::Homoskedastic)
@@ -698,6 +1126,93 @@ pub(crate) fn finish_dml(
     effect.crossfit.outcome_oof_r2 = outcome_r2;
     effect.crossfit.treatment_oof_logloss = treat_logloss;
     Ok(effect)
+}
+
+/// Columns and nuisance predictions behind [`propensity_estimation_term`].
+struct PropensityTermInputs<'a> {
+    /// Column-major `n × ncols` propensity design.
+    design: &'a [f64],
+    ncols: usize,
+    treatment: &'a [f64],
+    outcome: &'a [f64],
+    mu0: &'a [f64],
+    mu1: &'a [f64],
+    /// Raw fitted propensity (the logistic MLE's own predictions).
+    raw: &'a [f64],
+    /// Propensity after the overlap clip, the one the score uses.
+    clipped: &'a [f64],
+    weights: Option<&'a [f64]>,
+}
+
+/// The first-order influence term for estimating the logistic propensity `e = σ(xᵀγ)`.
+///
+/// The AIPW score is `φ = μ₁ − μ₀ + T(Y − μ₁)/e − (1 − T)(Y − μ₀)/(1 − e)`. The fitted `γ̂` solves
+/// `Σ wᵢ xᵢ(Tᵢ − êᵢ) = 0`, so the estimate carries `Dᵀ I⁻¹ s̄` with
+/// `D = Σ_retained wᵢ ∂φᵢ/∂γ / mass` (`∂φ/∂γ = −[T(Y − μ₁)(1 − e)/e + (1 − T)(Y − μ₀)e/(1 − e)]x`,
+/// zero on a clipped row) and `I = mean(wᵢ êᵢ(1 − êᵢ) xᵢxᵢᵀ)`. The returned per-row term is
+/// `Dᵀ I⁻¹ wᵢ xᵢ(Tᵢ − êᵢ)`: add it to the ratio influence of the mean. `D` is a mean of
+/// outcome-residual-weighted terms, so it is zero to first order when the outcome model is
+/// right and the term then adds only `O(1/n)` variance; with a wrong outcome model the term
+/// removes the part of the score the propensity fit explains, which the score treated as known
+/// otherwise over-states. Under cross-fitting the average of the fold-wise `γ̂₋ₖ − γ₀` equals
+/// the full-sample `I⁻¹ s̄`, so the same linearisation holds with the out-of-fold residuals.
+///
+/// # Errors
+/// Length mismatch or a singular propensity information matrix.
+fn propensity_estimation_term(
+    inputs: &PropensityTermInputs<'_>,
+    rows: &[usize],
+    mass: f64,
+) -> Result<Vec<f64>, EstimationError> {
+    let n = inputs.raw.len();
+    let p = inputs.ncols;
+    if p == 0 {
+        return Ok(vec![0.0; n]);
+    }
+    if inputs.design.len() != n * p
+        || [inputs.treatment, inputs.outcome, inputs.mu0, inputs.mu1, inputs.clipped]
+            .iter()
+            .any(|column| column.len() != n)
+    {
+        return Err(EstimationError::data_msg("propensity correction length mismatch"));
+    }
+    let weight = |i: usize| inputs.weights.map_or(1.0, |w| w[i]);
+    let x = |row: usize, column: usize| inputs.design[column * n + row];
+    let mut derivative = vec![0.0; p];
+    for &i in rows {
+        let (t, y, e, raw) =
+            (inputs.treatment[i], inputs.outcome[i], inputs.clipped[i], inputs.raw[i]);
+        // A clipped row does not depend on γ locally.
+        if (e - raw).abs() > 0.0 {
+            continue;
+        }
+        let slope = -(t * (y - inputs.mu1[i]) * (1.0 - e) / e
+            + (1.0 - t) * (y - inputs.mu0[i]) * e / (1.0 - e));
+        for (c, d) in derivative.iter_mut().enumerate() {
+            *d += weight(i) * slope * x(i, c) / mass;
+        }
+    }
+    let mut information = vec![0.0; p * p];
+    for i in 0..n {
+        let curvature = weight(i) * inputs.raw[i] * (1.0 - inputs.raw[i]) / n as f64;
+        for c in 0..p {
+            for d in 0..p {
+                information[c * p + d] += curvature * x(i, c) * x(i, d);
+            }
+        }
+    }
+    let Some(alpha) = crate::util::solve_spd(&information, &derivative, p) else {
+        return Err(EstimationError::stats_msg(
+            "singular propensity information; refusing an analytic SE that ignores the fitted \
+             propensity",
+        ));
+    };
+    Ok((0..n)
+        .map(|i| {
+            let adjustment: f64 = (0..p).map(|c| x(i, c) * alpha[c]).sum();
+            adjustment * weight(i) * (inputs.treatment[i] - inputs.raw[i])
+        })
+        .collect())
 }
 
 #[cfg(test)]
@@ -827,7 +1342,62 @@ mod tests {
     }
 
     #[test]
-    fn aipw_matches_licensed_glm_ols_on_fixture() {
+    fn caller_factories_match_builtin_dml_and_record_their_provenance() {
+        let (t, y, z) = confounded_columns(240, 4);
+        let (data, estimand) = build_dataset(t, y, z);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = DmlAte::new();
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let outcome =
+            antecedent_learn::resolve_for(est.outcome, PredictionTask::Regression).unwrap();
+        let treatment =
+            antecedent_learn::resolve_for(est.treatment, PredictionTask::BinaryProbability)
+                .unwrap();
+        let builtin = est.fit(&prep, &ctx(), AssumptionSet::new()).unwrap();
+        let supplied = est
+            .fit_with_factories(
+                &prep,
+                &ctx(),
+                AssumptionSet::new(),
+                outcome.as_ref(),
+                treatment.as_ref(),
+            )
+            .unwrap();
+        assert!((builtin.ate - supplied.ate).abs() < 1e-12);
+        assert_eq!(supplied.crossfit.learner_provenance.len(), est.folds * 3);
+        assert!(supplied.scores.table.unwrap().nuisance_provenance.contains("caller_factory"));
+    }
+
+    #[test]
+    fn caller_factories_match_builtin_partially_linear_dml() {
+        let (t, y, z) = confounded_columns(240, 4);
+        let (data, estimand) = build_dataset(t, y, z);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = DmlAte::new().with_score(DmlScore::PartiallyLinear);
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let outcome =
+            antecedent_learn::resolve_for(est.outcome, PredictionTask::Regression).unwrap();
+        let treatment =
+            antecedent_learn::resolve_for(est.treatment, PredictionTask::BinaryProbability)
+                .unwrap();
+        let builtin = est.fit(&prep, &ctx(), AssumptionSet::new()).unwrap();
+        let supplied = est
+            .fit_with_factories(
+                &prep,
+                &ctx(),
+                AssumptionSet::new(),
+                outcome.as_ref(),
+                treatment.as_ref(),
+            )
+            .unwrap();
+        assert!((builtin.ate - supplied.ate).abs() < 1e-12);
+        assert_eq!(supplied.crossfit.learner_provenance.len(), est.folds * 2);
+    }
+
+    #[test]
+    fn aipw_matches_supported_glm_ols_on_fixture() {
         let (t, y, z) = confounded_columns(240, 4);
         let (data, estimand) = build_dataset(t, y, z);
         let query =
@@ -838,16 +1408,16 @@ mod tests {
             .with_folds(5);
         let prep = dml.prepare(&data, &estimand, &query).unwrap();
         let dml_fit = dml.fit(&prep, &ctx(), AssumptionSet::new()).unwrap();
-        let aipw = AipwAte { bootstrap_replicates: 0, ..AipwAte::new() };
+        let aipw = AipwAte::new().with_bootstrap_replicates(0);
         let aipw_prep = aipw.prepare(&data, &estimand, &query).unwrap();
-        let licensed = aipw
+        let supported = aipw
             .fit(&aipw_prep, &mut AipwWorkspace::default(), &ctx(), AssumptionSet::new())
             .unwrap();
         assert!(
-            (dml_fit.ate - licensed.ate).abs() < 0.05,
-            "dml={} licensed={}",
+            (dml_fit.ate - supported.ate).abs() < 0.05,
+            "dml={} supported={}",
             dml_fit.ate,
-            licensed.ate
+            supported.ate
         );
     }
 
@@ -906,7 +1476,7 @@ mod tests {
         let again = estimator.fit(&problem, &ctx, AssumptionSet::new()).unwrap();
         assert_eq!(first.ate.to_bits(), again.ate.to_bits());
         // Concurrent callers must initialize one shared bundle, not four fits.
-        problem.learner_cache.lock().unwrap().clear();
+        problem.learner_cache.clear();
         let bundles = std::thread::scope(|scope| {
             let jobs: Vec<_> = (0..4)
                 .map(|_| {
@@ -925,9 +1495,8 @@ mod tests {
             jobs.into_iter().map(|job| job.join().unwrap()).collect::<Vec<_>>()
         });
         assert!(bundles.iter().all(|bundle| Arc::ptr_eq(bundle, &bundles[0])));
-        // A caller can alter fold metadata after physical preparation sharing. These
-        // clones deliberately share learner_cache, so its own bundle key must separate
-        // every fold input, not rely on the preparation-cache equality guard.
+        // A caller can alter fold metadata after preparation. These clones deliberately
+        // share learner_cache, so its bundle key must separate every fold input.
         for coordinate in 0..3 {
             let mut changed = problem.clone();
             match coordinate {
@@ -956,9 +1525,10 @@ mod tests {
         }
         // Hold every entry as concurrent callers would during initialization. An
         // additional key must fit correctly without expanding retained capacity.
-        let active_entries = problem.learner_cache.lock().unwrap().clone();
-        let busy = Arc::clone(&active_entries[0]);
-        *problem.learner_cache.lock().unwrap() = vec![Arc::clone(&busy); 8];
+        let held = problem.learner_cache.hold_all();
+        let retained = problem.learner_cache.len();
+        assert!(retained >= 2, "the changed-input bundles above are retained");
+        problem.learner_cache.set_limits(retained, crate::crossfit_cache::MAX_RETAINED_BYTES);
         let mut uncached = problem.clone();
         uncached.fold_seed = 999;
         for _ in 0..2 {
@@ -967,9 +1537,10 @@ mod tests {
                     .unwrap()
             });
             assert_eq!(fits, 15, "full in-flight cache computes extra keys without retaining them");
-            assert_eq!(problem.learner_cache.lock().unwrap().len(), 8);
+            assert_eq!(problem.learner_cache.len(), retained);
         }
-        problem.learner_cache.lock().unwrap().clear();
+        drop(held);
+        problem.learner_cache.clear();
         let mut reassigned = problem.clone();
         let assignments: Arc<[u32]> =
             (0..problem.nrows).map(|i| ((i / 2) % 5) as u32).collect::<Vec<_>>().into();
@@ -1261,21 +1832,80 @@ mod tests {
     }
 
     #[test]
-    fn learner_ate_known_truth_coverage() {
-        // Independent SCM draws; population ATE=2, Gaussian outcome noise,
-        // logistic confounding. Fixed seeds make this measurement reproducible.
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
+    fn learner_ate_known_truth_point_conformance() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
             "../../../conformance/estimate/learner_ate/fixture.json"
         ))
         .unwrap();
-        let reps = fixture["replicates"].as_u64().unwrap();
+        let n = usize::try_from(fixture["n"].as_u64().unwrap()).unwrap();
+        let seed = fixture["seed_start"].as_u64().unwrap();
+        let truth = fixture["ate"].as_f64().unwrap();
+        let tolerance = fixture["point_conformance_absolute_tolerance"].as_f64().unwrap();
+        let (t, y, z) = confounded_columns(n, seed);
+        let arm_mean = |arm: f64| {
+            let values: Vec<_> =
+                t.iter().zip(&y).filter(|(t, _)| **t == arm).map(|(_, y)| *y).collect();
+            values.iter().sum::<f64>() / values.len() as f64
+        };
+        // The independent target must distinguish adjustment from the biased
+        // observed contrast; merely returning a finite value cannot pass.
+        assert!((arm_mean(1.0) - arm_mean(0.0) - truth).abs() > tolerance);
+        let (data, estimand) = build_dataset(t, y, z);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let dml = DmlAte::new();
+        let prep = dml.prepare(&data, &estimand, &query).unwrap();
+        for method in 0..4 {
+            let effect = fit_learner_method(method, &prep);
+            assert!((effect.ate - truth).abs() < tolerance, "method={method}, ate={}", effect.ate);
+            assert!(effect.se_analytic().is_finite() && effect.se_analytic() > 0.0);
+        }
+    }
+
+    fn fit_learner_method(method: usize, prep: &PreparedPropensityProblem) -> EffectEstimate {
+        match method {
+            0 => DmlAte::new().fit(prep, &ctx(), AssumptionSet::new()),
+            1 => DmlAte::new().with_score(DmlScore::PartiallyLinear).fit(
+                prep,
+                &ctx(),
+                AssumptionSet::new(),
+            ),
+            2 => crate::DrLearner::new().fit(prep, &ctx(), AssumptionSet::new()),
+            _ => {
+                crate::CausalForest::new().with_n_trees(20).fit(prep, &ctx(), AssumptionSet::new())
+            }
+        }
+        .unwrap()
+    }
+
+    use super::calibration_harness as calibration;
+
+    #[test]
+    #[ignore = "calibration: run the complete learner ATE coverage measurement on the frozen candidate"]
+    fn learner_ate_known_truth_coverage() {
+        // Independent SCM draws; population ATE=2, Gaussian outcome noise,
+        // logistic confounding. Each replicate's seed is the fixture's start plus
+        // its index; the replicate count is the suite's registered look.
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/estimate/learner_ate/fixture.json"
+        ))
+        .unwrap();
         let n = usize::try_from(fixture["n"].as_u64().unwrap()).unwrap();
         let truth = fixture["ate"].as_f64().unwrap();
+        let level = fixture["nominal_coverage"].as_f64().unwrap();
         let seed_start = fixture["seed_start"].as_u64().unwrap();
-        for method in 0..4 {
-            let mut covered = 0;
-            let mut bias = 0.0;
-            for seed in 0..reps {
+        let reps = calibration::n_sim();
+        let names = ["dml_irm", "dml_partially_linear", "dr_learner", "causal_forest"];
+        for (method, name) in names.iter().enumerate() {
+            let mut tally = calibration::CoverageTally::new(
+                format!("learner_ate_known_truth_coverage {name}"),
+                level,
+            );
+            let fits = calibration::map_replicates(reps, |seed| {
                 let (t, y, z) = confounded_columns(n, seed_start + seed);
                 let (data, estimand) = build_dataset(t, y, z);
                 let query = AverageEffectQuery::binary_ate(
@@ -1284,36 +1914,25 @@ mod tests {
                 );
                 let dml = DmlAte::new();
                 let prep = dml.prepare(&data, &estimand, &query).unwrap();
-                let effect = match method {
-                    0 => dml.fit(&prep, &ctx(), AssumptionSet::new()),
-                    1 => dml.with_score(DmlScore::PartiallyLinear).fit(
-                        &prep,
-                        &ctx(),
-                        AssumptionSet::new(),
-                    ),
-                    2 => crate::DrLearner::new().fit(&prep, &ctx(), AssumptionSet::new()),
-                    _ => crate::CausalForest::new().with_n_trees(20).fit(
-                        &prep,
-                        &ctx(),
-                        AssumptionSet::new(),
-                    ),
-                }
-                .unwrap();
+                let effect = fit_learner_method(method, &prep);
                 assert!(effect.se_analytic().is_finite() && effect.se_analytic() > 0.0);
                 let influence = effect.scores.influence.as_ref().unwrap();
                 assert!(influence.iter().sum::<f64>().abs() < 1e-7);
                 assert!((iid_se(influence) - effect.se_analytic()).abs() < 1e-10);
-                covered += usize::from(
-                    (effect.ate - truth).abs()
-                        <= antecedent_stats::NORMAL_Q975 * effect.se_analytic(),
-                );
-                bias += effect.ate - truth;
+                (effect.ate, effect.se_analytic())
+            });
+            let mut bias = 0.0;
+            for &(ate, se) in &fits {
+                let half = antecedent_stats::NORMAL_Q975 * se;
+                tally.record(Some((ate - half, ate + half)), truth);
+                bias += ate - truth;
             }
-            let coverage = covered as f64 / reps as f64;
-            let bias = bias / reps as f64;
+            let coverage = tally.rate();
+            let bias = bias / fits.len() as f64;
             eprintln!(
                 "learner_coverage method={method} n={n} replicates={reps} coverage={coverage} bias={bias}"
             );
+            tally.assert();
             assert!(
                 (fixture["coverage_acceptance"][0].as_f64().unwrap()
                     ..=fixture["coverage_acceptance"][1].as_f64().unwrap())
@@ -1326,7 +1945,48 @@ mod tests {
             );
         }
     }
+
+    /// Intercept-only logistic: `ê = 0.5`, `I = 0.25`, `D` is the mean of
+    /// `−[T r₁ + (1 − T) r₀]`, so `c = D/I · (T − ê)` in closed form.
+    #[test]
+    fn the_estimated_propensity_term_matches_the_intercept_only_closed_form() {
+        let treatment = [1.0, 1.0, 0.0, 0.0];
+        let outcome = [3.0, 1.0, 2.0, 0.0];
+        let (mu1, mu0) = ([1.0; 4], [0.5; 4]);
+        let (design, raw) = ([1.0; 4], [0.5; 4]);
+        let inputs = |weights: Option<&'static [f64]>| PropensityTermInputs {
+            design: &design,
+            ncols: 1,
+            treatment: &treatment,
+            outcome: &outcome,
+            mu0: &mu0,
+            mu1: &mu1,
+            raw: &raw,
+            clipped: &raw,
+            weights,
+        };
+        let rows = [0, 1, 2, 3];
+        // r₁ = [2, 0] on treated, r₀ = [1.5, −0.5] on control: D = −0.75, α = −3.
+        let term = propensity_estimation_term(&inputs(None), &rows, 4.0).unwrap();
+        for (got, want) in term.iter().zip([-1.5, -1.5, 1.5, 1.5]) {
+            assert!((got - want).abs() < 1e-12, "{term:?}");
+        }
+        // Constant weights rescale D/I and the score together: the term is unchanged.
+        let term = propensity_estimation_term(&inputs(Some(&[2.0; 4])), &rows, 8.0).unwrap();
+        for (got, want) in term.iter().zip([-1.5, -1.5, 1.5, 1.5]) {
+            assert!((got - want).abs() < 1e-12, "{term:?}");
+        }
+        // A correct outcome model has zero residuals, so the propensity term vanishes.
+        let exact = [1.0, 1.0, 0.5, 0.5];
+        let correct = PropensityTermInputs { outcome: &exact, ..inputs(None) };
+        let term = propensity_estimation_term(&correct, &rows, 4.0).unwrap();
+        assert!(term.iter().all(|c| c.abs() < 1e-12), "{term:?}");
+    }
 }
+
+// The shared calibration harness is compiled once per crate, in `calibration_coverage`.
+#[cfg(test)]
+pub(crate) use crate::calibration_coverage::calibration as calibration_harness;
 
 thread_local! { static AIPW_SCORE_BUILDS:std::cell::Cell<u64>=const {std::cell::Cell::new(0)}; }
 /// Observe actual successful AIPW score table constructions, including nested scopes.

@@ -9,7 +9,7 @@ Python exception inside the callback surfaces with its own message under
 ``reason_code="policy_callback_failed"``; it is never replaced by a default or a ``nan``.
 
 A callback is a **runtime binding**: it runs in this process and is not portable.
-:meth:`InterventionCallback.recovery_record` and :func:`export_records` therefore refuse
+:meth:`InterventionCallback.recovery_record` and :func:`callback_records` therefore refuse
 (``policy_callback_not_portable``) unless the callback was declared from self-contained source
 with :meth:`InterventionCallback.from_source`. That declaration fixes its behaviour to the
 SHA-256 of the exact source text, an entry point and pinned dependency versions; the record that
@@ -28,8 +28,8 @@ The restrictions on source are an identity guarantee, not a security sandbox: it
 (declared dependencies are bound by name, and ``numpy`` is always bound as ``np``), reach dunder
 attributes or use ``eval`` / ``exec`` / ``open`` / ``globals``, and it runs with a fixed set of
 builtins, so its behaviour is a function of the text and the pinned versions. Randomness and
-clocks are not detectable from source; a callback that uses them is not licensed for
-counterfactual execution (the route's licence states that assumption).
+clocks are not detectable from source; a callback that uses them is not supported for
+counterfactual execution (the route's support states that assumption).
 """
 
 from __future__ import annotations
@@ -46,6 +46,7 @@ from typing import Any, Final, Literal, cast
 
 import numpy as np
 
+from ._artifact_protocol import container_bytes
 from ._native import (
     BatchCallbackHandle,
     callback_export_refusal,
@@ -55,6 +56,7 @@ from ._native import (
     verify_callback_recovery,
 )
 from .errors import CausalUnsupportedError, CausalValueError
+from .execution import Execution
 from .intervention_programs import Program, _programs
 from .intervention_programs import _text as _program_text
 
@@ -65,7 +67,7 @@ __all__ = [
     "InterventionCallback",
     "decode_programs",
     "encode_programs",
-    "export_records",
+    "callback_records",
     "recover_callback",
     "required_callbacks",
     "sample_do",
@@ -514,15 +516,14 @@ def sample_do(
     *,
     interventions: Mapping[str, float] | None = None,
     shifts: Mapping[str, float] | None = None,
-    seed: int = 0,
-    threads: int | None = None,
+    execution: Execution | None = None,
 ) -> Any:
     """Interventional draws from a fitted model with callback programs applied.
 
     Each program's callback runs once for the whole batch of ``n`` draws, after the variables it
     reads are computed. ``interventions`` and ``shifts`` are as in ``FittedGcm.sample_do``; a
     node given two directives is refused (``policy_directive_conflict``). Draws are a function of
-    ``seed`` and the callbacks.
+    the execution's seed and the callbacks.
     """
     programs = tuple(programs)
     for program in programs:
@@ -532,13 +533,12 @@ def sample_do(
         dict(interventions or {}),
         n,
         shifts=None if shifts is None else dict(shifts),
-        seed=seed,
-        threads=threads,
+        execution=execution,
         programs=[program._native() for program in programs],
     )
 
 
-def export_records(
+def callback_records(
     programs: Sequence[CallbackProgram | InterventionCallback],
 ) -> tuple[CallbackRecord, ...]:
     """Recovery records for every callback in ``programs``.
@@ -616,6 +616,7 @@ def required_callbacks(data: bytes) -> tuple[CallbackRecord, ...]:
     A consumer rebuilds one callback per record with :func:`recover_callback` and passes them to
     :func:`decode_programs`. The artifact's version, identity and validity are checked first.
     """
+    data = container_bytes(data)
     return tuple(CallbackRecord.from_dict(r) for r in policy_program_callback_records(bytes(data)))
 
 
@@ -631,6 +632,7 @@ def decode_programs(
     signature or other dependency pins is refused, as is a record with no implementation
     (``policy_callback_unrecoverable``). Programs come back in their encoded order.
     """
+    data = container_bytes(data)
     supplied = list(callbacks.values() if isinstance(callbacks, Mapping) else callbacks)
     if any(not isinstance(c, InterventionCallback) for c in supplied):
         raise CausalValueError("callbacks must be InterventionCallback instances")
@@ -641,7 +643,7 @@ def decode_programs(
         if kind == "closed":
             decoded.extend(_programs(first))
         else:
-            # The native decoder validates callback rows; closed rows alone omit these fields.
+            # The native decoder validates callback rows; unsupported rows alone omit these fields.
             assert variable is not None and callback_name is not None and reads is not None
             decoded.append(
                 CallbackProgram(

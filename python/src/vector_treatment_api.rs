@@ -53,7 +53,7 @@ fn failure(error: &VectorTreatmentArtifactError) -> PyErr {
     match error {
         VectorTreatmentArtifactError::LimitsExceeded(what) => with_reason_code(
             value_err(format!("vector_treatment.limits_exceeded: {what}")),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ),
         other => crate::serialization_err(other.to_string()),
     }
@@ -85,7 +85,7 @@ fn evaluate_vector_treatment(
     {
         return Err(with_reason_code(
             value_err("vector_treatment.invalid_request: a column is missing for a declared name"),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ));
     }
     let request = VectorTreatmentRequest {
@@ -142,7 +142,7 @@ fn evaluate_vector_treatment(
 #[pyo3(signature = (artifact, expected_identity_json=None, *, memory_limit_bytes=None))]
 fn consume_vector_treatment_artifact(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expected_identity_json: Option<String>,
     memory_limit_bytes: Option<u64>,
 ) -> PyResult<ConsumePayload> {
@@ -152,7 +152,7 @@ fn consume_vector_treatment_artifact(
             Some(serde_json::from_str(&text).map_err(|e| {
                 with_reason_code(
                     value_err(format!("vector_treatment.invalid_identity: {e}")),
-                    antecedent_core::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_code!("invalid_argument"),
                 )
             })?)
         }
@@ -160,7 +160,7 @@ fn consume_vector_treatment_artifact(
     };
     let ctx = crate::measured_inference_api::context(0, memory_limit_bytes, None);
     detach_catch(py, move || {
-        match VectorTreatment::consume_with(&artifact, expected.as_ref(), &ctx) {
+        match VectorTreatment::consume_with(artifact, expected.as_ref(), &ctx) {
             Ok(done) => {
                 let report = serde_json::to_string(&done.report())
                     .map_err(|e| crate::serialization_err(e.to_string()))?;

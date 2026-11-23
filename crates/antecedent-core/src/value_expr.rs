@@ -12,17 +12,22 @@
 //! both types; the type checker keeps the two apart so a comparison cannot be written
 //! into a numeric node without an explicit [`ValueExpr::indicator`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
 use std::sync::Arc;
 
 use crate::callback::{CallbackCall, CallbackOutput, Portability};
+use crate::canonical_encode::{CanonicalEncode, count, encode_variables};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 
-/// Largest number of nodes an expression may hold.
+/// Node count that program declarations in dependent crates bound themselves by.
+/// The expression contract itself ([`ValueExpr::value_type`]) does not enforce it.
 pub const MAX_EXPR_NODES: usize = 512;
-/// Deepest nesting an expression may have.
+/// Default deepest nesting an expression may have. Nesting recurses through the
+/// owned tree in every structural operation, so this protects the stack; use
+/// [`ValueExpr::value_type_within_depth`] to choose another bound.
 pub const MAX_EXPR_DEPTH: usize = 64;
 
 /// Static type of an expression.
@@ -82,6 +87,20 @@ pub enum ArithOp {
 }
 
 impl ArithOp {
+    /// Canonical tag. Exhaustive, so a new operator must be numbered here.
+    const fn canonical_tag(self) -> u64 {
+        match self {
+            Self::Add => 1,
+            Self::Sub => 2,
+            Self::Mul => 3,
+            Self::Div => 4,
+            Self::Min => 5,
+            Self::Max => 6,
+        }
+    }
+}
+
+impl ArithOp {
     /// Apply to one pair. The batch kernel calls exactly this, so batch and scalar
     /// evaluation are bit-identical.
     #[must_use]
@@ -137,6 +156,20 @@ pub enum CompareOp {
 }
 
 impl CompareOp {
+    /// Canonical tag. Exhaustive, so a new operator must be numbered here.
+    const fn canonical_tag(self) -> u64 {
+        match self {
+            Self::Lt => 1,
+            Self::Le => 2,
+            Self::Gt => 3,
+            Self::Ge => 4,
+            Self::Eq => 5,
+            Self::Ne => 6,
+        }
+    }
+}
+
+impl CompareOp {
     /// Apply to one pair (false when either side is NaN, except `Ne`).
     #[must_use]
     #[allow(
@@ -164,6 +197,16 @@ pub enum LogicOp {
     And,
     /// Either true.
     Or,
+}
+
+impl LogicOp {
+    /// Canonical tag. Exhaustive, so a new connective must be numbered here.
+    const fn canonical_tag(self) -> u64 {
+        match self {
+            Self::And => 1,
+            Self::Or => 2,
+        }
+    }
 }
 
 /// A typed value expression.
@@ -274,8 +317,8 @@ pub enum ExpressionFault {
     /// A constant is NaN or infinite.
     #[error("expression constant is not finite")]
     NonFiniteConstant,
-    /// The expression exceeds the node or depth bound.
-    #[error("expression exceeds the {}-node or {}-level bound", MAX_EXPR_NODES, MAX_EXPR_DEPTH)]
+    /// The expression nests deeper than the depth bound.
+    #[error("expression nests deeper than the depth bound ({} levels by default)", MAX_EXPR_DEPTH)]
     TooLarge,
     /// A lagged read with lag zero (use a current read).
     #[error("a lagged read must look back at least one step")]
@@ -311,6 +354,17 @@ pub struct PolicyReads {
     pub history: Arc<[(VariableId, u32)]>,
 }
 
+impl CanonicalEncode for PolicyReads {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        encode_variables(writer, &self.current);
+        writer.word(count(self.history.len()));
+        for &(variable, lag) in self.history.as_ref() {
+            variable.encode(writer);
+            writer.word(u64::from(lag));
+        }
+    }
+}
+
 impl PolicyReads {
     /// Build from unordered reads (sorted and de-duplicated).
     #[must_use]
@@ -331,6 +385,71 @@ impl PolicyReads {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.current.is_empty() && self.history.is_empty()
+    }
+}
+
+impl CanonicalEncode for ValueExpr {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Const(number) => {
+                writer.word(1).real(number.get());
+            }
+            Self::Generated => {
+                writer.word(2);
+            }
+            Self::Var(variable) => {
+                writer.word(3);
+                variable.encode(writer);
+            }
+            Self::Lag { variable, lag } => {
+                writer.word(4);
+                variable.encode(writer);
+                writer.word(u64::from(*lag));
+            }
+            Self::Neg(inner) => {
+                writer.word(5);
+                inner.encode(writer);
+            }
+            Self::Arith { op, lhs, rhs } => {
+                writer.word(6).word(op.canonical_tag());
+                lhs.encode(writer);
+                rhs.encode(writer);
+            }
+            Self::Clip { value, lower, upper } => {
+                writer.word(7);
+                value.encode(writer);
+                lower.encode(writer);
+                upper.encode(writer);
+            }
+            Self::Compare { op, lhs, rhs } => {
+                writer.word(8).word(op.canonical_tag());
+                lhs.encode(writer);
+                rhs.encode(writer);
+            }
+            Self::Not(inner) => {
+                writer.word(9);
+                inner.encode(writer);
+            }
+            Self::Logic { op, lhs, rhs } => {
+                writer.word(10).word(op.canonical_tag());
+                lhs.encode(writer);
+                rhs.encode(writer);
+            }
+            Self::If { condition, then_branch, else_branch } => {
+                writer.word(11);
+                condition.encode(writer);
+                then_branch.encode(writer);
+                else_branch.encode(writer);
+            }
+            Self::Indicator(inner) => {
+                writer.word(12);
+                inner.encode(writer);
+            }
+            Self::Callback(call) => {
+                writer.word(13);
+                call.encode(writer);
+            }
+        }
     }
 }
 
@@ -603,23 +722,38 @@ impl ValueExpr {
         }
     }
 
-    /// Type of the expression, checking every operand, constant and bound.
+    /// Type of the expression, checking every operand, constant and the nesting
+    /// bound [`MAX_EXPR_DEPTH`].
     ///
     /// # Errors
     ///
     /// [`ExpressionFault`] naming the first violation.
     pub fn value_type(&self) -> Result<ExprType, ExpressionFault> {
-        let mut count = 0usize;
-        self.check(1, &mut count)
+        self.value_type_within_depth(MAX_EXPR_DEPTH)
     }
 
-    fn check(&self, depth: usize, count: &mut usize) -> Result<ExprType, ExpressionFault> {
-        *count += 1;
-        if depth > MAX_EXPR_DEPTH || *count > MAX_EXPR_NODES {
+    /// As [`Self::value_type`] with a caller-chosen nesting bound.
+    ///
+    /// The tree is a recursive owned structure, so cloning, hashing, encoding,
+    /// dropping and this check all recurse with its depth; the bound protects the
+    /// stack, not any cost model. A caller that runs on a larger stack may raise it.
+    /// There is no bound on the node count: a wide expression of bounded depth is
+    /// already resident, and its size is governed by the memory budget of whoever
+    /// built it.
+    ///
+    /// # Errors
+    ///
+    /// [`ExpressionFault`] naming the first violation.
+    pub fn value_type_within_depth(&self, max_depth: usize) -> Result<ExprType, ExpressionFault> {
+        self.check(1, max_depth)
+    }
+
+    fn check(&self, depth: usize, max_depth: usize) -> Result<ExprType, ExpressionFault> {
+        if depth > max_depth {
             return Err(ExpressionFault::TooLarge);
         }
-        let want = |expr: &Self, expected: ExprType, count: &mut usize| {
-            let found = expr.check(depth + 1, count)?;
+        let want = |expr: &Self, expected: ExprType, max_depth: usize| {
+            let found = expr.check(depth + 1, max_depth)?;
             if found == expected {
                 Ok(())
             } else {
@@ -643,38 +777,38 @@ impl ValueExpr {
                 }
             }
             Self::Neg(a) => {
-                want(a, ExprType::Number, count)?;
+                want(a, ExprType::Number, max_depth)?;
                 Ok(ExprType::Number)
             }
             Self::Arith { lhs, rhs, .. } => {
-                want(lhs, ExprType::Number, count)?;
-                want(rhs, ExprType::Number, count)?;
+                want(lhs, ExprType::Number, max_depth)?;
+                want(rhs, ExprType::Number, max_depth)?;
                 Ok(ExprType::Number)
             }
             Self::Clip { value, lower, upper } => {
-                want(value, ExprType::Number, count)?;
-                want(lower, ExprType::Number, count)?;
-                want(upper, ExprType::Number, count)?;
+                want(value, ExprType::Number, max_depth)?;
+                want(lower, ExprType::Number, max_depth)?;
+                want(upper, ExprType::Number, max_depth)?;
                 Ok(ExprType::Number)
             }
             Self::Compare { lhs, rhs, .. } => {
-                want(lhs, ExprType::Number, count)?;
-                want(rhs, ExprType::Number, count)?;
+                want(lhs, ExprType::Number, max_depth)?;
+                want(rhs, ExprType::Number, max_depth)?;
                 Ok(ExprType::Boolean)
             }
             Self::Not(a) => {
-                want(a, ExprType::Boolean, count)?;
+                want(a, ExprType::Boolean, max_depth)?;
                 Ok(ExprType::Boolean)
             }
             Self::Logic { lhs, rhs, .. } => {
-                want(lhs, ExprType::Boolean, count)?;
-                want(rhs, ExprType::Boolean, count)?;
+                want(lhs, ExprType::Boolean, max_depth)?;
+                want(rhs, ExprType::Boolean, max_depth)?;
                 Ok(ExprType::Boolean)
             }
             Self::If { condition, then_branch, else_branch } => {
-                want(condition, ExprType::Boolean, count)?;
-                let then_type = then_branch.check(depth + 1, count)?;
-                let else_type = else_branch.check(depth + 1, count)?;
+                want(condition, ExprType::Boolean, max_depth)?;
+                let then_type = then_branch.check(depth + 1, max_depth)?;
+                let else_type = else_branch.check(depth + 1, max_depth)?;
                 if then_type == else_type {
                     Ok(then_type)
                 } else {
@@ -682,7 +816,7 @@ impl ValueExpr {
                 }
             }
             Self::Indicator(a) => {
-                want(a, ExprType::Boolean, count)?;
+                want(a, ExprType::Boolean, max_depth)?;
                 Ok(ExprType::Number)
             }
             Self::Callback(call) => {
@@ -697,7 +831,7 @@ impl ValueExpr {
                     });
                 }
                 for arg in call.args() {
-                    want(arg, ExprType::Number, count)?;
+                    want(arg, ExprType::Number, max_depth)?;
                 }
                 Ok(ExprType::Number)
             }
@@ -948,6 +1082,14 @@ mod tests {
 
     #[test]
     fn constants_lags_and_size_are_bounded() {
+        // A wide expression of bounded depth is not refused for its node count.
+        fn balanced(levels: usize) -> ValueExpr {
+            if levels == 0 {
+                ValueExpr::constant(1.0)
+            } else {
+                balanced(levels - 1).add(balanced(levels - 1))
+            }
+        }
         assert_eq!(
             ValueExpr::constant(f64::NAN).value_type(),
             Err(ExpressionFault::NonFiniteConstant)
@@ -958,11 +1100,8 @@ mod tests {
             deep = deep.neg();
         }
         assert_eq!(deep.value_type(), Err(ExpressionFault::TooLarge));
-        let mut wide = ValueExpr::constant(1.0);
-        for _ in 0..MAX_EXPR_NODES {
-            wide = wide.add(ValueExpr::constant(1.0));
-        }
-        assert_eq!(wide.value_type(), Err(ExpressionFault::TooLarge));
+        assert_eq!(deep.value_type_within_depth(MAX_EXPR_DEPTH + 2), Ok(ExprType::Number));
+        assert_eq!(balanced(10).value_type(), Ok(ExprType::Number));
     }
 
     #[test]

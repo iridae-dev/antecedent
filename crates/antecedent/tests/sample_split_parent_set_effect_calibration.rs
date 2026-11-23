@@ -25,7 +25,7 @@
 //! `layered_multi_mediator_nuisance` and `confounded_direct_and_mediated`, which has a direct
 //! edge from the treatment to the outcome plus a mediated path under confounding) have weights
 //! redrawn until the strong-faithfulness margin `sparse_scm::MIN_MARGIN` holds. A table does not
-//! announce its topology, so the runtime licenses a cell only when the records of every
+//! announce its topology, so the runtime supports a cell only when the records of every
 //! topology of its declared degree attest it (the conservative intersection,
 //! `ParentSetEffect::keyed_bases`).
 //!
@@ -69,7 +69,7 @@
 //! * `misspecified_test`: right-skewed noise, for which the partial-correlation test does not
 //!   see the dependence among a collider's parents.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,
@@ -446,7 +446,7 @@ fn print_summary(test: &str, runs: &[Replicate]) -> (f64, f64, f64) {
 
 fn gated(test: &'static str, design: Design) {
     eprintln!("calibration-protocol parent_set_source_version={}", protocol_version());
-    let runs = map_replicates(n_sim(), |rep| replicate(design, Variant::Licensed, false, rep));
+    let runs = map_replicates(n_sim(), |rep| replicate(design, Variant::Supported, false, rep));
     let (share, median, covered) = print_summary(test, &runs);
     let dgp = match design.transformation {
         Transformation::Linear => "crates/antecedent/tests/common/sparse_scm.rs::simulate",
@@ -459,12 +459,19 @@ fn gated(test: &'static str, design: Design) {
     let mut tally =
         if protocol_version() == 1 { tally } else { tally.labelled("discovery_fraction_0_75") };
     for scored in runs.iter().flatten() {
-        tally.bind(&scored.construction.0, scored.construction.1);
+        tally.bind_validation(&scored.construction.0, scored.construction.1, "not_applicable");
         tally.record(Some(scored.interval), scored.truth);
     }
     tally.assert();
     // The frozen usefulness targets.
-    assert!(share >= MIN_REPORTED_SHARE, "{test}: reporting share {share:.3}");
+    // The share is a Monte Carlo estimate: the frozen target is missed only when it lies more
+    // than two standard errors above the measured share.
+    #[allow(clippy::cast_precision_loss, reason = "replicate counts are far below 2^52")]
+    let share_mcse = (share * (1.0 - share) / runs.len() as f64).sqrt();
+    assert!(
+        share + 2.0 * share_mcse >= MIN_REPORTED_SHARE,
+        "{test}: reporting share {share:.3} (MCSE {share_mcse:.4}) below {MIN_REPORTED_SHARE}"
+    );
     let target = width_target(grid_n(BASE_ROWS));
     assert!(median <= target, "{test}: median width {median:.3} above the frozen {target}");
     if n_sim() >= FROZEN_REPLICATES {
@@ -504,7 +511,7 @@ fn boundary(test: &'static str, label: &str, variant: Variant, skewed: bool) {
             let mut construction = scored.construction.0.clone();
             let head = construction.functional.split_once(".topology_").unwrap().0;
             construction.functional = format!("{head}.topology_pooled.named_boundary:{label}");
-            tally.bind(&construction, scored.construction.1);
+            tally.bind_validation(&construction, scored.construction.1, "not_applicable");
             tally.record(Some(scored.interval), scored.truth);
         }
         tally.emit_named_boundary();
@@ -541,7 +548,7 @@ fn boundary(test: &'static str, label: &str, variant: Variant, skewed: bool) {
     let mut tally =
         CoverageTally::for_record(key, LEVEL).labelled("discovery_fraction_0_75.whole_procedure");
     for run in &runs {
-        tally.bind(&construction, requested);
+        tally.bind_validation(&construction, requested, "not_applicable");
         match run {
             Ok(scored) => tally.record(Some(scored.interval), scored.truth),
             Err(_) => tally.record(None, 0.0),
@@ -570,7 +577,7 @@ fn discovery_validation_publishes_denominators_refusals_widths_and_recovery() {
     for transformation in [Transformation::Linear, Transformation::LogLinear] {
         let cell = design(transformation, 10, Topology::HubConfoundedMultiPath, Regime::None);
         let runs: Vec<Replicate> = (0..u64::from(REPLICATES))
-            .map(|rep| replicate(cell, Variant::Licensed, false, rep))
+            .map(|rep| replicate(cell, Variant::Supported, false, rep))
             .collect();
         let summary = summarize("discovery_validation_publication_check", &runs);
         assert_eq!(summary.replicates, REPLICATES, "the denominator is every replicate");
@@ -600,7 +607,7 @@ fn discovery_validation_publishes_denominators_refusals_widths_and_recovery() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage() {
     gated(
         "parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage",
@@ -609,7 +616,7 @@ fn parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage() {
     gated(
         "parent_set_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
@@ -618,7 +625,7 @@ fn parent_set_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_cov
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_linear_10_variables_confounded_direct_and_mediated_nominal_95_coverage() {
     gated(
         "parent_set_linear_10_variables_confounded_direct_and_mediated_nominal_95_coverage",
@@ -627,7 +634,7 @@ fn parent_set_linear_10_variables_confounded_direct_and_mediated_nominal_95_cove
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage() {
     gated(
         "parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage",
@@ -636,7 +643,7 @@ fn parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage() {
     gated(
         "parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
@@ -645,7 +652,7 @@ fn parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_cov
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_linear_15_variables_confounded_direct_and_mediated_nominal_95_coverage() {
     gated(
         "parent_set_linear_15_variables_confounded_direct_and_mediated_nominal_95_coverage",
@@ -654,7 +661,7 @@ fn parent_set_linear_15_variables_confounded_direct_and_mediated_nominal_95_cove
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage() {
     gated(
         "parent_set_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage",
@@ -663,7 +670,7 @@ fn parent_set_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage() {
     gated(
         "parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
@@ -672,7 +679,7 @@ fn parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_cov
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_linear_20_variables_confounded_direct_and_mediated_nominal_95_coverage() {
     gated(
         "parent_set_linear_20_variables_confounded_direct_and_mediated_nominal_95_coverage",
@@ -681,7 +688,7 @@ fn parent_set_linear_20_variables_confounded_direct_and_mediated_nominal_95_cove
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_log_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage() {
     gated(
         "parent_set_log_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage",
@@ -690,7 +697,7 @@ fn parent_set_log_linear_10_variables_hub_confounded_multi_path_nominal_95_cover
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_log_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage() {
     gated(
         "parent_set_log_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
@@ -699,7 +706,7 @@ fn parent_set_log_linear_10_variables_layered_multi_mediator_nuisance_nominal_95
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_log_linear_10_variables_confounded_direct_and_mediated_nominal_95_coverage() {
     gated(
         "parent_set_log_linear_10_variables_confounded_direct_and_mediated_nominal_95_coverage",
@@ -708,7 +715,7 @@ fn parent_set_log_linear_10_variables_confounded_direct_and_mediated_nominal_95_
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage() {
     gated(
         "parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage",
@@ -717,7 +724,7 @@ fn parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_cover
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage() {
     gated(
         "parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
@@ -726,7 +733,7 @@ fn parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_log_linear_15_variables_confounded_direct_and_mediated_nominal_95_coverage() {
     gated(
         "parent_set_log_linear_15_variables_confounded_direct_and_mediated_nominal_95_coverage",
@@ -735,7 +742,7 @@ fn parent_set_log_linear_15_variables_confounded_direct_and_mediated_nominal_95_
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_log_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage() {
     gated(
         "parent_set_log_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage",
@@ -744,7 +751,7 @@ fn parent_set_log_linear_20_variables_hub_confounded_multi_path_nominal_95_cover
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage() {
     gated(
         "parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
@@ -753,7 +760,7 @@ fn parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_log_linear_20_variables_confounded_direct_and_mediated_nominal_95_coverage() {
     gated(
         "parent_set_log_linear_20_variables_confounded_direct_and_mediated_nominal_95_coverage",
@@ -762,7 +769,7 @@ fn parent_set_log_linear_20_variables_confounded_direct_and_mediated_nominal_95_
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_knowledge_required_edges_hub_confounded_multi_path_nominal_95_coverage() {
     gated(
         "parent_set_knowledge_required_edges_hub_confounded_multi_path_nominal_95_coverage",
@@ -771,7 +778,7 @@ fn parent_set_knowledge_required_edges_hub_confounded_multi_path_nominal_95_cove
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage() {
     gated(
         "parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage",
@@ -785,7 +792,7 @@ fn parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_9
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_knowledge_required_edges_confounded_direct_and_mediated_nominal_95_coverage() {
     gated(
         "parent_set_knowledge_required_edges_confounded_direct_and_mediated_nominal_95_coverage",
@@ -794,7 +801,7 @@ fn parent_set_knowledge_required_edges_confounded_direct_and_mediated_nominal_95
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_knowledge_forbidden_edges_hub_confounded_multi_path_nominal_95_coverage() {
     gated(
         "parent_set_knowledge_forbidden_edges_hub_confounded_multi_path_nominal_95_coverage",
@@ -803,7 +810,7 @@ fn parent_set_knowledge_forbidden_edges_hub_confounded_multi_path_nominal_95_cov
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_knowledge_forbidden_edges_layered_multi_mediator_nuisance_nominal_95_coverage() {
     gated(
         "parent_set_knowledge_forbidden_edges_layered_multi_mediator_nuisance_nominal_95_coverage",
@@ -817,7 +824,7 @@ fn parent_set_knowledge_forbidden_edges_layered_multi_mediator_nuisance_nominal_
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_knowledge_forbidden_edges_confounded_direct_and_mediated_nominal_95_coverage() {
     gated(
         "parent_set_knowledge_forbidden_edges_confounded_direct_and_mediated_nominal_95_coverage",
@@ -831,7 +838,7 @@ fn parent_set_knowledge_forbidden_edges_confounded_direct_and_mediated_nominal_9
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_knowledge_tiers_hub_confounded_multi_path_nominal_95_coverage() {
     gated(
         "parent_set_knowledge_tiers_hub_confounded_multi_path_nominal_95_coverage",
@@ -840,7 +847,7 @@ fn parent_set_knowledge_tiers_hub_confounded_multi_path_nominal_95_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_knowledge_tiers_layered_multi_mediator_nuisance_nominal_95_coverage() {
     gated(
         "parent_set_knowledge_tiers_layered_multi_mediator_nuisance_nominal_95_coverage",
@@ -849,7 +856,7 @@ fn parent_set_knowledge_tiers_layered_multi_mediator_nuisance_nominal_95_coverag
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_knowledge_tiers_confounded_direct_and_mediated_nominal_95_coverage() {
     gated(
         "parent_set_knowledge_tiers_confounded_direct_and_mediated_nominal_95_coverage",
@@ -858,7 +865,7 @@ fn parent_set_knowledge_tiers_confounded_direct_and_mediated_nominal_95_coverage
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_knowledge_parent_limits_hub_confounded_multi_path_nominal_95_coverage() {
     gated(
         "parent_set_knowledge_parent_limits_hub_confounded_multi_path_nominal_95_coverage",
@@ -867,7 +874,7 @@ fn parent_set_knowledge_parent_limits_hub_confounded_multi_path_nominal_95_cover
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_knowledge_parent_limits_layered_multi_mediator_nuisance_nominal_95_coverage() {
     gated(
         "parent_set_knowledge_parent_limits_layered_multi_mediator_nuisance_nominal_95_coverage",
@@ -881,13 +888,13 @@ fn parent_set_knowledge_parent_limits_layered_multi_mediator_nuisance_nominal_95
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_weak_signal_boundary_95() {
     boundary("parent_set_weak_signal_boundary_95", "weak_signal", Variant::WeakSignal, false);
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_cancelling_path_boundary_95() {
     boundary(
         "parent_set_cancelling_path_boundary_95",
@@ -898,12 +905,12 @@ fn parent_set_cancelling_path_boundary_95() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn parent_set_misspecified_test_boundary_95() {
     boundary(
         "parent_set_misspecified_test_boundary_95",
         "misspecified_test",
-        Variant::Licensed,
+        Variant::Supported,
         true,
     );
 }

@@ -1,7 +1,7 @@
 //! Sealers of the static causal-query routes: counterfactual, mediation and
 //! attribution.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SealContext, SealOutcome};
 use crate::accepted::GraphClass;
@@ -14,32 +14,29 @@ use std::sync::Arc;
 
 pub(super) fn bayesian_static_mediation(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (
-        cx.static_mediation_dag(),
-        analysis.identification_cache.as_ref(),
-        &analysis.inference,
-    ) {
-        (Some(data), Some(cache), InferenceMode::Bayesian(_)) => Some(Box::new(
-            crate::analysis::execute::CheckedBayesianStaticMediationOperation::checked(
-                analysis, data, plan, cache,
-            )?,
-        )),
-        _ => None,
-    };
+    let sealed =
+        match (cx.static_mediation_dag(), analysis.static_cache(), &analysis.settings.inference) {
+            (Some(data), Some(cache), InferenceMode::Bayesian(_)) => Some(Box::new(
+                crate::analysis::execute::CheckedBayesianStaticMediationOperation::checked(
+                    analysis, data, plan, cache, cx.ctx,
+                )?,
+            )),
+            _ => None,
+        };
     Ok(sealed.map(PreparedExecution::BayesianStaticMediation))
 }
 
 pub(super) fn static_mediation(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.static_mediation_dag(), analysis.identification_cache.as_ref()) {
+    let sealed = match (cx.static_mediation_dag(), analysis.static_cache()) {
         (Some(data), Some(cache))
-            if matches!(analysis.inference, InferenceMode::Frequentist)
+            if matches!(analysis.settings.inference, InferenceMode::Frequentist)
                 && matches!(
                     analysis.structure_source,
                     crate::support::StructureSource::Explicit
                         | crate::support::StructureSource::Accepted
                 )
-                && analysis.custom_validators.is_empty() =>
+                && analysis.declared.custom_validators.is_empty() =>
         {
             Some(crate::analysis::execute::CheckedStaticMediationOperation::checked(
                 analysis, data, plan, cache,
@@ -55,9 +52,9 @@ pub(super) fn attribution(cx: &SealContext<'_>) -> SealOutcome {
     let sealed = match (
         &source.data,
         &source.query,
-        analysis.identification_cache.as_ref(),
+        analysis.static_cache(),
         analysis.graph.class(),
-        &analysis.inference,
+        &analysis.settings.inference,
     ) {
         (
             DataInput::Tabular(_),
@@ -65,18 +62,56 @@ pub(super) fn attribution(cx: &SealContext<'_>) -> SealOutcome {
             Some(cache),
             GraphClass::Dag,
             InferenceMode::Frequentist | InferenceMode::Bayesian(_),
-        ) if analysis.structure_source == crate::support::StructureSource::Explicit => Some(
-            crate::analysis::execute::CheckedAttributionOperation::checked(analysis, plan, cache)?,
-        ),
+        ) if matches!(
+            analysis.structure_source,
+            crate::support::StructureSource::Explicit | crate::support::StructureSource::Accepted
+        ) =>
+        {
+            Some(crate::analysis::execute::CheckedAttributionOperation::checked(
+                analysis, plan, cache, cx.ctx,
+            )?)
+        }
         (
             DataInput::Temporal(_) | DataInput::Event(_),
-            CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_),
+            CausalQuery::AnomalyAttribution(_)
+            | CausalQuery::ChangeAttribution(_)
+            | CausalQuery::Attribute(_)
+            | CausalQuery::UnitChange(_)
+            | CausalQuery::MechanismChange(_)
+            | CausalQuery::Simulate(_),
             Some(cache),
             GraphClass::TemporalDag,
             InferenceMode::Frequentist | InferenceMode::Bayesian(_),
-        ) if analysis.structure_source == crate::support::StructureSource::Explicit => Some(
-            crate::analysis::execute::CheckedAttributionOperation::checked(analysis, plan, cache)?,
-        ),
+        ) if matches!(
+            analysis.structure_source,
+            crate::support::StructureSource::Explicit | crate::support::StructureSource::Accepted
+        ) =>
+        {
+            Some(crate::analysis::execute::CheckedAttributionOperation::checked(
+                analysis, plan, cache, cx.ctx,
+            )?)
+        }
+        // The fitted-model routes and the mechanism- and unit-change studies run on
+        // a supplied DAG or on one accepted from a compiled discovery, whose
+        // provenance the contract carries.
+        (
+            DataInput::Tabular(_),
+            CausalQuery::MechanismChange(_)
+            | CausalQuery::UnitChange(_)
+            | CausalQuery::Attribute(_)
+            | CausalQuery::Simulate(_),
+            Some(cache),
+            GraphClass::Dag,
+            _,
+        ) if matches!(
+            analysis.structure_source,
+            crate::support::StructureSource::Explicit | crate::support::StructureSource::Accepted
+        ) =>
+        {
+            Some(crate::analysis::execute::CheckedAttributionOperation::checked(
+                analysis, plan, cache, cx.ctx,
+            )?)
+        }
         _ => None,
     };
     Ok(sealed.map(PreparedExecution::Attribution))
@@ -87,11 +122,20 @@ pub(super) fn counterfactual(cx: &SealContext<'_>) -> SealOutcome {
     let Some(operation) = counterfactual else {
         return Ok(None);
     };
-    let cache = analysis.identification_cache.as_ref().ok_or_else(|| CausalError::Compile {
+    // A graph posterior has no single structure to retain: each atom is answered by the executor
+    // its kind has, and the posterior sealer owns the route.
+    if analysis.graph_posterior.is_some() {
+        return Ok(None);
+    }
+    let cache = analysis.static_cache().ok_or_else(|| CausalError::Compile {
         message: "counterfactual preparation lost its identification product".into(),
     })?;
-    let inference = analysis.inference.clone();
-    let procedure = crate::analysis::execute::CounterfactualProcedure::for_inference(&inference)?;
+    let inference = analysis.settings.inference.clone();
+    let procedure = crate::analysis::execute::CounterfactualProcedure::for_inference(&inference)?
+        .with_bootstrap(
+        analysis.settings.bootstrap_replicates,
+        analysis.declared.sampling_design,
+    )?;
     Ok(Some(PreparedExecution::Counterfactual(
         crate::analysis::execute::CheckedCounterfactualPlan::new(
             operation.clone(),

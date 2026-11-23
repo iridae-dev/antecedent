@@ -17,6 +17,7 @@ from antecedent import predictive_assessment as pa
 from antecedent import provider_callbacks as pc
 from antecedent import scientific_bridge as sb
 from antecedent.artifacts import ArtifactExpectation
+from antecedent.outcomes import require_success
 from antecedent.results import MeanSource
 
 
@@ -29,51 +30,64 @@ def _study():
         data,
         graph=[("z", "t"), ("z", "y"), ("t", "y")],
         query=ant.AverageEffect("t", "y"),
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
         refute=False,
     )
     return data, study
 
 
+def _proof(view):
+    if view.kind == "proof":
+        return view
+    for child in view.children():
+        selected = _proof(child)
+        if selected is not None:
+            return selected
+    return None
+
+
 def test_prepared_identification_and_inspection_are_retained():
     _, study = _study()
-    assert study.last_result is None
     assert study.inspect().stage == "prepared"
-    identification = study.identification
-    assert identification.verdict == "identified"
-    assert identification.adjustment_set == ("z",)
-    assert identification.derivation_statements
-    assert identification.assumption_statements
-    assert study.identification is identification
-    result = study.estimate()
-    assert study.last_result is result
-    assert study.inspect().stage == "executed"
-    assert study.inspect().answer.value == result.answer.value
-    assert study.inspect_plan().answer.detail == "not_executed"
-    assert not hasattr(identification, "validate")
-    assert "prepared" in study.inspect_plan()._repr_html_()
+    assert study.inspect().answer is None, "a prepared study carries no answer"
+    proof = _proof(study.identification)
+    assert proof is not None
+    assert proof.status == "nonparametrically_identified"
+    assert [item["name"] for item in proof.adjustment(estimand=0).items] == ["z"]
+    assert proof.derivation().total > 0
+    assert proof.assumptions().total > 0
+    assert not hasattr(proof, "validate")
+    assert "prepared" in study.inspect()._repr_html_()
+    completed = ant.estimate(study)
+    result = require_success(completed)
+    assert study.inspect().stage == "prepared", "executing a branch leaves the study prepared"
+    assert completed.study.inspect().stage == "executed"
+    assert completed.study.inspect().answer.value == result.answer.value
 
 
-def test_original_result_refutation_survives_refresh_and_failed_clicks():
+def test_original_result_refutation_survives_rebinding_and_failed_branches():
     data, study = _study()
-    result = study.estimate()
-    updated = study.refresh({**data, "y": data["y"] + data["t"]})
+    completed = ant.estimate(study)
+    result = require_success(completed)
+    branch = ant.rebind(study, data={**data, "y": data["y"] + data["t"]})
+    updated = require_success(ant.estimate(branch))
     checked = result.refute(suite="cheap")
     assert checked.answer.value == result.answer.value
     assert checked.estimate.estimator_id == result.estimate.estimator_id
     assert updated.answer.value == pytest.approx(result.answer.value + 1)
     with pytest.raises(ant.CausalError):
-        study.refresh({"missing": np.ones(160)})
-    assert study.last_result is updated
-    assert study.reprepare(data).estimate().answer.value == result.answer.value
+        ant.rebind(study, data={"missing": np.ones(160)})
+    assert completed.study.inspect().answer.value == result.answer.value
+    repeated = ant.estimate(ant.reconfigure(study, query=study.query))
+    assert require_success(repeated).answer.value == result.answer.value
 
 
 def test_loaded_verified_values_and_acceptance_are_immutable():
     _, study = _study()
-    original = study.estimate()
-    artifact = original.artifact()
-    loaded = ant.load(artifact, expected=artifact.expectation)
-    assert loaded.acceptance.verified and loaded.acceptance.identity_bound
+    original = require_success(study.estimate())
+    artifact = original.export()
+    loaded = require_success(ant.load(artifact, expected=artifact.expectation, replay=True))
+    assert loaded.acceptance.replayed and loaded.acceptance.identity_bound
     with pytest.raises(TypeError, match="does not support item assignment"):
         loaded.decoded_artifact.contract["claim"]["value_bits"] = 0
     with pytest.raises(TypeError, match="does not support item assignment"):
@@ -81,9 +95,9 @@ def test_loaded_verified_values_and_acceptance_are_immutable():
     copy = loaded.decoded_artifact.to_dict()
     copy["contract"]["claim"]["value_bits"] = 0
     assert loaded.answer.value == original.answer.value
-    assert loaded.export() == original.export()
+    assert bytes(loaded.export()) == bytes(original.export())
     with pytest.raises(ant.errors.CausalSerializationError, match="expected claim_id"):
-        ant.load(artifact, expected={"claim_id": "0" * 64})
+        require_success(ant.load(artifact, expected={"claim_id": "0" * 64}))
 
 
 def test_scientific_arrays_are_detached_and_cannot_be_made_writable():
@@ -105,20 +119,20 @@ def test_callback_ownership_and_tampered_handles_are_refused():
 
     owner, declaration, execution, artifact = exported()
     other = pc.CallbackSession()
-    other.execute(gaussian(), declaration, pc.Request(pc.Query.mean()))
+    require_success(other.execute(gaussian(), declaration, pc.Request(pc.Query.mean())))
     with pytest.raises(pc.CallbackRefusal) as caught:
-        other.export(execution, "wrong-session")
+        bytes(other.export(execution, "wrong-session"))
     assert caught.value.detail == "provider_callbacks.foreign_execution"
     with pytest.raises(pc.CallbackRefusal) as caught:
-        owner.export(replace(execution, output_digest="0" * 64), "tampered")
+        bytes(owner.export(replace(execution, output_digest="0" * 64), "tampered"))
     assert caught.value.detail == "provider_callbacks.execution_identity_mismatch"
-    assert isinstance(execution.export(), bytes)
-    loaded = ant.load(artifact, expected=artifact.expectation)
+    assert isinstance(bytes(execution.export()), bytes)
+    loaded = require_success(ant.load(artifact, expected=artifact.expectation))
     assert not loaded.acceptance.replayable and loaded.acceptance.resumable
-    assert loaded.export() == artifact.data
-    resumed = other.resume(execution.export(), provider=gaussian())
+    assert bytes(loaded.export()) == artifact.data
+    resumed = require_success(other.resume(bytes(execution.export()), provider=gaussian()))
     assert resumed.kind == "answered"
-    assert other.export(resumed.execution, "resumed")
+    assert bytes(other.export(resumed.execution, "resumed"))
 
 
 @pytest.mark.parametrize("value", [0.9, True, np.bool_(False), np.nan, np.inf, 2**64])
@@ -143,14 +157,16 @@ def test_adaptive_results_have_named_method_specific_records():
     from test_adaptive_inference import group_sequential_design, thompson_design
 
     session = ai.AdaptiveInferenceSession.prepare(thompson_design())
-    result = session.analyze(ai.BayesianPosterior(1))
+    result = require_success(session.analyze(ai.BayesianPosterior(1)))
     assert isinstance(result.payload, ai.PosteriorSummary)
     assert 0 <= result.payload.arms[0].mean <= 1
     assert result.payload.arms[0].alpha >= 1
     assert not hasattr(result, "values")
     assert result.to_rows()[0]["claim"] == "point_only"
-    sequential = ai.AdaptiveInferenceSession.prepare(group_sequential_design()).analyze(
-        ai.GroupSequential(2)
+    sequential = require_success(
+        ai.AdaptiveInferenceSession.prepare(group_sequential_design()).analyze(
+            ai.GroupSequential(2)
+        )
     )
     assert isinstance(sequential.payload, ai.SequentialSummary)
     assert sequential.payload.stopped_at is None or sequential.payload.stopped_at >= 0
@@ -161,7 +177,9 @@ def test_bridge_is_a_complete_checked_mean_producer():
 
     from test_scientific_bridge import surrogate_contract, surrogate_source
 
-    claim = sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
+    claim = require_success(
+        sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
+    )
     source = claim.as_mean_source()
     assert isinstance(source, MeanSource)
     assert decision.MeanSource is inverse_query.MeanClaim is MeanSource
@@ -177,7 +195,7 @@ def test_bridge_is_a_complete_checked_mean_producer():
         target_population=claim.quantity.population_id,
         criterion=decision.Criterion.expected_utility(),
     )
-    result = contract.evaluate(claim)
+    result = require_success(contract.evaluate(claim))
     assert result.source.means == source.means
     with pytest.raises(ant.errors.CausalValueError, match="differs"):
         claim.as_mean_source(quantity=replace(claim.quantity, units="another_unit"))
@@ -186,11 +204,13 @@ def test_bridge_is_a_complete_checked_mean_producer():
 def test_specialized_artifact_dispatch_and_fresh_process_replay(tmp_path):
     from test_scientific_bridge import surrogate_contract, surrogate_source
 
-    claim = sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
-    envelope = claim.artifact()
-    assert claim.export() == envelope.data
+    claim = require_success(
+        sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
+    )
+    envelope = claim.export()
+    assert bytes(claim.export()) == envelope.data
     assert ant.artifacts.inspect(envelope).acceptance.status == "unavailable"
-    loaded = ant.load(envelope, expected=envelope.expectation)
+    loaded = require_success(ant.load(envelope, expected=envelope.expectation))
     assert isinstance(loaded, sb.ConsumedBridge)
     assert loaded.claim.value == claim.value
     assert loaded.acceptance.identity_bound and loaded.acceptance.replayable
@@ -198,7 +218,8 @@ def test_specialized_artifact_dispatch_and_fresh_process_replay(tmp_path):
     path.write_bytes(envelope.data)
     script = """import json,sys; import antecedent as a
 from pathlib import Path
-r=a.load(Path(sys.argv[1]).read_bytes(), expected=sys.argv[2])
+from antecedent.outcomes import require_success
+r=require_success(a.load(Path(sys.argv[1]).read_bytes(), expected=sys.argv[2]))
 print(json.dumps({'value':r.claim.value,'bound':r.acceptance.identity_bound}))
 """
     output = subprocess.run(
@@ -209,13 +230,15 @@ print(json.dumps({'value':r.claim.value,'bound':r.acceptance.identity_bound}))
     )
     assert json.loads(output.stdout) == {"value": claim.value, "bound": True}
     with pytest.raises(ant.CausalError):
-        ant.load(envelope.data, expected="0" * 64)
+        require_success(ant.load(envelope.data, expected="0" * 64))
     with pytest.raises(ant.errors.CausalValueError, match="kind"):
-        ant.load(envelope, expected=ArtifactExpectation("wrong", envelope.expectation.identity))
+        require_success(
+            ant.load(envelope, expected=ArtifactExpectation("wrong", envelope.expectation.identity))
+        )
 
 
 def test_propagation_reading_remains_mean_only_and_immutable():
-    claim = jlp.mixture([jlp.MixtureComponent("first", "evidence", 1.0, 2.0, 3.0)])
+    claim = require_success(jlp.mixture([jlp.MixtureComponent("first", "evidence", 1.0, 2.0, 3.0)]))
     with pytest.raises(TypeError, match="does not support item assignment"):
         claim.values["mean"] = 99
     quantity = ant.joint_distribution.ScientificQuantity.of(
@@ -225,12 +248,12 @@ def test_propagation_reading_remains_mean_only_and_immutable():
     assert source.means == (claim.value("mean"),)
     with pytest.raises(jlp.JointLawPropagationRefusal):
         claim.interval()
-    loaded = ant.load(claim.artifact(), expected=claim.identity)
+    loaded = require_success(ant.load(claim.export(), expected=claim.identity))
     assert loaded.values == claim.values
-    assert loaded.export() == claim.export()
+    assert bytes(loaded.export()) == bytes(claim.export())
 
 
-@pytest.mark.parametrize("operation", ["estimate", "refresh", "study_refute", "result_refute"])
+@pytest.mark.parametrize("operation", ["rebind", "completed_rebind", "result_refute"])
 @pytest.mark.parametrize("change", ["assignment", "ids", "row_order"])
 def test_every_design_rebinding_path_is_guarded_and_atomic(operation, change):
     from test_column_name_inputs import _bernoulli, _randomized_named_query
@@ -238,8 +261,9 @@ def test_every_design_rebinding_path_is_guarded_and_atomic(operation, change):
     assignment, outcome, ids = _bernoulli(n=80)
     data = {"y": outcome, "arm": assignment, "id": ids}
     study = ant.prepare(data, query=_randomized_named_query(), refute=False)
-    original = study.estimate()
-    before = original.export()
+    completed = ant.estimate(study)
+    original = require_success(completed)
+    before = bytes(original.export())
     changed = dict(data)
     if change == "assignment":
         changed["arm"] = ~assignment
@@ -251,16 +275,15 @@ def test_every_design_rebinding_path_is_guarded_and_atomic(operation, change):
         changed = {key: value[::-1] for key, value in data.items()}
         column = "arm|id"
     call = {
-        "estimate": lambda: study.estimate(changed),
-        "refresh": lambda: study.refresh(changed),
-        "study_refute": lambda: study.refute(changed, suite="cheap"),
+        "rebind": lambda: ant.rebind(study, data=changed),
+        "completed_rebind": lambda: ant.rebind(completed.study, data=changed),
         "result_refute": lambda: original.refute(changed, suite="cheap"),
     }[operation]
-    with pytest.raises(ant.CausalError, match=f"({column}).*reprepare"):
+    with pytest.raises(ant.CausalError, match=f"({column}).*ant.prepare"):
         call()
-    assert study.last_result is original
-    assert original.export() == before
-    assert study.estimate().answer.value == original.answer.value
+    assert completed.study.inspect().stage == "executed"
+    assert bytes(original.export()) == before
+    assert require_success(ant.estimate(study)).answer.value == original.answer.value
 
 
 def test_named_design_normalization_and_input_detachment():
@@ -270,17 +293,20 @@ def test_named_design_normalization_and_input_detachment():
     study = ant.prepare(
         {"y": outcome, "arm": assignment, "id": ids}, query=_randomized_named_query(), refute=False
     )
-    original = study.estimate()
-    assert (
-        study.estimate({"y": outcome, "arm": assignment.astype(float), "id": ids}).answer.value
-        == original.answer.value
-    )
+    original = require_success(ant.estimate(study))
+    normalized = ant.rebind(study, data={"y": outcome, "arm": assignment.astype(float), "id": ids})
+    assert require_success(ant.estimate(normalized)).answer.value == original.answer.value
     assignment[:] = ~assignment
-    with pytest.raises(ant.CausalError, match="arm.*reprepare"):
-        study.refresh({"y": outcome, "arm": assignment})
-    assert study.refresh({"y": outcome}).answer.value == original.answer.value
-    revised = study.reprepare({"y": outcome, "arm": assignment, "id": ids})
-    assert revised.estimate().answer.value == pytest.approx(-original.answer.value)
+    with pytest.raises(ant.CausalError, match="arm.*ant.prepare"):
+        ant.rebind(study, data={"y": outcome, "arm": assignment})
+    omitted = ant.rebind(study, data={"y": outcome})
+    assert require_success(ant.estimate(omitted)).answer.value == original.answer.value
+    revised = ant.prepare(
+        {"y": outcome, "arm": assignment, "id": ids}, query=_randomized_named_query(), refute=False
+    )
+    assert require_success(ant.estimate(revised)).answer.value == pytest.approx(
+        -original.answer.value
+    )
 
 
 def test_exact_numeric_integer_normalization_without_float_rounding():

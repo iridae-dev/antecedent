@@ -3,7 +3,7 @@
 //! User-facing names live in schemas and dictionaries, not in hot graph or
 //! numerical structures.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use core::fmt;
 use core::num::NonZeroU32;

@@ -7,7 +7,7 @@
 //!   specifications, the configuration, the NDE / NIE / total effects, the integration error of
 //!   the declared `n` versus `2n` Gauss-Hermite nodes, the overlap diagnostics, the bootstrap
 //!   record (seed and replicate ids, interval status closed), the identity digests, the
-//!   **unmeasured** calibration coordinate and the standing caveats;
+//!   **`not_measured`** calibration coordinate and the standing caveats;
 //! * `nonlinear_mediation.data` (little-endian `f64`): the compact analysis dataset
 //!   (treatment, mediator, outcome, then each covariate), or nothing when the record binds its
 //!   dataset by digest.
@@ -20,8 +20,8 @@
 //! specification, dataset or result is refused even when the artifact was resealed consistently.
 //!
 //! What this does **not** say: bootstrap standard errors carry no coverage claim
-//! (`calibration = "unmeasured"`), no public interval is produced
-//! (`interval_status = "closed_calibration_unmeasured"`), and the cross-world independence and
+//! (`calibration = "resolved_from_basis"`; each interval carries its own slot), the intervals are
+//! percentile bootstrap intervals (`interval_status = "percentile_bootstrap_interval"`), and the cross-world independence and
 //! sequential ignorability that identify the natural effects are declared, not tested. Unknown
 //! major versions refuse.
 //!
@@ -43,7 +43,7 @@
 //!   [`NonlinearMediationArtifact::from_bytes_with`] then needs the caller to supply the dataset
 //!   and refuses it unless the digest matches.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_estimate::nonlinear_mediation::{
@@ -57,19 +57,12 @@ use crate::artifact_budget::{
     BudgetDetails, BudgetRefusal, admit_computation, admit_export, planned_bytes, unbounded_context,
 };
 use crate::convert::to_cbor;
+use crate::width::lossless_u64;
 
 /// The artifact major version this reader writes and accepts.
 pub const NONLINEAR_MEDIATION_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
 pub const NONLINEAR_MEDIATION_ARTIFACT_FEATURE: &str = "nonlinear_mediation_v1";
-/// Most analysis rows an artifact embedded under the earlier fixed ceiling.
-#[deprecated(
-    since = "2.4.1",
-    note = "no longer enforced: the estimate has no row ceiling; the export and computation budgets bound the artifact"
-)]
-pub const NONLINEAR_MEDIATION_ARTIFACT_MAX_ROWS: usize = 20_000;
-/// Most covariates an artifact may embed.
-pub const NONLINEAR_MEDIATION_ARTIFACT_MAX_COVARIATES: usize = 64;
 /// Most bootstrap replicates a producer may request and a consumer will replay.
 pub const NONLINEAR_MEDIATION_ARTIFACT_MAX_BOOTSTRAP: u32 = 2_000;
 /// Most bytes an artifact may occupy: the largest export budget, enforced on consumption.
@@ -83,10 +76,10 @@ const DATA_SECTION: &str = "nonlinear_mediation_data";
 const BUDGET: BudgetDetails = BudgetDetails {
     cancelled: (
         antecedent_core::reason_code!("cancelled_no_claim"),
-        "nonlinear_mediation.cancelled",
+        antecedent_core::reason_details::nonlinear_mediation::CANCELLED,
     ),
-    memory: "nonlinear_mediation.memory_budget_exceeded",
-    export: "nonlinear_mediation.export_budget_exceeded",
+    memory: antecedent_core::reason_details::nonlinear_mediation::MEMORY_BUDGET_EXCEEDED,
+    export: antecedent_core::reason_details::nonlinear_mediation::EXPORT_BUDGET_EXCEEDED,
 };
 /// `NonlinearMediationMeta::data_binding` of a record that holds no dataset, only its digest.
 const DATA_BOUND_BY_DIGEST: &str = "digest";
@@ -97,8 +90,8 @@ const STATUS_CHECKED: &str = "checked";
 
 /// Standing caveats attached to every artifact.
 pub const NONLINEAR_MEDIATION_ARTIFACT_CAVEATS: [&str; 2] = [
-    "bootstrap standard errors are calibration unmeasured: no coverage claim is made and no \
-     public interval is produced; the point estimates and diagnostics are the claim",
+    "the percentile bootstrap intervals carry a calibration slot resolved from their basis; \
+     a status other than calibrated means no coverage record covers this execution",
     "natural direct and indirect effects need cross-world independence and sequential \
      ignorability, which are declared and cannot be tested from the data",
 ];
@@ -112,15 +105,16 @@ crate::sectioned_artifact_error!(
     true
 );
 
-fn budget_refusal((code, message): BudgetRefusal) -> NonlinearMediationArtifactError {
-    NonlinearMediationArtifactError::Refused { code, message }
+fn budget_refusal((code, detail, explanation): BudgetRefusal) -> NonlinearMediationArtifactError {
+    NonlinearMediationArtifactError::refused(code, detail, explanation)
 }
 
 fn invalid_request(message: &str) -> NonlinearMediationArtifactError {
-    NonlinearMediationArtifactError::Refused {
-        code: antecedent_core::reason_code!("invalid_argument"),
-        message: format!("nonlinear_mediation.invalid_request: {message}"),
-    }
+    NonlinearMediationArtifactError::refused(
+        antecedent_core::reason_code!("invalid_argument"),
+        antecedent_core::reason_details::nonlinear_mediation::INVALID_REQUEST,
+        message,
+    )
 }
 
 /// Declared graph premises on the wire.
@@ -271,8 +265,22 @@ pub struct MediationBootstrapWire {
     pub failed_replicate_ids: Vec<u64>,
     /// Replicate-id scheme.
     pub id_scheme: String,
-    /// Interval status: `closed_calibration_unmeasured`.
+    /// Interval method: `percentile_bootstrap_interval`.
     pub interval_status: String,
+}
+
+/// One percentile-bootstrap interval with the calibration slot that annotates it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MediationIntervalWire {
+    /// `natural_direct`, `natural_indirect` or `total`.
+    pub effect: String,
+    /// Lower endpoint.
+    pub lower: f64,
+    /// Upper endpoint.
+    pub upper: f64,
+    /// Calibration status of this interval, resolved from its construction basis.
+    pub calibration: antecedent_io_core::contract_section::CalibrationSlotWire,
 }
 
 /// The stored estimate.
@@ -291,6 +299,13 @@ pub struct MediationResultWire {
     pub natural_indirect_se: Option<f64>,
     /// Bootstrap standard error of the total effect.
     pub total_se: Option<f64>,
+    /// Nominal level of the intervals.
+    pub interval_level: f64,
+    /// Percentile bootstrap intervals (direct, indirect, total) with their calibration slots;
+    /// empty when [`Self::interval_unavailable_reason`] names why.
+    pub intervals: Vec<MediationIntervalWire>,
+    /// Why no interval is reported (too few successful replicates).
+    pub interval_unavailable_reason: Option<String>,
     /// `|total_rowwise - (NDE + NIE)|`.
     pub identity_residual: f64,
     /// `n` versus `2n` node disagreement as a fraction of the outcome standard deviation.
@@ -357,9 +372,9 @@ pub struct NonlinearMediationMeta {
     pub result: MediationResultWire,
     /// Identity digests.
     pub identity: NonlinearMediationIdentity,
-    /// Always `unmeasured`.
+    /// Always `resolved_from_basis`: each interval carries its own calibration slot.
     pub calibration: String,
-    /// Always `closed_calibration_unmeasured`.
+    /// Always `percentile_bootstrap_interval`.
     pub interval_status: String,
     /// Always `point_with_diagnostics`.
     pub inference_claim: String,
@@ -369,10 +384,6 @@ pub struct NonlinearMediationMeta {
 
 fn count_u32(n: usize) -> Result<u32, NonlinearMediationArtifactError> {
     u32::try_from(n).map_err(|_| NonlinearMediationArtifactError::LimitsExceeded("count"))
-}
-
-fn count_u64(n: usize) -> u64 {
-    crate::width::lossless_u64(n)
 }
 
 fn index(n: u32) -> usize {
@@ -417,9 +428,8 @@ fn config_of(
 fn check_limits(
     request: &NonlinearMediationRequestWire,
 ) -> Result<(), NonlinearMediationArtifactError> {
-    if request.data.covariates.len() > NONLINEAR_MEDIATION_ARTIFACT_MAX_COVARIATES {
-        return Err(NonlinearMediationArtifactError::LimitsExceeded("covariates"));
-    }
+    // The covariate count is bounded by the bytes of the data section (a column is `n` reals),
+    // by the byte budget of the artifact and by the replay's memory budget, not by a count.
     if request.config.bootstrap_replicates > NONLINEAR_MEDIATION_ARTIFACT_MAX_BOOTSTRAP {
         return Err(NonlinearMediationArtifactError::LimitsExceeded("bootstrap replicates"));
     }
@@ -473,6 +483,7 @@ fn estimate_of(
         &input,
         &premises_of(&request.premises),
         &config_of(&request.config)?,
+        ctx,
     )?)
 }
 
@@ -494,9 +505,6 @@ fn request_of(
 ) -> Result<NonlinearMediationRequestWire, NonlinearMediationArtifactError> {
     let n = usize::try_from(meta.n_rows).unwrap_or(usize::MAX);
     let p = meta.model_specs.covariates.len();
-    if p > NONLINEAR_MEDIATION_ARTIFACT_MAX_COVARIATES {
-        return Err(NonlinearMediationArtifactError::LimitsExceeded("covariates"));
-    }
     let columns = crate::width::columns_from_le(numbers, n, 3 + p)
         .ok_or_else(|| NonlinearMediationArtifactError::Malformed("data section length".into()))?;
     Ok(NonlinearMediationRequestWire {
@@ -579,6 +587,27 @@ fn result_wire(
         natural_direct_se: estimate.natural_direct_se,
         natural_indirect_se: estimate.natural_indirect_se,
         total_se: estimate.total_se,
+        interval_level: estimate.interval_level,
+        intervals: [
+            ("natural_direct", estimate.natural_direct_interval),
+            ("natural_indirect", estimate.natural_indirect_interval),
+            ("total", estimate.total_interval),
+        ]
+        .into_iter()
+        .filter_map(|(effect, interval)| {
+            interval.map(|(lower, upper)| MediationIntervalWire {
+                effect: effect.to_owned(),
+                lower,
+                upper,
+                calibration: antecedent_io_core::calibration::calibration_slot(
+                    &antecedent_io_core::calibration::CalibrationBasisWire::from(
+                        &estimate.calibration_basis(effect),
+                    ),
+                ),
+            })
+        })
+        .collect(),
+        interval_unavailable_reason: estimate.interval_unavailable_reason.map(str::to_owned),
         identity_residual: estimate.identity_residual,
         integration_error: estimate.integration_error,
         coarse_nodes: count_u32(estimate.quadrature_nodes)?,
@@ -589,10 +618,10 @@ fn result_wire(
                 .ok_or(NonlinearMediationArtifactError::LimitsExceeded("count"))?,
         )?,
         outcome_degree: count_u32(estimate.outcome_degree)?,
-        n_rows: count_u64(estimate.n_rows),
+        n_rows: lossless_u64(estimate.n_rows),
         overlap: MediationOverlapWire {
-            treated_count: count_u64(estimate.overlap.treated_count),
-            control_count: count_u64(estimate.overlap.control_count),
+            treated_count: lossless_u64(estimate.overlap.treated_count),
+            control_count: lossless_u64(estimate.overlap.control_count),
             treated_mediator_min: estimate.overlap.treated_mediator_range.0,
             treated_mediator_max: estimate.overlap.treated_mediator_range.1,
             mediator_support_violation: estimate.overlap.mediator_support_violation,
@@ -626,7 +655,7 @@ fn data_digest(data: &MediationDataWire) -> Result<String, NonlinearMediationArt
     let numbers = data_bytes(data);
     let hasher = CanonicalWriter::new("nonlinear_mediation_v1.data")
         .bytes(&names)
-        .word(count_u64(data.treatment.len()))
+        .word(lossless_u64(data.treatment.len()))
         .bytes(&numbers)
         .finish();
     Ok(antecedent_core::to_hex(&hasher))
@@ -655,7 +684,7 @@ fn build_meta(
         premise_records: records,
         model_specs: specs,
         config: request.config.clone(),
-        n_rows: count_u64(request.data.treatment.len()),
+        n_rows: lossless_u64(request.data.treatment.len()),
         data_binding: None,
         result,
         identity: NonlinearMediationIdentity {
@@ -677,19 +706,13 @@ fn identity_diff(
     stored: &NonlinearMediationIdentity,
     other: &NonlinearMediationIdentity,
 ) -> Option<&'static str> {
-    if stored.premises_id != other.premises_id {
-        Some("premises")
-    } else if stored.config_id != other.config_id {
-        Some("config")
-    } else if stored.data_id != other.data_id {
-        Some("data")
-    } else if stored.result_id != other.result_id {
-        Some("result")
-    } else if stored.digest != other.digest {
-        Some("identity")
-    } else {
-        None
-    }
+    crate::first_identity_difference!(stored, other, {
+        premises_id => "premises",
+        config_id => "config",
+        data_id => "data",
+        result_id => "result",
+        digest => "identity",
+    })
 }
 
 /// Encode a metadata section and a data section as a checksummed container.
@@ -715,37 +738,24 @@ fn encode_parts_impl(
     artifact_id: &str,
     export_budget: usize,
 ) -> Result<Vec<u8>, NonlinearMediationArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(NonlinearMediationArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta)
-        .map_err(|error| NonlinearMediationArtifactError::Encode(error.to_string()))?;
     // A consumer reads at most the byte cap of uncompressed sections, whatever the container
     // compresses to; the caller's budget bounds the container itself.
-    admit_export(
-        BUDGET,
-        meta_bytes.len().saturating_add(data.len()),
-        MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES,
-    )
-    .map_err(budget_refusal)?;
-    let bytes = crate::encode_container(
+    let bytes = crate::artifact_codec::encode_sectioned_admitting(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
-            note: "nonlinear_mediation_point_with_diagnostics_unmeasured",
+            note: "nonlinear_mediation_point_with_diagnostics_not_measured",
             max_bytes: MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES,
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[
-            crate::OutSection {
-                id: META_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &meta_bytes,
-            },
-            crate::OutSection { id: DATA_SECTION, content_type: crate::CONTENT_BYTES, bytes: data },
-        ],
-    )
-    .map_err(|error| crate::map_artifact_check!(error, NonlinearMediationArtifactError))?;
+        META_SECTION,
+        meta,
+        &[crate::OutSection { id: DATA_SECTION, content_type: crate::CONTENT_BYTES, bytes: data }],
+        |uncompressed| {
+            admit_export(BUDGET, uncompressed, MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES)
+                .map_err(budget_refusal)
+        },
+    )?;
     admit_export(BUDGET, bytes.len(), export_budget.min(MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES))
         .map_err(budget_refusal)?;
     Ok(bytes)
@@ -769,25 +779,22 @@ pub fn decode_parts(
 fn decode_parts_impl(
     bytes: &[u8],
 ) -> Result<(NonlinearMediationMeta, Vec<u8>), NonlinearMediationArtifactError> {
-    let parts = crate::decode_container(
+    let (meta, parts) = crate::artifact_codec::decode_sectioned::<
+        NonlinearMediationArtifactError,
+        NonlinearMediationMeta,
+    >(
         ARTIFACT_KIND,
         MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES,
-        &[META_SECTION, DATA_SECTION],
+        META_SECTION,
+        &[DATA_SECTION],
+        NONLINEAR_MEDIATION_ARTIFACT_VERSION,
         bytes,
-    )
-    .map_err(|error| crate::map_artifact_check!(error, NonlinearMediationArtifactError))?;
-    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
+    )?;
+    let Ok([payload]) = <[Vec<u8>; 1]>::try_from(parts) else {
         return Err(NonlinearMediationArtifactError::Malformed(
             "unsupported container layout".into(),
         ));
     };
-    let meta = crate::decode_with_version(&meta_bytes, |version| {
-        if version == NONLINEAR_MEDIATION_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(NonlinearMediationArtifactError::UnsupportedVersion { version })
-        }
-    })?;
     Ok((meta, payload))
 }
 
@@ -932,24 +939,14 @@ impl NonlinearMediationArtifact {
     ) -> Result<Self, NonlinearMediationArtifactError> {
         let (meta, payload) = decode_parts_impl(bytes)?;
         let unsupported = NonlinearMediationArtifactError::UnsupportedSemantics;
-        if meta.feature != NONLINEAR_MEDIATION_ARTIFACT_FEATURE {
-            return Err(unsupported("feature marker"));
-        }
-        if meta.estimand != ESTIMAND_NATURAL {
-            return Err(unsupported("estimand"));
-        }
-        if meta.inference_claim != NONLINEAR_MEDIATION_ARTIFACT_CLAIM {
-            return Err(unsupported("inference claim"));
-        }
-        if meta.calibration != NONLINEAR_MEDIATION_CALIBRATION {
-            return Err(unsupported("calibration"));
-        }
-        if meta.interval_status != NONLINEAR_MEDIATION_INTERVAL_STATUS {
-            return Err(unsupported("interval status"));
-        }
-        if meta.caveats != NONLINEAR_MEDIATION_ARTIFACT_CAVEATS {
-            return Err(unsupported("caveats"));
-        }
+        crate::artifact_codec::require_markers::<NonlinearMediationArtifactError>(&[
+            (meta.feature == NONLINEAR_MEDIATION_ARTIFACT_FEATURE, "feature marker"),
+            (meta.estimand == ESTIMAND_NATURAL, "estimand"),
+            (meta.inference_claim == NONLINEAR_MEDIATION_ARTIFACT_CLAIM, "inference claim"),
+            (meta.calibration == NONLINEAR_MEDIATION_CALIBRATION, "calibration"),
+            (meta.interval_status == NONLINEAR_MEDIATION_INTERVAL_STATUS, "interval status"),
+            (meta.caveats == NONLINEAR_MEDIATION_ARTIFACT_CAVEATS, "caveats"),
+        ])?;
         let request = match (meta.data_binding.as_deref(), data) {
             (None, None) => request_of(&meta, &payload)?,
             (None, Some(_)) => {
@@ -959,17 +956,25 @@ impl NonlinearMediationArtifact {
                 bound_request(&meta, &payload, supplied)?
             }
             (Some(DATA_BOUND_BY_DIGEST), None) => {
-                return Err(NonlinearMediationArtifactError::Refused {
-                    code: antecedent_core::reason_code!("route_not_supported"),
-                    message: format!(
-                        "nonlinear_mediation.data_required: the artifact is bound to its dataset \
-                         by digest {}; supply the dataset to replay it",
+                return Err(NonlinearMediationArtifactError::refused(
+                    antecedent_core::reason_code!("route_not_supported"),
+                    antecedent_core::reason_details::nonlinear_mediation::DATA_REQUIRED,
+                    format!(
+                        "the artifact is bound to its dataset by digest {}; supply the dataset \
+                         to replay it",
                         meta.identity.data_id
                     ),
-                });
+                ));
             }
             (Some(_), _) => return Err(unsupported("data binding")),
         };
+        // A caller-supplied expectation the stored identity already contradicts is refused
+        // before any re-estimation work.
+        if let Some(expected) = expected
+            && let Some(field) = identity_diff(expected, &meta.identity)
+        {
+            return Err(NonlinearMediationArtifactError::IdentityMismatch { field });
+        }
         let estimate = estimate_of(&request, ctx)?;
         let rebuilt = build_meta(&request, &estimate)?;
         if let Some(field) = identity_diff(&meta.identity, &rebuilt.identity) {
@@ -985,10 +990,10 @@ impl NonlinearMediationArtifact {
         if to_cbor(&meta)? != to_cbor(&stored_form)? {
             return Err(NonlinearMediationArtifactError::ResultMismatch("record"));
         }
-        if let Some(expected) = expected {
-            if let Some(field) = identity_diff(expected, &rebuilt.identity) {
-                return Err(NonlinearMediationArtifactError::IdentityMismatch { field });
-            }
+        if let Some(expected) = expected
+            && let Some(field) = identity_diff(expected, &rebuilt.identity)
+        {
+            return Err(NonlinearMediationArtifactError::IdentityMismatch { field });
         }
         Ok(Self { meta: rebuilt, request, estimate })
     }

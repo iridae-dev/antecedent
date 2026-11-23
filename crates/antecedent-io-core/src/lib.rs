@@ -8,7 +8,7 @@
 //! bound artifacts live in `antecedent-io`, which re-exports this crate at its
 //! own root so every path stays valid.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![deny(unsafe_code)]
 #![deny(missing_docs)]
@@ -19,10 +19,14 @@ pub mod analysis_wire;
 pub mod artifact_codec;
 mod artifact_kinds;
 pub mod bayesian_prior_recalc_artifact;
+pub mod bound_identity;
 pub mod bridge_artifact;
+pub mod bridge_distribution;
+pub mod byte_cursor;
 pub mod calibration;
 pub mod callback_result_artifact;
 pub mod canonical_json;
+pub mod capacity_account;
 pub mod causal_artifact;
 mod claim_identity;
 pub mod cohort_decision;
@@ -39,6 +43,7 @@ pub mod counterfactual_transport_wire;
 pub mod coverage_records_data;
 pub mod cross_world_artifact;
 pub mod cross_world_execution_artifact;
+pub mod dependency_key;
 pub mod discovery_wire;
 pub mod distribution_artifact;
 pub mod distribution_replay;
@@ -51,6 +56,7 @@ pub mod external_callback_artifact;
 pub mod external_claim_artifact;
 pub mod external_column_claim_artifact;
 pub mod external_estimate;
+pub mod feature_version;
 pub mod frozen_scores_artifact;
 pub mod graph_dot;
 pub mod graph_gml;
@@ -64,33 +70,45 @@ pub mod joint_law_propagation_artifact;
 pub mod measurement_model_wire;
 pub mod mechanism_composition_artifact;
 pub mod mechanism_wire;
+pub mod method_provenance;
 pub mod migrate;
 /// `Mmap::map` lives here. [`crate::reader::MappedArtifactReader`] has the
 /// mapped constructors (`open_path_mapped`, `from_mmap`) under the same
 /// file-immutability contract.
 ///
-/// SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #[allow(
     unsafe_code,
     reason = "memory-mapped reader; the caller guarantees the file is not mutated while mapped"
 )]
 pub mod mmap_file;
 pub mod observation_query_artifact;
+mod panel_calibration_design;
 pub mod plan_wire;
 pub mod policy_program_artifact;
 pub mod posterior;
 pub mod prior_bank;
+pub mod propagation_chain_record;
 pub mod provenance_wire;
 pub mod provider_envelope;
+pub mod provider_replay;
 pub mod provider_verification_artifact;
 pub mod quantity_wire;
 pub mod query_wire;
+pub mod randomized_ipow_wire;
 pub mod reader;
 pub mod recalc_receipt_artifact;
+pub mod replay_tolerance;
 pub mod response_wire;
+pub mod rollout_query_wire;
+pub mod scientific_target_wire;
 pub mod score_wire;
 pub mod selective_discovery_artifact;
 pub mod sensitivity_artifact;
+pub mod source_witness;
+pub mod staleness_artifact;
+pub mod structure_query_wire;
+pub mod temporal_design_query_wire;
 pub mod temporal_recalc_artifact;
 pub mod trace;
 pub mod transport_catalog_wire;
@@ -100,22 +118,35 @@ pub mod transport_proof;
 pub mod transport_query_wire;
 pub mod wire;
 pub use analysis_result_artifact::{
-    AnalysisResultHeader, AnalysisResultWire, DistributionAtomWire,
-    IdentifiedSetIntervalMethodWire, IdentifiedSetIntervalWire, InterferenceInferenceWire,
-    InterferencePointwiseIntervalWire, InterventionalDistributionWire, LocalPolynomialRatioWire,
-    LongitudinalRegimeWire, MediationPosteriorSummaryWire, PanelDidWire, PolicyValueWire,
-    RandomizedEffectWire, StructuralResponseAtomWire, StructuralResponseMixtureWire,
-    StructuralWeightBasisWire, SurvivalDifferenceBandWire, SurvivalWire, SyntheticControlWire,
-    SyntheticDidWire, TemporalIdentificationWire, TemporalMediationGridWire,
-    TemporalMediationSliceWire, TemporalMediationUncertaintyWire, UnitEffectIntervalsWire,
-    UnitEffectsWire, UpliftBinWire, decode_analysis_result_artifact,
-    encode_analysis_result_artifact, encode_analysis_result_artifact_with_contract,
-    identified_set_interval_from_wire, identified_set_interval_to_wire,
+    ASSOCIATION_ANALYSES, ASSOCIATION_ANALYTIC_UNCERTAINTY, ASSOCIATION_NO_UNCERTAINTY,
+    ASSOCIATION_POSTERIOR_UNCERTAINTY, ASSOCIATION_RESAMPLING_UNCERTAINTY,
+    AssociationConjugateWire, AssociationPosteriorWire, AssociationPredictionWire,
+    AssociationResamplingWire, AssociationTermWire, AssociationWire,
+};
+pub use analysis_result_artifact::{
+    AnalysisResultHeader, AnalysisResultWire, CounterfactualContrastsWire, DistributionAtomWire,
+    HistoryMatchWire, IV_BOUNDS_BAYESIAN_METHOD, IV_BOUNDS_FREQUENTIST_METHOD,
+    IV_BOUNDS_POINT_UNCERTAINTY, IdentifiedSetIntervalMethodWire, IdentifiedSetIntervalWire,
+    InterferenceInferenceWire, InterferencePointwiseIntervalWire, InterventionalDistributionWire,
+    IvBoundsIntervalWire, IvBoundsPosteriorWire, IvBoundsWire, LocalPolynomialRatioWire,
+    LongitudinalRegimeWire, MediationPosteriorSummaryWire, OutcomeContrastWire,
+    POSTERIOR_ROW_CALIBRATION, POSTERIOR_ROW_UNCERTAINTY, PanelDidWire, PolicyValueWire,
+    PosteriorRowWire, RandomizedEffectWire, SequentialContrastWire, StructuralResponseAtomWire,
+    StructuralResponseMixtureWire, StructuralWeightBasisWire, SurvivalDifferenceBandWire,
+    SurvivalWire, SyntheticControlWire, SyntheticDidWire, TemporalIdentificationWire,
+    TemporalMediationGridWire, TemporalMediationSliceWire, TemporalMediationUncertaintyWire,
+    UnitEffectIntervalsWire, UnitEffectsWire, UpliftBinWire, decode_analysis_result_artifact,
+    decode_source_witness_section, encode_analysis_result_artifact,
+    encode_analysis_result_artifact_with_contract,
+    encode_analysis_result_artifact_with_contract_and_source,
+    encode_analysis_result_artifact_with_provenance, identified_set_interval_from_wire,
+    identified_set_interval_to_wire,
 };
 pub use analysis_wire::{
     DiagnosticWire, HedgeCertificateWire, IdentificationResultWire, IdentifiedEstimandWire,
-    RdDesignWire, RefutationReportWire, diagnostic_from_wire, diagnostic_to_wire,
-    identification_from_wire, identification_to_wire, identification_to_wire_with_registry,
+    JointCovarianceWire, RdDesignWire, RefutationReportWire, diagnostic_from_wire,
+    diagnostic_to_wire, identification_from_wire, identification_to_wire,
+    identification_to_wire_with_registry,
 };
 pub use artifact_codec::{
     ArtifactCheckError, ArtifactContainer, CONTENT_BYTES, CONTENT_CBOR, CodecError, ConsumeLimits,
@@ -129,22 +160,31 @@ pub use causal_artifact::{
 pub use claim_identity::{ClaimIdentityWire, claim_digest};
 pub use container::{
     AUTO_COMPRESS_MAX_RATIO, AUTO_COMPRESS_MIN_BYTES, ArtifactManifest, COMPRESSION_ZSTD,
-    CONTAINER_VERSION, CompressPolicy, EncodedArtifact, MAGIC, SectionBytes, pack_section,
-    pack_section_shared, section_descriptor, section_descriptor_with_policy,
+    CONTAINER_VERSION, CompressPolicy, ContainerLimits, EncodedArtifact, MAGIC, SectionBytes,
+    pack_section, pack_section_shared, section_descriptor, section_descriptor_with_policy,
 };
 pub use contract_section::TargetWeightsSectionWire;
 pub use contract_section::{
-    AnalysisResultConsumption, AnalysisResultContractWire, AssumptionSlotWire,
-    AttestedEvidenceWire, CONTRACT_SECTION, CONTRACT_SECTION_FORMAT, CalibrationSlotWire,
-    CalibrationStatus, CheckedAipwLoweringWire, CheckedAipwRowsWire, CheckedIvLoweringWire,
-    ClaimDomainsWire, ClaimHostProjection, ClaimSectionWire, ContractIdentitiesWire,
-    ContractReason, IdentificationSlotWire, ObligationSectionWire, ReasoningSectionWire,
-    SlotSectionWire, SupportSlotWire, UncertaintyComponentWire, UncertaintySlotWire, accept_claim,
-    checked_aipw_rows_digest, claim_domains, claim_kind_name, consume_analysis_result,
-    contract_seal, decode_analysis_result_contract, project_claim_host, project_lossy_scalar,
+    AnalysisResultConsumption, AnalysisResultContractWire, AnalysisResultLoad, AssumptionSlotWire,
+    AttestedEvidenceWire, BOOTSTRAP_LIMITED_DIAGNOSTIC, CHECKED_DR_LOWERING_FORMAT,
+    CHECKED_DR_PROCEDURE, CONTRACT_SECTION, CONTRACT_SECTION_FORMAT, CalibrationSlotWire,
+    CalibrationStatus, CheckedAipwLoweringWire, CheckedAipwRowsWire, CheckedDrLoweringWire,
+    CheckedIvLoweringWire, CheckedLearnerWire, ClaimDomainsWire, ClaimHostProjection,
+    ClaimSectionWire, ContractIdentitiesWire, ContractReason, IdentificationSlotWire,
+    MCMC_LIMITED_DIAGNOSTIC, OVERLAP_LIMITED_DIAGNOSTIC, ObligationSectionWire,
+    ReasoningSectionWire, ReplayOptions, ReplayReport, SlotSectionWire, SupportSlotWire,
+    UncertaintyComponentWire, UncertaintySlotWire, accept_claim, checked_aipw_rows_digest,
+    claim_domain_statuses, claim_domain_statuses_of_section, claim_domains,
+    claim_domains_of_section, claim_kind, claim_kind_name, claim_kind_name_of_section,
+    claim_kind_of_section, contract_seal, decode_analysis_result_contract,
+    identification_not_claimed, load_analysis_result, project_claim_host, project_lossy_scalar,
+    replay_analysis_result, replay_analysis_result_with_source, replay_analysis_result_within,
     result_digest, support_empirical, validate_contract_section, validate_mixture_masses,
-    verify_contract_against_body, weight_basis_name,
+    verify_checked_dr_replay, verify_contract_against_body,
+    verify_contract_against_body_with_source, verify_contract_against_body_within,
+    weight_basis_name,
 };
+pub use contract_section::{DrReplayRefusal, SourceReplayBounds};
 pub use contrast_wire::{ContrastBundleWire, RecordedContrastWire};
 pub use convert::{
     admg_from_wire, admg_to_wire, cpdag_from_wire, cpdag_to_wire, dag_from_wire, dag_to_wire,
@@ -155,10 +195,11 @@ pub use discovery_wire::{
     DiscoveryHeaderWire, EdgeEvidenceWire, LaggedLinkWire, TemporalGraphWire, TemporalNodeKeyWire,
     temporal_dag_from_wire, temporal_dag_to_wire,
 };
-pub use error::IoError;
+pub use error::{CborFailure, CborFault, IoError, IoFailure};
 pub use expr_wire::{
-    ExprArenaWire, ExprNodeWire, FunctionalProgramWire, expr_arena_from_wire, expr_arena_to_wire,
-    functional_program_from_wire, functional_program_to_wire,
+    ExprArenaWire, ExprNodeWire, FunctionalProgramWire, expr_arena_from_wire,
+    expr_arena_from_wire_with_limits, expr_arena_to_wire, functional_program_from_wire,
+    functional_program_to_wire,
 };
 pub use external_estimate::{
     ExternalEstimateAttach, attested_external_estimate, decode_external_estimate_claim,
@@ -180,38 +221,40 @@ pub use graph_networkx::{
     dag_to_networkx_adjacency, dag_to_networkx_node_link,
 };
 pub use identity::{
-    AdaptiveBudgetWire, BayesianBindingWire, CheckedFrontDoorLoweringWire,
-    CheckedFunctionalResponseGridWire, CheckedFunctionalResponseMemberWire,
-    CheckedLinearAdjustmentLoweringWire, CheckedNestedCounterfactualWire, ClassPriorIdentityWire,
+    AdaptiveBudgetWire, AdjustedFitReuseIdentityWire, BayesianBindingWire, CROSS_PRODUCT_INTERCEPT,
+    CheckedFrontDoorLoweringWire, CheckedFunctionalResponseGridWire,
+    CheckedFunctionalResponseMemberWire, CheckedLinearAdjustmentLoweringWire,
+    CheckedNestedCounterfactualWire, ClassPriorIdentityWire, CrossProductMomentsWire,
     DataPartitionIdentityWire, DataSnapshotIdentityWire, DistributionFactorDomainWire,
     DistributionFactorKeyWire, DistributionFactorLawsWire, DistributionFactorRowWire,
     DistributionFactorTableWire, EstimatorConfigWire, EstimatorSpecWire, ExecutionIdentityWire,
-    ExternalComposeIdentityWire, ExternalPriorSourceIdentityWire, GlmOptionsWire,
-    GraphIdentityWire, IdentificationEnvelopeWire, IdentificationIdentityWire,
-    IdentificationProductWire, InferenceBindingWire, InferentialCommitmentsWire,
-    InterferenceSnapshotWire, KernelPolicyWire, LinearFitMomentsWire, MissingPolicyWire,
-    NestedCounterfactualFitWire, ObservationIdentityWire, ObservationOptionsWire,
-    OverlapPolicyWire, ParticipantBindingWire, PayloadDigestWire, PosteriorAtomGraphWire,
-    PosteriorAtomIdentityWire, PriorMappingIdentityWire, PriorSetIdentityWire,
-    PriorSpecIdentityWire, ProgramIdentityWire, ROW_WEIGHTS_PAYLOAD, RdConfigWire,
-    ResponseOptionsWire, ScoreReuseIdentityWire, ScoreTableKey, SplitIdentityWire,
-    TargetIdentityWire, TargetWeightsIdentityWire, TemporalClassIdentityWire,
-    TransportIdentityWire, admg_identity, canonical_dag_wire, canonical_temporal_dag_wire,
-    cpdag_identity, dag_identity, data_snapshot_digest, digest_canonical, digest_wire,
-    executed_functional_labels, execution_digest, execution_identity_from_context,
-    external_compose_identity, graph_posterior_atom_identities, identification_digest,
-    identification_product_digest, identification_product_digest_wire, identification_product_wire,
-    inference_binding_digest, observation_identity_wire, pag_identity, payload_digest,
-    prior_set_identity, program_digest, score_reuse_digest, target_weights_digest,
-    temporal_admg_identity, temporal_cpdag_identity, temporal_dag_identity, temporal_pag_identity,
-    transport_identity,
+    ExternalComposeIdentityWire, ExternalPriorSourceIdentityWire, GRAPH_POSTERIOR_MIXING_RULE,
+    GlmOptionsWire, GraphIdentityWire, GraphPosteriorAtomProgramWire, GraphPosteriorProgramsWire,
+    IdentificationEnvelopeWire, IdentificationIdentityWire, IdentificationProductWire,
+    ImputationSpecWire, InferenceBindingWire, InferentialCommitmentsWire, InterferenceSnapshotWire,
+    KernelPolicyWire, LinearFitMomentsWire, MissingPolicyWire, NestedCounterfactualFitWire,
+    ObservationIdentityWire, ObservationOptionsWire, OverlapPolicyWire, ParticipantBindingWire,
+    PayloadDigestWire, PosteriorAtomGraphWire, PosteriorAtomIdentityWire, PriorMappingIdentityWire,
+    PriorSetIdentityWire, PriorSpecIdentityWire, ProgramIdentityWire, ROW_WEIGHTS_PAYLOAD,
+    RdConfigWire, ResponseOptionsWire, ScoreReuseIdentityWire, ScoreTableKey, SplitIdentityWire,
+    TargetIdentityWire, TargetWeightsIdentityWire, TemporalAttributionRowsWire,
+    TemporalClassIdentityWire, TransportIdentityWire, adjusted_fit_reuse_digest, admg_identity,
+    canonical_dag_wire, canonical_temporal_dag_wire, cpdag_identity, dag_identity,
+    data_snapshot_digest, digest_canonical, digest_wire, executed_functional_labels,
+    execution_digest, execution_identity_from_context, external_compose_identity,
+    graph_posterior_atom_identities, identification_digest, identification_product_digest,
+    identification_product_digest_wire, identification_product_wire, inference_binding_digest,
+    observation_identity_wire, pag_identity, payload_digest, prior_set_identity, program_digest,
+    score_reuse_digest, target_weights_digest, temporal_admg_identity, temporal_cpdag_identity,
+    temporal_dag_identity, temporal_pag_identity, transport_identity,
 };
 pub use joint_law_propagation_artifact::{
-    ConsumedJointLawPropagation, EnvelopeQueryWire, JOINT_LAW_PROPAGATION_ARTIFACT_FEATURE,
-    JOINT_LAW_PROPAGATION_ARTIFACT_VERSION, JOINT_LAW_PROPAGATION_MAX_INPUTS,
+    BoundsWire, ConsumedJointLawPropagation, EnvelopeQuantityWire, EnvelopeQueryWire,
+    JOINT_LAW_PROPAGATION_ARTIFACT_FEATURE, JOINT_LAW_PROPAGATION_ARTIFACT_VERSION,
+    JOINT_LAW_PROPAGATION_LEGACY_ARTIFACT_VERSION, JOINT_LAW_PROPAGATION_MAX_INPUTS,
     JointLawPropagationArtifactError, JointLawPropagationArtifactWire, MarginalWire,
-    PropagationInputWire, PropagationRequestWire, PropagationRuleWire, float_bits,
-    joint_law_propagation_identity,
+    PropagationInputWire, PropagationRequestWire, PropagationResultWire, PropagationRuleWire,
+    VerdictWire, float_bits, joint_law_propagation_identity,
 };
 pub use mechanism_composition_artifact::{
     CompositionQueryWire, CompositionResultWire, ConsumedMechanismComposition,
@@ -223,14 +266,23 @@ pub use mechanism_composition_artifact::{
 pub use mechanism_wire::{
     MechanismSlotWire, MechanismStoreWire, ModelKindWire, mechanisms_from_wire, mechanisms_to_wire,
 };
+pub use method_provenance::{
+    CaveatKind, CaveatWire, CitationWire, CitedForWire, METHOD_PROVENANCE_FORMAT,
+    METHOD_PROVENANCE_SECTION, MethodProvenanceWire, ProvenanceRecordWire, ProvenanceRole,
+    SourceWire, bibliography, capability_provenance, decode_method_provenance_section,
+    method_provenance,
+};
 pub use migrate::{
     STABLE_FORMAT, SUPPORTED_SOURCE_FORMATS, is_supported_source, migrate_artifact,
     read_and_migrate,
 };
 pub use observation_query_artifact::{
     ConsumedObservationQuery, MeasuredSlotWire, OBSERVATION_QUERY_ARTIFACT_FEATURE,
-    OBSERVATION_QUERY_ARTIFACT_VERSION, ObservationQueryArtifactError,
+    OBSERVATION_QUERY_ARTIFACT_VERSION, OBSERVATION_QUERY_GENERAL_ARTIFACT_VERSION,
+    OBSERVATION_QUERY_GENERAL_FEATURE, OBSERVATION_QUERY_JOINT_MEASURED_FEATURE,
+    OBSERVATION_QUERY_JOINT_MEASURED_VERSION, ObservationQueryArtifactError,
     ObservationQueryArtifactWire, ObservationQueryWire, ObservationResultWire,
+    PARAMETER_DRAWS_READING, RedrawPriorWire, RedrawTargetWire, RetainedMechanismWire,
     evaluate_observation_query, inference_basis_of, observation_query_identity,
     query_error_refusals,
 };
@@ -240,9 +292,9 @@ pub use plan_wire::{
     physical_plan_from_wire, physical_plan_to_wire,
 };
 pub use posterior::{
-    CausalPosteriorWire, PosteriorQuantityWire, decode_causal_posterior_bytes,
-    decode_posterior_artifact, decode_posterior_meta_from_path, decode_posterior_meta_from_seek,
-    encode_posterior_artifact,
+    CausalPosteriorWire, PosteriorPreparationWire, PosteriorQuantityWire,
+    decode_causal_posterior_bytes, decode_posterior_artifact, decode_posterior_meta_from_path,
+    decode_posterior_meta_from_seek, encode_posterior_artifact,
 };
 pub use prior_bank::{
     CompatibilityRejectReason, CompatibilityReport, DesignVariableRole, DesignVariableSummary,
@@ -251,19 +303,32 @@ pub use prior_bank::{
     decode_prior_source_meta, encode_prior_source_meta, extract_prior_source_meta,
     posterior_has_named_effect,
 };
+pub use propagation_chain_record::{
+    ChainChangeWire, ChainCoefficientWire, ChainExprTermWire, ChainFactorWire, ChainOpWire,
+    ChainSourceWire, ChainStageResultWire, ChainStageWire, ChainUnaryWire,
+    ConsumedPropagationChain, PROPAGATION_CHAIN_FEATURE, PROPAGATION_CHAIN_SECTION,
+    PROPAGATION_CHAIN_VERSION, PropagationChainError, PropagationChainRecordWire, chain_float_bits,
+    propagation_chain_identity,
+};
 pub use provenance_wire::{
     ProvenanceGraphWire, ProvenanceNodeWire, provenance_from_wire, provenance_to_wire,
 };
 pub use query_wire::{
     AssignmentDesignWire, CausalQueryWire, ExposureLevelWire, ExposureMappingWire,
     InterferenceFunctionalWire, InterferenceQueryWire, InterventionWire,
-    InterventionalDistributionQueryWire, PathSpecificEffectQueryWire, RandomizationDesignWire,
-    RandomizedEffectQueryWire, RandomizedEstimandWire, SetInterventionWire, TargetPopulationWire,
-    TemporalPolicyWire, TransportQueryWire, ValueWire, causal_query_from_wire,
-    causal_query_to_wire, causal_query_to_wire_with_registry, interference_query_from_wire,
-    interference_query_to_wire, interventional_distribution_from_wire,
-    interventional_distribution_to_wire, path_specific_from_wire, path_specific_to_wire,
-    transport_query_from_wire, transport_query_to_wire,
+    InterventionalDistributionQueryWire, IvBoundsQueryWire, PathSpecificEffectQueryWire,
+    RandomizationDesignWire, RandomizedEffectQueryWire, RandomizedEstimandWire,
+    SetInterventionWire, TargetKernelWire, TargetPopulationWire, TemporalPolicyWire,
+    TransportQueryWire, ValueWire, WeightedTargetWire, causal_query_from_wire,
+    causal_query_from_wire_with_registry, causal_query_to_wire, causal_query_to_wire_with_registry,
+    interference_query_from_wire, interference_query_to_wire,
+    interventional_distribution_from_wire, interventional_distribution_to_wire,
+    path_specific_from_wire, path_specific_to_wire, transport_query_from_wire,
+    transport_query_to_wire,
+};
+pub use query_wire::{
+    AssociationFunctionalWire, AssociationQueryWire, association_query_from_wire,
+    association_query_to_wire,
 };
 pub use reader::{
     ArtifactReader, MappedArtifactReader, MappedSection, SectionAccess, SectionIndexEntry,
@@ -271,13 +336,24 @@ pub use reader::{
 };
 pub use response_wire::{
     CausalResponseWire, ContinuousDomainWire, DerivativeScaleWire, DerivativeWeightingWire,
-    GridSpecWire, HorizonAdjustmentNodeWire, IdentificationStatusWire, IntervalInterpretationWire,
-    ObservationAssumptionWire, ObservationSpecWire, ResponseEnvelopeWire, ResponseFunctionalWire,
-    ResponseIdentificationWire, ResponseQueryWire, ResponseUncertaintyWire, ResponseValueWire,
-    SupportDiagnosticWire, SupportRegionWire, SupportReportWire, SupportStatusWire,
-    TemporalResponseSpecWire, causal_response_from_wire, causal_response_to_wire,
-    response_query_from_wire, response_query_to_wire, response_value_from_wire,
-    response_value_to_wire,
+    FeedbackDeclarationWire, GridSpecWire, HorizonAdjustmentNodeWire, IdentificationStatusWire,
+    IntervalInterpretationWire, ObservationAssumptionWire, ObservationSpecWire,
+    ResponseEnvelopeWire, ResponseFunctionalWire, ResponseIdentificationWire, ResponseQueryWire,
+    ResponseUncertaintyWire, ResponseValueWire, SupportDiagnosticWire, SupportRegionWire,
+    SupportReportWire, SupportStatusWire, TemporalResponseSpecWire, causal_response_from_wire,
+    causal_response_to_wire, response_query_from_wire, response_query_to_wire,
+    response_value_from_wire, response_value_to_wire,
+};
+pub use source_witness::{
+    SOURCE_WITNESS_FORMAT, SOURCE_WITNESS_SECTION, SourceColumnWire, SourceWitnessError,
+    SourceWitnessLimits, SourceWitnessWire, verify_source_witness, verify_source_witness_schema,
+};
+pub use structure_query_wire::{
+    AttributeQueryWire, AttributeTargetWire, ChangeEstimatorWire, DiscoverQueryWire,
+    DiscoveryMethodWire, SimulateQueryWire, SimulationTargetWire,
+};
+pub use temporal_design_query_wire::{
+    TemporalAssignmentWire, TemporalDesignQueryWire, TemporalDoseTargetWire,
 };
 pub use trace::{
     AnalysisTraceWire, AssumptionRecordWire, AssumptionTagWire, DerivationStepWire,
@@ -297,8 +373,18 @@ pub use wire::{
 };
 
 pub mod temporal_counterfactual_artifact;
+pub mod temporal_counterfactual_general_artifact;
 pub mod transport_errors;
 pub mod transport_handoff_artifact;
 pub mod transport_interference_wire;
 pub mod transport_revalidation_artifact;
 pub mod transported_counterfactual_artifact;
+
+/// Versioned observations from native execution.
+pub mod native_execution_wire;
+
+/// Complete target-bound compiled identification proof interchange.
+pub mod compiled_identification_wire;
+
+/// Exact admitted JSON encoding for borrowed native read models.
+pub mod admitted_json;

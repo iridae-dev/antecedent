@@ -1,12 +1,25 @@
-"""Point estimation utilities for explicitly scoped quasi-experimental designs.
+"""Quasi-experimental designs: difference in differences, synthetic control, discontinuities.
 
-These utilities do not add a support-matrix license or interval guarantee.
+Each query names a design whose identifying assumption replaces randomization:
+:class:`DifferenceInDifferences`, :class:`PanelDifferenceInDifferences`,
+:class:`StaggeredAdoption`, :class:`StaggeredRollout`, :class:`CovariateAdjustedDiD` and
+:class:`AugmentedPanelDiD` (parallel untreated trends); :class:`SyntheticControl` and
+:class:`SyntheticDifferenceInDifferences` (weighted donors reproduce the untreated path);
+:class:`SharpRegressionDiscontinuity`, :class:`FuzzyRegressionDiscontinuity` and
+:class:`RegressionKink` (continuity at a cutoff); :class:`PeriodHistoryMatch`; and
+:class:`IvBounds` (partial identification). Pass a query to :func:`antecedent.analyze`.
+
+Every result states its ``assumptions``, what its ``uncertainty`` covers and its
+``support_status``. The direct utilities :func:`estimate_did`,
+:func:`estimate_group_time_att` and :func:`estimate_categorical_did` add no support or interval
+guarantee.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from math import isfinite
 from typing import Any, Literal
 
 import numpy as np
@@ -27,7 +40,12 @@ def _binary(values: Iterable[Any], name: str) -> list[bool]:
         ):
             encoded.append(bool(value))
         else:
-            raise CausalValueError(f"{name} values must be bool or encoded as 0/1")
+            raise CausalValueError(
+                f"{name} values must be bool or encoded as 0/1; a column with more than two "
+                "levels is a multi-level contrast. Next attempt: estimate_categorical_did, "
+                "which contrasts each level with a declared reference level",
+                reason_code="treatment_level_undeclared",
+            )
     return encoded
 
 
@@ -86,7 +104,7 @@ class DifferenceInDifferencesEstimate:
         "stable_treatment_assignment",
         "no_interference",
     )
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,7 +189,7 @@ class PanelDifferenceInDifferencesEstimate:
     treated_subjects: int
     control_subjects: int
     clusters: int
-    uncertainty: str = "cluster_robust_se_only_pointwise_cr1_unlicensed"
+    uncertainty: str = "cluster_robust_se_only_pointwise_cr1_unsupported"
     interval_95: tuple[float, float] | None = None
     design: str = "balanced_two_period_panel"
     assumptions: tuple[str, ...] = (
@@ -182,7 +200,7 @@ class PanelDifferenceInDifferencesEstimate:
         "no_interference",
         "independent_sampling_clusters",
     )
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     cohort: int | None = None
     period: int | None = None
 
@@ -235,6 +253,20 @@ class StaggeredAdoption:
 
 @dataclass(frozen=True, slots=True)
 class GroupTimeATT:
+    """One group-time average treatment effect on the treated, ``ATT(g, t)``.
+
+    The effect at ``period`` on subjects first treated in ``cohort``, against the never-treated
+    controls.
+
+    Fields:
+
+    * ``cohort`` / ``period`` / ``event_time`` -- the adoption cohort, the calendar period, and
+      ``period - cohort``.
+    * ``estimate`` and ``standard_error`` -- the ATT and its pointwise cluster-robust standard
+      error.
+    * ``treated_subjects``, ``control_subjects`` and ``clusters`` -- the support behind the cell.
+    """
+
     cohort: int
     period: int
     event_time: int
@@ -247,9 +279,22 @@ class GroupTimeATT:
 
 @dataclass(frozen=True, slots=True)
 class StaggeredAdoptionEstimate:
+    """Group-time effects of a balanced staggered-adoption panel.
+
+    Returned by :func:`estimate_group_time_att`. Point estimates with pointwise standard errors;
+    no p-values or confidence intervals, and pre-trends are not tested.
+
+    * ``effects`` -- one :class:`GroupTimeATT` per cohort and period.
+    * ``control_group`` -- the comparison group (never-treated, cohort ``0``).
+
+    ``uncertainty``, ``design``, ``assumptions``, ``support_status`` and ``diagnostics`` are fixed
+    labels: what the reported uncertainty covers, the design, the identifying premises, the
+    support standing and what was and was not checked.
+    """
+
     effects: tuple[GroupTimeATT, ...]
     control_group: str = "never_treated_cohort_0"
-    uncertainty: str = "cluster_robust_se_only_pointwise_cr1_unlicensed"
+    uncertainty: str = "cluster_robust_se_only_pointwise_cr1_unsupported"
     design: str = "balanced_staggered_adoption_group_time_att"
     assumptions: tuple[str, ...] = (
         "cohort_specific_parallel_untreated_trends",
@@ -260,7 +305,7 @@ class StaggeredAdoptionEstimate:
         "balanced_panel",
         "independent_sampling_clusters",
     )
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     diagnostics: tuple[str, ...] = (
         "comparison_support_counts_reported_per_cohort_period",
         "pretrend_not_tested",
@@ -272,6 +317,12 @@ class StaggeredAdoptionEstimate:
 
 @dataclass(frozen=True, slots=True)
 class StaggeredEventTimeEffect:
+    """One cohort and event time of a staggered-adoption event study.
+
+    Fields as :class:`GroupTimeATT`, plus ``interval_95``: the supported pointwise interval of a
+    post-adoption cell, or ``None``.
+    """
+
     cohort: int
     period: int
     event_time: int
@@ -289,7 +340,7 @@ class StaggeredEventStudyEstimate:
 
     effects: tuple[StaggeredEventTimeEffect, ...]
     control_group: str = "never_treated_cohort_0"
-    uncertainty: str = "cluster_robust_se_only_pointwise_cr1_unlicensed"
+    uncertainty: str = "cluster_robust_se_only_pointwise_cr1_unsupported"
     design: str = "balanced_staggered_adoption_event_study"
     assumptions: tuple[str, ...] = (
         "cohort_specific_parallel_untreated_trends",
@@ -300,7 +351,7 @@ class StaggeredEventStudyEstimate:
         "balanced_panel",
         "independent_sampling_clusters",
     )
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     diagnostics: tuple[str, ...] = (
         "cohort_specific_effects_reported_by_event_time",
         "event_time_minus_one_is_reference_and_omitted",
@@ -314,8 +365,225 @@ class StaggeredEventStudyEstimate:
 
 
 @dataclass(frozen=True, slots=True)
+class StaggeredRollout:
+    """Heterogeneity-robust staggered rollout that never uses already-treated controls.
+
+    ``cohort`` holds each row's first treated period (0 for never treated); the panel may
+    be unbalanced for every estimator and is read as observed, with no observation invented
+    and no unrelated period joined. ``estimator`` is
+    ``callaway_santanna`` (group-time 2x2 comparisons), ``sun_abraham`` (interaction-weighted
+    cohort-by-event-time contrasts; on an unbalanced panel the saturated cohort-by-period
+    regression over the observed unit-periods, which uses a period only where a comparison
+    unit is observed and linked to the cohort's base period) or ``imputation`` (untreated
+    outcomes imputed from unit and period effects fitted on untreated rows).
+    ``observation`` declares the process that decides which unit-periods are observed:
+    ``ignorable_given_cohort`` (the default; being observed is unrelated to the untreated
+    outcome trend within cohort, an untestable assumption recorded with the result) or
+    ``informative``, which is refused unless ``attrition_shift_bound`` declares the largest
+    amount (in outcome units) by which the treated units a cohort fails to observe may differ
+    in change from those it observes; the result then reports an assumption-dependent range
+    (``assumption_range_lower``/``assumption_range_upper`` diagnostics, with the slope and the
+    tipping shift), which is not a confidence interval. Per-cohort
+    support (units, rows, units observed at the base period, estimated and dropped cells) and
+    the dropped unit-periods are reported as ``cohort_<g>_*`` and ``dropped_*`` diagnostics. ``comparison`` is ``never_treated`` or
+    ``not_yet_treated``; ``nuisance`` says how the baseline ``covariates`` (read at each unit's
+    first observed row) adjust a comparison; ``base_period`` is ``varying`` or ``universal``;
+    ``aggregation`` (``simple``, ``dynamic``, ``group`` or ``calendar``) defines the scalar
+    summary; ``anticipation`` is the number of periods units may respond before adoption.
+    ``resampling`` (``cluster_bootstrap`` or ``cluster_multiplier``) refits the whole procedure
+    on ``replicates`` reweightings of whole clusters and reports pointwise intervals and
+    simultaneous bands. The result is ``result.quasi_rollout``; its support and calibration
+    status are on the result's inspection. Under ``Bayesian`` inference the whole procedure is refit on flat-Dirichlet
+    whole-unit weights (a Bayesian bootstrap): the section reports posterior means with
+    credible intervals and bands beside the posterior; ``resampling=`` is frequentist and
+    is refused there.
+    """
+
+    outcome: str
+    subject: str
+    period: str
+    cohort: str
+    cluster: str | None = None
+    estimator: Literal["callaway_santanna", "sun_abraham", "imputation"] = "callaway_santanna"
+    comparison: Literal["never_treated", "not_yet_treated"] = "never_treated"
+    nuisance: Literal["outcome_regression", "inverse_probability_weighting", "doubly_robust"] = (
+        "doubly_robust"
+    )
+    base_period: Literal["varying", "universal"] = "varying"
+    aggregation: Literal["simple", "dynamic", "group", "calendar"] = "simple"
+    anticipation: int = 0
+    covariates: Sequence[str] = ()
+    resampling: Literal["cluster_bootstrap", "cluster_multiplier"] | None = None
+    replicates: int | None = None
+    observation: Literal["ignorable_given_cohort", "informative"] = "ignorable_given_cohort"
+    attrition_shift_bound: float | None = None
+
+    def __post_init__(self) -> None:
+        fields = (self.outcome, self.subject, self.period, self.cohort)
+        if any(not isinstance(value, str) or not value.strip() for value in fields):
+            raise CausalValueError(
+                "outcome, subject, period, and cohort must be non-empty column names"
+            )
+        if len(set(fields)) != len(fields):
+            raise CausalValueError(
+                "outcome, subject, period, and cohort must name distinct columns"
+            )
+        if self.cluster is not None and (
+            not isinstance(self.cluster, str) or not self.cluster.strip() or self.cluster in fields
+        ):
+            raise CausalValueError("cluster must be a distinct non-empty column name")
+        _check_choice(self.estimator, "estimator", _ROLLOUT_ESTIMATORS)
+        _check_choice(self.comparison, "comparison", _DID_COMPARISONS)
+        _check_choice(self.nuisance, "nuisance", _DID_NUISANCE)
+        _check_choice(self.base_period, "base_period", _DID_BASE_PERIODS)
+        _check_choice(self.aggregation, "aggregation", _DID_AGGREGATIONS)
+        _check_choice(self.observation, "observation", _OBSERVATION_PROCESSES)
+        if self.attrition_shift_bound is not None and (
+            self.observation != "informative"
+            or isinstance(self.attrition_shift_bound, (bool, np.bool_))
+            or not isinstance(self.attrition_shift_bound, (int, float, np.integer, np.floating))
+            or not np.isfinite(self.attrition_shift_bound)
+            or self.attrition_shift_bound < 0
+        ):
+            raise CausalValueError(
+                "attrition_shift_bound is a finite non-negative bound on an informative "
+                "observation process"
+            )
+        if (
+            isinstance(self.anticipation, (bool, np.bool_))
+            or not isinstance(self.anticipation, (int, np.integer))
+            or self.anticipation < 0
+        ):
+            raise CausalValueError("anticipation must be a non-negative integer")
+        taken = (*fields, *((self.cluster,) if self.cluster is not None else ()))
+        object.__setattr__(self, "covariates", _column_tuple(self.covariates, "covariates", taken))
+        _check_resampling(self)
+
+
+@dataclass(frozen=True, slots=True)
+class CovariateAdjustedDiD:
+    """Two-period panel DiD with parallel untreated trends conditional on baseline covariates.
+
+    Columns follow :class:`PanelDifferenceInDifferences` (a balanced two-period panel of
+    ``subject`` rows); ``covariates`` name the baseline covariates, read at each subject's
+    first row. ``nuisance`` is ``outcome_regression``, ``inverse_probability_weighting`` or
+    ``doubly_robust``. ``resampling`` refits the whole procedure on whole-cluster
+    reweightings. The result is ``result.quasi_rollout``, with its support and calibration status.
+    ``Bayesian`` inference refits it on flat-Dirichlet whole-unit weights (a Bayesian
+    bootstrap) and reports credible intervals beside the posterior.
+    """
+
+    outcome: str
+    subject: str
+    treated: str
+    post: str
+    covariates: Sequence[str]
+    cluster: str | None = None
+    nuisance: Literal["outcome_regression", "inverse_probability_weighting", "doubly_robust"] = (
+        "doubly_robust"
+    )
+    resampling: Literal["cluster_bootstrap", "cluster_multiplier"] | None = None
+    replicates: int | None = None
+
+    def __post_init__(self) -> None:
+        fields = (self.outcome, self.subject, self.treated, self.post)
+        if any(not isinstance(value, str) or not value.strip() for value in fields):
+            raise CausalValueError(
+                "outcome, subject, treated, and post must be non-empty column names"
+            )
+        if len(set(fields)) != len(fields):
+            raise CausalValueError("outcome, subject, treated, and post must name distinct columns")
+        if self.cluster is not None and (
+            not isinstance(self.cluster, str) or not self.cluster.strip() or self.cluster in fields
+        ):
+            raise CausalValueError("cluster must be a distinct non-empty column name")
+        _check_choice(self.nuisance, "nuisance", _DID_NUISANCE)
+        taken = (*fields, *((self.cluster,) if self.cluster is not None else ()))
+        covariates = _column_tuple(self.covariates, "covariates", taken)
+        if not covariates:
+            raise CausalValueError(
+                "CovariateAdjustedDiD needs at least one covariate; use "
+                "PanelDifferenceInDifferences for an unadjusted two-period panel"
+            )
+        object.__setattr__(self, "covariates", covariates)
+        _check_resampling(self)
+
+
+@dataclass(frozen=True, slots=True)
+class DesignEffect:
+    """One reported effect of a rollout, synthetic-panel or local-ratio design.
+
+    ``kind`` is ``overall`` (the scalar summary), ``group_time``, ``event_time``, ``group``,
+    ``calendar``, ``pre_trend`` (a falsification contrast), ``period`` or ``unit``.
+    ``interval`` is pointwise 95%; ``band`` is the simultaneous 95% band over the effects of
+    the same kind. Neither is calibrated.
+    """
+
+    kind: str
+    estimate: float
+    standard_error: float | None = None
+    interval: tuple[float, float] | None = None
+    band: tuple[float, float] | None = None
+    group: int | None = None
+    period: int | None = None
+    event_time: int | None = None
+    unit: str | None = None
+    treated: int = 0
+    comparison: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class QuasiRolloutEstimate:
+    """Heterogeneity-robust or covariate-adjusted DiD, conformal or multi-unit synthetic panel,
+    or optioned local ratio. The first effect is the scalar summary. ``supported`` is true
+    only for a local-ratio design a support row admits; the calibration of every interval is
+    not_measured."""
+
+    design: str
+    method: str
+    effects: tuple[DesignEffect, ...]
+    uncertainty: str
+    replicates_requested: int = 0
+    replicates_ok: int = 0
+    replicates_failed: int = 0
+    critical_value: float | None = None
+    diagnostics: tuple[tuple[str, float], ...] = ()
+    calibration: str = "not_measured"
+    supported: bool = False
+
+    @property
+    def overall(self) -> DesignEffect | None:
+        """The scalar summary."""
+        return self.effects[0] if self.effects else None
+
+    def effects_of(self, kind: str) -> tuple[DesignEffect, ...]:
+        """The reported effects of one ``kind``."""
+        return tuple(effect for effect in self.effects if effect.kind == kind)
+
+    def diagnostic(self, name: str) -> float | None:
+        """The named numeric diagnostic, when present."""
+        for key, value in self.diagnostics:
+            if key == name:
+                return value
+        return None
+
+
+@dataclass(frozen=True, slots=True)
 class SyntheticControl:
-    """Balanced-panel synthetic control with one treated unit and donor pool."""
+    """Synthetic control with one treated unit and donor pool.
+
+    The panel is balanced by default. ``observed_window_support=True`` reads an unbalanced
+    panel over the treated unit's observed window: the weights are fitted on the treated
+    unit's observed pre-intervention periods, the effect averages its observed
+    post-intervention periods, and the donors are the units observed in every one of those
+    periods (the others are excluded and listed in the result's diagnostics). Nothing is
+    imputed and no period the treated unit lacks is read. A treated unit with fewer than two
+    observed pre-periods or no observed post-period, or fewer than three donors observed
+    through the window, is refused. It applies to the simplex and ridge-augmented point fit; the
+    randomization test, conformal or staggered intervals and the Bayesian posterior read a
+    balanced panel and are refused with it. That being observed is unrelated to the untreated
+    outcome is an untestable assumption recorded with the result.
+    """
 
     outcome: str
     unit: str
@@ -325,8 +593,26 @@ class SyntheticControl:
     uniform_unit_randomization: bool = False
     sharp_null_effect: float | None = None
     augmentation_ridge: float | None = None
+    #: Conformal intervals for the single treated unit (unsupported, calibration not_measured);
+    #: under ``Bayesian`` inference, posterior predictive per-period intervals instead.
+    conformal: bool = False
+    #: Staggered adoptions ``(unit, adoption period)`` fitted against never-treated donors,
+    #: including ``(treated_unit, intervention_period)``; placebo-variance intervals.
+    adoptions: Sequence[tuple[str, int]] | None = None
+    placebo_replicates: int = 0
+    observed_window_support: bool = False
 
     def __post_init__(self) -> None:
+        if not isinstance(self.observed_window_support, bool):
+            raise CausalValueError("observed_window_support must be boolean")
+        if not isinstance(self.conformal, bool):
+            raise CausalValueError("conformal must be boolean")
+        if self.conformal and self.adoptions is not None:
+            raise CausalValueError(
+                "conformal intervals cover one treated unit; staggered adoptions use "
+                "placebo-variance intervals, so declare one or the other"
+            )
+        _bind_adoptions(self)
         if not isinstance(self.uniform_unit_randomization, bool):
             raise CausalValueError("uniform_unit_randomization must be boolean")
         if self.sharp_null_effect is not None and (
@@ -359,7 +645,44 @@ class SyntheticControl:
 
 
 @dataclass(frozen=True, slots=True)
+class ObservedWindowSupport:
+    """What a synthetic control read of an unbalanced panel.
+
+    The weights were fitted on ``pre_periods`` (the treated unit's observed pre-intervention
+    periods) and the effect averages ``post_periods``. ``donors_dropped`` lists each excluded
+    unit with the number of window periods it misses; ``unread_rows`` counts observed
+    unit-periods no estimate read. Nothing was imputed.
+    """
+
+    pre_periods: tuple[int, ...]
+    post_periods: tuple[int, ...]
+    donors_used: int
+    donors_dropped: tuple[tuple[str, int], ...]
+    unread_rows: int
+
+
+@dataclass(frozen=True, slots=True)
 class SyntheticControlEstimate:
+    """The effect on one treated unit from a synthetic control built from donor units.
+
+    The result of a :class:`SyntheticControl` query. Read ``estimate`` (the average post-period
+    gap between the treated unit and its synthetic control), then ``pre_treatment_rmse`` (how
+    well the donors reproduce the treated unit before the intervention) and ``donor_weights``.
+
+    * ``placebo_effects`` and ``placebo_rank_p_value`` -- in-space placebos; the rank assumes
+      exchangeable donors and is not calibrated.
+    * ``effective_donors``, ``n_donors``, ``n_pre_periods`` and ``n_post_periods`` -- the
+      support of the fit.
+    * ``randomization_*`` -- the assignment test, when one was requested.
+    * ``unadjusted_effect``, ``outcome_model_correction`` and ``augmentation_ridge`` -- the parts
+      of an augmented (outcome-model corrected) synthetic control, when used.
+    * ``observed_window`` -- the :class:`ObservedWindowSupport` of an unbalanced panel.
+
+    ``uncertainty``, ``design``, ``assumptions``, ``support_status`` and ``diagnostics`` are fixed
+    labels: what the reported uncertainty covers, the design, the identifying premises, the
+    support standing and what was and was not checked.
+    """
+
     estimate: float
     pre_treatment_rmse: float
     donor_weights: tuple[tuple[str, float], ...]
@@ -375,8 +698,9 @@ class SyntheticControlEstimate:
     unadjusted_effect: float | None = None
     outcome_model_correction: float | None = None
     augmentation_ridge: float | None = None
-    uncertainty: str = "point_only_with_unlicensed_placebo_rank"
-    support_status: str = "unlicensed_point_utility"
+    observed_window: ObservedWindowSupport | None = None
+    uncertainty: str = "point_only_with_unsupported_placebo_rank"
+    support_status: str = "unsupported_point_utility"
     diagnostics: tuple[str, ...] = (
         "placebo_rank_assumes_exchangeable_donors_and_is_not_calibrated",
     )
@@ -401,8 +725,13 @@ class SyntheticDifferenceInDifferences:
     intervention_period: int
     uniform_unit_randomization: bool = False
     sharp_null_effect: float | None = None
+    #: Staggered adoptions ``(unit, adoption period)``, including
+    #: ``(treated_unit, intervention_period)``; placebo-variance intervals.
+    adoptions: Sequence[tuple[str, int]] | None = None
+    placebo_replicates: int = 0
 
     def __post_init__(self) -> None:
+        _bind_adoptions(self)
         if not isinstance(self.uniform_unit_randomization, bool):
             raise CausalValueError("uniform_unit_randomization must be boolean")
         if self.sharp_null_effect is not None and (
@@ -431,6 +760,18 @@ class SyntheticDifferenceInDifferences:
 
 @dataclass(frozen=True, slots=True)
 class SyntheticDifferenceInDifferencesEstimate:
+    """The effect on a treated unit by synthetic difference in differences (unit and time weights).
+
+    The result of a :class:`SyntheticDifferenceInDifferences` query. Read ``estimate``, then
+    ``pre_treatment_rmse``, ``donor_weights`` and ``time_weights`` (both simplex-constrained).
+    ``randomization_*`` holds the exact uniform-unit assignment test when it was requested. A point
+    estimate: no interval or calibrated inference.
+
+    ``uncertainty``, ``design``, ``assumptions``, ``support_status`` and ``diagnostics`` are fixed
+    labels: what the reported uncertainty covers, the design, the identifying premises, the
+    support standing and what was and was not checked.
+    """
+
     estimate: float
     pre_treatment_rmse: float
     donor_weights: tuple[tuple[str, float], ...]
@@ -441,6 +782,7 @@ class SyntheticDifferenceInDifferencesEstimate:
     randomization_p_value: float | None = None
     randomization_null_effect: float | None = None
     randomization_statistics: tuple[tuple[str, float], ...] = ()
+    randomization_ranking_tolerance: float | None = None
     uncertainty: str = "point_only"
     design: str = "balanced_panel_synthetic_difference_in_differences"
     assumptions: tuple[str, ...] = (
@@ -450,7 +792,7 @@ class SyntheticDifferenceInDifferencesEstimate:
         "no_interference_between_units",
         "no_concurrent_treated_unit_specific_shock",
     )
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     diagnostics: tuple[str, ...] = (
         "balanced_panel_and_two_pre_periods_required",
         "unit_and_time_weights_are_simplex_constrained",
@@ -471,8 +813,13 @@ class AugmentedPanelDiD:
     untreated_change_prediction: str
     predictions_cross_fitted: bool = False
     cluster: str | None = None
+    #: Whole-cluster resample of the procedure (``cluster_bootstrap`` or
+    #: ``cluster_multiplier``); the supplied nuisance columns are held fixed.
+    resampling: Literal["cluster_bootstrap", "cluster_multiplier"] | None = None
+    replicates: int | None = None
 
     def __post_init__(self) -> None:
+        _check_resampling(self)
         names = (
             self.outcome_pre,
             self.outcome_post,
@@ -495,6 +842,24 @@ class AugmentedPanelDiD:
 
 @dataclass(frozen=True, slots=True)
 class AugmentedPanelDiDEstimate:
+    """A panel ATT from caller-supplied propensity and untreated-change predictions (doubly robust).
+
+    The result of an :class:`AugmentedPanelDiD` query. Consistent when either the propensity
+    model or the untreated-change model is correct.
+
+    * ``estimate`` -- the ATT.
+    * ``treated_subjects`` / ``control_subjects`` / ``clusters`` -- the support.
+    * ``propensity_min`` / ``propensity_max`` and ``effective_control_sample_size`` -- overlap
+      diagnostics.
+    * ``nuisance_predictions_cross_fitted`` -- the caller's declaration; it is not verified.
+    * ``interval_95`` and ``standard_error`` -- present only when whole-cluster ``resampling`` was
+      declared (calibration ``not_measured``, nuisance predictions held fixed).
+
+    ``uncertainty``, ``design``, ``assumptions``, ``support_status`` and ``diagnostics`` are fixed
+    labels: what the reported uncertainty covers, the design, the identifying premises, the
+    support standing and what was and was not checked.
+    """
+
     estimate: float
     treated_subjects: int
     control_subjects: int
@@ -513,24 +878,46 @@ class AugmentedPanelDiDEstimate:
         "strict_propensity_overlap",
         "supplied_nuisance_predictions_are_valid_for_the_evaluation_rows",
     )
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     diagnostics: tuple[str, ...] = (
         "propensity_range_and_weighted_control_effective_sample_size_reported",
         "cross_fitting_is_caller_declared_not_verified",
         "no_interval_or_calibrated_inference",
     )
+    #: Whole-cluster resample interval when ``resampling`` was declared (calibration
+    #: not_measured, nuisance predictions held fixed).
+    interval_95: tuple[float, float] | None = None
+    #: Whole-cluster resample standard error behind ``interval_95``; ``None`` without it.
+    standard_error: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class FuzzyRegressionDiscontinuity:
+    """Fuzzy RD at a declared cutoff.
+
+    ``bandwidth_rule="mse_optimal"`` selects the MSE-optimal plug-in window, capped at
+    ``bandwidth``; ``temporal_replicates`` treats the running variable as calendar time and
+    reports a block-bootstrap interval; ``density_test`` runs the manipulation test of the
+    running variable at the cutoff; ``balance_covariates`` report their jumps at the cutoff.
+    Any of these returns ``result.quasi_rollout``, with its support and calibration status.
+    Under ``Bayesian`` inference ``mse_optimal`` selects the window and
+    ``temporal_replicates`` gives a within-side block-bootstrap credible interval beside the
+    posterior.
+    """
+
     outcome: str
     treatment: str
     running: str
     cutoff: float
     bandwidth: float
+    bandwidth_rule: Literal["declared", "mse_optimal"] = "declared"
+    temporal_replicates: int | None = None
+    density_test: bool = False
+    balance_covariates: Sequence[str] = ()
 
     def __post_init__(self) -> None:
         _validate_rd_spec(self.outcome, self.treatment, self.running, self.cutoff, self.bandwidth)
+        _bind_local_ratio_options(self)
 
 
 @dataclass(frozen=True, slots=True)
@@ -574,18 +961,209 @@ class SharpRegressionDiscontinuity:
 
 @dataclass(frozen=True, slots=True)
 class RegressionKink:
+    """Regression kink at a declared cutoff; the options are those of
+    :class:`FuzzyRegressionDiscontinuity`."""
+
     outcome: str
     treatment: str
     running: str
     cutoff: float
     bandwidth: float
+    bandwidth_rule: Literal["declared", "mse_optimal"] = "declared"
+    temporal_replicates: int | None = None
+    density_test: bool = False
+    balance_covariates: Sequence[str] = ()
 
     def __post_init__(self) -> None:
         _validate_rd_spec(self.outcome, self.treatment, self.running, self.cutoff, self.bandwidth)
+        _bind_local_ratio_options(self)
+
+
+@dataclass(frozen=True, slots=True)
+class PeriodHistoryMatch:
+    """Nearest-neighbor contrast on pre-outcome histories, matched inside calendar periods.
+
+    ``history`` names the time-ordered history columns; their row-wise mean is the match score.
+    A treated unit is matched only to a control of its own ``period`` (one period when absent), so
+    a match never crosses a period. ``weight`` is a sampling-weight column and ``caliper`` a
+    maximum absolute score distance. The estimand is the weighted effect on the matched treated
+    units given the period and the history-mean score. The standard error is Abadie-Imbens for one
+    match with replacement. With two or more matched periods the estimate also carries the
+    fixed-b period interval, whose sampling units are the periods: an interval for the expected
+    matched contrast, supported only when the fit meets the history-match support row (declared
+    periods, no caliper, no weights, every treated unit matched, at least 8 matched periods of at
+    least 25 pairs). A posterior of a
+    matching contrast does not exist (a matching rule has no likelihood): ``Bayesian`` inference
+    raises ``CausalUnsupportedError`` naming that premise and the next attempt. That attempt is
+    ``estimator="bayesian.period_history_outcome_model"`` with ``Bayesian`` inference: the
+    posterior of a Gaussian outcome model with period effects, the history-mean score and a
+    treatment-by-score interaction centred at the treated mean, reported as the model-based
+    effect on the treated units (a different estimand, equal sampling weights only). That
+    posterior states its own support row in the result's diagnostics when the fit meets it (the
+    default prior scale, at least 2,000 draws, 3 periods, 135 units and 50 units in each arm).
+    """
+
+    outcome: str
+    treated: str
+    history: Sequence[str]
+    period: str | None = None
+    weight: str | None = None
+    caliper: float | None = None
+    kind: Literal["period_history_match"] = field(
+        default="period_history_match", init=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        names = [self.outcome, self.treated, *self.history]
+        names.extend(name for name in (self.period, self.weight) if name is not None)
+        if not self.history or any(not isinstance(name, str) or not name.strip() for name in names):
+            raise CausalValueError("declare non-empty outcome, treated and history column names")
+        if len(set(names)) != len(names):
+            raise CausalValueError("outcome, treated, history, period and weight must be distinct")
+        if self.caliper is not None and not (isfinite(self.caliper) and self.caliper >= 0.0):
+            raise CausalValueError("caliper must be finite and non-negative")
+        object.__setattr__(self, "history", tuple(self.history))
+
+
+@dataclass(frozen=True, slots=True)
+class PeriodHistoryMatchEstimate:
+    """History-matched contrast with its matched pairs and its fixed-b period interval.
+
+    The interval treats the calendar periods as the sampling units, so it is an interval for the
+    expected matched contrast, not for the effect on the units this sample matched. ``supported``
+    is ``True`` only when the fit meets the history-match support row: calendar periods declared,
+    no caliper, no sampling weights, every treated unit matched, at least 8 matched periods and
+    at least 25 matched pairs in each. Every other fit is unsupported.
+    """
+
+    contrast: float
+    weight_total: float
+    matched_queries: tuple[int, ...]
+    matched_donors: tuple[int, ...]
+    differences: tuple[float, ...]
+    pair_weights: tuple[float, ...]
+    unmatched_treated: tuple[int, ...]
+    periods_matched: int
+    uncertainty: str
+    #: Abadie-Imbens standard error; ``None`` with fewer than two matched units.
+    standard_error: float | None = None
+    caliper: float | None = None
+    #: Newey-West standard error over the matched periods; ``None`` with fewer than two.
+    serial_standard_error: float | None = None
+    #: Endpoints of the 95% Kiefer-Vogelsang fixed-b interval around the contrast.
+    interval_lower: float | None = None
+    interval_upper: float | None = None
+    supported: bool = False
+    calibration_measured: bool = False
+    support_status: str = "unsupported_uncalibrated"
+
+
+@dataclass(frozen=True, slots=True)
+class IvBounds:
+    """Sharp bounds on the average effect of a binary treatment under a binary instrument.
+
+    ``instrument``, ``treatment`` and ``outcome`` name 0/1 columns (``bool`` or ``0``/``1``);
+    ``weight`` optionally names a non-negative sampling-weight column. The instrument is declared
+    independent of the potential outcomes and excluded from the outcome; neither is checked.
+    Those premises partially identify the effect, so the answer is an identified set
+    (``result.answer.kind == "bounds"``), never a point. ``bootstrap=`` adds an Imbens-Manski
+    interval about the set from row-bootstrap endpoint replicates; ``Bayesian`` inference reports
+    the Bayesian-bootstrap posterior of the endpoints. Rows are independent subjects, so a
+    declared dependent-series, trajectory or clustered sampling design refuses the row-level
+    draw. The interval is stated for the endpoints of the identified set, not for a point effect;
+    the result states ``supported`` when it comes from at least 500 unweighted complete rows and
+    at least 399 bootstrap replicates (400 posterior draws), none left out, and is unsupported
+    otherwise. The calibration label is not_measured.
+    """
+
+    outcome: str
+    treatment: str
+    instrument: str
+    weight: str | None = None
+    kind: Literal["iv_bounds"] = field(default="iv_bounds", init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        names = [self.outcome, self.treatment, self.instrument]
+        if self.weight is not None:
+            names.append(self.weight)
+        if any(not isinstance(name, str) or not name.strip() for name in names):
+            raise CausalValueError("declare non-empty outcome, treatment and instrument names")
+        if len(set(names)) != len(names):
+            raise CausalValueError("outcome, treatment, instrument and weight must be distinct")
+
+
+@dataclass(frozen=True, slots=True)
+class IvBoundsInterval:
+    """Sampling interval about the identified set of an :class:`IvBounds` study."""
+
+    level: float
+    lower: float
+    upper: float
+    lower_se: float
+    upper_se: float
+    critical_value: float
+    width_retained: bool
+    replicates: int
+    infeasible: int
+    method: str
+
+
+@dataclass(frozen=True, slots=True)
+class IvBoundsPosterior:
+    """Bayesian-bootstrap posterior summary of the endpoints of an :class:`IvBounds` study."""
+
+    n_draws: int
+    infeasible_draws: int
+    lower_mean: float
+    upper_mean: float
+    lower_sd: float
+    upper_sd: float
+
+
+@dataclass(frozen=True, slots=True)
+class IvBoundsEstimate:
+    """Identified set of average effects under a binary instrument. Never a point.
+
+    ``cells`` is the observed law ``P(Y=y, D=d | Z=z)``, instrument arm major, cell order
+    ``(0,0) (1,0) (0,1) (1,1)``; the bounds are recomputable from it. ``supported`` is ``True``
+    when the fit met a row of the graphless support table (family ``iv_bounds``): a 95% interval
+    for the endpoints of the set from at least 500 unweighted complete rows and at least 399
+    row-bootstrap replicates or 400 posterior draws, none left out. Every other fit is
+    unsupported.
+    """
+
+    lower: float
+    upper: float
+    cells: tuple[float, ...]
+    arm_weights: tuple[float, ...]
+    rows: int
+    rows_dropped: int
+    uncertainty: str
+    interval: IvBoundsInterval | None = None
+    posterior: IvBoundsPosterior | None = None
+    calibration: str = "not_measured"
+    supported: bool = False
 
 
 @dataclass(frozen=True, slots=True)
 class LocalPolynomialRatioEstimate:
+    """A fuzzy regression-discontinuity or kink effect: a ratio of two local-polynomial estimates.
+
+    ``estimate`` is ``reduced_form_discontinuity / first_stage_discontinuity`` at the cutoff (jumps
+    in level, or in slope for a kink),
+    read as a local complier effect under the exclusion and monotonicity assumptions.
+
+    * ``standard_error``, ``ci_lower`` and ``ci_upper`` -- the delta-method standard error and
+      interval described by ``uncertainty`` (fixed bandwidth).
+    * ``reduced_form_standard_error`` and ``first_stage_standard_error`` -- the two components.
+    * ``observations_left`` / ``observations_right`` -- rows within the bandwidth on each side.
+    * ``cutoff``, ``bandwidth`` and ``kink`` -- the design actually used.
+
+    ``uncertainty``, ``design``, ``assumptions``, ``support_status`` and ``diagnostics`` are fixed
+    labels: what the reported uncertainty covers, the design, the identifying premises, the
+    support standing and what was and was not checked.
+    """
+
     estimate: float
     reduced_form_discontinuity: float
     first_stage_discontinuity: float
@@ -631,6 +1209,11 @@ def estimate_did(
     Optional explicit ``treated`` and ``post`` vectors override the named
     columns. Panel, staggered-adoption, weighted, and clustered-inference
     designs are outside this utility's contract.
+
+    This is a low-level utility outside the central compiler. It checks the column shapes
+    and that all four cells are populated; it does not check parallel trends, no anticipation or
+    a graph, and the returned contrast carries no supported identification claim. The checked
+    panel-DiD route answers a different (panel) design.
     """
 
     if not isinstance(query, DifferenceInDifferences):
@@ -685,6 +1268,11 @@ def estimate_group_time_att(
     describe sampled units, not propensity or inferential support. It also
     reports pointwise cluster-robust standard errors using subject IDs by
     default, or an optional higher-level cluster column.
+
+    This is a specialized checked path outside the central compiler. It checks balanced
+    support and cohort/period validity; it does not check parallel trends or no anticipation,
+    which are assumptions of the estimate, and it is not the checked panel-DiD route's
+    selected-target result.
     """
 
     if not isinstance(query, StaggeredAdoption):
@@ -749,9 +1337,277 @@ def _validate_rd_spec(
         raise CausalValueError("bandwidth must be finite and positive")
 
 
+_ROLLOUT_ESTIMATORS = ("callaway_santanna", "sun_abraham", "imputation")
+_DID_COMPARISONS = ("never_treated", "not_yet_treated")
+_DID_NUISANCE = ("outcome_regression", "inverse_probability_weighting", "doubly_robust")
+_DID_BASE_PERIODS = ("varying", "universal")
+_DID_AGGREGATIONS = ("simple", "dynamic", "group", "calendar")
+_DID_RESAMPLING = ("cluster_bootstrap", "cluster_multiplier")
+_OBSERVATION_PROCESSES = ("ignorable_given_cohort", "informative")
+_LOCAL_BANDWIDTH_RULES = ("declared", "mse_optimal")
+
+
+def _check_choice(value: Any, name: str, allowed: tuple[str, ...]) -> None:
+    if value not in allowed:
+        raise CausalValueError(f"{name} must be one of {', '.join(allowed)}; got {value!r}")
+
+
+def _positive_int(value: Any) -> bool:
+    return (
+        not isinstance(value, (bool, np.bool_))
+        and isinstance(value, (int, np.integer))
+        and bool(value > 0)
+    )
+
+
+def _check_resampling(query: Any) -> None:
+    """Validate the resampling scheme and settle the replicate count it implies.
+
+    ``replicates`` only describes a resampling scheme: naming a count without one is refused,
+    and a scheme without a count resamples 999 times.
+    """
+    resampling, replicates = query.resampling, query.replicates
+    if resampling is None:
+        if replicates is not None:
+            raise CausalValueError(
+                "replicates only applies with resampling=; name a resampling scheme or drop it"
+            )
+        return
+    _check_choice(resampling, "resampling", _DID_RESAMPLING)
+    if replicates is None:
+        replicates = 999
+        object.__setattr__(query, "replicates", replicates)
+    if not _positive_int(replicates) or replicates > 2**32 - 1:
+        raise CausalValueError("replicates must be a positive integer")
+
+
+def _column_tuple(values: Any, name: str, taken: tuple[str, ...]) -> tuple[str, ...]:
+    if isinstance(values, str):
+        raise CausalValueError(f"{name} must be a sequence of column names, not one string")
+    columns = tuple(values)
+    if any(not isinstance(value, str) or not value.strip() for value in columns):
+        raise CausalValueError(f"{name} must be non-empty column names")
+    if len(set(columns)) != len(columns) or set(columns) & set(taken):
+        raise CausalValueError(f"{name} must be distinct from each other and the design columns")
+    return columns
+
+
+def _bind_adoptions(query: Any) -> None:
+    """Validate and freeze the staggered adoptions of a synthetic panel."""
+    replicates = query.placebo_replicates
+    if (
+        isinstance(replicates, (bool, np.bool_))
+        or not isinstance(replicates, (int, np.integer))
+        or not 0 <= replicates <= 2**32 - 1
+    ):
+        raise CausalValueError("placebo_replicates must be a non-negative integer")
+    if query.adoptions is None:
+        if replicates:
+            raise CausalValueError("placebo_replicates requires staggered adoptions")
+        return
+    if isinstance(query.adoptions, (str, Mapping)):
+        raise CausalValueError("adoptions must be a sequence of (unit, adoption period) pairs")
+    adoptions: list[tuple[str, int]] = []
+    for pair in query.adoptions:
+        if not isinstance(pair, Sequence) or isinstance(pair, str) or len(pair) != 2:
+            raise CausalValueError("adoptions must be (unit, adoption period) pairs")
+        unit, period = pair
+        if not isinstance(unit, str) or not unit:
+            raise CausalValueError("adoption units must be non-empty strings")
+        if (
+            isinstance(period, (bool, np.bool_))
+            or not isinstance(period, (int, np.integer))
+            or period <= 0
+        ):
+            raise CausalValueError("adoption periods must be positive integers")
+        adoptions.append((unit, int(period)))
+    if len({unit for unit, _ in adoptions}) != len(adoptions):
+        raise CausalValueError("each adopting unit is listed once")
+    if (query.treated_unit, int(query.intervention_period)) not in adoptions:
+        raise CausalValueError("adoptions must include (treated_unit, intervention_period)")
+    object.__setattr__(query, "adoptions", tuple(adoptions))
+
+
+def _bind_local_ratio_options(query: Any) -> None:
+    """Validate and freeze the design options of a fuzzy RD or regression kink."""
+    _check_choice(query.bandwidth_rule, "bandwidth_rule", _LOCAL_BANDWIDTH_RULES)
+    if query.temporal_replicates is not None and (
+        not _positive_int(query.temporal_replicates) or query.temporal_replicates > 2**32 - 1
+    ):
+        raise CausalValueError("temporal_replicates must be a positive integer")
+    if not isinstance(query.density_test, bool):
+        raise CausalValueError("density_test must be boolean")
+    taken = (query.outcome, query.treatment, query.running)
+    object.__setattr__(
+        query,
+        "balance_covariates",
+        _column_tuple(query.balance_covariates, "balance_covariates", taken),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class CategoricalDidContrast:
+    """One level's difference in differences against the reference level."""
+
+    level: Any
+    reference: Any
+    estimate: float
+    #: Cluster-robust standard error of the panel form; ``None`` for the point-only forms.
+    standard_error: float | None
+    #: Subjects (panel forms) or rows (2x2) of the level and of the reference.
+    level_units: int
+    reference_units: int
+
+
+@dataclass(frozen=True, slots=True)
+class CategoricalDidEstimate:
+    """Pairwise multi-level difference in differences.
+
+    Every contrast is the binary contrast of one level against the reference level, fitted on
+    the rows of those two levels only (the rows of the other levels are not read by it), so a
+    contrast, its standard error and its assumptions are exactly those of the binary form. The
+    contrasts are not a joint model: no covariance between them is reported.
+    """
+
+    reference: Any
+    contrasts: tuple[CategoricalDidContrast, ...]
+    design: str
+    assumptions: tuple[str, ...] = (
+        "parallel_untreated_trends_between_each_level_and_the_reference",
+        "no_anticipation",
+        "stable_treatment_level_within_subject",
+        "no_interference",
+    )
+    support_status: str = "unsupported_point_utility"
+
+    def contrast(self, level: Any) -> CategoricalDidContrast:
+        """The contrast of ``level`` against the reference."""
+        for entry in self.contrasts:
+            if entry.level == level:
+                return entry
+        raise CausalValueError(f"no contrast for level {level!r}")
+
+
+def _level_key(value: Any) -> Any:
+    return value.item() if isinstance(value, np.generic) else value
+
+
+def estimate_categorical_did(
+    data: Any,
+    query: DifferenceInDifferences | PanelDifferenceInDifferences | AugmentedPanelDiD,
+    *,
+    reference: Any = None,
+    nuisance: Mapping[Any, tuple[str, str]] | None = None,
+) -> CategoricalDidEstimate:
+    """Contrast every level of a multi-level treated column with a reference level.
+
+    The query names the multi-level column in its ``treated`` field (the 2x2, the two-period
+    panel or the augmented panel). ``reference`` defaults to the smallest level. The augmented
+    panel needs ``nuisance``: a mapping from each non-reference level to the names of its
+    propensity column (probability of that level against the reference) and its untreated-change
+    prediction column, because one propensity cannot serve two different contrasts.
+    """
+
+    if not isinstance(
+        query, (DifferenceInDifferences, PanelDifferenceInDifferences, AugmentedPanelDiD)
+    ):
+        raise CausalValueError(
+            "query must be a DifferenceInDifferences, PanelDifferenceInDifferences or AugmentedPanelDiD"
+        )
+    names, columns = _raw_columns(data)
+    if query.treated not in names:
+        raise CausalValueError(
+            f"required difference-in-differences column {query.treated!r} is missing"
+        )
+    table = dict(zip(names, columns, strict=True))
+    raw_group = table[query.treated]
+    levels = sorted({_level_key(value) for value in raw_group})
+    if len(levels) < 2:
+        raise CausalValueError(
+            "a categorical contrast needs at least two levels of the treated column",
+            reason_code="arm_not_populated",
+        )
+    if reference is None:
+        reference = levels[0]
+    if reference not in levels:
+        raise CausalValueError(
+            f"the reference level {reference!r} is none of the observed levels {levels!r}",
+            reason_code="treatment_level_undeclared",
+        )
+    if isinstance(query, AugmentedPanelDiD) and nuisance is None:
+        raise CausalUnsupportedError(
+            "the augmented panel contrast needs nuisance= mapping each non-reference level to "
+            "its (propensity, untreated-change prediction) columns. Next attempt: declare it, "
+            "or use the two-period panel contrast",
+            reason_code="required_option_missing",
+        )
+    from . import analyze
+    from .outcomes import require_success
+
+    group_keys = np.array([_level_key(value) for value in raw_group], dtype=object)
+    contrasts: list[CategoricalDidContrast] = []
+    for level in levels:
+        if level == reference:
+            continue
+        mask = np.array([key in (level, reference) for key in group_keys])
+        subset = {name: column[mask] for name, column in table.items()}
+        subset[query.treated] = np.array([key == level for key in group_keys[mask]], dtype=bool)
+        standard_error: float | None = None
+        if isinstance(query, DifferenceInDifferences):
+            estimate = estimate_did(subset, query).estimate
+            level_units = int(np.sum(group_keys == level))
+            reference_units = int(np.sum(group_keys == reference))
+        elif isinstance(query, PanelDifferenceInDifferences):
+            fit = require_success(analyze(subset, query=query)).panel_did
+            estimate, standard_error = fit.estimate, fit.standard_error
+            level_units, reference_units = fit.treated_subjects, fit.control_subjects
+        else:
+            if nuisance is None or level not in nuisance:
+                raise CausalValueError(
+                    f"nuisance= has no (propensity, prediction) columns for level {level!r}",
+                    reason_code="required_option_missing",
+                )
+            propensity, prediction = nuisance[level]
+            level_query = AugmentedPanelDiD(
+                query.outcome_pre,
+                query.outcome_post,
+                query.subject,
+                query.treated,
+                propensity,
+                prediction,
+                query.predictions_cross_fitted,
+                query.cluster,
+                query.resampling,
+                query.replicates,
+            )
+            fit = require_success(analyze(subset, query=level_query)).panel_did
+            estimate, standard_error = fit.estimate, getattr(fit, "standard_error", None)
+            level_units, reference_units = fit.treated_subjects, fit.control_subjects
+        contrasts.append(
+            CategoricalDidContrast(
+                level, reference, float(estimate), standard_error, level_units, reference_units
+            )
+        )
+    design = {
+        DifferenceInDifferences: "categorical_repeated_cross_section_2x2",
+        PanelDifferenceInDifferences: "categorical_balanced_two_period_panel",
+        AugmentedPanelDiD: "categorical_augmented_panel",
+    }[type(query)]
+    return CategoricalDidEstimate(reference, tuple(contrasts), design)
+
+
 __all__ = [
+    "PeriodHistoryMatch",
+    "PeriodHistoryMatchEstimate",
+    "IvBounds",
+    "IvBoundsEstimate",
+    "IvBoundsInterval",
+    "IvBoundsPosterior",
     "DifferenceInDifferences",
     "DifferenceInDifferencesEstimate",
+    "CategoricalDidContrast",
+    "CategoricalDidEstimate",
+    "estimate_categorical_did",
     "PanelDifferenceInDifferences",
     "PanelDifferenceInDifferencesEstimate",
     "StaggeredAdoption",
@@ -760,11 +1616,16 @@ __all__ = [
     "StaggeredEventStudyEstimate",
     "StaggeredEventTimeEffect",
     "SyntheticControl",
+    "ObservedWindowSupport",
     "SyntheticControlEstimate",
     "SyntheticDifferenceInDifferences",
     "SyntheticDifferenceInDifferencesEstimate",
     "AugmentedPanelDiD",
     "AugmentedPanelDiDEstimate",
+    "StaggeredRollout",
+    "CovariateAdjustedDiD",
+    "DesignEffect",
+    "QuasiRolloutEstimate",
     "FuzzyRegressionDiscontinuity",
     "RegressionKink",
     "SharpRegressionDiscontinuity",

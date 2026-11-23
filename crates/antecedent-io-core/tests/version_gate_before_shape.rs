@@ -73,6 +73,19 @@ fn a_newer_external_callback_envelope_is_an_unsupported_version() {
         Err(IoError::UnsupportedVersion { version }) => assert_eq!(version, 2),
         other => panic!("expected an unsupported version, got {other:?}"),
     }
+    // A caller's smaller byte bound refuses the same envelope before it is read at all.
+    assert!(matches!(
+        ExternalCallbackArtifact::inspect_within(&bytes, bytes.len() - 1),
+        Err(IoError::Convert(_))
+    ));
+    assert!(matches!(
+        ExternalCallbackArtifact::inspect_within(&bytes, bytes.len()),
+        Err(IoError::UnsupportedVersion { version: 2 })
+    ));
+    assert!(matches!(
+        ExternalCallbackArtifact::consume_within(&bytes, &[0; 32], &[0; 32], bytes.len() - 1),
+        Err(IoError::Convert(_))
+    ));
 }
 
 #[test]

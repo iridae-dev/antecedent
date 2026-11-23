@@ -243,13 +243,13 @@ impl RobustnessError {
             Self::Structural(error) => at_stage(error.to_refusal(), "robustness"),
             Self::ContractMismatch => build(
                 antecedent_core::reason_code!("decision_contract_unsatisfied"),
-                "decision_robustness.contract_mismatch",
+                antecedent_core::reason_details::decision_robustness::CONTRACT_MISMATCH,
             )
             .remedy("assess the structural result against the contract that produced it")
             .build(),
             Self::InvalidProfile(why) => build(
                 antecedent_core::reason_code!("invalid_argument"),
-                "decision_robustness.invalid_profile",
+                antecedent_core::reason_details::decision_robustness::INVALID_PROFILE,
             )
             .expected(*why)
             .build(),

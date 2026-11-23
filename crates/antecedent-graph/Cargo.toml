@@ -17,11 +17,16 @@ autotests = false
 [lints]
 workspace = true
 
+[features]
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent-core/development"]
+
 [dependencies]
 antecedent-core = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+antecedent-core = { workspace = true, features = ["test-support"] }
 criterion = { workspace = true }
 serde_json = { workspace = true }
 
@@ -48,3 +53,27 @@ harness = false
 [[test]]
 name = "suite_01"
 path = "tests/suite_01.rs"
+
+[[test]]
+name = "admg_msep_exhaustive"
+path = "tests/admg_msep_exhaustive.rs"
+
+[[test]]
+name = "cpdag_mec_exhaustive"
+path = "tests/cpdag_mec_exhaustive.rs"
+
+[[test]]
+name = "sigma_separation_walk_reference"
+path = "tests/sigma_separation_walk_reference.rs"
+
+[[test]]
+name = "pag_completion_exhaustive"
+path = "tests/pag_completion_exhaustive.rs"
+
+[[test]]
+name = "temporal_cpdag_invariants_reference"
+path = "tests/temporal_cpdag_invariants_reference.rs"
+
+[[test]]
+name = "latent_projection_claims_02_reference"
+path = "tests/latent_projection_claims_02_reference.rs"

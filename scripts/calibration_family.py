@@ -25,7 +25,10 @@ from _rust_source import lex
 
 MANIFEST_PATH = "scripts/calibration_family_manifest.json"
 AUDIT_PATH = "scripts/calibration_family_labels.json"
-GATE_PATH = "scripts/gate_calibration.sh"
+# The gate's group table; a commit from before it held the groups in a shell driver,
+# under one of the earlier names (newest first).
+GATE_PATH = "parity/calibration_groups.toml"
+EARLIER_GATE_PATHS = ("scripts/measure_calibration_groups.sh", "scripts/gate_calibration.sh")
 ACCEPTANCE_PATH = "parity/acceptance_manifest.toml"
 SCHEMA = "source_fixed_calibration_family.v1"
 
@@ -52,16 +55,43 @@ LABEL_REVIEW = {
     "practitioner_scale_calibration.rs": "Source-fixed named dose/horizon coordinates and two declared confidence levels.",
     "adaptive_whole_procedure_calibration.rs": "Literal selected_contrast scores the whole selection algorithm, rather than choosing a hypothesis from observed coverage.",
     "nested_markov_fisher_calibration.rs": "Debug rendering of a finite caller-declared functional enum.",
+    "mnar_interval_calibration.rs": "Declared-shift and arm-missingness band labels from a finite source grid; a replicate whose realized cell differs from the measured one is redrawn, so observed data never choose a label.",
+    "categorical_posterior_calibration.rs": "Level-count and row-multiplier labels k2_r1 to k8_r16 from finite source loops; the three imbalances cycled inside a record are fixed settings, not outcomes.",
+    "grid_functional_effect_calibration.rs": "One test per group of supported functional-effect coordinates that report one interval, through the shared sibling driver: the coordinates sharing a measured base are a source-fixed list, each checked to report the base interval, truth and scope on the first replicates before it is scored on the base; the scored targets (labels and closed-form truths) are a caller-declared list handed to the driver before any replicate runs, at most three per coordinate, at the two source-fixed levels; the sibling variants are the fixed validation modes and the accepted twin of each coordinate, never chosen from outcomes.",
+    "grid_functional_posterior_calibration.rs": "One test per graph-posterior PAG coordinate scoring the identified set the route publishes, at the coordinate's own source-fixed level (0.95 frequentist, 0.90 Bayesian): one tally per fixed validation variant, named by its variant index, each checked to report the base identified set bit for bit; the coordinate list, truths and variants are source-fixed before any replicate runs, never chosen from outcomes.",
+    "grid_temporal_effect_calibration.rs": "One test per supported temporal-effect coordinate through the shared sibling driver: the scored targets (labels and closed-form truths) are a caller-declared list handed to the driver before any replicate runs, at most three per test, at the two source-fixed levels; the sibling variants are the fixed validation modes and the accepted twin of the coordinate, never chosen from outcomes.",
+    "grid_response_calibration.rs": "One test per group of supported static response coordinates that report one interval, through the shared sibling driver: the coordinates sharing a measured base are a source-fixed list, each checked to report the base interval, truth and scope on the first replicates before it is scored on the base; the scored targets (labels and closed-form truths) are a caller-declared list handed to the driver before any replicate runs, at most three per coordinate, at the two source-fixed levels; the sibling variants are the fixed validation modes and the accepted twin of each coordinate, never chosen from outcomes.",
+    "grid_temporal_response_calibration.rs": "One test per supported temporal response coordinate through the shared sibling driver: the scored targets (labels and closed-form truths) are a caller-declared list handed to the driver before any replicate runs, at most three per test, at the two source-fixed levels; the sibling variants are the fixed validation modes and the accepted twin of the coordinate, never chosen from outcomes.",
+    "grid_temporal_response_bayesian_calibration.rs": "One test per supported Bayesian temporal response coordinate through the shared sibling driver: the scored targets (labels and closed-form truths) are a caller-declared list handed to the driver before any replicate runs, at most three per test, at the two source-fixed levels; the sibling variants are the fixed validation modes and the accepted twin of the coordinate, never chosen from outcomes.",
+    "grid_static_calibration.rs": "One test per supported static estimator coordinate through the shared sibling driver: the scored targets (labels and closed-form truths) are a caller-declared list handed to the driver before any replicate runs, at most three per test, at the two source-fixed levels; the sibling variants are the fixed validation modes and the accepted twin of the coordinate, never chosen from outcomes.",
+    "grid_mechanism_design_calibration.rs": "One test per group of supported mechanism, transport and design coordinates that report one interval, through the shared sibling driver: the coordinates sharing a measured base are a source-fixed list, each checked to report the base interval, truth and scope on the first replicates before it is scored on the base; the scored targets (labels and closed-form truths) are a caller-declared list handed to the driver before any replicate runs, at most three per coordinate, at the two source-fixed levels; the sibling variants are the fixed validation modes and the accepted twin of each coordinate, never chosen from outcomes.",
+    "fitted_model_calibration.rs": "Nineteen source-fixed designs of the fitted-model routes (change, root-cause, path, feature-relevance, anomaly and intrinsic-influence attributions, policy values, a temporal change and rollout, the posterior probability of a mechanism change and two structure posteriors) on linear-Gaussian laws with closed-form truths; labels are literal names of the published quantities fixed in source (total_change, mechanism_x, mechanism_y, the path, feature, anomaly and noise-source names, the policy quantities, the rollout steps), each scored at the reported 0.95 level and at 0.90 re-formed from the same draws; no label, level or coordinate is chosen from outcomes.",
+    "dose_grid_statements_calibration.rs": "Five source-fixed bias-aware dose-grid designs (exact quadratic and cubic means with declared third-derivative bounds of zero and M) at the fixed bandwidth: each pointwise label is a literal quantity name (level, derivative) joined to a dose of the constant grid 1, 1.5, 2, 2.5, 3, and the one joint label is the literal band, each scored at the reported 0.95 level against a closed-form truth; no label, level or coordinate is chosen from outcomes.",
+    "refuter_error_rates_calibration.rs": "Eleven source-fixed refuter error-rate designs (static and series, frequentist and Bayesian predictive check; sound procedure, spurious effect, misreported target): each label is the string id of a refuter kind taken from the design's literal kind list, and every record is a non-rejection rate at the source-fixed 1 - 0.05 level against a known null; the detection rates are printed, not asserted, and no kind, violation or level is chosen from outcomes.",
+    "panel_did_statements_calibration.rs": "Eight source-fixed difference-in-differences designs (dynamic, group and calendar rollout aggregations, group-time and pre-trend bands, three unbalanced-panel estimators, an augmented panel): each label is the literal name carried by a declared target of the design's fixed target list (summary, each component, band) scored at the reported 0.95 level against a closed-form cell effect; no target, label or level is chosen from outcomes.",
+    "fitted_model_statements_calibration.rs": "Twenty source-fixed designs of the fitted-model attribution and simulation routes (mechanism-refit bootstrap and Dirichlet or block-weight posteriors of path, feature, anomaly, unit-change, structure-change, robust-change, temporal component and influence targets, and of interventional samples, unit effects and counterfactuals) on linear-Gaussian laws with closed-form truths; labels are literal names of the published quantities in each test's fixed label list, each scored at the reported 0.95 level and at 0.90 re-formed from the same draws; no label, level or coordinate is chosen from outcomes.",
+    "conjugate_prior_calibration.rs": "Seven source-fixed conjugate-prior designs (stated and misspecified Beta-Binomial and Gamma-Poisson priors; the select-then-estimate power-prior uniform interval at source displacements of 0, 1, 2, 4 and 8 target standard errors, its bias-aware interval at 0, 0.5 and 1 under a declared bound of one standard error, and the Beta-Binomial interval at five fixed truth and bound cells): each tally name is a literal design name joined to a displacement or truth taken from the design's fixed constant list, scored at the reported 0.95 level against a closed-form truth; no name, displacement, bound or level is chosen from outcomes.",
+    "graph_posterior_weighted_target_calibration.rs": "Three source-fixed designs (a moderate and a thin overlap regime of the frequentist mixture, and a moderate regime of the Bayesian mixture) of the structure-posterior mixture for a kernel-weighted target: each label is a literal kernel centre and bandwidth from the design's fixed list, scored at the reported 0.95 level against the closed-form kernel-weighted effect of the planted modified effect; the two posterior structures and their masses are source-fixed, and no label, level or bandwidth is chosen from outcomes.",
+    "temporal_design_statements_calibration.rs": "Twenty-five source-fixed temporal-design panels (pointwise coordinates, sup-t bands, Holm family errors, quartile effects, dose-grid derivative and bias-aware intervals, longer-horizon survival): each label is a literal coordinate name paired with its closed-form truth in the test's declared target list, or the literal band, scored at the reported 0.95 level; no coordinate, label or level is chosen from outcomes.",
 }
 
 
 # Every additional producer/consumer receives a named review; there is no generic
 # approval for a new unlabelled constructor file.
 SOURCE_REVIEW = {
+    "fitted_dependent_measurement_calibration.rs": "One source-fixed labelled joint-indicator validation design with two construct rows and four fixed joint cells per row. The 150/300/600 sample-size grid, Dirichlet prior, equal-tail 0.95 interval, outcome coordinate and analytic truth are fixed before sampling; the runtime calibration basis is checked against the declared record. No label or target is chosen from outcomes.",
+    "graph_narrow_policy_calibration.rs": "One source-fixed graph-checked held-out policy design with binary policy information x, wider nuisance adjustment x,w, known assignment probabilities and a 500/1000/2000-row grid. The executed action in each x stratum determines the exact conditional target before interval scoring; the 0.95 Wald method and runtime calibration basis are fixed. No label or target is chosen by observed coverage.",
+    "graph_imputation_transport_calibration.rs": "One source-fixed root-treatment, binary pretreatment modifier design with source MAR outcomes and an independently sampled target covariate frame. The 60/120/240 source-and-target grid redoes imputation, graph scoring, child target standardization, fit and utility in every replicate. The 0.95 target-effect interval (Rubin's rules with Barnard-Rubin degrees of freedom across the completed tables) is taken from the compiled route and scored against analytic truth conditional on its target frame; the runtime basis is bound before coverage is seen. The pooled interval replaced order statistics of the two-table draw mixture, and the target standardization dropped a source bootstrap of frame means its weights already reproduce, after measured under-coverage; the construction is keyed separately.",
+    "joint_transport_predictive_calibration.rs": "One source-fixed Gaussian trial with the same declared baseline and known noise in the target. The 60/120/240 source-and-target grid refits the producer, draws paired target outcomes through the compiler and scores the 0.95 nearest-rank treated-outcome interval against an independent future target unit. The executed model and target-noise basis is bound before coverage is seen; this is predictive coverage, not action-choice reliability.",
+    "iid_sampling_assumption_union_calibration.rs": "One source-fixed IID Gaussian mean and fixed assumption range [0,1]. The 60/120/240 raw-unit grid reruns compiler-generated joint-row resampling and every chain for 200 bootstrap replicates per outer sample. The event is simultaneous coverage of the known identified-set endpoints [1,2], scored at 0.95 through a scalar-equivalent transform; the route's exact basis is bound before coverage is seen.",
+    "graph_narrow_cross_fitted_policy_calibration.rs": "One source-fixed graph-checked three-fold policy learner uses binary x while nuisance adjustment uses x,w and known row-level assignment. The 500/1000/2000-row grid reruns the whole cross-fitting schedule and scores the distinct 0.95 candidate against the route's stated target, the population value of each realized fold policy weighted by its fold's share of the scored rows, including unstable fold policies. The target replaced the row-wise conditional means of the scored rows after a measured coverage of one showed those were not the quantity the influence-score interval estimates; the interval itself is unchanged. No interval or hypothesis is chosen from observed coverage.",
+    "cyclic_posterior_predictive_calibration.rs": "One source-fixed two-equation Gaussian feedback system with known covariance, one fitted cyclic weight and two hard-clamp worlds. The 120/240/480 training-row grid refits the joint MCMC posterior, draws population disturbances, solves both worlds and compiles utility each replicate; the ordinary-world 0.95 outcome interval is scored against an independent future equilibrium under the same model. Diagnostics and runtime basis are checked before coverage is seen. The warmup-tuned random walk with dispersed chain starts replaced a fixed-step walk from one start after 9 of 400 replicates at the largest grid point failed the convergence gate.",
+    "conjugate_prior_calibration.rs": "Fixed conjugate-posterior and select-then-estimate power-prior procedures, closed-form or declared truths and one reported confidence level; the discount selection is part of each scored procedure, never chosen from empirical coverage.",
     "calibration_coverage.rs": "Runtime coverage consumer/tests only; no Monte Carlo hypothesis producer.",
     "adaptive_inference_calibration.rs": "Fixed declared adaptive procedure, arm truths, stopping rules and source-selected confidence levels; whole-procedure target is fixed.",
     "adaptive_procedure_prior_predictive_calibration.rs": "Fixed prior-predictive generators and procedure configurations; calibration outcomes do not select the prior or hypothesis.",
     "cohort_linear_effect_calibration.rs": "Fixed cohort test names, source-declared effect/truth and confidence levels.",
+    "inference_metrics.rs": "Error-rate tallies named from the caller's fixed test, covariance-kind/direction loop and sample size; each is a non-rejection rate at the source-fixed 1 - 0.05 level, never chosen from outcomes.",
     "candidate_calibration.rs": "Shared candidate tally constructor takes caller static test/DGP/method identity and declared confidence; callers are source-fixed gate cases.",
     "count_fitted_posterior_calibration.rs": "Fixed count-family posterior construction, truths and test confidence.",
     "counterfactual_transport_sampled.rs": "Fixed sampled counterfactual transport test configurations and static record keys.",
@@ -75,6 +105,7 @@ SOURCE_REVIEW = {
     "temporal_unit_calibration.rs": "Fixed temporal units, query configurations and confidence levels.",
     "coverage_records_data.rs": "Embedded registry consumer/tests only; no calibration hypothesis constructor.",
     "batch_retarget_calibration.rs": "Finite prespecified retarget rows and batch contrasts with static test keys.",
+    "prepared_adjusted_retarget_calibration.rs": "Two fixed adjusted-retarget interval procedures with source-declared Fisher/HC1 keys, fixed four-cell target and truth, and one 0.95 confidence level; observed coverage selects no hypothesis.",
     "calibration_admg.rs": "Fixed ADMG estimators, generative models and caller static test/level arguments.",
     "calibration_anomaly_bayesian.rs": "Fixed anomaly queries and Bayesian posterior constructions; static record identities.",
     "calibration_attribution_bayesian.rs": "Fixed attribution functionals and declared posterior confidence.",
@@ -85,6 +116,8 @@ SOURCE_REVIEW = {
     "calibration_posterior_draws.rs": "Source-fixed posterior draw-count/row-count design cases and confidence.",
     "class_posterior_calibration.rs": "Fixed class-posterior procedures and declared source test configurations.",
     "cluster_dml_calibration.rs": "Fixed whole-cluster DML procedure configurations/targets; no empirical label selection.",
+    "dml_outcome_prior_calibration.rs": "Three fixed prior-strength constructions (weak, informative, misspecified) with a literal functional label; no labels selected using calibration outcomes.",
+    "count_conjugate_calibration.rs": "Two fixed conjugate-count designs (Beta exceedance, Gamma rate) with literal test-named tallies at the declared level; truths are drawn from the stated prior and no outcome selects a label.",
     "calibration_bind.rs": "Shared immutable construction/record-key binding, no calibration outcomes choose hypotheses.",
     "reported.rs": "Shared per-test reporting wrapper; one source-fixed test execution context, no empirical hypothesis selection.",
     "cross_world_interval_calibration.rs": "Fixed cross-world interval/query cases and static record identifiers.",
@@ -107,10 +140,70 @@ SOURCE_REVIEW = {
     "temporal_recalc_calibration.rs": "Fixed temporal recalculation scenarios/queries and static keys.",
     "transport_statistical_calibration.rs": "Finite source-declared transport construction/target cases and confidence.",
     "z_transport_surrogate_calibration.rs": "Fixed surrogate/transport procedures and static producer test identities.",
+    "choice_interval_calibration.rs": "Fixed pooled and hierarchical choice-share cells: option counts, respondents on the sample grid and declared hyperpriors; the scored share is drawn from the declared prior.",
+    "graph_imputation_interval_calibration.rs": "Fixed graph-imputation prior-predictive cells with declared priors and effects; candidate measurements, no label chosen from outcomes.",
+    "recovery_held_out_regimes.rs": "Fixed held-out clamp regimes of a known cyclic linear truth; coverage designs are source-declared and nothing records a coverage number from outcomes.",
+    "calibration_binding.rs": "Facade-key binding check of the estimator-level record constructions; runs no Monte Carlo hypothesis and selects no label.",
+    "learned_continuous_bootstrap_calibration.rs": "Fixed learned-continuous joint outer bootstrap procedure, the Good scenario of the declared DGP under both sampling designs and static record keys.",
+    "randomized_quantile_interval_calibration.rs": "Fixed randomized-quantile median-effect design with a known truth and static record key; the quantile and arms are source-declared.",
+    "matched_odds_ratio_interval_calibration.rs": "Fixed 1:1 matched-pair design with a declared conditional odds ratio and static record key.",
+    "descriptive_comparison_interval_calibration.rs": "Fixed two-arm proportion design scored on two source-declared reporting scales with static record keys.",
+    "nonlinear_mediation_interval_calibration.rs": "Fixed Gaussian-mediator quadratic-outcome design with closed-form natural effects; the three effect labels are source-declared and the record keys are the estimate's own calibration basis.",
+    "mechanism_composition_interval_calibration.rs": "Fixed recursive Gaussian chain with closed-form interventional means, composed and transported variants, and static record keys.",
+    "transport_weighted_target_calibration.rs": "Fixed planted-neighbourhood design with a declared kernel family and a source-declared bandwidth grid per test; the bandwidth labels and the record key are fixed in source.",
+    "weighted_target_effect_calibration.rs": "Fixed planted heterogeneous-effect design with a Gaussian kernel target at a source-declared centre and a source-declared bandwidth grid per test; the centre and bandwidth labels, the closed-form truth and the record key are fixed in source.",
+    "weighted_target_transport_calibration.rs": "Fixed planted effect-modification design (trial N(0,1), target N(1,1)) with a Gaussian kernel target at a source-declared centre and a source-declared bandwidth grid per test; the centre and bandwidth labels, the closed-form truth and the record key are fixed in source.",
+    "typed_transported_mechanism_interval_calibration.rs": "Fixed Poisson source and shifted target design with closed-form interventional mean and a static record key.",
+    "sequential_off_policy_interval_calibration.rs": "Fixed two-action off-policy design with declared logging and target policies, known target value and a static record key.",
+    "bayesian_randomized_calibration.rs": "Twelve source-fixed designs of the Bayesian design posteriors (finite-population and superpopulation arm contrasts, switchback, complier effect, piecewise survival, dose policy, the few-cluster reference posterior and the model-based arm effect), each scoring one named coordinate's equal-tailed 0.95 posterior interval against its analytic truth with static record keys; no label, level or coordinate is chosen from outcomes.",
+    "bayesian_dose_grid_calibration.rs": "Three source-fixed designs of the Bayesian randomized dose grid on one exactly quadratic law (level, derivative, contrast), each at one 0.95 level with a static record key and a prior fixed in source.",
+    "temporal_routes_calibration.rs": "Six source-fixed designs of the sequential contrast, the sequential regime and binary policy posteriors and the within-period history routes (the cross-fit Wald interval and the modular posterior of the always-treat against never-treat contrast at five folds, the Bayesian-bootstrap regime value with frozen Q predictions under a fair coin, the Bayesian-bootstrap incremental policy value, the fixed-b period interval of the history match against the population effect on the treated, and the history outcome model's posterior against its design-conditional effect), each scoring the one interval the route publishes at one 0.95 level against a closed-form truth with static record keys; no label, level, fold count or coordinate is chosen from outcomes.",
+    "temporal_wider_range_calibration.rs": "Fifty-four source-fixed designs repeating base temporal-design, sequential-contrast and regime-survival panels with one axis moved (decision lags two and three of every lag-taking design, assignment probabilities on each row's floor, a sequential panel whose true action probabilities reach 0.07 and 0.93, regime survival with thin treatment overlap and with heavy censoring), each scoring the one interval the route publishes at one 0.95 level against the base design's closed-form or simulated truth with static record keys; no lag, probability, censoring rate or coordinate is chosen from outcomes. In each wide sequential group reserve a second hypothesis slot for coverage conditional on publication, with fixed independent panel streams 0x5E20201 (Wald) and 0x5E20202 (Bayesian absolute-deviation radius). The first slot and its all-panel outcome remain historical. Only a typed fitted-overlap refusal redraws; a refusal count creates no additional hypothesis.",
+    "temporal_design_calibration.rs": "Ten source-fixed temporal-design panels (two-arm, multi-arm, categorical, factorial, interference, three dose targets, quantile, regime survival), each scored on one named coordinate against its known truth in frequentist and Bayesian form at one 0.95 level with static record keys; no label and no coordinate is chosen from outcomes.",
+    "measurement_composition_calibration.rs": "Sixteen source-fixed designs of the measurement corrections and the aligned posterior composition (binary prevalence and risk difference, classical error with declared and estimated variance, repeated measurements, the latent-posterior substitution and imputation routes, pooled differential transport, the two-arm temporal misclassification correction in both modes, and the contrast of two aligned posterior means), each scoring one named coordinate's published 0.95 interval against its closed-form truth with static record keys; the homogeneous pooled case is held one-sided because its interval is conservative at the variance boundary by construction.",
+    "measured_exposure_calibration.rs": "Five source-fixed designs of the measured-exposure route (shared and outcome-differential misclassification, calibrated soft probabilities, covariate-dependent detection, repeat codings of a latent facet), each scoring the Rubin pooled 0.95 interval of the planted exposure effect against its closed-form truth; every estimator, functional, dependence and interval label is a literal at the test's call site and no label depends on a simulated outcome.",
+    "measurement_exposure_calibration.rs": "Eight source-fixed designs of the exposure-error corrections (outcome-specific and shared validated exposure misclassification, soft exposures by substitution and by imputation, covariate-dependent detection declared exactly and with estimated parameters, binary and ordinal repeat codings), each scoring one named coordinate's published 0.95 interval against its closed-form truth; every estimator, functional and interval label is a literal in the source and no label depends on a simulated outcome.",
+    "measurement_composition_horizon_calibration.rs": "Four source-fixed designs of the horizon composition interval on one two-lag linear law (cumulative effect and horizon contrast, joint block bootstrap and block-weight draws), each at the 0.95 level against the closed-form composed truth with static record keys.",
+    "local_designs_calibration.rs": "Nine source-fixed local-ratio designs (fuzzy jump and kink at the MSE-optimal bandwidth, fuzzy jump at a declared bandwidth with the density test, sharp jump and kink in calendar time under AR(1) errors in bootstrap and block-posterior form, fixed-bandwidth Bayesian jump and kink on the model's own local-linear likelihood), each scoring the route's published 0.95 interval (and the 0.90 quantiles of the same posterior draws) against the generated ratio with static record keys; no label, bandwidth or level is chosen from outcomes.",
+    "joint_response_calibration.rs": "Sixteen source-fixed joint-response designs (nine native designs in frequentist and Bayesian form, three held-out randomized selections at exact ties, near ties and a separated winner, one continuous structural selection, the reference decomposition against static and two-period worlds, and the experiment update), each scoring the interval the result publishes for one prespecified target at one 0.95 level with static record keys; the conformal contrast and both decomposition regions are held one-sided because they are Bonferroni constructions; a replicate whose runtime key leaves the cell's support condition is a skip, never a relabelled record.",
+    "bounds_association_calibration.rs": "Ten source-fixed designs of the binary-instrument bounds and of the descriptive association: the Imbens-Manski row-bootstrap interval and the endpoint posterior quantiles of the bounds, each held one-sided against the true sharp lower and the true sharp upper bound of a known response-type mixture (an interval built for the whole identified set over-covers by construction), and the slope of a linear regression in six forms (standard error at the normal quantile and resampling spread for rows and for one autoregressive series, the conjugate marginal and the block Bayesian bootstrap), each scoring the one interval the route states at one 0.95 level against the population slope with static record keys on the design axes; no label, level or endpoint is chosen from outcomes.",
+    "panel_did_calibration.rs": "Ten source-fixed difference-in-differences designs (the staggered rollout's simple aggregate under three estimators, both comparisons and both resampling schemes; the covariate-adjusted two-period effect under three nuisance methods; the augmented panel with the true predictions supplied; the rollout's Bayesian bootstrap and the two-period Normal-Inverse-Gamma posterior), each scoring the route's published 0.95 interval against the generated effect with static record keys; no label, estimator or level is chosen from outcomes.",
+    "synthetic_control_calibration.rs": "Eight source-fixed synthetic-control designs (the donor-weight posterior's average effect; the predictive path's average, first and last post period; the conformal set of the first and last post period and of a constant effect at permutation counts that are multiples of twenty; the placebo-variance interval of three staggered adoptions among exchangeable units), each scoring the route's published 0.95 interval against the generated effect with static record keys; no label, period or level is chosen from outcomes. For the Bayesian predictive average reserve a second construction slot for the within-path average on the independent fixed stream xor 0x5041544800000000. The original marginal-average slot and observations are retained. Donors and post horizon are fixed inside each group, pre-treatment periods index its three planned grid looks, and returned-interval counts add no hypothesis.",
+    "joint_panel_calibration.rs": "Source-fixed joint-panel designs (reviewed and broader Michaelis-Menten and Hill families, finite-lag and time-varying specifications, prepared joint response) whose record names are the literal test names fixed by the two test macros, each scored at the one declared 0.95 level against a closed-form or prior-drawn truth; no outcome selects a design, test or level.",
+    "discovery_statements_calibration.rs": "Ten source-fixed structure-search designs (order-MCMC, structure-MCMC, CI-screened, ancestral-graph class, exact edge-marginal and bounded-lag template posteriors) on fixed linear laws with a known true structure class or a prior-drawn indicator, one literal test-named credible-set tally at the declared level each; no outcome selects a search, structure or level.",
+    "panel_did_range_calibration.rs": "Two source-fixed difference-in-differences range designs (the two-period posterior at its row floor and the augmented panel with in-sample nuisance fits) with a closed-form truth and one declared 0.95 level; the design axes and test names are literal.",
+    "synthetic_control_range_calibration.rs": "Ten source-fixed synthetic-control range designs (predictive-path intervals and conformal sets at one and three post periods) on the base design's panel with closed-form effects and literal pre-period counts chosen so the permutation size is exact; the design axes and test names are literal.",
+    "bayesian_randomized_statements_calibration.rs": "Three source-fixed Bayesian randomized designs (finite-population Bernoulli arms under the sharp null and varying unit effects, and the cluster Bayesian bootstrap at twenty-five to forty-nine clusters per arm) with closed-form truths and the one declared 0.95 level; the design axes and test names are literal.",
+    "bounds_association_range_calibration.rs": "Two source-fixed conjugate association designs at the literal prior scales 6 and 1000 on the base linear design with the population slope 2 and one declared 0.95 level; the scales are fixed before any run and no outcome selects a design or level.",
+    "measurement_composition_statements_calibration.rs": "Twenty-five source-fixed measurement-correction and composition designs (categorical correction, regression calibration, SIMEX, temporal misclassification beyond two arms, composed sums, weighted sums, products and ratios) with closed-form truths and one declared 0.95 level; the design axes and test names are literal.",
+    "temporal_routes_range_calibration.rs": "Four source-fixed sequential-contrast designs (ten balanced and eight unbalanced cross-fit folds, Wald and posterior intervals) on the base panel with the closed-form contrast 2.82 and one declared 0.95 level; the fold splits are literal cycles and the test names are literal.",
+    "temporal_design_range_calibration.rs": "Four source-fixed regime-survival designs (horizons one and two, bootstrap and posterior intervals) on the base survival law with a truth simulated from that law and one declared 0.95 level; the horizons and test names are literal.",
+    "bounds_association_statements_calibration.rs": "Fifteen source-fixed association designs (stratum mean and probability, logistic and Poisson slopes, Pearson and distance correlation, row and block bootstrap spread, Bayesian bootstrap, temporal stratum mean) with closed-form truths and one declared 0.95 level; the design axes and test names are literal.",
+    "local_designs_statements_calibration.rs": "Seven source-fixed local-ratio designs (declared-bandwidth kink with diagnostics, temporal fuzzy jump, kink and step at the selected bandwidth, and their Bayesian counterparts) with a closed-form ratio truth and one declared 0.95 level; the design axes and test names are literal.",
+    "temporal_routes_statements_calibration.rs": "One source-fixed sequential-regime design (the Bayesian-bootstrap posterior with cross-fitted Q predictions) on the base two-decision trial with the closed-form value 3.82 and one declared 0.95 level; the design axes and test name are literal.",
+    "conjugate_routes_calibration.rs": "Nine source-fixed designs of the conjugate count routes and the select-then-estimate power priors (exceedance and rate under a stated or source-count prior drawn from itself; the Beta-Binomial, Gamma-Poisson and Gaussian-linear selections at a displaced truth for the uniform interval and a truth inside the declared bound for the bias-aware one), each scoring the one interval the route reports at the one declared 0.95 level against the drawn or fixed truth with literal record keys; no label, level, bound or truth is chosen from outcomes.",
+    "graphless_wider_range_calibration.rs": "Source-fixed designs that repeat base designs of the cluster Bayesian bootstrap, synthetic control, panel difference-in-differences, binary-instrument bounds and association routes at support ranges the base grids do not reach (more clusters per arm, more donors, other post-period counts, pre-period counts that are not multiples of twenty, and sizes four times the base grid's largest); each scores the route's published 0.95 interval against the generated truth with static record keys, and no label, size or level is chosen from outcomes. For the Bayesian predictive average reserve a second construction slot for the within-path average on the independent fixed stream xor 0x5041544800000000. The original marginal-average slot and observations are retained. Donors and post horizon are fixed inside each group, pre-treatment periods index its three planned grid looks, and returned-interval counts add no hypothesis.",
+    "bridge_transport_premise_calibration.rs": "One source-fixed pair of independent Gaussian source and target trial lines on a fixed surrogate design, differing by a known intercept. The 60/120/240-trial-per-scope grid refits both lines through the compiler and scores simultaneous Bonferroni 0.95 Wald discrepancy bands on five prespecified overlap points against the known target-minus-source line; the runtime design basis is bound before coverage is seen. No label or target is chosen from outcomes.",
+    "cluster_sampling_assumption_union_calibration.rs": "One source-fixed design of independent Gaussian clusters, each contributing two correlated raw unit rows, with fixed assumption range [0,1]. The 60/120/240-row grid regenerates clusters, reruns 200 compiler-generated complete-cluster bootstrap resamples and recompiles the whole chain; the event is joint containment of the known set [1,2] at 0.95 under the bound cluster-design basis.",
+    "continuous_chain_transport_calibration.rs": "One source-fixed randomized linear sequential DAG with independent structural errors and independent target baselines. The 120/240/480-unit grid scores the 200-resample paired arm-stratified 0.95 percentile whole-contrast interval against analytic truth 2; the runtime basis is bound and refusals are counted. No label or target is chosen from outcomes.",
+    "event_count_calibration.rs": "One source-fixed exponential-kernel Hawkes cluster process simulated independently of the fitted model. The history windows are 128, 256 and 512 time units; the record scopes each point by its measured event counts. Each replicate refits the forecast (16 refits, 256 paths) and scores the 0.90 smoothed-rank count interval on a fixed two-unit window against the simulated future count; the runtime basis is bound before coverage is seen. The smoothed-rank construction, separately keyed, replaced inclusive nearest-rank quantiles after a measured over-coverage traced to their always-included tied boundary counts.",
+    "graph_imputation_binary_cluster_calibration.rs": "Two source-fixed binary-target graph-imputation designs (randomized and pretreatment-confounded assignment) with MAR source outcomes and independent two-row target clusters. The 60/120/240-row grid reruns 40 whole-cluster target resamples of the full graph, imputation, transport, fit and decision schedule, each on its own imputation and posterior streams, and scores the 0.95 replicate order-statistic effect interval against known target-population truth; the runtime basis is bound before coverage is seen. The replicate order statistics over per-replicate streams replaced a forty-draw nearest-rank interval over one shared stream after measured under-coverage; the construction is keyed separately.",
+    "graph_imputation_kernel_cluster_calibration.rs": "Two source-fixed continuous-target graph-imputation designs (randomized and pretreatment-confounded assignment) with MAR source outcomes and independent two-row target clusters. The 60/120/240-row grid reruns 40 whole-cluster target resamples of the full graph, imputation, mean-calibrated kernel transport, fit and decision schedule, each on its own imputation and posterior streams, and scores the 0.95 replicate order-statistic effect interval against known target-population truth; the runtime basis is bound before coverage is seen. The weakly informative prior (scale 10) replaced a scale-1 prior that shrank the effect, and the replicate order statistics over per-replicate streams replaced a forty-draw nearest-rank interval over one shared stream, after a measured coverage near one half; the construction is keyed separately.",
+    "graph_imputation_kernel_transport_calibration.rs": "One source-fixed design with continuous source and target covariate frames, randomized binary treatment, MAR Gaussian outcomes and known linear effect modification. The 60/120/240-row grid reruns imputation, graph selection, kernel target standardization calibrated to the frame's covariate means, child posterior fit and utility, and scores the 0.95 target-frame interval (Rubin's rules with Barnard-Rubin degrees of freedom across the completed tables) against analytic truth conditional on the frame; the runtime basis is bound before coverage is seen. The weakly informative prior (scale 10) replaced a scale-1 prior that shrank the effect toward zero, and the mean calibration and pooled interval replaced the fixed-bandwidth ratio and mixture order statistics, after a measured coverage near one half; the construction is keyed separately.",
+    "graph_imputation_mar_cluster_calibration.rs": "Four source-fixed declared-MAR target-cluster designs (binary or kernel target, randomized or confounded assignment) with a partially observed modifier whose known observation probability depends on an always-observed covariate. Each replicate refits the 40-resample graph-imputation transport and utility schedule, each resample on its own imputation and posterior streams, and scores the 0.95 replicate order-statistic interval against the analytic target-population effect under the bound runtime scope; labels come from the four fixed test functions. The selection targets covering every pretreatment covariate and the 100/200/400-row grid replaced a declaration every replicate refused as not S-admissible and a 60-row base point where a stratum could miss an arm; no coverage was scored under the old declaration.",
+    "graph_imputation_predictive_calibration.rs": "Four source-fixed individual-outcome designs (Bernoulli or Gaussian outcome, control or active world) with MAR source outcomes and an independent binary target frame. Each replicate recompiles graph selection, imputation, transport, predictive worlds and the joint decision, checks the world-specific runtime basis and scores the 0.95 interval against a future individual drawn from the frame (its generated outcome when Gaussian, its known success probability when Bernoulli, pooled across the completed tables by Rubin's rules on the logit scale); labels come from the four fixed test functions. Scoring the success probability replaced scoring a future 0/1 outcome, which a [0,1] interval always covered, after a measured coverage of one, and a residual stream keyed by the execution seed replaced one fixed stream after measured under-coverage of the active world; the construction is keyed separately.",
+    "graph_imputation_predictive_cluster_calibration.rs": "Four source-fixed predictive designs (Bernoulli or Gaussian outcome, control or active world) under independent two-row target clusters and a known response law. Graph, imputation and target predictive fit rerun across 40 whole-cluster resamples, each on its own imputation and posterior streams; a future population individual (its outcome when Gaussian, its success probability when Bernoulli) and the known-optimum decision are scored under their bound scopes; labels come from the four fixed test functions. Scoring the success probability replaced scoring a future 0/1 outcome after a measured coverage of one, and per-replicate streams replaced one shared stream; the construction is keyed separately.",
+    "graph_narrow_cross_fitted_subsampling_policy_calibration.rs": "The source-fixed graph-checked three-fold policy design of graph_narrow_cross_fitted_policy_calibration on a near-tie outcome law. The 500/1000/2000-row grid reruns all folds with 100 half-sample subsamples and scores the basic subsampling 0.95 interval, with the finite-population sqrt(m/(n-m)) deviation scaling and (B + 1) p quantile positions, against the route's stated target, the population value of each realized fold policy weighted by its fold's share of the scored rows, after an independent replay. The target replaced the row-wise conditional means of the scored rows, and the scaling and positions replaced sqrt(m/n) and type-7 quantiles, after a measured coverage of one; the construction is keyed separately. No label or target is chosen by observed coverage.",
+    "sampled_temporal_path_transport_calibration.rs": "One source-fixed finite-SCM mediation design with covariate shift; every cited source and target regime is sampled independently. The 20000/40000/80000-unit-per-regime grid scores the clamped paired-delta 0.95 whole-contrast interval against the finite oracle and binds the runtime basis; refusals are counted. One uniform draw per sampled unit replaced a sampler that redrew inside its binary search after most replicates were refused for unseen cells; no coverage was scored under the old sampler's law.",
+    "trial_ipw_predictive_calibration.rs": "One source-fixed known-randomization trial and independent target units sharing a Gaussian outcome law with a known treatment effect. Each replicate fits the normalized IPW predictive decision, scores the 0.95 nearest-rank treated-outcome interval against a fresh target outcome, checks the exact interval basis and action-choice scope, and reports the true-optimum choice rate.",
 }
 PATH_REVIEW = {
     "crates/antecedent-io-core/src/calibration.rs": "Runtime calibration lookup and its test fixtures; no Monte Carlo family producer.",
+    "crates/antecedent/tests/common/calibration_design_counts.rs": "Reports auxiliary counts and tests nominal coverage at four exact 40-donor panel designs on an independent stream. Their final look, precision and simultaneous equivalence bounds are fixed before validation. The second sequential tally sums refusals and has no independent statistical assertion or coverage record.",
     "crates/antecedent/tests/common/calibration.rs": "Shared tally definition plus bounded unit fixtures; actual named hypothesis labels/levels come from audited caller sources.",
+    "crates/antecedent-estimate/src/bayesian/tests.rs": "Four fixed conjugate temporal coverage designs with literal tally names at the source-fixed 90% level; the equal-tailed interval rule is fixed before simulation.",
+    "crates/antecedent-estimate/src/dml.rs": "Four fixed learner methods with literal tally names at the fixture's declared nominal level; one source-fixed DGP and truth.",
+    "crates/antecedent/tests/common/grid_cell.rs": "Shared sibling driver with no hypothesis of its own: the caller hands it the coordinate (test, DGP, interval, estimator, variant count) and a declared target list (label and closed-form truth) before any replicate runs. It makes one record tally per variant, target and level at the two source-fixed levels (reported 0.95 and gate 0.90), so a test asserts at most variants x targets x 2 cells per grid point, all fixed by the caller's source. A label is the target's declared label. The variants are the caller's fixed validation modes and accepted twin; each sibling runs on the first two replicates, must report the base interval bit for bit, and its record is bound from its own execution (runtime match key and validation mode) and scored on those base intervals. No observed coverage chooses a label, target or variant.",
 }
 
 
@@ -171,8 +264,27 @@ def _source_paths(root: Path, sha: str | None) -> list[str]:
     )
 
 
+@cache
+def _immutable_source(root: Path, path: str, sha: str) -> bytes:
+    return subprocess.check_output(["git", "show", f"{sha}:{path}"], cwd=root)
+
+
 def read_source(root: Path, path: str, sha: str | None = None) -> bytes:
+    if sha and path == GATE_PATH:
+        for candidate in (path, *EARLIER_GATE_PATHS):
+            try:
+                return _read_source_at(root, candidate, sha)
+            except subprocess.CalledProcessError:
+                if candidate == EARLIER_GATE_PATHS[-1]:
+                    raise
+    return _read_source_at(root, path, sha)
+
+
+def _read_source_at(root: Path, path: str, sha: str | None) -> bytes:
     if sha:
+        # Cache complete object identities; mutable refs and live files stay fresh.
+        if re.fullmatch(r"[0-9a-f]{40}", sha):
+            return _immutable_source(root.resolve(), path, sha)
         return subprocess.check_output(["git", "show", f"{sha}:{path}"], cwd=root)
     return (root / path).read_bytes()
 
@@ -263,14 +375,35 @@ def validate_label_audit(audit: dict, root: Path = ROOT, sha: str | None = None)
             raise ValueError(f"source-fixed label review is stale: {row['path']}")
 
 
+def group_slots(table: dict):
+    """Yield each permanent family slot; reserved slots have no runnable study."""
+    rows = table["group"]
+    reserved = table.get("reserved_group_indices", [])
+    size = len(rows) + len(reserved)
+    if (any(type(i) is not int or not 1 <= i <= size for i in reserved)
+            or len(set(reserved)) != len(reserved)):
+        raise ValueError("invalid reserved calibration group indices")
+    unused = set(reserved)
+    active = iter(rows)
+    for index in range(1, size + 1):
+        yield index, None if index in unused else next(active)
+
+
 def gate_roster(gate: bytes, acceptance: bytes) -> list[dict]:
-    # Execute only the gate's existing dry-run path in a scratch source tree.
+    """The complete roster: the group table's rows, or an earlier shell driver's dry run."""
+    if not gate.startswith(b"#!"):
+        import tomllib
+        slots = group_slots(tomllib.loads(gate.decode("utf-8")))
+        groups = [{"index": i, "label": row["label"], "grid": bool(row["grid"])} if row is not None
+                  else {"index": i, "label": f"reserved slot {i}", "grid": False} for i, row in slots]
+        return _complete_roster(groups)
+    # Execute only the earlier driver's dry-run path in a scratch source tree.
     # This obtains the complete roster even when the caller selected a shard.
     with tempfile.TemporaryDirectory(prefix="calibration-family-") as directory:
         root = Path(directory)
         (root / "scripts").mkdir()
         (root / "parity").mkdir()
-        (root / GATE_PATH).write_bytes(gate)
+        (root / EARLIER_GATE_PATHS[0]).write_bytes(gate)
         (root / ACCEPTANCE_PATH).write_bytes(acceptance)
         env = {
             key: value
@@ -283,7 +416,7 @@ def gate_roster(gate: bytes, acceptance: bytes) -> list[dict]:
             ANTECEDENT_CALIBRATION_RECHECK_NSIM="2000",
         )
         result = subprocess.run(
-            ["bash", str(root / GATE_PATH)],
+            ["bash", str(root / EARLIER_GATE_PATHS[0])],
             cwd=root,
             env=env,
             text=True,
@@ -295,13 +428,17 @@ def gate_roster(gate: bytes, acceptance: bytes) -> list[dict]:
         {"index": int(m.group(1)), "label": m.group(2), "grid": int(m.group(1)) in grid}
         for m in re.finditer(r"^group (\d+): (.+)$", result.stdout, re.MULTILINE)
     ]
+    return _complete_roster(groups)
+
+
+def _complete_roster(groups: list[dict]) -> list[dict]:
     if (
         not groups
         or [g["index"] for g in groups] != list(range(1, len(groups) + 1))
         or len({g["label"] for g in groups}) != len(groups)
         or len({g["label"].translate(str.maketrans(" /:", "___")) for g in groups}) != len(groups)
     ):
-        raise ValueError("gate dry run did not give a complete unique source roster")
+        raise ValueError("the gate did not give a complete unique source roster")
     return groups
 
 
@@ -331,9 +468,24 @@ def build_manifest(root: Path = ROOT, audit: dict | None = None) -> dict:
     return manifest
 
 
+def original_roster(root: Path = ROOT) -> list[dict]:
+    """The complete roster of the original frozen family, read from its immutable source."""
+    manifest = json.loads(read_source(root, MANIFEST_PATH, allocations.ORIGINAL_SOURCE))
+    return manifest["groups"]
+
+
 def allocation_digest(root: Path, sha: str | None, groups: list[dict]) -> str:
+    """Digest of the cumulative allocation receipt, validated against the original roster.
+
+    The receipt's risk budget, slot owners and indices belong to the original family
+    (`allocations.ROSTER_DIGEST` is the digest of that roster, so it never moves when the
+    gate gains a group). `groups`, the roster of the tree being frozen, only has to still
+    contain every allocation owner by label."""
     raw = read_source(root, allocations.PATH, sha)
-    allocations.validate(json.loads(raw), groups, source_validation_domain(root, sha))
+    allocations.validate(json.loads(raw), original_roster(root), source_validation_domain(root, sha))
+    owners = {allocations.GROUP, allocations.PAG_EXTENSION["group"]["label"]}
+    if not owners <= {group["label"] for group in groups}:
+        raise ValueError("an allocation owner group is absent from the gate roster")
     return _sha(raw)
 
 
@@ -376,7 +528,7 @@ def followup_allocation(config: dict) -> tuple[str, dict] | None:
     """A new random domain spends only its explicitly reserved construction slot."""
     decision.validate_config(config)
     domain = config["validation_domain"]
-    if domain == decision.LEGACY_DOMAIN:
+    if domain in (decision.LEGACY_DOMAIN, decision.MEASUREMENT_DOMAIN):
         return None
     if domain == decision.HC3_DOMAIN:
         return allocations.GROUP, {
@@ -408,6 +560,12 @@ def validate_measurement_selection(config: dict, labels: list[str]) -> None:
             and os.environ.get("ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL", "3") != "3"
         ):
             raise ValueError("HC3 validation requires its allocated protocol3 construction")
+        return
+    if config["validation_domain"] == decision.MEASUREMENT_DOMAIN:
+        # An ordinary measurement admits every group of the frozen current roster.
+        current = json.loads(read_source(ROOT, MANIFEST_PATH))
+        if not labels or not set(labels) <= {group["label"] for group in current["groups"]}:
+            raise ValueError("measurement group is absent from the frozen current roster")
         return
     original = json.loads(read_source(ROOT, MANIFEST_PATH, allocations.ORIGINAL_SOURCE))
     roster = {group["label"] for group in original["groups"]}

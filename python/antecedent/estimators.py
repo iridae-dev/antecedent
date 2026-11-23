@@ -44,12 +44,16 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Final, Literal
+from typing import TYPE_CHECKING, Any, Final, Literal
 
 from ._defaults import OMITTED
+from ._penalty import bounded_penalty_list
 from .errors import CausalValueError
 from .ids import Estimator
 from .learners import LearnerSpec, _learner_wire
+
+if TYPE_CHECKING:
+    from .priors import ComposedPrior, PriorMapping
 
 SeKind = Literal[
     "homoskedastic",
@@ -115,6 +119,55 @@ def _validate_bootstrap(bootstrap: int | None) -> None:
         raise ValueError(f"bootstrap must be a non-negative int, got {bootstrap!r}")
 
 
+def _validate_outcome_prior(prior_from: object, mapping: object) -> None:
+    """Fail fast on an outcome-nuisance prior the native parser would refuse less specifically."""
+    from .priors import ComposedPrior, PriorMapping, SelectAlpha  # noqa: PLC0415
+
+    if isinstance(prior_from, SelectAlpha):
+        if mapping is not None:
+            raise CausalValueError(
+                "a SelectAlpha prior names its coefficients itself; declare no mapping"
+            )
+        return
+    if isinstance(prior_from, ComposedPrior):
+        if mapping is not None:
+            if not isinstance(mapping, PriorMapping):
+                raise CausalValueError(f"DML mapping must be a PriorMapping, got {mapping!r}")
+            # Renaming the composed coordinates is the mapping; refuse one that cannot apply.
+            prior_from.with_coefficient_mapping(mapping)
+        return
+    if prior_from is not None and not isinstance(prior_from, (bytes, bytearray, memoryview)):
+        raise CausalValueError(
+            "DML prior_from must be posterior artifact bytes (result.posterior.artifact) or a "
+            f"ComposedPrior, got {type(prior_from).__name__}"
+        )
+    if prior_from is not None and len(prior_from) == 0:
+        raise CausalValueError("DML prior_from artifact is empty")
+    if mapping is not None and prior_from is None:
+        raise CausalValueError("DML mapping requires prior_from")
+    if mapping is not None and not isinstance(mapping, PriorMapping):
+        raise CausalValueError(f"DML mapping must be a PriorMapping, got {mapping!r}")
+
+
+def _outcome_prior_wire(prior_from: object, mapping: object) -> dict[str, Any]:
+    """The estimator-config entries of an outcome-nuisance prior (artifact or composed)."""
+    from .priors import ComposedPrior, SelectAlpha  # noqa: PLC0415
+
+    if isinstance(prior_from, SelectAlpha):
+        return {"alpha_selection": prior_from.to_native_dict()}
+    if isinstance(prior_from, ComposedPrior):
+        composed = prior_from
+        if mapping is not None:
+            composed = composed.with_coefficient_mapping(mapping)  # type: ignore[arg-type]
+        return {"composed_prior": composed.to_native_dict()}
+    out: dict[str, Any] = {}
+    if prior_from is not None:
+        out["prior_artifact"] = bytes(prior_from)  # type: ignore[call-overload]
+    if mapping is not None:
+        out["prior_mapping"] = mapping.to_dict()  # type: ignore[attr-defined]
+    return out
+
+
 def _validate_positive(name: str, value: float | None) -> None:
     if value is not None and value <= 0:
         raise ValueError(f"{name} must be positive, got {value!r}")
@@ -147,13 +200,9 @@ def _validate_se(
         raise ValueError(
             f"se_lag is only valid when se is 'newey_west' or 'panel_cluster_hac', got se={se!r}"
         )
-    if cluster is not None:
-        if not isinstance(cluster, str) or not cluster.strip():
-            raise ValueError(f"cluster must name a data column, got {cluster!r}")
-        if cluster_ids is not None:
-            raise ValueError("cluster names a column; do not also pass cluster_ids")
-        if se != "cluster":
-            raise ValueError(f"cluster requires se='cluster'; got se={se!r}")
+    _validate_cluster_only(cluster, cluster_ids)
+    if cluster is not None and se != "cluster":
+        raise ValueError(f"cluster requires se='cluster'; got se={se!r}")
     if se == "cluster" and cluster_ids is None and cluster is None:
         raise ValueError("se='cluster' requires cluster_ids or cluster")
     if cluster_ids is not None and se != "cluster":
@@ -214,6 +263,12 @@ class GlmOptions:
     deliberately not exposed: Rust's own parser (``estimator_config.rs``'s
     ``build_glm_options``) pins it to ``MethodOfMoments`` and does not accept it from
     Python either, so there would be nothing for a field here to wire through.
+
+    ``ridge_on_separation`` accepts only ``None``. Every estimator refuses a separated
+    fit rather than keep a ridge refit, so a value would change nothing but the
+    analysis identity, and it is refused with a ``ValueError`` when the study is
+    prepared. Declare ``Aipw(propensity_penalty=...)`` for a penalized propensity, or
+    an ``Overlap`` clip or trim for extreme propensities.
     """
 
     max_iter: int | None = None
@@ -256,7 +311,7 @@ class PropensityPenalty:
     intervals rest on a stated remainder condition (``docs/guides/penalized-aipw.md``);
     their coverage is what the calibration suite measures. Outcome models stay arm-wise OLS.
     A lasso outside the cross-fitted untrimmed ``AllObserved`` mean ATE is refused with
-    ``selection_inference_not_licensed``.
+    ``selection_inference_not_supported``.
     """
 
     kind: PropensityPenaltyKind = "ridge_logistic"
@@ -269,7 +324,7 @@ class PropensityPenalty:
                 f"PropensityPenalty.kind must be 'ridge_logistic' or 'lasso', got {self.kind!r}"
             )
         if self.lambdas is not None:
-            values = list(self.lambdas)
+            values = bounded_penalty_list(self.lambdas)
             if not values:
                 raise CausalValueError("PropensityPenalty.lambdas must not be empty")
             for value in values:
@@ -294,7 +349,7 @@ class PropensityPenalty:
     def _wire(self) -> dict[str, Any]:
         out: dict[str, Any] = {"kind": self.kind}
         if self.lambdas is not None:
-            out["lambdas"] = [float(value) for value in self.lambdas]
+            out["lambdas"] = [float(value) for value in bounded_penalty_list(self.lambdas)]
         if self.inner_folds is not None:
             out["inner_folds"] = int(self.inner_folds)
         return out
@@ -317,17 +372,17 @@ class ClusterDml:
     cluster-sandwich standard error** of those scores (``se_analytic``; ``se_kind`` is
     ``cluster`` for one-way and ``multiway`` for dyadic units). ``Aipw(bootstrap=0,
     cluster_dml=...)`` is required: a row bootstrap would split clusters and a different
-    ``se`` kind is ambiguous, so either refuses ``cluster_interval_not_licensed``. The iid
-    joint covariance and influence values stay withheld. It is licensed for the untrimmed
+    ``se`` kind is ambiguous, so either refuses ``cluster_interval_not_supported``. The iid
+    joint covariance and influence values stay withheld. It is supported for the untrimmed
     ``AllObserved`` mean ATE and is not combined with ``propensity_penalty``.
 
     ``unit="dyad"`` declares two-way (dyadic) dependence: ``cluster_ids`` are the first
     endpoint of every row and ``second_cluster_ids`` the second, in separate label sets
     (an entity that is a first endpoint of some rows and a second endpoint of others refuses
-    ``dyadic_dependence_not_licensed``). Folds own whole connected components of the endpoint
+    ``dyadic_dependence_not_supported``). Folds own whole connected components of the endpoint
     graph, so no endpoint crosses folds; ``min_components_per_fold`` (default 4, at least 2)
     is the fewest components each of the five folds must own. One giant component (more than
-    a fold's share of the rows) also refuses ``dyadic_dependence_not_licensed``. The
+    a fold's share of the rows) also refuses ``dyadic_dependence_not_supported``. The
     two-way variance is a Rust receipt only; no interval is published.
     """
 
@@ -454,10 +509,22 @@ class Overlap:
     effect describes. ``None`` turns that operation off. Each bound lies in
     ``(0, 0.5)``.
 
-    ``Overlap()`` is the default policy, so passing it changes nothing. Any other
-    policy is a different interval construction: its calibration binds only to
-    coverage records measured under that policy, and otherwise reports
-    ``scope_not_assessed``.
+    Declaring a policy is a scientific choice about positivity. Without one,
+    the default clip applies to ordinary scores, but a propensity within 1e-8
+    of 0 or 1 refuses as ``positivity_violated``: some rows then have
+    essentially no chance of the other treatment, and Antecedent does not
+    decide that question for you. ``Overlap()`` declares the default bounds
+    explicitly and so lets the clip govern those rows; ``Overlap(trim=...)``
+    estimates on the common-support rows instead. Whenever the applied clip or
+    trim binds (it moves a saturated score or at least 5% of the rows, or the
+    trim excludes any row), the estimate records
+    ``estimate.overlap_excluded_fraction`` and the claim's support domain is
+    ``limited``, so its host status is ``partial``.
+
+    ``Overlap()`` computes exactly as the default and shares its calibration
+    and identity. Any other policy is a different interval construction: its
+    calibration binds only to coverage records measured under that policy, and
+    otherwise reports ``outside_measured_scope`` or ``not_measured``.
     """
 
     clip: float | None = OMITTED["overlap_clip"]
@@ -519,7 +586,7 @@ def _wire_weights(weights: str | Sequence[float] | None) -> dict[str, Any]:
 
 
 def _validate_cluster_only(cluster: str | None, cluster_ids: Sequence[int] | None) -> None:
-    """``cluster`` of an estimator whose cluster declaration needs no ``se`` choice."""
+    """Validate a cluster column name and its conflict with explicit IDs."""
     if cluster is not None:
         if not isinstance(cluster, str) or not cluster.strip():
             raise ValueError(f"cluster must name a data column, got {cluster!r}")
@@ -591,6 +658,12 @@ class LinearAdjustment:
     table passed to ``prepare`` / ``analyze``; rows dropped as incomplete or outside the
     target population take their labels with them. Exclusive with ``cluster_ids``, which
     must already be aligned to the rows the estimator uses.
+
+    A discrete treatment with levels beyond the contrasted pair (for example ``0/1/2``) is
+    refused as ``treatment_level_undeclared`` by default: the regression would read it as a dose.
+    ``other_levels="exclude_undeclared"`` declares that rows at the other levels are excluded and
+    the target population is restricted to the rows at the two contrasted levels; the result
+    reports how many rows were excluded.
     """
 
     bootstrap: int | None = None
@@ -604,9 +677,11 @@ class LinearAdjustment:
     fit_c: float | None = None
     cluster: str | None = None
     weights: str | Sequence[float] | None = None
+    other_levels: OtherLevelsName = "refuse"
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
+        _wire_other_levels(self.other_levels)
         _validate_se(
             se=self.se,
             se_lag=self.se_lag,
@@ -649,6 +724,7 @@ class LinearAdjustment:
             out["fit_lambda"] = self.fit_lambda
         if self.fit_c is not None:
             out["fit_c"] = self.fit_c
+        out.update(_wire_other_levels(self.other_levels))
         out.update(_wire_weights(self.weights))
         if (
             self.weights is not None
@@ -792,6 +868,12 @@ class PropensityMatching:
 class PropensityStratification:
     """``propensity.stratification`` — propensity-score strata (default 5 strata).
 
+    Within each arm a linear outcome model with stratum intercepts is fit and standardized
+    over the target population, which removes the confounding left inside finite propensity
+    bins when those outcome models are correct. ``regression_adjustment=False`` pools the raw
+    stratum means instead; their bias does not shrink with the sample, so that interval is a
+    separate, unmeasured construction.
+
     ``cluster="site"`` names the data column of cluster labels: the analytic SE is the cluster
     sandwich of the stratified influence values given the strata, and ``bootstrap`` resamples
     whole clusters, refitting the propensity and re-cutting the strata on each replicate (the
@@ -803,6 +885,7 @@ class PropensityStratification:
     bootstrap: int | None = None
     glm_options: GlmOptions | None = None
     n_strata: int | None = None
+    regression_adjustment: bool = True
     overlap: Overlap | None = None
     other_levels: OtherLevelsName = "refuse"
     cluster: str | None = None
@@ -826,6 +909,8 @@ class PropensityStratification:
         out.update(_wire_glm_options(self.glm_options))
         if self.n_strata is not None:
             out["n_strata"] = self.n_strata
+        if not self.regression_adjustment:
+            out["regression_adjustment"] = False
         out.update(_wire_overlap(self.overlap))
         out.update(_wire_other_levels(self.other_levels))
         if self.cluster is not None:
@@ -908,7 +993,7 @@ class Aipw:
     (its kind and tuning) re-run the whole cross-fitted route with that penalized propensity
     and record the failed fit (``penalized_fallback``) beside the result; the claim is the
     destination's and nothing is silently substituted. ``"ml"`` (a flexible learner) is
-    closed (``nuisance_fallback_not_licensed``): a failed fit is refused with the failure
+    closed (``nuisance_fallback_not_supported``): a failed fit is refused with the failure
     recorded. A fallback is not combined with ``propensity_penalty``.
     ``cluster_dml`` declares whole-cluster cross-fitting (:class:`ClusterDml`); it requires
     ``bootstrap=0`` and publishes the point estimate and score table with no interval.
@@ -921,6 +1006,16 @@ class Aipw:
     cross-fitted ATE, the in-sample ATT / ATC and trimmed ATE, and ``cluster_dml`` (the cluster
     sandwich of the weighted influence). A penalized propensity or fallback chooses its penalty
     by the weighted out-of-fold log loss and fits every fold under the weights.
+
+    ``prior_from`` (a posterior artifact, ``result.posterior.artifact``) and ``mapping`` regularize
+    the per-arm outcome regressions of the cross-fitted mean ATE exactly as for :class:`DML`: each
+    fold's arm model is the posterior mode under the artifact's Gaussian coefficient prior, the
+    doubly robust correction and the influence-function interval are unchanged, and the prior
+    shapes efficiency, never identification. It needs ``bootstrap=0`` and IID analytic inference
+    (no ``se``, ``cluster_dml``, ``propensity_penalty`` or ``nuisance_fallback``) and refuses a
+    trimmed, ATT/ATC or quantile/exceedance fit with ``route_not_supported``. The prior-regularized
+    fit keeps no score table, so a retarget refuses ``score_table_unavailable``.
+    :class:`DRLearner` and :class:`CausalForest` take no prior.
     """
 
     bootstrap: int | None = None
@@ -937,6 +1032,8 @@ class Aipw:
     other_levels: OtherLevelsName = "refuse"
     cluster: str | None = None
     weights: str | Sequence[float] | None = None
+    prior_from: bytes | ComposedPrior | None = None
+    mapping: PriorMapping | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
@@ -948,6 +1045,19 @@ class Aipw:
             cluster=self.cluster,
         )
         _validate_weights(self.weights)
+        _validate_outcome_prior(self.prior_from, self.mapping)
+        if self.prior_from is not None and (
+            self.bootstrap != 0
+            or self.se not in (None, "homoskedastic")
+            or self.cluster_dml is not None
+            or self.propensity_penalty is not None
+            or self.nuisance_fallback not in (None, "none")
+        ):
+            raise CausalValueError(
+                "Aipw(prior_from=...) covers the cross-fitted mean ATE with IID analytic "
+                "inference: pass bootstrap=0 and leave se, cluster_dml, propensity_penalty "
+                "and nuisance_fallback unset (reason=route_not_supported)"
+            )
         if self.cluster_dml is not None:
             if not isinstance(self.cluster_dml, ClusterDml):
                 raise CausalValueError(
@@ -956,7 +1066,7 @@ class Aipw:
             if self.bootstrap != 0 or self.se not in (None, "homoskedastic"):
                 raise CausalValueError(
                     "Aipw(cluster_dml=...) reports its own cluster-sandwich SE: pass bootstrap=0 "
-                    "and leave se unset (reason=cluster_interval_not_licensed)"
+                    "and leave se unset (reason=cluster_interval_not_supported)"
                 )
             if self.cluster_ids is not None:
                 raise CausalValueError(
@@ -1013,6 +1123,7 @@ class Aipw:
         if self.cluster_dml is not None:
             out["cluster_dml"] = self.cluster_dml._wire()
         out.update(_wire_weights(self.weights))
+        out.update(_outcome_prior_wire(self.prior_from, self.mapping))
         return _omit_empty(out)
 
 
@@ -1021,7 +1132,10 @@ class GlmAdjustment:
     """``glm.adjustment`` — GLM-family outcome-model adjustment (default binomial-logit).
 
     ``cluster="site"`` names the data column of cluster labels, as for
-    :class:`LinearAdjustment`.
+    :class:`LinearAdjustment`. A discrete treatment with levels beyond the contrasted pair (for
+    example ``0/1/2``) is refused as ``treatment_level_undeclared``: the regression would read it
+    as a dose. ``other_levels="exclude_undeclared"`` declares the rows at the other levels
+    excluded and restricts the target population to the two contrasted levels.
     """
 
     bootstrap: int | None = None
@@ -1034,9 +1148,11 @@ class GlmAdjustment:
     family: GlmFamilyName | None = None
     cluster: str | None = None
     weights: str | Sequence[float] | None = None
+    other_levels: OtherLevelsName = "refuse"
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
+        _wire_other_levels(self.other_levels)
         _validate_se(
             se=self.se,
             se_lag=self.se_lag,
@@ -1070,6 +1186,7 @@ class GlmAdjustment:
         out.update(_wire_glm_options(self.glm_options))
         if self.family is not None:
             out["family"] = self.family
+        out.update(_wire_other_levels(self.other_levels))
         out.update(_wire_weights(self.weights))
         if (
             self.weights is not None
@@ -1131,6 +1248,9 @@ class FrontdoorLinearTwoStage:
 class IvWald:
     """``iv.wald`` — single binary-instrument Wald ratio.
 
+    A treatment with levels beyond the contrasted pair is refused as ``treatment_level_undeclared``;
+    recode it into the binary contrast.
+
     The ratio ``(E[Y|Z=1] - E[Y|Z=0]) / (E[T|Z=1] - E[T|Z=0])`` is the average
     treatment effect only when the treatment's effect on the outcome is the same
     constant, linear effect for every unit. When effects differ across units it is,
@@ -1177,6 +1297,9 @@ class IvWald:
 @dataclass(frozen=True, slots=True)
 class Iv2Sls:
     """``iv.2sls`` — two-stage least squares with one or more instruments.
+
+    A discrete treatment with levels beyond the contrasted pair is refused as
+    ``treatment_level_undeclared``; recode it into the binary contrast or use a continuous dose.
 
     The coefficient on the instrumented treatment is the average treatment effect
     only under a constant linear structural effect. With heterogeneous effects it
@@ -1229,6 +1352,23 @@ class DML:
     and standard error; no interval is published). ``cluster_ids`` / ``multiway_ids``
     without a unit declaration, and the partially linear score with one, refuse
     ``route_not_supported`` instead of being ignored.
+
+    ``prior_from`` is a posterior artifact (``result.posterior.artifact``) whose coefficient
+    summaries regularize the per-arm outcome-regression nuisance of the AIPW score: in every
+    cross-fit fold each arm's outcome model is the posterior mode of the linear regression
+    under the Gaussian coefficient prior, centred on the prior mean, instead of the ``outcome``
+    learner. The doubly robust correction, the cross-fitting and the influence-function
+    interval are unchanged, so the prior shapes the efficiency of the estimate and never its
+    identification: a correct propensity keeps the estimate consistent under any prior. The
+    prior's source digest and mapping are recorded in the result's assumptions and the score
+    table provenance. ``mapping`` maps the artifact's coefficients onto the outcome-regression
+    columns (``intercept`` then ``coef_<covariate>`` per adjustment variable, no treatment
+    coefficient): ``None`` takes the artifact's declared mapping, else the identical
+    coefficient subspace; use :meth:`~antecedent.priors.PriorMapping.named_parameters` when the
+    source also carries a treatment coefficient. A prior whose coordinates do not map is
+    refused (``quantity_semantics_mismatch``) naming the declaration to make. It is
+    available for the AIPW score under independent rows; the partially linear score,
+    whole-cluster cross-fitting and caller-supplied learners refuse it.
     """
 
     learner: LearnerSpec | str | None = None
@@ -1240,11 +1380,23 @@ class DML:
     other_levels: OtherLevelsName = "refuse"
     cluster_dml: ClusterDml | None = None
     weights: str | Sequence[float] | None = None
+    prior_from: bytes | ComposedPrior | None = None
+    mapping: PriorMapping | None = None
 
     def __post_init__(self) -> None:
         if self.cluster_dml is not None and not isinstance(self.cluster_dml, ClusterDml):
             raise CausalValueError(f"cluster_dml must be a ClusterDml, got {self.cluster_dml!r}")
         _validate_weights(self.weights)
+        _validate_outcome_prior(self.prior_from, self.mapping)
+        if self.prior_from is not None and self.score == "partially_linear":
+            raise CausalValueError(
+                "DML(prior_from=...) regularizes the per-arm outcome regressions of the AIPW "
+                "score; use score='aipw' (reason=route_not_supported)"
+            )
+        if self.prior_from is not None and self.cluster_dml is not None:
+            raise CausalValueError(
+                "DML(prior_from=...) is not combined with cluster_dml (reason=route_not_supported)"
+            )
         if self.cluster_dml is not None and self.score == "partially_linear":
             raise CausalValueError(
                 "DML(cluster_dml=...) needs the AIPW score (reason=route_not_supported)"
@@ -1275,6 +1427,7 @@ class DML:
         if self.cluster_dml is not None:
             out["cluster_dml"] = self.cluster_dml._wire()
         out.update(_wire_weights(self.weights))
+        out.update(_outcome_prior_wire(self.prior_from, self.mapping))
         return _omit_empty(out)
 
 
@@ -1341,7 +1494,7 @@ class CausalForest:
     the whole-cluster cross-fitted score with its cluster-sandwich standard error;
     ``min_clusters`` (default 20) is the smallest cluster count accepted. Row-aligned
     ``cluster_ids``, ``cluster_dml`` and ``multiway_ids`` in an ``estimator_config`` refuse
-    ``route_not_supported`` (``cluster_dml.flexible_learner_closed``) instead of being ignored.
+    ``route_not_supported`` (``cluster_dml.flexible_learner_not_supported``) instead of being ignored.
     """
 
     n_trees: int | None = None

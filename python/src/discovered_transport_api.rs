@@ -10,6 +10,7 @@
 //! The result is labelled `structural_envelope`: the structural verdict of each member of the
 //! class, never a point, an interval or a probability over members.
 
+use crate::NumericColumn;
 use std::sync::Arc;
 
 use antecedent::analysis::discovered_transport::{
@@ -24,13 +25,13 @@ use antecedent::analysis::discovered_transport_estimate::{
 use antecedent::analysis::discovered_transport_temporal::{
     DiscoveredTemporalTransportReport, TemporalClass, TemporalHorizon,
     estimate_discovered_temporal_transport, transport_discovered_temporal_structure,
-    transport_temporal_class,
+    transport_discovered_temporal_structure_with_context, transport_temporal_class_with_context,
 };
-use antecedent_core::{
-    ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TransportQuery, VariableId,
+use antecedent::analysis::selective_discovery::{DiscoveryOutcome, SelectiveDiscoveryError};
+use antecedent::prelude::VariableId;
+use antecedent::query::{
+    ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TransportQuery,
 };
-use antecedent_discovery::selective::{DiscoveryOutcome, SelectiveDiscoveryError};
-use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
@@ -41,10 +42,6 @@ use crate::selective_discovery_api as sd;
 const STAGE: &str = "discovered_transport";
 
 type Reply = (Option<String>, Option<String>);
-
-fn hex(bytes: &[u8; 32]) -> String {
-    antecedent_discovery::selective::digest_hex(bytes)
-}
 
 fn status_label(status: EnvelopeStatus) -> &'static str {
     match status {
@@ -105,14 +102,14 @@ fn envelope_json(report: &DiscoveredTransportReport) -> Json {
         "unresolved": unresolved,
         "assumptions": report.assumptions(),
         "selection_targets": report.selection_targets().iter().map(|t| t.raw()).collect::<Vec<_>>(),
-        "structure_identity": hex(report.structure_identity()),
-        "result_identity": hex(report.result_identity()),
-        "identity": hex(report.identity()),
+        "structure_identity": sd::hex(report.structure_identity()),
+        "result_identity": sd::hex(report.result_identity()),
+        "identity": sd::hex(report.identity()),
     })
 }
 
 /// A refusal as JSON, or the shared value error for a failure that is not a scientific refusal.
-fn refusal_of(error: &DiscoveredTransportError) -> PyResult<String> {
+pub(crate) fn refusal_of(error: &DiscoveredTransportError) -> PyResult<String> {
     match error {
         DiscoveredTransportError::Refused(refusal) => {
             let external =
@@ -139,11 +136,25 @@ fn refusal_of(error: &DiscoveredTransportError) -> PyResult<String> {
                 )
                 .json())
         }
+        DiscoveredTransportError::Identification(error) => {
+            Err(crate::transport_common::error(error.clone()))
+        }
+        DiscoveredTransportError::Operational(error) => {
+            use antecedent::identify::discovered_transport::DiscoveredTransportOperationalKind as K;
+            Err(match error.kind {
+                K::Cancelled => crate::CausalCancelledError::new_err(error.message.clone()),
+                K::Resource => crate::CausalResourceError::new_err(error.message.clone()),
+                K::OtherRefused => match error.code {
+                    Some(code) => crate::refusal(code, &error.message),
+                    None => crate::value_err(&error.message),
+                },
+            })
+        }
         other => Err(crate::value_err(other.to_string())),
     }
 }
 
-fn query_of(text: &str) -> PyResult<TransportQuery> {
+pub(crate) fn query_of(text: &str) -> PyResult<TransportQuery> {
     let parsed: Json = serde_json::from_str(text)
         .map_err(|e| crate::value_err(format!("the query is not valid JSON: {e}")))?;
     let map: &Map<String, Json> =
@@ -226,7 +237,7 @@ fn discovered_transport_run(
     py: Python<'_>,
     contract_json: &str,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     query_json: &str,
     selection_targets: Vec<u32>,
     member_bound: Option<usize>,
@@ -240,12 +251,12 @@ fn discovered_transport_run(
     let query = query_of(query_json)?;
     let ids: Vec<VariableId> = selection_targets.into_iter().map(VariableId::from_raw).collect();
     let bound = member_bound.unwrap_or(DEFAULT_ENVELOPE_MEMBER_BOUND);
-    let batch = crate::columns_to_batch(&names, &columns)?;
+    let batch = crate::numeric_columns_to_batch(&names, &columns)?;
     let ctx =
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
     let ran: Result<DiscoveredTransportRun, SelectiveDiscoveryError> =
         crate::detach_catch(py, move || {
-            let (data, _): (antecedent_data::TabularData, _) =
+            let (data, _): (antecedent::prelude::TabularData, _) =
                 crate::discovery_api::tabular_from_batch(&batch)?;
             Ok(discover_and_transport(&contract, &data, &ids, &query, bound, &ctx))
         })?;
@@ -255,12 +266,10 @@ fn discovered_transport_run(
             None => Err(crate::CausalDiscoveryError::new_err(error.to_string())),
         },
         Ok(run) => {
-            let discovery = json!({
-                "report": serde_json::from_str::<Json>(&sd::report_json(&run.discovery))
-                    .unwrap_or(Json::Null),
-                "outcome": serde_json::from_str::<Json>(&sd::outcome_json(&run.outcome))
-                    .unwrap_or(Json::Null),
-            })
+            let discovery = sd::discovery_value(
+                &sd::report_json(&run.discovery),
+                &sd::outcome_json(&run.outcome),
+            )?
             .to_string();
             match &run.transport {
                 Ok(report) => {
@@ -272,7 +281,7 @@ fn discovered_transport_run(
     }
 }
 
-fn answer_json(answer: &TransportAnswer) -> Json {
+pub(crate) fn answer_json(answer: &TransportAnswer) -> Json {
     json!({
         "kind": answer.kind.label(),
         "levels": answer
@@ -292,7 +301,7 @@ fn answer_json(answer: &TransportAnswer) -> Json {
     })
 }
 
-fn estimate_json(estimate: &DiscoveredTransportEstimate) -> Json {
+pub(crate) fn estimate_json(estimate: &DiscoveredTransportEstimate) -> Json {
     let members: Vec<Json> = estimate
         .members()
         .iter()
@@ -317,8 +326,8 @@ fn estimate_json(estimate: &DiscoveredTransportEstimate) -> Json {
         "levels": estimate.levels(),
         "members": members,
         "answer": answer_json(estimate.answer()),
-        "report_identity": hex(estimate.report_identity()),
-        "identity": hex(estimate.identity()),
+        "report_identity": sd::hex(estimate.report_identity()),
+        "identity": sd::hex(estimate.identity()),
     })
 }
 
@@ -337,12 +346,16 @@ type EstimateReply =
     clippy::too_many_arguments,
     reason = "one request: contract, two tables, query, targets, bounds"
 )]
+#[allow(
+    clippy::result_large_err,
+    reason = "the error is the library's refusal type, returned once per call; boxing would change its API"
+)]
 fn discovered_transport_estimate_run(
     py: Python<'_>,
     contract_json: &str,
     names: Vec<String>,
-    source_columns: Vec<PyReadonlyArray1<'_, f64>>,
-    target_columns: Vec<PyReadonlyArray1<'_, f64>>,
+    source_columns: Vec<NumericColumn<'_>>,
+    target_columns: Vec<NumericColumn<'_>>,
     query_json: &str,
     selection_targets: Vec<u32>,
     member_bound: Option<usize>,
@@ -364,14 +377,14 @@ fn discovered_transport_estimate_run(
     let query = query_of(query_json)?;
     let ids: Vec<VariableId> = selection_targets.into_iter().map(VariableId::from_raw).collect();
     let bound = member_bound.unwrap_or(DEFAULT_ENVELOPE_MEMBER_BOUND);
-    let source_batch = crate::columns_to_batch(&names, &source_columns)?;
-    let target_batch = crate::columns_to_batch(&names, &target_columns)?;
+    let source_batch = crate::numeric_columns_to_batch(&names, &source_columns)?;
+    let target_batch = crate::numeric_columns_to_batch(&names, &target_columns)?;
     let ctx =
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
     let ran: Ran = crate::detach_catch(py, move || {
-        let (source, _): (antecedent_data::TabularData, _) =
+        let (source, _): (antecedent::prelude::TabularData, _) =
             crate::discovery_api::tabular_from_batch(&source_batch)?;
-        let (target, _): (antecedent_data::TabularData, _) =
+        let (target, _): (antecedent::prelude::TabularData, _) =
             crate::discovery_api::tabular_from_batch(&target_batch)?;
         let run = match discover_and_transport(&contract, &source, &ids, &query, bound, &ctx) {
             Ok(run) => run,
@@ -383,7 +396,7 @@ fn discovered_transport_estimate_run(
             estimate_discovered_transport(report, &query, &evidence, &ctx).and_then(|estimate| {
                 let bytes = estimate
                     .export()
-                    .map_err(|e| DiscoveredTransportError::Estimation(e.to_string()))?;
+                    .map_err(antecedent::analysis::discovered_transport_estimate::discovered_transport_io_failure)?;
                 Ok((estimate, bytes))
             })
         });
@@ -398,11 +411,9 @@ fn discovered_transport_estimate_run(
         }
         Ok(pair) => pair,
     };
-    let discovery = json!({
-        "report": serde_json::from_str::<Json>(&sd::report_json(&run.discovery)).unwrap_or(Json::Null),
-        "outcome": serde_json::from_str::<Json>(&sd::outcome_json(&run.outcome)).unwrap_or(Json::Null),
-    })
-    .to_string();
+    let discovery =
+        sd::discovery_value(&sd::report_json(&run.discovery), &sd::outcome_json(&run.outcome))?
+            .to_string();
     let refusal_of_run = |error: &DiscoveredTransportError| -> PyResult<Reply> {
         Ok((None, Some(refusal_of(error)?)))
     };
@@ -429,20 +440,31 @@ fn discovered_transport_estimate_run(
 /// Replay an exported estimate: consume every member grid and recompute the answer.
 ///
 /// Returns the recomputed answer as JSON; a malformed or forged artifact raises the shared
-/// value error.
+/// serialization error.
 #[pyfunction]
-#[pyo3(signature = (artifact, *, seed=0))]
-fn verify_discovered_transport_estimate_artifact(artifact: &[u8], seed: u64) -> PyResult<String> {
-    let ctx = crate::py_execution_context_cancel(seed, crate::resolve_user_threads(None), None);
-    let verified = verify_discovered_transport_estimate(
-        artifact,
-        antecedent_expr::ExactEvaluationLimits::default(),
-        &ctx,
-    )
-    .map_err(|e| crate::value_err(e.to_string()))?;
+#[pyo3(signature = (artifact, *, seed=0, threads=None, memory_bytes=None, cancel=None))]
+fn verify_discovered_transport_estimate_artifact(
+    py: Python<'_>,
+    artifact: &[u8],
+    seed: u64,
+    threads: Option<u32>,
+    memory_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<String> {
+    let mut ctx =
+        crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
+    ctx.set_memory_limit(memory_bytes);
+    let verified = crate::detach_catch(py, || {
+        verify_discovered_transport_estimate(
+            artifact,
+            antecedent::estimate::ExactEvaluationLimits::default(),
+            &ctx,
+        )
+        .map_err(crate::transport_common::error)
+    })?;
     Ok(json!({
         "answer": answer_json(&verified.answer),
-        "report_identity": hex(&verified.report_identity),
+        "report_identity": sd::hex(&verified.report_identity),
         "members": verified.members,
     })
     .to_string())
@@ -493,9 +515,9 @@ fn temporal_envelope_json(report: &DiscoveredTemporalTransportReport) -> Json {
         "history": envelope.history(),
         "horizon_steps": envelope.horizon_steps(),
         "max_lag": envelope.max_lag(),
-        "structure_identity": hex(report.structure_identity()),
-        "result_identity": report.result_identity().map(hex),
-        "identity": hex(report.identity()),
+        "structure_identity": sd::hex(report.structure_identity()),
+        "result_identity": report.result_identity().map(sd::hex),
+        "identity": sd::hex(report.identity()),
     })
 }
 
@@ -524,10 +546,16 @@ pub(crate) fn across_temporal_outcome(
 }
 
 /// The temporal transport verdict across a temporal graph held in Python (a `TemporalDag`,
-/// `TemporalCpdag` or `TemporalPag`).
+/// `TemporalCpdag` or `TemporalPag`), under the caller's identification memory limit and
+/// cancellation.
 #[pyfunction]
-#[pyo3(signature = (graph, horizon_steps, query_json, selection_targets, history=None, member_bound=None, exhausted_search_bounds=0))]
+#[pyo3(signature = (graph, horizon_steps, query_json, selection_targets, history=None, member_bound=None, exhausted_search_bounds=0, *, threads=None, cancel=None, memory_bytes=None))]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one request: graph, query, horizon, bounds, controls"
+)]
 fn discovered_temporal_graph_transport(
+    py: Python<'_>,
     graph: &Bound<'_, PyAny>,
     horizon_steps: u32,
     query_json: &str,
@@ -535,23 +563,47 @@ fn discovered_temporal_graph_transport(
     history: Option<u32>,
     member_bound: Option<usize>,
     exhausted_search_bounds: usize,
+    threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
+    memory_bytes: Option<u64>,
 ) -> PyResult<Reply> {
+    enum Owned {
+        Dag(antecedent::graph::TemporalDag),
+        Cpdag(antecedent::graph::TemporalCpdag),
+        Pag(antecedent::graph::TemporalPag),
+    }
     let query = query_of(query_json)?;
     let ids: Vec<VariableId> = selection_targets.into_iter().map(VariableId::from_raw).collect();
     let bound = member_bound.unwrap_or(DEFAULT_ENVELOPE_MEMBER_BOUND);
     let horizon = TemporalHorizon { horizon_steps, history };
-    let run = |class: TemporalClass<'_>| {
-        transport_temporal_class(class, exhausted_search_bounds, horizon, &ids, &query, bound)
-    };
-    let report = if let Ok(dag) = graph.extract::<crate::graphs::TemporalDag>() {
-        run(TemporalClass::Dag(&dag.dag))
+    let owned = if let Ok(dag) = graph.extract::<crate::graphs::TemporalDag>() {
+        Owned::Dag(dag.dag.clone())
     } else if let Ok(cpdag) = graph.extract::<crate::graphs::TemporalCpdag>() {
-        run(TemporalClass::Cpdag(&cpdag.cpdag))
+        Owned::Cpdag(cpdag.cpdag.clone())
     } else if let Ok(pag) = graph.extract::<crate::graphs::TemporalPag>() {
-        run(TemporalClass::Pag(&pag.pag))
+        Owned::Pag(pag.pag.clone())
     } else {
         return Err(crate::value_err("graph must be a TemporalDag, TemporalCpdag or TemporalPag"));
     };
+    // The verdict is structural: no draw is taken, so the context seed is fixed.
+    let ctx = crate::chain_decision_api::context(0, threads, cancel, memory_bytes);
+    // Member enumeration is bounded only by the caller's `member_bound`: run it detached.
+    let report = crate::detach_catch(py, move || {
+        let class = match &owned {
+            Owned::Dag(dag) => TemporalClass::Dag(dag),
+            Owned::Cpdag(cpdag) => TemporalClass::Cpdag(cpdag),
+            Owned::Pag(pag) => TemporalClass::Pag(pag),
+        };
+        Ok(transport_temporal_class_with_context(
+            class,
+            exhausted_search_bounds,
+            horizon,
+            &ids,
+            &query,
+            bound,
+            &ctx,
+        ))
+    })?;
     match report {
         Ok(report) => Ok((Some(temporal_envelope_json(&report).to_string()), None)),
         Err(error) => Ok((None, Some(refusal_of(&error)?))),
@@ -567,12 +619,16 @@ fn discovered_temporal_graph_transport(
     clippy::too_many_arguments,
     reason = "one request: contract, two series, query, horizon, bounds"
 )]
+#[allow(
+    clippy::result_large_err,
+    reason = "the error is the library's refusal type, returned once per call; boxing would change its API"
+)]
 fn discovered_temporal_transport_estimate_run(
     py: Python<'_>,
     contract_json: &str,
     names: Vec<String>,
-    source_columns: Vec<PyReadonlyArray1<'_, f64>>,
-    target_columns: Vec<PyReadonlyArray1<'_, f64>>,
+    source_columns: Vec<NumericColumn<'_>>,
+    target_columns: Vec<NumericColumn<'_>>,
     query_json: &str,
     selection_targets: Vec<u32>,
     horizon_steps: u32,
@@ -585,8 +641,8 @@ fn discovered_temporal_transport_estimate_run(
 ) -> PyResult<EstimateReply> {
     type Ran = Result<
         (
-            antecedent_discovery::selective::DiscoveryOutcome,
-            antecedent_discovery::selective::SelectiveRunReport,
+            antecedent::analysis::selective_discovery::DiscoveryOutcome,
+            antecedent::analysis::selective_discovery::SelectiveRunReport,
             Result<DiscoveredTemporalTransportReport, DiscoveredTransportError>,
             Option<Result<(DiscoveredTransportEstimate, Vec<u8>), DiscoveredTransportError>>,
         ),
@@ -599,35 +655,37 @@ fn discovered_temporal_transport_estimate_run(
     let query = query_of(query_json)?;
     let ids: Vec<VariableId> = selection_targets.into_iter().map(VariableId::from_raw).collect();
     let bound = member_bound.unwrap_or(DEFAULT_ENVELOPE_MEMBER_BOUND);
-    let source_batch = crate::columns_to_batch(&names, &source_columns)?;
-    let target_batch = crate::columns_to_batch(&names, &target_columns)?;
+    let source_batch = crate::numeric_columns_to_batch(&names, &source_columns)?;
+    let target_batch = crate::numeric_columns_to_batch(&names, &target_columns)?;
     let ctx =
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
     let ran: Ran = crate::detach_catch(py, move || {
-        let (series, _): (antecedent_data::TimeSeriesData, _) =
+        let (series, _): (antecedent::prelude::TimeSeriesData, _) =
             crate::discovery_api::series_from_batch(&source_batch)?;
-        let (source, _): (antecedent_data::TabularData, _) =
+        let (source, _): (antecedent::prelude::TabularData, _) =
             crate::discovery_api::tabular_from_batch(&source_batch)?;
-        let (target, _): (antecedent_data::TabularData, _) =
+        let (target, _): (antecedent::prelude::TabularData, _) =
             crate::discovery_api::tabular_from_batch(&target_batch)?;
-        let mut adapter = antecedent_discovery::selective::TemporalSelectiveDiscovery::new();
+        let mut adapter =
+            antecedent::analysis::selective_discovery::TemporalSelectiveDiscovery::new();
         let discovery = match adapter.run(&contract, &series, &ctx) {
             Ok(report) => report,
             Err(error) => return Ok(Err(error)),
         };
         let Some(outcome) = adapter.outcome().cloned() else {
             return Ok(Err(SelectiveDiscoveryError::refused(
-                antecedent_core::reason_code!("invalid_argument"),
-                "selective_discovery.nothing_retained",
+                antecedent::reason::reason_code!("invalid_argument"),
+                antecedent::reason::reason_details::selective_discovery::NOTHING_RETAINED,
                 "the discovery run retained no outcome",
             )));
         };
-        let transport = transport_discovered_temporal_structure(
+        let transport = transport_discovered_temporal_structure_with_context(
             &outcome,
             TemporalHorizon { horizon_steps, history },
             &ids,
             &query,
             bound,
+            &ctx,
         );
         let estimated = transport.as_ref().ok().map(|report| {
             let mut evidence = TransportEvidence::new(&source, &target);
@@ -637,7 +695,7 @@ fn discovered_temporal_transport_estimate_run(
                 |estimate| {
                     let bytes = estimate
                         .export()
-                        .map_err(|e| DiscoveredTransportError::Estimation(e.to_string()))?;
+                        .map_err(antecedent::analysis::discovered_transport_estimate::discovered_transport_io_failure)?;
                     Ok((estimate, bytes))
                 },
             )
@@ -653,11 +711,8 @@ fn discovered_temporal_transport_estimate_run(
         }
         Ok(parts) => parts,
     };
-    let discovery_json = json!({
-        "report": serde_json::from_str::<Json>(&sd::report_json(&discovery)).unwrap_or(Json::Null),
-        "outcome": serde_json::from_str::<Json>(&sd::outcome_json(&outcome)).unwrap_or(Json::Null),
-    })
-    .to_string();
+    let discovery_json =
+        sd::discovery_value(&sd::report_json(&discovery), &sd::outcome_json(&outcome))?.to_string();
     match (transport, estimated) {
         (Err(error), _) | (Ok(_), Some(Err(error))) => {
             Ok((None, Some(refusal_of(&error)?), Some(discovery_json), None, None))
@@ -681,4 +736,51 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module
         .add_function(wrap_pyfunction!(verify_discovered_transport_estimate_artifact, module)?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod transport_operational_error_tests {
+    use super::{DiscoveredTransportError, refusal_of};
+    use antecedent::analysis::discovered_transport_estimate::discovered_transport_io_failure as map_io;
+    use antecedent::execution::artifact_io_admission_error;
+    use antecedent::identify::{IdentificationBudget, IdentificationError};
+    use antecedent::io::IoError;
+    use pyo3::prelude::*;
+
+    #[test]
+    fn discovered_identification_preserves_cancel_and_budget_exceptions() {
+        Python::initialize();
+        Python::attach(|py| {
+            let cancelled =
+                DiscoveredTransportError::Identification(IdentificationError::Cancelled);
+            let budget = DiscoveredTransportError::Identification(IdentificationError::Budget {
+                budget: IdentificationBudget::Steps,
+            });
+            assert!(
+                refusal_of(&cancelled)
+                    .unwrap_err()
+                    .is_instance_of::<crate::CausalCancelledError>(py)
+            );
+            assert!(
+                refusal_of(&budget).unwrap_err().is_instance_of::<crate::CausalResourceError>(py)
+            );
+            let cancelled = map_io(artifact_io_admission_error(true));
+            let resource = map_io(artifact_io_admission_error(false));
+            let ambiguous = map_io(IoError::Refused {
+                code: "transport_budget_cancel",
+                message: "unknown stop".into(),
+            });
+            assert!(
+                refusal_of(&cancelled)
+                    .unwrap_err()
+                    .is_instance_of::<crate::CausalCancelledError>(py)
+            );
+            assert!(
+                refusal_of(&resource).unwrap_err().is_instance_of::<crate::CausalResourceError>(py)
+            );
+            let ambiguous = refusal_of(&ambiguous).unwrap_err();
+            assert!(!ambiguous.is_instance_of::<crate::CausalCancelledError>(py));
+            assert!(!ambiguous.is_instance_of::<crate::CausalResourceError>(py));
+        });
+    }
 }

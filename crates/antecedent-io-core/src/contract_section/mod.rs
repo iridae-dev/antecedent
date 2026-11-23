@@ -5,7 +5,7 @@
 //! be silently promoted to verified programs. The consumer takes only bytes —
 //! no originating `Study` or caller context.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::AcceptanceReport;
 use antecedent_core::ContractIdentities;
@@ -13,16 +13,19 @@ use serde::{Deserialize, Serialize};
 
 pub use crate::contract_reason::ContractReason;
 pub use crate::contract_wire::{
-    AssumptionSlotWire, CheckedAipwLoweringWire, CheckedAipwRowsWire, CheckedIvLoweringWire,
+    AssumptionSlotWire, CHECKED_DR_LOWERING_FORMAT, CHECKED_DR_PROCEDURE, CheckedAipwLoweringWire,
+    CheckedAipwRowsWire, CheckedDrLoweringWire, CheckedIvLoweringWire, CheckedLearnerWire,
     IdentificationSlotWire, ObligationSectionWire, ReasoningSectionWire, SlotSectionWire,
     SupportSlotWire, UncertaintyComponentWire, UncertaintySlotWire, checked_aipw_rows_digest,
 };
 
 use crate::identity::{
+    AdjustedFitReuseIdentityWire, ScoreReuseIdentityWire, TargetWeightsIdentityWire,
+};
+use crate::identity::{
     DataSnapshotIdentityWire, IdentificationIdentityWire, IdentificationProductWire,
     InferenceBindingWire, ObservationIdentityWire, ProgramIdentityWire, TargetIdentityWire,
 };
-use crate::identity::{ScoreReuseIdentityWire, TargetWeightsIdentityWire};
 use crate::{
     AnalysisResultHeader, AnalysisResultWire, EncodedArtifact, ExecutionIdentityWire, IoError,
     from_cbor, query_wire::causal_query_from_wire,
@@ -138,29 +141,44 @@ pub struct ClaimSectionWire {
 
 /// Calibration status of a reported interval.
 ///
-/// CBOR is the historical text: `calibrated`, `scope_not_assessed`, or
-/// `unavailable`.
+/// An annotation on every reported interval, never a gate: the interval is
+/// reported whatever the status. Wire text is the `snake_case` variant name.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum CalibrationStatus {
-    /// The governing record attests the reported interval.
+    /// Inside the measured scope of a current attesting coverage record.
     Calibrated,
-    /// A record matches the construction but not the measured scope.
-    ScopeNotAssessed,
-    /// No attesting record covers this interval.
-    Unavailable,
+    /// A record matches the construction, but this request lies outside its
+    /// measured range, replicates, draws or unidentified mass, or the record no
+    /// longer attests the current code.
+    OutsideMeasuredScope,
+    /// The governing record is a boundary record: it measured coverage below
+    /// nominal at this request's sample size (the observed coverage is carried).
+    MeasuredBelowNominal,
+    /// No record measured this construction, level or identification, or no
+    /// interval was reported.
+    NotMeasured,
 }
 
 impl CalibrationStatus {
-    /// Historical wire text.
+    /// Wire text.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Calibrated => "calibrated",
-            Self::ScopeNotAssessed => "scope_not_assessed",
-            Self::Unavailable => "unavailable",
+            Self::OutsideMeasuredScope => "outside_measured_scope",
+            Self::MeasuredBelowNominal => "measured_below_nominal",
+            Self::NotMeasured => "not_measured",
         }
     }
+
+    /// Every status, in wire order.
+    pub const ALL: [Self; 4] = [
+        Self::Calibrated,
+        Self::OutsideMeasuredScope,
+        Self::MeasuredBelowNominal,
+        Self::NotMeasured,
+    ];
 }
 
 impl std::fmt::Display for CalibrationStatus {
@@ -185,9 +203,10 @@ impl From<&str> for CalibrationStatus {
     fn from(value: &str) -> Self {
         match value {
             "calibrated" => Self::Calibrated,
-            "scope_not_assessed" => Self::ScopeNotAssessed,
-            "unavailable" => Self::Unavailable,
-            other => panic!("calibration status `{other}` is not a historical code"),
+            "outside_measured_scope" => Self::OutsideMeasuredScope,
+            "measured_below_nominal" => Self::MeasuredBelowNominal,
+            "not_measured" => Self::NotMeasured,
+            other => panic!("calibration status `{other}` is not a status code"),
         }
     }
 }
@@ -199,7 +218,10 @@ impl From<&str> for CalibrationStatus {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct CalibrationSlotWire {
-    /// `calibrated` | `scope_not_assessed` | `unavailable`.
+    /// Simulations, returns and covered intervals at an exact design point.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval_counts: Option<crate::coverage_records_data::IntervalCounts>,
+    /// `calibrated` | `outside_measured_scope` | `measured_below_nominal` | `not_measured`.
     pub status: CalibrationStatus,
     /// Governing coverage record id.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -267,13 +289,14 @@ pub struct AttestedEvidenceWire {
 }
 
 impl CalibrationSlotWire {
-    /// Unavailable slot with a reason code.
+    /// Not-measured slot with a reason code.
     #[must_use]
-    pub fn unavailable(reason: impl Into<String>) -> Self {
+    pub fn not_measured(reason: impl Into<String>) -> Self {
         Self {
-            status: CalibrationStatus::Unavailable,
+            status: CalibrationStatus::NotMeasured,
             record_id: None,
             reason: Some(reason.into()),
+            interval_counts: None,
             scope_n: None,
             scope_dependence: None,
             calibration_sha: None,
@@ -296,6 +319,10 @@ impl CalibrationSlotWire {
             status,
             record_id: Some(record.id.into()),
             reason: None,
+            interval_counts: match record.grid {
+                [point] if n_min == n_max => point.interval_counts,
+                _ => None,
+            },
             scope_n: Some(n_min),
             scope_dependence: Some(record.dependence.into()),
             calibration_sha: Some(record.calibration_sha.into()),
@@ -375,6 +402,9 @@ pub struct AnalysisResultContractWire {
     /// Rehashable score-reuse identity.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub score_reuse: Option<ScoreReuseIdentityWire>,
+    /// Separately typed fitted-model reuse. Older readers reject this new field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub adjusted_fit_reuse: Option<AdjustedFitReuseIdentityWire>,
     /// Row weights and their identity, for a row-weight retarget.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target_weights: Option<TargetWeightsSectionWire>,
@@ -397,6 +427,11 @@ pub struct AnalysisResultConsumption {
     /// BLAKE3 of the received artifact bytes. Receipts for an artifact without
     /// a claim reference these bytes, never a synthesized claim id.
     pub artifact_digest: [u8; 32],
+    /// The provenance records the producer cited for the executed route
+    /// ([`crate::METHOD_PROVENANCE_SECTION`]). Descriptive: it takes no part in
+    /// acceptance. `None` when absent, malformed, or not bound to the contract's
+    /// declared identifier and estimator.
+    pub method_provenance: Option<crate::MethodProvenanceWire>,
 }
 
 /// Decode the optional contract section. Missing is `Ok(None)`.
@@ -443,17 +478,38 @@ pub fn validate_contract_section(contract: &AnalysisResultContractWire) -> Resul
 }
 
 mod consume;
+mod cross_moments;
+pub mod cyclic;
+mod dr_replay;
 mod replay;
 mod verify;
 
+pub use dr_replay::{DrReplayRefusal, SourceReplayBounds, verify_checked_dr_replay};
+
+pub use cyclic::{
+    CYCLIC_CONTRACT_FORMAT, CYCLIC_CONTRACT_SECTION, CyclicContractPayloads, CyclicContractWire,
+    CyclicDataSnapshotWire, CyclicIdentificationWire, CyclicInferenceWire, CyclicLayerDigests,
+    CyclicObservationWire, CyclicProgramWire, CyclicRecoveryWire, CyclicSolutionWire,
+    CyclicTargetWire, CyclicUnresolvedWire, cyclic_layer_digests, cyclic_request_identity,
+    seal_cyclic_contract, verify_cyclic_contract_against_body,
+};
+
 pub(crate) use consume::validate_mixture_masses_within;
 pub use consume::{
-    ClaimDomainsWire, ClaimHostProjection, accept_claim, claim_domains, claim_kind_name,
-    consume_analysis_result, contract_seal, project_claim_host, project_lossy_scalar,
-    result_digest, support_empirical, validate_mixture_masses, weight_basis_name,
+    AnalysisResultLoad, BOOTSTRAP_LIMITED_DIAGNOSTIC, ClaimDomainsWire, ClaimHostProjection,
+    MCMC_LIMITED_DIAGNOSTIC, OVERLAP_LIMITED_DIAGNOSTIC, ReplayOptions, ReplayReport, accept_claim,
+    claim_domain_statuses, claim_domain_statuses_of_section, claim_domains,
+    claim_domains_of_section, claim_kind, claim_kind_name, claim_kind_name_of_section,
+    claim_kind_of_section, contract_seal, identification_not_claimed, load_analysis_result,
+    project_claim_host, project_lossy_scalar, replay_analysis_result,
+    replay_analysis_result_with_source, replay_analysis_result_within, result_digest,
+    support_empirical, validate_mixture_masses, weight_basis_name,
 };
-pub use verify::verify_contract_against_body;
-pub(crate) use verify::verify_contract_for_encoding;
+pub(crate) use verify::verify_contract_for_encoding_with_source;
+pub use verify::{
+    verify_contract_against_body, verify_contract_against_body_with_source,
+    verify_contract_against_body_within,
+};
 
 #[cfg(test)]
 mod tests;

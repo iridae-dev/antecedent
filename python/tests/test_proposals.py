@@ -10,17 +10,19 @@ Oracles (derived by hand, as in ``crates/antecedent-design/tests/proposal_receip
 * Valuation: binary state, guess it for utility 1, prior 1/2. A signal of accuracy ``a`` has
   ``EVSI = a - 1/2``: 3/4 gives 1/4 and 5/8 gives 1/8. With cost 0.01 utility per USD the
   study of 20 USD has net value ``1/4 - 1/5 = 1/20`` and the study of 5 USD has net value
-  ``1/8 - 1/20 = 3/40``, so the cheaper study ranks first.
+  ``1/8 - 1/20 = 3/40``, by net value alone the cheaper study would lead, but sufficient studies rank first.
 """
 
 import copy
 
 import pytest
 from antecedent import Admg, Dag, repair
+from antecedent import _reason_details as reason_details
 from antecedent import design as dr
 from antecedent import proposals as px
 from antecedent.errors import CausalTypeError, CausalUnsupportedError
 from antecedent.joint_distribution import ScientificQuantity
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 from _refusal import assert_registered_refusal
@@ -136,11 +138,13 @@ def semantic_ids(result):
 
 
 def accuracy_signal(label, accuracy):
-    law = dr.ExternalLaw.posterior(
-        states=[0.0, 1.0],
-        statistics=[0.0, 1.0],
-        predictive=[0.5, 0.5],
-        posterior=[[accuracy, 1.0 - accuracy], [1.0 - accuracy, accuracy]],
+    law = require_success(
+        dr.ExternalLaw.posterior(
+            states=[0.0, 1.0],
+            statistics=[0.0, 1.0],
+            predictive=[0.5, 0.5],
+            posterior=[[accuracy, 1.0 - accuracy], [1.0 - accuracy, accuracy]],
+        )
     )
     return dr.ExternalSignal("lab", f"signal-{label}", "v1", "snap", "lab-qa", law)
 
@@ -176,8 +180,8 @@ class Fixture:
         self.repaired = repair.repair(self.contract, self.studies)
         self.ids = semantic_ids(self.repaired)
         self.ranked = rank(self.repaired, self.studies, {"narrow": 0.625, "cohort": 0.75})
-        self.repair_bytes = self.repaired.export()
-        self.ranking_bytes = self.ranked.export()
+        self.repair_bytes = bytes(self.repaired.export())
+        self.ranking_bytes = bytes(self.ranked.export())
         self.bundle = px.ProposalBundle.build(
             self.repair_bytes, self.ranking_bytes, contract=self.contract
         )
@@ -230,13 +234,14 @@ def test_receipt_binds_failure_delta_derivation_cost_lineage_value_and_decision(
     assert (wide.cost.sample_budget, wide.cost.sample_size) == (SAMPLES, SAMPLES)
     assert "snapshot:a" in wide.lineage.snapshots
     assert "provider:lab/snap" in wide.lineage.snapshots
-    # Valuation: net 1/4 - 20 * 0.01 = 1/20, ranked second behind the cheaper study.
+    # Valuation: net 1/4 - 20 * 0.01 = 1/20; sufficient studies rank first, so it leads the
+    # insufficient cheaper study whose net value is larger (3/40).
     assert wide.valuation.basis == "net_value"
     assert wide.valuation.evsi == pytest.approx(0.25, abs=1e-12)
     assert wide.valuation.net_value == pytest.approx(0.05, abs=1e-12)
-    assert wide.valuation.rank == 1
+    assert wide.valuation.rank == 0
     cheap = fx.bundle.proposal(fx.narrow_id)
-    assert cheap.valuation.rank == 0
+    assert cheap.valuation.rank == 1
     assert cheap.valuation.net_value == pytest.approx(0.075, abs=1e-12)
     assert cheap.hypothetical.classification == "insufficient"
     assert cheap.hypothetical.derivation_digest is None
@@ -265,7 +270,7 @@ def test_receipt_never_marks_a_hypothetical_derivation_as_available(fx):
     )
     error = refused(
         lambda: fx.bundle.on_arrival(cohort(), proposed),
-        "proposal_receipt.hypothetical_not_evidence",
+        reason_details.proposal_receipt.HYPOTHETICAL_NOT_EVIDENCE,
     )
     assert error.reason_code == "transport_missing_evidence"
     manipulable = px.ArrivedEvidence.regimes(
@@ -275,7 +280,7 @@ def test_receipt_never_marks_a_hypothetical_derivation_as_available(fx):
     )
     refused(
         lambda: fx.bundle.on_arrival(cohort(), manipulable),
-        "proposal_receipt.hypothetical_not_evidence",
+        reason_details.proposal_receipt.HYPOTHETICAL_NOT_EVIDENCE,
     )
 
 
@@ -285,7 +290,7 @@ def test_receipt_bundle_identity_does_not_depend_on_candidate_order(fx):
         fx.repaired, list(reversed(fx.studies)), {"narrow": 0.625, "cohort": 0.75}
     )
     assert reversed_ranking.identity == fx.ranked.identity
-    rebuilt = px.ProposalBundle.build(fx.repair_bytes, reversed_ranking.export())
+    rebuilt = px.ProposalBundle.build(fx.repair_bytes, bytes(reversed_ranking.export()))
     assert rebuilt.identity == fx.bundle.identity
     assert rebuilt.to_dict() == fx.bundle.to_dict()
     # A stored reorder does not move the identity; the verifier refuses it instead.
@@ -295,7 +300,7 @@ def test_receipt_bundle_identity_does_not_depend_on_candidate_order(fx):
     assert shuffled.identity == fx.bundle.identity
     refused(
         lambda: shuffled.verify(fx.repair_bytes, fx.ranking_bytes, consume=False),
-        "proposal_receipt.non_canonical_order",
+        reason_details.proposal_receipt.NON_CANONICAL_ORDER,
     )
 
 
@@ -404,7 +409,7 @@ def test_receipt_bundle_level_mutations_refuse(fx):
         lambda: px.ProposalBundle.from_dict(data).verify(
             fx.repair_bytes, fx.ranking_bytes, consume=False
         ),
-        "proposal_receipt.candidate_set_mismatch",
+        reason_details.proposal_receipt.CANDIDATE_SET_MISMATCH,
     )
     # A proposal with an unknown candidate id.
     data = copy.deepcopy(fx.bundle.to_dict())
@@ -413,7 +418,7 @@ def test_receipt_bundle_level_mutations_refuse(fx):
         lambda: px.ProposalBundle.from_dict(data).verify(
             fx.repair_bytes, fx.ranking_bytes, consume=False
         ),
-        "proposal_receipt.candidate_not_in_ranking",
+        reason_details.proposal_receipt.CANDIDATE_NOT_IN_RANKING,
     )
 
 
@@ -424,8 +429,8 @@ def test_receipt_a_different_ranking_is_not_the_one_the_bundle_binds(fx):
     other = rank(fx.repaired, fx.studies, {"narrow": 0.625, "cohort": 0.875})
     assert other.identity != fx.ranked.identity
     refused(
-        lambda: fx.bundle.verify(fx.repair_bytes, other.export()),
-        "proposal_receipt.ranking_digest_mismatch",
+        lambda: fx.bundle.verify(fx.repair_bytes, bytes(other.export())),
+        reason_details.proposal_receipt.RANKING_DIGEST_MISMATCH,
     )
 
 
@@ -434,10 +439,10 @@ def test_receipt_candidate_in_repair_but_not_in_ranking_is_refused(fx):
     # The repair evaluated both candidates; a ranking of one values one, so a bundle of both
     # does not cover it.
     refused(
-        lambda: fx.bundle.verify(fx.repair_bytes, only_cheap.export()),
-        "proposal_receipt.candidate_not_in_ranking",
+        lambda: fx.bundle.verify(fx.repair_bytes, bytes(only_cheap.export())),
+        reason_details.proposal_receipt.CANDIDATE_NOT_IN_RANKING,
     )
-    single = px.ProposalBundle.build(fx.repair_bytes, only_cheap.export())
+    single = px.ProposalBundle.build(fx.repair_bytes, bytes(only_cheap.export()))
     assert single.candidate_ids == (fx.narrow_id,)
 
 
@@ -445,8 +450,8 @@ def test_receipt_candidate_in_ranking_but_not_in_repair_is_refused(fx):
     ids = {**fx.ids, "cohort": "sc1:never-repaired"}
     stranger = rank(fx.repaired, fx.studies, {"narrow": 0.625, "cohort": 0.75}, ids=ids)
     refused(
-        lambda: px.ProposalBundle.build(fx.repair_bytes, stranger.export()),
-        "proposal_receipt.candidate_not_in_repair",
+        lambda: px.ProposalBundle.build(fx.repair_bytes, bytes(stranger.export())),
+        reason_details.proposal_receipt.CANDIDATE_NOT_IN_REPAIR,
     )
 
 
@@ -458,8 +463,8 @@ def test_receipt_a_ranking_that_costs_a_candidate_differently_is_refused(fx):
         cost_of=lambda s: s.cost + 1 if s.label == "narrow" else s.cost,
     )
     refused(
-        lambda: px.ProposalBundle.build(fx.repair_bytes, dearer.export()),
-        "proposal_receipt.cost_mismatch",
+        lambda: px.ProposalBundle.build(fx.repair_bytes, bytes(dearer.export())),
+        reason_details.proposal_receipt.COST_MISMATCH,
     )
 
 
@@ -469,15 +474,15 @@ def test_receipt_a_foreign_repair_artifact_is_refused(fx):
     )
     # Neither ranked candidate is declared in the other repair report.
     refused(
-        lambda: px.ProposalBundle.build(other.export(), fx.ranking_bytes),
-        "proposal_receipt.candidate_not_in_repair",
+        lambda: px.ProposalBundle.build(bytes(other.export()), fx.ranking_bytes),
+        reason_details.proposal_receipt.CANDIDATE_NOT_IN_REPAIR,
     )
 
 
 def test_receipt_bundle_inputs_must_be_bytes(fx):
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="an artifact is bytes or ExportedArtifact"):
         px.ProposalBundle.build("repair", fx.ranking_bytes)
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="an artifact is bytes or ExportedArtifact"):
         fx.bundle.verify(fx.repair_bytes, "ranking")
 
 
@@ -527,7 +532,7 @@ def test_receipt_arrival_that_differs_in_sample_or_shape_is_refused_with_a_typed
         lambda: fx.bundle.on_arrival(
             cohort(), law(["t", "y", "z1", "z2"], sample_size=SAMPLES - 1)
         ),
-        "proposal_receipt.arrival_sample_mismatch",
+        reason_details.proposal_receipt.ARRIVAL_SAMPLE_MISMATCH,
     )
     refused(
         lambda: fx.bundle.on_arrival(
@@ -536,26 +541,26 @@ def test_receipt_arrival_that_differs_in_sample_or_shape_is_refused_with_a_typed
                 "clinic", ["t", "y", "z1", "z2"], snapshot_id="  ", sample_size=SAMPLES
             ),
         ),
-        "proposal_receipt.arrival_invalid",
+        reason_details.proposal_receipt.ARRIVAL_INVALID,
     )
     refused(
         lambda: fx.bundle.on_arrival(
             cohort(),
             px.ArrivedEvidence.regimes([], snapshot_id="snapshot:none", sample_size=SAMPLES),
         ),
-        "proposal_receipt.arrival_empty",
+        reason_details.proposal_receipt.ARRIVAL_EMPTY,
     )
     # A receipt answers only the candidate it was issued for.
     stranger = observation("stranger", ["t", "y", "z1", "z2", "w1"], 40)
     refused(
         lambda: fx.bundle.on_arrival(stranger, law(["t", "y", "z1", "z2"])),
-        "proposal_receipt.candidate_not_in_bundle",
+        reason_details.proposal_receipt.CANDIDATE_NOT_IN_BUNDLE,
     )
     # A bundle without the failed contract cannot re-identify anything.
     bare = px.ProposalBundle.build(fx.repair_bytes, fx.ranking_bytes)
     refused(
         lambda: bare.on_arrival(cohort(), law(["t", "y", "z1", "z2"])),
-        "proposal_receipt.contract_required",
+        reason_details.proposal_receipt.CONTRACT_REQUIRED,
     )
     # An observed law is a back-door delivery, never a transport one.
     transport_fx = TransportFixture()
@@ -564,7 +569,7 @@ def test_receipt_arrival_that_differs_in_sample_or_shape_is_refused_with_a_typed
             experiment(),
             px.ArrivedEvidence.law("source", ["x", "y"], snapshot_id="s", sample_size=SAMPLES),
         ),
-        "proposal_receipt.arrival_family_mismatch",
+        reason_details.proposal_receipt.ARRIVAL_FAMILY_MISMATCH,
     )
 
 
@@ -577,7 +582,7 @@ class TransportFixture:
         self.repaired = repair.repair(self.contract, self.studies)
         self.ranked = rank(self.repaired, self.studies, {"trial": 0.75, "obs": 0.625})
         self.bundle = px.ProposalBundle.build(
-            self.repaired.export(), self.ranked.export(), contract=self.contract
+            bytes(self.repaired.export()), bytes(self.ranked.export()), contract=self.contract
         )
 
 

@@ -1,6 +1,6 @@
 //! NOTEARS missing-value handling: refusal by default, declared complete case with accounting.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::{MissingPolicy, TableView, TabularData};
@@ -99,7 +99,12 @@ fn complete_case_equals_the_run_on_the_complete_rows_and_reports_the_rest() {
 fn a_policy_this_route_cannot_execute_is_refused_even_on_complete_data() {
     let data = table(&chain(300));
     let error = run(&Notears::new().with_missing(MissingPolicy::BalancedPanel), &data).unwrap_err();
-    assert!(error.to_string().contains("missing_data.policy_not_applicable"), "{error}");
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::missing_data::POLICY_NOT_APPLICABLE),
+        "{error}"
+    );
 }
 
 #[test]
@@ -130,6 +135,6 @@ fn pairwise_available_recovers_the_chain_and_reports_pairs_and_repair() {
     assert!(accounting.groups.iter().any(|g| g.label.starts_with("psd_repair:")));
     // The weights come from a covariance close to the complete-data one.
     for (a, b) in pairwise.weights.iter().zip(complete.weights.iter()) {
-        assert!((a - b).abs() < 0.1, "{a} vs {b}");
+        assert!((a - b).abs() < 0.02, "{a} vs {b}");
     }
 }

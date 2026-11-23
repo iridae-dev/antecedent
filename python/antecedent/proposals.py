@@ -49,11 +49,15 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from antecedent import _reason_details
+
 from . import _native, design, repair
+from ._artifact_protocol import container_bytes
 from ._native import proposal_bundle_build as _build
 from ._native import proposal_ranked_candidates as _ranked_candidates
 from ._refusal import raise_refusal
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+from .execution import Execution
 
 EvidenceKindName = Literal["available", "manipulable", "proposed"]
 
@@ -387,6 +391,8 @@ def _bytes(name: str, value: object) -> bytes:
 
 
 def _replay(repair_artifact: bytes, ranking_artifact: bytes) -> None:
+    repair_artifact = container_bytes(repair_artifact)
+    ranking_artifact = container_bytes(ranking_artifact)
     repair.consume(repair_artifact)
     # The bundle binds the ranking by identity and digest, so the artifact is replayed on its
     # own seal here; there is no separately retained expectation to compare it with.
@@ -434,6 +440,8 @@ class ProposalBundle:
         (:class:`ProposalRefusal`). ``contract`` is the failed contract the repair
         was made for; it is needed only by :meth:`on_arrival`.
         """
+        repair_artifact = container_bytes(repair_artifact)
+        ranking_artifact = container_bytes(ranking_artifact)
         repair_artifact = _bytes("repair_artifact", repair_artifact)
         ranking_artifact = _bytes("ranking_artifact", ranking_artifact)
         if consume:
@@ -489,6 +497,8 @@ class ProposalBundle:
         ``signal_mismatch``, ``value_mismatch``, ``candidate_set_mismatch`` or
         ``bundle_identity_mismatch``).
         """
+        repair_artifact = container_bytes(repair_artifact)
+        ranking_artifact = container_bytes(ranking_artifact)
         repair_artifact = _bytes("repair_artifact", repair_artifact)
         ranking_artifact = _bytes("ranking_artifact", ranking_artifact)
         if consume:
@@ -523,7 +533,7 @@ class ProposalBundle:
                 {
                     "code": "invalid_argument",
                     "stage": "proposal",
-                    "detail": "proposal_receipt.contract_required",
+                    "detail": _reason_details.proposal_receipt.CONTRACT_REQUIRED,
                     "message": "on_arrival needs the failed repair contract the bundle was made for",
                 }
             )
@@ -541,7 +551,7 @@ class ProposalBundle:
         candidate_id: str,
         study: Any,
         *,
-        seed: int = 3,
+        execution: Execution | None = None,
         repair_artifact: bytes | None = None,
         ranking_artifact: bytes | None = None,
     ) -> Any:
@@ -550,8 +560,12 @@ class ProposalBundle:
         Structural ``on_arrival`` remains available separately. This route requires
         original producer artifacts, supplied explicitly when the bundle was loaded
         from a dictionary. Unrepresented sampling designs refuse; point uncertainty
-        remains unmeasured.
+        remains not_measured.
         """
+        repair_artifact = container_bytes(repair_artifact) if repair_artifact is not None else None
+        ranking_artifact = (
+            container_bytes(ranking_artifact) if ranking_artifact is not None else None
+        )
         from .proposal_arrival import _estimate
 
         self.proposal(candidate_id)
@@ -561,10 +575,11 @@ class ProposalBundle:
         )
         if original_repair is None or original_ranking is None:
             raise CausalValueError(
-                "proposal_arrival.original_artifacts_required", reason_code="invalid_argument"
+                _reason_details.proposal_arrival.ORIGINAL_ARTIFACTS_REQUIRED,
+                reason_code="invalid_argument",
             )
         return _estimate(
-            original_repair, original_ranking, candidate_id, study, self.identity, seed
+            original_repair, original_ranking, candidate_id, study, self.identity, execution
         )
 
     def __repr__(self) -> str:
@@ -573,6 +588,7 @@ class ProposalBundle:
 
 def ranked_candidate_ids(ranking_artifact: bytes) -> tuple[str, ...]:
     """The semantic ids of the candidates a ranking artifact values, sorted."""
+    ranking_artifact = container_bytes(ranking_artifact)
     return tuple(_ranked_candidates(_bytes("ranking_artifact", ranking_artifact)))
 
 

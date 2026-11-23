@@ -64,6 +64,15 @@ def _target_query(contract: Mapping[str, Any]) -> dict[str, Any]:
     if isinstance(query, Mapping) and len(query) == 1:
         kind, body = next(iter(query.items()))
         body = body if isinstance(body, Mapping) else {}
+        # A wrapped question (for example a conditional effect) reports its inner question's
+        # variables, while the outer kind stays the declared query kind.
+        inner = body.get("inner")
+        while isinstance(inner, Mapping) and len(inner) == 1:
+            inner_body = next(iter(inner.values()))
+            if not isinstance(inner_body, Mapping):
+                break
+            body = {**inner_body, **{k: v for k, v in body.items() if k != "inner"}}
+            inner = inner_body.get("inner")
         treatment_id = body.get("treatment", body.get("treatments"))
         outcome_id = body.get("outcome", body.get("outcomes"))
         population: Any = body.get("target_population")
@@ -148,6 +157,22 @@ def portable_evidence(
         "derivation_step_count": len(identification_wire.get("derivation") or []),
     }
     reports = [dict(r) for r in body.get("refutations") or [] if isinstance(r, Mapping)]
+    for report in reports:
+        scope = report.get("scope")
+        if isinstance(scope, Mapping):
+            report["scope_kind"] = scope.get("kind")
+            target = scope.get("target")
+            identity = target.get("identity") if isinstance(target, Mapping) else None
+            if isinstance(identity, (bytes, bytearray, list, tuple)):
+                report["scope_target_identity"] = bytes(identity).hex()
+            report["scope_outer_atom"] = scope.get("outer_atom")
+            digest = scope.get("completion_digest")
+            if isinstance(digest, (bytes, bytearray, list, tuple)):
+                report["scope_completion_digest"] = bytes(digest).hex()
+            report["scope_horizon_index"] = scope.get("horizon_index")
+            report["scope_horizon"] = scope.get("horizon")
+    # Serialized scopes are descriptive, never whole-result execution authority.
+    whole_reports = [report for report in reports if report.get("scope") is None]
 
     def field(diagnostic: Mapping[str, Any], name: str) -> str:
         for pair in diagnostic.get("fields") or []:
@@ -162,8 +187,13 @@ def portable_evidence(
     ]
     count = len(reports) + len(failures)
     ran = count > 0
+    verdict = (
+        None
+        if any(report.get("scope") is not None for report in reports)
+        else ran and not failures and all(r.get("passed") is True for r in whole_reports)
+    )
     validation = {
-        "passed": ran and not failures and all(r.get("passed") is True for r in reports),
+        "passed": verdict,
         "ran": ran,
         "count": count,
         "reports": reports,
@@ -232,6 +262,18 @@ def json_value(value: Any) -> Any:
     return {"available": False, "reason": "not_json_serializable", "type": type(value).__name__}
 
 
+def _json_records(contract: Mapping[str, Any], key: str) -> tuple[dict[str, Any], ...]:
+    """The JSON array the native contract stores under ``key``, as records; empty when absent."""
+    raw = contract.get(key)
+    if not raw:
+        return ()
+    try:
+        loaded = json.loads(raw) if isinstance(raw, str) else raw
+    except ValueError:
+        return ()
+    return tuple(dict(item) for item in loaded if isinstance(item, Mapping))
+
+
 @dataclass(frozen=True, slots=True)
 class SlotView:
     available: bool
@@ -250,6 +292,8 @@ class ReasoningSlots:
     program_id: str | None
     #: Execution claim identity (`contract["claim"]["claim_id"]`). Distinct from program_id.
     claim_id: str | None
+    #: Exact lowered dispatch that produced a live result; absent when it was not retained.
+    lowered_program_id: str | None = None
     target_id: str | None = None
     identification_id: str | None = None
     identification_product_id: str | None = None
@@ -259,10 +303,21 @@ class ReasoningSlots:
     execution_id: str | None = None
     score_reuse_id: str | None = None
     target_weights_id: str | None = None
-    contract: dict[str, Any] | None = None
+    contract: Mapping[str, Any] | None = None
     answer: Any = None
     calibration: Any = None
     diagnostics: tuple[str, ...] = ()
+    #: What the capability report suggests next (`id`, `description`), never executed.
+    #: A not-identified contract adds the evidence-gathering ids `measure_variable:<name>`,
+    #: `run_experiment:<target>`, `find_instrument` and `collect_panel`.
+    next_actions: tuple[dict[str, Any], ...] = ()
+    #: Supported alternatives that change named premises (`coordinate`, `changed`,
+    #: `required_action`): an explicit choice, never an automatic fallback.
+    neighbors: tuple[dict[str, Any], ...] = ()
+    #: Unresolved obligations of the contract (`id`, `scope`, `kind`, `status`, ...).
+    unmet_obligations: tuple[dict[str, Any], ...] = ()
+    #: Verified evidence obligations of a not-identified product, each with its proof step.
+    evidence_obligations: tuple[dict[str, Any], ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         """Structured report using native booleans, numbers, and explicit unavailable slots."""
@@ -334,6 +389,10 @@ class ReasoningSlots:
             target_weights_id=contract.get("target_weights")
             or _nested(contract, "identities", "target_weights"),
             contract=dict(contract) if contract else None,
+            next_actions=_json_records(contract, "next_actions"),
+            neighbors=_json_records(contract, "neighbors"),
+            unmet_obligations=_json_records(contract, "unmet_obligations"),
+            evidence_obligations=_json_records(contract, "evidence_obligations"),
         )
 
     @classmethod
@@ -412,6 +471,7 @@ class ReasoningSlots:
             assumptions=assumptions,
             program_id=_identity_hex(identities.get("program")),
             claim_id=_identity_hex(claim.get("claim_id")),
+            lowered_program_id=_identity_hex(body.get("lowered_program_id")),
             target_id=_identity_hex(identities.get("target")),
             identification_id=_identity_hex(identities.get("identification")),
             identification_product_id=_identity_hex(identities.get("identification_product")),

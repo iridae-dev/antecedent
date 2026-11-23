@@ -1,17 +1,51 @@
-# Selective discovery
+# Rerun discovery without recomputing it
 
-Discovery is the expensive first stage of many analyses, and it is rerun for reasons
-that leave most of its work unchanged: a different threshold, added background
-knowledge, a different orientation budget, a different lag window. Selective discovery
-reuses the conditional-independence statistics a run computed, at exactly the input
-coordinates where a later request needs them, and reruns the decisions and the
-orientation on top. It makes one claim: a selective run returns what a full run of the
-same request returns, bit for bit. It makes no claim that the result is the true graph.
+Use selective discovery when you rerun a constraint-based search (PC or FCI over a table,
+PCMCI or PCMCI+ over a series) on the same data with a changed request: a different
+threshold, added background knowledge, a different orientation budget. Those changes leave
+the conditional-independence statistics untouched, and the statistics are most of the cost.
+A `SelectiveDiscovery` adapter retains the statistics a run computed, serves a later request
+from them at exactly the input coordinates where it needs them, and reruns the decisions and
+the orientation on top.
 
-Code: `antecedent_discovery::selective` (contracts, stages, store, adapters, portable
-state), `antecedent_io_core::selective_discovery_artifact` (artifact kind
-`selective_discovery_v1`), `antecedent::analysis::selective_discovery` (stage planner,
-claim graph, ledger and transport integration).
+It makes one claim: a selective run returns what a full run of the same request returns, bit
+for bit. It makes no claim that the result is the true graph.
+
+```python
+from antecedent import selective_discovery as sd
+
+contract = sd.StaticContract(("a", "b", "c", "d"), algorithm="pc", alpha=0.2, seed=0)
+adapter = sd.SelectiveDiscovery("static")
+
+first = adapter.run(contract, data)                      # computes every statistic it needs
+second = adapter.run(sd.replace(contract, alpha=0.01), data)
+
+second.stage("statistics").status    # "reused"
+second.stage("search").status        # "recomputed"
+second.stage("search").because       # ("thresholds",)
+second.work.ci_tests_reused          # requests answered from a retained statistic
+adapter.outcome                      # the discovered structure, with its unresolved edges
+```
+
+`data` maps every searched variable to a one-dimensional float array. `adapter.plan(contract,
+data)` returns the same per-stage decisions without executing anything.
+
+**Reading the result.** `run` returns a `RunReport`: one `PlanEntry` per stage
+(`status` is `"reused"` or `"recomputed"`, and `because` names the changed inputs), the
+observed `work`, and whether the outcome changed. `adapter.outcome` is an `Outcome`: the
+structure in its class (`structure_class`), its `edges`, the `unresolved_edges` with their
+reasons, `search_incomplete`, `orientation_conflict`, and two identities
+(`structure_identity`, `result_identity`). No estimate, interval or posterior is produced:
+the outcome is a discovered structure and an account of the work, and `fully_directed` does
+not make it more than an estimate of the graph.
+
+The rest of this page is the reference for that behaviour: what a contract fixes, what each
+change reuses, how the structure reaches later stages, the row-split constructions that give
+an effect after discovery, and the refusals.
+
+The portable state is exported as the artifact kind `selective_discovery_v1`. The Python
+surface is `antecedent.selective_discovery`; the Rust implementation is in
+`antecedent_discovery::selective`.
 
 ## Frozen contracts
 
@@ -123,8 +157,8 @@ of an equivalence class is never reported as the discovered graph.
   `Graph` input of the stage planner. It requires a structure with no unresolved edge or
   an explicitly declared completion (a label and an identity; recorded as a declaration,
   not a discovery), and it refuses a search that exhausted a bound.
-* `add_discovery_claims` places the discovery stages in the claim-level invalidation
-  graph. New data recomputes the graph and everything resting on it (the structure is
+* `add_discovery_claims` (Python: `SelectiveDiscovery.add_claims`) places the discovery
+  stages in the claim-level invalidation graph. New data recomputes the graph and everything resting on it (the structure is
   reused and the fit is not retained); a threshold change keeps the statistics and
   recomputes what rests on the graph; a changed structure or completion recomputes; an
   exhausted search bound makes the graph unsupported and withdraws every claim resting
@@ -136,7 +170,7 @@ of an equivalence class is never reported as the discovered graph.
 ### Transport under graph uncertainty (decision)
 
 A discovered structure cannot supply a selection diagram. `request_selection_diagram`
-refuses and names every unresolved edge, the exhausted bounds, and what would license
+refuses and names every unresolved edge, the exhausted bounds, and what would support
 the request. Three decisions are recorded:
 
 1. A CPDAG/PAG or search-incomplete graph returns a **refusal with the unresolved
@@ -149,7 +183,33 @@ the request. Three decisions are recorded:
 3. **Multi-population discovery is out.** A pooled or per-population search carries its
    own invariance and identification assumptions, which belong to the transport
    contract and are not inferable from data. The contract refuses a second population or
-   multi-dataset constraints with `route_not_supported`.
+   multi-dataset constraints with `route_not_supported`. `PerPopulationDiscovery` runs one
+   declared static contract separately on each population's rows, with one retained store
+   per population and no row or statistic crossing populations; its report of differing
+   edges is descriptive and is not a selection diagram.
+
+## Hold an accepted graph and estimate from it repeatedly
+
+When you discover a graph once, review it, and then run many estimates, hold it in an `AcceptedGraph` (`antecedent.accepted_graph`). The handle keeps the graph, a `version`, the `algorithm_id` and any background-knowledge identity. Changing the bootstrap, the prior scale, the treatment levels or the latency never re-enters discovery: rediscovery happens only when you call `rediscover`, and `replace` or `review` bump the version explicitly. Preparation never runs a search: `discovery=` on `prepare` and `analyze` takes an executed graph posterior, and a search configuration is refused with the instruction to run `discovery.discover` first.
+
+The graph below is the structure of a simulated confounded model (`z` confounds `t` and `y`); here it is accepted by hand.
+
+```python
+import antecedent
+from antecedent.execution import Execution
+from antecedent.outcomes import require_success
+
+dag = antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
+accepted = antecedent.AcceptedGraph.from_graph(dag, algorithm_id="hand")
+query = antecedent.AverageEffect(treatment="t", outcome="y")
+
+prepared = accepted.prepare(data, query=query, refute=False, execution=Execution(seed=1))
+prepared.structure_source            # "accepted"
+click = require_success(prepared.estimate())
+click.ate
+```
+
+`data` is your table with columns `z`, `t` and `y`. A study prepared from the handle records `structure_source == "accepted"`; the same graph passed as `graph=` records `"explicit"`. After a discovery run, `AcceptedGraph.from_discovery(result, algorithm_id=algo)` holds the result as a `Dag` when it is fully oriented and as a `Cpdag` otherwise. `accepted.pending` lists the edges still needing an orientation decision (undirected, circle or conflict marks); `accepted.review({("a", "b"): ("tail", "arrow")})` returns a new, version-bumped handle, and a mark that would create a directed cycle is refused. `to_json()` and `AcceptedGraph.from_json` keep the version and edges, and a partly oriented temporal graph refuses to serialize rather than invent orientations.
 
 ## Portable state and resume
 
@@ -176,13 +236,13 @@ Limits: Portable receipts: 250000. Structure items: 65536.
   lag changes, thresholds, background knowledge and exhausted budgets, through the
   result identity and the per-edge evidence bits, against independent known-graph
   oracles (a d-separation oracle over hand-written DAGs).
-* **Not published, and not licensable per dataset:** recovery of the true graph, a
+* **Not published, and not establishable per dataset:** recovery of the true graph, a
   false-discovery or type-I error rate for the output. Whether a discovered graph is the
   true graph rests on faithfulness and causal sufficiency, and neither can be tested from
   the data discovery ran on, so no calibration of the procedure turns the statement into
-  one about a given dataset. `request_recovery_claim` refuses with `cell_not_licensed`.
+  one about a given dataset. `request_recovery_claim` refuses with `not_supported`.
 * **Not published:** an interval for an estimate computed on the rows discovery used.
-  `request_downstream_interval` refuses with `cell_not_licensed`; selecting the graph and
+  `request_downstream_interval` refuses with `not_supported`; selecting the graph and
   estimating on the same rows is not a construction with a measured coverage.
 
 ### Splitting rows: filter, then split
@@ -209,7 +269,7 @@ dropping rows (a weighted test needs one weight per row).
 (`SplitRows::discovery_row_ids` / `analysis_row_ids`, `SampleSplit.analysis_row_ids`), the
 weights of its rows, and the all-included analysis mask when the source had a mask. The
 receipt records the exclusions, the identity of the source mask and of the source,
-discovery and analysis weights, and the content identity of the source and both parts. The identity version is unchanged: exclusions, mask and weights enter the receipt identity only when present, so a split of a complete, unmasked, unweighted table keeps the identity it always had.
+discovery and analysis weights, and the content identity of the source and both parts. Exclusions, mask and weights enter the receipt identity only when present.
 
 *Weights.* Weights are gathered with their rows, bit for bit and unnormalized, so a part's
 weights sum to whatever its rows held. Zero weights are legitimate and stay in their part (they contribute nothing to a weighted
@@ -237,9 +297,9 @@ is refused (`split_part_weight_invalid`).
   zero are excluded from the estimate and counted (`SamplingWeightRecord::zero_weight_rows`),
   and the effective sample size of the rows used is reported beside the row count.
   `SplitAnalysisEffect::interval` is the Student interval at the effective sample size less
-  the regression's coefficients; its whole-method coverage is `unmeasured` until
-  `tests/sample_split_weighted_effect_calibration.rs` (10 variables, 3,000 participants,
-  weights of coefficient of variation 0.8) has been measured.
+  the regression's coefficients, and it carries its whole-method calibration status; the
+  measuring harness is `crates/antecedent/tests/sample_split_weighted_effect_calibration.rs`
+  (10 variables, 3,000 participants, weights of coefficient of variation 0.8).
 
 *What verification checks.* `SampleSplitReceipt::verify` re-derives the partition from the
 rule and the recorded exclusions and checks every stored identity (rows, exclusions, mask,
@@ -250,7 +310,7 @@ split on the table it was made from and refuses a changed mask
 row ids (`split_rows_mismatch`), masks, weights and content. `check_analysis_table` accepts
 only the recorded analysis part, weights included.
 
-### The interval that is licensed: the whole method on a row split
+### The interval that is supported: the whole method on a row split
 
 `antecedent::analysis::sample_split_effect::estimate_effect_on_split` (Python:
 `selective_discovery.sample_split_effect`) runs one fixed construction: a seeded half
@@ -267,21 +327,21 @@ orientable, at the measured analysis row counts, how often the interval contains
 structural coefficient. It is keyed `structure = discovered_sample_split` and never
 inherits a known-graph record. `SplitEffect.measure` replays the source and attests the
 interval from the current coverage record; without one the interval is a computed value,
-and `measure` refuses with `cell_not_licensed`.
+and `measure` refuses with `not_supported`.
 
 The measured family, the gated test and the named boundaries (weak edges, a cancelling
 edge, a test that cannot see the confounder, and the reuse of the discovery rows) are in
 `crates/antecedent/tests/sample_split_effect_calibration.rs`. Each boundary is recorded
-under its own key and licenses nothing.
+under its own key and supports nothing.
 
 ### Recovery as a measured table
 
 How often PC returns exactly the true graph over that family is printed by the same
-harness (`info recovery` lines) and published here as a table, not as a license. A row
+harness (`info recovery` lines) and published here as a table, not as support. A row
 states the variable count, the rows given to discovery and the share of replicates whose
-discovered graph equals the true one. The table is filled from the measurement at the
-release cut and carries the commit it was measured at (`4ae60f8b5`). It is a description of
-how the search behaves, not a license: the license is the coverage record of the interval.
+discovered graph equals the true one. The table carries the commit it was measured at
+(`4ae60f8b5`). It is a description of
+how the search behaves, not support: the support is the coverage record of the interval.
 
 | Variables | Discovery rows | Replicates | Graph recovered | Interval reported |
 | --- | --- | --- | --- | --- |
@@ -341,21 +401,20 @@ and 4,000 participants (three quarters to discovery and one quarter to analysis)
 topology, in `crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs`.
 
 Three quarters go to discovery because resolving the graph needs more information than the
-held-out coefficient fit; all reporting, coverage and width targets remain unchanged. New
-sources use protocol version two and a `discovery_fraction_0_75` calibration key. Version-one
-sources replay their original half split and retain their original key; evidence from one
-allocation cannot license the other.
+held-out coefficient fit. Sources use protocol version two and a `discovery_fraction_0_75`
+calibration key. A version-one source replays its half split under its own key; evidence from
+one allocation cannot support the other.
 
 The topologies are connected graphs with confounding, mediators and nuisance variables:
 `hub_confounded_multi_path` (a hub confounds the treatment and the outcome; the effect runs
 through a mediator), `layered_multi_mediator_nuisance` (two mediators in series and a
 mediator-outcome confounder) and `confounded_direct_and_mediated` (a direct edge and a mediated
 path under confounding; maximum degree four). A table does not announce its topology, so
-`ParentSetEffect.measure` licenses a cell only when the records of every topology of its
+`ParentSetEffect.measure` supports a cell only when the records of every topology of its
 declared degree attest it at that variable count, transformation, knowledge and analysis row
 count: the conservative intersection (a family declared at degree three has the first two
-topologies; the third has degree four). Until the records exist `measure` refuses with
-`cell_not_licensed`.
+topologies; the third has degree four). Without those records `measure` refuses with
+`not_supported`.
 
 Every replicate of a design reruns discovery, acceptance or refusal and estimation. The truth
 is computed independently of the estimator by simulating the intervention (the treatment's
@@ -368,7 +427,7 @@ usefulness targets are asserted: reporting at least 0.9, median width at most 0.
 0.3 at 1,000, 2,000 and 4,000 participants, and, with the 2,000 replicates the acceptance
 manifest freezes, coverage of at least 0.93. Named boundary designs at fifteen variables (weak
 signal below the published margin, an exactly cancelling path, and skewed noise the
-partial-correlation test cannot see through) are recorded under their own keys and license
+partial-correlation test cannot see through) are recorded under their own keys and support
 nothing.
 
 *Background knowledge.* `estimate_parent_set_effect_with_knowledge` (Python: `required=`,
@@ -416,6 +475,29 @@ The graph recovered on one table is an estimate: sufficiency and faithfulness ca
 from the table discovery ran on, so these conditions are the family the coverage was measured
 over, never a per-table certificate.
 
+## Refusals
+
+A scientific refusal on this surface is a `SelectiveDiscoveryRefusal` (a
+[structured refusal](reference/refusal-codes.md#structured-refusals-and-their-remedies))
+with a registered `code`, a namespaced `detail` and a `remedy`. The `selective_discovery.*`
+details, with what would support each request, are listed under
+[Discovered structure and per-population discovery](reference/refusal-codes.md#discovered-structure-and-per-population-discovery).
+
+| You asked for | Code | Why |
+| --- | --- | --- |
+| background knowledge that contradicts itself, names an unsearched variable, or has no meaning for the algorithm | `invalid_argument`, `unknown_variable`, `option_not_applicable` | a statement is honoured or refused, never ignored |
+| a second population or multi-dataset constraints in one contract | `route_not_supported` | cross-population assumptions belong to the transport contract |
+| a recovery or error-rate statement about the output graph (`request_recovery_claim`) | `not_supported` | faithfulness and causal sufficiency cannot be tested on the data discovery ran on |
+| an interval for an estimate computed on the rows discovery used (`request_downstream_interval`) | `not_supported` | no construction with a measured coverage |
+| a selection diagram, or a graph stage identity, from a structure with unresolved edges or an exhausted search bound | `discovered_structure_unresolved` | an estimate with open edges is not a declared graph; the refusal lists the edges and bounds |
+| reuse inside a score-based search (`request_score_search_reuse`) | `route_not_supported` | reuse is constraint based |
+| a resume without the raw data, on other data, under another contract, or from an unusable receipt | `discovery_statistics_invalid` | the replay must reach the recorded result identity |
+| a row split that leaves a part empty, repeats or exceeds rows, names an excluded row, or carries weights the declared test does not read | `invalid_argument`, `option_not_applicable` | see [Splitting rows](#splitting-rows-filter-then-split) |
+
+An algorithm failure or a cancellation raises `CausalDiscoveryError`. After any refusal,
+failure or cancellation the adapter's retained state, outcome and identities are exactly as
+they were.
+
 ## Lifecycle
 
 * **prepare / estimate:** a contract and data produce an outcome and a plan; accepting
@@ -429,8 +511,8 @@ over, never a per-table certificate.
 
 | Row | Reason | Refusal |
 |---|---|---|
-| recovery or error-control claim for the output graph of one dataset | faithfulness and causal sufficiency are untestable | `cell_not_licensed` |
-| interval for an estimate computed on the rows discovery used | no construction with a measured coverage | `cell_not_licensed` |
+| recovery or error-control claim for the output graph of one dataset | faithfulness and causal sufficiency are untestable | `not_supported` |
+| interval for an estimate computed on the rows discovery used | no construction with a measured coverage | `not_supported` |
 | score-based search reuse | no score-cache injection seam | `route_not_supported` |
 | skeleton-state resume between runs | algorithms expose no resumable state | not offered |
 | multi-population discovery | assumptions belong to the transport contract | `route_not_supported` |
@@ -455,12 +537,14 @@ interval, no posterior). Paradigm: neither Frequentist nor Bayesian output is pr
 
 ## Python surface
 
-`antecedent.selective_discovery`: `StaticContract`, `TemporalContract`, `Link` (shared with
+`antecedent.selective_discovery`: `StaticContract`, `TemporalContract` (and `replace`, which
+returns a contract with named fields changed), `Link` (shared with
 `antecedent.discovery`, which also holds `BackgroundKnowledge`), `discover_on_split` (with `weights=` and
 `mask=`) and `SampleSplit` (`receipt`, `verify`, `verify_source`, `analysis_row_ids`,
 `analysis_weights`, `analysis_effective_sample_size`), `SelectiveDiscovery`
-(`run`, `plan`, `outcome`, `export_state`, `resume`, `request_recovery_claim`,
+(`run`, `plan`, `outcome`, `export_state`, `resume`, `add_claims`,
+`accepted_graph_stage_identity`, `request_recovery_claim`,
 `request_downstream_interval`, `request_selection_diagram`), `sample_split_effect` and `SplitEffect` (with `measure`), `sample_split_parent_set_effect` and `ParentSetEffect` (with `measure`), `Outcome` (structure with
 `unresolved_edges`, `directed_edges`, evidence, bounded-search receipts), `RunReport` and
 `WorkUnits`, `inspect_selective_discovery_artifact`, `consume_selective_discovery_artifact`,
-`request_score_search_reuse` and `SelectiveDiscoveryRefusal`. Contract seeds default to 0.
+`request_score_search_reuse`, `PerPopulationDiscovery` and `SelectiveDiscoveryRefusal`. Contract seeds default to 0.

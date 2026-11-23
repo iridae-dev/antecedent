@@ -3,16 +3,24 @@
 #![allow(clippy::all, reason = "each included file carries its own lint scope")]
 // consolidated-suite
 
+#[path = "adaptive_policy_model_source.rs"]
+mod adaptive_policy_model_source;
+#[cfg(feature = "calibration-internal")]
+#[path = "cross_world_edge_contrast.rs"]
+mod cross_world_edge_contrast;
 #[path = "per_population_discovery_facade.rs"]
 mod per_population_discovery_facade;
+#[cfg(feature = "calibration-internal")]
 #[path = "policy_python_parity.rs"]
 mod policy_python_parity;
 #[path = "policy_value_route.rs"]
 mod policy_value_route;
-#[path = "population_license.rs"]
-mod population_license;
+#[path = "population_support.rs"]
+mod population_support;
 #[path = "portable_predictor_resume.rs"]
 mod portable_predictor_resume;
+#[path = "posterior_boundaries_facade.rs"]
+mod posterior_boundaries_facade;
 #[path = "posterior_mean_decision.rs"]
 mod posterior_mean_decision;
 #[path = "practitioner_facade.rs"]

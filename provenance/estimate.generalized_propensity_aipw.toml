@@ -5,6 +5,8 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+modules = ["crates/antecedent-estimate/src/propensity/generalized.rs"]
+
 papers = [
  { title = "The role of the propensity score in estimating dose-response functions", doi = "10.1093/biomet/87.3.706", sections = ["generalized propensity score: weak unconfoundedness and the balancing property for a multi-valued treatment"] },
  { title = "Efficient semiparametric estimation of multi-valued treatment effects under ignorability", doi = "10.1016/j.jeconom.2009.09.023", sections = ["multi-valued treatment AIPW / efficient score under ignorability"] },
@@ -19,7 +21,7 @@ implementation_deviations = [
  "Nuisances are a multinomial-logit generalized propensity over the declared level set and a per-level OLS outcome regression, not the arbitrary ML learners the DML analysis admits.",
  "Cross-fitting uses a fixed five folds from a seeded, level-stratified, unit-level fold plan. A training fold missing a level, or with no more rows at a level than design columns, refuses rather than imputing; with no propensity clip, a generalized propensity of exactly zero refuses instead of being floored. The overlap trim is refused: trimming one level would redefine the common-support population of every contrast.",
  "Every complete-case row must be at a declared level: rows at an undeclared level refuse for the full-population target instead of being dropped, because dropping them would silently change the population.",
- "The reported standard error is the plug-in iid influence-function variance of the cross-fitted scores from the shared score table. It is not an efficiency-bound variance. The facade forms the 95% normal interval of the full-population contrast from it but publishes that interval only when a current coverage record measured the construction (target, number of levels, folds and row count); until then it is withheld as scope_not_assessed and the standard error is labelled unmeasured. The pairwise-subpopulation target has no measurement design and always withholds its interval.",
+ "The reported standard error is the plug-in iid influence-function variance of the cross-fitted scores from the shared score table. It is not an efficiency-bound variance. The facade forms the 95% normal interval of the full-population contrast from it but publishes that interval only when a current coverage record measured the construction (target, number of levels, folds and row count); until then it is withheld as scope_not_assessed and the standard error is labelled not measured. The pairwise-subpopulation target has no measurement design and always withholds its interval.",
  "The pairwise-subpopulation target excludes rows at other levels by a declared policy and states the target population on the result; it is not an estimate for those rows.",
 ]
 
@@ -28,4 +30,43 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-estimate/tests/treatment_levels.rs (three-level simulated truth: closed-form full-population effect and a numerically integrated pairwise-subpopulation effect, independent of the estimators)",
  "crates/antecedent/tests/multilevel_interval_calibration.rs (ignored repeated-sampling design for the full-population interval on the confounded three-level simulation; plain tests pin the construction key and the withheld status)",
+ "crates/antecedent-estimate/tests/generalized_propensity_aipw_reference.rs (fixed-fold 60-digit multinomial-logit propensities, per-level least-squares outcome models, propensity floor, level means and every pairwise contrast with the iid influence standard error; refusal of an undeclared level and of a trim)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "MultiLevelAipw::fit with the full-population target in crates/antecedent-estimate/src/propensity/generalized.rs: the cross-fitted multinomial-logit generalized propensity on each training fold, the per-level ordinary-least-squares outcome regressions, the floor on the propensity, the per-level scores phi_k = m_k + 1{T=k}(Y - m_k)/max(e_k, floor), the standardized level means, and any pairwise contrast with its iid influence-function standard error from the score table. Relies on the level-stratified cross-fit plan (asserted equal to the recorded plan), the multinomial-logit fit of antecedent-stats and the score-table summary. Not the pairwise-subpopulation target (binary AIPW on the rows at two levels, estimate.aipw), the facade interval and its calibration record, or the learner choice."
+assumptions = ["Weak unconfoundedness given the adjustment set and positivity of every declared level are identification assumptions taken as given.", "Independent complete-case rows, each at a declared level; the standard error is the plug-in iid score variance of cross-fitted scores, not an efficiency-bound variance."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Eight compared tables of 80 to 120 rows with three or four levels, one or two covariates and three to five folds, whose level-stratified fold plan for the recorded seed is part of the case and asserted equal to the product's: a floor that binds on fitted propensities down to 0.01, an outcome offset of 1e7, a covariate offset of 1e3 at scale 250, two covariates 1e-2 apart, and two covariates 1e-4 apart (correlation 1 - 5e-9). Level means and contrasts are asserted to 1e-6 and standard errors to 1e-5 relative. Not examined: the choice of the plan itself (crossfit_plan), separation handling by the ridge fallback of the GLM, a training fold with a sparse level (refused, tested only by the module's own tests), the pairwise-subpopulation target, cluster or weighted rows, and the 95% interval, whose publication depends on a coverage record. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://doi.org/10.1093/biomet/87.3.706", "https://doi.org/10.1016/j.jeconom.2009.09.023", "https://doi.org/10.1111/ectj.12097", "https://mpmath.org/"]
+findings_resolved = ["No numerical defect: level means, every pairwise contrast and its standard error equal the 60-digit fixed-fold reference on every compared case, including a binding floor and a covariate offset of 1e3.", "An undeclared treatment level is refused rather than dropped, and a declared trim is refused rather than ignored, so neither declaration is silently unused.", "Recorded limit: the multinomial-logit IRLS does not converge on two covariates differing by 1e-4 and refuses with a non-convergence error, where the binary logistic of the cross-fitted AIPW score converges on a comparable design."]
+record_sha256 = "58efd27ac8e2cb5beb5b8636fd6e3dcb5fd2d1382c0534bb54880b754ebd4f97"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/propensity/generalized.rs"
+items = ["const GENERALIZED_PROPENSITY_PROVENANCE", "enum MultiLevelPopulation", "enum MultiLevelTarget", "fn as_str", "fn crossfit_scores", "fn fit", "fn fit_category_probabilities", "fn fit_full_population", "fn fit_pairwise", "fn full_population", "fn index_of", "fn multinomial_probabilities", "fn new", "fn population", "fn with_folds", "fn with_overlap", "fn with_target", "struct CategoryTrainingRows", "struct LevelMean", "struct LevelRows", "struct MultiLevelAipw", "struct MultiLevelEstimate", "struct PreparedLevels"]
+sha256 = "632be73b9604718712e713eea987150e98b76f83e561e9b393ffaebed96893b9"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/generalized_propensity_aipw_reference.rs"
+items = ["fn an_undeclared_level_is_refused_and_a_trim_is_refused", "fn close", "fn data_for", "fn estimand", "fn floats", "fn level_means_and_pairwise_contrasts_match_the_fixed_fold_references"]
+sha256 = "f24343b752cde937cf9a1489af1bc480e1e6c8515eb874d007de414c2d685cb3"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/generalized_propensity_aipw_reference.py"
+sha256 = "63b6ed32c48917664739f9058171773a70498525aace44a63d955fcd88215630"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/generalized_propensity_aipw_reference.json"
+sha256 = "3d2c58d36884dc34651e3317d959a90a6d4a68fc7b32943b941db07e15010e9d"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/table_support.rs"
+sha256 = "7cf317d09c3d445a967d230aa5f07970663297a461534e0909c6fa59edb001e7"

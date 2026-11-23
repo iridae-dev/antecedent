@@ -8,7 +8,7 @@
 //! decision-evaluation run that kept its simulated utilities may supply them with its
 //! own producer label. Each producer declares the dependence; nothing is inferred.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
@@ -20,7 +20,7 @@ use antecedent_core::{CanonicalWriter, is_blank};
 use serde::{Deserialize, Serialize};
 
 use super::stream::{DrawSegment, StreamId};
-use super::{MAX_CANDIDATES, MAX_CELLS, MIN_DRAWS, ReliabilityError};
+use super::{MIN_DRAWS, ReliabilityError};
 
 /// What law the draws are realizations of, and so which paradigm a ranking statement
 /// carries.
@@ -342,16 +342,18 @@ impl DecisionDraws {
     /// identities contradict, or an adaptive set without its search record.
     pub fn validate(&self) -> Result<(), ReliabilityError> {
         let invalid = ReliabilityError::invalid;
-        if self.candidates.is_empty() || self.candidates.len() > MAX_CANDIDATES {
-            return Err(invalid("candidate_count", "between 1 and 65536 candidates are required"));
+        // The carrier is memory the caller already holds; the work done on it is admitted
+        // against the execution context's budgets, not against a size cap here.
+        if self.candidates.is_empty() {
+            return Err(invalid("candidate_count", "at least one candidate is required"));
         }
         if is_blank(&self.utility_unit) || is_blank(&self.producer) {
             return Err(invalid("blank_label", "utility unit and producer must be named"));
         }
         let n = self.n_draws();
         let cells = n.checked_mul(self.candidates.len());
-        if n < MIN_DRAWS || cells.is_none_or(|c| c > MAX_CELLS) {
-            return Err(invalid("draw_count", "at least 4 draws and at most 2^26 cells"));
+        if n < MIN_DRAWS || cells.is_none() {
+            return Err(invalid("draw_count", "at least 4 draws, with a representable cell count"));
         }
         let mut ids = std::collections::BTreeSet::new();
         for candidate in &self.candidates {
@@ -436,21 +438,21 @@ impl DecisionDraws {
         }
         // The stream identities are consistent with the declaration; whether the
         // candidates may be compared on that dependence is the propagation rule's call.
-        self.license_comparison(PropagationOperation::Contrast).map(|_| ())
+        self.support_comparison(PropagationOperation::Contrast).map(|_| ())
     }
 
     /// Whether candidates' draws may be paired by index for a rank, top-`k` or
     /// better-than statement. These are nonlinear functionals of the candidates'
-    /// joint law, so the rule licenses them only on an aligned joint law (one shared
+    /// joint law, so the rule supports them only on an aligned joint law (one shared
     /// simulation): independently drawn candidates are refused, never paired by index.
     ///
     /// # Errors
     /// The propagation rule's refusal, as a [`ReliabilityError`].
-    pub(crate) fn license_index_pairing(&self) -> Result<(), ReliabilityError> {
+    pub(crate) fn support_index_pairing(&self) -> Result<(), ReliabilityError> {
         if self.candidates.len() < 2 {
             return Ok(());
         }
-        self.license_comparison(PropagationOperation::NonlinearFunctional).map(|_| ())
+        self.support_comparison(PropagationOperation::NonlinearFunctional).map(|_| ())
     }
 
     /// Run the propagation rule over the candidates as the inputs of `operation`.
@@ -459,7 +461,7 @@ impl DecisionDraws {
     /// shared segment's digest). A declared-independent set is independent marginals
     /// resting on distinct streams or disjoint ranges (the evidence identity of each
     /// candidate is its segment's digest).
-    fn license_comparison(
+    fn support_comparison(
         &self,
         operation: PropagationOperation,
     ) -> Result<antecedent_contract::PropagationPlan, ReliabilityError> {
@@ -505,18 +507,18 @@ impl DecisionDraws {
 }
 
 /// The propagation rule's refusal as the carrier's typed error: undeclared dependence
-/// stays undeclared, and a pairing the rule does not license is a joint-law refusal.
+/// stays undeclared, and a pairing the rule does not support is a joint-law refusal.
 fn rule_refusal(refusal: &ExternalRefusal) -> ReliabilityError {
     if refusal.code == antecedent_core::reason_code!("sampling_dependence_unknown") {
         return ReliabilityError::DependenceUnknown { what: "candidate_coupling" };
     }
     let reason = match refusal.detail.as_str() {
-        "joint_law_propagation.nonlinear_needs_aligned_joint_law" => {
+        antecedent_core::reason_details::joint_law_propagation::NONLINEAR_NEEDS_ALIGNED_JOINT_LAW => {
             "nonlinear_needs_aligned_joint_law"
         }
-        "joint_law_propagation.index_pairing_refused" => "index_pairing_refused",
-        "joint_law_propagation.alignment_mismatch" => "alignment_mismatch",
-        "joint_law_propagation.shared_evidence_declared_independent" => {
+        antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED => "index_pairing_refused",
+        antecedent_core::reason_details::joint_law_propagation::ALIGNMENT_MISMATCH => "alignment_mismatch",
+        antecedent_core::reason_details::joint_law_propagation::SHARED_EVIDENCE_DECLARED_INDEPENDENT => {
             "shared_evidence_declared_independent"
         }
         _ => "propagation_rule_refused",

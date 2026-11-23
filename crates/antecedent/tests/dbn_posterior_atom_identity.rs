@@ -1,6 +1,6 @@
 //! Regression coverage for collision-free DBN-posterior atom identity.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -68,6 +68,13 @@ fn cached_count(result: &antecedent::StudyResult) -> usize {
 }
 
 fn confounded_series(confounder_is_observed: bool) -> (TimeSeriesData, TemporalEffectQuery) {
+    confounded_series_of(confounder_is_observed, N_SAMPLES)
+}
+
+fn confounded_series_of(
+    confounder_is_observed: bool,
+    n_samples: usize,
+) -> (TimeSeriesData, TemporalEffectQuery) {
     let mut schema = CausalSchemaBuilder::new();
     schema
         .add_variable(
@@ -105,12 +112,12 @@ fn confounded_series(confounder_is_observed: bool) -> (TimeSeriesData, TemporalE
     // P(T=1 | Z=1)=3/4. Thus Y_t = 2 T_{t-1} + 2 Z_{t-1} + e
     // has unadjusted treatment coefficient 3 and adjusted coefficient 2.
     // Paired residuals make both population regressions exact.
-    let n = N_SAMPLES + 1;
+    let n = n_samples + 1;
     let mut treatment = vec![0.0; n];
     let mut outcome = vec![0.0; n];
     let mut confounder = vec![0.0; n];
     let mut sample = 0;
-    for _ in 0..(N_SAMPLES / 16) {
+    for _ in 0..(n_samples / 16) {
         for (z, t, count) in [(0.0, 0.0, 6), (0.0, 1.0, 2), (1.0, 0.0, 2), (1.0, 1.0, 6)] {
             for row in 0..count {
                 let residual = if row % 2 == 0 { -0.2 } else { 0.2 };
@@ -121,7 +128,7 @@ fn confounded_series(confounder_is_observed: bool) -> (TimeSeriesData, TemporalE
             }
         }
     }
-    assert_eq!(sample, N_SAMPLES);
+    assert_eq!(sample, n_samples);
 
     let confounder_validity = if confounder_is_observed {
         ValidityBitmap::all_valid(n)
@@ -197,11 +204,20 @@ fn study(
     query: &TemporalEffectQuery,
     posterior: GraphPosterior,
 ) -> antecedent::Study {
+    study_with_draws(series, query, posterior, 256)
+}
+
+fn study_with_draws(
+    series: &TimeSeriesData,
+    query: &TemporalEffectQuery,
+    posterior: GraphPosterior,
+    n_draws: usize,
+) -> antecedent::Study {
     Study::series(series.clone())
         .graph_posterior(posterior)
         .temporal_query(query.clone())
         .inference(InferenceMode::Bayesian(
-            BayesianConfig::conjugate().n_draws(256).prior_scale(1_000_000.0),
+            BayesianConfig::conjugate().n_draws(n_draws).prior_scale(1_000_000.0),
         ))
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
@@ -226,8 +242,8 @@ fn lag_distinct_dbn_atoms_with_the_same_contemporaneous_key_keep_distinct_effect
         study(&series, &query, dbn_posterior(&[adjusted], &[1.0])).run(&ctx).unwrap();
     let unadjusted_mean = posterior_mean(&unadjusted_result);
     let adjusted_mean = posterior_mean(&adjusted_result);
-    assert!((unadjusted_mean - 3.0).abs() < 0.05, "unadjusted mean={unadjusted_mean}");
-    assert!((adjusted_mean - 2.0).abs() < 0.05, "adjusted mean={adjusted_mean}");
+    assert!((unadjusted_mean - 3.0).abs() < 0.03, "unadjusted mean={unadjusted_mean}");
+    assert!((adjusted_mean - 2.0).abs() < 0.03, "adjusted mean={adjusted_mean}");
 
     for (lag_masks, atom_weights) in [
         (vec![unadjusted, adjusted], weights.to_vec()),
@@ -250,7 +266,7 @@ fn lag_distinct_dbn_atoms_with_the_same_contemporaneous_key_keep_distinct_effect
         let fresh_mean = posterior_mean(&fresh);
         let click_mean = posterior_mean(&click);
         assert!(
-            (fresh_mean - expected).abs() < 0.05,
+            (fresh_mean - expected).abs() < 1e-9,
             "mixture mean={fresh_mean}, expected={expected}"
         );
         assert!((click_mean - fresh_mean).abs() < 1e-12);
@@ -274,12 +290,14 @@ fn lag_distinct_dbn_fit_failure_demotes_the_correct_weight_in_either_order() {
     let adjusted = treatment_to_outcome | confounder_to_outcome;
     let failed_weight = 0.7;
     let retained_weight = 1.0 - failed_weight;
-    let (series, query) = confounded_series(false);
+    let (series, query) = confounded_series_of(false, 64);
     let ctx = ExecutionContext::for_tests(73);
 
     // The unadjusted atom does not consume the entirely missing confounder and
     // remains estimable; the adjusted atom is softly demoted at prepare/fit.
-    let retained = study(&series, &query, dbn_posterior(&[unadjusted], &[1.0])).run(&ctx).unwrap();
+    let retained = study_with_draws(&series, &query, dbn_posterior(&[unadjusted], &[1.0]), 16)
+        .run(&ctx)
+        .unwrap();
     assert!(retained.estimand.adjustment_set.is_empty());
     let retained_mean = posterior_mean(&retained);
 
@@ -288,7 +306,8 @@ fn lag_distinct_dbn_fit_failure_demotes_the_correct_weight_in_either_order() {
         (vec![adjusted, unadjusted], vec![failed_weight, retained_weight]),
     ] {
         let (ctx, sink) = recording_ctx(73);
-        let analysis = study(&series, &query, dbn_posterior(&lag_masks, &atom_weights));
+        let analysis =
+            study_with_draws(&series, &query, dbn_posterior(&lag_masks, &atom_weights), 16);
         let fresh = analysis.clone().run(&ctx).unwrap();
         let mut prepared = analysis.prepare(&ctx).unwrap();
         let click = prepared.estimate_series(&series, &ctx).unwrap();
@@ -335,16 +354,18 @@ fn lag_distinct_dbn_fit_failure_demotes_the_correct_weight_in_either_order() {
 
 #[test]
 fn dbn_posterior_with_a_static_query_is_refused_rather_than_panicking() {
-    // A graph posterior on the prepared handle is licensed for tabular
-    // AverageEffect and series TemporalEffect only. A series study that pairs a
-    // DBN posterior with a static AverageEffect query must answer with a typed
-    // refusal at build or prepare, never reach an internal unreachable branch.
+    // A plain AverageEffect on a series reads as the lag-0 pulse and is supported. A
+    // static AverageEffect with an effect modifier has no temporal reading: a series study
+    // that pairs a DBN posterior with it must answer with a typed refusal at build or
+    // prepare, never reach an internal unreachable branch.
     let treatment_to_outcome = 1_u64 << 1;
     let (series, _query) = confounded_series(true);
     let ctx = ExecutionContext::for_tests(73);
     let built = Study::series(series)
         .graph_posterior(dbn_posterior(&[treatment_to_outcome], &[1.0]))
-        .query(AverageEffectQuery::binary_ate(TREATMENT, OUTCOME))
+        .query(
+            AverageEffectQuery::binary_ate(TREATMENT, OUTCOME).with_effect_modifiers([CONFOUNDER]),
+        )
         .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(16)))
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
@@ -403,7 +424,8 @@ fn repeated_dbn_atoms_contribute_their_combined_mass_once() {
             .unwrap()
             .run(&ctx)
             .unwrap()
-            .estimate
+            .estimate()
+            .clone()
     };
     let only_unadjusted =
         frequentist(dbn_posterior(&[unadjusted], &[1.0])).as_effect().unwrap().ate;
@@ -435,6 +457,140 @@ fn repeated_dbn_atoms_contribute_their_combined_mass_once() {
         &study(&series, &query, dbn_posterior(&[adjusted], &[1.0])).run(&ctx).unwrap(),
     );
     let expected = (2.0 * unadjusted_mean + adjusted_mean) / 3.0;
-    assert!((mean - expected).abs() < 0.05, "mixture mean={mean}, expected={expected}");
+    assert!((mean - expected).abs() < 1e-9, "mixture mean={mean}, expected={expected}");
     assert!(bayesian.posterior.as_ref().unwrap().unidentified_mass.abs() < f64::EPSILON);
+}
+
+/// A series whose lagged treatment effect is 1 on the first half and 3 on the second half.
+fn two_regime_series() -> TimeSeriesData {
+    let mut schema = CausalSchemaBuilder::new();
+    for (name, hint) in [
+        ("treatment", RoleHint::TreatmentCandidate),
+        ("outcome", RoleHint::OutcomeCandidate),
+        ("confounder", RoleHint::Context),
+    ] {
+        schema
+            .add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(hint),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+    }
+    let schema = schema.build().unwrap();
+    let n: u32 = 200;
+    let treatment: Vec<f64> = (0..n)
+        .map(|t| f64::from((t * 7919) % 17) / 17.0 + 0.3 * (f64::from(t) * 0.37).sin())
+        .collect();
+    let confounder: Vec<f64> = (0..n).map(|t| (f64::from(t) * 0.23).cos()).collect();
+    let mut outcome = vec![0.0; n as usize];
+    for t in 1..n as usize {
+        let effect = if t < 100 { 1.0 } else { 3.0 };
+        outcome[t] = effect * treatment[t - 1] + 0.05 * (t as f64 * 1.7).sin();
+    }
+    let len = n as usize;
+    let columns = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(TREATMENT, Arc::from(treatment), ValidityBitmap::all_valid(len))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(OUTCOME, Arc::from(outcome), ValidityBitmap::all_valid(len))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(CONFOUNDER, Arc::from(confounder), ValidityBitmap::all_valid(len))
+                .unwrap(),
+        ),
+    ];
+    let storage = OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap();
+    TimeSeriesData::try_new(
+        storage,
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: len },
+    )
+    .unwrap()
+}
+
+/// The point of a Frequentist DBN-posterior effect is fit on the estimation rows of a declared
+/// split, so discovery rows from a different regime do not enter it.
+#[test]
+fn dbn_posterior_frequentist_estimates_on_the_estimation_split() {
+    let series = two_regime_series();
+    let query = TemporalEffectQuery::pulse(TREATMENT, OUTCOME, 1.0)
+        .with_policy(TemporalPolicy::pulse(-1))
+        .with_horizon_steps(1);
+    let treatment_to_outcome = 1_u64 << 1;
+    let ate = |split: Option<antecedent_data::DiscoveryEstimationSplit>| {
+        let mut builder = Study::series(series.clone())
+            .graph_posterior(dbn_posterior(&[treatment_to_outcome], &[1.0]))
+            .temporal_query(query.clone())
+            .inference(InferenceMode::Frequentist)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0);
+        if let Some(split) = split {
+            builder = builder.split(split);
+        }
+        builder
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(21))
+            .unwrap()
+            .estimate()
+            .as_effect()
+            .unwrap()
+            .ate
+    };
+    let full = ate(None);
+    let split =
+        ate(Some(antecedent_data::DiscoveryEstimationSplit::from_sizes(200, 95, 10, 95).unwrap()));
+    assert!((full - 2.0).abs() < 0.4, "the full sample blends both regimes: {full}");
+    assert!((split - 3.0).abs() < 0.15, "the estimation half has effect 3, got {split}");
+}
+
+/// Atoms whose horizon estimands use different adjustment sets are not one estimand: the
+/// response publishes that policy and a graph-dependent status instead of a fixed-weight mean.
+#[test]
+fn dbn_posterior_response_with_distinct_adjustment_sets_is_graph_dependent() {
+    let (series, _) = confounded_series(true);
+    let treatment_to_outcome = 1_u64 << 1;
+    let confounder_to_outcome = 1_u64 << 7;
+    let query = antecedent_core::ResponseQuery::new(
+        antecedent_core::ResponseFunctional::InterventionResponse {
+            outcome: OUTCOME,
+            interventions: Arc::from([antecedent_core::Intervention::set(
+                TREATMENT,
+                antecedent_core::Value::f64(1.0),
+            )]),
+        },
+    )
+    .with_temporal(
+        antecedent_core::TemporalResponseSpec::new(vec![1], TemporalPolicy::pulse(-1), None)
+            .unwrap(),
+    );
+    let result = Study::series(series)
+        .graph_posterior(dbn_posterior(
+            &[treatment_to_outcome, treatment_to_outcome | confounder_to_outcome],
+            &[0.5, 0.5],
+        ))
+        .query(antecedent_core::CausalQuery::Response(query))
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(22))
+        .unwrap();
+    let structural = result.structural_response.as_ref().expect("structural mixture");
+    assert_eq!(
+        structural.aggregation_policy,
+        Some(antecedent::StructuralAggregationPolicy::GraphDependentAtoms)
+    );
+    assert_eq!(result.identification.status, antecedent_core::IdentificationStatus::GraphDependent);
+    assert!(matches!(
+        result.response().unwrap().estimate,
+        antecedent_core::ResponseIdentification::GraphDependent(_)
+    ));
 }

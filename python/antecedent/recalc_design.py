@@ -3,7 +3,7 @@
 Utility changes reuse the checked estimate. Changed supplied inputs invalidate
 its identification or numerical fits; the existing public estimators do the
 actual work. Weak-IV decisions refuse while retaining the attempted point and
-actual Anderson–Rubin diagnostics. Reuse grants no calibrated interval license.
+actual Anderson–Rubin diagnostics. Reuse grants no calibrated interval support.
 """
 
 from __future__ import annotations
@@ -15,10 +15,20 @@ from typing import Any
 
 from numpy.typing import ArrayLike
 
+from antecedent import _reason_details
+
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._recalc_bounds import _columns
 from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError
+from .execution import Execution
+from .outcomes import outcome_operation
 from .recalc import (
     Decision,
     Law,
@@ -27,8 +37,9 @@ from .recalc import (
     RecalcRefusal,
     RecalcResult,
     Utility,
+    _execution,
+    _native_controls,
     _refusal_type,
-    _seed,
 )
 from .recalc_static import _Session
 
@@ -84,7 +95,7 @@ class DesignWeakInstrument(RecalcRefusal):
 
 
 def _design_refusal_type(wire: Mapping[str, Any]) -> type[RecalcRefusal]:
-    if wire["detail"] == "recalc.iv_decision_unavailable":
+    if wire["detail"] == _reason_details.recalc.IV_DECISION_UNAVAILABLE:
         return DesignWeakInstrument
     return _refusal_type(wire)
 
@@ -127,6 +138,8 @@ class DesignSession(_Session):
 
     __slots__ = ()
 
+    _standing_kind = "design"
+
     @staticmethod
     def _native_type() -> Any:
         return _native.DesignSessionHandle
@@ -135,46 +148,31 @@ class DesignSession(_Session):
         self,
         request: DesignRequest,
         *,
-        seed: int = 1,
-        threads: int | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> RecalcPlan:
+        run = _execution(execution)
+        ctl = _native_controls(run)
         names, columns = _columns(
-            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+            request.data, memory_limit_bytes=ctl["memory_limit_bytes"], cancel=ctl["cancel"]
         )
-        wire = self._handle.plan(
-            names,
-            columns,
-            _spec(request),
-            seed=_seed(seed),
-            threads=threads,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
-        )
+        wire = run._call(self._handle.plan, names, columns, _spec(request), **ctl)
         return RecalcPlan.from_wire(json.loads(wire))
 
+    @outcome_operation
     def execute(
         self,
         request: DesignRequest,
         *,
-        seed: int = 1,
-        threads: int | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> RecalcResult:
-        """Run the invalidated stages under an optional memory limit and cancellation token."""
+        """Run the invalidated stages under the execution's memory limit and cancellation."""
+        run = _execution(execution)
+        ctl = _native_controls(run)
         names, columns = _columns(
-            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+            request.data, memory_limit_bytes=ctl["memory_limit_bytes"], cancel=ctl["cancel"]
         )
-        result, artifact, error = self._handle.execute(
-            names,
-            columns,
-            _spec(request),
-            seed=_seed(seed),
-            threads=threads,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
+        result, artifact, error = run._call(
+            self._handle.execute, names, columns, _spec(request), **ctl
         )
         _raise_design(error)
         if result is None or artifact is None:  # pragma: no cover - native invariant
@@ -187,19 +185,19 @@ class DesignSession(_Session):
             Decision(**wire["decision"]),
         )
 
-    def export_result(self, *, seed: int = 1, threads: int | None = None) -> bytes:
+    @artifact_export
+    def export(self, *, execution: Execution | None = None) -> ExportedArtifact:
         """Original result artifact; neither new inference nor resumed state.
 
         IV and front-door consumers verify their existing scientific program.
         RD remains readable with its declared checked-operation dependency;
         fresh RD execution requires raw inputs and a new checked preparation.
         """
-        _seed(seed)
-        artifact, error = self._handle.export_result()
+        artifact, error = _execution(execution)._call(self._handle.export_result)
         _raise_design(error)
         if artifact is None:  # pragma: no cover - native invariant
             raise CausalSerializationError("design recalculation exported no artifact")
-        return bytes(artifact)
+        return artifact_from_receipt(self, bytes(artifact))
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,14 +209,12 @@ class DesignReplay:
     artifact_digest: str
 
 
+@outcome_operation
 def consume_design_result(
     artifact: bytes,
     request: DesignRequest | None = None,
     *,
-    seed: int = 1,
-    threads: int | None = None,
-    memory_limit_bytes: int | None = None,
-    cancel: _native.CancellationToken | None = None,
+    execution: Execution | None = None,
 ) -> DesignReplay:
     """Verify an original artifact and rerun its checked design from actual data.
 
@@ -227,23 +223,21 @@ def consume_design_result(
     through real execution, while preserving existing reader behavior. Missing
     or mismatched data refuse rather than becoming portable fitted state.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes", reason_code="invalid_argument")
+    run = _execution(execution)
+    ctl = _native_controls(run)
     names, columns = (
         (None, None)
         if request is None
-        else _columns(request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel)
+        else _columns(
+            request.data, memory_limit_bytes=ctl["memory_limit_bytes"], cancel=ctl["cancel"]
+        )
     )
     specification = None if request is None else _spec(request)
-    native, result, receipt_bytes, digest, error = _native.DesignSessionHandle.consume(
-        artifact,
-        names,
-        columns,
-        specification,
-        seed=_seed(seed),
-        threads=threads,
-        memory_limit_bytes=memory_limit_bytes,
-        cancel=cancel,
+    native, result, receipt_bytes, digest, error = run._call(
+        _native.DesignSessionHandle.consume, artifact, names, columns, specification, **ctl
     )
     _raise_design(error)
     if native is None or result is None or receipt_bytes is None or digest is None:

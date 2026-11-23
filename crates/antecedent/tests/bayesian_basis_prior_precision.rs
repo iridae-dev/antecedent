@@ -1,6 +1,6 @@
 //! Conditional posterior-summary precision for actual checked basis and source-prior adapters.
-//! Independent finite-dimensional algebra and quadrature; no sampling coverage license.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+//! Independent finite-dimensional algebra and quadrature; no sampling coverage support.
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(clippy::cast_precision_loss, reason = "bounded simulation dimensions")]
 #[path = "common/calibration.rs"]
 mod calibration;
@@ -11,9 +11,9 @@ use antecedent::analysis::recalc_bayesian::{
     BayesianModel, BayesianRequest, BayesianSession, PosteriorSummarySpec,
     execute_bayesian_with_receipt,
 };
-use antecedent::analysis::recalc_receipt::{RecalcRunError, UtilitySpec};
+use antecedent::analysis::recalc_receipt::{RecalcRequestCode, RecalcRunError, UtilitySpec};
 use antecedent_core::{ExecutionContext, VariableId};
-use antecedent_io::{PriorMapping, consume_analysis_result};
+use antecedent_io::{PriorMapping, replay_analysis_result};
 use antecedent_prob::{GaussianCoefficientPrior, PosteriorQuantityKind, PriorSet, PriorSpec};
 use calibration::{grid_n, grid_seed, map_replicates, n_sim};
 
@@ -70,14 +70,14 @@ impl StudentOracle {
     fn quantile(&self, p: f64) -> f64 {
         let (mut low, mut high) = (-8., 8.);
         for _ in 0..55 {
-            let mid = (low + high) / 2.;
+            let mid = f64::midpoint(low, high);
             if self.cdf(mid) < p {
                 low = mid;
             } else {
                 high = mid;
             }
         }
-        (low + high) / 2.
+        f64::midpoint(low, high)
     }
     fn sd(&self) -> f64 {
         self.scale * (self.df / (self.df - 2.)).sqrt()
@@ -114,7 +114,7 @@ fn nig(
         .map(|(a, b)| a * b)
         .sum::<f64>();
     let alpha = 0.001 + design.len() as f64 / 2.;
-    let beta = 0.001 + (residual + penalty) / 2.;
+    let beta = 0.001 + f64::midpoint(residual, penalty);
     StudentOracle { mean: mean[1], scale: (beta / alpha * covariance[1][1]).sqrt(), df: 2. * alpha }
 }
 fn request(t: Vec<f64>, z: Option<Vec<f64>>, y: Vec<f64>, draws: usize) -> BayesianRequest {
@@ -129,7 +129,7 @@ fn request(t: Vec<f64>, z: Option<Vec<f64>>, y: Vec<f64>, draws: usize) -> Bayes
         (vec![("t".into(), t), ("y".into(), y)], vec![(0, 1)], 1, BayesianModel::Gaussian)
     };
     BayesianRequest {
-        columns,
+        columns: columns.into(),
         edges,
         treatment: VariableId::from_raw(0),
         outcome: VariableId::from_raw(outcome),
@@ -178,7 +178,7 @@ fn errors(
             (summary.law.probability_below - truth) / (truth * (1. - truth) / draws as f64).sqrt(),
         );
     }
-    consume_analysis_result(&session.export_result(context).unwrap()).unwrap();
+    replay_analysis_result(&session.export_result(context).unwrap()).unwrap();
     errors
 }
 fn assert_precision(name: &str, results: &[Vec<f64>], n: usize, draws: usize) {
@@ -298,7 +298,7 @@ fn mapped_prior_replicate(n: usize, draws: usize, rep: u64) -> Vec<f64> {
         .prior_from_artifact(bytes.clone(), Some(PriorMapping::IdenticalCoefficientSubspace));
     assert!(matches!(
         execute_bayesian_with_receipt(&mut BayesianSession::new(), &same, &context),
-        Err(RecalcRunError::Request("recalc.bayesian_prior_likelihood_double_use"))
+        Err(RecalcRunError::Request(RecalcRequestCode::BayesianPriorLikelihoodDoubleUse))
     ));
     let mut target = request(t, None, target_y, draws);
     target.inference = target

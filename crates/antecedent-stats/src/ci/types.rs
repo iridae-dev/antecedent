@@ -1,6 +1,6 @@
 //! CI request / result types and workspace.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_kernels::ParCorrWorkspace;
@@ -91,6 +91,20 @@ pub(crate) fn permutation_min_p(replicates: usize) -> f64 {
     1.0 / (replicates as f64 + 1.0)
 }
 
+/// Resolution of the exact block-permutation reference, including the identity.
+/// A short final block is still one independently shuffled block. Once the
+/// factorial exceeds `u64`, its reciprocal is below any `u32` replicate floor.
+fn arrangement_min_p(rows: usize, block_size: usize) -> f64 {
+    let blocks = rows.div_ceil(block_size.max(1));
+    let mut arrangements = 1_u64;
+    for factor in 2..=blocks {
+        let Ok(factor) = u64::try_from(factor) else { return 0.0 };
+        let Some(product) = arrangements.checked_mul(factor) else { return 0.0 };
+        arrangements = product;
+    }
+    1.0 / arrangements as f64
+}
+
 /// Which null sets [`ConditionalIndependenceTest::min_attainable_p`].
 ///
 /// The trait default is [`AttainableP::Zero`], so a test that does not override
@@ -127,12 +141,11 @@ pub(crate) fn attainable_p_value(kind: AttainableP, significance: SignificanceMe
     }
 }
 
-/// Refuse an `alpha` that a test with smallest attainable p-value `min_p` cannot resolve.
+/// Refuse an `alpha` at or below the test's Monte Carlo or exact-null resolution.
 ///
-/// A p-value can only fall below `alpha` if `min_p < alpha`; otherwise every edge is kept
-/// (or every test "fails to reject") whatever the data say, which reads as evidence of
-/// independence. Callers that know their `alpha` (discovery) call this with
-/// [`ConditionalIndependenceTest::min_attainable_p`].
+/// More Monte Carlo draws do not repair an exact reference with too few block
+/// arrangements. Callers that know their `alpha` (discovery) call this with
+/// [`ConditionalIndependenceTest::min_resolvable_p`].
 ///
 /// # Errors
 ///
@@ -140,9 +153,10 @@ pub(crate) fn attainable_p_value(kind: AttainableP, significance: SignificanceMe
 pub fn ensure_alpha_resolvable(min_p: f64, alpha: f64) -> Result<(), StatsError> {
     if min_p >= alpha {
         return Err(StatsError::Unsupported {
-            message: "the CI test's smallest attainable p-value is not below alpha, so it can \
-                      never declare dependence: use more permutation replicates \
-                      (SignificanceMethod::BlockShuffle { replicates, .. }) or a larger alpha",
+            message: "the CI test's smallest attainable p-value or exact-null resolution \
+                      is not below alpha: use enough \
+                      permutation replicates and distinct block arrangements (more rows \
+                      or smaller blocks), or a larger alpha",
         });
     }
     Ok(())
@@ -181,11 +195,12 @@ pub fn reject_unsupported_block_size(
     significance: SignificanceMethod,
     test_name: &'static str,
 ) -> Result<(), crate::error::StatsError> {
-    if let SignificanceMethod::BlockShuffle { block_size, .. } = significance {
-        if block_size > 1 {
-            let _ = test_name;
-            return Err(crate::error::StatsError::Unsupported {
-                message: "block-preserving permutation (block_size > 1) is not supported for \
+    if let SignificanceMethod::BlockShuffle { block_size, .. } = significance
+        && block_size > 1
+    {
+        let _ = test_name;
+        return Err(crate::error::StatsError::Unsupported {
+            message: "block-preserving permutation (block_size > 1) is not supported for \
                           this CI test when the conditioning set is non-empty: its null is a \
                           within-Z-stratum exchange over strata whose members are scattered \
                           across time, which is structurally incompatible with a contiguous-block \
@@ -196,8 +211,7 @@ pub fn reject_unsupported_block_size(
                           ParCorr / WeightedParCorr / MultivariateParCorr / Gpdc, which \
                           residualize on Z and so support block-preserving nulls with \
                           conditioning; or set block_size = 1 to accept an exchangeable null.",
-            });
-        }
+        });
     }
     Ok(())
 }
@@ -229,11 +243,11 @@ pub struct PreparedCiTest {
 }
 
 impl PreparedCiTest {
-    /// Ensure a batch request matches this prepare (row/column counts).
+    /// Ensure a batch request matches this prepare and every query index is in range.
     ///
     /// # Errors
     ///
-    /// Shape mismatch vs prepare-time `n` / `ncols`.
+    /// Shape mismatch vs prepare-time `n` / `ncols`, or invalid query/conditioning indices.
     pub fn ensure_compatible(&self, request: &CiBatchRequest<'_>) -> Result<(), StatsError> {
         let n = request.nrows()?;
         if n != self.n {
@@ -243,6 +257,21 @@ impl PreparedCiTest {
             return Err(StatsError::Shape {
                 message: "CI batch column count differs from prepare()",
             });
+        }
+        for query in request.queries {
+            if query.x >= self.ncols || query.y >= self.ncols {
+                return Err(StatsError::Shape { message: "CI query column index out of range" });
+            }
+            let conditioning = query
+                .z_start
+                .checked_add(query.z_len)
+                .and_then(|end| request.z_flat.get(query.z_start..end))
+                .ok_or(StatsError::Shape { message: "CI conditioning range out of bounds" })?;
+            if conditioning.iter().any(|&column| column >= self.ncols) {
+                return Err(StatsError::Shape {
+                    message: "CI conditioning column index out of range",
+                });
+            }
         }
         Ok(())
     }
@@ -315,6 +344,16 @@ pub struct CiBatchResult {
 /// Numeric kernels live in `antecedent-stats`; discovery owns the algorithm surface and
 /// re-exports this trait.
 pub trait ConditionalIndependenceTest {
+    /// Optional borrow-scoped cross-products for repeated analytic queries.
+    /// Tests with different nulls or statistics retain the ordinary route.
+    fn covariance_session<'a>(
+        &self,
+        _columns: &'a [&'a [f64]],
+        _ctx: &ExecutionContext,
+    ) -> Option<super::CovarianceCiSession<'a>> {
+        None
+    }
+
     /// Prepare once for a data view / plan (sample planning, caches).
     ///
     /// # Errors
@@ -402,6 +441,33 @@ pub trait ConditionalIndependenceTest {
     /// depends on values stored on `self`.
     fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
         attainable_p_value(self.attainable_p(), significance)
+    }
+
+    /// Smallest significance level the null can resolve on `rows` observations.
+    ///
+    /// Permutation tests need both enough Monte Carlo draws and enough distinct
+    /// block arrangements. The latter include the identity and number
+    /// `ceil(rows / block_size)!`, even with a short final block. Repeated data
+    /// values or conditional strata can further coarsen the reference, so this
+    /// is a lower bound on its resolution. A sampled p-value can fall below the
+    /// exact arrangement floor by chance; adding replicates does not make that
+    /// reference more informative. Discovery should use this method for its
+    /// alpha guard, while [`Self::min_attainable_p`] describes only the reported
+    /// Monte Carlo floor.
+    fn min_resolvable_p(&self, significance: SignificanceMethod, rows: usize) -> f64 {
+        let monte_carlo = self.min_attainable_p(significance);
+        let permutes = match self.attainable_p() {
+            AttainableP::Zero => false,
+            AttainableP::AnalyticOrBlockShuffle => {
+                matches!(significance, SignificanceMethod::BlockShuffle { .. })
+            }
+            AttainableP::NonparametricPermutation => true,
+        };
+        if permutes {
+            monte_carlo.max(arrangement_min_p(rows, requested_block_size(significance)))
+        } else {
+            monte_carlo
+        }
     }
 
     /// Length of the whole series this test's per-row weights were supplied for, when they are
@@ -496,6 +562,66 @@ impl CiWorkspace {
     pub fn prepare_queries(&mut self, n_queries: usize) {
         if self.stats.len() < n_queries {
             self.stats.resize(n_queries, None);
+        }
+    }
+}
+
+#[cfg(test)]
+mod resolution_tests {
+    use super::*;
+    use crate::ci::PartialCorrelation;
+
+    #[test]
+    fn block_resolution_counts_arrangements_including_a_short_final_block() {
+        let test = PartialCorrelation::new();
+        let significance = SignificanceMethod::BlockShuffle { replicates: 999, block_size: 50 };
+        assert_eq!(test.min_attainable_p(significance).to_bits(), 0.001_f64.to_bits());
+        assert_eq!(test.min_resolvable_p(significance, 100).to_bits(), 0.5_f64.to_bits());
+        assert_eq!(test.min_resolvable_p(significance, 101).to_bits(), (1.0_f64 / 6.0).to_bits());
+        assert_eq!(test.min_resolvable_p(significance, 50).to_bits(), 1.0_f64.to_bits());
+        assert!(ensure_alpha_resolvable(test.min_resolvable_p(significance, 100), 0.05).is_err());
+        assert!(ensure_alpha_resolvable(test.min_resolvable_p(significance, 1000), 0.05).is_ok());
+        assert_eq!(
+            test.min_resolvable_p(SignificanceMethod::Analytic, 2).to_bits(),
+            0.0_f64.to_bits()
+        );
+    }
+
+    #[test]
+    fn huge_arrangement_counts_do_not_overflow_or_loop_over_all_rows() {
+        assert_eq!(arrangement_min_p(usize::MAX, 1).to_bits(), 0.0_f64.to_bits());
+        assert_eq!(arrangement_min_p(0, 1).to_bits(), 1.0_f64.to_bits());
+    }
+}
+
+#[cfg(test)]
+mod request_validation_tests {
+    use super::*;
+    use crate::ci::{GSquared, PartialCorrelation};
+
+    #[test]
+    fn every_query_index_is_validated_before_continuous_or_discrete_ci_runs() {
+        let first = [0.0, 1.0, 0.0, 1.0];
+        let second = [1.0, 0.0, 1.0, 0.0];
+        let columns = [&first[..], &second[..]];
+        let continuous = PartialCorrelation::new();
+        let discrete = GSquared::new();
+        let ctx = ExecutionContext::for_tests(1);
+        let invalid = [
+            CiQuery { x: 2, y: 0, z_start: 0, z_len: 0 },
+            CiQuery { x: 0, y: 2, z_start: 0, z_len: 0 },
+            CiQuery { x: 0, y: 1, z_start: usize::MAX, z_len: 1 },
+            CiQuery { x: 0, y: 1, z_start: 2, z_len: 0 },
+            CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 },
+        ];
+        for test in [&continuous as &dyn ConditionalIndependenceTest, &discrete] {
+            let prepared = test.prepare(&columns, &CiPreparationPlan::default(), &ctx).unwrap();
+            for query in invalid {
+                assert!(matches!(
+                    test.test(&prepared, &columns, query, &[2], &mut CiWorkspace::default(), &ctx),
+                    Err(StatsError::Shape { .. })
+                ));
+            }
         }
     }
 }

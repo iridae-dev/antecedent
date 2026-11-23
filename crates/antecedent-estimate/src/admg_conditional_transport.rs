@@ -8,7 +8,7 @@
 //! a silently extended value. The route is point-only: exact laws carry no
 //! sampling uncertainty and no interval is computed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::EstimationError;
 use antecedent_core::{ExecutionContext, Value, VariableId};
@@ -20,12 +20,13 @@ use std::sync::Arc;
 
 /// The request does not bind exactly the treatments and conditioned variables,
 /// or names a conditioning level outside the evaluated support.
-const INVALID_REQUEST: &str = "admg_transport.invalid_request";
+const INVALID_REQUEST: &str = antecedent_core::reason_details::admg_transport::INVALID_REQUEST;
 
 fn invalid_request(message: &str) -> EstimationError {
-    EstimationError::refused(
+    EstimationError::refused_detail(
         antecedent_core::reason_code!("invalid_argument"),
-        format!("{INVALID_REQUEST}: {message}"),
+        INVALID_REQUEST,
+        message,
     )
 }
 
@@ -108,9 +109,10 @@ pub(crate) fn condition(
     // Fixed order and plain summation: a consumer recomputes the same bits.
     let total: f64 = masses.iter().sum();
     if !total.is_finite() || total <= 0.0 {
-        return Err(EstimationError::refused(
+        return Err(EstimationError::refused_detail(
             antecedent_core::reason_code!("transport_support_failure"),
-            "admg_transport.support_failure: the conditioning event has zero mass at the requested treatment level",
+            antecedent_core::reason_details::admg_transport::SUPPORT_FAILURE,
+            "the conditioning event has zero mass at the requested treatment level",
         ));
     }
     Ok(ExactDistribution {
@@ -126,7 +128,8 @@ pub(crate) fn condition(
 /// query's treatments and conditioned variables.
 ///
 /// # Errors
-/// Counted laws (`cell_not_licensed`, `admg_transport.interval_withheld`), a
+/// Counted laws (`not_supported`, `admg_transport.counted_laws_unsupported`; a development
+/// build runs them), a
 /// request that does not bind exactly those coordinates
 /// (`admg_transport.invalid_request`), provider/catalog disagreement, or a
 /// compile-time resource limit.
@@ -137,14 +140,15 @@ pub fn prepare_exact_admg_conditional_transport(
     limits: ExactEvaluationLimits,
     ctx: &ExecutionContext,
 ) -> Result<AdmgConditionalExactPlan, EstimationError> {
-    // Counted laws would make the point an empirical plug-in, which this route
-    // does not license (no coverage record): refused before anything compiles,
-    // as the facade and Python preparations refuse them.
+    // Counted laws would make the point an empirical plug-in, which this route has no
+    // coverage record for: gated before anything compiles, as the facade and Python
+    // preparations gate them.
     if data.laws().iter().any(|law| law.empirical_counts().is_some()) {
-        return Err(EstimationError::refused(
-            antecedent_core::reason_code!("cell_not_licensed"),
-            "admg_transport.interval_withheld: counted laws are not licensed; the route publishes exact-law points only",
-        ));
+        antecedent_core::support_gate::require_supported(
+            ctx,
+            antecedent_core::reason_details::admg_transport::COUNTED_LAWS_UNSUPPORTED,
+            &["admg_conditional.counted_law_plugin_check"],
+        )?;
     }
     let (joint_request, conditioning) = split_request(functional, request)?;
     let joint =

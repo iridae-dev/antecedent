@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 # Transport gate: parity/transport_stages.toml drives every invocation.
 #
-# The registry contract (licensed routes resolve to collected tests; each T10
+# The registry contract (supported routes resolve to collected tests; each
 # fixture family has a positive and a counterexample) is checked statically,
-# then every [[fixture_evidence]] row is executed by the shared row runner:
-# Rust rows must pass exactly one test, Python rows at least one, none may fail.
-# A missing uv/cargo runtime is a failure here, never a recorded pass.
+# then every [[fixture_evidence]] and route row is resolved by the shared row runner
+# (--static) to an exact, non-ignored test. The engineering lane runs the ordinary
+# tests and scripts/scientific_records.py run (owed only) the scientific ones.
+# A missing uv runtime is a failure here, never a recorded pass.
 #
 #   bash scripts/gate_transport.sh              # full gate
 #   bash scripts/gate_transport.sh --self-test  # broken registries must fail
 set -euo pipefail
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 REGISTRY=parity/transport_stages.toml
@@ -18,7 +20,7 @@ self_test() {
   local tmp status=0
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' RETURN
-  if ! python3 scripts/check_transport_stages.py "$REGISTRY" >/dev/null; then
+  if ! python3 scripts/gate_support.py --transport "$REGISTRY" >/dev/null; then
     echo "SELF-TEST FAIL: the committed registry was rejected"; status=1
   fi
   # Each narrow corruption, alone, must fail the static contract.
@@ -34,7 +36,7 @@ self_test() {
     sed -E "$script" "$REGISTRY" >"$tmp/case.toml"
     if cmp -s "$REGISTRY" "$tmp/case.toml"; then
       echo "SELF-TEST FAIL: corruption '$label' changed nothing"; status=1
-    elif python3 scripts/check_transport_stages.py "$tmp/case.toml" >/dev/null 2>&1; then
+    elif python3 scripts/gate_support.py --transport "$tmp/case.toml" >/dev/null 2>&1; then
       echo "SELF-TEST FAIL: '$label' passed the gate"; status=1
     else
       echo "self-test ok: '$label' fails"
@@ -55,13 +57,13 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 echo "== transport stage and fixture-family contracts =="
-python3 scripts/check_transport_stages.py
+python3 scripts/gate_support.py --transport "$REGISTRY"
 
-echo "== T10 fixture families: positive and counterexample rows =="
-python3 scripts/run_evidence_rows.py "$ROOT" "$REGISTRY" "$ROOT" fixture_evidence gate_transport
+echo "== Fixture families: positive and counterexample rows =="
+python3 scripts/run_evidence_rows.py "$ROOT" "$REGISTRY" "$ROOT" fixture_evidence gate_transport --static
 
-echo "== licensed stage routes: consuming evidence assertions =="
-python3 scripts/run_evidence_rows.py "$ROOT" "$REGISTRY" "$ROOT" routes gate_transport
+echo "== supported stage routes: consuming evidence assertions =="
+python3 scripts/run_evidence_rows.py "$ROOT" "$REGISTRY" "$ROOT" routes gate_transport --static
 
 echo "revision: $(git rev-parse HEAD 2>/dev/null || echo unknown)"
 echo "gate_transport: ok"

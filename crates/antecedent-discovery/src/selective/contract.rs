@@ -17,7 +17,7 @@
 //! calibration of the complete discovery-plus-analysis method that is not part of this
 //! module; see [`crate::selective`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -36,16 +36,8 @@ use crate::pcmci_plus::PcmciPlus;
 use crate::result::LaggedLink;
 
 use super::identity::{DataIdentity, Digest, SELECTIVE_IDENTITY_VERSION};
-use super::refusal::SelectiveDiscoveryError;
+use super::refusal::{SelectiveDiscoveryError, invalid};
 use super::stages::StageInputs;
-
-fn invalid(detail: &'static str, remedy: impl Into<String>) -> SelectiveDiscoveryError {
-    SelectiveDiscoveryError::refused(
-        antecedent_core::reason_code!("invalid_argument"),
-        detail,
-        remedy,
-    )
-}
 
 fn not_supported(detail: &'static str, remedy: impl Into<String>) -> SelectiveDiscoveryError {
     SelectiveDiscoveryError::refused(
@@ -61,15 +53,15 @@ fn knowledge_refusal(fault: &KnowledgeFault) -> SelectiveDiscoveryError {
     let (code, detail) = match fault {
         KnowledgeFault::Contradictory(_) => (
             antecedent_core::reason_code!("invalid_argument"),
-            "selective_discovery.background_knowledge_contradictory",
+            antecedent_core::reason_details::selective_discovery::BACKGROUND_KNOWLEDGE_CONTRADICTORY,
         ),
         KnowledgeFault::UnknownVariable(_) => (
             antecedent_core::reason_code!("unknown_variable"),
-            "selective_discovery.background_knowledge_unknown_variable",
+            antecedent_core::reason_details::selective_discovery::BACKGROUND_KNOWLEDGE_UNKNOWN_VARIABLE,
         ),
         KnowledgeFault::NotApplicable(_) => (
             antecedent_core::reason_code!("option_not_applicable"),
-            "selective_discovery.background_knowledge_not_applicable",
+            antecedent_core::reason_details::selective_discovery::BACKGROUND_KNOWLEDGE_NOT_APPLICABLE,
         ),
     };
     SelectiveDiscoveryError::refused(code, detail, fault.message())
@@ -142,7 +134,7 @@ impl CiTestSpec {
             Self::Declared { identity, test } => {
                 if identity.trim().is_empty() {
                     return Err(invalid(
-                        "selective_discovery.test_identity_missing",
+                        antecedent_core::reason_details::selective_discovery::TEST_IDENTITY_MISSING,
                         "declare an identity naming the test and every setting that changes \
                          its result",
                     ));
@@ -443,7 +435,7 @@ fn stage_inputs(
     );
     StageInputs::new(settings.route, components).ok_or_else(|| {
         invalid(
-            "selective_discovery.invalid_contract",
+            antecedent_core::reason_details::selective_discovery::INVALID_CONTRACT,
             "the contract did not declare every stage input",
         )
     })
@@ -458,7 +450,7 @@ fn validate_common(
 ) -> Result<(), SelectiveDiscoveryError> {
     if !additional.is_empty() {
         return Err(not_supported(
-            "selective_discovery.multi_population",
+            antecedent_core::reason_details::selective_discovery::MULTI_POPULATION,
             "discovery from several source datasets is not part of selective discovery: a \
              pooled or per-population search has its own identification and invariance \
              assumptions. Run discovery on one declared population, or declare the \
@@ -472,7 +464,7 @@ fn validate_common(
         || md.include_time_dummy
     {
         return Err(not_supported(
-            "selective_discovery.multi_population",
+            antecedent_core::reason_details::selective_discovery::MULTI_POPULATION,
             "context variables and dataset dummies describe a multi-dataset search, which \
              this adapter does not retain statistics for; remove them or use the pooled \
              algorithm directly",
@@ -480,26 +472,26 @@ fn validate_common(
     }
     if population.trim().is_empty() {
         return Err(invalid(
-            "selective_discovery.population_missing",
+            antecedent_core::reason_details::selective_discovery::POPULATION_MISSING,
             "declare the one population the data were drawn from",
         ));
     }
     if variables.is_empty() {
         return Err(invalid(
-            "selective_discovery.invalid_contract",
+            antecedent_core::reason_details::selective_discovery::INVALID_CONTRACT,
             "declare at least one searched variable",
         ));
     }
     let distinct: BTreeSet<u32> = variables.iter().map(|v| v.raw()).collect();
     if distinct.len() != variables.len() {
         return Err(invalid(
-            "selective_discovery.invalid_contract",
+            antecedent_core::reason_details::selective_discovery::INVALID_CONTRACT,
             "the searched variables repeat",
         ));
     }
     if !(constraints.alpha > 0.0 && constraints.alpha < 1.0) {
         return Err(invalid(
-            "selective_discovery.invalid_contract",
+            antecedent_core::reason_details::selective_discovery::INVALID_CONTRACT,
             "the significance threshold must lie strictly between 0 and 1",
         ));
     }
@@ -553,7 +545,7 @@ pub struct StaticDiscoveryContract {
     pub discriminating_path_budget: DiscriminatingPathBudget,
     /// The one population the rows were drawn from.
     pub population: String,
-    /// Further populations. Must be empty: multi-population discovery is closed.
+    /// Further populations. Must be empty: multi-population discovery is not supported.
     pub additional_populations: Vec<String>,
     /// Master seed of the execution context the run uses.
     pub rng_seed: u64,
@@ -601,7 +593,7 @@ impl StaticDiscoveryContract {
     ///
     /// # Errors
     ///
-    /// A closed route (several populations, multi-dataset constraints), a blank population,
+    /// A unsupported route (several populations, multi-dataset constraints), a blank population,
     /// repeated or no variables, a threshold outside `(0, 1)` or inconsistent constraints.
     pub fn validate(&self) -> Result<(), SelectiveDiscoveryError> {
         validate_common(
@@ -670,7 +662,7 @@ pub struct TemporalDiscoveryContract {
     pub fdr: Option<FdrAdjustment>,
     /// The one population the series was drawn from.
     pub population: String,
-    /// Further populations. Must be empty: multi-population discovery is closed.
+    /// Further populations. Must be empty: multi-population discovery is not supported.
     pub additional_populations: Vec<String>,
     /// Master seed of the execution context the run uses.
     pub rng_seed: u64,
@@ -722,15 +714,21 @@ impl TemporalDiscoveryContract {
             KnowledgeScope::Lagged,
         )?;
         let t = &self.constraints.temporal;
+        if t.max_lag.raw().checked_mul(2).is_none() {
+            return Err(invalid(
+                antecedent_core::reason_details::selective_discovery::INVALID_CONTRACT,
+                "the doubled max_lag must fit u32",
+            ));
+        }
         if t.max_lag.raw() == 0 || t.min_lag.raw() > t.max_lag.raw() {
             return Err(invalid(
-                "selective_discovery.invalid_contract",
+                antecedent_core::reason_details::selective_discovery::INVALID_CONTRACT,
                 "the lag window must satisfy 0 <= min_lag <= max_lag with max_lag >= 1",
             ));
         }
         if self.algorithm == TemporalAlgorithm::Pcmci && t.min_lag.raw() == 0 {
             return Err(not_supported(
-                "selective_discovery.contemporaneous_links",
+                antecedent_core::reason_details::selective_discovery::CONTEMPORANEOUS_LINKS,
                 "PCMCI searches lagged links only; request contemporaneous links with PCMCI+, \
                  which orients them up to an equivalence class",
             ));
@@ -759,7 +757,14 @@ impl TemporalDiscoveryContract {
             fdr: self.fdr,
             population: &self.population,
             rng_seed: self.rng_seed,
-            frame_depth: 2 * self.constraints.temporal.max_lag.raw(),
+            frame_depth: self.constraints.temporal.max_lag.raw().checked_mul(2).ok_or_else(
+                || {
+                    invalid(
+                        antecedent_core::reason_details::selective_discovery::INVALID_CONTRACT,
+                        "the doubled max_lag must fit u32",
+                    )
+                },
+            )?,
             search_limits: Vec::new(),
             orientation: Vec::new(),
         };
@@ -858,13 +863,16 @@ mod tests {
         );
         contract.additional_populations = vec!["other".to_owned()];
         let err = contract.validate().unwrap_err();
-        assert_eq!(err.detail(), Some("selective_discovery.multi_population"));
+        assert_eq!(
+            err.detail(),
+            Some(antecedent_core::reason_details::selective_discovery::MULTI_POPULATION)
+        );
         assert_eq!(err.code(), Some("route_not_supported"));
         contract.additional_populations.clear();
         contract.constraints.multi_dataset.context_variables = Arc::from([VariableId::from_raw(1)]);
         assert_eq!(
             contract.validate().unwrap_err().detail(),
-            Some("selective_discovery.multi_population")
+            Some(antecedent_core::reason_details::selective_discovery::MULTI_POPULATION)
         );
     }
 
@@ -880,7 +888,7 @@ mod tests {
         contract.constraints.temporal.min_lag = Lag::CONTEMPORANEOUS;
         assert_eq!(
             contract.validate().unwrap_err().detail(),
-            Some("selective_discovery.contemporaneous_links")
+            Some(antecedent_core::reason_details::selective_discovery::CONTEMPORANEOUS_LINKS)
         );
         let plus = TemporalDiscoveryContract {
             algorithm: TemporalAlgorithm::PcmciPlus,
@@ -902,6 +910,9 @@ mod tests {
         temporal.constraints.temporal.max_lag = Lag::from_raw(2);
         let two = temporal.stage_inputs(&data(1), kernel).unwrap();
         assert_ne!(one.component("frame_depth"), two.component("frame_depth"));
+        temporal.constraints.temporal.max_lag = Lag::from_raw(u32::MAX);
+        assert!(temporal.validate().is_err());
+        assert!(temporal.stage_inputs(&data(1), kernel).is_err());
         let static_contract = StaticDiscoveryContract::new(
             StaticAlgorithm::Pc,
             variables(2),

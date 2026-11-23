@@ -7,7 +7,7 @@
 //! (the true law attains the smallest expected score) and the reference value for
 //! the sample-based assessments.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::law::{
     ForecastLaw, MAX_JOINT_DIMENSION, MAX_LAW_ATOMS, Outcome, PROBABILITY_SUM_TOLERANCE,

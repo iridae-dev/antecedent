@@ -1,5 +1,7 @@
 //! Portable, estimator-free wire of the general finite counterfactual
-//! transport artifact (kind `counterfactual_transport_v1`).
+//! transport artifact (kind `counterfactual_transport_v2`). Version 1 receipts
+//! predate cumulative closure-work accounting and are refused rather than
+//! interpreted as current receipts.
 //!
 //! The artifact keeps every premise a consumer needs to decide the request
 //! again: the model class (variables with their declared levels, directed and
@@ -29,21 +31,20 @@
 //! oracle lives in the test suites). The artifact is point-only: no interval, no
 //! posterior and no sampling uncertainty exist in it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
 use antecedent_core::{IdentityDomain, VariableId};
 use antecedent_expr::{ExactEvaluationLimits, ExactTransportData};
 use antecedent_identify::{
-    COUNTERFACTUAL_TRANSPORT_CONTRACT, COUNTERFACTUAL_TRANSPORT_MAX_ATOMS,
-    COUNTERFACTUAL_TRANSPORT_MAX_LEVELS, COUNTERFACTUAL_TRANSPORT_MAX_LIMITS,
+    COUNTERFACTUAL_TRANSPORT_CONTRACT, COUNTERFACTUAL_TRANSPORT_MASK_VARIABLES,
+    COUNTERFACTUAL_TRANSPORT_MAX_ATOMS, COUNTERFACTUAL_TRANSPORT_MAX_LIMITS,
     COUNTERFACTUAL_TRANSPORT_MAX_REGIMES, COUNTERFACTUAL_TRANSPORT_MAX_SOURCES,
-    COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES, COUNTERFACTUAL_TRANSPORT_MAX_WORLDS,
-    COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES, CounterfactualTransportDerivation,
-    CounterfactualTransportProblem, CounterfactualTransportQuery,
-    CounterfactualTransportSearchRecord, CounterfactualTransportSource,
-    CounterfactualTransportWitness,
+    COUNTERFACTUAL_TRANSPORT_MAX_WORLDS, COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES,
+    CounterfactualTransportDerivation, CounterfactualTransportProblem,
+    CounterfactualTransportQuery, CounterfactualTransportSearchRecord,
+    CounterfactualTransportSource, CounterfactualTransportWitness,
 };
 use serde::{Deserialize, Serialize};
 
@@ -53,7 +54,7 @@ use crate::exact_law_wire::ExactLawWire;
 use crate::transport_catalog_wire::EvidenceCatalogWire;
 
 /// The artifact format this reader writes and accepts.
-pub const COUNTERFACTUAL_TRANSPORT_ARTIFACT_VERSION: u32 = 1;
+pub const COUNTERFACTUAL_TRANSPORT_ARTIFACT_VERSION: u32 = 2;
 /// The feature marker (and artifact kind) of the accepted format.
 pub const COUNTERFACTUAL_TRANSPORT_ARTIFACT_FEATURE: &str =
     crate::artifact_kinds::COUNTERFACTUAL_TRANSPORT;
@@ -66,15 +67,20 @@ pub const COUNTERFACTUAL_TRANSPORT_OBSTRUCTED: &str = "proven_non_transportable"
 /// Detail of an artifact that is not a replayable counterfactual transport
 /// artifact (malformed, resealed with a different conclusion, or a digest
 /// mismatch).
-const DETAIL_INVALID_ARTIFACT: &str = "counterfactual_transport.invalid_artifact";
+const DETAIL_INVALID_ARTIFACT: &str =
+    antecedent_core::reason_details::counterfactual_transport::INVALID_ARTIFACT;
 /// Detail of a stored bound above the consumer's or the contract's.
-const DETAIL_BOUNDS_EXCEEDED: &str = "counterfactual_transport.bounds_exceeded";
+const DETAIL_BOUNDS_EXCEEDED: &str =
+    antecedent_core::reason_details::counterfactual_transport::BOUNDS_EXCEEDED;
 /// Detail of a stored derivation the replay does not reproduce.
-const DETAIL_INVALID_DERIVATION: &str = "counterfactual_transport.invalid_derivation";
+const DETAIL_INVALID_DERIVATION: &str =
+    antecedent_core::reason_details::counterfactual_transport::INVALID_DERIVATION;
 /// Detail of a stored witness that does not verify.
-const DETAIL_INVALID_WITNESS: &str = "counterfactual_transport.invalid_witness";
+const DETAIL_INVALID_WITNESS: &str =
+    antecedent_core::reason_details::counterfactual_transport::INVALID_WITNESS;
 /// Detail of a stored law that is not a valid exact law.
-const DETAIL_INVALID_EVIDENCE: &str = "counterfactual_transport.invalid_evidence";
+const DETAIL_INVALID_EVIDENCE: &str =
+    antecedent_core::reason_details::counterfactual_transport::INVALID_EVIDENCE;
 
 /// Why a counterfactual transport artifact was refused. Every variant names the
 /// slot of the artifact it concerns ([`Self::slot`]) and carries the registered
@@ -612,6 +618,63 @@ fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoErro
     Ok(laws.into_iter().map(|(_, law)| law).collect())
 }
 
+/// A stored decision input outside the contract's bounds or shape.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DecisionInputFault {
+    /// A count or search limit above the contract's maximum, by name.
+    Limit(&'static str),
+    /// Variable names that are not empty or one distinct, non-blank name per variable.
+    VariableNames,
+}
+
+/// Bound the stored inputs of a counterfactual transport decision (model class, query,
+/// catalog, search limits and names) by the contract's maxima.
+///
+/// Every artifact that re-decides a stored derivation calls this before any work, so the
+/// bounds of the decision are one definition.
+///
+/// # Errors
+/// The first [`DecisionInputFault`] found.
+pub fn check_decision_inputs(
+    problem: &CounterfactualTransportProblemWire,
+    query: &CounterfactualTransportQueryWire,
+    variable_names: &[String],
+    search: &CounterfactualTransportSearchLimitsWire,
+    catalog: &EvidenceCatalogWire,
+) -> Result<(), DecisionInputFault> {
+    let n = problem.variables.len();
+    if n == 0 || n > COUNTERFACTUAL_TRANSPORT_MASK_VARIABLES {
+        return Err(DecisionInputFault::Limit("variables"));
+    }
+    if query.sources.len() > COUNTERFACTUAL_TRANSPORT_MAX_SOURCES {
+        return Err(DecisionInputFault::Limit("sources"));
+    }
+    if query.event.worlds.len() > COUNTERFACTUAL_TRANSPORT_MAX_WORLDS {
+        return Err(DecisionInputFault::Limit("worlds"));
+    }
+    if query.event.event.len() + query.event.given.len() > COUNTERFACTUAL_TRANSPORT_MAX_ATOMS {
+        return Err(DecisionInputFault::Limit("atoms"));
+    }
+    if catalog.regimes.len() > COUNTERFACTUAL_TRANSPORT_MAX_REGIMES {
+        return Err(DecisionInputFault::Limit("regimes"));
+    }
+    let maxima = COUNTERFACTUAL_TRANSPORT_MAX_LIMITS;
+    if search.operations > maxima.operations
+        || search.depth > maxima.depth
+        || search.memory_limit_bytes > COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES
+    {
+        return Err(DecisionInputFault::Limit("search limits"));
+    }
+    if !variable_names.is_empty()
+        && (variable_names.len() != n
+            || variable_names.iter().any(|name| name.trim().is_empty())
+            || variable_names.iter().collect::<std::collections::BTreeSet<_>>().len() != n)
+    {
+        return Err(DecisionInputFault::VariableNames);
+    }
+    Ok(())
+}
+
 impl CounterfactualTransportArtifactWire {
     /// The wire of an identified query: the derivation, the exact laws the point
     /// was computed on and the stored point, sealed with both digests.
@@ -693,7 +756,7 @@ impl CounterfactualTransportArtifactWire {
 
     fn premises_view(&self) -> PremisesView<'_> {
         PremisesView {
-            tag: "counterfactual_transport_v1",
+            tag: COUNTERFACTUAL_TRANSPORT_ARTIFACT_FEATURE,
             status: &self.status,
             problem: &self.problem,
             query: &self.query,
@@ -738,45 +801,20 @@ impl CounterfactualTransportArtifactWire {
             COUNTERFACTUAL_TRANSPORT_OBSTRUCTED => false,
             _ => return Err(E::UnsupportedSemantics("status")),
         };
-        let n = self.problem.variables.len();
-        if n == 0 || n > COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES {
-            return Err(E::LimitsExceeded("variables"));
-        }
-        if self.problem.variables.iter().any(|(_, l)| l.len() > COUNTERFACTUAL_TRANSPORT_MAX_LEVELS)
-        {
-            return Err(E::LimitsExceeded("levels"));
-        }
-        if self.query.sources.len() > COUNTERFACTUAL_TRANSPORT_MAX_SOURCES {
-            return Err(E::LimitsExceeded("sources"));
-        }
-        if self.query.event.worlds.len() > COUNTERFACTUAL_TRANSPORT_MAX_WORLDS {
-            return Err(E::LimitsExceeded("worlds"));
-        }
-        if self.query.event.event.len() + self.query.event.given.len()
-            > COUNTERFACTUAL_TRANSPORT_MAX_ATOMS
-        {
-            return Err(E::LimitsExceeded("atoms"));
-        }
-        if self.catalog.regimes.len() > COUNTERFACTUAL_TRANSPORT_MAX_REGIMES {
-            return Err(E::LimitsExceeded("regimes"));
-        }
-        let maxima = COUNTERFACTUAL_TRANSPORT_MAX_LIMITS;
-        if self.search.operations > maxima.operations
-            || self.search.depth > maxima.depth
-            || self.search.memory_limit_bytes > COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES
-        {
-            return Err(E::LimitsExceeded("search limits"));
-        }
-        if !self.variable_names.is_empty()
-            && (self.variable_names.len() != n
-                || self.variable_names.iter().any(|name| name.trim().is_empty())
-                || self.variable_names.iter().collect::<std::collections::BTreeSet<_>>().len() != n)
-        {
-            return Err(malformed(
+        check_decision_inputs(
+            &self.problem,
+            &self.query,
+            &self.variable_names,
+            &self.search,
+            &self.catalog,
+        )
+        .map_err(|fault| match fault {
+            DecisionInputFault::Limit(what) => E::LimitsExceeded(what),
+            DecisionInputFault::VariableNames => malformed(
                 "variable_names",
                 "names must be empty or one distinct, non-blank name per variable",
-            ));
-        }
+            ),
+        })?;
         if identified {
             let (Some(derivation), None, Some(result)) =
                 (&self.derivation, &self.obstruction, &self.result)

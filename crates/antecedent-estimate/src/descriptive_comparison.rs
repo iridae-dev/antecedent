@@ -13,7 +13,7 @@
 //!   split over adjustment columns; a leave-one-out or other per-column attribution is
 //!   refused ([`refuse_column_attribution`]) because the adjusted estimate is not an
 //!   additive function of the columns.
-//! * **Reporting-scale transform.** From a mean-outcome pair `(mu1, mu0)` (a licensed
+//! * **Reporting-scale transform.** From a mean-outcome pair `(mu1, mu0)` (a supported
 //!   result's arm means) a declared transform to the risk difference, log risk ratio or
 //!   log odds ratio, by the delta method. For `theta = g(mu)` the first-order
 //!   covariance of a family `g_1..g_k` is `J Sigma J'`, with `J` the `k x 2` Jacobian and
@@ -24,20 +24,25 @@
 //!   never filled with zero. The only covariance this module forms itself is the
 //!   independent-groups one of the raw arm means ([`RawContrast::mean_pair`]).
 //!
-//! # Inference claim: point only
+//! # Inference
 //!
-//! The delta-method covariance is exact algebra of a first-order approximation. A Wald
-//! interval built from it would rest on asymptotic normality of the pair and on the
-//! linearization being adequate near the boundary (a risk ratio of a rare event, an
-//! odds ratio near 0 or 1) that no coverage record measures, so an interval is refused
-//! ([`refuse_transform_interval`]); the standard error is reported only as the square
-//! root of the covariance diagonal. The raw-minus-adjusted gap carries no interval
-//! either: the covariance between the raw and the adjusted estimate is not part of what
+//! The delta-method covariance is exact algebra of a first-order approximation. The Wald
+//! interval built from it ([`ReportingTransform::interval`]) rests on asymptotic normality of
+//! the pair and on the linearization being adequate near the boundary (a risk ratio of a
+//! rare event, an odds ratio near 0 or 1); it is reported on the declared scale with a
+//! calibration annotation and is never gated on calibration. The raw-minus-adjusted gap
+//! carries no interval: the covariance between the raw and the adjusted estimate is not part of what
 //! an estimate carries, and neither is it assumed zero.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
+#[cfg(test)]
+use antecedent_core::device_reservation::{
+    ComputeSelection, CpuAdmissionError, DeviceReservationPool, FoldAdmission, LearnerAdmission,
+    admit_fold, nested_thread_request, retain_scientific_f64, scientific_tolerance, select_compute,
+    within_declared_tolerance,
+};
 
 use crate::error::EstimationError;
 use crate::joint_if::JointCovariance;
@@ -50,6 +55,10 @@ const CODE_TOLERANCE: f64 = 1e-12;
 /// Rows between cancellation polls in the raw-contrast pass, so a long input stops at a
 /// bounded granularity without a poll per row.
 const POLL_EVERY_ROWS: usize = 4096;
+
+/// Scratch bytes one fold and one learner each draw from the shared admission pool.
+#[cfg(test)]
+const FOLD_SCRATCH_BYTES: u64 = 8;
 
 /// A diagnostic or covariance the route does not carry, with the registered code and the
 /// detail naming why. Absent is explicit; nothing here is a zero or a fabricated value.
@@ -95,7 +104,7 @@ impl<T> Availability<T> {
 fn invalid_data(message: &str) -> EstimationError {
     refuse(
         antecedent_core::reason_code!("invalid_argument"),
-        "descriptive_comparison.invalid_data",
+        antecedent_core::reason_details::descriptive_comparison::INVALID_DATA,
         message,
     )
 }
@@ -103,7 +112,7 @@ fn invalid_data(message: &str) -> EstimationError {
 fn cancelled() -> EstimationError {
     refuse(
         antecedent_core::reason_code!("cancelled_no_claim"),
-        "descriptive_comparison.cancelled",
+        antecedent_core::reason_details::descriptive_comparison::CANCELLED,
         "the comparison was cancelled before every row was read; no contrast is reported and \
          the stop is not a verdict on the data",
     )
@@ -112,7 +121,7 @@ fn cancelled() -> EstimationError {
 fn arm_too_small() -> Unavailable {
     Unavailable {
         code: antecedent_core::reason_code!("invalid_argument"),
-        detail: "descriptive_comparison.arm_too_small",
+        detail: antecedent_core::reason_details::descriptive_comparison::ARM_TOO_SMALL,
         reason: "an arm with fewer than two rows has no sample variance, so the raw standard \
                  error and the independent-groups covariance of the arm means are unavailable",
     }
@@ -130,9 +139,6 @@ pub enum ReportingScale {
     /// `ln(mu1 / (1 - mu1)) - ln(mu0 / (1 - mu0))` with both means in `(0, 1)`.
     LogOddsRatio,
 }
-
-/// There are four supported scale variants; bound the size of each requested family.
-const MAX_REPORTING_SCALES: usize = 4;
 
 impl ReportingScale {
     /// Wire name of the scale.
@@ -157,7 +163,7 @@ impl ReportingScale {
             .ok_or_else(|| {
                 refuse(
                     antecedent_core::reason_code!("route_not_supported"),
-                    "descriptive_comparison.scale_not_supported",
+                    antecedent_core::reason_details::descriptive_comparison::SCALE_NOT_SUPPORTED,
                     &format!(
                         "reporting scale '{name}' is not declared; the scales are mean_difference, \
                          risk_difference, log_risk_ratio and log_odds_ratio"
@@ -174,7 +180,7 @@ impl ReportingScale {
             } else {
                 Err(refuse(
                     antecedent_core::reason_code!("invalid_argument"),
-                    "descriptive_comparison.transform_domain",
+                    antecedent_core::reason_details::descriptive_comparison::TRANSFORM_DOMAIN,
                     &format!(
                         "{} is undefined at the means ({active}, {control}): it needs {needs}",
                         self.name()
@@ -230,7 +236,7 @@ impl MeanPair {
             || {
                 Availability::Unavailable(Unavailable {
                     code: antecedent_core::reason_code!("required_option_missing"),
-                    detail: "descriptive_comparison.joint_covariance_unavailable",
+                    detail: antecedent_core::reason_details::descriptive_comparison::JOINT_COVARIANCE_UNAVAILABLE,
                     reason:
                         "the source estimate does not carry the joint covariance of the two arm \
                              means; the transformed points are reported and the delta-method \
@@ -276,7 +282,7 @@ impl MeanPair {
 fn invalid_covariance(message: &str) -> EstimationError {
     refuse(
         antecedent_core::reason_code!("invalid_argument"),
-        "descriptive_comparison.invalid_covariance",
+        antecedent_core::reason_details::descriptive_comparison::INVALID_COVARIANCE,
         message,
     )
 }
@@ -309,6 +315,20 @@ impl ReportingTransform {
         let k = self.contrasts.len();
         self.covariance.available().filter(|_| i < k).map(|c| c[i * k + i].max(0.0).sqrt())
     }
+
+    /// Equal-tailed delta-method Wald interval of contrast `i` on its declared scale,
+    /// `value -/+ z * se`; `None` without the pair's joint covariance, for an index out of
+    /// range or a level outside `(0, 1)`.
+    #[must_use]
+    pub fn interval(&self, i: usize, level: f64) -> Option<(f64, f64)> {
+        if !(level > 0.0 && level < 1.0) {
+            return None;
+        }
+        let se = self.se(i)?;
+        let value = self.contrasts.get(i)?.value;
+        let half = antecedent_stats::special::normal_ppf(0.5 + level / 2.0) * se;
+        Some((value - half, value + half))
+    }
 }
 
 /// Put a mean-outcome pair on each declared reporting scale, with the delta-method
@@ -325,9 +345,6 @@ pub fn transform_mean_pair(
 ) -> Result<ReportingTransform, EstimationError> {
     if scales.is_empty() {
         return Err(invalid_data("at least one reporting scale must be declared"));
-    }
-    if scales.len() > MAX_REPORTING_SCALES {
-        return Err(invalid_data("at most four reporting scales may be declared"));
     }
     if !(pair.active.is_finite() && pair.control.is_finite()) {
         return Err(invalid_data("the arm means must be finite"));
@@ -365,25 +382,12 @@ pub fn transform_mean_pair(
     Ok(ReportingTransform { contrasts, covariance })
 }
 
-/// The refusal of the closed interval route: points and covariance are kept.
-#[must_use]
-pub fn refuse_transform_interval() -> EstimationError {
-    refuse(
-        antecedent_core::reason_code!("cell_not_licensed"),
-        "descriptive_comparison.interval_withheld",
-        "no interval is reported on a transformed scale: a delta-method Wald interval rests on \
-         asymptotic normality of the arm means and an adequate linearization near the boundary \
-         of the scale, which no coverage record measures; the transformed points and the \
-         first-order covariance are retained",
-    )
-}
-
 /// The refusal of any attribution of the raw-versus-adjusted gap to adjustment columns.
 #[must_use]
 pub fn refuse_column_attribution() -> EstimationError {
     refuse(
         antecedent_core::reason_code!("effect_not_identified"),
-        "descriptive_comparison.column_attribution_not_identified",
+        antecedent_core::reason_details::descriptive_comparison::COLUMN_ATTRIBUTION_NOT_IDENTIFIED,
         "the raw-minus-adjusted gap is descriptive and is not attributed to individual \
          adjustment columns: the adjusted estimate is not an additive function of the columns \
          (a leave-one-out difference depends on the order, the remaining columns and the \
@@ -481,7 +485,7 @@ pub fn raw_contrast(
     if active.is_empty() || control.is_empty() {
         return Err(refuse(
             antecedent_core::reason_code!("arm_not_populated"),
-            "descriptive_comparison.arm_not_populated",
+            antecedent_core::reason_details::descriptive_comparison::ARM_NOT_POPULATED,
             &format!(
                 "a treatment arm has no rows ({} active, {} control), so there is no raw contrast",
                 active.len(),
@@ -497,9 +501,127 @@ pub fn raw_contrast(
     Ok(RawContrast { active, control, difference: active.mean - control.mean, se })
 }
 
+/// Accounted width of one `f64` outcome and one `f64` treatment.
+#[cfg(test)]
+const SAMPLE_WIDTH: u64 = 16;
+
+/// A small complete sample on the CPU `f64` path, with its uncertainty.
+///
+/// The contrast is [`raw_contrast`]. No device bytes are reserved. The fold
+/// lease and one learner lease come from `ctx`'s admission pool, and their
+/// scratch is returned on success, refusal, and cancellation. The difference
+/// stays `f64` and must sit within [`scientific_tolerance`] of that `f64`
+/// value. The neural `f32` baseline is not used.
+///
+/// # Errors
+///
+/// The errors of [`raw_contrast`]. Also `invalid_argument`
+/// (`descriptive_comparison.fold_exceeds_lease`) when the sample does not fit
+/// the shared CPU and RAM lease, `descriptive_comparison.learner_exceeds_lease`
+/// when the learner does not fit that fold, and
+/// `descriptive_comparison.admission_refused` when scratch or the byte account
+/// is refused. A cancelled `ctx` is `cancelled_no_claim`.
+#[must_use = "a refused contrast is not an estimate"]
+#[cfg(test)]
+pub fn small_cpu_contrast(
+    outcome: &[f64],
+    treatment: &[f64],
+    ctx: &ExecutionContext,
+    device: &DeviceReservationPool,
+) -> Result<RawContrast, EstimationError> {
+    let Ok(cpu) = select_compute(ComputeSelection::Cpu) else {
+        return Err(invalid_data("accelerator selection is refused because no device is promoted"));
+    };
+    let remainder = cpu.reserve_nothing(device);
+    if remainder.device_bytes() != device.device_budget()
+        || remainder.spill_bytes() != device.spill_budget()
+        || !device_is_untouched(device)
+    {
+        return Err(invalid_data("a small serial job reserved device bytes"));
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Err(cancelled());
+    }
+    let bytes = sample_bytes(outcome.len())
+        .ok_or_else(|| invalid_data("the sample byte account overflowed"))?;
+    let threads = nested_thread_request(ctx.admission().available().threads());
+    let mut fold =
+        admit_fold(ctx, threads, bytes, FOLD_SCRATCH_BYTES).map_err(cpu_admission_error)?;
+    let learner_threads = nested_thread_request(fold.held_threads());
+    let mut learner = fold
+        .admit_learner(learner_threads, bytes, FOLD_SCRATCH_BYTES)
+        .map_err(cpu_admission_error)?;
+    if release_if_cancelled(&mut learner, &mut fold, ctx) {
+        return Err(cancelled());
+    }
+    let mut contrast = raw_contrast(outcome, treatment, ctx)?;
+    if release_if_cancelled(&mut learner, &mut fold, ctx) {
+        return Err(cancelled());
+    }
+    let exact = contrast.difference;
+    contrast.difference = retain_scientific_f64(exact);
+    let Some(tolerance) = scientific_tolerance() else {
+        return Err(invalid_data("the scientific tolerance was refused"));
+    };
+    if !within_declared_tolerance(contrast.difference, exact, tolerance) {
+        return Err(invalid_data(
+            "the contrast left f64 and missed the declared numerical tolerance",
+        ));
+    }
+    if !device_is_untouched(device) {
+        return Err(invalid_data("a small serial job reserved device bytes"));
+    }
+    Ok(contrast)
+}
+
+#[cfg(test)]
+fn device_is_untouched(device: &DeviceReservationPool) -> bool {
+    let available = device.available();
+    available.device_bytes() == device.device_budget()
+        && available.spill_bytes() == device.spill_budget()
+}
+
+#[cfg(test)]
+fn sample_bytes(rows: usize) -> Option<u64> {
+    u64::try_from(rows).ok()?.checked_mul(SAMPLE_WIDTH)
+}
+
+#[cfg(test)]
+fn release_if_cancelled(
+    learner: &mut LearnerAdmission,
+    fold: &mut FoldAdmission,
+    ctx: &ExecutionContext,
+) -> bool {
+    let learner_stopped = learner.observe_cancel(&ctx.cancellation);
+    let fold_stopped = fold.observe_cancel(&ctx.cancellation);
+    learner_stopped || fold_stopped
+}
+
+#[cfg(test)]
+fn cpu_admission_error(error: CpuAdmissionError) -> EstimationError {
+    match error {
+        CpuAdmissionError::Cancelled => cancelled(),
+        CpuAdmissionError::FoldExceedsLease { .. } => refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            antecedent_core::reason_details::descriptive_comparison::FOLD_EXCEEDS_LEASE,
+            "the fold exceeds the shared CPU and RAM lease",
+        ),
+        CpuAdmissionError::LearnerExceedsLease { .. } => refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            antecedent_core::reason_details::descriptive_comparison::LEARNER_EXCEEDS_LEASE,
+            "the learner exceeds the fold lease",
+        ),
+        _ => refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            antecedent_core::reason_details::descriptive_comparison::ADMISSION_REFUSED,
+            "the CPU admission or its scratch was refused",
+        ),
+    }
+}
+
 /// An adjusted estimate and the estimand coding it was computed under.
 ///
-/// The comparison is licensed only for the coding the raw contrast has: active level 1,
+/// The comparison is supported only for the coding the raw contrast has: active level 1,
 /// control level 0, difference of means, all-observed population.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AdjustedEstimate {
@@ -569,7 +691,7 @@ pub fn compare_raw_adjusted(
     {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "descriptive_comparison.estimand_coding_mismatch",
+            antecedent_core::reason_details::descriptive_comparison::ESTIMAND_CODING_MISMATCH,
             &format!(
                 "the raw contrast is a difference of means at active 1 versus control 0; the \
                  adjusted estimate is on scale {} at active {} versus control {}, so the two do \
@@ -583,7 +705,7 @@ pub fn compare_raw_adjusted(
     if !adjusted.all_observed_population {
         return Err(refuse(
             antecedent_core::reason_code!("population_not_estimable"),
-            "descriptive_comparison.population_not_all_observed",
+            antecedent_core::reason_details::descriptive_comparison::POPULATION_NOT_ALL_OBSERVED,
             "the raw contrast averages over all observed rows; an adjusted estimate for another \
              target population answers a different question and is not compared with it",
         ));
@@ -597,11 +719,82 @@ pub fn compare_raw_adjusted(
         adjusted,
         gap: raw.difference - adjusted.estimate,
         gap_interval: Unavailable {
-            code: antecedent_core::reason_code!("cell_not_licensed"),
-            detail: "descriptive_comparison.gap_interval_unavailable",
+            code: antecedent_core::reason_code!("route_not_supported"),
+            detail:
+                antecedent_core::reason_details::descriptive_comparison::GAP_INTERVAL_UNAVAILABLE,
             reason: "the covariance between the raw and the adjusted estimate is not carried by \
                      either and is not assumed zero (they use the same rows), so the gap has no \
                      standard error or interval",
         },
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use antecedent_core::device_reservation::DeviceReservationRemainder;
+    use antecedent_core::execution::AdmissionPool;
+
+    use super::*;
+
+    fn mean(values: &[f64]) -> f64 {
+        values.iter().copied().sum::<f64>() / values.len() as f64
+    }
+
+    #[test]
+    fn small_cpu_contrast_stays_f64_with_uncertainty() {
+        let outcome = [1.0 / 3.0, 0.25, 2.0 / 3.0, 0.5];
+        let treatment = [0.0, 0.0, 1.0, 1.0];
+        let expected = mean(&[2.0 / 3.0, 0.5]) - mean(&[1.0 / 3.0, 0.25]);
+        let device = DeviceReservationPool::fixed(128, 64);
+        let ctx = ExecutionContext::for_tests(7);
+        let pool = ctx.admission();
+        let contrast = small_cpu_contrast(&outcome, &treatment, &ctx, &device).unwrap();
+        assert_eq!(contrast.difference.to_bits(), expected.to_bits());
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "the f32 round trip is the drop a non-neural contrast must not take"
+        )]
+        let narrowed = f64::from(expected as f32);
+        assert_ne!(contrast.difference.to_bits(), narrowed.to_bits());
+        let tolerance = scientific_tolerance().unwrap();
+        assert!(within_declared_tolerance(contrast.difference, expected, tolerance));
+        assert!(!within_declared_tolerance(narrowed, expected, tolerance));
+        let standard_error =
+            contrast.se.available().copied().expect("the contrast published no standard error");
+        assert!(standard_error.is_finite() && standard_error > 0.0);
+        assert_eq!(device.available(), DeviceReservationRemainder::new(128, 64));
+        assert_eq!(pool.available().bytes(), pool.byte_budget());
+        assert_eq!(pool.available().threads(), pool.thread_budget());
+    }
+
+    #[test]
+    fn small_cpu_contrast_refuses_a_fold_past_the_lease() {
+        let outcome = [1.0 / 3.0, 0.25, 2.0 / 3.0, 0.5];
+        let treatment = [0.0, 0.0, 1.0, 1.0];
+        let device = DeviceReservationPool::fixed(128, 64);
+        let pool = AdmissionPool::fixed(1, 8);
+        let ctx = ExecutionContext::for_tests(7).with_admission(pool.clone());
+        let error = small_cpu_contrast(&outcome, &treatment, &ctx, &device).unwrap_err();
+        let text = error.to_string();
+        assert!(text.contains("fold_exceeds_lease"), "{text}");
+        assert_eq!(pool.available().bytes(), 8);
+        assert_eq!(pool.available().threads(), 1);
+        assert_eq!(device.available(), DeviceReservationRemainder::new(128, 64));
+    }
+
+    #[test]
+    fn cancelled_small_cpu_contrast_reserves_nothing() {
+        let outcome = [1.0 / 3.0, 0.25, 2.0 / 3.0, 0.5];
+        let treatment = [0.0, 0.0, 1.0, 1.0];
+        let device = DeviceReservationPool::fixed(128, 64);
+        let pool = AdmissionPool::fixed(1, 1_000);
+        let ctx = ExecutionContext::for_tests(7).with_admission(pool.clone());
+        ctx.cancellation.cancel();
+        let error = small_cpu_contrast(&outcome, &treatment, &ctx, &device).unwrap_err();
+        let text = error.to_string();
+        assert!(text.contains("cancelled"), "{text}");
+        assert_eq!(pool.available().bytes(), 1_000);
+        assert_eq!(pool.available().threads(), 1);
+        assert_eq!(device.available(), DeviceReservationRemainder::new(128, 64));
+    }
 }

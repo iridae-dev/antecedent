@@ -1,6 +1,6 @@
 //! Temporal dose × horizon response benches (ADR 0021).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     missing_docs,
@@ -29,6 +29,9 @@ use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{TemporalDag, ensure_lagged};
 use antecedent_identify::TemporalBackdoorIdentifier;
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
+
+#[path = "../../../benches/soft_budget.rs"]
+mod soft_budget;
 
 fn series(n: usize) -> (TimeSeriesData, ResponseQuery, IdentifiedEstimand, TemporalIndexer) {
     let mut b = CausalSchemaBuilder::new();
@@ -228,11 +231,12 @@ fn bench_temporal_response(c: &mut Criterion) {
         let elapsed = started.elapsed();
         black_box(response);
         eprintln!("bayesian_temporal_response_n2000_draws512_h6_grid5 (cold): {elapsed:?}");
-        assert!(
-            elapsed < BAYESIAN_WIDE_COLD_BUDGET,
-            "bayesian_temporal_response_n2000_draws512_h6_grid5 (cold) exceeded soft budget: \
+        soft_budget::check(elapsed < BAYESIAN_WIDE_COLD_BUDGET, || {
+            format!(
+                "bayesian_temporal_response_n2000_draws512_h6_grid5 (cold) exceeded soft budget: \
              {elapsed:?} >= {BAYESIAN_WIDE_COLD_BUDGET:?}"
-        );
+            )
+        });
     }
 
     let est = TemporalResponseEstimator::new();
@@ -385,10 +389,11 @@ fn bench_temporal_response(c: &mut Criterion) {
         )
         .unwrap();
     let elapsed = started.elapsed();
-    assert!(
-        elapsed < MULTI_HORIZON_BUDGET,
-        "temporal_response_multi_horizon_n800 exceeded soft budget: {elapsed:?} >= {MULTI_HORIZON_BUDGET:?}"
-    );
+    soft_budget::check(elapsed < MULTI_HORIZON_BUDGET, || {
+        format!(
+            "temporal_response_multi_horizon_n800 exceeded soft budget: {elapsed:?} >= {MULTI_HORIZON_BUDGET:?}"
+        )
+    });
 
     c.bench_function("temporal_response_intervention_shift_n100000", |b| {
         let (data, query, estimand, indexer) = intervention_shift_series(100_000);
@@ -420,10 +425,11 @@ fn bench_temporal_response(c: &mut Criterion) {
         )
         .unwrap();
     let elapsed = started.elapsed();
-    assert!(
-        elapsed < INTERVENTION_SHIFT_BUDGET,
-        "temporal_response_intervention_shift_n100000 exceeded soft budget: {elapsed:?} >= {INTERVENTION_SHIFT_BUDGET:?}"
-    );
+    soft_budget::check(elapsed < INTERVENTION_SHIFT_BUDGET, || {
+        format!(
+            "temporal_response_intervention_shift_n100000 exceeded soft budget: {elapsed:?} >= {INTERVENTION_SHIFT_BUDGET:?}"
+        )
+    });
 }
 
 criterion_group!(benches, bench_temporal_response);

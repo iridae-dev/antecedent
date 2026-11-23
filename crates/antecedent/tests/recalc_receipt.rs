@@ -78,7 +78,7 @@ fn utility() -> UtilitySpec {
 
 fn request() -> RecalcRequest {
     RecalcRequest {
-        columns: columns(2.0),
+        columns: columns(2.0).into(),
         edges: base_edges(),
         treatment: T,
         outcome: Y,
@@ -116,7 +116,7 @@ fn table(outcome: &RecalcOutcome) -> Table {
 }
 
 fn reused_string(stage: Stage) -> String {
-    let dep = stage.dependencies(RetargetSupport::Licensed).first().copied().unwrap_or(stage);
+    let dep = stage.dependencies(RetargetSupport::Supported).first().copied().unwrap_or(stage);
     format!("reused({dep})")
 }
 
@@ -295,7 +295,7 @@ fn recalc_changed_folds_and_new_outcomes_refit_without_reidentifying() {
 
     // New outcomes: same seed, different outcome column.
     let mut fresh = base.clone();
-    fresh.columns = columns(1.5);
+    fresh.columns = columns(1.5).into();
     let outcomes = go(&mut session, &fresh, seed);
     let overrides = [
         (Stage::DataSnapshot, "recomputed(own:data_snapshot:modified)"),
@@ -384,13 +384,15 @@ fn recalc_refusals_run_no_work_and_leave_the_session_untouched() {
 
     // Off-grid on a cold session: nothing runs and nothing becomes live.
     session.set_request_support(RequestSupport::OffGrid {
-        licensed_route: Some("transport.smoothed_dose"),
+        supported_route: Some("transport.smoothed_dose".into()),
     });
     let plan = refused_plan(execute_with_receipt(&mut session, &base, &ctx(SEED)).unwrap_err());
     assert_eq!(
         plan.status(Stage::TreatmentGrid),
         Some(&StageStatus::Refused {
-            reason: RefusalReason::OffGrid { licensed_route: Some("transport.smoothed_dose") }
+            reason: RefusalReason::OffGrid {
+                supported_route: Some("transport.smoothed_dose".into())
+            }
         })
     );
     for stage in [Stage::ScoreArtifact, Stage::Law, Stage::Decision] {
@@ -406,9 +408,12 @@ fn recalc_refusals_run_no_work_and_leave_the_session_untouched() {
     session.set_request_support(RequestSupport::OnGrid);
     let first = go(&mut session, &base, SEED);
     let known = session.identities().clone();
-    session.set_request_support(RequestSupport::Unsupported { licensed_route: None });
+    session.set_request_support(RequestSupport::Unsupported { supported_route: None });
     let plan = refused_plan(execute_with_receipt(&mut session, &base, &ctx(SEED)).unwrap_err());
-    assert_eq!(plan.first_refusal().unwrap().1.detail(), "recalc.unsupported_request");
+    assert_eq!(
+        plan.first_refusal().unwrap().1.detail(),
+        antecedent_core::reason_details::recalc::UNSUPPORTED_REQUEST
+    );
     assert!(session.is_live());
     assert_eq!(session.identities(), &known);
     session.set_request_support(RequestSupport::OnGrid);
@@ -417,7 +422,7 @@ fn recalc_refusals_run_no_work_and_leave_the_session_untouched() {
     assert_no_work(&counts(&again), 0);
     assert_eq!(again.law.ate.to_bits(), first.law.ate.to_bits());
 
-    // Weights that are not a licensed function of the adjustment set refuse at the law.
+    // Weights that are not a supported function of the adjustment set refuse at the law.
     session.set_retarget_support(RetargetSupport::Incompatible);
     let mut changed = base.clone();
     changed.target = Some(z_weights(&base));
@@ -514,15 +519,15 @@ fn recalc_receipt_identity_is_order_independent_and_counts_must_match_status() {
     let decided = StageCounts { decisions: 1, ..StageCounts::default() };
     // Reuse that did work is a contradiction, not a receipt.
     assert_eq!(
-        RecalcReceipt::new(vec![entry(Stage::ScoreArtifact, reused, fit)]),
+        RecalcReceipt::new(vec![entry(Stage::ScoreArtifact, reused.clone(), fit)]),
         Err(ReceiptError::UnexpectedWork { stage: Stage::ScoreArtifact })
     );
     // A recomputed decision that never ran the decision is a contradiction as well.
     assert!(matches!(
-        RecalcReceipt::new(vec![entry(Stage::Decision, recomputed, none)]),
+        RecalcReceipt::new(vec![entry(Stage::Decision, recomputed.clone(), none)]),
         Err(ReceiptError::MissingWork { stage: Stage::Decision, .. })
     ));
-    assert!(RecalcReceipt::new(vec![entry(Stage::Decision, recomputed, decided)]).is_ok());
+    assert!(RecalcReceipt::new(vec![entry(Stage::Decision, recomputed.clone(), decided)]).is_ok());
     // Work counted against a stage that does not own it is refused.
     assert_eq!(
         RecalcReceipt::new(vec![entry(Stage::Decision, recomputed, fit)]),
@@ -530,7 +535,7 @@ fn recalc_receipt_identity_is_order_independent_and_counts_must_match_status() {
     );
     assert_eq!(
         RecalcReceipt::new(vec![
-            entry(Stage::Graph, reused, none),
+            entry(Stage::Graph, reused.clone(), none),
             entry(Stage::Graph, reused, none)
         ]),
         Err(ReceiptError::DuplicateStage(Stage::Graph))
@@ -560,8 +565,13 @@ fn recalc_failed_refresh_law_and_decision_preserve_successful_state() {
         Some(TargetWeights { weights: vec![0.; N], depends_on: vec![VariableId::from_raw(Z)] });
     let mut bad_decision = base.clone();
     bad_decision.utility.benefit_per_unit = f64::MAX;
-    for bad in [bad_refresh, bad_law, bad_decision] {
-        assert!(execute_with_receipt(&mut session, &bad, &ctx(SEED)).is_err());
+    for (bad, want) in [
+        (bad_refresh, "invalid argument: AIPW cross-fit fold is missing a treatment arm"),
+        (bad_law, "invalid argument: weights have no positive mass"),
+        (bad_decision, antecedent_core::reason_details::recalc::INVALID_REQUEST),
+    ] {
+        let refused = execute_with_receipt(&mut session, &bad, &ctx(SEED)).unwrap_err().to_string();
+        assert_eq!(refused, want);
         assert!(session.is_live());
         assert_eq!(session.identities(), &identities);
         assert_eq!(

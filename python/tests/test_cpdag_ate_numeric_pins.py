@@ -1,12 +1,14 @@
-"""Numeric evidence for licensed CPDAG ATE cells."""
+"""Numeric evidence for supported CPDAG ATE cells."""
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_json
 
@@ -70,8 +72,8 @@ def _assert_common_cell_contract(
 ) -> None:
     expected_source = "accepted" if accepted else "explicit"
     assert prepared.structure_source == expected_source
-    assert prepared.evidence_status == "licensed"
-    assert fresh.evidence_status == click.evidence_status == "licensed"
+    assert prepared.evidence_status == "supported"
+    assert fresh.evidence_status == click.evidence_status == "supported"
     assert fresh.plan.validation_suite == click.plan.validation_suite == validation_suite
     assert fresh.plan.identifier == click.plan.identifier == identifier
     assert fresh.plan.estimator == click.plan.estimator == estimator
@@ -121,29 +123,28 @@ def test_cpdag_ate_envelope_numeric_pin(
         )
         seed = int(section["seed"])
     else:
-        inference = None
+        inference = antecedent.Frequentist(bootstrap=0)
         seed = 1
 
-    fresh = antecedent.analyze(
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=query,
+            inference=inference,
+            refute=validation,
+            execution=antecedent.Execution(seed=seed),
+        )
+    )
+    prepared = antecedent.prepare(
         data,
         graph=graph,
         query=query,
-        inference=inference,
+        inference=replace(inference, profile="interactive"),
         refute=validation,
-        bootstrap=0,
-        seed=seed,
+        execution=antecedent.Execution(seed=seed),
     )
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
-        data,
-        graph=graph,
-        query=query,
-        inference=inference,
-        refute=validation,
-        bootstrap=0,
-        seed=seed,
-        latency="interactive",
-    )
-    click = prepared.estimate(data, seed=seed)
+    click = require_success(antecedent.estimate(prepared))
 
     _assert_common_cell_contract(
         fresh,
@@ -178,21 +179,30 @@ def test_cpdag_ate_envelope_numeric_pin(
             assert result.posterior.effect_mean == pytest.approx(
                 section["expected_ate"], abs=section["absolute_tolerance"]
             )
+            # The 1e-9 pin above reads the product's own draw sequence. Independent anchor: with
+            # equal atom weights the posterior mean is the average of the two completions'
+            # regression effects (adjusted 0.4, unadjusted 0.52, from the contingency table) up to
+            # the Monte Carlo error of 64 draws and the weak N(0, 10^2) prior; observed 0.0016
+            # away. Weights 0.3/0.7 (0.484) or a dropped atom (0.4 or 0.52) would sit 0.024 or more away.
+            completions = _PIN["identification"]["completion_effects"]
+            assert result.posterior.effect_mean == pytest.approx(
+                sum(completions) / len(completions), abs=0.01
+            )
 
 
 def test_cpdag_same_schema_refresh_reuses_identification() -> None:
     data = _expand_contingency(_PIN)
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         data,
         graph=_cpdag(accepted=False),
         query=_query(_PIN),
         refute=False,
-        bootstrap=0,
-        seed=1,
-        latency="interactive",
+        inference=antecedent.Frequentist(bootstrap=0, profile="interactive"),
+        execution=antecedent.Execution(seed=1),
     )
-    click = prepared.estimate(data, seed=1)
-    refreshed = prepared.refresh(data, seed=1)
+    click = require_success(antecedent.estimate(prepared))
+    branch = antecedent.rebind(prepared, data=data)
+    refreshed = require_success(antecedent.estimate(branch))
     expected = float(_PIN["frequentist"]["expected_ate"])
     tolerance = float(_PIN["frequentist"]["absolute_tolerance"])
     assert click.ate == pytest.approx(expected, abs=tolerance)

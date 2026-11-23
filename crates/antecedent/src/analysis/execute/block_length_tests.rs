@@ -12,7 +12,7 @@
 //! of `y[t] = B·x[t-1] + u[t]` (OLS slope with intercept) on its lag-aligned
 //! `(x[t-1], y[t])` rows, `t = 1..n`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -227,13 +227,13 @@ fn sensitivity(label: &str, rho: f64, n: usize, seed_base: u64) {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn shared_block_length_sensitivity_iid_n160() {
     sensitivity("shared circular block, iid n=160", 0.0, 160, 50_000);
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn shared_block_length_sensitivity_ar1_rho05_n160() {
     sensitivity("shared circular block, AR(1) rho=0.5 n=160", 0.5, 160, 51_000);
 }

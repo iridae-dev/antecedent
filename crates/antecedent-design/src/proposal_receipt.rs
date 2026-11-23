@@ -12,7 +12,8 @@
 //! * the source and snapshot lineage (evidence lineage and provider snapshot of the
 //!   signal request, the source distribution digests);
 //! * the ranking entry (signal request fingerprint, signal identity, EVSI and net
-//!   value bits, rank) and a decision receipt (decision contract identity, utility
+//!   value bits, rank: verified-sufficient studies first, then the ranking's net-value order)
+//!   and a decision receipt (decision contract identity, utility
 //!   unit, action set digest, ranking identity).
 //!
 //! A [`ProposalBundle`] holds every proposal in the canonical order of semantic id;
@@ -33,7 +34,7 @@
 //! or [`ArrivalVerdict::Invalidated`] (a population or regime other than the
 //! premises the derivation was verified under).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -92,7 +93,7 @@ impl ProposalReceiptError {
     fn not_evidence(message: impl Into<String>) -> Self {
         Self {
             code: antecedent_core::reason_code!("transport_missing_evidence"),
-            detail: "proposal_receipt.hypothetical_not_evidence",
+            detail: antecedent_core::reason_details::proposal_receipt::HYPOTHETICAL_NOT_EVIDENCE,
             message: message.into(),
         }
     }
@@ -101,7 +102,7 @@ impl ProposalReceiptError {
     fn cancelled() -> Self {
         Self {
             code: antecedent_core::reason_code!("transport_budget_cancel"),
-            detail: "proposal_receipt.arrival_cancelled",
+            detail: antecedent_core::reason_details::proposal_receipt::ARRIVAL_CANCELLED,
             message: "the re-identification on arrived evidence was cancelled".to_owned(),
         }
     }
@@ -121,7 +122,12 @@ fn list_digest(label: &str, values: &[String]) -> String {
 
 fn regimes_digest(regimes: &[EvidenceRegimeWire]) -> Result<String> {
     antecedent_io_core::digest_hex(IdentityDomain::Identification, &regimes.to_vec()).map_err(
-        |error| ProposalReceiptError::invalid("proposal_receipt.invalid_delta", error.to_string()),
+        |error| {
+            ProposalReceiptError::invalid(
+                antecedent_core::reason_details::proposal_receipt::INVALID_DELTA,
+                error.to_string(),
+            )
+        },
     )
 }
 
@@ -340,12 +346,12 @@ fn singleton_outcome<'a>(
     }
     if singles().next().is_some() {
         return Err(ProposalReceiptError::mismatch(
-            "proposal_receipt.candidate_not_proposed",
+            antecedent_core::reason_details::proposal_receipt::CANDIDATE_NOT_PROPOSED,
             format!("candidate {id} has no evaluated repair outcome (invalid or unevaluated)"),
         ));
     }
     Err(ProposalReceiptError::mismatch(
-        "proposal_receipt.candidate_not_in_repair",
+        antecedent_core::reason_details::proposal_receipt::CANDIDATE_NOT_IN_REPAIR,
         format!("candidate {id} has no outcome in the repair artifact"),
     ))
 }
@@ -356,7 +362,7 @@ fn find_scored<'a>(
 ) -> Result<&'a EvsiCandidateWire> {
     ranking.candidates.iter().find(|c| c.semantic_id == id).ok_or_else(|| {
         ProposalReceiptError::mismatch(
-            "proposal_receipt.candidate_not_in_ranking",
+            antecedent_core::reason_details::proposal_receipt::CANDIDATE_NOT_IN_RANKING,
             format!("candidate {id} is not in the ranking artifact"),
         )
     })
@@ -370,7 +376,7 @@ fn check_declared(
     let declared =
         repair.premises.candidates.iter().find(|c| c.semantic_id == id).ok_or_else(|| {
             ProposalReceiptError::mismatch(
-                "proposal_receipt.candidate_not_in_repair",
+                antecedent_core::reason_details::proposal_receipt::CANDIDATE_NOT_IN_REPAIR,
                 format!("candidate {id} is not declared in the repair artifact"),
             )
         })?;
@@ -379,13 +385,13 @@ fn check_declared(
         || scored.sample_size != declared.sample_size
     {
         return Err(ProposalReceiptError::mismatch(
-            "proposal_receipt.cost_mismatch",
+            antecedent_core::reason_details::proposal_receipt::COST_MISMATCH,
             format!("candidate {id} is costed or sized differently in the two artifacts"),
         ));
     }
     if scored.request.candidate_id != id {
         return Err(ProposalReceiptError::mismatch(
-            "proposal_receipt.signal_mismatch",
+            antecedent_core::reason_details::proposal_receipt::SIGNAL_MISMATCH,
             format!("the signal request of candidate {id} names another candidate"),
         ));
     }
@@ -411,6 +417,29 @@ fn snapshots_of(scored: &EvsiCandidateWire) -> Vec<String> {
     snapshots
 }
 
+/// The proposal rank of `id`: verified-sufficient studies come first, then the ranking's own
+/// order (net value and its tie-breakers) within each group, so an insufficient study never
+/// outranks a sufficient one. The count of strictly better candidates, as the ranking's own
+/// rank is.
+fn proposal_rank(
+    repair: &RepairReportArtifact,
+    ranking: &DesignRankingArtifactWire,
+    id: &str,
+) -> Result<u64> {
+    let key = |candidate: &str, rank: u64| -> Result<(bool, u64)> {
+        let outcome = singleton_outcome(repair, candidate)?;
+        Ok((outcome.classification != "verified_sufficient", rank))
+    };
+    let own = key(id, find_scored(ranking, id)?.rank)?;
+    let mut better = 0_u64;
+    for candidate in &ranking.candidates {
+        if key(&candidate.semantic_id, candidate.rank)? < own {
+            better += 1;
+        }
+    }
+    Ok(better)
+}
+
 /// The receipt the two artifacts imply for `id`.
 fn derive_receipt(
     repair: &RepairReportArtifact,
@@ -422,7 +451,7 @@ fn derive_receipt(
     let outcome = singleton_outcome(repair, id)?;
     let delta = outcome.delta.as_ref().ok_or_else(|| {
         ProposalReceiptError::mismatch(
-            "proposal_receipt.candidate_not_proposed",
+            antecedent_core::reason_details::proposal_receipt::CANDIDATE_NOT_PROPOSED,
             format!("candidate {id} stores no hypothetical delta"),
         )
     })?;
@@ -465,7 +494,7 @@ fn derive_receipt(
             signal_identity: scored.signal_identity.clone(),
             evsi_bits: scored.evsi.to_bits(),
             net_value_bits: scored.net_value.map(f64::to_bits),
-            rank: scored.rank,
+            rank: proposal_rank(repair, ranking, id)?,
         },
         decision: DecisionReceipt {
             contract_identity: ranking.decision.contract_identity.clone(),
@@ -486,23 +515,29 @@ fn derive_receipt(
 /// Refuse an artifact whose stored seal does not match its content.
 fn check_seals(repair: &RepairReportArtifact, ranking: &DesignRankingArtifactWire) -> Result<()> {
     let resealed = repair.clone().sealed().map_err(|error| {
-        ProposalReceiptError::invalid("proposal_receipt.repair_digest_mismatch", error.to_string())
+        ProposalReceiptError::invalid(
+            antecedent_core::reason_details::proposal_receipt::REPAIR_DIGEST_MISMATCH,
+            error.to_string(),
+        )
     })?;
     if resealed.premises_digest != repair.premises_digest
         || resealed.data_digest != repair.data_digest
         || resealed.report_digest != repair.report_digest
     {
         return Err(ProposalReceiptError::mismatch(
-            "proposal_receipt.repair_digest_mismatch",
+            antecedent_core::reason_details::proposal_receipt::REPAIR_DIGEST_MISMATCH,
             "the repair artifact's digests do not match its content",
         ));
     }
     let ranking_digest = ranking.compute_digest().map_err(|error| {
-        ProposalReceiptError::invalid("proposal_receipt.ranking_digest_mismatch", error.to_string())
+        ProposalReceiptError::invalid(
+            antecedent_core::reason_details::proposal_receipt::RANKING_DIGEST_MISMATCH,
+            error.to_string(),
+        )
     })?;
     if ranking_digest != ranking.digest {
         return Err(ProposalReceiptError::mismatch(
-            "proposal_receipt.ranking_digest_mismatch",
+            antecedent_core::reason_details::proposal_receipt::RANKING_DIGEST_MISMATCH,
             "the ranking artifact's digest does not match its content",
         ));
     }
@@ -564,13 +599,13 @@ impl ProposalBundle {
         receipts.sort_by(|a, b| a.candidate_id.cmp(&b.candidate_id));
         let Some(first) = receipts.first() else {
             return Err(ProposalReceiptError::invalid(
-                "proposal_receipt.empty_bundle",
+                antecedent_core::reason_details::proposal_receipt::EMPTY_BUNDLE,
                 "a bundle holds at least one proposal",
             ));
         };
         if receipts.windows(2).any(|pair| pair[0].candidate_id == pair[1].candidate_id) {
             return Err(ProposalReceiptError::invalid(
-                "proposal_receipt.duplicate_candidate",
+                antecedent_core::reason_details::proposal_receipt::DUPLICATE_CANDIDATE,
                 "a candidate has two receipts",
             ));
         }
@@ -585,7 +620,7 @@ impl ProposalBundle {
                 || r.decision.contract_identity != contract
         }) {
             return Err(ProposalReceiptError::mismatch(
-                "proposal_receipt.bundle_inconsistent",
+                antecedent_core::reason_details::proposal_receipt::BUNDLE_INCONSISTENT,
                 "receipts name different repair artifacts, rankings or decision contracts",
             ));
         }
@@ -641,45 +676,84 @@ fn check_receipt(stored: &ProposalReceipt, expected: &ProposalReceipt) -> Result
         Err(ProposalReceiptError::mismatch(detail, format!("candidate {id}: {what} differs")))
     };
     if stored.base_failure.obligation_ids != expected.base_failure.obligation_ids {
-        return refuse("proposal_receipt.obligation_mismatch", "the frozen obligation set");
+        return refuse(
+            antecedent_core::reason_details::proposal_receipt::OBLIGATION_MISMATCH,
+            "the frozen obligation set",
+        );
     }
     if stored.base_failure != expected.base_failure {
-        return refuse("proposal_receipt.base_failure_mismatch", "the frozen base failure");
+        return refuse(
+            antecedent_core::reason_details::proposal_receipt::BASE_FAILURE_MISMATCH,
+            "the frozen base failure",
+        );
     }
     if stored.hypothetical.delta_digest != expected.hypothetical.delta_digest {
-        return refuse("proposal_receipt.delta_mismatch", "the hypothetical delta");
+        return refuse(
+            antecedent_core::reason_details::proposal_receipt::DELTA_MISMATCH,
+            "the hypothetical delta",
+        );
     }
     if stored.hypothetical != expected.hypothetical {
-        return refuse("proposal_receipt.derivation_mismatch", "the verified derivation");
+        return refuse(
+            antecedent_core::reason_details::proposal_receipt::DERIVATION_MISMATCH,
+            "the verified derivation",
+        );
     }
     if stored.cost != expected.cost {
-        return refuse("proposal_receipt.cost_mismatch", "the declared cost");
+        return refuse(
+            antecedent_core::reason_details::proposal_receipt::COST_MISMATCH,
+            "the declared cost",
+        );
     }
     if stored.lineage.source_digest != expected.lineage.source_digest {
-        return refuse("proposal_receipt.source_digest_mismatch", "the source digests");
+        return refuse(
+            antecedent_core::reason_details::proposal_receipt::SOURCE_DIGEST_MISMATCH,
+            "the source digests",
+        );
     }
     if stored.lineage != expected.lineage {
-        return refuse("proposal_receipt.lineage_mismatch", "the snapshot lineage");
+        return refuse(
+            antecedent_core::reason_details::proposal_receipt::LINEAGE_MISMATCH,
+            "the snapshot lineage",
+        );
     }
     if stored.valuation.signal_request_fingerprint != expected.valuation.signal_request_fingerprint
         || stored.valuation.signal_identity != expected.valuation.signal_identity
     {
-        return refuse("proposal_receipt.signal_mismatch", "the signal request or identity");
+        return refuse(
+            antecedent_core::reason_details::proposal_receipt::SIGNAL_MISMATCH,
+            "the signal request or identity",
+        );
     }
     if stored.valuation != expected.valuation {
-        return refuse("proposal_receipt.value_mismatch", "the ranking value");
+        return refuse(
+            antecedent_core::reason_details::proposal_receipt::VALUE_MISMATCH,
+            "the ranking value",
+        );
     }
     if stored.decision != expected.decision {
-        return refuse("proposal_receipt.contract_mismatch", "the decision receipt");
+        return refuse(
+            antecedent_core::reason_details::proposal_receipt::CONTRACT_MISMATCH,
+            "the decision receipt",
+        );
     }
     if stored.repair_report_digest != expected.repair_report_digest {
-        return refuse("proposal_receipt.repair_digest_mismatch", "the repair artifact digest");
+        return refuse(
+            antecedent_core::reason_details::proposal_receipt::REPAIR_DIGEST_MISMATCH,
+            "the repair artifact digest",
+        );
     }
     if stored.ranking_digest != expected.ranking_digest {
-        return refuse("proposal_receipt.ranking_digest_mismatch", "the ranking artifact digest");
+        return refuse(
+            antecedent_core::reason_details::proposal_receipt::RANKING_DIGEST_MISMATCH,
+            "the ranking artifact digest",
+        );
     }
     if stored.identity != expected.identity || stored.identity != stored.compute_identity() {
-        return refuse("proposal_receipt.identity_mismatch", "the receipt identity");
+        return refuse(
+            antecedent_core::reason_details::proposal_receipt::IDENTITY_MISMATCH,
+            "the receipt identity",
+        );
     }
     Ok(())
 }
@@ -708,7 +782,7 @@ pub fn verify(
     check_seals(repair, ranking)?;
     if bundle.proposals.is_empty() {
         return Err(ProposalReceiptError::invalid(
-            "proposal_receipt.empty_bundle",
+            antecedent_core::reason_details::proposal_receipt::EMPTY_BUNDLE,
             "a bundle holds at least one proposal",
         ));
     }
@@ -718,19 +792,19 @@ pub fn verify(
     }
     if bundle.repair_report_digest != repair.report_digest {
         return Err(ProposalReceiptError::mismatch(
-            "proposal_receipt.repair_digest_mismatch",
+            antecedent_core::reason_details::proposal_receipt::REPAIR_DIGEST_MISMATCH,
             "the bundle names another repair artifact",
         ));
     }
     if bundle.ranking_digest != ranking.digest {
         return Err(ProposalReceiptError::mismatch(
-            "proposal_receipt.ranking_digest_mismatch",
+            antecedent_core::reason_details::proposal_receipt::RANKING_DIGEST_MISMATCH,
             "the bundle names another ranking artifact",
         ));
     }
     if bundle.decision_contract_identity != ranking.decision.contract_identity {
         return Err(ProposalReceiptError::mismatch(
-            "proposal_receipt.contract_mismatch",
+            antecedent_core::reason_details::proposal_receipt::CONTRACT_MISMATCH,
             "the bundle names another decision contract",
         ));
     }
@@ -740,7 +814,7 @@ pub fn verify(
     check_coverage(bundle, ranking)?;
     if bundle.identity != bundle.compute_identity() {
         return Err(ProposalReceiptError::mismatch(
-            "proposal_receipt.bundle_identity_mismatch",
+            antecedent_core::reason_details::proposal_receipt::BUNDLE_IDENTITY_MISMATCH,
             "the bundle identity does not follow from its content",
         ));
     }
@@ -750,7 +824,7 @@ pub fn verify(
 fn check_coverage(bundle: &ProposalBundle, ranking: &DesignRankingArtifactWire) -> Result<()> {
     if bundle.proposals.windows(2).any(|pair| pair[0].candidate_id >= pair[1].candidate_id) {
         return Err(ProposalReceiptError::mismatch(
-            "proposal_receipt.non_canonical_order",
+            antecedent_core::reason_details::proposal_receipt::NON_CANONICAL_ORDER,
             "proposals are not in strictly increasing candidate order",
         ));
     }
@@ -759,7 +833,7 @@ fn check_coverage(bundle: &ProposalBundle, ranking: &DesignRankingArtifactWire) 
         ranking.candidates.iter().map(|c| c.semantic_id.as_str()).collect();
     if held != ranked {
         return Err(ProposalReceiptError::mismatch(
-            "proposal_receipt.candidate_set_mismatch",
+            antecedent_core::reason_details::proposal_receipt::CANDIDATE_SET_MISMATCH,
             "the bundle's candidates are not exactly the ranking's candidates",
         ));
     }
@@ -851,6 +925,10 @@ fn owner(family: RepairFamilyRef<'_>) -> &dyn RepairFamily {
         RepairFamilyRef::Transport(f) => f,
         RepairFamilyRef::Backdoor(f) => f,
         RepairFamilyRef::ZTransport(f) => f,
+        RepairFamilyRef::FrontDoor(f) => f,
+        RepairFamilyRef::Instrument(f) => f,
+        RepairFamilyRef::Hedge(f) => f,
+        RepairFamilyRef::Sensitivity(f) => f,
     }
 }
 
@@ -858,19 +936,22 @@ fn hypothetical_of(
     family: RepairFamilyRef<'_>,
     candidate: &DurableStudyCandidate,
 ) -> Result<Vec<EvidenceRegime>> {
-    let regimes = match family {
-        RepairFamilyRef::Transport(f) => f.hypothetical_regimes(&[candidate]),
-        RepairFamilyRef::Backdoor(f) => f.hypothetical_regimes(&[candidate]),
-        RepairFamilyRef::ZTransport(f) => f.hypothetical_regimes(&[candidate]),
-    };
+    let regimes = owner(family).hypothetical_regimes(&[candidate]);
     regimes.map_err(|reasons| {
-        ProposalReceiptError::invalid("proposal_receipt.invalid_delta", reasons.join("; "))
+        ProposalReceiptError::invalid(
+            antecedent_core::reason_details::proposal_receipt::INVALID_DELTA,
+            reasons.join("; "),
+        )
     })
 }
 
 fn regimes_wire_digest(regimes: &[EvidenceRegime]) -> Result<String> {
-    let invalid =
-        |message: String| ProposalReceiptError::invalid("proposal_receipt.invalid_delta", message);
+    let invalid = |message: String| {
+        ProposalReceiptError::invalid(
+            antecedent_core::reason_details::proposal_receipt::INVALID_DELTA,
+            message,
+        )
+    };
     let catalog = EvidenceCatalog::try_new([], regimes.to_vec(), [], None)
         .map_err(|error| invalid(error.to_string()))?;
     regimes_digest(&EvidenceCatalogWire::from_catalog(&catalog).regimes)
@@ -884,7 +965,7 @@ fn check_receipt_matches(
 ) -> Result<Vec<EvidenceRegime>> {
     if candidate.semantic_id().as_ref() != receipt.candidate_id {
         return Err(ProposalReceiptError::mismatch(
-            "proposal_receipt.candidate_mismatch",
+            antecedent_core::reason_details::proposal_receipt::CANDIDATE_MISMATCH,
             "the candidate is not the one the receipt binds",
         ));
     }
@@ -893,7 +974,7 @@ fn check_receipt_matches(
         || failed.contract_id() != receipt.base_failure.contract
     {
         return Err(ProposalReceiptError::mismatch(
-            "proposal_receipt.base_failure_mismatch",
+            antecedent_core::reason_details::proposal_receipt::BASE_FAILURE_MISMATCH,
             "the family or contract is not the frozen base failure of the receipt",
         ));
     }
@@ -902,14 +983,14 @@ fn check_receipt_matches(
     obligation_ids.sort();
     if obligation_ids != receipt.base_failure.obligation_ids {
         return Err(ProposalReceiptError::mismatch(
-            "proposal_receipt.obligation_mismatch",
+            antecedent_core::reason_details::proposal_receipt::OBLIGATION_MISMATCH,
             "the family's unresolved obligations are not the frozen obligation set",
         ));
     }
     let proposed = hypothetical_of(family, candidate)?;
     if regimes_wire_digest(&proposed)? != receipt.hypothetical.delta_digest {
         return Err(ProposalReceiptError::mismatch(
-            "proposal_receipt.delta_mismatch",
+            antecedent_core::reason_details::proposal_receipt::DELTA_MISMATCH,
             "the candidate's hypothetical delta is not the one the receipt binds",
         ));
     }
@@ -934,7 +1015,10 @@ fn observed_regime(law: &ObservedLaw) -> Result<EvidenceRegime> {
         distribution,
     )
     .map_err(|error| {
-        ProposalReceiptError::invalid("proposal_receipt.arrival_invalid", error.to_string())
+        ProposalReceiptError::invalid(
+            antecedent_core::reason_details::proposal_receipt::ARRIVAL_INVALID,
+            error.to_string(),
+        )
     })
 }
 
@@ -947,13 +1031,13 @@ fn arrived_regimes(
 ) -> Result<Vec<EvidenceRegime>> {
     if arrival.snapshot_id.trim().is_empty() {
         return Err(ProposalReceiptError::invalid(
-            "proposal_receipt.arrival_invalid",
+            antecedent_core::reason_details::proposal_receipt::ARRIVAL_INVALID,
             "an arrival names the snapshot it delivers",
         ));
     }
     if arrival.sample_size != candidate.sample_size {
         return Err(ProposalReceiptError::mismatch(
-            "proposal_receipt.arrival_sample_mismatch",
+            antecedent_core::reason_details::proposal_receipt::ARRIVAL_SAMPLE_MISMATCH,
             format!(
                 "{} rows arrived where the proposal planned {}",
                 arrival.sample_size, candidate.sample_size
@@ -965,7 +1049,7 @@ fn arrived_regimes(
         ArrivedEvidence::ObservedLaw(law) => {
             if !matches!(family, RepairFamilyRef::Backdoor(_)) {
                 return Err(ProposalReceiptError::mismatch(
-                    "proposal_receipt.arrival_family_mismatch",
+                    antecedent_core::reason_details::proposal_receipt::ARRIVAL_FAMILY_MISMATCH,
                     "an observed law answers a back-door contract only",
                 ));
             }
@@ -974,7 +1058,7 @@ fn arrived_regimes(
     };
     if regimes.is_empty() {
         return Err(ProposalReceiptError::invalid(
-            "proposal_receipt.arrival_empty",
+            antecedent_core::reason_details::proposal_receipt::ARRIVAL_EMPTY,
             "the arrival delivers no regime",
         ));
     }
@@ -1078,6 +1162,10 @@ fn run_family(
                 .collect(),
             ctx,
         ),
+        RepairFamilyRef::FrontDoor(f) => f.check_regimes(regimes, ctx),
+        RepairFamilyRef::Instrument(f) => f.check_regimes(regimes, ctx),
+        RepairFamilyRef::Hedge(f) => f.check_regimes(regimes, ctx),
+        RepairFamilyRef::Sensitivity(f) => f.check_regimes(regimes, ctx),
     };
     verdict.map_err(|RepairCancelled| ProposalReceiptError::cancelled())
 }
@@ -1108,7 +1196,7 @@ fn verdict_of(
             Ok(ArrivalVerdict::StillInsufficient { reasons })
         }
         FamilyVerdict::Invalid { reasons } => Err(ProposalReceiptError::invalid(
-            "proposal_receipt.arrival_invalid",
+            antecedent_core::reason_details::proposal_receipt::ARRIVAL_INVALID,
             reasons.join("; "),
         )),
     }

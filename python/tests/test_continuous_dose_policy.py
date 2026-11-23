@@ -4,6 +4,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent.errors import CausalValueError
+from antecedent.outcomes import require_success
 
 
 def _data(rows: int = 800) -> dict[str, np.ndarray]:
@@ -37,22 +38,34 @@ def _query(provenance: str = "known") -> ant.policy.ConditionalDoseResponse:
 def test_fixed_dose_policy_uses_retained_analyze_and_prepare():
     data = _data()
     query = _query()
-    result = ant.analyze(data, query=query, refute="none")
+    result = require_success(ant.analyze(data, query=query, refute="none"))
     response = result.continuous_dose_response
     assert response is not None
     assert response.policy_value_estimated
-    assert response.support_status == "licensed"
+    assert response.support_status == "supported"
     assert response.points == ()
     value = response.fixed_policy
     assert value is not None
-    assert value.incremental_value == pytest.approx(0.7, abs=0.15)
+    # Structural values (equal groups): policy mean of 1 + 1.5 * 0.7 = 2.05 (a) and 2 + 2 * 0.8
+    # = 3.6 (b) is 2.825; reference 1.45 and 2.8 gives 2.125; increment 0.7. Observed errors are
+    # 0.012, 0.005 and 0.007 (the smooth sin term and kernel bias).
+    assert value.policy_value == pytest.approx(2.825, abs=0.03)
+    assert value.reference_value == pytest.approx(2.125, abs=0.03)
+    assert value.incremental_value == pytest.approx(0.7, abs=0.03)
+    low, high = value.incremental_interval_95
+    assert low < 0.7 < high
     assert value.policy_interval_95 is not None
     assert value.reference_interval_95 is not None
     assert value.incremental_interval_95 is not None
     assert result.answer.detail == "fixed_group_kernel_smoothed_dose_policy_value"
-    assert ant.load(result.export(artifact_id="dose-policy")).answer == result.answer
     assert (
-        ant.prepare(data, query=query, refute="none").estimate(data).continuous_dose_response
+        require_success(ant.load(bytes(result.export(artifact_id="dose-policy")))).answer
+        == result.answer
+    )
+    assert (
+        require_success(
+            ant.estimate(ant.prepare(data, query=query, refute="none"))
+        ).continuous_dose_response
         == response
     )
 
@@ -70,26 +83,33 @@ def test_fixed_dose_policy_refuses_malformed_rules_and_withholds_external_densit
             policy_doses={"a": 0.7},
         )
     with pytest.raises(Exception, match="every observed baseline group"):
-        ant.analyze(
-            _data(),
-            query=ant.policy.ConditionalDoseResponse(
-                "outcome",
-                "dose",
-                "group",
-                "density",
-                (),
-                0.2,
-                "known",
-                policy_doses={"a": 0.7},
-                reference_doses={"a": 0.3},
-            ),
-            refute="none",
+        require_success(
+            ant.analyze(
+                _data(),
+                query=ant.policy.ConditionalDoseResponse(
+                    "outcome",
+                    "dose",
+                    "group",
+                    "density",
+                    (),
+                    0.2,
+                    "known",
+                    policy_doses={"a": 0.7},
+                    reference_doses={"a": 0.3},
+                ),
+                refute="none",
+            )
         )
-    result = ant.analyze(_data(), query=_query("externally_estimated"), refute="none")
-    assert result.continuous_dose_response.support_status == "unlicensed_point_utility"
+    result = require_success(
+        ant.analyze(_data(), query=_query("externally_estimated"), refute="none")
+    )
+    assert result.continuous_dose_response.support_status == "unsupported_point_utility"
     value = result.continuous_dose_response.fixed_policy
     assert value is not None
     assert value.incremental_interval_95 is None
     assert value.policy_interval_95 is None
     assert value.reference_interval_95 is None
-    assert ant.load(result.export(artifact_id="dose-policy-external")).answer == result.answer
+    assert (
+        require_success(ant.load(bytes(result.export(artifact_id="dose-policy-external")))).answer
+        == result.answer
+    )

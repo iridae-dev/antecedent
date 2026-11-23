@@ -14,9 +14,9 @@
 //! identification, available as the first grid point), and the sampling interval is
 //! withheld exactly as the result declares it (`sampling interval: not reported`).
 //! No sampling composition is expressible: a composed interval is refused by the
-//! artifact (`composition_not_licensed`).
+//! artifact (`composition_not_supported`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ScientificQuantity;
 pub use antecedent_validate::{
@@ -48,7 +48,7 @@ fn refused(code: &'static str, detail: &str, text: &str) -> IoError {
 fn invalid_effect() -> IoError {
     refused(
         antecedent_core::reason_code!("invalid_argument"),
-        "sensitivity_decision_composition.invalid_surface",
+        antecedent_core::reason_details::sensitivity_decision_composition::INVALID_SURFACE,
         "a surface quantity coordinate is invalid",
     )
 }
@@ -100,7 +100,7 @@ pub fn msm_sensitivity_artifact(
     if result.inference_claim != SENSITIVITY_INFERENCE_CLAIM {
         return Err(refused(
             antecedent_core::reason_code!("decision_contract_unsatisfied"),
-            "sensitivity_decision_composition.wrong_contract",
+            antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT,
             "only an assumption-range result can be adapted",
         ));
     }

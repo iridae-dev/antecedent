@@ -129,7 +129,7 @@ pub fn correct_classical_linear_effect(
     else {
         return Err(super::MeasurementError::new(
             antecedent_core::reason_code!("measurement_model_invalid"),
-            "measurement_model.invalid_model",
+            antecedent_core::reason_details::measurement_model::INVALID_MODEL,
             "classical route needs classical error parameters",
         ));
     };
@@ -186,14 +186,14 @@ pub fn correct_repeated_linear_effect(
     else {
         return Err(MeasurementError::new(
             antecedent_core::reason_code!("measurement_model_invalid"),
-            "measurement_model.invalid_model",
+            antecedent_core::reason_details::measurement_model::INVALID_MODEL,
             "repeated route needs repeated-measurement parameters",
         ));
     };
     if outcome.len() != replicate_counts.len() {
         return Err(MeasurementError::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "measurement_model.input_invalid",
+            antecedent_core::reason_details::measurement_model::INPUT_INVALID,
             "outcome and replicate counts differ in length",
         ));
     }
@@ -201,7 +201,7 @@ pub fn correct_repeated_linear_effect(
     if replicated < *min_replicated_units as usize {
         return Err(MeasurementError::new(
             antecedent_core::reason_code!("measurement_not_identified"),
-            "measurement_model.insufficient_replicates",
+            antecedent_core::reason_details::measurement_model::INSUFFICIENT_REPLICATES,
             format!(
                 "{replicated} units carry two or more replicates; the model declares at least {min_replicated_units}"
             ),

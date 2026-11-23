@@ -13,7 +13,7 @@
 //! relative error near machine epsilon for normal results; subnormal tails
 //! necessarily lose relative precision.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Coefficients for erf on |x| <= 0.46875 (Cody, SPECFUN `CALERF`).
 #[allow(
@@ -117,6 +117,12 @@ fn exp_neg_square_split(y: f64) -> f64 {
     (-t * t).exp() * (-del).exp()
 }
 
+/// `exp(-(y + d)^2)` for a tiny shift `d`, as `exp(-y^2) * exp(-(2 y d + d^2))`.
+fn exp_neg_square_split_shifted(y: f64, d: f64) -> f64 {
+    let base = exp_neg_square_split(y);
+    if d == 0.0 { base } else { base * (-(2.0 * y * d + d * d)).exp() }
+}
+
 /// Complementary error function `erfc(x) = 1 - erf(x)`.
 ///
 /// Cody's rational-Chebyshev approximation; relative error near machine epsilon
@@ -124,11 +130,40 @@ fn exp_neg_square_split(y: f64) -> f64 {
 /// accuracy until rounding to zero near x = 27.3.
 #[must_use]
 pub fn erfc(x: f64) -> f64 {
+    erfc_split(x, 0.0)
+}
+
+/// High and low parts of `1/sqrt(2)`: `FRAC_1_SQRT_2_HI + FRAC_1_SQRT_2_LO` agrees with the
+/// true value to about 1e-33.
+const FRAC_1_SQRT_2_HI: f64 = std::f64::consts::FRAC_1_SQRT_2;
+const FRAC_1_SQRT_2_LO: f64 = -4.833_646_656_726_457e-17;
+
+/// `a / sqrt(2)` as an unevaluated sum `(hi, lo)` with `hi + lo` correct to about 1e-33
+/// relative, so the rounding of the quotient does not enter the tail exponent.
+fn over_sqrt_2(a: f64) -> (f64, f64) {
+    let hi = a * FRAC_1_SQRT_2_HI;
+    if !hi.is_finite() {
+        return (hi, 0.0);
+    }
+    (hi, a.mul_add(FRAC_1_SQRT_2_HI, -hi) + a * FRAC_1_SQRT_2_LO)
+}
+
+/// `erfc(x + x_lo)` for `|x_lo| <= ulp(x)`.
+///
+/// `erfc` in the tail is `exp(-y^2)` times a slowly varying factor, so an argument error `d`
+/// changes the value by the factor `exp(-2 y d)`, a relative error of `2 y^2 * 1e-16`. That is
+/// harmless for `erfc` of an exact argument but not for the normal CDF `Phi(x) = erfc(-x/sqrt(2))/2`,
+/// whose argument `x/sqrt(2)` is rounded: at `x = -37.5` the rounding alone cost `1.4e-13`
+/// relative. Carrying the rounding residual `x_lo` into the exponent removes that term; the
+/// slowly varying factor changes by a relative `d / y`, far below the working precision.
+fn erfc_split(x: f64, x_lo: f64) -> f64 {
     let y = x.abs();
     if y <= CODY_THRESH {
         // erfc is O(1) here, so 1 - erf carries no cancellation.
         return 1.0 - erf(x);
     }
+    // The true magnitude is `y + d`.
+    let d = if x < 0.0 { -x_lo } else { x_lo };
 
     let mag = if y <= 4.0 {
         let mut num = CODY_C[8] * y;
@@ -137,7 +172,7 @@ pub fn erfc(x: f64) -> f64 {
             num = (num + CODY_C[i]) * y;
             den = (den + CODY_D[i]) * y;
         }
-        exp_neg_square_split(y) * ((num + CODY_C[7]) / (den + CODY_D[7]))
+        exp_neg_square_split_shifted(y, d) * ((num + CODY_C[7]) / (den + CODY_D[7]))
     } else if y >= CODY_XBIG {
         0.0
     } else {
@@ -149,7 +184,7 @@ pub fn erfc(x: f64) -> f64 {
             den = (den + CODY_Q[i]) * ysq;
         }
         let r = ysq * (num + CODY_P[4]) / (den + CODY_Q[4]);
-        exp_neg_square_split(y) * ((SQRT_PI_INV - r) / y)
+        exp_neg_square_split_shifted(y, d) * ((SQRT_PI_INV - r) / y)
     };
 
     if x < 0.0 { 2.0 - mag } else { mag }
@@ -182,7 +217,8 @@ pub fn erf(x: f64) -> f64 {
 /// the left tail keeps full relative accuracy instead of cancelling against 1.
 #[must_use]
 pub fn norm_cdf(x: f64) -> f64 {
-    0.5 * erfc(-x / std::f64::consts::SQRT_2)
+    let (hi, lo) = over_sqrt_2(-x);
+    0.5 * erfc_split(hi, lo)
 }
 
 /// Standard normal survival function `1 - Φ(x)`, computed directly.
@@ -192,7 +228,8 @@ pub fn norm_cdf(x: f64) -> f64 {
 /// this stays accurate until the true value underflows near x ~ 38.5.
 #[must_use]
 pub fn norm_sf(x: f64) -> f64 {
-    0.5 * erfc(x / std::f64::consts::SQRT_2)
+    let (hi, lo) = over_sqrt_2(x);
+    0.5 * erfc_split(hi, lo)
 }
 
 /// Standard normal PDF ϕ(x) = (1/√(2π)) exp(−x²/2).
@@ -209,6 +246,84 @@ const LN_SQRT_2PI: f64 = 0.918_938_533_204_672_8;
 #[must_use]
 pub fn log_norm_pdf(x: f64) -> f64 {
     -LN_SQRT_2PI - 0.5 * x * x
+}
+
+/// Why [`gaussian_log_density`] refused its inputs.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GaussianDensityError {
+    /// `values`, `mean` and `out` do not have the same length.
+    LengthMismatch,
+    /// `sigma` is not a positive finite number.
+    InvalidScale,
+}
+
+impl core::fmt::Display for GaussianDensityError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::LengthMismatch => "gaussian log-density buffers differ in length",
+            Self::InvalidScale => "gaussian scale must be positive and finite",
+        })
+    }
+}
+
+impl std::error::Error for GaussianDensityError {}
+
+/// Row-wise Gaussian log-density `ln N(vᵢ; μᵢ, σ²) = −½ ln 2π − ln σ − ½ ((vᵢ − μᵢ)/σ)²`
+/// written into `out`.
+///
+/// The single workspace owner of the per-row normal log-density with a common scale. The scale
+/// enters as `log_norm = −½ ln 2π − ln σ` and `z = (v − μ) · (1/σ)`, so a `NaN` value or mean
+/// yields `NaN` for that row and nothing else. On error `out` is left untouched.
+///
+/// # Errors
+///
+/// See [`GaussianDensityError`].
+pub fn gaussian_log_density(
+    values: &[f64],
+    mean: &[f64],
+    sigma: f64,
+    out: &mut [f64],
+) -> Result<(), GaussianDensityError> {
+    if values.len() != mean.len() || values.len() != out.len() {
+        return Err(GaussianDensityError::LengthMismatch);
+    }
+    let (log_norm, inv_sigma) = gaussian_constants(sigma)?;
+    for ((slot, &v), &m) in out.iter_mut().zip(values).zip(mean) {
+        let z = (v - m) * inv_sigma;
+        *slot = log_norm - 0.5 * z * z;
+    }
+    Ok(())
+}
+
+/// [`gaussian_log_density`] with one common mean for every row (the standard normal for
+/// `mean = 0`, `sigma = 1`).
+///
+/// # Errors
+///
+/// See [`GaussianDensityError`]; the length check is `values.len() == out.len()`.
+pub fn gaussian_log_density_common_mean(
+    values: &[f64],
+    mean: f64,
+    sigma: f64,
+    out: &mut [f64],
+) -> Result<(), GaussianDensityError> {
+    if values.len() != out.len() {
+        return Err(GaussianDensityError::LengthMismatch);
+    }
+    let (log_norm, inv_sigma) = gaussian_constants(sigma)?;
+    for (slot, &v) in out.iter_mut().zip(values) {
+        let z = (v - mean) * inv_sigma;
+        *slot = log_norm - 0.5 * z * z;
+    }
+    Ok(())
+}
+
+/// `(−½ ln 2π − ln σ, 1/σ)` for a validated scale.
+fn gaussian_constants(sigma: f64) -> Result<(f64, f64), GaussianDensityError> {
+    if !(sigma.is_finite() && sigma > 0.0) {
+        return Err(GaussianDensityError::InvalidScale);
+    }
+    Ok((-0.5 * (2.0 * std::f64::consts::PI).ln() - sigma.ln(), 1.0 / sigma))
 }
 
 /// Left-tail Mills ratio pieces for `t ≥ 8`: returns `(ratio, delta)` with
@@ -263,7 +378,7 @@ pub fn log_norm_sf(z: f64) -> f64 {
 /// The 97.5% standard-normal quantile `z_{0.975}`, the two-sided 95% critical value.
 ///
 /// The single workspace owner of the constant a Wald 95% interval multiplies its standard
-/// error by. The nearest `f64` to `z_{0.975} = 1.95996398454005423552…` (verified against 40-digit `mpmath`; asserted within one ulp of `norm_inv(0.975)`), but a
+/// error by. The nearest `f64` to `z_{0.975} = 1.95996398454005423552…` (verified against 40-digit `mpmath`; asserted within 5e-16 of `norm_inv(0.975)`, whose f64 argument is itself 2.2e-17 below 0.975), but a
 /// `const` so it carries no evaluation cost and reads identically at every interval site.
 pub const NORMAL_Q975: f64 = 1.959_963_984_540_054_3;
 
@@ -287,7 +402,18 @@ pub fn norm_inv(p: f64) -> f64 {
     // For p > 0.5 the residual is taken through the survival function: `norm_cdf` saturates to
     // exactly 1.0 beyond x ≈ 8, which would erase the sub-ulp information the step needs in
     // the upper tail, while `Φ(x) − p == −(Sf(x) − (1 − p))` stays accurate there.
-    let f = if p <= 0.5 { norm_cdf(x0) - p } else { -(norm_sf(x0) - (1.0 - p)) };
+    //
+    // Within 0.2 of the median the residual is formed from `erf`, which keeps its relative
+    // accuracy as its argument shrinks, instead of `Phi(x0) - p`: both terms are near 1/2, so
+    // their difference would carry an absolute error of ~1e-16 and cost a quantile of size
+    // `x` a relative error `1e-16 / (x phi)` (2.4e-13 at p = 0.4999). `p - 0.5` is exact.
+    let f = if (p - 0.5).abs() <= 0.2 {
+        0.5 * erf(x0 * FRAC_1_SQRT_2_HI) - (p - 0.5)
+    } else if p <= 0.5 {
+        norm_cdf(x0) - p
+    } else {
+        -(norm_sf(x0) - (1.0 - p))
+    };
     let phi = norm_pdf(x0);
     let denom = 2.0 * phi + f * x0;
     if phi > 0.0 && denom.is_finite() && denom != 0.0 {
@@ -394,7 +520,9 @@ mod tests {
     fn norm_inv_known_quantiles() {
         // Reference Φ⁻¹ values (high precision).
         assert!((norm_inv(0.5) - 0.0).abs() < 1e-15);
-        assert!((norm_inv(0.975) - NORMAL_Q975).abs() < 2.3e-16);
+        // The f64 nearest 0.975 is 0.975 - 2.2e-17, whose exact quantile is 3.8e-16 below
+        // `NORMAL_Q975` (the quantile of the real number 0.975), so one ulp is not the right bound.
+        assert!((norm_inv(0.975) - NORMAL_Q975).abs() < 5e-16);
         assert!((norm_inv(0.025) + NORMAL_Q975).abs() < 2.3e-16);
         assert!((norm_inv(0.841_344_746_068_542_9) - 1.0).abs() < 4e-16);
     }
@@ -631,5 +759,29 @@ mod tests {
             let rel = (norm_cdf(x) - p).abs() / p;
             assert!(rel < 1e-7, "round trip at p={p} gave rel error {rel:e}");
         }
+    }
+
+    #[test]
+    fn gaussian_log_density_matches_the_closed_form_and_validates() {
+        let values = [0.0, 1.0, -2.5];
+        let mean = [0.0, 0.5, 1.0];
+        let mut out = [0.0; 3];
+        gaussian_log_density(&values, &mean, 2.0, &mut out).unwrap();
+        for ((&v, &m), &got) in values.iter().zip(&mean).zip(&out) {
+            let z = (v - m) / 2.0;
+            let want = -0.5 * (2.0 * std::f64::consts::PI).ln() - 2.0_f64.ln() - 0.5 * z * z;
+            assert!((got - want).abs() < 1e-14);
+        }
+        let mut std_normal = [0.0; 3];
+        gaussian_log_density_common_mean(&values, 0.0, 1.0, &mut std_normal).unwrap();
+        assert!((std_normal[0] - log_norm_pdf(0.0)).abs() < 1e-14);
+        assert_eq!(
+            gaussian_log_density(&values, &mean, 0.0, &mut out),
+            Err(GaussianDensityError::InvalidScale)
+        );
+        assert_eq!(
+            gaussian_log_density(&values, &mean[..2], 1.0, &mut out),
+            Err(GaussianDensityError::LengthMismatch)
+        );
     }
 }

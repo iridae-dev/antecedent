@@ -21,10 +21,10 @@ refusal mask of query regions the model must refuse, all under one identity::
 Scope. The export evaluates a point prediction ``f(x) = b' phi(x)`` inside the declared support
 and outside the refusal mask, and nothing else. The only uncertainty it can report is the
 model-based standard error ``sqrt(phi' V phi)`` from the stored covariance. It is labelled
-``model_based_sqrt_phi_v_phi`` with calibration **unmeasured**: it is never an interval or a
+``model_based_sqrt_phi_v_phi`` with calibration **not_measured**: it is never an interval or a
 coverage claim, and it carries no extrapolation or misspecification uncertainty. A query outside
 the declared support, in a masked region, with a missing, unknown or mistyped quantity, or with a
-non-finite value is refused (:class:`CompactExportRefusal`, ``cell_not_licensed``); nothing is
+non-finite value is refused (:class:`CompactExportRefusal`, ``invalid_argument``); nothing is
 extrapolated.
 
 Verification is independent: :meth:`CompactExport.consume` and every :meth:`~CompactExport.evaluate`
@@ -45,6 +45,15 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from antecedent import _reason_details
+
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._freeze import thaw
 from ._native import build_compact_export as _build
@@ -53,6 +62,7 @@ from ._native import evaluate_compact_export as _evaluate
 from ._refusal import StructuredRefusal
 from ._scientific import ScientificResult
 from ._validate import non_finite_refusal, real
+from ._validate import nonempty_name as _name
 from .errors import CausalTypeError, CausalValueError
 
 if TYPE_CHECKING:
@@ -80,24 +90,18 @@ class CompactExportRefusal(StructuredRefusal):
     """A typed refusal of the compact export.
 
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code``
-    (``cell_not_licensed`` for an unlicensed query, ``invalid_argument`` for a malformed or
+    (``invalid_argument`` for a query outside the declared domain and for a malformed or
     tampered export) and a ``compact_export.*`` ``detail`` such as
     ``compact_export.out_of_support`` or ``compact_export.masked_region``; ``offending`` is the
     quantity, region or identity the refusal is about.
     """
 
 
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value:
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
-
-
 _real = partial(
     real,
     finite=True,
     non_finite=non_finite_refusal(
-        CompactExportRefusal, stage="build", detail="compact_export.non_finite_value"
+        CompactExportRefusal, stage="build", detail=_reason_details.compact_export.NON_FINITE_VALUE
     ),
 )
 
@@ -273,7 +277,7 @@ class PointEstimate:
     """A point prediction with its model-based standard error.
 
     ``standard_error`` is ``sqrt(phi' V phi)`` from the stored covariance. It is **not** an
-    interval and not a coverage claim (``calibration == "calibration unmeasured"``), and it
+    interval and not a coverage claim (``calibration == "calibration not_measured"``), and it
     carries no extrapolation or misspecification uncertainty. ``export_identity`` names the
     export that produced the numbers.
     """
@@ -366,7 +370,7 @@ class CompactExport(ScientificResult):
                 {
                     "code": "invalid_argument",
                     "stage": "build",
-                    "detail": "compact_export.non_finite_value",
+                    "detail": _reason_details.compact_export.NON_FINITE_VALUE,
                     "offending": "coefficients_or_covariance",
                     "message": "coefficients and covariance must be finite",
                 }
@@ -392,6 +396,10 @@ class CompactExport(ScientificResult):
         )
 
     @classmethod
+    @artifact_consumer(
+        proof="compact_export.CompactExport.consume: independent semantic consumer checks declarations, identities and stored result",
+        replayable=False,
+    )
     def consume(cls, artifact: bytes, *, expected_identity: str) -> CompactExport:
         """Independently verify ``artifact`` against the identity the caller retained.
 
@@ -400,6 +408,7 @@ class CompactExport(ScientificResult):
         tampered coefficient, covariance, term, support, mask or scope (even when the container
         was resealed), a different identity, an oversized claim or an unknown version.
         """
+        artifact = container_bytes(artifact)
         if not isinstance(artifact, bytes | bytearray | memoryview):
             raise CausalTypeError("artifact must be bytes")
         _name(expected_identity, "expected_identity")
@@ -412,22 +421,17 @@ class CompactExport(ScientificResult):
         parsed = json.loads(summary)
         return cls(identity=parsed["identity"], body=parsed["body"], _artifact_bytes=data)
 
-    def artifact(self) -> ExportedArtifact[CompactExport]:
-        """Typed bytes envelope for shared scientific consumption."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self)
-
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[CompactExport]:
         """The checksummed ``compact_runtime_export_v1`` artifact."""
-        return self._artifact_bytes
+        return artifact_from_receipt(self, self._artifact_bytes)
 
     def evaluate(self, query: Mapping[str, Any]) -> PointEstimate:
         """Point prediction and model-based standard error at ``query``.
 
         ``query`` maps every declared input to a number (numeric inputs) or a level string
         (categorical inputs). The artifact is re-verified against :attr:`identity` first. Raises
-        :class:`CompactExportRefusal` (``cell_not_licensed``) for a query that is out of
+        :class:`CompactExportRefusal` (``invalid_argument``) for a query that is out of
         support, in a masked region, missing or has an unknown or mistyped quantity, or is not
         finite; nothing is extrapolated.
         """

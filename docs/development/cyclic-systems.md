@@ -1,0 +1,341 @@
+# General cyclic systems
+
+This page records the mathematical scope of the general cyclic-system families.
+For a practitioner walk-through start with the [cyclic systems guide](../guides/cyclic-systems.md).
+Calibration is a separate topic: the standalone implementation gate below checks
+every family within the scopes stated here, and each statistical output carries
+its own calibration status.
+
+## Executing workflows
+
+The Rust facade uses `Study::prepare_cyclic` and `Study::prepare_cyclic_family`,
+specializations of the existing `PreparedStudy` handle. Python exposes the
+workflows in `antecedent.cyclic`. Preparation retains immutable fitting/draw/
+execution products; repeated export does not refit. Equilibrium worlds can
+retarget without refitting. Source refresh creates a new preparation; changed
+family targets, initial laws and policies require a fresh preparation.
+
+Rust byte ceilings use an explicit `AdmissionPool::fixed` installed with
+`ExecutionContext::with_admission`; that pool's byte capacity is also the planner
+limit. Python `max_bytes` sets that capacity through
+`ExecutionContext::set_memory_limit`, including retained output copies.
+
+The model compiler exposes typed `Mechanism`, `SimultaneousEquations` and
+`DynamicEvolution` blocks. Equilibrium blocks use existing SCC condensation;
+DAG compilation retains its topological specialization. Inspection includes
+actual post-clamp SCC schedules and typed equilibrium execution plans. Scheduling
+is independent of mathematical existence, uniqueness and identification.
+
+- **Nonlinear equilibrium:** named identity/tanh/sine/ReLU additive-noise mechanisms,
+  arbitrary directed topology, and specified SPD joint Gaussian disturbances.
+  The Jacobian is sparse: strongly connected blocks are solved in topological
+  order, a contractive block by fixed-point iteration and any other block by damped
+  Newton steps whose linear systems use a sparse LU (minimum-degree order,
+  partial pivoting (ties broken by sparsity)). A direct factorization is used because it is
+  deterministic, detects a numerically singular Jacobian by a pivot floor and its
+  factors of `A` and `A^T` give the condition estimate. There is no fixed variable
+  cap. `SolvePolicy` admits the free Jacobian's nonzeros, the largest block,
+  estimated memory (`max_bytes`, unbounded by default; the execution's admission pool is the physical limit), sparse-LU fill, total iterations and a wall-clock deadline;
+  each excess is a refusal with its own code (`solver_jacobian_nnz_budget`,
+  `solver_block_size_budget`, `solver_memory_budget`, `solver_factor_fill_budget`,
+  `solver_iteration_budget`, `solver_wall_clock_budget`), and the dense disturbance
+  covariance admits at most 4096 variables (`solver_model_order_budget`).
+  Non-convergence and singular Jacobians inside the budgets remain retained world
+  outcomes. A global row-norm contraction on all of R^n, or a rigorous
+  Collatz-Wielandt bound on the spectral radius of the derivative-bound matrix
+  (a weighted max-norm contraction), supplies an invariant complete domain and
+  existence/uniqueness certificate. Other systems require an explicit damped
+  Newton attempt. Each solve returns `evidence`: block structure, resource
+  accounting (nonzeros, factorizations, peak fill, estimated and admitted bytes,
+  budget checks), the row-sum and spectral bounds, the diagonal-dominance margin of
+  the root Jacobian, the basis for its nonsingularity and for a unique root, and an
+  `ill_conditioned` flag against `condition_warning`. The condition number is a
+  Hager-Higham estimate (exact up to 32 variables per block). Affine systems can separately earn a
+  verified inverse-residual bijection certificate, including noncontractive cases.
+  Residual convergence, certified
+  existence, certified uniqueness, numerical conditioning and applicability of
+  dynamic stability are reported separately. Numerical initialization is never a
+  selection law. `action_worlds` distinguishes hard clamps, mechanism replacement,
+  mechanism changes and additive shocks, retaining shared factual disturbances.
+- **Compositional mechanisms:** bounded portable expressions with variable and
+  local parameter reads, addition, multiplication, tanh, sine and softplus;
+  self-feedback and overlapping loops; symbolic global derivative bounds,
+  forward input derivatives and reverse mixed parameter derivatives. Singleton
+  self-feedback compiles as a simultaneous equation, rather than a DAG assignment.
+  ODE drift and sensitivity-based fitting share the same mechanism representation.
+  Pure process-local callbacks declare input reads and derivatives, execute under
+  SCC/Newton budgets and cancellation, and explicitly refuse portable export.
+  A dynamic-mechanism adapter preserves the existing mechanism API. Eligible
+  polynomial expressions lower exactly to bounded algebraic root isolation.
+- **Fitting and structure:** free-system Jacobian likelihood, marginal surviving
+  disturbances after clamps, local coordinate likelihood fitting, normal-prior
+  parameter inference restricted to certified likelihood support, and known-regime
+  bootstrap response propagation. Analytic gradient fitting differentiates both
+  the joint-noise density and intervention-specific Jacobian, with bounded Armijo
+  search and separate score/termination diagnostics. Projected Adam supplies an
+  explicit minibatch seed, domain-wide feasibility margin, separately declared
+  validation regimes and validation-patience versus training-score diagnostics.
+  ReLU likelihoods retain their almost-everywhere derivative convention. Exact
+  linear sufficient statistics retain randomized assignment cross-moments.
+  Sparse L1 selection, thresholding and unpenalized
+  refit retain separate convergence facts; whole-selection bootstrap preserves
+  selection variability. Bootstrap design explicitly distinguishes fixed replicated
+  assignments from randomized assignment/outcome rows within target sets.
+  Held-out intervention regimes are evaluation-only.
+  Specified covariance is not unrestricted latent-confounder recovery.
+- **Counterfactuals:** exact additive abduction for fully observed states; explicit
+  exact/noisy/missing factual-state posterior abduction; joint parameter/factual
+  posterior conditioning on training and factual evidence; aligned parameter and
+  disturbance reuse across prespecified worlds. Rank/folded R-hat, bulk/tail ESS
+  and movement diagnostics are retained. Failed bootstrap fits and failed or
+  uncertified posterior response slots remain visible without renormalization.
+- **Multiple-equilibrium counterfactuals:** finite joint disturbance/selection laws
+  attach geometric root-selection regions to every prespecified world. Factual
+  evidence updates the shared exogenous atom; independent training units update
+  a finite parameter prior. Equation replacement, clamps and shocks reuse those
+  disturbances under explicit action semantics. Interval posterior weights,
+  undefined worlds, unresolved selection and impossible evidence stay separate.
+  Equal marginal selection laws with different cross-world coupling produce
+  distinct counterfactuals in the independent fixture.
+- **Identification/discovery:** observation-only Forre–Mooij consolidated-district
+  ID under explicit ioSCM/product-SCC-density premises, lowering to the existing
+  functional IR; all three explicit do-calculus rewrites with retained theorem
+  premises and bounded outcomes; executable sigma-backdoor adjustment; exact sigma-CI and existing
+  sampled CI procedures through FCI under simple/sigma-faithful/IID assumptions.
+  Procedure failure, bounded-search exhaustion and non-identifiability remain
+  distinct. PAG adjacency can represent an inducing path, rather than an original
+  mechanism. Sufficient path-based ancestral, nonancestral, direct-edge and
+  no-direct-edge conclusions retain the precise published criteria. Partial
+  correlation requires its own Gaussian/linear CI suitability.
+  Typed finite-law consumers retain the exact functional IR and source identity,
+  re-identify and compare the IR before evaluation, check positivity at each
+  assignment and reproduce the result from an independent artifact. Continuous
+  Gaussian consumers analytically lower the same checked IR using canonical
+  quadratic products, ratios and marginalization; optional unregularized IID
+  observational density fitting retains its parametric plug-in assumptions.
+  Density evidence has inverse outcome units and a likelihood port.
+- **ODE:** finite-horizon Dormand–Prince 5(4), explicit initial states, scheduled
+  sustained clamps, exact action/output boundaries, analytic forward sensitivities
+  and known-Gaussian-measurement likelihood fitting. Step-budget/possible-stiffness
+  failures are exposed. These are deterministic dynamics, not equilibrium SCMs.
+- **OU:** Lyapunov stability witness and stationary covariance, transient Gaussian
+  moments with explicit initial law, sustained interventions with a fresh stability
+  check, and local stationary likelihood fitting with specified diffusion.
+  Observations used by this fit are independent stationary replicates within known
+  regimes; this is not a dependent time-series transition likelihood. Shared
+  drift/forcing/diffusion mechanisms support named equation replacements and
+  joint fitting by exact Gaussian/Lyapunov-adjoint likelihood scores and bounded
+  L-BFGS. Unstable requested worlds retain their failed slots.
+- **Nonlinear SDE:** bounded (16 states) diagonal-noise `dX = f dt + g dW` with drift
+  and diffusion in the portable mechanism language, scheduled external inputs,
+  reflecting or clamping state bounds and sqrt-type diffusion. Interval derivative
+  arithmetic over the declared box certifies Lipschitz constants; unbounded
+  nonlinear growth is refused and a square-root diffusion reaching zero is certified
+  only as Holder-1/2. Euler–Maruyama and diagonal Milstein (admitted only without
+  cross-state diffusion dependence) run on a declared fixed step with a counter-based
+  generator, so runs replay exactly and worlds share Brownian increments for paired
+  contrasts under `do` holds and replaced inputs. Monte Carlo standard error and
+  half-step (weak/strong, Richardson) numerical error are separate from parameter
+  uncertainty, which is propagated by common-random-number draws of the fit's
+  asymptotic-normal law. Fitting is the Euler Gaussian transition quasi-likelihood
+  for dense, fully observed trajectories (a pseudo-likelihood; intervals whose
+  `dt * rate` exceeds the flag are model-conditional and those above the refusal
+  threshold are refused) or, under a declared observation model, an extended Kalman
+  innovation likelihood that is always model-conditional. Fitting, identification
+  and discretization evidence are separate records; there is no latent-path or
+  particle-filter likelihood.
+- **Equations/BGCM:** named polynomial residual equations and variables over finite
+  domains, equation-specific replacement, outward-rounded interval/Krawczyk root
+  isolation with unresolved boxes, and explicit complete-root selection weights.
+  Finite parameter-candidate fitting uses declared geometric root-selection regions
+  and known Gaussian measurement laws. Probability-one-branch ranking can be
+  certified with outward-rounded scores; mixture transcendental ranking remains
+  numerical and explicitly uncertified. Matching/SCC causal ordering, determinism-
+  aware B-separation and domain-selector invariance implement the cited BGCM
+  results under independent-input/measurable-unique-cluster-solution premises.
+
+All retained request identities bind scientific semantics, mechanisms/equations,
+disturbance/initial laws, selection inputs, data/regimes, inference and numerical
+policies. Artifacts use the existing bounded checksummed container. Independent
+consumers require a separately retained identity, check it before replay, refit or
+resample when appropriate, and compare the recomputed answer. Cancellation,
+retained-memory admission and output-copy admission remain active on reused
+handles. Built-ins are serializable; arbitrary callback code is not portable in
+these artifacts.
+
+## Checked evidence and decision composition
+
+`prepared.evidence(schema, selectors)` produces native `EvidenceEnvelope`
+coordinates and explicit mean, likelihood, posterior, sampling-law, scenario or
+graph ports from retained execution. Schema, units, world, time, source, selection
+law and selectors participate in identity. It does not refit. The projection is
+independently exportable; consumption replays the original source before checking
+the derived coordinates and diagnostics.
+
+Use `evidence.decide_means(contract)` with the existing affine expected-utility
+contract, `evidence.joint_law()` with existing aligned-distribution composition,
+or `evidence.decide_enclosures(contract)` for conservative set decisions. These
+paths preserve the model-conditional scope and the calibration status of their inputs.
+Bootstrap samples, numerical roots, unresolved/undefined mass and a joint
+selection law have distinct meanings. Roots acquire no implicit weights;
+unresolved boxes remain in robust utility bounds; impossible posterior evidence
+refuses decisions. Source and schema mismatches cannot silently bind.
+
+## Independent example and checks
+
+`examples/python/general_cyclic_systems.py --output-dir <directory>` generates
+observational and single-intervention data from an independent three-variable
+nonlinear generator with overlapping feedback loops and correlated disturbances.
+It fits the model, queries a held-out joint intervention, computes a shared-noise
+counterfactual, and writes a request, report, artifact and separately retained
+identity. A fresh Python process refits and reproduces the artifact answers.
+
+The component checks include analytic linear and Gaussian posterior truths,
+nonlinear independent generators, intervention-induced failures, multiple roots,
+Jacobian likelihoods, ODE sensitivities against analytic/finite-difference
+references, OU stationary/transient truths, equation-replacement effects, exhaustive
+small-graph sigma-separation, all 512 three-node mixed-graph FCI oracle cases, and
+small incidence BGCM separations against independently solved linear Gaussian
+systems. Python tests exercise installed-wheel workflows and fresh-process CPU
+consumers. Tests are registered in `parity/test_registry.toml`. The child-to-workflow
+contract is `parity/cyclic/acceptance.toml`. The standalone implementation gate is
+`python3 scripts/gate_cyclic_systems.py --python /path/to/installed-wheel/python`;
+it verifies full-size research-result integrity, runs the compiled component
+tests and installed Python acceptance, and consumes the retained integration
+fixture in a fresh CPU process. It does not run calibration or attestation.
+
+### Committed family fixtures and independent consumers
+
+`parity/cyclic/` also commits family fixtures, each a directory with the request,
+the exported report, the version-two family record (`family.ant`), the separately
+retained `expected-identity.json` and a manifest:
+
+| Fixture | What it pins |
+| --- | --- |
+| `specified-feedback-pair` | `A = 0.4 B + U_A`, `B = 0.5 A + U_B`: B-on-A association 1.40625/1.8125 (about 0.776), hard-clamp derivative 0.5, B response 0.625 to a unit mean shift of `U_A` |
+| `overlapping-loops` | `A = B + C + U_A`, `B = A + U_B`, `C = A + U_C`: the full system solves, `do(C = 1)` leaves `0 = 1 + U_A + U_B` and is kept as failed mass |
+| `recovered-asymptotic-normal`, `recovered-bootstrap` | linear laws recovered from seeded simulated clamp experiments, with their draw origins |
+| `recovered-unresolved-direction` | a clamp design that never clamps B: the row into A stays unresolved in every draw and its mass is withheld |
+| `dynamic-inference-ou` | a stationary OU fit with a seeded bootstrap sampling law of its stationary mean |
+| `previous-record-format` | the version-one record, which keeps replaying and carries no contract |
+
+The continuous-time OU fit from irregular, partially observed trajectories is checked
+separately, against an independent exact-discretization reference
+(`conformance/gcm/ou_trajectory_likelihood/`, `python/tests/test_ou_trajectory.py`).
+
+`cargo test -p antecedent --test cyclic_family_fixtures -- --ignored write_` writes
+them deterministically from a fixed xorshift stream and request seeds; the same
+target checks that each committed request is the generator's.
+`crates/antecedent/tests/cyclic_independent_consumer.rs` reads only the committed
+bytes and expected identity, runs on its own scalar-kernel CPU context and never
+calls the producer. It verifies the contract, replays the answer bit for bit
+against the committed report, checks the analytic truths above, and refuses a
+malformed or foreign identity, a tampered report or contract section, a corrupted
+byte and an unknown record version. `crates/antecedent/tests/cyclic_dag_regression.rs`
+keeps acyclic models on the DAG algorithm: a recovered law on lower-triangular
+support is solved by the DAG schedule and agrees with an independent forward
+substitution to 1e-12; a specified equilibrium model with DAG structure compiles to
+mechanism blocks only; on acyclic support the recovered evidence ports equal those
+of a cyclic law with the same origin, with only the solve route differing. Python
+replays every committed fixture in a fresh process (`python/tests/test_cyclic.py`,
+which the gate runs with `ANTECEDENT_CYCLIC_FIXTURES` naming the fixture directory).
+
+Prepared Python families and systems expose `contract()`: the layered identities,
+the `cyclic.solution.v1` tag, the recovery identity of an experimental recovery and
+the layer payloads, derived natively without fitting.
+`interface_contract.check_composition_with_cyclic` declares a prepared product as
+one component of an interface composition. `inspect()` on an experimental recovery
+reports the rows its clamp design leaves unresolved (`design_unresolved`) before any
+fit. Whether an asymptotic-normal or posterior origin may be drawn under a declared
+clustered or time-series row design is decided by Rust request compilation: the
+design travels in the fit options (`sampling_design`) and such an origin is refused
+as `estimator_inference_mismatch`, naming a bootstrap under the declared design as
+the next attempt. Python passes the declaration through.
+
+## Implementation acceptance
+
+Implementation acceptance consists of the registered Rust component tests, the
+installed-wheel Python workflow tests and a fresh-process CPU replay of the
+retained integration fixture (`parity/cyclic/general-equilibrium/`), alongside the
+API, provenance and Python surface checks.
+
+The acceptance inventory covers the ten cyclic-system families independently.
+Checked functional consumers evaluate finite observational laws and continuous
+Gaussian densities, including fitted densities; source-bound native evidence
+connects the family outputs to existing decision contracts. Mechanism interoperability
+includes portable compositional expressions, exact eligible polynomial lowering,
+ODE sensitivities and explicitly local callback adapters. Finite cross-world
+selection laws support multiple-equilibrium abduction and prediction without
+inventing coupling from marginal selection probabilities.
+
+The standalone gate checks retained source/target/seed invalidation, cancellation,
+logical-memory admission before compressed artifact inflation, projection retention,
+and independent artifact replay. Declared numerical and theorem limits remain
+explicit in each workflow; implementation acceptance does not broaden those claims.
+
+### Independent paper experiments
+
+Five independent seeds were executed for each applicable paper-derived lane.
+The NODAGS protocol uses 20 variables, 20,000 observational samples and 5,000
+samples for each of 20 single-intervention regimes (120,000 training rows), with
+disjoint validation and held-out joint interventions. Bicycle uses 10 variables,
+500 controls and 250 observations per single-intervention context, evaluating
+0, 1, 2, 4, 6, 8 and 10 training contexts against held-out joint regimes.
+
+| Lane | Mean edge average precision | Held-out comparison |
+| --- | ---: | --- |
+| NODAGS linear | 0.97812 | Mean excess NLL per free coordinate over independent truth: 0.0000573 |
+| NODAGS ReLU | 0.88981 | Mean excess NLL per free coordinate over independent truth: 0.0009465 |
+| Bicycle, all 10 contexts | 1.00000 | Mean-response absolute error across seeds: 0.00476–0.00976 |
+
+These reproduce applicable likelihood, intervention-allocation and evaluation
+experiments with independent generators and public native workflows. They do
+not copy the papers' neural architectures or assert their published scores.
+The NODAGS lanes use a known disturbance covariance and a global row-norm
+contraction constraint; the OU lane fits shared linear drift, forcing and diffusion.
+Every metrics record states the exact deviations and independently retained artifact
+identity. ReLU validation-patience stopping is reported separately from training-score
+stationarity. It supplies no global-optimum certificate.
+
+Initial smooth ReLU line searches and OU steepest-descent attempts are retained
+in `failed-approaches.json`; their executed replacements are projected Adam and
+symmetric-Lyapunov-adjoint L-BFGS with a damped-Newton polish. The polish
+(Levenberg-Marquardt ascent on a central-difference Hessian of the analytic score,
+accepted only when the likelihood rises and the drift stays stable) runs every 250
+quasi-Newton iterations. Without it, the near-flat likelihood valleys of the
+weak-context fits left 16 to 19 of the 35 fits at their 2,000-iteration budget,
+and one fit (seed 3, one training context) stalled at 20,000 steps even after an
+invertible, training-only coordinate standardization; which fits stalled changed
+with rounding-level differences in the Lyapunov solver (about 1e-14), so the stall
+was an optimizer property, not a model one. With the polish every one of the 35
+OU fits reaches the unchanged score tolerance within its 2,000-iteration budget
+(at most 526 iterations), so the named 20,000-step continuation and the
+standardization protocols have no budget-limited fit to resolve and their retained
+records are empty. Some weak-context fitted models have unstable held-out worlds;
+these failures remain explicit (43 failed worlds across the fits). All five
+full-context OU fits converged and evaluated every requested held-out world.
+Independent SciPy covariance/law disagreement was below 7e-12. No failed world or
+draw is silently discarded or renormalized.
+
+Metrics, stopping diagnostics, failed approaches and portable continuation
+protocols live in `parity/cyclic/paper-experiments/`. Each selected fit was refitted
+and replayed in a fresh CPU process. The retained integration fixture separately
+covers nonlinear fitting, joint interventions and shared-noise counterfactuals.
+Calibration and attestation are outside this implementation gate.
+
+## Research provenance
+
+Paper-derived clean implementations under ADR 0008; no reference source code,
+comments or tests were translated. Exact references and assumptions are recorded
+in `provenance/cyclic.general_systems.toml`.
+
+- Bongers et al., arXiv:1611.06221v6 (2021): cyclic SCM solution/counterfactual semantics.
+- Forre and Mooij, PMLR 115 (2020), Algorithm 1/Theorem 9.10 and Corollary 8.4(4).
+- Mooij and Claassen, PMLR 124 (2020): cyclic interpretation of FCI.
+- Sethuraman et al., PMLR 206 (2023): nonlinear interventional Jacobian likelihood.
+- Dormand and Prince (1980), DOI 10.1016/0771-050X(80)90013-3: embedded RK5(4).
+- Rohbeck et al., PMLR 236 (2024): stochastic stationary-dynamics research lane.
+- Mooij, PMLR 337 / arXiv:2608.19831v1 (2026), Definitions 3/5/13/33 and Lemma 42.
+
+Each statistical output carries its calibration status. Calibration is separate
+from the engineering and scientific-correctness acceptance above.

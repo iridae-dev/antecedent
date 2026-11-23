@@ -1,0 +1,1 @@
+["use:super::{DistributionAvailability,EvidenceCatalog,LawOrigin,RegimeKind,STUDY_PLAN_MAX_COST_UNITS,SamplingSelection,StudyPlanCandidate,StudyPlanRefusal,StudyPlanRoute,};#0","use:std::collections::BTreeSet;#0","use:std::sync::Arc;#0","fn:subset_label#0","fn:valid_id#0","fn:validate_candidates#0","fn:next_combination#0","fn:subset_size_limit#0","fn:subsets#0","fn:infeasible#0"]

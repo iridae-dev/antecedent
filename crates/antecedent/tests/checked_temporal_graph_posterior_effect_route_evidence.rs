@@ -1,12 +1,13 @@
 //! Builder independent evidence for temporal graph-posterior pulse and sustained effects.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, reason = "one loop covers every licensed coordinate")]
+#![allow(clippy::too_many_lines, reason = "one loop covers every supported coordinate")]
 
 #[path = "fixtures_common/mod.rs"]
 mod common;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ExecutionContext, TemporalEffectQuery, TemporalPolicy, VariableId,
@@ -138,7 +139,7 @@ fn inference_label(inference: &InferenceMode) -> &'static str {
 
 fn point(result: &antecedent::StudyResult, inference: &InferenceMode) -> f64 {
     match inference {
-        InferenceMode::Frequentist => result.estimate.as_effect().unwrap().ate,
+        InferenceMode::Frequentist => result.estimate().as_effect().unwrap().ate,
         InferenceMode::Bayesian(_) => result
             .posterior
             .as_ref()
@@ -146,7 +147,7 @@ fn point(result: &antecedent::StudyResult, inference: &InferenceMode) -> f64 {
                 let column = posterior.effect_column()?;
                 posterior.summaries.mean.get(column).copied()
             })
-            .unwrap_or(result.estimate.as_effect().unwrap().ate),
+            .unwrap_or(result.estimate().as_effect().unwrap().ate),
     }
 }
 
@@ -204,7 +205,7 @@ fn all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_pr
     let ctx = ExecutionContext::for_tests(4_100);
     let suites = [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full];
     for route in routes() {
-        let kind = route.posterior.atom_kind;
+        let kind = route.posterior.atom_kind();
         for inference in inferences() {
             for suite in suites {
                 let builder = Study::series(route.data.clone())
@@ -219,9 +220,11 @@ fn all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_pr
                 let mut prepared = builder.prepare(&ctx).unwrap();
                 drop(builder);
 
-                let plan = prepared
-                    .checked_temporal_graph_posterior_effect_info()
-                    .expect("temporal graph-posterior effect must retain its execution plan");
+                let RetainedOperation::TemporalGraphPosteriorEffect(plan) =
+                    prepared.retained_operation()
+                else {
+                    panic!("temporal graph-posterior effect must retain its execution plan")
+                };
                 assert_eq!(plan.query, route.query);
                 assert_eq!(plan.atom_kind, kind);
                 assert_eq!(plan.identifier.as_str(), "temporal.backdoor.unfolded");
@@ -236,10 +239,10 @@ fn all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_pr
                 assert_eq!(plan.validation, suite);
                 assert!(plan.inference.starts_with(inference_label(&inference)));
                 assert_eq!(plan.bootstrap_replicates, 8);
-                assert_eq!(plan.graph_keys.len(), route.posterior.n_graphs);
-                assert_eq!(plan.weights.as_ref(), route.posterior.weights.as_ref());
+                assert_eq!(plan.graph_keys.len(), route.posterior.n_graphs());
+                assert_eq!(plan.weights.as_ref(), route.posterior.weights().as_ref());
                 assert!(plan.identified_atom_count > 0);
-                assert!(plan.identified_atom_count < route.posterior.n_graphs);
+                assert!(plan.identified_atom_count < route.posterior.n_graphs());
 
                 let result = prepared.estimate_series(&route.data, &ctx).unwrap();
                 let estimate = point(&result, &inference);
@@ -279,10 +282,12 @@ fn all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_pr
                     "refreshed {refreshed_estimate} vs {}",
                     route.truth
                 );
-                assert_eq!(
-                    prepared.checked_temporal_graph_posterior_effect_info().unwrap().query,
-                    route.query
-                );
+                let RetainedOperation::TemporalGraphPosteriorEffect(retained) =
+                    prepared.retained_operation()
+                else {
+                    panic!("temporal graph-posterior effect must retain its execution plan")
+                };
+                assert_eq!(retained.query, route.query);
                 let narrowed = TimeSeriesData::from_f64_columns(
                     [("t", &[0.0, 1.0, 0.0, 1.0][..]), ("y", &[0.0, 1.0, 1.0, 0.0][..])],
                     1,
@@ -292,10 +297,12 @@ fn all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_pr
                     prepared.refresh_series(narrowed, &ctx).is_err(),
                     "schema-changed data must be refused"
                 );
-                assert_eq!(
-                    prepared.checked_temporal_graph_posterior_effect_info().unwrap().query,
-                    route.query
-                );
+                let RetainedOperation::TemporalGraphPosteriorEffect(retained) =
+                    prepared.retained_operation()
+                else {
+                    panic!("temporal graph-posterior effect must retain its execution plan")
+                };
+                assert_eq!(retained.query, route.query);
 
                 let artifact = prepared
                     .encode_contracted_result(
@@ -304,7 +311,7 @@ fn all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_pr
                         &ctx,
                     )
                     .unwrap();
-                let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
                 assert!(
                     consumed.acceptance.unresolved.iter().any(|dependency| {
                         dependency.as_ref()
@@ -318,7 +325,7 @@ fn all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_pr
                         c.estimator.clone()
                     ))
                 );
-                assert!(!consumed.acceptance.accepts_as_verified_program());
+                assert!(!consumed.acceptance.accepts_as_replayed_program());
             }
         }
     }

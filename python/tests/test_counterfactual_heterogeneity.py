@@ -5,6 +5,7 @@ per-unit support, and invariance to the scale of a categorical lever's parents.
 import antecedent as ac
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 SUPPORT = "gcm.counterfactual.support"
 
@@ -41,12 +42,14 @@ def test_exp_modifier_unit_effects_rise_with_the_modifier():
     z = rng.normal(scale=0.7, size=n)
     a = (rng.uniform(size=n) < 1 / (1 + np.exp(-0.5 * z))).astype(float)
     y = a * np.exp(z) + z + rng.normal(size=n)
-    result = ac.analyze(
-        {"z": z, "a": a, "y": y},
-        graph=[("z", "a"), ("z", "y"), ("a", "y")],
-        query=ac.Counterfactual("a", "y"),
-        refute="none",
-        seed=1,
+    result = require_success(
+        ac.analyze(
+            {"z": z, "a": a, "y": y},
+            graph=[("z", "a"), ("z", "y"), ("a", "y")],
+            query=ac.Counterfactual("a", "y"),
+            refute="none",
+            execution=ac.Execution(seed=1),
+        )
     )
     effects = np.asarray(result.unit_effects)
     spearman = float(np.corrcoef(ranks(z), ranks(effects))[0, 1])
@@ -57,13 +60,15 @@ def test_exp_modifier_unit_effects_rise_with_the_modifier():
 
 def test_bayesian_unit_effect_intervals_are_level_tagged_and_contain_the_point():
     data, graph = interaction_fixture()
-    result = ac.analyze(
-        data,
-        graph=graph,
-        query=ac.Counterfactual("a", "y"),
-        refute="none",
-        seed=1,
-        inference=ac.Bayesian(n_draws=200),
+    result = require_success(
+        ac.analyze(
+            data,
+            graph=graph,
+            query=ac.Counterfactual("a", "y"),
+            refute="none",
+            execution=ac.Execution(seed=1),
+            inference=ac.Bayesian(n_draws=200),
+        )
     )
     effects = np.asarray(result.unit_effects)
     intervals = np.asarray(result.unit_effect_intervals)
@@ -76,13 +81,28 @@ def test_bayesian_unit_effect_intervals_are_level_tagged_and_contain_the_point()
     b = data["b"]
     assert np.median(intervals[b == 1, 0]) > np.median(intervals[b == 0, 0])
     assert diagnostic(result, "gcm.counterfactual.uncertainty_unavailable") is None
+    # The generating unit effect is 0.8 + 0.6 b. The subgroup means recover it and the 95 percent
+    # intervals cover it for the large majority of units (observed 94.5 percent).
+    truth = 0.8 + 0.6 * b
+    assert effects[b == 0].mean() == pytest.approx(0.8, abs=0.1)
+    assert effects[b == 1].mean() == pytest.approx(1.4, abs=0.2)
+    covered = np.mean((intervals[:, 0] <= truth) & (truth <= intervals[:, 1]))
+    assert covered > 0.88, covered
 
 
 def test_frequentist_unit_effects_carry_no_interval():
     """No per-unit construction exists without the posterior: nothing is
     synthesised, and the existing diagnostic still says so."""
     data, graph = interaction_fixture()
-    result = ac.analyze(data, graph=graph, query=ac.Counterfactual("a", "y"), refute="none", seed=1)
+    result = require_success(
+        ac.analyze(
+            data,
+            graph=graph,
+            query=ac.Counterfactual("a", "y"),
+            refute="none",
+            execution=ac.Execution(seed=1),
+        )
+    )
     assert result.unit_effect_intervals is None
     assert result.unit_effect_intervals_level is None
     assert result.unit_effect_intervals_method is None
@@ -103,12 +123,14 @@ def test_units_outside_the_opposite_arms_covariate_support_are_flagged():
     a = (rng.uniform(size=n) < 0.5).astype(float)
     x = np.where(a > 0.5, rng.uniform(0.0, 1.5, size=n), rng.uniform(0.0, 1.0, size=n))
     y = 0.5 * a + x + 0.7 * a * x + rng.normal(scale=0.3, size=n)
-    result = ac.analyze(
-        {"x": x, "a": a, "y": y},
-        graph=[("x", "y"), ("a", "y")],
-        query=ac.Counterfactual("a", "y"),
-        refute="none",
-        seed=1,
+    result = require_success(
+        ac.analyze(
+            {"x": x, "a": a, "y": y},
+            graph=[("x", "y"), ("a", "y")],
+            query=ac.Counterfactual("a", "y"),
+            refute="none",
+            execution=ac.Execution(seed=1),
+        )
     )
     flags = np.asarray(result.unit_extrapolative)
     assert flags.shape == (n,)
@@ -168,13 +190,15 @@ def test_counterfactual_is_invariant_to_affine_rescaling_of_lever_parents(bayesi
     kwargs = {"inference": ac.Bayesian()} if bayesian else {}
 
     def run(data):
-        return ac.analyze(
-            data,
-            graph=LEVER_GRAPH,
-            query=ac.Counterfactual("lever", "y"),
-            refute="none",
-            seed=1,
-            **kwargs,
+        return require_success(
+            ac.analyze(
+                data,
+                graph=LEVER_GRAPH,
+                query=ac.Counterfactual("lever", "y"),
+                refute="none",
+                execution=ac.Execution(seed=1),
+                **kwargs,
+            )
         )
 
     raw_effects = np.asarray(run(raw).unit_effects)
@@ -188,6 +212,8 @@ def test_counterfactual_is_invariant_to_affine_rescaling_of_lever_parents(bayesi
     # unit effects this seeded (seed=1) run reports.
     expected = 0.04873661472022783 if bayesian else 0.048390
     assert float(raw_effects.mean()) == pytest.approx(expected, abs=5e-7)
+    # Anchor to the generating lever effect 0.06 (se of the mean effect is about 0.02).
+    assert float(raw_effects.mean()) == pytest.approx(0.06, abs=0.08)
 
 
 def test_non_convergence_refusal_code_is_registered():

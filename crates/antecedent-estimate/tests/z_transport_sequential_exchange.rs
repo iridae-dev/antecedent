@@ -7,7 +7,7 @@
 //! interventional risk was one half at every level and could not tell the two
 //! apart.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 

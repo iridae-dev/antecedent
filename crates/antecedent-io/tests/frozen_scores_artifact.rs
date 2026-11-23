@@ -9,7 +9,7 @@ use antecedent_core::recalc::{RetargetSupport, Stage, StageIdentities, StageIden
 use antecedent_estimate::{ScoreColumn, ScoreTable, ScoreTableWire};
 use antecedent_io::frozen_scores_artifact::{
     FROZEN_SCORES_ARTIFACT_VERSION, FrozenScoreParts, FrozenScoreTable, FrozenScoresArtifactError,
-    MAX_FROZEN_SCORE_COLUMNS, MAX_FROZEN_SCORE_ROWS, decode_parts, encode_parts,
+    MAX_FROZEN_SCORE_ROWS, MAX_FROZEN_SCORE_VALUES, decode_parts, encode_parts,
 };
 use antecedent_io::recalc_receipt_artifact::{identities_from_wire, identities_to_wire};
 
@@ -53,7 +53,7 @@ fn wire() -> ScoreTableWire {
         propensities: vec![0.5; 2 * ROWS],
         observed_outcome: (0..ROWS).map(|i| f(i) * 0.25).collect(),
         n_rows: ROWS as u64,
-        row_index: (0..ROWS).map(|i| u32::try_from(2 * i).unwrap()).collect(),
+        row_index: (0..ROWS).map(|i| u64::try_from(2 * i).unwrap()).collect(),
         fold_ids: (0..ROWS).map(|i| u32::try_from(i % 2).unwrap()).collect(),
         n_folds: 2,
         scores: (0..2 * ROWS).map(|i| f(i).sin()).collect(),
@@ -71,7 +71,7 @@ fn wire() -> ScoreTableWire {
 
 fn parts_with(declared: StageIdentities, table: ScoreTableWire) -> FrozenScoreParts {
     let fit =
-        declared.effective(RetargetSupport::Licensed).get(&Stage::ScoreArtifact).copied().unwrap();
+        declared.effective(RetargetSupport::Supported).get(&Stage::ScoreArtifact).copied().unwrap();
     FrozenScoreParts {
         estimator: "test.scores.v1".to_owned(),
         fit_identity: fit,
@@ -95,7 +95,7 @@ fn scores_round_trip_is_bit_exact_and_carries_every_identity() {
     assert_eq!(again.estimator(), "test.scores.v1");
     assert_eq!(again.input_rows(), 30);
     assert_eq!(again.snapshot_digest().unwrap(), declared("seed-1").own(Stage::DataSnapshot));
-    let effective = declared("seed-1").effective(RetargetSupport::Licensed);
+    let effective = declared("seed-1").effective(RetargetSupport::Supported);
     assert_eq!(again.fit_identity().unwrap(), effective[&Stage::ScoreArtifact]);
     assert_eq!(again.declared().unwrap(), declared("seed-1"));
 
@@ -165,7 +165,7 @@ fn scores_resealed_mutation_is_refused_by_a_retained_identity() {
     let stale = FrozenScoreTable::from_meta(meta.clone(), None).unwrap_err();
     assert_eq!(stale, FrozenScoresArtifactError::IdentityMismatch { field: "identity" });
     let (code, detail, _) = stale.refusal().unwrap();
-    assert_eq!(detail, "frozen_scores.identity_mismatch");
+    assert_eq!(detail, antecedent_core::reason_details::frozen_scores::IDENTITY_MISMATCH);
     assert_eq!(code, antecedent_core::reason_code!("route_not_supported"));
 
     // Resealed consistently: valid on its own, refused by the identity the consumer kept.
@@ -261,16 +261,19 @@ fn scores_decode_is_bounded_and_versioned() {
         FrozenScoresArtifactError::LimitsExceeded("score rows")
     );
 
-    let mut columns = artifact.meta().clone();
-    columns.table.columns = (0..=MAX_FROZEN_SCORE_COLUMNS)
+    // Columns carry no count cap of their own: rows times columns is what is bounded.
+    let mut values = artifact.meta().clone();
+    values.table.n_rows = MAX_FROZEN_SCORE_ROWS as u64;
+    let columns = MAX_FROZEN_SCORE_VALUES / MAX_FROZEN_SCORE_ROWS + 1;
+    values.table.columns = (0..columns)
         .map(|i| antecedent_io::frozen_scores_artifact::ScoreColumnPlain {
             arm: u32::try_from(i).unwrap(),
             threshold: None,
         })
         .collect();
     assert_eq!(
-        FrozenScoreTable::from_meta(columns, None).unwrap_err(),
-        FrozenScoresArtifactError::LimitsExceeded("score columns")
+        FrozenScoreTable::from_meta(values, None).unwrap_err(),
+        FrozenScoresArtifactError::LimitsExceeded("score values")
     );
 
     let mut stages = artifact.meta().clone();
@@ -303,14 +306,34 @@ fn scores_decode_is_bounded_and_versioned() {
 fn scores_corrupt_or_truncated_bytes_are_refused() {
     let artifact = sealed();
     let bytes = artifact.to_bytes(ID).unwrap();
-    assert!(FrozenScoreTable::from_bytes(&bytes[..bytes.len() / 2], None).is_err());
-    assert!(FrozenScoreTable::from_bytes(&[], None).is_err());
-    assert!(FrozenScoreTable::from_bytes(b"not an artifact at all", None).is_err());
+    assert!(matches!(
+        FrozenScoreTable::from_bytes(&bytes[..bytes.len() / 2], None),
+        Err(FrozenScoresArtifactError::Decode(m)) if m.contains("failed to fill whole buffer")
+    ));
+    assert!(matches!(
+        FrozenScoreTable::from_bytes(&[], None),
+        Err(FrozenScoresArtifactError::Decode(m)) if m.contains("failed to fill whole buffer")
+    ));
+    assert!(matches!(
+        FrozenScoreTable::from_bytes(b"not an artifact at all", None),
+        Err(FrozenScoresArtifactError::Container(antecedent_io_core::IoError::BadMagic))
+    ));
     let mut flipped = bytes.clone();
     let middle = flipped.len() / 2;
     flipped[middle] ^= 0xFF;
-    assert!(FrozenScoreTable::from_bytes(&flipped, None).is_err());
-    assert!(encode_parts(artifact.meta(), "  ").is_err(), "an artifact needs an id");
+    assert!(matches!(
+        FrozenScoreTable::from_bytes(&flipped, None),
+        Err(FrozenScoresArtifactError::Container(
+            antecedent_io_core::IoError::ChecksumMismatch { section }
+        )) if section == "frozen_scores_meta"
+    ));
+    assert!(
+        matches!(
+            encode_parts(artifact.meta(), "  "),
+            Err(FrozenScoresArtifactError::Encode(m)) if m == "missing artifact id"
+        ),
+        "an artifact needs an id"
+    );
     // The decoded metadata is exactly what was stored.
     assert_eq!(&decode_parts(&bytes).unwrap(), artifact.meta());
 }

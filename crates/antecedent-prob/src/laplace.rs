@@ -3,11 +3,12 @@
 //! MAP via damped Newton → Cholesky of −Hessian → MVN draws.
 //! Refuses to publish a posterior without convergence and curvature diagnostics.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
 use antecedent_core::ExecutionContext;
+use antecedent_core::diagnostic::{RouteCheck, RouteKind, RouteMass, RouteNativeDiagnostic};
 use antecedent_kernels::standard_normal;
 
 use crate::backend::{
@@ -20,7 +21,7 @@ use crate::gaussian_target::{PosteriorTarget, gaussian_target_from_model_with_pr
 use crate::likelihood_terms::{
     LikelihoodScratch, accumulate_likelihood, log_posterior_value, validate_design,
 };
-use crate::linalg::{cholesky_spd, condition_from_chol, invert_spd, solve_spd_into};
+use crate::linalg::{cholesky_spd, condition_from_chol, solve_spd_into};
 use crate::posterior::{PosteriorDraws, PosteriorSchema};
 use crate::prior::{
     CoefficientPrecision, GaussianCoefficientPrior, GaussianVarianceModel, PriorSet,
@@ -61,9 +62,151 @@ pub fn fit_laplace_glm(
     options: &BayesFitOptions,
     workspace: &mut LaplaceWorkspace,
 ) -> Result<BayesFitResult, ProbError> {
+    prior.reject_count_priors()?;
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::PosteriorFit,
+        || fit_laplace_glm_inner(likelihood, design, prior, options, workspace),
+    )
+}
+
+/// Fit with an ephemeral workspace whose admission follows its owned buffers.
+/// Public caller-provided workspaces retain their existing caller-owned semantics.
+///
+/// # Errors
+/// As [`fit_laplace_glm`], or admission refusal before workspace allocation.
+#[doc(hidden)]
+pub fn fit_laplace_glm_owned(
+    likelihood: BayesLikelihood,
+    design: BayesDesignRef<'_>,
+    prior: &PriorSet,
+    options: &BayesFitOptions,
+) -> Result<BayesFitResult, ProbError> {
+    let mut owned =
+        crate::backend::AdmittedLaplaceWorkspace::new(design.nrows, design.ncols, options.n_draws)?;
+    fit_laplace_glm(likelihood, design, prior, options, &mut owned.workspace)
+}
+
+fn laplace_derivatives(
+    likelihood: BayesLikelihood,
+    design: BayesDesignRef<'_>,
+    coef_prior: &GaussianCoefficientPrior,
+    prec: &CoefficientPrecision,
+    workspace: &mut LaplaceWorkspace,
+) -> Result<(bool, f64), ProbError> {
     let nrows = design.nrows;
     let ncols = design.ncols;
-    validate_design(likelihood, design)?;
+    let (_, separation) = accumulate_likelihood(
+        likelihood,
+        design,
+        &workspace.beta[..ncols],
+        LikelihoodScratch {
+            grad: &mut workspace.grad[..ncols],
+            neg_hess: &mut workspace.neg_hessian[..ncols * ncols],
+            eta: &mut workspace.eta[..nrows],
+            work_w: &mut workspace.work_w[..nrows],
+        },
+        1.0,
+        true,
+    )?;
+    prec.sub_prior_gradient(
+        &workspace.beta[..ncols],
+        &coef_prior.mean,
+        &mut workspace.grad[..ncols],
+    );
+    prec.add_divided_to(&mut workspace.neg_hessian[..ncols * ncols], ncols, 1.0);
+    let mut grad_inf: f64 = 0.0;
+    for i in 0..ncols {
+        grad_inf = grad_inf.max(workspace.grad[i].abs());
+    }
+    Ok((separation, grad_inf))
+}
+
+fn laplace_line_search(
+    likelihood: BayesLikelihood,
+    design: BayesDesignRef<'_>,
+    coef_prior: &GaussianCoefficientPrior,
+    prec: &CoefficientPrecision,
+    workspace: &mut LaplaceWorkspace,
+    known_objective: &mut Option<f64>,
+) -> Result<(bool, bool), ProbError> {
+    let nrows = design.nrows;
+    let ncols = design.ncols;
+    // Damped line search
+    let mut step_scale = 1.0;
+    workspace.q[..ncols].copy_from_slice(&workspace.beta[..ncols]);
+    let mut accepted = false;
+    let old_obj = match *known_objective {
+        Some(value) => value,
+        None => log_posterior_value(
+            likelihood,
+            design,
+            &workspace.q[..ncols],
+            coef_prior,
+            prec,
+            &mut workspace.eta[..nrows],
+            1.0,
+        )?,
+    };
+    for _ in 0..8 {
+        for i in 0..ncols {
+            workspace.beta[i] = workspace.q[i] + step_scale * workspace.step[i];
+        }
+        match log_posterior_value(
+            likelihood,
+            design,
+            &workspace.beta[..ncols],
+            coef_prior,
+            prec,
+            &mut workspace.eta[..nrows],
+            1.0,
+        ) {
+            Ok(new_obj) if new_obj >= old_obj - 1e-12 => {
+                accepted = true;
+                *known_objective = Some(new_obj);
+                break;
+            }
+            Ok(_) | Err(ProbError::Numerical { .. }) => {
+                step_scale *= 0.5;
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    if !accepted {
+        for i in 0..ncols {
+            workspace.beta[i] = workspace.q[i];
+        }
+        // A Newton step whose predicted gain (half the Newton decrement
+        // `grad · step`) is below the rounding error of the summed
+        // log-posterior cannot be verified by the line search: at large n
+        // the objective's roundoff exceeds the absolute gradient tolerance.
+        // The iterate is then the mode to working precision.
+        let decrement: f64 = (0..ncols).map(|i| workspace.grad[i] * workspace.step[i]).sum();
+        let roundoff = 64.0 * f64::EPSILON * (1.0 + old_obj.abs());
+        let within_roundoff =
+            decrement.is_finite() && decrement >= 0.0 && 0.5 * decrement <= roundoff;
+        return Ok((false, within_roundoff));
+    }
+    Ok((true, false))
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "unchanged numerical Laplace fit with its iteration state"
+)]
+fn fit_laplace_glm_inner(
+    likelihood: BayesLikelihood,
+    design: BayesDesignRef<'_>,
+    prior: &PriorSet,
+    options: &BayesFitOptions,
+    workspace: &mut LaplaceWorkspace,
+) -> Result<BayesFitResult, ProbError> {
+    let nrows = design.nrows;
+    let ncols = design.ncols;
+    if likelihood != BayesLikelihood::GaussianIdentity
+        || workspace.immutable_gaussian_key(design).is_none()
+    {
+        validate_design(likelihood, design)?;
+    }
     workspace.prepare(nrows, ncols, options.n_draws);
 
     if likelihood == BayesLikelihood::GaussianIdentity {
@@ -90,35 +233,15 @@ pub fn fit_laplace_glm(
     let mut converged = false;
     let mut iterations = 0u32;
     let mut grad_inf: f64;
+    // The log-posterior at the current iterate, known once a line search has accepted it.
+    let mut known_objective: Option<f64> = None;
 
     for iter in 0..options.max_iter {
-        iterations = iter + 1;
-        let _ = accumulate_likelihood(
-            likelihood,
-            design,
-            &workspace.beta[..ncols],
-            LikelihoodScratch {
-                grad: &mut workspace.grad[..ncols],
-                neg_hess: &mut workspace.neg_hessian[..ncols * ncols],
-                eta: &mut workspace.eta[..nrows],
-                work_w: &mut workspace.work_w[..nrows],
-            },
-            1.0,
-            true,
-        )?;
-
-        // Add prior: log π(β) = -0.5 (β - μ)' P (β - μ)
-        prec.sub_prior_gradient(
-            &workspace.beta[..ncols],
-            &coef_prior.mean,
-            &mut workspace.grad[..ncols],
-        );
-        prec.add_divided_to(&mut workspace.neg_hessian[..ncols * ncols], ncols, 1.0);
-
-        grad_inf = 0.0;
-        for i in 0..ncols {
-            grad_inf = grad_inf.max(workspace.grad[i].abs());
+        if antecedent_core::numerical_admission::is_cancelled() {
+            return Err(ProbError::Numerical { message: "Laplace fit cancelled".into() });
         }
+        iterations = iter + 1;
+        (_, grad_inf) = laplace_derivatives(likelihood, design, &coef_prior, &prec, workspace)?;
 
         if grad_inf < options.grad_tol {
             converged = true;
@@ -145,94 +268,54 @@ pub fn fit_laplace_glm(
             }
         }
 
-        // Damped line search
-        let mut step_scale = 1.0;
-        workspace.q[..ncols].copy_from_slice(&workspace.beta[..ncols]);
-        let mut accepted = false;
-        let old_obj = log_posterior_value(
+        let (accepted, within_roundoff) = laplace_line_search(
             likelihood,
             design,
-            &workspace.q[..ncols],
             &coef_prior,
             &prec,
-            &mut workspace.eta[..nrows],
-            1.0,
+            workspace,
+            &mut known_objective,
         )?;
-        for _ in 0..8 {
-            for i in 0..ncols {
-                workspace.beta[i] = workspace.q[i] + step_scale * workspace.step[i];
-            }
-            match log_posterior_value(
-                likelihood,
-                design,
-                &workspace.beta[..ncols],
-                &coef_prior,
-                &prec,
-                &mut workspace.eta[..nrows],
-                1.0,
-            ) {
-                Ok(new_obj) if new_obj >= old_obj - 1e-12 => {
-                    accepted = true;
-                    break;
-                }
-                Ok(_) | Err(ProbError::Numerical { .. }) => {
-                    step_scale *= 0.5;
-                }
-                Err(e) => return Err(e),
-            }
-        }
         if !accepted {
-            for i in 0..ncols {
-                workspace.beta[i] = workspace.q[i];
-            }
-            // A Newton step whose predicted gain (half the Newton decrement
-            // `grad · step`) is below the rounding error of the summed
-            // log-posterior cannot be verified by the line search: at large n
-            // the objective's roundoff exceeds the absolute gradient tolerance.
-            // The iterate is then the mode to working precision.
-            let decrement: f64 = (0..ncols).map(|i| workspace.grad[i] * workspace.step[i]).sum();
-            let roundoff = 64.0 * f64::EPSILON * (1.0 + old_obj.abs());
-            if decrement.is_finite() && decrement >= 0.0 && 0.5 * decrement <= roundoff {
-                converged = true;
-            }
+            converged = within_roundoff;
             break;
         }
     }
 
     // Final gradient / Hessian at MAP. Intermediate Newton steps can visit
     // extreme η; publication cares about fitted probabilities at the mode.
-    let (_, sep_map) = accumulate_likelihood(
-        likelihood,
-        design,
-        &workspace.beta[..ncols],
-        LikelihoodScratch {
-            grad: &mut workspace.grad[..ncols],
-            neg_hess: &mut workspace.neg_hessian[..ncols * ncols],
-            eta: &mut workspace.eta[..nrows],
-            work_w: &mut workspace.work_w[..nrows],
-        },
-        1.0,
-        true,
-    )?;
-    prec.sub_prior_gradient(
-        &workspace.beta[..ncols],
-        &coef_prior.mean,
-        &mut workspace.grad[..ncols],
-    );
-    prec.add_divided_to(&mut workspace.neg_hessian[..ncols * ncols], ncols, 1.0);
-    grad_inf = 0.0;
-    for i in 0..ncols {
-        grad_inf = grad_inf.max(workspace.grad[i].abs());
-    }
+    let (sep_map, final_grad_inf) =
+        laplace_derivatives(likelihood, design, &coef_prior, &prec, workspace)?;
+    grad_inf = final_grad_inf;
     if grad_inf < options.grad_tol {
         converged = true;
     }
 
     let hess = workspace.neg_hessian[..ncols * ncols].to_vec();
+    // Separation is a model restriction. It is reported before a singular Hessian
+    // so that restriction is not relabeled as a computational failure.
+    if sep_map {
+        let mass = RouteMass::unreported();
+        let mut route = vec![RouteNativeDiagnostic::model_restriction(mass)];
+        if !converged {
+            route.push(RouteNativeDiagnostic::check(
+                RouteKind::Convergence,
+                RouteCheck::new(true, mass),
+            ));
+        }
+        return Err(ProbError::Route {
+            summary: "Laplace posterior refused: at least one observation is fitted within \
+                      1e-8 of certainty at the mode (possible separation), so the Gaussian \
+                      approximation is not a publication-grade posterior"
+                .into(),
+            diagnostics: route,
+        });
+    }
     // A Hessian that is not positive definite at the reported mode is not a
     // Laplace posterior: an indefinite "covariance" has no Gaussian to draw from.
-    let chol = cholesky_spd(&hess, ncols).map_err(|_| ProbError::MissingDiagnostics {
-        message: "negative Hessian not positive definite at mode".into(),
+    let chol = cholesky_spd(&hess, ncols).map_err(|_| ProbError::Route {
+        summary: "negative Hessian not positive definite at mode".into(),
+        diagnostics: vec![RouteNativeDiagnostic::computational_failure(RouteMass::unreported())],
     })?;
     let condition = condition_from_chol(&chol, ncols);
     workspace.factor[..ncols * ncols].copy_from_slice(&chol);
@@ -248,8 +331,10 @@ pub fn fit_laplace_glm(
         "laplace", converged, iterations, grad_inf, condition, sep_map, notes,
     );
 
-    if let Some(message) = diagnostics.curvature_refusal() {
-        return Err(ProbError::MissingDiagnostics { message });
+    if let Some(message) = diagnostics.curvature_refusal()
+        && let Some(error) = diagnostics.publication_error(message)
+    {
+        return Err(error);
     }
 
     let map = workspace.beta[..ncols].to_vec();
@@ -300,6 +385,10 @@ fn fit_gaussian_laplace(
 }
 
 /// Form `A_β = X'WX + P` and `b_β = X'W(y − offset) + P m₀`.
+///
+/// The Gram matrix is the blocked [`antecedent_stats::form_xtx`] (of `√w`-scaled columns when
+/// there are prior weights), and the weight and offset lookups are hoisted out of the
+/// per-column loops.
 #[allow(
     clippy::unnecessary_wraps,
     reason = "returns Result to match the fallible sibling paths it is dispatched alongside"
@@ -314,47 +403,44 @@ fn gaussian_normal_equations(
     let mut prec_mean = vec![0.0; ncols];
     prec.mul_into(&coef_prior.mean, &mut prec_mean);
     let mut a_beta = vec![0.0; ncols * ncols];
-    let mut b_beta = vec![0.0; ncols];
-    for c1 in 0..ncols {
-        for c2 in c1..ncols {
-            let mut acc = 0.0;
-            for r in 0..nrows {
-                let w = design.weights.map_or(1.0, |ww| ww[r]);
-                let x1 = design.x_colmajor[c1 * nrows + r];
-                let x2 = design.x_colmajor[c2 * nrows + r];
-                acc += w * x1 * x2;
+    match design.weights {
+        None => antecedent_stats::form_xtx(design.x_colmajor, nrows, ncols, &mut a_beta),
+        Some(weights) => {
+            let mut scaled = design.x_colmajor[..nrows * ncols].to_vec();
+            for column in scaled.chunks_exact_mut(nrows.max(1)) {
+                for (x, w) in column.iter_mut().zip(weights) {
+                    *x *= w.sqrt();
+                }
             }
-            a_beta[c1 * ncols + c2] = acc;
-            a_beta[c2 * ncols + c1] = acc;
+            antecedent_stats::form_xtx(&scaled, nrows, ncols, &mut a_beta);
         }
-        let mut acc = 0.0;
-        for r in 0..nrows {
+    }
+    let weighted_response: Vec<f64> = (0..nrows)
+        .map(|r| {
             let w = design.weights.map_or(1.0, |ww| ww[r]);
             let offset = design.offsets.map_or(0.0, |oo| oo[r]);
-            let x = design.x_colmajor[c1 * nrows + r];
-            acc += w * x * (design.y[r] - offset);
-        }
+            w * (design.y[r] - offset)
+        })
+        .collect();
+    let mut b_beta = vec![0.0; ncols];
+    for c1 in 0..ncols {
+        let column = &design.x_colmajor[c1 * nrows..(c1 + 1) * nrows];
+        let acc: f64 = column.iter().zip(&weighted_response).map(|(x, v)| x * v).sum();
         b_beta[c1] = acc + prec_mean[c1];
     }
     prec.add_divided_to(&mut a_beta, ncols, 1.0);
     Ok((a_beta, b_beta))
 }
 
+/// Posterior mode `A⁻¹ b` through one equilibrated Cholesky factorization (no explicit
+/// inverse).
+#[cfg(test)]
 fn solve_map_from_normal_eq(
     a_beta: &[f64],
     b_beta: &[f64],
     ncols: usize,
 ) -> Result<Vec<f64>, ProbError> {
-    let a_inv = invert_spd(a_beta, ncols)?;
-    let mut map = vec![0.0; ncols];
-    for i in 0..ncols {
-        let mut acc = 0.0;
-        for j in 0..ncols {
-            acc += a_inv[i * ncols + j] * b_beta[j];
-        }
-        map[i] = acc;
-    }
-    Ok(map)
+    Ok(crate::conjugate::solve_posterior_mean(a_beta, ncols, b_beta)?.mean)
 }
 
 fn fit_gaussian_laplace_known(
@@ -368,12 +454,14 @@ fn fit_gaussian_laplace_known(
     let ncols = design.ncols;
     workspace.prepare(design.nrows, ncols, options.n_draws);
     let (a_beta, b_beta) = gaussian_normal_equations(design, coef_prior, prec)?;
-    let map = solve_map_from_normal_eq(&a_beta, &b_beta, ncols)?;
-    let a_inv = invert_spd(&a_beta, ncols)?;
-    let mut cov = vec![0.0; ncols * ncols];
-    for i in 0..ncols * ncols {
-        cov[i] = sigma2 * a_inv[i];
+    // One equilibrated factorization yields the mode, the covariance and the condition.
+    let solved = crate::conjugate::solve_posterior_mean(&a_beta, ncols, &b_beta)?;
+    let condition = solved.condition;
+    let mut cov = solved.inverse();
+    for value in &mut cov {
+        *value *= sigma2;
     }
+    let map = solved.mean;
 
     let mut target = gaussian_target_from_model_with_precision(
         design,
@@ -389,8 +477,6 @@ fn fit_gaussian_laplace_known(
     for &g in &grad {
         grad_inf = grad_inf.max(g.abs() / inv_s2.max(1e-300));
     }
-    let chol = cholesky_spd(&a_beta, ncols)?;
-    let condition = condition_from_chol(&chol, ncols);
     let diagnostics = InferenceDiagnostics::laplace(
         "laplace",
         grad_inf < options.grad_tol.max(1e-8),
@@ -400,8 +486,10 @@ fn fit_gaussian_laplace_known(
         false,
         vec![Arc::from("gaussian_laplace_known_sigma2")],
     );
-    if let Some(message) = diagnostics.curvature_refusal() {
-        return Err(ProbError::MissingDiagnostics { message });
+    if let Some(message) = diagnostics.curvature_refusal()
+        && let Some(error) = diagnostics.publication_error(message)
+    {
+        return Err(error);
     }
     let draws_vals = sample_gaussian_mvn(&map, &cov, options.n_draws, options.seed, workspace)?;
     let draws = PosteriorDraws::from_column_major(
@@ -437,9 +525,19 @@ pub fn sample_gaussian_mvn(
     }
     let chol = cholesky_spd(cov, ncols)?;
     let mut rng = crate::streams::direct_draw_rng(seed);
-    let mut values = vec![0.0; n_draws * ncols];
+    let cells = n_draws
+        .checked_mul(ncols)
+        .ok_or(ProbError::Shape { message: "draw buffer size overflow" })?;
+    let _admitted = crate::admission::admit_cells(None, cells)?;
+    let mut values = vec![0.0; cells];
     let z = &mut workspace.draw_scratch[..ncols];
     for d in 0..n_draws {
+        if antecedent_core::numerical_admission::is_cancelled() {
+            return Err(ProbError::Numerical { message: "Laplace sampling cancelled".into() });
+        }
+        let draw = antecedent_core::execution_attempt::OperationGuard::begin(
+            antecedent_core::execution_attempt::Operation::PosteriorDraw,
+        );
         for j in 0..ncols {
             z[j] = standard_normal(&mut rng);
         }
@@ -450,6 +548,7 @@ pub fn sample_gaussian_mvn(
             }
             values[i * n_draws + d] = acc;
         }
+        draw.complete();
     }
     Ok(Arc::from(values))
 }
@@ -458,7 +557,108 @@ pub fn sample_gaussian_mvn(
 mod tests {
     use super::*;
     use crate::gaussian_target::{gaussian_target_from_model, prior_quadratic, rss_and_xtwr};
+    use crate::linalg::invert_spd;
     use crate::prior::PriorSpec;
+
+    #[test]
+    fn rejected_line_search_restores_iterate_and_cached_objective() {
+        let design = BayesDesignRef {
+            x_colmajor: &[1.0, 1.0],
+            nrows: 2,
+            ncols: 1,
+            y: &[0.0, 1.0],
+            weights: None,
+            offsets: None,
+        };
+        let prior = PriorSet::weakly_informative(1);
+        let coef_prior = prior.gaussian_coefficients().unwrap();
+        let prec = prior.coefficient_precision(coef_prior).unwrap();
+        let mut workspace = LaplaceWorkspace::default();
+        workspace.prepare(2, 1, 0);
+        workspace.beta[0] = 0.0;
+        workspace.step[0] = 1000.0;
+        workspace.grad[0] = 1.0;
+        let mut known_objective = None;
+        let (accepted, within_roundoff) = laplace_line_search(
+            BayesLikelihood::BernoulliLogit,
+            design,
+            coef_prior,
+            &prec,
+            &mut workspace,
+            &mut known_objective,
+        )
+        .unwrap();
+        assert!(!accepted && !within_roundoff);
+        assert_eq!(workspace.beta[0].to_bits(), 0.0_f64.to_bits());
+        assert!(known_objective.is_none());
+    }
+
+    #[test]
+    fn caller_admission_precedes_workspace_allocation_and_preserves_logistic_fit_bits() {
+        use antecedent_core::execution_attempt::{Operation, observe_with_context};
+        let x = [1.0; 8];
+        let y = [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0];
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 8,
+            ncols: 1,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let prior = PriorSet {
+            specs: vec![PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(
+                1, 2.0,
+            ))],
+            contrast: None,
+            categorical: Vec::new(),
+            restrictions: Vec::new(),
+        };
+        let options = BayesFitOptions { n_draws: 32, seed: 13, ..BayesFitOptions::default() };
+        let denied = ExecutionContext::for_tests(13).with_memory_limit(Some(0));
+        let (result, admission) =
+            antecedent_core::numerical_admission::with_context_and_failure(&denied, || {
+                fit_laplace_glm_owned(BayesLikelihood::BernoulliLogit, design, &prior, &options)
+            });
+        assert!(result.is_err() && admission.is_some());
+        let expected = fit_laplace_glm(
+            BayesLikelihood::BernoulliLogit,
+            design,
+            &prior,
+            &options,
+            &mut LaplaceWorkspace::default(),
+        )
+        .unwrap();
+        let ctx = ExecutionContext::for_tests(13).with_memory_limit(Some(100_000));
+        let observed = observe_with_context(&ctx, || {
+            fit_laplace_glm_owned(BayesLikelihood::BernoulliLogit, design, &prior, &options)
+        });
+        assert_eq!(observed.report.counts(Operation::PosteriorFit).completed, 1);
+        assert_eq!(observed.report.counts(Operation::PosteriorDraw).completed, 32);
+        let actual = observed.result.unwrap();
+        assert_eq!(actual.map, expected.map);
+        assert_eq!(actual.cov, expected.cov);
+        for draw in 0..32 {
+            assert_eq!(
+                actual.draws.get(draw, 0).unwrap().to_bits(),
+                expected.draws.get(draw, 0).unwrap().to_bits()
+            );
+        }
+    }
+
+    #[test]
+    fn active_cancellation_stops_original_gaussian_draw_loop() {
+        use antecedent_core::execution_attempt::{Operation, observe_with_context};
+        let mut ctx = ExecutionContext::for_tests(3);
+        ctx.cancellation = antecedent_core::CancellationToken::cancel_after_checks(20);
+        let attempt = observe_with_context(&ctx, || {
+            sample_gaussian_mvn(&[0.0], &[1.0], 1000, 3, &mut LaplaceWorkspace::default())
+        });
+        assert!(attempt.result.is_err());
+        let completed = attempt.report.counts(Operation::PosteriorDraw).completed;
+        assert!(completed > 0 && completed < 1000);
+        assert!(ctx.cancellation.is_cancelled());
+    }
 
     fn deterministic_unit(i: usize) -> f64 {
         // Cheap deterministic U(0,1) so Bernoulli labels overlap in x.
@@ -634,7 +834,7 @@ mod tests {
             x[n + r] = xi;
             let p = antecedent_kernels::sigmoid(1.2 * xi);
             // Overlapping labels — hard p>0.5 assignment is complete separation
-            // and Laplace must refuse that posterior (M12).
+            // and Laplace must refuse that posterior.
             y[r] = if deterministic_unit(r) < p { 1.0 } else { 0.0 };
         }
         let prior = PriorSet::weakly_informative(2);
@@ -678,9 +878,18 @@ mod tests {
         let opts = BayesFitOptions { n_draws: 50, seed: 2, ..BayesFitOptions::default() };
         let err = fit_laplace_glm(BayesLikelihood::BernoulliLogit, design, &prior, &opts, &mut ws)
             .unwrap_err();
+        let records = err.route_diagnostics();
         assert!(
-            matches!(err, ProbError::MissingDiagnostics { .. }),
-            "separated logistic Laplace must not publish: {err:?}"
+            records.iter().any(|record| record.is_model_restriction()),
+            "separated logistic Laplace is a model restriction: {err:?}"
+        );
+        assert!(
+            records.iter().all(|record| !record.is_computational_failure()),
+            "separation is not a computational failure: {err:?}"
+        );
+        assert!(
+            records.iter().all(|record| !record.is_unsupported_inference()),
+            "separation is not unsupported inference: {err:?}"
         );
     }
 

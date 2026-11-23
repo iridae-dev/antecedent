@@ -1,7 +1,10 @@
 //! Generic out-of-fold cross-fitting over [`DesignView`] row indices.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::device_reservation::{
+    CpuAdmissionError, FoldAdmission, LearnerAdmission, admit_fold, place_physical_predictions,
+};
 use antecedent_core::{CausalRng, ExecutionContext, StreamDomain};
 use antecedent_kernels::{ViewError, shuffled_fold_assignment};
 
@@ -64,7 +67,7 @@ pub fn assign_folds(
     if folds < 2 {
         return Err(LearnError::Shape { message: "cross-fitting requires at least two folds" });
     }
-    if folds > usize::from(u16::MAX) + 1 || n_rows > u32::MAX as usize {
+    if folds > usize::from(u16::MAX) + 1 || u64::try_from(n_rows).is_err() {
         return Err(LearnError::Shape {
             message: "cross-fitting exceeds row or fold index capacity",
         });
@@ -93,30 +96,100 @@ fn binary_strata(task: PredictionTask, y: &[f64]) -> Option<Vec<u32>> {
 /// Number of folds in a plan that uses every id in `0..folds` at least once.
 fn complete_fold_count(assignment: &[u16], message: &'static str) -> Result<usize, LearnError> {
     let folds = usize::from(*assignment.iter().max().unwrap_or(&0)) + 1;
-    if folds < 2 || (0..folds).any(|f| !assignment.iter().any(|v| usize::from(*v) == f)) {
+    // Fold ids are u16, so the occupancy table is bounded at 65,536 entries.
+    // Visit each row once rather than scanning the full plan for every fold.
+    let mut present = vec![false; folds];
+    for &fold in assignment {
+        present[usize::from(fold)] = true;
+    }
+    if folds < 2 || present.iter().any(|&seen| !seen) {
         return Err(LearnError::Shape { message });
     }
     Ok(folds)
 }
 
+/// Accounted width of one `f64`.
+const F64_BYTES: u64 = 8;
+
 /// Scatter each fold's held-out predictions back onto physical rows.
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "callers reject row counts above u32::MAX before storing physical indexes as u32"
-)]
+///
+/// Fold completion order does not change the vector: each value is written at
+/// its physical row, and a row that is missing or repeated is refused.
 fn scatter_fold_predictions(
     n: usize,
-    parts: impl IntoIterator<Item = FoldFit>,
-) -> (Vec<f64>, Vec<LearnerProvenance>) {
-    let mut predictions = vec![0.0; n];
-    let mut model_provenance = Vec::new();
+    parts: Vec<FoldFit>,
+) -> Result<(Vec<f64>, Vec<LearnerProvenance>), LearnError> {
+    let mut pairs = Vec::with_capacity(parts.len());
+    for part in &parts {
+        pairs.push((part.valid_phys.as_slice(), part.preds.as_slice()));
+    }
+    let predictions = place_physical_predictions(n, &pairs).map_err(|_| LearnError::Shape {
+        message: "held-out predictions are not one value per physical row",
+    })?;
+    drop(pairs);
+    let mut model_provenance = Vec::with_capacity(parts.len());
     for part in parts {
         model_provenance.push(part.provenance);
-        for (row, value) in part.valid_phys.into_iter().zip(part.preds) {
-            predictions[row as usize] = value;
-        }
     }
-    (predictions, model_provenance)
+    Ok((predictions, model_provenance))
+}
+
+fn accounted_bytes(rows: usize) -> Result<u64, LearnError> {
+    let rows = u64::try_from(rows)
+        .map_err(|_| LearnError::Shape { message: "cross-fit fold byte account overflowed" })?;
+    rows.checked_mul(F64_BYTES)
+        .ok_or(LearnError::Shape { message: "cross-fit fold byte account overflowed" })
+}
+
+fn admission_to_learn(error: CpuAdmissionError) -> LearnError {
+    match error {
+        CpuAdmissionError::Cancelled => LearnError::Cancelled,
+        CpuAdmissionError::FoldExceedsLease { .. } => {
+            LearnError::Unsupported { message: "cross-fit fold exceeds the shared admission lease" }
+        }
+        CpuAdmissionError::LearnerExceedsLease { .. } => {
+            LearnError::Unsupported { message: "cross-fit learner exceeds the fold lease" }
+        }
+        CpuAdmissionError::Scratch { .. } => {
+            LearnError::Unsupported { message: "cross-fit scratch is full" }
+        }
+        _ => LearnError::Unsupported { message: "cross-fit admission was refused" },
+    }
+}
+
+fn map_admission_error(
+    error: antecedent_core::execution::MapExecutionError<LearnError>,
+) -> LearnError {
+    use antecedent_core::execution::{AdmissionError, MapExecutionError};
+    match error {
+        MapExecutionError::Work(error) => error,
+        MapExecutionError::Admission(AdmissionError::Cancelled) => LearnError::Cancelled,
+        MapExecutionError::Admission(error) => LearnError::Admission(error),
+    }
+}
+
+fn lease_fold(
+    ctx: &ExecutionContext,
+    rows: usize,
+) -> Result<(FoldAdmission, LearnerAdmission), LearnError> {
+    let accounted = accounted_bytes(rows)?;
+    // The surrounding admitted map owns the worker slot; fold admission charges bytes only.
+    let fold = admit_fold(ctx, 0, accounted, F64_BYTES).map_err(admission_to_learn)?;
+    let learner = fold.admit_learner(0, accounted, F64_BYTES).map_err(admission_to_learn)?;
+    Ok((fold, learner))
+}
+
+fn stop_if_cancelled(
+    learner: &mut LearnerAdmission,
+    fold: &mut FoldAdmission,
+    ctx: &ExecutionContext,
+) -> Result<(), LearnError> {
+    let learner_stopped = learner.observe_cancel(&ctx.cancellation);
+    let fold_stopped = fold.observe_cancel(&ctx.cancellation);
+    if learner_stopped || fold_stopped {
+        return Err(LearnError::Cancelled);
+    }
+    Ok(())
 }
 
 /// Cross-fit `factory` on `x` / `y`. `y` is physical-aligned.
@@ -153,7 +226,8 @@ pub(crate) fn cross_fit(
 ///
 /// # Errors
 ///
-/// Shape mismatch, fewer than two folds, an empty fold, or learner failure.
+/// Shape mismatch, fewer than two folds, an empty fold, a fold that exceeds the
+/// shared CPU and RAM lease, cancellation, or learner failure.
 #[allow(
     clippy::cast_possible_truncation,
     reason = "fold ids are u16 and at most max + 1 <= 2^16 of them exist, so the fold index fits u16"
@@ -201,30 +275,55 @@ pub fn cross_fit_with_folds_weighted(
     if weights.is_some_and(|w| w.len() != n) {
         return Err(LearnError::Shape { message: "weights length != physical rows" });
     }
-    if fold_assignment.len() != n || n == 0 || n > u32::MAX as usize {
+    validate_factory(factory, weights.is_some())?;
+    if fold_assignment.len() != n || n == 0 || u64::try_from(n).is_err() {
         return Err(LearnError::Shape { message: "fold plan length != physical rows" });
     }
     let folds =
         complete_fold_count(&fold_assignment, "cross-fitting needs at least two non-empty folds")?;
-    let fold_results = ctx.map_indexed(folds, |fold, inner| {
-        fit_one_fold(factory, x, y, weights, (&fold_assignment, fold as u16), inner, transformer)
-    })?;
+    let fold_results = ctx
+        .try_map_indexed(folds, |fold, inner| {
+            fit_one_fold(
+                factory,
+                x,
+                y,
+                weights,
+                (&fold_assignment, fold as u16),
+                inner,
+                transformer,
+            )
+        })
+        .map_err(map_admission_error)?;
 
-    let (predictions, model_provenance) = scatter_fold_predictions(n, fold_results);
-    let validation = diagnose(factory.task(), y.values(), &predictions);
+    let (predictions, model_provenance) = scatter_fold_predictions(n, fold_results)?;
+    let validation = try_diagnose(factory.task(), y.values(), &predictions)?;
     Ok(CrossFittedPrediction { predictions, fold_assignment, model_provenance, validation })
 }
 
+fn validate_factory(factory: &dyn LearnerFactory, weighted: bool) -> Result<(), LearnError> {
+    let caps = factory.capabilities();
+    if !(match factory.task() {
+        PredictionTask::Regression => caps.regression,
+        PredictionTask::BinaryProbability => caps.binary_probability,
+    }) {
+        return Err(LearnError::Unsupported {
+            message: "learner does not declare its task capability",
+        });
+    }
+    if weighted && !caps.sample_weights {
+        return Err(LearnError::Unsupported {
+            message: "learner does not support sampling weights",
+        });
+    }
+    Ok(())
+}
+
 struct FoldFit {
-    valid_phys: Vec<u32>,
+    valid_phys: Vec<u64>,
     preds: Vec<f64>,
     provenance: LearnerProvenance,
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "cross_fit_with_folds rejects row counts above u32::MAX, so every row index fits u32"
-)]
 fn fit_one_fold(
     factory: &dyn LearnerFactory,
     x: DesignView<'_>,
@@ -237,7 +336,7 @@ fn fit_one_fold(
     let mut train = Vec::new();
     let mut valid = Vec::new();
     for (i, &f) in folds.iter().enumerate() {
-        let idx = i as u32;
+        let idx = u64::try_from(i).expect("row id");
         if f == fold {
             valid.push(idx);
         } else {
@@ -247,6 +346,12 @@ fn fit_one_fold(
     if train.is_empty() || valid.is_empty() {
         return Err(LearnError::Shape { message: "empty cross-fit train or valid fold" });
     }
+    let rows = train
+        .len()
+        .checked_add(valid.len())
+        .ok_or(LearnError::Shape { message: "cross-fit fold byte account overflowed" })?;
+    let (mut fold_hold, mut learner_hold) = lease_fold(ctx, rows)?;
+    stop_if_cancelled(&mut learner_hold, &mut fold_hold, ctx)?;
     let train_view = x.with_rows(RowSelection::new(&train))?;
     let valid_view = x.with_rows(RowSelection::new(&valid))?;
     let (fitted, preds) = if let Some(tf) = transformer {
@@ -259,22 +364,36 @@ fn fit_one_fold(
         let train_w =
             weights.map(|w| gather_logical_target(TargetView::new(w), &train)).transpose()?;
         let model = factory.fit(train_x, TargetView::new(&train_y), train_w.as_deref(), ctx)?;
-        let mut out = vec![0.0; vr];
+        let mut out = vec![f64::NAN; vr];
         model.predict(valid_x, &mut out, ctx)?;
         (model, out)
     } else {
         let model = factory.fit(train_view, y, weights, ctx)?;
-        let mut out = vec![0.0; valid_view.nrows()];
+        let mut out = vec![f64::NAN; valid_view.nrows()];
         model.predict(valid_view, &mut out, ctx)?;
         (model, out)
     };
+    validate_predictions(factory.task(), &preds)?;
+    stop_if_cancelled(&mut learner_hold, &mut fold_hold, ctx)?;
     Ok(FoldFit { valid_phys: valid, preds, provenance: fitted.provenance() })
 }
 
-fn gather_logical_target(y: TargetView<'_>, rows: &[u32]) -> Result<Vec<f64>, LearnError> {
+fn validate_predictions(task: PredictionTask, predictions: &[f64]) -> Result<(), LearnError> {
+    if predictions.iter().any(|p| !p.is_finite()) {
+        return Err(LearnError::NonFinite { message: "nuisance predictions must be finite" });
+    }
+    if task == PredictionTask::BinaryProbability
+        && predictions.iter().any(|p| !(0.0..=1.0).contains(p))
+    {
+        return Err(LearnError::Backend("probability predictions must lie in [0, 1]".to_string()));
+    }
+    Ok(())
+}
+
+fn gather_logical_target(y: TargetView<'_>, rows: &[u64]) -> Result<Vec<f64>, LearnError> {
     let mut out = Vec::with_capacity(rows.len());
     for &i in rows {
-        let idx = i as usize;
+        let idx = usize::try_from(i).expect("row id");
         if idx >= y.len() {
             return Err(LearnError::Shape { message: "fold index out of target" });
         }
@@ -284,9 +403,43 @@ fn gather_logical_target(y: TargetView<'_>, rows: &[u32]) -> Result<Vec<f64>, Le
 }
 
 /// Compute OOF diagnostics from physical-aligned predictions.
+///
+/// Inputs that cannot be scored (lengths differ, or a target or prediction is not finite)
+/// yield diagnostics with no metrics rather than a truncated or `NaN` score; use
+/// [`try_diagnose`] to learn why.
 #[must_use]
 pub fn diagnose(task: PredictionTask, y: &[f64], pred: &[f64]) -> NuisanceDiagnostics {
-    let n = y.len().min(pred.len());
+    try_diagnose(task, y, pred).unwrap_or_else(|_| NuisanceDiagnostics {
+        task: Some(task),
+        ..NuisanceDiagnostics::default()
+    })
+}
+
+/// Compute OOF diagnostics from physical-aligned predictions, refusing inputs that cannot be
+/// scored.
+///
+/// # Errors
+///
+/// [`LearnError::Shape`] when `y` and `pred` differ in length (no silent truncation);
+/// [`LearnError::NonFinite`] when a target or prediction is `NaN` or infinite.
+pub fn try_diagnose(
+    task: PredictionTask,
+    y: &[f64],
+    pred: &[f64],
+) -> Result<NuisanceDiagnostics, LearnError> {
+    if y.len() != pred.len() {
+        return Err(LearnError::Shape {
+            message: "diagnostics target and prediction lengths differ",
+        });
+    }
+    if y.iter().chain(pred).any(|v| !v.is_finite()) {
+        return Err(LearnError::NonFinite { message: "diagnostics target or prediction" });
+    }
+    Ok(score_diagnostics(task, y, pred))
+}
+
+fn score_diagnostics(task: PredictionTask, y: &[f64], pred: &[f64]) -> NuisanceDiagnostics {
+    let n = y.len();
     if n == 0 {
         return NuisanceDiagnostics { task: Some(task), ..NuisanceDiagnostics::default() };
     }
@@ -333,7 +486,8 @@ pub fn diagnose(task: PredictionTask, y: &[f64], pred: &[f64]) -> NuisanceDiagno
 /// Cross-fit a nuisance trained only on declared eligible rows, predicting all
 /// held-out rows. Fold assignment is shared across nuisance roles.
 /// # Errors
-/// Misaligned inputs, invalid folds, empty training roles, or provider failure.
+/// Misaligned inputs, invalid folds, empty training roles, a fold that exceeds
+/// the shared CPU and RAM lease, cancellation, or provider failure.
 #[allow(
     clippy::cast_possible_truncation,
     reason = "n is checked against u32::MAX above, so every row index fits u32"
@@ -349,36 +503,49 @@ pub fn cross_fit_selected(
     let n = x.physical_nrows();
     if x.row_selection().is_some()
         || n == 0
-        || n > u32::MAX as usize
+        || u64::try_from(n).is_err()
         || y.len() != n
         || fold_assignment.len() != n
         || eligible.len() != n
     {
         return Err(LearnError::Shape { message: "misaligned selected cross-fit inputs" });
     }
+    validate_factory(factory, false)?;
     let folds = complete_fold_count(fold_assignment, "invalid selected cross-fit folds")?;
-    let parts = ctx.map_indexed(folds, |fold, inner| {
-        let train: Vec<u32> = (0..n)
-            .filter(|i| eligible[*i] && usize::from(fold_assignment[*i]) != fold)
-            .map(|i| i as u32)
-            .collect();
-        let valid: Vec<u32> =
-            (0..n).filter(|i| usize::from(fold_assignment[*i]) == fold).map(|i| i as u32).collect();
-        if train.is_empty() {
-            return Err(LearnError::Shape { message: "empty training role in cross-fit fold" });
-        }
-        let fitted = factory.fit(x.with_rows(RowSelection::new(&train))?, y, None, inner)?;
-        let mut preds = vec![0.0; valid.len()];
-        fitted.predict(x.with_rows(RowSelection::new(&valid))?, &mut preds, inner)?;
-        Ok(FoldFit { valid_phys: valid, preds, provenance: fitted.provenance() })
-    })?;
-    let (predictions, model_provenance) = scatter_fold_predictions(n, parts);
+    let parts = ctx
+        .try_map_indexed(folds, |fold, inner| {
+            let train: Vec<u64> = (0..n)
+                .filter(|i| eligible[*i] && usize::from(fold_assignment[*i]) != fold)
+                .map(|i| u64::try_from(i).expect("row id"))
+                .collect();
+            let valid: Vec<u64> = (0..n)
+                .filter(|i| usize::from(fold_assignment[*i]) == fold)
+                .map(|i| u64::try_from(i).expect("row id"))
+                .collect();
+            if train.is_empty() {
+                return Err(LearnError::Shape { message: "empty training role in cross-fit fold" });
+            }
+            let rows = train
+                .len()
+                .checked_add(valid.len())
+                .ok_or(LearnError::Shape { message: "cross-fit fold byte account overflowed" })?;
+            let (mut fold_hold, mut learner_hold) = lease_fold(inner, rows)?;
+            stop_if_cancelled(&mut learner_hold, &mut fold_hold, inner)?;
+            let fitted = factory.fit(x.with_rows(RowSelection::new(&train))?, y, None, inner)?;
+            let mut preds = vec![f64::NAN; valid.len()];
+            fitted.predict(x.with_rows(RowSelection::new(&valid))?, &mut preds, inner)?;
+            validate_predictions(factory.task(), &preds)?;
+            stop_if_cancelled(&mut learner_hold, &mut fold_hold, inner)?;
+            Ok(FoldFit { valid_phys: valid, preds, provenance: fitted.provenance() })
+        })
+        .map_err(map_admission_error)?;
+    let (predictions, model_provenance) = scatter_fold_predictions(n, parts)?;
     let observed: Vec<_> =
         y.values().iter().zip(eligible).filter_map(|(v, use_row)| use_row.then_some(*v)).collect();
     let predicted: Vec<_> =
         predictions.iter().zip(eligible).filter_map(|(v, use_row)| use_row.then_some(*v)).collect();
     Ok(CrossFittedPrediction {
-        validation: diagnose(factory.task(), &observed, &predicted),
+        validation: try_diagnose(factory.task(), &observed, &predicted)?,
         predictions,
         model_provenance,
         fold_assignment: fold_assignment.to_vec(),
@@ -392,9 +559,29 @@ pub fn cross_fit_selected(
     reason = "this unit-test module compares floats that are copied, clamped or hand-set without rounding, so exact equality is intended"
 )]
 mod tests {
+    use antecedent_core::execution::AdmissionPool;
+
     use super::*;
     use crate::linear::LinearLearner;
     use crate::transform::Identity;
+
+    #[test]
+    fn invalid_external_predictions_are_rejected() {
+        assert!(validate_predictions(PredictionTask::Regression, &[f64::NAN]).is_err());
+        assert!(validate_predictions(PredictionTask::BinaryProbability, &[1.01]).is_err());
+        assert!(validate_predictions(PredictionTask::BinaryProbability, &[-0.01]).is_err());
+        assert!(validate_predictions(PredictionTask::BinaryProbability, &[0.0, 0.5, 1.0]).is_ok());
+    }
+
+    #[test]
+    fn supplied_fold_plans_require_every_id() {
+        for assignment in [&[][..], &[0][..], &[1, 1][..], &[0, 2, 2][..], &[0, u16::MAX][..]] {
+            assert!(complete_fold_count(assignment, "invalid").is_err());
+        }
+        assert_eq!(complete_fold_count(&[1, 0, 1], "invalid").unwrap(), 2);
+        let all: Vec<_> = (0..=u16::MAX).rev().collect();
+        assert_eq!(complete_fold_count(&all, "invalid").unwrap(), 65_536);
+    }
 
     #[test]
     fn fold_ids_cannot_wrap() {
@@ -466,5 +653,50 @@ mod tests {
         for i in 0..n {
             assert!((a.predictions[i] - b.predictions[i]).abs() < 1e-10);
         }
+    }
+
+    #[cfg(feature = "ml-neural")]
+    #[test]
+    fn neural_cross_fit_uses_the_admitted_fold_worker() {
+        let n = 12;
+        let (x, y) = line(n);
+        let pool = AdmissionPool::fixed(1, 1_000_000);
+        let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let view = DesignView::from_column_major(&x, n, 2).unwrap();
+        let learner = crate::neural::NeuralNetLearner::new(
+            crate::spec::NeuralSpec { hidden: 2, epochs: 1, ..Default::default() },
+            PredictionTask::Regression,
+        );
+        assert!(cross_fit(&learner, view, TargetView::new(&y), 2, &ctx, None).is_ok());
+        assert_eq!(pool.available().threads(), 1);
+    }
+
+    #[test]
+    fn fold_exceeding_the_lease_is_refused() {
+        let n = 12usize;
+        let (x, y) = line(n);
+        let pool = AdmissionPool::fixed(1, 8);
+        let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let view = DesignView::from_column_major(&x, n, 2).unwrap();
+        let error =
+            cross_fit(&LinearLearner, view, TargetView::new(&y), 4, &ctx, None).unwrap_err();
+        assert!(matches!(error, LearnError::Unsupported { message } if message.contains("lease")));
+        assert_eq!(pool.available().bytes(), 8);
+        assert_eq!(pool.available().threads(), 1);
+    }
+
+    #[test]
+    fn cancelled_cross_fit_releases_the_cpu_lease() {
+        let n = 12usize;
+        let (x, y) = line(n);
+        let pool = AdmissionPool::fixed(1, 1_000);
+        let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        ctx.cancellation.cancel();
+        let view = DesignView::from_column_major(&x, n, 2).unwrap();
+        let error =
+            cross_fit(&LinearLearner, view, TargetView::new(&y), 4, &ctx, None).unwrap_err();
+        assert!(matches!(error, LearnError::Cancelled));
+        assert_eq!(pool.available().bytes(), 1_000);
+        assert_eq!(pool.available().threads(), 1);
     }
 }

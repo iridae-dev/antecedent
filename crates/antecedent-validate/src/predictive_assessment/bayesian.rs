@@ -14,7 +14,7 @@
 //! assessment of them is `in_sample` unless the observations scored are rows the
 //! posterior was not conditioned on; the fit declaration says which.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::law::{ForecastLaw, LawSource, MAX_LAW_ATOMS, PredictiveTarget, PredictorLaws};
 use super::overlap::FitDeclaration;

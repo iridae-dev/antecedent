@@ -6,6 +6,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study,
 };
@@ -15,7 +16,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 /// `y = shift + 0.4 + 1.7 t + small deterministic noise` on a uniform dose grid.
 fn data(shift: f64) -> TabularData {
@@ -116,9 +117,9 @@ fn bayesian_static_dag_responses_body() {
             let mut prepared = builder.prepare(&context).unwrap();
             drop(builder);
 
-            let plan = prepared
-                .checked_static_dag_response_info()
-                .unwrap_or_else(|| panic!("{label}: retained checked Bayesian response plan"));
+            let RetainedOperation::StaticDagResponse(plan) = prepared.retained_operation() else {
+                panic!("{label}: retained checked Bayesian response plan")
+            };
             assert_eq!(plan.query, query, "{label}");
             assert_eq!(plan.identifier, IdentifierId::ResponseBackdoor, "{label}");
             assert_eq!(plan.estimator, EstimatorId::ResponseBayesian, "{label}");
@@ -151,20 +152,29 @@ fn bayesian_static_dag_responses_body() {
             );
             for (&dose, &estimate) in doses.iter().zip(&got) {
                 let truth = 0.4 + 1.7 * dose;
-                assert!((estimate - truth).abs() < 0.12, "{label}: dose {dose}: {estimate}");
+                assert!(
+                    (estimate - truth).abs() < 0.005,
+                    "{label}: dose {dose}: {estimate} vs {truth}"
+                );
             }
 
-            let refreshed = prepared.refresh(data(0.3), &context).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, data(0.3), &context).unwrap();
             let refreshed_values = values(&refreshed);
             for (&dose, &estimate) in doses.iter().zip(&refreshed_values) {
                 let truth = 0.7 + 1.7 * dose;
-                assert!((estimate - truth).abs() < 0.12, "{label}: refreshed dose {dose}");
+                assert!(
+                    (estimate - truth).abs() < 0.005,
+                    "{label}: refreshed dose {dose}: {estimate} vs {truth}"
+                );
             }
-            assert!(prepared.checked_static_dag_response_info().is_some(), "{label}");
+            assert!(
+                matches!(prepared.retained_operation(), RetainedOperation::StaticDagResponse(..)),
+                "{label}"
+            );
 
             let treatment: Vec<f64> = (0..800).map(|i| f64::from(i) / 799.0).collect();
             let renamed = TabularData::from_f64_columns([("dose", treatment.as_slice())]).unwrap();
-            let error = prepared.refresh(renamed, &context).unwrap_err();
+            let error = rebind_estimate(&mut prepared, renamed, &context).unwrap_err();
             assert!(
                 error.to_string().contains("same schema"),
                 "{label}: schema-changed refresh must be refused: {error}"
@@ -173,13 +183,13 @@ fn bayesian_static_dag_responses_body() {
             let artifact = prepared
                 .encode_contracted_result(&refreshed, "bayesian-dag-response", &context)
                 .unwrap();
-            let consumed = consume_analysis_result(&artifact).unwrap();
+            let consumed = replay_analysis_result(&artifact).unwrap();
             assert!(
                 consumed.acceptance.unresolved.iter().any(|reason| reason.as_ref() == key),
                 "{label}: independent consumption must name {key}: {:?}",
                 consumed.acceptance.unresolved
             );
-            assert!(!consumed.acceptance.accepts_as_verified_program(), "{label}");
+            assert!(!consumed.acceptance.accepts_as_replayed_program(), "{label}");
         }
     }
 }
@@ -192,4 +202,17 @@ fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
         .unwrap()
         .join()
         .unwrap();
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

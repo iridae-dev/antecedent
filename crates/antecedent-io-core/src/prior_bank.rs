@@ -3,7 +3,7 @@
 //! Metadata wraps existing posterior artifacts — it is not a new draw format.
 //! Compatibility never panics on mismatch.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
@@ -153,7 +153,7 @@ impl DesignVariableSummary {
 #[serde(rename_all = "snake_case", tag = "kind")]
 #[serde(deny_unknown_fields)]
 pub enum PriorMapping {
-    /// Identical coefficient subspace (P1-C sequential Bayes).
+    /// Identical coefficient subspace (sequential Bayes).
     IdenticalCoefficientSubspace,
     /// Effect-functional transfer via a named source quantity.
     EffectFunctional {
@@ -814,23 +814,15 @@ fn assess_compatibility(source: &PriorSourceRef, target: &TargetDesign) -> Compa
         }
     }
 
+    // An attached artifact that cannot be read is never treated as a meta-only entry: its
+    // quantity names are unknown, so no transfer may rest on it.
     let wire = match load_posterior_wire(source) {
         Ok(w) => w,
         Err(e) => {
-            if source
-                .meta
-                .declared_mapping
-                .as_ref()
-                .is_some_and(|m| !matches!(m, PriorMapping::IdenticalCoefficientSubspace))
-            {
-                return CompatibilityReport::Rejected {
-                    artifact_id: id,
-                    reason: CompatibilityRejectReason::ArtifactUnreadable {
-                        message: e.to_string(),
-                    },
-                };
-            }
-            None
+            return CompatibilityReport::Rejected {
+                artifact_id: id,
+                reason: CompatibilityRejectReason::ArtifactUnreadable { message: e.to_string() },
+            };
         }
     };
 
@@ -840,12 +832,11 @@ fn assess_compatibility(source: &PriorSourceRef, target: &TargetDesign) -> Compa
     };
     let qty_set: BTreeSet<&str> = qty_names.iter().map(String::as_str).collect();
 
-    if let Some(mapping) = &source.meta.declared_mapping {
-        if let Some(early) =
+    if let Some(mapping) = &source.meta.declared_mapping
+        && let Some(early) =
             validate_declared_mapping(mapping, wire.as_ref(), &qty_set, &effect_names, &id)
-        {
-            return early;
-        }
+    {
+        return early;
     }
 
     let mut mappable = effect_names;
@@ -864,12 +855,11 @@ fn assess_compatibility(source: &PriorSourceRef, target: &TargetDesign) -> Compa
     }
 
     if !missing.is_empty() {
-        if mappable.is_empty() {
-            if let Some(PriorMapping::EffectFunctional { source_quantity }) =
+        if mappable.is_empty()
+            && let Some(PriorMapping::EffectFunctional { source_quantity }) =
                 &source.meta.declared_mapping
-            {
-                mappable.push(source_quantity.clone());
-            }
+        {
+            mappable.push(source_quantity.clone());
         }
         return CompatibilityReport::Partial { artifact_id: id, missing, mappable };
     }
@@ -952,6 +942,7 @@ mod tests {
             hessian_condition: 1.0,
             draws_encoding: "f64_le_colmajor".into(),
             treatment_contrast: None,
+            preparation: None,
         };
         // Draws (-1, 0, 1) per quantity: mean 0, sample SD 1, type-7 quantiles -0.95 / 0.95.
         let draws = (0..n_q).flat_map(|_| [-1.0f64, 0.0, 1.0]).collect::<Vec<_>>();
@@ -1078,6 +1069,56 @@ mod tests {
             &reports[0],
             CompatibilityReport::Compatible { artifact_id } if artifact_id == "match"
         ));
+    }
+
+    #[test]
+    fn a_path_entry_reads_its_artifact_when_filtered_and_fails_closed_when_it_cannot() {
+        let dir = std::env::temp_dir().join(format!(
+            "antecedent-prior-bank-{}-{}",
+            std::process::id(),
+            line!()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("prior.antecedent");
+        let write = |names: Option<Vec<&str>>| {
+            let mut buf = Vec::new();
+            mini_posterior("on-disk", names).write_to(&mut buf).unwrap();
+            std::fs::write(&path, buf).unwrap();
+        };
+        let meta = PriorSourceMeta::new("on-disk", ate_estimand(), "NonparametricallyIdentified")
+            .with_design(design_tyz());
+        let catalog = PriorCatalog::from_sources(vec![PriorSourceRef::with_path(meta, &path)]);
+        let target = TargetDesign::new(ate_estimand(), ["t", "y", "z"]);
+        let report = |catalog: &PriorCatalog| catalog.filter_compatible(&target).remove(0);
+
+        // The file is read at filter time, as in-memory bytes would be.
+        write(Some(vec!["intercept", "coef_t", "coef_z"]));
+        assert!(matches!(report(&catalog), CompatibilityReport::Compatible { .. }));
+        assert!(catalog.require_compatible(&target).is_ok());
+        // A changed file changes the verdict: the entry holds the path, not a snapshot.
+        write(None);
+        assert!(matches!(report(&catalog), CompatibilityReport::Partial { .. }));
+        // Invalid bytes and a missing file are unreadable, whatever mapping is declared.
+        std::fs::write(&path, b"not an artifact").unwrap();
+        let unreadable = |r: &CompatibilityReport| {
+            matches!(
+                r,
+                CompatibilityReport::Rejected {
+                    reason: CompatibilityRejectReason::ArtifactUnreadable { .. },
+                    ..
+                }
+            )
+        };
+        assert!(unreadable(&report(&catalog)));
+        std::fs::remove_file(&path).unwrap();
+        assert!(unreadable(&report(&catalog)));
+        assert!(catalog.require_usable(&target).is_err(), "an unreadable source is never usable");
+        let mapped = PriorSourceMeta::new("on-disk", ate_estimand(), "NonparametricallyIdentified")
+            .with_design(design_tyz())
+            .with_mapping(PriorMapping::EffectFunctional { source_quantity: "ate".into() });
+        let mapped = PriorCatalog::from_sources(vec![PriorSourceRef::with_path(mapped, &path)]);
+        assert!(unreadable(&report(&mapped)));
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

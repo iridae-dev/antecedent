@@ -1,6 +1,6 @@
 //! TemporalCpdag/Pag graph-posterior Pulse/Sustained: class envelope per atom, then policy.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::atom_mix::{
     AtomBoundRule, AtomEvalView, AtomMixInput, AtomRefuterBatch, ScalarRefuterMix,
@@ -21,10 +21,10 @@ use super::{
     bayesian_gcomp, bayesian_temporal_gcomp, completion_fit_seed, effect_from_posterior,
     elapsed_ns, envelope_se_omission_diagnostic, envelope_se_omits_between_atom_variance,
     identification_status_ok_for_case, identify_cached_diagnostic, mass_fields,
-    mix_weighted_analytic_se, overlap_diagnostic, provenance_ids, resolve_posterior_status,
-    select_estimand, sequential_linear_sem_assumption, shared_block_mixture_message,
-    shared_circular_block_mixture_se, short_series_warning, temporal_class_block_span,
-    temporal_refuter_average,
+    mix_weighted_analytic_se, overlap_diagnostic, overlap_limit_diagnostic, provenance_ids,
+    resolve_posterior_status, select_estimand, sequential_linear_sem_assumption,
+    shared_block_mixture_message, shared_circular_block_mixture_se, short_series_warning,
+    temporal_class_block_span, temporal_refuter_average,
 };
 use crate::analysis::prepared::{
     CachedTemporalClassPosteriorAtomIdentification, CachedTemporalClassPosteriorIdentification,
@@ -68,13 +68,19 @@ impl super::Study {
         mut estimate: EffectEstimate,
         policy: StructuralAggregationPolicy,
         ctx: &ExecutionContext,
-    ) -> (EffectEstimate, Option<super::class_envelope_se::SharedCircularBlockSe>, usize) {
+    ) -> Result<
+        (EffectEstimate, Option<super::class_envelope_se::SharedCircularBlockSe>, usize),
+        CausalError,
+    > {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "estimation" });
+        }
         let mut shared_block = None;
         let mut shared_block_designs = 0usize;
         let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
-        if self.inference.is_frequentist()
+        if self.settings.inference.is_frequentist()
             && matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
-            && self.bootstrap_replicates > 0
+            && self.settings.bootstrap_replicates > 0
         {
             let mut designs = Vec::new();
             let mut weights = Vec::new();
@@ -84,9 +90,23 @@ impl super::Study {
                 if graph_w <= 0.0 {
                     continue;
                 }
-                for fitted in &eval.fitted_designs {
+                // The atom point is normalized inside its class; give its fitted
+                // completions exactly the graph's outer mass for shared resampling.
+                if eval.estimate.as_ref().is_none_or(|estimate| !estimate.ate.is_finite()) {
+                    continue;
+                }
+                let raw: Vec<f64> =
+                    eval.fitted_designs.iter().map(|f| f.completion_weight).collect();
+                let Some(nested) = super::atom_mix::positive_nested_indices(graph_w, &raw) else {
+                    designs.clear();
+                    weights.clear();
+                    indexers.clear();
+                    break;
+                };
+                for (index, weight) in nested {
+                    let fitted = &eval.fitted_designs[index];
                     designs.push(&fitted.design);
-                    weights.push(graph_w * fitted.completion_weight);
+                    weights.push(weight);
                     indexers.push(&fitted.indexer);
                 }
             }
@@ -96,10 +116,13 @@ impl super::Study {
                     &designs,
                     &weights,
                     temporal_class_block_span(indexers.iter().copied()),
-                    self.bootstrap_replicates,
+                    self.settings.bootstrap_replicates,
                     0x7C60_C1A5,
                     ctx,
                 );
+                if ctx.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled { stage: "estimation" });
+                }
                 let se_bootstrap = block.se.is_finite().then_some(block.se);
                 let influence = estimate.scores.influence.clone();
                 estimate = EffectEstimate::from_parts(
@@ -107,8 +130,9 @@ impl super::Study {
                     estimate.se_analytic(),
                     BootstrapAccounting {
                         se: se_bootstrap,
-                        replicates_ok: (self.bootstrap_replicates > 0).then_some(block.completed),
-                        replicates_failed: (self.bootstrap_replicates > 0)
+                        replicates_ok: (self.settings.bootstrap_replicates > 0)
+                            .then_some(block.completed),
+                        replicates_failed: (self.settings.bootstrap_replicates > 0)
                             .then_some(block.attempted.saturating_sub(block.completed)),
                         cancelled: ctx.cancellation.is_cancelled(),
                         early_stopped: false,
@@ -125,7 +149,7 @@ impl super::Study {
                 }
             }
         }
-        (estimate, shared_block, shared_block_designs)
+        Ok((estimate, shared_block, shared_block_designs))
     }
 
     /// The pre-refutation diagnostics of a class graph-posterior effect: the
@@ -147,7 +171,7 @@ impl super::Study {
             &[TemporalClassAtomEval],
         ),
     ) -> Vec<Diagnostic> {
-        if self.inference.is_bayesian() && posterior_withheld {
+        if self.settings.inference.is_bayesian() && posterior_withheld {
             diagnostics.push(graph_posterior_withheld_diagnostic());
         }
         diagnostics.push(Diagnostic::new(
@@ -175,6 +199,7 @@ impl super::Study {
             .with_fields(mass_fields(Some(mixture.identified_mass), mixture.unidentified_mass)),
         );
         diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+        diagnostics.extend(overlap_limit_diagnostic(estimate.diagnostics.overlap_report.as_ref()));
         if let Some(block) = shared_block {
             diagnostics.push(
                 Diagnostic::new(
@@ -196,8 +221,8 @@ impl super::Study {
             ));
         } else if shared_block_designs > 1
             && matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
-            && self.inference.is_frequentist()
-            && self.bootstrap_replicates > 0
+            && self.settings.inference.is_frequentist()
+            && self.settings.bootstrap_replicates > 0
         {
             diagnostics.push(envelope_se_omits_between_atom_variance());
         }
@@ -230,19 +255,24 @@ impl super::Study {
         diagnostics
     }
 
-    /// The prepared class posterior identification, built from the posterior
-    /// when the study carries no cache; refuses a posterior with no
-    /// identified class atoms.
+    /// The prepared class posterior identification, the product the plan's lowered
+    /// program retained at compile, or a build from the posterior when the study
+    /// carries neither; refuses a posterior with no identified class atoms.
     fn temporal_class_posterior_identification(
         &self,
         gp: &GraphPosterior,
         vars: &[antecedent_core::VariableId],
         query: &TemporalEffectQuery,
+        physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<(Arc<CachedTemporalClassPosteriorIdentification>, bool), CausalError> {
         let (identified, identify_cached) =
-            if let Some(cache) = self.temporal_class_posterior_identification_cache.as_ref() {
+            if let Some(cache) = self.temporal_class_posterior_cache() {
                 (Arc::clone(cache), true)
+            } else if let Some(cache) =
+                crate::analysis::lowering::plan_retained_temporal_class_posterior(self, physical)
+            {
+                (cache, false)
             } else {
                 (
                 Arc::new(
@@ -250,7 +280,7 @@ impl super::Study {
                         gp,
                         vars,
                         query,
-                        self.max_completions,
+                        self.declared.max_completions,
                         ctx,
                     )?,
                 ),
@@ -276,7 +306,7 @@ impl super::Study {
     ) -> Result<Vec<TemporalClassAtomEval>, CausalError> {
         ctx.map_indexed(identified.class_atoms.len(), |i, inner| {
             let atom = &identified.class_atoms[i];
-            match &self.inference {
+            match &self.settings.inference {
                 InferenceMode::Frequentist => {
                     evaluate_temporal_class_atom_frequentist(self, (data, query, gaps), atom, inner)
                 }
@@ -285,6 +315,7 @@ impl super::Study {
                 }
             }
         })
+        .map_err(Into::into)
     }
 
     /// Mix TemporalCpdag/Pag posterior atoms through the existing class envelope.
@@ -296,16 +327,20 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        super::series_weights::refuse_unread_series_weights(
+            data,
+            "the class graph-posterior effect",
+        )?;
         let started = Instant::now();
-        if query.is_multi_step_sustained() && self.split.is_some() {
+        if query.is_multi_step_sustained() && self.declared.split.is_some() {
             return Err(CausalError::Unsupported {
                 message: "class-aware multi-step sustained requires no discovery-estimation split",
             });
         }
-        let class_tag = temporal_class_posterior_tag(gp.atom_kind)?;
+        let class_tag = temporal_class_posterior_tag(gp.atom_kind())?;
         let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
         let (identified, identify_cached) =
-            self.temporal_class_posterior_identification(gp, &vars, query, ctx)?;
+            self.temporal_class_posterior_identification(gp, &vars, query, physical, ctx)?;
         let gaps = self.admit_posterior_gaps(data, &vars, false)?;
         let evals = self.evaluate_temporal_class_atoms((data, query, gaps), &identified, ctx)?;
 
@@ -316,7 +351,7 @@ impl super::Study {
             mixed.estimate,
             mixed.policy,
             ctx,
-        );
+        )?;
         let mut identification = mixed.identification;
         identification.status = resolve_posterior_status(
             identification.status,
@@ -335,7 +370,7 @@ impl super::Study {
             (mixed.policy, &mixed.mixture, mixed.posterior.is_none()),
             (&estimate, shared_block.as_ref(), shared_block_designs, &evals),
         );
-        let estimator_id = match (&self.inference, query.is_multi_step_sustained()) {
+        let estimator_id = match (&self.settings.inference, query.is_multi_step_sustained()) {
             (InferenceMode::Frequentist, false) => EstimatorId::TemporalLinearAdjustment,
             (InferenceMode::Frequentist | InferenceMode::Bayesian(_), true) => {
                 EstimatorId::TemporalSequentialGcomp
@@ -392,7 +427,7 @@ impl super::Study {
                 ..Default::default()
             }),
         );
-        result.missing_data = missing_data;
+        result.extras.missing_data = missing_data;
         Ok(result)
     }
 
@@ -422,10 +457,10 @@ impl super::Study {
                 &route.supported()[..1],
             ))
         };
-        if self.split.is_some() {
+        if self.declared.split.is_some() {
             return Err(refuse("gap-aware windows are executed on an unsplit series"));
         }
-        if bayesian_checks && self.refute != RefuteSuite::None {
+        if bayesian_checks && self.settings.refute != RefuteSuite::None {
             return Err(refuse(
                 "the Bayesian predictive checks and prior sensitivity read consecutive rows; request no refuters on a series with gaps",
             ));
@@ -499,7 +534,8 @@ fn fit_temporal_class_case(
         let estimate = design.effect_estimate(assumptions);
         let sequential = super::sequential_validation::SequentialValidationAtom {
             weight: case.weight.0,
-            graph: dag,
+            graph: Arc::new(dag),
+            _graph_lease: None,
             indexer: indexer.clone(),
             estimand: estimand.clone(),
             status: case.result.status,
@@ -514,7 +550,7 @@ fn fit_temporal_class_case(
             &estimand,
             query,
             indexer,
-            study.split.as_ref(),
+            study.declared.split.as_ref(),
             gaps,
             ctx,
         )?;
@@ -621,12 +657,12 @@ fn evaluate_temporal_class_atom_bayesian(
     atom: &CachedTemporalClassPosteriorAtomIdentification,
     ctx: &ExecutionContext,
 ) -> Result<TemporalClassAtomEval, CausalError> {
-    let cfg = match &study.inference {
+    let cfg = match &study.settings.inference {
         InferenceMode::Bayesian(c) => c.clone(),
         InferenceMode::Frequentist => {
-            return Err(CausalError::Unsupported {
-                message: "evaluate_temporal_class_atom_bayesian requires inference=Bayesian",
-            });
+            return Err(CausalError::unsupported_inference(
+                "evaluate_temporal_class_atom_bayesian requires inference=Bayesian",
+            ));
         }
     };
     if query.is_multi_step_sustained() {
@@ -639,7 +675,7 @@ fn evaluate_temporal_class_atom_bayesian(
     }
     let envelope = &atom.envelope.envelope;
     let mut estimator = TemporalLinearAdjustment::new();
-    estimator.inner.bootstrap_replicates = 0;
+    estimator.inner.inference.bootstrap_replicates = 0;
     estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
     let bayes = bayesian_temporal_gcomp(&cfg, ctx);
     let mut ws = BayesianGCompWorkspace::default();
@@ -667,7 +703,14 @@ fn evaluate_temporal_class_atom_bayesian(
             (prep, Some(selection))
         } else {
             let prep = estimator
-                .prepare(data, &estimand, query, indexer, study.split.as_ref(), &ctx.kernel_policy)
+                .prepare(
+                    data,
+                    &estimand,
+                    query,
+                    indexer,
+                    study.declared.split.as_ref(),
+                    &ctx.kernel_policy,
+                )
                 .map_err(CausalError::from)?;
             (prep, None)
         };
@@ -738,12 +781,12 @@ fn evaluate_temporal_class_atom_sequential_bayesian(
     atom: &CachedTemporalClassPosteriorAtomIdentification,
     ctx: &ExecutionContext,
 ) -> Result<TemporalClassAtomEval, CausalError> {
-    let cfg = match &study.inference {
+    let cfg = match &study.settings.inference {
         InferenceMode::Bayesian(c) => c,
         InferenceMode::Frequentist => {
-            return Err(CausalError::Unsupported {
-                message: "evaluate_temporal_class_atom_sequential_bayesian requires Bayesian",
-            });
+            return Err(CausalError::unsupported_inference(
+                "evaluate_temporal_class_atom_sequential_bayesian requires Bayesian",
+            ));
         }
     };
     let bayes = bayesian_gcomp(cfg, ctx);
@@ -806,7 +849,8 @@ fn evaluate_temporal_class_atom_sequential_bayesian(
             }
             sequential_atoms.push(super::sequential_validation::SequentialValidationAtom {
                 weight: case.weight.0,
-                graph: dag,
+                graph: Arc::new(dag),
+                _graph_lease: None,
                 indexer: indexer.clone(),
                 estimand,
                 status: case.result.status,
@@ -937,7 +981,9 @@ fn refute_temporal_class_graph_posterior(
     ctx: &ExecutionContext,
 ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
     let AtomRefutationPolicy { aggregation: policy, estimator } = refutation;
-    if matches!(study.refute, RefuteSuite::None) && study.custom_validators.is_empty() {
+    if matches!(study.settings.refute, RefuteSuite::None)
+        && study.declared.custom_validators.is_empty()
+    {
         return Ok((Vec::new(), Vec::new()));
     }
     let mix_scalar = matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean);
@@ -967,8 +1013,8 @@ fn refute_temporal_class_graph_posterior(
                     SequentialValidation {
                         data,
                         query,
-                        suite: study.refute,
-                        custom: &study.custom_validators,
+                        suite: study.settings.refute,
+                        custom: &study.declared.custom_validators,
                         predictive_sims: super::super::latency::predictive_check_sims(
                             study.latency_mode,
                         ),
@@ -988,12 +1034,12 @@ fn refute_temporal_class_graph_posterior(
                 EnvelopeRefutation {
                     data: &tabular,
                     query: &ate_q,
-                    suite: study.refute,
+                    suite: study.settings.refute,
                     estimator,
-                    custom: &study.custom_validators,
+                    custom: &study.declared.custom_validators,
                     temporal: Some(TemporalRefutation {
                         query,
-                        split: study.split.as_ref(),
+                        split: study.declared.split.as_ref(),
                         time_index: data.time_index(),
                         gaps,
                     }),

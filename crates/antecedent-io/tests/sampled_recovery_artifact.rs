@@ -1,11 +1,11 @@
 //! The sampled observation-recovery artifact
 //! (version 3: derivation identity, observation rows and pattern counts, recovered law,
-//! point, `BCa` interval with calibration `unmeasured`, replicate receipt) replays
+//! point, `BCa` interval with calibration `not_measured`, replicate receipt) replays
 //! independently and refuses a changed pattern, snapshot, seed or interval receipt.
 //!
 //! The oracle is the enumerated binary missingness SCM of the engine's own tests (the
 //! shared fixture module is included by path), never the code under test. Interval
-//! calibration is unmeasured; nothing here asserts a coverage claim.
+//! calibration is `not_measured`; nothing here asserts a coverage claim.
 #![allow(clippy::cast_precision_loss, reason = "test counts and indices are small and nonnegative")]
 
 #[path = "../../antecedent-estimate/tests/support/recovery_scm.rs"]
@@ -44,6 +44,7 @@ const P_X1: [f64; 4] = [0.2, 0.5, 0.6, 0.8]; // by 2 * X0 + O
 const P_R0: [f64; 2] = [0.5, 0.8]; // by O
 const P_R1: [f64; 2] = [0.6, 0.9]; // by X0
 // Backdoor truth by hand: 0.6 (0.6 - 0.2) + 0.4 (0.8 - 0.5) = 0.36.
+const BACKDOOR_TRUTH: f64 = 0.36;
 
 fn bern(p1: f64, level: u8) -> f64 {
     if level == 1 { p1 } else { 1.0 - p1 }
@@ -192,8 +193,30 @@ fn sampled_recovery_replay_a_seeded_interval_replays_and_keeps_the_covariance() 
     let f = fixture(seeded_rows(4000, 17), &loose(99));
     let wire = wire_of(&f);
     let consumed = consume(&wire.export().expect("export")).expect("replays");
+    let proof = resealed(&wire, |w| {
+        let identity = &mut w.derivation.margins[0].identity;
+        assert!(identity.starts_with("catalog_distribution.v2|"));
+        *identity = identity.replacen("catalog_distribution.v2|", "catalog_distribution.v1|", 1);
+    });
+    assert!(consume(&proof).is_err());
+    let result = resealed(&wire, |w| {
+        assert!(w.result.recovered_identity.starts_with("catalog_distribution.v2|"));
+        w.result.recovered_identity = w.result.recovered_identity.replacen(
+            "catalog_distribution.v2|",
+            "catalog_distribution.v1|",
+            1,
+        );
+    });
+    assert!(consume(&result).is_err());
     assert_eq!(consumed.result.receipt.receipt_digest, f.result.receipt.receipt_digest);
     assert_eq!(consumed.result.interval, f.result.interval);
+    // Backdoor truth by hand (0.6 * 0.4 + 0.4 * 0.3 = 0.36). The unadjusted contrast is
+    // 0.455, so this band separates the recovered effect from the confounded one.
+    assert!(
+        (consumed.result.effect - BACKDOOR_TRUTH).abs() < 0.06,
+        "recovered effect {} vs {BACKDOOR_TRUTH}",
+        consumed.result.effect
+    );
     assert!(consumed.result.interval.lower <= consumed.result.effect);
     assert!(consumed.result.effect <= consumed.result.interval.upper);
     assert_eq!(
@@ -203,7 +226,8 @@ fn sampled_recovery_replay_a_seeded_interval_replays_and_keeps_the_covariance() 
     assert!(consumed.result.cell_covariance(0, 0).is_some_and(|c| c > 0.0));
     assert_eq!(consumed.wire.receipt.replicates.len(), 2000);
     wire.check_variable_names(&[]).expect("empty name mapping");
-    assert!(wire.check_variable_names(&["x".to_string()]).is_err());
+    let named = wire.check_variable_names(&["x".to_string()]).expect_err("name count differs");
+    assert!(named.to_string().contains("do not match the verified name mapping"), "{named}");
 }
 
 type Mutation = (&'static str, fn(&mut SampledRecoveryArtifactWire));
@@ -223,19 +247,30 @@ fn sampled_recovery_replay_refuses_a_changed_pattern_snapshot_seed_or_interval_r
     ];
     for (name, mutate) in mutations {
         let message = refusal(&resealed(&wire, mutate));
-        assert!(message.contains("sampled_recovery.receipt_mismatch"), "{name}: {message}");
+        assert!(
+            message.contains(antecedent_core::reason_details::sampled_recovery::RECEIPT_MISMATCH),
+            "{name}: {message}"
+        );
     }
     // A changed snapshot is not the snapshot the catalog binds.
     let message = refusal(&resealed(&wire, |w| w.snapshot_id = "snap-other".into()));
-    assert!(message.contains("sampled_recovery.invalid_input"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::sampled_recovery::INVALID_INPUT),
+        "{message}"
+    );
     // A pattern the proxy model excludes (a proxy value with no response).
     let message = refusal(&resealed(&wire, |w| w.rows[0] = (0, 0, 1, 0)));
-    assert!(message.contains("sampled_recovery.invalid_input"), "{message}");
-    // A tampered derivation does not verify.
     assert!(
-        consume(&resealed(&wire, |w| w.derivation.rule_version =
-            "binary_observation_recovery.v0".into()))
-        .is_err()
+        message.contains(antecedent_core::reason_details::sampled_recovery::INVALID_INPUT),
+        "{message}"
+    );
+    // A tampered derivation does not verify.
+    let message = refusal(&resealed(&wire, |w| {
+        w.derivation.rule_version = "binary_observation_recovery.v0".into();
+    }));
+    assert!(
+        message.contains(antecedent_core::reason_details::recovery::INVALID_DERIVATION),
+        "{message}"
     );
     // Without resealing, edited rows break the data identity and an edited seed breaks
     // the premises digest.
@@ -249,7 +284,8 @@ fn sampled_recovery_replay_refuses_a_changed_pattern_snapshot_seed_or_interval_r
     let mut edited = wire;
     edited.result.recovered_cell_covariance[0] += 1e-9;
     assert!(
-        refusal(&edited.export().expect("export")).contains("sampled_recovery.receipt_mismatch")
+        refusal(&edited.export().expect("export"))
+            .contains(antecedent_core::reason_details::sampled_recovery::RECEIPT_MISMATCH)
     );
 }
 
@@ -274,16 +310,21 @@ fn a_sealed_artifact_is_consumed_and_a_tampered_one_refused() {
     let mut row = sealed.clone();
     row.rows[0].3 ^= 1;
     assert!(
-        refusal(&resealed(&row, |_| {})).contains("sampled_recovery.receipt_mismatch"),
+        refusal(&resealed(&row, |_| {}))
+            .contains(antecedent_core::reason_details::sampled_recovery::RECEIPT_MISMATCH),
         "a changed row"
     );
     let mut seed = sealed.clone();
     seed.receipt.config.seed += 1;
-    assert!(refusal(&resealed(&seed, |_| {})).contains("sampled_recovery.receipt_mismatch"));
-    let other = RECOVERY_RULE_VERSION.replace(".v1", ".v0");
     assert!(
-        consume(&resealed(&sealed, |w| w.derivation.rule_version = other.clone())).is_err(),
-        "another version spelling"
+        refusal(&resealed(&seed, |_| {}))
+            .contains(antecedent_core::reason_details::sampled_recovery::RECEIPT_MISMATCH)
+    );
+    let other = RECOVERY_RULE_VERSION.replace(".v1", ".v0");
+    let message = refusal(&resealed(&sealed, |w| w.derivation.rule_version = other.clone()));
+    assert!(
+        message.contains(antecedent_core::reason_details::recovery::INVALID_DERIVATION),
+        "another version spelling: {message}"
     );
 }
 
@@ -330,13 +371,22 @@ fn sampled_recovery_replay_refuses_an_unknown_version_and_an_interval_claim() {
     }
     let mut foreign = wire.clone();
     foreign.required_features = vec!["something_else".into()];
-    assert!(SampledRecoveryArtifactWire::decode(&foreign.export().expect("export")).is_err());
+    let message = SampledRecoveryArtifactWire::decode(&foreign.export().expect("export"))
+        .expect_err("a foreign feature is refused")
+        .to_string();
+    assert!(message.contains("unsupported semantics"), "{message}");
     let mut calibrated = wire.clone();
     calibrated.result.interval.calibration = "calibrated".into();
-    assert!(SampledRecoveryArtifactWire::decode(&calibrated.export().expect("export")).is_err());
+    let message = SampledRecoveryArtifactWire::decode(&calibrated.export().expect("export"))
+        .expect_err("an interval calibration claim is refused")
+        .to_string();
+    assert!(message.contains("interval calibration is not_measured"), "{message}");
     let mut claim = wire;
     claim.calibration = "calibrated".into();
-    assert!(SampledRecoveryArtifactWire::decode(&claim.export().expect("export")).is_err());
+    let message = SampledRecoveryArtifactWire::decode(&claim.export().expect("export"))
+        .expect_err("a calibration claim is refused")
+        .to_string();
+    assert!(message.contains("interval calibration is not_measured"), "{message}");
 }
 
 #[test]
@@ -346,7 +396,7 @@ fn sampled_recovery_replay_refuses_stored_sizes_above_the_consumer_limits() {
     let tight = [
         SampledRecoveryConsumeLimits { max_rows: 10, ..SampledRecoveryConsumeLimits::default() },
         SampledRecoveryConsumeLimits {
-            max_replicates: 5,
+            max_replay_work: 5,
             ..SampledRecoveryConsumeLimits::default()
         },
     ];
@@ -365,6 +415,11 @@ fn sampled_bca_v3_replays_and_binds_jackknife_method_and_consumer_work() {
     assert_eq!(wire.version, 3);
     let bca = wire.receipt.bca.as_ref().unwrap();
     assert_eq!(bca.convention, "midrank_exact_ties:type7:delete_one_row");
+    assert!(
+        (f.result.effect - BACKDOOR_TRUTH).abs() < 0.06,
+        "recovered effect {} vs {BACKDOOR_TRUTH}",
+        f.result.effect
+    );
     let bytes = wire.export().unwrap();
     let consumed = consume(&bytes).unwrap();
     assert_eq!(consumed.wire.export().unwrap(), wire.export().unwrap());
@@ -374,44 +429,68 @@ fn sampled_bca_v3_replays_and_binds_jackknife_method_and_consumer_work() {
         resealed(&wire, |w| w.receipt.bca.as_mut().unwrap().jackknife[0].multiplicity += 1),
         resealed(&wire, |w| w.receipt.replicates[0].failure = Some("forged_failure".into())),
     ] {
-        assert!(consume(&corrupt).is_err());
+        let message = refusal(&corrupt);
+        assert!(
+            message.contains(antecedent_core::reason_details::sampled_recovery::RECEIPT_MISMATCH),
+            "{message}"
+        );
     }
     let legacy_disguise = resealed(&wire, |w| w.version = 2);
-    assert!(SampledRecoveryArtifactWire::decode(&legacy_disguise).is_err());
+    let message = SampledRecoveryArtifactWire::decode(&legacy_disguise)
+        .expect_err("a version-2 disguise is refused")
+        .to_string();
+    assert!(message.contains("unsupported container version 2"), "{message}");
     let wrong_convention =
         resealed(&wire, |w| w.receipt.bca.as_mut().unwrap().convention = "strict_less".into());
-    assert!(SampledRecoveryArtifactWire::decode(&wrong_convention).is_err());
-    assert!(
-        SampledRecoveryArtifactWire::consume_with_limits(
-            &bytes,
-            SampledRecoveryConsumeLimits { max_replicates: 500, ..Default::default() },
-            &ctx()
-        )
-        .is_err()
-    );
+    let message = SampledRecoveryArtifactWire::decode(&wrong_convention)
+        .expect_err("a wrong jackknife convention is refused")
+        .to_string();
+    assert!(message.contains("unsupported semantics"), "{message}");
+    let message = SampledRecoveryArtifactWire::consume_with_limits(
+        &bytes,
+        SampledRecoveryConsumeLimits { max_replay_work: 500, ..Default::default() },
+        &ctx(),
+    )
+    .expect_err("consumer work limit")
+    .to_string();
+    assert!(message.contains("consumer limit exceeded: replay work"), "{message}");
     let cancelled = ctx();
     cancelled.cancellation.cancel();
-    assert!(
-        SampledRecoveryArtifactWire::consume_with_limits(
-            &bytes,
-            SampledRecoveryConsumeLimits::default(),
-            &cancelled
-        )
-        .is_err()
-    );
+    let message = SampledRecoveryArtifactWire::consume_with_limits(
+        &bytes,
+        SampledRecoveryConsumeLimits::default(),
+        &cancelled,
+    )
+    .expect_err("a cancelled consumer stops")
+    .to_string();
+    assert!(message.contains("search.cancelled"), "{message}");
+}
+
+/// An interval outside the validated protocol is reported with a `not_measured` slot whose
+/// basis names a construction no coverage record measured.
+fn assert_not_measured_outside_protocol(
+    measured: &antecedent_io::measured_inference::MeasuredInference,
+) {
+    let report = measured.report();
+    assert_eq!(report.calibration, "not_measured");
+    let scalar = &report.scalars[0];
+    assert!(scalar.lower <= scalar.point && scalar.point <= scalar.upper);
+    assert_eq!(scalar.calibration.status.as_str(), "not_measured");
+    let basis = scalar.calibration.basis.as_ref().expect("the slot carries its basis");
+    assert!(basis.key.estimator.ends_with("+outside_measured_protocol"), "{:?}", basis.key);
 }
 
 #[test]
-fn original_weighted_candidate_remains_replayable_but_cannot_gain_measured_authority() {
+fn original_weighted_candidate_remains_replayable_and_its_interval_is_not_measured() {
     let mut f = fixture(seeded_rows(2000, 8123), &SampledRecoveryConfig::bca(7142));
     Arc::make_mut(&mut f.catalog.bindings)[0].weights =
-        Some(antecedent_core::LicensedWeights { snapshot_identity: Arc::from(SNAPSHOT) });
+        Some(antecedent_core::SupportedWeights { snapshot_identity: Arc::from(SNAPSHOT) });
     let wire = wire_of(&f);
     let bytes = wire.export().unwrap();
     // Original candidate proof, receipt and wire semantics are unchanged.
     let original = consume(&bytes).unwrap();
     assert_eq!(original.wire.export().unwrap(), bytes);
-    let error = SampledRecoveryArtifactWire::measure(
+    let measured = SampledRecoveryArtifactWire::measure(
         &bytes,
         &SampledRecoveryExpectation {
             premises_digest: Some(wire.premises_digest.clone()),
@@ -420,12 +499,12 @@ fn original_weighted_candidate_remains_replayable_but_cannot_gain_measured_autho
         SampledRecoveryConsumeLimits::default(),
         &ctx(),
     )
-    .unwrap_err();
-    assert!(error.to_string().contains("weighted observed rows"));
+    .expect("calibration annotates: the interval is reported");
+    assert_not_measured_outside_protocol(&measured);
 }
 
 #[test]
-fn original_unknown_or_clustered_row_design_cannot_gain_measured_authority() {
+fn original_unknown_or_clustered_row_design_reports_its_interval_as_not_measured() {
     for design in
         [antecedent_core::SamplingDesign::Unknown, antecedent_core::SamplingDesign::Clustered]
     {
@@ -450,7 +529,7 @@ fn original_unknown_or_clustered_row_design_cannot_gain_measured_authority() {
         let wire = wire_of(&f);
         let bytes = wire.export().unwrap();
         assert_eq!(consume(&bytes).unwrap().wire.export().unwrap(), bytes);
-        let error = SampledRecoveryArtifactWire::measure(
+        let measured = SampledRecoveryArtifactWire::measure(
             &bytes,
             &SampledRecoveryExpectation {
                 premises_digest: Some(wire.premises_digest.clone()),
@@ -459,7 +538,57 @@ fn original_unknown_or_clustered_row_design_cannot_gain_measured_authority() {
             SampledRecoveryConsumeLimits::default(),
             &ctx(),
         )
-        .unwrap_err();
-        assert!(error.to_string().contains("explicitly independent observation rows"));
+        .expect("calibration annotates: the interval is reported");
+        assert_not_measured_outside_protocol(&measured);
     }
+}
+
+/// Size is bounded by the limits the caller sets, not by a fixed replicate count: a run of
+/// more than 2000 replicates exports and replays under limits that cover its work
+/// (replicates times rows), and the same artifact is refused, at export and at
+/// consumption, by limits that do not.
+#[test]
+fn sampled_recovery_artifact_bounds_replicates_by_caller_limits_not_a_fixed_count() {
+    let config = SampledRecoveryConfig { replicates: 2500, ..loose(61) };
+    let f = fixture(seeded_rows(4000, 17), &config);
+    let input = SampledRecoveryArtifactInput {
+        graph: &f.model.graph,
+        effect: &f.effect,
+        derivation: &f.derivation,
+        catalog: &f.catalog,
+        input: &f.data,
+        result: &f.result,
+        variable_names: &[],
+    };
+    let adequate = SampledRecoveryConsumeLimits {
+        max_replay_work: 2500 * 4000,
+        ..SampledRecoveryConsumeLimits::default()
+    };
+    let wire = SampledRecoveryArtifactWire::checked_within(&input, &adequate)
+        .expect("more than 2000 replicates export under adequate limits");
+    assert_eq!(wire.receipt.replicates.len(), 2500);
+    let consumed = SampledRecoveryArtifactWire::consume_with_limits(
+        &wire.export().expect("export"),
+        adequate,
+        &ctx(),
+    )
+    .expect("the rerun reproduces the 2500-replicate receipt");
+    assert_eq!(consumed.result.receipt.receipt_digest, f.result.receipt.receipt_digest);
+
+    let tight = SampledRecoveryConsumeLimits {
+        max_replay_work: 2500 * 4000 - 1,
+        ..SampledRecoveryConsumeLimits::default()
+    };
+    let refused = SampledRecoveryArtifactWire::checked_within(&input, &tight)
+        .expect_err("the producer honours the stated limits")
+        .to_string();
+    assert!(refused.contains("consumer limit exceeded"), "{refused}");
+    let refused = SampledRecoveryArtifactWire::consume_with_limits(
+        &wire.export().expect("export"),
+        tight,
+        &ctx(),
+    )
+    .expect_err("a tight consumer limit refuses")
+    .to_string();
+    assert!(refused.contains("consumer limit exceeded: replay work"), "{refused}");
 }

@@ -3,7 +3,7 @@
 //! A bounded, checksummed container holding one revalidation of a claim-level
 //! dependency graph so that a consumer in a fresh process can see, for every
 //! claim, whether it is still valid, must be recomputed or is no longer
-//! licensed, and the lineage behind it:
+//! supported, and the lineage behind it:
 //!
 //! * the earlier and the current graph: every node with its kind, content
 //!   identity, structural identity, representation version, coordinate,
@@ -39,7 +39,7 @@
 //! interval, posterior or calibration record: a calibration declaration names
 //! a record identity and coordinate, and the artifact never measures one.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
@@ -50,6 +50,7 @@ use antecedent_contract::composition_verification::{
     shared_data_relations,
 };
 use antecedent_contract::evidence_ledger::{EvidenceLedger, SourceId, parse_digest_hex};
+use antecedent_core::refusal::{changed_identity, replay_mismatch};
 use antecedent_core::{CancellationToken, CanonicalWriter, SemanticDigest};
 use serde::{Deserialize, Serialize};
 
@@ -103,19 +104,15 @@ impl CompositionVerificationArtifactError {
     #[must_use]
     pub fn refusal(&self) -> Option<(&'static str, String, String)> {
         match self {
-            Self::IdentityMismatch { field } => Some((
-                antecedent_core::reason_code!("route_not_supported"),
-                "composition_verification.identity_mismatch".to_owned(),
-                format!("{field} changed"),
-            )),
-            Self::ReplayMismatch(what) => Some((
-                antecedent_core::reason_code!("invalid_argument"),
-                "composition_verification.replay_mismatch".to_owned(),
+            Self::IdentityMismatch { field } => {
+                Some(changed_identity("composition_verification.identity_mismatch", field))
+            }
+            Self::ReplayMismatch(what) => Some(replay_mismatch(
+                "composition_verification.replay_mismatch",
                 format!("the stored {what} does not replay"),
             )),
-            Self::LedgerMismatch(what) => Some((
-                antecedent_core::reason_code!("invalid_argument"),
-                "composition_verification.ledger_mismatch".to_owned(),
+            Self::LedgerMismatch(what) => Some(replay_mismatch(
+                "composition_verification.ledger_mismatch",
                 format!("the declared {what} differs from the consumer's evidence ledger"),
             )),
             _ => None,
@@ -318,10 +315,6 @@ pub struct CompositionVerificationMeta {
 
 // -- conversion -----------------------------------------------------------------------------------
 
-fn hex(digest: SemanticDigest) -> String {
-    digest.to_hex()
-}
-
 fn digest_of(
     text: &str,
     what: &'static str,
@@ -334,10 +327,10 @@ fn calibration_to_wire(c: &CalibrationDeclaration) -> CalibrationDeclarationWire
         CalibrationDeclaration::PointOnly => ("point_only", None, None, None),
         CalibrationDeclaration::Required => ("required", None, None, None),
         CalibrationDeclaration::Held { record, coordinate } => {
-            ("held", None, Some(hex(*record)), Some(hex(*coordinate)))
+            ("held", None, Some(record.to_hex()), Some(coordinate.to_hex()))
         }
         CalibrationDeclaration::Inherited { from, record, coordinate } => {
-            ("inherited", Some(from.clone()), Some(hex(*record)), Some(hex(*coordinate)))
+            ("inherited", Some(from.clone()), Some(record.to_hex()), Some(coordinate.to_hex()))
         }
     };
     CalibrationDeclarationWire { kind: kind.to_owned(), from, record, coordinate }
@@ -377,10 +370,10 @@ fn node_to_wire(node: &CompositionNode) -> NodeWire {
     NodeWire {
         key: node.key.clone(),
         kind: node.kind.as_str().to_owned(),
-        identity: hex(node.identity),
-        structure: node.structure.map(hex),
+        identity: node.identity.to_hex(),
+        structure: node.structure.map(|digest| digest.to_hex()),
         representation: node.representation.clone(),
-        coordinate: hex(node.coordinate),
+        coordinate: node.coordinate.to_hex(),
         unsupported: match &node.support {
             SupportStanding::Supported => None,
             SupportStanding::Unsupported { coordinates } => Some(coordinates.clone()),
@@ -606,7 +599,7 @@ fn claims_to_wire(
             calibration_from: claim.calibration.from.clone(),
             calibration_newly_required: claim.calibration.newly_required,
             calibration_detail: claim.calibration.detail.map(str::to_owned),
-            lineage: hex(view.identity()),
+            lineage: view.identity().to_hex(),
         });
     }
     Ok(out)
@@ -637,9 +630,10 @@ fn check(
             version: meta.version,
         });
     }
-    if meta.feature != COMPOSITION_VERIFICATION_ARTIFACT_FEATURE {
-        return Err(CompositionVerificationArtifactError::UnsupportedSemantics("feature marker"));
-    }
+    crate::artifact_codec::require_semantics::<CompositionVerificationArtifactError>(
+        meta.feature == COMPOSITION_VERIFICATION_ARTIFACT_FEATURE,
+        "feature marker",
+    )?;
     if !meta.required_features.is_empty() {
         return Err(CompositionVerificationArtifactError::UnsupportedSemantics("required feature"));
     }
@@ -655,7 +649,7 @@ fn check(
     if claims_to_wire(&current, &revalidation, &shared)? != meta.claims {
         return Err(mismatch("classification"));
     }
-    if hex(revalidation.identity()) != meta.revalidation {
+    if revalidation.identity().to_hex() != meta.revalidation {
         return Err(mismatch("classification identity"));
     }
     let identity = compute_identity(meta)?;
@@ -682,12 +676,7 @@ fn encode_meta(
     meta: &CompositionVerificationMeta,
     artifact_id: &str,
 ) -> Result<Vec<u8>, CompositionVerificationArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(CompositionVerificationArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta)
-        .map_err(|error| CompositionVerificationArtifactError::Encode(error.to_string()))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "composition_verification",
@@ -695,37 +684,25 @@ fn encode_meta(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection {
-            id: META_SECTION,
-            content_type: crate::CONTENT_CBOR,
-            bytes: &meta_bytes,
-        }],
+        META_SECTION,
+        meta,
+        &[],
     )
-    .map_err(|error| crate::map_artifact_check!(error, CompositionVerificationArtifactError))
 }
 
 fn decode_meta(
     bytes: &[u8],
+    max_bytes: usize,
 ) -> Result<CompositionVerificationMeta, CompositionVerificationArtifactError> {
-    let parts = crate::decode_container(
+    crate::artifact_codec::decode_sectioned(
         ARTIFACT_KIND,
-        MAX_COMPOSITION_VERIFICATION_ARTIFACT_BYTES,
-        &[META_SECTION],
+        max_bytes,
+        META_SECTION,
+        &[],
+        COMPOSITION_VERIFICATION_ARTIFACT_VERSION,
         bytes,
     )
-    .map_err(|error| crate::map_artifact_check!(error, CompositionVerificationArtifactError))?;
-    let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(CompositionVerificationArtifactError::Malformed(
-            "unsupported container layout".into(),
-        ));
-    };
-    crate::decode_with_version(&meta_bytes, |version: u16| {
-        if version == COMPOSITION_VERIFICATION_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(CompositionVerificationArtifactError::UnsupportedVersion { version })
-        }
-    })
+    .map(|(meta, _)| meta)
 }
 
 fn build_meta(
@@ -745,8 +722,8 @@ fn build_meta(
         current: graph_to_wire(current),
         effects: effects_to_wire(effects)?,
         shared_data: shared_to_wire(shared),
-        ledger_state: ledger_state.map(hex),
-        revalidation: hex(revalidation.identity()),
+        ledger_state: ledger_state.map(|digest| digest.to_hex()),
+        revalidation: revalidation.identity().to_hex(),
         claims: claims_to_wire(current, &revalidation, shared)?,
         identity: String::new(),
     };
@@ -841,7 +818,23 @@ impl CompositionVerificationArtifact {
         bytes: &[u8],
         expected_identity: Option<&str>,
     ) -> Result<Self, CompositionVerificationArtifactError> {
-        check(&decode_meta(bytes)?, expected_identity)
+        Self::from_bytes_within(
+            bytes,
+            expected_identity,
+            MAX_COMPOSITION_VERIFICATION_ARTIFACT_BYTES,
+        )
+    }
+
+    /// [`Self::from_bytes`] under the caller's byte bound instead of [`MAX_COMPOSITION_VERIFICATION_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a file over `max_bytes` is `LimitsExceeded`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        max_bytes: usize,
+    ) -> Result<Self, CompositionVerificationArtifactError> {
+        check(&decode_meta(bytes, max_bytes)?, expected_identity)
     }
 
     /// The replayed classification.
@@ -908,10 +901,10 @@ impl CompositionVerificationArtifact {
         ledger: &EvidenceLedger,
         cancel: &CancellationToken,
     ) -> Result<(), CompositionVerificationArtifactError> {
-        if let Some(state) = self.ledger_state {
-            if state != ledger.state_digest() {
-                return Err(CompositionVerificationArtifactError::LedgerMismatch("state digest"));
-            }
+        if let Some(state) = self.ledger_state
+            && state != ledger.state_digest()
+        {
+            return Err(CompositionVerificationArtifactError::LedgerMismatch("state digest"));
         }
         let recomputed =
             shared_data_relations(&self.current, ledger, cancel).map_err(|e| match e {

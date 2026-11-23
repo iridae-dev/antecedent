@@ -1,0 +1,1 @@
+["use:antecedent_core::ExecutionContext;#0","use:serde::{Deserialize,Serialize};#0","struct:LocalInstrumentDesign#0","struct:LocalInstrumentUnit#0","struct:LocalInstrumentResult#0","fn:local_instrument_effect#0"]

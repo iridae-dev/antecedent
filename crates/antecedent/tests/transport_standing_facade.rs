@@ -9,7 +9,7 @@
 //! Oracles (hand-classified):
 //!
 //! - a library route has no provider (trust not applicable); a declared route holds the trust
-//!   level its provider was verified at, and states none as undeclared, which is not a license;
+//!   level its provider was verified at, and states none as undeclared, which is not support;
 //! - nothing moved: every claim is `still_valid`;
 //! - one claim's trust held then withdrawn: that claim is `withdrawn` for provider trust, its
 //!   sibling stays `still_valid`;
@@ -19,7 +19,7 @@
 //!   `withdrawn` for calibration, the point value untouched, and a heir of that record is
 //!   refused the record it inherited.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
@@ -196,7 +196,14 @@ fn a_moved_standing_changes_the_classification_and_leaves_the_sibling_valid() {
     assert_eq!(class_of(&lost, "effect_a"), Revalidation::Withdrawn);
     assert!(lost.classify("effect_a").unwrap().withdrawn_for(WithdrawalKind::ProviderTrust));
     assert_eq!(class_of(&lost, "effect_b"), Revalidation::StillValid);
-    assert!(lost.require_valid("effect_a").is_err());
+    let refused = lost.require_valid("effect_a").unwrap_err();
+    assert!(
+        format!("{refused:?}").contains(
+            antecedent_core::reason_details::composition_verification::PROVIDER_TRUST_WITHDRAWN
+        ),
+        "{refused:?}"
+    );
+    assert!(lost.require_valid("effect_b").is_ok(), "the sibling stays valid");
 
     // The record behind the claim's uncertainty statement was replaced at the same target:
     // the claim recomputes; its sibling is untouched.
@@ -285,7 +292,7 @@ fn a_record_from_another_target_is_withdrawn_and_its_heir_is_refused_the_record(
 }
 
 #[test]
-fn a_declared_claim_with_no_stated_trust_is_not_a_license_in_a_scene() {
+fn a_declared_claim_with_no_stated_trust_is_not_a_support_in_a_scene() {
     let scene = TransportSceneBuilder::new("clinic_b", digest(1))
         .source("trial", digest(10))
         .transported_claim(
@@ -299,7 +306,13 @@ fn a_declared_claim_with_no_stated_trust_is_not_a_license_in_a_scene() {
     assert_eq!(scene.claims[0].trust, TrustStanding::Undeclared);
     let report = revalidate(None, &scene, &BTreeMap::new()).unwrap();
     assert_eq!(report.claim("effect").unwrap().class, Revalidation::Withdrawn);
-    assert!(report.require_valid("effect").is_err());
+    let refused = report.require_valid("effect").unwrap_err();
+    assert!(
+        format!("{refused:?}").contains(
+            antecedent_core::reason_details::composition_verification::PROVIDER_TRUST_WITHDRAWN
+        ),
+        "{refused:?}"
+    );
 
     // Stating the level makes the same claim usable.
     let stated = TransportSceneBuilder::new("clinic_b", digest(1))

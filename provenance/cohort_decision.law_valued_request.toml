@@ -15,3 +15,22 @@ test_sources = [
   "crates/antecedent-io-core/src/cohort_decision/tests.rs",
   "crates/antecedent-design/tests/cohort_decision_input.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "unsupported_variant"
+rationale = "A closed variant: a mean supplies no law, so probability, quantile, nonlinear-utility and joint-law requests on a cohort contrast stay refused until a producer of aligned outcome draws exists."
+no_independent_algorithm = "cohort_decision_input.rs adapts the cohort mean to the affine decision input and leaves the existing evaluators to refuse the law-valued criteria; nothing is computed for them."
+record_sha256 = "38ae4a5063f27d52614459631529bb3088cd0125d70ecaae23fe743a27a5b59a"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/cohort_decision_input.rs"
+items = ["fn cohort_decision_input", "fn cohort_forward_claim", "fn cohort_mean_source", "fn cohort_trust_evidence"]
+sha256 = "2d57307cbf14d97b3ca76a772e9b7cf06041db4a093b07c7becae221e1925426"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/cohort_decision_input.rs"
+items = ["fn a_contract_must_name_the_exact_cohort_contrast_and_units", "fn a_declared_model_is_attested_and_never_native", "fn a_declared_shift_is_extrapolative_and_needs_an_explicit_weaker_policy", "fn affine", "fn cohort", "fn contract", "fn law_valued_requests_stay_refused_on_the_mean", "fn model", "fn source", "fn the_affine_expected_utility_is_the_utility_of_the_cohort_mean", "fn the_cohort_mean_is_a_supported_forward_source_of_an_inverse_query", "fn the_mean_source_names_the_cohort_and_the_parent", "fn wire"]
+sha256 = "82db80b6f955405808d243d92b653fa3d1961dd6a38d002e49dc718afc1ef677"

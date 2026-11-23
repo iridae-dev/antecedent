@@ -181,13 +181,11 @@ def test_query_value_guards():
     spec = temporal_response_spec
     with pytest.raises(CausalValueError, match="non-empty"):
         ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=())
-    with pytest.raises(CausalValueError, match="at most"):
-        ResponseCurve(
-            "t",
-            "y",
-            grid=[0.0, 1.0],
-            horizons=list(range(1, spec.max_horizons + 2)),
-        )
+    # The query contract has no fixed horizon count (the execution memory budget bounds
+    # materialization), so the native spec reports usize::MAX and long horizon lists construct.
+    assert spec.max_horizons == spec.max_cells == 2**64 - 1
+    long = ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=list(range(1, 1025)))
+    assert len(long.horizons) == 1024
     with pytest.raises(CausalTypeError, match=r"horizons\[0\]"):
         ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[True])
     with pytest.raises(CausalValueError, match="strictly increasing"):

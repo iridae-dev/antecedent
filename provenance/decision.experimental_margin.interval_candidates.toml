@@ -1,0 +1,70 @@
+feature_id = "decision.experimental_margin.interval_candidates"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "A Note on the Delta Method", doi = "10.1080/00031305.1992.10475842", sections = ["first-order variance of a differentiable function of asymptotically normal estimators"] },
+]
+
+implementation_deviations = [
+ "The delta method is applied to the contrast f(treated arm means) - f(control arm means) of a margin expression f. The gradient is accumulated forward over the expression tree, and the variance is the quadratic form of the gradients with the retained covariance: separate treated and control covariances, or one covariance of both arms' means with the control gradient negated. The paper states the asymptotic result for an estimator vector; no finite-sample coverage is claimed.",
+ "The 95% interval is the estimate plus or minus a critical value times the first-order standard error. The critical value is the normal quantile for cluster, complete and regime designs and the Student quantile with pairs (or sequences) minus one degrees of freedom for matched-pair and switchback designs; the delta-method paper prescribes neither.",
+ "An interval is withheld rather than clipped when the joint-arm quadratic form is negative or smaller than 64 machine epsilons of its absolute terms, when the expression has a kink, when the dependence is point-only or marginals-only over several components, or when an arm has fewer than 30 independently assigned units.",
+ "The calibration slot is an annotation: it is resolved from the shipped coverage records for the interval's own construction and never withholds or alters the interval, and no component support is inherited.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "conformance/design/decision_margin_interval (closed-form delta-method contrast, standard error and interval on four hand cases in exact rational arithmetic)",
+ "crates/antecedent/tests/decision_evidence_workflow.rs",
+ "crates/antecedent-design/src/decision_evidence/derive.rs (derived_margin_is_a_delta_method_function_of_means, joint_covariance_enters_the_standard_error)",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "derive and derive_uncalibrated in crates/antecedent-design/src/decision_evidence/derive.rs (the gradient-weighted quadratic form of the retained covariance, the normal or Student critical value, and the refusal conditions of the interval), value_and_gradient in expr.rs (forward-mode gradient of the margin expression), and decision_interval_calibration_slot, which annotates the reported interval with the status its own construction resolves to without altering it."
+assumptions = ["The caller supplies positive semidefinite arm covariances (or a joint-arm covariance) of the arm-mean estimators that are consistent for their sampling law; the interval is first order and its coverage is not established by this review.", "Independent assigned units number at least 30 per arm; pair and sequence designs read the Student quantile with that count minus one degrees of freedom."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared its output with a closed-form delta-method interval computed by a reference written for this review from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "Primary work is cited, not redistributed. The reference generator and its expected values are repository-authored (MIT OR Apache-2.0) and use only the Python standard library."
+limitations = "Four hand cases (a product margin with separate arm covariances, the same margin with a fixed cost input, a matched-pair and a switchback margin with a joint-arm covariance) agree with exact rational gradients and quadratic forms at a relative 1e-10, with the normal quantile and the Student quantile with 29 degrees of freedom. The interval is a first-order sampling interval: its coverage is a separate measured question, reported through the calibration slot, and is not established here. Expressions with a minimum or maximum have no interval."
+sources = ["https://docs.python.org/3/library/fractions.html", "https://docs.python.org/3/library/statistics.html"]
+findings_resolved = ["No defect found: contrast, standard error, interval ends and critical values agree with the closed-form reference on all four cases."]
+record_sha256 = "3f4e73cc52e6085678b84395d1091ed8bfe113798ef27d2ad6a851c7d629f31e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_evidence/derive.rs"
+items = ["fn derive", "fn derive_uncalibrated"]
+sha256 = "9b4cd0357973d575c687e3347261e342161950f1dd8681c262d1b4a5b040d7f1"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_evidence/expr.rs"
+items = ["fn has_kink", "fn value", "fn value_and_gradient"]
+sha256 = "85c91714a26b53adda28701a0611ede87b3b4f59b029f4b4e3d8f58e2107e407"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_evidence/derive/decision.rs"
+items = ["fn decision_interval_calibration_slot"]
+sha256 = "7aa0dcc3449bafa0ded6cf3a93cfd160835c7230cc92e30dcd761993fbb2d4fd"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/decision_evidence_workflow.rs"
+items = ["fn pinned_expression", "fn pinned_numbers", "fn the_margin_interval_equals_the_independent_delta_method_truth"]
+sha256 = "f6f25ec346ba86fbf349c4f63216102d6f35c4d0c9a3992d359b5bebd135a5b3"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "conformance/design/decision_margin_interval/reference.py"
+sha256 = "641ea806d34b5ea7fcf6c310a6b7a22879f123c2c3a84de85ecef17f0559dd9f"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "conformance/design/decision_margin_interval/expected.json"
+sha256 = "7695e9458f9874dbee63a122d2ec33413073ebbf398227779cb582fe80e6a4da"

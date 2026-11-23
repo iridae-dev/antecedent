@@ -3,12 +3,12 @@
 
     python3 scripts/selftest_cases.py docs     # gate_docs_support_matrix.sh --self-test
     python3 scripts/selftest_cases.py schema   # gate_parity_schema.sh --self-test
-    python3 scripts/selftest_cases.py citations  # gate_coverage_citations.sh --self-test
+    python3 scripts/selftest_cases.py calibration  # calibration_status.py --check
     python3 scripts/selftest_cases.py reachability  # gate_evidence_reachability.sh --self-test
     python3 scripts/selftest_cases.py metadata  # gate_metadata_consistency.sh --self-test
 
-Each case builds a disposable overlay of the repo (every tracked file hard
-linked, `python/` linked so the built extension is reused), copies the files it
+Each case builds a disposable overlay of the repo (files are hard linked where
+possible; most suites link `python/` to reuse the built extension), copies the files it
 breaks into it, runs the unchanged gate script from the overlay, and requires
 the gate to fail with the case's expected message. A positive control (the overlay with no mutation) must pass, so a gate
 that fails on everything cannot satisfy its self-test. The working tree is
@@ -23,7 +23,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import tomllib
 from collections.abc import Callable
 from pathlib import Path
 
@@ -42,12 +41,12 @@ def _repo_files() -> list[str]:
     return [f for f in listed.split("\0") if f and (ROOT / f).is_file()]
 
 
-def build_overlay(tmp: Path) -> Path:
+def build_overlay(tmp: Path, *, link_python: bool = True) -> Path:
     """Hard-link (or copy) every tracked and unignored file into a fresh tree."""
     ov = tmp / "repo"
     ov.mkdir()
     for rel in _repo_files():
-        if rel.startswith("python/"):
+        if link_python and rel.startswith("python/"):
             continue
         dest = ov / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -58,7 +57,8 @@ def build_overlay(tmp: Path) -> Path:
     # `python/` stays a link to the checkout: a gate's `uv run` there resolves
     # to the real project directory (POSIX cwd is canonical) and reuses the
     # built extension instead of rebuilding it once per case.
-    (ov / "python").symlink_to(ROOT / "python")
+    if link_python:
+        (ov / "python").symlink_to(ROOT / "python")
     return ov
 
 
@@ -75,8 +75,13 @@ def materialize(ov: Path, rel: str) -> Path:
 
 
 def run_gate(ov: Path, script: str) -> tuple[int, str]:
+    name, *args = script.split()
+    runner = [sys.executable] if name.endswith(".py") else ["bash"]
     proc = subprocess.run(
-        ["bash", str(ov / "scripts" / script)], cwd=ov, capture_output=True, text=True,
+        [*runner, str(ov / "scripts" / name), *args],
+        cwd=ov,
+        capture_output=True,
+        text=True,
         env={**os.environ, "GIT_DIR": str(ROOT / ".git"), "GIT_WORK_TREE": str(ov)},
     )
     return proc.returncode, proc.stdout + proc.stderr
@@ -92,7 +97,11 @@ def case(
 ) -> bool:
     """Run `script` on an overlay with `mutations`; check the verdict and messages."""
     with tempfile.TemporaryDirectory() as tmp:
-        ov = build_overlay(Path(tmp))
+        # Reachability checks that referenced files resolve within the repo.
+        # Its Python inputs must therefore be real overlay entries, not a
+        # directory symlink to the checkout. This gate does not run Python
+        # package tests and does not need the shared built extension.
+        ov = build_overlay(Path(tmp), link_python=script != "gate_evidence_reachability.sh")
         for rel, mutate in mutations.items():
             path = materialize(ov, rel)
             before = path.read_text(encoding="utf-8")
@@ -131,19 +140,6 @@ def replace(old: str, new: str) -> Mutation:
         if old not in text:
             raise SystemExit(f"self-test fixture drift: {old!r} not found")
         return text.replace(old, new, 1)
-
-    return apply
-
-
-def drop_calibration_pair() -> Mutation:
-    """Remove a row's `calibration` / `calibration_reason` line, whichever the
-    collector last wrote: the row's state follows the coverage registry."""
-
-    def apply(text: str) -> str:
-        kept = re.sub(r"(?m)^calibration(?:_reason)? = .*\n", "", text)
-        if kept == text:
-            raise SystemExit("self-test fixture drift: no calibration pair in the block")
-        return kept
 
     return apply
 
@@ -206,7 +202,7 @@ def docs_cases() -> list[bool]:
         case(
             g,
             "workflow_sentence_edited",
-            {"docs/python-workflow.md": replace("retains a reusable study", "retains a study")},
+            {"docs/start/first-analysis.md": replace("retains a reusable study", "retains a study")},
             [],
             must_fail=False,
         ),
@@ -247,16 +243,6 @@ def docs_cases() -> list[bool]:
             must_fail=False,
         ),
     ]
-
-
-NEW_ESTIMATOR_ROW = """
-[[capabilities]]
-id = "estimate.selftest_estimator"
-group = "estimation"
-description = "A new estimator row that states no calibration"
-owner = "estimate"
-status = "pending"
-"""
 
 
 def gridded_record(
@@ -320,9 +306,7 @@ role = "{role}"
 {points}]
 dgp = "{suite}::confounded_scm"
 test = "{suite}::linear_adjustment_analytic_ci_coverage"
-facets = ["core", "estimator.linear_adjustment", "identity.backdoor", "suite.calibration_coverage"]
 calibration_sha = "{"1" * 40}"
-surface_list_blob = "{"1" * 40}"
 """
 
 
@@ -333,49 +317,15 @@ def schema_cases() -> list[bool]:
         case(
             g,
             "required_row_deleted",
-            {"parity/compiler.toml": drop_block("capabilities", "compiler.e2e_licensed_cells")},
-            ["required composition row compiler.e2e_licensed_cells missing"],
-        ),
-        case(
-            g,
-            "estimator_row_without_calibration",
-            {
-                "parity/estimate.toml": in_block(
-                    "capabilities",
-                    "estimate.linear_regression",
-                    drop_calibration_pair(),
-                )
-            },
-            ["estimate.linear_regression: exactly one of calibration / calibration_reason"],
-        ),
-        case(
-            g,
-            "new_estimation_group_row_is_obligated",
-            {"parity/estimate.toml": append(NEW_ESTIMATOR_ROW.strip())},
-            ["estimate.selftest_estimator: exactly one of calibration / calibration_reason"],
-        ),
-        case(
-            g,
-            "calibration_on_non_estimation_row",
-            {
-                "parity/estimate.toml": in_block(
-                    "capabilities",
-                    "estimate.refute.placebo",
-                    replace(
-                        'group = "refutation_and_sensitivity"\n',
-                        'group = "refutation_and_sensitivity"\n'
-                        'calibration_reason = "estimator_grid_not_measured"\n',
-                    ),
-                )
-            },
-            ['estimate.refute.placebo: calibration fields only on group = "estimation" rows'],
+            {"parity/compiler.toml": drop_block("capabilities", "compiler.e2e_supported_cells")},
+            ["required composition row compiler.e2e_supported_cells missing"],
         ),
         case(
             g,
             "no_interval_reported_out_of_scope",
             {
                 "parity/reason_codes.toml": in_block(
-                    "code", "no_interval_reported", replace(', "ChangeAttribution"', '')
+                    "code", "no_interval_reported", replace(', "ChangeAttribution"', "")
                 )
             },
             ["no_interval_reported on a ChangeAttribution cell"],
@@ -384,7 +334,7 @@ def schema_cases() -> list[bool]:
             g,
             "no_interval_reason_with_an_interval_method",
             {
-                "parity/support_licensed.toml": replace(
+                "parity/support_cells.toml": replace(
                     'calibration_reason = "no_interval_reported"',
                     'calibration_reason = "no_interval_reported"\ninterval_method = "analytic_se"',
                 )
@@ -396,10 +346,8 @@ def schema_cases() -> list[bool]:
             "required_job_not_a_job",
             {
                 "parity/release.toml": replace(
-                    'required_jobs = ["rust", "features", "deny", "gates", "python-lint", '
-                    '"python-wheels"]',
-                    'required_jobs = ["rust", "features", "deny", "gates", "python-lint", '
-                    '"python-wheels", "pull_request"]',
+                    '"development", "python-lint", "scientific", "python-wheels"]',
+                    '"development", "python-lint", "scientific", "python-wheels", "pull_request"]',
                 )
             },
             ["required job 'pull_request' missing from ci.yml"],
@@ -441,63 +389,26 @@ def schema_cases() -> list[bool]:
         ),
         case(
             g,
-            "oracle_component_no_licensed_cell_runs",
+            "oracle_component_no_supported_cell_runs",
             {
                 "parity/estimate.toml": replace(
                     'oracle_components = ["estimator:linear.adjustment.ate"]',
                     'oracle_components = ["estimator:linear.adjustment.att"]',
                 )
             },
-            ["'estimator:linear.adjustment.att' is not a estimator any licensed cell runs"],
+            ["'estimator:linear.adjustment.att' is not a estimator any supported cell runs"],
         ),
         case(
             g,
-            "licensed_cell_without_a_route",
+            "supported_cell_without_a_route",
             {
-                "parity/licensed_routes.toml": replace(
+                "parity/supported_routes.toml": replace(
                     '\n[[route]]\ncoordinate = "ResponseCurve:Dag:graph_posterior:Frequentist:none"\n'
                     'identifier = "response.backdoor"\nestimator = "response.kennedy_dr"\n',
                     "",
                 )
             },
             ["ResponseCurve:Dag:graph_posterior:Frequentist:none has no route"],
-        ),
-        case(
-            g,
-            "publish_without_attestation",
-            {
-                ".github/workflows/publish-release.yml": replace(
-                    "        run: bash scripts/gate_calibration_attestation.sh\n",
-                    "        run: echo skipped\n",
-                )
-            },
-            ["publish-release.yml: no step runs gate_calibration_attestation.sh"],
-        ),
-        case(
-            g,
-            "docs_built_before_attestation",
-            {".github/workflows/publish-release.yml": replace("    needs: prepare\n", "")},
-            ["publish-release.yml: job 'docs' does not depend on the attestation job 'prepare'"],
-        ),
-        case(
-            g,
-            "pypi_without_attestation",
-            {
-                ".github/workflows/publish-release.yml": replace(
-                    "    needs: [prepare, crates-dry-run]\n", "    needs: []\n"
-                )
-            },
-            ["publish-release.yml: job 'publish-pypi' does not depend on the attestation job 'prepare'"],
-        ),
-        case(
-            g,
-            "attestation_on_shallow_clone",
-            {
-                ".github/workflows/publish-release.yml": replace(
-                    "          fetch-depth: 0\n", "          fetch-depth: 1\n"
-                )
-            },
-            ["publish-release.yml: job 'prepare' checks out without fetch-depth: 0"],
         ),
         case(
             g,
@@ -510,17 +421,27 @@ def schema_cases() -> list[bool]:
             },
             ["reason_codes_data.rs is stale against"],
         ),
+        # A confirmed passing range: the failing point stays, the range is derived.
+        # One-sided role: a floor at the level, no upper band, and a stated side and target.
         case(
             g,
-            "record_facets_narrowed_by_hand",
+            "raw_reason_literal",
             {
-                "parity/coverage_records.toml": replace(
-                    'facets = ["core", "mechanism", "suite.static_calibration"]',
-                    'facets = ["suite.static_calibration"]',
+                # Before any `#[cfg(test)]`: production code, not a test fixture.
+                "crates/antecedent/src/analysis/prepared/mod.rs": replace(
+                    "\n#[cfg(test)]\nmod tests;",
+                    '\nconst _BYPASS: &str = "reason=bogus: typed by hand";\n\n#[cfg(test)]\nmod tests;',
                 )
             },
-            ["are not the derived", "collect_coverage_records.py --retag"],
+            ['raw "reason=..." literal'],
         ),
+    ]
+
+
+def calibration_cases() -> list[bool]:
+    g = "calibration_status.py --check"
+    return [
+        case(g, "control", {}, [], must_fail=False),
         case(
             g,
             "record_grid_missing_a_point",
@@ -555,7 +476,6 @@ def schema_cases() -> list[bool]:
             },
             ["grid sample sizes must strictly increase point to point"],
         ),
-        # A confirmed passing range: the failing point stays, the range is derived.
         case(
             g,
             "confirmed_passing_range_of_a_boundary_record",
@@ -621,12 +541,17 @@ def schema_cases() -> list[bool]:
         case(
             g,
             "nominal_method_cannot_take_conservative_point_role",
-            {"parity/coverage_records.toml": append(gridded_record(
-                [(150, 0.99, False), (300, 0.985, False), (600, 1.0, False)],
-                False, role="conservative_point"))},
+            {
+                "parity/coverage_records.toml": append(
+                    gridded_record(
+                        [(150, 0.99, False), (300, 0.985, False), (600, 1.0, False)],
+                        False,
+                        role="conservative_point",
+                    )
+                )
+            },
             ["conservative_point requires the Gaussian study-mean theorem and target"],
         ),
-        # One-sided role: a floor at the level, no upper band, and a stated side and target.
         case(
             g,
             "one_sided_record_without_side_and_target",
@@ -643,21 +568,6 @@ def schema_cases() -> list[bool]:
         ),
         case(
             g,
-            "one_sided_point_below_its_floor",
-            {
-                "parity/coverage_records.toml": append(
-                    gridded_record(
-                        [(150, 0.99, False), (300, 0.9, False), (600, 1.0, False)],
-                        False,
-                        role="one_sided",
-                        one_sided='{ side = "upper", target = "true upper extremal bound" }',
-                    )
-                )
-            },
-            ["one-sided coverage 0.9 is below the 0.95 floor"],
-        ),
-        case(
-            g,
             "one_sided_statement_on_a_gated_record",
             {
                 "parity/coverage_records.toml": append(
@@ -670,126 +580,6 @@ def schema_cases() -> list[bool]:
             },
             ["one_sided on a gated record"],
         ),
-        case(
-            g,
-            "record_without_facets",
-            {
-                "parity/coverage_records.toml": replace(
-                    'facets = ["core", "estimator.temporal_adjustment", "identity.temporal", "suite.temporal_frequentist"]\n',
-                    "",
-                )
-            },
-            ["missing facets"],
-        ),
-        case(
-            g,
-            "raw_reason_literal",
-            {
-                # Before any `#[cfg(test)]`: production code, not a test fixture.
-                "crates/antecedent/src/analysis/prepared/mod.rs": replace(
-                    "\n#[cfg(test)]\nmod tests;",
-                    '\nconst _BYPASS: &str = "reason=bogus: typed by hand";\n\n#[cfg(test)]\nmod tests;',
-                )
-            },
-            ['raw "reason=..." literal'],
-        ),
-    ]
-
-
-def _live_citation(boundary: bool) -> tuple[str, str, float]:
-    """A coverage figure the licensed prose cites today, as `(text, figure, observed)`.
-
-    The fixtures below mutate this text, so it is read from the committed prose and
-    registry rather than written here: a hard-coded figure fails the self-test at the
-    next collection, before any of its cases runs."""
-    records = {
-        rec["id"]: rec
-        for rec in tomllib.loads((ROOT / "parity/coverage_records.toml").read_text(encoding="utf-8"))["record"]
-    }
-    prose = (ROOT / "parity/support_licensed.toml").read_text(encoding="utf-8")
-    for m in re.finditer(r"(0\.\d{3}) \((boundary )?record `(cov\.[^`]+\.l90\.[^`]+)`\)", prose):
-        rec = records.get(m.group(3))
-        if rec is None or bool(m.group(2)) != boundary or bool(rec["boundary"]) != boundary:
-            continue
-        if boundary:
-            # The undisclosed-boundary case strips the words `boundary record`; the
-            # sentence must not name the boundary another way, or nothing is undisclosed.
-            from coverage_citations import BOUNDARY_DISCLOSURE_RE
-
-            head = prose[: m.start()]
-            sentence = head[max(head.rfind(". "), head.rfind("\\n")) + 1 :]
-            if BOUNDARY_DISCLOSURE_RE.search(sentence):
-                continue
-        if abs(float(rec["observed"]) - float(m.group(1))) <= 0.0005 + 1e-9:
-            return m.group(0), m.group(1), float(rec["observed"])
-    raise SystemExit(f"no live {'boundary ' if boundary else ''}l90 citation to build a fixture from")
-
-
-COND_DAG_BAYES, COND_FIG, COND_OBSERVED = _live_citation(boundary=False)
-BOUNDARY_CITE, _, _ = _live_citation(boundary=True)
-# A figure that differs from the cited record's by far more than the gate's tolerance.
-OTHER_FIG = "0.931" if abs(COND_OBSERVED - 0.931) > 0.01 else "0.812"
-
-
-def citation_cases() -> list[bool]:
-    g = "gate_coverage_citations.sh"
-    lic = "parity/support_licensed.toml"
-    return [
-        case(g, "control", {}, [], must_fail=False),
-        case(
-            g,
-            "coverage_figure_unattributed",
-            {lic: replace(COND_DAG_BAYES, COND_FIG)},
-            [f"coverage figure {COND_FIG} has no record citation"],
-        ),
-        case(
-            g,
-            "coverage_figure_disagrees_with_record",
-            {lic: replace(COND_DAG_BAYES, COND_DAG_BAYES.replace(COND_FIG, OTHER_FIG))},
-            [
-                f"coverage figure {OTHER_FIG} does not match its cited record(s) "
-                f"({COND_OBSERVED:.4f})"
-            ],
-        ),
-        case(
-            g,
-            "unknown_record_cited",
-            {lic: replace(COND_DAG_BAYES, COND_DAG_BAYES.replace("l90.", "l80."))},
-            ["cites unknown coverage record"],
-        ),
-        case(
-            g,
-            "attribution_for_a_later_clause_does_not_cover",
-            {
-                lic: replace(
-                    COND_DAG_BAYES,
-                    f"{COND_FIG}; the probe measured 0.180 (not a registry value)",
-                )
-            },
-            [f"coverage figure {COND_FIG} has no record citation"],
-        ),
-        case(
-            g,
-            "boundary_record_undisclosed",
-            {lic: replace(BOUNDARY_CITE, BOUNDARY_CITE.replace("boundary record", "record"))},
-            ["cites a boundary record without naming it a boundary"],
-        ),
-        # Known-truth values, SEs, locations and disclosed probe figures are never rejected.
-        case(
-            g,
-            "known_truth_and_disclosures_allowed",
-            {
-                lic: replace(
-                    COND_DAG_BAYES,
-                    COND_DAG_BAYES
-                    + "; P(Y=1|do(T=1)) = 0.625, mean SE 0.0416 vs Monte Carlo SD 0.0410, "
-                    "total 0.356; a skewed-treatment probe covered 0.180 (not a registry value "
-                    "(probe latency_tiers::interactive_vs_standard_records_mode_and_effort))",
-                )
-            },
-            [],
-            must_fail=False,
-        ),
     ]
 
 
@@ -799,7 +589,7 @@ def reachability_cases() -> list[bool]:
     return [
         case(g, "control", {}, [], must_fail=False),
         # The only consuming test stops reading the fixture; its path survives in a
-        # comment, in gate_bayesian.sh's file list and in non-test library source.
+        # comment, in a gate script's file list and in non-test library source.
         case(
             g,
             "named_only_in_comment_gate_script_and_source",
@@ -828,18 +618,27 @@ def reachability_cases() -> list[bool]:
             },
             ["conformance/estimate/refuters is consumed by no executing"],
         ),
-        # A consuming test that is #[ignore]d does not execute.
+        # Ignored consuming tests do not execute.
         case(
             g,
             "only_consumer_ignored",
             {
-                consumer: replace(
-                    "#[test]\nfn dag_posterior_engines_put_fixture_mass_on_the_true_structure()",
-                    '#[ignore = "off"]\n#[test]\n'
-                    "fn dag_posterior_engines_put_fixture_mass_on_the_true_structure()",
+                consumer: lambda text: replace(
+                    "fn exact_engine_reproduces_an_independent_bic_enumeration_and_samplers_agree_with_it()",
+                    '#[ignore = "off"]\n'
+                    "fn exact_engine_reproduces_an_independent_bic_enumeration_and_samplers_agree_with_it()",
+                )(
+                    replace(
+                        "fn dag_posterior_engines_put_fixture_mass_on_the_true_structure()",
+                        '#[ignore = "off"]\n'
+                        "fn dag_posterior_engines_put_fixture_mass_on_the_true_structure()",
+                    )(text)
                 )
             },
-            ["conformance/bayesian/dag_posterior is consumed by no executing"],
+            [
+                "conformance/bayesian/dag_posterior is consumed by no executing",
+                "reference_review stale artifact: " + consumer,
+            ],
         ),
         # A calibration test that says it runs via the gate but that no group selects.
         case(
@@ -847,11 +646,11 @@ def reachability_cases() -> list[bool]:
             "orphan_calibration_test",
             {
                 "crates/antecedent/tests/mixture_interval_calibration.rs": append(
-                    '\n#[test]\n#[ignore = "calibration: run via scripts/gate_calibration.sh"]\n'
+                    '\n#[test]\n#[ignore = "calibration: run via scripts/measure_calibration.sh"]\n'
                     "fn orphan_cell_nominal_90_coverage() {}\n"
                 )
             },
-            ["`orphan_cell_nominal_90_coverage` claims to run via scripts/gate_calibration.sh"],
+            ["`orphan_cell_nominal_90_coverage` claims to be a calibration measurement"],
         ),
         # An oracle block whose kind is outside the closed vocabulary.
         case(
@@ -902,7 +701,7 @@ def main(argv: list[str]) -> int:
     suites = {
         "docs": docs_cases,
         "schema": schema_cases,
-        "citations": citation_cases,
+        "calibration": calibration_cases,
         "reachability": reachability_cases,
         "metadata": metadata_cases,
     }

@@ -23,5 +23,62 @@ upstream_implementations_observed = [
 
 test_sources = [
  "crates/antecedent-estimate/src/propensity/knn.rs (independent exhaustive-search oracle for the three-neighbour estimate, bias correction, caliper rule and donor-reuse standard error; one neighbour equals estimate.distance_matching bit for bit)",
- "crates/antecedent-estimate/tests/knn_matching_calibration.rs (knn_matching_interval_ci_coverage, a 95 percent coverage design at 10,000, 25,000 and 100,000 rows with eight covariates)",
+ "crates/antecedent-estimate/tests/knn_matching_calibration.rs (knn_matching_interval_ci_coverage, a 95 percent coverage design at 10,000, 25,000 and 100,000 rows with eight covariates)", "crates/antecedent-estimate/tests/knn_distance_matching_reference.rs (exhaustive 60-digit M-nearest search for M of 2 to 5 with a caliper, duplicated tied rows, covariate units of 1e14 and a small table; effect, donor-reuse standard error and matched count for the ATT, ATC and ATE)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "KnnDistanceMatching::fit (via DistanceMatching::fit_with_matches) of crates/antecedent-estimate/src/propensity/knn.rs with the shared matching helpers of propensity/matching.rs and the donor-arm linear bias term of propensity/distance.rs that it calls: z-scoring, the M nearest donors by Euclidean distance with ties broken to the lowest donor position, the caliper applied to the M-th nearest donor (a distance equal to the caliper matches), the within-arm least-squares bias correction applied to the mean of the M donors, the matched effects for ATT, ATC and ATE, and the Abadie-Imbens donor-reuse variance for M matches (use count over M, noise Var(effect) / (1 + 1/M)). Not the single-neighbour estimator's own review (estimate.distance_matching, which this agrees with at M = 1 per the in-module equality test), the bootstrap (refused), sampling weights, the population-variance option, or the 95 percent coverage designs of the calibration test. Scoped re-review compared all bound definitions across the source split; only internal visibility and formatting changed, not numerical operations."
+assumptions = ["Unconfoundedness given the adjustment covariates and positivity are identification assumptions taken as given; rows are independent.", "Matching is with replacement on the z-scored covariates, so every covariate counts equally whatever its units; the within-arm linear bias term is fitted on the donor arm.", "The variance is the constant-effect homoskedastic donor-reuse form for M matches, not the conditional-residual estimator of the paper; the record states this deviation.", "Accuracy is stated against an exhaustive 60-digit search."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with an exhaustive 60-digit M-nearest-neighbour search and the M-match donor-reuse variance written from their definitions written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Seven tables of 24 to 60 units (two to three covariates) with M of 2, 3, 4 and 5: a plain case, a caliper of 0.8 on the z-scale (matched counts 8, 16 and 16 for ATT, ATC and ATE), duplicated rows so many donors tie in distance for M = 3 and 4, a covariate in units of 1e14, a three-covariate M = 5 case and a 24-row M = 2 case. The ATT, ATC and ATE effects agree to 1e-8 relative, the standard errors to 1e-6 relative and the matched counts exactly. The coverage of the interval is measured by its own calibration designs and not reproduced here. Not exercised: sampling weights, the population-variance option, a donor arm with fewer than M rows (refused by the module), many covariates and near-collinear covariates (covered for M = 1 by the single-neighbour reference). The cited publications were not retrieved."
+sources = ["https://doi.org/10.1111/j.1468-0262.2006.00655.x", "https://doi.org/10.3982/ECTA6474", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No defect was found: the M nearest donors with the lowest-position tie rule, the M-th-neighbour caliper, the bias correction on the donor mean and the M-match donor-reuse variance agree with the exhaustive reference for every target.", "Re-read the one change in crates/antecedent-estimate/src/propensity/matching/variance.rs MatchedVariance: the new AnalyticSeKind::SeriesEwc variant is added to the existing or-pattern that already returns the estimator_inference_mismatch refusal for the cluster, multiway and HAC kinds, so it is refused with the same message and the matched-donor variance for every previously handled kind is unchanged. The review still holds. This was checked by reading the diff; the cited reference does not exercise the new refusal."]
+record_sha256 = "121aeb7a985a2808f4d3e66d438ab09b4157924af79579a7454d85cb3eeff1d9"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/util/mod.rs"
+items = ["fn validate_caliper"]
+sha256 = "35211f3ba5380a814eb8782bbbf8b4248ca21faa530ec9926c0fc3f456410fa8"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/propensity/knn.rs"
+items = ["fn fit", "fn new", "fn prepare", "struct KnnDistanceMatching"]
+sha256 = "53c49608841fb60c789558f77468d2fee9253729eb6a4d9861de67e299c1bdd1"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/propensity/matching.rs"
+items = ["const BOUNDING_BOX_MIN_DIMENSION", "const DIRECT_RUN", "const MATCH_CANCELLATION_CHUNK", "enum CaliperScale", "enum SpatialIndex", "fn add_donor_usage", "fn check_label_lengths", "fn control_to_treated", "fn default", "fn donor_usage", "fn fit", "fn fit_linear_mean", "fn for_dimension", "fn from_donors", "fn match_diffs", "fn match_diffs_with", "fn match_nearest_k", "fn match_nearest_tied", "fn match_scalar_sorted", "fn match_target", "fn match_with_box_tree", "fn matched_outcome_diffs", "fn matched_point_effect", "fn matching_contrast", "fn mean_noise_inflation", "fn nearest", "fn new", "fn predict_linear", "fn prepare", "fn quote_exact_matching", "fn require_match_counts", "fn require_read_inference", "fn set_sizes", "fn treated_to_control", "fn with_caliper", "fn with_overlap", "fn with_sampling_weights", "struct MatchSide", "struct MatchedArms", "struct MatchedDiffs", "struct MatchedEffects", "struct MatchedEstimate", "struct MatchingSample", "struct SortedScalarIndex", "struct TiedDonors"]
+sha256 = "4c9e9f8863415c4fd189a78af8541131d83675e58431074bdf7d73fc115c8876"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/propensity/matching/variance.rs"
+items = ["fn analytic_se", "fn bias_adjusted_coefficient_norm", "fn coefficients", "fn custom_unit_coefficients", "fn population_matching_se", "fn population_se", "fn weighted_abadie_imbens_se", "struct MatchedVariance"]
+sha256 = "a7117ae849251ac99674327216b65872aad74d651e24722b1a7ded173cd74422"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/propensity/distance.rs"
+items = ["fn default", "fn fit", "fn fit_with_matches", "fn new", "fn prepare", "fn require_read_inference", "fn standardize_rowmajor_inplace", "fn with_caliper", "fn with_overlap", "fn with_sampling_weights", "struct DistanceMatching"]
+sha256 = "cff0ab7f97771f7d318d5d2763ee073d18be9fb9c5435375c0f433cf366e416c"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/knn_distance_matching_reference.rs"
+items = ["fn cases", "fn close", "fn floats", "fn knn_matched_effect_and_standard_error_match_the_exhaustive_reference"]
+sha256 = "d338e7a73897f9936d5664dfa301b6730139c8603875f7a908b4355ca47f1e44"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/knn_distance_matching_reference.py"
+sha256 = "573c903ad1f7033682b2901d6c7688021a7d63d5b2700a5baf0cbfc71b2a6976"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/knn_distance_matching_reference.json"
+sha256 = "e59de6d39b74725cd038011efa88e77bce590a8a9e04e1d5cc089e1b1fa2e150"

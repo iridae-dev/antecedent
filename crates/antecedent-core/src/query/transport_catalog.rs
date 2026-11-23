@@ -1,10 +1,13 @@
 //! Environments, evidence regimes, and supplied transport catalogs.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::TransportFault;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
+use crate::canonical_encode::{CanonicalEncode, encode_option, encode_set, encode_variable_set};
+use crate::identity::CanonicalWriter;
 use crate::ids::{RegimeId, VariableId};
 use crate::value::Value;
 
@@ -12,6 +15,10 @@ use super::error::QueryError;
 
 /// Per variable, the merged domain and unit its environments declare it with.
 type DeclaredDomains<'a> = BTreeMap<u32, (&'a VariableDomain, Option<&'a Arc<str>>)>;
+
+/// Most levels a declared categorical coordinate may have. Experiment-family and world
+/// enumeration materialise one entry per level, so this is the per-coordinate allocation bound.
+pub const MAX_CATEGORICAL_CARDINALITY: u32 = 4096;
 
 /// Shared variable coordinate used by source and target environments.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -40,6 +47,36 @@ pub enum VariableDomain {
         /// Number of levels.
         cardinality: u32,
     },
+}
+
+impl CanonicalEncode for VariableCoordinate {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.variable.encode(writer);
+        self.domain.encode(writer);
+        writer.opt_text(self.unit.as_deref());
+    }
+}
+
+impl CanonicalEncode for VariableDomain {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Unspecified => {
+                writer.word(1);
+            }
+            Self::Continuous => {
+                writer.word(2);
+            }
+            Self::Binary => {
+                writer.word(3);
+            }
+            Self::Count => {
+                writer.word(4);
+            }
+            Self::Categorical { cardinality } => {
+                writer.word(5).word(u64::from(*cardinality));
+            }
+        }
+    }
 }
 
 impl VariableDomain {
@@ -83,6 +120,16 @@ pub struct Environment {
     pub selection_targets: Arc<[VariableId]>,
 }
 
+/// As [`EvidenceCatalog::canonicalized`]: the coordinates and the selection
+/// targets are sets, encoded without regard to their listed order.
+impl CanonicalEncode for Environment {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer.text(&self.identity);
+        encode_set(writer, &self.variables);
+        encode_variable_set(writer, &self.selection_targets);
+    }
+}
+
 impl Environment {
     /// Construct an environment after rejecting empty identity and duplicate coordinates.
     ///
@@ -97,22 +144,20 @@ impl Environment {
     ) -> Result<Self, QueryError> {
         let identity = identity.into();
         if identity.trim().is_empty() {
-            return Err(QueryError::InvalidTransport(
-                "environment identity must be non-empty".into(),
-            ));
+            return Err(QueryError::InvalidTransport(TransportFault::EnvironmentIdentityEmpty));
         }
         let variables = variables.into();
         let mut seen = BTreeSet::new();
         for coordinate in variables.iter() {
-            if matches!(coordinate.domain, VariableDomain::Categorical { cardinality: 0 }) {
-                return Err(QueryError::InvalidTransport(
-                    "categorical cardinality must be positive".into(),
-                ));
+            if matches!(
+                coordinate.domain,
+                VariableDomain::Categorical { cardinality }
+                    if cardinality == 0 || cardinality > MAX_CATEGORICAL_CARDINALITY
+            ) {
+                return Err(QueryError::InvalidTransport(TransportFault::CategoricalCardinality));
             }
             if !seen.insert(coordinate.variable.raw()) {
-                return Err(QueryError::InvalidTransport(
-                    "environment variable coordinates must be unique".into(),
-                ));
+                return Err(QueryError::InvalidTransport(TransportFault::CoordinatesNotUnique));
             }
         }
         let selection_targets = unique_variables(selection_targets.into(), "selection targets")?;
@@ -129,6 +174,17 @@ pub enum EvidenceKind {
     Manipulable,
     /// A proposed future experiment. Not available evidence.
     Proposed,
+}
+
+impl CanonicalEncode for EvidenceKind {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let tag = match self {
+            Self::Available => 1,
+            Self::Manipulable => 2,
+            Self::Proposed => 3,
+        };
+        writer.word(tag);
+    }
 }
 
 impl EvidenceKind {
@@ -156,6 +212,16 @@ pub enum RegimeKind {
     Observational,
     /// Hard intervention on a declared set. `do(A)` never implies `do(A,B)`.
     Experimental,
+}
+
+impl CanonicalEncode for RegimeKind {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let tag = match self {
+            Self::Observational => 1,
+            Self::Experimental => 2,
+        };
+        writer.word(tag);
+    }
 }
 
 impl RegimeKind {
@@ -205,7 +271,7 @@ pub enum LawOrigin {
         /// Identity of the artifact that produced it.
         artifact: Arc<str>,
     },
-    /// A law derived by graph-licensed observation recovery from an
+    /// A law derived by graph-supported observation recovery from an
     /// observed pattern law: a derived law with provenance, never an observed
     /// table. It never supplies a population law (by `origin == Measured` in
     /// [`EvidenceRegime::supplies_population_law`]), so it satisfies no
@@ -227,6 +293,59 @@ pub struct InterventionAssignment {
     pub variable: VariableId,
     /// Assigned value.
     pub value: Value,
+}
+
+/// Separate marginals are a variable set.
+impl CanonicalEncode for DistributionAvailability {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Joint => {
+                writer.word(1);
+            }
+            Self::SeparateMarginals { variables } => {
+                writer.word(2);
+                encode_variable_set(writer, variables);
+            }
+        }
+    }
+}
+
+/// Selection variables are a variable set.
+impl CanonicalEncode for SamplingSelection {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Population => {
+                writer.word(1);
+            }
+            Self::SelectedOn { variables } => {
+                writer.word(2);
+                encode_variable_set(writer, variables);
+            }
+        }
+    }
+}
+
+impl CanonicalEncode for LawOrigin {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Measured => {
+                writer.word(1);
+            }
+            Self::ModelArtifact { artifact } => {
+                writer.word(2).text(artifact);
+            }
+            Self::Recovered { derivation } => {
+                writer.word(3).text(derivation);
+            }
+        }
+    }
+}
+
+impl CanonicalEncode for InterventionAssignment {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.variable.encode(writer);
+        self.value.encode(writer);
+    }
 }
 
 /// What one executable factor needs from a supplied regime.
@@ -282,6 +401,26 @@ pub struct EvidenceRegime {
     pub origin: LawOrigin,
 }
 
+/// Every field is written, the label included (it is retained in durable
+/// catalog identity). As [`EvidenceCatalog::canonicalized`], the intervention,
+/// assignment, measured and conditioning collections are sets.
+impl CanonicalEncode for EvidenceRegime {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer.word(u64::from(self.id.raw())).opt_text(self.label.as_deref());
+        self.kind.encode(writer);
+        self.evidence_kind.encode(writer);
+        encode_variable_set(writer, &self.interventions);
+        encode_set(writer, &self.intervention_values);
+        encode_variable_set(writer, &self.measured);
+        encode_variable_set(writer, &self.conditioned_on);
+        writer.text(&self.population);
+        self.distribution.encode(writer);
+        writer.opt_text(self.study.as_deref());
+        self.selection.encode(writer);
+        self.origin.encode(writer);
+    }
+}
+
 impl EvidenceRegime {
     /// Construct a regime after checking intervention / measurement consistency.
     ///
@@ -305,19 +444,19 @@ impl EvidenceRegime {
     ) -> Result<Self, QueryError> {
         let population = population.into();
         if population.trim().is_empty() {
-            return Err(QueryError::InvalidTransport("regime population must be non-empty".into()));
+            return Err(QueryError::InvalidTransport(TransportFault::RegimePopulationEmpty));
         }
         let interventions = unique_variables(interventions.into(), "regime interventions")?;
         let measured = unique_variables(measured.into(), "regime measured variables")?;
         match kind {
             RegimeKind::Observational if !interventions.is_empty() => {
                 return Err(QueryError::InvalidTransport(
-                    "observational regimes cannot carry hard interventions".into(),
+                    TransportFault::ObservationalWithInterventions,
                 ));
             }
             RegimeKind::Experimental if interventions.is_empty() => {
                 return Err(QueryError::InvalidTransport(
-                    "experimental regimes require a non-empty intervention set".into(),
+                    TransportFault::ExperimentalWithoutInterventions,
                 ));
             }
             _ => {}
@@ -325,9 +464,7 @@ impl EvidenceRegime {
         if let DistributionAvailability::SeparateMarginals { variables } = &distribution {
             unique_variables(Arc::clone(variables), "marginal variables")?;
             if variables.iter().any(|v| !measured.contains(v)) {
-                return Err(QueryError::InvalidTransport(
-                    "marginals require measured variables".into(),
-                ));
+                return Err(QueryError::InvalidTransport(TransportFault::MarginalsNeedMeasured));
             }
         }
         let intervention_values = intervention_values.into();
@@ -337,9 +474,7 @@ impl EvidenceRegime {
                 || !assigned.insert(assignment.variable)
                 || assignment.value.as_f64().is_some_and(|v| !v.is_finite())
             {
-                return Err(QueryError::InvalidTransport(
-                    "invalid or duplicate intervention assignment".into(),
-                ));
+                return Err(QueryError::InvalidTransport(TransportFault::InterventionAssignment));
             }
         }
         Ok(Self {
@@ -420,29 +555,21 @@ impl EvidenceRegime {
     /// [`QueryError::InvalidTransport`].
     pub fn validate_descriptor(&self) -> Result<(), QueryError> {
         if self.study.as_ref().is_some_and(|study| study.trim().is_empty()) {
-            return Err(QueryError::InvalidTransport(
-                "regime study identity must be non-empty".into(),
-            ));
+            return Err(QueryError::InvalidTransport(TransportFault::StudyIdentityEmpty));
         }
-        if let LawOrigin::ModelArtifact { artifact } = &self.origin {
-            if artifact.trim().is_empty() {
-                return Err(QueryError::InvalidTransport(
-                    "model artifact identity must be non-empty".into(),
-                ));
-            }
+        if let LawOrigin::ModelArtifact { artifact } = &self.origin
+            && artifact.trim().is_empty()
+        {
+            return Err(QueryError::InvalidTransport(TransportFault::ModelArtifactIdentityEmpty));
         }
-        if let LawOrigin::Recovered { derivation } = &self.origin {
-            if derivation.trim().is_empty() {
-                return Err(QueryError::InvalidTransport(
-                    "recovered law derivation identity must be non-empty".into(),
-                ));
-            }
+        if let LawOrigin::Recovered { derivation } = &self.origin
+            && derivation.trim().is_empty()
+        {
+            return Err(QueryError::InvalidTransport(TransportFault::DerivationIdentityEmpty));
         }
         if let SamplingSelection::SelectedOn { variables } = &self.selection {
             if variables.is_empty() {
-                return Err(QueryError::InvalidTransport(
-                    "a selected-sample law must name its selection variables".into(),
-                ));
+                return Err(QueryError::InvalidTransport(TransportFault::SelectedSampleVariables));
             }
             unique_variables(Arc::clone(variables), "selection variables")?;
         }
@@ -456,7 +583,7 @@ impl EvidenceRegime {
     ///
     /// # Errors
     ///
-    /// [`QueryError::InvalidTransport`] when the projection is not licensed.
+    /// [`QueryError::InvalidTransport`] when the projection is not supported.
     #[allow(
         clippy::needless_pass_by_value,
         reason = "Stable public signature; the projection is read, not stored"
@@ -472,14 +599,14 @@ impl EvidenceRegime {
     }
 }
 
-/// Measured set, conditioning set and availability after a licensed projection.
+/// Measured set, conditioning set and availability after a supported projection.
 pub(crate) struct ProjectedLaw {
     pub(crate) measured: Arc<[VariableId]>,
     pub(crate) conditioned_on: Arc<[VariableId]>,
     pub(crate) distribution: DistributionAvailability,
 }
 
-/// The one owner of licensed projection semantics, shared by regimes and catalog
+/// The one owner of supported projection semantics, shared by regimes and catalog
 /// distribution descriptors.
 pub(crate) fn project_law(
     measured: &Arc<[VariableId]>,
@@ -488,15 +615,12 @@ pub(crate) fn project_law(
     projection: &EvidenceProjection,
 ) -> Result<ProjectedLaw, QueryError> {
     match projection {
-        EvidenceProjection::Deintervene { .. } => Err(QueryError::InvalidTransport(
-            "removing a hard intervention and treating its law as observational is not licensed"
-                .into(),
-        )),
+        EvidenceProjection::Deintervene { .. } => {
+            Err(QueryError::InvalidTransport(TransportFault::DeinterventionNotSupported))
+        }
         EvidenceProjection::Marginalize { drop } => {
             if drop.iter().any(|v| !measured.contains(v) || conditioned_on.contains(v)) {
-                return Err(QueryError::InvalidTransport(
-                    "cannot marginalize an unmeasured variable".into(),
-                ));
+                return Err(QueryError::InvalidTransport(TransportFault::MarginalizeUnmeasured));
             }
             let kept = |v: &&VariableId| !drop.contains(v);
             let mut distribution = distribution.clone();
@@ -514,12 +638,12 @@ pub(crate) fn project_law(
                 && matches!(distribution, DistributionAvailability::SeparateMarginals { .. })
             {
                 return Err(QueryError::InvalidTransport(
-                    "conditioning requires a joint law".into(),
+                    TransportFault::ConditioningNeedsJointLaw,
                 ));
             }
             if on.iter().any(|variable| !measured.contains(variable)) {
                 return Err(QueryError::InvalidTransport(
-                    "conditioning projection requires measured variables".into(),
+                    TransportFault::ConditioningNeedsMeasured,
                 ));
             }
             let conditioned = conditioned_on
@@ -539,7 +663,7 @@ pub(crate) fn project_law(
     }
 }
 
-/// Licensed projection of an evidence regime.
+/// Supported projection of an evidence regime.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EvidenceProjection {
     /// Drop measured variables. The intervention set is unchanged.
@@ -570,6 +694,17 @@ pub enum DependenceGroup {
     UnknownDependence,
 }
 
+impl CanonicalEncode for DependenceGroup {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let tag = match self {
+            Self::IndependentStudies => 1,
+            Self::LinkedUnits => 2,
+            Self::UnknownDependence => 3,
+        };
+        writer.word(tag);
+    }
+}
+
 impl DependenceGroup {
     /// Stable `snake_case` name.
     #[must_use]
@@ -593,6 +728,17 @@ pub enum SamplingDesign {
     Unknown,
 }
 
+impl CanonicalEncode for SamplingDesign {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let tag = match self {
+            Self::Independent => 1,
+            Self::Clustered => 2,
+            Self::Unknown => 3,
+        };
+        writer.word(tag);
+    }
+}
+
 impl SamplingDesign {
     /// Stable `snake_case` name.
     #[must_use]
@@ -605,9 +751,9 @@ impl SamplingDesign {
     }
 }
 
-/// Licensed weights attached to a regime binding.
+/// Supported weights attached to a regime binding.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct LicensedWeights {
+pub struct SupportedWeights {
     /// Snapshot identity the weights were written for.
     pub snapshot_identity: Arc<str>,
 }
@@ -626,10 +772,31 @@ pub struct RegimeBinding {
     pub schema_names: Arc<[Arc<str>]>,
     /// Sampling design.
     pub sampling: SamplingDesign,
-    /// Optional licensed weights.
-    pub weights: Option<LicensedWeights>,
+    /// Optional supported weights.
+    pub weights: Option<SupportedWeights>,
     /// Unit / cluster / dependence group.
     pub dependence: DependenceGroup,
+}
+
+impl CanonicalEncode for SupportedWeights {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer.text(&self.snapshot_identity);
+    }
+}
+
+/// Every field is written. `schema_names` is physical column order and is kept
+/// as given.
+impl CanonicalEncode for RegimeBinding {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer
+            .opt_text(self.dataset_identity.as_deref())
+            .word(u64::from(self.regime.raw()))
+            .text(&self.snapshot_identity)
+            .texts(&self.schema_names);
+        self.sampling.encode(writer);
+        encode_option(writer, self.weights.as_ref());
+        self.dependence.encode(writer);
+    }
 }
 
 /// How the target population law is supplied.
@@ -641,10 +808,22 @@ pub enum TargetSampling {
     SuppliedPopulationLaw,
     /// Representative target sample.
     RepresentativeSample,
-    /// Explicitly licensed weighted design.
-    LicensedWeightedDesign,
+    /// Explicitly supported weighted design.
+    SupportedWeightedDesign,
     /// Convenience sample. Not automatically representative.
     ConvenienceSample,
+}
+
+impl CanonicalEncode for TargetSampling {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let tag = match self {
+            Self::SuppliedPopulationLaw => 1,
+            Self::RepresentativeSample => 2,
+            Self::SupportedWeightedDesign => 3,
+            Self::ConvenienceSample => 4,
+        };
+        writer.word(tag);
+    }
 }
 
 impl TargetSampling {
@@ -654,7 +833,7 @@ impl TargetSampling {
         match self {
             Self::SuppliedPopulationLaw => "supplied_population_law",
             Self::RepresentativeSample => "representative_sample",
-            Self::LicensedWeightedDesign => "licensed_weighted_design",
+            Self::SupportedWeightedDesign => "supported_weighted_design",
             Self::ConvenienceSample => "convenience_sample",
         }
     }
@@ -664,7 +843,9 @@ impl TargetSampling {
     pub const fn represents_target_law(self) -> bool {
         matches!(
             self,
-            Self::SuppliedPopulationLaw | Self::RepresentativeSample | Self::LicensedWeightedDesign
+            Self::SuppliedPopulationLaw
+                | Self::RepresentativeSample
+                | Self::SupportedWeightedDesign
         )
     }
 }
@@ -691,6 +872,19 @@ pub struct EvidenceCatalog {
     pub bindings: Arc<[RegimeBinding]>,
     /// Target-population sampling semantics.
     pub target_sampling: Option<TargetSampling>,
+}
+
+/// The order-free form [`EvidenceCatalog::canonicalized`] fixes: environments,
+/// regimes and bindings are sets (each item digested, digests sorted), as are
+/// the collections inside them; schema column order is kept. Encoding does not
+/// validate the catalog.
+impl CanonicalEncode for EvidenceCatalog {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        encode_set(writer, &self.environments);
+        encode_set(writer, &self.regimes);
+        encode_set(writer, &self.bindings);
+        encode_option(writer, self.target_sampling.as_ref());
+    }
 }
 
 impl EvidenceCatalog {
@@ -778,7 +972,7 @@ impl EvidenceCatalog {
                 // anything: reject it instead of letting the evidence read as missing.
                 if !identities.contains(regime.population.as_ref()) {
                     return Err(QueryError::InvalidTransport(
-                        "regime population is not a declared environment".into(),
+                        TransportFault::PopulationNotDeclared,
                     ));
                 }
                 let undeclared = regime
@@ -787,17 +981,13 @@ impl EvidenceCatalog {
                     .chain(regime.measured.iter())
                     .any(|v| !declared_variables.contains(&v.raw()));
                 if undeclared {
-                    return Err(QueryError::InvalidTransport(
-                        "regime variable is not declared by any environment".into(),
-                    ));
+                    return Err(QueryError::InvalidTransport(TransportFault::VariableNotDeclared));
                 }
             }
-            if let Some(label) = &regime.label {
-                if label.trim().is_empty() || !labels.insert(label.as_ref()) {
-                    return Err(QueryError::InvalidTransport(
-                        "duplicate or empty regime label".into(),
-                    ));
-                }
+            if let Some(label) = &regime.label
+                && (label.trim().is_empty() || !labels.insert(label.as_ref()))
+            {
+                return Err(QueryError::InvalidTransport(TransportFault::RegimeLabel));
             }
             EvidenceRegime::try_new(
                 regime.id,
@@ -813,7 +1003,7 @@ impl EvidenceCatalog {
             regime.validate_descriptor()?;
             if regime.conditioned_on.iter().any(|v| !regime.measured.contains(v)) {
                 return Err(QueryError::InvalidTransport(
-                    "conditioning requires measured coordinates".into(),
+                    TransportFault::ConditioningNeedsCoordinates,
                 ));
             }
             for assignment in regime.intervention_values.iter() {
@@ -821,15 +1011,13 @@ impl EvidenceCatalog {
                     let valid = domain.accepts(&assignment.value);
                     if !valid {
                         return Err(QueryError::InvalidTransport(
-                            "intervention value violates declared domain".into(),
+                            TransportFault::InterventionValueDomain,
                         ));
                     }
                 }
             }
             if !regime_ids.insert(regime.id.raw()) {
-                return Err(QueryError::InvalidTransport(
-                    "catalog regime ids must be unique".into(),
-                ));
+                return Err(QueryError::InvalidTransport(TransportFault::RegimeIdsNotUnique));
             }
         }
         self.validate_bindings()
@@ -848,7 +1036,7 @@ impl EvidenceCatalog {
             )?;
             if !identities.insert(environment.identity.as_ref()) {
                 return Err(QueryError::InvalidTransport(
-                    "catalog environments must have distinct identities".into(),
+                    TransportFault::EnvironmentIdentitiesNotDistinct,
                 ));
             }
             for coordinate in environment.variables.iter() {
@@ -857,8 +1045,7 @@ impl EvidenceCatalog {
                 {
                     if !existing_domain.compatible_with(&coordinate.domain) {
                         return Err(QueryError::InvalidTransport(
-                            "catalog environments declare incompatible domains for the same variable"
-                                .into(),
+                            TransportFault::IncompatibleDomains,
                         ));
                     }
                     if *existing_unit != coordinate.unit.as_ref()
@@ -866,8 +1053,7 @@ impl EvidenceCatalog {
                         && coordinate.unit.is_some()
                     {
                         return Err(QueryError::InvalidTransport(
-                            "catalog environments declare incompatible units for the same variable"
-                                .into(),
+                            TransportFault::IncompatibleUnits,
                         ));
                     }
                     if matches!(existing_domain, VariableDomain::Unspecified) {
@@ -901,20 +1087,14 @@ impl EvidenceCatalog {
                     .as_ref()
                     .is_some_and(|w| w.snapshot_identity != binding.snapshot_identity)
             {
-                return Err(QueryError::InvalidTransport(
-                    "invalid, duplicate, or mismatched regime binding".into(),
-                ));
+                return Err(QueryError::InvalidTransport(TransportFault::BindingInvalid));
             }
             let Some(regime) = self.regimes.iter().find(|regime| regime.id == binding.regime)
             else {
-                return Err(QueryError::InvalidTransport(
-                    "regime binding names an unknown regime".into(),
-                ));
+                return Err(QueryError::InvalidTransport(TransportFault::BindingUnknownRegime));
             };
             if !regime.evidence_kind.can_satisfy_factor() {
-                return Err(QueryError::InvalidTransport(
-                    "regime binding names a regime whose results do not exist".into(),
-                ));
+                return Err(QueryError::InvalidTransport(TransportFault::BindingMissingResults));
             }
         }
         Ok(())
@@ -1020,12 +1200,12 @@ impl EvidenceCatalog {
 
 fn unique_variables(
     variables: Arc<[VariableId]>,
-    label: &str,
+    label: &'static str,
 ) -> Result<Arc<[VariableId]>, QueryError> {
     let mut seen = BTreeSet::new();
     for variable in variables.iter() {
         if !seen.insert(variable.raw()) {
-            return Err(QueryError::InvalidTransport(format!("{label} must be unique")));
+            return Err(QueryError::InvalidTransport(TransportFault::NotUnique { label }));
         }
     }
     Ok(variables)
@@ -1167,9 +1347,26 @@ mod tests {
         )
         .unwrap();
         let error = EvidenceCatalog::try_new([source, target], [], [], None).unwrap_err();
-        assert!(
-            matches!(error, QueryError::InvalidTransport(message) if message.contains("incompatible"))
-        );
+        assert!(matches!(
+            error,
+            QueryError::InvalidTransport(
+                TransportFault::IncompatibleDomains | TransportFault::IncompatibleUnits
+            )
+        ));
+    }
+
+    #[test]
+    fn a_categorical_cardinality_beyond_the_limit_is_refused() {
+        let at = |n| {
+            Environment::try_new(
+                "trial",
+                [coord(0, VariableDomain::Categorical { cardinality: n })],
+                [],
+            )
+        };
+        assert!(at(MAX_CATEGORICAL_CARDINALITY).is_ok());
+        assert!(at(0).is_err());
+        assert!(at(MAX_CATEGORICAL_CARDINALITY + 1).is_err());
     }
 
     #[test]
@@ -1291,14 +1488,16 @@ mod tests {
         assert!(build(experimental(1, "trial", &[0])).is_ok());
         // A typo'd population would otherwise read as missing evidence.
         let typo = build(experimental(1, "trail", &[0])).unwrap_err();
-        assert!(
-            matches!(typo, QueryError::InvalidTransport(m) if m.contains("declared environment"))
-        );
+        assert!(matches!(
+            typo,
+            QueryError::InvalidTransport(TransportFault::PopulationNotDeclared)
+        ));
         // Variable 1 is declared by no environment.
         let undeclared = build(experimental(1, "trial", &[1])).unwrap_err();
-        assert!(
-            matches!(undeclared, QueryError::InvalidTransport(m) if m.contains("not declared"))
-        );
+        assert!(matches!(
+            undeclared,
+            QueryError::InvalidTransport(TransportFault::VariableNotDeclared)
+        ));
         // Without environments nothing is declared, so nothing is checked.
         assert!(
             EvidenceCatalog::try_new([], [experimental(1, "anywhere", &[1])], [], None).is_ok()
@@ -1319,7 +1518,10 @@ mod tests {
         let mut proposed = experimental(1, "trial", &[0]);
         proposed.evidence_kind = EvidenceKind::Proposed;
         let error = EvidenceCatalog::try_new([], [proposed], [binding(1)], None).unwrap_err();
-        assert!(matches!(error, QueryError::InvalidTransport(m) if m.contains("do not exist")));
+        assert!(matches!(
+            error,
+            QueryError::InvalidTransport(TransportFault::BindingMissingResults)
+        ));
         assert!(
             EvidenceCatalog::try_new([], [experimental(1, "trial", &[0])], [binding(1)], None)
                 .is_ok()

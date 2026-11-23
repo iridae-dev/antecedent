@@ -9,8 +9,8 @@ Truth is computed here in pure Python, never by native code:
 * the standard normal distribution function for a single-look stagewise p-value;
 * the martingale property of a posterior mean, and the anytime-valid bound ``<= alpha``.
 
-Every result is labelled ``derived_unmeasured`` and every premise failure is refused with
-``cell_not_licensed`` and the premise's own detail.
+Every result is labelled ``derived_not_measured`` and every premise failure is refused with
+``adaptive_assumption_violated`` and the premise's own detail.
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ from __future__ import annotations
 import math
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import adaptive_inference as ai
 from antecedent.adaptive_inference import AdaptiveInferenceRefusal
 
@@ -55,7 +56,9 @@ EVEN = ai.AssignmentRule.fixed((0.5, 0.5))
 THOMPSON = ai.AssignmentRule.thompson_beta()
 
 
-def refused(call, detail: str, code: str = "cell_not_licensed") -> AdaptiveInferenceRefusal:
+def refused(
+    call, detail: str, code: str = "adaptive_assumption_violated"
+) -> AdaptiveInferenceRefusal:
     with pytest.raises(AdaptiveInferenceRefusal) as caught:
         call()
     assert_registered_refusal(caught.value)
@@ -68,12 +71,12 @@ def test_each_missing_element_is_its_own_refusal():
     with pytest.raises(AdaptiveInferenceRefusal) as caught:
         ai.AdaptiveProcedure.declare(ai.ProcedureDeclaration(arms=2))
     assert caught.value.details == (
-        "adaptive_inference.policy_history_missing",
-        "adaptive_inference.interim_analyses_missing",
-        "adaptive_inference.outcome_availability_missing",
-        "adaptive_inference.exposure_history_missing",
-        "adaptive_inference.stopping_rule_missing",
-        "adaptive_inference.policy_selection_missing",
+        reason_details.adaptive_inference.POLICY_HISTORY_MISSING,
+        reason_details.adaptive_inference.INTERIM_ANALYSES_MISSING,
+        reason_details.adaptive_inference.OUTCOME_AVAILABILITY_MISSING,
+        reason_details.adaptive_inference.EXPOSURE_HISTORY_MISSING,
+        reason_details.adaptive_inference.STOPPING_RULE_MISSING,
+        reason_details.adaptive_inference.POLICY_SELECTION_MISSING,
     )
     assert_registered_refusal(caught.value)
     assert caught.value.reason_code == "adaptive_contract_incomplete"
@@ -82,7 +85,7 @@ def test_each_missing_element_is_its_own_refusal():
 def test_the_fixed_design_contrast_law_matches_the_hand_enumeration():
     procedure = declare(EVEN, (2,))
     report = procedure.report(ai.FixedSampleProcedureReport(truth=(0.2, 0.6)))
-    assert report.claim == ai.DERIVED_UNMEASURED
+    assert report.claim == ai.DERIVED_NOT_MEASURED
     assert report.procedure_identity == procedure.identity
     law = report.body["law"]
     assert law["undefined_mass"] == pytest.approx(0.5, abs=TOL)
@@ -141,15 +144,15 @@ def test_every_paradigm_whose_premise_fails_is_refused():
     truth = (0.3, 0.6)
     refused(
         lambda: adaptive.report(ai.FixedSampleProcedureReport(truth=truth)),
-        "adaptive_inference.fixed_sample_design_adaptive",
+        reason_details.adaptive_inference.FIXED_SAMPLE_DESIGN_ADAPTIVE,
     )
     refused(
         lambda: adaptive.report(ai.GroupSequentialProcedureReport(truth=truth)),
-        "adaptive_inference.group_sequential_assignment_adaptive",
+        reason_details.adaptive_inference.GROUP_SEQUENTIAL_ASSIGNMENT_ADAPTIVE,
     )
     refused(
         lambda: adaptive.report(ai.DecisionProcedureReport(truth=truth)),
-        "adaptive_inference.rule_mismatch",
+        reason_details.adaptive_inference.PARADIGM_RULE_MISMATCH,
     )
     lossy = declare(
         THOMPSON,
@@ -158,15 +161,15 @@ def test_every_paradigm_whose_premise_fails_is_refused():
     )
     refused(
         lambda: lossy.report(ai.BayesianProcedureReport()),
-        "adaptive_inference.posterior_premise_outcome_dependent_delay",
+        reason_details.adaptive_inference.POSTERIOR_PREMISE_OUTCOME_DEPENDENT_DELAY,
     )
     refused(
         lambda: lossy.report(ai.AnytimeProcedureReport(truth=truth)),
-        "adaptive_inference.outcome_dependent_delay",
+        reason_details.adaptive_inference.OUTCOME_DEPENDENT_DELAY,
     )
     refused(
         lambda: lossy.simulate(ai.WeightingProcedureReport(truth, 10, 1)),
-        "adaptive_inference.outcome_dependent_delay",
+        reason_details.adaptive_inference.OUTCOME_DEPENDENT_DELAY,
     )
 
 
@@ -237,7 +240,7 @@ def test_a_deterministic_rule_has_no_weighted_estimate():
     )
     refused(
         lambda: procedure.simulate(ai.WeightingProcedureReport((0.3, 0.6), 5, 1)),
-        "adaptive_inference.positivity_floor",
+        reason_details.adaptive_inference.POSITIVITY_FLOOR,
         code="adaptive_assumption_violated",
     )
 
@@ -245,7 +248,7 @@ def test_a_deterministic_rule_has_no_weighted_estimate():
 def test_the_exact_law_reports_atoms_and_work():
     procedure = declare(EVEN, (1, 1), observation=ai.OutcomeObservation(lag_looks=1))
     law = procedure.law((0.3, 0.7))
-    assert law.claim == ai.DERIVED_UNMEASURED
+    assert law.claim == ai.DERIVED_NOT_MEASURED
     assert law.cumulative_enrolment == (1, 2)
     assert sum(atom["probability"] for atom in law.atoms) == pytest.approx(1.0, abs=TOL)
     assert all(sum(atom["observed"]) == 1 for atom in law.atoms)

@@ -10,7 +10,12 @@
 //! as is any incompatible artifact or any observation shared between a prior source
 //! and the candidate study (or between two prior sources).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+//! Independent sources are combined as a linear opinion pool (a weighted mixture of
+//! the sources' target-coordinate draws), not as a product of likelihoods. Pooling
+//! never sharpens beyond the sources, so it is conservative when the sources are
+//! genuinely independent evidence.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -104,11 +109,15 @@ pub struct PriorSourceInput {
     pub source_population: String,
     /// Equally weighted posterior draws of the source quantity.
     pub draws: Vec<f64>,
-    /// Source weight (> 0).
+    /// Mixture weight (> 0), normalised across sources.
     pub weight: f64,
-    /// Prior strength in `(0, 1]` multiplying the weight (a power-prior exponent).
+    /// Prior strength in `(0, 1]`: a power-prior exponent on the source likelihood,
+    /// realised as variance inflation by `1 / strength` about the source mean (exact for
+    /// a Gaussian source posterior; it does not change the source's weight).
     pub prior_strength: f64,
-    /// Conflict shrinkage in `[0, 1]` toward the pooled weighted mean.
+    /// Conflict shrinkage in `[0, 1]`: the fraction of the distance between the source
+    /// mean and the pooled weighted mean by which the source's location is moved. The
+    /// within-source spread is kept.
     pub conflict_shrinkage: f64,
     /// Lineage identities of the source.
     pub lineage: Vec<String>,
@@ -230,63 +239,81 @@ impl PriorSignalError {
         let signal = antecedent_core::reason_code!("design_signal_invalid");
         let at = |code, detail: &str| RefusalBuilder::new(code, "declare", detail);
         match self {
-            Self::CoefficientPriorNotSignal => {
-                at(signal, "prior_signal.coefficient_prior_not_signal")
+            Self::CoefficientPriorNotSignal => at(
+                signal,
+                antecedent_core::reason_details::prior_signal::COEFFICIENT_PRIOR_NOT_SIGNAL,
+            )
+            .remedy("supply a future-signal likelihood or provider for the candidate")
+            .build(),
+            Self::UnlockListNotSignal(count) => {
+                at(signal, antecedent_core::reason_details::prior_signal::UNLOCK_LIST_NOT_SIGNAL)
+                    .offending(count.to_string())
                     .remedy("supply a future-signal likelihood or provider for the candidate")
                     .build()
             }
-            Self::UnlockListNotSignal(count) => at(signal, "prior_signal.unlock_list_not_signal")
-                .offending(count.to_string())
-                .remedy("supply a future-signal likelihood or provider for the candidate")
-                .build(),
-            Self::NoSources => at(signal, "prior_signal.no_sources").build(),
+            Self::NoSources => {
+                at(signal, antecedent_core::reason_details::prior_signal::NO_SOURCES).build()
+            }
             Self::DuplicateSource(id) => {
-                at(signal, "prior_signal.duplicate_source").offending(id.clone()).build()
+                at(signal, antecedent_core::reason_details::prior_signal::DUPLICATE_SOURCE)
+                    .offending(id.clone())
+                    .build()
             }
             Self::ArtifactNotInCatalog(id) => {
-                at(signal, "prior_signal.artifact_not_in_catalog").offending(id.clone()).build()
+                at(signal, antecedent_core::reason_details::prior_signal::ARTIFACT_NOT_IN_CATALOG)
+                    .offending(id.clone())
+                    .build()
             }
             Self::IncompatibleArtifact { artifact_id, reason } => {
-                at(signal, "prior_signal.incompatible_artifact")
+                at(signal, antecedent_core::reason_details::prior_signal::INCOMPATIBLE_ARTIFACT)
                     .offending(artifact_id.clone())
                     .supplied(reason.clone())
                     .build()
             }
             Self::InvalidParameter(name) => at(
                 antecedent_core::reason_code!("invalid_argument"),
-                "prior_signal.invalid_parameter",
+                antecedent_core::reason_details::prior_signal::INVALID_PARAMETER,
             )
             .offending(*name)
             .build(),
             Self::LineageMissing(id) => {
-                at(signal, "prior_signal.lineage_missing").offending(id.clone()).build()
+                at(signal, antecedent_core::reason_details::prior_signal::LINEAGE_MISSING)
+                    .offending(id.clone())
+                    .build()
             }
-            Self::ObservationLineageMissing(id) => {
-                at(signal, "prior_signal.observation_lineage_missing").offending(id.clone()).build()
-            }
-            Self::TransportPolicyRequired(id) => at(
-                antecedent_core::reason_code!("transport_policy_required"),
-                "prior_signal.transport_policy_required",
+            Self::ObservationLineageMissing(id) => at(
+                signal,
+                antecedent_core::reason_details::prior_signal::OBSERVATION_LINEAGE_MISSING,
             )
             .offending(id.clone())
             .build(),
-            Self::ObservationReuse(ids) => at(signal, "prior_signal.observation_reuse")
-                .offending(ids.join(","))
-                .remedy("use only data not already summarized by the prior")
-                .build(),
+            Self::TransportPolicyRequired(id) => at(
+                antecedent_core::reason_code!("transport_policy_required"),
+                antecedent_core::reason_details::prior_signal::TRANSPORT_POLICY_REQUIRED,
+            )
+            .offending(id.clone())
+            .build(),
+            Self::ObservationReuse(ids) => {
+                at(signal, antecedent_core::reason_details::prior_signal::OBSERVATION_REUSE)
+                    .offending(ids.join(","))
+                    .remedy("use only data not already summarized by the prior")
+                    .build()
+            }
             Self::PriorSourcesOverlap(ids) => {
-                at(signal, "prior_signal.prior_sources_overlap").offending(ids.join(",")).build()
+                at(signal, antecedent_core::reason_details::prior_signal::PRIOR_SOURCES_OVERLAP)
+                    .offending(ids.join(","))
+                    .build()
             }
             Self::ObservationOverlapUnknown(reason) => at(
                 antecedent_core::reason_code!("evidence_overlap_unknown"),
-                "prior_signal.observation_overlap_unknown",
+                antecedent_core::reason_details::prior_signal::OBSERVATION_OVERLAP_UNKNOWN,
             )
             .expected(reason.clone())
             .remedy("declare each source's and the study's observations in the evidence ledger")
             .build(),
             Self::ResolutionInvalid => at(
                 antecedent_core::reason_code!("invalid_argument"),
-                "prior_signal.resolution_invalid",
+                antecedent_core::reason_details::prior_signal::RESOLUTION_INVALID,
             )
             .build(),
         }
@@ -477,8 +504,8 @@ fn allocate(weights: &[f64], total: usize) -> Vec<usize> {
 ///
 /// Sources are processed in canonical artifact-id order, so the result does not
 /// depend on the order they were supplied in. Each source's draws are mapped to the
-/// target coordinate, shrunk toward the pooled weighted mean (`weight · strength`)
-/// by its conflict shrinkage, and resampled by deterministic stratified quantiles
+/// target coordinate, tempered by its prior strength, its location moved toward the
+/// pooled weighted mean (`weight`) by its conflict shrinkage, and resampled by deterministic stratified quantiles
 /// into `resolution` equally weighted draws in proportion to the effective weights.
 ///
 /// # Errors
@@ -531,16 +558,20 @@ fn combine(
         .iter()
         .map(|s| s.draws.iter().map(|d| s.source_to_target.apply(*d)).collect())
         .collect();
-    let raw: Vec<f64> = sources.iter().map(|s| s.weight * s.prior_strength).collect();
+    let raw: Vec<f64> = sources.iter().map(|s| s.weight).collect();
     let total: f64 = raw.iter().sum();
     let weights: Vec<f64> = raw.iter().map(|w| w / total).collect();
     let pooled: f64 =
         weights.iter().zip(&mapped).map(|(w, m)| w * antecedent_kernels::mean(m)).sum();
     let counts = allocate(&weights, request.resolution);
+    // `resolution` is capped by MAX_PRIOR_RESOLUTION above.
     let mut draws = Vec::with_capacity(request.resolution);
     for ((source, values), &count) in sources.iter().zip(&mapped).zip(&counts) {
-        let keep = 1.0 - source.conflict_shrinkage;
-        let mut shrunk: Vec<f64> = values.iter().map(|v| pooled + keep * (v - pooled)).collect();
+        let source_mean = antecedent_kernels::mean(values);
+        let spread = 1.0 / source.prior_strength.sqrt();
+        let shift = source.conflict_shrinkage * (source_mean - pooled);
+        let mut shrunk: Vec<f64> =
+            values.iter().map(|v| source_mean + spread * (v - source_mean) - shift).collect();
         shrunk.sort_by(f64::total_cmp);
         let len = shrunk.len();
         for j in 0..count {

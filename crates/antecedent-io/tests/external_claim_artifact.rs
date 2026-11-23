@@ -153,6 +153,50 @@ fn lineage_records_a_merkle_digest_per_link_and_refuses_tampered_digests() {
 }
 
 #[test]
+fn fingerprint_covers_every_quantity_field_and_counts_its_lists() {
+    let base = expected_identity();
+    let moved = |edit: &dyn Fn(&mut ExternalClaimIdentity)| {
+        let mut identity = base.clone();
+        edit(&mut identity);
+        identity.compute_fingerprint()
+    };
+    assert_eq!(moved(&|_| {}), base.provider_fingerprint);
+    assert_ne!(moved(&|i| i.quantities[0].units = "kPa".into()), base.provider_fingerprint);
+    assert_ne!(moved(&|i| i.quantities[0].horizon = 1), base.provider_fingerprint);
+    assert_ne!(moved(&|i| i.quantities[0].variable_name = "Z".into()), base.provider_fingerprint);
+    assert_ne!(moved(&|i| i.quantities.truncate(2)), base.provider_fingerprint);
+    assert_ne!(
+        moved(&|i| i.capabilities = vec!["mean".into(), "sample".into()]),
+        base.provider_fingerprint
+    );
+}
+
+#[test]
+fn identity_refuses_unbounded_lists_and_unsorted_capabilities() {
+    let artifact = bound_artifact();
+    let refuses = |edit: &dyn Fn(&mut ExternalClaimIdentity)| {
+        let mut meta = artifact.metadata().clone();
+        edit(&mut meta.identity);
+        ExternalClaimArtifact::new(meta, artifact.values().to_vec()).is_err()
+    };
+    assert!(refuses(&|i| i.evidence_ids = vec!["factor:z".into(); 1025]));
+    assert!(refuses(&|i| i.capabilities = vec!["sample".into(), "mean".into()]));
+    assert!(refuses(&|i| i.capabilities = vec!["mean".into(), "mean".into()]));
+}
+
+#[test]
+fn metadata_version_one_is_refused() {
+    let artifact = bound_artifact();
+    let mut meta = artifact.metadata().clone();
+    meta.version = 1;
+    assert!(matches!(
+        ExternalClaimArtifact::new(meta, artifact.values().to_vec()),
+        Err(antecedent_io::IoError::UnsupportedVersion { version: 1 })
+    ));
+}
+
+#[test]
+#[allow(clippy::too_many_lines, reason = "the reference fixture checks one complete round trip")]
 fn fresh_process_consumer_recomputes_closed_form_and_refuses_mutations() {
     const PATH_ENV: &str = "ANTECEDENT_23_EXTERNAL_CLAIM_TEST_PATH";
     if let Ok(path) = std::env::var(PATH_ENV) {
@@ -174,50 +218,73 @@ fn fresh_process_consumer_recomputes_closed_form_and_refuses_mutations() {
             assert!(behind.contains(&stage));
         }
 
+        // Each edit is either refused when the container is built (the message names why) or,
+        // when the identity stays internally consistent, resealed and then refused by the
+        // consumer's independently retained identity with `external_binding_mismatch`.
         let reseal = |edit: &dyn Fn(&mut ExternalClaimIdentity)| {
             let mut meta = loaded.metadata().clone();
             edit(&mut meta.identity);
-            // A structurally invalid identity is refused even before resealing.
-            ExternalClaimArtifact::new(meta, v.to_vec()).ok().map(|a| a.to_bytes("claim").unwrap())
+            ExternalClaimArtifact::new(meta, v.to_vec()).map(|a| a.to_bytes("claim").unwrap())
         };
-        let edits: [&dyn Fn(&mut ExternalClaimIdentity); 10] = [
-            &|i| i.lineage[1].id = "evidence:other".into(),
-            &|i| i.lineage.truncate(3),
-            &|i| i.point_status[2] = "supported".into(),
-            &|i| i.snapshot_id = "other".into(),
-            &|i| i.trust = ExternalClaimTrust::ExactRequestVerified,
-            &|i| i.graph_id = "graph-2".into(),
-            &|i| i.uncertainty_method = Some("interval".into()),
-            &|i| i.equivalence_ids = vec!["backdoor:z".into()],
-            &|i| i.quantities.swap(0, 1),
-            &|i| i.request_id = "req-2".into(),
+        let invalid_lineage =
+            antecedent_core::reason_details::composition_provenance::UNRESOLVED_PARENT;
+        let edits: [(&dyn Fn(&mut ExternalClaimIdentity), Option<&str>); 10] = [
+            (&|i| i.lineage[1].id = "evidence:other".into(), Some(invalid_lineage)),
+            (&|i| i.lineage.truncate(3), Some("incomplete lineage")),
+            (&|i| i.point_status[2] = "supported".into(), None),
+            (&|i| i.snapshot_id = "other".into(), Some("provider fingerprint differs")),
+            (
+                &|i| i.trust = ExternalClaimTrust::ExactRequestVerified,
+                Some("verification receipt must accompany exactly verified trust"),
+            ),
+            (&|i| i.graph_id = "graph-2".into(), None),
+            (&|i| i.uncertainty_method = Some("interval".into()), None),
+            (&|i| i.equivalence_ids = vec!["backdoor:z".into()], None),
+            (&|i| i.quantities.swap(0, 1), Some("provider fingerprint differs")),
+            (&|i| i.request_id = "req-2".into(), Some("provider fingerprint differs")),
         ];
-        for edit in edits {
-            if let Some(bytes) = reseal(edit) {
-                assert!(ExternalClaimArtifact::from_bytes(&bytes, &expected_identity()).is_err());
+        for (k, (edit, refused_at_build)) in edits.into_iter().enumerate() {
+            match (reseal(edit), refused_at_build) {
+                (Err(error), Some(why)) => {
+                    assert!(error.to_string().contains(why), "edit {k}: {error}");
+                }
+                (Ok(bytes), None) => {
+                    let error = ExternalClaimArtifact::from_bytes(&bytes, &expected_identity())
+                        .unwrap_err();
+                    assert_eq!(error.reason_code(), Some("external_binding_mismatch"), "edit {k}");
+                    assert!(
+                        error.to_string().contains("external_claim.identity_expected"),
+                        "edit {k}: {error}"
+                    );
+                }
+                (Ok(_), Some(why)) => panic!("edit {k} built but should be refused: {why}"),
+                (Err(error), None) => panic!("edit {k} should reseal, got {error}"),
             }
         }
         // A container can be resealed with valid section checksums, but the
         // independently retained identity still fixes the actual values.
         let mut changed_values = v.to_vec();
         changed_values[1] = 30.0;
-        assert!(
-            ExternalClaimArtifact::new(loaded.metadata().clone(), changed_values.clone()).is_err()
-        );
+        let error = ExternalClaimArtifact::new(loaded.metadata().clone(), changed_values.clone())
+            .unwrap_err();
+        assert!(error.to_string().contains("values differ from retained identity"), "{error}");
         let mut resealed_meta = loaded.metadata().clone();
         resealed_meta.identity.values_blake3 = values_digest(&changed_values);
         let resealed = ExternalClaimArtifact::new(resealed_meta, changed_values)
             .unwrap()
             .to_bytes("claim")
             .unwrap();
-        assert!(ExternalClaimArtifact::from_bytes(&resealed, &expected_identity()).is_err());
+        let error = ExternalClaimArtifact::from_bytes(&resealed, &expected_identity()).unwrap_err();
+        assert_eq!(error.reason_code(), Some("external_binding_mismatch"));
+        assert!(error.to_string().contains("external_claim.identity_expected"), "{error}");
         let mut native = loaded.metadata().clone();
         native.native_estimation = true;
-        assert!(ExternalClaimArtifact::new(native, v.to_vec()).is_err());
-        assert!(
+        let error = ExternalClaimArtifact::new(native, v.to_vec()).unwrap_err();
+        assert!(error.to_string().contains("cannot be native estimation"), "{error}");
+        let error =
             ExternalClaimArtifact::from_bytes(&bytes[..bytes.len() - 5], &expected_identity())
-                .is_err()
-        );
+                .unwrap_err();
+        assert!(error.to_string().contains("failed to fill whole buffer"), "{error}");
         return;
     }
     let artifact = bound_artifact();
@@ -227,13 +294,21 @@ fn fresh_process_consumer_recomputes_closed_form_and_refuses_mutations() {
     let path = std::env::temp_dir()
         .join(format!("antecedent-external-claim-{}-{unique}.bin", std::process::id()));
     std::fs::write(&path, artifact.to_bytes("claim").unwrap()).unwrap();
+    // The child must select this very test: under a suite crate it is a module member, so its
+    // libtest name carries the module path (a bare name would match nothing and "pass").
+    let prefix =
+        module_path!().split_once("::").map_or(String::new(), |(_, rest)| format!("{rest}::"));
+    let test_name =
+        format!("{prefix}fresh_process_consumer_recomputes_closed_form_and_refuses_mutations");
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .arg("--exact")
-        .arg("fresh_process_consumer_recomputes_closed_form_and_refuses_mutations")
+        .arg(&test_name)
         .env(PATH_ENV, &path)
         .output()
         .unwrap();
     std::fs::remove_file(path).unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("running 1 test"), "the child selected no test: {stdout}");
     assert!(
         output.status.success(),
         "{}{}",

@@ -25,11 +25,10 @@
 //! model whose graph is [`Network`]; the global Markov property of that graph is
 //! used by [`separated`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
-use super::COUNTERFACTUAL_TRANSPORT_MAX_NODES;
 use super::CounterfactualTransportProblem as Problem;
 use crate::error::IdentificationError;
 
@@ -97,8 +96,8 @@ fn invariant(message: &'static str) -> IdentificationError {
 ///
 /// # Errors
 ///
-/// `counterfactual_transport.bounds_exceeded` when the kept network is larger
-/// than the contract's node bound, or an internal invariant violation.
+/// An internal invariant violation. The kept network has no node bound: the work that
+/// reads it is charged to the decision's search budget.
 pub(super) fn build_network(
     problem: &Problem,
     worlds: &[WorldIdx],
@@ -135,12 +134,11 @@ pub(super) fn build_network(
         let mut additions: Vec<((usize, usize), usize)> = Vec::new();
         for world in 0..w {
             for variable in 0..n {
-                if let Some(id) = raw.pair_node[world][variable] {
-                    if let Some(level) = node_value[id] {
-                        if !known.contains_key(&(world, variable)) {
-                            additions.push(((world, variable), level));
-                        }
-                    }
+                if let Some(id) = raw.pair_node[world][variable]
+                    && let Some(level) = node_value[id]
+                    && !known.contains_key(&(world, variable))
+                {
+                    additions.push(((world, variable), level));
                 }
             }
         }
@@ -214,16 +212,13 @@ fn finalize(
     }
     while let Some(i) = stack.pop() {
         for &(_, input) in &raw.nodes[i].1 {
-            if let Input::Node(j) = input {
-                if !keep[j] {
-                    keep[j] = true;
-                    stack.push(j);
-                }
+            if let Input::Node(j) = input
+                && !keep[j]
+            {
+                keep[j] = true;
+                stack.push(j);
             }
         }
-    }
-    if keep.iter().filter(|k| **k).count() > COUNTERFACTUAL_TRANSPORT_MAX_NODES {
-        return Err(IdentificationError::UnsupportedInput { code: super::BOUNDS_EXCEEDED });
     }
     let mut rank: Vec<Option<usize>> = vec![None; m];
     let mut ordered: Vec<NetNode> = Vec::new();

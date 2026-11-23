@@ -5,7 +5,7 @@
 //! detectable differences, the artifact, its identity digests and every refusal are Rust's. A
 //! refusal comes back as structured JSON (`code`, `detail`, `message`) for the Python layer to
 //! raise as its own typed exception. Non-rejection never certifies invariance and the test's
-//! Type I error and power are unmeasured.
+//! Type I error and power are `not_measured`.
 use crate::bridge::RefusalJson;
 use crate::detach_catch;
 use antecedent::analysis::mechanism_discrepancy::{
@@ -13,7 +13,7 @@ use antecedent::analysis::mechanism_discrepancy::{
     MechanismMeasurement, ParentSpec, PopulationSample, consume_mechanism_discrepancy,
     run_mechanism_discrepancy, summarize_sample,
 };
-use antecedent_core::reason_code;
+use antecedent::reason::reason_code;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::json;
@@ -98,7 +98,10 @@ fn mechanism_discrepancy_run<'py>(
             return Ok((
                 None,
                 None,
-                Some(invalid_json("mechanism_discrepancy.invalid_request", &error.to_string())),
+                Some(invalid_json(
+                    antecedent::reason::reason_details::mechanism_discrepancy::INVALID_REQUEST,
+                    &error.to_string(),
+                )),
             ));
         }
     };
@@ -125,7 +128,10 @@ fn mechanism_discrepancy_run<'py>(
             (Err(error), _) => (
                 None,
                 None,
-                Some(invalid_json("mechanism_discrepancy.invalid_artifact", &error.to_string())),
+                Some(invalid_json(
+                    antecedent::reason::reason_details::mechanism_discrepancy::INVALID_ARTIFACT,
+                    &error.to_string(),
+                )),
             ),
         })
     })?;
@@ -141,6 +147,11 @@ fn mechanism_discrepancy_consume(
     data: &[u8],
     expected_identity_json: Option<&str>,
 ) -> PyResult<(Option<String>, Option<String>)> {
+    crate::bridge::check_declared_len(
+        data.len(),
+        crate::bridge::MAX_SEALED_ARTIFACT_BYTES,
+        "mechanism discrepancy artifact",
+    )?;
     let expected: Option<MechanismDiscrepancyIdentity> = match expected_identity_json {
         Some(text) => match serde_json::from_str(text) {
             Ok(identity) => Some(identity),
@@ -148,7 +159,7 @@ fn mechanism_discrepancy_consume(
                 return Ok((
                     None,
                     Some(invalid_json(
-                        "mechanism_discrepancy.invalid_identity",
+                        antecedent::reason::reason_details::mechanism_discrepancy::INVALID_IDENTITY,
                         &error.to_string(),
                     )),
                 ));
@@ -163,7 +174,7 @@ fn mechanism_discrepancy_consume(
                 Err(error) => (
                     None,
                     Some(invalid_json(
-                        "mechanism_discrepancy.invalid_artifact",
+                        antecedent::reason::reason_details::mechanism_discrepancy::INVALID_ARTIFACT,
                         &error.to_string(),
                     )),
                 ),

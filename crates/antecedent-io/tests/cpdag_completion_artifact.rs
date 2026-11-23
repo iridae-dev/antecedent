@@ -133,7 +133,7 @@ fn premises(
         query: query(),
         evidence,
         budget,
-        memory_limit_bytes: ctx.memory.hard_limit_bytes,
+        memory_limit_bytes: ctx.memory_limit_bytes(),
         data: laws(),
         request: Assignment::from_pairs([(v(1), Value::f64(1.0))]),
         evaluation: ExactEvaluationLimits::default(),
@@ -222,6 +222,23 @@ fn cpdag_artifact_replay_equals_original() {
 }
 
 #[test]
+fn cpdag_artifact_refuses_reconstruction_amplification_before_digest_or_graph_build() {
+    let context = ctx();
+    let (bytes, _) = produce(&premises(shared(), SEARCH, &context), &context);
+    let mut wire = CpdagCompletionArtifactWire::decode(&bytes).unwrap();
+    wire.cpdag.variables = (0..110).collect();
+    wire.cpdag.directed = (0..110).flat_map(|a| ((a + 1)..110).map(move |b| (a, b))).collect();
+    wire.cpdag.undirected.clear();
+    // Leave the old digest in place: admission must precede hashing and rebuilding.
+    let bytes = wire.export().unwrap();
+    let (code, message) = refused(consume(&bytes));
+    assert_eq!(code, "transport_budget_cancel");
+    assert!(message.contains("cpdag reconstruction work"), "{message}");
+    let error = wire.cpdag.to_cpdag().unwrap_err();
+    assert!(error.to_string().contains("cpdag reconstruction work"), "{error}");
+}
+
+#[test]
 fn cpdag_artifact_resealed_changes_are_refused() {
     let ctx = ctx();
     let (bytes, _) = produce(&premises(shared(), SEARCH, &ctx), &ctx);
@@ -231,46 +248,81 @@ fn cpdag_artifact_resealed_changes_are_refused() {
         w.report.completions[0].id = "0".repeat(64);
     }))));
     assert_eq!(code, "invalid_argument");
-    assert!(message.starts_with("cpdag_scenarios.report_replay_mismatch"), "{message}");
+    assert!(
+        message
+            .starts_with(antecedent_core::reason_details::cpdag_scenarios::REPORT_REPLAY_MISMATCH),
+        "{message}"
+    );
     let (_, message) = refused(consume(&reseal(edit(&bytes, |w| {
         w.report.completions[1].edges.reverse();
     }))));
-    assert!(message.starts_with("cpdag_scenarios.report_replay_mismatch"), "{message}");
+    assert!(
+        message
+            .starts_with(antecedent_core::reason_details::cpdag_scenarios::REPORT_REPLAY_MISMATCH),
+        "{message}"
+    );
 
     // A changed snapshot: the exact law's masses (a swapped pair of cells), digests re-sealed.
     let (_, message) = refused(consume(&reseal(edit(&bytes, |w| {
         w.laws[0].probabilities.swap(0, 1);
     }))));
-    assert!(message.starts_with("cpdag_scenarios.report_replay_mismatch"), "{message}");
+    assert!(
+        message
+            .starts_with(antecedent_core::reason_details::cpdag_scenarios::REPORT_REPLAY_MISMATCH),
+        "{message}"
+    );
     // ... and, un-resealed, the data identity refuses first.
     let (_, message) =
         refused(consume(&edit(&bytes, |w| w.laws[0].snapshot = "forged".into()).export().unwrap()));
-    assert!(message.starts_with("cpdag_scenarios.data_identity_mismatch"), "{message}");
+    assert!(
+        message
+            .starts_with(antecedent_core::reason_details::cpdag_scenarios::DATA_IDENTITY_MISMATCH),
+        "{message}"
+    );
 
     // A changed evidence binding.
     let (_, message) = refused(consume(&reseal(edit(&bytes, |w| {
         w.evidence.shared.as_mut().unwrap().identity = "forged".into();
     }))));
-    assert!(message.starts_with("cpdag_scenarios.report_replay_mismatch"), "{message}");
+    assert!(
+        message
+            .starts_with(antecedent_core::reason_details::cpdag_scenarios::REPORT_REPLAY_MISMATCH),
+        "{message}"
+    );
     let (_, message) = refused(consume(
         &edit(&bytes, |w| w.evidence.shared.as_mut().unwrap().identity = "forged".into())
             .export()
             .unwrap(),
     ));
-    assert!(message.starts_with("cpdag_scenarios.data_identity_mismatch"), "{message}");
+    assert!(
+        message
+            .starts_with(antecedent_core::reason_details::cpdag_scenarios::DATA_IDENTITY_MISMATCH),
+        "{message}"
+    );
 
     // A changed CPDAG: one edge fewer, re-sealed; un-resealed, the premises refuse.
     let drop_edge = |w: &mut CpdagCompletionArtifactWire| w.cpdag.undirected = vec![(0, 1)];
     let (_, message) = refused(consume(&reseal(edit(&bytes, drop_edge))));
-    assert!(message.starts_with("cpdag_scenarios.report_replay_mismatch"), "{message}");
+    assert!(
+        message
+            .starts_with(antecedent_core::reason_details::cpdag_scenarios::REPORT_REPLAY_MISMATCH),
+        "{message}"
+    );
     let (_, message) = refused(consume(&edit(&bytes, drop_edge).export().unwrap()));
-    assert!(message.starts_with("cpdag_scenarios.premises_mismatch"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::cpdag_scenarios::PREMISES_MISMATCH),
+        "{message}"
+    );
 
     // A changed count: a completion the replay finds but the report omits.
     let (_, message) = refused(consume(&reseal(edit(&bytes, |w| {
         w.report.completions.pop();
     }))));
-    assert!(message.starts_with("cpdag_scenarios.report_replay_mismatch"), "{message}");
+    assert!(
+        message
+            .starts_with(antecedent_core::reason_details::cpdag_scenarios::REPORT_REPLAY_MISMATCH),
+        "{message}"
+    );
 }
 
 #[test]
@@ -300,7 +352,12 @@ fn cpdag_artifact_per_completion_evidence_replays_and_binds_identities() {
     });
     let (code, message) = refused(consume(&reseal(forged)));
     assert_eq!(code, "invalid_argument");
-    assert!(message.starts_with("cpdag_scenarios.evidence_identity_mismatch"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::cpdag_scenarios::EVIDENCE_IDENTITY_MISMATCH
+        ),
+        "{message}"
+    );
 
     // A binding moved to another completion changes the replayed receipt.
     let moved = edit(&bytes, |w| {
@@ -309,7 +366,11 @@ fn cpdag_artifact_per_completion_evidence_replays_and_binds_identities() {
         w.evidence.bindings[0].certified_for = second;
     });
     let (_, message) = refused(consume(&reseal(moved)));
-    assert!(message.starts_with("cpdag_scenarios.report_replay_mismatch"), "{message}");
+    assert!(
+        message
+            .starts_with(antecedent_core::reason_details::cpdag_scenarios::REPORT_REPLAY_MISMATCH),
+        "{message}"
+    );
 }
 
 #[test]
@@ -344,11 +405,19 @@ fn cpdag_artifact_budget_stop_exports_and_replays_the_prefix() {
             .map(|(_, report)| report),
     );
     assert_eq!(code, "transport_budget_cancel");
-    assert!(message.starts_with("cpdag_scenarios.consumer_limit_exceeded"), "{message}");
+    assert!(
+        message
+            .starts_with(antecedent_core::reason_details::cpdag_scenarios::CONSUMER_LIMIT_EXCEEDED),
+        "{message}"
+    );
     // A changed recorded budget changes the replayed prefix.
     let widened = edit(&bytes, |w| w.search_operations = 6);
     let (_, message) = refused(consume(&reseal(widened)));
-    assert!(message.starts_with("cpdag_scenarios.report_replay_mismatch"), "{message}");
+    assert!(
+        message
+            .starts_with(antecedent_core::reason_details::cpdag_scenarios::REPORT_REPLAY_MISMATCH),
+        "{message}"
+    );
 }
 
 #[test]
@@ -364,7 +433,12 @@ fn cpdag_artifact_cancelled_report_never_exports() {
     match CpdagCompletionArtifactWire::checked(&premises, &prepared, &report) {
         Err(IoError::Refused { code, message }) => {
             assert_eq!(code, "cancelled_no_claim");
-            assert!(message.starts_with("cpdag_scenarios.cancelled_not_exportable"), "{message}");
+            assert!(
+                message.starts_with(
+                    antecedent_core::reason_details::cpdag_scenarios::CANCELLED_NOT_EXPORTABLE
+                ),
+                "{message}"
+            );
         }
         other => panic!("expected a refusal, got {:?}", other.map(|_| ())),
     }
@@ -384,9 +458,17 @@ fn cpdag_artifact_unknown_version_and_foreign_features_refuse() {
         edit(&bytes, |w| w.required_features.push("other_feature_v9".into())).export().unwrap();
     let (code, message) = refused(consume(&foreign));
     assert_eq!(code, "route_not_supported");
-    assert!(message.starts_with("cpdag_scenarios.unsupported_semantics"), "{message}");
+    assert!(
+        message
+            .starts_with(antecedent_core::reason_details::cpdag_scenarios::UNSUPPORTED_SEMANTICS),
+        "{message}"
+    );
     // Evidence mode and fields that disagree refuse as unsupported semantics.
     let confused = edit(&bytes, |w| w.evidence.mode = "per_completion".into());
     let (_, message) = refused(consume(&reseal(confused)));
-    assert!(message.starts_with("cpdag_scenarios.unsupported_semantics"), "{message}");
+    assert!(
+        message
+            .starts_with(antecedent_core::reason_details::cpdag_scenarios::UNSUPPORTED_SEMANTICS),
+        "{message}"
+    );
 }

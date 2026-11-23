@@ -13,7 +13,7 @@
 //! as [`ChangeAttributionResult::observed_change`], with
 //! [`ChangeAttributionResult::unexplained_change`] as the remainder.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -38,7 +38,7 @@ use crate::change_common::{
     ChangeAllocation, ChangeOptions, STRUCTURE_STREAM, observed_change, run_change_allocation,
     sample_outcome_law, stream_tag, total_change,
 };
-use crate::coalition::full_coalition_mask;
+use crate::coalition::{Coalition, full_coalition_mask};
 use crate::distribution_change::DifferenceMeasure;
 use crate::error::AttributionError;
 use crate::prep::{
@@ -58,7 +58,7 @@ const STRUCTURE_CACHE_CAP: usize = 64;
 pub struct StructureChangeOptions {
     /// Difference measure on the outcome samples.
     pub measure: DifferenceMeasure,
-    /// Samples drawn per coalition evaluation.
+    /// Draws per coalition: at least one for means, two for variance or Gaussian KL.
     pub n_samples: usize,
     /// RNG seed for sampling.
     pub seed: u64,
@@ -94,6 +94,41 @@ pub fn structure_change(
     options: &StructureChangeOptions,
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, AttributionError> {
+    structure_change_impl(baseline_model, comparison_model, data, query, options, None, ctx)
+}
+
+/// [`structure_change`] with both populations' mechanisms refit under `refit`, the families of
+/// each hybrid held at the ones selected on the unweighted populations: one replicate of the
+/// row bootstrap (counts) or one draw of the posterior over the mechanisms (row weights).
+///
+/// # Errors
+///
+/// As [`structure_change`], and weights that do not match the resolved populations.
+pub fn structure_change_with_refit(
+    baseline_model: &CompiledCausalModel,
+    comparison_model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &ChangeAttributionQuery,
+    options: &StructureChangeOptions,
+    refit: &crate::distribution_change::PopulationRefit<'_>,
+    ctx: &ExecutionContext,
+) -> Result<ChangeAttributionResult, AttributionError> {
+    structure_change_impl(baseline_model, comparison_model, data, query, options, Some(refit), ctx)
+}
+
+/// Row weights of a refit: baseline, comparison, and whether they are counts.
+type RefitWeights = (Vec<f64>, Vec<f64>, bool);
+
+fn structure_change_impl(
+    baseline_model: &CompiledCausalModel,
+    comparison_model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &ChangeAttributionQuery,
+    options: &StructureChangeOptions,
+    refit: Option<&crate::distribution_change::PopulationRefit<'_>>,
+    ctx: &ExecutionContext,
+) -> Result<ChangeAttributionResult, AttributionError> {
+    crate::change_common::validate_change_sample_count(options.measure, options.n_samples)?;
     query.validate()?;
     require_structure_components(
         query.components,
@@ -102,6 +137,14 @@ pub fn structure_change(
     validate_shared_layout(baseline_model, comparison_model)?;
 
     let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;
+    if let Some(refit) = refit
+        && (refit.baseline().len() != baseline_data.row_count()
+            || refit.comparison().len() != comparison_data.row_count())
+    {
+        return Err(AttributionError::invalid_input(
+            "attribution refit weights must match resolved population sizes",
+        ));
+    }
     let outcome_dense = resolve_outcome_dense(baseline_model, query.outcome)?;
     // Outcome must resolve in both layouts (already same VariableIds).
     let _ = resolve_outcome_dense(comparison_model, query.outcome)?;
@@ -161,14 +204,16 @@ pub fn structure_change(
         ws: MechanismWorkspace::default(),
         values_buf: Vec::new(),
         baseline_law: None,
+        law_memo: crate::change_common::LawMemo::default(),
         fits: None,
+        refit: refit.map(|r| (r.baseline().to_vec(), r.comparison().to_vec(), r.is_counts())),
         compiled_cache: HashMap::new(),
         hybrid_cache: HashMap::new(),
     };
 
-    let v0 = payoff.value(0)?;
+    let v0 = payoff.value(&Coalition::empty())?;
     let full_mask = full_coalition_mask(players.len())?;
-    let v_full = payoff.value(full_mask)?;
+    let v_full = payoff.value(&full_mask)?;
     let total = total_change(options.measure, v0, v_full);
 
     let request = ChangeAllocation {
@@ -255,7 +300,7 @@ fn structure_players(
     Ok((players, unidentified))
 }
 
-/// Build a hybrid DAG: comparison parents for set player bits, else baseline.
+/// Build a hybrid DAG: comparison parents for the players in `coalition`, else baseline.
 #[allow(
     clippy::needless_range_loop,
     reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
@@ -264,7 +309,7 @@ pub(crate) fn hybrid_structure_dag(
     baseline: &Dag,
     comparison: &Dag,
     player_nodes: &[DenseNodeId],
-    mask: u64,
+    coalition: &Coalition,
 ) -> Result<Dag, AttributionError> {
     let n = baseline.node_count();
     if comparison.node_count() != n {
@@ -285,7 +330,7 @@ pub(crate) fn hybrid_structure_dag(
             reason = "n was checked to fit u32 above (n_u32)"
         )]
         let child = DenseNodeId::from_raw(i as u32);
-        let use_comparison = player_of_node[i].is_some_and(|pi| mask & (1u64 << pi) != 0);
+        let use_comparison = player_of_node[i].is_some_and(|pi| coalition.contains(pi));
         let parents =
             if use_comparison { comparison.parents(child) } else { baseline.parents(child) };
         for &p in parents {
@@ -347,19 +392,28 @@ struct StructureSwapPayoff<'a> {
     /// Reused ancestral-sample buffer (`n_samples × n_nodes`).
     values_buf: Vec<f64>,
     baseline_law: Option<(f64, f64)>,
+    /// Outcome laws computed so far, by coalition.
+    law_memo: crate::change_common::LawMemo,
     /// Memoized mechanism fits (two `assign_and_fit` calls total; see [`StructureFits`]).
     fits: Option<StructureFits>,
-    /// Memoized compiled hybrid graphs keyed by coalition mask.
+    /// Row weights the two fits are made under, when the fits are one replicate of a
+    /// resampling rather than the point fits.
+    refit: Option<RefitWeights>,
+    /// Memoized compiled hybrid graphs keyed by coalition.
     ///
     /// Capped so a wide exact allocation cannot retain every hybrid. A miss
     /// recompiles the same graph.
-    compiled_cache: HashMap<u64, CompiledCausalModel>,
-    /// Memoized full hybrid models (graph + composed mechanisms) keyed by coalition mask,
-    /// so a repeated mask samples straight from the cached model without cloning it.
-    hybrid_cache: HashMap<u64, CompiledCausalModel>,
+    compiled_cache: HashMap<Coalition, CompiledCausalModel>,
+    /// Memoized full hybrid models (graph + composed mechanisms) keyed by coalition,
+    /// so a repeated coalition samples straight from the cached model without cloning it.
+    hybrid_cache: HashMap<Coalition, CompiledCausalModel>,
 }
 
 impl crate::change_common::CachedOutcomeLawPayoff for StructureSwapPayoff<'_> {
+    fn law_memo(&mut self) -> &mut crate::change_common::LawMemo {
+        &mut self.law_memo
+    }
+
     fn measure(&self) -> DifferenceMeasure {
         self.measure
     }
@@ -372,14 +426,14 @@ impl crate::change_common::CachedOutcomeLawPayoff for StructureSwapPayoff<'_> {
         self.baseline_law = Some(law);
     }
 
-    fn law_at(&mut self, mask: u64) -> Result<(f64, f64), AttributionError> {
-        self.sample_outcome_law(mask)
+    fn law_at(&mut self, coalition: &Coalition) -> Result<(f64, f64), AttributionError> {
+        self.sample_outcome_law(coalition)
     }
 }
 
 impl CoalitionPayoff for StructureSwapPayoff<'_> {
-    fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
-        crate::change_common::CachedOutcomeLawPayoff::cached_payoff_value(self, mask)
+    fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
+        crate::change_common::CachedOutcomeLawPayoff::cached_payoff_value(self, coalition)
     }
 
     fn fork<'a>(&'a self) -> Option<Box<dyn CoalitionPayoff + Send + 'a>> {
@@ -399,7 +453,9 @@ impl CoalitionPayoff for StructureSwapPayoff<'_> {
             ws: MechanismWorkspace::default(),
             values_buf: Vec::new(),
             baseline_law: self.baseline_law,
+            law_memo: crate::change_common::LawMemo::default(),
             fits: self.fits.clone(),
+            refit: self.refit.clone(),
             compiled_cache: self.compiled_cache.clone(),
             hybrid_cache: self.hybrid_cache.clone(),
         }))
@@ -407,23 +463,26 @@ impl CoalitionPayoff for StructureSwapPayoff<'_> {
 }
 
 impl StructureSwapPayoff<'_> {
-    /// Compile (or fetch the memoized) hybrid graph for `mask`.
+    /// Compile (or fetch the memoized) hybrid graph for `coalition`.
     ///
     /// Cyclic hybrids are not cached: the error is re-raised on every request,
     /// exactly as the previous per-coalition compile did.
-    fn compiled_for(&mut self, mask: u64) -> Result<CompiledCausalModel, AttributionError> {
-        if let Some(compiled) = self.compiled_cache.get(&mask) {
+    fn compiled_for(
+        &mut self,
+        coalition: &Coalition,
+    ) -> Result<CompiledCausalModel, AttributionError> {
+        if let Some(compiled) = self.compiled_cache.get(coalition) {
             return Ok(compiled.clone());
         }
         let hybrid = hybrid_structure_dag(
             &self.baseline_graph,
             &self.comparison_graph,
             &self.player_nodes,
-            mask,
+            coalition,
         )?;
         let compiled = CompiledCausalModel::compile(hybrid)?;
         if self.compiled_cache.len() < STRUCTURE_CACHE_CAP {
-            self.compiled_cache.insert(mask, compiled.clone());
+            self.compiled_cache.insert(coalition.clone(), compiled.clone());
         }
         Ok(compiled)
     }
@@ -443,29 +502,47 @@ impl StructureSwapPayoff<'_> {
             return Ok(());
         }
         let full_mask = full_coalition_mask(self.players.len())?;
-        let compiled_baseline = self.compiled_for(0)?;
-        let compiled_full = self.compiled_for(full_mask)?;
-        let (baseline, _) = MechanismRegistry::standard().assign_and_fit(
+        let compiled_baseline = self.compiled_for(&Coalition::empty())?;
+        let compiled_full = self.compiled_for(&full_mask)?;
+        let (mut baseline, baseline_assignments) = MechanismRegistry::standard().assign_and_fit(
             &compiled_baseline,
             &self.baseline_data,
             SelectionPolicy::BestScore,
         )?;
-        let (comparison, _) = MechanismRegistry::standard().assign_and_fit(
-            &compiled_full,
-            &self.comparison_data,
-            SelectionPolicy::BestScore,
-        )?;
+        let (mut comparison, comparison_assignments) = MechanismRegistry::standard()
+            .assign_and_fit(&compiled_full, &self.comparison_data, SelectionPolicy::BestScore)?;
+        if let Some((baseline_weights, comparison_weights, counts)) = &self.refit {
+            baseline = crate::distribution_change::refit_under_weights(
+                &compiled_baseline,
+                &self.baseline_data,
+                &baseline_assignments,
+                baseline_weights,
+                *counts,
+                self.ctx,
+            )?;
+            comparison = crate::distribution_change::refit_under_weights(
+                &compiled_full,
+                &self.comparison_data,
+                &comparison_assignments,
+                comparison_weights,
+                *counts,
+                self.ctx,
+            )?;
+        }
         self.fits = Some(StructureFits { baseline, comparison });
         Ok(())
     }
 
-    /// Hybrid model for `mask`: the compiled hybrid graph with comparison-fitted slots for
-    /// set player bits and baseline-fitted slots everywhere else. This matches the old
+    /// Hybrid model for `coalition`: the compiled hybrid graph with comparison-fitted slots for
+    /// the coalition's players and baseline-fitted slots everywhere else. This matches the old
     /// `hybrid_mechanisms(base_store, cmp_store, ..)` output exactly (see the
-    /// [`StructureFits`] docs for why the per-node fits agree). Built once per mask.
-    fn build_hybrid(&mut self, mask: u64) -> Result<CompiledCausalModel, AttributionError> {
+    /// [`StructureFits`] docs for why the per-node fits agree). Built once per coalition.
+    fn build_hybrid(
+        &mut self,
+        coalition: &Coalition,
+    ) -> Result<CompiledCausalModel, AttributionError> {
         self.ensure_fits()?;
-        let compiled = self.compiled_for(mask)?;
+        let compiled = self.compiled_for(coalition)?;
         let Some(fits) = self.fits.as_ref() else {
             return Err(AttributionError::invalid_input(
                 "structure-change hybrid was built before its mechanism fits",
@@ -474,7 +551,7 @@ impl StructureSwapPayoff<'_> {
         let slots: Vec<MechanismSlot> = (0..compiled.n_nodes())
             .map(|i| {
                 let use_comparison =
-                    self.player_of_node[i].is_some_and(|pi| mask & (1u64 << pi) != 0);
+                    self.player_of_node[i].is_some_and(|pi| coalition.contains(pi));
                 let store = if use_comparison { &fits.comparison } else { &fits.baseline };
                 store.slots[i].clone()
             })
@@ -482,11 +559,14 @@ impl StructureSwapPayoff<'_> {
         Ok(compiled.with_mechanisms(CompiledMechanismStore { slots: Arc::from(slots) }))
     }
 
-    fn sample_outcome_law(&mut self, mask: u64) -> Result<(f64, f64), AttributionError> {
-        let model = if let Some(cached) = self.hybrid_cache.get(&mask) {
+    fn sample_outcome_law(
+        &mut self,
+        coalition: &Coalition,
+    ) -> Result<(f64, f64), AttributionError> {
+        let model = if let Some(cached) = self.hybrid_cache.get(coalition) {
             cached
         } else {
-            let built = self.build_hybrid(mask)?;
+            let built = self.build_hybrid(coalition)?;
             if self.hybrid_cache.len() >= STRUCTURE_CACHE_CAP {
                 return sample_outcome_law(
                     &built,
@@ -498,7 +578,7 @@ impl StructureSwapPayoff<'_> {
                     &mut self.values_buf,
                 );
             }
-            self.hybrid_cache.entry(mask).or_insert(built)
+            self.hybrid_cache.entry(coalition.clone()).or_insert(built)
         };
         sample_outcome_law(
             model,
@@ -593,6 +673,58 @@ mod tests {
     }
 
     #[test]
+    fn sampled_structure_counts_follow_the_measure() {
+        let (baseline, comparison, data) = parent_swap_fixture();
+        let query = ChangeAttributionQuery::new(
+            VariableId::from_raw(2),
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+        )
+        .with_components(AttributionComponents::Structure)
+        .with_allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() });
+        let ctx = ExecutionContext::for_tests(1);
+        let opts = |measure, n_samples| StructureChangeOptions { measure, n_samples, seed: 5 };
+        for measure in [
+            DifferenceMeasure::MeanDiff,
+            DifferenceMeasure::VarianceDiff,
+            DifferenceMeasure::GaussianKl,
+        ] {
+            assert!(matches!(
+                structure_change(&baseline, &comparison, &data, &query, &opts(measure, 0), &ctx),
+                Err(AttributionError::InvalidInput { .. })
+            ));
+        }
+        assert!(
+            structure_change(
+                &baseline,
+                &comparison,
+                &data,
+                &query,
+                &opts(DifferenceMeasure::MeanDiff, 1),
+                &ctx
+            )
+            .is_ok()
+        );
+        for measure in [DifferenceMeasure::VarianceDiff, DifferenceMeasure::GaussianKl] {
+            assert!(matches!(
+                structure_change(&baseline, &comparison, &data, &query, &opts(measure, 1), &ctx),
+                Err(AttributionError::InvalidInput { .. })
+            ));
+        }
+        assert!(
+            structure_change(
+                &baseline,
+                &comparison,
+                &data,
+                &query,
+                &opts(DifferenceMeasure::VarianceDiff, 2),
+                &ctx
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
     fn attributes_parent_set_change_to_y() {
         #[derive(Deserialize)]
         struct Fixture {
@@ -657,6 +789,14 @@ mod tests {
         let unexplained = result.unexplained_change().expect("unexplained");
         assert!((unexplained - (observed - result.contribution_sum())).abs() < 1e-12);
         assert!(unexplained.abs() < 1.0, "unexplained={unexplained}");
+        // The single player's contribution is the closed-form counterfactual change: y under the
+        // comparison mechanism 8 + 3 z versus the baseline mechanism 1 + 2 x, both over the
+        // baseline law (E[x] = E[z] = 1.95), i.e. 13.85 - 4.9 = 8.95. The 600 Monte Carlo draws
+        // of a quantity with SD about 3 * 1.15 leave a standard error near 0.14; the band is
+        // four of them, so it excludes the mean-shift-free answer (0) and either mechanism's
+        // slope error.
+        assert!((y.contribution - 8.95).abs() < 0.6, "y={}", y.contribution);
+        assert!((result.total_change - 8.95).abs() < 0.6, "total={}", result.total_change);
     }
 
     /// A shift in Z's own law is not a structure change, so no player carries it: the
@@ -800,15 +940,18 @@ mod tests {
             ws: MechanismWorkspace::default(),
             values_buf: Vec::new(),
             baseline_law: None,
+            law_memo: crate::change_common::LawMemo::default(),
             fits: None,
+            refit: None,
             compiled_cache: HashMap::new(),
             hybrid_cache: HashMap::new(),
         };
 
         for mask in 0..4u64 {
+            let coalition = Coalition::from_bits(mask);
             // Reference: the pre-memoization per-coalition path, inlined.
             let hybrid =
-                hybrid_structure_dag(&baseline.graph, &comparison.graph, &player_nodes, mask)
+                hybrid_structure_dag(&baseline.graph, &comparison.graph, &player_nodes, &coalition)
                     .unwrap();
             let compiled = CompiledCausalModel::compile(hybrid).unwrap();
             let (base_store, _) = MechanismRegistry::standard()
@@ -819,7 +962,7 @@ mod tests {
                 .unwrap();
             let mut slots = base_store.slots.to_vec();
             for (pi, &p) in player_nodes.iter().enumerate() {
-                if mask & (1u64 << pi) != 0 {
+                if coalition.contains(pi) {
                     slots[p.as_usize()] = cmp_store.slots[p.as_usize()].clone();
                 }
             }
@@ -832,7 +975,7 @@ mod tests {
             let (mu_ref, var_ref) = mean_var(batch.column(y.as_usize()).unwrap());
             let var_ref = var_ref.max(1e-12);
 
-            let (mu, var) = payoff.sample_outcome_law(mask).unwrap();
+            let (mu, var) = payoff.sample_outcome_law(&coalition).unwrap();
             assert!(
                 mu.to_bits() == mu_ref.to_bits() && var.to_bits() == var_ref.to_bits(),
                 "mask={mask}: memoized ({mu}, {var}) != refit ({mu_ref}, {var_ref})"

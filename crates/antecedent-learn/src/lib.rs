@@ -4,17 +4,20 @@
 //! It does not identify effects or compute orthogonal scores.
 //! `antecedent-estimate` must not name Forust, `SmartCore`, Burn, or other providers.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod aipw_crossfit;
 pub mod auto;
 pub mod bayesian_basis;
 pub mod bayesian_basis_regression;
 pub mod categorical;
 mod coefficient;
 pub mod crossfit;
+pub mod crossfit_plan;
+pub mod dr_replay;
 pub mod nested_markov_bayesian;
 pub use categorical::FiniteJoint;
 mod dense;
@@ -39,6 +42,8 @@ pub mod logistic;
 #[cfg(feature = "ml-neural")]
 pub mod neural;
 pub mod posterior_prediction;
+pub mod prior_regression;
+pub mod recipes;
 pub mod ridge;
 pub mod spec;
 mod streams;
@@ -58,13 +63,14 @@ pub use bayesian_basis_regression::{
 pub use crossfit::cross_fit_selected;
 pub use crossfit::{
     CrossFittedPrediction, NuisanceDiagnostics, assign_folds, cross_fit_with_folds,
-    cross_fit_with_folds_weighted, diagnose,
+    cross_fit_with_folds_weighted, diagnose, try_diagnose,
 };
 pub use design::{DenseDesign, DesignView, Layout, RowSelection, TargetView};
 pub use error::LearnError;
 pub use lasso_logistic::LassoLogisticLearner;
 pub use learner::{
-    FittedPredictor, LearnerCapabilities, LearnerFactory, LearnerProvenance, PredictionTask,
+    FittedPredictor, IsolatedFactory, LearnerCapabilities, LearnerFactory, LearnerProvenance,
+    PredictionTask,
 };
 #[cfg(test)]
 pub(crate) use linear::LinearLearner;
@@ -74,13 +80,15 @@ pub use logistic::RidgeLogisticLearner;
 pub use posterior_prediction::{
     PosteriorPrediction, PosteriorPredictionDiagnostics, PosteriorPredictionProvenance,
 };
+pub use prior_regression::GaussianPriorRegression;
 #[cfg(test)]
 pub(crate) use ridge::RidgeLearner;
 #[cfg(test)]
 pub(crate) use spec::FOREST_PROBABILITY_MIN_LEAF;
 pub use spec::{
-    ElasticNetSpec, ForestSpec, GbtSpec, LearnerSpec, LinearSpec, LogisticSpec, NeuralSpec,
-    RidgeSpec, resolve, resolve_for,
+    DevicePolicy, ElasticNetSpec, ForestSpec, GbtSpec, LearnerSpec, LinearSpec, LogisticSpec,
+    MAX_GBT_DEPTH, MAX_GBT_TREES, NeuralSpec, RidgeSpec, resolve, resolve_for,
+    resolve_propensity_for,
 };
 pub use transform::{FittedTransformer, Identity, TransformerFactory};
 
@@ -145,9 +153,8 @@ mod tests {
         let y = [0.2, 0.8];
         let ctx = ExecutionContext::for_tests(1);
         let view = DesignView::from_column_major(&x, 2, 2).unwrap();
-        let err = match LogisticLearner.fit(view, TargetView::new(&y), None, &ctx) {
-            Ok(_) => panic!("non-binary labels should fail"),
-            Err(error) => error,
+        let Err(err) = LogisticLearner::default().fit(view, TargetView::new(&y), None, &ctx) else {
+            panic!("non-binary labels should fail");
         };
         assert!(matches!(err, LearnError::Shape { message } if message.contains("0 or 1")));
     }
@@ -266,7 +273,7 @@ mod tests {
         }
         let ctx = ExecutionContext::for_tests(1);
         let view = DesignView::from_column_major(&x, n, 2).unwrap();
-        let fitted = LogisticLearner.fit(view, TargetView::new(&y), None, &ctx).unwrap();
+        let fitted = LogisticLearner::default().fit(view, TargetView::new(&y), None, &ctx).unwrap();
         assert_eq!(fitted.provenance().spec, "logistic");
         let mut out = vec![0.0; n];
         fitted.predict(view, &mut out, &ctx).unwrap();
@@ -296,7 +303,7 @@ mod tests {
         assert_eq!(mapped, LearnerSpec::Logistic(LogisticSpec { ridge_lambda: 1.0 }));
         assert_ne!(mapped.identity(), LearnerSpec::Logistic(LogisticSpec::default()).identity());
 
-        assert!(LogisticLearner.fit(view, TargetView::new(&y), None, &ctx).is_err());
+        assert!(LogisticLearner::default().fit(view, TargetView::new(&y), None, &ctx).is_err());
         let factory = resolve_for(mapped, PredictionTask::BinaryProbability).unwrap();
         let fitted = factory.fit(view, TargetView::new(&y), None, &ctx).unwrap();
         assert_eq!(fitted.provenance().implementation, "faer_ridge");
@@ -396,15 +403,15 @@ mod tests {
         let (x, y) = line_design(n);
         let ctx = ExecutionContext::for_tests(1);
         let view = DesignView::from_column_major(&x, n, 2).unwrap();
-        let even: Vec<u32> = (0..n as u32).step_by(2).collect();
-        let odd: Vec<u32> = (1..n as u32).step_by(2).collect();
+        let even: Vec<u64> = (0..n).step_by(2).map(|i| u64::try_from(i).expect("row")).collect();
+        let odd: Vec<u64> = (1..n).step_by(2).map(|i| u64::try_from(i).expect("row")).collect();
         let train = view.with_rows(RowSelection::new(&even)).unwrap();
         let test = view.with_rows(RowSelection::new(&odd)).unwrap();
         let fitted = LinearLearner.fit(train, TargetView::new(&y), None, &ctx).unwrap();
         let mut out = vec![0.0; test.nrows()];
         fitted.predict(test, &mut out, &ctx).unwrap();
         for (k, &i) in odd.iter().enumerate() {
-            assert!((out[k] - y[i as usize]).abs() < 1e-8);
+            assert!((out[k] - y[usize::try_from(i).expect("row")]).abs() < 1e-8);
         }
         assert_eq!(train.dense().values().as_ptr(), x.as_ptr());
     }
@@ -414,7 +421,7 @@ mod tests {
         let x = [1.0, 1.0, 0.0, 1.0];
         let ctx = ExecutionContext::for_tests(1);
         let view = DesignView::from_column_major(&x, 2, 2).unwrap();
-        let rows = [0_u32, 1];
+        let rows = [0_u64, 1];
         let fitted = Identity.fit(view, RowSelection::new(&rows), &ctx).unwrap();
         let (buf, nrows, ncols) = fitted.transform(view, &ctx).unwrap();
         assert_eq!((nrows, ncols), (2, 2));
@@ -457,7 +464,7 @@ mod tests {
         assert!(out[..10].iter().all(|p| *p < 0.5), "{:?}", &out[..10]);
         assert!(out[20..].iter().all(|p| *p > 0.5), "{:?}", &out[20..]);
 
-        let even: Vec<u32> = (0..n as u32).step_by(2).collect();
+        let even: Vec<u64> = (0..n).step_by(2).map(|i| u64::try_from(i).expect("row")).collect();
         let train = view.with_rows(RowSelection::new(&even)).unwrap();
         let folded = factory.fit(train, TargetView::new(&y), None, &ctx).unwrap();
         let mut fold_out = vec![0.0; train.nrows()];
@@ -472,7 +479,8 @@ mod tests {
         let (x, y) = line_design(n);
         let ctx = ExecutionContext::for_tests(1);
         let view = DesignView::from_column_major(&x, n, 2).unwrap();
-        let spec = NeuralSpec { hidden: 8, epochs: 60, learning_rate: 0.05 };
+        let spec =
+            NeuralSpec { hidden: 8, epochs: 60, learning_rate: 0.05, ..NeuralSpec::default() };
         let factory =
             resolve_for(LearnerSpec::NeuralNet(spec), PredictionTask::Regression).unwrap();
         let fitted = factory.fit(view, TargetView::new(&y), None, &ctx).unwrap();
@@ -489,6 +497,60 @@ mod tests {
         let fitted = clf.fit(view, TargetView::new(&t), None, &ctx).unwrap();
         fitted.predict(view, &mut out, &ctx).unwrap();
         assert!(out.iter().all(|p| *p > 0.0 && *p < 1.0));
+    }
+
+    #[cfg(feature = "ml-neural")]
+    #[test]
+    fn neural_device_policy_labels_the_route_that_ran() {
+        use crate::DevicePolicy;
+        let n = 24usize;
+        let (x, y) = line_design(n);
+        let ctx = ExecutionContext::for_tests(1);
+        let view = DesignView::from_column_major(&x, n, 2).unwrap();
+        let with = |device| NeuralSpec { hidden: 4, epochs: 5, device, ..NeuralSpec::default() };
+        let fit = |device| {
+            resolve_for(LearnerSpec::NeuralNet(with(device)), PredictionTask::Regression)
+                .unwrap()
+                .fit(view, TargetView::new(&y), None, &ctx)
+        };
+        // The default request keeps the plain label and the same weights.
+        let cpu = fit(DevicePolicy::Cpu).unwrap();
+        assert_eq!(cpu.provenance().implementation, "burn");
+        // A small fit under `auto` stays on the host and says why. It never claims a device.
+        let auto = fit(DevicePolicy::Auto).unwrap();
+        let label = auto.provenance().implementation;
+        assert!(label.contains("device=host-cpu") && label.contains("requested=auto"), "{label}");
+        assert!(label.contains("fallback="), "{label}");
+        assert!(!label.contains("wgpu"), "{label}");
+        let (mut a, mut b) = (vec![0.0; n], vec![0.0; n]);
+        cpu.predict(view, &mut a, &ctx).unwrap();
+        auto.predict(view, &mut b, &ctx).unwrap();
+        assert_eq!(a, b, "the fallback is the same seeded cpu fit");
+        // `gpu` without a linked device runtime is refused with its reason.
+        #[cfg(not(feature = "ml-neural-wgpu"))]
+        {
+            let Err(error) = fit(DevicePolicy::Gpu) else { panic!("gpu must be refused") };
+            let text = error.to_string();
+            assert!(text.contains("runtime_not_compiled"), "{text}");
+            assert!(text.contains("device=gpu"), "{text}");
+        }
+        // Device selection is part of the spec identity; the default is not.
+        assert_eq!(LearnerSpec::NeuralNet(with(DevicePolicy::Cpu)).identity(), {
+            LearnerSpec::NeuralNet(NeuralSpec {
+                device: DevicePolicy::Cpu,
+                ..with(DevicePolicy::Cpu)
+            })
+            .identity()
+        });
+        assert_ne!(
+            LearnerSpec::NeuralNet(with(DevicePolicy::Cpu)).identity(),
+            LearnerSpec::NeuralNet(with(DevicePolicy::Gpu)).identity()
+        );
+        let json = serde_json::to_string(&LearnerSpec::NeuralNet(with(DevicePolicy::Cpu))).unwrap();
+        assert!(!json.contains("device"), "{json}");
+        let round: LearnerSpec =
+            serde_json::from_str(r#"{"kind":"neural_net","device":"auto"}"#).unwrap();
+        assert!(matches!(round, LearnerSpec::NeuralNet(s) if s.device == DevicePolicy::Auto));
     }
 
     #[cfg(feature = "ml-forest")]

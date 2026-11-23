@@ -21,7 +21,8 @@ use antecedent_estimate::posterior_mean::{PosteriorRequest, covariance_entry_pos
 use antecedent_estimate::scenario_covariance::{
     CovarianceMethod, ExactEnumerationOptions, MAX_REPLICATES, MAX_SCENARIOS, RowDependence,
     ScenarioCovariance, ScenarioRowEstimator, SharedRowBootstrapOptions,
-    covariance_estimator_moments, exact_enumeration_covariance, shared_row_bootstrap_covariance,
+    covariance_estimator_moments, exact_enumeration_covariance, exact_or_bootstrap_covariance,
+    shared_row_bootstrap_covariance,
 };
 
 type Row = (u8, u8, u8);
@@ -220,6 +221,30 @@ fn enumerate_tuples() -> Oracle {
 // ---- positive: shared rows -------------------------------------------------------------
 
 #[test]
+fn selector_uses_exact_at_the_cap_and_seeded_bootstrap_below_it() {
+    let family = vec![linear_by_name("a"), linear_by_name("b")];
+    let exact = ExactEnumerationOptions { max_compositions: 462, max_failure_mass: 0.0 };
+    let bootstrap = boot_options(20_260_101);
+    let selected = exact_or_bootstrap_covariance(&family, &exact, &bootstrap, &ctx()).unwrap();
+    assert_eq!(selected.method, CovarianceMethod::ExactEnumeration);
+    assert_eq!(selected.replicates_total, 462);
+    for (i, left) in [score_a as fn(Row) -> f64, score_b].iter().enumerate() {
+        for (j, right) in [score_a as fn(Row) -> f64, score_b].iter().enumerate() {
+            assert!((selected.entry(i, j) - closed_form(*left, *right)).abs() < 1e-12);
+        }
+    }
+
+    let limited = ExactEnumerationOptions { max_compositions: 461, ..exact };
+    let fallback = exact_or_bootstrap_covariance(&family, &limited, &bootstrap, &ctx()).unwrap();
+    assert_eq!(fallback.method, CovarianceMethod::SharedRowBootstrap);
+    assert_eq!(fallback.seed, Some(bootstrap.seed));
+    assert_eq!(fallback.replicates_total, bootstrap.replicates as u64);
+    assert_eq!(fallback, shared_row_bootstrap_covariance(&family, &bootstrap, &ctx()).unwrap());
+    let scale = closed_form(score_a, score_a);
+    assert!((fallback.entry(0, 1) - closed_form(score_a, score_b)).abs() < 0.15 * scale);
+}
+
+#[test]
 fn shared_rows_covariance_exact_matches_closed_form() {
     let family = vec![linear_by_name("a"), linear_by_name("b")];
     let out = exact_enumeration_covariance(&family, &exact_options(), &ctx()).unwrap();
@@ -337,7 +362,10 @@ fn shared_rows_covariance_adjustment_pair_with_joint_dropping_matches_tuple_enum
 
 // ---- negative: incompatible / unknown dependence and bounds --------------------------
 
-const UNKNOWN: (&str, &str) = ("route_not_supported", "scenario_covariance.unknown_dependence");
+const UNKNOWN: (&str, &str) = (
+    "route_not_supported",
+    antecedent_core::reason_details::scenario_covariance::UNKNOWN_DEPENDENCE,
+);
 
 fn both_methods_refuse(family: &[ScenarioRowEstimator], code: &str, detail: &str) {
     assert_refusal(exact_enumeration_covariance(family, &exact_options(), &ctx()), code, detail);
@@ -389,47 +417,58 @@ fn independent_rows_duplicate_unit_ids_refuse_without_a_cluster_map() {
 
 #[test]
 fn independent_rows_bounds_and_arguments_refuse() {
-    // Too many scenarios.
+    // A family wider than the reference scenario count and a replicate count above the
+    // reference are admitted: memory admission, not a constant, bounds them.
     let many: Vec<ScenarioRowEstimator> = (0..=MAX_SCENARIOS)
         .map(|i| linear(&format!("s{i}"), SNAPSHOT, units("u"), score_a))
         .collect();
-    both_methods_refuse(&many, "cell_not_licensed", "scenario_covariance.too_many_scenarios");
+    let wide = shared_row_bootstrap_covariance(&many, &boot_options(1), &ctx()).unwrap();
+    assert_eq!(wide.scenario_ids.len(), MAX_SCENARIOS + 1);
 
-    // Too many / too few replicates.
+    // Too few replicates.
     let family = vec![linear_by_name("a"), linear_by_name("b")];
     let over = SharedRowBootstrapOptions {
         replicates: MAX_REPLICATES + 1,
         seed: 1,
         max_failure_fraction: 0.0,
     };
-    assert_refusal(
-        shared_row_bootstrap_covariance(&family, &over, &ctx()),
-        "cell_not_licensed",
-        "scenario_covariance.too_many_replicates",
-    );
+    let more = shared_row_bootstrap_covariance(&family, &over, &ctx()).unwrap();
+    assert_eq!(more.replicates_total, MAX_REPLICATES as u64 + 1);
     let under = SharedRowBootstrapOptions { replicates: 1, seed: 1, max_failure_fraction: 0.0 };
     assert_refusal(
         shared_row_bootstrap_covariance(&family, &under, &ctx()),
         "invalid_argument",
-        "scenario_covariance.too_few_replicates",
+        antecedent_core::reason_details::scenario_covariance::TOO_FEW_REPLICATES,
     );
 
     // Too few rows.
     let one_row: Vec<Arc<str>> = vec![Arc::from("only")];
     let tiny = vec![ScenarioRowEstimator::new("a", SNAPSHOT, one_row, |_| Ok(0.0))];
-    both_methods_refuse(&tiny, "invalid_argument", "scenario_covariance.too_few_rows");
+    both_methods_refuse(
+        &tiny,
+        "invalid_argument",
+        antecedent_core::reason_details::scenario_covariance::TOO_FEW_ROWS,
+    );
 
     // Duplicate scenario id and no scenarios.
     let twins = vec![linear_by_name("a"), linear_by_name("a")];
-    both_methods_refuse(&twins, "invalid_argument", "scenario_covariance.duplicate_scenario_id");
-    both_methods_refuse(&[], "invalid_argument", "scenario_covariance.no_scenarios");
+    both_methods_refuse(
+        &twins,
+        "invalid_argument",
+        antecedent_core::reason_details::scenario_covariance::DUPLICATE_SCENARIO_ID,
+    );
+    both_methods_refuse(
+        &[],
+        "invalid_argument",
+        antecedent_core::reason_details::scenario_covariance::NO_SCENARIOS,
+    );
 
     // Exact enumeration above the declared cap.
     let capped = ExactEnumerationOptions { max_compositions: 461, max_failure_mass: 0.0 };
     assert_refusal(
         exact_enumeration_covariance(&family, &capped, &ctx()),
-        "cell_not_licensed",
-        "scenario_covariance.exact_enumeration_cap",
+        "execution_resource_limit",
+        antecedent_core::reason_details::scenario_covariance::EXACT_ENUMERATION_CAP,
     );
 }
 
@@ -445,12 +484,12 @@ fn independent_rows_failing_estimators_and_cancellation_refuse() {
     assert_refusal(
         shared_row_bootstrap_covariance(&failing, &boot, &ctx()),
         "transport_numerical_failure",
-        "scenario_covariance.too_many_failed_replicates",
+        antecedent_core::reason_details::scenario_covariance::TOO_MANY_FAILED_REPLICATES,
     );
     assert_refusal(
         exact_enumeration_covariance(&failing, &exact_options(), &ctx()),
         "transport_numerical_failure",
-        "scenario_covariance.too_many_failed_replicates",
+        antecedent_core::reason_details::scenario_covariance::TOO_MANY_FAILED_REPLICATES,
     );
 
     let family = vec![linear_by_name("a"), linear_by_name("b")];
@@ -459,12 +498,12 @@ fn independent_rows_failing_estimators_and_cancellation_refuse() {
     assert_refusal(
         shared_row_bootstrap_covariance(&family, &boot_options(1), &cancelled),
         "cancelled_no_claim",
-        "scenario_covariance.cancelled",
+        antecedent_core::reason_details::scenario_covariance::CANCELLED,
     );
     assert_refusal(
         exact_enumeration_covariance(&family, &exact_options(), &cancelled),
         "cancelled_no_claim",
-        "scenario_covariance.cancelled",
+        antecedent_core::reason_details::scenario_covariance::CANCELLED,
     );
 }
 
@@ -620,7 +659,12 @@ fn scenario_covariance_posterior_refuses_an_external_power_prior() {
         covariance_entry_posterior(&[0.1, 0.2], &[0.1, 0.2], PosteriorRequest::ExternalPower)
             .unwrap_err();
     let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
-    assert!(message.contains("scenario_covariance_posterior.external_power_prior"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::scenario_covariance_posterior::EXTERNAL_POWER_PRIOR
+        ),
+        "{message}"
+    );
 }
 
 #[test]

@@ -1,7 +1,8 @@
 //! Coordinate-specific closure evidence for ADMG functional-effect execution.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite,
     StructureSource, Study,
@@ -10,7 +11,7 @@ use antecedent_contract::SlotAvailability;
 use antecedent_core::{AverageEffectQuery, ExecutionContext};
 use antecedent_data::TabularData;
 use antecedent_graph::{Admg, DenseNodeId};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 fn vid(raw: u32) -> antecedent_core::VariableId {
     antecedent_core::VariableId::from_raw(raw)
@@ -22,18 +23,20 @@ fn functional_admg_fixture() -> (TabularData, Admg, AverageEffectQuery) {
     let mut confounder = Vec::new();
     let mut latent_left = Vec::new();
     let mut latent_right = Vec::new();
-    // P(z=1)=1/2. The outcome risks are .2/.8 when z=0 and
-    // .4/.6 when z=1 for t=0/1 respectively, so the independent
-    // adjustment formula gives E[Y|do(t=1)] - E[Y|do(t=0)] = .4.
+    // The confounder z drives treatment (t=1 for 3/4 of the z=1 rows, 1/4 of the z=0 rows)
+    // and the outcome. Outcome risks by (z, t): z=0 has .1 and .5, z=1 has .5 and .9 for
+    // t=0 and t=1, so the effect is .4 within each stratum and P(z=1)=1/2: the adjustment
+    // formula gives E[Y|do(t=1)] - E[Y|do(t=0)] = .4, while the unadjusted contrast
+    // E[Y|t=1] - E[Y|t=0] = (25+135)/200 - (15+25)/200 = .8 - .2 = .6 is confounded.
     for (z, t, y, count) in [
-        (0.0, 0.0, 0.0, 80),
-        (0.0, 0.0, 1.0, 20),
-        (0.0, 1.0, 0.0, 20),
-        (0.0, 1.0, 1.0, 80),
-        (1.0, 0.0, 0.0, 60),
-        (1.0, 0.0, 1.0, 40),
-        (1.0, 1.0, 0.0, 40),
-        (1.0, 1.0, 1.0, 60),
+        (0.0, 0.0, 0.0, 135),
+        (0.0, 0.0, 1.0, 15),
+        (0.0, 1.0, 0.0, 25),
+        (0.0, 1.0, 1.0, 25),
+        (1.0, 0.0, 0.0, 25),
+        (1.0, 0.0, 1.0, 25),
+        (1.0, 1.0, 0.0, 15),
+        (1.0, 1.0, 1.0, 135),
     ] {
         for _ in 0..count {
             for latent in [0.0, 1.0] {
@@ -101,8 +104,11 @@ fn verify_functional_effect_coordinate(
         if accepted { StructureSource::Accepted } else { StructureSource::Explicit },
         "{coordinate} structure source"
     );
-    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed));
-    let contract = prepared.contract().unwrap();
+    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Supported));
+    let (contract, inspection_work) =
+        antecedent_expr::execution_counts::count_static_work(|| prepared.contract().unwrap());
+    assert_eq!(inspection_work.factor_builds, 0, "{coordinate}: contract scanned factors");
+    assert_eq!(inspection_work.provider_bindings, 0, "{coordinate}: contract rebound providers");
     assert_eq!(contract.query_kind.as_ref(), "AverageEffect", "{coordinate}");
     assert_eq!(contract.identifier.as_deref(), Some("general.id"), "{coordinate}");
     assert_eq!(contract.estimator.as_deref(), Some("functional.effect"), "{coordinate}");
@@ -128,15 +134,17 @@ fn verify_functional_effect_coordinate(
         "{coordinate} validation choice"
     );
 
-    let program = prepared
-        .checked_functional_effect_program()
-        .unwrap_or_else(|| panic!("{coordinate} omitted checked functional-effect program"));
+    let (RetainedOperation::FunctionalEffect(program)
+    | RetainedOperation::PathSpecificEffect(program)) = prepared.retained_operation()
+    else {
+        panic!("{coordinate} omitted checked functional-effect program")
+    };
     assert_eq!(program.mapping().source, program.mapping().executable, "{coordinate}");
 
     let result =
         prepared.estimate(&data, &ctx).unwrap_or_else(|error| panic!("{coordinate}: {error}"));
     assert!(
-        (result.effect() - 0.4).abs() < if bayesian { 0.08 } else { 1e-12 },
+        (result.effect() - 0.4).abs() < if bayesian { 0.01 } else { 1e-12 },
         "{coordinate}: {}",
         result.effect()
     );
@@ -145,36 +153,63 @@ fn verify_functional_effect_coordinate(
     } else {
         assert!(result.posterior.is_none(), "{coordinate} unexpected posterior");
     }
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert_eq!(refreshed.effect().to_bits(), result.effect().to_bits(), "{coordinate} refresh");
     assert!(
-        prepared.checked_functional_effect_program().is_some(),
+        matches!(
+            prepared.retained_operation(),
+            RetainedOperation::FunctionalEffect(..) | RetainedOperation::PathSpecificEffect(..)
+        ),
         "{coordinate} lost program on refresh"
     );
 
     let artifact = prepared
         .encode_contracted_result(&refreshed, &format!("functional-effect-{coordinate}"), &ctx)
         .unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
+    let is_replay = |reason: &std::sync::Arc<str>| {
+        matches!(
+            reason.as_ref(),
+            "dependencies.refutation_replay" | "dependencies.scoped_refutation_replay"
+        )
+    };
+    let unresolved = consumed.acceptance.unresolved.to_vec();
+    let replay: Vec<_> = unresolved.iter().filter(|reason| is_replay(reason)).cloned().collect();
+    let others: Vec<_> = unresolved.iter().filter(|reason| !is_replay(reason)).cloned().collect();
+    if validation == "none" {
+        assert!(consumed.body.refutations.is_empty(), "{coordinate}");
+        assert!(replay.is_empty(), "{coordinate} artifact dependencies: {unresolved:?}");
+    } else {
+        // A compact artifact cannot replay a refuter without the data, so the
+        // refutation replay obligation is the only addition over the unvalidated twin.
+        assert!(!consumed.body.refutations.is_empty(), "{coordinate}");
+        assert!(!replay.is_empty(), "{coordinate} artifact dependencies: {unresolved:?}");
+        assert_eq!(
+            &unresolved[..replay.len()],
+            replay.as_slice(),
+            "{coordinate} replay reasons come first: {unresolved:?}"
+        );
+        assert!(!consumed.acceptance.accepts_as_replayed_program(), "{coordinate}");
+    }
     if bayesian {
         assert_eq!(
-            consumed.acceptance.unresolved.len(),
+            others.len(),
             1,
             "{coordinate} should have one precise posterior replay dependency"
         );
         assert!(
-            consumed.acceptance.unresolved.iter().any(|reason| {
-                reason.as_ref() == "dependencies.functional_effect_posterior_draws"
-            }),
-            "{coordinate} artifact dependencies: {:?}",
-            consumed.acceptance.unresolved
+            others
+                .iter()
+                .any(|reason| reason.as_ref() == "dependencies.functional_effect_posterior_draws"),
+            "{coordinate} artifact dependencies: {unresolved:?}"
         );
-        assert!(!consumed.acceptance.accepts_as_verified_program(), "{coordinate}");
+        assert!(!consumed.acceptance.accepts_as_replayed_program(), "{coordinate}");
     } else {
-        assert!(
-            consumed.acceptance.accepts_as_verified_program(),
-            "{coordinate} artifact dependencies: {:?}",
-            consumed.acceptance.unresolved
+        assert!(others.is_empty(), "{coordinate} artifact dependencies: {unresolved:?}");
+        assert_eq!(
+            consumed.acceptance.accepts_as_replayed_program(),
+            validation == "none",
+            "{coordinate} artifact dependencies: {unresolved:?}"
         );
     }
     assert_eq!(consumed.body.estimate, Some(refreshed.effect()), "{coordinate} artifact result");
@@ -199,14 +234,14 @@ fn admg_default_estimator_replay_uses_resolved_commitment() {
     assert!(prepared.contract().unwrap().estimator.is_none());
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert!((result.effect() - 0.4).abs() < 1e-12);
-    let refreshed = prepared.refresh(data, &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data, &ctx).unwrap();
     assert_eq!(refreshed.effect().to_bits(), result.effect().to_bits());
     let bytes = prepared
         .encode_contracted_result(&refreshed, "admg-default-functional-effect", &ctx)
         .unwrap();
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     assert!(
-        consumed.acceptance.accepts_as_verified_program(),
+        consumed.acceptance.accepts_as_replayed_program(),
         "{:?}",
         consumed.acceptance.unresolved
     );
@@ -341,4 +376,17 @@ fn admg_explicit_frequentist_none() {
         false,
         "none",
     );
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

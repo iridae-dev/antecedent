@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.dose_grid import (
     DoseClaims,
     DoseGridRefusal,
@@ -40,6 +41,21 @@ def design(noise: float = 0.0):
     return dose, truth_level(dose) + noise * sign
 
 
+def local_quadratic(dose, outcome, at, bandwidth=0.4):
+    """Independent Gaussian-kernel local quadratic fit at ``at``.
+
+    Returns the fitted level, the influence weights of that level on each outcome, and the
+    residuals, so the sandwich standard error is ``sqrt(sum((weights * residuals) ** 2))``.
+    """
+    u = (dose - at) / bandwidth
+    kernel = np.exp(-0.5 * u * u)
+    basis = np.column_stack([np.ones_like(dose), dose - at, (dose - at) ** 2])
+    gram = basis.T @ (kernel[:, None] * basis)
+    beta = np.linalg.solve(gram, basis.T @ (kernel * outcome))
+    weights = np.linalg.solve(gram, (basis * kernel[:, None]).T)[0]
+    return beta[0], weights, outcome - basis @ beta
+
+
 def run(functional="level", noise=0.0, **kwargs):
     dose, outcome = design(noise)
     kwargs.setdefault("bandwidth", 0.4)
@@ -63,7 +79,7 @@ def refused(call, detail: str, code: str) -> DoseGridRefusal:
     return error
 
 
-def test_level_recovers_closed_form_with_unmeasured_calibration() -> None:
+def test_level_recovers_closed_form_with_not_measured_calibration() -> None:
     result = run("level")
     expected = [1.3125, 1.75, 3.0, 5.8125]
     assert [p.dose for p in result.levels] == GRID
@@ -71,16 +87,16 @@ def test_level_recovers_closed_form_with_unmeasured_calibration() -> None:
         assert point.value == pytest.approx(truth, abs=1e-6)
         assert truth == pytest.approx(truth_level(point.dose), abs=1e-12)
         assert point.support == "supported"
-        assert point.calibration == "unmeasured"
+        assert point.calibration == "not_measured"
         assert not point.smoothing_bias_included
     assert result.derivatives == () and result.contrast is None
     assert result.functional == "level"
     assert result.design == "randomized_dose"
-    assert result.calibration == "unmeasured"
-    assert result.inference_claim == "pointwise_calibration_unmeasured"
+    assert result.calibration == "not_measured"
+    assert result.inference_claim == "pointwise_calibration_not_measured"
     assert result.claims == DoseClaims(pointwise_level=True)
     assert result.max_abs_influence_sum < 1e-9
-    assert result.to_dict()["calibration"] == "unmeasured"
+    assert result.to_dict()["calibration"] == "not_measured"
 
 
 def test_derivative_recovers_closed_form() -> None:
@@ -95,12 +111,19 @@ def test_derivative_recovers_closed_form() -> None:
 
 def test_noisy_rows_give_finite_pointwise_intervals_without_a_coverage_claim() -> None:
     result = run("level", noise=0.1)
+    dose, outcome = design(0.1)
     for point in result.levels:
         assert point.value == pytest.approx(truth_level(point.dose), abs=0.05)
-        assert np.isfinite(point.standard_error) and point.standard_error > 0.0
-        assert point.lower < point.value < point.upper
+        # The level and its standard error are the local quadratic intercept and its
+        # heteroskedasticity-robust sandwich, computed independently here.
+        level, weights, residuals = local_quadratic(dose, outcome, point.dose)
+        assert point.value == pytest.approx(level, abs=1e-9)
+        sandwich = float(np.sqrt(np.sum((weights * residuals) ** 2)))
+        assert point.standard_error == pytest.approx(sandwich, rel=1e-8)
+        assert point.lower == pytest.approx(point.value - 1.959963984540054 * sandwich, rel=1e-8)
+        assert point.upper == pytest.approx(point.value + 1.959963984540054 * sandwich, rel=1e-8)
         assert point.nominal_level == 0.95
-        assert point.calibration == "unmeasured"
+        assert point.calibration == "not_measured"
 
 
 def test_contrast_between_named_doses_matches_closed_form() -> None:
@@ -111,32 +134,39 @@ def test_contrast_between_named_doses_matches_closed_form() -> None:
     noisy = run("contrast", noise=0.1)
     assert noisy.contrast is not None
     assert noisy.contrast.estimate == pytest.approx(3.0, abs=0.05)
-    assert noisy.contrast.standard_error > 0.0
+    dose, outcome = design(0.1)
+    low, low_weights, low_residuals = local_quadratic(dose, outcome, 1.0)
+    high, high_weights, high_residuals = local_quadratic(dose, outcome, 3.0)
+    assert noisy.contrast.estimate == pytest.approx(high - low, abs=1e-9)
+    influence = high_weights * high_residuals - low_weights * low_residuals
+    assert noisy.contrast.standard_error == pytest.approx(
+        float(np.sqrt(np.sum(influence**2))), rel=1e-8
+    )
     assert noisy.contrast.lower < noisy.contrast.estimate < noisy.contrast.upper
-    assert noisy.contrast.calibration == "unmeasured"
+    assert noisy.contrast.calibration == "not_measured"
     assert noisy.levels == () and noisy.derivatives == ()
     assert [s.dose for s in noisy.support_table] == [1.0, 3.0]
 
 
-def test_claims_are_separate_and_the_simultaneous_band_refuses_closed() -> None:
+def test_claims_are_separate_and_the_simultaneous_band_is_refused() -> None:
     level = run("level", noise=0.1)
     assert level.simultaneous_band == "closed"
     assert level.derivatives == ()
     band = DoseClaims(pointwise_level=True, simultaneous_band=True)
     refused(
         lambda: run("level", noise=0.1, claims=band),
-        "dose_grid.simultaneous_band_closed",
+        reason_details.dose_grid.NO_SIMULTANEOUS_BAND_METHOD,
         "route_not_supported",
     )
-    # A level claim does not license a derivative, nor a derivative claim a level.
+    # A level claim does not support a derivative, nor a derivative claim a level.
     refused(
         lambda: run("derivative", noise=0.1, claims=DoseClaims(pointwise_level=True)),
-        "dose_grid.derivative_without_claim",
+        reason_details.dose_grid.DERIVATIVE_WITHOUT_CLAIM,
         "option_not_applicable",
     )
     refused(
         lambda: run("level", noise=0.1, claims=DoseClaims(derivative=True)),
-        "dose_grid.level_without_claim",
+        reason_details.dose_grid.LEVEL_WITHOUT_CLAIM,
         "option_not_applicable",
     )
 
@@ -154,30 +184,30 @@ def test_unsupported_doses_refuse_and_the_support_table_labels_them() -> None:
     assert 10.0 < weak[0].local_ess < 1000.0
     refused(
         lambda: run("level", grid=[*GRID, 10.0]),
-        "dose_grid.unsupported_dose",
-        "cell_not_licensed",
+        reason_details.dose_grid.UNSUPPORTED_DOSE,
+        "positivity_violated",
     )
     refused(
         lambda: run("level", minimum_local_ess=1000.0),
-        "dose_grid.insufficient_local_weight",
-        "cell_not_licensed",
+        reason_details.dose_grid.INSUFFICIENT_LOCAL_WEIGHT,
+        "positivity_violated",
     )
 
 
 def test_observational_design_and_bad_inputs_refuse() -> None:
     refused(
         lambda: run("level", design="observational"),
-        "dose_grid.graph_not_certified",
+        reason_details.dose_grid.GRAPH_NOT_CERTIFIED,
         "effect_not_identified",
     )
     refused(
         lambda: run("level", bandwidth=2.0),
-        "dose_grid.bandwidth_outside_range",
+        reason_details.dose_grid.BANDWIDTH_OUTSIDE_RANGE,
         "invalid_argument",
     )
     refused(
         lambda: run("level", grid=[0.5, float("nan")]),
-        "dose_grid.invalid_request",
+        reason_details.dose_grid.INVALID_REQUEST,
         "invalid_argument",
     )
     dose, outcome = design()
@@ -189,31 +219,31 @@ def test_observational_design_and_bad_inputs_refuse() -> None:
             bandwidth=0.4,
             bandwidth_range=(0.1, 1.0),
         ),
-        "dose_grid.invalid_request",
+        reason_details.dose_grid.INVALID_REQUEST,
         "invalid_argument",
     )
 
 
 def test_export_consume_round_trip_recomputes_the_result() -> None:
     result = run("level", noise=0.1)
-    artifact = result.export()
+    artifact = bytes(result.export())
     assert isinstance(artifact, bytes)
     fresh = consume_dose_grid_artifact(artifact)
     assert fresh.levels == result.levels
     assert fresh.support == result.support
     assert fresh.premises_digest == result.premises_digest
     assert fresh.data_digest == result.data_digest
-    assert fresh.export() == artifact
-    assert fresh.calibration == "unmeasured" and fresh.simultaneous_band == "closed"
-    contrast = consume_dose_grid_artifact(run("contrast", noise=0.1).export())
+    assert bytes(fresh.export()) == artifact
+    assert fresh.calibration == "not_measured" and fresh.simultaneous_band == "closed"
+    contrast = consume_dose_grid_artifact(bytes(run("contrast", noise=0.1).export()))
     assert contrast.contrast is not None and contrast.levels == ()
 
 
 def test_consumer_limits_and_corrupt_artifacts_refuse() -> None:
-    artifact = run("level", noise=0.1).export()
+    artifact = bytes(run("level", noise=0.1).export())
     with pytest.raises(DoseGridRefusal) as info:
         consume_dose_grid_artifact(artifact, max_rows=10)
-    assert info.value.detail == "dose_grid.consumer_limit_exceeded"
+    assert info.value.detail == reason_details.dose_grid.CONSUMER_LIMIT_EXCEEDED
     assert_registered_refusal(info.value)
     with pytest.raises(CausalSerializationError):
         consume_dose_grid_artifact(artifact[:-5])
@@ -223,7 +253,7 @@ def test_consumer_limits_and_corrupt_artifacts_refuse() -> None:
     corrupt[len(corrupt) // 2] ^= 0xFF
     with pytest.raises((CausalSerializationError, DoseGridRefusal)):
         consume_dose_grid_artifact(bytes(corrupt))
-    with pytest.raises(TypeError, match="artifact must be bytes"):
+    with pytest.raises(TypeError, match="an artifact is bytes or ExportedArtifact"):
         consume_dose_grid_artifact("text")  # type: ignore[arg-type]
 
 
@@ -245,7 +275,7 @@ def test_quadratic_scope_recovers_functional_across_fixed_bandwidths(
         **options,
     )
     assert result.quadratic_mean and result.smoothing_bias_included
-    assert result.calibration == "unmeasured" and result.simultaneous_band == "closed"
+    assert result.calibration == "not_measured" and result.simultaneous_band == "closed"
     for point in result.levels:
         assert point.value == pytest.approx(truth_level(point.dose), abs=1e-6)
         assert point.smoothing_bias_included
@@ -255,7 +285,7 @@ def test_quadratic_scope_recovers_functional_across_fixed_bandwidths(
     if result.contrast is not None:
         assert result.contrast.estimate == pytest.approx(3.0, abs=1e-6)
         assert result.contrast.smoothing_bias_included
-    fresh = consume_dose_grid_artifact(result.export())
+    fresh = consume_dose_grid_artifact(bytes(result.export()))
     assert fresh == result
     assert fresh.quadratic_mean
     assert fresh.to_dict()["quadratic_mean"] is True
@@ -278,8 +308,8 @@ def test_quadratic_scope_keeps_sampling_uncertainty_and_support_restrictions() -
         lambda: quadratic_dose_functional(
             dose, outcome, grid=[10.0], bandwidth=0.4, bandwidth_range=(0.1, 1.0)
         ),
-        "dose_grid.unsupported_dose",
-        "cell_not_licensed",
+        reason_details.dose_grid.UNSUPPORTED_DOSE,
+        "positivity_violated",
     )
     refused(
         lambda: quadratic_dose_functional(
@@ -290,7 +320,7 @@ def test_quadratic_scope_keeps_sampling_uncertainty_and_support_restrictions() -
             bandwidth_range=(0.1, 1.0),
             claims=DoseClaims(pointwise_level=True, simultaneous_band=True),
         ),
-        "dose_grid.simultaneous_band_closed",
+        reason_details.dose_grid.NO_SIMULTANEOUS_BAND_METHOD,
         "route_not_supported",
     )
 
@@ -319,12 +349,12 @@ def test_quadratic_scope_fresh_process_replays_attested_artifact() -> None:
                 "'calibration':r.calibration, 'premises':r.premises_digest}))"
             ),
         ],
-        input=produced.export(),
+        input=bytes(produced.export()),
         capture_output=True,
         check=True,
     )
     replayed = json.loads(child.stdout)
     assert replayed["value"] == pytest.approx(1.75, abs=1e-6)
     assert replayed["quadratic_mean"] is True and replayed["bias"] is True
-    assert replayed["calibration"] == "unmeasured"
+    assert replayed["calibration"] == "not_measured"
     assert replayed["premises"] == produced.premises_digest

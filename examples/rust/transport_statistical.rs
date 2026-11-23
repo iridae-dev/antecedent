@@ -1,4 +1,19 @@
-//! Single-source empirical table. Four reasoning slots with a bootstrap interval.
+//! Transport an experimental result to a target population from a sampled source table.
+//!
+//! Question: what is `P(Y = 1 | do(X = x))` in a target population, estimated from the rows of a
+//! source experiment, and how uncertain is it?
+//!
+//! Data and truth: the graph is `X -> Y` with no selection node. The source experiment has 50
+//! rows at `X = 0` with 25 successes and 100 rows at `X = 1` with 80 successes, so the plug-in
+//! probabilities are 0.5 and 0.8. The catalog declares independent sampling.
+//!
+//! Asserted: the transported point estimates equal 0.5 and 0.8 to within `1e-12`. Before and
+//! after estimation the reasoning view has identification, assumptions and uncertainty
+//! available: 40 bootstrap replicates meet the minimum for a percentile interval.
+//!
+//! What this establishes: the same identified functional as `transport_exact`, evaluated on an
+//! empirical table, carries a bootstrap interval. The example does not check the interval's
+//! endpoints or its coverage, and the absence of selection nodes remains an assumption.
 //!
 //! Run: `cargo run -p antecedent --example transport_statistical`
 //! Source: `examples/rust/transport_statistical.rs`
@@ -123,13 +138,25 @@ fn prepare(
         },
         Assignment::from_pairs([(v(0), Value::Int64(x))]),
         ExactEvaluationLimits::default(),
-        // `PERCENTILE_95_MIN_REPLICATES` is 40: the estimator's earned-percentile
-        // license gate is `bootstrap_replicates >= 40`, so 39 (one below it) would
-        // withhold the uncertainty slot both at inspect time and after estimation,
-        // contradicting `slots(..., true)` below.
+        // A percentile interval needs at least `PERCENTILE_95_MIN_REPLICATES` (40) bootstrap
+        // replicates. With fewer, the uncertainty slot is withheld at inspection and after
+        // estimation.
         EmpiricalTableOptions { bootstrap_replicates: 40, ..EmpiricalTableOptions::default() },
         &ctx,
     )?)
+}
+
+/// Total sample rows per regime table: `ANTECEDENT_LANE_ROWS` (the performance lanes' row
+/// tier) split in the registered 50/50 and 20/80 proportions, else the registered 50 and 100.
+fn regime_counts() -> [(i64, usize, usize); 2] {
+    let Some(rows) =
+        std::env::var("ANTECEDENT_LANE_ROWS").ok().and_then(|v| v.parse::<usize>().ok())
+    else {
+        return [(0, 25, 25), (1, 20, 80)];
+    };
+    // Multiples of ten keep both proportions exact, so the example's checks still hold.
+    let half = (rows / 20).max(1) * 10;
+    [(0, half / 2, half / 2), (1, half / 5, half - half / 5)]
 }
 
 /// Runs the example end to end; `main` calls it and the example test suite runs it.
@@ -138,8 +165,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let ctx = ExecutionContext::for_tests(7);
     let mut means = Vec::new();
     for x in [0, 1] {
-        let prepared =
-            prepare(functional.clone(), diagram.clone(), "v1", [(0, 25, 25), (1, 20, 80)], x)?;
+        let prepared = prepare(functional.clone(), diagram.clone(), "v1", regime_counts(), x)?;
         let before = prepared.inspect();
         slots(&before.reasoning, true);
         let result = prepared.estimate_checked(&before.identities.execution, &ctx)?;

@@ -114,7 +114,7 @@ fn placebo_ols_is_non_informative() {
             .unwrap();
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
+    est.inference.bootstrap_replicates = 0;
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
@@ -135,6 +135,9 @@ fn placebo_ols_is_non_informative() {
     assert!(!report.informative, "OLS placebo must not claim to falsify the causal claim");
     let max = fixture["expected"]["placebo_abs_max"].as_f64().unwrap();
     assert!(report.refuted_ate.abs() < max, "mean placebo ate={}", report.refuted_ate);
+    // Independent-noise treatment has true effect 0; the mean of the replicates is a Monte Carlo
+    // average (observed 2e-3 at this seed), far inside the fixture band of 0.35.
+    assert!(report.refuted_ate.abs() < 0.01, "mean placebo ate={}", report.refuted_ate);
 }
 
 #[test]
@@ -144,7 +147,7 @@ fn placebo_permute_ols_is_non_informative() {
             .unwrap();
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
+    est.inference.bootstrap_replicates = 0;
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
@@ -166,6 +169,8 @@ fn placebo_permute_ols_is_non_informative() {
     assert!(!report.informative, "OLS placebo permute must not claim to falsify");
     let max = fixture["expected"]["placebo_abs_max"].as_f64().unwrap();
     assert!(report.refuted_ate.abs() < max, "mean placebo ate={}", report.refuted_ate);
+    // A permuted treatment is unrelated to the outcome (observed 6e-3 at this seed).
+    assert!(report.refuted_ate.abs() < 0.03, "mean placebo ate={}", report.refuted_ate);
 }
 
 #[test]
@@ -175,7 +180,7 @@ fn rcc_ols_is_non_informative() {
             .unwrap();
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
+    est.inference.bootstrap_replicates = 0;
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
@@ -194,6 +199,13 @@ fn rcc_ols_is_non_informative() {
     assert!(!report.informative, "OLS RCC must not claim to falsify the causal claim");
     let max = fixture["expected"]["random_common_cause_abs_delta_max"].as_f64().unwrap();
     assert!((report.refuted_ate - original.ate).abs() < max);
+    // The outcome is exactly linear in (t, z), so an unrelated extra covariate has coefficient 0
+    // and the effect cannot move beyond rounding (observed 1e-14).
+    assert!(
+        (report.refuted_ate - original.ate).abs() < 1e-9,
+        "rcc delta {}",
+        report.refuted_ate - original.ate
+    );
 }
 
 #[test]
@@ -203,7 +215,7 @@ fn unobserved_common_cause_is_robust_to_mild_confounding() {
             .unwrap();
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
+    est.inference.bootstrap_replicates = 0;
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
@@ -231,6 +243,9 @@ fn unobserved_common_cause_is_robust_to_mild_confounding() {
         "relative shift {} must stay below the analytic bound {bound}",
         report.comparison
     );
+    // The expected shift is exactly 0 (observed 5e-16 here), so any residual is a bias in the
+    // simulated confounder's scaling.
+    assert!(report.comparison < 1e-9, "relative shift {}", report.comparison);
 }
 
 /// Adversarial case: a weak effect (partial correlation about 0.2) and a strong simulated
@@ -330,7 +345,7 @@ fn graph_refute_holds_the_complete_case_sample_fixed_across_drops() {
 fn overlap_flags_near_deterministic_treatment_assignment() {
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
+    est.inference.bootstrap_replicates = 0;
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
@@ -480,7 +495,7 @@ fn data_subset_ols_is_non_informative() {
             .unwrap();
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
+    est.inference.bootstrap_replicates = 0;
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
@@ -499,6 +514,12 @@ fn data_subset_ols_is_non_informative() {
     assert!(!report.informative, "OLS data-subset must not claim to falsify the causal claim");
     let max = fixture["expected"]["subset_abs_delta_max"].as_f64().unwrap();
     assert!((report.refuted_ate - original.ate).abs() < max);
+    // Row subsets of an exactly linear outcome reproduce the coefficient (observed 4e-16).
+    assert!(
+        (report.refuted_ate - original.ate).abs() < 1e-9,
+        "subset delta {}",
+        report.refuted_ate - original.ate
+    );
 }
 
 /// A non-default `LinearAdjustmentAte` config (e.g. `se_kind = AnalyticSeKind::Hc1`) set on a
@@ -576,7 +597,7 @@ fn refit_effect_honors_caller_se_kind() {
 
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
+    est.inference.bootstrap_replicates = 0;
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
     let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
@@ -591,9 +612,9 @@ fn refit_effect_honors_caller_se_kind() {
     );
 
     let homoskedastic = LinearAdjustmentAte::new();
-    assert_eq!(homoskedastic.se_kind, AnalyticSeKind::Homoskedastic);
+    assert_eq!(homoskedastic.inference.se_kind, AnalyticSeKind::Homoskedastic);
     let mut hc1 = LinearAdjustmentAte::new();
-    hc1.se_kind = AnalyticSeKind::Hc1;
+    hc1.inference.se_kind = AnalyticSeKind::Hc1;
 
     // Same problem, same unmutated data: the only difference between these two calls is the
     // caller-configured `se_kind`, isolating whether `refit_effect` honors it.
@@ -620,7 +641,7 @@ fn refit_effect_honors_caller_se_kind() {
     // Hc1-configured must still run its full replicate loop (through `DataSubsetRefuter::refute`
     // -> `refit_effect`) without error.
     let mut refuter = DataSubsetRefuter::new();
-    refuter.estimator.se_kind = AnalyticSeKind::Hc1;
+    refuter.estimator.inference.se_kind = AnalyticSeKind::Hc1;
     let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
     assert!(!report.informative);
 }
@@ -632,7 +653,7 @@ fn dummy_outcome_ols_is_non_informative() {
             .unwrap();
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
+    est.inference.bootstrap_replicates = 0;
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
@@ -651,6 +672,8 @@ fn dummy_outcome_ols_is_non_informative() {
     assert!(!report.informative, "OLS dummy-outcome must not claim to falsify the causal claim");
     let max = fixture["expected"]["dummy_outcome_abs_max"].as_f64().unwrap();
     assert!(report.refuted_ate.abs() < max, "mean dummy ate={}", report.refuted_ate);
+    // A pure-noise outcome has true effect 0 (observed 1e-2 at this seed).
+    assert!(report.refuted_ate.abs() < 0.05, "mean dummy ate={}", report.refuted_ate);
 }
 
 #[test]
@@ -667,7 +690,7 @@ fn ols_refuters_do_not_earn_a_pass_from_p_equals_one() {
 
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
+    est.inference.bootstrap_replicates = 0;
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
@@ -706,7 +729,7 @@ fn bootstrap_refute_contains_original_ate() {
     // original estimate is decided by platform rounding (it did not on Linux CI).
     let (data, estimand, _) = toy_confounded_with_noise(1.0);
     let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
+    est.inference.bootstrap_replicates = 0;
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
@@ -905,7 +928,7 @@ fn graph_refute_reports_the_confounder_dependence_descriptively() {
     .unwrap();
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
+    est.inference.bootstrap_replicates = 0;
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
@@ -928,6 +951,10 @@ fn graph_refute_reports_the_confounder_dependence_descriptively() {
     assert!(!report.passed, "{:?}", report.failure_condition);
     let min = fixture["graph_refutation"]["minimum_relative_effect_change"].as_f64().unwrap();
     assert!(report.comparison > min, "relative delta={}", report.comparison);
+    // Exactly: y = 1 + 2t + 3z with t = 1{z > 0.5}; dropping z leaves the raw mean contrast
+    // 2 + 3 (mean z | t=1 - mean z | t=0) = 2 + 3 (0.75 - 0.25) = 3.5, a relative change of
+    // 1.5 / 2 = 0.75 on the full-adjustment value 2.
+    assert!((report.comparison - 0.75).abs() < 1e-6, "relative delta={}", report.comparison);
 }
 
 #[test]
@@ -938,7 +965,7 @@ fn linear_sensitivity_reports_a_bounded_robustness_value() {
     .unwrap();
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
+    est.inference.bootstrap_replicates = 0;
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
@@ -970,7 +997,7 @@ fn linear_sensitivity_reports_a_bounded_robustness_value() {
 fn partial_linear_sensitivity_reports_a_bounded_robustness_value() {
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
+    est.inference.bootstrap_replicates = 0;
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
@@ -1000,7 +1027,7 @@ fn partial_linear_sensitivity_reports_a_bounded_robustness_value() {
 fn nonparametric_sensitivity_reports_a_bounded_robustness_value() {
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
+    est.inference.bootstrap_replicates = 0;
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
@@ -1090,13 +1117,12 @@ fn nonlinear_confounded(n: usize) -> (TabularData, IdentifiedEstimand, Vec<f64>,
 
 /// 100000 complete cases through the neighbourhood construction (acceptance workload).
 #[test]
-#[ignore = "acceptance workload: 100k rows; run with --ignored in a release build"]
 fn neighborhood_sensitivity_one_hundred_thousand_row_acceptance() {
     let n = 100_000usize;
     let (data, estimand, _, _) = nonlinear_confounded(n);
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
+    est.inference.bootstrap_replicates = 0;
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
     let ctx = ExecutionContext::production(64, 4);
@@ -1115,19 +1141,23 @@ fn neighborhood_sensitivity_one_hundred_thousand_row_acceptance() {
     assert!(report.comparison.is_finite());
 }
 
-/// 30000 complete cases are above the exact smoother's cap, which refuses them and points at
-/// the neighbourhood construction; that construction's tipping value must be the one the TRUE
+/// 30000 complete cases are above the exact smoother's cap, which runs the neighbourhood
+/// construction in its place and says so; that construction's tipping value must be the one the TRUE
 /// residuals imply. On an OLS design the simulated tipping partial R² is `|ρ| / (1 + |ρ|)`
 /// with `ρ` the partial correlation of `T` and `Y` given `Z` (module docs of `sensitivity`), so
 /// the reported grid value is the first grid point above that number computed from the known
 /// conditional means rather than from any smoother.
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn neighborhood_sensitivity_reproduces_the_tipping_value_of_the_true_residuals() {
     let n = 30_000usize;
     let (data, estimand, true_t_res, true_y_res) = nonlinear_confounded(n);
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
+    est.inference.bootstrap_replicates = 0;
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
     let ctx = ExecutionContext::production(63, 4);
@@ -1141,10 +1171,11 @@ fn neighborhood_sensitivity_reproduces_the_tipping_value_of_the_true_residuals()
         None,
     );
 
-    let refused = NonparametricSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap_err();
-    assert!(refused.to_string().contains("NeighborhoodSensitivity"), "{refused}");
+    let routed = NonparametricSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap();
+    assert_eq!(routed.refuter.as_ref(), "sensitivity.nonparametric_neighborhood");
 
     let report = NeighborhoodSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap();
+    assert_eq!(routed.comparison, report.comparison);
     assert_eq!(report.refuter.as_ref(), "sensitivity.nonparametric_neighborhood");
     assert_eq!(report.replicates as usize, NeighborhoodSensitivity::new().partial_r2_grid.len());
 
@@ -1182,7 +1213,7 @@ fn sensitivity_scales_by_residual_not_marginal_sd() {
     let (data, estimand, _) = toy_confounded();
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
+    est.inference.bootstrap_replicates = 0;
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
     let ctx = ExecutionContext::for_tests(7);
@@ -1351,7 +1382,7 @@ fn panel_refit_effect_round_trip_matches_copy_all() {
     let estimand = id_res.result.estimands.first().cloned().expect("identified");
     let ctx = ExecutionContext::for_tests(11);
     let mut estimator = TemporalLinearAdjustment::new();
-    estimator.inner.bootstrap_replicates = 0;
+    estimator.inner.inference.bootstrap_replicates = 0;
     let (prep, _, _) = estimator
         .prepare_panel(
             &panel,
@@ -1461,11 +1492,80 @@ fn panel_refit_effect_round_trip_matches_copy_all() {
         .unwrap();
 }
 
+/// A series whose treatment is a dose taking the integer values 0..=3 and whose outcome reads
+/// the previous step's dose with slope 0.8 plus a deterministic wiggle.
+fn integer_dose_series(n: usize) -> TimeSeriesData {
+    let x: Vec<f64> = (0..n).map(|t| ((t * 7 + 3) % 4) as f64).collect();
+    let mut y = vec![0.0; n];
+    for t in 1..n {
+        y[t] = 0.8 * x[t - 1] + 0.3 * ((t as f64) * 1.3).sin();
+    }
+    TimeSeriesData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())], 1).unwrap()
+}
+
+#[test]
+fn regression_sensitivity_reads_a_small_integer_dose_in_a_temporal_design_as_a_dose() {
+    let series = integer_dose_series(96);
+    let data = TabularData::new(series.storage().clone());
+    let graph = lagged_xy_graph();
+    let temporal_query =
+        TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+            .with_policy(TemporalPolicy::pulse(-1))
+            .with_horizon_steps(1)
+            .with_max_history_lag(Some(1));
+    let id_res =
+        TemporalBackdoorIdentifier::new().identify_temporal(&graph, &temporal_query).unwrap();
+    let estimand = id_res.result.estimands.first().cloned().expect("identified");
+    let ctx = ExecutionContext::for_tests(11);
+    let mut estimator = TemporalLinearAdjustment::new();
+    estimator.inner.inference.bootstrap_replicates = 0;
+    let prep = estimator
+        .prepare(&series, &estimand, &temporal_query, &id_res.indexer, None, &ctx.kernel_policy)
+        .unwrap();
+    let mut ws = EstimationWorkspace::default();
+    let original = estimator.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+    assert!((original.ate - 0.8).abs() < 0.2, "dose slope ate={}", original.ate);
+    let ate_q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let temporal = TemporalRefitContext {
+        indexer: &id_res.indexer,
+        temporal_query: &temporal_query,
+        split: None,
+        kernel_policy: &ctx.kernel_policy,
+        time_index: Some(series.time_index()),
+        panel: None,
+        gaps: false,
+    };
+    let problem = RefutationProblem::new(
+        &data,
+        &estimand,
+        &ate_q,
+        &original,
+        Some("temporal.linear.adjustment"),
+        Some(temporal),
+    );
+    let linear = LinearSensitivity::new().refute(&problem, &mut ws, &ctx);
+    let partial = PartialLinearSensitivity::new().refute(&problem, &mut ws, &ctx);
+    for (name, outcome) in [("linear", linear), ("partial", partial)] {
+        let report = outcome.unwrap_or_else(|e| panic!("{name} sensitivity refused the dose: {e}"));
+        assert!(report.comparison > 0.0, "{name} robustness value {}", report.comparison);
+    }
+    // A negligible confounder leaves the refit at the dose-slope estimate: same scale, not a
+    // two-level contrast of the dose column.
+    let probe = LinearSensitivity { partial_r2_grid: vec![1e-8], ..LinearSensitivity::new() };
+    let report = probe.refute(&problem, &mut ws, &ctx).unwrap();
+    assert!(
+        (report.refuted_ate - original.ate).abs() < 1e-3,
+        "refit {} vs dose-slope estimate {}",
+        report.refuted_ate,
+        original.ate
+    );
+}
+
 #[test]
 fn prepared_refutation_compile_is_none_without_panel() {
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
+    est.inference.bootstrap_replicates = 0;
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
@@ -1487,7 +1587,7 @@ fn prepared_refutation_compile_is_none_without_panel() {
 fn sensitivity_gram_matches_data_pass_on_toy() {
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
+    est.inference.bootstrap_replicates = 0;
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
@@ -1535,7 +1635,7 @@ fn sensitivity_gram_matches_data_pass_on_toy() {
 fn sensitivity_gram_matches_data_pass_partial_linear_bounded_u() {
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
+    est.inference.bootstrap_replicates = 0;
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
@@ -1578,7 +1678,7 @@ fn sensitivity_gram_matches_data_pass_when_treatment_has_invalids() {
     let (complete, estimand, _) = toy_confounded();
     let data = with_invalid_treatment_row(&complete, 10);
     let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
+    est.inference.bootstrap_replicates = 0;
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let mut ws = EstimationWorkspace::default();
@@ -1938,7 +2038,8 @@ fn placebo_permutation_is_invariant_to_missing_payloads() {
 fn sensitivity_reports_respect_treatment_contrast_units() {
     let (data, estimand, _) = toy_confounded();
     let treatment = VariableId::from_raw(0);
-    let est = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
+    // The contrasts 2 and -1 are doses of a numeric treatment, not arms of the 0/1 column.
+    let est = LinearAdjustmentAte::new().with_bootstrap_replicates(0).with_dose_reading(true);
     let ctx = ExecutionContext::for_tests(47);
     let mut ws = EstimationWorkspace::default();
     let mut reports = Vec::new();
@@ -1955,10 +2056,13 @@ fn sensitivity_reports_respect_treatment_contrast_units() {
             &original,
             Some("linear.adjustment.ate"),
             None,
-        );
+        )
+        .with_dose_treatment();
         let nonparametric =
             NonparametricSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap();
-        let unobserved = UnobservedCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap();
+        let mut unobserved_refuter = UnobservedCommonCause::new();
+        unobserved_refuter.estimator = unobserved_refuter.estimator.with_dose_reading(true);
+        let unobserved = unobserved_refuter.refute(&problem, &mut ws, &ctx).unwrap();
         reports.push((
             nonparametric.refuted_ate / delta,
             nonparametric.comparison,
@@ -2055,10 +2159,10 @@ fn perturbation_refuters_centre_on_the_full_sample_refit_not_the_published_estim
     assert!(subset.passed, "{:?}", subset.failure_condition);
 }
 
-/// A replicate count beyond the stream-alias bound is refused rather than silently sharing
-/// noise streams between refuters.
+/// A replicate count beyond the additive stream range is accepted: its replicates use
+/// hash-separated streams instead of sharing noise streams with a neighbouring refuter.
 #[test]
-fn replicate_counts_beyond_the_stream_alias_bound_are_refused() {
+fn replicate_counts_beyond_the_additive_stream_range_are_accepted() {
     let (data, estimand, _) = toy_confounded();
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let (original, mut ws, ctx) = crate::test_support::linear_original(&data, &estimand, &query);
@@ -2070,11 +2174,9 @@ fn replicate_counts_beyond_the_stream_alias_bound_are_refused() {
         Some("linear.adjustment.ate"),
         None,
     );
-    let placebo = PlaceboTreatment { replicates: 5000, ..PlaceboTreatment::new() };
-    assert!(matches!(
-        placebo.refute(&problem, &mut ws, &ctx),
-        Err(ValidationError::NotApplicable { .. })
-    ));
+    let placebo = PlaceboTreatment { replicates: 4100, ..PlaceboTreatment::new() };
+    let report = placebo.refute(&problem, &mut ws, &ctx).unwrap();
+    assert_eq!(report.replicates, 4100);
 }
 
 /// Cancellation is polled inside replicate loops.
@@ -2209,7 +2311,7 @@ fn replicate_refuters_are_bit_identical_for_every_thread_count() {
 
     let (data, estimand, _) = toy_confounded_with_noise(0.3);
     let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
+    est.inference.bootstrap_replicates = 0;
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let ctx = ExecutionContext::for_tests(17);

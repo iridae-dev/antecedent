@@ -73,7 +73,7 @@ fn parameters(model: &MeasurementModel) -> Result<(&[BinaryArmRates], f64), Meas
         MeasurementParameters::Binary { rates, min_youden } => Ok((rates, *min_youden)),
         _ => Err(MeasurementError::new(
             antecedent_core::reason_code!("measurement_model_invalid"),
-            "measurement_model.invalid_model",
+            antecedent_core::reason_details::measurement_model::INVALID_MODEL,
             "binary route needs binary misclassification parameters",
         )),
     }
@@ -115,7 +115,7 @@ pub fn correct_binary_prevalence(
                 || {
                     MeasurementError::new(
                         antecedent_core::reason_code!("measurement_binding_mismatch"),
-                        "measurement_model.arm_mismatch",
+                        antecedent_core::reason_details::measurement_model::ARM_MISMATCH,
                         format!(
                             "the model is differential by arm and has no rates for arm `{}`",
                             wanted.unwrap_or("all_arms")
@@ -127,14 +127,14 @@ pub fn correct_binary_prevalence(
         ErrorStructure::Differential(_) => {
             return Err(MeasurementError::new(
                 antecedent_core::reason_code!("differential_error_not_pooled"),
-                "measurement_model.differential_axis_unsupported",
+                antecedent_core::reason_details::measurement_model::DIFFERENTIAL_AXIS_UNSUPPORTED,
                 "only error that differs by arm has a bounded route; other axes are refused, not pooled",
             ));
         }
         _ => {
             return Err(MeasurementError::new(
                 antecedent_core::reason_code!("differential_error_not_pooled"),
-                "measurement_model.differential_axis_unsupported",
+                antecedent_core::reason_details::measurement_model::DIFFERENTIAL_AXIS_UNSUPPORTED,
                 "unrecognized error structure",
             ));
         }
@@ -186,7 +186,7 @@ pub fn correct_binary_risk_difference(
         model.validate().map_err(|error| model_error(&error))?;
         return Err(MeasurementError::new(
             antecedent_core::reason_code!("measurement_binding_mismatch"),
-            "measurement_model.arm_mismatch",
+            antecedent_core::reason_details::measurement_model::ARM_MISMATCH,
             "a model established for one arm cannot correct a contrast between arms",
         ));
     }
@@ -196,7 +196,7 @@ pub fn correct_binary_risk_difference(
     if input.exposed_arm_id == input.unexposed_arm_id {
         return Err(MeasurementError::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "measurement_model.input_invalid",
+            antecedent_core::reason_details::measurement_model::INPUT_INVALID,
             "the exposed and unexposed arms are the same arm",
         ));
     }
@@ -215,7 +215,7 @@ pub fn correct_binary_risk_difference(
                 rates.iter().find(|r| r.arm_id.as_deref() == Some(arm)).ok_or_else(|| {
                     MeasurementError::new(
                         antecedent_core::reason_code!("measurement_binding_mismatch"),
-                        "measurement_model.arm_mismatch",
+                        antecedent_core::reason_details::measurement_model::ARM_MISMATCH,
                         format!(
                             "the model is differential by arm and has no rates for arm `{arm}`"
                         ),
@@ -239,7 +239,7 @@ pub fn correct_binary_risk_difference(
         _ => {
             return Err(MeasurementError::new(
                 antecedent_core::reason_code!("differential_error_not_pooled"),
-                "measurement_model.differential_axis_unsupported",
+                antecedent_core::reason_details::measurement_model::DIFFERENTIAL_AXIS_UNSUPPORTED,
                 "only error that differs by arm has a bounded route; other axes are refused, not pooled",
             ));
         }

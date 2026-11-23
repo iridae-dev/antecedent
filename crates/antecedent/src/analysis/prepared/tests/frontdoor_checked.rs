@@ -1,4 +1,4 @@
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -86,15 +86,17 @@ fn frontdoor_refresh_publishes_the_refreshed_row_count() {
             .unwrap()
             .prepare(&context)
             .unwrap();
-        let refreshed = prepared.refresh(data_rows(0.4, rows), &context).unwrap();
+        let refreshed = crate::analysis::prepared::rebind_estimate(
+            &mut prepared,
+            data_rows(0.4, rows),
+            &context,
+        )
+        .unwrap();
         let artifact =
             prepared.encode_contracted_result(&refreshed, "frontdoor", &context).unwrap();
-        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
-        assert!(
-            consumed.acceptance.accepts_as_verified_program(),
-            "unresolved={:?}",
-            consumed.acceptance.unresolved
-        );
+        let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
+        // The lowering binds and the carried cross-product moments replay the estimate.
+        assert!(consumed.acceptance.accepts_as_replayed_program());
         let published = consumed
             .contract
             .as_ref()
@@ -127,13 +129,15 @@ fn frontdoor_prepared_click_uses_retained_fit_after_study_config_changes() {
         panic!("expected retained checked front-door operation")
     };
     assert_eq!(operation.preparation.lowering().treatment, VariableId::from_raw(0));
-    assert_eq!(operation.fitter.bootstrap_replicates, 0);
-    prepared.analysis.estimator_spec = Some(Arc::new(EstimatorSpec::LinearAdjustmentAte(
+    assert_eq!(operation.fitter.inference.bootstrap_replicates, 0);
+    prepared.analysis.declared.estimator_spec = Some(Arc::new(EstimatorSpec::LinearAdjustmentAte(
         Box::new(antecedent_estimate::LinearAdjustmentAte::new()),
     )));
     let estimate = prepared.estimate(&base_data, &context).unwrap();
     assert!((estimate.effect() - 1.4).abs() < 0.1, "estimate={}", estimate.effect());
-    let refreshed = prepared.refresh(refreshed_data, &context).unwrap();
+    let refreshed =
+        crate::analysis::prepared::rebind_estimate(&mut prepared, refreshed_data, &context)
+            .unwrap();
     assert!((refreshed.effect() - estimate.effect()).abs() < 0.05);
     assert!(refreshed.estimate.as_effect().unwrap().provenance.assumptions.entries.iter().any(|entry| {
         matches!(&entry.assumption, antecedent_core::Assumption::ParametricRestriction(p) if p.id.as_ref() == "frontdoor.linear_path_product")

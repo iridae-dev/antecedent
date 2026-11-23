@@ -1,0 +1,1 @@
+["use:super::law::{ForecastLaw,MAX_JOINT_DIMENSION,MAX_LAW_ATOMS,Outcome,PROBABILITY_SUM_TOLERANCE,};#0","use:super::refusal::{PredictiveAssessmentError,detail,invalid};#0","use:super::score::{EnsembleCrpsForm,ScoreKind,score_case_validated};#0","enum:FiniteTruth#0","fn:check_masses#0","fn:exact_expected_score#0"]

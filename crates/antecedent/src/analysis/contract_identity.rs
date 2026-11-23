@@ -4,7 +4,7 @@
 //! [`PayloadDigestWire`] here, never through `Debug` or `Display`. Data-sized
 //! vectors are digested once, when the study is built.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     CanonicalWriter, CausalQuery, ObservationAssumption, ObservationSpec, VariableId, to_hex,
@@ -24,6 +24,15 @@ use antecedent_stats::{GlmFamily, GlmOptions, NbAlphaPolicy};
 
 use crate::estimator_spec::EstimatorSpec;
 use crate::inference::BayesianConfig;
+
+/// Exact query bytes for retained-target guards, using the artifact query codec.
+/// Floating-point fields keep the wire's declared bit representation.
+pub(crate) fn canonical_query_bytes(
+    query: &CausalQuery,
+) -> Result<std::sync::Arc<[u8]>, crate::CausalError> {
+    let wire = antecedent_io::causal_query_to_wire(query).map_err(crate::CausalError::rejected)?;
+    antecedent_io::to_cbor(&wire).map(std::sync::Arc::from).map_err(crate::CausalError::rejected)
+}
 
 /// Overlay the declared grouping inputs `$field` of `$cfg` (cluster labels, multiway
 /// groups, panel times, population registry) onto `$wire` as digests; absent ones stay
@@ -51,31 +60,35 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
         EstimatorSpec::Default(id) => EstimatorSpecWire::Default(id.as_str().into()),
         EstimatorSpec::LinearAdjustmentAte(cfg) => {
             EstimatorSpecWire::LinearAdjustmentAte(EstimatorConfigWire {
-                se_kind: Some(se_kind(cfg.se_kind)),
+                bootstrap_interval: interval_key(cfg.inference.bootstrap_interval),
+                se_kind: Some(se_kind(cfg.inference.se_kind)),
                 fit_kind: Some(fit_kind(cfg.fit_kind)),
                 cluster_ids: declared_clusters(
-                    cfg.cluster_ids.as_deref(),
-                    cfg.source_cluster_ids.as_deref(),
+                    cfg.inference.cluster_ids.as_deref(),
+                    cfg.inference.source_cluster_ids.as_deref(),
                 ),
+                multiway_ids: cfg.inference.multiway_ids.as_deref().map(multiway_ids),
+                panel_times: cfg.inference.panel_times.as_deref().map(panel_times),
                 ..grouped!(
                     cfg,
-                    base(cfg.bootstrap_replicates, cfg.overlap);
-                    multiway_ids, panel_times, population_registry, sampling_weights
+                    base(cfg.inference.bootstrap_replicates, cfg.overlap);
+                    population_registry, sampling_weights
                 )
             })
         }
         EstimatorSpec::PropensityWeighting(cfg) => {
             EstimatorSpecWire::PropensityWeighting(EstimatorConfigWire {
+                bootstrap_interval: interval_key(cfg.inference.bootstrap_interval),
                 outcome: cfg.covariate_balance.then(|| "covariate_balanced_linear_hc3".into()),
                 glm: Some(glm_options(&cfg.glm_options)),
                 other_levels: other_levels_key(cfg.other_levels),
                 cluster_ids: declared_clusters(
-                    cfg.cluster_ids.as_deref(),
-                    cfg.source_cluster_ids.as_deref(),
+                    cfg.inference.cluster_ids.as_deref(),
+                    cfg.inference.source_cluster_ids.as_deref(),
                 ),
                 ..grouped!(
                     cfg,
-                    base(cfg.bootstrap_replicates, cfg.overlap);
+                    base(cfg.inference.bootstrap_replicates, cfg.overlap);
                     population_registry, sampling_weights
                 )
             })
@@ -85,7 +98,10 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
                 outcome: cfg.population_variance.then(|| "population_linear_variance".into()),
                 glm: Some(glm_options(&cfg.glm_options)),
                 other_levels: other_levels_key(cfg.other_levels),
-                se_kind: Some(se_kind(cfg.se_kind)),
+                se_kind: Some(se_kind(cfg.inference.se_kind)),
+                cluster_ids: cfg.inference.cluster_ids.as_deref().map(cluster_ids),
+                multiway_ids: cfg.inference.multiway_ids.as_deref().map(multiway_ids),
+                panel_times: cfg.inference.panel_times.as_deref().map(panel_times),
                 caliper_bits: cfg.caliper.map(f64::to_bits),
                 caliper_scale: Some(
                     match cfg.caliper_scale {
@@ -96,25 +112,25 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
                 ),
                 ..grouped!(
                     cfg,
-                    base(cfg.bootstrap_replicates, cfg.overlap);
-                    cluster_ids, multiway_ids, panel_times, population_registry,
-                    sampling_weights
+                    base(cfg.inference.bootstrap_replicates, cfg.overlap);
+                    population_registry, sampling_weights
                 )
             })
         }
         EstimatorSpec::PropensityStratification(cfg) => {
             EstimatorSpecWire::PropensityStratification(EstimatorConfigWire {
+                bootstrap_interval: interval_key(cfg.inference.bootstrap_interval),
                 glm: Some(glm_options(&cfg.glm_options)),
                 other_levels: other_levels_key(cfg.other_levels),
                 n_strata: Some(cfg.n_strata),
                 outcome: cfg.regression_adjustment.then(|| "stratum_intercepts_linear_hc3".into()),
                 cluster_ids: declared_clusters(
-                    cfg.cluster_ids.as_deref(),
-                    cfg.source_cluster_ids.as_deref(),
+                    cfg.inference.cluster_ids.as_deref(),
+                    cfg.inference.source_cluster_ids.as_deref(),
                 ),
                 ..grouped!(
                     cfg,
-                    base(cfg.bootstrap_replicates, cfg.overlap);
+                    base(cfg.inference.bootstrap_replicates, cfg.overlap);
                     population_registry, sampling_weights
                 )
             })
@@ -123,23 +139,32 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
             EstimatorSpecWire::DistanceMatching(EstimatorConfigWire {
                 outcome: cfg.population_variance.then(|| "population_linear_variance".into()),
                 glm: Some(glm_options(&cfg.glm_options)),
-                se_kind: Some(se_kind(cfg.se_kind)),
+                se_kind: Some(se_kind(cfg.inference.se_kind)),
+                cluster_ids: cfg.inference.cluster_ids.as_deref().map(cluster_ids),
+                multiway_ids: cfg.inference.multiway_ids.as_deref().map(multiway_ids),
+                panel_times: cfg.inference.panel_times.as_deref().map(panel_times),
                 caliper_bits: cfg.caliper.map(f64::to_bits),
                 ..grouped!(
                     cfg,
-                    base(cfg.bootstrap_replicates, cfg.overlap);
-                    cluster_ids, multiway_ids, panel_times, population_registry,
-                    sampling_weights
+                    base(cfg.inference.bootstrap_replicates, cfg.overlap);
+                    population_registry, sampling_weights
                 )
             })
         }
         EstimatorSpec::Aipw(cfg) => EstimatorSpecWire::Aipw(EstimatorConfigWire {
+            bootstrap_interval: interval_key(cfg.inference.bootstrap_interval),
             glm: Some(glm_options(&cfg.glm_options)),
             other_levels: other_levels_key(cfg.other_levels),
             // The declared propensity nuisance (penalty grid, inner folds, fallback) changes
             // the science; the default is omitted so existing digests are unchanged.
             treatment_config: (!cfg.propensity.is_default())
                 .then(|| cfg.propensity.canonical_key()),
+            // A declared outcome-nuisance prior (source digest and mapping) changes the
+            // science; omitted by default so existing digests are unchanged.
+            outcome: cfg
+                .outcome_prior
+                .as_ref()
+                .map(antecedent_estimate::OutcomePriorSource::identity_key),
             // The declared independence unit and minimum cluster count (the labels are
             // digested as `cluster_ids`, a dyadic unit's second-endpoint labels inside this
             // key); omitted by default.
@@ -150,64 +175,75 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
                     cfg.source_cluster_ids_second.as_deref(),
                 )
             }),
-            se_kind: Some(se_kind(cfg.se_kind)),
+            se_kind: Some(se_kind(cfg.inference.se_kind)),
             cluster_ids: declared_clusters(
-                cfg.cluster_ids.as_deref(),
-                cfg.source_cluster_ids.as_deref(),
+                cfg.inference.cluster_ids.as_deref(),
+                cfg.inference.source_cluster_ids.as_deref(),
             ),
+            multiway_ids: cfg.inference.multiway_ids.as_deref().map(multiway_ids),
+            panel_times: cfg.inference.panel_times.as_deref().map(panel_times),
             ..grouped!(
                 cfg,
-                base(cfg.bootstrap_replicates, cfg.overlap);
-                multiway_ids, panel_times, population_registry, sampling_weights
+                base(cfg.inference.bootstrap_replicates, cfg.overlap);
+                population_registry, sampling_weights
             )
         }),
         EstimatorSpec::GlmAdjustment(cfg) => {
             EstimatorSpecWire::GlmAdjustment(EstimatorConfigWire {
+                bootstrap_interval: interval_key(cfg.inference.bootstrap_interval),
                 glm: Some(glm_options(&cfg.glm_options)),
-                se_kind: Some(se_kind(cfg.se_kind)),
+                se_kind: Some(se_kind(cfg.inference.se_kind)),
                 family: Some(glm_family(cfg.family).into()),
                 cluster_ids: declared_clusters(
-                    cfg.cluster_ids.as_deref(),
-                    cfg.source_cluster_ids.as_deref(),
+                    cfg.inference.cluster_ids.as_deref(),
+                    cfg.inference.source_cluster_ids.as_deref(),
                 ),
+                multiway_ids: cfg.inference.multiway_ids.as_deref().map(multiway_ids),
+                panel_times: cfg.inference.panel_times.as_deref().map(panel_times),
                 ..grouped!(
                     cfg,
-                    base(cfg.bootstrap_replicates, cfg.overlap);
-                    multiway_ids, panel_times, population_registry, sampling_weights
+                    base(cfg.inference.bootstrap_replicates, cfg.overlap);
+                    population_registry, sampling_weights
                 )
             })
         }
         EstimatorSpec::FrontDoorTwoStage(cfg) => {
             EstimatorSpecWire::FrontDoorTwoStage(EstimatorConfigWire {
-                se_kind: Some(se_kind(cfg.se_kind)),
+                se_kind: Some(se_kind(cfg.inference.se_kind)),
                 cluster_ids: declared_clusters(
-                    cfg.cluster_ids.as_deref(),
-                    cfg.source_cluster_ids.as_deref(),
+                    cfg.inference.cluster_ids.as_deref(),
+                    cfg.inference.source_cluster_ids.as_deref(),
                 ),
-                ..base(cfg.bootstrap_replicates, cfg.overlap)
+                ..base(cfg.inference.bootstrap_replicates, cfg.overlap)
             })
         }
         EstimatorSpec::IvWald(cfg) => EstimatorSpecWire::IvWald(EstimatorConfigWire {
             backend: "none".into(),
-            se_kind: Some(se_kind(cfg.se_kind)),
-            ..grouped!(
-                cfg,
-                base(cfg.bootstrap_replicates, cfg.overlap);
-                cluster_ids, multiway_ids, panel_times
-            )
+            se_kind: Some(se_kind(cfg.inference.se_kind)),
+            cluster_ids: cfg.inference.cluster_ids.as_deref().map(cluster_ids),
+            multiway_ids: cfg.inference.multiway_ids.as_deref().map(multiway_ids),
+            panel_times: cfg.inference.panel_times.as_deref().map(panel_times),
+            ..base(cfg.inference.bootstrap_replicates, cfg.overlap)
         }),
         EstimatorSpec::Iv2Sls(cfg) => EstimatorSpecWire::Iv2Sls(EstimatorConfigWire {
-            se_kind: Some(se_kind(cfg.se_kind)),
-            ..grouped!(
-                cfg,
-                base(cfg.bootstrap_replicates, cfg.overlap);
-                cluster_ids, multiway_ids, panel_times
-            )
+            se_kind: Some(se_kind(cfg.inference.se_kind)),
+            cluster_ids: cfg.inference.cluster_ids.as_deref().map(cluster_ids),
+            multiway_ids: cfg.inference.multiway_ids.as_deref().map(multiway_ids),
+            panel_times: cfg.inference.panel_times.as_deref().map(panel_times),
+            ..base(cfg.inference.bootstrap_replicates, cfg.overlap)
         }),
         EstimatorSpec::Dml(cfg) => EstimatorSpecWire::Dml(EstimatorConfigWire {
             folds: Some(u32::try_from(cfg.folds).unwrap_or(u32::MAX)),
             outcome: Some(cfg.outcome.name().into()),
-            outcome_config: Some(learner_identity(cfg.outcome)),
+            // A declared outcome-nuisance prior (its source digest and mapping) changes the
+            // science, so it extends the outcome identity; omitted by default so existing
+            // digests are unchanged.
+            outcome_config: Some(match &cfg.outcome_prior {
+                Some(prior) => {
+                    format!("{};{}", learner_identity(cfg.outcome), prior.identity_key())
+                }
+                None => learner_identity(cfg.outcome),
+            }),
             treatment: Some(cfg.treatment.name().into()),
             treatment_config: Some(learner_identity(cfg.treatment)),
             score: Some(match (cfg.score, cfg.units.spec.as_ref()) {
@@ -307,7 +343,25 @@ fn base(bootstrap_replicates: u32, overlap: OverlapPolicy) -> EstimatorConfigWir
         max_depth: None,
         honesty: None,
         other_levels: None,
+        bootstrap_interval: None,
     }
+}
+
+/// Identity key of a requested bootstrap interval; no request is omitted.
+fn interval_key(request: Option<antecedent_estimate::IntervalRequest>) -> Option<String> {
+    request.map(|r| {
+        let bits = |value: Option<f64>| {
+            value.map_or_else(|| "-".to_owned(), |v| format!("{:016x}", v.to_bits()))
+        };
+        format!(
+            "level={:016x};wave={};min={};se={};half_width={}",
+            r.level.to_bits(),
+            r.wave_size,
+            r.min_replicates,
+            bits(r.se_rel_tol),
+            bits(r.half_width_rel_tol)
+        )
+    })
 }
 
 /// Identity key of a declared exclusion; the default refusal is omitted.
@@ -319,9 +373,9 @@ fn other_levels_key(policy: antecedent_estimate::OtherLevels) -> Option<String> 
 }
 
 pub(crate) fn overlap_policy(policy: OverlapPolicy) -> OverlapPolicyWire {
-    match policy {
-        OverlapPolicy::ExplicitOverride => OverlapPolicyWire::ExplicitOverride,
-        OverlapPolicy::RequireDiagnostics { clip, trim } => OverlapPolicyWire::RequireDiagnostics {
+    match policy.bounds() {
+        None => OverlapPolicyWire::ExplicitOverride,
+        Some((clip, trim)) => OverlapPolicyWire::RequireDiagnostics {
             clip_bits: clip.map(f64::to_bits),
             trim_bits: trim.map(f64::to_bits),
         },
@@ -476,12 +530,21 @@ pub(crate) fn bayesian_binding(
         }),
         prior_mapping: cfg.prior_mapping.as_ref().map(PriorMappingIdentityWire::from_mapping),
         external_compose: cfg.external_compose.as_deref().map(|compose| {
-            external_compose_identity(
+            let mut identity = external_compose_identity(
                 &compose.sources,
                 compose.conflict_policy.map(|policy| (policy.p_min, policy.kl_scale)),
-            )
+            );
+            identity.baseline = compose.baseline.as_ref().map(prior_set_identity);
+            identity
         }),
         draw_controls: draw_controls.map(|controls| controls.as_str().into()),
+        design_model: cfg.design_model.as_ref().map(crate::DesignPosteriorModel::identity),
+        white_innovation: cfg.white_innovation.map(|gate| {
+            format!("ljung_box:max_lag={}:level_bits={:016x}", gate.max_lag, gate.level.to_bits())
+        }),
+        predictive_replicates: cfg
+            .predictive_replicates
+            .map(|bounds| format!("n_sims={}:max_rows={}", bounds.n_sims, bounds.max_rows)),
     }
 }
 
@@ -509,7 +572,7 @@ pub(crate) fn observation_options(options: &ObservationEstimatorOptions) -> Obse
             SelectedOutcomeCorrection::Aipw => "aipw",
         }
         .into(),
-        observation_probability_floor_bits: options.observation_probability_floor.to_bits(),
+        observation_probability_floor_bits: options.observation_floor().to_bits(),
         censoring_survival_floor_bits: options.censoring_survival_floor.to_bits(),
         crossfit_folds: options.crossfit_folds as u64,
     }
@@ -610,11 +673,11 @@ pub(crate) fn interference_snapshot(
     spec: &super::builder::InterferenceSpec,
 ) -> InterferenceSnapshotWire {
     let units = spec.network.units();
-    let mut edges: Vec<(u32, u32, u64)> = spec
+    let mut edges: Vec<(u64, u64, u64)> = spec
         .network
         .edges()
         .iter()
-        .map(|edge| (edge.from, edge.to, edge.weight.to_bits()))
+        .map(|edge| (edge.from.get(), edge.to.get(), edge.weight.to_bits()))
         .collect();
     edges.sort_unstable();
     let assignment: Vec<u8> = spec.assignment.iter().map(|&treated| u8::from(treated)).collect();
@@ -631,11 +694,11 @@ pub(crate) fn interference_snapshot(
 }
 
 /// Digest of the sorted `(from, to, weight bits)` edge list of an interference network.
-fn edges_digest(edges: &[(u32, u32, u64)]) -> PayloadDigestWire {
+fn edges_digest(edges: &[(u64, u64, u64)]) -> PayloadDigestWire {
     let mut stream = CanonicalWriter::new("antecedent.interference.edges.v1");
     stream.word(edges.len() as u64);
     for &(from, to, weight_bits) in edges {
-        stream.word(u64::from(from)).word(u64::from(to)).word(weight_bits);
+        stream.word(from).word(to).word(weight_bits);
     }
     PayloadDigestWire { digest: stream.finish(), len: edges.len() as u64 }
 }
@@ -669,6 +732,56 @@ mod tests {
             .with_cluster_ids(first.to_vec())
             .with_second_cluster_ids(second.to_vec());
         estimator_spec_identity(&EstimatorSpec::Aipw(Box::new(cfg)))
+    }
+
+    #[test]
+    fn conflict_composition_identity_binds_original_baseline() {
+        use antecedent_prob::{
+            ExternalPriorSource, ExternalPriorWeight, PriorSet, PriorSpec, compose_external_priors,
+        };
+        use antecedent_validate::ConflictPolicy;
+        use std::sync::Arc;
+
+        let source_prior = PriorSet::weakly_informative(1);
+        let sources: Arc<[ExternalPriorSource]> = vec![ExternalPriorSource {
+            id: Arc::from("source"),
+            prior: source_prior,
+            weight: ExternalPriorWeight::power_mixture(1.0, 1.0).unwrap(),
+            ess: None,
+        }]
+        .into();
+        let baseline_a = PriorSet::weakly_informative(1);
+        let mut baseline_b = baseline_a.clone();
+        if let PriorSpec::GaussianCoefficients(coef) = &mut baseline_b.specs[0] {
+            coef.mean = Arc::from([3.0]);
+        } else {
+            panic!("expected Gaussian baseline");
+        }
+        let composed_a = compose_external_priors(&sources, &baseline_a).unwrap();
+        let composed_b = compose_external_priors(&sources, &baseline_b).unwrap();
+        // A full-weight mixture removes the baseline from the precomposed moments.
+        assert_eq!(composed_a.prior, composed_b.prior);
+        let policy = ConflictPolicy::try_new(0.05, 1.0).unwrap();
+        let a = BayesianConfig::conjugate().prior_from_composed_with_baseline(
+            Arc::clone(&sources),
+            composed_a,
+            Some(policy),
+            baseline_a,
+        );
+        let b = BayesianConfig::conjugate().prior_from_composed_with_baseline(
+            Arc::clone(&sources),
+            composed_b,
+            Some(policy),
+            baseline_b,
+        );
+        let binding_a = bayesian_binding(&a, None);
+        let binding_b = bayesian_binding(&b, None);
+        assert_eq!(binding_a.prior, binding_b.prior);
+        assert_ne!(binding_a.external_compose, binding_b.external_compose);
+        assert_ne!(
+            antecedent_io::to_cbor(&binding_a).unwrap(),
+            antecedent_io::to_cbor(&binding_b).unwrap()
+        );
     }
 
     #[test]

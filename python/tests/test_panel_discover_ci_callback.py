@@ -1,6 +1,6 @@
 """`ci=` (a Python callable CI test) reaching the PanelFrame discovery path.
 
-`analyze(panel, discovery=..., ...)` for `PanelFrame` routes through the prepared panel
+`discover(panel, method=...)` for `PanelFrame` routes through the panel
 discovery route. That route previously had no `ci` parameter
 at all, so a caller-supplied CI test was accepted by `PCMCI`/`PCMCIPlus`/
 `LPCMCI`/`JPCMCIPlus` (which all carry a `ci` field) and then silently dropped
@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import antecedent
 import numpy as np
+from antecedent.outcomes import require_success
 
 
 def _lag1_unit(n: int = 100, seed: int = 3):
@@ -52,21 +53,28 @@ def test_panel_discover_pcmci_ci_callback_invoked():
     calls: list[int] = []
     panel = antecedent.data.panel([_lag1_unit(seed=3), _lag1_unit(seed=4), _lag1_unit(seed=5)])
     try:
-        antecedent.analyze(
-            panel,
-            discovery=antecedent.discovery.PCMCI(
-                max_lag=1, alpha=0.2, fdr=False, ci=_counting_ci(calls)
-            ),
-            query=antecedent.PulseEffect(
-                treatment="x",
-                outcome="y",
-                treatment_lag=1,
-                horizon_steps=1,
-                active_level=1.0,
-            ),
-            bootstrap=0,
-            seed=1,
-            refute=False,
+        require_success(
+            antecedent.analyze(
+                panel,
+                graph=antecedent.discovery.discover(
+                    panel,
+                    method=antecedent.discovery.PCMCI(
+                        max_lag=1, alpha=0.2, fdr=False, ci=_counting_ci(calls)
+                    ),
+                    execution=antecedent.Execution(seed=1),
+                    accept_discovered=True,
+                ),
+                query=antecedent.PulseEffect(
+                    treatment="x",
+                    outcome="y",
+                    treatment_lag=1,
+                    horizon_steps=1,
+                    active_level=1.0,
+                ),
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
+                refute=False,
+            )
         )
     except (
         antecedent.errors.CausalIdentifyError,
@@ -92,28 +100,35 @@ def test_panel_discover_jpcmci_plus_ci_callback_invoked():
     (the pulse is unidentifiable against the discovered graph),
     `CausalCompileError` (a compile-stage failure), or `CausalUnsupportedError`
     (this discovery/query/graph combination is a support-matrix refusal —
-    `SupportRefusal::Refused` / `NotApplicable`, surfaced via `Support{id,
+    `SupportRefusal::NotSupported` / `NotApplicable`, surfaced via `Support{id,
     message}` in `python/src/lib.rs`). Any other exception is a real wiring
     break.
     """
     calls: list[int] = []
     panel = antecedent.data.panel([_lag1_unit(seed=3), _lag1_unit(seed=4), _lag1_unit(seed=5)])
     try:
-        antecedent.analyze(
-            panel,
-            discovery=antecedent.discovery.JPCMCIPlus(
-                max_lag=1, alpha=0.2, fdr=False, ci=_counting_ci(calls)
-            ),
-            query=antecedent.PulseEffect(
-                treatment="x",
-                outcome="y",
-                treatment_lag=1,
-                horizon_steps=1,
-                active_level=1.0,
-            ),
-            bootstrap=0,
-            seed=1,
-            refute=False,
+        require_success(
+            antecedent.analyze(
+                panel,
+                graph=antecedent.discovery.discover(
+                    panel,
+                    method=antecedent.discovery.JPCMCIPlus(
+                        max_lag=1, alpha=0.2, fdr=False, ci=_counting_ci(calls)
+                    ),
+                    execution=antecedent.Execution(seed=1),
+                    accept_discovered=True,
+                ),
+                query=antecedent.PulseEffect(
+                    treatment="x",
+                    outcome="y",
+                    treatment_lag=1,
+                    horizon_steps=1,
+                    active_level=1.0,
+                ),
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
+                refute=False,
+            )
         )
     except (
         antecedent.errors.CausalReviewError,

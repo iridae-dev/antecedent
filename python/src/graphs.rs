@@ -1,7 +1,11 @@
 //! PyO3 typed graph wrappers (`Dag`, `Cpdag`, `Pag`, `Admg`, `TemporalDag`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::graph::{
+    Dag as RustDag, DenseNodeId, Endpoint, Lag, MarkedEdge, MiddleMark, NodeRef,
+    TemporalAdmg as RustTemporalAdmg, TemporalDag as RustTemporalDag,
+};
 use antecedent::io::{
     admg_to_dot as facade_admg_to_dot, admg_to_gml as facade_admg_to_gml,
     admg_to_json as facade_admg_to_json,
@@ -34,11 +38,7 @@ use antecedent::io::{
     pag_with_names_from_json as facade_pag_with_names_from_json,
     pag_with_names_from_networkx_node_link as facade_pag_with_names_from_networkx_node_link,
 };
-use antecedent_core::{Lag, VariableId};
-use antecedent_graph::{
-    Dag as RustDag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, NodeRef,
-    TemporalAdmg as RustTemporalAdmg, TemporalDag as RustTemporalDag,
-};
+use antecedent::prelude::VariableId;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyType};
 
@@ -85,7 +85,22 @@ fn cpdag_mark_str(edge: MarkedEdge) -> &'static str {
 ///
 /// Every constructor that builds a graph from parsed names (as opposed to
 /// user-supplied names checked elsewhere) must uphold this invariant.
+/// Node names identify nodes, so each must be non-empty and appear once.
+fn require_unique_names(names: &[String]) -> PyResult<()> {
+    let mut seen = std::collections::HashSet::with_capacity(names.len());
+    for name in names {
+        if name.is_empty() {
+            return Err(crate::value_err("node names must be non-empty"));
+        }
+        if !seen.insert(name.as_str()) {
+            return Err(crate::value_err(format!("duplicate node name {name:?}")));
+        }
+    }
+    Ok(())
+}
+
 fn check_names_len(names: &[String], node_count: usize) -> PyResult<()> {
+    require_unique_names(names)?;
     if names.len() != node_count {
         return Err(crate::value_err(format!(
             "names length {} must equal node_count {}",
@@ -117,9 +132,11 @@ macro_rules! named_graph_text {
         impl $ty {
             #[classmethod]
             fn from_dot(_cls: &Bound<'_, PyType>, dot: &str) -> PyResult<Self> {
-                let (g, names) = $from_dot(dot).map_err(py_err)?;
-                check_names_len(&names, g.node_count())?;
-                Ok(Self { $field: g, names })
+                crate::catch_ffi(|| {
+                    let (g, names) = $from_dot(dot).map_err(py_err)?;
+                    check_names_len(&names, g.node_count())?;
+                    Ok(Self { $field: g, names })
+                })
             }
 
             fn to_dot(&self) -> PyResult<String> {
@@ -128,9 +145,11 @@ macro_rules! named_graph_text {
 
             #[classmethod]
             fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-                let (g, names) = $from_json(json).map_err(py_err)?;
-                check_names_len(&names, g.node_count())?;
-                Ok(Self { $field: g, names })
+                crate::catch_ffi(|| {
+                    let (g, names) = $from_json(json).map_err(py_err)?;
+                    check_names_len(&names, g.node_count())?;
+                    Ok(Self { $field: g, names })
+                })
             }
 
             fn to_json(&self) -> PyResult<String> {
@@ -139,9 +158,11 @@ macro_rules! named_graph_text {
 
             #[classmethod]
             fn from_gml(_cls: &Bound<'_, PyType>, gml: &str) -> PyResult<Self> {
-                let (g, names) = $from_gml(gml).map_err(py_err)?;
-                check_names_len(&names, g.node_count())?;
-                Ok(Self { $field: g, names })
+                crate::catch_ffi(|| {
+                    let (g, names) = $from_gml(gml).map_err(py_err)?;
+                    check_names_len(&names, g.node_count())?;
+                    Ok(Self { $field: g, names })
+                })
             }
 
             fn to_gml(&self) -> PyResult<String> {
@@ -150,9 +171,11 @@ macro_rules! named_graph_text {
 
             #[classmethod]
             fn from_networkx_node_link(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-                let (g, names) = $from_nx(json).map_err(py_err)?;
-                check_names_len(&names, g.node_count())?;
-                Ok(Self { $field: g, names })
+                crate::catch_ffi(|| {
+                    let (g, names) = $from_nx(json).map_err(py_err)?;
+                    check_names_len(&names, g.node_count())?;
+                    Ok(Self { $field: g, names })
+                })
             }
 
             fn to_networkx_node_link(&self) -> PyResult<String> {
@@ -222,14 +245,17 @@ impl Dag {
         names: Vec<String>,
         edges: Vec<(String, String)>,
     ) -> PyResult<Self> {
-        let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
-        let mut dag = RustDag::with_variables(n);
-        for (from, to) in &edges {
-            let f = resolve_name_index(&names, from)?;
-            let t = resolve_name_index(&names, to)?;
-            dag.insert_directed(f, t).map_err(py_err)?;
-        }
-        Ok(Self { dag, names })
+        crate::catch_ffi(|| {
+            require_unique_names(&names)?;
+            let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
+            let mut dag = RustDag::with_variables(n);
+            for (from, to) in &edges {
+                let f = resolve_name_index(&names, from)?;
+                let t = resolve_name_index(&names, to)?;
+                dag.insert_directed(f, t).map_err(py_err)?;
+            }
+            Ok(Self { dag, names })
+        })
     }
 
     fn nodes(&self) -> Vec<String> {
@@ -237,14 +263,16 @@ impl Dag {
     }
 
     fn edges(&self) -> PyResult<Vec<(String, String)>> {
-        let mut out = Vec::new();
-        for e in self.dag.edges() {
-            let Some((from, to)) = e.parent_child() else {
-                continue;
-            };
-            out.push((id_name(&self.names, from)?, id_name(&self.names, to)?));
-        }
-        Ok(out)
+        crate::catch_ffi(|| {
+            let mut out = Vec::new();
+            for e in self.dag.edges() {
+                let Some((from, to)) = e.parent_child() else {
+                    continue;
+                };
+                out.push((id_name(&self.names, from)?, id_name(&self.names, to)?));
+            }
+            Ok(out)
+        })
     }
 
     fn parents(&self, name: &str) -> PyResult<Vec<String>> {
@@ -274,30 +302,34 @@ impl Dag {
     /// Whether ``x`` is d-separated from ``y`` given ``z``.
     #[pyo3(signature = (x, y, z=None))]
     fn d_separated(&self, x: &str, y: &str, z: Option<Vec<String>>) -> PyResult<bool> {
-        use antecedent_graph::DSeparationWorkspace;
-        let xid = self.name_index(x)?;
-        let yid = self.name_index(y)?;
-        let mut zids = Vec::new();
-        if let Some(names) = z {
-            for n in names {
-                zids.push(self.name_index(&n)?);
+        crate::catch_ffi(|| {
+            use antecedent::graph::DSeparationWorkspace;
+            let xid = self.name_index(x)?;
+            let yid = self.name_index(y)?;
+            let mut zids = Vec::new();
+            if let Some(names) = z {
+                for n in names {
+                    zids.push(self.name_index(&n)?);
+                }
             }
-        }
-        let mut ws = DSeparationWorkspace::default();
-        self.dag.is_d_separated(xid, yid, &zids, &mut ws).map_err(py_err)
+            let mut ws = DSeparationWorkspace::default();
+            self.dag.is_d_separated(xid, yid, &zids, &mut ws).map_err(py_err)
+        })
     }
 
     /// Latent-project onto ``observed`` variable names; returns an ``Admg``.
     fn latent_project(&self, observed: Vec<String>) -> PyResult<Admg> {
-        use antecedent::graph::latent_project;
-        let mut obs = Vec::with_capacity(observed.len());
-        let mut obs_names = Vec::with_capacity(observed.len());
-        for n in &observed {
-            obs.push(self.name_index(n)?);
-            obs_names.push(n.clone());
-        }
-        let admg = latent_project(&self.dag, &obs).map_err(py_err)?;
-        Ok(Admg { admg, names: obs_names })
+        crate::catch_ffi(|| {
+            use antecedent::graph::latent_project;
+            let mut obs = Vec::with_capacity(observed.len());
+            let mut obs_names = Vec::with_capacity(observed.len());
+            for n in &observed {
+                obs.push(self.name_index(n)?);
+                obs_names.push(n.clone());
+            }
+            let admg = latent_project(&self.dag, &obs).map_err(py_err)?;
+            Ok(Admg { admg, names: obs_names })
+        })
     }
 
     fn __repr__(&self) -> String {
@@ -316,9 +348,11 @@ impl Dag {
 
     /// Iterate over node names in stable order.
     fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<PyAny>> {
-        let py = slf.py();
-        let list = PyList::new(py, slf.names.clone())?;
-        Ok(list.try_iter()?.into_any().unbind())
+        crate::catch_ffi(|| {
+            let py = slf.py();
+            let list = PyList::new(py, slf.names.clone())?;
+            Ok(list.try_iter()?.into_any().unbind())
+        })
     }
 }
 
@@ -326,7 +360,7 @@ impl Dag {
 #[pyclass(name = "Cpdag", from_py_object)]
 #[derive(Clone)]
 pub struct Cpdag {
-    pub(crate) cpdag: antecedent_graph::Cpdag,
+    pub(crate) cpdag: antecedent::graph::Cpdag,
     pub(crate) names: Vec<String>,
 }
 
@@ -346,21 +380,24 @@ impl Cpdag {
         directed: Vec<(String, String)>,
         undirected: Option<Vec<(String, String)>>,
     ) -> PyResult<Self> {
-        let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
-        let mut g = antecedent_graph::Cpdag::with_variables(n);
-        for (from, to) in &directed {
-            let f = resolve_name_index(&names, from)?;
-            let t = resolve_name_index(&names, to)?;
-            g.insert_directed(f, t).map_err(py_err)?;
-        }
-        if let Some(undirected) = undirected {
-            for (a, b) in &undirected {
-                let ia = resolve_name_index(&names, a)?;
-                let ib = resolve_name_index(&names, b)?;
-                g.insert_undirected(ia, ib).map_err(py_err)?;
+        crate::catch_ffi(|| {
+            require_unique_names(&names)?;
+            let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
+            let mut g = antecedent::graph::Cpdag::with_variables(n);
+            for (from, to) in &directed {
+                let f = resolve_name_index(&names, from)?;
+                let t = resolve_name_index(&names, to)?;
+                g.insert_directed(f, t).map_err(py_err)?;
             }
-        }
-        Ok(Self { cpdag: g, names })
+            if let Some(undirected) = undirected {
+                for (a, b) in &undirected {
+                    let ia = resolve_name_index(&names, a)?;
+                    let ib = resolve_name_index(&names, b)?;
+                    g.insert_undirected(ia, ib).map_err(py_err)?;
+                }
+            }
+            Ok(Self { cpdag: g, names })
+        })
     }
 
     #[classmethod]
@@ -369,22 +406,25 @@ impl Cpdag {
         names: Vec<String>,
         edges: Vec<(String, String, String)>,
     ) -> PyResult<Self> {
-        let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
-        let mut g = antecedent_graph::Cpdag::with_variables(n);
-        for (from, to, kind) in &edges {
-            let f = resolve_name_index(&names, from)?;
-            let t = resolve_name_index(&names, to)?;
-            match kind.to_ascii_lowercase().as_str() {
-                "directed" => g.insert_directed(f, t).map_err(py_err)?,
-                "undirected" => g.insert_undirected(f, t).map_err(py_err)?,
-                other => {
-                    return Err(crate::value_err(format!(
-                        "unknown edge kind '{other}' (expected directed|undirected)"
-                    )));
+        crate::catch_ffi(|| {
+            require_unique_names(&names)?;
+            let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
+            let mut g = antecedent::graph::Cpdag::with_variables(n);
+            for (from, to, kind) in &edges {
+                let f = resolve_name_index(&names, from)?;
+                let t = resolve_name_index(&names, to)?;
+                match kind.to_ascii_lowercase().as_str() {
+                    "directed" => g.insert_directed(f, t).map_err(py_err)?,
+                    "undirected" => g.insert_undirected(f, t).map_err(py_err)?,
+                    other => {
+                        return Err(crate::value_err(format!(
+                            "unknown edge kind '{other}' (expected directed|undirected)"
+                        )));
+                    }
                 }
             }
-        }
-        Ok(Self { cpdag: g, names })
+            Ok(Self { cpdag: g, names })
+        })
     }
 
     fn nodes(&self) -> Vec<String> {
@@ -392,24 +432,26 @@ impl Cpdag {
     }
 
     fn edges(&self) -> PyResult<Vec<(String, String, String)>> {
-        let mut out = Vec::new();
-        for e in self.cpdag.edges() {
-            let mark = cpdag_mark_str(e);
-            if let Some((from, to)) = e.parent_child() {
-                out.push((
-                    id_name(&self.names, from)?,
-                    id_name(&self.names, to)?,
-                    mark.to_string(),
-                ));
-            } else {
-                out.push((
-                    id_name(&self.names, e.a)?,
-                    id_name(&self.names, e.b)?,
-                    mark.to_string(),
-                ));
+        crate::catch_ffi(|| {
+            let mut out = Vec::new();
+            for e in self.cpdag.edges() {
+                let mark = cpdag_mark_str(e);
+                if let Some((from, to)) = e.parent_child() {
+                    out.push((
+                        id_name(&self.names, from)?,
+                        id_name(&self.names, to)?,
+                        mark.to_string(),
+                    ));
+                } else {
+                    out.push((
+                        id_name(&self.names, e.a)?,
+                        id_name(&self.names, e.b)?,
+                        mark.to_string(),
+                    ));
+                }
             }
-        }
-        Ok(out)
+            Ok(out)
+        })
     }
 
     fn parents(&self, name: &str) -> PyResult<Vec<String>> {
@@ -452,9 +494,11 @@ impl Cpdag {
 
     /// Iterate over node names in stable order.
     fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<PyAny>> {
-        let py = slf.py();
-        let list = PyList::new(py, slf.names.clone())?;
-        Ok(list.try_iter()?.into_any().unbind())
+        crate::catch_ffi(|| {
+            let py = slf.py();
+            let list = PyList::new(py, slf.names.clone())?;
+            Ok(list.try_iter()?.into_any().unbind())
+        })
     }
 }
 
@@ -462,7 +506,7 @@ impl Cpdag {
 #[pyclass(name = "Pag", from_py_object)]
 #[derive(Clone)]
 pub struct Pag {
-    pub(crate) pag: antecedent_graph::Pag,
+    pub(crate) pag: antecedent::graph::Pag,
     pub(crate) names: Vec<String>,
 }
 
@@ -491,21 +535,24 @@ impl Pag {
         names: Vec<String>,
         edges: Vec<(String, String, String, String)>,
     ) -> PyResult<Self> {
-        let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
-        let mut g = antecedent_graph::Pag::with_variables(n);
-        for (a, b, at_a, at_b) in &edges {
-            let ia = resolve_name_index(&names, a)?;
-            let ib = resolve_name_index(&names, b)?;
-            let edge = MarkedEdge {
-                a: ia,
-                b: ib,
-                at_a: parse_endpoint(at_a)?,
-                at_b: parse_endpoint(at_b)?,
-                middle: MiddleMark::Empty,
-            };
-            g.insert_marked(edge).map_err(py_err)?;
-        }
-        Ok(Self { pag: g, names })
+        crate::catch_ffi(|| {
+            require_unique_names(&names)?;
+            let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
+            let mut g = antecedent::graph::Pag::with_variables(n);
+            for (a, b, at_a, at_b) in &edges {
+                let ia = resolve_name_index(&names, a)?;
+                let ib = resolve_name_index(&names, b)?;
+                let edge = MarkedEdge {
+                    a: ia,
+                    b: ib,
+                    at_a: parse_endpoint(at_a)?,
+                    at_b: parse_endpoint(at_b)?,
+                    middle: MiddleMark::Empty,
+                };
+                g.insert_marked(edge).map_err(py_err)?;
+            }
+            Ok(Self { pag: g, names })
+        })
     }
 
     fn nodes(&self) -> Vec<String> {
@@ -513,16 +560,18 @@ impl Pag {
     }
 
     fn neighbors(&self, name: &str) -> PyResult<Vec<(String, String, String)>> {
-        let id = self.name_index(name)?;
-        let mut out = Vec::new();
-        for (nbr, at_self, at_nbr) in self.pag.neighbors(id) {
-            out.push((
-                id_name(&self.names, nbr)?,
-                endpoint_str(at_self).to_string(),
-                endpoint_str(at_nbr).to_string(),
-            ));
-        }
-        Ok(out)
+        crate::catch_ffi(|| {
+            let id = self.name_index(name)?;
+            let mut out = Vec::new();
+            for (nbr, at_self, at_nbr) in self.pag.neighbors(id) {
+                out.push((
+                    id_name(&self.names, nbr)?,
+                    endpoint_str(at_self).to_string(),
+                    endpoint_str(at_nbr).to_string(),
+                ));
+            }
+            Ok(out)
+        })
     }
 
     fn directed_children(&self, name: &str) -> PyResult<Vec<String>> {
@@ -548,8 +597,11 @@ impl Pag {
         max_paths: usize,
         max_len: usize,
     ) -> PyResult<bool> {
-        let (xid, yid, zids) = self.separation_query(x, y, z)?;
-        self.pag.is_m_separated(xid, yid, &zids, max_paths, max_len).map_err(py_err)
+        crate::catch_ffi(|| {
+            crate::bridge::check_paths(max_paths, max_len)?;
+            let (xid, yid, zids) = self.separation_query(x, y, z)?;
+            self.pag.is_m_separated(xid, yid, &zids, max_paths, max_len).map_err(py_err)
+        })
     }
 
     /// ``"separated"`` (in every member MAG), ``"connected"`` (in every member) or
@@ -563,13 +615,18 @@ impl Pag {
         max_paths: usize,
         max_len: usize,
     ) -> PyResult<&'static str> {
-        let (xid, yid, zids) = self.separation_query(x, y, z)?;
-        let status =
-            self.pag.m_separation_status(xid, yid, &zids, max_paths, max_len).map_err(py_err)?;
-        Ok(match status {
-            antecedent_graph::PagSeparation::Separated => "separated",
-            antecedent_graph::PagSeparation::Connected => "connected",
-            antecedent_graph::PagSeparation::Undetermined => "undetermined",
+        crate::catch_ffi(|| {
+            crate::bridge::check_paths(max_paths, max_len)?;
+            let (xid, yid, zids) = self.separation_query(x, y, z)?;
+            let status = self
+                .pag
+                .m_separation_status(xid, yid, &zids, max_paths, max_len)
+                .map_err(py_err)?;
+            Ok(match status {
+                antecedent::graph::PagSeparation::Separated => "separated",
+                antecedent::graph::PagSeparation::Connected => "connected",
+                antecedent::graph::PagSeparation::Undetermined => "undetermined",
+            })
         })
     }
 
@@ -589,9 +646,11 @@ impl Pag {
 
     /// Iterate over node names in stable order.
     fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<PyAny>> {
-        let py = slf.py();
-        let list = PyList::new(py, slf.names.clone())?;
-        Ok(list.try_iter()?.into_any().unbind())
+        crate::catch_ffi(|| {
+            let py = slf.py();
+            let list = PyList::new(py, slf.names.clone())?;
+            Ok(list.try_iter()?.into_any().unbind())
+        })
     }
 }
 
@@ -599,7 +658,7 @@ impl Pag {
 #[pyclass(name = "Admg", from_py_object)]
 #[derive(Clone)]
 pub struct Admg {
-    pub(crate) admg: antecedent_graph::Admg,
+    pub(crate) admg: antecedent::graph::Admg,
     pub(crate) names: Vec<String>,
 }
 
@@ -607,9 +666,9 @@ impl Admg {
     /// Copy the named graph into the receiving schema's variable-id namespace.
     /// Projection keeps source VariableIds, while Python tables assign ids from
     /// their column-name order. Dense graph indices and the original graph stay intact.
-    pub(crate) fn aligned_to_names(&self, names: &[String]) -> PyResult<antecedent_graph::Admg> {
+    pub(crate) fn aligned_to_names(&self, names: &[String]) -> PyResult<antecedent::graph::Admg> {
         check_names_len(&self.names, self.admg.node_count())?;
-        let mut aligned = antecedent_graph::Admg::empty();
+        let mut aligned = antecedent::graph::Admg::empty();
         for name in &self.names {
             let id = resolve_name_index(names, name)?;
             aligned.add_node(NodeRef::Static(VariableId::from_raw(id.raw()))).map_err(py_err)?;
@@ -643,21 +702,24 @@ impl Admg {
         directed: Vec<(String, String)>,
         bidirected: Option<Vec<(String, String)>>,
     ) -> PyResult<Self> {
-        let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
-        let mut g = antecedent_graph::Admg::with_variables(n);
-        for (from, to) in &directed {
-            let f = resolve_name_index(&names, from)?;
-            let t = resolve_name_index(&names, to)?;
-            g.insert_directed(f, t).map_err(py_err)?;
-        }
-        if let Some(bidirected) = bidirected {
-            for (a, b) in &bidirected {
-                let ia = resolve_name_index(&names, a)?;
-                let ib = resolve_name_index(&names, b)?;
-                g.insert_bidirected(ia, ib).map_err(py_err)?;
+        crate::catch_ffi(|| {
+            require_unique_names(&names)?;
+            let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
+            let mut g = antecedent::graph::Admg::with_variables(n);
+            for (from, to) in &directed {
+                let f = resolve_name_index(&names, from)?;
+                let t = resolve_name_index(&names, to)?;
+                g.insert_directed(f, t).map_err(py_err)?;
             }
-        }
-        Ok(Self { admg: g, names })
+            if let Some(bidirected) = bidirected {
+                for (a, b) in &bidirected {
+                    let ia = resolve_name_index(&names, a)?;
+                    let ib = resolve_name_index(&names, b)?;
+                    g.insert_bidirected(ia, ib).map_err(py_err)?;
+                }
+            }
+            Ok(Self { admg: g, names })
+        })
     }
 
     fn nodes(&self) -> Vec<String> {
@@ -686,17 +748,19 @@ impl Admg {
     /// Whether ``x`` is m-separated from ``y`` given ``z``.
     #[pyo3(signature = (x, y, z=None))]
     fn m_separated(&self, x: &str, y: &str, z: Option<Vec<String>>) -> PyResult<bool> {
-        use antecedent_graph::DSeparationWorkspace;
-        let xid = self.name_index(x)?;
-        let yid = self.name_index(y)?;
-        let mut zids = Vec::new();
-        if let Some(names) = z {
-            for n in names {
-                zids.push(self.name_index(&n)?);
+        crate::catch_ffi(|| {
+            use antecedent::graph::DSeparationWorkspace;
+            let xid = self.name_index(x)?;
+            let yid = self.name_index(y)?;
+            let mut zids = Vec::new();
+            if let Some(names) = z {
+                for n in names {
+                    zids.push(self.name_index(&n)?);
+                }
             }
-        }
-        let mut ws = DSeparationWorkspace::default();
-        self.admg.is_m_separated(xid, yid, &zids, &mut ws).map_err(py_err)
+            let mut ws = DSeparationWorkspace::default();
+            self.admg.is_m_separated(xid, yid, &zids, &mut ws).map_err(py_err)
+        })
     }
 
     fn __repr__(&self) -> String {
@@ -715,9 +779,11 @@ impl Admg {
 
     /// Iterate over node names in stable order.
     fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<PyAny>> {
-        let py = slf.py();
-        let list = PyList::new(py, slf.names.clone())?;
-        Ok(list.try_iter()?.into_any().unbind())
+        crate::catch_ffi(|| {
+            let py = slf.py();
+            let list = PyList::new(py, slf.names.clone())?;
+            Ok(list.try_iter()?.into_any().unbind())
+        })
     }
 }
 
@@ -768,37 +834,44 @@ impl TemporalDag {
         names: Vec<String>,
         edges: Vec<(String, u32, String, u32)>,
     ) -> PyResult<Self> {
-        let var_of = |nm: &str| -> PyResult<VariableId> {
-            match names.iter().position(|n| n == nm) {
-                Some(i) => variable_id(i),
-                None => Err(unknown_node(nm)),
-            }
-        };
-        let g = crate::temporal_dag_from_lagged_edges(var_of, &edges)?;
-        Ok(Self { dag: g, names })
+        crate::catch_ffi(|| {
+            require_unique_names(&names)?;
+            let var_of = |nm: &str| -> PyResult<VariableId> {
+                match names.iter().position(|n| n == nm) {
+                    Some(i) => variable_id(i),
+                    None => Err(unknown_node(nm)),
+                }
+            };
+            let g = crate::temporal_dag_from_lagged_edges(var_of, &edges)?;
+            Ok(Self { dag: g, names })
+        })
     }
 
     /// Lagged nodes as `(name, lag)` pairs.
     fn nodes(&self) -> PyResult<Vec<(String, u32)>> {
-        let mut out = Vec::with_capacity(self.dag.node_count());
-        for i in 0..self.dag.node_count() {
-            out.push(self.node_label(dense_id(i)?)?);
-        }
-        Ok(out)
+        crate::catch_ffi(|| {
+            let mut out = Vec::with_capacity(self.dag.node_count());
+            for i in 0..self.dag.node_count() {
+                out.push(self.node_label(dense_id(i)?)?);
+            }
+            Ok(out)
+        })
     }
 
     /// Directed edges as `(src, src_lag, tgt, tgt_lag)`.
     fn edges(&self) -> PyResult<Vec<(String, u32, String, u32)>> {
-        let mut out = Vec::new();
-        for e in self.dag.edges() {
-            let Some((from, to)) = e.parent_child() else {
-                continue;
-            };
-            let (sn, sl) = self.node_label(from)?;
-            let (tn, tl) = self.node_label(to)?;
-            out.push((sn, sl, tn, tl));
-        }
-        Ok(out)
+        crate::catch_ffi(|| {
+            let mut out = Vec::new();
+            for e in self.dag.edges() {
+                let Some((from, to)) = e.parent_child() else {
+                    continue;
+                };
+                let (sn, sl) = self.node_label(from)?;
+                let (tn, tl) = self.node_label(to)?;
+                out.push((sn, sl, tn, tl));
+            }
+            Ok(out)
+        })
     }
 
     fn node_count(&self) -> usize {
@@ -822,10 +895,12 @@ impl TemporalDag {
 
     /// Iterate over lagged node names (``"var[t-lag]"``) in stable order.
     fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<PyAny>> {
-        let names = slf.node_names()?;
-        let py = slf.py();
-        let list = PyList::new(py, names)?;
-        Ok(list.try_iter()?.into_any().unbind())
+        crate::catch_ffi(|| {
+            let names = slf.node_names()?;
+            let py = slf.py();
+            let list = PyList::new(py, names)?;
+            Ok(list.try_iter()?.into_any().unbind())
+        })
     }
 }
 
@@ -833,7 +908,7 @@ impl TemporalDag {
 #[pyclass(name = "TemporalCpdag", from_py_object)]
 #[derive(Clone)]
 pub struct TemporalCpdag {
-    pub(crate) cpdag: antecedent_graph::TemporalCpdag,
+    pub(crate) cpdag: antecedent::graph::TemporalCpdag,
     pub(crate) names: Vec<String>,
 }
 
@@ -877,26 +952,29 @@ impl TemporalCpdag {
         directed: Vec<(String, u32, String, u32)>,
         undirected: Option<Vec<(String, u32, String, u32)>>,
     ) -> PyResult<Self> {
-        let mut g = antecedent_graph::TemporalCpdag::empty();
-        let var_of = |nm: &str| -> PyResult<VariableId> {
-            match names.iter().position(|n| n == nm) {
-                Some(i) => variable_id(i),
-                None => Err(unknown_node(nm)),
+        crate::catch_ffi(|| {
+            require_unique_names(&names)?;
+            let mut g = antecedent::graph::TemporalCpdag::empty();
+            let var_of = |nm: &str| -> PyResult<VariableId> {
+                match names.iter().position(|n| n == nm) {
+                    Some(i) => variable_id(i),
+                    None => Err(unknown_node(nm)),
+                }
+            };
+            for (src, slag, tgt, tlag) in &directed {
+                let s = ensure_lagged_cpdag(&mut g, var_of(src)?, Lag::from_raw(*slag))?;
+                let t = ensure_lagged_cpdag(&mut g, var_of(tgt)?, Lag::from_raw(*tlag))?;
+                g.insert_directed(s, t).map_err(py_err)?;
             }
-        };
-        for (src, slag, tgt, tlag) in &directed {
-            let s = ensure_lagged_cpdag(&mut g, var_of(src)?, Lag::from_raw(*slag))?;
-            let t = ensure_lagged_cpdag(&mut g, var_of(tgt)?, Lag::from_raw(*tlag))?;
-            g.insert_directed(s, t).map_err(py_err)?;
-        }
-        if let Some(undirected) = undirected {
-            for (a, al, b, bl) in &undirected {
-                let ia = ensure_lagged_cpdag(&mut g, var_of(a)?, Lag::from_raw(*al))?;
-                let ib = ensure_lagged_cpdag(&mut g, var_of(b)?, Lag::from_raw(*bl))?;
-                g.insert_undirected(ia, ib).map_err(py_err)?;
+            if let Some(undirected) = undirected {
+                for (a, al, b, bl) in &undirected {
+                    let ia = ensure_lagged_cpdag(&mut g, var_of(a)?, Lag::from_raw(*al))?;
+                    let ib = ensure_lagged_cpdag(&mut g, var_of(b)?, Lag::from_raw(*bl))?;
+                    g.insert_undirected(ia, ib).map_err(py_err)?;
+                }
             }
-        }
-        Ok(Self { cpdag: g, names })
+            Ok(Self { cpdag: g, names })
+        })
     }
 
     fn try_into_temporal_dag(&self) -> PyResult<TemporalDag> {
@@ -925,10 +1003,12 @@ impl TemporalCpdag {
 
     /// Iterate over lagged node names (``"var[t-lag]"``) in stable order.
     fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<PyAny>> {
-        let names = slf.node_names()?;
-        let py = slf.py();
-        let list = PyList::new(py, names)?;
-        Ok(list.try_iter()?.into_any().unbind())
+        crate::catch_ffi(|| {
+            let names = slf.node_names()?;
+            let py = slf.py();
+            let list = PyList::new(py, names)?;
+            Ok(list.try_iter()?.into_any().unbind())
+        })
     }
 }
 
@@ -936,7 +1016,7 @@ impl TemporalCpdag {
 #[pyclass(name = "TemporalPag", from_py_object)]
 #[derive(Clone)]
 pub struct TemporalPag {
-    pub(crate) pag: antecedent_graph::TemporalPag,
+    pub(crate) pag: antecedent::graph::TemporalPag,
     pub(crate) names: Vec<String>,
 }
 
@@ -978,26 +1058,29 @@ impl TemporalPag {
         names: Vec<String>,
         edges: Vec<(String, u32, String, u32, String, String)>,
     ) -> PyResult<Self> {
-        let mut g = antecedent_graph::TemporalPag::empty();
-        let var_of = |nm: &str| -> PyResult<VariableId> {
-            match names.iter().position(|n| n == nm) {
-                Some(i) => variable_id(i),
-                None => Err(unknown_node(nm)),
-            }
-        };
-        for (a, al, b, bl, at_a, at_b) in &edges {
-            let ia = ensure_lagged_pag(&mut g, var_of(a)?, Lag::from_raw(*al))?;
-            let ib = ensure_lagged_pag(&mut g, var_of(b)?, Lag::from_raw(*bl))?;
-            let edge = MarkedEdge {
-                a: ia,
-                b: ib,
-                at_a: parse_endpoint(at_a)?,
-                at_b: parse_endpoint(at_b)?,
-                middle: MiddleMark::Empty,
+        crate::catch_ffi(|| {
+            require_unique_names(&names)?;
+            let mut g = antecedent::graph::TemporalPag::empty();
+            let var_of = |nm: &str| -> PyResult<VariableId> {
+                match names.iter().position(|n| n == nm) {
+                    Some(i) => variable_id(i),
+                    None => Err(unknown_node(nm)),
+                }
             };
-            g.insert_marked(edge).map_err(py_err)?;
-        }
-        Ok(Self { pag: g, names })
+            for (a, al, b, bl, at_a, at_b) in &edges {
+                let ia = ensure_lagged_pag(&mut g, var_of(a)?, Lag::from_raw(*al))?;
+                let ib = ensure_lagged_pag(&mut g, var_of(b)?, Lag::from_raw(*bl))?;
+                let edge = MarkedEdge {
+                    a: ia,
+                    b: ib,
+                    at_a: parse_endpoint(at_a)?,
+                    at_b: parse_endpoint(at_b)?,
+                    middle: MiddleMark::Empty,
+                };
+                g.insert_marked(edge).map_err(py_err)?;
+            }
+            Ok(Self { pag: g, names })
+        })
     }
 
     fn node_count(&self) -> usize {
@@ -1021,10 +1104,12 @@ impl TemporalPag {
 
     /// Iterate over lagged node names (``"var[t-lag]"``) in stable order.
     fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<PyAny>> {
-        let names = slf.node_names()?;
-        let py = slf.py();
-        let list = PyList::new(py, names)?;
-        Ok(list.try_iter()?.into_any().unbind())
+        crate::catch_ffi(|| {
+            let names = slf.node_names()?;
+            let py = slf.py();
+            let list = PyList::new(py, names)?;
+            Ok(list.try_iter()?.into_any().unbind())
+        })
     }
 }
 
@@ -1033,6 +1118,9 @@ impl TemporalPag {
 #[derive(Clone)]
 pub struct TemporalAdmg {
     pub(crate) graph: RustTemporalAdmg,
+    /// Variable names in the order the graph's variable ids were numbered, which must be the
+    /// data's column order for a study to read it.
+    pub(crate) names: Vec<String>,
 }
 
 #[pymethods]
@@ -1045,70 +1133,126 @@ impl TemporalAdmg {
         directed: Vec<(String, u32, String, u32)>,
         bidirected: Option<Vec<(String, u32, String, u32)>>,
     ) -> PyResult<Self> {
-        let var_of = |nm: &str| -> PyResult<VariableId> {
-            match names.iter().position(|n| n == nm) {
-                Some(i) => variable_id(i),
-                None => Err(unknown_node(nm)),
-            }
-        };
-        let mut graph = RustTemporalAdmg::empty();
-        let ensure =
-            |graph: &mut RustTemporalAdmg, name: &str, lag: u32| -> PyResult<DenseNodeId> {
-                let variable = var_of(name)?;
-                let lag = Lag::from_raw(lag);
-                for (i, node) in graph.nodes().iter().enumerate() {
-                    if let NodeRef::Lagged { variable: existing, lag: existing_lag } = node {
-                        if *existing == variable && *existing_lag == lag {
+        crate::catch_ffi(|| {
+            require_unique_names(&names)?;
+            let var_of = |nm: &str| -> PyResult<VariableId> {
+                match names.iter().position(|n| n == nm) {
+                    Some(i) => variable_id(i),
+                    None => Err(unknown_node(nm)),
+                }
+            };
+            let mut graph = RustTemporalAdmg::empty();
+            let ensure =
+                |graph: &mut RustTemporalAdmg, name: &str, lag: u32| -> PyResult<DenseNodeId> {
+                    let variable = var_of(name)?;
+                    let lag = Lag::from_raw(lag);
+                    for (i, node) in graph.nodes().iter().enumerate() {
+                        if let NodeRef::Lagged { variable: existing, lag: existing_lag } = node
+                            && *existing == variable
+                            && *existing_lag == lag
+                        {
                             return dense_id(i);
                         }
                     }
-                }
-                graph.add_lagged(variable, lag).map_err(py_err)
-            };
-        for (src, src_lag, tgt, tgt_lag) in &directed {
-            let from = ensure(&mut graph, src, *src_lag)?;
-            let to = ensure(&mut graph, tgt, *tgt_lag)?;
-            graph.insert_directed(from, to).map_err(py_err)?;
-        }
-        for (a, a_lag, b, b_lag) in bidirected.unwrap_or_default() {
-            let left = ensure(&mut graph, &a, a_lag)?;
-            let right = ensure(&mut graph, &b, b_lag)?;
-            graph.insert_bidirected(left, right).map_err(py_err)?;
-        }
-        Ok(Self { graph })
+                    graph.add_lagged(variable, lag).map_err(py_err)
+                };
+            for (src, src_lag, tgt, tgt_lag) in &directed {
+                let from = ensure(&mut graph, src, *src_lag)?;
+                let to = ensure(&mut graph, tgt, *tgt_lag)?;
+                graph.insert_directed(from, to).map_err(py_err)?;
+            }
+            for (a, a_lag, b, b_lag) in bidirected.unwrap_or_default() {
+                let left = ensure(&mut graph, &a, a_lag)?;
+                let right = ensure(&mut graph, &b, b_lag)?;
+                graph.insert_bidirected(left, right).map_err(py_err)?;
+            }
+            Ok(Self { graph, names })
+        })
     }
 
     fn node_count(&self) -> usize {
         self.graph.node_count()
     }
+
+    /// Variable names in id order.
+    fn variable_names(&self) -> Vec<String> {
+        self.names.clone()
+    }
+
+    /// Directed and bidirected lagged edges as `(source, source_lag, target, target_lag)`.
+    fn edges(&self) -> PyResult<(Vec<LaggedEdge>, Vec<LaggedEdge>)> {
+        crate::catch_ffi(|| {
+            let label = |id: DenseNodeId| -> PyResult<(String, u32)> {
+                match self.graph.nodes().get(id.as_usize()) {
+                    Some(NodeRef::Lagged { variable, lag }) => {
+                        let name =
+                            self.names.get(variable.as_usize()).cloned().ok_or_else(|| {
+                                CausalGraphError::new_err(format!(
+                                    "variable id {} out of range",
+                                    variable.raw()
+                                ))
+                            })?;
+                        Ok((name, lag.raw()))
+                    }
+                    _ => Err(CausalGraphError::new_err(format!(
+                        "temporal node {} is not lagged",
+                        id.raw()
+                    ))),
+                }
+            };
+            let mut directed = Vec::new();
+            let mut bidirected = Vec::new();
+            for index in 0..self.graph.node_count() {
+                let from = dense_id(index)?;
+                for &to in self.graph.children(from) {
+                    let (source, source_lag) = label(from)?;
+                    let (target, target_lag) = label(to)?;
+                    directed.push((source, source_lag, target, target_lag));
+                }
+                for &other in self.graph.bidirected_neighbors(from) {
+                    if from < other {
+                        let (left, left_lag) = label(from)?;
+                        let (right, right_lag) = label(other)?;
+                        bidirected.push((left, left_lag, right, right_lag));
+                    }
+                }
+            }
+            Ok((directed, bidirected))
+        })
+    }
 }
 
+/// A lagged edge as `(source, source_lag, target, target_lag)`.
+type LaggedEdge = (String, u32, String, u32);
+
 fn ensure_lagged_cpdag(
-    g: &mut antecedent_graph::TemporalCpdag,
+    g: &mut antecedent::graph::TemporalCpdag,
     variable: VariableId,
     lag: Lag,
 ) -> PyResult<DenseNodeId> {
     // Reuse existing node if present.
     for (i, node) in g.nodes().iter().enumerate() {
-        if let NodeRef::Lagged { variable: v, lag: l } = node {
-            if *v == variable && *l == lag {
-                return dense_id(i);
-            }
+        if let NodeRef::Lagged { variable: v, lag: l } = node
+            && *v == variable
+            && *l == lag
+        {
+            return dense_id(i);
         }
     }
     g.add_lagged(variable, lag).map_err(py_err)
 }
 
 fn ensure_lagged_pag(
-    g: &mut antecedent_graph::TemporalPag,
+    g: &mut antecedent::graph::TemporalPag,
     variable: VariableId,
     lag: Lag,
 ) -> PyResult<DenseNodeId> {
     for (i, node) in g.nodes().iter().enumerate() {
-        if let NodeRef::Lagged { variable: v, lag: l } = node {
-            if *v == variable && *l == lag {
-                return dense_id(i);
-            }
+        if let NodeRef::Lagged { variable: v, lag: l } = node
+            && *v == variable
+            && *l == lag
+        {
+            return dense_id(i);
         }
     }
     g.add_lagged(variable, lag).map_err(py_err)

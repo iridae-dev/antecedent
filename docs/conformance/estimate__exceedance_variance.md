@@ -4,4 +4,4 @@
 
 ## Expected summary
 
-Top-level keys: `estimator, exceedance_delta, identifier, mean_ate, mean_tolerance, notes, threshold` (7 fields).
+Top-level keys: `estimator, evidence_kind, evidence_proposition, evidence_roles, evidence_source, exceedance_delta, identifier, limitations, mean_ate, mean_tolerance, notes, oracle, threshold` (13 fields).

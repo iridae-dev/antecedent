@@ -5,15 +5,15 @@
 //! with the functions in this module and their keys with [`calibration_basis`],
 //! so a coverage record describes exactly the construction a route reports. A
 //! construction here carries no authority of its own: a reported interval is
-//! licensed only when its key resolves to a currently attesting record.
+//! supported only when its key resolves to a currently attesting record.
 //!
 //! Two keys must never share a record set: a design measured at a fixed true
 //! value (which can under-cover where a stopping rule selects on the data) is
-//! keyed apart from the prior-predictive design that licenses a credible
+//! keyed apart from the prior-predictive design that supports a credible
 //! interval, and a final analysis without stopping is keyed apart from the
 //! designs that stop.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -35,10 +35,10 @@ pub const PARTICIPANT_SEQUENCE_ESTIMATOR: &str =
 pub const REPEATED_INTERVAL_ESTIMATOR: &str = "adaptive.group_sequential.repeated_interval";
 
 /// Success probability of the second arm: the functional the prior-predictive
-/// records license.
+/// records support.
 pub const THOMPSON_FUNCTIONAL: &str = "arm_success_probability:treatment";
 /// The same functional measured at fixed true values. It is a different key so
-/// that a named boundary at equal arms never governs the licensed interval.
+/// that a named boundary at equal arms never governs the supported interval.
 pub const THOMPSON_FIXED_TRUTH_FUNCTIONAL: &str = "arm_success_probability:treatment@fixed_truth";
 /// Contrast of the second arm against the first.
 pub const CONTRAST_FUNCTIONAL: &str = "arm_contrast:treatment_minus_control";
@@ -108,6 +108,7 @@ pub fn calibration_basis(
         None,
         0.0,
     )
+    .with_validation("not_applicable")
 }
 
 /// The calibration key of the participant-level procedure's confidence sequences: the
@@ -153,7 +154,7 @@ pub fn beta_credible_interval(alpha: f64, beta: f64, level: f64) -> Option<(f64,
         }
         Some(0.5 * (lo + hi))
     };
-    Some((quantile((1.0 - level) / 2.0)?, quantile((1.0 + level) / 2.0)?))
+    Some((quantile((1.0 - level) / 2.0)?, quantile(f64::midpoint(1.0, level))?))
 }
 
 /// Normal-approximation interval around an adaptively weighted estimate.

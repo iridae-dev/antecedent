@@ -35,18 +35,18 @@ fn refusal(error: EstimationError) -> (&'static str, String) {
     checks::coded_refusal(error)
 }
 
-fn treatment(name: &str, values: &[f64]) -> TreatmentColumn {
+fn treatment(name: &str, values: &[f64]) -> TreatmentColumn<'static> {
     TreatmentColumn {
-        name: name.into(),
-        values: values.to_vec(),
+        name: name.to_owned().into(),
+        values: values.to_vec().into(),
         adjustment_set: vec![],
         row_snapshot: "snap".into(),
     }
 }
 
-fn base_input() -> VectorTreatmentInput {
+fn base_input() -> VectorTreatmentInput<'static> {
     VectorTreatmentInput {
-        outcome: Y.to_vec(),
+        outcome: Y.to_vec().into(),
         row_snapshot: "snap".into(),
         adjustment: vec![],
         treatments: vec![treatment("t1", &X1), treatment("t2", &X2)],
@@ -86,7 +86,7 @@ fn vector_coefficients_and_full_covariance_match_hand_algebra() {
     close(fit.coefficients[0].z, 2.75 / (9.0 * S).sqrt(), "z1");
     close(fit.coefficients[0].p_value, erfc(fit.coefficients[0].z.abs() / 2.0_f64.sqrt()), "p1");
     assert_eq!(fit.null, VECTOR_TREATMENT_NULL);
-    assert_eq!(fit.calibration, CalibrationStatus::Unmeasured);
+    assert_eq!(fit.calibration, CalibrationStatus::NotMeasured);
     assert_eq!(fit.covariance_kind, VectorCovariance::ModelBased);
 }
 
@@ -174,9 +174,15 @@ fn vector_wald_test_over_declared_contrasts() {
     let negated = contrast("neg", &[("t1", -1.0), ("t2", 1.0)]);
     let (code, message) = refusal(fit.wald_test(&[diff, negated]).unwrap_err());
     assert_eq!(code, "invalid_argument");
-    assert!(message.contains("vector_treatment.degenerate_covariance"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::vector_treatment::DEGENERATE_COVARIANCE),
+        "{message}"
+    );
     let (_, empty) = refusal(fit.wald_test(&[]).unwrap_err());
-    assert!(empty.contains("vector_treatment.empty_contrast"), "{empty}");
+    assert!(
+        empty.contains(antecedent_core::reason_details::vector_treatment::EMPTY_CONTRAST),
+        "{empty}"
+    );
 }
 
 /// Treatment block of `Ginv M Ginv` with `M = sum_i w_i e_i^2 x_i x_i'`, all written out.
@@ -249,7 +255,7 @@ fn residualize(v: &[f64], z: &[f64]) -> Vec<f64> {
 fn vector_adjustment_matches_frisch_waugh_closed_form() {
     let z = [0.0, 1.0, 2.0, 0.0, 1.0, 2.0];
     let mut input = base_input();
-    input.adjustment = vec![NamedColumn { name: "z".into(), values: z.to_vec() }];
+    input.adjustment = vec![NamedColumn::new("z", z.to_vec())];
     for t in &mut input.treatments {
         t.adjustment_set = vec!["z".into()];
     }
@@ -296,15 +302,18 @@ fn vector_treatment_order_permutes_the_covariance_consistently() {
 #[test]
 fn vector_refuses_different_adjustment_sets() {
     let mut input = base_input();
-    input.adjustment =
-        vec![NamedColumn { name: "z".into(), values: vec![0.0, 1.0, 2.0, 0.0, 1.0, 3.0] }];
+    input.adjustment = vec![NamedColumn::new("z", vec![0.0, 1.0, 2.0, 0.0, 1.0, 3.0])];
     input.treatments[0].adjustment_set = vec!["z".into()];
     // t2 was declared against an empty set while the shared block holds `z`.
     let (code, message) = refusal(
         fit_vector_treatment(&input, &options(VectorCovariance::ModelBased, vec![])).unwrap_err(),
     );
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("vector_treatment.adjustment_set_mismatch"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::vector_treatment::ADJUSTMENT_SET_MISMATCH),
+        "{message}"
+    );
     assert!(message.contains("`t2`"), "{message}");
     // A treatment that names an adjustment column the shared block does not hold also refuses.
     let mut other = base_input();
@@ -312,7 +321,11 @@ fn vector_refuses_different_adjustment_sets() {
     let (_, message) = refusal(
         fit_vector_treatment(&other, &options(VectorCovariance::ModelBased, vec![])).unwrap_err(),
     );
-    assert!(message.contains("vector_treatment.adjustment_set_mismatch"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::vector_treatment::ADJUSTMENT_SET_MISMATCH),
+        "{message}"
+    );
 }
 
 #[test]
@@ -323,14 +336,20 @@ fn vector_refuses_different_row_snapshots_and_row_counts() {
         fit_vector_treatment(&input, &options(VectorCovariance::ModelBased, vec![])).unwrap_err(),
     );
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("vector_treatment.row_snapshot_mismatch"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::vector_treatment::ROW_SNAPSHOT_MISMATCH),
+        "{message}"
+    );
     let mut short = base_input();
-    short.treatments[1].values.pop();
+    short.treatments[1].values.to_mut().pop();
     let (code, message) = refusal(
         fit_vector_treatment(&short, &options(VectorCovariance::ModelBased, vec![])).unwrap_err(),
     );
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("vector_treatment.row_count_mismatch"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::vector_treatment::ROW_COUNT_MISMATCH),
+        "{message}"
+    );
 }
 
 #[test]
@@ -345,24 +364,36 @@ fn vector_refuses_constant_collinear_and_rank_deficient_designs() {
     constant.treatments[1] = treatment("t2", &[1.0; 6]);
     let (code, message) = run(&constant);
     assert_eq!(code, "design_rank_deficient");
-    assert!(message.contains("vector_treatment.treatment_without_variation"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::vector_treatment::TREATMENT_WITHOUT_VARIATION
+        ),
+        "{message}"
+    );
     assert!(message.contains("`t2`"), "{message}");
 
     let mut collinear = base_input();
     collinear.treatments[1] = treatment("t2", &[2.0, 0.0, 2.0, 0.0, 0.0, 2.0]);
     let (code, message) = run(&collinear);
     assert_eq!(code, "design_rank_deficient");
-    assert!(message.contains("vector_treatment.collinear_treatments"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::vector_treatment::COLLINEAR_TREATMENTS),
+        "{message}"
+    );
     assert!(message.contains("`t2`"), "{message}");
 
     let mut duplicated_adjustment = base_input();
-    duplicated_adjustment.adjustment = vec![NamedColumn { name: "w".into(), values: vec![1.0; 6] }];
+    duplicated_adjustment.adjustment = vec![NamedColumn::new("w", vec![1.0; 6])];
     for t in &mut duplicated_adjustment.treatments {
         t.adjustment_set = vec!["w".into()];
     }
     let (code, message) = run(&duplicated_adjustment);
     assert_eq!(code, "design_rank_deficient");
-    assert!(message.contains("vector_treatment.rank_deficient_adjustment"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::vector_treatment::RANK_DEFICIENT_ADJUSTMENT),
+        "{message}"
+    );
 }
 
 #[test]
@@ -377,29 +408,46 @@ fn vector_refuses_malformed_requests() {
     single.treatments.pop();
     let (code, message) = run(&single, vec![]);
     assert_eq!(code, "invalid_argument");
-    assert!(message.contains("vector_treatment.too_few_treatments"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::vector_treatment::TOO_FEW_TREATMENTS),
+        "{message}"
+    );
 
     let mut duplicate = base_input();
     duplicate.treatments[1].name = "t1".into();
     let (_, message) = run(&duplicate, vec![]);
-    assert!(message.contains("vector_treatment.duplicate_name"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::vector_treatment::DUPLICATE_NAME),
+        "{message}"
+    );
 
     let mut non_finite = base_input();
-    non_finite.outcome[0] = f64::NAN;
+    non_finite.outcome.to_mut()[0] = f64::NAN;
     let (_, message) = run(&non_finite, vec![]);
-    assert!(message.contains("vector_treatment.non_finite_value"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::vector_treatment::NON_FINITE_VALUE),
+        "{message}"
+    );
 
     let unknown = vec![contrast("bad", &[("t1", 1.0), ("nope", -1.0)])];
     let (_, message) = run(&base_input(), unknown);
-    assert!(message.contains("vector_treatment.unknown_contrast_coefficient"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::vector_treatment::UNKNOWN_CONTRAST_COEFFICIENT
+        ),
+        "{message}"
+    );
 
     // Three rows cannot support an intercept plus two treatments and a residual degree of freedom.
     let tiny = VectorTreatmentInput {
-        outcome: vec![1.0, 2.0, 4.0],
+        outcome: vec![1.0, 2.0, 4.0].into(),
         row_snapshot: "snap".into(),
         adjustment: vec![],
         treatments: vec![treatment("t1", &[1.0, 0.0, 1.0]), treatment("t2", &[0.0, 1.0, 1.0])],
     };
     let (_, message) = run(&tiny, vec![]);
-    assert!(message.contains("vector_treatment.too_few_rows"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::vector_treatment::TOO_FEW_ROWS),
+        "{message}"
+    );
 }

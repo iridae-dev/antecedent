@@ -11,9 +11,9 @@
 //! [`PredictiveAssessmentReport::request_causal_validity`] and
 //! [`PredictiveAssessmentReport::request_score_as_probability`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::convert::Infallible;
 
 use antecedent_core::{ExecutionContext, reason_code};
@@ -39,8 +39,208 @@ use super::refusal::{
 };
 use super::score::{EnsembleCrpsForm, ScoreKind, score_case_validated};
 
-/// Largest total scoring work an assessment accepts.
+/// Largest total scoring and comparison work an assessment accepts.
 pub const MAX_ASSESSMENT_WORK: u64 = 4_000_000_000;
+/// Admit directed comparisons before cloning or replay. Work units count each
+/// case/score/pair for seven linear passes and once per declared serial lag.
+/// It also charges repeated fit-key sorting and name traversal and copying
+/// using conservative structural estimates. These structural planning units do not predict wall-clock time.
+/// The explicit order is preserved; only exact duplicate directed pairs are refused.
+///
+/// # Errors
+/// Excess or duplicate pairs, overflowing work, or work above `max_work`.
+#[allow(clippy::too_many_lines, reason = "the bounded validation keeps related checks together")]
+pub fn admit_comparisons(
+    cases: usize,
+    predictors: &[(&str, u64)],
+    scores: usize,
+    pairs: &[(String, String)],
+    serial_lag: Option<u32>,
+    max_work: u64,
+) -> Result<u64, PredictiveAssessmentError> {
+    if predictors.len() > MAX_PREDICTORS {
+        return Err(bounds("too many predictors for comparisons"));
+    }
+    let max_pairs = predictors
+        .len()
+        .checked_mul(predictors.len().saturating_sub(1))
+        .ok_or_else(|| bounds("comparison count overflows"))?;
+    let count = if pairs.is_empty() { predictors.len().saturating_sub(1) } else { pairs.len() };
+    if count > max_pairs {
+        return Err(bounds("comparison count exceeds the directed predictor pairs"));
+    }
+    let work = u64::try_from(cases)
+        .ok()
+        .and_then(|n| n.checked_mul(u64::try_from(count).ok()?))
+        .and_then(|n| n.checked_mul(u64::try_from(scores).ok()?))
+        .and_then(|n| n.checked_mul(u64::from(serial_lag.unwrap_or(0)) + 7))
+        .ok_or_else(|| bounds("comparison work overflows"))?;
+    // The later resolver linearly searches predictor names for each explicit endpoint.
+    let lookup_work = if pairs.is_empty() {
+        0
+    } else {
+        u64::try_from(count)
+            .ok()
+            .and_then(|n| n.checked_mul(u64::try_from(predictors.len()).ok()?))
+            .and_then(|n| n.checked_mul(2))
+            .ok_or_else(|| bounds("comparison lookup work overflows"))?
+    };
+    // Bound bytes before inserting or looking up any attacker-controlled name
+    // in the B-trees. Two admissions can run during replay; 24 units per
+    // bit of tree height cover string comparisons in both. The six score
+    // units cover report-name copies, the difference prefix and up to four
+    // flattened labels. Explicit names also pay for linear resolution and
+    // canonical declaration copies.
+    let length = |name: &str| {
+        u64::try_from(name.len()).map_err(|_| bounds("comparison name work overflows"))
+    };
+    let tree_height = |n: usize| u64::from(usize::BITS - n.leading_zeros());
+    let predictor_height = tree_height(predictors.len());
+    let count_height = tree_height(count);
+    let predictor_bytes = predictors
+        .iter()
+        .try_fold(0_u64, |sum, (name, _)| sum.checked_add(length(name).ok()?))
+        .ok_or_else(|| bounds("comparison name work overflows"))?;
+    let predictor_byte_work = predictor_bytes
+        .checked_mul(24 * predictor_height + 2)
+        .ok_or_else(|| bounds("comparison name work overflows"))?;
+    let selected_bytes = if pairs.is_empty() {
+        if let Some((anchor, _)) = predictors.first() {
+            predictors[1..]
+                .iter()
+                .try_fold(0_u64, |sum, (name, _)| {
+                    sum.checked_add(length(anchor).ok()?)?.checked_add(length(name).ok()?)
+                })
+                .ok_or_else(|| bounds("comparison name work overflows"))?
+        } else {
+            0
+        }
+    } else {
+        pairs
+            .iter()
+            .try_fold(0_u64, |sum, (candidate, reference)| {
+                sum.checked_add(length(candidate).ok()?)?.checked_add(length(reference).ok()?)
+            })
+            .ok_or_else(|| bounds("comparison name work overflows"))?
+    };
+    let score_units = u64::try_from(scores)
+        .ok()
+        .and_then(|n| n.checked_mul(6))
+        .ok_or_else(|| bounds("comparison name work overflows"))?;
+    let pair_units = if pairs.is_empty() {
+        score_units
+    } else {
+        u64::try_from(predictors.len())
+            .ok()
+            .and_then(|n| n.checked_add(24 * (predictor_height + count_height)))
+            .and_then(|n| n.checked_add(2))
+            .and_then(|n| n.checked_add(score_units))
+            .ok_or_else(|| bounds("comparison name work overflows"))?
+    };
+    let name_work = selected_bytes
+        .checked_mul(pair_units)
+        .and_then(|n| n.checked_add(predictor_byte_work))
+        .ok_or_else(|| bounds("comparison name work overflows"))?;
+    let mut work = work
+        .checked_add(lookup_work)
+        .and_then(|n| n.checked_add(name_work))
+        .ok_or_else(|| bounds("comparison work overflows"))?;
+    if work > max_work {
+        return Err(bounds(format!(
+            "comparison work {work} exceeds the {max_work} operation allowance"
+        )));
+    }
+    // Each endpoint's keys are cloned, sorted and scanned once per pair. The
+    // lookup borrows names; it does not clone the (potentially large) pair list.
+    let mut by_name = BTreeMap::new();
+    for &(name, keys) in predictors {
+        if by_name.insert(name, keys).is_some() {
+            return Err(invalid(detail::INVALID_LAW, "predictor names must be distinct"));
+        }
+    }
+    let key_work = |keys: u64| -> Result<u64, PredictiveAssessmentError> {
+        let units = u64::from(u64::BITS - keys.leading_zeros()) + 2;
+        keys.checked_mul(units).ok_or_else(|| bounds("fit key work overflows"))
+    };
+    let mut charge = |a: u64, b: u64| -> Result<(), PredictiveAssessmentError> {
+        work = work
+            .checked_add(key_work(a)?)
+            .and_then(|n| n.checked_add(key_work(b).ok()?))
+            .ok_or_else(|| bounds("comparison work overflows"))?;
+        if work > max_work {
+            return Err(bounds(format!(
+                "comparison work {work} exceeds the {max_work} operation allowance"
+            )));
+        }
+        Ok(())
+    };
+    if pairs.is_empty() {
+        if let Some((_, anchor)) = predictors.first() {
+            for &(_, keys) in &predictors[1..] {
+                charge(keys, *anchor)?;
+            }
+        }
+    } else {
+        let mut seen = BTreeSet::new();
+        for (candidate, reference) in pairs {
+            if !seen.insert((candidate.as_str(), reference.as_str())) {
+                return Err(invalid(detail::INVALID_LAW, "a directed comparison repeats"));
+            }
+            let lookup = |name: &str| {
+                by_name.get(name).copied().ok_or_else(|| {
+                    invalid(
+                        detail::INVALID_LAW,
+                        format!("comparison names predictor `{name}`, which is not assessed"),
+                    )
+                })
+            };
+            if candidate == reference {
+                return Err(invalid(
+                    detail::INVALID_LAW,
+                    format!("`{candidate}` is compared with itself"),
+                ));
+            }
+            charge(lookup(candidate)?, lookup(reference)?)?;
+        }
+    }
+    Ok(work)
+}
+
+fn comparison_predictors(predictors: &[PredictorLaws]) -> Vec<(&str, u64)> {
+    predictors
+        .iter()
+        .map(|p| {
+            (
+                p.name.as_str(),
+                match &p.fit {
+                    super::overlap::FitDeclaration::FittedOn(keys) => {
+                        u64::try_from(keys.len()).unwrap_or(u64::MAX)
+                    }
+                    super::overlap::FitDeclaration::PerCase(fits) => {
+                        fits.iter().fold(0u64, |sum, fit| {
+                            let n = match fit {
+                                super::overlap::FitDeclaration::FittedOn(keys) => {
+                                    u64::try_from(keys.len()).unwrap_or(u64::MAX)
+                                }
+                                _ => 0,
+                            };
+                            sum.saturating_add(n)
+                        })
+                    }
+                    _ => 0,
+                },
+            )
+        })
+        .collect()
+}
+
+fn serial_lag(dependence: Option<&DependenceDeclaration>) -> Option<u32> {
+    match dependence {
+        Some(DependenceDeclaration::Serial { truncation_lag, .. }) => Some(*truncation_lag),
+        _ => None,
+    }
+}
+
 /// The family name every report carries.
 pub const ASSESSMENT_FAMILY: &str = "predictive_assessment";
 /// The inference claim of every report: scores are point values.
@@ -128,6 +328,17 @@ impl PredictiveAssessmentSpec {
     /// A design or dependence declaration whose arrays do not have one entry per
     /// case, or an iid declaration for a temporal or clustered design.
     pub fn canonicalized(&self) -> Result<Self, PredictiveAssessmentError> {
+        if self.predictors.len() > MAX_PREDICTORS {
+            return Err(bounds("too many predictors for comparisons"));
+        }
+        admit_comparisons(
+            self.observations.ids.len(),
+            &comparison_predictors(&self.predictors),
+            self.scores.len(),
+            &self.comparisons,
+            serial_lag(self.dependence.as_ref()),
+            MAX_ASSESSMENT_WORK,
+        )?;
         let resolved =
             resolve_design(&self.design, self.dependence.as_ref(), &self.observations.ids)?;
         let order = &resolved.order;
@@ -217,8 +428,8 @@ impl AssessmentUncertainty {
     pub const fn withheld() -> Self {
         Self {
             sampling_interval: "not reported",
-            reason_code: reason_code!("cell_not_licensed"),
-            detail: detail::INTERVAL_NOT_LICENSED,
+            reason_code: reason_code!("uncertainty_representation_insufficient"),
+            detail: detail::INTERVAL_NOT_SUPPORTED,
         }
     }
 }
@@ -258,7 +469,8 @@ impl PredictiveAssessmentReport {
     /// [`super::expected_score_interval`].
     ///
     /// # Errors
-    /// Always `cell_not_licensed` with `predictive_assessment.interval_not_licensed`.
+    /// Always `quantity_semantics_mismatch` with `predictive_assessment.interval_not_supported`:
+    /// the request names no predictor, score or level.
     pub fn request_score_interval(&self) -> Result<Infallible, PredictiveAssessmentError> {
         Err(interval_refusal())
     }
@@ -294,8 +506,8 @@ impl PredictiveAssessmentReport {
 
 pub(crate) fn interval_refusal() -> PredictiveAssessmentError {
     refuse(
-        reason_code!("cell_not_licensed"),
-        detail::INTERVAL_NOT_LICENSED,
+        reason_code!("quantity_semantics_mismatch"),
+        detail::INTERVAL_NOT_SUPPORTED,
         "the report states point scores, paired differences and the Diebold-Mariano style \
          statistic as diagnostics and carries no interval. An interval is a statement about \
          the expected score of one predictor (or the expected difference of two) under the \
@@ -314,23 +526,34 @@ fn sorted_keys(keys: &[ObservationKey]) -> Vec<ObservationKey> {
 
 /// Validate everything that does not need the design resolved.
 fn validate_spec(spec: &PredictiveAssessmentSpec) -> Result<(), PredictiveAssessmentError> {
+    if spec.predictors.len() > MAX_PREDICTORS {
+        return Err(bounds("too many predictors for comparisons"));
+    }
+    let comparison_work = admit_comparisons(
+        spec.observations.ids.len(),
+        &comparison_predictors(&spec.predictors),
+        spec.scores.len(),
+        &spec.comparisons,
+        serial_lag(spec.dependence.as_ref()),
+        MAX_ASSESSMENT_WORK,
+    )?;
     if spec.score_interval.is_some() {
         return Err(interval_refusal());
     }
     spec.observations.validate()?;
     let cases = spec.observations.ids.len();
-    if let ValidationDesign::RollingOrigin { horizon_steps, .. } = &spec.design {
-        if spec.observations.target.horizon != Horizon::Steps(*horizon_steps) {
-            return Err(refuse(
-                reason_code!("quantity_semantics_mismatch"),
-                detail::HORIZON_MISMATCH,
-                format!(
-                    "the rolling-origin design forecasts {horizon_steps} steps ahead but the \
+    if let ValidationDesign::RollingOrigin { horizon_steps, .. } = &spec.design
+        && spec.observations.target.horizon != Horizon::Steps(*horizon_steps)
+    {
+        return Err(refuse(
+            reason_code!("quantity_semantics_mismatch"),
+            detail::HORIZON_MISMATCH,
+            format!(
+                "the rolling-origin design forecasts {horizon_steps} steps ahead but the \
                      observations are {}; declare the target horizon the design evaluates",
-                    spec.observations.target.horizon.describe()
-                ),
-            ));
-        }
+                spec.observations.target.horizon.describe()
+            ),
+        ));
     }
     if spec.predictors.is_empty() || spec.predictors.len() > MAX_PREDICTORS {
         return Err(bounds(format!(
@@ -360,15 +583,20 @@ fn validate_spec(spec: &PredictiveAssessmentSpec) -> Result<(), PredictiveAssess
         return Err(invalid(detail::SCORE_NOT_DEFINED, "a score is requested more than once"));
     }
     check_configuration(spec.pit_bins, spec.reliability_bins, &spec.interval_levels)?;
+    let fit_work = comparison_predictors(&spec.predictors)
+        .iter()
+        .fold(0u64, |sum, (_, keys)| sum.saturating_add(*keys));
     let work: u64 = spec
         .predictors
         .iter()
         .flat_map(|p| p.laws.iter().map(ForecastLaw::work))
         .fold(0_u64, u64::saturating_add)
-        .saturating_mul(spec.scores.len() as u64);
+        .saturating_mul(spec.scores.len() as u64)
+        .saturating_add(comparison_work)
+        .saturating_add(fit_work);
     if work > MAX_ASSESSMENT_WORK {
         return Err(bounds(format!(
-            "the assessment needs about {work} scoring operations; at most \
+            "the assessment needs about {work} scoring and comparison operations; at most \
              {MAX_ASSESSMENT_WORK} are admitted. Assess fewer cases or smaller samples"
         )));
     }
@@ -466,8 +694,21 @@ pub fn assess_predictive_laws(
         canonical(spec.observations.outcomes.as_slice(), &resolved.order);
     let mut assessments = Vec::with_capacity(spec.predictors.len());
     for predictor in &spec.predictors {
-        let overlap =
-            decide_overlap(&predictor.name, &predictor.fit, &assessed, spec.overlap_policy)?;
+        let overlap = match &predictor.fit {
+            super::overlap::FitDeclaration::PerCase(fits) => super::overlap::decide_case_overlap(
+                &predictor.name,
+                fits,
+                keys,
+                spec.overlap_policy,
+                match &spec.design {
+                    ValidationDesign::RollingOrigin { origins, horizon_steps } => {
+                        Some((origins.as_slice(), *horizon_steps))
+                    }
+                    _ => None,
+                },
+            )?,
+            fit => decide_overlap(&predictor.name, fit, &assessed, spec.overlap_policy)?,
+        };
         let scores = score_predictor(spec, predictor, &resolved, ctx)?;
         let laws_c: Vec<ForecastLaw> = canonical(predictor.laws.as_slice(), &resolved.order);
         let mut diagnostics = diagnose(
@@ -539,16 +780,37 @@ pub(crate) fn assessment_identity(
     spec: &PredictiveAssessmentSpec,
     resolved: &ResolvedDesign,
 ) -> AssessmentIdentity {
+    assessment_identity_with_provenance(spec, resolved, true)
+}
+
+/// Reconstruct the digest-only identity used by legacy v1 artifacts.
+///
+/// # Errors
+/// The declared design or dependence cannot be resolved.
+#[doc(hidden)]
+pub fn legacy_assessment_identity(
+    spec: &PredictiveAssessmentSpec,
+) -> Result<AssessmentIdentity, PredictiveAssessmentError> {
+    let resolved = resolve_design(&spec.design, spec.dependence.as_ref(), &spec.observations.ids)?;
+    Ok(assessment_identity_with_provenance(spec, &resolved, false))
+}
+
+fn assessment_identity_with_provenance(
+    spec: &PredictiveAssessmentSpec,
+    resolved: &ResolvedDesign,
+    bind_provenance: bool,
+) -> AssessmentIdentity {
     let observations = observations_digest(
         &spec.observations.target,
         &spec.observations.ids,
         &spec.observations.outcomes,
         &resolved.order,
+        bind_provenance,
     );
     let mut predictors: Vec<(String, String)> = spec
         .predictors
         .iter()
-        .map(|p| (p.name.clone(), predictor_digest(p, &resolved.order)))
+        .map(|p| (p.name.clone(), predictor_digest(p, &resolved.order, bind_provenance)))
         .collect();
     predictors.sort();
     let design = design_digest(&spec.design, spec.dependence.as_ref(), resolved);

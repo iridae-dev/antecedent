@@ -1,18 +1,85 @@
 //! Cross-fitted nuisance and outcome-target fits.
 
 use antecedent_stats::{
-    AdditiveDesign, FaerBackend, GamOptions, GamWorkspace, GaussianMixtureDensity, PredictorMatrix,
-    SmoothSpec, fit_gam, fit_gam_weighted_design, gaussian_density,
+    AdditiveDesign, FaerBackend, GamWorkspace, GaussianMixtureDensity, PredictorMatrix,
+    RoughnessPenalty, SmoothSpec, fit_gam, fit_gam_fixed_weighted_design, fit_gam_weighted_design,
+    gaussian_density,
 };
 
 use crate::EstimationError;
 
 use super::{
-    CONDITIONAL_DENSITY_FLOOR, ContinuousResponseEstimator, CrossFitFold, GAM_TARGET_NOT_CONVERGED,
-    PLUGIN_TARGET_LAMBDA, PseudoOutcome, ensure_crossfit_size, fit_additive, fit_additive_design,
-    plugin::predict_one, require_converged_gam, sample::CompleteSample, treatment_sigma,
-    treatment_sigma_train_weighted,
+    ADE_NUISANCE_PENALTY, CONDITIONAL_DENSITY_FLOOR, ContinuousResponseEstimator, CrossFitFold,
+    GAM_TARGET_NOT_CONVERGED, NUISANCE_BACKFIT, PLUGIN_TARGET_LAMBDA, PseudoOutcome,
+    ensure_crossfit_size, fit_additive, fit_additive_design, plugin::predict_one,
+    require_converged_gam, sample::CompleteSample, treatment_sigma, treatment_sigma_train_weighted,
 };
+
+// Bound the retained expanded bases and row lists for all folds, plus the
+// largest one-fold subset, knot-sort and basis-copy construction scratch.
+fn prepared_fold_bytes(
+    n: usize,
+    folds: usize,
+    raw: usize,
+    adjustment: usize,
+    basis: usize,
+) -> Option<usize> {
+    use std::mem::size_of;
+    let mut bytes = 0usize;
+    let mut add = |count: usize, width: usize| -> Option<()> {
+        bytes = bytes.checked_add(count.checked_mul(width)?)?;
+        Some(())
+    };
+    let train_rows = n.checked_mul(folds.checked_sub(1)?)?;
+    let terms = raw.checked_add(adjustment)?;
+    add(train_rows.checked_mul(terms)?.checked_mul(basis)?, size_of::<f64>())?;
+    add(train_rows.checked_mul(2)?, size_of::<f64>())?;
+    add(n.checked_mul(folds)?, size_of::<usize>())?;
+    let smooths = folds.checked_mul(terms)?;
+    let smooth_metadata = size_of::<SmoothSpec>()
+        .checked_add(size_of::<antecedent_stats::RecordedSmooth>())?
+        .checked_add(size_of::<std::sync::Arc<[f64]>>())?
+        .checked_add(size_of::<usize>())?;
+    add(smooths, smooth_metadata)?;
+    add(smooths.checked_mul(basis.checked_add(4)?)?, size_of::<f64>())?;
+    // Each basis and knot Arc has two reference counters.
+    add(smooths.checked_mul(4)?, size_of::<usize>())?;
+    add(folds, size_of::<CrossFitFold>())?;
+    let subset = n.checked_mul(raw.max(adjustment))?;
+    let one_basis_copy = n.checked_mul(basis)?;
+    add(subset.checked_add(one_basis_copy)?.checked_add(n)?, size_of::<f64>())?;
+    add(raw.max(adjustment), size_of::<SmoothSpec>())?;
+    Some(bytes)
+}
+
+/// Density ratio with a dimensionless conditional-density floor.
+pub(super) fn kennedy_density_ratio(
+    conditional: f64,
+    marginal: f64,
+    sigma: f64,
+) -> Result<(f64, bool), EstimationError> {
+    if !sigma.is_finite() || sigma <= 0.0 {
+        return Err(EstimationError::unsupported(
+            "Gaussian treatment nuisance has degenerate residual variance",
+        ));
+    }
+    if !conditional.is_finite() || conditional < 0.0 || !marginal.is_finite() || marginal < 0.0 {
+        return Err(EstimationError::stats_msg("treatment nuisance density is invalid"));
+    }
+    let standardized = sigma * conditional;
+    let numerator = sigma * marginal;
+    if !standardized.is_finite() || !numerator.is_finite() {
+        return Err(EstimationError::stats_msg(
+            "standardized treatment nuisance density is invalid",
+        ));
+    }
+    let floored = standardized <= CONDITIONAL_DENSITY_FLOOR;
+    let ratio = numerator / standardized.max(CONDITIONAL_DENSITY_FLOOR);
+    if !ratio.is_finite() {
+        return Err(EstimationError::stats_msg("treatment nuisance density ratio is invalid"));
+    }
+    Ok((ratio, floored))
+}
 
 impl ContinuousResponseEstimator {
     pub(super) fn cross_fitted_pseudo_outcome(
@@ -33,17 +100,57 @@ impl ContinuousResponseEstimator {
         &self,
         sample: &CompleteSample,
     ) -> Result<Vec<CrossFitFold>, EstimationError> {
+        self.cross_fit_folds_with(sample, RoughnessPenalty::default())
+    }
+
+    /// [`Self::cross_fit_folds`] under the average-derivative nuisance penalty.
+    pub(super) fn cross_fit_folds_ade(
+        &self,
+        sample: &CompleteSample,
+    ) -> Result<Vec<CrossFitFold>, EstimationError> {
+        self.cross_fit_folds_with(sample, ADE_NUISANCE_PENALTY)
+    }
+
+    fn cross_fit_folds_with(
+        &self,
+        sample: &CompleteSample,
+        penalty: RoughnessPenalty,
+    ) -> Result<Vec<CrossFitFold>, EstimationError> {
         let n = sample.len();
         ensure_crossfit_size(n, self.options.folds, self.options.nuisance_basis)?;
+        let bytes = prepared_fold_bytes(
+            n,
+            self.options.folds,
+            sample.raw_cols,
+            sample.adjustment_cols,
+            self.options.nuisance_basis,
+        )
+        .ok_or(EstimationError::Admission(antecedent_core::execution::AdmissionError::Overflow))?;
+        let admission = crate::util::admit_bound_array::<u8>(bytes, 1)?.map(std::sync::Arc::new);
         (0..self.options.folds)
             .map(|fold| {
-                let train: Vec<usize> = (0..n).filter(|i| i % self.options.folds != fold).collect();
-                let valid: Vec<usize> = (0..n).filter(|i| i % self.options.folds == fold).collect();
+                if antecedent_core::numerical_admission::is_cancelled() {
+                    return Err(EstimationError::unsupported_coded(
+                        antecedent_core::reason_code!("cancelled_no_claim"),
+                        "response cross-fit preparation was cancelled",
+                    ));
+                }
+                let valid_count =
+                    n / self.options.folds + usize::from(fold < n % self.options.folds);
+                let mut train = Vec::with_capacity(n - valid_count);
+                let mut valid = Vec::with_capacity(valid_count);
+                for row in 0..n {
+                    if row % self.options.folds == fold {
+                        valid.push(row);
+                    } else {
+                        train.push(row);
+                    }
+                }
                 let outcome_design = AdditiveDesign::expand(
                     &sample.raw_subset(&train),
                     train.len(),
                     sample.raw_cols,
-                    &self.nuisance_specs(sample.raw_cols),
+                    &self.nuisance_specs(sample.raw_cols, penalty),
                 )?;
                 let treatment_design = if sample.adjustment_cols == 0 {
                     None
@@ -52,10 +159,11 @@ impl ContinuousResponseEstimator {
                         &sample.adjustment_subset(&train),
                         train.len(),
                         sample.adjustment_cols,
-                        &self.nuisance_specs(sample.adjustment_cols),
+                        &self.nuisance_specs(sample.adjustment_cols, penalty),
                     )?)
                 };
                 Ok(CrossFitFold {
+                    _admission: admission.clone(),
                     outcome: train.iter().map(|&i| sample.outcome[i]).collect(),
                     treatment: train.iter().map(|&i| sample.treatments[i]).collect(),
                     train,
@@ -69,10 +177,11 @@ impl ContinuousResponseEstimator {
 
     /// Penalized nuisance smooths over `ncols` raw columns, knots at the sample
     /// quantiles of the rows they are expanded over.
-    fn nuisance_specs(&self, ncols: usize) -> Vec<SmoothSpec> {
+    fn nuisance_specs(&self, ncols: usize, penalty: RoughnessPenalty) -> Vec<SmoothSpec> {
         (0..ncols)
             .map(|col| {
                 SmoothSpec::new(col, self.options.nuisance_basis, self.options.nuisance_lambda)
+                    .with_penalty(penalty)
             })
             .collect()
     }
@@ -210,15 +319,13 @@ impl ContinuousResponseEstimator {
                 };
                 let raw_density =
                     gaussian_density(sample.treatment_matrix[i], treatment_mean, sigma);
-                if !raw_density.is_finite() || raw_density <= CONDITIONAL_DENSITY_FLOOR {
-                    density_floor_rows += 1;
-                }
-                let conditional_density = raw_density.max(CONDITIONAL_DENSITY_FLOOR);
                 let marginal_density = marginal_mixture.density(sample.treatment_matrix[i]);
+                let (density_ratio, floored) =
+                    kennedy_density_ratio(raw_density, marginal_density, sigma)?;
+                density_floor_rows += usize::from(floored);
                 let marginal_mu = covariate_offset
                     + outcome_fit.smooth_partial(treat_smooth, sample.treatment_matrix[i])?;
-                pseudo[i] = marginal_mu
-                    + (sample.outcome[i] - mu_observed) * marginal_density / conditional_density;
+                pseudo[i] = marginal_mu + (sample.outcome[i] - mu_observed) * density_ratio;
                 covariate_centered[i] = mu_observed - marginal_mu;
             }
         }
@@ -290,7 +397,7 @@ impl ContinuousResponseEstimator {
             &PredictorMatrix::new(&x, sample.len(), sample.raw_cols),
             &sample.outcome,
             &specs,
-            &GamOptions { max_iter: 500, tol: 1e-6 },
+            &NUISANCE_BACKFIT,
             &FaerBackend,
             &mut gam_ws,
         );
@@ -329,13 +436,21 @@ impl ContinuousResponseEstimator {
         weights: Option<&[f64]>,
     ) -> Result<antecedent_stats::GamFit, EstimationError> {
         let mut gam_ws = GamWorkspace::default();
-        let fit = fit_gam_weighted_design(
-            design,
-            &sample.outcome,
-            &GamOptions { max_iter: 500, tol: 1e-6 },
-            weights,
-            &mut gam_ws,
-        )?;
+        let direct = if weights.is_some() {
+            fit_gam_fixed_weighted_design(design, &sample.outcome, weights, &mut gam_ws)?
+        } else {
+            None
+        };
+        let fit = match direct {
+            Some(fit) => fit,
+            None => fit_gam_weighted_design(
+                design,
+                &sample.outcome,
+                &NUISANCE_BACKFIT,
+                weights,
+                &mut gam_ws,
+            )?,
+        };
         if !fit.converged {
             return Err(EstimationError::stats_msg("weighted GAM did not converge"));
         }
@@ -348,6 +463,16 @@ impl ContinuousResponseEstimator {
         rows: &[usize],
         workspace: &mut GamWorkspace,
     ) -> Result<antecedent_stats::GamFit, EstimationError> {
+        self.fit_outcome_with(sample, rows, RoughnessPenalty::default(), workspace)
+    }
+
+    pub(super) fn fit_outcome_with(
+        &self,
+        sample: &CompleteSample,
+        rows: &[usize],
+        penalty: RoughnessPenalty,
+        workspace: &mut GamWorkspace,
+    ) -> Result<antecedent_stats::GamFit, EstimationError> {
         let x = sample.raw_subset(rows);
         let y: Vec<f64> = rows.iter().map(|&i| sample.outcome[i]).collect();
         fit_additive(
@@ -357,14 +482,26 @@ impl ContinuousResponseEstimator {
             &y,
             self.options.nuisance_basis,
             self.options.nuisance_lambda,
+            penalty,
             workspace,
         )
     }
 
+    #[cfg(test)]
     pub(super) fn fit_treatment(
         &self,
         sample: &CompleteSample,
         rows: &[usize],
+        workspace: &mut GamWorkspace,
+    ) -> Result<Option<antecedent_stats::GamFit>, EstimationError> {
+        self.fit_treatment_with(sample, rows, RoughnessPenalty::default(), workspace)
+    }
+
+    pub(super) fn fit_treatment_with(
+        &self,
+        sample: &CompleteSample,
+        rows: &[usize],
+        penalty: RoughnessPenalty,
         workspace: &mut GamWorkspace,
     ) -> Result<Option<antecedent_stats::GamFit>, EstimationError> {
         if sample.adjustment_cols == 0 {
@@ -379,6 +516,7 @@ impl ContinuousResponseEstimator {
             &y,
             self.options.nuisance_basis,
             self.options.nuisance_lambda,
+            penalty,
             workspace,
         )
         .map(Some)

@@ -1,10 +1,16 @@
 //! Shared estimation prepare helpers.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::execution_attempt::{PhysicalEvent, record_physical};
 use antecedent_core::{
     AverageEffectQuery, Intervention, PopulationRegistry, TargetPopulation, VariableId,
 };
+use antecedent_data::materialize::{
+    EstimatorStreamNeed, PreparationBudget, PreparationControls, PreparationProduct,
+    PreparationReceipt, prepare_table,
+};
+use antecedent_data::{MissingPolicy, TableView, TabularData};
 use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
 use antecedent_identify::{EstimandClaim, IdentificationResult};
 
@@ -116,6 +122,356 @@ pub(crate) fn validate_ate_query_with_targets(
     Ok(())
 }
 
+thread_local! {
+    static AMBIENT_BUDGET: std::cell::Cell<Option<PreparationBudget>> =
+        const { std::cell::Cell::new(None) };
+}
+
+/// Run `prepare` with every estimator preparation on this thread admitted against `budget`.
+///
+/// Inside the call, [`admit_estimator_columns`] compares the payload with the budget: a
+/// payload over it is refused, and one inside it yields a receipt whose route is a proved
+/// bound (`route_bound = "proved"`, `budget_bytes` recorded). Outside it the payload is
+/// unmetered and only the rows are proved. The previous budget is restored on return or
+/// unwind, so nesting is safe.
+///
+/// The planner wraps an estimator's prepare in this with
+/// [`PreparationBudget::from_limits`] of the study's execution context.
+pub fn with_preparation_budget<T>(budget: PreparationBudget, prepare: impl FnOnce() -> T) -> T {
+    struct Restore(Option<PreparationBudget>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            AMBIENT_BUDGET.with(|slot| slot.set(self.0));
+        }
+    }
+    let _restore = Restore(AMBIENT_BUDGET.with(|slot| slot.replace(Some(budget))));
+    prepare()
+}
+
+/// The budget [`with_preparation_budget`] set on this thread, if any.
+#[must_use]
+pub fn ambient_preparation_budget() -> Option<PreparationBudget> {
+    AMBIENT_BUDGET.with(std::cell::Cell::get)
+}
+
+/// What every estimator in this crate reads: one finite table, never a scan.
+///
+/// An estimator declares this to [`admit_estimator_columns`]. A frame it cannot
+/// stream is refused or explicitly materialized before it gets here, and the
+/// receipt says which.
+pub(crate) const FINITE_TABLE_ONLY: EstimatorStreamNeed = EstimatorStreamNeed::CannotStream;
+
+/// The finite table an estimator reads, with the products of preparing it.
+pub(crate) struct AdmittedColumns<'a> {
+    /// The table the estimator reads.
+    pub data: &'a TabularData,
+    /// Complete-case mask over `data`'s rows, computed once by preparation.
+    pub row_mask: Vec<bool>,
+    /// Preparation receipt. A byte budget is compared only under a workflow context;
+    /// without one the route is not described as bounded.
+    pub receipt: PreparationReceipt,
+}
+
+/// The summary an estimate records for the receipt its columns were admitted under.
+pub(crate) fn preparation_summary(
+    receipt: &PreparationReceipt,
+) -> std::sync::Arc<crate::PreparationSummary> {
+    std::sync::Arc::new(crate::PreparationSummary::from_receipt(receipt))
+}
+
+/// Test check that an estimate recorded the preparation of a table of `rows` rows.
+#[cfg(test)]
+pub(crate) fn assert_records_preparation(estimate: &crate::EffectEstimate, rows: u64) {
+    let summary = estimate
+        .provenance
+        .preparation
+        .as_ref()
+        .expect("the estimate must record its preparation receipt");
+    assert_eq!(summary.backend, "direct_arrow");
+    assert_eq!(summary.rows_admitted, Some(rows));
+    assert_eq!(summary.route_bound, "rows_only");
+    assert!(!summary.receipt_digest.is_empty());
+    // The resource facts are the receipt's: a finite payload that no budget was compared with.
+    assert!(summary.admitted_bytes.is_some_and(|bytes| bytes > 0));
+    assert_eq!(summary.budget_bytes, None);
+    assert_eq!(summary.delivery.as_deref(), Some("finite"));
+}
+
+/// Most distinct treatment values a column may take and still be read as discrete levels
+/// rather than as a continuous dose.
+pub(crate) const MAX_DISCRETE_LEVELS: usize = 10;
+
+/// Restrict the rows of a regression-based contrast to the two contrasted levels when the
+/// treatment is a discrete column with further levels.
+///
+/// A regression that enters the treatment as one numeric column reads a column such as
+/// `0/1/2` as a dose, so "level 1 against level 0" would be the fitted slope, not the contrast
+/// of the two levels. A column counts as discrete when it takes at most
+/// [`MAX_DISCRETE_LEVELS`] distinct values, holds both contrasted levels, and holds some other
+/// value. Such rows are refused with `treatment_level_undeclared`, naming the observed levels,
+/// unless `other_levels` declares the restriction to the rows at the two levels, in which case
+/// the mask is narrowed and the exclusion is returned for the result to report. Any other
+/// column (two-valued, or continuous) is left alone and returns `None`.
+///
+/// # Errors
+///
+/// A column read failure, or `treatment_level_undeclared` as above.
+#[allow(
+    clippy::float_cmp,
+    reason = "declared treatment levels are exact category labels, not computed values"
+)]
+pub(crate) fn restrict_to_contrast_levels(
+    data: &TabularData,
+    treatment: VariableId,
+    row_mask: &mut [bool],
+    (active, control): (f64, f64),
+    other_levels: crate::propensity::levels::OtherLevels,
+) -> Result<Option<crate::propensity::levels::DeclaredTreatmentLevels>, EstimationError> {
+    let values = data.float64_selected(treatment, row_mask).map_err(EstimationError::from)?;
+    require_contrast_arms_populated(&values, active, control)?;
+    if !is_discrete_with_other_levels(&values, active, control) {
+        return Ok(None);
+    }
+    let (keep, levels) = crate::propensity::levels::classify_treatment_levels(
+        &values,
+        active,
+        control,
+        other_levels,
+    )?;
+    let mut decisions = keep.iter().copied();
+    for slot in row_mask.iter_mut().filter(|slot| **slot) {
+        *slot = decisions.next().unwrap_or(false);
+    }
+    Ok(Some(levels))
+}
+
+/// Refuse a contrast to a level that no complete-case row of a discrete treatment carries.
+///
+/// A treatment that takes at most [`MAX_DISCRETE_LEVELS`] distinct values, with some value
+/// repeated, is read as arms, so a contrasted level outside those values has no rows to
+/// estimate from: a regression would extrapolate the fitted slope to it. Continuous columns
+/// (more distinct values, or every value distinct) are numeric doses and are left alone.
+///
+/// # Errors
+///
+/// `arm_not_populated` (detail `treatment_levels.level_not_populated`), naming the empty level
+/// and the levels present.
+#[allow(
+    clippy::float_cmp,
+    reason = "declared treatment levels are exact category labels, not computed values"
+)]
+pub(crate) fn require_contrast_arms_populated(
+    values: &[f64],
+    active: f64,
+    control: f64,
+) -> Result<(), EstimationError> {
+    let mut distinct: Vec<f64> = Vec::new();
+    for &value in values {
+        if !distinct.contains(&value) {
+            distinct.push(value);
+            if distinct.len() > MAX_DISCRETE_LEVELS {
+                return Ok(());
+            }
+        }
+    }
+    if distinct.is_empty() || distinct.len() == values.len() {
+        return Ok(());
+    }
+    let empty: Vec<f64> = [active, control]
+        .into_iter()
+        .filter(|level| !distinct.iter().any(|seen| seen == level))
+        .collect();
+    if empty.is_empty() {
+        return Ok(());
+    }
+    distinct.sort_by(f64::total_cmp);
+    let present: Vec<String> = distinct.iter().map(std::string::ToString::to_string).collect();
+    let named: Vec<String> = empty.iter().map(std::string::ToString::to_string).collect();
+    Err(crate::util::refuse(
+        antecedent_core::reason_code!("arm_not_populated"),
+        antecedent_core::reason_details::treatment_levels::LEVEL_NOT_POPULATED,
+        &format!(
+            "the contrasted treatment level {} has no complete-case rows (active {active},              control {control}); the treatment takes the levels {}. A contrast to a level the              data never visited would be extrapolated, not estimated. Next attempt: contrast              two observed levels, or collect data that visits the requested level",
+            named.join(" and "),
+            present.join(", ")
+        ),
+    ))
+}
+
+/// Whether a treatment column is discrete (at most [`MAX_DISCRETE_LEVELS`] distinct values),
+/// holds both contrasted levels, and holds some other value.
+#[allow(
+    clippy::float_cmp,
+    reason = "declared treatment levels are exact category labels, not computed values"
+)]
+pub(crate) fn is_discrete_with_other_levels(values: &[f64], active: f64, control: f64) -> bool {
+    let mut distinct: Vec<f64> = Vec::new();
+    for &value in values {
+        if !distinct.contains(&value) {
+            distinct.push(value);
+            if distinct.len() > MAX_DISCRETE_LEVELS {
+                return false;
+            }
+        }
+    }
+    let has = |level: f64| distinct.contains(&level);
+    distinct.len() >= 3 && has(active) && has(control)
+}
+
+/// Classification of a complete-case streamed treatment with at most ten levels.
+/// None means the resident path treats the column as a continuous dose.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact equality preserves discrete support or boundary semantics"
+)]
+fn streamed_level_counts(values: &[f64], mask: &[bool]) -> Option<(Vec<(f64, usize)>, usize)> {
+    let mut levels: Vec<(f64, usize)> = Vec::new();
+    let mut rows = 0usize;
+    for (&value, &keep) in values.iter().zip(mask) {
+        if !keep {
+            continue;
+        }
+        rows += 1;
+        if let Some((_, count)) = levels.iter_mut().find(|(level, _)| *level == value) {
+            *count += 1;
+        } else {
+            levels.push((value, 1));
+            if levels.len() > MAX_DISCRETE_LEVELS {
+                return None;
+            }
+        }
+    }
+    Some((levels, rows))
+}
+
+fn streamed_levels_description(levels: &[(f64, usize)]) -> String {
+    let mut sorted = levels.to_vec();
+    sorted.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let labels: Vec<_> =
+        sorted.iter().map(|(level, count)| format!("{level} ({count} rows)")).collect();
+    format!("observed treatment levels: {}", labels.join(", "))
+}
+
+/// Apply resident treatment-level admission without allocating a selected treatment column.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact equality preserves discrete support or boundary semantics"
+)]
+pub(crate) fn validate_streamed_adjustment_levels(
+    values: &[f64],
+    mask: &[bool],
+    active: f64,
+    control: f64,
+    other_levels: crate::propensity::levels::OtherLevels,
+) -> Result<(), EstimationError> {
+    let Some((levels, rows)) = streamed_level_counts(values, mask) else {
+        return Ok(());
+    };
+    let mut representative: Vec<f64> = levels.iter().map(|(level, _)| *level).collect();
+    if rows > levels.len() && !representative.is_empty() {
+        representative.push(representative[0]);
+    }
+    require_contrast_arms_populated(&representative, active, control)?;
+    let has = |level| levels.iter().any(|(value, _)| *value == level);
+    if levels.len() < 3 || !has(active) || !has(control) {
+        return Ok(());
+    }
+    if matches!(other_levels, crate::propensity::levels::OtherLevels::ExcludeUndeclared) {
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
+            "excluding undeclared treatment levels needs the resident route to report the restricted population",
+        ));
+    }
+    let excluded = levels
+        .iter()
+        .filter(|(value, _)| *value != active && *value != control)
+        .map(|(_, count)| *count)
+        .sum::<usize>();
+    let first = values
+        .iter()
+        .zip(mask)
+        .find(|(value, keep)| **keep && **value != active && **value != control)
+        .map(|(value, _)| *value)
+        .unwrap();
+    Err(crate::util::refuse(
+        antecedent_core::reason_code!("treatment_level_undeclared"),
+        antecedent_core::reason_details::treatment_levels::UNDECLARED_LEVEL,
+        &format!(
+            "{excluded} complete-case rows have a treatment value at neither declared level (active {active}, control {control}); first found {first}; {}. Excluding them would restrict the target population to the rows at the two declared levels. Next attempt: declare that restriction with OtherLevels::ExcludeUndeclared, or use the full-population generalized-propensity estimator",
+            streamed_levels_description(&levels)
+        ),
+    ))
+}
+
+/// Match the resident IV treatment-level guards on complete-case rows.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact equality preserves discrete support or boundary semantics"
+)]
+pub(crate) fn validate_streamed_iv_levels(
+    values: &[f64],
+    mask: &[bool],
+    active: f64,
+    control: f64,
+) -> Result<(), EstimationError> {
+    let Some((levels, _)) = streamed_level_counts(values, mask) else {
+        return Ok(());
+    };
+    let has = |level| levels.iter().any(|(value, _)| *value == level);
+    let description = streamed_levels_description(&levels);
+    if levels.len() >= 3 && has(active) && has(control) {
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("treatment_level_undeclared"),
+            "iv.undeclared_level",
+            &format!(
+                "the treatment takes levels beyond the contrasted pair (active {active}, control {control}); {description}. The instrumental fit reads the treatment as one numeric dose, so it would return a slope scaled by the gap between the levels, not the contrast of the two levels, and restricting the rows to the two levels would select on the endogenous treatment and invalidate the instrument. Next attempt: recode the treatment into the binary contrast of interest before estimation, or use a continuous dose with levels the data spans"
+            ),
+        ));
+    }
+    if levels.iter().all(|(value, _)| value.fract() == 0.0)
+        && let Some(level) = [control, active].into_iter().find(|level| !has(*level))
+    {
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("arm_not_populated"),
+            "iv.unobserved_level",
+            &format!(
+                "the contrasted level {level} is not taken by any row of the discrete treatment ({description}); the instrumental fit would return the slope scaled by the gap to a level the data never visited. Next attempt: contrast levels the treatment takes, or use a continuous dose whose range spans them"
+            ),
+        ));
+    }
+    Ok(())
+}
+
+/// Run the accepted preparation path, then hand the estimator the same finite table.
+///
+/// `stream` is the estimator's own declaration. An estimator that declares it can
+/// stream is refused here because it is being handed a table. The receipt must
+/// prove the table's row count.
+///
+/// # Errors
+///
+/// Schema, missing-value, or admission failure, an estimator that declares it
+/// reads a scan, or a receipt that does not prove this table.
+pub(crate) fn admit_estimator_columns<'a>(
+    data: &'a TabularData,
+    ids: &[VariableId],
+    stream: EstimatorStreamNeed,
+) -> Result<AdmittedColumns<'a>, EstimationError> {
+    let mut controls = ambient_preparation_budget()
+        .map_or_else(PreparationControls::finite_resident, PreparationControls::finite_within);
+    controls.stream = stream;
+    let PreparationProduct { row_mask, receipt, .. } =
+        prepare_table(data, ids, MissingPolicy::CompleteCase, &[], controls)?;
+    let rows = u64::try_from(data.row_count())
+        .map_err(|_| EstimationError::data_msg("admitted row count does not fit u64"))?;
+    if receipt.proved_rows() != Some(rows) {
+        return Err(EstimationError::unsupported(
+            "the preparation receipt does not prove the finite table the estimator reads",
+        ));
+    }
+    Ok(AdmittedColumns { data, row_mask, receipt })
+}
+
 /// Intersect a complete-case mask with a [`TargetPopulation::Predicate`] selection.
 ///
 /// Other target populations are left unchanged (ATT/ATC are applied at g-computation
@@ -133,11 +489,9 @@ pub(crate) fn intersect_predicate_mask(
     if !matches!(target, TargetPopulation::Predicate(_)) {
         return Ok(());
     }
-    let sel = target
-        .resolve(n_full, None, registry)
-        .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+    let sel = target.resolve(n_full, None, registry)?;
     for (i, slot) in row_mask.iter_mut().enumerate() {
-        *slot = *slot && sel.keep.get(i).copied().unwrap_or(false);
+        *slot = *slot && sel.keep.get(i);
     }
     Ok(())
 }
@@ -159,4 +513,396 @@ pub fn treatment_contrast(
         ));
     }
     Ok((a, c, delta))
+}
+
+/// A source-ordered cohort, constructed once after all role restrictions.
+pub(crate) struct SelectedRows {
+    pub(crate) indices: Vec<usize>,
+    source_len: usize,
+}
+impl SelectedRows {
+    pub(crate) fn from_mask(mask: &[bool]) -> Self {
+        Self {
+            indices: mask.iter().enumerate().filter_map(|(i, &keep)| keep.then_some(i)).collect(),
+            source_len: mask.len(),
+        }
+    }
+    fn copy_into(&self, values: &[f64], output: &mut [f64]) -> Result<(), EstimationError> {
+        if values.len() != self.source_len || output.len() != self.indices.len() {
+            return Err(EstimationError::data_msg("selected column length mismatch"));
+        }
+        record_physical(PhysicalEvent::Scan, 1);
+        record_physical(PhysicalEvent::Copy, 1);
+        record_physical(PhysicalEvent::CopiedBytes, size_of_val(output) as u64);
+        if self.indices.len() == self.source_len {
+            output.copy_from_slice(values);
+        } else {
+            for (slot, &row) in output.iter_mut().zip(&self.indices) {
+                *slot = values[row];
+            }
+        }
+        Ok(())
+    }
+    pub(crate) fn gather(
+        &self,
+        data: &TabularData,
+        id: VariableId,
+    ) -> Result<Vec<f64>, EstimationError> {
+        let antecedent_data::ColumnView::Float64(column) = data.column(id)? else {
+            return Err(EstimationError::data_msg("expected float64 selected column"));
+        };
+        let mut output = vec![0.0; self.indices.len()];
+        self.copy_into(column.values.as_slice(), &mut output)?;
+        Ok(output)
+    }
+}
+
+/// Materialize selected columns before assembling the unchanged linear design kernel.
+pub(crate) fn materialized_adjustment_design(
+    data: &TabularData,
+    treatment: VariableId,
+    outcome: VariableId,
+    adjustment: &[VariableId],
+    expanded: &[antecedent_data::categorical::ExpandedContrast],
+    mask: &[bool],
+) -> Result<antecedent_stats::CompiledDesign, EstimationError> {
+    if mask.len() != data.row_count() {
+        return Err(EstimationError::data_msg("design selection length mismatch"));
+    }
+    let selected = SelectedRows::from_mask(mask);
+    let treatment = selected.gather(data, treatment)?;
+    let outcome = selected.gather(data, outcome)?;
+    let mut columns = Vec::new();
+    for &id in adjustment {
+        if let Some(contrast) = expanded.iter().find(|c| c.variable == id) {
+            for column in &contrast.columns {
+                let mut output = vec![0.0; selected.indices.len()];
+                selected.copy_into(column, &mut output)?;
+                columns.push((id, output));
+            }
+        } else {
+            columns.push((id, selected.gather(data, id)?));
+        }
+    }
+    let refs: Vec<_> = columns.iter().map(|(id, column)| (*id, column.as_slice())).collect();
+    let design = antecedent_stats::CompiledDesign::linear_adjustment(
+        &treatment,
+        &refs,
+        &outcome,
+        &selected.indices,
+    )?;
+    Ok(design)
+}
+
+/// Gather the admitted cohort directly into its final design. Expanded contrasts
+/// remain source-row aligned; selection is applied exactly once to every column.
+pub(crate) fn direct_adjustment_design(
+    data: &TabularData,
+    treatment: VariableId,
+    outcome: VariableId,
+    adjustment: &[VariableId],
+    expanded: &[antecedent_data::categorical::ExpandedContrast],
+    mask: &[bool],
+) -> Result<antecedent_stats::CompiledDesign, EstimationError> {
+    use antecedent_data::ColumnView;
+    use antecedent_stats::{
+        CompiledDesign, DesignColumnMap, DesignColumnRole, StandardizationRecord,
+    };
+    use std::sync::Arc;
+    let column = |id| -> Result<&[f64], EstimationError> {
+        match data.column(id)? {
+            ColumnView::Float64(c) => Ok(c.values.as_slice()),
+            _ => Err(EstimationError::data_msg("expected a float64 design column")),
+        }
+    };
+    if mask.len() != data.row_count() {
+        return Err(EstimationError::data_msg("design selection length mismatch"));
+    }
+    let selected = SelectedRows::from_mask(mask);
+    if selected.indices.is_empty() {
+        return Err(EstimationError::data_msg("empty design"));
+    }
+    let mut columns = vec![(DesignColumnRole::Treatment, column(treatment)?)];
+    for &id in adjustment {
+        if let Some(contrast) = expanded.iter().find(|c| c.variable == id) {
+            columns.extend(
+                contrast.columns.iter().map(|c| (DesignColumnRole::Covariate(id), c.as_slice())),
+            );
+        } else {
+            columns.push((DesignColumnRole::Covariate(id), column(id)?));
+        }
+    }
+    let nrows = selected.indices.len();
+    let ncols = columns.len() + 1;
+    let mut matrix = vec![
+        0.0;
+        nrows
+            .checked_mul(ncols)
+            .ok_or_else(|| EstimationError::data_msg("design size overflow"))?
+    ];
+    record_physical(PhysicalEvent::Allocation, 1);
+    record_physical(PhysicalEvent::AllocatedBytes, size_of_val(matrix.as_slice()) as u64);
+    matrix[..nrows].fill(1.0);
+    for (dest, (_, values)) in matrix[nrows..].chunks_exact_mut(nrows).zip(&columns) {
+        selected.copy_into(values, dest)?;
+    }
+    let mut y = vec![0.0; nrows];
+    record_physical(PhysicalEvent::Allocation, 1);
+    record_physical(PhysicalEvent::AllocatedBytes, size_of_val(y.as_slice()) as u64);
+    selected.copy_into(column(outcome)?, &mut y)?;
+    let roles =
+        std::iter::once(DesignColumnRole::Intercept).chain(columns.iter().map(|(role, _)| *role));
+    // Vec-to-Arc ownership transfer copies payloads into their shared allocation.
+    record_physical(PhysicalEvent::Copy, 3);
+    record_physical(
+        PhysicalEvent::CopiedBytes,
+        (size_of_val(matrix.as_slice())
+            + size_of_val(y.as_slice())
+            + size_of_val(selected.indices.as_slice())) as u64,
+    );
+    record_physical(PhysicalEvent::Allocation, 3);
+    record_physical(
+        PhysicalEvent::AllocatedBytes,
+        (size_of_val(matrix.as_slice())
+            + size_of_val(y.as_slice())
+            + size_of_val(selected.indices.as_slice())) as u64,
+    );
+    Ok(CompiledDesign {
+        nrows,
+        ncols,
+        matrix: Arc::from(matrix),
+        outcome: Arc::from(y),
+        columns: DesignColumnMap::from_roles(roles),
+        row_selection: Arc::from(selected.indices),
+        contrasts: Vec::new(),
+        smooths: Vec::new(),
+        standardization: StandardizationRecord::default(),
+    })
+}
+
+#[cfg(test)]
+mod metered_preparation_tests {
+    use super::*;
+
+    fn table() -> TabularData {
+        TabularData::from_f64_columns([
+            ("t", &[0.0, 1.0, 0.0, 1.0][..]),
+            ("y", &[2.0, 4.0, 8.0, 16.0][..]),
+        ])
+        .unwrap()
+    }
+
+    #[test]
+    fn a_budget_turns_the_row_bound_into_a_proved_bound_and_a_tight_one_refuses() {
+        let data = table();
+        let ids = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let unmetered = admit_estimator_columns(&data, &ids, FINITE_TABLE_ONLY).unwrap();
+        assert!(!unmetered.receipt.is_bounded_end_to_end_route());
+        assert_eq!(preparation_summary(&unmetered.receipt).budget_bytes, None);
+
+        let metered = with_preparation_budget(PreparationBudget::new(1 << 20), || {
+            assert_eq!(ambient_preparation_budget(), Some(PreparationBudget::new(1 << 20)));
+            admit_estimator_columns(&data, &ids, FINITE_TABLE_ONLY).map(|admitted| admitted.receipt)
+        })
+        .unwrap();
+        assert!(metered.is_bounded_end_to_end_route());
+        let summary = preparation_summary(&metered);
+        assert_eq!(summary.route_bound, "proved");
+        assert_eq!(summary.budget_bytes, Some(1 << 20));
+        assert!(summary.admitted_bytes.is_some_and(|bytes| bytes > 0 && bytes <= 1 << 20));
+
+        let refused = with_preparation_budget(PreparationBudget::new(1), || {
+            admit_estimator_columns(&data, &ids, FINITE_TABLE_ONLY)
+                .map(|admitted| admitted.row_mask)
+        });
+        assert!(refused.is_err(), "a payload over the budget is refused");
+        assert_eq!(ambient_preparation_budget(), None, "the budget does not outlive the call");
+    }
+}
+
+#[cfg(test)]
+mod direct_design_tests {
+    use super::*;
+    #[test]
+    fn direct_gather_matches_the_independent_masked_design() {
+        let data = TabularData::from_f64_columns([
+            ("t", &[0.0, 1.0, 0.0, 1.0][..]),
+            ("y", &[2.0, 4.0, 8.0, 16.0][..]),
+            ("z", &[3.0, 5.0, 7.0, 11.0][..]),
+        ])
+        .unwrap();
+        let t = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        let z = VariableId::from_raw(2);
+        for mask in [[true, true, true, true], [true, false, true, false]] {
+            let actual = direct_adjustment_design(&data, t, y, &[z], &[], &mask).unwrap();
+            let rows: Vec<_> =
+                mask.iter().enumerate().filter_map(|(i, &keep)| keep.then_some(i)).collect();
+            let ts = data.float64_masked(t, &mask).unwrap();
+            let ys = data.float64_masked(y, &mask).unwrap();
+            let zs = data.float64_masked(z, &mask).unwrap();
+            let reference =
+                antecedent_stats::CompiledDesign::linear_adjustment(&ts, &[(z, &zs)], &ys, &rows)
+                    .unwrap();
+            assert_eq!(actual.matrix, reference.matrix);
+            assert_eq!(actual.outcome, reference.outcome);
+            assert_eq!(actual.row_selection, reference.row_selection);
+            assert_eq!(actual.columns, reference.columns);
+            let materialized =
+                materialized_adjustment_design(&data, t, y, &[z], &[], &mask).unwrap();
+            assert_eq!(actual.matrix, materialized.matrix);
+            assert_eq!(actual.outcome, materialized.outcome);
+            assert_eq!(actual.row_selection, materialized.row_selection);
+            assert_eq!(actual.columns, materialized.columns);
+        }
+    }
+}
+
+#[cfg(test)]
+mod design_measurement {
+    use super::*;
+    #[test]
+    #[ignore = "explicit performance measurement; requires a quiet machine"]
+    fn measure_direct_design() {
+        assert_eq!(std::env::var("CLASSIC_MEASURE").as_deref(), Ok("1"));
+        let number = |name: &str, default| {
+            std::env::var(name).ok().and_then(|v| v.parse::<usize>().ok()).unwrap_or(default)
+        };
+        let n = number("CLASSIC_ROWS", 100_000);
+        let width = number("CLASSIC_COLUMNS", 32);
+        let repeats = number("CLASSIC_REPEATS", 9);
+        let names: Vec<_> = (0..width).map(|i| format!("v{i}")).collect();
+        let columns: Vec<Vec<f64>> = (0..width)
+            .map(|c| (0..n).map(|r| ((r * (c + 1)) as f64 * 0.013).sin()).collect())
+            .collect();
+        let data = TabularData::from_f64_columns(
+            names.iter().zip(&columns).map(|(name, values)| (name.as_str(), values.as_slice())),
+        )
+        .unwrap();
+        let ids: Vec<_> =
+            (2..width).map(|i| VariableId::from_raw(u32::try_from(i).unwrap())).collect();
+        let t = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        for filtered in [false, true] {
+            let mask: Vec<_> = (0..n).map(|i| !filtered || i % 10 != 0).collect();
+            let reference = || {
+                let t = data.float64_masked(t, &mask).unwrap();
+                let y = data.float64_masked(y, &mask).unwrap();
+                let covs: Vec<_> =
+                    ids.iter().map(|&id| (id, data.float64_masked(id, &mask).unwrap())).collect();
+                let refs: Vec<_> = covs.iter().map(|(id, c)| (*id, c.as_slice())).collect();
+                let rows: Vec<_> =
+                    mask.iter().enumerate().filter_map(|(i, &keep)| keep.then_some(i)).collect();
+                antecedent_stats::CompiledDesign::linear_adjustment(&t, &refs, &y, &rows).unwrap()
+            };
+            let candidate = || direct_adjustment_design(&data, t, y, &ids, &[], &mask).unwrap();
+            let expected = reference();
+            let actual = candidate();
+            assert_eq!(actual.matrix, expected.matrix);
+            assert_eq!(actual.outcome, expected.outcome);
+            assert_eq!(actual.row_selection, expected.row_selection);
+            let mut modes = ["reference", "direct"];
+            if std::env::var_os("CLASSIC_REVERSE").is_some() {
+                modes.reverse();
+            }
+            for mode in modes {
+                let mut samples = Vec::new();
+                for _ in 0..repeats {
+                    let start = std::time::Instant::now();
+                    let value = if mode == "reference" { reference() } else { candidate() };
+                    samples.push(start.elapsed().as_nanos());
+                    std::hint::black_box(value);
+                }
+                println!(
+                    "{{\"experiment\":\"design\",\"mode\":\"{mode}\",\"rows\":{n},\"columns\":{width},\"filtered\":{filtered},\"samples_ns\":{samples:?}}}"
+                );
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod contrast_arm_tests {
+    use super::*;
+    use crate::propensity::levels::OtherLevels;
+
+    fn restrict(
+        treatment: &[f64],
+        levels: (f64, f64),
+    ) -> Result<Option<crate::propensity::levels::DeclaredTreatmentLevels>, EstimationError> {
+        let data = TabularData::from_f64_columns([("t", treatment)]).unwrap();
+        let mut mask = vec![true; treatment.len()];
+        restrict_to_contrast_levels(
+            &data,
+            VariableId::from_raw(0),
+            &mut mask,
+            levels,
+            OtherLevels::Refuse,
+        )
+    }
+
+    #[test]
+    fn a_contrasted_level_no_row_carries_is_refused_naming_the_levels_present() {
+        let t: Vec<f64> = (0..20).map(|i| f64::from(i % 2)).collect();
+        for levels in [(5.0, 0.0), (0.5, 0.0), (1.0, -3.0), (7.5, 2.0)] {
+            let err = restrict(&t, levels).expect_err("an unvisited level must refuse");
+            let text = err.to_string();
+            assert!(text.starts_with("reason=arm_not_populated:"), "{text}");
+            assert!(text.contains("the treatment takes the levels 0, 1"), "{text}");
+        }
+        let text = restrict(&t, (5.0, 0.0)).unwrap_err().to_string();
+        assert!(text.contains("level 5 has no"), "{text}");
+        // Both levels unvisited are both named.
+        assert!(restrict(&t, (5.0, 6.0)).unwrap_err().to_string().contains("level 5 and 6"));
+    }
+
+    #[test]
+    fn populated_arms_and_continuous_doses_are_untouched() {
+        let t: Vec<f64> = (0..20).map(|i| f64::from(i % 2)).collect();
+        assert!(restrict(&t, (1.0, 0.0)).unwrap().is_none());
+        // A real-valued dose (more than the discrete cap of distinct values) is not arms.
+        let dose: Vec<f64> = (0..40).map(|i| f64::from(i) * 0.37).collect();
+        assert!(restrict(&dose, (5.0, 0.0)).unwrap().is_none());
+        // Every value distinct on a small table is a dose, not repeated arms.
+        let tiny: Vec<f64> = vec![0.1, 0.4, 0.9, 1.3];
+        assert!(restrict(&tiny, (2.0, 0.0)).unwrap().is_none());
+    }
+}
+
+#[cfg(test)]
+mod streamed_level_tests {
+    use super::*;
+
+    #[test]
+    #[allow(
+        clippy::redundant_closure,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
+    fn only_selected_rows_contribute_and_continuous_values_remain_doses() {
+        let values = [0.0, 1.0, 2.0, 0.0, 1.0];
+        let mask = [true, true, false, true, true];
+        assert!(
+            validate_streamed_adjustment_levels(
+                &values,
+                &mask,
+                1.0,
+                0.0,
+                crate::propensity::OtherLevels::Refuse
+            )
+            .is_ok()
+        );
+        assert!(validate_streamed_iv_levels(&values, &mask, 1.0, 0.0).is_ok());
+        let continuous: Vec<f64> = (0..11).map(|v| f64::from(v)).collect();
+        assert!(
+            validate_streamed_adjustment_levels(
+                &continuous,
+                &[true; 11],
+                1.0,
+                0.0,
+                crate::propensity::OtherLevels::Refuse
+            )
+            .is_ok()
+        );
+        assert!(validate_streamed_iv_levels(&continuous, &[true; 11], 1.0, 0.0).is_ok());
+    }
 }

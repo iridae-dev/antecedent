@@ -1,41 +1,82 @@
 //! Learner-backed trial transport on the shared prepared lifecycle.
-use antecedent_core::{
-    ContinuousDomain, ExecutionContext, GridSpec, ResponseFunctional, ResponseQuery,
-    TransportQuery, VariableId,
+use antecedent::estimate::{TrialAipwInput, TrialAipwOptions};
+use antecedent::prelude::{ExecutionContext, VariableId};
+use antecedent::query::{
+    ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TransportQuery,
 };
-use antecedent_estimate::{TrialAipwInput, TrialAipwOptions};
 use pyo3::{prelude::*, types::PyBytes};
 use std::sync::Arc;
-fn err(e: impl std::fmt::Display) -> PyErr {
-    crate::value_err(e.to_string())
+
+#[path = "learned_trial_readmodel.rs"]
+mod readmodel;
+fn err(e: impl crate::transport_common::TransportPyErr) -> PyErr {
+    crate::transport_common::error(e)
 }
 fn parse_input(data: &Bound<'_, PyAny>, names: &[String]) -> PyResult<TrialAipwInput> {
+    if data.hasattr("_buffers")? {
+        return crate::transport_buffers::trial(data, names, false);
+    }
     let wire: String = data.call_method1("_json", (names.to_vec(),))?.extract()?;
     serde_json::from_str(&wire).map_err(err)
+}
+// The Python result exposes these fields; per-row predictions and scores remain
+// in the frozen native result and portable artifact, available through legacy methods.
+fn trial_payload(result: &antecedent::LearnedTrialResult, compact: bool) -> PyResult<String> {
+    let estimate = result.estimate();
+    if !compact {
+        return serde_json::to_string(estimate).map_err(err);
+    }
+    Ok(serde_json::json!({
+        "estimate": estimate.estimate,
+        "interval": estimate.interval,
+        "uncertainty_reason": estimate.uncertainty_reason,
+        "replicates": estimate.replicates,
+        "failures": estimate.failures,
+        "overlap": estimate.overlap,
+        "diagnostics": estimate.diagnostics,
+    })
+    .to_string())
 }
 #[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 struct PreparedLearnedTrial {
-    inner: Option<antecedent::PreparedStudy<antecedent::LearnedTrialState>>,
-    names: Vec<String>,
-    last: Option<antecedent::LearnedTrialResult>,
+    inner: Option<Arc<antecedent::PreparedStudy<antecedent::LearnedTrialState>>>,
+    names: Arc<[String]>,
+    last: Option<Arc<antecedent::LearnedTrialResult>>,
     seed: u64,
     memory_bytes: Option<u64>,
 }
 impl PreparedLearnedTrial {
     fn ctx(&self, cancel: Option<crate::PyCancellationToken>) -> ExecutionContext {
         let mut ctx = ExecutionContext::production_default(self.seed);
-        ctx.memory.hard_limit_bytes = self.memory_bytes;
+        ctx.set_memory_limit(self.memory_bytes);
         crate::apply_cancel(&mut ctx, cancel);
+        crate::execution_api::apply(&mut ctx);
         ctx
+    }
+    fn estimate_payload(
+        slf: &Bound<'_, Self>,
+        cancel: Option<crate::PyCancellationToken>,
+        compact: bool,
+    ) -> PyResult<String> {
+        // Borrow only to snapshot and to store: the run itself holds no borrow.
+        let (inner, ctx) = {
+            let this = slf.borrow();
+            let inner = this.inner.clone().ok_or_else(|| err("loaded claims cannot execute"))?;
+            (inner, this.ctx(cancel))
+        };
+        let result = crate::detach_catch(slf.py(), move || inner.estimate(&ctx).map_err(err))?;
+        let payload = trial_payload(&result, compact)?;
+        slf.borrow_mut().last = Some(Arc::new(result));
+        Ok(payload)
     }
     /// Native four-slot reasoning: the executed result's own view once estimated, else
     /// the not-yet-executed view of the prepared identification (identification is a
     /// property of the accepted certificate, not of a fitted estimate).
-    fn reasoning(&self) -> Option<antecedent_contract::ReasoningView> {
-        self.last.as_ref().map(antecedent::LearnedTrialResult::reasoning).or_else(|| {
+    fn reasoning(&self) -> Option<antecedent::contract::ReasoningView> {
+        self.last.as_deref().map(antecedent::LearnedTrialResult::reasoning).or_else(|| {
             self.inner
-                .as_ref()
+                .as_deref()
                 .map(antecedent::PreparedStudy::<antecedent::LearnedTrialState>::inspect)
         })
     }
@@ -44,48 +85,112 @@ impl PreparedLearnedTrial {
 impl PreparedLearnedTrial {
     #[pyo3(signature=(cancel=None))]
     fn estimate(
-        &mut self,
-        py: Python<'_>,
+        slf: &Bound<'_, Self>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
-        let ctx = self.ctx(cancel);
-        let inner = self.inner.clone().ok_or_else(|| err("loaded claims cannot execute"))?;
-        let result = crate::detach_catch(py, move || inner.estimate(&ctx).map_err(err))?;
-        let payload = serde_json::to_string(result.estimate()).map_err(err)?;
-        self.last = Some(result);
-        Ok(payload)
+        Self::estimate_payload(slf, cancel, false)
+    }
+    #[pyo3(signature=(cancel=None))]
+    fn estimate_summary(
+        slf: &Bound<'_, Self>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<String> {
+        Self::estimate_payload(slf, cancel, true)
+    }
+    #[pyo3(signature=(seed=None))]
+    fn fork(&self, seed: Option<u64>) -> PyResult<Self> {
+        let seed = seed.unwrap_or(self.seed);
+        let ctx = self.ctx(None);
+        let inner = self
+            .inner
+            .as_ref()
+            .ok_or_else(|| {
+                crate::refusal(
+                    "route_not_supported",
+                    "loaded trial claims do not restore raw execution",
+                )
+            })?
+            .with_seed(seed, &ctx)
+            .map_err(err)?;
+        Ok(Self { inner: Some(Arc::new(inner)), seed, last: None, ..self.clone() })
     }
     #[pyo3(signature=(data,cancel=None))]
-    fn refresh(
-        &mut self,
+    fn bind_snapshot(
+        &self,
         py: Python<'_>,
         data: &Bound<'_, PyAny>,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<String> {
+    ) -> PyResult<Self> {
         let input = parse_input(data, &self.names)?;
         let ctx = self.ctx(cancel);
-        let mut candidate =
-            self.inner.clone().ok_or_else(|| err("loaded claims cannot refresh"))?;
-        let (candidate, result) = crate::detach_catch(py, move || {
-            let result = candidate.refresh(input, &ctx).map_err(err)?;
-            Ok((candidate, result))
+        let inner = self.inner.clone().ok_or_else(|| {
+            crate::refusal("route_not_supported", "loaded trial claims do not restore preparation")
         })?;
-        let payload = serde_json::to_string(result.estimate()).map_err(err)?;
-        self.inner = Some(candidate);
-        self.last = Some(result);
-        Ok(payload)
+        let inner = crate::detach_catch(py, move || inner.bind_snapshot(input, &ctx).map_err(err))?;
+        Ok(Self { inner: Some(Arc::new(inner)), last: None, ..self.clone() })
+    }
+    #[pyo3(signature=(graph, selections, source, target, treatment, outcome, options, *, seed=1, memory_bytes=None, cancel=None))]
+    fn reconfigure(
+        &self,
+        graph: &crate::graphs::Admg,
+        selections: Vec<String>,
+        source: String,
+        target: String,
+        treatment: String,
+        outcome: String,
+        options: String,
+        seed: u64,
+        memory_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<Self> {
+        if graph.names.as_slice() != self.names.as_ref() {
+            return Err(err(
+                "trial reconfiguration requires the retained variable coordinate schema",
+            ));
+        }
+        let (diagram, query) =
+            trial_request(graph, selections, source, target, treatment, outcome)?;
+        let options: TrialAipwOptions = serde_json::from_str(&options).map_err(err)?;
+        let mut ctx = ExecutionContext::production_default(seed);
+        ctx.set_memory_limit(memory_bytes);
+        crate::apply_cancel(&mut ctx, cancel);
+        crate::execution_api::apply(&mut ctx);
+        let inner = self
+            .inner
+            .as_ref()
+            .ok_or_else(|| {
+                crate::refusal(
+                    "route_not_supported",
+                    "loaded trial claims do not restore preparation",
+                )
+            })?
+            .reconfigure(diagram, query, options, &ctx)
+            .map_err(err)?;
+        Ok(Self {
+            inner: Some(Arc::new(inner)),
+            seed,
+            memory_bytes,
+            last: None,
+            names: self.names.clone(),
+        })
+    }
+    fn last_result_summary(&self) -> PyResult<String> {
+        trial_payload(
+            self.last.as_deref().ok_or_else(|| err("execute before reading result"))?,
+            true,
+        )
     }
     fn freeze(&self) -> Self {
         self.clone()
     }
     fn export(&self, py: Python<'_>) -> PyResult<Py<PyBytes>> {
-        let result = self.last.as_ref().ok_or_else(|| err("execute before exporting"))?;
+        let result = self.last.as_deref().ok_or_else(|| err("execute before exporting"))?;
         let mut bytes = b"ANTECEDENT-LEARNED-TRIAL\x01".to_vec();
         bytes.extend(result.export().map_err(err)?);
         Ok(PyBytes::new(py, &bytes).unbind())
     }
     fn inspection_json(&self) -> String {
-        let uncertainty = self.last.as_ref().map(antecedent::LearnedTrialResult::estimate);
+        let uncertainty = self.last.as_deref().map(antecedent::LearnedTrialResult::estimate);
         let reasoning = self.reasoning();
         let identification_available =
             reasoning.as_ref().is_some_and(|r| r.identification.is_available());
@@ -98,12 +203,12 @@ impl PreparedLearnedTrial {
             "support":{"available":self.last.is_some(),"summary":"trial_and_target_overlap_required", "payload": {"overlap":uncertainty.map(|r| r.overlap),"slot":reasoning.as_ref().map(|r| crate::transport_common::support_slot_json(&r.support))}},
             "uncertainty":{"available":uncertainty.is_some_and(|r| r.interval.is_some()),"summary":"joint_outer_bootstrap_uncalibrated","reason":uncertainty.and_then(|r| r.uncertainty_reason.as_deref()),"payload":{"calibration_status":"not_bound_to_this_execution"}},
             "assumptions":{"available":reasoning.as_ref().is_some_and(|r| r.assumptions.is_available()),"summary":"declared_randomization_sampling_and_nuisance_models","payload":{"obligations":reasoning.as_ref().map(|r| crate::transport_common::obligation_ids(&r.assumptions))}},
-            "execution_id":self.last.as_ref().map(antecedent::LearnedTrialResult::identity)
+            "execution_id":self.last.as_deref().map(antecedent::LearnedTrialResult::identity)
         }).to_string()
     }
     fn last_result(&self) -> PyResult<String> {
         serde_json::to_string(
-            self.last.as_ref().ok_or_else(|| err("execute before reading result"))?.estimate(),
+            self.last.as_deref().ok_or_else(|| err("execute before reading result"))?.estimate(),
         )
         .map_err(err)
     }
@@ -137,34 +242,21 @@ impl PreparedLearnedTrial {
     ) -> PyResult<()> {
         let input = parse_input(data, &self.names)?;
         let ctx = self.ctx(cancel);
-        self.inner
-            .as_mut()
-            .ok_or_else(|| err("loaded claims cannot refresh"))?
-            .replace_snapshot(input, &ctx)
-            .map_err(err)?;
+        let inner = self.inner.as_mut().ok_or_else(|| err("loaded claims cannot refresh"))?;
+        Arc::make_mut(inner).replace_snapshot(input, &ctx).map_err(err)?;
         self.last = None;
         Ok(())
     }
 }
-#[pyfunction]
-#[pyo3(signature=(graph, selections, source, target, treatment, outcome, data, options, *, seed=1, memory_bytes=None, cancel=None))]
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "node ids are u32 by construction (DenseNodeId), so node positions fit u32"
-)]
-fn prepare_learned_trial(
+#[allow(clippy::cast_possible_truncation, reason = "graph node ids fit u32 by construction")]
+fn trial_request(
     graph: &crate::graphs::Admg,
     selections: Vec<String>,
     source: String,
     target: String,
     treatment: String,
     outcome: String,
-    data: &Bound<'_, PyAny>,
-    options: String,
-    seed: u64,
-    memory_bytes: Option<u64>,
-    cancel: Option<crate::PyCancellationToken>,
-) -> PyResult<PreparedLearnedTrial> {
+) -> PyResult<(antecedent::graph::SelectionDiagram, TransportQuery)> {
     let resolve = |name: &str| -> PyResult<VariableId> {
         graph
             .names
@@ -179,43 +271,73 @@ fn prepare_learned_trial(
         treatment: ContinuousDomain::new(treatment, GridSpec::Values(Arc::from([0.0, 1.0]))),
     });
     let query = TransportQuery::new(response, source, target, [treatment]);
-    let diagram = antecedent_graph::SelectionDiagram::try_new(
+    let diagram = antecedent::graph::SelectionDiagram::try_new(
         graph.admg.clone(),
         selections.iter().map(|s| resolve(s)).collect::<PyResult<Vec<_>>>()?,
     )
     .map_err(err)?;
+    Ok((diagram, query))
+}
+#[pyfunction]
+#[pyo3(signature=(graph, selections, source, target, treatment, outcome, data, options, *, seed=1, memory_bytes=None, cancel=None))]
+fn prepare_learned_trial(
+    graph: &crate::graphs::Admg,
+    selections: Vec<String>,
+    source: String,
+    target: String,
+    treatment: String,
+    outcome: String,
+    data: &Bound<'_, PyAny>,
+    options: String,
+    seed: u64,
+    memory_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<PreparedLearnedTrial> {
+    let (diagram, query) = trial_request(graph, selections, source, target, treatment, outcome)?;
     let input = parse_input(data, &graph.names)?;
     let options: TrialAipwOptions = serde_json::from_str(&options).map_err(err)?;
     let mut ctx = ExecutionContext::production_default(seed);
-    ctx.memory.hard_limit_bytes = memory_bytes;
+    ctx.set_memory_limit(memory_bytes);
     crate::apply_cancel(&mut ctx, cancel);
+    crate::execution_api::apply(&mut ctx);
     let inner =
         antecedent::StudyBuilder::learned_trial_transport(diagram, query, input, options, &ctx)
             .map_err(err)?;
     Ok(PreparedLearnedTrial {
-        inner: Some(inner),
-        names: graph.names.clone(),
+        inner: Some(Arc::new(inner)),
+        names: Arc::from(graph.names.clone()),
         last: None,
         seed,
         memory_bytes,
     })
 }
+/// Largest learned-trial artifact consumed; it carries per-row score tables, so the bound is
+/// generous but finite.
+const MAX_LEARNED_TRIAL_ARTIFACT_BYTES: usize = 1 << 30;
+
 #[pyfunction]
-fn consume_learned_trial(bytes: &[u8]) -> PyResult<PreparedLearnedTrial> {
+fn consume_learned_trial(py: Python<'_>, bytes: &[u8]) -> PyResult<PreparedLearnedTrial> {
+    crate::bridge::check_declared_len(
+        bytes.len(),
+        MAX_LEARNED_TRIAL_ARTIFACT_BYTES,
+        "learned trial artifact",
+    )?;
     let payload = bytes
         .strip_prefix(b"ANTECEDENT-LEARNED-TRIAL\x01")
         .ok_or_else(|| err("invalid learned trial envelope"))?;
-    let result = antecedent::LearnedTrialResult::consume(payload).map_err(err)?;
+    let result =
+        crate::detach_catch(py, || antecedent::LearnedTrialResult::consume(payload).map_err(err))?;
     Ok(PreparedLearnedTrial {
         inner: None,
-        names: vec![],
-        last: Some(result),
+        names: Arc::from([]),
+        last: Some(Arc::new(result)),
         seed: 0,
         memory_bytes: None,
     })
 }
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PreparedLearnedTrial>()?;
+    readmodel::register(m)?;
     m.add_function(wrap_pyfunction!(consume_learned_trial, m)?)?;
     m.add_function(wrap_pyfunction!(prepare_learned_trial, m)?)?;
     Ok(())

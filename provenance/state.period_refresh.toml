@@ -1,0 +1,59 @@
+feature_id = "state.period_refresh"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent/src/period_refresh.rs"]
+
+papers = [
+ { title = "Some theorems in least squares (Plackett, Biometrika 37:149-157)", sections = ["recursive updating of the least-squares estimate with appended observations"] },
+ { title = "Bayesian Data Analysis (3rd edition, Gelman, Carlin, Stern, Dunson, Vehtari and Rubin)", sections = ["Chapter 14, Section 14.2: Bayesian analysis of the classical regression model"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent/src/period_refresh.rs. It states: The earlier posterior is never the prior of a period whose mechanism was not declared the same, because that would assume the stationarity a temporal index does not give; a period that overlaps the summarized one, or reuses its snapshot, is refused: the same observations would enter twice.",
+  "The gap is not filled and not assumed stationary: the rows that would span it are not formed, and the new period contributes its own rows only.",
+  "Next attempt when the mechanism is not invariant across periods: a model with period-level parameters (a hierarchical or random-walk coefficient model).",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/period_refresh_reference.rs (exact rational replay of the lag rows, least squares and conjugate posterior across contiguous, gapped and restarted periods)",
+  "crates/antecedent/tests/period_refresh_lifecycle.rs",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "PeriodRefresh::start and ::refresh in crates/antecedent/src/period_refresh.rs for an autoregressive mechanism of order L: the lag-row construction (lagged_rows, with the absolute time index of each target as its row id), the carried tail of the last L values, the three outcomes of a later period (a contiguous extension that forms the rows reaching back into the tail, an extension over a gap that does not, and a restart on the new period alone when the mechanism was not declared invariant), the refusal of an overlapping or snapshot-reusing period, and that a refused period leaves the fit, the posterior and the event list unchanged. The least-squares summary and the conjugate posterior themselves are the shared state.ols_refresh and state.conjugate_refresh kernels, whose own reviews are relied on; this review checks only that this route hands them exactly the rows an independent replay forms. Not the window-factor survival rules of refresh_survival, the artifact wire format, summary-only retention, row eviction or reprior."
+assumptions = ["The mechanism is v_t = c + sum_k phi_k v_(t-k) + e_t with independent innovations; the stationarity of a mechanism across periods is only what the caller declared.", "The conjugate normal-inverse-gamma posterior and ordinary least squares are determined by the retained rows and the stated prior, so a correct row set fixes every reported number.", "Series values are finite; the series is regularly spaced by the declared cadence."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. It is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Ten frozen cases of 14 to 95 values with lag orders 1 to 3: contiguous periods at offsets of 1e4 and 1e6 (two and three periods, and a restart with three lags), a gap, periods shorter than the lag order (contiguous and across a gap), a restart, nearly collinear ramps at offsets of 2000, 1e4 and 1e6 with a weak prior, and a strong prior against few rows; every series value is dyadic so the product reads the reference's numbers exactly. The posterior mean and rate are held to 1e-9 relative on every case (measured: at most 3e-10, at the offset of 1e6 and on the ramps), and the least-squares coefficients to 1e-8 on the autoregressive cases (measured 6e-10 at 1e6). The unregularised least squares of the near-collinear ramps is held to 1e-7 at offsets 2000 and 1e4 and to 1e-4 at 1e6 (measured 3e-9, 1e-8 and 6e-6): there the centred scatter of the rows, accumulated in double precision, is itself conditioned near 1e8 or worse and no prior bounds the solve. Lag order, prior shape and the survival of a window under a changed factor are not swept; refresh_survival is relied on, not reviewed here. The cited publications (Plackett 1950; Gelman et al.) were not retrieved in this review: the reference is the standard definition of the recursive least-squares update and the conjugate regression posterior. The reference script is not run in a locked, isolated environment and is not wired into any gate."
+sources = ["https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["The row identities are the absolute time indices of the targets, including the rows that reach back into the carried tail after a contiguous period and after a period too short to fill the lag window, and the tail is rebuilt from the new values alone after a gap.", "An extension over a gap forms no row that spans the gap, and an extension that leaves no row changes neither the fit nor the posterior.", "A restart fits the new period alone under the originally stated prior and drops the earlier rows; a restart whose new period leaves no row is refused with the earlier fit, posterior and event list unchanged.", "Every outcome equals the exact replay. The conjugate posterior is now resolved from the centred scatter of the pooled rows (shared state.conjugate_refresh), so an offset of 1e6 and a ramp whose raw Gram is conditioned near 1e16 no longer cost digits or a refusal; before, the same cases matched only to 1e-4 at 1e4, were refused or matched to 1e-3 at 1e6, and the ramp mean and rate to 1e-3 and 5e-2."]
+record_sha256 = "80ad24fa034898c26b1e34f9a4e48337f670ebc36521efdb48b47503da688a97"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/period_refresh.rs"
+items = ["enum PeriodRefreshOutcome", "fn beta", "fn check_against_fresh", "fn data_identity", "fn estimation", "fn events", "fn expected_len", "fn extend", "fn fit", "fn invalid", "fn lagged_rows", "fn lags", "fn last_invalidated", "fn n", "fn prior", "fn refresh", "fn restart", "fn series_id", "fn source", "fn standing", "fn start", "fn summary", "fn summary_close", "fn tail_of", "fn temporal_factors", "fn window", "fn window_stats", "struct BlockSpan", "struct PeriodRefresh", "struct PeriodRefreshSpec", "struct RefreshEvent"]
+sha256 = "f9b0a3adb0729d1990106d9d4c9deebdc8a3895eb985c84864e7825f3bb21c1d"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/period_refresh_reference.rs"
+items = ["fn cadence", "fn check", "fn close", "fn every_period_outcome_matches_the_exact_replay", "fn num", "fn nums", "fn prior", "fn set", "fn window", "struct Tolerance"]
+sha256 = "69870c88e670c27f9170ffeb08fc37e21d454f6f9c36027bde1743eb9c582efb"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent/tests/oracle_data/period_refresh_reference.py"
+sha256 = "7205ab9e4a933b760436506ecfabceb79eda3f8ebb0dc2790788bee750e3e1e9"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent/tests/oracle_data/period_refresh_reference.json"
+sha256 = "945945fb2e89c6a934a8f384ec4b303b20a36f99dca3c1af56cf1aede18051cf"

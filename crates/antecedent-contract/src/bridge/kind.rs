@@ -1,9 +1,10 @@
 //! The six bridge kinds, the classes of quantity they connect, the assumption
 //! each kind rests on, and the value kinds a bridge never interconverts.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::mapping::MappingKind;
+use antecedent_core::named_variants;
 
 /// What a scientific quantity is, for the purpose of a bridge.
 ///
@@ -46,54 +47,33 @@ pub enum QuantityClass {
     ScientificEndpoint,
     /// The utility a decision maker assigns to an outcome or an effect.
     DecisionUtility,
+    /// A noncausal association of the observed joint law (a regression
+    /// coefficient, a conditional mean, a correlation). Describes the data
+    /// as observed; never an intervention effect.
+    AssociationalQuantity,
+}
+
+named_variants! {
+    QuantityClass {
+        LatentConstruct => "latent_construct",
+        MeasuredOutcome => "measured_outcome",
+        StatedPreference => "stated_preference",
+        RealizedBehavior => "realized_behavior",
+        SurrogateEndpoint => "surrogate_endpoint",
+        TerminalOutcome => "terminal_outcome",
+        PredictiveQuantity => "predictive_quantity",
+        PredictiveImportance => "predictive_importance",
+        ModelScore => "model_score",
+        CausalQuantity => "causal_quantity",
+        ModelParameter => "model_parameter",
+        InterventionResponse => "intervention_response",
+        ScientificEndpoint => "scientific_endpoint",
+        DecisionUtility => "decision_utility",
+        AssociationalQuantity => "associational_quantity",
+    }
 }
 
 impl QuantityClass {
-    /// Every class.
-    pub const ALL: [Self; 14] = [
-        Self::LatentConstruct,
-        Self::MeasuredOutcome,
-        Self::StatedPreference,
-        Self::RealizedBehavior,
-        Self::SurrogateEndpoint,
-        Self::TerminalOutcome,
-        Self::PredictiveQuantity,
-        Self::PredictiveImportance,
-        Self::ModelScore,
-        Self::CausalQuantity,
-        Self::ModelParameter,
-        Self::InterventionResponse,
-        Self::ScientificEndpoint,
-        Self::DecisionUtility,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::LatentConstruct => "latent_construct",
-            Self::MeasuredOutcome => "measured_outcome",
-            Self::StatedPreference => "stated_preference",
-            Self::RealizedBehavior => "realized_behavior",
-            Self::SurrogateEndpoint => "surrogate_endpoint",
-            Self::TerminalOutcome => "terminal_outcome",
-            Self::PredictiveQuantity => "predictive_quantity",
-            Self::PredictiveImportance => "predictive_importance",
-            Self::ModelScore => "model_score",
-            Self::CausalQuantity => "causal_quantity",
-            Self::ModelParameter => "model_parameter",
-            Self::InterventionResponse => "intervention_response",
-            Self::ScientificEndpoint => "scientific_endpoint",
-            Self::DecisionUtility => "decision_utility",
-        }
-    }
-
-    /// Parse the spelling of [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|class| class.as_str() == name)
-    }
-
     pub(crate) const fn tag(self) -> u64 {
         match self {
             Self::LatentConstruct => 1,
@@ -110,6 +90,7 @@ impl QuantityClass {
             Self::InterventionResponse => 12,
             Self::ScientificEndpoint => 13,
             Self::DecisionUtility => 14,
+            Self::AssociationalQuantity => 15,
         }
     }
 }
@@ -135,34 +116,17 @@ pub enum ValueKind {
     JointOutcomeLaw,
 }
 
+named_variants! {
+    ValueKind {
+        Mean => "mean",
+        PredictiveLaw => "predictive_law",
+        Posterior => "posterior",
+        IdentifiedSet => "identified_set",
+        JointOutcomeLaw => "joint_outcome_law",
+    }
+}
+
 impl ValueKind {
-    /// Every kind.
-    pub const ALL: [Self; 5] = [
-        Self::Mean,
-        Self::PredictiveLaw,
-        Self::Posterior,
-        Self::IdentifiedSet,
-        Self::JointOutcomeLaw,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Mean => "mean",
-            Self::PredictiveLaw => "predictive_law",
-            Self::Posterior => "posterior",
-            Self::IdentifiedSet => "identified_set",
-            Self::JointOutcomeLaw => "joint_outcome_law",
-        }
-    }
-
-    /// Parse the spelling of [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
-    }
-
     pub(crate) const fn tag(self) -> u64 {
         match self {
             Self::Mean => 1,
@@ -202,38 +166,19 @@ pub enum AssumptionKind {
     Additional,
 }
 
+named_variants! {
+    AssumptionKind {
+        MeasurementModel => "measurement_model",
+        BehavioralLinkage => "behavioral_linkage",
+        SurrogateValidation => "surrogate_validation",
+        Identification => "identification",
+        ParameterInterpretation => "parameter_interpretation",
+        UtilityMapping => "utility_mapping",
+        Additional => "additional",
+    }
+}
+
 impl AssumptionKind {
-    /// Every kind.
-    pub const ALL: [Self; 7] = [
-        Self::MeasurementModel,
-        Self::BehavioralLinkage,
-        Self::SurrogateValidation,
-        Self::Identification,
-        Self::ParameterInterpretation,
-        Self::UtilityMapping,
-        Self::Additional,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::MeasurementModel => "measurement_model",
-            Self::BehavioralLinkage => "behavioral_linkage",
-            Self::SurrogateValidation => "surrogate_validation",
-            Self::Identification => "identification",
-            Self::ParameterInterpretation => "parameter_interpretation",
-            Self::UtilityMapping => "utility_mapping",
-            Self::Additional => "additional",
-        }
-    }
-
-    /// Parse the spelling of [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
-    }
-
     /// Whether an assumption of this kind must name the evidence or identity
     /// it rests on.
     #[must_use]
@@ -279,36 +224,18 @@ pub enum BridgeKind {
     ScientificDecisionUtility,
 }
 
+named_variants! {
+    BridgeKind {
+        LatentMeasuredOutcome => "latent_measured_outcome",
+        PreferenceRealizedBehavior => "preference_realized_behavior",
+        SurrogateTerminalOutcome => "surrogate_terminal_outcome",
+        PredictiveCausalQuantity => "predictive_causal_quantity",
+        ParameterInterventionResponse => "parameter_intervention_response",
+        ScientificDecisionUtility => "scientific_decision_utility",
+    }
+}
+
 impl BridgeKind {
-    /// Every kind.
-    pub const ALL: [Self; 6] = [
-        Self::LatentMeasuredOutcome,
-        Self::PreferenceRealizedBehavior,
-        Self::SurrogateTerminalOutcome,
-        Self::PredictiveCausalQuantity,
-        Self::ParameterInterventionResponse,
-        Self::ScientificDecisionUtility,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::LatentMeasuredOutcome => "latent_measured_outcome",
-            Self::PreferenceRealizedBehavior => "preference_realized_behavior",
-            Self::SurrogateTerminalOutcome => "surrogate_terminal_outcome",
-            Self::PredictiveCausalQuantity => "predictive_causal_quantity",
-            Self::ParameterInterventionResponse => "parameter_intervention_response",
-            Self::ScientificDecisionUtility => "scientific_decision_utility",
-        }
-    }
-
-    /// Parse the spelling of [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
-    }
-
     pub(crate) const fn tag(self) -> u64 {
         match self {
             Self::LatentMeasuredOutcome => 1,
@@ -322,7 +249,7 @@ impl BridgeKind {
 
     /// The `(source, target)` class pairs the kind connects.
     ///
-    /// A pair listed here is not thereby licensed: the importance and score
+    /// A pair listed here is not thereby supported: the importance and score
     /// pairs of the predictive kind are listed so the refusal that closes
     /// them is the named one, not a malformed-declaration refusal.
     #[must_use]
@@ -337,6 +264,7 @@ impl BridgeKind {
             Self::SurrogateTerminalOutcome => &[(C::SurrogateEndpoint, C::TerminalOutcome)],
             Self::PredictiveCausalQuantity => &[
                 (C::PredictiveQuantity, C::CausalQuantity),
+                (C::AssociationalQuantity, C::CausalQuantity),
                 (C::PredictiveImportance, C::CausalQuantity),
                 (C::ModelScore, C::PredictiveQuantity),
             ],

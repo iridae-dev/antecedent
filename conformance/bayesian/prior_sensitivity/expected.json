@@ -7,5 +7,12 @@
     10.0,
     20.0
   ],
-  "require_finite_effect_means": true
+  "require_finite_effect_means": true,
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_kind": "implementation_exists",
+  "evidence_source": "crates/antecedent/tests/bayesian.rs::prior_sensitivity",
+  "evidence_proposition": "The configured sensitivity scales execute and produce finite effect means.",
+  "limitations": "No independent posterior means or statistical acceptance values are supplied here. Separate closed-form sensitivity assertions do not upgrade this smoke fixture."
 }

@@ -1,16 +1,16 @@
-//! Estimate, refresh, retarget, export, and refute clicks.
+//! Estimate, retarget, export, and refute clicks.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-use numpy::PyReadonlyArray1;
+use crate::NumericColumn;
 
 use std::sync::Arc;
 
 use antecedent::Study;
-use antecedent_core::{
+use antecedent::data::TableView;
+use antecedent::query::{
     AnomalyAttributionQuery, CausalQuery, ChangeAttributionQuery, PopulationSelector,
 };
-use antecedent_data::TableView;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
@@ -60,7 +60,7 @@ impl PyPreparedAnalysis {
             let mut query = AnomalyAttributionQuery::new(target_ids, max_units);
             if let Some((center, scale)) = reference {
                 query =
-                    query.with_reference(antecedent_core::AnomalyReference::fixed(center, scale));
+                    query.with_reference(antecedent::query::AnomalyReference::fixed(center, scale));
             }
             let dag = dag_from_named_edges(data.schema(), &edges)?;
             let builder =
@@ -111,8 +111,8 @@ impl PyPreparedAnalysis {
         })
     }
 
-    /// Weighted-mean retarget from the frozen score table. Does not refit.
-    #[pyo3(signature = (weights, depends_on, *, seed=1, threads=None))]
+    /// Retarget frozen scores or a compatible retained adjusted mean model. Does not refit.
+    #[pyo3(signature = (weights, depends_on, *, seed=1, threads=None, cancel=None))]
     #[allow(
         clippy::cast_possible_truncation,
         reason = "node ids are u32 by construction (DenseNodeId), so node positions fit u32"
@@ -124,10 +124,12 @@ impl PyPreparedAnalysis {
         depends_on: Vec<String>,
         seed: u64,
         threads: Option<u32>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<AteAnalysisResult> {
         self.refuse_design_retarget()?;
+        let cancel_token = cancel.map(|c| c.inner);
         // Retarget the scores of the execution this call follows: after
-        // `estimate(data)` that is the handle refreshed on `data`, not the one
+        // `estimate(data)` that is the handle rebound on `data`, not the one
         // frozen at prepare.
         let bound = self.last_study.clone().unwrap_or_else(|| Arc::clone(&self.inner));
         let inner = Arc::clone(&bound);
@@ -136,7 +138,7 @@ impl PyPreparedAnalysis {
             let ctx = py_execution_context_ext(
                 seed,
                 crate::resolve_user_threads(threads),
-                None,
+                cancel_token,
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
@@ -146,12 +148,12 @@ impl PyPreparedAnalysis {
                     out_names
                         .iter()
                         .position(|n| n == name)
-                        .map(|i| antecedent_core::VariableId::from_raw(i as u32))
+                        .map(|i| antecedent::prelude::VariableId::from_raw(i as u32))
                         .ok_or_else(|| crate::value_err(format!("unknown depends_on {name}")))
                 })
                 .collect::<PyResult<Vec<_>>>()?;
             let result = inner.retarget(&weights, &schema_ids, &ctx).map_err(py_err)?;
-            let mapped = ate_result_from_analysis(&out_names, result.clone(), false)?;
+            let mapped = ate_result_from_analysis(&out_names, &result, false, &ctx)?;
             Ok((mapped, result))
         })?;
         self.last_study = Some(bound);
@@ -165,15 +167,17 @@ impl PyPreparedAnalysis {
     ///
     /// Refuses with `row_weights_bound_to_snapshot` unless this handle holds
     /// the data snapshot and score table the weights were bound to.
-    #[pyo3(signature = (artifact, *, seed=1, threads=None))]
+    #[pyo3(signature = (artifact, *, seed=1, threads=None, cancel=None))]
     fn reexecute_retarget(
         &mut self,
         py: Python<'_>,
-        artifact: Vec<u8>,
+        artifact: &[u8],
         seed: u64,
         threads: Option<u32>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<AteAnalysisResult> {
         self.refuse_design_retarget()?;
+        let cancel_token = cancel.map(|c| c.inner);
         let bound = self.last_study.clone().unwrap_or_else(|| Arc::clone(&self.inner));
         let inner = Arc::clone(&bound);
         let out_names = self.names.clone();
@@ -181,17 +185,22 @@ impl PyPreparedAnalysis {
             let ctx = py_execution_context_ext(
                 seed,
                 crate::resolve_user_threads(threads),
-                None,
+                cancel_token,
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
-            let consumed = antecedent_io::consume_analysis_result(&artifact).map_err(py_err)?;
+            crate::measured_inference_api::check_cancelled(&ctx)?;
+            let load = antecedent::io::load_analysis_result(artifact).map_err(py_err)?;
+            crate::measured_inference_api::check_cancelled(&ctx)?;
+            if !load.is_intact() {
+                return Err(crate::value_err("artifact is not an intact analysis result"));
+            }
             let section =
-                consumed.contract.and_then(|contract| contract.target_weights).ok_or_else(
-                    || crate::value_err("artifact carries no row-weight retarget to re-execute"),
-                )?;
+                load.contract.and_then(|contract| contract.target_weights).ok_or_else(|| {
+                    crate::value_err("artifact carries no row-weight retarget to re-execute")
+                })?;
             let result = inner.reexecute_retarget(&section, &ctx).map_err(py_err)?;
-            let mapped = ate_result_from_analysis(&out_names, result.clone(), false)?;
+            let mapped = ate_result_from_analysis(&out_names, &result, false, &ctx)?;
             Ok((mapped, result))
         })?;
         self.last_study = Some(bound);
@@ -217,8 +226,8 @@ impl PyPreparedAnalysis {
     ) -> PyResult<AteAnalysisResult> {
         require_prepared_names(&self.names, &names, "estimate")?;
         let controls = ClickControls::parse(cancel, on_progress.as_ref(), on_stage.as_ref())?;
-        let data = FrameInput::Series(tabular_from_py_columns(names, columns)?.0);
-        self.click(py, data, false, seed, threads, controls, map_ate)
+        let data = FrameInput::Series(tabular_from_py_columns(names, columns)?);
+        self.click(py, data, seed, threads, controls, map_ate)
     }
 
     /// Re-estimate a prepared response (same schema) without recompiling.
@@ -237,48 +246,8 @@ impl PyPreparedAnalysis {
     ) -> PyResult<ResponseAnalysisResult> {
         require_prepared_names(&self.names, &names, "estimate")?;
         let controls = ClickControls::parse(cancel, on_progress.as_ref(), on_stage.as_ref())?;
-        let data = FrameInput::Series(tabular_from_py_columns(names, columns)?.0);
-        self.click(py, data, false, seed, threads, controls, response_from_study)
-    }
-
-    /// Replace retained data and re-estimate (same schema).
-    #[pyo3(signature = (names, columns, *, seed=1, threads=None, cancel=None, on_progress=None, on_stage=None))]
-    #[allow(clippy::too_many_arguments)]
-    fn refresh(
-        &mut self,
-        py: Python<'_>,
-        names: Vec<String>,
-        columns: Vec<Bound<'_, PyAny>>,
-        seed: u64,
-        threads: Option<u32>,
-        cancel: Option<crate::PyCancellationToken>,
-        on_progress: Option<Bound<'_, PyAny>>,
-        on_stage: Option<Bound<'_, PyAny>>,
-    ) -> PyResult<AteAnalysisResult> {
-        require_prepared_names(&self.names, &names, "refresh")?;
-        let controls = ClickControls::parse(cancel, on_progress.as_ref(), on_stage.as_ref())?;
-        let data = FrameInput::Series(tabular_from_py_columns(names, columns)?.0);
-        self.click(py, data, true, seed, threads, controls, map_ate)
-    }
-
-    /// Replace retained data and re-estimate a prepared response.
-    #[pyo3(signature = (names, columns, *, seed=1, threads=None, cancel=None, on_progress=None, on_stage=None))]
-    #[allow(clippy::too_many_arguments)]
-    fn refresh_response(
-        &mut self,
-        py: Python<'_>,
-        names: Vec<String>,
-        columns: Vec<Bound<'_, PyAny>>,
-        seed: u64,
-        threads: Option<u32>,
-        cancel: Option<crate::PyCancellationToken>,
-        on_progress: Option<Bound<'_, PyAny>>,
-        on_stage: Option<Bound<'_, PyAny>>,
-    ) -> PyResult<ResponseAnalysisResult> {
-        require_prepared_names(&self.names, &names, "refresh")?;
-        let controls = ClickControls::parse(cancel, on_progress.as_ref(), on_stage.as_ref())?;
-        let data = FrameInput::Series(tabular_from_py_columns(names, columns)?.0);
-        self.click(py, data, true, seed, threads, controls, response_from_study)
+        let data = FrameInput::Series(tabular_from_py_columns(names, columns)?);
+        self.click(py, data, seed, threads, controls, response_from_study)
     }
 
     /// Export the retained full posterior or response without refitting.
@@ -293,86 +262,91 @@ impl PyPreparedAnalysis {
             .last
             .as_ref()
             .ok_or_else(|| crate::value_err("estimate before exporting an artifact"))?;
-        let bytes = if payload == "query" {
-            let query = antecedent_io::CausalPayloadWire::Query(Box::new(
-                antecedent_io::causal_query_to_wire_with_registry(
-                    self.inner.query(),
-                    self.inner.population_registry(),
-                )
-                .map_err(py_err)?,
-            ));
-            let artifact = antecedent_io::encode_causal_payload_artifact(
-                &query,
-                self.names.clone(),
-                artifact_id,
-            )
-            .map_err(py_err)?;
-            let mut bytes = Vec::new();
-            artifact.write_to(&mut bytes).map_err(py_err)?;
-            bytes
-        } else if payload != "result" {
-            return Err(crate::value_err("payload must be 'query' or 'result'"));
-        } else if result.mediation_grid().is_some()
-            || result.structural_response.is_some()
-            || (result.posterior.is_some() && result.response().is_some())
-        {
-            let wire = result
-                .analysis_result_wire_with_context(
-                    self.inner.query(),
-                    self.inner.population_registry(),
-                    self.inner.temporal_identification().as_deref(),
+        let bytes = crate::detach_catch(py, || -> PyResult<Vec<u8>> {
+            Ok(if payload == "query" {
+                let query = antecedent::io::CausalPayloadWire::Query(Box::new(
+                    antecedent::io::causal_query_to_wire_with_registry(
+                        self.inner.query(),
+                        self.inner.population_registry(),
+                    )
+                    .map_err(py_err)?,
+                ));
+                let artifact = antecedent::io::encode_causal_payload_artifact(
+                    &query,
+                    self.names.clone(),
+                    artifact_id,
                 )
                 .map_err(py_err)?;
-            let artifact = antecedent_io::encode_analysis_result_artifact(
-                &wire,
-                self.names.clone(),
-                artifact_id,
-            )
-            .map_err(py_err)?;
-            let mut bytes = Vec::new();
-            artifact.write_to(&mut bytes).map_err(py_err)?;
-            bytes
-        } else if let Some(post) = &result.posterior {
-            antecedent_io::encode_causal_posterior_bytes(post, artifact_id).map_err(py_err)?
-        } else if let Some(response) = result.response() {
-            let payload = antecedent_io::CausalPayloadWire::ResponseResult(Box::new(
-                antecedent_io::causal_response_to_wire(response).map_err(py_err)?,
-            ));
-            let artifact = antecedent_io::encode_causal_payload_artifact(
-                &payload,
-                self.names.clone(),
-                artifact_id,
-            )
-            .map_err(py_err)?;
-            let mut bytes = Vec::new();
-            artifact.write_to(&mut bytes).map_err(py_err)?;
-            bytes
-        } else if result.mediation().is_some() || result.counterfactual().is_some() {
-            let wire = result
-                .static_result_wire(self.inner.query(), self.inner.population_registry())
-                .map_err(|e| match e {
-                    // An incomplete payload stays the ValueError it always was.
-                    antecedent::CausalError::Compile { message } => crate::value_err(message),
-                    antecedent::CausalError::Rejected(failure) => {
-                        crate::value_err(failure.message())
-                    }
-                    other => py_err(other),
-                })?;
-            let payload = antecedent_io::CausalPayloadWire::StaticResult(Box::new(wire));
-            let artifact = antecedent_io::encode_causal_payload_artifact(
-                &payload,
-                self.names.clone(),
-                artifact_id,
-            )
-            .map_err(py_err)?;
-            let mut bytes = Vec::new();
-            artifact.write_to(&mut bytes).map_err(py_err)?;
-            bytes
-        } else {
-            return Err(crate::value_err(
-                "retained result has no posterior or response artifact payload",
-            ));
-        };
+                let mut bytes = Vec::new();
+                artifact.write_to(&mut bytes).map_err(py_err)?;
+                bytes
+            } else if payload != "result" {
+                return Err(crate::value_err("payload must be 'query' or 'result'"));
+            } else if result.mediation_grid().is_some()
+                || result.structural_response.is_some()
+                || (result.posterior.is_some() && result.response().is_some())
+            {
+                let wire = result
+                    .analysis_result_wire_with_context(
+                        self.inner.query(),
+                        self.inner.population_registry(),
+                        self.inner.temporal_identification().as_deref(),
+                    )
+                    .map_err(py_err)?;
+                let artifact = antecedent::io::encode_analysis_result_artifact(
+                    &wire,
+                    self.names.clone(),
+                    artifact_id,
+                )
+                .map_err(py_err)?;
+                let mut bytes = Vec::new();
+                artifact.write_to(&mut bytes).map_err(py_err)?;
+                bytes
+            } else if let Some(post) = &result.posterior {
+                antecedent::io::encode_causal_posterior_bytes(post, artifact_id).map_err(py_err)?
+            } else if let Some(response) = result.response() {
+                let payload = antecedent::io::CausalPayloadWire::ResponseResult(Box::new(
+                    antecedent::io::causal_response_to_wire(response).map_err(py_err)?,
+                ));
+                let artifact = antecedent::io::encode_causal_payload_artifact(
+                    &payload,
+                    self.names.clone(),
+                    artifact_id,
+                )
+                .map_err(py_err)?;
+                let mut bytes = Vec::new();
+                artifact.write_to(&mut bytes).map_err(py_err)?;
+                bytes
+            } else if result.mediation().is_some()
+                || result.counterfactual().is_some()
+                || result.counterfactual_contrasts().is_some()
+            {
+                let wire = result
+                    .static_result_wire(self.inner.query(), self.inner.population_registry())
+                    .map_err(|e| match e {
+                        // An incomplete payload stays the ValueError it always was.
+                        antecedent::CausalError::Compile { message } => crate::value_err(message),
+                        antecedent::CausalError::Rejected(failure) => {
+                            crate::value_err(failure.message())
+                        }
+                        other => py_err(other),
+                    })?;
+                let payload = antecedent::io::CausalPayloadWire::StaticResult(Box::new(wire));
+                let artifact = antecedent::io::encode_causal_payload_artifact(
+                    &payload,
+                    self.names.clone(),
+                    artifact_id,
+                )
+                .map_err(py_err)?;
+                let mut bytes = Vec::new();
+                artifact.write_to(&mut bytes).map_err(py_err)?;
+                bytes
+            } else {
+                return Err(crate::value_err(
+                    "retained result has no posterior or response artifact payload",
+                ));
+            })
+        })?;
         Ok(pyo3::types::PyBytes::new(py, &bytes))
     }
 
@@ -395,15 +369,15 @@ impl PyPreparedAnalysis {
             None,
             Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
         );
-        let quantities: Option<Vec<antecedent_contract::ScientificQuantity>> = quantities_json
+        let quantities: Option<Vec<antecedent::scientific::ScientificQuantity>> = quantities_json
             .map(|json| {
-                let wires: Vec<antecedent_io::quantity_wire::ScientificQuantityWire> =
+                let wires: Vec<antecedent::io::quantity_wire::ScientificQuantityWire> =
                     serde_json::from_str(json)
                         .map_err(|error| crate::value_err(error.to_string()))?;
                 wires
                     .into_iter()
                     .map(|wire| {
-                        antecedent_contract::ScientificQuantity::try_from(wire)
+                        antecedent::scientific::ScientificQuantity::try_from(wire)
                             .map_err(crate::value_err)
                     })
                     .collect::<PyResult<Vec<_>>>()
@@ -415,7 +389,7 @@ impl PyPreparedAnalysis {
                 let first = quantities
                     .first()
                     .ok_or_else(|| crate::value_err("scientific coordinates cannot be empty"))?;
-                Ok::<_, PyErr>(antecedent_contract::ResponseCoordinateLabels {
+                Ok::<_, PyErr>(antecedent::contract::ResponseCoordinateLabels {
                     outcome_units: &first.units,
                     population_id: &first.population_id,
                     transform_id: &first.transform_id,
@@ -426,7 +400,7 @@ impl PyPreparedAnalysis {
             let response = result
                 .response()
                 .ok_or_else(|| crate::value_err("scientific coordinates require a response"))?;
-            let expected = antecedent_contract::response_coordinates(
+            let expected = antecedent::contract::response_coordinates(
                 response,
                 &|id| self.names.get(id.as_usize()).cloned(),
                 labels,
@@ -443,17 +417,52 @@ impl PyPreparedAnalysis {
                 ));
             }
         }
-        let bytes = self
-            .last_study
-            .as_ref()
-            .unwrap_or(&self.inner)
-            .encode_contracted_result_with_quantity_labels(
-                result,
-                artifact_id,
-                &ctx,
-                labels.as_ref(),
-            )
-            .map_err(py_err)?;
+        let bytes = crate::detach_catch(py, || {
+            self.last_study
+                .as_ref()
+                .unwrap_or(&self.inner)
+                .encode_contracted_result_with_quantity_labels(
+                    result,
+                    artifact_id,
+                    &ctx,
+                    labels.as_ref(),
+                )
+                .map_err(py_err)
+        })?;
+        Ok(pyo3::types::PyBytes::new(py, &bytes))
+    }
+
+    /// Export an analysis result with its explicitly supplied full source table.
+    #[pyo3(signature = (names, columns, *, artifact_id="prepared-contract"))]
+    fn export_contracted_artifact_with_source<'py>(
+        &self,
+        py: Python<'py>,
+        names: Vec<String>,
+        columns: Vec<Bound<'py, PyAny>>,
+        artifact_id: &str,
+    ) -> PyResult<Bound<'py, pyo3::types::PyBytes>> {
+        require_prepared_names(&self.names, &names, "source export")?;
+        let result =
+            Arc::clone(self.last.as_ref().ok_or_else(|| {
+                crate::value_err("estimate before exporting a contracted artifact")
+            })?);
+        let data = tabular_from_py_columns(names, columns)?;
+        let study = self.last_study.clone().unwrap_or_else(|| Arc::clone(&self.inner));
+        let seed = self.last_seed;
+        let threads = self.last_threads;
+        let artifact_id = artifact_id.to_owned();
+        let bytes = detach_catch(py, move || {
+            let ctx = crate::py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            study
+                .encode_contracted_result_with_source(&result, &data, &artifact_id, &ctx)
+                .map_err(py_err)
+        })?;
         Ok(pyo3::types::PyBytes::new(py, &bytes))
     }
 
@@ -467,10 +476,8 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<AteAnalysisResult> {
-        let prior = self
-            .last
-            .clone()
-            .ok_or_else(|| crate::value_err("call estimate/refresh before refute"))?;
+        let prior =
+            self.last.clone().ok_or_else(|| crate::value_err("call estimate before refute"))?;
         let refute_suite = crate::suite_from_refute(Some(&suite))?;
         let bound = self.last_study.clone().unwrap_or_else(|| Arc::clone(&self.inner));
         let inner = Arc::clone(&bound);
@@ -483,8 +490,10 @@ impl PyPreparedAnalysis {
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
-            let result = inner.refute_bound(&prior, refute_suite, &ctx).map_err(crate::py_err)?;
-            let mapped = crate::ate_result_from_analysis(&names, result.clone(), false)?;
+            let result = crate::interrupt::bind_study_validators(&inner)?
+                .refute_bound(&prior, refute_suite, &ctx)
+                .map_err(crate::py_err)?;
+            let mapped = crate::ate_result_from_analysis(&names, &result, false, &ctx)?;
             Ok((mapped, result))
         })?;
         self.last_study = Some(bound);
@@ -500,7 +509,7 @@ impl PyPreparedAnalysis {
         &mut self,
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         suite: Bound<'_, PyAny>,
         seed: u64,
         threads: Option<u32>,
@@ -545,12 +554,6 @@ impl PyPreparedAnalysis {
         out.insert("structure_source".into(), self.inner.structure_source().as_str().to_string());
         if let Some(status) = self.inner.support_status() {
             out.insert("evidence_status".into(), status.as_str().to_string());
-            if let Some(reason) = status.allowlist_reason() {
-                out.insert("allowlist_reason".into(), reason.to_string());
-            }
-            if let Some(parent) = status.allowlist_parent() {
-                out.insert("allowlist_parent".into(), parent.to_string());
-            }
         }
         if let Some(b) = rec.estimated_peak_memory_bytes {
             out.insert("estimated_peak_memory_bytes".into(), b.to_string());
@@ -593,6 +596,7 @@ impl PyPreparedAnalysis {
         insert_reuse_identities(
             &mut report,
             self.inner.score_reuse_identity().map_err(py_err)?,
+            self.inner.adjusted_fit_reuse_identity().map_err(py_err)?,
             None,
         );
         Ok(report)

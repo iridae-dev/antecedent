@@ -21,17 +21,18 @@
 //!   previous graph is never used as the start of a search; there is no incremental
 //!   discovery here.
 //!
-//! The reused result is bit-identical to a full run because every retained statistic is the
-//! value the test returned for exactly that coordinate. Retaining the *skeleton state*
+//! The reused result matches a fresh selective run because every retained statistic is the
+//! value the test returned for exactly that coordinate. A native unwrapped run may use a
+//! covariance-session optimization and is not covered by this bitwise claim. Retaining the *skeleton state*
 //! between runs is not offered: the algorithms interleave orientation with the final search
-//! passes and expose no resumable state, so that stage is a closed route.
+//! passes and expose no resumable state, so that stage is a unsupported route.
 //!
 //! # Score-based search
 //!
 //! Local-score caches are internal to a score-based run and bound to one data fingerprint.
 //! No score route is delivered; [`WorkUnits::score_evaluations`] is zero by construction.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -52,18 +53,10 @@ use super::contract::{
 use super::identity::{DataIdentity, Digest, static_data_identity, temporal_data_identity};
 use super::outcome::{DiscoveryOutcome, NativeResult};
 use super::portable::PortableDiscoveryState;
-use super::refusal::SelectiveDiscoveryError;
+use super::refusal::{SelectiveDiscoveryError, invalid};
 use super::stages::{DiscoveryPlan, DiscoveryStage, StageInputs};
-use super::store::{SelectiveCi, StatisticStore};
+use super::store::{SelectiveCi, SelectiveLimits, StatisticStore};
 use super::work::{WorkUnits, observe_orientation};
-
-fn invalid(detail: &'static str, remedy: impl Into<String>) -> SelectiveDiscoveryError {
-    SelectiveDiscoveryError::refused(
-        antecedent_core::reason_code!("invalid_argument"),
-        detail,
-        remedy,
-    )
-}
 
 fn statistics_invalid(detail: &'static str, remedy: impl Into<String>) -> SelectiveDiscoveryError {
     SelectiveDiscoveryError::refused(
@@ -86,6 +79,7 @@ pub struct SelectiveRunReport {
     pub retained_statistics: usize,
 }
 
+#[derive(Clone)]
 struct LiveState {
     inputs: StageInputs,
     data: DataIdentity,
@@ -108,7 +102,7 @@ fn ensure_seed(expected: u64, ctx: &ExecutionContext) -> Result<(), SelectiveDis
         Ok(())
     } else {
         Err(invalid(
-            "selective_discovery.rng_mismatch",
+            antecedent_core::reason_details::selective_discovery::RNG_MISMATCH,
             "the execution context's master seed differs from the seed frozen in the contract; \
              build the context from the contract's seed or change the contract",
         ))
@@ -128,7 +122,7 @@ fn counts_of(native: &NativeResult) -> (u64, u64) {
 fn map_failure(store: &StatisticStore, error: DiscoveryError) -> SelectiveDiscoveryError {
     if store.replay_missed() {
         statistics_invalid(
-            "selective_discovery.replay_miss",
+            antecedent_core::reason_details::selective_discovery::REPLAY_MISS,
             "the retained statistics do not cover a test this contract requests; resume needs \
              the receipts of a run of this exact contract on this data",
         )
@@ -163,6 +157,7 @@ fn work_between(
 fn execute_candidate(
     live: Option<&LiveState>,
     prepared: Prepared,
+    limits: &SelectiveLimits,
     execute: impl FnOnce(Arc<SelectiveCi>) -> Result<DiscoveryOutcome, DiscoveryError>,
 ) -> Result<(Option<LiveState>, SelectiveRunReport), SelectiveDiscoveryError> {
     let plan = DiscoveryPlan::between(live.map(|l| &l.inputs), &prepared.inputs);
@@ -178,7 +173,7 @@ fn execute_candidate(
     let statistics_reused = plan.decision(DiscoveryStage::Statistics).is_reused();
     let store = match live {
         Some(live) if statistics_reused => Arc::new(live.store.fork()),
-        _ => Arc::new(StatisticStore::new()),
+        _ => Arc::new(StatisticStore::with_capacity(limits.store_capacity)),
     };
     let ci = Arc::new(SelectiveCi::new(
         prepared.test,
@@ -203,7 +198,10 @@ fn execute_candidate(
     Ok((Some(state), report))
 }
 
-fn export(live: &LiveState) -> Result<PortableDiscoveryState, SelectiveDiscoveryError> {
+fn export(
+    live: &LiveState,
+    limits: &SelectiveLimits,
+) -> Result<PortableDiscoveryState, SelectiveDiscoveryError> {
     PortableDiscoveryState::from_live(
         &live.inputs,
         &live.data,
@@ -211,6 +209,7 @@ fn export(live: &LiveState) -> Result<PortableDiscoveryState, SelectiveDiscovery
         &live.store,
         &live.outcome,
         live.work,
+        limits,
     )
 }
 
@@ -302,10 +301,14 @@ fn prepare_temporal(
 fn resume_candidate(
     prepared: Prepared,
     state: &PortableDiscoveryState,
+    limits: &SelectiveLimits,
     execute: impl FnOnce(Arc<SelectiveCi>) -> Result<DiscoveryOutcome, DiscoveryError>,
 ) -> Result<(LiveState, SelectiveRunReport), SelectiveDiscoveryError> {
-    state.verify_binding(&prepared.inputs, &prepared.data)?;
-    let replay = Arc::new(StatisticStore::replay_only(&state.receipts)?);
+    state.verify_binding(&prepared.inputs, &prepared.data, limits.max_portable_receipts)?;
+    let replay = Arc::new(StatisticStore::replay_only_within(
+        &state.receipts,
+        limits.max_portable_receipts,
+    )?);
     let ci = Arc::new(SelectiveCi::new(
         Arc::clone(&prepared.test),
         Arc::clone(&replay),
@@ -314,9 +317,9 @@ fn resume_candidate(
     let before = replay.counters();
     let (executed, orientation) = observe_orientation(|| execute(ci));
     let outcome = executed.map_err(|error| map_failure(&replay, error))?;
-    state.verify_replayed(&outcome)?;
     let work = work_between(before, &replay, &outcome, orientation);
-    let live_store = Arc::new(StatisticStore::seeded(&state.receipts)?);
+    state.verify_replayed(&outcome, work)?;
+    let live_store = Arc::new(StatisticStore::seeded_within(&replay.consumed_receipts(), limits)?);
     let plan = DiscoveryPlan::between(Some(&prepared.inputs), &prepared.inputs);
     let report = SelectiveRunReport {
         plan,
@@ -330,7 +333,7 @@ fn resume_candidate(
         contract_identity: prepared.contract_identity,
         store: live_store,
         outcome,
-        work,
+        work: state.work,
     };
     Ok((live, report))
 }
@@ -339,11 +342,14 @@ fn resume_candidate(
 #[derive(Default)]
 pub struct StaticSelectiveDiscovery {
     live: Option<LiveState>,
+    limits: SelectiveLimits,
 }
 
 impl std::fmt::Debug for StaticSelectiveDiscovery {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("StaticSelectiveDiscovery").field("has_state", &self.live.is_some()).finish()
+        f.debug_struct("StaticSelectiveDiscovery")
+            .field("has_state", &self.live.is_some())
+            .finish_non_exhaustive()
     }
 }
 
@@ -351,7 +357,26 @@ impl StaticSelectiveDiscovery {
     /// An adapter with no retained state.
     #[must_use]
     pub const fn new() -> Self {
-        Self { live: None }
+        Self { live: None, limits: SelectiveLimits::DEFAULT }
+    }
+
+    /// An adapter with no retained state whose store capacity and portable-state receipt
+    /// bound are `limits` instead of [`SelectiveLimits::DEFAULT`].
+    #[must_use]
+    pub const fn with_limits(limits: SelectiveLimits) -> Self {
+        Self { live: None, limits }
+    }
+
+    // Candidate population runs share the immutable current state. Changed runs fork
+    // the store before executing, so a failed candidate cannot mutate this adapter.
+    pub(crate) fn fork_candidate(&self) -> Self {
+        Self { live: self.live.clone(), limits: self.limits }
+    }
+
+    /// The bounds this adapter retains and exports under.
+    #[must_use]
+    pub const fn limits(&self) -> &SelectiveLimits {
+        &self.limits
     }
 
     /// What `run` would reuse for this request, without executing anything.
@@ -385,9 +410,10 @@ impl StaticSelectiveDiscovery {
         ctx: &ExecutionContext,
     ) -> Result<SelectiveRunReport, SelectiveDiscoveryError> {
         let prepared = prepare_static(contract, data, ctx)?;
-        let (state, report) = execute_candidate(self.live.as_ref(), prepared, |ci| {
-            execute_static(contract, data, ci, ctx)
-        })?;
+        let (state, report) =
+            execute_candidate(self.live.as_ref(), prepared, &self.limits, |ci| {
+                execute_static(contract, data, ci, ctx)
+            })?;
         if let Some(state) = state {
             self.live = Some(state);
         }
@@ -428,14 +454,15 @@ impl StaticSelectiveDiscovery {
     pub fn export_state(&self) -> Result<PortableDiscoveryState, SelectiveDiscoveryError> {
         let live = self.live.as_ref().ok_or_else(|| {
             invalid(
-                "selective_discovery.nothing_retained",
+                antecedent_core::reason_details::selective_discovery::NOTHING_RETAINED,
                 "run discovery before exporting its state",
             )
         })?;
-        export(live)
+        export(live, &self.limits)
     }
 
-    /// Resume from a portable state: replay the algorithm over the retained statistics only.
+    /// Resume from a portable state: replay retained statistics, recomputing missing queries only
+    /// to verify that they are untestable.
     ///
     /// Resuming needs the raw data. Receipts alone cannot be validated, because a statistic
     /// is bound to the content it was computed from, and absent data is refused rather than
@@ -452,17 +479,34 @@ impl StaticSelectiveDiscovery {
         state: &PortableDiscoveryState,
         ctx: &ExecutionContext,
     ) -> Result<(Self, SelectiveRunReport), SelectiveDiscoveryError> {
+        Self::resume_with_limits(contract, data, state, ctx, SelectiveLimits::DEFAULT)
+    }
+
+    /// [`Self::resume`] under the caller's bounds instead of [`SelectiveLimits::DEFAULT`]; the
+    /// resumed adapter keeps them.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::resume`], with `limits.max_portable_receipts` as the receipt bound.
+    pub fn resume_with_limits(
+        contract: &StaticDiscoveryContract,
+        data: Option<&TabularData>,
+        state: &PortableDiscoveryState,
+        ctx: &ExecutionContext,
+        limits: SelectiveLimits,
+    ) -> Result<(Self, SelectiveRunReport), SelectiveDiscoveryError> {
         let data = data.ok_or_else(missing_raw_data)?;
         let prepared = prepare_static(contract, data, ctx)?;
-        let (live, report) =
-            resume_candidate(prepared, state, |ci| execute_static(contract, data, ci, ctx))?;
-        Ok((Self { live: Some(live) }, report))
+        let (live, report) = resume_candidate(prepared, state, &limits, |ci| {
+            execute_static(contract, data, ci, ctx)
+        })?;
+        Ok((Self { live: Some(live), limits }, report))
     }
 }
 
 fn missing_raw_data() -> SelectiveDiscoveryError {
     statistics_invalid(
-        "selective_discovery.raw_data_missing",
+        antecedent_core::reason_details::selective_discovery::RAW_DATA_MISSING,
         "resume needs the raw data the statistics were computed from; receipts and graph \
          identities remain inspectable without it, but they cannot be validated or extended",
     )
@@ -472,13 +516,14 @@ fn missing_raw_data() -> SelectiveDiscoveryError {
 #[derive(Default)]
 pub struct TemporalSelectiveDiscovery {
     live: Option<LiveState>,
+    limits: SelectiveLimits,
 }
 
 impl std::fmt::Debug for TemporalSelectiveDiscovery {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TemporalSelectiveDiscovery")
             .field("has_state", &self.live.is_some())
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -486,7 +531,20 @@ impl TemporalSelectiveDiscovery {
     /// An adapter with no retained state.
     #[must_use]
     pub const fn new() -> Self {
-        Self { live: None }
+        Self { live: None, limits: SelectiveLimits::DEFAULT }
+    }
+
+    /// An adapter with no retained state whose store capacity and portable-state receipt
+    /// bound are `limits` instead of [`SelectiveLimits::DEFAULT`].
+    #[must_use]
+    pub const fn with_limits(limits: SelectiveLimits) -> Self {
+        Self { live: None, limits }
+    }
+
+    /// The bounds this adapter retains and exports under.
+    #[must_use]
+    pub const fn limits(&self) -> &SelectiveLimits {
+        &self.limits
     }
 
     /// What `run` would reuse for this request, without executing anything.
@@ -520,9 +578,10 @@ impl TemporalSelectiveDiscovery {
         ctx: &ExecutionContext,
     ) -> Result<SelectiveRunReport, SelectiveDiscoveryError> {
         let prepared = prepare_temporal(contract, data, ctx)?;
-        let (state, report) = execute_candidate(self.live.as_ref(), prepared, |ci| {
-            execute_temporal(contract, data, ci, ctx)
-        })?;
+        let (state, report) =
+            execute_candidate(self.live.as_ref(), prepared, &self.limits, |ci| {
+                execute_temporal(contract, data, ci, ctx)
+            })?;
         if let Some(state) = state {
             self.live = Some(state);
         }
@@ -561,14 +620,15 @@ impl TemporalSelectiveDiscovery {
     pub fn export_state(&self) -> Result<PortableDiscoveryState, SelectiveDiscoveryError> {
         let live = self.live.as_ref().ok_or_else(|| {
             invalid(
-                "selective_discovery.nothing_retained",
+                antecedent_core::reason_details::selective_discovery::NOTHING_RETAINED,
                 "run discovery before exporting its state",
             )
         })?;
-        export(live)
+        export(live, &self.limits)
     }
 
-    /// Resume from a portable state: replay the algorithm over the retained statistics only.
+    /// Resume from a portable state: replay retained statistics, recomputing missing queries only
+    /// to verify that they are untestable.
     ///
     /// # Errors
     ///
@@ -579,10 +639,27 @@ impl TemporalSelectiveDiscovery {
         state: &PortableDiscoveryState,
         ctx: &ExecutionContext,
     ) -> Result<(Self, SelectiveRunReport), SelectiveDiscoveryError> {
+        Self::resume_with_limits(contract, data, state, ctx, SelectiveLimits::DEFAULT)
+    }
+
+    /// [`Self::resume`] under the caller's bounds instead of [`SelectiveLimits::DEFAULT`]; the
+    /// resumed adapter keeps them.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::resume`], with `limits.max_portable_receipts` as the receipt bound.
+    pub fn resume_with_limits(
+        contract: &TemporalDiscoveryContract,
+        data: Option<&TimeSeriesData>,
+        state: &PortableDiscoveryState,
+        ctx: &ExecutionContext,
+        limits: SelectiveLimits,
+    ) -> Result<(Self, SelectiveRunReport), SelectiveDiscoveryError> {
         let data = data.ok_or_else(missing_raw_data)?;
         let prepared = prepare_temporal(contract, data, ctx)?;
-        let (live, report) =
-            resume_candidate(prepared, state, |ci| execute_temporal(contract, data, ci, ctx))?;
-        Ok((Self { live: Some(live) }, report))
+        let (live, report) = resume_candidate(prepared, state, &limits, |ci| {
+            execute_temporal(contract, data, ci, ctx)
+        })?;
+        Ok((Self { live: Some(live), limits }, report))
     }
 }

@@ -4,8 +4,8 @@
 //! Fixtures live in `conformance/cross_surface/`. A missing `py_*` fixture fails
 //! the test: run `python python/tests/generate_cross_surface_fixtures.py`.
 //! To refresh the `rust_*` fixtures:
-//! `ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-io --test
-//! cross_surface_external_claim -- --ignored regenerate_rust_fixtures`.
+//! `ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-io --test suite_01
+//! cross_surface_external_claim::regenerate_rust_fixtures -- --ignored`.
 //!
 //! Truth is the enumerated closed form `E[Y | do(a)] = 1 + 2a` over `a` in
 //! `0, 1, 2`, i.e. `[1, 3, 5]`, with every identity built from constants.
@@ -34,7 +34,7 @@ fn read_fixture(name: &str) -> Vec<u8> {
         "run \
             `python python/tests/generate_cross_surface_fixtures.py` from the repo root \
             (Rust-built fixtures: ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-io \
-            --test cross_surface_external_claim -- --ignored regenerate_rust_fixtures)",
+            --test suite_01 cross_surface_external_claim::regenerate_rust_fixtures -- --ignored)",
     )
 }
 
@@ -192,18 +192,25 @@ fn python_built_claim_refuses_changed_identity_and_changed_bytes() {
     let mut other_snapshot = expected_identity();
     other_snapshot.snapshot_id = "other-snapshot".into();
     other_snapshot.provider_fingerprint = other_snapshot.compute_fingerprint();
-    assert!(ExternalClaimArtifact::from_bytes(&bytes, &other_snapshot).is_err());
+    let refusal = |bytes: &[u8], identity: &ExternalClaimIdentity| {
+        ExternalClaimArtifact::from_bytes(bytes, identity).unwrap_err().to_string()
+    };
+    let message = refusal(&bytes, &other_snapshot);
+    assert!(message.contains("external_claim.identity_expected"), "{message}");
 
     let mut verified = expected_identity();
     verified.trust = ExternalClaimTrust::ExactRequestVerified;
-    assert!(ExternalClaimArtifact::from_bytes(&bytes, &verified).is_err());
+    // A stronger trust claim without its receipt is not even a well-formed retained identity.
+    let message = refusal(&bytes, &verified);
+    assert!(
+        message.contains("verification receipt must accompany exactly verified trust"),
+        "{message}"
+    );
 
-    assert!(
-        ExternalClaimArtifact::from_bytes(&flip_last_byte(&bytes), &expected_identity()).is_err()
-    );
-    assert!(
-        ExternalClaimArtifact::from_bytes(&bytes[..bytes.len() - 5], &expected_identity()).is_err()
-    );
+    let message = refusal(&flip_last_byte(&bytes), &expected_identity());
+    assert!(message.contains("checksum mismatch for section `external_claim.values`"), "{message}");
+    let message = refusal(&bytes[..bytes.len() - 5], &expected_identity());
+    assert!(!message.is_empty() && !message.contains("identity_expected"), "{message}");
 }
 
 #[test]
@@ -221,6 +228,7 @@ fn regenerate_rust_fixtures() {
         Ok("1"),
         "set ANTECEDENT_WRITE_FIXTURES=1 to write fixtures"
     );
+    antecedent_core::support_gate::forbid_fixture_write();
     let dir = fixture_dir();
     std::fs::create_dir_all(&dir).unwrap();
     let artifact = bound_artifact();

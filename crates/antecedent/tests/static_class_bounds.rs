@@ -1,7 +1,7 @@
 //! A partially identified static class (CPDAG / PAG) answer carries its
 //! identified set, and class responses export and reload.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 // `t`, `y`, `z`, `x`, `g` are the variable names of the laws below.
 #![allow(
@@ -19,7 +19,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 fn d(i: u32) -> DenseNodeId {
     DenseNodeId::from_raw(i)
@@ -82,7 +82,7 @@ fn cpdag_data(n: usize, seed: u64) -> TabularData {
         .unwrap()
 }
 
-/// The licensed-compiler static fixture shape: three smooth continuous columns.
+/// The supported-compiler static fixture shape: three smooth continuous columns.
 fn static_like(n: usize) -> TabularData {
     let column = |j: usize| -> Vec<f64> {
         (0..n).map(|i| ((i + 3 * j) as f64 * 0.17).sin() + 0.25 * (i % 4) as f64).collect()
@@ -152,16 +152,18 @@ fn round_trip(prepared: &PreparedStudy, result: &StudyResult, ctx: &ExecutionCon
         .encode_contracted_result(result, id, ctx)
         .unwrap_or_else(|err| panic!("{id}: export failed: {err}"));
     let consumed =
-        consume_analysis_result(&bytes).unwrap_or_else(|err| panic!("{id}: consume failed: {err}"));
+        replay_analysis_result(&bytes).unwrap_or_else(|err| panic!("{id}: consume failed: {err}"));
     // A sealed class route replays through its retained checked operation, which
     // the portable artifact cannot carry; the consumer must name exactly that
     // dependency and nothing else, never a malformed payload.
     let dependency_only = !consumed.acceptance.unresolved.is_empty()
         && consumed.acceptance.unresolved.iter().all(|reason| {
-            reason.starts_with("dependencies.checked_") && reason.ends_with("_operation")
+            (reason.starts_with("dependencies.checked_") && reason.ends_with("_operation"))
+                // Names an identification the consumer cannot re-derive (class graph).
+                || reason.as_ref() == "dependencies.identification_estimand_criterion"
         });
     assert!(
-        consumed.acceptance.accepts_as_verified_program() || dependency_only,
+        consumed.acceptance.accepts_as_replayed_program() || dependency_only,
         "{id}: consume did not accept a verified program: {:?}",
         consumed.acceptance.unresolved
     );
@@ -180,12 +182,16 @@ fn partially_identified_cpdag_ate_carries_the_completion_identified_set() {
         .into_iter()
         .map(|dag| {
             let one = prepare(&data, dag, ate_query(), InferenceMode::Frequentist, &ctx);
-            one.estimate(&data, &ctx).unwrap().estimate.as_effect().unwrap().ate
+            one.estimate(&data, &ctx).unwrap().estimate().as_effect().unwrap().ate
         })
         .collect();
     let lo = per_completion.iter().copied().fold(f64::INFINITY, f64::min);
     let hi = per_completion.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     assert!(hi - lo > 0.1, "completions must disagree clearly: {per_completion:?}");
+    // Population values: adjusting z gives the structural effect 1; the t -> z completion
+    // leaves the confounding path open, 1 + Cov(t, z) / Var(t) = 1 + 0.8 / 1.64.
+    let confounded = 1.0 + 0.8 / 1.64;
+    assert!((lo - 1.0).abs() < 0.08 && (hi - confounded).abs() < 0.08, "[{lo}, {hi}]");
 
     assert_eq!(
         result.identification.status,
@@ -208,8 +214,8 @@ fn partially_identified_cpdag_ate_carries_the_completion_identified_set() {
     assert_eq!(mixture.unevaluable_mass, 0.0);
     assert_eq!(mixture.subsampled_out_mass, 0.0);
     assert!(
-        result.estimate.as_effect().unwrap().ate >= set_lo
-            && result.estimate.as_effect().unwrap().ate <= set_hi,
+        result.estimate().as_effect().unwrap().ate >= set_lo
+            && result.estimate().as_effect().unwrap().ate <= set_hi,
         "the reported mixture must lie inside its identified set"
     );
     round_trip(&prepared, &result, &ctx, "cpdag-ate-partial");
@@ -232,7 +238,8 @@ fn point_identified_cpdag_ate_still_reports_a_point() {
         "a point-identified class answer is not an identified set"
     );
     assert_eq!(claim_kind(&prepared, &result, &ctx), ClaimKind::Point);
-    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+    let ate = result.estimate().as_effect().unwrap().ate;
+    assert!((ate - 1.0).abs() < 0.08, "the oriented completion adjusts z: {ate}");
     round_trip(&prepared, &result, &ctx, "cpdag-ate-point");
 }
 
@@ -246,6 +253,7 @@ fn bayesian_partially_identified_cpdag_ate_carries_the_identified_set() {
     assert_eq!(claim_kind(&prepared, &result, &ctx), ClaimKind::Bounds);
     let (lo, hi) = identified_set(&result);
     assert!(hi - lo > 0.1, "Bayesian completions must disagree clearly: [{lo}, {hi}]");
+    assert!((lo - 1.0).abs() < 0.08 && (hi - (1.0 + 0.8 / 1.64)).abs() < 0.08, "[{lo}, {hi}]");
     let mut values = atom_values(&result);
     values.sort_by(f64::total_cmp);
     assert_eq!(values, vec![lo, hi], "the bounds are the per-completion posterior means");
@@ -296,6 +304,9 @@ fn partially_identified_cpdag_conditional_effect_carries_the_identified_set() {
     assert_eq!(claim_kind(&prepared, &result, &ctx), ClaimKind::Bounds);
     let (lo, hi) = identified_set(&result);
     assert!(hi - lo > 0.1, "conditional completions must disagree clearly: [{lo}, {hi}]");
+    // The effect is 1 + 0.8 x with x = 1 on half the rows (mean 1.4); the confounded
+    // completion adds 0.8 / 1.64 = 0.488.
+    assert!((lo - 1.4).abs() < 0.08 && (hi - (1.4 + 0.8 / 1.64)).abs() < 0.08, "[{lo}, {hi}]");
     let mut values = atom_values(&result);
     values.sort_by(f64::total_cmp);
     assert_eq!(values, vec![lo, hi], "the bounds are the per-completion conditional effects");

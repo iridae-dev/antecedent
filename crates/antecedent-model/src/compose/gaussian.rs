@@ -10,7 +10,7 @@
 //! `do(X_v = x)` removes the mechanism of `X_v` (Pearl 2009, ch. 3); the same
 //! recursion then gives the interventional law.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
@@ -24,7 +24,8 @@ use super::descriptor::{
 };
 use super::uncertainty::assemble_parameter_covariance;
 use super::{
-    COMPOSITION_STREAM_DOMAIN, CompositionError, MAX_SAMPLE_CELLS, incoherent, noise_stream_index,
+    COMPOSITION_STREAM_DOMAIN, CompositionError, MAX_SAMPLE_CELLS, cyclic_simulation_refusal,
+    incoherent, noise_stream_index,
 };
 
 /// Joint Gaussian law of all variables under one regime.
@@ -78,6 +79,372 @@ impl JointGaussian {
         let j = self.position(b)?;
         Some(self.covariance[i * self.variables.len() + j])
     }
+
+    /// The law of the remaining variables after conditioning on observed real
+    /// values of some coordinates, by the Schur complement of the observed
+    /// block.
+    ///
+    /// With the coordinates split into observed `o` and remaining `r`,
+    /// `mean_r' = mean_r + S_ro S_oo^-1 (x_o - mean_o)` and
+    /// `cov_r' = S_rr - S_ro S_oo^-1 S_or`. The log density of the evidence
+    /// under the marginal law of `o` is returned with it, so the same call
+    /// serves a conditional query and a likelihood. An empty observation is the
+    /// law itself with log density zero.
+    ///
+    /// # Errors
+    /// An unknown or repeated variable, a value that is not finite, or an
+    /// observed block that is singular (an intervened or deterministic
+    /// coordinate has no conditional law given a value other than its own), or
+    /// a conditional mean or covariance that cannot be represented as a finite `f64`.
+    pub fn condition(
+        &self,
+        observed: &[(&str, f64)],
+    ) -> Result<ConditionedGaussian, GaussianConditioningError> {
+        let n = self.variables.len();
+        let mut seen = vec![false; n];
+        let mut evidence: Vec<(usize, f64)> = Vec::with_capacity(observed.len());
+        for &(name, value) in observed {
+            let Some(i) = self.position(name) else {
+                return Err(GaussianConditioningError::UnknownVariable(name.to_owned()));
+            };
+            if !value.is_finite() {
+                return Err(GaussianConditioningError::NotFinite(name.to_owned()));
+            }
+            if seen[i] {
+                return Err(GaussianConditioningError::RepeatedVariable(name.to_owned()));
+            }
+            seen[i] = true;
+            evidence.push((i, value));
+        }
+        evidence.sort_by_key(|&(i, _)| i);
+        let rest: Vec<usize> = (0..n).filter(|&i| !seen[i]).collect();
+        let k = evidence.len();
+        let m = rest.len();
+        let remaining: Vec<String> = rest.iter().map(|&i| self.variables[i].clone()).collect();
+        let named: Vec<(String, f64)> =
+            evidence.iter().map(|&(i, x)| (self.variables[i].clone(), x)).collect();
+        if self.mean.iter().chain(&self.covariance).any(|value| !value.is_finite()) {
+            return Err(GaussianConditioningError::Unrepresentable);
+        }
+        if k == 0 {
+            return Ok(ConditionedGaussian {
+                variables: remaining,
+                mean: self.mean.clone(),
+                covariance: self.covariance.clone(),
+                evidence_log_density: 0.0,
+                observed: named,
+            });
+        }
+        let cov = |a: usize, b: usize| self.covariance[a * n + b];
+        let mut s_oo = vec![0.0_f64; k * k];
+        for (a, &(ia, _)) in evidence.iter().enumerate() {
+            for (b, &(ib, _)) in evidence.iter().enumerate() {
+                s_oo[a * k + b] = cov(ia, ib);
+            }
+        }
+        let factor = cholesky_lower(&s_oo, k).ok_or(GaussianConditioningError::SingularEvidence)?;
+        // Exponent-tracked residual and solves avoid overflowing intermediates
+        // when the final Gaussian functional is representable.
+        let residual: Vec<Wide> = evidence
+            .iter()
+            .map(|&(i, x)| Wide::sum(vec![Wide::from_finite(x), Wide::from_finite(-self.mean[i])]))
+            .collect();
+        let z = forward_solve(&factor, k, &residual);
+        let w = backward_solve(&factor, k, &z);
+        let mahalanobis = Wide::sum(z.iter().map(|v| v.mul(*v)).collect());
+        let log_det: f64 = (0..k).map(|i| factor[i * k + i].ln()).sum::<f64>() * 2.0;
+        let evidence_log_density = Wide::sum(vec![
+            Wide::from_finite(k as f64 * (2.0 * std::f64::consts::PI).ln()),
+            Wide::from_finite(log_det),
+            mahalanobis,
+        ])
+        .mul(Wide::from_finite(-0.5))
+        .to_f64();
+        let mut mean = vec![0.0_f64; m];
+        for (r, &ir) in rest.iter().enumerate() {
+            let mut terms = Vec::with_capacity(k + 1);
+            terms.push(Wide::from_finite(self.mean[ir]));
+            for (a, &(ia, _)) in evidence.iter().enumerate() {
+                terms.push(Wide::from_finite(cov(ir, ia)).mul(w[a]));
+            }
+            mean[r] = Wide::sum(terms).to_f64();
+            if !mean[r].is_finite() {
+                return Err(GaussianConditioningError::Unrepresentable);
+            }
+        }
+        // A = S_oo^-1 S_or, one exponent-tracked column per remaining variable.
+        let mut a_columns: Vec<Vec<Wide>> = Vec::with_capacity(m);
+        for &ir in &rest {
+            let column: Vec<Wide> =
+                evidence.iter().map(|&(ia, _)| Wide::from_finite(cov(ia, ir))).collect();
+            a_columns.push(backward_solve(&factor, k, &forward_solve(&factor, k, &column)));
+        }
+        let mut covariance = vec![0.0_f64; m * m];
+        for (r, &ir) in rest.iter().enumerate() {
+            for (c, &ic) in rest.iter().enumerate().take(r + 1) {
+                let mut terms = Vec::with_capacity(k + 1);
+                terms.push(Wide::from_finite(cov(ir, ic)));
+                for (a, &(ia, _)) in evidence.iter().enumerate() {
+                    terms.push(Wide::from_finite(-cov(ir, ia)).mul(a_columns[c][a]));
+                }
+                let value = Wide::sum(terms).to_f64();
+                if !value.is_finite() {
+                    return Err(GaussianConditioningError::Unrepresentable);
+                }
+                covariance[r * m + c] = value;
+                covariance[c * m + r] = value;
+            }
+        }
+        Ok(ConditionedGaussian {
+            variables: remaining,
+            mean,
+            covariance,
+            evidence_log_density,
+            observed: named,
+        })
+    }
+}
+
+/// Why a Gaussian law could not be conditioned.
+#[derive(Clone, Debug, PartialEq, thiserror::Error)]
+#[non_exhaustive]
+pub enum GaussianConditioningError {
+    /// A named variable is not in the law.
+    #[error("unknown variable `{0}`")]
+    UnknownVariable(String),
+    /// A variable is observed more than once.
+    #[error("variable `{0}` is observed more than once")]
+    RepeatedVariable(String),
+    /// An observed value is not finite.
+    #[error("observed value of `{0}` is not finite")]
+    NotFinite(String),
+    /// The covariance of the observed block is not positive definite.
+    #[error("the covariance of the observed block is singular")]
+    SingularEvidence,
+    /// A mathematically defined conditional output is outside finite `f64` range.
+    #[error("the Gaussian conditional output is not representable as a finite number")]
+    Unrepresentable,
+}
+
+/// The Gaussian law of the unobserved variables after conditioning, with the
+/// log density of the evidence.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ConditionedGaussian {
+    variables: Vec<String>,
+    mean: Vec<f64>,
+    covariance: Vec<f64>,
+    evidence_log_density: f64,
+    observed: Vec<(String, f64)>,
+}
+
+impl ConditionedGaussian {
+    /// The unobserved variables, in canonical order.
+    #[must_use]
+    pub fn variables(&self) -> &[String] {
+        &self.variables
+    }
+
+    /// Conditional mean aligned with [`Self::variables`].
+    #[must_use]
+    pub fn mean(&self) -> &[f64] {
+        &self.mean
+    }
+
+    /// Row-major conditional covariance aligned with [`Self::variables`].
+    #[must_use]
+    pub fn covariance_matrix(&self) -> &[f64] {
+        &self.covariance
+    }
+
+    /// Log density of the observed values under their marginal law; zero when
+    /// nothing was observed.
+    #[must_use]
+    pub fn evidence_log_density(&self) -> f64 {
+        self.evidence_log_density
+    }
+
+    /// The observed `(variable, value)` pairs, in canonical order.
+    #[must_use]
+    pub fn observed(&self) -> &[(String, f64)] {
+        &self.observed
+    }
+
+    /// Conditional mean of one remaining variable.
+    #[must_use]
+    pub fn mean_of(&self, variable: &str) -> Option<f64> {
+        self.variables.iter().position(|v| v == variable).map(|i| self.mean[i])
+    }
+
+    /// Conditional variance of one remaining variable.
+    #[must_use]
+    pub fn variance_of(&self, variable: &str) -> Option<f64> {
+        let i = self.variables.iter().position(|v| v == variable)?;
+        Some(self.covariance[i * self.variables.len() + i])
+    }
+}
+
+/// Lower Cholesky factor of a symmetric positive-definite row-major matrix;
+/// `None` when a pivot is not positive relative to the matrix scale.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "dense triangular algebra indexes several row-major buffers by the same position"
+)]
+pub(crate) fn cholesky_lower(a: &[f64], n: usize) -> Option<Vec<f64>> {
+    if n.checked_mul(n) != Some(a.len()) || a.iter().any(|v| !v.is_finite()) {
+        return None;
+    }
+    let mut scales = Vec::with_capacity(n);
+    for i in 0..n {
+        let variance = a[i * n + i];
+        if variance <= 0.0 {
+            return None;
+        }
+        scales.push(variance.sqrt());
+    }
+    let mut l = vec![0.0_f64; n * n];
+    for i in 0..n {
+        for j in 0..=i {
+            let large = scales[i].max(scales[j]);
+            let small = scales[i].min(scales[j]);
+            let mut sum = if i == j { 1.0 } else { (a[i * n + j] / large) / small };
+            for k in 0..j {
+                sum -= l[i * n + k] * l[j * n + k];
+            }
+            if !sum.is_finite() {
+                return None;
+            }
+            if i == j {
+                // The former relative floor applies in dimensionless correlation units.
+                if sum <= 1e-12 {
+                    return None;
+                }
+                l[i * n + i] = sum.sqrt();
+            } else {
+                l[i * n + j] = sum / l[j * n + j];
+            }
+        }
+    }
+    // D*L is the factor in the caller's original units.
+    for i in 0..n {
+        for j in 0..=i {
+            l[i * n + j] *= scales[i];
+            if !l[i * n + j].is_finite() {
+                return None;
+            }
+        }
+    }
+    Some(l)
+}
+
+// A signed binary significand and extended exponent. This carries finite input
+// values beyond f64's exponent range without imposing a new magnitude limit.
+#[derive(Clone, Copy, Debug)]
+struct Wide {
+    mantissa: f64,
+    exponent: i32,
+}
+impl Wide {
+    fn from_finite(value: f64) -> Self {
+        if value == 0.0 {
+            return Self { mantissa: 0.0, exponent: 0 };
+        }
+        let bits = value.to_bits();
+        let raw = ((bits >> 52) & 0x7ff) as i32;
+        if raw == 0 {
+            let mut scaled = Self::from_finite(value * 18_014_398_509_481_984.0); // 2^54
+            scaled.exponent -= 54;
+            return scaled;
+        }
+        let sign = bits & (1_u64 << 63);
+        let significand = sign | (1023_u64 << 52) | (bits & ((1_u64 << 52) - 1));
+        Self { mantissa: f64::from_bits(significand), exponent: raw - 1023 }
+    }
+    fn normalized(mantissa: f64, exponent: i32) -> Self {
+        if mantissa == 0.0 {
+            return Self { mantissa: 0.0, exponent: 0 };
+        }
+        let mut result = Self::from_finite(mantissa);
+        result.exponent += exponent;
+        result
+    }
+    fn mul(self, other: Self) -> Self {
+        Self::normalized(self.mantissa * other.mantissa, self.exponent + other.exponent)
+    }
+    fn div(self, other: Self) -> Self {
+        Self::normalized(self.mantissa / other.mantissa, self.exponent - other.exponent)
+    }
+    fn neg(self) -> Self {
+        Self { mantissa: -self.mantissa, exponent: self.exponent }
+    }
+    fn add(self, other: Self) -> Self {
+        if self.mantissa == 0.0 {
+            return other;
+        }
+        if other.mantissa == 0.0 {
+            return self;
+        }
+        let (large, small) =
+            if self.exponent >= other.exponent { (self, other) } else { (other, self) };
+        let difference = large.exponent - small.exponent;
+        let scaled = if difference > 1074 {
+            0.0
+        } else if difference > 1022 {
+            (small.mantissa * 2.0_f64.powi(-(difference - 1022))) * 2.0_f64.powi(-1022)
+        } else {
+            small.mantissa * 2.0_f64.powi(-difference)
+        };
+        Self::normalized(large.mantissa + scaled, large.exponent)
+    }
+    // Larger terms cancel before smaller terms are added, retaining a small
+    // intercept after equal and opposite huge shifts.
+    fn sum(mut values: Vec<Self>) -> Self {
+        values.sort_by_key(|value| std::cmp::Reverse(value.exponent));
+        values.into_iter().fold(Self { mantissa: 0.0, exponent: 0 }, Self::add)
+    }
+    fn to_f64(self) -> f64 {
+        if self.mantissa == 0.0 {
+            return self.mantissa;
+        }
+        if self.exponent > 1023 {
+            return self.mantissa.signum() * f64::INFINITY;
+        }
+        if self.exponent < -1075 {
+            return self.mantissa.signum() * 0.0;
+        }
+        if self.exponent < -1022 {
+            (self.mantissa * 2.0_f64.powi(self.exponent + 1022)) * 2.0_f64.powi(-1022)
+        } else {
+            self.mantissa * 2.0_f64.powi(self.exponent)
+        }
+    }
+}
+
+/// Solve `L z = b` without narrowing intermediate results to f64's exponent range.
+fn forward_solve(l: &[f64], n: usize, b: &[Wide]) -> Vec<Wide> {
+    let mut z = vec![Wide::from_finite(0.0); n];
+    for i in 0..n {
+        let mut terms = Vec::with_capacity(i + 1);
+        terms.push(b[i]);
+        for k in 0..i {
+            terms.push(Wide::from_finite(l[i * n + k]).mul(z[k]).neg());
+        }
+        z[i] = Wide::sum(terms).div(Wide::from_finite(l[i * n + i]));
+    }
+    z
+}
+
+/// Solve `L' x = z` in the same extended range.
+fn backward_solve(l: &[f64], n: usize, z: &[Wide]) -> Vec<Wide> {
+    let mut x = vec![Wide::from_finite(0.0); n];
+    for i in (0..n).rev() {
+        let mut terms = Vec::with_capacity(n - i);
+        terms.push(z[i]);
+        for k in (i + 1)..n {
+            terms.push(Wide::from_finite(l[k * n + i]).mul(x[k]).neg());
+        }
+        x[i] = Wide::sum(terms).div(Wide::from_finite(l[i * n + i]));
+    }
+    x
 }
 
 /// Columns of one structural sample, aligned with canonical variable order.
@@ -125,7 +492,7 @@ pub struct FunctionalUncertainty {
     pub standard_error: f64,
     /// What the declared parameter law means, when any mechanism reports one.
     pub meaning: Option<UncertaintyMeaning>,
-    /// How the dependence between mechanisms was licensed.
+    /// How the dependence between mechanisms was supported.
     pub dependence: &'static str,
     /// Method label.
     pub method: &'static str,
@@ -224,9 +591,11 @@ impl ComposedLinearGaussian {
         while order.len() < n {
             let next = (0..n).find(|&v| !done[v] && nodes[v].parents.iter().all(|&(p, _)| done[p]));
             let Some(v) = next else {
-                return Err(CompositionError::Numerical {
-                    message: "no topological order after coherence check".into(),
-                });
+                return Err(cyclic_simulation_refusal(
+                    "composed_linear_gaussian",
+                    "CyclicDigraph::condensation for the feedback structure; \
+                     this executor has no cyclic support and does not sample a cycle",
+                ));
             };
             done[v] = true;
             order.push(v);
@@ -276,7 +645,7 @@ impl ComposedLinearGaussian {
             if outside_consumer || !own.contains_value(value) {
                 let finding = CoherenceFinding::new(
                     CoherenceKind::Support,
-                    "mechanism_composition.support_intervention_outside_domain",
+                    antecedent_core::reason_details::mechanism_composition::SUPPORT_INTERVENTION_OUTSIDE_DOMAIN,
                     name,
                     "intervene only within the domain every consumer of this variable was fitted on",
                 )
@@ -487,6 +856,8 @@ impl ComposedLinearGaussian {
                 ),
             });
         }
+        // `n_rows * sources` is capped by `MAX_SAMPLE_CELLS` above, which bounds every column
+        // and latent draw below.
         let draw = |role: u64, name: &str| -> Result<Vec<f64>, CompositionError> {
             if ctx.cancellation.is_cancelled() {
                 return Err(CompositionError::Cancelled);
@@ -528,5 +899,96 @@ impl ComposedLinearGaussian {
             columns[v] = column;
         }
         Ok(SampleTable { variables: self.variables.clone(), columns })
+    }
+}
+
+#[cfg(test)]
+mod conditioning_scale_tests {
+    use super::*;
+
+    #[test]
+    #[allow(clippy::float_cmp, reason = "the test checks exact values and boundary behavior")]
+    fn gaussian_conditional_mean_survives_overflow_and_refuses_unrepresentable_results() {
+        let residual_overflow = JointGaussian {
+            variables: vec!["x".into(), "y".into()],
+            mean: vec![1e308, 0.0],
+            covariance: vec![1.0, 0.5, 0.5, 1.0],
+        };
+        let result = residual_overflow.condition(&[("x", -1e308)]).unwrap();
+        assert!((result.mean[0] / -1e308 - 1.0).abs() < 1e-14);
+        assert!((result.covariance[0] - 0.75).abs() < 1e-14);
+        assert_eq!(result.evidence_log_density, f64::NEG_INFINITY);
+
+        // Mahalanobis itself exceeds f64, but the final -1/2 log-density
+        // is representable; narrowing before the multiplication is incorrect.
+        let finite_log = JointGaussian {
+            variables: vec!["x".into(), "y".into()],
+            mean: vec![0.0, 0.0],
+            covariance: vec![1.0, 0.0, 0.0, 1.0],
+        }
+        .condition(&[("x", 1.4e154)])
+        .unwrap();
+        assert!(finite_log.evidence_log_density.is_finite());
+        assert!((finite_log.evidence_log_density / -9.8e307 - 1.0).abs() < 1e-14);
+
+        let cancelling_shift = JointGaussian {
+            variables: vec!["x".into(), "y".into()],
+            mean: vec![0.0, -1e308],
+            covariance: vec![1.0, 2.0, 2.0, 5.0],
+        };
+        let result = cancelling_shift.condition(&[("x", 1e308)]).unwrap();
+        assert!((result.mean[0] / 1e308 - 1.0).abs() < 1e-14);
+        assert!((result.covariance[0] - 1.0).abs() < 1e-14);
+        // Solving S^-1 r exceeds f64 even though its multiplication by the
+        // cross-covariance and the final conditional mean are finite.
+        let tiny_observed_variance = JointGaussian {
+            variables: vec!["x".into(), "y".into()],
+            mean: vec![0.0, 0.0],
+            covariance: vec![1e-300, 1e-150, 1e-150, 2.0],
+        };
+        let result = tiny_observed_variance.condition(&[("x", 1e158)]).unwrap();
+        assert!((result.mean[0] / 1e308 - 1.0).abs() < 1e-12);
+        assert!((result.covariance[0] - 1.0).abs() < 1e-12);
+        let truly_unrepresentable = JointGaussian { mean: vec![0.0, 0.0], ..cancelling_shift };
+        assert_eq!(
+            truly_unrepresentable.condition(&[("x", 1e308)]).unwrap_err(),
+            GaussianConditioningError::Unrepresentable
+        );
+    }
+
+    #[test]
+    fn gaussian_conditional_multi_observation_cancels_before_small_intercept() {
+        // Independent observed variables, cov(y,x1)=1 and cov(y,x2)=-1;
+        // the two huge shifts cancel and leave the exact intercept 3.
+        let law = JointGaussian {
+            variables: vec!["x1".into(), "x2".into(), "y".into()],
+            mean: vec![0.0, 0.0, 3.0],
+            covariance: vec![1.0, 0.0, 1.0, 0.0, 1.0, -1.0, 1.0, -1.0, 3.0],
+        };
+        let first = law.condition(&[("x1", 1e308), ("x2", 1e308)]).unwrap();
+        let reversed = law.condition(&[("x2", 1e308), ("x1", 1e308)]).unwrap();
+        assert_eq!(first.mean, vec![3.0]);
+        assert_eq!(first.covariance, vec![1.0]);
+        assert_eq!(first, reversed);
+        let ordinary = law.condition(&[("x1", 2.0), ("x2", -1.0)]).unwrap();
+        assert_eq!(ordinary.mean, vec![6.0]);
+        assert_eq!(ordinary.covariance, vec![1.0]);
+    }
+
+    #[test]
+    fn gaussian_conditioning_equilibrates_observed_covariance_units() {
+        let law = JointGaussian {
+            variables: vec!["x".into(), "y".into(), "z".into()],
+            mean: vec![0.0; 3],
+            covariance: vec![1e-14, 0.0, 1e-7, 0.0, 1.0, 0.5, 1e-7, 0.5, 4.0],
+        };
+        let conditional = law.condition(&[("x", 1e-7), ("y", 1.0)]).unwrap();
+        assert!((conditional.mean[0] - 1.5).abs() < 1e-12);
+        assert!((conditional.covariance[0] - 2.75).abs() < 1e-12);
+        let expected = -(2.0 * std::f64::consts::PI).ln() - (1e-7_f64).ln() - 1.0;
+        assert!((conditional.evidence_log_density - expected).abs() < 1e-12);
+        assert!(cholesky_lower(&[1.0, 1.0, 1.0, 1.0], 2).is_none());
+        assert!(cholesky_lower(&[1.0, 1.0 - 1e-14, 1.0 - 1e-14, 1.0], 2).is_none());
+        assert!(cholesky_lower(&[0.0, 0.0, 0.0, 1.0], 2).is_none());
     }
 }

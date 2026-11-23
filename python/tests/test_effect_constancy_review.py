@@ -78,7 +78,7 @@ def test_original_covariance_contrast_retains_adjustment_and_separate_theorem_re
     assert out.contrast.se == pytest.approx(0.5)
     assert out.contrast.p_holm == pytest.approx(ORACLE["transport"]["holm_p_single_contrast"])
     assert out.identity == result.identity
-    assert out.calibration == "unmeasured"
+    assert out.calibration == "not_measured"
     assert out.separate_transport_identification_required
     with pytest.raises(CausalValueError, match="contrast_missing"):
         transport_diagnostic(result, left="p1", right="p0")
@@ -109,8 +109,8 @@ def test_original_catalog_filtering_does_not_turn_preference_into_transfer_autho
     assert [r.artifact_id for r in out.ranked] == ["near", "far"]
     assert dict(out.scores)["far"] == pytest.approx(ORACLE["prior"]["scores"][0])
     assert out.data_dependent_selection
-    assert not out.posterior_transfer_licensed
-    assert out.calibration == "unmeasured"
+    assert not out.posterior_transfer_supported
+    assert out.calibration == "not_measured"
 
 
 def test_original_point_policy_handles_disagreement_ties_and_semantic_refusals():
@@ -137,7 +137,7 @@ def test_original_point_policy_handles_disagreement_ties_and_semantic_refusals()
 def test_fresh_process_recomputes_original_artifact_before_policy_consumption(tmp_path):
     actual = source((-1, 2))
     artifact = tmp_path / "source.bin"
-    artifact.write_bytes(actual.export())
+    artifact.write_bytes(bytes(actual.export()))
     payload = tmp_path / "identity.json"
     payload.write_text(json.dumps(actual.identity._wire()), encoding="utf-8")
     script = """
@@ -159,5 +159,5 @@ print(json.dumps({"difference": o.contrast.difference, "se": o.contrast.se, "cal
     )
     assert out["difference"] == -3
     assert out["se"] == pytest.approx(2**-0.5)
-    assert out["calibration"] == "unmeasured"
+    assert out["calibration"] == "not_measured"
     assert out["separate"]

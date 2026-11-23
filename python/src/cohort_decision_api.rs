@@ -13,17 +13,19 @@
 use antecedent::analysis::cohort_decision::{
     CohortBinding, CohortDecisionSource, CohortExpectation, CohortOptions, CohortRefusal,
     CovariateShiftDeclaration, FittedEffectModel, LawRequest, cohort_forward_claim,
-    cohort_mean_source,
+    cohort_mean_source, evaluate_cohort_decision,
 };
 use antecedent::analysis::transported_cohort::{
     SelectionShiftDeclaration, TRANSPORTED_POINT_SCOPE, TransportRefusal, TransportedCohort,
     TransportedRequest, transport_cohort_effect_from_result, verify_cohort_transport,
 };
-use antecedent_core::ExecutionContext;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent::design::composition_boundary::SupportPolicy;
+use antecedent::design::decision_artifact::contract_from_json_refusal;
+use antecedent::io::quantity_wire::ScientificQuantityWire;
 use pyo3::prelude::*;
 
-use crate::bridge::{RefusalJson, check_declared_size};
+use crate::bridge::{RefusalJson, check_declared_size, external_refusal_json};
+use crate::composition_api::{boundary_refusal, parse_support, parse_unsupported, supported_json};
 use crate::{detach_catch, value_err_code};
 
 const MAX_JSON_BYTES: usize = crate::bridge::MAX_DECLARED_ARTIFACT_BYTES;
@@ -32,7 +34,7 @@ type BuildPayload = (Option<String>, Option<Vec<u8>>, Option<String>);
 type ConsumePayload = (Option<String>, Option<String>);
 
 fn invalid_argument(message: String) -> PyErr {
-    value_err_code(antecedent_core::reason_code!("invalid_argument"), message)
+    value_err_code(antecedent::reason::reason_code!("invalid_argument"), message)
 }
 
 fn refusal_json(error: &CohortRefusal, stage: &'static str) -> String {
@@ -156,7 +158,7 @@ fn summary(source: &CohortDecisionSource) -> serde_json::Value {
 fn build_cohort_decision_source(
     py: Python<'_>,
     model_kind: &str,
-    model_bytes: Vec<u8>,
+    model_bytes: &[u8],
     expected_model: Option<String>,
     cohort_json: &str,
     outcome_units: &str,
@@ -172,12 +174,12 @@ fn build_cohort_decision_source(
     let options = options_of(options_json)?;
     let units = outcome_units.to_owned();
     let artifact_id = artifact_id.to_owned();
+    let ctx = crate::execution_api::context(0);
     detach_catch(py, move || {
-        let ctx = ExecutionContext::production_default(0);
         let model = match kind {
             ModelKind::AnalysisResult => match &expected_model {
-                Some(claim) => FittedEffectModel::load_expecting(&model_bytes, claim),
-                None => FittedEffectModel::load(&model_bytes),
+                Some(claim) => FittedEffectModel::load_expecting(model_bytes, claim),
+                None => FittedEffectModel::load(model_bytes),
             },
             ModelKind::CompactExport => {
                 use antecedent::analysis::compact_export::{CompactExport, ExportLimits};
@@ -187,8 +189,8 @@ fn build_cohort_decision_source(
                         None,
                         Some(refusal_json(
                             &CohortRefusal {
-                                code: antecedent_core::reason_code!("invalid_argument"),
-                                detail: "cohort_decision.fitted_model_invalid",
+                                code: antecedent::reason::reason_code!("invalid_argument"),
+                                detail: antecedent::reason::reason_details::cohort_decision::FITTED_MODEL_INVALID,
                                 subject: "expected_identity".to_owned(),
                                 remedy: "retain the compact export identity and supply it",
                             },
@@ -196,11 +198,12 @@ fn build_cohort_decision_source(
                         )),
                     ));
                 };
-                match CompactExport::consume(&model_bytes, &ExportLimits::default(), identity) {
+                match CompactExport::consume(model_bytes, &ExportLimits::default(), identity) {
                     Ok(export) => FittedEffectModel::from_compact_export(&export),
                     Err(error) => Err(CohortRefusal {
                         code: error.code,
-                        detail: "cohort_decision.fitted_model_invalid",
+                        detail:
+                            antecedent::reason::reason_details::cohort_decision::FITTED_MODEL_INVALID,
                         subject: format!("{}: {}", error.detail, error.subject),
                         remedy: "re-export the model from its producer",
                     }),
@@ -225,7 +228,7 @@ fn build_cohort_decision_source(
 #[pyfunction]
 fn consume_cohort_decision_source(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expectation_json: &str,
 ) -> PyResult<ConsumePayload> {
     check_size(expectation_json, "cohort expectation")?;
@@ -241,7 +244,7 @@ fn consume_cohort_decision_source(
     };
     detach_catch(py, move || {
         match antecedent::analysis::cohort_decision::consume_cohort_decision_source(
-            &artifact,
+            artifact,
             &expectation,
         ) {
             Ok(source) => Ok((Some(summary(&source).to_string()), None)),
@@ -292,7 +295,7 @@ fn cohort_decision_law_refusal(kind: &str) -> PyResult<String> {
 #[pyfunction]
 fn cohort_decision_forward_claim(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expectation_json: &str,
 ) -> PyResult<ConsumePayload> {
     check_size(expectation_json, "cohort expectation")?;
@@ -308,7 +311,7 @@ fn cohort_decision_forward_claim(
     };
     detach_catch(py, move || {
         let source = match antecedent::analysis::cohort_decision::consume_cohort_decision_source(
-            &artifact,
+            artifact,
             &expectation,
         ) {
             Ok(source) => source,
@@ -318,6 +321,58 @@ fn cohort_decision_forward_claim(
             Ok(_) => Ok((Some(summary(&source)["mean_source"].to_string()), None)),
             Err(error) => Ok((None, Some(refusal_json(&error, "evaluate")))),
         }
+    })
+}
+
+/// Decide a contract on a replayed cohort-mean source under a support policy:
+/// `(supported decision json, refusal json)`.
+///
+/// The source is replayed from `artifact` under `expectation_json` (every number recomputed),
+/// then handed to the evaluator as one mean-source input, so an action whose cohort support is
+/// weaker than `weakest_support` is unsupported and left out or refused per `unsupported`
+/// (`compare_supported` or `require_all`). Only an affine utility of the cohort coordinate is
+/// answered; every other criterion refuses.
+#[pyfunction]
+fn cohort_decision_evaluate(
+    py: Python<'_>,
+    contract_json: &str,
+    artifact: &[u8],
+    expectation_json: &str,
+    unsupported: &str,
+    weakest_support: &str,
+) -> PyResult<ConsumePayload> {
+    check_size(contract_json, "decision contract")?;
+    check_size(expectation_json, "cohort expectation")?;
+    let parsed: ExpectationJson = serde_json::from_str(expectation_json)
+        .map_err(|e| invalid_argument(format!("cohort_decision.invalid_request: {e}")))?;
+    let expectation = CohortExpectation {
+        identity: parsed.identity,
+        parent_claim: parsed.parent_claim,
+        population_id: parsed.population_id,
+        outcome_units: parsed.outcome_units,
+        contrast_regime: parsed.contrast_regime,
+        cohort_digest: parsed.cohort_digest,
+    };
+    let policy = SupportPolicy {
+        unsupported: parse_unsupported(unsupported)?,
+        weakest_support: parse_support(weakest_support)?,
+    };
+    let contract = match contract_from_json_refusal(contract_json) {
+        Ok(contract) => contract,
+        Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
+    };
+    detach_catch(py, move || {
+        let source = match antecedent::analysis::cohort_decision::consume_cohort_decision_source(
+            artifact,
+            &expectation,
+        ) {
+            Ok(source) => source,
+            Err(error) => return Ok((None, Some(refusal_json(&error, "consume")))),
+        };
+        Ok(match evaluate_cohort_decision(&contract, &source, &policy) {
+            Ok(decision) => (Some(supported_json(&decision).to_string()), None),
+            Err(error) => (None, Some(boundary_refusal(&error))),
+        })
     })
 }
 
@@ -420,7 +475,7 @@ type TransportBuildPayload = (Option<String>, Option<String>, Option<Vec<u8>>, O
 )]
 fn transport_cohort_effect(
     py: Python<'_>,
-    model_bytes: Vec<u8>,
+    model_bytes: &[u8],
     expected_claim: Option<String>,
     source_population: &str,
     cohort_json: &str,
@@ -436,10 +491,10 @@ fn transport_cohort_effect(
     let source_population = source_population.to_owned();
     let units = outcome_units.to_owned();
     let artifact_id = artifact_id.to_owned();
+    let ctx = crate::execution_api::context(0);
     detach_catch(py, move || {
-        let ctx = ExecutionContext::production_default(0);
         let transported = match transport_cohort_effect_from_result(
-            &model_bytes,
+            model_bytes,
             expected_claim.as_deref(),
             &source_population,
             &cohort,
@@ -475,7 +530,7 @@ fn transport_cohort_effect(
 #[pyo3(signature = (model_bytes, expected_claim, source_population, cohort_json, shift_json, expected_identity))]
 fn transport_cohort_effect_verify(
     py: Python<'_>,
-    model_bytes: Vec<u8>,
+    model_bytes: &[u8],
     expected_claim: Option<String>,
     source_population: &str,
     cohort_json: &str,
@@ -489,10 +544,10 @@ fn transport_cohort_effect_verify(
     let shift = selection_shift_of(shift_json)?;
     let source_population = source_population.to_owned();
     let expected = expected_identity.to_owned();
+    let ctx = crate::execution_api::context(0);
     detach_catch(py, move || {
-        let ctx = ExecutionContext::production_default(0);
         match verify_cohort_transport(
-            &model_bytes,
+            model_bytes,
             expected_claim.as_deref(),
             &source_population,
             &cohort,
@@ -502,6 +557,62 @@ fn transport_cohort_effect_verify(
         ) {
             Ok(transported) => Ok((Some(transport_summary(&transported).to_string()), None)),
             Err(error) => Ok((None, Some(transport_refusal_json(&error, "verify")))),
+        }
+    })
+}
+
+/// The composition-graph node a transported cohort value states under `key`, with the standing
+/// of a point the library carried to another population (supported at the strongest label a
+/// carried value states, no provider trust, no calibration record): `(node json, refusal json)`.
+///
+/// The transport is derived again from the retained inputs, so the node's identity is the
+/// transported value's own identity and a changed model, cohort, declaration or population
+/// recomputes it.
+#[pyfunction]
+#[pyo3(signature = (model_bytes, expected_claim, source_population, cohort_json, shift_json, key))]
+fn transport_cohort_composition_node(
+    py: Python<'_>,
+    model_bytes: &[u8],
+    expected_claim: Option<String>,
+    source_population: &str,
+    cohort_json: &str,
+    shift_json: Option<&str>,
+    key: &str,
+) -> PyResult<ConsumePayload> {
+    let cohort = match parse_cohort(cohort_json)? {
+        Ok(cohort) => cohort,
+        Err(error) => return Ok((None, Some(refusal_json(&error, "bind")))),
+    };
+    let shift = selection_shift_of(shift_json)?;
+    let source_population = source_population.to_owned();
+    let key = key.to_owned();
+    let ctx = crate::execution_api::context(0);
+    detach_catch(py, move || {
+        match transport_cohort_effect_from_result(
+            model_bytes,
+            expected_claim.as_deref(),
+            &source_population,
+            &cohort,
+            shift.as_ref(),
+            &ctx,
+        ) {
+            Ok(transported) => {
+                let node = transported.composition_node(&key);
+                let standing = transported.claim_standing();
+                let mut wire = crate::composition_verification_api::node_wire(&node);
+                wire["standing"] = serde_json::json!({
+                    "support": match standing.support {
+                        antecedent::analysis::composition_verification::SupportStanding::Supported =>
+                            "supported",
+                        antecedent::analysis::composition_verification::SupportStanding::Unsupported { .. } => "unsupported",
+                    },
+                    "trust": standing.trust.as_str(),
+                    "calibration":
+                        crate::composition_verification_api::calibration_wire(&standing.calibration),
+                });
+                Ok((Some(wire.to_string()), None))
+            }
+            Err(error) => Ok((None, Some(transport_refusal_json(&error, "transport")))),
         }
     })
 }
@@ -597,9 +708,9 @@ fn native_fit_of(
 
 fn native_fit_refusal(message: &str) -> String {
     RefusalJson::new(
-        antecedent_core::reason_code!("invalid_argument"),
+        antecedent::reason::reason_code!("invalid_argument"),
         "bind",
-        "cohort_decision.native_fit_refused",
+        antecedent::reason::reason_details::cohort_decision::NATIVE_FIT_REFUSED,
         message,
     )
     .json()
@@ -640,7 +751,7 @@ fn fit_native_cohort_effect(py: Python<'_>, fit_json: &str) -> PyResult<BuildPay
 #[pyo3(signature = (artifact, expectation_json, fit_json, level))]
 fn cohort_decision_interval(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expectation_json: &str,
     fit_json: Option<String>,
     level: f64,
@@ -666,9 +777,9 @@ fn cohort_decision_interval(
         contrast_regime: parsed.contrast_regime,
         cohort_digest: parsed.cohort_digest,
     };
+    let ctx = crate::execution_api::context(0);
     detach_catch(py, move || {
-        let ctx = ExecutionContext::production_default(0);
-        let source = match CohortDecisionSource::consume_with(&artifact, &expectation, &ctx) {
+        let source = match CohortDecisionSource::consume_with(artifact, &expectation, &ctx) {
             Ok(source) => source,
             Err(error) => return Ok((None, Some(refusal_json(&error, "consume")))),
         };
@@ -686,7 +797,7 @@ fn cohort_decision_interval(
                 Some(crate::measured_inference_api::NativeMeasuredInference::from_io(measured)?),
                 None,
             )),
-            Err(antecedent_io::IoError::Refused { code, message }) => {
+            Err(antecedent::io::IoError::Refused { code, message }) => {
                 Ok((None, Some(RefusalJson::from_coded_message(code, "evaluate", &message).json())))
             }
             Err(other) => Err(crate::transport_common::error(other)),
@@ -703,7 +814,9 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(normalize_cohort_weights, m)?)?;
     m.add_function(wrap_pyfunction!(cohort_decision_law_refusal, m)?)?;
     m.add_function(wrap_pyfunction!(cohort_decision_forward_claim, m)?)?;
+    m.add_function(wrap_pyfunction!(cohort_decision_evaluate, m)?)?;
     m.add_function(wrap_pyfunction!(transport_cohort_effect, m)?)?;
     m.add_function(wrap_pyfunction!(transport_cohort_effect_verify, m)?)?;
+    m.add_function(wrap_pyfunction!(transport_cohort_composition_node, m)?)?;
     m.add_function(wrap_pyfunction!(transported_cohort_refusal, m)?)
 }

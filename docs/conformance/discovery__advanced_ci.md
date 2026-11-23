@@ -4,4 +4,4 @@
 
 ## Expected summary
 
-Top-level keys: `gpdc_cases, normalization, oracle, schema_version, symbolic_cases, tolerances` (6 fields).
+Top-level keys: `gpdc_cases, historical_oracle, normalization, oracle, schema_version, symbolic_cases, tolerances` (7 fields).

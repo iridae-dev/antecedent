@@ -9,7 +9,7 @@
 //! `sibling` valid; withdrawing the record `fit` holds withdraws `claim` for
 //! calibration only.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
@@ -151,8 +151,7 @@ fn a_first_verification_has_nothing_stale_and_a_withdrawn_calibration_is_carried
     assert_eq!(claim.class, Revalidation::Withdrawn);
     assert!(claim.numerical.is_empty());
     assert!(claim.withdrawn_for(WithdrawalKind::Calibration));
-    let refusal = artifact.revalidation().require_valid("claim").expect_err("refused");
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert!(artifact.revalidation().require_valid("claim").is_ok());
 }
 
 #[test]
@@ -308,7 +307,10 @@ fn an_unsealed_edit_is_an_identity_mismatch_and_a_retained_identity_binds_the_hi
             .refusal()
             .expect("registered");
     assert_eq!(code, "route_not_supported");
-    assert_eq!(detail, "composition_verification.identity_mismatch");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::composition_verification::IDENTITY_MISMATCH
+    );
 }
 
 #[test]
@@ -338,11 +340,21 @@ fn versions_markers_and_corruption_are_refused() {
     .expect("bytes");
     let middle = bytes.len() / 2;
     bytes[middle] ^= 0xff;
-    assert!(CompositionVerificationArtifact::from_bytes(&bytes, None).is_err());
-    assert!(CompositionVerificationArtifact::from_bytes(&bytes[..bytes.len() / 3], None).is_err());
-    assert!(
+    assert_eq!(
+        CompositionVerificationArtifact::from_bytes(&bytes, None).unwrap_err().to_string(),
+        "composition verification artifact does not decode: checksum mismatch for section `composition_verification_meta`"
+    );
+    assert_eq!(
+        CompositionVerificationArtifact::from_bytes(&bytes[..bytes.len() / 3], None)
+            .unwrap_err()
+            .to_string(),
+        "composition verification artifact does not decode: io error: failed to fill whole buffer"
+    );
+    assert_eq!(
         CompositionVerificationArtifact::to_bytes(None, &s.after, &BTreeMap::new(), &[], None, " ")
-            .is_err()
+            .unwrap_err()
+            .to_string(),
+        "composition verification artifact does not encode: missing artifact id"
     );
 }
 

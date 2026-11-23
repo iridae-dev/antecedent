@@ -22,7 +22,7 @@
 //!   series, so shared noise cancels exactly as far as it is correlated; across
 //!   independent streams the variances add.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_kernels::kish_ess;
 use antecedent_stats::ln_gamma;
@@ -364,7 +364,9 @@ fn order_index(p: f64, n: usize) -> usize {
 
 fn sorted_copy(values: &[f64]) -> Vec<f64> {
     let mut sorted = values.to_vec();
-    sorted.sort_by(f64::total_cmp);
+    // Equal total-order f64 keys have identical bits, so stability cannot
+    // change any output; the in-place sort needs no hidden merge buffer.
+    sorted.sort_unstable_by(f64::total_cmp);
     sorted
 }
 
@@ -471,7 +473,7 @@ fn quantile_estimate(
     }
     if weights.is_some() {
         return Err(ReliabilityError::RouteNotSupported {
-            message: "weighted quantile: no weighted order-statistic standard error is licensed"
+            message: "weighted quantile: no weighted order-statistic standard error is supported"
                 .into(),
         });
     }
@@ -558,7 +560,7 @@ fn mean_like(
         Functional::Cvar { alpha, tail } => {
             if weights.is_some() {
                 return Err(ReliabilityError::RouteNotSupported {
-                    message: "weighted cvar: no weighted influence-function error is licensed"
+                    message: "weighted cvar: no weighted influence-function error is supported"
                         .into(),
                 });
             }
@@ -594,7 +596,7 @@ fn influence_method(functional: &Functional, method: StandardErrorMethod) -> Sta
 ///
 /// # Errors
 /// An invalid functional, too few draws, undeclared dependence, or a weighted
-/// quantile/`CVaR` request (no weighted standard error is licensed).
+/// quantile/`CVaR` request (no weighted standard error is supported).
 #[allow(
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
@@ -724,6 +726,46 @@ pub fn estimate_difference(
     let correlation = (ea.standard_error > 0.0 && eb.standard_error > 0.0)
         .then(|| (independent - se * se) / (2.0 * ea.standard_error * eb.standard_error));
     Ok(finish(se, ess, method, ratio, correlation))
+}
+
+/// Existing estimator with its concrete temporary buffers admitted by the caller.
+pub(crate) fn estimate_in_context(
+    values: &[f64],
+    weights: Option<&[f64]>,
+    dependence: WithinStreamDependence,
+    plan: BatchPlan,
+    functional: &Functional,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<FunctionalEstimate, ReliabilityError> {
+    functional.validate()?;
+    let slots = super::workspace::estimate_slots(values.len(), dependence, plan, functional)?;
+    let _scratch = super::workspace::reserve::<f64>(ctx, slots)?;
+    estimate(values, weights, dependence, plan, functional)
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "private contextual adapter preserves the existing paired scientific inputs and adds the actual caller context"
+)]
+pub(crate) fn estimate_difference_in_context(
+    a: &[f64],
+    b: &[f64],
+    weights: Option<&[f64]>,
+    dependence: WithinStreamDependence,
+    plan: BatchPlan,
+    functional: &Functional,
+    coupling: PairCoupling,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<DifferenceEstimate, ReliabilityError> {
+    functional.validate()?;
+    let slots = if coupling == PairCoupling::IndependentStreams {
+        super::workspace::estimate_slots(a.len(), dependence, plan, functional)?
+            .max(super::workspace::estimate_slots(b.len(), dependence, plan, functional)?)
+    } else {
+        super::workspace::difference_slots(a.len(), dependence, plan, functional)?
+    };
+    let _scratch = super::workspace::reserve::<f64>(ctx, slots)?;
+    estimate_difference(a, b, weights, dependence, plan, functional, coupling)
 }
 
 #[allow(

@@ -36,7 +36,7 @@ whose law the consumer rebuilt and recomputed. A study cost is compared with a v
 through an explicit :class:`CostMap` into the decision's utility unit; without one, value and
 cost are reported separately and an incompatible unit refuses. An exact-integration EVSI is a
 point value; the calibration of Monte Carlo error coverage and rank guarantees is
-``unmeasured`` and no coverage is claimed.
+``not_measured`` and no coverage is claimed.
 """
 
 from __future__ import annotations
@@ -48,6 +48,14 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
+from antecedent import _reason_details
+
+from .._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .._columns import coerce_fields
 from .._native import composition_lineage as _composition_lineage
 from .._native import consume_design_ranking as _consume
@@ -56,6 +64,7 @@ from ..decision import Contract
 from ..errors import CausalTypeError, CausalValueError, StructuredRefusal
 from ..external import LineageLink
 from ..joint_distribution import JointDistributionArtifact, ScientificQuantity
+from ..outcomes import outcome_operation, require_success
 from .plans import PLAN_TYPES, DesignPlan
 
 if TYPE_CHECKING:
@@ -72,11 +81,11 @@ _BELIEF_MEANINGS = frozenset(
     }
 )
 
-CALIBRATION: Literal["unmeasured"] = "unmeasured"
+CALIBRATION: Literal["not_measured"] = "not_measured"
 #: Identity of the reported ranking within the result's ``lineage``.
 RESULT_LINK_ID = "design_ranking_result"
 ARTIFACT_KIND = "design_ranking_v1"
-TrustLabel = Literal["native_licensed", "externally_attested", "exact_request_verified"]
+TrustLabel = Literal["native_supported", "externally_attested", "exact_request_verified"]
 UpdateMode = Literal["native_update", "external_posterior", "external_decision_values"]
 Integration = Literal["exact", "monte_carlo", "externally_computed"]
 #: The claim a candidate's value carries: a point value, or a Monte Carlo estimate (no coverage).
@@ -382,7 +391,8 @@ class DesignDecision:
             "prior": self.prior._wire(),
         }
 
-    def export_rollout(
+    @outcome_operation
+    def derive_rollout(
         self,
         source: JointDistributionArtifact,
         state: ScientificQuantity,
@@ -400,6 +410,8 @@ class DesignDecision:
         from .._native import export_rollout as _export_rollout
         from ..decision import source_digest
 
+        source = require_success(source)
+        ranking = require_success(ranking)
         if not isinstance(source, JointDistributionArtifact) or not isinstance(
             state, ScientificQuantity
         ):
@@ -410,7 +422,8 @@ class DesignDecision:
             raise CausalTypeError("rollout needs an independently consumed DesignRankingResult")
         if self.prior.kind != "draws":
             raise CausalValueError(
-                "rollout.finite_draw_state_required", reason_code="route_not_supported"
+                _reason_details.rollout.FINITE_DRAW_STATE_REQUIRED,
+                reason_code="route_not_supported",
             )
         states = list(self.prior.states)
         if len(states) > 65_536 or len(self.actions) * len(states) > 4 * 1024 * 1024:
@@ -444,11 +457,11 @@ class DesignDecision:
             "ranking_identity": ranking.identity,
         }
         report, data = _export_rollout(
-            source.export("rollout-source"),
-            ranking.export(),
+            bytes(source.export("rollout-source")),
+            bytes(ranking.export()),
             json.dumps(binding, allow_nan=False),
             artifact_id,
-            source.source_evidence.export() if source.source_evidence is not None else None,
+            bytes(source.source_evidence.export()) if source.source_evidence is not None else None,
         )
         return _rollout_result(report, bytes(data))
 
@@ -500,9 +513,10 @@ class RolloutResult:
         """Historical numerical replay does not issue native producing authority."""
         return False
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The bounded ``rollout_state_v1`` artifact."""
-        return self._bytes
+        return artifact_from_receipt(self, self._bytes)
 
     def expectation(self) -> dict[str, Any]:
         """Copy of the full scientific and terminal inputs to retain independently."""
@@ -510,6 +524,7 @@ class RolloutResult:
 
 
 def _rollout_result(report: str, data: bytes) -> RolloutResult:
+    data = container_bytes(data)
     value = json.loads(report)
     binding = value["expectation"]
     return RolloutResult(
@@ -527,6 +542,7 @@ def _rollout_result(report: str, data: bytes) -> RolloutResult:
 
 def consume_rollout(data: bytes, *, expected_identity: Mapping[str, Any]) -> RolloutResult:
     """Replay the original source/ranking under independently retained full inputs."""
+    data = container_bytes(data)
     from .._native import consume_rollout as _consume_rollout
 
     if len(data) > 32 * 1024 * 1024:
@@ -590,8 +606,8 @@ class SignalProvider:
 
     __slots__ = ()
 
-    #: Trust the declaration carries; an external provider is never ``native_licensed``.
-    trust: TrustLabel = "native_licensed"
+    #: Trust the declaration carries; an external provider is never ``native_supported``.
+    trust: TrustLabel = "native_supported"
 
     def _wire(self) -> dict[str, Any]:  # pragma: no cover - abstract
         raise NotImplementedError
@@ -701,7 +717,7 @@ class ExternalSignal(SignalProvider):
 
     @property
     def trust(self) -> TrustLabel:  # type: ignore[override]
-        """Never ``native_licensed``; the supplier's assertion is not verified by Antecedent."""
+        """Never ``native_supported``; the supplier's assertion is not verified by Antecedent."""
         return "externally_attested"
 
     def _wire(self) -> dict[str, Any]:
@@ -951,7 +967,7 @@ class ConsumedRanking:
     source_digests: tuple[str, ...]
     entries: tuple[ConsumedEntry, ...]
     search: DesignSearchReceipt
-    calibration: Literal["unmeasured"]
+    calibration: Literal["not_measured"]
     #: Checked derivation chain, retained independently of the original provider.
     lineage: tuple[LineageLink, ...] = ()
 
@@ -1045,6 +1061,7 @@ def consume(
     pass ``skip_expectation_check=True`` to say that is intended. Supplying neither, or both,
     raises :class:`~antecedent.errors.CausalValueError`.
     """
+    data = container_bytes(data)
     if expected_identity is None and not skip_expectation_check:
         raise CausalValueError(
             "consume needs expected_identity=<design.Expectation> (e.g. result.expectation()) "

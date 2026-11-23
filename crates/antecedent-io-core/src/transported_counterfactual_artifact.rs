@@ -27,10 +27,10 @@
 //! What this does **not** say: the claim is a point under the narrow class (covariate
 //! selection, additive noise, shared noise laws, unit-level cross-world coupling); the
 //! additive-noise, shared-noise-law, cross-world and source-fit premises are declared by the
-//! caller, not checked; no interval is published; calibration is unmeasured. Unknown major
+//! caller, not checked; no interval is published; calibration is `not_measured`. Unknown major
 //! versions refuse.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
@@ -45,8 +45,6 @@ use antecedent_counterfactual::transported_path_specific::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
-
 /// The artifact major version this reader writes and accepts.
 pub const TRANSPORTED_COUNTERFACTUAL_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
@@ -55,14 +53,41 @@ pub const TRANSPORTED_COUNTERFACTUAL_ARTIFACT_FEATURE: &str = "transported_count
 pub const TRANSPORTED_COUNTERFACTUAL_INFERENCE_CLAIM: &str = "point_only";
 /// Most bytes an artifact may occupy, enforced on export and on consumption.
 pub const MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES: usize = 64 * 1024 * 1024;
-/// Most covariates a model may declare.
-pub const MAX_COVARIATES: usize = 64;
 /// Most mechanism nodes a model may declare.
 pub const MAX_MECHANISMS: usize = 256;
 /// Most support points either covariate law may declare.
 pub const MAX_SUPPORT_POINTS: usize = 65_536;
 /// Most selection nodes, evidence factors or assignment children a request may declare.
 pub const MAX_DECLARATIONS: usize = 256;
+
+/// Intake bounds for a transported counterfactual artifact. The defaults are
+/// [`MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES`], [`MAX_MECHANISMS`],
+/// [`MAX_SUPPORT_POINTS`] and [`MAX_DECLARATIONS`]; there is no covariate-count cap, as the
+/// number of covariates is bounded by the byte bound and the support points. A consumer with
+/// a larger budget passes its own to [`TransportedCounterfactualArtifact::seal_within`] and
+/// [`TransportedCounterfactualArtifact::from_bytes_with_limits`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TransportedCounterfactualLimits {
+    /// Most container bytes.
+    pub max_bytes: usize,
+    /// Most mechanism nodes a model may declare.
+    pub max_mechanisms: usize,
+    /// Most support points either covariate law may declare.
+    pub max_support_points: usize,
+    /// Most selection nodes, evidence factors or assignment children a request may declare.
+    pub max_declarations: usize,
+}
+
+impl Default for TransportedCounterfactualLimits {
+    fn default() -> Self {
+        Self {
+            max_bytes: MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES,
+            max_mechanisms: MAX_MECHANISMS,
+            max_support_points: MAX_SUPPORT_POINTS,
+            max_declarations: MAX_DECLARATIONS,
+        }
+    }
+}
 
 const ARTIFACT_KIND: &str = crate::artifact_kinds::TRANSPORTED_COUNTERFACTUAL;
 const META_SECTION: &str = "transported_counterfactual_meta";
@@ -123,7 +148,7 @@ crate::sectioned_artifact_enum! {
     #[derive(Clone, Debug, PartialEq)]
     TransportedCounterfactualArtifactError {
         noun: "transported counterfactual",
-        identity: "transported_counterfactual.artifact_changed",
+        identity: antecedent_core::reason_details::transported_counterfactual::ARTIFACT_CHANGED,
         variants {
             /// A stored contrast, per-unit contrast or derivation differs from the recomputed one.
             ResultMismatch(&'static str),
@@ -150,7 +175,9 @@ impl TransportedCounterfactualArtifactError {
             Self::IdentityMismatch { field } => Some(TransportedCounterfactualRefusalWire {
                 code: antecedent_core::reason_code!("route_not_supported").to_owned(),
                 stage: "consume".to_owned(),
-                detail: "transported_counterfactual.artifact_changed".to_owned(),
+                detail:
+                    antecedent_core::reason_details::transported_counterfactual::ARTIFACT_CHANGED
+                        .to_owned(),
                 offending: Some((*field).to_owned()),
                 remedy: Some(
                     "consume the artifact the producer exported, or retain the identity of the \
@@ -465,22 +492,22 @@ fn canonical(
     out
 }
 
-fn check_bounds(request: &TransportedCounterfactualRequestWire) -> Result<(), Failure> {
-    if request.model.covariates.len() > MAX_COVARIATES {
-        return Err(Failure::LimitsExceeded("covariates"));
-    }
-    if request.model.mechanisms.len() > MAX_MECHANISMS {
+fn check_bounds(
+    request: &TransportedCounterfactualRequestWire,
+    limits: &TransportedCounterfactualLimits,
+) -> Result<(), Failure> {
+    if request.model.mechanisms.len() > limits.max_mechanisms {
         return Err(Failure::LimitsExceeded("mechanisms"));
     }
-    if request.source_law.points.len() > MAX_SUPPORT_POINTS
-        || request.target_law.points.len() > MAX_SUPPORT_POINTS
+    if request.source_law.points.len() > limits.max_support_points
+        || request.target_law.points.len() > limits.max_support_points
     {
         return Err(Failure::LimitsExceeded("support points"));
     }
-    if request.selections.len() > MAX_DECLARATIONS
-        || request.evidence.len() > MAX_DECLARATIONS
-        || request.assignment.plus.len() > MAX_DECLARATIONS
-        || request.assignment.minus.len() > MAX_DECLARATIONS
+    if request.selections.len() > limits.max_declarations
+        || request.evidence.len() > limits.max_declarations
+        || request.assignment.plus.len() > limits.max_declarations
+        || request.assignment.minus.len() > limits.max_declarations
     {
         return Err(Failure::LimitsExceeded("declarations"));
     }
@@ -542,7 +569,7 @@ fn law_of(wire: &LawWire, label: &str) -> Result<CovariateLaw, Failure> {
         for (name, value) in &point.values {
             if values.insert(name.clone(), *value).is_some() {
                 return Err(invalid(
-                    "transported_counterfactual.invalid_law",
+                    antecedent_core::reason_details::transported_counterfactual::INVALID_LAW,
                     &format!("{label}: repeated covariate {name}"),
                 ));
             }
@@ -583,7 +610,10 @@ fn role_of(tag: &str) -> Result<PopulationRole, Failure> {
     match tag {
         "source" => Ok(PopulationRole::Source),
         "target" => Ok(PopulationRole::Target),
-        other => Err(invalid("transported_counterfactual.invalid_factor", other)),
+        other => Err(invalid(
+            antecedent_core::reason_details::transported_counterfactual::INVALID_FACTOR,
+            other,
+        )),
     }
 }
 
@@ -614,8 +644,9 @@ fn result_wire(result: &TransportedPathSpecificResult) -> TransportedCounterfact
 /// Run the core evaluator on the (already canonical) request.
 fn evaluate(
     request: &TransportedCounterfactualRequestWire,
+    limits: &TransportedCounterfactualLimits,
 ) -> Result<TransportedCounterfactualResultWire, Failure> {
-    check_bounds(request)?;
+    check_bounds(request, limits)?;
     let model = model_of(&request.model);
     let source = law_of(&request.source_law, "source")?;
     let target = law_of(&request.target_law, "target")?;
@@ -638,7 +669,7 @@ fn evaluate(
         let key = RegimeFactorKey { role: role_of(&item.role)?, regime: item.regime.clone() };
         if factors.insert(key.clone(), item.label.clone()).is_some() {
             return Err(invalid(
-                "transported_counterfactual.invalid_factor",
+                antecedent_core::reason_details::transported_counterfactual::INVALID_FACTOR,
                 &format!("repeated factor {}", key.label()),
             ));
         }
@@ -829,27 +860,17 @@ fn identity_diff(
     stored: &TransportedCounterfactualIdentity,
     other: &TransportedCounterfactualIdentity,
 ) -> Option<&'static str> {
-    if stored.premises_digest != other.premises_digest {
-        Some("premises")
-    } else if stored.model_digest != other.model_digest {
-        Some("model")
-    } else if stored.source_law_digest != other.source_law_digest {
-        Some("source_law")
-    } else if stored.target_law_digest != other.target_law_digest {
-        Some("target_law")
-    } else if stored.selection_digest != other.selection_digest {
-        Some("selection")
-    } else if stored.assignment_digest != other.assignment_digest {
-        Some("assignment")
-    } else if stored.evidence_digest != other.evidence_digest {
-        Some("evidence")
-    } else if stored.spec_id != other.spec_id {
-        Some("request")
-    } else if stored.result_digest != other.result_digest {
-        Some("result")
-    } else {
-        None
-    }
+    crate::first_identity_difference!(stored, other, {
+        premises_digest => "premises",
+        model_digest => "model",
+        source_law_digest => "source_law",
+        target_law_digest => "target_law",
+        selection_digest => "selection",
+        assignment_digest => "assignment",
+        evidence_digest => "evidence",
+        spec_id => "request",
+        result_digest => "result",
+    })
 }
 
 fn same_real(a: f64, b: f64) -> bool {
@@ -900,33 +921,26 @@ pub fn encode_parts(
     meta: &TransportedCounterfactualMeta,
     artifact_id: &str,
 ) -> Result<Vec<u8>, TransportedCounterfactualArtifactError> {
-    encode_parts_impl(meta, artifact_id)
+    encode_parts_impl(meta, artifact_id, MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES)
 }
 
 fn encode_parts_impl(
     meta: &TransportedCounterfactualMeta,
     artifact_id: &str,
+    max_bytes: usize,
 ) -> Result<Vec<u8>, TransportedCounterfactualArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(TransportedCounterfactualArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta)
-        .map_err(|error| TransportedCounterfactualArtifactError::Encode(error.to_string()))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "transported_counterfactual_covariate_selected_point_only",
-            max_bytes: MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES,
+            max_bytes,
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection {
-            id: META_SECTION,
-            content_type: crate::CONTENT_CBOR,
-            bytes: &meta_bytes,
-        }],
+        META_SECTION,
+        meta,
+        &[],
     )
-    .map_err(|error| crate::map_artifact_check!(error, TransportedCounterfactualArtifactError))
 }
 
 /// Decode the metadata section of a container, refusing another version before the metadata
@@ -941,31 +955,22 @@ fn encode_parts_impl(
 pub fn decode_parts(
     bytes: &[u8],
 ) -> Result<TransportedCounterfactualMeta, TransportedCounterfactualArtifactError> {
-    decode_parts_impl(bytes)
+    decode_parts_impl(bytes, MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES)
 }
 
 fn decode_parts_impl(
     bytes: &[u8],
+    max_bytes: usize,
 ) -> Result<TransportedCounterfactualMeta, TransportedCounterfactualArtifactError> {
-    let parts = crate::decode_container(
+    crate::artifact_codec::decode_sectioned(
         ARTIFACT_KIND,
-        MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES,
-        &[META_SECTION],
+        max_bytes,
+        META_SECTION,
+        &[],
+        TRANSPORTED_COUNTERFACTUAL_ARTIFACT_VERSION,
         bytes,
     )
-    .map_err(|error| crate::map_artifact_check!(error, TransportedCounterfactualArtifactError))?;
-    let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(TransportedCounterfactualArtifactError::Malformed(
-            "unsupported container layout".into(),
-        ));
-    };
-    crate::decode_with_version(&meta_bytes, |version| {
-        if version == TRANSPORTED_COUNTERFACTUAL_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(TransportedCounterfactualArtifactError::UnsupportedVersion { version })
-        }
-    })
+    .map(|(meta, _)| meta)
 }
 
 /// A produced or consumed transported counterfactual artifact.
@@ -989,8 +994,19 @@ impl TransportedCounterfactualArtifact {
     pub fn seal(
         request: &TransportedCounterfactualRequestWire,
     ) -> Result<Self, TransportedCounterfactualArtifactError> {
+        Self::seal_within(request, &TransportedCounterfactualLimits::default())
+    }
+
+    /// [`Self::seal`] under the caller's bounds instead of the defaults.
+    ///
+    /// # Errors
+    /// As [`Self::seal`]; a bound of `limits` exceeded is `LimitsExceeded`.
+    pub fn seal_within(
+        request: &TransportedCounterfactualRequestWire,
+        limits: &TransportedCounterfactualLimits,
+    ) -> Result<Self, TransportedCounterfactualArtifactError> {
         let request = canonical(request);
-        let result = evaluate(&request)?;
+        let result = evaluate(&request, limits)?;
         let identity = identity_of(&request, &result);
         Ok(Self {
             meta: TransportedCounterfactualMeta {
@@ -1049,7 +1065,20 @@ impl TransportedCounterfactualArtifact {
         &self,
         artifact_id: &str,
     ) -> Result<Vec<u8>, TransportedCounterfactualArtifactError> {
-        encode_parts_impl(&self.meta, artifact_id)
+        self.to_bytes_within(artifact_id, MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::to_bytes`] under the caller's byte bound instead of
+    /// [`MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::to_bytes`]; a payload over `max_bytes` is refused.
+    pub fn to_bytes_within(
+        &self,
+        artifact_id: &str,
+        max_bytes: usize,
+    ) -> Result<Vec<u8>, TransportedCounterfactualArtifactError> {
+        encode_parts_impl(&self.meta, artifact_id, max_bytes)
     }
 
     /// Consume an artifact by recomputing the transported contrast.
@@ -1066,15 +1095,48 @@ impl TransportedCounterfactualArtifact {
         bytes: &[u8],
         expected: Option<&TransportedCounterfactualIdentity>,
     ) -> Result<Self, TransportedCounterfactualArtifactError> {
-        let meta = decode_parts_impl(bytes)?;
-        if meta.feature != TRANSPORTED_COUNTERFACTUAL_ARTIFACT_FEATURE {
-            return Err(Failure::UnsupportedSemantics("feature marker"));
-        }
+        Self::from_bytes_within(bytes, expected, MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::from_bytes`] under the caller's byte bound instead of
+    /// [`MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a file over `max_bytes` is `LimitsExceeded`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected: Option<&TransportedCounterfactualIdentity>,
+        max_bytes: usize,
+    ) -> Result<Self, TransportedCounterfactualArtifactError> {
+        Self::from_bytes_with_limits(
+            bytes,
+            expected,
+            &TransportedCounterfactualLimits {
+                max_bytes,
+                ..TransportedCounterfactualLimits::default()
+            },
+        )
+    }
+
+    /// [`Self::from_bytes`] under the caller's bounds instead of the defaults.
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a bound of `limits` exceeded is `LimitsExceeded`.
+    pub fn from_bytes_with_limits(
+        bytes: &[u8],
+        expected: Option<&TransportedCounterfactualIdentity>,
+        limits: &TransportedCounterfactualLimits,
+    ) -> Result<Self, TransportedCounterfactualArtifactError> {
+        let meta = decode_parts_impl(bytes, limits.max_bytes)?;
+        crate::artifact_codec::require_semantics::<Failure>(
+            meta.feature == TRANSPORTED_COUNTERFACTUAL_ARTIFACT_FEATURE,
+            "feature marker",
+        )?;
         if meta.inference_claim != TRANSPORTED_COUNTERFACTUAL_INFERENCE_CLAIM {
             return Err(Failure::UnsupportedSemantics("inference claim"));
         }
         let request = canonical(&meta.request);
-        let replayed = evaluate(&request)?;
+        let replayed = evaluate(&request, limits)?;
         let recomputed = identity_of(&request, &replayed);
         if let Some(field) = identity_diff(&meta.identity, &recomputed) {
             // Only the result digest differing means the request is as stored and the stored
@@ -1089,10 +1151,10 @@ impl TransportedCounterfactualArtifact {
         if let Some(what) = result_diff(&meta.result, &replayed) {
             return Err(Failure::ResultMismatch(what));
         }
-        if let Some(expected) = expected {
-            if let Some(field) = identity_diff(expected, &recomputed) {
-                return Err(Failure::IdentityMismatch { field });
-            }
+        if let Some(expected) = expected
+            && let Some(field) = identity_diff(expected, &recomputed)
+        {
+            return Err(Failure::IdentityMismatch { field });
         }
         let verified = TransportedCounterfactualMeta { request, result: replayed, ..meta };
         Ok(Self { meta: verified })

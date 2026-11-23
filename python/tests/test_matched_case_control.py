@@ -13,6 +13,8 @@ import json
 import math
 
 import pytest
+from antecedent import Execution
+from antecedent import _reason_details as reason_details
 from antecedent.errors import (
     CausalResourceError,
     CausalSerializationError,
@@ -25,6 +27,18 @@ from antecedent.state import CancellationToken
 from _refusal import assert_registered_refusal
 
 DECLARED = "matched_case_control"
+
+
+def test_missing_strata_are_rejected_before_grouping():
+    pd = pytest.importorskip("pandas")
+    for missing in (None, float("nan"), pd.NA):
+        with pytest.raises(ValueError, match="stratum labels must not be missing"):
+            matched_case_control_odds_ratio(
+                stratum=[missing, missing],
+                case=[1, 0],
+                exposed=[1, 0],
+                sampling="matched_case_control",
+            )
 
 
 def rows(sets):
@@ -161,19 +175,22 @@ def test_risk_scale_estimands_are_refused_without_prevalence():
     for estimand in ("population_risk", "absolute_risk", "risk_difference", "risk_ratio"):
         error = refusal(lambda estimand=estimand: fit(pairs(7, 3), estimand=estimand))
         assert error.reason_code == "effect_not_identified"
-        assert "matched_case_control.absolute_risk_not_identified" in str(error)
+        assert reason_details.matched_case_control.ABSOLUTE_RISK_NOT_IDENTIFIED in str(error)
 
 
 def test_another_estimand_is_not_supported():
     error = refusal(lambda: fit(pairs(7, 3), estimand="hazard_ratio"))
     assert error.reason_code == "route_not_supported"
-    assert "matched_case_control.estimand_not_supported" in str(error)
+    assert reason_details.matched_case_control.ESTIMAND_NOT_SUPPORTED in str(error)
 
 
-def test_an_interval_is_withheld_with_a_typed_refusal():
-    error = refusal(lambda: fit(pairs(7, 3), level=0.95))
-    assert error.reason_code == "cell_not_licensed"
-    assert "matched_case_control.interval_withheld" in str(error)
+def test_an_interval_is_reported_with_its_calibration_status():
+    result = fit(pairs(7, 3), level=0.95)
+    lower, upper = result.interval
+    assert result.interval_level == 0.95
+    assert lower < result.odds_ratio < upper
+    assert result.interval_calibration["status"] == "not_measured"
+    assert fit(pairs(7, 3)).interval is None
 
 
 def test_the_sampling_design_must_be_declared_and_be_the_matched_design():
@@ -186,17 +203,17 @@ def test_the_sampling_design_must_be_declared_and_be_the_matched_design():
         )
     )
     assert error.reason_code == "invalid_argument"
-    assert "matched_case_control.sampling_design" in str(error)
+    assert reason_details.matched_case_control.SAMPLING_DESIGN in str(error)
 
 
 def test_no_informative_set_and_a_monotone_likelihood_are_refused():
     error = refusal(lambda: fit(pairs(0, 0, both=3, neither=2) + [[(1, 1)]]))
     assert error.reason_code == "effect_not_identified"
-    assert "matched_case_control.no_informative_sets" in str(error)
+    assert reason_details.matched_case_control.NO_INFORMATIVE_SETS in str(error)
     for sets in (pairs(4, 0), pairs(0, 4)):
         error = refusal(lambda sets=sets: fit(sets))
         assert error.reason_code == "route_not_supported"
-        assert "matched_case_control.estimate_not_finite" in str(error)
+        assert reason_details.matched_case_control.ESTIMATE_NOT_FINITE in str(error)
 
 
 def test_malformed_rows_are_refused():
@@ -212,7 +229,7 @@ def test_malformed_rows_are_refused():
             lambda override=override: matched_case_control_odds_ratio(**{**base, **override})
         )
         assert error.reason_code == "invalid_argument"
-        assert "matched_case_control.invalid_data" in str(error)
+        assert reason_details.matched_case_control.INVALID_DATA in str(error)
     with pytest.raises(CausalTypeError):
         matched_case_control_odds_ratio(**{**base, "case": [1, None]})
 
@@ -220,9 +237,9 @@ def test_malformed_rows_are_refused():
 def test_a_cancelled_solve_is_a_budget_stop_never_a_verdict():
     token = CancellationToken()
     token.cancel()
-    error = refusal(lambda: fit(pairs(7, 3), cancel=token))
+    error = refusal(lambda: fit(pairs(7, 3), execution=Execution(cancel=token)))
     assert error.reason_code == "transport_budget_cancel"
-    assert "matched_case_control.budget" in str(error)
+    assert reason_details.matched_case_control.BUDGET in str(error)
     assert fit(pairs(7, 3)).odds_ratio == pytest.approx(7 / 3, abs=1e-9)
 
 
@@ -248,17 +265,19 @@ def test_an_exported_result_is_replayed_by_an_independent_consumer():
         (3, 1, 1, 0, 2),
         (3, 1, 1, 1, 3),
     )
-    again = replay_matched_case_control(result.export())
+    again = replay_matched_case_control(bytes(result.export()))
     assert again.log_odds_ratio == result.log_odds_ratio
     assert again.counts == result.counts
     assert again.set_types == result.set_types
-    assert replay_matched_case_control(again.export()).export() == result.export()
-    body = json.loads(result.export())
+    assert bytes(replay_matched_case_control(bytes(again.export())).export()) == bytes(
+        result.export()
+    )
+    body = json.loads(bytes(result.export()))
     assert body["claim"] == "point_only" and "interval" not in body
 
 
 def test_a_tampered_artifact_is_refused_for_the_right_reason():
-    artifact = fit(pairs(7, 3)).export()
+    artifact = bytes(fit(pairs(7, 3)).export())
     body = json.loads(artifact)
     for edit in (
         {"log_odds_ratio": body["log_odds_ratio"] + 1e-9},
@@ -285,9 +304,12 @@ def test_a_tampered_artifact_is_refused_for_the_right_reason():
 
 
 def test_a_replay_that_would_expand_past_the_row_cap_is_refused_before_work():
-    body = json.loads(fit(pairs(7, 3)).export())
+    body = json.loads(bytes(fit(pairs(7, 3)).export()))
     with pytest.raises(CausalResourceError):
         replay_matched_case_control(sealed({**body, "set_types": [[2, 1, 1, 1, 10**12]]}))
     with pytest.raises(CausalResourceError):
-        replay_matched_case_control(fit(pairs(7, 3)).export(), max_rows=19)
-    assert replay_matched_case_control(fit(pairs(7, 3)).export(), max_rows=20).counts.total == 10
+        replay_matched_case_control(bytes(fit(pairs(7, 3)).export()), max_rows=19)
+    assert (
+        replay_matched_case_control(bytes(fit(pairs(7, 3)).export()), max_rows=20).counts.total
+        == 10
+    )

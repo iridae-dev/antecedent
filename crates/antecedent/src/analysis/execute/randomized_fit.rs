@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{Arc, CausalError, EstimatorId, TableView, TabularData};
-use antecedent_core::{RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand};
+use antecedent_core::{
+    ExecutionContext, RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand,
+};
 use std::collections::BTreeMap;
 
 /// Labeled action values of a multi-arm design: label, value, variance bound, support.
@@ -26,6 +28,7 @@ pub(super) enum RandomizedMethod {
     Bernoulli,
     Complete,
     Cluster,
+    ClusterFixedCuped,
     Stratified,
     Factorial2x2,
     MultiArm,
@@ -47,6 +50,9 @@ impl RandomizedMethod {
                 RandomizationDesign::Bernoulli if query.fixed_cuped.is_some() => Self::FixedCuped,
                 RandomizationDesign::Bernoulli => Self::Bernoulli,
                 RandomizationDesign::Complete { .. } => Self::Complete,
+                RandomizationDesign::Cluster { .. } if query.fixed_cuped.is_some() => {
+                    Self::ClusterFixedCuped
+                }
                 RandomizationDesign::Cluster { .. } => Self::Cluster,
                 RandomizationDesign::Stratified { .. } => Self::Stratified,
                 RandomizationDesign::Factorial2x2 { .. } => Self::Factorial2x2,
@@ -65,7 +71,7 @@ impl RandomizedMethod {
             | Self::FixedCuped
             | Self::Bernoulli => "bernoulli",
             Self::Complete => "complete",
-            Self::Cluster => "cluster",
+            Self::Cluster | Self::ClusterFixedCuped => "cluster",
             Self::Stratified => "stratified",
             Self::Factorial2x2 => "factorial_2x2",
             Self::MultiArm => "multi_arm",
@@ -77,6 +83,7 @@ impl RandomizedMethod {
         match self {
             Self::TreatmentOnTreated | Self::ComplierEffect => EstimatorId::RandomizedWaldCace,
             Self::FixedCuped => EstimatorId::RandomizedFixedCupedHt,
+            Self::ClusterFixedCuped => EstimatorId::RandomizedClusterFixedCuped,
             Self::Ancova => EstimatorId::RandomizedAncova,
             Self::Bernoulli | Self::MultiArm => EstimatorId::RandomizedHt,
             Self::Complete | Self::Stratified | Self::Factorial2x2 | Self::Cluster => {
@@ -100,6 +107,7 @@ impl RandomizedMethod {
         match self {
             Self::TreatmentOnTreated | Self::ComplierEffect => "estimate.randomized.wald_cace_late",
             Self::FixedCuped => "estimate.randomized.fixed_cuped_ht_itt",
+            Self::ClusterFixedCuped => "estimate.randomized.cluster_fixed_cuped_itt",
             Self::Ancova => "estimate.randomized.ancova_itt",
             Self::Bernoulli => "estimate.randomized.ht_itt",
             Self::Switchback => "estimate.randomized.switchback_ht_itt",
@@ -112,7 +120,7 @@ impl RandomizedMethod {
 
     /// Cluster-level dependence is what the published standard error accounts for.
     pub(super) fn clustered_standard_error(self) -> bool {
-        matches!(self, Self::Cluster | Self::Switchback)
+        matches!(self, Self::Cluster | Self::ClusterFixedCuped | Self::Switchback)
     }
 
     pub(super) fn uncertainty(self, interval_published: bool) -> &'static str {
@@ -125,9 +133,12 @@ impl RandomizedMethod {
             (Self::FixedCuped, false) => {
                 "bernoulli_fixed_cuped_ht_conservative_variance_no_interval"
             }
-            (Self::Bernoulli, false) => "bernoulli_ht_design_variance_no_interval",
+            (Self::Bernoulli, false) => "bernoulli_ht_conservative_variance_no_interval",
             (Self::Complete, false) => "complete_neyman_variance_upper_bound_no_interval",
             (Self::Cluster, false) => "cluster_neyman_variance_upper_bound_no_interval",
+            (Self::ClusterFixedCuped, false) => {
+                "cluster_fixed_cuped_neyman_variance_upper_bound_no_interval"
+            }
             (Self::Stratified, false) => "stratified_neyman_variance_upper_bound_no_interval",
             (Self::Factorial2x2, false) => "factorial_cell_neyman_variance_upper_bound_no_interval",
             (Self::MultiArm, false) => "multi_arm_covariance_free_variance_bound_no_interval",
@@ -141,6 +152,7 @@ impl RandomizedMethod {
             (Self::Bernoulli, true) => "bernoulli_ht_score_normal_interval",
             (Self::Complete, true) => "complete_neyman_normal_interval",
             (Self::Cluster, true) => "cluster_neyman_normal_interval",
+            (Self::ClusterFixedCuped, true) => "cluster_fixed_cuped_neyman_normal_interval",
             (Self::Stratified, true) => "stratified_neyman_normal_interval",
             (Self::Factorial2x2, true) => "factorial_cell_neyman_pointwise_normal_intervals",
             (Self::MultiArm, true) => "multi_arm_ht_score_pointwise_normal_intervals",
@@ -153,7 +165,7 @@ impl RandomizedMethod {
         match self {
             Self::Ancova => Some((
                 "bernoulli_ancova_hc2_bell_mccaffrey_student_interval",
-                "Bernoulli ANCOVA with pre-assignment covariates in arms below the normal-interval support (30 observed and 40 expected rows): independent-unit HC2 variance with a Bell-McCaffrey Student pointwise 95% interval conditional on the realized arm sizes, an uncalibrated construction until a coverage record covers it",
+                "Bernoulli ANCOVA with pre-assignment covariates in arms below the normal-interval support (30 observed and 40 expected rows) or with more than two covariates: independent-unit HC2 variance with a Bell-McCaffrey Student pointwise 95% interval conditional on the realized arm sizes, an uncalibrated construction until a coverage record covers it (its coverage is measured for up to two covariates)",
             )),
             Self::Complete => Some((
                 "complete_difference_in_means_hc2_bell_mccaffrey_student_interval",
@@ -166,7 +178,7 @@ impl RandomizedMethod {
     pub(super) fn diagnostic(self, interval_published: bool) -> &'static str {
         match (self, interval_published) {
             (Self::Ancova, false) => {
-                "OLS ANCOVA with pre-assignment covariates and independent-row HC0 sandwich variance; no confidence interval: the HC0 interval needs 30 observed and 40 expected rows in each arm, a common assignment probability from 0.2 through 0.8 and at most two covariates, and the small-arm Student interval needs at least 2 observed rows in each arm, 100 rows in all, positive HC2 variance and at most two covariates"
+                "OLS ANCOVA with pre-assignment covariates and independent-row HC0 sandwich variance; no confidence interval: the HC0 interval needs 30 observed and 40 expected rows in each arm, a common assignment probability from 0.2 through 0.8 and at most two covariates, and the uncalibrated HC2 Student interval needs at least 2 observed rows in each arm, 100 rows in all and positive HC2 variance"
             }
             (Self::TreatmentOnTreated, false) => {
                 "Treatment-on-treated among recipients under one-sided noncompliance, exclusion, and independent assignment; Wald point and independent-unit influence variance, no interval"
@@ -178,13 +190,16 @@ impl RandomizedMethod {
                 "Horvitz-Thompson ITT on outcomes adjusted by a declared pre-assignment covariate and externally fixed coefficient; observed-arm upper-bound estimator is conservative in randomization expectation; no interval: the score interval needs 30 observed and 40 expected rows in each arm and assignment probabilities from 0.2 through 0.8"
             }
             (Self::Bernoulli, false) => {
-                "Horvitz-Thompson ITT with Bernoulli design variance; no confidence interval: the score interval needs 30 observed and 40 expected rows in each arm and assignment probabilities from 0.2 through 0.8"
+                "Horvitz-Thompson ITT with an observed-arm variance estimator conservative in randomization expectation; no confidence interval: the score interval needs 30 observed and 40 expected rows in each arm and assignment probabilities from 0.2 through 0.8"
             }
             (Self::Complete, false) => {
                 "Complete-randomization difference in means with Neyman conservative variance estimate; no confidence interval: the normal interval needs 30 observed rows in each arm and the small-arm Student interval at least 2 observed rows in each arm, 100 rows in all and positive variance"
             }
             (Self::Cluster, false) => {
                 "Complete cluster-randomization HT ITT over cluster outcome totals, with Neyman conservative variance; no confidence interval is reported"
+            }
+            (Self::ClusterFixedCuped, false) => {
+                "Complete cluster-randomization ITT over cluster totals of outcomes adjusted by a declared pre-assignment covariate and externally fixed coefficient, with Neyman conservative variance over the cluster totals; no confidence interval: the normal interval needs 30 independently assigned clusters in each arm and a positive variance"
             }
             (Self::Stratified, false) => {
                 "Stratified difference in means weighted by block size, with blockwise Neyman conservative variance estimate; no confidence interval is reported"
@@ -218,6 +233,9 @@ impl RandomizedMethod {
             }
             (Self::Cluster, true) => {
                 "Cluster-randomized ITT over cluster outcome totals with a conservative cluster-level Neyman variance and pointwise 95% normal interval"
+            }
+            (Self::ClusterFixedCuped, true) => {
+                "Cluster-randomized ITT over cluster totals of outcomes adjusted by an externally fixed pre-assignment CUPED coefficient, with a conservative cluster-level Neyman variance and pointwise 95% normal interval; the cluster is the unit of analysis and the estimand is the unadjusted per-row ITT"
             }
             (Self::Stratified, true) => {
                 "Blocked difference in means with blockwise conservative Neyman variance and pointwise 95% normal interval"
@@ -289,7 +307,7 @@ impl TrialFit {
         }
     }
 
-    /// The fit with every interval withheld: a handled missingness has no coverage record.
+    /// The fit with every interval dropped: a handled missingness has no interval method.
     pub(super) fn closed(mut self) -> Self {
         self.interval_95 = None;
         self.interval_standard_error = None;
@@ -340,7 +358,9 @@ pub(super) fn fit_randomized(
         }
         RandomizedMethod::MultiArm => fit_multi_arm(query, outcomes),
         RandomizedMethod::Complete => fit_complete(query, outcomes),
-        RandomizedMethod::Cluster => fit_cluster(query, outcomes),
+        RandomizedMethod::Cluster | RandomizedMethod::ClusterFixedCuped => {
+            fit_cluster(query, outcomes)
+        }
         RandomizedMethod::Stratified => fit_stratified(query, outcomes),
         RandomizedMethod::Factorial2x2 => fit_factorial(query, outcomes),
         RandomizedMethod::Switchback => fit_switchback(query, outcomes),
@@ -490,7 +510,12 @@ fn fit_design_with_missing_outcomes(
 }
 
 /// The small-arm Student interval of a trial whose arms are below the normal interval's support,
-/// for a trial large enough to publish one.
+/// or whose covariate count is outside the normal interval's measured envelope, for a trial
+/// large enough to publish one.
+///
+/// The HC2 Student construction is valid for any covariate count; its coverage is measured only
+/// up to two covariates, which the published label and diagnostic say (its calibration status is
+/// `not_measured` beyond that envelope).
 fn small_arm_interval(
     query: &RandomizedEffectQuery,
     outcomes: &[f64],
@@ -498,7 +523,7 @@ fn small_arm_interval(
 ) -> Option<antecedent_estimate::ancova::SmallArmInterval> {
     (outcomes.len() >= antecedent_estimate::ancova::MIN_ROWS_FOR_SMALL_ARM_INTERVAL)
         .then(|| {
-            antecedent_estimate::ancova::small_arm_interval_95(
+            antecedent_estimate::ancova::small_arm_interval_any_covariates_95(
                 outcomes,
                 &query.realized_assignment,
                 covariates,
@@ -617,15 +642,15 @@ fn fit_multi_arm(query: &RandomizedEffectQuery, outcomes: &[f64]) -> Result<Tria
 
 fn fit_bernoulli(query: &RandomizedEffectQuery, outcomes: &[f64]) -> TrialFit {
     let n = outcomes.len();
-    let cuped = query.fixed_cuped.is_some();
     let mut effect_sum = 0.0;
     let mut variance_sum = 0.0;
     let mut control_units = 0;
     let mut treatment_units = 0;
-    // With a fixed pre-assignment adjustment, E[observed y² / assignment²]
-    // equals Y(1)²/p + Y(0)²/(1-p). This exceeds the Bernoulli
-    // variance by (Y(1)-Y(0))² for each unit. No interval follows
-    // from the random bound estimate without calibration.
+    // E[observed y² / assignment²] = Y(1)²/p + Y(0)²/(1-p).
+    // Its excess over the Bernoulli HT design variance is (Y(1)-Y(0))²
+    // per unit, including when y is adjusted by fixed pre-assignment CUPED.
+    // This is conservative in assignment expectation, not for every realized
+    // assignment. The separately gated score interval does not use this bound.
     for ((&y, &treated), &p) in outcomes
         .iter()
         .zip(query.realized_assignment.iter())
@@ -634,15 +659,11 @@ fn fit_bernoulli(query: &RandomizedEffectQuery, outcomes: &[f64]) -> TrialFit {
         if treated {
             treatment_units += 1;
             effect_sum += y / p;
-            variance_sum += if cuped { y * y / (p * p) } else { y * y * (1.0 - p) / (p * p) };
+            variance_sum += y * y / (p * p);
         } else {
             control_units += 1;
             effect_sum -= y / (1.0 - p);
-            variance_sum += if cuped {
-                y * y / ((1.0 - p) * (1.0 - p))
-            } else {
-                y * y * p / ((1.0 - p) * (1.0 - p))
-            };
+            variance_sum += y * y / ((1.0 - p) * (1.0 - p));
         }
     }
     let assignments =
@@ -835,37 +856,196 @@ fn fit_switchback(
     Ok(out)
 }
 
-/// Exhaustive two-sided Fisher sharp-null p-value and allocation count.
+/// Largest number of fixed-count allocations the Fisher test enumerates exhaustively; a design
+/// with more allocations is tested by uniform random sampling of allocations instead.
+const EXHAUSTIVE_ALLOCATION_LIMIT: u128 = 1 << 22;
+
+/// Allocations sampled by the Monte Carlo Fisher test (the observed allocation is added).
+const MONTE_CARLO_ALLOCATIONS: u64 = 100_000;
+
+/// Fixed stream of the Monte Carlo test, so the same table always gives the same p-value.
+const RANDOMIZATION_TEST_SEED: u64 = 0x6a09_e667_f3bc_c908;
+
+/// `C(n, k)`, or `None` when it exceeds `limit`.
+fn binomial_within(n: usize, k: usize, limit: u128) -> Option<u128> {
+    let k = k.min(n - k.min(n));
+    let mut value: u128 = 1;
+    for i in 0..k {
+        value = value.checked_mul((n - i) as u128)? / (i as u128 + 1);
+        if value > limit {
+            return None;
+        }
+    }
+    Some(value)
+}
+
+/// Whether the Fisher test of `query` enumerates every fixed-count allocation, so its p-value is
+/// exact, rather than sampling them (a Monte Carlo permutation p-value).
+pub(super) fn randomization_test_is_exhaustive(query: &RandomizedEffectQuery) -> bool {
+    matches!(
+        &query.design,
+        RandomizationDesign::Complete { treated_units }
+            if binomial_within(
+                query.realized_assignment.len(),
+                *treated_units,
+                EXHAUSTIVE_ALLOCATION_LIMIT,
+            )
+            .is_some()
+    )
+}
+
+/// Two-sided Fisher sharp-null p-value of the complete design and the number of allocations it
+/// averages over.
+///
+/// When the fixed-count allocations are few enough (`C(n, treated)` at most
+/// `EXHAUSTIVE_ALLOCATION_LIMIT`) every one is enumerated and the p-value is exact, with the
+/// allocation count `C(n, treated)`. Beyond that the p-value is the Monte Carlo
+/// permutation p-value `(1 + #{draws at least as extreme}) / (1 + draws)` over
+/// `MONTE_CARLO_ALLOCATIONS` uniformly sampled allocations (valid, never zero), and the
+/// allocation count is `MONTE_CARLO_ALLOCATIONS + 1`: it differs from `C(n, treated)`, which is
+/// how a reader tells the two apart.
 pub(super) fn exact_randomization_test(
     query: &RandomizedEffectQuery,
     outcomes: &[f64],
-    effect: f64,
-) -> (f64, u64) {
+    ctx: &ExecutionContext,
+) -> Result<(f64, u64), CausalError> {
     let RandomizationDesign::Complete { treated_units } = &query.design else {
         unreachable!("validated exact test requires complete randomization")
     };
-    let n = outcomes.len();
-    let observed = effect.abs();
-    let mut extreme = 0_u64;
-    let mut allocations = 0_u64;
-    let total = outcomes.iter().sum::<f64>();
-    for mask in 0..(1_u64 << n) {
-        if mask.count_ones() as usize != *treated_units {
-            continue;
+    fisher_p_value(outcomes, *treated_units, &query.realized_assignment, ctx)
+}
+
+// Both arms are summed in original row order, regardless of allocation generation order.
+fn allocation_contrast(
+    outcomes: &[f64],
+    assigned: &[bool],
+    treated: usize,
+    ctx: &ExecutionContext,
+) -> Result<f64, CausalError> {
+    let (mut treated_sum, mut control_sum) = (0.0, 0.0);
+    for (i, (&outcome, &is_treated)) in outcomes.iter().zip(assigned).enumerate() {
+        if i % 4096 == 0 && ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "randomization_test" });
         }
-        let treated_sum = outcomes
-            .iter()
-            .enumerate()
-            .filter_map(|(i, value)| ((mask >> i) & 1 == 1).then_some(*value))
-            .sum::<f64>();
-        let contrast = treated_sum / *treated_units as f64
-            - (total - treated_sum) / (n - *treated_units) as f64;
-        allocations += 1;
+        if is_treated {
+            treated_sum += outcome;
+        } else {
+            control_sum += outcome;
+        }
+    }
+    Ok(treated_sum / treated as f64 - control_sum / (outcomes.len() - treated) as f64)
+}
+
+/// [`exact_randomization_test`] over `treated` treated units of `outcomes.len()`.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the sampled position is below the unit count, which is a usize"
+)]
+fn fisher_p_value(
+    outcomes: &[f64],
+    treated: usize,
+    realized: &[bool],
+    ctx: &ExecutionContext,
+) -> Result<(f64, u64), CausalError> {
+    let n = outcomes.len();
+    let k = treated;
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: "randomization_test" });
+    }
+    let exhaustive = binomial_within(n, k, EXHAUSTIVE_ALLOCATION_LIMIT);
+    let allocations = exhaustive.unwrap_or(u128::from(MONTE_CARLO_ALLOCATIONS));
+    let visits = (n as u128).checked_mul(allocations + 1).ok_or_else(|| CausalError::Resource {
+        message: "randomization test row-visit quote overflow".into(),
+    })?;
+    let limit = ctx.randomization_test_limits().max_row_visits;
+    if visits > u128::from(limit) {
+        return Err(CausalError::Resource {
+            message: format!(
+                "randomization test requires {visits} row visits, exceeding limit {limit}; raise the randomization test limit to authorize the full allocation schedule"
+            ),
+        });
+    }
+    let observed = allocation_contrast(outcomes, realized, k, ctx)?.abs();
+    // Reserve the mask and the selected path's index buffer before allocating either.
+    let index_count = if exhaustive.is_some() { k } else { n };
+    let bytes = n
+        .checked_mul(size_of::<bool>())
+        .and_then(|mask| {
+            index_count
+                .checked_mul(size_of::<usize>())
+                .and_then(|indices| mask.checked_add(indices))
+        })
+        .and_then(|bytes| u64::try_from(bytes).ok())
+        .ok_or_else(|| CausalError::Resource {
+            message: "randomization test scratch size overflow".to_owned(),
+        })?;
+    let _scratch = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            CausalError::Cancelled { stage: "randomization_test" }
+        }
+        other => CausalError::Resource {
+            message: format!("randomization test scratch admission refused: {other}"),
+        },
+    })?;
+    let mut assigned = vec![false; n];
+    if let Some(allocations) = exhaustive {
+        let mut chosen: Vec<usize> = (0..k).collect();
+        let mut extreme = 0_u64;
+        let mut count = 0_u64;
+        loop {
+            for &i in &chosen {
+                assigned[i] = true;
+            }
+            let contrast = allocation_contrast(outcomes, &assigned, k, ctx)?;
+            for &i in &chosen {
+                assigned[i] = false;
+            }
+            count += 1;
+            if contrast.abs() + 1e-12 >= observed {
+                extreme += 1;
+            }
+            let mut position = k;
+            while position > 0 && chosen[position - 1] == n - k + position - 1 {
+                position -= 1;
+            }
+            if position == 0 {
+                break;
+            }
+            chosen[position - 1] += 1;
+            for j in position..k {
+                chosen[j] = chosen[j - 1] + 1;
+            }
+        }
+        debug_assert_eq!(u128::from(count), allocations);
+        return Ok((extreme as f64 / count as f64, count));
+    }
+    let mut rng = antecedent_core::CausalRng::from_seed(
+        RANDOMIZATION_TEST_SEED ^ ((n as u64) << 32) ^ k as u64,
+    );
+    let mut order: Vec<usize> = (0..n).collect();
+    let mut extreme = 1_u64;
+    for _ in 0..MONTE_CARLO_ALLOCATIONS {
+        // Partial Fisher-Yates samples a uniform subset, independent of the previous order.
+        for i in 0..k {
+            if i % 4096 == 0 && ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "randomization_test" });
+            }
+            let j = i + (rng.next_u64() % (n - i) as u64) as usize;
+            order.swap(i, j);
+        }
+        for &i in &order[..k] {
+            assigned[i] = true;
+        }
+        let contrast = allocation_contrast(outcomes, &assigned, k, ctx)?;
+        for &i in &order[..k] {
+            assigned[i] = false;
+        }
         if contrast.abs() + 1e-12 >= observed {
             extreme += 1;
         }
     }
-    (extreme as f64 / allocations as f64, allocations)
+    let allocations = MONTE_CARLO_ALLOCATIONS + 1;
+    Ok((extreme as f64 / allocations as f64, allocations))
 }
 
 /// Smallest assignment probability; `two_sided` folds each Bernoulli
@@ -884,7 +1064,7 @@ pub(super) fn assignment_probability_floor(query: &RandomizedEffectQuery, two_si
 }
 
 /// Smaller of the expected treated and expected control rows of an independent Bernoulli design:
-/// the arm's summed known assignment probabilities. Zero for every other design, whose licenses
+/// the arm's summed known assignment probabilities. Zero for every other design, whose supports
 /// state their own arm counts.
 pub(super) fn expected_arm_units(query: &RandomizedEffectQuery) -> f64 {
     if !matches!(query.design, RandomizationDesign::Bernoulli) {
@@ -949,4 +1129,286 @@ fn fit_sampling_weighted(
         weight_sum: weights.iter().sum(),
     });
     Ok(out)
+}
+
+#[cfg(test)]
+mod bernoulli_bound_tests {
+    use super::fit_bernoulli;
+    use antecedent_core::{RandomizedEffectQuery, VariableId};
+    use std::sync::Arc;
+
+    // Enumerate the actual independent Bernoulli law, and compare the mean of
+    // published values to a separate potential-outcome formula. Also compute
+    // the HT assignment variance directly from the 2^n possible point values.
+    fn check_assignment_law(y1: &[f64], y0: &[f64], p: &[f64], cuped: Option<(&[f64], f64)>) {
+        let n = y1.len();
+        let mut mean = 0.0;
+        let mut second = 0.0;
+        let mut average_bound = 0.0;
+        for mask in 0..(1_usize << n) {
+            let assignment: Vec<bool> = (0..n).map(|i| mask & (1 << i) != 0).collect();
+            let mass =
+                (0..n).map(|i| if assignment[i] { p[i] } else { 1.0 - p[i] }).product::<f64>();
+            let adjusted: Vec<f64> = (0..n)
+                .map(|i| {
+                    let observed = if assignment[i] { y1[i] } else { y0[i] };
+                    observed - cuped.map_or(0.0, |(x, coefficient)| coefficient * x[i])
+                })
+                .collect();
+            let ids: Vec<Arc<str>> = (0..n).map(|i| Arc::from(format!("unit{i}"))).collect();
+            let mut query = RandomizedEffectQuery::bernoulli_itt(
+                VariableId::from_raw(0),
+                assignment,
+                p.to_vec(),
+                ids.clone(),
+                ids,
+                ("control", "treated"),
+            );
+            if let Some((_, coefficient)) = cuped {
+                query = query.with_fixed_cuped(VariableId::from_raw(1), coefficient);
+            }
+            let fit = fit_bernoulli(&query, &adjusted);
+            mean += mass * fit.effect;
+            second += mass * fit.effect * fit.effect;
+            average_bound += mass * fit.variance;
+        }
+        let adjusted_potential = |y: &[f64], i: usize| y[i] - cuped.map_or(0.0, |(x, c)| c * x[i]);
+        let denominator = (n * n) as f64;
+        let true_variance = (0..n)
+            .map(|i| {
+                let a = adjusted_potential(y1, i);
+                let b = adjusted_potential(y0, i);
+                p[i] * (1.0 - p[i]) * (a / p[i] + b / (1.0 - p[i])).powi(2)
+            })
+            .sum::<f64>()
+            / denominator;
+        let analytic_bound = (0..n)
+            .map(|i| {
+                let a = adjusted_potential(y1, i);
+                let b = adjusted_potential(y0, i);
+                a * a / p[i] + b * b / (1.0 - p[i])
+            })
+            .sum::<f64>()
+            / denominator;
+        let gap = (0..n).map(|i| (y1[i] - y0[i]).powi(2)).sum::<f64>() / denominator;
+        assert!((second - mean * mean - true_variance).abs() < 1e-10);
+        assert!((average_bound - analytic_bound).abs() < 1e-10);
+        assert!((average_bound - true_variance - gap).abs() < 1e-10);
+    }
+
+    #[test]
+    fn bernoulli_interval_stays_on_the_independent_score_variance() {
+        let n = 80;
+        let assignments: Vec<bool> = (0..n).map(|i| i % 2 == 0).collect();
+        let outcomes: Vec<f64> = (0..n).map(|i| (i % 7) as f64 + 1.0).collect();
+        let ids: Vec<Arc<str>> = (0..n).map(|i| Arc::from(format!("unit{i}"))).collect();
+        let query = RandomizedEffectQuery::bernoulli_itt(
+            VariableId::from_raw(0),
+            assignments.clone(),
+            vec![0.5; n],
+            ids.clone(),
+            ids,
+            ("control", "treated"),
+        );
+        let fit = fit_bernoulli(&query, &outcomes);
+        let scores: Vec<f64> = outcomes
+            .iter()
+            .zip(assignments)
+            .map(|(y, treated)| if treated { 2.0 * y } else { -2.0 * y })
+            .collect();
+        let mean = scores.iter().sum::<f64>() / n as f64;
+        let score_variance =
+            scores.iter().map(|score| (score - mean).powi(2)).sum::<f64>() / (n * (n - 1)) as f64;
+        assert!((fit.effect - mean).abs() < 1e-12);
+        assert!((fit.interval_standard_error.unwrap() - score_variance.sqrt()).abs() < 1e-12);
+        assert!(fit.interval_95.is_some());
+    }
+
+    #[test]
+    fn bernoulli_ht_bound_is_conservative_in_assignment_expectation() {
+        let equal = [10.0; 4];
+        let p = [0.5; 4];
+        check_assignment_law(&equal, &equal, &p, None);
+        // Each unit's HT score is ±20: Var(mean) = 400/n.
+        let variance =
+            p.iter().map(|p| p * (1.0 - p) * (10.0 / p + 10.0 / (1.0 - p)).powi(2)).sum::<f64>()
+                / 16.0;
+        assert!((variance - 400.0 / 4.0).abs() < 1e-12);
+
+        let y1 = [4.0, -1.0, 3.0, 9.0];
+        let y0 = [1.0, 2.0, -2.0, 5.0];
+        let p = [0.2, 0.35, 0.6, 0.8];
+        check_assignment_law(&y1, &y0, &p, None);
+        let x = [1.0, -2.0, 0.5, 3.0];
+        check_assignment_law(&y1, &y0, &p, Some((&x, 1.25)));
+    }
+}
+
+#[cfg(test)]
+mod fisher_tests {
+    use super::{MONTE_CARLO_ALLOCATIONS, allocation_contrast, binomial_within, fisher_p_value};
+    use antecedent_core::ExecutionContext;
+
+    #[test]
+    fn binomial_stops_at_the_limit() {
+        assert_eq!(binomial_within(6, 3, 100), Some(20));
+        assert_eq!(binomial_within(6, 5, 100), Some(6));
+        assert_eq!(binomial_within(40, 20, 1 << 22), None);
+    }
+
+    #[test]
+    fn small_designs_are_enumerated_exactly() {
+        let outcomes = [1.0, 2.0, 3.0, 10.0, 11.0, 12.0];
+        let assigned = [false, false, false, true, true, true];
+        let (p, allocations) =
+            fisher_p_value(&outcomes, 3, &assigned, &ExecutionContext::for_tests(42)).unwrap();
+        assert_eq!(allocations, 20);
+        assert!((p - 2.0 / 20.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn observed_allocation_is_included_despite_rounding() {
+        // The former total-minus-treated calculation gives every allocation a smaller
+        // absolute statistic than the separately summed observed arms (and p = 0).
+        let outcomes = [
+            -7.199_619_291_182_174,
+            -6.495_018_842_300_632,
+            -9.402_742_742_215_064,
+            -7_413_320_277_575_814.0,
+            -0.430_139_582_939_972_45,
+        ];
+        let assigned = [false, false, true, true, false];
+        let ctx = ExecutionContext::for_tests(42);
+        let (p, count) = fisher_p_value(&outcomes, 2, &assigned, &ctx).unwrap();
+        assert_eq!(count, 10);
+        assert!(p >= 1.0 / count as f64);
+        // Different sample orders of the same subset must build the same mask and statistic.
+        let mut mask = [false; 5];
+        for i in [3, 2] {
+            mask[i] = true;
+        }
+        assert_eq!(
+            allocation_contrast(&outcomes, &assigned, 2, &ctx).unwrap().to_bits(),
+            allocation_contrast(&outcomes, &mask, 2, &ctx).unwrap().to_bits()
+        );
+    }
+
+    #[test]
+    fn large_designs_use_a_deterministic_monte_carlo_p_value() {
+        let outcomes: Vec<f64> = (0..40).map(|i| f64::from(i % 7) + 0.1 * f64::from(i)).collect();
+        let assigned: Vec<bool> = (0..40).map(|i| i < 20).collect();
+        let ctx = ExecutionContext::for_tests(42);
+        let (p, allocations) = fisher_p_value(&outcomes, 20, &assigned, &ctx).unwrap();
+        assert_eq!(allocations, MONTE_CARLO_ALLOCATIONS + 1);
+        assert!(p > 0.0 && p <= 1.0);
+        assert_eq!(fisher_p_value(&outcomes, 20, &assigned, &ctx).unwrap(), (p, allocations));
+    }
+
+    #[test]
+    fn fisher_scratch_is_admitted_and_released() {
+        use antecedent_core::execution::AdmissionPool;
+        let bytes = (4 * size_of::<bool>() + 2 * size_of::<usize>()) as u64;
+        let tight = AdmissionPool::fixed(1, bytes - 1);
+        let ctx = ExecutionContext::for_tests(42).with_admission(tight.clone());
+        assert!(matches!(
+            fisher_p_value(&[1.0, 2.0, 3.0, 4.0], 2, &[true, true, false, false], &ctx),
+            Err(super::CausalError::Resource { .. })
+        ));
+        assert_eq!(tight.available().bytes(), bytes - 1);
+
+        let pool = AdmissionPool::fixed(1, bytes);
+        let ctx = ExecutionContext::for_tests(42).with_admission(pool.clone());
+        assert!(
+            fisher_p_value(&[1.0, 2.0, 3.0, 4.0], 2, &[true, true, false, false], &ctx).is_ok()
+        );
+        assert_eq!(pool.available().bytes(), bytes);
+        let mut cancelled = ExecutionContext::for_tests(42).with_admission(pool.clone());
+        cancelled.cancellation = antecedent_core::CancellationToken::cancel_after_checks(2);
+        assert!(matches!(
+            fisher_p_value(&[1.0, 2.0, 3.0, 4.0], 2, &[true, true, false, false], &cancelled),
+            Err(super::CausalError::Cancelled { .. })
+        ));
+        assert_eq!(pool.available().bytes(), bytes);
+
+        // Monte Carlo owns a full n-entry shuffle buffer, not a k-entry subset.
+        let n = 40;
+        let mc_bytes = (n * (size_of::<bool>() + size_of::<usize>())) as u64;
+        let tight = AdmissionPool::fixed(1, mc_bytes - 1);
+        let ctx = ExecutionContext::for_tests(42).with_admission(tight.clone());
+        let realized: Vec<bool> = (0..n).map(|i| i < n / 2).collect();
+        assert!(matches!(
+            fisher_p_value(&vec![1.0; n], n / 2, &realized, &ctx),
+            Err(super::CausalError::Resource { .. })
+        ));
+        assert_eq!(tight.available().bytes(), mc_bytes - 1);
+    }
+
+    #[test]
+    fn fisher_work_ceiling_refuses_before_scans_without_changing_the_schedule() {
+        use antecedent_core::RandomizationTestLimits;
+        let outcomes = [1.0, 2.0, 3.0, 4.0];
+        let assigned = [true, true, false, false];
+        let tight = ExecutionContext::for_tests(42)
+            .with_randomization_test_limits(RandomizationTestLimits { max_row_visits: 27 });
+        assert!(matches!(
+            fisher_p_value(&outcomes, 2, &assigned, &tight),
+            Err(super::CausalError::Resource { .. })
+        ));
+        let sufficient =
+            tight.with_randomization_test_limits(RandomizationTestLimits { max_row_visits: 28 });
+        assert_eq!(fisher_p_value(&outcomes, 2, &assigned, &sufficient).unwrap(), (1.0 / 3.0, 6));
+        let mut before_scan = tight.clone();
+        before_scan.cancellation = antecedent_core::CancellationToken::cancel_after_checks(1);
+        assert!(matches!(
+            fisher_p_value(&outcomes, 2, &assigned, &before_scan),
+            Err(super::CausalError::Resource { .. })
+        ));
+        assert!(!before_scan.cancellation.is_requested());
+        assert_eq!(tight.randomization_test_limits().max_row_visits, 27);
+        assert_eq!(
+            sufficient.clone().serial_inner().randomization_test_limits().max_row_visits,
+            28
+        );
+        let cancelled = tight.clone();
+        cancelled.cancellation.cancel();
+        assert!(matches!(
+            fisher_p_value(&outcomes, 2, &assigned, &cancelled),
+            Err(super::CausalError::Cancelled { .. })
+        ));
+    }
+
+    #[test]
+    fn monte_carlo_work_quote_includes_all_draws_and_observed_scan() {
+        use antecedent_core::RandomizationTestLimits;
+        let n = 40;
+        let outcomes = vec![1.0; n];
+        let assigned: Vec<bool> = (0..n).map(|i| i < n / 2).collect();
+        let visits = n as u64 * (MONTE_CARLO_ALLOCATIONS + 1);
+        let ctx = ExecutionContext::for_tests(42)
+            .with_randomization_test_limits(RandomizationTestLimits { max_row_visits: visits - 1 });
+        assert!(matches!(
+            fisher_p_value(&outcomes, n / 2, &assigned, &ctx),
+            Err(super::CausalError::Resource { .. })
+        ));
+    }
+
+    #[test]
+    fn fisher_respects_cancelled_context() {
+        let ctx = ExecutionContext::for_tests(42);
+        ctx.cancellation.cancel();
+        assert!(matches!(
+            fisher_p_value(&[1.0, 2.0], 1, &[true, false], &ctx),
+            Err(super::CausalError::Cancelled { stage: "randomization_test" })
+        ));
+
+        // The second observation occurs inside the first long row scan.
+        let mut ctx = ExecutionContext::for_tests(42);
+        ctx.cancellation = antecedent_core::CancellationToken::cancel_after_checks(1);
+        let outcomes = vec![1.0; 8192];
+        let assigned = vec![false; 8192];
+        assert!(matches!(
+            allocation_contrast(&outcomes, &assigned, 1, &ctx),
+            Err(super::CausalError::Cancelled { stage: "randomization_test" })
+        ));
+    }
 }

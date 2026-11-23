@@ -1,9 +1,8 @@
 //! Independent interior multinomial information oracle; no coverage measurement.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::nested_markov_binary::{
     AdmgDeclaration, FitOptions, InferenceStanding, NestedMarkovInput, Regime, RegimeCounts,
-    refuse_public_interval_route,
 };
 use antecedent_estimate::nested_markov_uncertainty::nested_markov_fisher_internal;
 
@@ -81,9 +80,8 @@ fn nested_fisher_delta_covariance_matches_independent_stratified_variance() {
     assert!((estimate.interval_candidates[2][1] - (0.2 + radius)).abs() < 1e-10);
     assert_eq!(
         estimate.pilot.status.inference,
-        InferenceStanding::IntervalWithheldCalibrationUnmeasured
+        InferenceStanding::IntervalCandidatesCalibrationAnnotated
     );
-    assert!(format!("{}", refuse_public_interval_route()).contains("cell_not_licensed"));
 }
 
 #[test]
@@ -108,10 +106,20 @@ fn nested_fisher_refuses_pseudocounts_sparse_cells_invalid_scope_and_cancellatio
     fractional.regimes[0].cells[0] += 0.5;
     let err =
         nested_markov_fisher_internal(&fractional, &FitOptions::default(), 0.95, &ctx).unwrap_err();
-    assert!(err.to_string().contains("nested_markov.fisher_sampling_design"));
+    assert!(
+        err.to_string()
+            .contains(antecedent_core::reason_details::nested_markov::FISHER_SAMPLING_DESIGN)
+    );
     let mut sparse = input(16_000.);
     sparse.regimes[0].cells[0] = 0.;
-    assert!(nested_markov_fisher_internal(&sparse, &FitOptions::default(), 0.95, &ctx).is_err());
+    let sparse_err =
+        nested_markov_fisher_internal(&sparse, &FitOptions::default(), 0.95, &ctx).unwrap_err();
+    assert!(
+        sparse_err
+            .to_string()
+            .contains(antecedent_core::reason_details::nested_markov::FISHER_SAMPLING_DESIGN),
+        "{sparse_err}"
+    );
     for level in [0., 1., 0.80, 0.99, f64::NAN] {
         assert!(
             nested_markov_fisher_internal(&input(16_000.), &FitOptions::default(), level, &ctx)
@@ -126,7 +134,7 @@ fn nested_fisher_refuses_pseudocounts_sparse_cells_invalid_scope_and_cancellatio
         nested_markov_fisher_internal(&graph, &FitOptions::default(), 0.95, &ctx)
             .unwrap_err()
             .to_string()
-            .contains("outside_binary_pilot")
+            .contains("outside_binary_scope")
     );
     ctx.cancellation.cancel();
     assert!(

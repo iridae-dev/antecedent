@@ -8,13 +8,13 @@
 //! A recovered plan is then evaluated on an exact nine-cell pattern law with
 //! [`RecoveryChain::recover`]. Edges outside the row are `route_not_supported`, never
 //! nonrecoverable; a missing cell is `transport_support_failure`. Exact laws only: a
-//! sampled provider composed on this row is calibrated separately and is unmeasured
+//! sampled provider composed on this row is calibrated separately and is `not_measured`
 //! and closed.
 //!
 //! [`RecoveryChain::consume`] re-decides, re-evaluates and re-verifies the witness
 //! from the exported artifact and refuses any resealed change.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 pub use antecedent_estimate::{ChainPatternLaw, ChainRecoveredLaw, evaluate_chain_recovery};

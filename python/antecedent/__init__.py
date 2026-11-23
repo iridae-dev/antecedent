@@ -1,6 +1,6 @@
 """antecedent — Python bindings for the Antecedent causal engine.
 
-Day-1 surface::
+A first analysis::
 
     result = antecedent.analyze(
         data,
@@ -8,13 +8,13 @@ Day-1 surface::
         query=antecedent.AverageEffect(treatment="t", outcome="y"),
     )
 
-The root namespace is deliberately small: it holds the analysis verbs (:func:`analyze`, :func:`prepare`,
-:func:`identify`, :func:`estimate`) and :func:`load`, the accepted-structure and result types,
-the first-class typed queries, the five graph classes, the inference / identifier /
-estimator selectors, and the two error names most callers catch. The specialized
-families — randomized and factorial experiments, held-out policy value,
-difference-in-differences and other quasi-experimental designs, survival, and
-longitudinal regimes — live on their stage modules (``antecedent.experiment.RandomizedEffect``,
+The root namespace is deliberately small: it holds the analysis verbs (:func:`analyze`,
+:func:`prepare`, :func:`identify`, :func:`estimate`, :func:`rebind`, :func:`reconfigure`) and
+:func:`load`, the accepted-structure and result types, the first-class typed queries, the five
+graph classes, the inference / identifier / estimator selectors, and the two error names most
+callers catch. The specialized families — randomized and factorial experiments, held-out policy
+value, difference-in-differences and other quasi-experimental designs, survival, and longitudinal
+regimes — live on their stage modules (``antecedent.experiment.RandomizedEffect``,
 ``antecedent.quasi.SyntheticControl``, ``antecedent.policy.PolicyValue``,
 ``antecedent.survival.SurvivalOutcome``, ``antecedent.regimes.LongitudinalRegime``),
 not at the root.
@@ -29,10 +29,10 @@ Root-exported stage modules (listed in ``__all__``):
 ``antecedent.state``, ``antecedent.survival``, and ``antecedent.validation``.
 
 Narrower modules imported eagerly, reachable but deliberately outside ``__all__``:
-``accepted_graph``, ``artifacts``, ``counterfactual``, ``decision``, ``derived``, ``estimators``,
-``external``, ``handoff``, ``ids``, ``inference``, ``interference``, ``intervention``, ``learners``,
-``matched``, ``model``, ``observation``, ``population``, ``prediction``, ``query``,
-``results``, and ``transport``.
+``accepted_graph``, ``artifacts``, ``counterfactual``, ``data_diagnostics``, ``decision``,
+``derived``, ``estimators``, ``external``, ``handoff``, ``ids``, ``inference``, ``interference``,
+``intervention``, ``learners``, ``matched``, ``model``, ``observation``, ``population``,
+``prediction``, ``query``, ``results``, and ``transport``.
 
 The stage modules listed in ``_LAZY_MODULES`` are loaded on first attribute access (``antecedent.recalc_cell`` imports
 the module then, so ``import antecedent`` pays nothing for them) and are listed by
@@ -50,9 +50,14 @@ Lifecycle -- analyze, bind external evidence, inspect the claim, decide, rank a 
   ``inverse_query`` answer which enumerated interventions reach a target;
 * ``design`` (root-exported) ranks the study to run next, ``repair`` states evidence obligations
   and identification repair, and ``proposals`` links the two with a per-proposal receipt;
+* ``fallback`` is the opt-in beside a refusal: ``analyze(..., on_refusal="describe")`` returns the
+  unchanged identification refusal with a noncausal description of the observed data and the
+  evidence that would resolve it, never as a causal answer;
 * ``joint_distribution`` holds the aligned distribution artifacts decisions consume, and
   ``composition`` / ``composition_bundle`` define what may be combined and export the whole chain
-  as one portable bundle an independent consumer checks against retained identities.
+  as one portable bundle an independent consumer checks against retained identities;
+* ``citations`` names the provenance records behind a result's route, with their sources and
+  documented deviations, and collects a study's de-duplicated ``bibliography``.
 
 Transport and counterfactual:
 
@@ -63,6 +68,9 @@ Transport and counterfactual:
   ``temporal_counterfactual`` is its fixed-population temporal counterpart, ``cross_world`` is the
   path-specific edge intervention on a Markovian DAG and ``counterfactual_id`` the effect of
   treatment on the treated on a bounded ADMG;
+* ``temporal_designs`` estimates the excursion effects of sequentially randomized unit-period
+  designs (two arms, several arms, factorial, interference, dose, quantile) and static-regime
+  survival on subject trajectories;
 * ``transported_response`` carries a response value to a target population with its transport
   receipt and decides on it, ``transported_constructors`` builds those responses from checked
   inputs, ``transport_handoff`` seals the connection of a transported claim to a callback input,
@@ -73,7 +81,9 @@ Transport and counterfactual:
 
 Sensitivity and robustness:
 
-* ``msm_sensitivity`` gives marginal-sensitivity-model bounds, the tipping point and a durable
+* ``mnar_sensitivity`` re-runs an arm-mean contrast across a bounded grid of a missing-not-at-random
+  departure and reports the tipping points and decision changes as assumption ranges;
+  ``msm_sensitivity`` gives marginal-sensitivity-model bounds, the tipping point and a durable
   sensitivity artifact; ``descriptive`` compares raw with adjusted contrasts on a declared
   reporting scale; ``dose_grid`` reads a named functional off a randomized-dose response curve;
   ``temporal`` tests effect constancy across a time or region partition.
@@ -91,8 +101,12 @@ plans and cost counts.
 
 Measurement, composition and evidence accounting: ``measurement_models`` corrects a functional of
 a latent construct measured with error under a declared model (point and uncalibrated standard
-error, never an interval); ``mechanism_composition`` composes independently fitted mechanisms into
-one executable joint model with declared dependence; ``evidence_ledger`` accounts the overlap of
+error, never an interval); ``measurement_exposure`` corrects a misclassified exposure (including
+error that differs by outcome), per-unit soft exposures, detection that depends on a covariate and
+repeat codings of a binary or ordinal facet; ``mechanism_composition`` composes independently
+fitted mechanisms into one executable joint model with declared dependence; ``typed_mechanism_transport`` carries fitted nonlinear
+and non-Gaussian mechanisms to a target population under a selection diagram, refitting the shifted ones on
+target data; ``evidence_ledger`` accounts the overlap of
 evidence sources before any pooling, borrowing or reuse and reclassifies stale results.
 ``interface_contract`` declares what a component produces and consumes and decides, before any
 number is computed, whether two components may be connected (cycles are refused with their path).
@@ -104,17 +118,29 @@ object changes, and reports the lineage and calibration standing behind each cla
 ``provider_callbacks`` declares an arbitrary law, posterior or nested callback you supply, negotiates
 mean, draws, distribution function, quantile and posterior update separately, reuses a stored answer
 only under its declared replay contract and accepts an answer only as a well-formed law; a callback
-supplies no interval, native trust, joint law or identification licence.
+supplies no interval, native trust, joint law or identification evidence.
 
 ``observation_query`` asks what an observation says: the outcome probability given a recorded
 signal kept distinct from the probability under an intervention on the same model, a measured
 signal inverted through its measurement model, posteriors after new evidence and the evidence
-required to reach a level (exact given a declared model, never an interval).
+required to reach a level (exact given a declared model, never an interval); continuous evidence
+on a linear-Gaussian model by Schur-complement conditioning, observation after an intervention,
+and parameter uncertainty as aligned posterior draws (a labelled spread, an interval only inside a
+measured coverage record).
 
 ``predictive_assessment`` scores predictive laws against realized observations under a declared
 validation design: proper scores, paired differences with declared dependence, labelled
 diagnostics and a held-out check from row identities (point-only; a good score is not causal
 validity and no interval is reported).
+
+Feedback, events and latent interventions: ``cyclic`` fits and discovers cyclic and dynamic
+structural models (equilibrium SCMs, polynomial systems, ODE, Ornstein-Uhlenbeck and stochastic
+differential equation systems) and answers typed-world questions on them, conditional on the
+specified or fitted model; ``events`` compiles event forecasts, likelihoods, worlds,
+assessments, updates and future studies into an inspectable plan and composes them with
+stochastic worlds and decisions; ``latent_soft_intervention`` compiles a randomized recorded
+action on a declared continuous DAG, looks for hidden additive versions of the delivered action
+and forecasts from the retained fit.
 
 Graph interchange is on the classes: ``Dag.from_dot`` / ``Dag.to_dot`` and the
 JSON / GML / NetworkX peers, likewise on ``Cpdag`` / ``Pag`` / ``Admg``.
@@ -191,13 +217,14 @@ from . import prediction as prediction
 from . import query as query
 from . import results as results
 from . import transport as transport
-from ._analyze import analyze
 from ._native import (
     Admg,
+    CancellationToken,
     Cpdag,
     Dag,
     Pag,
     TemporalDag,
+    build_flavor,
 )
 
 if getattr(_native_module, "__build_optimized__", True) is False:
@@ -211,13 +238,24 @@ if getattr(_native_module, "__build_optimized__", True) is False:
         RuntimeWarning,
         stacklevel=2,
     )
-from ._workflow import load, prepare
+from ._workflow import load
 from .accepted_graph import AcceptedGraph
+from .data_diagnostics import DataDiagnostics, diagnose_data
+from .drift import staleness
 from .errors import CausalError, ReviewRequired
-from .identify import Identification, estimate, identify
+from .execution import (
+    CachePolicy,
+    Execution,
+    RandomizationTestLimits,
+    ResourceLimits,
+    TemporalMaterializationLimits,
+)
+from .identify import Identification, identify
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .interference import InterferenceQuery
+from .outcomes import Outcome, Refusal
+from .prepared import PreparedAnalysis, analyze, estimate, prepare, rebind, reconfigure
 from .query import (
     AnomalyAttribution,
     AnomalyReference,
@@ -228,6 +266,7 @@ from .query import (
     Counterfactual,
     DirectionalDerivative,
     Elasticity,
+    FeedbackMechanism,
     InterventionalDistribution,
     InterventionResponse,
     MediationEffect,
@@ -242,19 +281,36 @@ from .query import (
     TemporalConditionalPulse,
     TemporalConditionalSustained,
     TemporalMediationEffect,
+    TemporalQuery,
 )
 from .results import Analysis, AnalysisResult
 
 __all__ = [
+    "DataDiagnostics",
+    "diagnose_data",
+    "Execution",
+    "ResourceLimits",
+    "TemporalMaterializationLimits",
+    "RandomizationTestLimits",
+    "CachePolicy",
+    "CancellationToken",
+    "TemporalQuery",
     # Verbs
     "analyze",
     "prepare",
+    "rebind",
+    "reconfigure",
     "load",
+    "build_flavor",
     "identify",
     "estimate",
+    "staleness",
     # Structure and results
     "AcceptedGraph",
     "Identification",
+    "PreparedAnalysis",
+    "Outcome",
+    "Refusal",
     "Analysis",
     "AnalysisResult",
     # Queries
@@ -267,6 +323,7 @@ __all__ = [
     "Counterfactual",
     "DirectionalDerivative",
     "Elasticity",
+    "FeedbackMechanism",
     "InterferenceQuery",
     "InterventionalDistribution",
     "InterventionResponse",
@@ -337,14 +394,12 @@ except ImportError:  # pragma: no cover - extension not built
 
 # --- Migration signpost for retired 0.4.0 names ------------------------------------
 #
-# ``CHANGELOG.md``'s "[0.4.0]" entry documents the migration policy as a
-# "silent hard break: there are no deprecated aliases and no shims for the
-# old spellings." This hook does not violate that — every branch below ends
-# in a raise, never a returned value, so a retired name is exactly as broken
-# as it would be without this function. It only replaces Python's generic
-# "module 'antecedent' has no attribute ..." with a message naming the 0.4.0
-# replacement, for the name families the changelog documents as large,
-# mechanical, and easy to hit from muscle memory / an old example:
+# Retired names have no deprecated aliases and no shims. This hook keeps that:
+# every branch below ends in a raise, never a returned value, so a retired name
+# is exactly as broken as it would be without this function. It only replaces
+# Python's generic "module 'antecedent' has no attribute ..." with a message
+# naming the replacement, for the name families that are large, mechanical, and
+# easy to hit from muscle memory or an old example:
 #
 # - the 16 free ``discover_*`` functions -> methods on ``antecedent.discovery``
 #   config dataclasses (``.run()`` / ``.accept()``);
@@ -371,7 +426,9 @@ except ImportError:  # pragma: no cover - extension not built
 # adds a name to ``__all__``. ``identify`` is absent on purpose: the root name is the function.
 _LAZY_MODULES: tuple[str, ...] = (
     "adaptive_inference",
+    "adaptive_policy",
     "categorical_treatment",
+    "citations",
     "cohort_decision",
     "compact_export",
     "composition",
@@ -380,37 +437,55 @@ _LAZY_MODULES: tuple[str, ...] = (
     "counterfactual_id",
     "cross_world",
     "cross_world_execution",
+    "cyclic",
+    "choice_inference",
+    "decision_evidence",
     "decision_reliability",
     "decision_robust",
     "descriptive",
+    "design_models",
     "discretized_composition",
     "dose_grid",
     "effect_constancy_review",
+    "events",
     "evidence_ledger",
     "execution_attempt",
+    "exposure_measurement",
+    "external_mechanisms",
+    "fallback",
     "functional_source",
+    "graph_falsification",
     "interface_contract",
     "intervention_callbacks",
     "intervention_programs",
+    "intrinsic_influence",
+    "joint_panel",
     "inverse",
     "inverse_query",
     "inverse_sources",
     "joint_distribution",
     "joint_law_propagation",
     "latent_class",
+    "latent_soft_intervention",
+    "measurement_exposure",
     "measurement_models",
     "mechanism_composition",
     "mechanism_discrepancy",
     "missing",
+    "mnar_sensitivity",
     "msm_sensitivity",
     "multi_level_treatment",
     "nonlinear_mediation",
+    "nuisance_scores",
+    "external_learners",
+    "forecasting",
     "observation_query",
     "observational_policy",
     "observational_survival",
     "predictive_assessment",
     "preflight",
     "program_claims",
+    "propagation_chain",
     "proposal_arrival",
     "proposals",
     "provider_callbacks",
@@ -426,7 +501,9 @@ _LAZY_MODULES: tuple[str, ...] = (
     "recalc_static",
     "recalc_temporal",
     "recovery_chain",
+    "release_migration",
     "repair",
+    "sampling_assumption_union",
     "scenario_decision",
     "scenario_invariance",
     "scientific_bridge",
@@ -437,17 +514,22 @@ _LAZY_MODULES: tuple[str, ...] = (
     "source_projection",
     "temporal",
     "temporal_counterfactual",
+    "temporal_designs",
     "tier_diagnostics",
     "transport_handoff",
     "transported_constructors",
     "transported_counterfactual",
     "transported_response",
+    "typed_mechanism_transport",
     "vector_treatment",
 )
 
 if _TYPE_CHECKING:
     from . import adaptive_inference as adaptive_inference
+    from . import adaptive_policy as adaptive_policy
     from . import categorical_treatment as categorical_treatment
+    from . import choice_inference as choice_inference
+    from . import citations as citations
     from . import cohort_decision as cohort_decision
     from . import compact_export as compact_export
     from . import composition as composition
@@ -456,37 +538,54 @@ if _TYPE_CHECKING:
     from . import counterfactual_id as counterfactual_id
     from . import cross_world as cross_world
     from . import cross_world_execution as cross_world_execution
+    from . import cyclic as cyclic
+    from . import decision_evidence as decision_evidence
     from . import decision_reliability as decision_reliability
     from . import decision_robust as decision_robust
     from . import descriptive as descriptive
+    from . import design_models as design_models
     from . import discretized_composition as discretized_composition
     from . import dose_grid as dose_grid
     from . import effect_constancy_review as effect_constancy_review
+    from . import events as events
     from . import evidence_ledger as evidence_ledger
     from . import execution_attempt as execution_attempt
+    from . import exposure_measurement as exposure_measurement
+    from . import external_learners as external_learners
+    from . import external_mechanisms as external_mechanisms
+    from . import fallback as fallback
+    from . import forecasting as forecasting
     from . import functional_source as functional_source
+    from . import graph_falsification as graph_falsification
     from . import interface_contract as interface_contract
     from . import intervention_callbacks as intervention_callbacks
     from . import intervention_programs as intervention_programs
+    from . import intrinsic_influence as intrinsic_influence
     from . import inverse as inverse
     from . import inverse_query as inverse_query
     from . import inverse_sources as inverse_sources
     from . import joint_distribution as joint_distribution
     from . import joint_law_propagation as joint_law_propagation
+    from . import joint_panel as joint_panel
     from . import latent_class as latent_class
+    from . import latent_soft_intervention as latent_soft_intervention
+    from . import measurement_exposure as measurement_exposure
     from . import measurement_models as measurement_models
     from . import mechanism_composition as mechanism_composition
     from . import mechanism_discrepancy as mechanism_discrepancy
     from . import missing as missing
+    from . import mnar_sensitivity as mnar_sensitivity
     from . import msm_sensitivity as msm_sensitivity
     from . import multi_level_treatment as multi_level_treatment
     from . import nonlinear_mediation as nonlinear_mediation
+    from . import nuisance_scores as nuisance_scores
     from . import observation_query as observation_query
     from . import observational_policy as observational_policy
     from . import observational_survival as observational_survival
     from . import predictive_assessment as predictive_assessment
     from . import preflight as preflight
     from . import program_claims as program_claims
+    from . import propagation_chain as propagation_chain
     from . import proposal_arrival as proposal_arrival
     from . import proposals as proposals
     from . import provider_callbacks as provider_callbacks
@@ -502,7 +601,9 @@ if _TYPE_CHECKING:
     from . import recalc_static as recalc_static
     from . import recalc_temporal as recalc_temporal
     from . import recovery_chain as recovery_chain
+    from . import release_migration as release_migration
     from . import repair as repair
+    from . import sampling_assumption_union as sampling_assumption_union
     from . import scenario_decision as scenario_decision
     from . import scenario_invariance as scenario_invariance
     from . import scientific_bridge as scientific_bridge
@@ -513,11 +614,13 @@ if _TYPE_CHECKING:
     from . import source_projection as source_projection
     from . import temporal as temporal
     from . import temporal_counterfactual as temporal_counterfactual
+    from . import temporal_designs as temporal_designs
     from . import tier_diagnostics as tier_diagnostics
     from . import transport_handoff as transport_handoff
     from . import transported_constructors as transported_constructors
     from . import transported_counterfactual as transported_counterfactual
     from . import transported_response as transported_response
+    from . import typed_mechanism_transport as typed_mechanism_transport
     from . import vector_treatment as vector_treatment
 
 _RETIRED_MODULES = {"prior_bank": "priors"}
@@ -567,7 +670,6 @@ def _raise_missing_attribute(name: str) -> _NoReturn:
         raise AttributeError(
             "antecedent.TransportQuery was removed from the root in 2.0; the trial-IPW "
             "query is antecedent.transport.advanced.TransportQuery, and the ordinary "
-            "question wrapper is antecedent.transport.Transport "
-            "(see docs/migrations/2.0-transport-day1.md)"
+            "question wrapper is antecedent.transport.Transport"
         )
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -1,8 +1,12 @@
 //! Inference diagnostics for Laplace / conjugate / MCMC backends
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
+
+use antecedent_core::diagnostic::{RouteCheck, RouteKind, RouteMass, RouteNativeDiagnostic};
+
+use crate::error::ProbError;
 
 /// Largest Cholesky condition lower bound at which a Laplace covariance is
 /// still published. Beyond ~1/ε the inverse Hessian carries no correct digits.
@@ -240,6 +244,115 @@ impl InferenceDiagnostics {
         .filter_map(|(ok, reason)| (!ok).then_some(reason))
         .collect()
     }
+
+    /// Route records for a posterior this diagnostic set will not publish.
+    ///
+    /// Empty exactly when [`Self::allows_posterior`] is true. An MCMC
+    /// `converged` flag is not itself a convergence failure: R-hat, posterior
+    /// effective sample size, and chain movement stay separate checks, and a
+    /// missing or non-finite sampler measurement is a computational failure.
+    #[must_use = "a failed publication check is dropped if the records are discarded"]
+    pub fn route_records(&self, unevaluable_mass: RouteMass) -> Vec<RouteNativeDiagnostic> {
+        match self.factorization {
+            HessianFactorization::Cholesky => self.laplace_route_records(unevaluable_mass),
+            HessianFactorization::Mcmc => self.mcmc_route_records(unevaluable_mass),
+            HessianFactorization::Analytic => {
+                if self.precision_condition_ok() {
+                    Vec::new()
+                } else {
+                    vec![RouteNativeDiagnostic::computational_failure(unevaluable_mass)]
+                }
+            }
+        }
+    }
+
+    /// Passed route checks for a posterior that passed publication.
+    ///
+    /// Empty when [`Self::route_records`] reports any failure: a refused fit has
+    /// no passed checks. Otherwise each check the factorization ran is recorded
+    /// as passed with `unevaluable_mass`, in [`RouteKind`] order. An MCMC fit
+    /// passed convergence, posterior effective sample size, and R-hat. An
+    /// optimizer or analytic fit passed convergence only; R-hat and effective
+    /// sample size do not apply to it and are not recorded.
+    #[must_use = "passed checks are dropped if the records are discarded"]
+    pub fn passed_route_records(&self, unevaluable_mass: RouteMass) -> Vec<RouteNativeDiagnostic> {
+        if !self.route_records(unevaluable_mass).is_empty() {
+            return Vec::new();
+        }
+        let passed = RouteCheck::new(false, unevaluable_mass);
+        let mut kinds = vec![RouteKind::Convergence];
+        if self.factorization == HessianFactorization::Mcmc {
+            kinds.push(RouteKind::PosteriorEss);
+            kinds.push(RouteKind::RHat);
+        }
+        kinds.into_iter().map(|kind| RouteNativeDiagnostic::check(kind, passed)).collect()
+    }
+
+    /// Publication refusal carrying [`Self::route_records`], or `None` when the
+    /// posterior may be published.
+    ///
+    /// `summary` is prose. The records are the outcome.
+    #[must_use = "a publication refusal is dropped if the error is discarded"]
+    pub fn publication_error(&self, summary: impl Into<String>) -> Option<ProbError> {
+        let diagnostics = self.route_records(RouteMass::unreported());
+        if diagnostics.is_empty() {
+            None
+        } else {
+            Some(ProbError::Route { summary: summary.into(), diagnostics })
+        }
+    }
+
+    fn precision_condition_ok(&self) -> bool {
+        self.hessian_condition > 0.0
+            && self.hessian_condition.is_finite()
+            && self.hessian_condition <= MAX_HESSIAN_CONDITION
+    }
+
+    fn laplace_route_records(&self, mass: RouteMass) -> Vec<RouteNativeDiagnostic> {
+        let mut records = Vec::new();
+        let failed = RouteCheck::new(true, mass);
+        if !self.converged {
+            records.push(RouteNativeDiagnostic::check(RouteKind::Convergence, failed));
+        }
+        if self.separation_warning {
+            records.push(RouteNativeDiagnostic::model_restriction(mass));
+        }
+        if !self.grad_inf_norm.is_finite() || !self.precision_condition_ok() {
+            records.push(RouteNativeDiagnostic::computational_failure(mass));
+        }
+        records
+    }
+
+    fn mcmc_route_records(&self, mass: RouteMass) -> Vec<RouteNativeDiagnostic> {
+        let mut records = Vec::new();
+        let failed = RouteCheck::new(true, mass);
+        let rhat_ok = self.rhat_max.is_some_and(|r| r.is_finite() && r <= 1.01);
+        if !rhat_ok {
+            records.push(RouteNativeDiagnostic::check(RouteKind::RHat, failed));
+        }
+        let ess_floor = 100.0 * f64::from(self.n_chains.unwrap_or(1));
+        let ess_bulk_ok = self.ess_bulk_min.is_some_and(|ess| ess.is_finite() && ess >= ess_floor);
+        let ess_tail_ok = self.ess_tail_min.is_some_and(|ess| ess.is_finite() && ess >= ess_floor);
+        if !ess_bulk_ok || !ess_tail_ok {
+            records.push(RouteNativeDiagnostic::check(RouteKind::PosteriorEss, failed));
+        }
+        if self.all_chains_moved == Some(false) {
+            records.push(RouteNativeDiagnostic::check(RouteKind::Convergence, failed));
+        }
+        let measured = self.n_postwarmup_divergences.is_some_and(|n| n == 0)
+            && self.all_chains_moved.is_some()
+            && self.mean_accept_prob.is_some_and(f64::is_finite)
+            && self.max_abs_delta_h.is_some_and(f64::is_finite)
+            && self.n_chains.is_some_and(|chains| chains >= 2)
+            && self.n_warmup.is_some();
+        if !measured {
+            records.push(RouteNativeDiagnostic::computational_failure(mass));
+        }
+        if records.is_empty() && !self.converged {
+            records.push(RouteNativeDiagnostic::computational_failure(mass));
+        }
+        records
+    }
 }
 
 /// Which prior family a prior-sensitivity grid perturbed.
@@ -447,5 +560,102 @@ mod tests {
         d.n_postwarmup_divergences = Some(3);
         d.n_divergences = Some(3);
         assert!(!d.allows_posterior());
+    }
+
+    fn is_failed(record: &RouteNativeDiagnostic, name: &str) -> bool {
+        record.failed() && record.route_name() == name
+    }
+
+    #[test]
+    fn mcmc_publication_failures_stay_distinct_checks() {
+        let mass = RouteMass::zero();
+        let mut rhat = mcmc_ok_base();
+        rhat.rhat_max = Some(1.2);
+        let records = rhat.route_records(mass);
+        assert!(records.iter().any(|record| is_failed(record, "r_hat")));
+        assert!(records.iter().all(|record| record.route_name() != "convergence"));
+        assert!(records.iter().all(|record| !record.is_model_restriction()));
+        assert!(records.iter().all(|record| !record.is_unsupported_inference()));
+
+        let mut ess = mcmc_ok_base();
+        ess.ess_bulk_min = Some(10.0);
+        let records = ess.route_records(mass);
+        assert!(records.iter().any(|record| is_failed(record, "posterior_ess")));
+        assert!(records.iter().all(|record| record.route_name() != "r_hat"));
+        assert!(records.iter().all(|record| record.route_name() != "convergence"));
+
+        let mut movement = mcmc_ok_base();
+        movement.all_chains_moved = Some(false);
+        let records = movement.route_records(mass);
+        assert!(records.iter().any(|record| is_failed(record, "convergence")));
+        assert!(records.iter().all(|record| record.route_name() != "r_hat"));
+        assert!(records.iter().all(|record| record.route_name() != "posterior_ess"));
+
+        let mut diverged = mcmc_ok_base();
+        diverged.n_postwarmup_divergences = Some(2);
+        let records = diverged.route_records(mass);
+        assert!(records.iter().any(|record| record.is_computational_failure()));
+        assert!(records.iter().all(|record| !record.is_unsupported_inference()));
+        assert!(records.iter().all(|record| record.route_name() != "convergence"));
+    }
+
+    #[test]
+    fn laplace_separation_is_a_model_restriction_and_a_singular_hessian_is_not() {
+        let mass = RouteMass::zero();
+        let separated =
+            InferenceDiagnostics::laplace("laplace", true, 4, 1e-6, 10.0, true, Vec::new());
+        let records = separated.route_records(mass);
+        assert!(records.iter().any(|record| record.is_model_restriction()));
+        assert!(records.iter().all(|record| !record.is_computational_failure()));
+        assert!(records.iter().all(|record| !record.is_unsupported_inference()));
+        assert!(records.iter().all(|record| record.route_name() != "convergence"));
+
+        let singular =
+            InferenceDiagnostics::laplace("laplace", true, 4, 1e-6, 1e15, false, Vec::new());
+        let records = singular.route_records(mass);
+        assert!(records.iter().any(|record| record.is_computational_failure()));
+        assert!(records.iter().all(|record| !record.is_model_restriction()));
+    }
+
+    fn passed_names(records: &[RouteNativeDiagnostic]) -> Vec<&'static str> {
+        records
+            .iter()
+            .map(|record| {
+                assert!(!record.failed(), "{record:?}");
+                assert_eq!(record.outcome_name(), "passed");
+                record.route_name()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn passed_records_follow_the_check_order_with_the_measured_mass() {
+        let mass = RouteMass::new(0.125).expect("a finite mass");
+
+        let analytic = InferenceDiagnostics::analytic("conjugate_gaussian");
+        let records = analytic.passed_route_records(mass);
+        assert_eq!(passed_names(&records), ["convergence"]);
+        assert!(records.iter().all(|record| record.unevaluable_mass() == mass));
+
+        let laplace =
+            InferenceDiagnostics::laplace("laplace", true, 4, 1e-6, 10.0, false, Vec::new());
+        let records = laplace.passed_route_records(mass);
+        assert_eq!(passed_names(&records), ["convergence"]);
+        assert!(records.iter().all(|record| record.unevaluable_mass().bits() == mass.bits()));
+
+        let records = mcmc_ok_base().passed_route_records(mass);
+        assert_eq!(passed_names(&records), ["convergence", "posterior_ess", "r_hat"]);
+        assert!(records.iter().all(|record| record.unevaluable_mass() == mass));
+    }
+
+    #[test]
+    fn a_refused_fit_has_no_passed_records() {
+        let mass = RouteMass::zero();
+        let mut rhat = mcmc_ok_base();
+        rhat.rhat_max = Some(1.2);
+        assert!(rhat.passed_route_records(mass).is_empty());
+        let unconverged =
+            InferenceDiagnostics::laplace("laplace", false, 4, 1e-6, 10.0, false, Vec::new());
+        assert!(unconverged.passed_route_records(mass).is_empty());
     }
 }

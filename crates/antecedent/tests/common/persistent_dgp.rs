@@ -7,7 +7,7 @@
 //! as `ρ → 1`. These are the designs where the circular-block interval runs out
 //! of series first (`short_series_measurement`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     dead_code,

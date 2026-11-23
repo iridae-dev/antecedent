@@ -1,8 +1,8 @@
-"""Numeric evidence for the already-licensed PAG and ADMG ATE cells.
+"""Numeric evidence for the already-supported PAG and ADMG ATE cells.
 
 The earlier fixtures certified generalized-adjustment/general-ID identification.
 These tests consume frozen empirical laws and also pin the effect number returned by
-every explicit/accepted and validation variant licensed in ``support_licensed.toml``.
+every explicit/accepted and validation variant supported in ``support_cells.toml``.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from typing import Any
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_json
 
@@ -95,8 +96,8 @@ def _assert_common_cell_contract(
 ) -> None:
     expected_source = "accepted" if accepted else "explicit"
     assert prepared.structure_source == expected_source
-    assert prepared.evidence_status == "licensed"
-    assert fresh.evidence_status == click.evidence_status == "licensed"
+    assert prepared.evidence_status == "supported"
+    assert fresh.evidence_status == click.evidence_status == "supported"
     assert fresh.plan.validation_suite == click.plan.validation_suite == validation_suite
     assert fresh.plan.identifier == click.plan.identifier == identifier
     assert fresh.plan.estimator == click.plan.estimator == estimator
@@ -131,20 +132,28 @@ def _assert_common_cell_contract(
 def test_pag_ate_envelope_numeric_pin(
     accepted: bool, validation, validation_suite: str | None, inference_name: str
 ) -> None:
-    """Visible mixed MAGs retain all twelve licensed estimation/validation cells."""
+    """Visible mixed MAGs retain all twelve supported estimation/validation cells."""
     from test_mag_adjustment_visibility import _case
 
     data, graph = _case(True)
     if accepted:
         graph = antecedent.AcceptedGraph.from_graph(graph)
     query = antecedent.AverageEffect("t", "y")
-    inference = antecedent.Bayesian(prior_scale=100.0) if inference_name == "bayesian" else None
-    kwargs = dict(
-        graph=graph, query=query, inference=inference, refute=validation, bootstrap=0, seed=1
+    inference = (
+        antecedent.Bayesian(prior_scale=100.0)
+        if inference_name == "bayesian"
+        else antecedent.Frequentist(bootstrap=0)
     )
-    fresh = antecedent.analyze(data, **kwargs)
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(data, **kwargs)
-    click = prepared.estimate(data, seed=1)
+    kwargs = dict(
+        graph=graph,
+        query=query,
+        inference=inference,
+        refute=validation,
+        execution=antecedent.Execution(seed=1),
+    )
+    fresh = require_success(antecedent.analyze(data, **kwargs))
+    prepared = antecedent.prepare(data, **kwargs)
+    click = require_success(antecedent.estimate(prepared))
     _assert_common_cell_contract(
         fresh,
         click,
@@ -173,31 +182,32 @@ def test_admg_frontdoor_functional_effect_numeric_pin(
     validation,
     validation_suite: str | None,
 ) -> None:
-    """Pin all six licensed Frequentist ADMG ATE structure/validation cells."""
+    """Pin all six supported Frequentist ADMG ATE structure/validation cells."""
     data = _expand_contingency(_ADMG_PIN)
     graph = _admg(accepted=accepted)
     query = _query(_ADMG_PIN)
     section = _ADMG_PIN["frequentist"]
     seed = 1
 
-    fresh = antecedent.analyze(
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=query,
+            refute=validation,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=seed),
+        )
+    )
+    prepared = antecedent.prepare(
         data,
         graph=graph,
         query=query,
         refute=validation,
-        bootstrap=0,
-        seed=seed,
+        inference=antecedent.Frequentist(bootstrap=0, profile="interactive"),
+        execution=antecedent.Execution(seed=seed),
     )
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
-        data,
-        graph=graph,
-        query=query,
-        refute=validation,
-        bootstrap=0,
-        seed=seed,
-        latency="interactive",
-    )
-    click = prepared.estimate(data, seed=seed)
+    click = require_success(antecedent.estimate(prepared))
 
     _assert_common_cell_contract(
         fresh,
@@ -216,23 +226,23 @@ def test_admg_frontdoor_functional_effect_numeric_pin(
 
 def test_admg_functional_effect_refresh_exports_replayable_law() -> None:
     data = _expand_contingency(_ADMG_PIN)
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         data,
         graph=_admg(accepted=False),
         query=_query(_ADMG_PIN),
         refute=False,
-        bootstrap=0,
-        seed=1,
+        inference=antecedent.Frequentist(bootstrap=0),
+        execution=antecedent.Execution(seed=1),
     )
-    first = prepared.estimate(data, seed=1)
-    first_replay = antecedent.artifacts.accept(first.export())
-    assert first_replay["accepts_as_verified_program"] == "true"
+    first = require_success(antecedent.estimate(prepared))
+    first_replay = antecedent.artifacts.accept(bytes(first.export()), replay=True)
+    assert first_replay["replayed"] == "true"
 
     changed = {**data, "y": 1.0 - data["y"]}
-    refreshed = prepared.refresh(changed, seed=1)
+    refreshed = require_success(antecedent.estimate(antecedent.rebind(prepared, data=changed)))
     assert refreshed.ate == pytest.approx(-first.ate, abs=1e-12)
-    replay = antecedent.artifacts.accept(refreshed.export())
-    assert replay["accepts_as_verified_program"] == "true"
+    replay = antecedent.artifacts.accept(bytes(refreshed.export()), replay=True)
+    assert replay["replayed"] == "true"
     assert replay["program"] == first_replay["program"]
     assert refreshed.data_snapshot_id != first.data_snapshot_id
 
@@ -241,17 +251,16 @@ def test_pag_same_schema_refresh_reuses_identification() -> None:
     from test_mag_adjustment_visibility import _case
 
     data, graph = _case(True)
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         data,
         graph=graph,
         query=antecedent.AverageEffect("t", "y"),
         refute=False,
-        bootstrap=0,
-        seed=1,
-        latency="interactive",
+        inference=antecedent.Frequentist(bootstrap=0, profile="interactive"),
+        execution=antecedent.Execution(seed=1),
     )
-    click = prepared.estimate(data, seed=1)
-    refreshed = prepared.refresh(data, seed=1)
+    click = require_success(antecedent.estimate(prepared))
+    refreshed = require_success(antecedent.estimate(antecedent.rebind(prepared, data=data)))
     expected = 2.0
     tolerance = 1e-10
     assert click.ate == pytest.approx(expected, abs=tolerance)
@@ -309,7 +318,7 @@ def _admg_distribution(*, accepted: bool):
 
 @pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
 def test_admg_interventional_distribution_numeric_pin(accepted: bool) -> None:
-    """Pin licensed ADMG InterventionalDistribution to the front-door SCM truth.
+    """Pin supported ADMG InterventionalDistribution to the front-door SCM truth.
 
     conformance/estimate/admg_frontdoor_distribution: P(Y=1|do(T=1))=0.625 and
     P(Y=1|do(T=0))=0.375 on the exact 800-row law.
@@ -320,13 +329,25 @@ def test_admg_interventional_distribution_numeric_pin(accepted: bool) -> None:
     truth = {float(row["t"]): float(row["p_y1"]) for row in _ADMG_DIST_PIN["truth"]}
     for level, expected in truth.items():
         query = antecedent.InterventionalDistribution("y", interventions={"t": level})
-        fresh = antecedent.analyze(
-            data, graph=graph, query=query, refute=False, bootstrap=0, seed=1
+        fresh = require_success(
+            antecedent.analyze(
+                data,
+                graph=graph,
+                query=query,
+                refute=False,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
+            )
         )
-        prepared = antecedent.estimation.PreparedAnalysis.prepare(
-            data, graph=graph, query=query, refute=False, bootstrap=0, seed=1
+        prepared = antecedent.prepare(
+            data,
+            graph=graph,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
-        click = prepared.estimate(data, seed=1)
+        click = require_success(antecedent.estimate(prepared))
         assert fresh.ate == pytest.approx(expected, abs=tolerance)
         assert click.ate == pytest.approx(expected, abs=tolerance)
         one = next(a for a in fresh.estimate.distribution if a.outcomes[0][1] == 1.0)
@@ -334,79 +355,90 @@ def test_admg_interventional_distribution_numeric_pin(accepted: bool) -> None:
 
 
 @pytest.mark.parametrize("refute", ["cheap", "full"])
-def test_admg_interventional_distribution_refuses_cheap_full(refute: str) -> None:
-    """Cheap/full stay closed on ADMG InterventionalDistribution."""
-    from antecedent.errors import CausalUnsupportedError
+def test_admg_interventional_distribution_runs_cheap_full_supported(refute: str) -> None:
+    """Cheap/full on an ADMG InterventionalDistribution run the functional refuter state.
 
+    The atom probabilities are refitted by the same compiled program on perturbed data; the
+    cell has an evidence row in the supported table, so the result is supported.
+    """
     data = _expand_contingency(_ADMG_DIST_PIN)
     graph = _admg_distribution(accepted=False)
     query = antecedent.InterventionalDistribution("y", interventions={"t": 1.0})
-    with pytest.raises(
-        CausalUnsupportedError,
-        match="ADMG and TemporalAdmg InterventionalDistribution are licensed at validation none",
-    ):
-        antecedent.analyze(data, graph=graph, query=query, refute=refute)
+    result = require_success(antecedent.analyze(data, graph=graph, query=query, refute=refute))
+    assert result.evidence_status == "supported"
 
 
 @pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
 def test_admg_response_pins_against_distribution(accepted: bool) -> None:
-    """Licensed ADMG InterventionResponse / ResponseCurve match distribution means."""
+    """Supported ADMG InterventionResponse / ResponseCurve match distribution means."""
     data = _expand_contingency(_ADMG_PIN)
     graph = _admg(accepted=accepted)
     tolerance = float(_ADMG_PIN["frequentist"]["absolute_tolerance"])
     dist_means = {}
     for level in (0.0, 1.0):
-        dist = antecedent.analyze(
-            data,
-            graph=graph,
-            query=antecedent.InterventionalDistribution("y", interventions={"t": level}),
-            refute=False,
-            bootstrap=0,
-            seed=1,
+        dist = require_success(
+            antecedent.analyze(
+                data,
+                graph=graph,
+                query=antecedent.InterventionalDistribution("y", interventions={"t": level}),
+                refute=False,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
+            )
         )
-        ir = antecedent.analyze(
+        ir = require_success(
+            antecedent.analyze(
+                data,
+                graph=graph,
+                query=antecedent.InterventionResponse(
+                    "y", intervention=antecedent.intervention.Set("t", level)
+                ),
+                refute=False,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
+            )
+        )
+        prepared = antecedent.prepare(
             data,
             graph=graph,
             query=antecedent.InterventionResponse(
                 "y", intervention=antecedent.intervention.Set("t", level)
             ),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
-        prepared = antecedent.estimation.PreparedAnalysis.prepare(
-            data,
-            graph=graph,
-            query=antecedent.InterventionResponse(
-                "y", intervention=antecedent.intervention.Set("t", level)
-            ),
-            refute=False,
-            bootstrap=0,
-            seed=1,
-        )
-        click = prepared.estimate(data, seed=1)
+        click = require_success(antecedent.estimate(prepared))
         dist_means[level] = float(dist.ate)
         assert ir.ate == pytest.approx(dist_means[level], abs=tolerance)
         assert click.ate == pytest.approx(dist_means[level], abs=tolerance)
         assert ir.response is not None
-    curve = antecedent.analyze(
-        data,
-        graph=graph,
-        query=antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0]),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    curve = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0]),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
     )
     assert curve.response is not None
     values = list(curve.response.values)
     assert values[0][0] == pytest.approx(dist_means[0.0], abs=tolerance)
     assert values[1][0] == pytest.approx(dist_means[1.0], abs=tolerance)
-    ate = antecedent.analyze(
-        data,
-        graph=graph,
-        query=_query(_ADMG_PIN),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    ate = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=_query(_ADMG_PIN),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
     )
     assert (dist_means[1.0] - dist_means[0.0]) == pytest.approx(ate.ate, abs=tolerance)
+    # The distribution means are not only mutually consistent: their contrast is the
+    # recorded front-door functional (the exact value the frozen law gives).
+    expected_ate = float(_ADMG_PIN["frequentist"]["expected_ate"])
+    assert dist_means[1.0] - dist_means[0.0] == pytest.approx(expected_ate, abs=tolerance)

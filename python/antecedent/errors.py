@@ -1,24 +1,34 @@
-"""The exception surface: ``CausalError`` and its concrete subclasses.
+"""Errors: what the library raises, and how refusals relate to exceptions.
 
-Most exception types are defined in the native extension (``antecedent._native``)
-and re-exported here unchanged. This module is the single place the frozen
-public surface imports errors from.
+Every exception the library raises derives from :class:`CausalError`, so ``except
+antecedent.CausalError`` catches them all. They fall into three groups:
 
-``ReviewRequired`` is a real class defined here, subclassing the native
-``CausalReviewError`` — so ``except antecedent.ReviewRequired`` and
-``except antecedent.errors.CausalReviewError`` both still catch it. It is
-registered with the native layer at import time (see
-``_native.set_review_error_class``), which instantiates it for every
-``CausalError::ReviewRequired`` raised from Rust; the two hand-rolled
-``CausalReviewError`` construction sites in ``estimation.py`` are built the
-same way, through ``build_review_error`` below. A raised review error carries:
+* Invalid input raises :class:`CausalTypeError` (also a ``TypeError``) or
+  :class:`CausalValueError` (also a ``ValueError``), with ``reason_code="invalid_argument"``
+  where the native layer assigns one.
+* Operational failures raise ``CausalCancelledError`` (the execution's cancellation token
+  fired), ``CausalResourceError`` (a resource limit would be exceeded),
+  ``CausalSerializationError`` (malformed or mismatched artifact bytes) and ``CausalStateError``.
+* Scientific refusals -- the question cannot be answered from the declared data and
+  assumptions -- are returned on the outcome as ``outcome.refusal`` by
+  :func:`antecedent.analyze`, :func:`antecedent.estimate` and the other outcome-returning
+  operations, not raised. When one is raised (for example by
+  :func:`antecedent.outcomes.require_success` or ``outcome.refusal.raise_error()``) it is a
+  :class:`CausalUnsupportedError` subclass such as :class:`EffectNotIdentified` or a
+  :class:`StructuredRefusal`, with ``reason_code``, ``remedy`` and structured fields.
 
-- ``kind`` — which review gate tripped (e.g. ``"static_cpdag"``, ``"static_pag"``)
-- ``algorithm`` — the discovery algorithm that produced the pending graph
-- ``pending_edge_count`` — how many edges still need orientation review
-- ``pending_edges`` — the actual pending edges, as a ``tuple[PendingEdge, ...]``
-- ``hint`` — a human-readable suggestion for resolving the review
-- ``message`` — the formatted error message
+Most classes are defined by the native extension and re-exported here unchanged.
+:class:`ReviewRequired` subclasses the native ``CausalReviewError``, so catching either works.
+It is raised when estimation is blocked on an incomplete graph review and carries:
+
+- ``kind`` -- which review gate tripped (for example ``"static_cpdag"`` or ``"static_pag"``);
+- ``algorithm`` -- the discovery algorithm that produced the pending graph;
+- ``pending_edge_count`` -- how many edges still need orientation review;
+- ``pending_edges`` -- the pending edges, as a ``tuple[PendingEdge, ...]``;
+- ``hint`` -- a readable suggestion for resolving the review;
+- ``message`` -- the formatted error message.
+
+Refusal codes are listed in the refusal-code reference of the documentation.
 """
 
 from __future__ import annotations
@@ -83,8 +93,8 @@ class CausalTypeError(CausalValidateError, TypeError):
     additive, not a replacement for the builtin type). Raised by the
     coercion helpers in ``_coerce.py`` and the equivalent checks in
     ``estimation.py`` / ``discovery.py`` / ``accepted_graph.py`` where a
-    caller-supplied argument (``graph=``, ``query=``, ``refute=``,
-    ``latency=``, a discovery config, ...) is the wrong Python type.
+    caller-supplied argument (``graph=``, ``query=``, ``refute=``, a
+    discovery config, ...) is the wrong Python type.
 
     ``reason_code`` is an optional registered runtime-refusal code, checked
     like :class:`CausalUnsupportedError`'s.
@@ -181,6 +191,8 @@ class StructuredRefusal(CausalUnsupportedError):
     route: it is also a :class:`CausalValueError`, so ``except CausalValueError`` catches it.
     """
 
+    execution_facts: ExecutionFacts | None = None
+
     def __new__(cls, refusal: Any = None, *args: Any, **kwargs: Any) -> StructuredRefusal:
         code = refusal.get("code") if isinstance(refusal, Mapping) else kwargs.get("reason_code")
         target = cls
@@ -189,6 +201,11 @@ class StructuredRefusal(CausalUnsupportedError):
         return super().__new__(target)
 
     def __init__(self, refusal: Mapping[str, Any], *, text: str | None = None) -> None:
+        from ._freeze import freeze
+
+        # Keep every native cause/obligation. Individual family attributes are
+        # views; rendering the headline must not discard the rest of a refusal.
+        self.fields: Mapping[str, Any] = freeze(dict(refusal))
         detail = str(refusal["detail"])
         message = refusal.get("message")
         offending = refusal.get("offending")
@@ -220,7 +237,11 @@ class StructuredRefusal(CausalUnsupportedError):
             (cls for cls, variant in _ARGUMENT_VARIANTS.items() if type(self) is variant),
             type(self),
         )
-        return _restore_structured_refusal, (original, self.args, self.__dict__)
+        from ._freeze import thaw
+
+        state = dict(self.__dict__)
+        state["fields"] = thaw(self.fields)
+        return _restore_structured_refusal, (original, self.args, state)
 
 
 def _restore_structured_refusal(
@@ -228,6 +249,10 @@ def _restore_structured_refusal(
 ) -> StructuredRefusal:
     refusal = StructuredRefusal.__new__(cls, {"code": state.get("reason_code")})
     BaseException.__init__(refusal, *args)
+    from ._freeze import freeze
+
+    if "fields" in state:
+        state = {**state, "fields": freeze(state["fields"])}
     refusal.__dict__.update(state)
     return refusal
 
@@ -241,6 +266,12 @@ class EffectNotIdentified(CausalUnsupportedError, CausalCompileError):
     at a budget (a capped search is not a proof of non-identification). It
     subclasses :class:`CausalCompileError`, which this refusal was raised as
     before it carried its outcome.
+
+    The refusal is the answer to the causal question and is never replaced. A caller who
+    also wants a noncausal description of the observed data and the evidence that would
+    resolve the refusal opts in with ``analyze(..., on_refusal="describe")``, which returns
+    the unchanged refusal beside both (:mod:`antecedent.fallback`); a capped search is not
+    converted.
     """
 
     identification_status: str = "not_identified"
@@ -405,9 +436,14 @@ def next_action(err: BaseException, edges: Sequence[PendingEdge] = ()) -> str:
         status = getattr(err, "identification_status", "not_identified")
         capped = getattr(err, "search_capped", False)
         search = "capped; not a proof of non-identification" if capped else "complete"
+        opt_in = (
+            " To keep this refusal and also get a noncausal description of the observed data "
+            "and the evidence that would resolve it, call analyze(..., on_refusal='describe'); "
+            "that description is not an answer to the causal question."
+        )
         return (
             f"Not identified ({status}; search {search}). "
-            "Change the query or supply a more informative graph."
+            "Change the query or supply a more informative graph." + ("" if capped else opt_in)
         )
     code = getattr(err, "reason_code", None) or type(err).__name__
     hint = getattr(err, "hint", None)
@@ -428,6 +464,7 @@ _LAZY_REFUSALS: dict[str, str] = {
     "GraphOrSnapshotMismatchRefusal": "composition_bundle",
     "IncompatibleVersionRefusal": "composition_bundle",
     "MechanismDiscrepancyRefusal": "mechanism_discrepancy",
+    "MnarSensitivityRefusal": "mnar_sensitivity",
     "MsmSensitivityRefusal": "msm_sensitivity",
     "NodeNotFoundRefusal": "composition_bundle",
     "OversizedRefusal": "composition_bundle",
@@ -452,6 +489,7 @@ _LAZY_REFUSALS: dict[str, str] = {
 }
 
 if TYPE_CHECKING:
+    from ._native import ExecutionFacts
     from .composition_bundle import (
         CallbackUnavailableRefusal,
         CompositionBundleRefusal,
@@ -470,6 +508,7 @@ if TYPE_CHECKING:
     from .decision import DecisionRefusal
     from .external import ExternalRefusal
     from .mechanism_discrepancy import MechanismDiscrepancyRefusal
+    from .mnar_sensitivity import MnarSensitivityRefusal
     from .msm_sensitivity import MsmSensitivityRefusal
     from .recalc import (
         RecalcNoLiveState,
@@ -512,6 +551,7 @@ __all__ = [
     "GraphOrSnapshotMismatchRefusal",
     "IncompatibleVersionRefusal",
     "MechanismDiscrepancyRefusal",
+    "MnarSensitivityRefusal",
     "MsmSensitivityRefusal",
     "NodeNotFoundRefusal",
     "OversizedRefusal",

@@ -11,7 +11,7 @@
 //! - Eight observed units `(x, z, y)` with `y = 1` in rows 2, 5, 6 and 8 and `x = 1` in
 //!   rows 5-8: `P(E) = 1/2`, `P(x = 1) = 1/2`, `P(E | x = 1) = 3/4`, `P(x = 1 | E) = 3/4`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -21,17 +21,19 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::consume_mechanism_composition_artifact;
 use antecedent::analysis::inverse_query::{
     Comparison, FeasibilityStatus, GridScope, InverseConstraint, InverseQuery, SelectionOutcome,
     SelectionRule, consume as consume_inverse, export as export_inverse,
 };
 use antecedent::analysis::inverse_sources::{
-    ComposedActionQuery, ForwardRepresentation, ForwardSourceKind, ForwardSourceRefusal,
-    InverseDemand, ObservationalScenarioError, ObservationalScenarioQuery, OutcomeEvent,
-    ScenarioCell, ScenarioCondition, TransportDeclaration, TransportReceipt,
-    TransportedInputPolicy, TransportedResponse, TransportedRoute, evaluate,
-    evaluate_observational, inspect_observational, inspect_origin, seal, seal_per_action,
-    transported_source, verify_observational,
+    ComposedActionQuery, ComposedActionResponse, ComposedFamily, ComposedResponse,
+    ForwardRepresentation, ForwardSourceKind, ForwardSourceRefusal, InverseDemand,
+    ObservationalScenarioError, ObservationalScenarioQuery, OutcomeEvent, ScenarioCell,
+    ScenarioCondition, TransportDeclaration, TransportReceipt, TransportedInputPolicy,
+    TransportedResponse, TransportedRoute, composed_source, evaluate, evaluate_observational,
+    inspect_observational, inspect_origin, seal, seal_per_action, transported_source,
+    verify_observational,
 };
 use antecedent::analysis::mechanism_composition::CompositionQueryWire;
 use antecedent::{
@@ -292,6 +294,55 @@ fn native() -> TransportedInputPolicy {
 // Composed mechanisms
 // ---------------------------------------------------------------------------
 
+/// The facade's `composed_source` entry, beside `cohort_source` and `transported_source`:
+/// a response replayed through the public export and consume path gives the source the
+/// study route gives, and a response with no action is refused.
+#[test]
+fn the_composed_source_entry_agrees_with_the_study_route() {
+    let prepared =
+        StudyBuilder::mechanism_composition(request_of(gaussian_chain()), &ctx()).unwrap();
+    let actions = gaussian_actions();
+    let replayed = actions
+        .iter()
+        .map(|action| {
+            let export = prepared.export(action.query.clone(), &ctx()).unwrap();
+            let consumed = consume_mechanism_composition_artifact(
+                &export.bytes,
+                Some(&export.premises_digest),
+                &ctx(),
+            )
+            .unwrap();
+            ComposedActionResponse {
+                action_id: action.action_id.clone(),
+                coordinate: action.coordinate.clone(),
+                premises_digest: consumed.premises_digest,
+                query: action.query.clone(),
+                result: consumed.result,
+                level_values: action.level_values.clone(),
+            }
+        })
+        .collect();
+    let response = ComposedResponse {
+        family: ComposedFamily::LinearGaussian,
+        assumed_mechanisms: Vec::new(),
+        transport: None,
+        actions: replayed,
+    };
+    let source = composed_source(&response).unwrap();
+    let routed = prepared.inverse_forward_source(&actions, None, native(), &ctx()).unwrap();
+    assert_eq!(source.origin(), routed.origin());
+
+    let query =
+        query_on(identity_contract(&["0", "1", "2"], "mean"), &GRID, vec![mean_at_least(5.0)]);
+    let direct = evaluate(&query, &source, InverseDemand::default()).unwrap();
+    let via_study = evaluate(&query, &routed, InverseDemand::default()).unwrap();
+    assert_eq!(direct.result.selected, via_study.result.selected);
+    near(direct.result.actions[1].point_values[0].value.unwrap(), 7.0);
+
+    let empty = ComposedResponse { actions: Vec::new(), ..response };
+    assert!(composed_source(&empty).is_err(), "a response with no action is not a source");
+}
+
 #[test]
 fn a_linear_gaussian_composition_supplies_a_replayed_point_per_action() {
     let prepared =
@@ -318,7 +369,7 @@ fn a_linear_gaussian_composition_supplies_a_replayed_point_per_action() {
     let inspection = inspect_origin(&sourced.origin);
     assert_eq!(inspection.kind, "composed_mechanism");
     assert_eq!(inspection.representation, "point_only");
-    assert_eq!(inspection.interval_region, "not_licensed");
+    assert_eq!(inspection.interval_region, "uncertainty_representation_insufficient");
     assert!(!inspection.transported);
 }
 
@@ -365,15 +416,16 @@ fn a_point_composition_refuses_laws_intervals_and_the_wrong_family() {
     let error = evaluate(&mean, &source, InverseDemand { interval_region: true }).unwrap_err();
     assert_eq!(
         error,
-        ForwardSourceRefusal::IntervalNotLicensed(ForwardSourceKind::ComposedMechanism)
+        ForwardSourceRefusal::IntervalNotSupported(ForwardSourceKind::ComposedMechanism)
     );
-    assert_eq!(error.code(), "cell_not_licensed");
+    assert_eq!(error.code(), "uncertainty_representation_insufficient");
 
     // A finite-distribution query of a linear-Gaussian composition is refused by the
     // composition itself and keeps its registered code.
     let wrong = finite_actions(&[("0".into(), 0.0), ("1".into(), 1.0)]);
     let error = prepared.inverse_forward_source(&wrong, None, native(), &ctx()).unwrap_err();
     assert!(matches!(error, ForwardSourceRefusal::Artifact { .. }), "{error:?}");
+    assert_eq!(error.code(), "route_not_supported");
 }
 
 #[test]
@@ -470,7 +522,7 @@ fn a_composition_with_admitted_mechanisms_is_a_transported_claim() {
         .inverse_forward_source(&gaussian_actions(), Some(receipt.clone()), native(), &ctx())
         .unwrap_err();
     assert_eq!(error, ForwardSourceRefusal::TransportedNotAccepted);
-    assert_eq!(error.code(), "cell_not_licensed");
+    assert_eq!(error.code(), "decision_contract_unsatisfied");
 
     let source = prepared
         .inverse_forward_source(
@@ -570,7 +622,7 @@ fn a_transported_response_is_read_only_when_accepted_and_carries_its_receipt() {
     let error = evaluate(&query, &source, InverseDemand { interval_region: true }).unwrap_err();
     assert_eq!(
         error,
-        ForwardSourceRefusal::IntervalNotLicensed(ForwardSourceKind::TransportedResponse)
+        ForwardSourceRefusal::IntervalNotSupported(ForwardSourceKind::TransportedResponse)
     );
 
     // The sealed artifact binds the whole receipt: another transport at the same values
@@ -690,5 +742,256 @@ fn observational_scenarios_are_associational_and_re_derive() {
     assert_eq!(
         verify_observational(&stored, &scenario_query(), &law),
         Err(ObservationalScenarioError::ResultMismatch)
+    );
+}
+
+fn gaussian_outcome_actions() -> Vec<ComposedActionQuery> {
+    gaussian_actions()
+        .into_iter()
+        .map(|mut action| {
+            action.coordinate.functional_id = "outcome".into();
+            action
+        })
+        .collect()
+}
+
+#[test]
+fn gaussian_law_is_materialized_and_replayed_without_parameter_uncertainty() {
+    let prepared =
+        StudyBuilder::mechanism_composition(request_of(gaussian_chain()), &ctx()).unwrap();
+    let source = prepared
+        .inverse_forward_source(&gaussian_outcome_actions(), None, native(), &ctx())
+        .unwrap();
+    assert_eq!(source.origin().representation, ForwardRepresentation::Law);
+    for (_, claim) in source.action_claims().unwrap() {
+        let antecedent::analysis::inverse_query::ForwardClaim::Gaussian(law) = claim else {
+            panic!("analytic law required")
+        };
+        assert!(law.validate());
+        assert!(law.variance > 0.0);
+    }
+    let query = query_on(
+        identity_contract(&["0", "1", "2"], "outcome"),
+        &GRID,
+        vec![InverseConstraint::TargetQuantile {
+            p: 0.5,
+            target: 1.0,
+            comparison: Comparison::AtLeast,
+        }],
+    );
+    let artifacts = seal_per_action(&query, &source, InverseDemand::default()).unwrap();
+    assert_eq!(artifacts.len(), 3);
+    for (_, artifact) in artifacts {
+        let bytes = export_inverse(&artifact, "gaussian-law-roundtrip").unwrap();
+        let consumed = consume_inverse(&bytes, Some(artifact.identity())).unwrap();
+        assert_eq!(consumed.result(), artifact.result());
+        assert_eq!(consumed.forward_origin(), artifact.forward_origin());
+        let (mut meta, contract, data) =
+            antecedent_design::inverse_query_artifact::decode_parts(&bytes).unwrap();
+        let antecedent_design::inverse_query_artifact::ClaimWire::Gaussian(law) =
+            &mut meta.claims[0]
+        else {
+            panic!("analytic wire required")
+        };
+        law.version = 2;
+        let forged = antecedent_design::inverse_query_artifact::encode_parts(
+            &meta,
+            &contract,
+            &data,
+            "unsupported-gaussian-version",
+        )
+        .unwrap();
+        assert!(consume_inverse(&forged, None).is_err());
+    }
+    assert!(evaluate(&query, &source, InverseDemand { interval_region: true }).is_err());
+}
+
+#[test]
+fn gaussian_mean_contrast_cannot_be_relabelled_as_an_outcome_law() {
+    use antecedent::analysis::inverse_sources::{
+        ComposedActionResponse, ComposedFamily, ComposedResponse, composed_source,
+    };
+    use antecedent::analysis::mechanism_composition::CompositionResultWire;
+    let action = gaussian_outcome_actions().remove(0);
+    let response = ComposedResponse {
+        family: ComposedFamily::LinearGaussian,
+        assumed_mechanisms: vec![],
+        transport: None,
+        actions: vec![ComposedActionResponse {
+            action_id: action.action_id,
+            coordinate: action.coordinate,
+            premises_digest: "test-snapshot".into(),
+            query: CompositionQueryWire::GaussianMeanContrast { outcome: "Y".into(), arms: vec![] },
+            result: CompositionResultWire::GaussianFunctional {
+                point_bits: 0.0f64.to_bits(),
+                variance_bits: 1.0f64.to_bits(),
+                dependence: "test".into(),
+                method: "test".into(),
+            },
+            level_values: vec![],
+        }],
+    };
+    assert!(composed_source(&response).is_err());
+}
+
+#[test]
+fn gaussian_law_refuses_unsupported_utilities_and_malformed_standing() {
+    use antecedent::analysis::inverse_query::DecisionFunctional;
+    use antecedent::analysis::inverse_query::ForwardClaim;
+    let prepared =
+        StudyBuilder::mechanism_composition(request_of(gaussian_chain()), &ctx()).unwrap();
+    let source = prepared
+        .inverse_forward_source(&gaussian_outcome_actions(), None, native(), &ctx())
+        .unwrap();
+    let ForwardClaim::Gaussian(law) = &source.action_claims().unwrap()[0].1 else { panic!("law") };
+    let mut contract = identity_contract(&["0", "1", "2"], "outcome");
+    contract.actions[0].utility =
+        UtilityExpr::maximum(UtilityExpr::Input(0), UtilityExpr::Const(0.0));
+    let refusal = law
+        .evaluate(&contract, &GRID[0], DecisionFunctional::ExpectedUtility)
+        .unwrap_err()
+        .to_refusal();
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_evaluation::ANALYTIC_LAW_UNSUPPORTED
+    );
+    assert!(refusal.remedy.is_some());
+    let mut malformed = law.clone();
+    malformed.parameter_uncertainty = "posterior".into();
+    assert!(!malformed.validate());
+    assert!(malformed.evaluate(&contract, &GRID[0], DecisionFunctional::ExpectedUtility).is_err());
+    malformed = law.clone();
+    malformed.version = 2;
+    assert!(!malformed.validate());
+    malformed = law.clone();
+    malformed.variance = -1.0;
+    assert!(!malformed.validate());
+    let original = antecedent_design::inverse_forward_source::forward_claim_digest(
+        &ForwardClaim::Gaussian(law.clone()),
+    )
+    .unwrap();
+    let mut changed = law.clone();
+    changed.variance += 1.0;
+    assert_ne!(
+        original,
+        antecedent_design::inverse_forward_source::forward_claim_digest(&ForwardClaim::Gaussian(
+            changed
+        ))
+        .unwrap()
+    );
+}
+
+// Independent scientific reference: registered and intentionally left owed during implementation.
+#[test]
+fn composed_gaussian_outcome_law_matches_independent_chain_reference() {
+    use antecedent::analysis::inverse_query::Tail;
+    let prepared =
+        StudyBuilder::mechanism_composition(request_of(gaussian_chain()), &ctx()).unwrap();
+    let source = prepared
+        .inverse_forward_source(&gaussian_outcome_actions(), None, native(), &ctx())
+        .unwrap();
+    let contract = identity_contract(&["0", "1", "2"], "outcome");
+    for (i, (_, claim)) in source.action_claims().unwrap().iter().enumerate() {
+        let antecedent::analysis::inverse_query::ForwardClaim::Gaussian(law) = claim else {
+            panic!("law")
+        };
+        // Under do(X=x), Y=.5+6.5x+3 e_M+.5 e_Y, hence variance 9.25.
+        near(law.mean, 0.5 + 6.5 * i as f64);
+        near(law.variance, 9.25);
+        let probability = law
+            .evaluate(
+                &contract,
+                &GRID[i],
+                antecedent::analysis::inverse_query::DecisionFunctional::Probability {
+                    threshold: law.mean,
+                    tail: Tail::Lower,
+                },
+            )
+            .unwrap();
+        near(probability.0, 0.5);
+        assert_eq!(probability.1, None);
+        near(
+            law.evaluate(
+                &contract,
+                &GRID[i],
+                antecedent::analysis::inverse_query::DecisionFunctional::Quantile { p: 0.975 },
+            )
+            .unwrap()
+            .0,
+            law.mean + 1.959_963_984_540_054 * 9.25f64.sqrt(),
+        );
+        let mut quadratic = contract.clone();
+        quadratic.actions[i].utility =
+            UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(0));
+        near(
+            law.evaluate(
+                &quadratic,
+                &GRID[i],
+                antecedent::analysis::inverse_query::DecisionFunctional::ExpectedUtility,
+            )
+            .unwrap()
+            .0,
+            law.mean * law.mean + 9.25,
+        );
+    }
+}
+
+#[test]
+fn gaussian_law_preserves_carried_mechanism_receipts_and_cancellation() {
+    let mut mechanisms = gaussian_chain();
+    mechanisms[1].declaration.output.population_id = "source".into();
+    mechanisms[1].declaration.parents[0].population_id = "source".into();
+    let mut request = request_of(mechanisms);
+    request.admissions = vec![TransportAdmission {
+        variable_id: "M".into(),
+        coordinate: AdmissionCoordinate::Population,
+        source_id: "source".into(),
+        target_id: "pop".into(),
+        basis: AdmissionBasis::SelectionDiagram { targets: vec!["X".into()] },
+    }];
+    let prepared = StudyBuilder::mechanism_composition(request, &ctx()).unwrap();
+    let receipt = TransportReceipt {
+        route: TransportedRoute::Mechanism,
+        source_identity: "mechanism-transport".into(),
+        source_populations: vec!["source".into()],
+        target_population: "pop".into(),
+        transport_identities: vec![format!("{:064x}", 7)],
+        assumptions: vec!["M is invariant across populations".into()],
+        support: "extrapolative".into(),
+        representation: TransportedRepresentation::PointOnly,
+        uncalibrated_standard_error: None,
+    };
+    assert!(
+        prepared
+            .inverse_forward_source(
+                &gaussian_outcome_actions(),
+                Some(receipt.clone()),
+                native(),
+                &ctx()
+            )
+            .is_err()
+    );
+    let source = prepared
+        .inverse_forward_source(
+            &gaussian_outcome_actions(),
+            Some(receipt.clone()),
+            TransportedInputPolicy::AcceptsTransported,
+            &ctx(),
+        )
+        .unwrap();
+    assert_eq!(source.origin().transport, Some(receipt.clone()));
+    assert_eq!(source.origin().support, "extrapolative");
+    assert_eq!(source.origin().representation, ForwardRepresentation::Law);
+    let cancelled = ctx();
+    cancelled.cancellation.cancel();
+    assert!(
+        prepared
+            .inverse_forward_source(
+                &gaussian_outcome_actions(),
+                Some(receipt),
+                TransportedInputPolicy::AcceptsTransported,
+                &cancelled
+            )
+            .is_err()
     );
 }

@@ -23,10 +23,19 @@ import random
 import subprocess
 import sys
 
+import antecedent as ant
+import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import evidence_ledger as el
 from antecedent import predictive_assessment as pa
-from antecedent.errors import CausalTypeError, CausalValueError
+from antecedent.errors import (
+    CausalResourceError,
+    CausalTypeError,
+    CausalUnsupportedError,
+    CausalValueError,
+)
+from antecedent.outcomes import require_success
 from antecedent.predictive_assessment import PredictiveAssessmentRefusal
 
 from _refusal import assert_registered_refusal
@@ -201,11 +210,11 @@ def test_energy_score_equals_the_hand_value_and_the_crps_in_one_dimension() -> N
 
 def test_unsupported_scores_and_infinite_log_scores_are_refused() -> None:
     error = refused(lambda: pa.score_case("log_score", pa.EmpiricalSample([0.0, 1.0]), 0.5))
-    expect(error, "route_not_supported", "predictive_assessment.score_not_defined")
+    expect(error, "route_not_supported", reason_details.predictive_assessment.SCORE_NOT_DEFINED)
     error = refused(lambda: pa.score_case("log_score", pa.Bernoulli(0.0), 1))
-    expect(error, "invalid_argument", "predictive_assessment.log_score_infinite")
+    expect(error, "invalid_argument", reason_details.predictive_assessment.LOG_SCORE_INFINITE)
     error = refused(lambda: pa.score_case("energy_score", pa.Gaussian(0.0, 1.0), 0.0))
-    expect(error, "route_not_supported", "predictive_assessment.score_not_defined")
+    expect(error, "route_not_supported", reason_details.predictive_assessment.SCORE_NOT_DEFINED)
 
 
 def test_the_true_finite_law_has_the_smallest_expected_score() -> None:
@@ -248,7 +257,7 @@ def test_a_calibrated_generator_has_a_uniform_pit_and_nominal_coverage() -> None
     n = 1000
     report = generator_assessment(n).report
     d = report.predictor("calibrated").diagnostics
-    assert (d.label, d.calibration) == ("diagnostic", "unmeasured")
+    assert (d.label, d.calibration) == ("diagnostic", "not_measured")
     assert d.pit is not None and d.coverage is not None
     # Recomputed from the returned mid-PIT values: Kolmogorov-Smirnov against U(0, 1).
     u = sorted(d.pit.mid_pit)
@@ -291,7 +300,7 @@ def test_score_differences_are_paired_with_the_stated_dependence() -> None:
         assert diff.dependence == "iid"
         assert (diff.label, diff.calibration, diff.interval) == (
             "diagnostic",
-            "unmeasured",
+            "not_measured",
             "not_reported",
         )
         assert diff.mean_difference > 0
@@ -319,7 +328,15 @@ def test_without_a_declared_dependence_no_standard_error_is_reported() -> None:
     diff = result.report.differences[0]
     assert diff.standard_error is None and diff.dm_statistic is None
     assert diff.dependence == "undeclared"
-    assert result.report.predictor("a").score("crps").mean > 0
+    ys = normals(n, 3)
+    for name, mu in (("a", 0.0), ("b", 0.5)):
+        expected = mean_of([crps_gaussian(mu, 1.0, y) for y in ys])
+        assert result.report.predictor(name).score("crps").mean == pytest.approx(
+            expected, abs=1e-10
+        )
+    assert diff.mean_difference == pytest.approx(
+        mean_of([crps_gaussian(0.5, 1.0, y) - crps_gaussian(0.0, 1.0, y) for y in ys]), abs=1e-10
+    )
 
 
 # --------------------------------------------------------------------------- dependence
@@ -396,11 +413,15 @@ def test_iid_is_refused_for_temporal_and_clustered_designs_and_short_lags_too() 
     expect(
         error,
         "sampling_dependence_unknown",
-        "predictive_assessment.iid_not_licensed_for_dependent_design",
+        reason_details.predictive_assessment.IID_NOT_SUPPORTED_FOR_DEPENDENT_DESIGN,
     )
     n = 40
     error = refused(lambda: rolling_result(pa.Dependence.serial(list(range(n)), 0), horizon=4))
-    expect(error, "sampling_dependence_unknown", "predictive_assessment.serial_lag_below_horizon")
+    expect(
+        error,
+        "sampling_dependence_unknown",
+        reason_details.predictive_assessment.SERIAL_LAG_BELOW_HORIZON,
+    )
     error = refused(
         lambda: pa.assess(
             observed([0.1, 0.2, 0.3, 0.4]),
@@ -413,7 +434,7 @@ def test_iid_is_refused_for_temporal_and_clustered_designs_and_short_lags_too() 
     expect(
         error,
         "sampling_dependence_unknown",
-        "predictive_assessment.iid_not_licensed_for_dependent_design",
+        reason_details.predictive_assessment.IID_NOT_SUPPORTED_FOR_DEPENDENT_DESIGN,
     )
 
 
@@ -429,7 +450,9 @@ def test_a_mismatched_target_or_horizon_is_refused_not_converted() -> None:
             obs, [predictor("a", laws, target=other_units)], simulation(), scores=("crps",)
         )
     )
-    expect(error, "quantity_semantics_mismatch", "predictive_assessment.target_mismatch")
+    expect(
+        error, "quantity_semantics_mismatch", reason_details.predictive_assessment.TARGET_MISMATCH
+    )
     error = refused(
         lambda: pa.assess(
             obs,
@@ -438,7 +461,9 @@ def test_a_mismatched_target_or_horizon_is_refused_not_converted() -> None:
             scores=("crps",),
         )
     )
-    expect(error, "quantity_semantics_mismatch", "predictive_assessment.horizon_mismatch")
+    expect(
+        error, "quantity_semantics_mismatch", reason_details.predictive_assessment.HORIZON_MISMATCH
+    )
 
 
 def test_callback_laws_and_incomplete_provider_identities_are_refused_by_name() -> None:
@@ -446,7 +471,9 @@ def test_callback_laws_and_incomplete_provider_identities_are_refused_by_name() 
     laws = [pa.Gaussian(0.0, 1.0)] * 2
     callback = predictor("cb", laws, source=pa.LawSource.callback("python closure"))
     error = refused(lambda: pa.assess(obs, [callback], simulation(), scores=("crps",)))
-    expect(error, "route_not_supported", "predictive_assessment.law_callback_not_built")
+    expect(
+        error, "route_not_supported", reason_details.predictive_assessment.LAW_CALLBACK_NOT_BUILT
+    )
     incomplete = predictor(
         "svc",
         laws,
@@ -455,10 +482,12 @@ def test_callback_laws_and_incomplete_provider_identities_are_refused_by_name() 
         ),
     )
     error = refused(lambda: pa.assess(obs, [incomplete], simulation(), scores=("crps",)))
-    expect(error, "invalid_argument", "predictive_assessment.provider_identity_incomplete")
+    expect(
+        error, "invalid_argument", reason_details.predictive_assessment.PROVIDER_IDENTITY_INCOMPLETE
+    )
 
 
-def test_the_closed_routes_raise_typed_refusals() -> None:
+def test_the_unsupported_routes_raise_typed_refusals() -> None:
     n = 20
     result = pa.assess(
         observed(normals(n, 1)),
@@ -472,18 +501,18 @@ def test_the_closed_routes_raise_typed_refusals() -> None:
     assert result.report.interval == "not reported"
     expect(
         refused(result.score_interval),
-        "cell_not_licensed",
-        "predictive_assessment.interval_not_licensed",
+        "quantity_semantics_mismatch",
+        reason_details.predictive_assessment.INTERVAL_NOT_SUPPORTED,
     )
     expect(
         refused(result.causal_validity),
         "route_not_supported",
-        "predictive_assessment.not_a_causal_claim",
+        reason_details.predictive_assessment.NOT_A_CAUSAL_CLAIM,
     )
     expect(
         refused(result.score_as_probability),
         "route_not_supported",
-        "predictive_assessment.score_not_probability",
+        reason_details.predictive_assessment.SCORE_NOT_PROBABILITY,
     )
     error = refused(
         lambda: pa.assess(
@@ -494,10 +523,15 @@ def test_the_closed_routes_raise_typed_refusals() -> None:
             score_interval=(0.95, "stationary bootstrap"),
         )
     )
-    expect(error, "cell_not_licensed", "predictive_assessment.interval_not_licensed")
+    expect(
+        error,
+        "quantity_semantics_mismatch",
+        reason_details.predictive_assessment.INTERVAL_NOT_SUPPORTED,
+    )
 
 
-def test_a_scoped_score_interval_is_published_inside_a_measured_design_and_refused_outside() -> (
+@pytest.mark.requires_calibration
+def test_a_scoped_score_interval_is_calibrated_inside_a_measured_design_and_annotated_outside() -> (
     None
 ):
     # 800 iid cases of a fixed (never fitted) Gaussian forecast on a held-out split, level 0.95:
@@ -520,10 +554,11 @@ def test_a_scoped_score_interval_is_published_inside_a_measured_design_and_refus
     # An unscoped request is still the closed route.
     expect(
         refused(result.score_interval),
-        "cell_not_licensed",
-        "predictive_assessment.interval_not_licensed",
+        "quantity_semantics_mismatch",
+        reason_details.predictive_assessment.INTERVAL_NOT_SUPPORTED,
     )
-    # Below the measured number of cases, and at another level: the typed out-of-scope refusal.
+    assert interval.calibration == "calibrated"
+    # Below the measured number of cases, and at another level: reported, not calibrated.
     small = pa.assess(
         observed(normals(100, 7)),
         [predictor("a", [pa.Gaussian(0.3, 1.2)] * 100)],
@@ -531,16 +566,8 @@ def test_a_scoped_score_interval_is_published_inside_a_measured_design_and_refus
         scores=("crps",),
         dependence=pa.Dependence.iid(),
     )
-    expect(
-        refused(lambda: small.score_interval("a", "crps")),
-        "cell_not_licensed",
-        "predictive_assessment.interval_scope_outside_measured",
-    )
-    expect(
-        refused(lambda: result.score_interval("a", "crps", level=0.9)),
-        "cell_not_licensed",
-        "predictive_assessment.interval_scope_outside_measured",
-    )
+    assert small.score_interval("a", "crps").calibration != "calibrated"
+    assert result.score_interval("a", "crps", level=0.9).calibration != "calibrated"
     # No declared dependence: independence is never assumed.
     undeclared = pa.assess(
         observed(normals(n, 7)),
@@ -551,7 +578,7 @@ def test_a_scoped_score_interval_is_published_inside_a_measured_design_and_refus
     expect(
         refused(lambda: undeclared.score_interval("a", "crps")),
         "sampling_dependence_unknown",
-        "predictive_assessment.interval_dependence_undeclared",
+        reason_details.predictive_assessment.INTERVAL_DEPENDENCE_UNDECLARED,
     )
 
 
@@ -569,13 +596,13 @@ def test_malformed_declarations_are_typed_input_errors() -> None:
             obs, [predictor("a", [pa.Gaussian(0.0, 0.0)] * 2)], simulation(), scores=("crps",)
         )
     )
-    expect(error, "invalid_argument", "predictive_assessment.invalid_law")
+    expect(error, "invalid_argument", reason_details.predictive_assessment.INVALID_LAW)
     # Repeated observation identities are refused, not scored twice.
     twice = pa.Observations(TARGET, [pa.keys("cohort", [1])[0]] * 2, "real", [0.0, 1.0])
     error = refused(
         lambda: pa.assess(twice, [predictor("a", laws)], simulation(), scores=("crps",))
     )
-    expect(error, "invalid_argument", "predictive_assessment.invalid_observations")
+    expect(error, "invalid_argument", reason_details.predictive_assessment.INVALID_OBSERVATIONS)
 
 
 # --------------------------------------------------------------------------- overlap
@@ -602,14 +629,14 @@ def test_overlap_is_decided_from_row_identities() -> None:
     overlap = labelled.report.predictor("model").overlap
     assert (overlap.label, overlap.shared) == ("in_sample", 2)
     error = refused(lambda: overlap_result(shared, strict=True))
-    expect(error, "evidence_double_counted", "predictive_assessment.in_sample")
+    expect(error, "evidence_double_counted", reason_details.predictive_assessment.IN_SAMPLE)
 
 
 def test_an_undeclared_fit_is_unverified_and_never_held_out() -> None:
     undeclared = pa.FitDeclaration.undeclared("provider declared no fit data")
     assert overlap_result(undeclared).report.predictor("model").overlap.label == "unverified"
     error = refused(lambda: overlap_result(undeclared, strict=True))
-    expect(error, "evidence_overlap_unknown", "predictive_assessment.overlap_unknown")
+    expect(error, "evidence_overlap_unknown", reason_details.predictive_assessment.OVERLAP_UNKNOWN)
 
 
 def test_the_fit_set_is_resolved_from_the_evidence_ledger() -> None:
@@ -660,12 +687,14 @@ def test_the_fit_set_is_resolved_from_the_evidence_ledger() -> None:
             require_held_out=True,
         )
     )
-    expect(error, "evidence_double_counted", "predictive_assessment.in_sample")
+    expect(error, "evidence_double_counted", reason_details.predictive_assessment.IN_SAMPLE)
     # An undeclared source is unknown, never held out.
     vendor = ledger.add_source(el.SourceDeclaration("vendor", "external_claim"))
     assert pa.FitDeclaration.from_ledger(ledger, [vendor]).wire["kind"] == "undeclared"
     unknown = refused(lambda: pa.ledger_observations(ledger, vendor))
-    expect(unknown, "evidence_overlap_unknown", "predictive_assessment.overlap_unknown")
+    expect(
+        unknown, "evidence_overlap_unknown", reason_details.predictive_assessment.OVERLAP_UNKNOWN
+    )
 
 
 # --------------------------------------------------------------------------- drift and adapters
@@ -677,7 +706,7 @@ def test_drift_compares_the_pit_of_two_windows() -> None:
     assert same.population_stability_index == pytest.approx(0.0, abs=TOL)
     assert (same.label, same.calibration, same.route) == (
         "diagnostic",
-        "unmeasured",
+        "not_measured",
         "distribution_drift",
     )
     moved = pa.distribution_drift([0.1, 0.2, 0.3], [0.7, 0.8, 0.9], 4)
@@ -687,7 +716,7 @@ def test_drift_compares_the_pit_of_two_windows() -> None:
     expected = sum((b - a) * math.log(b / a) for a, b in zip(pa_, pb, strict=True))
     assert moved.population_stability_index == pytest.approx(expected, abs=1e-9)
     error = refused(lambda: pa.distribution_drift([], [0.5], 4))
-    expect(error, "invalid_argument", "predictive_assessment.diagnostic_not_defined")
+    expect(error, "invalid_argument", reason_details.predictive_assessment.DIAGNOSTIC_NOT_DEFINED)
 
 
 def test_posterior_predictive_replicates_are_scored_as_sample_laws() -> None:
@@ -735,6 +764,168 @@ def test_a_discrete_law_pit_and_reliability_equal_the_hand_values() -> None:
     )
 
 
+# --------------------------------------------------------------------------- bayesian replicates
+
+REPLICATE_DAG = [("z", "t"), ("z", "y"), ("t", "y")]
+REPLICATE_ROWS = 60
+REPLICATE_SIMS = 120
+
+
+def replicate_data(n: int = REPLICATE_ROWS, seed: int = 41) -> dict[str, np.ndarray]:
+    rng = np.random.default_rng(seed)
+    z = rng.normal(size=n)
+    t = (z + rng.normal(size=n) > 0).astype(float)
+    y = 1.5 * t + z + 0.5 * rng.normal(size=n)
+    return {"z": z, "t": t, "y": y}
+
+
+def analyze_replicates(
+    data: dict[str, np.ndarray],
+    bounds: pa.ReplicateBounds | None,
+    *,
+    execution: ant.Execution | None = None,
+):
+    return require_success(
+        ant.analyze(
+            data,
+            graph=REPLICATE_DAG,
+            query=ant.AverageEffect("t", "y"),
+            inference=ant.Bayesian(n_draws=300, predictive_replicates=bounds),
+            execution=execution or ant.Execution(seed=5),
+            refute="none",
+        )
+    )
+
+
+def declared_replicates() -> tuple[dict[str, np.ndarray], pa.PosteriorReplicates]:
+    data = replicate_data()
+    result = analyze_replicates(data, pa.ReplicateBounds(REPLICATE_SIMS, 500))
+    return data, pa.posterior_replicates(result)
+
+
+def test_a_declared_bayesian_fit_retains_replicates_the_one_scoring_surface_scores() -> None:
+    data, replicates = declared_replicates()
+    # The laws are laws of the rows the study fitted, with their observed outcomes.
+    assert replicates.rows == tuple(range(REPLICATE_ROWS))
+    assert len(replicates.laws) == REPLICATE_ROWS
+    assert replicates.n_sims == REPLICATE_SIMS
+    assert replicates.target == pa.Target("y", "analysis sample", "outcome units")
+    assert replicates.model == "bayesian.gcomp"
+    assert np.array_equal(np.asarray(replicates.outcomes), data["y"])
+    # Independent oracle for the replicate location: the replicate mean of a row is the least
+    # squares fitted value of the outcome model, up to Monte Carlo and posterior spread.
+    design = np.column_stack([np.ones(REPLICATE_ROWS), data["t"], data["z"]])
+    beta, *_ = np.linalg.lstsq(design, data["y"], rcond=None)
+    fitted = design @ beta
+    draws = np.asarray([law.draws for law in replicates.laws])
+    assert draws.shape == (REPLICATE_ROWS, REPLICATE_SIMS)
+    assert np.mean(np.abs(draws.mean(axis=1) - fitted)) < 0.1
+    residual_sd = float(np.sqrt(np.sum((data["y"] - fitted) ** 2) / (REPLICATE_ROWS - 3)))
+    assert draws.std(axis=1, ddof=1).mean() == pytest.approx(residual_sd, rel=0.25)
+    # The scored CRPS equals an independent CRPS of the returned replicates.
+    result = pa.assess(
+        replicates.observations(),
+        [replicates.predictor()],
+        pa.ValidationDesign.held_out_split(),
+        scores=("crps",),
+        dependence=pa.Dependence.iid(),
+    )
+    expected = mean_of(
+        [
+            sample_crps(list(law.draws), y)
+            for law, y in zip(replicates.laws, replicates.outcomes, strict=True)
+        ]
+    )
+    scored = result.report.predictor("posterior_predictive")
+    assert scored.score("crps").mean == pytest.approx(expected, abs=1e-9)
+    assert 0.0 < expected < 1.0
+    # Fitted to the very rows it is scored on: in sample, never held out.
+    assert scored.overlap.label == "in_sample"
+    assert scored.overlap.shared == REPLICATE_ROWS
+
+
+def test_replicates_fitted_to_the_scored_rows_are_refused_as_held_out() -> None:
+    _, replicates = declared_replicates()
+
+    def strict(fit: pa.FitDeclaration | None) -> pa.PredictiveAssessment:
+        return pa.assess(
+            replicates.observations(),
+            [replicates.predictor(fit=fit)],
+            pa.ValidationDesign.held_out_split(),
+            scores=("crps",),
+            dependence=pa.Dependence.iid(),
+            require_held_out=True,
+        )
+
+    expect(
+        refused(lambda: strict(None)),
+        "evidence_double_counted",
+        reason_details.predictive_assessment.IN_SAMPLE,
+    )
+    undeclared = pa.FitDeclaration.undeclared("the fit rows were not recorded")
+    expect(
+        refused(lambda: strict(undeclared)),
+        "evidence_overlap_unknown",
+        reason_details.predictive_assessment.OVERLAP_UNKNOWN,
+    )
+    # A target other than the one the laws are laws of is refused, never converted.
+    other = pa.Target("y", "another population", "outcome units")
+    error = refused(
+        lambda: pa.assess(
+            pa.Observations(
+                other, replicates.ids("analysis_rows"), "real", list(replicates.outcomes)
+            ),
+            [replicates.predictor()],
+            pa.ValidationDesign.held_out_split(),
+            scores=("crps",),
+            dependence=pa.Dependence.iid(),
+        )
+    )
+    assert error.reason_code == "quantity_semantics_mismatch"
+
+
+def test_replicates_are_retained_only_when_declared_and_within_the_row_bound() -> None:
+    data = replicate_data()
+    plain = analyze_replicates(data, None)
+    assert plain.posterior.predictive_replicates is None
+    with pytest.raises(CausalUnsupportedError) as missing:
+        pa.posterior_replicates(plain)
+    assert missing.value.reason_code == "option_not_applicable"
+    with pytest.raises(CausalUnsupportedError) as bounded:
+        analyze_replicates(data, pa.ReplicateBounds(REPLICATE_SIMS, REPLICATE_ROWS - 1))
+    assert bounded.value.reason_code == "invalid_argument"
+    assert "max_rows" in str(bounded.value)
+    # The bound is inclusive and the declaration is a typed value.
+    exact = analyze_replicates(data, pa.ReplicateBounds(REPLICATE_SIMS, REPLICATE_ROWS))
+    assert len(pa.posterior_replicates(exact).laws) == REPLICATE_ROWS
+    with pytest.raises(CausalValueError):
+        pa.ReplicateBounds(n_sims=0)
+    with pytest.raises(CausalValueError):
+        pa.ReplicateBounds(max_rows=0)
+    with pytest.raises(CausalTypeError):
+        ant.Bayesian(predictive_replicates=(REPLICATE_SIMS, 500))  # type: ignore[arg-type]
+
+
+def test_retained_replicates_are_admitted_against_the_execution_memory() -> None:
+    data = replicate_data()
+    # 120 x 60 doubles retained plus the transient draw-major copy cannot both fit in 70 kB.
+    tight = ant.ResourceLimits(memory_bytes=70_000)
+    control = analyze_replicates(data, None, execution=ant.Execution(seed=5, limits=tight))
+    assert control.answer.value == pytest.approx(1.5, abs=0.6)
+    with pytest.raises(CausalResourceError):
+        analyze_replicates(
+            data,
+            pa.ReplicateBounds(REPLICATE_SIMS, 500),
+            execution=ant.Execution(seed=5, limits=tight),
+        )
+    funded = analyze_replicates(
+        data,
+        pa.ReplicateBounds(REPLICATE_SIMS, 500),
+        execution=ant.Execution(seed=5, limits=ant.ResourceLimits(memory_bytes=10_000_000)),
+    )
+    assert len(pa.posterior_replicates(funded).laws) == REPLICATE_ROWS
+
+
 # --------------------------------------------------------------------------- artifact
 
 
@@ -757,17 +948,24 @@ def artifact_assessment(seed: int = 21, shift: float = 0.0) -> pa.PredictiveAsse
 
 def test_a_consumer_rescores_every_case_and_reproduces_the_report() -> None:
     result = artifact_assessment()
-    artifact = result.export("assessment-test")
+    artifact = bytes(result.export("assessment-test"))
     consumed = pa.consume_predictive_assessment_artifact(artifact, result.identity)
     assert consumed.report == result.report
     assert consumed.identity == result.identity
+    rng = random.Random(21)
+    ys = [rng.gauss(0.0, 1.0) for _ in range(30)]
+    for name, mu, sd in (("a", 0.0, 1.0), ("b", 0.3, 1.2)):
+        closed = mean_of([crps_gaussian(mu, sd, y) for y in ys])
+        assert consumed.report.predictor(name).score("crps").mean == pytest.approx(
+            closed, abs=1e-10
+        )
     for name in ("a", "b", "sample"):
         assert (
             consumed.report.predictor(name).score("crps").mean
             == result.report.predictor(name).score("crps").mean
         )
     # Same inputs, same bytes: the artifact is deterministic.
-    assert artifact_assessment().export("assessment-test") == artifact
+    assert bytes(artifact_assessment().export("assessment-test")) == artifact
 
 
 def test_an_assessment_of_other_laws_fails_the_retained_identity() -> None:
@@ -775,19 +973,21 @@ def test_an_assessment_of_other_laws_fails_the_retained_identity() -> None:
     other = artifact_assessment(shift=0.25)
     assert other.identity != original.identity
     error = refused(
-        lambda: pa.consume_predictive_assessment_artifact(other.export(), original.identity)
+        lambda: pa.consume_predictive_assessment_artifact(bytes(other.export()), original.identity)
     )
-    expect(error, "route_not_supported", "predictive_assessment.wrong_contract")
+    expect(error, "route_not_supported", reason_details.predictive_assessment.WRONG_CONTRACT)
     # An identity edited in transit is refused the same way.
     wire = dict(original.identity.wire)
     wire["configuration"] = "0" * 64
-    error = refused(lambda: pa.consume_predictive_assessment_artifact(original.export(), wire))
-    expect(error, "route_not_supported", "predictive_assessment.wrong_contract")
+    error = refused(
+        lambda: pa.consume_predictive_assessment_artifact(bytes(original.export()), wire)
+    )
+    expect(error, "route_not_supported", reason_details.predictive_assessment.WRONG_CONTRACT)
 
 
 def test_a_damaged_artifact_is_refused_and_never_consumed() -> None:
     original = artifact_assessment()
-    artifact = original.export()
+    artifact = bytes(original.export())
     for position in (len(artifact) // 2, len(artifact) // 3, len(artifact) - 5):
         flipped = bytearray(artifact)
         flipped[position] ^= 0xFF
@@ -803,7 +1003,7 @@ def test_a_damaged_artifact_is_refused_and_never_consumed() -> None:
     )
     assert error.reason_code == "invalid_argument"
     bounded = refused(lambda: pa.consume_predictive_assessment_artifact(artifact, max_cases=5))
-    assert bounded.detail.startswith("predictive_assessment.")
+    expect(bounded, "invalid_argument", reason_details.predictive_assessment.INVALID_ARTIFACT)
     with pytest.raises(CausalTypeError):
         pa.consume_predictive_assessment_artifact("not bytes")  # type: ignore[arg-type]
 
@@ -817,7 +1017,7 @@ def test_a_refused_assessment_exports_nothing() -> None:
             scores=("crps",),
         )
     )
-    assert error.detail == "predictive_assessment.law_callback_not_built"
+    assert error.detail == reason_details.predictive_assessment.LAW_CALLBACK_NOT_BUILT
 
 
 def test_listing_the_cases_in_another_order_gives_the_same_assessment() -> None:
@@ -844,7 +1044,7 @@ def test_listing_the_cases_in_another_order_gives_the_same_assessment() -> None:
 def test_a_fresh_process_rescores_the_artifact_against_the_retained_identity(tmp_path) -> None:
     result = artifact_assessment()
     path = tmp_path / "assessment.bin"
-    path.write_bytes(result.export("fresh"))
+    path.write_bytes(bytes(result.export("fresh")))
     script = (
         "import json, sys\n"
         "from antecedent import predictive_assessment as pa\n"

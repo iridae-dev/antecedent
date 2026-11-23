@@ -3,7 +3,7 @@
 //! and the reported scalar is bound to a currently attesting coverage record or refused
 //! for want of one.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::cohort_linear_effect::{NativeCohortFit, fit_cohort_linear_effect};
@@ -87,28 +87,23 @@ fn ctx() -> ExecutionContext {
 }
 
 #[test]
-fn a_native_fit_is_bound_to_its_record_or_refused_for_want_of_one() {
+fn a_native_fit_reports_its_interval_with_calibration_status() {
     let (x, t, y) = data(400);
     let native = native_fit(&x, &t, &y);
     let source = source_of(native.export(), &x[..100]);
     let bytes = CohortIntervalArtifactWire::encode(&native, &source, 0.95).unwrap();
-    match CohortIntervalArtifactWire::measure(&bytes, &ctx()) {
-        Ok(measured) => {
-            let scalar = &measured.report().scalars[0];
-            assert_eq!(measured.report().route, ROUTE);
-            assert_eq!(scalar.calibration.status, "calibrated");
-            assert!(scalar.lower <= scalar.point && scalar.point <= scalar.upper);
-            let loaded =
-                MeasuredInference::consume(measured.export(), measured.expectation(), &ctx())
-                    .unwrap();
-            assert_eq!(loaded.export(), measured.export());
-        }
-        Err(error) => {
-            let text = format!("{error:?}");
-            assert!(text.contains("cell_not_licensed"), "{text}");
-            assert!(text.contains("record_not_attesting"), "{text}");
-        }
-    }
+    let measured = CohortIntervalArtifactWire::measure(&bytes, &ctx()).unwrap();
+    let scalar = &measured.report().scalars[0];
+    assert_eq!(measured.report().route, ROUTE);
+    // Calibration annotates the interval; it never withholds it.
+    assert!(
+        ["calibrated", "not_measured", "outside_measured_scope", "measured_below_nominal"]
+            .contains(&scalar.calibration.status.as_str())
+    );
+    assert!(scalar.lower <= scalar.point && scalar.point <= scalar.upper);
+    let loaded =
+        MeasuredInference::consume(measured.export(), measured.expectation(), &ctx()).unwrap();
+    assert_eq!(loaded.export(), measured.export());
 }
 
 #[test]
@@ -138,7 +133,12 @@ fn a_declared_export_with_a_forged_marker_is_refused_with_its_own_detail() {
     let bytes = antecedent_io::to_cbor(&wire).unwrap();
     let error = CohortIntervalArtifactWire::measure(&bytes, &ctx()).unwrap_err();
     let text = format!("{error:?}");
-    assert!(text.contains("cohort_decision.interval_requires_native_fit"), "{text}");
+    assert!(
+        text.contains(
+            antecedent_core::reason_details::cohort_decision::INTERVAL_REQUIRES_NATIVE_FIT
+        ),
+        "{text}"
+    );
     let _ = fit_cohort_linear_effect(&y, &t, &[&x]).unwrap();
 }
 

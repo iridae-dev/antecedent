@@ -1,7 +1,7 @@
 //! Evidence ledger: overlap, mass accounting, double-counting refusals,
 //! distinct operations, transport provenance and downstream revalidation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::ops::Range;
 
@@ -95,7 +95,7 @@ fn a_registered_result_records_the_once_counted_mass() {
     let mut ledger = EvidenceLedger::new();
     let a = add(&mut ledger, data("a", 0..100));
     let b = add(&mut ledger, data("b", 50..150));
-    // pooling with a declared covariance that carries the cross term is licensed
+    // pooling with a declared covariance that carries the cross term is supported
     let covariance = digest(9);
     let result = ledger
         .combine(pooling(
@@ -103,7 +103,7 @@ fn a_registered_result_records_the_once_counted_mass() {
             &[a, b],
             PoolingDependence::DeclaredCovariance { covariance, has_cross_covariance: true },
         ))
-        .expect("covariance-preserving pooling is licensed");
+        .expect("covariance-preserving pooling is supported");
     let record = ledger.result(result).expect("record");
     assert_eq!(record.mass.declared_slots, 200);
     assert_eq!(record.mass.distinct_observations, 150);
@@ -139,7 +139,11 @@ fn a_duplicate_re_entering_is_refused() {
     let error = ledger
         .combine(pooling("p", &[a, copy], PoolingDependence::Independent))
         .expect_err("a duplicate is not independent evidence");
-    expect_refusal(&error, "evidence_double_counted", "evidence_ledger.reentry_duplicate");
+    expect_refusal(
+        &error,
+        "evidence_double_counted",
+        antecedent_core::reason_details::evidence_ledger::REENTRY_DUPLICATE,
+    );
     assert_eq!(error.sources.len(), 2);
 }
 
@@ -155,7 +159,11 @@ fn a_transform_re_entering_is_refused() {
     let error = ledger
         .combine(pooling("p", &[a, scaled], PoolingDependence::Independent))
         .expect_err("a transform of the same observations is not new evidence");
-    expect_refusal(&error, "evidence_double_counted", "evidence_ledger.reentry_transform");
+    expect_refusal(
+        &error,
+        "evidence_double_counted",
+        antecedent_core::reason_details::evidence_ledger::REENTRY_TRANSFORM,
+    );
 }
 
 /// A prior built from the same data as the likelihood (a power prior), and a
@@ -182,7 +190,7 @@ fn prior_plus_likelihood_re_entry_is_refused() {
     expect_refusal(
         &error,
         "evidence_double_counted",
-        "evidence_ledger.reentry_prior_plus_likelihood",
+        antecedent_core::reason_details::evidence_ledger::REENTRY_PRIOR_PLUS_LIKELIHOOD,
     );
 
     // the posterior carries the likelihood's observations; pooling it with
@@ -202,10 +210,10 @@ fn prior_plus_likelihood_re_entry_is_refused() {
     expect_refusal(
         &error,
         "evidence_double_counted",
-        "evidence_ledger.reentry_prior_plus_likelihood",
+        antecedent_core::reason_details::evidence_ledger::REENTRY_PRIOR_PLUS_LIKELIHOOD,
     );
 
-    // an elicited prior with no data origin is licensed beside the likelihood
+    // an elicited prior with no data origin is supported beside the likelihood
     ledger
         .combine(CombinationRequest {
             label: "borrow_elicited".to_owned(),
@@ -233,7 +241,7 @@ fn an_external_claim_built_from_used_data_is_refused() {
     expect_refusal(
         &error,
         "evidence_double_counted",
-        "evidence_ledger.reentry_derived_from_used_data",
+        antecedent_core::reason_details::evidence_ledger::REENTRY_DERIVED_FROM_USED_DATA,
     );
     // the derived claim inherits the observations through lineage
     assert_eq!(ledger.mass_account(&[trial, claim]).expect("mass").repeated_slots, 25);
@@ -250,7 +258,7 @@ fn an_external_claim_built_from_used_data_is_refused() {
     expect_refusal(
         &error,
         "evidence_double_counted",
-        "evidence_ledger.reentry_derived_from_used_data",
+        antecedent_core::reason_details::evidence_ledger::REENTRY_DERIVED_FROM_USED_DATA,
     );
 }
 
@@ -262,11 +270,19 @@ fn undeclared_lineage_with_shared_rows_and_repeated_sources_are_refused() {
     let error = ledger
         .combine(pooling("p", &[a, b], PoolingDependence::Independent))
         .expect_err("shared rows");
-    expect_refusal(&error, "evidence_double_counted", "evidence_ledger.shared_observations");
+    expect_refusal(
+        &error,
+        "evidence_double_counted",
+        antecedent_core::reason_details::evidence_ledger::SHARED_OBSERVATIONS,
+    );
     let error = ledger
         .combine(pooling("p", &[a, a], PoolingDependence::Independent))
         .expect_err("one source twice");
-    expect_refusal(&error, "evidence_double_counted", "evidence_ledger.repeated_source");
+    expect_refusal(
+        &error,
+        "evidence_double_counted",
+        antecedent_core::reason_details::evidence_ledger::REPEATED_SOURCE,
+    );
 }
 
 #[test]
@@ -274,7 +290,11 @@ fn the_same_evidence_is_not_added_twice_and_rows_are_not_repeated_in_a_source() 
     let mut ledger = EvidenceLedger::new();
     add(&mut ledger, data("a", 0..10));
     let error = ledger.add_source(data("a", 0..10)).expect_err("same identity");
-    expect_refusal(&error, "evidence_double_counted", "evidence_ledger.duplicate_source");
+    expect_refusal(
+        &error,
+        "evidence_double_counted",
+        antecedent_core::reason_details::evidence_ledger::DUPLICATE_SOURCE,
+    );
 
     let mut rows = obs(0..5);
     rows.push(rows[0]);
@@ -283,7 +303,11 @@ fn the_same_evidence_is_not_added_twice_and_rows_are_not_repeated_in_a_source() 
             SourceDeclaration::new("dup_rows", SourceKind::ObservationSet).with_observations(rows),
         )
         .expect_err("a repeated observation inside one source");
-    expect_refusal(&error, "evidence_double_counted", "evidence_ledger.duplicate_row");
+    expect_refusal(
+        &error,
+        "evidence_double_counted",
+        antecedent_core::reason_details::evidence_ledger::DUPLICATE_ROW,
+    );
 }
 
 #[test]
@@ -297,7 +321,11 @@ fn lineage_must_agree_with_declared_rows() {
                 .with_lineage(Lineage::Duplicate { of: a }),
         )
         .expect_err("a duplicate has the same rows");
-    expect_refusal(&error, "invalid_argument", "evidence_ledger.lineage_rows_mismatch");
+    expect_refusal(
+        &error,
+        "invalid_argument",
+        antecedent_core::reason_details::evidence_ledger::LINEAGE_ROWS_MISMATCH,
+    );
     let error = ledger
         .add_source(
             SourceDeclaration::new("not_a_subset", SourceKind::ObservationSet)
@@ -305,7 +333,11 @@ fn lineage_must_agree_with_declared_rows() {
                 .with_lineage(Lineage::Subset { of: a }),
         )
         .expect_err("a subset lies inside its parent");
-    expect_refusal(&error, "invalid_argument", "evidence_ledger.lineage_rows_mismatch");
+    expect_refusal(
+        &error,
+        "invalid_argument",
+        antecedent_core::reason_details::evidence_ledger::LINEAGE_ROWS_MISMATCH,
+    );
     // a proper subset is accepted and overlaps its parent
     let subset = add(
         &mut ledger,
@@ -333,7 +365,11 @@ fn unknown_overlap_is_never_promoted_to_independent() {
     let error = ledger
         .combine(pooling("p", &[a, vendor], PoolingDependence::Independent))
         .expect_err("independence is not assumed");
-    expect_refusal(&error, "evidence_overlap_unknown", "evidence_ledger.overlap_unknown");
+    expect_refusal(
+        &error,
+        "evidence_overlap_unknown",
+        antecedent_core::reason_details::evidence_ledger::OVERLAP_UNKNOWN,
+    );
 
     // a diagonal covariance states independence, which is not known either
     let error = ledger
@@ -346,9 +382,13 @@ fn unknown_overlap_is_never_promoted_to_independent() {
             },
         ))
         .expect_err("a diagonal covariance does not establish independence");
-    expect_refusal(&error, "evidence_overlap_unknown", "evidence_ledger.overlap_unknown");
+    expect_refusal(
+        &error,
+        "evidence_overlap_unknown",
+        antecedent_core::reason_details::evidence_ledger::OVERLAP_UNKNOWN,
+    );
 
-    // an assumption range is licensed, and is labelled as one
+    // an assumption range is supported, and is labelled as one
     let ranged = ledger
         .combine(pooling(
             "ranged",
@@ -360,11 +400,8 @@ fn unknown_overlap_is_never_promoted_to_independent() {
     assert_eq!(record.claim_class, ClaimClass::AssumptionRange);
     assert!(record.mass.unknown_sources.contains(&vendor));
     assert!(record.observations_digest.is_none());
-    // and nothing licenses an interval from it
-    let error = ledger.request_interval(ranged).expect_err("closed");
-    expect_refusal(&error, "cell_not_licensed", "evidence_ledger.interval_not_licensed");
 
-    // a covariance with cross terms is licensed point-only
+    // a covariance with cross terms is supported point-only
     ledger
         .combine(pooling(
             "cross",
@@ -402,7 +439,11 @@ fn assumption_ranges_must_stay_inside_the_definite_interval() {
                 PoolingDependence::AssumptionRange { rho_lo: lo, rho_hi: hi },
             ))
             .expect_err("range outside (-1/(k-1), 1)");
-        expect_refusal(&error, "invalid_argument", "evidence_ledger.invalid_declaration");
+        expect_refusal(
+            &error,
+            "invalid_argument",
+            antecedent_core::reason_details::evidence_ledger::INVALID_DECLARATION,
+        );
     }
 }
 
@@ -419,7 +460,11 @@ fn each_operation_has_its_own_policy_on_the_same_overlapping_pair() {
     let error = ledger
         .combine(pooling("pool", &[a, b], PoolingDependence::Independent))
         .expect_err("pooling");
-    expect_refusal(&error, "evidence_double_counted", "evidence_ledger.shared_observations");
+    expect_refusal(
+        &error,
+        "evidence_double_counted",
+        antecedent_core::reason_details::evidence_ledger::SHARED_OBSERVATIONS,
+    );
 
     // Bayesian borrowing: likelihood sources must be independent as well
     let error = ledger
@@ -432,7 +477,11 @@ fn each_operation_has_its_own_policy_on_the_same_overlapping_pair() {
             replaces: None,
         })
         .expect_err("borrowing");
-    expect_refusal(&error, "evidence_double_counted", "evidence_ledger.shared_observations");
+    expect_refusal(
+        &error,
+        "evidence_double_counted",
+        antecedent_core::reason_details::evidence_ledger::SHARED_OBSERVATIONS,
+    );
 
     // causal transport: native A and a claim transported from data overlapping A
     let transported = add(
@@ -451,7 +500,11 @@ fn each_operation_has_its_own_policy_on_the_same_overlapping_pair() {
             replaces: None,
         })
         .expect_err("transport");
-    expect_refusal(&error, "evidence_double_counted", "evidence_ledger.native_and_transported");
+    expect_refusal(
+        &error,
+        "evidence_double_counted",
+        antecedent_core::reason_details::evidence_ledger::NATIVE_AND_TRANSPORTED,
+    );
 
     // repeated use of the same observations is a declared, distinct operation
     let reuse_stage = ledger
@@ -463,13 +516,13 @@ fn each_operation_has_its_own_policy_on_the_same_overlapping_pair() {
             },
             replaces: None,
         })
-        .expect("repeated use is licensed and counted once");
+        .expect("repeated use is supported and counted once");
     let record = ledger.result(reuse_stage).expect("record");
     assert!(record.data_reuse);
     assert_eq!(record.operation.kind(), SynthesisKind::RepeatedObservationUse);
     assert_eq!(record.mass.distinct_observations, 150);
 
-    // covariance-preserving pooling is licensed; citing it again counts once
+    // covariance-preserving pooling is supported; citing it again counts once
     let pooled = ledger
         .combine(pooling(
             "pool_cov",
@@ -505,7 +558,7 @@ fn each_operation_has_its_own_policy_on_the_same_overlapping_pair() {
     expect_refusal(
         &error,
         "evidence_double_counted",
-        "evidence_ledger.diagonal_covariance_shared_rows",
+        antecedent_core::reason_details::evidence_ledger::DIAGONAL_COVARIANCE_SHARED_ROWS,
     );
 }
 
@@ -532,12 +585,20 @@ fn unknown_dependence_is_refused_by_every_operation_that_needs_it_known() {
             likelihood: vec![a],
         },
     );
-    expect_refusal(&error, "evidence_overlap_unknown", "evidence_ledger.overlap_unknown");
+    expect_refusal(
+        &error,
+        "evidence_overlap_unknown",
+        antecedent_core::reason_details::evidence_ledger::OVERLAP_UNKNOWN,
+    );
     let error = refused(
         &mut ledger,
         SynthesisOperation::CausalTransport { transported: vec![claim], native: vec![a] },
     );
-    expect_refusal(&error, "evidence_overlap_unknown", "evidence_ledger.overlap_unknown");
+    expect_refusal(
+        &error,
+        "evidence_overlap_unknown",
+        antecedent_core::reason_details::evidence_ledger::OVERLAP_UNKNOWN,
+    );
     let error = refused(
         &mut ledger,
         SynthesisOperation::RepeatedObservationUse {
@@ -545,7 +606,11 @@ fn unknown_dependence_is_refused_by_every_operation_that_needs_it_known() {
             stage: "later".to_owned(),
         },
     );
-    expect_refusal(&error, "evidence_overlap_unknown", "evidence_ledger.overlap_unknown");
+    expect_refusal(
+        &error,
+        "evidence_overlap_unknown",
+        antecedent_core::reason_details::evidence_ledger::OVERLAP_UNKNOWN,
+    );
 }
 
 #[test]
@@ -556,7 +621,11 @@ fn operation_arity_and_kinds_are_checked() {
     let error = ledger
         .combine(pooling("one", &[a], PoolingDependence::Independent))
         .expect_err("a pool needs two");
-    expect_refusal(&error, "invalid_argument", "evidence_ledger.operation_arity");
+    expect_refusal(
+        &error,
+        "invalid_argument",
+        antecedent_core::reason_details::evidence_ledger::OPERATION_ARITY,
+    );
     let error = ledger
         .combine(CombinationRequest {
             label: "not_a_prior".to_owned(),
@@ -567,7 +636,11 @@ fn operation_arity_and_kinds_are_checked() {
             replaces: None,
         })
         .expect_err("a prior has kind prior");
-    expect_refusal(&error, "invalid_argument", "evidence_ledger.invalid_declaration");
+    expect_refusal(
+        &error,
+        "invalid_argument",
+        antecedent_core::reason_details::evidence_ledger::INVALID_DECLARATION,
+    );
 }
 
 // -- transport provenance --------------------------------------------------------------------------
@@ -624,7 +697,11 @@ fn a_transported_claim_never_counts_as_native_target_data() {
             replaces: None,
         })
         .expect_err("transport identity missing");
-    expect_refusal(&error, "invalid_argument", "evidence_ledger.transport_identity_missing");
+    expect_refusal(
+        &error,
+        "invalid_argument",
+        antecedent_core::reason_details::evidence_ledger::TRANSPORT_IDENTITY_MISSING,
+    );
 
     // a transported claim in the native slot
     let error = ledger
@@ -637,7 +714,11 @@ fn a_transported_claim_never_counts_as_native_target_data() {
             replaces: None,
         })
         .expect_err("same source both native and transported");
-    expect_refusal(&error, "evidence_double_counted", "evidence_ledger.native_and_transported");
+    expect_refusal(
+        &error,
+        "evidence_double_counted",
+        antecedent_core::reason_details::evidence_ledger::NATIVE_AND_TRANSPORTED,
+    );
 
     // another transported claim in the native slot
     let other = add(
@@ -656,13 +737,21 @@ fn a_transported_claim_never_counts_as_native_target_data() {
             replaces: None,
         })
         .expect_err("a transported claim is not native");
-    expect_refusal(&error, "invalid_argument", "evidence_ledger.transported_as_native");
+    expect_refusal(
+        &error,
+        "invalid_argument",
+        antecedent_core::reason_details::evidence_ledger::TRANSPORTED_AS_NATIVE,
+    );
 
     // raw observations are not transported
     let error = ledger
         .add_source(data("raw", 500..510).with_transport(transport("target")))
         .expect_err("observations are not transported");
-    expect_refusal(&error, "invalid_argument", "evidence_ledger.invalid_declaration");
+    expect_refusal(
+        &error,
+        "invalid_argument",
+        antecedent_core::reason_details::evidence_ledger::INVALID_DECLARATION,
+    );
 }
 
 /// The same source as native and as transported: pooling refuses it even
@@ -688,7 +777,11 @@ fn the_same_source_native_and_transported_is_refused_even_with_a_covariance() {
             },
         ))
         .expect_err("native and transported");
-    expect_refusal(&error, "evidence_double_counted", "evidence_ledger.native_and_transported");
+    expect_refusal(
+        &error,
+        "evidence_double_counted",
+        antecedent_core::reason_details::evidence_ledger::NATIVE_AND_TRANSPORTED,
+    );
 }
 
 // -- operations and downstream revalidation -------------------------------------------------------------
@@ -760,15 +853,27 @@ fn withdrawing_a_source_classifies_and_refuses_dependents() {
         .ledger
         .combine(pooling("again", &[s.s1, s.s3], PoolingDependence::Independent))
         .expect_err("withdrawn");
-    expect_refusal(&error, "evidence_source_withdrawn", "evidence_ledger.source_withdrawn");
+    expect_refusal(
+        &error,
+        "evidence_source_withdrawn",
+        antecedent_core::reason_details::evidence_ledger::SOURCE_WITHDRAWN,
+    );
     let error = s
         .ledger
         .combine(pooling("via_model", &[s.model, s.s2], PoolingDependence::Independent))
         .expect_err("the model rests on a withdrawn source");
-    expect_refusal(&error, "evidence_source_withdrawn", "evidence_ledger.source_withdrawn");
+    expect_refusal(
+        &error,
+        "evidence_source_withdrawn",
+        antecedent_core::reason_details::evidence_ledger::SOURCE_WITHDRAWN,
+    );
     // a withdrawn result is not usable and cannot be cited again
     let error = s.ledger.require_valid(s.r_s1_s2).expect_err("withdrawn result");
-    expect_refusal(&error, "evidence_source_withdrawn", "evidence_ledger.result_not_valid");
+    expect_refusal(
+        &error,
+        "evidence_source_withdrawn",
+        antecedent_core::reason_details::evidence_ledger::RESULT_NOT_VALID,
+    );
     let error = s
         .ledger
         .combine(CombinationRequest {
@@ -777,10 +882,18 @@ fn withdrawing_a_source_classifies_and_refuses_dependents() {
             replaces: None,
         })
         .expect_err("withdrawn result");
-    expect_refusal(&error, "evidence_source_withdrawn", "evidence_ledger.result_not_valid");
+    expect_refusal(
+        &error,
+        "evidence_source_withdrawn",
+        antecedent_core::reason_details::evidence_ledger::RESULT_NOT_VALID,
+    );
     // a withdrawn source cannot be withdrawn twice
     let error = s.ledger.withdraw_source(s.s1, "again").expect_err("already withdrawn");
-    expect_refusal(&error, "evidence_source_withdrawn", "evidence_ledger.source_withdrawn");
+    expect_refusal(
+        &error,
+        "evidence_source_withdrawn",
+        antecedent_core::reason_details::evidence_ledger::SOURCE_WITHDRAWN,
+    );
 
     // the explicit revalidation reports the same classification and is stable
     let first = s.ledger.revalidate_downstream().expect("revalidate");
@@ -810,7 +923,11 @@ fn superseding_a_model_marks_dependents_for_recompute_and_a_recompute_replaces_t
         .ledger
         .combine(pooling("stale", &[s.model, s.s2], PoolingDependence::Independent))
         .expect_err("superseded");
-    expect_refusal(&error, "evidence_source_withdrawn", "evidence_ledger.source_superseded");
+    expect_refusal(
+        &error,
+        "evidence_source_withdrawn",
+        antecedent_core::reason_details::evidence_ledger::SOURCE_SUPERSEDED,
+    );
     assert!(error.message.contains(&model_v2.to_hex()));
 
     // recompute on the successor; the old result is retired and preserved
@@ -839,7 +956,11 @@ fn superseding_a_model_marks_dependents_for_recompute_and_a_recompute_replaces_t
             replaces: Some(s.r_model),
         })
         .expect_err("already replaced");
-    expect_refusal(&error, "invalid_argument", "evidence_ledger.unknown_result");
+    expect_refusal(
+        &error,
+        "invalid_argument",
+        antecedent_core::reason_details::evidence_ledger::UNKNOWN_RESULT,
+    );
 }
 
 #[test]
@@ -853,7 +974,11 @@ fn update_replace_and_supersede_have_distinct_rules() {
 
     // update only grows
     let error = ledger.update_source(s, data("s_shrunk", 0..5)).expect_err("drops rows");
-    expect_refusal(&error, "invalid_argument", "evidence_ledger.update_drops_rows");
+    expect_refusal(
+        &error,
+        "invalid_argument",
+        antecedent_core::reason_details::evidence_ledger::UPDATE_DROPS_ROWS,
+    );
     let grown = ledger.update_source(s, data("s_grown", 0..20)).expect("grows").clone();
     assert_eq!(grown.operation.name(), "update");
     // replace may drop (a correction)
@@ -866,7 +991,11 @@ fn update_replace_and_supersede_have_distinct_rules() {
     let error = ledger
         .supersede_source(corrected.effect.created_source.expect("id"), data("x", 0..1))
         .expect_err("observations are updated or replaced, not superseded");
-    expect_refusal(&error, "invalid_argument", "evidence_ledger.supersede_kind_mismatch");
+    expect_refusal(
+        &error,
+        "invalid_argument",
+        antecedent_core::reason_details::evidence_ledger::SUPERSEDE_KIND_MISMATCH,
+    );
     let error = ledger
         .supersede_source(
             model,
@@ -874,7 +1003,11 @@ fn update_replace_and_supersede_have_distinct_rules() {
                 .with_observations(obs(0..10)),
         )
         .expect_err("a claim does not supersede a model");
-    expect_refusal(&error, "invalid_argument", "evidence_ledger.supersede_kind_mismatch");
+    expect_refusal(
+        &error,
+        "invalid_argument",
+        antecedent_core::reason_details::evidence_ledger::SUPERSEDE_KIND_MISMATCH,
+    );
     let error = ledger
         .replace_source(
             model,
@@ -882,10 +1015,18 @@ fn update_replace_and_supersede_have_distinct_rules() {
                 .with_observations(obs(0..10)),
         )
         .expect_err("kinds match");
-    expect_refusal(&error, "invalid_argument", "evidence_ledger.kind_mismatch");
+    expect_refusal(
+        &error,
+        "invalid_argument",
+        antecedent_core::reason_details::evidence_ledger::KIND_MISMATCH,
+    );
     // a retired source is not changed again
     let error = ledger.update_source(s, data("s_again", 0..30)).expect_err("retired");
-    expect_refusal(&error, "evidence_source_withdrawn", "evidence_ledger.source_superseded");
+    expect_refusal(
+        &error,
+        "evidence_source_withdrawn",
+        antecedent_core::reason_details::evidence_ledger::SOURCE_SUPERSEDED,
+    );
 }
 
 #[test]
@@ -895,7 +1036,11 @@ fn an_update_of_unknown_observations_is_not_verifiable() {
     let error = ledger
         .update_source(vendor, SourceDeclaration::new("v2", SourceKind::ExternalClaim))
         .expect_err("monotone growth cannot be shown");
-    expect_refusal(&error, "evidence_overlap_unknown", "evidence_ledger.overlap_unknown");
+    expect_refusal(
+        &error,
+        "evidence_overlap_unknown",
+        antecedent_core::reason_details::evidence_ledger::OVERLAP_UNKNOWN,
+    );
 }
 
 #[test]
@@ -1031,10 +1176,10 @@ fn relations_use_the_composition_vocabulary() {
 }
 
 #[test]
-fn bounds_are_enforced() {
+fn counts_are_not_capped_and_blank_labels_are_refused() {
     let mut ledger = EvidenceLedger::new();
-    let ids: Vec<SourceId> = (0..=u32::try_from(MAX_COMBINATION_SOURCES)
-        .expect("the bound fits u32"))
+    let count = u32::try_from(MAX_COMBINATION_SOURCES).expect("the default bound fits u32") + 1;
+    let ids: Vec<SourceId> = (0..count)
         .map(|i| {
             #[allow(
                 clippy::range_plus_one,
@@ -1044,14 +1189,17 @@ fn bounds_are_enforced() {
             add(&mut ledger, data(&format!("s{i}"), one))
         })
         .collect();
-    let error = ledger
-        .combine(pooling("too_many", &ids, PoolingDependence::Independent))
-        .expect_err("more sources than a combination may name");
-    expect_refusal(&error, "invalid_argument", "evidence_ledger.limit_exceeded");
+    ledger
+        .combine(pooling("many_sources", &ids, PoolingDependence::Independent))
+        .expect("a combination may name more sources than the decoder default");
     let error = ledger
         .add_source(SourceDeclaration::new("  ", SourceKind::ObservationSet))
         .expect_err("empty label");
-    expect_refusal(&error, "invalid_argument", "evidence_ledger.invalid_declaration");
+    expect_refusal(
+        &error,
+        "invalid_argument",
+        antecedent_core::reason_details::evidence_ledger::INVALID_DECLARATION,
+    );
 }
 
 // -- evidence reuse and repeated observation use -----------------------------------------------
@@ -1122,7 +1270,11 @@ fn repeated_observation_use_is_flagged_and_stays_flagged_when_cited() {
             replaces: None,
         })
         .expect_err("a stage is named");
-    expect_refusal(&error, "invalid_argument", "evidence_ledger.operation_arity");
+    expect_refusal(
+        &error,
+        "invalid_argument",
+        antecedent_core::reason_details::evidence_ledger::OPERATION_ARITY,
+    );
 }
 
 #[test]
@@ -1143,20 +1295,21 @@ fn a_reuse_of_a_stale_result_is_refused() {
             replaces: None,
         })
         .expect_err("a stale result is recomputed before it is cited");
-    expect_refusal(&error, "evidence_source_withdrawn", "evidence_ledger.result_not_valid");
+    expect_refusal(
+        &error,
+        "evidence_source_withdrawn",
+        antecedent_core::reason_details::evidence_ledger::RESULT_NOT_VALID,
+    );
 }
 
 #[test]
-fn no_interval_or_posterior_is_licensed_from_pooled_evidence() {
+fn no_interval_or_posterior_is_supported_from_pooled_evidence() {
     let mut ledger = EvidenceLedger::new();
     let a = add(&mut ledger, data("a", 0..10));
     let b = add(&mut ledger, data("b", 10..20));
     let pooled =
         ledger.combine(pooling("p", &[a, b], PoolingDependence::Independent)).expect("pooled");
     let record = ledger.result(pooled).expect("record");
-    // the ledger licenses a point-only statement
+    // the ledger supports a point-only statement
     assert_eq!(record.claim_class, ClaimClass::PointOnly);
-    let error = ledger.request_interval(pooled).expect_err("the interval route is closed");
-    expect_refusal(&error, "cell_not_licensed", "evidence_ledger.interval_not_licensed");
-    assert!(error.message.contains("point_only"), "{}", error.message);
 }

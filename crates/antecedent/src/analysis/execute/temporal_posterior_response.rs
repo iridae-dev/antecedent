@@ -14,13 +14,12 @@ use super::{
     IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
     IdentifiedKeyWeights, IdentifierId, InferenceDiagnostics, InferenceMode, Instant, Intervention,
     ObservationSpec, OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite,
-    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, Strategy,
-    StudyResult, TableView, TabularData, TemporalAtomDesign, TemporalEffectQuery,
-    TemporalLinearAdjustment, TemporalRefutation, TemporalResponseEstimator, TimeSeriesData,
-    ValidationSink, WeightedGraphSamples, aggregate_effect_envelope, bayesian_gcomp,
-    bayesian_temporal_gcomp, elapsed_ns, envelope_refute_atoms, identify_cached_diagnostic,
-    provenance_ids, push_conflict_diagnostics,
-    push_graph_posterior_structural_aggregation_diagnostic, resolve_posterior_status,
+    ResponseFunctional, ResponseQuery, ResponseUncertainty, Strategy, StudyResult, TableView,
+    TabularData, TemporalAtomDesign, TemporalEffectQuery, TemporalLinearAdjustment,
+    TemporalRefutation, TemporalResponseEstimator, TimeSeriesData, ValidationSink,
+    WeightedGraphSamples, aggregate_effect_envelope, bayesian_gcomp, bayesian_temporal_gcomp,
+    elapsed_ns, envelope_refute_atoms, identify_cached_diagnostic, provenance_ids,
+    push_conflict_diagnostics, push_graph_posterior_structural_aggregation_diagnostic,
     resolve_structural_aggregation, run_envelope_bayesian_full_validation,
 };
 
@@ -89,13 +88,7 @@ pub(crate) fn dbn_posterior_response_supported(query: &ResponseQuery) -> Result<
             message: "graph-posterior InterventionResponse currently requires one intervention coordinate",
         });
     }
-    if matches!(
-        antecedent_estimate::plan_from_response_query(query),
-        Ok(Some(
-            antecedent_estimate::TemporalInterventionPlan::Sequential { .. }
-                | antecedent_estimate::TemporalInterventionPlan::Mechanisms { .. }
-        ))
-    ) {
+    if antecedent_estimate::requires_temporal_overlays(query) {
         return Err(CausalError::Unsupported {
             message: "DBN-posterior response supports TemporalResponseEstimator surfaces; \
                       Sequence overlays remain on the TemporalDag explicit path",
@@ -105,6 +98,7 @@ pub(crate) fn dbn_posterior_response_supported(query: &ResponseQuery) -> Result<
 }
 
 impl super::Study {
+    #[allow(clippy::too_many_lines, reason = "one linear execution: admit, fit, aggregate, label")]
     pub(super) fn execute_dbn_posterior_response(
         &self,
         data: &TimeSeriesData,
@@ -113,13 +107,17 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        super::series_weights::refuse_unread_series_weights(
+            data,
+            "the DBN graph-posterior response",
+        )?;
         let started = Instant::now();
-        let temporal = self.licensed_dbn_posterior_spec(gp, query, ctx)?;
+        let temporal = self.supported_dbn_posterior_spec(gp, query, ctx)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
         let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
-        let estimator_id = EstimatorId::temporal_response_for(&self.inference);
+        let estimator_id = EstimatorId::temporal_response_for(&self.settings.inference);
         let (identified, identify_cached) =
-            self.dbn_response_posterior_identification(gp, &vars, query, ctx)?;
+            self.dbn_response_posterior_identification(gp, &vars, query, physical, ctx)?;
         let inputs = DbnPosteriorInputs { data, query, temporal, treatment, outcome, ctx };
         let mut atoms = dbn_posterior_structural_atoms(&identified);
         let fits = self.fit_dbn_posterior_atoms(&inputs, &identified, &mut atoms)?;
@@ -151,6 +149,7 @@ impl super::Study {
             &inputs,
             (&identified, &weighted),
             GraphPosteriorScope { posterior: gp, vars: &vars },
+            mixed.aggregation_policy,
             &mut diagnostics,
         )?;
         if !scalar.is_finite() {
@@ -166,7 +165,12 @@ impl super::Study {
             diagnostics.push(warning.clone());
         }
         let DbnMixedResponse {
-            response, identification, conditional, structural_set, masses, ..
+            response,
+            identification,
+            conditional,
+            structural_set,
+            aggregation_policy,
+            masses,
         } = mixed;
 
         Ok(self.finish_identified_execute(
@@ -198,7 +202,7 @@ impl super::Study {
                     atoms,
                     masses,
                     structural_set,
-                    conditional,
+                    (conditional, aggregation_policy),
                 )),
                 predictive_checks,
                 bootstrap_replicates_requested: Some(None),
@@ -207,18 +211,24 @@ impl super::Study {
         ))
     }
 
-    /// The prepared DBN-posterior identification, built from the posterior
-    /// when the study carries no cache.
+    /// The prepared DBN-posterior identification, the product the plan's lowered
+    /// program retained at compile, or a build from the posterior when the study
+    /// carries neither.
     fn dbn_response_posterior_identification(
         &self,
         gp: &GraphPosterior,
         vars: &[antecedent_core::VariableId],
         query: &ResponseQuery,
+        physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<(Arc<crate::analysis::prepared::CachedDbnPosteriorIdentification>, bool), CausalError>
     {
-        Ok(if let Some(cache) = self.dbn_posterior_identification_cache.as_ref() {
+        Ok(if let Some(cache) = self.dbn_posterior_cache() {
             (Arc::clone(cache), true)
+        } else if let Some(cache) =
+            crate::analysis::lowering::plan_retained_dbn_posterior(self, physical)
+        {
+            (cache, false)
         } else {
             (
                 Arc::new(
@@ -226,7 +236,7 @@ impl super::Study {
                         gp,
                         vars,
                         query,
-                        EstimatorId::temporal_response_for(&self.inference),
+                        EstimatorId::temporal_response_for(&self.settings.inference),
                         ctx,
                     )?,
                 ),
@@ -236,25 +246,30 @@ impl super::Study {
     }
 
     /// The temporal specification of a DBN-posterior response, after the atom
-    /// kind, query, observation and memory-budget licenses.
-    fn licensed_dbn_posterior_spec<'q>(
+    /// kind, query, observation and memory-budget supports.
+    fn supported_dbn_posterior_spec<'q>(
         &self,
         gp: &GraphPosterior,
         query: &'q ResponseQuery,
         ctx: &ExecutionContext,
     ) -> Result<&'q antecedent_core::TemporalResponseSpec, CausalError> {
-        if !matches!(gp.atom_kind, antecedent_discovery::GraphPosteriorAtomKind::Dag) {
+        if !matches!(gp.atom_kind(), antecedent_discovery::GraphPosteriorAtomKind::Dag) {
             return Err(CausalError::Unsupported {
-                message: "DBN-posterior response is licensed for TemporalDag atoms; \
+                message: "DBN-posterior response is supported for TemporalDag atoms; \
                           TemporalCpdag/TemporalPag posterior atoms use the class-aware combiner",
             });
         }
         dbn_posterior_response_supported(query)?;
-        query.require_licensed_temporal_observation()?;
+        query.require_supported_temporal_observation()?;
         let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
             message: "DBN-posterior response requires TemporalResponseSpec".into(),
         })?;
-        enforce_temporal_response_memory_budget(query, temporal, self.bootstrap_replicates, ctx)?;
+        enforce_temporal_response_memory_budget(
+            query,
+            temporal,
+            self.settings.bootstrap_replicates,
+            ctx,
+        )?;
         Ok(temporal)
     }
 
@@ -297,40 +312,41 @@ impl super::Study {
             let identifications: Vec<_> =
                 aligned.iter().map(|entry| (&entry.estimand, &entry.indexer)).collect();
             let mut estimator = TemporalResponseEstimator::new();
-            estimator.inner.bootstrap_replicates = self.bootstrap_replicates;
-            let (response, conflict) = if let InferenceMode::Bayesian(cfg) = &self.inference {
-                let mut bayes = bayesian_gcomp(cfg, inner);
-                let (resolved, conflict) = resolve_temporal_response_prior(
-                    cfg, data, temporal, &aligned, treatment, outcome, inner,
-                )?;
-                bayes.prior = resolved;
-                (
-                    estimator.estimate_bayesian(
-                        data,
-                        antecedent_estimate::TemporalIdentification {
-                            horizons: &identifications,
-                            status: aggregate_status,
-                            assumptions: aggregate_assumptions,
-                        },
-                        query,
-                        &bayes,
-                        inner,
-                    ),
-                    conflict,
-                )
-            } else {
-                (
-                    estimator.estimate(
-                        data,
-                        &identifications,
-                        query,
-                        aggregate_status,
-                        aggregate_assumptions,
-                        inner,
-                    ),
-                    None,
-                )
-            };
+            estimator.inner.inference.bootstrap_replicates = self.settings.bootstrap_replicates;
+            let (response, conflict) =
+                if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
+                    let mut bayes = bayesian_gcomp(cfg, inner);
+                    let (resolved, conflict) = resolve_temporal_response_prior(
+                        cfg, data, temporal, &aligned, treatment, outcome, inner,
+                    )?;
+                    bayes.prior = resolved;
+                    (
+                        estimator.estimate_bayesian(
+                            data,
+                            antecedent_estimate::TemporalIdentification {
+                                horizons: &identifications,
+                                status: aggregate_status,
+                                assumptions: aggregate_assumptions,
+                            },
+                            query,
+                            &bayes,
+                            inner,
+                        ),
+                        conflict,
+                    )
+                } else {
+                    (
+                        estimator.estimate(
+                            data,
+                            &identifications,
+                            query,
+                            aggregate_status,
+                            aggregate_assumptions,
+                            inner,
+                        ),
+                        None,
+                    )
+                };
             if let Err(err @ antecedent_estimate::EstimationError::Refused { .. }) = response {
                 return Err(err.into());
             }
@@ -414,10 +430,10 @@ impl super::Study {
         }
         if weighted.len() > 1 {
             diagnostics.push(Diagnostic::new(
-                "estimate.response.dbn_posterior.uncertainty_withheld",
+                "estimate.response.dbn_posterior.no_uncertainty_method",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
-                if self.inference.is_bayesian() {
+                if self.settings.inference.is_bayesian() {
                     "multi-atom Bayesian DBN-posterior response withholds an aggregate \
                      credible band: graph-specific dispersion and a frozen-weight aggregate \
                      are different objects"
@@ -455,6 +471,7 @@ impl super::Study {
             &[(u64, f64, CausalResponse)],
         ),
         scope: GraphPosteriorScope<'_>,
+        aggregation_policy: crate::result::StructuralAggregationPolicy,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Result<
         (
@@ -467,11 +484,22 @@ impl super::Study {
         let is_intervention =
             matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
         let (refutations, predictive_checks, refute_diags) = if is_intervention
-            && (!matches!(self.refute, RefuteSuite::None) || !self.custom_validators.is_empty())
+            && (!matches!(self.settings.refute, RefuteSuite::None)
+                || !self.declared.custom_validators.is_empty())
         {
-            self.refute_dbn_posterior_intervention(data, query, identified, weighted, scope, ctx)?
+            let mix_scalar = matches!(
+                aggregation_policy,
+                crate::result::StructuralAggregationPolicy::SameEstimandWeightedMean
+            );
+            self.refute_dbn_posterior_intervention(
+                data,
+                query,
+                (identified, weighted),
+                (scope, mix_scalar),
+                ctx,
+            )?
         } else {
-            if !matches!(self.refute, RefuteSuite::None) {
+            if !matches!(self.settings.refute, RefuteSuite::None) {
                 diagnostics.push(Diagnostic::new(
                     "refute.temporal_response.skipped",
                     DiagnosticKind::Scientific,
@@ -489,9 +517,11 @@ impl super::Study {
         &self,
         data: &TimeSeriesData,
         query: &ResponseQuery,
-        identified: &crate::analysis::prepared::CachedDbnPosteriorIdentification,
-        weighted: &[(u64, f64, CausalResponse)],
-        scope: GraphPosteriorScope<'_>,
+        (identified, weighted): (
+            &crate::analysis::prepared::CachedDbnPosteriorIdentification,
+            &[(u64, f64, CausalResponse)],
+        ),
+        (scope, mix_scalar): (GraphPosteriorScope<'_>, bool),
         ctx: &ExecutionContext,
     ) -> Result<PulseWitnessReports, CausalError> {
         let GraphPosteriorScope { posterior: gp, vars } = scope;
@@ -502,9 +532,16 @@ impl super::Study {
             "refute.dbn_posterior.intervention_pulse_suite",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
-            "InterventionResponse cheap/full run the TemporalDag Pulse-native suite on each \
-             contributing atom against that atom's own Pulse witness and mix by frozen graph \
-             weight; the mixed check passes only if every atom passes",
+            if mix_scalar {
+                "InterventionResponse cheap/full run the TemporalDag Pulse-native suite on each \
+                 contributing atom against that atom's own Pulse witness and mix by frozen graph \
+                 weight; the mixed check passes only if every atom passes"
+            } else {
+                "InterventionResponse cheap/full run the TemporalDag Pulse-native suite on each \
+                 contributing atom against that atom's own Pulse witness; the atoms name \
+                 different or partially identified estimands, so the outer scalar mix is skipped \
+                 and per-atom reports are retained, not compared against a pooled mixture"
+            },
         )];
         let witness = DbnPulseWitness {
             data,
@@ -513,9 +550,10 @@ impl super::Study {
             pulse: &pulse,
             ate_query: &ate_query,
             tabular: &tabular,
+            mix_scalar,
             ctx,
         };
-        match &self.inference {
+        match &self.settings.inference {
             InferenceMode::Frequentist => self.refute_dbn_pulse_frequentist(&witness, notes),
             InferenceMode::Bayesian(cfg) => {
                 let reports = self.refute_dbn_pulse_bayesian(&witness, cfg, notes);
@@ -532,7 +570,7 @@ impl super::Study {
         witness: &DbnPulseWitness<'_>,
         mut notes: Vec<Diagnostic>,
     ) -> Result<PulseWitnessReports, CausalError> {
-        let DbnPulseWitness { data, identified, weighted, pulse, ate_query, tabular, ctx } =
+        let DbnPulseWitness { data, identified, weighted, pulse, ate_query, tabular, ctx, .. } =
             *witness;
         let mut refute_atoms = Vec::new();
         for (key, weight, _) in weighted {
@@ -547,7 +585,7 @@ impl super::Study {
                 estimand,
                 pulse,
                 indexer,
-                self.split.as_ref(),
+                self.declared.split.as_ref(),
                 ctx,
             )?;
             refute_atoms.push(EnvelopeRefuteAtom {
@@ -558,33 +596,55 @@ impl super::Study {
                 original: design.effect_estimate(atom.identification.required_assumptions.clone()),
             });
         }
-        let (reports, mix_notes) = EnvelopeRefutation {
-            data: tabular,
-            query: ate_query,
-            suite: self.refute,
-            estimator: "temporal.linear.adjustment",
-            custom: &self.custom_validators,
-            temporal: Some(TemporalRefutation {
-                query: pulse,
-                split: self.split.as_ref(),
-                time_index: data.time_index(),
-                gaps: false,
-            }),
-        }
-        .run(&refute_atoms, &mut EstimationWorkspace::default(), ctx)?;
-        notes.extend(mix_notes);
+        let run = |atoms: &[EnvelopeRefuteAtom]| {
+            EnvelopeRefutation {
+                data: tabular,
+                query: ate_query,
+                suite: self.settings.refute,
+                estimator: "temporal.linear.adjustment",
+                custom: &self.declared.custom_validators,
+                temporal: Some(TemporalRefutation {
+                    query: pulse,
+                    split: self.declared.split.as_ref(),
+                    time_index: data.time_index(),
+                    gaps: false,
+                }),
+            }
+            .run(atoms, &mut EstimationWorkspace::default(), ctx)
+        };
+        let reports = if witness.mix_scalar {
+            let (mixed, mix_notes) = run(&refute_atoms)?;
+            notes.extend(mix_notes);
+            mixed
+        } else {
+            let mut per_atom = Vec::new();
+            for atom in &refute_atoms {
+                let (atom_reports, atom_notes) = run(std::slice::from_ref(atom))?;
+                per_atom.extend(atom_reports);
+                notes.extend(
+                    atom_notes
+                        .into_iter()
+                        .filter(|note| note.code.as_ref() != "refute.envelope.effect_mixture"),
+                );
+            }
+            per_atom
+        };
         Ok((reports, Vec::new(), notes))
     }
 
     /// The Pulse-native refutation suite and full Bayesian validation on each
     /// contributing atom's Bayesian witness fit, aggregated by frozen weight.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one pass over the contributing atoms: group, refute, aggregate"
+    )]
     fn refute_dbn_pulse_bayesian(
         &self,
         witness: &DbnPulseWitness<'_>,
         cfg: &BayesianConfig,
         mut notes: Vec<Diagnostic>,
     ) -> Result<PulseWitnessReports, CausalError> {
-        let DbnPulseWitness { data, identified, weighted, pulse, ate_query, tabular, ctx } =
+        let DbnPulseWitness { data, identified, weighted, pulse, ate_query, tabular, ctx, .. } =
             *witness;
         let bayes = bayesian_temporal_gcomp(cfg, ctx);
         let mut ws = BayesianGCompWorkspace::default();
@@ -600,7 +660,14 @@ impl super::Study {
             let mut temporal_est = TemporalLinearAdjustment::new();
             temporal_est.inner.overlap = OverlapPolicy::ExplicitOverride;
             let prep = temporal_est
-                .prepare(data, estimand, pulse, indexer, self.split.as_ref(), &ctx.kernel_policy)
+                .prepare(
+                    data,
+                    estimand,
+                    pulse,
+                    indexer,
+                    self.declared.split.as_ref(),
+                    &ctx.kernel_policy,
+                )
                 .map_err(CausalError::from)?;
             let names =
                 antecedent_estimate::temporal_coefficient_names(data, estimand, pulse, indexer)
@@ -627,51 +694,71 @@ impl super::Study {
                 prior: bayes.inner.prior.clone(),
             });
         }
-        let (reports, mix_notes) = EnvelopeRefutation {
-            data: tabular,
-            query: ate_query,
-            suite: self.refute,
-            estimator: EstimatorId::BayesianTemporalGcomp.as_str(),
-            custom: &self.custom_validators,
-            temporal: Some(TemporalRefutation {
-                query: pulse,
-                split: self.split.as_ref(),
-                time_index: data.time_index(),
-                gaps: false,
-            }),
+        // Atoms that name one estimand are checked as one frozen-weight aggregate; atoms
+        // that do not are checked each against their own Pulse witness, never pooled.
+        #[allow(clippy::range_plus_one, reason = "the groups are half-open ranges of atoms")]
+        let groups: Vec<std::ops::Range<usize>> = if witness.mix_scalar {
+            std::iter::once(0..fits.len()).collect()
+        } else {
+            (0..fits.len()).map(|index| index..index + 1).collect()
+        };
+        let mut refutations = Vec::new();
+        let mut predictive = Vec::new();
+        for group in groups {
+            let (fits, draws, weighted) =
+                (&fits[group.clone()], &draws[group.clone()], &weighted[group]);
+            let (reports, mix_notes) = EnvelopeRefutation {
+                data: tabular,
+                query: ate_query,
+                suite: self.settings.refute,
+                estimator: EstimatorId::BayesianTemporalGcomp.as_str(),
+                custom: &self.declared.custom_validators,
+                temporal: Some(TemporalRefutation {
+                    query: pulse,
+                    split: self.declared.split.as_ref(),
+                    time_index: data.time_index(),
+                    gaps: false,
+                }),
+            }
+            .run(
+                &envelope_refute_atoms(fits)?,
+                &mut EstimationWorkspace::default(),
+                ctx,
+            )?;
+            refutations.extend(reports);
+            notes.extend(mix_notes.into_iter().filter(|note| {
+                witness.mix_scalar || note.code.as_ref() != "refute.envelope.effect_mixture"
+            }));
+            let flags = weighted
+                .iter()
+                .map(|(key, _, _)| (*key, GraphIdentFlag::Identified))
+                .collect::<Vec<_>>();
+            let graphs = WeightedGraphSamples::new(
+                weighted.iter().map(|(_, weight, _)| *weight).collect::<Vec<_>>(),
+                flags.iter().map(|(_, flag)| *flag).collect::<Vec<_>>(),
+                weighted.iter().map(|(key, _, _)| *key).collect::<Vec<_>>(),
+            )?;
+            let mut posterior = aggregate_effect_envelope(
+                &graphs,
+                draws,
+                InferenceDiagnostics::analytic("dbn_posterior_response_pulse_witness"),
+                EnvelopeOptions::default(),
+            )
+            .map_err(CausalError::from)?;
+            let pulse_mean = posterior
+                .effect_column()
+                .and_then(|eq| posterior.summaries.mean.get(eq).copied())
+                .unwrap_or(f64::NAN);
+            predictive.extend(run_envelope_bayesian_full_validation(
+                BayesianValidation { suite: self.settings.refute, cfg, estimator: &bayes.inner },
+                fits,
+                &mut posterior,
+                pulse_mean,
+                ctx,
+                super::super::latency::predictive_check_sims(self.latency_mode),
+                ValidationSink { refutations: &mut refutations, diagnostics: &mut notes },
+            )?);
         }
-        .run(&envelope_refute_atoms(&fits)?, &mut EstimationWorkspace::default(), ctx)?;
-        notes.extend(mix_notes);
-        let flags = weighted
-            .iter()
-            .map(|(key, _, _)| (*key, GraphIdentFlag::Identified))
-            .collect::<Vec<_>>();
-        let graphs = WeightedGraphSamples::new(
-            weighted.iter().map(|(_, weight, _)| *weight).collect::<Vec<_>>(),
-            flags.iter().map(|(_, flag)| *flag).collect::<Vec<_>>(),
-            weighted.iter().map(|(key, _, _)| *key).collect::<Vec<_>>(),
-        )?;
-        let mut posterior = aggregate_effect_envelope(
-            &graphs,
-            &draws,
-            InferenceDiagnostics::analytic("dbn_posterior_response_pulse_witness"),
-            EnvelopeOptions::default(),
-        )
-        .map_err(CausalError::from)?;
-        let mut refutations = reports;
-        let pulse_mean = posterior
-            .effect_column()
-            .and_then(|eq| posterior.summaries.mean.get(eq).copied())
-            .unwrap_or(f64::NAN);
-        let predictive = run_envelope_bayesian_full_validation(
-            BayesianValidation { suite: self.refute, cfg, estimator: &bayes.inner },
-            &fits,
-            &mut posterior,
-            pulse_mean,
-            ctx,
-            super::super::latency::predictive_check_sims(self.latency_mode),
-            ValidationSink { refutations: &mut refutations, diagnostics: &mut notes },
-        )?;
         Ok((refutations, predictive, notes))
     }
 }
@@ -710,7 +797,7 @@ struct DbnMasses {
 struct DbnMixedResponse {
     response: CausalResponse,
     identification: IdentificationResult,
-    conditional: antecedent_core::ResponseValue,
+    conditional: Option<antecedent_core::ResponseValue>,
     structural_set: Option<antecedent_core::ResponseEnvelope>,
     aggregation_policy: crate::result::StructuralAggregationPolicy,
     masses: DbnMasses,
@@ -722,7 +809,10 @@ fn dbn_posterior_structural_mixture(
     atoms: Vec<crate::result::StructuralResponseAtom>,
     masses: DbnMasses,
     structural_set: Option<antecedent_core::ResponseEnvelope>,
-    conditional: antecedent_core::ResponseValue,
+    (conditional, aggregation_policy): (
+        Option<antecedent_core::ResponseValue>,
+        crate::result::StructuralAggregationPolicy,
+    ),
 ) -> crate::result::StructuralResponseMixture {
     crate::result::StructuralResponseMixture {
         weight_basis: crate::result::StructuralWeightBasis::PosteriorProbability,
@@ -733,9 +823,10 @@ fn dbn_posterior_structural_mixture(
         subsampled_out_mass: 0.0,
         identified_set: structural_set,
         identified_set_interval: None,
-        conditional_on_identified: Some(conditional),
+        conditional_on_identified: conditional,
         full_mass_scope: true,
         truncated_atoms: 0,
+        aggregation_policy: Some(aggregation_policy),
     }
 }
 
@@ -764,21 +855,15 @@ pub(super) fn dbn_posterior_structural_atoms(
         .collect::<Vec<_>>()
 }
 
-/// The structural aggregation policy of the contributing atoms' estimands at
-/// the first horizon, with partial identification at any requested horizon.
+/// The structural aggregation policy of the contributing atoms' estimands, resolved at
+/// every requested horizon. One horizon whose estimands disagree makes the response
+/// graph dependent; partial identification at any horizon makes it an identified set.
 fn dbn_posterior_aggregation_policy(
     identified: &crate::analysis::prepared::CachedDbnPosteriorIdentification,
     weighted: &[(u64, f64, CausalResponse)],
     temporal: &antecedent_core::TemporalResponseSpec,
 ) -> crate::result::StructuralAggregationPolicy {
-    let contributing: Vec<&IdentifiedEstimand> = weighted
-        .iter()
-        .filter_map(|(key, _, _)| {
-            identified.atoms.iter().find(|atom| atom.key == *key).and_then(|atom| {
-                atom.horizons.as_ref()?.get(temporal.horizons[0]).map(|entry| &entry.estimand)
-            })
-        })
-        .collect();
+    use crate::result::StructuralAggregationPolicy as Policy;
     let any_partial = weighted.iter().any(|(key, _, response)| {
         identified.atoms.iter().find(|atom| atom.key == *key).is_some_and(|atom| {
             atom.horizons.as_ref().is_some_and(|horizons| {
@@ -790,7 +875,26 @@ fn dbn_posterior_aggregation_policy(
             })
         }) || response.identification_status == IdentificationStatus::PartiallyIdentified
     });
-    resolve_structural_aggregation(&contributing, any_partial)
+    let per_horizon = temporal.horizons.iter().map(|&horizon| {
+        let contributing: Vec<&IdentifiedEstimand> = weighted
+            .iter()
+            .filter_map(|(key, _, _)| {
+                identified.atoms.iter().find(|atom| atom.key == *key).and_then(|atom| {
+                    atom.horizons.as_ref()?.get(horizon).map(|entry| &entry.estimand)
+                })
+            })
+            .collect();
+        resolve_structural_aggregation(&contributing, any_partial)
+    });
+    let mut policy = Policy::SameEstimandWeightedMean;
+    for resolved in per_horizon {
+        match resolved {
+            Policy::GraphDependentAtoms => return Policy::GraphDependentAtoms,
+            Policy::IdentifiedSetEnvelope => policy = Policy::IdentifiedSetEnvelope,
+            Policy::SameEstimandWeightedMean => {}
+        }
+    }
+    policy
 }
 
 /// Mixes the evaluated atoms' responses by frozen graph weight into the
@@ -812,23 +916,26 @@ fn mix_dbn_posterior_atoms(
             super::response_path::response_identified_value(response).map(|value| (*weight, value))
         })
         .collect::<Vec<_>>();
-    let conditional_refs =
-        conditional_values.iter().map(|(weight, value)| (*weight, value)).collect::<Vec<_>>();
-    let conditional = super::response_path::mix_response_values(&conditional_refs)?;
-    let structural_set = super::response_path::response_envelope_from_weighted(weighted);
+    let super::temporal_class_posterior_response::PolicyResponseMix {
+        status,
+        estimate,
+        conditional,
+        structural_set,
+    } = super::temporal_class_posterior_response::mix_responses_under_policy(
+        weighted,
+        &conditional_values,
+        aggregation_policy,
+        (
+            identification.status,
+            PosteriorMassSummary {
+                unidentified: unidentified_mass,
+                failed: failed_mass,
+                ..PosteriorMassSummary::default()
+            },
+        ),
+    )?;
     let first = &weighted[0].2;
-    let graph_dependent = resolve_posterior_status(
-        identification.status,
-        crate::result::StructuralAggregationPolicy::SameEstimandWeightedMean,
-        PosteriorMassSummary {
-            unidentified: unidentified_mass,
-            failed: failed_mass,
-            ..PosteriorMassSummary::default()
-        },
-    ) == IdentificationStatus::GraphDependent;
-    if graph_dependent {
-        identification.status = IdentificationStatus::GraphDependent;
-    }
+    identification.status = status;
     let uncertainty = if weighted.len() == 1 {
         let base = first.uncertainty.clone();
         // A single-atom, single-coordinate InterventionResponse is a scalar
@@ -849,19 +956,7 @@ fn mix_dbn_posterior_atoms(
     let response = antecedent_core::CausalResponse {
         estimand: query.functional.clone(),
         identification_status: identification.status,
-        estimate: if graph_dependent {
-            ResponseIdentification::GraphDependent(
-                weighted
-                    .iter()
-                    .filter_map(|(key, _, response)| {
-                        super::response_path::response_identified_value(response)
-                            .map(|value| (*key, value))
-                    })
-                    .collect(),
-            )
-        } else {
-            ResponseIdentification::PointIdentified(conditional.clone())
-        },
+        estimate,
         uncertainty,
         support: mix_support_reports(
             &weighted.iter().map(|(_, _, response)| &response.support).collect::<Vec<_>>(),
@@ -904,6 +999,8 @@ struct DbnPulseWitness<'a> {
     pulse: &'a TemporalEffectQuery,
     ate_query: &'a AverageEffectQuery,
     tabular: &'a TabularData,
+    /// Whether the atoms' reports may be mixed by frozen weight.
+    mix_scalar: bool,
     ctx: &'a ExecutionContext,
 }
 
@@ -938,10 +1035,10 @@ fn pulse_witness_design(
     atom: &crate::analysis::prepared::CachedDbnPosteriorAtomIdentification,
     horizon: u32,
 ) -> (&IdentifiedEstimand, &antecedent_data::TemporalIndexer) {
-    if let Some(horizons) = atom.horizons.as_ref() {
-        if let Some(entry) = horizons.get(horizon) {
-            return (&entry.estimand, &entry.indexer);
-        }
+    if let Some(horizons) = atom.horizons.as_ref()
+        && let Some(entry) = horizons.get(horizon)
+    {
+        return (&entry.estimand, &entry.indexer);
     }
     (&atom.estimand, &atom.indexer)
 }

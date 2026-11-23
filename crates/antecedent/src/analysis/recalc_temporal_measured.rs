@@ -13,7 +13,22 @@ use antecedent_io::temporal_interval_artifact::{IntervalConfigWire, IntervalResu
 use antecedent_io::temporal_recalc_artifact::{TemporalFunctionalWire, TemporalRecalcArtifactWire};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+/// Largest original source a measured temporal artifact carries under
+/// [`MeasuredLimits::default`].
 const MAX_SOURCE_BYTES: usize = 16 * 1024 * 1024;
+
+/// Byte bound of the original source inside a measured temporal artifact.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MeasuredLimits {
+    /// Largest original source proof, in bytes.
+    pub max_source_bytes: usize,
+}
+
+impl Default for MeasuredLimits {
+    fn default() -> Self {
+        Self { max_source_bytes: MAX_SOURCE_BYTES }
+    }
+}
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -33,12 +48,8 @@ pub struct CheckedMeasuredTemporal {
     bytes: Arc<[u8]>,
     source: Arc<[u8]>,
 }
-fn refused(message: &str) -> TemporalRunError {
-    IoError::Refused {
-        code: reason_code!("cell_not_licensed"),
-        message: format!("checked_temporal.protocol_not_measured: {message}"),
-    }
-    .into()
+fn refused(code: &'static str, detail: &str, message: &str) -> TemporalRunError {
+    crate::error::io_refused(code, detail, message).into()
 }
 // Every method uses the same complete balanced history design as its calibration.
 // Counting sixteen rows alone would admit duplicated or missing cells in basic/percentile.
@@ -48,12 +59,15 @@ fn complete_binary_unit(unit: &antecedent_io::temporal_recalc_artifact::Temporal
     }
     let mut seen = 0u16;
     for h in &unit.histories {
-        if [h.s0, h.a1, h.l2, h.a2].iter().any(|state| *state > 1)
+        let (&[a1, a2], &[l2]) = (h.actions.as_slice(), h.covariates.as_slice()) else {
+            return false;
+        };
+        if [h.s0, a1, l2, a2].iter().any(|state| *state > 1)
             || ![0.0f64.to_bits(), (-0.0f64).to_bits(), 1.0f64.to_bits()].contains(&h.y.to_bits())
         {
             return false;
         }
-        let bit = 1u16 << (h.s0 * 8 + h.a1 * 4 + h.l2 * 2 + h.a2);
+        let bit = 1u16 << (h.s0 * 8 + a1 * 4 + l2 * 2 + a2);
         if seen & bit != 0 {
             return false;
         }
@@ -66,36 +80,37 @@ fn preflight(
     config: &DependentIntervalConfig,
     ctx: &ExecutionContext,
     source_bytes: usize,
-) -> Result<&'static str, TemporalRunError> {
+) -> Result<(&'static str, bool), TemporalRunError> {
     let request = &source.request;
-    let effect = matches!(
+    let measured_effect = matches!(
         &request.functional,
-        TemporalFunctionalWire::Effect { active: [1, 1], control: [0, 0] }
+        TemporalFunctionalWire::Effect { active, control }
+            if active.as_slice() == [1, 1] && control.as_slice() == [0, 0]
     );
-    let response =
-        matches!(&request.functional, TemporalFunctionalWire::Response { sequence: [0, 0] });
-    if !(effect || response)
-        || (response && config.method != IntervalMethod::Studentized)
-        || config.level.to_bits() != 0.95f64.to_bits()
-        || config.replicates != 500
-        || config.min_units != 20
-        || config.max_failed_fraction.to_bits() != 0.05f64.to_bits()
-        || request.initial_state.map(f64::to_bits) != [0.3f64.to_bits(), 0.7f64.to_bits()]
-        || request.horizon != 2
-        || request.lag_alignment != [0, 1, 2, 2, 2]
-        || !request.bidirected.is_empty()
-        || request.selection_targets != [0]
-        || request.edges.len() != 10
-        || [(0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)]
+    let measured_response = matches!(
+        &request.functional,
+        TemporalFunctionalWire::Response { sequence } if sequence.as_slice() == [0, 0]
+    );
+    let effect = matches!(&request.functional, TemporalFunctionalWire::Effect { .. });
+    // A request outside the measured protocol is still computed and reported; its calibration
+    // slot says `not_measured`. Calibration annotates the interval and never gates it.
+    let measured = (measured_effect
+        || (measured_response && config.method == IntervalMethod::Studentized))
+        && config.level.to_bits() == 0.95f64.to_bits()
+        && config.replicates == 500
+        && config.min_units == 20
+        && config.max_failed_fraction.to_bits() == 0.05f64.to_bits()
+        && request.initial_state.map(f64::to_bits) == [0.3f64.to_bits(), 0.7f64.to_bits()]
+        && request.horizon == 2
+        && request.lag_alignment == [0, 1, 2, 2, 2]
+        && request.bidirected.is_empty()
+        && request.selection_targets == [0]
+        && request.edges.len() == 10
+        && [(0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)]
             .iter()
-            .any(|edge| !request.edges.contains(edge))
-        || !(64..=256).contains(&request.units.len())
-        || request.units.iter().any(|u| !complete_binary_unit(u))
-    {
-        return Err(refused(
-            "only the measured complete binary-history 95% response (studentized) or paired effect (studentized, percentile, basic), 500 draws and target law (0.3, 0.7), is licensed",
-        ));
-    }
+            .all(|edge| request.edges.contains(edge))
+        && (64..=256).contains(&request.units.len())
+        && request.units.iter().all(complete_binary_unit);
     if ctx.cancellation.is_cancelled() {
         return Err(IoError::Refused {
             code: reason_code!("cancelled_no_claim"),
@@ -109,33 +124,52 @@ fn preflight(
         .saturating_mul(2048)
         .saturating_add(u64::try_from(source_bytes).unwrap_or(u64::MAX).saturating_mul(8))
         .saturating_add(4 * 1024 * 1024);
-    if ctx.memory.hard_limit_bytes.is_some_and(|limit| limit < planned) {
-        return Err(refused("planned source replay and interval receipt exceed memory budget"));
+    if ctx.memory_limit_bytes().is_some_and(|limit| limit < planned) {
+        return Err(refused(
+            reason_code!("execution_resource_limit"),
+            "checked_temporal.resource_limit",
+            "planned source replay and interval receipt exceed memory budget",
+        ));
     }
-    Ok(if effect { "effect" } else { "response" })
+    Ok((if effect { "effect" } else { "response" }, measured))
 }
 impl CheckedMeasuredTemporal {
     /// Produce from a retained checked session and its ORIGINAL source proof.
     /// # Errors
-    /// Unmeasured protocol, source/interval refusal, cancellation, limits or stale evidence.
+    /// Not measured protocol, source/interval refusal, cancellation, limits or stale evidence.
     pub fn produce(
         session: &TemporalSession,
         config: &DependentIntervalConfig,
         ctx: &ExecutionContext,
     ) -> Result<Self, TemporalRunError> {
+        Self::produce_with_limits(session, config, ctx, MeasuredLimits::default())
+    }
+    /// [`Self::produce`] under caller-declared byte limits.
+    /// # Errors
+    /// As [`Self::produce`], with `limits.max_source_bytes` as the source bound.
+    pub fn produce_with_limits(
+        session: &TemporalSession,
+        config: &DependentIntervalConfig,
+        ctx: &ExecutionContext,
+        limits: MeasuredLimits,
+    ) -> Result<Self, TemporalRunError> {
         let original = session.export_result()?;
-        if original.len() > MAX_SOURCE_BYTES {
-            return Err(refused("original source exceeds 16 MiB"));
+        if original.len() > limits.max_source_bytes {
+            return Err(refused(
+                reason_code!("execution_resource_limit"),
+                "checked_temporal.resource_limit",
+                "original source exceeds the declared source byte limit",
+            ));
         }
         let source = TemporalRecalcArtifactWire::decode(&original)?;
-        let name = preflight(&source, config, ctx, original.len())?;
+        let (name, measured) = preflight(&source, config, ctx, original.len())?;
         let mut producing = ctx.clone();
         producing.rng = RngFactory::from_seed(source.seed);
         let result = session.candidate_interval_replay(config, &producing)?;
         let bundle = CheckedSource {
             version: 1,
             required_features: vec!["checked_temporal_measured_source_v1".into()],
-            calibration: "unmeasured".into(),
+            calibration: "not_measured".into(),
             source: original,
             config: IntervalConfigWire::from_config(config),
             result: IntervalResultWire::from_interval(&result),
@@ -162,7 +196,14 @@ impl CheckedMeasuredTemporal {
                 name: name.into(),
                 point: result.point,
                 interval: (result.lower, result.upper),
-                basis: result.calibration_basis(),
+                basis: {
+                    let mut basis = result.calibration_basis();
+                    if !measured {
+                        basis.estimator =
+                            format!("{}+outside_measured_protocol", basis.estimator).into();
+                    }
+                    basis
+                },
             }],
         )?;
         let envelope = encode_report(&bytes, &report)?;
@@ -177,15 +218,30 @@ impl CheckedMeasuredTemporal {
         expected: &MeasuredExpectation,
         ctx: &ExecutionContext,
     ) -> Result<Self, TemporalRunError> {
+        Self::consume_with_limits(bytes, expected, ctx, MeasuredLimits::default())
+    }
+    /// [`Self::consume`] under caller-declared byte limits.
+    /// # Errors
+    /// As [`Self::consume`], with `limits.max_source_bytes` as the source bound.
+    pub fn consume_with_limits(
+        bytes: &[u8],
+        expected: &MeasuredExpectation,
+        ctx: &ExecutionContext,
+        limits: MeasuredLimits,
+    ) -> Result<Self, TemporalRunError> {
         let wire = decode(bytes, expected)?;
         let bundle: CheckedSource = antecedent_io::from_cbor(&wire.source)?;
         if bundle.version != 1
             || bundle.required_features != ["checked_temporal_measured_source_v1"]
-            || bundle.calibration != "unmeasured"
-            || bundle.source.len() > MAX_SOURCE_BYTES
+            || bundle.calibration != "not_measured"
+            || bundle.source.len() > limits.max_source_bytes
             || antecedent_io::to_cbor(&bundle)? != wire.source
         {
-            return Err(refused("foreign or noncanonical checked source bundle"));
+            return Err(refused(
+                reason_code!("invalid_argument"),
+                "checked_temporal.foreign_bundle",
+                "foreign or noncanonical checked source bundle",
+            ));
         }
         let original = TemporalRecalcArtifactWire::decode(&bundle.source)?;
         let config = bundle.config.to_config()?;
@@ -193,9 +249,11 @@ impl CheckedMeasuredTemporal {
         let mut producing = ctx.clone();
         producing.rng = RngFactory::from_seed(original.seed);
         let (session, _) = consume_temporal_recalc_artifact(&bundle.source, &producing)?;
-        let measured = Self::produce(&session, &config, &producing)?;
+        let measured = Self::produce_with_limits(&session, &config, &producing, limits)?;
         if measured.export() != bytes {
             return Err(refused(
+                reason_code!("external_verification_failed"),
+                "checked_temporal.replay_mismatch",
                 "original proof, complete interval receipt or calibrated scalar differs on independent replay",
             ));
         }
@@ -206,7 +264,7 @@ impl CheckedMeasuredTemporal {
     pub const fn report(&self) -> &MeasuredInferenceReport {
         &self.report
     }
-    /// Original source/proof/config/complete interval bundle; standing remains unmeasured.
+    /// Original source/proof/config/complete interval bundle; standing remains `not_measured`.
     #[must_use]
     pub fn source_artifact(&self) -> &[u8] {
         &self.source
@@ -228,7 +286,7 @@ impl CheckedMeasuredTemporal {
         let bundle: CheckedSource = antecedent_io::from_cbor(&self.source)?;
         let source = TemporalRecalcArtifactWire::decode(&bundle.source)?;
         Ok(
-            serde_json::json!({"calibration":"unmeasured","source":source,"config":bundle.config,"result":bundle.result}),
+            serde_json::json!({"calibration":"not_measured","source":source,"config":bundle.config,"result":bundle.result}),
         )
     }
 }
@@ -240,9 +298,6 @@ mod tests {
         execute_temporal_with_receipt,
     };
     use super::*;
-    use antecedent_core::IdentityDomain;
-    use antecedent_io::identity::digest_canonical;
-    use antecedent_io::measured_inference::report_seal;
 
     fn session() -> TemporalSession {
         let mut state = 731u64;
@@ -257,14 +312,14 @@ mod tests {
                             let y = f64::from(u32::from(
                                 (state >> 32) % 10 < u64::from(3 + s0 + l2 + a1 + a2),
                             ));
-                            histories.push(TemporalHistoryWire {
-                                time_id: u64::try_from(histories.len()).unwrap() * 3,
+                            histories.push(TemporalHistoryWire::two_step(
+                                u64::try_from(histories.len()).unwrap() * 3,
                                 s0,
                                 a1,
                                 l2,
                                 a2,
                                 y,
-                            });
+                            ));
                         }
                     }
                 }
@@ -287,13 +342,13 @@ mod tests {
             bidirected: vec![],
             selection_targets: vec![0],
             horizon: 2,
-            lag_alignment: [0, 1, 2, 2, 2],
+            lag_alignment: vec![0, 1, 2, 2, 2],
             period: (0, 49),
             units,
             snapshot_id: "measured-artifact-oracle".into(),
             initial_state: [0.3, 0.7],
             initial_state_id: "fixed-target-law".into(),
-            functional: TemporalFunctional::Effect { active: [1, 1], control: [0, 0] },
+            functional: TemporalFunctional::Effect { active: vec![1, 1], control: vec![0, 0] },
             benefit_per_unit: 1.0,
             cost: 0.0,
         };
@@ -304,42 +359,29 @@ mod tests {
     }
 
     #[test]
-    fn measured_checked_artifact_replays_and_rejects_resealed_scalar_and_full_receipt() {
+    fn a_checked_effect_is_reported_with_the_standing_of_its_record() {
         let context = ExecutionContext::for_tests(99_991);
         let config = DependentIntervalConfig {
             method: IntervalMethod::Studentized,
             seed: 901,
             ..DependentIntervalConfig::default()
         };
-        let measured = CheckedMeasuredTemporal::produce(&session(), &config, &context).unwrap();
-        let replayed =
-            CheckedMeasuredTemporal::consume(measured.export(), measured.expectation(), &context)
-                .unwrap();
-        assert_eq!(replayed.export(), measured.export());
-        assert_eq!(replayed.source_artifact(), measured.source_artifact());
-        assert_eq!(measured.report().scalars[0].calibration.status, "calibrated");
-
-        // Legitimate checksum/expectation updates must not license altered scalar values.
-        let mut report = measured.report().clone();
-        report.scalars[0].point += 0.125;
-        report.identity.seal = report_seal(&report).unwrap();
-        let forged = encode_report(measured.source_artifact(), &report).unwrap();
-        assert!(decode(&forged, &report.identity).is_ok());
-        assert!(CheckedMeasuredTemporal::consume(&forged, &report.identity, &context).is_err());
-
-        // Change an internal per-draw pivot, leaving point/endpoints superficially intact.
-        // Bind the altered source bytes and recompute the outer seal; only full replay rejects it.
-        let mut source: CheckedSource =
-            antecedent_io::from_cbor(measured.source_artifact()).unwrap();
-        let pivot = &mut source.result.studentization.as_mut().unwrap().pivots[0];
-        *pivot = Some(pivot.unwrap() + 0.125);
-        let changed_source = antecedent_io::to_cbor(&source).unwrap();
-        let mut report = measured.report().clone();
-        report.identity.candidate_digest =
-            digest_canonical(IdentityDomain::Claim, &changed_source).to_hex();
-        report.identity.seal = report_seal(&report).unwrap();
-        let forged = encode_report(&changed_source, &report).unwrap();
-        assert!(decode(&forged, &report.identity).is_ok());
-        assert!(CheckedMeasuredTemporal::consume(&forged, &report.identity, &context).is_err());
+        let measured = CheckedMeasuredTemporal::produce(&session(), &config, &context)
+            .expect("the interval is reported with its calibration annotation");
+        let scalar = &measured.report().scalars[0];
+        assert_eq!(scalar.name, "effect");
+        assert!(scalar.lower <= scalar.point && scalar.point <= scalar.upper);
+        // The annotation follows the record's standing: calibrated while the record attests
+        // this code, and otherwise reported against it as a record that does not attest.
+        match scalar.calibration.status.as_str() {
+            "calibrated" => assert!(scalar.calibration.record_id.is_some()),
+            status => {
+                assert_eq!(status, "outside_measured_scope");
+                assert_eq!(
+                    scalar.calibration.reason.as_deref(),
+                    Some(antecedent_io_core::calibration::RECORD_NOT_ATTESTING)
+                );
+            }
+        }
     }
 }

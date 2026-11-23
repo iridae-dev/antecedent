@@ -1,7 +1,7 @@
 //! Actual Gaussian adapter posterior summary precision against independent conjugate algebra.
 //! Balanced binary T, Y=1+2T+N(0,1); known residual variance1, zero prior mean,
 //! independent coefficient variance100. Complete checked fit and native sampling;
-//! summary changes reuse exactly those issued draws. No frequentist interval license.
+//! summary changes reuse exactly those issued draws. No frequentist interval support.
 #![allow(clippy::cast_precision_loss, reason = "bounded simulation dimensions")]
 #[path = "common/calibration.rs"]
 mod calibration;
@@ -43,7 +43,7 @@ fn gaussian_adapter_posterior_summary_precision() {
                 )));
                 prior.push(PriorSpec::KnownResidualVariance(1.));
                 let mut request = BayesianRequest {
-                    columns: vec![("t".into(), t), ("y".into(), y)],
+                    columns: vec![("t".into(), t), ("y".into(), y)].into(),
                     edges: vec![(0, 1)],
                     treatment: VariableId::from_raw(0),
                     outcome: VariableId::from_raw(1),

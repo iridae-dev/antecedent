@@ -10,6 +10,7 @@ import json
 import math
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.descriptive import (
     attribute_gap_to_columns,
     raw_reporting_transform,
@@ -17,7 +18,12 @@ from antecedent.descriptive import (
     replay_descriptive_comparison,
     transform_mean_pair,
 )
-from antecedent.errors import CausalSerializationError, CausalTypeError, CausalUnsupportedError
+from antecedent.errors import (
+    CausalSerializationError,
+    CausalTypeError,
+    CausalUnsupportedError,
+    CausalValueError,
+)
 
 from _refusal import assert_registered_refusal
 
@@ -56,8 +62,8 @@ def test_the_raw_contrast_and_the_gap_match_the_hand_computation():
     assert result.interpretation == "descriptive_not_causal_decomposition"
     # The gap has no interval: the typed reason is carried, never a standard error.
     assert result.gap_interval_unavailable == (
-        "cell_not_licensed",
-        "descriptive_comparison.gap_interval_unavailable",
+        "route_not_supported",
+        reason_details.descriptive_comparison.GAP_INTERVAL_UNAVAILABLE,
     )
 
 
@@ -112,7 +118,7 @@ def test_a_one_row_arm_has_no_standard_error_and_no_covariance():
     assert transform.covariance is None
     assert transform.covariance_unavailable == (
         "invalid_argument",
-        "descriptive_comparison.arm_too_small",
+        reason_details.descriptive_comparison.ARM_TOO_SMALL,
     )
 
 
@@ -123,7 +129,7 @@ def test_the_gap_is_never_attributed_to_adjustment_columns():
     ):
         error = refusal(call)
         assert error.reason_code == "effect_not_identified"
-        assert "descriptive_comparison.column_attribution_not_identified" in str(error)
+        assert reason_details.descriptive_comparison.COLUMN_ATTRIBUTION_NOT_IDENTIFIED in str(error)
 
 
 def test_log_risk_ratio_matches_the_hand_computation():
@@ -189,20 +195,32 @@ def test_a_missing_joint_covariance_gives_points_and_a_typed_reason_never_a_zero
     assert result.standard_error("log_risk_ratio") is None
     assert result.covariance_unavailable == (
         "required_option_missing",
-        "descriptive_comparison.joint_covariance_unavailable",
+        reason_details.descriptive_comparison.JOINT_COVARIANCE_UNAVAILABLE,
     )
 
 
-def test_an_interval_on_a_transformed_scale_is_a_typed_refusal():
-    error = refusal(lambda: transform_mean_pair(0.4, 0.2, level=0.95))
-    assert error.reason_code == "cell_not_licensed"
-    assert "descriptive_comparison.interval_withheld" in str(error)
-    error = refusal(
-        lambda: raw_reporting_transform(
-            outcome=BINARY_OUTCOME, treatment=BINARY_TREATMENT, level=0.95
-        )
+def test_a_transformed_scale_interval_matches_the_hand_derived_delta_method():
+    # Risk difference g = mu1 - mu0 has gradient (1, -1): var = 0.01 - 2 * 0.002 + 0.02 = 0.026.
+    z = 1.959963984540054
+    result = transform_mean_pair(
+        0.4, 0.2, scales=["risk_difference"], covariance=[[0.01, 0.002], [0.002, 0.02]], level=0.95
     )
-    assert error.reason_code == "cell_not_licensed"
+    half = z * math.sqrt(0.026)
+    assert result.intervals[0] == pytest.approx((0.2 - half, 0.2 + half), abs=1e-12)
+    # Calibration annotates the interval; it never withholds it.
+    assert result.interval_calibration["status"] in (
+        "calibrated",
+        "outside_measured_scope",
+        "measured_below_nominal",
+        "not_measured",
+    )
+    # Without a joint covariance there is no standard error, so no interval for that scale.
+    bare = transform_mean_pair(0.4, 0.2, scales=["risk_difference"], level=0.95)
+    assert bare.intervals == (None,)
+    arms = raw_reporting_transform(outcome=BINARY_OUTCOME, treatment=BINARY_TREATMENT, level=0.95)
+    assert arms.intervals[0] is not None and arms.intervals[0][0] < arms.intervals[0][1]
+    with pytest.raises(CausalValueError):
+        transform_mean_pair(0.4, 0.2, scales=["risk_difference"], level=1.5)
 
 
 def test_a_mean_pair_outside_a_scales_domain_or_a_bad_covariance_is_refused():
@@ -239,7 +257,7 @@ def sealed(body):
 
 def test_an_exported_comparison_is_replayed_by_an_independent_consumer():
     result = compare(adjusted_standard_error=0.4)
-    artifact = result.export()
+    artifact = bytes(result.export())
     body = json.loads(artifact)
     assert body["format"] == "descriptive_comparison_v1"
     assert body["claim"] == "point_only"
@@ -248,7 +266,7 @@ def test_an_exported_comparison_is_replayed_by_an_independent_consumer():
 
 
 def test_a_tampered_artifact_is_refused_for_the_right_reason():
-    body = json.loads(compare().export())
+    body = json.loads(bytes(compare().export()))
     for edit in (
         {"gap": body["gap"] + 1e-9},
         {"raw_difference": 4.5},

@@ -3,8 +3,8 @@
 // executors that run them. The shared response estimators live in `response_path`.
 
 use super::response_path::{
-    attach_response_influence, response_primary_pair, response_prior_targets,
-    response_scalar_summary,
+    attach_response_influence, resolved_bayesian_response_estimator, response_primary_pair,
+    response_prior_targets, response_scalar_summary,
 };
 use super::{
     Arc, AverageEffectQuery, BayesianConfig, CausalError, CausalQuery, CausalResponse,
@@ -20,7 +20,9 @@ use super::{
 use super::{ResponseIdentification, ResponseValue, VariableId};
 use crate::analysis::prepared::Inspect;
 
-const MAX_DERIVATIVE_CELLS: usize = 1_000_000;
+/// Bytes per materialized derivative coordinate of the frequentist result (value, lower and
+/// upper bound).
+const DERIVATIVE_CELL_BYTES: u64 = 3 * size_of::<f64>() as u64;
 
 /// Sealed static derivative response plan. It retains the scientific query,
 /// identification claim, adjustment basis, selected estimator, and inference
@@ -74,13 +76,11 @@ impl CheckedDerivativeResponseOperation {
             outcome_ids.len().checked_mul(treatment_ids.len()).ok_or_else(|| {
                 CausalError::Compile { message: "derivative response cell count overflow".into() }
             })?;
-        // Bound materialized values even if a future query version admits more
-        // outcome-treatment coordinates. At one million cells the unavoidable
-        // f64 result/lower/upper arrays remain in the same memory class as the
-        // existing response-grid materialization ceiling.
-        if max_derivative_cells == 0 || max_derivative_cells > MAX_DERIVATIVE_CELLS {
+        // The cell count is admitted against the memory budget when the operation executes
+        // (see `admit_cells`); here only an empty derivative is refused.
+        if max_derivative_cells == 0 {
             return Err(CausalError::Unsupported {
-                message: "checked derivative response exceeds the 1000000-cell materialization limit",
+                message: "checked derivative response names no outcome-treatment coordinate",
             });
         }
         if query.temporal.is_some()
@@ -105,8 +105,8 @@ impl CheckedDerivativeResponseOperation {
                 .estimands
                 .iter()
                 .any(|candidate| candidate.adjustment_set != estimand.adjustment_set)
-            || estimand.instruments.len() > 0
-            || estimand.mediators.len() > 0
+            || !estimand.instruments.is_empty()
+            || !estimand.mediators.is_empty()
         {
             return Err(CausalError::Compile {
                 message: "derivative response query, identification, estimand, or estimator do not form one checked static adjustment route".into(),
@@ -155,6 +155,39 @@ impl CheckedDerivativeResponseOperation {
         self.max_derivative_cells
     }
 
+    /// Lease the bytes of the materialized derivative arrays on the context's memory budget
+    /// for the duration of the returned lease. A context that declares no budget keeps the
+    /// default ceiling of [`antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS`] coordinates; a
+    /// declared budget sizes the derivative by itself.
+    fn admit_cells(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<antecedent_core::execution::AdmissionLease, CausalError> {
+        if ctx.memory_limit_bytes().is_none()
+            && self.max_derivative_cells > antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS
+        {
+            return Err(CausalError::Resource {
+                message: format!(
+                    "derivative response of {} outcome-treatment coordinates exceeds the \
+                     default ceiling of {}; declare a memory limit to size the derivative by \
+                     its budget",
+                    self.max_derivative_cells,
+                    antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS
+                ),
+            });
+        }
+        let per_cell = match &self.inference {
+            InferenceMode::Frequentist => DERIVATIVE_CELL_BYTES,
+            InferenceMode::Bayesian(config) => {
+                let draws = u64::try_from(config.n_draws).unwrap_or(u64::MAX);
+                DERIVATIVE_CELL_BYTES.saturating_add(draws.saturating_mul(size_of::<f64>() as u64))
+            }
+        };
+        let bytes = u64::try_from(self.max_derivative_cells)
+            .map_or(u64::MAX, |cells| cells.saturating_mul(per_cell));
+        crate::retained_refresh::admit(ctx, bytes, "derivative response")
+    }
+
     /// Execute only the retained target and procedure. This is the common point
     /// at which frequentist and Bayesian derivative procedures diverge.
     pub(crate) fn execute(
@@ -167,6 +200,7 @@ impl CheckedDerivativeResponseOperation {
                 stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
             });
         }
+        let _admitted = self.admit_cells(ctx)?;
         let identification_status = self.cache.identification.status;
         let assumptions = self.cache.identification.required_assumptions.clone();
         let response = match &self.inference {
@@ -175,8 +209,13 @@ impl CheckedDerivativeResponseOperation {
                 .estimate_identified(data, &self.query, identification_status, assumptions)
                 .map_err(CausalError::from)?,
             InferenceMode::Bayesian(config) => {
-                let mut estimator = bayesian_gcomp(config, ctx);
-                estimator.prior.clone_from(&config.prior);
+                let estimator = resolved_bayesian_response_estimator(
+                    config,
+                    &self.fitter,
+                    data,
+                    &self.query,
+                    ctx,
+                )?;
                 self.fitter
                     .estimate_bayesian(
                         data,
@@ -195,6 +234,8 @@ impl CheckedDerivativeResponseOperation {
                     .into(),
             });
         }
+        let mut response = response;
+        super::structural_zero::apply(&mut response, &self.graph, &self.query);
         Ok(response)
     }
 }
@@ -265,14 +306,12 @@ impl CheckedStaticDagResponseOperation {
                 });
             }
         };
-        // A Bayesian intervention level publishes a posterior, not the plugin
-        // g-computation level the cheap/full refuters are licensed for.
-        let bayesian = inference.is_bayesian();
+        // A Bayesian intervention level publishes a posterior; its cheap/full suites run
+        // the Bayesian refuter state (plugin-level suite on the posterior-mean level plus
+        // the predictive checks and, under full, level-native prior sensitivity), which
+        // executes unsupported.
         let admissible_refuter = match query.functional {
             ResponseFunctional::MeanCurve { .. } => refute == RefuteSuite::None,
-            ResponseFunctional::InterventionResponse { .. } if bayesian => {
-                refute == RefuteSuite::None
-            }
             ResponseFunctional::InterventionResponse { .. } => {
                 matches!(
                     refute,
@@ -365,6 +404,11 @@ impl CheckedStaticDagResponseOperation {
         &self.inference
     }
 
+    /// Response fitter fixed to the retained adjustment set and response options.
+    pub(crate) fn fitter(&self) -> &ContinuousResponseEstimator {
+        &self.fitter
+    }
+
     /// Retained response query, including full grid or intervention values.
     pub(crate) fn query(&self) -> &ResponseQuery {
         &self.query
@@ -415,10 +459,7 @@ impl CheckedStaticDagResponseOperation {
                 .ok_or_else(|| CausalError::Resource {
                     message: "response curve memory estimate overflowed".into(),
                 })?;
-            let limit = [ctx.memory.soft_limit_bytes, ctx.memory.hard_limit_bytes]
-                .into_iter()
-                .flatten()
-                .min();
+            let limit = ctx.memory_limit_bytes();
             if limit.is_some_and(|limit| bytes > limit) {
                 return Err(CausalError::Resource {
                     message: format!(
@@ -578,6 +619,10 @@ impl super::Study {
     /// Execute a retained static DAG mean curve or intervention g-computation
     /// plan. This adapter deliberately does not resolve IDs from the builder or
     /// re-run identification.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one retained static response plan: the curve or level fit, its uncertainty and the identified finish run in sequence"
+    )]
     pub(crate) fn execute_checked_static_dag_response(
         &self,
         data: &TabularData,
@@ -622,9 +667,42 @@ impl super::Study {
 
         let scalar_intervention = scalar.is_finite()
             && matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
-        let (refutations, refute_diagnostics) = if scalar_intervention
-            && matches!(refute, RefuteSuite::Cheap | RefuteSuite::Full)
-        {
+        let mut predictive_checks = Vec::new();
+        let (refutations, refute_diagnostics) = if let (true, InferenceMode::Bayesian(config)) = (
+            scalar_intervention && matches!(refute, RefuteSuite::Cheap | RefuteSuite::Full),
+            operation.inference(),
+        ) {
+            let estimator = super::bayesian_level_refutation::bayesian_response_estimator_in_force(
+                operation.fitter(),
+                data,
+                query,
+                config,
+                ctx,
+            )?;
+            let state = super::bayesian_level_refutation::refute_bayesian_intervention_level(
+                &super::bayesian_level_refutation::BayesianLevelRefutationInput {
+                    data,
+                    query,
+                    estimand,
+                    fitter: operation.fitter(),
+                    estimator: &estimator,
+                    status: identification.status,
+                    assumptions: &identification.required_assumptions,
+                    level: scalar,
+                    level_sd: standard_error,
+                    treatment,
+                    outcome,
+                    suite: refute,
+                    latency: self.latency_mode,
+                    plugin_level: true,
+                    summarize: response_scalar_summary,
+                    target_label: "intervention-level",
+                },
+                ctx,
+            )?;
+            predictive_checks = state.predictive_checks;
+            (state.refutations, state.diagnostics)
+        } else if scalar_intervention && matches!(refute, RefuteSuite::Cheap | RefuteSuite::Full) {
             let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
             let mut workspace = EstimationWorkspace::default();
             if matches!(refute, RefuteSuite::Cheap | RefuteSuite::Full) {
@@ -632,7 +710,7 @@ impl super::Study {
                     "refute.evalue.not_a_contrast",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    "contrast-shaped refuters are not licensed for a plugin intervention level; cheap runs overlap only and full runs overlap plus sampling-stability of the g-computation level",
+                    "contrast-shaped refuters are not supported for a plugin intervention level; cheap runs overlap only and full runs overlap plus sampling-stability of the g-computation level",
                 ));
             }
             RefutationRun {
@@ -671,6 +749,7 @@ impl super::Study {
                 )),
                 diagnostics: Some(diagnostics),
                 response: Some(response),
+                predictive_checks,
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
             }),
@@ -685,7 +764,7 @@ impl super::Study {
         operation: &CheckedCellAipwResponseOperation,
     ) -> Result<StudyResult, CausalError> {
         if self.query != CausalQuery::Response(operation.query().clone())
-            || !operation.matches_structure(&self.graph, self.tiered.as_ref())
+            || !operation.matches_structure(&self.graph, self.declared.tiered.as_ref())
         {
             return Err(CausalError::Compile {
                 message: "prepared cell AIPW operation no longer matches the study query, graph, or tier closure"
@@ -903,7 +982,7 @@ mod checked_derivative_operation_tests {
     }
 
     #[test]
-    fn derivative_plan_refuses_materialization_over_resource_ceiling() {
+    fn derivative_plan_defers_cell_ceiling_to_the_memory_budget() {
         let outcomes: Arc<[VariableId]> = (0..1_001).map(VariableId::from_raw).collect();
         let treatments: Arc<[VariableId]> = (1_001..2_002).map(VariableId::from_raw).collect();
         let at: Arc<[f64]> = vec![0.0; treatments.len()].into();
@@ -916,7 +995,7 @@ mod checked_derivative_operation_tests {
         let mut graph = Dag::with_variables(2);
         graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let identifier = crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER_ID;
-        let identification = crate::strategy_table::identify_static_query(
+        let mut identification = crate::strategy_table::identify_static_query(
             identifier,
             &graph,
             &CausalQuery::Response(ResponseQuery::new(ResponseFunctional::PointDerivative {
@@ -928,8 +1007,11 @@ mod checked_derivative_operation_tests {
             })),
         )
         .unwrap();
+        // The grid names variables outside the two-node graph, so the identification is the
+        // two-node claim restated for the grid query the operation seals.
+        identification.query = CausalQuery::Response(query.clone());
         let estimand = identification.estimands.first().unwrap();
-        let error = CheckedDerivativeResponseOperation::checked(
+        let operation = CheckedDerivativeResponseOperation::checked(
             &graph,
             &query,
             &cached(&identification, estimand),
@@ -938,7 +1020,11 @@ mod checked_derivative_operation_tests {
             InferenceMode::Frequentist,
             antecedent_estimate::ContinuousResponseOptions::default(),
         )
-        .unwrap_err();
-        assert!(error.to_string().contains("1000000-cell materialization limit"));
+        .unwrap();
+        assert_eq!(operation.max_derivative_cells(), 1_001 * 1_001);
+        // With no declared budget the grid is over the default ceiling at execution.
+        let data = TabularData::from_f64_columns([("a", [0.0, 1.0].as_slice())]).unwrap();
+        let error = operation.execute(&data, &ExecutionContext::for_tests(9)).unwrap_err();
+        assert!(error.to_string().contains("default ceiling"), "{error}");
     }
 }

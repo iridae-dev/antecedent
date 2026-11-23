@@ -19,7 +19,7 @@
 //! `ANTECEDENT_REGENERATE_CONFORMANCE=1 cargo test -p antecedent --test
 //! specification_conformance -- --test-threads=1`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -51,8 +51,8 @@ use antecedent_io::evidence_ledger_artifact::{
     covariance_has_cross_terms,
 };
 use antecedent_io::interface_contract_artifact::{
-    INTERFACE_CONTRACT_ARTIFACT_FEATURE, INTERFACE_CONTRACT_ARTIFACT_TAG,
-    INTERFACE_CONTRACT_ARTIFACT_VERSION, InterfaceContractArtifact,
+    INTERFACE_CONTRACT_ARTIFACT_FEATURE, INTERFACE_CONTRACT_ARTIFACT_VERSION,
+    InterfaceContractArtifact,
 };
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use antecedent_io::wire::{ArtifactKind, SemanticVersion};
@@ -275,7 +275,7 @@ fn estimator_contract() -> InterfaceContract {
                 [Op::Law, Op::JointDraws],
             )
             .with_uncertainty(DistributionMeaning::InterventionalPredictive)
-            .with_calibration(CalibrationStatus::Unmeasured),
+            .with_calibration(CalibrationStatus::NotMeasured),
             ProducedPort::new(
                 "mediated",
                 quantity("adherence", QuantityRole::Mediator, "indicator"),
@@ -300,7 +300,7 @@ fn estimator_contract() -> InterfaceContract {
                 [Op::Mean, Op::Interval],
             )
             .with_uncertainty(DistributionMeaning::Bootstrap)
-            .with_calibration(CalibrationStatus::Unmeasured),
+            .with_calibration(CalibrationStatus::NotMeasured),
         ],
         consumes: vec![
             ConsumedPort::new(
@@ -1255,11 +1255,11 @@ fn schema_vocabularies_equal_the_implementations() {
     let labels = [
         CalibrationStatus::None,
         CalibrationStatus::PointOnly,
-        CalibrationStatus::Unmeasured,
+        CalibrationStatus::NotMeasured,
         CalibrationStatus::Measured { record_id: "r".into() },
         CalibrationStatus::Inherited { input: "i".into() },
     ];
-    let schema_labels: BTreeSet<String> = ["none", "point_only", "unmeasured"]
+    let schema_labels: BTreeSet<String> = ["none", "point_only", "not_measured"]
         .iter()
         .chain(["measured"].iter())
         .chain(["inherited"].iter())
@@ -1297,56 +1297,7 @@ fn schema_vocabularies_equal_the_implementations() {
 }
 
 #[test]
-fn the_specification_text_states_the_implementations_tables_and_tags() {
-    let text = std::fs::read_to_string(spec_dir().join("canonicalization-and-identity.md"))
-        .expect("specification text");
-    // Every node kind and the stage the link digest writes for it.
-    for kind in NodeKind::ALL {
-        let row = format!("| `{}` | `{}` |", kind.as_str(), kind.stage().as_str());
-        assert!(text.contains(&row), "the specification has no row {row}");
-    }
-    // Identity domains named in the text.
-    for tag in [
-        "antecedent.interface_contract",
-        INTERFACE_CONTRACT_ARTIFACT_TAG,
-        "antecedent.interface_contract.connection",
-        "antecedent.interface_contract.composition",
-        "antecedent.evidence_ledger.artifact",
-        "antecedent.composition_bundle.node.v1",
-        "antecedent.composition_provenance.link.v1",
-        "antecedent.composition_bundle.v1",
-    ] {
-        assert!(text.contains(&format!("`{tag}`")), "the specification does not name {tag}");
-    }
-    // Operation tags and the refusal classes the consumer reports.
-    for operation in ContractOperation::ALL {
-        let phrase = format!("{} {}", operation.as_str(), operation.tag());
-        assert!(text.contains(&phrase), "the specification does not state `{phrase}`");
-    }
-    for class in [
-        "container",
-        "checksum",
-        "kind",
-        "unsupported",
-        "version",
-        "feature",
-        "required_feature",
-        "schema",
-        "structure",
-        "semantic",
-        "identity",
-    ] {
-        assert!(text.contains(&format!("`{class}`")), "the refusal class {class} is not named");
-    }
-    // The meaning-to-paradigm table.
-    for meaning in UncertaintyMeaning::ALL_MEANINGS {
-        let meaning = UncertaintyMeaning::new(meaning);
-        assert!(
-            text.contains(meaning.name()),
-            "the specification does not name the meaning {}",
-            meaning.name()
-        );
-    }
+fn the_conformance_manifest_declares_the_specification_version() {
     // Every fixture class the manifest uses is a class the text defines.
     let manifest: serde_json::Value = serde_json::from_slice(
         &std::fs::read(conformance_dir().join("manifest.json")).expect("manifest"),

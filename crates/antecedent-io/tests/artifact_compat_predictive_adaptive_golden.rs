@@ -2,16 +2,15 @@
 //! and the adaptive inference result artifact (`adaptive_inference_result_v1`).
 //!
 //! Each golden lives at `tests/fixtures/<family>_v1.bin`. A loader consumes it as a fresh
-//! consumer (re-scoring every case, or replaying the monitoring contract and result,
-//! rather than trusting the stored numbers) under the identity a producer derives today
-//! from the same declaration, and requires the stored claims to stay closed. A missing
+//! consumer, re-scoring or replaying rather than trusting stored numbers, and requires
+//! the stored claims to stay closed. A missing
 //! golden fails with the command that writes it. A changed golden is a compatibility
 //! decision and needs a migration note.
 //!
-//! Generate or refresh both with
-//! `cargo test -p antecedent-io --test artifact_compat_predictive_adaptive_golden -- --ignored write_`
+//! Both goldens are written by ignored generators (`write_predictive_assessment_golden`,
+//! `write_adaptive_inference_result_golden`); a changed golden is a compatibility decision.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::path::PathBuf;
 
@@ -36,7 +35,7 @@ use antecedent_validate::predictive_assessment::{
     ScoreKind, ValidationDesign,
 };
 
-const GENERATOR: &str = "cargo test -p antecedent-io --test artifact_compat_predictive_adaptive_golden -- --ignored write_";
+const GENERATOR: &str = "cargo test -p antecedent-io --test suite_01 -- --ignored artifact_compat_predictive_adaptive_golden::write_";
 const PREDICTIVE_GOLDEN: &str = "predictive_assessment_v1.bin";
 const ADAPTIVE_GOLDEN: &str = "adaptive_inference_result_v1.bin";
 
@@ -45,7 +44,8 @@ fn fixture_dir() -> PathBuf {
 }
 
 fn load(name: &str) -> Vec<u8> {
-    read_fixture_bytes(&fixture_dir(), name, &format!("generate it with `{GENERATOR}`"))
+    let missing = format!("generate it with `{GENERATOR}`");
+    read_fixture_bytes(&fixture_dir(), name, &missing)
 }
 
 fn write(name: &str, bytes: &[u8]) {
@@ -102,15 +102,27 @@ fn write_predictive_assessment_golden() {
 fn the_predictive_assessment_golden_is_rescored_and_gated() {
     let bytes = load(PREDICTIVE_GOLDEN);
     let fresh = PredictiveAssessmentArtifact::seal(&assessment_spec(), &ctx()).expect("seals");
+    // The stored artifact re-scores under the identity the current producer mints for the
+    // same specification, and a caller-supplied identity for other observations is refused.
     let consumed = PredictiveAssessmentArtifact::from_bytes(&bytes, Some(fresh.identity()), &ctx())
-        .expect("a fresh consumer re-scores every case");
+        .expect("the golden re-scores under the current identity");
+    assert_eq!(consumed.meta().version, PREDICTIVE_ASSESSMENT_ARTIFACT_VERSION);
     assert_eq!(consumed.identity(), fresh.identity());
     assert_eq!(consumed.report(), fresh.report());
     let meta = consumed.meta();
-    assert_eq!(meta.version, PREDICTIVE_ASSESSMENT_ARTIFACT_VERSION);
     assert_eq!(meta.inference_claim, "point_only");
-    assert_eq!(meta.calibration, "unmeasured");
+    assert_eq!(meta.calibration, "not_measured");
     assert_eq!(meta.interval, "not_reported");
+
+    // Current provenance-bound identity must also survive an independent encode
+    // and replay with every score and diagnostic reproduced.
+    let current_bytes = fresh.to_bytes("fresh-predictive-assessment").expect("bytes");
+    let current =
+        PredictiveAssessmentArtifact::from_bytes(&current_bytes, Some(fresh.identity()), &ctx())
+            .expect("current artifact re-scores under the current identity");
+    assert_eq!(current.meta().version, PREDICTIVE_ASSESSMENT_ARTIFACT_VERSION);
+    assert_eq!(current.identity(), fresh.identity());
+    assert_eq!(current.report(), fresh.report());
 
     let (parts_meta, numbers, keys) = decode_parts_for_test(&bytes).expect("decodes");
     let mut newer = parts_meta;
@@ -118,7 +130,8 @@ fn the_predictive_assessment_golden_is_rescored_and_gated() {
     let forged = encode_parts_for_test(&newer, &numbers, &keys, "newer").expect("encodes");
     assert!(matches!(
         PredictiveAssessmentArtifact::from_bytes(&forged, None, &ctx()),
-        Err(PredictiveAssessmentArtifactError::UnsupportedVersion { version: 2 })
+        Err(PredictiveAssessmentArtifactError::UnsupportedVersion { version })
+            if version == PREDICTIVE_ASSESSMENT_ARTIFACT_VERSION + 1
     ));
 }
 
@@ -205,11 +218,27 @@ fn the_adaptive_inference_result_golden_is_replayed_and_gated() {
         assert!((stored - current).abs() <= 1e-12 * 1.0_f64.max(stored.abs()));
     }
 
+    // Closed form of the look-1 posterior (all twelve units: arm a failed six times, arm b
+    // succeeded six times, Beta(1, 1) priors): Beta(1, 7) and Beta(7, 1), means 1/8 and 7/8,
+    // variance 7 / (64 * 9), and P(b best) = 1 - 7 B(7, 8) = 1 - 1/3432.
+    let variance = 7.0 / 576.0;
+    let best_b = 3431.0 / 3432.0;
+    let arm_a = [1.0, 7.0, 0.125, variance, 1.0 - best_b];
+    let arm_b = [7.0, 1.0, 0.875, variance, best_b];
+    for (stored, exact) in consumed.result().values[..5].iter().zip(arm_a) {
+        assert!((stored - exact).abs() < 1e-12, "arm a: {stored} vs {exact}");
+    }
+    for (stored, exact) in consumed.result().values[6..11].iter().zip(arm_b) {
+        assert!((stored - exact).abs() < 1e-12, "arm b: {stored} vs {exact}");
+    }
+
     let meta = Artifact::decode_unchecked(&bytes).expect("inspectable");
     assert_eq!(meta.version, ADAPTIVE_INFERENCE_RESULT_ARTIFACT_VERSION);
     assert_eq!(meta.feature, ADAPTIVE_INFERENCE_RESULT_ARTIFACT_FEATURE);
     assert_eq!(meta.claim, "point_only");
-    assert_eq!(meta.calibration, "unmeasured");
+    assert_eq!(meta.calibration, "not_measured");
+    // The conjugate posterior reports every claim through an interval route: no unsupported claim.
+    assert_eq!(meta.unsupported_claim, None);
 
     let mut newer = meta;
     newer.version = ADAPTIVE_INFERENCE_RESULT_ARTIFACT_VERSION + 1;

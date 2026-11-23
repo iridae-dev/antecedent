@@ -1,7 +1,7 @@
 //! Finite, explicitly supplied graph/selection scenarios for one transport question.
 //!
 //! This is not equivalence-class transport. Each scenario is a fixed selection
-//! ADMG over the same named variables, decided independently by the licensed
+//! ADMG over the same named variables, decided independently by the supported
 //! classical catalog route: a bounded catalog-aware search, and, only when that
 //! search certifies nothing, the classical identifier for an independently
 //! verified s-hedge. A scenario's evidence binding is its own; nothing certified
@@ -58,7 +58,7 @@
 //! ([`ScenarioOutcome::ConditionalProvenNonTransportable`], status
 //! `structurally_unidentified`, for that scenario only).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -68,6 +68,7 @@ use antecedent_core::{
     SearchStop, Value, VariableDomain, VariableId, reason_code,
 };
 use antecedent_graph::SelectionDiagram;
+use antecedent_kernels::numeric::CompensatedSum;
 
 use super::conditional::{
     BoundConditionalTransportFunctional, ConditionalNonTransportabilityProof,
@@ -79,33 +80,18 @@ use super::{
     identify_catalog_transport_metered, identify_classical_transport_metered,
 };
 
-/// Scenarios in one set.
-pub const SCENARIO_MAX_COUNT: usize = 64;
-/// Observed variables in each scenario graph under the earlier fixed ceiling.
-#[deprecated(
-    since = "2.4.1",
-    note = "no longer enforced: scenario graphs of any size are admitted"
-)]
-pub const SCENARIO_MAX_OBSERVED: usize = 12;
 /// Tolerance on declared weights summing to at most one.
 pub const SCENARIO_WEIGHT_TOLERANCE: f64 = 1e-12;
 
 /// Sum of masses independent of their order: the values are sorted, then added
-/// with Neumaier compensation, so any renaming or reordering of scenarios gives
+/// with [`CompensatedSum`], so any renaming or reordering of scenarios gives
 /// the same bits. Every declared-mass total of a scenario set uses this sum.
 #[must_use]
 #[doc(hidden)]
 pub fn mass_sum(values: impl IntoIterator<Item = f64>) -> f64 {
     let mut values = values.into_iter().collect::<Vec<_>>();
     values.sort_by(f64::total_cmp);
-    let (mut sum, mut compensation) = (0.0_f64, 0.0_f64);
-    for value in values {
-        let next = sum + value;
-        compensation +=
-            if sum.abs() >= value.abs() { (sum - next) + value } else { (value - next) + sum };
-        sum = next;
-    }
-    sum + compensation
+    CompensatedSum::of(values)
 }
 
 /// Mass left over once `identified` mass is accounted for: one minus it, zero
@@ -121,7 +107,8 @@ pub fn unaccounted_after(identified: f64) -> f64 {
 /// Detail of a scenario that a budget stop or cancellation left unevaluated.
 /// The stop itself (`search.operations`, `search.depth`, `search.memory` or
 /// `search.cancelled`) is carried beside it.
-pub const SCENARIO_UNEVALUATED_DETAIL: &str = "scenarios.unevaluated_budget";
+pub const SCENARIO_UNEVALUATED_DETAIL: &str =
+    antecedent_core::reason_details::scenarios::UNEVALUATED_BUDGET;
 /// Registered runtime-refusal code of an unevaluated scenario: the same
 /// `transport_budget_cancel` every transport search reports for a budget
 /// or cancellation stop, never a verdict about the scenario.
@@ -154,7 +141,7 @@ impl ScenarioSetRefusal {
     pub fn coordinate_mismatch(message: impl Into<String>) -> Self {
         Self {
             code: reason_code!("schema_mismatch"),
-            detail: "scenarios.coordinate_mismatch",
+            detail: antecedent_core::reason_details::scenarios::COORDINATE_MISMATCH,
             message: message.into(),
         }
     }
@@ -297,16 +284,15 @@ impl TransportScenarioSet {
     ///
     /// # Errors
     /// A [`ScenarioSetRefusal`]: `schema_mismatch` / `scenarios.coordinate_mismatch`
-    /// for disagreeing coordinates, `route_not_supported` for an exceeded bound,
+    /// for disagreeing coordinates, `route_not_supported` for an exceeded caller bound,
     /// and `invalid_argument` otherwise.
     pub fn try_new(scenarios: Vec<TransportScenario>) -> Result<Self, ScenarioSetRefusal> {
-        Self::try_new_within(scenarios, SCENARIO_MAX_COUNT)
+        Self::try_new_within(scenarios, usize::MAX)
     }
 
-    /// [`Self::try_new`] with the scenario count bounded by `max_scenarios` instead of
-    /// [`SCENARIO_MAX_COUNT`]. The 64-scenario bound limits a *supplied* list; a set derived
-    /// from an enumerated equivalence class is already bounded by the budget that charged
-    /// each completion's memory, so that route passes `usize::MAX`.
+    /// [`Self::try_new`] with the scenario count bounded by `max_scenarios`. `try_new`
+    /// applies no count bound: every scenario's decision is charged to the search budget,
+    /// which stops with a receipt of the scenarios left unevaluated.
     ///
     /// # Errors
     ///
@@ -317,11 +303,14 @@ impl TransportScenarioSet {
     ) -> Result<Self, ScenarioSetRefusal> {
         use ScenarioSetRefusal as R;
         if scenarios.is_empty() {
-            return Err(R::invalid("scenarios.empty", "a scenario set needs a scenario"));
+            return Err(R::invalid(
+                antecedent_core::reason_details::scenarios::EMPTY,
+                "a scenario set needs a scenario",
+            ));
         }
         if scenarios.len() > max_scenarios {
             return Err(R::bound(
-                "scenarios.count",
+                antecedent_core::reason_details::scenarios::COUNT,
                 format!("{} scenarios exceed the bound of {max_scenarios}", scenarios.len()),
             ));
         }
@@ -337,7 +326,7 @@ impl TransportScenarioSet {
         for scenario in &scenarios {
             if scenario.name.trim().is_empty() || !names.insert(scenario.name.clone()) {
                 return Err(R::invalid(
-                    "scenarios.duplicate_or_empty_name",
+                    antecedent_core::reason_details::scenarios::DUPLICATE_OR_EMPTY_NAME,
                     "scenario names must be unique and non-empty",
                 ));
             }
@@ -360,7 +349,7 @@ impl TransportScenarioSet {
             }
             if !signatures.insert(super::graph_signature(&scenario.diagram)) {
                 return Err(R::invalid(
-                    "scenarios.duplicate_scenario",
+                    antecedent_core::reason_details::scenarios::DUPLICATE_SCENARIO,
                     format!("scenario {} repeats another's graph and selections", scenario.name),
                 ));
             }
@@ -368,7 +357,7 @@ impl TransportScenarioSet {
         let weighted = scenarios[0].weight.is_some();
         let bad_weights = || {
             R::invalid(
-                "scenarios.invalid_weights",
+                antecedent_core::reason_details::scenarios::INVALID_WEIGHTS,
                 "weights are declared for all scenarios or none, finite, non-negative and \
                  summing to at most one",
             )
@@ -453,7 +442,7 @@ impl TransportScenarioSet {
         for environment in catalog.environments.iter() {
             if !environment.selection_targets.is_empty() {
                 return Err(ScenarioSetRefusal::invalid(
-                    "scenarios.catalog_selections",
+                    antecedent_core::reason_details::scenarios::CATALOG_SELECTIONS,
                     format!(
                         "catalog environment {} declares selection targets; selections belong \
                          to each scenario",
@@ -557,9 +546,9 @@ impl TransportScenarioSet {
 pub enum ScenarioQuestion {
     /// `P*(y | do(x))`, decided by the classical catalog sID route.
     Classical(ClassicalTransportQuery),
-    /// `P*(y | do(x), w)`, decided by the bounded ADMG conditional transport
-    /// route: at most 6 observed variables, 0-3 treatments and 1-3
-    /// conditioned variables.
+    /// `P*(y | do(x), w)`, decided by the ADMG conditional transport route,
+    /// bounded by the set's search budget and memory charge only (the route's
+    /// observed, treatment and conditioned counts are parse bounds for stored records).
     Conditional(ConditionalTransportQuery),
 }
 
@@ -782,9 +771,7 @@ pub fn decide_transport_scenarios(
 /// [`ScenarioOutcome::StructurallyUnidentified`] is never returned here.
 ///
 /// # Errors
-/// As [`decide_transport_scenarios`], plus the conditional route's bounds
-/// (`admg_transport.bounds_exceeded`: more than 6 observed variables, 3
-/// treatments or 3 conditioned variables) and query checks
+/// As [`decide_transport_scenarios`], plus the conditional route's query checks
 /// (`admg_transport.invalid_query`), refused for the whole set before any
 /// scenario is entered.
 pub fn decide_conditional_transport_scenarios(
@@ -893,7 +880,7 @@ pub fn decide_scenario_question(
         question: question.clone(),
         decisions,
         receipt,
-        limits: ScenarioDecisionLimits { budget, memory_limit_bytes: ctx.memory.hard_limit_bytes },
+        limits: ScenarioDecisionLimits { budget, memory_limit_bytes: ctx.memory_limit_bytes() },
     })
 }
 
@@ -1054,35 +1041,38 @@ mod tests {
         assert_eq!(set.schema().len(), 2);
         assert_eq!(
             code(TransportScenarioSet::try_new(vec![])),
-            ("invalid_argument", "scenarios.empty")
+            ("invalid_argument", antecedent_core::reason_details::scenarios::EMPTY)
         );
         assert_eq!(
             code(TransportScenarioSet::try_new(vec![
                 scenario("a", 2, &[], None),
                 scenario("a", 2, &[1], None)
             ])),
-            ("invalid_argument", "scenarios.duplicate_or_empty_name")
+            (
+                "invalid_argument",
+                antecedent_core::reason_details::scenarios::DUPLICATE_OR_EMPTY_NAME
+            )
         );
         assert_eq!(
             code(TransportScenarioSet::try_new(vec![
                 scenario("a", 2, &[1], None),
                 scenario("b", 2, &[1], None)
             ])),
-            ("invalid_argument", "scenarios.duplicate_scenario")
+            ("invalid_argument", antecedent_core::reason_details::scenarios::DUPLICATE_SCENARIO)
         );
         assert_eq!(
             code(TransportScenarioSet::try_new(vec![
                 scenario("a", 2, &[], None),
                 scenario("b", 3, &[], None)
             ])),
-            ("schema_mismatch", "scenarios.coordinate_mismatch")
+            ("schema_mismatch", antecedent_core::reason_details::scenarios::COORDINATE_MISMATCH)
         );
         assert_eq!(
             code(TransportScenarioSet::try_new(vec![
                 scenario("a", 2, &[], Some(-0.1)),
                 scenario("b", 2, &[1], Some(0.2))
             ])),
-            ("invalid_argument", "scenarios.invalid_weights")
+            ("invalid_argument", antecedent_core::reason_details::scenarios::INVALID_WEIGHTS)
         );
         let weighted = TransportScenarioSet::try_new(vec![
             scenario("a", 2, &[], Some(0.25)),
@@ -1093,7 +1083,7 @@ mod tests {
     }
 
     #[test]
-    fn the_frozen_scenario_bound_admits_64_and_refuses_65() {
+    fn the_scenario_count_is_bounded_by_the_budget_not_a_constant() {
         // Six nodes give 64 distinct selection sets, one per scenario.
         let set = |count: usize| {
             TransportScenarioSet::try_new(
@@ -1106,15 +1096,20 @@ mod tests {
                     .collect(),
             )
         };
-        assert_eq!(SCENARIO_MAX_COUNT, 64);
-        assert_eq!(set(SCENARIO_MAX_COUNT).unwrap().scenarios().len(), 64);
-        assert_eq!(code(set(SCENARIO_MAX_COUNT + 1)), ("route_not_supported", "scenarios.count"));
+        assert_eq!(set(64).unwrap().scenarios().len(), 64);
+        // Six nodes give only 64 distinct selection sets, so a 65th scenario is refused as
+        // a duplicate, not as a count bound.
+        assert_eq!(
+            code(set(65)),
+            ("invalid_argument", antecedent_core::reason_details::scenarios::DUPLICATE_SCENARIO)
+        );
     }
 
     #[test]
     fn scenarios_must_share_names_domains_cardinalities_and_units() {
         let a = || scenario("a", 2, &[], None);
-        let mismatch = ("schema_mismatch", "scenarios.coordinate_mismatch");
+        let mismatch =
+            ("schema_mismatch", antecedent_core::reason_details::scenarios::COORDINATE_MISMATCH);
         let name = edited(|c| c.name = Arc::from("renamed"));
         assert_eq!(code(TransportScenarioSet::try_new(vec![a(), name])), mismatch);
         let domain = edited(|c| c.domain = VariableDomain::Continuous);
@@ -1134,7 +1129,10 @@ mod tests {
         let set = TransportScenarioSet::try_new(vec![a()]).unwrap();
         assert!(set.check_value(VariableId::from_raw(1), &Value::f64(1.0), "law").is_ok());
         let outside = set.check_value(VariableId::from_raw(1), &Value::f64(2.0), "law");
-        assert_eq!(outside.unwrap_err().detail, "scenarios.coordinate_mismatch");
+        assert_eq!(
+            outside.unwrap_err().detail,
+            antecedent_core::reason_details::scenarios::COORDINATE_MISMATCH
+        );
         assert!(set.check_value(VariableId::from_raw(7), &Value::f64(0.0), "law").is_err());
     }
 
@@ -1159,7 +1157,10 @@ mod tests {
             let refused = set.check_value(y, &value, "law").unwrap_err();
             assert_eq!(
                 (refused.code, refused.detail),
-                ("schema_mismatch", "scenarios.coordinate_mismatch"),
+                (
+                    "schema_mismatch",
+                    antecedent_core::reason_details::scenarios::COORDINATE_MISMATCH
+                ),
                 "{value:?}"
             );
         }
@@ -1171,10 +1172,10 @@ mod tests {
         let orders = [[0.7, 0.2, 0.1], [0.1, 0.2, 0.7], [0.2, 0.7, 0.1], [0.1, 0.7, 0.2]];
         let sums = orders.map(mass_sum);
         assert!(sums.iter().all(|s| s.to_bits() == sums[0].to_bits()), "{sums:?}");
-        assert!(unaccounted_after(sums[0]).abs() == 0.0);
-        assert!(unaccounted_after(0.999_999_999_999_9).abs() == 0.0);
+        assert_eq!(unaccounted_after(sums[0]).abs().to_bits(), 0);
+        assert_eq!(unaccounted_after(0.999_999_999_999_9).abs().to_bits(), 0);
         assert!((unaccounted_after(0.9) - 0.1).abs() < 1e-15);
-        assert!(unaccounted_after(1.5).abs() == 0.0);
+        assert_eq!(unaccounted_after(1.5).abs().to_bits(), 0);
         // Declared weights are accepted and leave no residual in either order.
         for weights in [[0.7, 0.2, 0.1], [0.1, 0.2, 0.7]] {
             let set = TransportScenarioSet::try_new(vec![

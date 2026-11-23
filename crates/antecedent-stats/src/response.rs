@@ -3,7 +3,7 @@
 //! These routines deliberately contain no causal semantics.  They provide the
 //! local-polynomial and Gaussian-density calculations used by response estimators.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::StatsError;
 
@@ -39,6 +39,10 @@ pub struct LocalPolynomialInfluence {
     pub point: LocalPolynomialPoint,
     /// Observation-level linearized residual contributions.
     pub influences: Vec<f64>,
+    /// Observation-level linearized contributions of the first derivative: the same
+    /// weighted-estimating-equation influences as [`Self::influences`] for the slope
+    /// coordinate. Their sum is zero up to numerical precision.
+    pub first_derivative_influences: Vec<f64>,
     /// Satterthwaite degrees of freedom of the leverage-corrected level
     /// variance quadratic form; absent for the original raw-residual helper.
     pub variance_degrees_of_freedom: Option<f64>,
@@ -191,7 +195,7 @@ impl GaussianMixtureDensity {
             }
             None => vec![1.0; means.len()],
         };
-        if weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
+        if !crate::weight_validation::finite_nonnegative(&weights) {
             return Err(StatsError::Shape { message: "mixture weights must be finite and >= 0" });
         }
         let weight_sum: f64 = weights.iter().sum();
@@ -342,6 +346,33 @@ pub fn gaussian_local_quadratic_influence_with(
     fit_local_quadratic(workspace, x, y, at, bandwidth, true, None, false)
 }
 
+/// Local quadratic with sampling weights multiplying the Gaussian kernel.
+///
+/// The fit solves the weighted estimating equation `sum_i s_i K_i x_i (y_i - x_i'b) = 0` and the
+/// influences are the weighted-score contributions `(X'WX)^-1 x_i s_i K_i e_i` with
+/// `W = diag(s_i K_i)`, so [`LocalPolynomialInfluence::robust_standard_error`] is the Taylor
+/// linearization (sandwich) standard error of the weighted fit with rows as the sampling units.
+/// `weights` must be finite and non-negative, one per row. A sum of the weighted influences over a
+/// declared cluster or a Newey-West combination of them gives the cluster-robust or HAC variance.
+///
+/// # Errors
+///
+/// Shape mismatch, non-finite input or weights, a negative weight, an invalid bandwidth, or a
+/// singular local design.
+pub fn gaussian_local_quadratic_influence_weighted_with(
+    workspace: &mut LocalQuadraticWorkspace,
+    x: &[f64],
+    y: &[f64],
+    at: f64,
+    bandwidth: f64,
+    weights: &[f64],
+) -> Result<LocalPolynomialInfluence, StatsError> {
+    if weights.len() != x.len() || !crate::weight_validation::finite_nonnegative(weights) {
+        return Err(StatsError::Shape { message: "invalid local quadratic weights" });
+    }
+    fit_local_quadratic(workspace, x, y, at, bandwidth, true, Some(weights), false)
+}
+
 /// Local quadratic after the caller has already refused non-finite `x`/`y`.
 pub fn gaussian_local_quadratic_influence_prechecked(
     workspace: &mut LocalQuadraticWorkspace,
@@ -389,7 +420,7 @@ pub fn gaussian_local_quadratic_weighted(
     weights: &[f64],
 ) -> Result<LocalPolynomialPoint, StatsError> {
     if weights.len() != x.len()
-        || weights.iter().any(|v| !v.is_finite() || *v < 0.0)
+        || !crate::weight_validation::finite_nonnegative(weights)
         || (weights.iter().sum::<f64>() - x.len() as f64).abs() > 1e-8 * x.len() as f64
     {
         return Err(StatsError::Shape { message: "invalid local quadratic weights" });
@@ -509,9 +540,17 @@ fn local_variance_degrees_of_freedom(
             [d * row[0], d * row[1], d * row[2], w * inv_row[0], w * inv_row[1], w * inv_row[2]];
         basis.extend_from_slice(&u);
         for j in 0..3 {
-            for k in 0..3 {
+            for k in 0..=j {
                 h[j][k] += d * row[j] * row[k];
             }
+        }
+    }
+    // A weighted outer product is symmetric. Mirror one accumulated triangle
+    // exactly: differently associated products can round apart in dose units
+    // far from one and must not be passed off as an asymmetric quadratic core.
+    for j in 0..3 {
+        for k in 0..j {
+            h[k][j] = h[j][k];
         }
     }
     let mut c = [[0.0; 6]; 6];
@@ -566,14 +605,31 @@ fn fit_local_quadratic(
     workspace.weights.reserve(x.len());
     let mut weight_sum = 0.0;
     let mut weight_sq_sum = 0.0;
+    // The fit is carried out on the response minus its kernel-weighted mean, and the mean is
+    // added back to the level. Slope, curvature, residuals and influences are unchanged, but
+    // the products w * y no longer carry the response's offset: with a mean 1e6 times the local
+    // spread the curvature otherwise loses about eight digits.
+    let (mut shift_numerator, mut shift_denominator) = (0.0, 0.0);
     for (i, (&xi, &yi)) in x.iter().zip(y).enumerate() {
+        let z = (xi - at) / bandwidth;
+        let w = (-0.5 * z * z).exp() * observation_weights.map_or(1.0, |w| w[i]);
+        shift_numerator += w * yi;
+        shift_denominator += w;
+    }
+    let shift = if shift_denominator > 0.0 && shift_numerator.is_finite() {
+        shift_numerator / shift_denominator
+    } else {
+        0.0
+    };
+    for (i, (&xi, &response)) in x.iter().zip(y).enumerate() {
+        let yi = response - shift;
         let dx = xi - at;
         let z = dx / bandwidth;
         let w = (-0.5 * z * z).exp() * observation_weights.map_or(1.0, |w| w[i]);
         let row = [1.0, dx, dx * dx];
         for j in 0..3 {
             rhs[j] += w * row[j] * yi;
-            for k in 0..3 {
+            for k in 0..=j {
                 gram[j][k] += w * row[j] * row[k];
                 squared_gram[j][k] += w * w * row[j] * row[k];
             }
@@ -581,6 +637,12 @@ fn fit_local_quadratic(
         workspace.weights.push((w, row, yi));
         weight_sum += w;
         weight_sq_sum += w * w;
+    }
+    for j in 0..3 {
+        for k in 0..j {
+            gram[k][j] = gram[j][k];
+            squared_gram[k][j] = squared_gram[j][k];
+        }
     }
     // A local quadratic spends three degrees of freedom; below that the residual
     // scale is not estimable and any interval would be invented rather than fitted.
@@ -593,6 +655,7 @@ fn fit_local_quadratic(
     let beta = matvec(inverse, rhs);
     let smoother_squares = matmul3(matmul3(inverse, squared_gram), inverse);
     let mut influences = Vec::with_capacity(workspace.weights.len());
+    let mut first_derivative_influences = Vec::with_capacity(workspace.weights.len());
     let mut first_derivative_influence_ss = 0.0;
     let mut second_derivative_influence_ss = 0.0;
     let mut weighted_rss = 0.0;
@@ -622,6 +685,7 @@ fn fit_local_quadratic(
         influences.push(w * hat * residual);
         let first_hat = inverse[1].iter().zip(row).map(|(c, v)| c * v).sum::<f64>();
         first_derivative_influence_ss += (w * first_hat * residual).powi(2);
+        first_derivative_influences.push(w * first_hat * residual);
         let second_hat = inverse[2].iter().zip(row).map(|(c, v)| c * v).sum::<f64>();
         // The fitted quadratic coefficient is half the second derivative.
         second_derivative_influence_ss += (2.0 * w * second_hat * residual).powi(2);
@@ -637,13 +701,25 @@ fn fit_local_quadratic(
     // Fused with the accumulation loop above (which also guards both sums), so
     // this is the one Kish ratio not routed through `kernels::kish_ess`.
     let local_ess = weight_sum * weight_sum / weight_sq_sum;
-    let sigma2 = weighted_rss / (weight_sum - 3.0);
+    // For uncorrelated homoskedastic errors, E[r'Wr] = sigma^2 (sum w - tr((X'WX)^-1 X'W^2X))
+    // because the weighted hat map is a W-orthogonal projection. The divisor equals
+    // `weight_sum - 3` only when every kernel weight is 0 or 1; with fractional Gaussian
+    // weights the latter overstates sigma^2.
+    let weighted_hat_trace: f64 =
+        (0..3).map(|j| (0..3).map(|k| inverse[j][k] * squared_gram[k][j]).sum::<f64>()).sum();
+    let residual_weight = weight_sum - weighted_hat_trace;
+    if !residual_weight.is_finite() || residual_weight <= 0.0 {
+        return Err(StatsError::Backend(
+            "local response residual scale is not estimable from the kernel window".into(),
+        ));
+    }
+    let sigma2 = weighted_rss / residual_weight;
     // sigma^2 (X'WX)^-1 (X'W^2X) (X'WX)^-1 — the kernel weights are not
     // inverse-variance weights, so the bread-only form is not the variance.
     let sandwich = smoother_squares;
     let coefficient_se = |index: usize| (sigma2 * sandwich[index][index]).max(0.0).sqrt();
     let point = LocalPolynomialPoint {
-        value: beta[0],
+        value: beta[0] + shift,
         first_derivative: beta[1],
         second_derivative: 2.0 * beta[2],
         standard_error: coefficient_se(0),
@@ -656,6 +732,7 @@ fn fit_local_quadratic(
     Ok(LocalPolynomialInfluence {
         point,
         influences,
+        first_derivative_influences,
         variance_degrees_of_freedom: if adjust_residuals {
             Some(local_variance_degrees_of_freedom(&workspace.weights, inverse, smoother_squares)?)
         } else {
@@ -731,6 +808,29 @@ pub fn gaussian_local_quadratic_bias_corrected(
     bandwidth: f64,
     observation_weights: Option<&[f64]>,
 ) -> Result<LocalPolynomialBiasCorrected, StatsError> {
+    gaussian_local_quadratic_bias_corrected_influence(x, y, at, bandwidth, observation_weights)
+        .map(|(corrected, _)| corrected)
+}
+
+/// [`gaussian_local_quadratic_bias_corrected`] together with the per-row linearized
+/// influence of each corrected coordinate.
+///
+/// Row `i` of the returned vector holds `[ψ_level, ψ_slope, ψ_curvature]` in the
+/// units of the corrected coordinates, with the same pairing as the covariance
+/// (level and curvature from the quartic fit, slope from the cubic fit). The
+/// covariance of the corrected coordinates is `Σ_i ψ_i ψ_iᵀ`, so a smooth function
+/// `τ` of the coordinates has the row influence `∇τ · ψ_i`.
+///
+/// # Errors
+///
+/// As [`gaussian_local_quadratic_bias_corrected`].
+pub fn gaussian_local_quadratic_bias_corrected_influence(
+    x: &[f64],
+    y: &[f64],
+    at: f64,
+    bandwidth: f64,
+    observation_weights: Option<&[f64]>,
+) -> Result<(LocalPolynomialBiasCorrected, Vec<[f64; 3]>), StatsError> {
     if x.len() != y.len() || x.len() < 5 {
         return Err(StatsError::Shape {
             message: "local bias correction requires aligned x/y with n >= 5",
@@ -743,10 +843,10 @@ pub fn gaussian_local_quadratic_bias_corrected(
     {
         return Err(StatsError::Shape { message: "local bias-correction inputs must be finite" });
     }
-    if let Some(weights) = observation_weights {
-        if weights.len() != x.len() || weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
-            return Err(StatsError::Shape { message: "invalid local bias-correction weights" });
-        }
+    if let Some(weights) = observation_weights
+        && (weights.len() != x.len() || !crate::weight_validation::finite_nonnegative(weights))
+    {
+        return Err(StatsError::Shape { message: "invalid local bias-correction weights" });
     }
     let (cubic, cubic_se, cubic_influence) =
         robust_local_polynomial::<4>(x, y, at, bandwidth, observation_weights)?;
@@ -756,6 +856,7 @@ pub fn gaussian_local_quadratic_bias_corrected(
     let first_scale = 1.0 / bandwidth;
     let second_scale = 2.0 / (bandwidth * bandwidth);
     let mut covariance = [[0.0; 3]; 3];
+    let mut rows = Vec::with_capacity(cubic_influence.len());
     for (cubic_row, quartic_row) in cubic_influence.iter().zip(&quartic_influence) {
         let psi = [quartic_row[0], cubic_row[1] * first_scale, quartic_row[2] * second_scale];
         for a in 0..3 {
@@ -763,16 +864,20 @@ pub fn gaussian_local_quadratic_bias_corrected(
                 covariance[a][b] += psi[a] * psi[b];
             }
         }
+        rows.push(psi);
     }
-    Ok(LocalPolynomialBiasCorrected {
-        value: quartic[0],
-        first_derivative: cubic[1] * first_scale,
-        second_derivative: quartic[2] * second_scale,
-        robust_standard_error: quartic_se[0],
-        robust_first_derivative_standard_error: cubic_se[1] * first_scale,
-        robust_second_derivative_standard_error: quartic_se[2] * second_scale,
-        coefficient_covariance: covariance,
-    })
+    Ok((
+        LocalPolynomialBiasCorrected {
+            value: quartic[0],
+            first_derivative: cubic[1] * first_scale,
+            second_derivative: quartic[2] * second_scale,
+            robust_standard_error: quartic_se[0],
+            robust_first_derivative_standard_error: cubic_se[1] * first_scale,
+            robust_second_derivative_standard_error: quartic_se[2] * second_scale,
+            coefficient_covariance: covariance,
+        },
+        rows,
+    ))
 }
 
 /// Fitted `N`-coefficient local polynomial: point estimates, their sandwich
@@ -795,7 +900,11 @@ fn robust_local_polynomial<const N: usize>(
     let mut rhs = [0.0; N];
     let mut rows = Vec::with_capacity(x.len());
     let mut weight_sum = 0.0;
+    // The intercept absorbs a response translation. Remove its magnitude
+    // before forming normal equations and residuals, as the quadratic fit does.
+    let response_anchor = y[0];
     for (i, (&xi, &yi)) in x.iter().zip(y).enumerate() {
+        let yi = yi - response_anchor;
         let u = (xi - at) / bandwidth;
         let w = (-0.5 * u * u).exp() * observation_weights.map_or(1.0, |w| w[i]);
         let mut row = [1.0; N];
@@ -818,7 +927,7 @@ fn robust_local_polynomial<const N: usize>(
         )));
     }
     let inverse = inverse_small(gram).ok_or(StatsError::SingularLocalDesign { order: N - 1 })?;
-    let gamma: [f64; N] = std::array::from_fn(|j| (0..N).map(|k| inverse[j][k] * rhs[k]).sum());
+    let mut gamma: [f64; N] = std::array::from_fn(|j| (0..N).map(|k| inverse[j][k] * rhs[k]).sum());
     let mut influence_ss = [0.0; N];
     let mut influences = Vec::with_capacity(rows.len());
     for &(w, row, yi) in &rows {
@@ -831,6 +940,7 @@ fn robust_local_polynomial<const N: usize>(
         }
         influences.push(psi);
     }
+    gamma[0] += response_anchor;
     Ok((gamma, influence_ss.map(f64::sqrt), influences))
 }
 
@@ -1072,6 +1182,63 @@ mod tests {
         assert!((corrected.first_derivative - truth_first).abs() < 1e-9);
         assert!((corrected.second_derivative - (1.0 + 6.0 * at)).abs() < 1e-9);
         assert!((corrected.value - (1.0 + 2.0 * at + 0.5 * at * at + at.powi(3))).abs() < 1e-10);
+    }
+
+    #[test]
+    fn adjusted_local_variance_degrees_of_freedom_respect_treatment_units() {
+        let x: Vec<f64> = (-100..=100).map(|i| f64::from(i) / 50.0).collect();
+        let y: Vec<f64> = x
+            .iter()
+            .enumerate()
+            .map(|(i, x)| 1.0 + 2.0 * x + 0.5 * x * x + (i as f64 * 0.73).sin() * 0.1)
+            .collect();
+        let fit = |scale: f64| {
+            let x: Vec<f64> = x.iter().map(|x| x * scale).collect();
+            gaussian_local_quadratic_adjusted_influence_prechecked(
+                &mut LocalQuadraticWorkspace::default(),
+                &x,
+                &y,
+                0.3 * scale,
+                0.5 * scale,
+            )
+            .unwrap()
+        };
+        let original = fit(1.0);
+        for scale in [1e-6, 1e8] {
+            let scaled = fit(scale);
+            assert!((scaled.point.value - original.point.value).abs() < 1e-10);
+            assert!(
+                (scaled.variance_degrees_of_freedom.unwrap()
+                    / original.variance_degrees_of_freedom.unwrap()
+                    - 1.0)
+                    .abs()
+                    < 1e-8
+            );
+        }
+    }
+
+    #[test]
+    fn bias_corrected_coordinates_and_influences_ignore_a_large_response_offset() {
+        // Binary fractions remain exactly representable after the 2^40 shift,
+        // so any changed derivative/influence is fitting arithmetic, not input rounding.
+        let x: Vec<f64> = (-40..=40).map(|i| f64::from(i) / 16.0).collect();
+        let y: Vec<f64> = x
+            .iter()
+            .enumerate()
+            .map(|(i, x)| 1.0 + 2.0 * x + x * x + f64::from(i % 3 == 0) / 8.0)
+            .collect();
+        let offset = 2.0_f64.powi(40);
+        let shifted: Vec<f64> = y.iter().map(|y| y + offset).collect();
+        let fit = |values: &[f64]| {
+            gaussian_local_quadratic_bias_corrected_influence(&x, values, 0.25, 0.75, None).unwrap()
+        };
+        let (original, original_rows) = fit(&y);
+        let (translated, translated_rows) = fit(&shifted);
+        assert!((translated.value - offset - original.value).abs() < 0.0003);
+        assert!((translated.first_derivative - original.first_derivative).abs() < 1e-12);
+        assert!((translated.second_derivative - original.second_derivative).abs() < 1e-12);
+        assert_eq!(translated.coefficient_covariance, original.coefficient_covariance);
+        assert_eq!(translated_rows, original_rows);
     }
 
     #[test]

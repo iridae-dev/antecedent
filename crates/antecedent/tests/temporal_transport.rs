@@ -7,7 +7,7 @@
 //! each action with the outcome. Every expected value is enumerated from the
 //! structural model.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "../../antecedent-estimate/tests/common/mod.rs"]
 mod common;
@@ -130,7 +130,6 @@ fn a_mutated_artifact_fails_independent_consumption_with_typed_errors() {
     // selections, slots, question and every limit are bound.
     let cases: Vec<(&str, Edit)> = vec![
         ("sequence", Box::new(|w| w.sequence.swap(0, 1))),
-        ("horizon", Box::new(|w| w.horizon = 3)),
         ("variable name", Box::new(|w| w.coordinates[3].name = "renamed".into())),
         ("graph edge", Box::new(|w| w.graph.directed.push((0, 5)))),
         ("selection", Box::new(|w| w.selections.push(1))),
@@ -195,8 +194,8 @@ fn a_mutated_artifact_fails_independent_consumption_with_typed_errors() {
     assert_eq!(typed(refused), TemporalTransportArtifactError::LimitsExceeded("search budget"));
     // A foreign version or feature marker never decodes.
     assert!(matches!(
-        consume(&mutated(&bytes, |w| w.version = 2, false)),
-        Err(IoError::UnsupportedVersion { version: 2 })
+        consume(&mutated(&bytes, |w| w.version = 0, false)),
+        Err(IoError::UnsupportedVersion { version: 0 })
     ));
     assert_eq!(
         typed(consume(&mutated(&bytes, |w| w.required_features = vec!["other".into()], false))),
@@ -205,17 +204,36 @@ fn a_mutated_artifact_fails_independent_consumption_with_typed_errors() {
 }
 
 #[test]
-fn a_mutated_horizon_or_history_refuses_on_replay_not_only_by_digest() {
+fn temporal_layout_requires_the_version_and_feature_for_its_horizon() {
+    use antecedent_io::temporal_transport_artifact::{
+        TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_FEATURE, TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_VERSION,
+    };
     let (_, _, bytes) = exported(1.0, 0.0);
-    // Even with a recomputed digest, horizon three is refused by the replay.
-    let three = mutated(&bytes, |w| w.horizon = 3, true);
-    match consume(&three) {
-        Err(IoError::Refused { code, message }) => {
-            assert_eq!(code, "route_not_supported");
-            assert!(message.starts_with("temporal_transport.horizon"), "{message}");
-        }
-        other => panic!("{:?}", other.map(|_| ())),
-    }
+    let v1 = TemporalSequenceArtifactWire::decode(&bytes).unwrap();
+    assert_eq!(v1.horizon, 2);
+    // This checks v2 decoding/layout only; replay needs a genuine three-step fixture.
+    let mut v2 = v1.clone();
+    v2.horizon = 3;
+    v2.version = TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_VERSION;
+    v2.required_features = vec![TEMPORAL_TRANSPORT_HORIZON_ARTIFACT_FEATURE.into()];
+    assert_eq!(TemporalSequenceArtifactWire::decode(&v2.export().unwrap()).unwrap().horizon, 3);
+    let unsealed_horizon = mutated(&bytes, |w| w.horizon = 3, false);
+    assert_eq!(
+        typed(consume(&unsealed_horizon)),
+        TemporalTransportArtifactError::UnsupportedSemantics("required features")
+    );
+    let stale_horizon = mutated(&bytes, |w| w.horizon = 3, true);
+    assert_eq!(
+        typed(consume(&stale_horizon)),
+        TemporalTransportArtifactError::UnsupportedSemantics("required features")
+    );
+    v2.horizon = 2;
+    assert!(matches!(
+        TemporalSequenceArtifactWire::decode(&v2.export().unwrap()),
+        Err(IoError::TemporalTransport(TemporalTransportArtifactError::UnsupportedSemantics(
+            "required features"
+        )))
+    ));
 }
 
 #[test]
@@ -276,12 +294,20 @@ fn a_new_period_or_a_changed_window_needs_a_new_preparation() {
     let (code, message) =
         refused(prepared.refresh(ExactTransportData::try_new(all, 4096).unwrap(), &ctx()));
     assert_eq!(code, "route_not_supported");
-    assert!(message.starts_with("temporal_transport.horizon"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::temporal_transport::HORIZON),
+        "{message}"
+    );
     // Dropping a source history experiment is a history outside support, not a new window.
     let (code, message) =
         refused(prepared.refresh(laws(&source_scm(), &target_scm(), &[(1, 1, 1)]), &ctx()));
     assert_eq!(code, "transport_support_failure");
-    assert!(message.starts_with("temporal_transport.history_outside_support"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::temporal_transport::HISTORY_OUTSIDE_SUPPORT
+        ),
+        "{message}"
+    );
     // A different measurement window (no source experiments at all) needs a new preparation.
     let target_only = ExactTransportData::try_new(
         full.laws().iter().filter(|l| l.population() == "target").cloned().collect::<Vec<_>>(),
@@ -290,7 +316,10 @@ fn a_new_period_or_a_changed_window_needs_a_new_preparation() {
     .unwrap();
     let (code, message) = refused(prepared.refresh(target_only, &ctx()));
     assert_eq!(code, "route_not_supported");
-    assert!(message.starts_with("temporal_transport.horizon"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::temporal_transport::HORIZON),
+        "{message}"
+    );
     // A longer horizon never prepares at all.
     let mut three = sequence(1.0, 0.0);
     three.push(Value::f64(1.0));
@@ -304,7 +333,10 @@ fn a_new_period_or_a_changed_window_needs_a_new_preparation() {
     );
     let (code, message) = refused(error);
     assert_eq!(code, "route_not_supported");
-    assert!(message.starts_with("temporal_transport.horizon"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::temporal_transport::HORIZON),
+        "{message}"
+    );
 }
 
 #[test]
@@ -313,7 +345,12 @@ fn an_interval_request_refuses_with_estimator_inference_mismatch() {
     match prepared.interval() {
         Err(IoError::Refused { code, message }) => {
             assert_eq!(code, "estimator_inference_mismatch");
-            assert!(message.starts_with("temporal_transport.interval_requested"), "{message}");
+            assert!(
+                message.starts_with(
+                    antecedent_core::reason_details::temporal_transport::INTERVAL_REQUESTED
+                ),
+                "{message}"
+            );
         }
         other => panic!("expected estimator_inference_mismatch, got {other:?}"),
     }
@@ -417,7 +454,10 @@ fn a_refresh_that_moves_the_fixed_initial_state_needs_a_new_preparation() {
     moved.exo_p[0] = 0.5;
     let (code, message) = refused(prepared.refresh(laws(&source_scm(), &moved, &[]), &ctx()));
     assert_eq!(code, "route_not_supported");
-    assert!(message.starts_with("temporal_transport.horizon"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::temporal_transport::HORIZON),
+        "{message}"
+    );
     assert!(message.contains("initial-state"), "{message}");
     // The same initial state with other target mechanisms is a same-window refresh.
     let mut later = target_scm();
@@ -558,5 +598,13 @@ fn resealed_data_identity_mutations_fail_replay() {
     let moved = consume(&resealed(&|w| {
         w.laws.iter_mut().find(|l| l.population == "target").unwrap().snapshot = "elsewhere".into();
     }));
-    assert!(moved.is_err(), "a law outside its catalog binding must not replay");
+    assert!(
+        matches!(
+            &moved,
+            Err(IoError::Refused { code, message })
+                if *code == "transport_missing_provider"
+                    && message == "exact provider snapshot does not match catalog binding"
+        ),
+        "a law outside its catalog binding must not replay"
+    );
 }

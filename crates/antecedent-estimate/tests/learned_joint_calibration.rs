@@ -43,6 +43,10 @@ fn model(varying: VaryingBlock, sharing: SourceSharing) -> LearnedJointModel {
         conflict_z_threshold: 3.,
     }
 }
+#[allow(
+    clippy::result_large_err,
+    reason = "test helper; the error type is the estimator's own refusal and these closures run once per simulated replicate"
+)]
 fn measure(
     test: &'static str,
     expected_id: &str,
@@ -92,7 +96,10 @@ fn measure(
             Err(_) => tally.skip(),
         }
     }
-    assert_eq!(tally.record_id().as_deref(), Some(expected_id));
+    assert_eq!(
+        tally.record_id().as_deref(),
+        Some(format!("{expected_id}.v2_validation_not_applicable").as_str())
+    );
     tally.assert();
 }
 #[test]

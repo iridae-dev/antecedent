@@ -44,9 +44,13 @@ def verdict(case: dict[str, Any], seconds: float, peak: int, status: int, output
     elif not any(int(n) >= 1 for n in PASSED.findall(output)):
         problems.append(f"{case['case']}: {case['test']} ran no test")
     if seconds > case["runtime_seconds"]:
-        problems.append(f"{case['case']}: ran {seconds:.0f}s, over the {case['runtime_seconds']}s budget")
+        problems.append(
+            f"{case['case']}: ran {seconds:.0f}s, over the {case['runtime_seconds']}s budget"
+        )
     if peak > case["memory_bytes"]:
-        problems.append(f"{case['case']}: peaked at {peak} bytes, over the {case['memory_bytes']} byte budget")
+        problems.append(
+            f"{case['case']}: peaked at {peak} bytes, over the {case['memory_bytes']} byte budget"
+        )
     return problems
 
 
@@ -56,23 +60,38 @@ def run(case: dict[str, Any]) -> list[str]:
         return [f"{case['case']}: build failed\n{build.stderr[-2000:]}"]
     start = time.monotonic()
     child = subprocess.Popen(
-        command(case, case["test"], "--", "--ignored", "--nocapture"), cwd=ROOT,
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        command(case, case["test"], "--", "--ignored", "--nocapture"),
+        cwd=ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
     output = child.stdout.read()
     _, status, usage = os.wait4(child.pid, 0)
     child.returncode = os.waitstatus_to_exitcode(status)
-    return verdict(case, time.monotonic() - start, peak_bytes(usage.ru_maxrss), child.returncode, output)
+    return verdict(
+        case, time.monotonic() - start, peak_bytes(usage.ru_maxrss), child.returncode, output
+    )
 
 
 def self_test() -> int:
-    case = {"case": "c", "package": "p", "target": "t", "test": "x", "runtime_seconds": 10, "memory_bytes": 1000}
+    case = {
+        "case": "c",
+        "package": "p",
+        "target": "t",
+        "test": "x",
+        "runtime_seconds": 10,
+        "memory_bytes": 1000,
+    }
     ok = "test result: ok. 1 passed; 0 failed; 0 ignored"
     failures = []
     if verdict(case, 5, 500, 0, ok):
         failures.append("a run inside its budgets was rejected")
     for label, args, needle in (
-        ("slow", (11, 500, 0, ok), "budget"), ("large", (5, 5000, 0, ok), "byte budget"),
-        ("failed", (5, 500, 101, ok), "failed"), ("empty", (5, 500, 0, "0 passed"), "ran no test"),
+        ("slow", (11, 500, 0, ok), "budget"),
+        ("large", (5, 5000, 0, ok), "byte budget"),
+        ("failed", (5, 500, 101, ok), "failed"),
+        ("empty", (5, 500, 0, "0 passed"), "ran no test"),
     ):
         if not any(needle in problem for problem in verdict(case, *args)):
             failures.append(f"{label} run was accepted")
@@ -85,9 +104,15 @@ def self_test() -> int:
 def main(argv: list[str]) -> int:
     if "--self-test" in argv:
         return self_test()
-    cases = json.loads(subprocess.run(
-        [sys.executable, str(ROOT / "scripts/check_acceptance_manifest.py"), "--scale-cases"],
-        cwd=ROOT, capture_output=True, text=True, check=True).stdout)
+    cases = json.loads(
+        subprocess.run(
+            [sys.executable, str(ROOT / "scripts/check_acceptance_manifest.py"), "--scale-cases"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    )
     problems = [problem for case in cases for problem in run(case)]
     for problem in problems:
         print(f"FAIL: {problem}")

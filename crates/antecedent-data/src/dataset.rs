@@ -1,6 +1,6 @@
 //! Concrete tabular and time-series dataset types.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -18,13 +18,53 @@ use crate::temporal::{SamplingRegularity, TimeIndex};
 #[derive(Clone, Debug)]
 pub struct TabularData {
     storage: OwnedColumnarStorage,
+    /// Declared unit of every row. A declaration beside the data, outside its content digest.
+    unit_key: Option<Arc<crate::unit_key::UnitKey>>,
 }
 
 impl TabularData {
     /// Wrap owned storage.
     #[must_use]
     pub fn new(storage: OwnedColumnarStorage) -> Self {
-        Self { storage }
+        Self { storage, unit_key: None }
+    }
+
+    /// This table holding `lease` for as long as it, its clones and the tables derived from
+    /// its columns live, whatever the column types (see
+    /// [`OwnedColumnarStorage::with_retention`]). Keeps the declared unit key.
+    #[must_use]
+    pub fn with_retention(
+        mut self,
+        lease: Arc<antecedent_core::execution::AdmissionLease>,
+    ) -> Self {
+        self.storage = self.storage.with_retention(lease);
+        self
+    }
+
+    /// This table with the declared unit of each row.
+    ///
+    /// A study that bound its units refuses a replacement table whose key differs, even at the
+    /// same row count; a table without a key inherits the study's binding. Every derived table
+    /// (a projection, a schema change) drops the key.
+    ///
+    /// # Errors
+    ///
+    /// [`DataError::InvalidValue`] when the key labels another number of rows.
+    pub fn with_unit_key(mut self, key: crate::unit_key::UnitKey) -> Result<Self, DataError> {
+        if key.rows() != self.storage.row_count() {
+            return Err(DataError::invalid_value(
+                "unit key rows",
+                "must equal the row count of the table",
+            ));
+        }
+        self.unit_key = Some(Arc::new(key));
+        Ok(self)
+    }
+
+    /// The declared unit of each row, when one was attached.
+    #[must_use]
+    pub fn unit_key(&self) -> Option<&crate::unit_key::UnitKey> {
+        self.unit_key.as_deref()
     }
 
     /// Build continuous `f64` columns from named slices (equal length).
@@ -45,9 +85,7 @@ impl TabularData {
         let collected: Vec<(Arc<str>, &'a [f64])> =
             columns.into_iter().map(|(n, v)| (n.into(), v)).collect();
         if collected.is_empty() {
-            return Err(DataError::InvalidArgument {
-                message: "from_f64_columns requires at least one column".into(),
-            });
+            return Err(DataError::empty("from_f64_columns columns"));
         }
         let n = collected[0].1.len();
         let mut b = CausalSchemaBuilder::new();
@@ -90,17 +128,17 @@ impl TabularData {
         let n_vars = schema.len();
         let mut by_name: std::collections::HashMap<&str, &[f64]> = columns.into_iter().collect();
         if by_name.len() != n_vars {
-            return Err(DataError::InvalidArgument {
-                message: format!("expected {} columns for schema, got {}", n_vars, by_name.len()),
+            return Err(DataError::LengthMismatch {
+                expected: n_vars,
+                actual: by_name.len(),
+                context: "try_from_schema_f64 column count",
             });
         }
         let mut row_count = None;
         let mut owned = Vec::with_capacity(n_vars);
         for var in schema.variables() {
             let Some(values) = by_name.remove(var.name.as_ref()) else {
-                return Err(DataError::InvalidArgument {
-                    message: format!("missing column for schema variable '{}'", var.name),
-                });
+                return Err(DataError::absent("column for schema variable", var.name.to_string()));
             };
             let n = *row_count.get_or_insert(values.len());
             if values.len() != n {
@@ -112,16 +150,14 @@ impl TabularData {
             }
             let col = Float64Column::new(
                 var.id,
-                Arc::<[f64]>::from(values.to_vec()),
+                Arc::<[f64]>::from(values),
                 ValidityBitmap::all_valid(n),
             )?;
             owned.push(OwnedColumn::Float64(col));
         }
         if !by_name.is_empty() {
             let extra: Vec<_> = by_name.keys().copied().collect();
-            return Err(DataError::InvalidArgument {
-                message: format!("columns not in schema: {extra:?}"),
-            });
+            return Err(DataError::absent("schema variable for column", format!("{extra:?}")));
         }
         let storage = OwnedColumnarStorage::try_new(schema, owned, None, None)?;
         Ok(Self::new(storage))
@@ -131,6 +167,22 @@ impl TabularData {
     #[must_use]
     pub fn storage(&self) -> &OwnedColumnarStorage {
         &self.storage
+    }
+
+    /// This table as a unified source snapshot.
+    #[must_use]
+    pub fn source(&self) -> crate::source::OwnedSource {
+        crate::source::OwnedSource::from_tabular(self)
+    }
+
+    /// The same columns, mask and weights under another schema (a rename, a role or a unit
+    /// change). The result is a different source: the snapshot binds the schema.
+    ///
+    /// # Errors
+    ///
+    /// A schema whose variable count is not the column count.
+    pub fn with_schema(&self, schema: CausalSchema) -> Result<Self, DataError> {
+        Ok(Self::new(self.storage.with_schema(schema)?))
     }
 }
 
@@ -209,6 +261,41 @@ impl TimeSeriesData {
         &self.storage
     }
 
+    /// This series as a unified source snapshot under `modality`; the series time index is
+    /// bound into its contract.
+    ///
+    /// # Errors
+    ///
+    /// `modality` is [`crate::source::SourceModality::Tabular`].
+    pub fn source(
+        &self,
+        modality: crate::source::SourceModality,
+    ) -> Result<crate::source::OwnedSource, DataError> {
+        crate::source::OwnedSource::from_time_series(self, modality)
+    }
+
+    /// The same observations under another time index (a different cadence or regularity).
+    /// The storage digest is unchanged and the source contract is not: the snapshot binds
+    /// the time index, so lazy views and incremental digests of the earlier index no longer
+    /// match.
+    ///
+    /// # Errors
+    ///
+    /// The index length is not the row count.
+    pub fn with_time_index(&self, time_index: TimeIndex) -> Result<Self, DataError> {
+        Self::try_new(self.storage.clone(), time_index)
+    }
+
+    /// The same observations under another schema (a rename, a role or a unit change),
+    /// keeping the time index.
+    ///
+    /// # Errors
+    ///
+    /// A schema whose variable count is not the column count.
+    pub fn with_schema(&self, schema: CausalSchema) -> Result<Self, DataError> {
+        Self::try_new(self.storage.with_schema(schema)?, self.time_index.clone())
+    }
+
     /// Replace one float64 column; preserve time index, other columns, mask, and weights.
     ///
     /// # Errors
@@ -239,7 +326,7 @@ impl TimeSeriesData {
                 context: "observation weights",
             });
         }
-        let new_storage = OwnedColumnarStorage::try_new(
+        let new_storage = storage.derive(
             storage.schema().clone(),
             storage.columns().to_vec(),
             storage.analysis_mask().cloned(),
@@ -276,7 +363,7 @@ impl TimeSeriesData {
             }
             None => mask,
         };
-        let new_storage = OwnedColumnarStorage::try_new(
+        let new_storage = storage.derive(
             storage.schema().clone(),
             storage.columns().to_vec(),
             Some(combined),

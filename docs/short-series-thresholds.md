@@ -5,8 +5,15 @@ bootstrap over lag-aligned rows
 ([capabilities](capabilities.md#serially-dependent-rows-circular-block-uncertainty)).
 When the series is short for the serial dependence of its estimating score,
 the interval can under-cover, and the result carries
-`estimate.temporal.circular_block_se.short_series`. This page records the
-measurement behind when that warning fires.
+`estimate.temporal.circular_block_se.short_series`. This page lists the threshold
+below which that warning fires for each interval family, and records the
+coverage measurement the thresholds were set from.
+
+In the [threshold table](#statistic), a row is one family of intervals: the
+warning fires when the interval's score effective rows fall below the row's
+threshold. In the [measurement table](#table), a row is one simulated cell
+(design, persistence, series length) with its measured coverage of the
+nominal-0.90 interval and the share of replicates that warned.
 
 ## Level of the measurement
 
@@ -100,10 +107,10 @@ The thresholds were set on the SE construction before the Bartlett
 kernel-bias factor; re-measured with it (the table below), every cell below
 0.855 still warns on at least 91% of its replicates, so they stand.
 
-The multi-step sequential threshold is not the rule's 30: it stays at the 40
-an earlier measurement of the same sweep set (before the SE construction
-changes listed under the table), which warns on more replicates, not fewer.
-The mediation threshold rose from 35 to 40 with that re-measurement: in the
+The multi-step sequential threshold is not the rule's 30: it is pinned at the
+40 of a measurement of the same sweep set made before the SE construction
+changes listed under the table, which warns on more replicates, not fewer.
+The mediation threshold is the replication's 40, not the sweep's 35: in the
 replication, the AR(1)-treatment Total at ρ = 0.9, n = 160 covered 0.846 and
 warned on fewer than 90% of its replicates at 35.
 
@@ -118,7 +125,7 @@ The failure line 0.855 is the lower edge of the calibration gate's
    points, [0.855, 0.945]; at 95%, [0.917, 0.983].
 2. **Recheck.** A cell that passes the band at fewer than 1000 replicates but
    measures more than 2 points under its level prints a `calibration-recheck`
-   line, and `scripts/gate_calibration.sh` re-runs that group at 2000
+   line, and the calibration runner (`scripts/calibration_runner.py`) re-runs that group at 2000
    replicates (`ANTECEDENT_CALIBRATION_NSIM=2000`); the re-run's verdict
    stands. Under exactly nominal coverage about 9% of 90% cells and 4% of 95%
    cells are rechecked.
@@ -129,9 +136,9 @@ The failure line 0.855 is the lower edge of the calibration gate's
    of the time, and one 3 points low almost always.
 
 The short-series thresholds are set so that cells *below the band* warn; a
-cell between 0.855 and roughly 0.885 is not caught by the warning. Before the
+cell between 0.855 and roughly 0.885 is not caught by the warning. Without the
 recheck rule such a cell could pass a 400-replicate gate even though at 2000
-replicates it measures significantly low; the recheck now fails it, and a
+replicates it measures significantly low; the recheck fails it, and a
 gated design that still measures below the floor after the SE work below is
 named as a boundary cell (`*_boundary_within_band`): its test asserts the
 band around its *measured* coverage at each grid point
@@ -185,8 +192,8 @@ completion's score shows it, as a weak but slowly decaying component that the
 block-length reading sees; catching it at ρ = 0.95, n = 400 takes 155, which
 also warns on mixtures that cover nominally below about n = 400.
 
-The previous rule (one floor of 100 on the lag-1 reading of the single score,
-or of the weighted mixture score) warned, in a 1000-replicate run of the same
+A single floor of 100 on the lag-1 reading of the single score (or of the
+weighted mixture score) would warn, in a 1000-replicate run of the same
 sweep, on every short-memory replicate at n ≤ 100 and on 30–88% at n = 160
 while those designs covered nominally, and on at most 11% of the TemporalCpdag
 bias cells at n = 160 and none at n = 400.
@@ -203,7 +210,7 @@ fitted regression, residuals included), the circular-Bartlett fixed-b factor
 factor of the target scores (`antecedent_estimate::kernel_bias_scale`: measured
 as the AR(1)-prewhitened long-run variance over the Bartlett variance at the
 block length, 1.01–1.05 on the persistent designs, at most 1.01 on the
-short-memory ones; the factor now reads the Kendall-corrected AR(1) and
+short-memory ones; the factor reads the Kendall-corrected AR(1) and
 BIC AR(q) model shared with the response bands, never smaller on the same
 score), and fixtures whose noise streams are seeded independently per
 replicate. The kernel-bias factor only widens intervals, so the thresholds set

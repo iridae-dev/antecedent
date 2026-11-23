@@ -25,7 +25,7 @@
 use std::sync::Arc;
 
 use antecedent_attribution::{
-    AttributionError, ComponentStatus, IntrinsicAllocation, IntrinsicInfluenceQuery,
+    AttributionError, ComponentStatus, FitResampling, IntrinsicAllocation, IntrinsicInfluenceQuery,
     IntrinsicInfluenceResult, NoiseIndependence, UncertaintyComponent, intrinsic_influence,
 };
 use antecedent_core::{
@@ -314,7 +314,7 @@ fn exact_and_sampled_shapley_agree_on_a_game_with_interaction() {
 }
 
 #[test]
-fn every_interval_names_its_component_and_unmeasured_ones_say_so() {
+fn every_interval_names_its_component_and_not_measured_ones_say_so() {
     let (m, _) = chain();
     let exact = run(&m, 2, &query()).unwrap();
     for s in exact.sources.iter() {
@@ -403,6 +403,56 @@ fn chain_data(n: usize) -> (CompiledCausalModel, TabularData) {
     (compiled.with_mechanisms(store), data)
 }
 
+/// The posterior over the mechanisms: Dirichlet-weighted refits with the families held at the
+/// ones selected on the data. It centres on the same contributions as the row bootstrap, has a
+/// spread of the same order, and returns its refits as draws.
+#[test]
+fn the_posterior_over_the_mechanisms_returns_its_refits_beside_the_bootstrap() {
+    let (m, data) = chain_data(300);
+    let base = IntrinsicInfluenceQuery::new(var(1))
+        .with_simulation(300, 20, 4)
+        .with_fit_bootstrap(20)
+        .with_seed(7);
+    let bootstrap =
+        intrinsic_influence(&m, NoiseIndependence::Declared, Some(&data), &base, &ctx()).unwrap();
+    assert_eq!(bootstrap.method.fit_resampling, FitResampling::RowBootstrap);
+    assert_eq!(bootstrap.fit_draws.len(), 20, "the refits of the bootstrap are returned too");
+    let posterior_query = base.clone().with_fit_resampling(FitResampling::DirichletRowWeights);
+    let posterior =
+        intrinsic_influence(&m, NoiseIndependence::Declared, Some(&data), &posterior_query, &ctx())
+            .unwrap();
+    assert_eq!(posterior.method.fit_resampling, FitResampling::DirichletRowWeights);
+    assert_eq!(posterior.budget.refits, 20);
+    assert_eq!(posterior.fit_draws.len(), 20);
+    assert!(posterior.fit_draws.iter().all(|draw| draw.len() == 2));
+    for i in 0..2 {
+        // The point answer does not depend on the resampling of the refits.
+        assert_eq!(
+            posterior.sources[i].contribution.to_bits(),
+            bootstrap.sources[i].contribution.to_bits()
+        );
+        let mean = posterior.fit_draws.iter().map(|draw| draw[i]).sum::<f64>() / 20.0;
+        let ComponentStatus::Quantified { stderr, df, .. } = &posterior.sources[i].whole_procedure
+        else {
+            panic!("whole procedure not quantified: {:?}", posterior.sources[i].whole_procedure);
+        };
+        assert!(stderr.is_finite() && *stderr > 0.0);
+        assert_eq!(*df, 19.0);
+        assert!(
+            (mean - posterior.sources[i].contribution).abs() <= 6.0 * stderr.max(0.1),
+            "source {i}: posterior mean {mean} against {}",
+            posterior.sources[i].contribution
+        );
+        let ComponentStatus::Quantified { stderr: boot, .. } =
+            &bootstrap.sources[i].whole_procedure
+        else {
+            panic!("bootstrap not quantified");
+        };
+        let ratio = stderr / boot;
+        assert!((0.5..2.0).contains(&ratio), "source {i}: posterior over bootstrap spread {ratio}");
+    }
+}
+
 #[test]
 fn a_bootstrap_with_data_quantifies_mechanism_fit_separately() {
     let (m, data) = chain_data(300);
@@ -421,10 +471,31 @@ fn a_bootstrap_with_data_quantifies_mechanism_fit_separately() {
         else {
             panic!("mechanism fit not quantified: {:?}", s.uncertainty);
         };
-        assert!(stderr.is_finite() && *stderr >= 0.0 && *stderr < 2.0);
+        assert!(stderr.is_finite() && *stderr > 0.0 && *stderr < 1.0);
         assert_eq!(*df, 19.0);
         assert!((s.contribution - truth).abs() <= 6.0 * stderr.max(0.2), "source {i}");
         assert!(s.quantified_stderr().is_complete());
+        // The whole procedure keeps the Monte Carlo noise the mechanism-fit component removes,
+        // so its spread is never smaller.
+        let ComponentStatus::Quantified { stderr: whole, df: whole_df, ci_low, ci_high, .. } =
+            &s.whole_procedure
+        else {
+            panic!("whole procedure not quantified: {:?}", s.whole_procedure);
+        };
+        assert!(whole.is_finite() && *whole >= *stderr);
+        assert_eq!(*whole_df, 19.0);
+        assert!(*ci_low <= s.contribution && s.contribution <= *ci_high);
+    }
+}
+
+#[test]
+fn without_a_bootstrap_the_whole_procedure_is_unquantified() {
+    let (m, data) = chain_data(200);
+    let q = IntrinsicInfluenceQuery::new(var(1)).with_simulation(100, 10, 3).with_seed(3);
+    let result =
+        intrinsic_influence(&m, NoiseIndependence::Declared, Some(&data), &q, &ctx()).unwrap();
+    for source in result.sources.iter() {
+        assert!(matches!(source.whole_procedure, ComponentStatus::Unquantified { .. }));
     }
 }
 
@@ -457,7 +528,12 @@ fn undeclared_noise_a_mismatched_structure_and_unsupported_mechanisms_are_refuse
     let text = intrinsic_influence(&m, NoiseIndependence::Undeclared, None, &q, &ctx())
         .unwrap_err()
         .to_string();
-    assert!(text.contains("intrinsic_influence.noise_independence_undeclared"), "{text}");
+    assert!(
+        text.contains(
+            antecedent_core::reason_details::intrinsic_influence::NOISE_INDEPENDENCE_UNDECLARED
+        ),
+        "{text}"
+    );
 
     let mut other = Admg::with_variables(3);
     other.insert_directed(node(0), node(2)).unwrap();
@@ -481,7 +557,10 @@ fn undeclared_noise_a_mismatched_structure_and_unsupported_mechanisms_are_refuse
     )
     .unwrap_err()
     .to_string();
-    assert!(text.contains("intrinsic_influence.mechanism_unfitted"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::intrinsic_influence::MECHANISM_UNFITTED),
+        "{text}"
+    );
 
     let state_space = model(
         &[],
@@ -501,7 +580,12 @@ fn undeclared_noise_a_mismatched_structure_and_unsupported_mechanisms_are_refuse
     )
     .unwrap_err()
     .to_string();
-    assert!(text.contains("intrinsic_influence.noise_not_row_independent"), "{text}");
+    assert!(
+        text.contains(
+            antecedent_core::reason_details::intrinsic_influence::NOISE_NOT_ROW_INDEPENDENT
+        ),
+        "{text}"
+    );
 
     let categorical = model(
         &[],
@@ -520,13 +604,17 @@ fn undeclared_noise_a_mismatched_structure_and_unsupported_mechanisms_are_refuse
     )
     .unwrap_err()
     .to_string();
-    assert!(text.contains("intrinsic_influence.target_not_continuous"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::intrinsic_influence::TARGET_NOT_CONTINUOUS),
+        "{text}"
+    );
 }
 
 #[test]
-fn exact_allocation_above_its_bound_and_invalid_settings_are_refused() {
-    // A chain of eleven nodes has eleven sources for its last node.
-    let n = 11u32;
+fn exact_allocation_beyond_the_simulation_budget_and_invalid_settings_are_refused() {
+    // A chain of 26 nodes has 26 sources for its last node: 2^26 coalition values, each a
+    // nested simulation, is far beyond the shared draw budget.
+    let n = 26u32;
     let edges: Vec<(u32, u32)> = (1..n).map(|i| (i - 1, i)).collect();
     let slots = (0..n)
         .map(|i| if i == 0 { linear(0.0, &[], 1.0) } else { linear(0.0, &[0.5], 1.0) })
@@ -536,7 +624,10 @@ fn exact_allocation_above_its_bound_and_invalid_settings_are_refused() {
     let text = intrinsic_influence(&long, NoiseIndependence::Declared, None, &q, &ctx())
         .unwrap_err()
         .to_string();
-    assert!(text.contains("intrinsic_influence.exact_players_exceed_bound"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::intrinsic_influence::DRAW_BUDGET_EXCEEDED),
+        "{text}"
+    );
 
     let (m, _) = chain();
     for bad in [
@@ -548,12 +639,18 @@ fn exact_allocation_above_its_bound_and_invalid_settings_are_refused() {
         query().with_allocation(IntrinsicAllocation::Permutation { n_permutations: 1 }),
     ] {
         let text = run(&m, 2, &bad).unwrap_err().to_string();
-        assert!(text.contains("intrinsic_influence.invalid_settings"), "{text}");
+        assert!(
+            text.contains(antecedent_core::reason_details::intrinsic_influence::INVALID_SETTINGS),
+            "{text}"
+        );
     }
 
     let huge = query().with_simulation(100_000, 100_000, 4);
     let text = run(&m, 2, &huge).unwrap_err().to_string();
-    assert!(text.contains("intrinsic_influence.draw_budget_exceeded"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::intrinsic_influence::DRAW_BUDGET_EXCEEDED),
+        "{text}"
+    );
 }
 
 #[test]
@@ -634,7 +731,10 @@ fn a_latent_common_cause_between_two_parents_is_refused_naming_the_pair() {
     )
     .unwrap_err();
     let text = err.to_string();
-    assert!(text.contains("intrinsic_influence.correlated_noise"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::intrinsic_influence::CORRELATED_NOISE),
+        "{text}"
+    );
     assert!(text.contains("variables 0 and 1"), "{text}");
 }
 
@@ -687,12 +787,12 @@ fn permutation_and_simulation_errors_shrink_with_their_own_budgets() {
     let large_sim = run_with(1600, 50);
     let sim_ratio = component(&small_sim, UncertaintyComponent::Simulation)
         / component(&large_sim, UncertaintyComponent::Simulation);
-    assert!(sim_ratio >= 1.5, "simulation error ratio {sim_ratio}");
+    assert!(sim_ratio >= 1.8, "simulation error ratio {sim_ratio}");
 
     let large_perm = run_with(100, 800);
     let perm_ratio = component(&small_sim, UncertaintyComponent::PermutationSampling)
         / component(&large_perm, UncertaintyComponent::PermutationSampling);
-    assert!(perm_ratio >= 1.5, "permutation error ratio {perm_ratio}");
+    assert!(perm_ratio >= 2.5, "permutation error ratio {perm_ratio}");
 }
 
 /// `a -> b -> c -> y`: `b = 2a + e_b`, `c = 1.5b + e_c`, `y = 0.5c + e_y`, noise scales
@@ -735,7 +835,7 @@ fn exact_enumeration_reports_zero_permutation_error_and_still_reports_simulation
         // The inner simulation error is still measured, and is strictly positive.
         let simulation = source.component_stderr(UncertaintyComponent::Simulation).unwrap();
         assert!(simulation.is_finite() && simulation > 0.0, "{simulation}");
-        // The unmeasured component is not reported as zero.
+        // The not_measured component is not reported as zero.
         assert_eq!(source.component_stderr(UncertaintyComponent::MechanismFit), None);
     }
     assert_matches_truth(&result, &truth, outer, batches);
@@ -756,4 +856,43 @@ fn exact_enumeration_reports_zero_permutation_error_and_still_reports_simulation
     let factor =
         result.sources[0].component_stderr(UncertaintyComponent::PermutationSampling).unwrap();
     assert!(factor > 0.0, "{factor}");
+}
+
+#[test]
+fn intrinsic_fit_uses_active_rows_and_refuses_stored_weights() {
+    use antecedent_data::TableView;
+    let (model, data) = chain_data(80);
+    let mut bytes = vec![0xffu8; 10];
+    bytes[7] = 0x0f;
+    bytes[8] = 0;
+    bytes[9] = 0;
+    let masked = data
+        .with_analysis_mask(ValidityBitmap::from_bytes(Arc::<[u8]>::from(bytes), 80).unwrap())
+        .unwrap();
+    let x = data.float64_values(var(0)).unwrap();
+    let y = data.float64_values(var(1)).unwrap();
+    let active =
+        TabularData::try_from_schema_f64(data.schema().clone(), [("x", &x[..60]), ("y", &y[..60])])
+            .unwrap();
+    let query = IntrinsicInfluenceQuery::new(var(1))
+        .with_simulation(50, 5, 2)
+        .with_fit_bootstrap(20)
+        .with_seed(7);
+    let masked_fit =
+        intrinsic_influence(&model, NoiseIndependence::Declared, Some(&masked), &query, &ctx())
+            .unwrap();
+    let active_fit =
+        intrinsic_influence(&model, NoiseIndependence::Declared, Some(&active), &query, &ctx())
+            .unwrap();
+    assert_eq!(masked_fit.fit_draws, active_fit.fit_draws);
+    let ordered = query.clone().with_fit_resampling(FitResampling::BlockBootstrap { block: 4 });
+    assert!(matches!(
+        intrinsic_influence(&model, NoiseIndependence::Declared, Some(&masked), &ordered, &ctx()),
+        Err(AttributionError::Unsupported { .. })
+    ));
+    let weighted = data.with_weights(Arc::from(vec![1.0; 80])).unwrap();
+    assert!(matches!(
+        intrinsic_influence(&model, NoiseIndependence::Declared, Some(&weighted), &query, &ctx()),
+        Err(AttributionError::Unsupported { .. })
+    ));
 }

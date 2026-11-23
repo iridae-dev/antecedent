@@ -7,7 +7,7 @@
 //! function only under consistency, positivity, and nuisance convergence/rate
 //! conditions. Cross-fitting alone does not guarantee valid inference.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -25,23 +25,25 @@ use antecedent_stats::{
 };
 
 use crate::aipw::{AipwWorkspace, fit_outcome_models_weighted, predict_colmajor};
+use crate::arm::TreatmentArm;
 use crate::crossfit_plan::{
     CrossfitPlan, FoldRows, FoldSource, SHARED_FOLD_ID_ERRORS, rows_colmajor,
 };
 use crate::error::EstimationError;
 use crate::propensity::{
     FailedFit, FallbackRecord, PreparedPropensityProblem, RidgeFoldInput, RidgeFoldSelection,
-    clamp_scores, clip_of, fallback_provenance, fit_penalized_fold, gather,
-    require_interior_propensities, split_by_treatment,
+    clamp_scores, clip_of, fallback_provenance, fit_penalized_fold, gather, propensity_fit_error,
+    propensity_glm_options, require_interior_propensities, split_by_treatment,
 };
 use crate::scores::{ScoreColumn, ScoreTable};
-use crate::util::stats_err;
 
-/// Default fold count for licensed AIPW scores.
+/// Default fold count for supported AIPW scores.
 pub const DEFAULT_AIPW_FOLDS: usize = 5;
 
 /// Provenance tag frozen on the score table.
 pub(crate) const AIPW_CROSSFIT_PROVENANCE: &str = "aipw.crossfit.v1";
+/// The provenance of a cross-fit that read a batch's shared covariate design.
+pub(crate) const AIPW_SHARED_DESIGN_PROVENANCE: &str = "aipw.crossfit.v1;batch.shared_design";
 
 /// Build a score table from a prepared propensity problem.
 ///
@@ -182,10 +184,261 @@ struct FoldNuisance {
     e_valid: Vec<f64>,
 }
 
+/// Read-only inputs shared by every fold of one score-table pass.
+struct PassInputs<'a> {
+    problem: &'a PreparedPropensityProblem,
+    n: usize,
+    ncols: usize,
+    clip: Option<f64>,
+    backend: FaerBackend,
+    glm_options: &'a GlmOptions,
+    /// Sampling weights of every row, when declared.
+    sampling: Option<&'a [f64]>,
+    fold_seed: u64,
+    /// Context for per-fold penalty selection; `Some` exactly when the propensity is penalized.
+    penalty_ctx: Option<&'a ExecutionContext>,
+    /// Context carrying cancellation, when the caller supplied one.
+    ctx: Option<&'a ExecutionContext>,
+    /// Out-of-fold raw propensities served from the shared cache, when it holds them.
+    shared_e: Option<&'a [f64]>,
+}
+
+/// What the propensity stage mutates across folds.
+struct PropensityStage<'a> {
+    workspace: PropensityWorkspace,
+    /// Raw out-of-fold propensities collected for the shared cache, when this build fills it.
+    fitted: Option<Vec<f64>>,
+    /// Per-fold penalty (and support) selections of a penalized propensity.
+    selections: Vec<RidgeFoldSelection>,
+    /// The GLM propensity fit that failed, recorded for the declared fallback.
+    failed: &'a mut Option<FailedFit>,
+}
+
+/// What the outcome and score stage mutates across folds.
+struct ScoreStage<'a> {
+    /// The transformed outcome of each threshold.
+    y_sources: &'a [Arc<[f64]>],
+    /// Out-of-fold outcome predictions served from the shared cache, per threshold.
+    shared_mu: &'a [crate::crossfit_cache::OutcomeSlot],
+    workspace: AipwWorkspace,
+    /// Outcome predictions collected for the shared cache, per threshold.
+    fitted_mu: Vec<Option<(Vec<f64>, Vec<f64>)>>,
+    scores: Vec<f64>,
+    propensities: Vec<f64>,
+}
+
+impl PassInputs<'_> {
+    /// An unpenalized fit observes cancellation before every fold (the fold is the unit of
+    /// work; a penalized fit polls once per penalty instead); a cancelled fit reports no table.
+    /// Polling does not touch the numbers of an uncancelled fit.
+    fn require_not_cancelled(&self) -> Result<(), EstimationError> {
+        if self.penalty_ctx.is_none() && self.ctx.is_some_and(|c| c.cancellation.is_cancelled()) {
+            return Err(if self.problem.fold_units.is_some() {
+                crate::cluster_dml_aipw::cancelled()
+            } else {
+                crate::util::refuse(
+                    antecedent_core::reason_code!("cancelled_no_claim"),
+                    "aipw.cancelled",
+                    "the cross-fitted AIPW fit was cancelled before every fold was fit; no \
+                     estimate is reported and the stop is not a verdict on the data",
+                )
+            });
+        }
+        Ok(())
+    }
+
+    /// Fit one fold's propensity on its training rows and predict its validation rows, then
+    /// clip them; the raw and clipped scores come back with the gathered fold designs.
+    fn fit_propensity_fold(
+        &self,
+        stage: &mut PropensityStage<'_>,
+        rows: FoldRows<'_>,
+    ) -> Result<FoldNuisance, EstimationError> {
+        let FoldRows { fold, train, valid } = rows;
+        let problem = self.problem;
+        let (n, ncols) = (self.n, self.ncols);
+        let design_train = rows_colmajor(&problem.design_matrix, n, ncols, train);
+        let t_train = gather(&problem.treatment, train);
+        let (treated_rows, control_rows) = split_by_treatment(&t_train);
+        if treated_rows.is_empty() || control_rows.is_empty() {
+            return Err(EstimationError::data_msg(
+                "AIPW cross-fit fold is missing a treatment arm",
+            ));
+        }
+        let design_valid = rows_colmajor(&problem.design_matrix, n, ncols, valid);
+        let mut e_valid = if let Some(shared) = self.shared_e {
+            gather(shared, valid)
+        } else if let Some(((fold_penalty, tuning), ridge_ctx)) =
+            problem.propensity.fold_penalty().zip(self.penalty_ctx)
+        {
+            let units: Vec<_> = train.iter().map(|&i| problem.row_index[i]).collect();
+            let train_weights = self.sampling.map(|weights| gather(weights, train));
+            let (predicted, selection) = fit_penalized_fold(
+                fold_penalty,
+                tuning,
+                &RidgeFoldInput {
+                    design_train: &design_train,
+                    n_train: train.len(),
+                    design_valid: &design_valid,
+                    n_valid: valid.len(),
+                    ncols,
+                    t_train: &t_train,
+                    units: &units,
+                    fold,
+                    seed: self.fold_seed,
+                    weights: train_weights.as_deref(),
+                },
+                ridge_ctx,
+            )?;
+            crate::crossfit_cache::record_completed_fold_fit();
+            stage.selections.push(selection);
+            predicted
+        } else {
+            self.fit_glm_fold(
+                stage,
+                fold,
+                (&design_train, &t_train, train),
+                (&design_valid, valid),
+            )?
+        };
+        let raw_e = e_valid.clone();
+
+        if let Some(clip_at) = self.clip {
+            clamp_scores(&mut e_valid, clip_at);
+        }
+        // No hidden floor: with a clip every score is interior; without one a propensity of
+        // exactly 0 or 1 (infinite weight) is refused rather than silently floored.
+        require_interior_propensities(&e_valid)?;
+
+        Ok(FoldNuisance { design_train, design_valid, t_train, raw_e, e_valid })
+    }
+
+    /// The unpenalized GLM propensity of one fold; a failed fit is recorded for the fallback.
+    fn fit_glm_fold(
+        &self,
+        stage: &mut PropensityStage<'_>,
+        fold: usize,
+        (design_train, t_train, train): (&[f64], &[f64], &[usize]),
+        (design_valid, valid): (&[f64], &[usize]),
+    ) -> Result<Vec<f64>, EstimationError> {
+        let ncols = self.ncols;
+        let glm_options = &propensity_glm_options(self.glm_options, self.problem.overlap);
+        let fit = match self.sampling {
+            Some(weights) => antecedent_stats::fit_propensity_weighted(
+                design_train,
+                train.len(),
+                ncols,
+                t_train,
+                &gather(weights, train),
+                &self.backend,
+                &mut stage.workspace,
+                glm_options,
+            ),
+            None => fit_propensity(
+                design_train,
+                train.len(),
+                ncols,
+                t_train,
+                &self.backend,
+                &mut stage.workspace,
+                glm_options,
+            ),
+        }
+        .map_err(propensity_fit_error)
+        .inspect_err(|error| *stage.failed = Some(FailedFit::from_error(fold, error)))?;
+        crate::crossfit_cache::record_completed_fold_fit();
+        let mut e_valid = vec![0.0; valid.len()];
+        predict_propensity(design_valid, valid.len(), ncols, &fit.coefficients, &mut e_valid)
+            .map_err(crate::error::EstimationError::from)?;
+        if let Some(out) = stage.fitted.as_mut() {
+            for (k, &i) in valid.iter().enumerate() {
+                out[i] = e_valid[k];
+            }
+        }
+        Ok(e_valid)
+    }
+}
+
+impl ScoreStage<'_> {
+    /// Fit (or read from the shared cache) both outcome arms of one fold at every threshold and
+    /// write the fold's validation rows into the score and propensity columns.
+    fn score_fold(
+        &mut self,
+        inputs: &PassInputs<'_>,
+        rows: FoldRows<'_>,
+        nuisance: FoldNuisance,
+    ) -> Result<(), EstimationError> {
+        let FoldRows { train, valid, .. } = rows;
+        let FoldNuisance { design_train, design_valid, t_train, raw_e, e_valid } = nuisance;
+        let (n, ncols) = (inputs.n, inputs.ncols);
+        for t_idx in 0..self.y_sources.len() {
+            let y_source = &self.y_sources[t_idx];
+            let y_valid = gather(y_source, valid);
+            if let Some((mu0, mu1)) = self.shared_mu[t_idx].as_ref() {
+                self.workspace.mu0 = gather(mu0, valid);
+                self.workspace.mu1 = gather(mu1, valid);
+            } else {
+                let y_train = gather(y_source, train);
+                let train_weights = inputs.sampling.map(|weights| gather(weights, train));
+                let (beta0, beta1) = fit_outcome_models_weighted(
+                    &design_train,
+                    train.len(),
+                    ncols,
+                    &t_train,
+                    &y_train,
+                    train_weights.as_deref(),
+                    inputs.backend,
+                    &mut self.workspace,
+                )?;
+                crate::crossfit_cache::record_completed_fold_fit();
+                predict_colmajor(
+                    &design_valid,
+                    valid.len(),
+                    ncols,
+                    &beta0,
+                    &mut self.workspace.mu0,
+                );
+                predict_colmajor(
+                    &design_valid,
+                    valid.len(),
+                    ncols,
+                    &beta1,
+                    &mut self.workspace.mu1,
+                );
+                if let Some((mu0, mu1)) = self.fitted_mu[t_idx].as_mut() {
+                    for (k, &i) in valid.iter().enumerate() {
+                        mu0[i] = self.workspace.mu0[k];
+                        mu1[i] = self.workspace.mu1[k];
+                    }
+                }
+            }
+
+            let col0 = t_idx * 2;
+            let col1 = col0 + 1;
+            for (k, &i) in valid.iter().enumerate() {
+                let t = inputs.problem.treatment[i];
+                let y = y_valid[k];
+                let e = e_valid[k];
+                let m0 = self.workspace.mu0[k];
+                let m1 = self.workspace.mu1[k];
+                self.propensities[col0 * n + i] = 1.0 - raw_e[k];
+                self.propensities[col1 * n + i] = raw_e[k];
+                self.scores[col0 * n + i] = m0 + ((1.0 - t) / (1.0 - e)) * (y - m0);
+                self.scores[col1 * n + i] = m1 + (t / e) * (y - m1);
+            }
+        }
+        Ok(())
+    }
+}
+
 /// One pass of the score-table builder; `failed` records the GLM propensity fit that failed.
+///
+/// Stages: validate and plan the folds, lease the shared nuisance slots, fit every fold's
+/// propensity and outcome arms into the score columns, publish fresh fits to the shared slots,
+/// and assemble the table.
 #[allow(
     clippy::too_many_lines,
-    reason = "fold-by-fold nuisance fitting under the shared-slot leases, then the score table; the lease scope spans the whole fit and every stage reads the fold ids"
+    reason = "the bounded estimation procedure keeps its related calculations together"
 )]
 fn build_scores_pass(
     problem: &PreparedPropensityProblem,
@@ -196,13 +449,14 @@ fn build_scores_pass(
         *build;
     let fold_seed = fold_seed.unwrap_or(problem.fold_seed);
     problem.propensity.validate_for_execution()?;
-    let penalized = problem.propensity.fold_penalty();
-    // Nuisances fit under sampling weights are not the unweighted fits a shared cache holds.
-    let share = share && penalized.is_none() && problem.sampling_weights.is_none();
+    let penalized = problem.propensity.fold_penalty().is_some();
+    // A penalized propensity selects its penalty per fold and is never shared. Sampling weights
+    // are part of the key, so a weighted fit is shared only with the same weights.
+    let share = share && !penalized;
     let sampling = problem.sampling_weights.as_ref().map(|s| &*s.weights);
     let local_ctx =
-        (penalized.is_some() && ctx.is_none()).then(|| ExecutionContext::production(fold_seed, 1));
-    let penalized = penalized.zip(ctx.or(local_ctx.as_ref()));
+        (penalized && ctx.is_none()).then(|| ExecutionContext::production(fold_seed, 1));
+    let penalty_ctx = if penalized { ctx.or(local_ctx.as_ref()) } else { None };
     if folds < 2 {
         return Err(EstimationError::unsupported("AIPW cross-fitting requires at least two folds"));
     }
@@ -233,12 +487,6 @@ fn build_scores_pass(
         columns.push(ScoreColumn { arm: 1, threshold: c });
     }
     let n_cols = columns.len();
-    let mut scores = vec![0.0; n * n_cols];
-    let mut propensities = vec![0.0; n * n_cols];
-
-    let mut prop_ws = PropensityWorkspace::default();
-    let mut out_ws = AipwWorkspace::default();
-    let mut selections: Vec<RidgeFoldSelection> = Vec::new();
 
     // Shared nuisance slots (batch scope only). The propensity lease is held until the
     // table is built, so a query with the same key waits and then reuses the finished fit;
@@ -246,28 +494,33 @@ fn build_scores_pass(
     // deadlock. A failed build leaves every slot empty.
     let fold_ids: Arc<[u32]> = Arc::from(fold_ids);
     let lease = if share {
-        crate::crossfit_cache::PropensityLease::acquire(|| crate::crossfit_cache::PropensityKey {
-            design: Arc::clone(&problem.design_matrix),
-            nrows: n,
-            ncols,
-            treatment: Arc::clone(&problem.treatment),
-            fold_ids: Arc::clone(&fold_ids),
-            folds,
-            glm_options: *glm_options,
-        })
+        crate::crossfit_cache::PropensityLease::acquire(
+            || {
+                crate::nuisance_keys::glm_crossfit_inputs(
+                    problem,
+                    &fold_ids,
+                    folds,
+                    &propensity_glm_options(glm_options, problem.overlap),
+                    sampling,
+                )
+            },
+            n,
+        )
     } else {
         None
     };
     let mut prop_slot =
         lease.as_ref().map(crate::crossfit_cache::PropensityLease::lock).transpose()?;
     let shared_e: Option<Arc<[f64]>> = prop_slot.as_ref().and_then(|slot| slot.as_ref().cloned());
-    let mut fitted_e: Option<Vec<f64>> =
-        (lease.is_some() && shared_e.is_none()).then(|| vec![0.0; n]);
+    let fitted_e: Option<Vec<f64>> = (lease.is_some() && shared_e.is_none()).then(|| vec![0.0; n]);
     let y_sources: Vec<Arc<[f64]>> =
         thresholds.iter().map(|&c| Arc::from(transform_outcome(&problem.outcome, c))).collect();
     let outcome_leases: Vec<Option<crate::crossfit_cache::OutcomeLease>> = y_sources
         .iter()
-        .map(|y| lease.as_ref().and_then(|l| l.outcome(|| Arc::clone(y))))
+        .zip(thresholds)
+        .map(|(y, &c)| {
+            lease.as_ref().and_then(|l| l.outcome(crate::nuisance_keys::outcome_target(c), y))
+        })
         .collect();
     let mut outcome_slots = outcome_leases
         .iter()
@@ -275,7 +528,7 @@ fn build_scores_pass(
         .collect::<Result<Vec<_>, _>>()?;
     let shared_mu: Vec<crate::crossfit_cache::OutcomeSlot> =
         outcome_slots.iter().map(|slot| slot.as_ref().and_then(|s| s.as_ref().cloned())).collect();
-    let mut fitted_mu: Vec<Option<(Vec<f64>, Vec<f64>)>> = outcome_slots
+    let fitted_mu: Vec<Option<(Vec<f64>, Vec<f64>)>> = outcome_slots
         .iter()
         .zip(&shared_mu)
         .map(|(slot, shared)| {
@@ -283,165 +536,41 @@ fn build_scores_pass(
         })
         .collect();
 
-    // An unpenalized fit observes cancellation before every fold (the fold is the unit of work;
-    // a penalized fit polls once per penalty instead); a cancelled fit reports no table.
-    // Polling does not touch the numbers of an uncancelled fit.
+    let inputs = PassInputs {
+        problem,
+        n,
+        ncols,
+        clip,
+        backend,
+        glm_options,
+        sampling,
+        fold_seed,
+        penalty_ctx,
+        ctx,
+        shared_e: shared_e.as_deref(),
+    };
+    let mut propensity_stage = PropensityStage {
+        workspace: PropensityWorkspace::default(),
+        fitted: fitted_e,
+        selections: Vec::new(),
+        failed,
+    };
+    let mut score_stage = ScoreStage {
+        y_sources: &y_sources,
+        shared_mu: &shared_mu,
+        workspace: AipwWorkspace::default(),
+        fitted_mu,
+        scores: vec![0.0; n * n_cols],
+        propensities: vec![0.0; n * n_cols],
+    };
     plan.run(
         Some("AIPW cross-fit fold is empty"),
-        |_fold| {
-            if penalized.is_none() && ctx.is_some_and(|c| c.cancellation.is_cancelled()) {
-                return Err(if problem.fold_units.is_some() {
-                    crate::cluster_dml_aipw::cancelled()
-                } else {
-                    crate::util::refuse(
-                        antecedent_core::reason_code!("cancelled_no_claim"),
-                        "aipw.cancelled",
-                        "the cross-fitted AIPW fit was cancelled before every fold was fit; no \
-                         estimate is reported and the stop is not a verdict on the data",
-                    )
-                });
-            }
-            Ok(())
-        },
-        |FoldRows { fold, train, valid }| {
-            let design_train = rows_colmajor(&problem.design_matrix, n, ncols, train);
-            let t_train = gather(&problem.treatment, train);
-            let (treated_rows, control_rows) = split_by_treatment(&t_train);
-            if treated_rows.is_empty() || control_rows.is_empty() {
-                return Err(EstimationError::data_msg(
-                    "AIPW cross-fit fold is missing a treatment arm",
-                ));
-            }
-            let design_valid = rows_colmajor(&problem.design_matrix, n, ncols, valid);
-            let mut e_valid = if let Some(shared) = shared_e.as_deref() {
-                gather(shared, valid)
-            } else if let Some(((fold_penalty, tuning), ridge_ctx)) = penalized {
-                let units: Vec<u32> = train.iter().map(|&i| problem.row_index[i]).collect();
-                let train_weights = sampling.map(|weights| gather(weights, train));
-                let (predicted, selection) = fit_penalized_fold(
-                    fold_penalty,
-                    tuning,
-                    &RidgeFoldInput {
-                        design_train: &design_train,
-                        n_train: train.len(),
-                        design_valid: &design_valid,
-                        n_valid: valid.len(),
-                        ncols,
-                        t_train: &t_train,
-                        units: &units,
-                        fold,
-                        seed: fold_seed,
-                        weights: train_weights.as_deref(),
-                    },
-                    ridge_ctx,
-                )?;
-                crate::crossfit_cache::record_completed_fold_fit();
-                selections.push(selection);
-                predicted
-            } else {
-                let fit = match sampling {
-                    Some(weights) => antecedent_stats::fit_propensity_weighted(
-                        &design_train,
-                        train.len(),
-                        ncols,
-                        &t_train,
-                        &gather(weights, train),
-                        &backend,
-                        &mut prop_ws,
-                        glm_options,
-                    ),
-                    None => fit_propensity(
-                        &design_train,
-                        train.len(),
-                        ncols,
-                        &t_train,
-                        &backend,
-                        &mut prop_ws,
-                        glm_options,
-                    ),
-                }
-                .map_err(stats_err)
-                .and_then(|fit| {
-                    fit.glm.require_ok().map_err(stats_err)?;
-                    Ok(fit)
-                })
-                .inspect_err(|error| *failed = Some(FailedFit::from_error(fold, error)))?;
-                crate::crossfit_cache::record_completed_fold_fit();
-                let mut e_valid = vec![0.0; valid.len()];
-                predict_propensity(
-                    &design_valid,
-                    valid.len(),
-                    ncols,
-                    &fit.coefficients,
-                    &mut e_valid,
-                )
-                .map_err(stats_err)?;
-                if let Some(out) = fitted_e.as_mut() {
-                    for (k, &i) in valid.iter().enumerate() {
-                        out[i] = e_valid[k];
-                    }
-                }
-                e_valid
-            };
-            let raw_e = e_valid.clone();
-            if let Some(clip_at) = clip {
-                clamp_scores(&mut e_valid, clip_at);
-            }
-            // No hidden floor: with a clip every score is interior; without one a propensity of
-            // exactly 0 or 1 (infinite weight) is refused rather than silently floored.
-            require_interior_propensities(&e_valid)?;
-
-            Ok(FoldNuisance { design_train, design_valid, t_train, raw_e, e_valid })
-        },
-        |FoldRows { train, valid, .. }, nuisance| {
-            let FoldNuisance { design_train, design_valid, t_train, raw_e, e_valid } = nuisance;
-            for t_idx in 0..thresholds.len() {
-                let y_source = &y_sources[t_idx];
-                let y_valid = gather(y_source, valid);
-                if let Some((mu0, mu1)) = shared_mu[t_idx].as_ref() {
-                    out_ws.mu0 = gather(mu0, valid);
-                    out_ws.mu1 = gather(mu1, valid);
-                } else {
-                    let y_train = gather(y_source, train);
-                    let train_weights = sampling.map(|weights| gather(weights, train));
-                    let (beta0, beta1) = fit_outcome_models_weighted(
-                        &design_train,
-                        train.len(),
-                        ncols,
-                        &t_train,
-                        &y_train,
-                        train_weights.as_deref(),
-                        backend,
-                        &mut out_ws,
-                    )?;
-                    crate::crossfit_cache::record_completed_fold_fit();
-                    predict_colmajor(&design_valid, valid.len(), ncols, &beta0, &mut out_ws.mu0);
-                    predict_colmajor(&design_valid, valid.len(), ncols, &beta1, &mut out_ws.mu1);
-                    if let Some((mu0, mu1)) = fitted_mu[t_idx].as_mut() {
-                        for (k, &i) in valid.iter().enumerate() {
-                            mu0[i] = out_ws.mu0[k];
-                            mu1[i] = out_ws.mu1[k];
-                        }
-                    }
-                }
-
-                let col0 = t_idx * 2;
-                let col1 = col0 + 1;
-                for (k, &i) in valid.iter().enumerate() {
-                    let t = problem.treatment[i];
-                    let y = y_valid[k];
-                    let e = e_valid[k];
-                    let m0 = out_ws.mu0[k];
-                    let m1 = out_ws.mu1[k];
-                    propensities[col0 * n + i] = 1.0 - raw_e[k];
-                    propensities[col1 * n + i] = raw_e[k];
-                    scores[col0 * n + i] = m0 + ((1.0 - t) / (1.0 - e)) * (y - m0);
-                    scores[col1 * n + i] = m1 + (t / e) * (y - m1);
-                }
-            }
-            Ok(())
-        },
+        |_fold| inputs.require_not_cancelled(),
+        |rows| inputs.fit_propensity_fold(&mut propensity_stage, rows),
+        |rows, nuisance| score_stage.score_fold(&inputs, rows, nuisance),
     )?;
+    let PropensityStage { fitted: mut fitted_e, selections, .. } = propensity_stage;
+    let ScoreStage { fitted_mu, scores, propensities, .. } = score_stage;
 
     // Every fold succeeded: publish fresh fits and count each lease once.
     if let (Some(lease), Some(slot)) = (lease.as_ref(), prop_slot.as_mut()) {
@@ -466,7 +595,7 @@ fn build_scores_pass(
     let provenance = format!(
         "{}{}",
         if problem.shared_design {
-            "aipw.crossfit.v1;batch.shared_design"
+            AIPW_SHARED_DESIGN_PROVENANCE
         } else {
             AIPW_CROSSFIT_PROVENANCE
         },
@@ -487,7 +616,7 @@ fn build_scores_pass(
         observed_arm: problem
             .treatment
             .iter()
-            .map(|t| u32::from(*t > 0.5))
+            .map(|t| u32::from(TreatmentArm::is_treated_indicator(*t)))
             .collect::<Vec<_>>()
             .into(),
         propensities: propensities.into(),
@@ -503,6 +632,7 @@ fn build_scores_pass(
         propensity_clip: clip,
         treatment,
         intervened: Arc::from([]),
+        preparation: None,
     };
     Ok((table, selections))
 }
@@ -555,7 +685,7 @@ pub(crate) fn weighted_support(
             continue;
         }
         w_all.push(w);
-        if t > 0.5 {
+        if TreatmentArm::is_treated_indicator(t) {
             w1.push(w);
         } else {
             w0.push(w);
@@ -664,7 +794,7 @@ mod tests {
         let (data, estimand) = confounded(1_200, 3);
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let est = AipwAte { bootstrap_replicates: 0, ..AipwAte::new() };
+        let est = AipwAte::new().with_bootstrap_replicates(0);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let table =
             crossfit_binary_scores(&prep, &query, 5, &est.glm_options, est.backend).unwrap();
@@ -740,6 +870,292 @@ mod tests {
     }
 
     #[test]
+    fn nuisance_reuse_is_refused_for_the_same_values_on_other_rows() {
+        use crate::crossfit_cache::CrossfitNuisanceCache;
+        let (data, estimand) = confounded(400, 63);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = AipwAte::new();
+        let base = est.prepare(&data, &estimand, &query).unwrap();
+        let build = |p: &PreparedPropensityProblem| {
+            crossfit_binary_scores(p, &query, 5, &est.glm_options, est.backend).unwrap()
+        };
+        // Identical design, treatment and folds, but the values come from other rows.
+        let mut moved = base.clone();
+        moved.row_index = base
+            .row_index
+            .iter()
+            .map(|row| antecedent_data::GlobalId::new(row.get() + 10_000))
+            .collect();
+        let solo_moved = build(&moved);
+
+        let cache = CrossfitNuisanceCache::new();
+        let (_, _) = cache.scope(|| build(&base));
+        assert_eq!(cache.completed_fold_fits(), 10);
+        let (_, _) = cache.scope(|| build(&base));
+        assert_eq!(cache.completed_fold_fits(), 10);
+        let (refit, _) = cache.scope(|| build(&moved));
+        assert_eq!(cache.completed_fold_fits(), 20, "other rows must not borrow the fit");
+        assert_eq!(table_bits(&refit), table_bits(&solo_moved));
+        let stats = cache.stats();
+        assert_eq!((stats.propensity_fits, stats.propensity_reuses), (2, 1));
+    }
+
+    /// Fold-fit work `build` adds to `cache` when run inside its scope.
+    fn fold_fits_added(
+        cache: &Arc<crate::crossfit_cache::CrossfitNuisanceCache>,
+        build: impl FnOnce() -> ScoreTable,
+    ) -> (usize, ScoreTable) {
+        let before = cache.completed_fold_fits();
+        let (table, _) = cache.scope(build);
+        (cache.completed_fold_fits() - before, table)
+    }
+
+    #[test]
+    #[allow(
+        clippy::items_after_statements,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
+    fn every_input_a_fit_reads_is_part_of_its_key_and_a_changed_input_is_a_miss() {
+        use crate::crossfit_cache::CrossfitNuisanceCache;
+        use crate::sampling_weights::SamplingWeights;
+        let (data, estimand) = confounded(400, 71);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let weights: Vec<f64> = (0..400).map(|row| 0.5 + f64::from(row % 7) * 0.25).collect();
+        let est = AipwAte::new().with_sampling_weights(SamplingWeights::new(weights).unwrap());
+        let base = est.prepare(&data, &estimand, &query).unwrap();
+        assert!(base.sampling_weights.is_some());
+        let build = |p: &PreparedPropensityProblem, glm: &GlmOptions| {
+            crossfit_binary_scores(p, &query, 5, glm, est.backend).unwrap()
+        };
+        let glm = est.glm_options;
+
+        let cache = CrossfitNuisanceCache::new();
+        let (first, table) = fold_fits_added(&cache, || build(&base, &glm));
+        assert_eq!(first, 10, "propensity and outcome regressions, five folds each");
+        assert_eq!(table_bits(&table), table_bits(&build(&base, &glm)), "shared equals solo");
+        let (again, reused) = fold_fits_added(&cache, || build(&base, &glm));
+        assert_eq!(again, 0, "the same weighted problem reads the retained fits");
+        assert_eq!(table_bits(&reused), table_bits(&table));
+
+        // Each case changes exactly one input; `added` is the work a miss costs: both stages
+        // when a propensity input changed, only the regressions when only the outcome did.
+        type Edit = Box<dyn Fn(&mut PreparedPropensityProblem)>;
+        let n = base.nrows;
+        let cases: Vec<(&str, usize, Edit)> = vec![
+            ("outcome", 5, Box::new(|p| p.outcome = p.outcome.iter().map(|y| y + 0.125).collect())),
+            (
+                "design entry",
+                10,
+                Box::new(move |p| {
+                    let mut design = p.design_matrix.to_vec();
+                    design[n + 3] += 1e-6;
+                    p.design_matrix = Arc::from(design);
+                }),
+            ),
+            (
+                "treatment entry",
+                10,
+                Box::new(|p| {
+                    let mut t = p.treatment.to_vec();
+                    t[0] = 1.0 - t[0];
+                    p.set_treatment(Arc::from(t));
+                }),
+            ),
+            (
+                "sampling weight",
+                10,
+                Box::new(|p| {
+                    let held = p.sampling_weights.as_mut().unwrap();
+                    let mut w = held.weights.to_vec();
+                    w[5] += 0.5;
+                    held.weights = Arc::from(w);
+                }),
+            ),
+            ("weights removed", 10, Box::new(|p| p.sampling_weights = None)),
+            (
+                "row identity",
+                10,
+                Box::new(|p| {
+                    p.row_index = p
+                        .row_index
+                        .iter()
+                        .map(|row| antecedent_data::GlobalId::new(row.get() + 50_000))
+                        .collect();
+                }),
+            ),
+            (
+                "supplied fold assignment",
+                10,
+                Box::new(move |p| {
+                    p.fold_assignment = Some(Arc::from(
+                        (0..n).map(|row| u32::try_from((row * 3) % 5).unwrap()).collect::<Vec<_>>(),
+                    ));
+                }),
+            ),
+            ("fold seed", 10, Box::new(|p| p.fold_seed = p.fold_seed.wrapping_add(17))),
+        ];
+        for (name, added, edit) in &cases {
+            let mut changed = base.clone();
+            edit(&mut changed);
+            let solo = build(&changed, &glm);
+            let (work, shared) = fold_fits_added(&cache, || build(&changed, &glm));
+            assert_eq!(work, *added, "{name}: a changed input must miss");
+            assert_eq!(table_bits(&shared), table_bits(&solo), "{name}: shared equals solo");
+            let (repeat, _) = fold_fits_added(&cache, || build(&changed, &glm));
+            assert_eq!(repeat, 0, "{name}: the changed problem is itself retained");
+        }
+        let other_options = GlmOptions { max_iter: glm.max_iter + 1, ..glm };
+        let (options, _) = fold_fits_added(&cache, || build(&base, &other_options));
+        assert_eq!(options, 10, "GLM options");
+        let (back, _) = fold_fits_added(&cache, || build(&base, &glm));
+        assert_eq!(back, 0, "the original key is still retained");
+    }
+
+    #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
+    fn cache_does_not_reuse_saturation_admission_across_overlap_policies() {
+        use crate::crossfit_cache::CrossfitNuisanceCache;
+        let (data, estimand) = confounded(400, 71);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = AipwAte::new();
+        let mut declared = est.prepare(&data, &estimand, &query).unwrap();
+        let n = declared.nrows;
+        let mut design = declared.design_matrix.to_vec();
+        let row = declared.treatment.iter().position(|t| *t == 1.0).unwrap();
+        design[n + row] = 1000.0;
+        declared.design_matrix = Arc::from(design);
+        declared.overlap =
+            crate::OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: None };
+        let mut undeclared = declared.clone();
+        undeclared.overlap = crate::OverlapPolicy::Default;
+        let build = |p: &PreparedPropensityProblem| {
+            crossfit_binary_scores(p, &query, 5, &est.glm_options, est.backend)
+        };
+        let fresh_declared = table_bits(&build(&declared).unwrap());
+        let fresh_error = build(&undeclared).unwrap_err();
+        assert_eq!(fresh_error.reason_code(), Some("positivity_violated"));
+        let cache = CrossfitNuisanceCache::new();
+        assert_eq!(table_bits(&cache.scope(|| build(&declared)).0.unwrap()), fresh_declared);
+        let error = cache.scope(|| build(&undeclared)).0.unwrap_err();
+        assert_eq!(error.reason_code(), fresh_error.reason_code());
+        let reverse = CrossfitNuisanceCache::new();
+        assert_eq!(
+            reverse.scope(|| build(&undeclared)).0.unwrap_err().reason_code(),
+            fresh_error.reason_code()
+        );
+        assert_eq!(table_bits(&reverse.scope(|| build(&declared)).0.unwrap()), fresh_declared);
+    }
+
+    #[test]
+    fn retained_nuisances_are_charged_to_the_shared_pool_evicted_and_refused_under_small_budgets() {
+        use crate::crossfit_cache::CrossfitNuisanceCache;
+        use antecedent_core::execution::AdmissionPool;
+        let (data, estimand) = confounded(300, 73);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = AipwAte::new();
+        let first = est.prepare(&data, &estimand, &query).unwrap();
+        let mut second = first.clone();
+        second.fold_seed = first.fold_seed.wrapping_add(1);
+        let build = |p: &PreparedPropensityProblem| {
+            crossfit_binary_scores(p, &query, 5, &est.glm_options, est.backend).unwrap()
+        };
+        let (solo_first, solo_second) = (table_bits(&build(&first)), table_bits(&build(&second)));
+
+        // Size one build's retention on an unconstrained pool.
+        let roomy = CrossfitNuisanceCache::new();
+        let _ = roomy.scope(|| build(&first));
+        let one_build = roomy.retained_bytes();
+        assert!(one_build > 8 * 300, "keys and predictions are counted: {one_build}");
+
+        // Room for one build and a half: the second build evicts the first.
+        let budget = one_build + one_build / 2;
+        let pool = AdmissionPool::fixed(1, budget);
+        let ctx = ExecutionContext::for_tests(73).with_admission(pool.clone());
+        let cache = CrossfitNuisanceCache::charged_to(&ctx);
+        let (a, _) = cache.scope(|| build(&first));
+        assert_eq!(table_bits(&a), solo_first);
+        assert_eq!(cache.retained_bytes(), one_build);
+        assert_eq!(pool.available().bytes(), budget - one_build, "retention is a pool lease");
+        let (b, _) = cache.scope(|| build(&second));
+        assert_eq!(table_bits(&b), solo_second);
+        assert_eq!(cache.stats().evictions, 2, "the first build's propensity and outcome went");
+        assert_eq!(cache.retained_bytes(), one_build);
+        assert_eq!(pool.available().bytes(), budget - one_build);
+        let before = cache.completed_fold_fits();
+        let _ = cache.scope(|| build(&first));
+        assert_eq!(cache.completed_fold_fits() - before, 10, "the evicted fits are refit");
+        drop(cache);
+        assert_eq!(pool.available().bytes(), budget, "a dropped cache returns every byte");
+
+        // A pool too small for any entry retains nothing and still answers correctly.
+        let tiny = AdmissionPool::fixed(1, 64);
+        let ctx = ExecutionContext::for_tests(73).with_admission(tiny.clone());
+        let cache = CrossfitNuisanceCache::charged_to(&ctx);
+        let (table, _) = cache.scope(|| build(&first));
+        assert_eq!(table_bits(&table), solo_first);
+        assert_eq!(cache.retained_entries(), 0);
+        assert!(cache.stats().refused_retentions >= 1);
+        assert_eq!(tiny.available().bytes(), 64);
+    }
+
+    #[test]
+    fn concurrent_batches_on_a_small_pool_never_exceed_it_and_match_solo_fits() {
+        use crate::crossfit_cache::CrossfitNuisanceCache;
+        use antecedent_core::execution::AdmissionPool;
+        let (data, estimand) = confounded(300, 79);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = AipwAte::new();
+        let problems: Vec<PreparedPropensityProblem> = (0..3)
+            .map(|k| {
+                let mut p = est.prepare(&data, &estimand, &query).unwrap();
+                p.fold_seed = p.fold_seed.wrapping_add(k);
+                p
+            })
+            .collect();
+        let build = |p: &PreparedPropensityProblem| {
+            crossfit_binary_scores(p, &query, 5, &est.glm_options, est.backend).unwrap()
+        };
+        let solo: Vec<_> = problems.iter().map(|p| table_bits(&build(p))).collect();
+        let roomy = CrossfitNuisanceCache::new();
+        let _ = roomy.scope(|| build(&problems[0]));
+        let one_build = roomy.retained_bytes();
+        let budget = one_build + one_build / 2;
+        let pool = AdmissionPool::fixed(1, budget);
+        let ctx = ExecutionContext::for_tests(79).with_admission(pool.clone());
+        let cache = CrossfitNuisanceCache::charged_to(&ctx);
+        std::thread::scope(|workers| {
+            for worker in 0..4usize {
+                let (cache, pool, problems, solo, build) =
+                    (&cache, &pool, &problems, &solo, &build);
+                workers.spawn(move || {
+                    for round in 0..3usize {
+                        let which = (worker + round) % problems.len();
+                        let (table, _) = cache.scope(|| build(&problems[which]));
+                        assert_eq!(
+                            table_bits(&table),
+                            solo[which],
+                            "worker {worker} round {round}"
+                        );
+                        assert!(cache.retained_bytes() <= budget);
+                        assert!(pool.available().bytes() <= budget);
+                    }
+                });
+            }
+        });
+        assert!(cache.retained_bytes() <= budget);
+        drop(cache);
+        assert_eq!(pool.available().bytes(), budget);
+    }
+
+    #[test]
     fn unshared_penalized_folds_are_counted_in_the_active_scope() {
         use crate::crossfit_cache::CrossfitNuisanceCache;
         use crate::propensity::{PropensityNuisance, RidgeTuning};
@@ -779,7 +1195,7 @@ mod tests {
         for row in (1..n).step_by(5) {
             treatment[row] = 1.0 - treatment[row];
         }
-        problem.treatment = Arc::from(treatment);
+        problem.set_treatment(Arc::from(treatment));
         problem.fold_assignment =
             Some(Arc::from((0..n).map(|row| u32::try_from(row % 5).unwrap()).collect::<Vec<_>>()));
         problem.propensity = PropensityNuisance::default().with_fallback(
@@ -828,7 +1244,7 @@ mod tests {
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
                 .with_target_population(TargetPopulation::AllObserved);
-        let est = AipwAte { bootstrap_replicates: 0, ..AipwAte::new() };
+        let est = AipwAte::new().with_bootstrap_replicates(0);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let table =
             crossfit_binary_scores(&prep, &query, 5, &est.glm_options, est.backend).unwrap();

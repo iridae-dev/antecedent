@@ -1,10 +1,15 @@
-"""Choosing a causal mechanism among linear, spline and tree-ensemble families.
+"""Which mechanism family should model a node: linear, spline or tree ensemble?
 
-``y = 1 + 0.5 x + 0.8 x^2 + noise`` is not linear in ``x``. Every candidate family is scored on the
-same held-out folds and the best is kept, together with each candidate's score, the families that
-could not be fit and why, and the rule that chose. A per-node constraint can require a family
-whatever its rank (the others are still scored), a contradictory constraint is refused before any
-fit, and rows that are dependent in time say so with a split scheme."""
+Data: 600 simulated rows of ``y = 1 + 0.5 x + 0.8 x^2 + noise``, which is not linear in ``x``.
+Every candidate family is scored on the same held-out folds and the best is kept, together with
+each candidate's score, the families that could not be fit and why, and the rule that chose.
+
+The script asserts that a non-linear family beats the linear one, that a per-node constraint
+selects a required family whatever its rank (the others are still scored), that a contradictory
+constraint is refused before any fit, and that time-ordered splits are recorded for serially
+dependent rows. The choice is a held-out model-fit decision under a given graph, not a causal one.
+
+Run: ``python examples/python/mechanism_selection.py``."""
 
 from __future__ import annotations
 

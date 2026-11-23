@@ -9,6 +9,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, GraphClass, IdentifierId, InferenceMode,
     RefuteSuite, Study,
@@ -19,7 +20,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Cpdag, DenseNodeId, Pag};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 fn d(i: u32) -> DenseNodeId {
     DenseNodeId::from_raw(i)
@@ -201,7 +202,8 @@ fn static_class_responses_body() {
             } else {
                 InferenceMode::Frequentist
             };
-            let tolerance = 0.2;
+            // Measured level error is at most 0.052 (completions differ by 0.49 at dose 1).
+            let tolerance = 0.1;
             for (name, query, key) in [
                 (
                     "intervention",
@@ -226,9 +228,11 @@ fn static_class_responses_body() {
                     } else {
                         EstimatorId::ResponseInterventionGcomp
                     };
-                    let plan = prepared
-                        .checked_static_class_response_info()
-                        .unwrap_or_else(|| panic!("{label}: retained checked class response plan"));
+                    let RetainedOperation::StaticClassResponse(plan) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("{label}: retained checked class response plan")
+                    };
                     assert_eq!(plan.query, query, "{label}");
                     assert_eq!(plan.graph_class, class, "{label}");
                     assert_eq!(plan.identifier, IdentifierId::GeneralizedAdjustment, "{label}");
@@ -242,7 +246,11 @@ fn static_class_responses_body() {
 
                     let click = prepared.estimate(&initial, &context).unwrap();
                     for result in [&one_shot, &click] {
-                        assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{label}");
+                        assert_eq!(
+                            result.support_status().unwrap().as_str(),
+                            "supported",
+                            "{label}"
+                        );
                         assert_eq!(
                             result.logical_plan.estimator.as_deref(),
                             Some(expected_estimator.as_str()),
@@ -358,16 +366,23 @@ fn static_class_responses_body() {
                     };
                     assert_levels(&click, 0.0, "click");
 
-                    let refreshed = prepared.refresh(shifted.clone(), &context).unwrap();
+                    let refreshed =
+                        rebind_estimate(&mut prepared, shifted.clone(), &context).unwrap();
                     assert_levels(&refreshed, 0.5, "refresh");
-                    assert!(prepared.checked_static_class_response_info().is_some(), "{label}");
+                    assert!(
+                        matches!(
+                            prepared.retained_operation(),
+                            RetainedOperation::StaticClassResponse(..)
+                        ),
+                        "{label}"
+                    );
 
                     let two_columns = TabularData::from_f64_columns([
                         ("t", vec![0.0; 8].as_slice()),
                         ("y", vec![0.0; 8].as_slice()),
                     ])
                     .unwrap();
-                    let error = prepared.refresh(two_columns, &context).unwrap_err();
+                    let error = rebind_estimate(&mut prepared, two_columns, &context).unwrap_err();
                     assert!(
                         error.to_string().contains("same schema"),
                         "{label}: schema-changed refresh must be refused: {error}"
@@ -380,7 +395,7 @@ fn static_class_responses_body() {
                             &context,
                         )
                         .unwrap();
-                    let consumed = consume_analysis_result(&artifact).unwrap();
+                    let consumed = replay_analysis_result(&artifact).unwrap();
                     for expected in ["dependencies.checked_static_class_response_operation", key] {
                         assert!(
                             consumed
@@ -392,7 +407,7 @@ fn static_class_responses_body() {
                             consumed.acceptance.unresolved
                         );
                     }
-                    assert!(!consumed.acceptance.accepts_as_verified_program(), "{label}");
+                    assert!(!consumed.acceptance.accepts_as_replayed_program(), "{label}");
                 }
             }
         }
@@ -407,4 +422,17 @@ fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
         .unwrap()
         .join()
         .unwrap();
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

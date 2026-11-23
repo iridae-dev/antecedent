@@ -23,7 +23,7 @@
 //!   see [`super::contract`]. A pooled search carries its own invariance and identification
 //!   assumptions, which belong to the transport contract and are not inferable from data.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::convert::Infallible;
 
@@ -45,7 +45,7 @@ pub struct DiscoveredStructureRefusal {
     pub unresolved_edges: Vec<UnresolvedEdge>,
     /// `(code, message)` of the exhausted search bounds.
     pub bounded_search_receipts: Vec<(String, String)>,
-    /// What would license the request.
+    /// What would support the request.
     pub remedy: String,
 }
 
@@ -82,7 +82,7 @@ pub fn request_selection_diagram(
     };
     let (detail, remedy) = if outcome.search_incomplete {
         (
-            "selective_discovery.search_incomplete",
+            antecedent_core::reason_details::selective_discovery::SEARCH_INCOMPLETE,
             format!(
                 "the search exhausted {} bound(s), so absent edges are not established. Rerun \
                  with larger bounds, then declare and review the graph before requesting \
@@ -92,7 +92,7 @@ pub fn request_selection_diagram(
         )
     } else if !unresolved.is_empty() {
         (
-            "selective_discovery.unresolved_structure",
+            antecedent_core::reason_details::selective_discovery::UNRESOLVED_STRUCTURE,
             format!(
                 "{} edge(s) are not resolved to one orientation within the equivalence class. \
                  Orient them with background knowledge or an intervention, or declare the \
@@ -102,7 +102,7 @@ pub fn request_selection_diagram(
         )
     } else {
         (
-            "selective_discovery.unaccepted_discovery",
+            antecedent_core::reason_details::selective_discovery::UNACCEPTED_DISCOVERY,
             format!(
                 "a discovered graph is an estimate under faithfulness and sufficiency \
                  assumptions, not a declared causal graph. Review and accept it as the causal \

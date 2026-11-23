@@ -17,7 +17,7 @@
 use crate::IoError;
 use crate::temporal_initial_state_artifact::{
     ContributionWire, InitialStateLawWire, PanelSummaryWire, TemporalInitialStateConsumeLimits,
-    TemporalPremisesWire, hex64, mismatch,
+    TemporalPremisesWire, mismatch,
 };
 use antecedent_core::{IdentityDomain, reason_code};
 use antecedent_estimate::temporal_dependent_interval::TemporalUnitPanel;
@@ -46,12 +46,14 @@ fn same(a: f64, b: f64) -> bool {
     a.to_bits() == b.to_bits()
 }
 
-fn refusal(code: &'static str, detail: &str, message: &str) -> IoError {
-    IoError::Refused { code, message: format!("{detail}: {message}") }
-}
+use crate::refusal::refused as refusal;
 
 fn invalid_replacement(message: &str) -> IoError {
-    refusal(reason_code!("invalid_argument"), "temporal_refresh.invalid_replacement", message)
+    refusal(
+        reason_code!("invalid_argument"),
+        antecedent_core::reason_details::temporal_refresh::INVALID_REPLACEMENT,
+        message,
+    )
 }
 
 /// Strictly increasing strings as a set; anything else is not canonical.
@@ -514,10 +516,10 @@ impl TemporalRefreshArtifactWire {
         if self.decision == label && self.invalidation == invalidation {
             return Ok(decision);
         }
-        if self.decision == REUSABLE {
-            if let RefreshDecision::Invalidated(reason) = decision {
-                return Err(reason.into_error().into());
-            }
+        if self.decision == REUSABLE
+            && let RefreshDecision::Invalidated(reason) = decision
+        {
+            return Err(reason.into_error().into());
         }
         Err(mismatch(PREFIX, "decision"))
     }
@@ -534,7 +536,7 @@ impl TemporalRefreshArtifactWire {
         if refreshed.interval_present {
             return Err(refusal(
                 reason_code!("route_not_supported"),
-                "temporal_refresh.stale_interval",
+                antecedent_core::reason_details::temporal_refresh::STALE_INTERVAL,
                 "a refreshed result may not carry an interval from the old window",
             ));
         }
@@ -554,7 +556,7 @@ impl TemporalRefreshArtifactWire {
         if stored != expected_receipt(old, new, self.interval_invalidated) {
             return Err(refusal(
                 reason_code!("route_not_supported"),
-                "temporal_refresh.receipt_mismatch",
+                antecedent_core::reason_details::temporal_refresh::RECEIPT_MISMATCH,
                 "the receipt is not the one the old and new windows imply",
             ));
         }
@@ -594,10 +596,4 @@ fn refreshed_wire(effect: &MarginalizedEffect) -> RefreshedResultWire {
             .collect(),
         interval_present: false,
     }
-}
-
-/// Lower-case hex of a 64-bit identity, for callers that tag a panel.
-#[must_use]
-pub fn panel_digest_hex(panel: &TemporalUnitPanel) -> String {
-    hex64(panel.digest())
 }

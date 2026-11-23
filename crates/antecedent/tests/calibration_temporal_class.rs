@@ -9,9 +9,9 @@
 //! quantile for the Bayesian arm (a partial-mass posterior is withheld, which is
 //! why the Bayesian rows require weight `[1.0]`).
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh`.
+//! Ignored tests run via `scripts/measure_calibration.sh`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -207,7 +207,7 @@ fn mediation_atom() -> GraphPosterior {
     temporal_atom(GraphPosteriorAtomKind::Cpdag, 3, contemporaneous, 1, lag_mask)
 }
 
-fn licensed_pulse() -> TemporalEffectQuery {
+fn supported_pulse() -> TemporalEffectQuery {
     TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
         .with_policy(TemporalPolicy::pulse(-1))
         .with_horizon_steps(1)
@@ -445,7 +445,7 @@ fn mediation_contrasts_coverage(
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn pulse_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage() {
     coverage(
         "pulse_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage",
@@ -457,7 +457,7 @@ fn pulse_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage() {
             let seed = stream_seed(0x11C_0001, rep);
             run_temporal(
                 pulse_series(grid_n(N), seed),
-                licensed_pulse(),
+                supported_pulse(),
                 pulse_atom(GraphPosteriorAtomKind::Cpdag),
                 InferenceMode::Frequentist,
                 BOOT,
@@ -470,7 +470,7 @@ fn pulse_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn pulse_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage() {
     coverage(
         "pulse_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage",
@@ -482,7 +482,7 @@ fn pulse_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage() {
             let seed = stream_seed(0x11C_0002, rep);
             run_temporal(
                 pulse_series(grid_n(N), seed),
-                licensed_pulse(),
+                supported_pulse(),
                 pulse_atom(GraphPosteriorAtomKind::Cpdag),
                 bayes(),
                 0,
@@ -499,7 +499,7 @@ fn pulse_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn pulse_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage() {
     coverage(
         "pulse_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage",
@@ -511,7 +511,7 @@ fn pulse_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage() {
             let seed = stream_seed(0x11C_0003, rep);
             run_temporal(
                 pulse_series(grid_n(N), seed),
-                licensed_pulse(),
+                supported_pulse(),
                 pulse_atom(GraphPosteriorAtomKind::Pag),
                 InferenceMode::Frequentist,
                 BOOT,
@@ -528,7 +528,7 @@ fn pulse_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn pulse_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage() {
     coverage(
         "pulse_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage",
@@ -540,7 +540,7 @@ fn pulse_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage() {
             let seed = stream_seed(0x11C_0004, rep);
             run_temporal(
                 pulse_series(grid_n(N), seed),
-                licensed_pulse(),
+                supported_pulse(),
                 pulse_atom(GraphPosteriorAtomKind::Pag),
                 bayes(),
                 0,
@@ -557,7 +557,7 @@ fn pulse_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn sustained_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage() {
     coverage(
         "sustained_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage",
@@ -584,7 +584,7 @@ fn sustained_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn sustained_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage() {
     coverage(
         "sustained_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage",
@@ -613,7 +613,7 @@ fn sustained_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn sustained_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage() {
     coverage(
         "sustained_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage",
@@ -638,7 +638,7 @@ fn sustained_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage() 
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn sustained_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage() {
     coverage(
         "sustained_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage",
@@ -667,7 +667,7 @@ fn sustained_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_mediation_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage() {
     mediation_contrasts_coverage(
         "temporal_mediation_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage",
@@ -685,7 +685,7 @@ fn temporal_mediation_effect_temporal_cpdag_graph_posterior_frequentist_nominal_
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_mediation_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage() {
     mediation_contrasts_coverage(
         "temporal_mediation_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage",

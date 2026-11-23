@@ -18,7 +18,7 @@
 //! under `do(b, l1, a1, l2, a2)` for every complete history and both actions.
 //! The target supplies its observational law over all six coordinates.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(dead_code, reason = "shared by several test binaries, each of which uses a subset")]
 
 use std::sync::Arc;
@@ -52,8 +52,8 @@ pub fn v(i: usize) -> VariableId {
 pub fn slots() -> TemporalSlots {
     TemporalSlots {
         baseline: vec![v(B)],
-        covariates: [vec![v(L1)], vec![v(L2)]],
-        actions: [v(A1), v(A2)],
+        covariates: vec![vec![v(L1)], vec![v(L2)]],
+        actions: vec![v(A1), v(A2)],
         outcome: v(Y),
     }
 }
@@ -209,7 +209,9 @@ pub fn target_law_without(scm: &Scm, zero: impl Fn([u8; 6]) -> bool) -> ExactDis
         }
     }
     let total: f64 = probabilities.iter().sum();
-    probabilities.iter_mut().for_each(|p| *p /= total);
+    for p in &mut probabilities {
+        *p /= total;
+    }
     ExactDiscreteLaw::try_new(
         "target",
         RegimeId::from_raw(0),

@@ -9,10 +9,37 @@ impl super::Study {
         extra: &[VariableId],
         ctx: &ExecutionContext,
     ) -> Result<(EffectEstimate, Option<antecedent_estimate::CausalPosterior>), CausalError> {
+        let resampling = self.functional_row_resampling()?;
+        self.estimate_functional_effect_resampled(
+            data,
+            estimand,
+            identification,
+            extra,
+            resampling,
+            ctx,
+        )
+    }
+
+    /// [`Self::estimate_functional_effect`] under a caller-chosen resampling of the rows, for a
+    /// table whose rows overlap by a known span (a lag-aligned window table).
+    pub(super) fn estimate_functional_effect_resampled(
+        &self,
+        data: &TabularData,
+        estimand: &IdentifiedEstimand,
+        identification: &IdentificationResult,
+        extra: &[VariableId],
+        resampling: (
+            antecedent_estimate::RowResampling,
+            antecedent_estimate::util::SamplingDeclaration,
+        ),
+        ctx: &ExecutionContext,
+    ) -> Result<(EffectEstimate, Option<antecedent_estimate::CausalPosterior>), CausalError> {
+        let (row_resampling, sampling_design) = resampling;
         let est = FunctionalEffect {
-            bootstrap_replicates: self.bootstrap_replicates,
+            bootstrap_replicates: self.settings.bootstrap_replicates,
             ..FunctionalEffect::new()
-        };
+        }
+        .with_row_resampling(row_resampling, sampling_design);
         let prepared = est
             .prepare(
                 data,
@@ -22,7 +49,60 @@ impl super::Study {
                 extra,
             )
             .map_err(CausalError::from)?;
-        run_functional(&est, &prepared, &self.inference, identification.status, ctx)
+        run_functional(&est, &prepared, &self.settings.inference, identification.status, ctx)
+    }
+}
+
+impl super::Study {
+    /// How a functional plug-in resamples its rows on this study.
+    ///
+    /// A `TemporalAdmg` functional is the contemporaneous projection, read on the
+    /// consecutive times of one series: its frequentist bootstrap resamples circular
+    /// blocks of rows and its Bayesian bootstrap shares one Dirichlet weight per block.
+    /// Every other graph class keeps independent rows, as before.
+    ///
+    /// # Errors
+    ///
+    /// On the projection, a declared independent-subject or clustered-panel design when a
+    /// resample or a posterior draw will run: the table carries no subject or cluster
+    /// labels, so neither a whole-subject nor a whole-cluster draw can be formed, and a
+    /// row-level draw is refused under both designs.
+    pub(crate) fn functional_row_resampling(
+        &self,
+    ) -> Result<
+        (antecedent_estimate::RowResampling, antecedent_estimate::util::SamplingDeclaration),
+        CausalError,
+    > {
+        use antecedent_core::DeclaredSamplingDesign as Design;
+        use antecedent_estimate::RowResampling;
+        let temporal_projection =
+            matches!(self.graph.class(), GraphClass::TemporalAdmg | GraphClass::TemporalPag)
+                || self.graph_posterior.as_ref().is_some_and(|gp| {
+                    gp.atom_kind() == antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
+                });
+        let rows =
+            (RowResampling::Rows, antecedent_estimate::util::SamplingDeclaration::Undeclared);
+        if !temporal_projection {
+            return Ok(rows);
+        }
+        let draws = self.settings.inference.is_bayesian() || self.settings.bootstrap_replicates > 0;
+        let declared = crate::estimator_spec::declared_sampling(self.declared.sampling_design);
+        match self.declared.sampling_design {
+            None | Some(Design::DependentTimeSeries) => Ok((RowResampling::SeriesBlocks, declared)),
+            Some(Design::IndependentSubjectTrajectories | Design::ClusteredPanel) if draws => {
+                Err(crate::unsupported_reason!(
+                    "option_not_applicable",
+                    "the contemporaneous-projection functional draws its uncertainty from the \
+                     table rows, and a declared independent-subject or clustered-panel design \
+                     refuses a row-level draw; this table carries no subject or cluster labels \
+                     to draw whole subjects or clusters from. Next attempt: declare a dependent \
+                     series (circular blocks of consecutive rows), analyse the units as panel \
+                     data with their unit labels, or omit bootstrap_replicates for the \
+                     frequentist point value"
+                ))
+            }
+            Some(_) => Ok(rows),
+        }
     }
 }
 
@@ -367,6 +447,98 @@ pub(super) fn static_aligned_influence(
     Some(full)
 }
 
+struct ClassConditionalThreshold {
+    cdf: [f64; 2],
+    columns: [Vec<f64>; 2],
+    minimum_arm_counts: [f64; 2],
+    minimum_events: [f64; 2],
+    supported_in_all: [bool; 2],
+}
+
+fn class_conditional_threshold(
+    data: &TabularData,
+    query: &antecedent_core::ConditionalEffectQuery,
+    atoms: &[(f64, IdentifiedEstimand)],
+    est: &ConditionalLinearAdjustment,
+    y_orig: &[f64],
+    threshold: f64,
+) -> Result<ClassConditionalThreshold, CausalError> {
+    let data_c = super::helpers::apply_outcome_functional(
+        data,
+        query.inner.outcome,
+        &antecedent_core::OutcomeFunctional::exceedance(threshold),
+    )?;
+    let mut arm0 = 0.0;
+    let mut arm1 = 0.0;
+    let mut mass = 0.0;
+    let mut contributing = 0usize;
+    let mut atom_if0 = Vec::new();
+    let mut atom_if1 = Vec::new();
+    let mut atom_weights = Vec::new();
+    let mut minimum_events = [f64::INFINITY; 2];
+    let mut supported_in_all = [true; 2];
+    let mut minimum_arm_counts = [f64::INFINITY; 2];
+    for &(w, ref estimand) in atoms {
+        if !w.is_finite() || w <= 0.0 {
+            continue;
+        }
+        let mut transformed_query = query.clone();
+        transformed_query.inner.outcome_functional = antecedent_core::OutcomeFunctional::Mean;
+        let (_point, scores) =
+            est.estimate_with_arm_scores(&data_c, estimand, &transformed_query)?;
+        arm0 += w * (1.0 - scores.means[0]);
+        arm1 += w * (1.0 - scores.means[1]);
+        mass += w;
+        contributing += 1;
+        let aligned0 = static_aligned_influence(data, &query.inner, estimand, &scores.influence[0]);
+        let aligned1 = static_aligned_influence(data, &query.inner, estimand, &scores.influence[1]);
+        if let (Some(if0), Some(if1)) = (aligned0, aligned1) {
+            atom_if0.push(if0.into_iter().map(|v| -v).collect::<Vec<_>>());
+            atom_if1.push(if1.into_iter().map(|v| -v).collect::<Vec<_>>());
+            atom_weights.push(w);
+        }
+        for arm in 0..2 {
+            let (events, supported) = super::helpers::tail_event_support(
+                &scores.treatment,
+                &scores.row_index,
+                y_orig,
+                arm,
+                threshold,
+            );
+            minimum_events[arm] = minimum_events[arm].min(events);
+            supported_in_all[arm] &= supported;
+            let count =
+                scores.treatment.iter().filter(|&&t| (t - arm as f64).abs() <= 1e-12).count()
+                    as f64;
+            minimum_arm_counts[arm] = minimum_arm_counts[arm].min(count);
+        }
+    }
+    if !matches!(mass.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
+        return Err(CausalError::Compile {
+            message: "class-aware ConditionalEffect grid had no estimable atoms".into(),
+        });
+    }
+    let cdf = [arm0 / mass, arm1 / mass];
+    if atom_if0.len() != contributing || atom_if1.len() != contributing {
+        return Err(CausalError::Unsupported {
+            message: "class-aware ConditionalEffect grid refused: every contributing atom must supply an aligned per-arm influence function; refusing a covariance from a subset of atoms",
+        });
+    }
+    let refs0: Vec<&[f64]> = atom_if0.iter().map(Vec::as_slice).collect();
+    let refs1: Vec<&[f64]> = atom_if1.iter().map(Vec::as_slice).collect();
+    let columns = [
+        antecedent_estimate::frozen_weight_mixture_scores(&refs0, &atom_weights)?,
+        antecedent_estimate::frozen_weight_mixture_scores(&refs1, &atom_weights)?,
+    ];
+    Ok(ClassConditionalThreshold {
+        cdf,
+        columns,
+        minimum_arm_counts,
+        minimum_events,
+        supported_in_all,
+    })
+}
+
 /// Mix `ConditionalEffect` exceedance grids across envelope atoms.
 ///
 /// Per threshold, each atom is estimated on the same indicator transform, IFs
@@ -402,79 +574,13 @@ pub(super) fn attach_class_conditional_functional_grid(
     let mut threshold_supported = Vec::with_capacity(thresholds.len() * 2);
     let mut n_eff_by_arm = [0.0, 0.0];
     for &threshold in &thresholds {
-        let data_c = super::helpers::apply_outcome_functional(
-            data,
-            query.inner.outcome,
-            &antecedent_core::OutcomeFunctional::exceedance(threshold),
-        )?;
-        let mut arm0 = 0.0;
-        let mut arm1 = 0.0;
-        let mut mass = 0.0;
-        let mut contributing = 0usize;
-        let mut atom_if0 = Vec::new();
-        let mut atom_if1 = Vec::new();
-        let mut atom_weights = Vec::new();
-        let mut minimum_events = [f64::INFINITY; 2];
-        let mut supported_in_all = [true; 2];
-        let mut minimum_arm_counts = [f64::INFINITY; 2];
-        for &(w, ref estimand) in atoms {
-            if !w.is_finite() || w <= 0.0 {
-                continue;
-            }
-            let mut transformed_query = query.clone();
-            transformed_query.inner.outcome_functional = antecedent_core::OutcomeFunctional::Mean;
-            let (_point, scores) =
-                est.estimate_with_arm_scores(&data_c, estimand, &transformed_query)?;
-            arm0 += w * (1.0 - scores.means[0]);
-            arm1 += w * (1.0 - scores.means[1]);
-            mass += w;
-            contributing += 1;
-            let aligned0 =
-                static_aligned_influence(data, &query.inner, estimand, &scores.influence[0]);
-            let aligned1 =
-                static_aligned_influence(data, &query.inner, estimand, &scores.influence[1]);
-            if let (Some(if0), Some(if1)) = (aligned0, aligned1) {
-                atom_if0.push(if0.into_iter().map(|v| -v).collect::<Vec<_>>());
-                atom_if1.push(if1.into_iter().map(|v| -v).collect::<Vec<_>>());
-                atom_weights.push(w);
-            }
-            for arm in 0..2 {
-                let (events, supported) = super::helpers::tail_event_support(
-                    &scores.treatment,
-                    &scores.row_index,
-                    &y_orig,
-                    arm,
-                    threshold,
-                );
-                minimum_events[arm] = minimum_events[arm].min(events);
-                supported_in_all[arm] &= supported;
-                let count =
-                    scores.treatment.iter().filter(|&&t| (t - arm as f64).abs() <= 1e-12).count()
-                        as f64;
-                minimum_arm_counts[arm] = minimum_arm_counts[arm].min(count);
-            }
-        }
-        if !matches!(mass.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
-            return Err(CausalError::Compile {
-                message: "class-aware ConditionalEffect grid had no estimable atoms".into(),
-            });
-        }
-        mixed_cdf.push(arm0 / mass);
-        mixed_cdf.push(arm1 / mass);
-        if atom_if0.len() != contributing || atom_if1.len() != contributing {
-            return Err(CausalError::Unsupported {
-                message: "class-aware ConditionalEffect grid refused: every contributing atom must supply an aligned per-arm influence function; refusing a covariance from a subset of atoms",
-            });
-        }
-        let refs0: Vec<&[f64]> = atom_if0.iter().map(Vec::as_slice).collect();
-        let refs1: Vec<&[f64]> = atom_if1.iter().map(Vec::as_slice).collect();
-        mixed_columns
-            .push(antecedent_estimate::frozen_weight_mixture_scores(&refs0, &atom_weights)?);
-        mixed_columns
-            .push(antecedent_estimate::frozen_weight_mixture_scores(&refs1, &atom_weights)?);
-        n_eff_by_arm = minimum_arm_counts;
-        event_n_eff.extend(minimum_events);
-        threshold_supported.extend(supported_in_all);
+        let threshold_result =
+            class_conditional_threshold(data, query, atoms, &est, &y_orig, threshold)?;
+        mixed_cdf.extend(threshold_result.cdf);
+        mixed_columns.extend(threshold_result.columns);
+        n_eff_by_arm = threshold_result.minimum_arm_counts;
+        event_n_eff.extend(threshold_result.minimum_events);
+        threshold_supported.extend(threshold_result.supported_in_all);
     }
     let mut out = estimate;
     if mixed_columns.len() != thresholds.len() * 2 {
@@ -554,9 +660,7 @@ pub(super) fn mix_static_envelope_se<T: AsRef<[f64]>>(atom_ifs: &[T], atom_weigh
 
 /// Standard error of an already-mixed influence column.
 pub(super) fn mixture_se(mixed: &[f64]) -> f64 {
-    antecedent_estimate::joint_influence_covariance(&[mixed], None)
-        .map(|c| c.se(0))
-        .unwrap_or(f64::NAN)
+    antecedent_estimate::joint_influence_covariance(&[mixed], None).map_or(f64::NAN, |c| c.se(0))
 }
 
 /// Frozen-weight mixture IF, or `None` when atoms do not share a row universe.
@@ -653,6 +757,39 @@ pub(super) fn mix_graph_posterior_identified_atoms(
     subsampled_out_mass: f64,
     truncated_atoms: usize,
 ) -> MixedGraphPosteriorPolicy {
+    mix_graph_posterior_atoms_with(
+        graphs,
+        atoms,
+        (unidentified_mass, unevaluable_mass, subsampled_out_mass),
+        truncated_atoms,
+        false,
+    )
+}
+
+/// Mix identified atoms of one declared quantity: the structure-averaged effect on a declared
+/// target population.
+///
+/// The atoms estimate the same causal quantity (the effect on the declared population) and
+/// differ in the structure that identifies it, so their adjustment sets need not agree: the
+/// mixture is the posterior-weighted mean of the structure-wise effects, and the published
+/// uncertainty carries the between-structure spread. Used only where a target population is
+/// declared; the default routes keep [`mix_graph_posterior_identified_atoms`]'s estimand
+/// agreement rule.
+pub(super) fn mix_graph_posterior_atoms_same_quantity(
+    graphs: &WeightedGraphSamples,
+    atoms: &[GraphPosteriorAtomValue],
+    masses: (f64, f64, f64),
+) -> MixedGraphPosteriorPolicy {
+    mix_graph_posterior_atoms_with(graphs, atoms, masses, 0, true)
+}
+
+fn mix_graph_posterior_atoms_with(
+    graphs: &WeightedGraphSamples,
+    atoms: &[GraphPosteriorAtomValue],
+    (unidentified_mass, unevaluable_mass, subsampled_out_mass): (f64, f64, f64),
+    truncated_atoms: usize,
+    same_quantity: bool,
+) -> MixedGraphPosteriorPolicy {
     use crate::result::{
         StructuralAggregationPolicy, StructuralResponseAtom, StructuralWeightBasis,
     };
@@ -707,7 +844,11 @@ pub(super) fn mix_graph_posterior_identified_atoms(
     }
     let total = graphs.total_weight();
     let identified_mass = if total > 0.0 { identified_weight / total } else { 0.0 };
-    let policy = resolve_structural_aggregation(&contributing, false);
+    let policy = if same_quantity && !contributing.is_empty() {
+        StructuralAggregationPolicy::SameEstimandWeightedMean
+    } else {
+        resolve_structural_aggregation(&contributing, false)
+    };
     let identified_set = (lo.is_finite() && hi.is_finite()).then(|| scalar_identified_set(lo, hi));
     let mixable_scalar =
         matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean) && mixable > 0.0;
@@ -726,6 +867,7 @@ pub(super) fn mix_graph_posterior_identified_atoms(
         conditional_on_identified,
         full_mass_scope: true,
         truncated_atoms,
+        aggregation_policy: Some(policy),
     };
     MixedGraphPosteriorPolicy { policy, ate, mixable_scalar, mixture }
 }
@@ -1239,6 +1381,19 @@ impl EnvelopeRefutation<'_> {
         workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
+        self.run_targeted(None, atoms, workspace, ctx)
+    }
+
+    /// [`Self::run`] where, for a declared weighted target, every atom's refuters re-estimate
+    /// the targeted effect through `refits` (the atom's estimand under the study's estimator,
+    /// the registered weights, the overlap gate re-checked on the rows a replicate keeps).
+    pub(super) fn run_targeted(
+        self,
+        refits: Option<&Arc<crate::analysis::targeted_refit::TargetedRefits>>,
+        atoms: &[EnvelopeRefuteAtom],
+        workspace: &mut EstimationWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
         let Self { data, query, suite, estimator, custom, temporal: temporal_frame } = self;
         if matches!(suite, RefuteSuite::None) && custom.is_empty() {
             return Ok((Vec::new(), Vec::new()));
@@ -1267,6 +1422,7 @@ impl EnvelopeRefutation<'_> {
                 }),
                 _ => None,
             };
+            let refit = refits.map(|refits| refits.refit_for(&atom.estimand));
             let outcomes = RefutationRun {
                 data,
                 estimand: &atom.estimand,
@@ -1277,7 +1433,7 @@ impl EnvelopeRefutation<'_> {
                 custom,
                 temporal,
             }
-            .outcomes(workspace, None, ctx)?;
+            .outcomes_with(refit.as_deref(), workspace, None, ctx)?;
             per_atom.push((atom.weight, ValidationSuite::reports_only(&outcomes)));
             for (validator, reason) in ValidationSuite::not_applicable_only(&outcomes) {
                 na_weight

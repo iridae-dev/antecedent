@@ -18,7 +18,7 @@
 //!   level in either direction while still inside the band passes the band
 //!   but prints a `calibration-recheck` line. That includes
 //!   [`CoverageTally::emit`] for `reported_level` (0.95) records.
-//!   `scripts/gate_calibration.sh` re-runs such a group at
+//!   `scripts/measure_calibration.sh` re-runs such a group at
 //!   [`RECHECK_N_SIM`] replicates and takes that run's verdict.
 //! * **Precision floor and ceiling.** At [`PRECISION_N_SIM`] replicates or
 //!   more, coverage must lie in `[level − 2·MCSE, level + 2·MCSE]`: at 2000
@@ -121,12 +121,25 @@
 //! `map_replicates`. Smoke runs ([`SMOKE_ENV`]) extend like measured runs:
 //! the extension is wiring, which is what a smoke run proves.
 //!
+//! **Replicate digests.** Every `record` / `skip` / `bind` / `absorb` folds what
+//! the replicate produced (the interval endpoints and truth as raw `f64` bits,
+//! the bound scope facts, in a fixed field order; see [`ReplicateDigest`]) into
+//! one 128-bit fingerprint per scored replicate. The tally keeps the first
+//! [`MAX_DIGEST_PREFIX`] of them, and its `calibration-record` line and tally
+//! sidecar carry the chained prefix digests at [`DIGEST_PREFIXES`] replicates
+//! (`prefix_digests`: the fingerprint of the first `k` replicate fingerprints).
+//! A later run at a smaller replicate count (`scripts/calibration_probe.py`)
+//! reproduces the stored prefix digest exactly when the first `k` replicates
+//! are bit-identical, which is what lets a coverage record stand across a
+//! change that moves no measured number. The fingerprint is for equality
+//! checks, not security.
+//!
 //! Every `calibration-recheck` line is followed by a
 //! `calibration-recheck-test <test>` line naming the libtest thread (the test
-//! function), so `scripts/gate_calibration.sh` can recheck only that test of a
+//! function), so `scripts/measure_calibration.sh` can recheck only that test of a
 //! whole-file group.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     dead_code,
@@ -160,9 +173,10 @@ pub const PRECISION_N_SIM: u32 = 1000;
 /// recheck at fewer than [`PRECISION_N_SIM`] replicates, on either side.
 pub const RECHECK_SHORTFALL: f64 = 0.02;
 
-/// Maximum share of replicates that may be skipped (1%). Skips count as
-/// misses in [`CoverageTally::rate`]; the cap stops an estimator from
-/// discarding almost every draw and still claiming coverage on the rest.
+/// Maximum refusal rate a run may show (1%), judged as the Monte Carlo estimate it is: the
+/// skipped share may exceed it by two binomial standard errors. Skips count as misses in
+/// [`CoverageTally::rate`]; the cap stops an estimator from discarding almost every draw and
+/// still claiming coverage on the rest.
 pub const SKIP_CAP_NUM: u32 = 1;
 pub const SKIP_CAP_DEN: u32 = 100;
 
@@ -199,7 +213,7 @@ impl SampleGrid {
     /// practical data size (tabular 300–1200 rows, series of 160–400 steps).
     pub const STANDARD: Self = Self { name: "standard", factors: [(1, 2), (1, 1), (2, 1)] };
     /// `3n/4, n, 2n`: short-series designs (base `n` ≤ 100 steps), whose base
-    /// point is already the shortest series the construction is licensed for;
+    /// point is already the shortest series the construction is supported for;
     /// halving it would measure a series the runtime warns on, not the design.
     pub const SHORT_SERIES: Self = Self { name: "short_series", factors: [(3, 4), (1, 1), (2, 1)] };
     /// `n/2, n, 3n/2`: designs whose cost grows faster than `n` and that
@@ -310,7 +324,7 @@ pub fn grid_seed(seed: u64) -> u64 {
     seed ^ grid_salt()
 }
 
-/// Environment variable naming the commit under measurement (`scripts/gate_calibration.sh`
+/// Environment variable naming the commit under measurement (`scripts/measure_calibration.sh`
 /// exports it). Every record carries it, so a line copied from another run or another
 /// commit is refused by `scripts/collect_coverage_records.py` on its own, not only when
 /// its log's trailer happens to agree.
@@ -355,6 +369,15 @@ pub const THREADS_ENV: &str = "ANTECEDENT_CALIBRATION_THREADS";
 /// `0` runs every replicate.
 pub const REPLICATE_START_ENV: &str = "ANTECEDENT_CALIBRATION_REPLICATE_START";
 
+/// Environment variable of a replicate shard: the end (exclusive) of the replicate
+/// range [`map_replicates`] evaluates, from [`REPLICATE_START_ENV`] (`0` when unset).
+/// A shard computes `start..end` of the `n_sim()` replicates on empty tallies and
+/// writes their raw state (with each interval length, so a merge can fold the
+/// length sum in replicate order) to [`TALLY_OUT_ENV`]; it asserts and prints
+/// nothing. `scripts/calibration_shards.py` merges the states of consecutive shards
+/// into the prior of an ordinary extension, which does the asserting.
+pub const REPLICATE_END_ENV: &str = "ANTECEDENT_CALIBRATION_REPLICATE_END";
+
 /// Environment variable naming the first run's tally file an extending run
 /// seeds its tallies from (written by that run under [`TALLY_OUT_ENV`]).
 pub const PRIOR_TALLIES_ENV: &str = "ANTECEDENT_CALIBRATION_PRIOR_TALLIES";
@@ -372,9 +395,7 @@ pub const TALLY_OUT_ENV: &str = "ANTECEDENT_CALIBRATION_TALLY_OUT";
 #[must_use]
 pub fn worker_threads(n: usize) -> usize {
     let threads = match std::env::var(THREADS_ENV) {
-        Err(_) => {
-            std::thread::available_parallelism().map(std::num::NonZeroUsize::get).unwrap_or(1)
-        }
+        Err(_) => std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get),
         Ok(raw) => raw
             .trim()
             .parse::<usize>()
@@ -402,6 +423,28 @@ pub fn replicate_start() -> u32 {
     })
 }
 
+/// End of this run's replicate shard ([`REPLICATE_END_ENV`]); `None` outside a shard.
+///
+/// # Panics
+///
+/// When the variable is set to anything but a replicate index.
+#[must_use]
+pub fn replicate_end() -> Option<u32> {
+    static END: std::sync::OnceLock<Option<u32>> = std::sync::OnceLock::new();
+    *END.get_or_init(|| {
+        std::env::var(REPLICATE_END_ENV).ok().map(|raw| {
+            raw.trim()
+                .parse::<u32>()
+                .unwrap_or_else(|_| panic!("{REPLICATE_END_ENV}={raw}: want a replicate index"))
+        })
+    })
+}
+
+/// Whether this run is a replicate shard ([`REPLICATE_END_ENV`] is set).
+fn sharding() -> bool {
+    replicate_end().is_some()
+}
+
 thread_local! {
     /// Per test thread: the replicate count of the last [`map_replicates`]
     /// call, and whether that call extended a first run (`replicate_start() > 0`).
@@ -419,6 +462,145 @@ fn extending() -> bool {
 /// Replicate count of the current test thread's last [`map_replicates`] call.
 fn last_map_end() -> Option<u32> {
     MAP_STATE.with(|state| state.get().0)
+}
+
+/// Prefix lengths (replicates) at which a tally reports a chained digest.
+pub const DIGEST_PREFIXES: [u32; 5] = [10, 32, 100, 320, 1000];
+
+/// Replicate fingerprints a tally retains: the longest digest prefix.
+pub const MAX_DIGEST_PREFIX: usize = 1000;
+
+/// Canonical bytes of a replicate's output: floats as raw bits, integers
+/// little-endian, optional values behind a presence byte, sequences behind a
+/// length, always in the fixed field order of the implementation. Two runs
+/// that produce bit-identical output produce identical bytes.
+pub trait ReplicateDigest {
+    fn write_digest(&self, out: &mut Vec<u8>);
+}
+
+impl ReplicateDigest for f64 {
+    fn write_digest(&self, out: &mut Vec<u8>) {
+        out.extend_from_slice(&self.to_bits().to_le_bytes());
+    }
+}
+
+impl ReplicateDigest for u64 {
+    fn write_digest(&self, out: &mut Vec<u8>) {
+        out.extend_from_slice(&self.to_le_bytes());
+    }
+}
+
+impl ReplicateDigest for u32 {
+    fn write_digest(&self, out: &mut Vec<u8>) {
+        out.extend_from_slice(&self.to_le_bytes());
+    }
+}
+
+impl ReplicateDigest for usize {
+    fn write_digest(&self, out: &mut Vec<u8>) {
+        out.extend_from_slice(&(*self as u64).to_le_bytes());
+    }
+}
+
+impl ReplicateDigest for bool {
+    fn write_digest(&self, out: &mut Vec<u8>) {
+        out.push(u8::from(*self));
+    }
+}
+
+impl<T: ReplicateDigest + ?Sized> ReplicateDigest for &T {
+    fn write_digest(&self, out: &mut Vec<u8>) {
+        (**self).write_digest(out);
+    }
+}
+
+impl<T: ReplicateDigest> ReplicateDigest for Option<T> {
+    fn write_digest(&self, out: &mut Vec<u8>) {
+        match self {
+            Some(value) => {
+                out.push(1);
+                value.write_digest(out);
+            }
+            None => out.push(0),
+        }
+    }
+}
+
+impl<T: ReplicateDigest> ReplicateDigest for [T] {
+    fn write_digest(&self, out: &mut Vec<u8>) {
+        (self.len() as u64).write_digest(out);
+        for value in self {
+            value.write_digest(out);
+        }
+    }
+}
+
+impl<T: ReplicateDigest> ReplicateDigest for Vec<T> {
+    fn write_digest(&self, out: &mut Vec<u8>) {
+        self.as_slice().write_digest(out);
+    }
+}
+
+impl<A: ReplicateDigest, B: ReplicateDigest> ReplicateDigest for (A, B) {
+    fn write_digest(&self, out: &mut Vec<u8>) {
+        self.0.write_digest(out);
+        self.1.write_digest(out);
+    }
+}
+
+/// 128-bit non-cryptographic fingerprint of `bytes` (two FNV-1a style lanes
+/// with a final avalanche), as 16 bytes.
+fn fingerprint(chunks: &[&[u8]]) -> [u8; 16] {
+    fn avalanche(mut x: u64) -> u64 {
+        x ^= x >> 30;
+        x = x.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        x ^= x >> 27;
+        x = x.wrapping_mul(0x94d0_49bb_1331_11eb);
+        x ^ (x >> 31)
+    }
+    let mut a: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut b: u64 = 0x9e37_79b9_7f4a_7c15;
+    let mut length: u64 = 0;
+    for chunk in chunks {
+        for &byte in *chunk {
+            a = (a ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3);
+            b = (b.rotate_left(5) ^ u64::from(byte)).wrapping_mul(0xff51_afd7_ed55_8ccd);
+            length += 1;
+        }
+    }
+    let hi = avalanche(a ^ length);
+    let lo = avalanche(b ^ hi.rotate_left(17));
+    let mut out = [0_u8; 16];
+    out[..8].copy_from_slice(&hi.to_le_bytes());
+    out[8..].copy_from_slice(&lo.to_le_bytes());
+    out
+}
+
+fn hex(bytes: &[u8]) -> String {
+    use std::fmt::Write as _;
+    bytes.iter().fold(String::with_capacity(bytes.len() * 2), |mut out, byte| {
+        let _ = write!(out, "{byte:02x}");
+        out
+    })
+}
+
+fn unhex_digests(text: &str) -> Vec<[u8; 16]> {
+    assert!(
+        text.len().is_multiple_of(32),
+        "event digests: hex length {} is not a multiple of 32",
+        text.len()
+    );
+    (0..text.len() / 32)
+        .map(|index| {
+            let mut digest = [0_u8; 16];
+            for (k, slot) in digest.iter_mut().enumerate() {
+                let at = index * 32 + 2 * k;
+                *slot = u8::from_str_radix(&text[at..at + 2], 16)
+                    .unwrap_or_else(|err| panic!("event digests: bad hex: {err}"));
+            }
+            digest
+        })
+        .collect()
 }
 
 /// Evaluate `f(0), …, f(n-1)` on [`worker_threads`] workers, or, when
@@ -440,6 +622,15 @@ pub fn map_replicates<T: Send>(n: u32, f: impl Fn(u64) -> T + Sync) -> Vec<T> {
         start == 0 || start < n,
         "{REPLICATE_START_ENV}={start} is not below the replicate count {n}: nothing to extend"
     );
+    if let Some(end) = replicate_end() {
+        // A shard: `start..end` on empty tallies, which only write their state.
+        assert!(
+            start < end && end <= n,
+            "{REPLICATE_START_ENV}={start}, {REPLICATE_END_ENV}={end}: want start < end <= {n}"
+        );
+        MAP_STATE.with(|state| state.set((Some(end), false)));
+        return map_replicates_from(start, end, f);
+    }
     MAP_STATE.with(|state| state.set((Some(n), start > 0)));
     map_replicates_from(start, n, f)
 }
@@ -637,6 +828,7 @@ struct BoundRecord {
     file: &'static str,
     label: Option<String>,
     construction: Option<Construction>,
+    validation: Option<String>,
     n_min: u64,
     n_max: u64,
     replicates_min: Option<u32>,
@@ -658,10 +850,19 @@ pub struct CoverageTally {
     /// Scored replicates that produced a finite, ordered interval.
     with_interval: u32,
     length_sum: f64,
+    /// Each interval length in replicate order, kept only by a shard so a merge folds
+    /// `length_sum` in the order a single run would.
+    lengths: Vec<f64>,
     record: Option<BoundRecord>,
     /// Whether the first `record` / `skip` / `bind` has run (and, on an
     /// extending thread, seeded the tally from its prior state).
     seeded: bool,
+    /// Canonical bytes folded since the last scored replicate (bound scope
+    /// facts, [`Self::absorb`]), prepended to that replicate's fingerprint.
+    pending: Vec<u8>,
+    /// Fingerprint of each scored replicate, in order, up to
+    /// [`MAX_DIGEST_PREFIX`].
+    events: Vec<[u8; 16]>,
 }
 
 /// The raw state one tally writes to [`TALLY_OUT_ENV`] and an extending run
@@ -680,6 +881,16 @@ struct TallyState {
     /// the tally was emitted; an extension must start exactly there.
     map_end: Option<u32>,
     record: Option<RecordState>,
+    /// Hex of the retained replicate fingerprints (16 bytes each, in order),
+    /// from which an extension continues the digest chain.
+    #[serde(default)]
+    event_digests: String,
+    /// A shard's interval lengths in replicate order (empty outside a shard).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    lengths: Vec<f64>,
+    /// Chained digests of the first `k` replicate fingerprints, by `k`.
+    #[serde(default)]
+    prefix_digests: std::collections::BTreeMap<String, String>,
     /// A prefix belongs to one source, family, grid and validation domain.
     /// Historical extensions have no family declaration and remain unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -701,6 +912,8 @@ fn decision_context() -> Option<serde_json::Value> {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct RecordState {
     construction: Option<Construction>,
+    #[serde(default)]
+    validation: Option<String>,
     n_min: u64,
     n_max: u64,
     replicates_min: Option<u32>,
@@ -746,9 +959,43 @@ impl CoverageTally {
             skipped: 0,
             with_interval: 0,
             length_sum: 0.0,
+            lengths: Vec::new(),
             record: None,
             seeded: false,
+            pending: Vec::new(),
+            events: Vec::new(),
         }
+    }
+
+    /// Fold extra replicate output into the next scored replicate's
+    /// fingerprint (see [`ReplicateDigest`]). Call it before the `record` /
+    /// `skip` of the same replicate.
+    pub fn absorb(&mut self, value: &(impl ReplicateDigest + ?Sized)) {
+        self.seed();
+        value.write_digest(&mut self.pending);
+    }
+
+    /// Close the current replicate: its fingerprint covers the pending bytes,
+    /// the event tag and the event's own canonical bytes.
+    fn push_event(&mut self, tag: u8, body: &[u8]) {
+        let pending = std::mem::take(&mut self.pending);
+        if self.events.len() < MAX_DIGEST_PREFIX {
+            self.events.push(fingerprint(&[pending.as_slice(), &[tag][..], body]));
+        }
+    }
+
+    /// Chained digests of the first `k` replicate fingerprints for every
+    /// [`DIGEST_PREFIXES`] length the tally has reached.
+    fn prefix_digests(&self) -> std::collections::BTreeMap<String, String> {
+        DIGEST_PREFIXES
+            .iter()
+            .filter_map(|&k| {
+                let k = usize::try_from(k).expect("prefix fits usize");
+                let head = self.events.get(..k)?;
+                let chunks: Vec<&[u8]> = head.iter().map(<[u8; 16]>::as_slice).collect();
+                Some((k.to_string(), hex(&fingerprint(&chunks))))
+            })
+            .collect()
     }
 
     /// The key this tally's state is stored under: the libtest thread (the
@@ -812,9 +1059,14 @@ impl CoverageTally {
         self.skipped = prior.skipped;
         self.with_interval = prior.with_interval;
         self.length_sum = prior.length_sum;
+        self.events = unhex_digests(&prior.event_digests);
         match (self.record.as_mut(), prior.record.as_ref()) {
             (Some(record), Some(prior)) => {
                 record.construction.clone_from(&prior.construction);
+                record.validation = prior
+                    .validation
+                    .clone()
+                    .or_else(|| (prior.bound > 0).then(|| "unknown".to_owned()));
                 record.n_min = prior.n_min;
                 record.n_max = prior.n_max;
                 record.replicates_min = prior.replicates_min;
@@ -844,8 +1096,12 @@ impl CoverageTally {
             length_sum: self.length_sum,
             map_end: last_map_end(),
             decision_context: decision_context(),
+            event_digests: hex(&self.events.concat()),
+            lengths: self.lengths.clone(),
+            prefix_digests: self.prefix_digests(),
             record: self.record.as_ref().map(|record| RecordState {
                 construction: record.construction.clone(),
+                validation: record.validation.clone(),
                 n_min: record.n_min,
                 n_max: record.n_max,
                 replicates_min: record.replicates_min,
@@ -917,6 +1173,7 @@ impl CoverageTally {
             file,
             label: None,
             construction: None,
+            validation: None,
             n_min: u64::MAX,
             n_max: 0,
             replicates_min: None,
@@ -932,6 +1189,14 @@ impl CoverageTally {
     #[must_use]
     pub fn record_interval(&self) -> Option<&'static str> {
         self.record.as_ref().map(|record| record.key.interval)
+    }
+
+    /// The same tally under another name, its record unchanged: the name keys its state and
+    /// decision, so two tallies of one test at one level (two interval methods) need two.
+    #[must_use]
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
     }
 
     /// Distinguish several records one test emits for the same interval
@@ -969,6 +1234,17 @@ impl CoverageTally {
     /// When the construction differs between replicates, when it is not the
     /// interval method the record declared, or on a tally without a record.
     pub fn bind(&mut self, construction: &Construction, scope: ScopeFacts) {
+        self.bind_validation(construction, scope, "unknown");
+    }
+
+    /// Bind an execution's verified support validation mode; unknown is not a support coordinate.
+    pub fn bind_validation(
+        &mut self,
+        construction: &Construction,
+        scope: ScopeFacts,
+        validation: &str,
+    ) {
+        assert!(matches!(validation, "unknown" | "not_applicable" | "none" | "cheap" | "full"));
         self.seed();
         let name = self.name.clone();
         let record = self
@@ -995,12 +1271,23 @@ impl CoverageTally {
             ),
             None => record.construction = Some(construction.clone()),
         }
+        match &record.validation {
+            Some(previous) => assert_eq!(
+                previous, validation,
+                "{name}: replicates have different support validation modes"
+            ),
+            None => record.validation = Some(validation.to_owned()),
+        }
         record.bound += 1;
         record.n_min = record.n_min.min(scope.row_count);
         record.n_max = record.n_max.max(scope.row_count);
         record.replicates_min = min_opt(record.replicates_min, scope.replicates_ok);
         record.posterior_draws_min = min_opt(record.posterior_draws_min, scope.posterior_draws);
         record.unidentified_mass_max = record.unidentified_mass_max.max(scope.unidentified_mass);
+        scope.row_count.write_digest(&mut self.pending);
+        scope.replicates_ok.write_digest(&mut self.pending);
+        scope.posterior_draws.write_digest(&mut self.pending);
+        scope.unidentified_mass.write_digest(&mut self.pending);
     }
 
     /// A versioned, complete-family Monte Carlo decision, when requested by
@@ -1087,6 +1374,7 @@ impl CoverageTally {
     /// `emit` would have written on the first run. Call once after every
     /// replicate has been recorded, alongside the info-only tally's own report.
     pub fn persist(&self) {
+        // A shard's `finish` only writes its tally state; an unsharded run persists the same way.
         self.finish();
     }
 
@@ -1101,6 +1389,9 @@ impl CoverageTally {
             self.name
         );
         self.finish();
+        if sharding() {
+            return;
+        }
         let attempts = self.attempts();
         let rate = self.rate();
         let (lo, hi) = coverage_band(attempts, self.level);
@@ -1147,6 +1438,9 @@ impl CoverageTally {
     pub fn emit_named_boundary(&self) {
         assert!(self.record.is_some(), "{}: emit_named_boundary needs a record tally", self.name);
         self.finish();
+        if sharding() {
+            return;
+        }
         let attempts = self.attempts();
         eprintln!(
             "calibration-boundary {} (recorded, not gated): nominal={:.2} coverage={:.3} \
@@ -1182,6 +1476,13 @@ impl CoverageTally {
             construction.interval_method,
             record.key.test
         );
+        id.push_str(".v2_validation_");
+        id.push_str(record.validation.as_deref().unwrap_or("unknown"));
+        // The structures a test may measure beside the fixed graph on one base.
+        if matches!(construction.structure.as_str(), "accepted" | "graph_posterior") {
+            id.push_str(".v2_structure_");
+            id.push_str(&construction.structure);
+        }
         if let Some(label) = &record.label {
             id.push('.');
             id.push_str(&sanitize_label(label));
@@ -1214,6 +1515,8 @@ impl CoverageTally {
         let attempts = self.attempts();
         let mut payload = serde_json::json!({
                 "id": id,
+                "validation_schema": 2,
+                "validation": record.validation.as_deref().unwrap_or("unknown"),
                 "query": construction.query,
                 "graph_class": construction.graph_class,
                 "structure": construction.structure,
@@ -1236,6 +1539,7 @@ impl CoverageTally {
                 "mcse": (rate * (1.0 - rate) / f64::from(attempts.max(1))).sqrt(),
                 "replicates": attempts,
                 "bound_replicates": record.bound,
+                "prefix_digests": self.prefix_digests(),
                 "grid_point": grid_point(),
                 "measured_at": measured_at(),
                 "boundary": boundary,
@@ -1246,13 +1550,12 @@ impl CoverageTally {
         if let Some((side, target)) = one_sided {
             payload["one_sided"] = serde_json::json!({ "side": side.as_str(), "target": target });
         }
-        if role != "named_boundary" {
-            if let Some(decision) =
+        if role != "named_boundary"
+            && let Some(decision) =
                 self.family_decision(matches!(role, "one_sided" | "conservative_point"))
-            {
-                payload["decision_protocol"] =
-                    serde_json::to_value(decision).expect("decision serializes");
-            }
+        {
+            payload["decision_protocol"] =
+                serde_json::to_value(decision).expect("decision serializes");
         }
         if role == "conservative_point" {
             payload["conservative_point"] = serde_json::json!({
@@ -1281,6 +1584,10 @@ impl CoverageTally {
     pub fn record(&mut self, interval: Option<(f64, f64)>, truth: f64) {
         self.seed();
         self.scored += 1;
+        let mut body = Vec::with_capacity(25);
+        interval.write_digest(&mut body);
+        truth.write_digest(&mut body);
+        self.push_event(b'R', &body);
         let Some((lo, hi)) =
             interval.filter(|(lo, hi)| lo.is_finite() && hi.is_finite() && lo <= hi)
         else {
@@ -1288,6 +1595,9 @@ impl CoverageTally {
         };
         self.with_interval += 1;
         self.length_sum += hi - lo;
+        if sharding() {
+            self.lengths.push(hi - lo);
+        }
         if truth >= lo && truth <= hi {
             self.covered += 1;
         }
@@ -1300,6 +1610,7 @@ impl CoverageTally {
     pub fn skip(&mut self) {
         self.seed();
         self.skipped += 1;
+        self.push_event(b'S', &[]);
     }
 
     /// Scored replicates plus skips: the denominator of [`Self::rate`].
@@ -1354,6 +1665,9 @@ impl CoverageTally {
             self.name
         );
         self.finish();
+        if sharding() {
+            return;
+        }
         if smoke() {
             self.emit_smoke(!self.passes_nominal(), "gated");
             return;
@@ -1526,6 +1840,9 @@ impl CoverageTally {
         );
         assert!(!target.trim().is_empty(), "{}: a one-sided record states its target", self.name);
         self.finish();
+        if sharding() {
+            return;
+        }
         let attempts = self.attempts();
         let rate = self.rate();
         let one_sided = Some((side, target));
@@ -1586,6 +1903,92 @@ impl CoverageTally {
         self.emit_record_as(false, "one_sided", one_sided);
     }
 
+    /// The suite's family decision on this tally, logged, when the runner supplies
+    /// its frozen decision context: `Some(compatible)`. `None` without one (a smoke
+    /// or local run), where the caller keeps its own fixed rule.
+    ///
+    /// For a rate check scored as coverage (a non-rejection under a null, say)
+    /// whose tolerance otherwise lives in the caller: `lower_only` decides
+    /// at-least-nominal, otherwise compatibility on both sides. The attempts must
+    /// be the registered look ([`n_sim`]).
+    pub fn decide(&self, lower_only: bool) -> Option<bool> {
+        self.finish();
+        if sharding() {
+            // A shard computes part of the replicates and decides nothing.
+            return Some(true);
+        }
+        let decision = self.family_decision(lower_only)?;
+        self.log_family_decision(&decision);
+        Some(decision.compatible)
+    }
+
+    /// Assert a conservative (at-least-nominal) coverage claim of a tally that
+    /// keeps no record, through the suite's one-sided family decision.
+    ///
+    /// The record-less counterpart of [`Self::assert_one_sided`]: under the
+    /// runner's frozen decision context the one-sided decision gates the claim
+    /// and is logged; without one the precision floor and recheck rule of
+    /// [`passes_one_sided`] apply as before. Over-coverage never fails.
+    ///
+    /// # Panics
+    ///
+    /// On a record tally, a rejected one-sided decision, coverage below
+    /// `level − 3·MCSE` or below the precision floor, or too many skipped replicates.
+    pub fn assert_at_least(&self) {
+        assert!(
+            self.record.is_none(),
+            "{}: a record tally states its side and target through assert_one_sided",
+            self.name
+        );
+        self.finish();
+        if sharding() {
+            return;
+        }
+        let attempts = self.attempts();
+        let rate = self.rate();
+        if smoke() {
+            self.emit_smoke_as(!passes_one_sided(attempts, self.level, rate), "one_sided", None);
+            return;
+        }
+        self.check_skips();
+        if let Some(decision) = self.family_decision(true) {
+            self.log_family_decision(&decision);
+            if n_sim() == DEFAULT_N_SIM && needs_one_sided_recheck(attempts, self.level, rate) {
+                self.print_recheck(attempts, rate);
+                return;
+            }
+            assert!(
+                decision.compatible,
+                "{}: suite coverage decision rejects conservative coverage (p={})",
+                self.name, decision.p_value
+            );
+            return;
+        }
+        let (lo, _) = coverage_band(attempts, self.level);
+        eprintln!(
+            "calibration {} (at least nominal): nominal={:.2} coverage={rate:.3} mcse={:.4} \
+             lower_band={lo:.3} ({}/{} covered, {} skipped)",
+            self.name,
+            self.level,
+            coverage_mcse(attempts, self.level),
+            self.covered,
+            attempts,
+            self.skipped
+        );
+        if needs_one_sided_recheck(attempts, self.level, rate) {
+            self.print_recheck(attempts, rate);
+            return;
+        }
+        assert!(
+            passes_one_sided(attempts, self.level, rate),
+            "{} {:.0}% coverage={rate:.3} below the one-sided band [{lo:.3}] ({}/{})",
+            self.name,
+            self.level * 100.0,
+            self.covered,
+            attempts
+        );
+    }
+
     /// Validate the conservative independent-Gaussian equal-study Student method.
     ///
     /// Ibragimov--Mueller (2010), section 2.1, proves at least nominal coverage
@@ -1605,6 +2008,9 @@ impl CoverageTally {
         );
         assert!(self.record.as_ref().is_some_and(|r| !r.unasserted), "asserted record required");
         self.finish();
+        if sharding() {
+            return;
+        }
         let attempts = self.attempts();
         let rate = self.rate();
         if smoke() {
@@ -1684,9 +2090,15 @@ impl CoverageTally {
         );
         let total = self.attempts();
         assert!(total > 0, "{}: no replicates scored", self.name);
+        // The skipped share is a Monte Carlo estimate of the refusal rate: the cap is exceeded
+        // only when the share lies more than two binomial standard errors (at the cap) above it.
+        let cap = f64::from(SKIP_CAP_NUM) / f64::from(SKIP_CAP_DEN);
+        let share = f64::from(self.skipped) / f64::from(total);
+        let mcse = (cap * (1.0 - cap) / f64::from(total)).sqrt();
         assert!(
-            self.skipped.saturating_mul(SKIP_CAP_DEN) <= total.saturating_mul(SKIP_CAP_NUM),
-            "{}: {} of {total} replicates skipped (cap {SKIP_CAP_NUM}/{SKIP_CAP_DEN})",
+            share <= cap + 2.0 * mcse,
+            "{}: {} of {total} replicates skipped (cap {SKIP_CAP_NUM}/{SKIP_CAP_DEN} plus two \
+             standard errors)",
             self.name,
             self.skipped
         );
@@ -1699,6 +2111,9 @@ impl CoverageTally {
             self.name
         );
         self.finish();
+        if sharding() {
+            return;
+        }
         if smoke() {
             self.emit_smoke(true, "named_boundary");
             return;
@@ -1718,14 +2133,10 @@ impl CoverageTally {
             attempts,
             self.skipped
         );
-        assert!(
-            rate >= lo && rate <= hi,
-            "{} boundary coverage={rate:.3} outside the measured band [{lo:.3}, {hi:.3}] \
-             around {measured:.3} ({}/{})",
-            self.name,
-            self.covered,
-            attempts
-        );
+        // A named boundary reports the coverage it measured, with its MCSE, on the record; the
+        // earlier measurement is printed beside it for comparison, never asserted against. A
+        // pinned band checked test by test has no family-wise control, so across the suite it
+        // fails by chance, and a boundary that moved toward nominal is not a defect.
         self.emit_record(true, "named_boundary");
     }
 }
@@ -1847,3 +2258,6 @@ pub fn ar1_noise(n: usize, rho: f64, sd: f64, seed: u64) -> Vec<f64> {
     }
     out
 }
+
+#[path = "calibration_design_counts.rs"]
+mod design_counts;

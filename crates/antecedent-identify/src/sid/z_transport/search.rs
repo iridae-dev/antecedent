@@ -1,6 +1,6 @@
 //! Recursive z-transport search and catalog binding.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::{
     Arc, BitSet, CausalExprArena, DenseNodeId, DomainRef, ExprId, ExprNode, IdentificationBudget,
@@ -11,6 +11,14 @@ use super::{
     EvidenceCatalog, NodeRef, RegimeKind, VariableDomain, ZFactorObligation, ZFormulaKind,
     ZProofOperation, ZTransportBudgetKind, ZTransportDerivation, ZTransportLimitsReceipt,
     ZTransportProofInspection, ZTransportQuery, index_u32,
+};
+
+mod binding;
+mod inspection;
+pub use binding::bind_z_transport_catalog;
+pub(crate) use binding::{bind_recursive_expression, cited_regimes};
+pub(super) use inspection::{
+    inspect_z_expression, matches_registered_surrogate_graph, same_variable_set, surrogate_formula,
 };
 
 /// Run the `TRz` search, reporting an exhausted engine budget as the
@@ -28,661 +36,6 @@ pub(super) fn z_search(
         }
         other => other,
     })
-}
-
-/// Bind the checked surrogate formula to a sufficient source joint margin.
-///
-/// When several available regimes supply the same factor (or the same world of
-/// a factor whose exchanged coordinate is bound at evaluation), every formula
-/// kind binds by one deterministic rule: prefer a family regime, one declaring
-/// no intervention levels, otherwise the lowest regime id. Duplicate evidence
-/// is never refused, and the choice does not depend on catalog order.
-///
-/// # Errors
-/// Invalid catalog or a missing joint margin covering the formula variables.
-#[allow(
-    clippy::too_many_lines,
-    reason = "one linear identification pipeline whose stages share the prepared graph and workspace"
-)]
-pub fn bind_z_transport_catalog(
-    diagram: &SelectionDiagram,
-    query: &ZTransportQuery,
-    derivation: &ZTransportDerivation,
-    catalog: &EvidenceCatalog,
-) -> Result<BoundZTransportFunctional, IdentificationError> {
-    derivation.check_inputs(diagram, query)?;
-    catalog.validate().map_err(|error| {
-        IdentificationError::invalid_catalog(format!("z_transport.invalid_catalog: {error}"))
-    })?;
-    if derivation.kind == ZFormulaKind::Recursive {
-        let mut arena = derivation.arena.clone();
-        let mut memo = std::collections::HashMap::new();
-        let mut cited = Vec::new();
-        let root = bind_recursive_expression(
-            derivation.root,
-            &mut arena,
-            catalog,
-            &query.treatments,
-            &mut memo,
-            &mut cited,
-        )?;
-        if cited.is_empty() {
-            return Err(IdentificationError::InvariantViolated {
-                message: "z_transport.recursive_formula_has_no_factor",
-            });
-        }
-        return Ok(BoundZTransportFunctional {
-            derivation: derivation.clone(),
-            arena,
-            root,
-            catalog: catalog.clone(),
-            cited: cited_regimes(cited),
-        });
-    }
-    if derivation.kind == ZFormulaKind::DirectJoint {
-        let assignment_variables =
-            query.experiment_assignment.iter().map(|a| a.variable).collect::<Vec<_>>();
-        let selected = preferred_regime(catalog.regimes.iter().filter(|regime| {
-            regime.population.as_ref() == query.source.as_ref()
-                && regime.supplies_population_law()
-                && regime.kind == RegimeKind::Experimental
-                && same_variable_set(&regime.interventions, &assignment_variables)
-                && regime.intervention_values.len() == query.experiment_assignment.len()
-                && query.experiment_assignment.iter().all(|expected| {
-                    regime.intervention_values.iter().any(|actual| {
-                        actual.variable == expected.variable
-                            && antecedent_core::same_intervention_level(
-                                &actual.value,
-                                &expected.value,
-                            )
-                    })
-                })
-                && query.outcomes.iter().all(|y| regime.measured.contains(y))
-                && regime.conditioned_on.is_empty()
-                && regime.distribution == DistributionAvailability::Joint
-                && catalog.bindings.iter().any(|binding| binding.regime == regime.id)
-        }))
-        .ok_or_else(|| {
-            IdentificationError::missing_evidence(
-                "z_transport.missing_evidence",
-                format!(
-                    "{} joint law under do({:?}) measuring {:?}",
-                    query.source, query.experiment_assignment, query.outcomes
-                ),
-            )
-        })?;
-        let mut arena = derivation.arena.clone();
-        let ExprNode::Distribution {
-            variables,
-            conditioned_on,
-            intervention,
-            domain,
-            population,
-            ..
-        } = arena.node(derivation.root).clone()
-        else {
-            return Err(IdentificationError::InvariantViolated {
-                message: "z_transport.invalid_formula_root",
-            });
-        };
-        let root = arena.intern(ExprNode::Distribution {
-            variables,
-            conditioned_on,
-            intervention,
-            domain,
-            population,
-            regime: Some(selected.id),
-        });
-        return Ok(BoundZTransportFunctional {
-            derivation: derivation.clone(),
-            arena,
-            root,
-            catalog: catalog.clone(),
-            cited: cited_regimes(vec![selected.id]),
-        });
-    }
-    let assignments = &query.experiment_assignment;
-    let mut intervention_variables = assignments.iter().map(|a| a.variable).collect::<Vec<_>>();
-    intervention_variables.sort_unstable();
-    // Both source leaves can be obtained by marginalizing a joint law on
-    // {Y, W, X}. Requiring every observed coordinate (or the complete
-    // experimental family) here would turn a sufficient positive certificate
-    // into a spurious missing-evidence result.
-    let Some(confounder) = derivation.confounder else {
-        return Err(IdentificationError::InvariantViolated {
-            message: "z_transport.surrogate_formula_names_no_confounder",
-        });
-    };
-    let required_margin = [query.outcomes[0], confounder, query.treatments[0]];
-    let selected = preferred_regime(catalog.regimes.iter().filter(|regime| {
-        regime.population.as_ref() == query.source.as_ref()
-            && regime.supplies_population_law()
-            && regime.kind == RegimeKind::Experimental
-            && same_variable_set(&regime.interventions, &intervention_variables)
-            && regime.intervention_values.len() == assignments.len()
-            && assignments.iter().all(|expected| {
-                regime.intervention_values.iter().any(|actual| {
-                    actual.variable == expected.variable
-                        && antecedent_core::same_intervention_level(&actual.value, &expected.value)
-                })
-            })
-            && required_margin.iter().all(|variable| regime.measured.contains(variable))
-            && regime.conditioned_on.is_empty()
-            && regime.distribution == DistributionAvailability::Joint
-            && catalog.bindings.iter().any(|binding| binding.regime == regime.id)
-    }))
-    .ok_or_else(|| {
-        IdentificationError::missing_evidence(
-            "z_transport.missing_evidence",
-            format!(
-                "{} joint law under do({:?}) measuring {:?}",
-                query.source, query.experiment_assignment, required_margin
-            ),
-        )
-    })?;
-
-    let mut arena = derivation.arena.clone();
-    let ExprNode::SumOut { variables, expr } = derivation.arena.node(derivation.root).clone()
-    else {
-        return Err(IdentificationError::InvariantViolated {
-            message: "z_transport.invalid_formula_root",
-        });
-    };
-    let ExprNode::Product(factors) = derivation.arena.node(expr).clone() else {
-        return Err(IdentificationError::InvariantViolated {
-            message: "z_transport.invalid_formula_product",
-        });
-    };
-    let mut bound_factors = Vec::new();
-    for factor in derivation.arena.list(factors) {
-        let ExprNode::Distribution {
-            variables,
-            conditioned_on,
-            intervention,
-            domain,
-            population,
-            ..
-        } = derivation.arena.node(*factor).clone()
-        else {
-            return Err(IdentificationError::InvariantViolated {
-                message: "z_transport.invalid_formula_leaf",
-            });
-        };
-        bound_factors.push(arena.intern(ExprNode::Distribution {
-            variables,
-            conditioned_on,
-            intervention,
-            domain,
-            population,
-            regime: Some(selected.id),
-        }));
-    }
-    let bound_list = arena.intern_list(bound_factors);
-    let bound_product = arena.intern(ExprNode::Product(bound_list));
-    let root = arena.intern(ExprNode::SumOut { variables, expr: bound_product });
-    Ok(BoundZTransportFunctional {
-        derivation: derivation.clone(),
-        arena,
-        root,
-        catalog: catalog.clone(),
-        cited: cited_regimes(vec![selected.id]),
-    })
-}
-
-pub(crate) fn cited_regimes(
-    mut cited: Vec<antecedent_core::RegimeId>,
-) -> Arc<[antecedent_core::RegimeId]> {
-    cited.sort_unstable_by_key(|regime| regime.raw());
-    cited.dedup();
-    cited.into()
-}
-
-/// The one rule every binding path uses when several available regimes supply
-/// the same law: prefer a family regime (one declaring no intervention levels,
-/// so it supplies every world at once), otherwise the lowest regime id.
-/// Supplying the same law more than once is never refused as ambiguous; the
-/// choice is deterministic and independent of catalog order.
-fn preferred_regime<'a>(
-    candidates: impl IntoIterator<Item = &'a antecedent_core::EvidenceRegime>,
-) -> Option<&'a antecedent_core::EvidenceRegime> {
-    candidates
-        .into_iter()
-        .min_by_key(|regime| (!regime.intervention_values.is_empty(), regime.id.raw()))
-}
-
-/// How one bound factor selects its law at evaluation.
-enum LeafBinding {
-    /// One regime supplies every world the factor asks for.
-    Single(antecedent_core::RegimeId),
-    /// One regime per world of the factor's symbolic coordinates; the concrete
-    /// world selects the law at evaluation, so the leaf carries no regime.
-    PerWorld(Vec<antecedent_core::RegimeId>),
-}
-
-impl LeafBinding {
-    fn regimes(&self) -> Vec<antecedent_core::RegimeId> {
-        match self {
-            Self::Single(regime) => vec![*regime],
-            Self::PerWorld(regimes) => regimes.clone(),
-        }
-    }
-}
-
-/// Whether `regime` is an available experiment on exactly the factor's
-/// intervention set whose concrete levels agree with the factor's concrete
-/// coordinates. A regime declaring no levels stands for the whole family and
-/// agrees with every concrete coordinate; a symbolic coordinate agrees with
-/// every level.
-fn regime_matches_world(
-    regime: &antecedent_core::EvidenceRegime,
-    interventions: &[antecedent_expr::InterventionAssignment],
-) -> bool {
-    let intervention_vars = interventions.iter().map(|a| a.variable).collect::<Vec<_>>();
-    regime.kind
-        == if interventions.is_empty() {
-            RegimeKind::Observational
-        } else {
-            RegimeKind::Experimental
-        }
-        && same_variable_set(&regime.interventions, &intervention_vars)
-        && (regime.intervention_values.is_empty()
-            || (regime.intervention_values.len() == interventions.len()
-                && interventions.iter().all(|expected| {
-                    expected.is_symbolic()
-                        || regime.intervention_values.iter().any(|actual| {
-                            actual.variable == expected.variable
-                                && antecedent_core::same_intervention_level(
-                                    &actual.value,
-                                    &expected.value,
-                                )
-                        })
-                })))
-}
-
-/// Whether `regime` supplies the joint margin a factor reads.
-fn regime_supplies_margin(
-    catalog: &EvidenceCatalog,
-    regime: &antecedent_core::EvidenceRegime,
-    needed: &[VariableId],
-) -> bool {
-    regime.distribution == DistributionAvailability::Joint
-        && regime.conditioned_on.is_empty()
-        && needed.iter().all(|v| regime.measured.contains(v))
-        && catalog.bindings.iter().any(|binding| binding.regime == regime.id)
-}
-
-/// Declared finite levels of `variable` in `population`, as the numeric codes a
-/// per-world regime names them by.
-fn declared_levels(
-    catalog: &EvidenceCatalog,
-    population: &str,
-    variable: VariableId,
-) -> Option<Vec<f64>> {
-    let coordinate = catalog
-        .environments
-        .iter()
-        .find(|environment| environment.identity.as_ref() == population)?
-        .variables
-        .iter()
-        .find(|coordinate| coordinate.variable == variable)?;
-    match coordinate.domain {
-        VariableDomain::Binary => Some(vec![0.0, 1.0]),
-        VariableDomain::Categorical { cardinality } => {
-            Some((0..cardinality).map(f64::from).collect())
-        }
-        _ => None,
-    }
-}
-
-/// Bind one factor to the available catalog regimes that supply it.
-///
-/// A symbolic coordinate the evaluation request binds (a queried treatment)
-/// cites every level the catalog supplies, and a request at an unsupplied level
-/// is refused at evaluation. A symbolic coordinate an enclosing summation binds
-/// needs a regime for every declared level, since every summand is evaluated.
-fn bind_leaf(
-    catalog: &EvidenceCatalog,
-    population: &str,
-    interventions: &[antecedent_expr::InterventionAssignment],
-    needed: &[VariableId],
-    request_bound: &[VariableId],
-) -> Result<LeafBinding, IdentificationError> {
-    let missing = || {
-        IdentificationError::missing_evidence(
-            "z_transport.missing_evidence",
-            format!("{population} joint factor under {interventions:?}"),
-        )
-    };
-    let candidates = catalog
-        .regimes
-        .iter()
-        .filter(|regime| {
-            regime.population.as_ref() == population
-                && regime.supplies_population_law()
-                && regime_matches_world(regime, interventions)
-                && regime_supplies_margin(catalog, regime, needed)
-        })
-        .collect::<Vec<_>>();
-    let symbolic = interventions.iter().filter(|a| a.is_symbolic()).collect::<Vec<_>>();
-    let preferred = preferred_regime(candidates.iter().copied());
-    if symbolic.is_empty() {
-        // A concrete factor names one law.
-        return preferred.map(|regime| LeafBinding::Single(regime.id)).ok_or_else(missing);
-    }
-    // A family regime (no declared levels) supplies every world at once.
-    if let Some(family) = preferred.filter(|regime| regime.intervention_values.is_empty()) {
-        return Ok(LeafBinding::Single(family.id));
-    }
-    // Otherwise every world of the symbolic coordinates needs its own regime.
-    let mut worlds = vec![Vec::new()];
-    for assignment in &symbolic {
-        let levels = if request_bound.contains(&assignment.variable) {
-            let mut supplied = candidates
-                .iter()
-                .flat_map(|regime| regime.intervention_values.iter())
-                .filter(|actual| actual.variable == assignment.variable)
-                .filter_map(|actual| actual.value.as_f64())
-                .collect::<Vec<_>>();
-            supplied.sort_by(f64::total_cmp);
-            supplied.dedup();
-            if supplied.is_empty() {
-                return Err(missing());
-            }
-            supplied
-        } else {
-            declared_levels(catalog, population, assignment.variable).ok_or_else(|| {
-                IdentificationError::missing_evidence(
-                    "z_transport.missing_evidence",
-                    format!("{population} declares no finite domain for {:?}", assignment.variable),
-                )
-            })?
-        };
-        worlds = worlds
-            .into_iter()
-            .flat_map(|prefix| {
-                levels.iter().map(move |level| {
-                    let mut world = prefix.clone();
-                    world.push(*level);
-                    world
-                })
-            })
-            .collect();
-    }
-    let mut regimes = Vec::with_capacity(worlds.len());
-    for world in worlds {
-        let supplying = candidates.iter().copied().filter(|regime| {
-            symbolic.iter().zip(&world).all(|(assignment, level)| {
-                regime.intervention_values.iter().any(|actual| {
-                    actual.variable == assignment.variable && actual.value.as_f64() == Some(*level)
-                })
-            })
-        });
-        let Some(regime) = preferred_regime(supplying) else {
-            return Err(IdentificationError::missing_evidence(
-                "z_transport.missing_evidence",
-                format!("{population} joint factor under {interventions:?} at world {world:?}"),
-            ));
-        };
-        regimes.push(regime.id);
-    }
-    Ok(LeafBinding::PerWorld(regimes))
-}
-
-pub(crate) fn bind_recursive_expression(
-    id: ExprId,
-    arena: &mut CausalExprArena,
-    catalog: &EvidenceCatalog,
-    treatments: &[VariableId],
-    memo: &mut std::collections::HashMap<ExprId, ExprId>,
-    cited: &mut Vec<antecedent_core::RegimeId>,
-) -> Result<ExprId, IdentificationError> {
-    if let Some(hit) = memo.get(&id) {
-        return Ok(*hit);
-    }
-    let node = arena.node(id).clone();
-    let bound = match node {
-        ExprNode::Distribution {
-            variables,
-            conditioned_on,
-            intervention,
-            domain,
-            population,
-            ..
-        } => {
-            let needed = arena
-                .var_set(variables)
-                .iter()
-                .chain(arena.var_set(conditioned_on))
-                .copied()
-                .collect::<Vec<_>>();
-            let binding = bind_leaf(
-                catalog,
-                arena.population(population),
-                arena.intervention_assignments(intervention),
-                &needed,
-                treatments,
-            )?;
-            let regime = match &binding {
-                LeafBinding::Single(regime) => Some(*regime),
-                LeafBinding::PerWorld(_) => None,
-            };
-            cited.extend(binding.regimes());
-            arena.intern(ExprNode::Distribution {
-                variables,
-                conditioned_on,
-                intervention,
-                domain,
-                population,
-                regime,
-            })
-        }
-        ExprNode::Product(list) => {
-            let children = arena.list(list).to_vec();
-            let bound_children = children
-                .into_iter()
-                .map(|child| {
-                    bind_recursive_expression(child, arena, catalog, treatments, memo, cited)
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            let list = arena.intern_list(bound_children);
-            arena.intern(ExprNode::Product(list))
-        }
-        ExprNode::SumOut { variables, expr } => {
-            let expr = bind_recursive_expression(expr, arena, catalog, treatments, memo, cited)?;
-            arena.intern(ExprNode::SumOut { variables, expr })
-        }
-        ExprNode::Ratio { numerator, denominator } => {
-            let numerator =
-                bind_recursive_expression(numerator, arena, catalog, treatments, memo, cited)?;
-            let denominator =
-                bind_recursive_expression(denominator, arena, catalog, treatments, memo, cited)?;
-            arena.intern(ExprNode::Ratio { numerator, denominator })
-        }
-        _ => {
-            return Err(IdentificationError::InvariantViolated {
-                message: "z_transport.unsupported_recursive_node",
-            });
-        }
-    };
-    memo.insert(id, bound);
-    Ok(bound)
-}
-
-pub(super) fn inspect_z_expression(
-    id: ExprId,
-    arena: &CausalExprArena,
-    catalog: &EvidenceCatalog,
-    seen: &mut std::collections::BTreeSet<u32>,
-    result: &mut ZTransportProofInspection,
-) {
-    if !seen.insert(id.raw()) {
-        return;
-    }
-    let node = arena.node(id);
-    let (operation, children): (&str, Vec<ExprId>) = match node {
-        ExprNode::Distribution { .. } => ("distribution", Vec::new()),
-        ExprNode::Product(list) => ("product", arena.list(*list).to_vec()),
-        ExprNode::SumOut { expr, .. } => ("sum_out", vec![*expr]),
-        ExprNode::Ratio { numerator, denominator } => ("ratio", vec![*numerator, *denominator]),
-        ExprNode::Kernel { body, .. } => ("kernel", vec![*body]),
-        ExprNode::IntegralOut { expr, .. } => ("integral_out", vec![*expr]),
-        ExprNode::Expectation { distribution, .. } => ("expectation", vec![*distribution]),
-        ExprNode::Contrast { left, right, .. } => ("contrast", vec![*left, *right]),
-    };
-    for child in &children {
-        inspect_z_expression(*child, arena, catalog, seen, result);
-    }
-    result.operations.push(ZProofOperation {
-        id: id.raw(),
-        operation: operation.to_owned(),
-        children: children.iter().map(|child| child.raw()).collect(),
-    });
-    let ExprNode::Distribution { variables, conditioned_on, intervention, population, .. } = node
-    else {
-        return;
-    };
-    let name = arena.population(*population);
-    let vars = arena.var_set(*variables);
-    let conditions = arena.var_set(*conditioned_on);
-    let assignments = arena.intervention_assignments(*intervention);
-    let mut exact_regime = false;
-    let mut missing_joint = false;
-    let mut missing_margin = false;
-    let mut missing_binding = false;
-    let mut supplied_by = Vec::new();
-    for regime in catalog.regimes.iter().filter(|regime| {
-        regime.population.as_ref() == name
-            && regime.supplies_population_law()
-            && regime_matches_world(regime, assignments)
-    }) {
-        exact_regime = true;
-        if regime.distribution != DistributionAvailability::Joint
-            || !regime.conditioned_on.is_empty()
-        {
-            missing_joint = true;
-        } else if !vars.iter().chain(conditions).all(|v| regime.measured.contains(v)) {
-            missing_margin = true;
-        } else if !catalog.bindings.iter().any(|binding| binding.regime == regime.id) {
-            missing_binding = true;
-        } else {
-            supplied_by.push(regime.id.raw());
-        }
-    }
-    let failure = if !supplied_by.is_empty() {
-        None
-    } else if !exact_regime {
-        Some("missing_matching_population_regime_or_intervention_values")
-    } else if missing_joint {
-        Some("joint_law_required")
-    } else if missing_margin {
-        Some("measured_joint_margin_insufficient")
-    } else if missing_binding {
-        Some("provider_binding_missing")
-    } else {
-        Some("factor_binding_failed")
-    };
-    result.factors.push(ZFactorObligation {
-        leaf: id.raw(),
-        population: name.to_owned(),
-        variables: vars.iter().map(|v| v.raw()).collect(),
-        conditioned_on: conditions.iter().map(|v| v.raw()).collect(),
-        intervention: assignments.iter().map(|a| (a.variable.raw(), a.value.as_f64())).collect(),
-        supplied_by,
-        failure: failure.map(str::to_owned),
-    });
-}
-
-/// The registered surrogate formula `Σ_w P_s(y | w, x, do(z)) P_s(w | do(z))`.
-pub(super) fn surrogate_formula(
-    query: &ZTransportQuery,
-    confounder: VariableId,
-) -> Result<(CausalExprArena, ExprId), IdentificationError> {
-    let mut arena = CausalExprArena::new();
-    let y_set = arena.intern_var_set([query.outcomes[0]]);
-    let w_set = arena.intern_var_set([confounder]);
-    let wx_set = arena.intern_var_set([confounder, query.treatments[0]]);
-    let z_do = crate::intervention_support::intern_assignments(
-        &mut arena,
-        query.experiment_assignment.iter().map(|a| {
-            antecedent_expr::InterventionAssignment::concrete(a.variable, a.value.clone())
-        }),
-    )?;
-    let source = arena.intern_population(Arc::clone(&query.source));
-    let conditional = arena.intern(ExprNode::Distribution {
-        variables: y_set,
-        conditioned_on: wx_set,
-        intervention: z_do,
-        domain: DomainRef::Interventional,
-        population: source,
-        regime: None,
-    });
-    let empty = arena.empty_var_set();
-    let marginal = arena.intern(ExprNode::Distribution {
-        variables: w_set,
-        conditioned_on: empty,
-        intervention: z_do,
-        domain: DomainRef::Interventional,
-        population: source,
-        regime: None,
-    });
-    let factors = arena.intern_list([conditional, marginal]);
-    let product = arena.intern(ExprNode::Product(factors));
-    let root = arena.intern(ExprNode::SumOut { variables: w_set, expr: product });
-    Ok((arena, root))
-}
-
-pub(super) fn matches_registered_surrogate_graph(
-    diagram: &SelectionDiagram,
-    w: VariableId,
-    z: VariableId,
-    x: VariableId,
-    y: VariableId,
-) -> bool {
-    let graph = diagram.causal_graph();
-    let dense = |variable: VariableId| {
-        graph.nodes().iter().position(|node| *node == NodeRef::Static(variable))
-    };
-    let Some(wi) = dense(w) else { return false };
-    let Some(zi) = dense(z) else { return false };
-    let Some(xi) = dense(x) else { return false };
-    let Some(yi) = dense(y) else { return false };
-    let directed = graph
-        .nodes()
-        .iter()
-        .enumerate()
-        .flat_map(|(from, _)| {
-            graph
-                .children(antecedent_graph::DenseNodeId::from_raw(index_u32(from)))
-                .iter()
-                .map(move |to| (from, to.as_usize()))
-        })
-        .collect::<std::collections::BTreeSet<_>>();
-    let expected_directed = [(wi, zi), (zi, xi), (xi, yi), (wi, yi)]
-        .into_iter()
-        .collect::<std::collections::BTreeSet<_>>();
-    let bidirected = graph
-        .nodes()
-        .iter()
-        .enumerate()
-        .flat_map(|(a, _)| {
-            graph
-                .bidirected_neighbors(antecedent_graph::DenseNodeId::from_raw(index_u32(a)))
-                .iter()
-                .filter(move |b| a < b.as_usize())
-                .map(move |b| (a, b.as_usize()))
-        })
-        .collect::<std::collections::BTreeSet<_>>();
-    let expected_bidirected =
-        [(wi.min(yi), wi.max(yi)), (zi.min(yi), zi.max(yi)), (zi.min(xi), zi.max(xi))]
-            .into_iter()
-            .collect::<std::collections::BTreeSet<_>>();
-    directed == expected_directed && bidirected == expected_bidirected
-}
-
-/// Set equality of two coordinate lists: repeats and order do not matter.
-pub(super) fn same_variable_set(left: &[VariableId], right: &[VariableId]) -> bool {
-    left.iter().collect::<std::collections::BTreeSet<_>>()
-        == right.iter().collect::<std::collections::BTreeSet<_>>()
 }
 
 // Bareinboim–Pearl (AAAI 2013, Figure 4) rules 1–4 map to the marginal,
@@ -739,6 +92,44 @@ impl<'q> TrzCall<'q> {
     }
 }
 
+/// Whether a recorded line-11 terminal settles the search: with one source every recorded
+/// terminal is the first on a path with no alternative, and with several (or none) only a
+/// terminal reached with no active experiment is forced on every path.
+pub(super) fn terminal_is_settled(sources: usize, terminal: Option<&TrzTerminalFailure>) -> bool {
+    terminal.is_some_and(|recorded| sources == 1 || recorded.active_interventions.is_empty())
+}
+
+/// The districts' children of `TRz` rule 4. A district the search could not identify does not
+/// excuse the others: a later district may still reach a forced line-11 terminal, which proves
+/// the product non-transportable, so only a failure that settles the search ends the loop.
+pub(super) struct DistrictFactors<T> {
+    children: Vec<T>,
+    failed: bool,
+}
+
+impl<T> DistrictFactors<T> {
+    pub(super) fn with_capacity(districts: usize) -> Self {
+        Self { children: Vec::with_capacity(districts), failed: false }
+    }
+
+    /// Record one district's result; `settled` says whether the search is settled after it.
+    /// `true` when the loop must stop.
+    pub(super) fn record(&mut self, child: Option<T>, settled: bool) -> bool {
+        if let Some(child) = child {
+            self.children.push(child);
+            false
+        } else {
+            self.failed = true;
+            settled
+        }
+    }
+
+    /// Every district's child, or `None` when any district failed.
+    pub(super) fn finish(self) -> Option<Vec<T>> {
+        (!self.failed).then_some(self.children)
+    }
+}
+
 /// One source's line-11 premises at a multi-source terminal.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct TrzSourceTerminal {
@@ -764,11 +155,19 @@ pub(crate) struct TrzTerminalFailure {
     pub(crate) sources: Vec<TrzSourceTerminal>,
 }
 
+/// A coordinate a source line-10 exchange must fix at a declared level that the source's
+/// experiment assignment does not name.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct TrzUnassigned {
+    pub(crate) population: Arc<str>,
+    pub(crate) variable: VariableId,
+}
+
 #[derive(Debug)]
 pub(crate) struct TrzSearchResult {
     pub(crate) identified: Option<(CausalExprArena, ExprId, Vec<String>)>,
     pub(crate) terminal_failure: Option<TrzTerminalFailure>,
-    pub(crate) unassigned: Option<VariableId>,
+    pub(crate) unassigned: Option<TrzUnassigned>,
     /// Every recursive rule the search applied, in order, whatever the outcome.
     pub(crate) explored_rules: Vec<String>,
     /// Recursive subproblems the search charged.
@@ -926,7 +325,7 @@ fn search_trz_state(
     depth: usize,
     trace: &mut Vec<String>,
     terminal_failure: &mut Option<TrzTerminalFailure>,
-    unassigned: &mut Option<VariableId>,
+    unassigned: &mut Option<TrzUnassigned>,
 ) -> Result<Option<ExprId>, IdentificationError> {
     engine.charge(depth)?;
     let mut ws = antecedent_graph::GraphWorkspace::default();
@@ -1006,14 +405,14 @@ fn search_trz_state(
     // `TRz` rule 4: factor over multiple districts in D \ X.
     if districts.len() > 1 {
         trace.push("ztr.line4.districts".into());
-        let mut expressions = Vec::with_capacity(districts.len());
+        let mut factors = DistrictFactors::with_capacity(districts.len());
         for district in districts {
             let next = super::super::State {
                 y: district.clone(),
                 x: super::super::difference(&state.v, &district),
                 ..state.clone()
             };
-            let Some(child) = search_trz_state(
+            let child = search_trz_state(
                 engine,
                 &next,
                 call,
@@ -1025,12 +424,15 @@ fn search_trz_state(
                 trace,
                 terminal_failure,
                 unassigned,
-            )?
-            else {
-                return Ok(None);
-            };
-            expressions.push(child);
+            )?;
+            let settled = terminal_is_settled(call.domains.len(), terminal_failure.as_ref());
+            if factors.record(child, settled) {
+                break;
+            }
         }
+        let Some(expressions) = factors.finish() else {
+            return Ok(None);
+        };
         let product = engine.product(expressions);
         return Ok(Some(engine.marginal(
             product,
@@ -1223,7 +625,7 @@ fn exchange_trz_source(
     depth: usize,
     trace: &mut Vec<String>,
     terminal_failure: &mut Option<TrzTerminalFailure>,
-    unassigned: &mut Option<VariableId>,
+    unassigned: &mut Option<TrzUnassigned>,
 ) -> Result<Option<ExprId>, IdentificationError> {
     let domain = &call.domains[index];
     let active_vars = engine.vars(activated)?;
@@ -1243,7 +645,8 @@ fn exchange_trz_source(
                 .iter()
                 .find(|assignment| assignment.variable == variable)
             else {
-                *unassigned = Some(variable);
+                *unassigned =
+                    Some(TrzUnassigned { population: Arc::clone(domain.population), variable });
                 return Ok(None);
             };
             exchanged.push(antecedent_expr::InterventionAssignment::concrete(
@@ -1390,12 +793,11 @@ fn source_c_factor(
             }
         }
         for other in graph.bidirected_neighbors(from_dense) {
-            if other.as_usize() > from_index {
-                if let Some(reduced_other) =
+            if other.as_usize() > from_index
+                && let Some(reduced_other) =
                     engine.prepared.dense_to_var(*other).ok().and_then(dense)
-                {
-                    reduced.insert_bidirected(reduced_from, reduced_other)?;
-                }
+            {
+                reduced.insert_bidirected(reduced_from, reduced_other)?;
             }
         }
     }

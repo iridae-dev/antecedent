@@ -2,7 +2,7 @@
 //! structural decision policy.
 //!
 //! Every expected number below is enumerated by hand from the frozen text of
-//! `parity/promotion.toml`, never read back from the code under test.
+//! `parity/capability_records.toml`, never read back from the code under test.
 
 use std::path::{Path, PathBuf};
 
@@ -15,7 +15,7 @@ use antecedent_design::decision_contract::{
     DecisionFunctional, HardConstraint, SourceRepresentation, StructuralPolicy, Tail, UtilityExpr,
 };
 use antecedent_design::decision_eval::{
-    DecisionEvalError, DecisionResult, MeanSource, Verdict, evaluate_contract,
+    DecisionEvalError, DecisionResult, MeanEstimate, MeanSource, Verdict, evaluate_contract,
     evaluate_contract_on_means, evaluate_functional,
 };
 use antecedent_design::decision_structural::{
@@ -27,7 +27,13 @@ use antecedent_io_core::distribution_artifact::{
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
 use antecedent_io_core::quantity_wire::DistributionMeaningWire;
-use antecedent_test_support::near_lt_1e12 as near;
+use antecedent_test_support::within;
+
+const NEAR_TOLERANCE: f64 = 1e-12;
+
+fn near(a: f64, b: f64) -> bool {
+    within(a, b, NEAR_TOLERANCE)
+}
 
 // ---------------------------------------------------------------------------
 // Shared builders
@@ -158,6 +164,11 @@ fn run_fresh_consumer(test: &str, files: &[(String, Vec<u8>)]) {
     let consumed = dir.join("consumed.ok").exists();
     std::fs::remove_dir_all(&dir).unwrap();
     assert!(
+        String::from_utf8_lossy(&output.stdout).contains("running 1 test"),
+        "the child selected no test: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    assert!(
         output.status.success(),
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -226,7 +237,7 @@ fn two_actions_nonlinear_utility_joint_rows_choose_b() {
 
     // The same marginals paired by independent means would give E[x]E[y] = 1 and
     // a tie; only the joint rows give 0.
-    let marginal_mean_product = ((0.0 + 2.0) / 2.0) * ((2.0 + 0.0) / 2.0);
+    let marginal_mean_product = f64::midpoint(0.0, 2.0) * f64::midpoint(2.0, 0.0);
     assert!(near(marginal_mean_product, 1.0));
     assert!(!near(result.actions[0].expected_utility, marginal_mean_product));
 }
@@ -331,16 +342,23 @@ fn artifact_refuses_a_stored_number_or_constraint_changed_under_the_same_identit
 
     let mut tampered: DecisionResult = result.clone();
     tampered.actions[1].expected_utility = 2.0;
-    assert!(DecisionResultArtifact::new(tampered, &source).replay(&contract, &source).is_err());
+    let refusal = |outcome: Result<(), antecedent_io_core::error::IoError>| {
+        format!("{:?}", outcome.unwrap_err())
+    };
+    let message =
+        refusal(DecisionResultArtifact::new(tampered, &source).replay(&contract, &source));
+    assert!(message.contains("decision_artifact.replay_mismatch"), "{message}");
     let mut flipped = result;
     flipped.verdict = Verdict::UniquelyOptimal("A".into());
-    assert!(DecisionResultArtifact::new(flipped, &source).replay(&contract, &source).is_err());
+    let message = refusal(DecisionResultArtifact::new(flipped, &source).replay(&contract, &source));
+    assert!(message.contains("decision_artifact.replay_mismatch"), "{message}");
 
     // A different constraint is a different contract: the stored result is not its answer.
     let tighter =
         admissibility_contract(vec![constraint("y-cap", UtilityExpr::Input(1), 1.0, &["A"])]);
     assert_ne!(tighter.identity().unwrap(), contract.identity().unwrap());
-    assert!(artifact.replay(&tighter, &source).is_err());
+    let message = refusal(artifact.replay(&tighter, &source));
+    assert!(message.contains("decision_artifact.replay_contract"), "{message}");
 }
 
 // ---------------------------------------------------------------------------
@@ -600,7 +618,7 @@ fn exact_law_has_zero_standard_error_and_a_sample_does_not() {
             .unwrap();
     assert!(near(exact_variance.standard_error.unwrap(), 0.0));
 
-    // The same rows as a draw sample (calibration unmeasured), repeated so the
+    // The same rows as a draw sample (calibration not_measured), repeated so the
     // empirical law is the finite law: mass 1/4 at 0 and 3/4 at 2.
     let columns = functional_columns("outcome");
     let rows: [&[f64]; 4] = [&[0.0, 1.0], &[2.0, 1.0], &[2.0, 1.0], &[2.0, 1.0]];
@@ -612,7 +630,7 @@ fn exact_law_has_zero_standard_error_and_a_sample_does_not() {
             shape: [rows.len(), columns.len()],
             weights: None,
             supported: None,
-            calibration: DistributionCalibration::Unmeasured,
+            calibration: DistributionCalibration::NotMeasured,
             trust: DistributionTrust::Unverified,
             legacy_posterior: None,
             legacy_bindings: None,
@@ -623,7 +641,7 @@ fn exact_law_has_zero_standard_error_and_a_sample_does_not() {
     let mean =
         evaluate_functional(&contract, "Y", DecisionFunctional::Expectation, &sampled).unwrap();
     assert!(near(mean.value, 1.5));
-    // Draw dependence and MC calibration are undeclared; no SE is licensed.
+    // Draw dependence and MC calibration are undeclared; no SE is supported.
     assert!(mean.standard_error.is_none());
     let variance =
         evaluate_functional(&contract, "Y", DecisionFunctional::Variance, &sampled).unwrap();
@@ -653,6 +671,7 @@ fn mean_source() -> MeanSource {
         snapshot_id: "snap".into(),
         causal_contract_id: "checked-contract".into(),
         rng_id: "none:mean_grid".into(),
+        estimate: MeanEstimate::Frequentist,
     }
 }
 
@@ -679,7 +698,10 @@ fn negative_mean_only_source_cannot_answer_quantile_or_threshold_probability() {
         let refusal = error.to_refusal();
         assert_eq!(refusal.code, "decision_contract_unsatisfied");
         assert_eq!(refusal.stage, "evaluate");
-        assert_eq!(refusal.detail, "decision_evaluation.mean_source_insufficient");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::decision_evaluation::MEAN_SOURCE_INSUFFICIENT
+        );
         assert_eq!(refusal.supplied.as_deref(), Some("mean"));
         assert!(refusal.remedy.is_some());
     }
@@ -724,7 +746,10 @@ fn negative_independent_marginals_cannot_answer_a_nonlinear_joint_utility() {
     let refusal = error.to_refusal();
     assert_eq!(refusal.code, "joint_law_required");
     assert_eq!(refusal.stage, "evaluate");
-    assert_eq!(refusal.detail, "decision_evaluation.joint_law_required");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_evaluation::JOINT_LAW_REQUIRED
+    );
     assert_eq!(refusal.offending.as_deref(), Some("Y1Y2"));
     assert_eq!(refusal.expected.as_deref(), Some("joint"));
     assert_eq!(refusal.supplied.as_deref(), Some("independent_marginals"));
@@ -901,7 +926,10 @@ fn negative_bayes_over_structures_refuses_without_atom_probabilities() {
     assert_eq!(error.reason_code(), "decision_contract_unsatisfied");
     let refusal = error.to_refusal();
     assert_eq!(refusal.stage, "structural");
-    assert_eq!(refusal.detail, "decision_structural.probabilities_required");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_structural::PROBABILITIES_REQUIRED
+    );
     assert!(refusal.remedy.is_some());
 
     // Probabilities for some atoms only are not genuine probabilities either.

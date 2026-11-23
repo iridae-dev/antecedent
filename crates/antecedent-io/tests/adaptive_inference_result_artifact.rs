@@ -7,12 +7,13 @@
 //! integrated with `SciPy`; and the hand calculation of augmented
 //! inverse-probability scores on a four-unit history.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::adaptive_design::{
-    AdaptiveDesignContract, AdaptiveDesignDeclaration, AssignmentFamily, DelayMechanism,
-    InferenceParadigm, InterimAnalysis, MonitoringStrategy, OutcomeAvailability, OutcomeStructure,
-    PolicyEpoch, ProcedureCell, StoppingRuleDeclaration, StoppingRuleKind, StoppingSpec,
+    AdaptiveDesignContract, AdaptiveDesignDeclaration, AssignmentFamily, BoundarySidedness,
+    DelayMechanism, InferenceParadigm, InterimAnalysis, MonitoringStrategy, OutcomeAvailability,
+    OutcomeStructure, PolicyEpoch, ProcedureCell, SpendingKind, StoppingRuleDeclaration,
+    StoppingRuleKind, StoppingSpec,
 };
 use antecedent_core::{ExecutionContext, SemanticDigest};
 use antecedent_io::adaptive_inference_result_artifact::{
@@ -122,6 +123,31 @@ fn posterior(look: u32) -> AdaptiveResultSpec {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the artifact contains exact deterministic result values")]
+fn group_sequential_replays_each_performed_look_and_rejects_duplicate_arms() {
+    let mut declaration = thompson();
+    declaration.cell.assignment = AssignmentFamily::FixedRandomization;
+    declaration.cell.monitoring = MonitoringStrategy::GroupSequential;
+    declaration.outcomes = (0..12).map(|unit| vec![f64::from((unit / 2) % 2)]).collect();
+    declaration.stopping_rule.as_mut().unwrap().spec = StoppingSpec::AlphaSpending {
+        spending: SpendingKind::OBrienFlemingType,
+        total_alpha: 0.05,
+        sidedness: BoundarySidedness::TwoSidedSymmetric,
+    };
+    let contract = contract(declaration);
+    let spec = AdaptiveResultSpec::GroupSequential { look: 1, control_arm: 0, treatment_arm: 1 };
+    let result = compute_adaptive_result(&contract, &spec, &ctx()).unwrap();
+    assert_eq!(result.method, "lan_demets_alpha_spending_group_sequential");
+    assert_eq!(result.values.len(), 7);
+    assert_eq!(result.values[0], -1.0);
+    assert_eq!(result.values[2], 0.0);
+    assert_eq!(result.values[5], 0.0);
+    let duplicate =
+        AdaptiveResultSpec::GroupSequential { look: 1, control_arm: 0, treatment_arm: 0 };
+    assert!(compute_adaptive_result(&contract, &duplicate, &ctx()).is_err());
+}
+
+#[test]
 fn the_posterior_is_the_conjugate_closed_form() {
     let result = compute_adaptive_result(&contract(thompson()), &posterior(1), &ctx()).unwrap();
     assert_eq!(result.paradigm, InferenceParadigm::BayesianPosterior);
@@ -150,10 +176,13 @@ fn the_posterior_is_the_conjugate_closed_form() {
 #[test]
 fn the_posterior_rule_stops_when_its_threshold_is_met() {
     let spec = AdaptiveResultSpec::PosteriorStopping { look: 1, prior_alpha: 1.0, prior_beta: 1.0 };
-    // Decision-theoretic stopping is licensed only for the Thompson cell with
+    // Decision-theoretic stopping is supported only for the Thompson cell with
     // a decision-theoretic rule; the efficacy cell refuses it.
     let refused = compute_adaptive_result(&contract(thompson()), &spec, &ctx()).unwrap_err();
-    assert_eq!(refused.detail, "adaptive_inference.paradigm_not_licensed_for_cell");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::adaptive_inference::PARADIGM_NOT_SUPPORTED_FOR_CELL
+    );
     let mut declaration = thompson();
     declaration.cell.stopping = StoppingRuleKind::DecisionTheoretic;
     declaration.stopping_rule = Some(StoppingRuleDeclaration {
@@ -214,7 +243,7 @@ fn a_probability_floor_failure_is_a_typed_refusal_not_a_clip() {
     };
     let error = compute_adaptive_result(&contract(declaration), &spec, &ctx()).unwrap_err();
     assert_eq!(error.code, "adaptive_assumption_violated");
-    assert_eq!(error.detail, "adaptive_inference.positivity_floor");
+    assert_eq!(error.detail, antecedent_core::reason_details::adaptive_inference::POSITIVITY_FLOOR);
 }
 
 #[test]
@@ -229,13 +258,19 @@ fn a_paradigm_of_another_cell_is_refused_before_any_number() {
         size_weighted: false,
     };
     let error = compute_adaptive_result(&contract(thompson()), &weighting, &ctx()).unwrap_err();
-    assert_eq!(error.code, "cell_not_licensed");
-    assert_eq!(error.detail, "adaptive_inference.paradigm_not_licensed_for_cell");
+    assert_eq!(error.code, "route_not_supported");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::adaptive_inference::PARADIGM_NOT_SUPPORTED_FOR_CELL
+    );
     let error = compute_adaptive_result(&contract(weighted()), &posterior(1), &ctx()).unwrap_err();
-    assert_eq!(error.detail, "adaptive_inference.paradigm_not_licensed_for_cell");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::adaptive_inference::PARADIGM_NOT_SUPPORTED_FOR_CELL
+    );
     // A look the contract does not have.
     let error = compute_adaptive_result(&contract(thompson()), &posterior(5), &ctx()).unwrap_err();
-    assert_eq!(error.detail, "adaptive_inference.input_invalid");
+    assert_eq!(error.detail, antecedent_core::reason_details::adaptive_inference::INPUT_INVALID);
 }
 
 #[test]
@@ -244,7 +279,7 @@ fn cancellation_is_a_refusal_not_a_verdict() {
     ctx.cancellation.cancel();
     let error = compute_adaptive_result(&contract(thompson()), &posterior(1), &ctx).unwrap_err();
     assert_eq!(error.code, "cancelled_no_claim");
-    assert_eq!(error.detail, "adaptive_inference.cancelled");
+    assert_eq!(error.detail, antecedent_core::reason_details::adaptive_inference::CANCELLED);
 }
 
 // -- the artifact ----------------------------------------------------------------------------
@@ -264,7 +299,7 @@ fn a_fresh_consumer_sees_the_procedure_rule_and_paradigm_and_recomputes_the_valu
         StoppingSpec::PosteriorProbabilityBest { threshold: 0.95 }
     );
     close(consumed.result().values[10], 0.999_708_624_708_624_8, 1e-9, "recomputed");
-    assert_eq!(consumed.result().closed_guarantee, "adaptive_inference.posterior_interval_closed");
+    assert_eq!(consumed.result().unsupported_claim, None);
     // Deterministic, and accepted against its own retained identity.
     assert_eq!(
         Artifact::to_bytes(&source, &posterior(1), "adaptive-result", &ctx()).unwrap(),
@@ -326,9 +361,11 @@ fn every_resealed_semantic_mutation_is_refused() {
     // A removed contract element.
     let outcome = resealed(|meta| meta.contract.declaration.exposure = None);
     match outcome.unwrap_err() {
-        Error::Refused { code, message } => {
+        Error::Refused { code, detail, .. } => {
             assert_eq!(code, "adaptive_contract_incomplete");
-            assert!(message.starts_with("adaptive_inference.exposure_history_missing"));
+            assert!(detail.starts_with(
+                antecedent_core::reason_details::adaptive_inference::EXPOSURE_HISTORY_MISSING
+            ));
         }
         other => panic!("{other}"),
     }
@@ -345,5 +382,5 @@ fn a_consumer_that_retained_the_identity_refuses_another_experiment() {
     assert!(matches!(error, Error::IdentityMismatch { field: "retained_identity" }));
     let (code, detail, _) = error.refusal().unwrap();
     assert_eq!(code, "route_not_supported");
-    assert_eq!(detail, "adaptive_inference.wrong_contract");
+    assert_eq!(detail, antecedent_core::reason_details::adaptive_inference::WRONG_CONTRACT);
 }

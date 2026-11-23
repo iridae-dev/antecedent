@@ -7,27 +7,115 @@ from typing import Any, Literal
 
 import numpy as np
 from numpy.typing import NDArray
+from typing_extensions import Buffer
 
 from .transport._impl import ZTransportSensitivityResult
 
 CiArg = str | Callable[..., Any] | None
 
+# Calibration annotation on a reported interval (never a gate): the wire text of a claim's
+# calibration slot `status`. `calibrated`: inside a current attesting coverage record's
+# measured scope. `outside_measured_scope`: a record matches the construction but the request
+# is outside its measured range, replicates, draws or unidentified mass, or the record no
+# longer attests the current code. `measured_below_nominal`: the governing record measured
+# coverage below nominal at this sample size (`observed` carries it). `not_measured`: no
+# record for the construction, level or identification, or no interval reported.
+CalibrationStatus = Literal[
+    "calibrated", "outside_measured_scope", "measured_below_nominal", "not_measured"
+]
+
 __version__: str
 __build_optimized__: bool
 
+def external_aipw_crossfit(
+    outcome: Any,
+    treatment: Any,
+    design: Sequence[Sequence[float]],
+    y: Sequence[float],
+    t: Sequence[float],
+    fold_ids: Sequence[int],
+    *,
+    weights: Sequence[float] | None = None,
+    seed: int = 1,
+    cancel: Any | None = None,
+    memory_limit_bytes: int | None = None,
+) -> tuple[list[float], list[float], list[float], list[list[str]], list[tuple[int, Any, Any]]]: ...
+def external_dml_ate(
+    names: Sequence[str],
+    columns: Sequence[Sequence[float]],
+    edges: Sequence[tuple[str, str]],
+    treatment_name: str,
+    outcome_name: str,
+    outcome: Any,
+    treatment: Any,
+    *,
+    folds: int = 5,
+    weights: Sequence[float] | None = None,
+    seed: int = 1,
+    cancel: Any | None = None,
+    method: str = "dml",
+    score: str = "aipw",
+    memory_limit_bytes: int | None = None,
+) -> tuple[
+    float,
+    float,
+    list[int],
+    list[int],
+    list[int],
+    list[list[str]],
+    str,
+    list[float] | None,
+    list[float] | None,
+    list[tuple[int, Any, Any]],
+]: ...
 def temporal_response_spec() -> dict[str, Any]:
-    """Licensed temporal-response query policy from Rust ``TemporalResponseSpec::license``."""
+    """Supported temporal-response query policy from Rust ``TemporalResponseSpec::support``."""
 
 def runtime_refusal_codes() -> list[str]:
     """Registered runtime-refusal reason codes (``parity/reason_codes.toml``)."""
 
+def identification_refusal_codes() -> list[str]:
+    """Reason codes of the identification-class refusals the descriptive fallback converts."""
+
+def host_schema_text() -> str:
+    """The committed host-integration JSON Schema, exactly as generated."""
+
+def host_status_of_claim(
+    kind: str, identification: str, support: str, evaluated: str
+) -> str | None:
+    """Host status of a claim from its wire names; ``None`` for an unregistered name."""
+
+def host_status_of_operation(applicability: str, readiness: str | None = None) -> str | None:
+    """Host status of an operation from its wire names; ``None`` for an unregistered name."""
+
 class CausalError(Exception):
+    """Base class of every error the engine raises.
+
+    Catch it to handle any library error. Invalid input raises
+    :class:`~antecedent.errors.CausalTypeError` or :class:`~antecedent.errors.CausalValueError`;
+    operational failures raise subclasses such as ``CausalCancelledError``,
+    ``CausalResourceError`` and ``CausalSerializationError``. Scientific refusals are normally
+    returned on an outcome (``outcome.refusal``) rather than raised; when one is raised (for
+    example by :func:`antecedent.outcomes.require_success`) it is a subclass such as
+    :class:`~antecedent.errors.EffectNotIdentified`.
+
+    * ``remedy`` -- what the caller can change to get past a refusal, or ``None``.
+    * ``refusal_fields`` -- structured refusal fields (stage, subject, counts, implicated
+      columns, remedy), or ``None``.
+    * ``route_diagnostics`` -- route-native diagnostics the refusal carries, one mapping per
+      record; empty otherwise.
+    """
+
     # What the caller can change to get past a refusal, when it names one;
     # ``None`` otherwise (a class default every subclass inherits).
     remedy: str | None
     # Structured refusal fields (stage, subject, counts, implicated columns, remedy)
     # when the refusal carries them; ``None`` otherwise.
     refusal_fields: dict[str, object] | None
+    # Route-native diagnostics the refusal carries: one dict per record with ``route``,
+    # ``outcome``, ``failed`` and ``unevaluable_mass`` (``None`` when the route did not
+    # report a mass); an empty sequence otherwise.
+    route_diagnostics: Sequence[dict[str, object]]
 
 class CausalIdentifyError(CausalError): ...
 class CausalEstimateError(CausalError): ...
@@ -65,6 +153,7 @@ class CausalReviewError(CausalError):
 def set_review_error_class(cls: type) -> None:
     """Register the Python class native code instantiates for review errors."""
 
+def _penalty_grid_max_items() -> int: ...
 def set_unsupported_error_class(cls: type) -> None:
     """Register the Python class native code instantiates for refusals."""
 
@@ -96,8 +185,23 @@ class CausalUnsupportedError(CausalError): ...
 class CausalCancelledError(CausalError): ...
 
 class CancellationToken:
-    def cancel(self) -> None: ...
-    def is_cancelled(self) -> bool: ...
+    """A cooperative cancellation flag shared with a running operation.
+
+    Pass it as ``Execution(cancel=token)``; calling :meth:`cancel` from another thread stops the
+    operation at its next check, which then raises ``CausalCancelledError``. A token stays
+    cancelled once cancelled; use a new token for the next run.
+
+    Example::
+
+        token = antecedent.CancellationToken()
+        execution = antecedent.Execution(cancel=token)
+        # in another thread: token.cancel()
+    """
+
+    def cancel(self) -> None:
+        """Request cancellation of every operation running under this token."""
+    def is_cancelled(self) -> bool:
+        """Return whether :meth:`cancel` has been called."""
 
 class ArrowLoadInfo:
     row_count: int
@@ -107,15 +211,63 @@ class ArrowLoadInfo:
     diagnostic_count: int
     column_names: list[str]
 
+class NativeTableFile:
+    """Parquet file or dataset, or Arrow IPC file or stream, read in bounded chunks."""
+
+    @staticmethod
+    def open(path: str, format: str | None = None) -> NativeTableFile: ...
+    @property
+    def format(self) -> str: ...
+    @property
+    def paths(self) -> list[str]: ...
+    @property
+    def declared_rows(self) -> int | None: ...
+    def columns(self) -> list[tuple[str, str, bool, str, str | None, bool]]: ...
+    def quote(
+        self, columns: list[str] | None = None, *, chunk_rows: int | None = None
+    ) -> tuple[int | None, int | None, int, int]: ...
+    def read(
+        self,
+        columns: list[str] | None = None,
+        *,
+        chunk_rows: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> dict[str, Any]: ...
+    def content_identity(
+        self,
+        columns: list[str] | None = None,
+        *,
+        chunk_rows: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str, int, int]: ...
+    def summarize_weighted_gaussian(
+        self,
+        covariates: list[str],
+        response: str,
+        *,
+        weight: str | None = None,
+        intercept: bool = True,
+        missing: str = "refuse",
+        batch_rows: int = 65536,
+        ceiling_bytes: int | None = None,
+        control: str = "glm",
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> dict[str, Any]: ...
+
 class AteAnalysisResult:
     def effect_source_json(
         self, units: str, population: str, supplied_value: float
     ) -> tuple[str | None, str | None]: ...
     missing_data_json: str | None
+    interval_bindings_json: str | None
     structural_weight_basis: str | None
     structural_identified_mass: float | None
     structural_unidentified_mass: float | None
     structural_unevaluable_mass: float | None
+    structural_aggregation_policy: str | None
     structural_identified_set: tuple[float, float] | None
     structural_identified_set_interval: tuple[float, float] | None
     structural_identified_set_interval_level: float | None
@@ -127,15 +279,29 @@ class AteAnalysisResult:
     unit_effect_intervals_level: float | None
     unit_effect_intervals_method: str | None
     unit_extrapolative: list[bool] | None
+    counterfactual_contrasts: (
+        list[
+            tuple[
+                str,
+                float,
+                float | None,
+                list[float],
+                list[tuple[float, float]] | None,
+                list[bool] | None,
+                bool,
+            ]
+        ]
+        | None
+    )
     assumptions: list[str]
     support_diagnostics: list[str]
-    ate: float
+    ate: float | None
     se_analytic: float
     se_bootstrap: float | None
     bootstrap_replicates_failed: int | None
     adjustment_set: list[str]
     identification_status: str
-    refutation_passed: bool
+    refutation_passed: bool | None
     refutation_ran: bool
     refutation_count: int
     refutations: list[RefutationReportView]
@@ -154,6 +320,9 @@ class AteAnalysisResult:
     posterior_backend: str | None
     posterior_artifact: list[int] | None
     diagnostics: list[str]
+    # One ``(route, outcome, failed, unevaluable_mass)`` row per ``route.*`` diagnostic; the
+    # mass is ``None`` when the route did not report one.
+    route_diagnostics: list[tuple[str, str, bool, float | None]]
     provenance_node_count: int
     plan_id: str
     modality: str
@@ -190,11 +359,16 @@ class AteAnalysisResult:
     prior_ppc_predictive_mean: float | None
     prior_ppc_predictive_sd: float | None
     prior_ppc_n_sims: int | None
+    prior_ppc_dispersion_p_value: float | None
+    prior_ppc_noise: str | None
     posterior_ppc_p_value: float | None
     posterior_ppc_observed: float | None
     posterior_ppc_predictive_mean: float | None
     posterior_ppc_predictive_sd: float | None
     posterior_ppc_n_sims: int | None
+    posterior_ppc_dispersion_p_value: float | None
+    posterior_ppc_noise: str | None
+    predictive_replicates: PredictiveReplicateLaws | None
     identification: IdentificationSection
     estimate: EstimateSection
     posterior: PosteriorSection
@@ -205,9 +379,9 @@ class AteAnalysisResult:
     mediation_mediated: float | None
     mediation_horizons: list[int]
     mediation_effects: list[float]
-    mediation_totals: list[float]
-    mediation_directs: list[float]
-    mediation_mediated_effects: list[float]
+    mediation_totals: list[float | None]
+    mediation_directs: list[float | None]
+    mediation_mediated_effects: list[float | None]
     mediation_identification_statuses: list[str]
     mediation_methods: list[str]
     mediation_adjustments: list[list[tuple[int, int]]]
@@ -226,17 +400,32 @@ class AteAnalysisResult:
     synthetic_did: SyntheticDidSection | None
     local_polynomial_ratio: LocalPolynomialRatioSection | None
     survival: SurvivalSection | None
+    posterior_row: PosteriorRowSection | None
     longitudinal_regime: LongitudinalRegimeSection | None
+    sequential_contrast: SequentialContrastSection | None
+    history_match: HistoryMatchSection | None
+    temporal_design: TemporalDesignSection | None
+    iv_bounds: IvBoundsSection | None
+    association: AssociationSection | None
+    quasi_rollout: QuasiRolloutSection | None
     policy_value: PolicyValueSection | None
     continuous_dose_response: ContinuousDoseResponseSection | None
     anomaly: list[AnomalyScores] | None
     change_attribution: ChangeAttributionResult | None
     evidence_status: str | None
-    allowlist_reason: str | None
-    allowlist_parent: str | None
+    would_refuse: list[tuple[str, str, list[str]]]
 
 class ResponseAnalysisResult:
+    def refutation_reports(
+        self,
+    ) -> list[tuple[str, bool, bool, float, float, str | None]]: ...
     def program_basis_json(self) -> str | None: ...
+    def horizon_draws_json(self, dose_index: int) -> tuple[str | None, str | None]: ...
+    def horizon_interval_json(
+        self, dose_index: int, coefficients: list[float], operation: str
+    ) -> tuple[str | None, str | None]: ...
+    missing_data_json: str | None
+    interval_bindings_json: str | None
     certificate_json: str | None
     treatments: list[str]
     outcomes: list[str]
@@ -275,13 +464,12 @@ class ResponseAnalysisResult:
     enumeration_capped: bool | None
     mass_scope: str | None
     weight_basis: str | None
+    aggregation_policy: str | None
     atom_keys: list[int]
     atom_weights: list[float]
     atom_statuses: list[str]
     atom_values: list[list[float]]
     evidence_status: str | None
-    allowlist_reason: str | None
-    allowlist_parent: str | None
     diagnostics: list[str]
     identifier: str | None
     def response_coordinates(
@@ -435,6 +623,7 @@ class SyntheticControlSection:
     unadjusted_effect: float | None
     outcome_model_correction: float | None
     augmentation_ridge: float | None
+    observed_window: tuple[list[int], list[int], int, list[tuple[str, int]], int] | None
 
 class SyntheticDidSection:
     effect: float
@@ -448,6 +637,7 @@ class SyntheticDidSection:
     randomization_p_value: float | None
     randomization_null_effect: float | None
     randomization_statistics: list[tuple[str, float]]
+    randomization_ranking_tolerance: float | None
 
 class LocalPolynomialRatioSection:
     effect: float
@@ -465,6 +655,32 @@ class LocalPolynomialRatioSection:
     first_stage_standard_error: float
     uncertainty: str
     graphless_support_status: str | None
+
+class DesignEffectSection:
+    kind: str
+    group: int | None
+    period: int | None
+    event_time: int | None
+    unit: str | None
+    estimate: float
+    standard_error: float | None
+    interval: tuple[float, float] | None
+    band: tuple[float, float] | None
+    treated: int
+    comparison: int
+
+class QuasiRolloutSection:
+    design: str
+    method: str
+    effects: list[DesignEffectSection]
+    uncertainty: str
+    calibration: str
+    replicates_requested: int
+    replicates_ok: int
+    replicates_failed: int
+    critical_value: float | None
+    diagnostics: list[tuple[str, float]]
+    supported: bool
 
 class SurvivalSection:
     times: list[float]
@@ -486,6 +702,23 @@ class SurvivalSection:
         tuple[list[float], list[float], list[float], list[float], int, str | None] | None
     )
     band_unavailable_reason: str | None
+
+class PosteriorRowSection:
+    estimator: str
+    target: str
+    uncertainty: str
+    calibration: str
+    supported: bool
+    coordinates: list[str]
+    mean: list[float]
+    lower: list[float]
+    upper: list[float]
+    covariance: list[float] | None
+    exact_mean: list[float] | None
+    exact_covariance: list[float] | None
+    draws: int
+    extras: dict[str, float]
+    vectors: dict[str, list[float]]
 
 class LongitudinalRegimeSection:
     method: str
@@ -509,6 +742,177 @@ class LongitudinalRegimeSection:
     standard_errors: list[float] | None
     stabilizing_numerator_probabilities: list[float] | None
     observed_subjects: int | None
+
+class SequentialContrastSection:
+    posterior_symmetric_interval: tuple[float, float] | None
+    active_regime: tuple[int, int]
+    control_regime: tuple[int, int]
+    contrast: float
+    active_mean: float
+    control_mean: float
+    evaluated_rows: int
+    minimum_action_probability: float
+    min_probability: float
+    standard_error: float | None
+    interval: tuple[float, float] | None
+    coverage: float
+    active_scores: list[float]
+    control_scores: list[float]
+    contrast_scores: list[float]
+    uncertainty: str
+    supported: bool
+    fits_computed: int
+    fits_reused: int
+
+class HistoryMatchSection:
+    contrast: float
+    standard_error: float | None
+    weight_total: float
+    matched_queries: list[int]
+    matched_donors: list[int]
+    differences: list[float]
+    pair_weights: list[float]
+    unmatched_treated: list[int]
+    periods_matched: int
+    serial_standard_error: float | None
+    interval_lower: float | None
+    interval_upper: float | None
+    caliper: float | None
+    uncertainty: str
+    supported: bool
+
+class IvBoundsIntervalSection:
+    level: float
+    lower: float
+    upper: float
+    lower_se: float
+    upper_se: float
+    critical_value: float
+    width_retained: bool
+    replicates: int
+    infeasible: int
+    method: str
+
+class IvBoundsPosteriorSection:
+    n_draws: int
+    infeasible_draws: int
+    lower_mean: float
+    upper_mean: float
+    lower_sd: float
+    upper_sd: float
+
+class IvBoundsSection:
+    lower: float
+    upper: float
+    cells: list[float]
+    arm_weights: list[float]
+    rows: int
+    rows_dropped: int
+    interval: IvBoundsIntervalSection | None
+    posterior: IvBoundsPosteriorSection | None
+    supported: bool
+
+class AssociationTermSection:
+    label: str
+    scale: str
+    estimate: float
+    standard_error: float | None
+    standard_error_method: str | None
+    spread_lower: float | None
+    spread_upper: float | None
+    posterior_mean: float | None
+    posterior_sd: float | None
+    posterior_lower: float | None
+    posterior_upper: float | None
+    conjugate: AssociationConjugateSection | None
+    rows: int
+
+class AssociationConjugateSection:
+    family: str
+    prior: tuple[float, float]
+    posterior: tuple[float, float]
+    count: int
+    exposure: float
+    log_marginal_likelihood: float
+    predictive_mean: float
+    predictive_variance: float
+
+class AssociationResamplingSection:
+    method: str
+    unit: str
+    replicates_requested: int
+    replicates_ok: int
+    block_length: int | None
+    spread_level: float
+
+class AssociationPosteriorSection:
+    method: str
+    draws: int
+    level: float
+
+class AssociationPredictionSection:
+    folds: int
+    fold_design: str
+    cases: int
+    score: str
+    mean_score: float
+    baseline_score: float
+    mean_crps: float | None
+    calibration: str
+
+class AssociationSection:
+    analysis: str
+    rule: str
+    requested: str
+    outcome_kind: str
+    modality: str
+    terms: list[AssociationTermSection]
+    rows: int
+    rows_dropped: int
+    resampling: AssociationResamplingSection | None
+    posterior: AssociationPosteriorSection | None
+    prediction: AssociationPredictionSection | None
+    assumptions: list[str]
+    refused_after: str | None
+    uncertainty: str
+    calibration: str
+    supported: bool
+    ranks_actions: bool
+    is_intervention_effect: bool
+
+class TemporalDesignSection:
+    design: str
+    functional: str
+    coordinates: list[str]
+    estimate: list[float]
+    standard_error: list[float]
+    lower: list[float]
+    upper: list[float]
+    covariance: list[float] | None
+    band_coordinates: list[int]
+    band_critical_value: float | None
+    band_lower: list[float] | None
+    band_upper: list[float] | None
+    holm_adjusted_p: list[float] | None
+    smoothing_bias_bound: list[float] | None
+    pairs: int
+    clusters: int
+    unpaired: int
+    minimum_probability: float
+    replicates: tuple[int, int] | None
+    draws: int | None
+    uncertainty: str
+    calibration: str
+    supported: bool
+
+class PredictiveReplicateLaws:
+    quantity: str
+    population: str
+    units: str
+    model: str
+    laws: list[list[float]]
+    outcomes: list[float]
+    rows: list[int]
 
 class PolicyValueSection:
     policy_value: float
@@ -600,6 +1004,12 @@ class RefutationReportView:
     passed: bool
     failure_condition: str | None
     replicates: int
+    scope_kind: str | None
+    scope_target_identity: str | None
+    scope_outer_atom: int | None
+    scope_completion_digest: str | None
+    scope_horizon_index: int | None
+    scope_horizon: int | None
 
 class IdentificationSection:
     """Nested identification section, shared shape on both `AteAnalysisResult` and
@@ -651,6 +1061,7 @@ class EstimateSection:
     method: str
     overlap_ess: float | None
     overlap_propensity_min: float | None
+    overlap_excluded_fraction: float | None
     functional_means: list[float] | None
     exceedance_cdf: list[float] | None
     monotone_rearranged: bool
@@ -666,6 +1077,7 @@ class EstimateSection:
     adjusted_p_values: tuple[float, float] | None
     family_contrast: tuple[float, float] | None
     family_contrast_interval: tuple[float, float, float] | None
+    family_contrast_posterior: tuple[float, float, tuple[float, float], list[float]] | None
     candidate_selection: CandidateSelectionSection | None
     evalue: float | None
     evalue_threshold: float | None
@@ -732,11 +1144,9 @@ class ValidationFailureSection:
     reason: str
 
 class ValidationSection:
-    """Nested validation section. `passed`/`ran` follow the shared aggregate rule:
-    `ran` is whether any refuter ran, `passed` is `ran and all(r.passed for r in reports)`
-    — never `True` when nothing ran."""
+    """Validation results. ``passed`` is None when only scoped checks ran."""
 
-    passed: bool
+    passed: bool | None
     ran: bool
     count: int
     reports: list[RefutationReportView]
@@ -749,6 +1159,7 @@ class PerformanceSection:
     temporal execution path currently records them, so they read `None`/empty on
     the temporal DTO."""
 
+    native_execution: ExecutionFacts | None
     plan_id: str
     modality: str
     peak_memory_bytes: int | None
@@ -761,6 +1172,23 @@ class PerformanceSection:
     early_stopped: bool
     stage_timings: list[tuple[str, int]]
     bytes_borrowed: int | None
+    resampling: ResamplingSection | None
+
+class ResamplingSection:
+    """The complete resampling procedure behind a requested bootstrap interval."""
+
+    level: float
+    wave_size: int
+    min_replicates: int
+    max_replicates: int
+    se_rel_tol: float | None
+    half_width_rel_tol: float | None
+    interval: tuple[float, float] | None
+    stop: str
+    attempted: int
+    waves: list[tuple[int, int, int, int, int, int, int]]
+    se_rel_mc_error: float | None
+    half_width_rel_mc_error: float | None
 
 class PosteriorArtifact:
     n_draws: int
@@ -777,6 +1205,7 @@ class PosteriorArtifact:
     hessian_condition: float
     quantity_names: list[str]
     treatment_contrast: float | None
+    def draws_view(self) -> NDArray[np.float64]: ...
     def __init__(
         self,
         n_draws: int,
@@ -834,6 +1263,48 @@ class GraphEdge:
     at_source: str
     at_target: str
 
+class StabilityMark:
+    at_source: str
+    at_target: str
+    frequency: float
+
+class StabilityEdge:
+    source: str
+    source_lag: int
+    target: str
+    target_lag: int
+    frequency: float
+    in_reference: bool
+    marks: list[StabilityMark]
+
+class StabilityStructure:
+    frequency: float
+    count: int
+    edges: list[GraphEdge]
+
+class StructureStabilityResult:
+    algorithm_id: str
+    base_algorithm: str
+    structure_class: str
+    variable_names: list[str]
+    replicates_requested: int
+    replicates_succeeded: int
+    replicates_failed: int
+    reference_frequency: float
+    reference_edges: list[GraphEdge]
+    edges: list[StabilityEdge]
+    structures: list[StabilityStructure]
+    @property
+    def route(self) -> Any: ...
+    @property
+    def contract(self) -> dict[str, str]: ...
+    @property
+    def claim(self) -> dict[str, str]: ...
+    def inspect(self) -> dict[str, str]: ...
+    def adjacency_frequency(
+        self, source: str, target: str, *, source_lag: int = 0, target_lag: int = 0
+    ) -> float: ...
+
 class PcmciDiscoveryResult:
     links: list[DiscoveredLink]
     algorithm_id: str
@@ -847,13 +1318,35 @@ class PcmciDiscoveryResult:
     cpdag_nodes: int
     cpdag_directed_edges: int
     cpdag_undirected_edges: int
+    pag_circle_edges: int | None
     graph_edges: list[GraphEdge]
     variable_names: list[str]
     background_knowledge: str | None
     row_accounting: dict[str, Any] | None
-
+    @property
+    def route(self) -> CompiledRoute | None: ...
+    @property
+    def contract(self) -> dict[str, str]: ...
+    @property
+    def claim(self) -> dict[str, str]: ...
+    def inspect(self) -> dict[str, str]: ...
     def accepted_graph(self, *, accept_discovered: bool = True) -> Any:
         """The reviewed accepted graph; refuses while edges are pending."""
+
+class CompiledRoute:
+    """An executed compiled route: its contract, claim and inspection record."""
+
+    @property
+    def contract(self) -> dict[str, str]: ...
+    @property
+    def claim(self) -> dict[str, str]: ...
+    def inspect(self) -> dict[str, str]: ...
+    @property
+    def program_identity(self) -> str | None: ...
+    def structure_provenance(self) -> dict[str, str] | None: ...
+    def accepted_graph(
+        self, *, accept_discovered: bool = True
+    ) -> tuple[Any, dict[str, str] | None]: ...
 
 class RpcmciDiscoverySummary:
     algorithm: str
@@ -876,14 +1369,27 @@ class GraphPosterior:
     lagged_edge_marginals: list[float] | None
     max_lag: int | None
     lag_masks: list[int] | None
+    lag_bidirected_masks: list[int] | None
     algorithm: str | None
     atom_kind: str
     mark_masks: list[int] | None
     edge_mcse: list[float] | None
     edge_rhat: list[float] | None
     edge_ess: list[float] | None
+    @property
+    def route(self) -> CompiledRoute | None: ...
+    @property
+    def contract(self) -> dict[str, str]: ...
+    @property
+    def claim(self) -> dict[str, str]: ...
+    def inspect(self) -> dict[str, str]: ...
+    def accept_posterior(self) -> dict[str, str]: ...
+    @property
+    def provenance(self) -> dict[str, str] | None: ...
     def to_weighted_samples(self) -> dict[str, object]: ...
     def edge_marginal_matrix(self) -> list[list[float]]: ...
+    @classmethod
+    def pool(cls, posteriors: Sequence[GraphPosterior]) -> GraphPosterior: ...
     @classmethod
     def from_atoms(
         cls,
@@ -956,9 +1462,9 @@ class AnalysisResult:
     mediation_mediated: float | None
     mediation_horizons: list[int]
     mediation_effects: list[float]
-    mediation_totals: list[float]
-    mediation_directs: list[float]
-    mediation_mediated_effects: list[float]
+    mediation_totals: list[float | None]
+    mediation_directs: list[float | None]
+    mediation_mediated_effects: list[float | None]
     mediation_identification_statuses: list[str]
     mediation_methods: list[str]
     mediation_adjustments: list[list[tuple[int, int]]]
@@ -975,12 +1481,11 @@ class AnalysisResult:
     validation: ValidationSection
     performance: PerformanceSection
     evidence_status: str | None
-    allowlist_reason: str | None
-    allowlist_parent: str | None
     structural_weight_basis: str | None
     structural_identified_mass: float | None
     structural_unidentified_mass: float | None
     structural_unevaluable_mass: float | None
+    structural_aggregation_policy: str | None
     structural_identified_set: tuple[float, float] | None
     structural_identified_set_interval: tuple[float, float] | None
     structural_identified_set_interval_level: float | None
@@ -991,8 +1496,139 @@ class AnalysisResult:
     derivation_step_count: int
     estimator_id: str
 
+class _IdentificationMaterialization:
+    def to_dict(self) -> dict[str, Any]: ...
+    def retained_bytes(self) -> int: ...
+    def encoded_bytes(self) -> int: ...
+
+class PreparedIdentificationView:
+    def summary_json(self) -> str: ...
+    def estimands_json(self, *, offset: int = 0, limit: int = 32) -> str: ...
+    def adjustment_json(
+        self, *, estimand: int | None = None, offset: int = 0, limit: int = 32
+    ) -> str: ...
+    def assumptions_json(
+        self, *, estimand: int | None = None, offset: int = 0, limit: int = 32
+    ) -> str: ...
+    def derivation_json(self, *, offset: int = 0, limit: int = 32) -> str: ...
+    def child(self, index: int) -> PreparedIdentificationView: ...
+    def children(self, *, offset: int = 0, limit: int = 32) -> list[PreparedIdentificationView]: ...
+    def materialize(
+        self, *, seed: int = 1, threads: int | None = None
+    ) -> _IdentificationMaterialization: ...
+    def schema_names(self) -> list[str]: ...
+
+class TrialIdentificationView:
+    def summary_json(self) -> str: ...
+    def estimands_json(self, *, offset: int = 0, limit: int = 32) -> str: ...
+    def adjustment_json(
+        self, *, estimand: int | None = None, offset: int = 0, limit: int = 32
+    ) -> str: ...
+    def assumptions_json(
+        self, *, estimand: int | None = None, offset: int = 0, limit: int = 32
+    ) -> str: ...
+    def derivation_json(self, *, offset: int = 0, limit: int = 32) -> str: ...
+    def child(self, _index: int) -> TrialIdentificationView: ...
+    def children(self, *, offset: int = 0, limit: int = 32) -> list[TrialIdentificationView]: ...
+    def materialize_json(self, *, seed: int = 1, threads: int | None = None) -> str: ...
+    def schema_names(self) -> list[str]: ...
+
 class PreparedAnalysis:
+    def data_diagnostics_json(self) -> str | None: ...
+    def data_diagnostics_summary(self) -> tuple[int, int, int] | None: ...
+    def diagnose_data_json(
+        self, policy_json: str, *, seed: int = 1, threads: int | None = None
+    ) -> str: ...
+    def fork(self) -> PreparedAnalysis: ...
+    def weighted_target_report(self) -> dict[str, Any] | None: ...
+    def reconfigure_execution(
+        self, *, seed: int = 1, threads: int | None = None
+    ) -> PreparedAnalysis: ...
+    def bind_snapshot(
+        self,
+        columns: Sequence[Any],
+        *,
+        frame: dict[str, Any] | None = None,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_temporal_query(
+        names: list[str],
+        columns: Sequence[Any],
+        graph: Any,
+        query_spec: dict[str, Any],
+        *,
+        options: dict[str, Any] | None = None,
+        seed: int = 1,
+        threads: int | None = None,
+        frame: dict[str, Any] | None = None,
+        accepted: bool = False,
+    ) -> PreparedAnalysis: ...
     def identification_json(self) -> str: ...
+    def identification_view(self) -> PreparedIdentificationView: ...
+    def prepared_inspection_json(self) -> str: ...
+    def prepared_evidence_obligations_json(self, *, offset: int = 0, limit: int = 32) -> str: ...
+    def prepared_evidence_actions_json(self, *, offset: int = 0, limit: int = 32) -> str: ...
+    def prepared_obligations_json(self, *, offset: int = 0, limit: int = 32) -> str: ...
+    def prepared_uncertainty_json(self, *, offset: int = 0, limit: int = 32) -> str: ...
+    def staleness(
+        self,
+        names: list[str],
+        columns: list[Any],
+        *,
+        policy_json: str | None = None,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> str: ...
+    def export_staleness_baseline(
+        self, *, policy_json: str | None = None, seed: int = 1, threads: int | None = None
+    ) -> bytes: ...
+    def staleness_plan_json(self) -> str: ...
+    def refute_target_bound(
+        self,
+        *,
+        suite: str = "full",
+        replicates: int = 30,
+        alpha: float = 0.05,
+        subset_fraction: float = 0.8,
+        pre_trend_lead: int = 1,
+        negative_control_exposure: str | None = None,
+        negative_control_outcome: str | None = None,
+        mediator: str | None = None,
+        mediation_rho_bar: float = 0.1,
+        common_cause_strength: float = 0.0,
+        prior_scale_factors: list[float] | None = None,
+        prior_shift_tolerance: float = 0.5,
+        derivative_step: float | None = None,
+        derivative_tolerance: float = 0.1,
+        linearity_tolerance: float = 0.25,
+        gathered_resamples: bool = False,
+        within_class: str | None = None,
+        require_completed: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        on_stage: Any = None,
+    ) -> str: ...
+    def refute_target(
+        self,
+        names: list[str],
+        columns: list[Any],
+        *,
+        suite: str = "full",
+        replicates: int = 30,
+        alpha: float = 0.05,
+        subset_fraction: float = 0.8,
+        negative_control_exposure: str | None = None,
+        negative_control_outcome: str | None = None,
+        mediator: str | None = None,
+        mediation_rho_bar: float = 0.1,
+        common_cause_strength: float = 0.0,
+        prior_scale_factors: list[float] | None = None,
+        derivative_step: float | None = None,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> str: ...
     def refute_bound(
         self, suite: Any, *, seed: int = 1, threads: int | None = None, cancel: Any = None
     ) -> AteAnalysisResult: ...
@@ -1005,17 +1641,14 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int | None = None,
     ) -> str: ...
-    def estimate_cost_json(self) -> str: ...
+    def estimate_cost_json(
+        self, cost_model: tuple[str, str, int, list[tuple[str, float, float]]] | None = None
+    ) -> str: ...
     def contract(
         self,
     ) -> dict[str, str]: ...
-    def checked_conditional_effect_info(self) -> dict[str, Any] | None: ...
-    def checked_static_mediation_info(self) -> dict[str, Any] | None: ...
-    def checked_bayesian_dag_ate_info(self) -> dict[str, Any] | None: ...
-    def checked_static_dag_response_info(self) -> dict[str, Any] | None: ...
-    def checked_graph_posterior_effect_info(self) -> dict[str, Any] | None: ...
-    def checked_temporal_effect_info(self) -> dict[str, Any] | None: ...
-    def checked_temporal_response_info(self) -> dict[str, Any] | None: ...
+    def plan_view_json(self) -> str: ...
+    def report(self, format: str = "markdown") -> str: ...
     def estimate(
         self,
         names: list[str],
@@ -1040,10 +1673,9 @@ class PreparedAnalysis:
         self,
         names: list[str],
         columns: Sequence[Any],
-        frame: dict[str, Any] | None,
+        frame: dict[str, Any],
         *,
         response: bool = False,
-        refresh: bool = False,
         seed: int = 1,
         threads: int | None = None,
         cancel: CancellationToken | None = None,
@@ -1070,8 +1702,21 @@ class PreparedAnalysis:
         on_progress: Callable[..., Any] | None = None,
         on_stage: Callable[..., Any] | None = None,
     ) -> ResponseAnalysisResult: ...
+    def has_execution_contract(self) -> bool: ...
+    def response_checks_are_scoped(self) -> bool: ...
+    def execution_record_json(
+        self,
+        *,
+        outcome_units: str | None = None,
+        population: str = "target",
+        transform: str = "identity",
+    ) -> str: ...
     def execution_contract(
         self,
+        *,
+        outcome_units: str | None = None,
+        population: str = "target",
+        transform: str = "identity",
     ) -> dict[str, str]: ...
     def tier_diagnostics_json(self, *, cancel: CancellationToken | None = None) -> str: ...
     def export_artifact(
@@ -1085,6 +1730,13 @@ class PreparedAnalysis:
         *,
         artifact_id: str = "prepared-contract",
         quantities_json: str | None = None,
+    ) -> bytes: ...
+    def export_contracted_artifact_with_source(
+        self,
+        names: list[str],
+        columns: list[Any],
+        *,
+        artifact_id: str = "prepared-contract",
     ) -> bytes: ...
     @staticmethod
     def identify_existing(
@@ -1180,7 +1832,7 @@ class PreparedAnalysis:
         edges: list[tuple[str, str]],
         treatment: Any,
         outcome: Any,
-        modifier: Any,
+        modifiers: list[str],
         *,
         graph: Any = None,
         control_level: float = 0.0,
@@ -1282,6 +1934,7 @@ class PreparedAnalysis:
         scale: str = "identity",
         weighting: str = "observed",
         response_options: dict[str, Any] | None = None,
+        graph: Any = None,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,
@@ -1422,6 +2075,8 @@ class PreparedAnalysis:
         clusters: list[str],
         predictions_cross_fitted: bool,
         *,
+        resampling: str | None = None,
+        replicates: int | None = None,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,
@@ -1473,6 +2128,55 @@ class PreparedAnalysis:
         uniform_unit_randomization: bool = False,
         sharp_null_effect: float | None = None,
         augmentation_ridge: float | None = None,
+        conformal: bool = False,
+        adoptions: list[tuple[str, int]] | None = None,
+        placebo_replicates: int = 0,
+        observed_window_support: bool = False,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_rollout_did(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        subjects: list[str],
+        clusters: list[str],
+        periods: list[int],
+        cohorts: list[int],
+        *,
+        estimator: str = "callaway_santanna",
+        comparison: str = "never_treated",
+        nuisance: str = "doubly_robust",
+        base_period: str = "varying",
+        aggregation: str = "simple",
+        anticipation: int = 0,
+        covariates: list[str] = [],
+        resampling: str | None = None,
+        replicates: int | None = None,
+        observation: str = "ignorable_given_cohort",
+        attrition_shift_bound: float | None = None,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_covariate_adjusted_did(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        treated: list[bool],
+        post: list[bool],
+        subjects: list[str],
+        clusters: list[str],
+        covariates: list[str],
+        *,
+        nuisance: str = "doubly_robust",
+        resampling: str | None = None,
+        replicates: int | None = None,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,
@@ -1509,6 +2213,10 @@ class PreparedAnalysis:
         bandwidth: float,
         *,
         kink: bool = False,
+        bandwidth_rule: str = "declared",
+        temporal_replicates: int | None = None,
+        density_test: bool = False,
+        balance_covariates: list[str] = [],
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,
@@ -1562,6 +2270,91 @@ class PreparedAnalysis:
         rule_version: str | None = None,
         rule_provenance: str | None = None,
         accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_sequential_contrast(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        first_treatment: str,
+        second_treatment: str,
+        baseline: list[str],
+        intermediate: list[str],
+        active: tuple[int, int],
+        control: tuple[int, int],
+        fold_of_row: list[int],
+        fold_count: int,
+        min_probability: float,
+        *,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_history_match(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        treated: str,
+        history: list[str],
+        period: str | None = None,
+        weight: str | None = None,
+        caliper: float | None = None,
+        *,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_iv_bounds(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        treatment: str,
+        instrument: str,
+        weight: str | None = None,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_association(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        predictors: list[str],
+        conditioning: list[str],
+        functional: str,
+        *,
+        folds: int | None = None,
+        threshold: float | None = None,
+        outcome_scale: str | None = None,
+        weight: str | None = None,
+        refused_after: str | None = None,
+        series: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_temporal_design(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        units: list[str],
+        periods: list[int],
+        design: str,
+        *,
+        lag: int = 0,
+        quantile_level: float | None = None,
+        min_probability: float = 0.05,
+        misclassification: tuple[int, int, int, int] | None = None,
         seed: int = 1,
         threads: int | None = None,
         options: dict[str, Any] | None = None,
@@ -1671,11 +2464,85 @@ class PreparedAnalysis:
         columns: Sequence[Any],
         treatment: Any,
         outcome: Any,
-        modifier: Any,
+        modifiers: list[str],
         *,
         control_level: float = 0.0,
         active_level: float = 1.0,
         outcome_functional: dict[str, Any] | None = None,
+        posterior: GraphPosterior | None = None,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_graph_posterior_kind(
+        names: list[str],
+        columns: Sequence[Any],
+        kind: str,
+        *,
+        treatment: str | None = None,
+        outcome: str | None = None,
+        mediators: list[str] = ...,
+        contrast: str = "mediated",
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        path_nodes: list[str] | None = None,
+        max_paths: int = 64,
+        max_len: int = 16,
+        interventions: dict[str, float] | None = None,
+        conditioning: list[str] | None = None,
+        targets: list[str] = ...,
+        max_units: int = 0,
+        reference: tuple[float, float] | None = None,
+        baseline_start: int = 0,
+        baseline_end: int = 0,
+        comparison_start: int = 0,
+        comparison_end: int = 0,
+        posterior: GraphPosterior | None = None,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_graph_posterior_transport(
+        names: list[str],
+        columns: Sequence[Any],
+        selections: list[str],
+        source_population: str,
+        target_population: str,
+        source_experiments: list[str],
+        kind: str,
+        treatments: list[str],
+        outcomes: list[str],
+        trial: str,
+        selection_probability: str,
+        treatment_probability: str,
+        *,
+        grid: list[float] | None = None,
+        at: list[float] | None = None,
+        direction: list[float] | None = None,
+        order: int = 1,
+        scale: str = "identity",
+        weighting: str = "observed",
+        posterior: GraphPosterior | None = None,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_graph_posterior_derivative(
+        names: list[str],
+        columns: Sequence[Any],
+        kind: Any,
+        treatments: list[str],
+        outcomes: list[str],
+        *,
+        at: list[float] | None = None,
+        direction: list[float] | None = None,
+        order: int = 1,
+        scale: str = "identity",
+        weighting: str = "observed",
+        response_options: dict[str, Any] | None = None,
         posterior: GraphPosterior | None = None,
         seed: int = 1,
         threads: int | None = None,
@@ -1740,6 +2607,7 @@ class PreparedAnalysis:
         path_nodes: list[str] | None = None,
         max_paths: int = 64,
         max_len: int = 16,
+        graph: Any = None,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,
@@ -1775,6 +2643,10 @@ class PreparedAnalysis:
         contrast: str = "mediated",
         control_level: float = 0.0,
         active_level: float = 1.0,
+        extra_outcomes: list[str] = ...,
+        joint_active: list[tuple[str, float]] = ...,
+        joint_control: list[tuple[str, float]] = ...,
+        graph: Any = None,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,
@@ -1805,6 +2677,7 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int | None = None,
         options: dict[str, Any] | None = None,
+        as_average_effect: bool = False,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_temporal_mediation(
@@ -1845,6 +2718,7 @@ class PreparedAnalysis:
         policy: Any = ...,
         treatment_lag: Any = ...,
         max_history_lag: str | None = None,
+        feedback: tuple[int, float, float, float, float, str | None, float] | None = None,
         accepted: bool = False,
         class_graph: Any = None,
         class_prior_ordered: list[float] | None = None,
@@ -1914,29 +2788,8 @@ class PreparedAnalysis:
         *,
         seed: int = 1,
         threads: int | None = None,
+        cancel: Any = None,
     ) -> AteAnalysisResult: ...
-    def refresh(
-        self,
-        names: list[str],
-        columns: Sequence[Any],
-        *,
-        seed: int = 1,
-        threads: int | None = None,
-        cancel: CancellationToken | None = None,
-        on_progress: Callable[..., Any] | None = None,
-        on_stage: Callable[..., Any] | None = None,
-    ) -> AteAnalysisResult: ...
-    def refresh_response(
-        self,
-        names: list[str],
-        columns: Sequence[Any],
-        *,
-        seed: int = 1,
-        threads: int | None = None,
-        cancel: CancellationToken | None = None,
-        on_progress: Callable[..., Any] | None = None,
-        on_stage: Callable[..., Any] | None = None,
-    ) -> ResponseAnalysisResult: ...
     def refute(
         self,
         names: list[str],
@@ -1957,6 +2810,8 @@ class PreparedAnalysis:
         threads: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> AteAnalysisResult: ...
+    # Uses frozen scores or a successful compatible retained OLS/GLM fit.
+    # Adjusted-model covariance is conditional on the fixed target law; no DR label.
     def retarget(
         self,
         weights: list[float],
@@ -1964,7 +2819,29 @@ class PreparedAnalysis:
         *,
         seed: int = 1,
         threads: int | None = None,
+        cancel: Any = None,
     ) -> AteAnalysisResult: ...
+    def temporal_treatment_score(
+        self,
+        histories: list[list[float]],
+        *,
+        penalty: float | None = None,
+        intercept_sd: float = 1.0,
+        slope_sd: float = 1.0,
+        draws: int = 4000,
+        seed: int = 0,
+        threads: int | None = None,
+    ) -> _ArrayFit: ...
+    def treatment_score_posterior(
+        self,
+        *,
+        prior_sd: float = 2.0,
+        draws: int = 4000,
+        seed: int = 0,
+        clip: float = 0.05,
+        summary_rows: list[int] | None = None,
+        threads: int | None = None,
+    ) -> _ArrayFit: ...
     def snapshot(
         self,
     ) -> PreparedAnalysis: ...
@@ -1981,12 +2858,26 @@ class GcmIteResult:
     noise_inference: str
     n_assignments: int
     unit_effects: NDArray[np.float64]
+    @property
+    def route(self) -> CompiledRoute | None: ...
+    @property
+    def contract(self) -> dict[str, str]: ...
+    @property
+    def claim(self) -> dict[str, str]: ...
+    def inspect(self) -> dict[str, str]: ...
 
 class GcmSampleResult:
     column_means: list[float]
     n_draws: int
     n_nodes: int
     draws: NDArray[np.float64]
+    @property
+    def route(self) -> CompiledRoute | None: ...
+    @property
+    def contract(self) -> dict[str, str]: ...
+    @property
+    def claim(self) -> dict[str, str]: ...
+    def inspect(self) -> dict[str, str]: ...
 
 class Contribution:
     name: str
@@ -1996,6 +2887,13 @@ class ChangeAttributionResult:
     total_change: float
     contributions: list[tuple[str, float]]
     path_breakdown: list[tuple[list[str], float]]
+    @property
+    def route(self) -> CompiledRoute | None: ...
+    @property
+    def contract(self) -> dict[str, str]: ...
+    @property
+    def claim(self) -> dict[str, str]: ...
+    def inspect(self) -> dict[str, str]: ...
 
 class AnomalyScores:
     outcome: str
@@ -2047,9 +2945,92 @@ class DecisionEvaluation:
     posterior_regret: float
     chosen_action: int
 
+class _PreparedPolicyAnalysis:
+    def __init__(
+        self,
+        names: list[str],
+        columns: list[Any],
+        edges: list[tuple[str, str]],
+        policies: str,
+        outcome: str,
+        *,
+        candidates: list[str] | None = None,
+        constraints: dict[str, Any] | None = None,
+        splits: str = "shuffled",
+        purge: int = 0,
+    ) -> None: ...
+    def fork(self) -> _PreparedPolicyAnalysis: ...
+    def bind(self, names: list[str], columns: list[Any]) -> _PreparedPolicyAnalysis: ...
+    @property
+    def identity(self) -> str | None: ...
+    @property
+    def fit_materialized(self) -> bool: ...
+    def quote(self, draws: int) -> dict[str, int]: ...
+    def materialize(
+        self,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> tuple[FittedGcm, PreparedPolicy]: ...
+    def export_program(self) -> bytes: ...
+
+class ArrowStrength:
+    parent: str
+    child: str
+    strength: float
+    variance_contribution: float
+    coefficient: float
+
+class PopulationDoContrast:
+    contrast: float
+    stderr: float
+    parent: str
+    child: str
+    delta: float
+
+class OutcomeContrast:
+    outcome: str
+    mean_ite: float
+    unit_effects: NDArray[np.float64]
+
+class ContrastSet:
+    contrasts: list[OutcomeContrast]
+    noise_inference: str
+    def contrast(self, outcome: str) -> OutcomeContrast | None: ...
+
+class DoSample:
+    mean: float
+    method: str
+    notes: list[str]
+    accept_rate: float | None
+    bandwidth: float | None
+    ess: float | None
+    @property
+    def values(self) -> NDArray[np.float64]: ...
+    @property
+    def weights(self) -> NDArray[np.float64]: ...
+    def density(self, x: float) -> float: ...
+    def __len__(self) -> int: ...
+
+class ModelEvaluation:
+    in_sample_loglik: float
+    zero_probability_rows: int
+    mean_abs_residual: float
+    residual_independence_p: list[float]
+    local_markov_p: list[float]
+    permutation_loglik: float
+    falsified: bool
+    alpha: float
+    notes: list[str]
+
 class FittedGcm:
+    def optimize_adaptive_policy(
+        self, config_json: str, cancel: CancellationToken | None = None
+    ) -> str: ...
     names: list[str]
     n_assignments: int
+    @property
+    def last_route(self) -> CompiledRoute | None: ...
+    def structure_provenance(self) -> dict[str, str] | None: ...
     def mechanism_kinds(self) -> list[tuple[str, str]]: ...
     def mechanism_selection(self) -> list[dict[str, Any]]: ...
     def sample_do(
@@ -2095,12 +3076,74 @@ class FittedGcm:
         inner_draws: int = 40,
         replicates: int = 4,
         fit_bootstrap: int = 0,
+        posterior_draws: int = 0,
         level: float = 0.95,
         max_sources: int = 64,
         seed: int = 0,
         threads: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> str: ...
+    def arrow_strengths(self) -> list[ArrowStrength]: ...
+    def population_do_contrast(
+        self,
+        parent: str,
+        child: str,
+        delta: float,
+        *,
+        max_units: int | None = None,
+        seed: int = 0,
+        threads: int | None = None,
+    ) -> PopulationDoContrast: ...
+    def counterfactual_contrasts(
+        self,
+        outcomes: list[str],
+        active: dict[str, float],
+        control: dict[str, float],
+        *,
+        seed: int = 0,
+        threads: int | None = None,
+    ) -> ContrastSet: ...
+    def simultaneous_counterfactual(
+        self,
+        outcome: str,
+        outer: dict[str, float],
+        inner: dict[str, float],
+        *,
+        seed: int = 0,
+        threads: int | None = None,
+    ) -> float: ...
+    def interventional_mean(
+        self,
+        outcome: str,
+        interventions: dict[str, float],
+        n: int,
+        *,
+        seed: int = 0,
+        threads: int | None = None,
+    ) -> float: ...
+    def do_sample(
+        self,
+        method: str,
+        outcome: str,
+        interventions: dict[str, float],
+        n: int = 1000,
+        *,
+        bandwidth: float | None = None,
+        proposal_sd: float | None = None,
+        burn_in: int | None = None,
+        thin: int | None = None,
+        root_match_tolerance: float | None = None,
+        seed: int = 0,
+        threads: int | None = None,
+    ) -> DoSample: ...
+    def evaluate(
+        self,
+        *,
+        alpha: float = 0.05,
+        n_permutations: int = 20,
+        seed: int = 0,
+        threads: int | None = None,
+    ) -> ModelEvaluation: ...
     def counterfactual_ite(
         self,
         treatment: str,
@@ -2221,6 +3264,17 @@ def fit_gcm(
     splits: str = "shuffled",
     purge: int = 0,
 ) -> FittedGcm: ...
+def fit_gcm_accepted(
+    names: list[str],
+    columns: Sequence[Any],
+    discovery: PcmciDiscoveryResult,
+    *,
+    threads: int | None = None,
+    candidates: list[str] | None = None,
+    constraints: dict[str, dict[str, Any]] | None = None,
+    splits: str = "shuffled",
+    purge: int = 0,
+) -> tuple[FittedGcm, list[tuple[str, str]]]: ...
 
 class BatchCallbackHandle:
     def __init__(
@@ -2302,6 +3356,7 @@ def attribute_intrinsic_influence(
     inner_draws: int = 40,
     replicates: int = 4,
     fit_bootstrap: int = 0,
+    posterior_draws: int = 0,
     level: float = 0.95,
     max_sources: int = 64,
     seed: int = 0,
@@ -2376,7 +3431,12 @@ def decode_policy_program(names: list[str], data: bytes) -> str: ...
 def policy_program_identity(names: list[str], policies: str) -> str: ...
 def load_float64_columns(
     names: list[str],
+    columns: Sequence[NDArray[Any]],
+) -> ArrowLoadInfo: ...
+def load_float64_panel_columns(
+    names: list[str],
     columns: Sequence[NDArray[np.float64]],
+    unit_lengths: list[int],
 ) -> ArrowLoadInfo: ...
 def load_float64_arrow_c_columns(
     names: list[str],
@@ -2407,6 +3467,11 @@ def analyze_ate_many(
 ) -> list[AteAnalysisResult]: ...
 
 class PreparedBatch:
+    def data_diagnostics_json(self) -> list[str | None]: ...
+    def data_diagnostics_summary(self) -> list[tuple[int, int, int] | None]: ...
+    def diagnose_data_json(
+        self, policy_json: str, *, seed: int = 1, threads: int | None = None
+    ) -> list[str]: ...
     def diagnose_json(self, *, seed: int = 1, threads: int | None = None) -> str: ...
     def diagnose_fit_json(self, *, seed: int = 1, threads: int | None = None) -> str: ...
     def plan_rank_drop_json(
@@ -2416,23 +3481,47 @@ class PreparedBatch:
         seed: int = 1,
         threads: int | None = None,
     ) -> str: ...
-    def estimate_cost_json(self) -> str: ...
+    def estimate_cost_json(
+        self, cost_model: tuple[str, str, int, list[tuple[str, float, float]]] | None = None
+    ) -> str: ...
     def n_plans(self) -> int: ...
     def shares_covariates(self) -> bool: ...
     def shared_n_folds(self) -> int | None: ...
     def shared_fold_ids(self) -> list[int] | None: ...
     def shared_adjustment_set(self) -> list[int] | None: ...
-    def estimate(
+    def materialized_plan_count(self) -> int: ...
+    def retained_score_table_count(self) -> int: ...
+    def execute(
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        on_stage: list[Callable[[str, dict[str, Any]], None]] | None = None,
+    ) -> CompletedBatch: ...
+    def rebind(
         self,
         names: list[str],
         columns: Sequence[Any],
         *,
         seed: int = 1,
         threads: int | None = None,
-    ) -> list[AteAnalysisResult]: ...
+    ) -> PreparedBatch: ...
+    def reconfigure_execution(
+        self, *, seed: int = 1, threads: int | None = None
+    ) -> PreparedBatch: ...
+
+class CompletedBatch:
+    def bound_table(self) -> _TableSnapshot: ...
+    def preparation(self) -> PreparedBatch: ...
+    def members(self) -> list[tuple[AteAnalysisResult, PreparedAnalysis]]: ...
     def retarget_rows(self) -> list[int] | None: ...
     def retarget_scores_source(self) -> str: ...
     def retarget_snapshot(self) -> str | None: ...
+    def retarget_cost(
+        self,
+        claims: list[tuple[str, int, list[float], list[str]]],
+        contrasts: list[tuple[str, list[tuple[str, float]]]],
+    ) -> dict[str, Any]: ...
     def retarget_family(
         self,
         claims: list[tuple[str, int, list[float], list[str]]],
@@ -2466,12 +3555,24 @@ def prepare_ate_batch(
     estimate_rows: list[int] | None = None,
     tiers: list[list[str]] | None = None,
     within_tier: str | None = None,
+    data_diagnostics: str | None = None,
 ) -> PreparedBatch: ...
 def prepare_cells_batch(
     names: list[str],
     columns: Sequence[Any],
     edges: list[tuple[str, str]],
-    queries: list[tuple[str, list[str], list[str], list[list[float]], dict[str, object] | None]],
+    queries: list[
+        tuple[
+            str,
+            list[str],
+            list[str],
+            list[list[float]],
+            dict[str, object] | None,
+            dict[str, object] | None,
+            dict[str, object] | None,
+            list[dict[str, object]],
+        ]
+    ],
     *,
     identifier: str | None = None,
     estimator: str | None = None,
@@ -2488,6 +3589,8 @@ def prepare_cells_batch(
     tiers: list[list[str]] | None = None,
     within_tier: str | None = None,
     family_contrast: str | None = "cell_minus_control",
+    family_posterior_draws: int | None = None,
+    data_diagnostics: str | None = None,
 ) -> PreparedBatch: ...
 def identify_transport(
     graph: Admg,
@@ -2521,7 +3624,23 @@ def estimate_trial_transport(
     *,
     mu0: NDArray[np.float64] | None = None,
     mu1: NDArray[np.float64] | None = None,
+    seed: int = 0,
+    cancel: CancellationToken | None = None,
 ) -> TrialTransportResult: ...
+def estimate_trial_weighted_target(
+    identification: TransportIdentificationResult,
+    outcome: NDArray[np.float64],
+    treatment: list[bool],
+    trial: list[bool],
+    selection_probability: NDArray[np.float64],
+    treatment_probability: NDArray[np.float64],
+    covariate_names: list[str],
+    covariates: Sequence[NDArray[np.float64]],
+    target: dict[str, Any],
+    *,
+    mu0: NDArray[np.float64] | None = None,
+    mu1: NDArray[np.float64] | None = None,
+) -> dict[str, Any]: ...
 def estimate_network_interference(
     outcome: NDArray[np.float64],
     assignment: list[bool],
@@ -2537,6 +3656,8 @@ def estimate_network_interference(
     *,
     probability_draws: int = 10_000,
     seed: int = 1,
+    work_limit: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> InterferenceAnalysisResult: ...
 def observation_adjusted_outcome(
     names: list[str],
@@ -2557,7 +3678,7 @@ def observation_adjusted_outcome(
     structural_model: str | None = None,
     delayed_entry: str | None = None,
     correction: str = "aipw",
-    observation_probability_floor: float = 0.01,
+    observation_probability_floor: float | None = None,
     censoring_survival_floor: float = 0.01,
     crossfit_folds: int = 5,
 ) -> ObservationAdjustedOutcomeResult: ...
@@ -2582,7 +3703,7 @@ def prepare_observation_response(
     structural_model: str | None = None,
     delayed_entry: str | None = None,
     correction: str = "aipw",
-    observation_probability_floor: float = 0.01,
+    observation_probability_floor: float | None = None,
     censoring_survival_floor: float = 0.01,
     crossfit_folds: int = 5,
     accepted: bool = False,
@@ -2590,10 +3711,6 @@ def prepare_observation_response(
     threads: int | None = None,
     options: dict[str, Any] | None = None,
 ) -> PreparedAnalysis: ...
-def binary_iv_ate_bounds(cells: list[list[float]]) -> tuple[float, float]:
-    """Sharp Balke–Pearl bounds on E[Y(1)-Y(0)] from a 2×4 observed binary-IV law."""
-    ...
-
 def gaussian_observation_log_likelihood(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -2614,22 +3731,20 @@ def gaussian_observation_log_likelihood(
     assumption_variables: list[str] = ...,
     structural_model: str | None = None,
 ) -> float: ...
-def identify_ate(
+def _identify_tiered_structure(
     names: list[str],
-    edges: list[tuple[str, str]],
-    treatment: str,
-    outcome: str,
-    *,
-    identifier: str | None = None,
-) -> tuple[str, str, list[str]]: ...
-def identify_structure(
-    graph: Dag | Cpdag | Pag | TemporalDag | TemporalCpdag | TemporalPag,
+    tiers: list[list[str]],
+    within_tier: str,
+    query: dict[str, Any],
+) -> str: ...
+def _identify_structure(
+    graph: Dag | Admg | Cpdag | Pag | TemporalDag | TemporalCpdag | TemporalPag,
     query_kind: str,
     treatment: str,
     outcome: str,
     *,
     identifier: str | None = None,
-    modifier: str | None = None,
+    modifiers: list[str] | None = None,
     policy: str | None = None,
     treatment_lag: int = 1,
     horizon_steps: int = 1,
@@ -2637,19 +3752,12 @@ def identify_structure(
     window: tuple[int, int] | None = None,
     treatments: list[str] | None = None,
     include_details: bool = False,
+    estimand_method: bool = False,
     horizons: list[int] | None = None,
     max_history_lag: int | None = None,
     response_grid: list[float] | None = None,
     response_steps: list[tuple[str, str, list[float]]] | None = None,
 ) -> tuple[str, str, list[str]] | str: ...
-def identify_ate_admg(
-    names: list[str],
-    graph: Admg,
-    treatment: str,
-    outcome: str,
-    *,
-    identifier: str | None = None,
-) -> tuple[str, str, list[str]]: ...
 def discover_pcmci(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -2810,7 +3918,68 @@ def discover_rpcmci(
     max_cond_size: int = 2,
 ) -> RpcmciDiscoverySummary: ...
 def two_regime_half_split(series_len: int) -> list[int]: ...
+def discover_pooled_posterior(
+    algorithm: str,
+    names: list[str],
+    tables: Sequence[Sequence[NDArray[np.float64]]],
+    settings: Mapping[str, Any],
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    unit_lengths: list[int] | None = None,
+    edge_priors: list[list[Any]] | None = None,
+    edge_prior_default: float | None = None,
+    soft_tiers: list[list[str]] | None = None,
+    soft_tier_penalty: float | None = None,
+) -> GraphPosterior: ...
+def discover_pooled_exact_dag_posterior(
+    names: list[str],
+    tables: Sequence[Sequence[NDArray[np.float64]]],
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    edge_priors: list[list[Any]] | None = None,
+    edge_prior_default: float | None = None,
+    soft_tiers: list[list[str]] | None = None,
+    soft_tier_penalty: float | None = None,
+) -> GraphPosterior: ...
+def discover_pooled_exact_dag_marginals(
+    names: list[str],
+    tables: Sequence[Sequence[NDArray[np.float64]]],
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    edge_priors: list[list[Any]] | None = None,
+    edge_prior_default: float | None = None,
+    soft_tiers: list[list[str]] | None = None,
+    soft_tier_penalty: float | None = None,
+) -> tuple[list[float], float]: ...
 def discover_exact_dag_posterior(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    *,
+    score: str = "gaussian_bic",
+    max_parents: int | None = None,
+    seed: int = 1,
+    threads: int | None = None,
+    equivalence_classes: bool = False,
+    edge_priors: list[list[object]] | None = None,
+    edge_prior_default: float | None = None,
+    soft_tiers: list[list[str]] | None = None,
+    soft_tier_penalty: float | None = None,
+) -> GraphPosterior: ...
+def discover_pag_mcmc(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    *,
+    n_chains: int = 4,
+    n_warmup: int = 500,
+    n_draws: int = 2000,
+    thin: int = 1,
+    seed: int = 1,
+    threads: int | None = None,
+) -> GraphPosterior: ...
+def discover_exact_pag_posterior(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
     *,
@@ -2821,10 +3990,76 @@ def discover_exact_dag_marginals(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
     *,
+    score: str = "gaussian_bic",
     max_parents: int | None = None,
     seed: int = 1,
     threads: int | None = None,
+    edge_priors: list[list[object]] | None = None,
+    edge_prior_default: float | None = None,
+    soft_tiers: list[list[str]] | None = None,
+    soft_tier_penalty: float | None = None,
 ) -> tuple[list[float], float]: ...
+def discover_bootstrap_stability(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    *,
+    base: str = "pc",
+    replicates: int = 200,
+    alpha: float = 0.05,
+    fdr: bool = True,
+    seed: int = 1,
+    ci: str | None = None,
+    max_cond_size: int = 2,
+    max_lag: int = 1,
+    screen_pc: bool = False,
+    max_subset: int | None = None,
+    prune_threshold: float = 0.05,
+    l1: float = 0.1,
+    threshold: float = 0.3,
+    standardize: bool = True,
+    missing: str | None = None,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    unit_lengths: list[int] | None = None,
+    background_knowledge: str | None = None,
+) -> StructureStabilityResult: ...
+
+class RegimeStabilityResult:
+    regimes: list[int]
+    tables: list[StructureStabilityResult]
+    def table(self, regime: int) -> StructureStabilityResult: ...
+
+def discover_jpcmci_plus_stability(
+    names: list[str],
+    env_columns: Sequence[Sequence[NDArray[np.float64]]],
+    *,
+    replicates: int = 200,
+    max_lag: int = 1,
+    alpha: float = 0.05,
+    fdr: bool = True,
+    seed: int = 1,
+    ci: str | None = None,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    context_names: list[str] | None = None,
+    max_cond_size: int = 2,
+) -> StructureStabilityResult: ...
+def discover_rpcmci_stability(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    *,
+    regimes: list[int],
+    replicates: int = 200,
+    max_lag: int = 1,
+    alpha: float = 0.05,
+    fdr: bool = True,
+    seed: int = 1,
+    ci: str | None = None,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    max_cond_size: int = 2,
+    min_regime_len: int | None = None,
+) -> RegimeStabilityResult: ...
 def discover_order_mcmc(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -2837,6 +4072,12 @@ def discover_order_mcmc(
     max_parents: int | None = None,
     seed: int = 1,
     threads: int | None = None,
+    equivalence_classes: bool = False,
+    noise: str = "gaussian",
+    edge_priors: list[list[object]] | None = None,
+    edge_prior_default: float | None = None,
+    soft_tiers: list[list[str]] | None = None,
+    soft_tier_penalty: float | None = None,
 ) -> GraphPosterior: ...
 def discover_structure_mcmc(
     names: list[str],
@@ -2849,6 +4090,11 @@ def discover_structure_mcmc(
     max_parents: int | None = None,
     seed: int = 1,
     threads: int | None = None,
+    equivalence_classes: bool = False,
+    edge_priors: list[list[object]] | None = None,
+    edge_prior_default: float | None = None,
+    soft_tiers: list[list[str]] | None = None,
+    soft_tier_penalty: float | None = None,
 ) -> GraphPosterior: ...
 def discover_ci_screened_posterior(
     names: list[str],
@@ -2865,7 +4111,31 @@ def discover_ci_screened_posterior(
     thin: int = 1,
     seed: int = 1,
     threads: int | None = None,
+    equivalence_classes: bool = False,
+    edge_priors: list[list[object]] | None = None,
+    edge_prior_default: float | None = None,
+    soft_tiers: list[list[str]] | None = None,
+    soft_tier_penalty: float | None = None,
 ) -> GraphPosterior: ...
+def discover_screened_exact_marginals(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    focus: list[str],
+    *,
+    max_variables: int = 12,
+    in_probability: float = 0.5,
+    out_probability: float = 0.02,
+    alpha: float = 0.05,
+    fdr: bool = True,
+    ci: str | None = None,
+    max_cond_size: int = 2,
+    seed: int = 1,
+    threads: int | None = None,
+    edge_priors: list[list[object]] | None = None,
+    edge_prior_default: float | None = None,
+    soft_tiers: list[list[str]] | None = None,
+    soft_tier_penalty: float | None = None,
+) -> tuple[list[str], list[float], float, str]: ...
 def discover_dbn_posterior(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -2879,6 +4149,11 @@ def discover_dbn_posterior(
     seed: int = 1,
     threads: int | None = None,
     unit_lengths: list[int] | None = None,
+    equivalence_classes: bool = False,
+    edge_priors: list[list[object]] | None = None,
+    edge_prior_default: float | None = None,
+    soft_tiers: list[list[str]] | None = None,
+    soft_tier_penalty: float | None = None,
 ) -> GraphPosterior: ...
 def mediation_effects_summary(
     names: list[str],
@@ -2962,6 +4237,41 @@ def attribute_paths(
     seed: int = 0,
     threads: int | None = None,
 ) -> ChangeAttributionResult: ...
+def temporal_model_query(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    lagged_edges: list[tuple[str, int, str, int]],
+    kind: str,
+    params_json: str,
+    *,
+    posterior_draws: int = 0,
+    bootstrap_replicates: int = 0,
+    seed: int = 0,
+    threads: int | None = None,
+) -> str: ...
+def compose_horizon_draws(
+    horizons: list[int],
+    columns: Sequence[NDArray[np.float64]],
+    evidence_id: str,
+    alignment_id: str,
+    operation: str,
+    *,
+    coefficients: list[float] | None = None,
+    map: Any = None,
+    seed: int = 0,
+) -> str: ...
+def attribution_uncertainty(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    edges: list[tuple[str, str]],
+    kind: str,
+    params_json: str,
+    *,
+    posterior_draws: int = 0,
+    bootstrap_replicates: int = 0,
+    seed: int = 0,
+    threads: int | None = None,
+) -> str: ...
 def attribute_distribution_change(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -3054,7 +4364,7 @@ def rank_root_causes(
 ) -> list[Contribution]: ...
 def rank_designs(
     graph_weights: list[float],
-    identified: list[int],
+    identified: bytes,
     graph_keys: list[int],
     candidates: list[dict[str, Any]],
     objective: str | dict[str, Any] | None = None,
@@ -3077,7 +4387,65 @@ def rank_designs(
     rank_uncertainty_threshold: float = 0.05,
     seed: int = 0,
     threads: int | None = None,
+    prepared: PreparedAnalysis | None = None,
+    decision_target: str | None = None,
 ) -> DesignRanking: ...
+def preview_design_rank(
+    prepared: PreparedAnalysis,
+    graph_weights: list[float],
+    identified: bytes,
+    graph_keys: list[int],
+    candidates: list[dict[str, Any]],
+    objective: str | dict[str, Any] | None = None,
+    *,
+    query_id: int | None = None,
+    model_ids: list[int] | None = None,
+    decision_id: int | None = None,
+    query_id_unlock: list[tuple[int, list[int]]] | None = None,
+    env_id_unlock: list[tuple[int, list[int]]] | None = None,
+    identified_under_intervention: list[int] | None = None,
+    graph_features: list[int] | None = None,
+    effect_width: dict[str, Any] | None = None,
+    model_loglik: dict[str, Any] | None = None,
+    decision: dict[str, Any] | None = None,
+    decision_target: str | None = None,
+) -> str: ...
+def rank_studies_bound(
+    stage: FailureStage,
+    prepared: PreparedAnalysis,
+    candidates_json: str,
+    repair_objective: str,
+    max_operations: int,
+    max_depth: int,
+    graph_weights: list[float],
+    identified: bytes,
+    graph_keys: list[int],
+    *,
+    route: str | None = None,
+    query_id: int = 0,
+    identified_under_intervention: list[int] | None = None,
+    graph_features: list[int] | None = None,
+    max_cost: float | None = None,
+    max_sample_budget: int | None = None,
+    min_batches: int = 2,
+    max_batches: int = 64,
+    batch_size: int = 8,
+    rank_uncertainty_threshold: float = 0.05,
+    seed: int = 0,
+    threads: int | None = None,
+    memory_bytes: int | None = None,
+    decision_target: str | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[DesignRanking, str]: ...
+def support_cells() -> list[str]: ...
+def support_cell_report(coordinate: str) -> str: ...
+def build_cost_model(
+    benchmark: str,
+    platform: str,
+    cpu_count: int,
+    coefficients: list[tuple[str, float, float]],
+) -> tuple[str, str, int, list[tuple[str, float, float]]]: ...
+def parse_cost_model(text: str) -> tuple[str, str, int, list[tuple[str, float, float]]]: ...
 def evaluate_decision_py(
     actions: list[float],
     outcomes: list[float],
@@ -3163,24 +4531,6 @@ def uplift_by_score(
     propensity: NDArray[np.float64],
     bin_count: int,
 ) -> list[tuple[int, float, float, int]]: ...
-
-class FactorialNativeResult:
-    cell_means: list[float]
-    cell_support: list[int]
-    factor_a_effect: float
-    factor_b_effect: float
-    interaction_effect: float
-    factor_a_variance_bound: float
-    factor_b_variance_bound: float
-    interaction_variance_bound: float
-
-def estimate_factorial_2x2(
-    outcome: NDArray[np.float64],
-    factor_a: list[bool],
-    factor_b: list[bool],
-    probability_a: NDArray[np.float64],
-    probability_b: NDArray[np.float64],
-) -> FactorialNativeResult: ...
 def difference_in_differences(
     outcome: NDArray[np.float64], treated: list[bool], post: list[bool]
 ) -> float: ...
@@ -3267,14 +4617,41 @@ def decode_posterior_artifact(bytes: list[int] | bytes) -> PosteriorArtifact: ..
 def encode_posterior_artifact(artifact: PosteriorArtifact) -> bytes: ...
 
 class Dag:
+    """A directed acyclic graph over named variables: the causal structure of a static study.
+
+    An edge ``(a, b)`` declares that ``a`` is a direct cause of ``b``; a missing edge declares
+    that there is none. Every common cause of two modelled variables must be in the graph;
+    when one is unmeasured, use :class:`Admg` instead (``latent_project`` builds one). Pass it as
+    ``graph=`` to :func:`antecedent.prepare` or :func:`antecedent.analyze`; a plain list of
+    ``(cause, effect)`` pairs is accepted there too.
+
+    ``len(dag)`` is the node count, ``name in dag`` tests node membership, and iteration yields
+    node names in stable order. Interchange: DOT, JSON, GML and NetworkX node-link and adjacency
+    formats (``from_*`` / ``to_*``).
+
+    Example::
+
+        dag = antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
+        dag.d_separated("t", "y", ["z"])        # False: t -> y remains open
+    """
+
     @classmethod
-    def from_edges(cls, names: list[str], edges: list[tuple[str, str]]) -> Dag: ...
+    def from_edges(cls, names: list[str], edges: list[tuple[str, str]]) -> Dag:
+        """Build a DAG from unique, nonempty node ``names`` and directed ``(cause, effect)`` edges.
+
+        Raises ``CausalGraphError`` for an edge naming an unknown node, and an error for an edge
+        that would create a cycle or a repeated or empty name.
+        """
     @classmethod
     def from_dot(cls, dot: str) -> Dag: ...
-    def nodes(self) -> list[str]: ...
-    def edges(self) -> list[tuple[str, str]]: ...
-    def parents(self, name: str) -> list[str]: ...
-    def children(self, name: str) -> list[str]: ...
+    def nodes(self) -> list[str]:
+        """Node names, in the order given at construction."""
+    def edges(self) -> list[tuple[str, str]]:
+        """Directed edges as ``(cause, effect)`` pairs."""
+    def parents(self, name: str) -> list[str]:
+        """Direct causes of ``name``."""
+    def children(self, name: str) -> list[str]:
+        """Direct effects of ``name``."""
     def node_count(self) -> int: ...
     def to_dot(self) -> str: ...
     @classmethod
@@ -3289,10 +4666,20 @@ class Dag:
     @classmethod
     def from_networkx_adjacency(cls, json: str) -> Dag: ...
     def to_networkx_adjacency(self) -> str: ...
-    def d_separated(self, x: str, y: str, z: list[str] | None = None) -> bool: ...
-    def latent_project(self, observed: list[str]) -> Admg: ...
+    def d_separated(self, x: str, y: str, z: list[str] | None = None) -> bool:
+        """Whether ``x`` and ``y`` are d-separated given the set ``z`` (default empty)."""
+    def latent_project(self, observed: list[str]) -> Admg:
+        """Project out every variable not in ``observed``; returns the latent projection as an :class:`Admg`."""
 
 class Cpdag:
+    """A completed partially directed acyclic graph: a Markov equivalence class of DAGs.
+
+    Directed edges are shared by every DAG in the class; an undirected edge ``a - b`` is
+    oriented differently by different members. Typically the output of a constraint-based
+    discovery run. Identification on a CPDAG either holds for every member or reports the
+    dependence on the unresolved orientations.
+    """
+
     @classmethod
     def from_directed_undirected(
         cls,
@@ -3307,11 +4694,16 @@ class Cpdag:
         edges: list[tuple[str, str, str]],
     ) -> Cpdag: ...
     def nodes(self) -> list[str]: ...
-    def edges(self) -> list[tuple[str, str, str]]: ...
+    def edges(self) -> list[tuple[str, str, str]]:
+        """Edges as ``(a, b, kind)`` with ``kind`` one of ``"directed"``, ``"undirected"``, ``"conflict"`` or ``"other"``."""
     def parents(self, name: str) -> list[str]: ...
     def children(self, name: str) -> list[str]: ...
-    def undirected_neighbors(self, name: str) -> list[str]: ...
-    def try_into_dag(self) -> Dag: ...
+    def undirected_neighbors(self, name: str) -> list[str]:
+        """Nodes joined to ``name`` by an undirected edge."""
+    def try_into_dag(self) -> Dag:
+        """Return the DAG when every edge is directed; raises otherwise."""
+    def is_mec_member(self, dag: Dag) -> bool:
+        """Whether ``dag`` belongs to the equivalence class this CPDAG represents."""
     def node_count(self) -> int: ...
     @classmethod
     def from_dot(cls, dot: str) -> Cpdag: ...
@@ -3327,6 +4719,13 @@ class Cpdag:
     def to_networkx_node_link(self) -> str: ...
 
 class Pag:
+    """A partial ancestral graph: an equivalence class of MAGs, allowing latent confounding.
+
+    Each edge end carries a mark: ``"tail"``, ``"arrow"``, ``"circle"`` (undetermined) or
+    ``"conflict"``. Typically the output of FCI-family discovery. Build one with
+    ``from_marked_edges(names, [(a, b, mark_at_a, mark_at_b), ...])``.
+    """
+
     @classmethod
     def from_marked_edges(
         cls,
@@ -3334,8 +4733,10 @@ class Pag:
         edges: list[tuple[str, str, str, str]],
     ) -> Pag: ...
     def nodes(self) -> list[str]: ...
-    def neighbors(self, name: str) -> list[tuple[str, str, str]]: ...
-    def directed_children(self, name: str) -> list[str]: ...
+    def neighbors(self, name: str) -> list[tuple[str, str, str]]:
+        """Adjacent nodes of ``name`` with the edge marks, as ``(neighbor, mark_at_name, mark_at_neighbor)``."""
+    def directed_children(self, name: str) -> list[str]:
+        """Nodes ``c`` with a fully directed edge ``name -> c``."""
     def node_count(self) -> int: ...
     @classmethod
     def from_dot(cls, dot: str) -> Pag: ...
@@ -3368,7 +4769,18 @@ class Pag:
         max_len: int = 6,
     ) -> Literal["separated", "connected", "undetermined"]: ...
 
+def pag_completions(pag: Pag, max_completions: int = 64) -> tuple[list[Pag], str]: ...
+
 class Admg:
+    """An acyclic directed mixed graph: directed causal edges plus bidirected latent confounding.
+
+    A bidirected edge ``a <-> b`` declares an unmeasured common cause of ``a`` and ``b``. Use it
+    instead of a :class:`Dag` whenever a confounder is not observed; identification then uses
+    strategies valid under latent confounding (for example front-door or general
+    identification). Build one with ``from_edges(names, directed, bidirected)`` or with
+    ``Dag.latent_project(observed)``.
+    """
+
     @classmethod
     def from_edges(
         cls,
@@ -3379,7 +4791,8 @@ class Admg:
     def nodes(self) -> list[str]: ...
     def parents(self, name: str) -> list[str]: ...
     def children(self, name: str) -> list[str]: ...
-    def bidirected_neighbors(self, name: str) -> list[str]: ...
+    def bidirected_neighbors(self, name: str) -> list[str]:
+        """Nodes joined to ``name`` by a bidirected (latent-confounding) edge."""
     def node_count(self) -> int: ...
     @classmethod
     def from_dot(cls, dot: str) -> Admg: ...
@@ -3393,7 +4806,8 @@ class Admg:
     @classmethod
     def from_networkx_node_link(cls, json: str) -> Admg: ...
     def to_networkx_node_link(self) -> str: ...
-    def m_separated(self, x: str, y: str, z: list[str] | None = None) -> bool: ...
+    def m_separated(self, x: str, y: str, z: list[str] | None = None) -> bool:
+        """Whether ``x`` and ``y`` are m-separated given the set ``z`` (default empty)."""
 
 class TemporalAdmg:
     @classmethod
@@ -3404,16 +4818,36 @@ class TemporalAdmg:
         bidirected: list[tuple[str, int, str, int]] | None = None,
     ) -> TemporalAdmg: ...
     def node_count(self) -> int: ...
+    def variable_names(self) -> list[str]: ...
+    def edges(
+        self,
+    ) -> tuple[list[tuple[str, int, str, int]], list[tuple[str, int, str, int]]]: ...
 
 class TemporalDag:
+    """A directed acyclic graph over lagged variables: the causal structure of a time series.
+
+    A node is a variable at a lag, ``(name, lag)`` with ``lag = 0`` the current step and
+    ``lag = k`` the step ``t - k``. Pass it as ``graph=`` with a temporal query such as
+    :class:`~antecedent.PulseEffect`.
+
+    Example::
+
+        g = antecedent.TemporalDag.from_lagged_edges(
+            ["x", "y"], [("x", 1, "y", 0), ("y", 1, "y", 0)]
+        )                                       # x[t-1] -> y[t], y[t-1] -> y[t]
+    """
+
     @classmethod
     def from_lagged_edges(
         cls,
         names: list[str],
         edges: list[tuple[str, int, str, int]],
-    ) -> TemporalDag: ...
-    def nodes(self) -> list[tuple[str, int]]: ...
-    def edges(self) -> list[tuple[str, int, str, int]]: ...
+    ) -> TemporalDag:
+        """Build from variable ``names`` and edges ``(source, source_lag, target, target_lag)``."""
+    def nodes(self) -> list[tuple[str, int]]:
+        """Lagged nodes as ``(name, lag)`` pairs."""
+    def edges(self) -> list[tuple[str, int, str, int]]:
+        """Directed edges as ``(source, source_lag, target, target_lag)``."""
     def node_count(self) -> int: ...
 
 class TemporalCpdag:
@@ -3477,6 +4911,15 @@ class CausalState:
     ) -> tuple[int, int]: ...
     def record_intervention(self, intervention_id: str, fingerprint: int) -> int: ...
     def refresh_results(self, entries: list[tuple[int, int, int]]) -> None: ...
+    def refresh_results_at(
+        self, expected_version: int, entries: list[tuple[int, int, int]]
+    ) -> None: ...
+    def publish_recomputed(
+        self, expected_version: int, updates: list[tuple[int, dict[str, str | None], int]]
+    ) -> None: ...
+    def claim_invalidation_effects(
+        self, since: int, bindings: list[tuple[str, str, str | None]]
+    ) -> str: ...
     def ols_ensure(self, key: str, ncols: int) -> None: ...
     def ols_append_row(self, key: str, row: list[float], y: float) -> None: ...
     def ols_get(self, key: str) -> dict[str, Any]: ...
@@ -3625,6 +5068,16 @@ def prior_catalog_rank(
 ) -> list[dict[str, Any]]: ...
 def encode_prior_source_meta(meta: dict[str, Any]) -> bytes: ...
 def decode_prior_source_meta(bytes: bytes | list[int]) -> dict[str, Any]: ...
+def mapped_posterior_transfer(
+    artifact: bytes,
+    expected_source_json: str,
+    source_to_target: list[tuple[str, str]],
+    target_quantities_json: str,
+    target_snapshot_id: str,
+    target_contract_id: str,
+    baseline_variance: float,
+    known_residual_variance: float,
+) -> dict[str, Any]: ...
 def compose_external_priors(
     sources: list[dict[str, Any]],
     baseline_mean: list[float],
@@ -3639,6 +5092,35 @@ def compose_external_priors(
     transport_weights: list[float] | None = None,
     coef_index: int | None = None,
 ) -> dict[str, Any]: ...
+def compose_external_priors_for_target(
+    sources: list[dict[str, Any]],
+    baseline_mean: list[float],
+    baseline_variance: list[float],
+    *,
+    transport: str,
+    unit_effects: list[float],
+    target_weights: list[float] | None = None,
+    kernel_family: str | None = None,
+    bandwidth: float | None = None,
+    unit_distances: list[float] | None = None,
+    min_ess_fraction: float | None = None,
+    coef_index: int | None = None,
+    conflict: dict[str, Any] | None = None,
+    conflict_signals: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]: ...
+def transport_kernel_weights(
+    kernel_family: str,
+    bandwidth: float,
+    unit_distances: list[float],
+) -> list[float]: ...
+def transport_bandwidth_sensitivity(
+    kernel_family: str,
+    bandwidths: list[float],
+    unit_distances: list[float],
+    unit_effects: list[float],
+    *,
+    min_ess_fraction: float | None = None,
+) -> list[dict[str, Any]]: ...
 def conflict_shrink_alpha(
     alpha: float,
     *,
@@ -3663,6 +5145,78 @@ def gamma_from_mean_and_ess(
     mean: float,
     ess: float,
 ) -> tuple[float, float]: ...
+def beta_binomial_posterior(
+    successes: int,
+    trials: int,
+    alpha: float,
+    beta: float,
+    *,
+    level: float = 0.95,
+    predictive_trials: int | None = None,
+) -> dict[str, Any]: ...
+def exceedance_posterior(
+    outcomes: list[float],
+    threshold: float,
+    alpha: float,
+    beta: float,
+    *,
+    level: float = 0.95,
+    predictive_trials: int | None = None,
+) -> dict[str, Any]: ...
+def gamma_poisson_posterior(
+    counts: list[int],
+    shape: float,
+    rate: float,
+    *,
+    exposures: list[float] | None = None,
+    level: float = 0.95,
+    predictive_exposure: float | None = None,
+    predictive_max: int | None = None,
+) -> dict[str, Any]: ...
+def select_beta_power_prior_alpha(
+    source_successes: int,
+    source_trials: int,
+    outcomes: list[bool],
+    base_alpha: float,
+    base_beta: float,
+    *,
+    criterion: str = "empirical_bayes",
+    folds: int = 5,
+    grid: list[float] | None = None,
+    level: float = 0.95,
+    discrepancy_bound: float | None = None,
+    seed: int = 0,
+) -> dict[str, Any]: ...
+def select_gamma_power_prior_alpha(
+    source_total_count: int,
+    source_exposure: float,
+    counts: list[int],
+    base_shape: float,
+    base_rate: float,
+    *,
+    criterion: str = "empirical_bayes",
+    folds: int = 5,
+    grid: list[float] | None = None,
+    level: float = 0.95,
+    discrepancy_bound: float | None = None,
+    seed: int = 0,
+) -> dict[str, Any]: ...
+def select_linear_power_prior_alpha(
+    sources: list[dict[str, Any]],
+    baseline_mean: list[float],
+    baseline_variance: list[float],
+    x: list[list[float]],
+    y: list[float],
+    functional: list[float],
+    *,
+    known_residual_variance: float | None = None,
+    criterion: str = "empirical_bayes",
+    folds: int = 5,
+    grid: list[float] | None = None,
+    level: float = 0.95,
+    discrepancy_bound: float | None = None,
+    seed: int = 0,
+) -> dict[str, Any]: ...
 
 class ExternalClaimArtifact:
     source_evidence: SourceEvidenceHandle
@@ -3768,7 +5322,8 @@ def encode_causal_artifact(
     contract_json: str | None = None,
 ) -> bytes: ...
 def decode_causal_artifact(bytes: bytes) -> DecodedCausalArtifact: ...
-def accept_analysis_result_contract(bytes: bytes) -> dict[str, str]: ...
+def accept_analysis_result_contract(bytes: bytes, replay: bool = False) -> dict[str, str]: ...
+def analysis_result_method_provenance_json(bytes: bytes) -> str | None: ...
 def encode_external_estimate_claim(
     *,
     learner: str,
@@ -3790,6 +5345,9 @@ def encode_external_estimate_claim(
 ) -> bytes: ...
 def omitted_defaults() -> dict[str, Any]:
     """Budgets the builder applies when a caller omits them (bootstrap, refute, n_draws, ...)."""
+
+def build_flavor() -> str:
+    """`"release"` or `"development"` (a development build runs `not_supported` routes)."""
 
 def default_user_threads() -> int:
     """Default product `threads` (`available_parallelism`, capped)."""
@@ -3822,6 +5380,7 @@ class ClassicalTransportStage:
         max_operations: int = 10_000_000,
         max_depth: int = 256,
         max_support_rows: int = 1_000_000,
+        max_steps: int = 100_000,
         memory_bytes: int | None = None,
     ) -> tuple[list[list[float]], list[float], str, list[str]]: ...
     def prepare_exact(
@@ -3833,6 +5392,7 @@ class ClassicalTransportStage:
         max_operations: int = 10_000_000,
         max_depth: int = 256,
         max_support_rows: int = 1_000_000,
+        max_steps: int = 100_000,
         memory_bytes: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> PreparedExactStage: ...
@@ -3861,15 +5421,18 @@ def identify_classical_transport_stage(
 ) -> ClassicalTransportStage: ...
 
 class PreparedExactStage:
+    def fork(self, seed: int | None = None) -> PreparedExactStage: ...
+    def bind_snapshot(
+        self, laws: Any, *, cancel: CancellationToken | None = None
+    ) -> PreparedExactStage: ...
+    def rebind(
+        self, at: dict[str, float], *, cancel: CancellationToken | None = None
+    ) -> PreparedExactStage: ...
     @property
     def outcomes(self) -> list[str]: ...
     def estimate(
         self, execution: str | None = None, cancel: CancellationToken | None = None
     ) -> tuple[list[list[float]], list[float], str, list[str]]: ...
-    def refresh(
-        self, laws: Any, cancel: CancellationToken | None = None
-    ) -> tuple[list[list[float]], list[float], str, list[str]]: ...
-    def replace_snapshot(self, laws: Any, cancel: CancellationToken | None = None) -> None: ...
     def last_result(self) -> tuple[list[list[float]], list[float], str, list[str]]: ...
     def plan_summary(self) -> dict[str, str]: ...
     def freeze(self) -> PreparedExactStage: ...
@@ -3973,6 +5536,10 @@ class ZTransportProposalStage:
     ) -> PreparedZTransportStage: ...
 
 class PreparedZTransportStage:
+    def fork(self, seed: int | None = None) -> PreparedZTransportStage: ...
+    def bind_snapshot(
+        self, laws: Any, *, memory_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> PreparedZTransportStage: ...
     def estimate(
         self,
         estimator: str | None = None,
@@ -3999,13 +5566,6 @@ class PreparedZTransportStage:
         memory_bytes: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> bytes: ...
-    def refresh(
-        self,
-        laws: Any,
-        *,
-        memory_bytes: int | None = None,
-        cancel: CancellationToken | None = None,
-    ) -> None: ...
     @property
     def interval_type(self) -> str: ...
     @property
@@ -4123,7 +5683,6 @@ def consume_scenario_covariance_artifact(
     artifact: bytes,
     *,
     max_rows: int = 10_000,
-    max_columns: int = 64,
     max_replicates: int = 2000,
     max_compositions: int = 4_000_000,
     memory_bytes: int | None = None,
@@ -4229,7 +5788,363 @@ def consume_temporal_initial_state_artifact(
 def consume_temporal_refresh_artifact(
     artifact: bytes, *, max_summary_rows: int = 1_000_000, max_units: int = 100_000
 ) -> tuple[str | None, str | None]: ...
-def temporal_dependent_interval_closed(
+
+_PeriodPrior = tuple[list[float], list[float], float, float]
+_PeriodWindow = tuple[
+    str,
+    int,
+    list[tuple[str, int]],
+    list[str],
+    list[str],
+    list[str],
+    int,
+    int,
+    list[str],
+    str,
+    str,
+]
+
+class NativePeriodRefresh:
+    """An autoregressive mechanism kept across observation periods."""
+
+    @staticmethod
+    def start(
+        series_id: str,
+        lags: int,
+        invariant: bool,
+        prior: _PeriodPrior,
+        window: _PeriodWindow,
+        cadence_tick: int,
+        initial_law: str,
+        values: list[float],
+    ) -> tuple[NativePeriodRefresh | None, str | None]: ...
+    def refresh(
+        self,
+        window: _PeriodWindow,
+        cadence_tick: int,
+        initial_law: str,
+        values: list[float],
+    ) -> tuple[str | None, str | None]: ...
+    def posterior_json(self) -> tuple[str | None, str | None]: ...
+    def least_squares_json(self) -> str: ...
+    def events_json(self) -> str: ...
+    def prior_digest(self) -> str: ...
+    def export_ledger(self) -> tuple[bytes | None, str | None]: ...
+    def evict_row(self, id: int) -> tuple[str | None, str | None]: ...
+    def summary_under(self, prior: _PeriodPrior) -> tuple[str | None, str | None]: ...
+    def reprior(self, prior: _PeriodPrior) -> tuple[bool | None, str | None]: ...
+    def check_against_fresh(self) -> tuple[bool | None, str | None]: ...
+    def export_summary_only(self) -> tuple[bytes | None, str | None]: ...
+
+class NativePeriodRefreshSummary:
+    """A least-squares summary read from its summary-only artifact."""
+
+    @staticmethod
+    def consume(artifact: bytes) -> tuple[NativePeriodRefreshSummary | None, str | None]: ...
+    def payload(self) -> str: ...
+    def refit_from_rows(self) -> tuple[bool | None, str | None]: ...
+    def evict_row(self, id: int) -> tuple[bool | None, str | None]: ...
+    def set_mask(self, id: int, masked: bool) -> tuple[bool | None, str | None]: ...
+    def replay_rows(self) -> tuple[bool | None, str | None]: ...
+
+def consume_period_refresh_artifact(artifact: bytes) -> tuple[str | None, str | None]: ...
+
+class SpillRegistryHandle:
+    def directory(self) -> str: ...
+    def stats_json(self) -> str: ...
+    def contains(self, key: str) -> bool: ...
+    def keys_by_recency(self) -> list[str]: ...
+
+class RetainedRefreshHandle:
+    def family(self) -> str: ...
+    def apply(self, mutation_json: str) -> str: ...
+    def result_json(self) -> str: ...
+    def fresh_result_json(self) -> str: ...
+    def check_against_fresh(self) -> None: ...
+    def summary_only(self) -> RetainedRefreshHandle: ...
+    def with_retention(self, policy: RetentionPolicy) -> RetainedRefreshHandle: ...
+    def require(self, operation: str) -> None: ...
+    def frame_bytes(self) -> int: ...
+    def spill(self, registry: SpillRegistryHandle, key: str) -> SpilledRefreshHandle: ...
+
+class SpilledRefreshHandle:
+    def family(self) -> str: ...
+    def mode(self) -> str: ...
+    def on_disk(self) -> bool: ...
+    def evicted(self) -> list[str]: ...
+    def key(self) -> str: ...
+    def require(self, operation: str) -> None: ...
+    def reload(self) -> RetainedRefreshHandle: ...
+
+class RetainedBootstrapHandle:
+    def __init__(self, estimates: list[float], failed: int = 0) -> None: ...
+    def retention(self) -> str: ...
+    def estimates(self) -> list[float]: ...
+    def summary_only(self) -> RetainedBootstrapHandle: ...
+    def append(self, estimates: list[float], failed: int) -> None: ...
+    def accounting_json(self) -> str: ...
+    def mean(self) -> float | None: ...
+    def percentile_interval(self, level: float) -> tuple[float, float]: ...
+    def check_against_fresh(self) -> None: ...
+    def frame_bytes(self) -> int: ...
+    def spill(self, registry: SpillRegistryHandle, key: str) -> SpilledBootstrapHandle: ...
+
+class SpilledBootstrapHandle:
+    def mode(self) -> str: ...
+    def on_disk(self) -> bool: ...
+    def evicted(self) -> list[str]: ...
+    def require(self, operation: str) -> None: ...
+    def reload(self) -> RetainedBootstrapHandle: ...
+
+def spill_registry_open(directory: str, requested_bytes: int) -> SpillRegistryHandle: ...
+def retained_refresh_start(
+    study: PreparedAnalysis,
+    source: str,
+    width: int,
+    rows_json: str,
+    prior_json: str | None = None,
+) -> RetainedRefreshHandle: ...
+def retained_refresh_family(study: PreparedAnalysis) -> str: ...
+def state_result_lineage_fingerprint(identities: dict[str, str | None]) -> str: ...
+def staleness_from_artifact(
+    artifact: bytes,
+    names: list[str],
+    columns: list[Any],
+    *,
+    policy_json: str | None = None,
+    seed: int = 1,
+    threads: int | None = None,
+) -> str: ...
+def consume_staleness_baseline(artifact: bytes, *, expected_identity: str | None = None) -> str: ...
+def staleness_policy(policy_json: str | None = None) -> str: ...
+def sensitivity_evalue_vector(
+    estimates: list[float],
+    labels: list[str],
+    *,
+    lowers: list[float] | None = None,
+    uppers: list[float] | None = None,
+    standard_errors: list[float] | None = None,
+    scale: str = "risk_ratio",
+    family: str = "conditional_effect",
+    temporal: bool = False,
+    target_source: str | None = None,
+    model: str | None = None,
+) -> str: ...
+def sensitivity_evalue_posterior(
+    draws: list[list[float]],
+    labels: list[str],
+    *,
+    scale: str = "risk_ratio",
+    level: float = 0.95,
+    family: str = "conditional_effect",
+    temporal: bool = False,
+    target_source: str | None = None,
+    model: str | None = None,
+) -> str: ...
+def sensitivity_ovb_vector(
+    estimates: list[float],
+    standard_errors: list[float],
+    dofs: list[float],
+    labels: list[str],
+    *,
+    q: float = 1.0,
+    alpha: float = 0.05,
+    r2yz_extreme: float = 1.0,
+    family: str = "conditional_effect",
+    temporal: bool = False,
+    target_source: str | None = None,
+    model: str | None = None,
+) -> str: ...
+def sensitivity_ovb_posterior(
+    coefficients: list[list[float]],
+    bias_scale: list[list[float]],
+    labels: list[str],
+    *,
+    level: float = 0.95,
+    r2yz_extreme: float = 1.0,
+    family: str = "conditional_effect",
+    temporal: bool = False,
+    target_source: str | None = None,
+    model: str | None = None,
+) -> str: ...
+def sensitivity_rosenbaum_vector(
+    differences: list[list[float]],
+    labels: list[str],
+    *,
+    gammas: list[float] | None = None,
+    alpha: float = 0.05,
+    family: str = "conditional_effect",
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> str: ...
+def sensitivity_evalue(
+    estimate: float,
+    *,
+    lower: float | None = None,
+    upper: float | None = None,
+    standard_error: float | None = None,
+    scale: str = "risk_ratio",
+    target_source: str | None = None,
+) -> str: ...
+def sensitivity_omitted_variable_bias(
+    estimate: float,
+    standard_error: float,
+    dof: float,
+    *,
+    q: float = 1.0,
+    alpha: float = 0.05,
+    r2yz_extreme: float = 1.0,
+    benchmarks: list[tuple[str, float, float]] | None = None,
+    kd: float = 1.0,
+    ky: float | None = None,
+    target_source: str | None = None,
+) -> str: ...
+def sensitivity_omitted_variable_bias_fit(
+    outcome: list[float],
+    treatment: list[float],
+    covariates: list[list[float]],
+    covariate_names: list[str],
+    *,
+    q: float = 1.0,
+    alpha: float = 0.05,
+    r2yz_extreme: float = 1.0,
+    kd: float = 1.0,
+    ky: float | None = None,
+    target_source: str | None = None,
+) -> str: ...
+def sensitivity_rosenbaum(
+    differences: list[float],
+    *,
+    gammas: list[float] | None = None,
+    alpha: float = 0.05,
+    target_source: str | None = None,
+) -> str: ...
+def sensitivity_matched_sets(
+    sets: list[tuple[list[float], int]],
+    *,
+    score: str = "aligned_ranks",
+    gammas: list[float] | None = None,
+    alpha: float = 0.05,
+) -> str: ...
+def sensitivity_amplify(gamma: float, lam: float) -> float | None: ...
+def sensitivity_mediation(
+    treatment: list[float],
+    mediator: list[float],
+    outcome: list[float],
+    covariates: list[list[float]],
+    *,
+    target_source: str | None = None,
+) -> str: ...
+def sensitivity_mediation_vector(
+    treatment: list[float],
+    mediator: list[float],
+    outcomes: list[list[float]],
+    covariates: list[list[float]],
+    labels: list[str],
+    *,
+    component: str = "indirect",
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> str: ...
+def sensitivity_mediation_paths(
+    treatment: list[float],
+    mediator: list[float],
+    outcomes: list[list[float]],
+    covariates: list[list[float]],
+    labels: list[str],
+    *,
+    path: str = "indirect",
+    q: float = 1.0,
+    alpha: float = 0.05,
+    r2yz_extreme: float = 1.0,
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> str: ...
+def sensitivity_mediation_posterior(
+    beta_mediator: list[list[float]],
+    sigma_total: list[list[float]],
+    sigma_mediator: list[list[float]],
+    rho_tilde: list[list[float]],
+    total_effect: list[list[float]],
+    labels: list[str],
+    *,
+    component: str = "indirect",
+    level: float = 0.95,
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> str: ...
+def sensitivity_msm_parameters(
+    outcome: list[float],
+    exposures: list[list[float]],
+    weights: list[float],
+    labels: list[str],
+    *,
+    q: float = 1.0,
+    alpha: float = 0.05,
+    r2yz_extreme: float = 1.0,
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> str: ...
+def sensitivity_msm_parameters_refit(
+    outcome: list[float],
+    exposures: list[list[float]],
+    treatments: list[list[float]],
+    numerators: list[list[list[float]]],
+    denominators: list[list[list[float]]],
+    labels: list[str],
+    *,
+    replicates: int = 200,
+    seed: int = 1,
+    q: float = 1.0,
+    alpha: float = 0.05,
+    r2yz_extreme: float = 1.0,
+    temporal: bool = False,
+    target_source: str | None = None,
+) -> str: ...
+def target_refutation_plan(
+    family: str,
+    *,
+    temporal: bool = False,
+    bayesian: bool = False,
+    suite: str = "full",
+    labels: list[str] | None = None,
+) -> str: ...
+def target_derivative_consistency(
+    response: Any,
+    points: list[float],
+    reported: list[float],
+    *,
+    step: float = 1e-2,
+    tolerance: float = 1e-4,
+) -> str: ...
+def target_local_linearity(
+    response: Any,
+    points: list[float],
+    *,
+    step: float = 1e-1,
+    tolerance: float = 0.1,
+    slope_floor: float = 1e-12,
+) -> str: ...
+def target_prior_sensitivity(
+    labels: list[str],
+    baseline: list[list[float]],
+    alternatives: list[tuple[str, list[list[float]]]],
+    *,
+    tolerance: float = 0.5,
+    family: str = "world_valued",
+    temporal: bool = False,
+) -> str: ...
+def target_posterior_predictive(
+    labels: list[str],
+    observed: list[float],
+    draws: list[list[float]],
+    replicated: list[list[float]],
+    *,
+    alpha: float = 0.05,
+    family: str = "world_valued",
+    temporal: bool = False,
+) -> str: ...
+def temporal_dependent_interval_scope(
     snapshot_id: str,
     units: list[tuple[int, list[tuple[int, int, int, int, int, float]]]] | None,
     sequence: tuple[int, int],
@@ -4243,9 +6158,9 @@ def temporal_dependent_interval_closed(
     method: Literal["studentized"],
     min_units: int,
     max_failed_fraction: float,
-) -> str: ...
+) -> str | None: ...
 
-# Available only in calibration-internal acceptance builds; no released license.
+# Interval candidate; its calibration status is an annotation.
 class NativeTemporalIntervalCandidate:
     def payload(self) -> str: ...
     def export(self) -> bytes: ...
@@ -4287,6 +6202,7 @@ def consume_cross_world_edge_contrast_artifact(
     artifact: bytes,
     *,
     seed: int = 0,
+    expected_data_digest: str | None = None,
 ) -> tuple[str, bytes]: ...
 
 class NativePreparedCounterfactualId:
@@ -4323,6 +6239,7 @@ def consume_counterfactual_id_artifact_native(
     artifact: bytes,
     *,
     seed: int = 0,
+    expected_data_digest: str | None = None,
 ) -> tuple[str, bytes]: ...
 
 class MixedSourceStage:
@@ -4353,6 +6270,10 @@ class MixedSourceStage:
     ) -> PreparedMixedSourceStage: ...
 
 class PreparedMixedSourceStage:
+    def fork(self, seed: int | None = None) -> PreparedMixedSourceStage: ...
+    def bind_snapshot(
+        self, laws: Any, *, memory_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> PreparedMixedSourceStage: ...
     def estimate(
         self,
         *,
@@ -4360,13 +6281,6 @@ class PreparedMixedSourceStage:
         cancel: CancellationToken | None = None,
         seed: int | None = None,
     ) -> str: ...
-    def refresh(
-        self,
-        laws: Any,
-        *,
-        memory_bytes: int | None = None,
-        cancel: CancellationToken | None = None,
-    ) -> None: ...
     def export(self) -> bytes: ...
     def plan(self) -> dict[str, Any]: ...
     @property
@@ -4501,6 +6415,37 @@ def repair_backdoor_contract(
     observed: list[str],
     assumptions: list[tuple[str, str, str | None]],
 ) -> RepairContractStage: ...
+def repair_frontdoor_contract(
+    graph: Dag,
+    treatment: str,
+    outcome: str,
+    population: str,
+    observed: list[str],
+) -> RepairContractStage: ...
+def repair_instrument_contract(
+    graph: Dag,
+    treatment: str,
+    outcome: str,
+    population: str,
+    observed: list[str],
+) -> RepairContractStage: ...
+def repair_hedge_contract(
+    graph: Admg,
+    treatment: str,
+    outcome: str,
+    population: str,
+    observed: list[str],
+) -> RepairContractStage: ...
+def repair_sensitivity_contract(
+    graph: Dag,
+    treatment: str,
+    outcome: str,
+    population: str,
+    observed: list[str],
+    method: str,
+    strength: float,
+    robust: bool,
+) -> RepairContractStage: ...
 def consume_repair_artifact(
     artifact: bytes,
     *,
@@ -4509,6 +6454,86 @@ def consume_repair_artifact(
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> RepairStage: ...
+
+class FailureStage:
+    @property
+    def family(self) -> str: ...
+    @property
+    def contract_id(self) -> str: ...
+    @property
+    def routes(self) -> list[str]: ...
+    @property
+    def variable_names(self) -> list[str]: ...
+    def obligations(self, quantities_json: str | None = None) -> list[dict[str, Any]]: ...
+    def templates(self) -> dict[str, Any]: ...
+    def next_actions(self) -> list[dict[str, Any]]: ...
+    def capability_report(self) -> dict[str, Any]: ...
+    def plan(
+        self,
+        candidates_json: str,
+        objective: str,
+        *,
+        max_operations: int,
+        max_depth: int,
+        memory_bytes: int | None = None,
+        value_json: str | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> EvidencePlanStage: ...
+
+class EvidencePlanStage:
+    @property
+    def outcome(self) -> str: ...
+    def report(self) -> dict[str, Any]: ...
+    def export(self) -> bytes: ...
+
+class FallbackStage:
+    def roles(self) -> tuple[str, str, list[str], str] | None: ...
+    def associational_unavailable(self) -> tuple[str, str, str, str] | None: ...
+    def associational(self) -> tuple[PreparedAnalysis, AteAnalysisResult] | None: ...
+    def evidence_unavailable(self) -> tuple[str, str, str, str] | None: ...
+    def obligations(self) -> list[dict[str, Any]] | None: ...
+    def next_actions(self) -> list[dict[str, Any]] | None: ...
+    def templates(self) -> dict[str, Any] | None: ...
+    def ranking_kind(self) -> str | None: ...
+    def ranked_plan(self) -> EvidencePlanStage | None: ...
+    def report(self, format: str) -> str: ...
+    def ranking_unavailable(self) -> tuple[str, str, str, str] | None: ...
+
+def evidence_failure_dag(
+    graph: Dag,
+    treatment: str,
+    outcome: str,
+    population: str,
+    observed: list[str],
+    sensitivity: tuple[str, float, bool] | None = None,
+) -> FailureStage: ...
+def evidence_failure_admg(
+    graph: Admg,
+    treatment: str,
+    outcome: str,
+    population: str,
+    observed: list[str],
+    sensitivity: tuple[str, float, bool] | None = None,
+) -> FailureStage: ...
+def consume_evidence_plan(
+    artifact: bytes,
+    *,
+    max_operations: int,
+    max_depth: int,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> EvidencePlanStage: ...
+def identify_structure_posterior(
+    graphs: list[Admg],
+    weights: list[float],
+    keys: list[int],
+    treatment: str,
+    outcome: str,
+    interventions: list[str] | None = None,
+) -> tuple[list[bool], list[bool] | None]: ...
+def sensitivity_confounder_value(
+    artifact: SensitivityArtifact, prior_json: str
+) -> tuple[str | None, str | None]: ...
 def classify_inverse_outcome_stage(
     query_kind: str,
     threshold: float,
@@ -4541,9 +6566,9 @@ def matched_case_control_odds_ratio(
     *,
     sampling: str,
     estimand: str,
-    interval: bool = False,
+    level: float | None = None,
     cancel: CancellationToken | None = None,
-) -> tuple[float, float, int, int, int, int, int]: ...
+) -> tuple[float, float, int, int, int, int, int, tuple[float, float, str] | None]: ...
 def derived_treatment_check_json(
     names: list[str],
     columns: list[Any],
@@ -4614,20 +6639,37 @@ def transform_mean_pair(
     scales: list[str],
     *,
     covariance: tuple[float, float, float] | None = None,
-    interval: bool = False,
-) -> tuple[list[float], list[tuple[float, float]], list[float] | None]: ...
+    level: float | None = None,
+) -> tuple[
+    list[float],
+    list[tuple[float, float]],
+    list[float] | None,
+    list[tuple[float, float] | None],
+    str | None,
+]: ...
 def transform_raw_arms(
     outcome: list[float],
     treatment: list[float],
     scales: list[str],
     *,
-    interval: bool = False,
+    level: float | None = None,
     cancel: CancellationToken | None = None,
 ) -> tuple[
     tuple[int, float, float],
     tuple[int, float, float],
-    tuple[list[float], list[tuple[float, float]], list[float] | None],
+    tuple[
+        list[float],
+        list[tuple[float, float]],
+        list[float] | None,
+        list[tuple[float, float] | None],
+        str | None,
+    ],
 ]: ...
+def adaptive_policy_search(
+    config_json: str,
+    source: object,
+    cancel: CancellationToken | None = None,
+) -> str: ...
 def candidate_screen_from_units(
     screen_id: str,
     procedure: str,
@@ -4638,7 +6680,7 @@ def candidate_screen_from_units(
     first: list[int] | None = None,
     second: list[int] | None = None,
 ) -> tuple[str, list[int], list[int], int, str, int, int, int, str]: ...
-def joint_bayesian_transport_closed(
+def joint_bayesian_transport_scope(
     graph_class: str,
     dependence: str,
     varying: str,
@@ -4648,20 +6690,20 @@ def joint_bayesian_transport_closed(
     has_target: bool,
     draws: int,
 ) -> None: ...
-def binary_nested_markov_closed(
+def binary_nested_markov_scope(
     variables: list[str],
     directed: list[tuple[int, int]],
     bidirected: list[tuple[int, int]],
     regimes: list[tuple[list[int] | None, list[int], list[float]]],
 ) -> None: ...
-def sampled_observation_recovery_closed(
+def sampled_observation_recovery_scope(
     graph_recoverable: bool,
     partially_observed: int,
     fully_observed: int,
     replicates: int,
     rows: list[tuple[int, int, int, int]],
 ) -> None: ...
-def learned_joint_transport_closed(
+def learned_joint_transport_scope(
     graph_class: str,
     dependence: str,
     varying: str,
@@ -4678,6 +6720,54 @@ def msm_sensitivity_run(
     grid_points: int,
     decision_threshold: float | None,
     tolerance: float,
+    sampling_composition: str | None = None,
+) -> tuple[str | None, str | None]: ...
+def graph_selection_imputation_interval() -> str: ...
+def graph_selection_imputation_run(
+    names: list[str],
+    columns: list[list[float]],
+    treatment: str,
+    outcome: str,
+    *,
+    model: str = ...,
+    imputations: int = 20,
+    iterations: int = 10,
+    seed: int = 1,
+    n_draws: int = 1000,
+    prior_scale: float = 10.0,
+    domains: list[tuple[str, str]] = ...,
+) -> tuple[str | None, str | None]: ...
+
+class NativePreparedMnarFixedShift:
+    def measured_interval(
+        self, memory_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> tuple[NativeMeasuredInference | None, str | None]: ...
+
+def mnar_fixed_shift_prepare(
+    subject_ids: list[int],
+    treatment: list[float],
+    outcome: list[float | None],
+    population: str,
+    treated_shift: float,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[NativePreparedMnarFixedShift | None, str | None]: ...
+def mnar_sensitivity_run(
+    treatment: list[float],
+    outcome: list[float | None],
+    model: str | None,
+    loading_treated: float,
+    loading_control: float,
+    estimator: str,
+    lower: float,
+    upper: float,
+    grid_points: int,
+    level: float,
+    decisions: list[tuple[str, float]],
+    tolerance: float,
+    covariates: list[list[float]] = ...,
+    bootstrap_replicates: int = 200,
+    seed: int = 0,
     sampling_composition: str | None = None,
 ) -> tuple[str | None, str | None]: ...
 def msm_sensitivity_artifact_run(
@@ -4727,7 +6817,7 @@ class ObservationRecoveryStage:
         memory_limit_bytes: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> NativeMeasuredInference: ...
-    # Optional: calibration-internal acceptance builds only.
+    # Interval candidate; calibration is an annotation.
     def sampled_candidate(
         self,
         population: str,
@@ -4838,6 +6928,10 @@ class AdmgConditionalTransportStage:
     def export_obstruction(self) -> bytes: ...
 
 class PreparedAdmgConditionalTransportStage:
+    def fork(self, seed: int | None = None) -> PreparedAdmgConditionalTransportStage: ...
+    def bind_snapshot(
+        self, laws: Any, *, memory_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> PreparedAdmgConditionalTransportStage: ...
     def estimate(
         self,
         *,
@@ -4845,13 +6939,6 @@ class PreparedAdmgConditionalTransportStage:
         cancel: CancellationToken | None = None,
         seed: int | None = None,
     ) -> str: ...
-    def refresh(
-        self,
-        laws: Any,
-        *,
-        memory_bytes: int | None = None,
-        cancel: CancellationToken | None = None,
-    ) -> None: ...
     def export(self) -> bytes: ...
     def plan(self) -> dict[str, Any]: ...
     @property
@@ -4920,6 +7007,10 @@ class MultiSourceZTransportStage:
     ) -> PreparedMultiSourceZTransportStage: ...
 
 class PreparedMultiSourceZTransportStage:
+    def fork(self, seed: int | None = None) -> PreparedMultiSourceZTransportStage: ...
+    def bind_snapshot(
+        self, laws: Any, *, memory_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> PreparedMultiSourceZTransportStage: ...
     def estimate(
         self,
         *,
@@ -4927,13 +7018,6 @@ class PreparedMultiSourceZTransportStage:
         cancel: CancellationToken | None = None,
         seed: int | None = None,
     ) -> str: ...
-    def refresh(
-        self,
-        laws: Any,
-        *,
-        memory_bytes: int | None = None,
-        cancel: CancellationToken | None = None,
-    ) -> None: ...
     def export(self) -> bytes: ...
     def plan(self) -> dict[str, Any]: ...
     @property
@@ -4978,6 +7062,10 @@ class CounterfactualTransportDecisionNative:
     def identity(self) -> tuple[str | None, str | None]: ...
 
 class PreparedCounterfactualTransportNative:
+    def fork(self, seed: int | None = None) -> PreparedCounterfactualTransportNative: ...
+    def bind_snapshot(
+        self, laws: Any, *, memory_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> PreparedCounterfactualTransportNative: ...
     @property
     def bound(self) -> bool: ...
     def derivation(self) -> dict[str, Any]: ...
@@ -4988,13 +7076,6 @@ class PreparedCounterfactualTransportNative:
         memory_bytes: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> CounterfactualTransportResultNative: ...
-    def refresh(
-        self,
-        laws: Any,
-        *,
-        memory_bytes: int | None = None,
-        cancel: CancellationToken | None = None,
-    ) -> PreparedCounterfactualTransportNative: ...
     def estimate(
         self,
         *,
@@ -5204,11 +7285,19 @@ def consume_exact_transport(
     *,
     max_operations: int = 10_000_000,
     max_depth: int = 256,
+    max_support_rows: int = 1_000_000,
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> PreparedExactStage: ...
 
 class PreparedStatisticalStage:
+    def fork(self, seed: int | None = None) -> PreparedStatisticalStage: ...
+    def bind_snapshot(
+        self, payload: Any, *, cancel: CancellationToken | None = None
+    ) -> PreparedStatisticalStage: ...
+    def rebind(
+        self, at: dict[str, float], *, cancel: CancellationToken | None = None
+    ) -> PreparedStatisticalStage: ...
     @property
     def outcomes(self) -> list[str]: ...
     @property
@@ -5219,10 +7308,6 @@ class PreparedStatisticalStage:
     def estimate(
         self, execution: str | None = None, cancel: CancellationToken | None = None
     ) -> tuple[list[list[float]], list[float], str, list[str], str]: ...
-    def refresh(
-        self, payload: Any, cancel: CancellationToken | None = None
-    ) -> tuple[list[list[float]], list[float], str, list[str], str]: ...
-    def replace_snapshot(self, payload: Any, cancel: CancellationToken | None = None) -> None: ...
     def contrast(self, reference: PreparedStatisticalStage, outcome: str) -> str: ...
     def last_result(self) -> tuple[list[list[float]], list[float], str, list[str], str]: ...
     def plan_summary(self) -> dict[str, str]: ...
@@ -5240,6 +7325,7 @@ def prepare_statistical_transport(
     max_operations: int = 10_000_000,
     max_depth: int = 256,
     max_support_rows: int = 1_000_000,
+    max_steps: int = 100_000,
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
     bootstrap: int = 199,
@@ -5260,10 +7346,15 @@ def consume_statistical_transport(
 ) -> PreparedStatisticalStage: ...
 
 class PreparedTransportGridStage:
+    def fork(self, seed: int | None = None) -> PreparedTransportGridStage: ...
+    def bind_snapshot(
+        self, data: Any, cancel: CancellationToken | None = None
+    ) -> PreparedTransportGridStage: ...
+    def rebind(
+        self, at: list[dict[str, float]], cancel: CancellationToken | None = None
+    ) -> PreparedTransportGridStage: ...
     def freeze(self) -> PreparedTransportGridStage: ...
     def estimate(self, cancel: CancellationToken | None = None) -> str: ...
-    def refresh(self, data: Any, cancel: CancellationToken | None = None) -> str: ...
-    def replace_snapshot(self, data: Any, cancel: CancellationToken | None = None) -> None: ...
     def last_result(self) -> str: ...
     def export(self) -> bytes: ...
     def contrast(self, left: int, right: int, outcome: str) -> str: ...
@@ -5286,6 +7377,8 @@ def prepare_transport_grid(
     max_operations: int = 10_000_000,
     max_depth: int = 256,
     max_support_rows: int = 1_000_000,
+    max_steps: int = 100_000,
+    posterior_draws: int = 199,
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> PreparedTransportGridStage: ...
@@ -5294,6 +7387,7 @@ def consume_transport_grid(
     *,
     max_operations: int = 10_000_000,
     max_depth: int = 256,
+    max_support_rows: int = 1_000_000,
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> PreparedTransportGridStage: ...
@@ -5328,15 +7422,39 @@ class FittedEffectModel:
     def export(self) -> bytes: ...
 
 class PreparedLearnedTrial:
+    def reconfigure(
+        self,
+        graph: Admg,
+        selections: list[str],
+        source: str,
+        target: str,
+        treatment: str,
+        outcome: str,
+        options: str,
+        *,
+        seed: int = 1,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> PreparedLearnedTrial: ...
+    def fork(self, seed: int | None = None) -> PreparedLearnedTrial: ...
+    def bind_snapshot(
+        self, data: Any, cancel: CancellationToken | None = None
+    ) -> PreparedLearnedTrial: ...
     def preview_transform(self, intent: str) -> dict[str, str]: ...
+    def estimate_summary(self, cancel: CancellationToken | None = None) -> str: ...
+    def last_result_summary(self) -> str: ...
     def estimate(self, cancel: CancellationToken | None = None) -> str: ...
-    def refresh(self, data: Any, cancel: CancellationToken | None = None) -> str: ...
     def replace_snapshot(self, data: Any, cancel: CancellationToken | None = None) -> None: ...
     def last_result(self) -> str: ...
     def freeze(self) -> PreparedLearnedTrial: ...
     def inspection_json(self) -> str: ...
     def plan_summary(self) -> dict[str, str]: ...
     def export(self) -> bytes: ...
+    def identification_view(self) -> TrialIdentificationView: ...
+    def prepared_obligations_json(self, *, offset: int = 0, limit: int = 32) -> str: ...
+    def prepared_uncertainty_json(self, *, offset: int = 0, limit: int = 32) -> str: ...
+    def prepared_evidence_obligations_json(self, *, offset: int = 0, limit: int = 32) -> str: ...
+    def prepared_evidence_actions_json(self, *, offset: int = 0, limit: int = 32) -> str: ...
 
 def prepare_learned_trial(
     graph: Admg,
@@ -5355,9 +7473,14 @@ def prepare_learned_trial(
 def consume_learned_trial(bytes: bytes) -> PreparedLearnedTrial: ...
 
 class PreparedLearnedContinuousNative:
+    def fork(self, seed: int | None = None) -> PreparedLearnedContinuousNative: ...
+    def bind_snapshot(
+        self, data: Any, cancel: CancellationToken | None = None
+    ) -> PreparedLearnedContinuousNative: ...
     def estimate(self, cancel: CancellationToken | None = None) -> str: ...
     def interval(self, cancel: CancellationToken | None = None) -> None: ...
-    def refresh(self, data: Any, cancel: CancellationToken | None = None) -> None: ...
+    def bootstrap_requested(self) -> bool: ...
+    def bootstrap_interval(self, cancel: CancellationToken | None = None) -> str: ...
     def export(self) -> bytes: ...
     def estimator_menu(self) -> str: ...
     def last_result(self) -> str: ...
@@ -5394,12 +7517,16 @@ def consume_learned_continuous(
 ) -> str: ...
 
 class PreparedSmoothedDoseNative:
+    def fork(self, seed: int | None = None) -> PreparedSmoothedDoseNative: ...
+    def bind_snapshot(
+        self, data: Any, cancel: CancellationToken | None = None
+    ) -> PreparedSmoothedDoseNative: ...
     def estimate(self, cancel: CancellationToken | None = None) -> str: ...
-    def interval(self, cancel: CancellationToken | None = None) -> None: ...
-    def refresh(self, data: Any, cancel: CancellationToken | None = None) -> None: ...
+    def interval(self, cancel: CancellationToken | None = None) -> str: ...
     def export(self) -> bytes: ...
     def estimator_menu(self) -> str: ...
     def last_result(self) -> str: ...
+    def posterior(self, model: str) -> tuple[str, bytes]: ...
 
 def prepare_smoothed_dose(
     graph: Admg,
@@ -5418,6 +7545,14 @@ def smoothed_dose_estimator_menu(
     selections: list[str],
     query: str,
     options: str | None = None,
+) -> str: ...
+def consume_smoothed_dose_posterior(
+    artifact: bytes,
+    *,
+    max_rows: int = 100_000,
+    max_points: int = 1_024,
+    max_memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> str: ...
 def consume_smoothed_dose(
     artifact: bytes,
@@ -5674,18 +7809,20 @@ def consume_effect_constancy_artifact(
 ) -> tuple[str | None, str | None]: ...
 def plan_recalculation(previous_json: str, requested_json: str, capabilities_json: str) -> str: ...
 def recalc_stage_identity(label: str, parts: list[bytes]) -> str: ...
+def recalc_session_standing(kind: str) -> str: ...
+def render_fallback_report(parts_json: str, format: str) -> str: ...
 def consume_recalc_receipt(
     artifact: bytes, expected_identity: str | None = None
 ) -> tuple[str | None, str | None]: ...
 
 class RecalcSessionHandle:
-    def __init__(self, retarget: str = "licensed") -> None: ...
+    def __init__(self, retarget: str = "supported") -> None: ...
     @staticmethod
     def resume(
-        previous_json: str, resume_json: str, retarget: str = "licensed"
+        previous_json: str, resume_json: str, retarget: str = "supported"
     ) -> RecalcSessionHandle: ...
     def set_retarget_support(self, retarget: str) -> None: ...
-    def set_request_support(self, request: str, licensed_route: str | None = None) -> None: ...
+    def set_request_support(self, request: str, supported_route: str | None = None) -> None: ...
     def is_live(self) -> bool: ...
     def identities_json(self) -> str: ...
     def capabilities_json(self) -> str: ...
@@ -5726,7 +7863,7 @@ class RecalcSessionHandle:
     ) -> tuple[str | None, bytes | None, str | None]: ...
 
 class CellSessionHandle:
-    def __init__(self, retarget: str = "licensed") -> None: ...
+    def __init__(self, retarget: str = "supported") -> None: ...
     def set_retarget_support(self, retarget: str) -> None: ...
     def is_live(self) -> bool: ...
     def identities_json(self) -> str: ...
@@ -5749,6 +7886,8 @@ class CellSessionHandle:
         target_depends_on: list[str] | None = None,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> str: ...
     def execute(
         self,
@@ -5768,6 +7907,8 @@ class CellSessionHandle:
         target_depends_on: list[str] | None = None,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def export_frozen_scores(self) -> tuple[tuple[str, bytes] | None, str | None]: ...
 
@@ -5788,6 +7929,8 @@ class CrossfitSessionHandle:
         target_depends_on: list[str] | None = None,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def export_frozen_scores(self) -> tuple[tuple[str, bytes] | None, str | None]: ...
 
@@ -5832,17 +7975,78 @@ class ScoreResumeHandle:
     ) -> tuple[str | None, str | None]: ...
 
 def evaluate_design_ranking(
-    request_json: str, artifact_id: str, checked_prior: CheckedPriorSignal | None = None
+    request_json: str,
+    artifact_id: str,
+    checked_prior: CheckedPriorSignal | None = None,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def consume_design_ranking(
     artifact: bytes, expectation_json: str | None = None
 ) -> tuple[str | None, str | None]: ...
 def rank_structural_designs(candidates_json: str) -> tuple[str | None, str | None]: ...
+def plan_experiment_py(
+    request_json: str, threads: int = 1, cancel: CancellationToken | None = None
+) -> str: ...
+def planning_program_identity_py(request_json: str) -> str: ...
+
+class _ArrayFit:
+    def metadata_json(self) -> str: ...
+    def value(self, name: str) -> float | None: ...
+    def values_page(self, *, offset: int = 0, limit: int = 64) -> list[tuple[str, float]]: ...
+    def assumptions_page(self, *, offset: int = 0, limit: int = 64) -> list[str]: ...
+    def diagnostics_page(self, *, offset: int = 0, limit: int = 64) -> list[str]: ...
+    def export_bytes(self) -> bytes: ...
+    def encoding_retained(self) -> bool: ...
+
+def consume_array_fit_artifact(
+    artifact: bytes,
+    *,
+    expected_identity: str | None = None,
+    max_numbers: int = 4_000_000,
+    max_draws: int = 200_000,
+    max_columns: int = 1_024,
+    threads: int | None = None,
+) -> _ArrayFit: ...
 def evaluate_dose_grid_functional(
-    request_json: str, dose: list[float], outcome: list[float]
+    request_json: str,
+    dose: list[float],
+    outcome: list[float],
+    *,
+    sampling_weights: list[float] | None = None,
+    cluster: list[int] | None = None,
+    serial_lag: int | None = None,
+    threads: int | None = None,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> tuple[str | None, bytes | None, str | None]: ...
+def evaluate_dose_grid_posterior(
+    request_json: str,
+    dose: list[float],
+    outcome: list[float],
+    *,
+    threads: int | None = None,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, bytes | None, str | None, ExecutionFacts]: ...
+def consume_dose_grid_posterior_artifact(
+    artifact: bytes,
+    *,
+    max_rows: int = 100_000,
+    max_grid: int = 1_024,
+    threads: int | None = None,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None, ExecutionFacts]: ...
 def consume_dose_grid_artifact(
-    artifact: bytes, *, max_rows: int = 100_000, max_grid: int = 1_024
+    artifact: bytes,
+    *,
+    max_rows: int = 100_000,
+    max_grid: int = 1_024,
+    threads: int | None = None,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...
 def dose_support_labels(
     dose: list[float], points: list[float], bandwidth: float, minimum_local_ess: float
@@ -5885,6 +8089,12 @@ def evaluate_categorical_treatment(
     levels: list[str],
     declaration_json: str,
     artifact_id: str,
+    *,
+    sampling_weights: NDArray[np.float64] | list[float] | None = None,
+    cluster: list[int] | None = None,
+    serial_lag: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def consume_categorical_treatment_artifact(
     artifact: bytes,
@@ -5898,6 +8108,9 @@ def evaluate_multi_level_treatment(
     adjustment_names: list[str],
     adjustment_columns: list[NDArray[np.float64] | list[float]],
     declaration_json: str,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> str: ...
 def evaluate_observational_survival(
     duration: NDArray[np.float64] | list[float],
@@ -5906,14 +8119,23 @@ def evaluate_observational_survival(
     adjustment_names: list[str],
     adjustment_columns: list[NDArray[np.float64] | list[float]],
     declaration_json: str,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> str: ...
 def evaluate_observational_policy(
     outcome: NDArray[np.float64] | list[float],
     treatment: NDArray[np.float64] | list[float],
     adjustment_names: list[str],
-    adjustment_columns: list[NDArray[np.float64] | list[float]],
+    adjustment_columns: Sequence[NDArray[np.float64] | list[float]],
     declaration_json: str,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> str: ...
+def method_provenance_json(identifier: str | None = None, estimator: str | None = None) -> str: ...
+def capability_provenance_json(capability: str) -> str: ...
+def bibliography_json(provenances: list[str]) -> str: ...
 def build_compact_export(
     spec_json: str, artifact_id: str
 ) -> tuple[str | None, bytes | None, str | None]: ...
@@ -5966,6 +8188,13 @@ def cohort_decision_interval(
 def cohort_decision_forward_claim(
     artifact: bytes, expectation_json: str
 ) -> tuple[str | None, str | None]: ...
+def cohort_decision_evaluate(
+    contract_json: str,
+    artifact: bytes,
+    expectation_json: str,
+    unsupported: str,
+    weakest_support: str,
+) -> tuple[str | None, str | None]: ...
 def transport_cohort_effect(
     model_bytes: bytes,
     expected_claim: str | None,
@@ -5982,6 +8211,14 @@ def transport_cohort_effect_verify(
     cohort_json: str,
     shift_json: str | None,
     expected_identity: str,
+) -> tuple[str | None, str | None]: ...
+def transport_cohort_composition_node(
+    model_bytes: bytes,
+    expected_claim: str | None,
+    source_population: str,
+    cohort_json: str,
+    shift_json: str | None,
+    key: str,
 ) -> tuple[str | None, str | None]: ...
 def transported_cohort_refusal(kind: str) -> str: ...
 def evaluate_nonlinear_mediation(
@@ -6019,24 +8256,40 @@ def evaluate_latent_class_effects(
     artifact_id: str,
     *,
     digest_bound: bool = False,
+    memory_limit_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def consume_latent_class_artifact(
     artifact: bytes,
     expected_identity_json: str | None = None,
     *,
     memory_limit_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
     data: tuple[NDArray[np.float64], NDArray[np.float64], list[str], list[NDArray[np.float64]]]
     | None = None,
 ) -> tuple[str | None, str | None]: ...
+
+class TemporalExecutorHandle:
+    def __init__(self) -> None: ...
+    def execute(self, request_json: str, *, seed: int = 0) -> tuple[str | None, str | None]: ...
+    def retained_len(self) -> int: ...
+    def counters(self) -> str: ...
+
 def evaluate_temporal_counterfactual(
     request_json: str, artifact_id: str, *, seed: int = 0
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def consume_temporal_counterfactual_artifact(
     artifact: bytes, expected_identity_json: str | None = None, *, seed: int = 0
 ) -> tuple[str | None, str | None]: ...
+def evaluate_general_temporal_counterfactual(
+    request_json: str, artifact_id: str, *, seed: int = 0
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_general_temporal_counterfactual_artifact(
+    artifact: bytes, expected_identity_json: str | None = None, *, seed: int = 0
+) -> tuple[str | None, str | None]: ...
 def transported_path_specific_refusal(
-    transport_license: bool,
-    fixed_population_license: bool,
+    transport_support: bool,
+    fixed_population_support: bool,
     cross_population_assumptions: bool,
     required_factors: list[tuple[str, str]],
     supplied_factors: list[tuple[str, str, str]],
@@ -6140,9 +8393,38 @@ class CompositionBundleBuilder:
     def connect(self, upstream: str, dependent: str) -> str | None: ...
     def relate(self, left: str, right: str, relationship: str) -> tuple[str | None, str | None]: ...
     def build(self) -> tuple[CompositionBundle | None, str | None]: ...
+    def add_predictive_fit(
+        self,
+        kind: str,
+        node_id: str,
+        artifact: bytes,
+        program: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> str | None: ...
+    def add_predictive_chain_decision(
+        self,
+        node_id: str,
+        artifact: bytes,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> str | None: ...
 
 def consume_composition_bundle(
-    data: bytes, expected_identity: str, supplied_json: str | None = None
+    data: bytes,
+    expected_identity: str,
+    supplied_json: str | None = None,
+    *,
+    max_bundle_bytes: int | None = None,
+    max_nodes: int | None = None,
+    max_edges: int | None = None,
+    max_embedded_bytes: int | None = None,
 ) -> tuple[str | None, str | None]: ...
 def composition_describe_artifact(kind: str, data: bytes) -> tuple[str | None, str | None]: ...
 def composition_mean_decision(
@@ -6233,6 +8515,16 @@ class DrSessionHandle:
     def export_predictor(
         self, *, seed: int = 1, threads: int | None = None
     ) -> tuple[bytes | None, str | None]: ...
+    def export_predictor_with_source(
+        self,
+        names: list[str],
+        columns: list[Any],
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[bytes | None, str | None]: ...
 
 class StaticResponseSessionHandle:
     def __init__(self) -> None: ...
@@ -6267,7 +8559,11 @@ class StaticResponseSessionHandle:
         cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def export_result(
-        self, *, seed: int = 1, threads: int | None = None
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[bytes | None, str | None]: ...
 
 class MultiSourceSessionHandle:
@@ -6286,6 +8582,8 @@ class MultiSourceSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> str: ...
     def execute(
         self,
@@ -6296,9 +8594,15 @@ class MultiSourceSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def export_result(
-        self, *, seed: int = 1, threads: int | None = None
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[bytes | None, str | None]: ...
 
 class DesignSessionHandle:
@@ -6378,7 +8682,35 @@ class BayesianSessionHandle:
     def export_prior_source(self) -> tuple[bytes | None, str | None]: ...
     def effect_draws(self) -> list[float] | None: ...
     def export_result(
-        self, *, seed: int = 1, threads: int | None = None
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[bytes | None, str | None]: ...
+
+class JointBayesianSessionHandle:
+    def __init__(self) -> None: ...
+    @staticmethod
+    def resume(previous_json: str, resume_json: str) -> JointBayesianSessionHandle: ...
+    def is_live(self) -> bool: ...
+    def identities_json(self) -> str: ...
+    def capabilities_json(self) -> str: ...
+    def execute(
+        self,
+        specification: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str | None, bytes | None, str | None]: ...
+    def export_result(
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[bytes | None, str | None]: ...
 
 class TemporalSessionHandle:
@@ -6416,13 +8748,17 @@ class TemporalSessionHandle:
         cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def export_result(
-        self, *, seed: int = 1, threads: int | None = None
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[bytes | None, str | None]: ...
     @staticmethod
     def consume(
         artifact: bytes, *, seed: int = 1, threads: int | None = None
     ) -> tuple[TemporalSessionHandle | None, str | None, bytes | None, str | None]: ...
-    # Optional calibration-internal checked-source lifecycle only.
+    # Checked-source lifecycle.
     def interval_candidate(
         self,
         config_json: str,
@@ -6525,13 +8861,17 @@ class CompositeSessionHandle:
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def rank_conditional_studies(
         self, policy_json: str
-    ) -> tuple[str | None, bytes | None, str | None]: ...
+    ) -> tuple[str | None, bytes | None, str | None, bool]: ...
     def consume_conditional_studies(
         self, artifact: bytes, expected_identity: str | None = None
-    ) -> tuple[str | None, bytes | None, str | None]: ...
+    ) -> tuple[str | None, bytes | None, str | None, bool]: ...
     def native_response(self) -> ResponseAnalysisResult | None: ...
     def export_native(self) -> bytes: ...
     def export_callback(self, branch: int) -> bytes: ...
+
+def conditional_study_ranking_inspect(
+    artifact: bytes, expected_identity: str | None = None
+) -> tuple[str | None, bytes | None, str | None, bool]: ...
 
 # Original-source projections and opaque actual execution resolution.
 def produce_source_projection(
@@ -6623,7 +8963,7 @@ def consume_nested_markov_posterior_candidate(
     expected_identity: str,
 ) -> NativeNestedMarkovPosteriorCandidate: ...
 
-# Optional: calibration-internal acceptance builds only.
+# Interval candidate; calibration is an annotation.
 def consume_sampled_recovery_candidate(
     artifact: bytes,
     premises_digest: str,
@@ -6635,7 +8975,7 @@ def consume_sampled_recovery_candidate(
     cancel: CancellationToken | None = None,
 ) -> str: ...
 
-# Optional calibration-internal original checked TemporalSession source/proof route.
+# Original checked TemporalSession source/proof route.
 class NativeCheckedTemporalIntervalCandidate:
     def payload(self) -> str: ...
     def export(self) -> bytes: ...
@@ -6729,6 +9069,9 @@ class PreparedMeasurementHandle:
     def estimate(
         self, *, cancel: CancellationToken | None = None
     ) -> tuple[MeasurementEstimateHandle | None, str | None]: ...
+    def estimate_continuous(
+        self, input_json: str, *, cancel: CancellationToken | None = None
+    ) -> tuple[str | None, ContinuousMeasurementEstimateHandle | None, str | None]: ...
     def refresh(
         self, data_json: str, *, cancel: CancellationToken | None = None
     ) -> tuple[PreparedMeasurementHandle | None, MeasurementEstimateHandle | None, str | None]: ...
@@ -6743,11 +9086,14 @@ class PreparedMeasurementHandle:
 class MeasurementEstimateHandle:
     def summary_json(self) -> str: ...
     def detail_json(self) -> str: ...
-    def interval(self) -> str: ...
+    def interval(self, level: float) -> tuple[tuple[float, float, str] | None, str | None]: ...
     def downstream_linear_functional(
         self, weights: list[float]
     ) -> tuple[tuple[float, float] | None, str | None]: ...
     def export(self, artifact_id: str) -> tuple[bytes | None, str | None]: ...
+
+class ContinuousMeasurementEstimateHandle:
+    def interval(self, level: float) -> tuple[tuple[float, float, str] | None, str | None]: ...
 
 class ConsumedMeasurementHandle:
     def summary_json(self) -> str: ...
@@ -6767,6 +9113,22 @@ def measurement_model_consume(
     artifact: bytes, expected_model_identity: str
 ) -> tuple[ConsumedMeasurementHandle | None, str | None]: ...
 def measurement_model_identities(model_json: str) -> str: ...
+def measurement_exposure_misclassification(
+    declaration_json: str,
+) -> tuple[str | None, str | None]: ...
+def measurement_soft_exposure(declaration_json: str) -> tuple[str | None, str | None]: ...
+def measurement_soft_exposure_reliability(
+    declaration_json: str,
+) -> tuple[str | None, str | None]: ...
+def measurement_detection_dependent(declaration_json: str) -> tuple[str | None, str | None]: ...
+def measurement_repeat_codings(declaration_json: str) -> tuple[str | None, str | None]: ...
+def measured_exposure_impute(declaration_json: str) -> tuple[str | None, str | None]: ...
+def measured_exposure_identity(declaration_json: str) -> tuple[str | None, str | None]: ...
+def measured_exposure_pool(pool_json: str) -> tuple[str | None, str | None]: ...
+def measured_exposure_export(draws_json: str, exposure: str) -> bytes: ...
+def measured_exposure_consume(
+    artifact: bytes, exposure: str, expected_declaration_identity: str | None = None
+) -> str: ...
 def measurement_model_transport(
     models_json: str,
     structure_json: str | None,
@@ -6784,6 +9146,29 @@ def measurement_model_transport_verify(
     expected_identity: str,
 ) -> tuple[str | None, str | None]: ...
 
+class PooledDifferentialSection:
+    target_population: str
+    prevalence: float
+    interval: tuple[float, float]
+    sensitivity: tuple[float, float, float, float, float]
+    specificity: tuple[float, float, float, float, float]
+    discarded_draws: int
+    truncated_draws: int
+    draws: list[float]
+    calibration: str
+
+def measurement_pooled_differential_transport(
+    sources: list[tuple[str, int, int, int, int]],
+    target_population: str,
+    observed_positive: int,
+    observed_total: int,
+    *,
+    target_validation: tuple[int, int, int, int] | None = None,
+    draws: int = 4000,
+    seed: int = 1,
+    threads: int | None = None,
+) -> PooledDifferentialSection: ...
+
 class PreparedBridgeHandle:
     def contract_json(self) -> str: ...
     def contract_identity(self) -> str: ...
@@ -6799,15 +9184,27 @@ class BridgedClaimHandle:
     def require_value_kind(self, kind: str) -> str | None: ...
     def interval(self) -> str: ...
     def bridged_interval(self, level: float) -> tuple[str | None, str | None]: ...
-    def freshness_json(self, source_withdrawn: bool, source_superseded: bool) -> str: ...
+    def propagated_uncertainty(self) -> tuple[str | None, str | None]: ...
+    def freshness_json(
+        self,
+        source_withdrawn: bool,
+        source_superseded: bool,
+        current_snapshot: str | None = None,
+    ) -> str: ...
     def export(self, artifact_id: str) -> tuple[tuple[bytes, str] | None, str | None]: ...
 
 class ConsumedBridgeHandle:
     def summary_json(self) -> str: ...
     def source_json(self) -> str: ...
     def require_value_kind(self, kind: str) -> str | None: ...
+    def propagated_uncertainty(self) -> tuple[str | None, str | None]: ...
     def interval(self) -> str: ...
-    def freshness_json(self, source_withdrawn: bool, source_superseded: bool) -> str: ...
+    def freshness_json(
+        self,
+        source_withdrawn: bool,
+        source_superseded: bool,
+        current_snapshot: str | None = None,
+    ) -> str: ...
 
 def scientific_bridge_prepare(
     contract_json: str,
@@ -6816,6 +9213,69 @@ def scientific_bridge_contract_identity(contract_json: str) -> str: ...
 def scientific_bridge_consume(
     artifact: bytes, expected_identity: str | None = None
 ) -> tuple[ConsumedBridgeHandle | None, str | None]: ...
+
+class PreparedDistributionBridgeHandle:
+    def contract_json(self) -> str: ...
+    def contract_identity(self) -> str: ...
+    def transported(self) -> bool: ...
+    def derive(
+        self,
+        distribution: JointDistributionArtifact,
+        seed: int,
+        claim_kind: str | None = None,
+    ) -> tuple[BridgedDistributionHandle | None, str | None]: ...
+    def with_contract(
+        self, contract_json: str
+    ) -> tuple[PreparedDistributionBridgeHandle | None, str | None]: ...
+
+class BridgedDistributionHandle:
+    def summary_json(self) -> str: ...
+    def distribution(self) -> JointDistributionArtifact: ...
+    def source_distribution(self) -> JointDistributionArtifact: ...
+    def require_value_kind(self, kind: str) -> str | None: ...
+    def interval(self) -> str: ...
+    def bridged_interval(self, level: float) -> tuple[str | None, str | None]: ...
+    def chain_stage_json(self, stage_id: str) -> tuple[str | None, str | None]: ...
+    def freshness_json(
+        self,
+        source_withdrawn: bool,
+        source_superseded: bool,
+        current_snapshot: str | None = None,
+    ) -> str: ...
+    def export(self, artifact_id: str) -> tuple[tuple[bytes, str] | None, str | None]: ...
+
+def scientific_bridge_distribution_prepare(
+    contract_json: str,
+) -> tuple[PreparedDistributionBridgeHandle | None, str | None]: ...
+def scientific_bridge_distribution_consume(
+    artifact: bytes, expected_identity: str | None = None
+) -> tuple[BridgedDistributionHandle | None, str | None]: ...
+def scientific_bridge_shape(artifact: bytes) -> tuple[str | None, str | None]: ...
+
+class MixedDecisionWorkflowHandle:
+    def summary_json(self) -> str: ...
+    def decision_json(self) -> tuple[str | None, str | None]: ...
+    def export_decision(self) -> tuple[tuple[bytes, str] | None, str | None]: ...
+    def export_historical_replay(self) -> tuple[tuple[bytes, str] | None, str | None]: ...
+    def load(
+        self, artifact: bytes, expected_identity: str | None = None
+    ) -> tuple[str | None, str | None]: ...
+    def utility_only(self, benefit: float) -> tuple[str | None, str | None]: ...
+    def prior_change(self, prior_scale: float) -> tuple[str | None, str | None]: ...
+    def period_change(self, start: int, end: int) -> tuple[str | None, str | None]: ...
+    def withdraw_cluster(self) -> tuple[tuple[bytes, str] | None, str | None]: ...
+
+def mixed_decision_execute(
+    dependence_json: str,
+    seed: int = 1,
+    threads: int | None = None,
+    memory_limit_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+    policy_json: str | None = None,
+) -> tuple[MixedDecisionWorkflowHandle | None, str | None]: ...
+def mixed_decision_replay(
+    artifact: bytes, expected_identity: str | None = None, seed: int = 1
+) -> tuple[tuple[float, float] | None, str | None]: ...
 
 class CompositionVerificationHandle:
     def summary_json(self) -> str: ...
@@ -6829,6 +9289,19 @@ def composition_verification_verify(
 def composition_verification_consume(
     artifact: bytes, expected_identity: str | None = None
 ) -> tuple[CompositionVerificationHandle | None, str | None]: ...
+def composition_plan_declaration(
+    previous_json: str, requested_json: str, capabilities_json: str, bindings_json: str
+) -> tuple[str | None, str | None]: ...
+def composition_ledger_effects(
+    ledger: EvidenceLedgerHandle, bindings_json: str
+) -> tuple[str | None, str | None]: ...
+def composition_freshness_effects(bindings_json: str) -> str: ...
+def composition_contract_effects(bindings_json: str) -> str: ...
+def composition_invalidation_effects(log_json: str, since: int, bindings_json: str) -> str: ...
+def composition_query_revalidation(log_json: str, query: int, since: int) -> str: ...
+def selective_discovery_revalidate(
+    previous_json: str, current_json: str
+) -> tuple[str | None, str | None]: ...
 def composition_registry_record_identity(record_id: str) -> str: ...
 def composition_registry_record_attests(record: str) -> bool: ...
 def composition_registry_resolved_calibration(calibration_json: str) -> str: ...
@@ -6836,6 +9309,19 @@ def composition_registry_unresolved(
     graph_json: str,
 ) -> tuple[list[str] | None, str | None]: ...
 def interface_contract_identity(contract_json: str) -> tuple[str | None, str | None]: ...
+def mechanism_interface_contract(
+    declaration_json: str, basis_json: str
+) -> tuple[str | None, str | None]: ...
+def bridge_interface_contract(
+    contract_json_text: str, component: str, basis_json: str
+) -> tuple[str | None, str | None]: ...
+def measurement_interface_contract_of(
+    component: str,
+    model_json: str,
+    indicator_json: str,
+    construct_json: str,
+    basis_json: str,
+) -> tuple[str | None, str | None]: ...
 def interface_contract_check_connection(
     producer_json: str, produced_port: str, consumer_json: str, consumed_port: str
 ) -> tuple[str | None, str | None]: ...
@@ -6844,6 +9330,12 @@ def interface_contract_check_composition(
 ) -> tuple[str | None, str | None]: ...
 def interface_contract_check_composition_with_ledger(
     components_json: str, connections_json: str, ledger: EvidenceLedgerHandle
+) -> tuple[str | None, str | None]: ...
+def interface_contract_check_composition_with_cyclic(
+    components_json: str,
+    connections_json: str,
+    cyclic: list[tuple[str, _PreparedCyclicFamily | _PreparedCyclicSystem]],
+    ledger: EvidenceLedgerHandle | None = None,
 ) -> tuple[str | None, str | None]: ...
 def interface_contract_export(
     contract_json: str, artifact_id: str
@@ -6881,6 +9373,19 @@ class CallbackSessionHandle:
         policy_json: str,
         token: CallbackToken,
     ) -> tuple[str | None, str | None]: ...
+    def execute_for_consumer(
+        self,
+        identity_json: str,
+        invoke: object,
+        state: object | None,
+        declaration_json: str,
+        consumer_json: str,
+        consumed_port: str,
+        request_json: str,
+        inputs_json: str,
+        policy_json: str,
+        token: CallbackToken,
+    ) -> tuple[str | None, str | None]: ...
     def resume(
         self,
         artifact: bytes,
@@ -6897,15 +9402,17 @@ class CallbackSessionHandle:
     ) -> tuple[tuple[bytes, str] | None, str | None]: ...
 
 def callback_declaration_identity(declaration_json: str) -> tuple[str | None, str | None]: ...
-def callback_request_identity(declaration_json: str, request_json: str) -> str: ...
 def callback_values_digest(values: list[float]) -> str: ...
 def callback_result_consume(
     artifact: bytes, expected_identity: str | None = None
 ) -> tuple[str | None, str | None]: ...
 def callback_result_inspect(artifact: bytes) -> tuple[str | None, str | None]: ...
 def callback_closed_refusal(route: str) -> str: ...
+def callback_verify_provider(
+    declaration_json: str, probes_json: str
+) -> tuple[ProviderVerificationReceipt | None, str | None]: ...
 def callback_predictive_law_source(
-    declaration_json: str, verification_confirmed: bool
+    declaration_json: str, receipt: ProviderVerificationReceipt | None = None
 ) -> tuple[str | None, str | None]: ...
 def callback_check_claim_connection(
     producer_json: str, produced_port: str, callback_json: str, input: str
@@ -6919,10 +9426,11 @@ def callback_supersede_source(
 
 class PreparedCompositionHandle:
     def plan_identity(self) -> str: ...
+    def plan_identity_version(self) -> int: ...
     def family(self) -> str: ...
     def variables(self) -> list[str]: ...
     def declared_mechanisms(self) -> list[str]: ...
-    def interval(self) -> str: ...
+    def interval(self, contrast_json: str, level: float) -> tuple[str | None, str | None]: ...
     def intervention_law(self, interventions_json: str) -> tuple[str | None, str | None]: ...
     def mean_contrast(self, contrast_json: str) -> tuple[float | None, str | None]: ...
     def mean_contrast_uncertainty(self, contrast_json: str) -> tuple[str | None, str | None]: ...
@@ -6963,7 +9471,7 @@ class TransportedCompositionHandle:
     def receipt_json(self) -> str: ...
     def mean_contrast(self, contrast_json: str) -> tuple[float | None, str | None]: ...
     def mean_contrast_uncertainty(self, contrast_json: str) -> tuple[str | None, str | None]: ...
-    def interval(self) -> str: ...
+    def interval(self, contrast_json: str, level: float) -> tuple[str | None, str | None]: ...
     def export(
         self, query_json: str, *, cancel: CancellationToken | None = None
     ) -> tuple[tuple[bytes, str, str] | None, str | None]: ...
@@ -6971,6 +9479,9 @@ class TransportedCompositionHandle:
 def mechanism_composition_prepare(
     composition_json: str, *, cancel: CancellationToken | None = None
 ) -> tuple[PreparedCompositionHandle | None, str | None]: ...
+def mechanism_composition_check_ledger_independence(
+    composition_json: str, ledger: EvidenceLedgerHandle
+) -> str | None: ...
 def mechanism_composition_consume(
     artifact: bytes,
     expected_premises_digest: str | None = None,
@@ -6980,12 +9491,95 @@ def mechanism_composition_consume(
 def mechanism_composition_fitted_source(
     model: FittedGcm, variable: str
 ) -> tuple[str | None, str | None]: ...
+
+class TypedMechanismFitHandle:
+    def variable(self) -> str: ...
+    def summary_json(self) -> str: ...
+    def conditional_mean(self, parents: list[float]) -> float: ...
+
+class TypedTransportedHandle:
+    def identity(self) -> str: ...
+    def receipt_json(self) -> str: ...
+    def mean_contrast(
+        self,
+        contrast_json: str,
+        draws: int,
+        seed: int,
+        *,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str | None, str | None]: ...
+    def mean_contrast_uncertainty(
+        self,
+        contrast_json: str,
+        draws: int,
+        seed: int,
+        *,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str | None, str | None]: ...
+    def interval(
+        self,
+        contrast_json: str,
+        draws: int,
+        seed: int,
+        level: float = 0.95,
+        *,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str | None, str | None]: ...
+
+def typed_mechanism_fit(
+    spec_json: str,
+    columns: dict[str, list[float]],
+    context_json: str,
+    design_from: TypedMechanismFitHandle | None = None,
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[TypedMechanismFitHandle | None, str | None]: ...
+def typed_mechanism_refit(
+    source: TypedMechanismFitHandle,
+    columns: dict[str, list[float]],
+    context_json: str,
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[TypedMechanismFitHandle | None, str | None]: ...
+def typed_mechanism_invariance_check(
+    source: TypedMechanismFitHandle, target: TypedMechanismFitHandle, level: float
+) -> tuple[str | None, str | None]: ...
+def typed_mechanism_transport(
+    transport_json: str,
+    source_fits: list[TypedMechanismFitHandle],
+    target_fits: list[TypedMechanismFitHandle],
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[tuple[TypedTransportedHandle, str] | None, str | None]: ...
+def typed_mechanism_verify_transport(
+    transport_json: str,
+    source_fits: list[TypedMechanismFitHandle],
+    target_fits: list[TypedMechanismFitHandle],
+    expected_identity: str,
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
 def observation_query_observe(
     handle: PreparedCompositionHandle,
     request_json: str,
     *,
     cancel: CancellationToken | None = None,
 ) -> tuple[tuple[str, bytes] | None, str | None]: ...
+def observation_query_observe_with_uncertainty(
+    handle: PreparedCompositionHandle,
+    request_json: str,
+    uncertainty_json: str,
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[tuple[str, bytes] | None, str | None]: ...
+def observation_query_parameter_interval(
+    artifact: bytes,
+    quantity: str,
+    construction: str,
+    evidence_rows: int,
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
 def observation_query_pair(
     handle: PreparedCompositionHandle,
     outcome: str,
@@ -7043,7 +9637,7 @@ def observation_query_required_observations_conjugate(
     *,
     cancel: CancellationToken | None = None,
 ) -> tuple[tuple[str, bytes] | None, str | None]: ...
-def observation_query_closed(route: str) -> str: ...
+def observation_query_unsupported(route: str) -> str: ...
 def observation_query_consume(
     artifact: bytes,
     expected_identity: str | None = None,
@@ -7161,13 +9755,13 @@ class AdaptiveInferenceHandle:
     def interim_evidence(self) -> tuple[str | None, str | None]: ...
     def export_contract(
         self, paradigm: str, artifact_id: str
-    ) -> tuple[bytes | None, str | None]: ...
+    ) -> tuple[tuple[bytes, str] | None, str | None]: ...
     def export_contract_with_procedure(
         self, paradigm: str, procedure: ParticipantProcedureHandle, artifact_id: str
-    ) -> tuple[bytes | None, str | None]: ...
+    ) -> tuple[tuple[bytes, str] | None, str | None]: ...
     def export_result(
         self, request_json: str, artifact_id: str, cancel: CancellationToken | None = None
-    ) -> tuple[bytes | None, str | None]: ...
+    ) -> tuple[tuple[bytes, str] | None, str | None]: ...
 
 class ConsumedMonitoringContractHandle:
     def summary_json(self) -> str: ...
@@ -7188,6 +9782,53 @@ def adaptive_inference_result_consume(
 ) -> tuple[ConsumedAdaptiveResultHandle | None, str | None]: ...
 def adaptive_procedure_matrix() -> str: ...
 
+class ChoiceInferenceHandle:
+    def contract_identity(self) -> str: ...
+    def rank_hierarchical_studies(
+        self, ranking_json: str, cancel: CancellationToken | None = None
+    ) -> tuple[str | None, str | None]: ...
+    def withdraw_source(self, label: str, reason: str) -> tuple[bool | None, str | None]: ...
+    def consume_current(
+        self, artifact: bytes, expected_identity: str, cancel: CancellationToken | None = None
+    ) -> tuple[ConsumedChoiceResultHandle | None, str | None]: ...
+    def summary_json(self) -> str: ...
+    def analyse(
+        self, request_json: str, cancel: CancellationToken | None = None
+    ) -> tuple[str | None, str | None]: ...
+    def operating_characteristics(
+        self, kernel_json: str, cancel: CancellationToken | None = None
+    ) -> tuple[str | None, str | None]: ...
+    def rank_studies(
+        self, ranking_json: str, cancel: CancellationToken | None = None
+    ) -> tuple[str | None, str | None]: ...
+    def interval(self) -> str | None: ...
+    def measured_interval(
+        self, request_json: str, cancel: CancellationToken | None = None
+    ) -> tuple[NativeMeasuredInference | None, str | None]: ...
+    def export_result(
+        self, request_json: str, artifact_id: str, cancel: CancellationToken | None = None
+    ) -> tuple[tuple[bytes, str] | None, str | None]: ...
+
+class ConsumedChoiceResultHandle:
+    def summary_json(self) -> str: ...
+
+def choice_inference_prepare(
+    declaration_json: str,
+    cancel: CancellationToken | None = None,
+) -> tuple[ChoiceInferenceHandle | None, str | None]: ...
+def choice_inference_retained_source(
+    artifact: bytes,
+    expected_identity: str,
+    label: str,
+    discount: float,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def choice_inference_result_consume(
+    artifact: bytes,
+    expected_identity: str | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[ConsumedChoiceResultHandle | None, str | None]: ...
+
 class AdaptiveProcedureHandle:
     def identity(self) -> str: ...
     def summary_json(self) -> str: ...
@@ -7207,7 +9848,14 @@ class RepeatedMeasuresProcedureHandle:
     def report(
         self, request_json: str, cancel: CancellationToken | None = None
     ) -> tuple[str | None, str | None]: ...
+    def posterior(self, request_json: str) -> tuple[str | None, str | None]: ...
+    def posterior_artifact(self, report_json: str) -> tuple[str | None, str | None]: ...
+    def export_posterior(self, report_json: str) -> tuple[tuple[str, str] | None, str | None]: ...
+    def load_posterior_artifact(self, artifact: str) -> tuple[str | None, str | None]: ...
 
+def repeated_measures_posterior_consume(
+    artifact: str, expected_identity: str | None = None
+) -> tuple[tuple[str, str] | None, str | None]: ...
 def adaptive_procedure_declare(
     declaration_json: str,
 ) -> tuple[AdaptiveProcedureHandle | None, str | None]: ...
@@ -7241,7 +9889,7 @@ class ParticipantProcedureHandle:
         self, history_json: str, cancel: CancellationToken | None = None
     ) -> tuple[str | None, str | None]: ...
     def amend_borrowing(
-        self, borrowing_json: str, looks_performed: int
+        self, borrowing_json: str, looks_performed: int, history_json: str | None = None
     ) -> tuple[ParticipantProcedureHandle | None, str | None]: ...
     def prepare_session(
         self,
@@ -7277,7 +9925,9 @@ def decision_reliability_rank(
 def decision_reliability_digests(
     draws_json: str,
 ) -> tuple[tuple[str, str] | None, str | None]: ...
-def decision_reliability_publish(route: str, coordinate_json: str) -> str | None: ...
+def decision_reliability_publish(
+    route: str, coordinate_json: str
+) -> tuple[str | None, str | None]: ...
 def decision_reliability_derive(
     draws_json: str,
     validation_json: str | None,
@@ -7300,7 +9950,9 @@ def decision_reliability_verify_derived(
     seed: int = 0,
     cancel: CancellationToken | None = None,
 ) -> str | None: ...
-def decision_reliability_publish_derived(route: str, derived_json: str) -> str | None: ...
+def decision_reliability_publish_derived(
+    route: str, derived_json: str
+) -> tuple[str | None, str | None]: ...
 def decision_reliability_coverage_design_json() -> tuple[str | None, str | None]: ...
 def decision_reliability_reach_carrier(output_json: str) -> tuple[str | None, str | None]: ...
 def decision_reliability_assess_producer(
@@ -7319,6 +9971,14 @@ def decision_reliability_derive_producer(
     seed: int = 0,
     cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...
+def joint_law_check_propagation(
+    operation_name: str,
+    inputs_json: str,
+    dependence_json: str,
+    reading: str,
+    ledger: EvidenceLedgerHandle | None = None,
+) -> tuple[str | None, str | None]: ...
+def joint_law_check_rows_pairable(inputs_json: str) -> str | None: ...
 def joint_law_column(
     input_id: str, artifact: JointDistributionArtifact, column: int
 ) -> tuple[str | None, str | None]: ...
@@ -7392,7 +10052,7 @@ def joint_law_consume(
     expected_identity: str | None = None,
     cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...
-def joint_law_closed_reading(reading: str) -> str: ...
+def joint_law_unsupported_reading(reading: str) -> str: ...
 def joint_law_linear_moments_spread(
     operation_name: str,
     inputs_json: str,
@@ -7462,6 +10122,184 @@ def joint_law_check_composed_interval(
     cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...
 def joint_law_coordinate_id(artifact: bytes) -> tuple[str | None, str | None]: ...
+def propagation_chain_seal(
+    record_json: str, cancel: CancellationToken | None = None
+) -> tuple[tuple[bytes, str, str, str | None, str | None] | None, str | None]: ...
+def propagation_chain_change(
+    record_json: str, change_json: str, cancel: CancellationToken | None = None
+) -> tuple[tuple[bytes, str, str, str | None, str | None] | None, str | None]: ...
+def propagation_chain_plan_view(
+    record_json: str, cancel: CancellationToken | None = None
+) -> tuple[str | None, str | None]: ...
+def propagation_chain_consume(
+    artifact: bytes,
+    expected_identity: str | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def propagation_chain_dependents(
+    record_json: str, source: str
+) -> tuple[list[str] | None, str | None]: ...
+def propagation_chain_product_table(
+    columns: list[list[float]], max_rows: int
+) -> tuple[list[list[float]] | None, str | None]: ...
+def propagation_chain_family_table(
+    alignment: str,
+    estimates: list[tuple[str, float, float, str, list[tuple[str, str]], bool, str | None]],
+    dependence: str,
+    covariance: list[float] | None = None,
+    ledger: EvidenceLedgerHandle | None = None,
+    rows: int = 1597,
+    seed: int = 0,
+) -> tuple[tuple[list[str], list[float], list[tuple[str, str]]] | None, str | None]: ...
+def finite_discrete_adjustment_contrast(
+    counts: list[int],
+    draws: list[tuple[list[int], float]],
+    cancel: CancellationToken | None = None,
+) -> tuple[float, float, float, float, int, int]: ...
+
+class LogisticProvider:
+    def __init__(self, id: int, name: str) -> None: ...
+    @property
+    def id(self) -> int: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def capabilities(self) -> list[str]: ...
+
+def recipe_logistic_standardized_effect(
+    columns: list[tuple[str, list[float]]],
+    treatment: str,
+    outcome: str,
+    adjustment: list[str],
+    provider: LogisticProvider,
+    cancel: CancellationToken | None = None,
+) -> tuple[float, float, float, list[float], list[float], int, int]: ...
+def cohort_checked_projection(
+    closure: tuple[list[str], list[str], list[str], list[str], list[str], list[str]],
+    observed: list[tuple[str, list[bool]]],
+    keep: list[str],
+) -> list[int]: ...
+def cohort_checked_push_filter(
+    closure: tuple[list[str], list[str], list[str], list[str], list[str], list[str]],
+    observed: list[tuple[str, list[bool]]],
+    column: str,
+    drop_row: list[bool],
+) -> list[int]: ...
+def score_published_decision(
+    demand: str,
+    mean: float,
+    posterior_mean: float | None = None,
+    slope: float | None = None,
+    intercept: float | None = None,
+) -> tuple[tuple[float, str] | None, str | None]: ...
+def compile_design_ranking_for_study(
+    request_json: str,
+    names: list[str],
+    columns: list[list[float]],
+    edges: list[tuple[str, str]],
+    treatment: str,
+    outcome: str,
+    *,
+    posterior: bool = True,
+    n_draws: int = 256,
+    prior_scale: float = 10.0,
+    checked_prior: CheckedPriorSignal | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def compile_decision_for_study(
+    carrier: str,
+    contract_identity: str,
+    utility_unit: str,
+    intercepts: list[float],
+    slopes: list[float],
+    names: list[str],
+    columns: list[list[float]],
+    edges: list[tuple[str, str]],
+    treatment: str,
+    outcome: str,
+    *,
+    chance_threshold: float = 1.0,
+    posterior: bool = True,
+    n_draws: int = 256,
+    prior_scale: float = 10.0,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def evaluate_design_ranking_for_study(
+    request_json: str,
+    artifact_id: str,
+    names: list[str],
+    columns: list[list[float]],
+    edges: list[tuple[str, str]],
+    treatment: str,
+    outcome: str,
+    *,
+    posterior: bool = True,
+    n_draws: int = 256,
+    prior_scale: float = 10.0,
+    checked_prior: CheckedPriorSignal | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, bytes | None, str | None, str | None]: ...
+def discovered_transport_trial_estimate_run(
+    contract_json: str,
+    names: list[str],
+    source_columns: list[NDArray[np.float64]],
+    target_columns: list[NDArray[np.float64]],
+    query_json: str,
+    selection_targets: list[int],
+    alpha: float,
+    member_bound: int | None = None,
+    bootstrap_replicates: int = 0,
+    *,
+    discovery_columns: list[NDArray[np.float64]] | None = None,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None, str | None, str | None, bytes | None]: ...
+def verify_trial_compatible_transport_estimate_artifact(
+    artifact: bytes,
+    *,
+    seed: int = 0,
+    threads: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def discovered_transport_trial_confidence_set_run(
+    contract_json: str,
+    names: list[str],
+    source_columns: list[NDArray[np.float64]],
+    target_columns: list[NDArray[np.float64]],
+    query_json: str,
+    selection_targets: list[int],
+    alpha: float,
+    support_lower: float,
+    support_upper: float,
+    member_bound: int | None = None,
+    bootstrap_replicates: int = 200,
+    *,
+    discovery_columns: list[NDArray[np.float64]] | None = None,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None, str | None, str | None, bytes | None]: ...
+def verify_trial_confidence_set_against_inputs(
+    receipt: bytes,
+    contract_json: str,
+    names: list[str],
+    source_columns: list[NDArray[np.float64]],
+    target_columns: list[NDArray[np.float64]],
+    query_json: str,
+    selection_targets: list[int],
+    alpha: float,
+    support_lower: float,
+    support_upper: float,
+    member_bound: int | None = None,
+    bootstrap_replicates: int = 200,
+    *,
+    discovery_columns: list[NDArray[np.float64]] | None = None,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None, str | None, str | None, bytes | None]: ...
 
 class SequentialBeliefSession:
     @staticmethod
@@ -7585,6 +10423,12 @@ class SelectiveDiscoveryHandle:
         self,
         graph_json: str | None,
         prefix: str,
+        completion_label: str | None = None,
+        completion_identity: str | None = None,
+    ) -> tuple[str | None, str | None]: ...
+    def accepted_graph_stage_identity(
+        self,
+        declared_by: str,
         completion_label: str | None = None,
         completion_identity: str | None = None,
     ) -> tuple[str | None, str | None]: ...
@@ -7743,7 +10587,14 @@ def discovered_transport_estimate_run(
     threads: int | None = None,
     cancel: Any = None,
 ) -> tuple[str | None, str | None, str | None, str | None, bytes | None]: ...
-def verify_discovered_transport_estimate_artifact(artifact: bytes, *, seed: int = 0) -> str: ...
+def verify_discovered_transport_estimate_artifact(
+    artifact: bytes,
+    *,
+    seed: int = 0,
+    threads: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
 def discovered_temporal_graph_transport(
     graph: Any,
     horizon_steps: int,
@@ -7752,6 +10603,10 @@ def discovered_temporal_graph_transport(
     history: int | None = None,
     member_bound: int | None = None,
     exhausted_search_bounds: int = 0,
+    *,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
 ) -> tuple[str | None, str | None]: ...
 def discovered_temporal_transport_estimate_run(
     contract_json: str,
@@ -7801,7 +10656,7 @@ def cross_world_consume(
     expected_identity_json: str | None = None,
     cancel: Any = None,
 ) -> tuple[str | None, str | None]: ...
-def cross_world_closed_reading(reading: str) -> str: ...
+def cross_world_unsupported_reading(reading: str) -> str: ...
 def inspect_artifact_container(bytes: bytes) -> str: ...
 def estimate_transport_response_grid(
     identification: Any,
@@ -7813,6 +10668,8 @@ def estimate_transport_response_grid(
     observed_regression: Sequence[float],
     target_regression: Sequence[float],
     response_weight: Sequence[float],
+    seed: int = 0,
+    cancel: CancellationToken | None = None,
 ) -> str: ...
 
 class TransportedResponseHandle:
@@ -7837,6 +10694,16 @@ def transported_decision_evaluate(
     unsupported: str,
     weakest_support: str,
 ) -> tuple[str | None, str | None]: ...
+def transported_decision_export(
+    declaration_json: str,
+    response: TransportedResponseHandle,
+    unsupported: str,
+    weakest_support: str,
+    artifact_id: str,
+) -> tuple[bytes | None, str | None]: ...
+def transported_decision_consume(
+    artifact: bytes, expected_identity: str | None = None
+) -> tuple[str | None, TransportedResponseHandle | None, str | None]: ...
 def transported_history_alphabet(model_json: str) -> tuple[str | None, str | None]: ...
 def transported_policy_construct(
     model_json: str,
@@ -7941,6 +10808,8 @@ class ObservationalScenarioHandle:
     def summary_json(self) -> str: ...
     def verify(self, law: JointDistributionArtifact) -> str | None: ...
 
+# Gaussian intervention queries on outcome coordinates retain conditional outcome variance.
+# Mean coordinates and contrasts remain point-only; parameter intervals are unavailable.
 def forward_source_composed(
     handle: PreparedCompositionHandle,
     actions_json: str,
@@ -7988,6 +10857,20 @@ def transport_scene_target_identity(target_population: str, target_data_identity
 def transport_scene_build(
     scene_json: str, responses: list[TransportedResponseHandle]
 ) -> tuple[TransportSceneHandle | None, str | None]: ...
+def transported_response_coordinate(
+    response: TransportedResponseHandle,
+) -> tuple[str | None, str | None]: ...
+def transported_response_standing(
+    response: TransportedResponseHandle,
+    calibration_json: str,
+    provider_trust: str | None = None,
+) -> tuple[str | None, str | None]: ...
+def transported_response_node(
+    key: str,
+    response: TransportedResponseHandle,
+    calibration_json: str,
+    provider_trust: str | None = None,
+) -> tuple[str | None, str | None]: ...
 def transport_revalidate(
     previous: TransportSceneHandle | None,
     current: TransportSceneHandle,
@@ -8047,4 +10930,2548 @@ def transport_handoff_seal(
 ) -> tuple[tuple[bytes, str, str] | None, str | None]: ...
 def transport_handoff_consume(
     artifact: bytes, callback_json: str, expected_identity: str | None = None
+) -> tuple[str | None, str | None]: ...
+def provider_source_admit(
+    declaration_json: str,
+    source_json: str,
+    receipt: ProviderVerificationReceipt | None = None,
+) -> tuple[str | None, str | None]: ...
+def provider_source_connect(
+    declaration_json: str,
+    source_json: str,
+    transport_json: str,
+    consumer_json: str,
+    consumed_port: str,
+    receipt: ProviderVerificationReceipt | None = None,
+) -> tuple[str | None, str | None]: ...
+
+class RetentionPolicy:
+    """Raw-history requirement. ``require`` raises when the result mode cannot serve the operation."""
+
+    @classmethod
+    def raw_history(cls) -> RetentionPolicy: ...
+    @classmethod
+    def bounded_window(cls, max_rows: int) -> RetentionPolicy: ...
+    @classmethod
+    def sufficient_statistics(cls) -> RetentionPolicy: ...
+    def kind(self) -> str: ...
+    def result_mode(self) -> RetentionMode: ...
+    def max_retained_rows(self) -> int | None: ...
+    def no_longer_serves(self) -> list[RetainedOperation]: ...
+    def require(self, operation: RetainedOperation) -> None: ...
+    def refusal(self, operation: RetainedOperation) -> RetentionRefusal | None: ...
+
+class RetentionMode:
+    """How a result is kept. The default is full reusable state."""
+
+    @classmethod
+    def full_reusable(cls) -> RetentionMode: ...
+    @classmethod
+    def summary_only(cls) -> RetentionMode: ...
+    @classmethod
+    def disk_backed(cls) -> RetentionMode: ...
+    @classmethod
+    def default(cls) -> RetentionMode: ...
+    def as_str(self) -> str: ...
+    def serves(self, operation: RetainedOperation) -> bool: ...
+    def no_longer_serves(self) -> list[RetainedOperation]: ...
+    def require(self, operation: RetainedOperation) -> None: ...
+    def refusal(self, operation: RetainedOperation) -> RetentionRefusal | None: ...
+
+class RetentionRefusal:
+    """A reduced retention mode's refusal of one later operation, held as a value."""
+
+    def mode(self) -> RetentionMode: ...
+    def operation(self) -> RetainedOperation: ...
+    def no_longer_serves(self) -> list[RetainedOperation]: ...
+    def message(self) -> str: ...
+    def raise_error(self) -> None: ...
+
+class RetainedOperation:
+    @classmethod
+    def row_reconstruction(cls) -> RetainedOperation: ...
+    @classmethod
+    def refit_from_retained_rows(cls) -> RetainedOperation: ...
+    @classmethod
+    def exact_row_eviction(cls) -> RetainedOperation: ...
+    @classmethod
+    def in_place_column_insert(cls) -> RetainedOperation: ...
+    @classmethod
+    def in_place_weight_or_mask_update(cls) -> RetainedOperation: ...
+    @classmethod
+    def reuse_full_state(cls) -> RetainedOperation: ...
+    @classmethod
+    def reuse_summary(cls) -> RetainedOperation: ...
+    @classmethod
+    def read_disk_artifact(cls) -> RetainedOperation: ...
+    def as_str(self) -> str: ...
+
+class PreservedIdentities:
+    def __init__(
+        self,
+        sample_selection: str,
+        folds: str,
+        population: str,
+        history: str,
+        dependence: str,
+        uncertainty: str,
+    ) -> None: ...
+    def identity(self, axis: str) -> str: ...
+
+class FrameRewrite:
+    """A declared rewrite. ``check`` refuses a changed scientific frame and does not execute it."""
+
+    @classmethod
+    def column_filter_pushdown(
+        cls, cohort: PreservedIdentities, pushed: PreservedIdentities, effect: str
+    ) -> FrameRewrite: ...
+    @classmethod
+    def shared_row_design_preparation(
+        cls,
+        preparation: PreservedIdentities,
+        left: PreservedIdentities,
+        right: PreservedIdentities,
+        effect: str,
+    ) -> FrameRewrite: ...
+    @classmethod
+    def nuisance_reuse(
+        cls, fit: PreservedIdentities, consumer: PreservedIdentities, effect: str
+    ) -> FrameRewrite: ...
+    @classmethod
+    def sufficient_statistics(
+        cls, rows: PreservedIdentities, summary: PreservedIdentities, effect: str
+    ) -> FrameRewrite: ...
+    @classmethod
+    def tiled_evaluation(
+        cls, full: PreservedIdentities, tile: PreservedIdentities, effect: str
+    ) -> FrameRewrite: ...
+    def name(self) -> str: ...
+    def with_matching_frame(
+        self, row_ids: list[str], fold_ids: list[str], population: str, history: str
+    ) -> FrameRewrite: ...
+    def check(self) -> None: ...
+
+class FrequentistSummary:
+    @classmethod
+    def estimate_covariance(
+        cls, name: str, estimate: float, covariance: float
+    ) -> FrequentistSummary: ...
+    @classmethod
+    def interval(cls, name: str) -> FrequentistSummary: ...
+    def kind(self) -> str: ...
+    def name(self) -> str: ...
+    def as_bayesian_likelihood(self) -> None: ...
+
+class SummaryObservationModel:
+    """Covariance adapted with sampling approximation, selection, dependence, and origin."""
+
+    @classmethod
+    def try_adapt(
+        cls,
+        summary: FrequentistSummary,
+        sampling_approximation: str,
+        selection: str,
+        dependence: str,
+        origin: str,
+    ) -> SummaryObservationModel: ...
+    def summary_kind(self) -> str: ...
+    def summary_name(self) -> str: ...
+    def sampling_approximation(self) -> str: ...
+    def selection(self) -> str: ...
+    def dependence(self) -> str: ...
+    def origin(self) -> str: ...
+    def validate_use(self, requested: str) -> LikelihoodUpdateAdmission: ...
+
+class LikelihoodUpdateAdmission:
+    def summary_kind(self) -> str: ...
+    def summary_name(self) -> str: ...
+
+class FeatureVersion:
+    def __init__(self, name: str, version: int) -> None: ...
+    def name(self) -> str: ...
+    def version(self) -> int: ...
+
+class FeatureRead:
+    """Container format ``0.5`` is compatible. Unknown features and package SemVer are refused."""
+
+    def kind(self) -> str: ...
+    def name(self) -> str: ...
+    def version(self) -> int: ...
+    def source_major(self) -> int | None: ...
+    def source_minor(self) -> int | None: ...
+    @classmethod
+    def classify(
+        cls,
+        container_major: int,
+        container_minor: int,
+        name: str,
+        version: int,
+        accepted: list[FeatureVersion],
+    ) -> FeatureRead: ...
+    @classmethod
+    def classify_package(
+        cls,
+        container_major: int,
+        container_minor: int,
+        major: int,
+        minor: int,
+        patch: int,
+        accepted: list[FeatureVersion],
+    ) -> FeatureRead: ...
+
+class ExecutionCounts:
+    """Counts a run actually performed. ``try_add`` refuses a sum that does not fit in ``u64``."""
+
+    def __init__(self, scans: int, copies: int, fits: int, tests: int, cache_hits: int) -> None: ...
+    def scans(self) -> int: ...
+    def copies(self) -> int: ...
+    def fits(self) -> int: ...
+    def tests(self) -> int: ...
+    def cache_hits(self) -> int: ...
+    def try_add(self, extra: ExecutionCounts) -> ExecutionCounts: ...
+
+class ExecutionResources:
+    """Threads, memory, and spill bytes. Spill is a count, not a path."""
+
+    def __init__(self, threads: int, memory_bytes: int, spill_bytes: int) -> None: ...
+    def threads(self) -> int: ...
+    def memory_bytes(self) -> int: ...
+    def spill_bytes(self) -> int: ...
+    def try_add(self, extra: ExecutionResources) -> ExecutionResources: ...
+
+class NumericalReplay:
+    """Recorded measurements. Reading them does not re-execute the run or invoke a callback."""
+
+    def counts(self) -> ExecutionCounts: ...
+    def resources(self) -> ExecutionResources: ...
+    def retention(self) -> str: ...
+    def backend_name(self) -> str: ...
+    def kernel(self) -> str: ...
+    def status(self) -> str: ...
+    def contract_changed(self) -> bool: ...
+
+class ExecutionFactStanding:
+    """Physical integrity, stored scientific digest, and numerical record."""
+
+    def integrity(self) -> bytes: ...
+    def semantic_verification(self) -> bytes | None: ...
+    def numerical_replay(self) -> NumericalReplay: ...
+
+class ExecutionFacts:
+    """Measured execution-receipt facts.
+
+    Physical identity is the measurements. The scientific digest is stored beside
+    them and is not recomputed by ``rebuild``. The numerical-policy flag changes
+    only through ``declare_numerical_policy_changes_scientific_contract``.
+    """
+
+    @property
+    def is_native(self) -> bool: ...
+    @property
+    def observed_scans(self) -> int | None: ...
+    @property
+    def observed_copies(self) -> int | None: ...
+    @property
+    def observed_copied_bytes(self) -> int | None: ...
+    @property
+    def observed_retained_bytes(self) -> int | None: ...
+    @property
+    def observed_model_fits(self) -> int | None: ...
+    @property
+    def peak_admitted_bytes(self) -> int | None: ...
+    @property
+    def peak_admitted_threads(self) -> int | None: ...
+    @property
+    def observed_spill_bytes(self) -> int | None: ...
+    @property
+    def observed_allocations(self) -> int | None: ...
+    @property
+    def observed_allocated_bytes(self) -> int | None: ...
+    def accounting(
+        self,
+        planned_peak_memory_bytes: int | None = None,
+        planned_copy_bytes: int | None = None,
+        planned_workspace_bytes: int | None = None,
+        planned_worker_threads: int | None = None,
+    ) -> list[tuple[str, str, int | None]]: ...
+    def __init__(
+        self,
+        counts: ExecutionCounts,
+        retention: str,
+        resources: ExecutionResources,
+        backend_name: str,
+        kernel: str,
+        status: str,
+        scientific_identity: bytes | None,
+        numerical_policy_changes_scientific_contract: bool,
+    ) -> None: ...
+    def counts(self) -> ExecutionCounts: ...
+    def retention(self) -> str: ...
+    def resources(self) -> ExecutionResources: ...
+    def backend_name(self) -> str: ...
+    def kernel(self) -> str: ...
+    def status(self) -> str: ...
+    def scientific_identity(self) -> bytes | None: ...
+    def scientific_contract_changed(self) -> bool: ...
+    def publishes_claim(self) -> bool: ...
+    def physical_identity(self) -> bytes: ...
+    def try_add_counts(self, extra: ExecutionCounts) -> None: ...
+    def try_add_resources(self, extra: ExecutionResources) -> None: ...
+    def rebuild(
+        self,
+        counts: ExecutionCounts,
+        retention: str,
+        resources: ExecutionResources,
+        backend_name: str,
+        kernel: str,
+        status: str,
+    ) -> ExecutionFacts: ...
+    def with_scientific_identity(self, scientific_identity: bytes | None) -> ExecutionFacts: ...
+    def declare_numerical_policy_changes_scientific_contract(
+        self, changes: bool
+    ) -> ExecutionFacts: ...
+    def standing(self) -> ExecutionFactStanding: ...
+
+class InspectionStanding:
+    """Scientific identity of the target copied into the inspection."""
+
+    def semantic_verification(self) -> bytes: ...
+
+class InspectionInputs:
+    """Held inspection parts. Absence is not an empty list or a default policy.
+
+    ``inspect`` copies those parts. It takes no callback and does not fit, scan,
+    or simulate.
+    """
+
+    def __init__(self) -> None: ...
+    def with_assumptions(self, names: list[str]) -> InspectionInputs: ...
+    def with_realization(self, name: str) -> InspectionInputs: ...
+    def with_evidence(self, names: list[str]) -> InspectionInputs: ...
+    def with_uncertainty(self, joint: bool, level: float) -> InspectionInputs: ...
+    def with_reuse(self, name: str, frozen_fit: bool) -> InspectionInputs: ...
+    def with_materialization(self, name: str, copy_bytes: int) -> InspectionInputs: ...
+    def with_resources(
+        self, memory_limit_bytes: int | None, estimated_bytes: int
+    ) -> InspectionInputs: ...
+    def with_backend(self, kernel: str) -> InspectionInputs: ...
+    def with_read_operators(
+        self, operators: list[tuple[int, int, int, int]]
+    ) -> InspectionInputs: ...
+    def inspect(self) -> PlanInspection: ...
+
+class PlanInspection:
+    """Plan record copied from values the caller already held."""
+
+    def target_identity(self) -> bytes: ...
+    def target_inference(self) -> str: ...
+    def assumptions(self) -> list[str]: ...
+    def realization(self) -> str: ...
+    def evidence(self) -> list[str]: ...
+    def uncertainty_joint(self) -> bool: ...
+    def uncertainty_level(self) -> float: ...
+    def uncertainty_level_bits(self) -> int: ...
+    def reuse_name(self) -> str: ...
+    def reuse_frozen_fit(self) -> bool: ...
+    def materialization_name(self) -> str: ...
+    def materialization_copy_bytes(self) -> int: ...
+    def memory_limit_bytes(self) -> int | None: ...
+    def estimated_bytes(self) -> int: ...
+    def backend(self) -> str: ...
+    def operators(self) -> list[tuple[str, list[int], int | None, int | None, int | None]]: ...
+    def standing(self) -> InspectionStanding: ...
+
+def require_ordinary_temporal_curve_posterior_native(serial_error_model: str) -> None: ...
+def trajectory_contrast_native(
+    subjects: int,
+    periods: int,
+    treatment: list[bool],
+    event: list[bool],
+    at_risk: list[bool],
+    treatment_probability: list[float],
+    censoring_weight: list[float],
+    minimum_probability: float,
+    active: list[bool],
+    control: list[bool],
+) -> tuple[float, float]: ...
+def trajectory_bootstrap_native(
+    subjects: int,
+    periods: int,
+    treatment: list[bool],
+    event: list[bool],
+    at_risk: list[bool],
+    treatment_probability: list[float],
+    censoring_weight: list[float],
+    minimum_probability: float,
+    active: list[bool],
+    control: list[bool],
+    replicates: int,
+    seed: int,
+) -> tuple[float, float, float, float, int, int]: ...
+def trajectory_credible_interval_native(
+    subjects: int,
+    periods: int,
+    treatment: list[bool],
+    event: list[bool],
+    at_risk: list[bool],
+    treatment_probability: list[float],
+    censoring_weight: list[float],
+    minimum_probability: float,
+    active: list[bool],
+    control: list[bool],
+) -> tuple[float, float]: ...
+def execute_cyclic_system(
+    request_json: str, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+) -> tuple[str, bytes, ExecutionFacts]: ...
+def consume_cyclic_system(
+    bytes: bytes,
+    expected_identity: str,
+    *,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[_CyclicExecution, ExecutionFacts]: ...
+def cyclic_parameter_posterior(
+    request_json: str,
+    prior_sd: float,
+    chains: int,
+    warmup: int,
+    draws: int,
+    proposal_scale: float,
+    seed: int,
+    *,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def consume_cyclic_family(
+    bytes: bytes,
+    expected_identity: str,
+    *,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[_CyclicExecution, ExecutionFacts]: ...
+
+class _CyclicNumericView(Buffer):
+    """Read-only native float64 buffer retaining its immutable execution owner."""
+
+    def __len__(self) -> int: ...
+
+class _CyclicExecution:
+    def identity(self) -> str: ...
+    def metadata_json(self) -> str: ...
+    def recovery_nodes(self) -> list[int]: ...
+    def prepare_recovered_worlds(
+        self,
+        worlds_json: str,
+        outcome: int,
+        *,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _PreparedCyclicFamily: ...
+    def recovery_law_report_json(self) -> str: ...
+    def recovery_summary_json(self) -> str: ...
+    def recovery_draw_status_json(self, *, offset: int = 0, limit: int = 64) -> str: ...
+    def recovery_unresolved_json(self, draw: int, *, offset: int = 0, limit: int = 64) -> str: ...
+    def contract_metadata_json(self) -> str: ...
+    def assumptions_json(self, *, offset: int = 0, limit: int = 64) -> str: ...
+    def report_json(self) -> str: ...
+    def world_ids(self, *, offset: int = 0, limit: int = 64) -> list[int]: ...
+    def variable_names(self) -> list[str] | None: ...
+    def require_intervention_worlds(self) -> None: ...
+    def world_view_kind(self) -> Literal["specified", "recovered"] | None: ...
+    def world_metadata_json(self, world: int) -> str: ...
+    def world_report_json(self, world: int) -> str: ...
+    def world_slot_metadata_json(
+        self, world: int, *, row: int = 0, draw: int = 0, counterfactual: bool = False
+    ) -> str: ...
+    def world_values(
+        self,
+        world: int,
+        *,
+        row: int = 0,
+        draw: int = 0,
+        counterfactual: bool = False,
+        field: str = "values",
+    ) -> _CyclicNumericView | None: ...
+    def export(
+        self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> bytes: ...
+    def evidence(
+        self,
+        schema_json: str,
+        selectors_json: str,
+        *,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _CyclicEvidence: ...
+
+class _PreparedCyclicSystem:
+    def rebind(
+        self,
+        request_json: str,
+        *,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _PreparedCyclicSystem: ...
+    def execute(
+        self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> tuple[_CyclicExecution, ExecutionFacts]: ...
+    def request_json(self) -> str: ...
+    def initial_state(self) -> list[float]: ...
+    def inspect(self) -> str: ...
+    def retarget(
+        self, worlds_json: str, noise_json: str, initial_json: str
+    ) -> _PreparedCyclicSystem: ...
+    def retarget_buffers(
+        self, worlds_json: str, noise: NDArray[np.float64], initial: list[float]
+    ) -> _PreparedCyclicSystem: ...
+    def refresh_buffers(
+        self,
+        rows_json: str,
+        observations: NDArray[np.float64],
+        *,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _PreparedCyclicSystem: ...
+    def to_family(
+        self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> _PreparedCyclicFamily: ...
+    def contract(self) -> str: ...
+
+def prepare_cyclic_system(
+    request_json: str, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+) -> _PreparedCyclicSystem: ...
+def prepare_cyclic_system_buffers(
+    metadata: str,
+    noise: NDArray[np.float64],
+    observations: NDArray[np.float64],
+    *,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _PreparedCyclicSystem: ...
+
+class _PreparedCyclicFamily:
+    def rebind(
+        self,
+        request_json: str,
+        *,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _PreparedCyclicFamily: ...
+    def evidence(
+        self,
+        schema_json: str,
+        selectors_json: str,
+        *,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _CyclicEvidence: ...
+    def execute(
+        self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> tuple[_CyclicExecution, ExecutionFacts]: ...
+    def interventions(
+        self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> tuple[str, ExecutionFacts]: ...
+    def inspect(self) -> str: ...
+    def contract(self) -> str: ...
+
+def prepare_cyclic_family(
+    request_json: str, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+) -> _PreparedCyclicFamily: ...
+def prepare_cyclic_experimental_recovery(
+    request_json: str, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+) -> _PreparedCyclicFamily: ...
+def execute_local_cyclic(
+    request_json: str, callbacks: list[Any], *, max_bytes: int | None = None, cancel: Any = None
+) -> str: ...
+def external_content_digest(content: bytes) -> str: ...
+def external_spec_identity(spec_json: str) -> str: ...
+def external_execute(
+    request_json: str,
+    resolver: Any = None,
+    *,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def external_export(
+    request_json: str,
+    artifact_id: str,
+    resolver: Any = None,
+    *,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str, bytes]: ...
+def external_consume(
+    artifact: bytes,
+    expected_identity: str,
+    resolver: Any = None,
+    *,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def external_inspect(artifact: bytes) -> str: ...
+def external_fit(
+    request_json: str,
+    resolver: Any = None,
+    *,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def external_ode(
+    request_json: str,
+    resolver: Any = None,
+    *,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+
+class _CyclicEvidence:
+    def identity(self) -> str: ...
+    def metadata_json(self, *, offset: int = 0, limit: int = 64) -> str: ...
+    def report(self) -> str: ...
+    def export(
+        self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> bytes: ...
+    def joint_law(
+        self,
+        *,
+        others: list[_CyclicEvidence] | None = None,
+        dependence: Literal["aligned", "independent"] | None = None,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> JointDistributionArtifact: ...
+    def decide_means(
+        self,
+        contract_json: str,
+        *,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def decide_enclosures(
+        self,
+        contract_json: str,
+        *,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+
+def consume_cyclic_evidence(
+    bytes: bytes,
+    expected_identity: str,
+    *,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _CyclicEvidence: ...
+
+class _JointPanelResult:
+    def program_identity(self) -> str: ...
+    @property
+    def execution_facts(self) -> ExecutionFacts: ...
+    def experiment_quantity(self, functional_json: str) -> str: ...
+    def condition_experiment(
+        self,
+        declaration_json: str,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _JointPanelExperiment: ...
+    def condition_excursion(
+        self,
+        declaration_json: str,
+        excursion_json: str,
+        component: str,
+        likelihood_assumption_id: str,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _JointPanelExperiment: ...
+    def condition_joint_excursion(
+        self,
+        declaration_json: str,
+        excursion_json: str,
+        likelihood_assumption_id: str,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _JointPanelJointExperiment: ...
+    def report(self) -> str: ...
+    def scheduled_contrast(self, functional_json: str, level: float) -> str: ...
+    def certify_program(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _PanelProgramCertificate: ...
+    def search_program(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def attempt_explanation(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def attempt_identified_reference(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def attempt_design_adaptive_reference(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def search_declared_programs(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def decompose_reference(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def export(
+        self,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+
+class _PreparedJointPanel:
+    def plan_view(self) -> str: ...
+    def program_identity(self) -> str: ...
+    def inspect(self) -> str: ...
+    def estimate(
+        self,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _JointPanelResult: ...
+    def retarget(
+        self,
+        worlds_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _PreparedJointPanel: ...
+    def with_unrolled_graph(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _PreparedJointPanel: ...
+
+class _PreparedJointPanelImputation:
+    def plan_view(self) -> str: ...
+    def program_identity(self) -> str: ...
+    def estimate(
+        self,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+
+def prepare_joint_panel(
+    declaration_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _PreparedJointPanel: ...
+def prepare_joint_panel_imputed(
+    request_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _PreparedJointPanelImputation: ...
+def dummy_code_joint_panel(
+    declaration_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def consume_joint_panel(
+    bytes: bytes,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def consume_panel_program_certificate(
+    bytes: bytes,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+
+class _PanelProgramCertificate:
+    def plan_view(self) -> str: ...
+    def program_identity(self) -> str: ...
+    def report(self) -> str: ...
+    def export(
+        self,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+    def verify_current(
+        self,
+        bytes: bytes,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> None: ...
+
+class _PreparedRandomizedProgramSelection:
+    def plan_view(self) -> str: ...
+    def program_identity(self) -> str: ...
+    def execute(
+        self,
+        *,
+        repetitions: int = 199,
+        tie_tolerance: float = 0.0,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _RandomizedProgramSelection: ...
+    def simultaneous_intervals(
+        self,
+        *,
+        repetitions: int = 199,
+        level: float = 0.95,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+
+class _RandomizedProgramSelection:
+    def plan_view(self) -> str: ...
+    def program_identity(self) -> str: ...
+    def report(self) -> str: ...
+    def export(self) -> bytes: ...
+    def verify_current(
+        self,
+        bytes: bytes,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> None: ...
+
+class _InstrumentedProgramSelection:
+    def plan_view(self) -> str: ...
+    def program_identity(self) -> str: ...
+    def report(self) -> str: ...
+    def export(self) -> bytes: ...
+    def verify_current(
+        self,
+        bytes: bytes,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> None: ...
+
+def prepare_randomized_program_selection(
+    declaration_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _PreparedRandomizedProgramSelection: ...
+def consume_randomized_program_selection(
+    bytes: bytes,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def select_instrumented_program(
+    declaration_json: str,
+    *,
+    repetitions: int = 199,
+    tie_tolerance: float = 0.0,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _InstrumentedProgramSelection: ...
+def consume_instrumented_selection(
+    bytes: bytes,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+
+class _JointPanelJointExperiment:
+    def plan_view(self) -> str: ...
+    def program_identity(self) -> str: ...
+    def report(self, ledger: EvidenceLedgerHandle) -> str: ...
+    def derived_quantity(self, expression_json: str, ledger: EvidenceLedgerHandle) -> str: ...
+    def bias_sensitivity(self, expression_json: str, ledger: EvidenceLedgerHandle) -> str: ...
+    def rank_next_samples(
+        self,
+        component: int,
+        declaration_json: str,
+        ledger: EvidenceLedgerHandle,
+        *,
+        replicates: int = 199,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def export(
+        self,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+    def verify_current(
+        self,
+        bytes: bytes,
+        component: int,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> None: ...
+
+def replay_joint_panel_experiment(
+    artifact: bytes,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+
+class _JointPanelExperiment:
+    def plan_view(self) -> str: ...
+    def program_identity(self) -> str: ...
+    def report(self, ledger: EvidenceLedgerHandle) -> str: ...
+    def decide(self, contract_json: str, ledger: EvidenceLedgerHandle) -> str: ...
+    def rank_next_studies(
+        self,
+        declaration_json: str,
+        ledger: EvidenceLedgerHandle,
+        *,
+        replicates: int = 199,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def rank_next_samples(
+        self,
+        declaration_json: str,
+        ledger: EvidenceLedgerHandle,
+        *,
+        replicates: int = 199,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def export(
+        self,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+    def verify_current(
+        self,
+        bytes: bytes,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> None: ...
+
+class _JointDesignExperiment:
+    def plan_view(self) -> str: ...
+    def program_identity(self) -> str: ...
+    def report(self, ledger: EvidenceLedgerHandle) -> str: ...
+    def decide(self, contract_json: str, ledger: EvidenceLedgerHandle) -> str: ...
+    def rank_next_samples(
+        self,
+        declaration_json: str,
+        ledger: EvidenceLedgerHandle,
+        *,
+        replicates: int = 199,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def export(
+        self,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+    def verify_current(
+        self,
+        bytes: bytes,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> None: ...
+
+def joint_panel_experiment_acceptance_matrix() -> str: ...
+
+class _PreparedJointDesign:
+    def plan_view(self) -> str: ...
+    def program_identity(self) -> str: ...
+    def proof(self) -> str: ...
+    def execute(
+        self,
+        inference_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _JointDesignResult: ...
+    def consume_current(
+        self,
+        artifact: bytes,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _JointDesignResult: ...
+
+class _JointDesignResult:
+    def program_identity(self) -> str: ...
+    def export_reference_decomposition(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+    def consume_reference_decomposition_current(
+        self,
+        artifact: bytes,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def report(self) -> str: ...
+    def posterior_quantities(self) -> str: ...
+    def export(self) -> bytes: ...
+    def experiment_quantity(self, functional_json: str) -> str: ...
+    def condition_experiment(
+        self,
+        declaration_json: str,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _JointDesignExperiment: ...
+    def attempt_population_reference(
+        self,
+        declaration_json: str,
+        fallback_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def decompose_population_reference(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def export_population_reference(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+    def consume_population_reference_current(
+        self,
+        artifact: bytes,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def decompose_reference_components(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+
+class _PreparedNativeJointDesign:
+    def plan_view(self) -> str: ...
+    def program_identity(self) -> str: ...
+    def identification(self) -> str: ...
+    def execute(
+        self,
+        inference_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _NativeJointDesignResult: ...
+    def consume_current(
+        self,
+        artifact: bytes,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _NativeJointDesignResult: ...
+
+class _NativeJointDesignResult:
+    def program_identity(self) -> str: ...
+    def experiment_quantity(self, binding_json: str) -> str: ...
+    def condition_native_experiment(
+        self,
+        binding_json: str,
+        declaration_json: str,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _NativeJointExperiment: ...
+    def report(self) -> str: ...
+    def export(self) -> bytes: ...
+
+class _PreparedJointResponse:
+    def inspect(self) -> str: ...
+    def execute(
+        self,
+        *,
+        seed: int = 0,
+        threads: int | None = None,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _JointResponseResult: ...
+    def retarget(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int | None = None,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _PreparedJointResponse: ...
+    def consume_current(
+        self,
+        artifact: bytes,
+        *,
+        seed: int = 0,
+        threads: int | None = None,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _JointResponseResult: ...
+
+class _JointResponseResult:
+    def report(self) -> str: ...
+    def export(
+        self,
+        *,
+        seed: int = 0,
+        threads: int | None = None,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+
+class _CheckedStudyClaim:
+    @property
+    def point(self) -> float: ...
+    def report_json(self) -> str: ...
+
+def compose_checked_study_claims(
+    parents: Sequence[PreparedAnalysis],
+    declaration_json: str,
+    *,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _CheckedStudyClaim: ...
+def compile_joint_response(
+    prepared: PreparedAnalysis,
+    declaration_json: str,
+    *,
+    seed: int = 0,
+    threads: int | None = None,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _PreparedJointResponse: ...
+def prepare_joint_design(
+    target_json: str,
+    proof_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _PreparedJointDesign: ...
+def prepare_joint_design_for_panel(
+    panel_result: _JointPanelResult,
+    proof_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _PreparedJointDesign: ...
+def joint_target_contrast(target_json: str, contrast_json: str) -> str: ...
+def replay_joint_law_experiment(
+    artifact: bytes,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def replay_native_joint_experiment(
+    artifact: bytes,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def replay_joint_design(
+    artifact: bytes,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def prepare_native_joint_design(
+    recipe_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _PreparedNativeJointDesign: ...
+def replay_native_joint_design(
+    artifact: bytes,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def replay_population_reference(
+    artifact: bytes,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+
+class _NativeJointExperiment:
+    def plan_view(self) -> str: ...
+    def program_identity(self) -> str: ...
+    def report(self, ledger: EvidenceLedgerHandle) -> str: ...
+    def decide(self, contract_json: str, ledger: EvidenceLedgerHandle) -> str: ...
+    def rank_next_samples(
+        self,
+        declaration_json: str,
+        ledger: EvidenceLedgerHandle,
+        *,
+        replicates: int = 199,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def export(
+        self,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+    def verify_current(
+        self,
+        bytes: bytes,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> None: ...
+
+def replay_reference_decomposition(
+    artifact: bytes,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def current_score_row_digest_bytes(row_ids: list[int]) -> bytes: ...
+def narrow_score_row_digest_bytes(row_ids: list[int]) -> bytes: ...
+def declared_target_digest(level: float) -> bytes: ...
+def consume_previous_release(
+    artifact: bytes, level: float
+) -> tuple[bytes, bytes, str, list[tuple[str, str]]]: ...
+def consume_previous_routes(
+    artifact: bytes, methods: list[tuple[str, str, str, str, str, str]]
+) -> str: ...
+
+class _Execution:
+    def __init__(
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_bytes: int | None = None,
+        cache: str = "bounded",
+        cache_bytes: int | None = 4_000_000,
+        kernel: str = "auto",
+        cancel: CancellationToken | None = None,
+        on_progress: Callable[[float, str], None] | None = None,
+        callback_failure_capacity: int = 256,
+        pulse_extrapolation_ranges: float | None = None,
+        exposure_probability_work_limit: int | None = None,
+        hmc_work_limit: int | None = None,
+        temporal_materialization_limits: tuple[int, int, int, int, int] | None = None,
+        randomization_test_max_row_visits: int | None = None,
+    ) -> None: ...
+    @property
+    def available_memory_bytes(self) -> int: ...
+    def call(self, callable: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any: ...
+
+class _TableSnapshot:
+    def __init__(self, names: list[str], columns: list[Any], *, borrow: bool = False) -> None: ...
+    @property
+    def column_names(self) -> list[str]: ...
+    @property
+    def row_count(self) -> int: ...
+    @property
+    def bytes_copied(self) -> int: ...
+    @property
+    def bytes_borrowed(self) -> int: ...
+    def column(self, name: str) -> _SnapshotColumn: ...
+
+class _SnapshotColumn:
+    def __len__(self) -> int: ...
+    def __getitem__(self, index: int) -> float: ...
+    @property
+    def name(self) -> str: ...
+
+class _IndexSnapshot:
+    def __init__(self, values: Any) -> None: ...
+    def __len__(self) -> int: ...
+
+class GraphScoreCache:
+    def __init__(
+        self,
+        columns: Sequence[Sequence[float]],
+        *,
+        family: str = "gaussian_bic",
+        byte_budget: int | None = None,
+    ) -> None: ...
+    @property
+    def n_rows(self) -> int: ...
+    @property
+    def n_vars(self) -> int: ...
+    @property
+    def retained_bytes(self) -> int: ...
+    def score(self) -> float: ...
+    def set_parents(self, node: int, parents: list[int]) -> tuple[float, float]: ...
+    def parents_of(self, node: int) -> list[int]: ...
+    def full_score(self, parents: dict[int, list[int]]) -> float: ...
+    def clear(self) -> None: ...
+
+class RollingMechanismDiagnostics:
+    def __init__(self, ncols: int, window: int) -> None: ...
+    def append_row(self, row: list[float], y: float) -> None: ...
+    def append_batch(self, rows: list[float], y: list[float]) -> None: ...
+    def refresh(self) -> None: ...
+    @property
+    def ncols(self) -> int: ...
+    @property
+    def window(self) -> int: ...
+    @property
+    def n(self) -> int: ...
+    @property
+    def beta(self) -> list[float]: ...
+    @property
+    def residual_sse(self) -> float: ...
+    @property
+    def residual_var(self) -> float | None: ...
+    @property
+    def mean_abs_residual(self) -> float: ...
+    @property
+    def max_abs_cusum(self) -> float | None: ...
+    @property
+    def bytes(self) -> int: ...
+    @property
+    def worst_case_bytes(self) -> int: ...
+
+def diagnose_data_json(
+    names: list[str],
+    columns: Sequence[Any],
+    policy_json: str,
+    context_json: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    column_types_json: str | None = None,
+) -> str: ...
+def data_diagnostic_registry_json() -> str: ...
+def decision_evidence_compile(spec_json: str) -> tuple[str | None, str | None]: ...
+def decision_evidence_experimental(
+    payload_json: str,
+    fit: bool,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def decision_evidence_temporal_bridge(
+    payload_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def decision_evidence_proxy(
+    payload_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def decision_evidence_evaluate(
+    payload_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def decision_evidence_adaptive(
+    payload_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def decision_evidence_compiled_cluster(
+    payload_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def decision_evidence_excursion_quantity(
+    payload_json: str,
+    component: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+
+class CompiledGraphImputationHandle:
+    def __init__(
+        self,
+        names: list[str],
+        columns: list[list[float]],
+        treatment: str,
+        outcome: str,
+        graph_support: str,
+        domains: list[str],
+        imputations: int,
+        iterations: int,
+        n_draws: int,
+        prior_scale: float,
+        seed: int,
+    ) -> None: ...
+    def execute(self) -> str: ...
+    def export(self) -> tuple[list[int], list[int], list[int], list[int]]: ...
+    def measured_interval(self) -> NativeMeasuredInference: ...
+    def interval(self) -> NativeMeasuredInference: ...
+
+class ConsumedGraphImputationHandle:
+    def measured_interval(self) -> NativeMeasuredInference: ...
+    def interval(self) -> NativeMeasuredInference: ...
+
+def consume_compiled_graph_imputation(
+    bytes: list[int], program: list[int], source: list[int], receipt: list[int], seed: int
+) -> tuple[str, ConsumedGraphImputationHandle]: ...
+
+class CompiledCategoricalPosteriorCandidateHandle:
+    def __init__(
+        self,
+        outcome: list[float],
+        levels: list[str],
+        declared_levels: list[str],
+        subject_ids: list[str],
+        row_snapshot: str,
+        sampling_design: str,
+        seed: int,
+    ) -> None: ...
+    def export(self) -> tuple[list[int], list[int]]: ...
+    def inspect(self) -> tuple[str, bool, list[int], list[int]]: ...
+    def interval(self, seed: int) -> NativeMeasuredInference: ...
+    def measured_interval(self, seed: int) -> NativeMeasuredInference: ...
+    @staticmethod
+    def consume(
+        source: list[int], expectation: list[int], seed: int
+    ) -> CompiledCategoricalPosteriorCandidateHandle: ...
+
+# Separately versioned endpoint-bootstrap artifact, independent from range v3.
+def export_z_transport_joint_interval(
+    stage: PreparedZTransportStage,
+    factors: list[tuple[str, float]],
+    *,
+    seed: int,
+    replicates: int = 199,
+    level: float = 0.95,
+    decision_threshold: float | None = None,
+    total_budget: float | None = None,
+    tolerance: float = 1e-9,
+    frontier_points: int = 17,
+    max_operations: int = 100_000,
+    max_depth: int = 64,
+    max_memory_bytes: int = 67_108_864,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> bytes: ...
+def consume_z_transport_joint_interval(
+    artifact: bytes,
+    *,
+    max_replicates: int = 2000,
+    max_bytes: int = 67_108_864,
+    max_search_operations: int = 100_000,
+    max_search_depth: int = 64,
+    max_memory_bytes: int = 67_108_864,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> dict[str, object]: ...
+
+# Immutable joint source data; no fit or posterior is reconstructed on load.
+class JointScenarioCarrier:
+    @property
+    def identity(self) -> str: ...
+    @property
+    def causal_target(self) -> str: ...
+    @property
+    def causal_identification(self) -> str: ...
+    @property
+    def joint_structure(self) -> str: ...
+    @property
+    def complete(self) -> bool: ...
+    @property
+    def search_stop(self) -> str | None: ...
+    @property
+    def n_scenarios(self) -> int: ...
+    def export(
+        self, *, memory_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> bytes: ...
+
+class CompiledRobustReadout:
+    def json(self) -> str: ...
+
+class CompiledRobustDecision:
+    @property
+    def program_identity(self) -> str: ...
+    @property
+    def source_identity(self) -> str: ...
+    def describe(self) -> str: ...
+    def evaluate(
+        self, *, memory_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> CompiledRobustReadout: ...
+    def export(
+        self, *, memory_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> bytes: ...
+    def consume(
+        self,
+        artifact: bytes,
+        *,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> CompiledRobustReadout: ...
+
+def joint_scenario_carrier_for_study(
+    study: PreparedAnalysis,
+    declaration_json: str,
+    claims_json: str,
+    sources: list[JointDistributionArtifact | None],
+    joint_structure: str,
+    exhaustive: bool,
+    *,
+    search_stop: str | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[JointScenarioCarrier | None, str | None]: ...
+def consume_joint_scenario_carrier(
+    artifact: bytes,
+    expected_identity: str,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> JointScenarioCarrier: ...
+def compile_robust_for_study(
+    study: PreparedAnalysis,
+    declaration_json: str,
+    source: JointScenarioCarrier,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[CompiledRobustDecision | None, str | None]: ...
+def compose_count_power_priors(
+    family: str, base: tuple[float, float], sources: Sequence[tuple[float, float, float]]
+) -> tuple[float, float]: ...
+def rename_composed_coordinates(
+    names: Sequence[str], kind: str, pairs: Sequence[Sequence[str]] | None = None
+) -> list[str]: ...
+
+class NativePreparedLatentSoftIntervention:
+    def inspect(self) -> str: ...
+    def execute(
+        self, memory_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> NativeFittedLatentSoftIntervention: ...
+
+class NativeFittedLatentSoftIntervention:
+    def discovery(self) -> str: ...
+    def forecast(
+        self,
+        context: list[float],
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def export_forecast(
+        self,
+        context: list[float],
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[bytes, str]: ...
+
+def latent_soft_intervention_prepare(
+    request: str,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> NativePreparedLatentSoftIntervention: ...
+def latent_soft_intervention_replay(
+    data: bytes,
+    expected: str,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+
+class NativePreparedEventProgram:
+    def inspect(self) -> str: ...
+    def replay_identity(self) -> str: ...
+    def execute(
+        self, memory_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> NativeEventResult: ...
+    def count_interval(
+        self, kind: int, memory_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> str: ...
+
+class NativeEventResult:
+    def report(self) -> str: ...
+    def paths(self) -> str: ...
+    def distribution(self) -> bytes: ...
+
+def events_prepare(
+    request: str,
+    source: NativeEventResult | None = None,
+    receipt: ProviderVerificationReceipt | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> NativePreparedEventProgram: ...
+def events_provider_request_id(request: str) -> str: ...
+
+# Decisions on a compiled graph-imputation mixture, at the source or transported to a target.
+class GraphImputationDecisionHandle:
+    def program(self) -> str: ...
+    def route(self) -> str: ...
+    def execute(self) -> tuple[str | None, str | None]: ...
+    def export(self, artifact_id: str) -> tuple[bytes | None, str | None]: ...
+    def chain_artifact(self) -> tuple[bytes | None, str | None]: ...
+
+class GraphImputationTransportBundleHandle:
+    def program(self) -> str: ...
+    def execute(self) -> tuple[str | None, str | None]: ...
+    def export(self) -> tuple[bytes | None, str | None]: ...
+
+def graph_imputation_decision_compile(
+    producer: CompiledGraphImputationHandle,
+    contract_json: str,
+    target_json: str | None = None,
+    bootstrap_json: str | None = None,
+    residual_json: str | None = None,
+    seed: int = 1,
+) -> tuple[GraphImputationDecisionHandle | None, str | None]: ...
+def graph_imputation_decision_consume(
+    data: bytes, program: str, seed: int = 1
+) -> tuple[str | None, str | None]: ...
+def graph_imputation_transport_bundle_add_fit(
+    builder: CompositionBundleBuilder, node_id: str, data: bytes, program: str, seed: int = 1
+) -> str | None: ...
+def graph_imputation_transport_bundle_compile(
+    bundle: CompositionBundle, fit: str, terminal: str, seed: int = 1
+) -> tuple[GraphImputationTransportBundleHandle | None, str | None]: ...
+def graph_imputation_transport_bundle_consume(
+    data: bytes, bundle_identity: str, program: str, seed: int = 1
+) -> tuple[str | None, str | None]: ...
+def graph_imputation_fit_bundle_consume(
+    data: bytes, expected_identity: str, supplied_json: str | None = None, seed: int = 1
+) -> tuple[str | None, str | None]: ...
+
+# Cyclic decisions: connected feedback components, paired action worlds and bundle refits.
+class _PreparedComponentFeedback:
+    def component_order(self) -> list[str]: ...
+    def composition_identity(self) -> str: ...
+    def identity(self) -> str: ...
+    def multi_output(self) -> bool: ...
+    def system(self) -> _PreparedCyclicSystem: ...
+
+class _CyclicDecisionResult:
+    def summary_json(self) -> str: ...
+    def draws(self) -> list[list[float]]: ...
+    def posterior_samples(self) -> list[list[float]] | None: ...
+    def chain_artifact(self) -> bytes: ...
+    def export(
+        self,
+        artifact_id: str,
+        *,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+
+class _CompiledCyclicDecision:
+    def identity(self) -> str: ...
+    def route(self) -> str: ...
+    def kind(self) -> str: ...
+    def seed(self) -> int: ...
+    def execute(
+        self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> _CyclicDecisionResult: ...
+    def logistic(self, quantities_json: str, contract_json: str) -> _CompiledCyclicDecision: ...
+
+class _CyclicBundleReceipt:
+    def receipt_json(self) -> str: ...
+    def export(
+        self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> bytes: ...
+
+class _CompiledCyclicBundle:
+    def identity(self) -> str: ...
+    def kind(self) -> str: ...
+    def execute(
+        self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> _CyclicBundleReceipt: ...
+
+def cyclic_component_feedback_prepare(
+    declaration_json: str,
+    ledger: EvidenceLedgerHandle | None = None,
+    *,
+    seed: int,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _PreparedComponentFeedback: ...
+def cyclic_action_world_decision_compile(
+    system: _PreparedCyclicSystem,
+    outputs_json: str,
+    contract_json: str,
+    *,
+    seed: int,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _CompiledCyclicDecision: ...
+def cyclic_posterior_decision_compile(
+    system: _PreparedCyclicSystem,
+    outputs_json: str,
+    contract_json: str,
+    prior_sd: float,
+    chains: int,
+    warmup: int,
+    draws: int,
+    proposal_scale: float,
+    target_json: str | None = None,
+    *,
+    seed: int,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _CompiledCyclicDecision: ...
+def cyclic_component_decision_compile(
+    feedback: _PreparedComponentFeedback,
+    schedule_json: str,
+    outputs_json: str,
+    contract_json: str,
+    *,
+    seed: int,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _CompiledCyclicDecision: ...
+def cyclic_decision_consume(
+    data: bytes,
+    expected_identity: str,
+    *,
+    seed: int,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _CyclicDecisionResult: ...
+def cyclic_bundle_add_posterior_fit(
+    builder: CompositionBundleBuilder,
+    node_id: str,
+    artifact: bytes,
+    producer_identity: str,
+    *,
+    seed: int,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> None: ...
+def cyclic_bundle_compile(
+    bundle: CompositionBundle,
+    terminal_node: str,
+    producer: bytes | None = None,
+    producer_identity: str | None = None,
+    producer_node: str | None = None,
+    *,
+    seed: int,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _CompiledCyclicBundle: ...
+def cyclic_bundle_consume(
+    data: bytes,
+    expected_bundle: str,
+    expected_identity: str,
+    *,
+    seed: int,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _CyclicBundleReceipt: ...
+def cyclic_bundle_consume_refitting(
+    data: bytes,
+    expected_identity: str,
+    supplied_json: str | None = None,
+    cyclic: bool = False,
+    *,
+    seed: int,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+
+# Predictive bridge transport decisions, their premise assessment and bridge-terminal bundles.
+class BridgePremiseAssessmentHandle:
+    program_identity: str
+    def plan_view_json(self) -> str: ...
+    def execute(
+        self, seed: int = 1, threads: int | None = None, cancel: CancellationToken | None = None
+    ) -> tuple[BridgePremiseAssessmentResultHandle | None, str | None]: ...
+
+class BridgePremiseAssessmentResultHandle:
+    def summary_json(self) -> str: ...
+    def export(
+        self, seed: int = 1, threads: int | None = None, cancel: CancellationToken | None = None
+    ) -> tuple[bytes | None, str | None]: ...
+
+class BridgeTransportDecisionHandle:
+    program_identity: str
+    variant: str
+    def plan_view_json(self) -> str: ...
+    def execute(
+        self, seed: int = 1, threads: int | None = None, cancel: CancellationToken | None = None
+    ) -> tuple[BridgeTransportDecisionResultHandle | None, str | None]: ...
+
+class BridgeTransportDecisionResultHandle:
+    def summary_json(self) -> str: ...
+    def distribution(self) -> JointDistributionArtifact: ...
+    def source_distribution(self) -> JointDistributionArtifact: ...
+    def export(
+        self,
+        artifact_id: str,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[bytes | None, str | None]: ...
+
+class BridgeBundleRecomputationHandle:
+    program_identity: str
+    def plan_view_json(self) -> str: ...
+    def execute(
+        self, seed: int = 1, threads: int | None = None, cancel: CancellationToken | None = None
+    ) -> tuple[BridgeBundleRecomputationResultHandle | None, str | None]: ...
+
+class BridgeBundleRecomputationResultHandle:
+    def summary_json(self) -> str: ...
+    def export(
+        self, seed: int = 1, threads: int | None = None, cancel: CancellationToken | None = None
+    ) -> tuple[bytes | None, str | None]: ...
+
+def bridge_premise_assessment_compile(
+    request_json: str,
+) -> tuple[BridgePremiseAssessmentHandle | None, str | None]: ...
+def bridge_premise_assessment_consume(
+    artifact: bytes,
+    expected_identity: str,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def bridge_transport_decision_compile(
+    contract_json: str,
+    source: JointDistributionArtifact,
+    decision_json: str,
+    stream: int,
+    assessment: BridgePremiseAssessmentHandle | None = None,
+    robust_json: str | None = None,
+    target_posterior_json: str | None = None,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[BridgeTransportDecisionHandle | None, str | None]: ...
+def bridge_transport_decision_consume(
+    artifact: bytes,
+    expected_identity: str,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[BridgeTransportDecisionResultHandle | None, str | None]: ...
+def bridge_bundle_recomputation_compile(
+    bundle: bytes,
+    bundle_identity: str,
+    terminal_node: str,
+    contract_json: str,
+    source: JointDistributionArtifact,
+    stream: int,
+) -> tuple[BridgeBundleRecomputationHandle | None, str | None]: ...
+def bridge_bundle_recomputation_consume(
+    artifact: bytes,
+    expected_bundle: str,
+    expected_identity: str,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+
+# Decisions compiled with their propagation chain, and their independent replay.
+class ChainDecisionPlanHandle:
+    program_identity: str
+    def plan_view_json(self) -> str: ...
+    def execute(
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> tuple[ChainDecisionRunHandle | None, str | None]: ...
+
+class ChainDecisionRunHandle:
+    program_identity: str
+    def decision_json(self) -> str: ...
+    def chain(
+        self,
+    ) -> tuple[tuple[bytes, str, str, str | None, str | None] | None, str | None]: ...
+    def export(self, artifact_id: str) -> tuple[bytes | None, str | None]: ...
+
+class ChainRobustDecisionPlanHandle:
+    program_identity: str
+    def plan_view_json(self) -> str: ...
+    def execute(
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> tuple[ChainRobustDecisionRunHandle | None, str | None]: ...
+
+class ChainRobustDecisionRunHandle:
+    program_identity: str
+    def decision_json(self) -> str: ...
+    def chain(
+        self,
+    ) -> tuple[tuple[bytes, str, str, str | None, str | None] | None, str | None]: ...
+    def export(self, artifact_id: str) -> tuple[bytes | None, str | None]: ...
+
+def chain_decision_compile(
+    record_json: str,
+    contract_json: str,
+    *,
+    action_worlds: bool = False,
+    cancel: CancellationToken | None = None,
+) -> tuple[ChainDecisionPlanHandle | None, str | None]: ...
+def chain_decision_compile_transported(
+    response: TransportedResponseHandle,
+    contract_json: str,
+    unsupported: str,
+    weakest_support: str,
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[ChainDecisionPlanHandle | None, str | None]: ...
+def chain_decision_consume(
+    data: bytes,
+    expected_identity: str | None = None,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[ChainDecisionRunHandle | None, str | None]: ...
+def chain_robust_decision_compile(
+    record_json: str,
+    contract_json: str,
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[ChainRobustDecisionPlanHandle | None, str | None]: ...
+def chain_robust_decision_consume(
+    data: bytes,
+    expected_identity: str | None = None,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[ChainRobustDecisionRunHandle | None, str | None]: ...
+
+# Live recomputation of a composition bundle's chain, decision or predictive-fit terminal.
+class BundleRecomputationPlanHandle:
+    route: str
+    program_identity: str
+    def plan_view_json(self) -> str: ...
+    def execute(
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> tuple[BundleRecomputationRunHandle | None, str | None]: ...
+    def export_portable(
+        self,
+        run: BundleRecomputationRunHandle,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> tuple[bytes | None, str | None]: ...
+
+class BundleRecomputationRunHandle:
+    def receipt_json(self) -> str: ...
+
+def chain_bundle_recomputation_compile(
+    bundle: CompositionBundle,
+    terminal_node: str,
+    record_json: str | None = None,
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[BundleRecomputationPlanHandle | None, str | None]: ...
+def chain_bundle_recomputation_consume(
+    data: bytes,
+    expected_bundle: str,
+    expected_program: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[BundleRecomputationRunHandle | None, str | None]: ...
+def decision_bundle_recomputation_compile(
+    bundle: CompositionBundle,
+    terminal_node: str,
+    contract_json: str,
+    source: JointDistributionArtifact,
+    *,
+    posterior: bool = False,
+) -> tuple[BundleRecomputationPlanHandle | None, str | None]: ...
+def decision_bundle_recomputation_consume(
+    data: bytes,
+    expected_bundle: str,
+    expected_program: str,
+    *,
+    posterior: bool = False,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[BundleRecomputationRunHandle | None, str | None]: ...
+def predictive_fit_decision_bundle_compile(
+    bundle: CompositionBundle,
+    producer: str,
+    chain: str,
+    terminal: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[BundleRecomputationPlanHandle | None, str | None]: ...
+def predictive_fit_decision_bundle_consume(
+    data: bytes,
+    expected_bundle: str,
+    expected_program: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[BundleRecomputationRunHandle | None, str | None]: ...
+
+# Whether an estimator targets the quantity of a support-matrix coordinate.
+def support_cell_estimator_target(
+    coordinate: str, estimator: str
+) -> tuple[bool, str | None, str | None]: ...
+
+# Transported decisions, time-ordered path transport and transported-fit bundle replay.
+
+class CompiledTransportDecisionHandle:
+    @property
+    def route(self) -> str: ...
+    @property
+    def identity(self) -> str: ...
+    def plan_json(self) -> str: ...
+    def execute(
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> TransportDecisionResultHandle: ...
+    def export(
+        self,
+        result: TransportDecisionResultHandle,
+        artifact_id: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+
+class TransportDecisionResultHandle:
+    @property
+    def route(self) -> str: ...
+    def summary_json(self) -> str: ...
+    def chain(self) -> tuple[tuple[bytes, str, str, str | None, str | None] | None, str | None]: ...
+
+class CompiledTransportNodeBundleHandle:
+    @property
+    def route(self) -> str: ...
+    @property
+    def identity(self) -> str: ...
+    def plan_json(self) -> str: ...
+    def execute(
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str, str]: ...
+    def export(
+        self,
+        receipt_json: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+
+class CompiledTemporalPathHandle:
+    @property
+    def kind(self) -> str: ...
+    @property
+    def identity(self) -> str: ...
+    def plan_json(self) -> str: ...
+    def execute(
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> TemporalPathResultHandle: ...
+    def export(
+        self,
+        result: TemporalPathResultHandle,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+
+class TemporalPathResultHandle:
+    @property
+    def kind(self) -> str: ...
+    def summary_json(self) -> str: ...
+
+def trial_ipw_decision_compile(
+    graph: Admg,
+    structure_json: str,
+    rows_json: str,
+    contract_json: str,
+    effect_json: str | None = None,
+    worlds_json: str | None = None,
+    independent_potential_outcomes: bool = False,
+    *,
+    catalog: Any = None,
+) -> CompiledTransportDecisionHandle: ...
+def joint_transport_decision_compile(
+    graph: Admg,
+    structure_json: str,
+    request_json: str,
+    contract_json: str,
+    effect_json: str | None = None,
+    worlds_json: str | None = None,
+    target_noise_variance: float | None = None,
+    target_noise_correlation: float | None = None,
+    *,
+    catalog: Any = None,
+) -> CompiledTransportDecisionHandle: ...
+def transport_decision_consume(
+    data: bytes,
+    route: str,
+    expected_identity: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> TransportDecisionResultHandle: ...
+def transport_bundle_add_fit(
+    builder: CompositionBundleBuilder,
+    route: str,
+    node_id: str,
+    data: bytes,
+    program_identity: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> None: ...
+def transport_node_bundle_compile(
+    bundle: CompositionBundle,
+    route: str,
+    producer_node: str,
+    terminal_node: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> CompiledTransportNodeBundleHandle: ...
+def transport_node_bundle_consume(
+    data: bytes,
+    route: str,
+    expected_bundle: str,
+    expected_identity: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str, str]: ...
+def transport_fit_bundle_consume(
+    data: bytes,
+    route: str,
+    expected_identity: str,
+    supplied_json: str | None = None,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def temporal_path_compile(
+    graph: Admg,
+    levels: list[tuple[str, list[float]]],
+    target: str,
+    sources: list[tuple[str, list[str], list[str]]],
+    catalog: Any,
+    path_json: str,
+    *,
+    laws: Any = None,
+    tables: Any = None,
+    overlap: tuple[str, list[tuple[Any, Any, str]]] | None = None,
+    unseen_rule: tuple[str, float | None] | None = None,
+    min_table_total: int | None = None,
+    max_unseen_fraction: float | None = None,
+    max_envelope_evaluations: int | None = None,
+    max_operations: int | None = None,
+    max_depth: int | None = None,
+    max_search_operations: int | None = None,
+    max_search_depth: int | None = None,
+    max_support_rows: int = 1_000_000,
+    seed: int = 1,
+    threads: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> CompiledTemporalPathHandle: ...
+def continuous_chain_compile(
+    request_json: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> CompiledTemporalPathHandle: ...
+def temporal_path_consume(
+    data: bytes,
+    kind: str,
+    expected_identity: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> TemporalPathResultHandle: ...
+
+# Whole-chain bootstrap union of an assumption envelope (sampling_assumption_union_api.rs).
+class SamplingAssumptionUnionHandle:
+    @property
+    def result_json(self) -> str: ...
+    @property
+    def route(self) -> str: ...
+    def export(
+        self, cancel: CancellationToken | None = None
+    ) -> tuple[bytes | None, str | None]: ...
+
+def sampling_assumption_union_compile(
+    scheme: str,
+    request_json: str,
+    seed: int = 1,
+    cancel: CancellationToken | None = None,
+) -> tuple[SamplingAssumptionUnionHandle | None, str | None]: ...
+def sampling_assumption_union_consume(
+    artifact: bytes,
+    expected_identity: str,
+    seed: int = 1,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+
+# Compiled policy programs and their replay (policy_reliability_api.rs).
+class PolicySubsamplingHandle:
+    @property
+    def candidate_json(self) -> str: ...
+    def export(
+        self, *, memory_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> bytes: ...
+
+class SequentialPolicyReliabilityHandle:
+    @property
+    def parts(self) -> tuple[str, str, str]: ...
+    @property
+    def route(self) -> str: ...
+    def export(
+        self, cancel: CancellationToken | None = None
+    ) -> tuple[bytes | None, str | None]: ...
+
+class SequentialReliabilityBundleHandle:
+    @property
+    def receipt_json(self) -> str: ...
+    @property
+    def route(self) -> str: ...
+    def export(
+        self, cancel: CancellationToken | None = None
+    ) -> tuple[bytes | None, str | None]: ...
+
+def observational_policy_export(
+    outcome: list[float],
+    treatment: list[float],
+    adjustment_names: list[str],
+    adjustment_columns: list[list[float]],
+    declaration_json: str,
+    report_json: str,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[bytes, str]: ...
+def observational_policy_consume(
+    artifact: bytes,
+    expected_identity: str | None = None,
+    seed: int = 1,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def policy_subsampling_compile(
+    outcome: list[float],
+    treatment: list[float],
+    adjustment_names: list[str],
+    adjustment_columns: list[list[float]],
+    declaration_json: str,
+    subsample_rows: int,
+    replicates: int,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> PolicySubsamplingHandle: ...
+def policy_subsampling_consume(
+    artifact: bytes,
+    expected_identity: str,
+    seed: int = 1,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def sequential_policy_reliability_compile(
+    model_json: str,
+    policies_json: str,
+    unit: str,
+    mode_json: str,
+    seed: int = 1,
+    cancel: CancellationToken | None = None,
+) -> tuple[SequentialPolicyReliabilityHandle | None, str | None]: ...
+def sequential_policy_reliability_consume(
+    artifact: bytes,
+    expected_identity: str | None = None,
+    seed: int = 1,
+    cancel: CancellationToken | None = None,
+) -> tuple[tuple[str, str, str] | None, str | None]: ...
+def composition_add_sequential_policy_reliability(
+    builder: CompositionBundleBuilder,
+    reliability: SequentialPolicyReliabilityHandle,
+    producer: str,
+    draws: str,
+    diagnostic: str,
+    cancel: CancellationToken | None = None,
+) -> str | None: ...
+def sequential_reliability_bundle_compile(
+    bundle: CompositionBundle,
+    producer: str,
+    draws: str,
+    diagnostic: str,
+    seed: int = 1,
+    cancel: CancellationToken | None = None,
+) -> tuple[SequentialReliabilityBundleHandle | None, str | None]: ...
+def sequential_reliability_bundle_consume(
+    artifact: bytes,
+    expected_bundle: str,
+    expected_identity: str,
+    seed: int = 1,
+    cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...

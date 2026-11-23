@@ -1,18 +1,21 @@
 //! Prior-bank catalog bindings (P4A).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
-use antecedent_io::{
+use antecedent::inference::{
+    ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, MappedTransferSpec,
+    PriorSet, PriorSpec, compose_external_priors, compose_external_priors_with_alphas,
+    mapped_posterior_transfer_with,
+};
+use antecedent::io::distribution_artifact::DistributionIdentity;
+use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::io::{
     CompatibilityReport, DesignVariableRole, DesignVariableSummary, EstimandFingerprint,
     PriorCatalog, PriorMapping, PriorSourceMeta, PriorSourceRef, TargetDesign,
 };
-use antecedent_prob::{
-    ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, PriorSet, PriorSpec,
-    compose_external_priors, compose_external_priors_with_alphas,
-};
-use antecedent_validate::{ConflictPolicy, ConflictSignals, apply_conflict_and_compose};
+use antecedent::validate::{ConflictPolicy, ConflictSignals, apply_conflict_and_compose};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyModule};
 
@@ -121,18 +124,18 @@ pub(crate) fn meta_from_dict(d: &Bound<'_, PyDict>) -> PyResult<PriorSourceMeta>
         }
         meta = meta.with_design(design);
     }
-    if let Some(c) = d.get_item("contrast")? {
-        if !c.is_none() {
-            meta.contrast = Some(c.extract()?);
-        }
+    if let Some(c) = d.get_item("contrast")?
+        && !c.is_none()
+    {
+        meta.contrast = Some(c.extract()?);
     }
     if let Some(p) = d.get_item("provenance")? {
         meta.provenance = p.extract()?;
     }
-    if let Some(m) = d.get_item("declared_mapping")? {
-        if !m.is_none() {
-            meta = meta.with_mapping(mapping_from_dict(m.cast::<PyDict>()?)?);
-        }
+    if let Some(m) = d.get_item("declared_mapping")?
+        && !m.is_none()
+    {
+        meta = meta.with_mapping(mapping_from_dict(m.cast::<PyDict>()?)?);
     }
     Ok(meta)
 }
@@ -175,60 +178,63 @@ fn prior_catalog_filter<'py>(
     sources: &Bound<'_, PyList>,
     target: &Bound<'_, PyDict>,
 ) -> PyResult<Bound<'py, PyList>> {
-    let mut refs = Vec::with_capacity(sources.len());
-    for item in sources.iter() {
-        let d = item.cast::<PyDict>()?;
-        let meta_obj =
-            d.get_item("meta")?.ok_or_else(|| crate::value_err("source requires meta dict"))?;
-        let meta = meta_from_dict(meta_obj.cast::<PyDict>()?)?;
-        let artifact = match d.get_item("artifact")? {
-            Some(a) if !a.is_none() => {
-                let bytes: Vec<u8> = a.extract()?;
-                Some(bytes)
-            }
-            _ => None,
-        };
-        refs.push(match artifact {
-            Some(b) => PriorSourceRef::with_bytes(meta, b),
-            None => PriorSourceRef::from_meta(meta),
-        });
-    }
+    crate::catch_ffi(|| {
+        let mut refs = Vec::with_capacity(sources.len());
+        for item in sources.iter() {
+            let d = item.cast::<PyDict>()?;
+            let meta_obj =
+                d.get_item("meta")?.ok_or_else(|| crate::value_err("source requires meta dict"))?;
+            let meta = meta_from_dict(meta_obj.cast::<PyDict>()?)?;
+            let artifact = match d.get_item("artifact")? {
+                Some(a) if !a.is_none() => {
+                    let bytes: Vec<u8> = a.extract()?;
+                    Some(bytes)
+                }
+                _ => None,
+            };
+            refs.push(match artifact {
+                Some(b) => PriorSourceRef::with_bytes(meta, b),
+                None => PriorSourceRef::from_meta(meta),
+            });
+        }
 
-    let estimand_obj =
-        target.get_item("estimand")?.ok_or_else(|| crate::value_err("target.estimand required"))?;
-    let ed = estimand_obj.cast::<PyDict>()?;
-    let estimand = EstimandFingerprint::new(
-        ed.get_item("query_kind")?
-            .ok_or_else(|| crate::value_err("estimand.query_kind"))?
-            .extract::<String>()?,
-        ed.get_item("treatment")?
-            .ok_or_else(|| crate::value_err("estimand.treatment"))?
-            .extract::<String>()?,
-        ed.get_item("outcome")?
-            .ok_or_else(|| crate::value_err("estimand.outcome"))?
-            .extract::<String>()?,
-    );
-    let variables: Vec<String> = match target.get_item("variables")? {
-        Some(v) => v.extract()?,
-        None => Vec::new(),
-    };
-    let mut td = TargetDesign::new(estimand, variables);
-    if let Some(tags) = target.get_item("tags")? {
-        td = td.with_tags(tags.extract()?);
-    }
-    if let Some(allow) = target.get_item("allow_unidentified")? {
-        if allow.extract::<bool>()? {
+        let estimand_obj = target
+            .get_item("estimand")?
+            .ok_or_else(|| crate::value_err("target.estimand required"))?;
+        let ed = estimand_obj.cast::<PyDict>()?;
+        let estimand = EstimandFingerprint::new(
+            ed.get_item("query_kind")?
+                .ok_or_else(|| crate::value_err("estimand.query_kind"))?
+                .extract::<String>()?,
+            ed.get_item("treatment")?
+                .ok_or_else(|| crate::value_err("estimand.treatment"))?
+                .extract::<String>()?,
+            ed.get_item("outcome")?
+                .ok_or_else(|| crate::value_err("estimand.outcome"))?
+                .extract::<String>()?,
+        );
+        let variables: Vec<String> = match target.get_item("variables")? {
+            Some(v) => v.extract()?,
+            None => Vec::new(),
+        };
+        let mut td = TargetDesign::new(estimand, variables);
+        if let Some(tags) = target.get_item("tags")? {
+            td = td.with_tags(tags.extract()?);
+        }
+        if let Some(allow) = target.get_item("allow_unidentified")?
+            && allow.extract::<bool>()?
+        {
             td = td.allow_unidentified();
         }
-    }
 
-    let catalog = PriorCatalog::from_sources(refs);
-    let reports = catalog.filter_compatible(&td);
-    let out = PyList::empty(py);
-    for r in &reports {
-        out.append(report_to_dict(py, r)?)?;
-    }
-    Ok(out)
+        let catalog = PriorCatalog::from_sources(refs);
+        let reports = catalog.filter_compatible(&td);
+        let out = PyList::empty(py);
+        for r in &reports {
+            out.append(report_to_dict(py, r)?)?;
+        }
+        Ok(out)
+    })
 }
 
 /// Rank usable compatibility reports by similarity scores `{id: score}`.
@@ -238,107 +244,111 @@ fn prior_catalog_rank<'py>(
     reports: &Bound<'_, PyList>,
     scores: &Bound<'_, PyDict>,
 ) -> PyResult<Bound<'py, PyList>> {
-    let mut parsed = Vec::with_capacity(reports.len());
-    for item in reports.iter() {
-        let d = item.cast::<PyDict>()?;
-        let status: String = d
-            .get_item("status")?
-            .ok_or_else(|| crate::value_err("report.status required"))?
-            .extract()?;
-        let artifact_id: String = d
-            .get_item("artifact_id")?
-            .ok_or_else(|| crate::value_err("report.artifact_id required"))?
-            .extract()?;
-        let report = match status.as_str() {
-            "compatible" => CompatibilityReport::Compatible { artifact_id },
-            "partial" => CompatibilityReport::Partial {
-                artifact_id,
-                missing: d
-                    .get_item("missing")?
-                    .map(|v| v.extract())
-                    .transpose()?
-                    .unwrap_or_default(),
-                mappable: d
-                    .get_item("mappable")?
-                    .map(|v| v.extract())
-                    .transpose()?
-                    .unwrap_or_default(),
-            },
-            "rejected" => CompatibilityReport::Rejected {
-                artifact_id,
-                reason: antecedent_io::CompatibilityRejectReason::ArtifactUnreadable {
-                    message: "rank ignores rejected detail".into(),
+    crate::catch_ffi(|| {
+        let mut parsed = Vec::with_capacity(reports.len());
+        for item in reports.iter() {
+            let d = item.cast::<PyDict>()?;
+            let status: String = d
+                .get_item("status")?
+                .ok_or_else(|| crate::value_err("report.status required"))?
+                .extract()?;
+            let artifact_id: String = d
+                .get_item("artifact_id")?
+                .ok_or_else(|| crate::value_err("report.artifact_id required"))?
+                .extract()?;
+            let report = match status.as_str() {
+                "compatible" => CompatibilityReport::Compatible { artifact_id },
+                "partial" => CompatibilityReport::Partial {
+                    artifact_id,
+                    missing: d
+                        .get_item("missing")?
+                        .map(|v| v.extract())
+                        .transpose()?
+                        .unwrap_or_default(),
+                    mappable: d
+                        .get_item("mappable")?
+                        .map(|v| v.extract())
+                        .transpose()?
+                        .unwrap_or_default(),
                 },
-            },
-            other => {
-                return Err(crate::value_err(format!("unknown report status `{other}`")));
-            }
-        };
-        parsed.push(report);
-    }
-    let score_map: BTreeMap<String, f64> = scores.extract()?;
-    let score_vec: Vec<(String, f64)> = score_map.into_iter().collect();
-    let catalog = PriorCatalog::new();
-    let ranked = catalog.rank(&parsed, &score_vec);
-    let out = PyList::empty(py);
-    for r in &ranked {
-        out.append(report_to_dict(py, r)?)?;
-    }
-    Ok(out)
+                "rejected" => CompatibilityReport::Rejected {
+                    artifact_id,
+                    reason: antecedent::io::CompatibilityRejectReason::ArtifactUnreadable {
+                        message: "rank ignores rejected detail".into(),
+                    },
+                },
+                other => {
+                    return Err(crate::value_err(format!("unknown report status `{other}`")));
+                }
+            };
+            parsed.push(report);
+        }
+        let score_map: BTreeMap<String, f64> = scores.extract()?;
+        let score_vec: Vec<(String, f64)> = score_map.into_iter().collect();
+        let catalog = PriorCatalog::new();
+        let ranked = catalog.rank(&parsed, &score_vec);
+        let out = PyList::empty(py);
+        for r in &ranked {
+            out.append(report_to_dict(py, r)?)?;
+        }
+        Ok(out)
+    })
 }
 
 /// Encode prior-source meta dict → CBOR bytes.
 #[pyfunction]
 fn encode_prior_source_meta(meta: &Bound<'_, PyDict>) -> PyResult<Vec<u8>> {
     let m = meta_from_dict(meta)?;
-    antecedent_io::encode_prior_source_meta(&m).map_err(py_err)
+    antecedent::io::encode_prior_source_meta(&m).map_err(py_err)
 }
 
 /// Decode prior-source meta CBOR → dict.
 #[pyfunction]
 fn decode_prior_source_meta(py: Python<'_>, bytes: Vec<u8>) -> PyResult<Bound<'_, PyDict>> {
-    let meta = antecedent_io::decode_prior_source_meta(&bytes).map_err(py_err)?;
-    let d = PyDict::new(py);
-    d.set_item("artifact_id", meta.artifact_id)?;
-    let est = PyDict::new(py);
-    est.set_item("query_kind", meta.estimand.query_kind)?;
-    est.set_item("treatment", meta.estimand.treatment)?;
-    est.set_item("outcome", meta.estimand.outcome)?;
-    d.set_item("estimand", est)?;
-    d.set_item("identification", meta.identification)?;
-    d.set_item("tags", meta.tags)?;
-    let design = PyList::empty(py);
-    for row in meta.design {
-        let rd = PyDict::new(py);
-        rd.set_item("name", row.name)?;
-        rd.set_item("role", role_to_str(row.role))?;
-        design.append(rd)?;
-    }
-    d.set_item("design", design)?;
-    if let Some(c) = meta.contrast {
-        d.set_item("contrast", c)?;
-    }
-    if !meta.provenance.is_empty() {
-        d.set_item("provenance", meta.provenance)?;
-    }
-    if let Some(m) = meta.declared_mapping {
-        let md = PyDict::new(py);
-        match m {
-            PriorMapping::IdenticalCoefficientSubspace => {
-                md.set_item("kind", "identical_coefficient_subspace")?;
-            }
-            PriorMapping::EffectFunctional { source_quantity } => {
-                md.set_item("kind", "effect_functional")?;
-                md.set_item("source_quantity", source_quantity)?;
-            }
-            PriorMapping::NamedParameters { pairs } => {
-                md.set_item("kind", "named_parameters")?;
-                md.set_item("pairs", pairs)?;
-            }
+    crate::catch_ffi(|| {
+        let meta = antecedent::io::decode_prior_source_meta(&bytes).map_err(py_err)?;
+        let d = PyDict::new(py);
+        d.set_item("artifact_id", meta.artifact_id)?;
+        let est = PyDict::new(py);
+        est.set_item("query_kind", meta.estimand.query_kind)?;
+        est.set_item("treatment", meta.estimand.treatment)?;
+        est.set_item("outcome", meta.estimand.outcome)?;
+        d.set_item("estimand", est)?;
+        d.set_item("identification", meta.identification)?;
+        d.set_item("tags", meta.tags)?;
+        let design = PyList::empty(py);
+        for row in meta.design {
+            let rd = PyDict::new(py);
+            rd.set_item("name", row.name)?;
+            rd.set_item("role", role_to_str(row.role))?;
+            design.append(rd)?;
         }
-        d.set_item("declared_mapping", md)?;
-    }
-    Ok(d)
+        d.set_item("design", design)?;
+        if let Some(c) = meta.contrast {
+            d.set_item("contrast", c)?;
+        }
+        if !meta.provenance.is_empty() {
+            d.set_item("provenance", meta.provenance)?;
+        }
+        if let Some(m) = meta.declared_mapping {
+            let md = PyDict::new(py);
+            match m {
+                PriorMapping::IdenticalCoefficientSubspace => {
+                    md.set_item("kind", "identical_coefficient_subspace")?;
+                }
+                PriorMapping::EffectFunctional { source_quantity } => {
+                    md.set_item("kind", "effect_functional")?;
+                    md.set_item("source_quantity", source_quantity)?;
+                }
+                PriorMapping::NamedParameters { pairs } => {
+                    md.set_item("kind", "named_parameters")?;
+                    md.set_item("pairs", pairs)?;
+                }
+            }
+            d.set_item("declared_mapping", md)?;
+        }
+        Ok(d)
+    })
 }
 
 fn prior_set_from_moments(mean: &[f64], variance: &[f64]) -> PyResult<PriorSet> {
@@ -352,6 +362,64 @@ fn prior_set_from_moments(mean: &[f64], variance: &[f64]) -> PyResult<PriorSet> 
     coef.validate().map_err(pyvalue)?;
     let mut prior = PriorSet::new();
     prior.push(PriorSpec::GaussianCoefficients(coef));
+    Ok(prior)
+}
+
+/// The prior of a conjugate count posterior from its declared dict.
+///
+/// `family` is `beta` (`alpha`, `beta`) or `gamma` (`shape`, `rate`). `assumption_ids` carry the
+/// provenance of a composed or alpha-selected count prior (the sources, the selection criterion,
+/// the selected discount and the interval semantics) into the prior's identity.
+pub(crate) fn count_prior_from_dict(d: &Bound<'_, PyDict>) -> PyResult<PriorSet> {
+    use antecedent::schema::PriorAssumption;
+    let real = |key: &str| -> PyResult<f64> {
+        d.get_item(key)?
+            .ok_or_else(|| crate::value_err(format!("count prior needs `{key}`")))?
+            .extract()
+    };
+    let family: String = d
+        .get_item("family")?
+        .ok_or_else(|| crate::value_err("count prior needs `family`"))?
+        .extract()?;
+    let mut prior = PriorSet::new();
+    match family.as_str() {
+        "beta" => prior.push(PriorSpec::Beta(antecedent::inference::BetaHyperparameters {
+            alpha: real("alpha")?,
+            beta: real("beta")?,
+        })),
+        "gamma" => prior.push(PriorSpec::Gamma(antecedent::inference::GammaHyperparameters {
+            shape: real("shape")?,
+            rate: real("rate")?,
+        })),
+        other => {
+            return Err(crate::value_err(format!(
+                "unknown count prior family `{other}`; use beta or gamma"
+            )));
+        }
+    }
+    let ids: Vec<String> = match d.get_item("assumption_ids")? {
+        None => Vec::new(),
+        Some(v) if v.is_none() => Vec::new(),
+        Some(v) => v.extract()?,
+    };
+    let sources: Vec<(String, f64)> = match d.get_item("sources")? {
+        None => Vec::new(),
+        Some(v) if v.is_none() => Vec::new(),
+        Some(v) => v.extract()?,
+    };
+    let mut ids = ids;
+    if !sources.is_empty() {
+        let parts: Vec<String> =
+            sources.iter().map(|(id, alpha)| format!("{id}@{alpha:?}")).collect();
+        ids.push(format!("count_power_prior:{family}:sources={}", parts.join(",")));
+    }
+    for id in ids {
+        prior.restrictions.push(PriorAssumption {
+            description: std::sync::Arc::from(format!("Preserved count-prior provenance `{id}`")),
+            id: std::sync::Arc::from(id),
+        });
+    }
+    prior.validate().map_err(pyvalue)?;
     Ok(prior)
 }
 
@@ -411,7 +479,7 @@ pub(crate) fn conflict_policy_from_dict(
 
 fn composed_to_dict<'py>(
     py: Python<'py>,
-    composed: &antecedent_prob::ComposedPrior,
+    composed: &antecedent::inference::ComposedPrior,
 ) -> PyResult<Bound<'py, PyDict>> {
     let coef = composed
         .prior
@@ -438,8 +506,8 @@ fn composed_to_dict<'py>(
     Ok(d)
 }
 
-fn transport_policy_from_str(s: &str) -> PyResult<antecedent_prob::TransportPolicy> {
-    antecedent_prob::TransportPolicy::parse(s).map_err(pyvalue)
+fn transport_policy_from_str(s: &str) -> PyResult<antecedent::inference::TransportPolicy> {
+    antecedent::inference::TransportPolicy::parse(s).map_err(pyvalue)
 }
 
 fn conflict_signals_from_list(
@@ -449,6 +517,12 @@ fn conflict_signals_from_list(
     let Some(list) = list else {
         return Ok(vec![ConflictSignals::default(); n]);
     };
+    if list.len() != n {
+        return Err(crate::value_err(format!(
+            "conflict_signals has {} entries for {n} sources; give one entry per source",
+            list.len()
+        )));
+    }
     let mut out = Vec::with_capacity(list.len());
     for item in list.iter() {
         let d = item.cast::<PyDict>()?;
@@ -491,7 +565,7 @@ fn sources_to_py_list<'py>(
 
 fn with_conflict_fields(
     d: &Bound<'_, PyDict>,
-    summary: &antecedent_prob::ConflictSummary,
+    summary: &antecedent::inference::ConflictSummary,
 ) -> PyResult<()> {
     d.set_item("alphas_applied", summary.alphas_applied.as_ref())?;
     d.set_item(
@@ -518,7 +592,7 @@ fn compose_transport_path<'py>(
     transport_weights: Option<Vec<f64>>,
     coef_index: Option<usize>,
 ) -> PyResult<Bound<'py, PyDict>> {
-    use antecedent_prob::{
+    use antecedent::inference::{
         TransportAdjustment, TransportContext, TransportPolicy, compose_with_transport,
     };
 
@@ -553,7 +627,7 @@ fn compose_transport_path<'py>(
         coef_index,
     };
     let (composed, _) = compose_with_transport(srcs, baseline, &ctx).map_err(pyvalue)?;
-    let (prepared, _) = antecedent_prob::apply_transport(srcs, &ctx).map_err(pyvalue)?;
+    let (prepared, _) = antecedent::inference::apply_transport(srcs, &ctx).map_err(pyvalue)?;
     let prepared: Vec<ExternalPriorSource> = prepared
         .into_iter()
         .zip(composed.alphas_applied.iter())
@@ -615,11 +689,21 @@ fn compose_external_priors_py<'py>(
     let srcs = sources_from_list(sources)?;
     let baseline = prior_set_from_moments(&baseline_mean, &baseline_variance)?;
 
+    if conflict_signals.is_some() && conflict.is_none() {
+        return Err(crate::value_err(
+            "conflict_signals needs a conflict policy; pass conflict or drop the signals",
+        ));
+    }
     let needs_transport = transport.is_some()
         || target_population.is_some()
         || source_populations.is_some()
         || unit_effects.is_some()
         || transport_weights.is_some();
+    if coef_index.is_some() && !needs_transport {
+        return Err(crate::value_err(
+            "coef_index selects a coefficient for transport; pass a transport argument or drop it",
+        ));
+    }
     if needs_transport {
         return compose_transport_path(
             py,
@@ -655,6 +739,164 @@ fn compose_external_priors_py<'py>(
     Ok(d)
 }
 
+fn overlap_to_py<'py>(
+    py: Python<'py>,
+    overlap: &antecedent::inference::TargetOverlap,
+) -> PyResult<Bound<'py, PyDict>> {
+    let d = PyDict::new(py);
+    d.set_item("n_rows", overlap.n_rows)?;
+    d.set_item("n_support", overlap.n_support)?;
+    d.set_item("support_fraction", overlap.support_fraction)?;
+    d.set_item("kish_ess", overlap.kish_ess)?;
+    d.set_item("ess_fraction", overlap.ess_fraction)?;
+    d.set_item("max_weight_share", overlap.max_weight_share)?;
+    Ok(d)
+}
+
+/// Compose priors transported toward a target declared as a weighting over the
+/// source rows (row weights, or a kernel over unit distances). The target's
+/// support and overlap with the source are checked in place of tag equality.
+#[pyfunction(name = "compose_external_priors_for_target")]
+#[pyo3(signature = (
+    sources,
+    baseline_mean,
+    baseline_variance,
+    *,
+    transport,
+    unit_effects,
+    target_weights=None,
+    kernel_family=None,
+    bandwidth=None,
+    unit_distances=None,
+    min_ess_fraction=None,
+    coef_index=None,
+    conflict=None,
+    conflict_signals=None,
+))]
+#[allow(clippy::too_many_arguments)]
+fn compose_external_priors_for_target_py<'py>(
+    py: Python<'py>,
+    sources: &Bound<'py, PyList>,
+    baseline_mean: Vec<f64>,
+    baseline_variance: Vec<f64>,
+    transport: &str,
+    unit_effects: Vec<f64>,
+    target_weights: Option<Vec<f64>>,
+    kernel_family: Option<&str>,
+    bandwidth: Option<f64>,
+    unit_distances: Option<Vec<f64>>,
+    min_ess_fraction: Option<f64>,
+    coef_index: Option<usize>,
+    conflict: Option<&Bound<'py, PyDict>>,
+    conflict_signals: Option<&Bound<'py, PyList>>,
+) -> PyResult<Bound<'py, PyDict>> {
+    use antecedent::inference::{
+        KernelFamily, TransportKernel, WeightedTarget, apply_weighted_target_transport,
+        compose_with_weighted_target_transport,
+    };
+
+    let srcs = sources_from_list(sources)?;
+    let baseline = prior_set_from_moments(&baseline_mean, &baseline_variance)?;
+    if conflict_signals.is_some() && conflict.is_none() {
+        return Err(crate::value_err(
+            "conflict_signals needs a conflict policy; pass conflict or drop the signals",
+        ));
+    }
+    let policy = transport_policy_from_str(transport)?;
+    let mut target = match (target_weights, kernel_family, bandwidth, unit_distances) {
+        (Some(w), None, None, None) => {
+            WeightedTarget::from_row_weights(unit_effects, w).map_err(pyvalue)?
+        }
+        (None, Some(f), Some(b), Some(d)) => {
+            let family = KernelFamily::parse(f).map_err(pyvalue)?;
+            let kernel = TransportKernel::new(family, b).map_err(pyvalue)?;
+            WeightedTarget::from_kernel(unit_effects, &d, kernel).map_err(pyvalue)?
+        }
+        _ => {
+            return Err(crate::value_err(
+                "declare the target as target_weights, or as kernel_family with bandwidth and \
+                 unit_distances",
+            ));
+        }
+    };
+    if let Some(f) = min_ess_fraction {
+        target = target.with_min_ess_fraction(f).map_err(pyvalue)?;
+    }
+    let (prepared, overlap) =
+        apply_weighted_target_transport(&srcs, policy, &target, coef_index).map_err(pyvalue)?;
+    let src_list = sources_to_py_list(py, &prepared)?;
+    let out = if let Some(c) = conflict {
+        let policy_c = conflict_policy_from_dict(Some(c))?
+            .ok_or_else(|| crate::value_err("conflict dict invalid"))?;
+        let signals = conflict_signals_from_list(conflict_signals, prepared.len())?;
+        let (composed, summary) =
+            apply_conflict_and_compose(&prepared, &baseline, &policy_c, &signals)
+                .map_err(pyvalue)?;
+        let d = composed_to_dict(py, &composed)?;
+        with_conflict_fields(&d, &summary)?;
+        d.set_item("conflict", c)?;
+        d
+    } else {
+        let (composed, _) =
+            compose_with_weighted_target_transport(&srcs, &baseline, policy, &target, coef_index)
+                .map_err(pyvalue)?;
+        composed_to_dict(py, &composed)?
+    };
+    out.set_item("sources", src_list)?;
+    out.set_item("target_overlap", overlap_to_py(py, &overlap)?)?;
+    if let Some(k) = target.kernel() {
+        out.set_item("kernel_family", k.family().id())?;
+        out.set_item("kernel_bandwidth", k.bandwidth())?;
+    }
+    Ok(out)
+}
+
+/// Kernel weights for caller-supplied unit distances.
+#[pyfunction(name = "transport_kernel_weights")]
+fn transport_kernel_weights_py(
+    kernel_family: &str,
+    bandwidth: f64,
+    unit_distances: Vec<f64>,
+) -> PyResult<Vec<f64>> {
+    use antecedent::inference::{KernelFamily, TransportKernel};
+    let family = KernelFamily::parse(kernel_family).map_err(pyvalue)?;
+    let kernel = TransportKernel::new(family, bandwidth).map_err(pyvalue)?;
+    kernel.weights(&unit_distances).map_err(pyvalue)
+}
+
+/// Transported-mean sensitivity across a set of declared bandwidths.
+#[pyfunction(name = "transport_bandwidth_sensitivity")]
+#[pyo3(signature = (kernel_family, bandwidths, unit_distances, unit_effects, *, min_ess_fraction=None))]
+fn transport_bandwidth_sensitivity_py<'py>(
+    py: Python<'py>,
+    kernel_family: &str,
+    bandwidths: Vec<f64>,
+    unit_distances: Vec<f64>,
+    unit_effects: Vec<f64>,
+    min_ess_fraction: Option<f64>,
+) -> PyResult<Bound<'py, PyList>> {
+    use antecedent::inference::{KernelFamily, kernel_bandwidth_sensitivity};
+    let family = KernelFamily::parse(kernel_family).map_err(pyvalue)?;
+    let floor = min_ess_fraction.unwrap_or(antecedent::inference::TARGET_MIN_ESS_FRACTION);
+    let rows =
+        kernel_bandwidth_sensitivity(family, &bandwidths, &unit_distances, &unit_effects, floor)
+            .map_err(pyvalue)?;
+    let out = PyList::empty(py);
+    for row in &rows {
+        let d = PyDict::new(py);
+        d.set_item("bandwidth", row.bandwidth)?;
+        d.set_item("weighted_mean", row.weighted_mean)?;
+        d.set_item("mean_variance", row.mean_variance)?;
+        d.set_item("overlap_ok", row.overlap_ok)?;
+        d.set_item("refusal", row.refusal.as_deref())?;
+        if let Some(o) = &row.overlap {
+            d.set_item("overlap", overlap_to_py(py, o)?)?;
+        }
+        out.append(d)?;
+    }
+    Ok(out)
+}
+
 #[pyfunction(name = "conflict_shrink_alpha")]
 #[pyo3(signature = (alpha, *, p_value=None, kl=None, p_min=0.05, kl_scale=1.0))]
 fn shrink_alpha_py(
@@ -670,41 +912,45 @@ fn shrink_alpha_py(
 
 /// Moment-match a Beta prior to `(mean, variance)` exactly (`alpha + beta -
 /// 2` convention for the resulting `.ess()`). See
-/// `antecedent_prob::BetaHyperparameters::from_moments` for the full
+/// `antecedent::inference::BetaHyperparameters::from_moments` for the full
 /// contract; errors on out-of-support input rather than clamping it.
 #[pyfunction(name = "beta_from_moments")]
 fn beta_from_moments_py(mean: f64, variance: f64) -> PyResult<(f64, f64)> {
-    let h = antecedent_prob::BetaHyperparameters::from_moments(mean, variance).map_err(pyvalue)?;
+    let h = antecedent::inference::BetaHyperparameters::from_moments(mean, variance)
+        .map_err(pyvalue)?;
     Ok((h.alpha, h.beta))
 }
 
 /// Build a Beta prior from `mean` and a caller-declared prior-strength
 /// `ess` exactly (`alpha + beta - 2` convention); no `variance` parameter.
-/// See `antecedent_prob::BetaHyperparameters::from_mean_and_ess` for the
+/// See `antecedent::inference::BetaHyperparameters::from_mean_and_ess` for the
 /// full contract.
 #[pyfunction(name = "beta_from_mean_and_ess")]
 fn beta_from_mean_and_ess_py(mean: f64, ess: f64) -> PyResult<(f64, f64)> {
-    let h = antecedent_prob::BetaHyperparameters::from_mean_and_ess(mean, ess).map_err(pyvalue)?;
+    let h = antecedent::inference::BetaHyperparameters::from_mean_and_ess(mean, ess)
+        .map_err(pyvalue)?;
     Ok((h.alpha, h.beta))
 }
 
 /// Moment-match a Gamma prior to `(mean, variance)` exactly (`shape - 1`
 /// convention for the resulting `.ess()`). See
-/// `antecedent_prob::GammaHyperparameters::from_moments` for the full
+/// `antecedent::inference::GammaHyperparameters::from_moments` for the full
 /// contract; errors on out-of-support input rather than clamping it.
 #[pyfunction(name = "gamma_from_moments")]
 fn gamma_from_moments_py(mean: f64, variance: f64) -> PyResult<(f64, f64)> {
-    let h = antecedent_prob::GammaHyperparameters::from_moments(mean, variance).map_err(pyvalue)?;
+    let h = antecedent::inference::GammaHyperparameters::from_moments(mean, variance)
+        .map_err(pyvalue)?;
     Ok((h.shape, h.rate))
 }
 
 /// Build a Gamma prior from `mean` and a caller-declared prior-strength
 /// `ess` exactly (`shape - 1` convention); no `variance` parameter. See
-/// `antecedent_prob::GammaHyperparameters::from_mean_and_ess` for the full
+/// `antecedent::inference::GammaHyperparameters::from_mean_and_ess` for the full
 /// contract.
 #[pyfunction(name = "gamma_from_mean_and_ess")]
 fn gamma_from_mean_and_ess_py(mean: f64, ess: f64) -> PyResult<(f64, f64)> {
-    let h = antecedent_prob::GammaHyperparameters::from_mean_and_ess(mean, ess).map_err(pyvalue)?;
+    let h = antecedent::inference::GammaHyperparameters::from_mean_and_ess(mean, ess)
+        .map_err(pyvalue)?;
     Ok((h.shape, h.rate))
 }
 
@@ -720,6 +966,13 @@ pub(crate) struct OwnedComposedPrior {
     pub conflict: Option<ConflictPolicy>,
     /// Restriction ids to preserve (e.g. transport assumptions).
     pub assumption_ids: Vec<String>,
+    /// Original baseline and declared composed coefficient moments.
+    pub baseline_mean: Vec<f64>,
+    pub baseline_variance: Vec<f64>,
+    pub declared_mean: Vec<f64>,
+    pub declared_variance: Vec<f64>,
+    /// Names of the coefficient coordinates, when the sources declared them.
+    pub coefficient_names: Option<Vec<String>>,
 }
 
 /// Parse a composed-prior dict into an owned payload.
@@ -749,7 +1002,39 @@ pub(crate) fn owned_composed_prior_from_dict(
         Some(v) if v.is_none() => Vec::new(),
         Some(v) => v.extract()?,
     };
-    Ok(OwnedComposedPrior { sources, alphas_requested, alphas_applied, conflict, assumption_ids })
+    let baseline_mean: Vec<f64> = composed
+        .get_item("baseline_mean")?
+        .ok_or_else(|| crate::value_err("composed prior lacks its baseline; recompose it"))?
+        .extract()?;
+    let baseline_variance: Vec<f64> = composed
+        .get_item("baseline_variance")?
+        .ok_or_else(|| crate::value_err("composed prior lacks its baseline; recompose it"))?
+        .extract()?;
+    let declared_mean: Vec<f64> = composed
+        .get_item("mean")?
+        .ok_or_else(|| crate::value_err("composed prior mean required"))?
+        .extract()?;
+    let declared_variance: Vec<f64> = composed
+        .get_item("variance")?
+        .ok_or_else(|| crate::value_err("composed prior variance required"))?
+        .extract()?;
+    let coefficient_names: Option<Vec<String>> = match composed.get_item("coefficient_names")? {
+        None => None,
+        Some(v) if v.is_none() => None,
+        Some(v) => Some(v.extract()?),
+    };
+    Ok(OwnedComposedPrior {
+        sources,
+        alphas_requested,
+        alphas_applied,
+        conflict,
+        assumption_ids,
+        baseline_mean,
+        baseline_variance,
+        declared_mean,
+        declared_variance,
+        coefficient_names,
+    })
 }
 
 /// Build [`BayesianConfig`] external compose from owned composed-prior data.
@@ -757,7 +1042,7 @@ pub(crate) fn apply_owned_composed_prior(
     cfg: antecedent::BayesianConfig,
     owned: OwnedComposedPrior,
 ) -> PyResult<antecedent::BayesianConfig> {
-    use antecedent_core::PriorAssumption;
+    use antecedent::schema::PriorAssumption;
     use std::sync::Arc;
 
     let baseline_n = owned
@@ -765,7 +1050,14 @@ pub(crate) fn apply_owned_composed_prior(
         .first()
         .and_then(|s| s.prior.gaussian_coefficients().map(GaussianCoefficientPrior::len))
         .ok_or_else(|| crate::value_err("composed prior sources empty"))?;
-    let baseline = PriorSet::weakly_informative(baseline_n);
+    if owned.baseline_mean.len() != baseline_n || owned.baseline_variance.len() != baseline_n {
+        return Err(crate::value_err(
+            "composed prior baseline dimension differs from its sources; recompose it",
+        ));
+    }
+    let supplied = prior_set_from_moments(&owned.baseline_mean, &owned.baseline_variance)?;
+    let mut baseline = PriorSet::weakly_informative(baseline_n);
+    baseline.specs[0] = supplied.specs[0].clone();
     let mut prior_composed = compose_external_priors_with_alphas(
         &owned.sources,
         &owned.alphas_requested,
@@ -773,6 +1065,17 @@ pub(crate) fn apply_owned_composed_prior(
         &baseline,
     )
     .map_err(pyvalue)?;
+    let coefficients = prior_composed
+        .prior
+        .gaussian_coefficients()
+        .ok_or_else(|| crate::value_err("composed prior has no Gaussian coefficients"))?;
+    if coefficients.mean.as_ref() != owned.declared_mean.as_slice()
+        || coefficients.variance.as_ref() != owned.declared_variance.as_slice()
+    {
+        return Err(crate::value_err(
+            "composed prior moments disagree with its baseline and sources; recompose it",
+        ));
+    }
     for id in &owned.assumption_ids {
         if prior_composed.prior.restrictions.iter().any(|r| r.id.as_ref() == id.as_str()) {
             continue;
@@ -782,15 +1085,582 @@ pub(crate) fn apply_owned_composed_prior(
             description: Arc::from(format!("Preserved prior-bank assumption `{id}`")),
         });
     }
-    Ok(cfg.prior_from_composed(owned.sources, prior_composed, owned.conflict))
+    if let Some(names) = &owned.coefficient_names {
+        prior_composed.prior.restrictions.push(PriorAssumption {
+            id: Arc::from(format!("external_prior_coordinates:{}", names.join(","))),
+            description: Arc::from(
+                "the composed prior's coefficient coordinates are named and map by name onto the \
+                 target's coefficient columns",
+            ),
+        });
+        prior_composed = prior_composed
+            .with_coefficient_names(names.iter().map(|n| Arc::from(n.as_str())).collect())
+            .map_err(pyvalue)?;
+    }
+    Ok(cfg.prior_from_composed_with_baseline(
+        owned.sources,
+        prior_composed,
+        owned.conflict,
+        baseline,
+    ))
+}
+
+/// The outcome-nuisance prior of a cross-fitted AIPW estimate from a composed external prior.
+///
+/// The composition is re-run from its sources, baseline and applied alphas (the transport
+/// weighting and the selected power-prior discount are already in those), checked against the
+/// declared moments, and handed to the outcome regression with its coordinate names. A
+/// conflict policy re-shrinks alpha against a Bayesian design, which the outcome regression
+/// does not have, so it is refused.
+pub(crate) fn outcome_prior_from_composed(
+    composed: &Bound<'_, PyDict>,
+) -> PyResult<antecedent::estimate::OutcomePriorSource> {
+    let owned = owned_composed_prior_from_dict(composed)?;
+    if owned.conflict.is_some() {
+        return Err(crate::value_err(
+            "a conflict policy re-shrinks alpha against a Bayesian design, which the outcome \
+             regression of DML / Aipw does not have; compose with conflict_signals to shrink \
+             alpha offline, or drop the policy",
+        ));
+    }
+    let cfg = apply_owned_composed_prior(antecedent::BayesianConfig::conjugate(), owned)?;
+    let external = cfg
+        .external_compose
+        .as_deref()
+        .ok_or_else(|| crate::value_err("the composed prior was not retained"))?;
+    antecedent::inference::outcome_prior_source_from_composed(&external.composed).map_err(py_err)
+}
+
+/// The outcome-nuisance prior of a cross-fitted AIPW estimate whose power-prior discount is
+/// selected from the table the study analyses: the declaration is kept on the estimator and
+/// the study resolves it against its own table (every completed table of an imputation selects
+/// its own discount).
+pub(crate) fn outcome_prior_from_alpha_selection(
+    declaration: &Bound<'_, PyDict>,
+) -> PyResult<antecedent::estimate::OutcomePriorSource> {
+    let item = |key: &str| {
+        declaration.get_item(key)?.ok_or_else(|| {
+            crate::value_err(format!("estimator_config['alpha_selection'] is missing `{key}`"))
+        })
+    };
+    let sources = sources_from_list(item("sources")?.cast::<PyList>()?)?;
+    let baseline_mean: Vec<f64> = item("baseline_mean")?.extract()?;
+    let baseline_variance: Vec<f64> = item("baseline_variance")?.extract()?;
+    let baseline = prior_set_from_moments(&baseline_mean, &baseline_variance)?;
+    let names: Vec<String> = item("coefficient_names")?.extract()?;
+    let criterion: String = item("criterion")?.extract()?;
+    let folds: usize = item("folds")?.extract()?;
+    let grid: Option<Vec<f64>> = declaration
+        .get_item("grid")?
+        .filter(|value| !value.is_none())
+        .map(|value| value.extract())
+        .transpose()?;
+    let level: f64 = item("level")?.extract()?;
+    let discrepancy_bound: Option<f64> = declaration
+        .get_item("discrepancy_bound")?
+        .filter(|value| !value.is_none())
+        .map(|value| value.extract())
+        .transpose()?;
+    let seed: u64 = item("seed")?.extract()?;
+    let options = alpha_options(&criterion, folds, grid, level, discrepancy_bound, seed)?;
+    Ok(antecedent::estimate::OutcomePriorSource::from_alpha_selection(
+        antecedent::estimate::AlphaSelectionRequest {
+            sources,
+            baseline,
+            coefficient_names: names.into_iter().map(std::sync::Arc::from).collect(),
+            options,
+        },
+    ))
+}
+
+/// Transfer an aligned parameter-posterior artifact into a known-variance Gaussian prior.
+///
+/// The source identity is supplied independently of the artifact bytes; `source_to_target` is
+/// one stable source-to-target variable-id pair per coefficient and `target_quantities_json` the
+/// target's coefficient quantities in design-column order. Returns the prior's coefficient
+/// moments (conjugate scale `V0`, correlation and the known residual variance) and the
+/// assumptions it records. Refusals (identity, meaning, map, scale, alignment) raise.
+#[pyfunction(name = "mapped_posterior_transfer")]
+#[pyo3(signature = (
+    artifact,
+    expected_source_json,
+    source_to_target,
+    target_quantities_json,
+    target_snapshot_id,
+    target_contract_id,
+    baseline_variance,
+    known_residual_variance,
+))]
+#[allow(clippy::too_many_arguments)]
+fn mapped_posterior_transfer_py<'py>(
+    py: Python<'py>,
+    artifact: &[u8],
+    expected_source_json: &str,
+    source_to_target: Vec<(String, String)>,
+    target_quantities_json: &str,
+    target_snapshot_id: &str,
+    target_contract_id: &str,
+    baseline_variance: f64,
+    known_residual_variance: f64,
+) -> PyResult<Bound<'py, PyDict>> {
+    let expected: DistributionIdentity =
+        serde_json::from_str(expected_source_json).map_err(pyvalue)?;
+    let targets: Vec<ScientificQuantityWire> =
+        serde_json::from_str(target_quantities_json).map_err(pyvalue)?;
+    let n = targets.len();
+    let mut baseline = prior_set_from_moments(&vec![0.0; n], &vec![baseline_variance; n])?;
+    baseline.push(PriorSpec::KnownResidualVariance(known_residual_variance));
+    let prior = mapped_posterior_transfer_with(
+        artifact,
+        &MappedTransferSpec {
+            expected_source: &expected,
+            source_to_target: &source_to_target,
+            target_quantities: &targets,
+            target_snapshot_id,
+            target_contract_id,
+            baseline: &baseline,
+        },
+    )
+    .map_err(py_err)?;
+    let coefficients = prior
+        .gaussian_coefficients()
+        .ok_or_else(|| crate::value_err("the transferred prior has no coefficient prior"))?;
+    let out = PyDict::new(py);
+    out.set_item("mean", coefficients.mean.to_vec())?;
+    out.set_item("scale_variance", coefficients.variance.to_vec())?;
+    out.set_item(
+        "correlation",
+        prior.coefficient_correlation().map(|correlation| {
+            correlation.matrix().chunks(correlation.dim()).map(<[f64]>::to_vec).collect::<Vec<_>>()
+        }),
+    )?;
+    out.set_item("known_residual_variance", prior.known_residual_variance())?;
+    let restrictions = PyList::empty(py);
+    for restriction in &prior.restrictions {
+        let item = PyDict::new(py);
+        item.set_item("id", restriction.id.as_ref())?;
+        item.set_item("description", restriction.description.as_ref())?;
+        restrictions.append(item)?;
+    }
+    out.set_item("restrictions", restrictions)?;
+    Ok(out)
+}
+
+fn interval_dict(
+    py: Python<'_>,
+    mean: f64,
+    variance: f64,
+    interval: (f64, f64),
+    level: f64,
+) -> PyResult<Bound<'_, PyDict>> {
+    let d = PyDict::new(py);
+    d.set_item("mean", mean)?;
+    d.set_item("variance", variance)?;
+    d.set_item("lower", interval.0)?;
+    d.set_item("upper", interval.1)?;
+    d.set_item("level", level)?;
+    Ok(d)
+}
+
+fn beta_posterior_dict<'py>(
+    py: Python<'py>,
+    posterior: &antecedent::inference::BetaBinomialPosterior,
+    level: f64,
+    predictive_trials: Option<u64>,
+) -> PyResult<Bound<'py, PyDict>> {
+    let interval = posterior.credible_interval(level).map_err(pyvalue)?;
+    let d = interval_dict(py, posterior.mean(), posterior.variance(), interval, level)?;
+    let post = posterior.posterior();
+    d.set_item("alpha", post.alpha)?;
+    d.set_item("beta", post.beta)?;
+    d.set_item("successes", posterior.successes())?;
+    d.set_item("trials", posterior.trials())?;
+    d.set_item("log_marginal_likelihood", posterior.log_marginal_likelihood())?;
+    if let Some(m) = predictive_trials {
+        let pmf = (0..=m)
+            .map(|j| posterior.predictive_pmf(m, j))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(pyvalue)?;
+        let predictive = PyDict::new(py);
+        predictive.set_item("trials", m)?;
+        predictive.set_item("mean", posterior.predictive_mean(m))?;
+        predictive.set_item("variance", posterior.predictive_variance(m))?;
+        predictive.set_item("pmf", pmf)?;
+        d.set_item("predictive", predictive)?;
+    }
+    Ok(d)
+}
+
+/// Beta-Binomial posterior of a proportion: closed-form `Beta(alpha + k, beta + n - k)`,
+/// equal-tailed credible interval, log marginal likelihood and optional posterior predictive.
+#[pyfunction(name = "beta_binomial_posterior")]
+#[pyo3(signature = (successes, trials, alpha, beta, *, level=0.95, predictive_trials=None))]
+fn beta_binomial_posterior_py(
+    py: Python<'_>,
+    successes: u64,
+    trials: u64,
+    alpha: f64,
+    beta: f64,
+    level: f64,
+    predictive_trials: Option<u64>,
+) -> PyResult<Bound<'_, PyDict>> {
+    let prior = antecedent::inference::BetaHyperparameters { alpha, beta };
+    let posterior = antecedent::inference::BetaBinomialPosterior::new(prior, successes, trials)
+        .map_err(pyvalue)?;
+    beta_posterior_dict(py, &posterior, level, predictive_trials)
+}
+
+/// Exceedance posterior `P(Y > threshold)` within one cell under a Beta prior.
+#[pyfunction(name = "exceedance_posterior")]
+#[pyo3(signature = (outcomes, threshold, alpha, beta, *, level=0.95, predictive_trials=None))]
+fn exceedance_posterior_py(
+    py: Python<'_>,
+    outcomes: Vec<f64>,
+    threshold: f64,
+    alpha: f64,
+    beta: f64,
+    level: f64,
+    predictive_trials: Option<u64>,
+) -> PyResult<Bound<'_, PyDict>> {
+    let mut set = PriorSet::new();
+    set.push(PriorSpec::Beta(antecedent::inference::BetaHyperparameters { alpha, beta }));
+    let posterior =
+        antecedent::inference::BetaBinomialPosterior::from_exceedance(&set, &outcomes, threshold)
+            .map_err(pyvalue)?;
+    beta_posterior_dict(py, &posterior, level, predictive_trials)
+}
+
+/// Gamma-Poisson posterior of a rate: closed-form `Gamma(shape + sum(y), rate + sum(t))`,
+/// equal-tailed credible interval, log marginal likelihood and optional posterior predictive.
+#[pyfunction(name = "gamma_poisson_posterior")]
+#[pyo3(signature = (
+    counts, shape, rate, *, exposures=None, level=0.95, predictive_exposure=None,
+    predictive_max=None,
+))]
+#[allow(
+    clippy::too_many_arguments,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "a plain argument list over the Python signature; the predictive bound is a small non-negative count"
+)]
+fn gamma_poisson_posterior_py(
+    py: Python<'_>,
+    counts: Vec<u64>,
+    shape: f64,
+    rate: f64,
+    exposures: Option<Vec<f64>>,
+    level: f64,
+    predictive_exposure: Option<f64>,
+    predictive_max: Option<u64>,
+) -> PyResult<Bound<'_, PyDict>> {
+    let prior = antecedent::inference::GammaHyperparameters { shape, rate };
+    let posterior = antecedent::inference::GammaPoissonPosterior::from_counts(
+        prior,
+        &counts,
+        exposures.as_deref(),
+    )
+    .map_err(pyvalue)?;
+    let interval = posterior.credible_interval(level).map_err(pyvalue)?;
+    let d = interval_dict(py, posterior.mean(), posterior.variance(), interval, level)?;
+    let post = posterior.posterior();
+    d.set_item("shape", post.shape)?;
+    d.set_item("rate", post.rate)?;
+    d.set_item("total_count", posterior.total_count())?;
+    d.set_item("exposure", posterior.exposure())?;
+    d.set_item("log_marginal_likelihood", posterior.log_marginal_likelihood())?;
+    if let Some(t) = predictive_exposure {
+        let top = predictive_max.unwrap_or_else(|| {
+            let mean = posterior.predictive_mean(t);
+            let sd = posterior.predictive_variance(t).sqrt();
+            (mean + 8.0 * sd + 10.0) as u64
+        });
+        let pmf = (0..=top)
+            .map(|y| posterior.predictive_pmf(y, t))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(pyvalue)?;
+        let predictive = PyDict::new(py);
+        predictive.set_item("exposure", t)?;
+        predictive.set_item("mean", posterior.predictive_mean(t))?;
+        predictive.set_item("variance", posterior.predictive_variance(t))?;
+        predictive.set_item("pmf", pmf)?;
+        d.set_item("predictive", predictive)?;
+    }
+    Ok(d)
+}
+
+fn alpha_options(
+    criterion: &str,
+    folds: usize,
+    grid: Option<Vec<f64>>,
+    level: f64,
+    discrepancy_bound: Option<f64>,
+    seed: u64,
+) -> PyResult<antecedent::inference::AlphaSelectionOptions> {
+    let criterion = match criterion {
+        "empirical_bayes" => antecedent::inference::AlphaCriterion::EmpiricalBayes,
+        "cross_validated" => antecedent::inference::AlphaCriterion::CrossValidated { folds },
+        other => {
+            return Err(crate::value_err(format!(
+                "criterion must be `empirical_bayes` or `cross_validated`, got `{other}`"
+            )));
+        }
+    };
+    let mut options = antecedent::inference::AlphaSelectionOptions::new(criterion);
+    if let Some(grid) = grid {
+        options.grid = grid;
+    }
+    options.level = level;
+    options.discrepancy_bound = discrepancy_bound;
+    options.seed = seed;
+    Ok(options)
+}
+
+fn report_dict<'py>(
+    py: Python<'py>,
+    report: &antecedent::inference::SelectedAlphaReport,
+) -> PyResult<Bound<'py, PyDict>> {
+    let d = PyDict::new(py);
+    d.set_item("criterion", report.criterion.name())?;
+    d.set_item("selected_alpha", report.selected_alpha)?;
+    d.set_item("estimate", report.estimate)?;
+    d.set_item("level", report.level)?;
+    d.set_item("interval", report.interval)?;
+    d.set_item("conditional_interval", report.conditional_interval)?;
+    d.set_item("uniform_interval", report.uniform_interval)?;
+    d.set_item("discrepancy_bound", report.discrepancy_bound)?;
+    d.set_item("provenance_id", report.provenance_id())?;
+    let rows = PyList::empty(py);
+    for row in &report.sensitivity {
+        let r = PyDict::new(py);
+        r.set_item("alpha", row.alpha)?;
+        r.set_item("score", row.score)?;
+        r.set_item("estimate", row.estimate)?;
+        r.set_item("lower", row.lower)?;
+        r.set_item("upper", row.upper)?;
+        rows.append(r)?;
+    }
+    d.set_item("sensitivity", rows)?;
+    Ok(d)
+}
+
+/// Choose the power-prior discount of source counts for a Beta-Binomial target.
+#[pyfunction(name = "select_beta_power_prior_alpha")]
+#[pyo3(signature = (
+    source_successes, source_trials, outcomes, base_alpha, base_beta, *,
+    criterion="empirical_bayes", folds=5, grid=None, level=0.95, discrepancy_bound=None, seed=0,
+))]
+#[allow(clippy::too_many_arguments)]
+fn select_beta_power_prior_alpha_py<'py>(
+    py: Python<'py>,
+    source_successes: u64,
+    source_trials: u64,
+    outcomes: Vec<bool>,
+    base_alpha: f64,
+    base_beta: f64,
+    criterion: &str,
+    folds: usize,
+    grid: Option<Vec<f64>>,
+    level: f64,
+    discrepancy_bound: Option<f64>,
+    seed: u64,
+) -> PyResult<Bound<'py, PyDict>> {
+    let options = alpha_options(criterion, folds, grid, level, discrepancy_bound, seed)?;
+    let source = antecedent::inference::BetaSource {
+        base: antecedent::inference::BetaHyperparameters { alpha: base_alpha, beta: base_beta },
+        successes: source_successes,
+        trials: source_trials,
+    };
+    let (prior, report) =
+        antecedent::inference::select_beta_prior(source, &outcomes, &options).map_err(pyvalue)?;
+    let d = report_dict(py, &report)?;
+    d.set_item("prior", (prior.alpha, prior.beta))?;
+    Ok(d)
+}
+
+/// Choose the power-prior discount of a source rate for a Gamma-Poisson target.
+#[pyfunction(name = "select_gamma_power_prior_alpha")]
+#[pyo3(signature = (
+    source_total_count, source_exposure, counts, base_shape, base_rate, *,
+    criterion="empirical_bayes", folds=5, grid=None, level=0.95, discrepancy_bound=None, seed=0,
+))]
+#[allow(clippy::too_many_arguments)]
+fn select_gamma_power_prior_alpha_py<'py>(
+    py: Python<'py>,
+    source_total_count: u64,
+    source_exposure: f64,
+    counts: Vec<u64>,
+    base_shape: f64,
+    base_rate: f64,
+    criterion: &str,
+    folds: usize,
+    grid: Option<Vec<f64>>,
+    level: f64,
+    discrepancy_bound: Option<f64>,
+    seed: u64,
+) -> PyResult<Bound<'py, PyDict>> {
+    let options = alpha_options(criterion, folds, grid, level, discrepancy_bound, seed)?;
+    let source = antecedent::inference::GammaSource {
+        base: antecedent::inference::GammaHyperparameters { shape: base_shape, rate: base_rate },
+        total_count: source_total_count,
+        exposure: source_exposure,
+    };
+    let (prior, report) =
+        antecedent::inference::select_gamma_prior(source, &counts, &options).map_err(pyvalue)?;
+    let d = report_dict(py, &report)?;
+    d.set_item("prior", (prior.shape, prior.rate))?;
+    Ok(d)
+}
+
+/// Choose the power-prior discount of external Gaussian sources for a linear target.
+#[pyfunction(name = "select_linear_power_prior_alpha")]
+#[pyo3(signature = (
+    sources, baseline_mean, baseline_variance, x, y, functional, *,
+    known_residual_variance=None, criterion="empirical_bayes", folds=5, grid=None,
+    level=0.95, discrepancy_bound=None, seed=0,
+))]
+#[allow(clippy::too_many_arguments)]
+fn select_linear_power_prior_alpha_py<'py>(
+    py: Python<'py>,
+    sources: &Bound<'py, PyList>,
+    baseline_mean: Vec<f64>,
+    baseline_variance: Vec<f64>,
+    x: Vec<Vec<f64>>,
+    y: Vec<f64>,
+    functional: Vec<f64>,
+    known_residual_variance: Option<f64>,
+    criterion: &str,
+    folds: usize,
+    grid: Option<Vec<f64>>,
+    level: f64,
+    discrepancy_bound: Option<f64>,
+    seed: u64,
+) -> PyResult<Bound<'py, PyDict>> {
+    let srcs = sources_from_list(sources)?;
+    let mut baseline = prior_set_from_moments(&baseline_mean, &baseline_variance)?;
+    if let Some(v) = known_residual_variance {
+        baseline.push(PriorSpec::KnownResidualVariance(v));
+    }
+    let n_rows = x.len();
+    let n_cols = x.first().map_or(0, Vec::len);
+    if x.iter().any(|row| row.len() != n_cols) {
+        return Err(crate::value_err("design rows must all have the same length"));
+    }
+    let flat: Vec<f64> = x.into_iter().flatten().collect();
+    let options = alpha_options(criterion, folds, grid, level, discrepancy_bound, seed)?;
+    let target = antecedent::inference::LinearTarget {
+        x: &flat,
+        y: &y,
+        n_rows,
+        n_cols,
+        functional: &functional,
+    };
+    let (composed, report) =
+        antecedent::inference::select_linear_prior(&srcs, &baseline, target, &options)
+            .map_err(pyvalue)?;
+    let d = report_dict(py, &report)?;
+    let coefficients = composed
+        .prior
+        .gaussian_coefficients()
+        .ok_or_else(|| crate::value_err("composed prior has no Gaussian coefficients"))?;
+    d.set_item("composed_mean", coefficients.mean.to_vec())?;
+    d.set_item("composed_variance", coefficients.variance.to_vec())?;
+    // The Rust `select_linear_prior` result, in the shape of a composition: Python wraps it.
+    d.set_item("composed", composed_to_dict(py, &composed)?)?;
+    Ok(d)
+}
+
+/// Compose count sources into one Beta (`family="beta"`, sources `(successes, trials, alpha)`)
+/// or Gamma (`family="gamma"`, sources `(total count, exposure, alpha)`) power prior.
+#[pyfunction(name = "compose_count_power_priors")]
+fn compose_count_power_priors_py(
+    family: &str,
+    base: (f64, f64),
+    sources: Vec<(f64, f64, f64)>,
+) -> PyResult<(f64, f64)> {
+    match family {
+        "beta" => {
+            let counts = sources
+                .iter()
+                .map(|&(k, n, a)| Ok((whole(k)?, whole(n)?, a)))
+                .collect::<PyResult<Vec<_>>>()?;
+            let h = antecedent::inference::compose_beta_power_priors(
+                antecedent::inference::BetaHyperparameters { alpha: base.0, beta: base.1 },
+                &counts,
+            )
+            .map_err(pyvalue)?;
+            Ok((h.alpha, h.beta))
+        }
+        "gamma" => {
+            let counts = sources
+                .iter()
+                .map(|&(s, e, a)| Ok((whole(s)?, e, a)))
+                .collect::<PyResult<Vec<_>>>()?;
+            let h = antecedent::inference::compose_gamma_power_priors(
+                antecedent::inference::GammaHyperparameters { shape: base.0, rate: base.1 },
+                &counts,
+            )
+            .map_err(pyvalue)?;
+            Ok((h.shape, h.rate))
+        }
+        other => Err(crate::value_err(format!("unknown count prior family `{other}`"))),
+    }
+}
+
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "a count validated as a non-negative whole number"
+)]
+fn whole(value: f64) -> PyResult<u64> {
+    if value.is_finite() && value >= 0.0 && value.fract() == 0.0 {
+        Ok(value as u64)
+    } else {
+        Err(crate::value_err("source counts are non-negative whole numbers"))
+    }
+}
+
+/// Apply a declared coordinate mapping (`identical_coefficient_subspace`, `named_parameters` with
+/// `pairs`, or `effect_functional`) to the names of a composed prior.
+#[pyfunction(name = "rename_composed_coordinates")]
+#[pyo3(signature = (names, kind, pairs=None))]
+fn rename_composed_coordinates_py(
+    names: Vec<String>,
+    kind: &str,
+    pairs: Option<Vec<(String, String)>>,
+) -> PyResult<Vec<String>> {
+    use antecedent::inference::CoordinateMapping;
+    let names: Vec<std::sync::Arc<str>> =
+        names.iter().map(|n| std::sync::Arc::from(n.as_str())).collect();
+    let pairs = pairs.unwrap_or_default();
+    let mapping = match kind {
+        "identical_coefficient_subspace" => CoordinateMapping::Identical,
+        "named_parameters" => CoordinateMapping::Named(&pairs),
+        "effect_functional" => CoordinateMapping::EffectFunctional,
+        other => return Err(crate::value_err(format!("unknown prior mapping `{other}`"))),
+    };
+    antecedent::inference::rename_coordinates(&names, mapping)
+        .map(|renamed| renamed.iter().map(std::string::ToString::to_string).collect())
+        .map_err(pyvalue)
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(beta_binomial_posterior_py, m)?)?;
+    m.add_function(wrap_pyfunction!(exceedance_posterior_py, m)?)?;
+    m.add_function(wrap_pyfunction!(gamma_poisson_posterior_py, m)?)?;
+    m.add_function(wrap_pyfunction!(select_beta_power_prior_alpha_py, m)?)?;
+    m.add_function(wrap_pyfunction!(select_gamma_power_prior_alpha_py, m)?)?;
+    m.add_function(wrap_pyfunction!(select_linear_power_prior_alpha_py, m)?)?;
+    m.add_function(wrap_pyfunction!(compose_count_power_priors_py, m)?)?;
+    m.add_function(wrap_pyfunction!(rename_composed_coordinates_py, m)?)?;
     m.add_function(wrap_pyfunction!(prior_catalog_filter, m)?)?;
     m.add_function(wrap_pyfunction!(prior_catalog_rank, m)?)?;
     m.add_function(wrap_pyfunction!(encode_prior_source_meta, m)?)?;
     m.add_function(wrap_pyfunction!(decode_prior_source_meta, m)?)?;
     m.add_function(wrap_pyfunction!(compose_external_priors_py, m)?)?;
+    m.add_function(wrap_pyfunction!(compose_external_priors_for_target_py, m)?)?;
+    m.add_function(wrap_pyfunction!(transport_kernel_weights_py, m)?)?;
+    m.add_function(wrap_pyfunction!(transport_bandwidth_sensitivity_py, m)?)?;
+    m.add_function(wrap_pyfunction!(mapped_posterior_transfer_py, m)?)?;
     m.add_function(wrap_pyfunction!(shrink_alpha_py, m)?)?;
     m.add_function(wrap_pyfunction!(beta_from_moments_py, m)?)?;
     m.add_function(wrap_pyfunction!(beta_from_mean_and_ess_py, m)?)?;

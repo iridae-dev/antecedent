@@ -7,6 +7,7 @@ copied_tests = false
 
 implementation_deviations = [
  "Does not implement the paper's direct complete generalized-adjustment algorithm; it streams graph completions and applies ordinary adjustment separately to each completion.",
+ "A Jacobian or directional derivative over two or more treatments is not answered by this module's per-pair adjustment search: on an ADMG, each CPDAG/PAG completion and a temporal ADMG window it takes the joint back-door route (all treatments at once, with PAG edge visibility) and is reported not identified when no common joint set exists; per-pair sets identify single-treatment effects, not the joint partial derivative.",
  "Completion and covariate enumeration default to hard caps of 32 completions and 40 candidate covariates, so class-level conclusions are exact only when those enumerations are exhaustive; capped mass is reported through an envelope.",
 ]
 
@@ -21,4 +22,40 @@ test_sources = [
  "PAG completion envelope",
  "frozen status and adjustment-set cases from a clean-room MAG-enumeration harness (conformance/identify/generalized_adjustment)",
  "conformance/estimate/pag_ate_envelope (frozen three-completion PAG law: pins the mass-weighted Frequentist ATE and the seeded conjugate Bayesian envelope mean that the completion envelope returns, on fresh and prepared paths)",
+ "exhaustive CPDAG envelope check: every Markov class of three- and four-node DAGs and every ordered treatment/outcome pair against Pearl's back-door criterion in each member, with an independent moral-graph d-separation (crates/antecedent-identify/tests/cpdag_adjustment_envelope_exhaustive.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "GeneralizedAdjustmentIdentifier::identify_cpdag_envelope in crates/antecedent-identify/src/generalized.rs for a single-treatment, single-outcome AverageEffect query on a CPDAG: the membership of the envelope (one case per Markov-equivalent DAG), the identified and unidentified mass from ordinary back-door search in each member, each reported adjustment set, and the aggregate status. Not a review of the PAG and MAG paths (which keep their recorded clean-room enumeration fixture), of the joint multi-treatment route, of the temporal ADMG window, or of the paper's direct complete generalized-adjustment algorithm, which the record states is not implemented."
+assumptions = ["Causal sufficiency: a CPDAG describes DAGs only, and every DAG in the class is a candidate truth with equal weight.", "Back-door criterion as stated by Pearl: no member of the set descends from the treatment and the set separates treatment and outcome once the arrows leaving the treatment are removed; the reference judges separation by moralizing the ancestral graph.", "A class is identified when every member has a valid set; with different reported sets across members no single adjustment estimand holds for the class and the envelope is partial."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the back-door criterion and the Verma-Pearl equivalence are the standard statements and a mistake in how they are stated would not be detected here. The sweep covers every Markov class of three- and four-node DAGs and every ordered treatment/outcome pair; five-node and larger graphs use the same code path with the completion cap (32 by default). It checks the existence and validity of a back-door set per member, not the numerical value of any estimate, and not the paper's criterion that a set is a CPDAG adjustment set when valid in every member; the product reports class membership member by member instead. No claim about estimator behavior. Calibration remains deferred. The later MAG response-functional callback is outside this review, which covers the CPDAG average-effect envelope."
+sources = ["https://doi.org/10.48550/arXiv.1507.01524", "https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["For every Markov class of three- and four-node DAGs, built from the Verma-Pearl invariant with the essential graph taken as the edges all members orient alike, and every ordered treatment/outcome pair, the envelope holds exactly the class's members, one case each, and its identified and unidentified masses equal the number of members with and without a valid back-door set by an independent moral-graph reference.", "Each member's reported adjustment set is a valid back-door set of that member, and a member reports no estimand exactly when the reference finds none.", "The aggregate status follows the mix: not identified when no member identifies, graph dependent when some do, nonparametrically identified when every member identifies with one set, and partially identified when every member identifies with different sets (no single estimand). The last case occurs in 348 four-node (class, pair) combinations, exactly the combinations in which no single set is valid in every member, so the envelope never reports distinct sets where a shared set existed. No defect was found and no product code changed."]
+record_sha256 = "ce26e8221e1360a9b51fc211efb4a4cb6e3d8a4d261a31b62fd40c95257b3f6c"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/generalized.rs"
+items = ["fn budget", "fn check_completion_stop", "fn completion_search", "fn cpdag_envelope_with", "fn cpdag_undirected_features", "fn default", "fn identify_cpdag_envelope", "fn new", "struct AdjustmentBudget", "struct GeneralizedAdjustmentConfig", "struct GeneralizedAdjustmentIdentifier"]
+sha256 = "4b424cc9aba29718ff5c595a18a6fb4dd6e6139948a8b61f5c8484e1bfad869b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/envelope.rs"
+items = ["module"]
+sha256 = "caaee0baf9f7ccb698c588ea735c0fe3615dd01b622a3a91c75666b1f343b96f"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-graph/src/cpdag_completion.rs"
+items = ["fn max_completions", "fn new", "fn with_budget"]
+sha256 = "d45a418db61caf9a2ebb4d1ab3c079726e6dc1033797bbd880475af967a26972"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/tests/cpdag_adjustment_envelope_exhaustive.rs"
+items = ["fn acyclic", "fn all_dags", "fn backdoor_valid", "fn cpdag_envelope_counts_members_with_a_valid_back_door_set_on_four_nodes", "fn cpdag_envelope_counts_members_with_a_valid_back_door_set_on_three_nodes", "fn d_separated", "fn id", "fn invariant", "fn reach", "fn run", "fn valid_sets", "type Arcs", "type Invariant"]
+sha256 = "deb9f0886cdbe6d8b542c10cf54272a0d197766df991cb18f6f4a1f47e56f113"

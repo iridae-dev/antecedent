@@ -155,7 +155,7 @@ def adjusted_outcome(
     *,
     delayed_entry: str | None = None,
     correction: Literal["ipw", "aipw"] = "aipw",
-    observation_probability_floor: float = 0.01,
+    observation_probability_floor: float | None = None,
     censoring_survival_floor: float = 0.01,
 ) -> AdjustedOutcome:
     """Construct selected-outcome or censoring-adjusted pseudo-values.
@@ -163,6 +163,11 @@ def adjusted_outcome(
     The response query must have one treatment and one outcome and carry an
     explicit observation mechanism plus exactly one assumption supported by
     the requested estimator. Unsupported compositions fail closed.
+
+    ``observation_probability_floor`` defaults to 0.01. When left unset, a
+    fitted observation probability that saturates at 0 or 1 refuses as
+    ``positivity_violated``; a declared floor (even 0.01) governs those rows
+    by clamping them. The computed values are otherwise identical.
     """
 
     treatment, outcome, mechanism, assumption = _stage_inputs(query)
@@ -301,7 +306,7 @@ class _TemporalObservationKwargs(TypedDict, total=False):
 
 
 def _temporal_observation_kwargs(query: Any) -> _TemporalObservationKwargs:
-    """Native kwargs for a licensed temporal observation pair, or empty."""
+    """Native kwargs for a supported temporal observation pair, or empty."""
 
     mechanism = getattr(query, "observation", None)
     if mechanism is None or isinstance(mechanism, Complete):

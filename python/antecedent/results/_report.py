@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+import weakref
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
+from itertools import islice
 from typing import Any, Literal, Self
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    PrivateAttr,
     ValidationError,
+    ValidatorFunctionWrapHandler,
     field_serializer,
     field_validator,
     model_serializer,
@@ -18,11 +22,47 @@ from pydantic import (
 from pydantic.config import ExtraValues
 
 from .._columns import coerce_fields
-from .._freeze import freeze, thaw
+from .._freeze import freeze, is_retained_frozen, retain_frozen, thaw
 
-InspectionStage = Literal["prepared", "executed", "declared", "consumed", "exported", "unavailable"]
+InspectionStage = Literal[
+    "prepared", "executed", "declared", "consumed", "exported", "unavailable", "refused"
+]
 
-_HANDLE_ATTRS = ("_raw", "_prepared", "_execution")
+_HANDLE_ATTRS = ("_raw", "_prepared", "_execution", "_live_study")
+
+_FROZEN_REPORT_FIELDS = (
+    "contract",
+    "target",
+    "details",
+    "diagnostics",
+    "inference_binding",
+    "answer",
+    "calibration",
+    "next_actions",
+    "neighbors",
+    "unmet_obligations",
+    "evidence_obligations",
+)
+
+#: One inspection report per live result, keyed by ``id`` and dropped when the
+#: result is collected. Results are immutable, so their report never changes.
+_INSPECTIONS: dict[int, InspectionReport] = {}
+
+
+def cached_inspection(owner: Any, build: Callable[[], InspectionReport]) -> InspectionReport:
+    """Build ``owner``'s frozen inspection report once and return it thereafter."""
+    key = id(owner)
+    report = _INSPECTIONS.get(key)
+    if report is not None:
+        return report
+    report = build()
+    try:
+        weakref.finalize(owner, _INSPECTIONS.pop, key, None)
+    except TypeError:
+        # Not weak-referenceable: no way to know when the id is reused.
+        return report
+    _INSPECTIONS[key] = report
+    return report
 
 
 class SlotModel(BaseModel):
@@ -53,6 +93,7 @@ class InspectionReport(BaseModel):
     uncertainty: SlotModel
     assumptions: SlotModel
     program_id: str | None = None
+    lowered_program_id: str | None = None
     claim_id: str | None = None
     target_id: str | None = None
     identification_id: str | None = None
@@ -67,6 +108,16 @@ class InspectionReport(BaseModel):
     answer: Any = None
     calibration: Any = None
     diagnostics: tuple[str, ...] | list[str] = ()
+    #: What the capability report suggests next (``id``, ``description``); never executed.
+    #: A not-identified contract adds ``measure_variable:<name>``, ``run_experiment:<target>``,
+    #: ``find_instrument`` and ``collect_panel``.
+    next_actions: tuple[Mapping[str, Any], ...] = ()
+    #: Supported alternatives that change named premises; an explicit choice, never a fallback.
+    neighbors: tuple[Mapping[str, Any], ...] = ()
+    #: Unresolved obligations of the contract.
+    unmet_obligations: tuple[Mapping[str, Any], ...] = ()
+    #: Verified evidence obligations of a not-identified product, each with its proof step.
+    evidence_obligations: tuple[Mapping[str, Any], ...] = ()
     target: Mapping[str, Any] | None = None
     inference_binding: Any = None
     stage: InspectionStage = "prepared"
@@ -74,29 +125,58 @@ class InspectionReport(BaseModel):
     details: Any = None
     operations: tuple[str, ...] = ()
 
+    @field_validator("contract", mode="wrap")
+    @classmethod
+    def _keep_retained_contract(cls, value: Any, handler: ValidatorFunctionWrapHandler) -> Any:
+        # Mapping validation would copy a frozen contract into a plain dict and
+        # force a deep re-freeze. A contract already frozen and retained by its
+        # result is a valid ``Mapping[str, Any]`` with string keys; keep it.
+        if is_retained_frozen(value) and all(type(key) is str for key in value):
+            return value
+        return handler(value)
+
     @field_validator(
-        "contract", "target", "details", "diagnostics", "inference_binding", "answer", "calibration"
+        "contract",
+        "target",
+        "details",
+        "diagnostics",
+        "inference_binding",
+        "answer",
+        "calibration",
+        "next_actions",
+        "neighbors",
+        "unmet_obligations",
+        "evidence_obligations",
     )
     @classmethod
     def _freeze_details(cls, value: Any) -> Any:
         return freeze(value)
 
-    @field_serializer("contract", "target", "details", "inference_binding", when_used="json")
+    @field_serializer(
+        "contract",
+        "target",
+        "details",
+        "inference_binding",
+        "next_actions",
+        "neighbors",
+        "unmet_obligations",
+        "evidence_obligations",
+        when_used="json",
+    )
     def _json_details(self, value: Any) -> Any:
         return thaw(value)
 
+    def model_post_init(self, __context: Any) -> None:
+        retain_frozen(self, *(getattr(self, name) for name in _FROZEN_REPORT_FIELDS))
+
     def model_copy(self, *, update: Mapping[str, Any] | None = None, deep: bool = False) -> Self:
         result = super().model_copy(update=update, deep=deep)
-        for name in (
-            "contract",
-            "target",
-            "details",
-            "diagnostics",
-            "inference_binding",
-            "answer",
-            "calibration",
-        ):
-            object.__setattr__(result, name, freeze(getattr(result, name)))
+        # A shallow copy shares values the validators already froze; only the
+        # replaced ones arrive unfrozen. A deep copy re-creates every value.
+        for name in _FROZEN_REPORT_FIELDS:
+            if deep or (update is not None and name in update):
+                object.__setattr__(result, name, freeze(getattr(result, name)))
+        result.model_post_init(None)
         return result
 
     def __repr__(self) -> str:
@@ -117,21 +197,30 @@ class InspectionReport(BaseModel):
                 ("Assumptions", self.assumptions),
             )
         )
-        import json
-
+        # Notebook display is a bounded summary, not a hidden JSON serialization
+        # of an entire posterior or retained artifact.
         values = self.answer
-        if values is None:
-            values = self.details
-        if hasattr(values, "to_dict"):
-            values = values.to_dict()
-        reading = (
-            json.dumps(thaw(values), ensure_ascii=False, default=str, indent=2)
-            if values is not None
-            else ""
-        )
-        # Keep notebook summaries small; detailed inspection retains the complete record.
-        if len(reading) > 1200:
-            reading = reading[:1200] + "… (full details in inspect().to_dict())"
+        if values is not None:
+            reading = f"answer={getattr(values, 'kind', 'structured')}"
+            for name in ("value", "bounds", "detail"):
+                value = getattr(values, name, None)
+                if type(value) in (str, int, float, bool) or (
+                    name == "bounds" and isinstance(value, tuple) and len(value) == 2
+                ):
+                    reading += f" {name}={str(value)[:160]}"
+        else:
+            reading = ""
+        # Only the first few scalar entries of a mapping are shown; nested or large
+        # records are never walked or serialized by a notebook display.
+        for label, record in (("answer", values), ("details", self.details)):
+            if isinstance(record, Mapping):
+                shown = [
+                    f"{key}={str(item)[:80]}"
+                    for key, item in islice(record.items(), 32)
+                    if type(item) in (str, int, float, bool)
+                ][:8]
+                if shown:
+                    reading += ("\n" if reading else "") + f"{label}: " + " ".join(shown)
         detail = f"<pre>{escape(reading)}</pre>" if reading else ""
         limitation = self.rendering_limitation()
         warning = f"<p>{escape(limitation.replace('_', ' '))}</p>" if limitation else ""
@@ -202,6 +291,7 @@ class ResultModel(BaseModel):
     """Frozen analyze/response view. ``to_dict()`` is a JSON-safe walk."""
 
     model_config = ConfigDict(frozen=True, extra="allow", arbitrary_types_allowed=True)
+    _live_study: Any = PrivateAttr(default=None)
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         if args:
@@ -288,12 +378,17 @@ class ResultModel(BaseModel):
         for name in _HANDLE_ATTRS:
             if name in extra:
                 coerce_fields(self, **{name: extra.pop(name)})
+        frozen: list[Any] = []
         for name in type(self).model_fields:
             if not name.startswith("_"):
-                object.__setattr__(self, name, freeze(getattr(self, name)))
-        coerce_fields(
-            self, __pydantic_extra__={name: freeze(value) for name, value in extra.items()} or None
-        )
+                value = freeze(getattr(self, name))
+                object.__setattr__(self, name, value)
+                frozen.append(value)
+        frozen_extra = {name: freeze(value) for name, value in extra.items()}
+        coerce_fields(self, __pydantic_extra__=frozen_extra or None)
+        # Copies and inspection reports of this result share these frozen
+        # values instead of freezing its retained contract again.
+        retain_frozen(self, *frozen, *frozen_extra.values())
 
     @property
     def model_extra(self) -> Any:
@@ -326,18 +421,25 @@ def copy_model(obj: Any, **updates: Any) -> Any:
     return replace(obj, **updates)
 
 
-def as_inspection(slots: Any) -> InspectionReport:
-    """Wrap ``ReasoningSlots`` without flattening answer/calibration to dicts."""
+def as_inspection(slots: Any, **overrides: Any) -> InspectionReport:
+    """Wrap ``ReasoningSlots`` without flattening answer/calibration to dicts.
+
+    ``overrides`` set report fields at construction, so the payload is
+    validated and frozen once instead of again by a ``model_copy``.
+    """
     if isinstance(slots, InspectionReport):
-        return slots
+        return slots.model_copy(update=overrides) if overrides else slots
     if hasattr(slots, "identification") and hasattr(slots, "to_dict"):
-        dumped = slots.to_dict()
+        from ._slots import _target_query
+
+        contract = slots.contract if isinstance(slots.contract, Mapping) else {}
         return InspectionReport(
             identification=_slot(slots.identification),
             support=_slot(slots.support),
             uncertainty=_slot(slots.uncertainty),
             assumptions=_slot(slots.assumptions),
             program_id=slots.program_id,
+            lowered_program_id=getattr(slots, "lowered_program_id", None),
             claim_id=slots.claim_id,
             target_id=slots.target_id,
             identification_id=slots.identification_id,
@@ -352,7 +454,12 @@ def as_inspection(slots: Any) -> InspectionReport:
             answer=slots.answer,
             calibration=slots.calibration,
             diagnostics=slots.diagnostics,
-            target=dumped.get("target"),
-            inference_binding=dumped.get("inference_binding"),
+            next_actions=getattr(slots, "next_actions", ()),
+            neighbors=getattr(slots, "neighbors", ()),
+            unmet_obligations=getattr(slots, "unmet_obligations", ()),
+            evidence_obligations=getattr(slots, "evidence_obligations", ()),
+            target={"query": _target_query(contract)},
+            inference_binding=contract.get("inference_binding") or slots.inference_binding_id,
+            **overrides,
         )
-    return InspectionReport.model_validate(dict(slots))
+    return InspectionReport.model_validate({**dict(slots), **overrides})

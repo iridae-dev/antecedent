@@ -1,6 +1,6 @@
 //! DBN-posterior Pulse hot path (ADR 0011).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(missing_docs, reason = "bench binaries are not public API")]
 
@@ -12,6 +12,9 @@ use antecedent_core::{ExecutionContext, TemporalEffectQuery, TemporalPolicy, Var
 use antecedent_data::TimeSeriesData;
 use antecedent_prob::InferenceDiagnostics;
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
+
+#[path = "../../../benches/soft_budget.rs"]
+mod soft_budget;
 
 const PULSE_BUDGET: Duration = Duration::from_millis(250);
 
@@ -63,15 +66,14 @@ fn bench_dbn_posterior_pulse(c: &mut Criterion) {
         .build()
         .unwrap();
     c.bench_function("dbn_posterior_pulse_n400_boot8", |b| {
-        b.iter(|| black_box(study.clone().run(&ctx).unwrap().estimate.as_effect().unwrap().ate));
+        b.iter(|| black_box(study.clone().run(&ctx).unwrap().estimate().as_effect().unwrap().ate));
     });
     let started = Instant::now();
     let _ = study.run(&ctx).unwrap();
     let elapsed = started.elapsed();
-    assert!(
-        elapsed < PULSE_BUDGET,
-        "dbn_posterior_pulse_n400_boot8 exceeded soft budget: {elapsed:?}"
-    );
+    soft_budget::check(elapsed < PULSE_BUDGET, || {
+        format!("dbn_posterior_pulse_n400_boot8 exceeded soft budget: {elapsed:?}")
+    });
 }
 
 criterion_group!(benches, bench_dbn_posterior_pulse);

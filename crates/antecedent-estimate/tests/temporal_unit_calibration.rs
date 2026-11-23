@@ -34,14 +34,14 @@ fn panel(n: usize, seed: u64) -> TemporalUnitPanel {
                             + 0.1 * f64::from(s0)
                             + 0.2 * f64::from(s0 * l2)
                             + 0.05 * f64::from(a1 + a2);
-                        histories.push(SequenceHistory {
-                            time_id: u64::try_from(histories.len()).unwrap(),
+                        histories.push(SequenceHistory::two_step(
+                            u64::try_from(histories.len()).unwrap(),
                             s0,
                             a1,
                             l2,
                             a2,
-                            y: base + shock + 0.1 * rng.normal(),
-                        });
+                            base + shock + 0.1 * rng.normal(),
+                        ));
                     }
                 }
             }
@@ -91,7 +91,10 @@ fn measure(test: &'static str, expected_id: &str) {
             Err(_) => tally.skip(),
         }
     }
-    assert_eq!(tally.record_id().as_deref(), Some(expected_id));
+    assert_eq!(
+        tally.record_id().as_deref(),
+        Some(format!("{expected_id}.v2_validation_not_applicable").as_str())
+    );
     tally.assert();
 }
 #[test]

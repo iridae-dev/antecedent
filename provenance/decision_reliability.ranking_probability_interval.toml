@@ -12,12 +12,54 @@ papers = [
   { title = "Hsu (1981), Simultaneous Confidence Intervals for All Distances from the Best, Annals of Statistics 9(5)", sections = ["simultaneous confidence intervals for all distances from the best"] },
 ]
 implementation_deviations = [
-  "Publishes a ranking probability, utility interval, optimality confidence set and selection-corrected interval only where a current attesting whole-procedure coverage record measured them at the candidate-set size, Monte Carlo budget, selection rule, coupling and serial dependence; the record is resolved from the shipped coverage table and every other coordinate refuses cell_not_licensed.",
+  "Publishes a ranking probability, utility interval, optimality confidence set and selection-corrected interval only where a current attesting whole-procedure coverage record measured them at the candidate-set size, Monte Carlo budget, selection rule, coupling and serial dependence; the record is resolved from the shipped coverage table and every other coordinate is published with a not-measured calibration slot.",
 ]
 upstream_implementations_observed = []
+modules = ["crates/antecedent-design/src/decision_reliability/ranking.rs", "crates/antecedent-design/src/decision_reliability/interval.rs"]
+
 test_sources = [
+  "crates/antecedent-design/tests/decision_reliability_reference.rs (ranking probabilities and their Wilson intervals against direct enumeration)",
   "crates/antecedent-design/tests/decision_reliability.rs",
   "crates/antecedent-design/tests/decision_reliability_intervals.rs",
   "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
   "crates/antecedent/tests/decision_reliability_facade.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The ranking statements of rank_validated in crates/antecedent-design/src/decision_reliability/ranking.rs (probability of being best with ties shared, probability of being among the best k, probability of beating a baseline with ties counting one half, each as a mean of a per-draw series with the draw-dependence declaration) and their Wilson score intervals at the effective sample size in interval.rs, with the multiplicity adjustment and the refusal to publish a simultaneous request. It relies on the mc_error review of decision_reliability.sampled_decision for the series standard error and effective size and on the norm_inv kernel. Not the coverage table that supports publication, which this record's deviations describe and which is covered by the existing calibration tests."
+assumptions = ["Candidate draws are paired by index only on a shared simulation (an independent-stream ranking is refused with a joint-law requirement, which this review observed when its first scenario was built that way).", "The Wilson interval treats the effective sample size as the binomial sample size; for a dependent or weighted stream that is an approximation the product states."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared the product with definitions evaluated by an executing reference written for this review (standard library only; exact rational arithmetic for the Maritz-Jarrett weights); no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review (nothing downloaded): the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. Its output is frozen in the JSON file and compared by the test."
+limitations = "Four scenarios with ranking requests (3 to 4 candidates on shared draws; 100 to 900 draws; a baseline and top-k of 1, 2 and 3; marginal and simultaneous multiplicity; exact ties on a coarse grid; lognormal(0, 1.2) importance weights; an AR(1) stream with batch means) compare every probability, its standard error, its effective size and its Wilson end points with a direct enumeration at 1e-8 to 1e-12 relative. The Hsu (1981) simultaneous-intervals paper is cited for the best-candidate set, which the product builds with Bonferroni critical values instead; that set is checked in the derived_uncertainty review, not here, and neither paper was retrieved. Not covered: many candidates (the rank tables are quadratic in candidates), top-k of the full candidate count, ranking under non-expected-utility functionals, and the support table. No coverage of the Wilson interval for dependent or weighted streams is measured."
+sources = ["https://doi.org/10.1080/01621459.1927.10502953"]
+findings_resolved = ["No defect found: best, top-k and baseline probabilities (ties shared, baseline ties one half) and their Wilson intervals agree with direct enumeration, the clamp to [0, 1] holds at probabilities of 0 and 1, and a simultaneous request refuses to publish a ranking probability."]
+record_sha256 = "25b67fd38e829bdeb06c3da6003a841356de8563e6426d6283811492288f8d3d"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_reliability/ranking.rs"
+items = ["enum CalibrationStatus", "enum CandidateScope", "fn rank_tables", "fn rank_validated", "fn top_share", "struct CandidateRankStatement", "struct RankingReport", "struct RankingRequest", "struct StatementLabel", "struct TopKEstimate"]
+sha256 = "847a12690bceef42d1f587242a51dfb3e04aa38643c5bc00638b2ffa1528090e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_reliability/interval.rs"
+items = ["const DERIVED_UNCERTAINTY_VERSION", "const MAX_INTERVAL_LEVEL", "const MAX_PAIRED_COMPARISON_CANDIDATES", "const MIN_INTERVAL_LEVEL", "const MIN_NORMAL_ESS", "enum ConfidenceSetBasis", "enum DerivedStanding", "enum IntervalMultiplicity", "enum NumericalIntervalMethod", "enum ProbabilityQuantity", "fn alpha", "fn assumptions", "fn confidence_set", "fn corrected_interval", "fn critical", "fn derive_uncertainty", "fn numerical_component", "fn paired_confidence_set", "fn publish", "fn require_normal_ess", "fn validate", "fn wald", "fn wilson", "struct DerivedUncertainty", "struct IntervalRequest", "struct NumericalComponent", "struct NumericalInterval", "struct OptimalityConfidenceSet", "struct ProbabilityInterval", "struct SelectionComponent", "struct SelectionCorrectedInterval", "struct UtilityInterval"]
+sha256 = "0b390bbe895a8ce86a7acfe3cf296cfa8da5e1eddf1c3772bd0f4e37bed07392"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/decision_reliability_reference.rs"
+items = ["fn carrier", "fn check_interval", "fn close", "fn dependence", "fn derived_uncertainty_matches_the_definition_level_reference", "fn differences_match_the_definition_level_reference", "fn estimates_match_the_definition_level_reference", "fn floats", "fn functional", "fn plan", "fn reference"]
+sha256 = "015549e251e8b1517c84a556c767ff78f9386c6e569cc291104650a25bd7c1ca"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-design/tests/oracle_data/decision_reliability_reference.py"
+sha256 = "24af126f7a08d9db2df77545fe5069fdba02d2a7379b1ab9392dcdb8cd4f8172"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-design/tests/oracle_data/decision_reliability_reference.json"
+sha256 = "d651e4da09571a0e0447282fdffb97b8cc9c628d3ac53929f221fecb1fb355c7"

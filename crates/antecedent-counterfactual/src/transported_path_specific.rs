@@ -70,8 +70,8 @@
 //! 4. *Identification of `G`.* `G` is a polynomial in the structural coefficients
 //!    (assumption 5), so it is computed from the supplied source fit; the
 //!    coefficient functions of `z` are evidenced only on the source support, so
-//!    `G` is licensed on `supp P_T(Z)` exactly when that lies in `supp P_S(Z)`
-//!    (assumption 6; extrapolation of the affine form is not licensed).
+//!    `G` is supported on `supp P_T(Z)` exactly when that lies in `supp P_S(Z)`
+//!    (assumption 6; extrapolation of the affine form is not supported).
 //! 5. *Composition of the prerequisites.* `G(z)` is the fixed-population,
 //!    unit-level path-specific edge-intervention contrast (Pearl 2001 direct and
 //!    indirect effects; the edge-set generalisation of Avin, Shpitser and Pearl
@@ -96,11 +96,11 @@
 //!   ([`NonRecoverableWitness`]: same source model, two target models that differ in
 //!   that one coefficient, contrasts verified by arithmetic) and the code
 //!   `transport_proven_non_transportable`; otherwise the refusal is
-//!   `cell_not_licensed` with no witness (the class excludes it, no impossibility
+//!   `route_not_supported` with no witness (the class excludes it, no impossibility
 //!   is claimed).
-//! * The claim is point-only; calibration is unmeasured.
+//! * The claim is point-only; calibration is `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -631,7 +631,7 @@ fn check_diagram(
             || model.covariates.iter().any(|c| c == target);
         if !is_known {
             return Err(invalid(
-                "transported_counterfactual.invalid_diagram",
+                antecedent_core::reason_details::transported_counterfactual::INVALID_DIAGRAM,
                 format!("selection {} points to unknown variable {target}", selection.label),
             ));
         }
@@ -644,8 +644,9 @@ fn check_diagram(
     };
     let mut witness = None;
     for node in &mechanism_targets {
-        witness = witness_for(input, order, node)
-            .map_err(|m| invalid("transported_counterfactual.invalid_model", m))?;
+        witness = witness_for(input, order, node).map_err(|m| {
+            invalid(antecedent_core::reason_details::transported_counterfactual::INVALID_MODEL, m)
+        })?;
         if witness.is_some() {
             break;
         }
@@ -653,11 +654,11 @@ fn check_diagram(
     let code = if witness.is_some() {
         antecedent_core::reason_code!("transport_proven_non_transportable")
     } else {
-        antecedent_core::reason_code!("cell_not_licensed")
+        antecedent_core::reason_code!("route_not_supported")
     };
     let mut refusal = refuse_with(
         code,
-        "transported_counterfactual.selection_on_mechanism",
+        antecedent_core::reason_details::transported_counterfactual::SELECTION_ON_MECHANISM,
         Some(witness.as_ref().map_or_else(|| first.to_owned(), |w| w.selected_node.clone())),
         "remove the selection node on the mediator or outcome mechanism or choose a class that \
          models the differing mechanism; the covariate-selected theorem does not apply",
@@ -670,16 +671,22 @@ fn check_assumptions(
     assumptions: DeclaredAssumptions,
 ) -> Result<(), Box<TransportedPathSpecificRefusal>> {
     let (detail, premise) = if !assumptions.additive_noise {
-        ("transported_counterfactual.nonadditive_mechanism", "additive_noise")
+        (
+            antecedent_core::reason_details::transported_counterfactual::NONADDITIVE_MECHANISM,
+            "additive_noise",
+        )
     } else if !assumptions.noise_laws_shared {
-        ("transported_counterfactual.noise_law_not_shared", "noise_laws_shared")
+        (
+            antecedent_core::reason_details::transported_counterfactual::NOISE_LAW_NOT_SHARED,
+            "noise_laws_shared",
+        )
     } else if !assumptions.cross_world_independence {
-        ("transported_counterfactual.cross_world_independence_missing", "cross_world_independence")
+        (antecedent_core::reason_details::transported_counterfactual::CROSS_WORLD_INDEPENDENCE_MISSING, "cross_world_independence")
     } else {
         return Ok(());
     };
     Err(refuse_with(
-        antecedent_core::reason_code!("cell_not_licensed"),
+        antecedent_core::reason_code!("route_not_supported"),
         detail,
         Some(premise.to_owned()),
         "declare the additive-noise, shared-noise-law and cross-world independence premises, \
@@ -695,8 +702,8 @@ fn check_factors(
         RegimeFactorKey { role: PopulationRole::Target, regime: "observational".to_owned() },
     ];
     let passed = TransportedCounterfactualPrerequisites {
-        transport_license: true,
-        fixed_population_license: true,
+        transport_support: true,
+        fixed_population_support: true,
         cross_population_assumptions: true,
     };
     let gate = refuse_transported_counterfactual(&passed, &required, supplied);
@@ -718,7 +725,7 @@ fn check_overlap(
         if !source.points.iter().any(|(s, _)| points_match(s, point)) {
             return Err(refuse_with(
                 antecedent_core::reason_code!("transport_support_failure"),
-                "transported_counterfactual.overlap_failure",
+                antecedent_core::reason_details::transported_counterfactual::OVERLAP_FAILURE,
                 Some(describe(point)),
                 "restrict the target covariate law to the source support or collect source data \
                  there",
@@ -743,23 +750,28 @@ fn check_overlap(
 pub fn evaluate_transported_path_specific(
     input: &TransportedPathSpecificInput<'_>,
 ) -> Result<TransportedPathSpecificResult, Box<TransportedPathSpecificRefusal>> {
-    let order = validate_model(input.model)
-        .map_err(|m| invalid("transported_counterfactual.invalid_model", m))?;
-    validate_query(input.model, input.query)
-        .map_err(|m| invalid("transported_counterfactual.invalid_query", m))?;
+    let order = validate_model(input.model).map_err(|m| {
+        invalid(antecedent_core::reason_details::transported_counterfactual::INVALID_MODEL, m)
+    })?;
+    validate_query(input.model, input.query).map_err(|m| {
+        invalid(antecedent_core::reason_details::transported_counterfactual::INVALID_QUERY, m)
+    })?;
     let covariates: BTreeSet<&str> = input.model.covariates.iter().map(String::as_str).collect();
-    validate_law("source", input.source_law, &covariates)
-        .map_err(|m| invalid("transported_counterfactual.invalid_law", m))?;
-    validate_law("target", input.target_law, &covariates)
-        .map_err(|m| invalid("transported_counterfactual.invalid_law", m))?;
+    validate_law("source", input.source_law, &covariates).map_err(|m| {
+        invalid(antecedent_core::reason_details::transported_counterfactual::INVALID_LAW, m)
+    })?;
+    validate_law("target", input.target_law, &covariates).map_err(|m| {
+        invalid(antecedent_core::reason_details::transported_counterfactual::INVALID_LAW, m)
+    })?;
     check_diagram(input, &order)?;
     check_assumptions(input.assumptions)?;
     check_factors(input.supplied_factors)?;
     check_overlap(input.source_law, input.target_law)?;
     let mut unit_contrasts = Vec::with_capacity(input.target_law.points.len());
     for (point, weight) in &input.target_law.points {
-        let contrast = unit_contrast(input.model, input.query, &order, point)
-            .map_err(|m| invalid("transported_counterfactual.invalid_model", m))?;
+        let contrast = unit_contrast(input.model, input.query, &order, point).map_err(|m| {
+            invalid(antecedent_core::reason_details::transported_counterfactual::INVALID_MODEL, m)
+        })?;
         unit_contrasts.push(UnitContrast {
             point: point.clone(),
             target_weight: *weight,
@@ -768,7 +780,9 @@ pub fn evaluate_transported_path_specific(
     }
     let target_contrast: f64 = unit_contrasts.iter().map(|u| u.target_weight * u.contrast).sum();
     let source_contrast = law_contrast(input.model, input.query, &order, input.source_law)
-        .map_err(|m| invalid("transported_counterfactual.invalid_model", m))?;
+        .map_err(|m| {
+            invalid(antecedent_core::reason_details::transported_counterfactual::INVALID_MODEL, m)
+        })?;
     Ok(TransportedPathSpecificResult {
         target_contrast,
         source_contrast,

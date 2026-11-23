@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 # Measure statistical calibration on this machine, before upload.
 #
-# CI never measures: it only checks that the committed coverage records match
-# the code (scripts/gate_calibration_attestation.sh). A change to the
-# statistical surface is measured here, from a clean checkout of the commit
-# being uploaded:
+# CI never measures: it runs `scripts/calibration_status.py --check`, which fails while
+# a coverage record, study, route, ledger entry or pass/fail gate owes evidence.
+# Calibration status never changes support. Calibration is measured here, from a clean
+# checkout of the commit being uploaded (`bash scripts/test.sh calibration` runs the owed part):
 #
-#   1. find the records that owe a re-measurement (scripts/calibration_facets.py,
-#      through scripts/calibration_groups.py) and the gate groups that measure
-#      them;
-#   2. run exactly those groups through scripts/gate_calibration.sh, in parallel,
+#   1. find the records that are not current (`scripts/calibration_status.py
+#      status`, through scripts/calibration_groups.py) and the gate groups that
+#      measure them. Try `python3 scripts/calibration_probe.py bounded` first: a
+#      record whose stored replicate digests reproduce at HEAD becomes current;
+#   2. build those groups' test binaries in one Nix derivation and run them through
+#      the shared evidence runner (scripts/calibration_runner.py), in parallel,
 #      one job per sample-size grid point of a record-emitting group, including
 #      the 2000-replicate recheck of each point; logs land in
 #      target/calibration-records/ (`<group>.p<k>.log`), where the collector
@@ -17,49 +19,72 @@
 #   3. collect them with scripts/collect_coverage_records.py, which merges each
 #      record's grid points into its measured range and stamps it with the
 #      commit it was measured at;
-#   4. run the attestation gate to prove the result passes.
+#   4. print the calibration status of the collected registry.
 #
 # Then commit the registry and the files the collector regenerates, and push.
 #
 #   bash scripts/measure_calibration.sh                # only what is owed
-#   bash scripts/measure_calibration.sh --all          # every group
+#   bash scripts/measure_calibration.sh --owed         # exactly the list `calibration_status.py status --owed`
+#                                                      # prints (coverage, route, ledger and pass/fail obligations),
+#                                                      # and no other group; --dry-run shows it
+#   bash scripts/measure_calibration.sh --owed --only PATTERN
+#                                                      # iterate: only owed work whose group label, record id/test
+#                                                      # or route contains PATTERN (or matches it as a glob)
+#   bash scripts/measure_calibration.sh --all          # every group (manual)
 #   bash scripts/measure_calibration.sh --missing-only # only missing records/gate evidence; preserve prior evidence
 #   bash scripts/measure_calibration.sh --missing-only --group 'weighted_interval_calibration:*'
 #   bash scripts/measure_calibration.sh --jobs 6       # default: one job per core, one worker thread each
 #   bash scripts/measure_calibration.sh --dry-run      # list the groups, rough duration
+#   bash scripts/measure_calibration.sh --estimates target/calibration-estimates.tsv --shards
+#                                                      # no timings yet: order longest first by the estimates, and split
+#                                                      # tasks longer than total work / jobs into parallel replicate shards
 #   bash scripts/measure_calibration.sh --pilot        # smoke-time selected jobs; no coverage evidence
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 usage() {
-  sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,37p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 ALL=""
+OWED=0
 MISSING_ONLY=0
 FILTERS=()
+ONLY=()
 REPLACEMENTS=()
+HAVE_FILTERS=0
+HAVE_REPLACEMENTS=0
 REPLICATES=()
+SCHEDULE=()
 DRY_RUN=0
 PILOT=0
 JOBS=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --all) ALL="--all" ;;
+    --owed) OWED=1 ;;
     --missing-only) MISSING_ONLY=1 ;;
+    --only)
+      [[ $# -ge 2 ]] || { echo "--only needs a pattern" >&2; exit 2; }
+      ONLY+=(--only "$2")
+      shift
+      ;;
+    --only=*) ONLY+=(--only "${1#--only=}") ;;
     --group)
       [[ $# -ge 2 ]] || { echo "--group needs a full-label glob" >&2; exit 2; }
       FILTERS+=(--group "$2")
+      HAVE_FILTERS=1
       shift
       ;;
-    --group=*) FILTERS+=(--group "${1#--group=}") ;;
+    --group=*) FILTERS+=(--group "${1#--group=}"); HAVE_FILTERS=1 ;;
     --replace-record)
       [[ $# -ge 2 ]] || { echo "--replace-record needs a record ID" >&2; exit 2; }
       REPLACEMENTS+=(--replace-record "$2")
+      HAVE_REPLACEMENTS=1
       shift
       ;;
-    --replace-record=*) REPLACEMENTS+=(--replace-record "${1#--replace-record=}") ;;
+    --replace-record=*) REPLACEMENTS+=(--replace-record "${1#--replace-record=}"); HAVE_REPLACEMENTS=1 ;;
     --replicates)
       [[ $# -ge 2 ]] || { echo "--replicates needs an integer" >&2; exit 2; }
       REPLICATES=(--replicates "$2")
@@ -68,6 +93,13 @@ while [[ $# -gt 0 ]]; do
     --replicates=*) REPLICATES=(--replicates "${1#--replicates=}") ;;
     --dry-run) DRY_RUN=1 ;;
     --pilot) PILOT=1 ;;
+    --shards) SCHEDULE+=(--shards) ;;
+    --estimates)
+      [[ $# -ge 2 ]] || { echo "--estimates needs a file" >&2; exit 2; }
+      SCHEDULE+=(--estimates "$2")
+      shift
+      ;;
+    --estimates=*) SCHEDULE+=(--estimates "${1#--estimates=}") ;;
     --jobs)
       [[ $# -ge 2 ]] || { echo "--jobs needs a number" >&2; exit 2; }
       JOBS="$2"
@@ -83,24 +115,39 @@ if [[ "$MISSING_ONLY" == "1" && -n "$ALL" ]]; then
   echo "--all and --missing-only are mutually exclusive" >&2
   exit 2
 fi
+if [[ ${#ONLY[@]} -gt 0 && "$OWED" != "1" ]]; then
+  echo "--only requires --owed" >&2
+  exit 2
+fi
+if [[ "$OWED" == "1" && ( "$MISSING_ONLY" == "1" || -n "$ALL" ) ]]; then
+  echo "--owed excludes --all and --missing-only" >&2
+  exit 2
+fi
 MODE=()
 if [[ "$MISSING_ONLY" == "1" ]]; then MODE+=(--missing-only); fi
 if [[ -n "$ALL" ]]; then MODE+=(--all); fi
+if [[ "$OWED" == "1" ]]; then MODE+=(--owed); fi
 if [[ -z "$JOBS" ]]; then
   # One job per core: scripts/calibration_groups.py gives each job
-  # ceil(cores / jobs) worker threads (ANTECEDENT_CALIBRATION_THREADS), so the
+  # floor(cores / jobs), at least one, simulation workers, so the
   # jobs share the machine instead of each taking all of it, and scheduling
   # the many heterogeneous groups one per core packs it best.
   JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)"
 fi
 case "$JOBS" in ''|*[!0-9]*|0) echo "--jobs must be a positive integer, got '$JOBS'" >&2; exit 2 ;; esac
 
-DIRTY="$(git status --porcelain --untracked-files=normal)"
+# The record files are outputs of the lanes, not inputs to a measurement (the fingerprint drops
+# their derived fields), so a just-updated ledger does not make the tree dirty for calibration.
+record_outputs_excluded() {
+  git status --porcelain --untracked-files=normal |
+    grep -vE '^.. (parity/scientific_records\.toml|parity/coverage_records\.toml|crates/antecedent-io-core/data/coverage_records\.json)$' || true
+}
+DIRTY="$(record_outputs_excluded)"
 if [[ "$DRY_RUN" == "1" ]]; then
   if [[ -n "$DIRTY" ]]; then
     echo "note: the working tree is dirty; a real measurement will refuse to run until it is clean."
   fi
-  python3 scripts/calibration_groups.py plan "${MODE[@]}" "${FILTERS[@]}" "${REPLICATES[@]}" --jobs "$JOBS"
+  python3 scripts/calibration_groups.py plan ${MODE[@]+"${MODE[@]}"} ${FILTERS[@]+"${FILTERS[@]}"} ${ONLY[@]+"${ONLY[@]}"} ${REPLICATES[@]+"${REPLICATES[@]}"} --jobs "$JOBS"
   exit 0
 fi
 
@@ -109,7 +156,7 @@ if [[ "$PILOT" == "1" ]]; then
     echo "FAIL: commit the calibration implementation before timing its pilot." >&2
     exit 1
   fi
-  python3 scripts/calibration_groups.py pilot "${MODE[@]}" "${FILTERS[@]}" "${REPLICATES[@]}" --jobs "$JOBS"
+  python3 scripts/calibration_groups.py pilot ${MODE[@]+"${MODE[@]}"} ${FILTERS[@]+"${FILTERS[@]}"} ${ONLY[@]+"${ONLY[@]}"} ${REPLICATES[@]+"${REPLICATES[@]}"} --jobs "$JOBS"
   exit $?
 fi
 
@@ -119,16 +166,42 @@ if [[ -n "$DIRTY" ]]; then
   printf '%s\n' "$DIRTY" | sed 's/^/  /'
   exit 1
 fi
+# The same host environment must be accepted when binding the finished Nix evidence.
+python3 - <<'PREFLIGHT'
+import sys
+from pathlib import Path
+
+sys.path.insert(0, "scripts")
+from evidence_earning import require_compile_environment
+
+try:
+    require_compile_environment(Path.cwd())
+except RuntimeError as exc:
+    raise SystemExit(str(exc)) from exc
+PREFLIGHT
 HEAD_SHA="$(git rev-parse HEAD)"
 echo "== measuring calibration at ${HEAD_SHA} with ${JOBS} parallel job(s) =="
+# The group driver validates the frozen family and selected allocation before
+# archiving logs, building or starting any measurement; it supplies the decision
+# context to each gate child rather than trusting an inherited caller value.
 RUN_STATUS=0
-python3 scripts/calibration_groups.py run "${MODE[@]}" "${FILTERS[@]}" "${REPLICATES[@]}" --jobs "$JOBS" || RUN_STATUS=$?
-if [[ "$RUN_STATUS" != "0" && "$MISSING_ONLY" != "1" && ${#FILTERS[@]} -eq 0 ]]; then
+OWED_COLLECTION=()
+if [[ "$OWED" == 1 ]]; then
+  # The runner appends a verdict only after the test, recheck and coverage capture finish.
+  # Limit the harvest to this invocation, including after a partial run or prebuild failure.
+  offset=0
+  if [[ -f target/calibration-timings.tsv ]]; then
+    offset="$(wc -c < target/calibration-timings.tsv)"
+  fi
+  OWED_COLLECTION=(--owed-completions-from "$offset")
+fi
+python3 scripts/calibration_groups.py run ${MODE[@]+"${MODE[@]}"} ${FILTERS[@]+"${FILTERS[@]}"} ${ONLY[@]+"${ONLY[@]}"} ${REPLICATES[@]+"${REPLICATES[@]}"} ${SCHEDULE[@]+"${SCHEDULE[@]}"} --jobs "$JOBS" || RUN_STATUS=$?
+if [[ "$RUN_STATUS" != "0" && "$OWED" != 1 && "$MISSING_ONLY" != "1" && "$HAVE_FILTERS" == 0 ]]; then
   exit "$RUN_STATUS"
 fi
 
 # The logs describe HEAD_SHA only if nothing moved while the measurement ran.
-if [[ "$(git rev-parse HEAD)" != "$HEAD_SHA" || -n "$(git status --porcelain --untracked-files=normal)" ]]; then
+if [[ "$(git rev-parse HEAD)" != "$HEAD_SHA" || -n "$(record_outputs_excluded)" ]]; then
   echo "FAIL: HEAD or the working tree changed during the measurement; the logs describe"
   echo "${HEAD_SHA}. Check it out cleanly and collect by hand (the logs name their commit,"
   echo "and the collector refuses them at any other):"
@@ -137,18 +210,18 @@ if [[ "$(git rev-parse HEAD)" != "$HEAD_SHA" || -n "$(git status --porcelain --u
   elif [[ -n "$ALL" ]]; then
     echo "  python3 scripts/collect_coverage_records.py"
   else
-    echo "  python3 scripts/collect_coverage_records.py --keep-attested"
+    echo "  python3 scripts/collect_coverage_records.py --keep-not_measured"
   fi
   exit 1
 fi
 
 echo "== collecting coverage records at ${HEAD_SHA} =="
-if [[ "$MISSING_ONLY" == "1" || ${#FILTERS[@]} -gt 0 || ${#REPLACEMENTS[@]} -gt 0 ]]; then
-  python3 scripts/collect_coverage_records.py --keep-existing --passing-only "${REPLACEMENTS[@]}"
+if [[ "$OWED" == 1 || "$MISSING_ONLY" == "1" || "$HAVE_FILTERS" == 1 || "$HAVE_REPLACEMENTS" == 1 ]]; then
+  python3 scripts/collect_coverage_records.py --keep-existing --passing-only ${OWED_COLLECTION[@]+"${OWED_COLLECTION[@]}"} ${REPLACEMENTS[@]+"${REPLACEMENTS[@]}"}
 elif [[ -n "$ALL" ]]; then
   python3 scripts/collect_coverage_records.py
 else
-  python3 scripts/collect_coverage_records.py --keep-attested
+  python3 scripts/collect_coverage_records.py --keep-not_measured
 fi
 
 if [[ "$RUN_STATUS" != "0" ]]; then
@@ -157,12 +230,8 @@ if [[ "$RUN_STATUS" != "0" ]]; then
   exit "$RUN_STATUS"
 fi
 
-echo "== attestation gate on the collected registry =="
-if ! bash scripts/gate_calibration_attestation.sh; then
-  echo "FAIL: attestation still needs attention. The newly collected evidence and preserved"
-  echo "prior records remain saved; resolve the reported replay waivers or remeasurements."
-  exit 1
-fi
+echo "== calibration status of the collected registry =="
+python3 scripts/calibration_status.py status
 
 echo "measure_calibration: ok. Commit the updated registry and the files the collector"
 echo "regenerated (git status lists them), then push."

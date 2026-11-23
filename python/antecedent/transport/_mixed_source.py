@@ -21,11 +21,15 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from .._artifact_protocol import artifact_consumer, container_bytes
 from .._columns import coerce_fields
 from .._native import consume_mixed_source_artifact as _consume_mixed_source_artifact
 from .._native import identify_mixed_source_transport_stage as _identify_mixed_source_stage
 from ..errors import CausalTypeError, CausalValueError
+from ..execution import Execution
 from ..graph import Admg
+from ._consumption import TransportConsumption
+from ._controls import call_native
 from ._impl import EvidenceCatalog, _non_negative, _optional_non_negative
 from ._multi_source import ZTransportSource, _names
 
@@ -73,8 +77,7 @@ def identify_mixed_source_transport(
     max_operations: int = 20_000,
     max_depth: int = 16,
     max_support_rows: int = 1_000_000,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> Any:
     """Decide a bounded mixed-source query against one catalog of the target's studies.
 
@@ -88,7 +91,7 @@ def identify_mixed_source_transport(
     non-identification claim. An identified stage offers ``prepare_exact``; the
     decision is never repeated at estimation. Estimation returns exact-law
     points only: ``interval["available"]`` is always ``False``, and counted laws
-    (``prepare_empirical``) are refused as ``cell_not_licensed``. Preparing a
+    (``prepare_empirical``) are refused as ``not_supported``. Preparing a
     decision that did not identify raises its typed reason
     (``transport_missing_evidence``, ``transport_not_certified``,
     ``transport_budget_cancel`` or ``route_not_supported``).
@@ -99,7 +102,9 @@ def identify_mixed_source_transport(
         raise CausalTypeError("query must be a MixedSourceQuery")
     if not isinstance(catalog, EvidenceCatalog):
         raise CausalTypeError("catalog must be an EvidenceCatalog")
-    return _identify_mixed_source_stage(
+    return call_native(
+        execution,
+        _identify_mixed_source_stage,
         graph,
         query.target,
         list(query.outcomes),
@@ -117,11 +122,16 @@ def identify_mixed_source_transport(
         max_operations=_non_negative("max_operations", max_operations),
         max_depth=_non_negative("max_depth", max_depth),
         max_support_rows=_non_negative("max_support_rows", max_support_rows),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+        cancel="cancel",
+        memory="memory_bytes",
     )
 
 
+@artifact_consumer(
+    proof="MixedSourceArtifactWire::consume_with_limits: proof, catalog, bound identities and point replay",
+    replayable=True,
+    identity=(),
+)
 def consume_mixed_source_artifact(
     artifact: bytes,
     *,
@@ -132,9 +142,8 @@ def consume_mixed_source_artifact(
     max_support_rows: int | None = None,
     max_laws: int | None = None,
     max_law_cells: int | None = None,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
-) -> str:
+    execution: Execution | None = None,
+) -> TransportConsumption:
     """Independently verify an exported mixed-source result and recompute its point.
 
     The consumer re-runs the bounded decision on the stored graph, query and
@@ -146,19 +155,25 @@ def consume_mixed_source_artifact(
     snapshot ids by the data-identity digest; relabelled names or any other edit
     is refused. Nothing the artifact recorded raises the consumer's limits.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
-    return _consume_mixed_source_artifact(
-        artifact,
-        max_search_operations=_non_negative("max_search_operations", max_search_operations),
-        max_search_depth=_non_negative("max_search_depth", max_search_depth),
-        max_operations=_non_negative("max_operations", max_operations),
-        max_depth=_non_negative("max_depth", max_depth),
-        max_support_rows=_optional_non_negative("max_support_rows", max_support_rows),
-        max_laws=_optional_non_negative("max_laws", max_laws),
-        max_law_cells=_optional_non_negative("max_law_cells", max_law_cells),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+    return TransportConsumption.from_checked_json(
+        "consume_mixed_source_artifact",
+        call_native(
+            execution,
+            _consume_mixed_source_artifact,
+            artifact,
+            max_search_operations=_non_negative("max_search_operations", max_search_operations),
+            max_search_depth=_non_negative("max_search_depth", max_search_depth),
+            max_operations=_non_negative("max_operations", max_operations),
+            max_depth=_non_negative("max_depth", max_depth),
+            max_support_rows=_optional_non_negative("max_support_rows", max_support_rows),
+            max_laws=_optional_non_negative("max_laws", max_laws),
+            max_law_cells=_optional_non_negative("max_law_cells", max_law_cells),
+            cancel="cancel",
+            memory="memory_bytes",
+        ),
     )
 
 

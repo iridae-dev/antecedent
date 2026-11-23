@@ -14,16 +14,19 @@ degrees-of-freedom corrected residual variance equals ``sigma2``. Closed form:
     TE  = NDE + NIE
 
 Calibration is deliberately NOT measured here: bootstrap standard errors are reported with
-calibration ``"unmeasured"`` and no interval.
+calibration resolved per interval from its basis.
 """
 
 from __future__ import annotations
 
 import dataclasses
 import math
+import sys
 
+import antecedent
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalSerializationError, CausalTypeError, CausalUnsupportedError
 from antecedent.nonlinear_mediation import (
     MediationEstimand,
@@ -154,16 +157,29 @@ def test_mediation_reports_integration_error_and_refuses_above_tolerance() -> No
     assert fine.natural_direct == pytest.approx(nde, abs=1e-8)
     assert fine.natural_indirect == pytest.approx(nie, abs=1e-8)
     assert fine.total == pytest.approx(te, abs=1e-8)
-    # One node is the plug-in mean; the n versus 2n disagreement is sigma2-sized and refused.
-    with pytest.raises(MediationRefusal) as caught:
-        run(g, outcome_degree=3, quadrature_nodes=1)
-    assert caught.value.detail == "nonlinear_mediation.integration_error"
-    assert caught.value.reason_code == "mechanism_fit_not_converged"
-    assert_registered_refusal(caught.value)
-    # A loose tolerance returns the estimate with the error reported, not hidden.
-    loose = run(g, outcome_degree=3, quadrature_nodes=1, integration_tolerance=10.0)
-    assert loose.integration_error > 1e-3
-    assert loose.natural_indirect == pytest.approx(nie, abs=1e-8)
+    # A declared node count below what the outcome degree needs is raised to the least count
+    # that integrates the degree exactly, so one declared node still returns the closed form
+    # (a single node would be the plug-in mean and drop the 3*mu*sigma2 term).
+    raised = run(g, outcome_degree=3, quadrature_nodes=1)
+    assert raised.coarse_nodes > 1 and raised.fine_nodes == 2 * raised.coarse_nodes
+    assert raised.integration_error < 1e-10
+    assert raised.natural_direct == pytest.approx(nde, abs=1e-8)
+    assert raised.natural_indirect == pytest.approx(nie, abs=1e-8)
+    assert raised.total == pytest.approx(te, abs=1e-8)
+    # The check itself still compares the n and 2n node effects: a tolerance below their
+    # rounding-level disagreement refuses, and one at or above it returns the estimate with
+    # the error reported.
+    tiny = sys.float_info.min
+    with pytest.raises(MediationRefusal) as strict:
+        run(g, outcome_degree=3, quadrature_nodes=1, integration_tolerance=tiny)
+    assert strict.value.detail == reason_details.nonlinear_mediation.INTEGRATION_ERROR
+    assert strict.value.reason_code == "mechanism_fit_not_converged"
+    assert_registered_refusal(strict.value)
+    # At a tolerance above the rounding-level disagreement the estimate is returned with the
+    # error it was checked at (the two node counts agree to rounding).
+    lenient = run(g, outcome_degree=3, quadrature_nodes=1, integration_tolerance=1e-12)
+    assert 0.0 < lenient.integration_error <= 1e-12
+    assert lenient.natural_indirect == pytest.approx(nie, abs=1e-8)
 
 
 @pytest.mark.parametrize(
@@ -178,7 +194,7 @@ def test_mediation_confounding_flags_refuse(flag: str) -> None:
     premises = dataclasses.replace(IGNORABLE, **{flag: True})
     with pytest.raises(MediationRefusal) as caught:
         run(grid(scm()), premises=premises)
-    assert caught.value.detail == "nonlinear_mediation.confounding"
+    assert caught.value.detail == reason_details.nonlinear_mediation.CONFOUNDING
     assert caught.value.reason_code == "effect_not_identified"
     assert isinstance(caught.value, CausalUnsupportedError)
     assert_registered_refusal(caught.value)
@@ -188,19 +204,25 @@ def test_mediation_treatment_induced_confounder_and_cross_world_refuse() -> None
     induced = MediationPremises(treatment_induced_confounders=("L",), cross_world_independence=True)
     with pytest.raises(MediationRefusal) as caught:
         run(grid(scm()), premises=induced)
-    assert caught.value.detail == "nonlinear_mediation.treatment_induced_confounding"
+    assert caught.value.detail == reason_details.nonlinear_mediation.TREATMENT_INDUCED_CONFOUNDING
     assert caught.value.reason_code == "cross_world_not_identified"
     undeclared = MediationPremises()
     with pytest.raises(MediationRefusal) as caught:
         run(grid(scm()), premises=undeclared)
-    assert caught.value.detail == "nonlinear_mediation.cross_world_independence_not_declared"
+    assert (
+        caught.value.detail
+        == reason_details.nonlinear_mediation.CROSS_WORLD_INDEPENDENCE_NOT_DECLARED
+    )
     assert_registered_refusal(caught.value)
 
 
-def test_mediation_interventional_estimand_is_closed() -> None:
+def test_mediation_interventional_estimand_is_not_supported() -> None:
     with pytest.raises(MediationRefusal) as caught:
         run(grid(scm()), estimand=MediationEstimand.INTERVENTIONAL_EFFECTS)
-    assert caught.value.detail == "nonlinear_mediation.interventional_effects_closed"
+    assert (
+        caught.value.detail
+        == reason_details.nonlinear_mediation.INTERVENTIONAL_EFFECTS_NOT_SUPPORTED
+    )
     assert caught.value.reason_code == "route_not_supported"
     assert_registered_refusal(caught.value)
     with pytest.raises(MediationRefusal):
@@ -211,7 +233,7 @@ def test_mediation_weak_overlap_refuses() -> None:
     # alpha = 6: the control mediator law sits far outside the treated arm's mediator range.
     with pytest.raises(MediationRefusal) as caught:
         run(grid(scm(alpha=6.0)))
-    assert caught.value.detail == "nonlinear_mediation.overlap"
+    assert caught.value.detail == reason_details.nonlinear_mediation.OVERLAP
     # An unpopulated treated arm is the same refusal on counts.
     full = grid(scm())
     keep = np.ones(len(full["treatment"]), dtype=bool)
@@ -219,10 +241,10 @@ def test_mediation_weak_overlap_refuses() -> None:
     small = {name: column[keep] for name, column in full.items()}
     with pytest.raises(MediationRefusal) as caught:
         run(small)
-    assert caught.value.detail == "nonlinear_mediation.overlap"
+    assert caught.value.detail == reason_details.nonlinear_mediation.OVERLAP
 
 
-def test_mediation_bootstrap_is_seeded_unmeasured_and_has_no_interval() -> None:
+def test_mediation_bootstrap_is_seeded_not_measured_and_has_no_interval() -> None:
     g = grid(scm())
     a = run(g, bootstrap_replicates=30, seed=7)
     b = run(g, bootstrap_replicates=30, seed=7)
@@ -232,11 +254,19 @@ def test_mediation_bootstrap_is_seeded_unmeasured_and_has_no_interval() -> None:
     assert a.bootstrap.seed == 7
     assert a.bootstrap.replicate_ids == tuple(range(30))
     assert a.bootstrap.replicates_succeeded + len(a.bootstrap.failed_replicate_ids) == 30
-    assert a.calibration == "unmeasured"
-    assert a.interval_status == "closed_calibration_unmeasured"
-    assert a.bootstrap.interval_status == "closed_calibration_unmeasured"
+    assert a.calibration == "resolved_from_basis"
+    assert a.interval_status == "percentile_bootstrap_interval"
+    assert a.bootstrap.interval_status == "percentile_bootstrap_interval"
+    for interval in a.intervals:
+        assert interval.lower <= interval.upper
+        assert interval.status in (
+            "calibrated",
+            "outside_measured_scope",
+            "measured_below_nominal",
+            "not_measured",
+        )
     assert a.inference_claim == "point_with_diagnostics"
-    assert any("unmeasured" in caveat for caveat in a.caveats)
+    assert any("calibration slot" in caveat for caveat in a.caveats)
     assert not hasattr(a, "interval") and not hasattr(a, "natural_direct_interval")
     other = run(g, bootstrap_replicates=30, seed=8)
     assert other.natural_direct_se != a.natural_direct_se
@@ -269,7 +299,7 @@ def test_mediation_has_no_row_ceiling_and_replays_beyond_the_former_one() -> Non
     assert result.natural_direct == pytest.approx(nde, abs=1e-8)
     assert result.natural_indirect == pytest.approx(nie, abs=1e-8)
     assert result.total == pytest.approx(te, abs=1e-8)
-    again = consume_mediation_artifact(result.export(), expected_identity=result.identity)
+    again = consume_mediation_artifact(bytes(result.export()), expected_identity=result.identity)
     assert again.to_dict() == result.to_dict()
 
 
@@ -280,16 +310,16 @@ def test_mediation_estimate_survives_an_export_over_the_byte_budget() -> None:
     assert result.n_rows == 800_000
     assert result.natural_direct == pytest.approx(nde, abs=1e-8)
     with pytest.raises(MediationRefusal) as refused:
-        result.export()
+        bytes(result.export())
     assert refused.value.reason_code == "route_not_supported"
-    assert refused.value.detail == "nonlinear_mediation.export_budget_exceeded"
+    assert refused.value.detail == reason_details.nonlinear_mediation.EXPORT_BUDGET_EXCEEDED
     assert_registered_refusal(refused.value)
 
 
 def test_mediation_digest_bound_artifact_needs_the_dataset_and_respects_the_memory_limit() -> None:
     g = grid(scm())
     result = run(g, data_binding="digest")
-    bound = result.export()
+    bound = bytes(result.export())
     columns = {
         "treatment": g["treatment"],
         "mediator": g["mediator"],
@@ -300,22 +330,25 @@ def test_mediation_digest_bound_artifact_needs_the_dataset_and_respects_the_memo
     assert again.identity == result.identity
     with pytest.raises(MediationRefusal) as refused:
         consume_mediation_artifact(bound)
-    assert refused.value.detail == "nonlinear_mediation.data_required"
+    assert refused.value.detail == reason_details.nonlinear_mediation.DATA_REQUIRED
     with pytest.raises(MediationRefusal) as refused:
         consume_mediation_artifact(bound, **{**columns, "outcome": g["outcome"] + 1e-9})
-    assert refused.value.detail == "nonlinear_mediation.wrong_contract"
+    assert refused.value.detail == reason_details.nonlinear_mediation.WRONG_CONTRACT
     with pytest.raises(MediationRefusal) as refused:
-        consume_mediation_artifact(run(g).export(), memory_limit_bytes=1_000)
-    assert refused.value.detail == "nonlinear_mediation.memory_budget_exceeded"
+        consume_mediation_artifact(
+            bytes(run(g).export()),
+            execution=antecedent.Execution(limits=antecedent.ResourceLimits(memory_bytes=1_000)),
+        )
+    assert refused.value.detail == reason_details.nonlinear_mediation.MEMORY_BUDGET_EXCEEDED
 
 
 def test_mediation_artifact_round_trips_and_checks_the_retained_identity() -> None:
     result = run(grid(scm()), bootstrap_replicates=8, seed=3)
-    again = consume_mediation_artifact(result.export(), expected_identity=result.identity)
+    again = consume_mediation_artifact(bytes(result.export()), expected_identity=result.identity)
     assert again.to_dict() == result.to_dict()
     assert again.identity == result.identity
     from_mapping = consume_mediation_artifact(
-        result.export(), expected_identity=result.identity._wire()
+        bytes(result.export()), expected_identity=result.identity._wire()
     )
     assert from_mapping.identity == result.identity
 
@@ -327,11 +360,11 @@ def test_mediation_artifact_refuses_a_resealed_change_against_retained_identity(
     g["outcome"][0] += 1.0
     resealed = run(g)
     # The changed artifact is internally consistent ...
-    assert consume_mediation_artifact(resealed.export()).identity == resealed.identity
+    assert consume_mediation_artifact(bytes(resealed.export())).identity == resealed.identity
     # ... and refused by the identity the consumer retained independently.
     with pytest.raises(MediationRefusal) as caught:
-        consume_mediation_artifact(resealed.export(), expected_identity=original.identity)
-    assert caught.value.detail == "nonlinear_mediation.wrong_contract"
+        consume_mediation_artifact(bytes(resealed.export()), expected_identity=original.identity)
+    assert caught.value.detail == reason_details.nonlinear_mediation.WRONG_CONTRACT
     assert caught.value.offending == "data"
     assert caught.value.reason_code == "route_not_supported"
     assert_registered_refusal(caught.value)
@@ -339,14 +372,14 @@ def test_mediation_artifact_refuses_a_resealed_change_against_retained_identity(
 
 def test_mediation_artifact_corruption_and_type_errors() -> None:
     result = run(grid(scm()))
-    corrupt = bytearray(result.export())
+    corrupt = bytearray(bytes(result.export()))
     corrupt[len(corrupt) // 2] ^= 0xFF
     with pytest.raises(CausalSerializationError):
         consume_mediation_artifact(bytes(corrupt))
     with pytest.raises(CausalTypeError):
         consume_mediation_artifact("not bytes")  # type: ignore[arg-type]
     with pytest.raises(CausalTypeError):
-        consume_mediation_artifact(result.export(), expected_identity=3)  # type: ignore[arg-type]
+        consume_mediation_artifact(bytes(result.export()), expected_identity=3)  # type: ignore[arg-type]
     g = grid(scm())
     with pytest.raises(CausalTypeError):
         mediation_effects(

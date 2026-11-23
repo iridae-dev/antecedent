@@ -1,0 +1,1 @@
+["use:std::cell::Cell;#0","struct:BayesianWorkCounts#0","macro:thread_local#0","fn:count_bayesian_work#0","fn:note_posterior_fit#0","fn:note_posterior_draw#0"]

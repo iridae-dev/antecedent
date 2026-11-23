@@ -37,7 +37,7 @@ fn failure(error: &TransportedCounterfactualArtifactError) -> PyErr {
     match error {
         TransportedCounterfactualArtifactError::LimitsExceeded(what) => with_reason_code(
             value_err(format!("transported_counterfactual.limits_exceeded: {what}")),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ),
         other => crate::serialization_err(other.to_string()),
     }
@@ -60,7 +60,7 @@ fn evaluate_transported_counterfactual(
         .map_err(|e| {
             with_reason_code(
                 value_err(format!("transported_counterfactual.invalid_request: {e}")),
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
             )
         })?;
     let artifact_id = artifact_id.to_owned();
@@ -86,7 +86,7 @@ fn evaluate_transported_counterfactual(
 #[pyo3(signature = (artifact, expected_identity_json=None))]
 fn consume_transported_counterfactual_artifact(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expected_identity_json: Option<String>,
 ) -> PyResult<ConsumePayload> {
     let expected: Option<TransportedCounterfactualIdentity> = match expected_identity_json {
@@ -95,14 +95,14 @@ fn consume_transported_counterfactual_artifact(
             Some(serde_json::from_str(&text).map_err(|e| {
                 with_reason_code(
                     value_err(format!("transported_counterfactual.invalid_identity: {e}")),
-                    antecedent_core::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_code!("invalid_argument"),
                 )
             })?)
         }
         None => None,
     };
     detach_catch(py, move || {
-        match TransportedCounterfactual::consume(&artifact, expected.as_ref()) {
+        match TransportedCounterfactual::consume(artifact, expected.as_ref()) {
             Ok(done) => {
                 let report = serde_json::to_string(&done.report())
                     .map_err(|e| crate::serialization_err(e.to_string()))?;

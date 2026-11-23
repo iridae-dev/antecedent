@@ -1,0 +1,19 @@
+feature_id = "data.diagnostics"
+implementation_crate = "antecedent-validate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+implementation_deviations = [
+  "Independent descriptive design specified in docs/guides/data-diagnostics.md; no test of scientific validity or calibration guarantee is claimed.",
+  "Population standardized third and fourth central moments, with scale normalization to avoid overflow; moments are absent when undefined.",
+  "Evenly spaced deterministic sample indices floor(i*n/k), not random sampling. Full counts and sample measurements have separate coverage.",
+  "Review thresholds are declared heuristic policy, independently configurable; existing facade preflight findings retain their original interpretation.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "Shared independently derived fixture conformance/data_diagnostics/basic/fixture.json",
+  "Hand-derived moments of uniform {-2,-1,0,1,2} in crates/antecedent-validate/src/data_diagnostics.rs",
+  "Independently constructed threshold, missingness, typed-equality and lifecycle fixtures in crates/antecedent/tests/data_diagnostics.rs and python/tests/test_data_diagnostics.py",
+]

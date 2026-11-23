@@ -2,7 +2,7 @@
 //!
 //! Truth is enumerated from structural equations. These tests do not call the
 //! identifier to compute a probability.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -274,7 +274,7 @@ fn empirical_cited_margin_publishes_a_nominal_interval_around_the_exact_point() 
     clippy::too_many_lines,
     reason = "one staged artifact lifecycle covers both posterior providers"
 )]
-fn bayesian_cited_margin_publishes_an_unmeasured_posterior() {
+fn bayesian_cited_margin_publishes_an_not_measured_posterior() {
     let diagram = surrogate_diagram();
     let query = surrogate_query();
     let catalog = EvidenceCatalog::try_new(
@@ -329,6 +329,9 @@ fn bayesian_cited_margin_publishes_an_unmeasured_posterior() {
     )
     .unwrap();
     let risk = y_risk(&point);
+    // The enumerated structural truth P(Y=1 | do(X=0)) = 0.2 anchors the point the posterior
+    // brackets, so the interval cannot merely enclose a product value that drifted from it.
+    assert!((risk - 0.2).abs() < 5e-3, "point {risk} vs structural truth 0.2");
     for provider in [
         BayesianTransportLawProvider::EmpiricalSupport,
         BayesianTransportLawProvider::DeclaredStateSpaceDirichlet,
@@ -346,6 +349,11 @@ fn bayesian_cited_margin_publishes_an_unmeasured_posterior() {
         assert_eq!(interval.method.as_ref(), POSTERIOR_EQUAL_TAIL);
         assert_eq!(interval.reason.as_ref(), Z_TRANSPORT_INTERVAL_NOT_MEASURED);
         assert!(interval.mean_intervals[0].1 <= risk && risk <= interval.mean_intervals[0].2);
+        assert!(
+            interval.mean_intervals[0].1 <= 0.2 && 0.2 <= interval.mean_intervals[0].2,
+            "{provider:?}: structural truth 0.2 outside {:?}",
+            interval.mean_intervals[0]
+        );
     }
 
     let mut empty_arm = counts;

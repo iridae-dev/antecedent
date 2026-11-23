@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Check promotion prerequisites and feature-package links."""
+"""Check capability prerequisites and feature-package links."""
 
 from __future__ import annotations
 
 import sys
-import tomllib
 
 from _repo import REPO_ROOT as ROOT
+from _repo import load_toml
 
-RECORDS = ROOT / "parity/promotion.toml"
+RECORDS = ROOT / "parity/capability_records.toml"
 FEATURES = ROOT / "parity/feature_packages.toml"
 
 
@@ -18,7 +18,9 @@ def problems(records: list[dict]) -> list[str]:
     for record in records:
         rid = record["id"]
         dependencies = record.get("prerequisite_records", [])
-        if not isinstance(dependencies, list) or any(not isinstance(item, str) for item in dependencies):
+        if not isinstance(dependencies, list) or any(
+            not isinstance(item, str) for item in dependencies
+        ):
             errors.append(f"{rid}: prerequisite_records must be a list of record IDs")
             continue
         if len(dependencies) != len(set(dependencies)):
@@ -68,7 +70,7 @@ def feature_problems(features: list[dict], records: list[dict]) -> list[str]:
         if feature.get("record") != fid:
             errors.append(f"{fid}: record must be the feature id")
         elif fid not in current:
-            errors.append(f"{fid}: promotion record is missing")
+            errors.append(f"{fid}: capability record is missing")
         if feature.get("record_state") != "frozen":
             errors.append(f"{fid}: record_state must be frozen")
         if not feature.get("purpose"):
@@ -99,36 +101,49 @@ def self_test() -> None:
     base = {"id": "transport.base", "prerequisite_records": []}
     child = {"id": "distribution.child", "prerequisite_records": ["transport.base"]}
     assert not problems([base, child])
-    assert any("unknown prerequisite" in item for item in problems(
-        [{**child, "prerequisite_records": ["missing"]}]
-    ))
-    assert any("self prerequisite" in item for item in problems(
-        [{**child, "prerequisite_records": ["distribution.child"]}]
-    ))
-    assert any("cyclic" in item for item in problems([
-        {**base, "prerequisite_records": ["distribution.child"]},
-        child,
-    ]))
-    features = [{
-        "id": "distribution.child",
-        "purpose": "child",
-        "depends_on": ["transport.base"],
-        "record": "distribution.child",
-        "record_state": "frozen",
-    }, {
-        "id": "transport.base",
-        "purpose": "base",
-        "depends_on": [],
-        "record": "transport.base",
-        "record_state": "frozen",
-    }]
+    assert any(
+        "unknown prerequisite" in item
+        for item in problems([{**child, "prerequisite_records": ["missing"]}])
+    )
+    assert any(
+        "self prerequisite" in item
+        for item in problems([{**child, "prerequisite_records": ["distribution.child"]}])
+    )
+    assert any(
+        "cyclic" in item
+        for item in problems(
+            [
+                {**base, "prerequisite_records": ["distribution.child"]},
+                child,
+            ]
+        )
+    )
+    features = [
+        {
+            "id": "distribution.child",
+            "purpose": "child",
+            "depends_on": ["transport.base"],
+            "record": "distribution.child",
+            "record_state": "frozen",
+        },
+        {
+            "id": "transport.base",
+            "purpose": "base",
+            "depends_on": [],
+            "record": "transport.base",
+            "record_state": "frozen",
+        },
+    ]
     assert not feature_problems(features, [base, child])
-    assert any("cyclic" in item for item in feature_problems(
-        [{**features[0], "depends_on": ["distribution.child"]}, features[1]],
-        [base, child],
-    ))
-    committed_records = tomllib.loads(RECORDS.read_text(encoding="utf-8"))["record"]
-    committed_features = tomllib.loads(FEATURES.read_text(encoding="utf-8"))["feature"]
+    assert any(
+        "cyclic" in item
+        for item in feature_problems(
+            [{**features[0], "depends_on": ["distribution.child"]}, features[1]],
+            [base, child],
+        )
+    )
+    committed_records = load_toml(RECORDS)["record"]
+    committed_features = load_toml(FEATURES)["feature"]
     assert not problems(committed_records)
     assert not feature_problems(committed_features, committed_records)
     print("prerequisite self-test: ok")
@@ -140,8 +155,8 @@ def main() -> int:
         return 0
     if len(sys.argv) != 1:
         raise SystemExit("usage: check_prerequisites.py [--self-test]")
-    records = tomllib.loads(RECORDS.read_text(encoding="utf-8"))["record"]
-    features = tomllib.loads(FEATURES.read_text(encoding="utf-8"))["feature"]
+    records = load_toml(RECORDS)["record"]
+    features = load_toml(FEATURES)["feature"]
     issues = problems(records) + feature_problems(features, records)
     if issues:
         print("\n".join(f"FAIL: {issue}" for issue in issues), file=sys.stderr)

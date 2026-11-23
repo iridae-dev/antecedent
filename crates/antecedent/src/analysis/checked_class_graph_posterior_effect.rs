@@ -4,7 +4,7 @@
 //! frozen samples and completion envelopes; only the per-completion procedure
 //! differs.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::analysis::prepared::Inspect;
 use crate::analysis::route_guards::inference_label;
@@ -75,26 +75,26 @@ impl CheckedClassGraphPosteriorEffect {
             validation,
         } = premises;
         if !matches!(
-            posterior.atom_kind,
+            posterior.atom_kind(),
             GraphPosteriorAtomKind::Cpdag | GraphPosteriorAtomKind::Pag
         ) {
             return Err(CausalError::Unsupported {
                 message: "checked class graph-posterior effect requires CPDAG or PAG atoms",
             });
         }
-        let licensed = match inference {
+        let supported = match inference {
             InferenceMode::Frequentist => target.frequentist_estimator(),
             InferenceMode::Bayesian(_) => target.bayesian_estimator(),
         };
-        if procedure.id() != licensed {
+        if procedure.id() != supported {
             return Err(CausalError::Unsupported {
                 message: "checked class graph-posterior effect procedure does not match its inference and query kind",
             });
         }
         let query = target.inner();
         if query.treatment == query.outcome
-            || usize::try_from(query.treatment.raw()).map_or(true, |i| i >= posterior.n_vars)
-            || usize::try_from(query.outcome.raw()).map_or(true, |i| i >= posterior.n_vars)
+            || usize::try_from(query.treatment.raw()).map_or(true, |i| i >= posterior.n_vars())
+            || usize::try_from(query.outcome.raw()).map_or(true, |i| i >= posterior.n_vars())
         {
             return Err(CausalError::Unsupported {
                 message: "class graph-posterior query variables must be distinct and in range",
@@ -215,7 +215,7 @@ fn validate_identification_binding(
         });
     }
     let posterior_keys: std::collections::HashSet<u64> =
-        posterior.graph_keys.iter().copied().collect();
+        posterior.graph_keys().iter().copied().collect();
     let identified_keys = identified_key_set(&identification.graphs);
     let mut class_keys = std::collections::HashSet::with_capacity(identification.class_atoms.len());
     for atom in identification.class_atoms.iter() {
@@ -347,9 +347,9 @@ mod tests {
     fn unidentified_cache(graphs: &GraphPosterior) -> Arc<CachedGraphPosteriorIdentification> {
         Arc::new(CachedGraphPosteriorIdentification {
             graphs: WeightedGraphSamples::new(
-                graphs.weights.to_vec(),
-                vec![GraphIdentFlag::Unidentified; graphs.n_graphs],
-                graphs.graph_keys.to_vec(),
+                graphs.weights().to_vec(),
+                vec![GraphIdentFlag::Unidentified; graphs.n_graphs()],
+                graphs.graph_keys().to_vec(),
             )
             .unwrap(),
             atoms: Arc::from([]),
@@ -366,7 +366,7 @@ mod tests {
         )
         .expect("empty CPDAG ATE identification fixture");
         let atom = crate::analysis::prepared::CachedClassPosteriorAtomIdentification {
-            key: graphs.graph_keys[0],
+            key: graphs.graph_keys()[0],
             identification: envelope.cases[0].result.clone(),
             invariant: envelope.invariant.clone(),
             cases: Arc::from(
@@ -374,8 +374,15 @@ mod tests {
                     .cases
                     .iter()
                     .map(|case| crate::analysis::prepared::CachedClassPosteriorCase {
+                        completion_digest: *antecedent_io::digest_wire(
+                            antecedent_core::IdentityDomain::Identification,
+                            &antecedent_io::dag_identity(&case.graph).unwrap(),
+                        )
+                        .unwrap()
+                        .as_bytes(),
                         weight: case.weight.0,
                         status: case.result.status,
+                        identification: Arc::new(case.result.clone()),
                         estimand: case.result.estimands.first().cloned(),
                     })
                     .collect::<Vec<_>>(),
@@ -385,9 +392,9 @@ mod tests {
         };
         Arc::new(CachedGraphPosteriorIdentification {
             graphs: WeightedGraphSamples::new(
-                graphs.weights.to_vec(),
-                vec![GraphIdentFlag::Identified; graphs.n_graphs],
-                graphs.graph_keys.to_vec(),
+                graphs.weights().to_vec(),
+                vec![GraphIdentFlag::Identified; graphs.n_graphs()],
+                graphs.graph_keys().to_vec(),
             )
             .unwrap(),
             atoms: Arc::from([]),
@@ -594,9 +601,9 @@ mod tests {
         let graphs = posterior(GraphPosteriorAtomKind::Pag);
         let cache = Arc::new(CachedGraphPosteriorIdentification {
             graphs: WeightedGraphSamples::new(
-                graphs.weights.to_vec(),
+                graphs.weights().to_vec(),
                 vec![GraphIdentFlag::Identified, GraphIdentFlag::Unidentified],
-                graphs.graph_keys.to_vec(),
+                graphs.graph_keys().to_vec(),
             )
             .unwrap(),
             atoms: Arc::from([]),

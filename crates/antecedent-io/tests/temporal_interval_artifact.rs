@@ -1,7 +1,7 @@
 //! `dependent_temporal_interval`: the internal interval artifact replays the whole
 //! unit resampling from its embedded panel and refuses every resealed mutation of a unit,
 //! time id, value, snapshot, design, estimator or stored replicate. The public interval
-//! route stays closed; this artifact is internal and records calibration `unmeasured`.
+//! route is not supported; this artifact is internal and records calibration `not_measured`.
 #![allow(
     clippy::cast_precision_loss,
     reason = "enumerated binary SCM fixtures use bounded nonnegative counts and indices"
@@ -50,14 +50,14 @@ fn panel() -> TemporalUnitPanel {
                     let level =
                         (unit * 7 + u64::from(s0) * 3 + u64::from(l2) * 5 + u64::from(a2)) % 10;
                     for a1 in 0..2 {
-                        histories.push(SequenceHistory {
-                            time_id: histories.len() as u64,
+                        histories.push(SequenceHistory::two_step(
+                            histories.len() as u64,
                             s0,
                             a1,
                             l2,
                             a2,
-                            y: level as f64 / 10.0,
-                        });
+                            level as f64 / 10.0,
+                        ));
                     }
                 }
             }
@@ -93,7 +93,7 @@ fn artifact_for(
 
 fn artifact() -> TemporalIntervalArtifactWire {
     artifact_for(
-        &ObservedStateSequence { sequence: SEQUENCE },
+        &ObservedStateSequence { sequence: SEQUENCE.to_vec() },
         IntervalEstimatorWire::observed(SEQUENCE),
     )
 }
@@ -126,7 +126,7 @@ fn dependent_interval_artifact_replays_the_whole_resampling() {
     let p = panel();
     let estimator =
         antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Observed(
-            ObservedStateSequence { sequence: SEQUENCE },
+            ObservedStateSequence { sequence: SEQUENCE.to_vec() },
         );
     let interval = dependent_unit_interval(&p, &estimator, &config(), &ctx()).unwrap();
     let wire = artifact();
@@ -134,7 +134,7 @@ fn dependent_interval_artifact_replays_the_whole_resampling() {
         TemporalIntervalArtifactWire::consume(&wire.export().unwrap(), &limits(), &ctx()).unwrap();
     assert_eq!(replayed, interval);
     assert_eq!(decoded.result.replicates.len(), 40);
-    assert_eq!(decoded.result.calibration, "unmeasured");
+    assert_eq!(decoded.result.calibration, "not_measured");
     assert_eq!(decoded.result.calibration, INTERVAL_CALIBRATION_STATUS);
     assert_eq!(decoded.result.claim, INTERVAL_CLAIM);
     assert_eq!(decoded.result.units, 24);
@@ -158,7 +158,7 @@ fn dependent_interval_artifact_replays_the_marginalized_estimator() {
     let (_, replayed) =
         TemporalIntervalArtifactWire::consume(&wire.export().unwrap(), &limits(), &ctx()).unwrap();
     assert_eq!(replayed.estimand, "marginalized_initial_state");
-    assert_eq!(replayed.calibration, "unmeasured");
+    assert_eq!(replayed.calibration, "not_measured");
 }
 
 #[test]
@@ -205,19 +205,28 @@ fn dependent_interval_reseal_refuses_ill_formed_units_through_the_core() {
     duplicate.panel.units[1].unit_id = duplicate.panel.units[0].unit_id;
     let (code, message) = refused(consume(&reseal(duplicate)));
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("temporal_interval.unknown_units"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_interval::UNKNOWN_UNITS),
+        "{message}"
+    );
 
     let mut unordered = artifact();
     unordered.panel.units[0].histories[1].time_id = 0;
     let (code, message) = refused(consume(&reseal(unordered)));
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("temporal_interval.unknown_units"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_interval::UNKNOWN_UNITS),
+        "{message}"
+    );
 
     let mut few = artifact();
     few.panel.units.truncate(5);
     let (code, message) = refused(consume(&reseal(few)));
     assert_eq!(code, "too_few_clusters");
-    assert!(message.contains("temporal_interval.too_few_units"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_interval::TOO_FEW_UNITS),
+        "{message}"
+    );
 }
 
 #[test]
@@ -265,7 +274,10 @@ fn dependent_interval_reseal_refuses_a_source_law_and_over_limit_replays() {
     source.estimator.law.as_mut().unwrap().population = "source".into();
     let (code, message) = refused(consume(&reseal(source)));
     assert_eq!(code, "transport_missing_evidence");
-    assert!(message.contains("initial_state.target_law_missing"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::initial_state::TARGET_LAW_MISSING),
+        "{message}"
+    );
 
     let small = TemporalIntervalConsumeLimits { max_replicates: 10, ..limits() };
     let bytes = artifact().export().unwrap();
@@ -300,7 +312,7 @@ fn dependent_interval_artifact_links_the_refresh_that_produced_its_panel() {
     let p = panel();
     let estimator =
         antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Observed(
-            ObservedStateSequence { sequence: SEQUENCE },
+            ObservedStateSequence { sequence: SEQUENCE.to_vec() },
         );
     let interval = dependent_unit_interval(&p, &estimator, &config(), &ctx()).unwrap();
     let wire = TemporalIntervalArtifactWire::checked(
@@ -329,7 +341,11 @@ fn dependent_interval_artifact_links_the_refresh_that_produced_its_panel() {
     forged.refresh_receipt.as_mut().unwrap().proof_id = "forged".into();
     let (code, message) = refused(consume(&reseal(forged)));
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("temporal_refresh.receipt_digest_mismatch"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::temporal_refresh::RECEIPT_DIGEST_MISMATCH),
+        "{message}"
+    );
 }
 
 #[test]
@@ -337,7 +353,7 @@ fn dependent_interval_artifact_refuses_an_interval_of_another_panel() {
     let p = panel();
     let estimator =
         antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Observed(
-            ObservedStateSequence { sequence: SEQUENCE },
+            ObservedStateSequence { sequence: SEQUENCE.to_vec() },
         );
     let interval = dependent_unit_interval(&p, &estimator, &config(), &ctx()).unwrap();
     let mut units = p.units().to_vec();

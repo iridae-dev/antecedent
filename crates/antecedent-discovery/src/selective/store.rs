@@ -11,9 +11,9 @@
 //! counted as attempted when it is handed to the test and as completed when the test
 //! returns.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -42,6 +42,32 @@ const RECEIPTS_TAG: &str = "antecedent.selective_discovery.receipts.v1";
 pub const DEFAULT_STORE_CAPACITY: usize = 4_000_000;
 /// Most receipts a portable state carries.
 pub const MAX_PORTABLE_RECEIPTS: usize = 250_000;
+
+/// Caller-configurable bounds of the statistics a selective-discovery run retains and a
+/// portable state carries. The defaults are [`DEFAULT_STORE_CAPACITY`] and
+/// [`MAX_PORTABLE_RECEIPTS`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SelectiveLimits {
+    /// Most statistics one store retains; beyond it a test still runs and is counted, but
+    /// its result is not retained.
+    pub store_capacity: usize,
+    /// Most receipts a portable state carries, exported or loaded.
+    pub max_portable_receipts: usize,
+}
+
+impl SelectiveLimits {
+    /// The documented defaults.
+    pub const DEFAULT: Self = Self {
+        store_capacity: DEFAULT_STORE_CAPACITY,
+        max_portable_receipts: MAX_PORTABLE_RECEIPTS,
+    };
+}
+
+impl Default for SelectiveLimits {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
 
 /// One retained statistic with the digest of the coordinate it was computed at.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -95,8 +121,8 @@ impl StatisticReceipt {
 pub enum StoreMode {
     /// A miss runs the test and retains the result.
     Compute,
-    /// A miss is refused: the run may only consume statistics already retained. Used by
-    /// resume, where nothing may be computed.
+    /// A miss is probed to verify an untestable refusal. A successful probe is refused
+    /// and never retained or consumed; replay may only consume retained statistics.
     ReplayOnly,
 }
 
@@ -116,6 +142,7 @@ pub struct StoreCounters {
 #[derive(Debug, Default)]
 struct StoreInner {
     entries: HashMap<Digest, CiResult>,
+    consumed: HashSet<Digest>,
 }
 
 /// Retained statistics of one stage lineage.
@@ -164,8 +191,21 @@ impl StatisticStore {
     /// A receipt that is not a usable statistic, a repeated coordinate, or more receipts
     /// than [`MAX_PORTABLE_RECEIPTS`].
     pub fn replay_only(receipts: &[StatisticReceipt]) -> Result<Self, SelectiveDiscoveryError> {
+        Self::replay_only_within(receipts, MAX_PORTABLE_RECEIPTS)
+    }
+
+    /// [`Self::replay_only`] under the caller's receipt bound instead of
+    /// [`MAX_PORTABLE_RECEIPTS`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::replay_only`], with `max_receipts` as the bound.
+    pub fn replay_only_within(
+        receipts: &[StatisticReceipt],
+        max_receipts: usize,
+    ) -> Result<Self, SelectiveDiscoveryError> {
         let store = Self::with_mode(StoreMode::ReplayOnly, receipts.len().max(1));
-        store.load(receipts)?;
+        store.load(receipts, max_receipts)?;
         Ok(store)
     }
 
@@ -175,30 +215,47 @@ impl StatisticStore {
     ///
     /// As [`Self::replay_only`].
     pub fn seeded(receipts: &[StatisticReceipt]) -> Result<Self, SelectiveDiscoveryError> {
-        let store = Self::new();
-        store.load(receipts)?;
+        Self::seeded_within(receipts, &SelectiveLimits::DEFAULT)
+    }
+
+    /// [`Self::seeded`] under the caller's bounds instead of [`DEFAULT_STORE_CAPACITY`] and
+    /// [`MAX_PORTABLE_RECEIPTS`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::replay_only`], with `limits.max_portable_receipts` as the bound.
+    pub fn seeded_within(
+        receipts: &[StatisticReceipt],
+        limits: &SelectiveLimits,
+    ) -> Result<Self, SelectiveDiscoveryError> {
+        let store = Self::with_capacity(limits.store_capacity);
+        store.load(receipts, limits.max_portable_receipts)?;
         Ok(store)
     }
 
-    fn load(&self, receipts: &[StatisticReceipt]) -> Result<(), SelectiveDiscoveryError> {
-        if receipts.len() > MAX_PORTABLE_RECEIPTS {
+    fn load(
+        &self,
+        receipts: &[StatisticReceipt],
+        max_receipts: usize,
+    ) -> Result<(), SelectiveDiscoveryError> {
+        if receipts.len() > max_receipts {
             return Err(statistics_invalid(
-                "selective_discovery.receipt_limit",
-                format!("a portable state carries at most {MAX_PORTABLE_RECEIPTS} receipts"),
+                antecedent_core::reason_details::selective_discovery::RECEIPT_LIMIT,
+                format!("a portable state carries at most {max_receipts} receipts"),
             ));
         }
         let mut inner = self.lock();
         for receipt in receipts {
             if !receipt.is_valid() {
                 return Err(statistics_invalid(
-                    "selective_discovery.receipt_invalid",
+                    antecedent_core::reason_details::selective_discovery::RECEIPT_INVALID,
                     "a retained statistic is not finite or its p-value is outside [0, 1]; \
                      recompute it from the raw data",
                 ));
             }
             if inner.entries.insert(receipt.coordinate, receipt.to_result()).is_some() {
                 return Err(statistics_invalid(
-                    "selective_discovery.receipt_repeated",
+                    antecedent_core::reason_details::selective_discovery::RECEIPT_REPEATED,
                     "one input coordinate carries two receipts; the state is not a record of \
                      one run",
                 ));
@@ -267,7 +324,7 @@ impl StatisticStore {
             .iter()
             .map(|(coordinate, result)| StatisticReceipt::from_result(*coordinate, *result))
             .collect();
-        out.sort_unstable_by(|a, b| a.coordinate.cmp(&b.coordinate));
+        out.sort_unstable_by_key(|a| a.coordinate);
         out
     }
 
@@ -290,9 +347,31 @@ impl StatisticStore {
         writer.finish()
     }
 
-    fn lookup(&self, keys: &[Digest]) -> Vec<Option<CiResult>> {
+    /// Receipts actually read by this replay, in canonical order.
+    pub(crate) fn consumed_receipts(&self) -> Vec<StatisticReceipt> {
         let inner = self.lock();
-        keys.iter().map(|key| inner.entries.get(key).copied()).collect()
+        let mut receipts: Vec<_> = inner
+            .consumed
+            .iter()
+            .filter_map(|key| {
+                inner.entries.get(key).map(|result| StatisticReceipt::from_result(*key, *result))
+            })
+            .collect();
+        receipts.sort_unstable_by_key(|a| a.coordinate);
+        receipts
+    }
+
+    fn lookup(&self, keys: &[Digest]) -> Vec<Option<CiResult>> {
+        let mut inner = self.lock();
+        keys.iter()
+            .map(|key| {
+                let result = inner.entries.get(key).copied();
+                if self.mode == StoreMode::ReplayOnly && result.is_some() {
+                    inner.consumed.insert(*key);
+                }
+                result
+            })
+            .collect()
     }
 
     fn insert(&self, key: Digest, result: CiResult) {
@@ -446,11 +525,22 @@ impl ConditionalIndependenceTest for SelectiveCi {
         self.store.reused.fetch_add((keys.len() - missing.len()) as u64, Ordering::SeqCst);
         if !missing.is_empty() {
             if self.store.mode == StoreMode::ReplayOnly {
+                // Untestable outcomes have no serialized receipt. Verify a miss with the
+                // underlying test, accepting only its recognized untestable refusal.
+                let queries: Vec<CiQuery> = missing.iter().map(|&i| request.queries[i]).collect();
+                let sub = CiBatchRequest {
+                    columns: request.columns,
+                    queries: &queries,
+                    z_flat: request.z_flat,
+                    significance: request.significance,
+                    confidence: request.confidence,
+                };
+                self.store.attempted.fetch_add(queries.len() as u64, Ordering::SeqCst);
+                self.inner.test_batch(prepared, &sub, workspace, ctx)?;
+                self.store.completed.fetch_add(queries.len() as u64, Ordering::SeqCst);
                 self.store.replay_miss.store(true, Ordering::SeqCst);
                 return Err(StatsError::Backend(
-                    "selective_discovery.replay_miss: a statistic that was not retained was \
-                     requested during replay"
-                        .to_owned(),
+                    "selective_discovery.replay_miss: a statistic that was not retained was requested during replay".to_owned(),
                 ));
             }
             let queries: Vec<CiQuery> = missing.iter().map(|&i| request.queries[i]).collect();
@@ -481,6 +571,10 @@ impl ConditionalIndependenceTest for SelectiveCi {
 
     fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
         self.inner.min_attainable_p(significance)
+    }
+
+    fn min_resolvable_p(&self, significance: SignificanceMethod, rows: usize) -> f64 {
+        self.inner.min_resolvable_p(significance, rows)
     }
 
     fn series_aligned_weights_len(&self) -> Option<usize> {
@@ -523,6 +617,23 @@ mod tests {
             significance: SignificanceMethod::Analytic,
             confidence: ConfidenceMethod::default(),
         }
+    }
+
+    #[test]
+    fn selective_ci_preserves_arrangement_resolution_and_configured_sparse_budget() {
+        let store = Arc::new(StatisticStore::new());
+        let ci = SelectiveCi::new(Arc::new(PartialCorrelation), Arc::clone(&store), "parcorr");
+        let significance = SignificanceMethod::BlockShuffle { replicates: 999, block_size: 50 };
+        assert_eq!(ci.min_resolvable_p(significance, 100).to_bits(), 0.5_f64.to_bits());
+        let sparse = SelectiveCi::new(
+            Arc::new(antecedent_stats::SparseDiscreteCi::new(999).unwrap()),
+            store,
+            "sparse999",
+        );
+        assert_eq!(
+            sparse.min_resolvable_p(SignificanceMethod::Analytic, 100).to_bits(),
+            0.001_f64.to_bits()
+        );
     }
 
     #[test]
@@ -591,7 +702,12 @@ mod tests {
             .unwrap_err();
         assert!(err.to_string().contains("replay_miss"), "{err}");
         assert!(store.replay_missed());
-        assert_eq!(store.counters().attempted, 0);
+        // Replay verifies whether an absent receipt represents an untestable query.
+        // This query is testable, so its probe completes but cannot enter the replay.
+        let counters = store.counters();
+        assert_eq!((counters.attempted, counters.completed, counters.reused), (1, 1, 0));
+        assert!(store.is_empty());
+        assert!(store.consumed_receipts().is_empty());
     }
 
     #[test]
@@ -609,5 +725,47 @@ mod tests {
         let good = StatisticReceipt { p_value: 0.5, ..bad };
         assert!(StatisticStore::replay_only(&[good, good]).is_err());
         assert_eq!(StatisticStore::replay_only(&[good]).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn caller_limits_bound_the_receipts_and_the_retained_statistics() {
+        let receipt = |n: u8| StatisticReceipt {
+            coordinate: [n; 32],
+            statistic: 0.1,
+            p_value: 0.5,
+            df: 10.0,
+            interval: None,
+        };
+        let two = [receipt(1), receipt(2)];
+        // Under the default two receipts load; under a bound of one they are refused.
+        assert_eq!(StatisticStore::seeded(&two).unwrap().len(), 2);
+        let one = SelectiveLimits { max_portable_receipts: 1, ..SelectiveLimits::DEFAULT };
+        assert!(StatisticStore::seeded_within(&two, &one).is_err());
+        assert!(StatisticStore::replay_only_within(&two, 1).is_err());
+        assert_eq!(StatisticStore::replay_only_within(&two, 2).unwrap().len(), 2);
+
+        // A capacity of zero computes every test but retains none.
+        let (a, b) = (series(1, 40), series(2, 40));
+        let columns: Vec<&[f64]> = vec![&a, &b];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        let store = Arc::new(
+            StatisticStore::seeded_within(
+                &[],
+                &SelectiveLimits { store_capacity: 0, ..SelectiveLimits::DEFAULT },
+            )
+            .unwrap(),
+        );
+        let ci = SelectiveCi::new(Arc::new(PartialCorrelation), Arc::clone(&store), "parcorr");
+        let ctx = ExecutionContext::for_tests(1);
+        let prepared = ci.prepare(&columns, &CiPreparationPlan::default(), &ctx).unwrap();
+        ci.test_batch(
+            &prepared,
+            &request(&columns, &queries, &[]),
+            &mut CiWorkspace::default(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(store.len(), 0);
+        assert_eq!(store.counters().not_retained, 1);
     }
 }

@@ -16,6 +16,10 @@ readme = "README.md"
 [lints]
 workspace = true
 
+[features]
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent-core/development", "antecedent-data/development", "antecedent-graph/development", "antecedent-kernels/development", "antecedent-model/development", "antecedent-counterfactual/development", "antecedent-prob/development", "antecedent-stats/development"]
+
 [dependencies]
 antecedent-core = { workspace = true }
 antecedent-data = { workspace = true }
@@ -28,6 +32,7 @@ antecedent-stats = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+antecedent-core = { workspace = true, features = ["test-support"] }
 criterion = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

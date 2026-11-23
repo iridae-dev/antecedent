@@ -3,6 +3,12 @@
 version = 4
 
 [[package]]
+name = "accelerate-src"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "415ed64958754dbe991900f3940677e6a7eefb4d7367afd70d642677b0c7d19d"
+
+[[package]]
 name = "adler2"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -60,7 +66,7 @@ checksum = "940b3a0ca603d1eade50a4846a2afffd5ef57a9feac2c0e2ec2e14f9ead76000"
 
 [[package]]
 name = "antecedent"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-attribution",
  "antecedent-contract",
@@ -74,6 +80,7 @@ dependencies = [
  "antecedent-graph",
  "antecedent-identify",
  "antecedent-io",
+ "antecedent-io-core",
  "antecedent-kernels",
  "antecedent-learn",
  "antecedent-model",
@@ -94,7 +101,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-attribution"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "antecedent-counterfactual",
@@ -112,7 +119,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-contract"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "blake3",
@@ -121,7 +128,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-core"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "blake3",
  "thiserror 2.0.20",
@@ -129,7 +136,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-counterfactual"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-contract",
  "antecedent-core",
@@ -143,21 +150,23 @@ dependencies = [
 
 [[package]]
 name = "antecedent-data"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
  "arrow-array",
  "arrow-buffer",
+ "arrow-ipc",
  "arrow-schema",
  "blake3",
+ "parquet",
  "realfft",
  "serde_json",
 ]
 
 [[package]]
 name = "antecedent-design"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-contract",
  "antecedent-core",
@@ -178,7 +187,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-discovery"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -195,7 +204,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-estimate"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-contract",
  "antecedent-core",
@@ -206,6 +215,7 @@ dependencies = [
  "antecedent-io-core",
  "antecedent-kernels",
  "antecedent-learn",
+ "antecedent-model",
  "antecedent-prob",
  "antecedent-stats",
  "antecedent-test-support",
@@ -217,14 +227,15 @@ dependencies = [
 
 [[package]]
 name = "antecedent-expr"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
+ "antecedent-kernels",
 ]
 
 [[package]]
 name = "antecedent-graph"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "criterion",
@@ -234,12 +245,13 @@ dependencies = [
 
 [[package]]
 name = "antecedent-identify"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
  "antecedent-expr",
  "antecedent-graph",
+ "antecedent-kernels",
  "criterion",
  "serde",
  "serde_json",
@@ -248,7 +260,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-io"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-contract",
  "antecedent-core",
@@ -276,11 +288,12 @@ dependencies = [
 
 [[package]]
 name = "antecedent-io-core"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-contract",
  "antecedent-core",
  "antecedent-counterfactual",
+ "antecedent-data",
  "antecedent-discovery",
  "antecedent-expr",
  "antecedent-graph",
@@ -297,12 +310,12 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.20",
- "zstd",
+ "zstd 0.13.4",
 ]
 
 [[package]]
 name = "antecedent-kernels"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "criterion",
@@ -310,7 +323,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-learn"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -326,14 +339,16 @@ dependencies = [
 
 [[package]]
 name = "antecedent-learn-burn"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
+ "antecedent-core",
+ "blake3",
  "burn",
 ]
 
 [[package]]
 name = "antecedent-model"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -343,16 +358,18 @@ dependencies = [
  "antecedent-learn",
  "antecedent-stats",
  "criterion",
+ "serde",
  "serde_json",
  "thiserror 2.0.20",
 ]
 
 [[package]]
 name = "antecedent-prob"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
+ "antecedent-stats",
  "criterion",
  "serde_json",
  "thiserror 2.0.20",
@@ -360,25 +377,9 @@ dependencies = [
 
 [[package]]
 name = "antecedent-py"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent",
- "antecedent-attribution",
- "antecedent-contract",
- "antecedent-core",
- "antecedent-data",
- "antecedent-design",
- "antecedent-discovery",
- "antecedent-estimate",
- "antecedent-expr",
- "antecedent-graph",
- "antecedent-identify",
- "antecedent-io",
- "antecedent-learn",
- "antecedent-model",
- "antecedent-prob",
- "antecedent-stats",
- "antecedent-validate",
  "arrow-array",
  "arrow-schema",
  "blake3",
@@ -391,7 +392,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-state"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -403,7 +404,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-stats"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -416,14 +417,15 @@ dependencies = [
 
 [[package]]
 name = "antecedent-test-support"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
+ "serde",
  "serde_json",
 ]
 
 [[package]]
 name = "antecedent-validate"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -434,8 +436,10 @@ dependencies = [
  "antecedent-identify",
  "antecedent-io-core",
  "antecedent-kernels",
+ "antecedent-learn",
  "antecedent-prob",
  "antecedent-stats",
+ "serde",
  "serde_json",
  "thiserror 2.0.20",
 ]
@@ -466,9 +470,9 @@ checksum = "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
 
 [[package]]
 name = "arrow-array"
-version = "54.3.1"
+version = "60.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a12fcdb3f1d03f69d3ec26ac67645a8fe3f878d77b5ebb0b15d64a116c212985"
+checksum = "0f3d22a41d3df78b71df0b685af219ae3a94188ab98d6fb29c958eb55c3247f4"
 dependencies = [
  "ahash",
  "arrow-buffer",
@@ -476,40 +480,85 @@ dependencies = [
  "arrow-schema",
  "chrono",
  "half",
- "hashbrown 0.15.5",
- "num",
+ "hashbrown 0.17.1",
+ "libc",
+ "num-complex",
+ "num-integer",
+ "num-traits",
 ]
 
 [[package]]
 name = "arrow-buffer"
-version = "54.3.1"
+version = "60.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "263f4801ff1839ef53ebd06f99a56cecd1dbaf314ec893d93168e2e860e0291c"
+checksum = "7bd46a530bc1a8e763102fc36c1dc0f51f3ffa150c78e7f5658ccb54b1458ade"
 dependencies = [
  "bytes",
  "half",
- "num",
+ "num-bigint 0.5.1",
+ "num-traits",
+]
+
+[[package]]
+name = "arrow-cmp"
+version = "60.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1913e57a64fbf2c4502fa6d54b547d6a1ae59e3146cbc15321d47468c937abd1"
+dependencies = [
+ "arrow-array",
+ "arrow-buffer",
+ "arrow-schema",
 ]
 
 [[package]]
 name = "arrow-data"
-version = "54.3.1"
+version = "60.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61cfdd7d99b4ff618f167e548b2411e5dd2c98c0ddebedd7df433d34c20a4429"
+checksum = "415b7fbc4cf56b080bb5677a4ae74211b5c79e571ed37a1d547633ec07f3b43b"
 dependencies = [
  "arrow-buffer",
  "arrow-schema",
  "half",
- "num",
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
+name = "arrow-ipc"
+version = "60.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "45f3e766bccf5a0cb57a5de52a4cba450dea5171547c2cb5939b486d08887cba"
+dependencies = [
+ "arrow-array",
+ "arrow-buffer",
+ "arrow-data",
+ "arrow-schema",
+ "arrow-select",
+ "flatbuffers",
 ]
 
 [[package]]
 name = "arrow-schema"
-version = "54.3.1"
+version = "60.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39cfaf5e440be44db5413b75b72c2a87c1f8f0627117d110264048f2969b99e9"
+checksum = "de2c8e714b466404cdc1189e89f892426efea614d938e16c15518c340cd43ba3"
 dependencies = [
  "bitflags 2.13.2",
+]
+
+[[package]]
+name = "arrow-select"
+version = "60.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5af3f6656c5f2c6944f93d9a357a7f204c93d5f349385a44cf46c4a26fbcf30"
+dependencies = [
+ "ahash",
+ "arrow-array",
+ "arrow-buffer",
+ "arrow-cmp",
+ "arrow-data",
+ "arrow-schema",
+ "num-traits",
 ]
 
 [[package]]
@@ -567,6 +616,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
+name = "base64"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
+
+[[package]]
 name = "bincode"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -614,6 +669,15 @@ dependencies = [
  "cfg-if",
  "constant_time_eq",
  "cpufeatures",
+]
+
+[[package]]
+name = "blas-src"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b95e83dc868db96e69795c0213143095f03de9dd3252f205d4ac716e4076a7e0"
+dependencies = [
+ "accelerate-src",
 ]
 
 [[package]]
@@ -780,6 +844,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b8ce3bd0f1e792b53610d291eb463d9790449688c4455a496c46266e46a179f"
 dependencies = [
  "atomic_float",
+ "blas-src",
  "burn-autodiff",
  "burn-common",
  "burn-tensor",
@@ -876,9 +941,11 @@ version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06ccf5ee3532e66868516d9b315f73aec9f34ea1a37ae98514534d458915dbf1"
 dependencies = [
+ "accelerate-src",
  "byteorder",
  "gemm 0.17.1",
  "half",
+ "libc",
  "memmap2",
  "num-traits",
  "num_cpus",
@@ -897,6 +964,15 @@ name = "cast"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
+
+[[package]]
+name = "cblas-sys"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6feecd82cce51b0204cf063f0041d69f24ce83f680d87514b004248e7b0fa65"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "cc"
@@ -1728,6 +1804,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ef25905e51abafe4dcea6c15fec58c57b601cdbd0ee53d22ea1d3016c587d39b"
 
 [[package]]
+name = "flatbuffers"
+version = "25.12.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "35f6839d7b3b98adde531effaf34f0c2badc6f4735d26fe74709d8e513a96ef3"
+dependencies = [
+ "bitflags 2.13.2",
+ "rustc_version",
+]
+
+[[package]]
 name = "flate2"
 version = "1.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2469,7 +2555,7 @@ checksum = "3640c1c38b8e4e43584d8df18be5fc6b0aa314ce6ebf51b53313d4306cca8e46"
 dependencies = [
  "hermit-abi",
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2799,6 +2885,8 @@ version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "882ed72dce9365842bf196bdeedf5055305f11fc8c03dee7bb0194a6cad34841"
 dependencies = [
+ "cblas-sys",
+ "libc",
  "matrixmultiply",
  "num-complex",
  "num-integer",
@@ -2839,7 +2927,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2848,7 +2936,7 @@ version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "35bd024e8b2ff75562e5f34e7f4905839deb4b22955ef5e73d2fea1b9813cb23"
 dependencies = [
- "num-bigint",
+ "num-bigint 0.4.8",
  "num-complex",
  "num-integer",
  "num-iter",
@@ -2861,6 +2949,16 @@ name = "num-bigint"
 version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c89e69e7e0f03bea5ef08013795c25018e101932225a656383bd384495ecc367"
+dependencies = [
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
+name = "num-bigint"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93e7820bc0a80a0238e650327316f929ba18d5be054b647490a3a6a339f3e7c0"
 dependencies = [
  "num-integer",
  "num-traits",
@@ -2901,7 +2999,7 @@ version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f83d14da390562dca69fc84082e73e548e1ad308d24accdedd2720017cb37824"
 dependencies = [
- "num-bigint",
+ "num-bigint 0.4.8",
  "num-integer",
  "num-traits",
 ]
@@ -3030,6 +3128,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "parquet"
+version = "60.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "806eaa0f1c0436dcb43bee8e6a82bf2efff90521a60172f8281cb9ef577b43a4"
+dependencies = [
+ "ahash",
+ "arrow-array",
+ "arrow-buffer",
+ "arrow-data",
+ "arrow-ipc",
+ "arrow-schema",
+ "arrow-select",
+ "base64",
+ "bytes",
+ "chrono",
+ "half",
+ "hashbrown 0.17.1",
+ "num-bigint 0.5.1",
+ "num-integer",
+ "num-traits",
+ "seq-macro",
+ "snap",
+ "twox-hash",
+ "zstd 0.14.3",
+]
+
+[[package]]
 name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3098,9 +3223,9 @@ dependencies = [
 
 [[package]]
 name = "private-gemm-x86"
-version = "0.1.20"
+version = "0.1.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0af8c3e5087969c323f667ccb4b789fa0954f5aa650550e38e81cf9108be21b5"
+checksum = "bba0a7831d1297712e7e7b33759b0c837941e79196dd05df506d5f36f7f78619"
 dependencies = [
  "crossbeam",
  "defer",
@@ -3513,6 +3638,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b1e7f9a428571be2dc5bc0505c13fb6bf936822b894ec87abf8a08a4e51742d"
 
 [[package]]
+name = "rustc_version"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cfcb3a22ef46e85b45de6ee7e79d063319ebb6594faafcf1c225ea92ab6e9b92"
+dependencies = [
+ "semver",
+]
+
+[[package]]
 name = "rustfft"
 version = "6.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3572,6 +3706,12 @@ name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
+
+[[package]]
+name = "semver"
+version = "1.0.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd"
 
 [[package]]
 name = "seq-macro"
@@ -3689,6 +3829,12 @@ dependencies = [
  "serde",
  "typetag",
 ]
+
+[[package]]
+name = "snap"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "199905e6153d6405f9728fe44daace35f8f837bbf830bb6e85fbd5828709a886"
 
 [[package]]
 name = "spin"
@@ -4034,6 +4180,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "twox-hash"
+version = "2.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "86a801b3cea342a06d468c8710662aa29e5e05e4f5c0d62f00bbb7f2ad7941c2"
+
+[[package]]
 name = "typeid"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4338,7 +4490,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4495,15 +4647,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e38bc4d79ed67fd075bcc251a1c39b32a1776bbe92e5bef1f0bf1f8c531853b"
 dependencies = [
  "windows-targets 0.52.6",
-]
-
-[[package]]
-name = "windows-sys"
-version = "0.61.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
-dependencies = [
- "windows-link",
 ]
 
 [[package]]
@@ -4784,27 +4927,45 @@ checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
 
 [[package]]
 name = "zstd"
-version = "0.13.3"
+version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e91ee311a569c327171651566e07972200e76fcfe2242a4fa446149a3881c08a"
+checksum = "cdb02c3132d251ab1606e9fc913a7da6c6ed08cc263df15edf082e1dc497d157"
 dependencies = [
- "zstd-safe",
+ "zstd-safe 7.4.0",
+]
+
+[[package]]
+name = "zstd"
+version = "0.14.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db3ae9bf90af6e40197bef767eeefc46ad6397420fe873830bd85e5fbbfb3c70"
+dependencies = [
+ "zstd-safe 8.2.0",
 ]
 
 [[package]]
 name = "zstd-safe"
-version = "7.3.0"
+version = "7.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64d80649ab6db9d9f6f9c80a40becd948eda4714a0a5ac8c4d157a32231c7882"
+checksum = "1c8ea04668f5de8d8d51051714ba560c9536519cadcdb8829bba4fe2ad159b03"
+dependencies = [
+ "zstd-sys",
+]
+
+[[package]]
+name = "zstd-safe"
+version = "8.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ded520f16b29e1a9b771c722221b2b0a0398c2316d9bb3c42b458a5414d7434b"
 dependencies = [
  "zstd-sys",
 ]
 
 [[package]]
 name = "zstd-sys"
-version = "2.1.0+zstd.1.5.7"
+version = "2.1.2+zstd.1.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ef0a8027ec3ee71300ab3bcbcd0393f434aa72b91ca6d635a39941deae8eea0"
+checksum = "481ada9c543b2323cbb7bbdbb5249177fbf0188ed959ed2c15e4b22421c84ed3"
 dependencies = [
  "cc",
  "pkg-config",

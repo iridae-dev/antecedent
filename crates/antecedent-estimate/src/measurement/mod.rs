@@ -14,21 +14,28 @@
 //!    implements: a model declared differential is never run through the
 //!    non-differential route, and the reverse.
 //!
-//! Variance is delta-method and includes the uncertainty of the estimated
+//! Variance is delta-method (or, for logistic regression calibration and
+//! SIMEX in [`continuous`], a bootstrap of the whole procedure) and includes
+//! the uncertainty of the estimated
 //! measurement parameters (error variance, sensitivity and specificity,
 //! confusion columns, posterior draws), not only downstream sampling
-//! variance. No interval is produced: the whole measurement-plus-estimation
-//! method has no measured coverage record, so the interval route is closed
-//! (`cell_not_licensed`) and the result carries a point and an *uncalibrated*
-//! standard error.
+//! variance. The Wald interval of a corrected functional is
+//! [`corrected_functional_interval`]: `point -/+ z * standard_error`, reported with a
+//! calibration annotation and never gated on calibration. Every route's variance has an
+//! executed independent closed-form check (binary misclassification, the classical-error,
+//! repeated-measurement and external-posterior linear coefficients and the categorical
+//! proportions). A record without a standard error refuses with [`interval_not_supported`].
 //!
 //! The pure numerics are in [`antecedent_stats::measurement_error`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub mod binary;
 pub mod categorical;
+pub mod continuous;
+pub mod exposure_routes;
 pub mod linear;
+pub mod measured_exposure;
 pub mod posterior;
 
 use antecedent_core::ExecutionContext;
@@ -45,9 +52,23 @@ pub use binary::{
     correct_binary_prevalence, correct_binary_risk_difference,
 };
 pub use categorical::{CategoricalFunctional, CorrectedCategoricalOutcome, correct_categorical};
+pub use continuous::{
+    ContinuousCorrectionSpec, ContinuousCorrectionSummary, ContinuousErrorData,
+    ContinuousMethodKind, CorrectedContinuousEffect, CorrectionMethod, ErrorLocation, OutcomeLink,
+    SimexExtrapolant, SimexFit, correct_continuous_error,
+};
+pub use exposure_routes::{
+    CorrectedExposure, DeclaredEstimate, DetectionDependentPrevalence, SoftExposureCombination,
+    SoftExposureEffect, correct_detection_dependent_prevalence, correct_exposure_misclassification,
+    correct_soft_exposure_effect, fit_repeat_codings, soft_exposure_reliability_report,
+};
 pub use linear::{
     CorrectedLinearEffect, LinearMeasuredData, correct_classical_linear_effect,
     correct_repeated_linear_effect,
+};
+pub use measured_exposure::{
+    DetectionFunctionDeclaration, ExposureDraws, ExposureErrorDeclaration, ExposureMeasurement,
+    ImputationData, MeasuredEffect, RatePair, impute_exposure, pool_measured_effect,
 };
 pub use posterior::{
     CorrectedPosteriorLinearEffect, PosteriorCombination, PosteriorLinearData,
@@ -61,7 +82,7 @@ pub struct MeasurementError {
     pub code: &'static str,
     /// Namespaced detail, `measurement_model.<slot>`.
     pub detail: &'static str,
-    /// What was refused and what would license it.
+    /// What was refused and what would support it.
     pub message: String,
 }
 
@@ -108,7 +129,7 @@ pub(crate) fn model_error(error: &MeasurementModelError) -> MeasurementError {
     match error {
         MeasurementModelError::ProxyOfferedAsConstruct { offered } => MeasurementError::new(
             antecedent_core::reason_code!("proxy_offered_as_construct"),
-            "measurement_model.proxy_as_construct",
+            antecedent_core::reason_details::measurement_model::PROXY_AS_CONSTRUCT,
             format!(
                 "a {} variable is offered as the latent scientific construct; relate it to the construct by a measurement model",
                 offered.as_str()
@@ -116,17 +137,17 @@ pub(crate) fn model_error(error: &MeasurementModelError) -> MeasurementError {
         ),
         MeasurementModelError::ObservedIndicator => MeasurementError::new(
             antecedent_core::reason_code!("measurement_model_invalid"),
-            "measurement_model.indicator_observed",
+            antecedent_core::reason_details::measurement_model::INDICATOR_OBSERVED,
             "an observed column has no error model; declare it noisy or misclassified",
         ),
         MeasurementModelError::StructureParameterMismatch => MeasurementError::new(
             antecedent_core::reason_code!("differential_error_not_pooled"),
-            "measurement_model.structure_parameters",
+            antecedent_core::reason_details::measurement_model::STRUCTURE_PARAMETERS,
             "the declared error structure disagrees with the parameter layout",
         ),
         other => MeasurementError::new(
             antecedent_core::reason_code!("measurement_model_invalid"),
-            "measurement_model.invalid_model",
+            antecedent_core::reason_details::measurement_model::INVALID_MODEL,
             format!("{other:?}"),
         ),
     }
@@ -137,7 +158,7 @@ pub(crate) fn stats_error(error: &MeasurementErrorError) -> MeasurementError {
         MeasurementErrorError::ReliabilityNotPositive { reliability, floor } => {
             MeasurementError::new(
                 antecedent_core::reason_code!("measurement_not_identified"),
-                "measurement_model.reliability_too_small",
+                antecedent_core::reason_details::measurement_model::RELIABILITY_TOO_SMALL,
                 format!(
                     "implied reliability {reliability} is not above the declared floor {floor}; a more reliable measurement or averaged replicates is needed"
                 ),
@@ -145,7 +166,7 @@ pub(crate) fn stats_error(error: &MeasurementErrorError) -> MeasurementError {
         }
         MeasurementErrorError::YoudenTooSmall { youden, minimum } => MeasurementError::new(
             antecedent_core::reason_code!("measurement_not_identified"),
-            "measurement_model.youden_too_small",
+            antecedent_core::reason_details::measurement_model::YOUDEN_TOO_SMALL,
             format!(
                 "Youden index {youden} is not above the declared minimum {minimum}; the indicator is not informative enough to invert"
             ),
@@ -153,7 +174,7 @@ pub(crate) fn stats_error(error: &MeasurementErrorError) -> MeasurementError {
         MeasurementErrorError::ConfusionIllConditioned { condition, maximum } => {
             MeasurementError::new(
                 antecedent_core::reason_code!("measurement_not_identified"),
-                "measurement_model.confusion_ill_conditioned",
+                antecedent_core::reason_details::measurement_model::CONFUSION_ILL_CONDITIONED,
                 format!(
                     "confusion matrix condition {condition} exceeds the declared maximum {maximum}"
                 ),
@@ -161,27 +182,27 @@ pub(crate) fn stats_error(error: &MeasurementErrorError) -> MeasurementError {
         }
         MeasurementErrorError::EmptyLatentCategory => MeasurementError::new(
             antecedent_core::reason_code!("measurement_not_identified"),
-            "measurement_model.confusion_ill_conditioned",
+            antecedent_core::reason_details::measurement_model::CONFUSION_ILL_CONDITIONED,
             "a latent category has zero corrected mass, so its outcome mean is not defined",
         ),
         MeasurementErrorError::InsufficientReplicates(why) => MeasurementError::new(
             antecedent_core::reason_code!("measurement_not_identified"),
-            "measurement_model.insufficient_replicates",
+            antecedent_core::reason_details::measurement_model::INSUFFICIENT_REPLICATES,
             format!("replicates cannot identify the within-unit variance: {why}"),
         ),
         MeasurementErrorError::SingularDesign => MeasurementError::new(
             antecedent_core::reason_code!("design_rank_deficient"),
-            "measurement_model.design_singular",
+            antecedent_core::reason_details::measurement_model::DESIGN_SINGULAR,
             "the observed design is rank deficient; no correction is formed",
         ),
         MeasurementErrorError::NonPositiveVariance(what) => MeasurementError::new(
             antecedent_core::reason_code!("measurement_not_identified"),
-            "measurement_model.variance_not_positive",
+            antecedent_core::reason_details::measurement_model::VARIANCE_NOT_POSITIVE,
             format!("the corrected variance of the {what} is not positive"),
         ),
         other => MeasurementError::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "measurement_model.input_invalid",
+            antecedent_core::reason_details::measurement_model::INPUT_INVALID,
             other.to_string(),
         ),
     }
@@ -204,31 +225,31 @@ pub(crate) fn check_binding(
     };
     if model.binding.population_id != data.population_id {
         return Err(mismatch(
-            "measurement_model.population_mismatch",
+            antecedent_core::reason_details::measurement_model::POPULATION_MISMATCH,
             &model.binding.population_id,
             &data.population_id,
         ));
     }
     if model.binding.regime_id != data.regime_id {
         return Err(mismatch(
-            "measurement_model.regime_mismatch",
+            antecedent_core::reason_details::measurement_model::REGIME_MISMATCH,
             &model.binding.regime_id,
             &data.regime_id,
         ));
     }
-    if let ArmBinding::Arm(bound) = &model.binding.arm {
-        if data.arm_id.as_deref() != Some(bound.as_str()) {
-            return Err(mismatch(
-                "measurement_model.arm_mismatch",
-                bound,
-                data.arm_id.as_deref().unwrap_or("all_arms"),
-            ));
-        }
+    if let ArmBinding::Arm(bound) = &model.binding.arm
+        && data.arm_id.as_deref() != Some(bound.as_str())
+    {
+        return Err(mismatch(
+            antecedent_core::reason_details::measurement_model::ARM_MISMATCH,
+            bound,
+            data.arm_id.as_deref().unwrap_or("all_arms"),
+        ));
     }
     if model.representation != data.representation {
         return Err(MeasurementError::new(
             antecedent_core::reason_code!("representation_mapping_required"),
-            "measurement_model.representation_unmapped",
+            antecedent_core::reason_details::measurement_model::REPRESENTATION_UNMAPPED,
             format!(
                 "the model's indicator is {}@{}, the data are {}@{}; a changed representation needs an explicit mapping and a model established for the new coordinates",
                 model.representation.coordinate_system_id,
@@ -248,7 +269,7 @@ pub(crate) fn require_route(
     if model.route != route {
         return Err(MeasurementError::new(
             antecedent_core::reason_code!("route_not_supported"),
-            "measurement_model.route_mismatch",
+            antecedent_core::reason_details::measurement_model::ROUTE_MISMATCH,
             format!(
                 "the model declares route `{}`; this entry point implements `{}`",
                 model.route.as_str(),
@@ -266,7 +287,7 @@ pub(crate) fn require_non_differential(model: &MeasurementModel) -> Result<(), M
         ErrorStructure::NonDifferential => Ok(()),
         _ => Err(MeasurementError::new(
             antecedent_core::reason_code!("differential_error_not_pooled"),
-            "measurement_model.differential_declared",
+            antecedent_core::reason_details::measurement_model::DIFFERENTIAL_DECLARED,
             "the model is declared differential; this route pools the error across arms, populations and time and is never run on it",
         )),
     }
@@ -276,7 +297,7 @@ pub(crate) fn check_cancelled(ctx: &ExecutionContext) -> Result<(), MeasurementE
     if ctx.cancellation.is_cancelled() {
         return Err(MeasurementError::new(
             antecedent_core::reason_code!("cancelled_no_claim"),
-            "measurement_model.cancelled",
+            antecedent_core::reason_details::measurement_model::CANCELLED,
             "cancelled before a corrected functional was formed; this is not a verdict on the data",
         ));
     }
@@ -328,13 +349,36 @@ pub(crate) fn counts_as_reals(counts: &[u32]) -> Vec<f64> {
     counts.iter().map(|&c| f64::from(c)).collect()
 }
 
-/// The refusal for a requested interval: `cell_not_licensed`. No interval
-/// route is open.
+/// Equal-tailed Wald interval `point -/+ z * standard_error` of a corrected functional.
+///
+/// # Errors
+/// `invalid_argument` (`measurement_model.interval_level`) for a level outside `(0, 1)`;
+/// `route_not_supported` for a record without a standard error.
+pub fn corrected_functional_interval(
+    record: &CorrectedFunctionalRecord,
+    level: f64,
+) -> Result<(f64, f64), MeasurementError> {
+    if !(level > 0.0 && level < 1.0) {
+        return Err(MeasurementError::new(
+            antecedent_core::reason_code!("invalid_argument"),
+            antecedent_core::reason_details::measurement_model::INTERVAL_LEVEL,
+            "the interval level must lie strictly between 0 and 1",
+        ));
+    }
+    let Some(se) = record.standard_error else {
+        return Err(interval_not_supported());
+    };
+    let half = antecedent_stats::special::normal_ppf(0.5 + level / 2.0) * se;
+    Ok((record.point - half, record.point + half))
+}
+
+/// The refusal for a requested interval on a route whose variance is not derived:
+/// `route_not_supported`.
 #[must_use]
-pub fn interval_not_licensed() -> MeasurementError {
+pub fn interval_not_supported() -> MeasurementError {
     MeasurementError::new(
-        antecedent_core::reason_code!("cell_not_licensed"),
-        "measurement_model.interval_closed",
-        "no coverage record measures the whole measurement-plus-estimation method; the point and an uncalibrated standard error are the result",
+        antecedent_core::reason_code!("route_not_supported"),
+        antecedent_core::reason_details::measurement_model::INTERVAL_REQUIRES_ESTIMATE,
+        "no variance of the whole measurement-plus-estimation method is derived for this route; the point and an uncalibrated standard error are the result",
     )
 }

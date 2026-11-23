@@ -15,15 +15,20 @@ from __future__ import annotations
 
 import itertools
 import json
+import math
 import subprocess
 import sys
 
+import numpy as np
 import pytest
+from antecedent import Execution
+from antecedent import _reason_details as reason_details
 from antecedent import measurement_models as mm
 from antecedent import mechanism_composition as mc
 from antecedent import observation_query as oq
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.observation_query import ObservationQueryRefusal
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -205,10 +210,10 @@ def test_an_unknown_variable_and_null_evidence_are_refused():
     with pytest.raises(ObservationQueryRefusal) as unknown:
         oq.condition_on(model, "Y", {"Q": "1"})
     assert unknown.value.reason_code == "unknown_variable"
-    assert unknown.value.detail == "observation_query.unknown_variable"
+    assert unknown.value.detail == reason_details.observation_query.UNKNOWN_VARIABLE
     with pytest.raises(ObservationQueryRefusal) as outcome:
         oq.condition_on(model, "Y", {"Y": "1"})
-    assert outcome.value.detail == "observation_query.outcome_assigned"
+    assert outcome.value.detail == reason_details.observation_query.OUTCOME_ASSIGNED
 
 
 # --------------------------------------------------------------------------- smuggling
@@ -223,7 +228,7 @@ def test_an_intervention_smuggled_into_a_conditioning_slot_is_refused_with_a_rem
         assert isinstance(error, CausalUnsupportedError)
         assert_registered_refusal(error)
         assert error.reason_code == "quantity_semantics_mismatch"
-        assert error.detail == "observation_query.intervention_in_conditioning_slot"
+        assert error.detail == reason_details.observation_query.INTERVENTION_IN_CONDITIONING_SLOT
         assert error.offending == "S"
         assert error.remedy
     # Stated honestly, as an intervention, the same value is answered.
@@ -258,7 +263,7 @@ def test_a_measured_value_used_as_the_construct_is_refused():
     with pytest.raises(ObservationQueryRefusal) as caught:
         oq.condition_on(model, "Y", [oq.Measured("C", "1", "test_result", model=None)])
     assert caught.value.reason_code == "proxy_offered_as_construct"
-    assert caught.value.detail == "observation_query.measured_as_construct"
+    assert caught.value.detail == reason_details.observation_query.MEASURED_AS_CONSTRUCT
     assert caught.value.remedy
     assert_registered_refusal(caught.value)
 
@@ -272,7 +277,7 @@ def test_a_measurement_model_for_another_population_is_not_applied():
             [oq.Measured("C", "1", "test_result", model=assay("other_clinic"), positive_level="1")],
         )
     assert caught.value.reason_code == "measurement_binding_mismatch"
-    assert caught.value.detail == "observation_query.population_mismatch"
+    assert caught.value.detail == reason_details.observation_query.POPULATION_MISMATCH
     # `expected` is what the model was established for, `supplied` what the query is about.
     assert caught.value.expected == "other_clinic"
     assert caught.value.supplied == "pop"
@@ -296,7 +301,7 @@ def test_a_threshold_no_observation_reaches_is_refused_with_the_supremum():
     with pytest.raises(ObservationQueryRefusal) as caught:
         oq.threshold_crossing(model, "Y", "1", "S", threshold=0.9)
     assert caught.value.reason_code == "evidence_cannot_reach_level"
-    assert caught.value.detail == "observation_query.level_unreachable"
+    assert caught.value.detail == reason_details.observation_query.LEVEL_UNREACHABLE
     assert float(caught.value.supplied) == pytest.approx(0.78, abs=TOL)
     assert float(caught.value.expected) == pytest.approx(0.9, abs=TOL)
     assert caught.value.remedy
@@ -334,10 +339,10 @@ def test_finite_posterior_matches_pure_python_bayes_and_ignores_order():
 def test_impossible_evidence_and_malformed_models_are_refused():
     with pytest.raises(ObservationQueryRefusal) as impossible:
         oq.finite_posterior(["a", "b"], [0.5, 0.5], ["x", "y"], [[1.0, 0.0], [1.0, 0.0]], ["y"])
-    assert impossible.value.detail == "observation_query.zero_probability_evidence"
+    assert impossible.value.detail == reason_details.observation_query.ZERO_PROBABILITY_EVIDENCE
     with pytest.raises(ObservationQueryRefusal) as malformed:
         oq.finite_posterior(["a", "b"], [0.5, 0.4], ["x", "y"], [[0.5, 0.5], [0.5, 0.5]], ["x"])
-    assert malformed.value.detail == "observation_query.invalid_declaration"
+    assert malformed.value.detail == reason_details.observation_query.INVALID_DECLARATION
 
 
 def test_conjugate_posterior_is_the_closed_form():
@@ -389,16 +394,19 @@ def test_input_errors_are_typed_not_refusals():
 # --------------------------------------------------------------------------- closed routes
 
 
-def test_interval_and_calibrated_probability_are_closed():
+def test_interval_and_calibrated_probability_are_not_supported():
     claim = oq.condition_on(confounded(), "Y", {"S": "1"})
     with pytest.raises(ObservationQueryRefusal) as interval:
         claim.interval()
-    assert interval.value.reason_code == "cell_not_licensed"
-    assert interval.value.detail == "observation_query.declared_model_has_no_sampling_interval"
+    assert interval.value.reason_code == "uncertainty_representation_insufficient"
+    assert (
+        interval.value.detail
+        == reason_details.observation_query.DECLARED_MODEL_HAS_NO_SAMPLING_INTERVAL
+    )
     with pytest.raises(ObservationQueryRefusal) as calibrated:
         claim.calibrated_probability()
-    assert calibrated.value.reason_code == "cell_not_licensed"
-    assert calibrated.value.detail == "observation_query.calibrated_probability_closed"
+    assert calibrated.value.reason_code == "uncertainty_representation_insufficient"
+    assert calibrated.value.detail == reason_details.observation_query.NO_CALIBRATED_PROBABILITY
     fitted = oq.conjugate_posterior(1.0, 1.0, successes=1, failures=1, basis="sample_fitted")
     with pytest.raises(ObservationQueryRefusal):
         fitted.calibrated_probability()
@@ -409,7 +417,7 @@ def test_interval_and_calibrated_probability_are_closed():
 
 def test_the_artifact_round_trips_and_replays_against_the_retained_identity():
     claim = oq.condition_versus_intervene(confounded(), "Y", {"S": "1"})
-    consumed = oq.consume_observation_query_artifact(claim.export(), claim.identity)
+    consumed = oq.consume_observation_query_artifact(bytes(claim.export()), claim.identity)
     assert consumed.identity == claim.identity
     assert consumed.operation == "conditioning_and_intervention"
     assert consumed.claim.paired.conditioning["1"] == pytest.approx(0.78, abs=TOL)
@@ -419,16 +427,16 @@ def test_the_artifact_round_trips_and_replays_against_the_retained_identity():
 def test_semantic_mutation_and_another_history_are_refused():
     claim = oq.condition_versus_intervene(confounded(), "Y", {"S": "1"})
     with pytest.raises(ObservationQueryRefusal) as wrong:
-        oq.consume_observation_query_artifact(claim.export(), "f" * 64)
-    assert wrong.value.detail == "observation_query.artifact_refused"
+        oq.consume_observation_query_artifact(bytes(claim.export()), "f" * 64)
+    assert wrong.value.detail == reason_details.observation_query.ARTIFACT_REFUSED
     # A consistent artifact of another model fails the identity the consumer retained.
     other = oq.condition_versus_intervene(
         confounded(p_s1_given_z={"0": 0.3, "1": 0.7}), "Y", {"S": "1"}
     )
     assert other.identity != claim.identity
-    assert oq.consume_observation_query_artifact(other.export()).identity == other.identity
+    assert oq.consume_observation_query_artifact(bytes(other.export())).identity == other.identity
     with pytest.raises(ObservationQueryRefusal):
-        oq.consume_observation_query_artifact(other.export(), claim.identity)
+        oq.consume_observation_query_artifact(bytes(other.export()), claim.identity)
     # Every sampled single-byte change is refused: corruption, identity or replay.
     data = bytes(claim.export())
     for position in range(0, len(data), max(1, len(data) // 25)):
@@ -446,7 +454,7 @@ def test_semantic_mutation_and_another_history_are_refused():
 def test_a_fresh_process_consumes_the_artifact_against_the_retained_identity(tmp_path):
     claim = oq.condition_versus_intervene(confounded(), "Y", {"S": "1"})
     path = tmp_path / "claim.bin"
-    path.write_bytes(claim.export())
+    path.write_bytes(bytes(claim.export()))
     script = (
         "import json, sys\n"
         "from antecedent import observation_query as oq\n"
@@ -511,6 +519,14 @@ def test_a_refreshed_composition_gives_a_new_claim_and_leaves_the_earlier_one():
 # ------------------------------------------------------------------ count-fitted tables
 
 
+CALIBRATION_STATUSES = (
+    "calibrated",
+    "outside_measured_scope",
+    "measured_below_nominal",
+    "not_measured",
+)
+
+
 def _count_fitted(**extra):
     return oq.count_fitted_observation(
         {"Z": ["0", "1"], "Y": ["0", "1"]},
@@ -520,7 +536,7 @@ def _count_fitted(**extra):
         target="Y",
         target_level="1",
         evidence={"Z": "1"},
-        seed=7,
+        execution=Execution(seed=7),
         **extra,
     )
 
@@ -533,36 +549,350 @@ def test_count_fitted_draw_count_is_supported_from_the_minimum():
     for draws in (2000, 3000, 8000):
         claim = _count_fitted(draws=draws)
         assert abs(claim.point - 31.0 / 42.0) < 1e-12
-        try:
-            claim.interval(level=0.95)
-        except ObservationQueryRefusal as refusal:
-            assert refusal.detail == "measured_inference.record_not_attesting"
-    for draws in (1999, 100_001):
-        with pytest.raises(ObservationQueryRefusal) as refused:
-            _count_fitted(draws=draws)
-        assert refused.value.reason_code == "cell_not_licensed"
+        scalar = claim.interval(level=0.95).scalars[0]
+        assert scalar.interval[0] <= scalar.point <= scalar.interval[1]
+    # Fewer draws than the measured minimum are computed; calibration annotates, never gates.
+    fewer = _count_fitted(draws=1999).interval(level=0.95).scalars[0]
+    assert fewer.interval[0] <= fewer.point <= fewer.interval[1]
+    assert fewer.calibration in CALIBRATION_STATUSES
+    # Above the estimator's draw bound the construction is refused.
+    with pytest.raises(ObservationQueryRefusal) as refused:
+        _count_fitted(draws=100_001)
+    assert refused.value.reason_code == "invalid_argument"
 
 
-def test_count_fitted_interval_is_measured_or_a_typed_refusal():
+def test_count_fitted_interval_is_reported_with_its_calibration_status():
     claim = _count_fitted()
-    try:
-        measured = claim.interval(level=0.95)
-    except ObservationQueryRefusal as refusal:
-        assert refusal.reason_code == "cell_not_licensed"
-        assert refusal.detail in (
-            "measured_inference.record_not_attesting",
-            "measured_interval.protocol_not_measured",
-        )
-    else:
-        scalar = measured.scalars[0]
-        assert scalar.lower <= scalar.point <= scalar.upper
-    with pytest.raises(ObservationQueryRefusal) as unmeasured:
-        claim.interval(level=0.5)
-    assert unmeasured.value.reason_code == "cell_not_licensed"
+    scalar = claim.interval(level=0.95).scalars[0]
+    assert scalar.interval[0] <= scalar.point <= scalar.interval[1]
+    assert scalar.calibration in (
+        "calibrated",
+        "outside_measured_scope",
+        "measured_below_nominal",
+        "not_measured",
+    )
+    # A level the grid did not measure is computed and annotated, never withheld.
+    not_measured = claim.interval(level=0.5).scalars[0]
+    assert not_measured.interval[0] <= not_measured.point <= not_measured.interval[1]
+    assert not_measured.calibration in CALIBRATION_STATUSES
 
 
 def test_a_declared_model_interval_has_no_sampling_distribution():
     claim = oq.condition_on(confounded(), "Y", {"S": "1"})
     with pytest.raises(ObservationQueryRefusal) as interval:
         claim.interval()
-    assert interval.value.detail == "observation_query.declared_model_has_no_sampling_interval"
+    assert (
+        interval.value.detail
+        == reason_details.observation_query.DECLARED_MODEL_HAS_NO_SAMPLING_INTERVAL
+    )
+
+
+# ------------------------------------------------ continuous evidence, mixed queries, redraw
+
+
+def real_quantity(variable: str) -> mc.Quantity:
+    return mc.Quantity(
+        variable,
+        units="u",
+        population_id="pop",
+        role="outcome" if variable == "Y" else "covariate",
+        variable_name=f"label of {variable}",
+    )
+
+
+def linear(variable, parents, *, intercept, sigma) -> mc.Mechanism:
+    declaration = mc.MechanismDeclaration(
+        output=real_quantity(variable),
+        parents=tuple(real_quantity(p) for p in parents),
+        artifact_id=f"declared:{variable}",
+        evidence_id=f"assumed:{variable}",
+    )
+    return mc.Mechanism.declared_linear(
+        declaration, intercept=intercept, sigma=sigma, coefficients=dict(parents)
+    )
+
+
+def gaussian_chain() -> mc.PreparedMechanismComposition:
+    """X ~ N(1, 4); M = 0.5 + 2 X + e; Y = -1 + 0.5 X + 3 M + 0.5 e.
+
+    The joint law (hand computed): means 1, 2.5, 7; variances 4, 17, 178.25; covariances
+    cov(X, M) = 8, cov(X, Y) = 26, cov(M, Y) = 55.
+    """
+    return mc.compose_mechanisms(
+        [
+            linear("X", {}, intercept=1.0, sigma=2.0),
+            linear("M", {"X": 2.0}, intercept=0.5, sigma=1.0),
+            linear("Y", {"X": 0.5, "M": 3.0}, intercept=-1.0, sigma=0.5),
+        ],
+        target_population_id="pop",
+        admit_declared_mechanisms=True,
+    )
+
+
+def test_continuous_evidence_is_conditioned_by_the_schur_complement():
+    model = gaussian_chain()
+    claim = oq.condition_on_values(model, "Y", {"M": 3.0})
+    assert claim.operation == "conditioning"
+    assert claim.gaussian.mean == pytest.approx(7.0 + 55.0 / 17.0 * 0.5, abs=1e-10)
+    assert claim.gaussian.variance == pytest.approx(178.25 - 55.0**2 / 17.0, abs=1e-10)
+    density = -0.5 * (math.log(2 * math.pi) + math.log(17.0) + 0.25 / 17.0)
+    assert claim.gaussian.evidence_log_density == pytest.approx(density, abs=1e-10)
+    # Conditioning on both parents of Y returns its structural equation N(9, 0.25).
+    parents = oq.condition_on_values(model, "Y", {"X": 2.0, "M": 3.0})
+    assert parents.gaussian.mean == pytest.approx(9.0, abs=1e-10)
+    assert parents.gaussian.variance == pytest.approx(0.25, abs=1e-10)
+    # do(X=2), M=5 is the structural equation at X=2, M=5: N(15, 0.25).
+    mixed = oq.condition_on_values(model, "Y", {"M": 5.0}, interventions={"X": 2.0})
+    assert mixed.operation == "conditional_intervention"
+    assert mixed.gaussian.mean == pytest.approx(15.0, abs=1e-10)
+    assert mixed.gaussian.variance == pytest.approx(0.25, abs=1e-10)
+    consumed = oq.consume_observation_query_artifact(bytes(mixed.export()), mixed.identity)
+    assert consumed.claim.gaussian == mixed.gaussian
+
+
+def test_continuous_evidence_refusals_are_typed_with_remedies():
+    model = gaussian_chain()
+    with pytest.raises(ObservationQueryRefusal) as levels:
+        oq.condition_on(model, "Y", {"M": "3"})
+    assert levels.value.detail == reason_details.observation_query.LEVELS_FOR_CONTINUOUS_MODEL
+    assert levels.value.remedy
+    with pytest.raises(ObservationQueryRefusal) as both:
+        oq.condition_on_values(model, "Y", {"X": 2.0}, interventions={"X": 2.0})
+    assert both.value.reason_code == "route_not_supported"
+    assert both.value.detail == reason_details.observation_query.MIXED_CONDITIONING_AND_INTERVENTION
+    with pytest.raises(ObservationQueryRefusal) as finite:
+        oq.condition_on_values(confounded(), "Y", {"S": 1.0})
+    assert finite.value.detail == reason_details.observation_query.REAL_VALUES_FOR_FINITE_MODEL
+
+
+def test_observation_after_intervention_matches_hand_enumeration_on_the_confounded_model():
+    model = confounded()
+    # P(Y=1 | do(S=1), Z=1) = 0.9 and P(Z=1 | do(S=1), Y=1) = 0.45 / 0.6 = 0.75.
+    seen = oq.intervene_on(model, "Y", {"S": "1"}, given={"Z": "1"})
+    assert seen.operation == "conditional_intervention"
+    assert seen.distribution["1"] == pytest.approx(0.9, abs=TOL)
+    assert seen.evidence_probability == pytest.approx(0.5, abs=TOL)
+    after = oq.intervene_on(model, "Z", {"S": "1"}, given={"Y": "1"})
+    weights = {z: (P_Z1 if z == "1" else 1 - P_Z1) * P_Y1[("1", z)] for z in "01"}
+    assert after.distribution["1"] == pytest.approx(weights["1"] / sum(weights.values()), abs=TOL)
+    assert after.distribution["1"] == pytest.approx(0.75, abs=TOL)
+    # The observational conditional on the same values keeps the S-Z association.
+    observed = oq.condition_on(model, "Z", {"S": "1", "Y": "1"})
+    assert observed.distribution["1"] == pytest.approx(0.36 / 0.39, abs=TOL)
+    # A variable that is both recorded and set is refused, with a next attempt.
+    with pytest.raises(ObservationQueryRefusal) as caught:
+        oq.intervene_on(model, "Y", {"S": "1"}, given={"S": "1"})
+    assert caught.value.reason_code == "route_not_supported"
+    assert (
+        caught.value.detail == reason_details.observation_query.MIXED_CONDITIONING_AND_INTERVENTION
+    )
+    assert caught.value.remedy
+
+
+def counts_for_confounded() -> list[oq.CountData]:
+    return [
+        oq.CountData("Z", [({}, {"0": 100, "1": 100})]),
+        oq.CountData("S", [({"Z": "0"}, {"0": 160, "1": 40}), ({"Z": "1"}, {"0": 40, "1": 160})]),
+        oq.CountData(
+            "Y",
+            [
+                ({"S": "0", "Z": "0"}, {"0": 45, "1": 5}),
+                ({"S": "0", "Z": "1"}, {"0": 25, "1": 25}),
+                ({"S": "1", "Z": "0"}, {"0": 35, "1": 15}),
+                ({"S": "1", "Z": "1"}, {"0": 5, "1": 45}),
+            ],
+        ),
+    ]
+
+
+def test_dirichlet_redraw_returns_aligned_draws_around_the_posterior_mean():
+    claim = oq.parameter_uncertainty(
+        confounded(),
+        "Y",
+        given={"S": "1"},
+        retained=counts_for_confounded(),
+        draws=4000,
+        execution=Execution(seed=3),
+    )
+    assert claim.operation == "parameter_redraw"
+    aligned = claim.parameter_draws
+    assert aligned.quantities == ("probability:0", "probability:1")
+    assert aligned.draws == 4000
+    assert aligned.reading == "uncalibrated_spread"
+    assert aligned.point[1] == pytest.approx(0.78, abs=TOL)
+    # One draw produced both levels: each row is one distribution.
+    assert all(abs(row[0] + row[1] - 1.0) < 1e-12 for row in aligned.values)
+
+    # The plug-in at the posterior-mean tables, by brute force over the counted cells.
+    def posterior_mean(counts, a=1.0):
+        return {k: (v + a) / (sum(counts.values()) + 2 * a) for k, v in counts.items()}
+
+    pz = posterior_mean({"0": 100, "1": 100})
+    ps = {
+        z: posterior_mean(c)
+        for z, c in {"0": {"0": 160, "1": 40}, "1": {"0": 40, "1": 160}}.items()
+    }
+    py = {
+        ("0", "0"): posterior_mean({"0": 45, "1": 5}),
+        ("0", "1"): posterior_mean({"0": 25, "1": 25}),
+        ("1", "0"): posterior_mean({"0": 35, "1": 15}),
+        ("1", "1"): posterior_mean({"0": 5, "1": 45}),
+    }
+    num = den = 0.0
+    for z in "01":
+        w = pz[z] * ps[z]["1"]
+        den += w
+        num += w * py[("1", z)]["1"]
+    mean, spread = require_success(aligned.spread("probability:1"))
+    assert abs(mean - num / den) < 0.01
+    assert 0.0 < spread < 0.1
+    # Determinism: the same seed gives the same draws and identity.
+    again = oq.parameter_uncertainty(
+        confounded(),
+        "Y",
+        given={"S": "1"},
+        retained=counts_for_confounded(),
+        draws=4000,
+        execution=Execution(seed=3),
+    )
+    assert again.identity == claim.identity
+    assert again.parameter_draws.values == aligned.values
+
+
+def test_an_interval_of_redrawn_parameters_is_reported_with_its_calibration_status():
+    claim = oq.parameter_uncertainty(
+        confounded(), "Y", given={"S": "1"}, retained=counts_for_confounded(), draws=500
+    )
+    interval = claim.parameter_interval(
+        "probability:1", "aligned_draw_equal_tail_exchangeable_rank", evidence_rows=200
+    )
+    assert interval.bounds is not None
+    lower, upper = interval.bounds
+    assert lower <= upper
+    mean, _ = require_success(claim.parameter_draws.spread("probability:1"))
+    assert lower <= mean <= upper
+    # No coverage record attests this coordinate, so the interval is annotated, not withheld.
+    assert interval.calibration["status"] in CALIBRATION_STATUSES
+    assert interval.calibration["status"] != "calibrated"
+    with pytest.raises(ObservationQueryRefusal) as closed:
+        claim.interval()
+    assert closed.value.reason_code == "uncertainty_representation_insufficient"
+
+
+def test_a_regression_redraw_spreads_around_the_declared_structural_equation():
+    x = [i / 12.0 for i in range(60)]
+    m = [0.5 + 2.0 * v + 0.3 * math.sin(5.0 * i) for i, v in enumerate(x)]
+    y = [
+        -1.0 + 0.5 * a + 3.0 * b + 0.2 * math.cos(11.0 * i)
+        for i, (a, b) in enumerate(zip(x, m, strict=True))
+    ]
+    claim = oq.parameter_uncertainty(
+        gaussian_chain(),
+        "Y",
+        retained=[oq.RegressionData("Y", y, {"X": x, "M": m})],
+        interventions={"X": 2.0},
+        observed_values={"M": 3.0},
+        draws=1000,
+        execution=Execution(seed=2),
+    )
+    aligned = claim.parameter_draws
+    assert aligned.quantities == ("conditional_mean", "conditional_variance")
+    assert aligned.point == pytest.approx((9.0, 0.25), abs=1e-10)
+    mean, spread = require_success(aligned.spread("conditional_mean"))
+    # The redrawn conditional mean is centred on the least-squares prediction at (X, M) =
+    # (2, 3) with the spread of its standard error, sqrt(s^2 x0' (X'X)^-1 x0).
+    design = np.column_stack([np.ones(60), x, m])
+    beta, *_ = np.linalg.lstsq(design, np.asarray(y), rcond=None)
+    residual = np.asarray(y) - design @ beta
+    x0 = np.array([1.0, 2.0, 3.0])
+    prediction = float(x0 @ beta)
+    standard_error = float(
+        np.sqrt(residual @ residual / 57.0 * (x0 @ np.linalg.inv(design.T @ design) @ x0))
+    )
+    assert abs(mean - prediction) < 0.01, (mean, prediction)
+    assert abs(spread / standard_error - 1.0) < 0.15, (spread, standard_error)
+    with pytest.raises(ObservationQueryRefusal):
+        oq.parameter_uncertainty(
+            gaussian_chain(),
+            "Y",
+            retained=[oq.RegressionData("Y", y, {"X": x})],
+            observed_values={"M": 3.0},
+        )
+
+
+def test_a_probability_outside_the_open_unit_interval_has_no_required_evidence():
+    for prior, level in ((0.0, 0.5), (1.0, 0.5), (0.2, 0.0), (0.2, 1.0)):
+        with pytest.raises(ObservationQueryRefusal) as refused:
+            oq.required_bayes_factor(prior, level)
+        assert refused.value.reason_code == "invalid_argument"
+        assert refused.value.detail == reason_details.observation_query.INVALID_DECLARATION
+    with pytest.raises(ObservationQueryRefusal) as refused:
+        oq.required_observations_binary_signal(
+            0.2, 1.5, rate_given_hypothesis=0.8, rate_given_complement=0.2
+        )
+    assert refused.value.detail == reason_details.observation_query.INVALID_DECLARATION
+    # A prior that already satisfies the request needs the neutral factor, not a refusal.
+    satisfied = oq.required_bayes_factor(0.8, 0.5)
+    assert satisfied.already_satisfied is True
+    assert satisfied.required_factor == pytest.approx(1.0, abs=1e-12)
+    assert oq.required_bayes_factor(0.8, 0.5, direction="lower").already_satisfied is False
+
+
+def test_required_bayes_factor_overflow_reports_log_and_survives_replay():
+    prior, level = 1e-320, 0.9
+    claim = oq.required_bayes_factor(prior, level)
+    expected = (math.log(level) - math.log1p(-level)) - (math.log(prior) - math.log1p(-prior))
+    assert claim.required_factor_status == "overflow"
+    assert claim.required_log_factor == pytest.approx(expected)
+    assert claim.to_dict()["factor"] is None
+    with pytest.raises(CausalValueError, match="required_log_factor"):
+        _ = claim.required_factor
+    replay = oq.consume_observation_query_artifact(bytes(claim.export())).claim
+    assert replay.required_factor_status == "overflow"
+    assert replay.required_log_factor == pytest.approx(expected)
+    with pytest.raises(CausalValueError, match="required_log_factor"):
+        _ = replay.required_factor
+    finite = oq.required_bayes_factor(0.2, 0.8)
+    assert finite.required_factor_status == "finite"
+    assert finite.required_log_factor == pytest.approx(math.log(16.0))
+    assert finite.required_factor == pytest.approx(16.0)
+    low = oq.required_bayes_factor(0.9, 5e-324, direction="lower")
+    assert low.required_factor_status == "underflow"
+    assert math.isfinite(low.required_log_factor)
+    with pytest.raises(CausalValueError, match="required_log_factor"):
+        _ = low.required_factor
+
+
+def test_required_observations_distinguish_settling_signal_and_numeric_overflow():
+    exact = oq.required_observations_binary_signal(
+        0.2, 0.8, rate_given_hypothesis=0.8, rate_given_complement=0.0
+    )
+    assert exact.required_observations == 1
+    assert exact.value_at_requirement == 1.0
+    assert exact.bayes_factor_per_observation_status == "infinite"
+    assert exact.log_bayes_factor_per_observation is None
+    huge = oq.required_observations_binary_signal(
+        0.2, 0.8, rate_given_hypothesis=0.8, rate_given_complement=1e-320
+    )
+    assert huge.required_observations == 1
+    assert huge.bayes_factor_per_observation_status == "overflow"
+    assert huge.log_bayes_factor_per_observation == pytest.approx(math.log(0.8) - math.log(1e-320))
+    replay = oq.consume_observation_query_artifact(bytes(huge.export())).claim
+    assert replay.bayes_factor_per_observation_status == "overflow"
+    assert replay.log_bayes_factor_per_observation == huge.log_bayes_factor_per_observation
+    normal = oq.required_observations_binary_signal(
+        0.2, 0.8, rate_given_hypothesis=0.8, rate_given_complement=0.2
+    )
+    assert normal.bayes_factor_per_observation_status == "finite"
+    assert normal.log_bayes_factor_per_observation == pytest.approx(math.log(4.0))
+
+
+def test_gaussian_log_density_out_of_range_is_distinct_from_no_observations():
+    claim = oq.condition_on_values(gaussian_chain(), "Y", {"M": 1e200})
+    assert math.isfinite(claim.gaussian.mean)
+    assert claim.gaussian.evidence_log_density is None
+    assert claim.gaussian.evidence_log_density_status == "out_of_range"
+    replay = oq.consume_observation_query_artifact(bytes(claim.export())).claim
+    assert replay.gaussian.evidence_log_density_status == "out_of_range"
+    regular = oq.condition_on_values(gaussian_chain(), "Y", {"M": 3.0})
+    assert regular.gaussian.evidence_log_density_status == "finite"

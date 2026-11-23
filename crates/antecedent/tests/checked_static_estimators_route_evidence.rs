@@ -3,6 +3,7 @@
 
 #![allow(clippy::float_cmp, reason = "plan pins compare exact literal constants")]
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, EstimatorId, IdentifierId, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, ExecutionContext, PopulationRegistry, PredicateExpr, TargetPopulation,
@@ -48,7 +49,7 @@ fn checked_glm_accepted_and_explicit_retain_design_and_dependency_refusal() {
             ] {
                 let mut fitter = antecedent_estimate::GlmAdjustmentAte::new()
                     .with_family(antecedent_stats::GlmFamily::GaussianIdentity);
-                fitter.bootstrap_replicates = 0;
+                fitter.inference.bootstrap_replicates = 0;
                 let builder = if accepted {
                     Study::tabular(data.clone()).graph(AcceptedGraph::from(graph.clone()))
                 } else {
@@ -63,22 +64,25 @@ fn checked_glm_accepted_and_explicit_retain_design_and_dependency_refusal() {
                 let one_shot = builder.run(&ctx).unwrap();
                 let mut prepared = builder.prepare(&ctx).unwrap();
                 drop(builder);
-                let plan = prepared.checked_glm_adjustment().expect("retained checked GLM plan");
+                let RetainedOperation::CheckedGlmAdjustment(plan) = prepared.retained_operation()
+                else {
+                    panic!("retained checked GLM plan")
+                };
                 assert_eq!(plan.active, 1.0);
                 assert_eq!(plan.control, 0.0);
                 assert_eq!(plan.adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
                 assert_eq!(plan.target_population, population);
                 let result = prepared.estimate(&data, &ctx).unwrap();
-                assert!((result.effect() - 2.0).abs() < 0.05, "effect={}", result.effect());
+                assert!((result.effect() - 2.0).abs() < 1e-8, "effect={}", result.effect());
                 if suite != RefuteSuite::None {
                     assert!(!result.refutations.is_empty());
                 }
                 assert!((one_shot.effect() - result.effect()).abs() < 1e-10);
-                let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+                let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
                 assert!((refreshed.effect() - result.effect()).abs() < 1e-10);
                 let bytes =
                     prepared.encode_contracted_result(&refreshed, "checked-glm", &ctx).unwrap();
-                let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+                let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
                 assert!(
                     consumed
                         .acceptance
@@ -86,7 +90,7 @@ fn checked_glm_accepted_and_explicit_retain_design_and_dependency_refusal() {
                         .iter()
                         .any(|reason| reason.as_ref() == "dependencies.checked_glm_operation")
                 );
-                assert!(!consumed.acceptance.accepts_as_verified_program());
+                assert!(!consumed.acceptance.accepts_as_replayed_program());
             }
         }
     }
@@ -125,7 +129,9 @@ fn checked_rd_accepted_and_explicit_retain_cutoff_and_dependency_refusal() {
             let one_shot = builder.run(&ctx).unwrap();
             let mut prepared = builder.prepare(&ctx).unwrap();
             drop(builder);
-            let plan = prepared.checked_rd_preparation().expect("retained checked RD plan");
+            let RetainedOperation::CheckedRd(plan) = prepared.retained_operation() else {
+                panic!("retained checked RD plan")
+            };
             assert_eq!(plan.lowering().bandwidth, 0.8);
             assert_eq!(plan.lowering().cutoff, 0.0);
             let result = prepared.estimate(&data, &ctx).unwrap();
@@ -134,10 +140,10 @@ fn checked_rd_accepted_and_explicit_retain_cutoff_and_dependency_refusal() {
                 assert!(!result.refutations.is_empty());
             }
             assert!((one_shot.effect() - result.effect()).abs() < 1e-10);
-            let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
             assert!((refreshed.effect() - result.effect()).abs() < 1e-10);
             let bytes = prepared.encode_contracted_result(&refreshed, "checked-rd", &ctx).unwrap();
-            let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+            let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
             assert!(
                 consumed
                     .acceptance
@@ -145,7 +151,20 @@ fn checked_rd_accepted_and_explicit_retain_cutoff_and_dependency_refusal() {
                     .iter()
                     .any(|reason| reason.as_ref() == "dependencies.checked_rd_operation")
             );
-            assert!(!consumed.acceptance.accepts_as_verified_program());
+            assert!(!consumed.acceptance.accepts_as_replayed_program());
         }
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

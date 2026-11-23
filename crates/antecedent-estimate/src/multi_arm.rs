@@ -1,6 +1,8 @@
 //! Randomized multi-arm Horvitz--Thompson means and conservative contrasts.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::ProbabilityTable;
+
 /// An observed randomized arm mean with its observed-arm variance contribution.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ArmMean {
@@ -20,11 +22,11 @@ pub struct ArmMean {
 pub fn estimate_multi_arm(
     outcomes: &[f64],
     assignment: &[usize],
-    probabilities: &[Vec<f64>],
+    probabilities: &(impl ProbabilityTable + ?Sized),
 ) -> Result<Vec<ArmMean>, &'static str> {
     let n = outcomes.len();
-    let arms = probabilities.first().map_or(0, Vec::len);
-    if n == 0 || arms < 2 || assignment.len() != n || probabilities.len() != n {
+    let arms = probabilities.first_row().map_or(0, <[f64]>::len);
+    if n == 0 || arms < 2 || assignment.len() != n || probabilities.row_count() != n {
         return Err("outcome, assignment, and multi-arm probability rows must align");
     }
     if outcomes.iter().any(|value| !value.is_finite()) {
@@ -36,7 +38,7 @@ pub fn estimate_multi_arm(
         if assignment[i] >= arms {
             return Err("assigned action index is outside the action set");
         }
-        let row = &probabilities[i];
+        let row = probabilities.row_at(i);
         let total = row.iter().sum::<f64>();
         if row.len() != arms
             || row.iter().any(|p| !p.is_finite() || *p <= 0.0 || *p > 1.0)

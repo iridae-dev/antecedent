@@ -6,8 +6,12 @@ its result) as a typed graph of embedded artifacts and dependency edges. ``build
 calls ``consume_bundle(..., expected_identity=...)``: every embedded artifact is decoded through its
 own consumer and recomputed, so a changed or swapped part is refused or reported on its node.
 
-Hand oracle: four equally likely rows with ``p = [1, 3, 2, 0]`` and ``q = [4, 0, 2, 6]``; the
-risky action is worth ``E[p * q] = 2`` and the safe action 3, so the safe action is uniquely best."""
+The law is enumerated, not simulated: four equally likely rows with ``p = [1, 3, 2, 0]`` and
+``q = [4, 0, 2, 6]``. By hand the risky action is worth ``E[p * q] = 2`` and the safe action 3.
+The script asserts both values on the consumed bundle and that another identity is refused.
+The decision holds only under the declared law and utilities.
+
+Run: ``python examples/python/composition_bundle.py``."""
 
 from __future__ import annotations
 
@@ -19,6 +23,7 @@ from antecedent.joint_distribution import (
     JointDistributionArtifact,
     ScientificQuantity,
 )
+from antecedent.outcomes import require_success
 
 P = [1.0, 3.0, 2.0, 0.0]
 Q = [4.0, 0.0, 2.0, 6.0]
@@ -63,9 +68,9 @@ contract = decision.Contract(
     criterion=decision.Criterion.expected_utility(),
     target_population="target",
 )
-result = contract.evaluate(law)
+result = require_success(contract.evaluate(law))
 
-# Build: embed each artifact from its bytes and declare what depends on what.
+# Build: embed each artifact from its bytes and declare which parts the result depends on.
 builder = cb.Bundle.builder()
 parts = {
     "contract": ("decision_contract", contract.export(artifact_id="contract")),
@@ -80,8 +85,8 @@ print(bundle.explain())
 # Export: the bytes travel; the identity is retained separately (a message, a ledger, a ticket).
 data, identity = bundle.export(), bundle.identity
 
-# Consume under the retained identity. Nothing is trusted from the bytes alone.
-consumed = cb.consume_bundle(data, expected_identity=identity)
+# Consume under the retained identity; the bytes alone do not establish what they are.
+consumed = require_success(cb.consume_bundle(data, expected_identity=identity))
 consumed.require_verified()
 print(consumed.explain())
 assert consumed.all_verified and consumed.identity == identity
@@ -91,7 +96,7 @@ assert consumed.claim_label == "joint_draw"
 
 # Another identity refuses the same bytes.
 try:
-    cb.consume_bundle(data, expected_identity="0" * len(identity))
+    require_success(cb.consume_bundle(data, expected_identity="0" * len(identity)))
 except cb.ExpectedIdentityMismatchRefusal as refusal:
     assert refusal.bundle_stage == "expected_identity_mismatch"
 else:

@@ -2,7 +2,12 @@
 //!
 //! `antecedent-core` owns identifiers, schemas, assumptions, provenance,
 //! contract identities, diagnostics, errors, and execution policy. It must not depend on numerical,
-//! graph-algorithm, Arrow, or Python crates.
+//! graph-algorithm, Arrow, or Python crates. Inference-independent scientific targets live in
+//! [`scientific_target`] and do not replace [`CausalQuery`].
+//!
+//! Operator contracts in [`operator`] type an effect on a target: which graph the
+//! edge belongs to, the data roles it reads and writes, and whether frozen-fit
+//! reuse is allowed.
 //!
 //! # Names at the boundary, IDs on the hot path
 //!
@@ -27,7 +32,7 @@
 //!
 //! Parallelism, budgets, and RNG seeding are configured via [`ExecutionContext`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -36,29 +41,55 @@
 pub mod assumption;
 pub mod calibration_basis;
 pub mod callback;
+pub mod canonical_encode;
+/// Fixed, closed categorical candidate source/compiler contract.
+pub mod categorical_candidate_contract;
+pub mod device_reservation;
 pub mod diagnostic;
 pub mod error;
 pub mod execution;
 pub mod execution_attempt;
+pub mod execution_facts;
+pub mod graph_imputation_contract;
 pub mod identification;
 pub mod identity;
 pub mod ids;
+pub mod inference_realization;
+pub mod inspect;
 pub mod interval;
 pub mod intervention;
 pub mod measurement_model;
+pub mod measurement_record;
+pub mod mnar_fixed_shift;
 pub mod node;
+pub mod operator;
+pub mod parallel_axis;
+pub mod physical_choice;
+pub mod physical_operator;
+pub mod provider_capability;
 pub mod query;
 pub mod reason_code;
+pub mod reason_details;
 pub mod recalc;
+pub mod refusal;
 pub mod response;
+pub mod rng_key;
+pub mod route_memory;
+pub mod row_mask;
+pub mod sampling_design;
 pub mod schema;
+pub mod scientific_target;
+pub mod scratch_admission;
 pub mod search;
 pub use search::{
     DEFAULT_SEARCH_MEMORY_BYTES, SearchBudget, SearchLimits, SearchReceipt, SearchStop,
 };
+pub mod search_budget;
+pub mod support_gate;
 pub mod temporal;
 pub mod text;
 pub mod tolerance;
+pub mod treatment_indicator;
 pub mod value;
 pub mod value_expr;
 
@@ -68,76 +99,159 @@ pub use assumption::{
 };
 pub use calibration_basis::CalibrationBasis;
 pub use callback::{
-    BatchCallback, CallbackCall, CallbackError, CallbackImplementation, CallbackOutput,
-    CallbackRefusal, CallbackSpec, PinnedDependency, Portability, RecoveryMismatch, RecoveryRecord,
+    BatchCallback, CallbackCall, CallbackError, CallbackFailure, CallbackImplementation,
+    CallbackOutput, CallbackRefusal, CallbackSpec, PinnedDependency, Portability, RecoveryMismatch,
+    RecoveryRecord,
 };
+pub use canonical_encode::CanonicalEncode;
 pub use diagnostic::{Diagnostic, DiagnosticKind, DiagnosticSet, DiagnosticSeverity};
 pub use error::SchemaError;
 pub use execution::{
     ARCH_SIMD_COMPILED, AdaptiveBootstrapBudget, AdaptiveDrawBudget, CacheBudget, CachePolicy,
     CancellationToken, CausalRng, DEFAULT_USER_THREAD_CAP, Determinism, ExecutionContext,
-    ExecutionReceipt, ExecutionRequestState, KernelPolicy, MemoryBudget, MonteCarloBudget,
-    MonteCarloError, NonZeroThreadCount, Parallelism, ProgressSink, RequestIdentity, RngFactory,
-    StreamDomain, WeakCancellationToken, default_user_threads,
+    ExecutionReceipt, ExecutionRequestState, KernelPolicy, MonteCarloBudget, MonteCarloError,
+    NonZeroThreadCount, Parallelism, ProgressSink, RandomizationTestLimits, RequestIdentity,
+    RngFactory, StreamDomain, WeakCancellationToken, default_user_threads,
 };
-pub use execution::{GOLDEN_GAMMA, derive_stream, mix64, splitmix64};
+pub use execution::{GOLDEN_GAMMA, INDEX_GAMMA, derive_stream, mix64, splitmix64};
 pub use identification::{IdentificationStatus, POSTERIOR_MASS_TOLERANCE};
 pub use identity::{
     CanonicalWriter, ContractIdentities, FNV1A_64_OFFSET, FNV1A_64_PRIME, Fnv1a64, IDENTITY_FORMAT,
-    IDENTITY_FORMAT_TAG, IdentityDomain, IdentityRef, SemanticDigest, blake3_hex, fnv1a_u64,
-    to_hex,
+    IDENTITY_FORMAT_TAG, IdentityDomain, IdentityRef, SemanticDigest, blake3_hex,
+    derive_key_digest, digest_from_hex, digest_from_lower_hex, fnv1a_u64, to_hex,
 };
 pub use ids::{
     CategoryDomainId, ComponentId, DistributionRef, DynamicRuleId, EnvironmentId, Lag, ModelId,
     QueryId, RegimeId, StateVersion, VariableId,
 };
+pub use inference_realization::{
+    ASSUMPTION_BRANCH_TAG, ATTACH_RESTRICTION_ON_ASSUMPTION_BRANCH, AssumptionBranch,
+    DeclarationError, GENERALIZED_BAYES_TAG, GeneralizedBayes, IDENTIFICATION_ATTEMPTS,
+    IdentifyingRestriction, LearningRate, LikelihoodModel, LossModel, MissingLearningRate,
+    ORDINARY_BAYESIAN_LIKELIHOOD_TAG, OrdinaryBayesianLikelihood,
+    PARTIAL_IDENTIFICATION_ENVELOPE_TAG, PartialIdentificationEnvelope, PosteriorSample,
+    PosteriorSampleKind, PosteriorSampleRefusal, Prior, PriorIdentificationRefusal,
+    REPORT_AS_IDENTIFIED_SET, REPORT_AS_SCORE_ESTIMATE, REPORT_POSTERIOR_UNDER_DECLARED_LIKELIHOOD,
+    RealizationKind, RefusedSampleKind, RestrictedPosterior, SCORE_FREQUENTIST_TAG,
+    ScoreFrequentist, ScoreModel,
+};
 pub use interval::IntervalMethod;
 pub use intervention::{
-    Intervention, InterventionError, InterventionSequence, MechanismOverride,
-    SequencedIntervention, StochasticPolicy, TemporalPolicy,
+    AdmittedTemporalOffsets, Intervention, InterventionError, InterventionSequence,
+    MechanismOverride, SequencedIntervention, StochasticPolicy, StochasticPolicyFault,
+    TemporalBudget, TemporalMaterializationError, TemporalMaterializationLimits,
+    TemporalOffsetIter, TemporalPolicy, admit_temporal_intervention_validation,
 };
 pub use node::NodeRef;
+pub use operator::{
+    EvidenceClaims, FrozenFitReuse, Operator, OperatorDeclaration, OperatorEffect, OperatorError,
+    OperatorGraph, OperatorPorts, OperatorRole,
+};
+pub use physical_operator::DeclaredTolerance as PhysicalTolerance;
+pub use physical_operator::{
+    AdmittedBytes, ByteEstimateKind, ByteEstimates, CancellationPoint, CancellationPoints,
+    ComputeCapability, DesignDependencyId, DeviceName, NumericalPolicy, PhysicalDependencies,
+    PhysicalEffect, PhysicalOperator, PhysicalOperatorBuilder, PhysicalOperatorError,
+    SourceDependencyId,
+};
+pub use provider_capability::{
+    CapabilityAnswer, CapabilityRequest, CapabilitySet, CompiledCapabilityRequest,
+    FailedCapabilityAttempt, ProviderCapability, ProviderCapabilityRefusal, ProviderDeclaration,
+    ProviderDeclarationError, ProviderId, UnansweredCapability,
+};
 pub use query::{
     AllocationMethod, AnomalyAttributionQuery, AnomalyReference, AssignmentDesign,
-    AttributionComponents, AverageEffectQuery, CatalogDistribution, CausalQuery, CausalQueryKind,
-    ChangeAttributionQuery, ConditionalEffectQuery, ContinuousDomain, ContinuousDoseResponseQuery,
-    CounterfactualQuery, DependenceGroup, DerivativeScale, DerivativeWeighting, DidSamplingDesign,
+    AssociationFault, AttributeFault, AttributionComponents, AverageEffectQuery,
+    CatalogDistribution, CausalQuery, CausalQueryKind, ChangeAttributionQuery,
+    ConditionalEffectQuery, ContinuousDomain, ContinuousDoseResponseQuery, CounterfactualQuery,
+    DependenceGroup, DerivativeScale, DerivativeWeighting, DidSamplingDesign, DiscoverFault,
     DistributionAvailability, EXPOSURE_LEVEL_TOLERANCE, Environment, EvidenceCatalog,
     EvidenceCatalogDelta, EvidenceKind, EvidenceProjection, EvidenceRegime, ExposureLevel,
-    ExposureMapping, ExposurePropensityProvenance, FactorNeed, FixedCandidateRegretInputs,
-    FixedGroupDosePolicy, GridSpec, InterferenceFunctional, InterferenceQuery,
-    InterventionAssignment, InterventionalDistributionQuery, KnownCensoringSurvival, LawOrigin,
-    LicensedWeights, LocalPolynomialRatioQuery, LongitudinalRegimeMethod, LongitudinalRegimeQuery,
-    MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS, MAX_TEMPORAL_RESPONSE_HORIZONS,
+    ExposureMapping, ExposurePropensityProvenance, FactorNeed, FeedbackDeclaration,
+    FixedCandidateRegretInputs, FixedGroupDosePolicy, GridSpec, HistoryMatchFault,
+    HistoryMatchQuery, InterferenceFault, InterferenceFunctional, InterferenceQuery,
+    InterventionAssignment, InterventionFault, InterventionalDistributionQuery, IvBoundsFault,
+    IvBoundsQuery, KnownCensoringSurvival, LawOrigin, LocalPolynomialRatioFault,
+    LocalPolynomialRatioQuery, LongitudinalRegimeFault, LongitudinalRegimeMethod,
+    LongitudinalRegimeQuery, MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS,
     MechanismChangeQuery, MediationContrast, MediationQuery, MultiActionPolicyInputs,
     NestedCounterfactualQuery, ObservationAssumption, ObservationSpec, OrderedFloatBits,
-    OutcomeFunctional, PanelDidQuery, PathSpecificEffectQuery, PolicyValueQuery,
-    PopulationRegistry, PopulationSelection, PopulationSelector, PredicateExpr, QueryError,
-    RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand, RegimeBinding, RegimeKind,
-    ResponseFunctional, ResponseQuery, SamplingDesign, SamplingSelection, ShapleyConfig,
-    ShapleyMode, SharedData, SurvivalFunctional, SurvivalQuery, SyntheticControlQuery,
-    SyntheticPanelMethod, TEMPORAL_OBSERVATION_UNLICENSED, TargetPopulation, TargetSampling,
-    TemporalEffectQuery, TemporalResponseLicense, TemporalResponseSpec, TheoremFamily,
-    TheoremScope, TransportEvaluateSupport, TransportIdentifySupport, TransportLocation,
+    OutcomeFunctional, PanelDesignFault, PanelDidQuery, PathSpecificEffectQuery, PolicyValueFault,
+    PolicyValueQuery, PopulationRegistry, PopulationSelection, PopulationSelector, PredicateExpr,
+    ProbabilityRows, ProbabilityTable, QueryError, QueryVariant, RandomizationDesign,
+    RandomizedEffectFault, RandomizedEffectQuery, RandomizedEstimand, RegimeBinding, RegimeKind,
+    ResponseFault, ResponseFunctional, ResponseQuery, SamplingDesign, SamplingSelection,
+    SequentialContrastFault, SequentialContrastQuery, ShapleyConfig, ShapleyMode, SharedData,
+    SimulateFault, SupportedWeights, SurvivalFault, SurvivalFunctional, SurvivalQuery,
+    SyntheticControlQuery, SyntheticPanelMethod, TEMPORAL_OBSERVATION_UNSUPPORTED,
+    TargetPopulation, TargetSampling, TemporalDesignFault, TemporalEffectQuery,
+    TemporalResponseSpec, TemporalResponseSupport, TheoremFamily, TheoremScope,
+    TransportEvaluateSupport, TransportFault, TransportIdentifySupport, TransportLocation,
     TransportOutcome, TransportOutcomeKind, TransportQuery, TransportSupportCoordinate,
-    TransportUncertaintySupport, UnitChangeQuery, UnmetDependency, VariableCoordinate,
-    VariableDomain, policy_graphless_coordinate, randomized_graphless_coordinate,
+    TransportTargetKernel, TransportUncertaintySupport, TransportWeightedTarget, UnitChangeQuery,
+    UnmetDependency, VariableCoordinate, VariableDomain, policy_assignment_cost_within_budget,
+    policy_graphless_coordinate, randomized_graphless_coordinate,
+};
+pub use query::{
+    AssociationFunctional, AssociationMeasure, AssociationOutcome, AssociationQuery,
+    MAX_REFUSED_AFTER_BYTES, MIN_PREDICTIVE_FOLDS,
+};
+pub use query::{
+    AttributeQuery, AttributeTarget, ChangeEstimator, ChangeMeasure, DiscoverQuery,
+    DiscoveredClass, DiscoveryInference, DiscoveryMethod, InfluenceAllocation,
+    IntrinsicInfluenceTarget, MechanismChangeTest, NoiseDeclaration, ScreenWeight, SearchBounds,
+    SearchSchedule, SimulateQuery, SimulationTarget, StructurePriorSpec,
+};
+pub use query::{
+    AttritionShiftBound, DidAggregation, DidBasePeriod, DidComparisonGroup, DidNuisanceMethod,
+    DidResampling, DidResamplingScheme, HeterogeneityRobustDid, LocalBandwidthRule,
+    LocalRatioOptions, PanelObservationProcess, RolloutDidEstimator, SyntheticInterval,
+    SyntheticRollout,
 };
 pub use query::{CounterfactualEvent, CounterfactualEventQuery};
 pub use query::{
-    CrossWorldQuery, EdgeRoute, ExogenousCoupling, MAX_CROSS_WORLDS, WorldId, WorldObservation,
-    WorldSpec,
+    CrossWorldQuery, EdgeRoute, ExogenousCoupling, WorldId, WorldObservation, WorldSpec,
+};
+pub use query::{
+    OutcomeMisclassification, TemporalAssignment, TemporalDesignFunctional, TemporalDesignQuery,
+    TemporalDoseTarget, TemporalRegimeMethod,
 };
 pub use query::{SmoothedDoseTransportQuery, SmoothingKernel};
+pub use refusal::{NextAttempt, Refusal, Refused};
 pub use response::{
     CausalResponse, CredibleDraws, DiagnosticScope, HorizonIdentification, IdentifiedSet,
     IntervalInterpretation, ResponseEnvelope, ResponseIdentification, ResponseUncertainty,
     ResponseValue, SupportDiagnostic, SupportRegion, SupportReport, SupportStatus,
 };
+pub use rng_key::{
+    BatchSize, ChainId, DeclaredTolerance, FailedRngAttempt, FoldId, ReductionPolicy, ReplicateId,
+    RngKey, SemanticOperation, StreamRequest, ToleranceError, WorkerId,
+};
+pub use route_memory::{
+    AdmittedRouteMemory, EncodedWidth, RouteBudget, RouteMemoryComponent, RouteMemoryDeclaration,
+    RouteMemoryError, RouteMemoryEstimate,
+};
+pub use row_mask::{RowMask, RowMaskError};
+pub use sampling_design::SamplingDesign as DeclaredSamplingDesign;
+pub use sampling_design::{
+    AllowedRule, AttemptedRule, BoundEffectiveSampleSize, BoundResampling, BoundSplitting,
+    BoundVariance, DesignRules, EffectiveSampleSizeRule, ResamplingRule, SamplingDesignDeclaration,
+    SamplingDesignError, SplittingRule, VarianceRule,
+};
 pub use schema::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,
     ValueType, VariableInProgress, VariableSchema,
 };
+pub use scientific_target::{
+    ActionFault, Conditioning, ContrastForm, ContrastIncoherence, ContrastTerm, CrossWorldPremise,
+    DoseGridFault, DoseTimeSurface, GraphFamily, HistoryWindow, InferenceSelection, InitialLaw,
+    InterventionContrast, InterventionWorld, MediationArms, MediationComponent, MediationTarget,
+    ModelAssumptions, ObservationUnit, OutcomeQuantity, QuantityUnits, SCIENTIFIC_TARGET_FORMAT,
+    SCIENTIFIC_TARGET_IDENTITY_TAG, ScientificTarget, ScientificTargetError, ScientificWorldId,
+    StructuralAction, TargetForm, TimeFrame, WorldAction, WorldBinding, WorldCollection,
+};
+pub use scratch_admission::{ScratchLease, ScratchRefusal};
+pub use support_gate::{BUILD_FLAVOR, NotSupported, WouldRefuse, require_supported};
 pub use temporal::{TemporalIndexError, TemporalIndexer, TemporalNodeKey};
 pub use text::is_blank;
 pub use tolerance::ToleranceClass;
@@ -161,3 +275,7 @@ mod tests {
         assert!(super::VERSION.contains('.'));
     }
 }
+
+/// Scoped numerical access to the workflow admission account.
+#[doc(hidden)]
+pub mod numerical_admission;

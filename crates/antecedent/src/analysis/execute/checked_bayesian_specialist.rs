@@ -1,6 +1,7 @@
 //! Builder independent execution for the model-scoped Bayesian IV and sharp-RD estimators.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::bayesian_quantile_path::check_bayesian_quantile_scope;
 use super::bayesian_specialist_path::{
     BayesianSpecialistInputs, check_bayesian_iv_scope, check_bayesian_rd_scope,
 };
@@ -11,9 +12,7 @@ use super::{
 };
 use crate::RdConfig;
 use crate::analysis::prepared::Inspect;
-use crate::strategy_table::{
-    EstimatorId, IdentifierId, identify_static_query, require_identified, select_estimand,
-};
+use crate::strategy_table::{EstimatorId, IdentifierId, require_identified, select_estimand};
 
 /// Which conjugate specialist model the retained operation executes.
 #[derive(Clone, Copy, Debug)]
@@ -22,6 +21,8 @@ pub(crate) enum BayesianSpecialistFamily {
     IvJointLinear,
     /// `rd.bayesian_local_linear`: fixed-bandwidth local-linear sharp design.
     RdLocalLinear(RdConfig),
+    /// `bayesian.randomized_quantile`: Dirichlet-multinomial grid distribution function.
+    RandomizedQuantile,
 }
 
 /// Complete target, identification proof, model configuration, and physical
@@ -63,30 +64,37 @@ impl CheckedBayesianSpecialistOperation {
     ///
     /// Identification failure or a model-scope violation the estimator itself
     /// would refuse at execution.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one admission: the estimator, the model scope, and the identified products decide whether this specialist runs"
+    )]
     #[inline(never)]
     pub(crate) fn checked(
         study: &Study,
         plan: &std::sync::Arc<PhysicalExecutionPlan>,
+        ctx: &ExecutionContext,
     ) -> Result<Option<Box<Self>>, CausalError> {
         let CausalQuery::AverageEffect(query) = &study.query else {
             return Ok(None);
         };
         let (Some(graph), InferenceMode::Bayesian(config), DataInput::Tabular(_)) =
-            (study.graph.as_dag(), &study.inference, &study.data)
+            (study.graph.as_dag(), &study.settings.inference, &study.data)
         else {
             return Ok(None);
         };
         if study.graph_posterior.is_some()
-            || study.tiered.is_some()
-            || study.split.is_some()
+            || study.declared.tiered.is_some()
+            || study.declared.split.is_some()
             || !matches!(
                 study.structure_source,
                 crate::support::StructureSource::Explicit
                     | crate::support::StructureSource::Accepted
             )
-            || study.refute != RefuteSuite::None
-            || !study.custom_validators.is_empty()
-            || !matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+            || study.settings.refute != RefuteSuite::None
+            || !study.declared.custom_validators.is_empty()
+            || !(matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+                || (query.outcome_functional.quantile_level().is_some()
+                    && plan.binding().estimator.is(EstimatorId::BayesianRandomizedQuantile)))
             || plan.logical.query != study.query
         {
             return Ok(None);
@@ -109,6 +117,14 @@ impl CheckedBayesianSpecialistOperation {
                         EstimatorId::BayesianRdLocalLinear,
                     )
                 }
+                (
+                    Some(EstimatorId::BayesianRandomizedQuantile),
+                    Some(IdentifierId::BackdoorAdjustment),
+                ) => (
+                    BayesianSpecialistFamily::RandomizedQuantile,
+                    IdentifierId::BackdoorAdjustment,
+                    EstimatorId::BayesianRandomizedQuantile,
+                ),
                 _ => return Ok(None),
             };
         // A sharp design binds its target to the cutoff population at build;
@@ -126,32 +142,53 @@ impl CheckedBayesianSpecialistOperation {
         }
         let target = CausalQuery::AverageEffect(query.clone());
         let cache = match family {
-            BayesianSpecialistFamily::IvJointLinear => match study.identification_cache.as_ref() {
-                Some(cache) if cache.identification.query == target => Arc::clone(cache),
-                _ => {
-                    let identification = identify_static_query(identifier, graph, &target)?;
-                    require_identified(&identification)?;
-                    let estimand = select_estimand(&identification, estimator)?;
-                    Arc::new(crate::analysis::prepared::CachedStaticIdentification {
-                        identification,
-                        estimand,
-                    })
+            BayesianSpecialistFamily::IvJointLinear
+            | BayesianSpecialistFamily::RandomizedQuantile => {
+                match study.reuse_static_identification(plan) {
+                    Some((cache, _)) if cache.identification.query == target => cache,
+                    _ => {
+                        let identification =
+                            crate::strategy_table::identify_static_query_in_context(
+                                identifier,
+                                graph,
+                                &target,
+                                None,
+                                Some(ctx),
+                            )?;
+                        require_identified(&identification)?;
+                        let estimand = select_estimand(&identification, estimator)?;
+                        Arc::new(crate::analysis::prepared::CachedStaticIdentification {
+                            identification,
+                            estimand,
+                        })
+                    }
                 }
-            },
+            }
             BayesianSpecialistFamily::RdLocalLinear(rd) => {
-                let identification = SharpRdIdentifier::new(SharpRdConfig::new(
-                    rd.running_variable,
-                    rd.cutoff,
-                    rd.bandwidth,
-                ))
-                .identify_on(graph, target)
-                .map_err(CausalError::from)?;
-                require_identified(&identification)?;
-                let estimand = select_estimand(&identification, estimator)?;
-                Arc::new(crate::analysis::prepared::CachedStaticIdentification {
-                    identification,
-                    estimand,
-                })
+                match study.reuse_static_identification(plan) {
+                    // The design was identified once, at compile.
+                    Some((cache, _)) if cache.identification.query == target => cache,
+                    _ => {
+                        if ctx.cancellation.is_cancelled() {
+                            return Err(CausalError::Cancelled {
+                                stage: crate::analysis::stage::STAGE_IDENTIFY,
+                            });
+                        }
+                        let identification = SharpRdIdentifier::new(SharpRdConfig::new(
+                            rd.running_variable,
+                            rd.cutoff,
+                            rd.bandwidth,
+                        ))
+                        .identify_on(graph, target)
+                        .map_err(CausalError::from)?;
+                        require_identified(&identification)?;
+                        let estimand = select_estimand(&identification, estimator)?;
+                        Arc::new(crate::analysis::prepared::CachedStaticIdentification {
+                            identification,
+                            estimand,
+                        })
+                    }
+                }
             }
         };
         match family {
@@ -159,6 +196,9 @@ impl CheckedBayesianSpecialistOperation {
                 check_bayesian_iv_scope(&cache.estimand, config)?
             }
             BayesianSpecialistFamily::RdLocalLinear(_) => check_bayesian_rd_scope(query, config)?,
+            BayesianSpecialistFamily::RandomizedQuantile => {
+                check_bayesian_quantile_scope(query, &cache.estimand, config)?;
+            }
         }
         Ok(Some(Box::new(Self {
             query: query.clone(),
@@ -210,6 +250,14 @@ impl CheckedBayesianSpecialistOperation {
                 inputs,
                 ctx,
             ),
+            BayesianSpecialistFamily::RandomizedQuantile => study
+                .execute_bayesian_quantile_identified(
+                    data,
+                    &self.query,
+                    &self.physical,
+                    inputs,
+                    ctx,
+                ),
         }
     }
 }
@@ -224,6 +272,9 @@ impl Inspect for CheckedBayesianSpecialistOperation {
             }
             BayesianSpecialistFamily::RdLocalLinear(rd) => {
                 (IdentifierId::RdSharp, EstimatorId::BayesianRdLocalLinear, Some(rd))
+            }
+            BayesianSpecialistFamily::RandomizedQuantile => {
+                (IdentifierId::BackdoorAdjustment, EstimatorId::BayesianRandomizedQuantile, None)
             }
         };
         CheckedBayesianSpecialistInfo {

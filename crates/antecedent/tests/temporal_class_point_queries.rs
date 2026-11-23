@@ -2,7 +2,7 @@
 //!
 //! The class result is the completion-weighted mean of the existing temporal
 //! linear producer. A single directed completion matches the `TemporalDag` pin.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -223,7 +223,7 @@ fn bayes(builder: StudyBuilder, bayesian: bool) -> StudyBuilder {
 fn run(builder: StudyBuilder) -> antecedent::StudyResult {
     let ctx = ExecutionContext::for_tests(11);
     let study = builder.clone().build().unwrap();
-    assert_eq!(study.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(study.support_status(), Some(antecedent::support::CellStatus::Supported));
     let prepared = study.prepare(&ctx).unwrap();
     drop(builder);
     drop(study);
@@ -243,6 +243,38 @@ fn conditional_query(sustained: bool) -> TemporalEffectQuery {
 }
 
 #[test]
+fn temporal_class_points_refuse_a_weighted_series_they_would_fit_unweighted() {
+    let columns = conditional_columns();
+    let data = series_from(&columns);
+    let weights: Vec<f64> =
+        (0..columns[0].1.len()).map(|i| if i % 4 == 0 { 0.0 } else { 2.0 }).collect();
+    let weighted = data.with_weights(Arc::from(weights)).unwrap();
+    let builder = bind(
+        Study::series(weighted)
+            .query(CausalQuery::TemporalEffect(conditional_query(false)))
+            .refute(RefuteSuite::None),
+        &conditional_dag(),
+        false,
+        false,
+    );
+    let error = builder
+        .build()
+        .map_err(|error| error.to_string())
+        .and_then(|study| {
+            study.run(&ExecutionContext::for_tests(11)).map_err(|error| error.to_string())
+        })
+        .expect_err("a weighted series cannot be fit without its weights");
+    assert!(
+        error.contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+        "{error}"
+    );
+}
+
+#[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/estimate/temporal_conditional/expected.json"
@@ -287,9 +319,9 @@ fn temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point() {
                         };
                         let result = run(bayes(builder, bayesian));
                         assert!(
-                            (result.estimate.as_effect().unwrap().ate - truth).abs() < 0.05,
+                            (result.estimate().as_effect().unwrap().ate - truth).abs() < 0.015,
                             "sustained={sustained} pag={pag} posterior={posterior} accepted={accepted} bayesian={bayesian} ate={}",
-                            result.estimate.as_effect().unwrap().ate
+                            result.estimate().as_effect().unwrap().ate
                         );
                         assert!(result.diagnostics.iter().any(|d| {
                             d.code.as_ref() == "estimate.temporal.conditional_marginal"
@@ -300,9 +332,35 @@ fn temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point() {
                                 .iter()
                                 .any(|d| { d.code.as_ref().contains("envelope") })
                         );
-                        assert!(result.posterior.is_none());
-                        if let Some(binding) = &result.interval {
-                            assert_eq!(binding.method, antecedent_core::IntervalMethod::None);
+                        // A frequentist class point carries no posterior; its interval is
+                        // the shared circular block of the whole frozen-weight procedure. A
+                        // Bayesian point carries one completion's posterior, or an interval
+                        // for the identified set over several completions.
+                        if !bayesian {
+                            assert!(result.posterior.is_none());
+                        }
+                        let effect = result.estimate().as_effect().unwrap();
+                        let binding =
+                            result.interval().as_ref().expect("the point carries an interval");
+                        assert!(
+                            binding.level > 0.0 && binding.level < 1.0,
+                            "nominal level {}",
+                            binding.level
+                        );
+                        assert_ne!(binding.method, antecedent_core::IntervalMethod::None);
+                        // Where a scalar standard error is published, the interval is a proper
+                        // finite bracket of the point.
+                        if let Some((lo, hi)) =
+                            antecedent::PublishedScalarUncertainty::select(effect).interval(effect)
+                        {
+                            assert!(
+                                lo.is_finite()
+                                    && hi.is_finite()
+                                    && lo < effect.ate
+                                    && effect.ate < hi,
+                                "interval ({lo}, {hi}) must bracket {}",
+                                effect.ate
+                            );
                         }
                         assert_eq!(
                             result.logical_plan.estimator.as_deref(),
@@ -327,7 +385,8 @@ fn temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point() {
         .prepare(&ExecutionContext::for_tests(11))
         .unwrap()
         .estimate_retained(&ExecutionContext::for_tests(11));
-    assert!(err.is_err(), "two modifiers are not a one-modifier conditional effect");
+    let text = err.expect_err("a modifier that is not a series variable is refused").to_string();
+    assert!(text.contains("unknown variable V9"), "{text}");
     let mapped = Study::series(data)
         .query(CausalQuery::TemporalEffect(conditional_query(false)))
         .graph(TemporalCpdag::from_temporal_dag(&dag))
@@ -339,7 +398,11 @@ fn temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point() {
         .unwrap()
         .prepare(&ExecutionContext::for_tests(11))
         .unwrap();
-    assert!(mapped.estimate_retained(&ExecutionContext::for_tests(11)).is_err());
+    let text = mapped
+        .estimate_retained(&ExecutionContext::for_tests(11))
+        .expect_err("a mapped coefficient prior is refused")
+        .to_string();
+    assert!(text.contains("a mapped coefficient prior is not supported"), "{text}");
 }
 
 fn attach(functional: ResponseFunctional) -> ResponseQuery {
@@ -395,7 +458,8 @@ fn temporal_class_derivatives_publish_the_linear_slope() {
         "../../../conformance/estimate/temporal_derivative/expected.json"
     ))
     .unwrap();
-    let tolerance = pin["tolerance"].as_f64().unwrap();
+    // Observed deviations are at most 0.0066 across the sixteen routes.
+    let tolerance = pin["tolerance"].as_f64().unwrap().min(0.02);
     let columns = derivative_columns();
     let dag = derivative_dag();
     for (key, functional) in derivative_values() {
@@ -477,6 +541,47 @@ fn temporal_class_derivatives_publish_the_linear_slope() {
     }
 }
 
+#[test]
+fn temporal_class_posterior_vector_derivatives_retain_values_and_encode() {
+    let columns = derivative_columns();
+    for (name, functional) in derivative_values()
+        .into_iter()
+        .filter(|(name, _)| matches!(*name, "jacobian" | "directional"))
+    {
+        for pag in [false, true] {
+            for bayesian in [false, true] {
+                let data = if pag { with_witness(columns.clone()) } else { series_from(&columns) };
+                let (n, adjacency, lag) =
+                    posterior_masks(4, &[(0, 2), (1, 2), (0, 3), (1, 3)], &[], pag);
+                let builder = Study::series(data)
+                    .query(CausalQuery::Response(attach(functional.clone())))
+                    .refute(RefuteSuite::None)
+                    .graph_posterior(class_posterior(n, adjacency, lag, pag));
+                let ctx = ExecutionContext::for_tests(11);
+                let prepared = bayes(builder, bayesian).build().unwrap().prepare(&ctx).unwrap();
+                let result = prepared.estimate_retained(&ctx).unwrap();
+                let structural = result.structural_response.as_ref().expect("retained atoms");
+                assert!(
+                    (structural.identified_mass - 1.0).abs() < 1e-12,
+                    "{name} pag={pag} bayesian={bayesian}: {structural:?}"
+                );
+                assert!(structural.unevaluable_mass.abs() < 1e-12);
+                assert!(structural.atoms.iter().any(|atom| matches!(
+                    atom.value.as_ref(),
+                    Some(ResponseValue::Vector(_) | ResponseValue::Jacobian { .. })
+                )));
+                assert!(structural.identified_set.is_none(), "a vector has no scalar envelope");
+                let artifact = prepared
+                    .encode_contracted_result(&result, "class-vector-derivative", &ctx)
+                    .unwrap();
+                let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
+                assert!(consumed.contract.is_some());
+                assert!(consumed.body.response.is_some());
+            }
+        }
+    }
+}
+
 fn cross_queries() -> Vec<(&'static str, CausalQuery)> {
     let x = VariableId::from_raw(0);
     let m = VariableId::from_raw(1);
@@ -523,7 +628,13 @@ fn temporal_class_nested_contract_encodes() {
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate_retained(&ctx).unwrap();
     let encoded = prepared.encode_contracted_result(&result, "nested-class", &ctx);
-    assert!(encoded.is_ok(), "{encoded:?}");
+    let bytes = encoded.unwrap_or_else(|e| panic!("{e:?}"));
+    // The sealed artifact is consumable and its verified contract names the nested query.
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
+    let contract = consumed.contract.as_ref().expect("verified contract");
+    let labels: std::collections::HashMap<_, _> =
+        antecedent_io::executed_functional_labels(&contract.target.query).into_iter().collect();
+    assert_eq!(labels["query_kind"], "nested_counterfactual", "{labels:?}");
 }
 
 #[test]
@@ -532,7 +643,8 @@ fn temporal_class_cross_world_points_match_the_linear_mechanism() {
         "../../../conformance/estimate/temporal_cross_world/expected.json"
     ))
     .unwrap();
-    let tolerance = pin["tolerance"].as_f64().unwrap();
+    // Observed deviations are at most 0.0071 across the sixteen routes.
+    let tolerance = pin["tolerance"].as_f64().unwrap().min(0.02);
     let columns = cross_columns();
     let dag = cross_dag();
     for (key, query) in cross_queries() {
@@ -563,9 +675,9 @@ fn temporal_class_cross_world_points_match_the_linear_mechanism() {
                         };
                         let result = run(bayes(builder, bayesian));
                         assert!(
-                            (result.estimate.as_effect().unwrap().ate - truth).abs() < tolerance,
+                            (result.estimate().as_effect().unwrap().ate - truth).abs() < tolerance,
                             "{key} pag={pag} posterior={posterior} accepted={accepted} bayesian={bayesian} ate={}",
-                            result.estimate.as_effect().unwrap().ate
+                            result.estimate().as_effect().unwrap().ate
                         );
                         assert!(
                             result
@@ -573,7 +685,9 @@ fn temporal_class_cross_world_points_match_the_linear_mechanism() {
                                 .iter()
                                 .any(|d| { d.code.as_ref() == "estimate.temporal.cross_world" })
                         );
-                        assert!(result.posterior.is_none());
+                        if !bayesian {
+                            assert!(result.posterior.is_none());
+                        }
                         assert_eq!(
                             result.logical_plan.estimator.as_deref(),
                             Some("temporal.linear.adjustment")

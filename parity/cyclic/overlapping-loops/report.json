@@ -1,0 +1,113 @@
+{
+  "identity": "acae949ebfae30adb1708cb85cc13d5eac61756f70aab6a2018b4cf4fc5b7e26",
+  "answer": {
+    "family": "worlds",
+    "result": [
+      {
+        "world": 0,
+        "family": "linear_equilibrium",
+        "variables": [
+          0,
+          1,
+          2
+        ],
+        "actions": [],
+        "outcome": {
+          "status": "gaussian_law",
+          "mean": [
+            0.0,
+            -0.0,
+            -0.0
+          ],
+          "covariance": [
+            3.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            1.0,
+            2.0,
+            1.0,
+            2.0
+          ],
+          "residual_inf": null
+        },
+        "certificate": {
+          "certified": false,
+          "basis": null,
+          "gap": "linear_family_bound_insufficient",
+          "rho_abs_upper": 1.5,
+          "certified_draws": null,
+          "uncertified_draws": null,
+          "failed_draws": null,
+          "withheld_draws": null,
+          "next_attempt": {
+            "name": "query_specific_free_block",
+            "sentence": "the bound ρ(|K|) < 1 was not shown for the intervened map; certify this world's free set by an exact factorization, or report the world uncertified"
+          }
+        },
+        "solved_by": {
+          "method": "direct_free_block_solve",
+          "order": [
+            0,
+            1,
+            2
+          ],
+          "blocks": [],
+          "dag_refusal": null,
+          "accepted_steps": null,
+          "rejected_steps": null
+        },
+        "failed_mass": 0.0,
+        "withheld_mass": 0.0,
+        "physical_stability": "unclaimed"
+      },
+      {
+        "world": 1,
+        "family": "linear_equilibrium",
+        "variables": [
+          0,
+          1,
+          2
+        ],
+        "actions": [
+          {
+            "kind": "hard_clamp",
+            "variable": 2,
+            "node": 2
+          }
+        ],
+        "outcome": {
+          "status": "no_solution",
+          "cause": "Solvability(Singular { members: [0, 1] })",
+          "next_attempt": "selection_or_dynamic_law"
+        },
+        "certificate": {
+          "certified": false,
+          "basis": null,
+          "gap": "no_solution",
+          "rho_abs_upper": null,
+          "certified_draws": null,
+          "uncertified_draws": null,
+          "failed_draws": null,
+          "withheld_draws": null,
+          "next_attempt": {
+            "name": "selection_or_dynamic_law",
+            "sentence": "declare an equilibrium selection rule or a dynamic law for the clamped loop, or intervene with a mechanism change that keeps the free block regular"
+          }
+        },
+        "solved_by": {
+          "method": "not_solved",
+          "order": [],
+          "blocks": [],
+          "dag_refusal": null,
+          "accepted_steps": null,
+          "rejected_steps": null
+        },
+        "failed_mass": 1.0,
+        "withheld_mass": 0.0,
+        "physical_stability": "unclaimed"
+      }
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+feature_id = "forecast.event_process"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = [
+  { title = "A cluster process representation of a self-exciting process", doi = "10.2307/3212693", sections = ["Cluster process representation"] },
+  { title = "Bootstrap inference for Hawkes and general point processes", doi = "10.1016/j.jeconom.2022.02.006", sections = ["Recursive intensity bootstrap"] },
+]
+implementation_deviations = [
+  "Conditions on a complete supplied left history starting at a declared empty origin. Constant nonnegative baselines and exponential decay rates are fixed by the declaration except for the fitted baselines and branching masses.",
+  "Simulation accepts any branching matrix with a checked positive subinvariance witness. Fixed-decay maximum likelihood searches the nonnegative domain with a strict source-column cap, a narrower convex subset.",
+  "The recursive-refit forecast refits each simulated complete training window. It conditions each future draw on the actual history. A refit failure refuses the aggregate. This is neither a posterior draw nor evidence of real-world forecast accuracy.",
+  "A conditional world response is driven by exogenous, paired arrivals through drift inputs. A separate half-step recorder preserves the established SDE execution lane and its item fingerprints. Grid maxima and indicators have discrete observation semantics.",
+  "Future-study integration enumerates the binary signal on finite weighted simulated continuations. Actual updates use the conditional timestamp likelihood over a disjoint window and retain event excitation across the cutoff.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent/tests/events.rs",
+  "crates/antecedent/tests/events_support/cluster_oracle.rs",
+  "crates/antecedent/tests/event_count_calibration.rs",
+  "crates/antecedent-model/src/nonlinear_sde/event_inputs.rs",
+]

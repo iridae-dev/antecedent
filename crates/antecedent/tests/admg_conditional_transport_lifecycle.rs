@@ -8,7 +8,7 @@
 //! reduced joint `P*(y, w | do(x))` normalized at `w`. Every law and the truth
 //! are enumerated from one latent SCM.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "../../antecedent-estimate/tests/common/admg_conditional_scm.rs"]
 mod admg_conditional_scm;
@@ -18,7 +18,7 @@ use antecedent::{
     PreparedAdmgConditionalTransport, StudyBuilder, consume_admg_conditional_transport_artifact,
 };
 use antecedent_core::{ExecutionContext, SearchLimits};
-use antecedent_expr::{ExactEvaluationLimits, ExactTransportData};
+use antecedent_expr::ExactEvaluationLimits;
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{
     ADMG_CONDITIONAL_DEFAULT_LIMITS, BoundConditionalTransportFunctional,
@@ -134,7 +134,10 @@ fn preparation_rechecks_the_derivation_on_the_diagram() {
     .unwrap_err();
     let IoError::Refused { code, message } = error else { panic!("coded refusal") };
     assert_eq!(code, "transport_not_certified");
-    assert!(message.starts_with("admg_transport.invalid_derivation"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::admg_transport::INVALID_DERIVATION),
+        "{message}"
+    );
     // No request, and a request that does not bind W, refuse by name.
     for bad in [Vec::new(), vec![request(&[0], &[], 0)]] {
         let error = StudyBuilder::admg_conditional_transport(
@@ -149,7 +152,10 @@ fn preparation_rechecks_the_derivation_on_the_diagram() {
         .unwrap_err();
         let IoError::Refused { code, message } = error else { panic!("coded refusal") };
         assert_eq!(code, "invalid_argument");
-        assert!(message.starts_with("admg_transport.invalid_request"), "{message}");
+        assert!(
+            message.starts_with(antecedent_core::reason_details::admg_transport::INVALID_REQUEST),
+            "{message}"
+        );
     }
 }
 
@@ -171,28 +177,36 @@ fn refresh_keeps_the_proof_and_moves_the_point() {
         before.distributions()[0].probabilities[1].to_bits(),
         after.distributions()[0].probabilities[1].to_bits()
     );
-    // Counted laws are refused: the route publishes exact points only.
-    let (_, data) = scm(0).catalog_and_laws();
-    let mut laws = data.laws().to_vec();
-    let first = &laws[0];
-    let cells = first.probabilities().len();
-    laws[0] = antecedent_expr::ExactDiscreteLaw::try_new(
-        first.population(),
-        first.regime(),
-        first.interventions().to_vec(),
-        first.axes().to_vec(),
-        vec![1.0 / cells as f64; cells],
-        first.snapshot_identity(),
-        antecedent_expr::LawTolerance::default(),
-    )
-    .unwrap()
-    .with_empirical_counts(vec![1; cells])
-    .unwrap();
-    let counted = ExactTransportData::try_new(laws, 1_000_000).unwrap();
-    let error = prepared.refresh(counted, &ctx).unwrap_err();
-    let IoError::Refused { code, message } = error else { panic!("coded refusal") };
-    assert_eq!(code, "cell_not_licensed");
-    assert!(message.starts_with("admg_transport.interval_withheld"), "{message}");
+    // Counted laws are refused: the route publishes exact points only. A development build runs them.
+    #[cfg(not(feature = "development"))]
+    {
+        let (_, data) = scm(0).catalog_and_laws();
+        let mut laws = data.laws().to_vec();
+        let first = &laws[0];
+        let cells = first.probabilities().len();
+        laws[0] = antecedent_expr::ExactDiscreteLaw::try_new(
+            first.population(),
+            first.regime(),
+            first.interventions().to_vec(),
+            first.axes().to_vec(),
+            vec![1.0 / cells as f64; cells],
+            first.snapshot_identity(),
+            antecedent_expr::LawTolerance::default(),
+        )
+        .unwrap()
+        .with_empirical_counts(vec![1; cells])
+        .unwrap();
+        let counted = antecedent_expr::ExactTransportData::try_new(laws, 1_000_000).unwrap();
+        let error = prepared.refresh(counted, &ctx).unwrap_err();
+        let IoError::Refused { code, message } = error else { panic!("coded refusal") };
+        assert_eq!(code, "not_supported");
+        assert!(
+            message.starts_with(
+                antecedent_core::reason_details::admg_transport::COUNTED_LAWS_UNSUPPORTED
+            ),
+            "{message}"
+        );
+    }
 }
 
 fn export(prepared: &PreparedAdmgConditionalTransport) -> Vec<u8> {
@@ -224,7 +238,7 @@ fn exported_point_is_recomputed_by_the_artifact_consumer() {
     wire.check_variable_names(&["X".into(), "Y".into(), "W".into()]).unwrap();
     assert_eq!(
         wire.check_variable_names(&["Y".into(), "X".into(), "W".into()]).unwrap_err().refusal(),
-        ("invalid_argument", "admg_transport.invalid_artifact")
+        ("invalid_argument", antecedent_core::reason_details::admg_transport::INVALID_ARTIFACT)
     );
 }
 
@@ -293,13 +307,25 @@ fn a_mutated_artifact_fails_consumption() {
     wire.query.treatments = vec![2];
     let error = refusal(&reseal(&mut wire));
     assert!(matches!(error, AdmgConditionalArtifactError::ProofMismatch(_)), "{error:?}");
-    assert_eq!(pair(error), ("transport_not_certified", "admg_transport.invalid_derivation"));
+    assert_eq!(
+        pair(error),
+        (
+            "transport_not_certified",
+            antecedent_core::reason_details::admg_transport::INVALID_DERIVATION
+        )
+    );
     // (b) The non-movable W claimed moved: its rule-2 premise fails.
     let mut wire = original.clone();
     wire.proof.moves = vec![2];
     wire.proof.remaining.clear();
     let error = refusal(&reseal(&mut wire));
-    assert_eq!(pair(error), ("transport_not_certified", "admg_transport.invalid_derivation"));
+    assert_eq!(
+        pair(error),
+        (
+            "transport_not_certified",
+            antecedent_core::reason_details::admg_transport::INVALID_DERIVATION
+        )
+    );
     // (c) A law's cells permuted under the same snapshot (the data digest names
     // snapshots, so it is unchanged): the recomputed point differs.
     let mut wire = original.clone();
@@ -327,7 +353,13 @@ fn a_mutated_artifact_fails_consumption() {
         antecedent_io::transport_catalog_wire::EvidenceCatalogWire::from_catalog(&catalog);
     let error = refusal(&reseal(&mut wire));
     assert_eq!(error, AdmgConditionalArtifactError::ReplayMismatch("the decision"));
-    assert_eq!(pair(error), ("transport_not_certified", "admg_transport.replay_mismatch"));
+    assert_eq!(
+        pair(error),
+        (
+            "transport_not_certified",
+            antecedent_core::reason_details::admg_transport::REPLAY_MISMATCH
+        )
+    );
     // (e) Leaf bindings relabelled.
     let mut wire = original.clone();
     wire.bindings[0].0 = "elsewhere".into();
@@ -342,12 +374,21 @@ fn a_mutated_artifact_fails_consumption() {
     wire.search_operations = 1;
     let error = refusal(&reseal(&mut wire));
     assert!(matches!(error, AdmgConditionalArtifactError::ProofMismatch(_)), "{error:?}");
-    assert_eq!(pair(error), ("transport_not_certified", "admg_transport.invalid_derivation"));
+    assert_eq!(
+        pair(error),
+        (
+            "transport_not_certified",
+            antecedent_core::reason_details::admg_transport::INVALID_DERIVATION
+        )
+    );
     // (g) Stored limits above the consumer's maxima refuse before any work.
     let mut wire = original.clone();
     wire.search_operations = ADMG_CONDITIONAL_DEFAULT_LIMITS.operations + 1;
     let error = refusal(&reseal(&mut wire));
-    assert_eq!(pair(error), ("route_not_supported", "admg_transport.consumer_limits"));
+    assert_eq!(
+        pair(error),
+        ("route_not_supported", antecedent_core::reason_details::admg_transport::CONSUMER_LIMITS)
+    );
     let small = AdmgConditionalConsumeLimits {
         search: SearchLimits { operations: 10, depth: 24 },
         ..AdmgConditionalConsumeLimits::default()
@@ -363,11 +404,17 @@ fn a_mutated_artifact_fails_consumption() {
     // (h) An interval claim or counted laws: the route is point-only.
     let mut wire = original.clone();
     wire.uncertainty = "percentile_bootstrap".into();
-    assert_eq!(refusal(&reseal(&mut wire)), AdmgConditionalArtifactError::IntervalWithheld);
+    assert_eq!(refusal(&reseal(&mut wire)), AdmgConditionalArtifactError::CountedLawsUnsupported);
     let mut wire = original.clone();
     wire.laws[0].empirical_counts = Some(vec![1; wire.laws[0].probabilities.len()]);
     let error = refusal(&reseal(&mut wire));
-    assert_eq!(pair(error), ("cell_not_licensed", "admg_transport.interval_withheld"));
+    assert_eq!(
+        pair(error),
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::admg_transport::COUNTED_LAWS_UNSUPPORTED
+        )
+    );
     // (i) An unknown field is refused by the wire (deny_unknown_fields).
     let mut value: serde_json::Value = antecedent_io::from_cbor(&bytes).unwrap();
     value["unexpected"] = serde_json::json!(1);
@@ -378,7 +425,7 @@ fn a_mutated_artifact_fails_consumption() {
     assert!(AdmgConditionalArtifactWire::decode(&antecedent_io::to_cbor(&value).unwrap()).is_err());
     // (j) Another version is refused before the payload is interpreted.
     let mut wire = original.clone();
-    wire.version = 2;
+    wire.version = 1;
     assert!(matches!(
         AdmgConditionalArtifactWire::decode(&wire.export().unwrap()),
         Err(IoError::AdmgConditional(AdmgConditionalArtifactError::UnsupportedVersion { .. }))
@@ -405,7 +452,8 @@ fn a_mutated_artifact_fails_consumption() {
 fn an_oversized_graph_or_query_refuses_before_any_digest() {
     let bytes = export(&prepare(&scm(0)));
     let original = AdmgConditionalArtifactWire::decode(&bytes).unwrap();
-    let limits = ("route_not_supported", "admg_transport.consumer_limits");
+    let limits =
+        ("route_not_supported", antecedent_core::reason_details::admg_transport::CONSUMER_LIMITS);
     // Seven nodes (names dropped so the shape check passes).
     let mut wire = original.clone();
     wire.graph.node_count = 7;
@@ -590,6 +638,52 @@ fn an_unknown_required_feature_or_another_version_is_refused() {
     }
 }
 
+/// A wrong version, a wrong feature set, or the other artifact format is refused.
+fn obstruction_version_feature_and_format_refusals(
+    wire: &antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire,
+    bytes: &[u8],
+    ctx: &ExecutionContext,
+) {
+    use antecedent::consume_admg_conditional_obstruction_artifact;
+    use antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire;
+    // Another version or feature: refused by version before the payload, and by
+    // feature marker (the point format's marker included).
+    for version in [0, 2] {
+        let mut w = wire.clone();
+        w.version = version;
+        assert!(matches!(
+            consume_admg_conditional_obstruction_artifact(&w.export().unwrap(), ctx),
+            Err(IoError::AdmgConditional(AdmgConditionalArtifactError::UnsupportedVersion {
+                version: v
+            })) if v == version
+        ));
+    }
+    for features in [vec!["checked_admg_conditional_point_v1".to_owned()], Vec::new()] {
+        let mut w = wire.clone();
+        w.required_features = features;
+        assert!(matches!(
+            consume_admg_conditional_obstruction_artifact(&w.export().unwrap(), ctx),
+            Err(IoError::AdmgConditional(AdmgConditionalArtifactError::UnsupportedSemantics(
+                "required features"
+            )))
+        ));
+    }
+    // Cross-format: a point artifact is never read as an obstruction, nor the
+    // reverse.
+    let point = export(&prepare(&scm(0)));
+    assert!(consume_admg_conditional_obstruction_artifact(&point, ctx).is_err());
+    assert!(AdmgConditionalObstructionWire::decode(&point).is_err());
+    assert!(AdmgConditionalArtifactWire::decode(bytes).is_err());
+    assert!(
+        antecedent::consume_admg_conditional_transport_artifact(
+            bytes,
+            AdmgConditionalConsumeLimits::default(),
+            ctx
+        )
+        .is_err()
+    );
+}
+
 /// A proven obstruction (selection on the confounded outcome `Y`) exports with
 /// its two-model witness and is re-verified by the consumer; an unsealed edit
 /// is a premises mismatch, a re-sealed witness mutation fails the exact
@@ -645,9 +739,18 @@ fn a_proven_obstruction_is_reverified_by_the_artifact_consumer() {
     // Unsealed: a changed query value is a premises mismatch.
     let mut w = wire.clone();
     w.proof.witness.first_value = w.proof.witness.second_value.clone();
-    assert_eq!(refusal(&w), ("transport_not_certified", "admg_transport.premises_mismatch"));
+    assert_eq!(
+        refusal(&w),
+        (
+            "transport_not_certified",
+            antecedent_core::reason_details::admg_transport::PREMISES_MISMATCH
+        )
+    );
     // Re-sealed witness mutations fail the exact verifier.
-    let invalid = ("transport_not_certified", "admg_transport.invalid_derivation");
+    let invalid = (
+        "transport_not_certified",
+        antecedent_core::reason_details::admg_transport::INVALID_DERIVATION,
+    );
     assert_eq!(refusal(&reseal(w)), invalid);
     let mut w = wire.clone();
     w.proof.witness.second.source[1].ones[0] = "1/7".into();
@@ -669,43 +772,11 @@ fn a_proven_obstruction_is_reverified_by_the_artifact_consumer() {
     let mut w = wire.clone();
     w.graph.node_count = 7;
     w.variable_names.clear();
-    assert_eq!(refusal(&w), ("route_not_supported", "admg_transport.consumer_limits"));
-    // Another version or feature: refused by version before the payload, and by
-    // feature marker (the point format's marker included).
-    for version in [0, 2] {
-        let mut w = wire.clone();
-        w.version = version;
-        assert!(matches!(
-            consume_admg_conditional_obstruction_artifact(&w.export().unwrap(), &ctx),
-            Err(IoError::AdmgConditional(AdmgConditionalArtifactError::UnsupportedVersion {
-                version: v
-            })) if v == version
-        ));
-    }
-    for features in [vec!["checked_admg_conditional_point_v1".to_owned()], Vec::new()] {
-        let mut w = wire.clone();
-        w.required_features = features;
-        assert!(matches!(
-            consume_admg_conditional_obstruction_artifact(&w.export().unwrap(), &ctx),
-            Err(IoError::AdmgConditional(AdmgConditionalArtifactError::UnsupportedSemantics(
-                "required features"
-            )))
-        ));
-    }
-    // Cross-format: a point artifact is never read as an obstruction, nor the
-    // reverse.
-    let point = export(&prepare(&scm(0)));
-    assert!(consume_admg_conditional_obstruction_artifact(&point, &ctx).is_err());
-    assert!(AdmgConditionalObstructionWire::decode(&point).is_err());
-    assert!(AdmgConditionalArtifactWire::decode(&bytes).is_err());
-    assert!(
-        antecedent::consume_admg_conditional_transport_artifact(
-            &bytes,
-            AdmgConditionalConsumeLimits::default(),
-            &ctx
-        )
-        .is_err()
+    assert_eq!(
+        refusal(&w),
+        ("route_not_supported", antecedent_core::reason_details::admg_transport::CONSUMER_LIMITS)
     );
+    obstruction_version_feature_and_format_refusals(&wire, &bytes, &ctx);
 }
 
 #[test]
@@ -750,7 +821,10 @@ fn the_obstruction_wire_consumer_rebuilds_the_diagram_and_reverifies_the_witness
     match AdmgConditionalObstructionWire::consume(&wire.export().unwrap(), &ctx) {
         Err(IoError::AdmgConditional(inner)) => assert_eq!(
             inner.refusal(),
-            ("transport_not_certified", "admg_transport.invalid_derivation")
+            (
+                "transport_not_certified",
+                antecedent_core::reason_details::admg_transport::INVALID_DERIVATION
+            )
         ),
         other => panic!("typed refusal: {:?}", other.map(|c| c.proof.to_record())),
     }

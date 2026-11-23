@@ -1,4 +1,35 @@
-"""High-level estimation entry points."""
+"""Shared-fit batches, identification without estimation, and the analysis result views.
+
+The everyday entry points are at the package root: :func:`antecedent.analyze`,
+:func:`antecedent.prepare` and :func:`antecedent.estimate` for one question, and
+:func:`antecedent.identify` for an identification certificate. This module adds:
+
+* **Batches of related effects.** :func:`prepare_many`, :func:`estimate_many` and
+  :func:`analyze_many` fit several homogeneous :class:`~antecedent.AverageEffect` queries, or the
+  joint cells of discrete :class:`~antecedent.InterventionResponse` queries, on one owned table
+  with one shared nuisance fit. Each member is an ordinary :class:`AnalysisResult` outcome;
+  :meth:`BatchResult.retarget` reweights the retained scores of the whole family over one row
+  snapshot, without refitting, and reports the joint score covariance, named contrasts and, for a
+  complete family, a max-t simultaneous band (:class:`SimultaneousInterval`).
+* **Identification only.** :func:`identify` returns the identification status, method and
+  adjustment set of an average effect under a ``Dag`` or ``Admg`` without touching data.
+* **Result views.** The section types of an :class:`AnalysisResult` (:class:`EstimateView`,
+  :class:`IdentificationView`, :class:`PosteriorView`, :class:`ValidationView`,
+  :class:`PerformanceView`, ...) are importable here for annotations and ``isinstance`` checks.
+
+Example::
+
+    from antecedent import AverageEffect, estimation
+
+    outcome = estimation.analyze_many(
+        data,
+        graph=[("age", "dose_a"), ("age", "dose_b"), ("age", "y"),
+               ("dose_a", "y"), ("dose_b", "y")],
+        queries=[AverageEffect("dose_a", "y"), AverageEffect("dose_b", "y")],
+    )
+    batch = outcome.value                  # a BatchResult, or None when refused
+    batch.member(0).answer.value           # the first effect, as from antecedent.analyze
+"""
 
 from __future__ import annotations
 
@@ -14,16 +45,21 @@ import numpy as np
 from . import _estimate_helpers
 from ._api import describe_refusal
 from ._batch import (
+    BatchResult,
     BatchRetarget,
     CandidateScreen,
+    CellFamily,
     PreparedBatch,
     RetargetClaim,
     RetargetContrast,
+    RetargetCost,
     RetargetMember,
     SharedBatchDesign,
     SimultaneousBandMember,
     SimultaneousInterval,
     analyze_many,
+    estimate_many,
+    prepare_many,
 )
 from ._coerce import coerce_latency, coerce_query, coerce_refute
 from ._columns import (
@@ -33,6 +69,7 @@ from ._columns import (
     drop_columns,
     encode_identifier,
     encode_weights,
+    identifier_strings,
     resolve_estimator_identifiers,
 )
 from ._data import (
@@ -47,19 +84,23 @@ from ._estimate_helpers import (
     _not_applicable,
     _unwrap_estimator,
 )
-from ._from_raw import _wrap_ate
+from ._from_raw import (
+    _execution_slots,
+    _interval_bindings_from_raw,
+    _missing_data_from_raw,
+    _wrap_ate,
+)
+from ._mediation_summary import mediation_effects_summary
 from ._native import (
     MediationEffectsSummary,
-    mediation_effects_summary,
-)
-from ._native import (
-    identify_ate as _identify_ate,
-)
-from ._native import (
-    identify_ate_admg as _identify_ate_admg,
+    _identify_structure,
 )
 from ._study_lifecycle import guard_design, replay_declaration, retain, retain_preparation
+from ._table_file import coerce_table_source
+from ._temporal_design import TemporalDesignQuery
 from ._treatment_labels import TreatmentLabels
+from ._validate import count as _validate_count
+from .descriptive import Association
 from .discovery import (
     DbnPosterior,
     ExactDagPosterior,
@@ -70,6 +111,7 @@ from .errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from .execution import Execution
 from .experiment import (
     ComplierEffect,
     RandomizedEffect,
@@ -93,14 +135,22 @@ from .policy import (
     MultiActionPolicyValue,
     PolicyValue,
 )
-from .population import coerce_target_population
+from .population import (
+    WeightedPopulation,
+    coerce_target_population,
+    weighted_target_declaration,
+)
 from .quasi import (
     AugmentedPanelDiD,
+    CovariateAdjustedDiD,
     FuzzyRegressionDiscontinuity,
+    IvBounds,
     PanelDifferenceInDifferences,
+    PeriodHistoryMatch,
     RegressionKink,
     SharpRegressionDiscontinuity,
     StaggeredAdoption,
+    StaggeredRollout,
     SyntheticControl,
     SyntheticDifferenceInDifferences,
 )
@@ -124,9 +174,12 @@ from .query import (
     ResponseJacobian,
     SemiElasticity,
     SustainedEffect,
+    TemporalConditionalPulse,
+    TemporalConditionalSustained,
     TemporalMediationEffect,
+    TemporalQuery,
 )
-from .regimes import LongitudinalRegime
+from .regimes import LongitudinalRegime, SequentialContrast
 from .results import (
     AnalysisResult,
     CausalResponseView,
@@ -142,6 +195,7 @@ from .results import (
     PosteriorView,
     PredictiveCheckReport,
     PriorSensitivityReport,
+    ProgramPlanView,
     ReasoningSlots,
     RefutationReport,
     ResponseEnvelopeView,
@@ -160,7 +214,6 @@ from .survival import (
 )
 from .transport import (
     Transport,
-    TransportControls,
     TransportInference,
 )
 from .transport._impl import (
@@ -169,17 +222,20 @@ from .transport._impl import (
     TransportResponseGrid,
     TransportStage,
 )
+from .transport._impl.trial import LearnedTrialEstimate, _TransportLimits
 from .transport.advanced import (
     ExactTransportQuery,
     StatisticalTransportQuery,
     TransportQuery,
     TransportResponseGridQuery,
+    TrialAipwQuery,
 )
 
 # Compatibility alias consumed by the internal routing modules.
 _static_edges = _estimate_helpers._static_edges
 
 if TYPE_CHECKING:
+    from ._prepared_policy import PreparedPolicyAnalysis
     from .preflight import (
         CostEstimate,
         NuisanceFitDiagnostics,
@@ -197,6 +253,13 @@ _RESPONSE_FAMILY = (
     SemiElasticity,
     DirectionalDerivative,
     ResponseJacobian,
+)
+
+
+_SAMPLING_DESIGNS = (
+    "independent_subject_trajectories",
+    "clustered_panel",
+    "dependent_time_series",
 )
 
 
@@ -233,23 +296,71 @@ def _bayesian_inference_kwargs(inference: Bayesian) -> dict[str, Any]:
                 reason_code="invalid_argument",
             )
         kw["draw_controls"] = inference.draw_controls
+    if inference.predictive_replicates is not None:
+        kw["predictive_replicates"] = (
+            inference.predictive_replicates.n_sims,
+            inference.predictive_replicates.max_rows,
+        )
+    if inference.white_innovation is not None:
+        max_lag, level = inference.white_innovation
+        if (
+            isinstance(max_lag, bool)
+            or not isinstance(max_lag, int)
+            or max_lag < 1
+            or not np.isfinite(level)
+            or not 0.0 < level < 1.0
+        ):
+            raise CausalValueError(
+                "white_innovation is (max_lag >= 1, level in (0, 1))",
+                reason_code="invalid_argument",
+            )
+        kw["white_innovation"] = (max_lag, float(level))
+    if inference.design_model is not None:
+        kw["design_model"] = inference.design_model._wire()
     prior_from = inference.prior_from
     if prior_from is not None:
         # Local import avoids circular import with priors ↔ estimation.
-        from .priors import ComposedPrior
+        from .priors import (
+            BetaHyperparameters,
+            ComposedCountPrior,
+            ComposedPrior,
+            GammaHyperparameters,
+            count_prior_wire,
+        )
 
         if isinstance(prior_from, ComposedPrior):
             kw["composed_prior"] = prior_from.to_native_dict()
+        elif isinstance(
+            prior_from, (BetaHyperparameters, GammaHyperparameters, ComposedCountPrior)
+        ):
+            if inference.mapping is not None:
+                raise CausalValueError(
+                    "a Beta or Gamma prior is the prior of a cell's proportion or rate; it has no "
+                    "coordinates for a PriorMapping to map",
+                    reason_code="option_not_applicable",
+                )
+            kw["count_prior"] = count_prior_wire(prior_from)
         else:
             kw["prior_artifact"] = bytes(prior_from)
-    if inference.mapping is not None:
+    if inference.mapping is not None and "count_prior" not in kw:
         kw["prior_mapping"] = inference.mapping.to_dict()
     return kw
 
 
 @dataclass(frozen=True)
 class IdentifyResult:
-    """Identify-only result (no estimate), retaining its certified query."""
+    """The result of :func:`identify`: whether and how the effect is identified, with no estimate.
+
+    Fields:
+
+    * ``status`` -- the name of the identification status, for example
+      ``"NonparametricallyIdentified"``.
+    * ``method`` -- the method of the estimand that carries the answer (the identification
+      strategy when there is no estimand), for example a back-door adjustment.
+    * ``adjustment_set`` -- the variables of that estimand's adjustment set; empty when it has
+      none.
+    * ``query`` -- the :class:`~antecedent.AverageEffect` that was identified.
+    """
 
     status: str
     method: str
@@ -264,16 +375,30 @@ def identify(
     names: Sequence[str] | None = None,
     identifier: str | Identifier | None = None,
 ) -> IdentifyResult:
-    """Identify without estimating.
+    """Identify an average effect under a structure, without data and without estimating.
 
     Accepts a ``Dag``, an ``Admg``, or an edge list. Pass ``names`` with an edge
     list (variable order); with a typed graph the names come from
     ``graph.nodes()``.
 
-    ``identify(TieredBackground)`` stays Rust-only
-    (``identify_tiered`` / ``identify_tiered_joint``). Prepared identification
-    already returns the certificate; this entry does not accept a tier rule.
-    Pair-family joint cells use :meth:`PreparedBatch.prepare_cells`.
+    Args:
+        graph: the causal structure: a :class:`~antecedent.Dag`, an :class:`~antecedent.Admg`,
+            or ``(source, target)`` edges read as a ``Dag``.
+        query: the :class:`~antecedent.AverageEffect` to identify; only its ``treatment`` and
+            ``outcome`` are read.
+        names: every variable, in order; required with an edge list and ignored otherwise.
+        identifier: an identification strategy name or :class:`~antecedent.Identifier` to use
+            instead of the default search. Default ``None``.
+
+    Returns:
+        An :class:`IdentifyResult`. Read ``status`` first, then ``adjustment_set``.
+
+    Raises:
+        CausalValueError: an edge list without ``names``.
+
+    This entry does not accept a tier rule: :func:`antecedent.identify` identifies a
+    ``TieredBackground`` and returns the certificate.
+    Pair-family joint cells use :func:`prepare_many` with joint response queries.
 
     Prefer an ``Admg`` whenever a confounder is unmeasured. A ``Dag`` has no way
     to say a variable cannot be observed, so a latent common cause flattened
@@ -283,32 +408,25 @@ def identify(
     """
     if isinstance(identifier, Identifier):
         identifier = str(identifier)
-    if isinstance(graph, Admg):
-        status, method, adjustment = _identify_ate_admg(
-            list(graph.nodes()),
-            graph,
-            query.treatment,
-            query.outcome,
-            identifier=identifier,
-        )
-        return IdentifyResult(
-            status=status, method=method, adjustment_set=list(adjustment), query=query
-        )
-    if isinstance(graph, Dag):
-        node_names = list(graph.nodes())
-        edges = list(graph.edges())
+    if isinstance(graph, (Admg, Dag)):
+        structure = graph
     else:
         if names is None:
             raise CausalValueError("identify(edge_list) requires names=")
-        node_names = list(names)
-        edges = list(graph)
-    status, method, adjustment = _identify_ate(
-        node_names,
-        edges,
+        structure = Dag.from_edges(list(names), list(graph))
+    # The compiled study's identification of the structure and query (the same product a
+    # study derives before it estimates), under a fresh execution context.
+    summary = _identify_structure(
+        structure,
+        "average_effect",
         query.treatment,
         query.outcome,
         identifier=identifier,
+        estimand_method=True,
     )
+    if isinstance(summary, str):
+        raise TypeError("native identification returned details where a summary was requested")
+    status, method, adjustment = summary
     return IdentifyResult(
         status=status, method=method, adjustment_set=list(adjustment), query=query
     )
@@ -357,9 +475,7 @@ def _wrap_prepared_response(
 ) -> CausalResponseView:
     """Build a :class:`CausalResponseView` from a prepared-response native DTO."""
     execution = None if prepared is None else prepared._native.snapshot()
-    slots = (
-        None if execution is None else ReasoningSlots.from_contract(execution.execution_contract())
-    )
+    slots = _execution_slots(execution)
     from typing import cast
 
     response = (
@@ -394,6 +510,30 @@ def _wrap_prepared_response(
         method = "response.backdoor"
         identify_op = "identify.response"
         validation = None
+    # Refuter states that ran on this response (derivative, temporal or class-aware
+    # intervention level, all unsupported) replace the "skipped" placeholder.
+    reports = raw.refutation_reports() if hasattr(raw, "refutation_reports") else []
+    if reports:
+        import math
+
+        scoped_checks = (
+            execution is not None
+            and getattr(execution, "response_checks_are_scoped", lambda: False)()
+        )
+        validation = ResponseValidationView(
+            whole_target=not scoped_checks,
+            checks=tuple(
+                ResponseValidationCheck(
+                    id=name,
+                    status="passed" if passed else "failed",
+                    statistic=float(refuted) if math.isfinite(refuted) else None,
+                    threshold=None,
+                    detail=("completion-level check; " if scoped_checks else "")
+                    + (failure or ("informative check" if informative else "uninformative check")),
+                )
+                for name, passed, informative, _original, refuted, failure in reports
+            ),
+        )
     certificate_json = getattr(raw, "certificate_json", None)
     envelope = None
     if getattr(raw, "identified_mass", None) is not None:
@@ -418,6 +558,15 @@ def _wrap_prepared_response(
                     "caller_supplied_class_prior",
                 ],
                 raw.weight_basis,
+            ),
+            aggregation_policy=cast(
+                Literal[
+                    "same_estimand_weighted_mean",
+                    "identified_set_envelope",
+                    "graph_dependent_atoms",
+                ]
+                | None,
+                getattr(raw, "aggregation_policy", None),
             ),
             atom_keys=tuple(raw.atom_keys),
             atom_weights=tuple(raw.atom_weights),
@@ -478,9 +627,9 @@ def _wrap_prepared_response(
         envelope=envelope,
         validation=validation,
         evidence_status=getattr(raw, "evidence_status", None),
-        allowlist_reason=getattr(raw, "allowlist_reason", None),
-        allowlist_parent=getattr(raw, "allowlist_parent", None),
         diagnostics=tuple(getattr(raw, "diagnostics", ()) or ()),
+        missing_data=_missing_data_from_raw(raw, prepared),
+        interval_bindings=_interval_bindings_from_raw(raw),
         _prepared=prepared,
         _execution=execution,
         _raw=raw,
@@ -494,6 +643,11 @@ def _wrap_prepared_response(
 
 
 def _prepared_columns(data: Any) -> tuple[list[str], list[Any], bool]:
+    from ._table_snapshot import Table
+
+    if isinstance(data, Table):
+        names, columns = data._native_columns()
+        return names, columns, False
     arrow = try_as_arrow_c_columns(data)
     if arrow is not None:
         names, columns = arrow
@@ -503,7 +657,10 @@ def _prepared_columns(data: Any) -> tuple[list[str], list[Any], bool]:
 
 
 _PreparedQuery = (
-    AverageEffect
+    TemporalQuery
+    | TemporalConditionalPulse
+    | TemporalConditionalSustained
+    | AverageEffect
     | ResponseCurve
     | ConditionalEffect
     | PathSpecificEffect
@@ -526,6 +683,7 @@ _PreparedQuery = (
     | ExactTransportQuery
     | StatisticalTransportQuery
     | TransportResponseGridQuery
+    | TrialAipwQuery
     | InterferenceQuery
     | RandomizedEffect
     | ComplierEffect
@@ -541,13 +699,20 @@ _PreparedQuery = (
     | StaggeredAdoption
     | SyntheticControl
     | SyntheticDifferenceInDifferences
+    | StaggeredRollout
+    | CovariateAdjustedDiD
     | FuzzyRegressionDiscontinuity
     | RegressionKink
     | SharpRegressionDiscontinuity
     | SurvivalOutcome
     | CompetingRisksOutcome
     | LongitudinalRegime
+    | SequentialContrast
+    | PeriodHistoryMatch
+    | IvBounds
+    | Association
     | PolicyProgramValue
+    | TemporalDesignQuery
 )
 
 
@@ -593,7 +758,7 @@ def _frame_payload(
             list(data.columns),
             {
                 "kind": "events",
-                "event_times_ns": [int(t) for t in data.event_times_ns],
+                "event_times_ns": data._index,
                 "align_interval_ns": int(data.align_interval_ns),
             },
         )
@@ -604,7 +769,7 @@ def _frame_payload(
             {
                 "kind": "panel",
                 "unit_columns": [list(cols) for cols in data.unit_columns],
-                "unit_ids": [int(i) for i in data.unit_ids],
+                "unit_ids": list(data.unit_ids),
             },
         )
     if isinstance(data, MultiEnvFrame):
@@ -637,9 +802,11 @@ def _panel_did_payload(
     if query.cluster is not None:
         required += (query.cluster,)
     raw = read_columns(data, required, what="panel DiD")
-    subjects = tuple(str(value) for value in raw[query.subject])
+    subjects = identifier_strings(raw[query.subject], f"subject={query.subject!r}")
     clusters = (
-        subjects if query.cluster is None else tuple(str(value) for value in raw[query.cluster])
+        subjects
+        if query.cluster is None
+        else identifier_strings(raw[query.cluster], f"cluster={query.cluster!r}")
     )
     if any(not value.strip() for value in (*subjects, *clusters)):
         raise CausalValueError("subject and cluster IDs must be non-empty")
@@ -698,9 +865,11 @@ def _staggered_payload(
     if query.cluster is not None:
         required += (query.cluster,)
     raw = read_columns(data, required, what="staggered DiD")
-    subjects = tuple(str(value) for value in raw[query.subject])
+    subjects = identifier_strings(raw[query.subject], f"subject={query.subject!r}")
     clusters = (
-        subjects if query.cluster is None else tuple(str(value) for value in raw[query.cluster])
+        subjects
+        if query.cluster is None
+        else identifier_strings(raw[query.cluster], f"cluster={query.cluster!r}")
     )
     if any(not value.strip() for value in (*subjects, *clusters)):
         raise CausalValueError("subject and cluster IDs must be non-empty")
@@ -724,7 +893,7 @@ def _synthetic_control_payload(
     from .quasi import _integer_column
 
     raw = read_columns(data, (query.outcome, query.unit, query.period), what="synthetic-control")
-    units = tuple(str(value) for value in raw[query.unit])
+    units = identifier_strings(raw[query.unit], f"unit={query.unit!r}")
     if any(not value.strip() for value in units):
         raise CausalValueError("unit IDs must be non-empty")
     periods = tuple(_integer_column(raw[query.period], "period", minimum=1))
@@ -762,6 +931,60 @@ def _longitudinal_regime_payload(
     return ingest_columns({query.outcome: outcome})
 
 
+def _sequential_contrast_payload(
+    data: Any, query: SequentialContrast
+) -> tuple[list[str], list[Any], dict[str, Any]]:
+    """The numeric columns of the contrast and the fold of every row, frozen at prepare."""
+    required = (
+        query.outcome,
+        query.first_treatment,
+        query.second_treatment,
+        *query.baseline,
+        *query.intermediate,
+    )
+    raw = read_columns(data, required, what="sequential contrast")
+    rows = len(raw[query.outcome])
+    if isinstance(query.folds, int):
+        fold_of_row = tuple(row % query.folds for row in range(rows))
+        fold_count = query.folds
+    else:
+        fold_of_row = tuple(
+            _validate_count(fold, f"folds[{index}]", minimum=0, type_error=CausalValueError)
+            for index, fold in enumerate(query.folds)
+        )
+        if len(fold_of_row) != rows:
+            raise CausalValueError("folds must give one fold per row of the data")
+        fold_count = max(fold_of_row) + 1
+    names, columns = ingest_columns({name: raw[name] for name in required})
+    return names, columns, {"fold_of_row": fold_of_row, "fold_count": fold_count}
+
+
+def _history_match_payload(data: Any, query: PeriodHistoryMatch) -> tuple[list[str], list[Any]]:
+    """The numeric columns of the within-period history match."""
+    required = [query.outcome, query.treated, *query.history]
+    required.extend(name for name in (query.period, query.weight) if name is not None)
+    raw = read_columns(data, tuple(required), what="history match")
+    return ingest_columns({name: raw[name] for name in required})
+
+
+def _iv_bounds_payload(data: Any, query: IvBounds) -> tuple[list[str], list[Any]]:
+    """The numeric columns of the binary-instrument bounds study."""
+    required = [query.outcome, query.treatment, query.instrument]
+    if query.weight is not None:
+        required.append(query.weight)
+    raw = read_columns(data, tuple(required), what="IV bounds")
+    return ingest_columns({name: raw[name] for name in required})
+
+
+def _association_payload(data: Any, query: Association) -> tuple[list[str], list[Any]]:
+    """The columns of the noncausal association, in the order the query declares them."""
+    required = [query.outcome, *query.predictors, *query.conditioning]
+    if query.weight is not None:
+        required.append(query.weight)
+    raw = read_columns(data, tuple(required), what="association")
+    return ingest_columns({name: raw[name] for name in required})
+
+
 def _inference_wire(inference: Frequentist | Bayesian) -> dict[str, Any]:
     if isinstance(inference, Frequentist):
         return {"mode": "frequentist", "prior_scale": 10.0}
@@ -784,6 +1007,15 @@ def _inference_wire(inference: Frequentist | Bayesian) -> dict[str, Any]:
     if "draw_controls" in kw:
         # Sent only when requested, so routes with a closed inference vocabulary refuse it.
         wire["draw_controls"] = kw["draw_controls"]
+    if "white_innovation" in kw:
+        wire["white_innovation"] = kw["white_innovation"]
+    if "predictive_replicates" in kw:
+        wire["predictive_replicates"] = kw["predictive_replicates"]
+    if "design_model" in kw:
+        wire["design_model"] = kw["design_model"]
+    if "count_prior" in kw:
+        # Sent only when declared: a Beta or Gamma prior is read by the conjugate count routes.
+        wire["count_prior"] = kw["count_prior"]
     return wire
 
 
@@ -796,6 +1028,7 @@ def _accept_live_discovery(
     seed: int,
     threads: int | None,
     controls: _Controls,
+    execution: Execution | None = None,
 ) -> Any:
     """Run a live discovery config once and accept it through its review gate.
 
@@ -817,8 +1050,9 @@ def _accept_live_discovery(
     labelled = {"regimes": regimes} if isinstance(discovery, RPCMCI) else {}
     accepted = discovery.accept(
         data,
-        seed=seed,
-        threads=threads,
+        execution=execution
+        if execution is not None
+        else Execution(seed=seed, threads=threads, cancel=token),
         accept_discovered=accept_discovered,
         **labelled,
     )
@@ -841,7 +1075,7 @@ _PrepareRoute = importlib.import_module("._prepare_route", __package__)._Prepare
 def _check_response_observation(query: Any, inference: Any) -> None:
     """Observation mechanism and its assumptions on a response.
 
-    A declared target population is licensed by the Rust study builder, which
+    A declared target population is supported by the Rust study builder, which
     refuses it with ``population_not_estimable`` on every response route.
     """
     from .observation import Complete
@@ -865,17 +1099,18 @@ _PreparedResult = (
     | ExactTransportDistribution
     | StatisticalTransportDistribution
     | TransportResponseGrid
+    | LearnedTrialEstimate
     | PolicyProgramResult
 )
 
 ResultT = TypeVar("ResultT", covariant=True)
 
 
-class PreparedAnalysis(Generic[ResultT]):
-    """Compile-once / re-estimate-many handle for licensed analysis cells.
+class _PreparedEngine(Generic[ResultT]):
+    """Compile-once / re-estimate-many handle for supported analysis cells.
 
     **Frozen at prepare:** schema (names, types, order); graph, accepted graph,
-    or licensed graph-posterior atoms and weights; query identity; identifier;
+    or supported graph-posterior atoms and weights; query identity; identifier;
     estimator and its configuration; validation suite, custom validators and
     replicate / draw budgets; observation / transport / interference
     assumptions; panel, multi-environment, or event data layout.
@@ -888,17 +1123,28 @@ class PreparedAnalysis(Generic[ResultT]):
     **Refute click:** AverageEffect and scalar Dag ``InterventionResponse``.
     :meth:`refute` raises ``CausalUnsupportedError``, prefixed with the
     matrix's own wire id for the cell: ``not_applicable:`` for ResponseCurve
-    and for temporal / class-aware InterventionResponse (those remain
-    function-valued or envelope-mixed surfaces). ConditionalEffect and Dag
-    InterventionResponse cheap/full run the scalar ATE-shaped suite.
+    (function-valued), ``refused:`` for temporal / class-aware
+    InterventionResponse (not built; the refusal names the next attempt).
+    ConditionalEffect and Frequentist Dag InterventionResponse cheap/full run
+    the scalar ATE-shaped suite; Bayesian Dag InterventionResponse cheap/full
+    run the Bayesian refuter state (plugin-level suite on the posterior-mean
+    level plus predictive checks and, under full, prior sensitivity), which is
+    unsupported.
 
     **Re-prepare required:** any frozen field change, including schema mismatch.
 
-    Arrow CDI / stream inputs may be borrowed without copying. Keep their
-    exported buffers unchanged while this handle retains them, including any
-    writable NumPy aliases backing Arrow arrays. To replace observations, use
-    new backing buffers and call :meth:`refresh`; ordinary mappings of NumPy
-    columns are copied during ingest.
+    The handle owns its observations. NumPy columns and Arrow CDI / stream
+    inputs are copied into library-owned, immutable storage when the study is
+    prepared, rebound or clicked, so later writes to the source arrays (including
+    writable NumPy arrays backing Arrow buffers) never change this study's
+    results, and the recorded data identity stays the identity of the bytes it
+    reads. Each copy is admitted against the execution's ``memory_bytes`` before it is made
+    and stays charged until the handle's table is dropped. To bind other observations, use
+    ``rebind``. Only a call that does not
+    retain its input (an ``antecedent.data.load_float64_arrow_c_columns`` probe)
+    or an explicit ``antecedent.data.table(..., borrow=True)`` snapshot may borrow
+    Arrow buffers; the latter makes the caller responsible for keeping them
+    unchanged.
 
     ``analyze`` is ``prepare(...).estimate()``; its result retains this handle
     as ``result.study``. For streaming append + incremental OLS, use
@@ -957,21 +1203,24 @@ class PreparedAnalysis(Generic[ResultT]):
         # Declared treatment labels of a label-coded binary treatment; later tables are
         # encoded by the same declaration before ingest.
         self._treatment_labels: TreatmentLabels | None = None
+        # Column names a declared weighted target population's covariates index into.
+        self._weighted_target_names: tuple[str, ...] | None = None
         self._seed = seed
         self._threads = threads
         self._controls = controls or _Controls()
         self._cancelled = False
         # Set by transport/_day1.py::prepare_transport when identification is
         # deferred (no native execution yet): the frozen inputs needed to
-        # re-derive identification (inspect()) or re-bind data (refresh())
+        # re-derive identification (inspect()) or re-bind data (rebind())
         # without one. Absent for every non-transport study.
         self._transport_stage: TransportStage | None = None
         self._last_result: ResultT | None = None
+        self._batch_family = False
         self._identification_view: Any = None
 
-    def _frozen(self, execution: Any) -> PreparedAnalysis[ResultT]:
+    def _frozen(self, execution: Any) -> _PreparedEngine[ResultT]:
         """A handle over one retained execution with this study's seed and controls."""
-        frozen: PreparedAnalysis[ResultT] = PreparedAnalysis(
+        frozen: _PreparedEngine[ResultT] = _PreparedEngine(
             execution,
             kind=self._kind,
             query=self._query,
@@ -984,8 +1233,10 @@ class PreparedAnalysis(Generic[ResultT]):
             column_names=self._column_names,
         )
         for name in (
+            "_batch_family",
             "_identifier_bindings",
             "_treatment_labels",
+            "_weighted_target_names",
             "_preparation_request",
             "_named_design_bindings",
             "_declared_query",
@@ -1038,6 +1289,7 @@ class PreparedAnalysis(Generic[ResultT]):
         query: _PreparedQuery,
         graph: Dag | Sequence[tuple[str, str]] | Any | None = None,
         discovery: Any | None = None,
+        imputations: Sequence[Any] | None = None,
         inference: Frequentist | Bayesian | TransportInference | None = None,
         identifier: str | Identifier | None = None,
         estimator: str | Estimator | Any | None = None,
@@ -1057,11 +1309,19 @@ class PreparedAnalysis(Generic[ResultT]):
         accept_discovered: bool = True,
         regimes: Sequence[int] | None = None,
         provider: Any | None = None,
-        controls: TransportControls | None = None,
+        controls: _TransportLimits | None = None,
         participant: str | None = None,
         missing: str | MissingPolicy | None = None,
-    ) -> PreparedAnalysis[_PreparedResult]:
-        """Compile a durable plan for a licensed analysis cell.
+        sampling_design: Literal[
+            "independent_subject_trajectories", "clustered_panel", "dependent_time_series"
+        ]
+        | None = None,
+        data_diagnostics: Any = True,
+        retain_joint_horizons: bool = False,
+        on_refusal: Literal["refuse", "describe"] = "refuse",
+        evidence_candidates: Sequence[Any] | None = None,
+    ) -> _PreparedEngine[_PreparedResult] | PreparedPolicyAnalysis:
+        """Compile a durable plan for a supported analysis cell.
 
         Every argument either reaches the compiled study or is refused with a
         reason code; none is dropped. Omitted ``refute`` / ``bootstrap`` /
@@ -1085,13 +1345,17 @@ class PreparedAnalysis(Generic[ResultT]):
         ``latency`` tier's replicate count from the omitted-default table
         (``antecedent._native.omitted_defaults()``), as Pulse / Sustained do;
         ``0`` publishes the point surface with no band and an
-        ``estimate.temporal_response.band_withheld`` warning. Every other
+        ``estimate.temporal_response.no_band_method`` warning. Every other
         prepared response refuses a positive ``bootstrap``. Pulse / Sustained /
         TemporalMediation prepare on a ``TemporalDag`` or lagged edge list; a
         Frequentist ``TemporalMediationEffect`` with ``bootstrap=None`` follows the
         same ``latency`` tier for its shared circular-block replicates.
+        ``imputations`` is a sequence of completed tables (series for ``DbnPosterior``) beside a
+        posterior-search ``discovery=``: the search is pooled across them in the engine and the
+        study mixes over the pooled posterior (see :mod:`antecedent.discovery`).
+
         ``discovery=ExactDagPosterior()`` / ``DbnPosterior()`` / a constructed
-        ``GraphPosterior`` compiles the licensed graph-posterior cells
+        ``GraphPosterior`` compiles the supported graph-posterior cells
         (AverageEffect / ConditionalEffect / ResponseCurve / one-coordinate
         InterventionResponse on DAG, CPDAG, PAG, and ADMG atoms; Pulse /
         Sustained / TemporalMediationEffect / temporal ResponseCurve /
@@ -1111,7 +1375,7 @@ class PreparedAnalysis(Generic[ResultT]):
 
         ``data`` may be a table, a series, or an ``antecedent.data`` panel /
         multi-environment / event frame; frames compile on the matching Rust
-        data modality for every query it licenses and are refused otherwise.
+        data modality for every query it supports and are refused otherwise.
 
         ``cancel`` / ``on_progress`` apply to prepare-time identification and to
         every estimate click; ``on_stage`` streams the stages of each click on
@@ -1120,8 +1384,8 @@ class PreparedAnalysis(Generic[ResultT]):
 
         ``PolicyProgramValue(programs, outcome, n_draws=...)`` with ``graph=Dag(...)`` (or an
         edge list) prepares a policy question: the structural model is fitted on ``data`` once,
-        the program is compiled and the licence of each route resolved once, and every
-        ``estimate`` / ``refresh`` reruns the policy value without compiling the program again
+        the program is compiled and the support of each route resolved once, and every
+        ``estimate`` reruns the policy value without compiling the program again
         (``handle.preparation`` is the receipt). Its result carries the support decision, the
         contract and the provenance record, and equals ``policy_value`` on the same model and
         seed. Estimand-only options (``discovery``, ``estimator``, ``refute``, ...) are refused.
@@ -1132,21 +1396,89 @@ class PreparedAnalysis(Generic[ResultT]):
         panel and temporal routes refuse a missing value until a policy is declared. A
         policy the route cannot execute is refused when the study is built, and every
         result carries ``missing_data`` (policy, assumption and row accounting).
+
+        ``sampling_design=`` declares once how the rows were sampled:
+        ``"independent_subject_trajectories"`` (resampled and split by whole subject, never by
+        row), ``"clustered_panel"`` (by whole cluster) or ``"dependent_time_series"``
+        (contiguous blocks, split with an embargo). Every estimator of the study that
+        bootstraps or splits is held to it, and a request the design does not allow, such as a
+        row bootstrap under a trajectory design, is refused with a sampling-design error. The
+        declaration is part of the study's data identity. A name that is not one of the three
+        raises :class:`CausalValueError`. A ``"clustered_panel"`` or ``"dependent_time_series"``
+        declaration with the bootstrap off is honoured only where the analytic error reads it: an
+        average effect through a regression, weighting or AIPW estimator whose ``se`` is the
+        cluster, multiway or panel-HAC error (panel) or Newey-West or panel-HAC error (series).
+        Any other estimator or query is refused (``option_not_applicable``), as are matching and
+        instrumental estimators, which read no cluster or serial dependence.
+
+        ``retain_joint_horizons=True`` keeps, for a temporal ``ResponseCurve`` or
+        ``InterventionResponse``, the replicates that refit every horizon together (the joint
+        block-bootstrap replicates under Frequentist inference, which needs ``bootstrap=``, or
+        the block-weight posterior draws under Bayesian inference). The result's
+        ``horizon_draws(dose_index)`` reads them back, so a quantity built from several horizons
+        keeps their dependence. Any other query refuses the option.
         """
+        data = coerce_table_source(data)
+        if retain_joint_horizons and not (
+            isinstance(query, (ResponseCurve, InterventionResponse))
+            and getattr(query, "is_temporal", False)
+        ):
+            raise CausalUnsupportedError(
+                "retain_joint_horizons= keeps the replicates coupled across the horizons of a "
+                "temporal ResponseCurve or InterventionResponse; this query has no horizons",
+                reason_code="option_not_applicable",
+            )
         from .transport import ExactTransportData, StatisticalTransportData
         from .transport._day1 import prepare_transport, refuse_transport_only_kwargs
-        from .transport.advanced import (
+        from .transport._impl import (
             ExactTransportQuery,
             StatisticalTransportQuery,
             TransportResponseGridQuery,
-            prepare_exact,
-            prepare_response_grid,
-            prepare_statistical,
         )
 
         refuse_transport_only_kwargs(
             query, provider=provider, inference=inference, controls=controls
         )
+        if on_refusal not in ("refuse", "describe"):
+            raise CausalValueError(
+                f"on_refusal={on_refusal!r} is not a refusal handling; use 'refuse' or 'describe'",
+                reason_code="invalid_argument",
+            )
+        if on_refusal != "describe" and evidence_candidates is not None:
+            raise CausalUnsupportedError(
+                "evidence_candidates= feed the descriptive fallback; pass on_refusal='describe' "
+                "to run it or drop the candidates",
+                reason_code="option_not_applicable",
+            )
+        if (on_refusal != "refuse" or evidence_candidates is not None) and (
+            isinstance(
+                query,
+                (
+                    PolicyProgramValue,
+                    Transport,
+                    TransportResponseGridQuery,
+                    StatisticalTransportQuery,
+                    ExactTransportQuery,
+                ),
+            )
+            or isinstance(data, (ExactTransportData, StatisticalTransportData))
+        ):
+            raise CausalUnsupportedError(
+                "on_refusal='describe' runs a descriptive fallback on a refused tabular study; "
+                "this query is bound to its own design or evidence and has no such fallback",
+                reason_code="option_not_applicable",
+            )
+        if imputations is not None:
+            from .discovery import pool_search_over_imputations
+            from .execution import Execution as _Execution
+
+            if discovery is None or graph is not None:
+                raise CausalValueError(
+                    "imputations pool a posterior search: pass discovery=<search> and no graph="
+                )
+            discovery = pool_search_over_imputations(
+                discovery, imputations, execution=_Execution(seed=seed, threads=threads)
+            )
         if isinstance(query, PolicyProgramValue):
             from ._prepared_policy import PreparedPolicyAnalysis
 
@@ -1170,6 +1502,7 @@ class PreparedAnalysis(Generic[ResultT]):
                     "max_completions": max_completions,
                     "participant": participant,
                     "missing": missing,
+                    "sampling_design": sampling_design,
                     "population_registry": population_registry,
                     "cancel": cancel,
                     "on_progress": on_progress,
@@ -1196,6 +1529,30 @@ class PreparedAnalysis(Generic[ResultT]):
                 "participant= labels the rows of a prepared table; a transport study is bound "
                 "to an evidence catalog or distributional providers, which have no table rows "
                 "to carry the labels",
+                reason_code="option_not_applicable",
+            )
+        if sampling_design is not None and sampling_design not in _SAMPLING_DESIGNS:
+            raise CausalValueError(
+                f"sampling_design={sampling_design!r} is not a declared design; use one of "
+                f"{', '.join(_SAMPLING_DESIGNS)}",
+                reason_code="invalid_argument",
+            )
+        if sampling_design is not None and (
+            isinstance(
+                query,
+                (
+                    Transport,
+                    TransportResponseGridQuery,
+                    StatisticalTransportQuery,
+                    ExactTransportQuery,
+                ),
+            )
+            or isinstance(data, (ExactTransportData, StatisticalTransportData))
+        ):
+            raise CausalUnsupportedError(
+                "sampling_design= declares how table rows were sampled; a transport study is "
+                "bound to an evidence catalog or distributional providers, which have no table "
+                "rows",
                 reason_code="option_not_applicable",
             )
         missing_policy = coerce_missing(missing)
@@ -1260,12 +1617,11 @@ class PreparedAnalysis(Generic[ResultT]):
                         regimes,
                     )
                 )
-                or seed != 1
                 or not accept_discovered
             ):
                 raise CausalUnsupportedError(
                     "transport.Transport uses provider=, inference=TransportInference, "
-                    "and controls=; ordinary analyze knobs do not apply",
+                    "and query-owned evaluation bounds; physical controls belong to Execution",
                     reason_code="option_not_applicable",
                 )
             return prepare_transport(
@@ -1276,18 +1632,24 @@ class PreparedAnalysis(Generic[ResultT]):
                 inference=inference,
                 controls=controls,
                 cancel=cancel,
+                seed=seed,
             )
 
-        if isinstance(query, TransportResponseGridQuery):
-            if not isinstance(data, (ExactTransportData, StatisticalTransportData)):
-                raise ValueError("Transport grid requires explicit exact or statistical providers")
+        if isinstance(
+            query, (ExactTransportQuery, StatisticalTransportQuery, TransportResponseGridQuery)
+        ) or isinstance(data, (ExactTransportData, StatisticalTransportData)):
+            if not isinstance(
+                query, (ExactTransportQuery, StatisticalTransportQuery, TransportResponseGridQuery)
+            ):
+                raise CausalTypeError(
+                    "transport providers require a typed exact, statistical, or grid query"
+                )
             if (
                 any(
                     option is not None
                     for option in (
                         graph,
                         discovery,
-                        inference,
                         identifier,
                         estimator,
                         estimator_config,
@@ -1304,114 +1666,23 @@ class PreparedAnalysis(Generic[ResultT]):
                         regimes,
                     )
                 )
-                or seed != 1
                 or not accept_discovered
             ):
-                raise ValueError(
-                    "Transport grids use their retained graph, catalog, and inference settings"
+                raise CausalUnsupportedError(
+                    "typed transport queries retain their graph, evidence and scientific declaration",
+                    reason_code="option_not_applicable",
                 )
-            return prepare_response_grid(
-                query.identification,
-                query.catalog,
-                data,
-                at=query.at,
-                bootstrap=query.bootstrap,
-                coverage_level=query.coverage_level,
-                seed=query.seed,
-                estimator=query.estimator,
-                cancel=cancel,
-            )
-        if isinstance(query, StatisticalTransportQuery) or isinstance(
-            data, StatisticalTransportData
-        ):
-            if not isinstance(query, StatisticalTransportQuery) or not isinstance(
-                data, StatisticalTransportData
-            ):
-                raise ValueError(
-                    "Statistical transport requires StatisticalTransportData and StatisticalTransportQuery"
-                )
-            if (
-                any(
-                    option is not None
-                    for option in (
-                        graph,
-                        discovery,
-                        inference,
-                        identifier,
-                        estimator,
-                        estimator_config,
-                        refute,
-                        threads,
-                        latency,
-                        class_prior,
-                        max_completions,
-                        population_registry,
-                        on_progress,
-                        on_stage,
-                        validators,
-                        regimes,
-                    )
-                )
-                or not accept_discovered
-            ):
-                raise ValueError(
-                    "Statistical transport uses its retained graph, catalog, and inference settings"
-                )
-            statistical_prepared = prepare_statistical(
-                query.identification,
-                query.catalog,
-                data,
-                at=query.at,
-                cancel=cancel,
-                bootstrap=query.bootstrap,
-                coverage_level=query.coverage_level,
-                estimator=query.estimator,
-                seed=query.seed,
-            )
-            statistical_prepared._controls = _Controls(cancel=cancel)
-            return statistical_prepared
+            if inference is not None and not isinstance(inference, TransportInference):
+                raise CausalTypeError("transport inference requires TransportInference")
+            from .transport._day1 import _evaluation_limits
+            from .transport._impl.prepare import compile_modality
 
-        if isinstance(query, ExactTransportQuery) or isinstance(data, ExactTransportData):
-            if not isinstance(query, ExactTransportQuery) or not isinstance(
-                data, ExactTransportData
-            ):
-                raise ValueError(
-                    "Exact transport requires ExactTransportData and ExactTransportQuery"
-                )
-            if (
-                any(
-                    option is not None
-                    for option in (
-                        graph,
-                        discovery,
-                        inference,
-                        identifier,
-                        estimator,
-                        estimator_config,
-                        refute,
-                        bootstrap,
-                        threads,
-                        latency,
-                        class_prior,
-                        max_completions,
-                        population_registry,
-                        on_progress,
-                        on_stage,
-                        validators,
-                        regimes,
-                    )
-                )
-                or seed != 1
-                or not accept_discovered
-            ):
-                raise ValueError(
-                    "Exact transport uses its retained graph and evidence contract; sampled-data preparation options do not apply"
-                )
-            exact_prepared = prepare_exact(
-                query.identification, query.catalog, data, at=query.at, cancel=cancel
+            limits = controls or _TransportLimits(
+                **_evaluation_limits(query.evaluation), cancel=cancel
             )
-            exact_prepared._controls = _Controls(cancel=cancel)
-            return exact_prepared
+            return compile_modality(
+                query, data, provider=provider, inference=inference, controls=limits, seed=seed
+            )
 
         from .population import registry_wire
 
@@ -1419,7 +1690,7 @@ class PreparedAnalysis(Generic[ResultT]):
         query = coerce_query(query)
         # Label-declared treatment levels are mapped to the arm codes of the numeric
         # declared-level path here, once; the mapping is frozen with the study.
-        treatment_labels = TreatmentLabels.of(query)
+        treatment_labels = TreatmentLabels.of(query, data=data)
         if treatment_labels is not None:
             data = treatment_labels.encode(data)
             query = treatment_labels.native_query(query)
@@ -1473,18 +1744,24 @@ class PreparedAnalysis(Generic[ResultT]):
                 "already accepted (call rediscover() explicitly to replace it)"
             )
         if graph is not None and discovery is not None:
-            raise CausalValueError("PreparedAnalysis.prepare rejects both graph= and discovery=")
+            raise CausalValueError("prepare rejects both graph= and discovery=")
         if regimes is not None and not isinstance(discovery, RPCMCI):
             raise _not_applicable("regimes", "a discovery other than RPCMCI")
         if not accept_discovered and not live_discovery:
             raise _not_applicable(
                 "accept_discovered=False", "a study without live discovery (nothing to review)"
             )
+        if live_discovery and not callable(getattr(discovery, "accept", None)):
+            raise CausalTypeError(
+                "discovery= takes a graph posterior (a posterior search's run(...) result or "
+                f"GraphPosterior.from_graphs); got {type(discovery).__name__}. Next attempt: "
+                "accept a search through discovery.discover(data, method=...) and pass graph="
+            )
         if live_discovery and latency == "interactive":
             raise CausalUnsupportedError(
                 "discovery= is not on the interactive estimate path; run discovery once "
                 "(Config.accept(data) -> AcceptedGraph), then prepare(graph=..., "
-                "latency='interactive')",
+                "inference=Frequentist(profile='interactive'))",
                 reason_code="option_not_applicable",
             )
         if live_discovery:
@@ -1523,7 +1800,21 @@ class PreparedAnalysis(Generic[ResultT]):
 
         design_columns = None
         table_names: tuple[str, ...] | None = None
-        if isinstance(
+        from ._temporal_design import TEMPORAL_DESIGN_QUERIES, temporal_design_payload
+
+        if isinstance(query, TEMPORAL_DESIGN_QUERIES):
+            names, columns, design_columns = temporal_design_payload(data, query)
+            frame = None
+        elif isinstance(query, (StaggeredRollout, CovariateAdjustedDiD)):
+            from ._quasi_rollout import covariate_adjusted_payload, staggered_rollout_payload
+
+            names, columns, design_columns = (
+                staggered_rollout_payload(data, query)
+                if isinstance(query, StaggeredRollout)
+                else covariate_adjusted_payload(data, query)
+            )
+            frame = None
+        elif isinstance(
             query,
             (
                 PanelDifferenceInDifferences,
@@ -1548,11 +1839,33 @@ class PreparedAnalysis(Generic[ResultT]):
         elif isinstance(query, LongitudinalRegime):
             names, columns = _longitudinal_regime_payload(data, query)
             frame = None
+        elif isinstance(query, SequentialContrast):
+            names, columns, design_columns = _sequential_contrast_payload(data, query)
+            frame = None
+        elif isinstance(query, PeriodHistoryMatch):
+            names, columns = _history_match_payload(data, query)
+            frame = None
+        elif isinstance(query, IvBounds):
+            names, columns = _iv_bounds_payload(data, query)
+            frame = None
+        elif isinstance(query, Association):
+            names, columns = _association_payload(data, query)
+            frame = None
         else:
             names, columns, frame = _frame_payload(
-                data, analysis_columns(query, graph, estimator_config)
+                data, analysis_columns(query, graph, estimator_config, missing=missing_policy)
             )
             table_names = tuple(names) if frame is None else None
+        weighted_target = None
+        if isinstance(getattr(query, "target_population", None), WeightedPopulation):
+            if table_names is None:
+                raise CausalUnsupportedError(
+                    "a weighted target population is declared over the rows of one analysed "
+                    "table; this route (frames and design queries) reads its units from the "
+                    "design",
+                    reason_code="option_not_applicable",
+                )
+            query, weighted_target = weighted_target_declaration(query, names)
         predicates, distributions = registry_wire(population_registry)
         population = coerce_target_population(getattr(query, "target_population", None))
         options: dict[str, Any] = {
@@ -1563,13 +1876,27 @@ class PreparedAnalysis(Generic[ResultT]):
             "target_population": population,
             "population_predicates": predicates or None,
             "population_distributions": distributions or None,
+            "weighted_target": weighted_target,
             "cancel": cancel,
             "on_progress": on_progress,
             "inference": _inference_wire(inference),
             "discovery_algorithm": discovery_algorithm,
         }
+        from .data_diagnostics import _setting_json
+
+        options["data_diagnostics"] = _setting_json(data_diagnostics)
+        if retain_joint_horizons:
+            options["retain_joint_horizons"] = True
+        if on_refusal == "describe":
+            # A study refused for want of identification keeps its refusal; Rust runs the
+            # descriptive fallback on that same study and attaches it to the raised refusal.
+            from .fallback import fallback_declaration
+
+            options["fallback"] = fallback_declaration(evidence_candidates)
         if missing_policy is not None:
             options["missing"] = native_declaration(missing_policy, names)
+        if sampling_design is not None:
+            options["sampling_design"] = sampling_design
         if (query_weights := getattr(query, "weights", None)) is not None:
             # A design query that declares sampling weights: one weight per original row,
             # frozen like a cluster column so a refreshed table with other weights is refused.
@@ -1623,6 +1950,10 @@ class PreparedAnalysis(Generic[ResultT]):
         )
         prepared._identifier_bindings = identifier_bindings
         prepared._treatment_labels = treatment_labels
+        transport_target = isinstance(query, TransportQuery) and query.target is not None
+        prepared._weighted_target_names = (
+            tuple(names) if weighted_target is not None or transport_target else None
+        )
         if on_stage is not None and not native.streams_stages():
             raise CausalUnsupportedError(
                 "on_stage streams identify, estimate_point, uncertainty and validate for one "
@@ -1631,7 +1962,7 @@ class PreparedAnalysis(Generic[ResultT]):
                 "several identifications, so it has no such stages (use on_progress)",
                 reason_code="stage_stream_unavailable",
             )
-        return cast(PreparedAnalysis[_PreparedResult], prepared)
+        return cast(_PreparedEngine[_PreparedResult], prepared)
 
     def export_artifact(
         self,
@@ -1662,7 +1993,7 @@ class PreparedAnalysis(Generic[ResultT]):
         if no claim was produced."""
         if self._transport is not None:
             # A transport handle retains its previous claim through a cancelled
-            # click (every refresh is atomic) and refuses on its own when it
+            # click (every snapshot change is atomic) and refuses on its own when it
             # holds none, so the native export decides.
             return self._native.export()
         if getattr(self, "_cancelled", False):
@@ -1677,59 +2008,61 @@ class PreparedAnalysis(Generic[ResultT]):
         """Support-matrix structure axis frozen at prepare (`explicit` or `accepted`)."""
         return str(self._native.plan_summary().get("structure_source", "explicit"))
 
-    def checked_static_dag_response_info(self) -> dict[str, Any] | None:
-        """Inspect the frozen checked DAG response query and procedure, if present.
+    def plan_view(self) -> ProgramPlanView:
+        """Every layer of the program this handle executes, read before any estimate.
 
-        The returned mapping is read-only evidence from the prepared native handle;
-        it remains available after the original query and graph objects are dropped.
+        The view states the scientific problem, the identification product
+        (status, assumptions, estimand and adjustment set, unresolved
+        obligations, retained products), the statistical program, the evidence
+        and decision program, the physical plan (operators, quoted design width
+        or why there is none, byte estimates) and the uncertainty and claim the
+        execution must publish, with the lowered program identity and the
+        support cell. ``operation`` names the sealed operation preparation
+        retained and carries its inspection record. Reading it identifies, fits
+        and scans nothing; :meth:`inspect` and :meth:`preflight` are unchanged.
         """
-        info = self._native.checked_static_dag_response_info()
-        return None if info is None else dict(info)
+        native = getattr(self, "_native", None)
+        transport = getattr(self, "_transport", None)
+        if transport is not None or native is None or not hasattr(native, "plan_view_json"):
+            raise CausalUnsupportedError(
+                "This handle executes no lowered study program, so it has no plan view.",
+                reason_code="plan_view_unavailable",
+            )
+        return ProgramPlanView.from_json(native.plan_view_json())
 
-    def checked_conditional_effect_info(self) -> dict[str, Any] | None:
-        """Inspect the retained DAG conditional target, procedure, and bound rows."""
-        info = self._native.checked_conditional_effect_info()
-        return None if info is None else dict(info)
+    def report(self, format: Literal["markdown", "html"] = "markdown") -> str:
+        """A readable report of this handle, as Markdown or one self-contained HTML page.
 
-    def checked_static_mediation_info(self) -> dict[str, Any] | None:
-        """Inspect the retained static mediation contrast, graph, and procedure."""
-        info = self._native.checked_static_mediation_info()
-        return None if info is None else dict(info)
+        The report restates the records the handle holds: after an estimate, the
+        executed claim (its kind, value, domains, calibration slot and evidence) with
+        the contract it ran under; before one, the prepared contract alone. It carries
+        the identification, the assumptions and obligations, the diagnostics, the
+        uncertainty axes, the support cell, the refusals and limits the operation
+        report names, and the plan view of the program.
 
-    def checked_bayesian_dag_ate_info(self) -> dict[str, Any] | None:
-        """Inspect the retained Bayesian DAG ATE target, backend, and prior source."""
-        info = self._native.checked_bayesian_dag_ate_info()
-        return None if info is None else dict(info)
-
-    def checked_graph_posterior_effect_info(self) -> dict[str, Any] | None:
-        """Inspect frozen graph atoms, weights, and the selected effect procedure."""
-        info = self._native.checked_graph_posterior_effect_info()
-        return None if info is None else dict(info)
-
-    def checked_temporal_effect_info(self) -> dict[str, Any] | None:
-        """Inspect the retained temporal contrast, graph, and estimator choice."""
-        info = self._native.checked_temporal_effect_info()
-        return None if info is None else dict(info)
-
-    def checked_temporal_response_info(self) -> dict[str, Any] | None:
-        """Inspect the frozen temporal response grid, horizons, and uncertainty method."""
-        info = self._native.checked_temporal_response_info()
-        return None if info is None else dict(info)
+        The report computes nothing: every number is a value one of those records
+        holds (printed to at most twelve significant digits), the wording is fixed
+        text chosen by the records' status tags, and the same records render to the
+        same bytes. The HTML carries no script, loads no resource and escapes every
+        value. Rendering identifies, fits and scans nothing; it neither runs an
+        estimate nor changes this handle.
+        """
+        if format not in ("markdown", "html"):
+            raise CausalValueError(f"unknown report format {format!r}; use 'markdown' or 'html'")
+        native = getattr(self, "_native", None)
+        transport = getattr(self, "_transport", None)
+        if transport is not None or native is None or not hasattr(native, "report"):
+            raise CausalUnsupportedError(
+                "This handle executes no lowered study program, so it has no plan view to "
+                "report from.",
+                reason_code="plan_view_unavailable",
+            )
+        return str(native.report(format))
 
     @property
     def evidence_status(self) -> str | None:
-        """`licensed` or `allowed_unlicensed`, or ``None`` if the query is off-axis."""
+        """`supported` or `not_supported`, or ``None`` if the query is off-axis."""
         raw = self._native.plan_summary().get("evidence_status")
-        return str(raw) if raw is not None else None
-
-    @property
-    def allowlist_reason(self) -> str | None:
-        raw = self._native.plan_summary().get("allowlist_reason")
-        return str(raw) if raw is not None else None
-
-    @property
-    def allowlist_parent(self) -> str | None:
-        raw = self._native.plan_summary().get("allowlist_parent")
         return str(raw) if raw is not None else None
 
     @property
@@ -1763,7 +2096,9 @@ class PreparedAnalysis(Generic[ResultT]):
         return self._identification_view
 
     @describe_refusal
-    def reprepare(self, data: Any, *, query: Any = _UNSET) -> PreparedAnalysis[Any]:
+    def reprepare(
+        self, data: Any, *, query: Any = _UNSET
+    ) -> _PreparedEngine[Any] | PreparedPolicyAnalysis:
         """Resolve the original declarations against a new table into a new study."""
         request = replay_declaration(getattr(self, "_preparation_request", {}))
         if not request:
@@ -1839,7 +2174,7 @@ class PreparedAnalysis(Generic[ResultT]):
             replace(
                 ReasoningSlots.from_contract(dict(self._native.contract())),
                 answer=Answer("unavailable", detail="not_executed"),
-                calibration=CalibrationInfo(status="unavailable", reason="not_executed"),
+                calibration=CalibrationInfo(status="not_measured", reason="not_executed"),
             )
         )
         identification = self.identification
@@ -1933,18 +2268,6 @@ class PreparedAnalysis(Generic[ResultT]):
             kernels=raw.get("kernels") or None,
         )
 
-    def replace_snapshot(self, data: Any, *, cancel: Any = _UNSET) -> None:
-        """Replace exact-law providers and invalidate execution claims atomically."""
-        guard_design(self, data)
-        if self._transport is not None:
-            self._native.replace_snapshot(
-                self._transport.payload(data),
-                cancel=self._controls.cancel if cancel is _UNSET else cancel,
-            )
-            self._last_result = None
-            return
-        raise ValueError("Use refresh for this sampled-data modality")
-
     def _click_controls(self, cancel: Any, on_progress: Any, on_stage: Any) -> dict[str, Any]:
         """The study's retained controls, with any per-click override applied."""
         controls = self._controls
@@ -1988,6 +2311,31 @@ class PreparedAnalysis(Generic[ResultT]):
                     reason_code="invalid_argument",
                 )
             return names, columns, None
+        from ._temporal_design import TEMPORAL_DESIGN_QUERIES, temporal_design_payload
+
+        if isinstance(query, TEMPORAL_DESIGN_QUERIES):
+            names, columns, design = temporal_design_payload(data, query)
+            if design != self._design_columns:
+                raise CausalUnsupportedError(
+                    "a temporal-design refresh requires the prepared units, periods and "
+                    "recorded assignment law",
+                    reason_code="invalid_argument",
+                )
+            return names, columns, None
+        if isinstance(query, (StaggeredRollout, CovariateAdjustedDiD)):
+            from ._quasi_rollout import covariate_adjusted_payload, staggered_rollout_payload
+
+            names, columns, design = (
+                staggered_rollout_payload(data, query)
+                if isinstance(query, StaggeredRollout)
+                else covariate_adjusted_payload(data, query)
+            )
+            if design != self._design_columns:
+                raise CausalUnsupportedError(
+                    "design refresh requires the prepared unit and period row order",
+                    reason_code="invalid_argument",
+                )
+            return names, columns, None
         if isinstance(
             query,
             (
@@ -2016,6 +2364,23 @@ class PreparedAnalysis(Generic[ResultT]):
         if isinstance(query, LongitudinalRegime):
             names, columns = _longitudinal_regime_payload(data, query)
             return names, columns, None
+        if isinstance(query, SequentialContrast):
+            names, columns, design = _sequential_contrast_payload(data, query)
+            if design != self._design_columns:
+                raise CausalUnsupportedError(
+                    "sequential contrast refresh requires the prepared fold assignment",
+                    reason_code="invalid_argument",
+                )
+            return names, columns, None
+        if isinstance(query, PeriodHistoryMatch):
+            names, columns = _history_match_payload(data, query)
+            return names, columns, None
+        if isinstance(query, IvBounds):
+            names, columns = _iv_bounds_payload(data, query)
+            return names, columns, None
+        if isinstance(query, Association):
+            names, columns = _association_payload(data, query)
+            return names, columns, None
         if isinstance(query, ResponseCurve) and query.observation is not None:
             from .observation import Complete, _ensure_latent_schema_column
 
@@ -2034,11 +2399,13 @@ class PreparedAnalysis(Generic[ResultT]):
         | TransportResponseGrid
     ):
         if self._kind in ("response_curve", "intervention_response"):
-            query = self._query if isinstance(self._query, _RESPONSE_FAMILY) else None
+            target = self._query.query if isinstance(self._query, TemporalQuery) else self._query
+            query = target if isinstance(target, _RESPONSE_FAMILY) else None
             return _wrap_prepared_response(raw, query=cast(Any, query), prepared=self)
         return _wrap_ate(raw, query=self._display_query, prepared=self)
 
     def _click(self, data: Any, **kwargs: Any) -> Any:
+        data = coerce_table_source(data)
         guard_design(self, data)
         result = self._execute_click(data, **kwargs)
         self._last_result = cast(ResultT, result)
@@ -2048,7 +2415,6 @@ class PreparedAnalysis(Generic[ResultT]):
         self,
         data: Any,
         *,
-        refresh: bool,
         seed: int | None,
         threads: int | None,
         controls: dict[str, Any],
@@ -2067,7 +2433,6 @@ class PreparedAnalysis(Generic[ResultT]):
                 lambda: self._transport.execute(
                     self._native,
                     data,
-                    refresh=refresh,
                     seed=seed,
                     threads=threads,
                     controls=controls,
@@ -2110,17 +2475,13 @@ class PreparedAnalysis(Generic[ResultT]):
                     columns,
                     frame,
                     response=response,
-                    refresh=refresh,
                     seed=seed,
                     threads=threads,
                     **controls,
                 )
             )
             return self._wrap(raw)
-        if refresh:
-            fn = native.refresh_response if response else native.refresh
-        else:
-            fn = native.estimate_response if response else native.estimate
+        fn = native.estimate_response if response else native.estimate
         raw = self._run_click(lambda: fn(names, columns, seed=seed, threads=threads, **controls))
         return self._with_deferred_suite(self._wrap(raw), data, seed=seed, threads=threads)
 
@@ -2223,7 +2584,6 @@ class PreparedAnalysis(Generic[ResultT]):
             ResultT,
             self._click(
                 data,
-                refresh=False,
                 seed=seed,
                 threads=threads,
                 controls=self._click_controls(cancel, on_progress, on_stage),
@@ -2238,17 +2598,21 @@ class PreparedAnalysis(Generic[ResultT]):
         *,
         seed: int = 1,
         threads: int | None = None,
+        cancel: Any = _UNSET,
     ) -> AnalysisResult:
-        """Estimate a declared target population from frozen scores. No refit.
+        """Estimate a fixed same-row target from retained scores or adjusted means.
 
-        Requires a prepared AllObserved iid AIPW or cell-AIPW score table.
+        Accepts prepared scores or a successful retained OLS/unpenalized GLM
+        AllObserved mean with zero bootstrap and no source weights/modifiers.
+        Fitted-mean covariance keeps the original estimator construction,
+        conditional on the fixed target law; no refit or DR claim is made.
         Nonempty ``depends_on`` needs a directed graph (DAG or ADMG) so
         descendant closure can be checked. Nonconstant weights require a
         nonempty ``depends_on``.
         """
         if self._transport is not None:
             raise CausalUnsupportedError(
-                "This operation is not licensed on the prepared transport handle",
+                "This operation is not supported on the prepared transport handle",
                 reason_code="option_not_applicable",
             )
         import numpy as np
@@ -2259,6 +2623,7 @@ class PreparedAnalysis(Generic[ResultT]):
             list(depends_on),
             seed=seed,
             threads=threads,
+            cancel=self._controls.cancel if cancel is _UNSET else cancel,
         )
         return _wrap_ate(raw, prepared=self)
 
@@ -2269,6 +2634,7 @@ class PreparedAnalysis(Generic[ResultT]):
         *,
         seed: int = 1,
         threads: int | None = None,
+        cancel: Any = _UNSET,
     ) -> AnalysisResult:
         """Re-execute the row-weight retarget an exported contract carries.
 
@@ -2280,54 +2646,143 @@ class PreparedAnalysis(Generic[ResultT]):
         """
         if self._transport is not None:
             raise CausalUnsupportedError(
-                "This operation is not licensed on the prepared transport handle",
+                "This operation is not supported on the prepared transport handle",
                 reason_code="option_not_applicable",
             )
-        raw = self._native.reexecute_retarget(bytes(artifact), seed=seed, threads=threads)
+        raw = self._native.reexecute_retarget(
+            bytes(artifact),
+            seed=seed,
+            threads=threads,
+            cancel=self._controls.cancel if cancel is _UNSET else cancel,
+        )
         return _wrap_ate(raw, prepared=self)
 
+    def _staleness_payload(self, data: Any) -> tuple[list[str], list[Any]]:
+        """Every column of ``data`` (encoded like a click, never projected onto the schema)."""
+        if self._transport is not None:
+            raise CausalUnsupportedError(
+                "This operation is not supported on the prepared transport handle",
+                reason_code="option_not_applicable",
+            )
+        if self._treatment_labels is not None:
+            data = self._treatment_labels.encode(data)
+        data = drop_columns(data, self._named_design_columns)
+        present = table_column_names(data)
+        if self._column_names is not None and present is not None:
+            # Prepared columns in prepared order, then any column the plan never saw, so an
+            # added or missing column is reported and a mere reordering of the frame is not.
+            prepared = [name for name in self._column_names if name in present]
+            data = project_columns(
+                data, prepared + [name for name in present if name not in prepared], what="new"
+            )
+        return ingest_columns(data)
+
     @describe_refusal
-    def refresh(
+    def staleness(
         self,
         data: Mapping[str, Any] | Any,
         *,
-        seed: int | None = None,
+        policy: Any = None,
         threads: int | None = None,
-        cancel: Any = _UNSET,
-        on_progress: Any = _UNSET,
-        on_stage: Any = _UNSET,
-    ) -> ResultT:
-        """Replace retained data and re-estimate (controls as in :meth:`estimate`).
+    ) -> Any:
+        """Compare ``data`` with the data this study retains; a ``StalenessReport``.
 
-        Arrow inputs may be borrowed. Supply new backing buffers for changed
-        observations and keep those buffers, including writable NumPy aliases,
-        unchanged while the refreshed handle retains them.
+        The report names every diagnostic, the dependency keys the findings change, and one
+        recommendation (``reuse``, ``refresh``, ``reidentify`` or ``refuse``) with the next
+        attempt. The study is not modified. See :mod:`antecedent.drift`.
         """
-        previous_stage = self._transport_stage
-        if isinstance(self._query, Transport):
-            from .transport._day1 import catalog_from_evidence
+        from .drift import StalenessReport, _policy_json
 
-            stage: Mapping[str, Any] = previous_stage or {}
-            catalog, bound = catalog_from_evidence(self._query, data, graph=stage.get("graph"))
-            if bound is not None:
-                data = bound
-            self._transport_stage = retain({**stage, "catalog": catalog, "bound": bound})
-        try:
-            # TransportLifecycle.refresh already commits its native snapshot atomically.
-            # Keep the Python evidence view in the same transaction as that execution.
-            return cast(
-                ResultT,
-                self._click(
-                    data,
-                    refresh=True,
-                    seed=seed,
-                    threads=threads,
-                    controls=self._click_controls(cancel, on_progress, on_stage),
-                ),
+        names, columns = self._staleness_payload(data)
+        raw = self._native.staleness(
+            names, columns, policy_json=_policy_json(policy), threads=threads
+        )
+        return StalenessReport._from_json(raw)
+
+    @describe_refusal
+    def staleness_baseline(self, *, policy: Any = None, threads: int | None = None) -> Any:
+        """The sealed staleness baseline of the retained data, assessable without this study.
+
+        Pass it with new data to :func:`antecedent.staleness`.
+        """
+        from .drift import StalenessBaseline, _policy_json
+
+        if self._transport is not None:
+            raise CausalUnsupportedError(
+                "This operation is not supported on the prepared transport handle",
+                reason_code="option_not_applicable",
             )
-        except BaseException:
-            self._transport_stage = previous_stage
-            raise
+        raw = self._native.export_staleness_baseline(
+            policy_json=_policy_json(policy), threads=threads
+        )
+        return StalenessBaseline(bytes(raw))
+
+    @describe_refusal
+    def refute_target(
+        self,
+        data: Mapping[str, Any] | Any,
+        *,
+        suite: Literal["cheap", "placebo", "full"] = "full",
+        replicates: int = 30,
+        alpha: float = 0.05,
+        subset_fraction: float = 0.8,
+        negative_control_exposure: str | None = None,
+        negative_control_outcome: str | None = None,
+        mediator: str | None = None,
+        mediation_rho_bar: float = 0.1,
+        common_cause_strength: float = 0.0,
+        prior_scale_factors: Sequence[float] | None = None,
+        derivative_step: float | None = None,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> Any:
+        """Refute the target this study reports, on the whole target vector.
+
+        Estimates on ``data`` (independent rows), then runs the target-native suite of the
+        result's own target (conditional, derivative, mediation, world-valued or joint, not a
+        scalar average effect standing in for it): every refit perturbs the data and re-runs
+        this compiled program in full; the random common cause (declared in the graph with
+        ``common_cause_strength``), the alternative priors (``prior_scale_factors`` times the
+        study's prior scale) and the fitted response curve of a derivative (``derivative_step``)
+        are compiled from this study with that one change. Negative controls default to the
+        graph's candidates. Refuters the study cannot construct are returned as refusals with
+        the next attempt. A ``TargetRefutation``
+        (:mod:`antecedent.validation`); calibration is not_measured.
+        """
+        from .validation import TargetRefutation
+
+        if data is None:
+            raise CausalUnsupportedError(
+                "refute_target needs the data the study is refuted on",
+                reason_code="invalid_argument",
+            )
+        names, columns, frame = self._click_payload(coerce_table_source(data))
+        if frame is not None:
+            raise CausalUnsupportedError(
+                "refute_target perturbs independent rows; panel, event and multi-environment "
+                "frames are refused (next attempt: the route's own design checks)",
+                reason_code="option_not_applicable",
+            )
+        raw = self._native.refute_target(
+            names,
+            columns,
+            suite=suite,
+            replicates=replicates,
+            alpha=alpha,
+            subset_fraction=subset_fraction,
+            negative_control_exposure=negative_control_exposure,
+            negative_control_outcome=negative_control_outcome,
+            mediator=mediator,
+            mediation_rho_bar=mediation_rho_bar,
+            common_cause_strength=common_cause_strength,
+            prior_scale_factors=None
+            if prior_scale_factors is None
+            else [float(f) for f in prior_scale_factors],
+            derivative_step=derivative_step,
+            seed=seed,
+            threads=threads,
+        )
+        return TargetRefutation._from_json(raw)
 
     @describe_refusal
     def refute(
@@ -2339,7 +2794,7 @@ class PreparedAnalysis(Generic[ResultT]):
         threads: int | None = None,
         cancel: Any = _UNSET,
     ) -> AnalysisResult:
-        """Second-click refute against the last :meth:`estimate` / :meth:`refresh`.
+        """Second-click refute against the last :meth:`estimate`.
 
         Interactive first clicks typically use ``refute=False`` or ``cheap``;
         call this with ``suite="placebo"`` or ``"full"`` for the deferred suite.
@@ -2347,12 +2802,12 @@ class PreparedAnalysis(Generic[ResultT]):
         """
         if self._transport is not None:
             raise CausalUnsupportedError(
-                "This operation is not licensed on the prepared transport handle",
+                "This operation is not supported on the prepared transport handle",
                 reason_code="option_not_applicable",
             )
         if self._kind == "response_curve":
             raise CausalUnsupportedError(
-                "not_applicable: PreparedAnalysis.refute is AverageEffect and scalar "
+                "not_applicable: refute is AverageEffect and scalar "
                 "Dag InterventionResponse; ResponseCurve cheap/full/placebo do not denote."
             )
         if isinstance(self._query, (TransportQuery, InterferenceQuery)):
@@ -2404,21 +2859,26 @@ __all__ = [
     "PhysicalPlanView",
     "PlanView",
     "PosteriorView",
+    "ProgramPlanView",
     "PredictiveCheckReport",
-    "PreparedAnalysis",
     "PreparedBatch",
+    "BatchResult",
     "BatchRetarget",
     "RetargetClaim",
     "RetargetContrast",
+    "RetargetCost",
     "RetargetMember",
     "SimultaneousBandMember",
     "SimultaneousInterval",
     "SharedBatchDesign",
     "CandidateScreen",
+    "CellFamily",
     "PriorSensitivityReport",
     "RefutationReport",
     "ValidationView",
     "analyze_many",
+    "estimate_many",
+    "prepare_many",
     "identify",
     "mediation_effects_summary",
 ]

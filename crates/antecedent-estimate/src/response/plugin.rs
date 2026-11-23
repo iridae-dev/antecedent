@@ -2,22 +2,16 @@
 
 use std::sync::Arc;
 
-#[cfg(feature = "calibration-internal")]
 use antecedent_core::{DerivativeScale, ResponseFunctional, ResponseUncertainty, ResponseValue};
-use antecedent_core::{
-    Diagnostic, DiagnosticKind, DiagnosticSeverity, Intervention, MAX_NONPARAMETRIC_RESPONSE_DIM,
-    VariableId,
-};
+use antecedent_core::{Diagnostic, DiagnosticKind, DiagnosticSeverity, Intervention, VariableId};
 use antecedent_data::TabularData;
-#[cfg(feature = "calibration-internal")]
 use antecedent_stats::normal_ppf;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, invert_square};
 
 use crate::EstimationError;
 
 use super::{
-    ContinuousResponseEstimator, DIRECTIONAL_TREATMENT_LIMIT_REMEDY, DiscreteAtom,
-    JACOBIAN_TREATMENT_LIMIT_REMEDY, policy_support, sample::CompleteSample,
+    ContinuousResponseEstimator, DiscreteAtom, policy_support, sample::CompleteSample,
     sample::read_shared_complete_samples,
 };
 
@@ -32,13 +26,8 @@ impl ContinuousResponseEstimator {
         outcomes: &[VariableId],
         treatments: &[VariableId],
         at: &[f64],
-        limit: PluginGradientKind,
         with_influence: bool,
     ) -> Result<PluginGradientRun, EstimationError> {
-        if treatments.len() > MAX_NONPARAMETRIC_RESPONSE_DIM {
-            let (message, remedy) = limit.refusal();
-            return Err(EstimationError::unsupported_with_remedy(message, remedy));
-        }
         let samples =
             read_shared_complete_samples(data, outcomes, treatments, &self.adjustment_set)?;
         let all_treatments =
@@ -47,6 +36,7 @@ impl ContinuousResponseEstimator {
             levels: Vec::with_capacity(samples.len()),
             gradients: Vec::with_capacity(samples.len()),
             influence: Vec::new(),
+            keep: samples.first().map(|sample| sample.keep.clone()).unwrap_or_default(),
             all_treatments,
             n: samples.first().map_or(0, CompleteSample::len),
         };
@@ -65,8 +55,7 @@ impl ContinuousResponseEstimator {
 
     /// Pointwise confidence band of the Frequentist additive-GAM plug-in gradient
     /// (a [`ResponseFunctional::Jacobian`] on the identity scale, or a
-    /// [`ResponseFunctional::DirectionalDerivative`]): the closed interval route the
-    /// calibration harness measures.
+    /// [`ResponseFunctional::DirectionalDerivative`]).
     ///
     /// Each coordinate is a linear functional `c'β̂` of the target fit's
     /// coefficients (`c` the treatment-basis derivatives at `at`), so its
@@ -74,18 +63,16 @@ impl ContinuousResponseEstimator {
     /// for the intervention-response level, with no covariate-average term (the
     /// additive gradient does not depend on the adjustment covariates). The
     /// variance uses HC2 row-leverage residuals from the same penalized Gram,
-    /// accounting for unequal leverage of the spline basis. The band conditions on the fixed knots and
-    /// adjustment penalty and excludes sieve-approximation bias of a non-additive
-    /// or rough outcome surface. The public route withholds this band
-    /// (`response.derivative_interval_withheld`) until its coverage records are
-    /// measured; the returned value is the published point, bit for bit.
+    /// accounting for unequal leverage of the spline basis. The band conditions on the fixed
+    /// knots and adjustment penalty and excludes sieve-approximation bias of a non-additive or
+    /// rough outcome surface. The public Jacobian and directional-derivative routes report this
+    /// band with a calibration annotation; the value is the published point, bit for bit.
     ///
     /// # Errors
     ///
     /// The public route's refusals, a transformed Jacobian scale (no interval is
     /// constructed for it), invalid options, or a design whose penalized Gram is
     /// rank deficient.
-    #[cfg(feature = "calibration-internal")]
     #[doc(hidden)]
     pub fn plugin_gradient_interval_internal(
         &self,
@@ -99,7 +86,8 @@ impl ContinuousResponseEstimator {
         let (outcomes, treatments, at, direction) = match functional {
             ResponseFunctional::Jacobian { outcomes, treatments, at, scale } => {
                 if *scale != DerivativeScale::Identity {
-                    return Err(EstimationError::unsupported(
+                    return Err(EstimationError::unsupported_coded(
+                        antecedent_core::reason_code!("route_not_supported"),
                         "the plug-in gradient interval is constructed on the identity scale only",
                     ));
                 }
@@ -109,17 +97,27 @@ impl ContinuousResponseEstimator {
                 (outcomes, treatments, at, Some(direction))
             }
             _ => {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
                     "the plug-in gradient interval serves Jacobian and directional derivatives",
                 ));
             }
         };
-        let kind = if direction.is_some() {
-            PluginGradientKind::Directional
-        } else {
-            PluginGradientKind::Jacobian
-        };
-        let run = self.plugin_gradient_run(data, outcomes, treatments, at, kind, true)?;
+        self.plugin_gradient_band(data, outcomes, treatments, at, direction.map(|d| &d[..]))
+    }
+
+    /// The pointwise sandwich band of the plug-in gradient: the Jacobian coordinates when
+    /// `direction` is `None`, else the directional derivative.
+    pub(super) fn plugin_gradient_band(
+        &self,
+        data: &TabularData,
+        outcomes: &[VariableId],
+        treatments: &[VariableId],
+        at: &[f64],
+        direction: Option<&[f64]>,
+    ) -> Result<(ResponseValue, ResponseUncertainty), EstimationError> {
+        let level = self.options.confidence_level;
+        let run = self.plugin_gradient_run(data, outcomes, treatments, at, true)?;
         let nf = run.n as f64;
         let z = normal_ppf(0.5 + level / 2.0);
         let mut values = Vec::new();
@@ -164,6 +162,24 @@ impl ContinuousResponseEstimator {
                 draws: None,
             },
         ))
+    }
+
+    /// An additive surface's treatment gradient does not need its empirical level.
+    /// In particular, directional posterior draws need not re-evaluate treatment
+    /// splines on every observed row just to discard that level.
+    pub(super) fn plugin_gradient_only_at_fit(
+        fit: &antecedent_stats::GamFit,
+        at: &[f64],
+    ) -> Result<Vec<f64>, EstimationError> {
+        at.iter()
+            .enumerate()
+            .map(|(j, &value)| {
+                let smooth = fit.smooth_for_raw_col(j).ok_or_else(|| {
+                    EstimationError::unsupported("outcome nuisance is missing a treatment smooth")
+                })?;
+                Ok(fit.smooth_derivative(smooth, value)?)
+            })
+            .collect()
     }
 
     /// Evaluate the plug-in level and treatment gradient at `at` on a fitted GAM.
@@ -304,11 +320,8 @@ impl PluginSandwich {
     /// HC2 divides each in-sample residual by `sqrt(1 - h_ii)` before forming the
     /// functional's coefficient influence.
     fn leverage(&self) -> Result<Vec<f64>, EstimationError> {
-        let inverse = invert_square(&self.gram, self.p).ok_or_else(|| {
-            EstimationError::unsupported(
-                "response influence requires an invertible penalized design",
-            )
-        })?;
+        let inverse = invert_square(&self.gram, self.p)
+            .ok_or_else(|| EstimationError::unsupported(NOT_INVERTIBLE_PENALIZED_DESIGN))?;
         let mut out = Vec::with_capacity(self.n);
         for i in 0..self.n {
             let h = (0..self.p)
@@ -394,7 +407,7 @@ pub(super) fn intervention_plugin_influence(
                 })?;
                 (observed.iter().map(|&v| v + delta).collect(), vec![1.0 / nf; n])
             } else {
-                policy_support(iv)?
+                policy_support(iv, &smooth.knots)?
                     .into_iter()
                     .map(|atom| match atom {
                         DiscreteAtom::Level { value, weight } => (value, weight),
@@ -434,56 +447,24 @@ pub(super) fn intervention_plugin_influence(
     Ok(psi)
 }
 
-/// Which plug-in gradient query a run serves, for its refusal wording.
-#[derive(Clone, Copy)]
-pub(super) enum PluginGradientKind {
-    Jacobian,
-    Directional,
-}
-
-impl PluginGradientKind {
-    fn refusal(self) -> (&'static str, &'static str) {
-        match self {
-            Self::Jacobian => (
-                "plug-in response Jacobian supports at most two treatments",
-                JACOBIAN_TREATMENT_LIMIT_REMEDY,
-            ),
-            Self::Directional => (
-                "plug-in directional derivative supports at most two treatments",
-                DIRECTIONAL_TREATMENT_LIMIT_REMEDY,
-            ),
-        }
-    }
-}
-
 /// Plug-in levels and gradients of every outcome (and their influence on request).
 pub(super) struct PluginGradientRun {
     pub(super) levels: Vec<f64>,
     pub(super) gradients: Vec<Vec<f64>>,
     /// One entry per outcome when influence was requested, else empty. Read only
-    /// by the calibration-internal band.
-    #[cfg_attr(
-        not(feature = "calibration-internal"),
-        allow(dead_code, reason = "read only by the calibration-internal band")
-    )]
-    influence: Vec<PluginGradientInfluence>,
+    /// by the band.
+    pub(super) influence: Vec<PluginGradientInfluence>,
     pub(super) all_treatments: Vec<f64>,
+    /// Original data-frame row index of each shared complete-case row.
+    pub(super) keep: Vec<usize>,
     /// Shared complete-case row count.
-    #[cfg_attr(
-        not(feature = "calibration-internal"),
-        allow(dead_code, reason = "read only by the calibration-internal band")
-    )]
-    n: usize,
+    pub(super) n: usize,
 }
 
 /// Coefficient-sandwich influence of one outcome's gradient coordinates.
-#[cfg_attr(
-    not(feature = "calibration-internal"),
-    allow(dead_code, reason = "read only by the calibration-internal band")
-)]
-struct PluginGradientInfluence {
+pub(super) struct PluginGradientInfluence {
     /// One centred column per treatment coordinate.
-    columns: Vec<Vec<f64>>,
+    pub(super) columns: Vec<Vec<f64>>,
 }
 
 /// Influence of each plug-in gradient coordinate `∂μ̂/∂a_j (at)`.
@@ -525,7 +506,6 @@ fn plugin_gradient_influence(
 /// HC2 standard error of a centred influence column: `sqrt(Σψ²) / n` after
 /// dividing each fit residual by its own `sqrt(1 - h_ii)` in
 /// [`plugin_gradient_influence`].
-#[cfg(feature = "calibration-internal")]
 fn plugin_sandwich_se(psi: &[f64], n: f64) -> f64 {
     if !(n.is_finite() && n > 0.0) {
         return f64::NAN;
@@ -533,13 +513,28 @@ fn plugin_sandwich_se(psi: &[f64], n: f64) -> f64 {
     (psi.iter().map(|x| x * x).sum::<f64>() / (n * n)).sqrt()
 }
 
-/// Why the Frequentist plug-in gradient publishes no interval.
-pub(super) fn plugin_gradient_interval_withheld() -> Diagnostic {
+/// The refusal of the sandwich band when the penalized Gram has no inverse.
+pub(super) const NOT_INVERTIBLE_PENALIZED_DESIGN: &str =
+    "response influence requires an invertible penalized design";
+
+/// Why the plug-in gradient of a collinear design has a point and no band.
+pub(super) fn plugin_gradient_band_unavailable() -> Diagnostic {
     Diagnostic::new(
-        "response.derivative_interval_withheld",
+        "response.no_derivative_interval_method",
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Warning,
-        "no Frequentist interval is reported for this additive-GAM plug-in gradient: its coefficient-sandwich confidence band is wired for calibration but its repeated-sampling coverage is not yet measured, so the interval route stays closed and only the point value is published; Bayesian inference publishes a measured pointwise credible band for the same plug-in gradient",
+        "no Frequentist interval is reported for this additive-GAM plug-in gradient: the penalized design is rank deficient (collinear treatment columns), so the coefficient sandwich cannot be formed and only the point value is published",
+    )
+}
+
+/// Why a transformed-scale Frequentist plug-in Jacobian has no interval: the sandwich band is
+/// constructed on the identity scale only.
+pub(super) fn plugin_gradient_interval_withheld() -> Diagnostic {
+    Diagnostic::new(
+        "response.no_derivative_interval_method",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Warning,
+        "no Frequentist interval is reported for this transformed-scale additive-GAM plug-in Jacobian: its coefficient-sandwich confidence band is constructed on the identity scale only, so only the point value is published; the identity-scale Jacobian and the directional derivative report the band",
     )
 }
 
@@ -571,4 +566,46 @@ pub(super) fn intervention_plugin_warnings(target_fallback: Option<&str>) -> Vec
         ),
         fallback,
     ]
+}
+
+#[cfg(test)]
+mod gradient_only_tests {
+    use super::*;
+
+    #[test]
+    fn gradient_only_matches_level_and_gradient_for_weighted_fits() {
+        let n = 240;
+        let treatment: Vec<_> = (0..n).map(|i| (f64::from(i) * 0.37).sin()).collect();
+        let adjustment: Vec<_> = (0..n).map(|i| (f64::from(i) * 0.19).cos()).collect();
+        let outcome: Vec<_> =
+            treatment.iter().zip(&adjustment).map(|(a, x)| a * a + 0.3 * x).collect();
+        let data = TabularData::from_f64_columns([
+            ("a", treatment.as_slice()),
+            ("y", outcome.as_slice()),
+            ("x", adjustment.as_slice()),
+        ])
+        .unwrap();
+        let id = VariableId::from_raw;
+        let sample = CompleteSample::read(&data, id(1), &[id(0)], &[id(2)]).unwrap();
+        let estimator = ContinuousResponseEstimator::new([id(2)]);
+        let design = estimator.outcome_target_design(&sample).unwrap();
+        let weights: Vec<_> = (0..n).map(|i| 0.5 + f64::from(i % 3) * 0.5).collect();
+        for weights in [None, Some(weights.as_slice())] {
+            let fit =
+                ContinuousResponseEstimator::fit_outcome_target_weighted(&sample, &design, weights)
+                    .unwrap();
+            for at in [-0.5, 0.0, 0.5] {
+                let (_, expected) = ContinuousResponseEstimator::plugin_gradient_at_fit(
+                    &fit,
+                    &sample,
+                    &[at],
+                    weights,
+                )
+                .unwrap();
+                let actual =
+                    ContinuousResponseEstimator::plugin_gradient_only_at_fit(&fit, &[at]).unwrap();
+                assert_eq!(actual[0].to_bits(), expected[0].to_bits());
+            }
+        }
+    }
 }

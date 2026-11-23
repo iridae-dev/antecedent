@@ -4,4 +4,4 @@
 
 ## Expected summary
 
-Top-level keys: `canonicalization, cases, oracle, schema_version` (4 fields).
+Top-level keys: `canonicalization, cases, historical_oracle, oracle, regeneration_tolerance, schema_version` (6 fields).

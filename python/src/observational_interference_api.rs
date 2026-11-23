@@ -1,12 +1,13 @@
 //! Observational exposure contrasts with explicit network-confounding inputs.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{ExposureLevel, ExposureMapping, ExposurePropensityProvenance, VariableId};
-use antecedent_data::{NetworkData, NetworkEdge, TabularData};
-use antecedent_estimate::{
-    ObservationalExposureSpec, estimate_observational_exposure as estimate_native,
+use antecedent::estimate::{
+    NetworkData, NetworkEdge, ObservationalExposureSpec,
+    estimate_observational_exposure as estimate_native,
 };
+use antecedent::prelude::{TabularData, VariableId};
+use antecedent::query::{ExposureLevel, ExposureMapping, ExposurePropensityProvenance};
 use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 
@@ -22,7 +23,7 @@ fn estimate_observational_network_exposure(
     py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     assignment: Vec<bool>,
-    edges: Vec<(u32, u32, f64)>,
+    edges: Vec<(u64, u64, f64)>,
     clusters: Vec<u32>,
     exposure: String,
     from_level: (f64, f64),
@@ -59,7 +60,7 @@ fn estimate_observational_network_exposure(
             data,
             edges
                 .into_iter()
-                .map(|(from, to, weight)| NetworkEdge { from, to, weight })
+                .map(|(from, to, weight)| NetworkEdge::new(from, to, weight))
                 .collect::<Vec<_>>(),
         )
         .map_err(crate::py_err)?;

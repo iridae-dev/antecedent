@@ -1,34 +1,30 @@
 //! Measured Gaussian/learned transport lifecycle and unchanged feature-only candidates.
 mod enabled {
     use crate::transport_interference_api::TransportIdentificationResult;
-    use antecedent_core::reason_code;
-    use antecedent_estimate::joint_bayesian_transport::{
+    use antecedent::estimate::joint_bayesian_transport::{
         DataIdentity, GaussianPrior, JointPriors, JointTransportModel, JointTransportOptions,
         PriorProvenance, SourceData, SourceDependence, SourceSharing, TargetData,
         TransportGraphClass, VaryingBlock,
     };
-    use antecedent_estimate::learned_joint_transport::LearnedJointModel;
-    use antecedent_identify::{TransportFormula, TransportIdentification};
-    #[cfg(feature = "calibration-internal")]
-    use antecedent_io::joint_bayesian_transport_artifact::JointBayesianExpectation;
-    use antecedent_io::joint_bayesian_transport_artifact::{
+    use antecedent::estimate::learned_joint_transport::LearnedJointModel;
+    use antecedent::identify::{TransportFormula, TransportIdentification};
+    use antecedent::io::joint_bayesian_transport_artifact::JointBayesianExpectation;
+    use antecedent::io::joint_bayesian_transport_artifact::{
         DataIdentityWire, GaussianPriorWire, JointBayesianArtifactWire, JointBayesianConsumeLimits,
         PriorProvenanceWire,
     };
-    use antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactWire;
-    #[cfg(feature = "calibration-internal")]
-    use antecedent_io::learned_joint_transport_artifact::{
+    use antecedent::io::learned_joint_transport_artifact::LearnedJointArtifactWire;
+    use antecedent::io::learned_joint_transport_artifact::{
         LearnedJointConsumeLimits, LearnedJointExpectation,
     };
+    use antecedent::reason::reason_code;
     use pyo3::prelude::*;
     use serde::Deserialize;
 
-    #[cfg(feature = "calibration-internal")]
     use crate::bridge::check_declared_len;
     use crate::bridge::{MAX_DECLARED_ARTIFACT_BYTES as MAX_BYTES, check_declared_size};
 
     /// Largest sealed joint-transport artifact a consumer reads.
-    #[cfg(feature = "calibration-internal")]
     const MAX_ARTIFACT_BYTES: usize = crate::bridge::MAX_SEALED_ARTIFACT_BYTES;
     #[derive(Deserialize)]
     #[serde(deny_unknown_fields)]
@@ -68,7 +64,6 @@ mod enabled {
         max_unsupported_mass: f64,
         conflict_z_threshold: f64,
     }
-    #[cfg(feature = "calibration-internal")]
     #[derive(Default, Deserialize)]
     #[serde(deny_unknown_fields)]
     struct Expectation {
@@ -94,17 +89,12 @@ mod enabled {
     fn invalid(detail: &str) -> PyErr {
         crate::value_err_code(reason_code!("invalid_argument"), detail)
     }
-    fn io(error: antecedent_io::IoError) -> PyErr {
+    fn io(error: antecedent::io::IoError) -> PyErr {
         crate::transport_common::error(error)
     }
 
     fn check_identity(identity: &DataIdentityWire, rows: usize) -> PyResult<()> {
-        let ids: std::collections::HashSet<_> = identity.datum_ids.iter().collect();
-        if identity.snapshot_digest.trim().is_empty()
-            || identity.datum_ids.len() != rows
-            || ids.len() != rows
-            || identity.datum_ids.iter().any(|id| id.trim().is_empty())
-        {
+        if crate::bridge::invalid_joint_data_identity(identity, rows) {
             return Err(invalid("joint_transport.observation_identity_mismatch"));
         }
         Ok(())
@@ -146,7 +136,7 @@ mod enabled {
         let (id, graph, populations) = proof.original_joint_inputs();
         // A display-level graph_class cannot relabel the original certified graph.
         if (0..graph.admg.node_count()).any(|i| {
-            antecedent_graph::DenseNodeId::try_from_usize(i)
+            antecedent::graph::DenseNodeId::try_from_usize(i)
                 .is_ok_and(|node| !graph.admg.bidirected_neighbors(node).is_empty())
         }) {
             return Err(crate::refusal(
@@ -170,11 +160,11 @@ mod enabled {
                 ));
             }
         };
-        let resolve = |name: &str| -> PyResult<antecedent_core::VariableId> {
+        let resolve = |name: &str| -> PyResult<antecedent::prelude::VariableId> {
             let Some(i) = graph.names.iter().position(|n| n == name) else {
                 return Err(invalid("joint_transport.schema_mismatch"));
             };
-            Ok(antecedent_core::VariableId::from_raw(crate::fit_u32(i)?))
+            Ok(antecedent::prelude::VariableId::from_raw(crate::fit_u32(i)?))
         };
         let treatment = resolve(&request.treatment)?;
         let outcome = resolve(&request.outcome)?;
@@ -196,7 +186,7 @@ mod enabled {
         let features: Vec<u32> = request
             .features
             .iter()
-            .map(|name| resolve(name).map(antecedent_core::VariableId::raw))
+            .map(|name| resolve(name).map(antecedent::prelude::VariableId::raw))
             .collect::<PyResult<_>>()?;
         let varying = match request.varying.as_str() {
             "intercept" => VaryingBlock::Intercept,
@@ -280,7 +270,6 @@ mod enabled {
         })
     }
 
-    #[cfg(feature = "calibration-internal")]
     #[pyfunction]
     fn joint_transport_candidate(
         py: Python<'_>,
@@ -290,7 +279,7 @@ mod enabled {
     ) -> PyResult<(String, Vec<u8>)> {
         let Prepared { id, model, sources, target, options, basis_degree, .. } =
             prepare(&proof, request_json, learned)?;
-        let ctx = antecedent_core::ExecutionContext::production_default(options.seed);
+        let ctx = crate::execution_api::context(options.seed);
         crate::detach_catch(py, move || {
             if learned {
                 let model = LearnedJointModel {
@@ -374,7 +363,6 @@ mod enabled {
             crate::measured_inference_api::NativeMeasuredInference::from_io(measured)
         })
     }
-    #[cfg(feature = "calibration-internal")]
     #[pyfunction]
     fn consume_joint_transport_candidate(
         py: Python<'_>,
@@ -386,7 +374,7 @@ mod enabled {
         check_declared_size(expectation_json, MAX_BYTES, "joint transport expectation")?;
         let expected: Expectation =
             serde_json::from_str(expectation_json).map_err(|e| invalid(&e.to_string()))?;
-        let ctx = antecedent_core::ExecutionContext::production_default(0);
+        let ctx = crate::execution_api::context(0);
         py.detach(|| {
             if learned {
                 let (wire, _) = LearnedJointArtifactWire::consume_expecting(
@@ -429,7 +417,6 @@ mod enabled {
     }
     pub(super) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(joint_transport_measured, m)?)?;
-        #[cfg(feature = "calibration-internal")]
         {
             m.add_function(wrap_pyfunction!(joint_transport_candidate, m)?)?;
             m.add_function(wrap_pyfunction!(consume_joint_transport_candidate, m)?)?;

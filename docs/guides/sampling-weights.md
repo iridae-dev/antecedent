@@ -1,10 +1,34 @@
-# Sampling weights
+# Estimate with sampling weights
 
-A sampling weight `s_i` says how many population units row `i` stands for (an inverse
-inclusion probability, possibly calibrated). Declaring weights changes **what is estimated**
-and **how uncertain it is**, so every route that reads them follows one contract, and a route
-that cannot honour the contract refuses the weights (`option_not_applicable`,
-`sampling_weights.route_unsupported`) instead of ignoring them.
+Use this guide when your rows come from a survey or another sample with unequal inclusion
+probabilities, and you want the effect in the population the sample represents rather than
+among the sampled units. A sampling weight `s_i` says how many population units row `i` stands
+for (an inverse inclusion probability, possibly calibrated). You need a numeric weight column,
+or one weight per row, and a route that reads weights (the table below).
+
+```python
+import antecedent as ant
+from antecedent.estimators import LinearAdjustment
+
+result = ant.analyze(
+    data,                                   # holds columns t, y, z and the weight column w
+    graph=[("z", "t"), ("z", "y"), ("t", "y")],
+    query=ant.AverageEffect("t", "y"),
+    estimator=LinearAdjustment(weights="w"),
+)
+result.answer.value                         # the effect in the weighted population
+weights = result.value.estimate.sampling_weights
+weights.rows_used, weights.zero_weight_rows
+weights.effective_sample_size, weights.design_effect
+weights.target_population
+```
+
+Declaring weights changes **what is estimated** ([the weighted population](#what-is-estimated))
+and **how uncertain it is** ([the variance](#variance)), so every route that reads them follows
+one contract, and a route that cannot honour the contract refuses the weights
+(`option_not_applicable`, detail `sampling_weights.route_unsupported`) instead of ignoring them.
+The identifying assumptions of the query are unchanged; the weights add the assumption that
+they are the inverse inclusion probabilities of the design, up to a common scale.
 
 ## Declaring weights
 
@@ -22,20 +46,38 @@ that cannot honour the contract refuses the weights (`option_not_applicable`,
 | `RandomizedEffect` | `weights="w"` | weighted Hajek means per arm (Bernoulli and complete designs) |
 | `PanelDifferenceInDifferences` | `weights="w"` | weighted group means of the change scores (balanced panel) |
 
+The first nine rows are estimators (`antecedent.estimators`); `RandomizedEffect` and
+`PanelDifferenceInDifferences` are queries and take `weights=` themselves, as does the temporal
+`PulseEffect` (see [where weights are refused](#where-weights-are-refused)).
+`PanelDifferenceInDifferences` and `PulseEffect` accept a column name only.
+
 `weights` names a numeric column of the table passed to `analyze` / `prepare`, or gives one
 weight per row. The weights belong to the original rows: a row dropped as incomplete or outside
 the target population takes its weight with it, so a weight is never shifted onto another
-row. A named column is frozen at prepare like a cluster column, and a refreshed table whose
-weights changed is refused (`study.reprepare(data)` declares the new ones).
+row. A named column is frozen at prepare like a cluster column, and a rebound table whose
+weights changed is refused (`ant.prepare(data, ...)` declares the new ones).
 
 Rust: `with_sampling_weights(SamplingWeights::new(weights)?)` on `LinearAdjustmentAte`,
 `PropensityWeighting`, `PropensityStratification`, `PropensityMatching` and `AipwAte`; the
 randomized and panel routes read the table's observation weights
 (`TabularData::with_weights`).
 
+Only the average effect reads weights declared on its estimator. The other static effect routes
+(conditional effect, natural-direct mediation, counterfactual, mean curve, average derivative,
+intervention response, continuous dose response, regression discontinuity, the prepared temporal
+designs, synthetic control, observational survival and the policy value) have no weighted construction: a table that carries observation weights, or weights
+declared on an estimator such a route does not run, is refused with `option_not_applicable`
+(`sampling_weights.route_unsupported`) when the study is prepared or a table is rebound, never
+estimated as if the rows were unweighted. The average effect on a Dag or an ADMG with weights
+declared on `LinearAdjustmentAte` equals the same fit on rows repeated by integer weights; a
+weighted table given to it without that declaration is refused too (declare them on the
+estimator, or drop them from the table).
+
 ## What is estimated
 
-The **weighted population**: the population the declared weights represent. An average
+The **weighted population**: the population the declared weights represent. With `τ_i` the
+unit-level effect of row `i` (the difference of its potential outcomes under the two treatment
+values of the query), an average
 effect under weights is `Σ s_i τ_i / Σ s_i` for the weighted finite population and the
 corresponding functional of the super-population when rows are independent draws from a
 design with inclusion probabilities `1 / s_i`. The estimate does not speak for the sampled
@@ -60,11 +102,19 @@ finite-population correction is made.
 
 A row of weight zero stands for no population unit. It is **excluded and counted**
 (`zero_weight_rows`), and the estimate equals the one computed on the table with those rows
-deleted (exactly for the deterministic routes, except the temporal window: its block bootstrap resamples the time axis, and deleting a window would join windows that are not adjacent, so zero-weight windows stay in the sequence, contribute no score and are counted — the point estimate is unchanged, its bootstrap SE reflects the resampled time axis; the cross-fitted AIPW assigns folds from the
-original row index, so it agrees up to fold noise). A negative, NaN or infinite weight is
-refused, naming the first offending row (`sampling_weights_invalid`,
-`sampling_weights.invalid`); so are all-zero weights, a declaration that does not cover the
-table's rows, and weights with no positive row left after the other selections.
+deleted. The equality is exact for the deterministic routes, with two qualifications:
+
+- The temporal window's block bootstrap resamples the time axis, and deleting a window would
+  join windows that are not adjacent. Zero-weight windows therefore stay in the sequence,
+  contribute no score and are counted; the point estimate is unchanged and the bootstrap
+  standard error reflects the resampled time axis.
+- The cross-fitted AIPW assigns folds from the original row index, so it agrees up to fold noise.
+
+A negative, NaN or infinite weight is refused, naming the first offending row (code
+`sampling_weights_invalid`, detail `sampling_weights.invalid`; see
+[other registered refusal codes](../reference/refusal-codes.md#other-registered-refusal-codes));
+so are all-zero weights, a declaration that does not cover the table's rows, and weights with
+no positive row left after the other selections.
 
 ## Variance
 
@@ -101,7 +151,7 @@ as the independent primary sampling units.
 
 **Intervals.** Weighted and unweighted constructions have separate calibration
 keys. A sampling-weight declaration or raw standard error does not carry an
-interval license by itself. The exact estimator, population target, variance,
+interval support by itself. The exact estimator, population target, variance,
 dependence, reference distribution and functional must match a current record.
 
 The published scalar endpoint uses its reported analytic reference: normal
@@ -116,7 +166,7 @@ Rust exposes separate interval producers:
   population weights and independent homoskedastic Gaussian arm-linear outcomes,
   with conditional outcome-noise and random-target uncertainty in the population
   score. `population_score_interval` has a separately measured cluster scope;
-  that evidence does not license its unmeasured iid working-quadratic variant.
+  that evidence does not cover its iid working-quadratic variant.
 - `AipwAte`, `DmlAte` and `DrLearner::population_linear_interval`: independent
   homoskedastic Gaussian arm-linear outcomes, complete training-fit uncertainty
   and the declared projection/ridge correction.
@@ -133,7 +183,7 @@ measurement suite is `weighted_interval_calibration`; its recipes are not all
 
 ## Effective sample size
 
-`result.estimate.sampling_weights` (Rust: `EffectEstimate::diagnostics.sampling_weights`)
+`result.value.estimate.sampling_weights` (Rust: `EffectEstimate::diagnostics.sampling_weights`)
 reports `rows_used`, `zero_weight_rows`, the Kish `effective_sample_size`
 `(Σ s)² / Σ s²` of the rows used, the `weight_sum` and the Kish `design_effect`
 `rows_used / effective_sample_size`. The randomized and panel routes also carry it in a
@@ -141,6 +191,9 @@ diagnostic.
 
 ## Where weights are refused
 
+- Static effect routes other than the average effect refuse table weights and estimator
+  weights (see "Declaring weights"); so does the average effect for table weights it was not
+  told to read.
 - AIPW refuses non-mean outcome functionals. A penalized propensity (ridge, lasso, or a
   penalized fallback) reads weights: each fold's penalty is chosen by the weighted inner
   cross-validated log loss (columns standardized by weighted training moments) and every fit
@@ -155,6 +208,14 @@ diagnostic.
   is not retargetable. The DR-learner's `cate_se` and pointwise profiles are the HC0 sandwich of
   the weighted least squares. A `cluster_dml` declaration with weights takes the cluster
   sandwich of the weighted influence.
+- The frequentist temporal linear adjustment reads weights on a single window and on a sustained
+  window of any length: each lag window is weighted by the observation it ends at, and a
+  multi-step sustained contrast is the weighted least squares of every mechanism on its unfolded
+  windows (the block bootstrap carries each window's weight with it). Conditional effects,
+  Bayesian fits, refuters and series with gaps refuse, as do the prepared contrast designs,
+  modifiers and level evaluations of the temporal routes. Weights are read by the frequentist
+  route only. In Python, `PulseEffect(weights="w")` declares them; `SustainedEffect` has no
+  `weights` argument, so a multi-step sustained window is weighted from Rust.
 - A time series with zero-weight lag windows keeps them in the design so the windows stay
   consecutive; they contribute no score, and the block length is sized on the windows of
   positive weight.
@@ -175,15 +236,26 @@ a linear effect on the analysis part with those weights as sampling weights, adj
 declared set (typically the treatment's parents in the discovered graph). Its estimand is the
 effect in the weighted population the analysis part represents, **conditional on the selected
 graph** (discovery saw none of these rows); weights are normalized to mean one over the rows
-used; the standard error defaults to the sampling-weighted HC3 sandwich (explicit HC1 remains available for historical replay), or the cluster sandwich over
-declared analysis-part clusters; rows of weight zero are excluded and counted; and the Kish
+used; the standard error defaults to the sampling-weighted HC3 sandwich (`estimate_analysis_effect_hc1` gives HC1), or the cluster
+sandwich over declared analysis-part clusters; rows of weight zero are excluded and counted; and the Kish
 size is reported. The result carries the binding that ties it to the split receipt and the
-discovery. Its interval method returns a computed Student interval labelled unmeasured; whole-procedure records belong to the exact declared discovery/split/variance recipe and do not supply automatic calibration authority to an arbitrary split.
+discovery. Its interval method returns a computed Student interval whose calibration status is
+`not_measured`; coverage records belong to the exact declared discovery, split and variance
+recipe and do not extend to an arbitrary split.
 
 In Python, estimate on the analysis part with `weights=split.analysis_weights`:
 
 ```python
+from antecedent.estimators import LinearAdjustment
+
 result = ant.analyze(
     split.analysis, graph=graph, query=query, estimator=LinearAdjustment(weights=split.analysis_weights)
 )
 ```
+
+## Where next
+
+- [Clusters](clustered-dml.md): rows that share a sampling or assignment unit.
+- [Missing values](missing-data.md): how dropped rows are accounted for.
+- [Discover, then estimate](../selective-discovery.md): the sample split whose analysis part is weighted above.
+- [Refusal codes and remedies](../reference/refusal-codes.md): reading `code`, `detail` and `remedy` on a refusal.

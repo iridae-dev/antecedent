@@ -1,0 +1,1256 @@
+//! The retained propagation record: known-truth chains, shared evidence counted
+//! once, a nonlinear utility against a closed form and a Monte Carlo reference,
+//! changed assumptions reaching exactly their dependents, a future study that
+//! updates the posterior before the decision is re-evaluated, and the consumer
+//! replaying all of it from the stored bytes.
+
+use antecedent_contract::propagation_chain::{POOL_WITH_JOINT_COVARIANCE, SUPPLY_POSTERIOR_DRAWS};
+use antecedent_stats::normal_ppf;
+
+use super::*;
+
+const ROWS: usize = 1597;
+const STRIDE: usize = 987;
+const TABLE: &str = "joint-table";
+
+fn ctx() -> ExecutionContext {
+    ExecutionContext::for_tests(17)
+}
+
+fn normal_grid(mean: f64, sd: f64) -> Vec<f64> {
+    (0..ROWS).map(|i| mean + sd * normal_ppf((i as f64 + 0.5) / ROWS as f64)).collect()
+}
+
+/// A Fibonacci-lattice partner of [`normal_grid`]: draws of an independent normal.
+fn independent_grid(mean: f64, sd: f64) -> Vec<f64> {
+    let grid = normal_grid(mean, sd);
+    (0..ROWS).map(|i| grid[(i * STRIDE) % ROWS]).collect()
+}
+
+fn near(got: f64, want: f64, tolerance: f64) {
+    assert!((got - want).abs() <= tolerance, "{got} vs {want} (tolerance {tolerance})");
+}
+
+fn value(result: &ChainStageResultWire, name: &str) -> f64 {
+    result.value(name).unwrap_or_else(|| panic!("no value `{name}` on {}", result.stage))
+}
+
+/// measurement mapping -> transport -> derived net benefit -> exponential
+/// utility, over a posterior of the effect and a posterior of the cost, plus a
+/// derived quantity of the cost alone.
+fn release_draft() -> PropagationChainRecordWire {
+    let sources = vec![
+        ChainSourceWire::draws("effect", LawMeaning::Posterior, TABLE, &normal_grid(0.5, 0.6))
+            .with_factor(SharedFactorKind::Row, "trial-rows"),
+        ChainSourceWire::draws("cost", LawMeaning::Posterior, TABLE, &independent_grid(0.2, 0.3))
+            .with_factor(SharedFactorKind::Prior, "cost-prior"),
+    ];
+    let stages = vec![
+        ChainStageWire::new(
+            "mapped",
+            StageKind::MeasurementMapping,
+            &["effect"],
+            ChainOpWire::affine(ChainCoefficientWire::fixed(0.8), ChainCoefficientWire::fixed(0.1)),
+        ),
+        ChainStageWire::new(
+            "transported",
+            StageKind::Transport,
+            &["mapped"],
+            ChainOpWire::affine(ChainCoefficientWire::fixed(0.9), ChainCoefficientWire::fixed(0.0)),
+        ),
+        ChainStageWire::new(
+            "net",
+            StageKind::DerivedQuantity,
+            &["transported", "cost"],
+            ChainOpWire::binary("difference"),
+        ),
+        ChainStageWire::new(
+            "utility",
+            StageKind::DecisionUtility,
+            &["net"],
+            ChainOpWire::unary(ChainUnaryWire::exponential_utility(1.0)),
+        )
+        .with_decision_reference(0.0),
+        ChainStageWire::new(
+            "cost_doubled",
+            StageKind::DerivedQuantity,
+            &["cost"],
+            ChainOpWire::affine(ChainCoefficientWire::fixed(2.0), ChainCoefficientWire::fixed(0.0)),
+        ),
+    ];
+    PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Spread,
+        "utility",
+        sources,
+        stages,
+    )
+}
+
+fn release() -> PropagationChainRecordWire {
+    PropagationChainRecordWire::seal(release_draft(), &ctx()).expect("seals")
+}
+
+fn stage<'a>(record: &'a PropagationChainRecordWire, id: &str) -> &'a ChainStageResultWire {
+    record.results.iter().find(|r| r.stage == id).expect("stage result")
+}
+
+fn predictive_quantity() -> ScientificQuantityWire {
+    ScientificQuantityWire {
+        version: 1,
+        variable_id: "study.future_outcome".into(),
+        variable_name: "Future outcome".into(),
+        role: "outcome".into(),
+        units: "events".into(),
+        population_id: "target_population".into(),
+        regime_id: "declared_regime".into(),
+        horizon: 1,
+        functional_id: "future_count".into(),
+        conditioning: Vec::new(),
+        transform_id: "identity".into(),
+    }
+}
+
+#[test]
+#[allow(clippy::float_cmp, reason = "the check requires exact equality of the retained values")]
+fn assumption_envelope_retains_two_axes_and_replays_changes() {
+    let draft = PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::AssumptionEnvelope,
+        "answer",
+        vec![
+            ChainSourceWire::draws("estimate", LawMeaning::Sampling, TABLE, &[1.0, 2.0, 3.0]),
+            ChainSourceWire::interval("bias", 0.0, 1.0),
+        ],
+        vec![ChainStageWire::new(
+            "answer",
+            StageKind::DerivedQuantity,
+            &["estimate", "bias"],
+            ChainOpWire::binary("sum"),
+        )],
+    )
+    .with_output_quantity(predictive_quantity());
+    let record = PropagationChainRecordWire::seal(draft, &ctx()).expect("mixed enclosure");
+    assert_eq!(record.version, PROPAGATION_CHAIN_ASSUMPTION_VERSION);
+    assert_eq!(record.label, "assumption_envelope");
+    let lower: Vec<u64> = [1.0_f64, 2.0, 3.0].iter().map(|x| x.to_bits()).collect();
+    let upper: Vec<u64> = [2.0_f64, 3.0, 4.0].iter().map(|x| x.to_bits()).collect();
+    assert_eq!(record.output_lower_bounds.as_ref(), Some(&lower));
+    assert_eq!(record.output_upper_bounds.as_ref(), Some(&upper));
+    assert_eq!(value(stage(&record, "answer"), "lower"), 2.0);
+    assert_eq!(value(stage(&record, "answer"), "upper"), 3.0);
+    let decoded =
+        PropagationChainRecordWire::decode(&record.export().expect("export")).expect("decode");
+    let consumed = decoded.consume(Some(&record.identity), &ctx()).expect("replay");
+    assert_eq!(consumed.output_lower_bounds.as_ref(), Some(&lower));
+    let mut tampered = record.clone();
+    tampered.output_upper_bounds.as_mut().expect("upper")[0] = 99.0_f64.to_bits();
+    assert!(matches!(tampered.consume(None, &ctx()), Err(Error::ResultMismatch)));
+    let reweighted = record
+        .with_change(
+            ChainChangeWire::Reweight {
+                source: "estimate".into(),
+                log_weights: vec![0.0_f64.to_bits(), 0.0_f64.to_bits(), 3.0_f64.to_bits()],
+            },
+            &ctx(),
+        )
+        .expect("reweight");
+    assert_eq!(reweighted.output_lower_bounds.as_ref(), Some(&lower));
+    assert!(reweighted.output_weights.is_some());
+    assert!(value(stage(&reweighted, "answer"), "lower") > 2.0);
+    let withdrawn = record
+        .with_change(ChainChangeWire::Withdraw { source: "bias".into() }, &ctx())
+        .expect("withdraw");
+    assert_eq!(withdrawn.output_lower_bounds, None);
+    assert_eq!(withdrawn.output_upper_bounds, None);
+}
+
+#[test]
+fn assumption_envelope_decision_is_conditional_and_replayed() {
+    let draft = PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::AssumptionEnvelope,
+        "utility",
+        vec![
+            ChainSourceWire::draws("estimate", LawMeaning::Sampling, TABLE, &[1.0, 2.0]),
+            ChainSourceWire::interval("bias", 0.0, 1.0),
+        ],
+        vec![
+            ChainStageWire::new(
+                "utility",
+                StageKind::DecisionUtility,
+                &["estimate", "bias"],
+                ChainOpWire::binary("sum"),
+            )
+            .with_decision_reference(2.0),
+        ],
+    )
+    .with_output_quantity(ScientificQuantityWire {
+        role: "utility".into(),
+        functional_id: "utility_score".into(),
+        ..predictive_quantity()
+    });
+    let record = PropagationChainRecordWire::seal(draft, &ctx()).expect("robust comparison");
+    assert_eq!(stage(&record, "utility").count("robust_verdict_code"), Some(2));
+    let consumed = record.consume(Some(&record.identity), &ctx()).expect("replay");
+    assert_eq!(consumed.results, record.results);
+}
+
+#[test]
+fn predictive_mapping_retains_the_replayable_outcome_law() {
+    let posterior = [1.0, 2.0, 3.0, 4.0];
+    let disturbance = [-0.5, 0.5, -0.5, 0.5];
+    let draft = PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Predictive,
+        "outcome",
+        vec![
+            ChainSourceWire::draws("theta", LawMeaning::Posterior, TABLE, &posterior),
+            ChainSourceWire::draws("noise", LawMeaning::Innovation, TABLE, &disturbance),
+        ],
+        vec![ChainStageWire::new(
+            "outcome",
+            StageKind::PredictiveMapping,
+            &["theta", "noise"],
+            ChainOpWire::binary("sum"),
+        )],
+    )
+    .with_output_quantity(predictive_quantity());
+    let mut wrong_mapping = draft.clone();
+    wrong_mapping.stages[0].kind = StageKind::DerivedQuantity.as_str().to_owned();
+    assert!(matches!(
+        wrong_mapping.plan(),
+        Err(Error::Refused(refusal)) if refusal.code() == "distribution_meaning_mismatch"
+    ));
+    let record = PropagationChainRecordWire::seal(draft, &ctx()).expect("predictive law");
+    assert_eq!(record.version, PROPAGATION_CHAIN_LAW_VERSION);
+    assert_eq!(record.label, "predictive_propagation");
+    let expected: Vec<u64> = [0.5_f64, 2.5, 2.5, 4.5].iter().map(|v| v.to_bits()).collect();
+    assert_eq!(record.output_draws.as_ref(), Some(&expected));
+    assert_eq!(record.output_weights, None);
+    let consumed = PropagationChainRecordWire::decode(&record.export().expect("export"))
+        .expect("decode")
+        .consume(Some(&record.identity), &ctx())
+        .expect("replay");
+    assert_eq!(consumed.output_draws.as_ref(), Some(&expected));
+
+    let mut tampered = record;
+    tampered.output_draws.as_mut().expect("draws")[0] = 7.0_f64.to_bits();
+    assert!(matches!(tampered.consume(None, &ctx()), Err(Error::ResultMismatch)));
+}
+
+#[test]
+fn predictive_input_and_new_innovation_keep_distinct_meanings() {
+    let draft = PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Predictive,
+        "new_outcome",
+        vec![
+            ChainSourceWire::draws("predictor", LawMeaning::Predictive, TABLE, &[1.0, 2.0, 3.0]),
+            ChainSourceWire::draws("coefficient", LawMeaning::Posterior, TABLE, &[2.0, 2.0, 2.0]),
+            ChainSourceWire::draws("new_noise", LawMeaning::Innovation, TABLE, &[0.1, 0.2, 0.3]),
+        ],
+        vec![ChainStageWire::new(
+            "new_outcome",
+            StageKind::PredictiveMapping,
+            &["predictor", "coefficient", "new_noise"],
+            ChainOpWire::expression(vec![
+                ChainExprTermWire::input(0),
+                ChainExprTermWire::input(1),
+                ChainExprTermWire::Multiply,
+                ChainExprTermWire::input(2),
+                ChainExprTermWire::Add,
+            ]),
+        )],
+    )
+    .with_output_quantity(predictive_quantity());
+    let sealed = PropagationChainRecordWire::seal(draft.clone(), &ctx()).expect("new outcome law");
+    assert_eq!(sealed.output_draws.as_ref().map(Vec::len), Some(3));
+    let mut sampling = draft;
+    sampling.sources[0].meaning = Some(LawMeaning::Sampling.as_str().to_owned());
+    assert!(matches!(
+        sampling.plan(),
+        Err(Error::Refused(refusal)) if refusal.code() == "distribution_meaning_mismatch"
+    ));
+}
+
+#[test]
+fn predictive_law_requires_a_quantity_coordinate() {
+    let draft = PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Predictive,
+        "outcome_stage",
+        vec![ChainSourceWire::draws("outcome", LawMeaning::Predictive, TABLE, &[1.0, 2.0, 3.0])],
+        vec![ChainStageWire::new(
+            "outcome_stage",
+            StageKind::DerivedQuantity,
+            &["outcome"],
+            ChainOpWire::affine(ChainCoefficientWire::fixed(1.0), ChainCoefficientWire::fixed(0.0)),
+        )],
+    );
+    let missing = draft.plan().expect_err("coordinate required");
+    assert!(missing.to_string().contains("scientific quantity"));
+}
+
+#[test]
+fn posterior_law_reweights_and_withdraws_with_its_source() {
+    let draft = PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Posterior,
+        "scaled",
+        vec![ChainSourceWire::draws("theta", LawMeaning::Posterior, TABLE, &[1.0, 2.0, 3.0, 4.0])],
+        vec![ChainStageWire::new(
+            "scaled",
+            StageKind::DerivedQuantity,
+            &["theta"],
+            ChainOpWire::affine(ChainCoefficientWire::fixed(2.0), ChainCoefficientWire::fixed(0.0)),
+        )],
+    );
+    let record = PropagationChainRecordWire::seal(draft, &ctx()).expect("posterior law");
+    assert_eq!(record.version, PROPAGATION_CHAIN_LAW_VERSION);
+    assert_eq!(
+        record.output_draws,
+        Some(vec![2.0_f64.to_bits(), 4.0_f64.to_bits(), 6.0_f64.to_bits(), 8.0_f64.to_bits()])
+    );
+    let changed = record
+        .with_change(ChainChangeWire::reweight("theta", &[0.0, 0.0, 0.0, 2.0]), &ctx())
+        .expect("reweighted law");
+    assert_eq!(changed.output_draws, record.output_draws);
+    assert!(changed.output_weights.is_some());
+    changed.consume(None, &ctx()).expect("reweighted replay");
+    let withdrawn =
+        record.with_change(ChainChangeWire::withdraw("theta"), &ctx()).expect("withdrawn law");
+    assert_eq!(withdrawn.output_draws, None);
+    assert_eq!(withdrawn.output_weights, None);
+    withdrawn.consume(None, &ctx()).expect("withdrawn replay");
+}
+
+#[test]
+fn version_one_posterior_summary_remains_consumable() {
+    let draft = PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Posterior,
+        "copy",
+        vec![ChainSourceWire::draws("theta", LawMeaning::Posterior, TABLE, &[1.0, 2.0, 3.0])],
+        vec![ChainStageWire::new(
+            "copy",
+            StageKind::DerivedQuantity,
+            &["theta"],
+            ChainOpWire::affine(ChainCoefficientWire::fixed(1.0), ChainCoefficientWire::fixed(0.0)),
+        )],
+    );
+    let mut old = PropagationChainRecordWire::seal(draft, &ctx()).expect("new record");
+    old.version = PROPAGATION_CHAIN_VERSION;
+    old.required_features = vec![PROPAGATION_CHAIN_FEATURE.to_owned()];
+    old.output_draws = None;
+    old.output_weights = None;
+    old.identity = propagation_chain_identity(&old).expect("legacy identity");
+    let bytes = old.export().expect("legacy export");
+    let decoded = PropagationChainRecordWire::decode(&bytes).expect("legacy decode");
+    let consumed = decoded.consume(Some(&old.identity), &ctx()).expect("legacy replay");
+    assert_eq!(consumed.output_draws, None);
+    assert_eq!(consumed.results, old.results);
+}
+
+#[test]
+fn decision_reference_is_only_a_finite_utility_comparison() {
+    let mut draft = release_draft();
+    draft.version = PROPAGATION_CHAIN_LAW_VERSION;
+    draft.required_features = vec![PROPAGATION_CHAIN_LAW_FEATURE.to_owned()];
+    draft.reading = ChainReading::Posterior.as_str().to_owned();
+    draft.stages[0].decision_reference = Some(0.0_f64.to_bits());
+    assert!(draft.plan().expect_err("nonutility reference").to_string().contains("utility"));
+    let mut draft = release_draft();
+    draft.version = PROPAGATION_CHAIN_LAW_VERSION;
+    draft.required_features = vec![PROPAGATION_CHAIN_LAW_FEATURE.to_owned()];
+    draft.reading = ChainReading::Posterior.as_str().to_owned();
+    draft.stages[3].decision_reference = Some(f64::NAN.to_bits());
+    assert!(draft.plan().expect_err("nonfinite reference").to_string().contains("finite"));
+}
+
+#[test]
+fn a_four_stage_chain_matches_the_closed_form_and_not_the_utility_of_the_mean() {
+    let record = release();
+    assert_eq!(record.label, "uncalibrated_spread");
+    // net = 0.9 (0.8 effect + 0.1) - cost ~ N(0.25, 0.72^2 0.36 + 0.09).
+    let mean = 0.9 * (0.8 * 0.5 + 0.1) - 0.2;
+    let variance = 0.72_f64.powi(2) * 0.36 + 0.09;
+    let truth = 1.0 - (-mean + 0.5 * variance).exp();
+    let utility = stage(&record, "utility");
+    near(value(utility, "mean"), truth, 5e-3);
+    let at_mean = 1.0 - (-mean).exp();
+    assert!((at_mean - truth).abs() > 0.1, "the utility of the mean is a different number");
+    let net = stage(&record, "net");
+    near(value(net, "mean"), mean, 1e-3);
+    near(value(net, "variance"), variance, 5e-3);
+    // The decision is read against the Monte Carlo band: the gap is well beyond it.
+    assert_eq!(utility.count("verdict_code"), Some(0));
+}
+
+#[test]
+fn the_utility_agrees_with_an_independent_monte_carlo_reference() {
+    let record = release();
+    let effect = normal_grid(0.5, 0.6);
+    let cost = independent_grid(0.2, 0.3);
+    let reference: f64 = effect
+        .iter()
+        .zip(&cost)
+        .map(|(e, c)| 1.0 - (-(0.9 * (0.8 * e + 0.1) - c)).exp())
+        .sum::<f64>()
+        / ROWS as f64;
+    near(value(stage(&record, "utility"), "mean"), reference, 1e-12);
+}
+
+#[test]
+fn the_consumer_replays_the_stored_bytes_to_identical_results() {
+    let record = release();
+    let bytes = record.export().expect("exports");
+    let decoded = PropagationChainRecordWire::decode(&bytes).expect("decodes");
+    assert_eq!(decoded, record);
+    let consumed = decoded.consume(Some(&record.identity), &ctx()).expect("consumes");
+    assert_eq!(consumed.results, record.results);
+    assert_eq!(consumed.label, "uncalibrated_spread");
+    assert_eq!(consumed.plan.dependents_of("cost"), vec!["net", "utility", "cost_doubled"]);
+    assert!(consumed.answer().is_some());
+    // The identity the consumer holds independently must match.
+    let other = "0".repeat(64);
+    assert_eq!(decoded.consume(Some(&other), &ctx()), Err(PropagationChainError::IdentityMismatch));
+}
+
+#[test]
+#[allow(clippy::float_cmp, reason = "the check requires exact equality of the retained values")]
+fn a_single_effective_draw_replays_as_an_unresolved_decision() {
+    let mut log_weights = vec![-1000.0; ROWS];
+    log_weights[0] = 0.0;
+    let record =
+        release().with_change(ChainChangeWire::reweight("effect", &log_weights), &ctx()).unwrap();
+    let result = stage(&record, "utility");
+    assert_eq!(value(result, "effective_size"), 1.0);
+    assert_eq!(value(result, "variance"), 0.0);
+    assert!(value(result, "mean_standard_error").is_infinite());
+    assert!(value(result, "decision_band").is_infinite());
+    let bytes = record.export().unwrap();
+    let decoded = PropagationChainRecordWire::decode(&bytes).unwrap();
+    let replayed = decoded.consume(Some(&record.identity), &ctx()).unwrap();
+    assert_eq!(replayed.results, record.results);
+    assert_eq!(stage(&decoded, "utility").count("verdict_code"), Some(2));
+}
+
+#[test]
+fn edits_are_refused_resealed_or_not() {
+    let record = release();
+    // An edited draw changes the identity.
+    let mut edited = record.clone();
+    edited.sources[0].values[3] ^= 1;
+    assert_eq!(edited.consume(None, &ctx()), Err(PropagationChainError::IdentityMismatch));
+    // An edited result is not covered by the identity and does not replay.
+    let mut result = record.clone();
+    result.results[1].values[0].1 ^= 1;
+    assert_eq!(result.consume(None, &ctx()), Err(PropagationChainError::ResultMismatch));
+    // A resealed operator edit leaves results that no longer replay.
+    let mut resealed = record.clone();
+    resealed.stages[0].op =
+        ChainOpWire::affine(ChainCoefficientWire::fixed(0.7), ChainCoefficientWire::fixed(0.1));
+    resealed.identity = propagation_chain_identity(&resealed).expect("identity");
+    assert_eq!(resealed.consume(None, &ctx()), Err(PropagationChainError::ResultMismatch));
+    // A resealed label edit no longer matches the label the rule yields.
+    let mut relabelled = record.clone();
+    relabelled.label = "point_only".to_owned();
+    relabelled.identity = propagation_chain_identity(&relabelled).expect("identity");
+    assert_eq!(relabelled.consume(None, &ctx()), Err(PropagationChainError::IdentityMismatch));
+    // Declared factors are part of the identity: dropping the shared row changes it.
+    let mut dropped = record.clone();
+    dropped.sources[0].factors.clear();
+    assert_eq!(dropped.consume(None, &ctx()), Err(PropagationChainError::IdentityMismatch));
+}
+
+#[test]
+fn the_identity_ignores_the_order_of_declared_factors_but_not_their_content() {
+    let mut a = release_draft();
+    a.sources[0] = a.sources[0]
+        .clone()
+        .with_factor(SharedFactorKind::Model, "m1")
+        .with_factor(SharedFactorKind::Cluster, "c1");
+    let mut b = a.clone();
+    b.sources[0].factors.reverse();
+    let sealed_a = PropagationChainRecordWire::seal(a.clone(), &ctx()).expect("seals");
+    let sealed_b = PropagationChainRecordWire::seal(b, &ctx()).expect("seals");
+    assert_eq!(sealed_a.identity, sealed_b.identity);
+    a.sources[0].factors[1].id = "m2".to_owned();
+    let sealed_c = PropagationChainRecordWire::seal(a, &ctx()).expect("seals");
+    assert_ne!(sealed_a.identity, sealed_c.identity);
+}
+
+#[test]
+fn another_version_or_feature_is_refused_before_the_payload_is_read() {
+    let record = release();
+    let mut future = record.clone();
+    future.version = 5;
+    let bytes = crate::to_cbor(&future).expect("encodes");
+    assert_eq!(
+        PropagationChainRecordWire::decode(&bytes),
+        Err(PropagationChainError::UnsupportedVersion { version: 5 })
+    );
+    let mut foreign = record;
+    foreign.required_features = vec!["something_else".to_owned()];
+    let bytes = crate::to_cbor(&foreign).expect("encodes");
+    assert_eq!(
+        PropagationChainRecordWire::decode(&bytes),
+        Err(PropagationChainError::UnsupportedSemantics("required features"))
+    );
+}
+
+// --------------------------------------------------------- shared evidence
+
+/// The 2^3 sign design: `T`, `e1` and `e2` are orthogonal columns with sample
+/// variance 8/7. Estimate A is `10 + T + e1` and estimate B is `10 + T + e2`:
+/// they share the evidence `T`.
+fn overlapping_estimates() -> (Vec<f64>, Vec<f64>) {
+    let mut a = Vec::new();
+    let mut b = Vec::new();
+    for t in [-1.0, 1.0] {
+        for e1 in [-1.0, 1.0] {
+            for e2 in [-1.0, 1.0] {
+                a.push(10.0 + t + e1);
+                b.push(10.0 + t + e2);
+            }
+        }
+    }
+    (a, b)
+}
+
+fn pool_draft(dependent: bool, declare_overlap: bool) -> PropagationChainRecordWire {
+    let (a, b) = overlapping_estimates();
+    let mut first = ChainSourceWire::draws("study_a", LawMeaning::Sampling, TABLE, &a);
+    let mut second = ChainSourceWire::draws("study_b", LawMeaning::Sampling, TABLE, &b);
+    if declare_overlap {
+        first = first.with_factor(SharedFactorKind::Row, "trial-rows");
+        second = second.with_factor(SharedFactorKind::Row, "trial-rows");
+    } else {
+        first = first.with_factor(SharedFactorKind::Row, "rows-a");
+        second = second.with_factor(SharedFactorKind::Row, "rows-b");
+    }
+    PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Spread,
+        "pooled",
+        vec![first, second],
+        vec![ChainStageWire::new(
+            "pooled",
+            StageKind::Pooling,
+            &["study_a", "study_b"],
+            ChainOpWire::pool(dependent),
+        )],
+    )
+}
+
+#[test]
+fn an_independent_pool_of_overlapping_evidence_is_refused_with_its_next_attempt() {
+    let refusal = PropagationChainRecordWire::seal(pool_draft(false, true), &ctx())
+        .expect_err("refused")
+        .to_refusal();
+    assert_eq!(refusal.code(), "evidence_double_counted");
+    assert_eq!(refusal.stage(), Some("pooled"));
+    assert_eq!(refusal.next_attempt(), POOL_WITH_JOINT_COVARIANCE);
+}
+
+#[test]
+fn a_dependent_pool_counts_the_shared_evidence_once() {
+    let record = PropagationChainRecordWire::seal(pool_draft(true, true), &ctx()).expect("seals");
+    let pooled = stage(&record, "pooled");
+    near(value(pooled, "weight_0"), 0.5, 1e-12);
+    near(value(pooled, "weight_1"), 0.5, 1e-12);
+    // Var A = Var B = 16/7 and Cov = 8/7, so the pooled variance is (v + c) / 2.
+    near(value(pooled, "joint_variance"), 12.0 / 7.0, 1e-12);
+    near(value(pooled, "variance"), 12.0 / 7.0, 1e-12);
+    // Counting T twice would claim 1 / (1/v + 1/v) = 8/7.
+    near(value(pooled, "independent_variance"), 8.0 / 7.0, 1e-12);
+    assert!(value(pooled, "independent_variance") < value(pooled, "variance"));
+    record.consume(None, &ctx()).expect("replays");
+}
+
+#[test]
+fn an_independent_pool_of_distinct_evidence_is_supported() {
+    let record = PropagationChainRecordWire::seal(pool_draft(false, false), &ctx());
+    // The declared rows differ, so the pool is supported as independent even though the
+    // arithmetic of these particular draws is the overlapping design.
+    let record = record.expect("distinct declared evidence seals as an independent pool");
+    let pooled = stage(&record, "pooled");
+    // Independent pooling weights by precision; for two equal-variance estimates that is 1/2 each.
+    near(value(pooled, "weight_0"), 0.5, 1e-12);
+    near(value(pooled, "weight_1"), 0.5, 1e-12);
+    record.consume(None, &ctx()).expect("replays");
+}
+
+// -------------------------------------------------- the joint-law counterexample
+
+fn coupling(x: &[f64], y: &[f64]) -> PropagationChainRecordWire {
+    PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Spread,
+        "utility",
+        vec![
+            ChainSourceWire::draws("x", LawMeaning::Posterior, TABLE, x),
+            ChainSourceWire::draws("y", LawMeaning::Posterior, TABLE, y),
+        ],
+        vec![
+            ChainStageWire::new(
+                "product",
+                StageKind::DerivedQuantity,
+                &["x", "y"],
+                ChainOpWire::binary("product"),
+            ),
+            ChainStageWire::new(
+                "shifted",
+                StageKind::DerivedQuantity,
+                &["product"],
+                ChainOpWire::affine(
+                    ChainCoefficientWire::fixed(1.0),
+                    ChainCoefficientWire::fixed(-1.0),
+                ),
+            ),
+            ChainStageWire::new(
+                "utility",
+                StageKind::DecisionUtility,
+                &["shifted"],
+                ChainOpWire::affine(
+                    ChainCoefficientWire::fixed(1.0),
+                    ChainCoefficientWire::fixed(0.0),
+                ),
+            ),
+        ],
+    )
+}
+
+#[test]
+fn the_same_marginals_under_different_couplings_give_opposite_decisions() {
+    // X and Y each take 0 and 2 with probability 1/2.
+    let together = PropagationChainRecordWire::seal(
+        coupling(&[0.0, 0.0, 2.0, 2.0], &[0.0, 0.0, 2.0, 2.0]),
+        &ctx(),
+    )
+    .expect("seals");
+    let apart = PropagationChainRecordWire::seal(
+        coupling(&[0.0, 0.0, 2.0, 2.0], &[2.0, 2.0, 0.0, 0.0]),
+        &ctx(),
+    )
+    .expect("seals");
+    near(value(stage(&together, "utility"), "mean"), 1.0, 1e-12);
+    near(value(stage(&apart, "utility"), "mean"), -1.0, 1e-12);
+}
+
+#[test]
+fn draws_of_unrelated_tables_are_not_paired_by_index() {
+    let mut draft = coupling(&[0.0, 1.0, 2.0], &[2.0, 1.0, 0.0]);
+    draft.sources[1].alignment = Some("another-table".to_owned());
+    let refusal = PropagationChainRecordWire::seal(draft, &ctx()).expect_err("refused");
+    assert_eq!(refusal.to_refusal().code(), "joint_law_required");
+}
+
+// ------------------------------------------------------ changed assumptions
+
+fn bit_values(result: &ChainStageResultWire) -> Vec<(String, u64)> {
+    result.values.clone()
+}
+
+#[test]
+fn withdrawing_a_source_invalidates_exactly_its_dependents() {
+    let before = release();
+    let after = before.with_change(ChainChangeWire::withdraw("cost"), &ctx()).expect("changes");
+    for id in ["mapped", "transported"] {
+        assert_eq!(stage(&after, id).status, STATUS_CURRENT);
+        assert_eq!(bit_values(stage(&after, id)), bit_values(stage(&before, id)));
+    }
+    for id in ["net", "utility", "cost_doubled"] {
+        let result = stage(&after, id);
+        assert_eq!(result.status, STATUS_INVALIDATED);
+        assert!(result.values.is_empty());
+        assert_eq!(result.invalidated_by, vec!["cost".to_owned()]);
+    }
+    assert_ne!(after.identity, before.identity);
+    after.consume(None, &ctx()).expect("the changed record replays");
+    // The other source: the cost-only stage keeps its numbers bit for bit.
+    let other = before.with_change(ChainChangeWire::withdraw("effect"), &ctx()).expect("changes");
+    assert_eq!(stage(&other, "cost_doubled").status, STATUS_CURRENT);
+    assert_eq!(
+        bit_values(stage(&other, "cost_doubled")),
+        bit_values(stage(&before, "cost_doubled"))
+    );
+    for id in ["mapped", "transported", "net", "utility"] {
+        assert_eq!(stage(&other, id).status, STATUS_INVALIDATED, "{id}");
+    }
+    assert_eq!(
+        before.dependents_of("effect").expect("plan"),
+        vec!["mapped", "transported", "net", "utility"]
+    );
+}
+
+#[test]
+fn a_changed_prior_reweights_exactly_the_stages_that_depend_on_it() {
+    let before = release();
+    // The prior of the effect moves by an exponential tilt: for a normal posterior with
+    // sd 0.6 the tilted law is normal with the mean shifted by lambda * variance.
+    let lambda = 1.0;
+    let log_weights: Vec<f64> = normal_grid(0.5, 0.6).iter().map(|e| lambda * e).collect();
+    let after = before
+        .with_change(ChainChangeWire::reweight("effect", &log_weights), &ctx())
+        .expect("changes");
+    let shifted = 0.5 + lambda * 0.36;
+    let mapped = stage(&after, "mapped");
+    assert_eq!(mapped.status, STATUS_REWEIGHTED);
+    near(value(mapped, "mean"), 0.8 * shifted + 0.1, 1.5e-2);
+    assert!(value(mapped, "effective_size") < ROWS as f64);
+    for id in ["transported", "net", "utility"] {
+        assert_eq!(stage(&after, id).status, STATUS_REWEIGHTED, "{id}");
+    }
+    // The stage that does not read the effect is untouched, bit for bit.
+    assert_eq!(stage(&after, "cost_doubled").status, STATUS_CURRENT);
+    assert_eq!(
+        bit_values(stage(&after, "cost_doubled")),
+        bit_values(stage(&before, "cost_doubled"))
+    );
+    // The utility moved with the new belief: a larger effect raises the net benefit.
+    assert!(value(stage(&after, "utility"), "mean") > value(stage(&before, "utility"), "mean"));
+    after.consume(None, &ctx()).expect("replays");
+    // Changes append and keep their order.
+    let twice = after
+        .with_change(ChainChangeWire::reweight("cost", &vec![0.0; ROWS]), &ctx())
+        .expect("changes");
+    assert_eq!(twice.changes.len(), 2);
+    assert_eq!(bit_values(stage(&twice, "mapped")), bit_values(stage(&after, "mapped")));
+}
+
+#[test]
+fn a_change_that_names_no_source_or_fits_no_table_is_refused() {
+    let record = release();
+    assert!(matches!(
+        record.with_change(ChainChangeWire::withdraw("nowhere"), &ctx()),
+        Err(PropagationChainError::Malformed(_))
+    ));
+    assert!(matches!(
+        record.with_change(ChainChangeWire::reweight("effect", &[0.0, 1.0]), &ctx()),
+        Err(PropagationChainError::Malformed(_))
+    ));
+    let withdrawn =
+        record.with_change(ChainChangeWire::withdraw("effect"), &ctx()).expect("changes");
+    assert!(matches!(
+        withdrawn.with_change(ChainChangeWire::reweight("effect", &vec![0.0; ROWS]), &ctx()),
+        Err(PropagationChainError::Malformed(_))
+    ));
+}
+
+// ------------------------------------------------------------- future study
+
+fn update_draft(meaning: LawMeaning) -> PropagationChainRecordWire {
+    let theta = normal_grid(0.5, 1.0);
+    let noise = independent_grid(0.0, 1.0);
+    PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Spread,
+        "update",
+        vec![ChainSourceWire::draws("theta", meaning, TABLE, &theta)],
+        vec![
+            ChainStageWire::new(
+                "utility",
+                StageKind::DecisionUtility,
+                &["theta"],
+                ChainOpWire::affine(
+                    ChainCoefficientWire::fixed(1.0),
+                    ChainCoefficientWire::fixed(0.0),
+                ),
+            )
+            .with_decision_reference(0.0),
+            ChainStageWire::new(
+                "update",
+                StageKind::PreposteriorUpdate,
+                &["theta", "utility"],
+                ChainOpWire::preposterior(12.0_f64.sqrt(), 4.0, 0.0, &noise),
+            ),
+        ],
+    )
+}
+
+#[test]
+fn a_future_study_updates_the_posterior_before_the_decision_is_re_evaluated() {
+    let record = PropagationChainRecordWire::seal(update_draft(LawMeaning::Posterior), &ctx())
+        .expect("seals");
+    let update = stage(&record, "update");
+    // theta ~ N(1/2, 1), n = 4 observations of variance 12, linear utility, reference 0:
+    // the study's posterior mean has sd 1/2, so EVSI = 1/2 (phi(1) - Phi(-1)).
+    let evsi = 0.5 * (antecedent_kernels::norm_pdf(1.0) - antecedent_kernels::norm_cdf(-1.0));
+    near(value(update, "value_of_information"), evsi, 2e-2);
+    near(value(update, "current_expected_utility"), 0.5, 1e-3);
+    // The tower property: the mean of the updated expected utilities is the current one.
+    near(value(update, "mean_updated_expected_utility"), 0.5, 2e-2);
+    assert!(value(update, "probability_decision_changes") > 0.05);
+    record.consume(None, &ctx()).expect("replays");
+    // A changed prior on the parameter re-weights the update with the stages it feeds.
+    let log_weights: Vec<f64> = normal_grid(0.5, 1.0).iter().map(|t| 0.5 * t).collect();
+    let after = record
+        .with_change(ChainChangeWire::reweight("theta", &log_weights), &ctx())
+        .expect("changes");
+    assert_eq!(stage(&after, "update").status, STATUS_REWEIGHTED);
+    near(value(stage(&after, "update"), "current_expected_utility"), 1.0, 3e-2);
+}
+
+#[test]
+fn a_sampling_law_is_not_updated_by_a_future_study() {
+    let refusal = PropagationChainRecordWire::seal(update_draft(LawMeaning::Sampling), &ctx())
+        .expect_err("refused")
+        .to_refusal();
+    assert_eq!(refusal.code(), "uncertainty_representation_insufficient");
+    assert_eq!(refusal.next_attempt(), SUPPLY_POSTERIOR_DRAWS);
+}
+
+#[test]
+fn a_study_too_informative_for_the_draws_is_refused() {
+    let mut draft = update_draft(LawMeaning::Posterior);
+    if let ChainOpWire::Preposterior { noise_sd, .. } = &mut draft.stages[1].op {
+        *noise_sd = 1.0e-5_f64.to_bits();
+    }
+    let refusal =
+        PropagationChainRecordWire::seal(draft, &ctx()).expect_err("refused").to_refusal();
+    assert_eq!(refusal.code(), "posterior_draws_below_supported");
+}
+
+// ------------------------------------------------------------- enclosures
+
+fn interval_draft(reading: ChainReading) -> PropagationChainRecordWire {
+    PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        reading,
+        "utility",
+        vec![
+            ChainSourceWire::interval("effect", 0.0, 1.0),
+            ChainSourceWire::interval("cost", 0.1, 0.4),
+            ChainSourceWire::point("rate", 2.0),
+        ],
+        vec![
+            ChainStageWire::new(
+                "scaled",
+                StageKind::Transport,
+                &["effect", "rate"],
+                ChainOpWire::binary("product"),
+            ),
+            ChainStageWire::new(
+                "net",
+                StageKind::DerivedQuantity,
+                &["scaled", "cost"],
+                ChainOpWire::binary("difference"),
+            ),
+            ChainStageWire::new(
+                "utility",
+                StageKind::DecisionUtility,
+                &["net"],
+                ChainOpWire::unary(ChainUnaryWire::exponential_utility(1.0)),
+            ),
+        ],
+    )
+}
+
+#[test]
+fn intervals_are_carried_as_an_enclosure_that_holds_under_every_coupling() {
+    let record = PropagationChainRecordWire::seal(interval_draft(ChainReading::Enclosure), &ctx())
+        .expect("seals");
+    assert_eq!(record.label, "propagation_enclosure");
+    // net = 2 effect - cost lies in [0 - 0.4, 2 - 0.1] = [-0.4, 1.9]; 1 - exp(-x) is increasing.
+    let net = stage(&record, "net");
+    near(value(net, "lower"), -0.4, 1e-12);
+    near(value(net, "upper"), 1.9, 1e-12);
+    let utility = stage(&record, "utility");
+    near(value(utility, "lower"), 1.0 - 0.4_f64.exp(), 1e-12);
+    near(value(utility, "upper"), 1.0 - (-1.9_f64).exp(), 1e-12);
+    record.consume(None, &ctx()).expect("replays");
+}
+
+#[test]
+fn an_interval_is_not_a_spread_a_posterior_or_a_reweightable_source() {
+    for reading in [ChainReading::Spread, ChainReading::Posterior] {
+        let refusal = PropagationChainRecordWire::seal(interval_draft(reading), &ctx())
+            .expect_err("refused")
+            .to_refusal();
+        assert_eq!(refusal.code(), "uncertainty_representation_insufficient", "{reading:?}");
+    }
+    let refusal = PropagationChainRecordWire::seal(interval_draft(ChainReading::Interval), &ctx())
+        .expect_err("refused")
+        .to_refusal();
+    assert_eq!(refusal.code(), "uncertainty_representation_insufficient");
+    let record = PropagationChainRecordWire::seal(interval_draft(ChainReading::Enclosure), &ctx())
+        .expect("seals");
+    let refusal = record
+        .with_change(ChainChangeWire::reweight("effect", &[0.0, 0.0]), &ctx())
+        .expect_err("refused")
+        .to_refusal();
+    assert_eq!(refusal.next_attempt(), SUPPLY_DRAWS_FOR_INTERVAL);
+    // Withdrawing an interval source still invalidates exactly its dependents.
+    let after = record.with_change(ChainChangeWire::withdraw("cost"), &ctx()).expect("changes");
+    assert_eq!(stage(&after, "scaled").status, STATUS_CURRENT);
+    assert_eq!(stage(&after, "net").status, STATUS_INVALIDATED);
+}
+
+#[test]
+fn a_point_only_chain_has_a_value_and_no_spread() {
+    let draft = PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Point,
+        "doubled",
+        vec![ChainSourceWire::point("a", 3.0)],
+        vec![ChainStageWire::new(
+            "doubled",
+            StageKind::DerivedQuantity,
+            &["a"],
+            ChainOpWire::affine(ChainCoefficientWire::fixed(2.0), ChainCoefficientWire::fixed(1.0)),
+        )],
+    );
+    let record = PropagationChainRecordWire::seal(draft.clone(), &ctx()).expect("seals");
+    assert_eq!(record.label, "point_only");
+    near(value(stage(&record, "doubled"), "mean"), 7.0, 1e-12);
+    let mut spread = draft;
+    spread.reading = ChainReading::Spread.as_str().to_owned();
+    let refusal =
+        PropagationChainRecordWire::seal(spread, &ctx()).expect_err("refused").to_refusal();
+    assert_eq!(refusal.code(), "uncertainty_representation_insufficient");
+}
+
+/// `(q + sp - 1) / (se + sp - 1)` over `[q, se, sp]`, guarded and range-checked.
+fn correction_op(min_magnitude: f64) -> ChainOpWire {
+    use ChainExprTermWire as Term;
+    ChainOpWire::expression(vec![
+        Term::input(0),
+        Term::input(2),
+        Term::Add,
+        Term::constant(-1.0),
+        Term::Add,
+        Term::input(1),
+        Term::input(2),
+        Term::Add,
+        Term::constant(-1.0),
+        Term::Add,
+        Term::divide(min_magnitude),
+        Term::require_range(0.0, 1.0),
+    ])
+}
+
+fn rate_columns() -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+    (normal_grid(0.31, 0.01), independent_grid(0.9, 0.01), independent_grid(0.8, 0.01))
+}
+
+fn correction_draft(min_magnitude: f64) -> PropagationChainRecordWire {
+    let (q, se, sp) = rate_columns();
+    PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Spread,
+        "corrected",
+        vec![
+            ChainSourceWire::draws("q", LawMeaning::Posterior, TABLE, &q)
+                .with_factor(SharedFactorKind::Row, "clinic-rows"),
+            ChainSourceWire::draws("se", LawMeaning::Posterior, TABLE, &se)
+                .with_factor(SharedFactorKind::Parameter, "validation-sample"),
+            ChainSourceWire::draws("sp", LawMeaning::Posterior, TABLE, &sp)
+                .with_factor(SharedFactorKind::Parameter, "validation-sample"),
+        ],
+        vec![ChainStageWire::new(
+            "corrected",
+            StageKind::MeasurementMapping,
+            &["q", "se", "sp"],
+            correction_op(min_magnitude),
+        )],
+    )
+}
+
+#[test]
+fn a_ratio_expression_record_matches_the_formula_and_the_consumer_replays_it() {
+    let record = PropagationChainRecordWire::seal(correction_draft(0.5), &ctx()).expect("seals");
+    assert_eq!(record.label, "uncalibrated_spread");
+    let (q, se, sp) = rate_columns();
+    let corrected: Vec<f64> =
+        (0..ROWS).map(|i| (q[i] + sp[i] - 1.0) / (se[i] + sp[i] - 1.0)).collect();
+    let mean = corrected.iter().sum::<f64>() / ROWS as f64;
+    near(value(stage(&record, "corrected"), "mean"), mean, 1e-12);
+    let variance =
+        corrected.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>() / (ROWS as f64 - 1.0);
+    near(value(stage(&record, "corrected"), "variance"), variance, 1e-12);
+    // The ratio of the aligned draws is not the ratio of the means.
+    near(mean, 11.0 / 70.0, 4e-3);
+    // A stage that is an expression is a nonlinear operator in the plan.
+    let plan = record.plan().expect("plan");
+    assert_eq!(plan.stage("corrected").expect("stage").class, OperatorClass::Nonlinear);
+    // The record encodes, decodes and replays to the stored bits.
+    let bytes = record.export().expect("exports");
+    let decoded = PropagationChainRecordWire::decode(&bytes).expect("decodes");
+    assert_eq!(decoded, record);
+    let consumed = decoded.consume(Some(&record.identity), &ctx()).expect("consumes");
+    assert_eq!(consumed.results, record.results);
+}
+
+#[test]
+fn an_expression_edit_is_refused_resealed_or_not_and_its_terms_are_part_of_the_identity() {
+    let record = PropagationChainRecordWire::seal(correction_draft(0.5), &ctx()).expect("seals");
+    // A changed bound is part of the identity even though it changes no number here.
+    let looser = PropagationChainRecordWire::seal(correction_draft(0.25), &ctx()).expect("seals");
+    assert_ne!(record.identity, looser.identity);
+    assert_eq!(record.results, looser.results);
+    // An unsealed edit of a constant no longer matches the identity.
+    let mut edited = record.clone();
+    edited.stages[0].op = ChainOpWire::expression(vec![ChainExprTermWire::input(0)]);
+    assert_eq!(edited.consume(None, &ctx()), Err(PropagationChainError::IdentityMismatch));
+    // A resealed edit leaves results that no longer replay.
+    edited.identity = propagation_chain_identity(&edited).expect("identity");
+    assert_eq!(edited.consume(None, &ctx()), Err(PropagationChainError::ResultMismatch));
+    // More terms than the format admits are refused before anything is read.
+    let mut long = record.clone();
+    let too_many = antecedent_stats::MAX_EXPRESSION_TERMS + 1;
+    long.stages[0].op = ChainOpWire::expression(vec![ChainExprTermWire::input(0); too_many]);
+    assert_eq!(long.plan(), Err(PropagationChainError::LimitsExceeded("expression terms")));
+}
+
+#[test]
+fn a_valid_expression_above_the_original_term_cap_seals_and_replays_its_numeric_result() {
+    let mut draft = correction_draft(0.5);
+    // One input and 32 (constant, add) pairs: 65 valid postfix terms, q + 4.
+    // Exercise the supported range beyond the old cap with a numerical oracle,
+    // rather than merely moving the overflow fixture to a larger allocation.
+    let mut terms = vec![ChainExprTermWire::input(0)];
+    for _ in 0..32 {
+        terms.push(ChainExprTermWire::constant(0.125));
+        terms.push(ChainExprTermWire::Add);
+    }
+    assert_eq!(terms.len(), 65);
+    draft.stages[0].op = ChainOpWire::expression(terms);
+    let record = PropagationChainRecordWire::seal(draft, &ctx()).expect("65 valid terms seal");
+    let (q, _, _) = rate_columns();
+    let mean = q.iter().sum::<f64>() / ROWS as f64;
+    let variance = q.iter().map(|value| (value - mean).powi(2)).sum::<f64>() / (ROWS - 1) as f64;
+    let result = stage(&record, "corrected");
+    near(value(result, "mean"), mean + 4.0, 1e-12);
+    near(value(result, "variance"), variance, 1e-12);
+    let decoded =
+        PropagationChainRecordWire::decode(&record.export().expect("exports")).expect("decodes");
+    assert_eq!(decoded, record);
+    let consumed = decoded.consume(Some(&record.identity), &ctx()).expect("consumer replays");
+    assert_eq!(consumed.results, record.results);
+}
+
+#[test]
+fn a_denominator_that_reaches_zero_seals_nothing() {
+    let mut draft = correction_draft(0.0);
+    // The Youden index is negative on some rows.
+    for (row, bits) in draft.sources[1].values.iter_mut().enumerate() {
+        if row % 5 == 0 {
+            *bits = 0.1_f64.to_bits();
+        }
+    }
+    let refusal =
+        PropagationChainRecordWire::seal(draft, &ctx()).expect_err("refused").to_refusal();
+    assert_eq!(refusal.detail(), "propagation_chain.denominator_not_bounded");
+    assert_eq!(refusal.code(), "invalid_argument");
+    // A bound above the smallest Youden index refuses the same chain.
+    let bounded = correction_draft(0.9);
+    let refusal =
+        PropagationChainRecordWire::seal(bounded, &ctx()).expect_err("refused").to_refusal();
+    assert_eq!(refusal.detail(), "propagation_chain.denominator_not_bounded");
+    // A corrected rate above one is refused, never clipped.
+    let mut high = correction_draft(0.0);
+    high.sources[0].values[10] = 0.99_f64.to_bits();
+    let refusal = PropagationChainRecordWire::seal(high, &ctx()).expect_err("refused").to_refusal();
+    assert_eq!(refusal.detail(), "propagation_chain.stage_left_domain");
+}
+
+#[test]
+fn a_changed_assumption_about_a_rate_reweights_exactly_the_expression_that_reads_it() {
+    let mut draft = correction_draft(0.0);
+    draft.stages.push(ChainStageWire::new(
+        "doubled_q",
+        StageKind::DerivedQuantity,
+        &["q"],
+        ChainOpWire::affine(ChainCoefficientWire::fixed(2.0), ChainCoefficientWire::fixed(0.0)),
+    ));
+    let record = PropagationChainRecordWire::seal(draft, &ctx()).expect("seals");
+    let log_weights: Vec<f64> = (0..ROWS).map(|i| 0.5 * (i as f64 / ROWS as f64)).collect();
+    let changed = record
+        .with_change(ChainChangeWire::reweight("se", &log_weights), &ctx())
+        .expect("reweights");
+    assert_eq!(stage(&changed, "corrected").status, STATUS_REWEIGHTED);
+    assert_eq!(stage(&changed, "doubled_q").status, STATUS_CURRENT);
+    assert_eq!(bit_values(stage(&changed, "doubled_q")), bit_values(stage(&record, "doubled_q")));
+    assert_ne!(bit_values(stage(&changed, "corrected")), bit_values(stage(&record, "corrected")));
+    let withdrawn = record.with_change(ChainChangeWire::withdraw("sp"), &ctx()).expect("withdraws");
+    assert_eq!(stage(&withdrawn, "corrected").status, STATUS_INVALIDATED);
+    assert_eq!(stage(&withdrawn, "doubled_q").status, STATUS_CURRENT);
+}
+
+/// The identity of a record built only from operators that existed before the
+/// expression form is the stream the format documents, word for word.
+#[test]
+fn a_record_without_expressions_keeps_its_identity_encoding() {
+    let values = [1.0, 2.0, 3.0, 4.0];
+    let draft = PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Spread,
+        "scaled",
+        vec![ChainSourceWire::draws("x", LawMeaning::Posterior, TABLE, &values)],
+        vec![ChainStageWire::new(
+            "scaled",
+            StageKind::Transport,
+            &["x"],
+            ChainOpWire::affine(ChainCoefficientWire::fixed(2.0), ChainCoefficientWire::fixed(1.0)),
+        )],
+    );
+    let record = PropagationChainRecordWire::seal(draft, &ctx()).expect("seals");
+    let mut writer = CanonicalWriter::new(PROPAGATION_CHAIN_TAG);
+    writer.word(1); // format version
+    writer.word(1).word(2).text("scaled"); // joint draws, spread, output
+    writer.word(1); // one source
+    writer.text("x").word(3).opt_word(Some(2)).opt_text(Some(TABLE)).word(1);
+    writer.word(0); // no declared factors
+    writer.word(4);
+    for value in values {
+        writer.word(value.to_bits());
+    }
+    writer.word(1); // one stage
+    writer.text("scaled").word(2).word(1).texts(&["x"]); // transport, affine
+    writer.word(0); // no own factors
+    writer.word(1).word(1).real(2.0).word(1).real(1.0); // affine: fixed scale, fixed shift
+    writer.opt_word(None);
+    writer.word(0); // no changes
+    writer.text("uncalibrated_spread");
+    assert_eq!(record.identity, writer.finish_hex());
+    // The new operator takes the next numbers: tag 7 for the operator, 5 for its class (nonlinear).
+    assert_eq!(StageKind::MeasurementMapping.tag(), 1);
+    assert_eq!(OperatorClass::Nonlinear.tag(), 5);
+}
+
+#[test]
+fn caller_limits_refuse_what_the_defaults_admit() {
+    let record = PropagationChainRecordWire::seal(correction_draft(0.5), &ctx()).expect("seals");
+    let defaults = PropagationChainLimits::default();
+    let bytes = record.export_within(&defaults).expect("exports");
+    PropagationChainRecordWire::decode_within(&bytes, &defaults).expect("default bounds");
+    record.consume_within(None, &ctx(), &defaults).expect("default consume");
+
+    let tight = PropagationChainLimits { max_bytes: bytes.len() - 1, ..defaults };
+    assert_eq!(
+        PropagationChainRecordWire::decode_within(&bytes, &tight),
+        Err(PropagationChainError::LimitsExceeded("record bytes"))
+    );
+    let short_text = PropagationChainLimits { max_text_bytes: 1, ..defaults };
+    assert_eq!(
+        PropagationChainRecordWire::decode_within(&bytes, &short_text),
+        Err(PropagationChainError::LimitsExceeded("text bytes"))
+    );
+    let text_limit = Some(PropagationChainError::LimitsExceeded("text bytes"));
+    assert_eq!(record.export_within(&short_text).err(), text_limit);
+    assert_eq!(record.consume_within(None, &ctx(), &short_text).err(), text_limit);
+    assert_eq!(record.plan_within(&short_text).err(), text_limit);
+    let no_values = PropagationChainLimits { max_stage_values: 0, ..defaults };
+    assert_eq!(
+        record.export_within(&no_values).err(),
+        Some(PropagationChainError::LimitsExceeded("result values"))
+    );
+}
+
+#[test]
+fn a_caller_limit_on_changes_gates_a_further_change() {
+    let record = release();
+    let one_change = PropagationChainLimits { max_changes: 1, ..PropagationChainLimits::default() };
+    let once = record
+        .with_change_within(ChainChangeWire::withdraw("cost"), &ctx(), &one_change)
+        .expect("one change fits");
+    assert_eq!(
+        once.with_change_within(ChainChangeWire::withdraw("effect"), &ctx(), &one_change),
+        Err(PropagationChainError::LimitsExceeded("changes"))
+    );
+}
+
+#[test]
+fn point_sources_replicated_past_the_cell_budget_are_refused_before_any_column_is_built() {
+    let rows = 1usize << 20;
+    let nodes = MAX_PROPAGATION_CHAIN_CELLS / rows + 1;
+    let draws: Vec<f64> = (0..rows).map(|i| i as f64 / rows as f64).collect();
+    let sources = vec![
+        ChainSourceWire::draws("effect", LawMeaning::Posterior, TABLE, &draws),
+        ChainSourceWire::point("offset", 0.25),
+    ];
+    let mut stages = vec![ChainStageWire::new(
+        "s0",
+        StageKind::DerivedQuantity,
+        &["effect", "offset"],
+        ChainOpWire::binary("difference"),
+    )];
+    for index in 1..(nodes - sources.len()) {
+        let previous = format!("s{}", index - 1);
+        stages.push(ChainStageWire::new(
+            &format!("s{index}"),
+            StageKind::DerivedQuantity,
+            &[previous.as_str()],
+            ChainOpWire::affine(ChainCoefficientWire::fixed(1.0), ChainCoefficientWire::fixed(0.0)),
+        ));
+    }
+    let output = format!("s{}", stages.len() - 1);
+    assert!(rows * (sources.len() + stages.len()) > MAX_PROPAGATION_CHAIN_CELLS);
+    let draft = PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Spread,
+        &output,
+        sources,
+        stages,
+    );
+    let refusal =
+        PropagationChainRecordWire::seal(draft, &ctx()).expect_err("over budget").to_refusal();
+    assert_eq!(refusal.detail(), "propagation_chain.budget_exceeded");
+}
+
+/// A small posterior artifact for a host to carry the record in.
+fn host_artifact() -> EncodedArtifact {
+    use crate::posterior::{CausalPosteriorWire, PosteriorQuantityWire, encode_posterior_artifact};
+    let meta = CausalPosteriorWire {
+        quantities: vec![PosteriorQuantityWire::Effect { name: "ate".into() }],
+        n_draws: 3,
+        mean: vec![0.0],
+        sd: vec![1.0],
+        q025: vec![-0.95],
+        q975: vec![0.95],
+        identification: "NonparametricallyIdentified".into(),
+        unidentified_mass: 0.0,
+        subsampled_out_mass: 0.0,
+        backend_id: "laplace".into(),
+        converged: true,
+        hessian_condition: 1.0,
+        draws_encoding: "f64_le_colmajor".into(),
+        treatment_contrast: None,
+        preparation: None,
+    };
+    encode_posterior_artifact(&meta, &[-1.0, 0.0, 1.0], "host", "0.1.0").unwrap()
+}
+
+#[test]
+fn an_attached_record_round_trips_as_an_optional_section_of_its_host() {
+    use crate::posterior::decode_posterior_artifact;
+    let record = release();
+    let mut host = host_artifact();
+    assert!(PropagationChainRecordWire::from_artifact(&host).unwrap().is_none());
+    let before = decode_posterior_artifact(&host).unwrap();
+
+    record.attach_to(&mut host).unwrap();
+    // Attaching again replaces the section rather than adding a second one.
+    record.attach_to(&mut host).unwrap();
+    let carried = host.sections.iter().filter(|s| s.id == PROPAGATION_CHAIN_SECTION).count();
+    assert_eq!(carried, 1);
+    let descriptor =
+        host.manifest.sections.iter().find(|d| d.id == PROPAGATION_CHAIN_SECTION).unwrap();
+    assert!(!descriptor.required, "a reader that does not know the section may skip it");
+
+    let mut bytes = Vec::new();
+    host.write_to(&mut bytes).unwrap();
+    let reread = EncodedArtifact::read_from(bytes.as_slice()).unwrap();
+    let back = PropagationChainRecordWire::from_artifact(&reread).unwrap().expect("the section");
+    assert_eq!(back.export().unwrap(), record.export().unwrap());
+    // The host's own reader is unaffected by the extra section.
+    assert_eq!(decode_posterior_artifact(&reread).unwrap(), before);
+
+    // A present section that does not decode is an error, never an absent record.
+    let mut damaged = reread;
+    let section = damaged.sections.iter_mut().find(|s| s.id == PROPAGATION_CHAIN_SECTION).unwrap();
+    section.data = std::sync::Arc::from(&b"not a record"[..]);
+    assert!(PropagationChainRecordWire::from_artifact(&damaged).is_err());
+}

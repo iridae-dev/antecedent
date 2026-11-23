@@ -9,16 +9,16 @@
 //! structural envelope. A cell the caller declares structurally zero must have
 //! count zero and is never smoothed or filled.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use antecedent_core::{CanonicalWriter, RegimeId, Value, VariableId};
 use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, InterventionAssignment, LawTolerance};
 
 use super::{
-    DETAIL_INVALID_COUNTS, DETAIL_SAMPLE_SIZE, DETAIL_SPARSE, DETAIL_UNSEEN,
-    SAMPLED_TRANSPORT_MAX_TABLE_CELLS, invalid_counts, refused,
+    DETAIL_CANCELLED, DETAIL_INVALID_COUNTS, DETAIL_SAMPLE_SIZE, DETAIL_SPARSE, DETAIL_UNSEEN,
+    SAMPLED_TRANSPORT_MAX_TABLE_CELLS, SampledWork, invalid_counts, refused,
 };
 use crate::error::EstimationError;
 
@@ -26,7 +26,7 @@ use crate::error::EstimationError;
 pub const SAMPLED_COUNT_IDENTITY_TAG: &str =
     "antecedent.estimate.counterfactual_transport_sampled.counts.v1";
 
-/// Most axes of one count table.
+/// Reference axis count of a count table; not enforced (the cell count is bounded).
 pub const SAMPLED_TRANSPORT_MAX_AXES: usize = 16;
 
 /// One measured variable of a count table and its declared levels.
@@ -62,6 +62,22 @@ pub struct SampledTableKey {
     pub regime: RegimeId,
     /// `(intervened variable, level bits)` ascending by variable.
     pub interventions: Vec<(VariableId, u64)>,
+}
+
+impl SampledTableKey {
+    pub(crate) fn checked_clone(
+        &self,
+        work: &mut SampledWork<'_>,
+    ) -> Result<Self, EstimationError> {
+        work.charge(self.interventions.len())?;
+        let mut interventions = Vec::with_capacity(self.interventions.len());
+        for chunk in self.interventions.chunks(512) {
+            work.charge(0)?;
+            interventions.extend_from_slice(chunk);
+        }
+        work.charge(0)?;
+        Ok(Self { population: Arc::clone(&self.population), regime: self.regime, interventions })
+    }
 }
 
 /// Unvalidated parts of a [`SampledRegimeCounts`].
@@ -128,18 +144,15 @@ impl SampledRegimeCounts {
         if population.is_empty() || snapshot_identity.is_empty() {
             return Err(invalid_counts("a count table names its population and its snapshot"));
         }
-        if axes.is_empty() || axes.len() > SAMPLED_TRANSPORT_MAX_AXES {
-            return Err(invalid_counts(format!(
-                "a count table measures between one and {SAMPLED_TRANSPORT_MAX_AXES} variables"
-            )));
+        if axes.is_empty() {
+            return Err(invalid_counts("a count table measures at least one variable"));
         }
-        let mut seen: Vec<VariableId> = Vec::new();
+        let mut seen = HashSet::new();
         let mut cells: usize = 1;
         for axis in &axes {
-            if seen.contains(&axis.variable) {
+            if !seen.insert(axis.variable) {
                 return Err(invalid_counts("a variable is measured on two axes"));
             }
-            seen.push(axis.variable);
             if axis.levels.is_empty() || axis.levels.iter().any(|l| !l.is_finite()) {
                 return Err(invalid_counts("an axis has no levels or a non-finite level"));
             }
@@ -188,7 +201,8 @@ impl SampledRegimeCounts {
             }
         }
         if let SamplingDesign::Stratified { variables } = &design {
-            let distinct = variables.iter().enumerate().all(|(i, v)| !variables[..i].contains(v));
+            let mut strata = HashSet::new();
+            let distinct = variables.iter().all(|v| strata.insert(*v));
             if variables.is_empty() || !distinct || variables.iter().any(|v| !seen.contains(v)) {
                 return Err(invalid_counts(
                     "stratification variables are distinct measured variables of the table",
@@ -255,6 +269,63 @@ impl SampledRegimeCounts {
         &self.structural_zeros
     }
 
+    /// Clone a previously validated table, polling during caller-sized vector copies.
+    pub(crate) fn checked_clone(
+        &self,
+        work: &mut SampledWork<'_>,
+    ) -> Result<Self, EstimationError> {
+        fn copied<T: Clone>(
+            values: &[T],
+            work: &mut SampledWork<'_>,
+        ) -> Result<Vec<T>, EstimationError> {
+            let mut out = Vec::with_capacity(values.len());
+            for chunk in values.chunks(512) {
+                work.charge(0)?;
+                out.extend_from_slice(chunk);
+            }
+            Ok(out)
+        }
+        let mut axes = Vec::with_capacity(self.axes.len());
+        for axis in &self.axes {
+            work.charge(0)?;
+            axes.push(SampledAxis { variable: axis.variable, levels: copied(&axis.levels, work)? });
+        }
+        let design = match &self.design {
+            SamplingDesign::IndependentUnits => SamplingDesign::IndependentUnits,
+            SamplingDesign::Stratified { variables } => {
+                SamplingDesign::Stratified { variables: copied(variables, work)? }
+            }
+        };
+        Ok(Self {
+            population: Arc::clone(&self.population),
+            regime: self.regime,
+            interventions: copied(&self.interventions, work)?,
+            axes,
+            counts: copied(&self.counts, work)?,
+            snapshot_identity: Arc::clone(&self.snapshot_identity),
+            design,
+            structural_zeros: copied(&self.structural_zeros, work)?,
+        })
+    }
+
+    pub(crate) fn checked_unseen_cells(
+        &self,
+        work: &mut SampledWork<'_>,
+    ) -> Result<Vec<usize>, EstimationError> {
+        let mut unseen = Vec::new();
+        for (block, counts) in self.counts.chunks(512).enumerate() {
+            work.charge(0)?;
+            for (offset, &count) in counts.iter().enumerate() {
+                let cell = block * 512 + offset;
+                if count == 0 && self.structural_zeros.binary_search(&cell).is_err() {
+                    unseen.push(cell);
+                }
+            }
+        }
+        work.charge(0)?;
+        Ok(unseen)
+    }
+
     /// Total observations.
     #[must_use]
     pub fn total(&self) -> u64 {
@@ -281,6 +352,29 @@ impl SampledRegimeCounts {
         self.counts.iter().filter(|c| **c > 0).count()
     }
 
+    pub(crate) fn checked_report_counts(
+        &self,
+        work: &mut SampledWork<'_>,
+    ) -> Result<(u64, usize, usize), EstimationError> {
+        let mut total = 0u64;
+        let mut observed = 0usize;
+        let mut unseen = 0usize;
+        let per_cell = 3usize
+            .saturating_add((usize::BITS - self.structural_zeros.len().leading_zeros()) as usize);
+        for (block, counts) in self.counts.chunks(512).enumerate() {
+            work.charge(counts.len().saturating_mul(per_cell))?;
+            for (offset, &count) in counts.iter().enumerate() {
+                total += count;
+                observed += usize::from(count > 0);
+                let cell = block * 512 + offset;
+                unseen +=
+                    usize::from(count == 0 && self.structural_zeros.binary_search(&cell).is_err());
+            }
+        }
+        work.charge(1)?;
+        Ok((total, observed, unseen))
+    }
+
     /// The table's identity within a request.
     #[must_use]
     pub fn key(&self) -> SampledTableKey {
@@ -289,6 +383,23 @@ impl SampledRegimeCounts {
             regime: self.regime,
             interventions: self.interventions.iter().map(|(v, l)| (*v, level_bits(*l))).collect(),
         }
+    }
+
+    pub(crate) fn checked_key(
+        &self,
+        work: &mut SampledWork<'_>,
+    ) -> Result<SampledTableKey, EstimationError> {
+        let mut interventions = Vec::with_capacity(self.interventions.len());
+        for chunk in self.interventions.chunks(512) {
+            work.charge(chunk.len())?;
+            interventions.extend(chunk.iter().map(|(v, l)| (*v, level_bits(*l))));
+        }
+        work.charge(1)?;
+        Ok(SampledTableKey {
+            population: Arc::clone(&self.population),
+            regime: self.regime,
+            interventions,
+        })
     }
 
     /// Whether two tables have identical summaries: equal axes, counts, design
@@ -302,6 +413,48 @@ impl SampledRegimeCounts {
             && self.structural_zeros == other.structural_zeros
     }
 
+    pub(crate) fn same_observations_checked(
+        &self,
+        other: &Self,
+        work: &mut SampledWork<'_>,
+    ) -> Result<bool, EstimationError> {
+        fn same<T: PartialEq>(
+            a: &[T],
+            b: &[T],
+            work: &mut SampledWork<'_>,
+        ) -> Result<bool, EstimationError> {
+            if a.len() != b.len() {
+                return Ok(false);
+            }
+            for (left, right) in a.chunks(512).zip(b.chunks(512)) {
+                work.charge(0)?;
+                if left != right {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+        if self.axes.len() != other.axes.len() {
+            return Ok(false);
+        }
+        match (&self.design, &other.design) {
+            (SamplingDesign::IndependentUnits, SamplingDesign::IndependentUnits) => {}
+            (
+                SamplingDesign::Stratified { variables: left },
+                SamplingDesign::Stratified { variables: right },
+            ) if same(left, right, work)? => {}
+            _ => return Ok(false),
+        }
+        for (left, right) in self.axes.iter().zip(&other.axes) {
+            work.charge(0)?;
+            if left.variable != right.variable || !same(&left.levels, &right.levels, work)? {
+                return Ok(false);
+            }
+        }
+        Ok(same(&self.counts, &other.counts, work)?
+            && same(&self.structural_zeros, &other.structural_zeros, work)?)
+    }
+
     /// Content identity (64 hex characters) of the whole table: labels, axes,
     /// levels, every count, snapshot, design and structural zeros. A changed
     /// observation changes it even when labels and shape match.
@@ -310,6 +463,75 @@ impl SampledRegimeCounts {
         let mut w = CanonicalWriter::new(SAMPLED_COUNT_IDENTITY_TAG);
         self.write_identity(&mut w);
         w.finish_hex()
+    }
+
+    pub(crate) fn checked_content_identity(
+        &self,
+        work: &mut SampledWork<'_>,
+    ) -> Result<String, EstimationError> {
+        let mut w = CanonicalWriter::new(SAMPLED_COUNT_IDENTITY_TAG);
+        self.write_identity_checked(&mut w, work)?;
+        work.charge(1)?;
+        Ok(w.finish_hex())
+    }
+
+    pub(crate) fn write_identity_checked(
+        &self,
+        w: &mut CanonicalWriter,
+        work: &mut SampledWork<'_>,
+    ) -> Result<(), EstimationError> {
+        work.charge(self.population.len())?;
+        w.try_bytes(self.population.as_bytes(), || work.charge(0))?
+            .word(u64::from(self.regime.raw()));
+        w.word(self.interventions.len() as u64);
+        for chunk in self.interventions.chunks(512) {
+            work.charge(chunk.len().saturating_mul(2))?;
+            for (v, l) in chunk {
+                w.word(u64::from(v.raw())).word(level_bits(*l));
+            }
+        }
+        w.word(self.axes.len() as u64);
+        for axis in &self.axes {
+            work.charge(2)?;
+            w.word(u64::from(axis.variable.raw())).word(axis.levels.len() as u64);
+            for chunk in axis.levels.chunks(512) {
+                work.charge(chunk.len())?;
+                for level in chunk {
+                    w.word(level_bits(*level));
+                }
+            }
+        }
+        w.word(self.counts.len() as u64);
+        for chunk in self.counts.chunks(512) {
+            work.charge(chunk.len())?;
+            for count in chunk {
+                w.word(*count);
+            }
+        }
+        work.charge(self.snapshot_identity.len())?;
+        w.try_bytes(self.snapshot_identity.as_bytes(), || work.charge(0))?;
+        match &self.design {
+            SamplingDesign::IndependentUnits => {
+                w.word(0);
+            }
+            SamplingDesign::Stratified { variables } => {
+                w.word(1).word(variables.len() as u64);
+                for chunk in variables.chunks(512) {
+                    work.charge(chunk.len())?;
+                    for v in chunk {
+                        w.word(u64::from(v.raw()));
+                    }
+                }
+            }
+        }
+        w.word(self.structural_zeros.len() as u64);
+        for chunk in self.structural_zeros.chunks(512) {
+            work.charge(chunk.len())?;
+            for cell in chunk {
+                w.word(*cell as u64);
+            }
+        }
+        work.charge(1)
     }
 
     pub(crate) fn write_identity(&self, w: &mut CanonicalWriter) {
@@ -350,28 +572,58 @@ impl SampledRegimeCounts {
 
     /// Stratum index of every cell for a stratified design (all cells in stratum
     /// zero for independent units), with the number of strata.
-    pub(crate) fn strata(&self) -> (Vec<usize>, usize) {
+    pub(crate) fn strata(
+        &self,
+        work: &mut SampledWork<'_>,
+    ) -> Result<(Vec<usize>, usize), EstimationError> {
         let SamplingDesign::Stratified { variables } = &self.design else {
-            return (vec![0; self.counts.len()], 1);
+            let mut out = Vec::with_capacity(self.counts.len());
+            for chunk in self.counts.chunks(512) {
+                work.charge(0)?;
+                out.resize(out.len() + chunk.len(), 0);
+            }
+            return Ok((out, 1));
         };
         let n_axes = self.axes.len();
         let mut strides = vec![1usize; n_axes];
         for a in (0..n_axes.saturating_sub(1)).rev() {
+            work.charge(0)?;
             strides[a] = strides[a + 1] * self.axes[a + 1].levels.len();
         }
-        let chosen: Vec<usize> =
-            (0..n_axes).filter(|a| variables.contains(&self.axes[*a].variable)).collect();
-        let strata: usize = chosen.iter().map(|a| self.axes[*a].levels.len()).product();
+        let mut chosen = Vec::new();
+        let mut strata = 1usize;
+        for a in 0..n_axes {
+            work.charge(variables.len())?;
+            let mut contains = false;
+            for chunk in variables.chunks(512) {
+                work.charge(0)?;
+                if chunk.contains(&self.axes[a].variable) {
+                    contains = true;
+                    break;
+                }
+            }
+            if contains {
+                chosen.push(a);
+                strata *= self.axes[a].levels.len();
+            }
+        }
         let mut out = Vec::with_capacity(self.counts.len());
         for cell in 0..self.counts.len() {
+            if cell % 512 == 0 {
+                work.charge(0)?;
+            }
             let mut stratum = 0usize;
-            for &a in &chosen {
+            for (index, &a) in chosen.iter().enumerate() {
+                if index % 512 == 0 {
+                    work.charge(0)?;
+                }
                 let level = (cell / strides[a]) % self.axes[a].levels.len();
                 stratum = stratum * self.axes[a].levels.len() + level;
             }
             out.push(stratum);
         }
-        (out, strata)
+        work.charge(0)?;
+        Ok((out, strata))
     }
 }
 
@@ -456,7 +708,9 @@ pub struct SampledTransportLimits {
     pub max_unseen_fraction: f64,
     /// Most members of an envelope family evaluated.
     pub max_envelope_evaluations: u32,
-    /// Exact-evaluation budget of one evaluation of the stored derivation.
+    /// Shared operation allowance for point preparation and evaluation and all
+    /// gradient preparation and evaluations. Envelope members each use their
+    /// own evaluation allowance.
     pub evaluation: antecedent_expr::ExactEvaluationLimits,
 }
 
@@ -491,15 +745,21 @@ pub(crate) fn table_probabilities(
     table: &SampledRegimeCounts,
     rule: UnseenCellRule,
     limits: &SampledTransportLimits,
+    work: &mut SampledWork<'_>,
 ) -> Result<(Vec<f64>, bool), EstimationError> {
-    let total = table.total();
+    let mut total = 0u64;
+    for chunk in table.counts.chunks(512) {
+        work.charge(0)?;
+        total += chunk.iter().sum::<u64>();
+    }
+    work.charge(0)?;
     if total < limits.min_table_total {
         return Err(refused(
             antecedent_core::reason_code!("transport_support_failure"),
             DETAIL_SAMPLE_SIZE,
             format!(
                 "population {} regime {} has {total} observations; the declared minimum is {}",
-                table.population,
+                super::name_preview(&table.population),
                 table.regime.raw(),
                 limits.min_table_total
             ),
@@ -507,7 +767,7 @@ pub(crate) fn table_probabilities(
     }
     let structural = table.structural_zeros.len();
     let live = table.counts.len() - structural;
-    let unseen = table.unseen_cells();
+    let unseen = table.checked_unseen_cells(work)?;
     if !unseen.is_empty() {
         match rule {
             UnseenCellRule::Refuse => {
@@ -518,7 +778,7 @@ pub(crate) fn table_probabilities(
                         "population {} regime {} has {} unseen cells of {live}; declare them \
                          structural zeros, or choose additive smoothing or an unseen-mass \
                          envelope (an unseen cell is never filled with zero silently)",
-                        table.population,
+                        super::name_preview(&table.population),
                         table.regime.raw(),
                         unseen.len()
                     ),
@@ -534,7 +794,7 @@ pub(crate) fn table_probabilities(
                         format!(
                             "population {} regime {} has {} of {live} cells unseen, above the \
                              declared sparsity limit {}",
-                            table.population,
+                            super::name_preview(&table.population),
                             table.regime.raw(),
                             unseen.len(),
                             limits.max_unseen_fraction
@@ -548,18 +808,30 @@ pub(crate) fn table_probabilities(
     match rule {
         UnseenCellRule::AdditiveSmoothing { pseudo_count } if !unseen.is_empty() => {
             let denominator = n + live as f64 * pseudo_count;
-            let probabilities = (0..table.counts.len())
-                .map(|c| {
-                    if table.structural_zeros.binary_search(&c).is_ok() {
+            let mut probabilities = Vec::with_capacity(table.counts.len());
+            for (block, chunk) in table.counts.chunks(512).enumerate() {
+                work.charge(0)?;
+                for (offset, &count) in chunk.iter().enumerate() {
+                    let c = block * 512 + offset;
+                    probabilities.push(if table.structural_zeros.binary_search(&c).is_ok() {
                         0.0
                     } else {
-                        (table.counts[c] as f64 + pseudo_count) / denominator
-                    }
-                })
-                .collect();
+                        (count as f64 + pseudo_count) / denominator
+                    });
+                }
+            }
+            work.charge(0)?;
             Ok((probabilities, true))
         }
-        _ => Ok((table.counts.iter().map(|c| *c as f64 / n).collect(), false)),
+        _ => {
+            let mut probabilities = Vec::with_capacity(table.counts.len());
+            for chunk in table.counts.chunks(512) {
+                work.charge(0)?;
+                probabilities.extend(chunk.iter().map(|c| *c as f64 / n));
+            }
+            work.charge(0)?;
+            Ok((probabilities, false))
+        }
     }
 }
 
@@ -573,46 +845,69 @@ pub(crate) fn law_of(
     table: &SampledRegimeCounts,
     probabilities: &[f64],
     flavor: LawFlavor,
+    work: &mut SampledWork<'_>,
 ) -> Result<ExactDiscreteLaw, EstimationError> {
-    let axes: Vec<DiscreteAxis> = table
-        .axes
-        .iter()
-        .map(|axis| DiscreteAxis {
-            variable: axis.variable,
-            values: axis.levels.iter().map(|l| Value::f64(*l)).collect::<Vec<_>>().into(),
-        })
-        .collect();
-    let interventions: Vec<InterventionAssignment> = table
-        .interventions
-        .iter()
-        .map(|(variable, level)| InterventionAssignment::concrete(*variable, Value::f64(*level)))
-        .collect();
+    let mut axes = Vec::with_capacity(table.axes.len());
+    for axis in &table.axes {
+        let mut values = Vec::with_capacity(axis.levels.len());
+        for chunk in axis.levels.chunks(512) {
+            work.charge(0)?;
+            values.extend(chunk.iter().map(|l| Value::f64(*l)));
+        }
+        axes.push(DiscreteAxis { variable: axis.variable, values: values.into() });
+    }
+    let mut interventions = Vec::with_capacity(table.interventions.len());
+    for chunk in table.interventions.chunks(512) {
+        work.charge(0)?;
+        interventions.extend(
+            chunk.iter().map(|(v, l)| InterventionAssignment::concrete(*v, Value::f64(*l))),
+        );
+    }
+    let mut copied_probabilities = Vec::with_capacity(probabilities.len());
+    for chunk in probabilities.chunks(512) {
+        work.charge(0)?;
+        copied_probabilities.extend_from_slice(chunk);
+    }
+    work.charge(0)?;
     let law = ExactDiscreteLaw::try_new(
         Arc::clone(&table.population),
         table.regime,
         interventions,
         axes,
-        probabilities.to_vec(),
+        copied_probabilities,
         Arc::clone(&table.snapshot_identity),
         LawTolerance::default(),
     )
-    .map_err(|e| {
-        refused(
-            antecedent_core::reason_code!("invalid_argument"),
-            DETAIL_INVALID_COUNTS,
-            format!("the estimated table is not a finite law: {e}"),
-        )
-    })?;
-    let counts = table.counts.clone();
+    .map_err(|e| map_law_error(e, "the estimated table is not a finite law"))?;
+    let mut counts = Vec::with_capacity(table.counts.len());
+    for chunk in table.counts.chunks(512) {
+        work.charge(0)?;
+        counts.extend_from_slice(chunk);
+    }
+    work.charge(0)?;
     let law = match flavor {
         LawFlavor::Empirical => law.with_empirical_counts(counts),
         LawFlavor::Model => law.with_learned_support(counts),
     };
-    law.map_err(|e| {
+    law.map_err(|e| map_law_error(e, "the estimated table does not reconcile with its counts"))
+}
+
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the helper retains its established ownership interface"
+)]
+pub(crate) fn map_law_error(e: antecedent_expr::ExactLawError, message: &str) -> EstimationError {
+    if e.kind == "cancelled" {
+        refused(
+            antecedent_core::reason_code!("transport_budget_cancel"),
+            DETAIL_CANCELLED,
+            "the sampled evaluation was cancelled",
+        )
+    } else {
         refused(
             antecedent_core::reason_code!("invalid_argument"),
             DETAIL_INVALID_COUNTS,
-            format!("the estimated table does not reconcile with its counts: {e}"),
+            format!("{message}: {e}"),
         )
-    })
+    }
 }

@@ -1,10 +1,10 @@
-//! One finite two-step temporal transport sequence: exact and point-only.
+//! One finite temporal transport sequence: exact and point-only.
 //!
-//! The whole sequence `do(A_1 = a_1, A_2 = a_2)` is one longitudinal intervention
-//! on the explicit two-slice unrolled selection diagram. It is decided by the
-//! licensed classical catalog sID route in one call with both actions as the
-//! treatment set; time step 1 and time step 2 are never transported separately
-//! and multiplied. The unrolled diagram fixes the finite discrete structure:
+//! The whole sequence `do(A_1 = a_1, ..., A_H = a_H)` is one longitudinal
+//! intervention on the explicit unrolled selection diagram of horizon `H`. It is decided by the
+//! supported classical catalog sID route in one call with both actions as the
+//! treatment set; the time steps are never transported separately and
+//! multiplied. The unrolled diagram fixes the finite discrete structure:
 //! baseline covariates, the time-varying covariates observed before each action,
 //! one action per step over one shared discrete alphabet, and one outcome after
 //! the last action. A selection target on a coordinate is a time-indexed
@@ -20,7 +20,7 @@
 //! the growth of the history lattice, charged per state with the live bytes
 //! retained. A stop is a receipt; it is never a non-identification verdict.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -38,25 +38,12 @@ use super::{
     identify_catalog_transport_metered, identify_classical_transport_metered, sid_memory_bytes,
 };
 
-/// The one licensed horizon: two steps.
-pub const TEMPORAL_HORIZON: usize = 2;
-/// Most actions in the discrete alphabet.
-pub const TEMPORAL_MAX_ACTIONS: usize = 8;
-/// Most coordinates the unrolled diagram had under the earlier fixed ceiling.
-#[deprecated(
-    since = "2.4.1",
-    note = "no longer enforced: the number of coordinates is bounded by the search budget"
-)]
-pub const TEMPORAL_MAX_OBSERVED: usize = 12;
-/// Most complete covariate histories (baseline, step-1 and step-2 covariates).
-pub const TEMPORAL_MAX_HISTORY_STATES: usize = 4096;
-
 /// Detail: a required history has no certified support.
 pub(crate) const TEMPORAL_HISTORY_OUTSIDE_SUPPORT: &str =
     "temporal_transport.history_outside_support";
-/// Detail: a horizon other than two, a new period, or a changed window.
+/// Detail: a horizon the slots do not carry, a new period, or a changed window.
 pub const TEMPORAL_HORIZON_DETAIL: &str = "temporal_transport.horizon";
-/// Detail: the licensed rules certified nothing.
+/// Detail: the supported rules certified nothing.
 pub const TEMPORAL_SEARCH_INCOMPLETE: &str = "temporal_transport.search_incomplete";
 /// Detail: the shared budget or cancellation stopped the decision.
 pub const TEMPORAL_HISTORY_BUDGET: &str = "temporal_transport.history_budget";
@@ -101,7 +88,7 @@ impl TemporalRefusal {
         Self::new(reason_code!("invalid_argument"), TEMPORAL_INVALID_SEQUENCE, message)
     }
 
-    /// A horizon other than two, a new period, or a changed measurement window.
+    /// A horizon the slots do not carry, a new period, or a changed measurement window.
     #[must_use]
     pub fn horizon(message: impl Into<String>) -> Self {
         Self::new(reason_code!("route_not_supported"), TEMPORAL_HORIZON_DETAIL, message)
@@ -130,7 +117,7 @@ impl TemporalRefusal {
         Self::new(
             reason_code!("estimator_inference_mismatch"),
             TEMPORAL_INTERVAL_REQUESTED,
-            "the two-step sequence route is exact and point-only; temporal sampling and \
+            "the sequence route is exact and point-only; temporal sampling and \
              initial-state intervals are not offered here",
         )
     }
@@ -155,61 +142,70 @@ impl From<TemporalRefusal> for IdentificationError {
 
 /// Where each coordinate of the unrolled diagram sits in time.
 ///
-/// Slice 0 is the baseline; slice 1 holds the step-1 covariates and action;
-/// slice 2 holds the step-2 covariates, action and the outcome. The order in
-/// time is `baseline < covariates[0] < actions[0] < covariates[1] < actions[1]
-/// < outcome`.
+/// Slice 0 is the baseline; slice `k` holds the step-`k` covariates and action;
+/// the outcome belongs to the last slice. The order in time is `baseline <
+/// covariates[0] < actions[0] < covariates[1] < actions[1] < ... < outcome`:
+/// one covariate group and one action per step.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TemporalSlots {
     /// Baseline covariates: the initial state before step 1.
     pub baseline: Vec<VariableId>,
-    /// Time-varying covariates observed before each action.
-    pub covariates: [Vec<VariableId>; 2],
+    /// Time-varying covariates observed before each action, one group per step.
+    pub covariates: Vec<Vec<VariableId>>,
     /// The action of each step.
-    pub actions: [VariableId; 2],
+    pub actions: Vec<VariableId>,
     /// The outcome observed after the last action.
     pub outcome: VariableId,
 }
 
 impl TemporalSlots {
-    /// Position in time order, or `None` for a variable not in the slots.
+    /// Number of steps: one action per step.
     #[must_use]
-    pub fn position(&self, variable: VariableId) -> Option<u8> {
-        if self.baseline.contains(&variable) {
-            Some(0)
-        } else if self.covariates[0].contains(&variable) {
-            Some(1)
-        } else if variable == self.actions[0] {
-            Some(2)
-        } else if self.covariates[1].contains(&variable) {
-            Some(3)
-        } else if variable == self.actions[1] {
-            Some(4)
-        } else if variable == self.outcome {
-            Some(5)
-        } else {
-            None
-        }
+    pub fn horizon(&self) -> usize {
+        self.actions.len()
     }
 
-    /// Time slice of a variable: 0 baseline, 1 first step, 2 second step.
+    /// Position in time order (baseline `0`, then each step's covariates and
+    /// action, the outcome last), or `None` for a variable not in the slots.
+    #[must_use]
+    pub fn position(&self, variable: VariableId) -> Option<usize> {
+        if self.baseline.contains(&variable) {
+            return Some(0);
+        }
+        for (step, action) in self.actions.iter().enumerate() {
+            if self.covariates.get(step).is_some_and(|group| group.contains(&variable)) {
+                return Some(1 + 2 * step);
+            }
+            if variable == *action {
+                return Some(2 + 2 * step);
+            }
+        }
+        (variable == self.outcome).then(|| 1 + 2 * self.actions.len())
+    }
+
+    /// Time slice of a variable: 0 baseline, `k` for step `k`; the outcome is in
+    /// the last slice.
     #[must_use]
     pub fn slice(&self, variable: VariableId) -> Option<u8> {
-        self.position(variable).map(|p| match p {
-            0 => 0,
-            1 | 2 => 1,
-            _ => 2,
-        })
+        let position = self.position(variable)?;
+        let slice = if position == 1 + 2 * self.actions.len() {
+            self.actions.len()
+        } else {
+            position.div_ceil(2)
+        };
+        u8::try_from(slice).ok()
     }
 
     /// Every coordinate, in time order.
     #[must_use]
     pub fn variables(&self) -> Vec<VariableId> {
         let mut all = self.baseline.clone();
-        all.extend(&self.covariates[0]);
-        all.push(self.actions[0]);
-        all.extend(&self.covariates[1]);
-        all.push(self.actions[1]);
+        for (step, action) in self.actions.iter().enumerate() {
+            if let Some(group) = self.covariates.get(step) {
+                all.extend(group);
+            }
+            all.push(*action);
+        }
         all.push(self.outcome);
         all
     }
@@ -217,13 +213,17 @@ impl TemporalSlots {
     /// Covariates that make up the initial-state law: baseline and step-1 covariates.
     #[must_use]
     pub fn initial_state(&self) -> Vec<VariableId> {
-        self.baseline.iter().chain(&self.covariates[0]).copied().collect()
+        self.baseline.iter().chain(self.covariates.first().into_iter().flatten()).copied().collect()
     }
 
-    /// Covariates of a complete history: the initial state and the step-2 covariates.
+    /// Covariates of a complete history: the initial state and the covariates of
+    /// every later step.
     #[must_use]
     pub fn history_coordinates(&self) -> Vec<VariableId> {
-        self.initial_state().into_iter().chain(self.covariates[1].iter().copied()).collect()
+        self.initial_state()
+            .into_iter()
+            .chain(self.covariates.iter().skip(1).flatten().copied())
+            .collect()
     }
 }
 
@@ -239,7 +239,7 @@ fn domain_levels(domain: &VariableDomain) -> Option<Vec<Value>> {
     }
 }
 
-/// A validated explicit unrolling: horizon two, discrete action alphabet, the
+/// A validated explicit unrolling: its horizon, discrete action alphabet, the
 /// selection diagram over the unrolled coordinates, and each coordinate's
 /// declared name, domain and unit.
 #[derive(Clone, Debug)]
@@ -251,19 +251,21 @@ pub struct TemporalSequenceSpec {
 }
 
 impl TemporalSequenceSpec {
-    /// Validate an explicit two-slice unrolling.
+    /// Validate an explicit unrolling.
     ///
-    /// The declared `horizon` must be two. The slots must partition the
-    /// diagram's coordinates; every coordinate is declared once with a unique
-    /// name and a finite (binary or categorical) domain; the two actions share
-    /// one alphabet of at most [`TEMPORAL_MAX_ACTIONS`] actions; no directed
+    /// The declared `horizon` must be the number of steps the slots carry (one
+    /// action and one covariate group per step, at least one step). The slots
+    /// must partition the diagram's coordinates; every coordinate is declared
+    /// once with a unique name and a finite (binary or categorical) domain; the
+    /// actions share one alphabet; no directed
     /// edge runs backward in time; and no selection target is an action, whose
-    /// mechanism the sequence replaces. The number of coordinates is bounded only
-    /// by the search budget the decision runs under; the complete covariate
-    /// histories number at most [`TEMPORAL_MAX_HISTORY_STATES`].
+    /// mechanism the sequence replaces. The number of coordinates, actions and
+    /// complete covariate histories is bounded only by the search budget the
+    /// decision runs under: every history state is charged before it is built.
     ///
     /// # Errors
-    /// `route_not_supported` / `temporal_transport.horizon` for another horizon,
+    /// `route_not_supported` / `temporal_transport.horizon` for a horizon the
+    /// slots do not carry,
     /// `route_not_supported` / `temporal_transport.bounds_exceeded` for an
     /// exceeded cap, and `invalid_argument` / `temporal_transport.invalid_spec`
     /// for anything malformed.
@@ -273,9 +275,18 @@ impl TemporalSequenceSpec {
         diagram: SelectionDiagram,
         coordinates: impl Into<Arc<[ScenarioCoordinate]>>,
     ) -> Result<Self, TemporalRefusal> {
-        if horizon != TEMPORAL_HORIZON {
+        if horizon == 0 || horizon != slots.actions.len() || horizon != slots.covariates.len() {
             return Err(TemporalRefusal::horizon(format!(
-                "horizon {horizon} is outside the licensed horizon of {TEMPORAL_HORIZON}"
+                "horizon {horizon} does not match the slots, which carry {} actions and {} \
+                 covariate groups",
+                slots.actions.len(),
+                slots.covariates.len()
+            )));
+        }
+        if u8::try_from(horizon).is_err() {
+            return Err(TemporalRefusal::bounds_exceeded(format!(
+                "horizon {horizon} exceeds the {} steps a time slice can index",
+                u8::MAX
             )));
         }
         let mut schema = coordinates.into().to_vec();
@@ -316,29 +327,17 @@ impl TemporalSequenceSpec {
             })
         };
         let first = levels(self.slots.actions[0])?;
-        let second = levels(self.slots.actions[1])?;
-        if first != second {
-            return Err(TemporalRefusal::invalid_spec(
-                "both steps use one action alphabet: the action domains must be equal",
-            ));
+        for action in &self.slots.actions[1..] {
+            if levels(*action)? != first {
+                return Err(TemporalRefusal::invalid_spec(
+                    "every step uses one action alphabet: the action domains must be equal",
+                ));
+            }
         }
-        if first.len() > TEMPORAL_MAX_ACTIONS {
-            return Err(TemporalRefusal::bounds_exceeded(format!(
-                "{} actions exceed the alphabet bound of {TEMPORAL_MAX_ACTIONS}",
-                first.len()
-            )));
-        }
-        let mut states = 1usize;
         for v in self.slots.history_coordinates() {
-            states = states.saturating_mul(levels(v)?.len());
+            levels(v)?;
         }
         levels(self.slots.outcome)?;
-        if states > TEMPORAL_MAX_HISTORY_STATES {
-            return Err(TemporalRefusal::bounds_exceeded(format!(
-                "{states} complete covariate histories exceed the bound of \
-                 {TEMPORAL_MAX_HISTORY_STATES}"
-            )));
-        }
         Ok(())
     }
 
@@ -371,7 +370,7 @@ impl TemporalSequenceSpec {
         Ok(())
     }
 
-    /// The horizon (always two).
+    /// The horizon: the number of steps.
     #[must_use]
     pub const fn horizon(&self) -> usize {
         self.horizon
@@ -407,7 +406,7 @@ impl TemporalSequenceSpec {
         self.coordinate(variable).and_then(|c| domain_levels(&c.domain)).unwrap_or_default()
     }
 
-    /// The action alphabet shared by both steps.
+    /// The action alphabet shared by every step.
     #[must_use]
     pub fn alphabet(&self) -> Vec<Value> {
         self.levels(self.slots.actions[0])
@@ -466,7 +465,7 @@ impl TemporalSequenceSpec {
     pub fn question(&self, source: &str, target: &str) -> ClassicalTransportQuery {
         ClassicalTransportQuery {
             outcomes: Arc::from([self.slots.outcome]),
-            treatments: Arc::from(self.slots.actions),
+            treatments: Arc::from(self.slots.actions.as_slice()),
             source: Arc::from(source),
             target: Arc::from(target),
         }
@@ -519,16 +518,26 @@ pub struct UnrolledSequence {
 }
 
 impl UnrolledSequence {
-    /// The unrolled coordinate of template `variable` in `period` (1 or 2), or
-    /// the baseline coordinate `index` for `period` 0.
+    /// The unrolled coordinate of template `variable` in `period` (1 or 2), or the baseline
+    /// coordinate of baseline index `variable` for `period` 0. `None` when the period is not
+    /// 0, 1 or 2, or the variable is not a template variable (baseline index) of the unrolling.
     #[must_use]
-    pub fn coordinate(&self, variable: VariableId, period: usize) -> VariableId {
-        let period = u32::try_from(period.saturating_sub(1)).unwrap_or(0);
-        VariableId::from_raw(period * self.variable_count + variable.raw())
+    pub fn coordinate(&self, variable: VariableId, period: usize) -> Option<VariableId> {
+        match period {
+            0 => self.slots.baseline.get(usize::try_from(variable.raw()).ok()?).copied(),
+            1 | 2 => {
+                if variable.raw() >= self.variable_count {
+                    return None;
+                }
+                let offset = u32::try_from(period - 1).ok()?.checked_mul(self.variable_count)?;
+                offset.checked_add(variable.raw()).map(VariableId::from_raw)
+            }
+            _ => None,
+        }
     }
 }
 
-/// Unroll a lagged temporal template over the horizon of two, reusing the
+/// Unroll a lagged temporal template over two slices, reusing the
 /// finite unfolding of `TemporalDag` (ADR 0021): template edges are replicated
 /// per slice and parents before the first slice are dropped, so the initial
 /// state is fixed rather than modelled. Template variables must be numbered
@@ -559,8 +568,24 @@ pub fn unroll_two_slice(
     }
     let indexer = antecedent_core::TemporalIndexer::new(n, 0, 2)
         .map_err(|e| TemporalRefusal::invalid_spec(e.to_string()))?;
-    let unfolded =
-        template.unfold(indexer).map_err(|e| TemporalRefusal::invalid_spec(e.to_string()))?;
+    let unfolded = template.unfold(indexer).map_err(|error| match error {
+        antecedent_graph::GraphError::TemporalMaterialization(
+            antecedent_core::TemporalMaterializationError::Cancelled
+            | antecedent_core::TemporalMaterializationError::Admission(
+                antecedent_core::execution::AdmissionError::Cancelled,
+            ),
+        ) => TemporalRefusal::new(
+            reason_code!("cancelled_no_claim"),
+            TEMPORAL_BOUNDS_EXCEEDED,
+            "temporal unfolding cancelled",
+        ),
+        antecedent_graph::GraphError::TemporalMaterialization(error) => TemporalRefusal::new(
+            reason_code!("transport_budget_cancel"),
+            TEMPORAL_BOUNDS_EXCEEDED,
+            error.to_string(),
+        ),
+        other => TemporalRefusal::invalid_spec(other.to_string()),
+    })?;
     let total = u32::try_from(baseline)
         .ok()
         .and_then(|b| b.checked_add(2 * n))
@@ -588,8 +613,8 @@ pub fn unroll_two_slice(
     second.push(at(0, roles.outcome));
     let slots = TemporalSlots {
         baseline: (0..total - 2 * n).map(|i| VariableId::from_raw(2 * n + i)).collect(),
-        covariates: [roles.covariates.iter().map(|v| at(0, *v)).collect(), second],
-        actions: [at(0, roles.action), at(1, roles.action)],
+        covariates: vec![roles.covariates.iter().map(|v| at(0, *v)).collect(), second],
+        actions: vec![at(0, roles.action), at(1, roles.action)],
         outcome: at(1, roles.outcome),
     };
     Ok(UnrolledSequence { admg, slots, variable_count: n })
@@ -763,34 +788,33 @@ fn reaches_avoiding(graph: &Admg, from: DenseNodeId, to: DenseNodeId, avoid: Den
     graph.descendants_within(&seeds, &BitSet::full(n), Some(&cut), &mut ws).contains(to)
 }
 
-/// Covariates of step 2 that confound the second action and the outcome while
-/// lying downstream of the first action: the time-varying confounders that a
-/// sequence-wise identification must handle jointly. A covariate whose only
-/// route to the outcome runs through the second action mediates it and
-/// confounds nothing.
+/// Covariates of every step after the first that confound that step's action
+/// and the outcome while lying downstream of the first action: the time-varying
+/// confounders that a sequence-wise identification must handle jointly. A
+/// covariate whose only route to the outcome runs through the action it
+/// precedes mediates it and confounds nothing.
 fn time_varying_confounders(spec: &TemporalSequenceSpec) -> Vec<VariableId> {
     let graph = spec.diagram().causal_graph();
     let slots = spec.slots();
-    let (Some(a1), Some(a2), Some(y)) = (
-        dense(spec.diagram(), slots.actions[0]),
-        dense(spec.diagram(), slots.actions[1]),
-        dense(spec.diagram(), slots.outcome),
-    ) else {
+    let (Some(first), Some(y)) =
+        (dense(spec.diagram(), slots.actions[0]), dense(spec.diagram(), slots.outcome))
+    else {
         return Vec::new();
     };
-    slots.covariates[1]
-        .iter()
-        .copied()
-        .filter(|l| {
+    let mut confounders = Vec::new();
+    for (step, group) in slots.covariates.iter().enumerate().skip(1) {
+        let Some(action) = dense(spec.diagram(), slots.actions[step]) else { continue };
+        confounders.extend(group.iter().copied().filter(|l| {
             let Some(id) = dense(spec.diagram(), *l) else { return false };
-            let after_first = graph.reaches(a1, id);
-            let affects_second =
-                graph.parents(a2).contains(&id) || graph.bidirected_neighbors(a2).contains(&id);
-            let affects_outcome =
-                reaches_avoiding(graph, id, y, a2) || graph.bidirected_neighbors(y).contains(&id);
-            after_first && affects_second && affects_outcome
-        })
-        .collect()
+            let after_first = graph.reaches(first, id);
+            let affects_action = graph.parents(action).contains(&id)
+                || graph.bidirected_neighbors(action).contains(&id);
+            let affects_outcome = reaches_avoiding(graph, id, y, action)
+                || graph.bidirected_neighbors(y).contains(&id);
+            after_first && affects_action && affects_outcome
+        }));
+    }
+    confounders
 }
 
 fn invariances(
@@ -844,7 +868,7 @@ fn evidence_by_slice(
     };
     let mut rows = Vec::new();
     for regime in catalog.regimes.iter() {
-        for slice in 0..=2u8 {
+        for slice in 0..=u8::try_from(slots.horizon()).unwrap_or(u8::MAX) {
             let in_slice = |v: &&VariableId| slots.slice(**v) == Some(slice);
             let interventions =
                 regime.interventions.iter().filter(in_slice).copied().collect::<Vec<_>>();
@@ -875,68 +899,70 @@ fn lattice_bytes(base: u64, states: usize, width: usize) -> u64 {
 
 /// Grow the history lattice one step at a time, charging the shared budget once
 /// per state with the cumulative bytes retained. Step 1 enumerates the initial
-/// states at depth one; step 2 extends each with the step-2 covariates at depth
-/// two, the horizon.
+/// states at depth one; step `k` extends each state with the step-`k`
+/// covariates at depth `k`, up to the horizon. The error names the step that
+/// stopped.
 fn grow_histories(
     spec: &TemporalSequenceSpec,
     base: u64,
     search: &mut SharedSearch<'_>,
-) -> Result<HistoryLattice, (SearchStop, &'static str)> {
+) -> Result<HistoryLattice, (SearchStop, usize)> {
     let slots = spec.slots();
     let extend = |states: Vec<Vec<Value>>,
                   coordinates: &[VariableId],
                   depth: usize,
-                  step: &'static str,
+                  step: usize,
                   retained: usize,
                   width: usize,
                   search: &mut SharedSearch<'_>|
-     -> Result<Vec<Vec<Value>>, (SearchStop, &'static str)> {
+     -> Result<Vec<Vec<Value>>, (SearchStop, usize)> {
         let mut grown = Vec::new();
+        let levels = coordinates.iter().map(|v| spec.levels(*v)).collect::<Vec<_>>();
+        if levels.iter().any(Vec::is_empty) {
+            return Ok(grown);
+        }
         for state in &states {
-            let mut suffixes: Vec<Vec<Value>> = vec![Vec::new()];
-            for v in coordinates {
-                let levels = spec.levels(*v);
-                suffixes = suffixes
-                    .into_iter()
-                    .flat_map(|prefix| {
-                        levels.iter().map(move |level| {
-                            let mut next = prefix.clone();
-                            next.push(level.clone());
-                            next
-                        })
-                    })
-                    .collect();
-            }
-            for suffix in suffixes {
+            // Mixed-radix walk over the suffixes: each state is charged before it is
+            // built, so the product of levels is never materialized ahead of the budget.
+            let mut digits = vec![0usize; levels.len()];
+            loop {
                 search
                     .charge(depth, lattice_bytes(base, retained + grown.len() + 1, width))
                     .map_err(|stop| (stop, step))?;
                 let mut full = state.clone();
-                full.extend(suffix);
+                full.extend(digits.iter().zip(&levels).map(|(d, l)| l[*d].clone()));
                 grown.push(full);
+                let mut place = digits.len();
+                loop {
+                    if place == 0 {
+                        break;
+                    }
+                    place -= 1;
+                    digits[place] += 1;
+                    if digits[place] < levels[place].len() {
+                        place = usize::MAX;
+                        break;
+                    }
+                    digits[place] = 0;
+                }
+                if place != usize::MAX {
+                    break;
+                }
             }
         }
         Ok(grown)
     };
     let initial_coordinates = slots.initial_state();
-    let initial = extend(
-        vec![Vec::new()],
-        &initial_coordinates,
-        1,
-        "history_step_1",
-        0,
-        initial_coordinates.len(),
-        search,
-    )?;
-    let complete = extend(
-        initial.clone(),
-        &slots.covariates[1],
-        TEMPORAL_HORIZON,
-        "history_step_2",
-        initial.len(),
-        slots.history_coordinates().len(),
-        search,
-    )?;
+    let initial =
+        extend(vec![Vec::new()], &initial_coordinates, 1, 1, 0, initial_coordinates.len(), search)?;
+    let mut complete = initial.clone();
+    let mut width = initial_coordinates.len();
+    for (index, group) in slots.covariates.iter().enumerate().skip(1) {
+        let step = index + 1;
+        width += group.len();
+        let retained = complete.len();
+        complete = extend(complete, group, step, step, retained, width, search)?;
+    }
     Ok(HistoryLattice { initial, complete })
 }
 
@@ -966,12 +992,12 @@ fn identify(
     })
 }
 
-/// Decide the whole two-step sequence as one longitudinal intervention.
+/// Decide the whole sequence as one longitudinal intervention.
 ///
-/// The treatment set is both actions at once: the question asks for the outcome
-/// under `do(A_1 = a_1, A_2 = a_2)` on the unrolled selection diagram, decided by
-/// the catalog-aware classical route (and, only when it certifies nothing, the
-/// classical identifier for an s-hedge). The two steps are never transported
+/// The treatment set is every action at once: the question asks for the outcome
+/// under `do(A_1 = a_1, ..., A_H = a_H)` on the unrolled selection diagram, decided
+/// by the catalog-aware classical route (and, only when it certifies nothing, the
+/// classical identifier for an s-hedge). The steps are never transported
 /// separately and multiplied. One [`SearchBudget`] bounds the decision: the
 /// identification search, its verification replays, and then the growth of the
 /// history lattice, whose every state is charged with the live bytes retained.
@@ -1024,22 +1050,17 @@ fn decide_inner(
     spec.check_catalog(catalog)?;
     catalog.validate().map_err(|e| IdentificationError::invalid_catalog(e.to_string()))?;
     let query = spec.question(source, target);
-    let limits = TemporalDecisionLimits { budget, memory_limit_bytes: ctx.memory.hard_limit_bytes };
+    let limits = TemporalDecisionLimits { budget, memory_limit_bytes: ctx.memory_limit_bytes() };
     let mut receipt = None;
     let mut histories = HistoryLattice::default();
     let outcome: TemporalOutcome;
-    let pending = |from: usize| -> Vec<String> {
-        ["identification", "history_step_1", "history_step_2"][from..]
-            .iter()
-            .map(|s| (*s).to_owned())
+    let stages = || -> Vec<String> {
+        std::iter::once("identification".to_owned())
+            .chain((1..=spec.horizon()).map(|step| format!("history_step_{step}")))
             .collect()
     };
-    let finished = |upto: usize| -> Vec<String> {
-        ["identification", "history_step_1", "history_step_2"][..upto]
-            .iter()
-            .map(|s| (*s).to_owned())
-            .collect()
-    };
+    let pending = |from: usize| -> Vec<String> { stages()[from..].to_vec() };
+    let finished = |upto: usize| -> Vec<String> { stages()[..upto].to_vec() };
     match SearchBudget::new(budget, ctx) {
         Err(mut stopped) => {
             stopped.unevaluated = pending(0);
@@ -1063,7 +1084,7 @@ fn decide_inner(
                         Err((stop, step)) => {
                             // Identification finished, and so did every history step
                             // before the one that stopped.
-                            let from = if step == "history_step_1" { 1 } else { 2 };
+                            let from = step;
                             receipt = Some(search.receipt(stop, finished(from), pending(from)));
                             outcome = TemporalOutcome::Stopped { stop };
                         }
@@ -1111,8 +1132,8 @@ mod tests {
         }
         let slots = TemporalSlots {
             baseline: vec![v(0)],
-            covariates: [vec![v(1)], vec![v(3)]],
-            actions: [v(2), v(4)],
+            covariates: vec![vec![v(1)], vec![v(3)]],
+            actions: vec![v(2), v(4)],
             outcome: v(5),
         };
         let coordinates = (0..6)
@@ -1194,6 +1215,6 @@ mod tests {
         assert_eq!(receipt.explored, ["identification", "history_step_1"]);
         assert_eq!(receipt.unevaluated, ["history_step_2"]);
         // A stop is never a verdict: nothing is claimed identified or refuted.
-        assert!(inside_step_2.outcome.status() == "stopped");
+        assert_eq!(inside_step_2.outcome.status(), "stopped");
     }
 }

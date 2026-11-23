@@ -257,7 +257,7 @@ pub fn admissible_contract_from_json_refusal(
         RefusalBuilder::new(
             antecedent_core::reason_code!("invalid_argument"),
             "declare",
-            "decision_contract.invalid_declaration",
+            antecedent_core::reason_details::decision_contract::INVALID_DECLARATION,
         )
         .offending(why)
         .remedy("declare the contract and its rules with the documented fields")
@@ -1203,3 +1203,9 @@ impl RobustResultArtifact {
         })
     }
 }
+
+#[path = "decision_robust_artifact/scenario_carrier.rs"]
+mod scenario_carrier;
+pub use scenario_carrier::{
+    JointScenarioCarrier, MAX_COMPILED_ROBUST_ITEMS, MAX_SCENARIO_CARRIER_BYTES, ScenarioDecision,
+};

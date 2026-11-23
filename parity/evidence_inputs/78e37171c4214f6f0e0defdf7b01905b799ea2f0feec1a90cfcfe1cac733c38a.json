@@ -1,0 +1,1 @@
+[{"digest":"1c1b9db77719d405d019a9d9625d1b920278d3b83eb4f7175a136ddb6d446b05","file":"c41f7ef255be38faad718509689aa283c8127dfc7c563e1c713499342bb5c1ac","kind":"rust_items","path":"crates/antecedent-estimate/src/response/mod.rs","role":"compile","scopes":[[[],false]],"select":{"full":[39,43],"inner":[-1]},"table":"e5bd0a3b9ba19ba29df61ab2397900db3d5f7ded72dfaca6e4cdb6ba3c07d38a"}]

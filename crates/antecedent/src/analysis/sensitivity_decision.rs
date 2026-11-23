@@ -19,11 +19,11 @@
 //! An assumption range is never a probability and never a sampling interval. The
 //! sampling interval, when one exists, is reported next to the decision
 //! ([`SamplingReport`]); composing it with the range is refused with
-//! `composition_not_licensed` unless the method is listed in
-//! [`LICENSED_SAMPLING_COMPOSITIONS`] (empty today). Decisions are evaluated only at
+//! `composition_not_supported` unless the method is listed in
+//! [`SUPPORTED_SAMPLING_COMPOSITIONS`] (empty today). Decisions are evaluated only at
 //! the declared grid points; nothing between them is evaluated.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ScientificQuantity;
 use antecedent_core::ExecutionContext;
@@ -32,17 +32,20 @@ use antecedent_validate::JointDeviationSpec;
 
 pub use antecedent_design::sensitivity_decision::{
     ASSUMPTION_RANGE_STATEMENT, ActionUtility, AssumptionCoordinate, AssumptionRangeStatement,
-    DecisionSwitch, IdentifiedBound, LICENSED_SAMPLING_COMPOSITIONS, NoRobustReason, PointSupport,
-    SENSITIVITY_DECISION_INTERPRETATION, SamplingInterval, SamplingReport, SamplingStatus,
-    ScenarioCoverage, SensitivityArtifact, SensitivityDecisionError, SensitivityDecisionResult,
-    SensitivityDecisionSpec, SensitivityIdentity, SensitivityOutcome, SensitivityParts,
-    SensitivityProvenance, SourceTipping, SurfaceQuantity, UncertaintyRelationship, UtilityTerm,
-    contract_from_artifact, evaluate_sensitivity_decision,
+    DecisionSwitch, IdentifiedBound, NoRobustReason, PointSupport,
+    SENSITIVITY_DECISION_INTERPRETATION, SUPPORTED_SAMPLING_COMPOSITIONS, SamplingInterval,
+    SamplingReport, SamplingStatus, ScenarioCoverage, SensitivityArtifact,
+    SensitivityDecisionError, SensitivityDecisionResult, SensitivityDecisionSpec,
+    SensitivityIdentity, SensitivityOutcome, SensitivityParts, SensitivityProvenance,
+    SourceTipping, SurfaceQuantity, UncertaintyRelationship, UtilityTerm, contract_from_artifact,
+    evaluate_sensitivity_decision,
 };
 pub use antecedent_io::sensitivity_artifact::{
     MAX_SENSITIVITY_ACTIONS, MAX_SENSITIVITY_ARTIFACT_BYTES, MAX_SENSITIVITY_GRID_POINTS,
-    MAX_SENSITIVITY_QUANTITIES, MAX_SENSITIVITY_RANGED_QUANTITIES, MAX_SENSITIVITY_UTILITY_DEPTH,
-    SENSITIVITY_ARTIFACT_FEATURE, SENSITIVITY_ARTIFACT_VERSION, SENSITIVITY_INFERENCE_CLAIM,
+    MAX_SENSITIVITY_QUANTITIES, MAX_SENSITIVITY_SCENARIO_EVALUATIONS,
+    MAX_SENSITIVITY_SCENARIO_NODE_EVALUATIONS, MAX_SENSITIVITY_UTILITY_DEPTH,
+    MAX_SENSITIVITY_UTILITY_NODES, SENSITIVITY_ARTIFACT_FEATURE, SENSITIVITY_ARTIFACT_VERSION,
+    SENSITIVITY_INFERENCE_CLAIM,
 };
 
 use antecedent_design::decision_contract::DecisionContract;
@@ -89,7 +92,7 @@ impl PreparedZTransport {
 ///
 /// # Errors
 ///
-/// A requested sampling composition that is not licensed, a contract the surface
+/// A requested sampling composition that is not supported, a contract the surface
 /// cannot answer (unlike units, an unsupported criterion, an input the surface does
 /// not carry, weights on a ranged surface), an unsupported grid point inside the
 /// evaluated range, or a malformed range.

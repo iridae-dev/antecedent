@@ -1,0 +1,70 @@
+import json
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+import collect_coverage_records as collector
+
+
+class CollectionDecisionRequired(unittest.TestCase):
+    def test_marker_free_records_refused_and_diagnostics_are_explicit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "family.p0.log"
+            def write(record, context=True):
+                log.write_text(("calibration-decision-context {}\n" if context else "") +
+                               "calibration-record " + json.dumps(record) + "\n", encoding="utf-8")
+            write({"id":"x"}, False)
+            with self.assertRaises(SystemExit):
+                collector.require_frozen_collection_decisions([log])
+            write({"id":"x"})
+            with self.assertRaises(SystemExit):
+                collector.require_frozen_collection_decisions([log])
+            write({"id":"x", "role":"named_boundary"})
+            collector.require_frozen_collection_decisions([log])
+            write({"id":"x", "decision_protocol":{}})
+            with patch.object(collector, "validate_point_decision") as validate:
+                collector.require_frozen_collection_decisions([log])
+                validate.assert_called_once()
+            confirmation = Path(tmp) / "family.p0.confirm.log"
+            confirmation.write_text(log.read_text(encoding="utf-8"), encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                collector.require_frozen_collection_decisions([confirmation])
+
+    def test_passing_pass_fail_gate_is_collectible_only_with_its_context(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "gate.p0.log"
+            passed = "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured\n"
+            log.write_text("calibration-decision-context {}\n" + passed, encoding="utf-8")
+            collector.require_frozen_collection_decisions([log])
+            log.write_text(passed, encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                collector.require_frozen_collection_decisions([log])
+            log.write_text("calibration-decision-context {}\n"
+                           "test result: FAILED. 1 passed; 1 failed; 0 ignored\n", encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                collector.require_frozen_collection_decisions([log])
+            log.write_text("calibration-decision-context {}\n"
+                           "test result: ok. 0 passed; 0 failed; 1 ignored\n", encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                collector.require_frozen_collection_decisions([log])
+            log.write_text("calibration-decision-context {}\n", encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                collector.require_frozen_collection_decisions([log])
+
+    def test_legacy_inspection_is_read_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            log = root / "old.log"
+            log.write_text("test result: ok. 1 passed; 0 failed; 0 ignored\n", encoding="utf-8")
+            before = {p.name: p.read_bytes() for p in root.iterdir()}
+            script = Path(collector.__file__).resolve()
+            result = subprocess.run([sys.executable, str(script), "--inspect-legacy-logs", "--log-dir", str(root)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("legacy inspection only", result.stdout)
+            self.assertEqual(before, {p.name: p.read_bytes() for p in root.iterdir()})
+            bad = subprocess.run([sys.executable, str(script), "--inspect-legacy-logs", "--keep-not_measured", "--log-dir", str(root)], capture_output=True, text=True)
+            self.assertNotEqual(bad.returncode, 0)
+            self.assertEqual(before, {p.name: p.read_bytes() for p in root.iterdir()})

@@ -1,64 +1,97 @@
-# Prepared recalculation capability contract
+# Recalculate without refitting
 
-`antecedent.recalc_capabilities.capability_matrix()` exposes seventy immutable cells: six required native analysis families, one separately scoped external callback family, and ten operations. Each cell names retained objects, complete identity requirements mapped to the existing shared planner's `Stage` inputs, compatible operations, actual Python/Rust adapter entry points, and a typed refusal. `capability(family, operation)` selects one cell. This inventory does not create an estimator, widen a causal license or certify a cache hit.
+Change a utility, a target population, an action grid or the rows behind a prepared analysis and recompute only what the change affects. Each analysis family declares which changes it can absorb from retained state and which force a refit; the receipt counts the work actually done. The rest of this page is that contract.
+
+`antecedent.recalc_capabilities.capability_matrix()` exposes seventy immutable cells: six required native analysis families, one separately scoped external callback family, and ten operations. Each cell names retained objects, complete identity requirements mapped to the existing shared planner's `Stage` inputs, compatible operations, actual Python/Rust adapter entry points, and a typed refusal. `capability(family, operation)` selects one cell. This inventory does not create an estimator, widen causal support or certify a cache hit.
 
 `require_adapter(family, operation, state)` selects an existing adapter from inspected native-backed retained state, including live checked adjusted fits and DML/DR-Learner state. An empty session, readable receipt/result, arbitrary callback, fabricated predictor wrapper, or caller-set `Capabilities`/`ResumeContext` flag supplies no reusable state. Missing family adapters raise `RecalcUnavailable` with registered reason `route_not_supported`, detail `recalc.capability_adapter_unavailable`, and the missing score/fit stage. Selection does not replace the adapter's request validation, instrumented execution or compatibility checks.
 
 | Family | Utility | Contrast/functional | Target weights/law | Action grid | New rows/outcomes | Graph/query/regime | Provider/prior | Learner/folds/RNG | Inference settings | Fresh process |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Adjusted regression | live fit | supported mean contrasts | same-row fixed weights | supported contrasts; coding changes refit | supplied data/refit; point prediction | recheck identification/refit | unavailable | fit settings/RNG invalidate | covariance settings refit; no new guarantee | supplied data/refit; fit absent refuses |
-| Doubly robust effects | live/scores | live/refit | live/scores, same-row weights only | live/refit, licensed cells only | live/refit; predictor point prediction | live/re-identify | unavailable | live/refit, declared folds/RNG only | unavailable | verified scores or predictor |
-| Static response/transport | live law | supported means/contrast | checked source laws | supported grid | supplied data/factor refresh | checked identification | exact finite providers | unavailable | unavailable | verified artifact or supplied data |
+| Doubly robust effects | live/scores | live/refit | live/scores, same-row weights only | live/refit, supported cells only | live/refit; predictor point prediction | live/re-identify | unavailable | live/refit, declared folds/RNG only | unavailable | checked scores or predictor |
+| Static response/transport | live law | supported means/contrast | checked source laws | supported grid | supplied data/factor refresh | checked identification | exact finite providers | unavailable | unavailable | checked artifact or supplied data |
 | External mean callback | no standalone adapter; combined decision reuses means | unavailable | unavailable | changed declared grid revalidates and invokes provider | declared inputs invoke affected provider | changed program rebinds | provider replacement requires actual compatible invocation | declared parameters/environment/RNG invoke provider | unavailable; no inference upgrade | supplied compatible provider and actual replay |
-| Bayesian analysis | retained draws | retained aligned effect summaries | unavailable | unavailable | supplied data/refit | checked identification/refit | verified native source capsule | model/config/seed refit | draw configuration refit; unmeasured | supplied raw data and verified source replay |
+| Bayesian analysis | retained draws | retained aligned effect summaries | unavailable | unavailable | supplied data/refit | checked identification/refit | checked native source capsule | model/config/seed refit | draw configuration refit; not_measured | supplied raw data and a source replay that agrees |
 | Temporal analysis | retained point law | supported two-step response/effect | supplied target initial law | supported binary sequences | whole units/refit | checked source ID/refit | actual observed source factors | source identities/seed invalidate | checked measured dependent intervals | complete raw-unit artifact replay |
-| Design-specific effects | live estimate | checked model summary | unavailable | unavailable | supplied data/refit | recheck identification | unavailable | unavailable | unmeasured diagnostics | checked supplied-data replay |
+| Design-specific effects | live estimate | checked model summary | unavailable | unavailable | supplied data/refit | recheck identification | unavailable | unavailable | not_measured diagnostics | checked supplied-data replay |
 
-“Unavailable” refers to the family adapter in the shared selective workflow. Existing prepared `.estimate` paths and separately licensed analyses remain available at their own coordinates; they do not establish retained-fit reuse through this planner. Bayesian and temporal adapters now execute their declared bounded coordinates below; wider inference and update routes retain separate gates. The doubly robust family now includes cross-fit/cell-AIPW and the checked DML-AIPW/DR-Learner adapter described below. These minimum operations do not license arbitrary learners, score quantities or target populations.
+“Unavailable” refers to the family adapter in the shared selective workflow. Existing prepared `.estimate` paths and separately supported analyses remain available at their own coordinates; they do not establish retained-fit reuse through this planner. Bayesian and temporal adapters execute their declared bounded coordinates below; wider inference and update routes have separate gates. The doubly robust family includes cross-fit/cell-AIPW and the checked DML-AIPW/DR-Learner adapter described below. These minimum operations do not support arbitrary learners, score quantities or target populations.
 
-`recalc_adjusted.AdjustedSession.execute` runs linear/GLM adjustment and vector/categorical treatment contrasts through the same `RecalcPlan` and verified receipt. The existing identification crate checks a sufficient joint backdoor certificate for the declared common adjustment set. The existing joint OLS/dummy regression engines and shared GLM solve/Fisher covariance primitives retain immutable coefficients, covariance and design. Supported contrast, same-row fixed target weights and utility changes reuse the fit; changed data/outcomes, roles/graph/adjustment, coding/reference, link, covariance, fit options or RNG invalidate the appropriate stages. Target weights may depend only on checked adjustment roles. The covariance is conditional on that declared target row law; it does not add sampling variance for an independently estimated target population.
+`recalc_adjusted.AdjustedSession.execute` runs linear/GLM adjustment and vector/categorical treatment contrasts through the same `RecalcPlan` and checked receipt. The existing identification crate checks a sufficient joint backdoor certificate for the declared common adjustment set. The existing joint OLS/dummy regression engines and shared GLM solve/Fisher covariance primitives retain immutable coefficients, covariance and design. Supported contrast, same-row fixed target weights and utility changes reuse the fit; changed data/outcomes, roles/graph/adjustment, coding/reference, link, covariance, fit options or RNG invalidate the appropriate stages. Target weights may depend only on checked adjustment roles. The covariance is conditional on that declared target row law; it does not add sampling variance for an independently estimated target population.
 
 Numeric mean contrasts stay within each treatment's observed range, with exact observed binary states; categorical contrasts require populated declared levels and reference coding. These are parametric response-model operations under declared model validity. A vector's per-coordinate support does not establish joint or conditional positivity, and the adapter supplies no outcome joint law. Unsupported actions, sparse levels, unidentifiable adjustment and incompatible schemas produce typed refusals. Full-rerun checks include both independent finite algebra and the original scalar study engines.
 
 `AdjustedSession.predict` validates feature names/order against the actual native fit and applies the same treatment-support boundary. Its point-prediction result measures zero model fits; prediction is a separate scoped consumer of the retained model, since the shared planner has no prediction stage. It supplies no prediction interval or residual/sampling state. Reuse shares immutable fitted data instead of copying the full design, and failed refits leave the previous successful session usable.
 
-`receipt.totals.model_fits` counts successful numerical model solves separately from nuisance `fold_fits`; both receipt identity and independent artifact checks bind it. Historical zero-model receipts keep their original wire and digest. An exported adjusted receipt contains no fitted model or training data. `AdjustedSession.resume` rejects portable-fit/score flags as substitutes; explicit supplied-data mode plus an actual raw request refits in a fresh process. A missing fit refuses prediction. The Python bridge has no row, column or value ceiling: it checks the planned input copy (8 bytes per value) against the optional `memory_limit_bytes` before allocating it and refuses with `recalc.memory_budget_exceeded`, and bounds GLM fitting to 1,000 iterations; the native executor checks the same budget for its design and Gram workspace and honours `cancel` before fitting.
+`receipt.totals.model_fits` counts successful numerical model solves separately from nuisance `fold_fits`; both receipt identity and independent artifact checks bind it. A receipt with no model fits omits the count, so its wire and digest are those of a receipt without the field. An exported adjusted receipt contains no fitted model or training data. `AdjustedSession.resume` rejects portable-fit/score flags as substitutes; explicit supplied-data mode plus an actual raw request refits in a fresh process. A missing fit refuses prediction. The Python bridge has no row, column or value ceiling: it checks the planned input copy (8 bytes per value) against the execution's memory limit (`Execution(limits=ResourceLimits(memory_bytes=...))`) before allocating it and refuses with `recalc.memory_budget_exceeded`, and bounds GLM fitting to 1,000 iterations; the native executor checks the same budget for its design and Gram workspace and honours the execution's `cancel` token before fitting.
 
 `recalc_dr.DrSession.execute` retains checked DML AIPW scores or DR-Learner marginal scores and its distinct final CATE model through the existing prepared-study engine and shared planner. The minimum accepts untrimmed, all-observed IID binary treatment with linear/ridge outcome and final models and linear/ridge/logistic treatment learners. Partially linear DML, trimming, automatic learner search and other learners refuse. Complete-case row IDs, graph/query, data, learner configuration, folds and seed bind retained state. Utility-only changes recompute the decision; compatible same-row target weights reuse scores and may depend only on checked adjustment roles. Weights align to the retained complete-case rows. Changed data, causal roles or nuisance configuration recheck or refit.
 
-`DrSession.predict` consumes the retained CATE model with named, ordered features and measures zero fits. Live prediction stays within each feature's observed range; this per-coordinate boundary does not establish joint or conditional positivity. DML scores do not provide a predictor. Predictions and analytic IID score diagnostics remain point-only/unmeasured and supply no validated confidence or prediction interval.
+`DrSession.predict` consumes the retained CATE model with named, ordered features and measures zero fits. Live prediction stays within each feature's observed range; this per-coordinate boundary does not establish joint or conditional positivity. DML scores do not provide a predictor. Predictions and analytic IID score diagnostics remain point-only/not_measured and supply no validated confidence or prediction interval.
 
-Receipts measure successful nuisance fits, final CATE fits and actual score-table builds independently. Initial preparation and estimation build two score tables while sharing physical nuisance inputs within a bounded execution cache; they do not fit nuisances twice. Cache keys include fold units, kind and seed, and retention shares the existing value budget with at most eight prepared bindings. Cancellation, incompatible requests and failed refits preserve the prior successful session. The Python bridge bounds requests to 20 folds and has no row, column or value ceiling: the planned input copy is checked against the optional `memory_limit_bytes` before allocation (`recalc.memory_budget_exceeded`); native refitting checks cancellation and its workspace budget.
+Receipts measure successful nuisance fits, final CATE fits and actual score-table builds independently. Initial preparation and estimation build two score tables while sharing physical nuisance inputs within a bounded execution cache; they do not fit nuisances twice. Cache keys include fold units, kind and seed, and retention shares the existing value budget with at most eight prepared bindings. Cancellation, incompatible requests and failed refits preserve the prior successful session. The Python bridge bounds requests to 20 folds and has no row, column or value ceiling: the planned input copy is checked against the execution's memory limit before allocation (`recalc.memory_budget_exceeded`); native refitting checks cancellation and its workspace budget.
 
-`DrSession.export_scores` produces the existing independently verified frozen-score object for same-row retargeting, while `export_predictor` produces the existing parent analysis artifact for CATE point prediction. Export retains the producing execution identity. Neither object substitutes for the other. Receipt-only resume has no executable state; an explicit supplied raw-data request refits in a fresh process. Fresh-process tests execute both DML and CATE frozen-score retargeting without fits, and independently decode and predict from the CATE artifact.
+`DrSession.export_scores` produces the existing independently checked frozen-score object for same-row retargeting, while `export_predictor` produces the existing parent analysis artifact for CATE point prediction. Export retains the producing execution identity. Neither object substitutes for the other. Receipt-only resume has no executable state; an explicit supplied raw-data request refits in a fresh process. In a fresh process, both DML and CATE frozen scores retarget without fits, and the CATE artifact decodes and predicts independently.
 
 The live score adapters are `RecalcSession.execute`, `CrossfitSession.execute`, `CellSession.execute` and `DrSession.execute`. The first two delegate to Rust `analysis::recalc_receipt::execute_with_receipt`; the cell and DR adapters use `analysis::recalc_cell::execute_cell_with_receipt` and `analysis::recalc_dr::execute_dr_with_receipt`, respectively. Full supplied data and native-derived identities are required. Utility-only changes reuse the law and recompute the decision; compatible same-row target weights reuse frozen scores. Supported changed graphs/queries re-identify; changed data, outcomes, folds, RNG or cell contrast refit invalidated scores. Off-grid actions, arbitrary new learners and incompatible targets still refuse at the executing adapter.
 
-The portable score route is `resume_from_scores` followed by `ScoreResumeSession.retarget`, backed by Rust's verified frozen-score consumer. Scores retain row identities/order, snapshot, score quantity, folds, treatment grid and support; they support the declared same-row weighting and utility operation. They contain no fitted predictor, new outcomes, training factory or raw data. Changed data, graph, query, regime or folds cannot be resumed from scores.
+The portable score route is `resume_from_scores` followed by `ScoreResumeSession.retarget`, backed by Rust's checked frozen-score consumer. Scores retain row identities/order, snapshot, score quantity, folds, treatment grid and support; they support the declared same-row weighting and utility operation. They contain no fitted predictor, new outcomes, training factory or raw data. Changed data, graph, query, regime or folds cannot be resumed from scores.
 
-`FittedEffectModel.load/export/predict` independently verifies the parent analysis artifact and retained predictor. Its Rust map is `antecedent_estimate::FittedEffect::predict`; consumption uses `antecedent_io::decode_analysis_result_artifact`. The model supports point CATE prediction on new feature rows matching its variable/basis schema, provider/fit identity and parent claim. It contains no training data or refit factory, and prediction does not recreate residuals or sampling covariance. It is a portable prediction route, not a complete shared `RecalcPlan` family adapter. A predictor cannot serve as an AIPW score retarget object.
+`FittedEffectModel.load/export/predict` independently checks the parent analysis artifact and retained predictor. Its Rust map is `antecedent_estimate::FittedEffect::predict`; consumption uses `antecedent_io::decode_analysis_result_artifact`. The model supports point CATE prediction on new feature rows matching its variable/basis schema, provider/fit identity and parent claim. It contains no training data or refit factory, and prediction does not recreate residuals or sampling covariance. It is a portable prediction route, not a complete shared `RecalcPlan` family adapter. A predictor cannot serve as an AIPW score retarget object.
 
-Readable posterior artifacts, aligned draws and executable providers are distinct retained kinds. `recalc_bayesian.BayesianSession` executes the original checked Gaussian or quadratic-basis ATE engine and retains its actual aligned posterior rows. Compatible summaries and utility changes perform no new solves or draws. Changed prior, likelihood, basis, data or draw configuration invalidates the required numerical state. `posterior_draws` counts rows actually emitted by the numerical engine, alongside its successful model solves; zero additions preserve historical receipt identities. Posterior summaries remain unmeasured diagnostics and grant no new posterior-decision or interval guarantee.
+Readable posterior artifacts, aligned draws and executable providers are distinct retained kinds. `recalc_bayesian.BayesianSession` executes the original checked Gaussian or quadratic-basis ATE engine and retains its actual aligned posterior rows. Compatible summaries and utility changes perform no new solves or draws. Changed prior, likelihood, basis, data or draw configuration invalidates the required numerical state. `posterior_draws` counts rows actually emitted by the numerical engine, alongside its successful model solves; a zero count is omitted, so it leaves the receipt identity unchanged. Posterior summaries remain not_measured diagnostics and grant no new posterior-decision or interval guarantee.
 
-`BayesianSession.export_prior_source()` exports a bounded capsule containing the actual source raw data, graph/query/configuration and native posterior artifact. A target verifies it by independently reexecuting the source and comparing the complete posterior. Same verified full source/likelihood content refuses before fitting; a compatible live verified capsule can be retained without replaying it on each summary. This does not detect partial evidence overlap without unit identifiers, license arbitrary external priors, or treat conditioning on new data as a universally valid update. The separately supported joint transport producers return measured target-effect intervals at their own checked protocols; this retained-draw adapter does not substitute for their source identification or measured artifact.
+`BayesianSession.export_prior_source()` exports a bounded capsule containing the actual source raw data, graph/query/configuration and native posterior artifact. A target checks it by independently re-executing the source and comparing the complete posterior. A capsule whose full source and likelihood content matches the target's own refuses before fitting; a compatible live checked capsule can be retained without replaying it on each summary. This does not detect partial evidence overlap without unit identifiers, support arbitrary external priors, or treat conditioning on new data as a universally valid update. The separately supported joint transport producers return measured target-effect intervals at their own checked protocols; this retained-draw adapter does not substitute for their source identification or measured artifact.
 
 `recalc_temporal.TemporalSession` executes source observational ID and empirical whole-history factors for the five-variable binary DAG S0,A1,L2,A2,Y. Only selection into the unconfounded root S0 is admitted; remaining mechanisms are invariant. The native source checker identifies joint (S0,Y) under do(A1,A2), actual observational leaves are bound to the real source regime, and positive source S0 margins permit mixing conditional responses over the supplied target S0 law. Actual source proof/program and target-law origins are preserved; no experimental source evidence is invented. Compatible utility and target initial-law changes reuse source state. New sequence/data refits affected factors; unsupported horizons, selections, latent structure and histories refuse. Complete-unit artifacts independently rerun actual source ID and factors in a fresh process. Whole-unit replicate identity is preserved by the original checked-source interval receipt. `TemporalSession.dependent_interval` returns `MeasuredInference` for the guarded balanced complete-history 95% protocol: response uses studentized intervals; paired effects admit studentized, percentile and basic intervals under their separate method records. Its independent consumer replays the original checked source identification and factors, rather than substituting the direct-panel artifact. Unsupported protocols refuse.
 
 Every operation declares the full graph, scientific query/quantity/scale/horizon, regime, identification/evidence standing, source and target populations, data/schema/row identities, sampling/dependence design, action support, learner/provider/basis/fold/RNG/inference settings and utility identity. All eight bounded external branches additionally name snapshots and datum IDs, source/target/query/regime, exact provider request, prior construction and evidence consumption, factor/proof leaves, draw alignment and inference standing. These semantic fields must be preserved or invalidated as appropriate; the inventory does not assert that a currently unavailable variation has already been bound by an executor.
 
-Family-specific identity requirements include linear/GLM links, treatment levels and coefficient covariance; AIPW/DML/CATE score coordinates and positivity; transport factor/source proof maps and search completeness; Bayesian likelihood/prior/basis/noise and aligned draws; temporal unit/time/lag/history/initial-state/horizon and whole-unit resampling; IV instruments/exclusion/strength, RD cutoff/bandwidth/support, and front-door mediator positivity. Adjacent regression code or a neighboring inference record supplies no missing causal or uncertainty license.
+Family-specific identity requirements include linear/GLM links, treatment levels and coefficient covariance; AIPW/DML/CATE score coordinates and positivity; transport factor/source proof maps and search completeness; Bayesian likelihood/prior/basis/noise and aligned draws; temporal unit/time/lag/history/initial-state/horizon and whole-unit resampling; IV instruments/exclusion/strength, RD cutoff/bandwidth/support, and front-door mediator positivity. Adjacent regression code or a neighboring inference record supplies no missing causal or uncertainty support.
 
-Tests execute native score retention and portable-score resume with fit counts, independent reruns and a constant-effect SCM oracle, verify actual adapter paths, and reject readable/flag-only state across all seventy cells. Portable predictor tests verify prediction without turning the model into score or covariance state. No statistical calibration is performed by this inventory or its tests.
+Across all seventy cells, readable or flag-only state is rejected; only an adapter holding live retained state reuses work, and its fit counts agree with an independent rerun. A portable predictor predicts without becoming score or covariance state. The inventory makes no calibration claim: nothing in it measures interval coverage.
 
 `recalc_static.StaticResponseSession` executes checked finite ADMG response grids and selects supported means and contrasts. This adapter requires a checked ADMG with bidirected structure and at least two strictly increasing support points; unsupported DAG requests receive `recalc.static_graph_unsupported`. Conservative workspace checks precede provider construction, and each CPT is capped at one million Cartesian cells before allocation. Retained CPTs bind the complete-case row identities and each factor's actual columns. Supported action changes reuse compatible factors and compiled functional programs; changes to support, graph, query or source premises require checking the affected work. `MultiSourceSession` executes the existing bounded multi-source transport engine against an evidence catalog and exact discrete source laws. Each cached factor binds its population, regime, snapshot, full source-law identity and proof leaf. Missing evidence and incomplete search remain scientific refusals. An absent exact provider is a missing-provider failure and cannot be skipped as a resampling support failure. Neither adapter synthesizes a joint law from incompatible sources.
 
-Static receipts expose actual `factor_builds`, `program_compilations`, `provider_bindings`, `factor_evaluations`, `integrations` and `provider_calls`. The independent receipt consumer checks their stage ownership and binds them into the receipt identity. Historical receipts omit zero additions and retain their digest. Original response/transport artifacts preserve their existing independent consumer contracts. Receipt-only state contains no data or executable provider; explicit supplied-data resume runs the checked engine. Static results provide finite-law point means and contrasts, with no new interval license.
+Static receipts expose actual `factor_builds`, `program_compilations`, `provider_bindings`, `factor_evaluations`, `integrations` and `provider_calls`. The independent receipt consumer checks their stage ownership and binds them into the receipt identity. Zero counts are omitted, so they leave the receipt digest unchanged. Original response/transport artifacts preserve their existing independent consumer contracts. Receipt-only state contains no data or executable provider; explicit supplied-data resume runs the checked engine. Static results provide finite-law point means and contrasts, with no new interval support.
 
-`recalc_design.DesignSession` runs the existing checked IV, sharp RD and linear front-door engines. Instrument/exclusion, running variable/cutoff/bandwidth and mediator declarations bind their design-specific causal preparation. Changed data refits; compatible utility changes reuse the immutable estimate. Successful least-squares observations count actual model solves, including IV and Anderson–Rubin auxiliary work, and `law_summaries` identifies extraction of a point from the checked estimate. This is distinct from score reweighting. Weak-IV requests retain the attempted point and actual Anderson–Rubin diagnostics while refusing an unavailable decision. Analytic covariance diagnostics remain unmeasured.
+`recalc_design.DesignSession` runs the existing checked IV, sharp RD and linear front-door engines. Instrument/exclusion, running variable/cutoff/bandwidth and mediator declarations bind their design-specific causal preparation. Changed data refits; compatible utility changes reuse the immutable estimate. Successful least-squares observations count actual model solves, including IV and Anderson–Rubin auxiliary work, and `law_summaries` identifies extraction of a point from the checked estimate. This is distinct from score reweighting. Weak-IV requests retain the attempted point and actual Anderson–Rubin diagnostics while refusing an unavailable decision. Analytic covariance diagnostics remain not_measured.
 
-`recalc_design.consume_design_result` requires supplied raw data and independently executes checked preparation and estimation. It compares the original artifact's full contract and scientific body, preserving the producing seed and refusing changed data or model declarations even if they happen to give the same point estimate. The returned session contains fresh executed state and a new receipt. Existing historical readers remain unchanged; missing raw data supplies no RD checked-operation license.
+`recalc_design.consume_design_result` requires supplied raw data and independently executes checked preparation and estimation. It compares the original artifact's full contract and scientific body, preserving the producing seed and refusing changed data or model declarations even if they happen to give the same point estimate. The returned session contains fresh executed state and a new receipt. Other readers of the artifact are unaffected; missing raw data supplies no RD checked-operation support.
 
-`StaticResponseSession.response` exposes the actual retained checked response with no new fitting or factor work. `ProgramBinding.from_response` derives the scientific binding from its original identification; `native_claim` requires opaque producing execution authority and verifies the full projection, canonical declared premises, snapshot and RNG. Caller-created result views or labelled distributions cannot mint native trust. Actual aligned native posterior rows survive when their producer supplies them; a mean-only response remains mean-only. Historical labelled distributions remain readable and unverified at composition.
+`StaticResponseSession.response` exposes the actual retained checked response with no new fitting or factor work. `ProgramBinding.from_response` derives the scientific binding from its original identification; `native_claim` requires opaque producing execution authority and verifies the full projection, canonical declared premises, snapshot and RNG. Caller-created result views or labelled distributions cannot mint native trust. Actual aligned native posterior rows survive when their producer supplies them; a mean-only response remains mean-only. Labelled distributions stay readable, and composition does not treat them as native claims.
+
+## What each session declares about its standing
+
+Every recalculation session family states, in its stage identities, how it treats three standing
+inputs: the **calibration** record behind an interval or posterior statement, the **representation**
+(model family and version) a score artifact was built with, and the **coupling** between streams a
+joint statement relies on. `recalc.session_standing(kind)` returns the declaration for a session
+family (`receipt`, `adjusted`, `cell`, `design`, `doubly_robust`, `static`, `temporal`, `bayesian`,
+`joint_bayesian`, `external` or `composite`); a live session exposes the same value as `.standing`.
+
+```python
+from antecedent import recalc
+
+for kind in ("static", "bayesian", "external"):
+    standing = recalc.session_standing(kind)
+    print(kind, standing.calibration.status, standing.coupling.status, standing.representation.status)
+# static not_applicable not_applicable undeclared
+# bayesian declared declared undeclared
+# external undeclared undeclared undeclared
+
+external = recalc.session_standing("external")
+print(external.calibration.finding)    # recalc.standing_undeclared.calibration_folded_into_decision
+```
+
+Each input is a `StandingInput` with one of three statuses. `declared` means a change in the input
+moves the law and the decision and nothing that reads only data. `not_applicable` means the claim
+does not rest on it and `reason` says why (a point-valued family forms no joint statement).
+`undeclared` means the session does not hold what the input names: `finding` names what is missing
+and `remedy` what would make it declarable, so a claim that needs it is not supported by this
+session's identities alone. No family declares a representation. The declaration states what the
+session's identities do and do not cover; it does not add a calibration record or an interval.
 
 ## Bounded foreign mean callback execution
 
@@ -81,8 +114,8 @@ token; arbitrary Python code is not forcibly interrupted. The bounded portable
 output carries the original attested claim and request/provider identity, rather
 than a serialized callable. A fresh session needs a real compatible provider and
 successful numerical replay before it can issue live attested output. Stateful or
-side-effecting portable replay is refused. Nested law/posterior callbacks remain a
-separate expansion package in the roadmap.
+side-effecting portable replay is refused. Nested law and posterior callbacks are
+outside this session.
 
 The original binary cross-fit AIPW session also retains its last successful prepared state through failed refresh, target weighting and decision evaluation. Unchanged or compatible law/utility reuse shares that state; a changed-data refresh prepares a separate candidate and publishes it only after all stages and receipt validation succeed. Its `fold_fits` unit is a successful nuisance fold task (the outcome task fits both arm models), so this count differs from the lower-level linear solves performed inside IRLS.
 
@@ -119,13 +152,13 @@ standing remain unchanged.
 
 ## Cell-AIPW scores: frozen scores and portable resume
 
-`antecedent.recalc_cell` (`python/tests/test_recalc_cell.py`) extends the same plan and receipt to the cell-saturated AIPW route over discrete joint binary treatments. `CellSession` mirrors `RecalcSession`: the first `execute` fits the cell models (5 folds x (1 multinomial propensity + 4 cell outcome regressions) = 25 `fold_fits` in the tested fixture); a utility-only change reuses the law and recomputes the decision with `fold_fits == 0`, and a compatible same-row target-weight change reweights the frozen cell scores. The count comes from the estimator's own instrument, so a zero is measured, not asserted. A changed outcome, fold seed, graph, adjustment set or data refits. `CrossfitSession` does the same for cross-fit scores.
+`antecedent.recalc_cell` extends the same plan and receipt to the cell-saturated AIPW route over discrete joint binary treatments. `CellSession` mirrors `RecalcSession`: the first `execute` fits the cell models (5 folds x (1 multinomial propensity + 4 cell outcome regressions) = 25 `fold_fits` for two binary treatments); a utility-only change reuses the law and recomputes the decision with `fold_fits == 0`, and a compatible same-row target-weight change reweights the frozen cell scores. The count comes from the estimator's own instrument, so a zero is measured, not asserted. A changed outcome, fold seed, graph, adjustment set or data refits. `CrossfitSession` does the same for cross-fit scores.
 
 `CellSession.export_frozen_scores()` (and `CrossfitSession.export_frozen_scores()`) return `FrozenScores`: a checksummed `frozen_scores_v1` artifact holding the scores and the producing workflow's stage digests, with no data and no model. Its `identity` is 64 hex characters; retain it independently of the bytes. `FrozenScores.load(data, expected_identity=...)` and `resume_from_scores(data, variables=, edges=, utility=, expected_identity=)` refuse a consistently resealed artifact of another run (`frozen_scores.identity_mismatch`) and raise `CausalSerializationError` for corrupt, truncated or unsupported-version bytes. Because the artifact does not hold the original workflow, resume needs `variables=` (column names in order), `edges=` and `utility=`.
 
 ```python
 session = recalc_cell.CellSession()
-session.execute(request, seed=7)
+session.execute(request, execution=Execution(seed=7))
 frozen = session.export_frozen_scores()
 
 # Possibly in a fresh interpreter, from the bytes and the retained identity alone:
@@ -137,8 +170,87 @@ out = resumed.retarget(TargetWeights(weights, ("z",)), row_ids=resumed.row_ids)
 out.receipt.totals.as_tuple()      # zero fits; only the law and decision are recomputed
 ```
 
-`ScoreResumeSession.retarget` is the one licensed operation: reweight the frozen scores by non-negative row weights in the frozen row order (a `TargetWeights` may name `depends_on` variables inside the adjustment set) and recompute the law and decision. An unchanged request reproduces the first run's `ate`, `std_error` and `net_benefit`. In a fresh process the receipt shows `score_artifact` as `reused` and every other derived stage recomputed (for example `recomputed(fresh_process)`), since a fresh process never reuses a derived stage but the portable scores.
+`ScoreResumeSession.retarget` is the one supported operation: reweight the frozen scores by non-negative row weights in the frozen row order (a `TargetWeights` may name `depends_on` variables inside the adjustment set) and recompute the law and decision. An unchanged request reproduces the first run's `ate`, `std_error` and `net_benefit`. In a fresh process the receipt shows `score_artifact` as `reused` and every other derived stage recomputed (for example `recomputed(fresh_process)`), since a fresh process never reuses a derived stage but the portable scores.
 
-Anything that needs the data or a fit is refused before any work and leaves the session unchanged: a changed outcome, folds, graph, row design, data snapshot or treatment grid, and `execute` over new data. These raise `ScoreResumeUnavailable` (`recalc.unavailable_data`, `missing == "data"`, `reason_code == "score_table_unavailable"`); weights over other row ids or of another length, or a declared derived stage, raise `ScoreResumeRefusal`. Both are structured refusals (see [Refusal and partial knowledge](refusal-and-partial-knowledge.md#structured-refusals-and-their-remedies)). A `ResumeReceipt` is a verified record, not an exportable artifact: the `recalc_receipt_v1` format refuses a derived stage reused in a fresh process, so `ResumeReceipt.export()` raises.
+Anything that needs the data or a fit is refused before any work and leaves the session unchanged: a changed outcome, folds, graph, row design, data snapshot or treatment grid, and `execute` over new data. These raise `ScoreResumeUnavailable` (`recalc.unavailable_data`, `missing == "data"`, `reason_code == "score_table_unavailable"`); weights over other row ids or of another length, or a declared derived stage, raise `ScoreResumeRefusal`. Both are structured refusals (see [structured refusals and their remedies](reference/refusal-codes.md#structured-refusals-and-their-remedies)). A `ResumeReceipt` is a checked record, not an exportable artifact: the `recalc_receipt_v1` format refuses a derived stage reused in a fresh process, so `ResumeReceipt.export()` raises.
 
-Runnable example: [`recalc_cell_resume.py`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/recalc_cell_resume.py).
+Runnable example: [`recalc_cell_resume.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/recalc_cell_resume.py).
+
+## Measured intervals and independent replay
+
+The statistical adapters return `inference.MeasuredInference` only when every reported scalar resolves to a current, non-boundary calibration record for its actual native method, prior, sampling declaration, functional, nominal level and sample-size scope. Unsupported or stale coordinates refuse with `not_supported`; an interval is never synthesized from a point result.
+
+`scalar(name)` exposes a scalar's point, interval, level, record id and calibration basis. The `validated_scope` field reports checked protocol facts and declared model assumptions; observed data do not prove those assumptions. Calibration of named scalar intervals supplies neither simultaneous coverage nor calibration of every parameter, covariance entry, posterior draw or diagnostic.
+
+```python
+from antecedent.inference import MeasuredInference
+
+# measured is returned by a supported statistical producer at its supported scope.
+question = measured.expected_identity
+artifact = measured.export()
+replayed = MeasuredInference.load(artifact, expected=question)
+assert replayed.inspect() == measured.inspect()
+```
+
+Keep `expected_identity` separately from the artifact. A fresh consumer replays the original source, derives the method-specific bases, resolves current records again and compares the complete receipt; recomputing a checksum or editing a serialized `calibrated` flag cannot supply that authority. `source_artifact()` and `source_report()` expose the underlying model report, whose own standing stays `not_measured`.
+
+| Family | Public producer | Measured scalars |
+| --- | --- | --- |
+| Joint Gaussian transport | `transport.advanced.joint_bayesian_transport` | `target_effect` |
+| Learned joint Gaussian transport | `transport.advanced.learned_joint_transport` | `target_effect` |
+| Binary nested-Markov Bayesian inference | `transport.advanced.binary_nested_markov` | `mean0`, `mean1`, `contrast` |
+| Binary nested-Markov Fisher inference | `transport.advanced.binary_nested_markov_fisher_interval` | `mean0`, `mean1`, `contrast` |
+| Direct temporal inference | `transport.advanced.temporal_dependent_interval` | `response` |
+| Checked temporal recalculation | `recalc_temporal.TemporalSession.dependent_interval` | `response` or `effect` |
+| Sampled observation recovery | `transport.advanced.sampled_observation_recovery` | `recovered_effect` |
+
+Method bounds, priors, sample-size ranges and protocol refusals are in [population, time and uncertainty](population-time-uncertainty.md), [transport and counterfactuals](transport-counterfactuals.md) and [supported bounds](supported-bounds.md). Unsupported neighbouring protocols refuse; a measured scalar does not supply the aligned outcome law that distributional decisions need.
+
+## Retarget a fitted adjusted effect to a new population
+
+Use this when you have already fitted an adjusted effect and want the same effect in
+a different population, described by how its units differ in an adjustment
+covariate. The retarget reuses the fit you have: nothing is refit and no data are
+read again.
+
+The steps:
+
+1. Fit an OLS or unpenalized GLM mean effect over all observed units, with no
+   bootstrap, no effect modifiers and no source sampling weights. Preparing a study
+   is not enough; the retarget needs the completed fit.
+2. Declare the target population with one weight per row, in the order of the
+   complete-case rows the fit used.
+3. Call `study.retarget(weights, depends_on=("z",))`, naming the covariates the
+   weights depend on.
+
+<!-- example: examples/python/retarget_adjusted_fit.py -->
+
+What the result claims: for OLS, the original constant additive contrast with its
+original covariance. For a GLM, the weighted mean of the response-scale difference
+in predictions, with a standard error from the original coefficient covariance (Fisher, HC
+or the dependence adjustment you declared). The result is conditional on the target
+weights being fixed. Its identity records the target weights and the same data
+snapshot as the fit, so a retarget can be told apart from a refit. If you change
+the data, fit again before retargeting.
+
+What it does not claim: it does not estimate the uncertainty of the target weights,
+does not propagate bootstrap uncertainty and is not doubly robust. The interval's
+calibration is recorded under the changed target, so it cannot inherit coverage
+measured for the all-observed fit; that coordinate is not measured and the
+calibration status says so.
+
+Refusals:
+
+| Request | Result |
+| --- | --- |
+| Weights that depend on the treatment or a descendant of it | `target_weights_not_supported` (`weights_depend_on_treatment_or_descendant`); declare weights that depend on adjustment covariates only |
+| Nonconstant weights with no declared dependencies | refused; name the covariates the weights depend on |
+| A study that has not completed a compatible fit, or a fit with bootstrap, effect modifiers or source weights | refused; fit an all-observed OLS or unpenalized GLM mean first |
+| Weights for a different row set or data snapshot | refused; weights are bound to the snapshot they were declared for |
+
+The exported contract stores the weights with the identity of the fit they were
+declared against. `reexecute_retarget` re-runs them only on a study that holds the
+matching retained fit, and refuses another snapshot with `row_weights_bound_to_snapshot`.
+The stored identity is an attestation, not a portable numerical fit.
+
+From Rust, the entry is `PreparedStudy::retarget`.

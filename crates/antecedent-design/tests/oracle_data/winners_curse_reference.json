@@ -1,0 +1,132 @@
+[
+ {
+  "name": "six mixed",
+  "ses": [
+   0.1,
+   0.5,
+   0.5,
+   1.0,
+   2.0,
+   0.01
+  ],
+  "n_considered": 6,
+  "gaussian": 1.1698061274487597,
+  "union": 3.7860369456496907
+ },
+ {
+  "name": "six padded to 5000",
+  "ses": [
+   0.1,
+   0.5,
+   0.5,
+   1.0,
+   2.0,
+   0.01
+  ],
+  "n_considered": 5000,
+  "gaussian": 7.3546043297457295,
+  "union": 8.25454696099852
+ },
+ {
+  "name": "twelve distinct",
+  "ses": [
+   0.05,
+   0.26,
+   0.47,
+   0.68,
+   0.89,
+   1.1,
+   1.31,
+   1.52,
+   1.73,
+   1.94,
+   2.15,
+   2.36
+  ],
+  "n_considered": 12,
+  "gaussian": 2.458050190231828,
+  "union": 5.261166425168328
+ },
+ {
+  "name": "twelve distinct padded",
+  "ses": [
+   0.05,
+   0.26,
+   0.47,
+   0.68,
+   0.89,
+   1.1,
+   1.31,
+   1.52,
+   1.73,
+   1.94,
+   2.15,
+   2.36
+  ],
+  "n_considered": 100000,
+  "gaussian": 10.346937835152522,
+  "union": 11.324521152763872
+ },
+ {
+  "name": "two zero one unit",
+  "ses": [
+   0.0,
+   0.0,
+   1.0
+  ],
+  "n_considered": 3,
+  "gaussian": 0.3989422804014327,
+  "union": 1.482303807367511
+ },
+ {
+  "name": "all zero",
+  "ses": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "n_considered": 3,
+  "gaussian": 0.0,
+  "union": 0.0
+ },
+ {
+  "name": "single",
+  "ses": [
+   1.0
+  ],
+  "n_considered": 1,
+  "gaussian": 0.0,
+  "union": 0.0
+ },
+ {
+  "name": "single padded to ten million",
+  "ses": [
+   1.0
+  ],
+  "n_considered": 10000000,
+  "gaussian": 5.300954010173324,
+  "union": 5.67769242755511
+ },
+ {
+  "name": "wide scales",
+  "ses": [
+   0.001,
+   1.0,
+   1000.0
+  ],
+  "n_considered": 3,
+  "gaussian": 399.14185137701384,
+  "union": 1482.3038073675111
+ },
+ {
+  "name": "wide scales padded",
+  "ses": [
+   0.001,
+   1.0,
+   1000.0
+  ],
+  "n_considered": 2000,
+  "gaussian": 3435.0643217644815,
+  "union": 3898.9492070408105
+ }
+]

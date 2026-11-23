@@ -16,12 +16,18 @@ readme = "README.md"
 [lints]
 workspace = true
 
+[features]
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent-core/development", "antecedent-kernels/development", "antecedent-stats/development"]
+
 [dependencies]
 antecedent-core = { workspace = true }
 antecedent-kernels = { workspace = true }
+antecedent-stats = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+antecedent-core = { workspace = true, features = ["test-support"] }
 criterion = { workspace = true }
 serde_json = { workspace = true }
 
@@ -35,4 +41,12 @@ harness = false
 
 [[bench]]
 name = "mcmc_stats"
+harness = false
+
+[[bench]]
+name = "hmc_logistic"
+harness = false
+
+[[bench]]
+name = "laplace_glm_measured"
 harness = false

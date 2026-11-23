@@ -1,6 +1,6 @@
 //! Propensity stratification estimator.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry, TargetPopulation,
@@ -16,11 +16,13 @@ use super::prepare::{
     prepare_propensity_problem_with_levels, restrict_to_rows, trim_of, trim_retained_rows,
 };
 use crate::adjustment::EffectEstimate;
+use crate::arm::TreatmentArm;
 use crate::error::EstimationError;
+use crate::inference::InferenceSpec;
 use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::sampling_weights::SamplingWeights;
 use crate::se::AnalyticSeKind;
-use crate::util::BootstrapSeResult;
+use crate::util::BootstrapOutcome;
 
 /// Propensity stratification estimator: within-stratum difference of means pooled by size.
 ///
@@ -29,12 +31,16 @@ use crate::util::BootstrapSeResult;
 ///
 /// **Sampling weights.** The propensity model is the weighted logistic fit; within a stratum
 /// each arm's mean is the sampling-weighted mean, and strata are pooled by their weighted
-/// population share. Strata are cut at the sample quantiles of the fitted propensity.
-/// Finite bins do not in general remove within-bin confounding. Call
-/// [`Self::with_regression_adjustment`] to declare arm-specific linear outcome models with
-/// stratum intercepts; that construction standardizes fitted arm outcomes over the target
-/// population and includes outcome-model fitting in its analytic sandwich. Its consistency
+/// population share. Strata are cut at the sample quantiles of the fitted propensity; a
+/// stratum holding both arms but a single row of one is joined to its neighbour, so its rows
+/// stay in the target population and every pooled stratum carries a variance.
+/// Finite bins do not in general remove within-bin confounding: the raw difference of
+/// stratum means keeps a bias that does not shrink with the sample, so its interval loses
+/// coverage as the sample grows. The default therefore fits arm-specific linear outcome
+/// models with stratum intercepts, standardizes the fitted arm outcomes over the target
+/// population and includes outcome-model fitting in its analytic sandwich; its consistency
 /// requires those outcome models to be correct, rather than balance merely within each bin.
+/// [`Self::with_regression_adjustment`]`(false)` selects the raw stratum means.
 ///
 /// **Clusters.** Declared cluster labels make the analytic SE the cluster sandwich of the
 /// stratified estimator's influence values *given the strata* (the stratum boundaries and the
@@ -46,17 +52,20 @@ use crate::util::BootstrapSeResult;
 pub struct PropensityStratification {
     /// Dense linear-algebra backend used for the logistic IRLS fit.
     pub backend: FaerBackend,
-    /// Bootstrap replicates (0 = skip bootstrap).
-    pub bootstrap_replicates: u32,
+    /// Resampling and dependence declarations: bootstrap size and interval request, cluster
+    /// labels (either per complete-case row or per source-table row, exclusive) and the
+    /// sampling design of the rows. The analytic standard error is fixed by the estimator, so
+    /// `se_kind`, multiway labels and panel times are refused, not ignored.
+    pub inference: InferenceSpec,
     /// Overlap policy; must be [`OverlapPolicy::RequireDiagnostics`].
     pub overlap: OverlapPolicy,
     /// GLM fitting options for the propensity model.
     pub glm_options: GlmOptions,
     /// Number of quantile strata (default 5).
     pub n_strata: u32,
-    /// Declare arm-specific linear outcome models with stratum intercepts and common
-    /// covariate slopes within each arm. This corrects residual confounding within finite
-    /// propensity bins when those outcome models are correct. The default uses raw means.
+    /// Fit arm-specific linear outcome models with stratum intercepts and common covariate
+    /// slopes within each arm (the default). This corrects residual confounding within
+    /// finite propensity bins when those outcome models are correct; `false` uses raw means.
     pub regression_adjustment: bool,
     /// Optional bindings for named predicates / custom target distributions.
     pub population_registry: Option<PopulationRegistry>,
@@ -66,10 +75,6 @@ pub struct PropensityStratification {
     pub other_levels: OtherLevels,
     /// Sampling weights of every row of the source table (see [`crate::sampling_weights`]).
     pub sampling_weights: Option<SamplingWeights>,
-    /// Cluster label of each complete-case row. Exclusive with [`Self::source_cluster_ids`].
-    pub cluster_ids: Option<Vec<u32>>,
-    /// Cluster label of every row of the source table. Exclusive with [`Self::cluster_ids`].
-    pub source_cluster_ids: Option<Vec<u32>>,
 }
 
 impl Default for PropensityStratification {
@@ -79,23 +84,24 @@ impl Default for PropensityStratification {
 }
 
 impl PropensityStratification {
-    /// Defaults: 5 strata, 200 bootstrap replicates, clip = 0.01, no trim.
+    /// Defaults: 5 strata with regression adjustment, 200 bootstrap replicates, clip = 0.01,
+    /// no trim.
     #[must_use]
     pub fn new() -> Self {
         Self {
             backend: FaerBackend,
-            bootstrap_replicates: 200,
+            inference: InferenceSpec::new(200),
             overlap: default_propensity_overlap(),
             glm_options: GlmOptions::default(),
             n_strata: 5,
-            regression_adjustment: false,
+            regression_adjustment: true,
             population_registry: None,
             other_levels: OtherLevels::default(),
             sampling_weights: None,
-            cluster_ids: None,
-            source_cluster_ids: None,
         }
     }
+
+    crate::inference::with_bootstrap_interval!(inference);
 
     /// Declare sampling weights for every row of the source table.
     #[must_use]
@@ -104,29 +110,22 @@ impl PropensityStratification {
         self
     }
 
-    /// Declare the cluster of each complete-case row.
-    #[must_use]
-    pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
-        self.cluster_ids = Some(cluster_ids);
-        self
-    }
+    crate::inference::with_cluster_ids!(inference);
 
-    /// Declare the cluster of every row of the source table.
-    #[must_use]
-    pub fn with_source_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
-        self.source_cluster_ids = Some(cluster_ids);
-        self
-    }
+    crate::inference::with_source_cluster_ids!(inference);
+
+    crate::inference::with_sampling_design!(inference);
 
     /// Cluster label of each row of `problem`, when clusters are declared.
     fn clusters(
         &self,
         problem: &PreparedPropensityProblem,
     ) -> Result<Option<std::borrow::Cow<'_, [u32]>>, EstimationError> {
+        let source_rows = problem.source_rows(self.inference.source_cluster_ids.is_some())?;
         let labels = crate::se::declared_row_labels(
-            self.cluster_ids.as_deref(),
-            self.source_cluster_ids.as_deref(),
-            problem.row_index.iter().map(|&row| row as usize),
+            self.inference.cluster_ids.as_deref(),
+            self.inference.source_cluster_ids.as_deref(),
+            source_rows,
         )?;
         if let Some(labels) = &labels {
             crate::se::require_clusters(Some(labels.as_ref()), problem.nrows)?;
@@ -134,14 +133,7 @@ impl PropensityStratification {
         Ok(labels)
     }
 
-    /// Set the number of bootstrap replicates used for the bootstrap standard error.
-    ///
-    /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE.
-    #[must_use]
-    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
-        self.bootstrap_replicates = replicates;
-        self
-    }
+    crate::inference::with_bootstrap_replicates!(inference);
 
     /// Set the overlap policy. Positivity is mandatory here:
     /// [`OverlapPolicy::ExplicitOverride`] is refused by `prepare`.
@@ -166,7 +158,8 @@ impl PropensityStratification {
         self
     }
 
-    /// Set the number of quantile strata (default 5).
+    /// Set the number of quantile strata (default 5). Execution requires a
+    /// positive count no greater than the complete, overlap-retained row count.
     #[must_use]
     pub const fn with_n_strata(mut self, n_strata: u32) -> Self {
         self.n_strata = n_strata;
@@ -174,8 +167,9 @@ impl PropensityStratification {
     }
 
     /// Standardize arm-specific, stratum-intercept linear outcome regressions over the
-    /// weighted target population. Analytic uncertainty includes outcome-model fitting and
-    /// population composition. This is a distinct construction from raw stratified means.
+    /// weighted target population (the default), or, with `false`, pool raw stratum means.
+    /// Analytic uncertainty of the regression construction includes outcome-model fitting
+    /// and population composition. The two are distinct constructions.
     #[must_use]
     pub const fn with_regression_adjustment(mut self, enabled: bool) -> Self {
         self.regression_adjustment = enabled;
@@ -193,14 +187,16 @@ impl PropensityStratification {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedPropensityProblem, EstimationError> {
-        if let Some(source) = self.source_cluster_ids.as_deref() {
+        super::require_supported_inference(&self.inference)?;
+        self.inference.require_declared_design_read("PropensityStratification")?;
+        if let Some(source) = self.inference.source_cluster_ids.as_deref() {
             crate::se::require_source_labels(
                 source,
-                self.cluster_ids.as_deref(),
+                self.inference.cluster_ids.as_deref(),
                 data.row_count(),
             )?;
         }
-        prepare_propensity_problem_with_levels(
+        let problem = prepare_propensity_problem_with_levels(
             data,
             estimand,
             query,
@@ -208,7 +204,21 @@ impl PropensityStratification {
             self.population_registry.as_ref(),
             self.other_levels,
             self.sampling_weights.as_ref(),
-        )
+        )?;
+        self.checked_strata(problem.nrows)?;
+        Ok(problem)
+    }
+
+    fn checked_strata(&self, rows: usize) -> Result<usize, EstimationError> {
+        let count = usize::try_from(self.n_strata).map_err(|_| {
+            EstimationError::data_msg("propensity strata exceed the addressable row count")
+        })?;
+        if count == 0 || count > rows {
+            return Err(EstimationError::data_msg(format!(
+                "propensity strata must lie in 1..={rows} complete retained rows, got {count}",
+            )));
+        }
+        Ok(count)
     }
 
     /// Fit the propensity model, assign quantile strata, and compute the pooled stratified ATE.
@@ -223,6 +233,7 @@ impl PropensityStratification {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        super::require_supported_inference(&self.inference)?;
         let point = self.fit_point(problem, workspace, assumptions)?;
         self.attach_bootstrap(problem, workspace, ctx, point)
     }
@@ -241,13 +252,13 @@ impl PropensityStratification {
         ctx: &ExecutionContext,
         point: EffectEstimate,
     ) -> Result<EffectEstimate, EstimationError> {
-        if self.bootstrap_replicates == 0 {
+        if self.inference.bootstrap_replicates == 0 {
             return Ok(point);
         }
-        let n_strata = (self.n_strata.max(1)) as usize;
+        let n_strata = self.checked_strata(problem.nrows)?;
         let trim = trim_of(problem.overlap);
         let boot = self.bootstrap_se(problem, n_strata, trim, workspace, ctx)?;
-        Ok(point.with_bootstrap(Some(boot)))
+        Ok(point.with_bootstrap_outcome(boot))
     }
 
     fn fit_point(
@@ -256,6 +267,7 @@ impl PropensityStratification {
         workspace: &mut PropensityEstimationWorkspace,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        self.checked_strata(problem.nrows)?;
         if !matches!(
             problem.target_population,
             TargetPopulation::AllObserved
@@ -263,7 +275,8 @@ impl PropensityStratification {
                 | TargetPopulation::Untreated
                 | TargetPopulation::Predicate(_)
         ) {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "propensity stratification supports AllObserved, Treated, Untreated, or Predicate",
             ));
         }
@@ -274,7 +287,6 @@ impl PropensityStratification {
             &mut workspace.propensity,
             &self.glm_options,
         )?;
-        let n_strata = (self.n_strata.max(1)) as usize;
         // Trim on RAW scores (mirrors PropensityWeighting): stratify only common-support rows.
         let retained = trim_retained_rows(&model.fit.scores, trim)?;
         let (t_used, y_used, s_used) = restrict_to_rows(
@@ -284,10 +296,11 @@ impl PropensityStratification {
             1,
             retained.as_deref(),
         );
+        let n_strata = self.checked_strata(t_used.len())?;
         let sampling_used: Option<Vec<f64>> = problem.sampling_weights.as_ref().map(|s| {
             retained.as_deref().map_or_else(|| s.weights.to_vec(), |idx| gather(&s.weights, idx))
         });
-        let stratum = assign_strata(&s_used, n_strata);
+        let stratum = merge_sparse_strata(assign_strata(&s_used, n_strata), &t_used, n_strata);
         let raw = stratified_ate(
             &t_used,
             &y_used,
@@ -349,6 +362,7 @@ impl PropensityStratification {
 
         let mut estimate =
             EffectEstimate::new(result.ate, se_analytic, assumptions, problem.overlap)
+                .with_preparation(Some(problem.preparation_summary()))
                 .with_n_obs(u64::try_from(result.n_obs).unwrap_or(u64::MAX))
                 .with_overlap_report(overlap_report)
                 .with_treatment_levels(problem.treatment_levels)
@@ -367,29 +381,33 @@ impl PropensityStratification {
         trim: Option<f64>,
         _workspace: &mut PropensityEstimationWorkspace,
         ctx: &ExecutionContext,
-    ) -> Result<BootstrapSeResult, EstimationError> {
+    ) -> Result<BootstrapOutcome, EstimationError> {
         // Replicates own a cold workspace. A warm logistic start would change the replicate fit.
         let replicate = |scratch: &mut StratificationReplicate, idx: &[usize]| {
             Ok(self.replicate_ate(problem, n_strata, trim, scratch, idx))
         };
-        match self.clusters(problem)? {
-            Some(labels) => crate::util::bootstrap_se_clusters_with_scratch(
-                self.bootstrap_replicates,
-                ctx,
-                0x3D2F_u64,
-                &crate::util::ClusterRows::new(&labels)?,
-                StratificationReplicate::default,
-                replicate,
-            ),
-            None => crate::util::bootstrap_se_with_scratch(
-                self.bootstrap_replicates,
-                ctx,
-                0x3D2F_u64,
-                problem.nrows,
-                StratificationReplicate::default,
-                replicate,
-            ),
-        }
+        let labels = self.clusters(problem)?;
+        // Each worker gathers the design and four row vectors.
+        let _gather = crate::util::admit_gather_scratch(
+            ctx,
+            problem.nrows,
+            problem.design_ncols + 4,
+            self.inference.bootstrap_replicates,
+        )?;
+        crate::util::bootstrap_outcome_by_design(
+            self.inference.bootstrap_interval.as_ref(),
+            crate::util::BootstrapDesign {
+                clusters: labels.as_deref(),
+                series_block: None,
+                declared: self.inference.sampling_design,
+            },
+            self.inference.bootstrap_replicates,
+            ctx,
+            0x3D2F_u64,
+            problem.nrows,
+            StratificationReplicate::default,
+            replicate,
+        )
     }
 
     /// The stratified effect of one resample of the prepared rows, refitting the propensity and
@@ -414,7 +432,7 @@ impl PropensityStratification {
         }
         crate::util::gather_bootstrap_vector(t, &problem.treatment, idx);
         crate::util::gather_bootstrap_vector(y, &problem.outcome, idx);
-        crate::util::gather_resampled_design(x, &problem.design_matrix, problem.nrows, ncols, idx);
+        crate::util::gather_cols(x, &problem.design_matrix, problem.nrows, ncols, idx);
         let fit = match sampling {
             Some(full) => {
                 crate::util::gather_bootstrap_vector(s, full, idx);
@@ -426,7 +444,7 @@ impl PropensityStratification {
                     s,
                     &self.backend,
                     &mut workspace.propensity,
-                    &self.glm_options,
+                    &crate::propensity::propensity_glm_options(&self.glm_options, problem.overlap),
                 )
             }
             None => antecedent_stats::fit_propensity(
@@ -436,7 +454,7 @@ impl PropensityStratification {
                 t,
                 &self.backend,
                 &mut workspace.propensity,
-                &self.glm_options,
+                &crate::propensity::propensity_glm_options(&self.glm_options, problem.overlap),
             ),
         };
         let Ok(fit) = fit else {
@@ -453,7 +471,7 @@ impl PropensityStratification {
         let (t_used, y_used, s_used) = restrict_to_rows(t, y, &scores, 1, retained.as_deref());
         let weights_used: Option<Vec<f64>> =
             sampling.map(|_| retained.as_deref().map_or_else(|| s.clone(), |kept| gather(s, kept)));
-        let stratum = assign_strata(&s_used, n_strata);
+        let stratum = merge_sparse_strata(assign_strata(&s_used, n_strata), &t_used, n_strata);
         let raw = stratified_ate(
             &t_used,
             &y_used,
@@ -509,11 +527,13 @@ pub(crate) fn assign_strata(scores: &[f64], n_strata: usize) -> Vec<usize> {
     }
     let mut order: Vec<usize> = (0..n).collect();
     order.sort_by(|&a, &b| scores[a].total_cmp(&scores[b]).then(a.cmp(&b)));
-    // Cut on score quantiles and assign by `score <= cut`, so identical scores
-    // stay in one stratum. Rank cuts split a tie across strata by row position.
+    // Cut at the empirical quantiles (type 1) and assign by `score <= cut`, so identical scores
+    // stay in one stratum. The cut at level `s/k` is the order statistic `x_(ceil(s n / k))`: with
+    // `n` divisible by `k` every class holds exactly `n/k` rows, where the next order statistic
+    // would give the first class one row too many and the last one too few.
     let mut cuts = Vec::with_capacity(k.saturating_sub(1));
     for s in 1..k {
-        let idx = (s * n) / k;
+        let idx = (s * n).div_ceil(k).max(1) - 1;
         cuts.push(scores[order[idx.min(n - 1)]]);
     }
     scores
@@ -525,6 +545,54 @@ pub(crate) fn assign_strata(scores: &[f64], n_strata: usize) -> Vec<usize> {
                 .min(k - 1)
         })
         .collect()
+}
+
+/// Join every stratum that holds both arms but a single row of one to its neighbour: upward
+/// through the strata, and the last one downward. The coarsened strata keep those rows in
+/// the pooled contrast and give each stratum a within-arm variance; a stratum missing an
+/// arm altogether has no overlap to pool and is left to be dropped and reported, and
+/// strata holding two rows of each arm are returned unchanged. Only a sample whose strata
+/// all join into one that still has a single row of an arm is left sparse, which the
+/// estimator refuses.
+pub(crate) fn merge_sparse_strata(
+    mut stratum: Vec<usize>,
+    treatment: &[f64],
+    n_strata: usize,
+) -> Vec<usize> {
+    let k = n_strata.max(1);
+    let mut counts = vec![[0_usize; 2]; k];
+    for (&s, &t) in stratum.iter().zip(treatment) {
+        counts[s][usize::from(TreatmentArm::is_treated_indicator(t))] += 1;
+    }
+    let occupied = |count: &[usize; 2]| count[0] + count[1] > 0;
+    let sparse = |count: &[usize; 2]| count[0] > 0 && count[1] > 0 && count[0].min(count[1]) < 2;
+    let mut joined: Vec<usize> = (0..k).collect();
+    for s in 0..k - 1 {
+        if sparse(&counts[s]) {
+            let moved = std::mem::take(&mut counts[s]);
+            counts[s + 1][0] += moved[0];
+            counts[s + 1][1] += moved[1];
+            joined[s] = s + 1;
+        }
+    }
+    while sparse(&counts[k - 1]) {
+        let Some(below) = (0..k - 1).rev().find(|&s| occupied(&counts[s])) else {
+            break;
+        };
+        let moved = std::mem::take(&mut counts[below]);
+        counts[k - 1][0] += moved[0];
+        counts[k - 1][1] += moved[1];
+        joined[below] = k - 1;
+    }
+    if joined.iter().enumerate().all(|(s, &to)| s == to) {
+        return stratum;
+    }
+    for s in &mut stratum {
+        while joined[*s] != *s {
+            *s = joined[*s];
+        }
+    }
+    stratum
 }
 
 pub(crate) struct StratifiedResult {
@@ -571,6 +639,10 @@ impl ArmCell {
 ///
 /// Weighted arm means are `Σ w y / Σ w`, and their variance is the linearization
 /// `Σ w²(y − m)² · n/(n−1) / (Σ w)²`, which is the unweighted `s²/n` for equal weights.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
 pub(crate) fn stratified_ate(
     treatment: &[f64],
     outcome: &[f64],
@@ -582,7 +654,8 @@ pub(crate) fn stratified_ate(
     let weight_of = |i: usize| weights.map_or(1.0, |w| w[i]);
     let mut cells = vec![[ArmCell::default(); 2]; n_strata];
     for i in 0..treatment.len() {
-        let cell = &mut cells[stratum[i]][usize::from(treatment[i] > 0.5)];
+        let cell =
+            &mut cells[stratum[i]][usize::from(TreatmentArm::is_treated_indicator(treatment[i]))];
         cell.count += 1;
         cell.mass += weight_of(i);
         cell.sum += weight_of(i) * outcome[i];
@@ -596,7 +669,8 @@ pub(crate) fn stratified_ate(
     // outcome's mean dwarfs its spread (relative error ≈ ε·(ȳ/s)²), then the `max(0)` would
     // hide the negative result as a zero variance.
     for i in 0..treatment.len() {
-        let cell = &mut cells[stratum[i]][usize::from(treatment[i] > 0.5)];
+        let cell =
+            &mut cells[stratum[i]][usize::from(TreatmentArm::is_treated_indicator(treatment[i]))];
         let deviation = weight_of(i) * (outcome[i] - cell.mean);
         cell.squared_deviations += if weights.is_some() {
             deviation * deviation
@@ -610,8 +684,16 @@ pub(crate) fn stratified_ate(
             continue;
         }
         if treated.count < 2 || control.count < 2 {
-            return Err(EstimationError::data_msg(
-                "analytic stratification uncertainty requires at least two treated and two control observations per retained stratum",
+            return Err(EstimationError::refused_detail(
+                antecedent_core::reason_code!("stratum_too_sparse"),
+                "stratification.stratum_too_sparse",
+                format!(
+                    "analytic stratification uncertainty requires at least two treated and two \
+                     control observations per retained stratum; stratum {s} has {} treated and \
+                     {} control. Use fewer strata, declare an overlap trim, or request a \
+                     bootstrap interval",
+                    treated.count, control.count
+                ),
             ));
         }
         let (n1, n0) = (treated.count as f64, control.count as f64);
@@ -659,7 +741,7 @@ pub(crate) fn stratified_ate(
         if !in_pool[s] {
             continue;
         }
-        let arm = usize::from(treatment[i] > 0.5);
+        let arm = usize::from(TreatmentArm::is_treated_indicator(treatment[i]));
         let cell = &cells[s][arm];
         let sign = if arm == 1 { 1.0 } else { -1.0 };
         let residual = sign
@@ -688,6 +770,76 @@ pub(crate) fn stratified_ate(
     })
 }
 
+/// The design columns whose coefficient both arm regressions identify beside the stratum
+/// indicators: a covariate with no variation within the strata of an arm (a discrete
+/// covariate the strata already separate), or none beyond the covariates before it, is
+/// adjusted for exactly by the strata and takes no coefficient.
+fn identified_covariates(
+    treatment: &[f64],
+    weights: Option<&[f64]>,
+    stratum: &[usize],
+    stratum_column: &[Option<usize>],
+    kept_strata: usize,
+    design: &[f64],
+    design_ncols: usize,
+) -> Vec<usize> {
+    const RELATIVE_TOLERANCE: f64 = 1e-10;
+    let n = treatment.len();
+    let weight = |i: usize| weights.map_or(1.0, |mass| mass[i]);
+    let cell = |i: usize| {
+        stratum_column[stratum[i]].map(|column| {
+            column * 2 + usize::from(TreatmentArm::is_treated_indicator(treatment[i]))
+        })
+    };
+    let mut mass = vec![0.0; kept_strata * 2];
+    for i in 0..n {
+        if let Some(cell) = cell(i) {
+            mass[cell] += weight(i);
+        }
+    }
+    let arm_dot = |left: &[f64], right: &[f64]| {
+        let mut total = [0.0; 2];
+        for i in 0..n {
+            if let Some(cell) = cell(i) {
+                total[cell % 2] += weight(i) * left[i] * right[i];
+            }
+        }
+        total
+    };
+    let mut kept = Vec::new();
+    let mut residuals: Vec<Vec<f64>> = Vec::new();
+    for c in 1..design_ncols {
+        let column = &design[c * n..(c + 1) * n];
+        // Centre within each arm of each stratum, then against the covariates kept so far.
+        let mut centre = vec![0.0; kept_strata * 2];
+        for i in 0..n {
+            if let Some(cell) = cell(i) {
+                centre[cell] += weight(i) * column[i];
+            }
+        }
+        let mut residual: Vec<f64> = (0..n)
+            .map(|i| cell(i).map_or(0.0, |cell| column[i] - centre[cell] / mass[cell]))
+            .collect();
+        let scale = arm_dot(column, column);
+        for earlier in &residuals {
+            let projection = arm_dot(&residual, earlier);
+            let norm = arm_dot(earlier, earlier);
+            for i in 0..n {
+                if let Some(cell) = cell(i) {
+                    residual[i] -= projection[cell % 2] / norm[cell % 2] * earlier[i];
+                }
+            }
+        }
+        let remaining = arm_dot(&residual, &residual);
+        if (0..2).all(|arm| remaining[arm] > RELATIVE_TOLERANCE * scale[arm].max(f64::MIN_POSITIVE))
+        {
+            kept.push(c);
+            residuals.push(residual);
+        }
+    }
+    kept
+}
+
 /// Regression-standardized stratification, with the sandwich of its weighted normal
 /// equations and target-population mean. Stratum membership is locally fixed, as in the
 /// raw construction; bootstrap replicates refit the propensity and recut its strata.
@@ -711,7 +863,7 @@ fn regression_stratified_ate(
     let weight = |i: usize| weights.map_or(1.0, |mass| mass[i]);
     let mut counts = vec![[0_usize; 2]; n_strata];
     for i in 0..n {
-        counts[stratum[i]][usize::from(treatment[i] > 0.5)] += 1;
+        counts[stratum[i]][usize::from(TreatmentArm::is_treated_indicator(treatment[i]))] += 1;
     }
     let mut stratum_column = vec![None; n_strata];
     let mut kept_strata = 0;
@@ -721,19 +873,28 @@ fn regression_stratified_ate(
             kept_strata += 1;
         }
     }
-    let p = kept_strata + design_ncols - 1;
+    let covariates = identified_covariates(
+        treatment,
+        weights,
+        stratum,
+        &stratum_column,
+        kept_strata,
+        design,
+        design_ncols,
+    );
+    let p = kept_strata + covariates.len();
     let mut x = vec![0.0; n * p];
     for i in 0..n {
         if let Some(column) = stratum_column[stratum[i]] {
             x[i * p + column] = 1.0;
-            for c in 1..design_ncols {
-                x[i * p + kept_strata + c - 1] = design[c * n + i];
+            for (k, &c) in covariates.iter().enumerate() {
+                x[i * p + kept_strata + k] = design[c * n + i];
             }
         }
     }
     let in_target = |i: usize| match target {
-        TargetPopulation::Treated => treatment[i] > 0.5,
-        TargetPopulation::Untreated => treatment[i] <= 0.5,
+        TargetPopulation::Treated => TreatmentArm::is_treated_indicator(treatment[i]),
+        TargetPopulation::Untreated => !TreatmentArm::is_treated_indicator(treatment[i]),
         _ => true,
     };
     let mut target_mass = 0.0;
@@ -757,7 +918,9 @@ fn regression_stratified_ate(
         let mut rhs = vec![0.0; p];
         let mut arm_count = 0;
         for i in 0..n {
-            if (treatment[i] > 0.5) != active || stratum_column[stratum[i]].is_none() {
+            if (TreatmentArm::is_treated_indicator(treatment[i])) != active
+                || stratum_column[stratum[i]].is_none()
+            {
                 continue;
             }
             arm_count += 1;
@@ -801,7 +964,7 @@ fn regression_stratified_ate(
             continue;
         }
         let row = &x[i * p..(i + 1) * p];
-        let arm = usize::from(treatment[i] > 0.5);
+        let arm = usize::from(TreatmentArm::is_treated_indicator(treatment[i]));
         let sign = if arm == 1 { 1.0 } else { -1.0 };
         let residual = outcome[i] - dot(row, &coefficients[arm]);
         let leverage = weight(i)
@@ -841,6 +1004,48 @@ mod tests {
     use super::*;
 
     #[test]
+    fn strata_count_is_bounded_by_complete_rows_and_one_is_valid() {
+        let treatment: Vec<f64> = (0..32).map(|i| f64::from(i % 2)).collect();
+        let covariate: Vec<f64> = (0..32).map(|i| f64::from((i / 2) % 4)).collect();
+        let outcome: Vec<f64> =
+            treatment.iter().enumerate().map(|(i, t)| t + (i % 5) as f64 * 0.03).collect();
+        let data = TabularData::from_f64_columns([
+            ("t", treatment.as_slice()),
+            ("y", outcome.as_slice()),
+            ("z", covariate.as_slice()),
+        ])
+        .unwrap();
+        let query = AverageEffectQuery::binary_ate(
+            data.schema().id_of("t").unwrap(),
+            data.schema().id_of("y").unwrap(),
+        );
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            std::sync::Arc::from([data.schema().id_of("z").unwrap()]),
+            antecedent_expr::ExprId::from_raw(0),
+        );
+        for count in [0, 33, u32::MAX] {
+            let estimator = PropensityStratification::new().with_n_strata(count);
+            assert!(estimator.prepare(&data, &estimand, &query).is_err(), "count={count}");
+        }
+        let estimator =
+            PropensityStratification::new().with_n_strata(1).with_bootstrap_replicates(0);
+        let problem = estimator.prepare(&data, &estimand, &query).unwrap();
+        let effect = estimator
+            .fit(
+                &problem,
+                &mut PropensityEstimationWorkspace::default(),
+                &ExecutionContext::for_tests(1),
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        assert!(effect.ate.is_finite() && effect.se_analytic().is_finite());
+        // A count valid before overlap filtering must still fit the retained
+        // analysis population; this guard runs before any stratum allocation.
+        assert!(PropensityStratification::new().with_n_strata(8).checked_strata(7).is_err());
+    }
+
+    #[test]
     fn tied_propensity_scores_share_a_stratum() {
         let scores = [0.1, 0.9, 0.1, 0.1];
         let stratum = assign_strata(&scores, 2);
@@ -850,19 +1055,36 @@ mod tests {
     }
 
     #[test]
+    fn sparse_strata_join_their_neighbour() {
+        // Stratum 0 holds one treated row and stratum 2 one control row: 0 joins 1 upward
+        // and the last stratum takes the joined one below it.
+        let treatment = [1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0];
+        let stratum = vec![0, 0, 0, 1, 1, 1, 1, 2, 2, 2];
+        assert_eq!(merge_sparse_strata(stratum, &treatment, 3), vec![2; 10]);
+        // Strata with two rows of each arm are left as they are.
+        let treatment = [1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0];
+        let stratum = vec![0, 0, 0, 0, 1, 1, 1, 1];
+        assert_eq!(merge_sparse_strata(stratum.clone(), &treatment, 2), stratum);
+        // An empty stratum between occupied ones is passed through.
+        let treatment = [1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0];
+        let stratum = vec![0, 0, 0, 2, 2, 2, 2];
+        assert_eq!(merge_sparse_strata(stratum, &treatment, 3), vec![2; 7]);
+    }
+
+    #[test]
     fn stratification_rejects_singleton_arm_uncertainty() {
-        let err = match stratified_ate(
+        let Err(err) = stratified_ate(
             &[0.0, 1.0],
             &[0.0, 1.0],
             None,
             &[0, 0],
             1,
             &TargetPopulation::AllObserved,
-        ) {
-            Ok(_) => panic!("singleton arms must be rejected"),
-            Err(err) => err,
+        ) else {
+            panic!("singleton arms must be rejected")
         };
-        assert!(matches!(err, EstimationError::Data(_)));
+        assert_eq!(err.reason_code(), Some("stratum_too_sparse"), "{err}");
+        assert!(err.to_string().contains("stratum 0 has 1 treated and 1 control"), "{err}");
     }
 
     #[test]

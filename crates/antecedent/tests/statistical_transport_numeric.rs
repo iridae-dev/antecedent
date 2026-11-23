@@ -249,12 +249,14 @@ fn independent_leaf_resamples_overstate_precision_against_one_joint() {
         joint_means.push(marginal_product(fitted.probabilities()));
         let mut x_idx = Vec::new();
         let mut y_idx = Vec::new();
-        let mut rng_x = antecedent_core::ExecutionContext::for_tests(5)
-            .rng
-            .stream_for(StreamDomain::Test, 100u64 ^ (u64::from(replicate)));
-        let mut rng_y = antecedent_core::ExecutionContext::for_tests(5)
-            .rng
-            .stream_for(StreamDomain::Test, 200u64 ^ (u64::from(replicate)));
+        let mut rng_x = antecedent_core::ExecutionContext::for_tests(5).rng.stream_for(
+            StreamDomain::Test,
+            antecedent_core::derive_stream(100, u64::from(replicate)),
+        );
+        let mut rng_y = antecedent_core::ExecutionContext::for_tests(5).rng.stream_for(
+            StreamDomain::Test,
+            antecedent_core::derive_stream(200, u64::from(replicate)),
+        );
         antecedent_data::fill_resample_indexes(
             antecedent_data::ResamplingPlan::IidBootstrap,
             sample.n(),
@@ -325,10 +327,12 @@ fn trial_ipw_still_refuses_recursive_factorization() {
         None,
     )
     .unwrap_err();
+    let message = err.to_string();
     assert!(
-        err.to_string().contains("recursive")
-            || err.to_string().contains("Recursive")
-            || err.to_string().contains("certificate")
+        message.contains(
+            "certificate rule 'transport.sid.recursive' yields a recursive factorization"
+        ),
+        "{message}"
     );
 }
 

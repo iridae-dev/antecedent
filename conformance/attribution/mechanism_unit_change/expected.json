@@ -3,20 +3,47 @@
   "oracle": {
     "kind": "closed_form",
     "method": "closed_form_linear_scm",
-    "generator": "temporary clean-room harness (deleted after artifact import)",
-    "formula": "For Y=2X and reference X-bar=1, the sole input contribution is 2(X-X-bar)."
+    "generator": "conformance/attribution/mechanism_unit_change/reference.py",
+    "formula": "For Y=2X and reference X-bar=1, the sole input contribution is 2(X-X-bar).",
+    "command": "uv run --frozen --script conformance/attribution/mechanism_unit_change/reference.py --check",
+    "environment_lock": "conformance/attribution/mechanism_unit_change/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "per-unit contributions",
+      "mean contribution"
+    ],
+    "context_only_outputs": [
+      "mechanism_detection block (not read by the executing assertion)",
+      "tolerance declaration"
+    ],
+    "independence_basis": "The generator parses the declared baseline equation for its slope and applies contribution = slope * (x - reference_mean); it imports no Antecedent code and no statistics package. The shared object is the fixture formula (contribution of the sole input equals slope times deviation from the reference), a one-parent exact Shapley value.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded."
   },
   "unit_case": {
-    "x": [0.0, 1.0, 2.0],
+    "x": [
+      0.0,
+      1.0,
+      2.0
+    ],
     "reference_mean": 1.0,
-    "contributions": [-2.0, 0.0, 2.0],
+    "contributions": [
+      -2.0,
+      0.0,
+      2.0
+    ],
     "mean_contribution": 0.0
   },
   "mechanism_detection": {
     "baseline": "Y=1+2X",
     "comparison": "Y=6+2X",
-    "changed": ["y"],
-    "unchanged": ["x"]
+    "changed": [
+      "y"
+    ],
+    "unchanged": [
+      "x"
+    ]
   },
-  "tolerance": {"absolute": 1e-10}
+  "tolerance": {
+    "absolute": 1e-10
+  }
 }

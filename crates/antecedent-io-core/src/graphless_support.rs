@@ -1,18 +1,18 @@
-//! Exact graphless design-family license predicate.
+//! Exact graphless design-family support predicate.
 //!
-//! The license table is generated from `parity/support_graphless.toml` by
+//! The support table is generated from `parity/support_graphless.toml` by
 //! `scripts/generate_graphless_support.py`. This module is the single owner of
 //! the predicate: the facade's checked execution and artifact verification
 //! both classify through [`classify_graphless`] / [`graphless_admits`], so the
 //! two cannot drift apart.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "support_graphless_data.rs"]
 mod data;
 
-use data::GraphlessLicenseRow;
-use data::LICENSES;
+use data::GraphlessSupportRow;
+use data::SUPPORTS;
 
 /// Exact graphless design, method, and inference claim to classify.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -21,20 +21,20 @@ pub struct GraphlessSupportKey<'a> {
     pub family: &'a str,
     /// Assignment design, such as `complete` or `cluster`.
     pub design: &'a str,
-    /// Concrete estimator method; similar methods cannot inherit a license.
+    /// Concrete estimator method; similar methods cannot inherit support.
     pub method: &'a str,
     /// Exact inference claim, including confidence level and pointwise scope.
     pub inference_claim: &'a str,
 }
 
-/// Observed design and inference support for an exact graphless license.
+/// Observed design and inference support for an exact graphless support.
 #[allow(
     clippy::struct_excessive_bools,
     reason = "each flag records a distinct observed support condition; they are not a state enum"
 )]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct GraphlessAssignmentSupport {
-    /// `unit`, `cluster`, or independent `sequence`, matched to the licensed design.
+    /// `unit`, `cluster`, or independent `sequence`, matched to the supported design.
     pub assignment_unit: &'static str,
     /// Number assigned to the treatment arm.
     pub treated: usize,
@@ -98,9 +98,9 @@ pub struct GraphlessAssignmentSupport {
 /// Runtime status for one exact graphless support key.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GraphlessSupportStatus {
-    /// Exact license and assignment support matched.
-    Licensed {
-        /// Scope restrictions published with the license.
+    /// Exact support and assignment support matched.
+    Supported {
+        /// Scope restrictions published with the support.
         limitations: &'static str,
         /// Known-truth calibration test used for the row.
         known_truth_test: &'static str,
@@ -111,21 +111,66 @@ pub enum GraphlessSupportStatus {
     Refused,
 }
 
-/// The licensed row that admits `key` under `observed`, if any.
-fn find_license(
-    key: GraphlessSupportKey<'_>,
-    observed: GraphlessAssignmentSupport,
-) -> Option<&'static GraphlessLicenseRow> {
-    LICENSES.iter().find(|row| row.admits(key, observed))
+/// Derived support status of the graphless rows (`data/unit_support_status.json`), written by
+/// `scripts/generate_support_matrix_docs.py` from the evidence registries and the
+/// scientific-records ledger. A row whose status is not `supported` is not admitted.
+#[doc(hidden)]
+pub const UNIT_STATUS: &str = include_str!("../data/unit_support_status.json");
+
+#[derive(serde::Deserialize)]
+struct UnitStatusFile {
+    graphless: Vec<GraphlessUnitStatus>,
 }
 
-/// Whether some licensed row matches `key` and is satisfied by `observed`.
+#[derive(serde::Deserialize)]
+struct GraphlessUnitStatus {
+    family: String,
+    design: String,
+    method: String,
+    inference_claim: String,
+    status: String,
+}
+
+/// The `(family, design, method, inference_claim)` keys whose derived status is not `supported`.
+fn not_supported_rows() -> &'static std::collections::HashSet<(String, String, String, String)> {
+    static ROWS: std::sync::OnceLock<std::collections::HashSet<(String, String, String, String)>> =
+        std::sync::OnceLock::new();
+    ROWS.get_or_init(|| owed_keys(UNIT_STATUS))
+}
+
+fn owed_keys(status: &str) -> std::collections::HashSet<(String, String, String, String)> {
+    let file: UnitStatusFile = serde_json::from_str(status).expect("graphless unit support status");
+    file.graphless
+        .into_iter()
+        .filter(|row| row.status != "supported")
+        .map(|row| (row.family, row.design, row.method, row.inference_claim))
+        .collect()
+}
+
+/// The supported row that admits `key` under `observed`, if any.
+fn find_support(
+    key: GraphlessSupportKey<'_>,
+    observed: GraphlessAssignmentSupport,
+) -> Option<&'static GraphlessSupportRow> {
+    let owed = not_supported_rows();
+    SUPPORTS.iter().find(|row| {
+        row.admits(key, observed)
+            && !owed.contains(&(
+                row.family.to_owned(),
+                row.design.to_owned(),
+                row.method.to_owned(),
+                row.inference_claim.to_owned(),
+            ))
+    })
+}
+
+/// Whether some supported row matches `key` and is satisfied by `observed`.
 #[must_use]
 pub fn graphless_admits(
     key: GraphlessSupportKey<'_>,
     observed: GraphlessAssignmentSupport,
 ) -> bool {
-    find_license(key, observed).is_some()
+    find_support(key, observed).is_some()
 }
 
 /// Classify a graphless design against the separate machine-readable table.
@@ -135,8 +180,8 @@ pub fn classify_graphless(
     key: GraphlessSupportKey<'_>,
     observed: GraphlessAssignmentSupport,
 ) -> GraphlessSupportStatus {
-    find_license(key, observed).map_or(GraphlessSupportStatus::Refused, |row| {
-        GraphlessSupportStatus::Licensed {
+    find_support(key, observed).map_or(GraphlessSupportStatus::Refused, |row| {
+        GraphlessSupportStatus::Supported {
             limitations: row.limitations,
             known_truth_test: row.known_truth_test,
             retained_route_test: row.retained_route_test,
@@ -144,7 +189,136 @@ pub fn classify_graphless(
     })
 }
 
-impl GraphlessLicenseRow {
+/// Code of the diagnostic by which a Bayesian design posterior states the support row it ran
+/// under. Such a result has no design section of its own, so the row key and the observed
+/// support ride in the diagnostic's fields.
+pub const DESIGN_POSTERIOR_ROW_CODE: &str = "estimate.design_posterior.graphless_support";
+
+/// Codes of the diagnostics by which a result with a design section states the support row
+/// the section meets. The section's own `supported` field stays `false`; the artifact check
+/// recomputes the row from the stored query and section for every such diagnostic.
+pub const ASSOCIATION_SLOPE_ROW_CODE: &str = "estimate.association.graphless_support";
+/// Sharp instrument bounds: the interval for the endpoints of the identified set.
+pub const IV_BOUNDS_ROW_CODE: &str = "estimate.iv_bounds.graphless_support";
+/// Sequential contrast: the normal interval of the cross-fit scores.
+pub const CROSSFIT_CONTRAST_ROW_CODE: &str = "estimate.sequential_contrast.graphless_support";
+/// History match: the fixed-b period interval.
+pub const PERIOD_HISTORY_ROW_CODE: &str = "estimate.history_match.graphless_support";
+/// Temporal design: the pointwise intervals of the design's coordinates.
+pub const TEMPORAL_DESIGN_ROW_CODE: &str = "estimate.temporal_design.graphless_support";
+/// Augmented panel difference in differences: the whole-cluster bootstrap interval.
+pub const AUGMENTED_DID_ROW_CODE: &str = "estimate.panel_did.augmented.graphless_support";
+/// Every code by which a design section's support row is stated.
+pub const SECTION_ROW_CODES: [&str; 6] = [
+    ASSOCIATION_SLOPE_ROW_CODE,
+    IV_BOUNDS_ROW_CODE,
+    CROSSFIT_CONTRAST_ROW_CODE,
+    PERIOD_HISTORY_ROW_CODE,
+    TEMPORAL_DESIGN_ROW_CODE,
+    AUGMENTED_DID_ROW_CODE,
+];
+
+/// The fields of the [`DESIGN_POSTERIOR_ROW_CODE`] diagnostic for `key` under `observed`.
+#[must_use]
+pub fn design_posterior_row_statement(
+    key: GraphlessSupportKey<'_>,
+    observed: GraphlessAssignmentSupport,
+    resampled: GraphlessResampleSupport,
+) -> Vec<(String, String)> {
+    let text = |name: &str, value: &str| (name.to_owned(), value.to_owned());
+    let count = |name: &str, value: usize| (name.to_owned(), value.to_string());
+    let real = |name: &str, value: f64| (name.to_owned(), format!("{value:?}"));
+    let flag = |name: &str, value: bool| (name.to_owned(), value.to_string());
+    let mut fields = vec![
+        text("family", key.family),
+        text("design", key.design),
+        text("method", key.method),
+        text("inference_claim", key.inference_claim),
+        text("assignment_unit", observed.assignment_unit),
+        count("treated", observed.treated),
+        count("control", observed.control),
+        count("rows", observed.rows),
+        count("blocks", observed.blocks),
+        count("min_action_rows", observed.min_action_rows),
+        count("min_group_rows", observed.min_group_rows),
+        count("min_local_rows", observed.min_local_rows),
+        count("reported_intervals", observed.reported_intervals),
+        real("min_probability", observed.min_probability),
+        real("min_expected_arm_units", observed.min_expected_arm_units),
+        flag("all_reported_intervals", observed.all_reported_intervals),
+        flag("known_density", observed.known_density),
+        flag("balanced_sequences", observed.balanced_sequences),
+        real("first_stage_t", resampled.first_stage_t),
+        count("interval_resamples", resampled.interval_resamples),
+    ];
+    // Policy and reference matches are stated only by a design that counts them.
+    if observed.policy_matches > 0 || observed.reference_matches > 0 {
+        fields.push(count("policy_matches", observed.policy_matches));
+        fields.push(count("reference_matches", observed.reference_matches));
+    }
+    fields
+}
+
+/// Whether the row and observed support a [`DESIGN_POSTERIOR_ROW_CODE`] diagnostic states are
+/// admitted by the support table. A missing or unreadable field is not admitted.
+#[must_use]
+pub fn design_posterior_row_stated(fields: &[(String, String)]) -> bool {
+    let get = |name: &str| {
+        fields.iter().find(|(field, _)| field == name).map(|(_, value)| value.as_str())
+    };
+    let count = |name: &str| get(name).and_then(|value| value.parse::<usize>().ok());
+    let real = |name: &str| {
+        get(name).and_then(|value| value.parse::<f64>().ok()).filter(|value| value.is_finite())
+    };
+    let flag = |name: &str| get(name).and_then(|value| value.parse::<bool>().ok());
+    let assignment_unit = match get("assignment_unit") {
+        Some("unit") => "unit",
+        Some("cluster") => "cluster",
+        Some("sequence") => "sequence",
+        _ => return false,
+    };
+    let (Some(family), Some(design), Some(method), Some(inference_claim)) =
+        (get("family"), get("design"), get("method"), get("inference_claim"))
+    else {
+        return false;
+    };
+    let observed = (|| {
+        Some(GraphlessAssignmentSupport {
+            assignment_unit,
+            treated: count("treated")?,
+            control: count("control")?,
+            rows: count("rows")?,
+            blocks: count("blocks")?,
+            min_action_rows: count("min_action_rows")?,
+            min_group_rows: count("min_group_rows")?,
+            min_local_rows: count("min_local_rows")?,
+            reported_intervals: count("reported_intervals")?,
+            min_probability: real("min_probability")?,
+            min_expected_arm_units: real("min_expected_arm_units")?,
+            all_reported_intervals: flag("all_reported_intervals")?,
+            known_density: flag("known_density")?,
+            balanced_sequences: flag("balanced_sequences")?,
+            policy_matches: count("policy_matches").unwrap_or(0),
+            reference_matches: count("reference_matches").unwrap_or(0),
+            interval_95_published: true,
+            ..Default::default()
+        })
+    })();
+    // Absent on a statement of a row without these thresholds.
+    let resampled = GraphlessResampleSupport {
+        first_stage_t: real("first_stage_t").unwrap_or(0.0),
+        interval_resamples: count("interval_resamples").unwrap_or(0),
+    };
+    observed.is_some_and(|observed| {
+        graphless_admits_resampled(
+            GraphlessSupportKey { family, design, method, inference_claim },
+            observed,
+            resampled,
+        )
+    })
+}
+
+impl GraphlessSupportRow {
     /// Whether this row matches `key` and every threshold is met by `observed`.
     fn admits(&self, key: GraphlessSupportKey<'_>, observed: GraphlessAssignmentSupport) -> bool {
         let row = self;
@@ -182,5 +356,59 @@ impl GraphlessLicenseRow {
             && (!row.requires_rank_ownership || observed.rank_ownership)
             && (!row.requires_balanced_sequences || observed.balanced_sequences)
             && (!row.requires_known_density || observed.known_density)
+    }
+}
+
+/// Observed resampling support of the rows that carry a resampling threshold: a first-stage
+/// strength or a count of interval resamples. It travels beside
+/// [`GraphlessAssignmentSupport`]; such rows are looked up through
+/// [`graphless_admits_resampled`] only.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct GraphlessResampleSupport {
+    /// Absolute first-stage estimate over its standard error (infinite for a first stage
+    /// without error); zero when the design has no first stage.
+    pub first_stage_t: f64,
+    /// Bootstrap replicates or posterior draws that produced the published interval.
+    pub interval_resamples: usize,
+}
+
+/// Whether the resampling thresholds of `row` are met by `resampled`.
+fn row_meets_resampling(row: &GraphlessSupportRow, resampled: GraphlessResampleSupport) -> bool {
+    resampled.first_stage_t >= row.min_first_stage_t
+        && resampled.interval_resamples >= row.min_interval_resamples
+}
+
+/// Whether some supported row matches `key`, is satisfied by `observed`, and has its
+/// resampling thresholds met by `resampled`.
+#[must_use]
+pub fn graphless_admits_resampled(
+    key: GraphlessSupportKey<'_>,
+    observed: GraphlessAssignmentSupport,
+    resampled: GraphlessResampleSupport,
+) -> bool {
+    find_support(key, observed).is_some_and(|row| row_meets_resampling(row, resampled))
+}
+
+#[cfg(test)]
+mod status_tests {
+    use super::owed_keys;
+
+    /// A row that release-mode data marks `not_supported` is excluded from admission;
+    /// a `supported` row is not.
+    #[test]
+    fn a_not_supported_graphless_row_in_the_status_data_is_excluded() {
+        let row = |method: &str, status: &str| {
+            format!(
+                r#"{{"family":"f","design":"d","method":"{method}","inference_claim":"c","status":"{status}","missing_evidence":[]}}"#
+            )
+        };
+        let json = format!(
+            r#"{{"graphless":[{},{}],"capabilities":[]}}"#,
+            row("owed", "not_supported"),
+            row("current", "supported")
+        );
+        let owed = owed_keys(&json);
+        assert!(owed.contains(&("f".into(), "d".into(), "owed".into(), "c".into())));
+        assert!(!owed.contains(&("f".into(), "d".into(), "current".into(), "c".into())));
     }
 }

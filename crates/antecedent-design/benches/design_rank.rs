@@ -1,6 +1,6 @@
 //! Criterion smoke bench for design MC ranking.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     missing_docs,
@@ -16,6 +16,9 @@ use antecedent_design::{
 };
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 use criterion::{Criterion, criterion_group, criterion_main};
+
+#[path = "../../../benches/soft_budget.rs"]
+mod soft_budget;
 
 fn bench_rank(c: &mut Criterion) {
     let graphs = WeightedGraphSamples::new(
@@ -75,10 +78,9 @@ fn bench_rank(c: &mut Criterion) {
     let t0 = std::time::Instant::now();
     ranker.rank(&DesignObjective::ReduceGraphEntropy, &candidates, &eval, &ctx).expect("rank");
     let elapsed = t0.elapsed();
-    assert!(
-        elapsed < std::time::Duration::from_millis(50),
-        "design_rank_eig_8_candidates exceeded soft budget: {elapsed:?}"
-    );
+    soft_budget::check(elapsed < std::time::Duration::from_millis(50), || {
+        format!("design_rank_eig_8_candidates exceeded soft budget: {elapsed:?}")
+    });
 }
 
 criterion_group!(benches, bench_rank);

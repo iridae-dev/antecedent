@@ -38,12 +38,14 @@ fn exact_synthetic_did_assignment_round_trips_and_rejects_tampering() {
     let fit = result.synthetic_did().unwrap();
     assert!((fit.effect - 5.0).abs() < 1e-8);
     assert_eq!(fit.randomization_statistics.len(), 4);
+    // A genuine effect stays separated from the rounding tolerance, so it ranks strictly.
+    assert!(fit.randomization_ranking_tolerance.is_none_or(|tolerance| tolerance < 1e-9));
     let observed =
         fit.randomization_statistics.iter().find(|(unit, _)| unit.as_ref() == "treated").unwrap().1;
     let extreme =
         fit.randomization_statistics.iter().filter(|(_, statistic)| *statistic >= observed).count();
     assert_eq!(fit.randomization_p_value, Some(extreme as f64 / 4.0));
-    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
+    assert_eq!(result.interval().as_ref().unwrap().method, IntervalMethod::None);
     assert!(result.identification.required_assumptions.entries.iter().any(|record| {
         format!("{:?}", record.assumption).contains("uniform_single_treated_unit_assignment")
     }));
@@ -93,11 +95,40 @@ fn nonzero_synthetic_did_sharp_null_carries_tested_effect() {
     let fit = result.synthetic_did().unwrap();
     assert_eq!(fit.randomization_null_effect, Some(5.0));
     assert_eq!(fit.randomization_p_value, Some(1.0));
-    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
+    // Every statistic is mathematically zero; the engine's own values differ only by
+    // arithmetic noise, which the ranking tolerance must cover without absorbing a real signal.
+    let tolerance = fit.randomization_ranking_tolerance.unwrap();
+    assert!(tolerance > 0.0 && tolerance < 1e-9, "{tolerance}");
+    assert!(fit.randomization_statistics.iter().all(|(_, statistic)| *statistic <= tolerance));
+    assert_eq!(result.interval().as_ref().unwrap().method, IntervalMethod::None);
     let bytes =
         prepared.encode_contracted_result(&result, "synthetic-did-nonzero-null", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.synthetic_did.as_ref().unwrap().randomization_null_effect, Some(5.0));
+    // Dropping the tolerance restores strict ranking, which no longer matches the p-value.
+    let mut strict = body.clone();
+    strict.synthetic_did.as_mut().unwrap().randomization_ranking_tolerance = None;
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &strict,
+            header.variable_names.clone(),
+            "strict"
+        )
+        .is_err()
+    );
+    for bad in [-1e-12, f64::NAN, 0.0] {
+        let mut altered = body.clone();
+        altered.synthetic_did.as_mut().unwrap().randomization_ranking_tolerance = Some(bad);
+        assert!(
+            antecedent_io::encode_analysis_result_artifact(
+                &altered,
+                header.variable_names.clone(),
+                "altered"
+            )
+            .is_err(),
+            "{bad}"
+        );
+    }
     let mut fabricated = body.clone();
     fabricated.synthetic_did.as_mut().unwrap().randomization_null_effect = Some(1.0);
     assert!(
@@ -111,7 +142,7 @@ fn nonzero_synthetic_did_sharp_null_carries_tested_effect() {
 }
 
 #[test]
-fn exact_synthetic_did_assignment_refuses_more_than_32_candidate_units() {
+fn exact_synthetic_did_assignment_enumerates_every_candidate_unit_beyond_thirty_two() {
     let mut units = Vec::new();
     let mut periods = Vec::new();
     let mut outcomes = Vec::new();
@@ -126,11 +157,19 @@ fn exact_synthetic_did_assignment_refuses_more_than_32_candidate_units() {
     let query = SyntheticControlQuery::new(VariableId::from_raw(0), units, periods, "unit-0", 4)
         .difference_in_differences()
         .with_uniform_unit_randomization();
-    let error = Study::tabular(data)
+    // The exact assignment test enumerates one assignment per candidate unit, so the number of
+    // candidates is not capped: 33 units give 33 statistics and a p-value on the 1/33 grid.
+    let result = Study::tabular(data)
         .query(query)
         .build()
         .unwrap()
         .run(&ExecutionContext::for_tests(31))
-        .unwrap_err();
-    assert!(error.to_string().contains("at most 32 candidate units"));
+        .unwrap();
+    let fit = result.synthetic_did().unwrap();
+    assert_eq!(fit.randomization_statistics.len(), 33);
+    let observed =
+        fit.randomization_statistics.iter().find(|(unit, _)| unit.as_ref() == "unit-0").unwrap().1;
+    let extreme =
+        fit.randomization_statistics.iter().filter(|(_, statistic)| *statistic >= observed).count();
+    assert_eq!(fit.randomization_p_value, Some(extreme as f64 / 33.0));
 }

@@ -3,13 +3,16 @@
 //! Supports `digraph [name] { A -> B; ... }` with identifier or quoted node ids.
 //! Attribute lists `[...]` are skipped. Undirected edges and subgraphs are rejected.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
+use std::fmt::Write as _;
 
 use antecedent_graph::Dag;
 
-use crate::convert::{dag_from_wire, dag_to_wire};
+use crate::convert::{
+    GraphLimits, check_graph_budget_within, dag_from_wire_with_limits, dag_to_wire,
+};
 use crate::error::IoError;
 use crate::graph_json::without_names;
 use crate::wire::DagWire;
@@ -37,8 +40,20 @@ without_names! {
 ///
 /// Malformed DOT, undirected edges, cycles, or empty graphs.
 pub fn dag_with_names_from_dot(dot: &str) -> Result<(Dag, Vec<String>), IoError> {
+    dag_with_names_from_dot_with_limits(dot, &GraphLimits::default())
+}
+
+/// [`dag_with_names_from_dot`] under the caller's graph bounds: a document over `limits` is refused.
+///
+/// # Errors
+///
+/// As [`dag_with_names_from_dot`], and [`IoError::Convert`] when a bound of `limits` is exceeded.
+pub fn dag_with_names_from_dot_with_limits(
+    dot: &str,
+    limits: &GraphLimits,
+) -> Result<(Dag, Vec<String>), IoError> {
     let (wire, names) = dag_wire_and_names_from_dot(dot)?;
-    let dag = dag_from_wire(&wire)?;
+    let dag = dag_from_wire_with_limits(&wire, limits)?;
     Ok((dag, names))
 }
 
@@ -51,8 +66,7 @@ pub fn dag_with_names_from_dot(dot: &str) -> Result<(Dag, Vec<String>), IoError>
 ///
 /// Wire conversion failures (non-static / non-directed edges).
 pub fn dag_to_dot(dag: &Dag, names: Option<&[String]>) -> Result<String, IoError> {
-    let wire = dag_to_wire(dag)?;
-    Ok(dag_wire_to_dot(&wire, names))
+    emit_dag_dot(&dag_to_wire(dag)?, names)
 }
 
 /// Parse DOT into [`DagWire`] (shared with JSON path for tests).
@@ -208,61 +222,82 @@ pub(crate) fn parse_dot_graph(dot: &str, options: DotParseOptions) -> Result<Par
 }
 
 /// Emit DOT from [`DagWire`].
-#[must_use]
-pub fn dag_wire_to_dot(wire: &DagWire, names: Option<&[String]>) -> String {
+///
+/// When `names` is `Some` and its length equals `node_count`, those labels are emitted
+/// (quoted); otherwise nodes are emitted as dense integer ids. Isolated nodes always appear
+/// so a re-import keeps `node_count` and the ids.
+///
+/// # Errors
+///
+/// An edge endpoint at or beyond `node_count`.
+pub fn dag_wire_to_dot(wire: &DagWire, names: Option<&[String]>) -> Result<String, IoError> {
+    check_graph_budget_within(wire.node_count, wire.edges.len(), &GraphLimits::default())?;
+    emit_dag_dot(wire, names)
+}
+
+/// Emit DOT for a wire already known to be bounded (encoded from an in-memory graph or
+/// admitted by [`dag_wire_to_dot`]).
+fn emit_dag_dot(wire: &DagWire, names: Option<&[String]>) -> Result<String, IoError> {
+    let node_count = wire.node_count as usize;
+    if let Some(&(from, to)) = wire
+        .edges
+        .iter()
+        .find(|&&(from, to)| from as usize >= node_count || to as usize >= node_count)
+    {
+        return Err(IoError::Convert(format!(
+            "edge ({from}, {to}) names a node outside node_count {node_count}"
+        )));
+    }
+    let names = names.filter(|names| names.len() == node_count);
     let mut out = String::from("digraph {\n");
-    let use_names = names.is_some_and(|n| n.len() == wire.node_count as usize);
     for &(from, to) in &wire.edges {
-        if use_names {
-            let names = names.expect("checked");
+        if let Some(names) = names {
             out.push(' ');
             push_quoted(&mut out, &names[from as usize]);
             out.push_str(" -> ");
             push_quoted(&mut out, &names[to as usize]);
             out.push_str(";\n");
         } else {
-            out.push_str(&format!(" {from} -> {to};\n"));
+            let _ = writeln!(out, " {from} -> {to};");
         }
     }
-    // Isolated nodes must always appear so re-import keeps node_count / ids.
-    let mut seen = vec![false; wire.node_count as usize];
-    for &(f, t) in &wire.edges {
-        seen[f as usize] = true;
-        seen[t as usize] = true;
+    let mut seen = vec![false; node_count];
+    for &(from, to) in &wire.edges {
+        seen[from as usize] = true;
+        seen[to as usize] = true;
     }
     for (i, present) in seen.iter().enumerate() {
         if *present {
             continue;
         }
-        if use_names {
-            let names = names.expect("checked");
+        if let Some(names) = names {
             out.push(' ');
             push_quoted(&mut out, &names[i]);
             out.push_str(";\n");
         } else {
-            out.push_str(&format!(" {i};\n"));
+            let _ = writeln!(out, " {i};");
         }
     }
     out.push('}');
-    out
+    Ok(out)
 }
 
 /// Refuse edge attributes that would change DAG semantics if ignored.
 fn refuse_unrepresentable_dag_edge_attrs(attrs: &HashMap<String, String>) -> Result<(), IoError> {
-    if let Some(dir) = attrs.get("dir") {
-        if !dir.eq_ignore_ascii_case("forward") {
-            return Err(IoError::Convert(format!(
-                "DAG DOT cannot represent edge attribute dir={dir}; use admg_from_dot or pag_from_dot"
-            )));
-        }
+    if let Some(dir) = attrs.get("dir")
+        && !dir.eq_ignore_ascii_case("forward")
+    {
+        return Err(IoError::Convert(format!(
+            "DAG DOT cannot represent edge attribute dir={dir}; use admg_from_dot or pag_from_dot"
+        )));
     }
     for (key, trivial) in [("arrowhead", "normal"), ("arrowtail", "none")] {
-        if let Some(shape) = attrs.get(key) {
-            if !shape.eq_ignore_ascii_case(trivial) {
-                return Err(IoError::Convert(format!(
-                    "DAG DOT cannot represent edge attribute {key}={shape}; use pag_from_dot"
-                )));
-            }
+        if let Some(shape) = attrs.get(key)
+            && !shape.eq_ignore_ascii_case(trivial)
+        {
+            return Err(IoError::Convert(format!(
+                "DAG DOT cannot represent edge attribute {key}={shape}; use pag_from_dot"
+            )));
         }
     }
     if attrs.contains_key("mark_a") || attrs.contains_key("mark_b") {
@@ -470,15 +505,15 @@ impl<'a> Lexer<'a> {
             return Err(IoError::Convert("unterminated quoted node id".into()));
         }
         // Number or bare identifier.
-        if let Some(c) = self.peek_char() {
-            if c.is_ascii_digit() || c == '-' {
-                let start = self.pos;
+        if let Some(c) = self.peek_char()
+            && (c.is_ascii_digit() || c == '-')
+        {
+            let start = self.pos;
+            self.bump();
+            while matches!(self.peek_char(), Some(d) if d.is_ascii_digit()) {
                 self.bump();
-                while matches!(self.peek_char(), Some(d) if d.is_ascii_digit()) {
-                    self.bump();
-                }
-                return Ok(self.src[start..self.pos].to_string());
             }
+            return Ok(self.src[start..self.pos].to_string());
         }
         Ok(self.expect_ident()?.to_string())
     }
@@ -523,7 +558,10 @@ impl<'a> Lexer<'a> {
     }
 
     pub(crate) fn snippet(&self) -> String {
-        let end = (self.pos + 24).min(self.src.len());
+        let mut end = self.pos.saturating_add(24).min(self.src.len());
+        while !self.src.is_char_boundary(end) {
+            end -= 1;
+        }
         self.src[self.pos..end].replace('\n', "\\n")
     }
 }
@@ -533,6 +571,18 @@ mod tests {
     use antecedent_graph::DenseNodeId;
 
     use super::*;
+
+    #[test]
+    fn invalid_dot_with_multibyte_error_context_returns_an_error() {
+        for text in
+            ["digraph { a x€€€€€€€€€€€€€€€€€€€€€€€ }", "digraph { a [x=€€€€€€€€€€€€€€€€€€€€] }"]
+        {
+            let result = std::panic::catch_unwind(|| dag_wire_from_dot(text));
+            assert!(matches!(result, Ok(Err(IoError::Convert(_)))));
+        }
+        let lexer = Lexer::new("x€€€€€€€€€");
+        assert_eq!(lexer.snippet(), "x€€€€€€€");
+    }
 
     #[test]
     fn round_trip_numeric_dot() {
@@ -611,5 +661,13 @@ mod tests {
         let back = dag_from_dot(&s).unwrap();
         assert_eq!(back.node_count(), 3);
         assert!(back.reaches(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
+    }
+
+    #[test]
+    fn wire_export_refuses_an_unbounded_node_count() {
+        let wire = DagWire { node_count: u32::MAX, edges: Vec::new() };
+        assert!(matches!(dag_wire_to_dot(&wire, None), Err(IoError::Convert(_))));
+        let wire = DagWire { node_count: 3, edges: vec![(0, 1)] };
+        assert!(dag_wire_to_dot(&wire, None).is_ok());
     }
 }

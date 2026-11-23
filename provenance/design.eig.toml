@@ -36,4 +36,50 @@ test_sources = [
  "crates/antecedent-design/tests/design_oracle.rs (fixed_budget_scores_match_exact_expected_information_gain, exact_targets_are_monotone_in_design_amount, candidate_ranking_replays_and_calibrates_across_seed_grid)",
  "conformance/design/expected_information_gain",
  "conformance/design/candidate_ranking",
+ "crates/antecedent-design/tests/graph_entropy_channel_reference.rs (60-digit joint-law mutual information over five priors and thirteen designs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "DesignObjective::ReduceGraphEntropy and its scorer, the EntropyChannel of crates/antecedent-design/src/ranker.rs, as reached through DesignRanker::rank on an exact evaluation: the expected reduction in graph-posterior Shannon entropy for the symmetric categorical channel p(y | G) = r 1[y = c(G)] + (1 - r)/k, including feature labels taken from explicit features or from the graph keys, unnormalised posterior weights, repeated labels, one label only, and the declared reliability map per design kind and amount with its clamps. Not a likelihood-based expected information gain for any experiment (the channel is a declared heuristic), the Monte Carlo per-draw path, or the other ranking objectives. Entropy and decision scoring definitions moved to dedicated ranker modules; every bound definition and the other bound artifacts were compared unchanged apart from visibility and formatting."
+assumptions = ["The channel and the reliability map are the repository's declared heuristic; this review checks that the score is the mutual information I(G; Y) of exactly that channel, not that the channel resembles a real experiment.", "Weights are non-negative and need not be normalised; the prior is the normalised weights and the feature label of a graph is its category.", "With fewer than two distinct labels no observation can discriminate and the score is zero."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference: it builds the joint law p(g, y) and evaluates sum p(g,y) ln(p(g,y)/(p(g)p(y))) at 60 digits, a different decomposition from the product's H(G) - H(G | Y), and computes the reliability of each design from the documented map independently. The retained dit-based fixture generator was not re-run and is a separate artifact."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited 1956 paper is linked, not redistributed."
+limitations = "The cited paper (Lindley 1956) was not retrieved for this review: nothing was downloaded and no local copy exists, so only the standard definition of expected information gain as mutual information is established here, not a section-level correspondence. Five priors (up to eight labels and eight graphs, a near-degenerate prior with weights 1, 1e-9 and 1e-12, a single label and a skewed two-label prior) and thirteen designs each are compared at absolute 1e-9 plus relative 1e-9; reliabilities off the listed amounts are not sampled. The Monte Carlo per-draw route is not part of this review. Because the reliability map is heuristic, the score is not the expected information gain of any physical design."
+sources = ["https://doi.org/10.1214/aoms/1177728069", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No numerical defect was found: for all five priors, thirteen designs and both label sources (explicit features and graph keys) the ranker's exact score equals the joint-law mutual information to the asserted tolerance, including the zero scores for reliability zero (zero observed rows), a single label and the tiny-mass prior.", "The existing external-package fixture covers one three-graph posterior and six designs; the new comparison adds unnormalised and repeated-label priors, the clamps at 0.99 and 0.95 and graph-key labels, which that fixture does not reach."]
+record_sha256 = "491705a1154cac99a95af1cc3a02504d0cdf4c0f9651d39f7f071f49eef32fa9"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/ranker.rs"
+items = ["const MAX_RANK_DRAWS", "const RANK_STREAM", "fn assemble_ranking", "fn check_constraints", "fn critical_value", "fn default", "fn exact_expectation", "fn filter_active_candidates", "fn n_looks", "fn new", "fn observation_reliability", "fn paired", "fn paired_difference", "fn prepare_decision", "fn push", "fn rank", "fn run_mc_scoring_loop", "fn uncertainty_ok", "fn unmapped_decision_candidate", "fn validate", "fn validate_config", "fn validate_rank_inputs", "fn with_config", "struct ActiveScoring", "struct DecisionRegistry", "struct DesignConstraints", "struct DesignEvaluationContext", "struct DesignRankConfig", "struct DesignRanker", "struct EffectWidthContext", "struct EnvironmentGramSpec", "struct InterventionDesignEffect", "struct MeasureColumnSpec", "struct ModelLoglikDraws", "struct RankDrawStats", "struct ScoringRun"]
+sha256 = "588a7b81caaf9b40ba5b0255cd51364e67bf852c6cd085427f294bc0330162d9"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/ranker/entropy.rs"
+items = ["fn exact_gain", "fn likelihood", "fn new", "fn posterior_entropy", "struct EntropyChannel"]
+sha256 = "50ecdc0898d76b9b177cf0281c4d2b6a07d6059a5a1891ce87bb2a7686c892cc"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/ranker/decision_scoring.rs"
+items = ["fn evaluation", "fn new", "fn score", "struct DecisionScoring"]
+sha256 = "d913dd6907113daf953c7a2688b7bd5203d1cf69ee6ec93890fd1a4319f11335"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/graph_entropy_channel_reference.rs"
+items = ["fn candidate", "fn entropy_scores_equal_mutual_information_of_the_declared_channel", "fn scores"]
+sha256 = "e4c3de0e7b8fec5f139736a85bc037a73bbbacca3fda402f8032112013777091"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-design/tests/oracle_data/graph_entropy_channel_reference.py"
+sha256 = "31ff857b1cd5b9c7e9415f817d85b54088f9527c88319e48ac801af694386031"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-design/tests/oracle_data/graph_entropy_channel_reference.json"
+sha256 = "f7a763d379bd407fc19566b32e648f1bc70816747c9337651605bba1ccf41402"

@@ -1,12 +1,31 @@
 {
   "schema_version": 1,
-  "counts_x0y0_x0y1_x1y0_x1y1": [20, 0, 10, 1],
+  "counts_x0y0_x0y1_x1y0_x1y1": [
+    20,
+    0,
+    10,
+    1
+  ],
   "draws": 2048,
   "empirical_support_p_y1_given_do_x1": 0.09090909090909091,
   "state_space_p_y1_given_do_x1": 0.15384615384615385,
   "monte_carlo_tolerance": 0.025,
   "oracle": {
     "kind": "closed_form",
-    "method": "exact Dirichlet posterior means on the fixed table: 1/11 under empirical support and 2/13 under the binary state-space provider (README)"
+    "method": "exact Dirichlet posterior means on the fixed table: 1/11 under empirical support and 2/13 under the binary state-space provider (README)",
+    "generator": "conformance/estimate/bayesian_structural_transport/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/bayesian_structural_transport/reference.py --check",
+    "environment_lock": "conformance/estimate/bayesian_structural_transport/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "posterior mean of P(Y=1 | do(X=1)) under the empirical-support provider",
+      "posterior mean under the binary state-space provider"
+    ],
+    "context_only_outputs": [
+      "draws count and Monte Carlo tolerance",
+      "README prose"
+    ],
+    "independence_basis": "The generator applies the Dirichlet component-ratio mean a_y1/(a_y0+a_y1) to the counts (empirical support) and to the counts plus one (state-space provider) with fractions.Fraction; it imports no Antecedent code and no statistics package. The shared object is the fixture README statement of which cells get which Dirichlet parameters; a misreading of that statement common to the README and the generator would not be detected.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded."
   }
 }

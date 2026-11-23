@@ -375,8 +375,9 @@ def test_analysis_result_mean_ite_and_prepared_only_actions():
     with pytest.raises(AttributeError, match="counterfactual"):
         _ = result.mean_ite
     with pytest.raises(CausalUnsupportedError, match="no retained study"):
-        result.refresh({"a": [1.0]})
-    with pytest.raises(CausalUnsupportedError, match="no retained study"):
+        _ = result.study
+    assert not hasattr(result, "refresh"), "branching is ant.rebind on a retained study"
+    with pytest.raises(CausalUnsupportedError, match="no retained statistical preparation"):
         result.refute({"a": [1.0]})
 
 
@@ -447,8 +448,8 @@ def test_analysis_result_repr_hides_unidentified_mass_when_absent_or_zero():
     assert "unidentified_mass" not in repr(result_zero)
 
 
-def test_analysis_result_repr_marks_allowed_unlicensed():
-    result_unlicensed = AnalysisResult(
+def test_analysis_result_repr_marks_not_supported():
+    result_unsupported = AnalysisResult(
         identification=_identification(),
         estimate=_estimate(),
         posterior=None,
@@ -456,10 +457,10 @@ def test_analysis_result_repr_marks_allowed_unlicensed():
         performance=_performance(),
         diagnostics=[],
         provenance={"node_count": 3},
-        evidence_status="allowed_unlicensed",
+        evidence_status="not_supported",
     )
-    assert "unlicensed" in repr(result_unlicensed)
-    assert "unlicensed" not in repr(_result())
+    assert "unsupported" in repr(result_unsupported)
+    assert "unsupported" not in repr(_result())
 
 
 def test_analysis_result_repr_no_refutations_ran():

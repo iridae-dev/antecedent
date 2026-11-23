@@ -1,0 +1,1 @@
+["use:std::sync::Arc;#0","use:antecedent::{AcceptedGraph,BayesianConfig,InferenceMode,RefuteSuite,Study};#0","use:antecedent_core::{CausalQuery,CounterfactualQuery,ExecutionContext,Intervention,Value,VariableId,};#0","use:antecedent_data::TabularData;#0","use:antecedent_graph::{Dag,DenseNodeId};#0","fn:accepted_counterfactual_matches_the_closed_form_mean_effect#0"]

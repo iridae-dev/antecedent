@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12,<3.13"
+# dependencies = ["numpy==2.1.3"]
+# ///
 """Independent numpy reference for the identified multi-completion PAG envelope.
 
 The frozen input is a contingency table over six binary variables, built from

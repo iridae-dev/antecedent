@@ -5,7 +5,7 @@ use antecedent_core::CalibrationBasis;
 
 /// Read the candidate engine's own construction; no hand-declared test key.
 pub fn bind(tally: &mut CoverageTally, basis: &CalibrationBasis) {
-    tally.bind(
+    tally.bind_validation(
         &Construction {
             query: basis.query.to_string(),
             graph_class: basis.graph_class.to_string(),
@@ -27,6 +27,7 @@ pub fn bind(tally: &mut CoverageTally, basis: &CalibrationBasis) {
             posterior_draws: basis.posterior_draws,
             unidentified_mass: basis.unidentified_mass,
         },
+        if basis.validation.is_empty() { "unknown" } else { &basis.validation },
     );
 }
 

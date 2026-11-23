@@ -166,7 +166,7 @@ fn an_edited_or_resealed_handoff_is_refused() {
     let error = TransportHandoffArtifact::from_meta(&native_only, None).expect_err("native");
     let (code, detail, _) = error.refusal().expect("a registered refusal");
     assert_eq!(code, "interface_contract_assumption_mismatch");
-    assert_eq!(detail, "provider_transport.native_target_required");
+    assert_eq!(detail, antecedent_core::reason_details::provider_transport::NATIVE_TARGET_REQUIRED);
 
     // A relabelled calibration on the offered port is a different declaration.
     let mut relabelled = meta.clone();
@@ -210,7 +210,10 @@ fn a_handoff_that_the_library_refuses_does_not_seal() {
         TransportedInputPolicy::NativeTargetOnly,
     )
     .expect_err("native target data required");
-    assert_eq!(error.refusal().expect("registered").1, "provider_transport.native_target_required");
+    assert_eq!(
+        error.refusal().expect("registered").1,
+        antecedent_core::reason_details::provider_transport::NATIVE_TARGET_REQUIRED
+    );
 
     // The claim is not in the target population of its own transport identity.
     let mut elsewhere = offer();
@@ -222,5 +225,8 @@ fn a_handoff_that_the_library_refuses_does_not_seal() {
         TransportedInputPolicy::AcceptsTransported,
     )
     .expect_err("not about the target");
-    assert_eq!(error.refusal().expect("registered").1, "provider_transport.claim_not_in_target");
+    assert_eq!(
+        error.refusal().expect("registered").1,
+        antecedent_core::reason_details::provider_transport::CLAIM_NOT_IN_TARGET
+    );
 }

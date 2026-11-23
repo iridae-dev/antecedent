@@ -2,18 +2,17 @@
 """The calibration gate's groups: which records each measures, which owe a run,
 and running them in parallel on this machine.
 
-`scripts/gate_calibration.sh` owns the groups, their commands and the
-2000-replicate recheck, which runs inline right after a group that asks for it.
-This module never edits or re-implements a group. It reads the group list from
-the gate's dry run and runs each selected group alone through the
-gate (`ANTECEDENT_CALIBRATION_SHARD=<index-1>/<groups>` selects exactly that
-group), so the gate's recheck and its record logs in `target/calibration-records/`
-are the ones `scripts/collect_coverage_records.py` reads.
+`parity/calibration_groups.toml` lists the groups, in gate order, and the test binary
+and exact tests each runs. `scripts/calibration_runner.py` measures a (group, grid
+point) task, with its inline 2000-replicate recheck, through the shared evidence
+runner, and writes the record logs in `target/calibration-records/` that
+`scripts/collect_coverage_records.py` reads.
 
-Which records owe a re-measurement is decided by `scripts/calibration_facets.py`
-(the only drift computation); this module maps those records to groups.
+Which records are not current is decided by `scripts/calibration_status.py`
+(the only status computation); this module maps those records to groups.
 
     python3 scripts/calibration_groups.py plan [--all]          # what would run
+    python3 scripts/calibration_groups.py plan --owed           # exactly the owed list, nothing alongside
     python3 scripts/calibration_groups.py pilot [--all] [--jobs N]
     python3 scripts/calibration_groups.py plan [--all]          # pilot-based projection
     python3 scripts/calibration_groups.py run [--all] [--jobs N]
@@ -24,7 +23,7 @@ pair is its own parallel job, selected in the gate with
 `ANTECEDENT_CALIBRATION_GRID_POINTS=<k>`, so the three points of a long group
 run side by side instead of one after another.
 
-Each job's `map_replicates` gets `ceil(cores / jobs)` worker threads
+Each job's `map_replicates` gets `floor(cores / jobs)` worker threads (at least one)
 (`ANTECEDENT_CALIBRATION_THREADS`), so `--jobs` jobs share the machine instead
 of each taking all of it; the default is one job per core, one thread each.
 The gate's recheck extends a first run (it computes only the replicates the
@@ -33,19 +32,11 @@ first run did not), so the plan books it at
 each suite's grid points the last measurement rechecked.
 
 `scripts/measure_calibration.sh` is the one command a developer runs: it
-refuses a dirty tree, runs `run`, collects the records and re-runs the
-attestation gate.
+refuses a dirty tree, runs `run`, collects the records and prints the
+calibration status.
 
-Selection without `--all`:
-
-* every group that measures a record owing a re-measurement (a facet it depends
-  on drifted since its `calibration_sha` with no valid replay waiver, or that
-  commit is missing from this clone);
-* every group in a record-emitting suite file that has no record in the
-  registry yet (a new coverage cell), whether or not anything else is owed;
-* when anything above runs, the pass/fail gates that emit no record (CI Type I,
-  discovery FPR, SBC, `gate_response_calibration.sh`): nothing attests them, so
-  they run alongside every re-measurement rather than never.
+The default selection and --owed consume the same status items. Missing-only
+checks for the expected type of evidence without considering input drift.
 """
 
 from __future__ import annotations
@@ -56,21 +47,20 @@ import math
 import os
 import re
 import shutil
-import subprocess
+import subprocess  # noqa: F401  (tests patch calibration_groups.subprocess)
 import sys
 import threading
 import time
-import tomllib
 import uuid
-from concurrent.futures import ThreadPoolExecutor
+from collections import defaultdict
+from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
-from _repo import ensure_scripts_on_path
+from _repo import ensure_scripts_on_path, load_toml, strict_git_dirty, strict_git_head
 
-GATE = ROOT / "scripts" / "gate_calibration.sh"
 LOG_DIR = ROOT / "target" / "calibration-records"
 ARCHIVE_DIR = ROOT / "target" / "calibration-archives"
 CONSOLE_DIR = ROOT / "target" / "calibration-console"
@@ -81,6 +71,10 @@ GATE_REGISTRY = ROOT / "parity" / "calibration_gates.toml"
 # no threads column and are read as whole-machine runs.
 TIMINGS = ROOT / "target" / "calibration-timings.tsv"
 PILOT_TIMINGS = ROOT / "target" / "calibration-pilot-timings.tsv"
+# Optional per-task duration estimates, `label<TAB>seconds` rows (scripts/calibration_estimates.py
+# writes them): they order and size the work of a run that has no measured or pilot timing, and
+# are never evidence of anything. Named by `--estimates` or this variable; no file is read by default.
+ESTIMATES_ENV = "ANTECEDENT_CALIBRATION_ESTIMATES"
 PILOT_LOG_DIR = ROOT / "target" / "calibration-pilot-records"
 PILOT_NSIM = 8
 CORES = os.cpu_count() or 1
@@ -112,10 +106,34 @@ LONG_PATTERNS = (
 # the gate's `grid_group`, printed as `grid <index>` lines by its dry run.
 GRID_POINTS = (0, 1, 2)
 
+
 def threads_per_job(jobs: int) -> int:
     """Worker threads each job's `map_replicates` gets (ANTECEDENT_CALIBRATION_THREADS),
     so `jobs` concurrent jobs share the cores instead of each taking all of them."""
-    return max(1, math.ceil(CORES / jobs))
+    return max(1, CORES // jobs)
+
+
+class SimulationBudget:
+    """Reserve a job's workers atomically, including widened tail jobs."""
+
+    def __init__(self, workers: int):
+        self.workers = workers
+        self.available = workers
+        self.condition = threading.Condition()
+
+    @contextmanager
+    def claim(self, workers: int):
+        if not 1 <= workers <= self.workers:
+            raise ValueError("job workers must fit the simulation budget")
+        with self.condition:
+            self.condition.wait_for(lambda: workers <= self.available)
+            self.available -= workers
+        try:
+            yield
+        finally:
+            with self.condition:
+                self.available += workers
+                self.condition.notify_all()
 
 
 @dataclass
@@ -123,7 +141,11 @@ class Group:
     index: int  # 1-based position in the gate
     label: str
     long: bool
-    grid: bool  # measured over the sample-size grid (the gate's `grid_group`, read from its dry run)
+    grid: bool  # measured over the sample-size grid
+    spec: object | None = None  # calibration_runner.GroupSpec: what the group runs
+    evidence: str = "coverage"
+    claim: str = ""
+    required_records: tuple[str, ...] = ()
 
     @property
     def head(self) -> str:
@@ -149,20 +171,34 @@ def is_long(label: str) -> bool:
 
 
 def gate_groups() -> list[Group]:
-    env = dict(os.environ, ANTECEDENT_CALIBRATION_DRY_RUN="1")
-    env.pop("ANTECEDENT_CALIBRATION_SHARD", None)
-    out = subprocess.run(
-        ["bash", str(GATE)], cwd=ROOT, env=env, capture_output=True, text=True, check=True
-    ).stdout
-    groups = []
-    grid = {int(m.group(1)) for m in re.finditer(r"^grid (\d+)$", out, re.M)}
-    for line in out.splitlines():
-        m = re.fullmatch(r"group (\d+): (.+)", line)
-        if m:
-            index = int(m.group(1))
-            groups.append(Group(index, m.group(2), is_long(m.group(2)), index in grid))
-    if not groups or [g.index for g in groups] != list(range(1, len(groups) + 1)):
-        raise SystemExit("could not read the group list from the gate's dry run")
+    """The gate's groups, in gate order, from `parity/calibration_groups.toml`."""
+    from calibration_runner import load_groups
+    groups = [Group(spec.index, spec.label, is_long(spec.label), spec.grid, spec)
+              for spec in load_groups(ROOT)]
+    obligations = load_toml(ROOT / "parity/calibration_obligations.toml")
+    by_label = {group.label: group for group in groups}
+    assigned = set()
+
+    def assign(label: str, evidence: str, claim: str = "") -> None:
+        if label not in by_label or label in assigned:
+            raise ValueError(f"unknown or repeated calibration obligation: {label}")
+        assigned.add(label)
+        by_label[label].evidence = evidence
+        by_label[label].claim = claim
+
+    for kind in ("gate", "prospective"):
+        for label in obligations[kind]:
+            assign(label, kind)
+    for claim, labels in obligations["claims"].items():
+        for label in labels:
+            assign(label, "coverage", claim)
+    for label, record_ids in obligations.get("required_records", {}).items():
+        group = by_label[label]
+        if group.evidence != "coverage" or not record_ids:
+            raise ValueError(f"invalid required coverage records for {label}")
+        group.required_records = tuple(record_ids)
+    if not groups:
+        raise SystemExit("parity/calibration_groups.toml lists no calibration group")
     return groups
 
 
@@ -185,20 +221,39 @@ def measures_current_protocol(group: Group, record: dict) -> bool:
     """Normal measurements target published defaults; replay still maps old protocols."""
     if not measures(group.head, group.test_filter, record):
         return False
-    if group.head == "evidence_synthesis_calibration" and group.test_filter.startswith("pooled_random_effects_"):
-        return (record.get("interval_method") == "independent_gaussian_study_t"
-                and record.get("role") == "conservative_point")
+    if group.spec and group.spec.tests:
+        function = record["test"].rpartition("::")[2]
+        if not any(name.rsplit("::", 1)[-1] == function for name in group.spec.tests):
+            return False
+    if group.head == "evidence_synthesis_calibration" and group.test_filter.startswith(
+        "pooled_random_effects_"
+    ):
+        return (
+            record.get("interval_method") == "independent_gaussian_study_t"
+            and record.get("role") == "conservative_point"
+        )
     if group.head == "sample_split_weighted_effect_calibration":
         marker = "discovery_fraction_0_75.conflict_resolution_treatment_invariant.variance_hc3"
-        return (str(record.get("functional", "")) == "weighted_population_total_effect." + marker
-                and record.get("se_kind") == "hc3_sampling_weighted"
-                and record.get("interval_method") == "student_t_sandwich_effective_n"
-                and str(record.get("id", "")).endswith("." + marker.replace(".", "_")))
-    if group.head == "discovered_transport_calibration" and group.test_filter == "discovered_pag_transport_contrast_complete_procedure_coverage":
-        marker = "declared_selection_joint_pretreatment_standardization"
-        return (str(record.get("functional", "")).endswith("." + marker)
-                and str(record.get("id", "")).endswith("_" + marker)
-                and record.get("interval_method") == "percentile_bootstrap")
+        return (
+            str(record.get("functional", "")) == "weighted_population_total_effect." + marker
+            and record.get("se_kind") == "hc3_sampling_weighted"
+            and record.get("interval_method") == "student_t_sandwich_effective_n"
+            and str(record.get("id", "")).endswith("." + marker.replace(".", "_"))
+        )
+    if (
+        group.head == "discovered_transport_calibration"
+        and group.test_filter == "discovered_pag_transport_contrast_complete_procedure_coverage"
+    ):
+        # The producer reports the bounded-outcome confidence set over the declared joint
+        # pretreatment standardization; its earlier percentile-only construction is retired.
+        marker = "declared_selection_joint_pretreatment_standardization_bounded_outcome_confidence_set"
+        return (
+            str(record.get("functional", "")).endswith(
+                ".declared_selection_joint_pretreatment_standardization.bounded_outcome_confidence_set"
+            )
+            and str(record.get("id", "")).endswith("_" + marker)
+            and record.get("interval_method") == "percentile_bootstrap_or_logical_support"
+        )
     if group.head == "sample_split_parent_set_effect_calibration":
         return ".discovery_fraction_0_75" in str(record.get("functional", ""))
     protocol = current_group_protocol(group)
@@ -208,19 +263,25 @@ def measures_current_protocol(group: Group, record: dict) -> bool:
         if protocol == "reference=cluster_df":
             return record.get("interval_method") == "student_analytic"
         if protocol == "interval_variance=heteroskedastic_arm_linear_training_hc3":
-            return (record.get("interval_method") == "population_linear_atc_hc3"
-                    and record.get("se_kind") == "population_linear_heteroskedastic_hc3"
-                    and str(record.get("functional", "")).startswith("untreated.mean+"))
+            return (
+                record.get("interval_method") == "population_linear_atc_hc3"
+                and record.get("se_kind") == "population_linear_heteroskedastic_hc3"
+                and str(record.get("functional", "")).startswith("untreated.mean+")
+            )
         if protocol == "interval_variance=homoskedastic_gaussian_arm_linear_population":
-            return (record.get("interval_method") == "population_linear_aipw_score"
-                    and record.get("se_kind") == "population_linear_homoskedastic"
-                    and "point_correction=arm_linear_projection" in str(record.get("functional", "")))
+            return (
+                record.get("interval_method") == "population_linear_aipw_score"
+                and record.get("se_kind") == "population_linear_homoskedastic"
+                and "point_correction=arm_linear_projection" in str(record.get("functional", ""))
+            )
         if protocol == "weighting=balanced_linear_hc3":
             if group.test_filter == "weighted_ipw_hajek_interval":
-                return (record.get("interval_method") == "balanced_population_linear_score"
-                        and record.get("se_kind") == "population_linear_homoskedastic"
-                        and "interval_variance=homoskedastic_gaussian_arm_linear_population"
-                        in str(record.get("functional", "")))
+                return (
+                    record.get("interval_method") == "balanced_population_linear_score"
+                    and record.get("se_kind") == "population_linear_homoskedastic"
+                    and "interval_variance=homoskedastic_gaussian_arm_linear_population"
+                    in str(record.get("functional", ""))
+                )
             return record.get("interval_method") == "balanced_population_score"
         if protocol in {"matching=population_linear", "stratification=regression_linear_hc3"}:
             return str(record.get("id", "")).endswith("." + protocol.partition("=")[2])
@@ -244,7 +305,10 @@ def current_group_protocol(group: Group) -> str | None:
             "weighted_ipw_hajek_interval": "weighting=balanced_linear_hc3",
             "weighted_ipw_hajek_cluster_interval": "weighting=balanced_linear_hc3",
         }.get(group.test_filter)
-    if group.head == "knn_matching_calibration" and group.test_filter == "knn_matching_interval_ci_coverage":
+    if (
+        group.head == "knn_matching_calibration"
+        and group.test_filter == "knn_matching_interval_ci_coverage"
+    ):
         return "population_linear"
     return None
 
@@ -252,12 +316,12 @@ def current_group_protocol(group: Group) -> str | None:
 @cache
 def _workspace_packages(root: Path) -> tuple[tuple[str, Path], ...]:
     """Actual Cargo member names and directories, including member globs."""
-    workspace = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]
+    workspace = load_toml(root / "Cargo.toml")["workspace"]
     excluded = {path for pattern in workspace.get("exclude", []) for path in root.glob(pattern)}
     members = {path for pattern in workspace["members"] for path in root.glob(pattern)} - excluded
     packages = []
     for member in sorted(members):
-        manifest = tomllib.loads((member / "Cargo.toml").read_text(encoding="utf-8"))
+        manifest = load_toml(member / "Cargo.toml")
         if "package" in manifest:
             packages.append((manifest["package"]["name"], member))
     return tuple(packages)
@@ -267,14 +331,14 @@ def _workspace_packages(root: Path) -> tuple[tuple[str, Path], ...]:
 def _suite_owner(root: Path, head: str) -> str | None:
     owners = []
     for package, member in _workspace_packages(root):
-        manifest = tomllib.loads((member / "Cargo.toml").read_text(encoding="utf-8"))
+        manifest = load_toml(member / "Cargo.toml")
         explicit = any(
-            test.get("name") == head
-            and (member / test.get("path", f"tests/{head}.rs")).is_file()
+            test.get("name") == head and (member / test.get("path", f"tests/{head}.rs")).is_file()
             for test in manifest.get("test", [])
         )
         automatic = manifest["package"].get("autotests", True) and any(
-            path.is_file() for path in (member / "tests" / f"{head}.rs", member / "tests" / head / "main.rs")
+            path.is_file()
+            for path in (member / "tests" / f"{head}.rs", member / "tests" / head / "main.rs")
         )
         if explicit or automatic:
             owners.append(package)
@@ -289,19 +353,11 @@ def _suite_features(root: Path, package: str, suite: str) -> tuple[str, ...]:
     for name, member in _workspace_packages(root):
         if name != package:
             continue
-        manifest = tomllib.loads((member / "Cargo.toml").read_text(encoding="utf-8"))
+        manifest = load_toml(member / "Cargo.toml")
         for test in manifest.get("test", []):
             if test.get("name") == suite:
                 return tuple(test.get("required-features", []))
     return ()
-
-
-def _suite_file(head: str) -> bool:
-    return _suite_owner(ROOT, head) is not None
-
-
-def _package(head: str) -> bool:
-    return any(package == head for package, _ in _workspace_packages(ROOT))
 
 
 @dataclass
@@ -311,66 +367,151 @@ class Selection:
     reasons: dict[int, str]  # group index -> why it runs
 
 
+def group_items(groups: list[Group], records: list[dict], *, missing_only: bool = False) -> list[dict]:
+    """Each required study needs its own evidence, even if its route has a measured sibling."""
+    import gate_carry
+
+    by_head = defaultdict(list)
+    for record in records:
+        path = record["test"].partition("::")[0]
+        stem = Path(path).stem
+        by_head[stem].append(record)
+        if path.startswith("crates/") and "/src/" in path:
+            by_head[path.split("/")[1]].append(record)
+        elif stem == "counterfactual_transport_sampled":
+            by_head["antecedent-estimate"].append(record)
+
+    ledger = gate_carry.gate_rows(GATE_REGISTRY)
+    items = []
+    for group in groups:
+        if group.evidence == "prospective":
+            continue
+        if group.evidence == "gate":
+            rows = gate_carry.rows_of(group.safe, group.points, ledger)
+            protocol = current_group_protocol(group)
+            if not all(
+                row and row.get("passed", 0) > 0
+                and (protocol is None or row.get("protocol") == protocol)
+                for row in rows
+            ):
+                reason, detail = "missing_gate", "missing passing receipt for the required protocol"
+            elif missing_only:
+                continue
+            else:
+                carried, detail = gate_carry.group_carried(rows)
+                if carried:
+                    continue
+                reason = "stale_gate"
+        else:
+            matches = (r for r in by_head[group.head] if measures_current_protocol(group, r))
+            reason = "no_record"
+            if group.required_records:
+                missing = set(group.required_records).difference(r["id"] for r in matches)
+                if not missing:
+                    continue
+                detail = "missing coverage: " + ", ".join(sorted(missing))
+            elif next(matches, None) is None:
+                detail = "no coverage record for the registered study"
+            else:
+                continue
+        items.append({"kind": group.evidence, "id": f"{group.evidence}:{group.label}",
+                      "reason": reason, "detail": detail, "claim": group.claim,
+                      "groups": [group.label]})
+    return items
+
+
 def select(groups: list[Group], everything: bool, missing_only: bool = False) -> Selection:
-    """The groups to run; see the module docstring for the rule."""
     if everything:
         return Selection(groups, 0, {g.index: "--all" for g in groups})
-    ensure_scripts_on_path()
-    import calibration_facets as facets
+    if not missing_only:
+        return select_owed(groups)
+    import calibration_status as status
 
-    records = facets.load_records()
-    if missing_only:
-        ledger = tomllib.loads(GATE_REGISTRY.read_text(encoding="utf-8")) if GATE_REGISTRY.is_file() else {}
-        passed = {str(row["group"]): row for row in ledger.get("gate", []) if int(row.get("passed", 0)) > 0}
-        chosen = []
-        reasons = {}
-        for group in groups:
-            if any(measures_current_protocol(group, rec) for rec in records):
-                continue
-            names = [group.safe + ("" if point is None else f".p{point}") for point in group.points]
-            # A repeated test name does not prove a revised construction. Parent
-            # and weighted record emitters must carry their current identity;
-            # recordless KNN must have emitted its explicit protocol marker.
-            protocol = current_group_protocol(group)
-            record_required = group.head in {"sample_split_parent_set_effect_calibration", "sample_split_weighted_effect_calibration"} or (
-                group.head == "weighted_interval_calibration" and protocol is not None
-            )
-            record_required = record_required or (
-                group.head == "discovered_transport_calibration" and
-                group.test_filter == "discovered_pag_transport_contrast_complete_procedure_coverage"
-            )
-            if not record_required and all(
-                name in passed and (protocol is None or passed[name].get("protocol") == protocol)
-                for name in names
-            ):
-                continue
-            chosen.append(group)
-            reasons[group.index] = "no coverage record or complete passed gate ledger"
-        return Selection(chosen, 0, reasons)
-    assessments = facets.assess(facets.load_surface(), records)
-    wanted = [rec for a in assessments for rec in a.stale]
-    wanted += [rec for a in assessments if not a.resolved for rec in a.records]
+    items = group_items(groups, status.load_records(), missing_only=True)
+    by_label = {item["groups"][0]: item["detail"] for item in items}
+    chosen = [g for g in groups if g.label in by_label]
+    return Selection(chosen, len(items), {g.index: by_label[g.label] for g in chosen})
+
+
+def route_group_matches(group: Group, spec: tuple[str, str]) -> bool:
+    """Does the gate group serve a route's `<test file>: <filter>` group spec? A cargo filter is a substring."""
+    head, test_filter = spec
+    return group.head == head and (not test_filter or test_filter in group.test_filter)
+
+
+def only_matches(pattern: str, *names: str) -> bool:
+    """`--only` matching: a substring or a glob of any of the names."""
+    return any(pattern in name or fnmatch.fnmatchcase(name, pattern) for name in names if name)
+
+
+# Owed items that name the gate groups which measure them: an interval route with no record, and an
+# open ledger row (a cell owed to calibration, a published statement no measurement covers, a supported
+# coordinate with no measured estimator grid) whose groups have produced no record.
+GROUPED_KINDS = ("route", "ledger")
+
+
+def select_owed(groups: list[Group], only: list[str] | None = None) -> Selection:
+    """Map status items to runnable groups, optionally filtered by label, claim, route or record."""
+    ensure_scripts_on_path()
+    import calibration_status as status
+
+    items, _statuses, _counts = status.current_owed()
+    direct = {i["groups"][0]: i for i in items if i["kind"] in ("coverage", "gate")}
+    owed_ids = {i["id"] for i in items if i["kind"] == "record"}
+    records = {}
+    if owed_ids:
+        records = {rec["id"]: rec for rec in status.load_records() if rec["id"] in owed_ids}
+    routed_items = [item for item in items if item["kind"] in GROUPED_KINDS]
     reasons: dict[int, str] = {}
     matched: set[str] = set()
-    recordless: list[Group] = []
     for group in groups:
-        if not any(measures_current_protocol(group, rec) for rec in records):
-            if _suite_file(group.head):
-                reasons[group.index] = "no record in the registry"
-            else:
-                recordless.append(group)
-            continue
-        owing = [rec for rec in wanted if measures(group.head, group.test_filter, rec)]
+        item = direct.get(group.label)
+        why = [item["detail"]] if item else []
+        owing = [
+            rid
+            for rid in owed_ids
+            if rid in records and measures_current_protocol(group, records[rid])
+        ]
         if owing:
-            matched.update(str(rec["id"]) for rec in owing)
-            reasons[group.index] = f"{len(owing)} record(s) owed"
-    if reasons:
-        for group in recordless:
-            reasons[group.index] = "pass/fail gate, no record"
-    for test in sorted({str(r["test"]) for r in wanted if str(r["id"]) not in matched}):
-        print(f"warning: no gate group measures {test}", file=sys.stderr)
+            matched.update(owing)
+            why.append(f"{len(owing)} record(s) owed")
+        routed = [
+            i
+            for i in routed_items
+            if any(
+                route_group_matches(group, status.split_group(spec)) for spec in i["groups"]
+            )
+        ]
+        if routed:
+            routes = [i for i in routed if i["kind"] == "route"]
+            if routes:
+                why.append(f"{len(routes)} interval route(s) with no record")
+            if len(routes) < len(routed):
+                why.append(f"{len(routed) - len(routes)} open ledger row(s) with no record")
+        if only:
+            names = [group.label]
+            if item:
+                names.extend((item["id"], item["claim"]))
+            names += [rid for rid in owing] + [str(records[rid].get("test", "")) for rid in owing]
+            names += [i["id"] for i in routed]
+            if not any(only_matches(pattern, *names) for pattern in only):
+                continue
+        if why:
+            reasons[group.index] = "; ".join(why)
+    if only and not reasons:
+        raise SystemExit(f"--only {only!r} matches no owed calibration group, record or route")
+    for rid in sorted(owed_ids - matched):
+        print(f"warning: no gate group measures owed record {rid}", file=sys.stderr)
+    for item in items:
+        if item["kind"] in GROUPED_KINDS:
+            for spec in item["groups"]:
+                parsed = status.split_group(spec)
+                if not any(route_group_matches(g, parsed) for g in groups):
+                    print(f"warning: no gate group {spec!r} for {item['id']}", file=sys.stderr)
+        if item["kind"] != "record" and not item["groups"]:
+            print(f"warning: owed {item['id']} names no gate group", file=sys.stderr)
     chosen = [g for g in groups if g.index in reasons]
-    return Selection(chosen, len({str(r["id"]) for r in wanted}), reasons)
+    return Selection(chosen, len(items), reasons)
 
 
 def filter_selection(selection: Selection, patterns: list[str]) -> Selection:
@@ -380,10 +521,14 @@ def filter_selection(selection: Selection, patterns: list[str]) -> Selection:
     for pattern in patterns:
         if not any(fnmatch.fnmatchcase(group.label, pattern) for group in selection.groups):
             raise SystemExit(f"--group {pattern!r} matches no selected group")
-    chosen = [group for group in selection.groups
-              if any(fnmatch.fnmatchcase(group.label, pattern) for pattern in patterns)]
-    return Selection(chosen, selection.owed_records,
-                     {g.index: selection.reasons[g.index] for g in chosen})
+    chosen = [
+        group
+        for group in selection.groups
+        if any(fnmatch.fnmatchcase(group.label, pattern) for pattern in patterns)
+    ]
+    return Selection(
+        chosen, selection.owed_records, {g.index: selection.reasons[g.index] for g in chosen}
+    )
 
 
 # --------------------------------------------------------------------------
@@ -401,18 +546,26 @@ def pilot_timings() -> dict[str, float]:
     out: dict[str, float] = {}
     if not PILOT_TIMINGS.is_file():
         return out
-    sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    sha = strict_git_head(ROOT)
     for line in PILOT_TIMINGS.read_text(encoding="utf-8").splitlines():
         parts = line.split("\t")
         if len(parts) != 7 or parts[3] != sha or parts[2] != "0":
             continue
         try:
             elapsed, threads, replicates, test_seconds = (
-                float(parts[1]), int(parts[4]), int(parts[5]), float(parts[6])
+                float(parts[1]),
+                int(parts[4]),
+                int(parts[5]),
+                float(parts[6]),
             )
         except ValueError:
             continue
-        if elapsed > 0 and 0 <= test_seconds <= elapsed and threads > 0 and replicates == PILOT_NSIM:
+        if (
+            elapsed > 0
+            and 0 <= test_seconds <= elapsed
+            and threads > 0
+            and replicates == PILOT_NSIM
+        ):
             # Scale the test's replicate work, but pay Cargo/gate startup only
             # once. The old projection multiplied the startup of ~1,100 jobs
             # by 50 and substantially overstated their full-pass cost.
@@ -445,7 +598,7 @@ def recheck_rates() -> dict[str, float]:
     if not REGISTRY.is_file():
         return {}
     counts: dict[str, list[int]] = {}
-    for rec in tomllib.loads(REGISTRY.read_text(encoding="utf-8")).get("record", []):
+    for rec in load_toml(REGISTRY).get("record", []):
         stem = Path(str(rec["test"]).rpartition("::")[0]).stem
         tally = counts.setdefault(stem, [0, 0])
         for point in rec.get("grid", []):
@@ -470,7 +623,7 @@ def print_plan(selection: Selection, groups: list[Group], jobs: int) -> None:
     longest_task = 0.0
     unknown = 0
     if selection.owed_records:
-        print(f"records owing a re-measurement: {selection.owed_records}")
+        print(f"owed calibration items: {selection.owed_records}")
     print(
         f"groups to run: {len(selection.groups)} of {len(groups)} "
         f"(parallel jobs: {jobs}, worker threads per job: {threads}, cores: {CORES}; first-pass replicates: {FIRST_NSIM})"
@@ -537,86 +690,34 @@ def print_plan(selection: Selection, groups: list[Group], jobs: int) -> None:
 # --------------------------------------------------------------------------
 
 
-def prebuild(groups: list[Group]) -> int:
-    """Build every selected group's test binary once, serially, so the parallel
-    runs neither wait on cargo's build-directory lock nor count its time."""
-    commands: list[list[str]] = []
-    packages = sorted({g.head for g in groups if _package(g.head)})
-    for package in packages:
-        commands.append(["cargo", "test", "--release", "-p", package, "--lib", "--no-run"])
-    # A suite that declares required features is built with exactly those features,
-    # the way scripts/gate_calibration.sh runs it, so the binary is reused and the
-    # package's other suites are not rebuilt with a different feature set.
-    suites_by_package: dict[tuple[str, tuple[str, ...]], set[str]] = {}
-    for group in groups:
-        owner = _suite_owner(ROOT, group.head)
-        if owner is not None:
-            features = _suite_features(ROOT, owner, group.head)
-            suites_by_package.setdefault((owner, features), set()).add(group.head)
-    for (package, features), suites in sorted(suites_by_package.items()):
-        tests = [arg for suite in sorted(suites) for arg in ("--test", suite)]
-        feature_args = ["--features", ",".join(features)] if features else []
-        commands.append(
-            ["cargo", "test", "--release", "-p", package, *feature_args, *tests, "--no-run"]
-        )
-    from _calibration_build_cache import guarded_release_cache
-
-    with guarded_release_cache(ROOT):
-        for command in commands:
-            print(f"== build: {' '.join(command)}", flush=True)
-            if subprocess.run(command, cwd=ROOT).returncode != 0:
-                return 1
-    return 0
-
-
 def pilot(selection: Selection, total: int, jobs: int) -> int:
     """Time selected groups with smoke replicates, isolated from coverage logs."""
+    from calibration_runner import Task, execute
+
     groups = selection.groups
     if not groups:
         print("nothing to pilot")
         return 0
-    if prebuild(groups) != 0:
-        return 1
-    sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    sha = strict_git_head(ROOT)
     shutil.rmtree(PILOT_LOG_DIR, ignore_errors=True)
     PILOT_LOG_DIR.mkdir(parents=True)
     PILOT_TIMINGS.parent.mkdir(parents=True, exist_ok=True)
-    tasks = [(group, point) for group in groups for point in group.points]
+    by_index = {g.index: g for g in groups}
+    tasks = [Task(group.spec, point, 1, PILOT_NSIM) for group in groups for point in group.points]
     lock = threading.Lock()
     failed: list[str] = []
     finished = 0
     started = time.monotonic()
-    base_env = {
-        k: v for k, v in os.environ.items()
-        if not k.startswith("ANTECEDENT_CALIBRATION_") and k not in {"ANTECEDENT_PARENT_PROTOCOL_VERSION", "ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION", "ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL", "ANTECEDENT_WEIGHTED_CLUSTER_PROTOCOL"}
-    }
-    base_env.update({
-        "ANTECEDENT_CALIBRATION_SMOKE": "1",
-        "ANTECEDENT_CALIBRATION_NSIM": str(PILOT_NSIM),
-        "ANTECEDENT_CALIBRATION_RECHECK_NSIM": str(PILOT_NSIM + 1),
-        "ANTECEDENT_CALIBRATION_THREADS": "1",
-        "ANTECEDENT_CALIBRATION_LOG_DIR": str(PILOT_LOG_DIR),
-    })
 
-    def one(task: tuple[Group, int | None]) -> None:
+    def done(task: Task, result: dict) -> None:
         nonlocal finished
-        group, point = task
-        label = task_label(group, point)
-        suffix = "" if point is None else f".p{point}"
-        console = PILOT_LOG_DIR / f"{group.safe}{suffix}.console.txt"
-        task_env = {**base_env, "ANTECEDENT_CALIBRATION_SHARD": f"{group.index - 1}/{total}"}
-        if point is not None:
-            task_env["ANTECEDENT_CALIBRATION_GRID_POINTS"] = str(point)
-        begin = time.monotonic()
-        with console.open("w", encoding="utf-8", newline="\n") as out:
-            status = subprocess.run(
-                ["bash", str(GATE)], cwd=ROOT, env=task_env,
-                stdout=out, stderr=subprocess.STDOUT,
-            ).returncode
-        elapsed = time.monotonic() - begin
-        log = PILOT_LOG_DIR / f"{group.safe}{suffix}.log"
+        label = task_label(by_index[task.group.index], task.point)
+        suffix = "" if task.point is None else f".p{task.point}"
+        log = PILOT_LOG_DIR / f"{task.group.safe}{suffix}.log"
+        elapsed = result["seconds"]
         test_seconds = sum(
-            float(value) for value in re.findall(
+            float(value)
+            for value in re.findall(
                 r"^test result: ok\..*?finished in ([0-9.]+)s",
                 log.read_text(encoding="utf-8") if log.is_file() else "",
                 re.M,
@@ -627,27 +728,26 @@ def pilot(selection: Selection, total: int, jobs: int) -> int:
         test_seconds = min(elapsed, max(0.01, test_seconds))
         with lock:
             finished += 1
-            if status != 0:
+            if result["status"] != 0:
                 failed.append(label)
             with PILOT_TIMINGS.open("a", encoding="utf-8", newline="\n") as timings:
                 timings.write(
-                    f"{label}\t{elapsed:.2f}\t{status}\t{sha}\t1\t{PILOT_NSIM}"
+                    f"{label}\t{elapsed:.2f}\t{result['status']}\t{sha}\t1\t{PILOT_NSIM}"
                     f"\t{test_seconds:.2f}\n"
                 )
             print(
                 f"[{_clock(time.monotonic() - started)}] pilot {finished}/{len(tasks)}: "
-                f"{label}: {_clock(elapsed)} {'ok' if status == 0 else 'FAILED'}",
+                f"{label}: {_clock(elapsed)} {'ok' if result['status'] == 0 else 'FAILED'}",
                 flush=True,
             )
 
     PILOT_TIMINGS.write_text("", encoding="utf-8", newline="\n")
-    print(f"piloting {len(tasks)} grid job(s) with {PILOT_NSIM} smoke replicates; no coverage records")
-    with ThreadPoolExecutor(max_workers=jobs) as pool:
-        list(pool.map(one, tasks))
-    current = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-    if current != sha or subprocess.check_output(
-        ["git", "status", "--porcelain", "--untracked-files=normal"], cwd=ROOT, text=True
-    ).strip():
+    print(
+        f"piloting {len(tasks)} grid job(s) with {PILOT_NSIM} smoke replicates; no coverage records"
+    )
+    execute(ROOT, tasks, env=_measurement_env(strip_prefix=True), log_dir=PILOT_LOG_DIR, jobs=jobs,
+            first_nsim=PILOT_NSIM, recheck_nsim=PILOT_NSIM + 1, smoke=True, on_done=done)
+    if strict_git_head(ROOT) != sha or strict_git_dirty(ROOT):
         PILOT_TIMINGS.unlink(missing_ok=True)
         print("FAIL: HEAD or the working tree changed during the pilot")
         return 1
@@ -658,13 +758,37 @@ def pilot(selection: Selection, total: int, jobs: int) -> int:
     return 0
 
 
+def estimated_durations() -> dict[str, float]:
+    """Task label -> estimated seconds from the file named by ANTECEDENT_CALIBRATION_ESTIMATES
+    (`label<TAB>seconds`; blank and `#` lines skipped); empty when the variable is unset.
+
+    The lowest-priority source of `last_durations`: a recorded run or a pilot of the same label
+    replaces it. A named file that is missing or malformed is an error, not a silent gate order."""
+    named = os.environ.get(ESTIMATES_ENV)
+    if not named:
+        return {}
+    path = Path(named)
+    if not path.is_file():
+        raise SystemExit(f"{ESTIMATES_ENV}={named}: no such file")
+    out: dict[str, float] = {}
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip() or line.startswith("#"):
+            continue
+        label, _, seconds = line.rpartition("\t")
+        try:
+            out[label] = float(seconds)
+        except ValueError:
+            raise SystemExit(f"{named}:{number}: want `label<TAB>seconds`") from None
+    return out
+
+
 def last_durations() -> dict[str, float]:
     """The most recent recorded wall time of each task label (target/calibration-timings.tsv),
     falling back to the latest pilot of the label at any commit, projected to the first pass.
 
     These order and size the work; they are never a budget claim, so a pilot from an earlier
     commit is close enough where no full run has timed the task."""
-    out: dict[str, float] = {}
+    out: dict[str, float] = estimated_durations()
     if PILOT_TIMINGS.is_file():
         for line in PILOT_TIMINGS.read_text(encoding="utf-8").splitlines():
             parts = line.split("\t")
@@ -690,26 +814,19 @@ def last_durations() -> dict[str, float]:
 
 
 def longest_first(tasks: list[tuple[Group, int | None]]) -> list[tuple[Group, int | None]]:
-    """Order tasks by their last recorded duration, longest first (longest-processing-time
-    scheduling), so a long task does not start late and set the wall time; tasks with no
-    record keep their gate order after the timed ones."""
+    """Order tasks by their last recorded duration, longest first (`evidence_capture`);
+    tasks with no record keep their gate order after the timed ones."""
+    from evidence_capture import longest_first as order
+
     durations = last_durations()
-
-    def key(item: tuple[int, tuple[Group, int | None]]) -> tuple[int, float, int]:
-        position, (group, point) = item
-        seconds = durations.get(task_label(group, point))
-        return (0, -seconds, position) if seconds is not None else (1, 0.0, position)
-
-    return [task for _, task in sorted(enumerate(tasks), key=key)]
+    return order(tasks, lambda task: durations.get(task_label(*task)))
 
 
 # Most worker threads a single long task is given (see tail_threads).
 MAX_TAIL_THREADS = 4
 
 
-def tail_threads(
-    tasks: list[tuple[Group, int | None]], jobs: int, threads: int
-) -> dict[str, int]:
+def tail_threads(tasks: list[tuple[Group, int | None]], jobs: int, threads: int) -> dict[str, int]:
     """Extra worker threads for the tasks that would otherwise set the wall time.
 
     With `jobs` tasks running at once the run cannot finish before the total recorded work over
@@ -727,7 +844,31 @@ def tail_threads(
         label = task_label(group, point)
         seconds = durations.get(label)
         if seconds is not None and seconds > share:
-            out[label] = min(MAX_TAIL_THREADS, CORES, max(threads, math.ceil(seconds / share)))
+            out[label] = min(CORES, max(threads, min(MAX_TAIL_THREADS, math.ceil(seconds / share))))
+    return out
+
+
+def shard_counts(tasks: list[tuple[Group, int | None]], jobs: int) -> dict[str, int]:
+    """Replicate shards for the tasks that would otherwise set the wall time.
+
+    As for `tail_threads`, a task whose recorded single-threaded duration exceeds the share
+    (total work over `jobs`) finishes after everything else; split into `ceil(duration /
+    share)` shards (at most `jobs`) it runs on that many cores and the run approaches
+    total work over cores (scripts/calibration_shards.py: the merged result is the one run's).
+    Tasks without a recorded duration, and `whole` groups, are not sharded."""
+    durations = last_durations()
+    timed = [durations[task_label(g, p)] for g, p in tasks if task_label(g, p) in durations]
+    if not timed or jobs <= 1:
+        return {}
+    share = sum(timed) / jobs
+    out: dict[str, int] = {}
+    for group, point in tasks:
+        label = task_label(group, point)
+        seconds = durations.get(label)
+        if group.spec is not None and group.spec.whole:
+            continue  # pools across its replicates: one process runs it whole
+        if seconds is not None and seconds > share:
+            out[label] = min(jobs, math.ceil(seconds / share))
     return out
 
 
@@ -743,10 +884,19 @@ def archive_logs() -> None:
     stamps = set()
     if LOG_DIR.is_dir():
         for log in LOG_DIR.glob("*.log"):
-            stamps.update(re.findall(r"^calibration-measured-at ([0-9a-f]{40})$",
-                                     log.read_text(encoding="utf-8"), re.M))
+            stamps.update(
+                re.findall(
+                    r"^calibration-measured-at ([0-9a-f]{40})$",
+                    log.read_text(encoding="utf-8"),
+                    re.M,
+                )
+            )
     sha = next(iter(stamps)) if len(stamps) == 1 else ("mixed" if stamps else "unstamped")
-    destination = ARCHIVE_DIR / sha / f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{uuid.uuid4().hex[:8]}"
+    destination = (
+        ARCHIVE_DIR
+        / sha
+        / f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{uuid.uuid4().hex[:8]}"
+    )
     destination.mkdir(parents=True)
     for source in sources:
         shutil.move(str(source), str(destination / source.name))
@@ -763,9 +913,13 @@ def formal_decision_environment(groups: list[Group] | None = None) -> dict[str, 
     import calibration_family as family
 
     if os.environ.get("ANTECEDENT_CALIBRATION_CONFIRMATION"):
-        raise SystemExit("fresh-seed confirmation has no allocated risk in suite coverage protocol v1")
+        raise SystemExit(
+            "fresh-seed confirmation has no allocated risk in suite coverage protocol v1"
+        )
     if FIRST_NSIM not in {look["planned_replicates"] for look in decision.LOOKS}:
-        raise SystemExit("suite coverage protocol requires a registered 400, 2000 or 20000 attempt look")
+        raise SystemExit(
+            "suite coverage protocol requires a registered 400, 2000 or 20000 attempt look"
+        )
     config = family.current_config(ROOT)
     if groups is not None:
         family.validate_measurement_selection(config, [group.label for group in groups])
@@ -774,33 +928,20 @@ def formal_decision_environment(groups: list[Group] | None = None) -> dict[str, 
 
 def measurement_source_sha() -> str:
     """Direct runner entry points must obey the same source binding as the wrapper."""
-    if subprocess.check_output(
-        ["git", "status", "--porcelain", "--untracked-files=normal"], cwd=ROOT, text=True
-    ).strip():
-        raise SystemExit("formal measurement requires a clean committed source checkout; raw logs are retained")
-    return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    if strict_git_dirty(ROOT):
+        raise SystemExit(
+            "formal measurement requires a clean committed source checkout; raw logs are retained"
+        )
+    return strict_git_head(ROOT)
 
 
-def run(selection: Selection, total: int, jobs: int) -> int:
-    groups = selection.groups
-    if not groups:
-        print("nothing to measure: no record owes a re-measurement")
-        return 0
-    sha = measurement_source_sha()
-    decision_env = formal_decision_environment(groups)
-    archive_logs()
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
-    CONSOLE_DIR.mkdir(parents=True, exist_ok=True)
-    if prebuild(groups) != 0:
-        print("FAIL: the calibration tests do not build")
-        return 1
-    if measurement_source_sha() != sha:
-        raise SystemExit("measurement source changed during prebuild; raw logs are retained")
-    threads = threads_per_job(jobs)
-    env = {
+def _measurement_env(strip_prefix: bool = False) -> dict[str, str]:
+    """The caller's environment without the gate's own controls: the runner sets them."""
+    return {
         k: v
         for k, v in os.environ.items()
-        if k
+        if not (strip_prefix and k.startswith("ANTECEDENT_CALIBRATION_"))
+        and k
         not in (
             "ANTECEDENT_CALIBRATION_NSIM",
             "ANTECEDENT_CALIBRATION_RECHECK_NSIM",
@@ -813,82 +954,65 @@ def run(selection: Selection, total: int, jobs: int) -> int:
             "ANTECEDENT_CALIBRATION_TALLY_OUT",
             "ANTECEDENT_CALIBRATION_LOG_DIR",
             "ANTECEDENT_CALIBRATION_SMOKE",
+            "ANTECEDENT_CALIBRATION_SHARD",
+            "ANTECEDENT_CALIBRATION_SHA",
             "ANTECEDENT_PARENT_PROTOCOL_VERSION",
             "ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION",
             "ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL",
             "ANTECEDENT_WEIGHTED_CLUSTER_PROTOCOL",
             "ANTECEDENT_CALIBRATION_DECISION_CONFIG",
             "ANTECEDENT_CALIBRATION_VALIDATION_DOMAIN",
+            "ANTECEDENT_JOINT_RESPONSE_STABLE_CANDIDATE",
         )
     }
-    env.update(decision_env)
-    # Each job's `map_replicates` gets its share of the cores, so `jobs` jobs
-    # fill the machine without oversubscribing it. RUST_TEST_THREADS is left
-    # alone: every gate invocation runs one exact test.
-    env["ANTECEDENT_CALIBRATION_THREADS"] = str(threads)
-    env["ANTECEDENT_CALIBRATION_NSIM"] = str(FIRST_NSIM)
-    env["ANTECEDENT_CALIBRATION_RECHECK_NSIM"] = str(RECHECK_NSIM)
+
+
+def run(selection: Selection, total: int, jobs: int, shard: bool = False) -> int:
+    """Measure the selected groups: one Nix build of their test binaries, then every
+    (group, grid point) task longest first, `jobs` at a time (scripts/calibration_runner.py)."""
+    import calibration_decision as decision
+    from calibration_runner import Task, execute
+
+    groups = selection.groups
+    if not groups:
+        print("nothing to measure: no record owes a re-measurement")
+        return 0
+    sha = measurement_source_sha()
+    decision_env = formal_decision_environment(groups)
+    archive_logs()
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    threads = threads_per_job(jobs)
     started = time.monotonic()
     lock = threading.Lock()
     done: list[int] = []
-    failed: list[Group] = []
+    failed: list[str] = []
+    ordered = longest_first([(group, point) for group in groups for point in group.points])
+    sharded = shard_counts(ordered, jobs) if shard else {}
+    widened = tail_threads([t for t in ordered if task_label(*t) not in sharded], jobs, threads)
+    tasks = [Task(group.spec, point, widened.get(task_label(group, point), threads),
+                  shards=sharded.get(task_label(group, point), 1))
+             for group, point in ordered]
 
-    tasks = longest_first([(group, point) for group in groups for point in group.points])
-    widened = tail_threads(tasks, jobs, threads)
-
-    def one(task: tuple[Group, int | None]) -> None:
-        group, point = task
-        label = task_label(group, point)
-        suffix = "" if point is None else f".p{point}"
-        console = CONSOLE_DIR / f"{group.safe}{suffix}.txt"
-        task_threads = widened.get(label, threads)
-        task_env = {
-            **env,
-            "ANTECEDENT_CALIBRATION_SHARD": f"{group.index - 1}/{total}",
-            "ANTECEDENT_CALIBRATION_THREADS": str(task_threads),
-        }
-        if point is not None:
-            task_env["ANTECEDENT_CALIBRATION_GRID_POINTS"] = str(point)
-        begin = time.monotonic()
+    def finished(task: Task, result: dict) -> None:
+        label = task_label(next(g for g in groups if g.index == task.group.index), task.point)
         with lock:
-            print(f"[{_clock(begin - started)}] start group {group.index}: {label}")
-        with console.open("w", encoding="utf-8", newline="\n") as out:
-            status = subprocess.run(
-                ["bash", str(GATE)],
-                cwd=ROOT,
-                env=task_env,
-                stdout=out,
-                stderr=subprocess.STDOUT,
-            ).returncode
-        elapsed = time.monotonic() - begin
-        rechecked = (LOG_DIR / f"{group.safe}{suffix}.recheck.log").exists()
-        with lock:
-            done.append(group.index)
-            if status != 0:
+            done.append(task.group.index)
+            if result["status"] != 0:
                 failed.append(label)
             with TIMINGS.open("a", encoding="utf-8", newline="\n") as timings:
-                timings.write(f"{label}\t{elapsed:.1f}\t{status}\t{sha}\t{task_threads}\t{FIRST_NSIM}\n")
-            verdict = "ok" if status == 0 else f"FAILED (see {console.relative_to(ROOT)})"
-            print(
-                f"[{_clock(time.monotonic() - started)}] {len(done)}/{len(tasks)} "
-                f"group {group.index}: {verdict} in {_clock(elapsed)}"
-                + (f" (rechecked at {RECHECK_NSIM} replicates)" if rechecked else "")
-                + f": {label}",
-                flush=True,
-            )
+                timings.write(f"{label}\t{result['seconds']:.1f}\t{result['status']}\t{sha}"
+                              f"\t{task.threads}\t{FIRST_NSIM}\n")
+            verdict = "ok" if result["status"] == 0 else "FAILED: " + "; ".join(result["problems"] or ["see its log"])
+            print(f"[{_clock(time.monotonic() - started)}] {len(done)}/{len(tasks)} group {task.group.index}: "
+                  f"{verdict} in {_clock(result['seconds'])}"
+                  + (f" (rechecked at {RECHECK_NSIM} replicates)" if result["rechecked"] else "")
+                  + f": {label}", flush=True)
 
-    # last_durations includes measured wall times and falls back to old pilots.
-    # Keep its longest-first schedule even when no pilot exists at this HEAD.
-    ordered = tasks
-    print(f"running {len(tasks)} grid job(s), {jobs} at a time with {threads} thread(s) each; first-pass replicates={FIRST_NSIM}")
-    with ThreadPoolExecutor(max_workers=jobs) as pool:
-        list(pool.map(one, ordered))
-    print(
-        f"measured {len(groups)} group(s) as {len(tasks)} grid job(s) in "
-        f"{_clock(time.monotonic() - started)}"
-    )
-    if measurement_source_sha() != sha:
-        raise SystemExit("measurement source changed during execution; raw logs are retained")
+    print(f"building and running {len(tasks)} grid job(s), {jobs} at a time with {threads} thread(s) each; "
+          f"first-pass replicates={FIRST_NSIM}", flush=True)
+    execute(ROOT, tasks, env=_measurement_env(), log_dir=LOG_DIR, jobs=jobs, first_nsim=FIRST_NSIM,
+            recheck_nsim=RECHECK_NSIM, decision_context=decision_env.get(decision.ENV), on_done=finished)
+    print(f"measured {len(groups)} group(s) as {len(tasks)} grid job(s) in {_clock(time.monotonic() - started)}")
     if failed:
         print(f"FAIL: {len(failed)} grid job(s) failed the calibration gate:")
         for label in sorted(failed):
@@ -903,36 +1027,86 @@ def main() -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     sub = parser.add_subparsers(dest="command", required=True)
-    for name, text in (("plan", "list the groups that would run"), ("pilot", "time smoke runs"), ("run", "run them")):
+    for name, text in (
+        ("plan", "list the groups that would run"),
+        ("pilot", "time smoke runs"),
+        ("run", "run them"),
+    ):
         p = sub.add_parser(name, help=text)
         mode = p.add_mutually_exclusive_group()
         mode.add_argument("--all", action="store_true", help="every group, not only the owed ones")
-        mode.add_argument("--missing-only", action="store_true",
-                          help="only groups without coverage records or complete passed gate evidence; ignore drift")
-        p.add_argument("--group", action="append", default=[], metavar="GLOB",
-                       help="restrict selected groups by full label glob (repeatable; quote wildcards)")
-        p.add_argument("--replicates", type=int, default=FIRST_NSIM, metavar="N",
-                       help="first-pass simulation count for selected groups (minimum 400; default 400)")
+        mode.add_argument(
+            "--owed",
+            action="store_true",
+            help="exactly the groups that measure what `calibration_status.py status --owed` lists",
+        )
+        mode.add_argument(
+            "--missing-only",
+            action="store_true",
+            help="only groups without coverage records or complete passed gate evidence; ignore drift",
+        )
+        p.add_argument(
+            "--group",
+            action="append",
+            default=[],
+            metavar="GLOB",
+            help="restrict selected groups by full label glob (repeatable; quote wildcards)",
+        )
+        p.add_argument(
+            "--only",
+            action="append",
+            default=[],
+            metavar="PATTERN",
+            help="with --owed: only groups whose label, or whose owed record id/test or route, "
+            "contains PATTERN or matches it as a glob (repeatable)",
+        )
+        p.add_argument(
+            "--replicates",
+            type=int,
+            default=FIRST_NSIM,
+            metavar="N",
+            help="first-pass simulation count for selected groups (minimum 400; default 400)",
+        )
         # One job per core, each on one worker thread: list-scheduling the
         # many heterogeneous tasks packs the machine better than nesting each
         # task's own parallelism. `--jobs N` gives each job ceil(cores / N)
         # threads (threads_per_job).
         p.add_argument("--jobs", type=int, default=CORES)
+        p.add_argument(
+            "--estimates",
+            metavar="TSV",
+            help=f"per-task duration estimates (`label<TAB>seconds`, see calibration_estimates.py) "
+            f"for ordering a run with no recorded timings; sets {ESTIMATES_ENV}",
+        )
+        p.add_argument(
+            "--shards",
+            action="store_true",
+            help="split each task longer than total work / jobs into replicate shards that run in "
+            "parallel and merge into the one run's result (calibration_shards.py); needs durations "
+            "from a recorded run, a pilot or --estimates",
+        )
     args = parser.parse_args()
     if args.jobs < 1:
         raise SystemExit("--jobs must be at least 1")
     if args.replicates < 400:
         raise SystemExit("--replicates must be at least 400 for measured calibration")
+    if args.only and not args.owed:
+        raise SystemExit("--only requires --owed")
+    if args.estimates:
+        os.environ[ESTIMATES_ENV] = str(Path(args.estimates).resolve())
     FIRST_NSIM = args.replicates
     RECHECK_NSIM = max(2000, FIRST_NSIM + 1)
     groups = gate_groups()
-    selection = filter_selection(select(groups, args.all, args.missing_only), args.group)
+    chosen = (
+        select_owed(groups, args.only) if args.owed else select(groups, args.all, args.missing_only)
+    )
+    selection = filter_selection(chosen, args.group)
     print_plan(selection, groups, args.jobs)
     if args.command == "plan":
         return 0
     if args.command == "pilot":
         return pilot(selection, len(groups), args.jobs)
-    return run(selection, len(groups), args.jobs)
+    return run(selection, len(groups), args.jobs, shard=args.shards)
 
 
 if __name__ == "__main__":

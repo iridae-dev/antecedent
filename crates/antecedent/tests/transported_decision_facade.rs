@@ -6,7 +6,7 @@
 //! Oracle. The transported mean of `effect` in `clinic_b` is `2.0`. The utility of
 //! `treat` is `4 x - 1.5`, so its expected utility is `6.5`; `wait` is `0 * x = 0`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -28,7 +28,7 @@ use antecedent_design::decision_contract::{
 };
 use antecedent_design::decision_eval::Verdict;
 use antecedent_design::decision_transported_source::{
-    DETAIL_LAW_NOT_SUPPLIED, DETAIL_SUPPORT_BELOW_POLICY,
+    DETAIL_INTERVAL_NOT_SUPPORTED, DETAIL_LAW_NOT_SUPPLIED, DETAIL_SUPPORT_BELOW_POLICY,
 };
 
 #[path = "fixtures_common/mod.rs"]
@@ -195,7 +195,10 @@ fn declared_exclusions_remove_actions_and_are_part_of_the_bound_decision() {
         .evaluate_transported(&point(2.0), TransportedDemand::ExpectedUtility, &accepting())
         .unwrap_err();
     assert_eq!(refusal.code, "decision_contract_unsatisfied");
-    assert_eq!(refusal.detail, "transported_decision.exclusions_leave_no_comparison");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::transported_decision::EXCLUSIONS_LEAVE_NO_COMPARISON
+    );
 }
 
 #[test]
@@ -208,7 +211,10 @@ fn a_support_rule_stronger_than_the_transported_label_refuses() {
         .evaluate_transported(&point(2.0), TransportedDemand::ExpectedUtility, &accepting())
         .unwrap_err();
     assert_eq!(refusal.code, "transport_support_failure");
-    assert_eq!(refusal.detail, "transported_decision.support_rule_unmet");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::transported_decision::SUPPORT_RULE_UNMET
+    );
     assert_eq!(refusal.supplied.as_deref(), Some("extrapolative"));
     assert!(refusal.remedy.is_some());
 }
@@ -224,7 +230,10 @@ fn an_uncertainty_requirement_a_point_cannot_meet_refuses() {
             .evaluate_transported(&point(2.0), TransportedDemand::ExpectedUtility, &accepting())
             .unwrap_err();
         assert_eq!(refusal.code, "decision_contract_unsatisfied");
-        assert_eq!(refusal.detail, "transported_decision.uncertainty_requirement");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::transported_decision::UNCERTAINTY_REQUIREMENT
+        );
     }
     // A point requirement is met by a transported point.
     let rules = AdmissibilityRules {
@@ -250,7 +259,8 @@ fn a_point_refuses_laws_and_intervals_and_the_default_policy_refuses_the_label()
     let refusal = bound
         .evaluate_transported(&point(2.0), TransportedDemand::Interval, &accepting())
         .unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "uncertainty_representation_insufficient");
+    assert_eq!(refusal.detail, DETAIL_INTERVAL_NOT_SUPPORTED);
 
     // The default policy admits only `supported` coordinates: accepting a
     // transported claim is the consumer's explicit choice.
@@ -261,6 +271,6 @@ fn a_point_refuses_laws_and_intervals_and_the_default_policy_refuses_the_label()
             &SupportPolicy::compare_supported(),
         )
         .unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
+    assert_eq!(refusal.code, "decision_contract_unsatisfied");
     assert_eq!(refusal.detail, DETAIL_SUPPORT_BELOW_POLICY);
 }

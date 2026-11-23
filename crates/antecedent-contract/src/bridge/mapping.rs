@@ -1,6 +1,6 @@
 //! The mappings that carry one point value across a bridge.
 //!
-//! * [`BridgeMapping::Identity`] leaves the value unchanged; it is licensed only
+//! * [`BridgeMapping::Identity`] leaves the value unchanged; it is supported only
 //!   where the declared assumptions make the target quantity *equal* to the
 //!   source (a predictive quantity under identification, a stated preference
 //!   under a declared behavioral linkage).
@@ -22,7 +22,7 @@
 //!   `latent = (observed + specificity - 1) / (sensitivity + specificity - 1)`
 //!   and its forward map, for the model's declared rates.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::identity::CanonicalWriter;
 use antecedent_core::measurement_model::{
@@ -35,10 +35,12 @@ use super::refusal::{
     outside_validated_range, validation_r_squared_too_low, validation_trials_too_few,
     youden_too_small,
 };
+use antecedent_core::named_variants;
 
 /// Fewest validation trials a trial-level mapping may declare.
 pub const MIN_VALIDATION_TRIALS: u32 = 3;
-/// Most validation trials one mapping may carry.
+/// Default bound on validation trials per mapping that a decoder of untrusted input applies.
+/// The fit sorts and sums the trials, so the mapping itself carries no bound.
 pub const MAX_VALIDATION_TRIALS: usize = 4096;
 
 /// The mapping variant, without its numbers.
@@ -55,24 +57,12 @@ pub enum MappingKind {
     MeasurementCorrection,
 }
 
-impl MappingKind {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Identity => "identity",
-            Self::Affine => "affine",
-            Self::TrialLevelLinear => "trial_level_linear",
-            Self::MeasurementCorrection => "measurement_correction",
-        }
-    }
-
-    /// Parse the spelling of [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::Identity, Self::Affine, Self::TrialLevelLinear, Self::MeasurementCorrection]
-            .into_iter()
-            .find(|kind| kind.as_str() == name)
+named_variants! {
+    MappingKind {
+        Identity => "identity",
+        Affine => "affine",
+        TrialLevelLinear => "trial_level_linear",
+        MeasurementCorrection => "measurement_correction",
     }
 }
 
@@ -165,32 +155,84 @@ pub struct AppliedMapping {
 pub fn fit_trial_level_linear(
     validation: &TrialLevelValidation,
 ) -> Result<TrialLevelFit, BridgeRefusal> {
+    fit_with_statistics(validation).map(|(fit, _)| fit)
+}
+
+/// Sufficient statistics of the trial-level line, computed once in a canonical order.
+///
+/// Trials are visited in a canonical (total-order) sequence so a permutation of the trials
+/// gives the same bits. The sums are accumulated left to right in that order: a stored
+/// artifact replays the fit and the propagated moments bit for bit, so the arithmetic that
+/// produces them is part of the format and does not change without a format revision.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct TrialStatistics {
+    /// Number of trials.
+    pub(super) count: f64,
+    pub(super) mean_x: f64,
+    pub(super) mean_y: f64,
+    pub(super) sxx: f64,
+    pub(super) sxy: f64,
+    pub(super) syy: f64,
+    /// Sum of squared residuals about the least-squares line, `Syy - Sxy^2 / Sxx` floored at
+    /// zero; `NaN` when `sxx` is not positive.
+    pub(super) residual_sum_squares: f64,
+    pub(super) surrogate_min: f64,
+    pub(super) surrogate_max: f64,
+}
+
+impl TrialStatistics {
+    /// Statistics of `trials` (borrowed and ordered by reference; nothing is cloned).
+    pub(super) fn of(trials: &[TrialEffectPair]) -> Self {
+        let mut ordered: Vec<&TrialEffectPair> = trials.iter().collect();
+        ordered.sort_by(|a, b| {
+            a.surrogate_effect
+                .total_cmp(&b.surrogate_effect)
+                .then(a.terminal_effect.total_cmp(&b.terminal_effect))
+        });
+        let count = ordered.len() as f64;
+        let mean_x = ordered.iter().map(|t| t.surrogate_effect).sum::<f64>() / count;
+        let mean_y = ordered.iter().map(|t| t.terminal_effect).sum::<f64>() / count;
+        let (mut sxx, mut sxy, mut syy) = (0.0_f64, 0.0_f64, 0.0_f64);
+        let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+        for trial in &ordered {
+            let dx = trial.surrogate_effect - mean_x;
+            let dy = trial.terminal_effect - mean_y;
+            sxx += dx * dx;
+            sxy += dx * dy;
+            syy += dy * dy;
+            lo = lo.min(trial.surrogate_effect);
+            hi = hi.max(trial.surrogate_effect);
+        }
+        let residual_sum_squares =
+            if sxx > 0.0 && sxx.is_finite() { (syy - sxy * sxy / sxx).max(0.0) } else { f64::NAN };
+        Self {
+            count,
+            mean_x,
+            mean_y,
+            sxx,
+            sxy,
+            syy,
+            residual_sum_squares,
+            surrogate_min: lo,
+            surrogate_max: hi,
+        }
+    }
+}
+
+/// The fit together with the statistics it was computed from, for callers that also need the
+/// residual variance of the line.
+pub(super) fn fit_with_statistics(
+    validation: &TrialLevelValidation,
+) -> Result<(TrialLevelFit, TrialStatistics), BridgeRefusal> {
     check_validation_declaration(validation)?;
     let n = validation.trials.len();
     if n < usize::try_from(validation.min_trials).unwrap_or(usize::MAX) {
         return Err(validation_trials_too_few(validation.min_trials, n));
     }
-    // Sum in a canonical order so a permutation of the trials gives the same bits.
-    let mut sorted = validation.trials.clone();
-    sorted.sort_by(|a, b| {
-        a.surrogate_effect
-            .total_cmp(&b.surrogate_effect)
-            .then(a.terminal_effect.total_cmp(&b.terminal_effect))
-    });
-    let count = n as f64;
-    let mean_x = sorted.iter().map(|t| t.surrogate_effect).sum::<f64>() / count;
-    let mean_y = sorted.iter().map(|t| t.terminal_effect).sum::<f64>() / count;
-    let (mut sxx, mut sxy, mut syy) = (0.0_f64, 0.0_f64, 0.0_f64);
-    let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
-    for trial in &sorted {
-        let dx = trial.surrogate_effect - mean_x;
-        let dy = trial.terminal_effect - mean_y;
-        sxx += dx * dx;
-        sxy += dx * dy;
-        syy += dy * dy;
-        lo = lo.min(trial.surrogate_effect);
-        hi = hi.max(trial.surrogate_effect);
-    }
+    let stats = TrialStatistics::of(&validation.trials);
+    let TrialStatistics {
+        mean_x, mean_y, sxx, sxy, syy, surrogate_min: lo, surrogate_max: hi, ..
+    } = stats;
     if sxx.is_nan() || sxx <= 0.0 {
         return Err(degenerate_validation(
             "varying surrogate effects",
@@ -211,14 +253,15 @@ pub fn fit_trial_level_linear(
     if r_squared < validation.min_r_squared {
         return Err(validation_r_squared_too_low(validation.min_r_squared, r_squared));
     }
-    Ok(TrialLevelFit {
+    let fit = TrialLevelFit {
         intercept,
         slope,
         r_squared,
         trials: u32::try_from(n).unwrap_or(u32::MAX),
         surrogate_min: lo,
         surrogate_max: hi,
-    })
+    };
+    Ok((fit, stats))
 }
 
 fn check_validation_declaration(validation: &TrialLevelValidation) -> Result<(), BridgeRefusal> {
@@ -234,12 +277,6 @@ fn check_validation_declaration(validation: &TrialLevelValidation) -> Result<(),
             "declare the smallest trial-level coefficient of determination in [0, 1]",
         ));
     }
-    if validation.trials.len() > MAX_VALIDATION_TRIALS {
-        return Err(malformed_mapping(
-            "trials",
-            "carry at most the declared bound of validation trials",
-        ));
-    }
     if validation
         .trials
         .iter()
@@ -251,7 +288,7 @@ fn check_validation_declaration(validation: &TrialLevelValidation) -> Result<(),
 }
 
 /// The shared rates of a non-differential binary measurement model.
-fn binary_rates(model: &MeasurementModel) -> Result<(f64, f64, f64), BridgeRefusal> {
+pub(super) fn binary_rates(model: &MeasurementModel) -> Result<(f64, f64, f64), BridgeRefusal> {
     model.validate().map_err(|error| crate::measurement::model_refusal(&error))?;
     if model.route != MeasurementRoute::BinaryMisclassification {
         return Err(measurement_route_not_supported(
@@ -405,7 +442,7 @@ impl BridgeMapping {
 }
 
 /// Youden's index of the declared rates, when it exceeds the declared minimum.
-fn identified_youden(
+pub(super) fn identified_youden(
     sensitivity: f64,
     specificity: f64,
     min_youden: f64,

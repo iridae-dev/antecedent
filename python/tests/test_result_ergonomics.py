@@ -7,6 +7,7 @@ import json
 import pytest
 from antecedent import repair, results
 from antecedent.errors import CausalTypeError, CausalValueError
+from antecedent.outcomes import require_success
 
 from test_external_binding import _response, _spec_with_premises
 from test_repair import backdoor, candidates
@@ -75,7 +76,7 @@ def test_repair_rows_have_short_reprs_and_dicts():
 
 def test_repair_result_survives_export_and_consume():
     result = repair.repair(backdoor(), candidates())
-    again = repair.consume(result.export())
+    again = require_success(repair.consume(bytes(result.export())))
     assert again.to_dict() == result.to_dict()
 
 
@@ -120,7 +121,7 @@ def test_claim_identity_is_a_string_and_fields_are_structured():
 def test_load_takes_expected_identity_as_string_or_mapping():
     spec = _spec_with_premises()
     claim = spec.bind(_response())
-    data = claim.export()
+    data = bytes(claim.export())
     assert spec.load(data, expected_identity=claim.identity).values.tolist() == [1.0, 3.0, 5.0]
     assert spec.load(data, expected_identity=claim.identity_fields).identity == claim.identity
     with pytest.raises(TypeError, match="expected"):

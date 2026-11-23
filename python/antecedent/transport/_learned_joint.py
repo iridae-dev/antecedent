@@ -1,8 +1,9 @@
 """Measured target-effect inference for the known-variance learned joint model.
 
-The standard producer returns native-authorized scalar inference only inside the
-finite degree-two validation design. The complete original posterior remains an
-unmeasured, model-conditional candidate; its law receives no blanket interval license.
+The scalar target-effect interval carries a measured calibration only inside the finite
+degree-two validation design; outside it the interval is still reported, with calibration
+``not_measured``. The complete original posterior remains a ``not_measured``,
+model-conditional candidate; its law receives no blanket interval support.
 """
 
 from __future__ import annotations
@@ -11,13 +12,17 @@ from collections.abc import Mapping, Sequence
 from functools import partial
 from typing import Any, Literal
 
+from antecedent import _reason_details
+
 from .. import _native
 from .._measured_inference import MeasuredInference
-from .._native import learned_joint_transport_closed as _learned_joint_transport_closed
+from .._native import learned_joint_transport_scope as _learned_joint_transport_scope
 from .._validate import names
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ..execution import Execution
 from ..graph import Admg
-from ._closed_pilots import _has_bidirected_edge
+from ._advanced_producers import _has_bidirected_edge
+from ._controls import resolve
 from ._impl import TransportIdentification, _non_negative
 from ._joint_posterior import (
     JointTransportPriors,
@@ -37,22 +42,22 @@ Varying = Literal["intercept", "intercept_and_covariates"]
 Sharing = Literal["independent_varying_blocks", "shared_varying_block"]
 _GRAPH_CLASSES = ("fixed_dag", "admg", "graph_posterior")
 _ROUTE = "antecedent.transport.learned_joint"
-_ROUTE_FROZEN = "learned_joint_transport.route_frozen"
+_ROUTE_MISSING = _reason_details.learned_joint_transport.IDENTIFICATION_REQUIRED
 
 
-#: What a caller can do instead: the open point-estimate route of the same transport question.
+#: What a caller can do to obtain the interval.
 _REMEDY = (
-    "use the open learned point-estimate route antecedent.transport.advanced."
-    "prepare_learned_continuous (cross-fitted, interval withheld), or an identified closed-form "
-    "transport estimate; the learned joint posterior opens only when its coverage is measured"
+    "pass identification= (the original identification of the transport question) and complete "
+    "priors=; the interval is then reported with its calibration status"
 )
 
 
-def _frozen() -> CausalUnsupportedError:
-    """The fallback refusal; the native call always raises before it is reached."""
+def _identification_required() -> CausalUnsupportedError:
+    """A request inside the row's scope that names no identification to produce from."""
     return CausalUnsupportedError(
-        f"{_ROUTE_FROZEN}: {_ROUTE} is a closed route; calibration is unmeasured",
-        reason_code="cell_not_licensed",
+        f"{_ROUTE_MISSING}: {_ROUTE} produces its interval from an original identification and "
+        "complete priors; supply identification= and priors=",
+        reason_code="transport_missing_evidence",
         remedy=_REMEDY,
     )
 
@@ -79,7 +84,6 @@ def learned_joint_transport(
     sharing: Sharing = "independent_varying_blocks",
     basis_degree: int = 2,
     draws: int = 4000,
-    seed: int = 0,
     identification: TransportIdentification | None = None,
     priors: JointTransportPriors | None = None,
     treatment: str = "a",
@@ -87,17 +91,19 @@ def learned_joint_transport(
     max_unsupported_mass: float = 0.0,
     conflict_z_threshold: float = 3.0,
     level: float = 0.95,
-    memory_limit_bytes: int | None = None,
-    cancel: _native.CancellationToken | None = None,
+    execution: Execution | None = None,
 ) -> MeasuredInference:
     """Return the measured target-effect scalar under the declared joint model.
 
     Requires the original identification and typed source, target and complete priors.
     Native execution checks the finite validation protocol (known variances, declared
     zero-mean Gaussian variance-1000 priors, degree two, fixed target design and .95
-    scalar interval), derives the actual basis and resolves its attesting record.
-    Nearby unsupported protocols refuse; evidence does not guarantee coverage for
-    arbitrary data-generating laws. Original candidate artifacts remain unmeasured.
+    scalar interval), derives the actual basis and resolves its attesting record. A
+    configuration outside that protocol is still reported, with the reason in its scope and
+    calibration ``not_measured``; it is not refused. A graph class other than ``fixed_dag``
+    is refused (``route_not_supported``), and inputs beyond the declared size bounds are
+    refused (``invalid_argument``). Measured evidence does not guarantee coverage for
+    arbitrary data-generating laws. Original candidate artifacts remain ``not_measured``.
     """
     if isinstance(sources, (str, bytes)) or not isinstance(sources, Sequence):
         raise CausalTypeError("sources must be a sequence of source trials")
@@ -116,6 +122,8 @@ def learned_joint_transport(
     declared = "admg" if graph is not None and _has_bidirected_edge(graph) else graph_class
     _non_negative("basis_degree", basis_degree)
     _non_negative("draws", draws)
+    execution = resolve(execution)
+    seed = execution.seed
     _non_negative("seed", seed)
     if (
         getattr(_native, "joint_transport_measured", None) is not None
@@ -123,7 +131,8 @@ def learned_joint_transport(
     ):
         if declared != "fixed_dag":
             raise CausalUnsupportedError(
-                "learned_joint_transport.unsupported_graph", reason_code="route_not_supported"
+                _reason_details.learned_joint_transport.UNSUPPORTED_GRAPH,
+                reason_code="route_not_supported",
             )
         if graph is not None:
             raise CausalValueError(
@@ -133,8 +142,7 @@ def learned_joint_transport(
             raise CausalTypeError("candidate transport needs explicit complete priors")
         return _measured(
             level=level,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
+            execution=execution,
             sources=sources,
             target=target,
             features=feature_names,
@@ -152,22 +160,15 @@ def learned_joint_transport(
             max_unsupported_mass=max_unsupported_mass,
             conflict_z_threshold=conflict_z_threshold,
         )
-    try:
-        _learned_joint_transport_closed(
-            declared,
-            dependence,
-            varying,
-            sharing,
-            len(feature_names),
-            basis_degree,
-            len(sources),
-            target is not None and (isinstance(target, JointTransportTarget) or len(target) > 0),
-            draws,
-        )
-    except CausalUnsupportedError as error:
-        if getattr(error, "reason_code", None) == "cell_not_licensed" and not getattr(
-            error, "remedy", None
-        ):
-            error.remedy = _REMEDY
-        raise
-    raise _frozen()
+    _learned_joint_transport_scope(
+        declared,
+        dependence,
+        varying,
+        sharing,
+        len(feature_names),
+        basis_degree,
+        len(sources),
+        target is not None and (isinstance(target, JointTransportTarget) or len(target) > 0),
+        draws,
+    )
+    raise _identification_required()

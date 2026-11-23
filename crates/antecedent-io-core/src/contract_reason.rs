@@ -3,7 +3,7 @@
 //! The spelling returned to callers is [`ContractReason::as_str`]. Control flow
 //! matches the enum, not the string.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -36,8 +36,6 @@ pub enum ContractReason {
     ClaimCalibration,
     /// `claim.calibration.basis`.
     ClaimCalibrationBasis,
-    /// `claim.calibration.off_axis`.
-    ClaimCalibrationOffAxis,
     /// `claim.domains`.
     ClaimDomains,
     /// `claim.id`.
@@ -48,16 +46,28 @@ pub enum ContractReason {
     ClaimValue,
     /// `contract.seal`.
     ContractSeal,
+    /// `data_snapshot.cross_product_moments`.
+    DataSnapshotCrossProductMoments,
+    /// `data_snapshot.cross_product_moments_rank`.
+    DataSnapshotCrossProductMomentsRank,
     /// `data_snapshot.linear_fit_moments`.
     DataSnapshotLinearFitMoments,
     /// `data_snapshot.linear_fit_moments_rank`.
     DataSnapshotLinearFitMomentsRank,
     /// `data_snapshot.observation`.
     DataSnapshotObservation,
+    /// Legacy unscoped refutations require independent replay.
+    DependenciesRefutationReplay,
+    /// Scoped refutation proof requires independent replay.
+    DependenciesScopedRefutationReplay,
     /// `dependencies.checked_admg_graph_posterior_response_operation`.
     DependenciesCheckedAdmgGraphPosteriorResponseOperation,
     /// `dependencies.checked_attribution_operation`.
     DependenciesCheckedAttributionOperation,
+    /// `dependencies.checked_batch_family_operation`.
+    DependenciesCheckedBatchFamilyOperation,
+    /// `dependencies.checked_estimator_operation`.
+    DependenciesCheckedEstimatorOperation,
     /// `dependencies.checked_bayesian_basis_ate_operation`.
     DependenciesCheckedBayesianBasisAteOperation,
     /// `dependencies.checked_bayesian_basis_cate_operation`.
@@ -74,6 +84,20 @@ pub enum ContractReason {
     DependenciesCheckedBayesianIvOperation,
     /// `dependencies.checked_bayesian_mediation_operation`.
     DependenciesCheckedBayesianMediationOperation,
+    /// `dependencies.checked_bayesian_local_ratio_operation`.
+    DependenciesCheckedBayesianLocalRatioOperation,
+    /// `dependencies.checked_bayesian_survival_operation`.
+    DependenciesCheckedBayesianSurvivalOperation,
+    /// `dependencies.checked_bayesian_quantile_operation`.
+    DependenciesCheckedBayesianQuantileOperation,
+    /// `dependencies.checked_bayesian_dose_policy_operation`.
+    DependenciesCheckedBayesianDosePolicyOperation,
+    /// `dependencies.checked_bayesian_randomized_operation`.
+    DependenciesCheckedBayesianRandomizedOperation,
+    /// `dependencies.checked_bayesian_panel_did_operation`.
+    DependenciesCheckedBayesianPanelDidOperation,
+    /// `dependencies.checked_bayesian_synthetic_control_operation`.
+    DependenciesCheckedBayesianSyntheticControlOperation,
     /// `dependencies.checked_bayesian_rd_operation`.
     DependenciesCheckedBayesianRdOperation,
     /// `dependencies.checked_bayesian_robust_ate_operation`.
@@ -88,6 +112,19 @@ pub enum ContractReason {
     DependenciesCheckedConditionalEffectOperation,
     /// `dependencies.checked_derivative_response_operation`.
     DependenciesCheckedDerivativeResponseOperation,
+    /// `dependencies.checked_dr_replay_mismatch`: the replay of the cross-fitted
+    /// doubly-robust fit from the full source did not reproduce what the artifact reports,
+    /// or could not complete the fit the artifact reports.
+    DependenciesCheckedDrReplayMismatch,
+    /// `dependencies.checked_dr_replay_resource`: the replay was cancelled or refused by its
+    /// resource bounds. Nothing was verified.
+    DependenciesCheckedDrReplayResource,
+    /// `dependencies.checked_dr_replay_source`: the artifact carries a full-source witness
+    /// the replay cannot use (malformed, over its limits, or not the snapshotted table).
+    DependenciesCheckedDrReplaySource,
+    /// `dependencies.checked_dr_replay_unsupported`: the declaration or the witnessed table lies
+    /// outside the operation the replay supports.
+    DependenciesCheckedDrReplayUnsupported,
     /// `dependencies.checked_glm_operation`.
     DependenciesCheckedGlmOperation,
     /// `dependencies.checked_graph_posterior_effect_operation`.
@@ -142,6 +179,10 @@ pub enum ContractReason {
     DependenciesFunctionalEffectResponseFactorLaws,
     /// `dependencies.functional_effect_response_posterior_draws`.
     DependenciesFunctionalEffectResponsePosteriorDraws,
+    /// `dependencies.identification_replay_budget`.
+    DependenciesIdentificationReplayBudget,
+    /// `dependencies.identification_estimand_criterion`.
+    DependenciesIdentificationEstimandCriterion,
     /// `dependencies.linear_fit_sufficient_statistics`.
     DependenciesLinearFitSufficientStatistics,
     /// `dependencies.nested_counterfactual_fit_moments`.
@@ -264,6 +305,8 @@ pub enum ContractReason {
     IdentificationStructureSource,
     /// `identification.target_question`.
     IdentificationTargetQuestion,
+    /// `identification_product.estimands`.
+    IdentificationProductEstimands,
     /// `identities.data_snapshot`.
     IdentitiesDataSnapshot,
     /// `identities.execution`.
@@ -300,6 +343,10 @@ pub enum ContractReason {
     ProgramCheckedAipwLoweringTarget,
     /// `program.checked_aipw_uncertainty`.
     ProgramCheckedAipwUncertainty,
+    /// `program.checked_dr_binding`.
+    ProgramCheckedDrBinding,
+    /// `program.checked_dr_lowering`.
+    ProgramCheckedDrLowering,
     /// `program.checked_frontdoor_lowering`.
     ProgramCheckedFrontdoorLowering,
     /// `program.checked_frontdoor_lowering.target`.
@@ -366,6 +413,10 @@ pub enum ContractReason {
     ProgramFunctionalProgram,
     /// `program.functional_program.target`.
     ProgramFunctionalProgramTarget,
+    /// `program.graph_posterior_programs`.
+    ProgramGraphPosteriorPrograms,
+    /// `program.graph_posterior_programs.binding`.
+    ProgramGraphPosteriorProgramsBinding,
     /// `program.identification`.
     ProgramIdentification,
     /// `program.identification_product`.
@@ -426,20 +477,29 @@ impl ContractReason {
             Self::CheckedAipwRowBinding => "checked_aipw.row_binding",
             Self::ClaimCalibration => "claim.calibration",
             Self::ClaimCalibrationBasis => "claim.calibration.basis",
-            Self::ClaimCalibrationOffAxis => "claim.calibration.off_axis",
             Self::ClaimDomains => "claim.domains",
             Self::ClaimId => "claim.id",
             Self::ClaimKind => "claim.kind",
             Self::ClaimValue => "claim.value",
             Self::ContractSeal => "contract.seal",
+            Self::DataSnapshotCrossProductMoments => "data_snapshot.cross_product_moments",
+            Self::DataSnapshotCrossProductMomentsRank => "data_snapshot.cross_product_moments_rank",
             Self::DataSnapshotLinearFitMoments => "data_snapshot.linear_fit_moments",
             Self::DataSnapshotLinearFitMomentsRank => "data_snapshot.linear_fit_moments_rank",
             Self::DataSnapshotObservation => "data_snapshot.observation",
+            Self::DependenciesRefutationReplay => "dependencies.refutation_replay",
+            Self::DependenciesScopedRefutationReplay => "dependencies.scoped_refutation_replay",
             Self::DependenciesCheckedAdmgGraphPosteriorResponseOperation => {
                 "dependencies.checked_admg_graph_posterior_response_operation"
             }
             Self::DependenciesCheckedAttributionOperation => {
                 "dependencies.checked_attribution_operation"
+            }
+            Self::DependenciesCheckedBatchFamilyOperation => {
+                "dependencies.checked_batch_family_operation"
+            }
+            Self::DependenciesCheckedEstimatorOperation => {
+                "dependencies.checked_estimator_operation"
             }
             Self::DependenciesCheckedBayesianBasisAteOperation => {
                 "dependencies.checked_bayesian_basis_ate_operation"
@@ -465,6 +525,27 @@ impl ContractReason {
             Self::DependenciesCheckedBayesianMediationOperation => {
                 "dependencies.checked_bayesian_mediation_operation"
             }
+            Self::DependenciesCheckedBayesianLocalRatioOperation => {
+                "dependencies.checked_bayesian_local_ratio_operation"
+            }
+            Self::DependenciesCheckedBayesianSurvivalOperation => {
+                "dependencies.checked_bayesian_survival_operation"
+            }
+            Self::DependenciesCheckedBayesianQuantileOperation => {
+                "dependencies.checked_bayesian_quantile_operation"
+            }
+            Self::DependenciesCheckedBayesianDosePolicyOperation => {
+                "dependencies.checked_bayesian_dose_policy_operation"
+            }
+            Self::DependenciesCheckedBayesianRandomizedOperation => {
+                "dependencies.checked_bayesian_randomized_operation"
+            }
+            Self::DependenciesCheckedBayesianPanelDidOperation => {
+                "dependencies.checked_bayesian_panel_did_operation"
+            }
+            Self::DependenciesCheckedBayesianSyntheticControlOperation => {
+                "dependencies.checked_bayesian_synthetic_control_operation"
+            }
             Self::DependenciesCheckedBayesianRdOperation => {
                 "dependencies.checked_bayesian_rd_operation"
             }
@@ -482,6 +563,12 @@ impl ContractReason {
             }
             Self::DependenciesCheckedConditionalEffectOperation => {
                 "dependencies.checked_conditional_effect_operation"
+            }
+            Self::DependenciesCheckedDrReplayMismatch => "dependencies.checked_dr_replay_mismatch",
+            Self::DependenciesCheckedDrReplayResource => "dependencies.checked_dr_replay_resource",
+            Self::DependenciesCheckedDrReplaySource => "dependencies.checked_dr_replay_source",
+            Self::DependenciesCheckedDrReplayUnsupported => {
+                "dependencies.checked_dr_replay_unsupported"
             }
             Self::DependenciesCheckedDerivativeResponseOperation => {
                 "dependencies.checked_derivative_response_operation"
@@ -560,6 +647,12 @@ impl ContractReason {
             }
             Self::DependenciesFunctionalEffectResponsePosteriorDraws => {
                 "dependencies.functional_effect_response_posterior_draws"
+            }
+            Self::DependenciesIdentificationReplayBudget => {
+                "dependencies.identification_replay_budget"
+            }
+            Self::DependenciesIdentificationEstimandCriterion => {
+                "dependencies.identification_estimand_criterion"
             }
             Self::DependenciesLinearFitSufficientStatistics => {
                 "dependencies.linear_fit_sufficient_statistics"
@@ -642,6 +735,7 @@ impl ContractReason {
             Self::IdentificationStatus => "identification.status",
             Self::IdentificationStructureSource => "identification.structure_source",
             Self::IdentificationTargetQuestion => "identification.target_question",
+            Self::IdentificationProductEstimands => "identification_product.estimands",
             Self::IdentitiesDataSnapshot => "identities.data_snapshot",
             Self::IdentitiesExecution => "identities.execution",
             Self::IdentitiesIdentification => "identities.identification",
@@ -660,6 +754,8 @@ impl ContractReason {
             Self::ProgramCheckedAipwLowering => "program.checked_aipw_lowering",
             Self::ProgramCheckedAipwLoweringTarget => "program.checked_aipw_lowering.target",
             Self::ProgramCheckedAipwUncertainty => "program.checked_aipw_uncertainty",
+            Self::ProgramCheckedDrBinding => "program.checked_dr_binding",
+            Self::ProgramCheckedDrLowering => "program.checked_dr_lowering",
             Self::ProgramCheckedFrontdoorLowering => "program.checked_frontdoor_lowering",
             Self::ProgramCheckedFrontdoorLoweringTarget => {
                 "program.checked_frontdoor_lowering.target"
@@ -731,6 +827,10 @@ impl ContractReason {
             }
             Self::ProgramFunctionalProgram => "program.functional_program",
             Self::ProgramFunctionalProgramTarget => "program.functional_program.target",
+            Self::ProgramGraphPosteriorPrograms => "program.graph_posterior_programs",
+            Self::ProgramGraphPosteriorProgramsBinding => {
+                "program.graph_posterior_programs.binding"
+            }
             Self::ProgramIdentification => "program.identification",
             Self::ProgramIdentificationProduct => "program.identification_product",
             Self::ProgramTarget => "program.target",
@@ -757,7 +857,9 @@ impl ContractReason {
     pub const fn omitted_when_encoding(self) -> bool {
         matches!(
             self,
-            Self::DependenciesCheckedGlmOperation
+            Self::DependenciesRefutationReplay
+                | Self::DependenciesScopedRefutationReplay
+                | Self::DependenciesCheckedGlmOperation
                 | Self::DependenciesCheckedRdOperation
                 | Self::DependenciesCheckedPropensityOperation
                 | Self::DependenciesCheckedDerivativeResponseOperation
@@ -773,6 +875,8 @@ impl ContractReason {
                 | Self::DependenciesCheckedBayesianMediationOperation
                 | Self::DependenciesCheckedAttributionOperation
                 | Self::DependenciesCheckedBayesianDagAteOperation
+                | Self::DependenciesCheckedBatchFamilyOperation
+                | Self::DependenciesCheckedEstimatorOperation
                 | Self::DependenciesCheckedBayesianBasisAteOperation
                 | Self::DependenciesCheckedBayesianBasisCateOperation
                 | Self::DependenciesCheckedBayesianRobustAteOperation
@@ -793,8 +897,16 @@ impl ContractReason {
                 | Self::DependenciesCheckedStaticClassResponseOperation
                 | Self::DependenciesCheckedGraphPosteriorResponseOperation
                 | Self::DependenciesCheckedBayesianIvOperation
+                | Self::DependenciesCheckedBayesianLocalRatioOperation
+                | Self::DependenciesCheckedBayesianSurvivalOperation
+                | Self::DependenciesCheckedBayesianQuantileOperation
+                | Self::DependenciesCheckedBayesianDosePolicyOperation
+                | Self::DependenciesCheckedBayesianRandomizedOperation
+                | Self::DependenciesCheckedBayesianPanelDidOperation
+                | Self::DependenciesCheckedBayesianSyntheticControlOperation
                 | Self::DependenciesCheckedBayesianRdOperation
                 | Self::DependenciesCheckedTransportTrialOperation
+                | Self::DependenciesIdentificationEstimandCriterion
         )
     }
 }
@@ -849,17 +961,22 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::CheckedAipwRowBinding,
     ContractReason::ClaimCalibration,
     ContractReason::ClaimCalibrationBasis,
-    ContractReason::ClaimCalibrationOffAxis,
     ContractReason::ClaimDomains,
     ContractReason::ClaimId,
     ContractReason::ClaimKind,
     ContractReason::ClaimValue,
     ContractReason::ContractSeal,
+    ContractReason::DataSnapshotCrossProductMoments,
+    ContractReason::DataSnapshotCrossProductMomentsRank,
     ContractReason::DataSnapshotLinearFitMoments,
     ContractReason::DataSnapshotLinearFitMomentsRank,
     ContractReason::DataSnapshotObservation,
+    ContractReason::DependenciesRefutationReplay,
+    ContractReason::DependenciesScopedRefutationReplay,
     ContractReason::DependenciesCheckedAdmgGraphPosteriorResponseOperation,
     ContractReason::DependenciesCheckedAttributionOperation,
+    ContractReason::DependenciesCheckedBatchFamilyOperation,
+    ContractReason::DependenciesCheckedEstimatorOperation,
     ContractReason::DependenciesCheckedBayesianBasisAteOperation,
     ContractReason::DependenciesCheckedBayesianBasisCateOperation,
     ContractReason::DependenciesCheckedBayesianClassConditionalOperation,
@@ -868,6 +985,13 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::DependenciesCheckedBayesianGraphPosteriorAteOperation,
     ContractReason::DependenciesCheckedBayesianIvOperation,
     ContractReason::DependenciesCheckedBayesianMediationOperation,
+    ContractReason::DependenciesCheckedBayesianLocalRatioOperation,
+    ContractReason::DependenciesCheckedBayesianSurvivalOperation,
+    ContractReason::DependenciesCheckedBayesianQuantileOperation,
+    ContractReason::DependenciesCheckedBayesianDosePolicyOperation,
+    ContractReason::DependenciesCheckedBayesianRandomizedOperation,
+    ContractReason::DependenciesCheckedBayesianPanelDidOperation,
+    ContractReason::DependenciesCheckedBayesianSyntheticControlOperation,
     ContractReason::DependenciesCheckedBayesianRdOperation,
     ContractReason::DependenciesCheckedBayesianRobustAteOperation,
     ContractReason::DependenciesCheckedBayesianTemporalClassEffectOperation,
@@ -875,6 +999,10 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::DependenciesCheckedClassGraphPosteriorEffectOperation,
     ContractReason::DependenciesCheckedConditionalEffectOperation,
     ContractReason::DependenciesCheckedDerivativeResponseOperation,
+    ContractReason::DependenciesCheckedDrReplayMismatch,
+    ContractReason::DependenciesCheckedDrReplayResource,
+    ContractReason::DependenciesCheckedDrReplaySource,
+    ContractReason::DependenciesCheckedDrReplayUnsupported,
     ContractReason::DependenciesCheckedGlmOperation,
     ContractReason::DependenciesCheckedGraphPosteriorEffectOperation,
     ContractReason::DependenciesCheckedGraphPosteriorResponseOperation,
@@ -902,6 +1030,8 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::DependenciesFunctionalEffectPosteriorDraws,
     ContractReason::DependenciesFunctionalEffectResponseFactorLaws,
     ContractReason::DependenciesFunctionalEffectResponsePosteriorDraws,
+    ContractReason::DependenciesIdentificationReplayBudget,
+    ContractReason::DependenciesIdentificationEstimandCriterion,
     ContractReason::DependenciesLinearFitSufficientStatistics,
     ContractReason::DependenciesNestedCounterfactualFitMoments,
     ContractReason::DependenciesNestedCounterfactualFitRank,
@@ -963,6 +1093,7 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::IdentificationStatus,
     ContractReason::IdentificationStructureSource,
     ContractReason::IdentificationTargetQuestion,
+    ContractReason::IdentificationProductEstimands,
     ContractReason::IdentitiesDataSnapshot,
     ContractReason::IdentitiesExecution,
     ContractReason::IdentitiesIdentification,
@@ -981,6 +1112,8 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::ProgramCheckedAipwLowering,
     ContractReason::ProgramCheckedAipwLoweringTarget,
     ContractReason::ProgramCheckedAipwUncertainty,
+    ContractReason::ProgramCheckedDrBinding,
+    ContractReason::ProgramCheckedDrLowering,
     ContractReason::ProgramCheckedFrontdoorLowering,
     ContractReason::ProgramCheckedFrontdoorLoweringTarget,
     ContractReason::ProgramCheckedFunctionalResponseGridTarget,
@@ -1014,6 +1147,8 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::ProgramFunctionalEffectResponseGridTargetKind,
     ContractReason::ProgramFunctionalProgram,
     ContractReason::ProgramFunctionalProgramTarget,
+    ContractReason::ProgramGraphPosteriorPrograms,
+    ContractReason::ProgramGraphPosteriorProgramsBinding,
     ContractReason::ProgramIdentification,
     ContractReason::ProgramIdentificationProduct,
     ContractReason::ProgramTarget,
@@ -1049,32 +1184,46 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "checked_aipw.row_binding",
     "claim.calibration",
     "claim.calibration.basis",
-    "claim.calibration.off_axis",
     "claim.domains",
     "claim.id",
     "claim.kind",
     "claim.value",
     "contract.seal",
+    "data_snapshot.cross_product_moments",
+    "data_snapshot.cross_product_moments_rank",
     "data_snapshot.linear_fit_moments",
     "data_snapshot.linear_fit_moments_rank",
     "data_snapshot.observation",
     "dependencies.checked_admg_graph_posterior_response_operation",
     "dependencies.checked_attribution_operation",
+    "dependencies.checked_batch_family_operation",
     "dependencies.checked_bayesian_basis_ate_operation",
     "dependencies.checked_bayesian_basis_cate_operation",
     "dependencies.checked_bayesian_class_conditional_operation",
     "dependencies.checked_bayesian_conditional_operation",
     "dependencies.checked_bayesian_dag_ate_operation",
+    "dependencies.checked_bayesian_dose_policy_operation",
     "dependencies.checked_bayesian_graph_posterior_ate_operation",
     "dependencies.checked_bayesian_iv_operation",
+    "dependencies.checked_bayesian_local_ratio_operation",
     "dependencies.checked_bayesian_mediation_operation",
+    "dependencies.checked_bayesian_panel_did_operation",
+    "dependencies.checked_bayesian_quantile_operation",
+    "dependencies.checked_bayesian_randomized_operation",
     "dependencies.checked_bayesian_rd_operation",
     "dependencies.checked_bayesian_robust_ate_operation",
+    "dependencies.checked_bayesian_survival_operation",
+    "dependencies.checked_bayesian_synthetic_control_operation",
     "dependencies.checked_bayesian_temporal_class_effect_operation",
     "dependencies.checked_bayesian_temporal_dag_effect_operation",
     "dependencies.checked_class_graph_posterior_effect_operation",
     "dependencies.checked_conditional_effect_operation",
     "dependencies.checked_derivative_response_operation",
+    "dependencies.checked_dr_replay_mismatch",
+    "dependencies.checked_dr_replay_resource",
+    "dependencies.checked_dr_replay_source",
+    "dependencies.checked_dr_replay_unsupported",
+    "dependencies.checked_estimator_operation",
     "dependencies.checked_glm_operation",
     "dependencies.checked_graph_posterior_effect_operation",
     "dependencies.checked_graph_posterior_response_operation",
@@ -1102,9 +1251,13 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "dependencies.functional_effect_posterior_draws",
     "dependencies.functional_effect_response_factor_laws",
     "dependencies.functional_effect_response_posterior_draws",
+    "dependencies.identification_estimand_criterion",
+    "dependencies.identification_replay_budget",
     "dependencies.linear_fit_sufficient_statistics",
     "dependencies.nested_counterfactual_fit_moments",
     "dependencies.nested_counterfactual_fit_rank",
+    "dependencies.refutation_replay",
+    "dependencies.scoped_refutation_replay",
     "distribution.atom_count",
     "distribution.atom_probability",
     "distribution.atom_replay_mismatch",
@@ -1163,6 +1316,7 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "identification.status",
     "identification.structure_source",
     "identification.target_question",
+    "identification_product.estimands",
     "identities.data_snapshot",
     "identities.execution",
     "identities.identification",
@@ -1181,6 +1335,8 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "program.checked_aipw_lowering",
     "program.checked_aipw_lowering.target",
     "program.checked_aipw_uncertainty",
+    "program.checked_dr_binding",
+    "program.checked_dr_lowering",
     "program.checked_frontdoor_lowering",
     "program.checked_frontdoor_lowering.target",
     "program.checked_functional_response_grid.target",
@@ -1214,6 +1370,8 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "program.functional_effect_response_grid.target_kind",
     "program.functional_program",
     "program.functional_program.target",
+    "program.graph_posterior_programs",
+    "program.graph_posterior_programs.binding",
     "program.identification",
     "program.identification_product",
     "program.target",
@@ -1242,9 +1400,13 @@ mod tests {
     fn reason_spellings_stay_unique_and_historical() {
         assert_eq!(ALL_CONTRACT_REASONS.len(), ALL_CONTRACT_REASON_SPELLINGS.len());
         let mut seen = std::collections::BTreeSet::new();
-        for (reason, spelling) in ALL_CONTRACT_REASONS.iter().zip(ALL_CONTRACT_REASON_SPELLINGS) {
-            assert_eq!(reason.as_str(), *spelling);
-            assert!(seen.insert(*spelling), "duplicate {spelling}");
+        for reason in ALL_CONTRACT_REASONS {
+            let spelling = reason.as_str();
+            assert!(
+                ALL_CONTRACT_REASON_SPELLINGS.binary_search(&spelling).is_ok(),
+                "{spelling} is not a historical spelling"
+            );
+            assert!(seen.insert(spelling), "duplicate {spelling}");
         }
         assert!(!ContractReason::BodyQuery.omitted_when_encoding());
         assert!(ContractReason::DependenciesCheckedGlmOperation.omitted_when_encoding());

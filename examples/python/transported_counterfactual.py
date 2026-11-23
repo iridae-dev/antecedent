@@ -12,7 +12,14 @@ Structural model::
     Y = (3 + 0.75 Z) A + 4 M + 1.5 Z + U_Y
 
 with ``a1 = 2`` and ``a0 = 0.5``. Per unit, ``NDE(z) = 4.5 + 1.125 z`` and ``NIE(z) = 12 - 3 z``.
-Target law ``{0: 0.25, 1: 0.75}`` (``E z = 0.75``): NDE 5.34375, NIE 9.75, total 15.09375."""
+Target law ``{0: 0.25, 1: 0.75}`` (``E z = 0.75``): NDE 5.34375, NIE 9.75, total 15.09375.
+
+No data are simulated: the model and both covariate laws are declared. The script asserts these
+closed-form target contrasts, that the source contrast (5.4) differs, that the result is point-only
+with its premises recorded as declared, and that a selection node on ``y`` refuses with a witness
+whose two models differ by 1.5 on the target. The premises are declared, never checked.
+
+Run: ``python examples/python/transported_counterfactual.py``."""
 
 from __future__ import annotations
 
@@ -43,7 +50,7 @@ model = AdditiveNoiseScm(
 )
 source = CovariateLaw.univariate("z", {0.0: 0.4, 1.0: 0.4, 2.0: 0.2})
 target = CovariateLaw.univariate("z", {0.0: 0.25, 1.0: 0.75})
-# The class's declarations default to undeclared; declaring them records a claim, it checks nothing.
+# The premises default to undeclared. Declaring them records a claim; nothing here checks them.
 premises = Premises(additive_noise=True, noise_laws_shared=True, cross_world_independence=True)
 
 

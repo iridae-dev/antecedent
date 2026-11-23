@@ -15,7 +15,7 @@ once from
 Only ``proven_non_transportable`` is an impossibility claim, and only because a
 two-model witness (two finite models that agree on every declared regime and
 differ on the query) was re-verified by exact rational enumeration. A
-``missing_evidence`` decision names the regimes that would license a derivation,
+``missing_evidence`` decision names the regimes that would support a derivation,
 ``not_certified`` says the bounded search found neither a derivation nor a
 witness (not an impossibility), and ``budget_cancel`` is a stop with its receipt,
 never a verdict. The route is sound and incomplete.
@@ -38,6 +38,14 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any
 
+from .._artifact_protocol import (
+    ArtifactAcceptance,
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .._columns import coerce_fields
 from .._measured_inference import MeasuredInference
 from .._native import (
@@ -52,8 +60,11 @@ from .._native import (
 from .._native import (
     identify_counterfactual_transport_native as _identify,
 )
+from .._scientific import ScientificResult
 from ..errors import CausalTypeError, CausalValueError
+from ..execution import Execution
 from ..graph import Admg
+from ._controls import call_native
 from ._impl import (
     EvidenceCatalog,
     ExactDiscreteLaw,
@@ -276,7 +287,7 @@ def _freeze(value: Any) -> Any:
 
 
 @dataclass(frozen=True, slots=True)
-class CounterfactualTransportResult:
+class CounterfactualTransportResult(ScientificResult):
     """The exact point of one evaluation: a probability with no sampling uncertainty.
 
     ``probability = numerator / denominator``; ``conditioning_mass`` is the
@@ -314,9 +325,10 @@ class CounterfactualTransportResult:
         premises, data = self._native.identity()
         return premises, data
 
-    def export(self) -> bytes:
-        """The point as a ``counterfactual_transport_v1`` artifact."""
-        return bytes(self._native.export())
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
+        """The point as a ``counterfactual_transport_v2`` artifact."""
+        return artifact_from_receipt(self, bytes(self._native.export()))
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -362,7 +374,7 @@ class CounterfactualTransportDerivation:
     """A frozen, checked derivation of a counterfactual transport query.
 
     Evaluation never searches again. ``evaluate`` leaves this value unchanged;
-    ``refresh`` returns a new value bound to replaced laws (changed numbers at
+    ``bind_snapshot`` returns a new value bound to replaced laws (changed numbers at
     an unchanged shape replace the previous numbers) and refuses laws of another
     population or regime; ``estimate`` returns the bound state.
     """
@@ -387,57 +399,58 @@ class CounterfactualTransportDerivation:
 
     @property
     def bound(self) -> bool:
-        """Whether evidence has been bound by :meth:`refresh`."""
+        """Whether evidence has been bound by :meth:`bind_snapshot`."""
         return bool(self._native.bound)
 
     def evaluate(
         self,
         *,
         evidence: ExactTransportData | Iterable[ExactDiscreteLaw],
-        memory_bytes: int | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> CounterfactualTransportResult:
         """Evaluate on exact finite laws of the cited population/regime/world.
 
-        A counted or empirical law is refused (``cell_not_licensed``,
-        ``counterfactual_transport.sampled_inference_closed``): sampled evidence
+        A counted or empirical law is refused (``not_supported``,
+        ``counterfactual_transport.no_sampled_inference``): sampled evidence
         belongs to :meth:`estimate_sampled`. A cited regime without a law at a
         needed intervention level is ``transport_missing_provider``; a
         conditioning event of zero mass is ``transport_support_failure``.
         """
         return _result(
-            self._native.evaluate(
+            call_native(
+                execution,
+                self._native.evaluate,
                 _laws(evidence),
-                memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-                cancel=cancel,
+                cancel="cancel",
+                memory="memory_bytes",
             )
         )
 
-    def refresh(
+    def bind_snapshot(
         self,
         evidence: ExactTransportData | Iterable[ExactDiscreteLaw],
         *,
-        memory_bytes: int | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> CounterfactualTransportDerivation:
         """A derivation bound to replaced laws; this value is untouched."""
         return CounterfactualTransportDerivation(
-            self._native.refresh(
+            call_native(
+                execution,
+                self._native.bind_snapshot,
                 _laws(evidence),
-                memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-                cancel=cancel,
+                cancel="cancel",
+                memory="memory_bytes",
             )
         )
 
     def estimate(
-        self, *, memory_bytes: int | None = None, cancel: Any = None
+        self,
+        *,
+        execution: Execution | None = None,
     ) -> CounterfactualTransportResult:
         """The numerical state of the bound evidence (``transport_missing_provider`` if none)."""
         return _result(
-            self._native.estimate(
-                memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-                cancel=cancel,
-            )
+            call_native(execution, self._native.estimate, cancel="cancel", memory="memory_bytes")
         )
 
     def estimate_sampled(
@@ -447,8 +460,7 @@ class CounterfactualTransportDerivation:
         overlap: SamplingOverlap,
         unseen_rule: UnseenCellRule | None = None,
         limits: SampledTransportLimits | None = None,
-        memory_bytes: int | None = None,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> SampledCounterfactualTransportEstimate:
         """Plug-in estimate of the stored derivation from sampled count tables.
 
@@ -468,7 +480,7 @@ class CounterfactualTransportDerivation:
         evaluation on the estimated tables, the point estimate, and statistical
         inference, which is withheld: the delta-method standard error is
         reported as ``uncalibrated_standard_error`` and no interval is
-        published (``cell_not_licensed``).
+        published (``not_supported``).
         """
         tables = tuple(tables)
         if any(not isinstance(t, SampledCountTable) for t in tables):
@@ -481,7 +493,9 @@ class CounterfactualTransportDerivation:
         bounds = SampledTransportLimits() if limits is None else limits
         if not isinstance(bounds, SampledTransportLimits):
             raise CausalTypeError("limits must be SampledTransportLimits")
-        native = _estimate_sampled(
+        native = call_native(
+            execution,
+            _estimate_sampled,
             self._native,
             list(tables),
             (
@@ -494,8 +508,8 @@ class CounterfactualTransportDerivation:
             max_envelope_evaluations=bounds.max_envelope_evaluations,
             max_operations=bounds.max_operations,
             max_depth=bounds.max_depth,
-            memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-            cancel=cancel,
+            cancel="cancel",
+            memory="memory_bytes",
         )
         return _sampled(native)
 
@@ -506,7 +520,7 @@ class CounterfactualTransportDerivation:
 
 
 @dataclass(frozen=True, slots=True)
-class CounterfactualTransportDecision:
+class CounterfactualTransportDecision(ScientificResult):
     """The one decision of a counterfactual transport request.
 
     ``status`` is ``identified``, ``proven_non_transportable``,
@@ -551,7 +565,7 @@ class CounterfactualTransportDecision:
 
     @property
     def missing_regimes(self) -> tuple[Mapping[str, Any], ...]:
-        """The regimes whose supplied laws would license a derivation."""
+        """The regimes whose supplied laws would support a derivation."""
         return tuple(self.decision.get("missing_regimes", ()))
 
     @property
@@ -581,9 +595,10 @@ class CounterfactualTransportDecision:
         premises, data = self._native.identity()
         return premises, data
 
-    def export(self) -> bytes:
-        """A proven obstruction as a ``counterfactual_transport_v1`` artifact."""
-        return bytes(self._native.export())
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
+        """A proven obstruction as a ``counterfactual_transport_v2`` artifact."""
+        return artifact_from_receipt(self, bytes(self._native.export()))
 
 
 def _decision(native: Any, *, verified: bool = False) -> CounterfactualTransportDecision:
@@ -605,8 +620,7 @@ def identify_counterfactual(
     max_evaluation_operations: int | None = None,
     max_evaluation_depth: int | None = None,
     max_support_rows: int = 1_000_000,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> CounterfactualTransportDecision:
     """Decide a counterfactual transport query against one evidence catalog.
 
@@ -626,7 +640,9 @@ def identify_counterfactual(
     if not isinstance(catalog, EvidenceCatalog):
         raise CausalTypeError("catalog must be an EvidenceCatalog")
     index = {world.name: i for i, world in enumerate(query.worlds)}
-    native = _identify(
+    native = call_native(
+        execution,
+        _identify,
         graph,
         [(variable, list(levels)) for variable, levels in query.levels.items()],
         [
@@ -648,12 +664,29 @@ def identify_counterfactual(
         ),
         max_eval_depth=_optional_non_negative("max_evaluation_depth", max_evaluation_depth),
         max_support_rows=_non_negative("max_support_rows", max_support_rows),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+        cancel="cancel",
+        memory="memory_bytes",
     )
     return _decision(native)
 
 
+def _counterfactual_acceptance(result: Any, bound: bool) -> ArtifactAcceptance:
+    numeric = isinstance(result, CounterfactualTransportResult)
+    return ArtifactAcceptance(
+        "replayed",
+        bound,
+        numeric,
+        False,
+        proof="native counterfactual consumer re-decides the retained proof and replays the point or exactly verifies the obstruction witness",
+        unresolved=() if numeric else ("the verified obstruction supplies no numerical answer",),
+    )
+
+
+@artifact_consumer(
+    proof="native counterfactual exact consumer",
+    acceptance=_counterfactual_acceptance,
+    identity=("expected_premises_digest", "expected_data_digest"),
+)
 def consume_counterfactual_transport_artifact(
     artifact: bytes,
     *,
@@ -666,8 +699,7 @@ def consume_counterfactual_transport_artifact(
     max_support_rows: int | None = None,
     max_laws: int | None = None,
     max_law_cells: int | None = None,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> CounterfactualTransportResult | CounterfactualTransportDecision:
     """Independently verify an exported artifact from its bytes.
 
@@ -683,9 +715,12 @@ def consume_counterfactual_transport_artifact(
     refusal that names what failed. Nothing the artifact stores raises the
     consumer's limits.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
-    kind, result, obstruction = _consume_exact(
+    kind, result, obstruction = call_native(
+        execution,
+        _consume_exact,
         artifact,
         expected_premises_digest=expected_premises_digest,
         expected_data_digest=expected_data_digest,
@@ -698,8 +733,8 @@ def consume_counterfactual_transport_artifact(
         max_support_rows=_optional_non_negative("max_support_rows", max_support_rows),
         max_laws=_optional_non_negative("max_laws", max_laws),
         max_law_cells=_optional_non_negative("max_law_cells", max_law_cells),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+        cancel="cancel",
+        memory="memory_bytes",
     )
     if kind == "identified":
         return _result(result, verified=True)
@@ -872,7 +907,7 @@ class SampledTransportLimits:
 
 
 @dataclass(frozen=True, slots=True)
-class SampledCounterfactualTransportEstimate:
+class SampledCounterfactualTransportEstimate(ScientificResult):
     """A plug-in estimate with four separate claims and no interval.
 
     ``labels`` keeps structural identification, exact evaluation on the
@@ -880,7 +915,7 @@ class SampledCounterfactualTransportEstimate:
     ``probability`` is ``None`` for an envelope request whose observed shares
     leave the formula undefined, and then ``envelope`` is the structural range.
     ``standard_error`` is labelled ``uncalibrated_standard_error``; ``interval``
-    is always withheld (``available`` is ``False``, reason ``cell_not_licensed``).
+    is always withheld (``available`` is ``False``, reason ``not_supported``).
     """
 
     labels: Mapping[str, str]
@@ -918,23 +953,25 @@ class SampledCounterfactualTransportEstimate:
         premises, data = self._native.identity()
         return premises, data
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
         """The estimate as a ``sampled_counterfactual_transport_v1`` artifact."""
-        return bytes(self._native.export())
+        return artifact_from_receipt(self, bytes(self._native.export()))
 
     def measure_interval(
-        self, *, memory_bytes: int | None = None, cancel: Any = None
+        self,
+        *,
+        execution: Execution | None = None,
     ) -> MeasuredInference:
-        """The 95% delta-method Wald interval, bound to its measured coverage record.
+        """The 95% delta-method Wald interval, with its calibration status.
 
-        The artifact is replayed from its counts. The interval is reported only
-        for the measured construction (independent units, refused unseen cells,
-        equal table totals inside the measured sample-size range, a query with a
-        currently attesting coverage record); anything else raises
-        ``cell_not_licensed``. The estimate itself still carries no interval.
+        The artifact is replayed from its counts and the interval is annotated with
+        the calibration status of exactly this construction. A stratified table,
+        tables sharing one dataset, or an estimate without a standard error refuses
+        ``route_not_supported``. The estimate itself carries no interval.
         """
-        native = self._native.measure_interval(
-            memory_bytes=_optional_non_negative("memory_bytes", memory_bytes), cancel=cancel
+        native = call_native(
+            execution, self._native.measure_interval, cancel="cancel", memory="memory_bytes"
         )
         return MeasuredInference._from_native(native)
 
@@ -963,6 +1000,12 @@ def _sampled(native: Any, *, verified: bool = False) -> SampledCounterfactualTra
     )
 
 
+@artifact_consumer(
+    proof="native sampled counterfactual consumer re-decides the proof and recomputes the point from retained count tables",
+    replayable=True,
+    resumable=False,
+    identity=("expected_premises_digest", "expected_data_digest"),
+)
 def consume_sampled_counterfactual_transport_artifact(
     artifact: bytes,
     *,
@@ -974,8 +1017,7 @@ def consume_sampled_counterfactual_transport_artifact(
     max_depth: int | None = None,
     max_tables: int | None = None,
     max_table_cells: int | None = None,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> SampledCounterfactualTransportEstimate:
     """Independently verify a sampled artifact and recompute its estimate from the counts.
 
@@ -985,9 +1027,12 @@ def consume_sampled_counterfactual_transport_artifact(
     stored number, label or report that differs from the recomputation (bit for
     bit). A stored interval cannot exist: the format has no interval slot.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
-    native = _consume_sampled(
+    native = call_native(
+        execution,
+        _consume_sampled,
         artifact,
         expected_premises_digest=expected_premises_digest,
         expected_data_digest=expected_data_digest,
@@ -999,7 +1044,7 @@ def consume_sampled_counterfactual_transport_artifact(
         max_depth=_optional_non_negative("max_depth", max_depth),
         max_tables=_optional_non_negative("max_tables", max_tables),
         max_table_cells=_optional_non_negative("max_table_cells", max_table_cells),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+        cancel="cancel",
+        memory="memory_bytes",
     )
     return _sampled(native, verified=True)

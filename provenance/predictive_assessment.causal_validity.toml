@@ -5,7 +5,7 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-# No primary paper: a closed variant; no method is implemented, so there is nothing to cite.
+# No primary paper: an unsupported variant; no method is implemented, so there is nothing to cite.
 papers = [
 ]
 implementation_deviations = [
@@ -13,3 +13,22 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent-io/tests/predictive_assessment_artifact.rs", "crates/antecedent-validate/tests/predictive_assessment.rs", "crates/antecedent/tests/predictive_assessment_facade.rs"]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "unsupported_variant"
+rationale = "Unsupported variant: a score is never read as causal validity."
+no_independent_algorithm = "ASSESSMENT_CAUSAL_VALIDITY is the constant not_established and request_causal_validity refuses."
+record_sha256 = "b276e7a30d9829b557353294c17aa0090adc7740b7fb1cf9cad70dd7232e1370"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-validate/src/predictive_assessment/assess.rs"
+items = ["const ASSESSMENT_CAUSAL_VALIDITY", "const ASSESSMENT_FAMILY", "const ASSESSMENT_INFERENCE_CLAIM", "const CANCELLATION_STRIDE", "const MAX_ASSESSMENT_WORK", "const REPLAY_TOLERANCE", "fn admit_comparisons", "fn assess_predictive_laws", "fn assessment_identity", "fn assessment_identity_with_provenance", "fn canonical", "fn canonicalized", "fn close", "fn close_all", "fn close_opt", "fn compare_predictors", "fn comparison_predictors", "fn diagnostics_difference", "fn first_replay_difference", "fn interval_refusal", "fn new", "fn request_causal_validity", "fn request_score_as_probability", "fn request_score_interval", "fn resolve_comparisons", "fn score_predictor", "fn serial_lag", "fn sorted_keys", "fn validate_spec", "fn withheld", "struct AssessmentUncertainty", "struct FoldScore", "struct PredictiveAssessmentReport", "struct PredictiveAssessmentSpec", "struct PredictorAssessment", "struct ScoreIntervalRequest", "struct ScoreSummary"]
+sha256 = "b1b89cc66df4062a27b6661da1085ff3aafce5f11745b3e1960d48770a7ec394"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-validate/tests/predictive_assessment.rs"
+items = ["const FORECAST_A", "const FORECAST_B", "fn a_calibrated_generator_has_a_uniform_pit_and_nominal_coverage", "fn a_callback_law_and_an_incomplete_provider_identity_are_refused_by_name", "fn a_changed_law_or_observation_changes_the_identity", "fn a_malformed_diagnostic_configuration_is_refused", "fn a_mismatched_target_or_horizon_is_refused_not_converted", "fn a_rolling_origin_design_must_match_the_target_horizon", "fn a_score_a_law_does_not_support_is_refused", "fn a_score_interval_request_is_refused_with_not_supported", "fn a_serial_truncation_lag_shorter_than_the_horizon_is_refused", "fn a_single_cluster_cannot_give_a_cluster_standard_error", "fn an_infinite_log_score_is_refused_rather_than_averaged", "fn an_undeclared_fit_is_unverified_never_held_out", "fn bernoulli_brier_log_and_crps_match_hand_values", "fn caller_minted_keys_are_never_verified_held_out", "fn categorical_brier_and_log_match_hand_values", "fn close", "fn comparison_admission_aggregates_work_and_rejects_duplicates", "fn comparison_name_bytes_are_admitted_before_common_prefix_search", "fn compensated_sum", "fn crps_closed_form", "fn ctx", "fn declared_bounds_on_predictors_atoms_and_joint_dimension_are_refused", "fn drift_compares_the_pit_of_two_windows", "fn drift_refuses_empty_windows_values_outside_the_unit_interval_and_bad_bins", "fn energy_score_matches_hand_values_and_reduces_to_the_crps_in_one_dimension", "fn every_report_is_point_only_not_measured_and_not_a_causal_claim", "fn exact_expected_score_refuses_malformed_finite_truths", "fn finite_law_and_ensemble_crps_agree_with_the_energy_form", "fn gaussian_crps_equals_the_integral_of_the_squared_distribution_difference", "fn gaussian_crps_matches_the_closed_form_hand_values", "fn gaussian_laws", "fn gaussian_log_score_matches_the_density", "fn gaussian_outcomes", "fn generator_spec", "fn iid_is_refused_for_rolling_origin_and_blocked_designs", "fn key", "fn large_iid_spec", "fn log_closed_form", "fn malformed_inputs_are_refused", "fn mean_score", "fn minted_key", "fn miscalibrated_generators_are_flagged_by_the_diagnostics", "fn no_declared_dependence_withholds_every_standard_error", "fn observations", "fn overlap_is_detected_from_row_identities_and_labelled", "fn overlap_spec", "fn posterior_predictive_replicates_are_scored_as_sample_laws", "fn predictor", "fn predictors_fitted_on_shared_rows_state_their_fit_overlap", "fn refusal", "fn reliability_and_the_discrete_pit_match_hand_values", "fn rolling_origin_reports_a_score_per_origin_and_a_serial_standard_error", "fn rolling_spec", "fn score_differences_are_paired_and_state_their_dependence", "fn standalone_scoring_refuses_malformed_inputs_and_non_finite_scores", "fn t_quantile_large_df", "fn target", "fn the_assessment_is_invariant_to_case_order_and_deterministic", "fn the_energy_score_is_proper_on_a_finite_joint_law", "fn the_expected_brier_score_of_a_bernoulli_forecast_is_variance_plus_squared_error", "fn the_iid_score_interval_is_the_exact_t_interval_at_ten_thousand_and_a_hundred_thousand_cases", "fn the_true_finite_law_has_the_smallest_expected_score", "fn the_variance_of_a_mean_difference_follows_the_declared_dependence"]
+sha256 = "2f1ed6fc63c49f20b181a7718f9b900f0568430185fa8e1e8b823b28b441b9bc"

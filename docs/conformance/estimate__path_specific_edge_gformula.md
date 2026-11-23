@@ -64,4 +64,4 @@ Consumers:
 
 ## Expected summary
 
-Top-level keys: `bayesian, case, columns, contingency_table, frequentist, graph, identification, query, schema_version, shared_descendant, truth` (11 fields).
+Top-level keys: `bayesian, case, columns, contingency_table, frequentist, graph, identification, oracle, query, schema_version, shared_descendant, truth` (12 fields).

@@ -2,7 +2,25 @@
   "fixture_id": "response.conditional_ipcw",
   "oracle": {
     "kind": "external_package",
-    "method": "R survival 3.8.6 coxph Breslow and basehaz left limits"
+    "method": "R survival 3.8.6 coxph Breslow and basehaz left limits",
+    "project": "survival",
+    "version": "3.8.6",
+    "generator": "conformance/response/conditional_ipcw/generate.R",
+    "command": "Rscript conformance/response/conditional_ipcw/generate.R && python3 conformance/response/conditional_ipcw/freeze.py",
+    "environment_lock": "conformance/response/conditional_ipcw/renv.lock",
+    "generator_retained": true,
+    "executed_here": true,
+    "asserted_outputs": [
+      "coefficients",
+      "survival (left-limit censoring survival per row)",
+      "weight"
+    ],
+    "context_only_outputs": [
+      "time, event, a, z (inputs)",
+      "fixture_id"
+    ],
+    "independence_basis": "generate.R builds the 180-row data from closed-form deterministic expressions of the row index (sin, cos and modular-arithmetic uniforms), fits survival::coxph on the censoring indicator with Breslow ties and eps 1e-12, takes the cumulative baseline hazard from survival::basehaz(centered = FALSE), forms each row's left-limit hazard sum(diff(c(0, hazard))[time < t]), the censoring survival exp(-H * exp(lp)) and the weight event / survival. It imports no Antecedent code and no repository helper. The reviewer re-ran generate.R under R 4.6.1 with survival 3.8-6 into a scratch directory and it reproduced the committed oracle.csv and coefficients.txt exactly (maximum absolute difference 0). The shared object is the conditional inverse-probability-of-censoring weight definition (left-limit censoring survival from the Breslow baseline), which the generator states and the product implements.",
+    "historical_exposure": "Both the data expressions and the weight convention (left-limit survival, Breslow baseline) were chosen by the repository author alongside the product; the fitted numbers come from the R package, not from the product. The package version is recorded in the generator and the lock."
   },
   "command": "Rscript conformance/response/conditional_ipcw/generate.R && python3 conformance/response/conditional_ipcw/freeze.py",
   "coefficients": [

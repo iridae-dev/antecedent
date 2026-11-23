@@ -5,7 +5,12 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-implementation_deviations = []
+implementation_deviations = [
+ "Coefficient covariance uses the conjugate scale convention beta|sigma2 ~ N(m0, sigma2 V0), including dense correlated V0 priors; the supplied coefficient variances are V0, not unconditional beta variances.",
+ "Nonnegative weights enter the Gaussian log likelihood as powers: the NIG shape increment is sum(weights)/2. This is not automatically a calibrated sampling-variance treatment for arbitrary survey or precision weights.",
+ "An absolute coefficient-scale marker is converted to V0 using known residual variance when supplied, otherwise a target-data weighted least-squares residual-variance plug-in with positive-row-count minus coefficient-count degrees of freedom. The latter makes the prior data-dependent; ordinary conjugate formulas conditional on the plug-in do not account for its uncertainty.",
+ "Posterior precision is solved after power-of-two diagonal equilibration; publication uses a condition lower bound for that equilibrated system. Raw-moment-only residual sums of squares carry a rounding-resolution diagnostic; design-backed fits recompute residuals directly.",
+]
 
 papers = [
  { title = "Bayesian Data Analysis", doi = "10.1201/b16018", sections = ["Normal–Inv-Gamma conjugate linear regression"] },
@@ -16,4 +21,63 @@ upstream_implementations_observed = []
 test_sources = [
  "closed-form OLS recovery on noiseless linear design",
  "conformance/bayesian/conjugate_gaussian",
+ "crates/antecedent-prob/src/conjugate.rs::tests::absolute_scale_plug_in_rejects_malformed_design_before_reading_it (software shape refusal, not posterior accuracy)",
+ "crates/antecedent-prob/src/conjugate.rs::tests::absolute_scale_plug_in_yields_the_stated_absolute_prior_width (conversion consistency and bounded synthetic scale check)",
+ "crates/antecedent-prob/src/conjugate.rs::tests::absolute_scale_plug_in_uses_a_known_residual_variance_exactly (conversion consistency)",
+ "crates/antecedent-prob/tests/bayes_posterior_oracle.rs::known_variance_posterior_obeys_bayes_rule_with_weights_offsets_and_dense_prior",
+ "crates/antecedent-prob/tests/bayes_posterior_oracle.rs::nig_integer_weights_equal_replication_and_zero_weight_equals_deletion",
+ "crates/antecedent-prob/tests/bayes_posterior_oracle.rs::nig_residual_variance_mean_and_coefficient_covariance_match_independent_algebra",
+ "crates/antecedent-prob/tests/dense_v0_sequential.rs (dense V0 pooling identity)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The conjugate Normal-Inv-Gamma and known-variance Normal posterior in prob/conjugate.rs for a Gaussian-identity design with optional nonnegative prior weights, offsets, a diagonal or dense conjugate scale V0, the posterior-parameter algebra, draw generation (Marsaglia-Tsang gamma, Box-Muller normal, Cholesky colouring) and the absolute-scale plug-in conversion. A prior set that carries a Beta or Gamma count prior (PriorSpec::Beta, PriorSpec::Gamma, consumed by the conjugate count backends) is refused at entry by PriorSet::reject_count_priors and by the Gaussian variance-model resolution rather than ignored; that refusal is read here, the count backends are not. Not a review of the Laplace/HMC backends, of hierarchical priors, or of the frequentist coverage of the resulting intervals."
+assumptions = ["The Gaussian linear model y_i = x_i'beta + offset_i + e_i with independent errors of variance sigma^2 / w_i; a nonnegative weight enters as a power of the likelihood, so integer weights equal row replication and a zero weight equals deleting the row.", "Prior beta | sigma^2 ~ N(m0, sigma^2 V0) with V0 the supplied scale (diagonal, or dense when a coefficient correlation is carried) and sigma^2 ~ Inv-Gamma(shape, scale) with scale a rate in the gamma parameterisation; the supplied variances are V0, not unconditional variances.", "Posterior statements are conditional on the stated prior and likelihood. The weakly informative defaults (isotropic scale 10, Inv-Gamma(1e-3, 1e-3)) are conventions, not noninformative priors; the absolute-scale plug-in makes the prior data dependent and its uncertainty is not propagated.", "Nothing here shows that posterior intervals have frequentist coverage or that the linear model is correct for the data."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source and its numerical helpers and checked them against closed-form algebra and high-precision or exhaustive-enumeration references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, so it is a code-versus-rule review with executing references, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The new test file and its inputs are repository-authored (MIT OR Apache-2.0) and use fixed deterministic data written in the file; no upstream code or data is imported."
+limitations = "Fixed 14-row, 2-coefficient cases (weights, offsets, a zero weight, a dense 2x2 V0) with a Bayes-rule density-ratio check, a replication-equivalence check and moment checks from 60,000 seeded draws at 2 to 5 percent tolerance; no large-p, ill-conditioned or non-integer-weight sampling-variance study. The draw-moment checks use fixed seeds and are consistency checks of the sampler, not a proof of its distribution. The Bayesian Data Analysis chapter was not re-read for this review. Calibration of any downstream interval remains deferred. The refusal of a Beta or Gamma prior is checked by reading the guard at both entry points; no test in this record constructs such a set."
+sources = ["https://doi.org/10.1201/b16018"]
+findings_resolved = ["Verified against independent algebra: V_n^-1 = V0^-1 + X'WX, m_n = V_n (V0^-1 m0 + X'W(y - offset)), alpha_n = alpha0 + sum(w)/2 and beta_n = beta0 + (RSS(m_n) + (m_n - m0)'V0^-1(m_n - m0))/2; the code's residual-plus-prior-quadratic form equals the y'Wy + m0'V0^-1 m0 - m_n'V_n^-1 m_n form computed separately in the test.", "Verified the known-variance posterior by Bayes' rule: log-density ratios of the published N(map, cov) between coefficient vectors equal the difference of the unnormalised log prior plus weighted log likelihood computed row by row, with weights, offsets, a zero-weight row and a dense V0 (previously only the closed form itself and a pooling identity were exercised).", "Verified that integer weights give the same mean and draws as replicated rows (so the shape increment is sum(w)/2) and that E[sigma^2] and Var(beta_0) of the draws equal beta_n/(alpha_n-1) and E[sigma^2] V_n[0][0] from the separate algebra.", "Read the gamma sampler (Marsaglia-Tsang with the U^(1/shape) boost for shape < 1), the inverse-gamma transform and the Box-Muller normal against their definitions; no defect found. No product defect was found in this record."]
+record_sha256 = "9e9e295cc6dd44c8d3867bb6b3f551dfd843b83652f52b88f20ad1720efdba23"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-prob/src/conjugate.rs"
+items = ["fn check_preprocess_cancelled", "fn draw_mvn_known_sigma", "fn draw_nig", "fn ensure_conjugate_gram", "fn fit", "fn fit_conjugate_gaussian", "fn fit_conjugate_gaussian_resolved", "fn fit_with_absolute_scale_resolved", "fn inverse", "fn ols_residual_variance", "fn posterior_known_sigma2", "fn posterior_nig", "fn residual_ss_from_design", "fn residual_ss_from_moments", "fn solve_posterior_mean", "struct NigMoments", "struct NigPosterior", "struct ScaledSolve"]
+sha256 = "636803f0edcb36083b9864041b4cdd9a4af19f54705a091368ae8679d9da32b8"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-prob/src/prior.rs"
+items = ["const CORRELATION_ZERO", "enum ContrastCoding", "enum PriorSpec", "fn dim", "fn from", "fn from_covariance", "fn len", "fn matrix", "fn new", "fn push", "fn reject_count_priors", "fn validate", "fn weakly_informative", "struct CoefficientCorrelation", "struct GaussianCoefficientPrior", "struct InvGammaPrior", "struct PriorSet"]
+sha256 = "db54f0b3632d525bdddf1ae8de8d45b0ecb55b488a1f98cd65baee3c8e2d9133"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-prob/src/likelihood_terms.rs"
+items = ["module"]
+sha256 = "bd6b3dede8fa387aaf09d23f8d911e3a093cadb537e9fbd969662560d023fea7"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-kernels/src/rng.rs"
+items = ["fn categorical_mass", "fn categorical_total", "fn len", "fn new", "fn total"]
+sha256 = "7f9dde98c97c457e185b7cd1993acf0cb586091003401a842e889988e78a0006"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-prob/tests/bayes_posterior_oracle.rs"
+items = ["const INT_WEIGHTS", "const M0", "const OFFSETS", "const WEIGHTS", "const X1", "const Y_GAUSS", "fn colmajor", "fn gaussian_prior", "fn known_variance_posterior_obeys_bayes_rule_with_weights_offsets_and_dense_prior", "fn nig_integer_weights_equal_replication_and_zero_weight_equals_deletion", "fn nig_prior", "fn nig_residual_variance_mean_and_coefficient_covariance_match_independent_algebra", "fn quad2"]
+sha256 = "d688baeb5a01a55922cb4a722e271e59fafc18d22c5da3925299acdee3b5bdad"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-prob/tests/dense_v0_sequential.rs"
+items = ["const P", "const SIGMA2", "fn analytic_posterior", "fn batch", "fn colmajor", "fn invert", "fn laplace_logit_hessian_adds_dense_prior_precision", "fn nig_posterior_mean_uses_dense_v0", "fn rel_close"]
+sha256 = "2341fc2fb5f7d353a116d05ab4985623ec991ebb8c04588868053f4de6d0eb90"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "conformance/bayesian/conjugate_gaussian/expected.json"
+sha256 = "514cc895bcf5601de576b88ca785c804c58323c531bc194937ef3cedd46c03ee"

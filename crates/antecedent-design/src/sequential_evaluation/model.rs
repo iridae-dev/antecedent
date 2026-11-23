@@ -1,6 +1,6 @@
 //! The dynamic finite model a policy is evaluated in.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
@@ -12,9 +12,10 @@ use antecedent_core::measurement_model::{
 
 use super::policy::HistoryKey;
 use super::{
-    MAX_ACTIONS, MAX_HORIZON, MAX_LABEL_BYTES, MAX_STATES, PROBABILITY_TOLERANCE,
+    MAX_ACTIONS, MAX_HORIZON, MAX_LABEL_BYTES, MAX_MODEL_WORK, MAX_STATES, PROBABILITY_TOLERANCE,
     SEQUENTIAL_EVALUATION_IDENTITY_VERSION, SequentialEvaluationError, SequentialResult,
 };
+use antecedent_core::named_variants;
 
 /// What taking an action does to the episode.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -28,26 +29,14 @@ pub enum ActionRole {
     Commit,
 }
 
+named_variants! {
+    ActionRole {
+        Continue => "continue",
+        Commit => "commit",
+    }
+}
+
 impl ActionRole {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Continue => "continue",
-            Self::Commit => "commit",
-        }
-    }
-
-    /// Parse a stable name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        match name {
-            "continue" => Some(Self::Continue),
-            "commit" => Some(Self::Commit),
-            _ => None,
-        }
-    }
-
     const fn tag(self) -> u64 {
         match self {
             Self::Continue => 1,
@@ -68,26 +57,14 @@ pub enum CensoringRule {
     Forfeit,
 }
 
+named_variants! {
+    CensoringRule {
+        Refuse => "refuse",
+        Forfeit => "forfeit",
+    }
+}
+
 impl CensoringRule {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Refuse => "refuse",
-            Self::Forfeit => "forfeit",
-        }
-    }
-
-    /// Parse a stable name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        match name {
-            "refuse" => Some(Self::Refuse),
-            "forfeit" => Some(Self::Forfeit),
-            _ => None,
-        }
-    }
-
     const fn tag(self) -> u64 {
         match self {
             Self::Refuse => 1,
@@ -336,7 +313,7 @@ fn matrix_ok(values: &[f64], states: usize) -> bool {
 }
 
 impl FiniteSequentialModel {
-    /// Check the model is well formed and its channels are licensed.
+    /// Check the model is well formed and its channels are supported.
     ///
     /// # Errors
     /// The first malformed declaration, as a typed refusal naming the field
@@ -499,6 +476,21 @@ impl FiniteSequentialModel {
                 "declare the finite action set",
             ));
         }
+        let work = (states as u128)
+            .saturating_mul(states as u128)
+            .saturating_mul(self.actions.len() as u128)
+            .saturating_mul(self.horizon as u128);
+        if work > MAX_MODEL_WORK {
+            return Err(refusal!(
+                "invalid_argument",
+                "sequential_evaluation.model_work",
+                format!(
+                    "the model's states x states x actions x horizon is {work}, over the \
+                     budget of {MAX_MODEL_WORK}"
+                ),
+                "reduce the latent states, the actions or the horizon",
+            ));
+        }
         if self.terminal_utility.len() != states || !finite_all(&self.terminal_utility) {
             return Err(refusal!(
                 "invalid_argument",
@@ -507,15 +499,15 @@ impl FiniteSequentialModel {
                 "declare the utility when the horizon is reached without a commit",
             ));
         }
-        if let Some(budget) = self.resource_budget {
-            if !(budget.is_finite() && budget >= 0.0) {
-                return Err(refusal!(
-                    "invalid_argument",
-                    "sequential_evaluation.model_resource_budget",
-                    "the resource budget must be finite and non-negative",
-                    "declare a non-negative budget or none",
-                ));
-            }
+        if let Some(budget) = self.resource_budget
+            && !(budget.is_finite() && budget >= 0.0)
+        {
+            return Err(refusal!(
+                "invalid_argument",
+                "sequential_evaluation.model_resource_budget",
+                "the resource budget must be finite and non-negative",
+                "declare a non-negative budget or none",
+            ));
         }
         Ok(())
     }
@@ -654,7 +646,7 @@ impl FiniteSequentialModel {
         if model.indicator.id == self.state_variable {
             return Err(SequentialEvaluationError::new(
                 antecedent_core::reason_code!("proxy_offered_as_construct"),
-                "sequential_evaluation.indicator_as_state",
+                antecedent_core::reason_details::sequential_evaluation::INDICATOR_AS_STATE,
                 format!(
                     "the channel of `{}` names the measured column `{}` as the latent state variable",
                     action.label, model.indicator.id
@@ -694,7 +686,7 @@ impl FiniteSequentialModel {
         if model.structure != ErrorStructure::NonDifferential {
             return Err(SequentialEvaluationError::new(
                 antecedent_core::reason_code!("differential_error_not_pooled"),
-                "sequential_evaluation.differential_channel",
+                antecedent_core::reason_details::sequential_evaluation::DIFFERENTIAL_CHANNEL,
                 format!("the channel of `{}` is declared differential", action.label),
                 "declare non-differential error; error that differs by arm, population or time has no bounded route",
             ));

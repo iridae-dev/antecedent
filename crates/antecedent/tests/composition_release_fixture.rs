@@ -17,10 +17,10 @@
 //!
 //! Every stage stays point-only. No interval, posterior decision or ranking
 //! guarantee is produced here; each request for one is refused with
-//! `cell_not_licensed`. Nothing below reaches into an internal constructor,
+//! `not_supported`. Nothing below reaches into an internal constructor,
 //! a test-only hook or a `calibration-internal` item.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::too_many_lines, reason = "each test is one scenario read top to bottom")]
 
@@ -182,8 +182,8 @@ fn draws_artifact(
             shape: [x.len(), 2],
             weights: None,
             supported: None,
-            calibration: DistributionCalibration::Unmeasured,
-            trust: DistributionTrust::NativeLicensed,
+            calibration: DistributionCalibration::NotMeasured,
+            trust: DistributionTrust::NativeSupported,
             legacy_posterior: None,
             legacy_bindings: None,
         },
@@ -240,7 +240,10 @@ fn shared_evidence_is_counted_once_and_dependence_is_declared_or_refused() {
     )
     .unwrap_err();
     assert_eq!(refusal.code, "evidence_double_counted");
-    assert_eq!(refusal.detail, "evidence_ledger.diagonal_covariance_shared_rows");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::evidence_ledger::DIAGONAL_COVARIANCE_SHARED_ROWS
+    );
     assert_eq!(session.head_hex(), head, "refusals leave the ledger unchanged");
 
     // Undeclared observations are an unknown overlap, never independent.
@@ -249,7 +252,7 @@ fn shared_evidence_is_counted_once_and_dependence_is_declared_or_refused() {
             .unwrap_err();
     assert_refused(&refusal, &r["dependence_gap_ledger"]);
 
-    // A declared covariance with cross terms licenses the shared pair.
+    // A declared covariance with cross terms supports the shared pair.
     // GLS: y = (0.10, 0.20), S = [[0.0004, 0.0002], [0.0002, 0.0004]]: weights (1/2, 1/2),
     // estimate 0.15, variance (0.0004 + 0.0002) / 2 = 0.0003.
     let pooled = pool(
@@ -307,7 +310,9 @@ fn shared_evidence_is_counted_once_and_dependence_is_declared_or_refused() {
     close(claim.value("variance").unwrap(), pooled.variance, exact(&fx), "variance agrees");
     assert_eq!(claim.label(), "point_only");
     assert!(claim.interval().is_err());
-    assert_eq!(claim.interval().unwrap_err().code(), text(&r["interval"]["code"]));
+    // A point-only propagation has no uncertainty representation to read an interval from; the
+    // ledger's pooled interval keeps the fixture's `not_supported`.
+    assert_eq!(claim.interval().unwrap_err().code(), "uncertainty_representation_insufficient");
 
     // Unknown dependence is a gap, not an independence.
     let moments = |id: &str, evidence: &str| PropagationInput {
@@ -415,7 +420,7 @@ fn unpaired_marginals_are_never_paired_by_index_and_an_enumerated_joint_law_is()
     // The aligned moment is the point claim of the composed model.
     let world = World::build(sc);
     close(claim.value("mean").unwrap(), world.excess_risk, loose(&fx), "joint law = composition");
-    assert_eq!(claim.posterior().unwrap_err().code(), "cell_not_licensed");
+    assert_eq!(claim.posterior().unwrap_err().code(), "uncertainty_representation_insufficient");
 }
 
 // ---------------------------------------------------------------------------
@@ -423,7 +428,7 @@ fn unpaired_marginals_are_never_paired_by_index_and_an_enumerated_joint_law_is()
 // ---------------------------------------------------------------------------
 
 #[test]
-fn the_decision_reads_the_licensed_mean_and_matches_the_hand_computed_utilities() {
+fn the_decision_reads_the_supported_mean_and_matches_the_hand_computed_utilities() {
     let fx = fixture();
     let (sc, v) = (&fx["scenario"], &fx["values"]);
     let world = World::build(sc);
@@ -486,7 +491,7 @@ fn new_observations_revalidate_the_claim_graph_and_the_decision_is_reevaluated()
     // The stale pooled numbers are not served.
     let served = world.session.synthesis(before_pool).unwrap_err();
     assert_eq!(served.code, "evidence_source_withdrawn");
-    assert_eq!(served.detail, "evidence_ledger.result_not_valid");
+    assert_eq!(served.detail, antecedent_core::reason_details::evidence_ledger::RESULT_NOT_VALID);
 
     // Recompute on the grown study, naming the result replaced.
     let (estimate, variance) = step.summary;
@@ -532,17 +537,29 @@ fn new_observations_revalidate_the_claim_graph_and_the_decision_is_reevaluated()
     assert_eq!(selected(&revised.result), text(&rv["selected"]));
     assert_ne!(revised.plan_identity, previous_plan);
 
-    // The classification against the earlier graph: what rested on study B is
-    // recomputed; what did not is still valid and keeps its numbers.
+    // The old claims that rested on study B lose authority when its evidence
+    // changes; independent claims remain valid. The replacement graph is usable.
     let moved = verify(Some(&previous), &revised.graph, &revised.session, pooled.result);
     assert_eq!(
-        moved.revalidation().keys_of(Revalidation::Recompute),
+        moved.revalidation().keys_of(Revalidation::Withdrawn),
         vec!["claim", "decision", "mechanisms", "pooled_effect", "study_b"]
     );
     assert_eq!(
         moved.revalidation().keys_of(Revalidation::StillValid),
         vec!["measurement", "study_a", "survey"]
     );
+    assert!(moved.revalidation().keys_of(Revalidation::Recompute).is_empty());
+    for key in ["claim", "decision", "mechanisms", "pooled_effect", "study_b"] {
+        let claim = moved.revalidation().claim(key).expect("revalidated claim");
+        assert!(
+            claim.withdrawals.iter().any(|withdrawal| {
+                withdrawal.kind.as_str() == "retired"
+                    && withdrawal.origin == "study_b"
+                    && withdrawal.detail == "evidence_changed"
+            }),
+            "{key} should reflect the replaced study evidence: {claim:?}"
+        );
+    }
     // And the recomputed decision is usable against its own graph.
     assert!(gate(&revised.graph, &revised.session, pooled.result).is_none());
 
@@ -584,13 +601,13 @@ fn duplicated_evidence_cannot_be_counted_twice() {
         pool(&mut session, "twice", &[(a, est_a, var_a), (copy, est_a, var_a)], None, None)
             .unwrap_err();
     assert_eq!(refusal.code, "evidence_double_counted");
-    assert_eq!(refusal.detail, "evidence_ledger.reentry_duplicate");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::evidence_ledger::REENTRY_DUPLICATE);
     // The same source listed twice.
     let refusal =
         pool(&mut session, "listed_twice", &[(a, est_a, var_a), (a, est_a, var_a)], None, None)
             .unwrap_err();
     assert_eq!(refusal.code, "evidence_double_counted");
-    assert_eq!(refusal.detail, "evidence_ledger.repeated_source");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::evidence_ledger::REPEATED_SOURCE);
     assert_eq!(session.head_hex(), head, "a refused pool registers nothing");
     assert!(session.ledger().results().is_empty());
 
@@ -706,7 +723,10 @@ fn a_fresh_consumer_recomputes_the_decision_and_every_mutation_is_refused_as_exp
     mutated.ledger_identity = other_bundle.ledger_identity.clone();
     let refusal = consume(&mutated).unwrap_err();
     assert_eq!(refusal.code, "invalid_argument");
-    assert_eq!(refusal.detail, "composition_verification.ledger_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_verification::LEDGER_MISMATCH
+    );
 
     // Evidence overlap: the second study re-uses rows of the first.
     let mut mutated = bundle.clone();
@@ -765,7 +785,7 @@ fn an_upstream_withdrawal_makes_the_downstream_decision_refuse_end_to_end() {
     )
     .unwrap_err();
     assert_eq!(again.code, "evidence_source_withdrawn");
-    assert_eq!(again.detail, "evidence_ledger.source_withdrawn");
+    assert_eq!(again.detail, antecedent_core::reason_details::evidence_ledger::SOURCE_WITHDRAWN);
 }
 
 #[test]
@@ -819,10 +839,10 @@ fn a_dependence_gap_makes_the_downstream_decision_refuse_end_to_end() {
     let error = propagate(&request, numbers, &ctx()).expect_err("an unknown dependence");
     assert_eq!(error.code(), text(&r["dependence_gap_rule"]["code"]));
 
-    // Declaring the dependence is what licenses the combination: the vendor's
+    // Declaring the dependence is what supports the combination: the vendor's
     // claim is entered with its rows, and a declared covariance pools it.
     let covered = session.add_source(study_source("vendor_rows", "cohort", 400..900)).unwrap();
-    let licensed = pool(
+    let supported = pool(
         &mut session,
         "pooled_with_declared_dependence",
         &[
@@ -833,7 +853,7 @@ fn a_dependence_gap_makes_the_downstream_decision_refuse_end_to_end() {
         None,
     )
     .unwrap();
-    close(licensed.variance, 0.0003, exact(&fx), "declared dependence");
+    close(supported.variance, 0.0003, exact(&fx), "declared dependence");
 }
 
 // ---------------------------------------------------------------------------
@@ -845,12 +865,13 @@ fn every_stage_is_point_only_and_no_interval_or_posterior_decision_ships() {
     let fx = fixture();
     let sc = &fx["scenario"];
     let world = World::build(sc);
-    let code = text(&fx["variants"]["interval"]["code"]);
 
-    // The ledger: a pooled interval is never licensed.
-    let refusal = world.session.pooled_interval(world.pooled.result).unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(refusal.code, code);
+    // The ledger: a pooled interval is reported, never calibrated here. It pools two studies,
+    // a study count no coverage record measured.
+    let interval = world.session.pooled_interval(world.pooled.result).unwrap();
+    assert!(interval.lower < interval.estimate && interval.estimate < interval.upper);
+    assert_eq!(interval.report.calibration, "not_measured");
+    assert_eq!(interval.report.scalars[0].calibration.status, "not_measured");
     // The claim graph holds no calibration record for the decision.
     let verification =
         verify(Some(&world.graph), &world.graph, &world.session, world.pooled.result);
@@ -858,8 +879,9 @@ fn every_stage_is_point_only_and_no_interval_or_posterior_decision_ships() {
     assert_eq!(decision.class, Revalidation::StillValid);
     // The decision under a criterion beyond a mean is refused, not approximated.
     let law = DecisionDeclaration { needs_law: true, ..world.declaration.clone() };
-    assert!(decide(&law, world.excess_risk, "s", "p").is_err());
-    assert_eq!(text(&fx["calibration"]), "unmeasured");
+    let refused = decide(&law, world.excess_risk, "s", "p").unwrap_err();
+    assert_refused(&refused, &fx["mutations"]["law"]);
+    assert_eq!(text(&fx["calibration"]), "not_measured");
     assert_eq!(text(&fx["label"]), "point_only");
     // The result of the decision has no statistical guarantee fields set.
     assert!(world.result.evpi.is_none());

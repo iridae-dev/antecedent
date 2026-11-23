@@ -3,6 +3,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{InferenceMode, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
@@ -79,29 +80,32 @@ fn frequentist_dag_graph_posterior_effect_is_sealed_and_preserves_graph_mass() {
         let mut prepared = builder.prepare(&ctx).unwrap();
         drop(builder);
 
-        let plan = prepared
-            .checked_graph_posterior_effect_info()
-            .expect("prepared graph-posterior operation retained");
+        let RetainedOperation::GraphPosteriorEffect(plan) = prepared.retained_operation() else {
+            panic!("prepared graph-posterior operation retained")
+        };
         assert_eq!(plan.query, query);
         assert_eq!(plan.estimator.as_str(), "linear.adjustment.ate");
         assert_eq!(plan.validation, suite);
         assert_eq!(plan.weights.as_ref(), &[0.5, 0.3, 0.2]);
-        assert_eq!(plan.graph_keys.as_ref(), gp.graph_keys.as_ref());
+        assert_eq!(plan.graph_keys.as_ref(), gp.graph_keys().as_ref());
         assert_eq!(plan.identified.len(), 3);
         assert_eq!(plan.bootstrap_replicates, 199);
 
         let result = prepared.estimate(&base, &ctx).unwrap();
         assert!(
-            result.estimate.as_effect().unwrap().ate.is_nan(),
+            result.estimate().as_effect().unwrap().ate.is_nan(),
             "atom estimands disagree; scalar must be withheld"
         );
         let mixture = result.structural_response.as_ref().expect("structural graph mixture");
         let set = mixture.identified_set.as_ref().expect("identified set retained");
-        assert!((set.lower[0] - 2.0).abs() < 0.06);
-        assert!((set.upper[0] - 3.0).abs() < 0.06);
+        // Closed forms from the cell counts: the Z-adjusted atom recovers 2 and the direct atom
+        // 2 + 2 (P(z=1 | t=1) - P(z=1 | t=0)) = 2 + 2 (0.75 - 0.25) = 3; the residuals alternate
+        // within each cell so they cancel in both fits.
+        assert!((set.lower[0] - 2.0).abs() < 1e-9, "lower {}", set.lower[0]);
+        assert!((set.upper[0] - 3.0).abs() < 1e-9, "upper {}", set.upper[0]);
         assert!((mixture.identified_mass - 0.8).abs() < 1e-12);
         assert!((mixture.unidentified_mass - 0.2).abs() < 1e-12);
-        assert!(one_shot.estimate.as_effect().unwrap().ate.is_nan());
+        assert!(one_shot.estimate().as_effect().unwrap().ate.is_nan());
         assert!(
             one_shot
                 .diagnostics
@@ -110,11 +114,12 @@ fn frequentist_dag_graph_posterior_effect_is_sealed_and_preserves_graph_mass() {
             "one-shot run must execute its retained prepared plan"
         );
 
-        let shifted = prepared.refresh(data(4.0), &ctx).unwrap();
-        assert!(shifted.estimate.as_effect().unwrap().ate.is_nan());
-        let refreshed_plan = prepared
-            .checked_graph_posterior_effect_info()
-            .expect("checked graph-posterior plan remains after refresh");
+        let shifted = rebind_estimate(&mut prepared, data(4.0), &ctx).unwrap();
+        assert!(shifted.estimate().as_effect().unwrap().ate.is_nan());
+        let RetainedOperation::GraphPosteriorEffect(refreshed_plan) = prepared.retained_operation()
+        else {
+            panic!("checked graph-posterior plan remains after refresh")
+        };
         assert_eq!(refreshed_plan.graph_keys, plan.graph_keys);
         assert_eq!(refreshed_plan.weights, plan.weights);
         let shifted_mix = shifted.structural_response.as_ref().unwrap();
@@ -127,10 +132,23 @@ fn frequentist_dag_graph_posterior_effect_is_sealed_and_preserves_graph_mass() {
         let artifact = prepared
             .encode_contracted_result(&shifted, "checked-graph-posterior-effect", &ctx)
             .unwrap();
-        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+        let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
         assert!(consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_graph_posterior_effect_operation"
         }));
-        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert!(!consumed.acceptance.accepts_as_replayed_program());
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

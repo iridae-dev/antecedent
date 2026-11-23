@@ -4,9 +4,12 @@ A :class:`DecisionInput` wraps one source (a mean grid, an aligned joint law or 
 scalar claim) with its provenance (who produced it, under which trust, with which
 receipt, calibration and capabilities) and a per-coordinate support map::
 
+    from antecedent import require_success
+
     claim = DecisionInput.from_claim("lab", bound_external_claim)
     law = DecisionInput.from_distribution("study", joint_law)
-    decided = evaluate_with_support(contract, [claim, law])
+    outcome = evaluate_with_support(contract, [claim, law])
+    decided = require_success(outcome)
     decided.verdict.kind            # compared, or one evaluated, or no supported action
     decided.disposition("treat")    # evaluated, unsupported or unevaluated, with a reason
 
@@ -30,11 +33,10 @@ Statistical pooling, Bayesian borrowing, causal transport and evidence reuse are
 separate declared :data:`Operation` values. Independent pooling or paired draws
 refuse when two inputs share data, a prior or a fitted model, or when their
 dependence is unknown (:class:`DependenceRefusal`), unless a covariance or
-joint-law route is declared and licensed by an aligned joint law that is one of
+joint-law route is declared and supported by an aligned joint law that is one of
 the pair. Conflicting structural atoms never become a silent average.
 
-Rust owns every decision here; this module builds declarations and raises each
-refusal as a :class:`CompositionRefusal`, a
+Rust owns every decision here; this module builds declarations and returns scientific refusals in an Outcome retaining the original :class:`CompositionRefusal`, a
 :class:`~antecedent.decision.DecisionRefusal` (hence a
 :class:`~antecedent.errors.CausalUnsupportedError`) with its registered
 ``reason_code`` and namespaced ``detail``.
@@ -59,12 +61,14 @@ from ._native import composition_input_from_external_claim as _from_external_cla
 from ._native import composition_input_from_means as _from_means
 from ._native import composition_input_from_scalar as _from_scalar
 from ._refusal import raise_refusal
+from ._scientific import ScientificResult
 from ._validate import choice, text
 from .decision import ActionOutcome, ConstraintExclusion, Contract, DecisionRefusal
 from .decision_robust import SupportLabel
 from .errors import CausalTypeError, CausalValueError
 from .external import BoundExternalClaim
 from .joint_distribution import JointDistributionArtifact, ScientificQuantity
+from .outcomes import Answer, outcome_operation, require_success
 
 TrustRequirement = Literal["unrestricted", "native", "exact_request_verified"]
 Operation = Literal[
@@ -102,7 +106,7 @@ _DEPENDENCE_DETAILS = frozenset(
         "operation_not_declared",
         "shared_evidence_not_independent",
         "unknown_dependence_is_not_independence",
-        "dependence_route_not_licensed",
+        "dependence_route_not_supported",
         "paired_draws_across_sources",
         "conflicting_atoms_not_averaged",
         "atom_probabilities_invalid",
@@ -137,7 +141,7 @@ class SupportRefusal(CompositionRefusal):
 
 class DependenceRefusal(CompositionRefusal):
     """Inputs that may not be combined: shared or unknown dependence, an undeclared
-    operation, an unlicensed route, draws that cannot be paired, or atoms that
+    operation, an unsupported route, draws that cannot be paired, or atoms that
     would be averaged without declared probabilities."""
 
 
@@ -206,7 +210,7 @@ class InputProvenance:
     """Who produced an input, as established by evidence and not by a label.
 
     ``trust`` is never above what the evidence supports: an artifact labelled
-    ``native_licensed`` without a matching native execution record is
+    ``native_supported`` without a matching native execution record is
     ``unverified`` here, and ``calibration`` is then ``exact_claim_unverified``
     (the ``exact`` claim is not used).
     """
@@ -282,6 +286,9 @@ class DecisionInput:
         artifact's mask (absent: every coordinate supported). ``requirement``
         ``"native"`` refuses an artifact that merely says it is native.
         """
+        from .outcomes import require_success
+
+        artifact = require_success(artifact)
         if not isinstance(artifact, JointDistributionArtifact):
             raise CausalTypeError("artifact must be a JointDistributionArtifact")
         native, refusal = _from_distribution(
@@ -299,6 +306,9 @@ class DecisionInput:
         Point summaries and retained aligned posterior rows preserve their own
         support and calibration. Projection metadata cannot supply this authority.
         """
+        from .outcomes import require_success
+
+        claim = require_success(claim)
         from .program_claims import NativeClaim
 
         if not isinstance(claim, NativeClaim):
@@ -390,6 +400,9 @@ class DecisionInput:
         ``"exact_request_verified"`` can be satisfied. A ``native`` requirement
         still refuses: the numbers were not executed by Antecedent.
         """
+        from .outcomes import require_success
+
+        claim = require_success(claim)
         if not isinstance(claim, BoundExternalClaim):
             raise CausalTypeError("claim must be a BoundExternalClaim")
         native, refusal = _from_external_claim(
@@ -418,6 +431,9 @@ class DecisionInput:
         the label the provider declared on the estimate's bound claim, which is
         ``missing_evidence`` when the receipt did not assess overlap.
         """
+        from .outcomes import require_success
+
+        estimate = require_success(estimate)
         from .extensibility import ProviderTrust
         from .handoff import ExternalEstimate
 
@@ -542,7 +558,9 @@ def _labels(support: str | Sequence[str], count: int) -> list[str]:
 
 
 def _natives(inputs: Sequence[DecisionInput]) -> list[_native.DecisionInput]:
-    items = tuple(inputs)
+    from .outcomes import require_success
+
+    items = tuple(require_success(item) for item in inputs)
     if any(not isinstance(i, DecisionInput) for i in items):
         raise CausalTypeError("inputs must be DecisionInput values")
     return [i._native_value for i in items]
@@ -649,7 +667,7 @@ class SupportedVerdict:
 
 
 @dataclass(frozen=True, slots=True)
-class SupportedDecision:
+class SupportedDecision(ScientificResult):
     """The result of a support-aware evaluation.
 
     ``outcomes`` are the evaluated actions only, in declaration order; an action in
@@ -658,6 +676,17 @@ class SupportedDecision:
     answered by different sources are compared by criterion value alone, and their
     regret is withheld.
     """
+
+    @property
+    def answer(self) -> Answer:
+        return Answer(
+            "structured",
+            detail="supported_decision." + self.verdict.kind,
+            structured={
+                "selected": self.verdict.selected,
+                "contract_identity": self.contract_identity,
+            },
+        )
 
     contract_identity: str
     dispositions: tuple[ActionDisposition, ...]
@@ -804,6 +833,7 @@ def _disposition(wire: Mapping[str, Any]) -> ActionDisposition:
     )
 
 
+@outcome_operation
 def evaluate_with_support(
     contract: Contract,
     inputs: Sequence[DecisionInput],
@@ -826,6 +856,7 @@ def evaluate_with_support(
     source with a hard constraint, a non-joint draw alignment, a non-outcome
     meaning).
     """
+    inputs = tuple(require_success(source) for source in inputs)
     if not isinstance(contract, Contract):
         raise CausalTypeError("contract must be a decision.Contract")
     policy = SupportPolicy() if policy is None else policy
@@ -924,8 +955,12 @@ class Functional:
 
 
 @dataclass(frozen=True, slots=True)
-class FunctionalValue:
+class FunctionalValue(ScientificResult):
     """One functional's value; a mean-source value has no standard error."""
+
+    @property
+    def answer(self) -> Answer:
+        return Answer("point", value=self.value)
 
     value: float
     standard_error: float | None
@@ -939,6 +974,7 @@ class FunctionalValue:
         return None if self._artifact_factory is None else self._artifact_factory()
 
 
+@outcome_operation
 def evaluate_functional(
     contract: Contract,
     action_id: str,
@@ -948,6 +984,7 @@ def evaluate_functional(
     weakest_support: SupportLabel = "supported",
 ) -> FunctionalValue:
     """One functional of one action's utility from one input."""
+    source = require_success(source)
     if not isinstance(contract, Contract):
         raise CausalTypeError("contract must be a decision.Contract")
     if not isinstance(source, DecisionInput):
@@ -1049,7 +1086,7 @@ class DependenceRoute:
     ``source_input`` must be one of the pair and an aligned joint law with the
     matching capability (``covariance`` needs the covariance capability,
     ``joint_law`` the sample capability); anything else refuses with
-    ``composition_boundary.dependence_route_not_licensed``.
+    ``composition_boundary.dependence_route_not_supported``.
     """
 
     kind: Literal["covariance", "joint_law"]
@@ -1079,7 +1116,7 @@ class PairRelation:
 
 
 @dataclass(frozen=True, slots=True)
-class CompositionReceipt:
+class CompositionReceipt(ScientificResult):
     """What a passed composition check records."""
 
     operation: Operation
@@ -1134,6 +1171,7 @@ def _relations_wire(relations: Sequence[PairRelation]) -> str:
     return json.dumps([r._wire() for r in items])
 
 
+@outcome_operation
 def check_composition(
     inputs: Sequence[DecisionInput],
     relations: Sequence[PairRelation],
@@ -1147,7 +1185,7 @@ def check_composition(
     Bayesian borrowing allows a shared prior but refuses shared data and fitted
     models; causal transport and evidence reuse record shared evidence without
     assuming independence. Unknown dependence refuses every operation. A declared
-    covariance or joint-law route lifts a refusal only when it is licensed.
+    covariance or joint-law route lifts a refusal only when it is supported.
 
     ``operation=None`` refuses with ``composition_boundary.operation_not_declared``.
     Raises :class:`DependenceRefusal`.
@@ -1159,6 +1197,7 @@ def check_composition(
     return _receipt(result)
 
 
+@outcome_operation
 def check_paired_draws(
     inputs: Sequence[DecisionInput], relations: Sequence[PairRelation]
 ) -> CompositionReceipt:
@@ -1197,13 +1236,14 @@ class AtomPlan:
     weights: tuple[tuple[str, float], ...] = ()
 
 
+@outcome_operation
 def check_atom_combination(
     atoms: Sequence[StructuralAtom], combination: AtomCombination = "report_each"
 ) -> AtomPlan:
     """Check that structural ``atoms`` may be combined as requested.
 
     Two or more atoms are alternative structures; averaging them
-    (``weighted_by_declared_probabilities``) is licensed only when every atom carries
+    (``weighted_by_declared_probabilities``) is supported only when every atom carries
     a declared probability and they sum to at most one, so conflicting atoms are
     never silently averaged and missing mass is retained.
     """

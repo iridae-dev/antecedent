@@ -1,0 +1,285 @@
+{
+  "oracle": {
+    "kind": "independent_reimplementation",
+    "method": "target-sample fit by numpy least squares or scipy BFGS plus root-polished score equations; Gauss-Hermite quadrature over the source-fitted income law; delta-method standard error from a finite-difference gradient",
+    "independence_basis": "the fits are computed here with numpy and scipy from the saved samples; no Rust code or Rust-produced number enters this file. The retained generator and the executing assertions were read for the review recorded in reference_review.",
+    "generator": "conformance/transport/typed_mechanism_shift/reference.py",
+    "generator_retained": true,
+    "environment_lock": "conformance/transport/typed_mechanism_shift/reference.py.lock",
+    "command": "uv run --frozen --script conformance/transport/typed_mechanism_shift/reference.py --check",
+    "asserted_outputs": [
+      "outcomes[*].reference and reference_se (Monte Carlo and relative-SE tolerances)",
+      "outcomes[*].truth with reference_se (4.5 sigma band)",
+      "invariance[*].statistic and p_value (1e-6)"
+    ],
+    "context_only_outputs": [
+      "outcomes[*].coefficients",
+      "sample_size",
+      "income"
+    ],
+    "executing_assertion": "crates/antecedent-model/tests/typed_mechanism_transport.rs::transported_response_matches_the_independent_target_fit_for_every_family",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+    "reference_review": {
+      "scope": "Six outcome mechanisms (Gaussian, Poisson, Bernoulli, gamma, log-normal, heteroscedastic Gaussian) with a quadratic price effect whose coefficients shift between a source and a target sample of 3000 rows, with invariant income and price mechanisms: the target interventional mean at price 0, 1 and 2, its first-order delta-method standard error, and Wald invariance statistics for income and price.",
+      "independence_basis": "The generator refits each outcome on the saved target sample with numpy least squares or scipy BFGS polished by a root solve of the score equations, evaluates E[outcome | do(price)] by 120-point Gauss-Hermite quadrature over the source-fitted income law, and takes the standard error from a finite-difference gradient and the fitted covariance; the invariance statistics are Wald chi-square tests from numpy/scipy fits. It imports no Antecedent code and no Rust-produced number enters the file; it also asserts that its references sit within 4.5 standard errors of the closed-form truth of the data-generating coefficients. The product fits the same stored samples with its own mechanism fitter and evaluates the response by Monte Carlo over its transported model. The executing assertions compare the product value with the reference within 6 Monte Carlo standard errors, with the closed-form truth inside a 4.5-sigma band, the parameter standard error within 8 percent relative, and the invariance statistic and p value at 1e-6.",
+      "historical_exposure": "The reference was written by the repository author alongside the product; independence rests on the different computation (deterministic quadrature and optimiser against Monte Carlo and the product's fitter), not on a separate author. The product source was not consulted for this review.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs (the samples are simulated, stored rounded to nine decimals). NumPy and SciPy are used from an isolated locked script environment outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "One seed and one sample size; the response comparison is bounded by Monte Carlo error and a 4.5-sigma truth band, so it detects gross errors and bias of the order of the tolerance, not smaller ones. The standard-error comparison is 8 percent relative at price 2 only. The fitted-mechanism class is the declared quadratic basis; no model-misspecification, selection-diagram or refusal logic is checked by this fixture (other tests in the same file check refusals without a numerical reference). No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/transport/typed_mechanism_shift/reference.py",
+          "sha256": "6fb0dd60c5e379aa2145d0b479a4511cbf7000ed48e487d611d83624a8dea6c9"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/transport/typed_mechanism_shift/reference.py.lock",
+          "sha256": "87774211723939884a170d86e8670db50824f24dae6ac357b443a107d4915711"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-model/tests/typed_mechanism_transport.rs",
+          "items": [
+            "const DRAWS",
+            "const OUTCOMES",
+            "fn array",
+            "fn columns",
+            "fn context",
+            "fn diagram",
+            "fn family_of",
+            "fn fit_source",
+            "fn fixture",
+            "fn full",
+            "fn independent",
+            "fn level",
+            "fn provenance",
+            "fn refit_target",
+            "fn request",
+            "fn spec_of",
+            "fn transported_response_matches_the_independent_target_fit_for_every_family",
+            "fn world",
+            "struct Fixture",
+            "struct World",
+            "type Columns"
+          ],
+          "sha256": "ffb5ea64fb59db48f64e3fbb4fb9babaa68a731b9b069f3b0e8bf5bfa840d32e"
+        },
+        {
+          "role": "assertion_source",
+          "path": "python/tests/test_typed_mechanism_transport.py",
+          "items": [
+            "const DATA",
+            "const DRAWS",
+            "const EXPECTED",
+            "const FAMILY",
+            "const FIXTURE",
+            "const INDEPENDENT",
+            "const OUTCOMES",
+            "fn level",
+            "fn sources",
+            "fn spec",
+            "fn targets",
+            "fn test_a_shifted_mechanism_without_target_evidence_is_refused",
+            "fn test_a_wrongly_declared_invariance_is_flagged_by_target_data",
+            "fn test_an_expression_mean_is_fitted_and_reported_with_its_covariance",
+            "fn test_an_invariance_without_target_data_is_recorded_as_untested",
+            "fn test_declarations_are_validated",
+            "fn test_fit_refuses_support_violations_and_separation",
+            "fn test_identity_is_verified_only_against_what_it_re_derives",
+            "fn test_parameter_uncertainty_agrees_with_the_independent_delta_method",
+            "fn test_receipt_records_carried_and_refit_components",
+            "fn test_the_module_resolves_lazily_on_the_package_root",
+            "fn test_transported_response_matches_the_independent_target_fit",
+            "fn test_unknown_dependence_refuses_the_variance_but_not_the_point",
+            "fn transport",
+            "fn transported"
+          ],
+          "sha256": "bc3bbeec49bc892eadbfaf1c7b8443749fa9e58bd137dad8a30318a7b52e6bbd"
+        },
+        {
+          "role": "input_fixture",
+          "path": "conformance/transport/typed_mechanism_shift/data.json",
+          "sha256": "e38bc5069ce400ff0fcc6c595590778e299c951b2ec75592c653969bf549304e"
+        }
+      ],
+      "fixture_payload_sha256": "fe128294829374f182129faff15afaedc29b2a7994dffb928daa997c56c8e00b"
+    }
+  },
+  "grid": [
+    0.0,
+    1.0,
+    2.0
+  ],
+  "sample_size": 3000,
+  "income": {
+    "mean": -0.0023447466146666695,
+    "sd": 1.004986994597289
+  },
+  "outcomes": {
+    "demand": {
+      "family": "gaussian",
+      "reference": [
+        2.5165312112900557,
+        1.2060139389772604,
+        -1.110047917060165
+      ],
+      "reference_se": [
+        0.018531823803583432,
+        0.011099969083758002,
+        0.018048476144182993
+      ],
+      "truth": [
+        2.5000000000000004,
+        1.2,
+        -1.1
+      ],
+      "coefficients": [
+        2.5183602549238087,
+        -0.8077449804504805,
+        -0.5027722918623149,
+        0.2997783539557008,
+        -0.0011149846485284452
+      ]
+    },
+    "orders": {
+      "family": "poisson",
+      "reference": [
+        1.4453207891145894,
+        2.0157591006201865,
+        1.789595298915284
+      ],
+      "reference_se": [
+        0.0561629014233982,
+        0.035665411218468134,
+        0.05537330830704186
+      ],
+      "truth": [
+        1.4993025000567668,
+        2.0238466849223475,
+        1.831252208885773
+      ],
+      "coefficients": [
+        0.3705282273434157,
+        0.5585000020387204,
+        -0.22583544902296765,
+        0.10618650504606393,
+        -0.007542385395403502
+      ]
+    },
+    "buys": {
+      "family": "bernoulli",
+      "reference": [
+        0.40452987502772797,
+        0.32743080606841757,
+        0.3374617071153221
+      ],
+      "reference_se": [
+        0.021806778762948363,
+        0.011056297751981466,
+        0.01925122839533399
+      ],
+      "truth": [
+        0.42712808972116656,
+        0.313559403985704,
+        0.33504866884610607
+      ],
+      "coefficients": [
+        -0.4644568900084485,
+        -0.5305023569849117,
+        0.19213228351851824,
+        0.2273532281138102,
+        0.07371436251307238
+      ]
+    },
+    "spend": {
+      "family": "gamma",
+      "reference": [
+        3.2485678395138082,
+        2.5313955252055473,
+        2.24632472985036
+      ],
+      "reference_se": [
+        0.06994634610268766,
+        0.03156260294815172,
+        0.05118077085379967
+      ],
+      "truth": [
+        3.336759078067415,
+        2.4719319230574714,
+        2.236696498819987
+      ],
+      "coefficients": [
+        1.1736540506958542,
+        -0.3144275820028403,
+        0.06498408920679803,
+        -0.12149498147970489,
+        -0.0031094108353268268
+      ]
+    },
+    "basket": {
+      "family": "log_normal",
+      "reference": [
+        2.8850247431458516,
+        2.1675384782886056,
+        2.101886929496997
+      ],
+      "reference_se": [
+        0.04283393260080268,
+        0.01847890739231972,
+        0.026551371482491898
+      ],
+      "truth": [
+        2.900838984059634,
+        2.1924069407332154,
+        2.1064414349807272
+      ],
+      "coefficients": [
+        0.9928578888537919,
+        -0.41353359038172816,
+        0.1275922958753531,
+        0.2068756028931345,
+        -0.0006268844775000335
+      ]
+    },
+    "noise_h": {
+      "family": "heteroscedastic_gaussian",
+      "reference": [
+        0.500896663513265,
+        1.6123336948438176,
+        1.889691010423586
+      ],
+      "reference_se": [
+        0.02020696227121047,
+        0.014261792873922112,
+        0.03726842711301954
+      ],
+      "truth": [
+        0.5,
+        1.6,
+        1.9000000000000001
+      ],
+      "coefficients": [
+        0.49660012960023814,
+        1.5284768892059448,
+        -0.41703985787539216,
+        0.21194823656238476,
+        0.004746017964451615
+      ]
+    }
+  },
+  "invariance": {
+    "price": {
+      "statistic": 1.3860656688875173,
+      "p_value": 0.7088042421570193
+    },
+    "price_shifted": {
+      "statistic": 882.2251585354993,
+      "p_value": 6.345445875322523e-191
+    },
+    "income": {
+      "statistic": 1.6773639271600975,
+      "p_value": 0.43227990877471767
+    }
+  }
+}

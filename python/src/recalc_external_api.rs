@@ -1,5 +1,6 @@
 //! Bounded executing external mean callbacks, retaining attested output only.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
+use crate::NumericColumn;
 use crate::program_claims_api::{ClaimWire, claim_from, parse_binding};
 use crate::recalc_api::{bounded_context, parse_json, plan_refusal_json, refusal_value};
 use crate::recalc_bounds::check_columns;
@@ -7,14 +8,14 @@ use antecedent::analysis::recalc_external::{
     CallbackContext, CallbackFailure, CallbackPolicy, ExternalCallbackError,
     ExternalCallbackRequest, ExternalCallbackSession, ExternalMeanProvider, ProviderDescriptor,
 };
-use antecedent_contract::{ExternalResponse, ProviderObjectIdentity};
-use antecedent_core::ExecutionContext;
-use antecedent_core::recalc::Branch;
-use antecedent_io::external_binding_wire::{
+use antecedent::contract::{ExternalResponse, ProviderObjectIdentity};
+use antecedent::execution::recalc::Branch;
+use antecedent::io::external_binding_wire::{
     ContractWire, ProviderWire, RefusalWire, ResponseWire, core_contract, response_from_wire,
 };
-use antecedent_io::external_claim_artifact::ExternalClaimArtifact;
-use numpy::{PyArray1, PyReadonlyArray1};
+use antecedent::io::external_claim_artifact::ExternalClaimArtifact;
+use antecedent::prelude::ExecutionContext;
+use numpy::PyArray1;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyString};
 use pyo3::{PyTraverseError, PyVisit};
@@ -23,12 +24,7 @@ use serde::Deserialize;
 /// Largest output text an external recalculation callback may return.
 const MAX_CALLBACK_OUTPUT_BYTES: usize = crate::bridge::MAX_CONFIG_DECLARATION_BYTES;
 
-fn invalid(detail: &str, message: impl AsRef<str>) -> PyErr {
-    crate::with_reason_code(
-        crate::value_err(format!("{detail}: {}", message.as_ref())),
-        antecedent_core::reason_code!("invalid_argument"),
-    )
-}
+use crate::invalid_detail as invalid;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -45,7 +41,12 @@ fn descriptor(wire: DescriptorWire) -> PyResult<ProviderDescriptor> {
         "stateful" => CallbackPolicy::Stateful,
         "side_effecting" => CallbackPolicy::SideEffecting,
         "unknown" => CallbackPolicy::Unknown,
-        _ => return Err(invalid("external_recalc.invalid_descriptor", "unknown callback policy")),
+        _ => {
+            return Err(invalid(
+                antecedent::reason::reason_details::external_recalc::INVALID_DESCRIPTOR,
+                "unknown callback policy",
+            ));
+        }
     };
     Ok(ProviderDescriptor {
         identity: ProviderObjectIdentity {
@@ -74,27 +75,39 @@ struct RequestWire {
 }
 pub(crate) fn request(
     names: Vec<String>,
-    columns: &[PyReadonlyArray1<'_, f64>],
+    columns: &[NumericColumn<'_>],
     text: &str,
     ctx: &ExecutionContext,
 ) -> PyResult<ExternalCallbackRequest> {
     check_columns(columns, ctx)?;
     if names.len() != columns.len() {
-        return Err(invalid("external_recalc.invalid_request", "column names and arrays differ"));
+        return Err(invalid(
+            antecedent::reason::reason_details::external_recalc::INVALID_REQUEST,
+            "column names and arrays differ",
+        ));
     }
     let wire: RequestWire = parse_json(text, "external callback")?;
     let program = parse_binding(&wire.program.to_string())?;
-    let claim = claim_from(wire.claim)
-        .map_err(|error| invalid("external_recalc.invalid_request", format!("{error:?}")))?;
-    let contract = core_contract(&wire.contract)
-        .map_err(|error| invalid("external_recalc.invalid_request", format!("{error:?}")))?;
-    let branch = Branch::new(wire.branch)
-        .ok_or_else(|| invalid("external_recalc.invalid_request", "branch exceeds bound"))?;
+    let claim = claim_from(wire.claim).map_err(|error| {
+        invalid(
+            antecedent::reason::reason_details::external_recalc::INVALID_REQUEST,
+            format!("{error:?}"),
+        )
+    })?;
+    let contract = core_contract(&wire.contract).map_err(|error| {
+        invalid(
+            antecedent::reason::reason_details::external_recalc::INVALID_REQUEST,
+            format!("{error:?}"),
+        )
+    })?;
+    let branch = Branch::new(wire.branch).ok_or_else(|| {
+        invalid(
+            antecedent::reason::reason_details::external_recalc::INVALID_REQUEST,
+            "branch exceeds bound",
+        )
+    })?;
     Ok(ExternalCallbackRequest {
-        columns: names
-            .into_iter()
-            .zip(columns.iter().map(|array| array.as_array().to_vec()))
-            .collect(),
+        columns: crate::named_f64_columns(names, columns)?.into(),
         program,
         claim,
         contract,
@@ -118,7 +131,7 @@ pub(crate) fn error(error: &ExternalCallbackError, branch: Branch) -> PyResult<S
             let detail = match error {
                 ExternalCallbackError::Request(detail)
                 | ExternalCallbackError::Attempt { detail, .. } => *detail,
-                _ => "external_recalc.artifact_invalid",
+                _ => antecedent::reason::reason_details::external_recalc::ARTIFACT_INVALID,
             };
             let code = error.refusal_code();
             refusal_value(code, &stage, detail, None, None, &error.to_string(), None)
@@ -168,10 +181,15 @@ impl ExternalMeanProvider for PythonProvider {
                     .contract
                     .estimand
                     .iter()
-                    .map(antecedent_io::quantity_wire::ScientificQuantityWire::from)
+                    .map(antecedent::io::quantity_wire::ScientificQuantityWire::from)
                     .collect::<Vec<_>>(),
             )
-            .map_err(|cause| invalid("external_recalc.invalid_request", cause.to_string()))?;
+            .map_err(|cause| {
+                invalid(
+                    antecedent::reason::reason_details::external_recalc::INVALID_REQUEST,
+                    cause.to_string(),
+                )
+            })?;
             payload
                 .set_item("quantities", py.import("json")?.call_method1("loads", (quantities,))?)?;
             payload.set_item(
@@ -182,28 +200,37 @@ impl ExternalMeanProvider for PythonProvider {
             let text = output.cast::<PyString>()?;
             if text.len()? > MAX_CALLBACK_OUTPUT_BYTES {
                 return Err(invalid(
-                    "external_recalc.limits_exceeded",
+                    antecedent::reason::reason_details::external_recalc::LIMITS_EXCEEDED,
                     "callback output exceeds byte bound",
                 ));
             }
             let json = text.to_str()?;
             if json.len() > MAX_CALLBACK_OUTPUT_BYTES {
                 return Err(invalid(
-                    "external_recalc.limits_exceeded",
+                    antecedent::reason::reason_details::external_recalc::LIMITS_EXCEEDED,
                     "callback output exceeds byte bound",
                 ));
             }
             let response: ResponseWire = parse_json(json, "callback output")?;
             if response.values.len() > 1024 || response.quantities.len() > 1024 {
                 return Err(invalid(
-                    "external_recalc.limits_exceeded",
+                    antecedent::reason::reason_details::external_recalc::LIMITS_EXCEEDED,
                     "callback values/coordinates exceed bound",
                 ));
             }
-            response_from_wire(&response)
-                .map_err(|cause| invalid("external_recalc.invalid_output", format!("{cause:?}")))
+            response_from_wire(&response).map_err(|cause| {
+                invalid(
+                    antecedent::reason::reason_details::external_recalc::INVALID_OUTPUT,
+                    format!("{cause:?}"),
+                )
+            })
         })
-        .map_err(|cause| CallbackFailure { message: cause.to_string() })
+        .map_err(|cause| {
+            // A non-`Exception` (Ctrl-C, `SystemExit`) cancels the run and is re-raised by the
+            // caller's interrupt scope; the structured failure carries a bounded description.
+            let failure = crate::interrupt::callback_failure("external provider raised", cause);
+            CallbackFailure { message: failure.description().chars().take(512).collect() }
+        })
     }
 }
 #[pyclass(name = "ExternalCallbackProviderHandle", skip_from_py_object)]
@@ -219,7 +246,10 @@ impl PyCallbackProvider {
                 .callback
                 .as_ref()
                 .ok_or_else(|| {
-                    invalid("external_recalc.provider_unavailable", "callback was cleared")
+                    invalid(
+                        antecedent::reason::reason_details::external_recalc::PROVIDER_UNAVAILABLE,
+                        "callback was cleared",
+                    )
                 })?
                 .clone_ref(py),
         })
@@ -230,7 +260,10 @@ impl PyCallbackProvider {
     #[new]
     fn new(py: Python<'_>, text: &str, callback: Py<PyAny>) -> PyResult<Self> {
         if !callback.bind(py).is_callable() {
-            return Err(invalid("external_recalc.invalid_descriptor", "callback must be callable"));
+            return Err(invalid(
+                antecedent::reason::reason_details::external_recalc::INVALID_DESCRIPTOR,
+                "callback must be callable",
+            ));
         }
         Ok(Self {
             descriptor: descriptor(parse_json(text, "callback descriptor")?)?,
@@ -270,7 +303,7 @@ impl PyCallbackSession {
     fn plan(
         &self,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         text: &str,
         supplied_provider: bool,
         memory_limit_bytes: Option<u64>,
@@ -281,10 +314,15 @@ impl PyCallbackSession {
         let plan = self.inner.plan_with_provider(&req, supplied_provider);
         Ok((
             Some(
-                serde_json::to_string(&antecedent_io::recalc_receipt_artifact::plan_to_wire(&plan))
-                    .map_err(|cause| {
-                        invalid("external_recalc.invalid_request", cause.to_string())
-                    })?,
+                serde_json::to_string(&antecedent::io::recalc_receipt_artifact::plan_to_wire(
+                    &plan,
+                ))
+                .map_err(|cause| {
+                    invalid(
+                        antecedent::reason::reason_details::external_recalc::INVALID_REQUEST,
+                        cause.to_string(),
+                    )
+                })?,
             ),
             None,
         ))
@@ -295,7 +333,7 @@ impl PyCallbackSession {
         &mut self,
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         text: &str,
         provider: Option<PyRef<'_, PyCallbackProvider>>,
         threads: Option<u32>,
@@ -304,14 +342,18 @@ impl PyCallbackSession {
     ) -> PyResult<Payload> {
         let mut ctx = bounded_context(0, threads, memory_limit_bytes, cancel);
         let req = request(names, &columns, text, &ctx)?;
-        ctx.rng = antecedent_core::RngFactory::from_seed(req.seed);
+        ctx.rng = antecedent::execution::RngFactory::from_seed(req.seed);
         let mut actual = provider.map(|provider| provider.clone_actual_provider(py)).transpose()?;
         let mut session = std::mem::take(&mut self.inner);
-        let ran = py.detach(|| {
-            session.execute(&req, actual.as_mut().map(|p| p as &mut dyn ExternalMeanProvider), &ctx)
+        let ran = crate::detach_catch(py, || {
+            Ok(session.execute(
+                &req,
+                actual.as_mut().map(|p| p as &mut dyn ExternalMeanProvider),
+                &ctx,
+            ))
         });
         self.inner = session;
-        match ran {
+        match ran? {
             Err(cause) => Ok((None, None, None, Some(error(&cause, req.branch)?))),
             Ok(out) => {
                 let (wire, receipt, refusal) = crate::recalc_family_api::payload(
@@ -325,7 +367,10 @@ impl PyCallbackSession {
                 let artifact =
                     ExternalClaimArtifact::from_bound_claim(&out.claim, &req.program.contract_id)
                         .map_err(|cause| {
-                        invalid("external_recalc.artifact_invalid", cause.to_string())
+                        invalid(
+                            antecedent::reason::reason_details::external_recalc::ARTIFACT_INVALID,
+                            cause.to_string(),
+                        )
                     })?;
                 Ok((
                     wire,
@@ -352,14 +397,14 @@ impl PyCallbackSession {
     fn resume(
         data: &[u8],
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         text: &str,
         memory_limit_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<(Option<Self>, Option<String>)> {
         if data.len() > crate::bridge::MAX_DECLARED_ARTIFACT_BYTES {
             return Err(invalid(
-                "external_recalc.limits_exceeded",
+                antecedent::reason::reason_details::external_recalc::LIMITS_EXCEEDED,
                 "callback artifact exceeds byte bound",
             ));
         }

@@ -22,7 +22,13 @@ use antecedent_io_core::distribution_artifact::{
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
 use antecedent_io_core::quantity_wire::DistributionMeaningWire;
-use antecedent_test_support::near_lt_1e12 as near;
+use antecedent_test_support::within;
+
+const NEAR_TOLERANCE: f64 = 1e-12;
+
+fn near(a: f64, b: f64) -> bool {
+    within(a, b, NEAR_TOLERANCE)
+}
 
 mod common;
 
@@ -279,7 +285,10 @@ fn adapter_identified_set_refusals() {
     let error =
         evaluate_identified_sets(&plain(StructuralPolicy::BayesOverStructures), &sets).unwrap_err();
     assert_eq!(error, AdapterError::BayesOverIdentifiedSet);
-    assert_eq!(error.to_refusal().detail, "decision_adapters.bayes_over_identified_set");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::decision_adapters::BAYES_OVER_IDENTIFIED_SET
+    );
     assert_eq!(error.to_refusal().code, "decision_contract_unsatisfied");
 
     let quantile = contract(
@@ -288,32 +297,50 @@ fn adapter_identified_set_refusals() {
         AdmissibilityRules::default(),
     );
     let error = evaluate_identified_sets(&quantile, &sets).unwrap_err();
-    assert_eq!(error, AdapterError::CriterionNotLicensedForSet);
-    assert_eq!(error.to_refusal().detail, "decision_adapters.criterion_not_licensed_for_set");
+    assert_eq!(error, AdapterError::CriterionNotSupportedForSet);
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::decision_adapters::CRITERION_NOT_SUPPORTED_FOR_SET
+    );
 
     let c = plain(StructuralPolicy::Maximin);
     let error = evaluate_identified_sets(&c, &sets[..1]).unwrap_err();
     assert_eq!(error, AdapterError::MissingAction("B".into()));
-    assert_eq!(error.to_refusal().detail, "decision_adapters.missing_action");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::decision_adapters::MISSING_ACTION
+    );
 
     let twice = [interval("A", 2.0, 8.0), interval("A", 4.0, 6.0), interval("B", 1.0, 2.0)];
     let error = evaluate_identified_sets(&c, &twice).unwrap_err();
     assert_eq!(error, AdapterError::DuplicateAction("A".into()));
-    assert_eq!(error.to_refusal().detail, "decision_adapters.duplicate_action");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::decision_adapters::DUPLICATE_ACTION
+    );
 
     let ghost = [interval("A", 2.0, 8.0), interval("B", 4.0, 6.0), interval("C", 0.0, 1.0)];
     let error = evaluate_identified_sets(&c, &ghost).unwrap_err();
     assert_eq!(error, AdapterError::UnknownAction("C".into()));
-    assert_eq!(error.to_refusal().detail, "decision_adapters.unknown_action");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::decision_adapters::UNKNOWN_ACTION
+    );
 
     // Fields are public, so an inverted or non-finite interval can be built.
     let mut inverted = [interval("A", 2.0, 8.0), interval("B", 4.0, 6.0)];
     inverted[0].utility = IdentifiedSet { lower: 9.0, upper: 1.0 };
     let error = evaluate_identified_sets(&c, &inverted).unwrap_err();
     assert_eq!(error, AdapterError::InvalidInterval("A".into()));
-    assert_eq!(error.to_refusal().detail, "decision_adapters.invalid_interval");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::decision_adapters::INVALID_INTERVAL
+    );
     inverted[0].utility = IdentifiedSet { lower: f64::NAN, upper: 1.0 };
-    assert!(evaluate_identified_sets(&c, &inverted).is_err());
+    assert_eq!(
+        evaluate_identified_sets(&c, &inverted).unwrap_err(),
+        AdapterError::InvalidInterval("A".into())
+    );
 
     // A contract that is invalid refuses before any interval is read.
     let mut bad = c;
@@ -461,7 +488,10 @@ fn adapter_graph_dependent_claims_refuse_probabilities() {
     let error = adapt_graph_dependent_claims(claims, StructuralPolicy::RequireInvariantBestAction)
         .unwrap_err();
     assert_eq!(error, AdapterError::GraphClaimsCarryNoProbability("g1".into()));
-    assert_eq!(error.to_refusal().detail, "decision_adapters.graph_claims_carry_no_probability");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::decision_adapters::GRAPH_CLAIMS_CARRY_NO_PROBABILITY
+    );
 }
 
 #[test]
@@ -522,7 +552,10 @@ fn adapter_weighted_atoms_bayes_refusal_without_genuine_probabilities() {
         .unwrap_err();
     assert_eq!(error, AdapterError::CompletionCountNotProbability("g1".into()));
     let refusal = error.to_refusal();
-    assert_eq!(refusal.detail, "decision_adapters.completion_count_not_probability");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_adapters::COMPLETION_COUNT_NOT_PROBABILITY
+    );
     assert_eq!(refusal.code, "decision_contract_unsatisfied");
 
     // Neither is the absence of any weight.
@@ -533,7 +566,10 @@ fn adapter_weighted_atoms_bayes_refusal_without_genuine_probabilities() {
     let error = adapt_weighted_graph_atoms(none.clone(), StructuralPolicy::BayesOverStructures)
         .unwrap_err();
     assert_eq!(error, AdapterError::ProbabilitiesRequired);
-    assert_eq!(error.to_refusal().detail, "decision_adapters.probabilities_required");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::decision_adapters::PROBABILITIES_REQUIRED
+    );
     let error =
         adapt_finite_scenarios(none.clone(), StructuralPolicy::BayesOverStructures).unwrap_err();
     assert_eq!(error, AdapterError::ProbabilitiesRequired);
@@ -567,7 +603,10 @@ fn adapter_weighted_atoms_bayes_refusal_without_genuine_probabilities() {
     ];
     let error = adapt_weighted_graph_atoms(mixed, StructuralPolicy::Maximin).unwrap_err();
     assert!(matches!(error, AdapterError::InvalidClaims(_)));
-    assert_eq!(error.to_refusal().detail, "decision_adapters.invalid_claims");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::decision_adapters::INVALID_CLAIMS
+    );
 }
 
 #[test]
@@ -688,7 +727,7 @@ fn adapter_unsupported_atom_keeps_its_support_status_beyond_unevaluated() {
     );
     assert_eq!(decision.robust.actions[1].unsupported_in, vec!["g2".to_owned()]);
     assert!(decision.robust.actions[0].unsupported_in.is_empty());
-    // A leads everywhere B is licensed to compete, and everywhere it is not.
+    // A leads everywhere B is supported to compete, and everywhere it is not.
     assert_eq!(decision.robust.verdict, RobustVerdict::SupportRobust("A".into()));
 }
 
@@ -723,7 +762,10 @@ fn adapter_policy_and_claim_shape_mismatches_refuse() {
     let error = evaluate_adapted(&plain(StructuralPolicy::RequireInvariantBestAction), &adapted)
         .unwrap_err();
     assert_eq!(error, AdapterError::PolicyMismatch);
-    assert_eq!(error.to_refusal().detail, "decision_adapters.policy_mismatch");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::decision_adapters::POLICY_MISMATCH
+    );
 
     assert!(matches!(
         adapt_graph_dependent_claims(vec![], StructuralPolicy::Maximin),

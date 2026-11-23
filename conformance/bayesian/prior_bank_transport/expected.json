@@ -9,18 +9,32 @@
   "alpha": 0.8,
   "with_policy": {
     "policy": "invariant_conditional_outcome",
-    "required_assumption_ids": ["external_transport_prior", "external_composed_prior"],
+    "required_assumption_ids": [
+      "external_transport_prior",
+      "external_composed_prior"
+    ],
     "expect_alpha_unchanged": true
   },
   "propensity_missing_weights": {
     "policy": "invariant_propensity",
     "expect_alpha_applied": 0.0,
-    "required_assumption_ids": ["external_transport_prior"]
+    "required_assumption_ids": [
+      "external_transport_prior"
+    ]
   },
   "tol": 1e-12,
   "notes": "P4D TransportPolicy; unsupported shifts (environment / unidentified) not claimed",
+  "evidence_roles": [
+    "software"
+  ],
+  "evidence_kind": "implementation_exists",
+  "evidence_source": "crates/antecedent/tests/bayesian.rs::prior_bank_transport",
+  "evidence_proposition": "A population-tag mismatch without a transport policy refuses with the named error code; with the declared policy the required assumption ids are recorded and alpha is unchanged; propensity transport without weights forces alpha to zero.",
+  "limitations": "Policy and refusal contract only; no transport assumption, numerical prior or posterior is validated.",
   "oracle": {
-    "kind": "closed_form",
-    "method": "TransportPolicy contract stated by hand: differing population tags without a policy refuse with the named error; propensity without weights forces alpha to 0"
+    "kind": "regression_pin",
+    "origin": "Current review of retained local contract inputs and their exact executing consumer; this record asserts no external generator or independent numerical origin.",
+    "historical_exposure": "Historical author exposure is unrecorded and remains unknown.",
+    "note": "Pins the declared TransportPolicy contract: a population-tag mismatch without a policy refuses with the named code, the declared policy records its assumption ids with alpha unchanged, and propensity transport without weights forces alpha to zero. A policy and refusal contract, not a numerical truth."
   }
 }

@@ -32,7 +32,7 @@
 //! **Effective sample size.** The Kish effective sample size `(Σ s)² / Σ s²` of the analysed
 //! rows is reported beside the row count.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -222,8 +222,18 @@ impl RetainedSamplingWeights {
         let n = weights.len() as f64;
         let weight_sum = weights.iter().sum::<f64>();
         let scale = n / weight_sum;
+        let normalized: Arc<[f64]> = if weight_sum.is_finite() && scale.is_finite() {
+            weights.iter().map(|w| w * scale).collect()
+        } else {
+            // The weights are individually finite but their sum overflows (a scale of 1e308)
+            // or underflows into a reciprocal that overflows (a scale of 1e-320). Normalize
+            // relative to the largest weight, which only changes the order of the rounding.
+            let largest = weights.iter().copied().fold(0.0_f64, f64::max);
+            let unit_sum: f64 = weights.iter().map(|w| w / largest).sum();
+            weights.iter().map(|w| (w / largest) * (n / unit_sum)).collect()
+        };
         Self {
-            weights: weights.iter().map(|w| w * scale).collect(),
+            weights: normalized,
             record: SamplingWeightRecord {
                 rows_used: weights.len() as u64,
                 zero_weight_rows,
@@ -269,7 +279,7 @@ pub(crate) fn root_weight_design(
 pub fn invalid(message: &str) -> EstimationError {
     crate::util::refuse(
         antecedent_core::reason_code!("sampling_weights_invalid"),
-        "sampling_weights.invalid",
+        antecedent_core::reason_details::sampling_weights::INVALID,
         message,
     )
 }
@@ -280,7 +290,7 @@ pub fn invalid(message: &str) -> EstimationError {
 pub fn unsupported_route(message: &str) -> EstimationError {
     crate::util::refuse(
         antecedent_core::reason_code!("option_not_applicable"),
-        "sampling_weights.route_unsupported",
+        antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED,
         message,
     )
 }
@@ -330,6 +340,20 @@ mod tests {
         }
         assert!((one.record.effective_sample_size - two.record.effective_sample_size).abs() < 1e-9);
         assert!((one.weights.iter().sum::<f64>() - 4.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn weights_at_the_edge_of_the_float_range_normalize_to_mean_one() {
+        for scale in [1.0e308, 5.0e-320, 1.0e-300] {
+            let base = [1.0, 0.25, 0.5, 0.25];
+            let declared: Vec<f64> = base.iter().map(|w| w * scale).collect();
+            let mut mask = vec![true; 4];
+            let kept = SamplingWeights::new(declared).unwrap().restrict(&mut mask).unwrap();
+            for (got, want) in kept.weights.iter().zip([2.0, 0.5, 1.0, 0.5]) {
+                assert!((got - want).abs() < 1e-3 * want, "scale {scale}: {got} vs {want}");
+            }
+            assert!((kept.record.effective_sample_size - 4.0 / 1.375).abs() < 1e-2);
+        }
     }
 
     #[test]

@@ -4,7 +4,7 @@
 //! A forward source is a claim about the response of each declared action, adapted from a
 //! composed mechanism model, a cohort-mean contrast or a transported response. Python
 //! declares the actions' coordinates and queries and the transport receipt; the replay of every
-//! composition query, the license of what the source can answer, the engine, the sealed
+//! composition query, the support of what the source can answer, the engine, the sealed
 //! artifact and every refusal are Rust's. A refusal comes back as structured JSON for the
 //! Python layer to raise as a typed exception.
 //!
@@ -14,16 +14,16 @@
 use antecedent::analysis::cohort_decision::{CohortExpectation, consume_cohort_decision_source};
 use antecedent::analysis::inverse_query::{InverseQueryWire, InverseResultWire};
 use antecedent::analysis::inverse_sources::{
-    ComposedActionQuery, ComposedSourceRefusal, InverseDemand, LicensedForwardSource,
-    ObservationalScenarioQuery, ObservationalScenarioResult, OutcomeEvent, ScenarioCell,
-    ScenarioCondition, TransportReceipt, TransportedInputPolicy, cohort_source, evaluate,
+    ComposedActionQuery, ComposedSourceRefusal, InverseDemand, ObservationalScenarioQuery,
+    ObservationalScenarioResult, OutcomeEvent, ScenarioCell, ScenarioCondition,
+    SupportedForwardSource, TransportReceipt, TransportedInputPolicy, cohort_source, evaluate,
     evaluate_observational, inspect_observational, inspect_origin, seal, seal_per_action,
     transported_source, verify_observational,
 };
 use antecedent::analysis::mechanism_composition::CompositionQueryWire;
-use antecedent_core::reason_code;
-use antecedent_design::decision_artifact::contract_from_json_refusal;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent::design::decision_artifact::contract_from_json_refusal;
+use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::reason::reason_code;
 use pyo3::prelude::*;
 use serde::Deserialize;
 use serde_json::{Value as Json, json};
@@ -54,10 +54,10 @@ fn policy_of(accepts_transported: bool) -> TransportedInputPolicy {
 /// A forward source that passed its own checks, with the origin it carries.
 #[pyclass(name = "ForwardSourceHandle", skip_from_py_object)]
 pub(crate) struct ForwardSourceHandle {
-    inner: LicensedForwardSource,
+    inner: SupportedForwardSource,
 }
 
-fn origin_json(source: &LicensedForwardSource) -> Json {
+fn origin_json(source: &SupportedForwardSource) -> Json {
     let origin = source.origin();
     let inspection = inspect_origin(origin);
     json!({
@@ -145,7 +145,7 @@ fn forward_source_composed(
         .map(|wire| {
             Ok(ComposedActionQuery {
                 action_id: wire.action_id,
-                coordinate: antecedent_contract::ScientificQuantity::try_from(wire.coordinate)
+                coordinate: antecedent::scientific::ScientificQuantity::try_from(wire.coordinate)
                     .map_err(crate::value_err)?,
                 query: wire.query,
                 level_values: wire.level_values,
@@ -178,10 +178,16 @@ fn forward_source_composed(
 /// bytes under the identity the caller retained.
 #[pyfunction]
 fn forward_source_cohort(
+    py: Python<'_>,
     artifact: &[u8],
     expected_identity: &str,
     accepts_transported: bool,
-) -> Refused<ForwardSourceHandle> {
+) -> PyResult<Refused<ForwardSourceHandle>> {
+    crate::bridge::check_declared_len(
+        artifact.len(),
+        crate::bridge::MAX_SEALED_ARTIFACT_BYTES,
+        "cohort source artifact",
+    )?;
     let expectation = CohortExpectation {
         identity: expected_identity.to_owned(),
         parent_claim: None,
@@ -190,10 +196,10 @@ fn forward_source_cohort(
         contrast_regime: None,
         cohort_digest: None,
     };
-    let source = match consume_cohort_decision_source(artifact, &expectation) {
+    let source = match py.detach(|| consume_cohort_decision_source(artifact, &expectation)) {
         Ok(source) => source,
         Err(error) => {
-            return (
+            return Ok((
                 None,
                 Some(
                     RefusalJson::new(error.code, "consume", error.detail, &error.to_string())
@@ -201,13 +207,13 @@ fn forward_source_cohort(
                         .remedy(Some(error.remedy))
                         .json(),
                 ),
-            );
+            ));
         }
     };
-    match cohort_source(&source, policy_of(accepts_transported)) {
+    Ok(match cohort_source(&source, policy_of(accepts_transported)) {
         Ok(inner) => (Some(ForwardSourceHandle { inner }), None),
         Err(refusal) => (None, Some(external_refusal_json(&refusal.to_refusal()))),
-    }
+    })
 }
 
 /// A transported response as a forward source.
@@ -251,6 +257,7 @@ fn query_of(
 /// Evaluate an inverse query on a source: the result table beside the source's origin.
 #[pyfunction]
 fn forward_source_evaluate(
+    py: Python<'_>,
     source: PyRef<'_, ForwardSourceHandle>,
     contract_json: &str,
     query_json: &str,
@@ -261,7 +268,8 @@ fn forward_source_evaluate(
         Err(refusal) => return Ok((None, Some(refusal))),
     };
     let demand = InverseDemand { interval_region };
-    Ok(match evaluate(&query, &source.inner, demand) {
+    let inner = &source.inner;
+    Ok(match py.detach(|| evaluate(&query, inner, demand)) {
         Ok(sourced) => {
             let result = InverseResultWire::from(&sourced.result);
             (
@@ -283,6 +291,7 @@ fn forward_source_evaluate(
 /// origin into the artifact.
 #[pyfunction]
 fn forward_source_seal(
+    py: Python<'_>,
     source: PyRef<'_, ForwardSourceHandle>,
     contract_json: &str,
     query_json: &str,
@@ -293,7 +302,8 @@ fn forward_source_seal(
         Err(refusal) => return Ok((None, Some(refusal))),
     };
     let demand = InverseDemand { interval_region };
-    Ok(match seal(query, &source.inner, demand) {
+    let inner = &source.inner;
+    Ok(match py.detach(|| seal(query, inner, demand)) {
         Ok(artifact) => (Some(PyInverseQueryArtifact::from_sealed(artifact)), None),
         Err(refusal) => (None, Some(external_refusal_json(&refusal.to_refusal()))),
     })
@@ -302,6 +312,7 @@ fn forward_source_seal(
 /// Evaluate and seal one single-action artifact per answered action.
 #[pyfunction]
 fn forward_source_seal_per_action(
+    py: Python<'_>,
     source: PyRef<'_, ForwardSourceHandle>,
     contract_json: &str,
     query_json: &str,
@@ -312,7 +323,8 @@ fn forward_source_seal_per_action(
         Err(refusal) => return Ok((None, Some(refusal))),
     };
     let demand = InverseDemand { interval_region };
-    Ok(match seal_per_action(&query, &source.inner, demand) {
+    let inner = &source.inner;
+    Ok(match py.detach(|| seal_per_action(&query, inner, demand)) {
         Ok(sealed) => (
             Some(
                 sealed
@@ -367,7 +379,7 @@ fn scenario_query_of(text: &str) -> PyResult<ObservationalScenarioQuery> {
     let wire: ScenarioQueryIn = serde_json::from_str(text)
         .map_err(|e| crate::value_err(format!("invalid scenario query: {e}")))?;
     let quantity = |wire: ScientificQuantityWire| {
-        antecedent_contract::ScientificQuantity::try_from(wire).map_err(crate::value_err)
+        antecedent::scientific::ScientificQuantity::try_from(wire).map_err(crate::value_err)
     };
     let event = match wire.event.direction.as_str() {
         "at_least" => OutcomeEvent::AtLeast(wire.event.threshold),
@@ -452,11 +464,13 @@ impl ObservationalScenarioHandle {
 /// Answer an observational-scenario question on an aligned observational law.
 #[pyfunction]
 fn observational_scenarios_evaluate(
+    py: Python<'_>,
     law: PyRef<'_, PyJointDistributionArtifact>,
     query_json: &str,
 ) -> PyResult<Refused<ObservationalScenarioHandle>> {
     let query = scenario_query_of(query_json)?;
-    Ok(match evaluate_observational(&query, law.inner()) {
+    let inner = law.inner();
+    Ok(match py.detach(|| evaluate_observational(&query, inner)) {
         Ok(result) => (Some(ObservationalScenarioHandle { query, result }), None),
         Err(error) => (None, Some(external_refusal_json(&error.to_refusal()))),
     })

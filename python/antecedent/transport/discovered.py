@@ -65,7 +65,7 @@ never point backward in time, a selection target applies at every slice, and the
 largest lag is reported as ``max_lag``. :func:`estimate_discovered_temporal_transport` discovers
 on a source series, unrolls the class and estimates from two integer-coded series; its interval,
 when ``bootstrap_replicates`` is requested, is a circular block bootstrap of each series' window
-rows (``block_length``, default twice the window span) and is unmeasured like the static one.
+rows (``block_length``, default twice the window span) and is not_measured like the static one.
 
 **Lifecycle.** The envelope is derived on every call from the class and the declared query.
 Outcome-only data leaves the class and so the envelope's content unchanged; a rerun that yields
@@ -80,10 +80,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from .. import _native
+from .._artifact_protocol import ExportedArtifact, artifact_consumer, container_bytes
 from .._refusal import raise_refusal
 from .._scientific import ScientificResult
 from .._validate import count
 from ..errors import CausalTypeError, CausalValueError, StructuredRefusal
+from ..execution import Execution
 from ..selective_discovery import (
     Outcome,
     RunReport,
@@ -94,6 +96,7 @@ from ..selective_discovery import (
     _outcome,
     _report,
 )
+from ._controls import call_native
 
 __all__ = [
     "DiscoveredTransport",
@@ -164,6 +167,19 @@ class StructuralTransportEnvelope(ScientificResult):
     stopped the enumeration: no statement over the whole class). ``formulas_agree`` is whether
     every member is certified with one formula; when it is false the class does not determine
     the estimand's expression and the graph must be resolved before estimating.
+
+    Read ``status`` and ``formulas_agree`` first, then ``members``. Further fields:
+
+    * ``enumeration_complete`` -- whether every member of the class was enumerated.
+    * ``member_bound`` -- the enumeration bound that applied.
+    * ``identified_members`` -- how many members are ``identified``.
+    * ``members`` -- one :class:`EnvelopeMember` per enumerated member.
+    * ``unresolved`` -- unresolved pairs as ``(a, b, reason)`` by variable name.
+    * ``assumptions`` -- the premises under which the true graph is a member; none is checked.
+    * ``selection_targets`` -- the declared selection targets.
+    * ``structure_identity``, ``result_identity`` -- identities of the discovered structure and
+      the discovery result.
+    * ``identity`` -- identity of this envelope.
     """
 
     kind: str
@@ -183,7 +199,12 @@ class StructuralTransportEnvelope(ScientificResult):
 
 @dataclass(repr=False, frozen=True, slots=True)
 class DiscoveredTransport(ScientificResult):
-    """A discovery run and the structural envelope derived from the class it returned."""
+    """A discovery run and the structural envelope derived from the class it returned.
+
+    Returned by :func:`discover_and_transport`. ``envelope`` is the
+    :class:`StructuralTransportEnvelope`; ``outcome`` and ``report`` are the discovery's
+    :class:`~antecedent.selective_discovery.Outcome` and run report.
+    """
 
     envelope: StructuralTransportEnvelope
     outcome: Outcome
@@ -344,9 +365,14 @@ def transport_across_class(
     between the populations, declared by you. ``member_bound`` bounds the enumeration (default
     256).
 
+    Returns:
+        The :class:`StructuralTransportEnvelope`; read ``status`` first.
+
     Raises:
-        DiscoveredTransportRefusal: see the module documentation.
-        SelectiveDiscoveryRefusal: nothing has run.
+        DiscoveredTransportRefusal: see the module documentation; also raised when the adapter
+            has not run.
+        CausalTypeError: ``adapter`` is not a ``SelectiveDiscovery``, or a name is not a string.
+        CausalValueError: a variable name is not a searched variable, or ``grid`` is empty.
     """
     if not isinstance(adapter, SelectiveDiscovery):
         raise CausalTypeError("adapter must be a SelectiveDiscovery")
@@ -385,19 +411,25 @@ def discover_and_transport(
     target_population: str = "target",
     source_experiments: Sequence[str] = (),
     member_bound: int | None = None,
-    threads: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> DiscoveredTransport:
     """Discover on ``data`` under ``contract``, then request the envelope across its class.
 
     A refusal of the transport request raises :class:`DiscoveredTransportRefusal` with the
     discovery that ran attached (``refusal.outcome``, ``refusal.report``); discovery is not
-    discarded.
+    discarded. Query parameters and defaults as :func:`transport_across_class`; ``data`` holds
+    integer-coded columns named like ``contract.variables``, and ``execution`` (default
+    ``None``, default controls) supplies threads and cancellation.
+
+    Returns:
+        A :class:`DiscoveredTransport`; read ``envelope.status`` first.
 
     Raises:
         DiscoveredTransportRefusal: see the module documentation.
         SelectiveDiscoveryRefusal: a refused contract.
         CausalDiscoveryError: the algorithm failed or was cancelled.
+        CausalTypeError: ``contract`` is not a ``StaticContract``.
+        CausalValueError: a variable name is not in the contract, or ``grid`` is empty.
     """
     from ..selective_discovery import SelectiveDiscoveryRefusal
 
@@ -415,17 +447,18 @@ def discover_and_transport(
     )
     targets = _target_ids(names, selection_targets)
     bound = None if member_bound is None else count(member_bound, "member_bound", minimum=0)
-    envelope_text, transport_refusal, discovery_text, discovery_refusal = (
-        _native.discovered_transport_run(
-            json.dumps(contract.to_wire(), sort_keys=True),
-            list(names),
-            _columns(contract, data),
-            query,
-            targets,
-            bound,
-            threads=threads,
-            cancel=cancel,
-        )
+    envelope_text, transport_refusal, discovery_text, discovery_refusal = call_native(
+        execution,
+        _native.discovered_transport_run,
+        json.dumps(contract.to_wire(), sort_keys=True),
+        list(names),
+        _columns(contract, data),
+        query,
+        targets,
+        bound,
+        cancel="cancel",
+        memory=None,
+        threads="threads",
     )
     raise_refusal(discovery_refusal, SelectiveDiscoveryRefusal)
     assert discovery_text is not None
@@ -463,7 +496,8 @@ class TransportAnswer:
     ``contrast`` is the smallest and largest member contrast, last level minus first.
     ``interval`` is the pointwise percentile interval on a point's contrast (``low``, ``high``,
     ``coverage_target``, ``calibration``), present only when requested; a structural range has
-    none (``interval_reason`` says why).
+    none (``interval_reason`` says why). ``expressions_agree`` is whether every estimated member
+    derived the same formula.
     """
 
     kind: str
@@ -481,6 +515,11 @@ class DiscoveredTransportEstimate(ScientificResult):
     ``export()`` returns the durable artifact: pass it to
     :func:`verify_discovered_transport_estimate` to replay every member's grid and recompute the
     answer.
+
+    Read ``answer`` first (a :class:`TransportAnswer`), then ``members``. ``levels`` is the
+    treatment grid, ``report_identity`` the identity of the discovery report the members came
+    from, ``identity`` the identity of this estimate, and ``outcome`` and ``report`` the
+    discovery that ran.
     """
 
     levels: tuple[float, ...]
@@ -488,14 +527,19 @@ class DiscoveredTransportEstimate(ScientificResult):
     answer: TransportAnswer
     report_identity: str
     identity: str
-    _artifact_bytes: bytes
+    _artifact_bytes: bytes | ExportedArtifact[Any]
     outcome: Outcome
     report: RunReport
 
 
 @dataclass(frozen=True, slots=True)
-class VerifiedEstimate:
-    """What replaying an exported estimate established."""
+class VerifiedEstimate(ScientificResult):
+    """What replaying an exported estimate established.
+
+    Returned by :func:`verify_discovered_transport_estimate`: the recomputed ``answer``, the
+    ``report_identity`` of the original discovery report and the replayed member indices
+    ``members``.
+    """
 
     answer: TransportAnswer
     report_identity: str
@@ -529,8 +573,7 @@ def estimate_discovered_transport(
     target_population: str = "target",
     member_bound: int | None = None,
     bootstrap_replicates: int = 0,
-    threads: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> DiscoveredTransportEstimate:
     """Discover on ``source``, enumerate the class, and estimate the transported response.
 
@@ -538,7 +581,11 @@ def estimate_discovered_transport(
     and ``target`` observational rows of the target population; both are integer-coded columns
     named like ``contract.variables``. The treatment is the source experiment, the grid gives the
     levels, and the answer is a point, a structural range or a refusal; see the module
-    documentation.
+    documentation. ``bootstrap_replicates`` (default ``0``) requests the pointwise interval on a
+    point answer's contrast; other defaults as :func:`transport_across_class`.
+
+    Returns:
+        A :class:`DiscoveredTransportEstimate`; read ``answer.kind`` first.
 
     Raises:
         DiscoveredTransportRefusal: a refusal of the transport request or of the estimate (a
@@ -563,19 +610,20 @@ def estimate_discovered_transport(
     targets = _target_ids(names, selection_targets)
     bound = None if member_bound is None else count(member_bound, "member_bound", minimum=0)
     replicates = count(bootstrap_replicates, "bootstrap_replicates", minimum=0)
-    estimate_text, refusal, discovery_text, discovery_refusal, artifact = (
-        _native.discovered_transport_estimate_run(
-            json.dumps(contract.to_wire(), sort_keys=True),
-            list(names),
-            _columns(contract, source),
-            _columns(contract, target),
-            query,
-            targets,
-            bound,
-            replicates,
-            threads=threads,
-            cancel=cancel,
-        )
+    estimate_text, refusal, discovery_text, discovery_refusal, artifact = call_native(
+        execution,
+        _native.discovered_transport_estimate_run,
+        json.dumps(contract.to_wire(), sort_keys=True),
+        list(names),
+        _columns(contract, source),
+        _columns(contract, target),
+        query,
+        targets,
+        bound,
+        replicates,
+        cancel="cancel",
+        memory=None,
+        threads="threads",
     )
     raise_refusal(discovery_refusal, SelectiveDiscoveryRefusal)
     assert discovery_text is not None
@@ -588,8 +636,13 @@ def estimate_discovered_transport(
 
 
 def _estimate_of(
-    wire: Mapping[str, Any], artifact: bytes, found: Outcome, report: RunReport
+    wire: Mapping[str, Any],
+    artifact: bytes | ExportedArtifact[Any],
+    found: Outcome,
+    report: RunReport,
 ) -> DiscoveredTransportEstimate:
+    if not isinstance(artifact, ExportedArtifact):
+        artifact = container_bytes(artifact)
     members = tuple(
         MemberEstimate(
             member=int(m["member"]),
@@ -613,19 +666,40 @@ def _estimate_of(
     )
 
 
-def verify_discovered_transport_estimate(artifact: bytes, *, seed: int = 0) -> VerifiedEstimate:
+@artifact_consumer(
+    proof="native discovered-transport consumer verifies member proofs and tables and recomputes ordered grid means and answer identity",
+    replayable=True,
+    resumable=False,
+    identity=(),
+)
+def verify_discovered_transport_estimate(
+    artifact: bytes, *, execution: Execution | None = None
+) -> VerifiedEstimate:
     """Replay an exported estimate and return the answer it recomputes.
 
     Every member's transport grid is consumed with its embedded proof and tables, the mean at
-    every level is recomputed, and the answer kind and identity are checked.
+    every level is recomputed, and the answer kind and identity are checked. ``artifact`` is the
+    bytes or ``ExportedArtifact`` from :meth:`DiscoveredTransportEstimate.export`.
+
+    Returns:
+        A :class:`VerifiedEstimate`.
 
     Raises:
-        CausalValueError: a malformed or forged artifact.
+        CausalSerializationError: a malformed, corrupt or forged artifact.
+        CausalResourceError: replay exceeds its evaluation limits.
+        CausalTypeError: ``artifact`` is not bytes or an ``ExportedArtifact``.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray)):
         raise CausalTypeError("artifact must be bytes")
     wire = json.loads(
-        _native.verify_discovered_transport_estimate_artifact(bytes(artifact), seed=seed)
+        call_native(
+            execution,
+            _native.verify_discovered_transport_estimate_artifact,
+            bytes(artifact),
+            seed="seed",
+            threads="threads",
+        )
     )
     return VerifiedEstimate(
         answer=_answer(wire["answer"]),
@@ -743,10 +817,20 @@ def transport_across_temporal_class(
 
     ``adapter`` is a temporal :class:`~antecedent.selective_discovery.SelectiveDiscovery` that has
     run (PCMCI or PCMCI+). The intervention is on ``treatment`` at the origin and the outcome is
-    ``outcome`` ``horizon_steps`` later; ``selection_targets`` apply at every slice.
+    ``outcome`` ``horizon_steps`` later (``0`` asks for the contemporaneous effect);
+    ``selection_targets`` apply at every slice. ``history`` is the number of slices of history
+    in the window; ``None`` (the default) uses twice the template's largest lag. Other
+    parameters and defaults as :func:`transport_across_class`.
+
+    Returns:
+        The :class:`TemporalStructuralEnvelope`; read ``status`` first.
 
     Raises:
-        DiscoveredTransportRefusal: see the module documentation.
+        DiscoveredTransportRefusal: see the module documentation; also raised when the adapter
+            has not run.
+        CausalTypeError: ``adapter`` is not a ``SelectiveDiscovery``, or a name is not a string.
+        CausalValueError: a variable name is not a searched variable, ``grid`` is empty, or a
+            count is negative.
     """
     if not isinstance(adapter, SelectiveDiscovery):
         raise CausalTypeError("adapter must be a SelectiveDiscovery")
@@ -788,15 +872,26 @@ def transport_temporal_graph(
     source_experiments: Sequence[str] = (),
     member_bound: int | None = None,
     exhausted_search_bounds: int = 0,
+    execution: Execution | None = None,
 ) -> TemporalStructuralEnvelope:
-    """The structural verdict across a temporal graph you hold (``TemporalDag``,
-    ``TemporalCpdag`` or ``TemporalPag``), for example an LPCMCI result.
+    """The structural verdict across a temporal graph you hold, for example an LPCMCI result.
 
-    ``variables`` are the graph's variable names in id order. A circle endpoint of a
-    ``TemporalPag`` is enumerated and never read as the absence of confounding.
+    ``graph`` is a ``TemporalDag``, ``TemporalCpdag`` or ``TemporalPag``. ``variables`` are
+    the graph's variable names in id order. A circle endpoint of a ``TemporalPag`` is
+    enumerated and never read as the absence of confounding. ``exhausted_search_bounds``
+    (default ``0``) is the number of search bounds the discovery that produced ``graph``
+    exhausted; a nonzero count refuses as an incomplete search. The member enumeration and each
+    member's identification run under ``execution``: its memory limit bounds identification and
+    its cancellation stops the enumeration, each refused with its typed reason. Other parameters
+    and defaults as :func:`transport_across_temporal_class`.
+
+    Returns:
+        The :class:`TemporalStructuralEnvelope`; read ``status`` first.
 
     Raises:
         DiscoveredTransportRefusal: see the module documentation.
+        CausalValueError: ``graph`` is not one of the three temporal graph types, a variable
+            name is not in ``variables``, ``grid`` is empty, or a count is negative.
     """
     names = tuple(variables)
     query = _query_wire(
@@ -811,8 +906,19 @@ def transport_temporal_graph(
     steps, window = _horizon(horizon_steps, history)
     bound = None if member_bound is None else count(member_bound, "member_bound", minimum=0)
     exhausted = count(exhausted_search_bounds, "exhausted_search_bounds", minimum=0)
-    text, refusal = _native.discovered_temporal_graph_transport(
-        graph, steps, query, _target_ids(names, selection_targets), window, bound, exhausted
+    text, refusal = call_native(
+        execution,
+        _native.discovered_temporal_graph_transport,
+        graph,
+        steps,
+        query,
+        _target_ids(names, selection_targets),
+        window,
+        bound,
+        exhausted,
+        cancel="cancel",
+        memory="memory_bytes",
+        threads="threads",
     )
     _raise_transport(refusal, names)
     assert text is not None
@@ -835,8 +941,7 @@ def estimate_discovered_temporal_transport(
     member_bound: int | None = None,
     bootstrap_replicates: int = 0,
     block_length: int | None = None,
-    threads: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> DiscoveredTransportEstimate:
     """Discover on the ``source`` series, unroll the class at ``horizon_steps`` and estimate.
 
@@ -846,7 +951,12 @@ def estimate_discovered_temporal_transport(
     :func:`estimate_discovered_transport`. Window rows overlap, so an interval
     (``bootstrap_replicates``) is a circular block bootstrap of each series' window rows with
     ``block_length`` rows per block (default twice the window span); it is conditional on the
-    discovered class and its calibration is ``not_bound_to_this_execution``.
+    discovered class and its calibration is ``not_bound_to_this_execution``. ``horizon_steps``
+    and ``history`` as :func:`transport_across_temporal_class`; other parameters and defaults
+    as :func:`estimate_discovered_transport`.
+
+    Returns:
+        A :class:`DiscoveredTransportEstimate`; read ``answer.kind`` first.
 
     Raises:
         DiscoveredTransportRefusal: a refusal of the transport request or of the estimate.
@@ -871,22 +981,23 @@ def estimate_discovered_temporal_transport(
     bound = None if member_bound is None else count(member_bound, "member_bound", minimum=0)
     replicates = count(bootstrap_replicates, "bootstrap_replicates", minimum=0)
     block = None if block_length is None else count(block_length, "block_length", minimum=1)
-    estimate_text, refusal, discovery_text, discovery_refusal, artifact = (
-        _native.discovered_temporal_transport_estimate_run(
-            json.dumps(contract.to_wire(), sort_keys=True),
-            list(names),
-            _columns(contract, source),
-            _columns(contract, target),
-            query,
-            _target_ids(names, selection_targets),
-            steps,
-            window,
-            bound,
-            replicates,
-            block,
-            threads=threads,
-            cancel=cancel,
-        )
+    estimate_text, refusal, discovery_text, discovery_refusal, artifact = call_native(
+        execution,
+        _native.discovered_temporal_transport_estimate_run,
+        json.dumps(contract.to_wire(), sort_keys=True),
+        list(names),
+        _columns(contract, source),
+        _columns(contract, target),
+        query,
+        _target_ids(names, selection_targets),
+        steps,
+        window,
+        bound,
+        replicates,
+        block,
+        cancel="cancel",
+        memory=None,
+        threads="threads",
     )
     raise_refusal(discovery_refusal, SelectiveDiscoveryRefusal)
     assert discovery_text is not None

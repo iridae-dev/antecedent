@@ -31,7 +31,7 @@ pub enum PredictionNode {
 }
 
 /// Versioned numerical prediction map. Schema and causal identity belong to its owner.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct PortablePredictor {
     /// Codec version.
@@ -42,6 +42,31 @@ pub struct PortablePredictor {
     pub provenance: LearnerProvenance,
     /// Numerical map.
     pub model: PredictionMap,
+}
+
+// Keep the accepted wire shape unchanged while enforcing the numerical-map
+// invariant before a deserialized predictor reaches an artifact consumer.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PortablePredictorWire {
+    version: u32,
+    columns: usize,
+    provenance: LearnerProvenance,
+    model: PredictionMap,
+}
+
+impl<'de> Deserialize<'de> for PortablePredictor {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let wire = PortablePredictorWire::deserialize(deserializer)?;
+        let predictor = Self {
+            version: wire.version,
+            columns: wire.columns,
+            provenance: wire.provenance,
+            model: wire.model,
+        };
+        predictor.validate().map_err(serde::de::Error::custom)?;
+        Ok(predictor)
+    }
 }
 
 /// Supported provider-independent numerical maps.
@@ -137,7 +162,7 @@ impl PortablePredictor {
     ///
     /// # Errors
     /// A linear map, a short `out`, a tree link out of range, no supporting leaf at
-    /// a row, or a non-finite prediction.
+    /// a row, a backward tree link or invalid feature, or a non-finite prediction.
     pub fn predict_trees_with(
         &self,
         n_rows: usize,
@@ -159,7 +184,9 @@ impl PortablePredictor {
                 probability: *probability,
             };
             let predicted =
-                tree_ensemble_value(trees, aggregation, &mut |feature| Ok(value(row, feature)))?;
+                tree_ensemble_value(trees, self.columns, aggregation, &mut |feature| {
+                    Ok(value(row, feature))
+                })?;
             if !predicted.is_finite() {
                 return Err(LearnError::Shape { message: "nonfinite prediction" });
             }
@@ -181,6 +208,7 @@ struct TreeAggregation {
 /// One row's prediction from an ensemble; `feature_value(f)` reads the row's column `f`.
 fn tree_ensemble_value(
     trees: &[Vec<PredictionNode>],
+    columns: usize,
     aggregation: TreeAggregation,
     feature_value: &mut dyn FnMut(usize) -> Result<f64, LearnError>,
 ) -> Result<f64, LearnError> {
@@ -203,19 +231,30 @@ fn tree_ensemble_value(
                     break;
                 }
                 PredictionNode::Split { feature, threshold, inclusive, left, right, missing } => {
+                    if feature >= columns {
+                        return Err(LearnError::Shape {
+                            message: "prediction tree feature out of range",
+                        });
+                    }
                     let v = feature_value(feature)?;
                     #[allow(
                         clippy::float_cmp,
                         reason = "an inclusive split sends a value equal to the stored threshold left, so exact equality is the contract"
                     )]
                     let goes_left = !v.is_nan() && (v < threshold || (inclusive && v == threshold));
-                    index = if v.is_nan() {
+                    let next = if v.is_nan() {
                         missing
                     } else if goes_left {
                         left
                     } else {
                         right
                     };
+                    if next <= index {
+                        return Err(LearnError::Shape {
+                            message: "prediction tree child must point forward",
+                        });
+                    }
+                    index = next;
                 }
             }
         }
@@ -263,6 +302,7 @@ impl FittedPredictor for PortablePredictor {
                     }
                     *value = tree_ensemble_value(
                         trees,
+                        self.columns,
                         TreeAggregation {
                             base: *base,
                             average: *average,
@@ -361,9 +401,33 @@ mod tests {
             },
         };
         assert!(model.validate().is_err());
+        let bytes = serde_json::to_vec(&model).unwrap();
+        assert!(serde_json::from_slice::<PortablePredictor>(&bytes).is_err());
+        let mut out = [0.0];
+        assert!(model.predict_trees_with(1, &|_, _| 0.0, &mut out).is_err());
+        if let PredictionMap::Trees { trees, .. } = &mut model.model {
+            trees[0] = vec![
+                PredictionNode::Split {
+                    feature: 1,
+                    threshold: 0.0,
+                    inclusive: true,
+                    left: 1,
+                    right: 1,
+                    missing: 1,
+                },
+                PredictionNode::Leaf { value: Some(0.0) },
+            ];
+        }
+        assert!(
+            model.predict_trees_with(1, &|_, _| panic!("invalid feature read"), &mut out).is_err()
+        );
         model.model = PredictionMap::Linear { coefficients: vec![1.0], logistic: false };
         assert!(model.validate().is_ok());
+        let bytes = serde_json::to_vec(&model).unwrap();
+        assert_eq!(serde_json::from_slice::<PortablePredictor>(&bytes).unwrap(), model);
         model.version = 2;
         assert!(model.validate().is_err());
+        let bytes = serde_json::to_vec(&model).unwrap();
+        assert!(serde_json::from_slice::<PortablePredictor>(&bytes).is_err());
     }
 }

@@ -7,7 +7,7 @@
 //! * The last state is a three-way tie, so P(best) is A 7/12, B 1/3, C 1/12.
 //! * A is selected; with three candidates considered the in-sample value is labelled.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::decision_reliability::{
     CandidateCoupling, CandidateDraws, CandidateOrigin, DecisionDraws,
@@ -78,18 +78,21 @@ fn the_facade_reports_the_enumerated_truth_with_separate_components() {
     assert!((best("C") - 1.0 / 12.0).abs() < 1e-12);
     let inspection = prepared.inspect();
     assert_eq!(inspection.standing, "uncalibrated_point_diagnostic");
-    assert_eq!(inspection.closed_routes.len(), PublishedRoute::ALL.len());
 }
 
 #[test]
-fn publishing_a_probability_or_a_combined_number_is_refused_with_registered_codes() {
+fn publishing_a_route_carries_its_calibration_and_a_combined_number_is_refused() {
     let prepared =
         PreparedDecisionReliability::assess(four_state_law(), None, request(), &ctx()).unwrap();
     for route in PublishedRoute::ALL {
-        let refusal = prepared.publish(route).unwrap_err();
-        assert_eq!(refusal.code, "cell_not_licensed");
-        assert_eq!(refusal.detail, "decision_reliability.cell_not_licensed");
-        assert!(refusal.message.contains("coverage record"));
+        // Four draws lie outside every measured record: published, not calibrated.
+        let slot = prepared.publish(route).unwrap();
+        assert_ne!(
+            slot.status,
+            antecedent_io_core::contract_section::CalibrationStatus::Calibrated,
+            "{}",
+            route.as_str()
+        );
     }
     let refusal = prepared.combined_uncertainty().unwrap_err();
     assert_eq!(refusal.code, "uncertainty_components_not_combined");

@@ -21,6 +21,8 @@ const MAX_JSON_BYTES: usize = crate::bridge::MAX_DECLARED_ARTIFACT_BYTES;
 ///
 /// `adjustment_columns[j]` is the column named `adjustment_names[j]`.
 #[pyfunction]
+#[pyo3(signature = (duration, event, treatment, adjustment_names, adjustment_columns, declaration_json, *, memory_bytes=None, cancel=None))]
+#[allow(clippy::too_many_arguments, reason = "one request: columns, declaration and bounds")]
 fn evaluate_observational_survival(
     py: Python<'_>,
     duration: Vec<f64>,
@@ -29,19 +31,21 @@ fn evaluate_observational_survival(
     adjustment_names: Vec<String>,
     adjustment_columns: Vec<Vec<f64>>,
     declaration_json: &str,
+    memory_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<String> {
     check_declared_size(declaration_json, MAX_JSON_BYTES, "observational survival")?;
     let spec: ObservationalSurvivalSpecWire =
         serde_json::from_str(declaration_json).map_err(|e| {
             with_reason_code(
                 value_err(format!("survival_effect.invalid_request: {e}")),
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
             )
         })?;
     if adjustment_names.len() != adjustment_columns.len() {
         return Err(with_reason_code(
             value_err("survival_effect.invalid_request: a column is missing for a name"),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ));
     }
     let request = ObservationalSurvivalRequest {
@@ -56,7 +60,9 @@ fn evaluate_observational_survival(
         spec,
     };
     detach_catch(py, move || {
-        let report = ObservationalSurvivalEffect::evaluate(&request).map_err(py_err)?;
+        let ctx =
+            crate::transport_common::execution_context(request.spec.seed, memory_bytes, cancel);
+        let report = ObservationalSurvivalEffect::evaluate(&request, &ctx).map_err(py_err)?;
         serde_json::to_string(&report).map_err(|e| crate::serialization_err(e.to_string()))
     })
 }

@@ -10,10 +10,10 @@
 //!
 //! No graph is identified or checked: the caller owns that the declared covariates are a valid
 //! adjustment set. The report lists the assumptions the numbers rest on. The standard errors
-//! are influence-function standard errors whose calibration is **unmeasured**, and no interval
+//! are influence-function standard errors whose calibration is **`not_measured`**, and no interval
 //! is produced.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_estimate::observational_survival::CensoringAssumption;
 
@@ -28,7 +28,7 @@ use super::multi_level_treatment::AdjustmentColumn;
 use crate::error::CausalError;
 
 /// Calibration standing of the reported standard errors.
-pub const OBSERVATIONAL_SURVIVAL_CALIBRATION: &str = "unmeasured";
+pub const OBSERVATIONAL_SURVIVAL_CALIBRATION: &str = "not_measured";
 
 /// The declared horizon, levels and censoring assumption.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -53,7 +53,8 @@ pub struct ObservationalSurvivalSpecWire {
     /// Floor on the probability of remaining uncensored through the horizon.
     #[serde(default)]
     pub min_censoring_survival: Option<f64>,
-    /// Seed of the cross-fit fold plan.
+    /// Seed of the cross-fit fold plan. `evaluate` runs under the caller's context and its
+    /// seed; bindings that build the context from this declaration use this value.
     #[serde(default)]
     pub seed: u64,
 }
@@ -129,7 +130,7 @@ pub struct ObservationalSurvivalReportWire {
     /// Rows dropped for a missing cell.
     pub rows_dropped_missing: u64,
     /// Original row index of each used row.
-    pub row_index: Vec<u32>,
+    pub row_index: Vec<u64>,
     /// Per-row score of the survival difference.
     pub survival_difference_scores: Vec<f64>,
     /// Per-row score of the restricted mean survival time difference.
@@ -142,7 +143,13 @@ pub struct ObservationalSurvivalReportWire {
 pub struct ObservationalSurvivalEffect;
 
 impl ObservationalSurvivalEffect {
-    /// Estimate the declared survival effects.
+    /// Estimate the declared survival effects under the caller's `ctx`.
+    ///
+    /// This is a specialized checked path outside the central compiler. It checks the
+    /// declared horizon, censoring assumption, treatment levels, columns, propensity and
+    /// censoring floors, and refuses on positivity. It does not check the adjustment set
+    /// against a graph: the declared covariates are an assumption the report lists, never an
+    /// identification. The cross-fit seed, cancellation and admission pool are `ctx`'s.
     ///
     /// # Errors
     /// `required_option_missing` for an absent horizon or censoring assumption;
@@ -152,15 +159,16 @@ impl ObservationalSurvivalEffect {
     /// estimator's GLM and Cox refusals.
     pub fn evaluate(
         request: &ObservationalSurvivalRequest,
+        ctx: &ExecutionContext,
     ) -> Result<ObservationalSurvivalReportWire, CausalError> {
         let refused = |code: &'static str, detail: &str, message: &str| {
-            CausalError::Estimate(EstimationError::refused(code, format!("{detail}: {message}")))
+            CausalError::Estimate(EstimationError::refused_detail(code, detail, message))
         };
         let spec = &request.spec;
         let Some(horizon) = spec.horizon else {
             return Err(refused(
                 antecedent_core::reason_code!("required_option_missing"),
-                "survival_effect.horizon_missing",
+                antecedent_core::reason_details::survival_effect::HORIZON_MISSING,
                 "survival at an observational horizon needs the horizon t* declared; the survival curve is not defined without it",
             ));
         };
@@ -168,7 +176,7 @@ impl ObservationalSurvivalEffect {
             None => {
                 return Err(refused(
                     antecedent_core::reason_code!("required_option_missing"),
-                    "survival_effect.censoring_assumption_missing",
+                    antecedent_core::reason_details::survival_effect::CENSORING_ASSUMPTION_MISSING,
                     "censoring must be declared ignorable: independent_within_arm, or at_random_given_covariates (the censoring hazard depends on the arm and the declared covariates only). Informative censoring is not identified from these data",
                 ));
             }
@@ -177,7 +185,7 @@ impl ObservationalSurvivalEffect {
             Some(other) => {
                 return Err(refused(
                     antecedent_core::reason_code!("invalid_argument"),
-                    "survival_effect.censoring_assumption_unknown",
+                    antecedent_core::reason_details::survival_effect::CENSORING_ASSUMPTION_UNKNOWN,
                     &format!(
                         "unknown censoring assumption {other:?}; use independent_within_arm or at_random_given_covariates"
                     ),
@@ -193,7 +201,7 @@ impl ObservationalSurvivalEffect {
         {
             return Err(refused(
                 antecedent_core::reason_code!("invalid_argument"),
-                "survival_effect.invalid_data",
+                antecedent_core::reason_details::survival_effect::INVALID_DATA,
                 "adjustment columns must match the rows and have distinct, non-empty names",
             ));
         }
@@ -209,7 +217,6 @@ impl ObservationalSurvivalEffect {
         }
         let covariates: Vec<&[f64]> =
             request.adjustment.iter().map(|c| c.values.as_slice()).collect();
-        let ctx = ExecutionContext::production_default(spec.seed);
         let estimate = estimator
             .estimate(
                 &SurvivalData {
@@ -218,7 +225,7 @@ impl ObservationalSurvivalEffect {
                     treatment: &request.treatment,
                     covariates: &covariates,
                 },
-                &ctx,
+                ctx,
             )
             .map_err(CausalError::from)?;
         let arm = |a: &ArmSurvival| ArmSurvivalWire {
@@ -246,7 +253,7 @@ impl ObservationalSurvivalEffect {
             rmst_difference: contrast(estimate.rmst_difference),
             n_obs: estimate.n_obs,
             rows_dropped_missing: estimate.rows_dropped_missing,
-            row_index: estimate.row_index,
+            row_index: estimate.row_index.iter().map(|id| id.get()).collect(),
             survival_difference_scores: estimate.survival_difference_scores,
             rmst_difference_scores: estimate.rmst_difference_scores,
             calibration: OBSERVATIONAL_SURVIVAL_CALIBRATION.into(),

@@ -1,6 +1,6 @@
 //! d-separation unit and property tests.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -88,9 +88,9 @@ fn witness_returns_path_when_connected() {
         g.d_separation(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2), &[], &mut ws).unwrap();
     match res {
         SeparationResult::Connected { active_path } => {
-            assert!(active_path.len() >= 2);
-            assert_eq!(active_path[0].node.raw(), 0);
-            assert_eq!(active_path[active_path.len() - 1].node.raw(), 2);
+            // The only path of 0 -> 1 -> 2 given nothing is the chain itself, through its middle.
+            let nodes: Vec<u32> = active_path.iter().map(|step| step.node.raw()).collect();
+            assert_eq!(nodes, [0, 1, 2]);
         }
         SeparationResult::Separated { .. } => panic!("expected connected"),
     }
@@ -209,7 +209,7 @@ fn random_dag_with_density(rng: &mut CausalRng, n: u32, keep_denom: u64) -> Dag 
     let denom = keep_denom.max(1);
     for i in 0..n as usize {
         for j in (i + 1)..n as usize {
-            if rng.next_u64() % denom == 0 {
+            if rng.next_u64().is_multiple_of(denom) {
                 let a = DenseNodeId::from_raw(order[i]);
                 let b = DenseNodeId::from_raw(order[j]);
                 let _ = g.insert_directed(a, b);
@@ -230,7 +230,7 @@ fn sample_z_mask(rng: &mut CausalRng, n: u32, x: u32, y: u32) -> u32 {
         if i == x || i == y {
             continue;
         }
-        if rng.next_u64() % 2 == 0 {
+        if rng.next_u64().is_multiple_of(2) {
             mask |= 1 << i;
         }
     }

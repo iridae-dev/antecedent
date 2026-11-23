@@ -14,8 +14,10 @@ is ``2029/44100``; the sampling variance of the mean is ``2526/264600``.
 from __future__ import annotations
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import cross_world_execution as cwx
 from antecedent.errors import CausalTypeError, CausalValueError
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -57,8 +59,8 @@ def three_units() -> cwx.CrossWorldRequest:
 
 
 def test_the_account_is_the_enumerated_spread_bound_to_its_execution() -> None:
-    sealed = cwx.seal(three_units())
-    account = sealed.whole_path_uncertainty("independent_sample")
+    sealed = require_success(cwx.seal(three_units()))
+    account = require_success(sealed.whole_path_uncertainty("independent_sample"))
     assert account.label == "uncalibrated_spread"
     assert account.unit_sampling == "independent_sample"
     assert account.value == pytest.approx(169 / 210, abs=TOL)
@@ -88,59 +90,70 @@ def test_the_account_is_the_enumerated_spread_bound_to_its_execution() -> None:
     assert account.inspect().family == "WholePathAccount"
 
     # The reading stays closed: a spread is a labelled diagnostic, never an interval.
-    for closed in (sealed.interval, sealed.posterior, account.interval, account.posterior):
+    for closed, code in (
+        (sealed.interval, "sampling_dependence_unknown"),
+        (sealed.posterior, "uncertainty_representation_insufficient"),
+        (account.interval, "sampling_dependence_unknown"),
+        (account.posterior, "uncertainty_representation_insufficient"),
+    ):
         with pytest.raises(cwx.CrossWorldExecutionRefusal) as refused:
             closed()
-        assert refused.value.reason_code == "cell_not_licensed"
+        assert refused.value.reason_code == code
 
 
 def test_a_fresh_consumer_derives_the_same_account_from_the_artifact() -> None:
-    sealed = cwx.seal(three_units())
-    account = sealed.whole_path_uncertainty("fixed_units")
+    sealed = require_success(cwx.seal(three_units()))
+    account = require_success(sealed.whole_path_uncertainty("fixed_units"))
     assert account.unit_mean_sampling_variance is None
     assert account.unit_mean_standard_error is None
 
     data = sealed.to_bytes()
-    consumed = cwx.consume_cross_world_execution_artifact(data, expected_identity=sealed.identity)
+    consumed = require_success(
+        cwx.consume_cross_world_execution_artifact(data, expected_identity=sealed.identity)
+    )
     rebuilt = cwx.CrossWorldExecution(data, consumed)
-    again = rebuilt.whole_path_uncertainty("fixed_units")
+    again = require_success(rebuilt.whole_path_uncertainty("fixed_units"))
     assert again.identity == account.identity
     assert again.value == account.value
     account.verify_against(rebuilt)
 
     # The declared unit sampling is part of the account: another declaration is another
     # account, not a relabelled one.
-    sampled = rebuilt.whole_path_uncertainty("independent_sample")
+    sampled = require_success(rebuilt.whole_path_uncertainty("independent_sample"))
     assert sampled.identity != account.identity
 
 
 def test_an_account_of_other_units_is_refused_rather_than_annotated() -> None:
-    sealed = cwx.seal(three_units())
-    account = sealed.whole_path_uncertainty("independent_sample")
+    sealed = require_success(cwx.seal(three_units()))
+    account = require_success(sealed.whole_path_uncertainty("independent_sample"))
     # New factual evidence is new units and a new execution: the earlier account does not
     # describe it.
-    other = cwx.seal(
-        request(
-            [
-                cwx.FactualUnit("case", {"x": 1, "y": 1}),
-                cwx.FactualUnit("clean", {"x": 0, "y": 0}),
-            ]
+    other = require_success(
+        cwx.seal(
+            request(
+                [
+                    cwx.FactualUnit("case", {"x": 1, "y": 1}),
+                    cwx.FactualUnit("clean", {"x": 0, "y": 0}),
+                ]
+            )
         )
     )
     with pytest.raises(cwx.CrossWorldExecutionRefusal) as mismatch:
         account.verify_against(other)
     assert_registered_refusal(mismatch.value)
-    assert mismatch.value.detail == "cross_world_uncertainty.account_mismatch"
+    assert mismatch.value.detail == reason_details.cross_world_uncertainty.ACCOUNT_MISMATCH
     assert mismatch.value.remedy
 
 
 def test_an_undeclared_unit_sampling_is_refused() -> None:
-    sealed = cwx.seal(three_units())
+    sealed = require_success(cwx.seal(three_units()))
     with pytest.raises(cwx.CrossWorldExecutionRefusal) as undeclared:
-        sealed.whole_path_uncertainty("undeclared")  # type: ignore[arg-type]
+        require_success(sealed.whole_path_uncertainty("undeclared"))  # type: ignore[arg-type]
     assert_registered_refusal(undeclared.value)
     assert undeclared.value.reason_code == "sampling_dependence_unknown"
-    with pytest.raises(CausalValueError):
-        sealed.whole_path_uncertainty("whole_population")  # type: ignore[arg-type]
-    with pytest.raises(CausalTypeError):
-        sealed.whole_path_uncertainty("fixed_units").verify_against(object())  # type: ignore[arg-type]
+    with pytest.raises(
+        CausalValueError, match="unit_sampling is 'fixed_units' or 'independent_sample'"
+    ):
+        require_success(sealed.whole_path_uncertainty("whole_population"))  # type: ignore[arg-type]
+    with pytest.raises(CausalTypeError, match="cross_world must be a CrossWorldExecution"):
+        require_success(sealed.whole_path_uncertainty("fixed_units")).verify_against(object())  # type: ignore[arg-type]

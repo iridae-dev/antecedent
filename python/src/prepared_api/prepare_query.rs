@@ -1,14 +1,13 @@
 //! Intervention, conditional, transport, and interference prepare routes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
+use antecedent::data::TableView;
+use antecedent::prelude::{Intervention, Value};
+use antecedent::query::{CausalQuery, InterventionalDistributionQuery, PathSpecificEffectQuery};
 use antecedent::{EstimatorId, IdentifierId, Study};
-use antecedent_core::{
-    CausalQuery, Intervention, InterventionalDistributionQuery, PathSpecificEffectQuery, Value,
-};
-use antecedent_data::TableView;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
@@ -62,33 +61,35 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        req.refuse_prior("an InterventionResponse")?;
-        let outcome_functional =
-            crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
-        let data = req.load_columns(py, columns)?;
-        req.off_gil(py, move |req| {
-            let query = intervention_response_query(
-                &data,
-                &outcome,
-                &treatments,
-                intervention_kinds,
-                intervention_parameters,
-                outcome_functional,
-                &req.opts,
-            )?;
-            let dag = dag_from_named_edges(data.schema(), &edges)?;
-            let mut builder = req.opts.apply(
-                with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
-                    .query(query),
-            );
-            if let Some(id) = parse_identifier(identifier)? {
-                builder = builder.identifier(id);
-            }
-            if let Some(est) = parse_estimator(estimator)? {
-                builder = builder.estimator(est);
-            }
-            req.finish(builder, false)
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            req.refuse_prior("an InterventionResponse")?;
+            let outcome_functional =
+                crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
+            let data = req.load_columns(py, columns)?;
+            req.off_gil(py, move |req| {
+                let query = intervention_response_query(
+                    &data,
+                    &outcome,
+                    &treatments,
+                    intervention_kinds,
+                    intervention_parameters,
+                    outcome_functional,
+                    &req.opts,
+                )?;
+                let dag = dag_from_named_edges(data.schema(), &edges)?;
+                let mut builder = req.opts.apply(
+                    with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
+                        .query(query),
+                );
+                if let Some(id) = parse_identifier(identifier)? {
+                    builder = builder.identifier(id);
+                }
+                if let Some(est) = parse_estimator(estimator)? {
+                    builder = builder.estimator(est);
+                }
+                req.finish(builder, false)
+            })
         })
     }
 
@@ -125,32 +126,40 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        let outcome_functional =
-            crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
-        let data = req.load_columns(py, columns)?;
-        req.off_gil(py, move |req| {
-            let within = crate::parse_within_tier(Some(within_tier.as_str()))?;
-            let named: Vec<Vec<&str>> =
-                tiers.iter().map(|tier| tier.iter().map(String::as_str).collect()).collect();
-            let background =
-                antecedent_graph::TieredBackground::from_named(data.schema(), &named, within)
-                    .map_err(py_err)?;
-            let query = intervention_response_query(
-                &data,
-                &outcome,
-                &treatments,
-                intervention_kinds,
-                intervention_parameters,
-                outcome_functional,
-                &req.opts,
-            )?;
-            let builder = Study::tabular(data)
-                .tiered_background(background)
-                .map_err(py_err)?
-                .query(query)
-                .estimator(antecedent::EstimatorId::CellAipw);
-            req.finish_applied(builder, false)
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            let outcome_functional =
+                crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
+            let data = req.load_columns(py, columns)?;
+            req.off_gil(py, move |req| {
+                let within = crate::parse_within_tier(Some(within_tier.as_str()))?;
+                let named: Vec<Vec<&str>> =
+                    tiers.iter().map(|tier| tier.iter().map(String::as_str).collect()).collect();
+                let background =
+                    antecedent::graph::TieredBackground::from_named(data.schema(), &named, within)
+                        .map_err(py_err)?;
+                let query = intervention_response_query(
+                    &data,
+                    &outcome,
+                    &treatments,
+                    intervention_kinds,
+                    intervention_parameters,
+                    outcome_functional,
+                    &req.opts,
+                )?;
+                let builder = Study::tabular(data)
+                    .tiered_background(background)
+                    .map_err(py_err)?
+                    .query(query);
+                // The Frequentist joint cell is cell.aipw; a Bayesian declaration runs
+                // response.bayesian over the same closure set (unsupported).
+                let builder = if req.opts.inference.is_bayesian() {
+                    builder
+                } else {
+                    builder.estimator(antecedent::EstimatorId::CellAipw)
+                };
+                req.finish_applied(builder, false)
+            })
         })
     }
 
@@ -165,7 +174,7 @@ impl PyPreparedAnalysis {
         edges,
         treatment,
         outcome,
-        modifier,
+        modifiers,
         *,
         graph=None,
         control_level=0.0,
@@ -186,7 +195,7 @@ impl PyPreparedAnalysis {
         edges: Vec<(String, String)>,
         treatment: String,
         outcome: String,
-        modifier: String,
+        modifiers: Vec<String>,
         graph: Option<Bound<'_, PyAny>>,
         control_level: f64,
         active_level: f64,
@@ -198,42 +207,47 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        if graph.is_some() {
-            req.refuse_prior("a Cpdag/Pag conditional envelope")?;
-        }
-        let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
-        let class = graph.map(|g| StaticClassGraph::extract(&g, &req.names)).transpose()?;
-        let data = req.load_columns(py, columns)?;
-        req.off_gil(py, move |req| {
-            let query = conditional_query(
-                &data,
-                &treatment,
-                &outcome,
-                &modifier,
-                control_level,
-                active_level,
-                functional,
-                &req.opts,
-            )?;
-            let mut builder = if let Some(class) = class {
-                class.bind(Study::tabular(data), accepted, req.opts.discovery_algorithm())
-            } else {
-                let dag = dag_from_named_edges(data.schema(), &edges)?;
-                with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
-            };
-            builder = req.opts.apply(builder.query(query));
-            if let Some(id) = parse_identifier(identifier)? {
-                builder = builder.identifier(id);
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            if graph.is_some() {
+                req.refuse_prior("a Cpdag/Pag conditional envelope")?;
             }
-            if let Some(est) = parse_estimator(estimator)? {
-                builder = builder.estimator(est);
-            }
-            req.finish(builder, false)
+            let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
+            let class = graph.map(|g| StaticClassGraph::extract(&g, &req.names)).transpose()?;
+            let data = req.load_columns(py, columns)?;
+            req.off_gil(py, move |req| {
+                let query = conditional_query(
+                    &data,
+                    &treatment,
+                    &outcome,
+                    &modifiers,
+                    control_level,
+                    active_level,
+                    functional,
+                    &req.opts,
+                )?;
+                let mut builder = if let Some(class) = class {
+                    class.bind(Study::tabular(data), accepted, req.opts.discovery_algorithm())
+                } else {
+                    let dag = dag_from_named_edges(data.schema(), &edges)?;
+                    with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
+                };
+                builder = req.opts.apply(builder.query(query));
+                if let Some(id) = parse_identifier(identifier)? {
+                    builder = builder.identifier(id);
+                }
+                if let Some(est) = parse_estimator(estimator)? {
+                    builder = builder.estimator(est);
+                }
+                req.finish(builder, false)
+            })
         })
     }
 
     /// Compile once from tabular columns + DAG edges (static PathSpecificEffect).
+    ///
+    /// `graph` binds a supplied or accepted PAG, CPDAG, ADMG or temporal ADMG in place of the
+    /// DAG `edges`; the compiler then runs the path-specific class executor on that structure.
     #[staticmethod]
     #[pyo3(signature = (
         names,
@@ -247,6 +261,7 @@ impl PyPreparedAnalysis {
         path_nodes=None,
         max_paths=64,
         max_len=16,
+        graph=None,
         accepted=false,
         seed=1,
         threads=None,
@@ -265,44 +280,56 @@ impl PyPreparedAnalysis {
         path_nodes: Option<Vec<String>>,
         max_paths: usize,
         max_len: usize,
+        graph: Option<Bound<'_, PyAny>>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        req.refuse_prior("a path-specific effect")?;
-        let data = req.load_columns(py, columns)?;
-        req.off_gil(py, move |req| {
-            let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
-            let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-            let mut query = PathSpecificEffectQuery::binary(t_id, y_id)
-                .with_max_paths(max_paths)
-                .with_max_len(max_len);
-            query.control = Intervention::set(t_id, Value::f64(control_level));
-            query.active = Intervention::set(t_id, Value::f64(active_level));
-            if let Some(population) = req.opts.target_population.clone() {
-                query.target_population = population;
-            }
-            if let Some(nodes) = path_nodes {
-                let mut ids = Vec::with_capacity(nodes.len());
-                for name in &nodes {
-                    ids.push(data.schema().id_of(name).map_err(py_err)?);
+        crate::catch_ffi(|| {
+            crate::bridge::check_paths(max_paths, max_len)?;
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            req.refuse_prior("a path-specific effect")?;
+            let class = graph.map(|g| StaticClassGraph::extract(&g, &req.names)).transpose()?;
+            let data = req.load_columns(py, columns)?;
+            req.off_gil(py, move |req| {
+                let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+                let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+                let mut query = PathSpecificEffectQuery::binary(t_id, y_id)
+                    .with_max_paths(max_paths)
+                    .with_max_len(max_len);
+                query.control = Intervention::set(t_id, Value::f64(control_level));
+                query.active = Intervention::set(t_id, Value::f64(active_level));
+                if let Some(population) = req.opts.target_population.clone() {
+                    query.target_population = population;
                 }
-                query = query.with_path_nodes(ids);
-            }
-            let dag = dag_from_named_edges(data.schema(), &edges)?;
-            let builder =
-                with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
-                    .query(CausalQuery::PathSpecific(query))
-                    .identifier(IdentifierId::PathSpecificNatural)
-                    .estimator(EstimatorId::FunctionalEffect);
-            req.finish_applied(builder, false)
+                if let Some(nodes) = path_nodes {
+                    let mut ids = Vec::with_capacity(nodes.len());
+                    for name in &nodes {
+                        ids.push(data.schema().id_of(name).map_err(py_err)?);
+                    }
+                    query = query.with_path_nodes(ids);
+                }
+                // A class structure keeps the route defaults its executor resolves (the same
+                // path-restricted identifier and functional plug-in); a DAG names them.
+                let builder = if let Some(class) = class {
+                    class
+                        .bind(Study::tabular(data), accepted, req.opts.discovery_algorithm())
+                        .query(CausalQuery::PathSpecific(query))
+                } else {
+                    let dag = dag_from_named_edges(data.schema(), &edges)?;
+                    with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
+                        .query(CausalQuery::PathSpecific(query))
+                        .identifier(IdentifierId::PathSpecificNatural)
+                        .estimator(EstimatorId::FunctionalEffect)
+                };
+                req.finish_applied(builder, false)
+            })
         })
     }
 
-    /// Compile once from tabular columns + DAG edges or a supplied ADMG
-    /// (static InterventionalDistribution).
+    /// Compile once from tabular columns + DAG edges, or a supplied or accepted PAG, CPDAG,
+    /// ADMG or temporal ADMG (static InterventionalDistribution).
     #[staticmethod]
     #[pyo3(signature = (
         names,
@@ -333,44 +360,41 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        req.refuse_prior("an interventional distribution")?;
-        let class = graph.map(|g| StaticClassGraph::extract(&g, &req.names)).transpose()?;
-        if matches!(&class, Some(g) if !matches!(g, StaticClassGraph::Admg(_))) {
-            return Err(crate::value_err(
-                "prepare_distribution graph must be an Admg; Pag/Cpdag remain refused",
-            ));
-        }
-        let data = req.load_columns(py, columns)?;
-        req.off_gil(py, move |req| {
-            let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-            let mut ivs = Vec::with_capacity(interventions.len());
-            for (name, level) in &interventions {
-                let id = data.schema().id_of(name).map_err(py_err)?;
-                ivs.push(Intervention::set(id, Value::f64(*level)));
-            }
-            let mut query = InterventionalDistributionQuery::new(y_id, ivs);
-            if let Some(population) = req.opts.target_population.clone() {
-                query.target_population = population;
-            }
-            if let Some(cond) = conditioning {
-                let mut z = Vec::with_capacity(cond.len());
-                for name in &cond {
-                    z.push(data.schema().id_of(name).map_err(py_err)?);
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            req.refuse_prior("an interventional distribution")?;
+            let class = graph.map(|g| StaticClassGraph::extract(&g, &req.names)).transpose()?;
+            let data = req.load_columns(py, columns)?;
+            req.off_gil(py, move |req| {
+                let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+                let mut ivs = Vec::with_capacity(interventions.len());
+                for (name, level) in &interventions {
+                    let id = data.schema().id_of(name).map_err(py_err)?;
+                    ivs.push(Intervention::set(id, Value::f64(*level)));
                 }
-                query = query.with_conditioning(z);
-            }
-            let builder = if let Some(class) = class {
-                class.bind(Study::tabular(data), accepted, req.opts.discovery_algorithm())
-            } else {
-                let dag = dag_from_named_edges(data.schema(), &edges)?;
-                with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
-            };
-            let builder = builder
-                .query(CausalQuery::Distribution(query))
-                .identifier(IdentifierId::GeneralId)
-                .estimator(EstimatorId::FunctionalDistribution);
-            req.finish_applied(builder, false)
+                let mut query = InterventionalDistributionQuery::new(y_id, ivs);
+                if let Some(population) = req.opts.target_population.clone() {
+                    query.target_population = population;
+                }
+                if let Some(cond) = conditioning {
+                    let mut z = Vec::with_capacity(cond.len());
+                    for name in &cond {
+                        z.push(data.schema().id_of(name).map_err(py_err)?);
+                    }
+                    query = query.with_conditioning(z);
+                }
+                let builder = if let Some(class) = class {
+                    class.bind(Study::tabular(data), accepted, req.opts.discovery_algorithm())
+                } else {
+                    let dag = dag_from_named_edges(data.schema(), &edges)?;
+                    with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
+                };
+                let builder = builder
+                    .query(CausalQuery::Distribution(query))
+                    .identifier(IdentifierId::GeneralId)
+                    .estimator(EstimatorId::FunctionalDistribution);
+                req.finish_applied(builder, false)
+            })
         })
     }
 
@@ -412,53 +436,62 @@ impl PyPreparedAnalysis {
         options: Option<Bound<'_, PyDict>>,
         catalog: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        req.refuse_prior("a transport query")?;
-        let admg = graph
-            .extract::<graphs::Admg>()
-            .map_err(|_| crate::value_err("TransportQuery requires graph=Admg(...)"))?;
-        require_named_graph_order(&admg.names, &req.names, "Admg")?;
-        let catalog = catalog
-            .map(|c| crate::transport_interference_api::parse_catalog(c, &admg))
-            .transpose()?;
-        let admg = admg.aligned_to_names(&req.names)?;
-        let data = req.load_columns(py, columns)?;
-        let (scale, weighting) = (scale.to_owned(), weighting.to_owned());
-        req.off_gil(py, move |req| {
-            use crate::transport_interference_api::{ResponseArgs, schema_ids, transport_query};
-            let schema = data.schema().clone();
-            let mut query = transport_query(
-                ResponseArgs {
-                    kind,
-                    treatments,
-                    outcomes,
-                    grid,
-                    at,
-                    direction,
-                    order,
-                    scale,
-                    weighting,
-                },
-                source_population,
-                target_population,
-                &source_experiments,
-                |names| schema_ids(&schema, names),
-            )?;
-            if let Some(catalog) = catalog {
-                query = query.with_catalog(catalog).map_err(|e| crate::value_err(e.to_string()))?;
-            }
-            let column = |name: &str| crate::graph_build::schema_var_id(&schema, name);
-            let trial_spec = antecedent::TransportTrialSpec {
-                trial: column(&trial)?,
-                selection_probability: column(&selection_probability)?,
-                treatment_probability: column(&treatment_probability)?,
-            };
-            let builder =
-                with_graph(Study::tabular(data), admg, accepted, req.opts.discovery_algorithm())
-                    .query(CausalQuery::Transport(query))
-                    .selection_targets(schema_ids(&schema, &selections)?)
-                    .transport_trial(trial_spec);
-            req.finish_applied(builder, false)
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            req.refuse_prior("a transport query")?;
+            let admg = graph
+                .extract::<graphs::Admg>()
+                .map_err(|_| crate::value_err("TransportQuery requires graph=Admg(...)"))?;
+            require_named_graph_order(&admg.names, &req.names, "Admg")?;
+            let catalog = catalog
+                .map(|c| crate::transport_interference_api::parse_catalog(c, &admg))
+                .transpose()?;
+            let admg = admg.aligned_to_names(&req.names)?;
+            let data = req.load_columns(py, columns)?;
+            let (scale, weighting) = (scale.to_owned(), weighting.to_owned());
+            req.off_gil(py, move |req| {
+                use crate::transport_interference_api::{
+                    ResponseArgs, schema_ids, transport_query,
+                };
+                let schema = data.schema().clone();
+                let mut query = transport_query(
+                    ResponseArgs {
+                        kind,
+                        treatments,
+                        outcomes,
+                        grid,
+                        at,
+                        direction,
+                        order,
+                        scale,
+                        weighting,
+                    },
+                    source_population,
+                    target_population,
+                    &source_experiments,
+                    |names| schema_ids(&schema, names),
+                )?;
+                if let Some(catalog) = catalog {
+                    query =
+                        query.with_catalog(catalog).map_err(|e| crate::value_err(e.to_string()))?;
+                }
+                let column = |name: &str| crate::graph_build::schema_var_id(&schema, name);
+                let trial_spec = antecedent::TransportTrialSpec {
+                    trial: column(&trial)?,
+                    selection_probability: column(&selection_probability)?,
+                    treatment_probability: column(&treatment_probability)?,
+                };
+                let builder = with_graph(
+                    Study::tabular(data),
+                    admg,
+                    accepted,
+                    req.opts.discovery_algorithm(),
+                )
+                .query(CausalQuery::Transport(query))
+                .selection_targets(schema_ids(&schema, &selections)?)
+                .transport_trial(trial_spec);
+                req.finish_applied(builder, false)
+            })
         })
     }
 
@@ -479,7 +512,7 @@ impl PyPreparedAnalysis {
         columns: Vec<Bound<'_, PyAny>>,
         edges: Vec<(String, String)>,
         outcome: String,
-        network: Vec<(u32, u32, f64)>,
+        network: Vec<(u64, u64, f64)>,
         realized_assignment: Vec<bool>,
         assignment_kind: String,
         assignment_probabilities: Vec<f64>,
@@ -502,55 +535,55 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        req.refuse_prior("an interference query")?;
-        req.refuse_population("an interference exposure contrast")?;
-        let data = req.load_columns(py, columns)?;
-        req.off_gil(py, move |req| {
-            use crate::transport_interference_api::{InterferenceArgs, interference_query};
-            let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
-            let query = interference_query(
-                InterferenceArgs {
-                    assignment_kind,
-                    assignment_probabilities,
-                    treated,
-                    clusters,
-                    treated_clusters,
-                    low_probability,
-                    high_probability,
-                    realized_saturation,
-                    propensity_from,
-                    propensity_to,
-                    propensity_provenance,
-                    assume_network_exchangeability,
-                    exposure,
-                    from_level,
-                    to_level,
-                    probability_draws,
-                },
-                outcome_id,
-            )?;
-            let dag = dag_from_named_edges(data.schema(), &edges)?;
-            let network = antecedent::estimate::NetworkData::try_new(
-                data.clone(),
-                network
-                    .into_iter()
-                    .map(|(from, to, weight)| antecedent::estimate::NetworkEdge {
-                        from,
-                        to,
-                        weight,
-                    })
-                    .collect::<Vec<_>>(),
-            )
-            .map_err(py_err)?;
-            let builder =
-                with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
-                    .query(CausalQuery::Interference(query))
-                    .interference(antecedent::InterferenceSpec {
-                        network,
-                        assignment: Arc::from(realized_assignment),
-                    });
-            req.finish_applied(builder, false)
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            req.refuse_prior("an interference query")?;
+            req.refuse_population("an interference exposure contrast")?;
+            let data = req.load_columns(py, columns)?;
+            req.off_gil(py, move |req| {
+                use crate::transport_interference_api::{InterferenceArgs, interference_query};
+                let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
+                let query = interference_query(
+                    InterferenceArgs {
+                        assignment_kind,
+                        assignment_probabilities,
+                        treated,
+                        clusters,
+                        treated_clusters,
+                        low_probability,
+                        high_probability,
+                        realized_saturation,
+                        propensity_from,
+                        propensity_to,
+                        propensity_provenance,
+                        assume_network_exchangeability,
+                        exposure,
+                        from_level,
+                        to_level,
+                        probability_draws,
+                    },
+                    outcome_id,
+                )?;
+                let dag = dag_from_named_edges(data.schema(), &edges)?;
+                let network = antecedent::estimate::NetworkData::try_new(
+                    data.clone(),
+                    network
+                        .into_iter()
+                        .map(|(from, to, weight)| {
+                            antecedent::estimate::NetworkEdge::new(from, to, weight)
+                        })
+                        .collect::<Vec<_>>(),
+                )
+                .map_err(py_err)?;
+                let builder =
+                    with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
+                        .query(CausalQuery::Interference(query))
+                        .interference(antecedent::InterferenceSpec {
+                            network,
+                            assignment: Arc::from(realized_assignment),
+                        });
+                req.finish_applied(builder, false)
+            })
         })
     }
 
@@ -596,18 +629,43 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        req.refuse_design("a randomized ITT query")?;
-        let data = req.load_weighted_columns(py, columns)?;
-        req.off_gil(py, move |req| {
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            req.refuse_design("a randomized ITT query")?;
+            let data = req.load_weighted_columns(py, columns)?;
+            req.off_gil(py, move |req| {
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
+            refuse_foreign_design_arguments(
+                &design_kind,
+                &[
+                    ("treated_units", treated_units.is_some(), "complete"),
+                    ("blocks", blocks.as_ref().is_some_and(|v| !v.is_empty()), "stratified"),
+                    (
+                        "treated_per_row",
+                        treated_per_row.as_ref().is_some_and(|v| !v.is_empty()),
+                        "stratified",
+                    ),
+                    ("treated_clusters", treated_clusters.is_some(), "cluster"),
+                    ("periods", periods.is_some(), "switchback"),
+                    (
+                        "second_factor_assignment",
+                        second_factor_assignment.is_some(),
+                        "factorial_2x2",
+                    ),
+                    ("factorial_cell_counts", factorial_cell_counts.is_some(), "factorial_2x2"),
+                    ("second_factor_arms", second_factor_arms.is_some(), "factorial_2x2"),
+                    ("multi_arm_labels", multi_arm_labels.is_some(), "multi_arm"),
+                    ("multi_arm_assignment", multi_arm_assignment.is_some(), "multi_arm"),
+                    ("multi_arm_probabilities", multi_arm_probabilities.is_some(), "multi_arm"),
+                ],
+            )?;
             let design = match design_kind.as_str() {
-                "bernoulli" => antecedent_core::RandomizationDesign::Bernoulli,
-                "complete" => antecedent_core::RandomizationDesign::Complete {
+                "bernoulli" => antecedent::query::RandomizationDesign::Bernoulli,
+                "complete" => antecedent::query::RandomizationDesign::Complete {
                     treated_units: treated_units
                         .ok_or_else(|| py_msg("complete randomization requires treated_units"))?,
                 },
-                "stratified" => antecedent_core::RandomizationDesign::Stratified {
+                "stratified" => antecedent::query::RandomizationDesign::Stratified {
                     blocks: blocks
                         .ok_or_else(|| py_msg("stratified randomization requires blocks"))?
                         .into_iter()
@@ -618,11 +676,11 @@ impl PyPreparedAnalysis {
                         .ok_or_else(|| py_msg("stratified randomization requires treated_per_row"))?
                         .into(),
                 },
-                "cluster" => antecedent_core::RandomizationDesign::Cluster {
+                "cluster" => antecedent::query::RandomizationDesign::Cluster {
                     treated_clusters: treated_clusters
                         .ok_or_else(|| py_msg("cluster randomization requires treated_clusters"))?,
                 },
-                "switchback" => antecedent_core::RandomizationDesign::Switchback {
+                "switchback" => antecedent::query::RandomizationDesign::Switchback {
                     periods: periods
                         .ok_or_else(|| py_msg("switchback randomization requires periods"))?
                         .into_iter()
@@ -637,13 +695,13 @@ impl PyPreparedAnalysis {
                         .ok_or_else(|| py_msg("factorial four-cell counts are required"))?;
                     let arms = second_factor_arms
                         .ok_or_else(|| py_msg("factorial second-factor labels are required"))?;
-                    antecedent_core::RandomizationDesign::Factorial2x2 {
+                    antecedent::query::RandomizationDesign::Factorial2x2 {
                         second_factor_assignment: second.into(),
                         cell_counts: counts,
                         second_factor_arms: (Arc::<str>::from(arms.0), Arc::<str>::from(arms.1)),
                     }
                 }
-                "multi_arm" => antecedent_core::RandomizationDesign::MultiArm {
+                "multi_arm" => antecedent::query::RandomizationDesign::MultiArm {
                     arms: multi_arm_labels
                         .ok_or_else(|| py_msg("multi-arm labels are required"))?
                         .into_iter()
@@ -663,7 +721,7 @@ impl PyPreparedAnalysis {
                     ));
                 }
             };
-            let mut query = antecedent_core::RandomizedEffectQuery::with_design(
+            let mut query = antecedent::query::RandomizedEffectQuery::with_design(
                 design,
                 outcome_id,
                 realized_assignment,
@@ -676,15 +734,14 @@ impl PyPreparedAnalysis {
                 let covariate_id = crate::graph_build::schema_var_id(data.schema(), &covariate)?;
                 query = query.with_fixed_cuped(covariate_id, coefficient);
             }
-            if let Some(covariates) = ancova_covariates {
-                if !covariates.is_empty() {
+            if let Some(covariates) = ancova_covariates
+                && !covariates.is_empty() {
                     let ids = covariates
                         .iter()
                         .map(|name| crate::graph_build::schema_var_id(data.schema(), name))
                         .collect::<PyResult<Vec<_>>>()?;
                     query = query.with_ancova(ids);
                 }
-            }
             if let Some(received) = received_treatment {
                 query = if treatment_on_treated {
                     query.with_treatment_on_treated(received)
@@ -704,5 +761,23 @@ impl PyPreparedAnalysis {
             let builder = Study::tabular(data).query(CausalQuery::RandomizedEffect(query));
             req.finish_applied(builder, false)
         })
+        })
     }
+}
+
+/// Refuse a design argument that the chosen randomization design does not read.
+///
+/// Each entry is the argument name, whether it was supplied, and the one design that reads it.
+fn refuse_foreign_design_arguments(
+    design_kind: &str,
+    supplied: &[(&str, bool, &str)],
+) -> PyResult<()> {
+    for (name, present, reader) in supplied {
+        if *present && *reader != design_kind {
+            return Err(py_msg(format!(
+                "{name} is read only by {reader} randomization; the design_kind is {design_kind}"
+            )));
+        }
+    }
+    Ok(())
 }

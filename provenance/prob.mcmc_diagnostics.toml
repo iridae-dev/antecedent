@@ -6,20 +6,99 @@ copied_comments = false
 copied_tests = false
 
 implementation_deviations = [
- "Positive-lag autocovariances divide by split-chain length minus one rather than split-chain length as in the cited Vehtari/Stan ESS estimator, changing reported ESS values.",
- "When split-chain length is even, the implementation's pair-count bound omits the final available autocorrelation pair.",
+ "Autocovariances are evaluated directly and lazily until truncation, rather than using FFT; this changes computational cost and may change floating-point roundoff, not the stated estimator.",
  "Diagnostics are marginal scalar-parameter diagnostics only, with tail ESS fixed to the 5 percent and 95 percent indicator quantiles.",
+ "Uses full initial positive/monotone pair sums, including every complete available pair, without the odd/even truncation averaging described after Vehtari equation (13). ArviZ ESS can therefore differ even when the underlying correlations agree; the independent high-precision fixture checks this explicit variant instead of treating all ArviZ ESS outputs as the same target.",
+ "Odd-length chains discard their final draw before contiguous splitting; ArviZ's raw odd-length split uses the first and last halves. Constant tail indicators receive zero ESS as a fail-closed publication policy.",
 ]
 
 papers = [
- { title = "Rank-Normalization, Folding, and Localization: An Improved R-hat for Assessing Convergence of MCMC (with Discussion)", doi = "10.1214/20-BA1221", sections = ["rank-normalized split R-hat", "folded R-hat", "bulk/tail ESS"] },
- { title = "Practical Markov Chain Monte Carlo", doi = "10.1214/ss/1177011137", sections = ["initial positive/monotone sequence ESS estimator"] },
+ { title = "Rank-Normalization, Folding, and Localization: An Improved Rˆ for Assessing Convergence of MCMC (with Discussion)", citation_note = "Previously recorded title and bibliographic detail: Rank-Normalization, Folding, and Localization: An Improved R-hat for Assessing Convergence of MCMC (with Discussion)", doi = "10.1214/20-BA1221", sections = ["Section 3.1, equations (1)-(4): split-chain variances and R-hat", "Section 3.2, discussion before equation (10): biased autocovariance divisor N and combined-chain correlation", "Section 3.2, equations (11)-(13): positive/monotone truncation", "Sections 4.1-4.3: rank transformation, folding and tail indicators"] },
+ { title = "Practical Markov Chain Monte Carlo", doi = "10.1214/ss/1177011137", sections = ["Section 3.3: initial positive and monotone sequences, equation (3.3)", "Theorems 3.1-3.2: reversible-chain paired autocovariance properties and asymptotic qualifications"] },
 ]
 
-upstream_implementations_observed = []
+upstream_implementations_observed = [
+ { project = "arviz", exposure = "black-box comparison only" },
+]
+
+# Historical audit findings: the final-pair omission was already fixed before
+# this audit (ess_includes_the_last_available_pair_for_even_segment_lengths).
+# The N-1 positive-lag divisor remained and failed the independent 19/48
+# hand calculation; this audit repairs it to N while retaining N-1 for W.
+# The tied upper-tail fixture additionally exposed >=q95 instead of the CDF
+# indicator <=q95 from Vehtari equation (16); this audit repairs that event.
 
 test_sources = [
+ "crates/antecedent-prob/tests/mcmc_arviz_oracle.rs",
+ "conformance/validate/bayesian_checks/diagnostics_oracle.json",
+ "conformance/validate/bayesian_checks/independent_ips.json",
  "IID / AR(1) chain ESS-vs-analytic-target unit tests (crates/antecedent-prob/src/mcmc_stats.rs::tests)",
  "shifted-mean and unequal-scale rhat failure unit tests (crates/antecedent-prob/src/mcmc_stats.rs::tests)",
- "publication-gate unit tests (crates/antecedent-prob/src/hmc.rs::tests::postwarmup_divergence_fails_publication_gate)",
+ "publication-gate unit tests (crates/antecedent-prob/src/hmc/tests.rs::postwarmup_divergence_fails_publication_gate)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "Rank/fold transformations, split variances, full-pair IPS/IMS bulk ESS and CDF-based tail ESS in mcmc_stats.rs, with the explicitly different finite-lag and odd-split conventions recorded above. Numerical score-kernel accuracy beyond the fixed fixtures is not certified by this review."
+assumptions = ["Scalar finite equal-length chains; malformed or nonfinite layouts fail closed.", "Geyer paired-covariance theory assumes stationary, irreducible, reversible chains with the stated covariance conditions; diagnostics do not establish those assumptions.", "Fixed-chain reference agreement does not prove convergence, correct posterior targets, causal identification or calibrated interval coverage."]
+historical_exposure = "Prior historical author exposure cannot be independently established from retained artifacts. Current review used primary papers, public ArviZ/SciPy APIs and product source; no upstream algorithm/test source was consulted or copied."
+redistribution = "Repository-authored reference harness and new deterministic inputs remain MIT OR Apache-2.0. Primary papers are linked, not redistributed. Frozen historical chain inputs are preserved without inventing an authorship attestation. No upstream implementation or tests are imported into the product."
+limitations = "Five bounded scalar chain scenarios plus existing analytic/domain tests. Full-pair truncation intentionally differs from ArviZ averaging; odd lengths retain the documented drop-last convention. Constant tail indicators fail closed. Sampling calibration remains deferred."
+sources = ["https://arxiv.org/html/1903.08008v5", "https://doi.org/10.1214/20-BA1221", "https://www2.stat.duke.edu/homeweb/scs/Courses/Stat376/Papers/GeyerStatSci1992.pdf", "https://doi.org/10.1214/ss/1177011137", "https://python.arviz.org/en/v0.20.0/api/generated/arviz.rhat.html", "https://python.arviz.org/en/v0.20.0/api/generated/arviz.ess.html"]
+findings_resolved = ["Positive-lag divisor N-1 failed the independent 19/48 calculation; repaired to N while retaining unbiased W.", "A tied upper-tail fixture exposed >=q95 rather than the CDF indicator <=q95; repaired, reducing the erroneous ESS from about 184 to the primary-reference value about 100.", "Final-pair omission note was stale: existing complete-pair regression already enforced 8/7. Preserved that behavior and documented the upstream convention difference.", "Replaced the mis-targeted shifted-chain 5% parity assertion with an explicit discrepancy and stronger absolute-1e-6 primary-reference checks; retained raw ArviZ outputs and compatible original comparisons."]
+record_sha256 = "2104fdd4e72101996cbd06a99eddb9b0a2021936de6ac897088d5d3b2f6aa8b3"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-prob/src/mcmc_stats.rs"
+items = ["fn diagnostics_one", "fn empirical_quantiles", "fn fold_about_median", "fn geyer_ess_split", "fn has_variation", "fn lag_autocovariance", "fn mcmc_summary", "fn min_bulk_ess", "fn min_tail_ess", "fn parameter_mcmc_diagnostics", "fn rank_normalize", "fn sample_at", "fn split_rhat_on_segments", "fn split_segment_stats", "fn summarize", "fn valid_layout", "struct McmcSummary", "struct ParameterMcmcDiagnostics", "struct SegmentStats"]
+sha256 = "3babdf8cf11c996c29ae523634a1c8d5b3ac5b6e20ee6e17d86dc4ee884dc7a2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-kernels/src/numeric.rs"
+items = ["module"]
+sha256 = "090b1b721ff0a4520d8c7d2364ddc3e45ca1c0e7174cb509f7b9c80a07cb8b7c"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-kernels/src/special.rs"
+items = ["module"]
+sha256 = "c7d8d437ff37891a6438fa250f17dc8feb2081c0be66d55439188106c92259c0"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-kernels/src/posterior_reduce.rs"
+items = ["module"]
+sha256 = "af40f50fcdfff37a0ac59533a879c2af7d6a91a04e1b07908c1342bf9244fd4f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-prob/tests/mcmc_arviz_oracle.rs"
+items = ["fn full_pair_diagnostics_match_the_high_precision_primary_equations", "fn rank_rhat_and_compatible_ess_cases_match_pinned_arviz_chains", "fn summary"]
+sha256 = "dc408f58a6e3ef70a30c976787598d224cb729996c29c534c15aceb92fb27875"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "conformance/validate/bayesian_checks/reference.py"
+sha256 = "742f388b1e73f4a72ccf5849d3cbb4e25a70625f8708fbe9796f10dcf0a586f6"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "scripts/reference_compare.py"
+sha256 = "79904dc8724633c835ca4bcd894bedee2938a1ecbb7d4e4eda02be0b2b27d134"
+
+[[method_review.artifacts]]
+role = "environment"
+path = "conformance/validate/bayesian_checks/reference.py.lock"
+sha256 = "23a3114c84b925ae79875d049c8f71aa90b13d5eb12a383313bad7b48ab99e2d"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "conformance/validate/bayesian_checks/diagnostics_oracle.json"
+sha256 = "8748eac55d36502d0b86b73d74bf2361ae3cd25f5bb2eb9930bf720061e2562a"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "conformance/validate/bayesian_checks/independent_ips.json"
+sha256 = "4703e0bf91c11a4d0f0ef8bcb36918de7ef79cbd73b7b7b69e7b5753308af9c9"

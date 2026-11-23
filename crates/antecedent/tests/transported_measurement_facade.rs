@@ -10,7 +10,7 @@
 //! source's rates and the target's observed positives: `(0.52 + 0.8 - 1) / 0.7 = 0.32 / 0.7`
 //! for `Se = 0.9`, `Sp = 0.8`, 520 of 1000; a model established for the target is used as is.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::transported_measurement::{
     DETAIL_TRANSPORT_RECEIPT_MISMATCH, ErrorParameter, InvarianceDeclaration,
@@ -141,9 +141,12 @@ fn carried_rates_correct_the_target_prevalence_with_a_typed_receipt() {
     assert!(result.assumptions().iter().any(|line| line.contains("not propagated")));
     // The corrected value is bound to the re-bound model, not to the source model.
     assert_ne!(receipt.source_model, result.estimate().model_identity());
-    // No interval, whoever asks.
-    let closed = result.interval().unwrap_err();
-    assert_eq!(closed.code, "cell_not_licensed");
+    // The interval is the estimate's: the binary misclassification variance has an executed
+    // independent closed-form check, so the Wald interval is open.
+    let (lo, hi) = result.interval(0.95).unwrap();
+    let half = 1.959_963_984_540_054 * variance.sqrt();
+    close(lo, pi - half, 1e-9);
+    close(hi, pi + half, 1e-9);
 }
 
 #[test]
@@ -234,35 +237,50 @@ fn every_unmet_premise_is_named() {
 
     let missing = run(None, target.clone());
     assert_eq!(missing.code, "transport_missing_evidence");
-    assert_eq!(missing.detail, "measurement_model.invariance_premise_required");
+    assert_eq!(
+        missing.detail,
+        antecedent_core::reason_details::measurement_model::INVARIANCE_PREMISE_REQUIRED
+    );
     assert!(missing.remedy.is_some());
 
     let partial = run(Some(&premise(&[ErrorParameter::Specificity])), target.clone());
     assert_eq!(partial.code, "transport_not_certified");
-    assert_eq!(partial.detail, "measurement_model.invariance_not_declared");
+    assert_eq!(
+        partial.detail,
+        antecedent_core::reason_details::measurement_model::INVARIANCE_NOT_DECLARED
+    );
     assert!(partial.message.contains("sensitivity"), "{}", partial.message);
 
     let differential = PopulationErrorStructure::Differential { declarer: "analyst".into() };
     let unpooled = run(Some(&differential), target.clone());
     assert_eq!(unpooled.code, "differential_error_not_pooled");
-    assert_eq!(unpooled.detail, "measurement_model.differential_population_unestablished");
+    assert_eq!(
+        unpooled.detail,
+        antecedent_core::reason_details::measurement_model::DIFFERENTIAL_POPULATION_UNESTABLISHED
+    );
 
     let elsewhere = PopulationErrorStructure::Invariant(InvarianceDeclaration::new(
         "clinic_a", "clinic_c", "analyst", &BOTH,
     ));
     let wrong_target = run(Some(&elsewhere), target.clone());
     assert_eq!(wrong_target.code, "transport_not_certified");
-    assert_eq!(wrong_target.detail, "measurement_model.invariance_target_mismatch");
+    assert_eq!(
+        wrong_target.detail,
+        antecedent_core::reason_details::measurement_model::INVARIANCE_TARGET_MISMATCH
+    );
 
     let unknown = PopulationErrorStructure::Invariant(InvarianceDeclaration::new(
         "clinic_z", "clinic_b", "analyst", &BOTH,
     ));
     let source_unknown = run(Some(&unknown), target.clone());
-    assert_eq!(source_unknown.detail, "measurement_model.invariance_source_unknown");
+    assert_eq!(
+        source_unknown.detail,
+        antecedent_core::reason_details::measurement_model::INVARIANCE_SOURCE_UNKNOWN
+    );
 
     let regime = run(Some(&premise(&BOTH)), binding("clinic_b", "do(a=1)"));
     assert_eq!(regime.code, "measurement_binding_mismatch");
-    assert_eq!(regime.detail, "measurement_model.regime_mismatch");
+    assert_eq!(regime.detail, antecedent_core::reason_details::measurement_model::REGIME_MISMATCH);
 }
 
 #[test]
@@ -278,6 +296,78 @@ fn a_route_with_nothing_to_carry_is_refused_by_the_transport_decision() {
     )
     .unwrap_err();
     assert_eq!(error.code, "route_not_supported");
-    assert_eq!(error.detail, "measurement_model.nothing_to_transport");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::measurement_model::NOTHING_TO_TRANSPORT
+    );
     assert!(error.remedy.is_some());
+}
+
+/// Logit of `successes / (successes + failures)` with the Haldane correction, and its variance.
+fn haldane_logit(successes: f64, failures: f64) -> (f64, f64) {
+    (((successes + 0.5) / (failures + 0.5)).ln(), 1.0 / (successes + 0.5) + 1.0 / (failures + 0.5))
+}
+
+/// Paule-Mandel pooling of two populations in closed form. With weights `1 / (v_k + t)` the
+/// generalized statistic of two estimates is `(y1 - y2)^2 / (v1 + v2 + 2 t)`; it equals its one
+/// degree of freedom at `t = ((y1 - y2)^2 - v1 - v2) / 2`, or the variance is zero when that is
+/// negative. Returns the pooled mean, its variance and `t`.
+fn two_population_pool(first: (f64, f64), second: (f64, f64)) -> (f64, f64, f64) {
+    let between = (((first.0 - second.0).powi(2) - first.1 - second.1) / 2.0).max(0.0);
+    let (w1, w2) = (1.0 / (first.1 + between), 1.0 / (second.1 + between));
+    ((w1 * first.0 + w2 * second.0) / (w1 + w2), 1.0 / (w1 + w2), between)
+}
+
+/// The pooled differential route against the two-population closed form. Sensitivities 180/200
+/// and 164/200 differ by more than their sampling error, so the between-population variance is
+/// positive; specificities 170/200 and 172/200 do not, so it is zero and the pooled mean is the
+/// inverse-variance mean. The target is validated, which keeps its own rates identified. The
+/// corrected prevalence draws are one seeded simulation, so their interval is checked for what
+/// the construction fixes: it lies in `[0, 1]`, contains the mean of the draws and leaves 2.5%
+/// of the retained draws on each side.
+#[test]
+fn pooled_differential_rates_equal_the_two_population_paule_mandel_closed_form() {
+    use antecedent::analysis::transported_measurement::{
+        PooledDifferentialRequest, PopulationValidation, transport_pooled_differential_prevalence,
+    };
+    let validation = |population: &str, counts: [u64; 4]| PopulationValidation {
+        population: population.into(),
+        true_positive: counts[0],
+        false_negative: counts[1],
+        true_negative: counts[2],
+        false_positive: counts[3],
+    };
+    let sources =
+        [validation("north", [180, 20, 170, 30]), validation("south", [164, 36, 172, 28])];
+    let target = validation("east", [172, 28, 171, 29]);
+    let out = transport_pooled_differential_prevalence(
+        PooledDifferentialRequest {
+            sources: &sources,
+            target_validation: Some(&target),
+            target_population: "east",
+            observed_positive: 400,
+            observed_total: 1000,
+            draws: 4000,
+        },
+        &ctx(),
+    )
+    .unwrap();
+
+    let sensitivity = two_population_pool(haldane_logit(180.0, 20.0), haldane_logit(164.0, 36.0));
+    assert!(sensitivity.2 > 0.1, "the sensitivities are heterogeneous: {}", sensitivity.2);
+    close(out.sensitivity.mean_logit, sensitivity.0, 1e-9);
+    close(out.sensitivity.mean_variance, sensitivity.1, 1e-9);
+    close(out.sensitivity.between_population_variance, sensitivity.2, 1e-9);
+    let specificity = two_population_pool(haldane_logit(170.0, 30.0), haldane_logit(172.0, 28.0));
+    assert!(specificity.2 <= 0.0, "the specificities are homogeneous");
+    close(out.specificity.mean_logit, specificity.0, 1e-12);
+    close(out.specificity.mean_variance, specificity.1, 1e-12);
+    close(out.specificity.between_population_variance, 0.0, 1e-12);
+
+    assert!(out.interval.0 >= 0.0 && out.interval.1 <= 1.0);
+    assert!(out.interval.0 <= out.prevalence && out.prevalence <= out.interval.1);
+    let n = out.draws.len() as f64;
+    let below = out.draws.iter().filter(|d| **d < out.interval.0).count() as f64;
+    let above = out.draws.iter().filter(|d| **d > out.interval.1).count() as f64;
+    assert!((below / n - 0.025).abs() < 0.002 && (above / n - 0.025).abs() < 0.002);
 }

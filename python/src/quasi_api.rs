@@ -30,7 +30,7 @@ pub struct PanelDidSection {
     pub clusters: usize,
     /// Explicit uncertainty semantics.
     pub uncertainty: String,
-    /// Exact graphless two-period DiD support license, when matched.
+    /// Exact graphless two-period DiD support, when matched.
     pub graphless_support_status: Option<String>,
     /// Cohort, period, event time, estimate, treated, controls, SE, clusters.
     pub event_time_effects: Vec<EventTimeEffect>,
@@ -43,7 +43,9 @@ impl From<&antecedent::PanelDidEstimate> for PanelDidSection {
     fn from(value: &antecedent::PanelDidEstimate) -> Self {
         Self {
             effect: value.effect,
-            standard_error: if value.augmented.is_some() {
+            // An augmented panel publishes a standard error only with its whole-cluster
+            // resample interval; the supplied-nuisance point fit has none.
+            standard_error: if value.augmented.is_some() && value.interval_95.is_none() {
                 None
             } else {
                 Some(value.standard_error)
@@ -99,6 +101,10 @@ pub struct SyntheticControlSection {
     pub unadjusted_effect: Option<f64>,
     pub outcome_model_correction: Option<f64>,
     pub augmentation_ridge: Option<f64>,
+    /// `(pre periods, post periods, donors used, (excluded unit, missed periods), unread rows)`
+    /// of an unbalanced panel read over the treated unit's observed window.
+    #[allow(clippy::type_complexity)]
+    pub observed_window: Option<(Vec<i64>, Vec<i64>, usize, Vec<(String, usize)>, usize)>,
 }
 
 impl From<&antecedent::SyntheticControlEstimate> for SyntheticControlSection {
@@ -127,6 +133,19 @@ impl From<&antecedent::SyntheticControlEstimate> for SyntheticControlSection {
             unadjusted_effect: value.unadjusted_effect,
             outcome_model_correction: value.outcome_model_correction,
             augmentation_ridge: value.augmentation_ridge,
+            observed_window: value.observed_window.as_ref().map(|window| {
+                (
+                    window.pre_periods.to_vec(),
+                    window.post_periods.to_vec(),
+                    window.donors_used,
+                    window
+                        .donors_dropped
+                        .iter()
+                        .map(|(unit, missing)| (unit.to_string(), *missing))
+                        .collect(),
+                    window.unread_rows,
+                )
+            }),
         }
     }
 }
@@ -146,6 +165,7 @@ pub struct SyntheticDidSection {
     pub randomization_p_value: Option<f64>,
     pub randomization_null_effect: Option<f64>,
     pub randomization_statistics: Vec<(String, f64)>,
+    pub randomization_ranking_tolerance: Option<f64>,
 }
 
 impl From<&antecedent::SyntheticDidEstimate> for SyntheticDidSection {
@@ -170,6 +190,7 @@ impl From<&antecedent::SyntheticDidEstimate> for SyntheticDidSection {
                 .iter()
                 .map(|(unit, statistic)| (unit.to_string(), *statistic))
                 .collect(),
+            randomization_ranking_tolerance: value.randomization_ranking_tolerance,
         }
     }
 }
@@ -213,6 +234,88 @@ impl From<&antecedent::LocalPolynomialRatioEstimate> for LocalPolynomialRatioSec
             first_stage_standard_error: value.first_stage_standard_error,
             uncertainty: value.uncertainty.to_string(),
             graphless_support_status: None,
+        }
+    }
+}
+
+/// One reported effect of a rollout, synthetic-panel or local-ratio design.
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone)]
+pub struct DesignEffectSection {
+    /// `overall`, `group_time`, `event_time`, `group`, `calendar`, `pre_trend`, `period`
+    /// or `unit`.
+    pub kind: String,
+    pub group: Option<i64>,
+    pub period: Option<i64>,
+    pub event_time: Option<i64>,
+    pub unit: Option<String>,
+    pub estimate: f64,
+    pub standard_error: Option<f64>,
+    /// Pointwise 95% interval.
+    pub interval: Option<(f64, f64)>,
+    /// Simultaneous 95% band over the effects of the same kind.
+    pub band: Option<(f64, f64)>,
+    pub treated: usize,
+    pub comparison: usize,
+}
+
+impl From<&antecedent::estimate::rollout_resampling::DesignEffect> for DesignEffectSection {
+    fn from(value: &antecedent::estimate::rollout_resampling::DesignEffect) -> Self {
+        Self {
+            kind: value.kind.as_str().to_string(),
+            group: value.group,
+            period: value.period,
+            event_time: value.event_time,
+            unit: value.unit.clone(),
+            estimate: value.estimate,
+            standard_error: value.standard_error,
+            interval: value.interval.map(|bounds| (bounds[0], bounds[1])),
+            band: value.band.map(|bounds| (bounds[0], bounds[1])),
+            treated: value.treated,
+            comparison: value.comparison,
+        }
+    }
+}
+
+/// Unsupported rollout, conformal or multi-unit synthetic-panel, or optioned local-ratio result.
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone)]
+pub struct QuasiRolloutSection {
+    pub design: String,
+    pub method: String,
+    /// Reported effects; the first is the scalar summary.
+    pub effects: Vec<DesignEffectSection>,
+    pub uncertainty: String,
+    /// Always `not_measured`.
+    pub calibration: String,
+    pub replicates_requested: u32,
+    pub replicates_ok: u32,
+    pub replicates_failed: u32,
+    /// Sup-t critical value of the simultaneous band, when one was formed.
+    pub critical_value: Option<f64>,
+    pub diagnostics: Vec<(String, f64)>,
+    /// Always `false`.
+    pub supported: bool,
+}
+
+impl From<&antecedent::QuasiRolloutEstimate> for QuasiRolloutSection {
+    fn from(value: &antecedent::QuasiRolloutEstimate) -> Self {
+        Self {
+            design: value.design.to_string(),
+            method: value.method.to_string(),
+            effects: value.effects.iter().map(DesignEffectSection::from).collect(),
+            uncertainty: value.uncertainty.to_string(),
+            calibration: value.calibration.to_string(),
+            replicates_requested: value.replicates_requested,
+            replicates_ok: value.replicates_ok,
+            replicates_failed: value.replicates_failed,
+            critical_value: value.critical_value,
+            diagnostics: value
+                .diagnostics
+                .iter()
+                .map(|(name, statistic)| (name.to_string(), *statistic))
+                .collect(),
+            supported: value.supported,
         }
     }
 }
@@ -262,7 +365,7 @@ fn group_time_att(
 ) -> PyResult<Vec<GroupTimeAtt>> {
     let outcome: Vec<f64> = outcome.as_array().iter().copied().collect();
     let effects = detach_catch(py, move || {
-        antecedent_estimate::staggered_event_study::group_time_att(
+        antecedent::estimate::staggered_event_study::group_time_att(
             &outcome, &subjects, &periods, &cohorts, &clusters,
         )
         .map_err(crate::value_err)
@@ -288,6 +391,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<SyntheticControlSection>()?;
     module.add_class::<LocalPolynomialRatioSection>()?;
     module.add_class::<SyntheticDidSection>()?;
+    module.add_class::<DesignEffectSection>()?;
+    module.add_class::<QuasiRolloutSection>()?;
     module.add_function(wrap_pyfunction!(difference_in_differences, module)?)?;
     module.add_function(wrap_pyfunction!(group_time_att, module)?)?;
     Ok(())

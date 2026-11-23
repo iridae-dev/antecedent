@@ -1,11 +1,14 @@
-//! Predictive assessment artifact (`predictive_assessment_v1`).
+//! Predictive assessment artifact (version 2; legacy version 1 is read conservatively).
+//! Version 2 stores a provenance byte after every 32-byte key digest. Legacy
+//! key provenance is unknown and is treated as caller-minted; a legacy stored
+//! held-out verification is refused rather than reconstructed as verified.
 //!
 //! A bounded, checksummed, sectioned container holding one predictive
 //! assessment: the predictive laws, the realized observations and the declared
 //! design, with the scores and diagnostics computed from them.
 //!
 //! * `predictive_assessment_meta` (CBOR): version, feature marker, the
-//!   point-only claim, the **unmeasured** calibration status, the closed interval
+//!   point-only claim, the **`not_measured`** calibration status, the closed interval
 //!   status, the target, the validation design and dependence declarations, the
 //!   scoring and diagnostic configuration, each predictor's source and fit
 //!   declaration, the identity digests, the stored result labels and the standing
@@ -30,32 +33,32 @@
 //! `predictive_assessment.report_replay_mismatch` for a stored value that does not recompute.
 //!
 //! What this does **not** say: no interval or significance level for a score or
-//! a score difference (closed: `cell_not_licensed`), no calibration guarantee
-//! (diagnostics are labelled and `unmeasured`), no causal validity (a score is
+//! a score difference (not supported: `not_supported`), no calibration guarantee
+//! (diagnostics are labelled and `not_measured`), no causal validity (a score is
 //! not a causal claim) and no probability that a claim holds.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
+use antecedent_io_core::byte_cursor::RealCursor;
+use antecedent_io_core::replay_tolerance::{ReplayNonFinite, ReplayScale, ReplayTolerance};
 use antecedent_validate::predictive_assessment::{
     AssessmentIdentity, DependenceDeclaration, EnsembleCrpsForm, FitDeclaration, ForecastLaw,
     Horizon, LawSource, MAX_CASES, MAX_JOINT_DIMENSION, MAX_LAW_ATOMS, MAX_PREDICTORS,
     ObservationKey, Outcome, OverlapPolicy, OverlapStatus, PredictiveAssessmentError,
     PredictiveAssessmentReport, PredictiveAssessmentSpec, PredictiveTarget, PredictorLaws,
     ProviderIdentity, ProviderTrustLabel, RealizedObservations, ScoreKind, ValidationDesign,
-    assess_predictive_laws,
+    admit_comparisons, assess_predictive_laws,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
-
-/// The artifact major version this reader writes and accepts.
-pub const PREDICTIVE_ASSESSMENT_ARTIFACT_VERSION: u16 = 1;
+/// The artifact major version this reader writes (it also reads version 1 conservatively).
+pub const PREDICTIVE_ASSESSMENT_ARTIFACT_VERSION: u16 = 2;
 /// The feature marker of the accepted format.
 pub const PREDICTIVE_ASSESSMENT_ARTIFACT_FEATURE: &str = "predictive_assessment_v1";
 /// Calibration status: diagnostics of this route have no measured calibration.
-pub const PREDICTIVE_ASSESSMENT_CALIBRATION: &str = "unmeasured";
-/// Interval status: a score or score-difference interval is closed.
+pub const PREDICTIVE_ASSESSMENT_CALIBRATION: &str = "not_measured";
+/// Interval status: a score or score-difference interval is not supported.
 pub const PREDICTIVE_ASSESSMENT_INTERVAL: &str = "not_reported";
 /// Most bytes an artifact may occupy, enforced on export and on consumption.
 pub const MAX_PREDICTIVE_ASSESSMENT_ARTIFACT_BYTES: usize = 256 * 1024 * 1024;
@@ -64,7 +67,7 @@ pub const MAX_PREDICTIVE_ASSESSMENT_NUMBERS: usize = 32 * 1024 * 1024;
 /// The standing caveats every artifact carries.
 pub const PREDICTIVE_ASSESSMENT_CAVEATS: [&str; 3] = [
     "a predictive score is not causal validity and not the probability that a claim holds",
-    "calibration, PIT, coverage and drift diagnostics are labelled and unmeasured: no \
+    "calibration, PIT, coverage and drift diagnostics are labelled and not_measured: no \
      calibration guarantee, interval or significance level is claimed",
     "no interval is reported for a score or a score difference; exact finite-law scoring \
      supplies no sampling interval",
@@ -74,7 +77,8 @@ const ARTIFACT_KIND: &str = crate::artifact_kinds::PREDICTIVE_ASSESSMENT;
 const META_SECTION: &str = "predictive_assessment_meta";
 const NUMBERS_SECTION: &str = "predictive_assessment_numbers";
 const KEYS_SECTION: &str = "predictive_assessment_keys";
-const KEY_BYTES: usize = 32;
+const KEY_BYTES: usize = 33;
+const LEGACY_KEY_BYTES: usize = 32;
 
 crate::sectioned_artifact_error!(
     /// Why a predictive assessment artifact was refused or could not be produced.
@@ -88,10 +92,7 @@ crate::sectioned_artifact_error!(
 type Error = PredictiveAssessmentArtifactError;
 
 fn refused(error: &PredictiveAssessmentError) -> Error {
-    Error::Refused {
-        code: error.reason_code(),
-        message: format!("{}: {}", error.detail(), error.message),
-    }
+    Error::refused(error.reason_code(), error.detail(), error.message.clone())
 }
 
 fn malformed(text: &str) -> Error {
@@ -205,6 +206,9 @@ pub struct FitWire {
     pub keys: u64,
     /// Why undeclared.
     pub reason: Option<String>,
+    /// Case-aligned fit declarations for a rolling forecast.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cases: Option<Vec<FitWire>>,
 }
 
 /// One predictor's declaration (its laws live in the numbers section).
@@ -269,7 +273,7 @@ pub struct PredictiveAssessmentMeta {
     pub feature: String,
     /// Always `point_only`.
     pub inference_claim: String,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Always `not_established`.
     pub causal_validity: String,
@@ -420,11 +424,17 @@ fn family_of(label: &str) -> &'static str {
     }
 }
 
+/// Stored forecasts and scores reproduce the recomputed ones to the assessment's replay
+/// tolerance, relative to the larger value (absolute below one). Identical bit patterns match,
+/// so an undefined or infinite score that replays to the same value passes.
+const REPLAY: ReplayTolerance = ReplayTolerance::new(
+    antecedent_validate::predictive_assessment::REPLAY_TOLERANCE,
+    ReplayScale::LargerOrOne,
+    ReplayNonFinite::SameBits,
+);
+
 fn close(a: f64, b: f64) -> bool {
-    a.to_bits() == b.to_bits()
-        || (a - b).abs()
-            <= antecedent_validate::predictive_assessment::REPLAY_TOLERANCE
-                * 1.0_f64.max(a.abs()).max(b.abs())
+    REPLAY.close(a, b)
 }
 
 // -- numbers section ----------------------------------------------------------------------
@@ -496,20 +506,20 @@ impl Writer {
 }
 
 struct Reader<'a> {
-    values: &'a [f64],
-    at: usize,
+    values: RealCursor<'a, Error>,
 }
 
-impl Reader<'_> {
-    fn remaining(&self) -> usize {
-        self.values.len() - self.at
+fn numbers_end_early() -> Error {
+    malformed("numbers section ends early")
+}
+
+impl<'a> Reader<'a> {
+    fn new(values: &'a [f64]) -> Self {
+        Self { values: RealCursor::new(values, numbers_end_early) }
     }
 
     fn take(&mut self) -> Result<f64, Error> {
-        let value =
-            *self.values.get(self.at).ok_or_else(|| malformed("numbers section ends early"))?;
-        self.at += 1;
-        Ok(value)
+        self.values.take()
     }
 
     #[allow(
@@ -526,12 +536,7 @@ impl Reader<'_> {
     }
 
     fn slice(&mut self, n: usize) -> Result<Vec<f64>, Error> {
-        if n > self.remaining() {
-            return Err(malformed("numbers section ends early"));
-        }
-        let out = self.values[self.at..self.at + n].to_vec();
-        self.at += n;
-        Ok(out)
+        Ok(self.values.take_slice(n)?.to_vec())
     }
 
     fn law(&mut self) -> Result<ForecastLaw, Error> {
@@ -746,6 +751,49 @@ fn outcome_family(outcomes: &[Outcome]) -> &'static str {
 
 // -- encode / decode ----------------------------------------------------------------------
 
+fn encode_fit(fit: &FitDeclaration, keys: &mut Vec<u8>) -> FitWire {
+    match fit {
+        FitDeclaration::FittedOn(fit_keys) => {
+            let mut sorted = fit_keys.clone();
+            sorted.sort_unstable();
+            let mut merged: Vec<ObservationKey> = Vec::with_capacity(sorted.len());
+            for key in sorted {
+                if let Some(last) = merged.last_mut().filter(|last| **last == key) {
+                    if key.is_caller_minted() {
+                        *last = ObservationKey::from_caller_minted_bytes(*key.as_bytes());
+                    }
+                } else {
+                    merged.push(key);
+                }
+            }
+            for key in &merged {
+                keys.extend_from_slice(key.as_bytes());
+                keys.push(u8::from(key.is_caller_minted()));
+            }
+            FitWire {
+                kind: "fitted_on".into(),
+                keys: merged.len() as u64,
+                reason: None,
+                cases: None,
+            }
+        }
+        FitDeclaration::NotFitted => {
+            FitWire { kind: "not_fitted".into(), keys: 0, reason: None, cases: None }
+        }
+        FitDeclaration::Undeclared { reason } => FitWire {
+            kind: "undeclared".into(),
+            keys: 0,
+            reason: Some(reason.clone()),
+            cases: None,
+        },
+        FitDeclaration::PerCase(fits) => {
+            let cases: Vec<_> = fits.iter().map(|fit| encode_fit(fit, keys)).collect();
+            let count = cases.iter().fold(0u64, |sum, case| sum.saturating_add(case.keys));
+            FitWire { kind: "per_case".into(), keys: count, reason: None, cases: Some(cases) }
+        }
+    }
+}
+
 fn encode_parts(
     spec: &PredictiveAssessmentSpec,
     report: &PredictiveAssessmentReport,
@@ -758,29 +806,14 @@ fn encode_parts(
     let mut keys = Vec::with_capacity(spec.observations.ids.len() * KEY_BYTES);
     for key in &spec.observations.ids {
         keys.extend_from_slice(key.as_bytes());
+        keys.push(u8::from(key.is_caller_minted()));
     }
     let mut predictors = Vec::with_capacity(spec.predictors.len());
     for predictor in &spec.predictors {
         for law in &predictor.laws {
             writer.law(law);
         }
-        let fit = match &predictor.fit {
-            FitDeclaration::FittedOn(fit_keys) => {
-                let mut sorted = fit_keys.clone();
-                sorted.sort_unstable();
-                sorted.dedup();
-                for key in &sorted {
-                    keys.extend_from_slice(key.as_bytes());
-                }
-                FitWire { kind: "fitted_on".into(), keys: sorted.len() as u64, reason: None }
-            }
-            FitDeclaration::NotFitted => {
-                FitWire { kind: "not_fitted".into(), keys: 0, reason: None }
-            }
-            FitDeclaration::Undeclared { reason } => {
-                FitWire { kind: "undeclared".into(), keys: 0, reason: Some(reason.clone()) }
-            }
-        };
+        let fit = encode_fit(&predictor.fit, &mut keys);
         predictors.push(PredictorMeta {
             name: predictor.name.clone(),
             source: source_wire(&predictor.source),
@@ -832,24 +865,17 @@ fn encode_container(
     keys: &[u8],
     artifact_id: &str,
 ) -> Result<Vec<u8>, Error> {
-    if artifact_id.trim().is_empty() {
-        return Err(Error::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta).map_err(|error| Error::Encode(error.to_string()))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
-            note: "predictive_assessment_point_only_unmeasured",
+            note: "predictive_assessment_point_only_not_measured",
             max_bytes: MAX_PREDICTIVE_ASSESSMENT_ARTIFACT_BYTES,
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
+        META_SECTION,
+        meta,
         &[
-            crate::OutSection {
-                id: META_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &meta_bytes,
-            },
             crate::OutSection {
                 id: NUMBERS_SECTION,
                 content_type: crate::CONTENT_BYTES,
@@ -858,27 +884,21 @@ fn encode_container(
             crate::OutSection { id: KEYS_SECTION, content_type: crate::CONTENT_BYTES, bytes: keys },
         ],
     )
-    .map_err(|error| crate::map_artifact_check!(error, PredictiveAssessmentArtifactError))
 }
 
 fn decode_container(bytes: &[u8]) -> Result<(PredictiveAssessmentMeta, Vec<u8>, Vec<u8>), Error> {
-    let parts = crate::decode_container(
-        ARTIFACT_KIND,
-        MAX_PREDICTIVE_ASSESSMENT_ARTIFACT_BYTES,
-        &[META_SECTION, NUMBERS_SECTION, KEYS_SECTION],
-        bytes,
-    )
-    .map_err(|error| crate::map_artifact_check!(error, PredictiveAssessmentArtifactError))?;
-    let Ok([meta_bytes, numbers, keys]) = <[Vec<u8>; 3]>::try_from(parts) else {
+    let (meta, _, parts) =
+        crate::artifact_codec::decode_sectioned_layouts::<Error, PredictiveAssessmentMeta>(
+            ARTIFACT_KIND,
+            MAX_PREDICTIVE_ASSESSMENT_ARTIFACT_BYTES,
+            META_SECTION,
+            &[&[NUMBERS_SECTION, KEYS_SECTION]],
+            |version| version == 1 || version == 2,
+            bytes,
+        )?;
+    let Ok([numbers, keys]) = <[Vec<u8>; 2]>::try_from(parts) else {
         return Err(malformed("unsupported container layout"));
     };
-    let meta = crate::decode_with_version(&meta_bytes, |version| {
-        if version == PREDICTIVE_ASSESSMENT_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(Error::UnsupportedVersion { version })
-        }
-    })?;
     Ok((meta, numbers, keys))
 }
 
@@ -936,16 +956,63 @@ impl Default for PredictiveAssessmentConsumeLimits {
     }
 }
 
-fn key_at(keys: &[u8], index: usize) -> ObservationKey {
-    let mut bytes = [0_u8; KEY_BYTES];
-    bytes.copy_from_slice(&keys[index * KEY_BYTES..(index + 1) * KEY_BYTES]);
-    ObservationKey::from_bytes(bytes)
+// Budget both the linear paired-difference, serial lag, and fit-overlap work under the
+// same comparison allowance, before cloning the stored comparison declarations.
+fn check_comparison_work(meta: &PredictiveAssessmentMeta, limit: usize) -> Result<(), Error> {
+    let cases = usize::try_from(meta.cases).map_err(|_| Error::LimitsExceeded("cases"))?;
+    if meta.predictors.len() > MAX_PREDICTORS {
+        return Err(Error::LimitsExceeded("comparison work"));
+    }
+    let lag =
+        (meta.dependence.kind == "serial").then_some(meta.dependence.truncation_lag).flatten();
+    admit_comparisons(
+        cases,
+        &meta
+            .predictors
+            .iter()
+            .map(|p| {
+                (
+                    p.name.as_str(),
+                    if matches!(p.fit.kind.as_str(), "fitted_on" | "per_case") {
+                        p.fit.keys
+                    } else {
+                        0
+                    },
+                )
+            })
+            .collect::<Vec<_>>(),
+        meta.scores.len(),
+        &meta.comparisons,
+        lag,
+        u64::try_from(limit).unwrap_or(u64::MAX),
+    )
+    .map_err(|error| {
+        if error.detail() == antecedent_validate::predictive_assessment::detail::BOUNDS_EXCEEDED {
+            Error::LimitsExceeded("comparison work")
+        } else {
+            refused(&error)
+        }
+    })?;
+    Ok(())
+}
+
+fn key_at(keys: &[u8], index: usize, version: u16) -> Result<ObservationKey, Error> {
+    let width = if version == 1 { LEGACY_KEY_BYTES } else { KEY_BYTES };
+    let start = index * width;
+    let mut bytes = [0_u8; LEGACY_KEY_BYTES];
+    bytes.copy_from_slice(&keys[start..start + LEGACY_KEY_BYTES]);
+    match if version == 1 { 1 } else { keys[start + LEGACY_KEY_BYTES] } {
+        0 => Ok(ObservationKey::from_bytes(bytes)),
+        1 => Ok(ObservationKey::from_caller_minted_bytes(bytes)),
+        _ => Err(malformed("invalid observation key provenance flag")),
+    }
 }
 
 fn check_claims(meta: &PredictiveAssessmentMeta) -> Result<(), Error> {
-    if meta.feature != PREDICTIVE_ASSESSMENT_ARTIFACT_FEATURE {
-        return Err(Error::UnsupportedSemantics("feature marker"));
-    }
+    crate::artifact_codec::require_semantics::<Error>(
+        meta.feature == PREDICTIVE_ASSESSMENT_ARTIFACT_FEATURE,
+        "feature marker",
+    )?;
     if meta.inference_claim != "point_only" {
         return Err(Error::UnsupportedSemantics("inference claim"));
     }
@@ -964,6 +1031,48 @@ fn check_claims(meta: &PredictiveAssessmentMeta) -> Result<(), Error> {
     Ok(())
 }
 
+fn decode_fit(
+    wire: &FitWire,
+    keys: &[u8],
+    version: u16,
+    cursor: &mut usize,
+    cases: usize,
+    nested: bool,
+) -> Result<FitDeclaration, Error> {
+    Ok(match wire.kind.as_str() {
+        "fitted_on" if wire.cases.is_none() && wire.reason.is_none() => {
+            let count =
+                usize::try_from(wire.keys).map_err(|_| Error::LimitsExceeded("fit keys"))?;
+            let end = cursor.checked_add(count).ok_or(Error::LimitsExceeded("fit keys"))?;
+            let found =
+                (*cursor..end).map(|i| key_at(keys, i, version)).collect::<Result<Vec<_>, _>>()?;
+            *cursor = end;
+            FitDeclaration::FittedOn(found)
+        }
+        "not_fitted" if wire.keys == 0 && wire.cases.is_none() && wire.reason.is_none() => {
+            FitDeclaration::NotFitted
+        }
+        "undeclared" if wire.keys == 0 && wire.cases.is_none() => {
+            FitDeclaration::Undeclared { reason: wire.reason.clone().unwrap_or_default() }
+        }
+        "per_case" if !nested && wire.reason.is_none() => {
+            let parts = wire.cases.as_ref().ok_or_else(|| malformed("per-case fit declaration"))?;
+            if parts.len() != cases
+                || parts.iter().fold(0u64, |sum, part| sum.saturating_add(part.keys)) != wire.keys
+            {
+                return Err(malformed("per-case fit declaration"));
+            }
+            FitDeclaration::PerCase(
+                parts
+                    .iter()
+                    .map(|part| decode_fit(part, keys, version, cursor, cases, true))
+                    .collect::<Result<_, _>>()?,
+            )
+        }
+        _ => return Err(Error::UnsupportedSemantics("fit declaration")),
+    })
+}
+
 fn spec_of(
     meta: &PredictiveAssessmentMeta,
     numbers: &[f64],
@@ -980,35 +1089,24 @@ fn spec_of(
     let fit_total: u64 =
         meta.predictors.iter().map(|p| p.fit.keys).fold(0_u64, u64::saturating_add);
     let expected_keys = u64::try_from(cases).unwrap_or(u64::MAX).saturating_add(fit_total);
-    if keys.len() as u64 != expected_keys.saturating_mul(KEY_BYTES as u64) {
+    let key_width = if meta.version == 1 { LEGACY_KEY_BYTES } else { KEY_BYTES };
+    if keys.len() as u64 != expected_keys.saturating_mul(key_width as u64) {
         return Err(malformed("keys section length"));
     }
     let result_count = meta.result_labels.len();
     if numbers.len() < result_count {
         return Err(malformed("numbers section length"));
     }
-    let mut reader = Reader { values: &numbers[..numbers.len() - result_count], at: 0 };
-    let ids: Vec<ObservationKey> = (0..cases).map(|i| key_at(keys, i)).collect();
+    let mut reader = Reader::new(&numbers[..numbers.len() - result_count]);
+    let ids: Vec<ObservationKey> =
+        (0..cases).map(|i| key_at(keys, i, meta.version)).collect::<Result<_, _>>()?;
     let outcomes =
         (0..cases).map(|_| reader.outcome(&meta.outcome_family)).collect::<Result<Vec<_>, _>>()?;
     let mut fit_cursor = cases;
     let mut predictors = Vec::with_capacity(meta.predictors.len());
     for declared in &meta.predictors {
         let laws = (0..cases).map(|_| reader.law()).collect::<Result<Vec<_>, _>>()?;
-        let fit = match declared.fit.kind.as_str() {
-            "fitted_on" => {
-                let count = usize::try_from(declared.fit.keys)
-                    .map_err(|_| Error::LimitsExceeded("fit keys"))?;
-                let fitted = (fit_cursor..fit_cursor + count).map(|i| key_at(keys, i)).collect();
-                fit_cursor += count;
-                FitDeclaration::FittedOn(fitted)
-            }
-            "not_fitted" => FitDeclaration::NotFitted,
-            "undeclared" => FitDeclaration::Undeclared {
-                reason: declared.fit.reason.clone().unwrap_or_default(),
-            },
-            _ => return Err(Error::UnsupportedSemantics("fit declaration")),
-        };
+        let fit = decode_fit(&declared.fit, keys, meta.version, &mut fit_cursor, cases, false)?;
         predictors.push(PredictorLaws {
             name: declared.name.clone(),
             source: source_of(&declared.source)?,
@@ -1017,7 +1115,7 @@ fn spec_of(
             fit,
         });
     }
-    if reader.remaining() != 0 {
+    if reader.values.remaining() != 0 {
         return Err(malformed("numbers section carries unread words"));
     }
     let scores = meta
@@ -1101,7 +1199,14 @@ impl PredictiveAssessmentArtifact {
     /// # Errors
     /// An empty id, an encoding failure or an oversized payload.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, Error> {
-        let (meta, numbers, keys) = encode_parts(&self.spec, &self.report)?;
+        let (mut meta, numbers, mut keys) = encode_parts(&self.spec, &self.report)?;
+        if self.meta.version == 1 {
+            meta.version = 1;
+            keys = keys
+                .chunks_exact(KEY_BYTES)
+                .flat_map(|key| key[..LEGACY_KEY_BYTES].iter().copied())
+                .collect();
+        }
         encode_container(&meta, &numbers, &keys, artifact_id)
     }
 
@@ -1140,8 +1245,40 @@ impl PredictiveAssessmentArtifact {
         limits: PredictiveAssessmentConsumeLimits,
         ctx: &ExecutionContext,
     ) -> Result<Self, Error> {
+        Self::from_bytes_with_replay_operations(
+            bytes,
+            expected,
+            limits,
+            antecedent_io_core::distribution_replay::MAX_REPLAY_OPERATIONS,
+            ctx,
+        )
+    }
+
+    /// Consume with an explicit allowance for linear, serial, and fit-overlap comparison work. The
+    /// allowance counts structural planning units, not elapsed time. Scoring uses its
+    /// separate assessment work limit. Unlike
+    /// stored metadata, a trusted caller can deliberately raise or lower it.
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes_with_limits`], or combined comparison work exceeds
+    /// the allowance (including an overflowing work estimate).
+    pub fn from_bytes_with_replay_operations(
+        bytes: &[u8],
+        expected: Option<&AssessmentIdentity>,
+        limits: PredictiveAssessmentConsumeLimits,
+        max_replay_operations: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, Error> {
         let (meta, number_bytes, keys) = decode_container(bytes)?;
         check_claims(&meta)?;
+        if meta.version == 1
+            && meta.result_texts.iter().any(|(key, value)| {
+                key.starts_with("overlap.") && value.starts_with("held_out_verified:")
+            })
+        {
+            return Err(Error::UnsupportedSemantics("legacy held-out provenance"));
+        }
+        check_comparison_work(&meta, max_replay_operations)?;
         if number_bytes.len() % 8 != 0 {
             return Err(malformed("numbers section length"));
         }
@@ -1150,14 +1287,19 @@ impl PredictiveAssessmentArtifact {
         }
         let numbers = crate::width::f64s_from_le_bytes(&number_bytes);
         let spec = spec_of(&meta, &numbers, &keys, &limits)?;
-        let report = assess_predictive_laws(&spec, ctx).map_err(|error| refused(&error))?;
+        let mut report = assess_predictive_laws(&spec, ctx).map_err(|error| refused(&error))?;
+        if meta.version == 1 {
+            report.identity =
+                antecedent_validate::predictive_assessment::legacy_assessment_identity(&spec)
+                    .map_err(|error| refused(&error))?;
+        }
         if let Some(field) = meta.identity.to_identity().first_difference(&report.identity) {
             return Err(Error::IdentityMismatch { field });
         }
-        if let Some(expected) = expected {
-            if let Some(field) = expected.first_difference(&report.identity) {
-                return Err(Error::IdentityMismatch { field });
-            }
+        if let Some(expected) = expected
+            && let Some(field) = expected.first_difference(&report.identity)
+        {
+            return Err(Error::IdentityMismatch { field });
         }
         let replayed = flatten(&report);
         let stored_values = &numbers[numbers.len() - meta.result_labels.len()..];

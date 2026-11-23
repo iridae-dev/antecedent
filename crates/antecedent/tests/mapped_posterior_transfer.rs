@@ -1,6 +1,6 @@
 //! Exact heterogeneous-design Gaussian transfer and independent replay.
 
-use antecedent::inference::mapped_posterior_transfer;
+use antecedent::inference::{MappedTransferSpec, mapped_posterior_transfer_with};
 use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
@@ -11,6 +11,11 @@ use antecedent_prob::{
     BayesDesignRef, BayesFitOptions, GaussianCoefficientPrior, LaplaceWorkspace, PriorSet,
     PriorSpec, fit_conjugate_gaussian,
 };
+
+fn assert_refused<T, E: std::fmt::Debug>(result: Result<T, E>, expected: &str) {
+    let text = format!("{:?}", result.err().expect("the request must be refused"));
+    assert!(text.contains(expected), "expected {expected}: {text}");
+}
 
 fn quantity(id: &str, functional: &str) -> ScientificQuantity {
     ScientificQuantity {
@@ -89,12 +94,34 @@ fn exact_source() -> DistributionArtifact {
     .unwrap()
 }
 
+fn transfer(
+    bytes: &[u8],
+    expected_source: &DistributionIdentity,
+    source_to_target: &[(String, String)],
+    target_quantities: &[ScientificQuantityWire],
+    target_snapshot_id: &str,
+    target_contract_id: &str,
+    baseline: &PriorSet,
+) -> Result<PriorSet, antecedent::error::CausalError> {
+    mapped_posterior_transfer_with(
+        bytes,
+        &MappedTransferSpec {
+            expected_source,
+            source_to_target,
+            target_quantities,
+            target_snapshot_id,
+            target_contract_id,
+            baseline,
+        },
+    )
+}
+
 fn mapped(
     bytes: &[u8],
     expected: &DistributionIdentity,
     prior: &PriorSet,
 ) -> Result<PriorSet, antecedent::error::CausalError> {
-    mapped_posterior_transfer(
+    transfer(
         bytes,
         expected,
         &[("source:x".into(), "target:x".into()), ("source:y".into(), "target:y".into())],
@@ -165,49 +192,55 @@ fn heterogeneous_design_sequential_equals_exact_pooled() {
 fn incompatible_sources_and_mapping_refuse() {
     let artifact = exact_source();
     let bytes = artifact.to_bytes("batch-a-posterior").unwrap();
-    assert!(mapped(&bytes, &identity(), &baseline(2.0)).is_err());
+    assert_refused(
+        mapped(&bytes, &identity(), &baseline(2.0)),
+        antecedent_core::reason_details::mapped_posterior_transfer::RESIDUAL_VARIANCE,
+    );
     let mut wrong_snapshot = identity();
     wrong_snapshot.snapshot_id = "other".into();
-    assert!(mapped(&bytes, &wrong_snapshot, &baseline(1.0)).is_err());
+    assert_refused(
+        mapped(&bytes, &wrong_snapshot, &baseline(1.0)),
+        antecedent_core::reason_details::aligned_joint_draws::IDENTITY_EXPECTED,
+    );
     let mut bootstrap = artifact.metadata().clone();
     bootstrap.identity.semantic = DistributionMeaningWire::Bootstrap;
     let bootstrap = DistributionArtifact::new(bootstrap, artifact.draws().to_vec()).unwrap();
-    assert!(
+    assert_refused(
         mapped(
             &bootstrap.to_bytes("bootstrap").unwrap(),
             &bootstrap.metadata().identity,
-            &baseline(1.0)
-        )
-        .is_err()
+            &baseline(1.0),
+        ),
+        antecedent_core::reason_details::mapped_posterior_transfer::PARAMETER_POSTERIOR,
     );
     let reused = [("source:x".into(), "target:x".into()), ("source:x".into(), "target:y".into())];
-    assert!(
-        mapped_posterior_transfer(
+    assert_refused(
+        transfer(
             &bytes,
             &identity(),
             &reused,
             &targets(),
             "batch-b-snapshot",
             "fixed-gaussian-contract",
-            &baseline(1.0)
-        )
-        .is_err()
+            &baseline(1.0),
+        ),
+        "mapped transfer reuses a coefficient identity",
     );
     let partial = [("source:x".into(), "target:x".into())];
-    assert!(
-        mapped_posterior_transfer(
+    assert_refused(
+        transfer(
             &bytes,
             &identity(),
             &partial,
             &targets(),
             "batch-b-snapshot",
             "fixed-gaussian-contract",
-            &baseline(1.0)
-        )
-        .is_err()
+            &baseline(1.0),
+        ),
+        "requires a complete coefficient bijection",
     );
-    assert!(
-        mapped_posterior_transfer(
+    assert_refused(
+        transfer(
             &bytes,
             &identity(),
             &[("source:x".into(), "target:x".into()), ("source:y".into(), "target:y".into())],
@@ -215,22 +248,22 @@ fn incompatible_sources_and_mapping_refuse() {
             "",
             "fixed-gaussian-contract",
             &baseline(1.0),
-        )
-        .is_err()
+        ),
+        "requires target snapshot and causal contract IDs",
     );
     let mut changed_target = targets();
     changed_target[0].units = "meters".into();
-    assert!(
-        mapped_posterior_transfer(
+    assert_refused(
+        transfer(
             &bytes,
             &identity(),
             &[("source:x".into(), "target:x".into()), ("source:y".into(), "target:y".into())],
             &changed_target,
             "batch-b-snapshot",
             "fixed-gaussian-contract",
-            &baseline(1.0)
-        )
-        .is_err()
+            &baseline(1.0),
+        ),
+        "mapped transfer coefficient coordinates differ",
     );
 }
 
@@ -243,7 +276,10 @@ fn fresh_process_replays_mapped_prior() {
         assert!(prior.coefficient_correlation().is_some());
         let mut wrong = identity();
         wrong.snapshot_id = "resealed-other".into();
-        assert!(mapped(&bytes, &wrong, &baseline(1.0)).is_err());
+        assert_refused(
+            mapped(&bytes, &wrong, &baseline(1.0)),
+            antecedent_core::reason_details::aligned_joint_draws::IDENTITY_EXPECTED,
+        );
         return;
     }
     let unique =
@@ -251,13 +287,23 @@ fn fresh_process_replays_mapped_prior() {
     let path =
         std::env::temp_dir().join(format!("antecedent-f19-{}-{unique}.bin", std::process::id()));
     std::fs::write(&path, exact_source().to_bytes("batch-a-posterior").unwrap()).unwrap();
+    // The child must select this very test: under a suite crate it is a module member, so its
+    // libtest name carries the module path (a bare name would match nothing and "pass").
+    let prefix =
+        module_path!().split_once("::").map_or(String::new(), |(_, rest)| format!("{rest}::"));
+    let test_name = format!("{prefix}fresh_process_replays_mapped_prior");
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .arg("--exact")
-        .arg("fresh_process_replays_mapped_prior")
+        .arg(&test_name)
         .env(PATH, &path)
         .output()
         .unwrap();
     std::fs::remove_file(path).unwrap();
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("running 1 test"),
+        "the child selected no test: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
 }
 

@@ -2,7 +2,7 @@
 //!
 //! Chain layout: `samples[(chain * n_draws + draw) * n_params + param]`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_kernels::{median_sorted, midranks_into, norm_inv, quantile_type7_sorted};
 
@@ -60,10 +60,44 @@ pub fn mcmc_summary(
         return McmcSummary { max_rhat: f64::INFINITY, min_bulk_ess: 0.0, min_tail_ess: 0.0 };
     }
     let diags = parameter_mcmc_diagnostics(samples, n_chains, n_draws, n_params);
+    summarize(&diags, rhat_guard, ess_guard)
+}
+
+/// [`mcmc_summary`] with the per-parameter diagnostics computed under the context's
+/// parallelism. Each parameter's diagnostics depend only on its own column of draws and the
+/// reduction runs in parameter order, so the summary is bit-identical to [`mcmc_summary`]
+/// for every thread count.
+///
+/// # Errors
+/// Cancellation, admission refusal or failure to start an admitted worker.
+pub fn mcmc_summary_parallel(
+    samples: &[f64],
+    n_chains: usize,
+    n_draws: usize,
+    n_params: usize,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<McmcSummary, antecedent_core::execution::AdmissionError> {
+    let rhat_guard = n_chains < 2 || n_draws < 8 || n_params == 0;
+    let ess_guard = n_chains == 0 || n_draws < 8 || n_params == 0;
+    if rhat_guard && ess_guard {
+        return Ok(McmcSummary { max_rhat: f64::INFINITY, min_bulk_ess: 0.0, min_tail_ess: 0.0 });
+    }
+    let diags = ctx.map_indexed(n_params, |p, _| {
+        Ok::<_, std::convert::Infallible>(diagnostics_one(samples, n_chains, n_draws, n_params, p))
+    });
+    let diags = match diags {
+        Ok(diags) => diags,
+        Err(antecedent_core::execution::MapExecutionError::Admission(error)) => return Err(error),
+        Err(antecedent_core::execution::MapExecutionError::Work(never)) => match never {},
+    };
+    Ok(summarize(&diags, rhat_guard, ess_guard))
+}
+
+fn summarize(diags: &[ParameterMcmcDiagnostics], rhat_guard: bool, ess_guard: bool) -> McmcSummary {
     let mut max_rhat = 0.0_f64;
     let mut min_bulk = f64::INFINITY;
     let mut min_tail = f64::INFINITY;
-    for d in &diags {
+    for d in diags {
         if d.rhat.is_finite() {
             max_rhat = max_rhat.max(d.rhat);
         } else {
@@ -187,7 +221,7 @@ fn diagnostics_one(
         return fail;
     }
     // Drop last draw when odd so halves are equal.
-    let n_use = if n_draws % 2 == 0 { n_draws } else { n_draws - 1 };
+    let n_use = if n_draws.is_multiple_of(2) { n_draws } else { n_draws - 1 };
     let half = n_use / 2;
     if half < 4 {
         return fail;
@@ -227,7 +261,10 @@ fn diagnostics_one(
     let mut ind_hi = vec![0.0; s];
     for i in 0..s {
         ind_lo[i] = if raw[i] <= q05 { 1.0 } else { 0.0 };
-        ind_hi[i] = if raw[i] >= q95 { 1.0 } else { 0.0 };
+        // Both local efficiencies concern the CDF I(theta <= quantile)
+        // (Vehtari 2021 eq. 16). >= q95 is only complementary for continuous
+        // draws with no ties; it measures a different event at a tied cutoff.
+        ind_hi[i] = if raw[i] <= q95 { 1.0 } else { 0.0 };
     }
     let ess_lo = if has_variation(&ind_lo) { geyer_ess_split(&ind_lo, m, half) } else { 0.0 };
     let ess_hi = if has_variation(&ind_hi) { geyer_ess_split(&ind_hi, m, half) } else { 0.0 };
@@ -298,8 +335,7 @@ fn split_rhat_on_segments(seg_major: &[f64], m: usize, n: usize) -> f64 {
 /// truncation point (the first non-positive pair sum) — the truncation rule
 /// only ever reads lags `≤ 2t+1`, so evaluating all `n−1` lags up front was
 /// O(m·n²) work of which O(m·n·τ) is used. Per-lag arithmetic, the
-/// truncation test, and the monotone clamp are unchanged, so the result is
-/// bit-identical to the eager form.
+/// truncation test, and monotone clamp agree with the corresponding eager form.
 #[allow(
     clippy::neg_cmp_op_on_partial_ord,
     reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
@@ -398,7 +434,7 @@ fn split_segment_stats(seg_major: &[f64], m: usize, n: usize) -> SegmentStats {
     SegmentStats { means, w, var_hat }
 }
 
-/// `Â_lag` for one lag > 0 (unbiased within-chain, Stan/Vehtari 2021:
+/// `Â_lag` for one lag > 0 (biased autocovariance divisor N, Vehtari 2021 sec. 3.2:
 /// `Â_t = var̂⁺ − W + ā_t`, so `ρ̂_t = 1 − (W − ā_t)/var̂⁺`, not `ā_t/var̂⁺`,
 /// which ignores between-chain variance).
 fn lag_autocovariance(
@@ -417,7 +453,9 @@ fn lag_autocovariance(
         for d in 0..(n - lag) {
             num += (seg_major[base + d] - mean) * (seg_major[base + d + lag] - mean);
         }
-        acc += num / (nf - 1.0);
+        // The autocovariance estimator uses N; the sample variance W above
+        // still uses N-1. They have different roles in the combined rho.
+        acc += num / nf;
     }
     let a_bar = acc / m as f64;
     stats.var_hat - stats.w + a_bar
@@ -439,9 +477,35 @@ fn sample_at(
 mod tests {
     use super::*;
 
+    #[test]
+    fn lag_covariance_uses_the_biased_sample_divisor_from_the_ess_definition() {
+        // Two segments with means 1.5 and 2.5: W=5/3, B=2, var+=7/4.
+        // Each lag-one numerator is 5/4. Dividing by N=4 gives 5/16,
+        // hence A_1 = var+ - W + 5/16 = 19/48 (Vehtari 2021, sec. 3.2,
+        // discussion before eq. 10). Using N-1 instead would give 1/2.
+        let segments = [0.0, 1.0, 2.0, 3.0, 1.0, 2.0, 3.0, 4.0];
+        let stats = split_segment_stats(&segments, 2, 4);
+        assert!((lag_autocovariance(&segments, 2, 4, 1, &stats) - 19.0 / 48.0).abs() < 1e-12);
+    }
+
     fn fill_iid_normal(n_chains: usize, n_draws: usize, seed: u64) -> Vec<f64> {
         let mut rng = antecedent_core::CausalRng::from_seed(seed);
         (0..n_chains * n_draws).map(|_| antecedent_kernels::standard_normal(&mut rng)).collect()
+    }
+
+    #[test]
+    fn parallel_summary_is_bit_identical_to_the_serial_summary() {
+        use antecedent_core::{ExecutionContext, NonZeroThreadCount, Parallelism};
+        let (chains, draws, params) = (4, 300, 5);
+        let samples = fill_iid_normal(chains, draws * params, 3);
+        let serial = mcmc_summary(&samples, chains, draws, params);
+        let mut ctx = ExecutionContext::for_tests(1)
+            .with_admission(antecedent_core::execution::AdmissionPool::fixed(4, u64::MAX));
+        ctx.parallelism = Parallelism::bounded(NonZeroThreadCount::new(4).unwrap());
+        let parallel = mcmc_summary_parallel(&samples, chains, draws, params, &ctx).unwrap();
+        assert_eq!(serial.max_rhat.to_bits(), parallel.max_rhat.to_bits());
+        assert_eq!(serial.min_bulk_ess.to_bits(), parallel.min_bulk_ess.to_bits());
+        assert_eq!(serial.min_tail_ess.to_bits(), parallel.min_tail_ess.to_bits());
     }
 
     #[test]
@@ -603,3 +667,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "mcmc_admission_tests.rs"]
+mod mcmc_admission_tests;

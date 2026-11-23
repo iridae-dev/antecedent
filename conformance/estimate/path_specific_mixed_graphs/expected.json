@@ -1,0 +1,619 @@
+{
+  "oracle": {
+    "kind": "enumeration",
+    "method": "enumeration of the structural noise cells with exact rational arithmetic",
+    "independence_basis": "Enumerating the 4^5 equally likely noise cells of each declared binary SCM, with exact rational arithmetic, evaluates the structural equations under the cross-world assignment (A at the active arm, B at the control arm) on every cell, which gives the path-specific, total and complementary-path truths with no identification formula involved. The contingency tables are rebuilt from the same cells (each cell one observed row, counts divided by their gcd) and the identified functionals (the district formula for the latent-confounded graph, the edge g-formula for the Markovian one, and the two completion formulas of the collider class) are applied to the table alone and must reproduce the truths exactly. It imports no Antecedent code and no statistics package. The shared object is the stated SCM, so a wrong coefficient in the fixture would be inherited. The zero completion is checked independently by directed reachability: there is no directed path from the treatment to the selected child, so the selected path effect is zero.",
+    "generator": "conformance/estimate/path_specific_mixed_graphs/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/path_specific_mixed_graphs/reference.py --check",
+    "environment_lock": "conformance/estimate/path_specific_mixed_graphs/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "truth.path_specific_effect, total_effect and complementary_path_effect of district_admg and routed_markov",
+      "collider_class truth.identified_set_lower, identified_set_upper and unidentified_mass",
+      "contingency_table counts (the identification input)"
+    ],
+    "context_only_outputs": [
+      "identification rule labels",
+      "frequentist and bayesian estimator ids and tolerances",
+      "graph edge lists"
+    ],
+    "historical_exposure": "The generator and its numbers were written during this review from the declared structural equations; the product's output was not consulted. The model shapes follow those of existing route tests that were read for structure only; thresholds, tables and every value here are new. For the later zero-completion correction, the product output and identification implementation were inspected before the independent reachability check was written."
+  },
+  "schema_version": 1,
+  "case": "path_specific_mixed_graphs",
+  "district_admg": {
+    "columns": [
+      "t",
+      "a",
+      "b",
+      "y"
+    ],
+    "query": {
+      "treatment": "t",
+      "outcome": "y",
+      "path_nodes": [
+        "a"
+      ],
+      "control_level": 0.0,
+      "active_level": 1.0
+    },
+    "graph": {
+      "class": "Admg",
+      "directed_edges": [
+        [
+          "t",
+          "a"
+        ],
+        [
+          "t",
+          "b"
+        ],
+        [
+          "a",
+          "y"
+        ],
+        [
+          "b",
+          "y"
+        ]
+      ],
+      "bidirected_edges": [
+        [
+          "a",
+          "y"
+        ]
+      ]
+    },
+    "contingency_table": [
+      {
+        "t": 0.0,
+        "a": 0.0,
+        "b": 0.0,
+        "y": 0.0,
+        "count": 39
+      },
+      {
+        "t": 0.0,
+        "a": 0.0,
+        "b": 0.0,
+        "y": 1.0,
+        "count": 21
+      },
+      {
+        "t": 0.0,
+        "a": 0.0,
+        "b": 1.0,
+        "y": 0.0,
+        "count": 8
+      },
+      {
+        "t": 0.0,
+        "a": 0.0,
+        "b": 1.0,
+        "y": 1.0,
+        "count": 12
+      },
+      {
+        "t": 0.0,
+        "a": 1.0,
+        "b": 0.0,
+        "y": 0.0,
+        "count": 12
+      },
+      {
+        "t": 0.0,
+        "a": 1.0,
+        "b": 0.0,
+        "y": 1.0,
+        "count": 24
+      },
+      {
+        "t": 0.0,
+        "a": 1.0,
+        "b": 1.0,
+        "y": 0.0,
+        "count": 1
+      },
+      {
+        "t": 0.0,
+        "a": 1.0,
+        "b": 1.0,
+        "y": 1.0,
+        "count": 11
+      },
+      {
+        "t": 1.0,
+        "a": 0.0,
+        "b": 0.0,
+        "y": 0.0,
+        "count": 3
+      },
+      {
+        "t": 1.0,
+        "a": 0.0,
+        "b": 0.0,
+        "y": 1.0,
+        "count": 1
+      },
+      {
+        "t": 1.0,
+        "a": 0.0,
+        "b": 1.0,
+        "y": 0.0,
+        "count": 6
+      },
+      {
+        "t": 1.0,
+        "a": 0.0,
+        "b": 1.0,
+        "y": 1.0,
+        "count": 6
+      },
+      {
+        "t": 1.0,
+        "a": 1.0,
+        "b": 0.0,
+        "y": 0.0,
+        "count": 10
+      },
+      {
+        "t": 1.0,
+        "a": 1.0,
+        "b": 0.0,
+        "y": 1.0,
+        "count": 18
+      },
+      {
+        "t": 1.0,
+        "a": 1.0,
+        "b": 1.0,
+        "y": 0.0,
+        "count": 9
+      },
+      {
+        "t": 1.0,
+        "a": 1.0,
+        "b": 1.0,
+        "y": 1.0,
+        "count": 75
+      }
+    ],
+    "identification": {
+      "identifier": "path_specific.natural",
+      "rule": "path_specific.district_formula"
+    },
+    "truth": {
+      "path_specific_effect": 0.125,
+      "total_effect": 0.25,
+      "complementary_path_effect": 0.125
+    }
+  },
+  "routed_markov": {
+    "columns": [
+      "w",
+      "t",
+      "a",
+      "b",
+      "y"
+    ],
+    "query": {
+      "treatment": "t",
+      "outcome": "y",
+      "path_nodes": [
+        "a"
+      ],
+      "control_level": 0.0,
+      "active_level": 1.0
+    },
+    "graph": {
+      "class": "Dag",
+      "directed_edges": [
+        [
+          "w",
+          "t"
+        ],
+        [
+          "t",
+          "a"
+        ],
+        [
+          "t",
+          "b"
+        ],
+        [
+          "a",
+          "y"
+        ],
+        [
+          "b",
+          "y"
+        ]
+      ]
+    },
+    "contingency_table": [
+      {
+        "w": 0.0,
+        "t": 0.0,
+        "a": 0.0,
+        "b": 0.0,
+        "y": 0.0,
+        "count": 81
+      },
+      {
+        "w": 0.0,
+        "t": 0.0,
+        "a": 0.0,
+        "b": 0.0,
+        "y": 1.0,
+        "count": 27
+      },
+      {
+        "w": 0.0,
+        "t": 0.0,
+        "a": 0.0,
+        "b": 1.0,
+        "y": 0.0,
+        "count": 18
+      },
+      {
+        "w": 0.0,
+        "t": 0.0,
+        "a": 0.0,
+        "b": 1.0,
+        "y": 1.0,
+        "count": 18
+      },
+      {
+        "w": 0.0,
+        "t": 0.0,
+        "a": 1.0,
+        "b": 0.0,
+        "y": 0.0,
+        "count": 18
+      },
+      {
+        "w": 0.0,
+        "t": 0.0,
+        "a": 1.0,
+        "b": 0.0,
+        "y": 1.0,
+        "count": 18
+      },
+      {
+        "w": 0.0,
+        "t": 0.0,
+        "a": 1.0,
+        "b": 1.0,
+        "y": 1.0,
+        "count": 12
+      },
+      {
+        "w": 0.0,
+        "t": 1.0,
+        "a": 0.0,
+        "b": 0.0,
+        "y": 0.0,
+        "count": 3
+      },
+      {
+        "w": 0.0,
+        "t": 1.0,
+        "a": 0.0,
+        "b": 0.0,
+        "y": 1.0,
+        "count": 1
+      },
+      {
+        "w": 0.0,
+        "t": 1.0,
+        "a": 0.0,
+        "b": 1.0,
+        "y": 0.0,
+        "count": 6
+      },
+      {
+        "w": 0.0,
+        "t": 1.0,
+        "a": 0.0,
+        "b": 1.0,
+        "y": 1.0,
+        "count": 6
+      },
+      {
+        "w": 0.0,
+        "t": 1.0,
+        "a": 1.0,
+        "b": 0.0,
+        "y": 0.0,
+        "count": 6
+      },
+      {
+        "w": 0.0,
+        "t": 1.0,
+        "a": 1.0,
+        "b": 0.0,
+        "y": 1.0,
+        "count": 6
+      },
+      {
+        "w": 0.0,
+        "t": 1.0,
+        "a": 1.0,
+        "b": 1.0,
+        "y": 1.0,
+        "count": 36
+      },
+      {
+        "w": 1.0,
+        "t": 0.0,
+        "a": 0.0,
+        "b": 0.0,
+        "y": 0.0,
+        "count": 27
+      },
+      {
+        "w": 1.0,
+        "t": 0.0,
+        "a": 0.0,
+        "b": 0.0,
+        "y": 1.0,
+        "count": 9
+      },
+      {
+        "w": 1.0,
+        "t": 0.0,
+        "a": 0.0,
+        "b": 1.0,
+        "y": 0.0,
+        "count": 6
+      },
+      {
+        "w": 1.0,
+        "t": 0.0,
+        "a": 0.0,
+        "b": 1.0,
+        "y": 1.0,
+        "count": 6
+      },
+      {
+        "w": 1.0,
+        "t": 0.0,
+        "a": 1.0,
+        "b": 0.0,
+        "y": 0.0,
+        "count": 6
+      },
+      {
+        "w": 1.0,
+        "t": 0.0,
+        "a": 1.0,
+        "b": 0.0,
+        "y": 1.0,
+        "count": 6
+      },
+      {
+        "w": 1.0,
+        "t": 0.0,
+        "a": 1.0,
+        "b": 1.0,
+        "y": 1.0,
+        "count": 4
+      },
+      {
+        "w": 1.0,
+        "t": 1.0,
+        "a": 0.0,
+        "b": 0.0,
+        "y": 0.0,
+        "count": 9
+      },
+      {
+        "w": 1.0,
+        "t": 1.0,
+        "a": 0.0,
+        "b": 0.0,
+        "y": 1.0,
+        "count": 3
+      },
+      {
+        "w": 1.0,
+        "t": 1.0,
+        "a": 0.0,
+        "b": 1.0,
+        "y": 0.0,
+        "count": 18
+      },
+      {
+        "w": 1.0,
+        "t": 1.0,
+        "a": 0.0,
+        "b": 1.0,
+        "y": 1.0,
+        "count": 18
+      },
+      {
+        "w": 1.0,
+        "t": 1.0,
+        "a": 1.0,
+        "b": 0.0,
+        "y": 0.0,
+        "count": 18
+      },
+      {
+        "w": 1.0,
+        "t": 1.0,
+        "a": 1.0,
+        "b": 0.0,
+        "y": 1.0,
+        "count": 18
+      },
+      {
+        "w": 1.0,
+        "t": 1.0,
+        "a": 1.0,
+        "b": 1.0,
+        "y": 1.0,
+        "count": 108
+      }
+    ],
+    "truth": {
+      "path_specific_effect": 0.15625,
+      "total_effect": 0.375,
+      "complementary_path_effect": 0.15625
+    }
+  },
+  "collider_class": {
+    "columns": [
+      "t",
+      "a",
+      "b",
+      "y"
+    ],
+    "query": {
+      "treatment": "t",
+      "outcome": "y",
+      "path_nodes": [
+        "a"
+      ],
+      "control_level": 0.0,
+      "active_level": 1.0
+    },
+    "cpdag": {
+      "directed_edges": [
+        [
+          "a",
+          "y"
+        ],
+        [
+          "b",
+          "y"
+        ]
+      ],
+      "undirected_edges": [
+        [
+          "t",
+          "a"
+        ],
+        [
+          "t",
+          "b"
+        ]
+      ]
+    },
+    "contingency_table": [
+      {
+        "t": 0.0,
+        "a": 0.0,
+        "b": 0.0,
+        "y": 0.0,
+        "count": 27
+      },
+      {
+        "t": 0.0,
+        "a": 0.0,
+        "b": 0.0,
+        "y": 1.0,
+        "count": 9
+      },
+      {
+        "t": 0.0,
+        "a": 0.0,
+        "b": 1.0,
+        "y": 0.0,
+        "count": 6
+      },
+      {
+        "t": 0.0,
+        "a": 0.0,
+        "b": 1.0,
+        "y": 1.0,
+        "count": 6
+      },
+      {
+        "t": 0.0,
+        "a": 1.0,
+        "b": 0.0,
+        "y": 0.0,
+        "count": 6
+      },
+      {
+        "t": 0.0,
+        "a": 1.0,
+        "b": 0.0,
+        "y": 1.0,
+        "count": 6
+      },
+      {
+        "t": 0.0,
+        "a": 1.0,
+        "b": 1.0,
+        "y": 1.0,
+        "count": 4
+      },
+      {
+        "t": 1.0,
+        "a": 0.0,
+        "b": 0.0,
+        "y": 0.0,
+        "count": 3
+      },
+      {
+        "t": 1.0,
+        "a": 0.0,
+        "b": 0.0,
+        "y": 1.0,
+        "count": 1
+      },
+      {
+        "t": 1.0,
+        "a": 0.0,
+        "b": 1.0,
+        "y": 0.0,
+        "count": 6
+      },
+      {
+        "t": 1.0,
+        "a": 0.0,
+        "b": 1.0,
+        "y": 1.0,
+        "count": 6
+      },
+      {
+        "t": 1.0,
+        "a": 1.0,
+        "b": 0.0,
+        "y": 0.0,
+        "count": 6
+      },
+      {
+        "t": 1.0,
+        "a": 1.0,
+        "b": 0.0,
+        "y": 1.0,
+        "count": 6
+      },
+      {
+        "t": 1.0,
+        "a": 1.0,
+        "b": 1.0,
+        "y": 1.0,
+        "count": 36
+      }
+    ],
+    "completions": 3,
+    "truth": {
+      "identified_set_lower": 0.0,
+      "identified_set_upper": 0.1875,
+      "unidentified_mass": 0.0
+    }
+  },
+  "frequentist": {
+    "estimator": "functional.effect",
+    "absolute_tolerance": 1e-09
+  },
+  "bayesian": {
+    "estimator": "functional.effect",
+    "posterior_mean_tolerance": 0.02,
+    "note": "conjugate posterior mean within tolerance of the truth; declared acceptance band"
+  }
+}

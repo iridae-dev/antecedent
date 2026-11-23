@@ -26,6 +26,7 @@ python/target/
 .DS_Store
 
 # Benchmarks / fuzz artifacts
+/benchmarks/performance/investigations/
 benches/reports/
 fuzz/artifacts/
 fuzz/corpus/

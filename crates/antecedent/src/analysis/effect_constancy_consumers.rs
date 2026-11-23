@@ -2,16 +2,16 @@
 //!
 //! an independently consumed effect-constancy artifact is required. Transport contrasts are diagnostic,
 //! source-bank preferences are explicitly data dependent, and policy comparisons are affine
-//! point evaluations. Neither non-rejection nor agreement licenses transport or pooling.
+//! point evaluations. Neither non-rejection nor agreement supports transport or pooling.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 
 use antecedent_contract::ScientificQuantity;
 use antecedent_design::decision_contract::{DecisionContract, UtilityExpr};
 use antecedent_design::decision_eval::{
-    DecisionResult, MeanSource, Verdict, evaluate_contract_on_means,
+    DecisionResult, MeanEstimate, MeanSource, Verdict, evaluate_contract_on_means,
 };
 use antecedent_estimate::effect_constancy::{ContrastReport, PartitionReport, PartitionSupport};
 use antecedent_io::prior_bank::{CompatibilityReport, PriorCatalog, TargetDesign};
@@ -26,7 +26,7 @@ pub struct ConstancyEvidence {
     pub identity: EffectConstancyIdentity,
     /// Point-only inference; this is not a measured heterogeneity guarantee.
     pub inference_claim: String,
-    /// Original effect-constancy calibration status, currently unmeasured.
+    /// Original effect-constancy calibration status, currently `not_measured`.
     pub calibration: String,
     /// Original non-rejection and power caveats.
     pub caveats: Vec<String>,
@@ -66,8 +66,8 @@ pub struct ConstancyPriorRanking {
     pub ranked: Vec<CompatibilityReport>,
     /// Explicitly true: selecting a prior with target estimates is data dependent.
     pub data_dependent_selection: bool,
-    /// Always false; ranking supplies no automatic pooling or posterior transfer license.
-    pub posterior_transfer_licensed: bool,
+    /// Always false; ranking supplies no automatic pooling or posterior transfer support.
+    pub posterior_transfer_supported: bool,
 }
 
 /// One original supported effect and the actual input supplied to the policy engine.
@@ -121,21 +121,25 @@ fn invalid(detail: &'static str, message: impl Into<String>) -> ConstancyConsume
     }
 }
 
+/// Deepest utility expression the consumer walks: the decision engine evaluates expressions
+/// recursively, so this is a stack-safety bound on nesting, not a bound on policy size. The
+/// number of actions, inputs and expression nodes is bounded by the caller's own contract.
+const MAX_UTILITY_NESTING: usize = 64;
+
 fn bounded_policy(contract: &DecisionContract) -> Result<(), ConstancyConsumerError> {
-    let refuse =
-        || invalid("effect_constancy_consumer.limits_exceeded", "bounded affine policy required");
-    if contract.actions.len() > 64 || !contract.constraints.is_empty() {
+    let refuse = || {
+        invalid(
+            antecedent_core::reason_details::effect_constancy_consumer::LIMITS_EXCEEDED,
+            "bounded affine policy required",
+        )
+    };
+    if !contract.constraints.is_empty() {
         return Err(refuse());
     }
-    let mut nodes = 0usize;
     for action in &contract.actions {
-        if action.inputs.len() > 16 {
-            return Err(refuse());
-        }
         let mut pending = vec![(&action.utility, 0usize)];
         while let Some((expr, depth)) = pending.pop() {
-            nodes += 1;
-            if nodes > 2048 || depth > 64 {
+            if depth > MAX_UTILITY_NESTING {
                 return Err(refuse());
             }
             match expr {
@@ -170,7 +174,10 @@ impl ConstancyConsumers {
         expected: &EffectConstancyIdentity,
     ) -> Result<Self, ConstancyConsumerError> {
         let original = EffectConstancy::consume(bytes, Some(expected)).map_err(|error| {
-            invalid("effect_constancy_consumer.artifact_invalid", error.to_string())
+            invalid(
+                antecedent_core::reason_details::effect_constancy_consumer::ARTIFACT_INVALID,
+                error.to_string(),
+            )
         })?;
         Ok(Self { original })
     }
@@ -186,17 +193,20 @@ impl ConstancyConsumers {
     }
 
     fn partition(&self, label: &str) -> Result<&PartitionReport, ConstancyConsumerError> {
-        let partition = self
-            .original
-            .result()
-            .partitions
-            .iter()
-            .find(|p| p.label == label)
-            .ok_or_else(|| invalid("effect_constancy_consumer.partition_missing", label))?;
+        let partition =
+            self.original.result().partitions.iter().find(|p| p.label == label).ok_or_else(
+                || {
+                    invalid(
+                    antecedent_core::reason_details::effect_constancy_consumer::PARTITION_MISSING,
+                    label,
+                )
+                },
+            )?;
         if partition.support != PartitionSupport::Supported {
             return Err(ConstancyConsumerError {
                 code: antecedent_core::reason_code!("route_not_supported"),
-                detail: "effect_constancy_consumer.support_unsupported",
+                detail:
+                    antecedent_core::reason_details::effect_constancy_consumer::SUPPORT_UNSUPPORTED,
                 message: label.into(),
             });
         }
@@ -222,7 +232,7 @@ impl ConstancyConsumers {
             .find(|c| c.left == left && c.right == right)
             .ok_or_else(|| {
                 invalid(
-                    "effect_constancy_consumer.contrast_missing",
+                    antecedent_core::reason_details::effect_constancy_consumer::CONTRAST_MISSING,
                     "the original oriented contrast is not in the declared family",
                 )
             })?;
@@ -240,7 +250,7 @@ impl ConstancyConsumers {
     /// artifact, overlap and causal compatibility checks.
     ///
     /// # Errors
-    /// Unbounded catalog, duplicate/missing source bindings or unsupported partitions.
+    /// Duplicate/missing source bindings or unsupported partitions.
     pub fn rank_prior_sources(
         &self,
         catalog: &PriorCatalog,
@@ -248,39 +258,44 @@ impl ConstancyConsumers {
         target_partition: &str,
         bindings: &[PriorPartitionBinding],
     ) -> Result<ConstancyPriorRanking, ConstancyConsumerError> {
-        if catalog.sources.len() > 1024 || bindings.len() != catalog.sources.len() {
+        if bindings.len() != catalog.sources.len() {
             return Err(invalid(
-                "effect_constancy_consumer.catalog_binding_invalid",
-                "one explicit partition binding per bounded catalog entry is required",
+                antecedent_core::reason_details::effect_constancy_consumer::CATALOG_BINDING_INVALID,
+                "one explicit partition binding per catalog entry is required",
             ));
         }
         let target_effect = self.partition(target_partition)?.effect;
+        // Index the bindings once so matching is linear in the catalog size.
+        let mut by_artifact =
+            std::collections::BTreeMap::<&str, Vec<&PriorPartitionBinding>>::new();
+        for binding in bindings {
+            by_artifact.entry(binding.artifact_id.as_str()).or_default().push(binding);
+        }
         let mut seen = BTreeSet::new();
         let mut scores = Vec::with_capacity(bindings.len());
         for source in &catalog.sources {
             if !seen.insert(source.meta.artifact_id.as_str()) {
                 return Err(invalid(
-                    "effect_constancy_consumer.catalog_binding_invalid",
+                    antecedent_core::reason_details::effect_constancy_consumer::CATALOG_BINDING_INVALID,
                     "duplicate catalog identity",
                 ));
             }
-            let mut matching = bindings.iter().filter(|b| b.artifact_id == source.meta.artifact_id);
-            let binding = matching.next().ok_or_else(|| {
-                invalid(
-                    "effect_constancy_consumer.catalog_binding_invalid",
-                    "missing source partition",
-                )
-            })?;
-            if matching.next().is_some() {
+            let matching =
+                by_artifact.get(source.meta.artifact_id.as_str()).map_or(&[][..], Vec::as_slice);
+            let [binding] = matching else {
                 return Err(invalid(
-                    "effect_constancy_consumer.catalog_binding_invalid",
-                    "duplicate source binding",
+                    antecedent_core::reason_details::effect_constancy_consumer::CATALOG_BINDING_INVALID,
+                    if matching.is_empty() {
+                        "missing source partition"
+                    } else {
+                        "duplicate source binding"
+                    },
                 ));
-            }
+            };
             let score = -(self.partition(&binding.partition)?.effect - target_effect).abs();
             if !score.is_finite() {
                 return Err(invalid(
-                    "effect_constancy_consumer.catalog_binding_invalid",
+                    antecedent_core::reason_details::effect_constancy_consumer::CATALOG_BINDING_INVALID,
                     "nonfinite effect difference",
                 ));
             }
@@ -294,7 +309,7 @@ impl ConstancyConsumers {
             scores,
             ranked,
             data_dependent_selection: true,
-            posterior_transfer_licensed: false,
+            posterior_transfer_supported: false,
         })
     }
 
@@ -321,7 +336,7 @@ impl ConstancyConsumers {
             || !effect.conditioning.is_empty()
         {
             return Err(invalid(
-                "effect_constancy_consumer.quantity_mismatch",
+                antecedent_core::reason_details::effect_constancy_consumer::QUANTITY_MISMATCH,
                 "explicit effect coordinate must preserve the original estimand",
             ));
         }
@@ -342,9 +357,10 @@ impl ConstancyConsumers {
                 ),
                 causal_contract_id: self.original.identity().estimand_id.clone(),
                 rng_id: "no_draws_point_effect".into(),
+                estimate: MeanEstimate::Frequentist,
             };
             let result = evaluate_contract_on_means(contract, &source).map_err(|error| {
-                invalid("effect_constancy_consumer.decision_unsupported", format!("{error:?}"))
+                invalid(antecedent_core::reason_details::effect_constancy_consumer::DECISION_UNSUPPORTED, format!("{error:?}"))
             })?;
             let leaders: BTreeSet<String> = match &result.verdict {
                 Verdict::UniquelyOptimal(id) => [id.clone()].into_iter().collect(),

@@ -1,7 +1,7 @@
 //! `adaptive_inference_result_v1`: a newer version, another feature marker and a stored
 //! contract of another version are refused before any replay.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::adaptive_design::{
     AdaptiveDesignContract, AdaptiveDesignDeclaration, AssignmentFamily, DelayMechanism,
@@ -92,5 +92,5 @@ fn the_stored_metadata_of_a_sealed_result_is_readable_without_replay() {
     let meta = Artifact::decode_unchecked(&bytes).expect("decodes");
     assert_eq!(meta.version, ADAPTIVE_INFERENCE_RESULT_ARTIFACT_VERSION);
     assert_eq!(meta.claim, "point_only");
-    assert_eq!(meta.calibration, "unmeasured");
+    assert_eq!(meta.calibration, "not_measured");
 }

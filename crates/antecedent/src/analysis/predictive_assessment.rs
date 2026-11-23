@@ -33,12 +33,14 @@
 //! not replay, including a consistently resealed edit when the consumer retained
 //! the identity independently.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::evidence_ledger::{
     EffectiveObservations, EvidenceLedger, ObservationId, SourceId,
 };
 use antecedent_core::ExecutionContext;
+
+use crate::error::CausalError;
 use antecedent_estimate::{CausalPosterior, PreparedBayesianProblem};
 use antecedent_io::IoError;
 use antecedent_io::predictive_assessment_artifact::{
@@ -65,14 +67,14 @@ pub use antecedent_validate::predictive_assessment::{
 
 /// One refusal as plain data: registered reason code, namespaced
 /// `predictive_assessment.*` detail and the explanation of what was refused and
-/// what would license it.
+/// what would support it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PredictiveAssessmentRefusal {
     /// Registered runtime reason code.
     pub code: &'static str,
     /// Namespaced detail, `predictive_assessment.<rule>`.
     pub detail: String,
-    /// What was refused and what would license it.
+    /// What was refused and what would support it.
     pub message: String,
 }
 
@@ -90,7 +92,7 @@ impl PredictiveAssessmentRefusal {
             Some((code, detail, message)) => Self::new(code, &detail, message),
             None => Self::new(
                 antecedent_core::reason_code!("invalid_argument"),
-                "predictive_assessment.invalid_artifact",
+                antecedent_core::reason_details::predictive_assessment::INVALID_ARTIFACT,
                 error.to_string(),
             ),
         }
@@ -155,7 +157,7 @@ pub fn fit_declaration_from_ledger(
         let Some(source) = ledger.source(*id) else {
             return Err(PredictiveAssessmentRefusal::new(
                 antecedent_core::reason_code!("invalid_argument"),
-                "predictive_assessment.unknown_source",
+                antecedent_core::reason_details::predictive_assessment::UNKNOWN_SOURCE,
                 format!("fit source {id} is not in the evidence ledger"),
             ));
         };
@@ -188,7 +190,7 @@ pub fn observation_keys_from_ledger(
     let Some(entry) = ledger.source(source) else {
         return Err(PredictiveAssessmentRefusal::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "predictive_assessment.unknown_source",
+            antecedent_core::reason_details::predictive_assessment::UNKNOWN_SOURCE,
             format!("observation source {source} is not in the evidence ledger"),
         ));
     };
@@ -196,7 +198,7 @@ pub fn observation_keys_from_ledger(
         EffectiveObservations::Known(rows) => Ok(rows.iter().copied().map(key_of).collect()),
         EffectiveObservations::Unknown(reason) => Err(PredictiveAssessmentRefusal::new(
             antecedent_core::reason_code!("evidence_overlap_unknown"),
-            "predictive_assessment.overlap_unknown",
+            antecedent_core::reason_details::predictive_assessment::OVERLAP_UNKNOWN,
             format!(
                 "the observations of source `{}` are not declared ({reason}); declare their \
                  row-level identities in the ledger so that held-out can be decided",
@@ -229,12 +231,135 @@ pub fn posterior_predictive_predictor(
     let replicates = check.replicates(problem, posterior).map_err(|error| {
         PredictiveAssessmentRefusal::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "predictive_assessment.invalid_law",
+            antecedent_core::reason_details::predictive_assessment::INVALID_LAW,
             error.to_string(),
         )
     })?;
     let outcomes = problem.design.outcome.iter().map(|y| Outcome::Real(*y)).collect();
     Ok((replicates.into_predictor(name, model, target, fit), outcomes))
+}
+
+/// The posterior predictive replicates a Bayesian study retained at fit time: one sample law
+/// per design row, the observed outcomes they are laws of, and the source row of each.
+///
+/// Built by [`posterior_predictive_predictor`] on the study's own prepared problem and
+/// posterior when the study declared bounds with
+/// [`crate::StudyBuilder::bayesian_predictive_replicates`], and admitted against the Execution
+/// memory pool for as long as the result holds it. The replicates are drawn at parameters
+/// fitted to these very rows, so the predictor's fit declaration is the consumer's to make.
+#[derive(Clone, Debug)]
+pub struct RetainedPredictiveReplicates {
+    predictor: PredictorLaws,
+    outcomes: Vec<Outcome>,
+    rows: Vec<usize>,
+}
+
+impl RetainedPredictiveReplicates {
+    /// The replicates as a named native predictor of the observed outcome.
+    #[must_use]
+    pub fn predictor(&self) -> &PredictorLaws {
+        &self.predictor
+    }
+
+    /// The observed outcome of each design row, in the order of the laws.
+    #[must_use]
+    pub fn outcomes(&self) -> &[Outcome] {
+        &self.outcomes
+    }
+
+    /// The source-table row each law and outcome belongs to.
+    #[must_use]
+    pub fn rows(&self) -> &[usize] {
+        &self.rows
+    }
+}
+
+/// Build and admit the replicates a study declared bounds for.
+///
+/// The row bound is checked before anything is allocated; the retained bytes (replicate
+/// matrix, outcomes and row map) and the transient copy made while the laws are formed are
+/// both leased from the Execution pool. The returned lease is held by the result.
+///
+/// # Errors
+/// More design rows than `max_rows` (`invalid_argument`), a pool that cannot fund the
+/// replicates, a cancellation, or a posterior without coefficient draws.
+pub(crate) fn retain_predictive_replicates(
+    bounds: crate::inference::PredictiveReplicateBounds,
+    fitter: &antecedent_estimate::BayesianGComputationAte,
+    problem: &PreparedBayesianProblem,
+    posterior: &CausalPosterior,
+    quantity: &str,
+    ctx: &ExecutionContext,
+) -> Result<(RetainedPredictiveReplicates, antecedent_core::execution::AdmissionLease), CausalError>
+{
+    let rows = problem.design.nrows;
+    if rows > bounds.max_rows as usize {
+        return Err(crate::unsupported_reason!(
+            "invalid_argument",
+            "the design has more rows than the declared predictive replicate bound (max_rows); \
+             raise max_rows or drop the declaration rather than retain a truncated set of laws"
+        ));
+    }
+    let draws = posterior.draws.n_draws.min(bounds.n_sims as usize);
+    let cells = draws.checked_mul(rows).ok_or_else(|| CausalError::Resource {
+        message: "predictive replicate dimensions overflow".into(),
+    })?;
+    let admit = |bytes: Option<usize>| {
+        bytes
+            .and_then(|bytes| u64::try_from(bytes).ok())
+            .ok_or_else(|| CausalError::Resource {
+                message: "predictive replicate byte count overflows".into(),
+            })
+            .and_then(|bytes| {
+                ctx.acquire_admission(0, bytes).map_err(|error| match error {
+                    antecedent_core::execution::AdmissionError::Cancelled => {
+                        CausalError::Cancelled { stage: "validate" }
+                    }
+                    error => CausalError::Resource {
+                        message: format!(
+                            "the Execution memory pool cannot fund the predictive replicates: \
+                             {error}"
+                        ),
+                    },
+                })
+            })
+    };
+    let f64_size = size_of::<f64>();
+    // Retained: the laws' draws, the outcomes and the row map. Transient: the draw-major
+    // replicate matrix the laws are transposed from.
+    let retained_bytes = cells
+        .checked_mul(f64_size)
+        .and_then(|b| b.checked_add(rows.checked_mul(f64_size + size_of::<usize>())?));
+    let retention = admit(retained_bytes)?;
+    let _transient = admit(cells.checked_mul(f64_size))?;
+    let check = PosteriorPredictiveCheck::for_estimator(fitter, ctx).with_n_sims(bounds.n_sims);
+    let target = PredictiveTarget::new(
+        quantity,
+        Horizon::Contemporaneous,
+        "analysis sample",
+        "outcome units",
+    );
+    let fit = FitDeclaration::Undeclared {
+        reason: "the replicates are conditioned on every design row; the consumer declares the \
+                 identities of those rows"
+            .to_owned(),
+    };
+    let (predictor, outcomes) = posterior_predictive_predictor(
+        &check,
+        problem,
+        posterior,
+        "posterior_predictive",
+        "bayesian.gcomp",
+        target,
+        fit,
+    )
+    .map_err(|refusal| CausalError::Compile { message: refusal.to_string() })?;
+    let retained = RetainedPredictiveReplicates {
+        predictor,
+        outcomes,
+        rows: problem.design.row_selection.to_vec(),
+    };
+    Ok((retained, retention))
 }
 
 /// A sealed predictive assessment: the report, its identity and its artifact.
@@ -291,13 +416,14 @@ impl PreparedPredictiveAssessment {
     /// The interval of one predictor's expected score, or of the expected difference of
     /// two predictors' scores, under the declared dependence.
     ///
-    /// Published only for a held-out or unfitted predictor where a current attesting
-    /// coverage record measured the construction at this design, score, law family,
-    /// level and number of cases; the record is resolved from the shipped coverage table.
+    /// Published only for a held-out or unfitted predictor, with its calibration status:
+    /// `calibrated` where a current attesting coverage record measured the construction at
+    /// this design, score, law family, level and number of cases, and otherwise the status
+    /// that names why not; the record is resolved from the shipped coverage table.
     ///
     /// # Errors
-    /// `cell_not_licensed` outside a measured design, an undeclared dependence, an
-    /// in-sample or unverified predictor, or a degenerate sample variance.
+    /// An invalid request, an undeclared dependence, an in-sample or unverified predictor,
+    /// or a degenerate sample variance.
     pub fn expected_score_interval(
         &self,
         query: &ScoreIntervalQuery,
@@ -314,7 +440,7 @@ impl PreparedPredictiveAssessment {
     /// score or level named); ask [`Self::expected_score_interval`] for a scoped one.
     ///
     /// # Errors
-    /// Always `cell_not_licensed`.
+    /// Always `not_supported`.
     pub fn request_score_interval(
         &self,
     ) -> Result<std::convert::Infallible, PredictiveAssessmentRefusal> {

@@ -1,14 +1,14 @@
 //! Unified `Study` facade.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Builder types.
 
 use std::sync::Arc;
 
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, CausalSchema, PopulationRegistry, ResponseQuery,
-    TemporalEffectQuery, VariableId,
+    AverageEffectQuery, CausalQuery, CausalSchema, PopulationRegistry, TemporalEffectQuery,
+    VariableId,
 };
 use antecedent_data::{
     DiscoveryEstimationSplit, EventData, MultiEnvironmentData, NetworkData, PanelData, TableView,
@@ -30,7 +30,24 @@ use crate::strategy_table::{EstimatorId, IdentifierId};
 use super::execute::Study;
 use super::latency::{ComputeBudget, LatencyMode};
 
+mod admission;
 mod finish;
+mod routes;
+mod settings;
+mod stub_graph;
+
+pub(super) use stub_graph::{discovery_stub_class, discovery_stub_graph, stub_accepted_graph_for};
+
+pub(super) use admission::{
+    refuse_unsupported_draw_controls, refuse_unsupported_likelihood,
+    refuse_unsupported_predictive_replicates, refuse_unsupported_temporal_instrument,
+    refuse_unsupported_temporal_link, refuse_unsupported_white_innovation,
+};
+
+pub(crate) use routes::{panel_shared_regularity, refuse_unsupported_panel_route};
+pub(super) use routes::{refuse_unsupported_interference, refuse_unsupported_transport};
+
+use settings::{Declarations, ExecutionSettings, ExposureInputs, InferenceSettings};
 
 /// Which refuters to run (static ATE path).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -67,7 +84,7 @@ impl RefuteSuite {
     }
 }
 
-/// Trial membership and known probabilities for a licensed [`CausalQuery::Transport`] cell.
+/// Trial membership and known probabilities for a supported [`CausalQuery::Transport`] cell.
 #[derive(Clone, Debug)]
 pub struct TransportTrialSpec {
     /// Source-trial membership (`true` = source experiment row).
@@ -78,7 +95,7 @@ pub struct TransportTrialSpec {
     pub treatment_probability: VariableId,
 }
 
-/// Fixed network and realized assignment for a licensed [`CausalQuery::Interference`] cell.
+/// Fixed network and realized assignment for a supported [`CausalQuery::Interference`] cell.
 #[derive(Clone, Debug)]
 pub struct InterferenceSpec {
     /// Unit table plus incoming exposure edges.
@@ -97,8 +114,21 @@ impl InterferenceSpec {
     ///
     /// # Errors
     ///
-    /// The edges or the assignment do not fit `units`.
+    /// The edges or the assignment do not fit `units`, or `units` and the declared unit table
+    /// carry different unit keys. A unit table without a key inherits the declared one, so the
+    /// identity survives every later replacement.
     pub(crate) fn bound_to(&self, units: &TabularData) -> Result<Self, CausalError> {
+        let declared = self.network.units().unit_key();
+        if let (Some(declared), Some(supplied)) = (declared, units.unit_key())
+            && declared != supplied
+        {
+            return Err(CausalError::Compile {
+                message: "the replacement unit table belongs to other units than the \
+                              declared network (other labels, or the same labels on other \
+                              rows); the edges and the assignment describe the declared units"
+                    .into(),
+            });
+        }
         if self.network.units().storage().content_digest() == units.storage().content_digest() {
             return Ok(self.clone());
         }
@@ -108,173 +138,15 @@ impl InterferenceSpec {
                     .into(),
             });
         }
+        let units = match (declared, units.unit_key()) {
+            (Some(declared), None) => units.clone().with_unit_key(declared.clone())?,
+            _ => units.clone(),
+        };
         Ok(Self {
-            network: NetworkData::try_new(units.clone(), self.network.edges().to_vec())?,
+            network: NetworkData::try_new(units, self.network.edges().to_vec())?,
             assignment: Arc::clone(&self.assignment),
         })
     }
-}
-
-/// Refuse a transport construction outside the licensed cell.
-///
-/// The licensed `TransportQuery` cell transports a mean `ResponseCurve` on the
-/// complete, all-observed, static response by binary trial-to-target IPW. A
-/// derivative, a non-mean outcome functional, an embedded population, an
-/// observation mechanism or a temporal attachment would be labelled with the
-/// executed binary contrast it is not, so it is refused.
-pub(super) fn refuse_unlicensed_transport(
-    query: &antecedent_core::TransportQuery,
-) -> Result<(), CausalError> {
-    let response = &query.response;
-    let licensed =
-        matches!(response.functional, antecedent_core::ResponseFunctional::MeanCurve { .. })
-            && response.outcome_functional.is_mean()
-            && matches!(response.target_population, antecedent_core::TargetPopulation::AllObserved)
-            && matches!(response.observation, antecedent_core::ObservationSpec::Complete)
-            && response.observation_assumptions.is_empty()
-            && response.temporal.is_none();
-    if licensed {
-        Ok(())
-    } else {
-        Err(crate::support_reason!(
-            "construction_not_licensed",
-            "TransportQuery is licensed for a mean ResponseCurve on the complete, all-observed \
-             static response, transported by binary trial-to-target IPW"
-        ))
-    }
-}
-
-/// Refuse interference designs without a checked execution path.
-pub(super) fn refuse_unlicensed_interference(
-    query: &antecedent_core::InterferenceQuery,
-) -> Result<(), CausalError> {
-    let licensed =
-        (matches!(query.assignment, antecedent_core::AssignmentDesign::Bernoulli { .. })
-            && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborCount))
-            || (matches!(
-                query.assignment,
-                antecedent_core::AssignmentDesign::ClusterRandomization { .. }
-            ) && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborFraction))
-            || (matches!(
-                query.assignment,
-                antecedent_core::AssignmentDesign::TwoStageSaturation { .. }
-            ) && matches!(
-                query.exposure,
-                antecedent_core::ExposureMapping::NeighborCount
-                    | antecedent_core::ExposureMapping::NeighborFraction
-                    | antecedent_core::ExposureMapping::WeightedNeighborExposure
-            ))
-            || (matches!(
-                query.assignment,
-                antecedent_core::AssignmentDesign::ObservedExposure { .. }
-            ) && matches!(
-                query.exposure,
-                antecedent_core::ExposureMapping::NeighborCount
-                    | antecedent_core::ExposureMapping::NeighborFraction
-                    | antecedent_core::ExposureMapping::WeightedNeighborExposure
-            ));
-    if licensed {
-        Ok(())
-    } else {
-        Err(crate::support_reason!(
-            "construction_not_licensed",
-            "InterferenceQuery supports Bernoulli/NeighborCount, cluster total effects, exact two-stage saturation, or supplied-propensity observational exposure with built-in neighbor mappings"
-        ))
-    }
-}
-
-/// Refusal for panel response on a non-temporal or static graph.
-pub(crate) const PANEL_RESPONSE_CLASS_REFUSAL: &str = concat!(
-    "panel ResponseCurve / InterventionResponse is licensed on a supplied ",
-    "TemporalDag, TemporalCpdag, or TemporalPag",
-);
-
-/// Refusal for a panel class multi-step Sustained run under a discovery split.
-pub(crate) const PANEL_CLASS_SEQUENTIAL_SPLIT_REFUSAL: &str =
-    "class-aware multi-step sustained requires no discovery-estimation split";
-
-/// Refusal for a transferred or informative prior on panel class multi-step Sustained.
-pub(crate) const PANEL_CLASS_SEQUENTIAL_PRIOR_REFUSAL: &str =
-    "multi-step Sequence transfer stays refused on incomplete classes";
-
-/// Single owner for panel data-route licenses. Build, prepare, compile, and
-/// execute consult this; they do not restate the same refusals.
-///
-/// Every panel route requires one sampling regularity across units: a horizon of
-/// `h` steps must mean the same duration in every unit.
-pub(crate) fn refuse_unlicensed_panel_route(
-    query: &CausalQuery,
-    class: GraphClass,
-    inference: &InferenceMode,
-    panel: &PanelData,
-    split: Option<&DiscoveryEstimationSplit>,
-) -> Result<(), CausalError> {
-    panel_shared_regularity(panel)?;
-    match query {
-        CausalQuery::Response(query) => refuse_unlicensed_panel_response(query, class),
-        CausalQuery::TemporalEffect(query) => {
-            refuse_unlicensed_panel_effect(query, class, inference, split)
-        }
-        _ => Ok(()),
-    }
-}
-
-/// The one time-index regularity every panel unit shares.
-///
-/// # Errors
-///
-/// When the panel is empty or its units disagree on regularity.
-pub(crate) fn panel_shared_regularity(
-    panel: &PanelData,
-) -> Result<antecedent_data::SamplingRegularity, CausalError> {
-    let first = &panel.unit(0).map_err(CausalError::rejected)?.series.time_index().regularity;
-    if panel.units().iter().any(|unit| &unit.series.time_index().regularity != first) {
-        return Err(CausalError::Compile {
-            message: "panel analysis requires every panel unit to share one time-index \
-                      regularity: a horizon step would otherwise mean a different duration in \
-                      different units; align the units first"
-                .into(),
-        });
-    }
-    Ok(first.clone())
-}
-
-fn refuse_unlicensed_panel_response(
-    query: &ResponseQuery,
-    class: GraphClass,
-) -> Result<(), CausalError> {
-    if !query.is_temporal()
-        || !matches!(
-            class,
-            GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag
-        )
-    {
-        return Err(CausalError::Unsupported { message: PANEL_RESPONSE_CLASS_REFUSAL });
-    }
-    Ok(())
-}
-
-fn refuse_unlicensed_panel_effect(
-    query: &TemporalEffectQuery,
-    class: GraphClass,
-    inference: &InferenceMode,
-    split: Option<&DiscoveryEstimationSplit>,
-) -> Result<(), CausalError> {
-    if !class.is_incomplete_temporal() || !query.is_multi_step_sustained() {
-        return Ok(());
-    }
-    // Panel class multi-step Sustained fits every unit's full series; a split's
-    // discovery rows would be reused for estimation, and the per-unit sequential
-    // g-computation has no mapping for a transferred coefficient prior.
-    if split.is_some() {
-        return Err(CausalError::Unsupported { message: PANEL_CLASS_SEQUENTIAL_SPLIT_REFUSAL });
-    }
-    if let InferenceMode::Bayesian(cfg) = inference {
-        if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
-            return Err(CausalError::Unsupported { message: PANEL_CLASS_SEQUENTIAL_PRIOR_REFUSAL });
-        }
-    }
-    Ok(())
 }
 
 #[derive(Clone)]
@@ -339,85 +211,6 @@ impl RdConfig {
     pub const fn with_se_kind(mut self, se_kind: antecedent_estimate::AnalyticSeKind) -> Self {
         self.se_kind = se_kind;
         self
-    }
-}
-
-/// Placeholder structure for [`Study::graph`][super::execute::Study] when a graph
-/// posterior drives the analysis instead.
-///
-/// This carries only the shape (variable count / modality) needed for logical-plan
-/// bookkeeping (row counts, data classification, …). It is never consulted for
-/// identification — identification runs per-graph, against the real posterior atoms,
-/// inside `execute()`. `n_vars` comes from the supplied [`GraphPosterior`], not from
-/// re-inspecting `data`, so it always matches the ensemble the caller discovered.
-pub(super) fn stub_accepted_graph_for(
-    data: &DataInput,
-    n_vars: usize,
-    atom_kind: antecedent_discovery::GraphPosteriorAtomKind,
-) -> Result<AcceptedGraph, CausalError> {
-    match data {
-        DataInput::Tabular(_) => {
-            let n = u32::try_from(n_vars).map_err(|_| CausalError::Compile {
-                message: "too many variables for graph-posterior stub graph".into(),
-            })?;
-            match atom_kind {
-                antecedent_discovery::GraphPosteriorAtomKind::Dag => {
-                    Ok(AcceptedGraph::dag(Dag::with_variables(n)))
-                }
-                antecedent_discovery::GraphPosteriorAtomKind::Cpdag => {
-                    AcceptedGraph::cpdag(Cpdag::with_variables(n))
-                }
-                antecedent_discovery::GraphPosteriorAtomKind::Pag => {
-                    Ok(AcceptedGraph::pag(Pag::with_variables(n)))
-                }
-                antecedent_discovery::GraphPosteriorAtomKind::Admg => {
-                    let mut admg = Admg::with_variables(n);
-                    if n >= 2 {
-                        admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
-                            .map_err(CausalError::rejected)?;
-                    }
-                    Ok(AcceptedGraph::admg(admg))
-                }
-                antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg => {
-                    let mut admg = Admg::with_variables(n);
-                    if n >= 2 {
-                        admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
-                            .map_err(CausalError::rejected)?;
-                    }
-                    let temporal =
-                        antecedent_graph::TemporalAdmg::from_static_contemporaneous(&admg)
-                            .map_err(CausalError::rejected)?;
-                    Ok(AcceptedGraph::temporal_admg(temporal))
-                }
-                _ => Err(CausalError::Unsupported {
-                    message: "graph-posterior stub supports only static Dag, Cpdag, Pag, or Admg atoms",
-                }),
-            }
-        }
-        DataInput::Temporal(_) | DataInput::Event(_) => match atom_kind {
-            antecedent_discovery::GraphPosteriorAtomKind::Dag => {
-                Ok(AcceptedGraph::temporal_dag(TemporalDag::empty()))
-            }
-            antecedent_discovery::GraphPosteriorAtomKind::Cpdag => {
-                AcceptedGraph::temporal_cpdag(TemporalCpdag::empty())
-            }
-            antecedent_discovery::GraphPosteriorAtomKind::Pag => {
-                Ok(AcceptedGraph::temporal_pag(TemporalPag::empty()))
-            }
-            antecedent_discovery::GraphPosteriorAtomKind::Admg
-            | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg => {
-                Err(CausalError::Unsupported {
-                    message: "Admg and TemporalAdmg graph posteriors require tabular data",
-                })
-            }
-            _ => Err(CausalError::Unsupported {
-                message: "graph-posterior stub supports only TemporalDag, TemporalCpdag, or \
-                          TemporalPag atoms on temporal/event data",
-            }),
-        },
-        DataInput::MultiEnv(_) | DataInput::Panel(_) => Err(CausalError::Unsupported {
-            message: "graph-posterior analysis supports tabular or temporal/event data only",
-        }),
     }
 }
 
@@ -544,70 +337,88 @@ pub(super) fn validate_schema_binding(
 /// Builder for static or temporal analysis.
 #[derive(Clone, Debug)]
 pub struct StudyBuilder {
+    data_diagnostics: Option<crate::DataDiagnostics>,
     data: DataInput,
     graph: Option<AcceptedGraph>,
     /// Alternative to [`Self::graph`]: a posterior over structures rather than one
     /// accepted structure. Mutually exclusive with `graph` (checked at [`Self::build`]).
     graph_posterior: Option<GraphPosterior>,
-    /// Caller-supplied mass over incomplete-temporal class members.
-    class_prior: Option<crate::ClassPrior>,
-    /// Optional cap on `TemporalCpdag` / `TemporalPag` completion search.
-    max_completions: Option<usize>,
-    /// Set by [`Self::graph`]: `Accepted` vs `Explicit`. Posterior overrides at build.
-    structure_source: Option<crate::support::StructureSource>,
     query: Option<CausalQuery>,
-    refute: RefuteSuite,
-    /// Whether [`Self::refute`] was set explicitly (wins over latency mode).
-    refute_explicit: bool,
-    bootstrap_replicates: u32,
-    /// Whether [`Self::bootstrap_replicates`] was set explicitly.
-    bootstrap_explicit: bool,
-    split: Option<DiscoveryEstimationSplit>,
-    identifier: Option<IdentifierId>,
-    estimator: Option<EstimatorId>,
-    /// Caller-configured estimator (superset of [`Self::estimator`]); `Some` only when
-    /// [`StudyBuilder::estimator`] was called with a configured estimator rather
-    /// than a bare [`EstimatorId`].
-    estimator_spec: Option<EstimatorSpec>,
-    /// Numerical/inference options for response-family estimators.
-    response_options: Option<ContinuousResponseOptions>,
-    observation_options: antecedent_estimate::ObservationEstimatorOptions,
-    /// Numerical controls on the Bayesian posterior draws behind the interval.
-    draw_controls: Option<crate::PosteriorDrawControls>,
-    observation_delayed_entry: Option<antecedent_core::VariableId>,
-    rd: Option<RdConfig>,
-    inference: InferenceMode,
-    /// Whether Bayesian `n_draws` were set via [`ComputeBudget`] (mode draw map skipped).
-    n_draws_explicit: bool,
-    /// Optional override for propensity / AIPW overlap (clip/trim). `None` keeps estimator defaults.
-    overlap_policy: Option<OverlapPolicy>,
-    /// Optional bindings for named predicates / custom target distributions.
-    population_registry: Option<PopulationRegistry>,
-    /// Participant labels bound to the rows of the data (digests only).
-    participants: Option<antecedent_io::ParticipantBindingWire>,
-    /// Declared handling of missing values; `None` leaves each route on its own default.
-    missing: Option<antecedent_data::MissingDeclaration>,
-    /// Custom slow-path validators appended after the built-in refute suite.
-    custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
-    /// Optional tier-rule background (fast-path generalized adjustment).
-    tiered: Option<antecedent_graph::TieredBackground>,
+    /// Deferred typed refusal from the most recent discovery declaration.
+    discovery_query_error: Option<antecedent_core::QueryError>,
+    /// A requested bootstrap interval, set by [`Self::bootstrap_interval`].
+    bootstrap_interval: Option<antecedent_estimate::IntervalRequest>,
     /// Set when [`Self::graph`] is called. A caller graph and a tier background
     /// are two sources of truth for one structure; build refuses the pair.
     caller_graph: Option<CallerGraph>,
-    /// Refused at build: coarsened continuous coordinate is not a point CDE.
-    continuous_cell: Option<(antecedent_core::VariableId, std::sync::Arc<[f64]>)>,
-    /// Optional latency tier (maps to known-equivalent budgets unless overridden).
-    latency_mode: Option<LatencyMode>,
-    /// Optional field-level compute budget overrides.
-    compute_budget: ComputeBudget,
-    /// Optional progressive stage-result sink (Identify → Point → Uncertainty → Validate).
-    stage_sink: Option<Arc<dyn super::stage::StageResultSink>>,
-    /// Selection-node targets for a transport query (empty = Direct).
-    selection_targets: Option<Arc<[VariableId]>>,
-    /// Trial columns for a transport query.
-    transport_trial: Option<TransportTrialSpec>,
-    /// Network + assignment for an interference query.
-    interference: Option<InterferenceSpec>,
+    /// Structure, procedure and population declarations.
+    declared: Declarations,
+    /// A declared weighted target population, resolved against the table at build.
+    weighted_target: Option<super::weighted_target::WeightedTargetDeclaration>,
+    /// A declared outcome-nuisance prior whose discount is selected from the table at build.
+    outcome_prior_selection: Option<super::alpha_selection::OutcomePriorSelection>,
+    /// Transport trial and interference network inputs.
+    exposure: ExposureInputs,
+    /// Inference mode, validation suite and bootstrap budget.
+    settings: InferenceSettings,
+    /// Latency tier, compute budget and progressive result sink.
+    execution: ExecutionSettings,
+    /// Executable search of a structure-discovery query.
+    discovery: Option<Arc<super::structure_route::DiscoverySpec>>,
+    /// Mechanism fit of an attribution or simulation query.
+    mechanisms: Option<Arc<super::structure_route::MechanismProgram>>,
+    /// Provenance of a graph posterior accepted from a compiled structure search.
+    posterior_provenance: Option<Arc<crate::accepted::StructureProvenance>>,
+    /// Bayesian declarations, kept so that either order with [`Self::inference`] applies them.
+    bayesian_declarations: BayesianDeclarations,
+    /// Whether [`Self::refute`] and [`Self::bootstrap_replicates`] were called, apart from any
+    /// compute budget, so that replacing the budget retracts only what the budget declared.
+    refute_declared: bool,
+    bootstrap_declared: bool,
+}
+
+/// Declarations about the Bayesian inference, made before or after the inference they configure.
+#[derive(Clone, Debug, Default)]
+struct BayesianDeclarations {
+    white_innovation:
+        Option<antecedent_estimate::white_innovation_posterior::InnovationWhitenessGate>,
+    predictive_replicates: Option<crate::inference::PredictiveReplicateBounds>,
+    design_model: Option<crate::DesignPosteriorModel>,
+}
+
+impl BayesianDeclarations {
+    /// Declare on `config` what it does not declare itself: a configuration carrying its own
+    /// value was declared after the builder method and keeps it.
+    fn fill(&self, config: &mut crate::BayesianConfig) {
+        if config.white_innovation.is_none() {
+            config.white_innovation = self.white_innovation;
+        }
+        if config.predictive_replicates.is_none() {
+            config.predictive_replicates = self.predictive_replicates;
+        }
+        if config.design_model.is_none() {
+            config.design_model.clone_from(&self.design_model);
+        }
+    }
+}
+
+// The refusal removes a wrong label, not a capability: the estimator stays
+// available under the inference mode it implements, and the message names
+// both ways forward.
+macro_rules! frequentist {
+    ($name:literal) => {
+        Err(CausalError::Unsupported {
+            message: concat!(
+                "reason",
+                "=estimator_inference_mismatch: estimator ",
+                $name,
+                " is Frequentist, so it does not run under inference=Bayesian (it would \
+                 report a sampling interval under a Bayesian label). Omit estimator= to use \
+                 the Bayesian estimator, or use inference=Frequentist to run ",
+                $name
+            ),
+        })
+    };
 }
 
 /// Whether an omitted replicate count is a real resampling budget for this route.
@@ -626,7 +437,7 @@ pub struct StudyBuilder {
 /// mode at execution, and the query-specific pairings are checked where the
 /// query's expected estimator is resolved. Without this refusal a Frequentist
 /// estimator would run under a Bayesian request and be bound to the Bayesian
-/// license coordinate and inference binding.
+/// support coordinate and inference binding.
 pub(super) fn refuse_estimator_inference_mismatch(
     query: &CausalQuery,
     estimator: EstimatorId,
@@ -636,98 +447,102 @@ pub(super) fn refuse_estimator_inference_mismatch(
         crate::error::is_runtime_refusal_code("estimator_inference_mismatch"),
         "`estimator_inference_mismatch` is not a runtime_refusal code"
     );
-    // The refusal removes a wrong label, not a capability: the estimator stays
-    // available under the inference mode it implements, and the message names
-    // both ways forward.
-    macro_rules! frequentist {
-        ($name:literal) => {
-            Err(CausalError::Unsupported {
-                message: concat!(
-                    "reason",
-                    "=estimator_inference_mismatch: estimator ",
-                    $name,
-                    " is Frequentist, so it does not run under inference=Bayesian (it would \
-                     report a sampling interval under a Bayesian label). Omit estimator= to use \
-                     the Bayesian estimator, or use inference=Frequentist to run ",
-                    $name
-                ),
-            })
-        };
-    }
-    macro_rules! bayesian {
-        ($name:literal) => {
-            Err(CausalError::Unsupported {
-                message: concat!(
-                    "reason",
-                    "=estimator_inference_mismatch: estimator ",
-                    $name,
-                    " is Bayesian, so it does not run under inference=Frequentist. Omit \
-                     estimator= to use the Frequentist estimator, or use inference=Bayesian to \
-                     run ",
-                    $name
-                ),
-            })
-        };
-    }
     match inference {
-        InferenceMode::Frequentist => match estimator {
-            EstimatorId::BayesianGcomp => bayesian!("bayesian.gcomp"),
-            EstimatorId::BayesianBasisGcomp => bayesian!("bayesian.basis.gcomp"),
-            EstimatorId::BayesianIvJointLinear => bayesian!("iv.bayesian_joint_linear"),
-            EstimatorId::BayesianRdLocalLinear => bayesian!("rd.bayesian_local_linear"),
-            EstimatorId::BayesianRobustAte => bayesian!("bayesian.robust_ate"),
-            EstimatorId::TransportTrialBayesianBootstrap => {
-                bayesian!("transport.trial_bayesian_bootstrap")
-            }
-            EstimatorId::BayesianConditional => bayesian!("conditional.bayesian"),
-            EstimatorId::BayesianTemporalGcomp => bayesian!("bayesian.temporal.gcomp"),
-            EstimatorId::TemporalResponseBayesian => bayesian!("response.temporal.bayesian"),
-            EstimatorId::ResponseBayesian => bayesian!("response.bayesian"),
-            EstimatorId::BayesianTemporalMediation => bayesian!("temporal.mediation.bayesian"),
-            _ => Ok(()),
-        },
-        InferenceMode::Bayesian(_) => {
-            let average = matches!(query, CausalQuery::AverageEffect(_));
-            match estimator {
-                EstimatorId::LinearAdjustmentAte if average => {
-                    frequentist!("linear.adjustment.ate")
-                }
-                EstimatorId::PropensityWeighting if average => frequentist!("propensity.weighting"),
-                EstimatorId::PropensityMatching if average => frequentist!("propensity.matching"),
-                EstimatorId::PropensityStratification if average => {
-                    frequentist!("propensity.stratification")
-                }
-                EstimatorId::DistanceMatching if average => frequentist!("distance.matching"),
-                EstimatorId::Aipw if average => frequentist!("aipw"),
-                EstimatorId::Dml if average => frequentist!("dml"),
-                EstimatorId::DrLearner if average => frequentist!("dr.learner"),
-                EstimatorId::CausalForest if average => frequentist!("causal.forest"),
-                EstimatorId::GlmAdjustment if average => frequentist!("glm.adjustment"),
-                EstimatorId::FrontDoorTwoStage if average => {
-                    frequentist!("frontdoor.linear_two_stage")
-                }
-                EstimatorId::FrontDoorFunctional if average => frequentist!("frontdoor.functional"),
-                EstimatorId::IvWald if average => frequentist!("iv.wald"),
-                EstimatorId::Iv2Sls if average => frequentist!("iv.2sls"),
-                EstimatorId::RdSharp if average => frequentist!("rd.sharp"),
-                EstimatorId::ConditionalLinearAdjustment => {
-                    frequentist!("conditional.linear.adjustment")
-                }
-                EstimatorId::CellAipw => frequentist!("cell.aipw"),
-                EstimatorId::TransportTrialIpw => frequentist!("transport.trial_ipw"),
-                EstimatorId::InterferenceHtHajek => frequentist!("interference.ht_hajek"),
-                EstimatorId::InterferenceClusterNeyman => {
-                    frequentist!("interference.cluster_neyman")
-                }
-                EstimatorId::InterferenceSaturationExact => {
-                    frequentist!("interference.saturation_exact")
-                }
-                EstimatorId::InterferenceObservationalIpw => {
-                    frequentist!("interference.observational_ipw")
-                }
-                _ => Ok(()),
-            }
+        InferenceMode::Frequentist => refuse_bayesian_estimator_under_frequentist(estimator),
+        InferenceMode::Bayesian(_) => refuse_frequentist_estimator_under_bayesian(query, estimator),
+    }
+}
+
+/// Refuses a Bayesian-only estimator selected under Frequentist inference.
+///
+/// Which estimators are Bayesian-only is their declared target
+/// ([`crate::strategy_table::EstimatorTarget::inference`]).
+fn refuse_bayesian_estimator_under_frequentist(estimator: EstimatorId) -> Result<(), CausalError> {
+    if estimator.target().inference == crate::strategy_table::InferenceTarget::Bayesian {
+        return Err(crate::strategy_table::inference_mismatch(estimator, false).into());
+    }
+    Ok(())
+}
+
+/// Refuses a Frequentist-only estimator selected under Bayesian inference.
+fn refuse_frequentist_estimator_under_bayesian(
+    query: &CausalQuery,
+    estimator: EstimatorId,
+) -> Result<(), CausalError> {
+    let average = matches!(query, CausalQuery::AverageEffect(_));
+    match estimator {
+        EstimatorId::LinearAdjustmentAte if average => {
+            frequentist!("linear.adjustment.ate")
         }
+        // Propensity draws are ancillary for the weighting effect, so a Bayesian
+        // weighting estimator has no posterior to report: the typed boundary names
+        // the missing outcome law and the posteriors that answer the same effect.
+        EstimatorId::PropensityWeighting if average => Err(CausalError::Estimate(
+            antecedent_estimate::penalized_propensity_posterior::weighting_effect_posterior_refusal(
+            ),
+        )),
+        // A matching rule has no likelihood, so the mismatch is the typed boundary of a
+        // matching posterior (premise and next attempt), not a mislabelled interval.
+        EstimatorId::PropensityMatching | EstimatorId::DistanceMatching if average => {
+            Err(super::matching_posterior_refusal::matching_posterior_refusal(
+                super::matching_posterior_refusal::MatchingSetting::Static,
+            ))
+        }
+        EstimatorId::PeriodHistoryMatching => {
+            Err(super::matching_posterior_refusal::matching_posterior_refusal(
+                super::matching_posterior_refusal::MatchingSetting::WithinPeriodHistory,
+            ))
+        }
+        EstimatorId::PropensityStratification if average => {
+            frequentist!("propensity.stratification")
+        }
+        EstimatorId::Aipw if average => frequentist!("aipw"),
+        EstimatorId::RandomizedQuantile if average => frequentist!("randomized.quantile"),
+        EstimatorId::Dml if average => frequentist!("dml"),
+        EstimatorId::DrLearner if average => frequentist!("dr.learner"),
+        EstimatorId::CausalForest if average => frequentist!("causal.forest"),
+        EstimatorId::GlmAdjustment if average => frequentist!("glm.adjustment"),
+        EstimatorId::FrontDoorTwoStage if average => {
+            frequentist!("frontdoor.linear_two_stage")
+        }
+        EstimatorId::FrontDoorFunctional if average => frequentist!("frontdoor.functional"),
+        EstimatorId::IvWald if average => frequentist!("iv.wald"),
+        EstimatorId::Iv2Sls if average => frequentist!("iv.2sls"),
+        EstimatorId::RdSharp if average => frequentist!("rd.sharp"),
+        EstimatorId::ConditionalLinearAdjustment => {
+            frequentist!("conditional.linear.adjustment")
+        }
+        EstimatorId::CellAipw => frequentist!("cell.aipw"),
+        EstimatorId::TemporalGlmLinkContrast => frequentist!("temporal.glm_link_contrast"),
+        EstimatorId::IvBoundsSharp => frequentist!("iv_bounds.balke_pearl"),
+        EstimatorId::TemporalDesignExcursion => frequentist!("temporal_design.excursion"),
+        EstimatorId::TemporalRegimeSurvival => frequentist!("temporal_design.regime_survival"),
+        EstimatorId::TemporalLaggedInstrument => frequentist!("temporal.lagged_instrument"),
+        EstimatorId::RandomizedSurvivalProductLimit => {
+            frequentist!("randomized.survival_product_limit")
+        }
+        EstimatorId::ContinuousDoseKernel => {
+            frequentist!("policy.triangular_kernel_inverse_density")
+        }
+        EstimatorId::TransportTrialIpw => frequentist!("transport.trial_ipw"),
+        EstimatorId::InterferenceHtHajek => frequentist!("interference.ht_hajek"),
+        EstimatorId::InterferenceClusterNeyman => {
+            frequentist!("interference.cluster_neyman")
+        }
+        EstimatorId::InterferenceSaturationExact => {
+            frequentist!("interference.saturation_exact")
+        }
+        EstimatorId::InterferenceObservationalIpw => {
+            frequentist!("interference.observational_ipw")
+        }
+        EstimatorId::RandomizedHt
+        | EstimatorId::RandomizedNeyman
+        | EstimatorId::RandomizedSwitchbackHt
+            if matches!(query, CausalQuery::RandomizedEffect(_)) =>
+        {
+            frequentist!("the design-based randomized estimator")
+        }
+        _ => Ok(()),
     }
 }
 
@@ -736,7 +551,15 @@ pub(super) fn omitted_bootstrap_resamples(query: &CausalQuery, inference: &Infer
         CausalQuery::Response(q) => {
             q.is_temporal() && matches!(inference, InferenceMode::Frequentist)
         }
-        CausalQuery::Counterfactual(_) | CausalQuery::NestedCounterfactual(_) => false,
+        // A Frequentist counterfactual or attribution interval is a whole-procedure
+        // mechanism-refit bootstrap that runs only when a replicate count is requested.
+        CausalQuery::Counterfactual(_)
+        | CausalQuery::NestedCounterfactual(_)
+        | CausalQuery::AnomalyAttribution(_)
+        | CausalQuery::ChangeAttribution(_) => false,
+        CausalQuery::Attribute(_) | CausalQuery::Simulate(_) => {
+            !super::execute::attribute_bootstrap_supported(query)
+        }
         _ => true,
     }
 }
@@ -758,132 +581,6 @@ pub(super) fn population_estimable(query: &CausalQuery) -> bool {
         None | Some(antecedent_core::TargetPopulation::AllObserved) => true,
         Some(_) => matches!(query, CausalQuery::AverageEffect(_)),
     }
-}
-
-/// Refuse [`crate::PosteriorDrawControls`] where they would not be enforced or are not met.
-///
-/// The controls bound the draws behind a Bayesian g-computation interval of a tabular
-/// average effect on one fixed `Dag`; any other route refuses them rather than ignore them.
-/// A draw count below the backend's supported minimum is refused naming it, never rewritten.
-pub(super) fn refuse_unsupported_draw_controls(
-    query: &CausalQuery,
-    data: &DataInput,
-    class: GraphClass,
-    structure_fixed: bool,
-    estimator: Option<EstimatorId>,
-    controls: Option<crate::PosteriorDrawControls>,
-    inference: &InferenceMode,
-) -> Result<(), CausalError> {
-    if controls.is_none() {
-        return Ok(());
-    }
-    let cfg = match inference {
-        InferenceMode::Bayesian(cfg) => Some(cfg),
-        InferenceMode::Frequentist => None,
-    };
-    let enforced = cfg.is_some()
-        && matches!(query, CausalQuery::AverageEffect(_))
-        && matches!(data, DataInput::Tabular(_))
-        && class == GraphClass::Dag
-        && structure_fixed
-        && matches!(estimator, None | Some(EstimatorId::BayesianGcomp));
-    if !enforced {
-        return Err(crate::unsupported_reason!(
-            "invalid_argument",
-            "posterior draw controls bound the draws behind a Bayesian g-computation interval of \
-             a tabular AverageEffect on one fixed Dag; this route does not enforce them, so it \
-             refuses them rather than publish an interval they do not bound"
-        ));
-    }
-    let Some(cfg) = cfg else {
-        return Ok(());
-    };
-    if cfg.n_draws >= antecedent_estimate::supported_min_draws(cfg.backend) {
-        return Ok(());
-    }
-    Err(if cfg.backend == antecedent_estimate::BayesianBackendKind::Hmc {
-        crate::unsupported_reason!(
-            "posterior_draws_below_supported",
-            "the supported minimum is 3000 posterior draws for the hmc backend, the floor its \
-             chain diagnostics need; request at least 3000 draws"
-        )
-    } else {
-        crate::unsupported_reason!(
-            "posterior_draws_below_supported",
-            "the supported minimum is 2000 posterior draws; request at least 2000 draws"
-        )
-    })
-}
-
-/// Refuse a non-Gaussian Bayesian likelihood where no executor fits it.
-///
-/// The one owner of which routes honour [`crate::BayesianConfig::likelihood`].
-/// Bayesian g-computation of a tabular [`CausalQuery::AverageEffect`] mean on
-/// one explicit or accepted [`GraphClass::Dag`] fits the declared Bernoulli or
-/// Poisson GLM and averages the inverse link over the rows; that construction
-/// has repeated-sampling coverage records. Every other Bayesian route
-/// (conditional effects, mediation, temporal effects and responses, continuous
-/// responses, panels, ADMG front door, class envelopes, tiered backgrounds and
-/// graph-posterior mixtures) is either a Gaussian identity-link model or has no
-/// coverage measurement under another link, the conjugate backend is Gaussian by
-/// construction, and a transferred prior is mapped on the identity-link
-/// coefficient scale. Those combinations refuse here rather than silently fit
-/// a Gaussian model or report an unmeasured construction.
-pub(super) fn refuse_unsupported_likelihood(
-    query: &CausalQuery,
-    data: &DataInput,
-    class: GraphClass,
-    structure_fixed: bool,
-    inference: &InferenceMode,
-) -> Result<(), CausalError> {
-    let InferenceMode::Bayesian(cfg) = inference else {
-        return Ok(());
-    };
-    if cfg.likelihood == antecedent_prob::BayesLikelihood::GaussianIdentity {
-        return Ok(());
-    }
-    if cfg.backend == antecedent_estimate::BayesianBackendKind::ConjugateGaussian {
-        return Err(crate::unsupported_reason!(
-            "likelihood_not_supported",
-            "the conjugate backend fits a Gaussian identity-link model only; use the laplace or \
-             hmc backend for a Bernoulli or Poisson likelihood"
-        ));
-    }
-    if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
-        return Err(crate::unsupported_reason!(
-            "likelihood_not_supported",
-            "a transferred prior is mapped onto identity-link coefficients; a Bernoulli or \
-             Poisson likelihood fits under the isotropic prior_scale only"
-        ));
-    }
-    let supported_query = match query {
-        CausalQuery::AverageEffect(q) => {
-            matches!(q.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
-        }
-        CausalQuery::ConditionalEffect(q) => {
-            matches!(q.inner.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
-        }
-        CausalQuery::Response(q) => matches!(
-            q.functional,
-            antecedent_core::ResponseFunctional::MeanCurve { .. }
-                | antecedent_core::ResponseFunctional::InterventionResponse { .. }
-        ),
-        _ => false,
-    };
-    let licensed = matches!(data, DataInput::Tabular(_))
-        && class == GraphClass::Dag
-        && structure_fixed
-        && supported_query;
-    if licensed {
-        return Ok(());
-    }
-    Err(crate::unsupported_reason!(
-        "likelihood_not_supported",
-        "a Bernoulli or Poisson likelihood is fitted by Bayesian g-computation of a tabular \
-         AverageEffect or ConditionalEffect mean, or a static response level, on one Dag only; this route fits a Gaussian identity-link model or \
-         mixes structures, so it refuses the likelihood rather than fit a different model than \
-         the one declared"
-    ))
 }
 
 /// Whether the executors for `query` run caller custom validators.
@@ -928,7 +625,7 @@ impl StudyBuilder {
     /// replicate count by construction rather than a second copy of `199`.
     pub const OMITTED_BOOTSTRAP: u32 = super::latency::STANDARD_BOOTSTRAP;
     /// Validation suite used when the caller omits [`Self::refute`]. A cell
-    /// that does not license this suite is downgraded at build.
+    /// that does not support this suite is downgraded at build.
     pub const OMITTED_REFUTE: RefuteSuite = RefuteSuite::PlaceboAndRcc;
 
     fn from_data(data: DataInput) -> Self {
@@ -936,43 +633,82 @@ impl StudyBuilder {
             data,
             graph: None,
             graph_posterior: None,
-            class_prior: None,
-            max_completions: None,
-            structure_source: None,
             query: None,
-            refute: Self::OMITTED_REFUTE,
-            refute_explicit: false,
-            bootstrap_replicates: Self::OMITTED_BOOTSTRAP,
-            bootstrap_explicit: false,
-            split: None,
-            identifier: None,
-            estimator: None,
-            estimator_spec: None,
-            response_options: None,
-            observation_options: antecedent_estimate::ObservationEstimatorOptions::default(),
-            draw_controls: None,
-            observation_delayed_entry: None,
-            rd: None,
-            inference: InferenceMode::Frequentist,
-            n_draws_explicit: false,
-            overlap_policy: None,
-            population_registry: None,
-            participants: None,
-            missing: None,
-            custom_validators: Vec::new(),
-            tiered: None,
+            discovery_query_error: None,
+            bootstrap_interval: None,
             caller_graph: None,
-            continuous_cell: None,
-            latency_mode: None,
-            compute_budget: ComputeBudget::new(),
-            stage_sink: None,
-            selection_targets: None,
-            transport_trial: None,
-            interference: None,
+            declared: Declarations::default(),
+            weighted_target: None,
+            outcome_prior_selection: None,
+            exposure: ExposureInputs::default(),
+            settings: InferenceSettings::omitted(Self::OMITTED_REFUTE, Self::OMITTED_BOOTSTRAP),
+            execution: ExecutionSettings::default(),
+            discovery: None,
+            mechanisms: None,
+            posterior_provenance: None,
+            bayesian_declarations: BayesianDeclarations::default(),
+            refute_declared: false,
+            bootstrap_declared: false,
+            data_diagnostics: Some(crate::DataDiagnostics::default()),
         }
     }
 
-    /// Capability report without granting a license.
+    /// Search for causal structure over `variables` with `spec`.
+    ///
+    /// Sets the study's query to the [`CausalQuery::Discover`] query `spec`
+    /// states and retains the executable search. A discovery study takes no
+    /// graph: the discovered structure (a DAG, a CPDAG or PAG that stays a
+    /// class, a temporal class, one class per regime, or a structure
+    /// posterior) is the answer. It reaches a downstream study only through
+    /// [`crate::accept_discovered`].
+    #[must_use]
+    pub fn discovery(
+        mut self,
+        spec: super::structure_route::DiscoverySpec,
+        variables: impl Into<Arc<[VariableId]>>,
+    ) -> Self {
+        match spec.query(variables) {
+            Ok(query) => {
+                self.query = Some(CausalQuery::Discover(query));
+                self.discovery_query_error = None;
+            }
+            Err(error) => {
+                self.query = None;
+                self.discovery_query_error = Some(error);
+            }
+        }
+        self.discovery = Some(Arc::new(spec));
+        self
+    }
+
+    /// Fit the mechanisms of a [`CausalQuery::Attribute`] or
+    /// [`CausalQuery::Simulate`] query with `program`. Without one the route
+    /// fits the standard registry by best held-out score.
+    #[must_use]
+    pub fn mechanisms(mut self, program: super::structure_route::MechanismProgram) -> Self {
+        self.mechanisms = Some(Arc::new(program));
+        self
+    }
+
+    /// Supply a structure posterior accepted from a compiled discovery as the
+    /// study's graph posterior.
+    ///
+    /// Behaves as [`Self::graph_posterior`] with the posterior's atoms and
+    /// weights, and the study's contract and program identity carry the
+    /// search's [`crate::StructureProvenance`]. The identification digest does
+    /// not: the same posterior supplied by hand identifies the same way.
+    #[must_use]
+    pub fn accepted_graph_posterior(
+        mut self,
+        accepted: super::structure_route::AcceptedPosterior,
+    ) -> Self {
+        let (posterior, provenance) = accepted.into_parts();
+        self.graph_posterior = Some(posterior);
+        self.posterior_provenance = Some(provenance);
+        self
+    }
+
+    /// Capability report without granting support.
     ///
     /// Missing graph or query is a binding report with no neighbors. Present
     /// coordinates classify through [`Self::inspect`] and do not identify.
@@ -997,7 +733,7 @@ impl StudyBuilder {
         Ok(self.clone().inspect()?.capability())
     }
 
-    /// Cheap structural inspection without requiring a licensed cell.
+    /// Cheap structural inspection without requiring a supported cell.
     ///
     /// Closed, n/a, and refused coordinates still produce a contract: support
     /// status is recorded and identification stays unavailable. This does not
@@ -1011,16 +747,45 @@ impl StudyBuilder {
         self.finish(true)?.inspect()
     }
 
+    /// Identify the query against the structure, reading no rows.
+    ///
+    /// Build the study over a table with a schema and no observations to identify before
+    /// any data exist (the staged identify-then-estimate workflow): identification is a
+    /// function of structure and query, so the answer is the one a study over the full table
+    /// derives. The study is assembled as [`Self::inspect`] assembles it, so a coordinate the
+    /// support matrix closes still identifies (its estimation stays refused at
+    /// [`Self::build`]). Returns the point result of a DAG or ADMG, or the envelope over the
+    /// completions of a CPDAG, PAG or temporal class.
+    ///
+    /// # Errors
+    ///
+    /// Missing graph or query, a schema mismatch, a graph-posterior study, an unsupported
+    /// graph-class/query pair, or identification failure.
+    pub fn identify_structure(self) -> Result<crate::Identification, CausalError> {
+        self.finish(true)?.identify_structure()
+    }
+
+    /// Identify with the caller's execution context and temporal materialization limits.
+    /// # Errors
+    /// The same identification and resource refusals as `identify_structure`.
+    pub fn identify_structure_within(
+        self,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<crate::Identification, CausalError> {
+        self.finish(true)?.identify_structure_within(ctx)
+    }
+
     /// Supply the causal structure.
     ///
     /// An [`AcceptedGraph`] is matrix-axis `accepted`. A bare
     /// [`antecedent_graph::Dag`], [`antecedent_graph::Admg`],
-    /// [`antecedent_graph::Pag`], [`antecedent_graph::Cpdag`], or
-    /// [`antecedent_graph::TemporalDag`] is `explicit`. A
-    /// [`antecedent_graph::TemporalCpdag`] is not [`crate::IntoGraphInput`]
-    /// until the class-preserving temporal identifier lands — use the fallible
-    /// [`AcceptedGraph::temporal_cpdag`] first. [`antecedent_graph::TemporalPag`]
-    /// is the same: use [`AcceptedGraph::temporal_pag`].
+    /// [`antecedent_graph::Pag`], [`antecedent_graph::Cpdag`],
+    /// [`antecedent_graph::TemporalDag`], [`antecedent_graph::TemporalCpdag`],
+    /// [`antecedent_graph::TemporalPag`] or [`antecedent_graph::TemporalAdmg`] is
+    /// `explicit`. A bare CPDAG or temporal CPDAG is not put through the conflict-mark
+    /// review that [`AcceptedGraph::cpdag`] and [`AcceptedGraph::temporal_cpdag`] apply:
+    /// conflict (`x-x`) marks are refused later, when identification enumerates the
+    /// completions. Use the fallible constructors first to refuse them at the boundary.
     ///
     /// Mutually exclusive with [`Self::tiered_background`], which materializes
     /// its own structure: setting both, in either order, is refused
@@ -1029,7 +794,7 @@ impl StudyBuilder {
     pub fn graph(mut self, structure: impl crate::IntoGraphInput) -> Self {
         let (graph, source) = structure.into_graph_input();
         self.graph = Some(graph);
-        self.structure_source = Some(source);
+        self.declared.structure_source = Some(source);
         self.caller_graph = Some(CallerGraph);
         self
     }
@@ -1073,8 +838,8 @@ impl StudyBuilder {
             }
         };
         self.graph = Some(graph);
-        self.structure_source = Some(crate::support::StructureSource::Explicit);
-        self.tiered = Some(background);
+        self.declared.structure_source = Some(crate::support::StructureSource::Explicit);
+        self.declared.tiered = Some(background);
         Ok(self)
     }
 
@@ -1100,7 +865,7 @@ impl StudyBuilder {
     /// mixture requires this; without it the result is an identified set.
     #[must_use]
     pub fn class_prior(mut self, prior: crate::ClassPrior) -> Self {
-        self.class_prior = Some(prior);
+        self.declared.class_prior = Some(prior);
         self
     }
 
@@ -1110,7 +875,7 @@ impl StudyBuilder {
     /// identification (`full_mass_scope`, `truncated_atoms`).
     #[must_use]
     pub fn max_completions(mut self, n: usize) -> Self {
-        self.max_completions = Some(n);
+        self.declared.max_completions = Some(n);
         self
     }
 
@@ -1125,9 +890,9 @@ impl StudyBuilder {
     #[must_use]
     pub fn query(mut self, query: impl Into<CausalQuery>) -> Self {
         let q = query.into();
-        if self.estimator_spec.is_none()
+        if self.declared.estimator_spec.is_none()
             && matches!(
-                self.estimator,
+                self.declared.estimator,
                 Some(EstimatorId::BayesianGcomp | EstimatorId::BayesianBasisGcomp)
             )
         {
@@ -1137,15 +902,16 @@ impl StudyBuilder {
             match &q {
                 CausalQuery::AverageEffect(_) => {}
                 CausalQuery::TemporalEffect(_) => {
-                    self.estimator = Some(EstimatorId::TemporalLinearAdjustment);
+                    self.declared.estimator = Some(EstimatorId::TemporalLinearAdjustment);
                 }
                 _ => {
                     // Remainder cells keep their identifier-native estimators.
-                    self.estimator = None;
+                    self.declared.estimator = None;
                 }
             }
         }
         self.query = Some(q);
+        self.discovery_query_error = None;
         self
     }
 
@@ -1158,23 +924,61 @@ impl StudyBuilder {
     /// Discovery / estimation temporal-gap split.
     #[must_use]
     pub fn split(mut self, split: DiscoveryEstimationSplit) -> Self {
-        self.split = Some(split);
+        self.declared.split = Some(split);
         self
     }
 
     /// Configure refutation suite (static path).
     #[must_use]
     pub fn refute(mut self, suite: RefuteSuite) -> Self {
-        self.refute = suite;
-        self.refute_explicit = true;
+        self.settings.refute = suite;
+        self.settings.refute_explicit = true;
+        self.refute_declared = true;
         self
     }
 
     /// Bootstrap replicates for the primary estimate.
     #[must_use]
     pub fn bootstrap_replicates(mut self, n: u32) -> Self {
-        self.bootstrap_replicates = n;
-        self.bootstrap_explicit = true;
+        self.settings.bootstrap_replicates = n;
+        self.settings.bootstrap_explicit = true;
+        self.bootstrap_declared = true;
+        self
+    }
+
+    /// Request a bootstrap interval produced by the complete resampling procedure: waves of
+    /// replicates that stop once the request's Monte Carlo tolerances on the standard error and
+    /// on the interval half-width are met, capped by [`Self::bootstrap_replicates`], which must
+    /// be set explicitly as that cap. The result's diagnostics carry the interval, every wave,
+    /// the Monte Carlo errors and the stop reason
+    /// ([`antecedent_estimate::EstimateDiagnostics::resampling`]).
+    ///
+    /// The selected estimator must be linear adjustment, propensity weighting, propensity
+    /// stratification, AIPW or GLM adjustment; a bare [`EstimatorId`] is built with the study's
+    /// settings, a configured estimator takes the request. Anything else is refused at
+    /// [`Self::build`] ([`CausalError::Conflict`]). The coverage of the stopping procedure is a
+    /// measured property of the request, not asserted: the estimate's calibration key carries
+    /// the procedure so a fixed-count calibration never binds to it.
+    #[must_use]
+    pub fn bootstrap_interval(mut self, request: antecedent_estimate::IntervalRequest) -> Self {
+        self.bootstrap_interval = Some(request);
+        self
+    }
+
+    /// Retain the joint replicates of a temporal response surface, so horizons can be composed
+    /// from realizations coupled across them (see
+    /// [`crate::analysis::horizon_composition`]).
+    ///
+    /// Under Frequentist inference the replicates are the joint circular-block bootstrap
+    /// replicates of the whole dose-by-horizon surface and need `bootstrap_replicates`; under
+    /// Bayesian inference they are the draws of the block-weight posterior over the surface
+    /// (one Exp(1) weight per block of consecutive times shared by every horizon), which
+    /// replaces the per-horizon conjugate fits, whose draws are independent marginals. The
+    /// option changes the contract's inference binding, and a Bayesian run under it is
+    /// unsupported.
+    #[must_use]
+    pub fn retain_joint_horizons(mut self, on: bool) -> Self {
+        self.settings.retain_joint_horizons = on;
         self
     }
 
@@ -1185,7 +989,7 @@ impl StudyBuilder {
     /// field overrides always win.
     #[must_use]
     pub fn latency_mode(mut self, mode: LatencyMode) -> Self {
-        self.latency_mode = Some(mode);
+        self.execution.latency_mode = Some(mode);
         self
     }
 
@@ -1196,16 +1000,11 @@ impl StudyBuilder {
     /// overrides *are* applied. Cancellation is a separate token, not this field.
     #[must_use]
     pub fn compute_budget(mut self, budget: ComputeBudget) -> Self {
-        if budget.bootstrap.is_some() {
-            self.bootstrap_explicit = true;
-        }
-        if budget.validators.is_some() {
-            self.refute_explicit = true;
-        }
-        if budget.n_draws.is_some() {
-            self.n_draws_explicit = true;
-        }
-        self.compute_budget = budget;
+        // The budget replaces the previous one, so the declarations it carried go with it.
+        self.settings.bootstrap_explicit = self.bootstrap_declared || budget.bootstrap.is_some();
+        self.settings.refute_explicit = self.refute_declared || budget.validators.is_some();
+        self.settings.n_draws_explicit = budget.n_draws.is_some();
+        self.execution.compute_budget = budget;
         self
     }
 
@@ -1218,7 +1017,7 @@ impl StudyBuilder {
     /// [`IdentifierId::TemporalBackdoorUnfolded`]).
     #[must_use]
     pub fn identifier(mut self, id: IdentifierId) -> Self {
-        self.identifier = Some(id);
+        self.declared.identifier = Some(id);
         self
     }
 
@@ -1230,7 +1029,7 @@ impl StudyBuilder {
     /// Bayesian g-computation enforces them; any other route refuses them at build.
     #[must_use]
     pub fn draw_controls(mut self, controls: crate::PosteriorDrawControls) -> Self {
-        self.draw_controls = Some(controls);
+        self.declared.draw_controls = Some(controls);
         self
     }
 
@@ -1245,14 +1044,14 @@ impl StudyBuilder {
     /// Request a coarsened continuous coordinate for cell-AIPW.
     ///
     /// Refused at [`Self::build`]: coarsening D is not a controlled direct
-    /// effect at a point (`do(D=d0)`). Point CDE is unlicensed.
+    /// effect at a point (`do(D=d0)`). Point CDE is unsupported.
     #[must_use]
     pub fn continuous_cell(
         mut self,
         variable: antecedent_core::VariableId,
         grid: impl Into<std::sync::Arc<[f64]>>,
     ) -> Self {
-        self.continuous_cell = Some((variable, grid.into()));
+        self.declared.continuous_cell = Some((variable, grid.into()));
         self
     }
 
@@ -1265,8 +1064,8 @@ impl StudyBuilder {
     #[must_use]
     pub fn estimator(mut self, spec: impl Into<EstimatorSpec>) -> Self {
         let spec = spec.into();
-        self.estimator = Some(spec.id());
-        self.estimator_spec = Some(spec);
+        self.declared.estimator = Some(spec.id());
+        self.declared.estimator_spec = Some(spec);
         self
     }
 
@@ -1276,7 +1075,7 @@ impl StudyBuilder {
     /// bandwidth; the estimator refuses an implicit undersmoothing rule.
     #[must_use]
     pub fn response_options(mut self, options: ContinuousResponseOptions) -> Self {
-        self.response_options = Some(options);
+        self.declared.response_options = Some(options);
         self
     }
 
@@ -1286,35 +1085,35 @@ impl StudyBuilder {
         mut self,
         options: antecedent_estimate::ObservationEstimatorOptions,
     ) -> Self {
-        self.observation_options = options;
+        self.declared.observation_options = options;
         self
     }
 
     /// Delayed-entry column for marginal right-censoring IPCW.
     #[must_use]
     pub fn observation_delayed_entry(mut self, variable: antecedent_core::VariableId) -> Self {
-        self.observation_delayed_entry = Some(variable);
+        self.declared.observation_delayed_entry = Some(variable);
         self
     }
 
     /// Selection-node targets for [`CausalQuery::Transport`] (empty = Direct formula).
     #[must_use]
     pub fn selection_targets(mut self, targets: impl Into<Arc<[VariableId]>>) -> Self {
-        self.selection_targets = Some(targets.into());
+        self.exposure.selection_targets = Some(targets.into());
         self
     }
 
     /// Trial membership and known probabilities for [`CausalQuery::Transport`].
     #[must_use]
     pub fn transport_trial(mut self, spec: TransportTrialSpec) -> Self {
-        self.transport_trial = Some(spec);
+        self.exposure.transport_trial = Some(spec);
         self
     }
 
     /// Fixed network and realized assignment for [`CausalQuery::Interference`].
     #[must_use]
     pub fn interference(mut self, spec: InterferenceSpec) -> Self {
-        self.interference = Some(spec);
+        self.exposure.interference = Some(spec);
         self
     }
 
@@ -1328,31 +1127,83 @@ impl StudyBuilder {
     #[must_use]
     pub fn inference(mut self, mode: InferenceMode) -> Self {
         if matches!(mode, InferenceMode::Bayesian(_))
-            && self.estimator_spec.is_none()
-            && !matches!(self.estimator, Some(EstimatorId::BayesianBasisGcomp))
+            && self.declared.estimator_spec.is_none()
+            && !matches!(self.declared.estimator, Some(EstimatorId::BayesianBasisGcomp))
         {
             match &self.query {
                 None | Some(CausalQuery::AverageEffect(_)) => {
-                    self.estimator = Some(EstimatorId::BayesianGcomp);
+                    self.declared.estimator = Some(EstimatorId::BayesianGcomp);
                 }
                 Some(CausalQuery::TemporalEffect(_)) => {}
                 Some(_) => {
-                    if matches!(self.estimator, Some(EstimatorId::BayesianGcomp)) {
-                        self.estimator = None;
+                    if matches!(self.declared.estimator, Some(EstimatorId::BayesianGcomp)) {
+                        self.declared.estimator = None;
                     }
                 }
             }
         }
         if matches!(mode, InferenceMode::Frequentist)
-            && self.estimator_spec.is_none()
+            && self.declared.estimator_spec.is_none()
             && matches!(
-                self.estimator,
+                self.declared.estimator,
                 Some(EstimatorId::BayesianGcomp | EstimatorId::BayesianBasisGcomp)
             )
         {
-            self.estimator = None;
+            self.declared.estimator = None;
         }
-        self.inference = mode;
+        let mut mode = mode;
+        if let InferenceMode::Bayesian(cfg) = &mut mode {
+            self.bayesian_declarations.fill(cfg);
+        }
+        self.settings.inference = mode;
+        self
+    }
+
+    /// Declare serially independent innovations on the Bayesian inference, set before or after.
+    ///
+    /// Equivalent to [`crate::BayesianConfig::white_innovation`]; it leaves a frequentist
+    /// study unchanged, and a route that does not read the premise refuses it at build.
+    #[must_use]
+    pub fn bayesian_white_innovation(
+        mut self,
+        gate: antecedent_estimate::white_innovation_posterior::InnovationWhitenessGate,
+    ) -> Self {
+        if let InferenceMode::Bayesian(cfg) = &mut self.settings.inference {
+            cfg.white_innovation = Some(gate);
+        }
+        self.bayesian_declarations.white_innovation = Some(gate);
+        self
+    }
+
+    /// Retain the posterior predictive replicates of the Bayesian fit, bounded by `n_sims`
+    /// draws and `max_rows` design rows.
+    ///
+    /// The study builds one predictive sample law per design row at fit time, admitted
+    /// against the Execution memory pool and returned on the result for predictive
+    /// assessment ([`crate::StudyResult::predictive_replicates`]). It leaves a frequentist
+    /// study unchanged; a route that does not retain them, a zero bound, or a design with
+    /// more than `max_rows` rows is refused rather than silently unretained.
+    #[must_use]
+    pub fn bayesian_predictive_replicates(mut self, n_sims: u32, max_rows: u32) -> Self {
+        let bounds = crate::inference::PredictiveReplicateBounds { n_sims, max_rows };
+        if let InferenceMode::Bayesian(cfg) = &mut self.settings.inference {
+            cfg.predictive_replicates = Some(bounds);
+        }
+        self.bayesian_declarations.predictive_replicates = Some(bounds);
+        self
+    }
+
+    /// Declare the likelihood and prior of a randomized-design Bayesian estimator.
+    ///
+    /// Equivalent to [`crate::BayesianConfig::design_model`]; it leaves a frequentist study
+    /// unchanged, and a route that does not read the declaration ignores nothing silently: the
+    /// estimators that need it refuse its absence.
+    #[must_use]
+    pub fn bayesian_design_model(mut self, model: crate::DesignPosteriorModel) -> Self {
+        if let InferenceMode::Bayesian(cfg) = &mut self.settings.inference {
+            cfg.design_model = Some(model.clone());
+        }
+        self.bayesian_declarations.design_model = Some(model);
         self
     }
 
@@ -1363,7 +1214,7 @@ impl StudyBuilder {
     /// front-door, RD).
     #[must_use]
     pub fn overlap_policy(mut self, policy: OverlapPolicy) -> Self {
-        self.overlap_policy = Some(policy);
+        self.declared.overlap_policy = Some(policy);
         self
     }
 
@@ -1371,7 +1222,7 @@ impl StudyBuilder {
     /// identity only when set; it labels rows and changes no estimate.
     #[must_use]
     pub fn participants(mut self, binding: antecedent_io::ParticipantBindingWire) -> Self {
-        self.participants = Some(binding);
+        self.declared.participants = Some(binding);
         self
     }
 
@@ -1383,21 +1234,91 @@ impl StudyBuilder {
     /// would behave differently for it.
     #[must_use]
     pub fn missing(mut self, declaration: antecedent_data::MissingDeclaration) -> Self {
-        self.missing = Some(declaration);
+        self.declared.missing = Some(declaration);
+        self
+    }
+
+    /// Declare how the rows were sampled, once for the whole study.
+    ///
+    /// Independent subject trajectories refuse a row-level bootstrap, a clustered panel is
+    /// resampled and split by whole cluster, and a dependent time series is resampled in
+    /// contiguous blocks and split with an embargo. Every estimator of the study that
+    /// bootstraps or splits is held to the declared design, and a request the design does not
+    /// allow is refused with a typed sampling-design error. The declaration enters the
+    /// data-snapshot identity. Without it each estimator takes the design its grouping implies.
+    ///
+    /// A clustered panel or dependent time series must also be read by the selected estimator,
+    /// which is resolved from its id first: matching, instrumental fits and the front-door
+    /// functional read neither and are refused (`option_not_applicable`, naming a next attempt),
+    /// and double ML, the DR-learner and the causal forest read a clustered panel only through a
+    /// declared whole-cluster independence unit (`with_cluster_dml` with the cluster labels).
+    #[must_use]
+    pub fn sampling_design(mut self, design: antecedent_core::DeclaredSamplingDesign) -> Self {
+        self.declared.sampling_design = Some(design);
+        self
+    }
+
+    /// Declare the cluster labels or the serial kernel that the variance of a score-table
+    /// route must read.
+    ///
+    /// The declaration pairs with [`Self::sampling_design`]: cluster labels (one per row of the
+    /// table) go with a clustered panel and a Newey-West lag with a dependent time series, rows
+    /// taken in table order as unit-spaced time. Only the joint-cell response reads it, as the
+    /// cluster-robust or Newey-West variance of its influence values; any other route refuses it
+    /// instead of ignoring it. It enters the data-snapshot identity.
+    #[must_use]
+    pub fn score_dependence(mut self, dependence: antecedent_estimate::ScoreDependence) -> Self {
+        self.declared.score_dependence = Some(dependence);
         self
     }
 
     /// Bindings for named predicates and custom target-distribution weights.
     #[must_use]
     pub fn population_registry(mut self, registry: PopulationRegistry) -> Self {
-        self.population_registry = Some(registry);
+        self.declared.population_registry = Some(registry);
+        self
+    }
+
+    /// Declare the target population as row weights or a kernel over a covariate distance.
+    ///
+    /// At build the weights are read from the table, pass the overlap gate and are registered
+    /// as the study's custom target distribution over the declared covariates, which the query
+    /// then names. The study estimates the effect for that population through the estimators
+    /// that take a custom target distribution. A query that is not population-scoped, or that
+    /// already names a population, refuses the declaration; so does a table that is not
+    /// tabular.
+    #[must_use]
+    pub fn weighted_target(
+        mut self,
+        declaration: super::weighted_target::WeightedTargetDeclaration,
+    ) -> Self {
+        self.weighted_target = Some(declaration);
+        self
+    }
+
+    /// Declare the outcome-nuisance prior of a cross-fitted AIPW or DML estimator as external
+    /// sources whose common power-prior discount is selected from the table the study analyses.
+    ///
+    /// At build the selection runs on that table (see
+    /// [`super::alpha_selection::OutcomePriorSelection`]) and the composed prior at the
+    /// selected discount becomes the estimator's outcome prior; the selection (criterion,
+    /// discount, level and interval semantics) is recorded in the assumptions of the result and
+    /// in the prior's identity. A study built on each completed table of an imputation selects
+    /// on that table. Requires an `AipwAte` or `DmlAte` estimator declared without a prior, an
+    /// average-effect query and a tabular table; anything else is refused at build.
+    #[must_use]
+    pub fn outcome_prior_selection(
+        mut self,
+        selection: super::alpha_selection::OutcomePriorSelection,
+    ) -> Self {
+        self.outcome_prior_selection = Some(selection);
         self
     }
 
     /// Append custom effect validators ( slow path).
     #[must_use]
     pub fn custom_validators(mut self, validators: Vec<Arc<dyn CustomEffectValidator>>) -> Self {
-        self.custom_validators = validators;
+        self.declared.custom_validators = validators;
         self
     }
 
@@ -1405,7 +1326,7 @@ impl StudyBuilder {
     /// estimator. `compile` refuses `rd.sharp` without this.
     #[must_use]
     pub fn rd_config(mut self, running_variable: VariableId, cutoff: f64, bandwidth: f64) -> Self {
-        self.rd = Some(RdConfig::new(running_variable, cutoff, bandwidth));
+        self.declared.rd = Some(RdConfig::new(running_variable, cutoff, bandwidth));
         self
     }
 
@@ -1413,7 +1334,7 @@ impl StudyBuilder {
     /// ([`RdConfig::with_se_kind`]). Replaces any earlier [`Self::rd_config`].
     #[must_use]
     pub fn rd_design(mut self, config: RdConfig) -> Self {
-        self.rd = Some(config);
+        self.declared.rd = Some(config);
         self
     }
 
@@ -1422,7 +1343,14 @@ impl StudyBuilder {
     /// Final [`super::execute::Study::run`] still returns the complete result.
     #[must_use]
     pub fn stage_sink(mut self, sink: Arc<dyn super::stage::StageResultSink>) -> Self {
-        self.stage_sink = Some(sink);
+        self.execution.stage_sink = Some(sink);
+        self
+    }
+
+    /// Configure automatic fit-free diagnostics; `None` disables collection.
+    #[must_use]
+    pub fn data_diagnostics(mut self, policy: Option<crate::DataDiagnostics>) -> Self {
+        self.data_diagnostics = policy;
         self
     }
 
@@ -1443,46 +1371,252 @@ impl StudyBuilder {
         self.finish(false)
     }
 
-    fn finish(self, inspect_only: bool) -> Result<Study, CausalError> {
-        finish::assemble(finish::FinishInput {
+    /// Hand a requested bootstrap interval to the selected estimator. An id-only estimator is
+    /// built with the study's settings first, so those settings are then the estimator's own and
+    /// the builder-level replicate and overlap settings no longer conflict with it.
+    fn apply_bootstrap_interval(&mut self) -> Result<(), CausalError> {
+        let Some(request) = self.bootstrap_interval.take() else {
+            return Ok(());
+        };
+        let Some(spec) = self.declared.estimator_spec.take() else {
+            return Err(CausalError::Conflict {
+                what: "bootstrap_interval",
+                detail: "name the estimator that produces the interval (estimator(..)); the \
+                         default estimator is chosen from the graph and query at compile time",
+            });
+        };
+        let was_default = !spec.is_configured();
+        if was_default && !self.settings.bootstrap_explicit {
+            return Err(CausalError::Conflict {
+                what: "bootstrap_interval",
+                detail: "set bootstrap_replicates(..) explicitly: it is the replicate cap of the \
+                         requested interval",
+            });
+        }
+        let defaults = crate::estimator_spec::BuildDefaults {
+            bootstrap_replicates: self.settings.bootstrap_replicates,
+            overlap_policy: self.declared.overlap_policy,
+            population_registry: self.declared.population_registry.as_ref(),
+            sampling_design: self.declared.sampling_design,
+        };
+        self.declared.estimator_spec = Some(spec.with_bootstrap_interval(request, defaults)?);
+        if was_default {
+            self.settings.bootstrap_explicit = false;
+            self.declared.overlap_policy = None;
+        }
+        Ok(())
+    }
+
+    /// Resolve a declared weighted target against the table: gate its overlap, register its
+    /// weights as a custom target distribution and point the query at it.
+    fn resolve_weighted_target(&mut self) -> Result<(), CausalError> {
+        let Some(declaration) = self.weighted_target.take() else {
+            return Ok(());
+        };
+        let DataInput::Tabular(table) = &self.data else {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "a weighted target population is declared over the rows of one table"
+            ));
+        };
+        if matches!(self.query, Some(CausalQuery::Transport(_))) {
+            // A trial-to-target transport: the target is the non-participant rows reweighted
+            // by the declaration, so the weights are kept for execution and gated against the
+            // trial columns here, before anything is estimated.
+            let Some(spec) = self.exposure.transport_trial.as_ref() else {
+                return Err(crate::unsupported_reason!(
+                    "required_option_missing",
+                    "a weighted target on a TransportQuery reads the trial columns; declare \
+                     transport_trial"
+                ));
+            };
+            let resolved =
+                declaration.resolve_for_transport(table, spec.trial, spec.selection_probability)?;
+            let target = declaration.transport_target(&resolved.weights);
+            if let Some(CausalQuery::Transport(query)) = self.query.as_mut() {
+                // The target enters the query's own identity, wire and digest.
+                *query = query
+                    .clone()
+                    .with_weighted_target(target)
+                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+            }
+            self.declared.weighted_transport =
+                Some(Arc::new(super::weighted_target::WeightedTransportWeights {
+                    weights: Arc::from(resolved.weights),
+                    min_ess_fraction: declaration.min_ess_fraction(),
+                }));
+            self.declared.weighted_target = Some(Arc::new(resolved.report));
+            return Ok(());
+        }
+        let resolved = declaration.resolve(table)?;
+        let Some(population) = self.query.as_mut().and_then(CausalQuery::target_population_mut)
+        else {
+            return Err(crate::unsupported_reason!(
+                "population_not_estimable",
+                "this query is not scoped to a target population; a weighted target applies to an average effect"
+            ));
+        };
+        if *population != antecedent_core::TargetPopulation::AllObserved {
+            return Err(CausalError::Conflict {
+                what: "weighted_target",
+                detail: "the query already names a target population; declare one",
+            });
+        }
+        let id = resolved.report.distribution();
+        let registry =
+            self.declared.population_registry.get_or_insert_with(PopulationRegistry::new);
+        if registry.distribution(id).is_some() {
+            return Err(CausalError::Conflict {
+                what: "weighted_target",
+                detail: "the weighted target's derived distribution id is already registered; register custom distributions under other ids",
+            });
+        }
+        registry.insert_distribution_with_dependence(
+            id,
+            resolved.weights,
+            declaration.covariates().to_vec(),
+        );
+        *population = antecedent_core::TargetPopulation::CustomDistribution(id);
+        self.declared.weighted_target = Some(Arc::new(resolved.report));
+        // An explicitly configured estimator reads the target's weights from its own
+        // registry: hand it the one the target was registered in.
+        let registry = self.declared.population_registry.clone();
+        match self.declared.estimator_spec.as_mut() {
+            Some(EstimatorSpec::Aipw(cfg)) => cfg.population_registry.clone_from(&registry),
+            Some(EstimatorSpec::PropensityWeighting(cfg)) => {
+                cfg.population_registry.clone_from(&registry);
+            }
+            Some(EstimatorSpec::PropensityStratification(cfg)) => {
+                cfg.population_registry.clone_from(&registry);
+            }
+            Some(EstimatorSpec::LinearAdjustmentAte(cfg)) => {
+                cfg.population_registry.clone_from(&registry)
+            }
+            Some(EstimatorSpec::GlmAdjustment(cfg)) => {
+                cfg.population_registry.clone_from(&registry)
+            }
+            Some(EstimatorSpec::PropensityMatching(cfg)) => {
+                cfg.population_registry.clone_from(&registry)
+            }
+            Some(EstimatorSpec::DistanceMatching(cfg)) => {
+                cfg.population_registry.clone_from(&registry)
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// Select the discount of a declared outcome-nuisance prior on the table and hand the
+    /// composed prior to the estimator.
+    fn resolve_outcome_prior_selection(&mut self) -> Result<(), CausalError> {
+        let declared = match self.declared.estimator_spec.as_ref() {
+            Some(EstimatorSpec::Aipw(cfg)) => {
+                cfg.outcome_prior.as_ref().and_then(|prior| prior.selection.clone())
+            }
+            Some(EstimatorSpec::Dml(cfg)) => {
+                cfg.outcome_prior.as_ref().and_then(|prior| prior.selection.clone())
+            }
+            _ => None,
+        };
+        let selection = match (self.outcome_prior_selection.take(), declared) {
+            (None, None) => return Ok(()),
+            (Some(_), Some(_)) => {
+                return Err(CausalError::Conflict {
+                    what: "outcome_prior_selection",
+                    detail: "the estimator already declares an alpha selection as its prior",
+                });
+            }
+            (Some(selection), None) => selection,
+            (None, Some(request)) => {
+                super::alpha_selection::OutcomePriorSelection::from_request(&request)?
+            }
+        };
+        let DataInput::Tabular(table) = &self.data else {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "an outcome-prior selection reads the rows of one table"
+            ));
+        };
+        let Some(CausalQuery::AverageEffect(query)) = &self.query else {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "an outcome-prior selection applies to an average effect"
+            ));
+        };
+        let resolved = selection.resolve(table, query.outcome)?;
+        let refuse = || {
+            crate::unsupported_reason!(
+                "option_not_applicable",
+                "an outcome-prior selection chooses the outcome prior of an AipwAte or DmlAte \
+                 estimator declared without one"
+            )
+        };
+        match self.declared.estimator_spec.as_mut() {
+            Some(EstimatorSpec::Aipw(cfg)) => {
+                if cfg.outcome_prior.as_ref().is_some_and(|prior| prior.selection.is_none()) {
+                    return Err(refuse());
+                }
+                cfg.outcome_prior = Some(resolved.source);
+            }
+            Some(EstimatorSpec::Dml(cfg)) => {
+                if cfg.outcome_prior.as_ref().is_some_and(|prior| prior.selection.is_none()) {
+                    return Err(refuse());
+                }
+                cfg.outcome_prior = Some(resolved.source);
+            }
+            _ => return Err(refuse()),
+        }
+        Ok(())
+    }
+
+    fn finish(mut self, inspect_only: bool) -> Result<Study, CausalError> {
+        if let Some(error) = self.discovery_query_error.take() {
+            return Err(CausalError::from(error));
+        }
+        if let InferenceMode::Bayesian(cfg) = &self.settings.inference
+            && let Some(policy) =
+                cfg.external_compose.as_ref().and_then(|external| external.conflict_policy)
+        {
+            policy.validate().map_err(CausalError::from)?;
+        }
+        self.apply_bootstrap_interval()?;
+        self.resolve_weighted_target()?;
+        self.resolve_outcome_prior_selection()?;
+        if let (Some(CausalQuery::SyntheticControl(query)), InferenceMode::Frequentist) =
+            (self.query.as_mut(), &self.settings.inference)
+        {
+            // A declared serial or clustered design on the single treated unit is honoured by
+            // the interval built for it, not ignored.
+            query.honor_declared_dependence(self.declared.sampling_design);
+        }
+        let discovery = self.discovery.take();
+        let mechanisms = self.mechanisms.take();
+        let posterior_provenance = self.posterior_provenance.take();
+        let mut study = finish::assemble(finish::FinishInput {
             inspect_only,
             data: self.data,
             graph: self.graph,
             graph_posterior: self.graph_posterior,
-            class_prior: self.class_prior,
-            max_completions: self.max_completions,
-            structure_source: self.structure_source,
             query: self.query,
-            refute: self.refute,
-            refute_explicit: self.refute_explicit,
-            bootstrap_replicates: self.bootstrap_replicates,
-            bootstrap_explicit: self.bootstrap_explicit,
-            split: self.split,
-            identifier: self.identifier,
-            estimator: self.estimator,
-            estimator_spec: self.estimator_spec,
-            response_options: self.response_options,
-            observation_options: self.observation_options,
-            draw_controls: self.draw_controls,
-            observation_delayed_entry: self.observation_delayed_entry,
-            rd: self.rd,
-            inference: self.inference,
-            n_draws_explicit: self.n_draws_explicit,
-            overlap_policy: self.overlap_policy,
-            population_registry: self.population_registry,
-            participants: self.participants,
-            missing: self.missing,
-            custom_validators: self.custom_validators,
-            tiered: self.tiered,
             caller_graph: self.caller_graph.is_some(),
-            continuous_cell: self.continuous_cell,
-            latency_mode: self.latency_mode,
-            compute_budget: self.compute_budget,
-            stage_sink: self.stage_sink,
-            selection_targets: self.selection_targets,
-            transport_trial: self.transport_trial,
-            interference: self.interference,
-        })
+            declared: self.declared,
+            exposure: self.exposure,
+            settings: self.settings,
+            execution: self.execution,
+        })?;
+        super::structure_route::attach_specifications(
+            &mut study,
+            discovery,
+            mechanisms,
+            inspect_only,
+        )?;
+        if let Some(provenance) = posterior_provenance
+            && study.graph_posterior.is_some()
+        {
+            Arc::make_mut(&mut study.config).posterior_provenance = Some(provenance);
+        }
+        Arc::make_mut(&mut study.config).data_diagnostics = self.data_diagnostics;
+        Ok(study)
     }
 }
 
@@ -1493,8 +1627,8 @@ impl Study {
         self.structure_source
     }
 
-    /// Evidence contract recorded at [`StudyBuilder::build`]: licensed, or
-    /// allowlisted-and-unlicensed. `None` when the query is not on the public
+    /// Evidence contract recorded at [`StudyBuilder::build`]: supported, or
+    /// not supported. `None` when the query is not on the public
     /// matrix axis.
     #[must_use]
     pub const fn support_status(&self) -> Option<crate::support::CellStatus> {
@@ -1526,16 +1660,35 @@ impl Study {
     }
 
     /// Start a builder over irregular event data, aligned onto a regular duration grid
-    /// (§5.4) immediately — eagerly, at the call site, rather than deferred to `build()`.
+    /// immediately — eagerly, at the call site, rather than deferred to `build()`.
     /// Integer-lag algorithms then run on the aligned series; raw event indices are never
     /// treated as lags.
     ///
     /// # Errors
     ///
     /// Event alignment failure (`align_interval_ns` incompatible with the event stream).
+    ///
+    /// The grid's size is limited by memory alone; use [`Self::events_in`] to bound it by an
+    /// execution's memory budget.
     pub fn events(data: &EventData, align_interval_ns: u64) -> Result<StudyBuilder, CausalError> {
         let aligned = data
             .align_to_grid(align_interval_ns)
+            .map_err(|e| CausalError::Compile { message: format!("event align_to_grid: {e}") })?;
+        Ok(StudyBuilder::from_data(DataInput::Event(aligned)))
+    }
+
+    /// [`Self::events`] with the grid admitted against `ctx`'s memory budget and cancellation.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::events`], plus cancellation or a refused memory budget.
+    pub fn events_in(
+        data: &EventData,
+        align_interval_ns: u64,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<StudyBuilder, CausalError> {
+        let aligned = data
+            .align_to_grid_in(align_interval_ns, ctx)
             .map_err(|e| CausalError::Compile { message: format!("event align_to_grid: {e}") })?;
         Ok(StudyBuilder::from_data(DataInput::Event(aligned)))
     }
@@ -1603,6 +1756,62 @@ mod estimator_spec_conflict_tests {
         Study::tabular(toy_data())
     }
 
+    fn bayesian_config(builder: &StudyBuilder) -> &crate::BayesianConfig {
+        match &builder.settings.inference {
+            InferenceMode::Bayesian(config) => config,
+            InferenceMode::Frequentist => panic!("expected Bayesian inference"),
+        }
+    }
+
+    #[test]
+    fn a_replaced_compute_budget_retracts_the_declarations_it_carried() {
+        let budget = ComputeBudget {
+            bootstrap: Some(10),
+            n_draws: Some(32),
+            validators: Some(RefuteSuite::Cheap),
+            ..ComputeBudget::default()
+        };
+        let carried = toy_builder().compute_budget(budget);
+        assert!(carried.settings.bootstrap_explicit);
+        assert!(carried.settings.refute_explicit);
+        assert!(carried.settings.n_draws_explicit);
+        let replaced = carried.compute_budget(ComputeBudget::default());
+        assert!(!replaced.settings.bootstrap_explicit);
+        assert!(!replaced.settings.refute_explicit);
+        assert!(!replaced.settings.n_draws_explicit);
+        // A direct declaration is the caller's own and survives the replacement.
+        let direct = toy_builder()
+            .bootstrap_replicates(5)
+            .refute(RefuteSuite::None)
+            .compute_budget(budget)
+            .compute_budget(ComputeBudget::default());
+        assert!(direct.settings.bootstrap_explicit);
+        assert!(direct.settings.refute_explicit);
+    }
+
+    #[test]
+    fn bayesian_declarations_apply_in_either_order_with_the_inference() {
+        let config = || InferenceMode::Bayesian(crate::BayesianConfig::conjugate());
+        let before = toy_builder().bayesian_predictive_replicates(8, 16).inference(config());
+        let after = toy_builder().inference(config()).bayesian_predictive_replicates(8, 16);
+        for builder in [&before, &after] {
+            let bounds = bayesian_config(builder).predictive_replicates;
+            assert_eq!(bounds.map(|b| (b.n_sims, b.max_rows)), Some((8, 16)));
+        }
+        // A configuration declared after the builder method keeps its own value.
+        let mut own = crate::BayesianConfig::conjugate();
+        own.predictive_replicates =
+            Some(crate::inference::PredictiveReplicateBounds { n_sims: 2, max_rows: 4 });
+        let overriding = toy_builder()
+            .bayesian_predictive_replicates(8, 16)
+            .inference(InferenceMode::Bayesian(own));
+        let bounds = bayesian_config(&overriding).predictive_replicates;
+        assert_eq!(bounds.map(|b| (b.n_sims, b.max_rows)), Some((2, 4)));
+        // A frequentist study stays unchanged.
+        let frequentist = toy_builder().bayesian_predictive_replicates(8, 16);
+        assert!(matches!(frequentist.settings.inference, InferenceMode::Frequentist));
+    }
+
     #[test]
     fn configured_estimator_plus_explicit_bootstrap_replicates_conflicts() {
         let result = toy_builder()
@@ -1639,5 +1848,70 @@ mod estimator_spec_conflict_tests {
     fn explicit_bootstrap_replicates_alone_does_not_conflict() {
         let result = toy_builder().bootstrap_replicates(100).build();
         assert!(!matches!(result, Err(CausalError::Conflict { .. })));
+    }
+
+    fn conflict_of(result: Result<Study, CausalError>) -> &'static str {
+        match result.map_err(CausalError::into_peeled) {
+            Err(CausalError::Conflict { what, .. }) => what,
+            other => panic!("expected CausalError::Conflict, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_requested_interval_needs_a_named_estimator_and_an_explicit_replicate_cap() {
+        use antecedent_estimate::IntervalRequest;
+        let request = IntervalRequest::default();
+        let unnamed = toy_builder().bootstrap_replicates(100).bootstrap_interval(request).build();
+        assert_eq!(conflict_of(unnamed), "bootstrap_interval");
+        let uncapped = toy_builder()
+            .estimator(crate::strategy_table::EstimatorId::LinearAdjustmentAte)
+            .bootstrap_interval(request)
+            .build();
+        assert_eq!(conflict_of(uncapped), "bootstrap_interval");
+        // An estimator whose bootstrap is not the wave procedure refuses the request.
+        let matching = toy_builder()
+            .estimator(crate::strategy_table::EstimatorId::PropensityMatching)
+            .bootstrap_replicates(100)
+            .bootstrap_interval(request)
+            .build();
+        assert_eq!(conflict_of(matching), "bootstrap_interval");
+        // A configured estimator takes the request; the builder's own replicate setting would
+        // still conflict with it.
+        let configured = toy_builder()
+            .estimator(LinearAdjustmentAte::new().with_bootstrap_replicates(300))
+            .bootstrap_interval(request)
+            .build();
+        assert!(!matches!(configured, Err(CausalError::Conflict { .. })));
+        let doubled = toy_builder()
+            .estimator(LinearAdjustmentAte::new().with_bootstrap_interval(request))
+            .bootstrap_interval(IntervalRequest { level: 0.9, ..request })
+            .build();
+        assert_eq!(conflict_of(doubled), "bootstrap_interval");
+    }
+
+    #[test]
+    fn a_requested_interval_on_a_named_estimator_becomes_that_estimators_own_setting() {
+        use antecedent_estimate::IntervalRequest;
+        let request = IntervalRequest { level: 0.9, ..IntervalRequest::default() };
+        let spec = EstimatorSpec::Default(crate::strategy_table::EstimatorId::Aipw)
+            .with_bootstrap_interval(
+                request,
+                crate::estimator_spec::BuildDefaults {
+                    bootstrap_replicates: 150,
+                    overlap_policy: None,
+                    population_registry: None,
+                    sampling_design: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(spec.bootstrap_interval(), Some(request));
+        assert_eq!(spec.bootstrap_replicates(), Some(150));
+        assert_eq!(spec.bootstrap_interval_calibration_label(), Some("bootstrap=adaptive_waves"));
+        // The request is part of the estimator's identity.
+        let plain = EstimatorSpec::from(antecedent_estimate::AipwAte::new());
+        assert_ne!(
+            crate::analysis::contract_identity::estimator_spec_identity(&spec),
+            crate::analysis::contract_identity::estimator_spec_identity(&plain)
+        );
     }
 }

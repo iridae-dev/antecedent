@@ -5,16 +5,20 @@
 //! and the artifact consumer are the Rust route's, so a Python answer is the
 //! Rust answer bit for bit.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::counterfactual_id::{
     CounterfactualIdConsumeLimits, CounterfactualIdEffect, CounterfactualIdOptions,
-    PreparedCounterfactualId, consume_counterfactual_id_artifact, prepare_counterfactual_id,
+    PreparedCounterfactualId, consume_counterfactual_id_artifact,
+    consume_counterfactual_id_artifact_for_data, prepare_counterfactual_id,
 };
-use antecedent_core::{CounterfactualEventQuery, RegimeId, SearchLimits, Value, VariableId};
-use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, LawTolerance};
-use antecedent_graph::{Admg, DenseNodeId};
-use antecedent_io::counterfactual_id_artifact::CounterfactualIdArtifactError;
+use antecedent::estimate::{DiscreteAxis, ExactDiscreteLaw, LawTolerance};
+use antecedent::execution::SearchLimits;
+use antecedent::graph::{Admg, DenseNodeId};
+use antecedent::io::counterfactual_id_artifact::CounterfactualIdArtifactError;
+use antecedent::prelude::{Value, VariableId};
+use antecedent::query::CounterfactualEventQuery;
+use antecedent::schema::RegimeId;
 use pyo3::prelude::*;
 
 use crate::{detach_catch, py_err, py_execution_context};
@@ -24,10 +28,10 @@ use crate::{detach_catch, py_err, py_execution_context};
 /// its `reason_code`.
 fn refused(error: antecedent::CausalError) -> PyErr {
     let text = error.to_string();
-    let Some((code, rest)) = antecedent_core::reason_code::split_prefix(&text) else {
+    let Some((code, rest)) = antecedent::reason::reason_code::split_prefix(&text) else {
         return py_err(error);
     };
-    if !antecedent_core::reason_code::is_runtime_refusal(code) {
+    if !antecedent::reason::reason_code::is_runtime_refusal(code) {
         return py_err(error);
     }
     if code == "invalid_argument" {
@@ -148,7 +152,12 @@ fn law_of(
         )
         .map_err(invalid_query),
         (None, Some(counts)) => {
-            let total: u64 = counts.iter().sum();
+            // Counts are caller data: a total beyond u64 is a refusal, never a wrapped (or
+            // panicking) sum that would normalise against the wrong denominator.
+            let total = counts
+                .iter()
+                .try_fold(0_u64, |sum, &count| sum.checked_add(count))
+                .ok_or_else(|| invalid_query("the count table total exceeds 2**64 - 1"))?;
             if total == 0 {
                 return Err(invalid_query("the count table is empty"));
             }
@@ -239,20 +248,25 @@ fn prepare_counterfactual_id_native(
 }
 
 /// Consume a counterfactual identification artifact by re-deriving and
-/// recomputing it: `(json, artifact bytes)`.
+/// recomputing it: `(json, artifact bytes)`. With `expected_data_digest` the
+/// artifact's law must also carry that digest.
 #[pyfunction]
-#[pyo3(signature = (artifact, *, seed=0))]
+#[pyo3(signature = (artifact, *, seed=0, expected_data_digest=None))]
 fn consume_counterfactual_id_artifact_native(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     seed: u64,
+    expected_data_digest: Option<String>,
 ) -> PyResult<(String, Vec<u8>)> {
     detach_catch(py, move || {
-        let effect = consume_counterfactual_id_artifact(
-            &artifact,
-            CounterfactualIdConsumeLimits::default(),
-            &py_execution_context(seed, 1),
-        )
+        let ctx = py_execution_context(seed, 1);
+        let limits = CounterfactualIdConsumeLimits::default();
+        let effect = match &expected_data_digest {
+            Some(digest) => {
+                consume_counterfactual_id_artifact_for_data(artifact, digest, limits, &ctx)
+            }
+            None => consume_counterfactual_id_artifact(artifact, limits, &ctx),
+        }
         .map_err(|e| artifact_refused(&e))?;
         payload(&effect)
     })

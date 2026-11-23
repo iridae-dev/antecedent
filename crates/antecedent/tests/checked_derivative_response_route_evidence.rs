@@ -1,7 +1,7 @@
 //! Prepared static derivative-response lifecycle against known linear truth.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, reason = "one loop covers every licensed coordinate")]
+#![allow(clippy::too_many_lines, reason = "one loop covers every supported coordinate")]
 #![allow(
     clippy::float_cmp,
     reason = "the analytic standard error is pinned bitwise against the retained uncertainty"
@@ -9,6 +9,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study,
 };
@@ -42,6 +43,19 @@ fn fixture() -> (TabularData, Dag) {
             .unwrap();
     }
     (data, graph)
+}
+
+/// Tolerance per coordinate: the kernel-weighted local derivatives are within 3e-3 of the linear
+/// truth here, the Riesz average derivative within 0.04, and the additive-GAM Jacobian and
+/// directional derivatives are exact for a linear surface.
+fn tolerance(case: &str) -> f64 {
+    if case.starts_with("Directional") || case.starts_with("ResponseJacobian") {
+        1e-6
+    } else if case.starts_with("AverageDerivative") {
+        0.08
+    } else {
+        0.01
+    }
 }
 
 fn ids(raw: &[u32]) -> Arc<[VariableId]> {
@@ -154,9 +168,9 @@ fn all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_r
             let context = ExecutionContext::for_tests(803);
             let mut prepared =
                 builder.prepare(&context).unwrap_or_else(|error| panic!("{case}: {error:?}"));
-            let plan = prepared
-                .checked_derivative_response_info()
-                .unwrap_or_else(|| panic!("{case}: missing retained checked operation"));
+            let RetainedOperation::DerivativeResponse(plan) = prepared.retained_operation() else {
+                panic!("{case}: missing retained checked operation")
+            };
             assert_eq!(plan.query, query, "{case}");
             assert_eq!(plan.identifier, IdentifierId::ResponseBackdoor, "{case}");
             assert_eq!(plan.estimator, *expected_estimator, "{case}");
@@ -179,7 +193,7 @@ fn all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_r
                 ) => {
                     assert!(standard_error.is_finite() && *standard_error >= 0.0, "{case}");
                     assert_eq!(
-                        result.estimate.as_effect().unwrap().se_analytic(),
+                        result.estimate().as_effect().unwrap().se_analytic(),
                         *standard_error,
                         "{case}"
                     );
@@ -212,7 +226,10 @@ fn all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_r
                 // withholds the Frequentist interval; it needs a coefficient
                 // covariance the additive-GAM plug-in does not yet expose.
                 (count, ResponseUncertainty::None) if count > 1 => {
-                    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan(), "{case}");
+                    assert!(
+                        result.estimate().as_effect().unwrap().se_analytic().is_nan(),
+                        "{case}"
+                    );
                 }
                 (count, other) => panic!(
                     "{case}: expected a confidence scalar or pointwise band for {count} coordinates, got {other:?}"
@@ -232,10 +249,10 @@ fn all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_r
             };
             assert_eq!(got.len(), expected.len(), "{case}");
             for (got, expected) in got.iter().zip(expected) {
-                assert!((got - expected).abs() < 0.15, "{case}: {got} != {expected}");
+                assert!((got - expected).abs() < tolerance(case), "{case}: {got} != {expected}");
             }
 
-            let refreshed = prepared.refresh(data.clone(), &context).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, data.clone(), &context).unwrap();
             let refreshed_response = refreshed.response().expect("refreshed response");
             let refreshed_values = match &refreshed_response.estimate {
                 ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => {
@@ -256,14 +273,14 @@ fn all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_r
             let artifact = prepared
                 .encode_contracted_result(&refreshed, "checked-derivative-response", &context)
                 .unwrap();
-            let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+            let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
             assert!(
                 consumed.acceptance.unresolved.iter().any(|reason| {
                     reason.as_ref() == "dependencies.checked_derivative_response_operation"
                 }),
                 "{case}"
             );
-            assert!(!consumed.acceptance.accepts_as_verified_program(), "{case}");
+            assert!(!consumed.acceptance.accepts_as_replayed_program(), "{case}");
         }
     }
 }
@@ -368,7 +385,9 @@ fn all_bayesian_static_dag_derivative_coordinates_execute_retained_operations() 
                 bandwidth: Some(0.35),
                 ..Default::default()
             })
-            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+            // Rubin bootstrap is the derivative posterior; Laplace/Gaussian is
+            // the accepted compatibility declaration, not a coefficient fit.
+            .inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(64)))
             .refute(RefuteSuite::None)
             .build()
             .unwrap();
@@ -376,9 +395,9 @@ fn all_bayesian_static_dag_derivative_coordinates_execute_retained_operations() 
             let mut prepared = builder
                 .prepare(&context)
                 .unwrap_or_else(|error| panic!("{case} accepted={accepted}: {error:?}"));
-            let plan = prepared
-                .checked_derivative_response_info()
-                .unwrap_or_else(|| panic!("{case}: missing retained checked operation"));
+            let RetainedOperation::DerivativeResponse(plan) = prepared.retained_operation() else {
+                panic!("{case}: missing retained checked operation")
+            };
             assert_eq!(plan.query, query, "{case}");
             assert_eq!(plan.identifier, IdentifierId::ResponseBackdoor, "{case}");
             assert_eq!(plan.estimator, *expected_estimator, "{case}");
@@ -426,18 +445,171 @@ fn all_bayesian_static_dag_derivative_coordinates_execute_retained_operations() 
             };
             assert_eq!(values.len(), expected.len(), "{case}");
             for (actual, truth) in values.iter().zip(expected) {
-                assert!((actual - truth).abs() < 0.15, "{case}: {actual} != {truth}");
+                assert!((actual - truth).abs() < tolerance(case), "{case}: {actual} != {truth}");
             }
 
-            let refreshed = prepared.refresh(data.clone(), &context).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, data.clone(), &context).unwrap();
             let artifact = prepared
                 .encode_contracted_result(&refreshed, "checked-bayesian-derivative", &context)
                 .unwrap();
-            let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+            let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
             assert!(consumed.acceptance.unresolved.iter().any(|reason| {
                 reason.as_ref() == "dependencies.checked_derivative_response_operation"
             }));
-            assert!(!consumed.acceptance.accepts_as_verified_program());
+            assert!(!consumed.acceptance.accepts_as_replayed_program());
+        }
+    }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
+}
+
+/// A linear two-outcome law with independent row noise, so the additive-GAM fit has residual
+/// spread for a coefficient covariance to describe. The noise is a fixed integer hash of the
+/// row index: a sum of twelve uniforms, centred, with unit variance.
+fn noisy_fixture() -> (TabularData, Dag) {
+    fn noise(row: u32, stream: u32) -> f64 {
+        let mut state =
+            row.wrapping_mul(0x9E37_79B9).wrapping_add(stream.wrapping_mul(0x85EB_CA6B)) | 1;
+        let mut sum = 0.0;
+        for _ in 0..12 {
+            state ^= state << 13;
+            state ^= state >> 17;
+            state ^= state << 5;
+            sum += f64::from(state) / f64::from(u32::MAX);
+        }
+        sum - 6.0
+    }
+    let rows = 1000_u32;
+    let a: Vec<_> = (0..rows).map(|i| noise(i, 1)).collect();
+    let b: Vec<_> = (0..rows).map(|i| noise(i, 2)).collect();
+    let y: Vec<_> = (0..rows)
+        .zip(a.iter().zip(&b))
+        .map(|(i, (a, b))| 5.0 + 2.0 * a - 0.5 * b + noise(i, 3))
+        .collect();
+    let v: Vec<_> = (0..rows)
+        .zip(a.iter().zip(&b))
+        .map(|(i, (a, b))| 1.0 + 0.25 * a + 1.5 * b + noise(i, 4))
+        .collect();
+    let data = TabularData::from_f64_columns([
+        ("a", a.as_slice()),
+        ("b", b.as_slice()),
+        ("y", y.as_slice()),
+        ("v", v.as_slice()),
+    ])
+    .unwrap();
+    let mut graph = Dag::with_variables(4);
+    for (source, target) in [(0, 2), (0, 3), (1, 2), (1, 3)] {
+        graph
+            .insert_directed(DenseNodeId::from_raw(source), DenseNodeId::from_raw(target))
+            .unwrap();
+    }
+    (data, graph)
+}
+
+/// On a supplied or accepted Dag with noisy rows, the frequentist directional derivative and
+/// response Jacobian publish one confidence interval per coordinate, each containing its
+/// estimate. A withheld band (`ResponseUncertainty::None`) fails here.
+#[test]
+fn frequentist_vector_derivatives_on_a_supplied_dag_publish_a_pointwise_band() {
+    let (data, graph) = noisy_fixture();
+    let cases = [
+        (
+            "DirectionalDerivative",
+            F::DirectionalDerivative {
+                outcomes: ids(&[2, 3]),
+                treatments: ids(&[0, 1]),
+                at: Arc::from([0.0, 0.0]),
+                direction: Arc::from([1.0, 2.0]),
+            },
+            vec![1.0, 3.25],
+        ),
+        (
+            "ResponseJacobian",
+            F::Jacobian {
+                outcomes: ids(&[2, 3]),
+                treatments: ids(&[0, 1]),
+                at: Arc::from([0.0, 0.0]),
+                scale: DerivativeScale::Identity,
+            },
+            vec![2.0, -0.5, 0.25, 1.5],
+        ),
+    ];
+    for accepted in [false, true] {
+        for (case, functional, truth) in &cases {
+            let base = Study::tabular(data.clone());
+            let builder = if accepted {
+                base.graph(AcceptedGraph::from(graph.clone()))
+            } else {
+                base.graph(graph.clone())
+            }
+            .query(CausalQuery::Response(ResponseQuery::new(functional.clone())))
+            .inference(InferenceMode::Frequentist)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+            let context = ExecutionContext::for_tests(811);
+            let prepared = builder
+                .prepare(&context)
+                .unwrap_or_else(|error| panic!("{case} accepted={accepted}: {error:?}"));
+            let RetainedOperation::DerivativeResponse(plan) = prepared.retained_operation() else {
+                panic!("{case}: missing retained checked operation")
+            };
+            assert_eq!(plan.estimator, EstimatorId::ResponseGamDerivative, "{case}");
+            drop(builder);
+
+            let result = prepared.estimate(&data, &context).unwrap();
+            let response = result.response().expect("response payload");
+            let values = match &response.estimate {
+                ResponseIdentification::PointIdentified(ResponseValue::Vector(values)) => {
+                    values.to_vec()
+                }
+                ResponseIdentification::PointIdentified(ResponseValue::Jacobian {
+                    values, ..
+                }) => values.to_vec(),
+                other => panic!("{case}: unexpected response identification {other:?}"),
+            };
+            assert_eq!(values.len(), truth.len(), "{case}");
+            let ResponseUncertainty::PointwiseBand {
+                lower,
+                upper,
+                interpretation: IntervalInterpretation::Confidence,
+                ..
+            } = &response.uncertainty
+            else {
+                panic!(
+                    "{case} accepted={accepted}: expected a pointwise confidence band, got {:?}",
+                    response.uncertainty
+                );
+            };
+            assert_eq!(lower.len(), truth.len(), "{case}");
+            assert_eq!(upper.len(), truth.len(), "{case}");
+            for (index, value) in values.iter().enumerate() {
+                assert!(
+                    lower[index].is_finite() && upper[index].is_finite(),
+                    "{case}[{index}]: a finite interval"
+                );
+                assert!(lower[index] < upper[index], "{case}[{index}]: a nondegenerate interval");
+                assert!(
+                    lower[index] <= *value && *value <= upper[index],
+                    "{case}[{index}]: the interval contains its estimate"
+                );
+                assert!(
+                    (value - truth[index]).abs() < 0.5,
+                    "{case}[{index}]: {value} is far from {}",
+                    truth[index]
+                );
+            }
         }
     }
 }

@@ -16,9 +16,9 @@
 //!
 //! A discretized value is `point_only`. It carries no interval, posterior or
 //! calibration ([`PreparedDiscretizedComposition::uncertainty`] refuses with
-//! `cell_not_licensed`); parameter uncertainty declared on the source mechanisms is
+//! `not_supported`); parameter uncertainty declared on the source mechanisms is
 //! not propagated through the discretization and the result says so. Exact
-//! finite-law arithmetic supplies no calibration license. Levels are declared per
+//! finite-law arithmetic supplies no calibration support. Levels are declared per
 //! variable, never defaulted.
 //!
 //! # Lifecycle
@@ -44,7 +44,7 @@
 //!   one bit for bit; a consumer that retained the identity independently refuses
 //!   a self-consistent artifact of another composition.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use super::mechanism_exports::model_crate::discretized_scm::{
     ArmDiagnostic, BRIDGE_CALIBRATION, BRIDGE_ERROR_SCOPE, BRIDGE_INFERENCE, BridgeRefusal,
@@ -96,7 +96,7 @@ impl DiscretizationRefusal {
         }
     }
 
-    /// What would license the request, when the refusal names it.
+    /// What would support the request, when the refusal names it.
     #[must_use]
     pub fn remedy(&self) -> Option<&'static str> {
         match self {
@@ -138,6 +138,8 @@ pub struct DiscretizedCompositionInspection {
     pub identity: String,
     /// Identity of the source composition's plan (hex) at discretization.
     pub source_plan_identity: String,
+    /// Version of the source plan's semantic identity encoding.
+    pub source_plan_identity_version: u64,
 }
 
 /// A composition discretized into an executable finite model.
@@ -146,6 +148,7 @@ pub struct PreparedDiscretizedComposition {
     plan: DiscretizationPlan,
     bridge: DiscretizedLinearGaussian,
     source_plan_identity: String,
+    source_plan_identity_version: u64,
 }
 
 impl PreparedMechanismComposition {
@@ -168,6 +171,7 @@ impl PreparedMechanismComposition {
             plan: plan.clone(),
             bridge,
             source_plan_identity: self.plan_identity_hex(),
+            source_plan_identity_version: self.plan_identity_version(),
         })
     }
 }
@@ -198,6 +202,12 @@ impl PreparedDiscretizedComposition {
         &self.source_plan_identity
     }
 
+    /// Version of the source plan identity encoding.
+    #[must_use]
+    pub const fn source_plan_identity_version(&self) -> u64 {
+        self.source_plan_identity_version
+    }
+
     /// Evaluate a contrast on the discretized model beside the closed-form
     /// Gaussian value at the same intervention values and the computed bound.
     ///
@@ -215,7 +225,7 @@ impl PreparedDiscretizedComposition {
     /// An interval, band, posterior or law-valued reading of a discretized value.
     ///
     /// # Errors
-    /// Always `cell_not_licensed` (`discretized_scm.point_only`): a discretized
+    /// Always `uncertainty_representation_insufficient` (`discretized_scm.point_only`): a discretized
     /// value is a point with a computed mean-error bound.
     pub fn uncertainty(
         &self,
@@ -266,6 +276,7 @@ impl PreparedDiscretizedComposition {
             variables,
             identity: self.bridge.identity_hex(),
             source_plan_identity: self.source_plan_identity.clone(),
+            source_plan_identity_version: self.source_plan_identity_version,
         }
     }
 }

@@ -1,27 +1,65 @@
-# Observation-conditioned scientific queries
+# Ask what follows from an observation
 
-Conditioning on an observation and intervening are different claims, also when
-both are computed from the same causal model. `P(Y | S = s)` reads the
-observational law and keeps every association between `S` and `Y`, including
-the one a common cause creates. `P(Y | do(S = s))` cuts the arrows into `S`.
-This page describes the bounded queries that keep the two apart in the claim's
-identity and in its reported value, how a measured signal differs from the
-construct it measures, and what is closed.
+Use this page when you hold a composed causal model and want to know what a recorded value
+tells you: the distribution of an outcome given what was observed, how that differs from
+setting the same value by intervention, what a noisy indicator implies about the construct
+it measures, or how much evidence would move a probability to a stated level.
 
-All values here are exact given a declared model, or a labelled point value of
-a fitted one. Nothing on this page is an interval or a calibration claim.
+Conditioning on an observation and intervening are different claims, also when both are
+computed from the same causal model. `P(Y | S = s)` reads the observational law and keeps
+every association between `S` and `Y`, including the one a common cause creates.
+`P(Y | do(S = s))` cuts the arrows into `S`. The queries here keep the two apart in the
+claim's identity and in its reported value.
+
+You need a prepared composition from `antecedent.mechanism_composition`
+(see [composition](composition.md)); the posterior-update and evidence-required queries
+take their declared model directly as levels and numbers.
+
+```python
+from antecedent import observation_query as oq
+
+# model: a PreparedMechanismComposition of the binary variables Z -> S, Z -> Y, S -> Y
+seen = oq.condition_on(model, "Y", {"S": "1"})          # P(Y | S = 1)
+done = oq.intervene_on(model, "Y", {"S": "1"})          # P(Y | do(S = 1))
+both = oq.condition_versus_intervene(model, "Y", {"S": "1"})
+
+seen.distribution["1"], seen.evidence_probability       # 0.78, 0.5 on the fixture below
+done.distribution["1"]                                  # 0.6
+both.paired.max_abs_difference                          # 0.18
+seen.operation, seen.inference_basis   # "conditioning", "exact_given_declared_model"
+```
+
+**Reading a claim.** Every answer is an `ObservationClaim`. `operation` says which claim it
+is, `inference_basis` says how to read the number
+([What a value means](#what-a-value-means)), and only the accessor of the claim's own kind
+carries a value (`distribution`, `paired`, `gaussian`, `threshold_rows`, `posterior`, ...);
+the others are `None`.
+
+**What the number is, and its uncertainty.** A value is exact given a declared model, or a
+labelled point value of a fitted one. Parameter uncertainty is returned as aligned posterior
+draws whose spread is labelled `uncalibrated_spread`. An interval of one redrawn quantity
+is reported with its calibration status: it reads `calibrated` only where a coverage record
+currently attests that composed coordinate, construction, level and evidence size, and
+otherwise says that no record does. An interval or a calibration statement for the value of
+a declared model is refused, because that value has no sampling distribution.
+
+**Assumptions.** The composed model is taken as given: its graph, its mechanisms and, for a
+measured signal, non-differential measurement error. The queries compute consequences of
+that model; they do not test it.
 
 ## Boundary
 
 | Item | Supported | Refused |
 | --- | --- | --- |
-| Model | a composed finite model (declared or fitted conditional tables, enumerated within the finite-state bound), a declared finite hypothesis space, a declared Beta-Bernoulli model | a linear-Gaussian composition (`route_not_supported`), continuous or sampled conditioning |
-| Conditioning | `P(outcome | recorded values)` with the probability of the evidence; paired with `P(outcome | do(assignment))` on the same model | an assigned or hypothetical value in a conditioning slot, an intervention supplied to a conditioning query, observations mixed with an intervention |
+| Model | a composed finite model (declared or fitted conditional tables, enumerated within the finite-state bound), a composed linear-Gaussian model (closed-form joint law), a declared finite hypothesis space, a declared Beta-Bernoulli model | sampled conditioning; a mixed finite and continuous composition |
+| Conditioning | `P(outcome | recorded values)` with the probability of the evidence; paired with `P(outcome | do(assignment))` on the same model; on a linear-Gaussian model, the conditional mean and variance given typed real values with the log density of the evidence | an assigned or hypothetical value in a conditioning slot, an intervention supplied to a conditioning query, level strings for a continuous model, real values for a finite one, observed values of singular covariance |
+| Observing after intervening | `P(outcome | do(assignment), recorded values)` on a finite model and on a linear-Gaussian model: the interventional law conditioned on recorded values of variables that are not intervened on | a variable that is both recorded (or measured) and intervened on |
 | Measured signal | the recorded value of one indicator of a construct, through a declared non-differential binary-misclassification or categorical-confusion measurement model in its own population, regime, arm and representation version | the recorded value used as the construct; error that differs by arm, population or time; a route with no confusion matrix; more than one measured signal |
 | Threshold crossing | which observed levels of one signal move `P(outcome = level)` to or past a level, and the probability of observing one | a level no observed level reaches (refused, with the most extreme value attained) |
 | Posterior update | exact Bayes' rule on a declared finite space (exchangeable observations); Beta-Bernoulli conjugate update with predictive success probability | a prior or likelihood that is not a distribution; observations of probability zero |
 | Evidence required | the exact Bayes factor; the fewest identical conditionally independent readings of a binary signal; the fewest consecutive successes or failures for a Beta-Bernoulli predictive probability | a level the signal cannot reach, or that needs more than the declared bound (refused, with the supremum or infimum reachable) |
-| Uncertainty | none | an interval, a credible interval, a calibration statement |
+| Parameter uncertainty | aligned posterior draws of the conditional functional by retained-data redraw: Normal-Inverse-Gamma for a regression, Dirichlet for a table; the spread labelled `uncalibrated_spread`; an interval of one redrawn quantity, annotated with its calibration status | a measured signal's error rates (declared, not fitted); a mechanism with declared shared latents |
+| Uncertainty of a declared value | none | an interval, a credible interval, a calibration statement |
 
 ## Observing is not intervening
 
@@ -58,8 +96,59 @@ hypothetical value is refused as an intervention smuggled into a conditioning
 slot (`observation_query.intervention_in_conditioning_slot`), as is an
 intervention handed to a conditioning query. The same value stated as an
 intervention is answered. The distribution that conditions on observations
-after an intervention, `P(y | do(s), z)`, is a different query with no bounded
-route; it is refused (`observation_query.mixed_conditioning_and_intervention`).
+after an intervention, `P(y | do(s), z)`, is a third claim with its own operation
+(`conditional_intervention`) and identity; see the next section.
+
+## Observing after intervening
+
+`P(y | do(s), z)` composes the two operations: the truncated factorization
+removes the mechanism of every intervened variable, and the resulting law is
+conditioned on the recorded values `z`. On the confounded fixture:
+
+| Quantity | Value |
+| --- | --- |
+| `P(Y = 1 | do(S = 1), Z = 1)` | 0.9 |
+| `P(Z = 1 | do(S = 1), Y = 1)` | 0.75 |
+| `P(Z = 1 | S = 1, Y = 1)` (observed, not set) | 0.36 / 0.39 = 0.92 |
+
+Recorded ancestors of the intervention are unchanged by it; a recorded
+descendant of the intervention is informative about the causes of the outcome
+that were left alone, which is why the second row moves from the observational
+0.92. A variable cannot be both recorded and intervened on: its mechanism was
+removed, so it is set and not observed
+(`observation_query.mixed_conditioning_and_intervention`, with the remedy of
+conditioning on a variable that is not intervened on). A measured signal on an
+intervened construct is the same refusal; a measured signal on another construct
+is inverted through its model against the intervened law.
+
+## Continuous variables
+
+A linear-Gaussian composition has a closed-form joint Gaussian law (also under
+`do()`, by removing the mechanism of the intervened variable). Conditioning on
+observed real values is the Schur complement of the observed block `o`:
+
+```
+mean_r' = mean_r + S_ro S_oo^-1 (x_o - mean_o)
+cov_r'  = S_rr - S_ro S_oo^-1 S_or
+```
+
+with the log density of the evidence `N(x_o; mean_o, S_oo)` reported beside it.
+The evidence and the interventions are typed real values, never level strings; a
+level string for a continuous model and a real value for a finite one are each a
+typed refusal that names the other form. Hand-checkable fixture
+(`X ~ N(1, 4)`, `M = 0.5 + 2 X + e`, `Y = -1 + 0.5 X + 3 M + 0.5 e`; joint means
+1, 2.5, 7, variances 4, 17, 178.25, covariances `XM` 8, `XY` 26, `MY` 55):
+
+| Quantity | Value |
+| --- | --- |
+| `E[Y | M = 3]`, `Var[Y | M = 3]` | `7 + (55/17)(0.5)`, `178.25 - 55^2/17` |
+| `Y | X = 2, M = 3` (both parents) | `N(9, 0.25)`, the structural equation |
+| `Y | do(X = 2), M = 5` | `N(15, 0.25)` |
+| `E[M | X = 2, Y = 10]`, `Var` | `2.5 + 32/37`, `1/37` |
+
+Observed values whose joint covariance is singular (an intervened coordinate, or
+a deterministic function of the other observed values) have no conditional law
+and are refused (`observation_query.evidence_covariance_singular`).
 
 ## Measured versus latent
 
@@ -124,6 +213,49 @@ reach it.
 | Beta(1,1) to predictive 0.99, bound 50 | refused; supremum reachable 51/52 |
 | any prior to a level with an uninformative signal | refused; the prior is the supremum |
 
+## Parameter uncertainty
+
+The number a fitted model gives is a function of parameters that were estimated
+from a sample. When the data a mechanism was fitted from is retained
+(sufficient statistics of a regression, or the counts of each parent
+configuration of a table), the parameters are redrawn from their conjugate
+posterior and the query is re-answered under each draw:
+
+- *Regression*: `sigma2 ~ InvGamma(a_n, b_n)` and `beta | sigma2 ~ N(m_n,
+  sigma2 Lambda_n^-1)`, so every linear functional of the coefficients has a
+  Student-t marginal with `2 a_n` degrees of freedom.
+- *Table*: an independent Dirichlet over the counts plus the prior concentration
+  for each parent configuration.
+
+Mechanisms fitted on the same complete rows have posteriors that factor over the
+mechanisms, so their draws are independent; a mechanism with no retained data
+keeps its declared numbers (as a declared node does in the count-fitted route);
+a mechanism with declared shared latents cannot be redrawn from a regression on
+its parents. The quantities are the conditional mean and variance of a
+continuous outcome, or the probability of each level of a finite outcome.
+
+The result is aligned draws: one row is one joint realization of every
+quantity (one parameter draw produced them all), carried with the alignment
+identity of the distribution artifact (Rust `ObservationClaim::distribution` builds
+it: alignment `Joint`, calibration `NotMeasured`; in Python the draws are
+`ObservationClaim.parameter_draws`). The draws are a deterministic
+function of the retained statistics, priors, seed and draw count, and an
+independent consumer replays them. Their spread is exact for the posterior and
+is labelled `uncalibrated_spread`. `ObservationClaim::parameter_interval`
+(Python `parameter_interval(quantity, construction, evidence_rows=...)`) returns
+the interval of one redrawn quantity through the composed-interval gate, with a
+calibration slot. The slot reads `calibrated` only when the composed coordinate,
+the construction, the nominal level and the evidence size resolve to a currently
+attesting coverage record; without one the interval is still reported and its
+calibration status says that no record attests it. A claim without parameter
+draws (`observation_query.no_parameter_draws`) and an unknown quantity
+(`observation_query.unknown_quantity`) are refused.
+
+The Dirichlet redraw agrees with the count-fitted posterior quantiles
+(`count_fitted_observation`, below) on the same counts; that
+route is the one whose interval for a single conditional probability rests on a
+coverage record.
+
 ## What a value means
 
 | Reading | When | Claim |
@@ -153,11 +285,13 @@ value. The count-fitted interval is measured as a whole-method design:
   uninformative (Youden index near zero); a small observation bound.
 
 A declared model's posterior probability is an exact number with no sampling
-distribution, so a sampling interval for it is logically closed with
-`cell_not_licensed` (`observation_query.declared_model_has_no_sampling_interval`,
-`observation_query.calibrated_probability_closed`). The interval is earned only
+distribution, so a sampling interval or a calibration claim for it is refused
+with `uncertainty_representation_insufficient`
+(`observation_query.declared_model_has_no_sampling_interval`,
+`observation_query.no_calibrated_probability`). The interval is earned only
 where the number does have a sampling distribution: tables fitted to counts. The
-count-fitted route (`antecedent.analysis.count_fitted_observation`) retains
+count-fitted route (Python `antecedent.observation_query.count_fitted_observation`, Rust
+`antecedent::analysis::count_fitted_observation`) retains
 per-parent-configuration counts and the row count `n`, places an independent
 Dirichlet posterior over every conditional, and reports the equal-tailed
 posterior quantiles of `P(Y | evidence)` computed by Monte Carlo over joint
@@ -173,31 +307,39 @@ uncertainty and is not redrawn.
 ## Layers
 
 - `antecedent_model::observation_query`: exact numerics on a `FiniteLaw` /
-  `ComposedFinite`, `FiniteBayesModel`, `BetaBernoulli` and the evidence solves.
-  No claim vocabulary and no contract dependency.
+  `ComposedFinite`, a `ComposedLinearGaussian` (`condition_gaussian`),
+  `FiniteBayesModel`, `BetaBernoulli` and the evidence solves.
+  `antecedent_model::observation_uncertainty`: the retained-data redraw. No claim
+  vocabulary and no contract dependency.
 - `antecedent_contract::observation_query`: slot semantics
   (`check_observation_slots`), the measured-signal likelihood
   (`measured_likelihood`, built on the measurement model contract), the
   reading (`InferenceBasis`) and the closed-route refusals.
 - `antecedent_io_core::observation_query_artifact`: the `observation_query_v1`
-  artifact.
+  artifact and the general queries (below).
 - `antecedent::analysis::observation_query`, `observation_posterior` and
-  `observation_evidence`: the facade. `PreparedMechanismComposition` gains
-  `observe`, `condition_on`, `intervene_on`, `condition_versus_intervene` and
+  `observation_evidence`: the facade. `PreparedMechanismComposition` has
+  `observe`, `observe_continuous`, `observe_with_parameter_uncertainty`,
+  `condition_on`, `intervene_on`, `condition_versus_intervene` and
   `threshold_crossing`; declared-model queries are free functions.
 
 ## Python
 
-`antecedent.observation_query` exposes the facade: `condition_on`, `intervene_on`,
-`condition_versus_intervene` and `threshold_crossing` take a prepared
+`antecedent.observation_query` exposes the facade: `condition_on`, `condition_on_values`,
+`intervene_on` (with `given=` for observation after intervention), `parameter_uncertainty`
+(with `RegressionData`, `CountData` and `RedrawPrior`), `condition_versus_intervene` and
+`threshold_crossing` take a prepared
 `mechanism_composition.PreparedMechanismComposition`; `finite_posterior`,
 `conjugate_posterior`, `required_bayes_factor`, `required_observations_binary_signal` and
 `required_observations_conjugate` take a declared model; `consume_observation_query_artifact`
-replays an artifact against a retained identity. Slots are `Recorded`, `Assigned`,
+replays an artifact against a retained identity; `count_fitted_observation` is the
+count-fitted route with its interval. Slots are `Recorded`, `Assigned`,
 `Hypothetical` and `Measured` (a recorded indicator value with its
 `measurement_models.MeasurementModel`). Every claim is an `ObservationClaim` with its
-`identity`, `operation`, `inference_basis` and sealed `artifact`; `interval()` and
-`calibrated_probability()` raise `cell_not_licensed`. Every refusal is an
+`identity`, `operation`, `inference_basis` and sealed artifact (`export()`); `interval()` and
+`calibrated_probability()` raise `uncertainty_representation_insufficient`;
+`parameter_interval()` returns the interval of a redrawn quantity with its calibration status;
+`gaussian` and `parameter_draws` carry the typed values. Every refusal is an
 `ObservationQueryRefusal` with a registered `reason_code`, an `observation_query.*` `detail`,
 `expected`/`supplied` (the requested level and the reachable extremum of an unreachable-level
 refusal) and a `remedy`.
@@ -210,6 +352,13 @@ patterns. A consumer recomputes the identity, recompiles the premises under the
 coherence checker and replays the query to identical bits. A refused query (an
 unreachable level, a measured value without an applicable model) cannot be
 sealed.
+
+Queries over continuous evidence, observation after intervention and parameter
+redraw use format version 2 under the feature marker `observation_query_general_v1`,
+with their own identity tag. A reader that does not know the version refuses the
+artifact before it interprets the payload. Real values and draws are IEEE bit
+patterns, and the consumer checks that the version, the marker and the query
+variant agree.
 
 Replay protects against corruption, edits that are not resealed and resealed
 edits that change the answer. It does not protect against a producer that seals
@@ -228,5 +377,21 @@ new composition must be asked again.
 
 ## Refusals
 
-Details are under `observation_query.*`; the full table with codes and remedies
-is in [refusal-and-partial-knowledge.md](refusal-and-partial-knowledge.md).
+Every refusal is an `ObservationQueryRefusal` with a registered `reason_code`, an
+`observation_query.*` `detail` and a `remedy`. The ones you are most likely to meet:
+
+| You did | Detail | Code |
+| --- | --- | --- |
+| put an assigned or hypothetical value in a conditioning slot | `observation_query.intervention_in_conditioning_slot` | `quantity_semantics_mismatch` |
+| recorded and intervened on the same variable | `observation_query.mixed_conditioning_and_intervention` | `route_not_supported` |
+| offered an indicator's recorded value as the construct, with no measurement model | `observation_query.measured_as_construct` | `proxy_offered_as_construct` |
+| used a measurement model for another indicator, construct, population, regime or arm | `observation_query.indicator_mismatch`, `construct_mismatch`, `population_mismatch`, `regime_mismatch`, `arm_mismatch` | `measurement_binding_mismatch` |
+| declared error that differs by arm, population or time | `observation_query.differential_error_unsupported` | `differential_error_not_pooled` |
+| conditioned on evidence of probability zero, or of singular covariance | `observation_query.zero_probability_evidence`, `evidence_covariance_singular` | `invalid_argument` |
+| passed level strings to a linear-Gaussian model, or real values to a finite one | `observation_query.levels_for_continuous_model`, `real_values_for_finite_model` | `invalid_argument` |
+| asked for a level no observation reaches, or one beyond the observation bound | `observation_query.level_unreachable` | `evidence_cannot_reach_level` |
+| asked for an interval or a calibration statement of a declared value | `observation_query.declared_model_has_no_sampling_interval`, `no_calibrated_probability` | `uncertainty_representation_insufficient` |
+
+The full table, with what would support each request, is under
+[Observation-conditioned queries](reference/refusal-codes.md#observation-conditioned-queries)
+in the refusal reference.

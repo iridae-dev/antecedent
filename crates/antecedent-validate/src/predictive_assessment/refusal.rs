@@ -2,9 +2,9 @@
 //!
 //! Every refusal carries a registered reason code, a namespaced
 //! `predictive_assessment.*` detail and a message that states the declaration
-//! or evidence that would license the request.
+//! or evidence that would support the request.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::reason_code;
 use thiserror::Error;
@@ -35,8 +35,8 @@ pub mod detail {
     /// The validation design is not well formed.
     pub const DESIGN_INVALID: &str = "predictive_assessment.design_invalid";
     /// An iid assumption was declared for a temporal or clustered design.
-    pub const IID_NOT_LICENSED: &str =
-        "predictive_assessment.iid_not_licensed_for_dependent_design";
+    pub const IID_NOT_SUPPORTED: &str =
+        "predictive_assessment.iid_not_supported_for_dependent_design";
     /// The declared serial dependence is shorter than the forecast horizon implies.
     pub const SERIAL_LAG_BELOW_HORIZON: &str = "predictive_assessment.serial_lag_below_horizon";
     /// Too few clusters for a cluster-robust variance.
@@ -47,11 +47,13 @@ pub mod detail {
     pub const OVERLAP_UNKNOWN: &str = "predictive_assessment.overlap_unknown";
     /// A score or score-difference interval was requested without naming the predictor,
     /// score and level it is for.
-    pub const INTERVAL_NOT_LICENSED: &str = "predictive_assessment.interval_not_licensed";
-    /// A score interval was requested at a design, score, law family, level or number of
-    /// cases that no current attesting coverage record measured.
-    pub const INTERVAL_SCOPE_OUTSIDE_MEASURED: &str =
-        "predictive_assessment.interval_scope_outside_measured";
+    pub const INTERVAL_NOT_SUPPORTED: &str = "predictive_assessment.interval_not_supported";
+    /// A score interval was requested for a predictor or score the assessment does not
+    /// hold, at a level outside the supported range, or over case scores with no sampling
+    /// variance.
+    pub const INTERVAL_REQUEST_INVALID: &str = "predictive_assessment.interval_request_invalid";
+    /// A score interval was requested over laws of more than one family.
+    pub const INTERVAL_LAW_FAMILY_MIXED: &str = "predictive_assessment.interval_law_family_mixed";
     /// A score interval was requested with no declared dependence of the cases.
     pub const INTERVAL_DEPENDENCE_UNDECLARED: &str =
         "predictive_assessment.interval_dependence_undeclared";
@@ -73,7 +75,7 @@ pub struct PredictiveAssessmentError {
     pub code: &'static str,
     /// Namespaced `predictive_assessment.*` detail.
     pub detail: &'static str,
-    /// Human-readable context, including what would license the request.
+    /// Human-readable context, including what would support the request.
     pub message: String,
 }
 

@@ -1,0 +1,83 @@
+# Algorithm provenance for choice_inference.contract.
+
+feature_id = "choice_inference.contract"
+implementation_crate = "antecedent-contract"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+implementation_deviations = [
+ "Historical borrowing follows the power-prior idea (Ibrahim and Chen, Statistical Science 2000, doi 10.1214/ss/1009212673) and is applied to Dirichlet-multinomial counts: each retained source contributes discount times its counts to the prior shapes, with a fixed discount in [0, 1]; the paper treats regression models and an optionally random discount.",
+ "A source with different meaning or population is refused; a free-text rationale does not establish source-to-target transport. A same-frame native pooled posterior can be reused through its replayed artifact and independently retained identity, with the same base prior and bounded, replayed nested ancestry.",
+ "Pooled sources require integer counts and one normalized identity per independent respondent; overlap between respondents and sources, and between sources, is judged by the evidence ledger.",
+ "The per-source conflict diagnostic is a prior-predictive log evidence ratio against a vague prior versus the remaining discounted evidence and the current look, screened at ln 10; for fractional power-prior counts it is a generalized score, not a calibrated Bayes factor; calibration of the screen is not measured and a conflicting source is reported in the posterior and refused for stopping decisions or study ranking, never silently re-weighted.",
+ "Every route is point-only with calibration not_measured except the pooled-share interval (capability `choice_inference.interval_candidates`): the equal-tail credible interval from the explicit Beta marginal quantiles of the Dirichlet posterior, reported with its calibration status and never refused for the lack of a coverage record. The study value is the exact expected value of sample information over the Dirichlet-multinomial predictive (Monte Carlo with a standard error beyond 250 000 outcomes) under a linear per-option value, with no calibrated-uncertainty claim.",
+ "Stated choices do not identify behavioural or causal outcomes.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent-contract/tests/choice_design.rs",
+ "crates/antecedent-io/tests/choice_inference_result_artifact.rs",
+ "crates/antecedent-estimate/src/choice_inference.rs (unit tests)",
+ "crates/antecedent-design/src/choice_evsi.rs (unit tests)",
+ "python/tests/test_choice_inference.py",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "The contract, qualification and routing layers of choice inference: the choice-study declaration with completeness and consistency refusals, scope matching and row-level overlap of retained sources through the evidence ledger, the procedure-matrix authorization of each route, the conflict screen on the discounted prior, the sealed result artifact with consumer replay, and the EVSI ranking over the pooled posterior. Each numerical step is delegated to the covered_by records."
+no_independent_algorithm = "Scope comparison, ledger overlap refusal, matrix lookup, threshold comparison, artifact sealing and replay, and enumeration of a closed-form predictive distribution for the study value; the posterior, hierarchical posterior and procedure law are separate method records."
+covered_by = ["adaptive_inference.dirichlet_choice", "adaptive_inference.hierarchical_choice", "adaptive_inference.choice_procedure_law", "adaptive_inference.analysis_contract", "adaptive_inference.procedure_matrix", "design.evsi"]
+inline_tests = true
+record_sha256 = "d5f65233f2dacca5741d5ae53441609e851d11296f2451f01a205e2380806b39"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/adaptive_design/choice.rs"
+items = ["const CHOICE_DESIGN_VERSION", "const MAX_CHOICES_PER_RESPONDENT", "const MAX_CHOICE_CONTRACT_OPTIONS", "const MAX_CHOICE_RESPONDENTS", "const MAX_CHOICE_SOURCES", "const ROW_DOMAIN", "const STAGE_BIND", "const STAGE_DECLARE", "fn account", "fn admit_paradigm", "fn cell", "fn check_frame", "fn check_monitoring_and_rule", "fn check_overlap", "fn check_respondents", "fn check_sources", "fn declaration", "fn details", "fn distinct_labels", "fn ensure_current", "fn evidence", "fn identity", "fn identity_of", "fn invalid", "fn looks", "fn new", "fn options", "fn respondent_rows", "fn respondents_at", "fn row_id", "fn scope", "fn source_row", "fn withdraw_retained_source", "struct ChoiceContractError", "struct ChoiceDesignContract", "struct ChoiceDesignDeclaration", "struct ChoiceEvidence", "struct ChoiceLook", "struct ChoiceRespondent", "struct RetainedChoiceProof", "struct RetainedChoiceSource"]
+sha256 = "610d1806686db216eaf010b61bbf153dd7135c5370ecc623b62775916d40f8b7"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/choice_inference.rs"
+items = ["module"]
+sha256 = "eebe0b35896a1fb312b240ceada2f3fc7b61600e722ea9b7b4a2bd501bfdbc94"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io/src/choice_inference_result_artifact.rs"
+items = ["const ARTIFACT_KIND", "const CHOICE_INFERENCE_CALIBRATION", "const CHOICE_INFERENCE_RESULT_ARTIFACT_FEATURE", "const CHOICE_INFERENCE_RESULT_ARTIFACT_VERSION", "const CHOICE_RESULT_REPLAY_TOLERANCE", "const MAX_CHOICE_INFERENCE_RESULT_BYTES", "const META_SECTION", "const REPLAY", "const SOURCE_DEPTH", "enum ChoiceResultSpec", "fn bits", "fn check", "fn compute_choice_result", "fn compute_identity", "fn contract", "fn contract_from", "fn contract_refusal", "fn declaration_from_wire", "fn declaration_to_wire", "fn decode_meta", "fn decode_unchecked", "fn drop", "fn encode_meta", "fn from", "fn from_bytes", "fn from_meta", "fn hierarchical_inputs", "fn identity", "fn look", "fn malformed", "fn outcome", "fn paradigm", "fn reals", "fn request_invalid", "fn reseal_identity", "fn result", "fn result_refusal", "fn retained_choice_source_from_artifact", "fn seal", "fn spec", "fn spec_from_wire", "fn source_admission_error", "fn spec_to_wire", "fn to_bytes", "fn verify_retained_choice_sources", "struct ChoiceDeclarationWire", "struct ChoiceInferenceResultArtifact", "struct ChoiceResult", "struct ChoiceResultError", "struct ChoiceResultMeta", "struct ChoiceSpecWire", "struct DepthGuard", "struct RespondentWire", "struct SourceWire", "type Error"]
+sha256 = "c7b4353c1edced31a0d31a34cb2bff72e4a5fa18068c152de770498fc8a62beb"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/choice_evsi.rs"
+items = ["module"]
+sha256 = "f903f6cc71d59129347955d2a2b1d6f41351cecf69ae9d43946d4466c92ca002"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/choice_inference.rs"
+items = ["fn contract", "fn contract_identity", "fn from", "fn identity", "fn result"]
+sha256 = "751bbeacf2f26a52984c0b172a0a627168d984dd9cb78430ac52d4abee79dca8"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/adaptive_design.rs"
+items = ["fn declaration_refusal"]
+sha256 = "b073e47ec1e8ccab2ea820ad91a9369e3c60ff452a3ffd2a85f91a700ae13935"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/choice_design.rs"
+items = ["fn a_complete_declaration_is_admitted_with_a_stable_identity_that_moves_with_every_field", "fn a_source_is_scoped_to_the_target_options_meaning_and_population", "fn aggregate_rows_are_bounded_before_ledger_materialization", "fn cell", "fn details", "fn each_missing_or_inconsistent_element_is_its_own_refusal", "fn final_only", "fn heterogeneity_is_not_identified_without_repeated_choices", "fn labels", "fn looked", "fn looks_expose_nested_respondent_prefixes", "fn repeated_choosers_are_not_pooled_and_a_pooled_source_is_not_a_hierarchical_prior", "fn respondents", "fn source", "fn source_counts_must_match_distinct_original_rows", "fn the_ledger_refuses_sources_that_share_rows_with_the_respondents_or_each_other", "fn the_matrix_authorizes_paradigms_for_the_cell", "fn withdrawing_a_source_removes_current_inference_authority"]
+sha256 = "a964f84faccc1b02f2bee3631aca33909e94c4134a0ae441cc841597ef209077"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-io/tests/choice_inference_result_artifact.rs"
+items = ["fn a_conflicting_source_is_reported_in_the_values_not_hidden", "fn a_measured_interval_is_reported_with_a_not_measured_calibration_slot", "fn a_route_is_refused_for_the_wrong_outcome_or_an_unsupported_paradigm", "fn a_single_retained_source_is_screened_against_the_current_look", "fn a_source_on_the_respondents_rows_is_refused_at_consumption", "fn a_stopping_decision_is_the_contracts_rule_on_the_posterior", "fn a_study_outside_the_measured_cells_reports_its_interval_as_not_measured", "fn a_symmetric_history_has_equal_probability_best", "fn categorical", "fn cell", "fn close", "fn contract", "fn ctx", "fn every_route_seals_and_a_fresh_consumer_replays_it", "fn hierarchical", "fn labels", "fn repeated", "fn resealed_semantic_edits_are_refused", "fn retained_native_posterior_is_replayed_and_bound_to_its_original_rows", "fn rule", "fn sealed", "fn source", "fn the_hierarchical_posterior_carries_the_respondents_dependence", "fn the_posterior_is_the_dirichlet_closed_form_on_the_qualified_prior", "fn uniform_final_only", "type Artifact", "type Error"]
+sha256 = "617d8757667f4e1911ddc828869e5c3b71a27175d16fb12eb0e20763e2b42099"

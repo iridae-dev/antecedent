@@ -1,29 +1,69 @@
 {
   "schema_version": 1,
   "oracle": {
-    "kind": "enumeration",
-    "project": "Colombo-Maathuis RFCI semantics plus independent oracle-CI motif enumeration",
-    "version": "fixture-algorithm-v1",
-    "generator": "temporary clean-room motif enumerator (deleted after artifact import)",
-    "normalization": "Edges are canonicalized by variable label; endpoint marks are recorded at each labeled endpoint."
+    "kind": "closed_form",
+    "project": "Colombo-Maathuis RFCI orientation of an unshielded triple whose end nodes have an empty separating set",
+    "normalization": "Edges are canonicalized by variable label; endpoint marks are recorded at each labeled endpoint.",
+    "method": "by-hand derivation: with dependence only on the adjacent pairs the end nodes are independent given the empty set, so the middle node is not in their separating set and the triple is oriented as a collider; the skeleton is the dependent pairs",
+    "derivation_status": "hand derivation from the definition, no retained generator; the earlier 'motif enumerator' is not retained and is not relied on"
   },
   "cases": [
     {
       "id": "unshielded_oracle_skeleton",
-      "variables": ["v0", "v1", "v2"],
-      "adjacencies": [["v0", "v1"], ["v1", "v2"]],
-      "non_adjacencies": [["v0", "v2"]]
+      "variables": [
+        "v0",
+        "v1",
+        "v2"
+      ],
+      "adjacencies": [
+        [
+          "v0",
+          "v1"
+        ],
+        [
+          "v1",
+          "v2"
+        ]
+      ],
+      "non_adjacencies": [
+        [
+          "v0",
+          "v2"
+        ]
+      ]
     },
     {
       "id": "unshielded_collider",
-      "variables": ["v0", "v1", "v2"],
-      "adjacencies": [["v0", "v1"], ["v1", "v2"]],
-      "arrowheads_at": ["v1", "v1"]
+      "variables": [
+        "v0",
+        "v1",
+        "v2"
+      ],
+      "adjacencies": [
+        [
+          "v0",
+          "v1"
+        ],
+        [
+          "v1",
+          "v2"
+        ]
+      ],
+      "arrowheads_at": [
+        "v1",
+        "v1"
+      ]
     }
   ],
   "invariants": {
     "node_relabeling": true,
     "rfci_has_no_possible_dsep_phase": true,
     "lemma_3_1_phase_present": true
+  },
+  "historical_oracle": {
+    "kind": "enumeration",
+    "project": "Colombo-Maathuis RFCI semantics plus independent oracle-CI motif enumeration",
+    "version": "fixture-algorithm-v1",
+    "generator": "temporary clean-room motif enumerator (deleted after artifact import)"
   }
 }

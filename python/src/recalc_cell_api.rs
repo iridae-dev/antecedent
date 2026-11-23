@@ -11,10 +11,11 @@
 //!
 //! - `CellSessionHandle`: the cell-AIPW route (discrete joint binary treatments).
 //! - `CrossfitSessionHandle`: the cross-fitted AIPW route, so its frozen scores can be exported.
-//! - `ScoreResumeHandle`: built only from artifact bytes; one licensed operation, a retarget of
+//! - `ScoreResumeHandle`: built only from artifact bytes; one supported operation, a retarget of
 //!   the frozen scores, with zero fits.
 #![allow(clippy::too_many_arguments)]
 
+use crate::NumericColumn;
 use std::collections::BTreeMap;
 
 use antecedent::analysis::recalc_cell::{
@@ -25,17 +26,17 @@ use antecedent::analysis::recalc_receipt::{
     RecalcOutcome, RecalcRequest, RecalcRunError, RecalcSession, StageCounts, TargetWeights,
     UtilitySpec, execute_with_receipt,
 };
-use antecedent_core::recalc::{
+use antecedent::estimate::{AipwAte, CellSaturatedAipw, ScoreTable};
+use antecedent::execution::recalc::{
     Boundary, RecalcCapabilities, RecalcPlan, RequestSupport, ResumeContext, RetargetSupport,
     Stage, StageIdentities, StageIdentity,
 };
-use antecedent_core::{ExecutionContext, VariableId};
-use antecedent_estimate::{AipwAte, CellSaturatedAipw, ScoreTable};
-use antecedent_io::frozen_scores_artifact::{FrozenScoreTable, FrozenScoresArtifactError};
-use antecedent_io::recalc_receipt_artifact::{
+use antecedent::io::frozen_scores_artifact::{FrozenScoreTable, FrozenScoresArtifactError};
+use antecedent::io::recalc_receipt_artifact::{
     CapabilitiesWire, CountsWire, RecalcReceiptArtifact, ReceiptEntryWire, identities_to_wire,
     plan_to_wire, stage_from_label,
 };
+use antecedent::prelude::{ExecutionContext, VariableId};
 use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 
@@ -53,7 +54,7 @@ type Columns = Vec<(String, Vec<f64>)>;
 fn invalid(detail: &str, text: impl AsRef<str>) -> PyErr {
     with_reason_code(
         value_err(format!("{detail}: {}", text.as_ref())),
-        antecedent_core::reason_code!("invalid_argument"),
+        antecedent::reason::reason_code!("invalid_argument"),
     )
 }
 
@@ -70,7 +71,7 @@ fn plan_refusal_json(plan: &RecalcPlan) -> String {
 /// A malformed run-time request (`recalc.<snake_case>` detail).
 fn request_refusal_json(detail: &str) -> String {
     refusal_json(
-        antecedent_core::reason_code!("invalid_argument"),
+        antecedent::reason::reason_code!("invalid_argument"),
         "",
         detail,
         None,
@@ -82,9 +83,9 @@ fn request_refusal_json(detail: &str) -> String {
 
 fn no_live_state_json(stage: Stage, planned: Option<&RecalcPlan>) -> String {
     refusal_json(
-        antecedent_core::reason_code!("score_table_unavailable"),
+        antecedent::reason::reason_code!("score_table_unavailable"),
         &stage.label(),
-        "recalc.no_live_state",
+        antecedent::reason::reason_details::recalc::NO_LIVE_STATE,
         Some(&stage.label()),
         Some(
             "run the stage in this process, or resume with supplied data so it is recomputed \
@@ -108,7 +109,7 @@ fn classify(result: Result<RecalcOutcome, RecalcRunError>, planned: Option<&Reca
         Ok(outcome) => Ran::Done(Box::new(outcome)),
         Err(RecalcRunError::Refused(plan)) => Ran::Refused(plan_refusal_json(&plan)),
         Err(RecalcRunError::NoLiveState(stage)) => Ran::Refused(no_live_state_json(stage, planned)),
-        Err(RecalcRunError::Request(detail)) => Ran::Refused(request_refusal_json(detail)),
+        Err(RecalcRunError::Request(detail)) => Ran::Refused(request_refusal_json(detail.as_str())),
         Err(RecalcRunError::Execution(error)) => Ran::Failed(py_err(error)),
         Err(RecalcRunError::Receipt(error)) => Ran::Failed(py_msg(error)),
     }
@@ -118,7 +119,7 @@ fn export_refusal(error: RecalcRunError) -> PyResult<ExportPayload> {
     match error {
         RecalcRunError::Refused(plan) => Ok((None, Some(plan_refusal_json(&plan)))),
         RecalcRunError::NoLiveState(stage) => Ok((None, Some(no_live_state_json(stage, None)))),
-        RecalcRunError::Request(detail) => Ok((None, Some(request_refusal_json(detail)))),
+        RecalcRunError::Request(detail) => Ok((None, Some(request_refusal_json(detail.as_str())))),
         RecalcRunError::Execution(error) => Err(py_err(error)),
         RecalcRunError::Receipt(error) => Err(py_msg(error)),
     }
@@ -126,7 +127,9 @@ fn export_refusal(error: RecalcRunError) -> PyResult<ExportPayload> {
 
 fn artifact_error(error: &FrozenScoresArtifactError) -> PyErr {
     match error {
-        FrozenScoresArtifactError::LimitsExceeded(what) => invalid("recalc.limits_exceeded", what),
+        FrozenScoresArtifactError::LimitsExceeded(what) => {
+            invalid(antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED, what)
+        }
         other => crate::serialization_err(other.to_string()),
     }
 }
@@ -142,13 +145,15 @@ fn retarget_of(name: &str) -> PyResult<RetargetSupport> {
     CapabilitiesWire {
         retarget: name.to_owned(),
         request: "on_grid".to_owned(),
-        licensed_route: None,
+        supported_route: None,
         boundary: "in_process".to_owned(),
         resume: None,
     }
     .to_capabilities()
     .map(|c| c.retarget)
-    .map_err(|e| invalid("recalc.invalid_declaration", e.to_string()))
+    .map_err(|e| {
+        invalid(antecedent::reason::reason_details::recalc::INVALID_DECLARATION, e.to_string())
+    })
 }
 
 fn column_vec(array: &PyReadonlyArray1<'_, f64>) -> Vec<f64> {
@@ -163,36 +168,44 @@ struct Frame {
 }
 
 impl Frame {
-    fn new(names: &[String], columns: &[PyReadonlyArray1<'_, f64>]) -> PyResult<Self> {
+    fn new(names: &[String], columns: &[NumericColumn<'_>]) -> PyResult<Self> {
         if names.is_empty() || names.len() != columns.len() {
             return Err(invalid(
-                "recalc.invalid_data",
+                antecedent::reason::reason_details::recalc::INVALID_DATA,
                 "one named numeric column per name is required",
             ));
         }
         for (i, name) in names.iter().enumerate() {
             if name.trim().is_empty() || names[..i].contains(name) {
                 return Err(invalid(
-                    "recalc.invalid_data",
+                    antecedent::reason::reason_details::recalc::INVALID_DATA,
                     "column names must be unique and non-empty",
                 ));
             }
         }
-        let columns: Columns = names.iter().cloned().zip(columns.iter().map(column_vec)).collect();
+        let columns: Columns = crate::named_f64_columns(names.iter().cloned(), columns)?;
         let rows = columns[0].1.len();
         if rows == 0
             || columns.iter().any(|(_, v)| v.len() != rows || v.iter().any(|x| !x.is_finite()))
         {
-            return Err(invalid("recalc.invalid_data", "columns must be finite and equally long"));
+            return Err(invalid(
+                antecedent::reason::reason_details::recalc::INVALID_DATA,
+                "columns must be finite and equally long",
+            ));
         }
         Ok(Self { names: names.to_vec(), columns, rows })
     }
 
     fn position(&self, name: &str) -> PyResult<u32> {
         let at = self.names.iter().position(|n| n == name).ok_or_else(|| {
-            invalid("recalc.unknown_variable", format!("no column named `{name}`"))
+            invalid(
+                antecedent::reason::reason_details::recalc::UNKNOWN_VARIABLE,
+                format!("no column named `{name}`"),
+            )
         })?;
-        u32::try_from(at).map_err(|_| invalid("recalc.invalid_data", "too many columns"))
+        u32::try_from(at).map_err(|_| {
+            invalid(antecedent::reason::reason_details::recalc::INVALID_DATA, "too many columns")
+        })
     }
 
     fn positions(&self, names: &[String]) -> PyResult<Vec<u32>> {
@@ -211,7 +224,7 @@ impl Frame {
         let Some(weights) = weights else {
             if !depends_on.is_empty() {
                 return Err(invalid(
-                    "recalc.invalid_request",
+                    antecedent::reason::reason_details::recalc::INVALID_REQUEST,
                     "target_depends_on needs target weights",
                 ));
             }
@@ -220,7 +233,7 @@ impl Frame {
         let weights = column_vec(weights);
         if weights.len() != self.rows || weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
             return Err(invalid(
-                "recalc.invalid_request",
+                antecedent::reason::reason_details::recalc::INVALID_REQUEST,
                 "target weights must be finite, non-negative and one per row",
             ));
         }
@@ -232,7 +245,10 @@ impl Frame {
 
 fn utility_of(benefit_per_unit: f64, cost: f64) -> PyResult<UtilitySpec> {
     if !benefit_per_unit.is_finite() || !cost.is_finite() {
-        return Err(invalid("recalc.invalid_request", "utility must be finite"));
+        return Err(invalid(
+            antecedent::reason::reason_details::recalc::INVALID_REQUEST,
+            "utility must be finite",
+        ));
     }
     Ok(UtilitySpec { benefit_per_unit, cost })
 }
@@ -242,14 +258,16 @@ fn quantity_of(name: &str, arm: Option<u32>) -> PyResult<ScoreQuantity> {
         ("average_effect", None) => Ok(ScoreQuantity::AverageEffect),
         ("interaction", None) => Ok(ScoreQuantity::Interaction),
         ("cell_minus_control", Some(arm)) => Ok(ScoreQuantity::CellMinusControl { arm }),
-        ("cell_minus_control", None) => {
-            Err(invalid("recalc.invalid_request", "cell_minus_control needs an arm"))
-        }
-        ("average_effect" | "interaction", Some(_)) => {
-            Err(invalid("recalc.invalid_request", "only cell_minus_control takes an arm"))
-        }
+        ("cell_minus_control", None) => Err(invalid(
+            antecedent::reason::reason_details::recalc::INVALID_REQUEST,
+            "cell_minus_control needs an arm",
+        )),
+        ("average_effect" | "interaction", Some(_)) => Err(invalid(
+            antecedent::reason::reason_details::recalc::INVALID_REQUEST,
+            "only cell_minus_control takes an arm",
+        )),
         (other, _) => Err(invalid(
-            "recalc.invalid_request",
+            antecedent::reason::reason_details::recalc::INVALID_REQUEST,
             format!(
                 "quantity must be average_effect, interaction or cell_minus_control, got `{other}`"
             ),
@@ -259,8 +277,24 @@ fn quantity_of(name: &str, arm: Option<u32>) -> PyResult<ScoreQuantity> {
 
 fn context(seed: u64, threads: Option<u32>) -> ExecutionContext {
     let mut ctx = ExecutionContext::production(seed, crate::resolve_user_threads(threads));
+    // The caller's explicit Execution (admission, token, progress) and Ctrl-C reach the run.
+    crate::apply_cancel(&mut ctx, None);
+    crate::execution_api::apply(&mut ctx);
     // The route proves reuse by counted fits; no persistent cache may stand in for a fit.
-    ctx.cache_policy = antecedent_core::CachePolicy::disabled();
+    ctx.cache_policy = antecedent::execution::CachePolicy::disabled();
+    ctx
+}
+
+/// [`context`] under the caller's memory budget and cancellation token.
+fn bounded_context(
+    seed: u64,
+    threads: Option<u32>,
+    memory: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> ExecutionContext {
+    let mut ctx = context(seed, threads);
+    ctx.set_shared_memory_limit(memory);
+    crate::apply_cancel(&mut ctx, cancel);
     ctx
 }
 
@@ -360,7 +394,7 @@ impl PyCellSession {
 
 fn cell_request(
     names: &[String],
-    columns: &[PyReadonlyArray1<'_, f64>],
+    columns: &[NumericColumn<'_>],
     edges: &[(String, String)],
     treatments: &[String],
     outcome: &str,
@@ -372,11 +406,16 @@ fn cell_request(
     target_depends_on: &[String],
     benefit_per_unit: f64,
     cost: f64,
+    ctx: &ExecutionContext,
 ) -> PyResult<CellRequest> {
+    crate::recalc_bounds::check_columns(columns, ctx)?;
     let frame = Frame::new(names, columns)?;
     let treatment_ids = frame.positions(treatments)?;
     if treatment_ids.is_empty() {
-        return Err(invalid("recalc.invalid_request", "at least one treatment is required"));
+        return Err(invalid(
+            antecedent::reason::reason_details::recalc::INVALID_REQUEST,
+            "at least one treatment is required",
+        ));
     }
     let mut estimator = CellSaturatedAipw::new();
     if let Some(folds) = folds {
@@ -399,7 +438,7 @@ fn cell_request(
 impl PyCellSession {
     /// An empty in-process session.
     #[new]
-    #[pyo3(signature = (retarget="licensed"))]
+    #[pyo3(signature = (retarget="supported"))]
     fn new(retarget: &str) -> PyResult<Self> {
         let retarget = retarget_of(retarget)?;
         let mut inner = CellSession::new();
@@ -407,7 +446,7 @@ impl PyCellSession {
         Ok(Self { inner, retarget })
     }
 
-    /// Declare the estimator's retarget license for later plans.
+    /// Declare the estimator's retarget support for later plans.
     fn set_retarget_support(&mut self, retarget: &str) -> PyResult<()> {
         self.retarget = retarget_of(retarget)?;
         self.inner.set_retarget_support(self.retarget);
@@ -433,11 +472,11 @@ impl PyCellSession {
     /// The plan the request would run under, without running it: JSON.
     #[pyo3(signature = (names, columns, edges, treatments, outcome, adjustment, quantity,
         benefit_per_unit, cost, *, arm=None, folds=None, target_weights=None,
-        target_depends_on=None, seed=1, threads=None))]
+        target_depends_on=None, seed=1, threads=None, memory_limit_bytes=None, cancel=None))]
     fn plan(
         &self,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         edges: Vec<(String, String)>,
         treatments: Vec<String>,
         outcome: &str,
@@ -451,7 +490,10 @@ impl PyCellSession {
         target_depends_on: Option<Vec<String>>,
         seed: u64,
         threads: Option<u32>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
+        let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
         let request = cell_request(
             &names,
             &columns,
@@ -466,8 +508,9 @@ impl PyCellSession {
             &target_depends_on.unwrap_or_default(),
             benefit_per_unit,
             cost,
+            &ctx,
         )?;
-        let plan = self.inner.plan(&request, &context(seed, threads));
+        let plan = self.inner.plan(&request, &ctx);
         serde_json::to_string(&plan_to_wire(&plan)).map_err(py_msg)
     }
 
@@ -475,12 +518,12 @@ impl PyCellSession {
     /// `(result json, receipt artifact bytes, refusal json)`.
     #[pyo3(signature = (names, columns, edges, treatments, outcome, adjustment, quantity,
         benefit_per_unit, cost, *, arm=None, folds=None, target_weights=None,
-        target_depends_on=None, seed=1, threads=None))]
+        target_depends_on=None, seed=1, threads=None, memory_limit_bytes=None, cancel=None))]
     fn execute(
         &mut self,
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         edges: Vec<(String, String)>,
         treatments: Vec<String>,
         outcome: &str,
@@ -494,7 +537,10 @@ impl PyCellSession {
         target_depends_on: Option<Vec<String>>,
         seed: u64,
         threads: Option<u32>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<RunPayload> {
+        let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
         let request = cell_request(
             &names,
             &columns,
@@ -509,23 +555,20 @@ impl PyCellSession {
             &target_depends_on.unwrap_or_default(),
             benefit_per_unit,
             cost,
+            &ctx,
         )?;
         drop(columns);
         drop(target_weights);
         self.inner.set_retarget_support(self.retarget);
-        let ctx = context(seed, threads);
         let capabilities = self.capabilities();
         let previous = self.inner.identities().clone();
         let planned = self.inner.plan(&request, &ctx);
-        // Move the session into the detached run and take it back afterwards. A panic or an
-        // interrupt loses the live scores, so the next run recomputes every stage.
-        let mut session = std::mem::take(&mut self.inner);
-        let (session, ran) = detach_catch(py, move || {
-            let ran =
-                classify(execute_cell_with_receipt(&mut session, &request, &ctx), Some(&planned));
-            Ok((session, ran))
+        // The session is borrowed in place, so a panic or an interrupt keeps its live scores.
+        let session = &mut self.inner;
+        let ran = detach_catch(py, move || {
+            let ran = classify(execute_cell_with_receipt(session, &request, &ctx), Some(&planned));
+            Ok(ran)
         })?;
-        self.inner = session;
         match ran {
             Ran::Done(outcome) => {
                 finish_sealed(&outcome, &previous, self.inner.identities(), &capabilities)
@@ -552,17 +595,20 @@ impl PyCellSession {
 #[pyclass(name = "CrossfitSessionHandle")]
 pub struct PyCrossfitSession {
     inner: RecalcSession,
-    input_rows: u64,
+    /// The input row count of the last completed run, with the identities that run left. A
+    /// later run that fails after changing the live scores leaves other identities, and the
+    /// count is then not the scores' own.
+    input_rows: Option<(u64, antecedent::execution::recalc::StageIdentities)>,
 }
 
 #[pymethods]
 impl PyCrossfitSession {
-    /// An empty in-process session with a licensed retarget.
+    /// An empty in-process session with a supported retarget.
     #[new]
     fn new() -> Self {
         let mut inner = RecalcSession::new();
-        inner.set_retarget_support(RetargetSupport::Licensed);
-        Self { inner, input_rows: 0 }
+        inner.set_retarget_support(RetargetSupport::Supported);
+        Self { inner, input_rows: None }
     }
 
     /// Whether the session holds a live prepared study.
@@ -573,12 +619,13 @@ impl PyCrossfitSession {
     /// Plan, run only what the plan says must run, count the work and seal the receipt:
     /// `(result json, receipt artifact bytes, refusal json)`.
     #[pyo3(signature = (names, columns, edges, treatment, outcome, benefit_per_unit, cost, *,
-        target_weights=None, target_depends_on=None, seed=1, threads=None))]
+        target_weights=None, target_depends_on=None, seed=1, threads=None,
+        memory_limit_bytes=None, cancel=None))]
     fn execute(
         &mut self,
         py: Python<'_>,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
         edges: Vec<(String, String)>,
         treatment: &str,
         outcome: &str,
@@ -588,12 +635,19 @@ impl PyCrossfitSession {
         target_depends_on: Option<Vec<String>>,
         seed: u64,
         threads: Option<u32>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<RunPayload> {
+        let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
+        crate::recalc_bounds::check_columns(&columns, &ctx)?;
         let frame = Frame::new(&names, &columns)?;
         let treatment = frame.position(treatment)?;
         let outcome = frame.position(outcome)?;
         if treatment == outcome {
-            return Err(invalid("recalc.invalid_request", "treatment and outcome must differ"));
+            return Err(invalid(
+                antecedent::reason::reason_details::recalc::INVALID_REQUEST,
+                "treatment and outcome must differ",
+            ));
         }
         let request = RecalcRequest {
             edges: frame.edges(&edges)?,
@@ -603,28 +657,26 @@ impl PyCrossfitSession {
             target: frame
                 .target(target_weights.as_ref(), &target_depends_on.unwrap_or_default())?,
             utility: utility_of(benefit_per_unit, cost)?,
-            columns: frame.columns,
+            columns: frame.columns.into(),
         };
         let rows = u64::try_from(frame.rows).unwrap_or(u64::MAX);
         drop(columns);
         drop(target_weights);
-        let ctx = context(seed, threads);
         let capabilities = RecalcCapabilities {
-            retarget: RetargetSupport::Licensed,
+            retarget: RetargetSupport::Supported,
             request: RequestSupport::OnGrid,
             boundary: Boundary::InProcess,
         };
         let previous = self.inner.identities().clone();
         let planned = self.inner.plan(&request, &ctx);
-        let mut session = std::mem::take(&mut self.inner);
-        let (session, ran) = detach_catch(py, move || {
-            let ran = classify(execute_with_receipt(&mut session, &request, &ctx), Some(&planned));
-            Ok((session, ran))
+        let session = &mut self.inner;
+        let ran = detach_catch(py, move || {
+            let ran = classify(execute_with_receipt(session, &request, &ctx), Some(&planned));
+            Ok(ran)
         })?;
-        self.inner = session;
         match ran {
             Ran::Done(outcome) => {
-                self.input_rows = rows;
+                self.input_rows = Some((rows, self.inner.identities().clone()));
                 finish_sealed(&outcome, &previous, self.inner.identities(), &capabilities)
             }
             Ran::Refused(json) => Ok((None, None, Some(json))),
@@ -635,7 +687,15 @@ impl PyCrossfitSession {
     /// Export the live cross-fit scores as a portable `frozen_scores_v1` artifact:
     /// `((identity, bytes), refusal json)`.
     fn export_frozen_scores(&self) -> PyResult<ExportPayload> {
-        match freeze_crossfit_scores(&self.inner, self.input_rows, RetargetSupport::Licensed) {
+        let rows = match &self.input_rows {
+            Some((rows, identities)) if identities == self.inner.identities() => *rows,
+            _ => {
+                return export_refusal(RecalcRunError::NoLiveState(
+                    antecedent::execution::recalc::Stage::ScoreArtifact,
+                ));
+            }
+        };
+        match freeze_crossfit_scores(&self.inner, rows, RetargetSupport::Supported) {
             Ok(table) => export_bytes(&table),
             Err(error) => export_refusal(error),
         }
@@ -656,7 +716,7 @@ fn resume_request(
     edges: Vec<(u32, u32)>,
     target_weights: Option<&PyReadonlyArray1<'_, f64>>,
     target_depends_on: &[u32],
-    target_row_ids: Option<Vec<u32>>,
+    target_row_ids: Option<Vec<u64>>,
     quantity: &str,
     arm: Option<u32>,
     benefit_per_unit: f64,
@@ -667,7 +727,7 @@ fn resume_request(
         None => {
             if !target_depends_on.is_empty() {
                 return Err(invalid(
-                    "recalc.invalid_request",
+                    antecedent::reason::reason_details::recalc::INVALID_REQUEST,
                     "target_depends_on needs target weights",
                 ));
             }
@@ -677,7 +737,7 @@ fn resume_request(
             let weights = column_vec(weights);
             if weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
                 return Err(invalid(
-                    "recalc.invalid_request",
+                    antecedent::reason::reason_details::recalc::INVALID_REQUEST,
                     "target weights must be finite and non-negative",
                 ));
             }
@@ -691,10 +751,16 @@ fn resume_request(
         .iter()
         .map(|(label, own)| {
             let stage = stage_from_label(label).ok_or_else(|| {
-                invalid("recalc.invalid_changed_input", format!("unknown stage `{label}`"))
+                invalid(
+                    antecedent::reason::reason_details::recalc::INVALID_CHANGED_INPUT,
+                    format!("unknown stage `{label}`"),
+                )
             })?;
             let own = StageIdentity::from_hex(own).ok_or_else(|| {
-                invalid("recalc.invalid_changed_input", "an identity is 64 lowercase hex digits")
+                invalid(
+                    antecedent::reason::reason_details::recalc::INVALID_CHANGED_INPUT,
+                    "an identity is 64 lowercase hex digits",
+                )
             })?;
             Ok((stage, own))
         })
@@ -719,11 +785,11 @@ impl PyScoreResume {
     #[pyo3(signature = (artifact, expected_identity=None))]
     fn from_bytes(
         py: Python<'_>,
-        artifact: Vec<u8>,
+        artifact: &[u8],
         expected_identity: Option<String>,
     ) -> PyResult<(Option<Self>, Option<String>)> {
         let built = detach_catch(py, move || {
-            Ok(ScoreResumeSession::resume_from_score_bytes(&artifact, expected_identity.as_deref()))
+            Ok(ScoreResumeSession::resume_from_score_bytes(artifact, expected_identity.as_deref()))
         })?;
         match built {
             Ok(inner) => Ok((Some(Self { inner }), None)),
@@ -745,8 +811,8 @@ impl PyScoreResume {
     }
 
     /// The original row ids the target weights are indexed by, in row order.
-    fn row_ids(&self) -> Vec<u32> {
-        self.inner.score_table().row_index.to_vec()
+    fn row_ids(&self) -> Vec<u64> {
+        self.inner.score_table().row_index.iter().map(|id| id.get()).collect()
     }
 
     /// The frozen mean-functional score columns `(arm, scores)`.
@@ -778,7 +844,7 @@ impl PyScoreResume {
         arm: Option<u32>,
         target_weights: Option<PyReadonlyArray1<'_, f64>>,
         target_depends_on: Option<Vec<u32>>,
-        target_row_ids: Option<Vec<u32>>,
+        target_row_ids: Option<Vec<u64>>,
         changed_inputs: Option<Vec<(String, String)>>,
     ) -> PyResult<ResumePayload> {
         let request = resume_request(
@@ -798,7 +864,9 @@ impl PyScoreResume {
                 Ok((Some(serde_json::to_string(&plan_to_wire(&plan)).map_err(py_msg)?), None))
             }
             Err(RecalcRunError::Refused(plan)) => Ok((None, Some(plan_refusal_json(&plan)))),
-            Err(RecalcRunError::Request(detail)) => Ok((None, Some(request_refusal_json(detail)))),
+            Err(RecalcRunError::Request(detail)) => {
+                Ok((None, Some(request_refusal_json(detail.as_str()))))
+            }
             Err(other) => Err(py_msg(other)),
         }
     }
@@ -820,7 +888,7 @@ impl PyScoreResume {
         arm: Option<u32>,
         target_weights: Option<PyReadonlyArray1<'_, f64>>,
         target_depends_on: Option<Vec<u32>>,
-        target_row_ids: Option<Vec<u32>>,
+        target_row_ids: Option<Vec<u64>>,
         changed_inputs: Option<Vec<(String, String)>>,
     ) -> PyResult<ResumePayload> {
         let request = resume_request(
@@ -848,7 +916,7 @@ impl PyScoreResume {
             })
         };
         let capabilities = RecalcCapabilities {
-            retarget: RetargetSupport::Licensed,
+            retarget: RetargetSupport::Supported,
             request: RequestSupport::OnGrid,
             boundary,
         };

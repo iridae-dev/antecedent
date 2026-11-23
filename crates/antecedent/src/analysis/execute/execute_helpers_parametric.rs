@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-
 /// Build a GCM / parametric-SCM estimand and identification result for `treatment`/`outcome`.
 ///
 /// The estimate itself is computed elsewhere (by the fitted parametric SCM, not by evaluating
@@ -13,16 +12,34 @@
 /// `Expectation`/`Distribution` leaf (not `CausalExprArena::backdoor_ate`'s `Product`/`SumOut`
 /// shape) so it is inert if a future caller ever tries to mechanically re-evaluate
 /// `functional` via the arena's generic evaluator — there is no adjustment-set
-/// marginalization here to (mis)compute. Licensed transport and interference
+/// marginalization here to (mis)compute. Supported transport and interference
 /// routes do not call this; they stamp `transport.sid` / `interference.design`.
 pub(crate) fn parametric_scm_identification(
     query: CausalQuery,
     treatment: VariableId,
     outcome: VariableId,
 ) -> (IdentificationResult, IdentifiedEstimand) {
+    parametric_scm_identification_over(query, &[treatment], &[outcome])
+}
+
+/// [`parametric_scm_identification`] for a counterfactual over several simultaneously intervened
+/// `treatments` and several `outcomes`: the estimand's variable and intervention sets name all of
+/// them, and its functional is the mean of the first outcome (the one the result's scalar
+/// estimate describes). With one treatment and one outcome it is exactly the single-pair
+/// estimand.
+pub(crate) fn parametric_scm_identification_over(
+    query: CausalQuery,
+    treatments: &[VariableId],
+    outcomes: &[VariableId],
+) -> (IdentificationResult, IdentifiedEstimand) {
+    let outcome = outcomes[0];
+    let description = match (treatments, outcomes) {
+        ([treatment], [outcome]) => format!("treatment={treatment:?} outcome={outcome:?}"),
+        _ => format!("treatments={treatments:?} outcomes={outcomes:?}"),
+    };
     let mut arena = CausalExprArena::new();
-    let y = arena.intern_var_set([outcome]);
-    let do_t = arena.intern_intervention_set([treatment]);
+    let y = arena.intern_var_set(outcomes.iter().copied());
+    let do_t = arena.intern_intervention_set(treatments.iter().copied());
     let empty = arena.empty_var_set();
     let distribution = arena.intern_distribution(y, empty, do_t, DomainRef::Interventional);
     let functional = arena
@@ -32,7 +49,7 @@ pub(crate) fn parametric_scm_identification(
         DerivationMeta::rule(
             "gcm.parametric",
             Some(Arc::from(format!(
-                "parametric SCM: treatment={treatment:?} outcome={outcome:?}; no adjustment \
+                "parametric SCM: {description}; no adjustment \
                  set (GCM does not identify via backdoor covariates)"
             ))),
         ),
@@ -74,8 +91,9 @@ pub(super) fn binary_cf_interventions(
 ) -> Result<(VariableId, f64, f64), CausalError> {
     if query.allow_nested || query.outcomes.len() != 1 || query.interventions.len() != 1 {
         return Err(CausalError::Unsupported {
-            message: "Study counterfactual path currently supports a single hard \
-                 intervention for ITE (use gcm helpers for multi-world predict)",
+            message: "this counterfactual route supports one outcome and a single hard \
+                 intervention; a Dag with observed variables answers several outcomes, \
+                 simultaneous interventions and nested interventions",
         });
     }
     let Intervention::Set { variable, value } = &query.interventions[0] else {
@@ -278,6 +296,7 @@ pub(super) fn class_structural_mixture<G>(
         conditional_on_identified: None,
         full_mass_scope: envelope.truncated_completions == 0,
         truncated_atoms: envelope.truncated_completions,
+        aggregation_policy: None,
     };
     (mixture, facts)
 }
@@ -290,7 +309,7 @@ pub(super) fn class_structural_mixture<G>(
 /// from `unidentified_weight`, so a mass this crate publishes cannot
 /// contradict the envelope diagnostic beside it.
 ///
-/// Wider than [`identification_status_ok_for_case`], which licenses
+/// Wider than [`identification_status_ok_for_case`], which supports
 /// *estimating* a case: a completion identified only under prior restrictions
 /// carries identified mass and its assumptions, but no frequentist arm
 /// estimates it.
@@ -361,8 +380,8 @@ pub(super) fn envelope_to_identification_result_for<G>(
             Arc::clone(&feature.detail),
         ));
     }
-    if let Some(inv) = &envelope.invariant {
-        if estimands.is_empty() {
+    if let Some(inv) = &envelope.invariant
+        && estimands.is_empty() {
             // `IdentificationEnvelope::from_cases` sets `invariant` to a clone of
             // the first identified case's first estimand, so its functional
             // belongs to that same case's arena.
@@ -372,7 +391,6 @@ pub(super) fn envelope_to_identification_result_for<G>(
             }
             estimands.push(inv);
         }
-    }
     IdentificationResult::from_parts(antecedent_identify::IdentificationResultParts {
         status: envelope.status,
         query,
@@ -397,9 +415,7 @@ pub(crate) fn admg_has_bidirected(admg: &Admg) -> bool {
 pub(crate) fn temporal_admg_projection(
     graph: &antecedent_graph::TemporalAdmg,
 ) -> Result<Admg, CausalError> {
-    graph
-        .project_preserving_functional()
-        .map_err(CausalError::rejected)
+    graph.project_preserving_functional().map_err(CausalError::rejected)
 }
 
 /// The directed part of an ADMG as a DAG.
@@ -420,8 +436,7 @@ pub(super) fn admg_without_latents_to_dag(admg: &Admg) -> Result<Dag, CausalErro
     for i in 0..admg.node_count() {
         let from = DenseNodeId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));
         for &to in admg.children(from) {
-            dag.insert_directed(from, to)
-                .map_err(CausalError::rejected)?;
+            dag.insert_directed(from, to).map_err(CausalError::rejected)?;
         }
     }
     Ok(dag)
@@ -458,6 +473,41 @@ pub(super) fn merge_posterior_notes<'a>(
             }
         }
     }
+}
+
+/// Route records of the checks every one of `posteriors` passed, as result diagnostics.
+///
+/// A check is recorded only when each posterior passed it; a posterior with no passed
+/// records contributes none, so a check that any posterior did not pass is never claimed.
+/// The record's unevaluable mass is the largest any posterior measured, and an unreported
+/// mass on any posterior leaves the shared mass unreported.
+pub(super) fn passed_route_diagnostics<'a>(
+    posteriors: impl IntoIterator<Item = &'a CausalPosterior>,
+) -> Vec<Diagnostic> {
+    use antecedent_core::diagnostic::{RouteCheck, RouteMass, RouteNativeDiagnostic};
+    let mut shared: Option<Vec<RouteNativeDiagnostic>> = None;
+    for posterior in posteriors {
+        let records =
+            bayesian_path::passed_route_records(&posterior.diagnostics, posterior.unevaluable_mass);
+        shared = Some(match shared {
+            None => records,
+            Some(earlier) => earlier
+                .into_iter()
+                .filter_map(|record| {
+                    let kind = record.kind()?;
+                    let other = records.iter().find(|candidate| candidate.kind() == Some(kind))?;
+                    let mass =
+                        match (record.unevaluable_mass().get(), other.unevaluable_mass().get()) {
+                            (Some(left), Some(right)) => RouteMass::new(left.max(right))
+                                .unwrap_or_else(|_| RouteMass::unreported()),
+                            _ => RouteMass::unreported(),
+                        };
+                    Some(RouteNativeDiagnostic::check(kind, RouteCheck::new(false, mass)))
+                })
+                .collect(),
+        });
+    }
+    shared.unwrap_or_default().into_iter().map(RouteNativeDiagnostic::to_diagnostic).collect()
 }
 
 /// Result diagnostics derived from posterior inference notes.
@@ -773,27 +823,68 @@ impl super::Study {
     }
 }
 
-#[allow(clippy::too_many_lines, reason = "assembles one StudyResult from the finish record: diagnostics are pushed in a fixed order against one seen-code set, then provenance, estimate and certificate are read from the same record")]
-fn finish_identified_execute_with_context(
+fn apply_quantile_scope(result: &mut StudyResult, query: &CausalQuery) -> bool {
+    let is_quantile = match query {
+        CausalQuery::AverageEffect(q) => q.outcome_functional.quantile_level().is_some(),
+        CausalQuery::ConditionalEffect(q) => q.inner.outcome_functional.quantile_level().is_some(),
+        CausalQuery::Response(q) => q.outcome_functional.quantile_level().is_some(),
+        _ => false,
+    };
+    if is_quantile {
+        if let Some(effect) = result.estimate.as_effect_mut() {
+            effect.diagnostics.evalue = None;
+        }
+        result.diagnostics.push(super::helpers::quantile_scope_diagnostic());
+        if matches!(query, CausalQuery::ConditionalEffect(_)) {
+            result.diagnostics.push(Diagnostic::new("estimate.functional.conditional_quantile",
+                    DiagnosticKind::Scientific, DiagnosticSeverity::Info,
+                    "quantile contrast inverts arm CDFs standardized over the retained modifier distribution; this is not a pointwise conditional-quantile surface or an average of individual quantile effects"));
+        }
+    }
+    is_quantile
+}
+
+fn append_execution_context_diagnostics(
+    result: &mut StudyResult,
     context: &IdentifiedResultContext,
-    tabular_data: Option<&TabularData>,
-    args: IdentifiedExecuteFinish<'_>,
-) -> StudyResult {
-    let extras = args.extras;
-    let certificate = extras.certificate.or_else(|| {
-        context.graph_has_certificate.then(|| crate::Identification::Point {
-            result: args.identification.clone(),
-            temporal_indexer: None,
-            strategy: args.identifier_id,
-            structure_version: context.graph_version,
-        })
-    });
-    let mut diagnostics = if let Some(prebuilt) = extras.diagnostics {
+) {
+    if let Some((tier, configured)) = context.latency_bootstrap_not_applied {
+        result.diagnostics.push(
+            crate::analysis::helpers::latency_bootstrap_not_applied_diagnostic(tier, configured),
+        );
+    }
+    if let Some(requested) = context.refute_default_downgrade {
+        let requested_id = requested.validation_suite_id().unwrap_or("none");
+        result.diagnostics.push(Diagnostic {
+            code: Arc::from("exec.refute.default_suite_unsupported"),
+            kind: DiagnosticKind::Scientific,
+            severity: DiagnosticSeverity::Info,
+            message: Arc::from(format!(
+                "no .refute(..) was set; the default validation suite \
+                     ({requested_id}) is not supported for this cell, so validation was \
+                     silently downgraded to none (no refuters ran)"
+            )),
+            artifact_id: None,
+            fields: Arc::from([
+                (Arc::from("requested_suite"), Arc::from(requested_id)),
+                (Arc::from("applied_suite"), Arc::from("none")),
+            ]),
+        });
+    }
+}
+
+fn identified_result_diagnostics(
+    context: &IdentifiedResultContext,
+    args: &mut IdentifiedExecuteFinish<'_>,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = if let Some(prebuilt) = args.extras.diagnostics.take() {
         prebuilt
     } else {
         let mut diagnostics = args.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(args.estimate.provenance.overlap));
-        diagnostics.extend(args.extra_diagnostics);
+        diagnostics
+            .extend(overlap_limit_diagnostic(args.estimate.diagnostics.overlap_report.as_ref()));
+        diagnostics.append(&mut args.extra_diagnostics);
         diagnostics
     };
     let mut seen: std::collections::HashSet<Arc<str>> =
@@ -808,21 +899,26 @@ fn finish_identified_execute_with_context(
     if matches!(
         args.estimator_id,
         EstimatorId::FunctionalEffect | EstimatorId::FunctionalDistribution
-    ) {
-        if let Some(diagnostic) = free_variables_averaged(&args.identification, &args.estimand) {
+    )
+        && let Some(diagnostic) = free_variables_averaged(&args.identification, &args.estimand) {
             push_unique_diagnostic(&mut diagnostics, &mut seen, diagnostic);
         }
-    }
-    let structural_posteriors = extras
+    let structural_posteriors = args
+        .extras
         .structural_response
         .iter()
         .flat_map(|mixture| mixture.atoms.iter().filter_map(|atom| atom.posterior.as_ref()));
     for diagnostic in
-        posterior_note_diagnostics(extras.posterior.iter().chain(structural_posteriors))
+        posterior_note_diagnostics(args.extras.posterior.iter().chain(structural_posteriors))
     {
         push_unique_diagnostic(&mut diagnostics, &mut seen, diagnostic);
     }
-    if let (Some(mode), Some(n)) = (context.latency_mode, extras.n_draws) {
+    // Every Bayesian result states the convergence, ESS and R-hat checks its posterior passed,
+    // with the identified mass that was not evaluated, whichever executor produced it.
+    for diagnostic in passed_route_diagnostics(args.extras.posterior.iter()) {
+        push_unique_diagnostic(&mut diagnostics, &mut seen, diagnostic);
+    }
+    if let (Some(mode), Some(n)) = (context.latency_mode, args.extras.n_draws) {
         let tier = match mode {
             crate::analysis::latency::LatencyMode::Interactive => {
                 crate::analysis::latency::INTERACTIVE_N_DRAWS
@@ -843,6 +939,28 @@ fn finish_identified_execute_with_context(
             ));
         }
     }
+    diagnostics
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "assembles one StudyResult from the finish record: diagnostics are pushed in a fixed order against one seen-code set, then provenance, estimate and certificate are read from the same record"
+)]
+fn finish_identified_execute_with_context(
+    context: &IdentifiedResultContext,
+    tabular_data: Option<&TabularData>,
+    mut args: IdentifiedExecuteFinish<'_>,
+) -> StudyResult {
+    let certificate = args.extras.certificate.take().or_else(|| {
+        context.graph_has_certificate.then(|| crate::Identification::Point {
+            result: args.identification.clone(),
+            temporal_indexer: None,
+            strategy: args.identifier_id,
+            structure_version: context.graph_version,
+        })
+    });
+    let mut diagnostics = identified_result_diagnostics(context, &mut args);
+    let extras = args.extras;
     let (id_artifact, id_op) = extras.identify_provenance.unwrap_or_else(|| {
         let (a, b) = identify_provenance_step(args.identifier_id);
         provenance_ids(a, b)
@@ -908,23 +1026,7 @@ fn finish_identified_execute_with_context(
         query: context.query.clone(),
         graph_class: context.graph_class,
     });
-    let is_quantile = match &context.query {
-        CausalQuery::AverageEffect(q) => q.outcome_functional.quantile_level().is_some(),
-        CausalQuery::ConditionalEffect(q) => q.inner.outcome_functional.quantile_level().is_some(),
-        CausalQuery::Response(q) => q.outcome_functional.quantile_level().is_some(),
-        _ => false,
-    };
-    if is_quantile {
-        if let Some(effect) = result.estimate.as_effect_mut() {
-            effect.diagnostics.evalue = None;
-        }
-        result.diagnostics.push(super::helpers::quantile_scope_diagnostic());
-        if matches!(context.query, CausalQuery::ConditionalEffect(_)) {
-            result.diagnostics.push(Diagnostic::new("estimate.functional.conditional_quantile",
-                    DiagnosticKind::Scientific, DiagnosticSeverity::Info,
-                    "quantile contrast inverts arm CDFs standardized over the retained modifier distribution; this is not a pointwise conditional-quantile surface or an average of individual quantile effects"));
-        }
-    }
+    let is_quantile = apply_quantile_scope(&mut result, &context.query);
     result.predictive_checks = extras.predictive_checks;
     result.structural_response = extras.structural_response;
     result.rebind_interval(context.inference.is_bayesian());
@@ -934,7 +1036,7 @@ fn finish_identified_execute_with_context(
     // executed query (certificates, artifacts) needs its bindings.
     result.population_registry.clone_from(&context.population_registry);
     if !is_quantile {
-        super::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
+        super::helpers::mirror_refuted_evalue(&mut result.estimate, &result.view.refutations);
     }
     if let Some(data) = tabular_data {
         super::helpers::attach_tiered_evalue_for_cell(
@@ -943,48 +1045,10 @@ fn finish_identified_execute_with_context(
             args.outcome,
             is_quantile,
             context.tiered.as_ref(),
-            &mut result.diagnostics,
+            &mut result.view.diagnostics,
         );
     }
-    if let Some(crate::support::CellStatus::Allowlisted { reason, parent }) = context.support_status
-    {
-        result.diagnostics.push(Diagnostic {
-            code: Arc::from("support.allowed_unlicensed"),
-            kind: DiagnosticKind::Support,
-            severity: DiagnosticSeverity::Warning,
-            message: Arc::from(
-                "this estimate executed an allowlisted cell; it is not a licensed claim",
-            ),
-            artifact_id: None,
-            fields: Arc::from([
-                (Arc::from("reason"), Arc::from(reason)),
-                (Arc::from("parent"), Arc::from(parent)),
-            ]),
-        });
-    }
-    if let Some((tier, configured)) = context.latency_bootstrap_not_applied {
-        result.diagnostics.push(
-            crate::analysis::helpers::latency_bootstrap_not_applied_diagnostic(tier, configured),
-        );
-    }
-    if let Some(requested) = context.refute_default_downgrade {
-        let requested_id = requested.validation_suite_id().unwrap_or("none");
-        result.diagnostics.push(Diagnostic {
-            code: Arc::from("exec.refute.default_suite_unsupported"),
-            kind: DiagnosticKind::Scientific,
-            severity: DiagnosticSeverity::Info,
-            message: Arc::from(format!(
-                "no .refute(..) was set; the default validation suite \
-                     ({requested_id}) is not supported for this cell, so validation was \
-                     silently downgraded to none (no refuters ran)"
-            )),
-            artifact_id: None,
-            fields: Arc::from([
-                (Arc::from("requested_suite"), Arc::from(requested_id)),
-                (Arc::from("applied_suite"), Arc::from("none")),
-            ]),
-        });
-    }
+    append_execution_context_diagnostics(&mut result, context);
     result
 }
 
@@ -1002,17 +1066,17 @@ pub(super) fn bootstrap_has_enough_successes(completed: usize, attempted: usize)
         && completed >= attempted.saturating_sub(completed)
 }
 
-/// Fewest successful replicates that may license a facade-published nominal 0.95
+/// Fewest successful replicates that may support a facade-published nominal 0.95
 /// pointwise / simultaneous band. Alias of [`crate::result::PERCENTILE_95_MIN_REPLICATES`].
 pub(super) const PERCENTILE_95_BAND_MIN_SUCCESSES: usize =
     crate::result::PERCENTILE_95_MIN_REPLICATES as usize;
 
 #[cfg(test)]
 mod bootstrap_success_floor_tests {
-    use super::{PERCENTILE_95_BAND_MIN_SUCCESSES, bootstrap_has_enough_successes};
+    use super::{bootstrap_has_enough_successes, PERCENTILE_95_BAND_MIN_SUCCESSES};
 
     #[test]
-    fn cancelled_two_success_bootstrap_cannot_license_nominal_band() {
+    fn cancelled_two_success_bootstrap_cannot_support_nominal_band() {
         assert!(!bootstrap_has_enough_successes(2, 2));
         assert!(!bootstrap_has_enough_successes(2, 3));
         assert!(!bootstrap_has_enough_successes(2, 199));
@@ -1020,7 +1084,7 @@ mod bootstrap_success_floor_tests {
     }
 
     #[test]
-    fn completed_budget_at_earned_minimum_licenses_band() {
+    fn completed_budget_at_earned_minimum_supports_band() {
         let min = PERCENTILE_95_BAND_MIN_SUCCESSES;
         assert!(bootstrap_has_enough_successes(min, min));
         assert!(!bootstrap_has_enough_successes(min - 1, min - 1));

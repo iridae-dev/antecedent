@@ -5,7 +5,7 @@
 //! values are `norm_inv` of the stated tail mass. No tolerance is tuned to an observed
 //! value.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_design::decision_reliability::ProbabilityQuantity;
@@ -17,6 +17,7 @@ use antecedent_design::decision_reliability::{
     SourceUncertainty, StreamId, StreamPurpose, ValidationKind, ValidationPlan,
     WithinStreamDependence, coverage_design, derive_uncertainty, simulate_selection_draws,
 };
+use antecedent_io_core::CalibrationStatus;
 use antecedent_kernels::{NORMAL_Q975, norm_inv};
 
 fn ctx() -> ExecutionContext {
@@ -127,7 +128,7 @@ fn wilson_interval_at_the_effective_sample_size_matches_hand_arithmetic() {
     let derived =
         derive_uncertainty(&draws, None, &request, &IntervalRequest::marginal(0.95), &ctx())
             .unwrap();
-    assert_eq!(derived.standing, DerivedStanding::DerivedUnmeasured);
+    assert_eq!(derived.standing, DerivedStanding::DerivedNotMeasured);
     // Wilson, p = 0.5, n = 100, z = 1.959964: centre 0.5, half-width 0.09617.
     let best = derived
         .numerical
@@ -226,7 +227,8 @@ fn common_random_numbers_narrow_the_difference_interval() {
         i.upper - i.lower
     };
     // Variance ratio is 1 - rho = 0.1, so the standard error ratio is about 0.32.
-    assert!(width(&shared) < 0.5 * width(&separate));
+    let ratio = width(&shared) / width(&separate);
+    assert!((ratio - 0.1_f64.sqrt()).abs() < 0.03, "{ratio}");
 }
 
 // ---- selection component ------------------------------------------------------------
@@ -434,7 +436,10 @@ fn an_effective_sample_size_below_the_floor_refuses_with_a_typed_detail() {
     ));
     let refusal = error.to_refusal();
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "decision_reliability.effective_sample_size_too_small");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_reliability::EFFECTIVE_SAMPLE_SIZE_TOO_SMALL
+    );
     assert!(refusal.remedy.is_some());
 }
 
@@ -465,7 +470,8 @@ fn levels_outside_the_derived_range_and_undeclared_dependence_are_refused() {
 }
 
 #[test]
-fn a_derivation_is_unmeasured_so_every_route_and_the_combined_number_stay_closed() {
+fn a_derivation_is_not_measured_but_every_route_is_published_and_the_combined_number_is_not_supported()
+ {
     let derived = derive_uncertainty(
         &three(100),
         None,
@@ -475,9 +481,8 @@ fn a_derivation_is_unmeasured_so_every_route_and_the_combined_number_stay_closed
     )
     .unwrap();
     for route in PublishedRoute::ALL {
-        let error = derived.publish(route).unwrap_err();
-        assert_eq!(error.reason_code(), "cell_not_licensed");
-        assert!(error.to_refusal().offending.unwrap().contains("candidate_set_size=3"));
+        let slot = derived.publish(route).unwrap();
+        assert_ne!(slot.status, CalibrationStatus::Calibrated, "{}", route.as_str());
     }
     assert_eq!(
         derived.combined_uncertainty().unwrap_err().reason_code(),
@@ -487,7 +492,7 @@ fn a_derivation_is_unmeasured_so_every_route_and_the_combined_number_stay_closed
 }
 
 #[test]
-fn a_derivation_is_published_inside_a_measured_record_and_refused_outside_it() {
+fn a_derivation_is_annotated_by_the_record_that_covers_its_coordinate() {
     let design = |n_draws: usize| KnownOptimumDesign {
         true_means: vec![0.5, 0.0],
         noise_sd: 1.0,
@@ -499,48 +504,44 @@ fn a_derivation_is_published_inside_a_measured_record_and_refused_outside_it() {
         ranking: Some(RankingRequest::default()),
         ..expected_utility_request()
     };
-    // 1000 draws, two candidates, shared stream: inside every measured record.
+    let derive = |draws: &DecisionDraws, interval: IntervalRequest| {
+        derive_uncertainty(draws, None, &request, &interval, &ctx()).unwrap()
+    };
     let draws = simulate_selection_draws(&design(1000), &stream).unwrap();
-    let derived =
-        derive_uncertainty(&draws, None, &request, &IntervalRequest::marginal(0.95), &ctx())
-            .unwrap();
-    for route in PublishedRoute::ALL {
-        derived.publish(route).unwrap_or_else(|error| {
-            panic!("{} is measured at this coordinate: {error:?}", route.as_str())
-        });
-    }
-    // Another level, simultaneous multiplicity and an unmeasured budget are refused.
-    let other_level =
-        derive_uncertainty(&draws, None, &request, &IntervalRequest::marginal(0.9), &ctx())
-            .unwrap();
-    assert_eq!(
-        other_level.publish(PublishedRoute::UtilityInterval).unwrap_err().reason_code(),
-        "cell_not_licensed"
-    );
-    let simultaneous = derive_uncertainty(
-        &draws,
-        None,
-        &request,
-        &IntervalRequest { level: 0.95, multiplicity: IntervalMultiplicity::Simultaneous },
-        &ctx(),
-    )
-    .unwrap();
-    assert_eq!(
-        simultaneous.publish(PublishedRoute::RankingProbability).unwrap_err().reason_code(),
-        "cell_not_licensed"
-    );
     let small = simulate_selection_draws(&design(100), &stream).unwrap();
-    let small_derived =
-        derive_uncertainty(&small, None, &request, &IntervalRequest::marginal(0.95), &ctx())
-            .unwrap();
-    for route in PublishedRoute::ALL {
-        let error = small_derived.publish(route).unwrap_err();
-        assert_eq!(error.reason_code(), "cell_not_licensed");
-        assert!(error.to_refusal().offending.unwrap().contains("mc_budget=100"));
+    // Every request is published; the status never exceeds what a record measured, and a
+    // simultaneous marginal-only route, another level or a not_measured budget is not calibrated.
+    let simultaneous =
+        IntervalRequest { level: 0.95, multiplicity: IntervalMultiplicity::Simultaneous };
+    for (derived, route, may_calibrate) in [
+        (derive(&draws, IntervalRequest::marginal(0.95)), PublishedRoute::UtilityInterval, true),
+        (derive(&draws, IntervalRequest::marginal(0.9)), PublishedRoute::UtilityInterval, false),
+        (derive(&draws, simultaneous), PublishedRoute::RankingProbability, false),
+        (derive(&small, IntervalRequest::marginal(0.95)), PublishedRoute::UtilityInterval, false),
+    ] {
+        assert_eq!(derived.standing, DerivedStanding::DerivedNotMeasured);
+        let slot = derived.publish(route).unwrap();
+        if !may_calibrate {
+            assert_ne!(slot.status, CalibrationStatus::Calibrated, "{}", route.as_str());
+        }
     }
+    // The simultaneous marginal-only construction is reported as not measured.
+    assert_eq!(
+        derive(&draws, simultaneous).publish(PublishedRoute::RankingProbability).unwrap().status,
+        CalibrationStatus::NotMeasured
+    );
 }
 
 // ---- fresh consumer -----------------------------------------------------------------
+
+fn assert_recompute_refusal(result: Result<(), ReliabilityError>) {
+    match result {
+        Err(ReliabilityError::InvalidInput { slot: "derived_uncertainty", message }) => {
+            assert_eq!(message, "stored derivation does not recompute from the draws");
+        }
+        other => panic!("expected the recompute refusal, got {other:?}"),
+    }
+}
 
 #[test]
 fn a_fresh_consumer_rederives_and_refuses_edited_draws_or_edited_intervals() {
@@ -553,15 +554,15 @@ fn a_fresh_consumer_rederives_and_refuses_edited_draws_or_edited_intervals() {
     // One utility changed at unchanged shape: the stored derivation no longer recomputes.
     let mut edited = draws.clone();
     edited.candidates[0].utilities[0] += 0.5;
-    assert!(derived.verify(&edited, None, &request, &ctx()).is_err());
+    assert_recompute_refusal(derived.verify(&edited, None, &request, &ctx()));
     // A claimed interval edited after the fact.
     let mut forged = derived.clone();
     forged.selection.corrected.as_mut().unwrap().lower += 1.0;
-    assert!(forged.verify(&draws, None, &request, &ctx()).is_err());
+    assert_recompute_refusal(forged.verify(&draws, None, &request, &ctx()));
     // A changed request level is part of the derivation.
     let mut other_level = derived.clone();
     other_level.request.level = 0.9;
-    assert!(other_level.verify(&draws, None, &request, &ctx()).is_err());
+    assert_recompute_refusal(other_level.verify(&draws, None, &request, &ctx()));
 }
 
 // ---- measurement design -------------------------------------------------------------

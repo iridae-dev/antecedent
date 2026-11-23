@@ -51,14 +51,14 @@ fn panel(snapshot: &str) -> TemporalUnitPanel {
                         let n_cell = n_l / 2;
                         let ones = n_cell * M10[s0][a1][l][a2] / 10;
                         for k in 0..n_cell {
-                            histories.push(SequenceHistory {
-                                time_id: histories.len() as u64,
-                                s0: s0 as u32,
-                                a1: a1 as u32,
-                                l2: l as u32,
-                                a2: a2 as u32,
-                                y: if k < ones { 1.0 } else { 0.0 },
-                            });
+                            histories.push(SequenceHistory::two_step(
+                                histories.len() as u64,
+                                s0 as u32,
+                                a1 as u32,
+                                l as u32,
+                                a2 as u32,
+                                if k < ones { 1.0 } else { 0.0 },
+                            ));
                         }
                     }
                 }
@@ -89,7 +89,7 @@ fn artifact() -> TemporalInitialStateArtifactWire {
     let query =
         MarginalizedQuery::new(SEQUENCE, InitialStateSpec::Law(target_law("target-state", 0.7)))
             .unwrap();
-    let fixed = FixedStateQuery { sequence: SEQUENCE, s0: 1 };
+    let fixed = FixedStateQuery { sequence: SEQUENCE.to_vec(), s0: 1 };
     TemporalInitialStateArtifactWire::checked(
         premises(),
         SEQUENCE,
@@ -197,7 +197,7 @@ fn initial_state_artifact_refuses_a_resealed_changed_value_or_swapped_labels() {
     assert!(message.contains("temporal_initial_state_artifact.label"), "{message}");
 
     let mut claim = artifact();
-    claim.marginalized.inference_claim = "calibrated".into();
+    claim.marginalized.inference_claim = "interval".into();
     let message = convert_detail(
         TemporalInitialStateArtifactWire::consume(&reseal(claim), &limits()).unwrap_err(),
     );
@@ -237,7 +237,10 @@ fn initial_state_artifact_refuses_a_resealed_changed_law_snapshot_or_population(
     let (code, message) =
         refused(TemporalInitialStateArtifactWire::consume(&reseal(source), &limits()).unwrap_err());
     assert_eq!(code, "transport_missing_evidence");
-    assert!(message.contains("initial_state.target_law_missing"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::initial_state::TARGET_LAW_MISSING),
+        "{message}"
+    );
 
     // The stored result bound to another panel snapshot.
     let mut other_panel = artifact();
@@ -285,8 +288,11 @@ fn initial_state_artifact_refuses_a_resealed_changed_panel_summary() {
 fn initial_state_artifact_is_not_the_specified_initial_state_artifact() {
     assert_ne!(TEMPORAL_INITIAL_STATE_ARTIFACT_FEATURE, TEMPORAL_TRANSPORT_ARTIFACT_FEATURE);
     let bytes = artifact().export().unwrap();
-    // The specified-initial-state sequence artifact decoder refuses these bytes outright.
-    assert!(TemporalSequenceArtifactWire::decode(&bytes).is_err());
+    // The specified-initial-state sequence artifact decoder refuses these bytes outright (by container version, which the evidence digest bumped).
+    assert_eq!(
+        TemporalSequenceArtifactWire::decode(&bytes).unwrap_err().to_string(),
+        "unsupported container version 1"
+    );
     // A foreign feature marker or kind is refused by this decoder.
     let mut foreign = artifact();
     foreign.required_features = vec![TEMPORAL_TRANSPORT_ARTIFACT_FEATURE.into()];
@@ -296,7 +302,10 @@ fn initial_state_artifact_is_not_the_specified_initial_state_artifact() {
     assert!(message.contains("unsupported_semantics"), "{message}");
     let mut kind = artifact();
     kind.kind = "temporal_transport_sequence".into();
-    assert!(TemporalInitialStateArtifactWire::decode(&kind.export().unwrap()).is_err());
+    assert_eq!(
+        TemporalInitialStateArtifactWire::decode(&kind.export().unwrap()).unwrap_err().to_string(),
+        "convert error: temporal_initial_state_artifact.unsupported_semantics"
+    );
     let mut version = artifact();
     version.version = 2;
     assert!(matches!(
@@ -313,7 +322,10 @@ fn initial_state_artifact_is_not_built_for_a_source_law_or_a_support_gap() {
         vec![(0, 0.5), (1, 0.5)],
     )
     .unwrap();
-    assert!(MarginalizedQuery::new(SEQUENCE, InitialStateSpec::Law(source)).is_err());
+    assert_eq!(
+        MarginalizedQuery::new(SEQUENCE, InitialStateSpec::Law(source)).unwrap_err().to_string(),
+        "reason=transport_missing_evidence: initial_state.target_law_missing: only a source initial-state law was supplied; source and target laws cannot be interchanged"
+    );
 
     let gap = InitialStateLaw::new(
         InitialStatePopulation::Target,
@@ -333,7 +345,10 @@ fn initial_state_artifact_is_not_built_for_a_source_law_or_a_support_gap() {
         .unwrap_err(),
     );
     assert_eq!(code, "transport_support_failure");
-    assert!(message.contains("initial_state.support_gap"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::initial_state::SUPPORT_GAP),
+        "{message}"
+    );
 
     let mut bad = premises();
     bad.time_order[0] = "a1".into();
@@ -345,5 +360,8 @@ fn initial_state_artifact_is_not_built_for_a_source_law_or_a_support_gap() {
             .unwrap_err(),
     );
     assert_eq!(code, "invalid_argument");
-    assert!(message.contains("initial_state.invalid_premises"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::initial_state::INVALID_PREMISES),
+        "{message}"
+    );
 }

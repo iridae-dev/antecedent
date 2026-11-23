@@ -1,13 +1,48 @@
 {
   "fixture_id": "antecedent.trial_to_target.paper_equation",
   "inputs": {
-    "outcome": [1.0, 3.0, 0.0, 0.0],
-    "treatment": [false, true, false, false],
-    "trial": [true, true, false, false],
-    "selection_probability": [0.5, 0.5, 0.5, 0.5],
-    "treatment_probability": [0.5, 0.5, 0.5, 0.5],
-    "mu0": [1.0, 1.0, 1.0, 1.0],
-    "mu1": [3.0, 3.0, 3.0, 3.0]
+    "outcome": [
+      1.0,
+      3.0,
+      0.0,
+      0.0
+    ],
+    "treatment": [
+      false,
+      true,
+      false,
+      false
+    ],
+    "trial": [
+      true,
+      true,
+      false,
+      false
+    ],
+    "selection_probability": [
+      0.5,
+      0.5,
+      0.5,
+      0.5
+    ],
+    "treatment_probability": [
+      0.5,
+      0.5,
+      0.5,
+      0.5
+    ],
+    "mu0": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "mu1": [
+      3.0,
+      3.0,
+      3.0,
+      3.0
+    ]
   },
   "expected": {
     "ipw": 2.0,
@@ -16,9 +51,27 @@
     "treatment_effective_sample_size": 2.0
   },
   "contract": "Direct evaluation of the cited inverse-odds trial-to-target IPW and augmented estimating equations with known nuisance probabilities/regressions.",
-  "tolerance": {"atol": 1e-12},
+  "tolerance": {
+    "atol": 1e-12
+  },
   "oracle": {
     "kind": "closed_form",
-    "method": "direct evaluation of the cited inverse-odds IPW and augmented trial-to-target equations with known nuisances (see `contract`); no external package parity"
+    "method": "direct evaluation of the cited inverse-odds IPW and augmented trial-to-target equations with known nuisances (see `contract`); no external package parity",
+    "generator": "conformance/response/trial_transport/reference.py",
+    "command": "uv run --frozen --script conformance/response/trial_transport/reference.py --check",
+    "environment_lock": "conformance/response/trial_transport/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "expected ipw",
+      "expected aipw",
+      "selection_effective_sample_size",
+      "treatment_effective_sample_size"
+    ],
+    "context_only_outputs": [
+      "contract text",
+      "tolerance declaration"
+    ],
+    "independence_basis": "The generator evaluates the cited inverse-odds IPW and augmented estimating equations by direct arithmetic on the declared four-row inputs, with the normalisation by the number of target rows stated in its docstring; it imports no Antecedent code and no statistics package. The shared object is the estimating equation itself.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded."
   }
 }

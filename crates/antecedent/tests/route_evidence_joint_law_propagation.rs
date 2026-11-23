@@ -83,8 +83,8 @@ fn artifact(
             shape: [x.len(), 2],
             weights: None,
             supported: None,
-            calibration: DistributionCalibration::Unmeasured,
-            trust: DistributionTrust::NativeLicensed,
+            calibration: DistributionCalibration::NotMeasured,
+            trust: DistributionTrust::NativeSupported,
             legacy_posterior: None,
             legacy_bindings: None,
         },
@@ -137,7 +137,7 @@ fn the_rule_plans_an_aligned_route_only_for_inputs_sharing_one_alignment() {
         aligned_input("x", "snapshot_j", "joint_7"),
         aligned_input("y", "snapshot_j", "joint_7"),
     ))
-    .expect("one alignment licenses the aligned route");
+    .expect("one alignment supports the aligned route");
     assert_eq!(plan.route, PropagationRoute::AlignedJointLaw);
     assert_eq!(plan.alignment_id.as_deref(), Some("joint_7"));
     assert_eq!(plan.label, "point_only");
@@ -150,7 +150,10 @@ fn the_rule_plans_an_aligned_route_only_for_inputs_sharing_one_alignment() {
     ))
     .expect_err("different alignments");
     assert_eq!(mismatch.code, "joint_law_required");
-    assert_eq!(mismatch.detail, "joint_law_propagation.alignment_mismatch");
+    assert_eq!(
+        mismatch.detail,
+        antecedent_core::reason_details::joint_law_propagation::ALIGNMENT_MISMATCH
+    );
     assert!(mismatch.remedy.is_some());
 
     // Independent marginals have no row pairing at all.
@@ -162,7 +165,10 @@ fn the_rule_plans_an_aligned_route_only_for_inputs_sharing_one_alignment() {
     };
     let refused = check_propagation(&request(unpaired("x", "s1"), unpaired("y", "s2")))
         .expect_err("independent marginals");
-    assert_eq!(refused.detail, "joint_law_propagation.index_pairing_refused");
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED
+    );
 }
 
 #[test]
@@ -184,7 +190,10 @@ fn an_alignment_identity_is_shared_by_the_columns_of_one_artifact_only() {
     let marginals = artifact("snap-marginals", DrawAlignment::IndependentMarginals, &x, &y);
     let refusal = alignment_identity(&marginals).expect_err("no identity");
     assert_eq!(refusal.code(), "joint_law_required");
-    assert_eq!(refusal.details(), vec!["joint_law_propagation.index_pairing_refused"]);
+    assert_eq!(
+        refusal.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::INDEX_PAIRING_REFUSED]
+    );
 }
 
 #[test]
@@ -230,7 +239,10 @@ fn propagate_runs_a_declared_covariance_composition_to_its_closed_form() {
         },
         &ctx(),
     );
-    assert!(wrong.is_err());
+    assert_eq!(
+        wrong.expect_err("wrong shape").details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST]
+    );
 }
 
 #[test]
@@ -283,7 +295,10 @@ fn aligned_linear_draws_give_the_covariance_from_the_rows_themselves() {
     let refused = propagate_aligned_linear(PropagationOperation::Sum, (1.0, 1.0), &dx, &oy, &ctx())
         .expect_err("different joint laws");
     assert_eq!(refused.code(), "joint_law_required");
-    assert_eq!(refused.details(), vec!["joint_law_propagation.alignment_mismatch"]);
+    assert_eq!(
+        refused.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::ALIGNMENT_MISMATCH]
+    );
 }
 
 #[test]
@@ -318,7 +333,10 @@ fn aligned_functionals_are_expectations_under_the_joint_law() {
         ValueFunctional::Ratio,
         &ctx(),
     );
-    assert!(refused.is_err());
+    assert_eq!(
+        refused.expect_err("zero denominator").details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::ARTIFACT_INVALID]
+    );
 }
 
 #[test]
@@ -340,7 +358,10 @@ fn a_known_weight_mixture_splits_variance_into_within_and_between() {
     assert_eq!(claim.route(), "known_weight_mixture");
     // Weights that do not sum to one are refused.
     let bad = MixtureComponent { weight: 0.4, ..component("c", "s3", 0.0) };
-    assert!(propagate_mixture(&[bad.clone(), bad], &ctx()).is_err());
+    assert_eq!(
+        propagate_mixture(&[bad.clone(), bad], &ctx()).expect_err("weights").details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST]
+    );
 }
 
 #[test]
@@ -372,7 +393,10 @@ fn a_dependence_envelope_ranges_over_every_coupling_of_two_marginals() {
     near(variance.value("linear_variance_lower").expect("lower"), 0.1875);
     near(variance.value("linear_variance_upper").expect("upper"), 0.6875);
     // The envelope is never read as an interval.
-    assert_eq!(product.interval().expect_err("closed").code(), "cell_not_licensed");
+    assert_eq!(
+        product.interval().expect_err("closed").code(),
+        "uncertainty_representation_insufficient"
+    );
 }
 
 #[test]
@@ -404,7 +428,10 @@ fn a_correlation_range_gives_an_assumption_range_linear_in_the_correlation() {
         0.3,
         &ctx(),
     );
-    assert!(refused.is_err());
+    assert_eq!(
+        refused.expect_err("single correlation").details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST]
+    );
 }
 
 #[test]
@@ -423,12 +450,7 @@ fn an_exported_claim_is_the_sealed_artifact_of_its_own_identity_and_result() {
     assert_eq!(wire.identity, claim.identity());
     assert_eq!(wire.alignment_id.as_deref(), claim.alignment_id());
     assert_eq!(wire.route, "aligned_joint_law");
-    let variance = wire
-        .result
-        .iter()
-        .find(|(name, _)| name == "variance")
-        .map(|(_, bits)| f64::from_bits(*bits))
-        .expect("stored variance");
+    let variance = wire.result.value("variance").expect("stored variance");
     near(variance, 1.61);
 }
 
@@ -455,7 +477,10 @@ fn a_fresh_consumer_replays_an_envelope_and_refuses_a_foreign_identity_or_trunca
     // A retained identity that is not this claim's is refused.
     let refusal = consume_joint_law_propagation_artifact(&bytes, Some("0000"), &ctx())
         .expect_err("foreign identity");
-    assert_eq!(refusal.details(), vec!["joint_law_propagation.artifact_refused"]);
+    assert_eq!(
+        refusal.details(),
+        vec![antecedent_core::reason_details::joint_law_propagation::ARTIFACT_REFUSED]
+    );
     // Truncated bytes are not an artifact.
     assert!(
         consume_joint_law_propagation_artifact(&bytes[..bytes.len() / 2], None, &ctx()).is_err()

@@ -1,0 +1,240 @@
+[
+ {
+  "name": "two_actions_unit",
+  "prior_mean": 0.5,
+  "prior_variance": 1.0,
+  "sample_size": 4,
+  "noise_variance": 12.0,
+  "intercept": [
+   0.0,
+   0.0
+  ],
+  "slope": [
+   0.0,
+   1.0
+  ],
+  "gross_evsi": 0.04165773529384315,
+  "evpi": 0.19779655740130603,
+  "prior_expected_utility": 0.5,
+  "preposterior_expected_utility": 0.5416577352938432,
+  "posterior_variance": 0.75
+ },
+ {
+  "name": "three_actions_interior_middle",
+  "prior_mean": -0.3,
+  "prior_variance": 2.5,
+  "sample_size": 7,
+  "noise_variance": 3.0,
+  "intercept": [
+   0.0,
+   0.4,
+   0.1
+  ],
+  "slope": [
+   -1.0,
+   0.0,
+   1.5
+  ],
+  "gross_evsi": 1.0840830884319972,
+  "evpi": 1.2001373749675204,
+  "prior_expected_utility": 0.4,
+  "preposterior_expected_utility": 1.484083088431997,
+  "posterior_variance": 0.36585365853658536
+ },
+ {
+  "name": "five_actions_one_dominated",
+  "prior_mean": 0.2,
+  "prior_variance": 1.3,
+  "sample_size": 3,
+  "noise_variance": 2.0,
+  "intercept": [
+   0.0,
+   0.5,
+   0.2,
+   -3.0,
+   0.3
+  ],
+  "slope": [
+   1.0,
+   0.0,
+   -0.5,
+   0.1,
+   0.7
+  ],
+  "gross_evsi": 0.3096445396850754,
+  "evpi": 0.41926729418881775,
+  "prior_expected_utility": 0.5,
+  "preposterior_expected_utility": 0.8096445396850754,
+  "posterior_variance": 0.4406779661016949
+ },
+ {
+  "name": "equal_slopes_best_intercept_wins",
+  "prior_mean": 0.0,
+  "prior_variance": 1.0,
+  "sample_size": 5,
+  "noise_variance": 4.0,
+  "intercept": [
+   0.1,
+   0.3,
+   0.0
+  ],
+  "slope": [
+   1.0,
+   1.0,
+   -1.0
+  ],
+  "gross_evsi": 0.45671039594126583,
+  "evpi": 0.6568439695268505,
+  "prior_expected_utility": 0.3,
+  "preposterior_expected_utility": 0.7567103959412658,
+  "posterior_variance": 0.4444444444444444
+ },
+ {
+  "name": "tiny_information_ratio",
+  "prior_mean": 0.0,
+  "prior_variance": 1.0,
+  "sample_size": 1,
+  "noise_variance": 1000000000000.0,
+  "intercept": [
+   0.0,
+   0.0
+  ],
+  "slope": [
+   0.0,
+   1.0
+  ],
+  "gross_evsi": 3.989422804012332e-07,
+  "evpi": 0.3989422804014327,
+  "prior_expected_utility": 0.0,
+  "preposterior_expected_utility": 3.989422804012332e-07,
+  "posterior_variance": 0.999999999999
+ },
+ {
+  "name": "huge_information_ratio",
+  "prior_mean": 0.1,
+  "prior_variance": 1.0,
+  "sample_size": 1000000,
+  "noise_variance": 1e-06,
+  "intercept": [
+   0.0,
+   0.0
+  ],
+  "slope": [
+   0.0,
+   1.0
+  ],
+  "gross_evsi": 0.3509353312045162,
+  "evpi": 0.35093533120471465,
+  "prior_expected_utility": 0.1,
+  "preposterior_expected_utility": 0.4509353312045162,
+  "posterior_variance": 9.99999999999e-13
+ },
+ {
+  "name": "large_utility_offsets",
+  "prior_mean": 2.0,
+  "prior_variance": 0.5,
+  "sample_size": 10,
+  "noise_variance": 5.0,
+  "intercept": [
+   1000000000.0,
+   1000000001.0
+  ],
+  "slope": [
+   0.0,
+   3.0
+  ],
+  "gross_evsi": 4.546816502275428e-07,
+  "evpi": 0.00027015158870645305,
+  "prior_expected_utility": 1000000007.0,
+  "preposterior_expected_utility": 1000000007.0000005,
+  "posterior_variance": 0.25
+ },
+ {
+  "name": "prior_far_from_break_even",
+  "prior_mean": 8.0,
+  "prior_variance": 1.0,
+  "sample_size": 4,
+  "noise_variance": 12.0,
+  "intercept": [
+   0.0,
+   0.0
+  ],
+  "slope": [
+   0.0,
+   1.0
+  ],
+  "gross_evsi": 1.9913648889155653e-59,
+  "evpi": 7.550262411946499e-17,
+  "prior_expected_utility": 8.0,
+  "preposterior_expected_utility": 8.0,
+  "posterior_variance": 0.75
+ },
+ {
+  "name": "prior_at_break_even",
+  "prior_mean": 0.0,
+  "prior_variance": 4.0,
+  "sample_size": 2,
+  "noise_variance": 3.0,
+  "intercept": [
+   0.0,
+   0.0
+  ],
+  "slope": [
+   -2.0,
+   2.0
+  ],
+  "gross_evsi": 2.72175295891604,
+  "evpi": 3.1915382432114616,
+  "prior_expected_utility": 0.0,
+  "preposterior_expected_utility": 2.72175295891604,
+  "posterior_variance": 1.0909090909090908
+ },
+ {
+  "name": "tiny_prior_variance",
+  "prior_mean": 0.0,
+  "prior_variance": 1e-08,
+  "sample_size": 3,
+  "noise_variance": 1.0,
+  "intercept": [
+   0.0,
+   0.0
+  ],
+  "slope": [
+   0.0,
+   1.0
+  ],
+  "gross_evsi": 6.909882885778468e-09,
+  "evpi": 3.989422804014327e-05,
+  "prior_expected_utility": 0.0,
+  "preposterior_expected_utility": 6.909882885778468e-09,
+  "posterior_variance": 9.999999700000008e-09
+ },
+ {
+  "name": "many_actions_fan",
+  "prior_mean": 0.0,
+  "prior_variance": 1.0,
+  "sample_size": 6,
+  "noise_variance": 2.0,
+  "intercept": [
+   0.0,
+   0.15,
+   0.3,
+   0.45,
+   0.6,
+   0.75
+  ],
+  "slope": [
+   -2.0,
+   -1.0,
+   0.0,
+   0.5,
+   1.0,
+   2.0
+  ],
+  "gross_evsi": 1.039663434506845,
+  "evpi": 1.2491058923532548,
+  "prior_expected_utility": 0.75,
+  "preposterior_expected_utility": 1.789663434506845,
+  "posterior_variance": 0.25
+ }
+]

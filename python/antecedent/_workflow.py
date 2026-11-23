@@ -2,19 +2,21 @@
 
 from __future__ import annotations
 
-import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from typing import Any, Literal, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Literal, TypeVar, overload
 
 from ._api import describe_refusal
 from ._artifact_protocol import ExportedArtifact, LoadContext
 from ._freeze import freeze, thaw
 from .errors import CausalSerializationError, CausalValueError
-from .estimation import PreparedAnalysis, _PreparedQuery, _PreparedResult
+from .estimation import _PreparedEngine, _PreparedQuery, _PreparedResult
+from .execution import Execution
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .missing import MissingPolicy
+from .outcomes import Outcome, outcome_operation
+from .quasi import QuasiRolloutEstimate
 from .results import AnalysisResult, CausalResponseView
 from .results._execution import Answer, CalibrationInfo, ResultAPI, answer_from_artifact
 from .results._report import InspectionReport, as_inspection
@@ -27,6 +29,9 @@ from .transport._impl import (
     TransportResponseGrid,
 )
 from .transport._restricted import RestrictedTransportExecution
+
+if TYPE_CHECKING:
+    from ._prepared_policy import PreparedPolicyAnalysis
 
 
 def prepare(
@@ -57,7 +62,11 @@ def prepare(
     regimes: Sequence[int] | None = None,
     provider: Any | None = None,
     controls: Any | None = None,
-) -> PreparedAnalysis[_PreparedResult]:
+    sampling_design: Literal[
+        "independent_subject_trajectories", "clustered_panel", "dependent_time_series"
+    ]
+    | None = None,
+) -> _PreparedEngine[_PreparedResult] | PreparedPolicyAnalysis:
     """Prepare the same ordinary request as :func:`analyze`, stopping before estimation.
 
     Every argument :func:`analyze` accepts for a native query is accepted here,
@@ -66,7 +75,7 @@ def prepare(
     exception is ``extensibility.ProviderQuery``, which :func:`analyze` dispatches
     directly to its registered provider (it retains no prepared study to stop at).
     """
-    return PreparedAnalysis.prepare(
+    return _PreparedEngine.prepare(
         data,
         query=query,
         graph=graph,
@@ -93,60 +102,33 @@ def prepare(
         regimes=regimes,
         provider=provider,
         controls=controls,
+        sampling_design=sampling_design,
     )
 
 
-_SEALED_OPERATION_KEY = re.compile(r"^dependencies\.checked_[a-z0-9_]+_operation$")
-# Retained data a sealed checked operation carries and the consumer cannot
-# re-derive from the exported bytes: the checked AIPW lowering and its row
-# binding, the linear-adjustment fit's sufficient statistics, fitted
-# counterfactual mechanisms, and functional-effect replay draws and grids.
-_SEALED_REPLAY_KEYS = frozenset(
-    {
-        "checked_aipw.row_binding",
-        "dependencies.fitted_counterfactual_mechanisms",
-        "dependencies.functional_effect_posterior_draws",
-        "dependencies.functional_effect_response_posterior_draws",
-        "dependencies.linear_fit_sufficient_statistics",
-        "program.checked_aipw_lowering",
-        "program.functional_effect_response_grid",
-    }
-)
-
-
-def is_sealed_dependency(key: str) -> bool:
-    """Whether an unresolved receipt key names a sealed checked operation or its replay data."""
-    return key in _SEALED_REPLAY_KEYS or _SEALED_OPERATION_KEY.fullmatch(key) is not None
-
-
-def sealed_dependencies_only(
-    *, recognized: bool, contract_present: bool, unresolved: Iterable[str]
-) -> bool:
-    """The consumer recognized the artifact and its contract, and every unresolved
-    reason is a sealed checked operation (or the replay data one carries) that an
-    independent consumer cannot re-execute from bytes alone."""
-    keys = tuple(unresolved)
-    return bool(recognized and contract_present and keys and all(map(is_sealed_dependency, keys)))
-
-
-def _split_unresolved(receipt: Mapping[str, str]) -> tuple[str, ...]:
-    return tuple(key for key in receipt.get("unresolved", "").split(",") if key)
+def _split(receipt: Mapping[str, str], key: str) -> tuple[str, ...]:
+    return tuple(item for item in receipt.get(key, "").split(",") if item)
 
 
 @dataclass(frozen=True, slots=True)
 class Acceptance:
-    """What the consumer verified; does not certify assumptions or execution readiness.
+    """What loading, and replay when it was asked for, established. It does not certify
+    assumptions or execution readiness.
 
-    ``verified`` means the consumer replayed a verified program. ``sealed`` means it
-    recognized the artifact, verified its contract and identities, and could not
-    replay only because every unresolved reason is a sealed checked operation;
-    ``unresolved`` names those reasons. Only a verified load is ``replayable``.
+    Every Antecedent artifact is intact when it loads, so ``recognized`` (the contract
+    section is present, understood, and agrees with its digests) is the whole load check;
+    ``integrity`` names what failed it. ``replayed`` is true only after a replay recomputed
+    every published part and each agreed. A replay that did not get that far says why:
+    ``not_replayable`` names parts whose evidence the artifact does not carry, and
+    ``mismatches`` names parts that were recomputed and differ.
     """
 
-    verified: bool
     recognized: bool
     details: Mapping[str, str]
-    unresolved: tuple[str, ...] = ()
+    replayed: bool = False
+    integrity: tuple[str, ...] = ()
+    not_replayable: tuple[str, ...] = ()
+    mismatches: tuple[str, ...] = ()
     identity_bound: bool = False
     resumable: bool = False
 
@@ -159,52 +141,59 @@ class Acceptance:
     @classmethod
     def from_receipt(cls, receipt: Mapping[str, str]) -> Acceptance:
         return cls(
-            verified=receipt.get("accepts_as_verified_program") == "true",
-            recognized=receipt.get("recognized") == "true",
+            recognized=receipt.get("intact") == "true",
             details=dict(receipt),
-            unresolved=_split_unresolved(receipt),
-        )
-
-    @property
-    def replayable(self) -> bool:
-        """True only when the consumer replayed a verified program."""
-        return self.verified
-
-    @property
-    def sealed(self) -> bool:
-        """Recognized, contract present, and unresolved only by sealed checked operations."""
-        return not self.verified and sealed_dependencies_only(
-            recognized=self.recognized,
-            contract_present="program" in self.details,
-            unresolved=self.unresolved,
+            replayed=receipt.get("replayed") == "true",
+            integrity=_split(receipt, "integrity"),
+            not_replayable=_split(receipt, "not_replayable"),
+            mismatches=_split(receipt, "mismatches"),
         )
 
     @property
     def answer_available(self) -> bool:
-        """Whether the recorded answer is kept on load (verified or sealed)."""
-        return self.verified or self.sealed
+        """Whether the recorded answer is kept on load: the artifact is intact."""
+        return self.recognized
 
     @property
-    def status(self) -> Literal["verified", "sealed", "unavailable"]:
-        if self.verified:
-            return "verified"
-        if self.sealed:
-            return "sealed"
+    def status(self) -> Literal["replayed", "loaded", "unavailable"]:
+        if self.replayed:
+            return "replayed"
+        if self.recognized:
+            return "loaded"
         return "unavailable"
 
 
 @dataclass(frozen=True)
 class LoadedResult(ResultAPI):
-    """Semantic view of a portable execution: verified, sealed, or explicitly unavailable.
+    """Semantic view of a portable execution: loaded, replayed, or explicitly unavailable.
 
-    A verified load replayed the program. A sealed load recognized the artifact,
-    verified its contract and identities, kept the recorded answer, and names the
-    checked operation it cannot replay in ``acceptance.unresolved``.
+    A load checks that the artifact is intact and keeps the recorded answer; it recomputes
+    nothing. :meth:`replay` recomputes the published numbers, for a result that did not come
+    from your own authoring, and reports in ``acceptance`` what could not be replayed or
+    disagreed.
     """
 
     decoded_artifact: Any
     acceptance: Acceptance
     _bytes: bytes = field(repr=False)
+    #: JSON of the provenance section the artifact carries, checked against its contract.
+    _method_provenance: str | None = field(default=None, repr=False)
+
+    @property
+    def method_provenance(self) -> Any:
+        """Provenance records the producer cited for the route this result executed.
+
+        Read from the artifact's ``analysis_result.method_provenance`` section, which must name
+        the identifier and estimator its contract declares: sources, documented deviations,
+        review scope limits, and each record's id and digest, as the producer's table had them
+        at export. Empty when the artifact carries no such section. Descriptive: it takes no
+        part in loading or replay.
+        """
+        from .citations import MethodProvenance, method_provenance
+
+        if self._method_provenance is None:
+            return method_provenance()
+        return MethodProvenance._parse(self._method_provenance)
 
     @property
     def program_id(self) -> str | None:
@@ -222,45 +211,110 @@ class LoadedResult(ResultAPI):
 
     @property
     def answer(self) -> Answer:
-        """The recorded answer for a verified or sealed load; otherwise unavailable."""
+        """The recorded answer of an intact load; otherwise unavailable."""
         if not self.acceptance.answer_available:
             return Answer("unavailable", detail="semantic_acceptance_unavailable")
         return answer_from_artifact(self.decoded_artifact.contract, self.decoded_artifact.payload)
 
-    def inspect(self) -> InspectionReport:
+    @property
+    def quasi_rollout(self) -> QuasiRolloutEstimate | None:
+        """The recorded rollout, conformal or multi-unit synthetic-panel, or optioned
+        local-ratio result (unsupported, calibration not_measured), equal to the live
+        ``result.quasi_rollout``; ``None`` when absent or the load is unavailable."""
+        from ._quasi_rollout import quasi_rollout_from_wire
+
+        if not self.acceptance.answer_available:
+            return None
+        payload = self.decoded_artifact.payload
+        if not isinstance(payload, Mapping):
+            return None
+        return quasi_rollout_from_wire(payload.get("quasi_rollout"))
+
+    @property
+    def temporal_design(self) -> Any:
+        """The recorded temporal-design result
+        (:class:`antecedent.temporal_designs.TemporalDesignEstimate`, unsupported, calibration
+        not_measured), equal to the live ``result.temporal_design``; ``None`` when absent or the
+        load is unavailable."""
+        from ._temporal_design import temporal_design_from_wire
+
+        if not self.acceptance.answer_available:
+            return None
+        payload = self.decoded_artifact.payload
+        if not isinstance(payload, Mapping):
+            return None
+        from .results._families import wire_section_with_stated_row
+
+        return temporal_design_from_wire(wire_section_with_stated_row(payload, "temporal_design"))
+
+    def _build_inspection(self) -> InspectionReport:
+        overrides: dict[str, Any] = {
+            "stage": "consumed",
+            "family": "LoadedResult",
+            "operations": ("inspect", "export", "artifact"),
+        }
         if not self.acceptance.answer_available and not (
             self.acceptance.recognized and isinstance(self.decoded_artifact.contract, Mapping)
         ):
-            report = as_inspection(
+            return as_inspection(
                 replace(
                     ReasoningSlots.from_contract({}),
                     answer=self.answer,
                     calibration=self.calibration,
-                )
+                ),
+                **overrides,
             )
-        else:
-            report = as_inspection(
-                ReasoningSlots.from_result_section(
-                    self.decoded_artifact.contract,
-                    self.decoded_artifact.payload,
-                    answer=self.answer,
-                    calibration=self.calibration,
-                )
-            )
-        return report.model_copy(
-            update={
-                "stage": "consumed",
-                "family": "LoadedResult",
-                "operations": ("inspect", "export", "artifact"),
-            }
+        return as_inspection(
+            ReasoningSlots.from_result_section(
+                self.decoded_artifact.contract,
+                self.decoded_artifact.payload,
+                answer=self.answer,
+                calibration=self.calibration,
+            ),
+            **overrides,
         )
 
-    def export(self, *, artifact_id: str | None = None) -> bytes:
+    def export(
+        self,
+        *,
+        artifact_id: str | None = None,
+        quantity: Literal["result", "posterior", "record", "query"] = "result",
+    ) -> ExportedArtifact[LoadedResult]:
+        if quantity != "result":
+            from .errors import CausalUnsupportedError
+
+            raise CausalUnsupportedError(
+                "a consumed result forwards its retained artifact; it has no live posterior export",
+                reason_code="not_executed",
+            )
         if artifact_id is not None and artifact_id != self.decoded_artifact.artifact_id:
             raise CausalSerializationError(
                 "A loaded execution is immutable; its artifact ID cannot be rewritten by forwarding."
             )
-        return self._bytes
+        from ._artifact_protocol import artifact_from_receipt
+
+        return artifact_from_receipt(self, self._bytes)
+
+    def replay(self) -> LoadedResult:
+        """Recompute the published numbers from the evidence the artifact carries.
+
+        Replay is for a result loaded from outside your own authoring; a result you just
+        produced needs none. It runs under the replay bounds, never changes the recorded
+        answer, and returns this result with ``acceptance`` updated: ``replayed`` when every
+        part was recomputed and agrees, otherwise ``integrity``, ``not_replayable`` and
+        ``mismatches`` say why not.
+        """
+        from . import artifacts
+
+        receipt = Acceptance.from_receipt(artifacts.accept(self._bytes, replay=True))
+        return replace(
+            self,
+            acceptance=replace(
+                receipt,
+                identity_bound=self.acceptance.identity_bound,
+                resumable=self.acceptance.resumable,
+            ),
+        )
 
     def __repr__(self) -> str:
         return f"<LoadedResult {self.answer.kind} acceptance={self.acceptance.status}>"
@@ -269,6 +323,8 @@ class LoadedResult(ResultAPI):
 @describe_refusal
 def _load_analysis(
     data: bytes,
+    *,
+    replay: bool = False,
 ) -> (
     LoadedResult
     | AnalysisResult
@@ -282,12 +338,12 @@ def _load_analysis(
 ):
     """Load a contracted result through the Rust semantic consumer.
 
-    Missing/unknown contracts remain explicitly unavailable and can still be
-    forwarded. Loading never creates a live study or upgrades an old artifact.
+    Loading checks the artifact is intact and replays nothing; ``replay=True`` also
+    recomputes its numbers. Missing/unknown contracts remain explicitly unavailable and
+    can still be forwarded. Loading never creates a live study or upgrades an old artifact.
     """
     from . import artifacts
 
-    prepared: PreparedAnalysis[Any]
     encoded = bytes(data)
     if encoded.startswith(b"ANTECEDENT-TRANSPORT-VIEW\x01"):
         from .transport._wrap import decode_transport_view
@@ -298,22 +354,19 @@ def _load_analysis(
         from .transport._impl import _learned_trial
 
         native = _native.consume_learned_trial(encoded)
-        return _learned_trial(native, native.last_result())
+        return _learned_trial(native, native.last_result_summary())
     if encoded.startswith(b"ANTECEDENT-EXACT-TRANSPORT\x01"):
-        from .transport._impl import _exact_distribution, consume_exact
+        from .transport._impl import consume_exact
 
-        prepared = consume_exact(encoded)
-        return _exact_distribution(prepared._native, prepared._native.last_result())
+        return consume_exact(encoded)
     if encoded.startswith(b"ANTECEDENT-STATISTICAL-TRANSPORT\x01"):
-        from .transport._impl import _statistical_distribution, consume_statistical
+        from .transport._impl import consume_statistical
 
-        prepared = consume_statistical(encoded)
-        return _statistical_distribution(prepared._native, prepared._native.last_result())
+        return consume_statistical(encoded)
     if encoded.startswith(b"ANTECEDENT-TRANSPORT-GRID\x01"):
-        from .transport._impl import _response_grid, consume_response_grid
+        from .transport._impl import consume_response_grid
 
-        prepared = consume_response_grid(encoded)
-        return _response_grid(prepared._native, prepared._native.last_result())
+        return consume_response_grid(encoded)
     if encoded.startswith(b"ANTECEDENT-Z-TRANSPORT\x01"):
         from .transport._restricted import consume_restricted_artifacts
 
@@ -322,9 +375,23 @@ def _load_analysis(
         from .transport.advanced import consume_identification
 
         return consume_identification(encoded)
-    receipt = artifacts.accept(encoded)
+    from . import _native
+
+    receipt = artifacts.accept(encoded, replay=replay)
     artifact = artifacts.loads(encoded)
-    return LoadedResult(artifact, Acceptance.from_receipt(receipt), encoded)
+    carried = _native.analysis_result_method_provenance_json(encoded)
+    return LoadedResult(artifact, Acceptance.from_receipt(receipt), encoded, carried)
+
+
+def _consumed_transport_view(prepared: Any, result: Any) -> Any:
+    """Keep native consumer proof when projecting an immutable answer view."""
+    from ._artifact_protocol import acceptance_from_consumer
+
+    # The specialized consumer can resume its prepared state. This read model
+    # carries the checked answer and replay proof, with no public resume handle.
+    receipt = replace(acceptance_from_consumer(prepared), resumable=False)
+    object.__setattr__(result, "acceptance", receipt)
+    return result
 
 
 LoadedT = TypeVar("LoadedT")
@@ -332,8 +399,13 @@ LoadedT = TypeVar("LoadedT")
 
 @overload
 def load(
-    data: ExportedArtifact[LoadedT], *, expected: Any = None, context: LoadContext | None = None
-) -> LoadedT: ...
+    data: ExportedArtifact[LoadedT],
+    *,
+    expected: Any = None,
+    context: LoadContext | None = None,
+    execution: Execution | None = None,
+    replay: bool = False,
+) -> Outcome[LoadedT]: ...
 
 
 @overload
@@ -342,18 +414,91 @@ def load(
     *,
     expected: Any = None,
     context: LoadContext | None = None,
-) -> Any: ...
+    execution: Execution | None = None,
+    replay: bool = False,
+) -> Outcome[Any]: ...
 
 
+@outcome_operation
 @describe_refusal
-def load(data: Any, *, expected: Any = None, context: Any = None) -> Any:
+def load(
+    data: Any,
+    *,
+    expected: Any = None,
+    context: LoadContext | None = None,
+    execution: Execution | None = None,
+    replay: bool = False,
+) -> Any:
+    """Load an exported artifact and return what it holds as an outcome.
+
+    ``data`` is the :class:`ExportedArtifact` returned by an ``export()`` call, or its raw bytes.
+    The artifact's family is recognized from its header and read by that family's consumer:
+    analysis results, refusal records, and the other exportable scientific objects. Loading never
+    restores a live study, runs a provider or invokes a callback, so the returned outcome has no
+    ``study``.
+
+    * ``expected`` -- an identity the artifact must match, kept separately from the bytes. For an
+      analysis result: the ``expectation`` of the exported artifact, a ``claim_id`` string, or a
+      mapping with any of ``program_id``, ``claim_id``, ``data_snapshot_id``, ``target_id``,
+      ``identification_id``, ``identification_product_id``, ``inference_binding_id``,
+      ``observation_id`` and ``execution_id``. Default ``None`` checks integrity only; the
+      artifact's own metadata never binds an identity implicitly.
+    * ``context`` -- a ``LoadContext`` naming the sources a composition bundle is checked
+      against. Analysis results do not take one.
+    * ``execution`` -- the :class:`~antecedent.Execution` (memory pool, cancellation, cache) the
+      load runs under; default ``None``.
+    * ``replay`` -- for an analysis result, also recompute its published numbers and report the
+      comparison in ``outcome.acceptance`` (see :meth:`Outcome.replay
+      <antecedent.outcomes.Outcome.replay>`). Default ``False``: the artifact is checked to be
+      intact and nothing is recomputed. Other artifact families always recompute what they
+      publish, so the flag does not change them.
+
+    Returns an :class:`~antecedent.outcomes.Outcome`. For an analysis result its value is a loaded
+    result with the same ``answer`` and ``inspect()`` report as the original; read
+    ``outcome.acceptance`` for what loading established. A loaded refusal record returns a refused
+    outcome with the original code and fields.
+
+    Raises:
+        CausalSerializationError: when the bytes are malformed, or the artifact's kind or
+            identity differs from ``expected``.
+        CausalValueError: when ``expected`` names no identity or an unknown identity field, or
+            ``context`` is given for an artifact that takes none.
+        CausalCancelledError: when the execution's cancellation token is already cancelled.
+
+    Example::
+
+        artifact = outcome.export()
+        path.write_bytes(artifact.data)
+
+        loaded = antecedent.load(path.read_bytes(), expected=artifact.expectation)
+        print(loaded.answer, loaded.acceptance.status)
+    """
+    from ._artifact_protocol import _load_execution
+
+    policy = _load_execution(context, execution)
+    return (
+        _load(data, expected=expected, context=context, replay=replay)
+        if policy is None
+        else policy._call(
+            _load, data, expected=expected, context=context, execution=policy, replay=replay
+        )
+    )
+
+
+def _load(
+    data: Any,
+    *,
+    expected: Any = None,
+    context: LoadContext | None = None,
+    execution: Execution | None = None,
+    replay: bool = False,
+) -> Any:
     """Consume a scientific artifact using its native family consumer.
 
     Expectations must be supplied separately; envelope metadata never binds an identity implicitly.
     Loading never executes callbacks or restores a live study.
     """
     from ._artifact_protocol import (
-        ArtifactAcceptance,
         ArtifactExpectation,
         container_bytes,
         inspect_artifact,
@@ -376,7 +521,21 @@ def load(data: Any, *, expected: Any = None, context: Any = None) -> Any:
         )
     )
     if not legacy_transport and (
-        encoded.startswith((b"CAUSAL\0\0", b"ANTECEDENT-"))
+        encoded.startswith(
+            (
+                b"CAUSAL\0\0",
+                b"ANTECEDENT-",
+                b"ANTBOUNDPRIOR1",
+                b"ANTSTALEBASE1",
+                b"ANTE-JOINT-INTERVAL-1",
+                b"ANTE-JOINT-SCENARIOS-1",
+                b"ANTE-COMPILED-ROBUST-1",
+            )
+        )
+        or encoded.startswith(
+            len(b"antecedent.model.discretized_scm_artifact").to_bytes(8, "little")
+            + b"antecedent.model.discretized_scm_artifact"
+        )
         or encoded.lstrip().startswith(b"{")
         or (encoded and encoded[0] >> 5 == 5)
     ):
@@ -387,8 +546,14 @@ def load(data: Any, *, expected: Any = None, context: Any = None) -> Any:
             "provider_result_v1",
             "external_callback_v1",
         ):
-            return load_scientific(encoded, expected=expected, context=context)
-    result = _load_analysis(encoded)
+            return load_scientific(encoded, expected=expected, context=context, execution=execution)
+    if execution is not None and execution.cancel is not None and execution.cancel.is_cancelled():
+        # Decoding an analysis result performs no admitted native work that could observe the
+        # token, so a cancelled caller is refused before the artifact is consumed.
+        from .errors import CausalCancelledError
+
+        raise CausalCancelledError("cancelled before load")
+    result = _load_analysis(encoded, replay=replay)
     if isinstance(expected, ArtifactExpectation):
         actual_kind = (
             encoded.split(b"\x01", 1)[0].decode("ascii")
@@ -439,7 +604,11 @@ def load(data: Any, *, expected: Any = None, context: Any = None) -> Any:
                 result, "acceptance", replace(result.acceptance, identity_bound=True)
             )
     if legacy_transport:
+        from ._artifact_protocol import acceptance_from_consumer
+
         object.__setattr__(
-            result, "acceptance", ArtifactAcceptance("verified", expected is not None, True, False)
+            result,
+            "acceptance",
+            acceptance_from_consumer(result, identity_bound=expected is not None),
         )
     return result

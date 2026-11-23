@@ -12,6 +12,9 @@ papers = [
 implementation_deviations = [
  "The reported posterior is the exact normalization of a Gaussian-BIC approximation and simple graph prior, not an exact Bayesian marginal posterior.",
  "Enumeration is hard-limited to at most 6 variables.",
+ "A Bernoulli(p) edge prior is applied independently to every ordered pair of variables (a present edge contributes ln p for its direction and ln(1 - p) for the reverse); the independent reference implements the same convention, so the check shows consistency with it, not that it is the only reasonable prior.",
+ "The local score is -n/2 (1 + ln 2 pi + ln(RSS / n)) - (k / 2) ln n with k = number of parents + 1 (intercept); the variance parameter adds the same constant to every graph and cancels on normalization.",
+ "When the Gram-derived residual sum is below 1e-4 of the outcome's centered sum of squares, or a parent is explained to 99.99 percent by the other parents, the residual sum is recomputed from the residuals with one corrected-semi-normal step.",
 ]
 
 upstream_implementations_observed = []
@@ -19,5 +22,55 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-discovery/src/exact_enumeration.rs unit tests",
  "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs (small clean-room exhaustive Gaussian-BIC target and composed-sampler cross-checks)",
+ "crates/antecedent-state/src/graph_score.rs unit test gaussian_bic_matches_multiprecision_on_ill_conditioned_designs (local score against 80-digit residual sums)",
  "conformance/discovery/graph_mcmc_exact (three-node Gaussian-BIC enumeration evidence; no full-method citation beyond the component score)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "Exhaustive labeled-DAG enumeration (enumerate_unique_dags), the local Gaussian BIC score from the shared Gram (rss_from_joint_gram, refined_rss, bic_from_rss), the Bernoulli edge prior and constraint filtering, log-weight normalization and edge-marginal accumulation. Not a review of the order-MCMC routing above six variables, the Laplace-BIC family, or constraint semantics beyond their effect on the support."
+assumptions = ["Data are treated as i.i.d. rows of jointly continuous variables; the BIC weight is an asymptotic approximation to the marginal likelihood and says nothing about its quality at small n.", "Graphs whose score is not finite (a deterministic relation, or rank-deficient parents) are excluded from the support and counted; the posterior is conditional on the remaining graphs.", "The DAG counts 1, 3, 25, 543, 29,281 and 3,781,503 are the known labeled-DAG numbers."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers. The independent stdlib enumeration in conformance/discovery/graph_mcmc_exact was read only through the test that executes it."
+redistribution = "Primary work is cited, not redistributed. The reference scripts and their frozen outputs are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency."
+limitations = "Enumeration, prior and normalization are checked by the existing independent standard-library enumeration at 3-node scale to 1e-9 on marginals. The local score is checked here on four designs (well conditioned; parents differing by 1e-6; a child with R-squared within 1e-11 of one; 1e7 offsets), fourteen scores, to 6e-10 absolute. The reference script declares mpmath==1.3.0 in inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test. A relative residual below about 1e-15 times the condition number still triggers the degenerate-score refusal, so near-noiseless relations are excluded, not scored. Six-variable enumeration was not compared against an independent implementation; the counts are asserted for up to four variables by the unit test. The signed-uniform score has its own dispatch path. The Gaussian BIC factors and normalization covered by this numerical review retain their definitions. Calibration of edge probabilities is assessed separately."
+sources = ["https://doi.org/10.1214/aos/1176344136", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The Gaussian BIC residual sum was computed as a Schur complement of the Gram, whose relative error is about eps times the parents' condition number divided by the unexplained fraction. Scores were wrong by 6e-3 for a child fitted to 1e-5 noise and by 6e-5 for two parents differing by 1e-6 (n = 100), enough to reorder close graphs. The residual sum is now recomputed from the residuals in those regimes; the errors fell to 4e-11 and 6e-11, and all fourteen scores agree to 6e-10.", "Offset invariance holds: scores with 1e7 column offsets agree with the exact values to 2e-12, because the Gram is built from compensated, centered columns.", "No defect was found in the enumeration, the prior, the constraint filter or the log-weight normalization; the independent enumeration test and the discovery suite pass with the corrected score."]
+record_sha256 = "299307101951fc4b20d26c257ff98d33783382faff156a3797cd0d3aadae29f1"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/exact_enumeration.rs"
+items = ["const MAX_ENUM_NODES", "fn default", "fn enumerate_unique_dags", "fn grow_dags", "fn new", "fn run", "fn sample_instead", "struct ExactDagPosterior"]
+sha256 = "f75d536d4eb997e71098cbfa2ceb0122bfb15a99acf15a9ddea56ab4b52a46f4"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-state/src/graph_score.rs"
+items = ["enum GraphScoreFamily", "fn bic_from_rss", "fn centered_column", "fn col", "fn compensated_sum", "fn content_fingerprint", "fn equilibrated_spd", "fn fingerprint", "fn new", "fn refined_rss", "fn rss_from_joint_gram", "fn solve_spd", "struct GraphScoreData"]
+sha256 = "313b86a0a5632cfff5740878b47e47c569b5b93849ca938c12144dee606bf19b"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs"
+items = ["fn case_data", "fn case_data_permuted", "fn ci_screened_structure_mcmc_against_exact_restricted_targets", "fn exact_enumeration_matches_the_independent_stdlib_enumeration_to_rounding", "fn expected", "fn fixture", "fn graph_mcmc_fixture_records_exact_target_and_the_retained_generator", "fn graph_mcmc_marginals_against_exact_exhaustive_targets", "fn max_error", "fn named_marginals", "fn order_mcmc_named_marginals_invariant_to_column_relabeling", "fn schedule"]
+sha256 = "1aefab5a98510a914041368f17688492202530f25869725408714e4c320477e0"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-state/tests/oracle_data/gaussian_bic_reference.py"
+sha256 = "ec8d1ad6597075b5ba11d1177c7938d5d2d69b49101f568d2f7925577e95024b"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-state/tests/oracle_data/gaussian_bic_reference.json"
+sha256 = "81d95a21605880ac4fe078aa69ca975bcbbd5d4002f97c3f0025c9dc15203c7b"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "conformance/discovery/graph_mcmc_exact/reference_exact.py"
+sha256 = "f594b55f602cc09de7a5400219125fdff71e7fcfd6720cb952e430b6cc9fe50f"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "conformance/discovery/graph_mcmc_exact/expected.json"
+sha256 = "161236e1acb8748bbbbf7bd2c0941ba8d180b10a8b7c7724c7c78c796c068c0a"

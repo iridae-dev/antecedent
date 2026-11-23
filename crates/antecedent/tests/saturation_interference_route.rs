@@ -8,6 +8,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{EstimatorId, InterferenceSpec, RefuteSuite, Study};
 use antecedent_core::{
     AssignmentDesign, CausalQuery, ExecutionContext, ExposureLevel, ExposureMapping,
@@ -16,7 +17,7 @@ use antecedent_core::{
 use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 use antecedent_graph::Dag;
 use antecedent_io::{
-    consume_analysis_result, interference_query_from_wire, interference_query_to_wire,
+    interference_query_from_wire, interference_query_to_wire, replay_analysis_result,
 };
 
 fn fixture(
@@ -30,10 +31,12 @@ fn fixture(
         .flat_map(|cluster| {
             let first = cluster * 3;
             (first..first + 3).flat_map(move |from| {
-                (first..first + 3).filter(move |&to| to != from).map(move |to| NetworkEdge {
-                    from: from as u32,
-                    to: to as u32,
-                    weight: 1.0,
+                (first..first + 3).filter(move |&to| to != from).map(move |to| {
+                    NetworkEdge::new(
+                        u64::try_from(from).expect("row id"),
+                        u64::try_from(to).expect("row id"),
+                        1.0,
+                    )
                 })
             })
         })
@@ -88,22 +91,22 @@ fn saturation_direct_spillover_total_retain_truth_without_interval() {
             .build()
             .unwrap();
         let prepared = study.prepare(&ctx).unwrap();
-        assert_eq!(
-            prepared.checked_interference_info().unwrap().estimator,
-            EstimatorId::InterferenceSaturationExact
-        );
+        let RetainedOperation::Interference(info) = prepared.retained_operation() else {
+            panic!("retained checked interference plan")
+        };
+        assert_eq!(info.estimator, EstimatorId::InterferenceSaturationExact);
         let result = prepared.estimate(&data, &ctx).unwrap();
-        assert_eq!(result.support_status, None);
+        assert_eq!(result.support_status(), None);
         assert!((result.interference().unwrap().contrast.hajek - truth).abs() < 1e-12);
         assert!(result.interference().unwrap().contrast.conservative_variance > 0.0);
-        assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+        assert!(result.estimate().as_effect().unwrap().se_analytic().is_nan());
         let inference = result.interference_inference().unwrap();
         assert!(inference.interval.is_none());
         assert!(inference.interval_unavailable_reason.unwrap().contains("24 independent clusters"));
-        assert!(result.estimate.as_effect().unwrap().provenance.assumptions.entries.iter().any(|a| matches!(&a.assumption, antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "interference.two_stage_saturation")));
+        assert!(result.estimate().as_effect().unwrap().provenance.assumptions.entries.iter().any(|a| matches!(&a.assumption, antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "interference.two_stage_saturation")));
         let artifact =
             prepared.encode_contracted_result(&result, "saturation-exact", &ctx).unwrap();
-        let consumed = consume_analysis_result(&artifact).unwrap();
+        let consumed = replay_analysis_result(&artifact).unwrap();
         assert_eq!(consumed.body.query, antecedent_io::CausalQueryWire::Interference(wire));
         let wire_inference = consumed.body.interference_inference.as_ref().unwrap();
         assert!(wire_inference.interval.is_none());
@@ -114,14 +117,15 @@ fn saturation_direct_spillover_total_retain_truth_without_interval() {
         let mut tampered = artifact.clone();
         let middle = tampered.len() / 2;
         tampered[middle] ^= 0x40;
-        assert!(consume_analysis_result(&tampered).is_err());
+        let error = replay_analysis_result(&tampered).err().expect("tampered artifact refused");
+        assert!(format!("{error:?}").contains("ChecksumMismatch"), "{error:?}");
     }
 }
 
 #[test]
 fn saturation_rejects_cross_cluster_edges_at_prepare() {
     let (data, assignment, query, mut edges) = fixture((0.0, 0.5), (1.0, 0.5));
-    edges.push(NetworkEdge { from: 0, to: 3, weight: 1.0 });
+    edges.push(NetworkEdge::new(0, 3, 1.0));
     let network = NetworkData::try_new(data.clone(), edges).unwrap();
     let study = Study::tabular(data)
         .graph(Dag::with_variables(1))
@@ -130,7 +134,12 @@ fn saturation_rejects_cross_cluster_edges_at_prepare() {
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
-    assert!(study.prepare(&ExecutionContext::for_tests(241)).is_err());
+    let error = study.prepare(&ExecutionContext::for_tests(241)).err().expect("refused at prepare");
+    assert!(
+        format!("{error:?}")
+            .contains("partial interference requires nonnegative within-cluster edges only"),
+        "{error:?}"
+    );
 }
 
 #[test]
@@ -145,10 +154,12 @@ fn supported_saturation_interval_survives_retained_artifact_round_trip() {
         .flat_map(|cluster| {
             let first = cluster * 3;
             (first..first + 3).flat_map(move |from| {
-                (first..first + 3).filter(move |&to| to != from).map(move |to| NetworkEdge {
-                    from: from as u32,
-                    to: to as u32,
-                    weight: 1.0,
+                (first..first + 3).filter(move |&to| to != from).map(move |to| {
+                    NetworkEdge::new(
+                        u64::try_from(from).expect("row id"),
+                        u64::try_from(to).expect("row id"),
+                        1.0,
+                    )
                 })
             })
         })
@@ -205,13 +216,14 @@ fn supported_saturation_interval_survives_retained_artifact_round_trip() {
         assert!(interval.lower < result.interference().unwrap().contrast.horvitz_thompson);
         assert!(result.interference().unwrap().contrast.horvitz_thompson < interval.upper);
         let artifact = prepared.encode_contracted_result(&result, name, &ctx).unwrap();
-        let consumed = consume_analysis_result(&artifact).unwrap();
+        let consumed = replay_analysis_result(&artifact).unwrap();
         let wire = consumed.body.interference_inference.unwrap();
         assert_eq!(wire.method, "saturation_cluster_neyman_welch", "{name}");
         assert_eq!(wire.interval.unwrap().lower, interval.lower, "{name}");
         let mut tampered = artifact;
         let middle = tampered.len() / 2;
         tampered[middle] ^= 0x40;
-        assert!(consume_analysis_result(&tampered).is_err(), "{name}");
+        let error = replay_analysis_result(&tampered).err().expect("tampered artifact refused");
+        assert!(format!("{error:?}").contains("ChecksumMismatch"), "{name}: {error:?}");
     }
 }

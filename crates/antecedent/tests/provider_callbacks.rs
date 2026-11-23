@@ -19,7 +19,7 @@ use antecedent::analysis::provider_callbacks::{
     ResultStanding, RetryContract, ValidatedOutput, check_callback_connection,
     check_claim_to_callback, consume_callback_result, export_callback_result,
     forecast_law_from_sample, inspect_callback_result, output_values_digest, predictive_law_source,
-    refuse_identification_licence, refuse_interval, refuse_joint_law, refuse_native_trust,
+    refuse_identification_evidence, refuse_interval, refuse_joint_law, refuse_native_trust,
     refuse_posterior_guarantee, register_callback_source, supersede_callback_source,
 };
 use antecedent_contract::evidence_ledger::{
@@ -231,7 +231,7 @@ fn the_gaussian_reference_callback_matches_tabulated_values() {
     )
     .expect("mean");
     assert_eq!(values_of(&mean), vec![MU]);
-    assert_eq!(mean.standing, ResultStanding::LicensedExternal);
+    assert_eq!(mean.standing, ResultStanding::SupportedExternal);
     // Distribution function: Phi(-1.96) = 0.0249978951482205, Phi(0) = 0.5,
     // Phi(1) = 0.8413447460685429 (standard-normal tables).
     let thresholds = vec![MU - 1.96 * SD, MU, MU + SD];
@@ -416,7 +416,10 @@ fn cached_callback_outputs_respect_the_current_output_limit() {
     let refused = session
         .execute(&mut provider, &declaration, &request, &no_inputs(), &policy, &ctx())
         .expect_err("cached sample exceeds the new bound");
-    assert_eq!(refused.refusal.detail, "callback_protocol.output_too_large");
+    assert_eq!(
+        refused.refusal.detail,
+        antecedent_core::reason_details::callback_protocol::OUTPUT_TOO_LARGE
+    );
     assert_eq!(refused.invocations, 0);
     assert_eq!(calls.get(), 1, "refusal must neither recompute nor invoke the provider");
     assert_eq!(session.history().len(), 1);
@@ -487,7 +490,10 @@ fn a_changed_inner_callback_invalidates_the_dependent_results() {
     let refusal = session
         .execute(&mut outer_provider, &outer, &request, &no_inputs(), &policy, &ctx())
         .expect_err("input missing");
-    assert_eq!(refusal.refusal.detail, "callback_protocol.request_mismatch");
+    assert_eq!(
+        refusal.refusal.detail,
+        antecedent_core::reason_details::callback_protocol::REQUEST_MISMATCH
+    );
     assert_eq!(outer_calls.get(), 1);
     // Dependents of the inner callback are found, so a change in its weights,
     // files or remote version invalidates them.
@@ -609,7 +615,7 @@ fn a_changed_hidden_state_is_detected_through_the_protocol_and_never_guessed() {
     assert_eq!(changed.recomputed_because, Some(RecomputeReason::StateChanged));
     assert_eq!(values_of(&changed), vec![20.0]);
     assert_eq!(calls.get(), 2);
-    // A stateful result is diagnostic: it cannot back a licensed claim.
+    // A stateful result is diagnostic: it cannot back a supported claim.
     assert_eq!(changed.standing, ResultStanding::Diagnostic);
     // State that the protocol does not expose is never shown current.
     let hidden = mean_only(ReplayContract::Stateful { exposes_state_identity: false });
@@ -636,7 +642,10 @@ fn a_replacement_provider_is_a_different_callback_and_the_history_stays() {
     // The replacement is not silently accepted under the old declaration.
     let refusal = run(&mut session, &mut v2, &declaration_v1, &request).expect_err("replaced");
     assert_eq!(refusal.refusal.code, antecedent_core::reason_code!("external_binding_mismatch"));
-    assert_eq!(refusal.refusal.detail, "callback_protocol.provider_identity_mismatch");
+    assert_eq!(
+        refusal.refusal.detail,
+        antecedent_core::reason_details::callback_protocol::PROVIDER_IDENTITY_MISMATCH
+    );
     assert_eq!(refusal.invocations, 0);
     assert_eq!(calls.get(), 1);
     // Declared and verified as its own callback it recomputes; the old result
@@ -686,7 +695,10 @@ fn malformed_laws_are_refused_whole_and_leave_no_record() {
     )
     .expect_err("not a law");
     assert_eq!(cdf.refusal.code, antecedent_core::reason_code!("callback_output_invalid"));
-    assert_eq!(cdf.refusal.detail, "callback_protocol.output_not_a_law");
+    assert_eq!(
+        cdf.refusal.detail,
+        antecedent_core::reason_details::callback_protocol::OUTPUT_NOT_A_LAW
+    );
     assert_eq!(cdf.invocations, 1, "the call happened; the answer was refused");
     let nan = run(
         &mut session,
@@ -695,7 +707,10 @@ fn malformed_laws_are_refused_whole_and_leave_no_record() {
         &CallbackRequest::new(CallbackQuery::Sample { draws: 3 }, 0),
     )
     .expect_err("not finite");
-    assert_eq!(nan.refusal.detail, "callback_protocol.output_not_finite");
+    assert_eq!(
+        nan.refusal.detail,
+        antecedent_core::reason_details::callback_protocol::OUTPUT_NOT_FINITE
+    );
     // A mean where a quantile function was asked for is the wrong shape.
     let wrong = run(
         &mut session,
@@ -704,7 +719,10 @@ fn malformed_laws_are_refused_whole_and_leave_no_record() {
         &CallbackRequest::new(CallbackQuery::Quantile { levels: vec![0.5] }, 0),
     )
     .expect_err("wrong shape");
-    assert_eq!(wrong.refusal.detail, "callback_protocol.output_shape");
+    assert_eq!(
+        wrong.refusal.detail,
+        antecedent_core::reason_details::callback_protocol::OUTPUT_SHAPE
+    );
     assert!(session.history().is_empty(), "no refused answer becomes a result");
     assert_eq!(calls.get(), 3);
 }
@@ -726,7 +744,10 @@ fn failure_cancellation_and_limits_are_typed_and_counted() {
         failure.refusal.code,
         antecedent_core::reason_code!("callback_provider_unavailable")
     );
-    assert_eq!(failure.refusal.detail, "callback_protocol.provider_failed");
+    assert_eq!(
+        failure.refusal.detail,
+        antecedent_core::reason_details::callback_protocol::PROVIDER_FAILED
+    );
     assert_eq!(failure.invocations, 1);
     assert_eq!(calls.get(), 1);
     assert!(session.history().is_empty());
@@ -764,7 +785,10 @@ fn failure_cancellation_and_limits_are_typed_and_counted() {
             &during,
         )
         .expect_err("cancelled during");
-    assert_eq!(refusal.refusal.detail, "callback_protocol.cancelled");
+    assert_eq!(
+        refusal.refusal.detail,
+        antecedent_core::reason_details::callback_protocol::CANCELLED
+    );
     assert_eq!(refusal.invocations, 1);
     assert!(session.history().is_empty());
     // A zero invocation bound refuses before any invocation.
@@ -785,7 +809,10 @@ fn failure_cancellation_and_limits_are_typed_and_counted() {
     let refusal = session
         .execute(&mut slow, &declaration, &request, &no_inputs(), &policy, &ctx())
         .expect_err("too slow");
-    assert_eq!(refusal.refusal.detail, "callback_protocol.wall_limit_exceeded");
+    assert_eq!(
+        refusal.refusal.detail,
+        antecedent_core::reason_details::callback_protocol::WALL_LIMIT_EXCEEDED
+    );
     assert_eq!(refusal.invocations, 1);
     // An output larger than the declared bound is a limit refusal.
     let policy =
@@ -801,7 +828,10 @@ fn failure_cancellation_and_limits_are_typed_and_counted() {
             &ctx(),
         )
         .expect_err("too large");
-    assert_eq!(refusal.refusal.detail, "callback_protocol.output_too_large");
+    assert_eq!(
+        refusal.refusal.detail,
+        antecedent_core::reason_details::callback_protocol::OUTPUT_TOO_LARGE
+    );
 }
 
 // -- side effects -----------------------------------------------------------------------------------
@@ -857,10 +887,40 @@ fn an_imported_attempt_count_cannot_overflow_during_recomputation() {
             &ctx(),
         )
         .expect_err("the next invocation cannot be counted");
-    assert_eq!(refused.refusal.detail, "callback_protocol.invocation_limit");
+    assert_eq!(
+        refused.refusal.detail,
+        antecedent_core::reason_details::callback_protocol::INVOCATION_LIMIT
+    );
     assert_eq!(refused.invocations, 0);
     assert_eq!(refused.request_attempts, u64::MAX);
     assert_eq!(session.invocations(), 1);
+}
+
+/// Verification may replay a pure callback, but never a stateful one.
+fn verification_replays_pure_callbacks_but_never_stateful_ones(
+    session: &mut CallbackSession,
+    request: &CallbackRequest,
+) {
+    // Verification may replay a pure callback, but never a stateful one.
+    let verify = CallbackExecutionPolicy {
+        phase: CallbackPhase::Verification,
+        ..CallbackExecutionPolicy::default()
+    };
+    let verifying = Rc::new(Cell::new(0_u64));
+    let mut pure_provider = gaussian_provider("1.0", MU, Rc::clone(&verifying));
+    session
+        .execute(&mut pure_provider, &pure(), request, &no_inputs(), &verify, &ctx())
+        .expect("a pure callback can be replayed in verification");
+    assert_eq!(verifying.get(), 1);
+    let stateful = mean_only(ReplayContract::Stateful { exposes_state_identity: true });
+    let refusal = session
+        .execute(&mut pure_provider, &stateful, request, &no_inputs(), &verify, &ctx())
+        .expect_err("stateful in verification");
+    assert_eq!(
+        refusal.refusal.detail,
+        antecedent_core::reason_details::callback_protocol::INVOCATION_OUTSIDE_EXECUTION
+    );
+    assert_eq!(verifying.get(), 1);
 }
 
 #[test]
@@ -895,12 +955,18 @@ fn a_side_effecting_callback_is_never_invoked_outside_execution_or_retried_outsi
             refusal.refusal.code,
             antecedent_core::reason_code!("callback_side_effect_forbidden")
         );
-        assert_eq!(refusal.refusal.detail, "callback_protocol.invocation_outside_execution");
+        assert_eq!(
+            refusal.refusal.detail,
+            antecedent_core::reason_details::callback_protocol::INVOCATION_OUTSIDE_EXECUTION
+        );
     }
     assert_eq!(calls.get(), 0);
     // Without an explicit opt-in the default policy does not run effects.
     let refusal = run(&mut session, &mut provider, &no_retry, &request).expect_err("no opt-in");
-    assert_eq!(refusal.refusal.detail, "callback_protocol.side_effects_not_allowed");
+    assert_eq!(
+        refusal.refusal.detail,
+        antecedent_core::reason_details::callback_protocol::SIDE_EFFECTS_NOT_ALLOWED
+    );
     assert_eq!(calls.get(), 0);
     // Planning reads the declaration only.
     assert!(matches!(
@@ -918,7 +984,10 @@ fn a_side_effecting_callback_is_never_invoked_outside_execution_or_retried_outsi
     let retry = session
         .execute(&mut provider, &no_retry, &request, &no_inputs(), &allow, &ctx())
         .expect_err("retry outside the policy");
-    assert_eq!(retry.refusal.detail, "callback_protocol.retry_outside_policy");
+    assert_eq!(
+        retry.refusal.detail,
+        antecedent_core::reason_details::callback_protocol::RETRY_OUTSIDE_POLICY
+    );
     assert_eq!(retry.invocations, 0);
     assert_eq!(calls.get(), 1, "the effect was not run a second time");
     // Under a declared idempotent contract with a key, one retry is allowed,
@@ -945,23 +1014,7 @@ fn a_side_effecting_callback_is_never_invoked_outside_execution_or_retried_outsi
         .expect("a stored result under an idempotent key is reused");
     assert!(third.reused);
     assert_eq!(calls.get(), 2);
-    // Verification may replay a pure callback, but never a stateful one.
-    let verify = CallbackExecutionPolicy {
-        phase: CallbackPhase::Verification,
-        ..CallbackExecutionPolicy::default()
-    };
-    let verifying = Rc::new(Cell::new(0_u64));
-    let mut pure_provider = gaussian_provider("1.0", MU, Rc::clone(&verifying));
-    session
-        .execute(&mut pure_provider, &pure(), &request, &no_inputs(), &verify, &ctx())
-        .expect("a pure callback can be replayed in verification");
-    assert_eq!(verifying.get(), 1);
-    let stateful = mean_only(ReplayContract::Stateful { exposes_state_identity: true });
-    let refusal = session
-        .execute(&mut pure_provider, &stateful, &request, &no_inputs(), &verify, &ctx())
-        .expect_err("stateful in verification");
-    assert_eq!(refusal.refusal.detail, "callback_protocol.invocation_outside_execution");
-    assert_eq!(verifying.get(), 1);
+    verification_replays_pure_callbacks_but_never_stateful_ones(&mut session, &request);
 }
 
 #[test]
@@ -992,18 +1045,35 @@ fn opaque_dependencies_make_reuse_ineligible_and_the_result_diagnostic() {
     assert_eq!(calls.get(), 2);
 }
 
-// -- closed routes ----------------------------------------------------------------------------------
+// -- unsupported routes ----------------------------------------------------------------------------------
 
 #[test]
-fn interval_posterior_guarantee_native_trust_identification_and_joint_law_stay_closed() {
-    let closed = antecedent_core::reason_code!("cell_not_licensed");
-    for (refusal, detail) in [
-        (refuse_interval(), "callback_protocol.interval_not_licensed"),
-        (refuse_posterior_guarantee(), "callback_protocol.posterior_guarantee_not_licensed"),
-        (refuse_native_trust(), "callback_protocol.native_trust_not_conferred"),
-        (refuse_identification_licence(), "callback_protocol.identification_not_conferred"),
+fn interval_posterior_guarantee_native_trust_identification_and_joint_law_are_refused() {
+    let closed = antecedent_core::reason_code!("callback_protocol_invalid");
+    let insufficient = antecedent_core::reason_code!("uncertainty_representation_insufficient");
+    for (refusal, detail, expected) in [
+        (
+            refuse_interval(),
+            antecedent_core::reason_details::callback_protocol::INTERVAL_NOT_SUPPORTED,
+            insufficient,
+        ),
+        (
+            refuse_posterior_guarantee(),
+            antecedent_core::reason_details::callback_protocol::POSTERIOR_GUARANTEE_NOT_SUPPORTED,
+            insufficient,
+        ),
+        (
+            refuse_native_trust(),
+            antecedent_core::reason_details::callback_protocol::NATIVE_TRUST_NOT_CONFERRED,
+            closed,
+        ),
+        (
+            refuse_identification_evidence(),
+            antecedent_core::reason_details::callback_protocol::IDENTIFICATION_NOT_CONFERRED,
+            closed,
+        ),
     ] {
-        assert_eq!(refusal.code, closed);
+        assert_eq!(refusal.code, expected);
         assert_eq!(refusal.detail, detail);
         assert!(refusal.remedy.is_some());
         refusal.validate().expect("well-formed refusal");
@@ -1011,7 +1081,7 @@ fn interval_posterior_guarantee_native_trust_identification_and_joint_law_stay_c
     let joint = refuse_joint_law();
     assert_eq!(joint.code, antecedent_core::reason_code!("joint_law_required"));
     // An accepted callback law carries no calibration: its interface projection
-    // is unmeasured, never a measured record.
+    // is not measured, never a measured record.
     let projection = seeded().interface_contract();
     let port = projection.produced(CALLBACK_OUTPUT_PORT).expect("port");
     assert!(!port.calibration.is_measured());
@@ -1076,7 +1146,10 @@ fn a_provider_output_feeds_transport_only_for_the_declared_population_and_regime
     let CallbackConnectionError::Connection(refusals) = error else {
         panic!("the connection is refused before execution");
     };
-    assert!(refusals.iter().any(|r| r.detail == "interface_contract.population_mismatch"));
+    assert!(
+        refusals.iter().any(|r| r.detail
+            == antecedent_core::reason_details::interface_contract::POPULATION_MISMATCH)
+    );
     assert!(
         refusals.iter().all(
             |r| r.code == antecedent_core::reason_code!("interface_contract_quantity_mismatch")
@@ -1136,7 +1209,10 @@ fn a_transported_claim_reaches_a_callback_only_as_the_population_it_declares() {
         "transported_effect",
     )
     .expect_err("population differs");
-    assert!(refusals.iter().any(|r| r.detail == "interface_contract.population_mismatch"));
+    assert!(
+        refusals.iter().any(|r| r.detail
+            == antecedent_core::reason_details::interface_contract::POPULATION_MISMATCH)
+    );
 }
 
 // -- registration of evidence -----------------------------------------------------------------------
@@ -1184,7 +1260,7 @@ fn a_result_resumes_with_a_compatible_provider_and_is_unavailable_without_one() 
     let meta = inspect_callback_result(&bytes).expect("inspect");
     assert_eq!(meta.stage.status, "computed");
     assert_eq!(meta.stage.value_count, 5);
-    assert_eq!(meta.standing, "licensed_external");
+    assert_eq!(meta.standing, "supported_external");
     // A fresh process with no provider: the stage is recorded unavailable and
     // nothing runs; the historical result stays in the history.
     let mut fresh = CallbackSession::new();
@@ -1242,11 +1318,16 @@ fn a_result_resumes_with_a_compatible_provider_and_is_unavailable_without_one() 
     assert_eq!(error.refusal.code, antecedent_core::reason_code!("external_binding_mismatch"));
     assert_eq!(counter.get(), 0);
     // A retained identity of another result refuses; a flipped byte refuses.
-    assert!(consume_callback_result(&bytes, Some(&"0".repeat(64))).is_err());
+    let wrong_identity = consume_callback_result(&bytes, Some(&"0".repeat(64))).unwrap_err();
+    assert_eq!(format!("{wrong_identity:?}"), r#"IdentityMismatch { field: "retained_identity" }"#);
     let mut corrupt = bytes.clone();
     let middle = corrupt.len() / 2;
     corrupt[middle] ^= 0x40;
-    assert!(consume_callback_result(&corrupt, None).is_err());
+    let flipped = consume_callback_result(&corrupt, None).unwrap_err();
+    assert_eq!(
+        format!("{flipped:?}"),
+        r#"Container(ChecksumMismatch { section: "callback_result_meta" })"#
+    );
 }
 
 // -- the predictive assessment consumes a callback law as a provider law ----------------------------
@@ -1261,12 +1342,21 @@ fn a_callback_law_reaches_the_predictive_assessment_only_as_a_replayable_provide
     // its declaration: it is not offered to the assessment.
     let mut opaque = seeded();
     opaque.dependencies = DependencyDeclaration::Opaque;
-    assert!(predictive_law_source(&opaque, false).is_err());
+    let refusal = predictive_law_source(&opaque, false).unwrap_err();
+    assert_eq!(refusal.code, "callback_reuse_ineligible");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::callback_protocol::DIAGNOSTIC_ONLY);
+    assert_eq!(refusal.offending.as_deref(), Some("opaque_dependencies"));
     let mut unverified = seeded();
     unverified.trust = CallbackTrust::Unverified;
-    assert!(predictive_law_source(&unverified, false).is_err());
+    let refusal = predictive_law_source(&unverified, false).unwrap_err();
+    assert_eq!(refusal.code, "callback_reuse_ineligible");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::callback_protocol::DIAGNOSTIC_ONLY);
+    assert_eq!(refusal.offending.as_deref(), Some("unverified"));
     let stateful = mean_only(ReplayContract::Stateful { exposes_state_identity: true });
-    assert!(predictive_law_source(&stateful, false).is_err());
+    let refusal = predictive_law_source(&stateful, false).unwrap_err();
+    assert_eq!(refusal.code, "callback_reuse_ineligible");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::callback_protocol::DIAGNOSTIC_ONLY);
+    assert_eq!(refusal.offending.as_deref(), Some("stateful"));
     // An accepted sample becomes its empirical law.
     let calls = Rc::new(Cell::new(0));
     let mut provider = gaussian_provider("1.0", MU, calls);
@@ -1284,7 +1374,12 @@ fn a_callback_law_reaches_the_predictive_assessment_only_as_a_replayable_provide
     let mean =
         run(&mut session, &mut provider, &seeded(), &CallbackRequest::new(CallbackQuery::Mean, 2))
             .expect("mean");
-    assert!(forecast_law_from_sample(&mean.output).is_err());
+    let not_a_sample = forecast_law_from_sample(&mean.output).unwrap_err();
+    assert_eq!(not_a_sample.code, "external_binding_mismatch");
+    assert_eq!(
+        not_a_sample.detail,
+        antecedent_core::reason_details::callback_protocol::REQUEST_MISMATCH
+    );
 }
 
 #[test]
@@ -1321,14 +1416,17 @@ fn a_connected_result_exports_and_is_consumed_against_its_retained_identity() {
         )
         .is_ok()
     );
+    let refusals = antecedent_contract::interface_contract::check_connection(
+        &contract,
+        CALLBACK_OUTPUT_PORT,
+        &transport_consumer("target"),
+        "source_law",
+    )
+    .map(|_| ())
+    .unwrap_err();
     assert!(
-        antecedent_contract::interface_contract::check_connection(
-            &contract,
-            CALLBACK_OUTPUT_PORT,
-            &transport_consumer("target"),
-            "source_law"
-        )
-        .is_err()
+        refusals.iter().any(|r| r.detail
+            == antecedent_core::reason_details::interface_contract::POPULATION_MISMATCH)
     );
     assert_eq!(artifact.record(), &session.history()[0]);
 }
@@ -1339,7 +1437,7 @@ fn an_exported_callback_result_carries_no_calibration_record_and_no_interval() {
     let mut provider = gaussian_provider("1.0", MU, calls);
     let mut session = CallbackSession::new();
     for (declaration, query, label) in [
-        (seeded(), CallbackQuery::Sample { draws: 3 }, "unmeasured"),
+        (seeded(), CallbackQuery::Sample { draws: 3 }, "not_measured"),
         (mean_only(ReplayContract::DeterministicPure), CallbackQuery::Mean, "point_only"),
     ] {
         run(&mut session, &mut provider, &declaration, &CallbackRequest::new(query, 1))

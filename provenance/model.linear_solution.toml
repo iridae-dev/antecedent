@@ -1,0 +1,49 @@
+feature_id = "model.linear_solution"
+implementation_crate = "antecedent-model"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Foundations of Structural Causal Models with Cycles and Latent Variables", doi = "10.48550/arXiv.1611.06221", sections = ["Solvability of a cyclic structural model under intervention. This record uses one sufficient linear bound, not the paper's simple-SCM requirement of unique solvability with respect to every subset."] },
+ { title = "Learning Linear Cyclic Causal Models with Latent Variables", sections = ["Weak stability as invertibility of the equilibrium map. This module keeps that status apart from physical dynamical stability and does not implement the paper's estimator."] },
+]
+
+implementation_deviations = [
+ "The model is the specified linear equilibrium X = KX + c + ε with a zero diagonal. A nonzero diagonal is refused rather than normalized, because that rescaling would have to carry the intercept and the noise law.",
+ "A hard clamp deletes the clamped equations and leaves the free block (I − K_FF) X_F = K_FH a + c_F + ε_F. The assessment describes that block. It does not form the inverse, and the free disturbance is not the factual value of a clamped variable.",
+ "The family certificate is the sufficient bound ρ(|K|) < 1 on the entrywise absolute matrix. Two variables use the closed form sqrt(|K[0,1] K[1,0]|). Larger maps use the infinity norm of |K| and, above order two, a 32-iteration Collatz–Wielandt ratio. Admission requires the upper bound to sit at least 1e-12 below one.",
+ "A bound that does not clear that gap is not a proof that ρ(|K|) ≥ 1, not a proof that the queried block is singular, and not an identification failure. The next attempt is the query-specific free-block check. IdentificationStatus stays NotMarkedUnidentified.",
+ "ρ(K) < 1 on the signed matrix is a different claim and is not this certificate. Physical stability is Unclaimed. Solver convergence is NotRun. None of those follows from invertibility of (I − K).",
+ "Unique solvability of one free block is not the simple-SCM certificate, and it is not a modular ioSCM solution mechanism.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "inline unit tests (crates/antecedent-model/src/linear_solution.rs)",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The free-block decision and mean solve in crates/antecedent-model/src/linear_solution.rs for specified linear structural maps: assess and revalidate_free_block verdicts (unique, singular, numerically singular, ill-conditioned) for orders 2 and 3 against the determinant, the family certificate on models drawn under the absolute-row-sum bound, and hard_clamp_mean_batch means against a fixed-point reference. Not a review of the paper's simple-SCM solvability theory, of physical stability, or of estimators of K."
+assumptions = ["The linear equilibrium is X = KX + c + e with a zero diagonal; a hard clamp deletes the clamped equations and leaves the free block (I - K_FF) X_F = K_FH a + c_F + e_F, whose solution is the Neumann series sum of K_FF^k whenever the spectral radius of K_FF is below one.", "The reference models are drawn with every row's absolute sum at most 0.9, so the Neumann series converges geometrically and the family certificate rho(|K|) < 1 is admitted."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are cited and not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the definitions used by the reference are the standard statements, so a mistake in how a record or this reference states a method would not be detected here. The mean comparison uses 600 seeded random models of 1 to 6 variables, with random clamps and positive-definite disturbance covariances, all under the absolute-row-sum bound 0.9; models outside that bound (signed spectral radius below one but absolute radius above) are exercised only through the two-node and three-ring determinant cases. The singular decision is checked at exact determinant zero and at determinants of order one, not at near-zero determinants between 1e-12 and 1e-6, where the pivot floor of the equilibrated test decides. No claim about estimators, identification, or dynamic stability. Calibration remains deferred."
+sources = ["https://doi.org/10.48550/arXiv.1611.06221"]
+findings_resolved = ["Compared the means of 600 random cyclic and acyclic models under random hard clamps from the shipped Gauss-Jordan path, from the routed compiler and from hard_clamp_mean_batch with a Neumann-series fixed point (summed by repeated squaring, no factorization); all agree to 1e-9 relative.", "Compared the two-node closed form near criticality (product of loop gains 0.5 to 0.999999) with the exact inverse; mean and infinity-norm condition number agree to the conditioning of the block.", "Decided singular versus nonsingular two-cycles and three-rings against the determinant 1 - K01 K10 and 1 - K01 K12 K20, including products 1 (singular), -1, 8 and 0.125, with the signed matrix outside the absolute-radius certificate still decided correctly, and checked that clamping one ring node leaves a unique chain.", "No defect requiring a change to linear_solution.rs was found. Code edits: a new integration test file (crates/antecedent-model/tests/linear_equilibrium_reference.rs) only."]
+record_sha256 = "104927a1915ef2f0d78deaddb7f21b68e04098f9173d0dce403702c6708b6a1e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/linear_solution.rs"
+items = ["const ADMISSION_GAP", "const FREE_BLOCK_EQUATION", "const ILL_CONDITIONED_KAPPA", "const NONZERO_DIAGONAL_NEXT_ATTEMPT", "const PIVOT_TEST_ORDER_LIMIT", "const POWER_ITERATIONS", "enum Conditioning", "enum ConsistencyWitness", "enum FamilyCertificate", "enum IdentificationStatus", "enum LinearSolutionError", "enum NextAttempt", "enum PhysicalStability", "enum SolvabilityRefusal", "enum SolverConvergence", "enum Uniqueness", "fn abs_matvec", "fn abs_radius_upper", "fn assess", "fn assignment_row_count", "fn certify_family", "fn closed_form_singular", "fn coefficient", "fn coefficients", "fn collatz_wielandt_upper", "fn decide", "fn dimension", "fn eye_minus_k", "fn free_batch_rhs", "fn free_indices", "fn gather_k_fh", "fn hard_clamp_mean_batch", "fn identification", "fn indices", "fn intercept", "fn is_admitted", "fn means", "fn neumann_block", "fn none", "fn not_estimated", "fn pivots_regular", "fn positive_ratio_max", "fn principal", "fn query_block", "fn revalidate_free_block", "fn rho_abs_upper", "fn row", "fn rows", "fn scatter_clamp_means", "fn small_block_non_finite", "fn smaller_upper", "fn solvability_refusal", "fn solve_free_means", "fn try_new", "fn two_by_two_conditioning", "fn undetermined", "struct FactorDescription", "struct HardClamp", "struct HardClampMeanBatch", "struct LinearStructuralMap", "struct QueryBlock", "struct SingularBlock", "struct SolutionAssessment"]
+sha256 = "fe9b2d420b044d65d8765cc296f9e470bb90a454a01f2988005e7acb8d48e3f1"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/linear_equilibrium_reference.rs"
+items = ["fn a_nearly_critical_two_cycle_keeps_its_closed_form_to_the_conditioning", "fn compiled_equilibria_match_the_neumann_series_on_random_models_and_clamps", "fn component_for", "fn has_cycle", "fn inf_norm", "fn matmul", "fn neumann_inverse", "fn next", "fn random_case", "fn reference_components", "fn reference_moments", "fn relative_close", "fn signed", "fn singular_and_nonsingular_cycles_are_decided_by_the_determinant", "struct Case", "struct Lcg"]
+sha256 = "415cdf449ac58dfadbd04f77ab15fa9c7287633ed034664cf7b6766949bf8d7e"

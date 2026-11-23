@@ -130,6 +130,15 @@ reason = ""
 test = "python/tests/test_python_products.py::test_route_average_derivative_tabular_explicit"
 
 [[route]]
+kind = "average_derivative"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_derivative_tabular_graph_posterior"
+
+[[route]]
 kind = "conditional"
 data = "tabular"
 structure = "accepted"
@@ -184,6 +193,15 @@ reason = ""
 test = "python/tests/test_python_products.py::test_route_counterfactual_tabular_explicit"
 
 [[route]]
+kind = "counterfactual"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_counterfactual_tabular_graph_posterior"
+
+[[route]]
 kind = "directional_derivative"
 data = "tabular"
 structure = "accepted"
@@ -200,6 +218,15 @@ options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_directional_derivative_tabular_explicit"
+
+[[route]]
+kind = "directional_derivative"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_directional_derivative_tabular_graph_posterior"
 
 [[route]]
 kind = "distribution"
@@ -236,6 +263,15 @@ options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_elasticity_tabular_explicit"
+
+[[route]]
+kind = "elasticity"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_elasticity_tabular_graph_posterior"
 
 [[route]]
 kind = "intervention_response"
@@ -373,6 +409,15 @@ reason = ""
 test = "python/tests/test_python_products.py::test_route_path_specific_tabular_explicit"
 
 [[route]]
+kind = "path_specific"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_path_specific_tabular_graph_posterior"
+
+[[route]]
 kind = "point_derivative"
 data = "tabular"
 structure = "accepted"
@@ -389,6 +434,15 @@ options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_point_derivative_tabular_explicit"
+
+[[route]]
+kind = "point_derivative"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_point_derivative_tabular_graph_posterior"
 
 [[route]]
 kind = "pulse"
@@ -643,6 +697,15 @@ reason = ""
 test = "python/tests/test_python_products.py::test_route_response_jacobian_tabular_explicit"
 
 [[route]]
+kind = "response_jacobian"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_response_jacobian_tabular_graph_posterior"
+
+[[route]]
 kind = "semi_elasticity"
 data = "tabular"
 structure = "accepted"
@@ -659,6 +722,15 @@ options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_semi_elasticity_tabular_explicit"
+
+[[route]]
+kind = "semi_elasticity"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_semi_elasticity_tabular_graph_posterior"
 
 [[route]]
 kind = "sustained"
@@ -814,7 +886,7 @@ reason = ""
 test = "python/tests/test_transport_interference_lifecycle.py::test_route_transport_tabular_explicit"
 # T1 catalog identify is not an analyze route. Empty-catalog target-only and
 # typed MissingEvidence vs NotCertified live on transport.identify
-# (python/tests/test_transport_catalog.py). The licensed trial-IPW cell above
+# (python/tests/test_transport_catalog.py). The supported trial-IPW cell above
 # stays byte-compatible.
 
 [[route]]
@@ -835,64 +907,121 @@ retains = true
 reason = ""
 test = "python/tests/test_transport_interference_lifecycle.py::test_route_interference_tabular_explicit"
 
-# Permanent refusals: combinations the study builder does not license. Each names its
+[[route]]
+kind = "average"
+data = "series"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_series_accepted"
+
+[[route]]
+kind = "average"
+data = "series"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_series_explicit"
+
+[[route]]
+kind = "average"
+data = "series"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_series_graph_posterior"
+
+[[route]]
+kind = "mediation"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_mediation_tabular_graph_posterior"
+
+[[route]]
+kind = "distribution"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_distribution_tabular_graph_posterior"
+
+[[route]]
+kind = "transport"
+data = "tabular"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_transport_interference_lifecycle.py::test_route_transport_tabular_accepted"
+
+[[route]]
+kind = "interference"
+data = "tabular"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_transport_interference_lifecycle.py::test_route_interference_tabular_accepted"
+
+# Permanent refusals: combinations the study builder does not support. Each names its
 # reason code and the test that pins it.
 
 [[refusal]]
 kind = "average"
 data = "multi_env"
 structure = "explicit"
-reason = "data_modality_not_licensed"
+reason = "data_modality_not_supported"
 test = "python/tests/test_python_products.py::test_refusal_average_multi_env_explicit"
 
 [[refusal]]
 kind = "average"
 data = "panel"
 structure = "explicit"
-reason = "data_modality_not_licensed"
+reason = "data_modality_not_supported"
 test = "python/tests/test_python_products.py::test_refusal_average_panel_explicit"
 
 [[refusal]]
 kind = "conditional"
 data = "panel"
 structure = "explicit"
-reason = "data_modality_not_licensed"
+reason = "data_modality_not_supported"
 test = "python/tests/test_python_products.py::test_refusal_conditional_panel_explicit"
 
 [[refusal]]
 kind = "response_curve"
 data = "multi_env"
 structure = "explicit"
-reason = "data_modality_not_licensed"
+reason = "data_modality_not_supported"
 test = "python/tests/test_python_products.py::test_refusal_response_curve_multi_env_explicit"
 
 [[refusal]]
 kind = "temporal_mediation"
 data = "panel"
 structure = "explicit"
-reason = "data_modality_not_licensed"
+reason = "data_modality_not_supported"
 test = "python/tests/test_python_products.py::test_refusal_temporal_mediation_panel_explicit"
 
 [[refusal]]
 kind = "pulse"
 data = "panel"
 structure = "graph_posterior"
-reason = "data_modality_not_licensed"
+reason = "data_modality_not_supported"
 test = "python/tests/test_python_products.py::test_refusal_pulse_panel_graph_posterior"
 
 [[refusal]]
 kind = "pulse"
 data = "multi_env"
 structure = "graph_posterior"
-reason = "data_modality_not_licensed"
+reason = "data_modality_not_supported"
 test = "python/tests/test_python_products.py::test_refusal_pulse_multi_env_graph_posterior"
 
-[[refusal]]
-kind = "path_specific"
-data = "tabular"
-structure = "graph_posterior"
-reason = "option_not_applicable"
-test = "python/tests/test_python_products.py::test_refusal_path_specific_tabular_graph_posterior"
 [[parameter]]
 name = "data"
 entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
@@ -1022,6 +1151,14 @@ reason = ""
 test = "python/tests/test_parameter_bindings.py::test_missing_reaches_plan"
 
 [[parameter]]
+name = "sampling_design"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "data_snapshot.sampling_design"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_sampling_design_reaches_plan"
+
+[[parameter]]
 name = "latency"
 entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
 binding = "contract"
@@ -1044,6 +1181,15 @@ binding = "contract"
 contract_key = "target.query"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_population_registry_reaches_plan"
+
+# Observed on the prepared study: the declaration chooses which data checks run, or disables
+# collection, and the retained report shows it. It does not enter the executed contract.
+[[parameter]]
+name = "data_diagnostics"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "execution_control"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_data_diagnostics_reaches_plan"
 
 [[parameter]]
 name = "return_posterior_artifact"
@@ -1113,6 +1259,27 @@ binding = "execution_control"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_on_stage_reaches_plan"
 
+# Applies only to analyze. "raise" (the default) leaves every refusal raised exactly as without
+# the option; "describe" converts an identification-class refusal into an AnalysisWithFallback
+# (the unchanged refusal beside a compiled associational result and the evidence plan). It
+# changes what analyze returns after a refusal, not a value inside an executed contract, so the
+# control is observed on the returned object.
+[[parameter]]
+name = "on_refusal"
+entry_points = ["analyze"]
+binding = "execution_control"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_on_refusal_reaches_workflow"
+
+# Applies only to analyze with on_refusal="describe": the studies the caller declares, ranked
+# by the descriptive fallback's evidence plan. Refused without the fallback.
+[[parameter]]
+name = "evidence_candidates"
+entry_points = ["analyze"]
+binding = "execution_control"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_evidence_candidates_reach_the_plan"
+
 # Applies only to transport.Transport queries (refused on every other query by
 # refuse_transport_only_kwargs in python/antecedent/transport/_day1.py). Selects the
 # evidence estimator (EmpiricalTable / LearnedCategorical / TrialAipw) that
@@ -1133,24 +1300,6 @@ entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
 binding = "execution_control"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_provider_reaches_plan"
-
-# Applies only to transport.Transport queries (refused on every other query by
-# refuse_transport_only_kwargs). transport.TransportControls bundles the execution
-# limits and cancellation token of a transport study (max_operations, max_depth,
-# max_support_rows, memory_bytes, cancel) the same way the top-level cancel=
-# parameter does for an ordinary analyze — prepare_transport
-# (python/antecedent/transport/_day1.py) reads controls.cancel and merges a bare
-# cancel= into it, and passes every field straight into the native
-# prepare_statistical_transport / prepare_exact_transport call as execution budgets,
-# never into the portable contract. Observed the same way cancel= is: a pre-cancelled
-# token inside controls= must actually stop the transport execution.
-[[parameter]]
-name = "controls"
-entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
-binding = "execution_control"
-reason = ""
-test = "python/tests/test_parameter_bindings.py::test_controls_reaches_plan"
-
 
 # Declared response metadata is sealed into the result-body digest and claim ID,
 # while program/data identities and numerical fits remain unchanged.
@@ -1189,8 +1338,17 @@ binding = "execution_control"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_dose_units_reaches_plan"
 
+# Retaining the joint horizon draws changes what the prepared response keeps, not the
+# estimand or its claim; the retained draws are read back through the response view.
+[[parameter]]
+name = "retain_joint_horizons"
+entry_points = ["PreparedAnalysis.prepare"]
+binding = "execution_control"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_retain_joint_horizons_reaches_plan"
+
 # Shared Python 2.4 lifecycle and persistence conventions are not additional
-# scientific route licenses. Native family validators retain all authority.
+# scientific route supports. Native family validators retain all authority.
 [[ux_contract]]
 area = "retained_study"
 operations = ["identification", "inspect_plan", "last_result", "reprepare", "result.refute"]
@@ -1210,3 +1368,37 @@ test = "python/tests/test_notebook_to_system.py::test_specialized_artifact_dispa
 area = "checked_mean_handoff"
 operations = ["results.MeanSource", "as_mean_source", "decision.Contract.evaluate", "inverse_query.InverseQuery.evaluate"]
 test = "python/tests/test_notebook_to_system.py::test_bridge_is_a_complete_checked_mean_producer"
+
+[[parameter]]
+name = "execution"
+entry_points = ["analyze", "prepare"]
+binding = "execution_control"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_execution_cancellation_reaches_transport_plan"
+
+# A measured exposure is dispatched before preparation: the declaration imputes the exposure,
+# one study is prepared per draw, and the pooled result carries the declaration's identity. The
+# result is a MeasuredAnalysis, not an exported contract, so these rows are observed on the
+# measured analysis itself rather than through a contract key.
+[[parameter]]
+name = "measurement"
+entry_points = ["analyze", "prepare"]
+binding = "execution_control"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_measurement_reaches_plan"
+
+[[parameter]]
+name = "measurement_draws"
+entry_points = ["analyze", "prepare"]
+binding = "execution_control"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_measurement_draws_reaches_plan"
+
+# Completed tables pool a posterior-search discovery in the engine; the study mixes over the
+# pooled posterior, whose algorithm id names the pooling.
+[[parameter]]
+name = "imputations"
+entry_points = ["analyze", "prepare"]
+binding = "execution_control"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_imputations_reaches_plan"

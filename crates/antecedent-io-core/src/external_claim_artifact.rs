@@ -12,7 +12,6 @@ use antecedent_contract::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::convert::{from_cbor, to_cbor};
 use crate::error::IoError;
 use crate::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
 
@@ -20,6 +19,14 @@ use crate::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
 pub const MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES: usize = 4 * 1024 * 1024;
 /// Maximum number of response coordinates.
 pub const MAX_EXTERNAL_CLAIM_COORDINATES: usize = 100_000;
+/// Maximum entries in each evidence, assumption, equivalence, lineage and verification list.
+pub const MAX_EXTERNAL_CLAIM_LIST_ITEMS: usize = 1024;
+/// Maximum declared provider capabilities.
+pub const MAX_EXTERNAL_CLAIM_CAPABILITIES: usize = 64;
+/// Metadata version of external claim artifacts. Version 2 computes the provider
+/// fingerprint over explicit coordinate fields and counted lists, and requires
+/// sorted, distinct capabilities.
+pub const EXTERNAL_CLAIM_METADATA_VERSION: u16 = 2;
 const ARTIFACT_KIND: &str = crate::artifact_kinds::EXTERNAL_RESPONSE_CLAIM;
 const META_SECTION: &str = "external_claim.meta";
 const VALUES_SECTION: &str = "external_claim.values";
@@ -83,7 +90,7 @@ pub struct ExternalClaimIdentity {
     pub evidence_ids: Vec<String>,
     /// Assumptions relied on.
     pub assumption_ids: Vec<String>,
-    /// Checked equivalences licensing an observational law.
+    /// Checked equivalences support an observational law.
     pub equivalence_ids: Vec<String>,
     /// Derivation chain behind the values, parents before children.
     pub lineage: Vec<LineageLinkWire>,
@@ -288,6 +295,7 @@ impl ExternalClaimIdentity {
                     .map(|c| antecedent_contract::capability_name(*c).to_owned())
                     .collect();
                 names.sort();
+                names.dedup();
                 names
             },
             provider_fingerprint: String::new(),
@@ -318,26 +326,33 @@ impl ExternalClaimIdentity {
     pub fn compute_fingerprint(&self) -> String {
         let mut hasher =
             antecedent_core::CanonicalWriter::new("antecedent.external_claim.provider_fingerprint");
-        let mut put = |value: &str| {
-            hasher.text(value);
-        };
-        for field in [
-            &self.provider_id,
-            &self.object_id,
-            &self.version_id,
-            &self.snapshot_id,
-            &self.request_id,
-            &self.provider_meaning,
-        ] {
-            put(field);
-        }
+        hasher
+            .text(&self.provider_id)
+            .text(&self.object_id)
+            .text(&self.version_id)
+            .text(&self.snapshot_id)
+            .text(&self.request_id)
+            .text(&self.provider_meaning);
         let mut capabilities = self.capabilities.clone();
         capabilities.sort();
-        for capability in &capabilities {
-            put(capability);
-        }
+        hasher.texts(&capabilities);
+        hasher.word(self.quantities.len() as u64);
         for quantity in &self.quantities {
-            put(&format!("{quantity:?}"));
+            hasher
+                .word(u64::from(quantity.version))
+                .text(&quantity.variable_id)
+                .text(&quantity.variable_name)
+                .text(&quantity.role)
+                .text(&quantity.units)
+                .text(&quantity.population_id)
+                .text(&quantity.regime_id)
+                .word(u64::from(quantity.horizon))
+                .text(&quantity.functional_id)
+                .word(quantity.conditioning.len() as u64);
+            for condition in &quantity.conditioning {
+                hasher.text(&condition.variable_id).text(&condition.value_id);
+            }
+            hasher.text(&quantity.transform_id);
         }
         hasher.finish_hex()
     }
@@ -345,6 +360,28 @@ impl ExternalClaimIdentity {
     pub(crate) fn validate(&self) -> Result<(), IoError> {
         if self.quantities.is_empty() || self.quantities.len() > MAX_EXTERNAL_CLAIM_COORDINATES {
             return Err(IoError::TooLarge);
+        }
+        if [
+            self.evidence_ids.len(),
+            self.assumption_ids.len(),
+            self.equivalence_ids.len(),
+            self.lineage.len(),
+            self.verification.as_ref().map_or(0, Vec::len),
+        ]
+        .into_iter()
+        .any(|count| count > MAX_EXTERNAL_CLAIM_LIST_ITEMS)
+            || self.capabilities.len() > MAX_EXTERNAL_CLAIM_CAPABILITIES
+            || self.lineage.iter().any(|link| {
+                link.parents.len() > MAX_EXTERNAL_CLAIM_LIST_ITEMS
+                    || link.parent_digests.len() > MAX_EXTERNAL_CLAIM_LIST_ITEMS
+            })
+        {
+            return Err(IoError::TooLarge);
+        }
+        if self.capabilities.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return Err(IoError::Convert(
+                "external claim capabilities must be sorted and distinct".into(),
+            ));
         }
         for quantity in &self.quantities {
             ScientificQuantity::try_from(quantity.clone())
@@ -436,7 +473,7 @@ pub struct ExternalClaimArtifact {
 }
 
 fn validate(meta: &ExternalClaimMetadata, values: &[f64]) -> Result<(), IoError> {
-    if meta.version != 1 {
+    if meta.version != EXTERNAL_CLAIM_METADATA_VERSION {
         return Err(IoError::UnsupportedVersion { version: u32::from(meta.version) });
     }
     if meta.native_estimation {
@@ -474,7 +511,7 @@ impl ExternalClaimArtifact {
             .ok_or_else(|| IoError::Convert("claim is not a finite response grid".into()))?
             .to_vec();
         let metadata = ExternalClaimMetadata {
-            version: 1,
+            version: EXTERNAL_CLAIM_METADATA_VERSION,
             identity: ExternalClaimIdentity::from_claim(claim, causal_contract_id)?,
             native_estimation: false,
         };
@@ -516,15 +553,11 @@ impl ExternalClaimArtifact {
     /// Invalid content or an oversized payload refuses.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, IoError> {
         validate(&self.metadata, &self.values)?;
-        if artifact_id.trim().is_empty() {
-            return Err(IoError::Convert("missing artifact id".into()));
-        }
-        let meta_bytes = to_cbor(&self.metadata)?;
         let mut value_bytes = Vec::with_capacity(self.values.len() * 8);
         for value in &self.values {
             value_bytes.extend_from_slice(&value.to_le_bytes());
         }
-        crate::encode_container(
+        crate::artifact_codec::encode_sectioned_io(
             &crate::ArtifactContainer {
                 kind: ARTIFACT_KIND,
                 note: "external_response_claim",
@@ -532,20 +565,15 @@ impl ExternalClaimArtifact {
                 artifact_id,
                 library_version: env!("CARGO_PKG_VERSION"),
             },
-            &[
-                crate::OutSection {
-                    id: META_SECTION,
-                    content_type: crate::CONTENT_CBOR,
-                    bytes: &meta_bytes,
-                },
-                crate::OutSection {
-                    id: VALUES_SECTION,
-                    content_type: crate::CONTENT_BYTES,
-                    bytes: &value_bytes,
-                },
-            ],
+            META_SECTION,
+            &self.metadata,
+            &[crate::OutSection {
+                id: VALUES_SECTION,
+                content_type: crate::CONTENT_BYTES,
+                bytes: &value_bytes,
+            }],
+            "unsupported external claim layout",
         )
-        .map_err(|error| error.into_io("unsupported external claim layout"))
     }
 
     /// Load and check against an independently retained identity.
@@ -554,21 +582,31 @@ impl ExternalClaimArtifact {
     /// Oversized, truncated, corrupt, incompatible or semantically changed
     /// artifacts refuse before any value is exposed.
     pub fn from_bytes(bytes: &[u8], expected: &ExternalClaimIdentity) -> Result<Self, IoError> {
-        if bytes.len() > MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES {
+        Self::from_bytes_within(bytes, expected, MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::from_bytes`] under the caller's byte bound instead of [`MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a file over `max_bytes` is `TooLarge`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected: &ExternalClaimIdentity,
+        max_bytes: usize,
+    ) -> Result<Self, IoError> {
+        if bytes.len() > max_bytes {
             return Err(IoError::TooLarge);
         }
         expected.validate()?;
-        let parts = crate::decode_container(
-            ARTIFACT_KIND,
-            MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES,
-            &[META_SECTION, VALUES_SECTION],
-            bytes,
-        )
-        .map_err(|error| error.into_io("unsupported external claim layout"))?;
-        let Ok([meta_bytes, raw]) = <[Vec<u8>; 2]>::try_from(parts) else {
-            return Err(IoError::Convert("unsupported external claim layout".into()));
-        };
-        let metadata: ExternalClaimMetadata = from_cbor(&meta_bytes)?;
+        let (metadata, [raw]): (ExternalClaimMetadata, _) =
+            crate::artifact_codec::decode_sectioned_io(
+                ARTIFACT_KIND,
+                max_bytes,
+                META_SECTION,
+                &[VALUES_SECTION],
+                "unsupported external claim layout",
+                bytes,
+            )?;
         if metadata.identity != *expected {
             return Err(IoError::Refused {
                 code: antecedent_core::reason_code!("external_binding_mismatch"),

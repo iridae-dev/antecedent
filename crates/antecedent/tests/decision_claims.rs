@@ -9,7 +9,7 @@
 //! budget. Two actions read the mean of `y`: `treat` has utility `y - cost` and
 //! `hold` has utility `0.5 * y`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -49,7 +49,14 @@ use antecedent_identify::{
 #[path = "fixtures_common/mod.rs"]
 mod common;
 
-use antecedent_test_support::near_lt_1e9 as near;
+use antecedent_test_support::within;
+
+const NEAR_TOLERANCE: f64 = 1e-9;
+
+fn near(a: f64, b: f64) -> bool {
+    within(a, b, NEAR_TOLERANCE)
+}
+
 use common::fixtures::confounded_scm;
 
 const Z: u32 = 0;
@@ -407,7 +414,8 @@ fn b_claims_policies_reach_the_hand_derived_choices() {
     // Cost 0.05: treat beats hold in both scenarios (0.51 > 0.28, 0.30 > 0.175).
     let invariant = bound(0.05, StructuralPolicy::RequireInvariantBestAction);
     let decided = evaluate_scenario_decision(
-        &invariant,
+        invariant.decision(),
+        invariant.causal_identification(),
         &report,
         &binding(&invariant),
         StructuralPolicy::RequireInvariantBestAction,
@@ -434,7 +442,8 @@ fn b_claims_policies_reach_the_hand_derived_choices() {
     ];
     let invariant = bound(0.2, StructuralPolicy::RequireInvariantBestAction);
     let decided = evaluate_scenario_decision(
-        &invariant,
+        invariant.decision(),
+        invariant.causal_identification(),
         &report,
         &binding(&invariant),
         StructuralPolicy::RequireInvariantBestAction,
@@ -451,7 +460,8 @@ fn b_claims_policies_reach_the_hand_derived_choices() {
     // Worst cases: treat min(0.36, 0.15) = 0.15 < hold min(0.28, 0.175) = 0.175.
     let maximin = bound(0.2, StructuralPolicy::Maximin);
     let decided = evaluate_scenario_decision(
-        &maximin,
+        maximin.decision(),
+        maximin.causal_identification(),
         &report,
         &binding(&maximin),
         StructuralPolicy::Maximin,
@@ -465,7 +475,8 @@ fn b_claims_policies_reach_the_hand_derived_choices() {
 
     let report_only = bound(0.2, StructuralPolicy::ReportOnly);
     let decided = evaluate_scenario_decision(
-        &report_only,
+        report_only.decision(),
+        report_only.causal_identification(),
         &report,
         &binding(&report_only),
         StructuralPolicy::ReportOnly,
@@ -480,8 +491,15 @@ fn b_claims_unresolved_scenarios_leave_invariance_and_worst_case_unchecked() {
     let report = mixed_report(None);
     for policy in [StructuralPolicy::RequireInvariantBestAction, StructuralPolicy::Maximin] {
         let bound = bound(0.05, policy);
-        let decided =
-            evaluate_scenario_decision(&bound, &report, &binding(&bound), policy, None).unwrap();
+        let decided = evaluate_scenario_decision(
+            bound.decision(),
+            bound.causal_identification(),
+            &report,
+            &binding(&bound),
+            policy,
+            None,
+        )
+        .unwrap();
         assert!(matches!(
             decided.decision.structural.verdict,
             StructuralVerdict::InsufficientScience(_)
@@ -570,7 +588,10 @@ fn b_claims_an_unweighted_envelope_refuses_while_scenarios_are_unresolved() {
     .unwrap_err();
     assert_eq!(error, ClaimError::UnresolvedScenarios(2));
     let refusal = error.to_refusal();
-    assert_eq!(refusal.detail, "decision_claims.unresolved_scenarios");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_claims::UNRESOLVED_SCENARIOS
+    );
     assert_eq!(refusal.offending.as_deref(), Some("2"));
 }
 
@@ -587,7 +608,10 @@ fn b_claims_an_unbound_action_input_refuses_with_missing_scenario_utility() {
     )
     .unwrap_err();
     let refusal = error.to_refusal();
-    assert_eq!(refusal.detail, "decision_claims.missing_scenario_utility");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_claims::MISSING_SCENARIO_UTILITY
+    );
     assert_eq!(refusal.offending.as_deref(), Some("treat.inputs[0]"));
 }
 
@@ -602,7 +626,10 @@ fn b_claims_bayes_needs_declared_weights_and_never_reads_completion_counts() {
             .unwrap_err();
     assert_eq!(error, ClaimError::ProbabilitiesNotDeclared { completion_counts: false });
     let refusal = error.to_refusal();
-    assert_eq!(refusal.detail, "decision_claims.probabilities_not_declared");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_claims::PROBABILITIES_NOT_DECLARED
+    );
     assert_eq!(refusal.supplied.as_deref(), Some("none"));
 
     // Completions of a CPDAG carry counts, never probabilities.
@@ -615,19 +642,24 @@ fn b_claims_bayes_needs_declared_weights_and_never_reads_completion_counts() {
         Some("completion counts (never probabilities)")
     );
     let refusal = evaluate_cpdag_decision(
-        &bayes,
+        bayes.decision(),
+        bayes.causal_identification(),
         &completions,
         &binding,
         StructuralPolicy::BayesOverStructures,
         None,
     )
     .unwrap_err();
-    assert_eq!(refusal.detail, "decision_claims.probabilities_not_declared");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_claims::PROBABILITIES_NOT_DECLARED
+    );
 
     // Declared weights are read; unresolved mass then blocks a Bayes choice.
     let report = mixed_report(Some([0.3, 0.2, 0.25, 0.15]));
     let decided = evaluate_scenario_decision(
-        &bayes,
+        bayes.decision(),
+        bayes.causal_identification(),
         &report,
         &binding,
         StructuralPolicy::BayesOverStructures,
@@ -659,9 +691,15 @@ fn b_claims_cpdag_completions_are_graph_dependent_unweighted_atoms() {
     assert_eq!(claims.adapted.completion_counts, [(NOT_ENUMERATED_ATOM.to_owned(), 2)]);
 
     // Each graph names its own leader, and the unread completions block a worst case.
-    let decided =
-        evaluate_cpdag_decision(&maximin, &completions, &binding, StructuralPolicy::Maximin, None)
-            .unwrap();
+    let decided = evaluate_cpdag_decision(
+        maximin.decision(),
+        maximin.causal_identification(),
+        &completions,
+        &binding,
+        StructuralPolicy::Maximin,
+        None,
+    )
+    .unwrap();
     assert_eq!(
         decided.leaders,
         [
@@ -700,9 +738,16 @@ fn b_claims_a_changed_scenario_digest_is_refused() {
     changed.scenarios[1].distribution.as_mut().unwrap().probabilities = Arc::from(vec![0.5, 0.5]);
     let error = scenario_claims(&changed, &binding, policy, Some(&source)).unwrap_err();
     assert_eq!(error, ClaimError::IdentityMismatch("b_standardize".into()));
-    let refusal =
-        evaluate_scenario_decision(&bound, &changed, &binding, policy, Some(&source)).unwrap_err();
-    assert_eq!(refusal.detail, "decision_claims.identity_mismatch");
+    let refusal = evaluate_scenario_decision(
+        bound.decision(),
+        bound.causal_identification(),
+        &changed,
+        &binding,
+        policy,
+        Some(&source),
+    )
+    .unwrap_err();
+    assert_eq!(refusal.detail, antecedent_core::reason_details::decision_claims::IDENTITY_MISMATCH);
     assert_eq!(refusal.offending.as_deref(), Some("b_standardize"));
 
     // A dropped scenario, changed premises and changed data are refused likewise.
@@ -719,8 +764,16 @@ fn b_claims_a_changed_scenario_digest_is_refused() {
 
     // A binding for another causal contract is not the bound decision's.
     let foreign = ScenarioClaimBinding { causal_contract_id: "other".into(), ..binding.clone() };
-    let refusal = evaluate_scenario_decision(&bound, &report, &foreign, policy, None).unwrap_err();
-    assert_eq!(refusal.detail, "decision_claims.identity_mismatch");
+    let refusal = evaluate_scenario_decision(
+        bound.decision(),
+        bound.causal_identification(),
+        &report,
+        &foreign,
+        policy,
+        None,
+    )
+    .unwrap_err();
+    assert_eq!(refusal.detail, antecedent_core::reason_details::decision_claims::IDENTITY_MISMATCH);
     assert_eq!(refusal.offending.as_deref(), Some("causal_contract_id"));
 }
 
@@ -729,14 +782,15 @@ fn b_claims_a_policy_other_than_the_contracts_is_refused() {
     let report = two_report();
     let bound = bound(0.2, StructuralPolicy::Maximin);
     let refusal = evaluate_scenario_decision(
-        &bound,
+        bound.decision(),
+        bound.causal_identification(),
         &report,
         &binding(&bound),
         StructuralPolicy::ReportOnly,
         None,
     )
     .unwrap_err();
-    assert_eq!(refusal.detail, "decision_adapters.policy_mismatch");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::decision_adapters::POLICY_MISMATCH);
 }
 
 #[test]
@@ -792,7 +846,10 @@ fn supplied_interval_endpoints_map_to_exact_utilities_without_inventing_joint_co
         &support,
     )
     .unwrap_err();
-    assert_eq!(error.to_refusal().detail, "decision_claims.unsupported_claim_shape");
+    assert_eq!(
+        error.to_refusal().detail,
+        antecedent_core::reason_details::decision_claims::UNSUPPORTED_CLAIM_SHAPE
+    );
     assert!(matches!(
         error,
         ClaimError::UnsupportedClaimShape(

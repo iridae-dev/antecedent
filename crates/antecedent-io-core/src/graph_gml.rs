@@ -3,13 +3,16 @@
 //! Supports pinned baseline-style:
 //! `graph [ directed 1 node [ id "Z" label "Z" ] edge [ source "Z" target "X" ] ]`
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
+use std::fmt::Write as _;
 
 use antecedent_graph::Dag;
 
-use crate::convert::{dag_from_wire, dag_to_wire};
+use crate::convert::{
+    GraphLimits, check_graph_budget_within, dag_from_wire_with_limits, dag_to_wire,
+};
 use crate::error::IoError;
 use crate::graph_dot;
 use crate::graph_json::without_names;
@@ -35,8 +38,20 @@ without_names! {
 ///
 /// Malformed GML, undirected graphs, cycles.
 pub fn dag_with_names_from_gml(gml: &str) -> Result<(Dag, Vec<String>), IoError> {
+    dag_with_names_from_gml_with_limits(gml, &GraphLimits::default())
+}
+
+/// [`dag_with_names_from_gml`] under the caller's graph bounds: a document over `limits` is refused.
+///
+/// # Errors
+///
+/// As [`dag_with_names_from_gml`], and [`IoError::Convert`] when a bound of `limits` is exceeded.
+pub fn dag_with_names_from_gml_with_limits(
+    gml: &str,
+    limits: &GraphLimits,
+) -> Result<(Dag, Vec<String>), IoError> {
     let (wire, names) = dag_wire_and_names_from_gml(gml)?;
-    Ok((dag_from_wire(&wire)?, names))
+    Ok((dag_from_wire_with_limits(&wire, limits)?, names))
 }
 
 /// Serialize a [`Dag`] to GML.
@@ -45,7 +60,7 @@ pub fn dag_with_names_from_gml(gml: &str) -> Result<(Dag, Vec<String>), IoError>
 ///
 /// Wire conversion failures.
 pub fn dag_to_gml(dag: &Dag, names: Option<&[String]>) -> Result<String, IoError> {
-    Ok(dag_wire_to_gml(&dag_to_wire(dag)?, names))
+    Ok(emit_dag_gml(&dag_to_wire(dag)?, names))
 }
 
 /// Parse GML into [`DagWire`].
@@ -62,17 +77,14 @@ fn dag_wire_and_names_from_gml(gml: &str) -> Result<(DagWire, Vec<String>), IoEr
     let doc = parse_gml_document(gml)?;
     let edges: Vec<(u32, u32)> = doc.edges.iter().map(|e| (e.from, e.to)).collect();
     // Prefer numeric contiguous labels when all nodes are numeric 0..n-1.
-    match graph_dot::remap_numeric_dense(&doc.names, &edges)? {
+    if let Some(wire) = graph_dot::remap_numeric_dense(&doc.names, &edges)? {
         // Dense id == numeric label in this case, so the label carries no
         // information beyond the dense index; fall back to index strings.
-        Some(wire) => {
-            let names = (0..wire.node_count).map(|i| i.to_string()).collect();
-            Ok((wire, names))
-        }
-        None => {
-            let node_count = u32::try_from(doc.names.len()).map_err(|_| IoError::TooLarge)?;
-            Ok((DagWire { node_count, edges }, doc.names))
-        }
+        let names = (0..wire.node_count).map(|i| i.to_string()).collect();
+        Ok((wire, names))
+    } else {
+        let node_count = u32::try_from(doc.names.len()).map_err(|_| IoError::TooLarge)?;
+        Ok((DagWire { node_count, edges }, doc.names))
     }
 }
 
@@ -124,15 +136,15 @@ pub(crate) fn parse_gml_document(gml: &str) -> Result<GmlDocument, IoError> {
                 raw_edges.push(parse_attr_block(&tokens, &mut i)?);
             }
             Tok::Ident(_) => {
-                // Skip unknown key/value pairs at graph level.
+                // Skip unknown key/value pairs (and nested blocks such as `graphics [ ... ]`)
+                // at graph level; a key without a value is malformed.
                 i += 1;
-                if i < tokens.len() {
-                    let _ = expect_value(&tokens, &mut i);
-                }
+                skip_value(&tokens, &mut i)?;
             }
             other => return Err(IoError::Convert(format!("unexpected GML token {other:?}"))),
         }
     }
+    expect_char(&tokens, &mut i, ']')?;
     if directed != Some(true) {
         return Err(IoError::Convert("GML graph must be directed 1".into()));
     }
@@ -173,6 +185,12 @@ fn parse_attr_block(tokens: &[Tok], i: &mut usize) -> Result<HashMap<String, Str
     let mut attrs = HashMap::new();
     while *i < tokens.len() && !matches!(&tokens[*i], Tok::Char(']')) {
         let key = expect_any_ident(tokens, i)?.to_ascii_lowercase();
+        if matches!(tokens.get(*i), Some(Tok::Char('['))) {
+            // Nested block (`graphics [ ... ]`, `LabelGraphics [ ... ]`): not a node or edge
+            // attribute this importer reads.
+            skip_block(tokens, i)?;
+            continue;
+        }
         let val = expect_value(tokens, i)?;
         attrs.insert(key, val);
     }
@@ -181,19 +199,35 @@ fn parse_attr_block(tokens: &[Tok], i: &mut usize) -> Result<HashMap<String, Str
 }
 
 /// Emit GML from wire.
-#[must_use]
-pub fn dag_wire_to_gml(wire: &DagWire, names: Option<&[String]>) -> String {
+///
+/// The wire's `node_count` is an iteration count, so a wire that did not come from an
+/// in-memory graph is held to the default graph bounds before anything is emitted.
+///
+/// # Errors
+///
+/// [`IoError::Convert`] when `node_count` or the edge count exceeds [`GraphLimits::default`].
+pub fn dag_wire_to_gml(wire: &DagWire, names: Option<&[String]>) -> Result<String, IoError> {
+    check_graph_budget_within(wire.node_count, wire.edges.len(), &GraphLimits::default())?;
+    Ok(emit_dag_gml(wire, names))
+}
+
+/// Emit GML for a wire already known to be bounded (encoded from an in-memory graph or
+/// admitted by [`dag_wire_to_gml`]).
+fn emit_dag_gml(wire: &DagWire, names: Option<&[String]>) -> String {
+    let label_of = |i: u32| -> std::borrow::Cow<'_, str> {
+        names.and_then(|n| n.get(i as usize)).map_or_else(
+            || std::borrow::Cow::Owned(i.to_string()),
+            |name| std::borrow::Cow::Borrowed(name.as_str()),
+        )
+    };
     let mut out = String::from("graph [\n  directed 1\n");
     for i in 0..wire.node_count {
-        let label = names.and_then(|n| n.get(i as usize)).cloned().unwrap_or_else(|| i.to_string());
-        let label = escape_gml_string(&label);
-        out.push_str(&format!("  node [\n    id \"{label}\"\n    label \"{label}\"\n  ]\n"));
+        let label = escape_gml_string(&label_of(i));
+        let _ = write!(out, "  node [\n    id \"{label}\"\n    label \"{label}\"\n  ]\n");
     }
     for &(a, b) in &wire.edges {
-        let sa = names.and_then(|n| n.get(a as usize)).cloned().unwrap_or_else(|| a.to_string());
-        let sb = names.and_then(|n| n.get(b as usize)).cloned().unwrap_or_else(|| b.to_string());
-        let (sa, sb) = (escape_gml_string(&sa), escape_gml_string(&sb));
-        out.push_str(&format!("  edge [\n    source \"{sa}\"\n    target \"{sb}\"\n  ]\n"));
+        let (sa, sb) = (escape_gml_string(&label_of(a)), escape_gml_string(&label_of(b)));
+        let _ = write!(out, "  edge [\n    source \"{sa}\"\n    target \"{sb}\"\n  ]\n");
     }
     out.push(']');
     out
@@ -202,7 +236,20 @@ pub fn dag_wire_to_gml(wire: &DagWire, names: Option<&[String]>) -> String {
 /// GML strings cannot contain a raw `"`; the format's escapes are the HTML entities
 /// `&quot;` and `&amp;`.
 pub(crate) fn escape_gml_string(s: &str) -> String {
-    s.replace('&', "&amp;").replace('"', "&quot;")
+    let mut out = String::with_capacity(s.len());
+    push_escaped_gml(&mut out, s);
+    out
+}
+
+/// Append `s` to `out` with the GML escapes applied, without an intermediate string.
+pub(crate) fn push_escaped_gml(out: &mut String, s: &str) {
+    for ch in s.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '"' => out.push_str("&quot;"),
+            _ => out.push(ch),
+        }
+    }
 }
 
 fn unescape_gml_string(s: &str) -> String {
@@ -213,76 +260,62 @@ fn unescape_gml_string(s: &str) -> String {
 pub(crate) enum Tok {
     Ident(String),
     String(String),
-    Number(f64),
+    /// A number as written; ids keep their spelling instead of round-tripping through `f64`.
+    Number(String),
     Char(char),
 }
 
 pub(crate) fn tokenize(input: &str) -> Result<Vec<Tok>, IoError> {
     let mut out = Vec::new();
-    let bytes = input.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        let c = bytes[i] as char;
+    let mut chars = input.char_indices().peekable();
+    while let Some(&(start, c)) = chars.peek() {
         if c.is_whitespace() {
-            i += 1;
+            chars.next();
             continue;
         }
         if c == '#' {
-            while i < bytes.len() && bytes[i] != b'\n' {
-                i += 1;
-            }
+            while chars.next_if(|&(_, ch)| ch != '\n').is_some() {}
             continue;
         }
         if c == '"' {
-            i += 1;
-            let start = i;
-            while i < bytes.len() && bytes[i] != b'"' {
-                i += 1;
-            }
-            if i >= bytes.len() {
-                return Err(IoError::Convert("unterminated GML string".into()));
-            }
-            let s = unescape_gml_string(&String::from_utf8_lossy(&bytes[start..i]));
-            i += 1;
-            out.push(Tok::String(s));
+            chars.next();
+            let body = start + 1;
+            let end = chars
+                .by_ref()
+                .find(|&(_, ch)| ch == '"')
+                .map(|(index, _)| index)
+                .ok_or_else(|| IoError::Convert("unterminated GML string".into()))?;
+            out.push(Tok::String(unescape_gml_string(&input[body..end])));
             continue;
         }
         if c == '[' || c == ']' {
             out.push(Tok::Char(c));
-            i += 1;
+            chars.next();
             continue;
         }
         if c.is_ascii_digit() || c == '-' || c == '+' {
-            let start = i;
-            i += 1;
-            while i < bytes.len()
-                && ((bytes[i] as char).is_ascii_digit()
-                    || bytes[i] == b'.'
-                    || bytes[i] == b'e'
-                    || bytes[i] == b'E'
-                    || bytes[i] == b'-'
-                    || bytes[i] == b'+')
-            {
-                i += 1;
+            chars.next();
+            let mut end = start + 1;
+            while let Some((index, ch)) = chars.next_if(|&(_, ch)| {
+                ch.is_ascii_digit() || matches!(ch, '.' | 'e' | 'E' | '-' | '+')
+            }) {
+                end = index + ch.len_utf8();
             }
-            let s = std::str::from_utf8(&bytes[start..i]).unwrap_or("");
-            let n: f64 =
-                s.parse().map_err(|_| IoError::Convert(format!("bad GML number `{s}`")))?;
-            out.push(Tok::Number(n));
+            let text = &input[start..end];
+            text.parse::<f64>()
+                .map_err(|_| IoError::Convert(format!("bad GML number `{text}`")))?;
+            out.push(Tok::Number(text.to_owned()));
             continue;
         }
         if c.is_ascii_alphabetic() || c == '_' {
-            let start = i;
-            i += 1;
-            while i < bytes.len() {
-                let ch = bytes[i] as char;
-                if ch.is_ascii_alphanumeric() || ch == '_' {
-                    i += 1;
-                } else {
-                    break;
-                }
+            chars.next();
+            let mut end = start + 1;
+            while let Some((index, ch)) =
+                chars.next_if(|&(_, ch)| ch.is_ascii_alphanumeric() || ch == '_')
+            {
+                end = index + ch.len_utf8();
             }
-            out.push(Tok::Ident(String::from_utf8_lossy(&bytes[start..i]).into_owned()));
+            out.push(Tok::Ident(input[start..end].to_owned()));
             continue;
         }
         return Err(IoError::Convert(format!("unexpected GML char `{c}`")));
@@ -320,12 +353,47 @@ pub(crate) fn expect_char(tokens: &[Tok], i: &mut usize, c: char) -> Result<(), 
 
 pub(crate) fn expect_number(tokens: &[Tok], i: &mut usize) -> Result<f64, IoError> {
     match tokens.get(*i) {
-        Some(Tok::Number(n)) => {
+        Some(Tok::Number(text)) => {
+            let value = text
+                .parse::<f64>()
+                .map_err(|_| IoError::Convert(format!("bad GML number `{text}`")))?;
             *i += 1;
-            Ok(*n)
+            Ok(value)
         }
         _ => Err(IoError::Convert("expected number".into())),
     }
+}
+
+/// Skip a balanced `[ ... ]` block, including nested blocks.
+fn skip_block(tokens: &[Tok], i: &mut usize) -> Result<(), IoError> {
+    expect_char(tokens, i, '[')?;
+    let mut depth = 1_usize;
+    while depth > 0 {
+        match tokens.get(*i) {
+            Some(Tok::Char('[')) => depth += 1,
+            Some(Tok::Char(']')) => depth -= 1,
+            Some(_) => {}
+            None => return Err(IoError::Convert("unterminated GML block".into())),
+        }
+        *i += 1;
+    }
+    Ok(())
+}
+
+/// Skip the value of an ignored key: a scalar or a nested block.
+fn skip_value(tokens: &[Tok], i: &mut usize) -> Result<(), IoError> {
+    if matches!(tokens.get(*i), Some(Tok::Char('['))) {
+        skip_block(tokens, i)
+    } else {
+        expect_value(tokens, i).map(|_| ())
+    }
+}
+
+/// The text of a numeric token as an identifier: integers are normalized (`+5` and `005`
+/// read as `5`, `-0` as `0`), anything else keeps its spelling, so distinct ids never
+/// collapse through floating point.
+fn number_text(text: &str) -> String {
+    text.parse::<i64>().map_or_else(|_| text.to_owned(), |integer| integer.to_string())
 }
 
 pub(crate) fn expect_value(tokens: &[Tok], i: &mut usize) -> Result<String, IoError> {
@@ -334,9 +402,9 @@ pub(crate) fn expect_value(tokens: &[Tok], i: &mut usize) -> Result<String, IoEr
             *i += 1;
             Ok(s.clone())
         }
-        Some(Tok::Number(n)) => {
+        Some(Tok::Number(text)) => {
             *i += 1;
-            if n.fract() == 0.0 && *n >= 0.0 { Ok(format!("{n:.0}")) } else { Ok(n.to_string()) }
+            Ok(number_text(text))
         }
         _ => Err(IoError::Convert("expected value".into())),
     }
@@ -391,7 +459,7 @@ mod tests {
         .unwrap();
         let wire = crate::convert::dag_to_wire(&dag).unwrap();
         let names = vec!["say \"hi\"".to_string(), "a&b".to_string()];
-        let gml = dag_wire_to_gml(&wire, Some(&names));
+        let gml = dag_wire_to_gml(&wire, Some(&names)).unwrap();
         assert!(gml.contains("say &quot;hi&quot;"), "{gml}");
         assert!(gml.contains("a&amp;b"), "{gml}");
         let (back, back_names) = dag_with_names_from_gml(&gml).unwrap();
@@ -467,5 +535,49 @@ mod tests {
         let s = dag_to_gml(&dag, None).unwrap();
         let back = dag_from_gml(&s).unwrap();
         assert!(back.reaches(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
+    }
+
+    #[test]
+    fn nested_blocks_are_skipped_and_do_not_refuse_real_documents() {
+        let gml = r##"graph [ directed 1 comment "x" meta [ a 1 inner [ b 2 ] ]
+            node [ id 0 label "A" graphics [ x 1.5 y 2 w 10 ] ]
+            node [ id 1 label "B" LabelGraphics [ text "B" ] ]
+            edge [ source 0 target 1 graphics [ fill "#000" ] ] ]"##;
+        let (dag, names) = dag_with_names_from_gml(gml).unwrap();
+        assert_eq!(names, vec!["A".to_string(), "B".to_string()]);
+        assert!(dag.reaches(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
+    }
+
+    #[test]
+    fn a_graph_level_key_without_a_value_or_an_open_block_is_refused() {
+        assert!(dag_from_gml("graph [ directed 1 node [ id 0 ] foo ]").is_err());
+        assert!(dag_from_gml("graph [ directed 1 node [ id 0 ] foo [ a 1 ").is_err());
+        assert!(dag_from_gml("graph [ directed 1 node [ id 0 ]").is_err());
+    }
+
+    #[test]
+    fn large_integer_ids_do_not_collapse_through_floating_point() {
+        let gml = "graph [ directed 1 node [ id 9007199254740993 ] \
+                   node [ id 9007199254740992 ] edge [ source 9007199254740993 \
+                   target 9007199254740992 ] ]";
+        let (dag, names) = dag_with_names_from_gml(gml).unwrap();
+        assert_eq!(dag.node_count(), 2);
+        assert_eq!(names.len(), 2);
+        assert_ne!(names[0], names[1]);
+    }
+
+    #[test]
+    fn non_ascii_labels_survive_tokenizing() {
+        let gml = "graph [ directed 1 node [ id 0 label \"caf\u{e9} \u{a0}x\" ] ]";
+        let (_dag, names) = dag_with_names_from_gml(gml).unwrap();
+        assert_eq!(names, vec!["caf\u{e9} \u{a0}x".to_string()]);
+    }
+
+    #[test]
+    fn wire_export_refuses_an_unbounded_node_count() {
+        let wire = DagWire { node_count: u32::MAX, edges: Vec::new() };
+        assert!(matches!(dag_wire_to_gml(&wire, None), Err(IoError::Convert(_))));
+        let wire = DagWire { node_count: 3, edges: vec![(0, 1)] };
+        assert!(dag_wire_to_gml(&wire, None).is_ok());
     }
 }

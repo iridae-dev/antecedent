@@ -7,6 +7,7 @@ from dataclasses import replace
 
 import pytest
 from antecedent.errors import CausalError
+from antecedent.execution import Execution
 from antecedent.inference import MeasuredInference
 from antecedent.transport import advanced as tr
 
@@ -36,7 +37,7 @@ print(json.dumps(result.inspect(),sort_keys=True))
     assert all(scalar.calibration == "calibrated" for scalar in loaded.scalars)
     source = loaded.source_report()
     source = source["result"] if loaded.route == "temporal_interval" else source
-    assert source["calibration"] == "unmeasured"
+    assert source["calibration"] == "not_measured"
     with pytest.raises(CausalError):
         MeasuredInference.load(payload, expected=replace(identity, data_digest="0" * 64))
     with pytest.raises(CausalError):
@@ -44,65 +45,99 @@ print(json.dumps(result.inspect(),sort_keys=True))
     return loaded
 
 
+@pytest.mark.requires_calibration
 def test_joint_bayesian_factory_replays_without_producer_inputs(tmp_path):
     source_inputs = joint_options(False, "one")
     measured = tr.joint_bayesian_transport(**source_inputs)
-    payload, identity, original = measured.export(), measured.expected_identity, measured.inspect()
+    payload, identity, original = (
+        bytes(measured.export()),
+        measured.expected_identity,
+        measured.inspect(),
+    )
     del source_inputs
     del measured
     loaded = independent_replay(payload, identity, original, tmp_path)
     assert loaded.route == "joint_bayesian"
 
 
+@pytest.mark.requires_calibration
 def test_learned_joint_factory_replays_without_producer_inputs(tmp_path):
     source_inputs = joint_options(True, "one")
     measured = tr.learned_joint_transport(**source_inputs)
-    payload, identity, original = measured.export(), measured.expected_identity, measured.inspect()
+    payload, identity, original = (
+        bytes(measured.export()),
+        measured.expected_identity,
+        measured.inspect(),
+    )
     del source_inputs
     del measured
     loaded = independent_replay(payload, identity, original, tmp_path)
     assert loaded.route == "learned_joint"
 
 
+@pytest.mark.requires_calibration
 def test_nested_bayesian_factory_replays_without_producer_inputs(tmp_path):
-    source_inputs = {"graph": graph(), "regimes": [{"counts": [250] * 16}], "seed": 817}
+    source_inputs = {
+        "graph": graph(),
+        "regimes": [{"counts": [250] * 16}],
+        "execution": Execution(seed=817),
+    }
     measured = tr.binary_nested_markov(**source_inputs)
-    payload, identity, original = measured.export(), measured.expected_identity, measured.inspect()
+    payload, identity, original = (
+        bytes(measured.export()),
+        measured.expected_identity,
+        measured.inspect(),
+    )
     del source_inputs
     del measured
     loaded = independent_replay(payload, identity, original, tmp_path)
     assert loaded.route == "nested_bayesian"
 
 
+@pytest.mark.requires_calibration
 def test_nested_fisher_factory_replays_without_producer_inputs(tmp_path):
     source_inputs = {"graph": graph(), "regimes": [{"counts": [250] * 16}]}
     measured = tr.binary_nested_markov_fisher_interval(**source_inputs)
-    payload, identity, original = measured.export(), measured.expected_identity, measured.inspect()
+    payload, identity, original = (
+        bytes(measured.export()),
+        measured.expected_identity,
+        measured.inspect(),
+    )
     del source_inputs
     del measured
     loaded = independent_replay(payload, identity, original, tmp_path)
     assert loaded.route == "nested_fisher"
 
 
+@pytest.mark.requires_calibration
 def test_direct_temporal_factory_replays_without_producer_inputs(tmp_path):
     source_inputs = {
         "panel": panel(),
         "sequence": (0, 0),
         "target_law": tr.InitialStateLaw("fixed_target", {0: 0.3, 1: 0.7}),
-        "seed": 901,
+        "execution": Execution(seed=901),
     }
     measured = tr.temporal_dependent_interval(**source_inputs)
-    payload, identity, original = measured.export(), measured.expected_identity, measured.inspect()
+    payload, identity, original = (
+        bytes(measured.export()),
+        measured.expected_identity,
+        measured.inspect(),
+    )
     del source_inputs
     del measured
     loaded = independent_replay(payload, identity, original, tmp_path)
     assert loaded.route == "temporal_interval"
 
 
+@pytest.mark.requires_calibration
 def test_sampled_recovery_factory_replays_without_producer_inputs(tmp_path):
     source_inputs = recovery_options()
     measured = tr.sampled_observation_recovery(**source_inputs)
-    payload, identity, original = measured.export(), measured.expected_identity, measured.inspect()
+    payload, identity, original = (
+        bytes(measured.export()),
+        measured.expected_identity,
+        measured.inspect(),
+    )
     del source_inputs
     del measured
     loaded = independent_replay(payload, identity, original, tmp_path)

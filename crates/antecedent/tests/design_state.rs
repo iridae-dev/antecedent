@@ -1,27 +1,34 @@
 //! design + incremental state conformance.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use antecedent::Study;
 use antecedent::design::{
     CandidateDesign, DesignCost, DesignEvaluationContext, DesignObjective, DesignRankConfig,
-    DesignRanker, MeasurementPlan, SamplingPlan, ScoreEvaluation, rank_designs,
+    DesignRanker, MeasurementPlan, SamplingPlan, ScoreEvaluation,
 };
 use antecedent::state::{
     CausalState, DataVersion, GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LgssmParams,
     LinearOlsSuffStats, LocalScoreCache, ParentSetOp, ParticleFilterState,
     RollingMechanismDiagnostics, StateEvent, apply_state_event, full_graph_score,
-    insert_mechanism_diag, new_antecedent_state,
+    new_antecedent_state,
 };
 use antecedent_core::{
     AverageEffectQuery, CacheBudget, CausalQuery, ExecutionContext, QueryId, VariableId,
 };
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 use antecedent_state::DataBatchRef;
+use antecedent_state::insert_mechanism_diag;
 use serde_json::Value;
+
+#[path = "fixtures_common/mod.rs"]
+mod common;
+
+use common::fixtures::confounded_scm;
 
 fn fixture(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -77,9 +84,20 @@ fn rank_candidates_eig_conformance() {
         identified_under_intervention: None,
         graph_features: None,
     };
-    let ranking =
-        rank_designs(&ranker, &DesignObjective::ReduceGraphEntropy, &candidates, &eval, &ctx)
-            .unwrap();
+    // Ranking runs through a prepared study's contract: it refuses an unsupported or
+    // unprepared study and reports the candidates the objective cannot score.
+    let (data, dag, query) = confounded_scm(96, 11);
+    let prepared = Study::tabular(data)
+        .graph(dag)
+        .query(query)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let ranking = prepared
+        .rank_designs(&ranker, &DesignObjective::ReduceGraphEntropy, &candidates, &eval, &ctx)
+        .unwrap();
     assert_eq!(ranking.ranked.len(), 2);
     // Exactly scored objectives return the same value on every draw, so the ranker
     // takes one and reports one sample; only Monte Carlo rankings owe the minimum.
@@ -116,7 +134,7 @@ fn incremental_ols_match_conformance() {
         VariableId::from_raw(1),
     )));
     let key: Arc<str> = Arc::from("ols");
-    state.suff_stats.ols.insert(Arc::clone(&key), LinearOlsSuffStats::new(2));
+    state.suff_stats.ols.insert(Arc::clone(&key), LinearOlsSuffStats::new(2).expect("dimension"));
 
     let batch1_rows = [1.0, 0.0, 1.0, 1.0];
     let batch1_y = [1.0, 3.0];
@@ -139,7 +157,7 @@ fn incremental_ols_match_conformance() {
     assert!(state.is_stale(q));
     let beta_inc = state.suff_stats.ols[&key].solve_beta().unwrap();
 
-    let mut full = LinearOlsSuffStats::new(2);
+    let mut full = LinearOlsSuffStats::new(2).expect("dimension");
     let mut all_x = batch1_rows.to_vec();
     all_x.extend_from_slice(&batch2_rows);
     let mut all_y = batch1_y.to_vec();
@@ -296,7 +314,7 @@ fn rolling_mechanism_diag_match_conformance() {
     );
 
     let start = n_rows - window;
-    let mut batch = LinearOlsSuffStats::new(2);
+    let mut batch = LinearOlsSuffStats::new(2).expect("dimension");
     batch.append_batch(&all_rows[start * 2..], &all_y[start..]).unwrap();
     let beta = batch.solve_beta().unwrap();
     let slot = &state.suff_stats.mechanism_diags[&key];
@@ -316,9 +334,12 @@ fn state_cache_budget_and_stale_queries() {
         VariableId::from_raw(0),
         VariableId::from_raw(1),
     )));
-    assert!(state.refresh_results(&[(q, 1, 64)]).is_err());
+    assert_eq!(
+        state.refresh_results_at(state.version, &[(q, 1, 64)]).unwrap_err().to_string(),
+        "cache budget exceeded (need 64 bytes, remaining 16)"
+    );
     state.cache_budget = CacheBudget::new(128);
-    state.refresh_results(&[(q, 9, 32)]).unwrap();
+    state.refresh_results_at(state.version, &[(q, 9, 32)]).unwrap();
     assert!(!state.is_stale(q));
     assert_eq!(state.stale_queries(), Vec::<QueryId>::new());
 }

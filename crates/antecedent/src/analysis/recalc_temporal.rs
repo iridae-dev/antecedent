@@ -1,13 +1,13 @@
-//! Shared-plan point execution of checked binary two-step whole-history functionals.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+//! Shared-plan point execution of checked binary whole-history functionals over any number of steps.
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "recalc_temporal_studentized.rs"]
 mod studentized;
 
 use super::recalc_common::Fields;
 use super::recalc_receipt::{
-    Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRunError, ReceiptRecorder, UtilitySpec,
-    decide,
+    Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRequestCode, RecalcRunError,
+    ReceiptRecorder, UtilitySpec, decide,
 };
 use antecedent_core::recalc::{
     Boundary, RecalcCapabilities, RecalcPlan, RequestSupport, ResumeContext, RetargetSupport,
@@ -52,7 +52,41 @@ use antecedent_io::{
 use std::{collections::BTreeMap, sync::Arc};
 
 const SEARCH: SidLimits = SidLimits { steps: 100_000, depth: 256 };
-const NAMES: [&str; 5] = ["s0", "a1", "l2", "a2", "y"];
+/// Binary coordinates a history of `horizon` steps has: the state, each step's action and each
+/// later step's covariate, and the outcome.
+const fn coordinate_count(horizon: usize) -> usize {
+    2 * horizon + 1
+}
+/// Names of the coordinates in time order: `s0, a1, l2, a2, ..., y`.
+fn coordinate_names(horizon: usize) -> Vec<String> {
+    let mut names = vec!["s0".to_owned(), "a1".to_owned()];
+    for step in 2..=horizon {
+        names.extend([format!("l{step}"), format!("a{step}")]);
+    }
+    names.push("y".to_owned());
+    names
+}
+/// The coordinate of the action of 0-based `step`.
+fn action_variable(step: usize) -> VariableId {
+    v(u32::try_from(2 * step + 1).unwrap_or(u32::MAX))
+}
+/// The coordinate of the outcome of a history of `horizon` steps.
+fn outcome_variable(horizon: usize) -> VariableId {
+    v(u32::try_from(2 * horizon).unwrap_or(u32::MAX))
+}
+/// Slice of each coordinate in variable order: the state in slice 0, the first action in slice
+/// 1, each later step's covariate and action in that step's slice and the outcome in the last.
+fn lag_alignment(horizon: usize) -> Vec<u8> {
+    let slice = |step: usize| u8::try_from(step).unwrap_or(u8::MAX);
+    let mut alignment = vec![0, 1];
+    for step in 2..=horizon {
+        alignment.extend([slice(step), slice(step)]);
+    }
+    alignment.push(slice(horizon));
+    alignment
+}
+/// Joint cells the retained source joint may have (see [`data`]).
+const MAX_JOINT_CELLS: usize = 4096;
 fn id(label: &str, text: &str) -> StageIdentity {
     StageIdentity::of(label, &[text.as_bytes()])
 }
@@ -100,13 +134,30 @@ fn refusal(detail: &str) -> TemporalRunError {
 fn validate(r: &TemporalRequest, ctx: &ExecutionContext) -> Result<(), TemporalRunError> {
     UtilitySpec { benefit_per_unit: r.benefit_per_unit, cost: r.cost }.validate()?;
     if ctx.cancellation.is_cancelled() {
-        return Err(RecalcRunError::Request("recalc.cancelled").into());
+        return Err(RecalcRunError::Request(RecalcRequestCode::Cancelled).into());
     }
-    if r.horizon != 2 {
-        return Err(refusal("temporal_transport.horizon: only two-step histories are supported"));
+    // The retained source joint has two levels per coordinate.
+    let joint_cells = u32::try_from(coordinate_count(r.horizon))
+        .ok()
+        .and_then(|coordinates| 1_usize.checked_shl(coordinates));
+    if r.horizon == 0 || joint_cells.is_none_or(|cells| cells > MAX_JOINT_CELLS) {
+        return Err(refusal(
+            "temporal_transport.horizon: the joint over a history's binary coordinates must fit \
+             the retained joint cells",
+        ));
     }
-    if r.lag_alignment != [0, 1, 2, 2, 2] {
-        return Err(refusal("temporal_refresh.lag_alignment_changed"));
+    if r.lag_alignment != lag_alignment(r.horizon) {
+        return Err(refusal(
+            antecedent_core::reason_details::temporal_refresh::LAG_ALIGNMENT_CHANGED,
+        ));
+    }
+    if r.units.iter().flat_map(|u| &u.histories).any(|h| !h.is_well_formed(r.horizon))
+        || r.functional.sequences().iter().any(|sequence| sequence.len() != r.horizon)
+    {
+        return Err(refusal(
+            "temporal_transport.invalid_sequence: every history and sequence needs one action per \
+             step",
+        ));
     }
     if r.selection_targets != [0] || !r.bidirected.is_empty() {
         return Err(refusal(
@@ -119,17 +170,34 @@ fn validate(r: &TemporalRequest, ctx: &ExecutionContext) -> Result<(), TemporalR
         || r.snapshot_id.len() > 4096
         || r.initial_state_id.len() > 4096
         || r.units.is_empty()
-        || r.units.len() > 8192
-        || r.units.iter().map(|u| u.histories.len()).sum::<usize>() > 131_072
         || r.units.iter().flat_map(|u| &u.histories).any(|h| {
-            h.time_id < r.period.0 || h.time_id.checked_add(2).is_none_or(|end| end >= r.period.1)
+            h.time_id < r.period.0
+                || u64::try_from(r.horizon)
+                    .ok()
+                    .and_then(|steps| h.time_id.checked_add(steps))
+                    .is_none_or(|end| end >= r.period.1)
         })
         || r.functional.sequences().iter().flatten().any(|a| *a > 1)
     {
-        return Err(RecalcRunError::Request("recalc.invalid_temporal_window").into());
+        return Err(RecalcRunError::Request(RecalcRequestCode::InvalidTemporalWindow).into());
+    }
+    // The panel is bounded by the caller's memory budget, not by a literal count.
+    let histories: usize = r.units.iter().map(|u| u.histories.len()).sum();
+    let bytes = u64::try_from(histories)
+        .unwrap_or(u64::MAX)
+        .saturating_mul(PANEL_BYTES_PER_HISTORY)
+        .saturating_add(
+            u64::try_from(r.units.len()).unwrap_or(u64::MAX).saturating_mul(PANEL_BYTES_PER_UNIT),
+        );
+    if ctx.memory_limit_bytes().into_iter().any(|limit| bytes > limit) {
+        return Err(RecalcRunError::Request(RecalcRequestCode::MemoryBudgetExceeded).into());
     }
     Ok(())
 }
+/// Bytes one history occupies across the request, the decoded panel and the fitted support.
+const PANEL_BYTES_PER_HISTORY: u64 = 256;
+/// Bytes one unit occupies across the request and the decoded panel.
+const PANEL_BYTES_PER_UNIT: u64 = 128;
 fn initial_law(r: &TemporalRequest) -> Result<InitialStateLaw, TemporalRunError> {
     Ok(InitialStateLaw::new(
         InitialStatePopulation::Target,
@@ -151,9 +219,8 @@ fn panel(r: &TemporalRequest) -> Result<TemporalUnitPanel, TemporalRunError> {
                         .map(|h| SequenceHistory {
                             time_id: h.time_id,
                             s0: h.s0,
-                            a1: h.a1,
-                            l2: h.l2,
-                            a2: h.a2,
+                            actions: h.actions.clone(),
+                            covariates: h.covariates.clone(),
                             y: h.y,
                         })
                         .collect(),
@@ -163,28 +230,31 @@ fn panel(r: &TemporalRequest) -> Result<TemporalUnitPanel, TemporalRunError> {
     )?)
 }
 fn spec(r: &TemporalRequest) -> Result<TemporalSequenceSpec, TemporalRunError> {
-    let mut graph = Admg::with_variables(5);
+    let mut graph = Admg::with_variables(
+        u32::try_from(coordinate_count(r.horizon))
+            .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidGraph))?,
+    );
     for &(a, b) in &r.edges {
         graph
             .insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
-            .map_err(|_| RecalcRunError::Request("recalc.invalid_graph"))?;
+            .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidGraph))?;
     }
     for &(a, b) in &r.bidirected {
         graph
             .insert_bidirected(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
-            .map_err(|_| RecalcRunError::Request("recalc.invalid_graph"))?;
+            .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidGraph))?;
     }
     let diagram = SelectionDiagram::try_new(
         graph,
         r.selection_targets.iter().copied().map(v).collect::<Vec<_>>(),
     )
-    .map_err(|_| RecalcRunError::Request("recalc.invalid_graph"))?;
-    let coordinates = NAMES
-        .iter()
-        .zip(0..5)
+    .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidGraph))?;
+    let coordinates = coordinate_names(r.horizon)
+        .into_iter()
+        .zip(0..)
         .map(|(name, raw)| ScenarioCoordinate {
             variable: v(raw),
-            name: Arc::from(*name),
+            name: Arc::from(name),
             domain: VariableDomain::Binary,
             unit: None,
         })
@@ -193,9 +263,17 @@ fn spec(r: &TemporalRequest) -> Result<TemporalSequenceSpec, TemporalRunError> {
         r.horizon,
         TemporalSlots {
             baseline: vec![v(0)],
-            covariates: [vec![], vec![v(2)]],
-            actions: [v(1), v(3)],
-            outcome: v(4),
+            covariates: (0..r.horizon)
+                .map(|step| {
+                    if step == 0 {
+                        vec![]
+                    } else {
+                        vec![v(u32::try_from(2 * step).unwrap_or(u32::MAX))]
+                    }
+                })
+                .collect(),
+            actions: (0..r.horizon).map(action_variable).collect(),
+            outcome: outcome_variable(r.horizon),
         },
         diagram,
         coordinates,
@@ -209,11 +287,13 @@ fn catalog(r: &TemporalRequest) -> Result<EvidenceCatalog, TemporalRunError> {
         EvidenceKind::Available,
         [],
         [],
-        (0..5).map(v).collect::<Vec<_>>(),
+        (0..u32::try_from(coordinate_count(r.horizon)).unwrap_or(u32::MAX))
+            .map(v)
+            .collect::<Vec<_>>(),
         "source",
         DistributionAvailability::Joint,
     )
-    .map_err(|_| RecalcRunError::Request("recalc.invalid_evidence"))?;
+    .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidEvidence))?;
     let target = EvidenceRegime::try_new(
         RegimeId::from_raw(1),
         RegimeKind::Observational,
@@ -224,7 +304,7 @@ fn catalog(r: &TemporalRequest) -> Result<EvidenceCatalog, TemporalRunError> {
         "target",
         DistributionAvailability::Joint,
     )
-    .map_err(|_| RecalcRunError::Request("recalc.invalid_evidence"))?;
+    .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidEvidence))?;
     let bindings = [
         (0, &r.snapshot_id, SamplingDesign::Clustered),
         (1, &r.initial_state_id, SamplingDesign::Unknown),
@@ -245,7 +325,7 @@ fn catalog(r: &TemporalRequest) -> Result<EvidenceCatalog, TemporalRunError> {
     })
     .collect::<Vec<_>>();
     EvidenceCatalog::try_new([], vec![source, target], bindings, None)
-        .map_err(|_| RecalcRunError::Request("recalc.invalid_evidence").into())
+        .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidEvidence).into())
 }
 fn source_identity(r: &TemporalRequest) -> StageIdentity {
     Fields::new().text(&r.snapshot_id).wire(&r.period).wire(&r.units).identity("temporal.source")
@@ -270,11 +350,18 @@ pub fn temporal_request_identities(r: &TemporalRequest, ctx: &ExecutionContext) 
             .ids(&r.selection_targets)
             .identity("temporal.graph"),
     );
-    ids.set(Stage::Query, id("temporal.source_query", "joint(S0,Y)|do(A1,A2)"));
+    let actions = (1..=r.horizon).map(|step| format!("A{step}")).collect::<Vec<_>>().join(",");
+    ids.set(Stage::Query, id("temporal.source_query", &format!("joint(S0,Y)|do({actions})")));
     ids.set(Stage::Regime, id("temporal.regime", "whole.sequence.source0.target1"));
     ids.set(
         Stage::Evidence,
-        id("temporal.evidence", "source.joint0_4.target.initial0.clustered.linked"),
+        id(
+            "temporal.evidence",
+            &format!(
+                "source.joint0_{}.target.initial0.clustered.linked",
+                coordinate_count(r.horizon) - 1
+            ),
+        ),
     );
     ids.set(Stage::SourcePopulation, id("temporal.population", "source"));
     ids.set(
@@ -345,8 +432,8 @@ struct Live {
     source: StageIdentity,
     panel: Arc<TemporalUnitPanel>,
     joint: Arc<ExactDiscreteLaw>,
-    fits: BTreeMap<[u32; 2], Arc<FittedSequenceHistory>>,
-    prepared: BTreeMap<[u32; 2], Arc<PreparedInitialShift>>,
+    fits: BTreeMap<Vec<u32>, Arc<FittedSequenceHistory>>,
+    prepared: BTreeMap<Vec<u32>, Arc<PreparedInitialShift>>,
     request: TemporalRequest,
     reports: Vec<TemporalInitialShiftReportWire>,
     means: Vec<f64>,
@@ -418,8 +505,8 @@ impl TemporalSession {
     }
     /// Borrow the sequence-specific mechanism fit.
     #[must_use]
-    pub fn sequence_fit(&self, seq: [u32; 2]) -> Option<&FittedSequenceHistory> {
-        self.live.as_ref()?.fits.get(&seq).map(Arc::as_ref)
+    pub fn sequence_fit(&self, seq: &[u32]) -> Option<&FittedSequenceHistory> {
+        self.live.as_ref()?.fits.get(seq).map(Arc::as_ref)
     }
     /// Export full unit/history lineage and actual checked reports under empirical point semantics.
     /// # Errors
@@ -436,7 +523,7 @@ impl TemporalSession {
     }
     /// Measured original-source whole-unit interval, including paired effect arms.
     /// # Errors
-    /// Missing checked state, unmeasured protocol, source replay or stale evidence.
+    /// Missing checked state, `not_measured` protocol, source replay or stale evidence.
     pub fn dependent_interval(
         &self,
         config: &DependentIntervalConfig,
@@ -451,11 +538,10 @@ impl TemporalSession {
 
     /// Closed whole-unit interval candidate for internal acceptance/calibration.
     /// Both arms of an effect share each whole-unit draw. This produces an
-    /// unmeasured candidate and does not open the public dependent interval gate.
+    /// `not_measured` candidate and does not open the public dependent interval gate.
     /// # Errors
     /// Missing actual state, changed producing context, invalid configuration,
     /// cancellation or unsupported resampled histories.
-    #[cfg(feature = "calibration-internal")]
     // doc(hidden): called by the python bindings and the calibration tests.
     #[doc(hidden)]
     pub fn candidate_interval_internal(
@@ -475,7 +561,9 @@ impl TemporalSession {
     {
         let live = self.live.as_ref().ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?;
         if live.seed != ctx.rng.master_seed() {
-            return Err(RecalcRunError::Request("recalc.temporal_artifact_seed_mismatch").into());
+            return Err(
+                RecalcRunError::Request(RecalcRequestCode::TemporalArtifactSeedMismatch).into()
+            );
         }
         if config.method
             == antecedent_estimate::temporal_dependent_interval::IntervalMethod::Studentized
@@ -488,9 +576,10 @@ impl TemporalSession {
             )?);
         }
         if matches!(live.request.functional, TemporalFunctional::Response { .. }) {
-            return Err(antecedent_estimate::EstimationError::refused(
+            return Err(antecedent_estimate::EstimationError::refused_detail(
                 antecedent_core::reason_code!("route_not_supported"),
-                "temporal_interval.retired_response_method: checked responses require studentized",
+                antecedent_core::reason_details::temporal_interval::RETIRED_RESPONSE_METHOD,
+                "checked responses require studentized",
             )
             .into());
         }
@@ -537,7 +626,7 @@ fn checked_unit_draw(
     sequences.dedup();
     let fits = FittedSequenceHistory::fit_many(units, &sequences)
         .into_iter()
-        .map(|fit| (fit.sequence(), Arc::new(fit)))
+        .map(|fit| (fit.sequence().to_vec(), Arc::new(fit)))
         .collect();
     let proof = &live
         .prepared
@@ -548,14 +637,17 @@ fn checked_unit_draw(
     let laws = data(&joint)?;
     let prepared = sequences
         .into_iter()
-        .map(|seq| Ok((seq, Arc::new(prepare_shift(Arc::clone(proof), laws.clone(), seq, ctx)?))))
+        .map(|seq| {
+            let shift = prepare_shift(Arc::clone(proof), laws.clone(), &seq, ctx)?;
+            Ok((seq, Arc::new(shift)))
+        })
         .collect::<Result<BTreeMap<_, _>, TemporalRunError>>()?;
     let rebuilt = Rebuilt { panel: Arc::clone(&live.panel), joint, fits, prepared };
     Ok(evaluate(&live.request, &rebuilt, ctx)?.2.ate)
 }
 fn data(joint: &ExactDiscreteLaw) -> Result<ExactTransportData, TemporalRunError> {
     ExactTransportData::try_new(vec![joint.clone()], 4096)
-        .map_err(|_| RecalcRunError::Request("recalc.invalid_temporal_provider").into())
+        .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidTemporalProvider).into())
 }
 struct PreparedInitialShift {
     proof: Arc<CheckedInitialShiftSource>,
@@ -564,18 +656,20 @@ struct PreparedInitialShift {
 fn prepare_shift(
     proof: Arc<CheckedInitialShiftSource>,
     laws: ExactTransportData,
-    sequence: [u32; 2],
+    sequence: &[u32],
     ctx: &ExecutionContext,
 ) -> Result<PreparedInitialShift, TemporalRunError> {
-    let request = Assignment::from_pairs([
-        (v(1), Value::f64(f64::from(sequence[0]))),
-        (v(3), Value::f64(f64::from(sequence[1]))),
-    ]);
+    let request = Assignment::from_pairs(
+        sequence
+            .iter()
+            .enumerate()
+            .map(|(step, &action)| (action_variable(step), Value::f64(f64::from(action)))),
+    );
     let program = ExactEvaluationPlan::compile(
         ExactEvaluationSpec {
             arena: proof.arena(),
             root: proof.root(),
-            outcomes: Arc::from([v(0), v(4)]),
+            outcomes: Arc::from([v(0), outcome_variable(sequence.len())]),
             request,
             limits: ExactEvaluationLimits::default(),
             tolerance: LawTolerance::default(),
@@ -593,14 +687,8 @@ fn fit_guard(r: &TemporalRequest, ctx: &ExecutionContext) -> Result<(), Temporal
         .map(|u| u64::try_from(u.histories.len()).unwrap_or(u64::MAX))
         .fold(0_u64, u64::saturating_add);
     let bytes = n.saturating_mul(256).saturating_add(4096 * 256);
-    if ctx
-        .memory
-        .hard_limit_bytes
-        .into_iter()
-        .chain(ctx.memory.soft_limit_bytes)
-        .any(|lim| bytes > lim)
-    {
-        return Err(RecalcRunError::Request("recalc.memory_budget_exceeded").into());
+    if ctx.memory_limit_bytes().into_iter().any(|lim| bytes > lim) {
+        return Err(RecalcRunError::Request(RecalcRequestCode::MemoryBudgetExceeded).into());
     }
     Ok(())
 }
@@ -633,8 +721,8 @@ fn source_proof(
 struct Rebuilt {
     panel: Arc<TemporalUnitPanel>,
     joint: Arc<ExactDiscreteLaw>,
-    fits: BTreeMap<[u32; 2], Arc<FittedSequenceHistory>>,
-    prepared: BTreeMap<[u32; 2], Arc<PreparedInitialShift>>,
+    fits: BTreeMap<Vec<u32>, Arc<FittedSequenceHistory>>,
+    prepared: BTreeMap<Vec<u32>, Arc<PreparedInitialShift>>,
 }
 fn rebuild(
     held: Option<&Live>,
@@ -674,7 +762,7 @@ fn rebuild(
         missing.dedup();
         missing.retain(|seq| !fits.contains_key(seq));
         for fitted in FittedSequenceHistory::fit_many(&units, &missing) {
-            fits.insert(fitted.sequence(), Arc::new(fitted));
+            fits.insert(fitted.sequence().to_vec(), Arc::new(fitted));
         }
         let laws = data(&joint)?;
         let mut prepared = BTreeMap::new();
@@ -688,7 +776,7 @@ fn rebuild(
             {
                 Arc::clone(existing)
             } else {
-                Arc::new(prepare_shift(Arc::clone(&proof), laws.clone(), seq, ctx)?)
+                Arc::new(prepare_shift(Arc::clone(&proof), laws.clone(), &seq, ctx)?)
             };
             prepared.insert(seq, p);
         }
@@ -713,9 +801,10 @@ fn source_conditional_means(joint: &ExactDistribution) -> Result<[f64; 2], Tempo
         totals[index] += probability * outcome;
     }
     if masses.iter().any(|p| *p <= 0.) {
-        return Err(EstimationError::refused(
+        return Err(EstimationError::refused_detail(
             reason_code!("transport_support_failure"),
-            "initial_state.support_gap: every source S0 state must have positive intervention mass",
+            antecedent_core::reason_details::initial_state::SUPPORT_GAP,
+            "every source S0 state must have positive intervention mass",
         )
         .into());
     }
@@ -860,13 +949,13 @@ pub fn consume_temporal_recalc_artifact(
 ) -> Result<(TemporalSession, TemporalOutcome), TemporalRunError> {
     let wire = TemporalRecalcArtifactWire::decode(bytes)?;
     if wire.seed != ctx.rng.master_seed() {
-        return Err(RecalcRunError::Request("recalc.temporal_artifact_seed_mismatch").into());
+        return Err(RecalcRunError::Request(RecalcRequestCode::TemporalArtifactSeedMismatch).into());
     }
     let mut session = TemporalSession::new();
     let outcome = execute_temporal_with_receipt(&mut session, &wire.request, ctx)?;
     let reports = &session.live.as_ref().ok_or(RecalcRunError::NoLiveState(Stage::Law))?.reports;
     if !wire.matches_reports(reports, outcome.recalc.law.ate)? {
-        return Err(RecalcRunError::Request("recalc.temporal_artifact_mismatch").into());
+        return Err(RecalcRunError::Request(RecalcRequestCode::TemporalArtifactMismatch).into());
     }
     Ok((session, outcome))
 }

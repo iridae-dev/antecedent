@@ -4,4 +4,4 @@
 
 ## Expected summary
 
-Top-level keys: `cases, edge_syntax, oracle, schema_version` (4 fields).
+Top-level keys: `cases, edge_syntax, evidence_kind, evidence_proposition, evidence_roles, evidence_source, limitations, oracle, schema_version` (9 fields).

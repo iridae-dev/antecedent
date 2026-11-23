@@ -2,7 +2,7 @@
 //!
 //! One generator, [`antecedent_core::CausalRng`], so no test carries its own LCG.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CausalRng;
 

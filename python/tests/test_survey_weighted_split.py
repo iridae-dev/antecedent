@@ -11,14 +11,12 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import selective_discovery as sd
-
-from _repo_text import REPO_ROOT, read_text
 
 N = 3000
 MASKED = 300
 NAMES = [f"v{i}" for i in range(10)]
-GUIDE = REPO_ROOT / "docs/guides/discovery-background-knowledge.md"
 
 
 def survey_weighted_sparse_scm(seed: int, *, cv: float = 0.8):
@@ -60,7 +58,7 @@ def test_a_masked_weighted_split_keeps_masks_weights_and_original_row_identity()
     data, weights, keep = survey_weighted_sparse_scm(9290586)
     assert weights.std() / weights.mean() == pytest.approx(0.8, abs=0.1)
     split = sd.discover_on_split(
-        contract(), data, discovery_fraction=0.5, seed=7, weights=weights, mask=keep
+        contract(), data, discovery_fraction=0.5, split_seed=7, weights=weights, mask=keep
     )
     receipt = split.receipt
     masked = tuple(int(row) for row in np.flatnonzero(~keep))
@@ -96,9 +94,15 @@ def test_a_masked_weighted_split_keeps_masks_weights_and_original_row_identity()
     other_mask = keep.copy()
     other_mask[int(np.flatnonzero(keep)[0])] = False
     for kwargs, detail in (
-        ({"weights": weights, "mask": other_mask}, "selective_discovery.split_mask_mismatch"),
-        ({"weights": weights}, "selective_discovery.split_mask_mismatch"),
-        ({"weights": np.ones(N), "mask": keep}, "selective_discovery.split_weights_mismatch"),
+        (
+            {"weights": weights, "mask": other_mask},
+            reason_details.selective_discovery.SPLIT_MASK_MISMATCH,
+        ),
+        ({"weights": weights}, reason_details.selective_discovery.SPLIT_MASK_MISMATCH),
+        (
+            {"weights": np.ones(N), "mask": keep},
+            reason_details.selective_discovery.SPLIT_WEIGHTS_MISMATCH,
+        ),
     ):
         with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
             split.verify_source(data, **kwargs)
@@ -107,9 +111,11 @@ def test_a_masked_weighted_split_keeps_masks_weights_and_original_row_identity()
     split.check_analysis_table(split.analysis, weights=weights[analysis_ids])
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
         split.check_analysis_table(split.analysis, weights=np.ones(len(analysis_ids)))
-    assert refused.value.detail == "selective_discovery.analysis_rows_not_the_split_part"
+    assert (
+        refused.value.detail == reason_details.selective_discovery.ANALYSIS_ROWS_NOT_THE_SPLIT_PART
+    )
     unmasked = sd.discover_on_split(
-        contract(), data, discovery_fraction=0.5, seed=7, weights=weights
+        contract(), data, discovery_fraction=0.5, split_seed=7, weights=weights
     )
     assert unmasked.receipt.mask_identity is None and unmasked.receipt.masked_out_rows == ()
     assert unmasked.receipt.identity != receipt.identity
@@ -129,7 +135,7 @@ def test_filtering_happens_before_the_split_and_the_order_is_declared_and_reprod
 
     def split(seed: int):
         return sd.discover_on_split(
-            contract(), data, discovery_fraction=0.4, seed=seed, weights=weights, mask=keep
+            contract(), data, discovery_fraction=0.4, split_seed=seed, weights=weights, mask=keep
         )
 
     first = split(11)
@@ -147,7 +153,7 @@ def test_filtering_happens_before_the_split_and_the_order_is_declared_and_reprod
     # assigns the same participants to discovery.
     compact = {name: values[eligible] for name, values in data.items()}
     reduced = sd.discover_on_split(
-        contract(), compact, discovery_fraction=0.4, seed=11, weights=weights[eligible]
+        contract(), compact, discovery_fraction=0.4, split_seed=11, weights=weights[eligible]
     )
     assert eligible[reduced.discovery_row_ids].tolist() == first.discovery_row_ids.tolist()
     # Reproducible: the same declaration is the same split, another seed is another one.
@@ -156,10 +162,6 @@ def test_filtering_happens_before_the_split_and_the_order_is_declared_and_reprod
     assert again.receipt.identity == receipt.identity
     assert np.array_equal(again.discovery_row_ids, first.discovery_row_ids)
     assert not np.array_equal(split(12).discovery_row_ids, first.discovery_row_ids)
-    # The order is part of the documented method.
-    guide = read_text(GUIDE)
-    assert "`selective_discovery.discover_on_split` filters first and splits second" in guide
-    assert guide.index("rows outside the analysis mask") < guide.index("rows with a missing value")
     # A rule that names an excluded row is refused rather than reassigned.
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
         sd.discover_on_split(
@@ -169,7 +171,7 @@ def test_filtering_happens_before_the_split_and_the_order_is_declared_and_reprod
             weights=weights,
             mask=keep,
         )
-    assert refused.value.detail == "selective_discovery.split_row_excluded"
+    assert refused.value.detail == reason_details.selective_discovery.SPLIT_ROW_EXCLUDED
 
 
 def test_the_split_receipt_lists_every_exclusion_by_its_reason():
@@ -180,7 +182,7 @@ def test_the_split_receipt_lists_every_exclusion_by_its_reason():
     data["v5"][incomplete] = np.nan
     data["v5"][np.flatnonzero(~keep)[::3]] = np.nan  # hidden by the mask first
     split = sd.discover_on_split(
-        contract(), data, discovery_fraction=0.5, seed=4, weights=weights, mask=keep
+        contract(), data, discovery_fraction=0.5, split_seed=4, weights=weights, mask=keep
     )
     receipt = split.receipt
     by_reason = {
@@ -201,7 +203,7 @@ def test_the_split_receipt_lists_every_exclusion_by_its_reason():
         contract(),
         {**data, "v5": np.nan_to_num(data["v5"])},
         discovery_fraction=0.5,
-        seed=4,
+        split_seed=4,
         weights=weights,
         mask=keep,
     )
@@ -211,11 +213,11 @@ def test_the_split_receipt_lists_every_exclusion_by_its_reason():
 def test_replaying_the_split_reproduces_the_receipt():
     data, weights, keep = survey_weighted_sparse_scm(1346138)
     split = sd.discover_on_split(
-        contract(), data, discovery_fraction=0.5, seed=21, weights=weights, mask=keep
+        contract(), data, discovery_fraction=0.5, split_seed=21, weights=weights, mask=keep
     )
     receipt = split.receipt
     replay = sd.discover_on_split(
-        contract(), data, discovery_fraction=0.5, seed=21, weights=weights, mask=keep
+        contract(), data, discovery_fraction=0.5, split_seed=21, weights=weights, mask=keep
     )
     assert replay.receipt == receipt and replay.receipt.identity == receipt.identity
     assert np.array_equal(replay.analysis_weights, split.analysis_weights)
@@ -238,9 +240,9 @@ def test_replaying_the_split_reproduces_the_receipt():
     changed["v3"][int(split.analysis_row_ids[0])] += 1e-9
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
         split.verify_source(changed, weights=weights, mask=keep)
-    assert refused.value.detail == "selective_discovery.split_source_mismatch"
+    assert refused.value.detail == reason_details.selective_discovery.SPLIT_SOURCE_MISMATCH
     nudged = weights.copy()
     nudged[int(split.analysis_row_ids[0])] *= 1.0 + 1e-9
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
         split.verify_source(data, weights=nudged, mask=keep)
-    assert refused.value.detail == "selective_discovery.split_weights_mismatch"
+    assert refused.value.detail == reason_details.selective_discovery.SPLIT_WEIGHTS_MISMATCH

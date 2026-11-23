@@ -2,17 +2,17 @@
 //!
 //! The Rust [`BatchRetargetReport`] crosses as a dictionary (points, joint covariance,
 //! contrasts, failed members, the max-t simultaneous interval, and the tidy rows) and the
-//! Python wrapper parses it into frozen dataclasses. The handle keeps the score tables of
-//! its last `estimate`, so a retarget after an estimate reweights that estimate's rows.
+//! Python wrapper parses it into frozen dataclasses. Each immutable completion retains
+//! exactly the score tables of its own execution.
 
+use antecedent::prelude::{ExecutionContext, VariableId};
 use antecedent::{
     BatchRetargetError, BatchRetargetReport, BatchRetargetRequest, BatchScores, MemberFailure,
     RetargetClaim, RetargetContrast,
 };
-use antecedent_core::{ExecutionContext, VariableId};
 use pyo3::prelude::*;
 
-use crate::ate_api::PyPreparedBatch;
+use crate::ate_api::PyCompletedBatch;
 use crate::transport_z_api::to_py_json;
 
 /// `(name, query index, weights, depends_on names)` of one claim.
@@ -66,9 +66,9 @@ fn band_json(
         Err(error)
             if matches!(
                 error.detail,
-                "batch_retarget.partial_family"
-                    | "batch_retarget.point_only_member"
-                    | "batch_retarget.covariance_unavailable"
+                antecedent::reason::reason_details::batch_retarget::PARTIAL_FAMILY
+                    | antecedent::reason::reason_details::batch_retarget::POINT_ONLY_MEMBER
+                    | antecedent::reason::reason_details::batch_retarget::COVARIANCE_UNAVAILABLE
             ) =>
         {
             Ok(serde_json::json!({
@@ -195,12 +195,10 @@ fn report_json(report: &BatchRetargetReport, simultaneous: serde_json::Value) ->
     })
 }
 
-impl PyPreparedBatch {
-    /// The scores a retarget now reads: the last estimate's, else the prepare-time tables.
-    fn current_scores(&self) -> PyResult<BatchScores> {
-        let retained =
-            self.last_scores.lock().map_err(|_| crate::value_err("batch scores lock poisoned"))?;
-        Ok(retained.as_ref().map_or_else(|| self.inner.prepared_scores(), |s| s.as_ref().clone()))
+impl PyCompletedBatch {
+    /// Scores belong to this completed execution and never fall back to another run.
+    fn current_scores(&self) -> &BatchScores {
+        self.inner.scores()
     }
 
     fn variable_id(&self, name: &str) -> PyResult<VariableId> {
@@ -213,26 +211,77 @@ impl PyPreparedBatch {
             u32::try_from(at).map_err(|_| crate::value_err("too many columns"))?,
         ))
     }
+
+    /// The declared family as a retarget request (claims resolved to column ids).
+    fn request_of(
+        &self,
+        claims: Vec<ClaimSpec>,
+        contrasts: Vec<ContrastSpec>,
+        expected_snapshot: Option<String>,
+    ) -> PyResult<BatchRetargetRequest> {
+        let claims = claims
+            .into_iter()
+            .map(|(name, query_index, weights, depends_on)| {
+                Ok::<_, PyErr>(RetargetClaim {
+                    name,
+                    query_index,
+                    weights,
+                    depends_on: depends_on
+                        .iter()
+                        .map(|n| self.variable_id(n))
+                        .collect::<PyResult<Vec<_>>>()?,
+                })
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let contrasts = contrasts
+            .into_iter()
+            .map(|(name, coefficients)| RetargetContrast { name, coefficients })
+            .collect();
+        Ok(BatchRetargetRequest { claims, contrasts, expected_snapshot })
+    }
 }
 
 #[pymethods]
-impl PyPreparedBatch {
+impl PyCompletedBatch {
     /// Original-row index every claim's weights must align with: the rows of the scores a
-    /// retarget now reads (the last `estimate`'s, else the prepare-time rows). `None` when no
+    /// this completion retains. `None` when no
     /// plan has scores; refuses `row_weights_bound_to_snapshot` when plans disagree.
-    fn retarget_rows(&self) -> PyResult<Option<Vec<u32>>> {
-        let scores = self.current_scores()?;
-        Ok(scores.common_rows().map_err(retarget_error)?.map(|rows| rows.to_vec()))
+    fn retarget_rows(&self) -> PyResult<Option<Vec<u64>>> {
+        let scores = self.current_scores();
+        Ok(scores
+            .common_rows()
+            .map_err(retarget_error)?
+            .map(|rows| rows.iter().map(|id| id.get()).collect()))
     }
 
-    /// `prepared` or `estimated`: where the scores a retarget now reads came from.
+    /// Always `estimated`: score tables belong to this completed execution.
+    #[allow(
+        clippy::unnecessary_wraps,
+        reason = "the PyO3 method retains the binding's fallible return convention"
+    )]
     fn retarget_scores_source(&self) -> PyResult<String> {
-        Ok(self.current_scores()?.source().as_str().to_string())
+        Ok(self.current_scores().source().as_str().to_string())
     }
 
     /// Identity of the row snapshot the scores a retarget now reads share.
     fn retarget_snapshot(&self) -> PyResult<Option<String>> {
-        self.current_scores()?.snapshot_id().map_err(retarget_error)
+        self.current_scores().snapshot_id().map_err(retarget_error)
+    }
+
+    /// Planning-time cost counts of retargeting the declared family: zero nuisance fits (the
+    /// retained scores are reused) and the claim, contrast and row counts the reweighting and
+    /// the family covariance read. The request is counted as declared, not validated.
+    fn retarget_cost(
+        &self,
+        py: Python<'_>,
+        claims: Vec<ClaimSpec>,
+        contrasts: Vec<ContrastSpec>,
+    ) -> PyResult<Py<PyAny>> {
+        let request = self.request_of(claims, contrasts, None)?;
+        let estimate = self.current_scores().estimate_retarget_cost(&request);
+        let value =
+            serde_json::to_value(&estimate).map_err(|error| crate::value_err(error.to_string()))?;
+        to_py_json(py, &value)
     }
 
     /// Retarget a declared family of claims; the report as a dictionary.
@@ -256,30 +305,20 @@ impl PyPreparedBatch {
         simultaneous_seed: u64,
         simultaneous_draws: u32,
     ) -> PyResult<Py<PyAny>> {
-        let scores = self.current_scores()?;
-        let claims = claims
-            .into_iter()
-            .map(|(name, query_index, weights, depends_on)| {
-                Ok::<_, PyErr>(RetargetClaim {
-                    name,
-                    query_index,
-                    weights,
-                    depends_on: depends_on
-                        .iter()
-                        .map(|n| self.variable_id(n))
-                        .collect::<PyResult<Vec<_>>>()?,
-                })
-            })
-            .collect::<PyResult<Vec<_>>>()?;
-        let contrasts = contrasts
-            .into_iter()
-            .map(|(name, coefficients)| RetargetContrast { name, coefficients })
-            .collect();
-        let request = BatchRetargetRequest { claims, contrasts, expected_snapshot };
-        let ctx = crate::py_execution_context(1, 1);
-        let report = self.inner.retarget(&scores, &request, &ctx).map_err(retarget_error)?;
-        let band =
-            band_json(&report, simultaneous_level, simultaneous_seed, simultaneous_draws, &ctx)?;
-        to_py_json(py, &report_json(&report, band))
+        let request = self.request_of(claims, contrasts, expected_snapshot)?;
+        let inner = std::sync::Arc::clone(&self.inner);
+        let payload = crate::detach_catch(py, move || {
+            let ctx = crate::py_execution_context(1, 1);
+            let report = inner.retarget(&request, &ctx).map_err(retarget_error)?;
+            let band = band_json(
+                &report,
+                simultaneous_level,
+                simultaneous_seed,
+                simultaneous_draws,
+                &ctx,
+            )?;
+            Ok(report_json(&report, band))
+        })?;
+        to_py_json(py, &payload)
     }
 }

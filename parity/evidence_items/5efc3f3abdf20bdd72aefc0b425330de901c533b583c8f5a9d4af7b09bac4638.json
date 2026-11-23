@@ -1,0 +1,1 @@
+["use:antecedent_core::reason_code;#0","use:crate::EstimationError;#0","enum:MatchingPosteriorRequest#0","fn:refuse_matching_posterior#0","mod:tests#0","mod:tests#0/use:super::*;#0","mod:tests#0/fn:text#0","mod:tests#0/fn:the_static_refusal_names_the_premise_and_the_next_attempt#0","mod:tests#0/fn:the_history_refusal_keeps_its_own_setting_and_next_attempt#0"]

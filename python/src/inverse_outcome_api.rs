@@ -4,12 +4,13 @@
 //! this boundary only hands its numbers (as published) and the caller's action
 //! grid to the Rust classifier and returns the report as a dictionary.
 
+use antecedent::query::{IntervalInterpretation, SupportStatus};
+use antecedent::reason::reason_code;
 use antecedent::{
     ActionConstraint, ActionSpec, ForwardEvaluation, ForwardInterval, IntervalScope,
     InverseOutcomeError, InverseOutcomeReport, InverseQuery, SupportBasis, TargetDirection,
     classify_inverse_outcome,
 };
-use antecedent_core::{IntervalInterpretation, SupportStatus, reason_code};
 use pyo3::prelude::*;
 
 use crate::transport_z_api::to_py_json;
@@ -126,7 +127,7 @@ fn report_json(report: &InverseOutcomeReport) -> serde_json::Value {
                 "point": outcome.point,
                 "cost": outcome.cost,
                 "status": outcome.status.as_str(),
-                "reason": outcome.reason,
+                "reason": outcome.reason.as_str(),
                 "violated_constraints": outcome.violated_constraints,
                 "estimate": outcome.estimate,
                 "margin": outcome.margin,
@@ -171,7 +172,7 @@ fn report_json(report: &InverseOutcomeReport) -> serde_json::Value {
     })
 }
 
-/// Classify an enumerated action grid against a licensed forward response.
+/// Classify an enumerated action grid against a supported forward response.
 ///
 /// `query_kind` is `target_mean`, `probability_target`, `quantile_target` or
 /// `observational_scenarios`; every kind but the first is a typed refusal.

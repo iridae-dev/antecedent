@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import Field, PrivateAttr
 
 from .._columns import coerce_fields
+from .._posterior_row import PosteriorRowEstimate
 from ..policy import DoublyRobustPolicyEvaluation
 from ..survival import CumulativeIncidenceEstimate, SurvivalEstimate
 
@@ -63,12 +64,28 @@ __all__ = [
     "DropReasonView",
     "GroupAccountingView",
     "RowAccountingView",
+    "ImputationWaldView",
+    "ImputationExtraView",
+    "ImputationVectorView",
+    "ImputationView",
     "MissingDataView",
     "AnalysisResult",
 ]
 
 
 class IdentificationView(ResultModel):
+    """The identification section of an :class:`AnalysisResult`.
+
+    * ``status`` -- the engine's identification status, for example
+      ``"NonparametricallyIdentified"``, ``"PartiallyIdentified"`` or ``"NotIdentified"``.
+      ``bool(view)`` is ``True`` exactly when it reads as identified.
+    * ``method`` -- the identification method used.
+    * ``adjustment_set`` -- the adjustment variables, when the method adjusts.
+    * ``assumption_count`` / ``derivation_step_count`` -- sizes of the certificate.
+    * ``horizon_adjustment_sets`` -- one adjustment set per horizon of a temporal query, or
+      ``None``.
+    """
+
     status: str
     method: str
     adjustment_set: Sequence[str]
@@ -87,6 +104,8 @@ class IdentificationView(ResultModel):
 
 
 class MediationView(ResultModel):
+    """Total, natural direct and mediated (indirect) effects of a mediation analysis."""
+
     total: float | None
     direct: float | None
     mediated: float | None
@@ -106,9 +125,9 @@ class TemporalMediationSliceView(ResultModel):
     method: str
     adjustment: tuple[tuple[int, int], ...]
     effect: float
-    total: float
-    direct: float
-    mediated: float
+    total: float | None
+    direct: float | None
+    mediated: float | None
     uncertainty_kind: str
     standard_deviation: float | None = None
     q025: float | None = None
@@ -258,7 +277,43 @@ class SamplingWeightsView(ResultModel):
         return self.rows_used / self.effective_sample_size
 
 
+class CounterfactualContrastView(ResultModel):
+    """One outcome's unit-level contrast of a multi-outcome or joint-baseline counterfactual.
+
+    The fields are those the single-outcome result publishes on ``AnalysisResult``
+    (``unit_effects``, ``unit_effect_intervals``, ``unit_extrapolative``) with the
+    mean effect and its standard error, for the named ``outcome``.
+    """
+
+    outcome: str
+    mean_effect: float
+    standard_error: float | None = None
+    unit_effects: Sequence[float]
+    unit_effect_intervals: Sequence[tuple[float, float]] | None = None
+    unit_extrapolative: Sequence[bool] | None = None
+    unit_effects_homogeneous: bool = False
+
+
 class EstimateView(ResultModel):
+    """The estimate section of an :class:`AnalysisResult`: the point value and its standard errors.
+
+    Prefer ``result.answer`` for the answer and ``outcome.uncertainty`` for intervals; this view
+    holds the estimator's raw outputs. Read first:
+
+    * ``ate`` -- the primary scalar contrast (for counterfactual results, the mean unit effect),
+      or ``None`` when the result has no scalar. When ``limitation`` is set it is not a point
+      answer for the claim.
+    * ``se_analytic`` / ``se_bootstrap`` -- the analytic (or influence-function) standard error,
+      and the bootstrap one when a bootstrap ran.
+    * ``estimator_id`` and ``method`` -- the estimator that ran (see
+      :class:`~antecedent.Estimator`).
+    * ``overlap_ess``, ``overlap_propensity_min`` and ``overlap_excluded_fraction`` -- overlap
+      diagnostics of weighting estimators.
+
+    The remaining fields are populated only by the estimators that produce them; each is
+    documented where it is declared.
+    """
+
     ate: float | None
     se_analytic: float
     se_bootstrap: float | None
@@ -266,6 +321,7 @@ class EstimateView(ResultModel):
     method: str
     overlap_ess: float | None = None
     overlap_propensity_min: float | None = None
+    overlap_excluded_fraction: float | None = None
     mediation: MediationView | None = None
     functional_means: tuple[float, ...] | None = None
     exceedance_cdf: tuple[float, ...] | None = None
@@ -291,6 +347,10 @@ class EstimateView(ResultModel):
     adjusted_p_values: tuple[float, float] | None = None
     family_contrast: tuple[float, float] | None = None
     family_contrast_interval: tuple[float, float, float] | None = None
+    #: ``(posterior mean, standard deviation, (lower, upper), draws)`` of the family
+    #: contrast when the batch requested it; draw ``d`` of every member is one joint
+    #: realization of the shared row weights.
+    family_contrast_posterior: tuple[float, float, tuple[float, float], list[float]] | None = None
     candidate_selection: Any = None
     evalue: float | None = None
     #: Threshold the ``sensitivity.evalue`` refuter judged :attr:`evalue` against.
@@ -308,7 +368,7 @@ class EstimateView(ResultModel):
     limitation: str | None = None
     #: Per-row CATE when a heterogeneous-effect estimator produced one.
     cate: tuple[float, ...] | None = None
-    #: Pointwise CATE standard errors when a licensed formula produced them.
+    #: Pointwise CATE standard errors when a supported formula produced them.
     cate_se: tuple[float, ...] | None = None
     #: Causal-forest leaf-dispersion diagnostic per row: the root mean honest
     #: leaf variance. It is NOT a standard error (trees share half-samples, so
@@ -370,6 +430,23 @@ class ConflictSummaryView(ResultModel):
 
 
 class PosteriorView(ResultModel):
+    """The posterior section of a Bayesian :class:`AnalysisResult`.
+
+    * ``effect_mean`` / ``effect_sd`` -- posterior mean and standard deviation of the effect.
+    * ``q025`` / ``q975`` -- the 2.5% and 97.5% posterior quantiles (the 95% credible interval;
+      see :meth:`interval`), constructed as ``interval_type`` states.
+    * ``n_draws`` and ``backend`` -- the draw count and backend (``laplace``, ``conjugate`` or
+      ``hmc``).
+    * ``p_below_zero`` -- posterior probability that the effect is negative.
+    * ``unidentified_mass`` -- posterior mass on structures under which the effect is not
+      identified; ``envelope`` -- the mixture over weighted graphs, when there is one.
+    * ``conflict`` -- applied external-prior weights after conflict shrinkage, or ``None``.
+
+    When ``limitation`` is set, the moments and quantiles describe a mixture, not an interval
+    for the claim. To keep the draws in portable form, export them with
+    ``result.export(quantity="posterior")``.
+    """
+
     effect_mean: float | None
     effect_sd: float | None
     q025: float | None
@@ -389,6 +466,11 @@ class PosteriorView(ResultModel):
     #: envelope subsample. Those atoms were not evaluated, so this is neither
     #: unidentified mass nor part of the published mixture.
     subsampled_out_mass: float = 0.0
+    #: Posterior predictive replicates retained at fit time when the declaration asked for them
+    #: (``Bayesian(predictive_replicates=ReplicateBounds(...))``): an
+    #: :class:`~antecedent.predictive_assessment.PosteriorReplicates`, otherwise ``None``. Not part
+    #: of the serialized view; it is n_sims x n_rows values.
+    predictive_replicates: Any = Field(default=None, exclude=True)
     #: Rendering-limitation id of the enclosing result. When set, the moments
     #: and quantiles describe a mixture, not an interval for the claim, and
     #: displays withhold them behind the caveat.
@@ -426,11 +508,12 @@ class PosteriorView(ResultModel):
         return f"<PosteriorView {' '.join(parts)}>"
 
     def __array__(self, dtype: Any = None, copy: Any = None) -> Any:
-        """``np.asarray(result.posterior)`` — the raw draws, decoded from ``artifact``.
+        """``np.asarray(result.posterior)``: the raw draws, decoded from ``artifact``.
 
-        Requires ``analyze(..., return_posterior_artifact=True)``; without it
-        ``artifact`` is ``None`` and only the moments/quantiles are available
-        (use :meth:`interval` for the 95% credible interval).
+        Raises ``ValueError`` when the view retains no ``artifact``; only the moments and
+        quantiles are then available (:meth:`interval` gives the 95% credible interval). The
+        draws travel portably as ``result.export(quantity="posterior")``, which
+        :func:`antecedent.load` reads back.
         """
         import numpy as np
 
@@ -448,11 +531,13 @@ class PosteriorView(ResultModel):
         return np.asarray(decoded, dtype=dtype, copy=copy)
 
     def interval(self, level: float = 0.95) -> tuple[float, float]:
-        """Credible interval at ``level``.
+        """Return the equal-tailed credible interval ``(q025, q975)`` at ``level``.
 
-        Only ``level=0.95`` is available: this view retains only ``q025``/
-        ``q975``. Any other level needs the full draws — decode via
-        ``np.asarray(result.posterior)`` and compute the quantile directly.
+        Only ``level=0.95`` is available, because this view retains only ``q025`` and ``q975``.
+        Any other level needs the full draws; compute the quantile from them directly.
+
+        Raises:
+            ValueError: for another ``level``, or when the view has no scalar-effect quantiles.
         """
         if level != 0.95:
             raise ValueError(
@@ -502,6 +587,13 @@ class PredictiveCheckReport(ResultModel):
     predictive_sd: float
     p_value: float
     n_sims: int
+    #: Two-sided Monte Carlo p-value of the observed outcome spread (cross-row SD) under the
+    #: simulated spread distribution; ``p_value`` is the location (outcome mean) axis only.
+    dispersion_p_value: float | None = None
+    #: How replicates carry observation noise: ``"likelihood"`` (draws from the full
+    #: observation model) or ``"mean_only_improper_scale"`` (a prior predictive under a
+    #: residual-variance prior with no finite mean: replicates are the fitted means only).
+    noise: str | None = None
 
     def __repr__(self) -> str:
         return (
@@ -554,6 +646,12 @@ class RefutationReport(ResultModel):
     passed: bool
     failure_condition: str | None
     replicates: int
+    scope_kind: str | None = None
+    scope_target_identity: str | None = None
+    scope_outer_atom: int | None = None
+    scope_completion_digest: str | None = None
+    scope_horizon_index: int | None = None
+    scope_horizon: int | None = None
 
     def __repr__(self) -> str:
         verdict = "pass" if self.passed else "fail"
@@ -567,7 +665,21 @@ class RefutationReport(ResultModel):
 
 
 class ValidationView(ResultModel):
-    passed: bool
+    """The validation section of an :class:`AnalysisResult`: refutation checks and their verdicts.
+
+    Refutation checks try to falsify the estimate; passing them does not prove the identifying
+    assumptions. Iterate the view, index it by position or by a report's ``refuter`` name, or
+    read :attr:`failed` and :attr:`uninformative`.
+
+    * ``ran`` -- whether any refutation ran; ``count`` -- how many checks.
+    * ``passed`` -- whether every check passed; ``None`` when no whole-result verdict exists.
+    * ``reports`` -- one ``RefutationReport`` per check.
+    * ``prior_predictive`` / ``posterior_predictive`` / ``prior_sensitivity`` -- Bayesian
+      checks, when run.
+    * ``computation_failures`` -- checks that failed to compute, as opposed to failing.
+    """
+
+    passed: bool | None
     ran: bool
     count: int
     prior_predictive: PredictiveCheckReport | None = None
@@ -579,7 +691,7 @@ class ValidationView(ResultModel):
     def __repr__(self) -> str:
         if not self.ran:
             return "<ValidationView not run>"
-        verdict = "pass" if self.passed else "fail"
+        verdict = "unknown" if self.passed is None else "pass" if self.passed else "fail"
         text = f"<ValidationView {verdict} {len(self)} refuters ({len(self.failed)} failed"
         if self.uninformative:
             text += f", {len(self.uninformative)} not informative"
@@ -700,6 +812,137 @@ class RowAccountingView(ResultModel):
         )
 
 
+class ImputationWaldView(ResultModel):
+    """The pooled Wald test (Li, Raghunathan and Rubin's ``D1``) that every coordinate equals
+    ``null``, referred to an ``F`` law with ``df_numerator`` and ``df_denominator`` degrees of
+    freedom (an infinite denominator is the chi-square reference over ``df_numerator``)."""
+
+    null: tuple[float, ...]
+    statistic: float
+    df_numerator: float
+    df_denominator: float
+
+
+class ImputationExtraView(ResultModel):
+    """A quantity of the answer with no published variance, pooled by its mean over the
+    completed tables; ``between`` is its between-imputation variance, a lower bound on its
+    pooled variance."""
+
+    label: str
+    points: tuple[float, ...]
+    point: float
+    between: float
+
+
+class ImputationVectorView(ResultModel):
+    """The joint pooling of an answer with several coordinates.
+
+    ``labels`` name the coordinates and ``points[j]`` is table ``j``'s coordinates. ``within``,
+    ``between`` and ``total`` are row-major ``p x p`` covariances (``total = within +
+    (1 + 1/m) between`` under Rubin pooling; the covariance of the equal-weight mixture under a
+    stacked posterior). ``covariance_basis`` says how the within-imputation covariance was
+    formed: ``"joint_covariance"`` (a retained joint influence covariance),
+    ``"published_variance"`` or ``"marginal_variances"`` (each coordinate's own variance on the
+    diagonal, no cross-covariance) or ``"posterior_draws"`` (a stacked posterior).
+    """
+
+    labels: tuple[str, ...]
+    covariance_basis: str
+    points: tuple[tuple[float, ...], ...]
+    point: tuple[float, ...]
+    within: tuple[float, ...]
+    between: tuple[float, ...]
+    total: tuple[float, ...]
+    coordinate_df: tuple[float | None, ...]
+    coordinate_fraction_missing_information: tuple[float | None, ...]
+    average_relative_increase: float | None = None
+    wald: ImputationWaldView | None = None
+    extras: tuple[ImputationExtraView, ...] = ()
+
+    def covariance(self, which: str = "total") -> tuple[tuple[float, ...], ...]:
+        """The ``within``, ``between`` or ``total`` covariance as a square tuple of rows."""
+        if which not in ("within", "between", "total"):
+            raise ValueError(f"which must be 'within', 'between' or 'total', got {which!r}")
+        flat = getattr(self, which)
+        p = len(self.labels)
+        return tuple(tuple(flat[i * p : (i + 1) * p]) for i in range(p))
+
+
+class ImputationView(ResultModel):
+    """How a multiple-imputation result was formed.
+
+    The declared specification (``model``, ``imputations``, ``iterations``, ``seed``,
+    ``assumption``), the unit the parameter draws resampled, the cells imputed per variable,
+    the estimator fitted on every completed table and its estimate on each (``points``), and
+    the pooled variance components. ``pooling`` is ``"rubin"`` (Rubin's rules, Student-t
+    reference with ``df`` degrees of freedom, Barnard-Rubin when ``df_complete`` is known) or
+    ``"stacked_posterior"`` (equal-weight mixture of the completed tables' posteriors; the
+    between-imputation variance is its own axis) or ``"stacked_graph_posterior"`` (the same
+    stack when each table's posterior is already a weighted mixture over declared graphs: the
+    graph weights are kept inside every table's draws and the graph posterior is held fixed).
+
+    ``assumptions_digest`` is the identity of the model and design assumptions the pooled
+    estimate rests on (the model, tables, sweeps, seed, missingness assumption, resampling
+    unit, declared sampling design, the ``lags`` neighbouring steps a series is imputed from and
+    every variable's kind and imputed-cell count). The scalar fields describe the first
+    coordinate of the answer; ``vector`` carries every coordinate's pooling when the route's
+    answer has several.
+    """
+
+    model: str
+    imputations: int
+    iterations: int
+    seed: int
+    assumption: str
+    bootstrap_replicates: int
+    unit: str
+    units: int
+    imputed_cells: Mapping[str, int]
+    estimator: str
+    pooling: str
+    points: tuple[float, ...]
+    within: float
+    between: float
+    total: float
+    df: float | None = None
+    df_complete: float | None = None
+    fraction_missing_information: float | None = None
+    relative_increase: float | None = None
+    assumptions_digest: str | None = None
+    domains: Mapping[str, str] = Field(default_factory=dict)
+    binary_boundaries: Mapping[str, Mapping[str, str | int]] = Field(default_factory=dict)
+    lags: int = 0
+    vector: ImputationVectorView | None = None
+
+
+class IntervalBindingView(ResultModel):
+    """How one interval an execution reported was formed.
+
+    Read from the facade's own derivation (what the execution reported, never what was
+    requested). ``method`` is ``analytic_se``, ``bootstrap_se``, ``circular_block_se``,
+    ``posterior_quantile``, ``unit_posterior_quantile``, ``identified_set``,
+    ``simultaneous_band``, ``anderson_rubin`` or ``none``. ``dependence`` is the dependence
+    rule of the construction: ``iid``, ``cluster``, ``panel_cluster``, ``serial_unmodelled``,
+    ``serial_hac`` or ``circular_block:<family>`` with family ``single_window``, ``mediation``,
+    ``sequential``, ``mixture`` or ``row_block``. ``level`` is ``None`` when no interval was
+    formed.
+    """
+
+    method: str
+    level: float | None
+    dependence: str
+    se_kind: str | None = None
+    replicates_ok: int | None = None
+    replicates_failed: int | None = None
+    posterior_draws: int | None = None
+
+    @property
+    def block_family(self) -> str | None:
+        """The circular-block family of a block-resampled interval, else ``None``."""
+        prefix = "circular_block:"
+        return self.dependence[len(prefix) :] if self.dependence.startswith(prefix) else None
+
+
 class MissingDataView(ResultModel):
     """The missing-data policy of an execution, the assumption it needs, and the accounting."""
 
@@ -707,6 +950,7 @@ class MissingDataView(ResultModel):
     assumption: str
     accounting: RowAccountingView
     covariates: tuple[str, ...] = ()
+    imputation: ImputationView | None = None
 
     @property
     def policy(self) -> str:
@@ -719,6 +963,17 @@ class MissingDataView(ResultModel):
 
 
 class PerformanceView(ResultModel):
+    """What the execution cost and how it ran. Nothing here changes the estimate.
+
+    * ``wall_time_ns``, ``peak_memory_bytes``, ``stage_timings`` and ``bytes_borrowed`` --
+      measured cost.
+    * ``latency_mode`` -- the budget profile that applied.
+    * ``bootstrap_replicates_requested`` / ``bootstrap_replicates_ok`` -- replicates asked for
+      and replicates that succeeded; ``n_draws`` -- posterior draws.
+    * ``cancelled`` / ``early_stopped`` -- whether the run was cancelled or stopped early.
+    * ``plan_id`` and ``modality`` -- the physical plan and data modality.
+    """
+
     plan_id: str | None = None
     modality: str | None = None
     peak_memory_bytes: int | None = None
@@ -731,9 +986,16 @@ class PerformanceView(ResultModel):
     early_stopped: bool = False
     stage_timings: Mapping[str, int] | None = None
     bytes_borrowed: int | None = None
+    #: The resampling procedure behind a requested bootstrap interval, or ``None``: the rule
+    #: (``level``, ``wave_size``, ``min_replicates``, ``max_replicates``, tolerances), the
+    #: ``interval``, the ``stop`` reason, ``attempted`` replicates, every wave as a mapping
+    #: (``wave``, ``first_replicate``, ``attempted``, ``ok``, ``estimator_errors``,
+    #: ``non_finite``, ``declined``) and the Monte Carlo errors at the stop.
+    resampling: Mapping[str, Any] | None = None
 
     @property
     def bootstrap_requested(self) -> int | None:
+        """Alias of ``bootstrap_replicates_requested``."""
         return self.bootstrap_replicates_requested
 
     def __repr__(self) -> str:
@@ -792,7 +1054,28 @@ class PhysicalPlanView(ResultModel):
 
 
 class AnalysisResult(ResultModel, ResultAPI):
-    """Nested analysis result matching the Rust facade sections."""
+    """The result of an ordinary analysis: identification, estimate, uncertainty and validation.
+
+    Held as ``outcome.value`` by :func:`antecedent.analyze` and :func:`antecedent.estimate`.
+    Read in this order:
+
+    1. ``answer`` -- the answer as an :class:`~antecedent.outcomes.Answer` (``kind``, then
+       ``value`` or ``bounds``); ``claim()`` states it in one paragraph with identification and
+       calibration.
+    2. ``inspect()`` -- the identification, support, uncertainty and assumption slots.
+    3. ``identification`` (:class:`IdentificationView`), ``estimate`` (:class:`EstimateView`),
+       ``posterior`` (:class:`PosteriorView`, Bayesian only) and ``validation``
+       (:class:`ValidationView`) -- the sections of the run.
+    4. ``interval_bindings`` -- every interval reported, primary first, with its method and
+       level; ``missing_data`` -- the missing-data policy and row accounting.
+    5. ``performance`` (:class:`PerformanceView`) and ``plan`` -- cost and plan.
+
+    ``effect`` and ``ate`` return the primary scalar but warn when a point would misrepresent
+    the claim (a partially identified or graph-dependent answer); ``answer`` never does.
+    ``export()`` writes a portable artifact (``quantity="posterior"`` selects the Bayesian
+    posterior). The remaining fields are populated by the routes that produce them and are
+    documented where declared.
+    """
 
     identification: IdentificationView
     estimate: EstimateView
@@ -806,14 +1089,23 @@ class AnalysisResult(ResultModel, ResultAPI):
     #: Missing-data policy, the assumption it needs and the row accounting, for routes that
     #: read rows of a table; ``None`` for routes that account for none.
     missing_data: MissingDataView | None = None
+    #: Every interval this execution reported, primary first: its method, level, dependence
+    #: rule and replicate or draw counts.
+    interval_bindings: tuple[IntervalBindingView, ...] = ()
     plan: PlanView | None = None
     evidence_status: str | None = None
-    allowlist_reason: str | None = None
-    allowlist_parent: str | None = None
+    #: What a development build ran although a release build would have refused it: one
+    #: ``{"code", "detail", "missing"}`` mapping per entry. Always empty in a release build.
+    would_refuse: tuple[Mapping[str, Any], ...] = ()
     structural_weight_basis: str | None = None
     structural_identified_mass: float | None = None
     structural_unidentified_mass: float | None = None
     structural_unevaluable_mass: float | None = None
+    #: How identified graph atoms were combined: ``"same_estimand_weighted_mean"`` (one estimand,
+    #: probability-weighted), ``"identified_set_envelope"`` (partially identified: the set, not a
+    #: scalar mixture) or ``"graph_dependent_atoms"`` (atoms name different estimands: no scalar
+    #: mixture). ``None`` when the route does not aggregate across graphs.
+    structural_aggregation_policy: str | None = None
     #: Scalar identified set ``(lower, upper)`` over identified class completions.
     structural_identified_set: tuple[float, float] | None = None
     #: Interval for the identified set at ``structural_identified_set_interval_level``
@@ -850,7 +1142,7 @@ class AnalysisResult(ResultModel, ResultAPI):
     #: the Bayesian one above (``inference=Bayesian(...)``). For a frequentist
     #: pointwise interval on the conditional average effect ``tau(x)`` rather
     #: than a unit ITE, see the Rust ``DrLearner::fit_pointwise_profiles``
-    #: (uncalibrated; ``docs/dr-pointwise-cate.md``).
+    #: (uncalibrated; ``docs/guides/heterogeneous-effects-and-policies.md``).
     unit_effect_intervals: Sequence[tuple[float, float]] | None = None
     unit_effect_intervals_level: float | None = None
     unit_effect_intervals_method: str | None = None
@@ -859,6 +1151,10 @@ class AnalysisResult(ResultModel, ResultAPI):
     #: support (covariate cell or abducted disturbance). Counts are in the
     #: ``gcm.counterfactual.support`` diagnostic.
     unit_extrapolative: Sequence[bool] | None = None
+    #: One contrast per outcome, in the query's order, when a ``Counterfactual`` named
+    #: ``also_outcomes`` or a joint baseline; the first is the one ``unit_effects`` and
+    #: the other per-unit fields above publish. ``None`` for a single-outcome query.
+    counterfactual_contrasts: tuple[CounterfactualContrastView, ...] | None = None
     assumptions: Sequence[str] | None = None
     support: Sequence[str] | None = None
     reasoning: ReasoningSlots | None = None
@@ -871,7 +1167,13 @@ class AnalysisResult(ResultModel, ResultAPI):
     #: TransportQuery: trial-selection and within-trial treatment overlap,
     #: reported separately (the transported IPW is ``estimate.ate``).
     transport_overlap: TransportOverlapReport | None = None
-    #: T5–T9 transport lineage (formula, provider, bindings) when the query
+    #: A weighted target population (``target_row_weights`` / ``target_kernel``): the
+    #: declaration, its identity and the overlap diagnostics (support, Kish ESS, largest
+    #: single-row weight share) of the weighting over the analysed rows
+    #: (:class:`antecedent.population.WeightedTargetReport`). ``None`` for every other
+    #: target population.
+    weighted_target: Any | None = None
+    #: Transport lineage (formula, provider, bindings) when the query
     #: was ``transport.Transport``. Specialist views stay on ``transport.distribution``.
     transport: Any = None
     #: InterferenceQuery: Horvitz–Thompson / Hájek contrast, conservative
@@ -885,13 +1187,37 @@ class AnalysisResult(ResultModel, ResultAPI):
     policy_value: DoublyRobustPolicyEvaluation | None = None
     continuous_dose_response: Any | None = None
     survival: SurvivalEstimate | CumulativeIncidenceEstimate | None = None
+    #: Bayesian randomized-design posterior (``bayesian.piecewise_survival`` or
+    #: ``bayesian.continuous_dose_policy``); its support and calibration status are on the
+    #: result's inspection.
+    posterior_row: PosteriorRowEstimate | None = None
     longitudinal_regime: Any | None = None
+    sequential_contrast: Any | None = None
+    history_match: Any | None = None
+    #: Sharp bounds on the average effect under a binary instrument
+    #: (:class:`antecedent.quasi.IvBoundsEstimate`): an identified set, never a point; unsupported.
+    iv_bounds: Any | None = None
+    #: Noncausal association of the observed data
+    #: (:class:`antecedent.descriptive.AssociationEstimate`): identification is not claimed, never
+    #: an intervention effect, ranks no action; unsupported, calibration not_measured.
+    association: Any | None = None
+    #: Heterogeneity-robust or covariate-adjusted DiD, conformal or multi-unit synthetic panel,
+    #: or optioned local ratio (:class:`antecedent.quasi.QuasiRolloutEstimate`); unsupported.
+    quasi_rollout: Any | None = None
+    #: Sequentially randomized unit-period design or regime survival
+    #: (:class:`antecedent.temporal_designs.TemporalDesignEstimate`); unsupported, calibration
+    #: not_measured.
+    temporal_design: Any | None = None
     #: AnomalyAttribution: per-target GCM anomaly scores (per-unit IT scores,
     #: row indices, and the top-scoring row).
     anomaly: Sequence[AnomalyScores] | None = None
     #: ChangeAttribution: GCM distribution-change Shapley (``total_change``
     #: is also ``estimate.ate``).
     change_attribution: ChangeAttributionResult | None = None
+    #: Route-native diagnostics on the result (the ``route.*`` diagnostics): one mapping per
+    #: record with ``route``, ``outcome``, ``failed`` and ``unevaluable_mass`` (``None`` when
+    #: the route did not report a mass). The same shape as ``CausalError.route_diagnostics``.
+    route_diagnostics: Sequence[Mapping[str, Any]] = ()
 
     def model_post_init(self, __context: Any) -> None:
         super().model_post_init(__context)
@@ -944,7 +1270,10 @@ class AnalysisResult(ResultModel, ResultAPI):
 
     @property
     def mean_ite(self) -> float:
-        """Mean two-world ITE. Only defined when ``unit_effects`` is present."""
+        """The mean of the unit-level effects ``Y(a) - Y(a0)`` of a counterfactual result.
+
+        Raises ``AttributeError`` when the result has no ``unit_effects`` or no scalar effect.
+        """
         if self.unit_effects is None:
             raise AttributeError("mean_ite is only defined for counterfactual results")
         value = self._scalar_effect()
@@ -986,21 +1315,42 @@ class AnalysisResult(ResultModel, ResultAPI):
         else:
             parts = [verdict, f"effect={fmt_float(effect)} ±{se_text}"]
         if self.validation.ran:
-            informative = [r for r in self.validation if r.informative or not r.passed]
-            n_passed = sum(1 for r in informative if r.passed)
-            text = f"refute={n_passed}/{len(informative)} pass"
-            if len(informative) < len(self.validation):
-                text += f" ({len(self.validation) - len(informative)} not informative)"
-            parts.append(text)
+            if self.validation.passed is None:
+                parts.append(
+                    f"refute=whole verdict unavailable ({len(self.validation)} scoped checks)"
+                )
+            else:
+                informative = [
+                    r
+                    for r in self.validation
+                    if r.scope_kind is None and (r.informative or not r.passed)
+                ]
+                n_passed = sum(1 for r in informative if r.passed)
+                text = f"refute={n_passed}/{len(informative)} pass"
+                if len(informative) < len(self.validation):
+                    text += f" ({len(self.validation) - len(informative)} not informative)"
+                parts.append(text)
         mass = self.posterior.unidentified_mass if self.posterior is not None else None
         if mass is not None and mass > 0:
             parts.append(f"unidentified_mass={fmt_pct(mass)}")
-        if self.evidence_status == "allowed_unlicensed":
-            parts.append("unlicensed")
-        return f"<AnalysisResult {' '.join(parts)}>"
+        if self.evidence_status == "not_supported":
+            parts.append("unsupported")
+        text = f"<AnalysisResult {' '.join(parts)}>"
+        if self.would_refuse:
+            banner = "; ".join(
+                f"{entry['code']}: {entry['detail']}"
+                + (f" (missing {', '.join(entry['missing'])})" if entry["missing"] else "")
+                for entry in self.would_refuse
+            )
+            return f"development build: would have refused ({banner})\n{text}"
+        return text
 
     def rendering_limitation(self) -> str | None:
-        """Stable id when a point-mean display would misrepresent the claim."""
+        """Return why a single point would misrepresent this claim, or ``None``.
+
+        A stable id such as ``"identified_set"`` or ``"unidentified_mass"``; when set, displays
+        withhold the point estimate behind the caveat.
+        """
         if self.reasoning is not None:
             limit = self.reasoning.rendering_limitation()
             if limit is not None:

@@ -24,11 +24,13 @@
 //! frontier's certified brackets (the only iterative work) share. The range is
 //! an assumption range, never a confidence interval. Sampling uncertainty is
 //! not offered by this record: its conservative composition below is compiled
-//! only under `calibration-internal` and its route is closed until its coverage
-//! is measured (record `sensitivity.joint_uncertainty`:
-//! wired, not yet measured).
+//! reported by [`joint_sensitivity_bootstrap_interval_internal`] with the calibration
+//! slot of record `sensitivity.joint_uncertainty`; calibration annotates it and never
+//! withholds it. Its construction is checked against an exhaustive vertex
+//! enumeration in exact rational arithmetic
+//! (`tests/joint_uncertainty_reference.rs`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     ExecutionContext, RegimeId, SearchBudget, SearchLimits, SearchReceipt, SearchStop, reason_code,
@@ -44,25 +46,35 @@ use crate::mechanism_sensitivity::{
     z_surrogate_kernels_metered,
 };
 
-/// Hard cap on declared factors: the two factors of the surrogate formula (a
-/// third declaration is always a duplicate or an out-of-scope factor, so it
-/// refuses by count).
-pub const JOINT_SENSITIVITY_MAX_FACTORS: usize = 2;
-/// Hard cap on shared-parent levels.
-pub const JOINT_SENSITIVITY_MAX_PARENT_LEVELS: usize = 64;
-/// Hard cap on outcome categories.
-pub const JOINT_SENSITIVITY_MAX_OUTCOME_CATEGORIES: usize = 32;
-/// Hard cap on frontier grid points.
-pub const JOINT_SENSITIVITY_MAX_FRONTIER_POINTS: usize = 33;
+/// Sanity bound on shared-parent levels; the scan is charged to the shared operation and
+/// memory budgets, which are the working limits.
+pub const JOINT_SENSITIVITY_MAX_PARENT_LEVELS: usize = 4096;
+/// Sanity bound on outcome categories; the scan is charged to the shared operation and
+/// memory budgets, which are the working limits.
+pub const JOINT_SENSITIVITY_MAX_OUTCOME_CATEGORIES: usize = 1024;
+/// Hard cap on frontier grid points (a resolution choice, each point one bisection).
+pub const JOINT_SENSITIVITY_MAX_FRONTIER_POINTS: usize = 257;
 /// Hard cap on the operation limit of the shared budget.
 pub const JOINT_SENSITIVITY_MAX_OPERATIONS: usize = 100_000;
-/// Hard cap on the depth limit (bisection iterations per bracket).
+/// Number of source factors of the registered formula `psi = sum_w P_W(w) [m(w, 1) - m(w, 0)]`
+/// (the outcome kernel and the shared parent marginal). This is the formula's arity, not a
+/// work limit: every declaration beyond it is a duplicate of one of the two factors or a factor
+/// the formula does not contain, so the count is refused before the kind is examined. A formula
+/// with another factor set is a different registered formula with its own range.
+pub const JOINT_SENSITIVITY_MAX_FACTORS: usize = 2;
+/// Cap on the depth limit (bisection iterations per bracket). Every bracket lies inside the
+/// unit interval of contamination fractions, so 64 halvings reach the spacing of `f64`
+/// (53 significant bits): a deeper bisection cannot narrow a bracket further and the cap is a
+/// numerical fact of the representation, not a work limit.
 pub const JOINT_SENSITIVITY_MAX_DEPTH: usize = 64;
 /// Default memory cap of the shared budget.
 pub(crate) const JOINT_SENSITIVITY_DEFAULT_MEMORY_BYTES: u64 = 64 * 1024 * 1024;
 /// Hard ceiling on a declared memory cap (the shared search default).
 pub const JOINT_SENSITIVITY_MAX_MEMORY_BYTES: u64 = antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES;
-/// Hard cap on replicates of the (closed) endpoint bootstrap.
+/// Hard cap on replicates of the (not supported) endpoint bootstrap. This is the upper end of the
+/// replicate range the recorded coverage measurements of the route cover (record
+/// `sensitivity.joint_uncertainty`, bound `max_bootstrap_internal`), so it moves only with a new
+/// measurement, not with a work budget.
 pub const JOINT_SENSITIVITY_MAX_BOOTSTRAP: u32 = 2000;
 /// Smallest admitted bracketing tolerance.
 pub const JOINT_SENSITIVITY_MIN_TOLERANCE: f64 = crate::tipping::MIN_TOLERANCE;
@@ -77,16 +89,18 @@ pub(crate) const JOINT_SENSITIVITY_METHOD: &str = "box-independent epsilon conta
 pub(crate) const JOINT_SENSITIVITY_INTERPRETATION: &str = "assumption range over the declared joint contamination box; not a confidence interval and not a sampling interval";
 /// The only inference claim the range carries.
 pub const ASSUMPTION_RANGE_CLAIM: &str = "assumption_range";
-/// The one sampling composition declared for this cell (closed route).
+/// The one sampling composition declared for this cell (unsupported route).
 pub(crate) const JOINT_SENSITIVITY_SAMPLING_METHOD: &str =
     "conservative_endpoint_percentile_bootstrap";
 /// The coverage target that composition is measured against.
 pub(crate) const JOINT_SENSITIVITY_COVERAGE_TARGET: &str = "one_sided: coverage of psi(delta0) at least nominal for any fixed true deviation delta0 inside the box; exactly the percentile bootstrap at the zero box";
 /// Detail of a budget stop, before the range (a refusal) or during bracketing
 /// (the frontier's unresolved reason).
-pub(crate) const JOINT_SENSITIVITY_BUDGET_DETAIL: &str = "joint_sensitivity.budget";
+pub(crate) const JOINT_SENSITIVITY_BUDGET_DETAIL: &str =
+    antecedent_core::reason_details::joint_sensitivity::BUDGET;
 /// Detail of the withheld sampling interval.
-pub(crate) const JOINT_SENSITIVITY_INTERVAL_WITHHELD: &str = "joint_sensitivity.interval_withheld";
+pub(crate) const JOINT_SENSITIVITY_NO_INTERVAL_METHOD: &str =
+    antecedent_core::reason_details::joint_sensitivity::NO_INTERVAL_METHOD;
 
 /// A mechanism factor a caller may ask to perturb.
 ///
@@ -347,7 +361,7 @@ pub struct AxisTipping {
     pub bracket: Option<TippingBracket>,
 }
 
-/// Declared sampling composition and why its interval is withheld.
+/// Declared sampling composition and the status of a result that carries no interval.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct JointSensitivityUncertainty {
     /// The one declared method.
@@ -356,19 +370,19 @@ pub struct JointSensitivityUncertainty {
     pub coverage_target: &'static str,
     /// Registered reason code of the withheld interval.
     pub reason_code: &'static str,
-    /// `joint_sensitivity.interval_withheld`.
+    /// `joint_sensitivity.no_interval_method`.
     pub detail: &'static str,
 }
 
 impl JointSensitivityUncertainty {
-    /// The withheld status every public result carries.
+    /// The status of a result that carries no sampling interval: none was requested for it.
     #[must_use]
     pub const fn withheld() -> Self {
         Self {
             method: JOINT_SENSITIVITY_SAMPLING_METHOD,
             coverage_target: JOINT_SENSITIVITY_COVERAGE_TARGET,
-            reason_code: reason_code!("cell_not_licensed"),
-            detail: JOINT_SENSITIVITY_INTERVAL_WITHHELD,
+            reason_code: reason_code!("uncertainty_representation_insufficient"),
+            detail: JOINT_SENSITIVITY_NO_INTERVAL_METHOD,
         }
     }
 }
@@ -430,8 +444,23 @@ pub struct JointMechanismSensitivityResult {
     pub interpretation: &'static str,
     /// Always [`ASSUMPTION_RANGE_CLAIM`].
     pub inference_claim: &'static str,
-    /// Sampling uncertainty status (withheld).
+    /// Declared sampling composition. Its interval is attached with
+    /// [`JointMechanismSensitivityResult::with_sampling_interval`]; until then the status says no
+    /// interval was requested for this result.
     pub uncertainty: JointSensitivityUncertainty,
+    /// The conservative endpoint-bootstrap interval, when it was computed for this result. It is
+    /// reported next to, never inside, the assumption range, with its calibration annotation.
+    pub sampling: Option<JointSensitivityInterval>,
+}
+
+impl JointMechanismSensitivityResult {
+    /// Attach the endpoint-bootstrap sampling interval computed from the same data, diagram and
+    /// spec ([`joint_sensitivity_bootstrap_interval_internal`]).
+    #[must_use]
+    pub fn with_sampling_interval(mut self, interval: JointSensitivityInterval) -> Self {
+        self.sampling = Some(interval);
+        self
+    }
 }
 
 impl From<&JointMechanismSensitivityResult>
@@ -444,6 +473,16 @@ impl From<&JointMechanismSensitivityResult>
         JointSensitivityView {
             inference_claim: result.inference_claim.into(),
             interpretation: result.interpretation.into(),
+            sampling: result.sampling.as_ref().map(|interval| {
+                antecedent_io_core::sensitivity_artifact::JointSamplingView {
+                    level: interval.level,
+                    method: interval.method.into(),
+                    calibration: Some(interval.calibration.clone()),
+                    baselines: interval.replicate_baselines.clone(),
+                    minima: interval.replicate_minima.clone(),
+                    maxima: interval.replicate_maxima.clone(),
+                }
+            }),
             withheld_reason_code: result.uncertainty.reason_code.into(),
             withheld_detail: result.uncertainty.detail.into(),
             query_binding: result.query_binding.clone(),
@@ -503,14 +542,14 @@ fn validate_spec(spec: &JointDeviationSpec) -> Result<JointBox, JointSensitivity
     if spec.total_budget.is_some() {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "joint_sensitivity.budget_coupling",
+            antecedent_core::reason_details::joint_sensitivity::BUDGET_COUPLING,
             "a total budget coupling the fractions needs a polynomial optimizer; only box-independent fractions are supported",
         ));
     }
     if spec.factors.is_empty() || spec.factors.len() > JOINT_SENSITIVITY_MAX_FACTORS {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "joint_sensitivity.factor_count",
+            antecedent_core::reason_details::joint_sensitivity::FACTOR_COUNT,
             format!("{} factors declared; one or two are admitted", spec.factors.len()),
         ));
     }
@@ -520,28 +559,28 @@ fn validate_spec(spec: &JointDeviationSpec) -> Result<JointBox, JointSensitivity
             JointFactor::TreatmentMechanism => {
                 return Err(refuse(
                     reason_code!("invalid_argument"),
-                    "joint_sensitivity.treatment_factor",
+                    antecedent_core::reason_details::joint_sensitivity::TREATMENT_FACTOR,
                     "the treatment is set by intervention; its mechanism is not in the target response",
                 ));
             }
             JointFactor::FixedGraphParentMechanism => {
                 return Err(refuse(
                     reason_code!("route_not_supported"),
-                    "joint_sensitivity.fixed_graph_parent",
+                    antecedent_core::reason_details::joint_sensitivity::FIXED_GRAPH_PARENT,
                     "a fixed-graph parent-mechanism perturbation contradicts the supplied target parent law",
                 ));
             }
             JointFactor::FixedGraphConditionalMechanism => {
                 return Err(refuse(
                     reason_code!("route_not_supported"),
-                    "joint_sensitivity.fixed_graph_conditional",
+                    antecedent_core::reason_details::joint_sensitivity::FIXED_GRAPH_CONDITIONAL,
                     "the fixed-graph conditional-mechanism joint problem is not supported",
                 ));
             }
             JointFactor::SourceTargetDiscrepancy => {
                 return Err(refuse(
                     reason_code!("route_not_supported"),
-                    "joint_sensitivity.source_target_discrepancy",
+                    antecedent_core::reason_details::joint_sensitivity::SOURCE_TARGET_DISCREPANCY,
                     "source-target discrepancy diagnostics are not part of this route",
                 ));
             }
@@ -555,14 +594,14 @@ fn validate_spec(spec: &JointDeviationSpec) -> Result<JointBox, JointSensitivity
         if slot.is_some() {
             return Err(refuse(
                 reason_code!("invalid_argument"),
-                "joint_sensitivity.duplicate_factor",
+                antecedent_core::reason_details::joint_sensitivity::DUPLICATE_FACTOR,
                 format!("factor {} is declared twice", bound.factor.name()),
             ));
         }
         if !bound.max_fraction.is_finite() || !(0.0..=1.0).contains(&bound.max_fraction) {
             return Err(refuse(
                 reason_code!("invalid_argument"),
-                "joint_sensitivity.invalid_fraction",
+                antecedent_core::reason_details::joint_sensitivity::INVALID_FRACTION,
                 format!(
                     "fraction bound {} of {} is outside [0, 1]",
                     bound.max_fraction,
@@ -575,7 +614,7 @@ fn validate_spec(spec: &JointDeviationSpec) -> Result<JointBox, JointSensitivity
     if spec.decision_threshold.is_some_and(|t| !t.is_finite()) {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "joint_sensitivity.invalid_threshold",
+            antecedent_core::reason_details::joint_sensitivity::INVALID_THRESHOLD,
             "the decision threshold must be finite",
         ));
     }
@@ -585,7 +624,7 @@ fn validate_spec(spec: &JointDeviationSpec) -> Result<JointBox, JointSensitivity
     {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "joint_sensitivity.invalid_tolerance",
+            antecedent_core::reason_details::joint_sensitivity::INVALID_TOLERANCE,
             format!("tolerance {} is outside [1e-12, 1e-2]", spec.tolerance),
         ));
     }
@@ -597,9 +636,9 @@ fn validate_spec(spec: &JointDeviationSpec) -> Result<JointBox, JointSensitivity
     {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "joint_sensitivity.bounds_exceeded",
+            antecedent_core::reason_details::joint_sensitivity::BOUNDS_EXCEEDED,
             format!(
-                "frontier grid {} (1-33), operations {} (<= 100000), depth {} (<= 64) or memory cap {} (<= 512 MiB) is outside the declared bounds",
+                "frontier grid {} (1-{JOINT_SENSITIVITY_MAX_FRONTIER_POINTS}), operations {} (<= 100000), depth {} (<= 64) or memory cap {} (<= 512 MiB) is outside the declared bounds",
                 spec.frontier_points,
                 spec.limits.operations,
                 spec.limits.depth,
@@ -618,8 +657,10 @@ fn check_shape(levels: usize, categories: usize) -> Result<(), JointSensitivityE
     {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "joint_sensitivity.bounds_exceeded",
-            format!("{levels} parent levels (<= 64) or {categories} outcome categories (<= 32)"),
+            antecedent_core::reason_details::joint_sensitivity::BOUNDS_EXCEEDED,
+            format!(
+                "{levels} parent levels (<= {JOINT_SENSITIVITY_MAX_PARENT_LEVELS}) or {categories} outcome categories (<= {JOINT_SENSITIVITY_MAX_OUTCOME_CATEGORIES})"
+            ),
         ));
     }
     Ok(())
@@ -686,12 +727,12 @@ fn kernel_error(error: &ZTransportSensitivityError) -> JointSensitivityError {
         ZTransportSensitivityError::InvalidProof
         | ZTransportSensitivityError::IncompatibleFormula => refuse(
             reason_code!("transport_not_certified"),
-            "joint_sensitivity.formula_incompatible",
+            antecedent_core::reason_details::joint_sensitivity::FORMULA_INCOMPATIBLE,
             error.to_string(),
         ),
         ZTransportSensitivityError::ProviderMismatch => refuse(
             reason_code!("transport_missing_provider"),
-            "joint_sensitivity.provider_mismatch",
+            antecedent_core::reason_details::joint_sensitivity::PROVIDER_MISMATCH,
             error.to_string(),
         ),
         ZTransportSensitivityError::UnsupportedDomain
@@ -699,25 +740,25 @@ fn kernel_error(error: &ZTransportSensitivityError) -> JointSensitivityError {
             DiscreteKernelSensitivityError::InvalidContrast,
         ) => refuse(
             reason_code!("route_not_supported"),
-            "joint_sensitivity.unsupported_domain",
+            antecedent_core::reason_details::joint_sensitivity::UNSUPPORTED_DOMAIN,
             error.to_string(),
         ),
         ZTransportSensitivityError::InvalidSensitivity(
             DiscreteKernelSensitivityError::InvalidFraction,
         ) => refuse(
             reason_code!("invalid_argument"),
-            "joint_sensitivity.invalid_fraction",
+            antecedent_core::reason_details::joint_sensitivity::INVALID_FRACTION,
             error.to_string(),
         ),
         ZTransportSensitivityError::Cancelled => refuse(
             reason_code!("transport_budget_cancel"),
-            "joint_sensitivity.cancelled",
+            antecedent_core::reason_details::joint_sensitivity::CANCELLED,
             error.to_string(),
         ),
         ZTransportSensitivityError::IncompleteKernel
         | ZTransportSensitivityError::InvalidSensitivity(_) => refuse(
             reason_code!("transport_support_failure"),
-            "joint_sensitivity.incomplete_kernel",
+            antecedent_core::reason_details::joint_sensitivity::INCOMPLETE_KERNEL,
             error.to_string(),
         ),
     }
@@ -745,7 +786,7 @@ impl JointFactors {
         if kernels.outcome_values.iter().any(|y| !y.is_finite()) {
             return Err(refuse(
                 reason_code!("route_not_supported"),
-                "joint_sensitivity.unsupported_domain",
+                antecedent_core::reason_details::joint_sensitivity::UNSUPPORTED_DOMAIN,
                 "outcome values must be finite numbers",
             ));
         }
@@ -767,7 +808,7 @@ impl JointFactors {
         if !(total.is_finite() && (total - 1.0).abs() <= JOINT_SENSITIVITY_UNIT_MASS_TOLERANCE) {
             return Err(refuse(
                 reason_code!("transport_support_failure"),
-                "joint_sensitivity.incomplete_kernel",
+                antecedent_core::reason_details::joint_sensitivity::INCOMPLETE_KERNEL,
                 format!(
                     "the shared parent marginal has mass {total}, not 1 within {JOINT_SENSITIVITY_UNIT_MASS_TOLERANCE:e}"
                 ),
@@ -1062,7 +1103,7 @@ pub fn z_transport_joint_mechanism_sensitivity(
                 let (status, bracket) = outcomes.next().ok_or_else(|| {
                     refuse(
                         reason_code!("invalid_argument"),
-                        "joint_sensitivity.stage_accounting",
+                        antecedent_core::reason_details::joint_sensitivity::STAGE_ACCOUNTING,
                         "joint sensitivity recorded fewer bracketing outcomes than frontier stages",
                     )
                 })?;
@@ -1080,7 +1121,7 @@ pub fn z_transport_joint_mechanism_sensitivity(
             let (status, bracket) = outcomes.next().ok_or_else(|| {
                 refuse(
                     reason_code!("invalid_argument"),
-                    "joint_sensitivity.stage_accounting",
+                    antecedent_core::reason_details::joint_sensitivity::STAGE_ACCOUNTING,
                     "joint sensitivity recorded fewer bracketing outcomes than frontier stages",
                 )
             })?;
@@ -1122,6 +1163,7 @@ pub fn z_transport_joint_mechanism_sensitivity(
         interpretation: JOINT_SENSITIVITY_INTERPRETATION,
         inference_claim: ASSUMPTION_RANGE_CLAIM,
         uncertainty: JointSensitivityUncertainty::withheld(),
+        sampling: None,
     })
 }
 
@@ -1147,6 +1189,56 @@ pub struct JointSensitivityInterval {
     pub replicates_ok: u32,
     /// Replicates whose draw or range failed.
     pub replicates_failed: u32,
+    /// Range baseline (zero deviation) of each evaluated replicate, in draw order.
+    pub replicate_baselines: Vec<f64>,
+    /// Range minimum over the declared box of each evaluated replicate.
+    pub replicate_minima: Vec<f64>,
+    /// Range maximum over the declared box of each evaluated replicate.
+    pub replicate_maxima: Vec<f64>,
+    /// Calibration of the interval, resolved from its construction basis: `calibrated`
+    /// inside a current record's measured scope, otherwise the status that names why not.
+    /// It annotates the interval and never withholds it.
+    pub calibration: antecedent_io_core::contract_section::CalibrationSlotWire,
+}
+
+fn interval_calibration(
+    data: &ExactTransportData,
+    level: f64,
+    replicates_ok: u32,
+) -> antecedent_io_core::contract_section::CalibrationSlotWire {
+    use antecedent_io_core::calibration::{
+        CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire, calibration_slot,
+    };
+    let rows = data
+        .laws()
+        .iter()
+        .filter_map(|law| law.empirical_counts().map(|counts| counts.iter().sum::<u64>()))
+        .min()
+        .unwrap_or(0);
+    calibration_slot(&CalibrationBasisWire {
+        key: CalibrationKeyWire {
+            validation: "not_applicable".into(),
+            query: "ClassicalTransport".into(),
+            graph_class: "Admg".into(),
+            structure: "fixed".into(),
+            modality: "tabular".into(),
+            inference: "Frequentist".into(),
+            estimator: "transport.z_joint_sensitivity_endpoint_bootstrap".into(),
+            interval_method: "percentile_bootstrap".into(),
+            se_kind: "percentile".into(),
+            dependence: "iid".into(),
+            posterior: String::new(),
+            functional: "target_interventional_mean".into(),
+            level,
+            identification: "point".into(),
+        },
+        scope: CalibrationScopeWire {
+            row_count: rows,
+            replicates_ok: Some(replicates_ok),
+            posterior_draws: None,
+            unidentified_mass: 0.0,
+        },
+    })
 }
 
 /// The closed conservative endpoint bootstrap: each iid row-bootstrap draw of
@@ -1177,7 +1269,7 @@ pub fn joint_sensitivity_bootstrap_interval_internal(
     {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "joint_sensitivity.bounds_exceeded",
+            antecedent_core::reason_details::joint_sensitivity::BOUNDS_EXCEEDED,
             format!("{replicates} replicates (2-2000) or level {level} (strictly inside (0, 1))"),
         ));
     }
@@ -1188,13 +1280,13 @@ pub fn joint_sensitivity_bootstrap_interval_internal(
                 if ctx.cancellation.is_cancelled() {
                     refuse(
                         reason_code!("transport_budget_cancel"),
-                        "joint_sensitivity.budget",
+                        antecedent_core::reason_details::joint_sensitivity::BUDGET,
                         error.to_string(),
                     )
                 } else {
                     refuse(
                         reason_code!("transport_support_failure"),
-                        "joint_sensitivity.incomplete_kernel",
+                        antecedent_core::reason_details::joint_sensitivity::INCOMPLETE_KERNEL,
                         error.to_string(),
                     )
                 }
@@ -1209,7 +1301,7 @@ pub fn joint_sensitivity_bootstrap_interval_internal(
         if ctx.cancellation.is_cancelled() {
             return Err(refuse(
                 reason_code!("transport_budget_cancel"),
-                "joint_sensitivity.budget",
+                antecedent_core::reason_details::joint_sensitivity::BUDGET,
                 "endpoint bootstrap cancelled",
             ));
         }
@@ -1250,6 +1342,10 @@ pub fn joint_sensitivity_bootstrap_interval_internal(
         replicates_requested: replicates,
         replicates_ok: ok,
         replicates_failed: failed,
+        replicate_baselines: zeros,
+        replicate_minima: lows,
+        replicate_maxima: highs,
+        calibration: interval_calibration(data, level, ok),
     }))
 }
 
@@ -1260,8 +1356,11 @@ mod kernel_error_tests {
     #[test]
     fn no_budget_cancellation_is_its_own_detail() {
         let error = kernel_error(&ZTransportSensitivityError::Cancelled);
-        assert_eq!(error.detail(), "joint_sensitivity.cancelled");
+        assert_eq!(error.detail(), antecedent_core::reason_details::joint_sensitivity::CANCELLED);
         assert_eq!(error.reason_code(), "transport_budget_cancel");
-        assert_ne!(error.detail(), "joint_sensitivity.incomplete_kernel");
+        assert_ne!(
+            error.detail(),
+            antecedent_core::reason_details::joint_sensitivity::INCOMPLETE_KERNEL
+        );
     }
 }

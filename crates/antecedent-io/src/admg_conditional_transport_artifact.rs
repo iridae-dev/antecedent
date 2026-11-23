@@ -1,6 +1,6 @@
 //! Independent point-result artifacts for ADMG conditional transport .
 //!
-//! Format version 1 (`checked_admg_conditional_point_v1`). A consumer trusts
+//! Format version 2 (`checked_admg_conditional_point_v2`). A consumer trusts
 //! nothing in the artifact. Before any work (before either digest is hashed) it
 //! refuses stored limits above its own maxima and a graph or query above the
 //! route's size bounds. It then checks the premises digest (graph, selections, query,
@@ -36,6 +36,7 @@
 //! signatures, so the consumer re-derives everything and a consistent forgery is
 //! simply a different, correctly checked analysis.
 
+use crate::exact_transport_laws::canonical_laws;
 use crate::{
     IoError, admg_from_wire, admg_to_wire,
     exact_law_wire::ExactLawWire,
@@ -60,9 +61,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// The artifact format this reader writes and accepts.
-pub const ADMG_CONDITIONAL_ARTIFACT_VERSION: u32 = 1;
+pub const ADMG_CONDITIONAL_ARTIFACT_VERSION: u32 = 2;
 /// The feature marker of the accepted format.
-pub const ADMG_CONDITIONAL_ARTIFACT_FEATURE: &str = "checked_admg_conditional_point_v1";
+pub const ADMG_CONDITIONAL_ARTIFACT_FEATURE: &str = "checked_admg_conditional_point_v2";
 /// The only uncertainty claim of this route: exact laws, a point, no interval.
 pub const ADMG_CONDITIONAL_POINT_ONLY: &str = "point_only";
 
@@ -98,6 +99,14 @@ pub struct AdmgConditionalConsumeLimits {
     pub max_law_cells: usize,
     /// Most requests an artifact may carry.
     pub max_requests: usize,
+    /// Most observed variables an artifact may declare.
+    pub max_observed: usize,
+    /// Most treatments an artifact may declare.
+    pub max_treatments: usize,
+    /// Most conditioned variables an artifact may declare.
+    pub max_conditioned: usize,
+    /// Most levels of one latent variable in a stored witness.
+    pub max_latent_levels: usize,
 }
 
 impl Default for AdmgConditionalConsumeLimits {
@@ -109,6 +118,10 @@ impl Default for AdmgConditionalConsumeLimits {
             max_laws: 1024,
             max_law_cells: 1_000_000,
             max_requests: 64,
+            max_observed: antecedent_identify::ADMG_CONDITIONAL_MAX_OBSERVED,
+            max_treatments: antecedent_identify::ADMG_CONDITIONAL_MAX_TREATMENTS,
+            max_conditioned: antecedent_identify::ADMG_CONDITIONAL_MAX_CONDITIONED,
+            max_latent_levels: antecedent_identify::CONDITIONAL_WITNESS_MAX_LATENT_LEVELS,
         }
     }
 }
@@ -255,6 +268,9 @@ pub struct AdmgConditionalArtifactWire {
     pub premises_digest: String,
     /// Digest of the data identity (refresh-replaceable snapshot ids).
     pub data_digest: String,
+    /// Digest of the whole stored artifact but this field: the laws' probabilities, the
+    /// requests, the limits and the reported points that the other two digests leave out.
+    pub evidence_digest: String,
 }
 
 /// Everything a replay reconstructed and recomputed.
@@ -291,23 +307,8 @@ struct PremisesView<'a> {
 /// snapshot and dataset ids), the sorted `(regime, snapshot, dataset)` of every
 /// binding and the `(population, regime, snapshot)` of every law.
 fn data_digest(catalog: &EvidenceCatalog, laws: &[ExactLawWire]) -> Result<String, IoError> {
-    let mut bindings = catalog
-        .bindings
-        .iter()
-        .map(|b| {
-            (
-                b.regime.raw(),
-                b.snapshot_identity.to_string(),
-                b.dataset_identity.as_deref().map(str::to_owned),
-            )
-        })
-        .collect::<Vec<_>>();
-    bindings.sort();
-    let mut snapshots = laws
-        .iter()
-        .map(|law| (law.population.clone(), law.regime, law.snapshot.clone()))
-        .collect::<Vec<_>>();
-    snapshots.sort();
+    let bindings = crate::exact_transport_laws::sorted_catalog_bindings(catalog);
+    let snapshots = crate::exact_transport_laws::sorted_law_snapshots(laws);
     crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &(
@@ -317,20 +318,6 @@ fn data_digest(catalog: &EvidenceCatalog, laws: &[ExactLawWire]) -> Result<Strin
             snapshots,
         ),
     )
-}
-
-fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoError> {
-    let mut laws = data
-        .laws()
-        .iter()
-        .map(|law| {
-            let wire = ExactLawWire::from_law(law);
-            crate::to_cbor(&(&wire.population, wire.regime, &wire.interventions))
-                .map(|key| (key, wire))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    laws.sort_by(|a, b| a.0.cmp(&b.0));
-    Ok(laws.into_iter().map(|(_, law)| law).collect())
 }
 
 fn bindings_of(functional: &BoundConditionalTransportFunctional) -> Vec<(String, Option<u32>)> {
@@ -396,7 +383,7 @@ impl AdmgConditionalArtifactWire {
             return Err(AdmgConditionalArtifactError::LimitsExceeded("search limits").into());
         }
         if input.data.laws().iter().any(|law| law.empirical_counts().is_some()) {
-            return Err(AdmgConditionalArtifactError::IntervalWithheld.into());
+            return Err(AdmgConditionalArtifactError::CountedLawsUnsupported.into());
         }
         let derivation = input.functional.derivation();
         let laws = canonical_laws(input.data)?;
@@ -429,10 +416,22 @@ impl AdmgConditionalArtifactWire {
                 .collect(),
             uncertainty: ADMG_CONDITIONAL_POINT_ONLY.into(),
             premises_digest: String::new(),
+            evidence_digest: String::new(),
         };
         wire.premises_digest = wire.expected_premises_digest()?;
+        wire.evidence_digest = wire.expected_evidence_digest()?;
         wire.validate_shape()?;
         Ok(wire)
+    }
+
+    /// The evidence digest the stored artifact should carry.
+    ///
+    /// # Errors
+    /// The artifact does not encode.
+    pub fn expected_evidence_digest(&self) -> Result<String, IoError> {
+        crate::evidence_digest::evidence_digest("admg_conditional_evidence_v2", self, |wire| {
+            wire.evidence_digest = String::new()
+        })
     }
 
     fn premises_view(&self) -> PremisesView<'_> {
@@ -478,7 +477,7 @@ impl AdmgConditionalArtifactWire {
         if self.uncertainty != ADMG_CONDITIONAL_POINT_ONLY
             || self.laws.iter().any(|law| law.empirical_counts.is_some())
         {
-            return Err(AdmgConditionalArtifactError::IntervalWithheld);
+            return Err(AdmgConditionalArtifactError::CountedLawsUnsupported);
         }
         if self.requests.is_empty() || self.results.len() != self.requests.len() {
             return Err(unsupported("one point result per request"));
@@ -536,16 +535,12 @@ impl AdmgConditionalArtifactWire {
         &self,
         limits: &AdmgConditionalConsumeLimits,
     ) -> Result<(), AdmgConditionalArtifactError> {
-        use antecedent_identify::{
-            ADMG_CONDITIONAL_MAX_CONDITIONED, ADMG_CONDITIONAL_MAX_OBSERVED,
-            ADMG_CONDITIONAL_MAX_TREATMENTS,
-        };
         let exceeded = AdmgConditionalArtifactError::LimitsExceeded;
         // The route's size bounds, checked before any digest is hashed: an
         // oversized graph or query is never decoded further or re-checked.
         let nodes = usize::try_from(self.graph.node_count).unwrap_or(usize::MAX);
         let max_edges = nodes.saturating_mul(nodes.saturating_sub(1));
-        if nodes > ADMG_CONDITIONAL_MAX_OBSERVED
+        if nodes > limits.max_observed
             || self.graph.directed.len() > max_edges
             || self.graph.bidirected.len() > max_edges
             || self.selections.len() > nodes
@@ -553,11 +548,10 @@ impl AdmgConditionalArtifactWire {
             return Err(exceeded("graph size"));
         }
         if self.query.outcomes.len() > nodes
-            || self.query.treatments.len() > ADMG_CONDITIONAL_MAX_TREATMENTS
-            || self.query.conditioned_on.len() > ADMG_CONDITIONAL_MAX_CONDITIONED
-            || self.proof.conditioned_on.len() > ADMG_CONDITIONAL_MAX_CONDITIONED
-            || self.proof.moves.len() + self.proof.remaining.len()
-                > ADMG_CONDITIONAL_MAX_CONDITIONED
+            || self.query.treatments.len() > limits.max_treatments
+            || self.query.conditioned_on.len() > limits.max_conditioned
+            || self.proof.conditioned_on.len() > limits.max_conditioned
+            || self.proof.moves.len() + self.proof.remaining.len() > limits.max_conditioned
         {
             return Err(exceeded("query size"));
         }
@@ -670,6 +664,12 @@ impl AdmgConditionalArtifactWire {
             }
             distributions.push(distribution);
         }
+        crate::require_digest(
+            &wire.evidence_digest,
+            wire.expected_evidence_digest(),
+            std::convert::identity,
+            || AdmgConditionalArtifactError::EvidenceMismatch.into(),
+        )?;
         Ok(ConsumedAdmgConditional { functional, diagram, data, requests, distributions, wire })
     }
 }
@@ -798,15 +798,14 @@ impl AdmgConditionalObstructionWire {
     }
 
     /// The route's size bounds, checked before any digest is hashed.
-    fn check_bounds(&self) -> Result<(), AdmgConditionalArtifactError> {
-        use antecedent_identify::{
-            ADMG_CONDITIONAL_MAX_CONDITIONED, ADMG_CONDITIONAL_MAX_OBSERVED,
-            ADMG_CONDITIONAL_MAX_TREATMENTS, CONDITIONAL_WITNESS_MAX_LATENT_LEVELS,
-        };
+    fn check_bounds(
+        &self,
+        limits: &AdmgConditionalConsumeLimits,
+    ) -> Result<(), AdmgConditionalArtifactError> {
         let exceeded = AdmgConditionalArtifactError::LimitsExceeded;
         let nodes = usize::try_from(self.graph.node_count).unwrap_or(usize::MAX);
         let max_edges = nodes.saturating_mul(nodes.saturating_sub(1));
-        if nodes > ADMG_CONDITIONAL_MAX_OBSERVED
+        if nodes > limits.max_observed
             || self.graph.directed.len() > max_edges
             || self.graph.bidirected.len() > max_edges
             || self.selections.len() > nodes
@@ -814,10 +813,9 @@ impl AdmgConditionalObstructionWire {
             return Err(exceeded("graph size"));
         }
         if self.query.outcomes.len() > nodes
-            || self.query.treatments.len() > ADMG_CONDITIONAL_MAX_TREATMENTS
-            || self.query.conditioned_on.len() > ADMG_CONDITIONAL_MAX_CONDITIONED
-            || self.proof.moves.len() + self.proof.remaining.len()
-                > ADMG_CONDITIONAL_MAX_CONDITIONED
+            || self.query.treatments.len() > limits.max_treatments
+            || self.query.conditioned_on.len() > limits.max_conditioned
+            || self.proof.moves.len() + self.proof.remaining.len() > limits.max_conditioned
         {
             return Err(exceeded("query size"));
         }
@@ -828,10 +826,7 @@ impl AdmgConditionalObstructionWire {
             if model.latents.len() > max_edges
                 || model.source.len() > nodes
                 || model.target.len() > nodes
-                || model
-                    .latents
-                    .iter()
-                    .any(|l| l.probabilities.len() > CONDITIONAL_WITNESS_MAX_LATENT_LEVELS)
+                || model.latents.iter().any(|l| l.probabilities.len() > limits.max_latent_levels)
             {
                 return Err(exceeded("witness size"));
             }
@@ -887,8 +882,22 @@ impl AdmgConditionalObstructionWire {
         bytes: &[u8],
         ctx: &ExecutionContext,
     ) -> Result<ConsumedAdmgConditionalObstruction, IoError> {
+        Self::consume_within(bytes, &AdmgConditionalConsumeLimits::default(), ctx)
+    }
+
+    /// [`Self::consume`] under the caller's intake bounds (observed, treatment,
+    /// conditioned and latent-level counts); the proof still verifies against the
+    /// caller's operations and the admission pool.
+    ///
+    /// # Errors
+    /// As [`Self::consume`].
+    pub fn consume_within(
+        bytes: &[u8],
+        limits: &AdmgConditionalConsumeLimits,
+        ctx: &ExecutionContext,
+    ) -> Result<ConsumedAdmgConditionalObstruction, IoError> {
         let wire = Self::decode(bytes)?;
-        wire.check_bounds()?;
+        wire.check_bounds(limits)?;
         crate::require_digest(
             &wire.premises_digest,
             wire.expected_premises_digest(),

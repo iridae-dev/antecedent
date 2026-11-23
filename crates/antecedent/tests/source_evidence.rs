@@ -11,7 +11,7 @@ use antecedent_design::decision_artifact::contract_to_json;
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy, UtilityExpr,
 };
-use antecedent_design::decision_eval::MeanSource;
+use antecedent_design::decision_eval::{MeanEstimate, MeanSource};
 use antecedent_design::inverse_query::{
     Comparison, ForwardClaim, ForwardEvidence, GridScope, InverseConstraint, InverseQuery,
     SelectionRule,
@@ -72,10 +72,14 @@ fn produce_source(
             }),
         )
         .unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
     assert_eq!(
         consumed.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<_>>(),
-        vec!["dependencies.checked_response_grid_operation"]
+        vec![
+            "dependencies.checked_response_grid_operation",
+            // Names an identification the consumer cannot re-derive from the bytes.
+            "dependencies.identification_estimand_criterion",
+        ]
     );
     (SourceEvidence::from_result(&bytes).unwrap(), prepared, ctx)
 }
@@ -126,7 +130,7 @@ fn original_diagnostic_scopes_and_semantic_coordinate_values_survive_consumption
     wrong.units = "another-unit".into();
     assert_eq!(
         source.diagnostics_at(&wrong).unwrap_err().detail,
-        "source_evidence.coordinate_mismatch"
+        antecedent_core::reason_details::source_evidence::COORDINATE_MISMATCH
     );
 }
 #[test]
@@ -154,7 +158,7 @@ fn actual_action_contributors_preserve_original_diagnostics_without_synthesized_
             .project(&contract_to_json(&contract).unwrap(), &["missing".into()])
             .unwrap_err()
             .detail,
-        "source_evidence.action_mismatch"
+        antecedent_core::reason_details::source_evidence::ACTION_MISMATCH
     );
 }
 #[test]
@@ -162,7 +166,7 @@ fn native_inverse_artifact_replays_original_source_diagnostics_and_rejects_chang
     use antecedent_io::response_wire::{ResponseIdentificationWire, ResponseValueWire};
     let source = source();
     let contract = contract(&source);
-    let original = antecedent_io::consume_analysis_result(source.original_bytes()).unwrap();
+    let original = antecedent_io::replay_analysis_result(source.original_bytes()).unwrap();
     let ResponseIdentificationWire::PointIdentified(ResponseValueWire::Surface { mean, .. }) =
         &original.body.response.as_ref().unwrap().estimate
     else {
@@ -177,6 +181,7 @@ fn native_inverse_artifact_replays_original_source_diagnostics_and_rejects_chang
         snapshot_id: snapshot,
         causal_contract_id: "source-contract".into(),
         rng_id: "native:seed:51".into(),
+        estimate: MeanEstimate::Frequentist,
     };
     let query = InverseQuery {
         contract: contract.clone(),
@@ -234,7 +239,7 @@ fn full_original_source_comparison_rejects_changed_science_and_seed() {
     for changed in [source_with(0.25, 51), source_with(0., 52)] {
         assert_eq!(
             original.require_same_source(&changed).unwrap_err().detail,
-            "source_evidence.source_binding_mismatch"
+            antecedent_core::reason_details::source_evidence::SOURCE_BINDING_MISMATCH
         );
     }
 }
@@ -250,12 +255,16 @@ fn opaque_resolution_executes_original_preparation_and_rejects_changed_science()
     );
     assert_eq!(
         resolution.resolved_dependencies().iter().map(AsRef::as_ref).collect::<Vec<_>>(),
-        vec!["dependencies.checked_response_grid_operation"]
+        vec![
+            "dependencies.checked_response_grid_operation",
+            // Names an identification the consumer cannot re-derive from the bytes.
+            "dependencies.identification_estimand_criterion",
+        ]
     );
     let (_, changed, _) = produce_source(0.25, 51);
     assert_eq!(
         SourceResolution::execute(&evidence, &changed, &ctx).unwrap_err().detail,
-        "source_evidence.source_binding_mismatch"
+        antecedent_core::reason_details::source_evidence::SOURCE_BINDING_MISMATCH
     );
 }
 
@@ -273,7 +282,10 @@ fn bounded_evidence_refuses_oversized_logical_sections_before_decompression() {
     changed.extend(manifest);
     changed.extend(&bytes[16 + usize::try_from(old_len).unwrap()..]);
     let error = SourceEvidence::from_result(&changed).unwrap_err();
-    assert_eq!((error.code, error.detail), ("invalid_argument", "source_evidence.limits_exceeded"));
+    assert_eq!(
+        (error.code, error.detail),
+        ("invalid_argument", antecedent_core::reason_details::source_evidence::LIMITS_EXCEEDED)
+    );
 }
 
 #[test]
@@ -313,7 +325,10 @@ fn original_external_attestation_retains_exact_support_request_and_source_withou
     let original = ExternalClaimArtifact::from_bytes(bytes, &expected).unwrap();
     let evidence = SourceEvidence::from_external(bytes).unwrap();
     assert!(!evidence.is_native_source());
-    assert!(evidence.original_consumption().is_err());
+    assert_eq!(
+        evidence.original_consumption().unwrap_err().to_string(),
+        "invalid_argument: source_evidence.resolution_scope_unsupported"
+    );
     assert!(evidence.unresolved().is_empty());
     let summary = evidence.summary();
     assert_eq!(summary["source_kind"], "external_bound_claim");
@@ -324,7 +339,7 @@ fn original_external_attestation_retains_exact_support_request_and_source_withou
         "not_retained_by_original_external_claim_format"
     );
     assert_eq!(summary["native_authority_issued"], false);
-    assert_eq!(summary["calibration_license_issued"], false);
+    assert_eq!(summary["calibration_support_issued"], false);
     assert_eq!(evidence.diagnostics_at(&evidence.coordinates()[0]).unwrap(), serde_json::json!([]));
     let means = antecedent_design::composition_verifiers::mean_source_of(&original).unwrap();
     evidence.require_mean_source(&means).unwrap();
@@ -332,7 +347,7 @@ fn original_external_attestation_retains_exact_support_request_and_source_withou
     changed.means[0] += 1.;
     assert_eq!(
         evidence.require_mean_source(&changed).unwrap_err().detail,
-        "source_evidence.point_binding_mismatch"
+        antecedent_core::reason_details::source_evidence::POINT_BINDING_MISMATCH
     );
     let declaration = contract(&evidence);
     let projected =

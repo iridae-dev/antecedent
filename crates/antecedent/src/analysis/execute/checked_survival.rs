@@ -21,8 +21,12 @@ use antecedent_estimate::survival::{
     randomized_survival_summary,
 };
 
+mod bayesian;
+
+/// The extra settings fixed at prepare time: the bootstrap replicate count of the frequentist
+/// route and, for the Bayesian route, the study's Bayesian configuration.
 pub(crate) type CheckedSurvivalOperation =
-    RandomizedTrialOperation<antecedent_core::SurvivalQuery, u32>;
+    RandomizedTrialOperation<antecedent_core::SurvivalQuery, (u32, Option<super::BayesianConfig>)>;
 
 impl RandomizedTrialQuery for antecedent_core::SurvivalQuery {
     const OPERATION: &'static str = "CheckedSurvivalOperation";
@@ -44,15 +48,26 @@ impl CheckedSurvivalOperation {
         query.validate()?;
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
-            || !matches!(study.inference, InferenceMode::Frequentist)
-            || study.refute != RefuteSuite::None
-            || !study.custom_validators.is_empty()
+            || study.settings.refute != RefuteSuite::None
+            || !study.declared.custom_validators.is_empty()
             || study.graph_posterior.is_some()
-            || study.tiered.is_some()
+            || study.declared.tiered.is_some()
         {
             return Err(CausalError::Unsupported {
-                message: "survival requires a graphless randomized trial, an explicit observation assumption, and frequentist execution",
+                message: "survival requires a graphless randomized trial and an explicit observation assumption, without a graph, refuter or custom validator",
             });
+        }
+        let bayesian = match &study.settings.inference {
+            InferenceMode::Frequentist => None,
+            InferenceMode::Bayesian(config) => {
+                bayesian::require_scope(query, config, study.settings.bootstrap_replicates)?;
+                Some(config.clone())
+            }
+        };
+        // The pointwise interval resamples subjects within arm, one row each; a declared clustered
+        // panel or dependent series would be read as independent subjects.
+        if bayesian.is_none() && study.settings.bootstrap_replicates > 0 {
+            super::gcm_bootstrap::require_subject_resampling(study.declared.sampling_design)?;
         }
         for id in
             [Some(query.duration), Some(query.event), Some(query.treatment), query.delayed_entry]
@@ -66,16 +81,20 @@ impl CheckedSurvivalOperation {
                 data.schema().get(id).map_err(CausalError::rejected)?;
             }
         }
+        let estimator = if bayesian.is_some() {
+            EstimatorId::BayesianPiecewiseSurvival
+        } else {
+            EstimatorId::RandomizedSurvivalProductLimit
+        };
         if physical.logical.query != study.query
-            || !physical
-                .binding()
-                .names(IdentifierId::RandomizedDesign, EstimatorId::RandomizedSurvivalProductLimit)
+            || !physical.binding().names(IdentifierId::RandomizedDesign, estimator)
         {
             return Err(CausalError::Compile {
                 message: "survival query differs from its compiled plan".into(),
             });
         }
-        let (identification, estimand) = survival_identification(query);
+        let (identification, estimand) =
+            study.design_identification_or(physical, || survival_identification(query));
         Ok(Self::freeze(
             study,
             query,
@@ -83,7 +102,7 @@ impl CheckedSurvivalOperation {
             physical,
             identification,
             estimand,
-            study.bootstrap_replicates,
+            (study.settings.bootstrap_replicates, bayesian),
         ))
     }
 
@@ -93,6 +112,9 @@ impl CheckedSurvivalOperation {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         self.begin_execute(data, ctx)?;
+        if let Some(config) = &self.extra.1 {
+            return self.execute_bayesian(data, config, ctx);
+        }
         let columns = self.survival_columns(data)?;
         let treated_count = columns.treated.iter().filter(|&&arm| arm).count();
         let assignment_counts = [columns.treated.len() - treated_count, treated_count];
@@ -144,7 +166,18 @@ impl CheckedSurvivalOperation {
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
                     format!("minimum supplied censoring survival: {minimum:.6}"),
-                ))).collect()).bootstrap_replicates_ok(intervals.as_ref().map(|value| value.replicates_ok)),
+                ))).chain(minimum_censoring_survival.map(|_| {
+                    // Every row's supplied censoring survival cleared the positivity floor on the
+                    // whole grid (a row below it is a refusal), so no mass was left unevaluated.
+                    antecedent_core::diagnostic::RouteNativeDiagnostic::check(
+                        antecedent_core::diagnostic::RouteKind::Censoring,
+                        antecedent_core::diagnostic::RouteCheck::new(
+                            false,
+                            antecedent_core::diagnostic::RouteMass::zero(),
+                        ),
+                    )
+                    .to_diagnostic()
+                })).collect()).bootstrap_replicates_ok(intervals.as_ref().map(|value| value.replicates_ok)),
         );
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
         result.payload = crate::result::ResultPayload::Survival(self.survival_payload(
@@ -154,7 +187,7 @@ impl CheckedSurvivalOperation {
             assignment_counts,
             (difference_band, band_unavailable_reason),
         ));
-        self.license_survival_intervals(&mut result, intervals.as_ref(), assignment_counts);
+        self.support_survival_intervals(&mut result, intervals.as_ref(), assignment_counts);
         Ok(result)
     }
 
@@ -245,7 +278,7 @@ impl CheckedSurvivalOperation {
         endpoint: SurvivalEndpoint,
         ctx: &ExecutionContext,
     ) -> Result<Option<SurvivalBootstrapIntervals>, CausalError> {
-        let bootstrap_replicates = self.extra;
+        let bootstrap_replicates = self.extra.0;
         Ok(if bootstrap_replicates > 0 {
             Some(
                 randomized_survival_bootstrap_intervals(
@@ -278,7 +311,7 @@ impl CheckedSurvivalOperation {
         assignment_counts: [usize; 2],
         ctx: &ExecutionContext,
     ) -> (Option<crate::result::SurvivalDifferenceBand>, Option<Arc<str>>) {
-        let bootstrap_replicates = self.extra;
+        let bootstrap_replicates = self.extra.0;
         if bootstrap_replicates == 0 {
             (None, None)
         } else if columns.entry.is_some() {
@@ -310,7 +343,7 @@ impl CheckedSurvivalOperation {
                         }
                     };
                     let band_support = (band.replicates_ok >= 399
-                        && crate::support::license_if_graphless(
+                        && crate::support::support_if_graphless(
                             crate::support::GraphlessSupportKey {
                                 family: "survival",
                                 design: "two_arm_individual_randomized",
@@ -328,7 +361,7 @@ impl CheckedSurvivalOperation {
                             },
                         )
                         .is_some())
-                    .then_some(crate::support::CellStatus::Licensed);
+                    .then_some(crate::support::CellStatus::Supported);
                     (
                         Some(crate::result::SurvivalDifferenceBand {
                             times: band.times.into(),
@@ -387,15 +420,15 @@ impl CheckedSurvivalOperation {
         }
     }
 
-    /// Grants the graphless scalar license when the paired RMST and horizon intervals clear their support gate.
-    fn license_survival_intervals(
+    /// Grants the graphless scalar support when the paired RMST and horizon intervals clear their support gate.
+    fn support_survival_intervals(
         &self,
         result: &mut StudyResult,
         intervals: Option<&SurvivalBootstrapIntervals>,
         assignment_counts: [usize; 2],
     ) {
         // The paired RMST + horizon survival intervals carry a graphless scalar
-        // license once their own route clears its support gate. Delayed entry,
+        // support once their own route clears its support gate. Delayed entry,
         // fixed-known-G IPCW, and the combined route each have a distinct
         // (design, method) key and its own known-truth coverage row; cause-specific
         // cumulative incidence has no RMST companion and stays off-axis.
@@ -414,7 +447,7 @@ impl CheckedSurvivalOperation {
             } else {
                 "arm_stratified_subject_bootstrap_product_limit"
             };
-            if crate::support::license_if_graphless(
+            if crate::support::support_if_graphless(
                 crate::support::GraphlessSupportKey {
                     family: "survival",
                     design,
@@ -435,7 +468,7 @@ impl CheckedSurvivalOperation {
             )
             .is_some()
             {
-                result.support_status = Some(crate::support::CellStatus::Licensed);
+                result.support_status = Some(crate::support::CellStatus::Supported);
             }
         }
     }

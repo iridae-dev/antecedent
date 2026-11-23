@@ -81,7 +81,10 @@ fn artifacts_of_different_simulations_are_not_paired_by_index() {
         let refusal = check_rows_pairable_across(&[("a", &ia), ("other", &io)])
             .expect_err("different joint laws do not pair");
         assert_eq!(refusal.code, "joint_law_required");
-        assert_eq!(refusal.detail, "joint_law_propagation.alignment_mismatch");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::joint_law_propagation::ALIGNMENT_MISMATCH
+        );
     }
 }
 

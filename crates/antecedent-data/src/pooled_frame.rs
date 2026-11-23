@@ -3,11 +3,12 @@
 //! Materializes each environment independently (no cross-env lag windows), stacks
 //! effective rows, then appends synthetic dummy columns.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
-use antecedent_core::{KernelPolicy, VariableId};
+use antecedent_core::execution::AdmissionError;
+use antecedent_core::{ExecutionContext, KernelPolicy, VariableId};
 
 use crate::error::DataError;
 use crate::lagged_frame::LaggedFrame;
@@ -15,6 +16,10 @@ use crate::multi_env::MultiEnvironmentData;
 use crate::table::TableView;
 
 /// Default cap on distinct time levels for [`TimeDummyEncoding::OneHot`] (fail-closed).
+///
+/// This guards the pooling that has no memory budget to measure the one-hot block against
+/// ([`pool_multi_env_lagged_frame`]). [`pool_multi_env_lagged_frame_within`] replaces the
+/// count cap by admitting the block's bytes against an execution context.
 pub const DEFAULT_MAX_TIME_ONE_HOT_LEVELS: usize = 512;
 
 /// How the synthetic time dummy is embedded in the pooled frame.
@@ -81,8 +86,7 @@ impl PooledLaggedFrame {
     /// Whether `v` is a synthesized dummy column.
     #[must_use]
     pub fn is_dummy(&self, v: VariableId) -> bool {
-        self.space_dummy_variables.iter().any(|&x| x == v)
-            || self.time_dummy_variables.iter().any(|&x| x == v)
+        self.space_dummy_variables.contains(&v) || self.time_dummy_variables.contains(&v)
     }
 }
 
@@ -103,15 +107,50 @@ pub fn pool_multi_env_lagged_frame(
     dummies: DummyOptions,
     policy: &KernelPolicy,
 ) -> Result<PooledLaggedFrame, DataError> {
+    pool_impl(data, variables, frame_depth, dummies, policy, None)
+}
+
+/// [`pool_multi_env_lagged_frame`] with the one-hot time block bounded by `ctx`'s memory
+/// instead of a level count.
+///
+/// The bytes of the one-hot block (one constant column per lag slot for each level but the
+/// reference, the staged columns, and the copy made when they are appended) are acquired
+/// from the context's admission pool before the block is built and released when the frame
+/// is returned. [`DummyOptions::max_time_one_hot_levels`] is not consulted.
+///
+/// # Errors
+///
+/// As [`pool_multi_env_lagged_frame`], [`DataError::Cancelled`] when the context is
+/// cancelled, or a [`DataError::BudgetRefused`] naming the bytes needed when the pool
+/// cannot admit the one-hot block.
+pub fn pool_multi_env_lagged_frame_within(
+    data: &MultiEnvironmentData,
+    variables: &[VariableId],
+    frame_depth: u32,
+    dummies: DummyOptions,
+    policy: &KernelPolicy,
+    ctx: &ExecutionContext,
+) -> Result<PooledLaggedFrame, DataError> {
+    pool_impl(data, variables, frame_depth, dummies, policy, Some(ctx))
+}
+
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "The shared frame API borrows the caller’s kernel policy."
+)]
+fn pool_impl(
+    data: &MultiEnvironmentData,
+    variables: &[VariableId],
+    frame_depth: u32,
+    dummies: DummyOptions,
+    policy: &KernelPolicy,
+    budget: Option<&ExecutionContext>,
+) -> Result<PooledLaggedFrame, DataError> {
     if data.env_count() == 0 {
-        return Err(DataError::InvalidArgument {
-            message: "pooled lagged frame needs ≥1 environment".into(),
-        });
+        return Err(DataError::empty("pooled lagged frame environments"));
     }
     if variables.is_empty() {
-        return Err(DataError::InvalidArgument {
-            message: "pooled lagged frame needs ≥1 variable".into(),
-        });
+        return Err(DataError::empty("pooled lagged frame variables"));
     }
 
     let mut frames = Vec::with_capacity(data.env_count());
@@ -123,6 +162,10 @@ pub fn pool_multi_env_lagged_frame(
         frames.push(frame);
     }
     let mut pooled = LaggedFrame::stack(&frames)?;
+    // Lag slots per variable, before any dummy column widens the frame.
+    let lag_slots = pooled.ncols() / variables.len();
+    // Held while the one-hot block is built when a budget is supplied.
+    let mut block_lease = None;
 
     let next_id = next_synthetic_id(variables, data.schema().len());
     let mut space_dummies = Vec::new();
@@ -161,14 +204,24 @@ pub fn pool_multi_env_lagged_frame(
                 let mut levels = times.clone();
                 levels.sort_unstable();
                 levels.dedup();
-                if levels.len() > dummies.max_time_one_hot_levels {
-                    return Err(DataError::InvalidArgument {
-                        message: format!(
-                            "time one-hot: {} distinct levels exceeds max_time_one_hot_levels={}",
-                            levels.len(),
-                            dummies.max_time_one_hot_levels
-                        ),
-                    });
+                if let Some(ctx) = budget {
+                    let columns = (levels.len().saturating_sub(1) as u64)
+                        .saturating_mul(lag_slots as u64 + 1);
+                    let bytes = columns
+                        .saturating_mul(pooled.n_effective() as u64)
+                        .saturating_mul(8)
+                        .saturating_mul(2);
+                    block_lease =
+                        Some(ctx.acquire_admission(0, bytes).map_err(|error| match error {
+                            AdmissionError::Cancelled => DataError::Cancelled,
+                            _ => DataError::budget_refused("time one-hot block", bytes, None),
+                        })?);
+                } else if levels.len() > dummies.max_time_one_hot_levels {
+                    return Err(DataError::exceeds_limit(
+                        "time one-hot distinct levels",
+                        u64::try_from(levels.len()).unwrap_or(u64::MAX),
+                        u64::try_from(dummies.max_time_one_hot_levels).unwrap_or(u64::MAX),
+                    ));
                 }
                 // T≤1 → constant; no identifiable dummy columns.
                 if levels.len() > 1 {
@@ -189,6 +242,7 @@ pub fn pool_multi_env_lagged_frame(
     }
 
     let _ = cursor; // advance tracked for future synthetic columns
+    drop(block_lease);
     Ok(PooledLaggedFrame {
         frame: pooled,
         observed_variables: Arc::from(variables.to_vec()),
@@ -210,16 +264,17 @@ fn effective_raw_times(
         let series = data.environment(env_idx)?;
         let n_raw = series.row_count();
         if base + n_eff > n_raw {
-            return Err(DataError::InvalidArgument {
-                message: format!(
-                    "time dummy: env {env_idx} effective {n_eff} + depth {frame_depth} exceeds rows {n_raw}"
-                ),
-            });
+            return Err(DataError::exceeds_limit(
+                "time dummy effective rows plus depth",
+                u64::try_from(base + n_eff).unwrap_or(u64::MAX),
+                u64::try_from(n_raw).unwrap_or(u64::MAX),
+            ));
         }
         for j in 0..n_eff {
-            times.push(u32::try_from(base + j).map_err(|_| DataError::InvalidArgument {
-                message: "time dummy: raw time index exceeds u32".into(),
-            })?);
+            times.push(
+                u32::try_from(base + j)
+                    .map_err(|_| DataError::overflow("time dummy raw time index as u32"))?,
+            );
         }
     }
     Ok(times)
@@ -431,7 +486,51 @@ mod tests {
             &KernelPolicy::default_policy(),
         )
         .unwrap_err();
-        assert!(err.to_string().contains("max_time_one_hot_levels"), "unexpected error: {err}");
+        assert!(
+            matches!(err, DataError::ExceedsLimit { limit: 4, value, .. } if value > 4),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[test]
+    fn time_dummy_one_hot_is_bounded_by_the_execution_memory_budget() {
+        use antecedent_core::execution::AdmissionPool;
+
+        let a = float_series(20, 1);
+        let multi = MultiEnvironmentData::try_new(Arc::from([a])).unwrap();
+        let vars = [VariableId::from_raw(0)];
+        let options = DummyOptions {
+            include_space_dummy: false,
+            include_time_dummy: true,
+            time_dummy_encoding: TimeDummyEncoding::OneHot,
+            // Not consulted when a budget is supplied.
+            max_time_one_hot_levels: 1,
+        };
+        let tight = ExecutionContext::for_tests(1).with_admission(AdmissionPool::fixed(1, 64));
+        let err = pool_multi_env_lagged_frame_within(
+            &multi,
+            &vars,
+            2,
+            options,
+            &KernelPolicy::default_policy(),
+            &tight,
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("memory budget"), "unexpected error: {err}");
+        assert_eq!(tight.admission().available().bytes(), 64, "a refusal holds nothing");
+
+        let roomy = ExecutionContext::for_tests(1).with_admission(AdmissionPool::fixed(1, 1 << 20));
+        let pooled = pool_multi_env_lagged_frame_within(
+            &multi,
+            &vars,
+            2,
+            options,
+            &KernelPolicy::default_policy(),
+            &roomy,
+        )
+        .unwrap();
+        assert!(!pooled.time_dummy_variables.is_empty());
+        assert_eq!(roomy.admission().available().bytes(), 1 << 20, "the lease is released");
     }
 
     #[test]

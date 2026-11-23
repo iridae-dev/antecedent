@@ -5,7 +5,7 @@
 //! refusal boundary, and the Markovian regression against the fixed-DAG edge
 //! contrast.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,
@@ -31,7 +31,7 @@ use antecedent::counterfactual_id::{
 use antecedent::cross_world::{CrossWorldOptions, evaluate_cross_world_effect};
 use antecedent_core::{
     CounterfactualEvent, CounterfactualEventQuery, CrossWorldQuery, EdgeRoute, ExecutionContext,
-    ExogenousCoupling, MemoryBudget, RegimeId, SearchLimits, Value, VariableId, WorldId, WorldSpec,
+    ExogenousCoupling, RegimeId, SearchLimits, Value, VariableId, WorldId, WorldSpec,
 };
 use antecedent_data::TabularData;
 use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, LawTolerance};
@@ -205,7 +205,7 @@ fn the_markovian_ett_equals_the_edge_contrast_restricted_to_the_untreated() {
     // enumeration table (multiplicities proportional to the probabilities).
     // One row per exogenous state (8 rows): few enough rows per level that the
     // The fixed-DAG fitter treats the columns as continuous and fits the linear-Gaussian
-    // mechanisms its cell licenses (5 rows per level would make them discrete).
+    // mechanisms its cell supports (5 rows per level would make them discrete).
     let (px, pm, py) = ([1u32, 1], [1u32, 1], [1u32, 1]);
     let (mut xs, mut ms, mut ys) = (Vec::new(), Vec::new(), Vec::new());
     let mut cells = std::collections::BTreeMap::new();
@@ -468,7 +468,7 @@ fn a_mutated_artifact_fails_consumption_with_a_typed_error() {
     // Every error carries a registered (reason code, detail) pair.
     assert_eq!(
         CounterfactualIdArtifactError::PointMismatch.reason(),
-        ("invalid_argument", "counterfactual_id.invalid_artifact")
+        ("invalid_argument", antecedent_core::reason_details::counterfactual_id::INVALID_ARTIFACT)
     );
 }
 
@@ -575,14 +575,17 @@ fn consumer_limits_refuse_before_any_work_and_bounds_hold_at_export() {
     ] {
         let error = consume_counterfactual_id_artifact(&bytes, limits, &ctx()).unwrap_err();
         assert!(matches!(error, CounterfactualIdArtifactError::LimitsExceeded(_)), "{error:?}");
-        assert_eq!(error.reason(), ("route_not_supported", "counterfactual_id.bounds_exceeded"));
+        assert_eq!(
+            error.reason(),
+            (
+                "route_not_supported",
+                antecedent_core::reason_details::counterfactual_id::BOUNDS_EXCEEDED
+            )
+        );
     }
     // The context's hard memory limit below the stored cap refuses up front too.
     let mut small = ctx();
-    small.memory = MemoryBudget {
-        soft_limit_bytes: None,
-        hard_limit_bytes: Some(stored.memory_limit_bytes - 1),
-    };
+    small.set_memory_limit(Some(stored.memory_limit_bytes - 1));
     assert!(matches!(
         consume_counterfactual_id_artifact(
             &bytes,
@@ -648,7 +651,10 @@ fn the_two_cross_world_formats_refuse_each_other() {
     )
     .unwrap_err();
     assert_eq!(error, CounterfactualIdArtifactError::UnsupportedSemantics("required features"));
-    assert_eq!(error.reason(), ("invalid_argument", "counterfactual_id.invalid_artifact"));
+    assert_eq!(
+        error.reason(),
+        ("invalid_argument", antecedent_core::reason_details::counterfactual_id::INVALID_ARTIFACT)
+    );
     // An edge-contrast artifact is refused by this reader.
     // Continuous columns, the fixed-DAG cell's linear-Gaussian fit.
     let xs: Vec<f64> = (0..40).map(|i| (f64::from(i) * 0.37).sin()).collect();
@@ -676,7 +682,10 @@ fn the_two_cross_world_formats_refuse_each_other() {
         matches!(&error, CounterfactualIdArtifactError::Decode(m) if m.contains("unknown field `graph_edges`")),
         "{error:?}"
     );
-    assert_eq!(error.reason(), ("invalid_argument", "counterfactual_id.invalid_artifact"));
+    assert_eq!(
+        error.reason(),
+        ("invalid_argument", antecedent_core::reason_details::counterfactual_id::INVALID_ARTIFACT)
+    );
 }
 
 // ---------------------------------------------------------------- refusals
@@ -735,7 +744,7 @@ fn structures_queries_and_inference_outside_the_cell_are_refused() {
         )),
     ] {
         assert!(
-            text.contains("reason=cell_not_licensed: counterfactual_id.graph_outside_contract"),
+            text.contains("reason=route_not_supported: counterfactual_id.graph_outside_contract"),
             "{text}"
         );
     }
@@ -893,7 +902,7 @@ fn a_routed_world_is_deferred_through_the_facade() {
         &ctx(),
     ));
     assert!(
-        text.contains("reason=route_not_supported: counterfactual_id.path_specific_deferred"),
+        text.contains("reason=route_not_supported: counterfactual_id.path_specific_not_supported"),
         "{text}"
     );
 }
@@ -958,7 +967,10 @@ fn laws_without_support_or_positivity_are_refused() {
         .evaluate(&exact(&[2, 2], vec![0.25; 4], "narrow"), &ctx())
         .unwrap_err()
         .to_string();
-    assert!(text.contains("counterfactual_id.invalid_query"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::counterfactual_id::INVALID_QUERY),
+        "{text}"
+    );
 }
 
 #[test]

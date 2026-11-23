@@ -8,7 +8,7 @@
 //!   the mixture-average effect, a responsibilities summary (per-class means, hard-assignment
 //!   counts, separation and a digest of the full matrix), the head and digest of the
 //!   log-likelihood trace, the premises with their declared or checked status, the
-//!   configuration, the identity digests and the **unmeasured** calibration coordinate;
+//!   configuration, the identity digests and the **`not_measured`** calibration coordinate;
 //! * `latent_class.data` (little-endian `f64`): the compact analysis dataset (outcome,
 //!   treatment, then each covariate), or nothing when the record binds its dataset by digest.
 //!
@@ -37,11 +37,11 @@
 //!   refuses it unless the digest matches.
 //!
 //! What this does **not** say: class labels are an effect ordering, not a discovered meaning;
-//! bootstrap standard errors carry no coverage claim (`calibration = "unmeasured"`); the
+//! bootstrap standard errors carry no coverage claim (`calibration = "not_measured"`); the
 //! within-class randomization and Gaussian-linear class model are declared, not tested. Unknown
 //! major versions refuse.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_estimate::latent_class_effects::{
@@ -54,21 +54,14 @@ use crate::artifact_budget::{
     BudgetDetails, BudgetRefusal, admit_computation, admit_export, planned_bytes, unbounded_context,
 };
 use crate::convert::to_cbor;
+use crate::width::lossless_u64;
 
 /// The artifact major version this reader writes and accepts.
 pub const LATENT_CLASS_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
 pub const LATENT_CLASS_ARTIFACT_FEATURE: &str = "latent_class_effects_v1";
 /// Calibration coordinate of the bootstrap standard errors: coverage was not measured.
-pub const LATENT_CLASS_ARTIFACT_CALIBRATION: &str = "unmeasured";
-/// Most analysis rows an artifact embedded under the earlier fixed ceiling.
-#[deprecated(
-    since = "2.4.1",
-    note = "no longer enforced: the fit has no row ceiling; the export and computation budgets bound the artifact"
-)]
-pub const LATENT_CLASS_ARTIFACT_MAX_ROWS: usize = 10_000;
-/// Most covariates an artifact may embed.
-pub const LATENT_CLASS_ARTIFACT_MAX_COVARIATES: usize = 32;
+pub const LATENT_CLASS_ARTIFACT_CALIBRATION: &str = "not_measured";
 /// Most bootstrap replicates a producer may request and a consumer will replay.
 pub const LATENT_CLASS_ARTIFACT_MAX_BOOTSTRAP: u32 = 1_000;
 /// Log-likelihood trace entries kept verbatim in the record (the full trace is digested).
@@ -80,9 +73,12 @@ const ARTIFACT_KIND: &str = crate::artifact_kinds::LATENT_CLASS_EFFECTS;
 const META_SECTION: &str = "latent_class_meta";
 const DATA_SECTION: &str = "latent_class_data";
 const BUDGET: BudgetDetails = BudgetDetails {
-    cancelled: (antecedent_core::reason_code!("cancelled_no_claim"), "latent_class.cancelled"),
-    memory: "latent_class.memory_budget_exceeded",
-    export: "latent_class.export_budget_exceeded",
+    cancelled: (
+        antecedent_core::reason_code!("cancelled_no_claim"),
+        antecedent_core::reason_details::latent_class::CANCELLED,
+    ),
+    memory: antecedent_core::reason_details::latent_class::MEMORY_BUDGET_EXCEEDED,
+    export: antecedent_core::reason_details::latent_class::EXPORT_BUDGET_EXCEEDED,
 };
 /// `LatentClassMeta::data_binding` of a record that holds no dataset, only its digest.
 const DATA_BOUND_BY_DIGEST: &str = "digest";
@@ -96,15 +92,16 @@ crate::sectioned_artifact_error!(
     true
 );
 
-fn budget_refusal((code, message): BudgetRefusal) -> LatentClassArtifactError {
-    LatentClassArtifactError::Refused { code, message }
+fn budget_refusal((code, detail, explanation): BudgetRefusal) -> LatentClassArtifactError {
+    LatentClassArtifactError::refused(code, detail, explanation)
 }
 
 fn invalid_request(message: &str) -> LatentClassArtifactError {
-    LatentClassArtifactError::Refused {
-        code: antecedent_core::reason_code!("invalid_argument"),
-        message: format!("latent_class.invalid_request: {message}"),
-    }
+    LatentClassArtifactError::refused(
+        antecedent_core::reason_code!("invalid_argument"),
+        antecedent_core::reason_details::latent_class::INVALID_REQUEST,
+        message,
+    )
 }
 
 /// Fit configuration on the wire.
@@ -301,7 +298,7 @@ pub struct LatentClassMeta {
     /// absent when the dataset is embedded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data_binding: Option<String>,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Always `point_with_bootstrap_se`.
     pub inference_claim: String,
@@ -325,10 +322,6 @@ pub struct LatentClassReportWire {
 
 fn count_u32(n: usize) -> Result<u32, LatentClassArtifactError> {
     u32::try_from(n).map_err(|_| LatentClassArtifactError::LimitsExceeded("count"))
-}
-
-fn count_u64(n: usize) -> u64 {
-    crate::width::lossless_u64(n)
 }
 
 fn index(n: u32) -> usize {
@@ -355,9 +348,8 @@ fn config_of(wire: &LatentClassConfigWire) -> LatentClassConfig {
 }
 
 fn check_limits(request: &LatentClassRequestWire) -> Result<(), LatentClassArtifactError> {
-    if request.data.covariates.len() > LATENT_CLASS_ARTIFACT_MAX_COVARIATES {
-        return Err(LatentClassArtifactError::LimitsExceeded("covariates"));
-    }
+    // The covariate count is bounded by the bytes of the data section (a column is `n` reals),
+    // by the byte budget of the artifact and by the replay's memory budget, not by a count.
     if request.config.bootstrap_replicates > LATENT_CLASS_ARTIFACT_MAX_BOOTSTRAP {
         return Err(LatentClassArtifactError::LimitsExceeded("bootstrap replicates"));
     }
@@ -397,7 +389,7 @@ fn fit_of(
         treatment: &request.data.treatment,
         covariates: &request.data.covariates,
     };
-    Ok(fit_latent_class_effects(&data, &config_of(&request.config))?)
+    Ok(fit_latent_class_effects(&data, &config_of(&request.config), ctx)?)
 }
 
 fn data_bytes(data: &LatentClassDataWire) -> Vec<u8> {
@@ -417,9 +409,6 @@ fn request_of(
 ) -> Result<LatentClassRequestWire, LatentClassArtifactError> {
     let n = usize::try_from(meta.n_rows).unwrap_or(usize::MAX);
     let p = meta.covariate_names.len();
-    if p > LATENT_CLASS_ARTIFACT_MAX_COVARIATES {
-        return Err(LatentClassArtifactError::LimitsExceeded("covariates"));
-    }
     let columns = crate::width::columns_from_le(numbers, n, 2 + p)
         .ok_or_else(|| LatentClassArtifactError::Malformed("data section length".into()))?;
     Ok(LatentClassRequestWire {
@@ -459,10 +448,10 @@ fn responsibilities_summary(
     let mut counts = vec![0_u64; k];
     for &assigned in &result.hard_assignment {
         counts[assigned] += 1;
-        hasher.word(count_u64(assigned));
+        hasher.word(lossless_u64(assigned));
     }
     Ok(ResponsibilitiesSummaryWire {
-        rows: count_u64(rows),
+        rows: lossless_u64(rows),
         class_means: sums.iter().map(|s| s / rows_f).collect(),
         hard_counts: counts,
         separation: result.separation,
@@ -479,14 +468,14 @@ fn likelihood_record(
     }
     Ok(LatentClassLikelihoodWire {
         log_likelihood: result.log_likelihood,
-        iterations: count_u64(result.iterations),
+        iterations: lossless_u64(result.iterations),
         trace_head: result
             .log_likelihood_trace
             .iter()
             .take(LATENT_CLASS_ARTIFACT_TRACE_HEAD)
             .copied()
             .collect(),
-        trace_len: count_u64(result.log_likelihood_trace.len()),
+        trace_len: lossless_u64(result.log_likelihood_trace.len()),
         trace_digest: hasher.finish_hex(),
         bic: result.bic,
         restarts_attempted: count_u32(result.restarts_attempted)?,
@@ -518,7 +507,7 @@ fn data_digest(data: &LatentClassDataWire) -> Result<String, LatentClassArtifact
     let names = to_cbor(&data.covariate_names)?;
     let hasher = CanonicalWriter::new("latent_class_effects_v1.data")
         .bytes(&names)
-        .word(count_u64(data.outcome.len()))
+        .word(lossless_u64(data.outcome.len()))
         .bytes(&data_bytes(data))
         .finish();
     Ok(antecedent_core::to_hex(&hasher))
@@ -604,7 +593,7 @@ fn build_meta(
         bootstrap,
         premises,
         config: request.config.clone(),
-        n_rows: count_u64(request.data.outcome.len()),
+        n_rows: lossless_u64(request.data.outcome.len()),
         covariate_names: request.data.covariate_names.clone(),
         data_binding: None,
         calibration: LATENT_CLASS_ARTIFACT_CALIBRATION.to_owned(),
@@ -619,19 +608,13 @@ fn identity_diff(
     stored: &LatentClassIdentity,
     other: &LatentClassIdentity,
 ) -> Option<&'static str> {
-    if stored.premises_id != other.premises_id {
-        Some("premises")
-    } else if stored.config_id != other.config_id {
-        Some("config")
-    } else if stored.data_id != other.data_id {
-        Some("data")
-    } else if stored.result_id != other.result_id {
-        Some("result")
-    } else if stored.digest != other.digest {
-        Some("identity")
-    } else {
-        None
-    }
+    crate::first_identity_difference!(stored, other, {
+        premises_id => "premises",
+        config_id => "config",
+        data_id => "data",
+        result_id => "result",
+        digest => "identity",
+    })
 }
 
 /// Encode a metadata section and a data section as a checksummed container.
@@ -657,37 +640,24 @@ fn encode_parts_impl(
     artifact_id: &str,
     export_budget: usize,
 ) -> Result<Vec<u8>, LatentClassArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(LatentClassArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes =
-        to_cbor(meta).map_err(|error| LatentClassArtifactError::Encode(error.to_string()))?;
     // A consumer reads at most the byte cap of uncompressed sections, whatever the container
     // compresses to; the caller's budget bounds the container itself.
-    admit_export(
-        BUDGET,
-        meta_bytes.len().saturating_add(data.len()),
-        MAX_LATENT_CLASS_ARTIFACT_BYTES,
-    )
-    .map_err(budget_refusal)?;
-    let bytes = crate::encode_container(
+    let bytes = crate::artifact_codec::encode_sectioned_admitting(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
-            note: "latent_class_point_with_bootstrap_se_unmeasured",
+            note: "latent_class_point_with_bootstrap_se_not_measured",
             max_bytes: MAX_LATENT_CLASS_ARTIFACT_BYTES,
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[
-            crate::OutSection {
-                id: META_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &meta_bytes,
-            },
-            crate::OutSection { id: DATA_SECTION, content_type: crate::CONTENT_BYTES, bytes: data },
-        ],
-    )
-    .map_err(|error| crate::map_artifact_check!(error, LatentClassArtifactError))?;
+        META_SECTION,
+        meta,
+        &[crate::OutSection { id: DATA_SECTION, content_type: crate::CONTENT_BYTES, bytes: data }],
+        |uncompressed| {
+            admit_export(BUDGET, uncompressed, MAX_LATENT_CLASS_ARTIFACT_BYTES)
+                .map_err(budget_refusal)
+        },
+    )?;
     admit_export(BUDGET, bytes.len(), export_budget.min(MAX_LATENT_CLASS_ARTIFACT_BYTES))
         .map_err(budget_refusal)?;
     Ok(bytes)
@@ -707,23 +677,18 @@ pub fn decode_parts(bytes: &[u8]) -> Result<(LatentClassMeta, Vec<u8>), LatentCl
 }
 
 fn decode_parts_impl(bytes: &[u8]) -> Result<(LatentClassMeta, Vec<u8>), LatentClassArtifactError> {
-    let parts = crate::decode_container(
-        ARTIFACT_KIND,
-        MAX_LATENT_CLASS_ARTIFACT_BYTES,
-        &[META_SECTION, DATA_SECTION],
-        bytes,
-    )
-    .map_err(|error| crate::map_artifact_check!(error, LatentClassArtifactError))?;
-    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
+    let (meta, parts) =
+        crate::artifact_codec::decode_sectioned::<LatentClassArtifactError, LatentClassMeta>(
+            ARTIFACT_KIND,
+            MAX_LATENT_CLASS_ARTIFACT_BYTES,
+            META_SECTION,
+            &[DATA_SECTION],
+            LATENT_CLASS_ARTIFACT_VERSION,
+            bytes,
+        )?;
+    let Ok([payload]) = <[Vec<u8>; 1]>::try_from(parts) else {
         return Err(LatentClassArtifactError::Malformed("unsupported container layout".into()));
     };
-    let meta = crate::decode_with_version(&meta_bytes, |version| {
-        if version == LATENT_CLASS_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(LatentClassArtifactError::UnsupportedVersion { version })
-        }
-    })?;
     Ok((meta, payload))
 }
 
@@ -879,18 +844,12 @@ impl LatentClassArtifact {
     ) -> Result<Self, LatentClassArtifactError> {
         let (meta, payload) = decode_parts_impl(bytes)?;
         let unsupported = LatentClassArtifactError::UnsupportedSemantics;
-        if meta.feature != LATENT_CLASS_ARTIFACT_FEATURE {
-            return Err(unsupported("feature marker"));
-        }
-        if meta.inference_claim != LATENT_CLASS_INFERENCE_CLAIM {
-            return Err(unsupported("inference claim"));
-        }
-        if meta.calibration != LATENT_CLASS_ARTIFACT_CALIBRATION {
-            return Err(unsupported("calibration"));
-        }
-        if meta.caveat != LATENT_CLASS_CAVEAT {
-            return Err(unsupported("caveat"));
-        }
+        crate::artifact_codec::require_markers::<LatentClassArtifactError>(&[
+            (meta.feature == LATENT_CLASS_ARTIFACT_FEATURE, "feature marker"),
+            (meta.inference_claim == LATENT_CLASS_INFERENCE_CLAIM, "inference claim"),
+            (meta.calibration == LATENT_CLASS_ARTIFACT_CALIBRATION, "calibration"),
+            (meta.caveat == LATENT_CLASS_CAVEAT, "caveat"),
+        ])?;
         let request = match (meta.data_binding.as_deref(), data) {
             (None, None) => request_of(&meta, &payload)?,
             (None, Some(_)) => {
@@ -900,17 +859,25 @@ impl LatentClassArtifact {
                 bound_request(&meta, &payload, supplied)?
             }
             (Some(DATA_BOUND_BY_DIGEST), None) => {
-                return Err(LatentClassArtifactError::Refused {
-                    code: antecedent_core::reason_code!("route_not_supported"),
-                    message: format!(
-                        "latent_class.data_required: the artifact is bound to its dataset by \
-                         digest {}; supply the dataset to replay it",
+                return Err(LatentClassArtifactError::refused(
+                    antecedent_core::reason_code!("route_not_supported"),
+                    antecedent_core::reason_details::latent_class::DATA_REQUIRED,
+                    format!(
+                        "the artifact is bound to its dataset by digest {}; supply the dataset \
+                         to replay it",
                         meta.identity.data_id
                     ),
-                });
+                ));
             }
             (Some(_), _) => return Err(unsupported("data binding")),
         };
+        // A caller-supplied expectation the stored identity already contradicts is refused
+        // before any re-estimation work.
+        if let Some(expected) = expected
+            && let Some(field) = identity_diff(expected, &meta.identity)
+        {
+            return Err(LatentClassArtifactError::IdentityMismatch { field });
+        }
         let result = fit_of(&request, ctx)?;
         let rebuilt = build_meta(&request, &result)?;
         let hard_assignment = hard_u32(&result)?;
@@ -927,10 +894,10 @@ impl LatentClassArtifact {
         if to_cbor(&meta)? != to_cbor(&stored_form)? {
             return Err(LatentClassArtifactError::ResultMismatch("record"));
         }
-        if let Some(expected) = expected {
-            if let Some(field) = identity_diff(expected, &rebuilt.identity) {
-                return Err(LatentClassArtifactError::IdentityMismatch { field });
-            }
+        if let Some(expected) = expected
+            && let Some(field) = identity_diff(expected, &rebuilt.identity)
+        {
+            return Err(LatentClassArtifactError::IdentityMismatch { field });
         }
         Ok(Self { meta: rebuilt, request, result, hard_assignment })
     }

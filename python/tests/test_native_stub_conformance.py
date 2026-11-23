@@ -38,6 +38,9 @@ _STUB = Path(_native.__file__).with_name("_native.pyi")
 # the extension genuinely does not define.
 _STUB_ONLY = {
     "CiArg",  # `str | Callable[..., Any] | None`, used across discovery signatures
+    "CalibrationStatus",  # Literal alias of the four calibration status words
+    "_PeriodPrior",  # tuple alias of the period-refresh prior wire form
+    "_PeriodWindow",  # tuple alias of the period-refresh window wire form
 }
 
 
@@ -66,6 +69,13 @@ def test_stub_file_exists():
     assert _STUB.is_file(), f"expected a type stub beside the extension at {_STUB}"
 
 
+def _extension_declared_names() -> set[str]:
+    """Public names plus the underscore-named classes the stub types as return values."""
+    return _extension_public_names() | {
+        n for n in dir(_native) if n.startswith("_") and not n.startswith("__")
+    }
+
+
 def test_every_extension_name_is_declared_in_the_stub():
     missing = sorted(_extension_public_names() - _stub_toplevel_names())
     assert not missing, (
@@ -74,10 +84,10 @@ def test_every_extension_name_is_declared_in_the_stub():
     )
 
 
-# One atomic optional compile-time family. Normal wheels omit ALL of these and
-# the stage method; internal acceptance builds must expose ALL of them. None is
-# an ordinary public name waived individually, and partial registration is a bug.
+# One atomic interval-candidate family. Every build exposes ALL of these and the
+# stage methods; partial registration is a bug.
 _INTERNAL_CANDIDATE_NAMES = {
+    "JointBayesianSessionHandle",
     "NativeCheckedTemporalIntervalCandidate",
     "consume_checked_temporal_interval_candidate",
     "NativeNestedFisherCandidate",
@@ -145,7 +155,7 @@ def test_internal_stage_method_cannot_drift_from_optional_family():
 def test_stub_declares_nothing_the_extension_lacks():
     optional_absent = set() if _internal_family_enabled() else _INTERNAL_CANDIDATE_NAMES
     extra = sorted(
-        _stub_toplevel_names() - _extension_public_names() - _STUB_ONLY - optional_absent
+        _stub_toplevel_names() - _extension_declared_names() - _STUB_ONLY - optional_absent
     )
     assert not extra, (
         "_native.pyi declares names the extension does not define — stale stub "
@@ -214,10 +224,22 @@ for _fn in ("prepare_statistical_transport", "prepare_transport_grid"):
 # Entry points the signature sweep below must actually compare. If introspection ever
 # silently stopped covering them (e.g. by falling into `_SIGNATURE_UNAVAILABLE` without
 # anyone noticing), this test would stop being able to catch parameter-list drift at all.
+# Underscore-named natives the package wraps. They are private, but their stub signatures
+# are compared exactly like the public ones.
+_WRAPPED_PRIVATE_NATIVES = {
+    "_identify_structure",
+}
+
+
+def test_wrapped_private_natives_exist_and_are_stubbed():
+    assert set(dir(_native)) >= _WRAPPED_PRIVATE_NATIVES
+    assert _stub_toplevel_names() >= _WRAPPED_PRIVATE_NATIVES
+
+
 _MUST_BE_CHECKED = (
     "analyze_ate_many",
     "discover_pcmci",
-    "identify_ate",
+    "_identify_structure",
     "prepare_ate_batch",
     "prepare_cells_batch",
 )
@@ -245,9 +267,13 @@ def _stub_param_specs(fn: ast.FunctionDef) -> list[tuple[str, bool, Any]]:
     for arg, default_node in zip(positional, pos_defaults, strict=True):
         default = _MISSING if default_node is None else ast.literal_eval(default_node)
         out.append((arg.arg, False, default))
+    if args.vararg is not None:
+        out.append(("*" + args.vararg.arg, False, _MISSING))
     for arg, default_node in zip(args.kwonlyargs, args.kw_defaults, strict=True):
         default = _MISSING if default_node is None else ast.literal_eval(default_node)
         out.append((arg.arg, True, default))
+    if args.kwarg is not None:
+        out.append(("**" + args.kwarg.arg, False, _MISSING))
     return out
 
 
@@ -280,8 +306,29 @@ def _native_param_specs(sig: inspect.Signature) -> list[tuple[str, bool, Any]]:
     for p in sig.parameters.values():
         keyword_only = p.kind == inspect.Parameter.KEYWORD_ONLY
         default = _MISSING if p.default is inspect.Parameter.empty else p.default
-        out.append((p.name, keyword_only, default))
+        prefix = (
+            "*"
+            if p.kind == inspect.Parameter.VAR_POSITIONAL
+            else "**"
+            if p.kind == inspect.Parameter.VAR_KEYWORD
+            else ""
+        )
+        out.append((prefix + p.name, keyword_only, default))
     return out
+
+
+def test_variadic_signature_comparison_keeps_parameter_kinds():
+    stub = ast.parse("def f(value, /, *args, mode=False, **kwargs): ...").body[0]
+    assert isinstance(stub, ast.FunctionDef)
+
+    def variadic(value, /, *args, mode=False, **kwargs):
+        pass
+
+    def positional(value, args, mode=False, kwargs=None):
+        pass
+
+    assert _stub_param_specs(stub) == _native_param_specs(inspect.signature(variadic))
+    assert _stub_param_specs(stub) != _native_param_specs(inspect.signature(positional))
 
 
 def test_stub_signatures_match_the_extension():
@@ -290,7 +337,7 @@ def test_stub_signatures_match_the_extension():
     unavailable: list[str] = []
     checked: set[str] = set()
 
-    for name in sorted(_extension_public_names() & stub_fns.keys()):
+    for name in sorted((_extension_public_names() | _WRAPPED_PRIVATE_NATIVES) & stub_fns.keys()):
         obj = getattr(_native, name)
         if not inspect.isroutine(obj):
             continue  # classes: covered by the member sweeps below

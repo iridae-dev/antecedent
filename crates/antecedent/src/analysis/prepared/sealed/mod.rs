@@ -8,13 +8,14 @@
 //! [`SealedOperation`], reached through the exhaustive projection the
 //! `sealed_executions!` list generates. No call site matches on the variants.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::estimate::ClickNotes;
 use super::{CheckedProgramBinding, PreparedExecution, PreparedStudy};
 use crate::analysis::builder::DataInput;
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
+use crate::planner::PhysicalExecutionPlan;
 use crate::result::StudyResult;
 use antecedent_core::ExecutionContext;
 use antecedent_data::{TabularData, TimeSeriesData};
@@ -59,6 +60,22 @@ mod program;
 mod static_route;
 mod temporal;
 
+/// Immutable design and roles behind a fitted-model reuse key.
+pub(super) struct AdjustedReuse<'a> {
+    pub(super) model: &'static str,
+    pub(super) covariance: &'static str,
+    pub(super) design: &'a antecedent_stats::CompiledDesign,
+    pub(super) adjustment: &'a [antecedent_core::VariableId],
+    pub(super) treatment: antecedent_core::VariableId,
+    pub(super) outcome: antecedent_core::VariableId,
+}
+
+/// A retargeted fitted-model estimate and leases for any shared output buffers.
+pub(super) struct AdjustedRetargetOutput {
+    pub(super) estimate: antecedent_estimate::EffectEstimate,
+    pub(super) retained: Vec<Arc<antecedent_core::execution::AdmissionLease>>,
+}
+
 /// A sealed operation that has a public inspection record.
 ///
 /// The record is built by the operation itself, from the state it retains, and
@@ -95,6 +112,25 @@ pub(super) trait SealedOperation {
         validators: &[Arc<dyn antecedent_validate::CustomEffectValidator>],
     );
 
+    /// Distinct from a score table: an eligible immutable fitted mean model.
+    fn adjusted_reuse(&self) -> Option<AdjustedReuse<'_>> {
+        None
+    }
+
+    /// Whether an eligible model actually retains a successful fitted point.
+    fn adjusted_retarget_ready(&self) -> bool {
+        false
+    }
+
+    /// Standardize frozen coefficients, without fitting or using DR score inference.
+    fn retarget_adjusted(
+        &self,
+        _weights: &[f64],
+        _ctx: &ExecutionContext,
+    ) -> Result<Option<AdjustedRetargetOutput>, CausalError> {
+        Ok(None)
+    }
+
     /// Rebind only the checked receipts that still execute through the shared
     /// tabular dispatcher; `None` for every operation that executes as
     /// prepared. Keeping the selection here prevents a refreshed receipt from
@@ -127,6 +163,13 @@ pub(super) trait SealedOperation {
     fn estimate_series(&self, _call: &SeriesCall<'_>) -> Result<Option<StudyResult>, CausalError> {
         Ok(None)
     }
+
+    /// Require that `plan` still carries the lowered program this operation was
+    /// sealed to. An operation that retains no program of its own accepts any plan
+    /// (the handle's dispatch already requires one).
+    fn require_retained_program(&self, _plan: &PhysicalExecutionPlan) -> Result<(), CausalError> {
+        Ok(())
+    }
 }
 
 /// A boxed operation is the operation: the large variants are boxed to keep
@@ -145,6 +188,20 @@ impl<T: SealedOperation + ?Sized> SealedOperation for Box<T> {
         validators: &[Arc<dyn antecedent_validate::CustomEffectValidator>],
     ) {
         (**self).set_custom_validators(validators);
+    }
+
+    fn adjusted_reuse(&self) -> Option<AdjustedReuse<'_>> {
+        (**self).adjusted_reuse()
+    }
+    fn adjusted_retarget_ready(&self) -> bool {
+        (**self).adjusted_retarget_ready()
+    }
+    fn retarget_adjusted(
+        &self,
+        weights: &[f64],
+        ctx: &ExecutionContext,
+    ) -> Result<Option<AdjustedRetargetOutput>, CausalError> {
+        (**self).retarget_adjusted(weights, ctx)
     }
 
     fn rebind_for_dispatch(
@@ -167,16 +224,10 @@ impl<T: SealedOperation + ?Sized> SealedOperation for Box<T> {
     fn estimate_series(&self, call: &SeriesCall<'_>) -> Result<Option<StudyResult>, CausalError> {
         (**self).estimate_series(call)
     }
-}
 
-/// The route no sealed operation admits: the ordinary dispatcher executes it.
-#[derive(Clone, Copy, Debug)]
-pub(super) struct OrdinaryDispatch;
-
-impl SealedOperation for OrdinaryDispatch {
-    unbound_program!();
-    study_owned_stage_sink!();
-    study_owned_validators!();
+    fn require_retained_program(&self, plan: &PhysicalExecutionPlan) -> Result<(), CausalError> {
+        (**self).require_retained_program(plan)
+    }
 }
 
 /// Which entry point is running a series operation. It selects the wording of
@@ -212,6 +263,7 @@ pub(super) struct SeriesCall<'a> {
     pub(super) study: &'a Study,
     pub(super) input: &'a DataInput,
     pub(super) series: &'a TimeSeriesData,
+    pub(super) provenance: Option<&'a crate::analysis::execute::TemporalRowProvenance>,
     pub(super) ctx: &'a ExecutionContext,
     pub(super) entry: SeriesEntry,
 }
@@ -243,8 +295,9 @@ pub(super) fn stamp_tabular(
     data: &TabularData,
     result: StudyResult,
     notes: &ClickNotes,
+    ctx: &ExecutionContext,
 ) -> Result<Option<StudyResult>, CausalError> {
     handle
-        .stamp_deferrable(&DataInput::Tabular(data.clone()), result, notes.defers_contract())
+        .stamp_deferrable(&DataInput::Tabular(data.clone()), result, notes.defers_contract(), ctx)
         .map(Some)
 }

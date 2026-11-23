@@ -7,24 +7,45 @@ use super::{
     IdentifiedResultContext, IdentifierId, InferenceMode, Instant, OverlapPolicy,
     PhysicalExecutionPlan, Strategy, StudyResult, TableView, TabularData, VariableId,
     anomaly_attribution_query_with, attribute_distribution_change, attribute_unit_change,
-    bayesian_draw_count, binary_cf_interventions, counterfactual_ite, elapsed_ns,
+    bayesian_draw_count, binary_cf_interventions, elapsed_ns,
     finish_identified_execute_with_context, fit_gcm, identification_from_cache_or,
     identify_static_query, map_mechanism_fit, mechanism_change_detection, nan_effect,
     parametric_scm_identification, provenance_ids, shared_identification_from_cache_or,
 };
+mod contrast_set;
+mod homogeneity;
 use crate::analysis::proof_support::proof_supplies_full;
 use antecedent_core::StreamDomain;
+use homogeneity::{
+    HomogeneityVerdict, heterogeneity_rejected_diagnostic, homogeneity_verdict,
+    homogeneity_verdict_over, path_assignments, path_assignments_over,
+};
 
+/// The complete-case table of an attribution, the submitted position of each retained row and
+/// the accounting of what was dropped.
+pub(super) struct AttributionRows {
+    table: TabularData,
+    kept: Vec<usize>,
+    report: crate::result::MissingDataReport,
+}
+
+/// Inference procedure over the heterogeneity best-score counterfactual fit.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum CounterfactualProcedure {
-    HeterogeneityBestScorePoint,
-    HeterogeneityBestScoreDirichletRowWeights { draws: usize },
+    Point,
+    DirichletRowWeights {
+        draws: usize,
+    },
+    /// Frequentist whole-procedure multinomial row bootstrap of the mean ITE.
+    RowBootstrap {
+        replicates: u32,
+    },
 }
 
 impl CounterfactualProcedure {
     pub(crate) fn for_inference(inference: &InferenceMode) -> Result<Self, CausalError> {
         match inference {
-            InferenceMode::Frequentist => Ok(Self::HeterogeneityBestScorePoint),
+            InferenceMode::Frequentist => Ok(Self::Point),
             InferenceMode::Bayesian(config) => {
                 if config.has_transfer() {
                     return Err(CausalError::Unsupported {
@@ -37,18 +58,37 @@ impl CounterfactualProcedure {
                         message: "Bayesian counterfactuals require at least two posterior draws",
                     });
                 }
-                Ok(Self::HeterogeneityBestScoreDirichletRowWeights { draws })
+                Ok(Self::DirichletRowWeights { draws })
             }
+        }
+    }
+
+    /// The Frequentist point procedure becomes the mechanism-refit row bootstrap when a
+    /// replicate count is requested and the declared design resamples subjects.
+    ///
+    /// # Errors
+    ///
+    /// A declared design that does not allow a subject resample.
+    pub(crate) fn with_bootstrap(
+        self,
+        replicates: u32,
+        design: Option<antecedent_core::DeclaredSamplingDesign>,
+    ) -> Result<Self, CausalError> {
+        match self {
+            Self::Point if replicates > 0 => {
+                super::gcm_bootstrap::require_subject_resampling(design)?;
+                Ok(Self::RowBootstrap { replicates })
+            }
+            other => Ok(other),
         }
     }
 
     fn matches_inference(&self, inference: &InferenceMode) -> bool {
         match (self, inference) {
-            (Self::HeterogeneityBestScorePoint, InferenceMode::Frequentist) => true,
-            (
-                Self::HeterogeneityBestScoreDirichletRowWeights { draws },
-                InferenceMode::Bayesian(config),
-            ) => *draws == config.n_draws,
+            (Self::Point | Self::RowBootstrap { .. }, InferenceMode::Frequentist) => true,
+            (Self::DirichletRowWeights { draws }, InferenceMode::Bayesian(config)) => {
+                *draws == config.n_draws
+            }
             _ => false,
         }
     }
@@ -137,14 +177,13 @@ mod checked_counterfactual_plan_tests {
     fn refuses_procedure_inference_mismatch_and_wrong_draw_count() {
         let frequentist = InferenceMode::Frequentist;
         assert!(
-            !CounterfactualProcedure::HeterogeneityBestScoreDirichletRowWeights { draws: 32 }
+            !CounterfactualProcedure::DirichletRowWeights { draws: 32 }
                 .matches_inference(&frequentist)
         );
 
         let bayesian = InferenceMode::Bayesian(BayesianConfig::laplace());
-        assert!(!CounterfactualProcedure::HeterogeneityBestScorePoint.matches_inference(&bayesian));
-        let wrong_draws =
-            CounterfactualProcedure::HeterogeneityBestScoreDirichletRowWeights { draws: 33 };
+        assert!(!CounterfactualProcedure::Point.matches_inference(&bayesian));
+        let wrong_draws = CounterfactualProcedure::DirichletRowWeights { draws: 33 };
         assert!(!wrong_draws.matches_inference(&bayesian));
         let matching = CounterfactualProcedure::for_inference(&bayesian).unwrap();
         assert!(matching.matches_inference(&bayesian));
@@ -186,6 +225,10 @@ fn noise_inference_label(kind: antecedent_counterfactual::NoiseInferenceKind) ->
     }
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "one counterfactual execution: the procedure's estimate, the homogeneity verdict and the identified finish share every fitted product"
+)]
 fn execute_checked_counterfactual_plan(
     plan: &CheckedCounterfactualPlan,
     data: &TabularData,
@@ -196,6 +239,9 @@ fn execute_checked_counterfactual_plan(
     let estimand = plan.cache.estimand.clone();
     let identify_cached = plan.identify_cached;
 
+    if let Some(target) = plan.operation.contrast_target() {
+        return contrast_set::execute_contrast_set_plan(plan, target, data, ctx);
+    }
     let query = plan.operation.query();
     let graph = plan.operation.graph();
     let (treatment, active, control) = binary_cf_interventions(query)?;
@@ -210,23 +256,27 @@ fn execute_checked_counterfactual_plan(
         assumptions: &identification.required_assumptions,
         status: identification.status,
     };
-    let (estimate, posterior, ite) =
-        if let CounterfactualProcedure::HeterogeneityBestScoreDirichletRowWeights { draws } =
-            &plan.procedure
-        {
-            dirichlet_counterfactual_estimate(&refit, ite, *draws, ctx)?
-        } else {
-            (
-                EffectEstimate::new(
-                    ite.mean_ite,
-                    f64::NAN,
-                    identification.required_assumptions.clone(),
-                    OverlapPolicy::ExplicitOverride,
-                ),
-                None,
-                ite,
-            )
-        };
+    let mut bootstrap_note = None;
+    let (estimate, posterior, ite) = if let CounterfactualProcedure::DirichletRowWeights { draws } =
+        &plan.procedure
+    {
+        dirichlet_counterfactual_estimate(&refit, ite, *draws, ctx)?
+    } else if let CounterfactualProcedure::RowBootstrap { replicates } = &plan.procedure {
+        let (estimate, note) = bootstrap_counterfactual_estimate(&refit, &ite, *replicates, ctx)?;
+        bootstrap_note = Some(note);
+        (estimate, None, ite)
+    } else {
+        (
+            EffectEstimate::new(
+                ite.mean_ite,
+                f64::NAN,
+                identification.required_assumptions.clone(),
+                OverlapPolicy::ExplicitOverride,
+            ),
+            None,
+            ite,
+        )
+    };
     let verdict = homogeneity_verdict(graph, &mechanism_assignments, treatment, outcome);
     let mut estimate = estimate;
     estimate.heterogeneity.unit_effects_homogeneous =
@@ -261,6 +311,13 @@ fn execute_checked_counterfactual_plan(
         support.support_diagnostic(min, max, pooled_extrapolative),
         counterfactual_uncertainty_diagnostic(posterior.is_some()),
     ];
+    let bootstrapped = bootstrap_note.is_some();
+    if bootstrapped {
+        diagnostics.retain(|diagnostic| {
+            diagnostic.code.as_ref() != "gcm.counterfactual.uncertainty_unavailable"
+        });
+    }
+    diagnostics.extend(bootstrap_note);
     homogeneity_diagnostics(data, outcome, ite.mean_ite, &verdict, &mut diagnostics);
     Ok(finish_identified_execute_with_context(
         &plan.result_context,
@@ -279,7 +336,12 @@ fn execute_checked_counterfactual_plan(
         .wall_time_ns(elapsed_ns(started))
         .extras(IdentifiedExecuteExtras {
             gcm: Some(GcmSlot::Counterfactual(ite)),
-            bootstrap_replicates_requested: Some(None),
+            bootstrap_replicates_requested: Some(match plan.procedure {
+                CounterfactualProcedure::RowBootstrap { replicates } if bootstrapped => {
+                    Some(replicates)
+                }
+                _ => None,
+            }),
             identify_provenance: Some(provenance_ids(
                 "identify.gcm_parametric",
                 "identify.gcm_parametric",
@@ -325,6 +387,9 @@ fn dirichlet_counterfactual_estimate(
     // the same summary that publishes the mean-ITE interval.
     let mut unit_draws = vec![0.0; n_units * n_draws];
     let mut rng = ctx.rng.stream_for(StreamDomain::Attribution, 0x0CF0);
+    // One stream through every draw: a categorical node's rank-preserving noise is drawn once
+    // per posterior draw of the mechanisms, independently across draws.
+    let mut noise_rng = ctx.rng.stream_for(StreamDomain::Counterfactual, 0x0CF1);
     let n = data.row_count();
     for draw in 0..n_draws {
         if ctx.cancellation.is_cancelled() {
@@ -342,8 +407,13 @@ fn dirichlet_counterfactual_estimate(
                 other => CausalError::rejected(other),
             })?;
         let draw_model = base_model.clone().with_mechanisms(store);
-        let draw_ite =
-            counterfactual_ite(draw_model, data, treatment, outcome, active, control, ctx)?;
+        let draw_ite = crate::gcm::counterfactual_ite_with_noise(
+            draw_model,
+            data,
+            (treatment, outcome, active, control),
+            ctx,
+            &mut noise_rng,
+        )?;
         if draw_ite.unit_effects.len() != n_units {
             return Err(CausalError::Compile {
                 message: "counterfactual Bayesian draw changed the unit set".into(),
@@ -386,6 +456,88 @@ fn dirichlet_counterfactual_estimate(
     Ok((estimate, Some(posterior), ite))
 }
 
+/// Frequentist whole-procedure row bootstrap of the mean ITE: each replicate refits every
+/// mechanism under multinomial row counts (conditional on the selected families) and
+/// abducts–acts–predicts on the original units. The point stays the original fit's mean
+/// ITE; the replicates give its bootstrap standard error. Per-unit intervals are not
+/// formed. Failed replicates are retained as failed mass.
+fn bootstrap_counterfactual_estimate(
+    refit: &CounterfactualRefit<'_>,
+    ite: &crate::gcm::IteResult,
+    replicates: u32,
+    ctx: &ExecutionContext,
+) -> Result<(EffectEstimate, Diagnostic), CausalError> {
+    let CounterfactualRefit { data, fitted, contrast, assumptions, status: _ } = *refit;
+    let UnitContrast { treatment, outcome, active, control } = contrast;
+    let n = data.row_count();
+    let _admitted = super::gcm_bootstrap::admit_replicates(ctx, replicates, 1, n)?;
+    let registry = crate::gcm::MechanismRegistry::with_heterogeneity_families();
+    let cancelled = || ctx.cancellation.is_cancelled();
+    let mut values = Vec::with_capacity(usize::try_from(replicates).unwrap_or(0));
+    let mut failed = 0_u32;
+    for replicate in 0..replicates {
+        if cancelled() {
+            return Err(CausalError::Cancelled { stage: super::super::stage::STAGE_UNCERTAINTY });
+        }
+        let mut rng = super::gcm_bootstrap::replicate_stream(ctx, 0x0CF0_B007, replicate);
+        let counts = super::gcm_bootstrap::bootstrap_counts(&mut rng, n);
+        let store = match registry.refit_frequency_weighted_polled(
+            &fitted.model,
+            data,
+            &fitted.assignments,
+            &counts,
+            &cancelled,
+        ) {
+            Ok(store) => store,
+            Err(_) if cancelled() => {
+                return Err(CausalError::Cancelled {
+                    stage: super::super::stage::STAGE_UNCERTAINTY,
+                });
+            }
+            Err(_) => {
+                failed += 1;
+                continue;
+            }
+        };
+        // One noise stream per replicate: a categorical node's rank-preserving noise is
+        // drawn once per replicate, keyed by the replicate.
+        let mut noise_rng = ctx.rng.stream_for(
+            StreamDomain::Counterfactual,
+            0x0CF1_B007_u64.wrapping_add(u64::from(replicate)),
+        );
+        match crate::gcm::counterfactual_ite_with_noise(
+            fitted.model.clone().with_mechanisms(store),
+            data,
+            (treatment, outcome, active, control),
+            ctx,
+            &mut noise_rng,
+        ) {
+            Ok(draw) if draw.unit_effects.len() == ite.unit_effects.len() => {
+                values.push(draw.mean_ite);
+            }
+            Err(_) if cancelled() => {
+                return Err(CausalError::Cancelled {
+                    stage: super::super::stage::STAGE_UNCERTAINTY,
+                });
+            }
+            _ => failed += 1,
+        }
+    }
+    let accounting = super::gcm_bootstrap::accounting(&values, failed, replicates);
+    let mut estimate = EffectEstimate::new(
+        ite.mean_ite,
+        f64::NAN,
+        assumptions.clone(),
+        OverlapPolicy::ExplicitOverride,
+    );
+    estimate.uncertainty.bootstrap = accounting;
+    let note = super::gcm_bootstrap::bootstrap_diagnostic(
+        "mean ITE over the observed units (per-unit intervals are not formed)",
+        &accounting,
+    );
+    Ok((estimate, note))
+}
+
 /// Explains why no frequentist interval exists, or what the Bayesian interval does and does not carry.
 fn counterfactual_uncertainty_diagnostic(bayesian: bool) -> Diagnostic {
     if bayesian {
@@ -393,7 +545,7 @@ fn counterfactual_uncertainty_diagnostic(bayesian: bool) -> Diagnostic {
             "gcm.counterfactual.bayesian",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
-            "Dirichlet row-weight posterior of fitted GCM mechanisms, conditional on the selected families and empirical support; the family selection is made once on the unweighted data and is not revisited per draw. Each draw abducts–acts–predicts on the original units; published unit_effects are the posterior mean of those per-unit ITEs and unit_effect_intervals the equal-tailed posterior quantiles of each unit's ITE draws at the reported level. Both the mean_ite interval and the per-unit intervals carry mechanism-refit uncertainty only: abducted disturbances are recomputed from the observed rows, not drawn, so a per-unit interval is a credible interval for that observed unit's contrast under the fitted mechanism, not a predictive interval for a new unit, and the mean_ite interval is for the average over the observed units, not a population beyond them.",
+            "Dirichlet row-weight posterior of fitted GCM mechanisms, conditional on the selected families and empirical support; the family selection is made once on the unweighted data and is not revisited per draw. Each draw abducts–acts–predicts on the original units, with the factual and counterfactual worlds sharing that draw's abducted disturbances; published unit_effects are the posterior mean of those per-unit ITEs and unit_effect_intervals the equal-tailed posterior quantiles of each unit's ITE draws at the reported level. Disturbances of invertible mechanisms are recomputed from the observed rows under each draw's parameters, not drawn, so for them the intervals carry mechanism-refit uncertainty only. A categorical (many-to-one) node's rank-preserving disturbance is drawn once per posterior draw from one independent stream, so its noise posterior is integrated into the intervals of the units downstream of it, inseparably from the parameter uncertainty (noise_inference=PosteriorNoise in diagnostic gcm.counterfactual says when this applies). A per-unit interval is a credible interval for that observed unit's contrast under the fitted mechanism, not a predictive interval for a new unit, and the mean_ite interval is for the average over the observed units, not a population beyond them.",
         )
     } else {
         Diagnostic::new(
@@ -463,6 +615,10 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let operation =
             crate::gcm::CheckedCounterfactualOperation::compile(graph.clone(), query.clone())?;
+        let operation = match &self.counterfactual_selection {
+            Some(selected) => operation.conditional_on(std::sync::Arc::clone(selected)),
+            None => operation,
+        };
         self.execute_counterfactual_checked(data, physical, ctx, &operation)
     }
 
@@ -484,19 +640,18 @@ impl super::Study {
         }
         let graph = operation.graph();
         let query = CausalQuery::Counterfactual(operation.query().clone());
-        let (cache, identify_cached) =
-            shared_identification_from_cache_or(ctx, self.identification_cache.as_ref(), || {
-                let identification =
-                    identify_static_query(IdentifierId::GcmParametric, graph, &query)?;
-                let estimand = identification.estimands.first().cloned().ok_or_else(|| {
-                    CausalError::Compile {
-                        message: "counterfactual identification produced no estimand".into(),
-                    }
+        let reused = self.reuse_static_identification(physical);
+        let (cache, identify_cached) = shared_identification_from_cache_or(ctx, reused, || {
+            let identification = identify_static_query(IdentifierId::GcmParametric, graph, &query)?;
+            let estimand =
+                identification.estimands.first().cloned().ok_or_else(|| CausalError::Compile {
+                    message: "counterfactual identification produced no estimand".into(),
                 })?;
-                Ok((identification, estimand))
-            })?;
-        let inference = self.inference.clone();
-        let procedure = CounterfactualProcedure::for_inference(&inference)?;
+            Ok((identification, estimand))
+        })?;
+        let inference = self.settings.inference.clone();
+        let procedure = CounterfactualProcedure::for_inference(&inference)?
+            .with_bootstrap(self.settings.bootstrap_replicates, self.declared.sampling_design)?;
         let plan = CheckedCounterfactualPlan::new(
             operation.clone(),
             cache,
@@ -509,6 +664,12 @@ impl super::Study {
         plan.execute(data, ctx)
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        clippy::type_complexity,
+        reason = "the operation keeps its checked inputs and execution context together"
+    )]
     pub(super) fn execute_anomaly(
         &self,
         data: &TabularData,
@@ -521,13 +682,16 @@ impl super::Study {
         query.validate()?;
         let outcome = *query.targets.first().unwrap_or(&VariableId::from_raw(0));
         let (_, _, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, self.reuse_static_identification(physical), || {
                 Ok(parametric_scm_identification(
                     CausalQuery::AnomalyAttribution(query.clone()),
                     outcome,
                     outcome,
                 ))
             })?;
+        let selection = self.select_attribution_rows(data, graph)?;
+        let missing_report = selection.as_ref().map(|selection| selection.report.clone());
+        let data = selection.as_ref().map_or(data, |selection| &selection.table);
         let fitted = fit_gcm(graph.clone(), data)?;
         // Score all rows (preserving the prior facade behavior of ignoring `unit_rows`
         // for the published mean) while honoring the query's reference. Fixing the
@@ -536,6 +700,21 @@ impl super::Study {
             antecedent_core::AnomalyAttributionQuery::new(query.targets.clone(), query.max_units)
                 .with_reference(query.reference);
         let scores = anomaly_attribution_query_with(&fitted.model, data, &scorer_query, ctx)?;
+        // Scored rows are positions in the retained table; the published rows are the
+        // positions in the submitted table.
+        let published = selection.as_ref().map_or_else(
+            || scores.clone(),
+            |selection| {
+                scores
+                    .iter()
+                    .map(|score| {
+                        let mut score = score.clone();
+                        score.rows = score.rows.iter().map(|&row| selection.kept[row]).collect();
+                        score
+                    })
+                    .collect()
+            },
+        );
         let mut result = self.finish_gcm(
             physical,
             started,
@@ -544,13 +723,16 @@ impl super::Study {
                 treatment: outcome,
                 outcome,
                 estimate: nan_effect(),
-                slot: GcmSlot::Anomaly(scores.clone()),
+                slot: GcmSlot::Anomaly(published),
                 diagnostics: Vec::new(),
                 identify_cached,
             },
         );
-        if self.inference.is_bayesian() {
-            let n_draws = bayesian_draw_count(&self.inference)?;
+        if let Some(report) = missing_report {
+            result.extras.missing_data = Some(report);
+        }
+        if self.settings.inference.is_bayesian() {
+            let n_draws = bayesian_draw_count(&self.settings.inference)?;
             let mut columns: Vec<(String, Vec<f64>)> = scores
                 .iter()
                 .map(|score| {
@@ -560,7 +742,6 @@ impl super::Study {
                     )
                 })
                 .collect();
-            let registry = crate::gcm::MechanismRegistry::standard();
             let mut rng = ctx.rng.stream_for(StreamDomain::Attribution, 0xA110_7A7E);
             for _ in 0..n_draws {
                 if ctx.cancellation.is_cancelled() {
@@ -569,29 +750,15 @@ impl super::Study {
                     });
                 }
                 let weights = dirichlet_row_weights(data.row_count(), &mut rng);
-                let store = registry
-                    .refit_weighted(&fitted.model, data, &fitted.assignments, &weights)
-                    .map_err(CausalError::rejected)?;
-                let draw_scores = anomaly_attribution_query_with(
-                    &fitted.model.clone().with_mechanisms(store),
-                    data,
-                    &scorer_query,
-                    ctx,
-                )?;
-                if draw_scores.len() != columns.len() {
-                    return Err(CausalError::Compile {
-                        message: "Bayesian anomaly draw changed target set".into(),
-                    });
-                }
-                for (column, score) in columns.iter_mut().zip(draw_scores) {
+                for (column, score) in columns.iter_mut().zip(&scores) {
                     // The per-draw mean anomaly score is the Bayesian bootstrap of the
                     // population mean: the shared Dirichlet(1,…,1) row weights reweight the
-                    // per-row scores. This holds for both references — the factual scores
-                    // depend only on the data and the reference, not the mechanism refit, so
-                    // an *unweighted* mean would be identical every draw (a degenerate,
-                    // zero-width posterior). With a fixed reference the target of that
-                    // posterior is the fixed functional μ_A; with the empirical reference it
-                    // is the observed-sample-reference mean.
+                    // observed per-row scores. This holds for both references — the factual
+                    // scores depend only on the data and the reference, not the mechanisms, so
+                    // a mechanism refit per draw would reproduce them and an *unweighted* mean
+                    // would be identical every draw (a degenerate, zero-width posterior). With a
+                    // fixed reference the target of that posterior is the fixed functional μ_A;
+                    // with the empirical reference it is the observed-sample-reference mean.
                     column.1.push(dirichlet_weighted_mean(&score.scores, &score.rows, &weights));
                 }
             }
@@ -609,10 +776,10 @@ impl super::Study {
             )?);
             let disclosure = match scorer_query.reference {
                 antecedent_core::AnomalyReference::Empirical => {
-                    "Posterior is the Bayesian bootstrap of the mean anomaly score: each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector (mechanisms are also refit under those weights for the accompanying attributions), conditional on mechanism-family selection from the original unweighted data. The anomaly marginal reference (median / 1.4826·MAD) is held at the observed data values, so the interval is a credible interval for the mean anomaly score relative to that realized sample's reference, not for a fixed population functional; inject a fixed reference for the latter."
+                    "Posterior is the Bayesian bootstrap of the mean anomaly score: each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector, conditional on mechanism-family selection from the original unweighted data. The anomaly marginal reference (median / 1.4826·MAD) is held at the observed data values, so the interval is a credible interval for the mean anomaly score relative to that realized sample's reference, not for a fixed population functional; inject a fixed reference for the latter."
                 }
                 antecedent_core::AnomalyReference::Fixed { .. } => {
-                    "Posterior is the Bayesian bootstrap of the population mean anomaly score against the injected fixed reference (center, scale): each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector (mechanisms are also refit under those weights for the accompanying attributions). Because the reference is held at the injected values rather than estimated from the sample, the mean anomaly score is a fixed functional of the target's law, μ_A = E_Y[−log 2Φ(−|Y − center|/scale)], and the interval is a credible interval for that functional over the observed units."
+                    "Posterior is the Bayesian bootstrap of the population mean anomaly score against the injected fixed reference (center, scale): each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector. Because the reference is held at the injected values rather than estimated from the sample, the mean anomaly score is a fixed functional of the target's law, μ_A = E_Y[−log 2Φ(−|Y − center|/scale)], and the interval is a credible interval for that functional over the observed units."
                 }
             };
             result.diagnostics.push(Diagnostic::new(
@@ -623,6 +790,96 @@ impl super::Study {
             ));
         }
         Ok(result)
+    }
+
+    /// The rows an anomaly attribution scores under the declared missing-data policy.
+    ///
+    /// Without a missing cell in any graph variable the table is used as it is. A missing cell
+    /// with no `complete_case` declaration is refused, naming the first missing cell. Under
+    /// `complete_case` the rows with a missing graph variable are deleted before fitting and
+    /// scoring, and the retained table is returned with the submitted positions of its rows and
+    /// the exact accounting.
+    fn select_attribution_rows(
+        &self,
+        data: &TabularData,
+        graph: &Dag,
+    ) -> Result<Option<AttributionRows>, CausalError> {
+        use crate::analysis::missing_data::{self, MissingRoute};
+        use antecedent_data::{MissingPolicy, RowAccounting, complete_rows, first_missing_cell};
+        let variables: Vec<VariableId> = (0..graph.node_count())
+            .map(|node| {
+                u32::try_from(node).map(VariableId::from_raw).map_err(|_| CausalError::Resource {
+                    message: "attribution graph variable count overflow".into(),
+                })
+            })
+            .collect::<Result<_, _>>()?;
+        for &variable in &variables {
+            if !matches!(data.column(variable)?, antecedent_data::ColumnView::Float64(_)) {
+                return Err(crate::compile_reason!(
+                    "route_not_supported",
+                    "anomaly attribution fits an additive-noise structural equation for every \
+                     graph variable and scores a row by the standardized deviation of its target \
+                     from a robust marginal centre; the column of variable V{} is not \
+                     continuous. A categorical node has no additive noise to abduct or \
+                     standardize, and dummy-coding it would turn the variable into several graph \
+                     nodes and move the attribution from the variable to its indicators. Next \
+                     attempt: recode the variable as a numeric score if its levels are ordered, \
+                     or drop it from the graph",
+                    variable.raw()
+                ));
+            }
+        }
+        let (policy, declared) = missing_data::effective_policy(
+            MissingRoute::Attribution,
+            self.declared.missing.as_ref(),
+        );
+        let mask = data.storage().analysis_mask();
+        let keep = complete_rows(data, mask, &variables)?;
+        if keep.is_all_valid() {
+            return Ok(None);
+        }
+        // Rows hidden by an analysis mask (a refit on a subset of the rows) are not missing
+        // cells: with no missing cell in any graph variable the table is used as it is.
+        let Some(cell) = first_missing_cell(data, &variables)? else {
+            return Ok(None);
+        };
+        if policy != MissingPolicy::CompleteCase {
+            return Err(CausalError::Estimate(
+                antecedent_estimate::missing_policy::policy_required(
+                    &cell,
+                    MissingRoute::Attribution.label(),
+                    &MissingRoute::Attribution.supported()[1..],
+                ),
+            ));
+        }
+        let accounting = RowAccounting::from_selection(data, mask, policy, &variables, &keep)?;
+        let kept: Vec<usize> = (0..data.row_count()).filter(|&row| keep.is_valid(row)).collect();
+        if kept.len() < 2 {
+            return Err(crate::compile_reason!(
+                "invalid_argument",
+                "complete-case selection leaves fewer than two rows to fit the mechanisms"
+            ));
+        }
+        let storage = data.storage();
+        let columns = (0..storage.schema().len())
+            .map(|index| {
+                storage
+                    .column(VariableId::from_raw(u32::try_from(index).unwrap_or(u32::MAX)))?
+                    .gather_rows(&kept)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let weights = storage
+            .weights()
+            .map(|weights| kept.iter().map(|&row| weights[row]).collect::<Arc<[f64]>>());
+        let table = TabularData::new(antecedent_data::OwnedColumnarStorage::try_new(
+            storage.schema().clone(),
+            columns,
+            None,
+            weights,
+        )?);
+        let report =
+            missing_data::report(MissingRoute::Attribution, declared, Arc::from([]), accounting);
+        Ok(Some(AttributionRows { table, kept, report }))
     }
 
     pub(super) fn execute_change_attribution(
@@ -636,7 +893,7 @@ impl super::Study {
         let started = Instant::now();
         query.validate()?;
         let (_, _, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, self.reuse_static_identification(physical), || {
                 Ok(parametric_scm_identification(
                     CausalQuery::ChangeAttribution(query.clone()),
                     query.outcome,
@@ -670,13 +927,13 @@ impl super::Study {
                 identify_cached,
             },
         );
-        if self.inference.is_bayesian() {
+        if self.settings.inference.is_bayesian() {
             let posterior = self.change_attribution_posterior(data, query, &fitted, ctx)?;
-            if let Some(index) = posterior.effect_column() {
-                if let Some(estimate) = result.estimate.as_effect_mut() {
-                    estimate.ate = posterior.summaries.mean[index];
-                    estimate.uncertainty.analytic.se = posterior.summaries.sd[index];
-                }
+            if let Some(index) = posterior.effect_column()
+                && let Some(estimate) = result.estimate.as_effect_mut()
+            {
+                estimate.ate = posterior.summaries.mean[index];
+                estimate.uncertainty.analytic.se = posterior.summaries.sd[index];
             }
             result.posterior = Some(posterior);
             result.diagnostics.push(Diagnostic::new(
@@ -695,7 +952,7 @@ impl super::Study {
         fitted: &crate::gcm::FittedGcm,
         ctx: &ExecutionContext,
     ) -> Result<CausalPosterior, CausalError> {
-        let n_draws = bayesian_draw_count(&self.inference)?;
+        let n_draws = bayesian_draw_count(&self.settings.inference)?;
         let baseline_n = antecedent_attribution::resolve_rows(data, &query.baseline)
             .map_err(CausalError::rejected)?
             .len();
@@ -830,7 +1087,7 @@ impl super::Study {
     ) -> StudyResult {
         let GcmFinish { query, treatment, outcome, estimate, slot, diagnostics, identify_cached } =
             finish;
-        let estimator_id = match (&query, &self.inference) {
+        let estimator_id = match (&query, &self.settings.inference) {
             (CausalQuery::AnomalyAttribution(_), InferenceMode::Bayesian(_)) => {
                 EstimatorId::GcmFitBayesian
             }
@@ -943,167 +1200,8 @@ pub(super) fn attribution_posterior(
         unevaluable_mass: 0.0,
         early_stopped: false,
         treatment_contrast: None,
+        preparation: None,
     })
-}
-
-/// Why the published per-unit effects do, or do not, vary.
-#[derive(Debug)]
-enum HomogeneityVerdict {
-    /// Some mechanism on a `treatment → outcome` path can modify the effect.
-    Heterogeneous,
-    /// Every path mechanism is additively separable, and no family that could
-    /// have modified the effect was fit anywhere on those paths: the per-unit
-    /// effects are equal by construction of the candidate set. Carries the
-    /// outcome's selected family.
-    Structural(crate::gcm::MechanismFamily),
-    /// Every path mechanism is additively separable, but a heterogeneity-capable
-    /// family *was* fit on some path node and lost on validation score: equal
-    /// per-unit effects are a finding about the data, not a property fixed in
-    /// advance.
-    Empirical {
-        /// `(node variable, rejected family, its score, selected family, selected score)`.
-        rejected: Vec<RejectedHeterogeneity>,
-    },
-}
-
-/// A heterogeneity-capable family scored on a path node and not selected.
-#[derive(Debug)]
-struct RejectedHeterogeneity {
-    variable: VariableId,
-    family: crate::gcm::MechanismFamily,
-    score: f64,
-    selected: crate::gcm::MechanismFamily,
-    selected_score: f64,
-}
-
-/// Assignments whose mechanisms are re-evaluated in the acted world: strictly
-/// downstream of the treatment and upstream of (or at) the outcome.
-fn path_assignments<'a>(
-    graph: &Dag,
-    assignments: &'a [crate::gcm::MechanismAssignment],
-    treatment: VariableId,
-    outcome: VariableId,
-) -> Option<(Vec<&'a crate::gcm::MechanismAssignment>, DenseNodeId, DenseNodeId)> {
-    let node_of =
-        |variable: VariableId| assignments.iter().find(|a| a.variable == variable).map(|a| a.node);
-    let treatment_node = node_of(treatment)?;
-    let outcome_node = node_of(outcome)?;
-    let on_path = assignments
-        .iter()
-        .filter(|a| {
-            a.node != treatment_node
-                && graph.reaches(treatment_node, a.node)
-                && graph.reaches(a.node, outcome_node)
-        })
-        .collect();
-    Some((on_path, treatment_node, outcome_node))
-}
-
-/// Classify the per-unit effects as structurally equal, empirically equal, or
-/// free to vary.
-///
-/// A unit effect can only vary across units when some mechanism on a directed
-/// `treatment → outcome` path bends with that unit's other parent values or its
-/// abducted disturbance. When every such mechanism is additive and linear in its
-/// parents, the two worlds differ by a fixed composition of slopes: the disturbances
-/// cancel and `Y(a) − Y(a0)` is a constant.
-///
-/// That constant is disclosed as a property of the mechanism only when it *is*
-/// one — when no family that could have represented effect modification was
-/// successfully scored on any path node (none was in the registry for that node,
-/// or every such family failed to fit, e.g. a single-parent node where no
-/// cross-parent product exists). When such a family was scored and lost, the
-/// data chose additivity, and the verdict records what was rejected instead.
-fn homogeneity_verdict(
-    graph: &Dag,
-    assignments: &[crate::gcm::MechanismAssignment],
-    treatment: VariableId,
-    outcome: VariableId,
-) -> HomogeneityVerdict {
-    let Some((on_path, _, outcome_node)) = path_assignments(graph, assignments, treatment, outcome)
-    else {
-        return HomogeneityVerdict::Heterogeneous;
-    };
-    let mut outcome_family = None;
-    let mut rejected = Vec::new();
-    for assignment in &on_path {
-        if !assignment.fitted.admits_no_effect_modification() {
-            return HomogeneityVerdict::Heterogeneous;
-        }
-        if assignment.node == outcome_node {
-            outcome_family = Some(assignment.selected);
-        }
-        let selected_score = assignment
-            .candidates
-            .iter()
-            .find(|c| c.family == assignment.selected)
-            .map_or(f64::NAN, |c| c.score);
-        for candidate in assignment.candidates.iter() {
-            // `candidates` holds only families that scored; failures live in
-            // `failed_families` and never gave the data a say.
-            if candidate.family != assignment.selected
-                && candidate.family.can_modify_effects()
-                && candidate.score.is_finite()
-            {
-                rejected.push(RejectedHeterogeneity {
-                    variable: assignment.variable,
-                    family: candidate.family,
-                    score: candidate.score,
-                    selected: assignment.selected,
-                    selected_score,
-                });
-            }
-        }
-    }
-    match outcome_family {
-        None => HomogeneityVerdict::Heterogeneous,
-        Some(_) if !rejected.is_empty() => HomogeneityVerdict::Empirical { rejected },
-        Some(family) => HomogeneityVerdict::Structural(family),
-    }
-}
-
-/// Record that equal per-unit effects were chosen by validation score over a
-/// family that could have made them differ.
-///
-/// Info, not Warning: nothing about how the number reads is hidden — the
-/// selection is auditable in `gcm.counterfactual.mechanisms`, and this names the
-/// rejected alternatives and the score margin so a reader does not have to parse
-/// that dump to learn that heterogeneity was tested for.
-fn heterogeneity_rejected_diagnostic(
-    data: &TabularData,
-    rejected: &[RejectedHeterogeneity],
-) -> Diagnostic {
-    let name = |variable: VariableId| {
-        data.schema()
-            .get(variable)
-            .map_or_else(|_| format!("v{}", variable.raw()), |v| v.name.to_string())
-    };
-    let parts: Vec<String> = rejected
-        .iter()
-        .map(|r| {
-            format!(
-                "{}: {} (score {:.6}) lost to {} (score {:.6})",
-                name(r.variable),
-                r.family.id(),
-                r.score,
-                r.selected.id(),
-                r.selected_score
-            )
-        })
-        .collect();
-    let families: Vec<&str> = rejected.iter().map(|r| r.family.id()).collect();
-    Diagnostic::new(
-        "gcm.counterfactual.heterogeneity_rejected",
-        DiagnosticKind::Scientific,
-        DiagnosticSeverity::Info,
-        format!(
-            "heterogeneity-capable mechanism families were fit and lost on validation score, so \
-             equal unit_effects are an empirical finding rather than a property of the mechanism: \
-             {}",
-            parts.join("; ")
-        ),
-    )
-    .with_fields([("families", families.join(","))])
 }
 
 /// Per-unit support of the counterfactual prediction.
@@ -1286,24 +1384,37 @@ fn unit_effect_posterior_summary(
 
 fn counterfactual_posterior(
     values: Vec<f64>,
+    assumptions: antecedent_core::AssumptionSet,
+    identification: antecedent_core::IdentificationStatus,
+) -> Result<CausalPosterior, CausalError> {
+    counterfactual_posterior_columns(vec![("ite".into(), values)], assumptions, identification)
+}
+
+/// [`counterfactual_posterior`] with one `Effect` column per contrast, each a named series of the
+/// same number of draws. The first column is the result's primary effect.
+fn counterfactual_posterior_columns(
+    columns: Vec<(String, Vec<f64>)>,
     mut assumptions: antecedent_core::AssumptionSet,
     identification: antecedent_core::IdentificationStatus,
 ) -> Result<CausalPosterior, CausalError> {
     assumptions.push(antecedent_core::AssumptionRecord {
         assumption: antecedent_core::Assumption::ParametricRestriction(antecedent_core::ParametricAssumption {
             id: Arc::from("counterfactual.weighted_mechanisms"),
-            description: Arc::from("Dirichlet row-weight posterior of standard mechanism fits, conditional on selected mechanism families and empirical support; abduction is repeated on the original units for every draw. This is not a parametric coefficient-prior posterior. The interval is for mean_ite over the observed units and reflects mechanism-refit uncertainty only; it is not a unit-level predictive interval."),
+            description: Arc::from("Dirichlet row-weight posterior of standard mechanism fits, conditional on selected mechanism families and empirical support; abduction is repeated on the original units for every draw, the factual and counterfactual worlds sharing that draw's disturbances (a categorical node's disturbance is drawn once per posterior draw). This is not a parametric coefficient-prior posterior. The interval is for mean_ite over the observed units and reflects mechanism-refit uncertainty, plus the rank-preserving noise posterior of categorical nodes where present; it is not a unit-level predictive interval."),
         }),
         source: antecedent_core::AssumptionSource::AlgorithmDefault { algorithm: Arc::from("gcm.fit.bayesian") },
         scope: antecedent_core::AssumptionScope::Estimation,
         status: antecedent_core::AssumptionStatus::Declared,
     });
-    let schema = antecedent_prob::PosteriorSchema {
-        quantities: std::sync::Arc::from([antecedent_prob::PosteriorQuantityKind::Effect {
-            name: std::sync::Arc::from("ite"),
-        }]),
-    };
-    let n = values.len();
+    let quantities: Vec<antecedent_prob::PosteriorQuantityKind> = columns
+        .iter()
+        .map(|(name, _)| antecedent_prob::PosteriorQuantityKind::Effect {
+            name: std::sync::Arc::from(name.as_str()),
+        })
+        .collect();
+    let schema = antecedent_prob::PosteriorSchema { quantities: std::sync::Arc::from(quantities) };
+    let n = columns.first().map_or(0, |(_, values)| values.len());
+    let values: Vec<f64> = columns.into_iter().flat_map(|(_, values)| values).collect();
     let draws = antecedent_prob::PosteriorDraws::from_column_major(
         schema,
         n,
@@ -1325,6 +1436,7 @@ fn counterfactual_posterior(
         unevaluable_mass: 0.0,
         early_stopped: false,
         treatment_contrast: None,
+        preparation: None,
     })
 }
 

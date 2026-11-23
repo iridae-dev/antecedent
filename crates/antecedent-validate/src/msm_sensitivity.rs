@@ -66,9 +66,9 @@
 //! result's `identified` is the `Lambda = 1` value, its grid bounds are an assumption
 //! range, and `uncertainty` withholds any sampling interval
 //! (`sampling interval: not reported`). A requested sampling composition refuses with
-//! `msm_sensitivity.composition_not_licensed`. Calibration is unmeasured.
+//! `msm_sensitivity.composition_not_supported`. Calibration is `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use thiserror::Error;
 
@@ -76,14 +76,20 @@ use antecedent_core::reason_code;
 
 use crate::joint_mechanism_sensitivity::{TippingBracket, TippingStatus};
 
-/// Hard cap on strata.
-pub const MSM_MAX_STRATA: usize = 4096;
-/// Hard cap on atoms of one outcome law.
-pub const MSM_MAX_OUTCOME_ATOMS: usize = 256;
-/// Hard cap on grid points.
-pub const MSM_MAX_GRID_POINTS: usize = 1024;
-/// Largest admitted `Lambda`.
-pub const MSM_MAX_LAMBDA: f64 = 1.0e3;
+/// Sanity bound on strata; the working limit is [`MSM_MAX_LAW_CELLS`].
+pub const MSM_MAX_STRATA: usize = 1 << 20;
+/// Sanity bound on atoms of one outcome law; the working limit is [`MSM_MAX_LAW_CELLS`].
+pub const MSM_MAX_OUTCOME_ATOMS: usize = 4096;
+/// Most outcome-law atoms (treated and control, summed over strata) held at once: the memory
+/// budget.
+pub const MSM_MAX_LAW_CELLS: usize = 1 << 24;
+/// Sanity bound on grid points; the working limit is [`MSM_MAX_WORK`].
+pub const MSM_MAX_GRID_POINTS: usize = 8192;
+/// Most `grid points x law cells` evaluations of one analysis: the compute budget.
+pub const MSM_MAX_WORK: u64 = 1 << 32;
+/// Largest admitted `Lambda`. Every `Lambda >= 1` is valid; the bound only keeps
+/// `Lambda - 1/Lambda` and `1/(Lambda + 1)` well inside `f64` range.
+pub const MSM_MAX_LAMBDA: f64 = 1.0e12;
 /// Smallest admitted bisection tolerance.
 pub const MSM_MIN_TOLERANCE: f64 = crate::tipping::MIN_TOLERANCE;
 /// Largest admitted bisection tolerance.
@@ -110,7 +116,8 @@ pub const MSM_ASSUMPTION_RANGE_CLAIM: &str = "assumption_range";
 /// The statement of the withheld sampling interval.
 pub const MSM_SAMPLING_STATEMENT: &str = "sampling interval: not reported";
 /// Detail of the withheld sampling interval.
-pub const MSM_INTERVAL_WITHHELD: &str = "msm_sensitivity.interval_withheld";
+pub const MSM_NO_INTERVAL_METHOD: &str =
+    antecedent_core::reason_details::msm_sensitivity::NO_INTERVAL_METHOD;
 
 /// A finite-support outcome law (values and probabilities, any order).
 #[derive(Clone, Debug, PartialEq)]
@@ -253,14 +260,16 @@ pub struct MsmTipping {
     pub tolerance: f64,
 }
 
-/// Withheld sampling status, distinct from the assumption range.
+/// Sampling status, distinct from the assumption range. A scientific refusal: the inputs
+/// are exact population quantities, so there is no estimation whose sampling an interval
+/// could describe (`uncertainty_representation_insufficient`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MsmSensitivityUncertainty {
     /// [`MSM_SAMPLING_STATEMENT`].
     pub sampling_interval: &'static str,
     /// Registered reason code of the withheld interval.
     pub reason_code: &'static str,
-    /// [`MSM_INTERVAL_WITHHELD`].
+    /// [`MSM_NO_INTERVAL_METHOD`].
     pub detail: &'static str,
 }
 
@@ -270,8 +279,8 @@ impl MsmSensitivityUncertainty {
     pub const fn withheld() -> Self {
         Self {
             sampling_interval: MSM_SAMPLING_STATEMENT,
-            reason_code: reason_code!("cell_not_licensed"),
-            detail: MSM_INTERVAL_WITHHELD,
+            reason_code: reason_code!("uncertainty_representation_insufficient"),
+            detail: MSM_NO_INTERVAL_METHOD,
         }
     }
 }
@@ -328,13 +337,19 @@ struct Prepared {
 }
 
 fn invalid_law(message: &str) -> MsmSensitivityError {
-    refuse(reason_code!("invalid_argument"), "msm_sensitivity.outcome_law", message)
+    refuse(
+        reason_code!("invalid_argument"),
+        antecedent_core::reason_details::msm_sensitivity::OUTCOME_LAW,
+        message,
+    )
 }
 
 fn prepare_arm(law: &MsmOutcomeLaw, hidden: f64) -> Result<Arm, MsmSensitivityError> {
     let n = law.values.len();
     if n == 0 || n > MSM_MAX_OUTCOME_ATOMS || law.probabilities.len() != n {
-        return Err(invalid_law("an outcome law needs 1 to 256 values with one probability each"));
+        return Err(invalid_law(&format!(
+            "an outcome law needs 1 to {MSM_MAX_OUTCOME_ATOMS} values with one probability each"
+        )));
     }
     if law.values.iter().any(|v| !v.is_finite())
         || law.probabilities.iter().any(|p| !p.is_finite() || *p < 0.0)
@@ -356,8 +371,18 @@ fn prepare(strata: &[MsmStratum]) -> Result<Vec<Prepared>, MsmSensitivityError> 
     if strata.is_empty() || strata.len() > MSM_MAX_STRATA {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "msm_sensitivity.bounds_exceeded",
+            antecedent_core::reason_details::msm_sensitivity::BOUNDS_EXCEEDED,
             format!("{} strata declared; 1 to {MSM_MAX_STRATA} are admitted", strata.len()),
+        ));
+    }
+    let cells = strata.iter().try_fold(0usize, |acc, s| {
+        acc.checked_add(s.treated.values.len())?.checked_add(s.control.values.len())
+    });
+    if cells.is_none_or(|c| c > MSM_MAX_LAW_CELLS) {
+        return Err(refuse(
+            reason_code!("route_not_supported"),
+            antecedent_core::reason_details::msm_sensitivity::BOUNDS_EXCEEDED,
+            format!("the outcome laws hold more than {MSM_MAX_LAW_CELLS} atoms in total"),
         ));
     }
     let mut total = 0.0;
@@ -367,14 +392,14 @@ fn prepare(strata: &[MsmStratum]) -> Result<Vec<Prepared>, MsmSensitivityError> 
         if !e.is_finite() || e <= 0.0 || e >= 1.0 {
             return Err(refuse(
                 reason_code!("route_not_supported"),
-                "msm_sensitivity.positivity",
+                antecedent_core::reason_details::msm_sensitivity::POSITIVITY,
                 format!("propensity {e} is not strictly inside (0, 1); the weights are undefined"),
             ));
         }
         if !stratum.mass.is_finite() || stratum.mass <= 0.0 {
             return Err(refuse(
                 reason_code!("invalid_argument"),
-                "msm_sensitivity.stratum_mass",
+                antecedent_core::reason_details::msm_sensitivity::STRATUM_MASS,
                 format!("stratum mass {} must be positive and finite", stratum.mass),
             ));
         }
@@ -388,7 +413,7 @@ fn prepare(strata: &[MsmStratum]) -> Result<Vec<Prepared>, MsmSensitivityError> 
     if (total - 1.0).abs() > MSM_UNIT_MASS_TOLERANCE {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "msm_sensitivity.stratum_mass",
+            antecedent_core::reason_details::msm_sensitivity::STRATUM_MASS,
             format!("stratum masses sum to {total}, not 1"),
         ));
     }
@@ -436,14 +461,14 @@ fn check_lambda(lambda: f64) -> Result<(), MsmSensitivityError> {
     if !lambda.is_finite() || lambda < 1.0 {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "msm_sensitivity.lambda_below_one",
+            antecedent_core::reason_details::msm_sensitivity::LAMBDA_BELOW_ONE,
             format!("Lambda {lambda} must be finite and at least 1"),
         ));
     }
     if lambda > MSM_MAX_LAMBDA {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "msm_sensitivity.bounds_exceeded",
+            antecedent_core::reason_details::msm_sensitivity::BOUNDS_EXCEEDED,
             format!("Lambda {lambda} exceeds {MSM_MAX_LAMBDA}"),
         ));
     }
@@ -453,10 +478,10 @@ fn check_lambda(lambda: f64) -> Result<(), MsmSensitivityError> {
 fn validate_spec(spec: &MsmSensitivitySpec) -> Result<(), MsmSensitivityError> {
     if let Some(method) = &spec.sampling_composition {
         return Err(refuse(
-            reason_code!("cell_not_licensed"),
-            "msm_sensitivity.composition_not_licensed",
+            reason_code!("route_not_supported"),
+            antecedent_core::reason_details::msm_sensitivity::COMPOSITION_NOT_SUPPORTED,
             format!(
-                "composing a sampling interval with the assumption range by `{method}` is not licensed"
+                "composing a sampling interval with the assumption range by `{method}` is not supported"
             ),
         ));
     }
@@ -464,21 +489,21 @@ fn validate_spec(spec: &MsmSensitivitySpec) -> Result<(), MsmSensitivityError> {
     if spec.lambda_max <= 1.0 {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "msm_sensitivity.lambda_range_empty",
+            antecedent_core::reason_details::msm_sensitivity::LAMBDA_RANGE_EMPTY,
             "lambda_max must exceed 1 so the grid spans an assumption range",
         ));
     }
     if !(2..=MSM_MAX_GRID_POINTS).contains(&spec.grid_points) {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "msm_sensitivity.bounds_exceeded",
+            antecedent_core::reason_details::msm_sensitivity::BOUNDS_EXCEEDED,
             format!("{} grid points; 2 to {MSM_MAX_GRID_POINTS} are admitted", spec.grid_points),
         ));
     }
     if spec.decision_threshold.is_some_and(|t| !t.is_finite()) {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "msm_sensitivity.invalid_threshold",
+            antecedent_core::reason_details::msm_sensitivity::INVALID_THRESHOLD,
             "the decision threshold must be finite",
         ));
     }
@@ -487,7 +512,7 @@ fn validate_spec(spec: &MsmSensitivitySpec) -> Result<(), MsmSensitivityError> {
     {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "msm_sensitivity.invalid_tolerance",
+            antecedent_core::reason_details::msm_sensitivity::INVALID_TOLERANCE,
             format!("tolerance {} is outside [1e-12, 1e-3]", spec.tolerance),
         ));
     }
@@ -581,7 +606,7 @@ fn tipping_of(
 /// # Errors
 ///
 /// A typed [`MsmSensitivityError`] carrying its reason code and `msm_sensitivity.*`
-/// detail: `composition_not_licensed`, `lambda_below_one`, `lambda_range_empty`,
+/// detail: `composition_not_supported`, `lambda_below_one`, `lambda_range_empty`,
 /// `positivity`, `stratum_mass`, `outcome_law`, `invalid_threshold`,
 /// `invalid_tolerance` or `bounds_exceeded`.
 pub fn msm_ate_sensitivity(
@@ -590,6 +615,15 @@ pub fn msm_ate_sensitivity(
 ) -> Result<MsmSensitivityResult, MsmSensitivityError> {
     validate_spec(spec)?;
     let prepared = prepare(strata)?;
+    let cells: u64 =
+        prepared.iter().map(|p| (p.treated.atoms.len() + p.control.atoms.len()) as u64).sum();
+    if cells.saturating_mul(spec.grid_points as u64) > MSM_MAX_WORK {
+        return Err(refuse(
+            reason_code!("route_not_supported"),
+            antecedent_core::reason_details::msm_sensitivity::BOUNDS_EXCEEDED,
+            format!("{} grid points over {cells} atoms exceeds the work budget", spec.grid_points),
+        ));
+    }
     let (identified, _) = ate_bounds(&prepared, 1.0);
     let grid = grid_of(spec)
         .into_iter()
@@ -630,7 +664,7 @@ pub fn msm_ate_sensitivity(
 /// # Errors
 ///
 /// `msm_posterior.non_positive_scale`, `msm_posterior.mapped_prior`,
-/// `msm_posterior.external_power_prior`, `msm_posterior.unmeasured_band`,
+/// `msm_posterior.external_power_prior`, `msm_posterior.band_not_constructed`,
 /// `msm_posterior.empty_law`, or a refusal of the sensitivity engine.
 pub fn msm_dirichlet_posterior(
     strata: &[MsmStratum],

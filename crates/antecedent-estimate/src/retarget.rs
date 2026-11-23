@@ -5,7 +5,7 @@
 //! Treatment, intervened coordinates, and their descendants are refused.
 //! Weighted overlap failure is a support refusal, not a hard error.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -301,11 +301,33 @@ pub fn check_depends_on(
     table: &ScoreTable,
     graph: Option<&dyn DirectedAncestry>,
 ) -> Result<(), EstimationError> {
+    check_target_dependencies(
+        depends_on,
+        table.treatment,
+        &table.intervened,
+        &table.adjustment_set,
+        graph,
+    )
+}
+
+/// Validate target-weight parents for a retained fitted model or a score table.
+/// Treatment, intervened variables and their directed descendants cannot determine
+/// target weights; every parent must lie in the certified adjustment set.
+///
+/// # Errors
+/// A forbidden role, missing directed graph, or parent outside the adjustment set.
+pub fn check_target_dependencies(
+    depends_on: &[VariableId],
+    treatment: VariableId,
+    intervened: &[VariableId],
+    adjustment_set: &[VariableId],
+    graph: Option<&dyn DirectedAncestry>,
+) -> Result<(), EstimationError> {
     for &v in depends_on {
-        if v == table.treatment || table.intervened.iter().any(|&x| x == v) {
+        if v == treatment || intervened.contains(&v) {
             return Err(RetargetRefusal::IllegalDependence.error());
         }
-        if !table.adjustment_set.iter().any(|&z| z == v) {
+        if !adjustment_set.contains(&v) {
             return Err(RetargetRefusal::OutsideAdjustmentSet.error());
         }
     }
@@ -315,7 +337,7 @@ pub fn check_depends_on(
     let Some(graph) = graph else {
         return Err(RetargetRefusal::DescendantClosureUnavailable.error());
     };
-    if descendant_of_intervened(depends_on, table, graph)? {
+    if descendant_of_intervened(depends_on, treatment, intervened, graph)? {
         return Err(RetargetRefusal::IllegalDependence.error());
     }
     Ok(())
@@ -327,11 +349,12 @@ pub fn check_depends_on(
 )]
 fn descendant_of_intervened(
     depends_on: &[VariableId],
-    table: &ScoreTable,
+    treatment: VariableId,
+    intervened: &[VariableId],
     graph: &dyn DirectedAncestry,
 ) -> Result<bool, EstimationError> {
-    let mut sources = vec![table.treatment];
-    sources.extend(table.intervened.iter().copied());
+    let mut sources = vec![treatment];
+    sources.extend(intervened.iter().copied());
     let mut ws = GraphWorkspace::default();
     let mut out = BitSet::default();
     let mut dense = Vec::with_capacity(sources.len());
@@ -346,10 +369,10 @@ fn descendant_of_intervened(
     }
     graph.descendants_of(&dense, &mut out, &mut ws);
     for &v in depends_on {
-        if let Some(pos) = graph.nodes().iter().position(|n| n.variable() == v) {
-            if out.contains(DenseNodeId::from_raw(pos as u32)) {
-                return Ok(true);
-            }
+        if let Some(pos) = graph.nodes().iter().position(|n| n.variable() == v)
+            && out.contains(DenseNodeId::from_raw(pos as u32))
+        {
+            return Ok(true);
         }
     }
     Ok(false)
@@ -390,7 +413,16 @@ pub fn retarget(
 ) -> Result<(RetargetResult, bool), EstimationError> {
     if weights.len() != table.n_rows {
         return Err(EstimationError::data_msg(
-            "retarget weights must align with the prepared score-table rows",
+            "retarget weights must align with the prepared score-table rows; next attempt: \
+             supply one weight per complete-case row of the score table",
+        ));
+    }
+    if table.nuisance_provenance.contains("sampling_weights") {
+        return Err(crate::sampling_weights::unsupported_route(
+            "these scores were fitted for a weighted population: a retarget reweights them \
+             with its own target weights and would drop the sampling weights they were \
+             fitted and must be summarized under. Next attempt: retarget scores fitted without \
+             sampling weights, or fold the target weights into the table's weights",
         ));
     }
     if depends_on.is_empty() && !weights_are_constant(weights) {
@@ -445,17 +477,17 @@ pub fn retarget(
 #[must_use]
 pub(crate) fn score_weighted_support(table: &ScoreTable, weights: &[f64]) -> WeightedSupport {
     let arms: std::collections::BTreeSet<_> = table.columns.iter().map(|c| c.arm).collect();
-    let n_eff_by_arm: Vec<f64> = arms
-        .iter()
-        .map(|&arm| {
-            let w: Vec<_> = weights
-                .iter()
-                .zip(table.observed_arm.iter())
-                .filter_map(|(&w, &a)| (a == arm).then_some(w))
-                .collect();
-            crate::joint_if::kish_n_eff(&w)
-        })
-        .collect();
+    // The retained-output admission counts one value per arm. Allocate that
+    // capacity explicitly: collection growth differs across supported toolchains.
+    let mut n_eff_by_arm = Vec::with_capacity(arms.len());
+    n_eff_by_arm.extend(arms.iter().map(|&arm| {
+        let w: Vec<_> = weights
+            .iter()
+            .zip(table.observed_arm.iter())
+            .filter_map(|(&w, &a)| (a == arm).then_some(w))
+            .collect();
+        crate::joint_if::kish_n_eff(&w)
+    }));
     let mut lo = f64::INFINITY;
     let mut hi = f64::NEG_INFINITY;
     for column in table.propensities.chunks(table.n_rows.max(1)) {
@@ -520,10 +552,23 @@ pub fn summarize_functional(
     table: &ScoreTable,
     weights: Option<&[f64]>,
 ) -> Result<(ScoreSummary, bool, Vec<Diagnostic>), EstimationError> {
+    summarize_functional_with(table, weights, None)
+}
+
+/// [`summarize_functional`] with the covariance read under a declared dependence.
+///
+/// # Errors
+///
+/// Weight length mismatch, empty mass, or a dependence that does not fit the rows.
+pub fn summarize_functional_with(
+    table: &ScoreTable,
+    weights: Option<&[f64]>,
+    dependence: Option<&crate::score_dependence::ScoreDependence>,
+) -> Result<(ScoreSummary, bool, Vec<Diagnostic>), EstimationError> {
     antecedent_core::execution_attempt::run_operation(
         antecedent_core::execution_attempt::Operation::LawSummary,
         || {
-            let mut summary = table.summarize(weights)?;
+            let mut summary = table.summarize_with(weights, dependence)?;
             let mut diagnostics = Vec::new();
             let monotone_rearranged = rearrange_exceedance(&mut summary, table, &mut diagnostics);
             Ok((summary, monotone_rearranged, diagnostics))
@@ -595,7 +640,12 @@ mod tests {
             propensities: Arc::from([]),
             observed_outcome: Arc::from([0.0, 1.0, 0.0, 1.0]),
             n_rows: 4,
-            row_index: Arc::from([0, 1, 2, 3]),
+            row_index: Arc::from([
+                antecedent_data::GlobalId::new(0),
+                antecedent_data::GlobalId::new(1),
+                antecedent_data::GlobalId::new(2),
+                antecedent_data::GlobalId::new(3),
+            ]),
             fold_ids: Arc::from([0, 1, 0, 1]),
             n_folds: 2,
             scores: Arc::from([0.0, 0.0, 0.0, 0.0, 1.0, 3.0, 1.0, 3.0]),
@@ -608,6 +658,7 @@ mod tests {
             propensity_clip: None,
             treatment: VariableId::from_raw(0),
             intervened: Arc::from([]),
+            preparation: None,
         }
     }
 
@@ -673,7 +724,14 @@ mod tests {
         g.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
         g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         g.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        // A bidirected edge to the treatment makes variable 2 a confounded neighbour, not a
+        // directed descendant, so weights may depend on it.
         check_depends_on(&[VariableId::from_raw(2)], &t, Some(&g)).unwrap();
+        // The same variable reached by a directed edge from the treatment is a descendant.
+        let mut descendant = Admg::with_variables(3);
+        descendant.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        let err = check_depends_on(&[VariableId::from_raw(2)], &t, Some(&descendant)).unwrap_err();
+        assert!(err.to_string().contains("descendant"), "{err}");
     }
 
     #[test]
@@ -689,7 +747,7 @@ mod tests {
         let t = table();
         let w = [1.0, 1.0, 1.0, 1.0];
         let (out, failed) = retarget(&t, &w, &[], None, Some(&[0.0, 1.0, 0.0, 1.0]), None).unwrap();
-        // Four rows cannot meet the licensed Kish-arm floor; the means still retarget.
+        // Four rows cannot meet the supported Kish-arm floor; the means still retarget.
         let _ = failed;
         assert!((out.summary.means[1] - 2.0).abs() < 1e-12);
         assert!((out.contrast.unwrap().value - 2.0).abs() < 1e-12);
@@ -757,7 +815,10 @@ mod tests {
         t.n_rows = n;
         t.observed_arm = arm.into();
         t.observed_outcome = vec![0.0; n].into();
-        t.row_index = (0..n as u32).collect::<Vec<_>>().into();
+        t.row_index = (0..n)
+            .map(|i| antecedent_data::GlobalId::new(u64::try_from(i).unwrap()))
+            .collect::<Vec<_>>()
+            .into();
         t.fold_ids = (0..n).map(|i| (i % 2) as u32).collect::<Vec<_>>().into();
         t.scores = vec![0.0; 2 * n].into();
         t.propensities = propensities.into();

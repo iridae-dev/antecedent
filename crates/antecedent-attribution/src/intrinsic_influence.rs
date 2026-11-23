@@ -35,7 +35,7 @@
 //! refits the mechanisms, when data are supplied and the budget allows). A component that
 //! was not measured is reported as unquantified, never as zero.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -52,14 +52,18 @@ use antecedent_model::{
 use antecedent_stats::{Welford, student_t_ppf};
 
 use crate::change_common::stream_tag;
+use crate::coalition::Coalition;
 use crate::error::AttributionError;
 use crate::population::subset_table;
 use crate::result::CacheStats;
 use crate::shapley::{CoalitionPayoff, ShapleyEstimate, estimate_shapley};
 
-/// Largest source count for exact Shapley (`2^n` coalition values, each a nested simulation).
-/// [`IntrinsicAllocation::Auto`] enumerates up to this bound and samples permutations above it.
-pub const INTRINSIC_MAX_EXACT_PLAYERS: usize = 10;
+/// Largest source count for which [`IntrinsicAllocation::Auto`] enumerates: the largest `n`
+/// whose `2^n` coalition values (each a nested simulation) cost no more than the default
+/// permutation plan of `200 × (n + 1)` values. Above it `Auto` samples permutations.
+/// [`IntrinsicAllocation::Exact`] has no player bound of its own: its plan is refused by the
+/// shared simulation budget when it is too large.
+pub const INTRINSIC_MAX_EXACT_PLAYERS: usize = 11;
 
 /// Smallest bootstrap size from which a bootstrap standard error is reported.
 pub const MIN_FIT_BOOTSTRAP_REPLICATES: u32 = 10;
@@ -85,8 +89,9 @@ const REASON_EXACT: &str = "every_coalition_enumerated";
 /// The three sources of uncertainty in a sampled variance attribution.
 ///
 /// They are different random mechanisms with different remedies, so every interval of an
-/// [`IntrinsicInfluenceResult`] names the one component it covers and none is ever summed into
-/// a combined interval.
+/// [`IntrinsicInfluenceResult`] names the one component it covers and none is summed into
+/// another. The separate [`SourceInfluence::whole_procedure`] status measures the whole
+/// procedure directly, by its spread across full refits.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum UncertaintyComponent {
@@ -173,6 +178,12 @@ pub struct SourceInfluence {
     /// Permutation-sampling, simulation and mechanism-fit uncertainty of
     /// [`Self::contribution`], in that order.
     pub uncertainty: Arc<[ComponentUncertainty]>,
+    /// Uncertainty of the whole procedure under the declared design (independent rows):
+    /// the spread of the full attribution (row resample, mechanism refit with family
+    /// selection, fresh simulation batches) across the mechanism-fit bootstrap, with the
+    /// permutation-sampling variance, held fixed across refits, added. Quantified only when
+    /// the bootstrap ran; uncalibrated, and not a supported interval.
+    pub whole_procedure: ComponentStatus,
 }
 
 impl SourceInfluence {
@@ -228,6 +239,97 @@ pub enum ShapleyMethod {
     },
 }
 
+/// How the mechanism-fit replicates are drawn.
+///
+/// Both resamplings refit every mechanism on the supplied rows and repeat the whole attribution
+/// on each refit; they differ in the law the rows are weighted by. The row bootstrap draws
+/// multinomial row counts, reselects the mechanism families on each resample and reports a
+/// sampling spread. The Dirichlet row weights are the Bayesian bootstrap: one
+/// Dirichlet(1, ..., 1) weight vector per refit, the mechanism families held at the ones
+/// selected on the original rows, so the replicates are draws from the posterior over the
+/// mechanisms given the empirical row law.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum FitResampling {
+    /// Multinomial row counts with the mechanism families reselected on each resample.
+    #[default]
+    RowBootstrap,
+    /// One Dirichlet(1, ..., 1) weight vector per refit over the original rows, with the
+    /// mechanism families held at the ones selected on the original rows.
+    DirichletRowWeights,
+    /// Circular blocks of `block` consecutive rows drawn with replacement, for rows that are
+    /// consecutive times of one dependent series; families reselected on each resample.
+    BlockBootstrap {
+        /// Rows per block (at least 1).
+        block: usize,
+    },
+    /// One Exp(1) weight per block of `block` consecutive rows, shared by every row of the
+    /// block (the block Bayesian bootstrap), with the families held at the ones selected on
+    /// the original rows.
+    DirichletBlockWeights {
+        /// Rows per block (at least 1).
+        block: usize,
+    },
+}
+
+impl FitResampling {
+    /// Stable name of the resampling.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::RowBootstrap => "row_bootstrap",
+            Self::DirichletRowWeights => "dirichlet_row_weights",
+            Self::BlockBootstrap { .. } => "block_bootstrap",
+            Self::DirichletBlockWeights { .. } => "dirichlet_block_weights",
+        }
+    }
+
+    /// Whether the refits are draws of weights with the families held fixed.
+    const fn holds_families(self) -> bool {
+        matches!(self, Self::DirichletRowWeights | Self::DirichletBlockWeights { .. })
+    }
+
+    /// The rows of one resample of `n` rows, for the resamplings that resample rows.
+    fn resample_rows(self, n: usize, rng: &mut antecedent_core::CausalRng) -> Vec<usize> {
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "next_f64() is in [0, 1), so the scaled draw is a non-negative index below n"
+        )]
+        let mut draw = |limit: usize| ((rng.next_f64() * limit as f64) as usize).min(limit - 1);
+        match self {
+            Self::BlockBootstrap { block } => {
+                let block = block.clamp(1, n);
+                let mut rows = Vec::with_capacity(n + block);
+                while rows.len() < n {
+                    let start = draw(n);
+                    rows.extend((0..block).map(|k| (start + k) % n));
+                }
+                rows.truncate(n);
+                rows
+            }
+            _ => (0..n).map(|_| draw(n)).collect(),
+        }
+    }
+
+    /// The weights of one refit of `n` rows, for the resamplings that hold the families.
+    fn refit_weights(self, n: usize, rng: &mut antecedent_core::CausalRng) -> Vec<f64> {
+        match self {
+            Self::DirichletBlockWeights { block } => {
+                let block = block.clamp(1, n);
+                let mut weights = Vec::with_capacity(n);
+                while weights.len() < n {
+                    let weight = antecedent_kernels::bayesian_bootstrap_weights(rng, 1, false)[0];
+                    let take = block.min(n - weights.len());
+                    weights.extend(std::iter::repeat_n(weight, take));
+                }
+                weights
+            }
+            _ => antecedent_kernels::bayesian_bootstrap_weights(rng, n, false),
+        }
+    }
+}
+
 /// Method record of an intrinsic-influence run.
 #[derive(Clone, Debug, PartialEq)]
 pub struct IntrinsicMethod {
@@ -245,6 +347,8 @@ pub struct IntrinsicMethod {
     pub replicates: usize,
     /// Bootstrap refits requested for mechanism-fit uncertainty (`0` when none).
     pub fit_bootstrap_replicates: u32,
+    /// How those refits weighted the rows.
+    pub fit_resampling: FitResampling,
 }
 
 /// Compute consumed by an intrinsic-influence run.
@@ -288,6 +392,10 @@ pub struct IntrinsicInfluenceResult {
     pub budget: IntrinsicBudget,
     /// Coalition cache statistics of the point run.
     pub cache_stats: CacheStats,
+    /// The attribution of every completed mechanism refit, one row per refit and one entry per
+    /// source in [`Self::sources`] order. Under [`FitResampling::DirichletRowWeights`] these
+    /// are draws from the posterior over the mechanisms; empty when no refit ran.
+    pub fit_draws: Arc<[Vec<f64>]>,
 }
 
 impl IntrinsicInfluenceResult {
@@ -319,9 +427,11 @@ pub enum NoiseIndependence<'a> {
 /// How the variance game is allocated among the sources.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IntrinsicAllocation {
-    /// Exact up to [`INTRINSIC_MAX_EXACT_PLAYERS`] sources, permutation sampling above.
+    /// Exact while enumeration is no costlier than the default permutation plan (up to
+    /// [`INTRINSIC_MAX_EXACT_PLAYERS`] sources), permutation sampling above.
     Auto,
-    /// Exact Shapley over every coalition; refused above [`INTRINSIC_MAX_EXACT_PLAYERS`].
+    /// Exact Shapley over every coalition; refused when the plan exceeds the shared
+    /// simulation budget.
     Exact,
     /// Shapley by permutation sampling.
     Permutation {
@@ -346,6 +456,8 @@ pub struct IntrinsicInfluenceQuery {
     /// Row-bootstrap refits for mechanism-fitting uncertainty; `0` for none, otherwise at
     /// least [`MIN_FIT_BOOTSTRAP_REPLICATES`]. Needs data passed to [`intrinsic_influence`].
     pub fit_bootstrap_replicates: u32,
+    /// How the mechanism-fit refits weight the rows.
+    pub fit_resampling: FitResampling,
     /// Two-sided level of every reported interval, in `(0, 1)`.
     pub level: f64,
     /// Most sources accepted (hard size guard).
@@ -366,6 +478,7 @@ impl IntrinsicInfluenceQuery {
             inner_draws: 40,
             replicates: 4,
             fit_bootstrap_replicates: 0,
+            fit_resampling: FitResampling::RowBootstrap,
             level: 0.95,
             max_sources: 64,
             seed: 0,
@@ -400,6 +513,13 @@ impl IntrinsicInfluenceQuery {
         self
     }
 
+    /// Set how the mechanism-fit refits weight the rows.
+    #[must_use]
+    pub const fn with_fit_resampling(mut self, resampling: FitResampling) -> Self {
+        self.fit_resampling = resampling;
+        self
+    }
+
     /// Set the interval level.
     #[must_use]
     pub const fn with_level(mut self, level: f64) -> Self {
@@ -430,7 +550,7 @@ impl IntrinsicInfluenceQuery {
         let bad = |message: &'static str| {
             Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "intrinsic_influence.invalid_settings",
+                antecedent_core::reason_details::intrinsic_influence::INVALID_SETTINGS,
                 message,
             ))
         };
@@ -493,7 +613,66 @@ pub fn intrinsic_influence(
     query: &IntrinsicInfluenceQuery,
     ctx: &ExecutionContext,
 ) -> Result<IntrinsicInfluenceResult, AttributionError> {
+    intrinsic_influence_with_temporal_runs(model, noise, data, query, None, None, ctx)
+}
+
+/// Intrinsic influence with an explicit partition of compact temporal rows.
+/// The existing static [`intrinsic_influence`] behavior is unchanged.
+///
+/// # Errors
+/// The same failures as [`intrinsic_influence`], including invalid temporal runs.
+#[doc(hidden)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded attribution calculation keeps its checks together"
+)]
+pub fn intrinsic_influence_with_temporal_runs(
+    model: &CompiledCausalModel,
+    noise: NoiseIndependence<'_>,
+    data: Option<&TabularData>,
+    query: &IntrinsicInfluenceQuery,
+    runs: Option<&[std::ops::Range<usize>]>,
+    shared_budget: Option<&antecedent_core::TemporalBudget>,
+    ctx: &ExecutionContext,
+) -> Result<IntrinsicInfluenceResult, AttributionError> {
     query.validate()?;
+    if runs.is_some()
+        && query.fit_bootstrap_replicates > 0
+        && !matches!(
+            query.fit_resampling,
+            FitResampling::BlockBootstrap { .. } | FitResampling::DirichletBlockWeights { .. }
+        )
+    {
+        return Err(AttributionError::InvalidInput {
+            message: "temporal runs require a temporal block refit law",
+        });
+    }
+
+    // Bootstrap refits operate on physical analysis rows; the fit ignores stored
+    // metadata, so compact a nontrivial mask before any refit and reject weights.
+    if let Some(data) = data {
+        crate::population::reject_storage_weights(data)?;
+        if query.fit_bootstrap_replicates > 0
+            && matches!(
+                query.fit_resampling,
+                FitResampling::BlockBootstrap { .. } | FitResampling::DirichletBlockWeights { .. }
+            )
+        {
+            crate::population::reject_mask_for_ordered(data)?;
+        }
+    }
+    let filtered_data = match data {
+        Some(data)
+            if query.fit_bootstrap_replicates > 0
+                && data.storage().analysis_mask().is_some_and(|mask| !mask.is_all_valid()) =>
+        {
+            let rows =
+                crate::population::resolve_rows(data, &antecedent_core::PopulationSelector::All)?;
+            Some(crate::population::subset_table(data, &rows)?)
+        }
+        _ => None,
+    };
+    let data = filtered_data.as_ref().or(data);
     require_independent_noise(model, noise)?;
     let target = model
         .dense_of(query.target)
@@ -528,7 +707,9 @@ pub fn intrinsic_influence(
 
     let sim_se = |series: &[f64]| -> f64 {
         let mut w = Welford::new();
-        series.iter().for_each(|&x| w.push(x));
+        for &x in series {
+            w.push(x);
+        }
         w.stderr_of_mean()
     };
     let sources_sim: Vec<f64> = (0..players.len())
@@ -542,9 +723,59 @@ pub fn intrinsic_influence(
         .collect();
     let allocation_residual = residuals.iter().sum::<f64>() / b;
 
-    let fit = fit_component(model, data, query, &spec, &pooled, &sources_sim, ctx)?;
+    let fit =
+        fit_component(model, data, query, &spec, &pooled, &sources_sim, runs, shared_budget, ctx)?;
 
-    let tail = 0.5 + 0.5 * query.level;
+    let sources = build_source_uncertainties(&pooled, &fit, &sources_sim, b, query.level);
+
+    let refits = match &fit {
+        FitComponent::Quantified { .. } => query.fit_bootstrap_replicates,
+        FitComponent::Unquantified(_) => 0,
+    };
+    let fit_draws: Arc<[Vec<f64>]> = match fit {
+        FitComponent::Quantified { draws, .. } => Arc::from(draws),
+        FitComponent::Unquantified(_) => Arc::from(Vec::<Vec<f64>>::new()),
+    };
+    Ok(IntrinsicInfluenceResult {
+        target: query.target,
+        sources: Arc::from(sources),
+        total_variance,
+        total_variance_stderr: sim_se(&direct_variance),
+        allocation_residual,
+        allocation_residual_stderr: sim_se(&residuals),
+        level: query.level,
+        method: IntrinsicMethod {
+            game: GAME,
+            estimator: ESTIMATOR,
+            shapley,
+            outer_draws: query.outer_draws,
+            inner_draws: query.inner_draws,
+            replicates: query.replicates,
+            fit_bootstrap_replicates: query.fit_bootstrap_replicates,
+            fit_resampling: query.fit_resampling,
+        },
+        budget: IntrinsicBudget {
+            coalition_evaluations: evaluations,
+            rows_replayed: evaluations
+                .saturating_mul(rows_per_batch as u64)
+                .saturating_mul(query.replicates as u64),
+            permutations: pooled.budget.samples,
+            exact_coalitions: pooled.budget.exact_coalitions,
+            refits,
+        },
+        cache_stats,
+        fit_draws,
+    })
+}
+
+fn build_source_uncertainties(
+    pooled: &ShapleyEstimate,
+    fit: &FitComponent,
+    sources_sim: &[f64],
+    b: f64,
+    level: f64,
+) -> Vec<SourceInfluence> {
+    let tail = 0.5 + 0.5 * level;
     let sim_df = b - 1.0;
     let sim_t = student_t_ppf(tail, sim_df);
     let perm_df = pooled.budget.samples.saturating_sub(1) as f64;
@@ -553,7 +784,7 @@ pub fn intrinsic_influence(
         stderr,
         ci_low: estimate - t * stderr,
         ci_high: estimate + t * stderr,
-        level: query.level,
+        level,
         df,
     };
     let sources: Vec<SourceInfluence> = pooled
@@ -566,11 +797,15 @@ pub fn intrinsic_influence(
                 Some(se) => quantified(contribution, se[i], perm_t, perm_df),
                 None => ComponentStatus::NotApplicable { reason: REASON_EXACT },
             };
-            let mechanism_fit = match &fit {
-                FitComponent::Quantified { stderr, t, df } => {
-                    quantified(contribution, stderr[i], *t, *df)
-                }
-                FitComponent::Unquantified(reason) => ComponentStatus::Unquantified { reason },
+            let (mechanism_fit, whole_procedure) = match &fit {
+                FitComponent::Quantified { stderr, whole, t, df, .. } => (
+                    quantified(contribution, stderr[i], *t, *df),
+                    quantified(contribution, whole[i], *t, *df),
+                ),
+                FitComponent::Unquantified(reason) => (
+                    ComponentStatus::Unquantified { reason },
+                    ComponentStatus::Unquantified { reason },
+                ),
             };
             SourceInfluence {
                 source,
@@ -589,48 +824,18 @@ pub fn intrinsic_influence(
                         status: mechanism_fit,
                     },
                 ]),
+                whole_procedure,
             }
         })
         .collect();
 
-    let refits = match &fit {
-        FitComponent::Quantified { .. } => query.fit_bootstrap_replicates,
-        FitComponent::Unquantified(_) => 0,
-    };
-    Ok(IntrinsicInfluenceResult {
-        target: query.target,
-        sources: Arc::from(sources),
-        total_variance,
-        total_variance_stderr: sim_se(&direct_variance),
-        allocation_residual,
-        allocation_residual_stderr: sim_se(&residuals),
-        level: query.level,
-        method: IntrinsicMethod {
-            game: GAME,
-            estimator: ESTIMATOR,
-            shapley,
-            outer_draws: query.outer_draws,
-            inner_draws: query.inner_draws,
-            replicates: query.replicates,
-            fit_bootstrap_replicates: query.fit_bootstrap_replicates,
-        },
-        budget: IntrinsicBudget {
-            coalition_evaluations: evaluations,
-            rows_replayed: evaluations
-                .saturating_mul(rows_per_batch as u64)
-                .saturating_mul(query.replicates as u64),
-            permutations: pooled.budget.samples,
-            exact_coalitions: pooled.budget.exact_coalitions,
-            refits,
-        },
-        cache_stats,
-    })
+    sources
 }
 
 fn over_budget(message: &'static str) -> AttributionError {
     refuse(
         antecedent_core::reason_code!("route_not_supported"),
-        "intrinsic_influence.draw_budget_exceeded",
+        antecedent_core::reason_details::intrinsic_influence::DRAW_BUDGET_EXCEEDED,
         message,
     )
 }
@@ -643,7 +848,7 @@ fn require_independent_noise(
     match noise {
         NoiseIndependence::Undeclared => Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "intrinsic_influence.noise_independence_undeclared",
+            antecedent_core::reason_details::intrinsic_influence::NOISE_INDEPENDENCE_UNDECLARED,
             "intrinsic influence is defined for independent exogenous noise terms; declare the \
              model Markovian or pass its structure",
         )),
@@ -652,7 +857,7 @@ fn require_independent_noise(
             if let Some((a, b)) = admg.bidirected_edge_pairs_sorted().first() {
                 return Err(refuse(
                     antecedent_core::reason_code!("route_not_supported"),
-                    "intrinsic_influence.correlated_noise",
+                    antecedent_core::reason_details::intrinsic_influence::CORRELATED_NOISE,
                     format_args!(
                         "the noise terms of variables {a} and {b} are connected by a bidirected \
                          edge (a latent common cause), so they are not independent and the \
@@ -665,7 +870,7 @@ fn require_independent_noise(
             {
                 return Err(refuse(
                     antecedent_core::reason_code!("invalid_argument"),
-                    "intrinsic_influence.structure_mismatch",
+                    antecedent_core::reason_details::intrinsic_influence::STRUCTURE_MISMATCH,
                     "the declared structure does not have the model's directed edges",
                 ));
             }
@@ -714,7 +919,7 @@ fn require_noise_support(
             MechanismSlot::Vacant | MechanismSlot::Pending { .. } => {
                 return Err(refuse(
                     antecedent_core::reason_code!("route_not_supported"),
-                    "intrinsic_influence.mechanism_unfitted",
+                    antecedent_core::reason_details::intrinsic_influence::MECHANISM_UNFITTED,
                     "a source has no fitted mechanism, so its noise cannot be drawn",
                 ));
             }
@@ -722,7 +927,7 @@ fn require_noise_support(
             | MechanismSlot::ConditionalLinearGaussianStateSpace { .. } => {
                 return Err(refuse(
                     antecedent_core::reason_code!("route_not_supported"),
-                    "intrinsic_influence.noise_not_row_independent",
+                    antecedent_core::reason_details::intrinsic_influence::NOISE_NOT_ROW_INDEPENDENT,
                     "a state-space mechanism's noise is serially dependent across rows, so \
                      outer and inner draws are not independent",
                 ));
@@ -734,7 +939,7 @@ fn require_noise_support(
             {
                 return Err(refuse(
                     antecedent_core::reason_code!("route_not_supported"),
-                    "intrinsic_influence.target_not_continuous",
+                    antecedent_core::reason_details::intrinsic_influence::TARGET_NOT_CONTINUOUS,
                     "the variance of a categorical target's level codes is not a meaningful \
                      quantity to attribute",
                 ));
@@ -745,28 +950,33 @@ fn require_noise_support(
     Ok(())
 }
 
+/// Whether enumerating `2^n` coalitions costs no more than the default permutation plan of
+/// [`DEFAULT_PERMUTATIONS`] permutations of `n + 1` coalition values each.
+fn exact_is_no_costlier(n_players: usize) -> bool {
+    n_players < 64
+        && (1u128 << n_players) <= (DEFAULT_PERMUTATIONS as u128) * (n_players as u128 + 1)
+}
+
 /// The Shapley configuration and its record for the query's allocation and source count.
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "the helper follows the fallible attribution setup interface"
+)]
 fn allocation_config(
     query: &IntrinsicInfluenceQuery,
     n_players: usize,
 ) -> Result<(ShapleyConfig, ShapleyMethod), AttributionError> {
     let exact = match query.allocation {
-        IntrinsicAllocation::Auto => n_players <= INTRINSIC_MAX_EXACT_PLAYERS,
-        IntrinsicAllocation::Exact => {
-            if n_players > INTRINSIC_MAX_EXACT_PLAYERS {
-                return Err(refuse(
-                    antecedent_core::reason_code!("route_not_supported"),
-                    "intrinsic_influence.exact_players_exceed_bound",
-                    "exact Shapley enumerates 2^n nested simulations; use permutation sampling \
-                     above the bound",
-                ));
-            }
-            true
-        }
+        IntrinsicAllocation::Auto => exact_is_no_costlier(n_players),
+        IntrinsicAllocation::Exact => true,
         IntrinsicAllocation::Permutation { .. } => false,
     };
     if exact {
-        return Ok((ShapleyConfig::exact().with_seed(query.seed), ShapleyMethod::Exact));
+        // The shared simulation budget, not a player count, bounds the enumeration.
+        return Ok((
+            ShapleyConfig::exact().with_exact_override(true).with_seed(query.seed),
+            ShapleyMethod::Exact,
+        ));
     }
     let n_permutations = match query.allocation {
         IntrinsicAllocation::Permutation { n_permutations } => n_permutations,
@@ -835,8 +1045,8 @@ struct ReplicateBank<'a> {
     view: ModelView<'a>,
     n_nodes: usize,
     batches: Vec<Mutex<BatchState>>,
-    /// Coalition mask -> value in each replicate batch.
-    memo: HashMap<u64, Vec<f64>>,
+    /// Coalition -> value in each replicate batch.
+    memo: HashMap<Coalition, Vec<f64>>,
     /// Variance of the target over all rows of each batch with no coordinate fixed.
     direct_variance: Option<Vec<f64>>,
     ctx: &'a ExecutionContext,
@@ -890,14 +1100,14 @@ impl<'a> ReplicateBank<'a> {
         Ok(Self { spec, view, n_nodes, batches, memo: HashMap::new(), direct_variance: None, ctx })
     }
 
-    /// `v̂(mask)` in every replicate batch, replaying each batch once on a miss.
-    fn values(&mut self, mask: u64) -> Result<&[f64], AttributionError> {
-        if self.memo.contains_key(&mask) {
-            return Ok(self.memo[&mask].as_slice());
+    /// `v̂(coalition)` in every replicate batch, replaying each batch once on a miss.
+    fn values(&mut self, coalition: &Coalition) -> Result<&[f64], AttributionError> {
+        if self.memo.contains_key(coalition) {
+            return Ok(self.memo[coalition].as_slice());
         }
         let mut fixed_nodes = vec![false; self.n_nodes];
-        for (bit, &node) in self.spec.player_nodes.iter().enumerate() {
-            fixed_nodes[node] = (mask >> bit) & 1 == 1;
+        for (player, &node) in self.spec.player_nodes.iter().enumerate() {
+            fixed_nodes[node] = coalition.contains(player);
         }
         let (outer, inner, target) = (self.spec.outer, self.spec.inner, self.spec.target);
         let n_rows = outer * inner;
@@ -919,15 +1129,17 @@ impl<'a> ReplicateBank<'a> {
                         message: "the target produced a non-finite value".into(),
                     }));
                 }
-                let direct = if mask == 0 { variance_of(y) } else { f64::NAN };
+                let direct = if coalition.is_empty() { variance_of(y) } else { f64::NAN };
                 Ok((nested_variance(y, outer, inner), direct))
             },
         )?;
-        if mask == 0 {
+        if coalition.is_empty() {
             self.direct_variance = Some(evaluated.iter().map(|e| e.1).collect());
         }
-        let values =
-            self.memo.entry(mask).or_insert_with(|| evaluated.into_iter().map(|e| e.0).collect());
+        let values = self
+            .memo
+            .entry(coalition.clone())
+            .or_insert_with(|| evaluated.into_iter().map(|e| e.0).collect());
         Ok(values.as_slice())
     }
 }
@@ -935,7 +1147,9 @@ impl<'a> ReplicateBank<'a> {
 /// Bessel-corrected sample variance.
 fn variance_of(y: &[f64]) -> f64 {
     let mut w = Welford::new();
-    y.iter().for_each(|&x| w.push(x));
+    for &x in y {
+        w.push(x);
+    }
     w.sample_variance().unwrap_or(f64::NAN)
 }
 
@@ -947,7 +1161,9 @@ fn nested_variance(y: &[f64], outer: usize, inner: usize) -> f64 {
     let mut within = 0.0;
     for group in y.chunks_exact(inner) {
         let mut w = Welford::new();
-        group.iter().for_each(|&x| w.push(x));
+        for &x in group {
+            w.push(x);
+        }
         means.push(w.mean());
         within += w.sample_variance().unwrap_or(0.0);
     }
@@ -959,8 +1175,8 @@ fn nested_variance(y: &[f64], outer: usize, inner: usize) -> f64 {
 struct PooledPayoff<'b, 'a>(&'b mut ReplicateBank<'a>);
 
 impl CoalitionPayoff for PooledPayoff<'_, '_> {
-    fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
-        let values = self.0.values(mask)?;
+    fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
+        let values = self.0.values(coalition)?;
         Ok(values.iter().sum::<f64>() / values.len() as f64)
     }
 }
@@ -972,8 +1188,8 @@ struct BatchPayoff<'b, 'a> {
 }
 
 impl CoalitionPayoff for BatchPayoff<'_, '_> {
-    fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
-        Ok(self.bank.values(mask)?[self.batch])
+    fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
+        Ok(self.bank.values(coalition)?[self.batch])
     }
 }
 
@@ -1003,7 +1219,7 @@ fn run_game(
     let mut bank = ReplicateBank::new(model, spec, first_replicate, ctx)?;
     let pooled = estimate_shapley(spec.players, &spec.config, &mut PooledPayoff(&mut bank), ctx)?;
     if bank.direct_variance.is_none() {
-        bank.values(0)?;
+        bank.values(&Coalition::empty())?;
     }
     let direct_variance = bank.direct_variance.clone().unwrap_or_default();
     let evaluations = bank.memo.len() as u64;
@@ -1023,19 +1239,73 @@ enum FitComponent {
     Quantified {
         /// Per-source standard error after removing the Monte Carlo noise of one refit.
         stderr: Vec<f64>,
+        /// Per-source standard error of the whole procedure: the raw bootstrap spread with
+        /// the permutation variance (fixed across refits) added.
+        whole: Vec<f64>,
         t: f64,
         df: f64,
+        /// The attribution of every refit, one row per refit.
+        draws: Vec<Vec<f64>>,
     },
     Unquantified(&'static str),
 }
 
+/// The per-player spread of the refit contributions: the bootstrap deviation with the
+/// permutation noise added back (`whole`) and with the noise variance of one estimate removed
+/// (`stderr`).
+fn bootstrap_spread(
+    draws: &[&Vec<f64>],
+    pooled: &ShapleyEstimate,
+    sources_sim: &[f64],
+    players: usize,
+) -> (Vec<f64>, Vec<f64>) {
+    let whole = (0..players)
+        .map(|i| {
+            let mut w = Welford::new();
+            for d in draws {
+                w.push(d[i]);
+            }
+            let boot_var = w.sample_variance().unwrap_or(f64::NAN);
+            let permutation_var =
+                pooled.component_mc_stderr.as_ref().map_or(0.0, |se| se[i] * se[i]);
+            (boot_var + permutation_var).sqrt()
+        })
+        .collect();
+    let stderr = (0..players)
+        .map(|i| {
+            let mut w = Welford::new();
+            for d in draws {
+                w.push(d[i]);
+            }
+            let boot_var = w.sample_variance().unwrap_or(f64::NAN);
+            // The refits reuse the same permutation stream; their spread is
+            // conditional on those permutations. Only the fresh simulation
+            // batches contribute independently to that bootstrap spread.
+            let noise_var = sources_sim[i] * sources_sim[i];
+            (boot_var - noise_var).max(0.0).sqrt()
+        })
+        .collect();
+    (whole, stderr)
+}
+
 /// Mechanism-fitting uncertainty: refit the mechanisms on row-bootstrap resamples of `data`
-/// and repeat the attribution on each refit.
+/// (or under Dirichlet row weights, for the posterior over the mechanisms) and repeat the
+/// attribution on each refit.
 ///
-/// Each refit's contributions carry the same Monte Carlo noise as the point estimate, so the
-/// bootstrap variance is reduced by the noise variance of one estimate (the pooled
-/// permutation variance when sampled, else the simulation variance) before the square root.
+/// Under [`FitResampling::DirichletRowWeights`] the standard errors are the posterior standard
+/// deviations of the contributions and the interval their normal approximation; the draws
+/// themselves are returned for the caller to summarise as a posterior.
+///
+/// Each refit reuses the point estimate's permutation stream but draws fresh simulation batches.
+/// The fit-only variance is the bootstrap variance conditional on those permutations, less
+/// the estimated simulation variance of one estimate. The whole-procedure spread adds the
+/// point estimate's permutation variance to the raw bootstrap variance.
 /// Any failed refit leaves the component unquantified rather than dropping the failure.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded attribution calculation keeps its checks together"
+)]
+#[allow(clippy::too_many_arguments, reason = "the inputs describe one attribution calculation")]
 fn fit_component(
     model: &CompiledCausalModel,
     data: Option<&TabularData>,
@@ -1043,6 +1313,8 @@ fn fit_component(
     spec: &Game<'_>,
     pooled: &ShapleyEstimate,
     sources_sim: &[f64],
+    runs: Option<&[std::ops::Range<usize>]>,
+    shared_budget: Option<&antecedent_core::TemporalBudget>,
     ctx: &ExecutionContext,
 ) -> Result<FitComponent, AttributionError> {
     let replicates = query.fit_bootstrap_replicates;
@@ -1063,58 +1335,210 @@ fn fit_component(
     if n_rows == 0 {
         return Ok(FitComponent::Unquantified(REASON_NOT_QUANTIFIED_NO_DATA));
     }
-    let outcomes = ctx.map_indexed(replicates as usize, |r, worker| -> Result<Option<Vec<f64>>, AttributionError> {
-        if worker.cancellation.is_cancelled() {
-            return Err(AttributionError::Cancelled);
+    // The posterior over the mechanisms holds the families at the ones selected on the
+    // original rows, so they are selected once here.
+    let held_assignments = if query.fit_resampling.holds_families() {
+        match MechanismRegistry::standard().assign_and_fit_polled(
+            model,
+            data,
+            SelectionPolicy::BestScore,
+            &|| ctx.cancellation.is_cancelled(),
+        ) {
+            Ok((_, assignments)) => Some(assignments),
+            Err(ModelError::Cancelled) => return Err(AttributionError::Cancelled),
+            Err(_) => return Ok(FitComponent::Unquantified(REASON_REFIT_FAILED)),
         }
-        let mut rng = worker
-            .rng
-            .stream_for(StreamDomain::Attribution, stream_tag(FIT_STREAM, query.seed ^ r as u64));
-        #[allow(
-            clippy::cast_possible_truncation,
-            clippy::cast_sign_loss,
-            reason = "next_f64() is in [0, 1), so the scaled draw is a non-negative index below n"
-        )]
-        let rows: Vec<usize> = (0..n_rows)
-            .map(|_| ((rng.next_f64() * n_rows as f64) as usize).min(n_rows - 1))
-            .collect();
-        let attempt = (|| -> Result<Vec<f64>, AttributionError> {
-            let resample = subset_table(data, &rows)?;
-            let (store, _) = MechanismRegistry::standard().assign_and_fit_polled(
-                model,
-                &resample,
-                SelectionPolicy::BestScore,
-                &|| worker.cancellation.is_cancelled(),
-            )?;
-            let refit = model.clone().with_mechanisms(store);
-            require_noise_support(&refit, DenseNodeId::from_index(spec.target), spec.player_nodes)?;
-            let first = (r as u64 + 1) * spec.replicates as u64;
-            run_game(&refit, spec, first, false, worker).map(|d| d.pooled.values)
-        })();
-        match attempt {
-            Ok(values) => Ok(Some(values)),
-            Err(AttributionError::Cancelled | AttributionError::Model(ModelError::Cancelled)) => {
-                Err(AttributionError::Cancelled)
+    } else {
+        None
+    };
+    let temporal_budget = shared_budget.cloned().unwrap_or_else(|| {
+        antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
+    });
+    let outcomes = ctx.map_indexed(
+        replicates as usize,
+        |r, worker| -> Result<Option<Vec<f64>>, AttributionError> {
+            if worker.cancellation.is_cancelled() {
+                return Err(AttributionError::Cancelled);
             }
-            Err(_) => Ok(None),
-        }
-    })?;
+            let mut rng = worker.rng.stream_for(
+                StreamDomain::Attribution,
+                stream_tag(FIT_STREAM, antecedent_core::derive_stream(query.seed, r as u64)),
+            );
+            let attempt = (|| -> Result<Vec<f64>, AttributionError> {
+                let store = if let Some(assignments) = &held_assignments {
+                    if let Some(runs) = runs {
+                        let mut budget = temporal_budget.clone();
+                        let weights = crate::temporal_resampling::bayesian_run_weights(
+                            n_rows,
+                            match query.fit_resampling {
+                                FitResampling::DirichletBlockWeights { block } => block,
+                                _ => 1,
+                            },
+                            runs,
+                            r as u64,
+                            &mut rng,
+                            &mut budget,
+                            worker,
+                        )?;
+                        MechanismRegistry::standard().refit_weighted_polled(
+                            model,
+                            data,
+                            assignments,
+                            &weights,
+                            &|| worker.cancellation.is_cancelled(),
+                        )?
+                    } else {
+                        let weights = query.fit_resampling.refit_weights(n_rows, &mut rng);
+                        MechanismRegistry::standard().refit_weighted_polled(
+                            model,
+                            data,
+                            assignments,
+                            &weights,
+                            &|| worker.cancellation.is_cancelled(),
+                        )?
+                    }
+                } else if let Some(runs) = runs {
+                    let mut budget = temporal_budget.clone();
+                    let rows = crate::temporal_resampling::bootstrap_run_rows(
+                        n_rows,
+                        match query.fit_resampling {
+                            FitResampling::BlockBootstrap { block } => block,
+                            _ => 1,
+                        },
+                        runs,
+                        r as u64,
+                        &mut rng,
+                        &mut budget,
+                        worker,
+                    )?;
+                    let resample = subset_table(data, &rows)?;
+                    MechanismRegistry::standard()
+                        .assign_and_fit_polled(
+                            model,
+                            &resample,
+                            SelectionPolicy::BestScore,
+                            &|| worker.cancellation.is_cancelled(),
+                        )?
+                        .0
+                } else {
+                    let rows = query.fit_resampling.resample_rows(n_rows, &mut rng);
+                    let resample = subset_table(data, &rows)?;
+                    MechanismRegistry::standard()
+                        .assign_and_fit_polled(
+                            model,
+                            &resample,
+                            SelectionPolicy::BestScore,
+                            &|| worker.cancellation.is_cancelled(),
+                        )?
+                        .0
+                };
+                let refit = model.clone().with_mechanisms(store);
+                require_noise_support(
+                    &refit,
+                    DenseNodeId::from_index(spec.target),
+                    spec.player_nodes,
+                )?;
+                let first = (r as u64 + 1) * spec.replicates as u64;
+                run_game(&refit, spec, first, false, worker).map(|d| d.pooled.values)
+            })();
+            match attempt {
+                Ok(values) => Ok(Some(values)),
+                Err(
+                    AttributionError::Cancelled | AttributionError::Model(ModelError::Cancelled),
+                ) => Err(AttributionError::Cancelled),
+                Err(AttributionError::Model(error @ ModelError::ResourceLimit { .. }))
+                    if runs.is_some() =>
+                {
+                    Err(AttributionError::Budget { message: error.to_string() })
+                }
+                Err(error @ AttributionError::Budget { .. }) if runs.is_some() => Err(error),
+                Err(_) => Ok(None),
+            }
+        },
+    )?;
+    Ok(summarize_fit_outcomes(
+        &outcomes,
+        pooled,
+        sources_sim,
+        spec.players.len(),
+        replicates,
+        query.level,
+    ))
+}
+
+fn summarize_fit_outcomes(
+    outcomes: &[Option<Vec<f64>>],
+    pooled: &ShapleyEstimate,
+    sources_sim: &[f64],
+    players: usize,
+    replicates: u32,
+    level: f64,
+) -> FitComponent {
     if outcomes.iter().any(Option::is_none) {
-        return Ok(FitComponent::Unquantified(REASON_REFIT_FAILED));
+        return FitComponent::Unquantified(REASON_REFIT_FAILED);
     }
     let draws: Vec<&Vec<f64>> = outcomes.iter().flatten().collect();
-    let stderr = (0..spec.players.len())
-        .map(|i| {
-            let mut w = Welford::new();
-            draws.iter().for_each(|d| w.push(d[i]));
-            let boot_var = w.sample_variance().unwrap_or(f64::NAN);
-            let noise_var =
-                pooled.component_mc_stderr.as_ref().map_or(sources_sim[i] * sources_sim[i], |se| {
-                    (se[i] * se[i]).max(sources_sim[i] * sources_sim[i])
-                });
-            (boot_var - noise_var).max(0.0).sqrt()
-        })
-        .collect();
+    let (whole, stderr) = bootstrap_spread(&draws, pooled, sources_sim, players);
     let df = f64::from(replicates) - 1.0;
-    Ok(FitComponent::Quantified { stderr, t: student_t_ppf(0.5 + 0.5 * query.level, df), df })
+    let draws: Vec<Vec<f64>> = draws.into_iter().cloned().collect();
+    FitComponent::Quantified { stderr, whole, t: student_t_ppf(0.5 + 0.5 * level, df), df, draws }
+}
+
+#[cfg(test)]
+mod bootstrap_component_tests {
+    use super::*;
+    use crate::result::{CacheStats, ComputeBudget};
+
+    #[test]
+    fn fixed_permutations_and_fresh_simulation_have_separate_variance_terms() {
+        let query = IntrinsicInfluenceQuery::new(VariableId::from_raw(0))
+            .with_seed(19)
+            .with_allocation(IntrinsicAllocation::Permutation { n_permutations: 20 });
+        let (config, _) = allocation_config(&query, 2).unwrap();
+        assert_eq!(config.seed, query.seed);
+        assert_ne!(
+            noise_draw(query.seed, 0, 0),
+            noise_draw(query.seed, query.replicates as u64, 0)
+        );
+        let pooled = ShapleyEstimate {
+            players: vec![],
+            values: vec![],
+            interactions: vec![],
+            budget: ComputeBudget::default(),
+            monte_carlo_stderr: Some(2.0),
+            component_mc_stderr: Some(vec![2.0]),
+            efficiency_residual: None,
+            cache_stats: CacheStats::default(),
+        };
+        let a = vec![0.0];
+        let b = vec![2.0];
+        let (whole, fit) = bootstrap_spread(&[&a, &b], &pooled, &[0.5], 1);
+        // Sample variance of [0,2] is 2; permutation variance 4 is common
+        // across refits, while fresh simulation variance 0.25 is removed.
+        assert!((whole[0] - 6.0_f64.sqrt()).abs() < 1e-14);
+        assert!((fit[0] - 1.75_f64.sqrt()).abs() < 1e-14);
+        let (_, no_simulation) = bootstrap_spread(&[&a, &b], &pooled, &[0.0], 1);
+        assert!((no_simulation[0] - 2.0_f64.sqrt()).abs() < 1e-14);
+        assert!(matches!(
+            summarize_fit_outcomes(&[Some(a.clone()), None], &pooled, &[0.5], 1, 2, 0.95),
+            FitComponent::Unquantified(REASON_REFIT_FAILED)
+        ));
+        assert!(matches!(
+            summarize_fit_outcomes(&[Some(a), Some(b)], &pooled, &[0.5], 1, 2, 0.95),
+            FitComponent::Quantified { .. }
+        ));
+        let mut one = pooled.clone();
+        one.players = vec![ComponentId::from_variable(VariableId::from_raw(0))];
+        one.values = vec![1.0];
+        let sources = build_source_uncertainties(
+            &one,
+            &FitComponent::Unquantified(REASON_REFIT_FAILED),
+            &[0.5],
+            2.0,
+            0.95,
+        );
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].uncertainty.len(), 3);
+        assert!(matches!(sources[0].whole_procedure, ComponentStatus::Unquantified { .. }));
+    }
 }

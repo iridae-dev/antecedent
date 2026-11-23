@@ -163,6 +163,8 @@ def build(output: Path) -> None:
                                 cls.__module__ = candidate
                                 break
                 except (OSError, TypeError):
+                    # Native and dynamically generated classes can have no source.
+                    # Keep their existing module ownership for pdoc inspection.
                     pass
             if cls is not None and hasattr(cls, "_fields") and inspect.isfunction(cls.__new__):
                 # NamedTuple's synthetic constructor otherwise refers to a

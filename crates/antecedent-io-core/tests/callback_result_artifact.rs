@@ -134,7 +134,7 @@ fn a_sealed_result_round_trips_with_stable_identities() {
     assert_eq!(meta.contract.produces[0].name, "output");
     assert_eq!(meta.protocol.operations, ["cdf", "mean", "quantile", "sample"]);
     assert_eq!(meta.stage.status, "computed");
-    assert_eq!(meta.standing, "licensed_external");
+    assert_eq!(meta.standing, "supported_external");
     // Different values are a different artifact.
     let other = computed(
         declaration(),
@@ -151,7 +151,7 @@ fn an_unavailable_stage_round_trips_and_carries_no_output() {
         declaration: declaration(),
         request: CallbackRequest::new(CallbackQuery::Mean, 1),
         outcome: CallbackOutcome::Unavailable {
-            reason: "callback_protocol.provider_unavailable".into(),
+            reason: antecedent_core::reason_details::callback_protocol::PROVIDER_UNAVAILABLE.into(),
         },
     };
     let bytes = CallbackResultArtifact::to_bytes(&record, "unavailable").expect("bytes");
@@ -216,7 +216,7 @@ fn resealed_semantic_edits_are_refused_by_recomputed_identities() {
     unverified.declaration.trust = CallbackTrust::Unverified;
     let unverified_meta = sealed_meta(&unverified);
     assert_eq!(unverified_meta.standing, "diagnostic");
-    let error = resealed(unverified_meta, &vals, |m| m.standing = "licensed_external".into())
+    let error = resealed(unverified_meta, &vals, |m| m.standing = "supported_external".into())
         .expect_err("standing edited");
     assert_eq!(field(error), "standing");
     // An unequal retained identity.
@@ -230,16 +230,16 @@ fn metadata_cannot_mint_native_trust() {
     let record = cdf_record();
     let vals = values(&record);
     let error = resealed(sealed_meta(&record), &vals, |m| {
-        m.protocol.trust.level = "native_licensed".into();
+        m.protocol.trust.level = "native_supported".into();
         m.protocol.trust.attestor = None;
     })
     .expect_err("native trust is refused, not downgraded");
     let (code, detail, _) = error.refusal().expect("a registered refusal");
     assert_eq!(code, antecedent_core::reason_code!("callback_protocol_invalid"));
-    assert_eq!(detail, "callback_protocol.native_trust_claimed");
+    assert_eq!(detail, antecedent_core::reason_details::callback_protocol::NATIVE_TRUST_CLAIMED);
     // An unknown level is unsupported semantics, never silently accepted.
     let error =
-        resealed(sealed_meta(&record), &vals, |m| m.protocol.trust.level = "licensed".into())
+        resealed(sealed_meta(&record), &vals, |m| m.protocol.trust.level = "supported".into())
             .expect_err("unknown level");
     assert!(matches!(error, CallbackResultArtifactError::UnsupportedSemantics(_)));
 }
@@ -256,12 +256,15 @@ fn a_stored_output_is_revalidated_as_a_law() {
     .expect_err("not a law");
     let (code, detail, _) = error.refusal().expect("a registered refusal");
     assert_eq!(code, antecedent_core::reason_code!("callback_output_invalid"));
-    assert_eq!(detail, "callback_protocol.output_not_a_law");
+    assert_eq!(detail, antecedent_core::reason_details::callback_protocol::OUTPUT_NOT_A_LAW);
     // A non-finite value.
     let nan = [0.1, f64::NAN, 0.9];
     let error = resealed(meta.clone(), &nan, |m| m.output_digest = output_values_digest(&nan))
         .expect_err("not finite");
-    assert_eq!(error.refusal().unwrap().1, "callback_protocol.output_not_finite");
+    assert_eq!(
+        error.refusal().unwrap().1,
+        antecedent_core::reason_details::callback_protocol::OUTPUT_NOT_FINITE
+    );
     // The wrong number of values for the query.
     let short = [0.1, 0.5];
     let error = resealed(meta, &short, |m| {
@@ -269,7 +272,10 @@ fn a_stored_output_is_revalidated_as_a_law() {
         m.output_digest = output_values_digest(&short);
     })
     .expect_err("short");
-    assert_eq!(error.refusal().unwrap().1, "callback_protocol.output_shape");
+    assert_eq!(
+        error.refusal().unwrap().1,
+        antecedent_core::reason_details::callback_protocol::OUTPUT_SHAPE
+    );
 }
 
 #[test]
@@ -321,9 +327,18 @@ fn collections_and_versions_are_bounded_and_checked_before_use() {
     assert!(matches!(error, CallbackResultArtifactError::UnsupportedSemantics(_)));
     // Bytes beyond the artifact bound are not decoded; arbitrary bytes are not an artifact.
     let oversized = vec![0_u8; MAX_CALLBACK_RESULT_ARTIFACT_BYTES + 1];
-    assert!(CallbackResultArtifact::from_bytes(&oversized, None).is_err());
-    assert!(CallbackResultArtifact::from_bytes(b"not an artifact", None).is_err());
-    assert!(CallbackResultArtifact::inspect(b"\x00\x01\x02").is_err());
+    assert_eq!(
+        CallbackResultArtifact::from_bytes(&oversized, None).err().unwrap().to_string(),
+        "callback result consumer limit exceeded: artifact bytes"
+    );
+    assert_eq!(
+        CallbackResultArtifact::from_bytes(b"not an artifact", None).err().unwrap().to_string(),
+        "callback result artifact does not decode: bad artifact magic"
+    );
+    assert_eq!(
+        CallbackResultArtifact::inspect(b"\x00\x01\x02").err().unwrap().to_string(),
+        "callback result artifact does not decode: io error: failed to fill whole buffer"
+    );
 }
 
 #[test]
@@ -332,13 +347,19 @@ fn a_corrupted_container_is_refused() {
     for offset in [bytes.len() / 3, bytes.len() / 2, bytes.len() - 5] {
         let mut corrupt = bytes.clone();
         corrupt[offset] ^= 0x01;
+        let message = CallbackResultArtifact::from_bytes(&corrupt, None).err().unwrap().to_string();
         assert!(
-            CallbackResultArtifact::from_bytes(&corrupt, None).is_err(),
-            "flipping byte {offset} must be detected"
+            message.starts_with(
+                "callback result artifact does not decode: checksum mismatch for section `callback_result_"
+            ),
+            "flipping byte {offset} must be a section checksum mismatch: {message}"
         );
     }
     let truncated = &bytes[..bytes.len() - 17];
-    assert!(CallbackResultArtifact::from_bytes(truncated, None).is_err());
+    assert_eq!(
+        CallbackResultArtifact::from_bytes(truncated, None).err().unwrap().to_string(),
+        "callback result artifact does not decode: io error: failed to fill whole buffer"
+    );
 }
 
 #[test]

@@ -39,7 +39,7 @@ use antecedent_design::decision_contract::{
 };
 use antecedent_design::decision_eval::Verdict;
 use antecedent_design::decision_transported_source::{
-    DETAIL_CALIBRATION_INFLATED, DETAIL_IDENTITY_INCOMPLETE, DETAIL_INTERVAL_NOT_LICENSED,
+    DETAIL_CALIBRATION_INFLATED, DETAIL_IDENTITY_INCOMPLETE, DETAIL_INTERVAL_NOT_SUPPORTED,
     DETAIL_LAW_NOT_SUPPLIED, DETAIL_MIXED_TRANSPORTS, DETAIL_NATIVE_LABEL, DETAIL_NOT_IN_TARGET,
     DETAIL_SUPPORT_BELOW_POLICY, DETAIL_SUPPORT_INFLATED, TransportDeclaration, TransportedDemand,
     TransportedRefusal, TransportedRepresentation, TransportedResponse, TransportedRoute,
@@ -240,9 +240,9 @@ fn a_point_refuses_every_request_that_needs_a_law_or_an_interval() {
         &accepting(),
     )
     .unwrap_err();
-    assert_eq!(error, TransportedRefusal::IntervalNotLicensed);
-    assert_eq!(error.code(), "cell_not_licensed");
-    assert_eq!(error.detail(), DETAIL_INTERVAL_NOT_LICENSED);
+    assert_eq!(error, TransportedRefusal::IntervalNotSupported);
+    assert_eq!(error.code(), "uncertainty_representation_insufficient");
+    assert_eq!(error.detail(), DETAIL_INTERVAL_NOT_SUPPORTED);
 }
 
 #[test]
@@ -263,7 +263,7 @@ fn the_default_policy_does_not_accept_a_transported_claim() {
             required: SupportStatus::Supported,
         }
     );
-    assert_eq!(error.code(), "cell_not_licensed");
+    assert_eq!(error.code(), "decision_contract_unsatisfied");
     assert_eq!(error.detail(), DETAIL_SUPPORT_BELOW_POLICY);
 }
 
@@ -409,7 +409,7 @@ fn a_transported_law_answers_a_probability_criterion_and_refuses_an_interval() {
         &accepting(),
     )
     .unwrap_err();
-    assert_eq!(error, TransportedRefusal::IntervalNotLicensed);
+    assert_eq!(error, TransportedRefusal::IntervalNotSupported);
 }
 
 #[test]
@@ -421,7 +421,7 @@ fn a_transported_law_is_never_labelled_exact_measured_or_native() {
         assert_eq!(error.detail(), DETAIL_CALIBRATION_INFLATED);
     }
     let law =
-        transported_law(DistributionCalibration::PointOnly, DistributionTrust::NativeLicensed);
+        transported_law(DistributionCalibration::PointOnly, DistributionTrust::NativeSupported);
     let error = TransportedResponse::declared_law(law, &declaration()).unwrap_err();
     assert_eq!(error, TransportedRefusal::NativeLabelOnTransported);
     assert_eq!(error.detail(), DETAIL_NATIVE_LABEL);
@@ -814,14 +814,17 @@ fn a_route_with_a_typed_constructor_cannot_be_declared_by_hand() {
             TransportedResponse::declared_point(vec![effect("clinic_b")], vec![2.0], &declared)
                 .unwrap_err();
         assert_eq!(error, TransportedRefusal::RouteNeedsTypedSource(route));
-        assert_eq!(error.detail(), "transported_decision.route_needs_typed_source");
+        assert_eq!(
+            error.detail(),
+            antecedent_core::reason_details::transported_decision::ROUTE_NEEDS_TYPED_SOURCE
+        );
     }
 }
 
 #[test]
 fn a_typed_route_identity_must_be_a_digest_while_a_declared_route_may_be_text() {
     // Free text is a declaration and stays allowed on the declared route.
-    assert!(point(1.0).receipt().transport_identities == vec!["diagram-1".to_owned()]);
+    assert_eq!(point(1.0).receipt().transport_identities, vec!["diagram-1".to_owned()]);
     // A mechanism or cohort-effect route names a producing result's digest.
     for route in [TransportedRoute::Mechanism, TransportedRoute::CohortEffect] {
         let mut declared = declaration();
@@ -830,7 +833,10 @@ fn a_typed_route_identity_must_be_a_digest_while_a_declared_route_may_be_text() 
             TransportedResponse::declared_point(vec![effect("clinic_b")], vec![2.0], &declared)
                 .unwrap_err();
         assert_eq!(error, TransportedRefusal::IdentityNotDigest);
-        assert_eq!(error.detail(), "transported_decision.transport_identity_not_digest");
+        assert_eq!(
+            error.detail(),
+            antecedent_core::reason_details::transported_decision::TRANSPORT_IDENTITY_NOT_DIGEST
+        );
         declared.transport_identities = vec![format!("{:064x}", 0xabc)];
         assert!(
             TransportedResponse::declared_point(vec![effect("clinic_b")], vec![2.0], &declared)
@@ -914,14 +920,20 @@ fn an_exported_transported_decision_replays_and_refuses_resealed_edits() {
     assert_eq!(consumed.decision.receipt.target_population, "clinic_b");
     let retained = consumed.decision.identity.clone();
     assert!(consume_transported_decision(&bytes, Some(&retained)).is_ok());
-    assert!(consume_transported_decision(&bytes, Some("not-the-identity")).is_err());
+    assert_eq!(
+        consume_transported_decision(&bytes, Some("not-the-identity")).unwrap_err().to_string(),
+        "reason=decision_contract_unsatisfied: transported_decision_artifact.identity_expected: the decision identity differs from the consumer's retained identity"
+    );
 
     // The same decision at another carried value has another identity, so a
     // consumer that retained the first refuses the second's bytes.
     let other = point(3.0);
     let other_bytes =
         export_transported_decision(&contract, &other, &accepting(), "transported-2").unwrap();
-    assert!(consume_transported_decision(&other_bytes, Some(&retained)).is_err());
+    assert_eq!(
+        consume_transported_decision(&other_bytes, Some(&retained)).unwrap_err().to_string(),
+        "reason=decision_contract_unsatisfied: transported_decision_artifact.identity_expected: the decision identity differs from the consumer's retained identity"
+    );
 
     // A law has its own export.
     let law = transported_law(DistributionCalibration::PointOnly, DistributionTrust::Unverified);
@@ -935,5 +947,10 @@ fn an_exported_transported_decision_replays_and_refuses_resealed_edits() {
         unsupported: UnsupportedActionPolicy::RequireAllActions,
         weakest_support: SupportStatus::Supported,
     };
-    assert!(export_transported_decision(&contract, &response, &strict, "strict").is_err());
+    assert_eq!(
+        export_transported_decision(&contract, &response, &strict, "strict")
+            .unwrap_err()
+            .to_string(),
+        "reason=decision_contract_unsatisfied: transported_decision.transported_not_accepted: reason=decision_contract_unsatisfied: transported_decision.transported_not_accepted"
+    );
 }

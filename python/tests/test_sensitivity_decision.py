@@ -17,10 +17,12 @@ from __future__ import annotations
 
 import pytest
 from antecedent import Admg
+from antecedent import _reason_details as reason_details
 from antecedent import sensitivity_decision as sd
 from antecedent.decision import Contract
 from antecedent.errors import CausalTypeError, CausalUnsupportedError
 from antecedent.joint_distribution import ScientificQuantity
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 
@@ -84,7 +86,7 @@ def _frozen() -> sd.SensitivityArtifact:
 
 def test_frozen_surface_is_an_assumption_dependent_switch_with_its_tipping_coordinate():
     artifact = _frozen()
-    result = sd.decide(artifact.contract(), artifact)
+    result = require_success(sd.decide(artifact.contract(), artifact))
     assert result.kind == "assumption_dependent"
     assert not result.robust
     assert result.invariant_action is None
@@ -103,7 +105,7 @@ def test_frozen_surface_is_an_assumption_dependent_switch_with_its_tipping_coord
     assert result.structural_verdict["kind"] == "no_invariant_best"
     # The classification is also recomputable from the artifact alone, and agrees.
     assert artifact.outcome == result.outcome
-    assert artifact.outcome_over() == result.outcome
+    assert require_success(artifact.outcome_over()) == result.outcome
     assert "changes from 'A' to 'B'" in result.explain()
     assert "not a probability law" in result.interpretation
 
@@ -117,14 +119,14 @@ def test_invariant_action_across_the_whole_assumption_range():
             sd.SensitivityAction("B", sd.quantity("ub")),
         ],
     )
-    result = sd.decide(artifact.contract(), artifact)
+    result = require_success(sd.decide(artifact.contract(), artifact))
     assert result.kind == "invariant_action"
     assert result.robust
     assert result.invariant_action == "A"
     assert result.switch is None
     assert result.structural_verdict == {"kind": "invariant_best", "action": "A"}
     # A coordinate sub-range is evaluated on its own.
-    sub = sd.decide(artifact.contract(), artifact, range=(1.0, 2.0))
+    sub = require_success(sd.decide(artifact.contract(), artifact, range=(1.0, 2.0)))
     assert sub.coordinates == (1.0, 2.0)
     assert sub.invariant_action == "A"
 
@@ -139,7 +141,7 @@ def test_tipping_coordinate_is_the_labelled_interpolated_crossing():
             sd.SensitivityAction("B", sd.quantity("ub")),
         ],
     )
-    result = sd.decide(artifact.contract(), artifact)
+    result = require_success(sd.decide(artifact.contract(), artifact))
     switch = result.switch
     assert result.kind == "assumption_dependent"
     assert switch is not None
@@ -162,7 +164,7 @@ def test_no_robust_action_when_the_range_straddles_at_every_point():
             sd.SensitivityAction("B", sd.quantity("status_quo")),
         ],
     )
-    result = sd.decide(artifact.contract(), artifact)
+    result = require_success(sd.decide(artifact.contract(), artifact))
     assert result.kind == "no_robust_action"
     assert result.outcome.reason == "mixed_within_range"
     assert result.outcome.coordinates == (0.0, 1.0, 2.0)
@@ -195,15 +197,15 @@ def test_range_is_distinct_from_a_sampling_interval_and_never_composed():
         "effect", 0.95, "percentile_bootstrap", lower=(-2.0,) * 3, upper=(3.0,) * 3
     )
     reported = ranged(interval)
-    without = sd.decide(plain.contract(), plain)
-    with_interval = sd.decide(reported.contract(), reported)
+    without = require_success(sd.decide(plain.contract(), plain))
+    with_interval = require_success(sd.decide(reported.contract(), reported))
     # A leads under the assumption range; the far wider sampling interval would flip the
     # decision if it were merged into the range, so it must not be.
     assert without.invariant_action == "A"
     assert with_interval.outcome == without.outcome
     assert len(with_interval.atoms) == len(without.atoms)
     assert plain.identity["digest"] != reported.identity["digest"]
-    assert without.sampling.status == "withheld"
+    assert without.sampling.status == "no_interval_method"
     report = with_interval.sampling
     assert report.status == "separate_not_composed"
     assert not report.composed
@@ -218,16 +220,21 @@ def test_range_is_distinct_from_a_sampling_interval_and_never_composed():
     assert uncertainty.identified_bound is None
     assert isinstance(uncertainty.sampling, sd.SamplingInterval)
 
-    # Asking for the composition refuses: no method is licensed.
+    # Asking for the composition refuses: no method is supported.
     with pytest.raises(sd.SensitivityRefusal) as composed:
-        sd.decide(
-            reported.contract(),
-            reported,
-            sampling_composition="conservative_endpoint_percentile_bootstrap",
+        require_success(
+            sd.decide(
+                reported.contract(),
+                reported,
+                sampling_composition="conservative_endpoint_percentile_bootstrap",
+            )
         )
     assert isinstance(composed.value, CausalUnsupportedError)
-    assert composed.value.reason_code == "cell_not_licensed"
-    assert composed.value.detail == "sensitivity_decision_composition.composition_not_licensed"
+    assert composed.value.reason_code == "route_not_supported"
+    assert (
+        composed.value.detail
+        == reason_details.sensitivity_decision_composition.COMPOSITION_NOT_SUPPORTED
+    )
 
     # An artifact that claims a composition is refused at construction.
     claimed = sd.SamplingInterval(
@@ -243,13 +250,13 @@ def test_range_is_distinct_from_a_sampling_interval_and_never_composed():
             ],
             sampling=claimed,
         )
-    assert at_construction.value.reason_code == "cell_not_licensed"
+    assert at_construction.value.reason_code == "route_not_supported"
 
     # An assumption range is never a probability: weights on a ranged surface refuse.
     with pytest.raises(sd.SensitivityRefusal) as weights:
-        sd.decide(plain.contract(), plain, weights=[0.2, 0.3, 0.5])
+        require_success(sd.decide(plain.contract(), plain, weights=[0.2, 0.3, 0.5]))
     assert weights.value.reason_code == "decision_contract_unsatisfied"
-    assert weights.value.detail == "sensitivity_decision_composition.wrong_contract"
+    assert weights.value.detail == reason_details.sensitivity_decision_composition.WRONG_CONTRACT
 
 
 def test_unsupported_coordinate_refuses_and_a_subrange_avoids_it():
@@ -264,10 +271,13 @@ def test_unsupported_coordinate_refuses_and_a_subrange_avoids_it():
     )
     assert artifact.outcome is None
     with pytest.raises(sd.SensitivityRefusal) as unsupported:
-        sd.decide(artifact.contract(), artifact)
+        require_success(sd.decide(artifact.contract(), artifact))
     assert unsupported.value.reason_code == "quantity_semantics_mismatch"
-    assert unsupported.value.detail == "sensitivity_decision_composition.unsupported_coordinate"
-    avoided = sd.decide(artifact.contract(), artifact, range=(0.0, 0.0))
+    assert (
+        unsupported.value.detail
+        == reason_details.sensitivity_decision_composition.UNSUPPORTED_COORDINATE
+    )
+    avoided = require_success(sd.decide(artifact.contract(), artifact, range=(0.0, 0.0)))
     assert avoided.invariant_action == "A"
 
     unevaluated = _artifact(
@@ -279,7 +289,7 @@ def test_unsupported_coordinate_refuses_and_a_subrange_avoids_it():
         ],
         support=["supported", "unevaluated", "supported"],
     )
-    result = sd.decide(unevaluated.contract(), unevaluated)
+    result = require_success(sd.decide(unevaluated.contract(), unevaluated))
     # An unevaluated point leaves the decision unresolved; invariance is not assumed.
     assert result.kind == "unresolved"
     assert result.outcome.unresolved_coordinate == 1.0
@@ -295,7 +305,7 @@ def test_mixed_estimands_and_foreign_inputs_refuse():
                 sd.SensitivityAction("B", sd.quantity("ua")),
             ],
         )
-    assert mixed.value.detail == "sensitivity_decision_composition.wrong_contract"
+    assert mixed.value.detail == reason_details.sensitivity_decision_composition.WRONG_CONTRACT
     assert mixed.value.reason_code == "decision_contract_unsatisfied"
 
     artifact = _frozen()
@@ -307,16 +317,18 @@ def test_mixed_estimands_and_foreign_inputs_refuse():
         target_population="target",
     )
     with pytest.raises(sd.SensitivityRefusal) as units:
-        sd.decide(foreign, artifact)
-    assert units.value.detail == "sensitivity_decision_composition.wrong_contract"
+        require_success(sd.decide(foreign, artifact))
+    assert units.value.detail == reason_details.sensitivity_decision_composition.WRONG_CONTRACT
     with pytest.raises(CausalTypeError):
-        sd.decide("not a contract", artifact)  # type: ignore[arg-type]
+        require_success(sd.decide("not a contract", artifact))  # type: ignore[arg-type]
 
 
 def test_artifact_is_exported_consumed_and_refuses_a_resealed_mutation():
     artifact = _frozen()
-    data = artifact.export()
-    consumed = sd.SensitivityArtifact.consume(data, expected_identity=artifact.identity)
+    data = bytes(artifact.export())
+    consumed = require_success(
+        sd.SensitivityArtifact.consume(data, expected_identity=artifact.identity)
+    )
     # Premises and data digests are kept apart and survive the round trip.
     assert consumed.identity == artifact.identity
     assert set(artifact.identity) == {"premises_digest", "data_digest", "digest"}
@@ -325,7 +337,7 @@ def test_artifact_is_exported_consumed_and_refuses_a_resealed_mutation():
     assert consumed.coordinate == artifact.coordinate
     assert consumed.provenance == artifact.provenance
     assert [a.id for a in consumed.actions] == ["A", "B"]
-    assert sd.decide(consumed.contract(), consumed).outcome == artifact.outcome
+    assert require_success(sd.decide(consumed.contract(), consumed)).outcome == artifact.outcome
 
     # A different surface is a self-consistent artifact, but not under the identity the
     # consumer retained: the resealed change is refused.
@@ -337,11 +349,13 @@ def test_artifact_is_exported_consumed_and_refuses_a_resealed_mutation():
             sd.SensitivityAction("B", sd.quantity("ub")),
         ],
     )
-    resealed = other.export()
-    sd.SensitivityArtifact.consume(resealed)
+    resealed = bytes(other.export())
+    require_success(sd.SensitivityArtifact.consume(resealed))
     with pytest.raises(sd.SensitivityRefusal) as changed:
-        sd.SensitivityArtifact.consume(resealed, expected_identity=artifact.identity)
-    assert changed.value.detail == "sensitivity_decision_composition.wrong_contract"
+        require_success(
+            sd.SensitivityArtifact.consume(resealed, expected_identity=artifact.identity)
+        )
+    assert changed.value.detail == reason_details.sensitivity_decision_composition.WRONG_CONTRACT
     assert "retained identity" in str(changed.value)
     assert other.identity["premises_digest"] == artifact.identity["premises_digest"]
     assert other.identity["data_digest"] != artifact.identity["data_digest"]
@@ -350,9 +364,9 @@ def test_artifact_is_exported_consumed_and_refuses_a_resealed_mutation():
     corrupted = bytearray(data)
     corrupted[len(corrupted) // 2] ^= 0xFF
     with pytest.raises(sd.SensitivityRefusal):
-        sd.SensitivityArtifact.consume(bytes(corrupted))
+        require_success(sd.SensitivityArtifact.consume(bytes(corrupted)))
     with pytest.raises(CausalTypeError):
-        sd.SensitivityArtifact.consume("not bytes")  # type: ignore[arg-type]
+        require_success(sd.SensitivityArtifact.consume("not bytes"))  # type: ignore[arg-type]
 
 
 # --- a joint-sensitivity result feeds a decision contract ----------------------
@@ -418,18 +432,20 @@ def _prepared_stage() -> object:
 
 def test_joint_sensitivity_result_feeds_a_decision_contract():
     stage = _prepared_stage()
-    stage.estimate()  # type: ignore[attr-defined]
+    require_success(stage.estimate())  # type: ignore[attr-defined]
     deviation = transport.JointDeviation({"outcome_kernel": 0.2})
     effect = _quantity("effect", "outcome_units")
-    artifact = sd.SensitivityArtifact.from_joint_sensitivity(
-        stage,
-        deviation,
-        effect=effect,
-        actions=[
-            sd.SensitivityAction("adopt", sd.quantity("effect")),
-            sd.SensitivityAction("status_quo", sd.const(0.45)),
-        ],
-        causal_contract_id="checked-contract",
+    artifact = require_success(
+        sd.evaluate_joint_sensitivity(
+            stage,
+            deviation,
+            effect=effect,
+            actions=[
+                sd.SensitivityAction("adopt", sd.quantity("effect")),
+                sd.SensitivityAction("status_quo", sd.const(0.45)),
+            ],
+            causal_contract_id="checked-contract",
+        )
     )
     # The surface is the exact range scaled linearly in the contamination fraction.
     baseline = 0.65 * 0.3 + 0.35 * 0.5
@@ -449,20 +465,66 @@ def test_joint_sensitivity_result_feeds_a_decision_contract():
     assert surface.upper[-1] == pytest.approx(upper, abs=1e-12)
     # The withheld sampling status is carried unchanged: still an assumption range.
     assert isinstance(artifact.uncertainty.sampling, sd.SamplingWithheld)
-    assert artifact.uncertainty.sampling.reason_code == "cell_not_licensed"
+    assert artifact.uncertainty.sampling.reason_code == "uncertainty_representation_insufficient"
     assert artifact.provenance.source_kind == "joint_mechanism_sensitivity"
     # Adopting is best only if the effect clears 0.45. The unperturbed baseline (0.37) does
     # not, and the range's upper end (0.37 + 0.63 t) clears it for t > 0.127, so the best
     # action depends on where in the range the surface lies at fractions 0.15, 0.175, 0.2.
-    result = sd.decide(artifact.contract(), artifact)
+    result = require_success(sd.decide(artifact.contract(), artifact))
     assert result.kind == "no_robust_action"
     assert result.outcome.reason == "mixed_within_range"
     assert result.outcome.coordinates == pytest.approx((0.15, 0.175, 0.2), abs=1e-12)
     # Restricting to the fractions where the range stays below 0.45 gives an invariant action.
-    cautious = sd.decide(artifact.contract(), artifact, range=(0.0, 0.13))
+    cautious = require_success(sd.decide(artifact.contract(), artifact, range=(0.0, 0.13)))
     assert cautious.invariant_action == "status_quo"
     # And the whole artifact is durable.
-    consumed = sd.SensitivityArtifact.consume(
-        artifact.export(), expected_identity=artifact.identity
+    consumed = require_success(
+        sd.SensitivityArtifact.consume(
+            bytes(artifact.export()), expected_identity=artifact.identity
+        )
     )
-    assert sd.decide(consumed.contract(), consumed).outcome == result.outcome
+    assert require_success(sd.decide(consumed.contract(), consumed)).outcome == result.outcome
+
+
+def test_joint_sensitivity_full_source_export_replays_the_actual_retained_laws():
+    artifact = require_success(
+        sd.evaluate_joint_sensitivity(
+            _prepared_stage(),
+            transport.JointDeviation({"outcome_kernel": 0.2}),
+            effect=_quantity("effect", "outcome_units"),
+            actions=[
+                sd.SensitivityAction("adopt", sd.quantity("effect")),
+                sd.SensitivityAction("wait", sd.const(0.45)),
+            ],
+            causal_contract_id="source-replay",
+        )
+    )
+    exported = artifact.export(include_source=True)
+    assert exported.kind == "ANTE-SENSITIVITY-SOURCE-1"
+    assert bytes(exported) == bytes(sd._native.export_sensitivity_source(artifact._native))
+    restored = require_success(sd.SensitivityArtifact.consume_with_source(exported))
+    assert restored.identity == artifact.identity
+    assert restored.quantities == artifact.quantities
+    # The restored surface is the hand-derived range, not merely the exporter's own output:
+    # the effect sum_w P(w) delta_w = 0.65 * 0.3 + 0.35 * 0.5 at gamma = 0, and at gamma = 0.2 the range is
+    # sum_w P(w) ((1 - 0.2) delta_w -/+ 0.2).
+    delta = {w: P_Y1[(w, 1)] - P_Y1[(w, 0)] for w in (0, 1)}
+    baseline = sum(P_W[w] * delta[w] for w in (0, 1))
+    assert baseline == pytest.approx(0.37, abs=1e-15)
+    surface = restored.quantities[0]
+    assert surface.lower[0] == pytest.approx(baseline, abs=1e-12)
+    assert surface.upper[0] == pytest.approx(baseline, abs=1e-12)
+    assert surface.lower[-1] == pytest.approx(
+        sum(P_W[w] * (0.8 * delta[w] - 0.2) for w in (0, 1)), abs=1e-12
+    )
+    assert surface.upper[-1] == pytest.approx(
+        sum(P_W[w] * (0.8 * delta[w] + 0.2) for w in (0, 1)), abs=1e-12
+    )
+    assert artifact.source_evidence is not None
+    assert artifact.original_source() is not None
+    assert restored.source_evidence == artifact.source_evidence
+    assert restored.original_source() == artifact.original_source()
+    assert restored.acceptance.replayed and restored.acceptance.replayable
+    assert require_success(sd.decide(restored.contract(), restored)).outcome == (
+        require_success(sd.decide(artifact.contract(), artifact)).outcome
+    )

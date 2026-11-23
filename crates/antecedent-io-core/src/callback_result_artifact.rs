@@ -25,17 +25,17 @@
 //! declaration's own projection, recomputes the declaration identity, the
 //! request identity and the output digest, re-runs the output check
 //! (finite, supported, a law) and recomputes the standing. A stored trust level
-//! of `native_licensed` is refused, not downgraded. A stored standing of
-//! `licensed_external` for a declaration that is not eligible is refused.
+//! of `native_supported` is refused, not downgraded. A stored standing of
+//! `supported_external` for a declaration that is not eligible is refused.
 //!
 //! Every decoded collection is bounded before it is used: total bytes, section
 //! sizes (by the container), operations, inputs, dependencies, evidence
 //! sources, draws and points. No CBOR value is evaluated as code.
 //!
-//! No interval, posterior guarantee, joint law or identification licence is
+//! No interval, posterior guarantee, joint law or identification evidence is
 //! carried.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -54,9 +54,9 @@ use antecedent_contract::interface_contract::{
 };
 use antecedent_contract::{ExternalRefusal, ProviderObjectIdentity};
 use antecedent_core::CanonicalWriter;
+use antecedent_core::refusal::changed_identity;
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
 use crate::interface_contract_artifact::{ContractWire, contract_from_wire, contract_to_wire};
 use crate::quantity_wire::ScientificQuantityWire;
 
@@ -114,11 +114,9 @@ impl CallbackResultArtifactError {
             Self::Refused { code, detail, message } => {
                 Some((*code, detail.clone(), message.clone()))
             }
-            Self::IdentityMismatch { field } => Some((
-                antecedent_core::reason_code!("route_not_supported"),
-                "callback_protocol.identity_mismatch".to_owned(),
-                format!("{field} changed"),
-            )),
+            Self::IdentityMismatch { field } => {
+                Some(changed_identity("callback_protocol.identity_mismatch", field))
+            }
             _ => None,
         }
     }
@@ -131,11 +129,11 @@ fn malformed(text: impl Into<String>) -> Failure {
 }
 
 fn refused(refusal: ExternalRefusal) -> Failure {
-    Failure::Refused {
-        code: refusal.code,
-        detail: refusal.detail,
-        message: refusal.remedy.unwrap_or("the callback result is not well formed").to_owned(),
-    }
+    let (code, detail, message) = crate::artifact_codec::external_refusal_parts(
+        refusal,
+        "the callback result is not well formed",
+    );
+    Failure::Refused { code, detail, message }
 }
 
 // -- the record -------------------------------------------------------------------------------
@@ -358,7 +356,7 @@ pub struct CallbackResultMeta {
     pub request_identity: String,
     /// The stage.
     pub stage: StageWire,
-    /// `diagnostic` or `licensed_external`, best case under the declaration.
+    /// `diagnostic` or `supported_external`, best case under the declaration.
     pub standing: String,
     /// Digest (hex) of the output values, bit-exact.
     pub output_digest: String,
@@ -580,8 +578,8 @@ fn trust_from_wire(wire: &TrustWire) -> Result<CallbackTrust, Failure> {
         ("verified_extension", None, Some(receipt_digest)) => {
             Ok(CallbackTrust::ExactRequestVerified { receipt_digest: receipt_digest.clone() })
         }
-        // Metadata never confers native licence.
-        ("native_licensed", _, _) => Err(refused(native_trust_claimed())),
+        // Metadata never confers native support.
+        ("native_supported", _, _) => Err(refused(native_trust_claimed())),
         _ => Err(Failure::UnsupportedSemantics("trust level")),
     }
 }
@@ -928,9 +926,10 @@ fn check(
     if meta.version != CALLBACK_RESULT_ARTIFACT_VERSION {
         return Err(Failure::UnsupportedVersion { version: meta.version });
     }
-    if meta.feature != CALLBACK_RESULT_ARTIFACT_FEATURE {
-        return Err(Failure::UnsupportedSemantics("feature marker"));
-    }
+    crate::artifact_codec::require_semantics::<Failure>(
+        meta.feature == CALLBACK_RESULT_ARTIFACT_FEATURE,
+        "feature marker",
+    )?;
     if !meta.required_features.is_empty() {
         return Err(Failure::UnsupportedSemantics("required feature"));
     }
@@ -1052,12 +1051,8 @@ fn encode(
     values: &[f64],
     artifact_id: &str,
 ) -> Result<Vec<u8>, Failure> {
-    if artifact_id.trim().is_empty() {
-        return Err(Failure::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta).map_err(|error| Failure::Encode(error.to_string()))?;
     let value_bytes = crate::artifact_codec::f64s_to_le_bytes(values);
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "callback_result",
@@ -1065,43 +1060,31 @@ fn encode(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[
-            crate::OutSection {
-                id: META_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &meta_bytes,
-            },
-            crate::OutSection {
-                id: VALUES_SECTION,
-                content_type: crate::CONTENT_BYTES,
-                bytes: &value_bytes,
-            },
-        ],
+        META_SECTION,
+        meta,
+        &[crate::OutSection {
+            id: VALUES_SECTION,
+            content_type: crate::CONTENT_BYTES,
+            bytes: &value_bytes,
+        }],
     )
-    .map_err(|error| crate::map_artifact_check!(error, CallbackResultArtifactError))
 }
 
-fn decode(bytes: &[u8]) -> Result<(CallbackResultMeta, Vec<f64>), Failure> {
-    let parts = crate::decode_container(
+fn decode(bytes: &[u8], max_bytes: usize) -> Result<(CallbackResultMeta, Vec<f64>), Failure> {
+    let (meta, parts) = crate::artifact_codec::decode_sectioned::<Failure, CallbackResultMeta>(
         ARTIFACT_KIND,
-        MAX_CALLBACK_RESULT_ARTIFACT_BYTES,
-        &[META_SECTION, VALUES_SECTION],
+        max_bytes,
+        META_SECTION,
+        &[VALUES_SECTION],
+        CALLBACK_RESULT_ARTIFACT_VERSION,
         bytes,
-    )
-    .map_err(|error| crate::map_artifact_check!(error, CallbackResultArtifactError))?;
-    let Ok([meta_bytes, value_bytes]) = <[Vec<u8>; 2]>::try_from(parts) else {
+    )?;
+    let Ok([value_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
         return Err(malformed("unsupported container layout"));
     };
     if value_bytes.len() % 8 != 0 || value_bytes.len() / 8 > MAX_CALLBACK_RESULT_VALUES {
         return Err(Failure::LimitsExceeded("values"));
     }
-    let meta: CallbackResultMeta = crate::decode_with_version(&meta_bytes, |version: u16| {
-        if version == CALLBACK_RESULT_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(Failure::UnsupportedVersion { version })
-        }
-    })?;
     Ok((meta, crate::artifact_codec::f64s_from_le_bytes(&value_bytes)))
 }
 
@@ -1147,7 +1130,20 @@ impl CallbackResultArtifact {
         bytes: &[u8],
         expected_identity: Option<&str>,
     ) -> Result<Self, CallbackResultArtifactError> {
-        let (meta, values) = decode(bytes)?;
+        Self::from_bytes_within(bytes, expected_identity, MAX_CALLBACK_RESULT_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::from_bytes`] under the caller's byte bound instead of
+    /// [`MAX_CALLBACK_RESULT_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a file over `max_bytes` is `LimitsExceeded`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        max_bytes: usize,
+    ) -> Result<Self, CallbackResultArtifactError> {
+        let (meta, values) = decode(bytes, max_bytes)?;
         check(&meta, &values, expected_identity)
     }
 
@@ -1157,7 +1153,7 @@ impl CallbackResultArtifact {
     /// # Errors
     /// Corruption, another major version or a malformed container.
     pub fn inspect(bytes: &[u8]) -> Result<CallbackResultMeta, CallbackResultArtifactError> {
-        decode(bytes).map(|(meta, _)| meta)
+        decode(bytes, MAX_CALLBACK_RESULT_ARTIFACT_BYTES).map(|(meta, _)| meta)
     }
 
     /// The validated record.

@@ -1,0 +1,13 @@
+# Published uncertainty statements with no coverage record at any setting.
+#
+# Each row is a construction a route publishes (an interval, band, posterior or error)
+# that no measurement covers. The route states no support for it at run time. A row is
+# removed when its record lands or the statement is no longer published.
+#
+# `groups` lists the gate groups (`<test file>: <test filter>`, as parity/calibration_groups.toml
+# labels them) whose coverage records measure the statement. While any of them has produced no record
+# the row is an owed item of `scripts/calibration_status.py status --owed`, so the owed calibration
+# run executes exactly those groups; a row that names none is owed and unwired.
+
+schema = 1
+

@@ -1,10 +1,16 @@
-# Descriptive raw-versus-adjusted comparison and reporting-scale transforms
+# Compare raw and adjusted estimates and re-express a pair of means
 
-`antecedent.descriptive` (Rust: `antecedent_estimate::descriptive_comparison`) holds two
-small computations over estimates you already have. Both are `point_only` and
+Use this page when you already hold an adjusted estimate and want to report (a) how far
+adjustment moved it from the unadjusted difference of arm means, or (b) a pair of arm means
+on another reporting scale (risk difference, log risk ratio, log odds ratio).
+`antecedent.descriptive` (Rust: `antecedent_estimate::{compare_raw_adjusted,
+transform_mean_pair}`) holds both computations. Both are `point_only` and
 **descriptive**: they report a gap and re-express a pair of means, and neither identifies
-or decomposes a causal effect. The record is `estimate.descriptive_comparison` in
-`parity/promotion.toml`.
+or decomposes a causal effect.
+
+You need the outcome and a 0/1 treatment column as numeric sequences, plus the adjusted
+estimate (and, for transformed standard errors, the joint covariance of the two arm means
+as the source estimate published it).
 
 ```python
 from antecedent.descriptive import raw_vs_adjusted, transform_mean_pair
@@ -14,14 +20,19 @@ comparison = raw_vs_adjusted(
     adjusted_estimate=ate, adjusted_standard_error=se,
 )
 comparison.raw_difference, comparison.adjusted_estimate, comparison.gap
+comparison.raw_standard_error          # Welch; None when an arm has fewer than two rows
 
 transform = transform_mean_pair(
     mean_active, mean_control,
     scales=["log_risk_ratio", "log_odds_ratio"],
     covariance=[[var_a, cov], [cov, var_c]],   # as the source estimate published it
 )
-transform.values, transform.covariance
+transform.values, transform.covariance   # one value per scale; k x k delta-method covariance
+transform.standard_error("log_risk_ratio")
 ```
+
+To describe an outcome against predictors with no causal claim (the `Association` query, used
+for example after a refusal), see [when the effect is not identified](fallback.md).
 
 ## Raw versus adjusted
 
@@ -32,7 +43,9 @@ control level 0, on the all-observed population. Anything else is refused rather
 compared: another scale or level coding (`route_not_supported`,
 `descriptive_comparison.estimand_coding_mismatch`), or a subpopulation, treated-only or
 reweighted target (`population_not_estimable`,
-`descriptive_comparison.population_not_all_observed`).
+`descriptive_comparison.population_not_all_observed`). A treatment arm with no rows is
+refused with `arm_not_populated` (`descriptive_comparison.arm_not_populated`). The codes are
+listed in the [refusal code reference](../reference/refusal-codes.md#other-registered-refusal-codes).
 
 `gap = raw - adjusted`. Read it as "how far adjustment moved this number", not as bias,
 not as confounding and not as a causal decomposition: it also contains the adjustment
@@ -42,7 +55,7 @@ things are deliberately absent:
 * **No interval or standard error for the gap.** The covariance between the raw and the
   adjusted estimate is not carried by either (they use the same rows) and is not assumed
   zero. The field `gap_interval_unavailable` carries the typed reason
-  (`cell_not_licensed`, `descriptive_comparison.gap_interval_unavailable`).
+  (`route_not_supported`, `descriptive_comparison.gap_interval_unavailable`).
 * **No attribution to adjustment columns.** The adjusted estimate is not an additive
   function of the columns: a leave-one-out difference depends on the order, on the columns
   that remain and on the functional form. `attribute_gap_to_columns(...)` is a closed
@@ -56,7 +69,7 @@ from the sufficient statistics in pure Python and compares them with the stored 
 
 ## Reporting-scale transform
 
-From a mean-outcome pair `(mu1, mu0)` (a licensed result's arm means) `transform_mean_pair`
+From a mean-outcome pair `(mu1, mu0)` (a supported result's arm means) `transform_mean_pair`
 reports one or more declared scales:
 
 | scale | value | gradient `(d/dmu1, d/dmu0)` | domain |
@@ -85,27 +98,26 @@ disjoint groups, so `raw_reporting_transform` uses `diag(s1^2/n1, s0^2/n0)`. An 
 fewer than two rows has no sample variance and the covariance is then unavailable
 (`descriptive_comparison.arm_too_small`).
 
-**No interval.** A Wald interval from this covariance would rest on asymptotic normality of
-the pair and on the linearization being adequate near the boundary of the scale (a risk
-ratio of a rare event, an odds ratio near 0 or 1). No coverage record measures that, so
-`level=...` is a typed refusal (`cell_not_licensed`,
-`descriptive_comparison.interval_withheld`) and only the points and the covariance are
-published.
+**Interval.** With `level=...` and a covariance, each scale gets the equal-tailed
+delta-method Wald interval on its declared scale, reported with a calibration status. It rests
+on asymptotic normality of the pair and on the linearization being adequate near the boundary
+of the scale (a risk ratio of a rare event, an odds ratio near 0 or 1); the status annotates
+that and never withholds the interval. Without a covariance there is no interval.
 
 ## Limits
 
-* A transform accepts at most {{bound:estimate.descriptive_comparison.max_scales}} reporting scales in one request.
-* Point only; no interval anywhere, no calibration run.
+* A transform supports {{bound:estimate.descriptive_comparison.reporting_scale_kinds}} distinct reporting scale kinds. A request may repeat a kind; there is no fixed request-count cap.
+* The gap between the raw and adjusted estimates has no interval.
 * The comparison is for the difference-of-means coding on the all-observed population; a
   ratio-scale or subpopulation comparison needs its own adjusted estimate and is refused here.
 * The delta-method covariance is first order and describes the source `Sigma`'s own
-  uncertainty. It adds nothing the source did not license: when the source interval is
-  withheld, so is this.
+  uncertainty. It adds nothing the source did not support: when the source carries no
+  covariance, there is no interval here.
 * `raw_vs_adjusted` reads the data you pass it; it does not check that `adjusted_estimate`
   came from the same rows.
 * The pass over the rows observes cancellation at the first row, every 4096 rows and once
   after the pass (Rust `raw_contrast` and `compare_raw_adjusted` take an `ExecutionContext`;
-  Python `raw_vs_adjusted` and `raw_reporting_transform` take `cancel=`). A cancelled pass is
+  Python `raw_vs_adjusted` and `raw_reporting_transform` read it from `execution=`). A cancelled pass is
   `cancelled_no_claim` (`descriptive_comparison.cancelled`) with no contrast, never a verdict
   on the data.
 

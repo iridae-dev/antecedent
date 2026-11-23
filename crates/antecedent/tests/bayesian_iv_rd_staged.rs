@@ -1,6 +1,6 @@
 //! Staged Bayesian IV and sharp-RD model known-truth checks.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -89,7 +89,7 @@ fn bayesian_iv_joint_fixed_loading_executes_staged_with_known_truth() {
         .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(512)))
         .refute(antecedent::RefuteSuite::Cheap)
         .build();
-    assert!(refused.is_err(), "IV cheap validation has no support license");
+    assert!(refused.is_err(), "IV cheap validation has no support");
     let study = Study::tabular(data.clone())
         .graph(graph)
         .query(AverageEffectQuery::with_levels(
@@ -107,8 +107,15 @@ fn bayesian_iv_joint_fixed_loading_executes_staged_with_known_truth() {
     let ctx = ExecutionContext::for_tests(81);
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    assert_eq!(result.support_status, Some(antecedent::CellStatus::Licensed));
-    assert!((result.estimate.as_effect().unwrap().ate - truth).abs() < 0.2);
+    assert_eq!(result.support_status(), Some(antecedent::CellStatus::Supported));
+    // The exact sample instrumental-variable ratio of this 1200-row design is 2.00277 (the
+    // reference script, exact rationals); the confounded OLS slope is 2.914. A posterior mean
+    // within 0.02 of the structural effect separates the two.
+    assert!(
+        (result.estimate().as_effect().unwrap().ate - truth).abs() < 0.02,
+        "{}",
+        result.estimate().as_effect().unwrap().ate
+    );
     let posterior = result.posterior.as_ref().unwrap();
     assert_eq!(posterior.draws.n_draws, 512);
     assert!(posterior.summaries.q025[0] < truth && posterior.summaries.q975[0] > truth);
@@ -153,9 +160,9 @@ fn bayesian_rd_executes_staged_and_checks_bandwidth_conditioning() {
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert!(
-        (result.estimate.as_effect().unwrap().ate - truth).abs() < 0.08,
+        (result.estimate().as_effect().unwrap().ate - truth).abs() < 0.02,
         "{}",
-        result.estimate.as_effect().unwrap().ate
+        result.estimate().as_effect().unwrap().ate
     );
     let post = result.posterior.as_ref().unwrap();
     assert_eq!(post.draws.n_draws, 512);
@@ -203,7 +210,7 @@ fn rd_posterior_intervals_calibrate_under_declared_local_linear_law() {
             .build()
             .unwrap();
         if let Ok(result) = rd_study.run(&ExecutionContext::for_tests(5_000 + rep as u64)) {
-            let p = result.posterior.unwrap();
+            let p = result.posterior.as_ref().unwrap();
             if p.summaries.q025[0] <= 2.5 && 2.5 <= p.summaries.q975[0] {
                 rd_covered += 1;
             }
@@ -259,7 +266,7 @@ fn iv_joint_fixed_loading_public_intervals_calibrate_under_declared_law() {
             .build()
             .unwrap();
         let result = study.run(&ExecutionContext::for_tests(9_000 + rep as u64)).unwrap();
-        let posterior = result.posterior.unwrap();
+        let posterior = result.posterior.as_ref().unwrap();
         covered +=
             usize::from(posterior.summaries.q025[0] <= 2.0 && 2.0 <= posterior.summaries.q975[0]);
     }

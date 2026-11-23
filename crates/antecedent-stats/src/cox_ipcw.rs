@@ -1,5 +1,7 @@
 //! Conditional censoring survival with a Cox model and Breslow ties.
 // SPDX-License-Identifier: MIT OR Apache-2.0
+use antecedent_core::diagnostic::{RouteCheck, RouteKind, RouteMass, RouteNativeDiagnostic};
+
 use crate::{StatsError, chol_solve, cholesky_spd};
 
 /// Executed censoring-model fit. No outcome-regression uncertainty is implied.
@@ -140,12 +142,12 @@ fn fit_standardized(
         let mut accepted = false;
         for _ in 0..30 {
             let candidate: Vec<_> = beta.iter().zip(&step).map(|(b, d)| b + fraction * d).collect();
-            if let Ok(next) = evaluate(time, failure, &x, &order, &candidate, &mut scratch) {
-                if next >= ll - tolerance {
-                    beta = candidate;
-                    accepted = true;
-                    break;
-                }
+            if let Ok(next) = evaluate(time, failure, &x, &order, &candidate, &mut scratch)
+                && next >= ll - tolerance
+            {
+                beta = candidate;
+                accepted = true;
+                break;
             }
             fraction *= 0.5;
         }
@@ -249,9 +251,13 @@ pub fn cox_ipcw(
         let hazard = if before == 0 { 0.0 } else { cumulative_baseline[before - 1] };
         let survival = (-hazard * eta.exp()).exp();
         if !survival.is_finite() || (event[i] == 1.0 && survival < survival_floor) {
-            return Err(invalid(
-                "conditional censoring survival is below the configured positivity floor",
-            ));
+            return Err(StatsError::Route {
+                message: "conditional censoring survival is below the configured positivity floor",
+                diagnostic: RouteNativeDiagnostic::check(
+                    RouteKind::Censoring,
+                    RouteCheck::new(true, RouteMass::unreported()),
+                ),
+            });
         }
         survival_before.push(survival);
         weights.push(if event[i] == 1.0 { 1.0 / survival } else { 0.0 });
@@ -482,5 +488,25 @@ mod tests {
         assert!(cox_ipcw(&[1., 2., 3.], &[1., 0., 1.], &[1., 1., 1.], 1, 0.01).is_err());
         assert!(cox_ipcw(&[1., 2., 3.], &[1., 1., 1.], &[1., 2., 3.], 1, 0.01).is_err());
         assert!(cox_ipcw(&[1., 2., 3.], &[1., 2., 1.], &[1., 2., 3.], 1, 0.01).is_err());
+    }
+
+    #[test]
+    fn conditional_censoring_survival_below_the_floor_is_a_censoring_check() {
+        // Four censorings keep the Cox information nonsingular; a 0.99 floor then sits above the
+        // survival of every event that follows one.
+        let err = cox_ipcw(
+            &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+            &[1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0],
+            &[0.0, 1.0, 2.0, 3.0, 0.5, 1.5, 2.5, 3.5],
+            1,
+            0.99,
+        )
+        .unwrap_err();
+        let record = err.route_diagnostic().unwrap_or_else(|| panic!("censoring record: {err:?}"));
+        assert!(record.failed());
+        assert_eq!(record.route_name(), "censoring");
+        assert!(!record.is_unsupported_inference());
+        assert!(!record.is_model_restriction());
+        assert!(!matches!(err, StatsError::Unsupported { .. }));
     }
 }

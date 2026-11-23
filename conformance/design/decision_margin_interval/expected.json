@@ -1,0 +1,411 @@
+{
+  "schema_version": 2,
+  "scope": "Delta-method sampling interval of a derived decision margin (a function of arm component means) at four hand cases: cluster and complete designs with separate arm covariances, matched-pair and switchback designs with one covariance of both arms' means.",
+  "tolerance": {
+    "relative": 1e-10
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "project": "closed-form first-order delta method with exact rational arithmetic",
+    "method": "forward-mode gradient of the margin expression over Fractions, exact quadratic form g'Sg, normal quantile from the standard library, Student quantile from the finite-sum CDF for odd degrees of freedom",
+    "generator": "conformance/design/decision_margin_interval/reference.py",
+    "command": "uv run --frozen --script conformance/design/decision_margin_interval/reference.py --check",
+    "environment_lock": "conformance/design/decision_margin_interval/reference.py.lock",
+    "generator_retained": true,
+    "limitations": "Hand-constructed covariances; the interval is the first-order sampling interval and carries no coverage claim.",
+    "independence_basis": "The generator differentiates the margin expression forward-mode over exact Fractions at each arm's means, sums the quadratic form h' S h exactly (separate arm covariances, or the joint 2K-by-2K covariance with the control gradient negated), and takes one square root in 60-digit Decimal. The normal critical value is the standard library's inverse normal CDF; the Student critical value with 29 degrees of freedom is the root of the closed finite-sum CDF for odd degrees of freedom, found by bisection. It imports no Antecedent code, draws nothing and calls no decision routine. The executing assertion builds the same evidence and derived quantity through the public constructors and compares what derive reports.",
+    "asserted_outputs": [
+      "cases[*].expected.estimate",
+      "cases[*].expected.standard_error",
+      "cases[*].expected.lower and upper",
+      "cases[*].expected.critical_value (as the interval half-width over the standard error)"
+    ],
+    "context_only_outputs": [
+      "cases[*].components, inputs, expression, means, dependence and design (inputs)"
+    ],
+    "executing_assertion": "crates/antecedent/tests/decision_evidence_workflow.rs::the_margin_interval_equals_the_independent_delta_method_truth",
+    "historical_exposure": "Authored for this fixture from the closed-form delta-method and linear-moment definitions; no product implementation source or product output was consulted to derive the values, and no earlier harness exists."
+  },
+  "cases": [
+    {
+      "name": "cluster_product_margin_arm_covariances",
+      "components": [
+        "frequency",
+        "value",
+        "cost"
+      ],
+      "inputs": [
+        {
+          "measured": "frequency"
+        },
+        {
+          "measured": "value"
+        },
+        {
+          "measured": "cost"
+        }
+      ],
+      "expression": {
+        "op": "mul",
+        "args": [
+          {
+            "in": 0
+          },
+          {
+            "op": "sub",
+            "args": [
+              {
+                "in": 1
+              },
+              {
+                "in": 2
+              }
+            ]
+          }
+        ]
+      },
+      "treated_means": [
+        2.2,
+        12.0,
+        6.0
+      ],
+      "control_means": [
+        2.0,
+        11.0,
+        6.0
+      ],
+      "dependence": {
+        "kind": "arm_covariances",
+        "treated": [
+          0.0004,
+          -0.0001,
+          0.0,
+          -0.0001,
+          0.04,
+          0.0,
+          0.0,
+          0.0,
+          0.01
+        ],
+        "control": [
+          0.0003,
+          0.0,
+          0.0,
+          0.0,
+          0.03,
+          0.0,
+          0.0,
+          0.0,
+          0.01
+        ]
+      },
+      "design": {
+        "assignment_design": "cluster",
+        "treated_units": 30,
+        "control_units": 30,
+        "outcome_rows": 480
+      },
+      "expected": {
+        "estimate": 3.2,
+        "variance": 0.42126,
+        "standard_error": 0.6490454529537973,
+        "critical_value": 1.9599639845400534,
+        "lower": 1.9278942878810719,
+        "upper": 4.472105712118928
+      }
+    },
+    {
+      "name": "complete_fixed_cost_margin",
+      "components": [
+        "frequency",
+        "value",
+        "cost"
+      ],
+      "inputs": [
+        {
+          "measured": "frequency"
+        },
+        {
+          "measured": "value"
+        },
+        {
+          "fixed": 6.5
+        }
+      ],
+      "expression": {
+        "op": "mul",
+        "args": [
+          {
+            "in": 0
+          },
+          {
+            "op": "sub",
+            "args": [
+              {
+                "in": 1
+              },
+              {
+                "in": 2
+              }
+            ]
+          }
+        ]
+      },
+      "treated_means": [
+        2.2,
+        12.0,
+        6.0
+      ],
+      "control_means": [
+        2.0,
+        11.0,
+        6.0
+      ],
+      "dependence": {
+        "kind": "arm_covariances",
+        "treated": [
+          0.0004,
+          -0.0001,
+          0.0,
+          -0.0001,
+          0.04,
+          0.0,
+          0.0,
+          0.0,
+          0.01
+        ],
+        "control": [
+          0.0003,
+          0.0,
+          0.0,
+          0.0,
+          0.03,
+          0.0,
+          0.0,
+          0.0,
+          0.01
+        ]
+      },
+      "design": {
+        "assignment_design": "complete",
+        "treated_units": 40,
+        "control_units": 35,
+        "outcome_rows": 600
+      },
+      "expected": {
+        "estimate": 3.1,
+        "variance": 0.329355,
+        "standard_error": 0.5738945896242619,
+        "critical_value": 1.9599639845400534,
+        "lower": 1.975187273414053,
+        "upper": 4.224812726585947
+      }
+    },
+    {
+      "name": "matched_pairs_joint_arm_covariance_student_29",
+      "components": [
+        "frequency",
+        "value",
+        "cost"
+      ],
+      "inputs": [
+        {
+          "measured": "frequency"
+        },
+        {
+          "measured": "value"
+        },
+        {
+          "measured": "cost"
+        }
+      ],
+      "expression": {
+        "op": "mul",
+        "args": [
+          {
+            "in": 0
+          },
+          {
+            "op": "sub",
+            "args": [
+              {
+                "in": 1
+              },
+              {
+                "in": 2
+              }
+            ]
+          }
+        ]
+      },
+      "treated_means": [
+        2.2,
+        12.0,
+        6.0
+      ],
+      "control_means": [
+        2.0,
+        11.0,
+        6.0
+      ],
+      "dependence": {
+        "kind": "joint_arms",
+        "covariance": [
+          "0.0114",
+          "0.0039",
+          "0",
+          "0.0049",
+          "0.0019",
+          "0.0015",
+          "0.0039",
+          "0.0689",
+          "-0.0026",
+          "0.012",
+          "-0.0172",
+          "0.014",
+          "0",
+          "-0.0026",
+          "0.0273",
+          "-0.0009",
+          "0.0015",
+          "-0.0052",
+          "0.0049",
+          "0.012",
+          "-0.0009",
+          "0.033",
+          "0.0032",
+          "0.0069",
+          "0.0019",
+          "-0.0172",
+          "0.0015",
+          "0.0032",
+          "0.0262",
+          "-0.0039",
+          "0.0015",
+          "0.014",
+          "-0.0052",
+          "0.0069",
+          "-0.0039",
+          "0.0154"
+        ]
+      },
+      "design": {
+        "assignment_design": "matched_pairs",
+        "treated_units": 30,
+        "control_units": 30,
+        "outcome_rows": 60
+      },
+      "expected": {
+        "estimate": 3.2,
+        "variance": 1.698856,
+        "standard_error": 1.3034017032365732,
+        "critical_value": 2.0452296421327043,
+        "lower": 0.5342442009343062,
+        "upper": 5.865755799065694
+      }
+    },
+    {
+      "name": "switchback_profit_margin_joint_arm_covariance_student_29",
+      "components": [
+        "frequency",
+        "value",
+        "cost"
+      ],
+      "inputs": [
+        {
+          "measured": "frequency"
+        },
+        {
+          "measured": "value"
+        },
+        {
+          "measured": "cost"
+        }
+      ],
+      "expression": {
+        "op": "sub",
+        "args": [
+          {
+            "op": "mul",
+            "args": [
+              {
+                "in": 0
+              },
+              {
+                "in": 1
+              }
+            ]
+          },
+          {
+            "in": 2
+          }
+        ]
+      },
+      "treated_means": [
+        2.5,
+        9.0,
+        4.0
+      ],
+      "control_means": [
+        2.1,
+        9.5,
+        4.5
+      ],
+      "dependence": {
+        "kind": "joint_arms",
+        "covariance": [
+          "0.0214",
+          "0.0039",
+          "0",
+          "0.0049",
+          "0.0019",
+          "0.0015",
+          "0.0039",
+          "0.0789",
+          "-0.0026",
+          "0.012",
+          "-0.0172",
+          "0.014",
+          "0",
+          "-0.0026",
+          "0.0373",
+          "-0.0009",
+          "0.0015",
+          "-0.0052",
+          "0.0049",
+          "0.012",
+          "-0.0009",
+          "0.043",
+          "0.0032",
+          "0.0069",
+          "0.0019",
+          "-0.0172",
+          "0.0015",
+          "0.0032",
+          "0.0362",
+          "-0.0039",
+          "0.0015",
+          "0.014",
+          "-0.0052",
+          "0.0069",
+          "-0.0039",
+          "0.0254"
+        ]
+      },
+      "design": {
+        "assignment_design": "switchback",
+        "treated_units": 30,
+        "control_units": 30,
+        "outcome_rows": 240
+      },
+      "expected": {
+        "estimate": 3.05,
+        "variance": 5.328557,
+        "standard_error": 2.3083667386271185,
+        "critical_value": 2.0452296421327043,
+        "lower": -1.6711400787533792,
+        "upper": 7.771140078753379
+      }
+    }
+  ]
+}

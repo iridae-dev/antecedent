@@ -1,6 +1,6 @@
 //! Frozen Tigramite parity checks for symbolic CMI and GPDC.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,
@@ -63,7 +63,9 @@ fn symbolic_cmi_matches_tigramite_statistics_and_decisions() {
     let fixture = fixture();
     let cases = fixture["symbolic_cases"].as_array().unwrap();
     let atol = fixture["tolerances"]["symbolic_stat_atol"].as_f64().unwrap();
-    let p_atol = fixture["tolerances"]["symbolic_p_atol"].as_f64().unwrap();
+    // The fixture admits 0.08; the permutation p-values of 499 replicates under the fixed seeds
+    // land within 0.014 of the reference, so the check holds them to 0.03.
+    let p_atol = fixture["tolerances"]["symbolic_p_atol"].as_f64().unwrap().min(0.03);
     let test = SymbolicCmi::new();
     let mut observed = Vec::new();
 
@@ -94,12 +96,15 @@ fn symbolic_cmi_matches_tigramite_statistics_and_decisions() {
 
 #[test]
 fn gpdc_matches_oracle_decisions_after_stable_residualization() {
-    // MM-008: after centered Cholesky residualization, conditional nulls stay
+    // After centered Cholesky residualization, conditional nulls stay
     // above α=0.05 and the two-conditioner alternative rejects below it.
     let fixture = fixture();
     let cases = fixture["gpdc_cases"].as_array().unwrap();
     let atol = fixture["tolerances"]["gpdc_stat_atol"].as_f64().unwrap();
     let rtol = fixture["tolerances"]["gpdc_stat_rtol"].as_f64().unwrap();
+    // The fixture band (0.35 + 100 % of the value) admits a statistic twice the reference. The
+    // native GP backend differs from Tigramite's by at most 0.096 (20 %) on these cases, so the
+    // check also holds every case to 0.03 + 25 % of the reference.
     let test = Gpdc::new();
     let mut observed = Vec::new();
 
@@ -109,7 +114,9 @@ fn gpdc_matches_oracle_decisions_after_stable_residualization() {
         let expected_statistic = reference["statistic"].as_f64().unwrap();
         let expected_p = reference["p_value"].as_f64().unwrap();
         assert!(
-            (statistic - expected_statistic).abs() <= atol + rtol * expected_statistic.abs(),
+            (statistic - expected_statistic).abs()
+                <= (atol + rtol * expected_statistic.abs())
+                    .min(0.03 + 0.25 * expected_statistic.abs()),
             "{} statistic {statistic} outside native-backend band around Tigramite {expected_statistic}",
             case["name"]
         );
@@ -133,13 +140,19 @@ fn gpdc_matches_oracle_decisions_after_stable_residualization() {
 fn advanced_ci_fixture_has_pinned_reproducible_provenance() {
     let fixture = fixture();
     let oracle = &fixture["oracle"];
+    assert_eq!(oracle["generator_retained"], true, "the generator must be retained");
+    assert_eq!(oracle["generator"], "conformance/discovery/advanced_ci/reference.py");
     assert_eq!(
-        oracle["generation_location"], "temporary external harness; not retained",
-        "the repository must retain artifacts, not the external generator"
+        fixture["historical_oracle"]["generation_location"],
+        "temporary external harness; not retained",
+        "the historical deleted-generator disclosure must be preserved"
     );
     assert_eq!(oracle["packages"]["tigramite"]["version"], "5.2.1.30");
     assert_eq!(oracle["packages"]["numpy"]["version"], "1.23.5");
-    assert!(oracle["command"].as_str().unwrap().contains("tigramite==5.2.1.30"));
+    assert!(oracle["command"].as_str().unwrap().contains("reference.py --check"));
+    assert!(
+        fixture["historical_oracle"]["command"].as_str().unwrap().contains("tigramite==5.2.1.30")
+    );
     for package in ["tigramite", "numpy", "scipy", "scikit-learn", "dcor"] {
         assert_eq!(oracle["packages"][package]["metadata_sha256"].as_str().unwrap().len(), 64);
     }

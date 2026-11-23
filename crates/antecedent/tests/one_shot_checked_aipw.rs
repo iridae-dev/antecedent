@@ -1,6 +1,7 @@
-//! One-shot AIPW uses its complete prepared operation on the licensed slice.
+//! One-shot AIPW uses its complete prepared operation on the supported slice.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{EstimatorId, EstimatorSpec, RefuteSuite, Study};
 use antecedent_core::ExecutionContext;
 
@@ -8,6 +9,49 @@ use antecedent_core::ExecutionContext;
 mod common;
 
 use common::fixtures::confounded_scm;
+
+/// Adjusted least-squares coefficient of `t` in `y ~ 1 + t + z` on the rows `confounded_scm`
+/// draws (same generator calls, same order), by the normal equations: an estimator-free reference.
+fn adjusted_ols_effect(n: usize, seed: u64) -> f64 {
+    let mut rng = antecedent_core::CausalRng::from_seed(seed);
+    let mut rows = Vec::with_capacity(n);
+    for _ in 0..n {
+        let u1 = rng.next_f64().max(1e-12);
+        let u2 = rng.next_f64();
+        let z = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
+        let p = 1.0 / (1.0 + (-(-0.4 + 0.9 * z)).exp());
+        let t = if rng.next_f64() < p { 1.0 } else { 0.0 };
+        let e = (-2.0 * rng.next_f64().max(1e-12).ln()).sqrt()
+            * (2.0 * std::f64::consts::PI * rng.next_f64()).cos()
+            * 0.4;
+        rows.push([1.0, t, z, 2.0 * t + z + e]);
+    }
+    let mut a = [[0.0_f64; 4]; 3];
+    for r in &rows {
+        for i in 0..3 {
+            for j in 0..3 {
+                a[i][j] += r[i] * r[j];
+            }
+            a[i][3] += r[i] * r[3];
+        }
+    }
+    for c in 0..3 {
+        let pivot = (c..3).max_by(|&i, &j| a[i][c].abs().total_cmp(&a[j][c].abs())).unwrap();
+        a.swap(c, pivot);
+        for r in c + 1..3 {
+            let f = a[r][c] / a[c][c];
+            for k in c..4 {
+                a[r][k] -= f * a[c][k];
+            }
+        }
+    }
+    let mut beta = [0.0; 3];
+    for r in (0..3).rev() {
+        let tail: f64 = (r + 1..3).map(|k| a[r][k] * beta[k]).sum();
+        beta[r] = (a[r][3] - tail) / a[r][r];
+    }
+    beta[1]
+}
 
 #[test]
 fn one_shot_aipw_matches_prepared_and_nearby_linear_stays_supported() {
@@ -35,20 +79,27 @@ fn one_shot_aipw_matches_prepared_and_nearby_linear_stays_supported() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    assert!((linear.run(&ctx).unwrap().effect() - 2.0).abs() < 0.2);
+    let reference = adjusted_ols_effect(512, 73);
+    let linear_effect = linear.run(&ctx).unwrap().effect();
+    assert!((linear_effect - reference).abs() < 1e-6, "linear {linear_effect} vs OLS {reference}");
+    assert!(
+        (one_shot.effect() - reference).abs() < 0.05,
+        "aipw {} vs OLS {reference}",
+        one_shot.effect()
+    );
 }
 
 /// The trimmed cross-fitted AIPW study, sealed. The effect pin is what the
 /// ordinary study dispatcher computed for this seed and data before the trim
 /// rule was lowered into the checked procedure. The sealed route must agree
 /// with that dispatcher bit for bit, bootstrap included. The standard-error
-/// pins are the same historical values compared as magnitudes: glibc and the
-/// macOS libm move this logistic fit by a few ulps.
+/// pins are compared as magnitudes: glibc and the macOS libm move this logistic
+/// fit by a few ulps. The analytic pin is the leverage-corrected score's.
 #[test]
 fn one_shot_trimmed_aipw_is_sealed_and_matches_the_ordinary_dispatcher_bitwise() {
     const LEGACY_ATE_BITS: u64 = 0x3fff_e021_1571_42a3;
-    const LEGACY_SE_BITS: u64 = 0x3fa6_00b0_1a9f_2da1;
-    const LEGACY_SE_BOOTSTRAP_BITS_8_REPLICATES: u64 = 4_586_416_601_391_101_200;
+    const LEGACY_SE_BITS: u64 = 0x3fa6_5926_c213_19db;
+    const LEGACY_SE_BOOTSTRAP_BITS_8_REPLICATES: u64 = 4_588_854_293_953_141_936;
     let overlap = antecedent_estimate::OverlapPolicy::RequireDiagnostics {
         clip: Some(0.01),
         trim: Some(0.02),
@@ -57,7 +108,7 @@ fn one_shot_trimmed_aipw_is_sealed_and_matches_the_ordinary_dispatcher_bitwise()
         let ctx = ExecutionContext::for_tests(31);
         let (data, dag, query) = confounded_scm(512, 73);
         let mut fitter = antecedent_estimate::AipwAte::new();
-        fitter.bootstrap_replicates = replicates;
+        fitter.inference.bootstrap_replicates = replicates;
         fitter.overlap = overlap;
         let study = Study::tabular(data.clone())
             .graph(dag)
@@ -70,7 +121,10 @@ fn one_shot_trimmed_aipw_is_sealed_and_matches_the_ordinary_dispatcher_bitwise()
         // A trimming policy lowers to the common-support procedure and is
         // sealed like the untrimmed one ...
         let prepared = study.prepare(&ctx).unwrap();
-        let lowering = prepared.checked_aipw_ate().expect("trimmed AIPW is sealed").lowering();
+        let RetainedOperation::CheckedAipw(aipw) = prepared.retained_operation() else {
+            panic!("trimmed AIPW is sealed")
+        };
+        let lowering = aipw.lowering();
         assert_eq!(
             lowering.procedure,
             antecedent_estimate::CheckedAipwProcedure::TrimmedLogisticOls
@@ -88,32 +142,35 @@ fn one_shot_trimmed_aipw_is_sealed_and_matches_the_ordinary_dispatcher_bitwise()
             "replicates={replicates}"
         );
         assert_eq!(
-            one_shot.estimate.as_effect().unwrap().se_analytic().to_bits(),
-            clicked.estimate.as_effect().unwrap().se_analytic().to_bits(),
+            one_shot.estimate().as_effect().unwrap().se_analytic().to_bits(),
+            clicked.estimate().as_effect().unwrap().se_analytic().to_bits(),
             "replicates={replicates}"
         );
         assert_eq!(
-            one_shot.estimate.as_effect().unwrap().se_bootstrap().map(f64::to_bits),
-            clicked.estimate.as_effect().unwrap().se_bootstrap().map(f64::to_bits),
+            one_shot.estimate().as_effect().unwrap().se_bootstrap().map(f64::to_bits),
+            clicked.estimate().as_effect().unwrap().se_bootstrap().map(f64::to_bits),
             "replicates={replicates}"
         );
         for result in [&one_shot, &clicked] {
             assert_eq!(result.effect().to_bits(), LEGACY_ATE_BITS, "replicates={replicates}");
             assert!(
-                near_pinned_se(result.estimate.as_effect().unwrap().se_analytic(), LEGACY_SE_BITS),
+                near_pinned_se(
+                    result.estimate().as_effect().unwrap().se_analytic(),
+                    LEGACY_SE_BITS
+                ),
                 "replicates={replicates} se {} vs {}",
-                result.estimate.as_effect().unwrap().se_analytic(),
+                result.estimate().as_effect().unwrap().se_analytic(),
                 f64::from_bits(LEGACY_SE_BITS)
             );
             let pinned_bootstrap =
                 (replicates > 0).then_some(LEGACY_SE_BOOTSTRAP_BITS_8_REPLICATES);
             assert_eq!(
-                result.estimate.as_effect().unwrap().se_bootstrap().is_some(),
+                result.estimate().as_effect().unwrap().se_bootstrap().is_some(),
                 pinned_bootstrap.is_some(),
                 "replicates={replicates}"
             );
             if let (Some(actual), Some(pinned)) =
-                (result.estimate.as_effect().unwrap().se_bootstrap(), pinned_bootstrap)
+                (result.estimate().as_effect().unwrap().se_bootstrap(), pinned_bootstrap)
             {
                 assert!(
                     near_pinned_se(actual, pinned),
@@ -140,8 +197,8 @@ fn one_shot_trimmed_aipw_is_sealed_and_matches_the_ordinary_dispatcher_bitwise()
     }
 }
 
-/// Libm noise on a standard error near `0.04`. The measured glibc-versus-macOS
-/// gap on the bootstrap pin is about `3e-17`.
+/// Libm noise on a standard error near `0.06`. The measured glibc-versus-macOS
+/// gap on the previous bootstrap pin was about `3e-17`.
 fn near_pinned_se(actual: f64, pinned_bits: u64) -> bool {
     (actual - f64::from_bits(pinned_bits)).abs() <= 1e-14
 }

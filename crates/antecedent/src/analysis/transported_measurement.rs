@@ -28,7 +28,7 @@
 //! The invariance premise is declared, never tested. Only the parameter estimation
 //! uncertainty the correction already propagates is reported; the uncertainty of the
 //! premise itself is not propagated, the standard error is conditional on the premise
-//! and uncalibrated, and the interval route stays closed
+//! and uncalibrated, and the interval route is not supported
 //! ([`TransportedMeasurementEstimate::interval`]).
 //!
 //! # Export and consumption
@@ -50,7 +50,7 @@
 //! Outcome-only data from the target population carries no validation information; pass it
 //! as a new [`MeasurementInput`] and it is corrected under the same receipt.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::measurement::LatentPosteriorTrust;
 use antecedent_contract::{ExternalScientificObject, ExternalTrustState};
@@ -66,6 +66,13 @@ pub use antecedent_estimate::measurement_transport::{
     TransportedMeasurementModel, transport_measurement_model,
 };
 
+// Differential error pooled across validated populations and carried to the target with the
+// between-population heterogeneity propagated (the invariance premise's uncertainty).
+pub use antecedent_estimate::measurement_transport_pooled::{
+    PooledDifferentialCorrection, PooledDifferentialRequest, PooledRate, PopulationValidation,
+    transport_pooled_differential_prevalence,
+};
+
 use super::StudyBuilder;
 use super::composition_verification::{
     ClaimStanding, CompositionNode, NodeKind, TrustStanding, library_transported_node,
@@ -76,49 +83,50 @@ use super::measurement_model::{
 };
 
 /// Detail of a retained receipt identity that is not the recomputed one.
-pub const DETAIL_TRANSPORT_RECEIPT_MISMATCH: &str = "measurement_model.transport_receipt_mismatch";
+pub const DETAIL_TRANSPORT_RECEIPT_MISMATCH: &str =
+    antecedent_core::reason_details::measurement_model::TRANSPORT_RECEIPT_MISMATCH;
 
 fn remedy_of(detail: &str) -> Option<&'static str> {
     Some(match detail {
-        "measurement_model.invariance_premise_required" => {
+        antecedent_core::reason_details::measurement_model::INVARIANCE_PREMISE_REQUIRED => {
             "declare that the error parameters are invariant from a named source population, \
              declare the error differential by population, or establish a validation sample in \
              the target population"
         }
-        "measurement_model.invariance_not_declared" => {
+        antecedent_core::reason_details::measurement_model::INVARIANCE_NOT_DECLARED => {
             "name every error parameter the correction uses as invariant; a premise about one \
-             parameter does not license a correction that uses another"
+             parameter does not support a correction that uses another"
         }
-        "measurement_model.invariance_target_mismatch" => {
+        antecedent_core::reason_details::measurement_model::INVARIANCE_TARGET_MISMATCH => {
             "declare the invariance between the source population and the analysis population"
         }
-        "measurement_model.invariance_source_unknown" => {
+        antecedent_core::reason_details::measurement_model::INVARIANCE_SOURCE_UNKNOWN => {
             "name a source population that has an established measurement model"
         }
-        "measurement_model.differential_population_unestablished" => {
+        antecedent_core::reason_details::measurement_model::DIFFERENTIAL_POPULATION_UNESTABLISHED => {
             "establish a validation sample in the target population; another population's \
              rates are not borrowed under a differential structure"
         }
-        "measurement_model.differential_axis_unsupported" => {
+        antecedent_core::reason_details::measurement_model::DIFFERENTIAL_AXIS_UNSUPPORTED => {
             "an error declared to depend on population or time is not carried by an \
              invariance premise; establish a model for the target"
         }
-        "measurement_model.regime_mismatch" => {
+        antecedent_core::reason_details::measurement_model::REGIME_MISMATCH => {
             "the premise covers the population only; supply a model established for the \
              analysis regime"
         }
-        "measurement_model.arm_mismatch" => {
+        antecedent_core::reason_details::measurement_model::ARM_MISMATCH => {
             "the premise covers the population only; supply a model established for the \
              analysis arm"
         }
-        "measurement_model.nothing_to_transport" => {
+        antecedent_core::reason_details::measurement_model::NOTHING_TO_TRANSPORT => {
             "correct the target data with its own replicates instead of carrying parameters"
         }
-        "measurement_model.posterior_bound_to_snapshot" => {
+        antecedent_core::reason_details::measurement_model::POSTERIOR_BOUND_TO_SNAPSHOT => {
             "an external posterior is bound to its source snapshot; request a posterior for \
              the target population from the provider"
         }
-        "measurement_model.no_model" => {
+        antecedent_core::reason_details::measurement_model::NO_MODEL => {
             "supply the measurement model established for a source population"
         }
         _ => return None,
@@ -240,7 +248,7 @@ impl TransportedMeasurementEstimate {
     /// graph.
     ///
     /// A corrected value is a point with an uncalibrated standard error at most:
-    /// the interval route is closed ([`Self::interval`]), so no calibration
+    /// the interval route is not supported ([`Self::interval`]), so no calibration
     /// record is claimed. Trust follows the provenance of the route: a
     /// model-based route rests on no provider (not applicable); an external
     /// latent posterior rests on its provider at the trust it was admitted at
@@ -327,13 +335,13 @@ impl TransportedMeasurementEstimate {
         self.estimate.provider_trust()
     }
 
-    /// An interval for the corrected functional.
+    /// The interval of the corrected functional at `level`, as the estimate reports it.
+    /// The transport receipt is bound to the result; the interval is the estimate's.
     ///
     /// # Errors
-    /// Always `cell_not_licensed`: no coverage record measures the whole
-    /// measurement-plus-transport-plus-estimation method.
-    pub fn interval(&self) -> Result<std::convert::Infallible, MeasurementModelRefusal> {
-        self.estimate.interval()
+    /// As [`MeasurementEstimate::interval`].
+    pub fn interval(&self, level: f64) -> Result<(f64, f64), MeasurementModelRefusal> {
+        self.estimate.interval(level)
     }
 
     /// Write the re-bound model and the result as the measurement-model artifact. The
@@ -367,7 +375,7 @@ pub fn transport_measurement_estimate(
     if ctx.cancellation.is_cancelled() {
         return Err(MeasurementModelRefusal {
             code: antecedent_core::reason_code!("cancelled_no_claim"),
-            detail: "measurement_model.cancelled".to_owned(),
+            detail: antecedent_core::reason_details::measurement_model::CANCELLED.to_owned(),
             message: "cancelled before a corrected functional was formed; this is not a \
                       verdict on the data"
                 .to_owned(),

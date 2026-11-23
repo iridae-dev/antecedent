@@ -18,24 +18,25 @@
 //! with an Execution diagnostic. Completions that are not MAGs, or MAGs with no qualifying
 //! set in this candidate family, contribute unidentified mass. A completion whose
 //! ancestral candidates pass that test but whose candidate family exceeds
-//! `max_candidates` is folded into unidentified mass with status [`IdentificationStatus::NotIdentified`]
-//! (there is no third identification outcome). Enumeration
-//! was never attempted, so this is not a scientific open-back-door: the result
-//! carries an Execution diagnostic [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`] and is
-//! counted in [`IdentificationEnvelope::truncated_completions`]. A completed
-//! search that finds no set is also [`IdentificationStatus::NotIdentified`], but
-//! with a Scientific diagnostic.
+//! `max_candidates` is identified by the ancestral set, which the test already certified
+//! (valid, not minimal): only the choice of a smaller set is skipped, and the result carries
+//! an Execution diagnostic [`MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE`]. The joint multi-treatment
+//! search decides existence the same way (one test per treatment on the maximal candidate set,
+//! see the `joint_response` module) and returns that set, with the Execution diagnostic
+//! [`crate::JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE`], when the search for a smaller one is
+//! stopped. A decided absence of any set is [`IdentificationStatus::NotIdentified`] with a
+//! Scientific diagnostic.
 //!
 //! This is **generalized adjustment**, not the full ID/IDC algorithm (see roadmap P5.3).
 //! Sets outside the ancestor candidate family are not searched.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity,
-    ResponseQuery, Value, VariableId,
+    ExecutionContext, ResponseQuery, Value, VariableId,
 };
 use antecedent_expr::CausalExprArena;
 use antecedent_graph::{
@@ -55,21 +56,46 @@ use crate::result::{
     IdentifiedEstimand,
 };
 
+mod conditional;
+pub(crate) use conditional::validate_dag_conditional_adjustment;
+#[cfg(test)]
+use conditional::{ConditionalSearch, constrained_conditional_set};
+use conditional::{fund_adjustment_enumeration, validate_conditional_adjustment};
+
 /// Diagnostic code of a modifier-constrained adjustment search that spent
 /// `max_examinations` before it finished: identifiability is undecided, not refuted.
 pub(crate) const CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str =
     "identify.conditional.search_bounded";
 
-/// Diagnostic code attached to a per-completion [`IdentificationResult`] when adjustment-set
-/// enumeration was capped by `max_candidates` before it could search — as opposed to
-/// searching exhaustively and finding no valid set. A cap keeps
-/// [`IdentificationStatus::NotIdentified`] and is an
-/// Execution diagnostic, not a scientific open-back-door. Both cases still fold
-/// into [`IdentificationEnvelope::unidentified_weight`] (unidentified mass is
-/// preserved either way); [`IdentificationEnvelope::truncated_completions`]
-/// counts only this diagnostic.
+/// Diagnostic code of a modifier-constrained adjustment search that stopped at `max_results`
+/// sets. Every returned set is certified; only the list of alternatives is incomplete, so this
+/// is not a bounded-search (undecided) outcome.
+pub(crate) const CONDITIONAL_RESULTS_TRUNCATED_DIAGNOSTIC_CODE: &str =
+    "identify.conditional.results_truncated";
+
+/// Diagnostic code of a per-completion [`IdentificationResult`] whose adjustment-set search
+/// was capped before it could decide — as opposed to searching exhaustively and finding no
+/// valid set. Such a result keeps [`IdentificationStatus::NotIdentified`] and is an Execution
+/// diagnostic, not a scientific open-back-door. The in-tree searches no longer stop undecided
+/// (each decides existence in one test and falls back to the certified set), so none emits it;
+/// it stays recognised by [`search_truncated`](crate::envelope::search_truncated) for stored
+/// and externally built results, which [`IdentificationEnvelope::truncated_completions`]
+/// counts.
 pub const CAPPED_COMPLETION_DIAGNOSTIC_CODE: &str =
     "identify.generalized_adjustment.completion_capped";
+
+/// Resource interruption cannot be read as a scientific or declared work-cap outcome.
+pub(crate) fn check_completion_stop(
+    stop: Option<antecedent_core::SearchStop>,
+) -> Result<(), IdentificationError> {
+    match stop {
+        Some(antecedent_core::SearchStop::Cancelled) => Err(IdentificationError::Cancelled),
+        Some(antecedent_core::SearchStop::Memory) => {
+            Err(IdentificationError::Budget { budget: crate::error::IdentificationBudget::Memory })
+        }
+        _ => Ok(()),
+    }
+}
 
 /// Config for PAG generalized-adjustment envelopes.
 #[derive(Clone, Debug)]
@@ -78,15 +104,23 @@ pub struct GeneralizedAdjustmentConfig {
     pub max_completions: usize,
     /// Uniform weight per streamed completion.
     pub per_completion_weight: f64,
-    /// Max candidate covariates to enumerate (bitmask width).
+    /// Caller-declared ceiling on the candidate covariates of an exact enumeration. The default
+    /// (`usize::MAX`) declares none: the enumeration's storage is leased from the context's
+    /// admission pool before it is allocated and its work is charged to
+    /// [`Self::max_examinations`].
     pub max_candidates: usize,
+    /// The caller's execution context: its admission pool funds every search's storage and
+    /// completion enumeration, and its cancellation token stops them. `None` runs under a
+    /// serial production context with an unlimited pool.
+    pub context: Option<ExecutionContext>,
+    /// Shared cumulative budget for nested temporal materializations, if this search is part of a larger operation.
+    pub temporal_budget: Option<antecedent_core::TemporalBudget>,
     /// Separation tests one adjustment search may run before it stops looking for a smaller
     /// set (work budget, not an output cap).
     ///
-    /// Whether a single-treatment set exists is decided by one test on the ancestral set,
-    /// which is returned when the budget ends the search for a smaller one. The joint
-    /// multi-treatment search has no such shortcut: its budget ends the whole search and the
-    /// result is a bounded search, not a refutation.
+    /// Whether a single-treatment or a joint multi-treatment set exists is decided by one
+    /// test on the maximal candidate set, which is returned when the budget ends the search
+    /// for a smaller one.
     pub max_examinations: u64,
     /// Operations the completion search may charge: one per endpoint assignment or partial
     /// orientation visited, and one per m-separation query of the equivalence audit. A stop is
@@ -97,15 +131,13 @@ pub struct GeneralizedAdjustmentConfig {
 
 impl GeneralizedAdjustmentConfig {
     /// Limits and context of the completion search these settings configure.
-    pub(crate) fn completion_search(
-        &self,
-    ) -> (antecedent_core::SearchLimits, antecedent_core::ExecutionContext) {
+    pub(crate) fn completion_search(&self) -> (antecedent_core::SearchLimits, ExecutionContext) {
         (
             antecedent_core::SearchLimits {
                 operations: self.completion_operations,
                 depth: usize::MAX,
             },
-            antecedent_core::ExecutionContext::production(0, 1),
+            self.context.clone().unwrap_or_else(|| ExecutionContext::production(0, 1)),
         )
     }
 }
@@ -115,7 +147,9 @@ impl Default for GeneralizedAdjustmentConfig {
         Self {
             max_completions: 32,
             per_completion_weight: 1.0,
-            max_candidates: 40,
+            max_candidates: usize::MAX,
+            context: None,
+            temporal_budget: None,
             max_examinations: 1_000_000,
             completion_operations: antecedent_graph::DEFAULT_COMPLETION_OPERATIONS,
         }
@@ -187,6 +221,7 @@ impl GeneralizedAdjustmentIdentifier {
                     &mut result,
                     &crate::backdoor::AdjustmentSearchConfig {
                         max_candidates: self.config.max_candidates,
+                        context: self.config.context.clone(),
                         ..Default::default()
                     },
                 )?;
@@ -200,16 +235,39 @@ impl GeneralizedAdjustmentIdentifier {
         pag: &Pag,
         mut identify: impl FnMut(&Pag) -> Result<IdentificationResult, IdentificationError>,
     ) -> Result<IdentificationEnvelope<Pag>, IdentificationError> {
+        self.pag_envelope_with_candidates(pag, |completion| identify(completion).map(|r| vec![r]))
+    }
+
+    /// The completion envelope where one MAG completion can carry several cases: `identify`
+    /// returns one result per distinct functional the completion leaves open, and the
+    /// completion's mass is shared equally between them.
+    pub(crate) fn pag_envelope_with_candidates(
+        &self,
+        pag: &Pag,
+        mut identify: impl FnMut(&Pag) -> Result<Vec<IdentificationResult>, IdentificationError>,
+    ) -> Result<IdentificationEnvelope<Pag>, IdentificationError> {
         let (limits, ctx) = self.config.completion_search();
         let mut sampler =
             CompletionSampler::with_budget(pag, self.config.max_completions, limits, &ctx)
                 .map_err(IdentificationError::from)?;
         let mut cases = Vec::new();
-        let w = ProbabilityMass(self.config.per_completion_weight);
         for completion in sampler.by_ref() {
-            let result = identify(&completion.graph)?;
-            cases.push(GraphIdentificationCase { graph: completion.graph, result, weight: w });
+            let results = identify(&completion.graph)?;
+            #[allow(
+                clippy::cast_precision_loss,
+                reason = "a completion carries a handful of candidate functionals"
+            )]
+            let w =
+                ProbabilityMass(self.config.per_completion_weight / results.len().max(1) as f64);
+            for result in results {
+                cases.push(GraphIdentificationCase {
+                    graph: completion.graph.clone(),
+                    result,
+                    weight: w,
+                });
+            }
         }
+        check_completion_stop(sampler.search_stop())?;
         let mut envelope = IdentificationEnvelope::from_cases(cases);
         envelope.push_features(pag_circle_features(pag));
         let validation = sampler.validation_report();
@@ -309,12 +367,62 @@ impl GeneralizedAdjustmentIdentifier {
             }
         }
 
-        let backdoor = BackdoorIdentifier::new().with_max_candidates(self.config.max_candidates);
+        let mut backdoor =
+            BackdoorIdentifier::new().with_max_candidates(self.config.max_candidates);
+        backdoor.config.context.clone_from(&self.config.context);
         let mut workspace = IdentificationWorkspace::default();
         let cq = CausalQuery::AverageEffect(query.clone());
         self.cpdag_envelope_with(cpdag, |graph| {
             let prepared = backdoor.prepare(graph)?;
             backdoor.identify(&prepared, &cq, &mut workspace)
+        })
+    }
+
+    /// Identify a path-restricted natural effect, or a natural direct effect, in every DAG
+    /// completion of a CPDAG.
+    ///
+    /// A CPDAG assumes causal sufficiency, so each completion is a DAG and the
+    /// Avin-Shpitser-Pearl identifier decides it on its own: a completion with a recanting
+    /// witness carries unidentified mass, and completions that identify different
+    /// functionals leave the effect partially identified over the class.
+    ///
+    /// # Errors
+    ///
+    /// A query the path-specific identifier does not read, or a completion that fails to
+    /// prepare.
+    pub fn identify_cpdag_path_specific_envelope(
+        &self,
+        cpdag: &Cpdag,
+        query: &CausalQuery,
+    ) -> Result<IdentificationEnvelope<antecedent_graph::Dag>, IdentificationError> {
+        let identifier = crate::path_specific::PathSpecificIdentifier::new();
+        let mut workspace = IdentificationWorkspace::default();
+        self.cpdag_envelope_with(cpdag, |graph| {
+            let prepared = identifier.prepare_dag(graph)?;
+            identifier.identify(&prepared, query, &mut workspace)
+        })
+    }
+
+    /// Identify an interventional distribution in every DAG completion of a CPDAG.
+    ///
+    /// A CPDAG assumes causal sufficiency, so each completion is a DAG read as the ADMG with
+    /// no bidirected edge; the complete ID algorithm (IDC when the query conditions) decides
+    /// it on its own. A completion that identifies a different functional leaves the
+    /// distribution partially identified over the class.
+    ///
+    /// # Errors
+    ///
+    /// A query the algorithm does not read, or a completion that fails to prepare.
+    pub fn identify_cpdag_distribution_envelope(
+        &self,
+        cpdag: &Cpdag,
+        query: &CausalQuery,
+    ) -> Result<IdentificationEnvelope<antecedent_graph::Dag>, IdentificationError> {
+        let mut workspace = IdentificationWorkspace::default();
+        self.cpdag_envelope_with(cpdag, |dag| {
+            let admg =
+                antecedent_graph::Admg::from_dag(dag).map_err(IdentificationError::construction)?;
+            crate::pag_path_specific::identify_distribution_on(&admg, query, &mut workspace)
         })
     }
 
@@ -338,6 +446,7 @@ impl GeneralizedAdjustmentIdentifier {
             let result = identify(&completion.graph)?;
             cases.push(GraphIdentificationCase { graph: completion.graph, result, weight: w });
         }
+        check_completion_stop(sampler.search_stop())?;
         let mut envelope = IdentificationEnvelope::from_cases(cases);
         envelope.push_features(cpdag_undirected_features(cpdag));
         if sampler.hit_cap() {
@@ -402,337 +511,6 @@ pub(crate) fn pag_var_to_dense(
     crate::prepared::dense_of_static(pag.nodes(), id)
 }
 
-pub(crate) fn validate_dag_conditional_adjustment(
-    dag: &antecedent_graph::Dag,
-    query: &AverageEffectQuery,
-    result: &mut IdentificationResult,
-    config: &crate::backdoor::AdjustmentSearchConfig,
-) -> Result<(), IdentificationError> {
-    if query.effect_modifiers.is_empty() {
-        return Ok(());
-    }
-    let admg = crate::prepared::dag_to_admg(dag)?;
-    let t = dag
-        .nodes()
-        .iter()
-        .position(|node| *node == antecedent_graph::NodeRef::Static(query.treatment))
-        .ok_or(IdentificationError::UnknownVariable { id: query.treatment })?;
-    validate_conditional_adjustment(
-        &admg,
-        &mutilate_outgoing(&admg, DenseNodeId::from_raw(dense_u32(t))),
-        dag.nodes(),
-        query,
-        result,
-        config,
-    )
-}
-
-/// The regression conditions on Z union W. A marginal adjustment certificate
-/// for Z alone does not license this conditional regression: W may be a
-/// mediator, or may open a collider path. This is a sufficient backdoor check,
-/// not a complete conditional-ID algorithm.
-fn validate_conditional_adjustment(
-    graph: &Admg,
-    mutilated: &Admg,
-    nodes: &[antecedent_graph::NodeRef],
-    query: &AverageEffectQuery,
-    result: &mut IdentificationResult,
-    config: &crate::backdoor::AdjustmentSearchConfig,
-) -> Result<(), IdentificationError> {
-    if query.effect_modifiers.is_empty() {
-        return Ok(());
-    }
-    let dense = |v: VariableId| crate::prepared::dense_of_static(nodes, v);
-    let t = dense(query.treatment)?;
-    let y = dense(query.outcome)?;
-    let modifiers =
-        query.effect_modifiers.iter().copied().map(dense).collect::<Result<Vec<_>, _>>()?;
-    let descendants = directed_closure(graph, &[t], false);
-    let pretreatment = modifiers.iter().all(|w| *w != y && !descendants.contains(*w));
-    let mut ws = DSeparationWorkspace::default();
-    let mut valid = Vec::new();
-    if pretreatment {
-        for estimand in &result.estimands {
-            let mut conditioning = estimand
-                .adjustment_set
-                .iter()
-                .copied()
-                .map(dense)
-                .collect::<Result<Vec<_>, _>>()?;
-            conditioning.extend_from_slice(&modifiers);
-            conditioning.sort_unstable();
-            conditioning.dedup();
-            if mutilated.is_m_separated(t, y, &conditioning, &mut ws)? {
-                valid.push(estimand.clone());
-            }
-        }
-    }
-    if valid.is_empty() && pretreatment {
-        let found =
-            constrained_conditional_set(graph, mutilated, nodes, query, &modifiers, config)?;
-        match found {
-            ConditionalSearch::Found(adjustments, examined, budget_exhausted) => {
-                for adjustment in adjustments {
-                    let (active, control) = conditional_levels(query)?;
-                    let functional = result.arena.backdoor_ate(
-                        query.treatment,
-                        query.outcome,
-                        &adjustment,
-                        active,
-                        control,
-                    );
-                    valid.push(IdentifiedEstimand::backdoor(
-                        "backdoor.adjustment",
-                        adjustment.into(),
-                        functional,
-                    ));
-                }
-                result.status = IdentificationStatus::NonparametricallyIdentified;
-                result.query = CausalQuery::AverageEffect(query.clone());
-                result.performance.candidates_examined += examined;
-                result.performance.sets_returned = valid.len() as u64;
-                result.diagnostics.retain(|d| d.code.as_ref() != CAPPED_COMPLETION_DIAGNOSTIC_CODE);
-                result.derivation.push("conditional.adjustment.search", "searched with the fixed pre-treatment modifier in every separation test; alternative joint conditioning set certified");
-                if budget_exhausted {
-                    result.diagnostics.push(crate::result::search_bounded_diagnostic(
-                        CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
-                        format!(
-                            "conditional adjustment search reached max_examinations={} before it \
-                             finished; the returned set separates treatment from outcome but a \
-                             smaller one may exist",
-                            config.max_examinations
-                        ),
-                    ));
-                }
-                if result.required_assumptions.entries.is_empty() {
-                    result
-                        .required_assumptions
-                        .push(crate::assumptions::causal_markov("conditional.adjustment"));
-                }
-            }
-            ConditionalSearch::Capped(n) => {
-                *result = capped_completion_result(
-                    CausalQuery::AverageEffect(query.clone()),
-                    n,
-                    config.max_candidates,
-                );
-                return Ok(());
-            }
-            ConditionalSearch::Absent => {}
-        }
-    }
-    if valid.is_empty() {
-        *result = not_identified(
-            result.query.clone(),
-            "conditional adjustment not certified: modifiers must be pre-treatment and \
-             Z union modifiers must block backdoor paths; marginal ATE identification \
-             alone is insufficient; constrained adjustment search found no set (general conditional ID not attempted)",
-        );
-        result.diagnostics.push(Diagnostic::new(
-            "identify.conditional.adjustment_unverified",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Warning,
-            "conditional adjustment is not certified on this completion; its mass is retained as unidentified",
-        ));
-    } else {
-        result.estimands = valid;
-    }
-    Ok(())
-}
-
-fn conditional_levels(query: &AverageEffectQuery) -> Result<(Value, Value), IdentificationError> {
-    match (&query.active, &query.control) {
-        (
-            antecedent_core::Intervention::Set { value: a, .. },
-            antecedent_core::Intervention::Set { value: c, .. },
-        ) => Ok((a.clone(), c.clone())),
-        _ => Err(IdentificationError::unsupported(
-            "conditional adjustment requires Set interventions",
-        )),
-    }
-}
-
-enum ConditionalSearch {
-    /// Certified sets, separation tests spent, and whether the examination budget cut the
-    /// search for smaller sets short.
-    Found(Vec<Vec<VariableId>>, u64, bool),
-    Capped(usize),
-    /// Proved: no admissible set exists.
-    Absent,
-}
-
-fn constrained_conditional_set(
-    graph: &Admg,
-    cut: &Admg,
-    nodes: &[antecedent_graph::NodeRef],
-    query: &AverageEffectQuery,
-    modifiers: &[DenseNodeId],
-    config: &crate::backdoor::AdjustmentSearchConfig,
-) -> Result<ConditionalSearch, IdentificationError> {
-    let dense = |v| crate::prepared::dense_of_static(nodes, v);
-    let t = dense(query.treatment)?;
-    let y = dense(query.outcome)?;
-    let candidates = gac_conditional_candidates(graph, nodes, t, y, modifiers, config);
-    // The candidates are An({T,Y} + modifiers) minus the forbidden variables, so together
-    // with the modifiers they are the ancestral conditioning set: it separates T from Y in
-    // the cut graph whenever any admissible set does (van der Zander, Liskiewicz & Textor
-    // 2014). One test decides existence; the subset search only chooses among valid sets.
-    let mut ws = DSeparationWorkspace::default();
-    let mut examined = 1u64;
-    let mut all_conditioned = candidates.clone();
-    all_conditioned.extend_from_slice(modifiers);
-    if !cut.is_m_separated(t, y, &all_conditioned, &mut ws)? {
-        return Ok(ConditionalSearch::Absent);
-    }
-    if candidates.len() > config.max_candidates {
-        return Ok(ConditionalSearch::Capped(candidates.len()));
-    }
-    if config.max_results == 0 {
-        return Ok(ConditionalSearch::Absent);
-    }
-    let mut found: Vec<Vec<DenseNodeId>> = Vec::new();
-    let mut budget_exhausted = false;
-    let sizes: Vec<_> = if config.maximal_only && !config.minimal_only {
-        (0..=candidates.len()).rev().collect()
-    } else {
-        (0..=candidates.len()).collect()
-    };
-    for size in sizes {
-        let mut error = None;
-        crate::enum_masks::for_each_mask_of_size(&candidates, size, |z| {
-            if config.minimal_only && found.iter().any(|old| old.iter().all(|v| z.contains(v))) {
-                return false;
-            }
-            if config.maximal_only && found.iter().any(|old| z.iter().all(|v| old.contains(v))) {
-                return false;
-            }
-            // The ancestral set was tested above; it is not tested twice.
-            let known_valid = z == candidates.as_slice();
-            if !known_valid && examined >= config.max_examinations {
-                budget_exhausted = true;
-                return true;
-            }
-            let mut conditioned = z.to_vec();
-            conditioned.extend_from_slice(modifiers);
-            let separated = if known_valid {
-                Ok(true)
-            } else {
-                examined += 1;
-                cut.is_m_separated(t, y, &conditioned, &mut ws)
-            };
-            match separated {
-                Ok(true) => {
-                    found.push(z.to_vec());
-                    config.minimal_only && z.is_empty() || found.len() >= config.max_results
-                }
-                Ok(false) => false,
-                Err(e) => {
-                    error = Some(IdentificationError::from(e));
-                    true
-                }
-            }
-        });
-        if let Some(e) = error {
-            return Err(e);
-        }
-        // The budget is noticed by the first subset that is refused a test, so that a
-        // search which ends exactly on its budget is complete rather than bounded.
-        if found.len() >= config.max_results
-            || (config.minimal_only && found.iter().any(Vec::is_empty))
-            || budget_exhausted
-        {
-            break;
-        }
-    }
-    let mut sets: Vec<Vec<VariableId>> = found
-        .iter()
-        .map(|set| {
-            set.iter()
-                .map(|id| match nodes[id.as_usize()] {
-                    antecedent_graph::NodeRef::Static(v) => v,
-                    _ => unreachable!("static graph"),
-                })
-                .collect()
-        })
-        .collect();
-    if sets.is_empty() && budget_exhausted {
-        // The budget stopped the search for smaller sets, but the ancestral set is already
-        // known valid: existence is decided, only the choice of set is unfinished.
-        sets.push(
-            candidates
-                .iter()
-                .map(|id| match nodes[id.as_usize()] {
-                    antecedent_graph::NodeRef::Static(v) => v,
-                    _ => unreachable!("static graph"),
-                })
-                .collect(),
-        );
-    }
-    rank_conditional_sets(&mut sets, config);
-    Ok(if sets.is_empty() {
-        ConditionalSearch::Absent
-    } else {
-        ConditionalSearch::Found(sets, examined, budget_exhausted)
-    })
-}
-
-fn gac_conditional_candidates(
-    graph: &Admg,
-    nodes: &[antecedent_graph::NodeRef],
-    t: DenseNodeId,
-    y: DenseNodeId,
-    modifiers: &[DenseNodeId],
-    config: &crate::backdoor::AdjustmentSearchConfig,
-) -> Vec<DenseNodeId> {
-    let mut seeds = vec![t, y];
-    seeds.extend_from_slice(modifiers);
-    let ancestors = directed_closure(graph, &seeds, true);
-    let descendants = directed_closure(graph, &[t], false);
-    nodes
-        .iter()
-        .enumerate()
-        .filter_map(|(i, node)| {
-            let antecedent_graph::NodeRef::Static(variable) = node else {
-                return None;
-            };
-            let id = DenseNodeId::from_raw(dense_u32(i));
-            let outside_history = config.max_history_lag.is_some_and(|cap| {
-                config.history_lags.iter().any(|(v, lag)| v == variable && *lag > cap)
-            });
-            (id != y
-                && !descendants.contains(id)
-                && ancestors.contains(id)
-                && !modifiers.contains(&id)
-                && !config.forbidden.contains(variable)
-                && !outside_history)
-                .then_some(id)
-        })
-        .collect()
-}
-
-fn rank_conditional_sets(
-    sets: &mut [Vec<VariableId>],
-    config: &crate::backdoor::AdjustmentSearchConfig,
-) {
-    if !config.measurement_costs.is_empty() {
-        let cost = |set: &[VariableId]| {
-            set.iter()
-                .map(|v| {
-                    config
-                        .measurement_costs
-                        .iter()
-                        .find(|(id, _)| id == v)
-                        .map_or(1.0, |(_, cost)| *cost)
-                })
-                .sum::<f64>()
-        };
-        sets.sort_by(|a, b| cost(a).total_cmp(&cost(b)));
-    }
-}
-
-// Perkovic et al. (2018), Definition 6 and Theorem 7. A MAG arrow need not
-// exclude hidden confounding. Delete only visible first edges of causal paths;
-// keep side-effect edges so conditioning cannot conceal collider bias.
 fn proper_backdoor_mag(mag: &Pag, t: DenseNodeId, y: DenseNodeId) -> Option<Admg> {
     let graph = mag_to_admg(mag)?;
     let ancestors_y = directed_closure(&graph, &[y], true);
@@ -758,6 +536,10 @@ fn proper_backdoor_mag(mag: &Pag, t: DenseNodeId, y: DenseNodeId) -> Option<Admg
     Some(cut)
 }
 
+#[allow(
+    clippy::large_enum_variant,
+    reason = "returned once per adjustment search and matched immediately"
+)]
 enum MagAdjustment {
     Found { z_vars: Arc<[VariableId]>, examined: u64, budget_exhausted: bool },
     Failed(IdentificationResult),
@@ -765,16 +547,19 @@ enum MagAdjustment {
 
 /// Work limits of one MAG adjustment search.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct AdjustmentBudget {
+pub(crate) struct AdjustmentBudget<'a> {
     pub max_candidates: usize,
     pub max_examinations: u64,
+    /// The caller's context, which funds the search's storage and observes cancellation.
+    pub context: Option<&'a ExecutionContext>,
 }
 
 impl GeneralizedAdjustmentConfig {
-    pub(crate) const fn budget(&self) -> AdjustmentBudget {
+    pub(crate) const fn budget(&self) -> AdjustmentBudget<'_> {
         AdjustmentBudget {
             max_candidates: self.max_candidates,
             max_examinations: self.max_examinations,
+            context: self.context.as_ref(),
         }
     }
 }
@@ -792,10 +577,12 @@ fn mag_adjustment_search(
     mag: &Pag,
     target: MagTarget,
     query: CausalQuery,
-    budget: AdjustmentBudget,
+    budget: AdjustmentBudget<'_>,
 ) -> Result<MagAdjustment, IdentificationError> {
     let MagTarget { t_d, y_d, .. } = target;
-    let AdjustmentBudget { max_candidates, max_examinations } = budget;
+    let AdjustmentBudget { max_candidates, max_examinations, context } = budget;
+    let context = crate::exact_search::context_or_default(context);
+    let mut exact = crate::exact_search::ExactSearch::open(&context)?;
     let Some(admg) = mag_to_admg(mag) else {
         return Ok(MagAdjustment::Failed(not_identified(
             query,
@@ -836,15 +623,21 @@ fn mag_adjustment_search(
             IdentificationPerformanceRecord { candidates_examined: 1, sets_returned: 0 },
         )));
     }
-    if candidates.len() > max_candidates {
-        return Ok(MagAdjustment::Failed(capped_completion_result(
-            query,
-            candidates.len(),
-            max_candidates,
-        )));
+    // A single adjustment set is retained, so the enumeration's retained storage is one set.
+    // Above the declared ceiling the subset search is skipped, not the decision: the ancestral
+    // set just tested is a valid adjustment set, so the effect is identified by it (valid, not
+    // minimal) and the unfinished search is reported as a bounded search.
+    if !fund_adjustment_enumeration(&mut exact, candidates.len(), max_candidates, 1)? {
+        let z_vars: Arc<[VariableId]> = constructive
+            .iter()
+            .map(|&d| mag_dense_to_var(mag, d))
+            .collect::<Result<Vec<_>, _>>()?
+            .into();
+        return Ok(MagAdjustment::Found { z_vars, examined: 1, budget_exhausted: true });
     }
 
     let search = crate::enum_masks::first_set_by_size(&candidates, 1, max_examinations, |z| {
+        exact.observe()?;
         if z == constructive.as_slice() {
             return Ok(true);
         }
@@ -895,9 +688,10 @@ fn mag_adjustment_identified(
         result.diagnostics.push(crate::result::search_bounded_diagnostic(
             MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
             format!(
-                "generalized adjustment search reached its examination budget after {examined} \
-                 separation tests before it found a smaller set; the returned set m-separates \
-                 treatment from outcome but is not minimal"
+                "generalized adjustment search stopped after {examined} separation tests (its \
+                 examination budget, declared candidate ceiling or leasable storage) before it \
+                 found a smaller set; the returned set m-separates treatment from outcome but \
+                 is not minimal"
             ),
         ));
     }
@@ -909,7 +703,7 @@ pub(crate) fn identify_on_mag_completion(
     target: MagTarget,
     active: Value,
     control: Value,
-    budget: AdjustmentBudget,
+    budget: AdjustmentBudget<'_>,
 ) -> Result<IdentificationResult, IdentificationError> {
     let MagTarget { t, y, .. } = target;
     let query = CausalQuery::AverageEffect(AverageEffectQuery::new(
@@ -937,21 +731,22 @@ pub(crate) fn identify_on_mag_completion(
     }
 }
 
-/// Single-arm MAG adjustment mean `E[Y | do(T=level)]` at the requested Set.
-pub(crate) fn identify_on_mag_completion_mean(
+/// MAG adjustment for a single-treatment response: the functional the found adjustment set
+/// supports is built by `functional` from the set (the mean at a hard level, or the surface a
+/// declared policy is a functional of), never a stand-in contrast.
+pub(crate) fn identify_on_mag_completion_response(
     mag: &Pag,
     target: MagTarget,
-    level: Value,
-    budget: AdjustmentBudget,
+    budget: AdjustmentBudget<'_>,
     response: &ResponseQuery,
+    functional: impl FnOnce(&mut CausalExprArena, &[VariableId]) -> antecedent_expr::ExprId,
 ) -> Result<IdentificationResult, IdentificationError> {
-    let MagTarget { t, y, .. } = target;
     let query = CausalQuery::Response(response.clone());
     match mag_adjustment_search(mag, target, query.clone(), budget)? {
         MagAdjustment::Failed(result) => Ok(result),
         MagAdjustment::Found { z_vars, examined, budget_exhausted } => {
             let mut arena = CausalExprArena::new();
-            let functional = arena.backdoor_mean(t, y, &z_vars, level);
+            let functional = functional(&mut arena, &z_vars[..]);
             Ok(mag_adjustment_identified(
                 query,
                 z_vars,
@@ -1025,31 +820,6 @@ pub(crate) fn not_identified(query: CausalQuery, detail: &str) -> Identification
     )
 }
 
-/// Execution-capped result: candidate family exceeded `max_candidates` before
-/// enumeration could start. Status stays [`IdentificationStatus::NotIdentified`].
-/// Honesty is [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`] as
-/// [`DiagnosticKind::Execution`], not a scientific open-back-door.
-pub(crate) fn capped_completion_result(
-    query: CausalQuery,
-    n_candidates: usize,
-    max_candidates: usize,
-) -> IdentificationResult {
-    let mut result =
-        not_identified(query, "generalized adjustment candidate set exceeds enumeration limit");
-    result.diagnostics.push(Diagnostic::new(
-        CAPPED_COMPLETION_DIAGNOSTIC_CODE,
-        DiagnosticKind::Execution,
-        DiagnosticSeverity::Warning,
-        format!(
-            "generalized adjustment candidate set ({n_candidates}) exceeds max_candidates \
-             ({max_candidates}); enumeration was not attempted on this completion, so \
-             identifiability could not be determined (not the same as a proven non-\
-             identifiable completion)"
-        ),
-    ));
-    result
-}
-
 pub(crate) fn mag_to_admg(mag: &Pag) -> Option<Admg> {
     let n = dense_u32(mag.node_count());
     let mut admg = Admg::with_variables(n);
@@ -1084,7 +854,7 @@ pub(crate) fn mag_to_admg(mag: &Pag) -> Option<Admg> {
 
 /// Directed edges of a MAG that are not visible (Zhang 2008, Definition 8),
 /// as `(tail, head)` pairs in dense order.
-pub(crate) fn invisible_directed_edges(mag: &Pag) -> Vec<(DenseNodeId, DenseNodeId)> {
+pub fn invisible_directed_edges(mag: &Pag) -> Vec<(DenseNodeId, DenseNodeId)> {
     let mut out = Vec::new();
     for i in 0..mag.node_count() {
         let a = DenseNodeId::from_raw(dense_u32(i));
@@ -1113,7 +883,7 @@ pub(crate) fn invisible_directed_edges(mag: &Pag) -> Vec<(DenseNodeId, DenseNode
 /// every acyclic supergraph, so a functional that Shpitser–Pearl ID derives
 /// here holds in every represented DAG. The converse fails: the reduction is
 /// sound, not complete, for MAG identification.
-pub(crate) fn mag_to_confounded_admg(mag: &Pag) -> Option<Admg> {
+pub fn mag_to_confounded_admg(mag: &Pag) -> Option<Admg> {
     let mut admg = mag_to_admg(mag)?;
     for (a, b) in invisible_directed_edges(mag) {
         admg.insert_bidirected(a, b).ok()?;
@@ -1132,516 +902,8 @@ fn mutilate_outgoing(admg: &Admg, t: DenseNodeId) -> Admg {
 }
 
 #[cfg(test)]
-mod tests {
-    // Completion weights here are exact counts of unit-weight cases.
-    #![cfg_attr(
-        test,
-        allow(
-            clippy::float_cmp,
-            reason = "test fixtures compare exact constants and index with small literals"
-        )
-    )]
-    use super::*;
-    use crate::result::IdentificationStatus;
-    use antecedent_graph::Pag;
-
-    #[test]
-    fn default_max_candidates_matches_dag_backdoor() {
-        assert_eq!(GeneralizedAdjustmentConfig::default().max_candidates, 40);
-    }
-
-    #[test]
-    fn conditional_modifier_cannot_be_a_mediator() {
-        let mut cpdag = Cpdag::with_variables(3);
-        let t = DenseNodeId::from_raw(0);
-        let w = DenseNodeId::from_raw(1);
-        let y = DenseNodeId::from_raw(2);
-        cpdag.insert_directed(t, w).unwrap();
-        cpdag.insert_directed(w, y).unwrap();
-        let id = GeneralizedAdjustmentIdentifier::new();
-        let ate = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(2));
-        assert_eq!(id.identify_cpdag_envelope(&cpdag, &ate).unwrap().identified_weight.0, 1.0);
-        let conditional = ate.with_effect_modifiers([VariableId::from_raw(1)]);
-        let env = id.identify_cpdag_envelope(&cpdag, &conditional).unwrap();
-        assert_eq!(env.identified_weight.0, 0.0);
-        assert_eq!(env.unidentified_weight.0, 1.0);
-        assert!(
-            env.cases[0]
-                .result
-                .diagnostics
-                .iter()
-                .any(|d| d.code.as_ref() == "identify.conditional.adjustment_unverified")
-        );
-    }
-
-    #[test]
-    fn pretreatment_modifier_can_open_a_collider_path() {
-        // T <- A -> W <- B -> Y, T -> Y. Empty Z identifies ATE,
-        // Conditioning on pre-treatment W opens the noncausal path; adding A closes it.
-        let mut pag = Pag::with_variables(5);
-        for (a, b) in [(1, 0), (1, 2), (3, 2), (3, 4), (0, 4)] {
-            pag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
-        }
-        let id = GeneralizedAdjustmentIdentifier::new();
-        let ate = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(4));
-        assert!(id.identify_pag_envelope(&pag, &ate).unwrap().identified_weight.0 > 0.0);
-        let conditional = ate.with_effect_modifiers([VariableId::from_raw(2)]);
-        let env = id.identify_pag_envelope(&pag, &conditional).unwrap();
-        assert!(env.identified_weight.0 > 0.0);
-        assert_eq!(env.unidentified_weight.0, 0.0);
-        assert_eq!(
-            env.cases[0].result.estimands[0].adjustment_set.as_ref(),
-            &[VariableId::from_raw(1)]
-        );
-    }
-
-    /// `T <- A -> W <- B -> Y`, `T -> Y`, conditioning on the pre-treatment collider `W`:
-    /// the empty set fails and `{A}` and `{B}` succeed. A budget of two separation tests
-    /// is spent on the ancestral set and the empty set, so the search for smaller sets stops
-    /// before it reaches `{A}`; the ancestral set `{A, B}` was already tested valid, so the
-    /// query is identified with it and the unfinished search is marked, not refuted.
-    #[test]
-    fn conditional_search_budget_exit_keeps_the_certified_ancestral_set() {
-        let mut dag = antecedent_graph::Dag::with_variables(5);
-        for (a, b) in [(1, 0), (1, 2), (3, 2), (3, 4), (0, 4)] {
-            dag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
-        }
-        let query = CausalQuery::AverageEffect(
-            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(4))
-                .with_effect_modifiers([VariableId::from_raw(2)]),
-        );
-        let run = |max_examinations: u64| {
-            let id = crate::BackdoorIdentifier {
-                config: crate::backdoor::AdjustmentSearchConfig {
-                    max_examinations,
-                    ..Default::default()
-                },
-            };
-            let prepared = id.prepare(&dag).unwrap();
-            crate::Identifier::identify(
-                &id,
-                &prepared,
-                &query,
-                &mut crate::IdentificationWorkspace::default(),
-            )
-            .unwrap()
-        };
-
-        let bounded = run(2);
-        assert_eq!(bounded.status, IdentificationStatus::NonparametricallyIdentified);
-        assert_eq!(
-            bounded.estimands[0].adjustment_set.as_ref(),
-            &[VariableId::from_raw(1), VariableId::from_raw(3)]
-        );
-        let kinds: Vec<_> =
-            bounded.diagnostics.iter().map(|d| (d.code.as_ref().to_owned(), d.kind)).collect();
-        assert_eq!(
-            kinds,
-            vec![(
-                CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE.to_owned(),
-                DiagnosticKind::Execution
-            )],
-            "an unfinished search carries no scientific negative"
-        );
-
-        let full = run(1_000_000);
-        assert_eq!(full.status, IdentificationStatus::NonparametricallyIdentified);
-        assert_eq!(full.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(1)]);
-        assert!(full.diagnostics.is_empty());
-    }
-
-    /// Same graph with both `A` and `B` forbidden: conditioning on the collider `W` opens
-    /// `T <- A -> W <- B -> Y` and nothing admissible can close it. One separation test on
-    /// the ancestral conditioning set proves that; it is not a budget miss.
-    #[test]
-    fn conditional_adjustment_with_no_admissible_set_is_absent_not_bounded() {
-        let mut dag = antecedent_graph::Dag::with_variables(5);
-        for (a, b) in [(1, 0), (1, 2), (3, 2), (3, 4), (0, 4)] {
-            dag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
-        }
-        let query = CausalQuery::AverageEffect(
-            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(4))
-                .with_effect_modifiers([VariableId::from_raw(2)]),
-        );
-        let id = crate::BackdoorIdentifier {
-            config: crate::backdoor::AdjustmentSearchConfig {
-                max_examinations: 2,
-                forbidden: Arc::from([VariableId::from_raw(1), VariableId::from_raw(3)]),
-                ..Default::default()
-            },
-        };
-        let prepared = id.prepare(&dag).unwrap();
-        let result = crate::Identifier::identify(
-            &id,
-            &prepared,
-            &query,
-            &mut crate::IdentificationWorkspace::default(),
-        )
-        .unwrap();
-        assert_eq!(result.status, IdentificationStatus::NotIdentified);
-        assert!(
-            !result.diagnostics.iter().any(|d| d.kind == DiagnosticKind::Execution),
-            "{:?}",
-            result.diagnostics
-        );
-    }
-
-    /// `0 -> 1` beside an all-circle K4 on `{2, 3, 4, 5}`: the effect is unconfounded and so
-    /// identified in every completion, which leaves a partial enumeration as the only reason
-    /// to withdraw the class-wide claim. The K4 has 12 circle endpoints and 219 members
-    /// (the ancestral complete graphs on four nodes).
-    fn effect_beside_circle_clique() -> Pag {
-        let mut pag = Pag::with_variables(6);
-        pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-        for a in 2..6 {
-            for b in (a + 1)..6 {
-                pag.insert_circle_circle(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
-                    .unwrap();
-            }
-        }
-        pag
-    }
-
-    fn audit_withdrawn(env: &IdentificationEnvelope<Pag>) -> Option<String> {
-        env.critical_graph_features
-            .iter()
-            .find(|f| &*f.kind == "completion_equivalence_audit_skipped")
-            .map(|f| f.detail.to_string())
-    }
-
-    #[test]
-    fn a_completed_completion_search_keeps_the_class_wide_claim() {
-        let pag = effect_beside_circle_clique();
-        let id = GeneralizedAdjustmentIdentifier {
-            config: GeneralizedAdjustmentConfig {
-                max_completions: 1_000,
-                completion_operations: 10_000_000,
-                ..Default::default()
-            },
-        };
-        let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let env = id.identify_pag_envelope(&pag, &q).unwrap();
-        assert_eq!(env.cases.len(), 219);
-        assert!(audit_withdrawn(&env).is_none(), "a completed search withdraws nothing");
-        assert!(
-            env.critical_graph_features.iter().all(|f| &*f.kind != "completion_enumeration_capped")
-        );
-    }
-
-    #[test]
-    fn a_partial_completion_search_refuses_the_class_wide_claim() {
-        let pag = effect_beside_circle_clique();
-        // One audited signature costs 6 nodes: 15 pairs x 2^4 subsets = 240 operations, so
-        // 400 operations classify one member and stop during the next.
-        let id = GeneralizedAdjustmentIdentifier {
-            config: GeneralizedAdjustmentConfig {
-                max_completions: 1_000,
-                completion_operations: 400,
-                ..Default::default()
-            },
-        };
-        let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let env = id.identify_pag_envelope(&pag, &q).unwrap();
-        assert!(env.cases.len() < 219);
-        assert_ne!(
-            env.status,
-            IdentificationStatus::NonparametricallyIdentified,
-            "a prefix of the class cannot support identification in every member"
-        );
-        let detail = audit_withdrawn(&env).expect("the withdrawal is recorded");
-        assert!(detail.contains("search.operations"), "{detail}");
-    }
-
-    #[test]
-    fn a_partial_cpdag_completion_search_refuses_the_class_wide_claim() {
-        // Six nodes, all pairs undirected: 720 members, more than 100 operations can visit.
-        let mut cpdag = Cpdag::with_variables(6);
-        for a in 0..6 {
-            for b in (a + 1)..6 {
-                cpdag
-                    .insert_undirected(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
-                    .unwrap();
-            }
-        }
-        let id = GeneralizedAdjustmentIdentifier {
-            config: GeneralizedAdjustmentConfig {
-                max_completions: usize::MAX,
-                completion_operations: 100,
-                ..Default::default()
-            },
-        };
-        let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let env = id.identify_cpdag_envelope(&cpdag, &q).unwrap();
-        assert!(env.cases.len() < 720);
-        assert_ne!(env.status, IdentificationStatus::NonparametricallyIdentified);
-        assert!(
-            env.critical_graph_features.iter().any(|f| &*f.kind == "completion_enumeration_capped"
-                && f.detail.contains("search.operations"))
-        );
-    }
-
-    #[test]
-    fn envelope_preserves_mass_on_mixed_pag() {
-        let mut pag = Pag::with_variables(2);
-        pag.insert_circle_arrow(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-        let id = GeneralizedAdjustmentIdentifier {
-            config: GeneralizedAdjustmentConfig {
-                max_completions: 8,
-                per_completion_weight: 1.0,
-                max_candidates: 16,
-                ..Default::default()
-            },
-        };
-        let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let env = id.identify_pag_envelope(&pag, &q).unwrap();
-        let total = env.identified_weight.0 + env.unidentified_weight.0;
-        assert!(total > 0.0);
-        assert!((total - env.cases.len() as f64).abs() < 1e-9);
-    }
-
-    #[test]
-    fn invisible_directed_edge_does_not_identify_even_conditionally() {
-        let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../conformance/identify/generalized_adjustment/expected.json"
-        ))
-        .unwrap();
-        assert_eq!(fixture["cases"][0]["status"], "not_identified_by_adjustment");
-        let mut pag = Pag::with_variables(3);
-        pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-        let id = GeneralizedAdjustmentIdentifier::new();
-        let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        for query in [q.clone(), q.with_effect_modifiers([VariableId::from_raw(2)])] {
-            let env = id.identify_pag_envelope(&pag, &query).unwrap();
-            assert_eq!(env.status, IdentificationStatus::NotIdentified);
-            assert_eq!(env.identified_weight.0, 0.0);
-            assert!(env.cases[0].result.estimands.is_empty());
-        }
-        // R -> T with R nonadjacent to Y makes T -> Y visible.
-        pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
-        let env = id
-            .identify_pag_envelope(
-                &pag,
-                &AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)),
-            )
-            .unwrap();
-        assert_eq!(env.status, IdentificationStatus::NonparametricallyIdentified);
-        assert!(env.cases[0].result.estimands[0].adjustment_set.is_empty());
-    }
-
-    #[test]
-    fn proper_backdoor_preserves_side_effect_collider_edges() {
-        // R -> T -> Y; T -> W <- U -> Y. R witnesses visibility of T -> Y.
-        let mut mag = Pag::with_variables(5);
-        for (a, b) in [(4, 0), (0, 1), (0, 2), (3, 2), (3, 1)] {
-            mag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
-        }
-        let t = DenseNodeId::from_raw(0);
-        let y = DenseNodeId::from_raw(1);
-        let w = DenseNodeId::from_raw(2);
-        let cut = proper_backdoor_mag(&mag, t, y).unwrap();
-        assert!(cut.children(t).contains(&w));
-        assert!(!cut.children(t).contains(&y));
-        let mut workspace = DSeparationWorkspace::default();
-        assert!(cut.is_m_separated(t, y, &[], &mut workspace).unwrap());
-        assert!(!cut.is_m_separated(t, y, &[w], &mut workspace).unwrap());
-    }
-
-    #[test]
-    fn confounder_identifies_with_nonempty_z() {
-        // Z → T, Z → Y, T → Y  (backdoor {Z}).
-        let mut pag = Pag::with_variables(4);
-        let z = DenseNodeId::from_raw(0);
-        let t = DenseNodeId::from_raw(1);
-        let y = DenseNodeId::from_raw(2);
-        pag.insert_directed(z, t).unwrap();
-        pag.insert_directed(z, y).unwrap();
-        pag.insert_directed(t, y).unwrap();
-        pag.insert_directed(DenseNodeId::from_raw(3), t).unwrap();
-        let id = GeneralizedAdjustmentIdentifier::new();
-        let q = AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(2));
-        let env = id.identify_pag_envelope(&pag, &q).unwrap();
-        assert_eq!(env.status, IdentificationStatus::NonparametricallyIdentified);
-        assert_eq!(env.cases[0].result.status, IdentificationStatus::NonparametricallyIdentified);
-        let z_set = &env.cases[0].result.estimands[0].adjustment_set;
-        assert!(z_set.iter().any(|v| v.raw() == 0), "expected Z in adjustment, got {z_set:?}");
-    }
-
-    #[test]
-    fn capped_enumeration_is_distinguishable_from_genuine_nonidentification() {
-        // Case A: Z → T, Z → Y, T → Y, but max_candidates=0 forces the single-candidate set
-        // {Z} over the cap before enumeration can even start — the search was truncated, not
-        // exhausted.
-        let mut capped_pag = Pag::with_variables(4);
-        let z = DenseNodeId::from_raw(0);
-        let t = DenseNodeId::from_raw(1);
-        let y = DenseNodeId::from_raw(2);
-        capped_pag.insert_directed(z, t).unwrap();
-        capped_pag.insert_directed(z, y).unwrap();
-        capped_pag.insert_directed(t, y).unwrap();
-        capped_pag.insert_directed(DenseNodeId::from_raw(3), t).unwrap();
-        let capped_id = GeneralizedAdjustmentIdentifier {
-            config: GeneralizedAdjustmentConfig {
-                max_completions: 8,
-                per_completion_weight: 1.0,
-                max_candidates: 0,
-                ..Default::default()
-            },
-        };
-        let q = AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(2));
-        let capped_env = capped_id.identify_pag_envelope(&capped_pag, &q).unwrap();
-        assert!(capped_env.unidentified_weight.0 > 0.0);
-        assert_eq!(
-            capped_env.truncated_completions,
-            capped_env.cases.len(),
-            "every case in this fixture should be capped"
-        );
-        assert_eq!(
-            capped_env.cases[0].result.status,
-            IdentificationStatus::NotIdentified,
-            "cap keeps NotIdentified, honesty is the Execution diagnostic"
-        );
-        assert_eq!(capped_env.status, IdentificationStatus::NotIdentified);
-        assert!(
-            capped_env.cases[0].result.diagnostics.iter().any(|d| {
-                d.code.as_ref() == CAPPED_COMPLETION_DIAGNOSTIC_CODE
-                    && d.kind == DiagnosticKind::Execution
-            }),
-            "capped case should carry the capped-completion execution diagnostic"
-        );
-        assert!(
-            !capped_env.cases[0]
-                .result
-                .diagnostics
-                .iter()
-                .any(|d| d.kind == DiagnosticKind::Scientific),
-            "cap must not be stamped scientific: {:?}",
-            capped_env.cases[0].result.diagnostics
-        );
-
-        // Case B: bare T ↔ Y (unmeasured confounding, no other variables). The search is
-        // never truncated (candidates.len() == 0 never exceeds the default max_candidates),
-        // but no adjustment set can ever separate T from Y, so this is a genuine
-        // non-identification — proved, not merely "could not tell".
-        let mut confounded_pag = Pag::with_variables(2);
-        confounded_pag
-            .insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
-            .unwrap();
-        let genuine_id = GeneralizedAdjustmentIdentifier::new();
-        let q2 = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let genuine_env = genuine_id.identify_pag_envelope(&confounded_pag, &q2).unwrap();
-        assert!(genuine_env.unidentified_weight.0 > 0.0);
-        assert_eq!(
-            genuine_env.truncated_completions, 0,
-            "genuinely-blocked completions must not count as truncated"
-        );
-
-        // Both envelopes report positive unidentified mass (neither is silently dropped), but
-        // only the capped one is flagged as truncated -- proving the two are distinguishable
-        // rather than both being folded indistinguishably into `unidentified_weight`.
-        assert!(capped_env.truncated_completions > genuine_env.truncated_completions);
-    }
-
-    #[test]
-    fn gac_candidates_allow_side_effect_descendants_of_t() {
-        // T → M → Y, T → W, U → T, U → Y. W ∈ De(T) but W ∉ Forb(T,Y)=De({M,Y}).
-        let mut g = Admg::with_variables(5);
-        let t = DenseNodeId::from_raw(0);
-        let y = DenseNodeId::from_raw(1);
-        let m = DenseNodeId::from_raw(2);
-        let w = DenseNodeId::from_raw(3);
-        let u = DenseNodeId::from_raw(4);
-        g.insert_directed(t, m).unwrap();
-        g.insert_directed(m, y).unwrap();
-        g.insert_directed(t, w).unwrap();
-        g.insert_directed(u, t).unwrap();
-        g.insert_directed(u, y).unwrap();
-        let c = adjustment_candidates(&g, t, y);
-        assert!(c.contains(&u), "confounder must remain a candidate: {c:?}");
-        assert!(c.contains(&w), "GAC allows side-effect descendant W: {c:?}");
-        assert!(!c.contains(&m), "mediator is in Forb: {c:?}");
-        assert!(!c.contains(&t) && !c.contains(&y));
-    }
-
-    #[test]
-    fn cpdag_confounded_undirected_has_two_identified_completions() {
-        // Z — T → Y, Z → Y. Completions: Z→T (backdoor {Z}) and T→Z (empty Z).
-        let mut cpdag = Cpdag::with_variables(3);
-        let z = DenseNodeId::from_raw(0);
-        let t = DenseNodeId::from_raw(1);
-        let y = DenseNodeId::from_raw(2);
-        cpdag.insert_undirected(z, t).unwrap();
-        cpdag.insert_directed(z, y).unwrap();
-        cpdag.insert_directed(t, y).unwrap();
-        let id = GeneralizedAdjustmentIdentifier::new();
-        let q = AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(2));
-        let env = id.identify_cpdag_envelope(&cpdag, &q).unwrap();
-        assert_eq!(env.cases.len(), 2);
-        assert!(env.unidentified_weight.0 == 0.0);
-        assert_eq!(env.identified_weight.0, 2.0);
-        assert!(
-            env.cases
-                .iter()
-                .all(|c| { c.result.status == IdentificationStatus::NonparametricallyIdentified })
-        );
-    }
-
-    #[test]
-    fn fully_oriented_cpdag_is_a_one_case_envelope() {
-        let mut cpdag = Cpdag::with_variables(2);
-        cpdag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-        let env = GeneralizedAdjustmentIdentifier::new()
-            .identify_cpdag_envelope(
-                &cpdag,
-                &AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)),
-            )
-            .unwrap();
-        assert_eq!(env.cases.len(), 1);
-        assert_eq!(env.status, IdentificationStatus::NonparametricallyIdentified);
-        assert!(env.unidentified_weight.0 == 0.0);
-    }
-}
-
+mod conditional_search_tests;
 #[cfg(test)]
-mod conditional_search_tests {
-    use super::*;
-
-    #[test]
-    fn modifier_collider_requires_an_alternative_adjustment_set() {
-        let mut dag = antecedent_graph::Dag::with_variables(5);
-        for (a, b) in [(3, 0), (3, 2), (4, 2), (4, 1), (0, 1)] {
-            dag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
-        }
-        let query =
-            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
-                .with_effect_modifiers([VariableId::from_raw(2)]);
-        let mut identifier = BackdoorIdentifier::new();
-        let prepared = identifier.prepare(&dag).unwrap();
-        let result = identifier
-            .identify(
-                &prepared,
-                &CausalQuery::AverageEffect(query.clone()),
-                &mut IdentificationWorkspace::default(),
-            )
-            .unwrap();
-        assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
-        assert_eq!(result.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(3)]);
-        identifier.config.forbidden = Arc::from([VariableId::from_raw(3)]);
-        let result = identifier
-            .identify(
-                &prepared,
-                &CausalQuery::AverageEffect(query.clone()),
-                &mut IdentificationWorkspace::default(),
-            )
-            .unwrap();
-        assert_eq!(result.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(4)]);
-        identifier.config.forbidden = Arc::from([VariableId::from_raw(3), VariableId::from_raw(4)]);
-        let result = identifier
-            .identify(
-                &prepared,
-                &CausalQuery::AverageEffect(query),
-                &mut IdentificationWorkspace::default(),
-            )
-            .unwrap();
-        assert_eq!(result.status, IdentificationStatus::NotIdentified);
-    }
-}
+mod enumeration_admission_tests;
+#[cfg(test)]
+mod tests;

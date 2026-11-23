@@ -1,4 +1,4 @@
-"""Normal public measured scalar lifecycle; original full posterior remains unmeasured."""
+"""Normal public measured scalar lifecycle; original full posterior remains not_measured."""
 
 import json
 import subprocess
@@ -8,8 +8,14 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from antecedent import _native
-from antecedent.errors import CausalCancelledError, CausalError, CausalTypeError
+from antecedent import Execution, ResourceLimits, _native
+from antecedent.errors import (
+    CausalCancelledError,
+    CausalError,
+    CausalTypeError,
+    CausalUnsupportedError,
+    CausalValueError,
+)
 from antecedent.inference import MeasuredInference
 from antecedent.transport import advanced as tr
 
@@ -20,6 +26,7 @@ def options(learned, variant):
     varying = "intercept_and_covariates" if variant == "varying" else "intercept"
     sharing = "shared_varying_block" if variant == "shared" else "independent_varying_blocks"
     result = fixture(learned, varying, sharing)
+    result["execution"] = Execution(seed=result.pop("seed"))
     rng = np.random.default_rng(221971)
     sources = []
     for j in range(1 if variant == "one" else 2):
@@ -71,9 +78,11 @@ def options(learned, variant):
 
 
 def produce(learned, kwargs):
+    kwargs = {"execution": Execution(seed=0)} | kwargs
     return (tr.learned_joint_transport if learned else tr.joint_bayesian_transport)(**kwargs)
 
 
+@pytest.mark.requires_calibration
 @pytest.mark.parametrize("learned", [False, True])
 @pytest.mark.parametrize("variant", ["one", "independent", "shared", "varying"])
 def test_normal_public_measured_joint_scalar_and_original_source_fresh_replay(
@@ -103,7 +112,7 @@ def test_normal_public_measured_joint_scalar_and_original_source_fresh_replay(
     assert len(scalar.calibration_sha) == 40
     assert scalar.basis["scope"]["row_count"] == 150 * len(opts["sources"])
     report = measured.source_report()
-    assert report["calibration"] == "unmeasured"
+    assert report["calibration"] == "not_measured"
     result = report["result"]
     assert result["posterior_mean"] == pytest.approx(mean, abs=2e-10)
     assert np.asarray(result["posterior_covariance"]).reshape(
@@ -120,7 +129,7 @@ def test_normal_public_measured_joint_scalar_and_original_source_fresh_replay(
     assert scope["sampling_assumptions_authenticated_from_rows"] is False
     assert scope["reported_scalar"] == "target_effect"
     artifact = tmp_path / "measured-joint.cbor"
-    artifact.write_bytes(measured.export())
+    artifact.write_bytes(bytes(measured.export()))
     loaded = MeasuredInference.load(artifact.read_bytes(), expected=measured.expected_identity)
     assert loaded.inspect() == measured.inspect()
     assert loaded.source_artifact() == measured.source_artifact()
@@ -154,32 +163,32 @@ print(json.dumps(r.inspect(),sort_keys=True))
         replace(measured.expected_identity, data_digest="0" * 64),
         replace(measured.expected_identity, route="unknown"),
         replace(measured.expected_identity, level=0.9),
-        replace(measured.expected_identity, scalars=("unmeasured_coefficient",)),
+        replace(measured.expected_identity, scalars=("not_measured_coefficient",)),
     ]:
         with pytest.raises(CausalError):
-            MeasuredInference.load(measured.export(), expected=expected)
+            MeasuredInference.load(bytes(measured.export()), expected=expected)
     with pytest.raises(CausalError):
         MeasuredInference.load(measured.source_artifact(), expected=measured.expected_identity)
     with pytest.raises(CausalError):
         MeasuredInference.load(
-            measured.export(), expected=measured.expected_identity, memory_limit_bytes=0
+            bytes(measured.export()), expected=measured.expected_identity, memory_limit_bytes=0
         )
     with pytest.raises(CausalError):
         MeasuredInference.load(
-            measured.export(),
+            bytes(measured.export()),
             expected=measured.expected_identity,
-            max_bytes=len(measured.export()) - 1,
+            max_bytes=len(bytes(measured.export())) - 1,
         )
     cancelled = _native.CancellationToken()
     cancelled.cancel()
     with pytest.raises(CausalCancelledError):
         MeasuredInference.load(
-            measured.export(), expected=measured.expected_identity, cancel=cancelled
+            bytes(measured.export()), expected=measured.expected_identity, cancel=cancelled
         )
 
 
 @pytest.mark.parametrize("learned", [False, True])
-def test_nearby_unmeasured_joint_protocols_refuse_without_candidate_fallback(learned):
+def test_nearby_not_measured_joint_protocols_are_annotated_not_calibrated(learned):
     opts = options(learned, "independent")
     first = opts["sources"][0]
     priors = opts["priors"]
@@ -196,13 +205,26 @@ def test_nearby_unmeasured_joint_protocols_refuse_without_candidate_fallback(lea
                 ),
             )
         },
-        {"priors": replace(priors, invariant=replace(priors.invariant, bank_id="unmeasured-bank"))},
     ]
     if learned:
-        cases.append({"basis_degree": 3})
+        # A changed basis is a different coefficient block: the measured prior no longer fits it.
+        with pytest.raises(CausalUnsupportedError, match="prior_dimension_mismatch"):
+            produce(learned, opts | {"basis_degree": 3})
     for changes in cases:
-        with pytest.raises(CausalError):
-            produce(learned, opts | changes)
+        # A protocol the grid did not measure is computed and annotated; it never borrows the
+        # calibration of the measured protocol and never falls back to a candidate.
+        reported = produce(learned, opts | changes)
+        assert isinstance(reported, MeasuredInference)
+        scalar = reported.scalar("target_effect")
+        assert scalar.interval[0] <= scalar.point <= scalar.interval[1]
+        assert scalar.calibration != "calibrated"
+    # A named prior bank without its consumed-data lineage is a malformed declaration, not a
+    # calibration question: it is refused before any fit.
+    banked = {
+        "priors": replace(priors, invariant=replace(priors.invariant, bank_id="not_measured-bank"))
+    }
+    with pytest.raises(CausalValueError, match="prior_bank_lineage_missing"):
+        produce(learned, opts | banked)
 
 
 @pytest.mark.parametrize("learned", [False, True])
@@ -217,11 +239,11 @@ def test_normal_joint_original_proof_bounds_and_cancel_are_required(learned):
             )
     assert calls == []
     with pytest.raises(CausalError):
-        produce(learned, opts | {"memory_limit_bytes": 0})
+        produce(learned, opts | {"execution": Execution(limits=ResourceLimits(memory_bytes=0))})
     cancelled = _native.CancellationToken()
     cancelled.cancel()
     with pytest.raises(CausalCancelledError):
-        produce(learned, opts | {"cancel": cancelled})
+        produce(learned, opts | {"execution": Execution(cancel=cancelled)})
     with pytest.raises(CausalTypeError):
         produce(learned, opts | {"level": True})
     with pytest.raises(CausalError):
@@ -229,10 +251,17 @@ def test_normal_joint_original_proof_bounds_and_cancel_are_required(learned):
 
 
 def test_normal_measured_hooks_do_not_publish_internal_candidate_factories():
+    # The native module is private. The candidate factories are internal producers of the
+    # original not_measured artifacts; no public namespace exports them.
+    import antecedent
+    from antecedent import transport
+
     for name in (
         "joint_transport_candidate",
         "consume_joint_transport_candidate",
         "nested_markov_fisher_candidate",
         "nested_markov_posterior_candidate",
     ):
-        assert not hasattr(_native, name), name
+        for namespace in (antecedent, transport, tr):
+            assert name not in getattr(namespace, "__all__", ()), name
+            assert not hasattr(namespace, name), name

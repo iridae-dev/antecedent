@@ -1,0 +1,279 @@
+"""Build committed Rust test targets with the Nix evidence recipe.
+
+One derivation builds every requested target, each with its own Cargo invocation
+over a shared target directory. This build-only step cannot execute a target or
+publish evidence. Nix daemon policy, host runtime, and portable manifest binding
+are verified by the caller; the result is never authorization to earn a record.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+import subprocess
+import tempfile
+import tomllib
+from pathlib import Path
+
+from _repo import scientific_target_feature_args
+from evidence_platforms import PLATFORMS, earning_platform
+from nix_artifact_identity import (
+    RECIPE_FILES,
+    _file_hash,
+    inspect_artifact,
+    recheck_artifact,
+    target_dir,
+    targets_json,
+)
+from nix_compile_time_inventory import compiler_units
+from nix_evidence_deps import import_deps_source, write_deps_source
+from nix_evidence_source import (
+    import_committed_snapshot,
+    materialize_committed_source,
+    verify_committed_snapshot,
+)
+
+_NAME = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*\Z")
+_FEATURE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_./+-]*\Z")
+
+
+def _target_features(root: Path, crate: str, target_kind: str, target_name: str) -> list[str]:
+    if not _NAME.fullmatch(crate) or target_kind not in ("lib", "test"):
+        raise ValueError("invalid Rust target")
+    if (target_kind == "lib" and target_name) or (target_kind == "test" and not _NAME.fullmatch(target_name)):
+        raise ValueError("invalid Rust target name")
+    target = ["--lib"] if target_kind == "lib" else ["--test", target_name]
+    flags = scientific_target_feature_args(root / "crates" / crate / "Cargo.toml", target)
+    features = sorted(set(flags[1].split(","))) if flags else []
+    if any(not _FEATURE.fullmatch(feature) for feature in features):
+        raise ValueError("invalid Rust target features")
+    return features
+
+
+# Recipe and lock combinations whose builds a `--rebuild` reproduced, on this machine.
+# The check is requested explicitly (`scientific_records.py run --check-reproducible`);
+# evidence validity never depends on it, since a manifest binds the executed binary.
+# Reproducibility is a property of the recipe: once checked for given recipe bytes
+# and lock, rebuilding every run proves nothing new. The record is local state.
+REPRODUCED = "target/nix-evidence/reproduced.json"
+
+
+def _reproducibility_key(root: Path, recipes: tuple[str, ...] = RECIPE_FILES) -> str:
+    digest = hashlib.sha256()
+    for rel in (*recipes, "Cargo.lock"):
+        digest.update(rel.encode() + b"\0" + (root / rel).read_bytes() + b"\0")
+    return digest.hexdigest()
+
+
+def _reproduced(root: Path) -> set[str]:
+    path = root / REPRODUCED
+    try:
+        return set(json.loads(path.read_text(encoding="utf-8")))
+    except (OSError, ValueError, TypeError):
+        return set()
+
+
+def _record_reproduced(root: Path, key: str) -> None:
+    path = root / REPRODUCED
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(sorted(_reproduced(root) | {key})) + "\n", encoding="utf-8")
+
+
+def _build(root: Path, source: str, build_targets: list[dict], deps_source: str | None = None,
+           deps_targets: list[dict] | None = None, *, check_reproducible: bool = False,
+           recipes: tuple[str, ...] = RECIPE_FILES) -> str:
+    deps_source = deps_source or source
+    deps_arguments = ["--arg", "depsSrc", "builtins.storePath " + json.dumps(deps_source),
+                      "--argstr", "depsTargetsJson", targets_json(deps_targets or build_targets)]
+    base = ["nix", "--extra-experimental-features", "nix-command flakes", "--offline",
+            "--option", "substitute", "false", "--option", "builders", "", "build"]
+    command = [
+        *base, "--file", str(root / recipes[0]),
+        "--no-link", "--print-out-paths", "--arg", "src", "builtins.storePath " + json.dumps(source),
+        "--argstr", "targetsJson", targets_json(build_targets), *deps_arguments,
+    ]
+
+    def build(argv: list[str]) -> str:
+        result = subprocess.run(argv, cwd=root, capture_output=True, text=True)
+        if result.returncode != 0:
+            # The derivation's log tail names the failing crate or check; without it a
+            # failed build reports only an exit status.
+            tail = "\n".join(result.stderr.strip().splitlines()[-60:])
+            raise RuntimeError(f"Nix build failed (exit {result.returncode}):\n{tail}")
+        warnings = result.stderr.lower()
+        if "ignoring untrusted" in warnings or "not a trusted user" in warnings:
+            raise ValueError("Nix ignored an untrusted build setting")
+        return result.stdout.strip()
+
+    output = build(command)
+    key = _reproducibility_key(root, recipes) if check_reproducible else None
+    if key is not None and key not in _reproduced(root):
+        # A new recipe or lock: check that the evidence build reproduces bit for bit.
+        # The dependency output is a Cargo target directory, whose timestamps and
+        # run state differ between builds; the evidence depends only on the
+        # executables and metadata this output holds.
+        rebuild = command.copy()
+        rebuild.insert(rebuild.index("build") + 1, "--rebuild")
+        if build(rebuild) != output:
+            raise ValueError("Nix rebuild returned a different output")
+        _record_reproduced(root, key)
+    return output
+
+
+def _versions(root: Path, output: Path) -> dict[str, str]:
+    pin = tomllib.loads((root / "tools/evidence-analyzer/pin.toml").read_text(encoding="utf-8"))
+    text = (output / "rustc-version").read_text(encoding="utf-8")
+    fields = dict(line.split(": ", 1) for line in text.splitlines() if ": " in line)
+    if (fields.get("release") != pin["release"] or fields.get("commit-hash") != pin["commit"]
+            or fields.get("host") not in PLATFORMS):
+        raise ValueError("Nix build compiler does not match the evidence compiler pin")
+    cargo = (output / "cargo-version").read_text(encoding="utf-8").strip()
+    if not re.fullmatch(r"cargo \d+\.\d+\.\d+(?: \([^\n]*\))?", cargo):
+        raise ValueError("Nix build Cargo version is missing or malformed")
+    return {"rustc": fields["release"], "rustc_commit": fields["commit-hash"],
+            "host": fields["host"], "cargo": cargo}
+
+
+def _compiler_graph(output: Path, crate: str, target_kind: str,
+                    target_name: str, features: list[str]) -> dict:
+    directory = output / target_dir(crate, target_kind, target_name)
+    metadata = json.loads((directory / "cargo-metadata.json").read_text(encoding="utf-8"))
+    graph = json.loads((directory / "cargo-unit-graph.json").read_text(encoding="utf-8"))
+    normalized = compiler_units(metadata, graph)
+    if len(normalized["roots"]) != 1:
+        raise ValueError("Nix Cargo graph must have exactly one selected root")
+    unit = normalized["units"][normalized["roots"][0]]
+    if (unit["name"] != crate or unit["mode"] != "test"
+            or target_kind not in unit["target_kind"]
+            or (target_kind == "test" and unit["target_name"] != target_name)
+            or not set(features).issubset(unit["features"])):
+        raise ValueError("Nix Cargo graph root does not match the selected target and features")
+    return normalized
+
+
+def _require_in_place(directory: Path, source: str) -> None:
+    """Tests resolve fixtures from CARGO_MANIFEST_DIR at run time: the build must have
+    compiled the store source in place, a path that exists on the host."""
+    metadata = json.loads((directory / "cargo-metadata.json").read_text(encoding="utf-8"))
+    if metadata.get("workspace_root") != source:
+        raise ValueError("Nix evidence build did not compile the store source in place")
+
+
+def build_committed_targets(root: Path, targets: list[tuple[str, str, str]], *,
+                            deps_targets: list[tuple[str, str, str]] | None = None,
+                            check_reproducible: bool = False,
+                            allowed_outputs: dict[str, str] | None = None,
+                            features: dict[tuple[str, str, str], list[str]] | None = None,
+                            ) -> dict[tuple[str, str, str], dict]:
+    """Build but never run targets from clean HEAD in one derivation; never attestation.
+
+    `targets` are (crate, kind, name) with kind "lib" (name "") or "test". A target is
+    built with its declared required features, plus any `features` names for it (a
+    calibration target built with a feature its manifest does not require). The result
+    maps each target to its own build record: shared source and tools, its own
+    artifact identity, executable and compile-time unit graph."""
+    root = root.resolve()
+    # The policy of the host this runs on; a host that cannot earn refuses here.
+    platform = earning_platform(root, prepare=True)
+    # Such a platform also checks, unasked, that a new recipe or lock reproduces.
+    check_reproducible = check_reproducible or platform.prepares
+    wanted = sorted(set(targets))
+    if not wanted:
+        raise ValueError("no Rust targets to build")
+    extra = features or {}
+    for target, names in extra.items():
+        if any(not isinstance(f, str) or not _FEATURE.fullmatch(f) for f in names):
+            raise ValueError(f"invalid features for {target}")
+
+    def described(selection):
+        return [{"crate": crate, "kind": kind, "name": name,
+                 "features": sorted(set(_target_features(root, crate, kind, name))
+                                    | set(extra.get((crate, kind, name), ())))}
+                for crate, kind, name in selection]
+    build_targets = described(wanted)
+    # The dependency build covers every scientific target, not just the owed ones,
+    # so it is the same derivation whichever targets a run builds.
+    all_targets = described(sorted(set(deps_targets or ()) | set(wanted)))
+    with tempfile.TemporaryDirectory(prefix="antecedent-nix-source-") as tmp:
+        snapshot = Path(tmp) / "snapshot"
+        commit = materialize_committed_source(root, snapshot, allowed_outputs=allowed_outputs)["commit"]
+        source = import_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
+        verify_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
+        write_deps_source(snapshot, Path(tmp) / "deps")
+        deps_source = import_deps_source(Path(tmp) / "deps")
+        output = _build(root, source["store_path"], build_targets, deps_source, all_targets,
+                        check_reproducible=check_reproducible, recipes=platform.recipes)
+        tools = _versions(root, Path(output))
+        built = {}
+        for target in build_targets:
+            crate, kind, name, features = target["crate"], target["kind"], target["name"], target["features"]
+            artifact = inspect_artifact(root, output, source["store_path"], crate, kind, name, features,
+                                        build_targets=build_targets, deps_source=deps_source,
+                                        deps_targets=all_targets, recipes=platform.recipes)
+            if artifact["source_nar_hash"] != source["nar_hash"] or artifact["sandbox_verified"] is not False:
+                raise ValueError("Nix artifact source or sandbox status is inconsistent")
+            graph = _compiler_graph(Path(output), crate, kind, name, features)
+            _require_in_place(Path(output) / target_dir(crate, kind, name), source["store_path"])
+            recheck_artifact(root, artifact)
+            built[(crate, kind, name)] = {"source": source, "artifact": artifact, "tools": tools,
+                                          "compiler_graph": graph, "sandbox_verified": False,
+                                          "evidence_authorized": False}
+        verify_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
+    return built
+
+
+def attach_release_builds(root: Path, built: dict[tuple[str, str, str], dict]) -> None:
+    """Build the uninstrumented, optimized binaries of `built`'s targets from the same
+    committed source and dependency snapshot (`nix/calibration-release.nix`), and add each
+    to its build record as `release`: its output, binary path, digest and recipe digests.
+
+    A calibration measurement runs its replicates on that binary and a slice of them on
+    the instrumented one, whose coverage says what the measurement depends on."""
+    root = root.resolve()
+    if not built:
+        return
+    artifacts = [record["artifact"] for record in built.values()]
+    # The recipe of the uninstrumented binaries and what it imports, on the build's platform.
+    recipes = PLATFORMS[next(iter(built.values()))["tools"]["host"]].release_recipes
+    first = artifacts[0]
+    if any(a["source"] != first["source"] or a["deps_source"] != first["deps_source"]
+           or a["build_targets"] != first["build_targets"] for a in artifacts):
+        raise ValueError("release binaries need one shared evidence build")
+    command = [
+        "nix", "--extra-experimental-features", "nix-command flakes", "--offline",
+        "--option", "substitute", "false", "--option", "builders", "", "build",
+        "--file", str(root / recipes[0]), "--no-link", "--print-out-paths",
+        "--arg", "src", "builtins.storePath " + json.dumps(first["source"]),
+        "--argstr", "targetsJson", targets_json(first["build_targets"]),
+        "--arg", "depsSrc", "builtins.storePath " + json.dumps(first["deps_source"]),
+        "--argstr", "depsTargetsJson", targets_json(first["deps_targets"]),
+    ]
+    result = subprocess.run(command, cwd=root, capture_output=True, text=True)
+    if result.returncode != 0:
+        tail = "\n".join(result.stderr.strip().splitlines()[-60:])
+        raise RuntimeError(f"Nix release build failed (exit {result.returncode}):\n{tail}")
+    warnings = result.stderr.lower()
+    if "ignoring untrusted" in warnings or "not a trusted user" in warnings:
+        raise ValueError("Nix ignored an untrusted build setting")
+    output = Path(result.stdout.strip())
+    recipe = {rel: hashlib.sha256((root / rel).read_bytes()).hexdigest() for rel in recipes}
+    for (crate, kind, name), record in built.items():
+        binary = f"{target_dir(crate, kind, name)}/bin/test"
+        record["release"] = {"output": str(output), "binary": binary,
+                             "binary_sha256": _file_hash(output / binary), "recipe_sha256": recipe}
+
+
+def release_binary(record: dict) -> Path:
+    """The release binary of a build record, refused when its bytes changed since it was built."""
+    release = record["release"]
+    path = Path(release["output"]) / release["binary"]
+    if _file_hash(path) != release["binary_sha256"]:
+        raise ValueError("release binary changed since it was built")
+    return path
+
+
+def build_committed_target(root: Path, crate: str, target_kind: str, target_name: str = "", *,
+                           allowed_outputs: dict[str, str] | None = None) -> dict:
+    """Build but never run one target from clean HEAD; the result is not attestation."""
+    return build_committed_targets(root, [(crate, target_kind, target_name)],
+                                   allowed_outputs=allowed_outputs)[(crate, target_kind, target_name)]

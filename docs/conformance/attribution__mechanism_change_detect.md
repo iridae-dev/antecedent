@@ -7,4 +7,4 @@ Same synthetic periods as distribution_change_y_shift. Detection should flag
 
 ## Expected summary
 
-Top-level keys: `changed, method, oracle, significance_level, targets` (5 fields).
+Top-level keys: `changed, evidence_kind, evidence_proposition, evidence_roles, evidence_source, limitations, method, oracle, significance_level, targets` (10 fields).

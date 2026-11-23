@@ -10,9 +10,7 @@
 use std::collections::{BTreeSet, HashMap};
 
 use antecedent_core::identity::CanonicalWriter;
-
-/// Maximum links in one chain.
-pub const MAX_CHAIN_LINKS: usize = 4_096;
+use antecedent_core::named_variants;
 
 /// What kind of object a link stands for.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -39,41 +37,18 @@ pub enum CompositionStage {
     Claim,
 }
 
-impl CompositionStage {
-    /// Stable `snake_case` name for wires.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::CausalContract => "causal_contract",
-            Self::Evidence => "evidence",
-            Self::Data => "data",
-            Self::ExternalProvider => "external_provider",
-            Self::DistributionArtifact => "distribution_artifact",
-            Self::Transformation => "transformation",
-            Self::DecisionContract => "decision_contract",
-            Self::SensitivityInput => "sensitivity_input",
-            Self::StudyRankingProvider => "study_ranking_provider",
-            Self::Claim => "claim",
-        }
-    }
-
-    /// Parse the wire spelling.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [
-            Self::CausalContract,
-            Self::Evidence,
-            Self::Data,
-            Self::ExternalProvider,
-            Self::DistributionArtifact,
-            Self::Transformation,
-            Self::DecisionContract,
-            Self::SensitivityInput,
-            Self::StudyRankingProvider,
-            Self::Claim,
-        ]
-        .into_iter()
-        .find(|stage| stage.as_str() == name)
+named_variants! {
+    CompositionStage {
+        CausalContract => "causal_contract",
+        Evidence => "evidence",
+        Data => "data",
+        ExternalProvider => "external_provider",
+        DistributionArtifact => "distribution_artifact",
+        Transformation => "transformation",
+        DecisionContract => "decision_contract",
+        SensitivityInput => "sensitivity_input",
+        StudyRankingProvider => "study_ranking_provider",
+        Claim => "claim",
     }
 }
 
@@ -143,25 +118,47 @@ impl ProvenanceChainError {
         match self {
             Self::InvalidLink => crate::ExternalRefusal {
                 offending: None,
-                ..refusal(invalid, "composition_provenance.invalid_link", "")
+                ..refusal(
+                    invalid,
+                    antecedent_core::reason_details::composition_provenance::INVALID_LINK,
+                    "",
+                )
             },
-            Self::DuplicateLink(id) => {
-                refusal(invalid, "composition_provenance.duplicate_link", id)
-            }
+            Self::DuplicateLink(id) => refusal(
+                invalid,
+                antecedent_core::reason_details::composition_provenance::DUPLICATE_LINK,
+                id,
+            ),
             Self::UnresolvedParent { child, parent } => crate::ExternalRefusal {
                 expected: Some(parent.clone()),
-                ..refusal(mismatch, "composition_provenance.unresolved_parent", child)
+                ..refusal(
+                    mismatch,
+                    antecedent_core::reason_details::composition_provenance::UNRESOLVED_PARENT,
+                    child,
+                )
             },
-            Self::UnknownLink(id) => refusal(mismatch, "composition_provenance.unknown_link", id),
+            Self::UnknownLink(id) => refusal(
+                mismatch,
+                antecedent_core::reason_details::composition_provenance::UNKNOWN_LINK,
+                id,
+            ),
             Self::MissingStage(stage) => crate::ExternalRefusal {
                 offending: Some(stage.as_str().to_owned()),
-                ..refusal(mismatch, "composition_provenance.missing_stage", "")
+                ..refusal(
+                    mismatch,
+                    antecedent_core::reason_details::composition_provenance::MISSING_STAGE,
+                    "",
+                )
             },
             Self::DigestMismatch { link, expected, supplied } => crate::ExternalRefusal {
                 expected: Some(expected.clone()),
                 supplied: Some(supplied.clone()),
                 remedy: Some("rebuild the lineage from the retained digests of every predecessor"),
-                ..refusal(mismatch, "composition_provenance.digest_mismatch", link)
+                ..refusal(
+                    mismatch,
+                    antecedent_core::reason_details::composition_provenance::DIGEST_MISMATCH,
+                    link,
+                )
             },
         }
     }
@@ -189,14 +186,11 @@ impl ProvenanceChain {
     /// Validate links in dependency order and compute each link's digest.
     ///
     /// # Errors
-    /// Blank or duplicate identities, oversize chains, and parents that are
+    /// Blank or duplicate identities, and parents that are
     /// unknown or not earlier in the list refuse. A link whose declared
     /// parent digests differ from the recomputed ones refuses with
     /// `DigestMismatch`.
     pub fn new(links: Vec<CompositionLink>) -> Result<Self, ProvenanceChainError> {
-        if links.len() > MAX_CHAIN_LINKS {
-            return Err(ProvenanceChainError::InvalidLink);
-        }
         let mut index = HashMap::with_capacity(links.len());
         let mut digests: Vec<String> = Vec::with_capacity(links.len());
         for (position, link) in links.iter().enumerate() {

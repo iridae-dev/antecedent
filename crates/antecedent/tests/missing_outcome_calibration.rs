@@ -6,12 +6,12 @@
 //! candidate construction `effect ± z_{0.975} · sqrt(variance)` from the estimator that
 //! backs each route, on 600 participants (the grid varies the size), at effect 0.3 with 15%
 //! of outcomes missing at random on the baseline. They are `#[ignore]`d measurement designs
-//! registered in `scripts/gate_calibration.sh` (`run_mo`); the coverage record is the only
+//! registered in `parity/calibration_groups.toml`; the coverage record is the only
 //! missing piece. The fixed-seed truth checks of the same estimators are the unit tests of
 //! `crates/antecedent-estimate/src/randomized_missing.rs` and
 //! `crates/antecedent/tests/missing_data_routes.rs`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 
@@ -19,7 +19,7 @@ use antecedent_core::{ExecutionContext, StreamDomain};
 use antecedent_estimate::randomized_missing::responder_weighted_itt;
 use antecedent_kernels::standard_normal;
 use common::calibration::{
-    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, Z95, grid_n,
+    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, Z95, grid_n, grid_seed,
     map_replicates, n_sim,
 };
 
@@ -88,12 +88,12 @@ fn measure(test: &'static str, dgp: &'static str, estimator: &str, mechanism: Me
     let n = grid_n(600);
     let mut tally =
         CoverageTally::for_record(RecordKey { test, dgp, interval: INTERVAL }, REPORTED_LEVEL);
-    for row in map_replicates(n_sim(), |rep| replicate(n, 71_000 + rep, mechanism)) {
+    for row in map_replicates(n_sim(), |rep| replicate(n, grid_seed(71_000 + rep), mechanism)) {
         let Some((interval, rows)) = row else {
             tally.skip();
             continue;
         };
-        tally.bind(
+        tally.bind_validation(
             &construction(estimator),
             ScopeFacts {
                 row_count: rows,
@@ -101,6 +101,7 @@ fn measure(test: &'static str, dgp: &'static str, estimator: &str, mechanism: Me
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         tally.record(Some(interval), TRUTH);
     }
@@ -114,7 +115,10 @@ fn the_scored_intervals_are_ordered_and_centred_near_the_truth() {
         let ((lo, hi), rows) = replicate(4_000, 71_001, mechanism).expect("a responder fit");
         assert_eq!(rows, 4_000);
         assert!(lo.is_finite() && hi.is_finite() && lo < hi);
-        assert!(((lo + hi) / 2.0 - TRUTH).abs() < 0.2);
+        let centre = f64::midpoint(lo, hi);
+        // The half-width is about 1.96 se with se near 0.04 at 4000 rows; the centre is the effect.
+        assert!((centre - TRUTH).abs() < 0.1, "centre {centre}");
+        assert!(hi - lo > 0.05 && hi - lo < 0.4, "width {}", hi - lo);
     }
 }
 

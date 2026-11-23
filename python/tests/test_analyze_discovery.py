@@ -5,6 +5,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 
 def _two_regime_lag1_series(n: int = 120, seed: int = 3):
@@ -38,19 +39,26 @@ def _lag1_series(n: int = 120, seed: int = 3):
 
 def test_analyze_discovery_pcmci_smoke():
     data = _lag1_series()
-    result = antecedent.analyze(
-        data,
-        discovery=antecedent.discovery.PCMCI(max_lag=1, alpha=0.2, fdr=False),
-        query=antecedent.PulseEffect(
-            treatment="x",
-            outcome="y",
-            treatment_lag=1,
-            horizon_steps=1,
-            active_level=1.0,
-        ),
-        bootstrap=0,
-        seed=1,
-        refute=False,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=antecedent.discovery.discover(
+                data,
+                method=antecedent.discovery.PCMCI(max_lag=1, alpha=0.2, fdr=False),
+                execution=antecedent.Execution(seed=1),
+                accept_discovered=True,
+            ),
+            query=antecedent.PulseEffect(
+                treatment="x",
+                outcome="y",
+                treatment_lag=1,
+                horizon_steps=1,
+                active_level=1.0,
+            ),
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+            refute=False,
+        )
     )
     # y_t = 0.6 x_{t-1} + 0.2 noise, so a unit pulse of x at lag 1 moves y one step later
     # by 0.6. The OLS SE at n = 120 is about 0.02, so 0.1 is five SEs: the discovered
@@ -72,29 +80,37 @@ def test_analyze_discovery_jpcmci_plus_two_env():
         for t in range(1, n):
             y[t] = 0.55 * x[t - 1] + 0.2 * rng.normal()
         envs.append({"x": x, "y": y})
+    envs = antecedent.data.multi_env(envs)
     # J-PCMCI+ discovery on this 2-env system returns a temporal equivalence class,
-    # and the prepared study licenses multi-environment temporal effects only on a
+    # and the prepared study supports multi-environment temporal effects only on a
     # TemporalDag, so the support matrix refuses the combination (fail closed with
     # a registered reason code, never a silent number).
     with pytest.raises(
         antecedent.errors.CausalUnsupportedError,
         match="multi-environment TemporalEffect on a TemporalDag",
     ) as caught:
-        antecedent.analyze(
-            envs,
-            discovery=antecedent.discovery.JPCMCIPlus(max_lag=1, alpha=0.2, fdr=False),
-            query=antecedent.PulseEffect(
-                treatment="x",
-                outcome="y",
-                treatment_lag=1,
-                horizon_steps=1,
-                active_level=1.0,
-            ),
-            bootstrap=0,
-            seed=1,
-            refute=False,
+        require_success(
+            antecedent.analyze(
+                envs,
+                graph=antecedent.discovery.discover(
+                    envs,
+                    method=antecedent.discovery.JPCMCIPlus(max_lag=1, alpha=0.2, fdr=False),
+                    execution=antecedent.Execution(seed=1),
+                    accept_discovered=True,
+                ),
+                query=antecedent.PulseEffect(
+                    treatment="x",
+                    outcome="y",
+                    treatment_lag=1,
+                    horizon_steps=1,
+                    active_level=1.0,
+                ),
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
+                refute=False,
+            )
         )
-    assert caught.value.reason_code == "data_modality_not_licensed"
+    assert caught.value.reason_code == "data_modality_not_supported"
 
 
 def test_analyze_discovery_rpcmci_regimes():
@@ -114,20 +130,27 @@ def test_analyze_discovery_rpcmci_regimes():
         antecedent.errors.ReviewRequired,
         match="a single accepted graph requires exactly one|not certified",
     ):
-        antecedent.analyze(
-            data,
-            discovery=antecedent.discovery.RPCMCI(max_lag=1, alpha=0.2, fdr=False),
-            regimes=regimes,
-            query=antecedent.PulseEffect(
-                treatment="x",
-                outcome="y",
-                treatment_lag=1,
-                horizon_steps=1,
-                active_level=1.0,
-            ),
-            bootstrap=0,
-            seed=1,
-            refute=False,
+        require_success(
+            antecedent.analyze(
+                data,
+                graph=antecedent.discovery.discover(
+                    data,
+                    method=antecedent.discovery.RPCMCI(max_lag=1, alpha=0.2, fdr=False),
+                    execution=antecedent.Execution(seed=1),
+                    regimes=regimes,
+                    accept_discovered=True,
+                ),
+                query=antecedent.PulseEffect(
+                    treatment="x",
+                    outcome="y",
+                    treatment_lag=1,
+                    horizon_steps=1,
+                    active_level=1.0,
+                ),
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
+                refute=False,
+            )
         )
 
 
@@ -147,13 +170,20 @@ def _v_structure_data(n: int = 1000, seed: int = 7):
 
 def test_analyze_discovery_pc_orients_v_structure_and_recovers_effect():
     data = _v_structure_data()
-    result = antecedent.analyze(
-        data,
-        discovery=antecedent.discovery.PC(alpha=0.001, fdr=False, max_cond_size=2),
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=antecedent.discovery.discover(
+                data,
+                method=antecedent.discovery.PC(alpha=0.001, fdr=False, max_cond_size=2),
+                execution=antecedent.Execution(seed=1),
+                accept_discovered=True,
+            ),
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
     )
     # `w` is a second cause of `y`, not a confounder, so the adjustment set is empty and
     # the OLS SE of the t coefficient is sqrt(1.0**2 + 0.3**2) / sqrt(n) = 0.033. The
@@ -183,13 +213,20 @@ def test_analyze_discovery_pc_refuses_unorientable_triangle():
     # So this must not refuse: it must return a graph-dependent envelope that
     # mixes the identified and unidentified completions of the triangle's MEC,
     # never a single confident number.
-    result = antecedent.analyze(
-        {"t": t, "y": y, "z": z},
-        discovery=antecedent.discovery.PC(alpha=0.2, fdr=False, max_cond_size=2),
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            {"t": t, "y": y, "z": z},
+            graph=antecedent.discovery.discover(
+                {"t": t, "y": y, "z": z},
+                method=antecedent.discovery.PC(alpha=0.2, fdr=False, max_cond_size=2),
+                execution=antecedent.Execution(seed=1),
+                accept_discovered=True,
+            ),
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
     )
     assert result.answer.kind == "bounds"
     assert result.answer.value is None
@@ -205,15 +242,94 @@ def test_analyze_ate_enriched_fields():
     z = rng.normal(size=n)
     t = (z + rng.normal(size=n) > 0).astype(np.float64)
     y = 2.0 * t + z + rng.normal(size=n) * 0.3
-    result = antecedent.analyze(
-        {"t": t, "y": y, "z": z},
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            {"t": t, "y": y, "z": z},
+            graph=[("z", "t"), ("z", "y"), ("t", "y")],
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
     )
     assert result.performance.modality
     assert result.performance.plan_id
     assert isinstance(result.diagnostics, tuple)
     assert result.provenance["node_count"] >= 0
+
+
+def test_discover_requires_explicit_native_review_acceptance():
+    data = _v_structure_data()
+    method = antecedent.discovery.PC(alpha=0.001, fdr=False, max_cond_size=2)
+    with pytest.raises(antecedent.errors.ReviewRequired):
+        antecedent.discovery.discover(data, method=method)
+    accepted = antecedent.discovery.discover(data, method=method, accept_discovered=True)
+    assert accepted.algorithm_id == "pc"
+    assert set(accepted.graph.nodes()) == set(data)
+
+
+def test_temporal_discoveries_are_accepted_only_through_their_review_gate():
+    data = _lag1_series()
+    pcmci = antecedent.discovery.PCMCI(max_lag=1, alpha=0.2, fdr=False)
+    with pytest.raises(antecedent.errors.ReviewRequired):
+        antecedent.discovery.discover(data, method=pcmci, execution=antecedent.Execution(seed=1))
+    accepted = antecedent.discovery.discover(
+        data, method=pcmci, execution=antecedent.Execution(seed=1), accept_discovered=True
+    )
+    assert "pcmci" in accepted.algorithm_id
+
+    rng = np.random.default_rng(4)
+    envs = []
+    for _ in range(2):
+        x = rng.normal(size=80)
+        y = np.empty(80)
+        y[0] = rng.normal()
+        for t in range(1, 80):
+            y[t] = 0.55 * x[t - 1] + 0.2 * rng.normal()
+        envs.append({"x": x, "y": y})
+    envs = antecedent.data.multi_env(envs)
+    jpcmci = antecedent.discovery.JPCMCIPlus(max_lag=1, alpha=0.2, fdr=False)
+    with pytest.raises(antecedent.errors.ReviewRequired):
+        antecedent.discovery.discover(envs, method=jpcmci, execution=antecedent.Execution(seed=1))
+    accepted_class = antecedent.discovery.discover(
+        envs, method=jpcmci, execution=antecedent.Execution(seed=1), accept_discovered=True
+    )
+    assert "pcmci" in accepted_class.algorithm_id
+
+
+def test_discover_rejects_untyped_execution_and_inapplicable_regimes():
+    method = antecedent.discovery.PC()
+    with pytest.raises(antecedent.errors.CausalTypeError, match="Execution"):
+        antecedent.discovery.discover(_v_structure_data(), method=method, execution={"seed": 1})
+    with pytest.raises(antecedent.errors.CausalUnsupportedError) as caught:
+        antecedent.discovery.discover(_v_structure_data(), method=method, regimes=[0])
+    assert caught.value.reason_code == "option_not_applicable"
+
+
+def test_discover_honors_execution_cancellation_and_observer_exceptions():
+    method = antecedent.discovery.PC()
+    token = antecedent.CancellationToken()
+    token.cancel()
+    with pytest.raises(antecedent.errors.CausalCancelledError):
+        antecedent.discovery.discover(
+            _v_structure_data(), method=method, execution=antecedent.Execution(cancel=token)
+        )
+    failure = RuntimeError("discovery observer failure")
+
+    def observe(*_):
+        raise failure
+
+    with pytest.raises(RuntimeError) as caught:
+        antecedent.discovery.discover(
+            _v_structure_data(), method=method, execution=antecedent.Execution(on_progress=observe)
+        )
+    assert caught.value is failure
+
+
+def test_preparation_requires_explicit_discovery_execution():
+    with pytest.raises(antecedent.errors.CausalTypeError, match="run discovery.discover first"):
+        antecedent.prepare(
+            _v_structure_data(),
+            query=antecedent.AverageEffect("t", "y"),
+            discovery=antecedent.discovery.PC(),
+        )

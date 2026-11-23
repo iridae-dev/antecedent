@@ -4,15 +4,39 @@
     "kind": "enumeration",
     "project": "clean-room discrete g-formula enumeration",
     "pin": "fixture-algorithm-v1",
-    "generation_location": "analytical artifact; no generator retained"
+    "method": "exact rational back-door adjustment over the eight table cells",
+    "generator": "conformance/estimate/functional_plugin/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/functional_plugin/reference.py --check",
+    "environment_lock": "conformance/estimate/functional_plugin/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "interventional_mean",
+      "atom_probability_sum"
+    ],
+    "context_only_outputs": [
+      "z_mass",
+      "conditional_outcome_probability",
+      "bootstrap_scope"
+    ],
+    "independence_basis": "reference.py is standard-library Python with exact Fraction arithmetic that imports no Antecedent code. From the eight (z, t, y, count) cells of the table the executing assertion builds (transcribed as input), it computes P(Z=z), P(Y=1|T=1,Z=z) and the back-door functional sum_z P(z) P(Y=1|T=1,z) = 7/10, and the interventional atom masses summing to one, then compares them with the fixture. The shared object is the back-door formula stated in the fixture and the table counts.",
+    "historical_exposure": "The fixture previously recorded no generator ('analytical artifact'); this reference was written during this review from the fixture formula and the table counts in the executing assertion, with no product implementation source consulted. Who first derived 0.7 is unrecorded."
   },
   "case": {
     "name": "binary_confounding_table",
     "formula": "sum_z P(Y=1|T=1,Z=z) P(Z=z)",
-    "z_mass": [0.5, 0.5],
-    "conditional_outcome_probability": [0.8, 0.6],
+    "z_mass": [
+      0.5,
+      0.5
+    ],
+    "conditional_outcome_probability": [
+      0.8,
+      0.6
+    ],
     "interventional_mean": 0.7,
     "atom_probability_sum": 1.0
   },
-  "acceptance": {"atol": 1e-12, "bootstrap_scope": "finite-positive-only"}
+  "acceptance": {
+    "atol": 1e-12,
+    "bootstrap_scope": "finite-positive-only"
+  }
 }

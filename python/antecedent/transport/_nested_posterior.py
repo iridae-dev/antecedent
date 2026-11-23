@@ -12,7 +12,15 @@ from typing import Any, ClassVar, Literal, cast
 import numpy as np
 from numpy.typing import NDArray
 
+from .._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .._columns import coerce_fields
+from .._scientific import ScientificResult
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 
 BetaKernel = tuple[float, float]
@@ -97,15 +105,15 @@ class _PosteriorDiagnostics:
 
 
 @dataclass(frozen=True, slots=True, eq=False, init=False)
-class NestedMarkovPosteriorCandidate:
+class NestedMarkovPosteriorCandidate(ScientificResult):
     """Full continuous raw-parameter/effect posterior, available in internal builds.
 
     Four aligned chains, 2048 warmup and 4096 retained draws each, 5M proposal
-    bound and fixed 95% credible quantiles are the intended frozen pilot method.
+    bound and fixed 95% credible quantiles are the intended fixed method.
     These quantiles and covariance are Monte Carlo estimates; modern diagnostics
-    do not guarantee convergence or endpoint precision. Calibration is unmeasured.
+    do not guarantee convergence or endpoint precision. Calibration is not_measured.
     Scope requires successful original checked-ID/interior point fitting, which is
-    a pilot eligibility restriction, not a condition for posterior existence.
+    a route eligibility restriction, not a condition for posterior existence.
     """
 
     prior: NestedMarkovPrior
@@ -117,8 +125,8 @@ class NestedMarkovPosteriorCandidate:
     samples: NDArray[np.float64]
     diagnostics: tuple[_PosteriorDiagnostics, ...]
     seed: int
-    calibration: Literal["unmeasured"]
-    inference: Literal["posterior_candidate_withheld_calibration_unmeasured"]
+    calibration: Literal["not_measured"]
+    inference: Literal["posterior_candidate_withheld_calibration_not_measured"]
     identification: Literal["nonparametrically_identified"]
     identity: str
     _native: Any
@@ -179,17 +187,25 @@ class NestedMarkovPosteriorCandidate:
         coerce_fields(instance, **fields)
         return instance
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
         """Export original graph, counts, raw prior, method/RNG and entire joint receipt."""
-        return bytes(self._native.export())
+        return artifact_from_receipt(self, bytes(self._native.export()))
 
     def to_dict(self) -> dict[str, Any]:
         """Inspect full original premises and aligned posterior receipt."""
         return cast(dict[str, Any], json.loads(self._native.payload()))
 
     @classmethod
+    @artifact_consumer(
+        proof="native posterior candidate consumer recomputes identification and aligned joint posterior under the independent identity",
+        replayable=True,
+        resumable=False,
+        identity=("expected_identity",),
+    )
     def load(cls, artifact: bytes, *, expected_identity: str) -> NestedMarkovPosteriorCandidate:
         """Fresh bounded consumer independently recomputes original ID and posterior."""
+        artifact = container_bytes(artifact)
         from .. import _native
 
         if not isinstance(artifact, bytes) or not isinstance(expected_identity, str):
@@ -200,7 +216,7 @@ class NestedMarkovPosteriorCandidate:
         consumer = getattr(_native, "consume_nested_markov_posterior_candidate", None)
         if consumer is None:
             raise CausalUnsupportedError(
-                "nested_markov.route_frozen: posterior consumer remains closed pending calibration",
-                reason_code="cell_not_licensed",
+                "nested_markov.native_hook_unavailable: this build has no posterior consumer",
+                reason_code="not_supported",
             )
         return cls._from_native(consumer(artifact, expected_identity))

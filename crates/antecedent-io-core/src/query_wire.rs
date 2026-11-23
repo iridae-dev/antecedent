@@ -1,6 +1,6 @@
 //! Full `CausalQuery` and Intervention wire forms.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -40,6 +40,16 @@ where
 {
     T::deserialize(deserializer).map(Some)
 }
+mod expression;
+use expression::refuse_runtime_bound;
+pub use expression::{
+    ArithOpWire, CallbackOutputWire, CallbackRecordWire, CompareOpWire, LogicOpWire,
+    ResolveCallback, ValueExprWire, unresolved_callback,
+};
+
+pub(crate) mod borrowed;
+pub use borrowed::BorrowedRetainedQueryWire;
+
 use crate::response_wire::{ResponseQueryWire, response_query_from_wire, response_query_to_wire};
 
 /// Wire scalar value.
@@ -99,8 +109,10 @@ pub struct SetInterventionWire {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum OutcomeFunctionalWire {
     /// Mean (default).
+    #[default]
     Mean,
     /// Single exceedance threshold.
     Exceedance(f64),
@@ -110,10 +122,9 @@ pub enum OutcomeFunctionalWire {
     Quantile(f64),
 }
 
-impl Default for OutcomeFunctionalWire {
-    fn default() -> Self {
-        Self::Mean
-    }
+/// Positive zero for either zero: a threshold of `-0.0` is the threshold `0.0`.
+pub(crate) fn canonical_zero(value: f64) -> f64 {
+    if value == 0.0 { 0.0 } else { value }
 }
 
 impl OutcomeFunctionalWire {
@@ -126,9 +137,9 @@ impl OutcomeFunctionalWire {
     #[must_use]
     pub fn from_domain(f: &OutcomeFunctional) -> Self {
         match f {
-            OutcomeFunctional::Exceedance(c) => Self::Exceedance(c.to_f64()),
+            OutcomeFunctional::Exceedance(c) => Self::Exceedance(canonical_zero(c.to_f64())),
             OutcomeFunctional::ExceedanceGrid(grid) => {
-                Self::ExceedanceGrid(grid.iter().map(|c| c.to_f64()).collect())
+                Self::ExceedanceGrid(grid.iter().map(|c| canonical_zero(c.to_f64())).collect())
             }
             OutcomeFunctional::Quantile(tau) => Self::Quantile(tau.to_f64()),
             _ => Self::Mean,
@@ -140,8 +151,10 @@ impl OutcomeFunctionalWire {
     pub fn to_domain(&self) -> OutcomeFunctional {
         match self {
             Self::Mean => OutcomeFunctional::Mean,
-            Self::Exceedance(c) => OutcomeFunctional::exceedance(*c),
-            Self::ExceedanceGrid(grid) => OutcomeFunctional::exceedance_grid(grid.clone()),
+            Self::Exceedance(c) => OutcomeFunctional::exceedance(canonical_zero(*c)),
+            Self::ExceedanceGrid(grid) => OutcomeFunctional::exceedance_grid(
+                grid.iter().copied().map(canonical_zero).collect::<Vec<_>>(),
+            ),
             Self::Quantile(tau) => OutcomeFunctional::quantile(*tau),
         }
     }
@@ -318,6 +331,34 @@ impl TargetPopulationWire {
     }
 }
 
+impl TargetPopulationWire {
+    /// Decode, resolving registry-backed variants against `registry`.
+    ///
+    /// A named predicate and a custom distribution carry digests of the rows, weights and
+    /// declared parents they were encoded against. [`Self::to_domain`] has no registry and
+    /// drops them; here they are recomputed and must match, so two wires that differ only in
+    /// those fields never decode to the same population.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::to_domain`], an entry the registry does not hold, or a recorded digest or
+    /// dependency list that differs from the registry's.
+    pub fn to_domain_with_registry(
+        &self,
+        registry: &PopulationRegistry,
+    ) -> Result<TargetPopulation, IoError> {
+        let domain = self.to_domain()?;
+        if matches!(self, Self::PredicateNamed { .. } | Self::CustomDistribution { .. })
+            && Self::from_domain_with_registry(&domain, Some(registry))? != *self
+        {
+            return Err(IoError::Convert(
+                "population wire disagrees with the registry it is decoded against".into(),
+            ));
+        }
+        Ok(domain)
+    }
+}
+
 /// Temporal policy wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -441,495 +482,6 @@ pub struct MechanismOverrideWire {
     pub family_id: String,
     /// Parameters.
     pub parameters: Vec<f64>,
-}
-
-/// Binary numeric operator wire code.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum ArithOpWire {
-    /// Addition.
-    Add,
-    /// Subtraction.
-    Sub,
-    /// Multiplication.
-    Mul,
-    /// Division.
-    Div,
-    /// Minimum.
-    Min,
-    /// Maximum.
-    Max,
-}
-
-/// Comparison wire code.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum CompareOpWire {
-    /// Less than.
-    Lt,
-    /// Less than or equal.
-    Le,
-    /// Greater than.
-    Gt,
-    /// Greater than or equal.
-    Ge,
-    /// Equal.
-    Eq,
-    /// Not equal.
-    Ne,
-}
-
-/// Boolean connective wire code.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum LogicOpWire {
-    /// Conjunction.
-    And,
-    /// Disjunction.
-    Or,
-}
-
-/// Value expression wire: the canonical, ordered encoding of the expression tree.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-#[serde(rename_all = "snake_case")]
-pub enum ValueExprWire {
-    /// Numeric constant.
-    Const {
-        /// Value.
-        value: f64,
-    },
-    /// The node's own generated value.
-    Generated,
-    /// Current-draw read of a variable.
-    Var {
-        /// Variable.
-        variable: u32,
-    },
-    /// Read of a variable `lag` steps back.
-    Lag {
-        /// Variable.
-        variable: u32,
-        /// Steps back.
-        lag: u32,
-    },
-    /// Negation.
-    Neg {
-        /// Operand.
-        operand: Box<ValueExprWire>,
-    },
-    /// Binary numeric operation.
-    Arith {
-        /// Operator.
-        op: ArithOpWire,
-        /// Left operand.
-        lhs: Box<ValueExprWire>,
-        /// Right operand.
-        rhs: Box<ValueExprWire>,
-    },
-    /// Clip to bounds.
-    Clip {
-        /// Clipped value.
-        value: Box<ValueExprWire>,
-        /// Lower bound.
-        lower: Box<ValueExprWire>,
-        /// Upper bound.
-        upper: Box<ValueExprWire>,
-    },
-    /// Comparison.
-    Compare {
-        /// Operator.
-        op: CompareOpWire,
-        /// Left operand.
-        lhs: Box<ValueExprWire>,
-        /// Right operand.
-        rhs: Box<ValueExprWire>,
-    },
-    /// Boolean negation.
-    Not {
-        /// Operand.
-        operand: Box<ValueExprWire>,
-    },
-    /// Boolean connective.
-    Logic {
-        /// Connective.
-        op: LogicOpWire,
-        /// Left operand.
-        lhs: Box<ValueExprWire>,
-        /// Right operand.
-        rhs: Box<ValueExprWire>,
-    },
-    /// Conditional.
-    If {
-        /// Boolean condition.
-        condition: Box<ValueExprWire>,
-        /// Value when true.
-        then_branch: Box<ValueExprWire>,
-        /// Value when false.
-        else_branch: Box<ValueExprWire>,
-    },
-    /// Boolean to number.
-    Indicator {
-        /// Operand.
-        operand: Box<ValueExprWire>,
-    },
-    /// A recoverable batch callback applied to argument expressions: the callback's
-    /// recovery record (identity, never code) and one argument per declared input. Only
-    /// the policy-program encoding writes this arm, and only for a program whose callbacks
-    /// are all recoverable; an expression without a callback never carries it.
-    Callback {
-        /// What a consumer verifies against the implementation it supplies.
-        record: CallbackRecordWire,
-        /// Argument expressions in call order.
-        args: Vec<ValueExprWire>,
-    },
-}
-
-/// Declared output of a recoverable callback on the wire.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-#[serde(rename_all = "snake_case")]
-pub enum CallbackOutputWire {
-    /// Any finite real.
-    Real,
-    /// Finite reals in `[lower, upper]`.
-    Range {
-        /// Smallest admitted value.
-        lower: f64,
-        /// Largest admitted value.
-        upper: f64,
-    },
-    /// Exactly these levels.
-    Levels {
-        /// Sorted, unique, finite levels.
-        levels: Vec<f64>,
-    },
-}
-
-/// Recovery record of a callback on the wire: the content digest of its source, its entry
-/// point and its pinned dependency versions.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct CallbackRecordWire {
-    /// Callback name.
-    pub name: String,
-    /// Input labels in call order.
-    pub inputs: Vec<String>,
-    /// Declared output.
-    pub output: CallbackOutputWire,
-    /// Lower-case hex SHA-256 of the source the callback ran.
-    pub source_sha256: String,
-    /// Entry point within the source.
-    pub entry_point: String,
-    /// Pinned dependencies as `(distribution name, exact version)`.
-    pub dependencies: Vec<(String, String)>,
-}
-
-impl CallbackRecordWire {
-    fn from_record(record: &antecedent_core::RecoveryRecord) -> Result<Self, IoError> {
-        use antecedent_core::CallbackOutput;
-        let output = match &record.output {
-            CallbackOutput::Real => CallbackOutputWire::Real,
-            CallbackOutput::Range { lower, upper } => {
-                CallbackOutputWire::Range { lower: *lower, upper: *upper }
-            }
-            CallbackOutput::Levels(levels) => {
-                CallbackOutputWire::Levels { levels: levels.to_vec() }
-            }
-            other => {
-                return Err(IoError::Convert(format!("unsupported callback output: {other:?}")));
-            }
-        };
-        Ok(Self {
-            name: record.name.clone(),
-            inputs: record.inputs.to_vec(),
-            output,
-            source_sha256: record.source_sha256.clone(),
-            entry_point: record.entry_point.clone(),
-            dependencies: record
-                .dependencies
-                .iter()
-                .map(|pin| (pin.name.clone(), pin.version.clone()))
-                .collect(),
-        })
-    }
-
-    /// The record this wire form stands for.
-    #[must_use]
-    pub fn to_record(&self) -> antecedent_core::RecoveryRecord {
-        use antecedent_core::{CallbackOutput, PinnedDependency};
-        antecedent_core::RecoveryRecord {
-            name: self.name.clone(),
-            inputs: Arc::from(self.inputs.as_slice()),
-            output: match &self.output {
-                CallbackOutputWire::Real => CallbackOutput::Real,
-                CallbackOutputWire::Range { lower, upper } => {
-                    CallbackOutput::Range { lower: *lower, upper: *upper }
-                }
-                CallbackOutputWire::Levels { levels } => CallbackOutput::levels(levels.clone()),
-            },
-            source_sha256: self.source_sha256.clone(),
-            entry_point: self.entry_point.clone(),
-            dependencies: self
-                .dependencies
-                .iter()
-                .map(|(name, version)| PinnedDependency {
-                    name: name.clone(),
-                    version: version.clone(),
-                })
-                .collect(),
-        }
-    }
-}
-
-/// Stand-in for a callback whose implementation a decoder was not given: it carries the
-/// recovery record's declaration and refuses to run.
-#[derive(Debug)]
-struct UnresolvedCallback(antecedent_core::CallbackSpec);
-
-impl antecedent_core::BatchCallback for UnresolvedCallback {
-    fn spec(&self) -> &antecedent_core::CallbackSpec {
-        &self.0
-    }
-
-    fn call(
-        &self,
-        _inputs: &[&[f64]],
-        _out: &mut [f64],
-    ) -> Result<(), antecedent_core::CallbackError> {
-        Err(antecedent_core::CallbackError::Raised {
-            message: format!(
-                "callback {} has no implementation: a decoded recovery record is a declaration; \
-                 supply the implementation it identifies when decoding",
-                self.0.name
-            ),
-        })
-    }
-}
-
-/// The unresolved stand-in for the callback a record identifies.
-#[must_use]
-pub fn unresolved_callback(
-    record: &antecedent_core::RecoveryRecord,
-) -> Arc<dyn antecedent_core::BatchCallback> {
-    Arc::new(UnresolvedCallback(antecedent_core::CallbackSpec {
-        name: record.name.clone(),
-        inputs: Arc::clone(&record.inputs),
-        output: record.output.clone(),
-        dependencies: Arc::clone(&record.dependencies),
-        implementation: antecedent_core::CallbackImplementation::Recoverable {
-            source_sha256: record.source_sha256.clone(),
-            entry_point: record.entry_point.clone(),
-        },
-    }))
-}
-
-/// Refuse a program no durable encoding can carry: one that contains a callback bound to
-/// the running process.
-fn refuse_runtime_bound(portability: &antecedent_core::Portability) -> Result<(), IoError> {
-    match portability.export_refusal() {
-        Some(refusal) => Err(IoError::Refused { code: refusal.code, message: refusal.message }),
-        None => Ok(()),
-    }
-}
-
-/// Supplies the implementation a recoverable callback record identifies, or refuses.
-pub type ResolveCallback<'r, E> = dyn FnMut(&antecedent_core::RecoveryRecord) -> Result<Arc<dyn antecedent_core::BatchCallback>, E>
-    + 'r;
-
-impl ValueExprWire {
-    /// Encode.
-    ///
-    /// # Errors
-    ///
-    /// A program that cannot leave the process (a runtime-bound callback:
-    /// `policy_callback_not_portable`), a recoverable callback (this form carries
-    /// closed-form expressions only; see [`Self::from_domain_recoverable`]), or unknown
-    /// expression or operator variants.
-    pub fn from_domain(expr: &ValueExpr) -> Result<Self, IoError> {
-        refuse_runtime_bound(&expr.portability())?;
-        Self::encode(expr, false)
-    }
-
-    /// Encode an expression whose callbacks may be recoverable: each becomes a
-    /// [`Self::Callback`] arm carrying its recovery record.
-    ///
-    /// # Errors
-    ///
-    /// As [`Self::from_domain`], except that a recoverable callback is encoded.
-    pub fn from_domain_recoverable(expr: &ValueExpr) -> Result<Self, IoError> {
-        refuse_runtime_bound(&expr.portability())?;
-        Self::encode(expr, true)
-    }
-
-    fn encode(expr: &ValueExpr, recoverable: bool) -> Result<Self, IoError> {
-        use antecedent_core::{ArithOp, CompareOp, LogicOp};
-        let boxed = |e: &ValueExpr| Self::encode(e, recoverable).map(Box::new);
-        Ok(match expr {
-            ValueExpr::Const(c) => Self::Const { value: c.get() },
-            ValueExpr::Generated => Self::Generated,
-            ValueExpr::Var(v) => Self::Var { variable: v.raw() },
-            ValueExpr::Lag { variable, lag } => Self::Lag { variable: variable.raw(), lag: *lag },
-            ValueExpr::Neg(a) => Self::Neg { operand: boxed(a)? },
-            ValueExpr::Not(a) => Self::Not { operand: boxed(a)? },
-            ValueExpr::Indicator(a) => Self::Indicator { operand: boxed(a)? },
-            ValueExpr::Arith { op, lhs, rhs } => Self::Arith {
-                op: match op {
-                    ArithOp::Add => ArithOpWire::Add,
-                    ArithOp::Sub => ArithOpWire::Sub,
-                    ArithOp::Mul => ArithOpWire::Mul,
-                    ArithOp::Div => ArithOpWire::Div,
-                    ArithOp::Min => ArithOpWire::Min,
-                    ArithOp::Max => ArithOpWire::Max,
-                    other => {
-                        return Err(IoError::Convert(format!("unsupported ArithOp: {other:?}")));
-                    }
-                },
-                lhs: boxed(lhs)?,
-                rhs: boxed(rhs)?,
-            },
-            ValueExpr::Compare { op, lhs, rhs } => Self::Compare {
-                op: match op {
-                    CompareOp::Lt => CompareOpWire::Lt,
-                    CompareOp::Le => CompareOpWire::Le,
-                    CompareOp::Gt => CompareOpWire::Gt,
-                    CompareOp::Ge => CompareOpWire::Ge,
-                    CompareOp::Eq => CompareOpWire::Eq,
-                    CompareOp::Ne => CompareOpWire::Ne,
-                    other => {
-                        return Err(IoError::Convert(format!("unsupported CompareOp: {other:?}")));
-                    }
-                },
-                lhs: boxed(lhs)?,
-                rhs: boxed(rhs)?,
-            },
-            ValueExpr::Logic { op, lhs, rhs } => Self::Logic {
-                op: match op {
-                    LogicOp::And => LogicOpWire::And,
-                    LogicOp::Or => LogicOpWire::Or,
-                    other => {
-                        return Err(IoError::Convert(format!("unsupported LogicOp: {other:?}")));
-                    }
-                },
-                lhs: boxed(lhs)?,
-                rhs: boxed(rhs)?,
-            },
-            ValueExpr::Clip { value, lower, upper } => {
-                Self::Clip { value: boxed(value)?, lower: boxed(lower)?, upper: boxed(upper)? }
-            }
-            ValueExpr::If { condition, then_branch, else_branch } => Self::If {
-                condition: boxed(condition)?,
-                then_branch: boxed(then_branch)?,
-                else_branch: boxed(else_branch)?,
-            },
-            ValueExpr::Callback(call) if recoverable => {
-                let record = call.spec().recovery_record().ok_or_else(|| {
-                    IoError::Convert(format!(
-                        "callback {} has no recovery record",
-                        call.spec().name
-                    ))
-                })?;
-                let mut args = Vec::with_capacity(call.args().len());
-                for arg in call.args() {
-                    args.push(Self::encode(arg, true)?);
-                }
-                Self::Callback { record: CallbackRecordWire::from_record(&record)?, args }
-            }
-            ValueExpr::Callback(call) => {
-                return Err(IoError::Refused {
-                    code: antecedent_core::reason_code!("policy_callback_not_portable"),
-                    message: format!(
-                        "policy_callback.wire_form_unavailable: callback {} is recoverable, but \
-                         the expression wire carries closed-form expressions only",
-                        call.spec().name
-                    ),
-                });
-            }
-            other => {
-                return Err(IoError::Convert(format!("unsupported ValueExpr: {other:?}")));
-            }
-        })
-    }
-
-    /// Decode. A [`Self::Callback`] arm decodes to an unresolved stand-in that declares
-    /// the record and refuses to run; use [`Self::to_domain_with`] to bind implementations.
-    #[must_use]
-    pub fn to_domain(&self) -> ValueExpr {
-        self.to_domain_with(&mut |record| {
-            Ok::<_, std::convert::Infallible>(unresolved_callback(record))
-        })
-        .unwrap_or_else(|never| match never {})
-    }
-
-    /// Decode, binding each [`Self::Callback`] arm to the implementation `resolve` returns
-    /// for its recovery record.
-    ///
-    /// # Errors
-    ///
-    /// Whatever `resolve` refuses with.
-    pub fn to_domain_with<E>(&self, resolve: &mut ResolveCallback<'_, E>) -> Result<ValueExpr, E> {
-        use antecedent_core::{ArithOp, CompareOp, LogicOp};
-        let mut un = |e: &Self| e.to_domain_with(&mut *resolve).map(Box::new);
-        Ok(match self {
-            Self::Const { value } => ValueExpr::constant(*value),
-            Self::Generated => ValueExpr::Generated,
-            Self::Var { variable } => ValueExpr::Var(VariableId::from_raw(*variable)),
-            Self::Lag { variable, lag } => {
-                ValueExpr::Lag { variable: VariableId::from_raw(*variable), lag: *lag }
-            }
-            Self::Neg { operand } => ValueExpr::Neg(un(operand)?),
-            Self::Not { operand } => ValueExpr::Not(un(operand)?),
-            Self::Indicator { operand } => ValueExpr::Indicator(un(operand)?),
-            Self::Arith { op, lhs, rhs } => ValueExpr::Arith {
-                op: match op {
-                    ArithOpWire::Add => ArithOp::Add,
-                    ArithOpWire::Sub => ArithOp::Sub,
-                    ArithOpWire::Mul => ArithOp::Mul,
-                    ArithOpWire::Div => ArithOp::Div,
-                    ArithOpWire::Min => ArithOp::Min,
-                    ArithOpWire::Max => ArithOp::Max,
-                },
-                lhs: un(lhs)?,
-                rhs: un(rhs)?,
-            },
-            Self::Compare { op, lhs, rhs } => ValueExpr::Compare {
-                op: match op {
-                    CompareOpWire::Lt => CompareOp::Lt,
-                    CompareOpWire::Le => CompareOp::Le,
-                    CompareOpWire::Gt => CompareOp::Gt,
-                    CompareOpWire::Ge => CompareOp::Ge,
-                    CompareOpWire::Eq => CompareOp::Eq,
-                    CompareOpWire::Ne => CompareOp::Ne,
-                },
-                lhs: un(lhs)?,
-                rhs: un(rhs)?,
-            },
-            Self::Logic { op, lhs, rhs } => ValueExpr::Logic {
-                op: match op {
-                    LogicOpWire::And => LogicOp::And,
-                    LogicOpWire::Or => LogicOp::Or,
-                },
-                lhs: un(lhs)?,
-                rhs: un(rhs)?,
-            },
-            Self::Clip { value, lower, upper } => {
-                ValueExpr::Clip { value: un(value)?, lower: un(lower)?, upper: un(upper)? }
-            }
-            Self::If { condition, then_branch, else_branch } => ValueExpr::If {
-                condition: un(condition)?,
-                then_branch: un(then_branch)?,
-                else_branch: un(else_branch)?,
-            },
-            Self::Callback { record, args } => {
-                let callback = resolve(&record.to_record())?;
-                let mut decoded = Vec::with_capacity(args.len());
-                for arg in args {
-                    decoded.push(arg.to_domain_with(&mut *resolve)?);
-                }
-                ValueExpr::callback(callback, decoded)
-            }
-        })
-    }
 }
 
 /// Declared reads of a value program, as written (decoded verbatim so validation can
@@ -1281,6 +833,11 @@ pub enum CausalQueryWire {
         /// Control world. Absent on format-0.4 artifacts written before this field; decode as 0.
         #[serde(default)]
         control: Option<InterventionWire>,
+        /// The further simultaneous interventions of a joint baseline, applied with
+        /// `control`. Absent for a single-intervention baseline, so those artifacts are
+        /// unchanged.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        joint_control: Vec<InterventionWire>,
         /// Nested flag.
         allow_nested: bool,
     },
@@ -1339,6 +896,9 @@ pub enum CausalQueryWire {
         significance_level_bits: u64,
         /// Cap.
         max_targets: u64,
+        /// Declared prior probability of a change, as f64 bits; absent when none is declared.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        change_prior_bits: Option<u64>,
     },
     /// Unit change.
     UnitChange {
@@ -1404,6 +964,136 @@ pub enum CausalQueryWire {
     Survival(SurvivalQueryWire),
     /// Prespecified longitudinal treatment regime value.
     LongitudinalRegime(LongitudinalRegimeQueryWire),
+    /// Observational two-decision contrast of two static regimes.
+    SequentialContrast(SequentialContrastQueryWire),
+    /// Nearest-neighbor contrast on histories, matched within calendar periods.
+    HistoryMatch(HistoryMatchQueryWire),
+    /// Structure discovery.
+    Discover(crate::structure_query_wire::DiscoverQueryWire),
+    /// Attribution on a fitted structural model.
+    Attribute(crate::structure_query_wire::AttributeQueryWire),
+    /// Simulation on a fitted structural model.
+    Simulate(crate::structure_query_wire::SimulateQueryWire),
+    /// Sequentially randomized unit-period design or regime survival.
+    TemporalDesign(crate::temporal_design_query_wire::TemporalDesignQueryWire),
+    /// Sharp bounds on the average effect of a binary treatment under a binary instrument.
+    IvBounds(IvBoundsQueryWire),
+    /// Noncausal association of an outcome with predictors in the observed data.
+    Association(AssociationQueryWire),
+}
+
+/// Descriptive quantity of a noncausal association query.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
+pub enum AssociationFunctionalWire {
+    /// The declared selection rule picks the analysis.
+    Auto,
+    /// Conditional mean or probability in each stratum.
+    Conditional,
+    /// Regression coefficients of the predictors.
+    Coefficients,
+    /// A symmetric association measure, by its stable name.
+    Measure {
+        /// `pearson_correlation` or `distance_correlation`.
+        measure: String,
+    },
+    /// A predictive model scored on held-out folds.
+    Predictive {
+        /// Held-out folds.
+        folds: u32,
+    },
+    /// The probability the outcome exceeds a threshold in each stratum.
+    Exceedance {
+        /// The threshold `t` of `P(Y > t)`.
+        threshold: f64,
+    },
+}
+
+/// Declared columns and descriptive quantity of a noncausal association query.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct AssociationQueryWire {
+    /// Outcome column.
+    pub outcome: u32,
+    /// Predictor columns, in report order.
+    pub predictors: Vec<u32>,
+    /// Conditioning columns.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub conditioning: Vec<u32>,
+    /// Descriptive quantity.
+    pub functional: AssociationFunctionalWire,
+    /// Declared outcome scale; absent reads the schema's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outcome_scale: Option<String>,
+    /// Sampling-weight column.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weight: Option<u32>,
+    /// Reason code of the refused causal query this one follows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub refused_after: Option<String>,
+}
+
+/// Declared columns of a binary-instrument bounds query.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct IvBoundsQueryWire {
+    /// Outcome column.
+    pub outcome: u32,
+    /// Treatment column.
+    pub treatment: u32,
+    /// Instrument column.
+    pub instrument: u32,
+    /// Sampling-weight column.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weight: Option<u32>,
+}
+
+/// Declared columns and caliper of a within-period history match.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct HistoryMatchQueryWire {
+    /// Outcome column.
+    pub outcome: u32,
+    /// Treatment indicator column.
+    pub treated: u32,
+    /// Time-ordered history columns.
+    pub history: Vec<u32>,
+    /// Calendar period column.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub period: Option<u32>,
+    /// Sampling-weight column.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weight: Option<u32>,
+    /// Maximum absolute score distance of a match.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub caliper: Option<f64>,
+}
+
+/// Declared columns, regimes and cross-fit folds of an observational sequential contrast.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SequentialContrastQueryWire {
+    /// Terminal outcome column.
+    pub outcome: u32,
+    /// First-decision action column.
+    pub first_treatment: u32,
+    /// Second-decision action column.
+    pub second_treatment: u32,
+    /// Baseline covariate columns.
+    pub baseline: Vec<u32>,
+    /// Covariates measured between the two decisions.
+    pub intermediate: Vec<u32>,
+    /// Active regime actions.
+    pub active: [u8; 2],
+    /// Control regime actions.
+    pub control: [u8; 2],
+    /// Cross-fit fold of each row.
+    pub fold_of_row: Vec<u32>,
+    /// Number of folds.
+    pub fold_count: u32,
+    /// Positivity floor.
+    pub min_probability: f64,
 }
 
 /// Subject-owned longitudinal histories and supplied sequential probabilities.
@@ -1534,6 +1224,12 @@ pub struct PanelDidQueryWire {
     pub subjects: Vec<String>,
     /// Cluster identity by row.
     pub clusters: Vec<String>,
+    /// Heterogeneity-robust rollout specification; absent for the other designs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rollout: Option<crate::rollout_query_wire::RolloutDidWire>,
+    /// Whole-procedure resample of a rollout or augmented panel; absent when none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resampling: Option<crate::rollout_query_wire::DidResamplingWire>,
 }
 
 /// Row-aligned synthetic-control design frozen in query identity.
@@ -1562,6 +1258,12 @@ pub struct SyntheticControlQueryWire {
     /// Positive donor outcome-model ridge penalty for augmented synthetic control.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub augmentation_ridge: Option<f64>,
+    /// Adopting units and interval construction; absent for a point-only panel.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rollout: Option<crate::rollout_query_wire::SyntheticRolloutWire>,
+    /// Whether an unbalanced panel is read over the treated unit's observed window.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub observed_window_support: bool,
 }
 
 /// Fixed-cutoff local ratio design, including whether the contrast is a kink.
@@ -1580,6 +1282,9 @@ pub struct LocalPolynomialRatioQueryWire {
     pub bandwidth: f64,
     /// Whether to use the slope-kink contrast.
     pub kink: bool,
+    /// Bandwidth selection, calendar-time running variable and diagnostics; absent when none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub options: Option<crate::rollout_query_wire::LocalRatioOptionsWire>,
 }
 
 /// Frozen policy value inputs retained as part of query identity.
@@ -1901,7 +1606,15 @@ impl CausalQueryWire {
             | Self::SyntheticControl(_)
             | Self::LocalPolynomialRatio(_)
             | Self::Survival(_)
-            | Self::LongitudinalRegime(_) => None,
+            | Self::LongitudinalRegime(_)
+            | Self::SequentialContrast(_)
+            | Self::HistoryMatch(_)
+            | Self::Discover(_)
+            | Self::Attribute(_)
+            | Self::Simulate(_)
+            | Self::TemporalDesign(_)
+            | Self::IvBounds(_)
+            | Self::Association(_) => None,
         }
     }
 
@@ -1936,7 +1649,15 @@ impl CausalQueryWire {
             | Self::SyntheticControl(_)
             | Self::LocalPolynomialRatio(_)
             | Self::Survival(_)
-            | Self::LongitudinalRegime(_) => None,
+            | Self::LongitudinalRegime(_)
+            | Self::SequentialContrast(_)
+            | Self::HistoryMatch(_)
+            | Self::Discover(_)
+            | Self::Attribute(_)
+            | Self::Simulate(_)
+            | Self::TemporalDesign(_)
+            | Self::IvBounds(_)
+            | Self::Association(_) => None,
         }
     }
 }
@@ -1956,6 +1677,38 @@ pub struct TransportQueryWire {
     pub target_population: String,
     /// Source experimental variables.
     pub source_experiments: Vec<u32>,
+    /// Declared weighted target population; omitted when the target is the labelled population.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weighted_target: Option<WeightedTargetWire>,
+}
+
+/// Weighted transport target wire form.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct WeightedTargetWire {
+    /// Lowercase hex of the 32-byte identity of the declaration and the weight bits.
+    pub identity: String,
+    /// Covariates the weights are a function of.
+    pub covariates: Vec<u32>,
+    /// IEEE bits of the ESS-fraction floor.
+    pub min_ess_fraction_bits: u64,
+    /// Declared kernel; omitted for explicit row weights.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kernel: Option<TargetKernelWire>,
+}
+
+/// Declared kernel of a weighted transport target.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct TargetKernelWire {
+    /// Kernel family id.
+    pub family: String,
+    /// Bandwidth bits.
+    pub bandwidth_bits: u64,
+    /// Center coordinate bits.
+    pub center_bits: Vec<u64>,
+    /// Scale bits.
+    pub scale_bits: Vec<u64>,
 }
 
 /// Known assignment design wire form.
@@ -2193,6 +1946,9 @@ pub enum AllocationMethodWire {
         allow_exact_override: bool,
         /// Seed.
         seed: u64,
+        /// Ceiling on planned coalition sample draws; absent keeps the default ceiling.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        sample_budget: Option<u64>,
     },
     /// Path-based.
     PathBased,
@@ -2263,6 +2019,7 @@ fn allocation_to_wire(a: &AllocationMethod) -> Result<AllocationMethodWire, IoEr
                 max_exact_components: crate::error::fit_u64(approximation.max_exact_components)?,
                 allow_exact_override: approximation.allow_exact_override,
                 seed: approximation.seed,
+                sample_budget: approximation.sample_budget,
             }
         }
         _ => return Err(IoError::Convert("unsupported AllocationMethod".into())),
@@ -2286,9 +2043,15 @@ fn allocation_from_wire(a: &AllocationMethodWire) -> Result<AllocationMethod, Io
             max_exact_components,
             allow_exact_override,
             seed,
+            sample_budget,
         } => {
             let n_usize = usize::try_from(*n).map_err(|_| IoError::TooLarge)?;
             let mode = match mode {
+                ShapleyModeWire::Exact if n_usize != 0 => {
+                    return Err(IoError::Convert(
+                        "exact Shapley allocation takes no sample count".into(),
+                    ));
+                }
                 ShapleyModeWire::Exact => ShapleyMode::Exact,
                 ShapleyModeWire::MonteCarlo => ShapleyMode::MonteCarlo { n_samples: n_usize },
                 ShapleyModeWire::Permutation => {
@@ -2302,1327 +2065,270 @@ fn allocation_from_wire(a: &AllocationMethodWire) -> Result<AllocationMethod, Io
                         .map_err(|_| IoError::TooLarge)?,
                     allow_exact_override: *allow_exact_override,
                     seed: *seed,
+                    sample_budget: *sample_budget,
                 },
             }
         }
     })
 }
 
-/// Encode any [`CausalQuery`].
-///
-/// # Errors
-///
-/// Unsupported nested fields.
-pub fn causal_query_to_wire(q: &CausalQuery) -> Result<CausalQueryWire, IoError> {
-    causal_query_to_wire_with_registry(q, None)
-}
+mod decode;
+mod encode;
 
-/// Encode any [`CausalQuery`], resolving registry-backed populations.
-///
-/// # Errors
-///
-/// Unsupported nested fields or missing registry entries.
-#[allow(
-    clippy::too_many_lines,
-    reason = "one arm per query kind, each converting that kind fields"
-)]
-pub fn causal_query_to_wire_with_registry(
-    q: &CausalQuery,
-    registry: Option<&PopulationRegistry>,
-) -> Result<CausalQueryWire, IoError> {
-    Ok(match q {
-        CausalQuery::AverageEffect(q) => CausalQueryWire::AverageEffect {
-            treatment: q.treatment.raw(),
-            outcome: q.outcome.raw(),
-            effect_modifiers: vars_to_raw(&q.effect_modifiers),
-            control: InterventionWire::from_domain(&q.control)?,
-            active: InterventionWire::from_domain(&q.active)?,
-            target_population: TargetPopulationWire::from_domain_with_registry(
-                &q.target_population,
-                registry,
-            )?,
-            outcome_functional: OutcomeFunctionalWire::from_domain(&q.outcome_functional),
-        },
-        CausalQuery::TemporalEffect(q) => CausalQueryWire::TemporalEffect {
-            treatment: q.treatment.raw(),
-            outcome: q.outcome.raw(),
-            policy: TemporalPolicyWire::from_domain(&q.policy)?,
-            control: InterventionWire::from_domain(&q.control)?,
-            active: InterventionWire::from_domain(&q.active)?,
-            horizon_steps: q.horizon_steps,
-            max_history_lag: q.max_history_lag,
-            target_population: TargetPopulationWire::from_domain_with_registry(
-                &q.target_population,
-                registry,
-            )?,
-            effect_modifiers: q.effect_modifiers.iter().map(|id| id.raw()).collect(),
-        },
-        CausalQuery::Counterfactual(q) => CausalQueryWire::Counterfactual {
-            outcomes: vars_to_raw(&q.outcomes),
-            interventions: q
-                .interventions
-                .iter()
-                .map(InterventionWire::from_domain)
-                .collect::<Result<Vec<_>, _>>()?,
-            control: Some(InterventionWire::from_domain(&q.control)?),
-            allow_nested: q.allow_nested,
-        },
-        CausalQuery::NestedCounterfactual(q) => CausalQueryWire::NestedCounterfactual {
-            treatment: q.treatment.raw(),
-            mediator: q.mediator.raw(),
-            outcome: q.outcome.raw(),
-            control_bits: q.control_value().to_bits(),
-            active_bits: q.active_value().to_bits(),
-        },
-        CausalQuery::AnomalyAttribution(q) => CausalQueryWire::AnomalyAttribution {
-            targets: vars_to_raw(&q.targets),
-            unit_rows: q
-                .unit_rows
-                .as_ref()
-                .map(|rows| {
-                    rows.iter()
-                        .map(|&r| u64::try_from(r).map_err(|_| IoError::TooLarge))
-                        .collect::<Result<Vec<_>, _>>()
-                })
-                .transpose()?,
-            max_units: crate::error::fit_u64(q.max_units)?,
-            reference: Some(match q.reference {
-                AnomalyReference::Empirical => None,
-                AnomalyReference::Fixed { center, scale } => {
-                    Some((center.to_f64(), scale.to_f64()))
-                }
-            }),
-        },
-        CausalQuery::ChangeAttribution(q) => CausalQueryWire::ChangeAttribution {
-            outcome: q.outcome.raw(),
-            baseline: population_to_wire(&q.baseline)?,
-            comparison: population_to_wire(&q.comparison)?,
-            components: q.components.try_into()?,
-            allocation: allocation_to_wire(&q.allocation)?,
-            max_components: crate::error::fit_u64(q.max_components)?,
-        },
-        CausalQuery::MechanismChange(q) => CausalQueryWire::MechanismChange {
-            targets: vars_to_raw(&q.targets),
-            baseline: population_to_wire(&q.baseline)?,
-            comparison: population_to_wire(&q.comparison)?,
-            significance_level_bits: q.significance_level.to_f64().to_bits(),
-            max_targets: crate::error::fit_u64(q.max_targets)?,
-        },
-        CausalQuery::UnitChange(q) => CausalQueryWire::UnitChange {
-            outcome: q.outcome.raw(),
-            unit_rows: q
-                .unit_rows
-                .as_ref()
-                .map(|rows| {
-                    rows.iter()
-                        .map(|&r| u64::try_from(r).map_err(|_| IoError::TooLarge))
-                        .collect::<Result<Vec<_>, _>>()
-                })
-                .transpose()?,
-            components: q.components.try_into()?,
-            allocation: allocation_to_wire(&q.allocation)?,
-            max_units: crate::error::fit_u64(q.max_units)?,
-        },
-        CausalQuery::Mediation(q) => CausalQueryWire::Mediation {
-            treatment: q.treatment.raw(),
-            outcome: q.outcome.raw(),
-            mediators: vars_to_raw(&q.mediators),
-            contrast: q.contrast.into(),
-            control: InterventionWire::from_domain(&q.control)?,
-            active: InterventionWire::from_domain(&q.active)?,
-            target_population: TargetPopulationWire::from_domain_with_registry(
-                &q.target_population,
-                registry,
-            )?,
-            horizons: q.horizons.iter().copied().collect(),
-        },
-        CausalQuery::ConditionalEffect(q) => CausalQueryWire::ConditionalEffect {
-            inner: Box::new(causal_query_to_wire_with_registry(
-                &CausalQuery::AverageEffect(q.inner.clone()),
-                registry,
-            )?),
-        },
-        CausalQuery::Distribution(q) => {
-            CausalQueryWire::Distribution(interventional_distribution_to_wire(q)?)
-        }
-        CausalQuery::PathSpecific(q) => CausalQueryWire::PathSpecific(path_specific_to_wire(q)?),
-        CausalQuery::Response(q) => CausalQueryWire::Response(response_query_to_wire(q)?),
-        CausalQuery::Transport(q) => CausalQueryWire::Transport(transport_query_to_wire(q)?),
-        CausalQuery::Interference(q) => {
-            CausalQueryWire::Interference(interference_query_to_wire(q)?)
-        }
-        CausalQuery::RandomizedEffect(q) => {
-            CausalQueryWire::RandomizedEffect(RandomizedEffectQueryWire {
-                estimand: match q.estimand {
-                    antecedent_core::RandomizedEstimand::IntentionToTreat => {
-                        RandomizedEstimandWire::Itt
-                    }
-                    antecedent_core::RandomizedEstimand::ComplierAverageCausalEffect => {
-                        RandomizedEstimandWire::CaceLate
-                    }
-                    antecedent_core::RandomizedEstimand::TreatmentOnTreated => {
-                        RandomizedEstimandWire::TreatmentOnTreated
-                    }
-                },
-                design: match &q.design {
-                    RandomizationDesign::Bernoulli => RandomizationDesignWire::Bernoulli,
-                    RandomizationDesign::Complete { treated_units } => {
-                        RandomizationDesignWire::Complete { treated_units: *treated_units }
-                    }
-                    RandomizationDesign::Cluster { treated_clusters } => {
-                        RandomizationDesignWire::Cluster { treated_clusters: *treated_clusters }
-                    }
-                    RandomizationDesign::Stratified { .. } => RandomizationDesignWire::Stratified,
-                    RandomizationDesign::Factorial2x2 { .. } => {
-                        RandomizationDesignWire::Factorial2x2
-                    }
-                    RandomizationDesign::MultiArm { .. } => RandomizationDesignWire::MultiArm,
-                    RandomizationDesign::Switchback { .. } => RandomizationDesignWire::Switchback,
-                },
-                outcome: q.outcome.raw(),
-                realized_assignment: q.realized_assignment.to_vec(),
-                assignment_probabilities: q.assignment_probabilities.to_vec(),
-                assignment_units: q.assignment_units.iter().map(ToString::to_string).collect(),
-                outcome_units: q.outcome_units.iter().map(ToString::to_string).collect(),
-                treatment_arms: (q.treatment_arms.0.to_string(), q.treatment_arms.1.to_string()),
-                blocks: match &q.design {
-                    RandomizationDesign::Stratified { blocks, .. } => {
-                        blocks.iter().map(ToString::to_string).collect()
-                    }
-                    _ => Vec::new(),
-                },
-                treated_per_row: match &q.design {
-                    RandomizationDesign::Stratified { treated_per_row, .. } => {
-                        treated_per_row.to_vec()
-                    }
-                    _ => Vec::new(),
-                },
-                fixed_cuped: q.fixed_cuped.map(|(id, coefficient)| (id.raw(), coefficient)),
-                ancova_covariates: q.ancova_covariates.iter().map(|id| id.raw()).collect(),
-                received_treatment: q.received_treatment.as_ref().map(|receipt| receipt.to_vec()),
-                exact_randomization_test: q.exact_randomization_test,
-                second_factor_assignment: match &q.design {
-                    RandomizationDesign::Factorial2x2 { second_factor_assignment, .. } => {
-                        second_factor_assignment.to_vec()
-                    }
-                    _ => Vec::new(),
-                },
-                factorial_cell_counts: match &q.design {
-                    RandomizationDesign::Factorial2x2 { cell_counts, .. } => Some(*cell_counts),
-                    _ => None,
-                },
-                second_factor_arms: match &q.design {
-                    RandomizationDesign::Factorial2x2 { second_factor_arms, .. } => {
-                        Some((second_factor_arms.0.to_string(), second_factor_arms.1.to_string()))
-                    }
-                    _ => None,
-                },
-                multi_arm_labels: match &q.design {
-                    RandomizationDesign::MultiArm { arms, .. } => {
-                        arms.iter().map(ToString::to_string).collect()
-                    }
-                    _ => Vec::new(),
-                },
-                multi_arm_assignment: match &q.design {
-                    RandomizationDesign::MultiArm { assignment, .. } => assignment.to_vec(),
-                    _ => Vec::new(),
-                },
-                multi_arm_probabilities: match &q.design {
-                    RandomizationDesign::MultiArm { probabilities, .. } => probabilities.to_vec(),
-                    _ => Vec::new(),
-                },
-                periods: match &q.design {
-                    RandomizationDesign::Switchback { periods } => {
-                        periods.iter().map(ToString::to_string).collect()
-                    }
-                    _ => Vec::new(),
-                },
-            })
-        }
-        CausalQuery::PolicyValue(q) => CausalQueryWire::PolicyValue(PolicyValueQueryWire {
-            outcome: q.outcome.raw(),
-            assignment: q.assignment.to_vec(),
-            propensity: q.propensity.to_vec(),
-            actions: q.actions.to_vec(),
-            reference: q.reference.to_vec(),
-            mu0: q.mu0.to_vec(),
-            mu1: q.mu1.to_vec(),
-            costs: q.costs.to_vec(),
-            reference_costs: q.reference_costs.to_vec(),
-            evaluation_subject_ids: q
-                .evaluation_subject_ids
-                .iter()
-                .map(ToString::to_string)
-                .collect(),
-            disjoint_training_subjects: q.disjoint_training_subjects,
-            crossfit_fold_ownership_valid: q.crossfit_fold_ownership_valid,
-            global_constraints_present: q.global_constraints_present,
-            multi_action: q.multi_action.as_ref().map(Into::into),
-            uplift_bins: q.uplift_bins.to_vec(),
-            uplift_bin_count: q.uplift_bin_count,
-            uplift_training_subject_ids: q
-                .uplift_training_subject_ids
-                .iter()
-                .map(ToString::to_string)
-                .collect(),
-            regret: q.regret.as_ref().map(|regret| FixedCandidateRegretWire {
-                candidates: regret.candidates.iter().map(|candidate| candidate.to_vec()).collect(),
-                selected_index: regret.selected_index,
-                training_subject_ids: regret
-                    .training_subject_ids
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect(),
-            }),
-        }),
-        CausalQuery::ContinuousDoseResponse(q) => {
-            CausalQueryWire::ContinuousDoseResponse(ContinuousDoseResponseQueryWire {
-                outcome: q.outcome.raw(),
-                dose: q.dose.raw(),
-                dose_density: q.dose_density.raw(),
-                baseline_groups: q.baseline_groups.iter().map(ToString::to_string).collect(),
-                target_doses: q.target_doses.to_vec(),
-                bandwidth: q.bandwidth,
-                min_local_support: q.min_local_support,
-                density_provenance: q.density_provenance.to_string(),
-                fixed_policy: q.fixed_policy.as_ref().map(|rule| {
-                    (
-                        rule.policy_doses
-                            .iter()
-                            .map(|(group, dose)| (group.to_string(), *dose))
-                            .collect(),
-                        rule.reference_doses
-                            .iter()
-                            .map(|(group, dose)| (group.to_string(), *dose))
-                            .collect(),
-                    )
-                }),
-            })
-        }
-        CausalQuery::PanelDid(q) => CausalQueryWire::PanelDid(PanelDidQueryWire {
-            outcome: q.outcome.raw(),
-            augmented: q.augmented.as_ref().map(|n| {
-                (
-                    n.outcome_pre.raw(),
-                    n.propensity.raw(),
-                    n.untreated_change_prediction.raw(),
-                    n.predictions_cross_fitted,
-                )
-            }),
-            repeated_cross_section: q.design
-                == antecedent_core::DidSamplingDesign::RepeatedCrossSection,
-            staggered_target: q.target,
-            staggered_event_study: q.design
-                == antecedent_core::DidSamplingDesign::StaggeredEventStudy,
-            periods: q.periods.to_vec(),
-            cohorts: q.cohorts.to_vec(),
-            treated: q.treated.to_vec(),
-            post: q.post.to_vec(),
-            subjects: q.subjects.iter().map(ToString::to_string).collect(),
-            clusters: q.clusters.iter().map(ToString::to_string).collect(),
-        }),
-        CausalQuery::SyntheticControl(q) => {
-            CausalQueryWire::SyntheticControl(SyntheticControlQueryWire {
-                outcome: q.outcome.raw(),
-                units: q.units.iter().map(ToString::to_string).collect(),
-                periods: q.periods.to_vec(),
-                treated_unit: q.treated_unit.to_string(),
-                intervention_period: q.intervention_period,
-                difference_in_differences: q.method
-                    == antecedent_core::SyntheticPanelMethod::DifferenceInDifferences,
-                uniform_unit_randomization: q.uniform_unit_randomization,
-                sharp_null_effect: q.sharp_null_effect,
-                augmentation_ridge: q.augmentation_ridge,
-            })
-        }
-        CausalQuery::LocalPolynomialRatio(q) => {
-            CausalQueryWire::LocalPolynomialRatio(LocalPolynomialRatioQueryWire {
-                outcome: q.outcome.raw(),
-                treatment: q.treatment.raw(),
-                running: q.running.raw(),
-                cutoff: q.cutoff,
-                bandwidth: q.bandwidth,
-                kink: q.kink,
-            })
-        }
-        CausalQuery::Survival(q) => CausalQueryWire::Survival(SurvivalQueryWire {
-            duration: q.duration.raw(),
-            event: q.event.raw(),
-            treatment: q.treatment.raw(),
-            tau: q.tau,
-            delayed_entry: q.delayed_entry.map(antecedent_core::VariableId::raw),
-            target_cause: match q.functional {
-                antecedent_core::SurvivalFunctional::SurvivalAndRmst => None,
-                antecedent_core::SurvivalFunctional::CumulativeIncidence { target_cause } => {
-                    Some(target_cause)
-                }
-            },
-            independent_observation: matches!(
-                &q.observation_assumption,
-                antecedent_core::ObservationAssumption::IndependentGiven(_)
-            ),
-            independent_given: match &q.observation_assumption {
-                antecedent_core::ObservationAssumption::IndependentGiven(vars) => {
-                    vars.iter().map(|id| id.raw()).collect()
-                }
-                _ => Vec::new(),
-            },
-            censoring_times: q
-                .known_censoring
-                .as_ref()
-                .map_or_else(Vec::new, |known| known.times.to_vec()),
-            censoring_columns: q
-                .known_censoring
-                .as_ref()
-                .map_or_else(Vec::new, |known| known.columns.iter().map(|id| id.raw()).collect()),
-            censoring_probability_floor: q
-                .known_censoring
-                .as_ref()
-                .map(|known| known.minimum_probability),
-        }),
-        CausalQuery::LongitudinalRegime(q) => {
-            CausalQueryWire::LongitudinalRegime(LongitudinalRegimeQueryWire {
-                outcome: q.outcome.raw(),
-                method: match q.method {
-                    antecedent_core::LongitudinalRegimeMethod::Ipw => "ipw",
-                    antecedent_core::LongitudinalRegimeMethod::GFormula => "g_formula",
-                    antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => {
-                        "sequential_dr"
-                    }
-                    antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel => {
-                        "marginal_structural_model"
-                    }
-                }
-                .into(),
-                period_outcome_predictions: q
-                    .period_outcome_predictions
-                    .as_ref()
-                    .map_or_else(Vec::new, |q| q.to_vec()),
-                known_fixed_outcome_predictions: q.known_fixed_outcome_predictions,
-                stabilizing_numerator_probabilities: q
-                    .stabilizing_numerator_probabilities
-                    .as_ref()
-                    .map_or_else(Vec::new, |p| p.to_vec()),
-                q_predictions: q.q_predictions.as_ref().map_or_else(Vec::new, |q| q.to_vec()),
-                observation_history: q
-                    .observation_history
-                    .as_ref()
-                    .map_or_else(Vec::new, |o| o.to_vec()),
-                prediction_fold_ids: q
-                    .prediction_fold_ids
-                    .as_ref()
-                    .map_or_else(Vec::new, |f| f.to_vec()),
-                periods: q.periods,
-                treatment_history: q.treatment_history.to_vec(),
-                regime_actions: q.regime_actions.to_vec(),
-                treatment_probabilities: q.treatment_probabilities.to_vec(),
-                censoring_probabilities: q.censoring_probabilities.to_vec(),
-                outcome_observed: q.outcome_observed.to_vec(),
-                subject_ids: q.subject_ids.iter().map(ToString::to_string).collect(),
-                fold_ids: q.fold_ids.to_vec(),
-                excluded_fold_predictions: q.excluded_fold_predictions,
-                probabilities_known_by_design: q.probabilities_known_by_design,
-                minimum_probability: q.minimum_probability,
-                rule_id: q.rule_id.as_ref().map(ToString::to_string),
-                rule_version: q.rule_version.as_ref().map(ToString::to_string),
-                rule_provenance: q.rule_provenance.as_ref().map(ToString::to_string),
-            })
-        }
-        _ => return Err(IoError::Convert("unsupported CausalQuery variant".into())),
-    })
-}
-
-/// Decode [`CausalQueryWire`].
-///
-/// # Errors
-///
-/// Unknown tags or size overflows.
-#[allow(
-    clippy::too_many_lines,
-    reason = "one arm per query kind, each converting that kind fields"
-)]
-pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoError> {
-    Ok(match w {
-        CausalQueryWire::AverageEffect {
-            treatment,
-            outcome,
-            effect_modifiers,
-            control,
-            active,
-            target_population,
-            outcome_functional,
-        } => CausalQuery::AverageEffect(
-            AverageEffectQuery::new(
-                VariableId::from_raw(*treatment),
-                VariableId::from_raw(*outcome),
-                vars_from_raw(effect_modifiers),
-                control.to_domain(),
-                active.to_domain(),
-                target_population.to_domain()?,
-            )
-            .with_outcome_functional(outcome_functional.to_domain()),
-        ),
-        CausalQueryWire::TemporalEffect {
-            treatment,
-            outcome,
-            policy,
-            control,
-            active,
-            horizon_steps,
-            max_history_lag,
-            target_population,
-            effect_modifiers,
-        } => CausalQuery::TemporalEffect(TemporalEffectQuery {
-            treatment: VariableId::from_raw(*treatment),
-            outcome: VariableId::from_raw(*outcome),
-            policy: policy.to_domain(),
-            control: control.to_domain(),
-            active: active.to_domain(),
-            horizon_steps: *horizon_steps,
-            max_history_lag: *max_history_lag,
-            target_population: target_population.to_domain()?,
-            effect_modifiers: effect_modifiers.iter().copied().map(VariableId::from_raw).collect(),
-        }),
-        CausalQueryWire::Counterfactual { outcomes, interventions, control, allow_nested } => {
-            let interventions: Arc<[Intervention]> =
-                interventions.iter().map(InterventionWire::to_domain).collect::<Vec<_>>().into();
-            let control = match control {
-                Some(c) => c.to_domain(),
-                None => CounterfactualQuery::default_control(&interventions),
-            };
-            CausalQuery::Counterfactual(CounterfactualQuery {
-                outcomes: vars_from_raw(outcomes),
-                interventions,
-                control,
-                allow_nested: *allow_nested,
-            })
-        }
-        CausalQueryWire::NestedCounterfactual {
-            treatment,
-            mediator,
-            outcome,
-            control_bits,
-            active_bits,
-        } => {
-            let query = antecedent_core::NestedCounterfactualQuery::with_levels(
-                antecedent_core::VariableId::from_raw(*treatment),
-                antecedent_core::VariableId::from_raw(*mediator),
-                antecedent_core::VariableId::from_raw(*outcome),
-                f64::from_bits(*control_bits),
-                f64::from_bits(*active_bits),
-            )
-            .map_err(|e| IoError::Convert(e.to_string()))?;
-            CausalQuery::NestedCounterfactual(query)
-        }
-        CausalQueryWire::AnomalyAttribution { targets, unit_rows, max_units, reference } => {
-            CausalQuery::AnomalyAttribution(AnomalyAttributionQuery {
-                targets: vars_from_raw(targets),
-                unit_rows: unit_rows
-                    .as_ref()
-                    .map(|rows| {
-                        rows.iter()
-                            .map(|&r| usize::try_from(r).map_err(|_| IoError::TooLarge))
-                            .collect::<Result<Vec<_>, _>>()
-                    })
-                    .transpose()?
-                    .map(Arc::from),
-                max_units: usize::try_from(*max_units).map_err(|_| IoError::TooLarge)?,
-                reference: match reference.flatten() {
-                    None => AnomalyReference::Empirical,
-                    Some((center, scale)) => AnomalyReference::fixed(center, scale),
-                },
-            })
-        }
-        CausalQueryWire::ChangeAttribution {
-            outcome,
-            baseline,
-            comparison,
-            components,
-            allocation,
-            max_components,
-        } => CausalQuery::ChangeAttribution(ChangeAttributionQuery {
-            outcome: VariableId::from_raw(*outcome),
-            baseline: population_from_wire(baseline)?,
-            comparison: population_from_wire(comparison)?,
-            components: (*components).into(),
-            allocation: allocation_from_wire(allocation)?,
-            max_components: usize::try_from(*max_components).map_err(|_| IoError::TooLarge)?,
-        }),
-        CausalQueryWire::MechanismChange {
-            targets,
-            baseline,
-            comparison,
-            significance_level_bits,
-            max_targets,
-        } => CausalQuery::MechanismChange(MechanismChangeQuery {
-            targets: vars_from_raw(targets),
-            baseline: population_from_wire(baseline)?,
-            comparison: population_from_wire(comparison)?,
-            significance_level: OrderedFloatBits::from_f64(f64::from_bits(
-                *significance_level_bits,
-            )),
-            max_targets: usize::try_from(*max_targets).map_err(|_| IoError::TooLarge)?,
-        }),
-        CausalQueryWire::UnitChange { outcome, unit_rows, components, allocation, max_units } => {
-            CausalQuery::UnitChange(UnitChangeQuery {
-                outcome: VariableId::from_raw(*outcome),
-                unit_rows: unit_rows
-                    .as_ref()
-                    .map(|rows| {
-                        rows.iter()
-                            .map(|&r| usize::try_from(r).map_err(|_| IoError::TooLarge))
-                            .collect::<Result<Vec<_>, _>>()
-                    })
-                    .transpose()?
-                    .map(Arc::from),
-                components: (*components).into(),
-                allocation: allocation_from_wire(allocation)?,
-                max_units: usize::try_from(*max_units).map_err(|_| IoError::TooLarge)?,
-            })
-        }
-        CausalQueryWire::Mediation {
-            treatment,
-            outcome,
-            mediators,
-            contrast,
-            control,
-            active,
-            target_population,
-            horizons,
-        } => {
-            let query = MediationQuery {
-                treatment: VariableId::from_raw(*treatment),
-                outcome: VariableId::from_raw(*outcome),
-                mediators: vars_from_raw(mediators),
-                contrast: (*contrast).into(),
-                control: control.to_domain(),
-                active: active.to_domain(),
-                target_population: target_population.to_domain()?,
-                horizons: Arc::from(horizons.as_slice()),
-            };
-            query.validate().map_err(|e| IoError::Convert(e.to_string()))?;
-            CausalQuery::Mediation(query)
-        }
-        CausalQueryWire::ConditionalEffect { inner } => {
-            let CausalQuery::AverageEffect(inner_q) = causal_query_from_wire(inner)? else {
-                return Err(IoError::Convert(
-                    "ConditionalEffect.inner must be AverageEffect".into(),
-                ));
-            };
-            CausalQuery::ConditionalEffect(ConditionalEffectQuery { inner: inner_q })
-        }
-        CausalQueryWire::Distribution(w) => {
-            CausalQuery::Distribution(interventional_distribution_from_wire(w)?)
-        }
-        CausalQueryWire::PathSpecific(w) => CausalQuery::PathSpecific(path_specific_from_wire(w)?),
-        CausalQueryWire::Response(w) => CausalQuery::Response(response_query_from_wire(w)?),
-        CausalQueryWire::Transport(w) => CausalQuery::Transport(transport_query_from_wire(w)?),
-        CausalQueryWire::Interference(w) => {
-            CausalQuery::Interference(interference_query_from_wire(w)?)
-        }
-        CausalQueryWire::RandomizedEffect(w) => {
-            if !matches!(w.design, RandomizationDesignWire::MultiArm)
-                && (!w.multi_arm_labels.is_empty()
-                    || !w.multi_arm_assignment.is_empty()
-                    || !w.multi_arm_probabilities.is_empty())
-            {
-                return Err(IoError::Convert(
-                    "multi-arm metadata requires a multi-arm design".into(),
-                ));
-            }
-            if !matches!(w.design, RandomizationDesignWire::Factorial2x2)
-                && (!w.second_factor_assignment.is_empty()
-                    || w.factorial_cell_counts.is_some()
-                    || w.second_factor_arms.is_some())
-            {
-                return Err(IoError::Convert(
-                    "factorial metadata requires a factorial design".into(),
-                ));
-            }
-            let design = match &w.design {
-                RandomizationDesignWire::Bernoulli => RandomizationDesign::Bernoulli,
-                RandomizationDesignWire::Complete { treated_units } => {
-                    RandomizationDesign::Complete { treated_units: *treated_units }
-                }
-                RandomizationDesignWire::Cluster { treated_clusters } => {
-                    RandomizationDesign::Cluster { treated_clusters: *treated_clusters }
-                }
-                RandomizationDesignWire::Stratified => RandomizationDesign::Stratified {
-                    blocks: w
-                        .blocks
-                        .iter()
-                        .map(|x| Arc::<str>::from(x.as_str()))
-                        .collect::<Vec<_>>()
-                        .into(),
-                    treated_per_row: w.treated_per_row.clone().into(),
-                },
-                RandomizationDesignWire::Factorial2x2 => RandomizationDesign::Factorial2x2 {
-                    second_factor_assignment: w.second_factor_assignment.clone().into(),
-                    cell_counts: w.factorial_cell_counts.ok_or_else(|| {
-                        IoError::Convert("factorial cell counts are missing".into())
-                    })?,
-                    second_factor_arms: {
-                        let arms = w.second_factor_arms.as_ref().ok_or_else(|| {
-                            IoError::Convert("second-factor labels are missing".into())
-                        })?;
-                        (Arc::<str>::from(arms.0.as_str()), Arc::<str>::from(arms.1.as_str()))
-                    },
-                },
-                RandomizationDesignWire::MultiArm => RandomizationDesign::MultiArm {
-                    assignment: w.multi_arm_assignment.clone().into(),
-                    probabilities: w.multi_arm_probabilities.clone().into(),
-                    arms: w
-                        .multi_arm_labels
-                        .iter()
-                        .map(|arm| Arc::<str>::from(arm.as_str()))
-                        .collect::<Vec<_>>()
-                        .into(),
-                },
-                RandomizationDesignWire::Switchback => RandomizationDesign::Switchback {
-                    periods: w
-                        .periods
-                        .iter()
-                        .map(|period| Arc::<str>::from(period.as_str()))
-                        .collect::<Vec<_>>()
-                        .into(),
-                },
-            };
-            let mut query = RandomizedEffectQuery::with_design(
-                design,
-                VariableId::from_raw(w.outcome),
-                Arc::<[bool]>::from(w.realized_assignment.clone()),
-                Arc::<[f64]>::from(w.assignment_probabilities.clone()),
-                w.assignment_units.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
-                w.outcome_units.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
-                (
-                    Arc::<str>::from(w.treatment_arms.0.as_str()),
-                    Arc::<str>::from(w.treatment_arms.1.as_str()),
-                ),
-            );
-            if let Some((id, coefficient)) = w.fixed_cuped {
-                query = query.with_fixed_cuped(VariableId::from_raw(id), coefficient);
-            }
-            if !w.ancova_covariates.is_empty() {
-                query = query.with_ancova(
-                    w.ancova_covariates
-                        .iter()
-                        .copied()
-                        .map(VariableId::from_raw)
-                        .collect::<Vec<_>>(),
-                );
-            }
-            if let Some(receipt) = &w.received_treatment {
-                query = if w.estimand == RandomizedEstimandWire::TreatmentOnTreated {
-                    query.with_treatment_on_treated(receipt.clone())
-                } else {
-                    query.with_received_treatment(receipt.clone())
-                };
-            }
-            if w.exact_randomization_test {
-                query = query.with_exact_randomization_test();
-            }
-            if (w.estimand != RandomizedEstimandWire::Itt) != w.received_treatment.is_some() {
-                return Err(IoError::Convert(
-                    "receipt-adjusted estimand and treatment receipt must agree".into(),
-                ));
-            }
-            query.validate().map_err(|e| IoError::Convert(e.to_string()))?;
-            CausalQuery::RandomizedEffect(query)
-        }
-        CausalQueryWire::PolicyValue(w) => {
-            let q = PolicyValueQuery {
-                outcome: VariableId::from_raw(w.outcome),
-                assignment: w.assignment.clone().into(),
-                propensity: w.propensity.clone().into(),
-                actions: w.actions.clone().into(),
-                reference: w.reference.clone().into(),
-                mu0: w.mu0.clone().into(),
-                mu1: w.mu1.clone().into(),
-                costs: w.costs.clone().into(),
-                reference_costs: w.reference_costs.clone().into(),
-                evaluation_subject_ids: w
-                    .evaluation_subject_ids
-                    .iter()
-                    .map(|x| Arc::<str>::from(x.as_str()))
-                    .collect::<Vec<_>>()
-                    .into(),
-                disjoint_training_subjects: w.disjoint_training_subjects,
-                crossfit_fold_ownership_valid: w.crossfit_fold_ownership_valid,
-                global_constraints_present: w.global_constraints_present,
-                multi_action: w.multi_action.as_ref().map(Into::into),
-                uplift_bins: w.uplift_bins.clone().into(),
-                uplift_bin_count: w.uplift_bin_count,
-                uplift_training_subject_ids: w
-                    .uplift_training_subject_ids
-                    .iter()
-                    .map(|x| Arc::<str>::from(x.as_str()))
-                    .collect::<Vec<_>>()
-                    .into(),
-                regret: w.regret.as_ref().map(|regret| {
-                    antecedent_core::FixedCandidateRegretInputs {
-                        candidates: regret
-                            .candidates
-                            .iter()
-                            .map(|actions| Arc::<[bool]>::from(actions.clone()))
-                            .collect::<Vec<_>>()
-                            .into(),
-                        selected_index: regret.selected_index,
-                        training_subject_ids: regret
-                            .training_subject_ids
-                            .iter()
-                            .map(|id| Arc::<str>::from(id.as_str()))
-                            .collect::<Vec<_>>()
-                            .into(),
-                    }
-                }),
-            };
-            q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
-            CausalQuery::PolicyValue(q)
-        }
-        CausalQueryWire::ContinuousDoseResponse(w) => {
-            let q = antecedent_core::ContinuousDoseResponseQuery {
-                outcome: VariableId::from_raw(w.outcome),
-                dose: VariableId::from_raw(w.dose),
-                dose_density: VariableId::from_raw(w.dose_density),
-                baseline_groups: w
-                    .baseline_groups
-                    .iter()
-                    .map(|value| Arc::<str>::from(value.as_str()))
-                    .collect::<Vec<_>>()
-                    .into(),
-                target_doses: w.target_doses.clone().into(),
-                bandwidth: w.bandwidth,
-                min_local_support: w.min_local_support,
-                density_provenance: Arc::from(w.density_provenance.as_str()),
-                fixed_policy: w.fixed_policy.as_ref().map(|(policy, reference)| {
-                    antecedent_core::FixedGroupDosePolicy {
-                        policy_doses: policy
-                            .iter()
-                            .map(|(group, dose)| (Arc::from(group.as_str()), *dose))
-                            .collect::<Vec<_>>()
-                            .into(),
-                        reference_doses: reference
-                            .iter()
-                            .map(|(group, dose)| (Arc::from(group.as_str()), *dose))
-                            .collect::<Vec<_>>()
-                            .into(),
-                    }
-                }),
-            };
-            q.validate().map_err(|error| IoError::Convert(error.to_string()))?;
-            CausalQuery::ContinuousDoseResponse(q)
-        }
-        CausalQueryWire::PanelDid(w) => {
-            let q = if let Some((pre, propensity, prediction, cross_fitted)) = w.augmented {
-                if w.staggered_event_study
-                    || w.staggered_target.is_some()
-                    || w.repeated_cross_section
-                    || !w.periods.is_empty()
-                    || !w.cohorts.is_empty()
-                {
-                    return Err(IoError::Convert(
-                        "augmented panel DiD cannot also select another sampling design".into(),
-                    ));
-                }
-                PanelDidQuery::augmented_panel(
-                    VariableId::from_raw(w.outcome),
-                    VariableId::from_raw(pre),
-                    VariableId::from_raw(propensity),
-                    VariableId::from_raw(prediction),
-                    w.treated.clone(),
-                    w.subjects.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
-                    w.clusters.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
-                    cross_fitted,
-                )
-            } else if w.staggered_event_study {
-                if w.repeated_cross_section || w.staggered_target.is_some() {
-                    return Err(IoError::Convert("event study cannot also select a group-time target or repeated cross section".into()));
-                }
-                PanelDidQuery::staggered_event_study(
-                    VariableId::from_raw(w.outcome),
-                    w.subjects.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
-                    w.clusters.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
-                    w.periods.clone(),
-                    w.cohorts.clone(),
-                )
-            } else if let Some((cohort, period)) = w.staggered_target {
-                if w.repeated_cross_section {
-                    return Err(IoError::Convert(
-                        "staggered DiD cannot also be a repeated cross section".into(),
-                    ));
-                }
-                PanelDidQuery::staggered_group_time(
-                    VariableId::from_raw(w.outcome),
-                    w.subjects.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
-                    w.clusters.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
-                    w.periods.clone(),
-                    w.cohorts.clone(),
-                    cohort,
-                    period,
-                )
-            } else {
-                let constructor = if w.repeated_cross_section {
-                    PanelDidQuery::repeated_cross_section
-                } else {
-                    PanelDidQuery::new
-                };
-                constructor(
-                    VariableId::from_raw(w.outcome),
-                    w.treated.clone(),
-                    w.post.clone(),
-                    w.subjects.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
-                    w.clusters.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
-                )
-            };
-            if (w.staggered_target.is_some() || w.staggered_event_study || w.augmented.is_some())
-                && (q.treated.as_ref() != w.treated.as_slice()
-                    || q.post.as_ref() != w.post.as_slice())
-            {
-                return Err(IoError::Convert(
-                    "staggered DiD treatment and post indicators disagree with cohort and period metadata".into(),
-                ));
-            }
-            q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
-            CausalQuery::PanelDid(q)
-        }
-        CausalQueryWire::SyntheticControl(w) => {
-            let q = SyntheticControlQuery::new(
-                VariableId::from_raw(w.outcome),
-                w.units.iter().map(|unit| Arc::<str>::from(unit.as_str())).collect::<Vec<_>>(),
-                w.periods.clone(),
-                Arc::<str>::from(w.treated_unit.as_str()),
-                w.intervention_period,
-            );
-            let q = if w.difference_in_differences { q.difference_in_differences() } else { q };
-            let q =
-                if w.uniform_unit_randomization { q.with_uniform_unit_randomization() } else { q };
-            let q = if let Some(effect) = w.sharp_null_effect {
-                q.with_sharp_null_effect(effect)
-            } else {
-                q
-            };
-            let q =
-                if let Some(ridge) = w.augmentation_ridge { q.with_augmentation(ridge) } else { q };
-            q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
-            CausalQuery::SyntheticControl(q)
-        }
-        CausalQueryWire::LocalPolynomialRatio(w) => {
-            let q = LocalPolynomialRatioQuery {
-                outcome: VariableId::from_raw(w.outcome),
-                treatment: VariableId::from_raw(w.treatment),
-                running: VariableId::from_raw(w.running),
-                cutoff: w.cutoff,
-                bandwidth: w.bandwidth,
-                kink: w.kink,
-            };
-            q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
-            CausalQuery::LocalPolynomialRatio(q)
-        }
-        CausalQueryWire::Survival(w) => {
-            if w.censoring_probability_floor.is_none()
-                && (!w.censoring_times.is_empty() || !w.censoring_columns.is_empty())
-            {
-                return Err(IoError::Convert(
-                    "censoring grid requires its positivity floor".into(),
-                ));
-            }
-            let q = antecedent_core::SurvivalQuery {
-                duration: VariableId::from_raw(w.duration),
-                event: VariableId::from_raw(w.event),
-                treatment: VariableId::from_raw(w.treatment),
-                tau: w.tau,
-                delayed_entry: w.delayed_entry.map(VariableId::from_raw),
-                known_censoring: w.censoring_probability_floor.map(|minimum_probability| {
-                    antecedent_core::KnownCensoringSurvival {
-                        times: Arc::from(w.censoring_times.clone()),
-                        columns: Arc::from(
-                            w.censoring_columns
-                                .iter()
-                                .copied()
-                                .map(VariableId::from_raw)
-                                .collect::<Vec<_>>(),
-                        ),
-                        minimum_probability,
-                    }
-                }),
-                observation_assumption: if w.independent_observation {
-                    antecedent_core::ObservationAssumption::IndependentGiven(Arc::from(
-                        w.independent_given
-                            .iter()
-                            .copied()
-                            .map(VariableId::from_raw)
-                            .collect::<Vec<_>>(),
-                    ))
-                } else {
-                    return Err(IoError::Convert(
-                        "survival requires marginal independent observation declaration".into(),
-                    ));
-                },
-                functional: w.target_cause.map_or(
-                    antecedent_core::SurvivalFunctional::SurvivalAndRmst,
-                    |target_cause| antecedent_core::SurvivalFunctional::CumulativeIncidence {
-                        target_cause,
-                    },
-                ),
-            };
-            q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
-            CausalQuery::Survival(q)
-        }
-        CausalQueryWire::LongitudinalRegime(w) => {
-            let method = match w.method.as_str() {
-                "ipw" => antecedent_core::LongitudinalRegimeMethod::Ipw,
-                "g_formula" => antecedent_core::LongitudinalRegimeMethod::GFormula,
-                "sequential_dr" => {
-                    antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust
-                }
-                "marginal_structural_model" => {
-                    antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel
-                }
-                _ => return Err(IoError::Convert("unknown longitudinal regime method".into())),
-            };
-            let q = antecedent_core::LongitudinalRegimeQuery {
-                outcome: VariableId::from_raw(w.outcome),
-                periods: w.periods,
-                method,
-                period_outcome_predictions: if w.period_outcome_predictions.is_empty() {
-                    None
-                } else {
-                    Some(w.period_outcome_predictions.clone().into())
-                },
-                known_fixed_outcome_predictions: w.known_fixed_outcome_predictions,
-                stabilizing_numerator_probabilities: if w
-                    .stabilizing_numerator_probabilities
-                    .is_empty()
-                {
-                    None
-                } else {
-                    Some(w.stabilizing_numerator_probabilities.clone().into())
-                },
-                q_predictions: if w.q_predictions.is_empty() {
-                    None
-                } else {
-                    Some(w.q_predictions.clone().into())
-                },
-                observation_history: if w.observation_history.is_empty() {
-                    None
-                } else {
-                    Some(w.observation_history.clone().into())
-                },
-                prediction_fold_ids: if w.prediction_fold_ids.is_empty() {
-                    None
-                } else {
-                    Some(w.prediction_fold_ids.clone().into())
-                },
-                treatment_history: w.treatment_history.clone().into(),
-                regime_actions: w.regime_actions.clone().into(),
-                treatment_probabilities: w.treatment_probabilities.clone().into(),
-                censoring_probabilities: w.censoring_probabilities.clone().into(),
-                outcome_observed: w.outcome_observed.clone().into(),
-                subject_ids: w
-                    .subject_ids
-                    .iter()
-                    .map(|s| Arc::<str>::from(s.as_str()))
-                    .collect::<Vec<_>>()
-                    .into(),
-                fold_ids: w.fold_ids.clone().into(),
-                excluded_fold_predictions: w.excluded_fold_predictions,
-                probabilities_known_by_design: w.probabilities_known_by_design,
-                minimum_probability: w.minimum_probability,
-                rule_id: w.rule_id.as_deref().map(Arc::<str>::from),
-                rule_version: w.rule_version.as_deref().map(Arc::<str>::from),
-                rule_provenance: w.rule_provenance.as_deref().map(Arc::<str>::from),
-            };
-            q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
-            CausalQuery::LongitudinalRegime(q)
-        }
-    })
-}
-
-/// Encode a structural transport query.
-///
-/// # Errors
-///
-/// Unsupported response-query fields.
-pub fn transport_query_to_wire(q: &TransportQuery) -> Result<TransportQueryWire, IoError> {
-    Ok(TransportQueryWire {
-        catalog: q
-            .catalog
-            .as_ref()
-            .map(crate::transport_catalog_wire::EvidenceCatalogWire::from_catalog),
-        response: response_query_to_wire(&q.response)?,
-        source_population: q.source_population.to_string(),
-        target_population: q.target_population.to_string(),
-        source_experiments: vars_to_raw(&q.source_experiments),
-    })
-}
-
-/// Decode and validate a structural transport query.
-///
-/// # Errors
-///
-/// Invalid response or transport semantics.
-pub fn transport_query_from_wire(w: &TransportQueryWire) -> Result<TransportQuery, IoError> {
-    let mut query = TransportQuery::new(
-        response_query_from_wire(&w.response)?,
-        w.source_population.as_str(),
-        w.target_population.as_str(),
-        vars_from_raw(&w.source_experiments),
-    );
-    if let Some(catalog) = &w.catalog {
-        query = query
-            .with_catalog(catalog.to_catalog()?)
-            .map_err(|e| IoError::Convert(e.to_string()))?;
-    }
-    query.validate().map_err(|error| IoError::Convert(error.to_string()))?;
-    Ok(query)
-}
-
-/// Encode a randomized interference query.
-///
-/// # Errors
-///
-/// Counts that do not fit the portable wire representation.
-pub fn interference_query_to_wire(q: &InterferenceQuery) -> Result<InterferenceQueryWire, IoError> {
-    let assignment = match &q.assignment {
-        AssignmentDesign::Bernoulli { probabilities } => {
-            AssignmentDesignWire::Bernoulli { probabilities: probabilities.to_vec() }
-        }
-        AssignmentDesign::CompleteRandomization { treated } => {
-            AssignmentDesignWire::CompleteRandomization {
-                treated: u64::try_from(*treated).map_err(|_| IoError::TooLarge)?,
-            }
-        }
-        AssignmentDesign::ClusterRandomization { clusters, treated_clusters } => {
-            AssignmentDesignWire::ClusterRandomization {
-                clusters: clusters.to_vec(),
-                treated_clusters: u64::try_from(*treated_clusters)
-                    .map_err(|_| IoError::TooLarge)?,
-            }
-        }
-        AssignmentDesign::TwoStageSaturation {
-            clusters,
-            low_probability,
-            high_probability,
-            high_clusters,
-            realized_saturation,
-        } => AssignmentDesignWire::TwoStageSaturation {
-            clusters: clusters.to_vec(),
-            low_probability: *low_probability,
-            high_probability: *high_probability,
-            high_clusters: u64::try_from(*high_clusters).map_err(|_| IoError::TooLarge)?,
-            realized_saturation: realized_saturation.to_vec(),
-        },
-        AssignmentDesign::ObservedExposure {
-            clusters,
-            propensity_from,
-            propensity_to,
-            provenance,
-            assume_network_exchangeability,
-        } => AssignmentDesignWire::ObservedExposure {
-            clusters: clusters.to_vec(),
-            propensity_from: propensity_from.to_vec(),
-            propensity_to: propensity_to.to_vec(),
-            provenance: match provenance {
-                antecedent_core::ExposurePropensityProvenance::Known => "known",
-                antecedent_core::ExposurePropensityProvenance::ExternallyEstimated => {
-                    "externally_estimated"
-                }
-            }
-            .into(),
-            assume_network_exchangeability: *assume_network_exchangeability,
-        },
-    };
-    let exposure = match &q.exposure {
-        ExposureMapping::OwnTreatment => ExposureMappingWire::OwnTreatment,
-        ExposureMapping::NeighborCount => ExposureMappingWire::NeighborCount,
-        ExposureMapping::NeighborFraction => ExposureMappingWire::NeighborFraction,
-        ExposureMapping::WeightedNeighborExposure => ExposureMappingWire::WeightedNeighborExposure,
-        ExposureMapping::Custom(id) => ExposureMappingWire::Custom(id.to_string()),
-    };
-    let InterferenceFunctional::ExposureContrast { outcome, from, to } = &q.functional;
-    Ok(InterferenceQueryWire {
-        assignment,
-        exposure,
-        functional: InterferenceFunctionalWire::ExposureContrast {
-            outcome: outcome.raw(),
-            from: ExposureLevelWire { own: from.own, neighbors: from.neighbors },
-            to: ExposureLevelWire { own: to.own, neighbors: to.neighbors },
-        },
-        probability_draws: q.probability_draws,
-    })
-}
-
-/// Decode and validate a randomized interference query.
-///
-/// # Errors
-///
-/// Counts that do not fit `usize` or invalid query semantics.
-pub fn interference_query_from_wire(
-    w: &InterferenceQueryWire,
-) -> Result<InterferenceQuery, IoError> {
-    let assignment = match &w.assignment {
-        AssignmentDesignWire::Bernoulli { probabilities } => {
-            AssignmentDesign::Bernoulli { probabilities: probabilities.clone().into() }
-        }
-        AssignmentDesignWire::CompleteRandomization { treated } => {
-            AssignmentDesign::CompleteRandomization {
-                treated: usize::try_from(*treated).map_err(|_| IoError::TooLarge)?,
-            }
-        }
-        AssignmentDesignWire::ClusterRandomization { clusters, treated_clusters } => {
-            AssignmentDesign::ClusterRandomization {
-                clusters: clusters.clone().into(),
-                treated_clusters: usize::try_from(*treated_clusters)
-                    .map_err(|_| IoError::TooLarge)?,
-            }
-        }
-        AssignmentDesignWire::TwoStageSaturation {
-            clusters,
-            low_probability,
-            high_probability,
-            high_clusters,
-            realized_saturation,
-        } => AssignmentDesign::TwoStageSaturation {
-            clusters: clusters.clone().into(),
-            low_probability: *low_probability,
-            high_probability: *high_probability,
-            high_clusters: usize::try_from(*high_clusters).map_err(|_| IoError::TooLarge)?,
-            realized_saturation: realized_saturation.clone().into(),
-        },
-        AssignmentDesignWire::ObservedExposure {
-            clusters,
-            propensity_from,
-            propensity_to,
-            provenance,
-            assume_network_exchangeability,
-        } => AssignmentDesign::ObservedExposure {
-            clusters: clusters.clone().into(),
-            propensity_from: propensity_from.clone().into(),
-            propensity_to: propensity_to.clone().into(),
-            provenance: match provenance.as_str() {
-                "known" => antecedent_core::ExposurePropensityProvenance::Known,
-                "externally_estimated" => {
-                    antecedent_core::ExposurePropensityProvenance::ExternallyEstimated
-                }
-                _ => {
-                    return Err(IoError::Convert(
-                        "unknown observational propensity provenance".into(),
-                    ));
-                }
-            },
-            assume_network_exchangeability: *assume_network_exchangeability,
-        },
-    };
-    let exposure = match &w.exposure {
-        ExposureMappingWire::OwnTreatment => ExposureMapping::OwnTreatment,
-        ExposureMappingWire::NeighborCount => ExposureMapping::NeighborCount,
-        ExposureMappingWire::NeighborFraction => ExposureMapping::NeighborFraction,
-        ExposureMappingWire::WeightedNeighborExposure => ExposureMapping::WeightedNeighborExposure,
-        ExposureMappingWire::Custom(id) => ExposureMapping::Custom(Arc::from(id.as_str())),
-    };
-    let InterferenceFunctionalWire::ExposureContrast { outcome, from, to } = &w.functional;
-    let query = InterferenceQuery {
-        assignment,
-        exposure,
-        functional: InterferenceFunctional::ExposureContrast {
-            outcome: VariableId::from_raw(*outcome),
-            from: ExposureLevel { own: from.own, neighbors: from.neighbors },
-            to: ExposureLevel { own: to.own, neighbors: to.neighbors },
-        },
-        probability_draws: w.probability_draws,
-    };
-    query.validate().map_err(|error| IoError::Convert(error.to_string()))?;
-    Ok(query)
-}
-
-/// Encode an interventional distribution query.
-///
-/// # Errors
-///
-/// Unsupported target population.
-pub fn interventional_distribution_to_wire(
-    q: &InterventionalDistributionQuery,
-) -> Result<InterventionalDistributionQueryWire, IoError> {
-    Ok(InterventionalDistributionQueryWire {
-        outcomes: vars_to_raw(&q.outcomes),
-        interventions: q
-            .interventions
-            .iter()
-            .map(InterventionWire::from_domain)
-            .collect::<Result<Vec<_>, _>>()?,
-        conditioning: vars_to_raw(&q.conditioning),
-        target_population: TargetPopulationWire::from_domain(&q.target_population)?,
-    })
-}
-
-/// Decode an interventional distribution query.
-///
-/// # Errors
-///
-/// Row indices that do not fit `usize`.
-pub fn interventional_distribution_from_wire(
-    w: &InterventionalDistributionQueryWire,
-) -> Result<InterventionalDistributionQuery, IoError> {
-    Ok(InterventionalDistributionQuery {
-        outcomes: vars_from_raw(&w.outcomes),
-        interventions: w
-            .interventions
-            .iter()
-            .map(InterventionWire::to_domain)
-            .collect::<Vec<_>>()
-            .into(),
-        conditioning: vars_from_raw(&w.conditioning),
-        target_population: w.target_population.to_domain()?,
-    })
-}
-
-/// Encode a path-specific effect query.
-///
-/// # Errors
-///
-/// Unsupported target population.
-pub fn path_specific_to_wire(
-    q: &PathSpecificEffectQuery,
-) -> Result<PathSpecificEffectQueryWire, IoError> {
-    Ok(PathSpecificEffectQueryWire {
-        treatment: q.treatment.raw(),
-        outcome: q.outcome.raw(),
-        path_nodes: vars_to_raw(&q.path_nodes),
-        control: InterventionWire::from_domain(&q.control)?,
-        active: InterventionWire::from_domain(&q.active)?,
-        target_population: TargetPopulationWire::from_domain(&q.target_population)?,
-        max_paths: crate::error::fit_u64(q.max_paths)?,
-        max_len: crate::error::fit_u64(q.max_len)?,
-    })
-}
-
-/// Decode a path-specific effect query.
-///
-/// # Errors
-///
-/// Limits that do not fit `usize`.
-pub fn path_specific_from_wire(
-    w: &PathSpecificEffectQueryWire,
-) -> Result<PathSpecificEffectQuery, IoError> {
-    Ok(PathSpecificEffectQuery {
-        treatment: VariableId::from_raw(w.treatment),
-        outcome: VariableId::from_raw(w.outcome),
-        path_nodes: vars_from_raw(&w.path_nodes),
-        control: w.control.to_domain(),
-        active: w.active.to_domain(),
-        target_population: w.target_population.to_domain()?,
-        max_paths: usize::try_from(w.max_paths)
-            .map_err(|_| IoError::Convert("max_paths does not fit usize".into()))?,
-        max_len: usize::try_from(w.max_len)
-            .map_err(|_| IoError::Convert("max_len does not fit usize".into()))?,
-    })
-}
+pub use decode::{
+    association_query_from_wire, causal_query_from_wire, causal_query_from_wire_with_registry,
+    interference_query_from_wire, interventional_distribution_from_wire, path_specific_from_wire,
+    transport_query_from_wire,
+};
+pub use encode::{
+    association_query_to_wire, causal_query_to_wire, causal_query_to_wire_with_registry,
+    interference_query_to_wire, interventional_distribution_to_wire, path_specific_to_wire,
+    transport_query_to_wire,
+};
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::convert::{from_cbor, to_cbor};
     use antecedent_core::{ComponentId, PopulationRegistry};
+
+    #[test]
+    #[allow(
+        clippy::items_after_statements,
+        reason = "the local helper is scoped to the validation"
+    )]
+    fn non_canonical_wire_forms_are_refused_or_normalised() {
+        // Exact Shapley allocation has no sample count.
+        let mut allocation = allocation_to_wire(&AllocationMethod::Shapley {
+            approximation: ShapleyConfig::exact(),
+        })
+        .unwrap();
+        assert!(allocation_from_wire(&allocation).is_ok());
+        if let AllocationMethodWire::Shapley { n, .. } = &mut allocation {
+            *n = 5;
+        }
+        assert!(allocation_from_wire(&allocation).is_err());
+        // Callback levels are strictly ascending.
+        let sorted = r#"{"levels":{"levels":{"levels":[0.0,1.0]}}}"#;
+        let unsorted = r#"{"levels":{"levels":{"levels":[1.0,0.0]}}}"#;
+        let repeated = r#"{"levels":{"levels":{"levels":[1.0,1.0]}}}"#;
+        #[derive(Deserialize)]
+        struct Holder {
+            #[allow(dead_code, reason = "decoded to exercise the levels check")]
+            levels: CallbackOutputWire,
+        }
+        assert!(serde_json::from_str::<Holder>(sorted).is_ok());
+        assert!(serde_json::from_str::<Holder>(unsorted).is_err());
+        assert!(serde_json::from_str::<Holder>(repeated).is_err());
+        // A negative-zero threshold is the zero threshold.
+        let negative = OutcomeFunctionalWire::Exceedance(-0.0).to_domain();
+        let positive = OutcomeFunctionalWire::Exceedance(0.0).to_domain();
+        assert_eq!(negative, positive);
+        assert_eq!(
+            OutcomeFunctionalWire::from_domain(&OutcomeFunctional::exceedance(-0.0)),
+            OutcomeFunctionalWire::Exceedance(0.0)
+        );
+        // Periods and cohorts only belong to a staggered panel.
+        let panel = CausalQuery::PanelDid(PanelDidQuery::new(
+            VariableId::from_raw(0),
+            [true, true, false, false],
+            [false, true, false, true],
+            ["a", "a", "b", "b"].map(Arc::<str>::from),
+            ["x", "x", "y", "y"].map(Arc::<str>::from),
+        ));
+        let CausalQueryWire::PanelDid(mut wire) = causal_query_to_wire(&panel).unwrap() else {
+            panic!("panel wire")
+        };
+        assert!(causal_query_from_wire(&CausalQueryWire::PanelDid(wire.clone())).is_ok());
+        wire.periods = vec![1, 2];
+        assert!(causal_query_from_wire(&CausalQueryWire::PanelDid(wire.clone())).is_err());
+        wire.periods.clear();
+        wire.cohorts = vec![0, 2];
+        assert!(causal_query_from_wire(&CausalQueryWire::PanelDid(wire)).is_err());
+    }
+
+    #[test]
+    fn unbounded_enumeration_and_draw_counts_are_refused_with_a_typed_error() {
+        let path =
+            PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(1));
+        let mut path_wire = path_specific_to_wire(&path).unwrap();
+        path_wire.max_paths = u64::MAX;
+        assert_eq!(path_specific_from_wire(&path_wire).unwrap_err(), IoError::TooLarge);
+        path_wire.max_paths = 8;
+        path_wire.max_len = u64::MAX;
+        assert_eq!(path_specific_from_wire(&path_wire).unwrap_err(), IoError::TooLarge);
+        let mut interference = InterferenceQueryWire {
+            assignment: AssignmentDesignWire::Bernoulli { probabilities: vec![0.5] },
+            exposure: ExposureMappingWire::OwnTreatment,
+            functional: InterferenceFunctionalWire::ExposureContrast {
+                outcome: 1,
+                from: ExposureLevelWire { own: 0.0, neighbors: 0.0 },
+                to: ExposureLevelWire { own: 1.0, neighbors: 0.0 },
+            },
+            probability_draws: u32::MAX,
+        };
+        assert_eq!(interference_query_from_wire(&interference).unwrap_err(), IoError::TooLarge);
+        interference.probability_draws = 10_000;
+        assert!(interference_query_from_wire(&interference).is_ok());
+    }
+
+    #[test]
+    fn registry_backed_population_wires_verify_their_digests_on_decode() {
+        let registry = registry_for_wire_tests();
+        for population in [
+            TargetPopulation::Predicate(PredicateExpr::named("cohort")),
+            TargetPopulation::CustomDistribution(DistributionRef::from_raw(9)),
+        ] {
+            let wire =
+                TargetPopulationWire::from_domain_with_registry(&population, Some(&registry))
+                    .unwrap();
+            assert_eq!(wire.to_domain_with_registry(&registry).unwrap(), population);
+            let mut tampered = wire.clone();
+            match &mut tampered {
+                TargetPopulationWire::PredicateNamed { rows, .. } => rows[0] ^= 1,
+                TargetPopulationWire::CustomDistribution { weights, .. } => weights[0] ^= 1,
+                other => panic!("registry-backed variant expected: {other:?}"),
+            }
+            assert_eq!(tampered.to_domain().unwrap(), population);
+            assert!(tampered.to_domain_with_registry(&registry).is_err());
+        }
+        let mut other_parents = TargetPopulationWire::from_domain_with_registry(
+            &TargetPopulation::CustomDistribution(DistributionRef::from_raw(9)),
+            Some(&registry),
+        )
+        .unwrap();
+        if let TargetPopulationWire::CustomDistribution { depends_on, .. } = &mut other_parents {
+            depends_on.push(7);
+        }
+        assert!(other_parents.to_domain_with_registry(&registry).is_err());
+    }
+
+    #[test]
+    fn query_decode_with_registry_refuses_a_tampered_population_digest() {
+        let registry = registry_for_wire_tests();
+        for population in [
+            TargetPopulation::Predicate(PredicateExpr::named("cohort")),
+            TargetPopulation::CustomDistribution(DistributionRef::from_raw(9)),
+        ] {
+            let query = CausalQuery::AverageEffect(
+                AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                    .with_target_population(population),
+            );
+            let mut wire = causal_query_to_wire_with_registry(&query, Some(&registry)).unwrap();
+            assert_eq!(causal_query_from_wire_with_registry(&wire, &registry).unwrap(), query);
+            match wire.target_population_mut().unwrap() {
+                TargetPopulationWire::PredicateNamed { rows, .. } => rows[0] ^= 1,
+                TargetPopulationWire::CustomDistribution { weights, .. } => weights[0] ^= 1,
+                other => panic!("registry-backed variant expected: {other:?}"),
+            }
+            assert_eq!(causal_query_from_wire(&wire).unwrap(), query);
+            assert!(causal_query_from_wire_with_registry(&wire, &registry).is_err());
+        }
+    }
+
+    #[test]
+    fn continuous_and_nested_query_wires_preserve_single_zero_sign_bits() {
+        use antecedent_core::{
+            CausalQuery, ContinuousDoseResponseQuery, FixedGroupDosePolicy,
+            NestedCounterfactualQuery,
+        };
+        use std::sync::Arc;
+        for zero in [-0.0_f64, 0.0_f64] {
+            let continuous = CausalQuery::ContinuousDoseResponse(ContinuousDoseResponseQuery {
+                outcome: VariableId::from_raw(0),
+                dose: VariableId::from_raw(1),
+                dose_density: VariableId::from_raw(2),
+                baseline_groups: Arc::from([Arc::from("a")]),
+                target_doses: Arc::from([zero]),
+                bandwidth: 1.0,
+                min_local_support: 2,
+                density_provenance: Arc::from("known"),
+                fixed_policy: Some(FixedGroupDosePolicy {
+                    policy_doses: Arc::from([(Arc::from("a"), zero)]),
+                    reference_doses: Arc::from([(Arc::from("a"), zero)]),
+                }),
+            });
+            continuous.validate().unwrap();
+            let wire = causal_query_to_wire(&continuous).unwrap();
+            let bytes = to_cbor(&wire).unwrap();
+            let decoded: CausalQueryWire = from_cbor(&bytes).unwrap();
+            let CausalQuery::ContinuousDoseResponse(back) =
+                causal_query_from_wire(&decoded).unwrap()
+            else {
+                panic!("continuous query")
+            };
+            assert_eq!(back.target_doses[0].to_bits(), zero.to_bits());
+            let policy = back.fixed_policy.unwrap();
+            assert_eq!(policy.policy_doses[0].1.to_bits(), zero.to_bits());
+            assert_eq!(policy.reference_doses[0].1.to_bits(), zero.to_bits());
+
+            let nested = CausalQuery::NestedCounterfactual(
+                NestedCounterfactualQuery::with_levels(
+                    VariableId::from_raw(0),
+                    VariableId::from_raw(1),
+                    VariableId::from_raw(2),
+                    zero,
+                    1.0,
+                )
+                .unwrap(),
+            );
+            let wire = causal_query_to_wire(&nested).unwrap();
+            let decoded: CausalQueryWire = from_cbor(&to_cbor(&wire).unwrap()).unwrap();
+            let CausalQuery::NestedCounterfactual(back) = causal_query_from_wire(&decoded).unwrap()
+            else {
+                panic!("nested query")
+            };
+            assert_eq!(back.control_value().to_bits(), zero.to_bits());
+        }
+    }
+
+    #[test]
+    fn association_queries_round_trip_every_field_and_refuse_unknown_codes() {
+        use antecedent_core::{
+            AssociationFunctional, AssociationMeasure, AssociationOutcome, AssociationQuery,
+        };
+        let functionals = [
+            AssociationFunctional::Auto,
+            AssociationFunctional::Conditional,
+            AssociationFunctional::Coefficients,
+            AssociationFunctional::Measure(AssociationMeasure::Distance),
+            AssociationFunctional::Predictive { folds: 5 },
+        ];
+        for functional in functionals {
+            let mut query = AssociationQuery::new(
+                VariableId::from_raw(3),
+                vec![VariableId::from_raw(0), VariableId::from_raw(1)],
+            )
+            .with_conditioning(vec![VariableId::from_raw(2)])
+            .with_outcome_scale(AssociationOutcome::Count)
+            .with_weight(VariableId::from_raw(4))
+            .following_refusal("effect_not_identified")
+            .with_functional(functional);
+            if matches!(functional, AssociationFunctional::Measure(_)) {
+                query =
+                    AssociationQuery::new(VariableId::from_raw(3), vec![VariableId::from_raw(0)])
+                        .with_functional(functional);
+            }
+            let causal = CausalQuery::Association(query);
+            let wire = causal_query_to_wire(&causal).unwrap();
+            assert!(matches!(wire, CausalQueryWire::Association(_)));
+            assert_eq!(causal_query_from_wire(&wire).unwrap(), causal);
+            let bytes = to_cbor(&wire).unwrap();
+            assert_eq!(from_cbor::<CausalQueryWire>(&bytes).unwrap(), wire);
+        }
+        let mut wire = association_query_to_wire(&AssociationQuery::new(
+            VariableId::from_raw(1),
+            vec![VariableId::from_raw(0)],
+        ));
+        wire.functional = AssociationFunctionalWire::Measure { measure: "spearman".into() };
+        assert!(association_query_from_wire(&wire).is_err());
+        wire.functional = AssociationFunctionalWire::Auto;
+        wire.outcome_scale = Some("ordinal".into());
+        assert!(association_query_from_wire(&wire).is_err());
+        wire.outcome_scale = None;
+        wire.predictors = vec![1];
+        assert!(association_query_from_wire(&wire).is_err(), "a repeated column is refused");
+    }
 
     #[test]
     fn path_limits_encode_as_the_exact_count() {
@@ -3942,6 +2648,48 @@ mod tests {
     }
 
     #[test]
+    fn decoded_causal_queries_validate_every_variant() {
+        let query = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        ));
+        let valid = causal_query_to_wire(&query).unwrap();
+        assert_eq!(causal_query_from_wire(&valid).unwrap(), query);
+        let mut invalid = valid.clone();
+        if let CausalQueryWire::AverageEffect { outcome_functional, .. } = &mut invalid {
+            *outcome_functional = OutcomeFunctionalWire::Exceedance(f64::NAN);
+        }
+        assert!(causal_query_from_wire(&invalid).is_err());
+        let mut invalid = valid.clone();
+        if let CausalQueryWire::AverageEffect { target_population, .. } = &mut invalid {
+            *target_population =
+                TargetPopulationWire::LocalAtCutoff { running: 0, cutoff: f64::NAN };
+        }
+        assert!(causal_query_from_wire(&invalid).is_err());
+        let conditional = CausalQueryWire::ConditionalEffect { inner: Box::new(valid) };
+        assert!(causal_query_from_wire(&conditional).is_err());
+        let anomaly = CausalQueryWire::AnomalyAttribution {
+            targets: vec![0],
+            unit_rows: None,
+            max_units: 1,
+            reference: Some(Some((f64::NAN, 1.0))),
+        };
+        assert!(causal_query_from_wire(&anomaly).is_err());
+        let distribution = InterventionalDistributionQuery::new(
+            VariableId::from_raw(1),
+            [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
+        );
+        let mut distribution_wire = interventional_distribution_to_wire(&distribution).unwrap();
+        distribution_wire.outcomes.clear();
+        assert!(interventional_distribution_from_wire(&distribution_wire).is_err());
+        let path =
+            PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(1));
+        let mut path_wire = path_specific_to_wire(&path).unwrap();
+        path_wire.max_paths = 0;
+        assert!(path_specific_from_wire(&path_wire).is_err());
+    }
+
+    #[test]
     fn average_effect_and_distribution_round_trip() {
         let q = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
             VariableId::from_raw(0),
@@ -4013,6 +2761,43 @@ mod tests {
             },
         ));
         assert_rt(&interference);
+    }
+
+    #[test]
+    fn a_transport_weighted_target_round_trips_and_is_absent_when_unset() {
+        let plain = TransportQuery::new(
+            antecedent_core::ResponseQuery::new(antecedent_core::ResponseFunctional::MeanCurve {
+                outcome: VariableId::from_raw(1),
+                treatment: antecedent_core::ContinuousDomain::new(
+                    VariableId::from_raw(0),
+                    antecedent_core::GridSpec::Values(Arc::from([0.0, 1.0])),
+                ),
+            }),
+            "trial",
+            "target",
+            [VariableId::from_raw(0)],
+        );
+        let wire = transport_query_to_wire(&plain).unwrap();
+        assert!(
+            !serde_json::to_string(&wire).unwrap().contains("weighted_target"),
+            "an unset target adds nothing to the wire"
+        );
+        let target = antecedent_core::TransportWeightedTarget {
+            identity: [7; 32],
+            covariates: Arc::from([VariableId::from_raw(2)]),
+            min_ess_fraction_bits: 0.05_f64.to_bits(),
+            kernel: Some(antecedent_core::TransportTargetKernel {
+                family: Arc::from("gaussian"),
+                bandwidth_bits: 0.5_f64.to_bits(),
+                center_bits: Arc::from([1.0_f64.to_bits()]),
+                scale_bits: Arc::from([1.0_f64.to_bits()]),
+            }),
+        };
+        let declared = plain.with_weighted_target(target.clone()).unwrap();
+        let bytes = to_cbor(&transport_query_to_wire(&declared).unwrap()).unwrap();
+        let decoded: TransportQueryWire = from_cbor(&bytes).unwrap();
+        let back = transport_query_from_wire(&decoded).unwrap();
+        assert_eq!(back.weighted_target, Some(target));
     }
 
     #[test]
@@ -4116,6 +2901,50 @@ mod tests {
         let w1 = to_cbor(&causal_query_to_wire(q).unwrap()).unwrap();
         let w2 = to_cbor(&causal_query_to_wire(&again).unwrap()).unwrap();
         assert_eq!(w1, w2, "wire bytes drifted for {q:?}");
+    }
+
+    #[test]
+    fn counterfactual_omitted_control_keeps_natural_world_explicit() {
+        use antecedent_core::{CausalQuery, CounterfactualQuery, Intervention, Value, VariableId};
+        let v = VariableId::from_raw;
+        let set = |variable, level| Intervention::set(v(variable), Value::f64(level));
+        let natural = CausalQuery::Counterfactual(
+            CounterfactualQuery::new(v(2), Vec::<Intervention>::new()).with_control(set(1, 0.0)),
+        );
+        let explicit = causal_query_to_wire(&natural).unwrap();
+        assert_eq!(causal_query_from_wire(&explicit).unwrap(), natural);
+        let mut omitted = explicit;
+        let CausalQueryWire::Counterfactual { control, .. } = &mut omitted else {
+            panic!("counterfactual wire")
+        };
+        *control = None;
+        assert!(causal_query_from_wire(&omitted).is_err());
+        let unique = CausalQuery::Counterfactual(CounterfactualQuery::new(v(2), [set(1, 1.0)]));
+        let mut omitted = causal_query_to_wire(&unique).unwrap();
+        let CausalQueryWire::Counterfactual { control, .. } = &mut omitted else {
+            panic!("counterfactual wire")
+        };
+        *control = None;
+        assert_eq!(causal_query_from_wire(&omitted).unwrap(), unique);
+        let multi = CausalQuery::Counterfactual(
+            CounterfactualQuery::new(
+                v(2),
+                [Intervention::sequence(InterventionSequence::new(vec![
+                    SequencedIntervention::new(set(0, 1.0), TemporalPolicy::pulse(0)),
+                    SequencedIntervention::new(set(1, 1.0), TemporalPolicy::pulse(0)),
+                ]))],
+            )
+            .with_control(set(0, 0.0))
+            .with_nested(true),
+        );
+        let mut omitted = causal_query_to_wire(&multi).unwrap();
+        // An encoded variable-0 baseline is explicit and remains meaningful.
+        assert_eq!(causal_query_from_wire(&omitted).unwrap(), multi);
+        let CausalQueryWire::Counterfactual { control, .. } = &mut omitted else {
+            panic!("counterfactual wire")
+        };
+        *control = None;
+        assert!(causal_query_from_wire(&omitted).is_err());
     }
 
     #[test]
@@ -4303,6 +3132,16 @@ mod tests {
             0.05,
             16,
         )));
+        assert_rt(&CausalQuery::MechanismChange(
+            MechanismChangeQuery::new(
+                [t],
+                PopulationSelector::All,
+                PopulationSelector::Environment { env_index: 1 },
+                0.05,
+                4,
+            )
+            .with_change_prior(0.25),
+        ));
         assert_rt(&CausalQuery::UnitChange(
             UnitChangeQuery::new(y, 32).with_unit_rows([3usize, 4]),
         ));

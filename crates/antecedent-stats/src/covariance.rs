@@ -1,6 +1,6 @@
 //! Sandwich / HAC coefficient covariance estimators.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -11,11 +11,11 @@
 )]
 
 use crate::cluster::{
-    MAX_CLUSTER_DIMENSIONS, bartlett_weight, effective_nw_lag, intern_cluster_tuples,
-    multiway_subset_masks, panel_hac_meat_matrix, validate_panel_hac,
+    MAX_CLUSTER_DIMENSIONS, MAX_MULTIWAY_WORK, bartlett_weight, effective_nw_lag,
+    intern_cluster_tuples, multiway_subset_masks, multiway_work, panel_hac_meat_matrix,
+    validate_panel_hac,
 };
 use crate::error::StatsError;
-use crate::gram::{form_xtx, invert_square};
 
 /// Sandwich / HAC covariance kind.
 #[derive(Clone, Copy, Debug)]
@@ -40,9 +40,11 @@ pub enum SandwichKind<'a> {
         /// One group-id slice per clustering dimension (each length `nrows`).
         dimensions: &'a [&'a [u32]],
     },
-    /// Newey–West (1987) HAC with Bartlett kernel and given max lag.
+    /// Newey–West (1987) HAC with a Bartlett kernel. The effective maximum
+    /// lag is `min(lag, nrows - 1)` and the weights use that effective bandwidth,
+    /// `1 - ell / (effective_lag + 1)`, matching [`crate::effective_nw_lag`].
     NeweyWest {
-        /// Maximum lag (inclusive).
+        /// Requested maximum lag (inclusive), capped to the available row span.
         lag: usize,
     },
     /// Panel cluster + within-unit temporal HAC (Arellano 1987-style).
@@ -124,31 +126,20 @@ pub fn hc2_coefficient_bell_mccaffrey(
     let covariance =
         coefficient_covariance(x_colmajor, nrows, ncols, residuals, SandwichKind::Hc2)?;
     let variance = covariance[coefficient * ncols + coefficient];
-    let mut gram = vec![0.0; ncols * ncols];
-    form_xtx(x_colmajor, nrows, ncols, &mut gram);
-    let bread = invert_square(&gram, ncols)
-        .ok_or_else(|| StatsError::Backend("singular sandwich bread".into()))?;
-    let hat = leverages(x_colmajor, nrows, ncols, &bread, None);
-    let selector = &bread[coefficient * ncols..(coefficient + 1) * ncols];
+    // In the orthogonalised coordinates `z_i = Tᵀ x_i` (`B = T Tᵀ`): `w_i = z_i · T[c, :]`,
+    // `h_i = |z_i|²`, and `tr((BS)²) = |Σ d_i z_i z_iᵀ|_F²`, so no Gram matrix is formed.
+    let basis = sandwich_basis(x_colmajor, nrows, ncols, None)?;
+    let selector = &basis.t[coefficient * ncols..(coefficient + 1) * ncols];
     let (mut trace, mut diagonal) = (0.0, 0.0);
     let mut weighted_gram = vec![0.0; ncols * ncols];
-    for (i, h) in hat.iter().enumerate() {
-        let w: f64 = (0..ncols).map(|a| selector[a] * x_colmajor[a * nrows + i]).sum();
+    for (i, h) in basis.hat.iter().enumerate() {
+        let w: f64 = (0..ncols).map(|a| selector[a] * basis.z[a * nrows + i]).sum();
         let d = w * w / (1.0 - h);
         trace += w * w;
         diagonal += d * d * (1.0 - 2.0 * h);
-        accumulate_xx(&mut weighted_gram, x_colmajor, nrows, ncols, i, d);
+        accumulate_xx(&mut weighted_gram, &basis.z, nrows, ncols, i, d);
     }
-    let mut product_trace = 0.0;
-    for a in 0..ncols {
-        for b in 0..ncols {
-            let bs_ab: f64 =
-                (0..ncols).map(|k| bread[a * ncols + k] * weighted_gram[k * ncols + b]).sum();
-            let bs_ba: f64 =
-                (0..ncols).map(|k| bread[b * ncols + k] * weighted_gram[k * ncols + a]).sum();
-            product_trace += bs_ab * bs_ba;
-        }
-    }
+    let product_trace: f64 = weighted_gram.iter().map(|v| v * v).sum();
     let degrees_of_freedom = trace * trace / (diagonal + product_trace);
     if !(variance.is_finite() && degrees_of_freedom.is_finite() && degrees_of_freedom > 0.0) {
         return Err(StatsError::Backend(
@@ -224,14 +215,13 @@ fn sandwich_from_multipliers(
         return Err(StatsError::Backend("Fisher weights must be finite and nonnegative".into()));
     }
 
-    let mut gram = vec![0.0; ncols * ncols];
-    match fisher_weights {
-        None => form_xtx(x_colmajor, nrows, ncols, &mut gram),
-        Some(w) => form_xtwx(x_colmajor, nrows, ncols, w, &mut gram),
-    }
-    let Some(bread) = invert_square(&gram, ncols) else {
-        return Err(StatsError::Backend("singular sandwich bread".into()));
-    };
+    // Factor the (weighted) design instead of inverting its Gram matrix: the Gram matrix
+    // squares the condition number, which loses every digit of a design with a large common
+    // offset or near-collinear columns. `z` are the design rows in coordinates where the
+    // information matrix is the identity, and `t` maps them back to coefficients.
+    let basis = sandwich_basis(x_colmajor, nrows, ncols, fisher_weights)?;
+    let SandwichBasis { z, t, hat } = basis;
+    let (x_colmajor, bread) = (z.as_slice(), t.as_slice());
 
     match kind {
         SandwichKind::Homoskedastic => {
@@ -247,12 +237,11 @@ fn sandwich_from_multipliers(
             }
             let rss: f64 = multipliers.iter().map(|e| e * e).sum();
             let sigma2 = rss / (nrows as f64 - ncols as f64);
-            Ok(bread.iter().map(|v| v * sigma2).collect())
+            Ok(congruence(bread, &identity(ncols), ncols).iter().map(|v| v * sigma2).collect())
         }
         SandwichKind::Hc0 | SandwichKind::Hc1 | SandwichKind::Hc2 | SandwichKind::Hc3 => {
-            let meat =
-                hc_meat(x_colmajor, nrows, ncols, multipliers, &bread, fisher_weights, kind)?;
-            Ok(sandwich_product(&bread, &meat, ncols))
+            let meat = hc_meat(x_colmajor, nrows, ncols, multipliers, &hat, kind)?;
+            Ok(congruence(bread, &meat, ncols))
         }
         SandwichKind::Cluster { groups } => {
             if groups.len() != nrows {
@@ -262,7 +251,7 @@ fn sandwich_from_multipliers(
             let g = distinct_count(groups);
             let scale = cluster_finite_sample(nrows, ncols, g)?;
             let meat: Vec<f64> = meat.iter().map(|v| v * scale).collect();
-            Ok(sandwich_product(&bread, &meat, ncols))
+            Ok(congruence(bread, &meat, ncols))
         }
         SandwichKind::Multiway { dimensions } => {
             if dimensions.is_empty() {
@@ -276,11 +265,11 @@ fn sandwich_from_multipliers(
                 }
             }
             let meat = multiway_meat(x_colmajor, nrows, ncols, multipliers, dimensions)?;
-            Ok(sandwich_product(&bread, &meat, ncols))
+            Ok(congruence(bread, &meat, ncols))
         }
         SandwichKind::NeweyWest { lag } => {
             let meat = newey_west_meat(x_colmajor, nrows, ncols, multipliers, lag)?;
-            Ok(sandwich_product(&bread, &meat, ncols))
+            Ok(congruence(bread, &meat, ncols))
         }
         SandwichKind::PanelClusterHac { groups, time, lag } => {
             if groups.len() != nrows {
@@ -297,32 +286,13 @@ fn sandwich_from_multipliers(
                 let g = distinct_count(groups);
                 let scale = cluster_finite_sample(nrows, ncols, g)?;
                 let meat: Vec<f64> = meat.iter().map(|v| v * scale).collect();
-                return Ok(sandwich_product(&bread, &meat, ncols));
+                return Ok(congruence(bread, &meat, ncols));
             }
             let (meat, g) =
                 panel_hac_meat_matrix(x_colmajor, nrows, ncols, multipliers, groups, time, lag)?;
             let scale = cluster_finite_sample(nrows, ncols, g)?;
             let meat: Vec<f64> = meat.iter().map(|v| v * scale).collect();
-            Ok(sandwich_product(&bread, &meat, ncols))
-        }
-    }
-}
-
-/// Fill symmetric `XᵀWX` (row-major) with diagonal weights `w`.
-fn form_xtwx(x_colmajor: &[f64], nrows: usize, ncols: usize, w: &[f64], xtwx: &mut [f64]) {
-    xtwx[..ncols * ncols].fill(0.0);
-    for c1 in 0..ncols {
-        for c2 in c1..ncols {
-            let mut acc = 0.0;
-            let col1 = &x_colmajor[c1 * nrows..(c1 + 1) * nrows];
-            let col2 = &x_colmajor[c2 * nrows..(c2 + 1) * nrows];
-            for r in 0..nrows {
-                acc += w[r] * col1[r] * col2[r];
-            }
-            xtwx[c1 * ncols + c2] = acc;
-            if c1 != c2 {
-                xtwx[c2 * ncols + c1] = acc;
-            }
+            Ok(congruence(bread, &meat, ncols))
         }
     }
 }
@@ -339,13 +309,12 @@ fn hc_meat(
     nrows: usize,
     ncols: usize,
     multipliers: &[f64],
-    bread: &[f64],
-    fisher_weights: Option<&[f64]>,
+    leverage: &[f64],
     kind: SandwichKind<'_>,
 ) -> Result<Vec<f64>, StatsError> {
     let hat = match kind {
         SandwichKind::Hc2 | SandwichKind::Hc3 => {
-            let hat = leverages(x_colmajor, nrows, ncols, bread, fisher_weights);
+            let hat = leverage.to_vec();
             // `h_ii = 1` (a row that alone identifies a coefficient, e.g. its own dummy)
             // makes the residual exactly 0 and the `e²/(1−h)` adjustment 0/0: the estimator
             // is undefined there. Clamping `h` would inflate rounding-noise residuals by
@@ -416,37 +385,6 @@ fn hc_leverage(hat: Option<&[f64]>, row: usize) -> Result<f64, StatsError> {
         .map(|v| v.max(0.0))
 }
 
-fn leverages(
-    x_colmajor: &[f64],
-    nrows: usize,
-    ncols: usize,
-    bread: &[f64],
-    fisher_weights: Option<&[f64]>,
-) -> Vec<f64> {
-    let mut h = vec![0.0; nrows];
-    let mut tmp = vec![0.0; ncols];
-    for i in 0..nrows {
-        // Unweighted: h_ii = x_i' (X'X)⁻¹ x_i
-        // Weighted:   h_ii = w_i x_i' (X'WX)⁻¹ x_i
-        for a in 0..ncols {
-            let mut s = 0.0;
-            for b in 0..ncols {
-                s += bread[a * ncols + b] * x_colmajor[b * nrows + i];
-            }
-            tmp[a] = s;
-        }
-        let mut hi = 0.0;
-        for a in 0..ncols {
-            hi += x_colmajor[a * nrows + i] * tmp[a];
-        }
-        if let Some(w) = fisher_weights {
-            hi *= w[i];
-        }
-        h[i] = hi;
-    }
-    h
-}
-
 #[allow(
     clippy::unnecessary_wraps,
     reason = "returns Result to match the fallible sibling paths it is dispatched alongside"
@@ -509,7 +447,14 @@ fn multiway_meat(
     // Two-way: V1 + V2 − V12. General: inclusion–exclusion over non-empty subsets.
     let d = dimensions.len();
     if d == 0 || d > MAX_CLUSTER_DIMENSIONS {
-        return Err(StatsError::Shape { message: "multiway supports 1..=4 dimensions" });
+        return Err(StatsError::Shape {
+            message: "multiway supports 1..=MAX_CLUSTER_DIMENSIONS dimensions",
+        });
+    }
+    if multiway_work(d, nrows).is_none_or(|work| work > MAX_MULTIWAY_WORK) {
+        return Err(StatsError::Shape {
+            message: "multiway inclusion-exclusion work (2^d - 1) * n exceeds MAX_MULTIWAY_WORK",
+        });
     }
     let mut meat = vec![0.0; ncols * ncols];
     let mut abs_diag = vec![0.0; ncols];
@@ -545,9 +490,12 @@ fn ensure_multiway_meat_psd(
         return Ok(());
     }
     let mat = faer::Mat::<f64>::from_fn(ncols, ncols, |r, c| meat[r * ncols + c]);
-    let eigs = mat
-        .self_adjoint_eigenvalues(faer::Side::Lower)
-        .map_err(|_| StatsError::Backend("multiway meat eigendecomposition failed".into()))?;
+    let (values, _) = crate::faer_backend::symmetric_eigen_in_scope(
+        mat.as_ref(),
+        crate::faer_backend::serial_scope(),
+    )
+    .map_err(|_| StatsError::Backend("multiway meat eigendecomposition failed".into()))?;
+    let eigs: Vec<f64> = (0..ncols).map(|k| values.as_ref().column_vector()[k]).collect();
     let scale = abs_diag.iter().copied().fold(0.0_f64, f64::max);
     let tol = 64.0 * f64::EPSILON * scale;
     for &lam in &eigs {
@@ -575,14 +523,15 @@ pub fn symmetric_eigen(matrix: &[f64], d: usize) -> Result<(Vec<f64>, Vec<f64>),
         });
     }
     let mat = faer::Mat::<f64>::from_fn(d, d, |r, c| matrix[r * d + c]);
-    let eig = mat
-        .self_adjoint_eigen(faer::Side::Lower)
-        .map_err(|_| StatsError::Backend("symmetric eigendecomposition failed".into()))?;
-    let values = (0..d).map(|k| eig.S().column_vector()[k]).collect();
+    let (eig_values, eig_vectors) = crate::faer_backend::symmetric_eigen_in_scope(
+        mat.as_ref(),
+        crate::faer_backend::serial_scope(),
+    )?;
+    let values = (0..d).map(|k| eig_values.as_ref().column_vector()[k]).collect();
     let mut vectors = vec![0.0; d * d];
     for r in 0..d {
         for k in 0..d {
-            vectors[r * d + k] = eig.U()[(r, k)];
+            vectors[r * d + k] = eig_vectors[(r, k)];
         }
     }
     Ok((values, vectors))
@@ -666,14 +615,23 @@ fn accumulate_xx(
     }
 }
 
-fn sandwich_product(bread: &[f64], meat: &[f64], ncols: usize) -> Vec<f64> {
-    // bread * meat * bread
+fn identity(n: usize) -> Vec<f64> {
+    let mut m = vec![0.0; n * n];
+    for i in 0..n {
+        m[i * n + i] = 1.0;
+    }
+    m
+}
+
+/// `T M Tᵀ` for row-major `p×p` matrices: the covariance of the coefficients from a meat `M`
+/// formed in the orthogonalised coordinates (`T Tᵀ` is the bread).
+fn congruence(t: &[f64], meat: &[f64], ncols: usize) -> Vec<f64> {
     let mut tmp = vec![0.0; ncols * ncols];
     for i in 0..ncols {
         for j in 0..ncols {
             let mut s = 0.0;
             for k in 0..ncols {
-                s += bread[i * ncols + k] * meat[k * ncols + j];
+                s += t[i * ncols + k] * meat[k * ncols + j];
             }
             tmp[i * ncols + j] = s;
         }
@@ -683,12 +641,151 @@ fn sandwich_product(bread: &[f64], meat: &[f64], ncols: usize) -> Vec<f64> {
         for j in 0..ncols {
             let mut s = 0.0;
             for k in 0..ncols {
-                s += tmp[i * ncols + k] * bread[k * ncols + j];
+                s += tmp[i * ncols + k] * t[j * ncols + k];
             }
             out[i * ncols + j] = s;
         }
     }
     out
+}
+
+/// The design in coordinates where its information matrix is the identity.
+struct SandwichBasis {
+    /// `Z = X T`, `nrows × ncols` column-major: `x_iᵀ (XᵀWX)⁻¹ x_i = |z_i|²` and the score
+    /// `u_i x_i` of row `i` is `u_i z_i` in these coordinates.
+    z: Vec<f64>,
+    /// `T = D⁻¹ R⁻¹` (row-major `ncols × ncols`) from the QR factorisation
+    /// `√W X D⁻¹ = Q R` of the column-equilibrated design, so that `(XᵀWX)⁻¹ = T Tᵀ`.
+    t: Vec<f64>,
+    /// Leverage `h_i = w_i x_iᵀ (XᵀWX)⁻¹ x_i` (`w_i = 1` unweighted).
+    hat: Vec<f64>,
+}
+
+/// A column of the equilibrated design whose component orthogonal to the earlier columns is
+/// below this multiple of its length carries no information; the bread is then singular.
+fn basis_rank_tolerance(nrows: usize) -> f64 {
+    64.0 * f64::EPSILON * (nrows.max(1) as f64).sqrt()
+}
+
+/// Householder QR of the column-equilibrated, weight-scaled design.
+///
+/// Refuses a design with fewer rows than columns or a numerically dependent column.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the QR basis and rank checks form one numerical procedure"
+)]
+fn sandwich_basis(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    weights: Option<&[f64]>,
+) -> Result<SandwichBasis, StatsError> {
+    let singular = || StatsError::Backend("singular sandwich bread".into());
+    if nrows < ncols {
+        return Err(singular());
+    }
+    let root = |r: usize| weights.map_or(1.0, |w| w[r].sqrt());
+    // Column scales of the weighted design, then the equilibrated copy to factor.
+    let mut scale = vec![1.0; ncols];
+    let mut a = vec![0.0; nrows * ncols];
+    for c in 0..ncols {
+        let column = &x_colmajor[c * nrows..(c + 1) * nrows];
+        let norm = column.iter().enumerate().fold(0.0_f64, |m, (r, v)| m.hypot(v * root(r)));
+        if norm > 0.0 && norm.is_finite() {
+            scale[c] = norm;
+        }
+        for r in 0..nrows {
+            a[c * nrows + r] = column[r] * root(r) / scale[c];
+        }
+    }
+    let mut tau = vec![0.0; ncols];
+    for k in 0..ncols {
+        let (head, tail) = a.split_at_mut((k + 1) * nrows);
+        let col = &mut head[k * nrows..];
+        let norm = col[k..].iter().fold(0.0_f64, |m, v| m.hypot(*v));
+        if norm == 0.0 {
+            return Err(singular());
+        }
+        let alpha = if col[k] >= 0.0 { -norm } else { norm };
+        let v0 = col[k] - alpha;
+        for v in &mut col[k + 1..] {
+            *v /= v0;
+        }
+        tau[k] = -v0 / alpha;
+        col[k] = alpha;
+        for later in tail.chunks_exact_mut(nrows) {
+            let mut dot = later[k];
+            for i in k + 1..nrows {
+                dot += col[i] * later[i];
+            }
+            let f = tau[k] * dot;
+            later[k] -= f;
+            for i in k + 1..nrows {
+                later[i] -= f * col[i];
+            }
+        }
+    }
+    let tol = basis_rank_tolerance(nrows);
+    if (0..ncols)
+        .any(|k| a[k * nrows + k].abs().partial_cmp(&tol) != Some(std::cmp::Ordering::Greater))
+    {
+        return Err(singular());
+    }
+    // R⁻¹ by back substitution (upper triangular, row-major), then T = D⁻¹ R⁻¹.
+    let r = |i: usize, j: usize| a[j * nrows + i];
+    let mut t = vec![0.0; ncols * ncols];
+    for j in 0..ncols {
+        for i in (0..=j).rev() {
+            let mut s = if i == j { 1.0 } else { 0.0 };
+            for k in i + 1..=j {
+                s -= r(i, k) * t[k * ncols + j];
+            }
+            t[i * ncols + j] = s / r(i, i);
+        }
+    }
+    for (i, row) in t.chunks_exact_mut(ncols).enumerate() {
+        for v in row {
+            *v /= scale[i];
+        }
+    }
+    // Explicit thin Q: apply the reflectors to the first `ncols` unit vectors.
+    let mut q = vec![0.0; nrows * ncols];
+    for j in 0..ncols {
+        let qj = &mut q[j * nrows..(j + 1) * nrows];
+        qj[j] = 1.0;
+        for k in (0..ncols).rev() {
+            let col = &a[k * nrows..(k + 1) * nrows];
+            let mut dot = qj[k];
+            for i in k + 1..nrows {
+                dot += col[i] * qj[i];
+            }
+            let f = tau[k] * dot;
+            qj[k] -= f;
+            for i in k + 1..nrows {
+                qj[i] -= f * col[i];
+            }
+        }
+    }
+    // Rows of Z: q_i / sqrt(w_i), or a triangular solve where the weight vanishes.
+    let mut z = q;
+    let mut hat = vec![0.0; nrows];
+    for row in 0..nrows {
+        let w = weights.map_or(1.0, |w| w[row]);
+        if w > 0.0 {
+            let rw = w.sqrt();
+            hat[row] = (0..ncols).map(|c| z[c * nrows + row].powi(2)).sum::<f64>();
+            for c in 0..ncols {
+                z[c * nrows + row] /= rw;
+            }
+        } else {
+            // Zero weight: the row has leverage 0 and `zᵀ = xᵀ T` by direct product.
+            for c in 0..ncols {
+                z[c * nrows + row] =
+                    (0..ncols).map(|k| x_colmajor[k * nrows + row] * t[k * ncols + c]).sum();
+            }
+        }
+    }
+    Ok(SandwichBasis { z, t, hat })
 }
 
 fn distinct_count(groups: &[u32]) -> usize {

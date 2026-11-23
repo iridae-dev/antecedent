@@ -22,4 +22,28 @@ test_sources = [
  "inline unit tests (crates/antecedent-graph/src/projection.rs)",
  "clean-room independent latent-only path enumeration oracle (conformance/graph/latent_projection)",
  "crates/antecedent-graph/tests/oracle_closure.rs",
+ "exhaustive separation-preservation check: for every four-node DAG (over the fixed order) and every observed subset of two or more nodes listed in descending order, and for a stride of the five-node DAGs, the m-separation of the projected ADMG equals d-separation in the DAG for every pair and conditioning set of observed nodes, against a path-definition oracle (crates/antecedent-graph/tests/admg_msep_exhaustive.rs)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "latent_project in crates/antecedent-graph/src/projection.rs: projecting a DAG onto an observed subset as a directed-bidirected ADMG, judged by whether the projected graph's m-separation statements over the observed nodes equal the DAG's d-separation statements. Not a review of projection_preserves_msep_sample, of conditioning or selection projection, or of projection from ADMGs, MAGs or PAGs, which are not implemented."
+assumptions = ["The input is a DAG; latent nodes are the nodes not listed as observed, and every observed node is listed once.", "Projection edges: a directed edge for each directed path whose interior nodes are all latent, a bidirected edge for each pair of observed nodes reached from a common latent by latent-only directed paths.", "Equivalence is judged on separation statements among observed nodes only, using an oracle that restates the path definition independently of the product."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied. none listed in the earlier record"
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI where one exists and are not redistributed."
+limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the definitions used by the reference are the standard textbook statements, so a mistake in how a record or this reference states a theorem would not be detected here. Exhaustive over four-node DAGs (all observed subsets, observed nodes in reverse order so projected ids differ from original ids) and a stride of the five-node DAGs (79 of 1024 order-compatible graphs, all observed subsets); the existing seeded path-enumeration and random comparisons on larger DAGs are not re-run as part of this review. Separation preservation is necessary but is not alone a proof that the edge set is the minimal projection. The paper cited by the record carries no recorded section locator; the construction is checked against the standard latent-projection definition. No claim about downstream identification or calibration. Calibration remains deferred."
+sources = ["Latent projection of a DAG onto an observed subset (standard construction; the earlier record names no section locator or DOI for its single listed source)"]
+findings_resolved = ["Added an exhaustive executing comparison of projected m-separation against DAG d-separation for every pair and conditioning set among observed nodes, for all four-node DAGs and every observed subset, and for a stride of five-node DAGs; hundreds of thousands of statements agree, with both connected and separated outcomes common.", "No defect found and no change to projection code. Code edits: tests added to crates/antecedent-graph/tests/admg_msep_exhaustive.rs (registered as its own test target)."]
+record_sha256 = "5895af7860964f2324fa0dbfc45d07efde6deb5249d946bdb71d82faba0907b2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-graph/src/projection.rs"
+items = ["fn latent_project", "fn observed_reachable_via_latents", "fn projection_preserves_msep_sample"]
+sha256 = "14ef9032374aaa4d69a12e12ba2faf1065c66a3375392bcc1de4ac53a766c388"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-graph/tests/admg_msep_exhaustive.rs"
+items = ["fn build", "fn check_graph", "fn connects", "fn dag_arcs", "fn edges_of", "fn every_four_node_admg_matches_the_path_definition", "fn id", "fn new", "fn projection_agrees", "fn projection_preserves_separation_for_every_four_node_dag_and_observed_subset", "fn projection_preserves_separation_on_a_stride_of_the_five_node_dags_and_every_observed_subset", "fn separated", "fn set_form_agrees_with_the_pairwise_oracle_on_every_four_node_admg", "fn strided_five_node_admgs_match_the_path_definition", "fn the_oracle_distinguishes_the_known_cases", "struct Oracle", "type Edges"]
+sha256 = "131f5cc9af1e29ecaa9365adb2db7dd5c07dc9c196d94ea4899776014634a66d"

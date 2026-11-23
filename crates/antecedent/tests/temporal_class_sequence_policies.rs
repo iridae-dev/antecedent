@@ -1,6 +1,6 @@
 //! Sequence / Soft pins on two-completion temporal classes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -425,7 +425,7 @@ fn nested_sequence_stays_refused_on_temporal_cpdag() {
         .unwrap_err();
     let msg = err.to_string();
     assert!(
-        msg.contains("Sequence") && msg.contains("nested") && msg.contains("not licensed"),
+        msg.contains("Sequence") && msg.contains("nested") && msg.contains("not supported"),
         "{msg}"
     );
 }

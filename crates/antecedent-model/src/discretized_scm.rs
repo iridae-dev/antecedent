@@ -52,7 +52,10 @@
 //! * Levels are declared per variable, never defaulted; `2..=64` per variable
 //!   and the joint space within the finite-enumeration bound.
 //! * Point-only. The discretized value carries no interval, no posterior and
-//!   no calibration; parameter uncertainty declared on the source mechanisms
+//!   no calibration (a scientific refusal, `uncertainty_representation_insufficient`: the
+//!   grid replaces the Gaussian law by a deterministic approximation with a computed
+//!   mean-error bound, so its table has no sampling or posterior representation, and the
+//!   closed-form composed uncertainty is the route that reports an interval); parameter uncertainty declared on the source mechanisms
 //!   is not propagated through the discretization and the result says so.
 //!
 //! The parity table at the end of the module records, per transported or
@@ -69,7 +72,7 @@
 //! refresh does not rebuild a bridge from it silently. The declared levels are kept only by
 //! being passed again.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
@@ -98,35 +101,46 @@ pub const BRIDGE_CALIBRATION: &str = "no_interval_or_calibration_claim";
 pub const BRIDGE_ERROR_SCOPE: &str = "mean_of_linear_contrast_of_interventional_means_only";
 
 /// The level count of some variable was not declared.
-pub const DETAIL_LEVELS_UNDECLARED: &str = "discretized_scm.levels_undeclared";
+pub const DETAIL_LEVELS_UNDECLARED: &str =
+    antecedent_core::reason_details::discretized_scm::LEVELS_UNDECLARED;
 /// A level count is outside `MIN_BRIDGE_LEVELS..=MAX_BRIDGE_LEVELS`.
-pub const DETAIL_LEVELS_OUT_OF_RANGE: &str = "discretized_scm.levels_out_of_range";
+pub const DETAIL_LEVELS_OUT_OF_RANGE: &str =
+    antecedent_core::reason_details::discretized_scm::LEVELS_OUT_OF_RANGE;
 /// The plan names a variable the composition does not have.
-pub const DETAIL_UNKNOWN_VARIABLE: &str = "discretized_scm.unknown_variable";
+pub const DETAIL_UNKNOWN_VARIABLE: &str =
+    antecedent_core::reason_details::discretized_scm::UNKNOWN_VARIABLE;
 /// The joint space exceeds the finite-enumeration bound.
-pub const DETAIL_STATE_SPACE_TOO_LARGE: &str = "discretized_scm.state_space_too_large";
+pub const DETAIL_STATE_SPACE_TOO_LARGE: &str =
+    antecedent_core::reason_details::discretized_scm::STATE_SPACE_TOO_LARGE;
 /// A mechanism is not additive-noise linear-Gaussian.
-pub const DETAIL_NON_GAUSSIAN: &str = "discretized_scm.non_gaussian_mechanism";
+pub const DETAIL_NON_GAUSSIAN: &str =
+    antecedent_core::reason_details::discretized_scm::NON_GAUSSIAN_MECHANISM;
 /// A mechanism's declared support is not the real line.
-pub const DETAIL_SUPPORT_NOT_REAL: &str = "discretized_scm.support_not_real_line";
+pub const DETAIL_SUPPORT_NOT_REAL: &str =
+    antecedent_core::reason_details::discretized_scm::SUPPORT_NOT_REAL_LINE;
 /// A mechanism loads on a shared latent cause.
-pub const DETAIL_LATENT_CONFOUNDING: &str = "discretized_scm.latent_confounding";
+pub const DETAIL_LATENT_CONFOUNDING: &str =
+    antecedent_core::reason_details::discretized_scm::LATENT_CONFOUNDING;
 /// A variable's marginal law is degenerate, so it has no grid.
-pub const DETAIL_DEGENERATE_MARGINAL: &str = "discretized_scm.degenerate_marginal";
+pub const DETAIL_DEGENERATE_MARGINAL: &str =
+    antecedent_core::reason_details::discretized_scm::DEGENERATE_MARGINAL;
 /// The composition is not coherent.
-pub const DETAIL_COMPOSITION_INCOHERENT: &str = "discretized_scm.composition_incoherent";
+pub const DETAIL_COMPOSITION_INCOHERENT: &str =
+    antecedent_core::reason_details::discretized_scm::COMPOSITION_INCOHERENT;
 /// An intervention names a variable or level that does not exist.
-pub const DETAIL_INTERVENTION_INVALID: &str = "discretized_scm.intervention_invalid";
+pub const DETAIL_INTERVENTION_INVALID: &str =
+    antecedent_core::reason_details::discretized_scm::INTERVENTION_INVALID;
 /// An interval, band, posterior or law was requested of a point-only value.
-pub const DETAIL_POINT_ONLY: &str = "discretized_scm.point_only";
+pub const DETAIL_POINT_ONLY: &str = antecedent_core::reason_details::discretized_scm::POINT_ONLY;
 /// Cancellation was observed.
-pub const DETAIL_CANCELLED: &str = "discretized_scm.cancelled";
+pub const DETAIL_CANCELLED: &str = antecedent_core::reason_details::discretized_scm::CANCELLED;
 /// A numerical failure in the discretization.
-pub const DETAIL_NUMERICAL: &str = "discretized_scm.numerical";
-/// A route's inferential paradigm is closed.
-pub const DETAIL_PARADIGM_CLOSED: &str = "paradigm_parity.paradigm_closed";
+pub const DETAIL_NUMERICAL: &str = antecedent_core::reason_details::discretized_scm::NUMERICAL;
+/// A route's inferential paradigm is not supported.
+pub const DETAIL_PARADIGM_NOT_SUPPORTED: &str =
+    antecedent_core::reason_details::paradigm_parity::PARADIGM_NOT_SUPPORTED;
 
-const TAG_IDENTITY: &str = "antecedent.model.discretized_scm";
+const TAG_IDENTITY: &str = "antecedent.model.discretized_scm.complete_premises.v2";
 
 /// A typed refusal of the bridge or of a paradigm request.
 #[derive(Clone, Debug, PartialEq)]
@@ -137,7 +151,7 @@ pub struct BridgeRefusal {
     pub detail: &'static str,
     /// What the refusal is about (a variable, a route).
     pub subject: String,
-    /// What would license the request.
+    /// What would support the request.
     pub remedy: &'static str,
     /// Coherence findings when the composition itself is the defect.
     pub findings: Vec<CoherenceFinding>,
@@ -323,6 +337,14 @@ fn level_name(index: usize) -> String {
     format!("{index:02}")
 }
 
+// The finite composition orders labels lexicographically, whereas the grid is
+// retained in numeric level order. The two differ once an index has >2 digits.
+fn finite_order_indices(node: &BridgeNode) -> Vec<usize> {
+    let mut order: Vec<usize> = (0..node.level_names.len()).collect();
+    order.sort_by(|&a, &b| node.level_names[a].cmp(&node.level_names[b]));
+    order
+}
+
 fn unbounded_real(domain: &Domain) -> bool {
     match domain {
         Domain::Real => true,
@@ -368,7 +390,9 @@ fn cell_probabilities(edges: &[f64], mean: f64, sigma: f64) -> Vec<f64> {
 fn from_composition(error: CompositionError) -> BridgeRefusal {
     match error {
         CompositionError::Incoherent { findings } => {
-            if findings.iter().any(|f| f.detail == "mechanism_composition.family_mixed") {
+            if findings.iter().any(|f| {
+                f.detail == antecedent_core::reason_details::mechanism_composition::FAMILY_MIXED
+            }) {
                 return unsupported(
                     DETAIL_NON_GAUSSIAN,
                     "composition",
@@ -434,7 +458,7 @@ fn plan_level_counts(
             return Err(invalid(
                 DETAIL_LEVELS_OUT_OF_RANGE,
                 v.clone(),
-                "declare between 2 and 64 levels per variable",
+                "declare at least 2 levels per variable and no more than the bridge level bound",
             ));
         }
         joint = joint.saturating_mul(n);
@@ -675,7 +699,7 @@ impl DiscretizedLinearGaussian {
         let mut nodes = grid_nodes(model, &level_counts, &index)?;
         let tables = fill_tables(&mut nodes, ctx)?;
 
-        let identity = identity_of(spec, plan.method, &nodes);
+        let identity = identity_of(spec, plan.method, &nodes)?;
         let identity_hex = antecedent_core::identity::to_hex(&identity);
 
         let mechanisms = finite_mechanisms(spec, &nodes, &tables, &index, &identity_hex);
@@ -815,6 +839,13 @@ impl DiscretizedLinearGaussian {
         ctx: &ExecutionContext,
     ) -> Result<DiscretizedContrast, BridgeRefusal> {
         poll(ctx)?;
+        if contrast.arms.iter().any(|arm| !arm.weight.is_finite()) {
+            return Err(invalid(
+                DETAIL_INTERVENTION_INVALID,
+                contrast.outcome.clone(),
+                "contrast arm weights must be finite",
+            ));
+        }
         let Some(outcome) = self.position(&contrast.outcome) else {
             return Err(invalid(
                 DETAIL_INTERVENTION_INVALID,
@@ -838,8 +869,12 @@ impl DiscretizedLinearGaussian {
                 .collect();
             let law = self.finite.law(&names, ctx).map_err(from_composition)?;
             let marginal = law.marginal(&contrast.outcome).map_err(from_composition)?;
-            let discretized: f64 =
-                marginal.iter().zip(&self.nodes[outcome].values).map(|((_, p), x)| p * x).sum();
+            let order = finite_order_indices(&self.nodes[outcome]);
+            let discretized: f64 = marginal
+                .iter()
+                .zip(order)
+                .map(|((_, p), index)| p * self.nodes[outcome].values[index])
+                .sum();
             let pairs: Vec<(&str, f64)> = arm
                 .interventions
                 .iter()
@@ -867,10 +902,22 @@ impl DiscretizedLinearGaussian {
                 mean_error_bound: bound,
             });
         }
+        let absolute_error = (value - closed_form).abs();
+        if !value.is_finite()
+            || !closed_form.is_finite()
+            || !error_bound.is_finite()
+            || !absolute_error.is_finite()
+        {
+            return Err(invalid(
+                DETAIL_NUMERICAL,
+                contrast.outcome.clone(),
+                "contrast result overflowed; rescale the requested arm weights",
+            ));
+        }
         Ok(DiscretizedContrast {
             value,
             closed_form,
-            absolute_error: (value - closed_form).abs(),
+            absolute_error,
             error_bound,
             arms,
             method: self.method.as_str(),
@@ -891,6 +938,7 @@ impl DiscretizedLinearGaussian {
     fn mean_error_bound(&self, fixed: &[Option<usize>], probabilities: &[f64]) -> Vec<f64> {
         let n = self.nodes.len();
         let widths: Vec<usize> = self.nodes.iter().map(|x| x.values.len()).collect();
+        let orders: Vec<Vec<usize>> = self.nodes.iter().map(finite_order_indices).collect();
         let mut expected = vec![0.0_f64; n];
         let mut digits = vec![0_usize; n];
         for (state, p) in probabilities.iter().enumerate() {
@@ -899,7 +947,7 @@ impl DiscretizedLinearGaussian {
             }
             let mut rest = state;
             for k in (0..n).rev() {
-                digits[k] = rest % widths[k];
+                digits[k] = orders[k][rest % widths[k]];
                 rest /= widths[k];
             }
             for (v, node) in self.nodes.iter().enumerate() {
@@ -934,7 +982,7 @@ impl DiscretizedLinearGaussian {
     pub fn uncertainty_refusal(&self, paradigm: InferenceParadigm) -> BridgeRefusal {
         let _ = paradigm;
         BridgeRefusal::new(
-            antecedent_core::reason_code!("cell_not_licensed"),
+            antecedent_core::reason_code!("uncertainty_representation_insufficient"),
             DETAIL_POINT_ONLY,
             "discretization_bridge",
             "use the closed-form composed uncertainty for an interval on the Gaussian model; a discretized value is a point with a computed mean-error bound",
@@ -946,27 +994,25 @@ fn identity_of(
     spec: &ComposedModelSpec,
     method: DiscretizationMethod,
     nodes: &[BridgeNode],
-) -> [u8; 32] {
+) -> Result<[u8; 32], BridgeRefusal> {
+    let premises = crate::discretized_scm_artifact::identity_premises(spec).map_err(|error| {
+        invalid(
+            DETAIL_COMPOSITION_INCOHERENT,
+            error.subject,
+            "use an exportable linear Gaussian composition",
+        )
+    })?;
     let mut w = CanonicalWriter::new(TAG_IDENTITY);
     w.word(u64::from(DISCRETIZED_SCM_VERSION));
     w.word(match method {
         DiscretizationMethod::EqualProbabilityQuantile => 1,
     });
-    w.text(&spec.target.population).text(&spec.target.regime);
+    w.bytes(&premises);
     w.word(nodes.len() as u64);
-    for (node, d) in nodes.iter().zip(&spec.mechanisms) {
+    for node in nodes {
         w.text(&node.variable).word(node.values.len() as u64);
-        w.real(node.intercept).real(node.sigma).word(node.parents.len() as u64);
-        for (k, &p) in node.parents.iter().enumerate() {
-            w.text(&nodes[p].variable).real(node.coefficients[k]);
-        }
-        w.text(&d.output_units).text(&d.output_transform);
-        w.text(&d.context.population).text(&d.context.regime);
-        w.text(&d.provenance.artifact_id).text(&d.provenance.evidence_id);
-        w.word(d.provenance.origin as u64);
     }
-    w.word(u64::from(spec.admit_declared_mechanisms));
-    w.finish()
+    Ok(w.finish())
 }
 
 // ---------------------------------------------------------------------------
@@ -1076,7 +1122,7 @@ impl ParityRoute {
 pub enum ParadigmCell {
     /// The route executes this paradigm; the text says what the result is.
     Supported(&'static str),
-    /// The route is closed to this paradigm; the text says why.
+    /// The route is not supported for this paradigm; the text says why.
     Closed(&'static str),
 }
 
@@ -1092,7 +1138,7 @@ pub struct ParityRow {
 }
 
 /// The parity table: every route has a row and every missing paradigm is a
-/// closed cell with its reason.
+/// unsupported cell with its reason.
 pub const PARITY_TABLE: [ParityRow; 15] = [
     ParityRow {
         route: ParityRoute::TransportedCohortDecision,
@@ -1187,7 +1233,7 @@ pub const PARITY_TABLE: [ParityRow; 15] = [
     ParityRow {
         route: ParityRoute::ComposedSpreadExceedance,
         frequentist: ParadigmCell::Supported(
-            "uncalibrated spread at the composed coordinate under a licensed dependence route",
+            "uncalibrated spread at the composed coordinate under a supported dependence route",
         ),
         bayesian: ParadigmCell::Closed(
             "exceedance is decided from supplied composed draws against a cutoff; a posterior statement about the composed quantity has no measured calibration",
@@ -1199,16 +1245,16 @@ pub const PARITY_TABLE: [ParityRow; 15] = [
             "structural, exogenous-posterior predictive, sampling and numerical components as an uncalibrated spread",
         ),
         bayesian: ParadigmCell::Closed(
-            "nothing is fitted on this row, so there is no parameter posterior; a fitted or sampled mechanism row is a different, closed route",
+            "nothing is fitted on this row, so there is no parameter posterior; a fitted or sampled mechanism row is a different, unsupported route",
         ),
     },
     ParityRow {
         route: ParityRoute::DecisionReliabilityUncertainty,
         frequentist: ParadigmCell::Supported(
-            "Monte Carlo and selection components over draws whose law is the supplied one; derived, unmeasured",
+            "Monte Carlo and selection components over draws whose law is the supplied one; derived, not_measured",
         ),
         bayesian: ParadigmCell::Supported(
-            "the same derivation over posterior draws; the source-distribution spread is carried unchanged, derived, unmeasured",
+            "the same derivation over posterior draws; the source-distribution spread is carried unchanged, derived, not_measured",
         ),
     },
     ParityRow {
@@ -1237,11 +1283,11 @@ pub fn parity_row(route: ParityRoute) -> &'static ParityRow {
     PARITY_TABLE.iter().find(|row| row.route == route).unwrap_or(&PARITY_TABLE[0])
 }
 
-/// Admit a paradigm request on a route, or refuse it by its typed closed row.
+/// Admit a paradigm request on a route, or refuse it by its typed unsupported row.
 ///
 /// # Errors
-/// [`BridgeRefusal`] with `cell_not_licensed`, [`DETAIL_PARADIGM_CLOSED`] and
-/// the row's reason as the remedy when the route is closed to the paradigm.
+/// [`BridgeRefusal`] with `route_not_supported`, [`DETAIL_PARADIGM_NOT_SUPPORTED`] and
+/// the row's reason as the remedy when the route is not supported to the paradigm.
 pub fn require_paradigm(
     route: ParityRoute,
     paradigm: InferenceParadigm,
@@ -1254,8 +1300,8 @@ pub fn require_paradigm(
     match cell {
         ParadigmCell::Supported(what) => Ok(what),
         ParadigmCell::Closed(reason) => Err(BridgeRefusal::new(
-            antecedent_core::reason_code!("cell_not_licensed"),
-            DETAIL_PARADIGM_CLOSED,
+            antecedent_core::reason_code!("route_not_supported"),
+            DETAIL_PARADIGM_NOT_SUPPORTED,
             format!("{}:{}", route.as_str(), paradigm.as_str()),
             reason,
         )),

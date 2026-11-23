@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+from statistics import NormalDist
+
 import antecedent
 import numpy as np
 import pytest
-from antecedent.errors import CausalIdentifyError, CausalUnsupportedError
+from antecedent.errors import CausalUnsupportedError
 from antecedent.graph import TieredBackground, WithinTier
 from antecedent.handoff import econml
 from antecedent.intervention import Set
+from antecedent.outcomes import require_success
 from antecedent.query import (
     Exceedance,
     ExceedanceGrid,
@@ -72,42 +75,55 @@ def test_outcome_functional_wire():
 def test_analyze_exceedance_and_mean():
     data = _binary_confounded()
     graph = antecedent.Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")])
-    mean = antecedent.analyze(
-        data,
-        graph=graph,
-        query=antecedent.AverageEffect("t", "y"),
-        refute="none",
-        bootstrap=0,
+    mean = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=antecedent.AverageEffect("t", "y"),
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
-    exc = antecedent.analyze(
-        data,
-        graph=graph,
-        query=antecedent.AverageEffect("t", "y", outcome_functional=Exceedance(1.0)),
-        refute="none",
-        bootstrap=0,
-        estimator="aipw",
+    exc = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=antecedent.AverageEffect("t", "y", outcome_functional=Exceedance(1.0)),
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+            estimator="aipw",
+        )
     )
-    assert np.isfinite(mean.estimate.ate)
-    assert np.isfinite(exc.estimate.ate)
-    qte = antecedent.analyze(
+    # Truth (z ~ N(0,1), y = 2t + z + 0.3 e): ATE = 2; Y(a) ~ N(2a, 1 + 0.09), so the
+    # exceedance contrast at 1 is Phi(1/sd) - Phi(-1/sd) with sd = sqrt(1.09) = 0.6618.
+    # The unadjusted difference of means is 2.78, outside every band below.
+    assert mean.estimate.ate == pytest.approx(2.0, abs=0.15)
+    exceed_truth = NormalDist().cdf(1.0 / 1.09**0.5) - NormalDist().cdf(-1.0 / 1.09**0.5)
+    assert exceed_truth == pytest.approx(0.66185, abs=1e-5)
+    assert exc.estimate.ate == pytest.approx(exceed_truth, abs=0.05)
+    qte = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=antecedent.AverageEffect("t", "y", outcome_functional=Quantile(0.5)),
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+            estimator="aipw",
+        )
+    )
+    # Both arms are symmetric about their means, so the median contrast is the mean contrast.
+    assert qte.estimate.ate == pytest.approx(2.0, abs=0.15)
+    plan = antecedent.prepare(
         data,
         graph=graph,
         query=antecedent.AverageEffect("t", "y", outcome_functional=Quantile(0.5)),
-        refute="none",
-        bootstrap=0,
-        estimator="aipw",
-    )
-    assert np.isfinite(qte.estimate.ate)
-    plan = antecedent.estimation.PreparedAnalysis.prepare(
-        data,
-        graph=graph,
-        query=antecedent.AverageEffect("t", "y", outcome_functional=Quantile(0.5)),
         estimator="aipw",
         refute="none",
-        bootstrap=0,
+        inference=antecedent.Frequentist(bootstrap=0),
     )
-    click = plan.estimate(data)
-    ones = plan.retarget(np.ones(len(data["t"])), [])
+    completed = antecedent.estimate(plan)
+    click = require_success(completed)
+    ones = require_success(completed.study.retarget(np.ones(len(data["t"])), depends_on=[]))
     assert click.estimate.ate == pytest.approx(qte.estimate.ate, abs=1e-12)
     assert ones.estimate.ate == pytest.approx(qte.estimate.ate, abs=1e-12)
 
@@ -115,16 +131,18 @@ def test_analyze_exceedance_and_mean():
 def test_prepared_retarget():
     data = _binary_confounded(800)
     graph = antecedent.Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")])
-    plan = antecedent.estimation.PreparedAnalysis.prepare(
+    plan = antecedent.prepare(
         data,
         query=antecedent.AverageEffect("t", "y"),
         graph=graph,
         estimator="aipw",
         refute="none",
-        bootstrap=0,
+        inference=antecedent.Frequentist(bootstrap=0),
     )
     weights = np.exp(-0.5 * ((data["z"] - 0.5) / 0.8) ** 2)
-    out = plan.retarget(weights, ["z"])
+    completed = antecedent.estimate(plan)
+    require_success(completed)
+    out = require_success(completed.study.retarget(weights, depends_on=["z"]))
     assert np.isfinite(out.estimate.ate)
     table = out.estimate.score_table
     assert table is not None
@@ -143,25 +161,32 @@ def test_tiered_background():
     era = rng.normal(size=n)
     t = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-era))).astype(float)
     y = 1.5 * t + 0.4 * era + 0.3 * rng.normal(size=n)
-    result = antecedent.analyze(
-        {"era": era, "t": t, "y": y},
-        graph=TieredBackground(tiers=[["era"], ["t"], ["y"]], within_tier=WithinTier.CODETERMINED),
-        query=antecedent.AverageEffect("t", "y"),
-        refute="none",
-        bootstrap=0,
+    result = require_success(
+        antecedent.analyze(
+            {"era": era, "t": t, "y": y},
+            graph=TieredBackground(
+                tiers=[["era"], ["t"], ["y"]], within_tier=WithinTier.CODETERMINED
+            ),
+            query=antecedent.AverageEffect("t", "y"),
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
-    assert np.isfinite(result.estimate.ate)
+    # Truth: y = 1.5 t + 0.4 era + noise with era confounding t, so the ATE is 1.5.
+    assert result.estimate.ate == pytest.approx(1.5, abs=0.1)
 
 
 def test_econml_modifier_set_and_exceedance():
     data = _binary_confounded()
     graph = antecedent.Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")])
-    result = antecedent.analyze(
-        data,
-        graph=graph,
-        query=antecedent.AverageEffect("t", "y"),
-        refute="none",
-        bootstrap=0,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=antecedent.AverageEffect("t", "y"),
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
     spec = econml(
         result,
@@ -179,20 +204,38 @@ def test_exceedance_grid_on_fresh_estimate():
     data = _binary_confounded(800)
     graph = antecedent.Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")])
     query = antecedent.AverageEffect("t", "y", outcome_functional=ExceedanceGrid([0.0, 0.5, 1.0]))
-    fresh = antecedent.analyze(
-        data, graph=graph, query=query, estimator="aipw", refute="none", bootstrap=0
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=query,
+            estimator="aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
     cdf = fresh.estimate.exceedance_cdf
     assert cdf is not None
     assert len(cdf) == 6
     assert all(np.isfinite(cdf))
+    # Layout is [threshold][control, active]; truth is P(Y(a) <= x) with Y(a) ~ N(2a, 1.09).
+    sd = 1.09**0.5
+    truth = [
+        NormalDist(2.0 * arm, sd).cdf(threshold) for threshold in (0.0, 0.5, 1.0) for arm in (0, 1)
+    ]
+    np.testing.assert_allclose(cdf, truth, atol=0.1, rtol=0.0)
     assert fresh.estimate.ate is None
     assert isinstance(fresh.estimate.monotone_rearranged, bool)
     assert fresh.estimate.simultaneous_interval is None
-    plan = antecedent.estimation.PreparedAnalysis.prepare(
-        data, query=query, graph=graph, estimator="aipw", refute="none", bootstrap=0
+    plan = antecedent.prepare(
+        data,
+        query=query,
+        graph=graph,
+        estimator="aipw",
+        refute="none",
+        inference=antecedent.Frequentist(bootstrap=0),
     )
-    click = plan.estimate(data)
+    click = require_success(plan.estimate())
     assert click.estimate.exceedance_cdf is not None
     assert len(click.estimate.exceedance_cdf) == 6
 
@@ -204,26 +247,34 @@ def test_class_aware_prepare_conditional_exceedance():
         [("z", "t"), ("z", "y"), ("t", "y")],
         [],
     )
-    mean = antecedent.estimation.PreparedAnalysis.prepare(
-        data,
-        query=antecedent.ConditionalEffect("t", "y", "z"),
-        graph=graph,
-        refute="none",
-        bootstrap=0,
-    ).estimate(data)
-    query = antecedent.ConditionalEffect("t", "y", "z", outcome_functional=Exceedance(0.5))
-    plan = antecedent.estimation.PreparedAnalysis.prepare(
-        data, query=query, graph=graph, refute="none", bootstrap=0
+    mean = require_success(
+        antecedent.prepare(
+            data,
+            query=antecedent.ConditionalEffect("t", "y", "z"),
+            graph=graph,
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        ).estimate()
     )
-    out = plan.estimate(data)
+    query = antecedent.ConditionalEffect("t", "y", "z", outcome_functional=Exceedance(0.5))
+    plan = antecedent.prepare(
+        data, query=query, graph=graph, refute="none", inference=antecedent.Frequentist(bootstrap=0)
+    )
+    out = require_success(plan.estimate())
     assert np.isfinite(out.estimate.ate)
     assert out.estimate.ate != pytest.approx(mean.estimate.ate, abs=1e-6)
     grid = antecedent.ConditionalEffect(
         "t", "y", "z", outcome_functional=ExceedanceGrid([0.5, 1.0, 1.5])
     )
-    out_grid = antecedent.estimation.PreparedAnalysis.prepare(
-        data, query=grid, graph=graph, refute="none", bootstrap=0
-    ).estimate(data)
+    out_grid = require_success(
+        antecedent.prepare(
+            data,
+            query=grid,
+            graph=graph,
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        ).estimate()
+    )
     cdf = out_grid.estimate.exceedance_cdf
     assert cdf is not None
     assert len(cdf) == 6
@@ -242,9 +293,15 @@ def test_class_aware_prepare_conditional_exceedance():
     extreme = antecedent.ConditionalEffect(
         "t", "y", "z", outcome_functional=ExceedanceGrid([0.0, 1.0e6])
     )
-    tail = antecedent.estimation.PreparedAnalysis.prepare(
-        data, query=extreme, graph=graph, refute="none", bootstrap=0
-    ).estimate(data)
+    tail = require_success(
+        antecedent.prepare(
+            data,
+            query=extreme,
+            graph=graph,
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        ).estimate()
+    )
     tail_inf = tail.estimate.score_inference
     assert tail_inf is not None
     assert tail_inf.threshold_supported[-2:] == [False, False]
@@ -254,34 +311,40 @@ def test_class_aware_prepare_conditional_exceedance():
 def test_analyze_does_not_always_return_scores():
     data = _binary_confounded()
     graph = antecedent.Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")])
-    linear = antecedent.analyze(
-        data,
-        graph=graph,
-        query=antecedent.AverageEffect("t", "y"),
-        estimator="linear.adjustment.ate",
-        refute="none",
-        bootstrap=0,
+    linear = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=antecedent.AverageEffect("t", "y"),
+            estimator="linear.adjustment.ate",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
     assert linear.estimate.score_table is None
-    aipw = antecedent.analyze(
-        data,
-        graph=graph,
-        query=antecedent.AverageEffect("t", "y"),
-        estimator="aipw",
-        refute="none",
-        bootstrap=0,
+    aipw = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=antecedent.AverageEffect("t", "y"),
+            estimator="aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
     assert aipw.estimate.score_table is not None
     ones = np.ones(aipw.estimate.score_table.n_rows)
-    plan = antecedent.estimation.PreparedAnalysis.prepare(
+    plan = antecedent.prepare(
         data,
         query=antecedent.AverageEffect("t", "y"),
         graph=graph,
         estimator="aipw",
         refute="none",
-        bootstrap=0,
+        inference=antecedent.Frequentist(bootstrap=0),
     )
-    retargeted = plan.retarget(ones, [])
+    completed = antecedent.estimate(plan)
+    require_success(completed)
+    retargeted = require_success(completed.study.retarget(ones, depends_on=[]))
     assert aipw.estimate.ate == pytest.approx(retargeted.estimate.ate, abs=1e-12)
 
 
@@ -297,16 +360,16 @@ def test_prepared_batch_and_candidate_selection():
         screen_rows=list(range(n // 2)),
         estimate_rows=list(range(n // 2, n)),
     )
-    batch = antecedent.estimation.PreparedBatch.prepare(
+    batch = antecedent.estimation.prepare_many(
         data,
         graph=graph,
         queries=[q1, q2],
         estimator="aipw",
         refute="none",
-        bootstrap=0,
+        inference=antecedent.Frequentist(bootstrap=0),
         candidate_screen=screen,
     )
-    results = batch.estimate(data)
+    results = tuple(require_success(member) for member in require_success(batch.estimate()).members)
     assert len(results) == 2
     sel = results[0].estimate.candidate_selection
     assert sel is not None
@@ -325,43 +388,75 @@ def test_prepared_batch_and_candidate_selection():
     assert design.fold_ids
 
 
-def test_validator_computation_failure_is_typed_and_does_not_abort_claim():
+def test_validator_callback_failure_preserves_identity_and_valid_branch_can_execute():
+    import traceback
+
     data = _binary_confounded()
     graph = antecedent.Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")])
+    failure = RuntimeError("deliberate computation failure")
 
-    def broken_validator(**kwargs):
-        raise RuntimeError("deliberate computation failure")
+    def broken_validator(**_kwargs):
+        raise failure
 
-    result = antecedent.analyze(
+    study = antecedent.prepare(
         data,
         graph=graph,
         query=antecedent.AverageEffect("t", "y"),
         refute="none",
-        validators=[broken_validator],
-        bootstrap=0,
+        validators={"broken.check": broken_validator},
+        inference=antecedent.Frequentist(bootstrap=0),
     )
+    published = []
+    with pytest.raises(RuntimeError, match="deliberate computation failure") as raised:
+        published.append(antecedent.estimate(study))
+    assert raised.value is failure
+    assert "broken_validator" in [
+        frame.name for frame in traceback.extract_tb(failure.__traceback__)
+    ]
+    assert not published
+
+    def declared_failure(*, ate, **_kwargs):
+        return {
+            "passed": False,
+            "refuted_ate": ate,
+            "comparison": 0.0,
+            "failure_condition": "declared scientific check failed",
+        }
+
+    branch = antecedent.reconfigure(study, validators={"declared.check": declared_failure})
+    result = require_success(antecedent.estimate(branch))
     assert np.isfinite(result.estimate.ate)
     assert result.validation.ran
     assert not result.validation.passed
     assert result.validation.count == 1
-    assert not result.validation.reports
-    (failure,) = result.validation.computation_failures
-    assert "deliberate computation failure" in failure.reason
-    assert failure.validator
+    assert not result.validation.computation_failures
+    (report,) = result.validation.reports
+    assert report.failure_condition == "declared scientific check failed"
+    assert study.validator_names == ("broken.check",)
+    assert branch.validator_names == ("declared.check",)
 
 
 def test_dag_intervention_response_cheap_runs():
     data = _binary_confounded(600)
     graph = antecedent.Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")])
     query = antecedent.InterventionResponse("y", intervention=antecedent.intervention.Set("t", 1.0))
-    one_shot = antecedent.analyze(data, graph=graph, query=query, refute="cheap", bootstrap=0)
-    assert np.isfinite(one_shot.estimate)
-    plan = antecedent.estimation.PreparedAnalysis.prepare(
-        data, query=query, graph=graph, refute="none", bootstrap=0
+    one_shot = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=query,
+            refute="cheap",
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
-    click = plan.estimate(data)
+    assert np.isfinite(one_shot.estimate)
+    plan = antecedent.prepare(
+        data, query=query, graph=graph, refute="none", inference=antecedent.Frequentist(bootstrap=0)
+    )
+    completed = antecedent.estimate(plan)
+    click = require_success(completed)
     assert np.isfinite(click.estimate)
-    validated = plan.refute(data, suite="cheap")
+    validated = require_success(completed.study.refute(suite="cheap"))
     assert np.isfinite(validated.estimate.ate)
     assert validated.validation.ran
 
@@ -376,22 +471,47 @@ def test_analyze_many_keeps_exceedance_functional():
     q90 = 1.2815515655446004
     mean_q = antecedent.AverageEffect("t", "y")
     exc_q = antecedent.AverageEffect("t", "y", outcome_functional=Exceedance(q90))
-    mean, exc = antecedent.estimation.analyze_many(
-        data,
-        graph=graph,
-        queries=[mean_q, exc_q],
-        estimator="aipw",
-        refute=False,
-        bootstrap=0,
+    mean, exc = tuple(
+        require_success(member)
+        for member in require_success(
+            antecedent.estimation.analyze_many(
+                data,
+                graph=graph,
+                queries=[mean_q, exc_q],
+                estimator="aipw",
+                refute=False,
+                inference=antecedent.Frequentist(bootstrap=0),
+            )
+        ).members
     )
     assert mean.estimate.exceedance_cdf is None
     assert exc.estimate.ate != pytest.approx(mean.estimate.ate, abs=1e-6)
-    solo_mean = antecedent.estimation.PreparedAnalysis.prepare(
-        data, query=mean_q, graph=graph, estimator="aipw", refute="none", bootstrap=0
-    ).estimate(data)
-    solo_exc = antecedent.estimation.PreparedAnalysis.prepare(
-        data, query=exc_q, graph=graph, estimator="aipw", refute="none", bootstrap=0
-    ).estimate(data)
+    # Y(0) ~ N(0, 1), Y(1) ~ N(0, 1.4^2): the exceedance contrast at the 0.9 quantile of Y(0)
+    # is Phi(-q/1.4) - Phi(-q) in magnitude (0.0800) and the mean effect is zero.
+    assert exc.estimate.ate == pytest.approx(
+        NormalDist().cdf(q90) - NormalDist().cdf(q90 / 1.4), abs=0.03
+    )
+    assert abs(mean.estimate.ate) < 0.15
+    solo_mean = require_success(
+        antecedent.prepare(
+            data,
+            query=mean_q,
+            graph=graph,
+            estimator="aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        ).estimate()
+    )
+    solo_exc = require_success(
+        antecedent.prepare(
+            data,
+            query=exc_q,
+            graph=graph,
+            estimator="aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        ).estimate()
+    )
     _assert_same_effect(mean, solo_mean)
     _assert_same_effect(exc, solo_exc)
 
@@ -400,23 +520,42 @@ def test_analyze_many_tiered_codetermined_aipw():
     data, background, _ = _codetermined_siblings(800, 219)
     mean_q = antecedent.AverageEffect("t", "y")
     grid_q = antecedent.AverageEffect("t", "y", outcome_functional=ExceedanceGrid([0.0, 0.5]))
-    mean, grid = antecedent.estimation.analyze_many(
-        data,
-        graph=background,
-        queries=[mean_q, grid_q],
-        estimator="aipw",
-        refute=False,
-        bootstrap=0,
+    mean, grid = tuple(
+        require_success(member)
+        for member in require_success(
+            antecedent.estimation.analyze_many(
+                data,
+                graph=background,
+                queries=[mean_q, grid_q],
+                estimator="aipw",
+                refute=False,
+                inference=antecedent.Frequentist(bootstrap=0),
+            )
+        ).members
     )
     assert np.isfinite(mean.estimate.ate)
     assert mean.estimate.exceedance_cdf is None
     assert grid.estimate.ate is None
     assert grid.estimate.exceedance_cdf is not None
-    solo_mean = antecedent.analyze(
-        data, graph=background, query=mean_q, estimator="aipw", refute="none", bootstrap=0
+    solo_mean = require_success(
+        antecedent.analyze(
+            data,
+            graph=background,
+            query=mean_q,
+            estimator="aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
-    solo_grid = antecedent.analyze(
-        data, graph=background, query=grid_q, estimator="aipw", refute="none", bootstrap=0
+    solo_grid = require_success(
+        antecedent.analyze(
+            data,
+            graph=background,
+            query=grid_q,
+            estimator="aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
     _assert_same_effect(mean, solo_mean)
     _assert_same_effect(grid, solo_grid)
@@ -432,23 +571,43 @@ def test_prepared_batch_keeps_exceedance_functional():
     q90 = 1.2815515655446004
     mean_q = antecedent.AverageEffect("t", "y")
     exc_q = antecedent.AverageEffect("t", "y", outcome_functional=Exceedance(q90))
-    batch = antecedent.estimation.PreparedBatch.prepare(
+    batch = antecedent.estimation.prepare_many(
         data,
         graph=graph,
         queries=[mean_q, exc_q],
         estimator="aipw",
         refute="none",
-        bootstrap=0,
+        inference=antecedent.Frequentist(bootstrap=0),
     )
-    mean, exc = batch.estimate(data)
+    mean, exc = tuple(
+        require_success(member) for member in require_success(batch.estimate()).members
+    )
     assert mean.estimate.exceedance_cdf is None
     assert exc.estimate.ate != pytest.approx(mean.estimate.ate, abs=1e-6)
-    solo_mean = antecedent.estimation.PreparedAnalysis.prepare(
-        data, query=mean_q, graph=graph, estimator="aipw", refute="none", bootstrap=0
-    ).estimate(data)
-    solo_exc = antecedent.estimation.PreparedAnalysis.prepare(
-        data, query=exc_q, graph=graph, estimator="aipw", refute="none", bootstrap=0
-    ).estimate(data)
+    assert exc.estimate.ate == pytest.approx(
+        NormalDist().cdf(q90) - NormalDist().cdf(q90 / 1.4), abs=0.03
+    )
+    assert abs(mean.estimate.ate) < 0.15
+    solo_mean = require_success(
+        antecedent.prepare(
+            data,
+            query=mean_q,
+            graph=graph,
+            estimator="aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        ).estimate()
+    )
+    solo_exc = require_success(
+        antecedent.prepare(
+            data,
+            query=exc_q,
+            graph=graph,
+            estimator="aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        ).estimate()
+    )
     _assert_same_effect(mean, solo_mean)
     _assert_same_effect(exc, solo_exc)
 
@@ -457,25 +616,41 @@ def test_prepared_batch_tiered_codetermined_aipw():
     data, background, _ = _codetermined_siblings(800, 217)
     mean_q = antecedent.AverageEffect("t", "y")
     grid_q = antecedent.AverageEffect("t", "y", outcome_functional=ExceedanceGrid([0.0, 0.5]))
-    batch = antecedent.estimation.PreparedBatch.prepare(
+    batch = antecedent.estimation.prepare_many(
         data,
         graph=background,
         queries=[mean_q, grid_q],
         estimator="aipw",
         refute="none",
-        bootstrap=0,
+        inference=antecedent.Frequentist(bootstrap=0),
     )
-    mean, grid = batch.estimate(data)
+    mean, grid = tuple(
+        require_success(member) for member in require_success(batch.estimate()).members
+    )
     assert np.isfinite(mean.estimate.ate)
     assert mean.estimate.exceedance_cdf is None
     assert grid.estimate.ate is None
     assert grid.estimate.exceedance_cdf is not None
-    solo_mean = antecedent.estimation.PreparedAnalysis.prepare(
-        data, query=mean_q, graph=background, estimator="aipw", refute="none", bootstrap=0
-    ).estimate(data)
-    solo_grid = antecedent.estimation.PreparedAnalysis.prepare(
-        data, query=grid_q, graph=background, estimator="aipw", refute="none", bootstrap=0
-    ).estimate(data)
+    solo_mean = require_success(
+        antecedent.prepare(
+            data,
+            query=mean_q,
+            graph=background,
+            estimator="aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        ).estimate()
+    )
+    solo_grid = require_success(
+        antecedent.prepare(
+            data,
+            query=grid_q,
+            graph=background,
+            estimator="aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        ).estimate()
+    )
     _assert_same_effect(mean, solo_mean)
     _assert_same_effect(grid, solo_grid)
 
@@ -483,10 +658,17 @@ def test_prepared_batch_tiered_codetermined_aipw():
 def test_prepared_retarget_codetermined_exceedance_grid():
     data, background, weights = _codetermined_siblings(800, 214)
     query = antecedent.AverageEffect("t", "y", outcome_functional=ExceedanceGrid([0.0, 0.5, 1.0]))
-    plan = antecedent.estimation.PreparedAnalysis.prepare(
-        data, query=query, graph=background, estimator="aipw", refute="none", bootstrap=0
+    plan = antecedent.prepare(
+        data,
+        query=query,
+        graph=background,
+        estimator="aipw",
+        refute="none",
+        inference=antecedent.Frequentist(bootstrap=0),
     )
-    out = plan.retarget(weights, ["z"])
+    completed = antecedent.estimate(plan)
+    require_success(completed)
+    out = require_success(completed.study.retarget(weights, depends_on=["z"]))
     cdf = out.estimate.exceedance_cdf
     assert cdf is not None
     assert len(cdf) == 6
@@ -502,7 +684,7 @@ def test_prepared_retarget_codetermined_exceedance_grid():
     )
     y = (1.0 + z) * t + 0.4 * z + 0.3 * u + 0.35 * rng.normal(size=n)
     w_u = np.exp(-0.5 * ((u - 0.3) / 0.8) ** 2)
-    peer = antecedent.estimation.PreparedAnalysis.prepare(
+    peer_plan = antecedent.prepare(
         {"t": t, "y": y, "z": z, "u": u},
         query=query,
         graph=TieredBackground(
@@ -510,8 +692,11 @@ def test_prepared_retarget_codetermined_exceedance_grid():
         ),
         estimator="aipw",
         refute="none",
-        bootstrap=0,
-    ).retarget(w_u, ["u"])
+        inference=antecedent.Frequentist(bootstrap=0),
+    )
+    peer_completed = antecedent.estimate(peer_plan)
+    require_success(peer_completed)
+    peer = require_success(peer_completed.study.retarget(w_u, depends_on=["u"]))
     assert peer.estimate.exceedance_cdf is not None
     assert len(peer.estimate.exceedance_cdf) == 6
 
@@ -533,37 +718,44 @@ def test_codetermined_joint_cells_are_cell_aipw():
         tiers=[["z"], ["t1", "t2"], ["y"]], within_tier=WithinTier.CODETERMINED
     )
     query = InterventionResponse("y", intervention=[Set("t1", 1.0), Set("t2", 1.0)])
-    result = antecedent.analyze(
-        data,
-        graph=background,
-        query=query,
-        estimator="cell.aipw",
-        refute="none",
-        bootstrap=0,
-    )
-    assert np.isfinite(result.estimate)
-    assert result.uncertainty.standard_error is not None
-    assert np.isfinite(result.uncertainty.standard_error)
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
-        data,
-        query=query,
-        graph=background,
-        estimator="cell.aipw",
-        refute="none",
-        bootstrap=0,
-    )
-    click = prepared.estimate(data)
-    assert np.isfinite(click.estimate)
-    unknown = TieredBackground(tiers=[["z"], ["t1", "t2"], ["y"]], within_tier=WithinTier.UNKNOWN)
-    with pytest.raises(CausalIdentifyError, match="no single ADMG"):
+    result = require_success(
         antecedent.analyze(
             data,
-            graph=unknown,
+            graph=background,
             query=query,
             estimator="cell.aipw",
             refute="none",
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
         )
+    )
+    # Truth: E[Y | do(t1=1, t2=1)] = 1.2 + 0.8 + 1.5 = 3.5 (z and noise have mean zero); the
+    # unadjusted cell mean is 3.83. The standard error is about 0.02.
+    assert result.estimate == pytest.approx(3.5, abs=0.08)
+    assert result.uncertainty.standard_error is not None
+    assert 0.0 < result.uncertainty.standard_error < 0.06
+    prepared = antecedent.prepare(
+        data,
+        query=query,
+        graph=background,
+        estimator="cell.aipw",
+        refute="none",
+        inference=antecedent.Frequentist(bootstrap=0),
+    )
+    click = require_success(prepared.estimate())
+    assert np.isfinite(click.estimate)
+    unknown = TieredBackground(tiers=[["z"], ["t1", "t2"], ["y"]], within_tier=WithinTier.UNKNOWN)
+    refused = antecedent.analyze(
+        data,
+        graph=unknown,
+        query=query,
+        estimator="cell.aipw",
+        refute="none",
+        inference=antecedent.Frequentist(bootstrap=0),
+    )
+    assert refused.refusal is not None
+    assert refused.refusal.code == "route_not_supported"
+    with pytest.raises(CausalUnsupportedError, match="no single ADMG"):
+        require_success(refused)
 
 
 def _codetermined_pair_family(n: int = 2000, seed: int = 17):
@@ -586,22 +778,24 @@ def _codetermined_pair_family(n: int = 2000, seed: int = 17):
     return data, background, q11, q10
 
 
-def test_prepared_batch_prepare_cells_codetermined_pair_family():
+def test_prepared_joint_cell_batch_codetermined_pair_family():
     data, background, q11, q10 = _codetermined_pair_family()
-    batch = antecedent.estimation.PreparedBatch.prepare_cells(
+    batch = antecedent.estimation.prepare_many(
         data,
         graph=background,
         queries=[q11, q10],
         estimator="cell.aipw",
         refute="none",
-        bootstrap=0,
+        inference=antecedent.Frequentist(bootstrap=0),
     )
     design = batch.shared_design
     assert design is not None
     assert design.n_folds == 5
     assert design.shares_covariates
     assert not design.shares_propensity
-    first, second = batch.estimate(data)
+    first, second = tuple(
+        require_success(member) for member in require_success(batch.estimate()).members
+    )
     assert first.estimate.joint_covariance is not None
     assert len(first.estimate.joint_covariance) == 2
     assert second.estimate.joint_covariance is not None
@@ -610,34 +804,41 @@ def test_prepared_batch_prepare_cells_codetermined_pair_family():
     assert second.estimate.adjusted_p_values is not None
     assert first.estimate.simultaneous_interval is not None
     assert any(d.startswith("batch.joint_if:") for d in first.diagnostics)
-    solo = antecedent.estimation.PreparedAnalysis.prepare(
-        data,
-        query=q11,
-        graph=background,
-        estimator="cell.aipw",
-        refute="none",
-        bootstrap=0,
-    ).estimate(data)
-    fresh = antecedent.analyze(
-        data,
-        graph=background,
-        query=q11,
-        estimator="cell.aipw",
-        refute="none",
-        bootstrap=0,
+    solo = require_success(
+        antecedent.prepare(
+            data,
+            query=q11,
+            graph=background,
+            estimator="cell.aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        ).estimate()
+    )
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            graph=background,
+            query=q11,
+            estimator="cell.aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
     assert first.estimate.ate == pytest.approx(solo.estimate, abs=1e-12)
     assert first.estimate.ate == pytest.approx(fresh.estimate, abs=1e-12)
     unknown = TieredBackground(tiers=[["z"], ["t1", "t2"], ["y"]], within_tier=WithinTier.UNKNOWN)
-    with pytest.raises(CausalIdentifyError, match="no single ADMG"):
-        antecedent.estimation.PreparedBatch.prepare_cells(
-            data,
-            graph=unknown,
-            queries=[q11],
-            estimator="cell.aipw",
-            refute="none",
-            bootstrap=0,
-        )
+    refused = antecedent.estimation.prepare_many(
+        data,
+        graph=unknown,
+        queries=[q11],
+        estimator="cell.aipw",
+        refute="none",
+        inference=antecedent.Frequentist(bootstrap=0),
+    ).estimate()
+    assert refused.refusal is not None
+    assert refused.refusal.code == "route_not_supported"
+    with pytest.raises(CausalUnsupportedError, match="no single ADMG"):
+        require_success(refused)
 
 
 def _zero_effect_pair_family(n: int = 2400, seed: int = 221):
@@ -658,21 +859,31 @@ def _zero_effect_pair_family(n: int = 2400, seed: int = 221):
 
 def test_prepared_batch_zero_effect_pair_family_is_not_significant():
     data, graph, q11, q10 = _zero_effect_pair_family()
-    batch = antecedent.estimation.PreparedBatch.prepare_cells(
+    batch = antecedent.estimation.prepare_many(
         data,
         graph=graph,
         queries=[q11, q10],
         estimator="cell.aipw",
         refute="none",
-        bootstrap=0,
+        inference=antecedent.Frequentist(bootstrap=0),
     )
-    first, second = batch.estimate(data)
-    solo = antecedent.analyze(
-        data, graph=graph, query=q11, estimator="cell.aipw", refute="none", bootstrap=0
+    first, second = tuple(
+        require_success(member) for member in require_success(batch.estimate()).members
+    )
+    solo = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=q11,
+            estimator="cell.aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
     assert first.estimate.ate == pytest.approx(solo.estimate, abs=1e-12)
     for i, result in enumerate((first, second)):
-        assert result.estimate.ate > 1.0
+        # Neither treatment affects y = 2 + 0.4 z + noise, so every cell mean is E[Y] = 2.
+        assert result.estimate.ate == pytest.approx(2.0, abs=0.1)
         assert abs(result.estimate.ate) / result.estimate.se_analytic > 8.0
         bh, by_q = result.estimate.adjusted_p_values
         assert bh > 0.05 and by_q > 0.05
@@ -686,19 +897,63 @@ def test_prepared_batch_zero_effect_pair_family_is_not_significant():
         level_crit = (lhi - result.estimate.ate) / level_se
         if abs(contrast_crit - level_crit) > 1e-4:
             assert abs(value + level_crit * se - chi) > 1e-6
-    omitted = antecedent.estimation.PreparedBatch.prepare_cells(
-        data,
-        graph=graph,
-        queries=[q11, q10],
-        estimator="cell.aipw",
-        refute="none",
-        bootstrap=0,
-        family_contrast=None,
-    ).estimate(data)
+    omitted = tuple(
+        require_success(member)
+        for member in require_success(
+            antecedent.estimation.prepare_many(
+                data,
+                graph=graph,
+                queries=[q11, q10],
+                estimator="cell.aipw",
+                refute="none",
+                inference=antecedent.Frequentist(bootstrap=0),
+                family=antecedent.estimation.CellFamily(contrast=None),
+            ).estimate()
+        ).members
+    )
     assert all(r.estimate.adjusted_p_values is None for r in omitted)
     assert all(r.estimate.family_contrast is None for r in omitted)
     assert all(r.estimate.family_contrast_interval is None for r in omitted)
     assert all(r.estimate.simultaneous_interval is not None for r in omitted)
+
+
+def test_prepared_batch_family_posterior_is_one_joint_interaction_draw_set():
+    data, graph, q11, q10 = _zero_effect_pair_family()
+    kwargs = {
+        "graph": graph,
+        "queries": [q11, q10],
+        "estimator": "cell.aipw",
+        "refute": "none",
+        "inference": antecedent.Frequentist(bootstrap=0),
+        "family": antecedent.estimation.CellFamily(contrast="interaction"),
+    }
+    first, second = tuple(
+        require_success(member)
+        for member in require_success(
+            antecedent.estimation.prepare_many(
+                data,
+                **{
+                    **kwargs,
+                    "family": antecedent.estimation.CellFamily(
+                        contrast="interaction", posterior_draws=300
+                    ),
+                },
+            ).estimate()
+        ).members
+    )
+    mean, sd, (lo, hi), draws = first.estimate.family_contrast_posterior
+    assert len(draws) == 300 and sd > 0.0 and lo < hi
+    # The interaction is independent of the member level and shares each draw's row weights.
+    assert second.estimate.family_contrast_posterior[3] == draws
+    value, _se = first.estimate.family_contrast
+    assert mean == pytest.approx(value, abs=0.05)
+    plain = tuple(
+        require_success(member)
+        for member in require_success(
+            antecedent.estimation.prepare_many(data, **kwargs).estimate()
+        ).members
+    )
+    assert all(r.estimate.family_contrast_posterior is None for r in plain)
 
 
 def test_prepared_batch_codetermined_distinct_pairs_share_folds_not_z():
@@ -716,34 +971,41 @@ def test_prepared_batch_codetermined_distinct_pairs_share_folds_not_z():
     q12 = InterventionResponse("y", intervention=[Set("t1", 1.0), Set("t2", 1.0)])
     q13 = InterventionResponse("y", intervention=[Set("t1", 1.0), Set("t3", 1.0)])
     q23 = InterventionResponse("y", intervention=[Set("t2", 1.0), Set("t3", 1.0)])
-    batch = antecedent.estimation.PreparedBatch.prepare_cells(
+    batch = antecedent.estimation.prepare_many(
         data,
         graph=background,
         queries=[q12, q13, q23],
         estimator="cell.aipw",
         refute="none",
-        bootstrap=0,
+        inference=antecedent.Frequentist(bootstrap=0),
     )
     design = batch.shared_design
     assert design is not None
     assert design.n_folds == 5
     assert not design.shares_covariates
-    results = batch.estimate(data)
+    results = tuple(require_success(member) for member in require_success(batch.estimate()).members)
     assert len(results) == 3
     assert len(results[0].estimate.joint_covariance) == 3
-    solo = antecedent.analyze(
-        data, graph=background, query=q12, estimator="cell.aipw", refute="none", bootstrap=0
+    solo = require_success(
+        antecedent.analyze(
+            data,
+            graph=background,
+            query=q12,
+            estimator="cell.aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
     assert results[0].estimate.ate == pytest.approx(solo.estimate, abs=1e-12)
     for result in results:
-        assert result.estimate.ate > 1.0
+        assert result.estimate.ate == pytest.approx(2.0, abs=0.1)
         bh, by_q = result.estimate.adjusted_p_values
         assert bh > 0.05 and by_q > 0.05
         value, _se = result.estimate.family_contrast
         assert abs(value) < 0.25
 
 
-def test_prepared_batch_prepare_cells_dag_multi_pair():
+def test_prepared_joint_cell_batch_dag_multi_pair():
     rng = np.random.default_rng(618)
     n = 3200
     z = rng.normal(size=n)
@@ -757,20 +1019,29 @@ def test_prepared_batch_prepare_cells_dag_multi_pair():
     )
     q11 = InterventionResponse("y", intervention=[Set("t1", 1.0), Set("t2", 1.0)])
     q10 = InterventionResponse("y", intervention=[Set("t1", 1.0), Set("t2", 0.0)])
-    batch = antecedent.estimation.PreparedBatch.prepare_cells(
+    batch = antecedent.estimation.prepare_many(
         data,
         graph=graph,
         queries=[q11, q10],
         estimator="cell.aipw",
         refute="none",
-        bootstrap=0,
+        inference=antecedent.Frequentist(bootstrap=0),
     )
-    first, second = batch.estimate(data)
+    first, second = tuple(
+        require_success(member) for member in require_success(batch.estimate()).members
+    )
     assert len(first.estimate.joint_covariance) == 2
     assert first.estimate.adjusted_p_values is not None
-    solo = antecedent.estimation.PreparedAnalysis.prepare(
-        data, graph=graph, query=q11, estimator="cell.aipw", refute="none", bootstrap=0
-    ).estimate(data)
+    solo = require_success(
+        antecedent.prepare(
+            data,
+            graph=graph,
+            query=q11,
+            estimator="cell.aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        ).estimate()
+    )
     assert first.estimate.ate == pytest.approx(solo.estimate, abs=1e-12)
     assert np.isfinite(second.estimate.ate)
 
@@ -778,15 +1049,17 @@ def test_prepared_batch_prepare_cells_dag_multi_pair():
 def test_unrecorded_batch_has_no_invented_winner():
     data = _binary_confounded(300)
     graph = antecedent.Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")])
-    batch = antecedent.estimation.PreparedBatch.prepare(
+    batch = antecedent.estimation.prepare_many(
         data,
         graph=graph,
         queries=[antecedent.AverageEffect("t", "y")],
         estimator="aipw",
         refute="none",
-        bootstrap=0,
+        inference=antecedent.Frequentist(bootstrap=0),
     )
-    (result,) = batch.estimate(data)
+    (result,) = tuple(
+        require_success(member) for member in require_success(batch.estimate()).members
+    )
     assert result.estimate.candidate_selection is not None
     assert result.estimate.candidate_selection.winner_index is None
 
@@ -797,17 +1070,19 @@ def test_conditional_grid_outcome_translation():
     cdfs = []
     for offset in [0.0, 10.0]:
         shifted = {**data, "y": data["y"] + offset}
-        result = antecedent.analyze(
-            shifted,
-            graph=graph,
-            query=antecedent.ConditionalEffect(
-                "t",
-                "y",
-                "z",
-                outcome_functional=ExceedanceGrid([offset, offset + 0.5, offset + 1.0]),
-            ),
-            refute="none",
-            bootstrap=0,
+        result = require_success(
+            antecedent.analyze(
+                shifted,
+                graph=graph,
+                query=antecedent.ConditionalEffect(
+                    "t",
+                    "y",
+                    "z",
+                    outcome_functional=ExceedanceGrid([offset, offset + 0.5, offset + 1.0]),
+                ),
+                refute="none",
+                inference=antecedent.Frequentist(bootstrap=0),
+            )
         )
         cdfs.append(result.estimate.exceedance_cdf)
     np.testing.assert_allclose(cdfs[0], cdfs[1], atol=1e-12)
@@ -821,14 +1096,26 @@ def test_conditional_quantile_fresh_prepared_and_class():
     query = antecedent.ConditionalEffect("t", "y", "z", outcome_functional=Quantile(0.5))
     results = []
     for graph in (dag, cpdag):
-        fresh = antecedent.analyze(data, graph=graph, query=query, refute="none", bootstrap=0)
-        plan = antecedent.estimation.PreparedAnalysis.prepare(
-            data, graph=graph, query=query, refute="none", bootstrap=0
+        fresh = require_success(
+            antecedent.analyze(
+                data,
+                graph=graph,
+                query=query,
+                refute="none",
+                inference=antecedent.Frequentist(bootstrap=0),
+            )
         )
-        click = plan.estimate(data)
+        plan = antecedent.prepare(
+            data,
+            graph=graph,
+            query=query,
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
+        click = require_success(plan.estimate())
         assert fresh.estimate.ate == pytest.approx(click.estimate.ate, abs=1e-10)
         assert fresh.estimate.se_analytic == pytest.approx(click.estimate.se_analytic, abs=1e-10)
-        assert fresh.estimate.ate == pytest.approx(2.0, abs=0.2)
+        assert fresh.estimate.ate == pytest.approx(2.0, abs=0.12)
         assert any(
             diagnostic.startswith("estimate.functional.quantile_grid:")
             and "control then active" in diagnostic
@@ -863,14 +1150,27 @@ def test_dag_cell_aipw_public_route_and_quantile(quantile, first_level, tiered):
         intervention=[Set("t1", first_level), Set("t2", 1.0)],
         outcome_functional=Quantile(0.5) if quantile else Mean(),
     )
-    fresh = antecedent.analyze(
-        data, graph=graph, query=query, estimator="cell.aipw", refute="none", bootstrap=0
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=query,
+            estimator="cell.aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
-    plan = antecedent.estimation.PreparedAnalysis.prepare(
-        data, graph=graph, query=query, estimator="cell.aipw", refute="none", bootstrap=0
+    plan = antecedent.prepare(
+        data,
+        graph=graph,
+        query=query,
+        estimator="cell.aipw",
+        refute="none",
+        inference=antecedent.Frequentist(bootstrap=0),
     )
-    click = plan.estimate(data)
-    retargeted = plan.retarget(np.ones(n), depends_on=[])
+    completed = antecedent.estimate(plan)
+    click = require_success(completed)
+    retargeted = require_success(completed.study.retarget(np.ones(n), depends_on=[]))
     assert fresh.estimate == pytest.approx(click.estimate, abs=1e-10)
     assert retargeted.estimate.ate == pytest.approx(fresh.estimate, abs=1e-10)
     assert fresh.uncertainty.standard_error > 0.0
@@ -881,32 +1181,82 @@ def test_dag_cell_aipw_public_route_and_quantile(quantile, first_level, tiered):
 
     if quantile:
         weights = np.exp(-0.1 * z**2)
-        weighted = plan.retarget(weights, depends_on=["z"])
-        scaled = plan.retarget(7.0 * weights, depends_on=["z"])
+        weighted = require_success(completed.study.retarget(weights, depends_on=["z"]))
+        scaled = require_success(completed.study.retarget(7.0 * weights, depends_on=["z"]))
         assert weighted.estimate.ate == pytest.approx(scaled.estimate.ate, abs=1e-10)
         assert weighted.estimate.se_analytic == pytest.approx(
             scaled.estimate.se_analytic, abs=1e-10
         )
         shifted = {**data, "y": y + 10.0}
-        moved = plan.estimate(shifted)
+        shifted_plan = antecedent.rebind(plan, data=shifted)
+        shifted_completed = antecedent.estimate(shifted_plan)
+        moved = require_success(shifted_completed)
         assert moved.estimate == pytest.approx(fresh.estimate + 10.0, abs=1e-9)
-        plan.refresh(shifted)
-        retained = plan.retarget(np.ones(n), depends_on=[])
+        retained = require_success(shifted_completed.study.retarget(np.ones(n), depends_on=[]))
         assert retained.estimate.ate == pytest.approx(moved.estimate, abs=1e-9)
+        original = require_success(completed.study.retarget(np.ones(n), depends_on=[]))
+        assert original.estimate.ate == pytest.approx(fresh.estimate, abs=1e-10)
+
+
+def test_a_cell_aipw_response_interval_is_the_estimate_plus_minus_the_published_normal_quantile():
+    from statistics import NormalDist
+
+    rng = np.random.default_rng(618)
+    n = 1600
+    z = rng.normal(size=n)
+    t1 = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-(-0.2 + 0.9 * z)))).astype(float)
+    t2 = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-(-0.1 + 0.8 * z)))).astype(float)
+    y = 1.2 * t1 + 0.8 * t2 + 1.5 * t1 * t2 + 0.55 * z + 0.8 * np.exp(rng.normal(size=n)) - 0.8
+    graph = antecedent.Dag.from_edges(
+        ["z", "t1", "t2", "y"],
+        [("z", "t1"), ("z", "t2"), ("z", "y"), ("t1", "y"), ("t2", "y")],
+    )
+    query = InterventionResponse(
+        "y", intervention=[Set("t1", 1.0), Set("t2", 1.0)], outcome_functional=Mean()
+    )
+    result = require_success(
+        antecedent.analyze(
+            {"z": z, "t1": t1, "t2": t2, "y": y},
+            graph=graph,
+            query=query,
+            estimator="cell.aipw",
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
+    )
+    band = result.uncertainty
+    # The analytic standard error is published at the 0.95 level with the two-sided normal
+    # critical value 1.959964 (the 0.975 quantile), not a Student-t or bootstrap quantile.
+    critical = NormalDist().inv_cdf(0.975)
+    assert critical == pytest.approx(1.959964, abs=1e-6)
+    assert band.level == 0.95 and band.interpretation == "confidence"
+    assert band.standard_error > 0.0
+    assert band.lower[0][0] == pytest.approx(
+        result.estimate - critical * band.standard_error, abs=1e-9
+    )
+    assert band.upper[0][0] == pytest.approx(
+        result.estimate + critical * band.standard_error, abs=1e-9
+    )
+    # Truth: E[Y | do(t1=1, t2=1)] = 1.2 + 0.8 + 1.5 + 0.8 (exp(0.5) - 1) = 3.5 + 0.5190; the
+    # estimate lies within a few standard errors of it.
+    truth = 3.5 + 0.8 * (np.exp(0.5) - 1.0)
+    assert abs(result.estimate - truth) < 5.0 * band.standard_error
 
 
 @pytest.mark.parametrize("refute", ["cheap", "full"])
 def test_conditional_quantile_refuses_mean_effect_refuters(refute):
     data = _binary_confounded(400)
     graph = antecedent.Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")])
+    refused = antecedent.analyze(
+        data,
+        graph=graph,
+        query=antecedent.ConditionalEffect("t", "y", "z", outcome_functional=Quantile(0.5)),
+        refute=refute,
+        inference=antecedent.Frequentist(bootstrap=0),
+    )
+    assert refused.refusal is not None
     with pytest.raises(CausalUnsupportedError, match="mean-effect refuters"):
-        antecedent.analyze(
-            data,
-            graph=graph,
-            query=antecedent.ConditionalEffect("t", "y", "z", outcome_functional=Quantile(0.5)),
-            refute=refute,
-            bootstrap=0,
-        )
+        require_success(refused)
 
 
 @pytest.mark.parametrize("prepared", [False, True])
@@ -914,14 +1264,22 @@ def test_response_quantile_refuses_mean_only_estimator(prepared):
     data = _binary_confounded(400)
     graph = antecedent.Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")])
     query = InterventionResponse("y", intervention=Set("t", 1.0), outcome_functional=Quantile(0.5))
-    run = antecedent.estimation.PreparedAnalysis.prepare if prepared else antecedent.analyze
+    declarations = dict(
+        graph=graph, query=query, refute="none", inference=antecedent.Frequentist(bootstrap=0)
+    )
+    outcome = (
+        antecedent.estimate(antecedent.prepare(data, **declarations))
+        if prepared
+        else antecedent.analyze(data, **declarations)
+    )
+    assert outcome.refusal is not None
     with pytest.raises(CausalUnsupportedError, match="quantiles require"):
-        run(data, graph=graph, query=query, refute="none", bootstrap=0)
+        require_success(outcome)
 
 
-@pytest.mark.parametrize("entry", ["prepare", "prepare_cells"])
-def test_batch_prepare_forwards_omitted_bootstrap_and_refute(entry):
-    """An omitted ``bootstrap`` / ``refute`` reaches the study builder as omitted.
+@pytest.mark.parametrize("entry", ["prepare_many", "analyze_many"])
+def test_batch_prepare_forwards_omitted_inference_and_refute(entry):
+    """Omitted inference and refutation budgets reach the native builder as omitted.
 
     The batch entry points must not carry their own defaults (0 / False): the
     builder's omitted-default table is the single owner, so the same query gives
@@ -929,6 +1287,29 @@ def test_batch_prepare_forwards_omitted_bootstrap_and_refute(entry):
     """
     import inspect
 
-    params = inspect.signature(getattr(antecedent.estimation.PreparedBatch, entry)).parameters
-    assert params["bootstrap"].default is None
+    params = inspect.signature(getattr(antecedent.estimation, entry)).parameters
+    assert params["inference"].default is None
     assert params["refute"].default is None
+
+
+def test_a_cell_aipw_response_study_publishes_its_arm_and_tier_record():
+    data, background, q11, _ = _codetermined_pair_family()
+    prepared = antecedent.prepare(
+        data,
+        query=q11,
+        graph=background,
+        estimator="cell.aipw",
+        refute="none",
+        inference=antecedent.Frequentist(bootstrap=0),
+    )
+    outcome = antecedent.estimate(prepared)
+    require_success(outcome)
+    operation = outcome.study.plan_view().operation
+    assert operation["kind"] == "cell_aipw_response"
+    assert operation["origin"] == "Explicit", (
+        "the DAG-equivalent background was supplied, not accepted"
+    )
+    assert 0 <= operation["requested_arm"] < 4, "two binary treatments make four arms"
+    assert operation["adjustment_set"] == ["z"], "the earlier tier closes the back door"
+    assert "codetermined" in operation["within_tier"].lower()
+    assert operation["identifier"] and operation["estimator"] == "cell.aipw"

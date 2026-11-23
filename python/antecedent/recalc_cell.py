@@ -8,9 +8,10 @@ way a fresh interpreter picks the work up.
 over discrete joint binary treatments (the cell-saturated AIPW estimator)::
 
     session = recalc_cell.CellSession()
-    first = session.execute(request, seed=7)        # (plan, receipt, law, decision)
+    run = Execution(seed=7)
+    first = session.execute(request, execution=run)  # (plan, receipt, law, decision)
     first.receipt.totals.fold_fits                  # 25 = 5 folds x (1 propensity + 4 cell fits)
-    again = session.execute(replace(request, utility=Utility(3.0, 0.1)), seed=7)
+    again = session.execute(replace(request, utility=Utility(3.0, 0.1)), execution=run)
     again.receipt.totals.fold_fits                  # 0: only the decision was recomputed
 
 The fit count is read from the estimator's own instrument, which counts every multinomial
@@ -22,7 +23,7 @@ fold seed, graph, adjustment set or data refits.
 :meth:`CrossfitSession.export_frozen_scores`) return :class:`FrozenScores`, a checksummed
 ``frozen_scores_v1`` artifact holding the scores and the producing workflow's stage digests but
 no data and no model. :func:`resume_from_scores` builds a :class:`ScoreResumeSession` from those
-bytes alone, in any interpreter. Its one licensed operation is :meth:`ScoreResumeSession.retarget`:
+bytes alone, in any interpreter. Its one supported operation is :meth:`ScoreResumeSession.retarget`:
 reweight the frozen scores by row weights and recompute the law and decision with zero fits.
 Anything that would need the data or a fit (a changed outcome, folds, graph, row design, data
 snapshot or new data) is refused before any work with the plan's ``Unavailable`` for the data
@@ -46,7 +47,15 @@ from typing import Any, Literal
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
+from antecedent import _reason_details
+
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._refusal import raise_refusal
 from .errors import (
     CausalSerializationError,
@@ -54,6 +63,8 @@ from .errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from .execution import Execution
+from .outcomes import outcome_operation
 from .recalc import (
     Decision,
     Law,
@@ -65,11 +76,14 @@ from .recalc import (
     RecalcResult,
     RecalcUnavailable,
     Retarget,
+    SessionStanding,
     Stage,
     TargetWeights,
     Utility,
     _column,
-    _seed,
+    _execution,
+    _native_controls,
+    session_standing,
     stage_identity,
 )
 
@@ -80,7 +94,11 @@ Quantity = Literal["interaction", "average_effect", "cell_minus_control"]
 the ``average_effect`` of one treatment, or one ``cell_minus_control`` contrast (set ``arm``)."""
 _QUANTITIES = ("interaction", "average_effect", "cell_minus_control")
 _UNAVAILABLE = frozenset(
-    {"recalc.unavailable_fit", "recalc.unavailable_data", "recalc.unavailable_provider"}
+    {
+        _reason_details.recalc.UNAVAILABLE_FIT,
+        _reason_details.recalc.UNAVAILABLE_DATA,
+        _reason_details.recalc.UNAVAILABLE_PROVIDER,
+    }
 )
 
 
@@ -106,6 +124,11 @@ class ScoreResumeUnavailable(ScoreResumeRefusal, RecalcUnavailable):
     """
 
 
+def _row_id_array(ids: Sequence[int]) -> NDArray[np.uint64]:
+    """Row ids as ``uint64``. A value past ``2**32 - 1`` is not narrowed."""
+    return np.asarray(ids, dtype=np.uint64)
+
+
 def _resume_refusal_type(wire: Mapping[str, Any]) -> type[RecalcRefusal]:
     """The class of a refusal raised while resuming from a frozen score artifact."""
     unavailable = str(wire["detail"]) in _UNAVAILABLE
@@ -118,7 +141,7 @@ def _cell_refusal_type(wire: Mapping[str, Any]) -> type[RecalcRefusal]:
         return _resume_refusal_type(wire)
     if detail in _UNAVAILABLE:
         return RecalcUnavailable
-    if detail == "recalc.no_live_state":
+    if detail == _reason_details.recalc.NO_LIVE_STATE:
         return RecalcNoLiveState
     return RecalcRefusal
 
@@ -158,7 +181,8 @@ class ResumeReceipt(RecalcReceipt):
     resumed run reuses the portable score artifact, so no artifact is sealed.
     """
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """Always refuses: a resumed receipt is a record, not a ``recalc_receipt_v1`` artifact."""
         raise CausalUnsupportedError(
             "a resumed retarget receipt reuses the portable score artifact in a fresh process "
@@ -180,6 +204,7 @@ def _frame(data: Mapping[str, ArrayLike]) -> tuple[list[str], list[NDArray[np.fl
 
 
 def _result(result: str | None, artifact: bytes | None, refusal: str | None) -> RecalcResult:
+    artifact = container_bytes(artifact) if artifact is not None else None
     raise_refusal(refusal, _cell_refusal_type)
     if result is None or artifact is None:  # pragma: no cover - one of the two is set
         raise CausalSerializationError("recalc execution returned no result")
@@ -211,9 +236,10 @@ class FrozenScores:
     identity: str
     _bytes: bytes
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The artifact bytes."""
-        return self._bytes
+        return artifact_from_receipt(self, self._bytes)
 
     @classmethod
     def load(cls, data: bytes, *, expected_identity: str | None = None) -> FrozenScores:
@@ -224,6 +250,11 @@ class FrozenScores:
             CausalSerializationError: the bytes are corrupt, oversized, malformed or of an
                 unsupported version.
         """
+        data = (
+            container_bytes(data)
+            if isinstance(data, (bytes, bytearray, memoryview, ExportedArtifact))
+            else data
+        )
         handle = _resume_handle(bytes(data), expected_identity)
         return cls(identity=handle.artifact_identity(), _bytes=bytes(data))
 
@@ -271,12 +302,17 @@ class CellSession:
 
     __slots__ = ("_handle",)
 
-    def __init__(self, *, retarget: Retarget = "licensed") -> None:
+    def __init__(self, *, retarget: Retarget = "supported") -> None:
         self._handle = _native.CellSessionHandle(retarget)
 
     def set_retarget_support(self, retarget: Retarget) -> None:
-        """Declare the estimator's retarget license for later plans (and for export)."""
+        """Declare the estimator's retarget support for later plans (and for export)."""
         self._handle.set_retarget_support(retarget)
+
+    @property
+    def standing(self) -> SessionStanding:
+        """The standing inputs this session family's stage identities declare."""
+        return session_standing("cell")
 
     @property
     def is_live(self) -> bool:
@@ -299,8 +335,8 @@ class CellSession:
             return None
         return {arm: np.asarray(values, dtype=np.float64) for arm, values in columns}
 
-    def _call(
-        self, request: CellRequest, seed: int, threads: int | None
+    def _arguments(
+        self, request: CellRequest, run: Execution
     ) -> tuple[tuple[Any, ...], dict[str, Any]]:
         names, columns = _frame(request.data)
         target = request.target
@@ -322,21 +358,20 @@ class CellSession:
                 None if target is None else _column("target weights", target.weights)
             ),
             "target_depends_on": None if target is None else [str(v) for v in target.depends_on],
-            "seed": _seed(seed),
-            "threads": threads,
+            **_native_controls(run),
         }
         return positional, keywords
 
-    def plan(
-        self, request: CellRequest, *, seed: int = 1, threads: int | None = None
-    ) -> RecalcPlan:
+    def plan(self, request: CellRequest, *, execution: Execution | None = None) -> RecalcPlan:
         """The plan ``request`` would run under, without running it."""
-        positional, keywords = self._call(request, seed, threads)
-        return RecalcPlan.from_wire(json.loads(self._handle.plan(*positional, **keywords)))
+        run = _execution(execution)
+        positional, keywords = self._arguments(request, run)
+        return RecalcPlan.from_wire(
+            json.loads(run._call(self._handle.plan, *positional, **keywords))
+        )
 
-    def execute(
-        self, request: CellRequest, *, seed: int = 1, threads: int | None = None
-    ) -> RecalcResult:
+    @outcome_operation
+    def execute(self, request: CellRequest, *, execution: Execution | None = None) -> RecalcResult:
         """Plan, run only what the plan says must run, count the work and seal the receipt.
 
         Raises:
@@ -345,15 +380,16 @@ class CellSession:
                 ``recalc.invalid_graph``); nothing was fitted.
             RecalcNoLiveState: the plan reuses a stage this session cannot back with live scores.
         """
-        positional, keywords = self._call(request, seed, threads)
-        return _result(*self._handle.execute(*positional, **keywords))
+        run = _execution(execution)
+        positional, keywords = self._arguments(request, run)
+        return _result(*run._call(self._handle.execute, *positional, **keywords))
 
     def export_frozen_scores(self) -> FrozenScores:
         """Export the live cell scores as a portable :class:`FrozenScores` artifact.
 
         Raises:
-            RecalcRefusal: ``recalc.retarget_not_licensed`` for a route whose retarget is not
-                licensed (an unlicensed route cannot be resumed by retarget).
+            RecalcRefusal: ``recalc.retarget_not_supported`` for a route whose retarget is not
+                supported (an unsupported route cannot be resumed by retarget).
             RecalcNoLiveState: nothing has run in this session.
         """
         return _frozen(self._handle.export_frozen_scores())
@@ -375,18 +411,26 @@ class CrossfitSession:
         self._handle = _native.CrossfitSessionHandle()
 
     @property
+    def standing(self) -> SessionStanding:
+        """The standing inputs this session family's stage identities declare."""
+        return session_standing("receipt")
+
+    @property
     def is_live(self) -> bool:
         """Whether the session holds a live prepared study."""
         return self._handle.is_live()
 
+    @outcome_operation
     def execute(
-        self, request: RecalcRequest, *, seed: int = 1, threads: int | None = None
+        self, request: RecalcRequest, *, execution: Execution | None = None
     ) -> RecalcResult:
         """Plan, run only what the plan says must run, count the work and seal the receipt."""
+        run = _execution(execution)
         names, columns = _frame(request.data)
         target = request.target
         return _result(
-            *self._handle.execute(
+            *run._call(
+                self._handle.execute,
                 names,
                 columns,
                 [(str(a), str(b)) for a, b in request.edges],
@@ -398,8 +442,7 @@ class CrossfitSession:
                     None if target is None else _column("target weights", target.weights)
                 ),
                 target_depends_on=(None if target is None else [str(v) for v in target.depends_on]),
-                seed=_seed(seed),
-                threads=threads,
+                **_native_controls(run),
             )
         )
 
@@ -412,6 +455,11 @@ class CrossfitSession:
 
 
 def _resume_handle(data: bytes, expected_identity: str | None) -> _native.ScoreResumeHandle:
+    data = (
+        container_bytes(data)
+        if isinstance(data, (bytes, bytearray, memoryview, ExportedArtifact))
+        else data
+    )
     handle, refusal = _native.ScoreResumeHandle.from_bytes(bytes(data), expected_identity)
     raise_refusal(refusal, _resume_refusal_type)
     if handle is None:  # pragma: no cover - one of the two is set
@@ -423,7 +471,7 @@ class ScoreResumeSession:
     """A session built only from :class:`FrozenScores` bytes.
 
     It holds the frozen scores and the producing workflow's identities, and no data, fitted
-    model or prepared study. Its one licensed operation is :meth:`retarget`; :meth:`execute`
+    model or prepared study. Its one supported operation is :meth:`retarget`; :meth:`execute`
     and every ``declared_changes`` entry that would need the data or a fit are refused with
     :class:`ScoreResumeUnavailable` before any work.
     """
@@ -462,9 +510,12 @@ class ScoreResumeSession:
         return self._handle.n_rows()
 
     @property
-    def row_ids(self) -> NDArray[np.uint32]:
-        """The original row ids target weights are indexed by, in row order."""
-        return np.asarray(self._handle.row_ids(), dtype=np.uint32)
+    def row_ids(self) -> NDArray[np.uint64]:
+        """The original row ids target weights are indexed by, in row order.
+
+        Each id is a ``uint64``. A row past ``2**32 - 1`` is kept.
+        """
+        return _row_id_array(self._handle.row_ids())
 
     @property
     def has_run(self) -> bool:
@@ -483,7 +534,7 @@ class ScoreResumeSession:
             for arm, values in self._handle.score_columns()
         }
 
-    # -- the licensed operation --
+    # -- the supported operation --
 
     def _position(self, name: str) -> int:
         try:
@@ -595,16 +646,19 @@ class ScoreResumeSession:
             decision=Decision(**wire["decision"]),
         )
 
-    def execute(self, request: CellRequest | RecalcRequest, *, seed: int = 1) -> RecalcResult:
+    @outcome_operation
+    def execute(
+        self, request: CellRequest | RecalcRequest, *, execution: Execution | None = None
+    ) -> RecalcResult:
         """Refused: a resumed session holds no data, so it cannot run a request over data.
 
         The request's data is not bound to the artifact's snapshot, so the plan refuses with the
-        data as the missing dependency. Use :meth:`retarget` for the licensed operation.
+        data as the missing dependency. Use :meth:`retarget` for the supported operation.
 
         Raises:
             ScoreResumeUnavailable: always, before any work.
         """
-        _seed(seed)
+        _execution(execution)
         _frame(request.data)
         unbound = {Stage.DATA_SNAPSHOT: "unbound data supplied to a resumed session"}
         self.retarget(declared_changes=unbound)
@@ -637,8 +691,13 @@ def resume_from_scores(
         ScoreResumeRefusal: ``frozen_scores.identity_mismatch`` for another identity.
         CausalSerializationError: corrupt, oversized, malformed or unsupported-version bytes.
     """
+    data = (
+        container_bytes(data)
+        if isinstance(data, (bytes, bytearray, memoryview, ExportedArtifact))
+        else data
+    )
     if isinstance(data, FrozenScores):
-        raw = data.export()
+        raw = bytes(data.export())
     elif isinstance(data, (bytes, bytearray, memoryview)):
         raw = bytes(data)
     else:

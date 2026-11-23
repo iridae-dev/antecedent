@@ -1,6 +1,6 @@
 //! Bayesian mechanisms, g-computation, and posterior functional evaluation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -24,7 +24,7 @@ pub use draw_controls::{
 pub use evaluator::{CompiledGCompAte, GCompAteEvaluator, PosteriorFunctionalEvaluator};
 pub use gcomp::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
-    LAPLACE_RANK_INTERVAL_BELOW_DRAWS, PreparedBayesianProblem,
+    LAPLACE_RANK_INTERVAL_BELOW_DRAWS, PreparedBayesianProblem, TargetMoments,
 };
 #[cfg(test)]
 pub(crate) use hydrate::HYDRATED_COEFFICIENT_COVARIANCE_ID;
@@ -187,9 +187,20 @@ pub struct CausalPosterior {
     /// `None` when the posterior is not an identity-link contrast (or the
     /// contrast was not available at fit time).
     pub treatment_contrast: Option<f64>,
+    /// How the columns the fit read were prepared, when the estimator admitted them through
+    /// the preparation path. A physical fact about the run, so it is not part of the draws,
+    /// the summaries or any identity.
+    pub preparation: Option<Arc<crate::PreparationSummary>>,
 }
 
 impl CausalPosterior {
+    /// Record how the fitted columns were prepared.
+    #[must_use]
+    pub fn with_preparation(mut self, preparation: Option<Arc<crate::PreparationSummary>>) -> Self {
+        self.preparation = preparation;
+        self
+    }
+
     /// Primary effect column index (first `Effect` quantity), if any.
     #[must_use]
     pub fn effect_column(&self) -> Option<usize> {
@@ -204,7 +215,8 @@ impl CausalPosterior {
     ///
     /// # Errors
     ///
-    /// Missing effect column.
+    /// Missing or malformed effect column, no draws, non-finite draws, or a NaN
+    /// threshold. Failed draws cannot support a finite posterior probability.
     pub fn probability_below(&self, threshold: f64) -> Result<f64, EstimationError> {
         let q = self
             .effect_column()
@@ -297,5 +309,6 @@ pub fn nonidentified_with_prior(
         unidentified_mass: 1.0,
         early_stopped: false,
         treatment_contrast: None,
+        preparation: None,
     })
 }

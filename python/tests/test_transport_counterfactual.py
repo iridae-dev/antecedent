@@ -46,7 +46,10 @@ from functools import cache
 import numpy as np
 import pytest
 from antecedent import Admg
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalError, CausalUnsupportedError, CausalValueError
+from antecedent.execution import Execution
+from antecedent.outcomes import require_success
 from antecedent.state import CancellationToken
 from antecedent.transport import advanced as transport
 
@@ -666,42 +669,48 @@ def test_the_target_need_not_measure_the_outcome():
 
 
 # ---------------------------------------------------------------------------
-# Lifecycle: decide once, evaluate, refresh, order invariance.
+# Lifecycle: decide once, evaluate, rebind, order invariance.
 # ---------------------------------------------------------------------------
 
 
-def test_refresh_rebuilds_the_numbers_and_leaves_the_decided_value_untouched():
+def test_bind_snapshot_rebuilds_the_numbers_and_leaves_the_decided_value_untouched():
     case = mediation_case()
     worlds, event = nested(0, 0)  # depends on the covariate law
     decision = case.decide(worlds, event)
     derivation = decision.derivation
     before = float(MEDIATION_TRUTH[(0, 0)])
     with pytest.raises(CausalUnsupportedError) as raised:
-        derivation.estimate()
+        require_success(derivation.estimate())
     assert raised.value.reason_code == "transport_missing_provider"
 
-    first = derivation.refresh(case.laws())
+    first = require_success(derivation.bind_snapshot(case.laws()))
     assert first.bound and not derivation.bound
-    assert abs(first.estimate().probability - before) <= EXACT_TOLERANCE
+    assert abs(require_success(first.estimate()).probability - before) <= EXACT_TOLERANCE
 
     # Same shape, changed numbers: the covariate law of the target moves.
     shifted_case = mediation_case(F(1, 2))
     shifted_truth = shifted_case.models["target"].probability(nested_truth(0, 0))
     assert abs(float(shifted_truth) - before) > 1e-3
-    second = first.refresh(shifted_case.laws())
-    assert abs(second.estimate().probability - float(shifted_truth)) <= EXACT_TOLERANCE
+    second = require_success(first.bind_snapshot(shifted_case.laws()))
+    assert (
+        abs(require_success(second.estimate()).probability - float(shifted_truth))
+        <= EXACT_TOLERANCE
+    )
     # Nothing was searched again: the frozen derivation is the one decided once.
     assert second.derivation["canonical_text"] == derivation.derivation["canonical_text"]
     assert second.derivation["search_receipt"] == derivation.derivation["search_receipt"]
     # The earlier prepared value keeps its numbers.
-    assert abs(first.estimate().probability - before) <= EXACT_TOLERANCE
+    assert abs(require_success(first.estimate()).probability - before) <= EXACT_TOLERANCE
 
-    # A refused refresh (a counted law) leaves the bound state alone.
+    # A refused rebind (a counted law) leaves the bound state alone.
     counted = [_counted(law) for law in case.laws()]
     with pytest.raises(CausalUnsupportedError) as refused:
-        second.refresh(counted)
-    assert refused.value.reason_code == "cell_not_licensed"
-    assert abs(second.estimate().probability - float(shifted_truth)) <= EXACT_TOLERANCE
+        require_success(second.bind_snapshot(counted))
+    assert refused.value.reason_code == "route_not_supported"
+    assert (
+        abs(require_success(second.estimate()).probability - float(shifted_truth))
+        <= EXACT_TOLERANCE
+    )
 
 
 def test_evaluation_is_deterministic_and_invariant_to_law_and_regime_order():
@@ -713,7 +722,7 @@ def test_evaluation_is_deterministic_and_invariant_to_law_and_regime_order():
     again = derivation.evaluate(evidence=laws)
     reversed_ = derivation.evaluate(evidence=list(reversed(laws)))
     assert first.probability == again.probability == reversed_.probability
-    assert first.export() == reversed_.export(), "exports are canonical in law order"
+    assert bytes(first.export()) == bytes(reversed_.export()), "exports are canonical in law order"
     # Declaration order of the catalog's regimes does not change the decision.
     flipped = transport.EvidenceCatalog(regimes=tuple(reversed(case.catalog().regimes)))
     other = transport.identify_counterfactual(
@@ -790,7 +799,7 @@ def test_a_recanting_witness_is_a_proven_obstruction_and_replays_from_bytes():
     decision = case.decide(worlds, (Event("Y", 1, "outer"),))
     assert decision.status == "proven_non_transportable"
     assert decision.reason_code == "transport_proven_non_transportable"
-    assert decision.detail == "counterfactual_transport.checked_obstruction"
+    assert decision.detail == reason_details.counterfactual_transport.CHECKED_OBSTRUCTION
     first, second = decision.witness_values
     assert first != second
     for value in (first, second):
@@ -801,9 +810,9 @@ def test_a_recanting_witness_is_a_proven_obstruction_and_replays_from_bytes():
     with pytest.raises(CausalUnsupportedError) as raised:
         decision.prepare()
     assert raised.value.reason_code == "transport_proven_non_transportable"
-    assert "counterfactual_transport.checked_obstruction" in str(raised.value)
+    assert reason_details.counterfactual_transport.CHECKED_OBSTRUCTION in str(raised.value)
 
-    artifact = decision.export()
+    artifact = bytes(decision.export())
     consumed = transport.consume_counterfactual_transport_artifact(
         artifact,
         expected_premises_digest=decision.premises_digest,
@@ -839,7 +848,7 @@ def test_selection_on_the_outcome_mechanism_is_not_transportable():
     assert identified.status == "identified", identified.decision
 
 
-def test_missing_evidence_names_the_regime_that_would_license_the_query():
+def test_missing_evidence_names_the_regime_that_would_support_the_query():
     case, alternative = missing_experiment_pair()
     # Independently: with the experiment withheld two models agree on every
     # supplied table and differ on the target (19/32 against 23/64).
@@ -852,7 +861,7 @@ def test_missing_evidence_names_the_regime_that_would_license_the_query():
     decision = case.decide(worlds, event)
     assert decision.status == "missing_evidence"
     assert decision.reason_code == "transport_missing_evidence"
-    assert decision.detail == "counterfactual_transport.missing_regime"
+    assert decision.detail == reason_details.counterfactual_transport.MISSING_REGIME
     assert any(
         m["population"] == "source" and tuple(m["interventions"]) == ("X",)
         for m in decision.missing_regimes
@@ -861,7 +870,7 @@ def test_missing_evidence_names_the_regime_that_would_license_the_query():
         decision.prepare()
     assert raised.value.reason_code == "transport_missing_evidence"
     message = str(raised.value)
-    assert "counterfactual_transport.missing_regime" in message
+    assert reason_details.counterfactual_transport.MISSING_REGIME in message
     assert "experiment on" in message and "source" in message
     assert decision.derivation is None
 
@@ -887,7 +896,7 @@ def test_zero_conditioning_mass_is_a_typed_refusal_not_a_number():
     with pytest.raises(CausalUnsupportedError) as raised:
         decision.derivation.evaluate(evidence=case.laws())
     assert raised.value.reason_code == "transport_support_failure"
-    assert "counterfactual_transport.zero_conditioning_mass" in str(raised.value)
+    assert reason_details.counterfactual_transport.ZERO_CONDITIONING_MASS in str(raised.value)
     assert_registered_refusal(raised.value)
 
     # The same query is defined, and equals 1/4, in the source population.
@@ -912,7 +921,7 @@ def test_zero_conditioning_mass_is_a_typed_refusal_not_a_number():
 
 
 # ---------------------------------------------------------------------------
-# Refusals name what would license the request.
+# Refusals name what would support the request.
 # ---------------------------------------------------------------------------
 
 
@@ -923,18 +932,18 @@ def test_budget_cancellation_and_bounds_are_coded_stops_never_verdicts():
     starved = case.decide(worlds, event, max_operations=1, max_depth=8)
     assert starved.status == "budget_cancel"
     assert starved.reason_code == "transport_budget_cancel"
-    assert starved.detail == "counterfactual_transport.budget"
+    assert starved.detail == reason_details.counterfactual_transport.BUDGET
     assert starved.derivation is None
     receipt = starved.decision["limits_receipt"]
     assert receipt["stop"] in ("search.operations", "search.depth")
     assert receipt["operations_limit"] == 1 and receipt["depth_limit"] == 8
-    with pytest.raises(Exception, match="counterfactual_transport.budget") as raised:
+    with pytest.raises(Exception, match=reason_details.counterfactual_transport.BUDGET) as raised:
         starved.prepare()
     assert raised.value.reason_code == "transport_budget_cancel"
 
     token = CancellationToken()
     token.cancel()
-    cancelled = case.decide(worlds, event, cancel=token)
+    cancelled = case.decide(worlds, event, execution=Execution(cancel=token))
     assert cancelled.status == "budget_cancel"
     assert cancelled.reason_code == "transport_budget_cancel"
 
@@ -942,7 +951,7 @@ def test_budget_cancellation_and_bounds_are_coded_stops_never_verdicts():
     with pytest.raises(CausalUnsupportedError) as raised:
         case.decide(worlds, event, max_operations=10**12)
     assert raised.value.reason_code == "route_not_supported"
-    assert "counterfactual_transport.bounds_exceeded" in str(raised.value)
+    assert reason_details.counterfactual_transport.BOUNDS_EXCEEDED in str(raised.value)
 
 
 def test_malformed_requests_refuse_as_invalid_arguments():
@@ -958,7 +967,9 @@ def test_malformed_requests_refuse_as_invalid_arguments():
         event=event,
         sources=case.sources,
     )
-    with pytest.raises(Exception, match="counterfactual_transport.invalid_query") as raised:
+    with pytest.raises(
+        Exception, match=reason_details.counterfactual_transport.INVALID_QUERY
+    ) as raised:
         transport.identify_counterfactual(graph=case.graph(), query=query, catalog=case.catalog())
     assert raised.value.reason_code == "invalid_argument"
     # An event on a variable that is not in the graph.
@@ -995,7 +1006,7 @@ def test_absent_mislabelled_counted_and_malformed_evidence_is_refused_before_a_n
     with pytest.raises(CausalUnsupportedError) as raised:
         derivation.evaluate(evidence=thin)
     assert raised.value.reason_code == "transport_missing_provider"
-    assert "counterfactual_transport.missing_law" in str(raised.value)
+    assert reason_details.counterfactual_transport.MISSING_LAW in str(raised.value)
 
     # A source law relabelled as the target's: the catalog binds no such regime.
     first = next(i for i, law in enumerate(laws) if law.population == "source")
@@ -1012,13 +1023,13 @@ def test_absent_mislabelled_counted_and_malformed_evidence_is_refused_before_a_n
     with pytest.raises(CausalValueError):
         derivation.evaluate(evidence=swapped)
 
-    # A counted (empirical) law is not licensed: sampled inference is another route.
+    # A counted (empirical) law is not supported: sampled inference is another route.
     counted = list(laws)
     counted[0] = _counted(counted[0])
     with pytest.raises(CausalUnsupportedError) as raised:
         derivation.evaluate(evidence=counted)
-    assert raised.value.reason_code == "cell_not_licensed"
-    assert "counterfactual_transport.sampled_inference_closed" in str(raised.value)
+    assert raised.value.reason_code == "route_not_supported"
+    assert reason_details.counterfactual_transport.NO_SAMPLED_INFERENCE in str(raised.value)
 
     # Levels that are not the declared ones.
     wrong = list(laws)
@@ -1044,13 +1055,13 @@ def test_absent_mislabelled_counted_and_malformed_evidence_is_refused_before_a_n
 def _exported(label="Y_x0_Mx1"):
     target = next(t for t in TARGETS if t.label == label)
     result = _identified(target).derivation.evaluate(evidence=target.case.laws())
-    return target, result, result.export()
+    return target, result, bytes(result.export())
 
 
 def test_exported_result_is_recomputed_by_an_independent_consumer():
     for target in TARGETS:
         result = _identified(target).derivation.evaluate(evidence=target.case.laws())
-        artifact = result.export()
+        artifact = bytes(result.export())
         consumed = transport.consume_counterfactual_transport_artifact(
             artifact,
             expected_premises_digest=result.premises_digest,
@@ -1076,7 +1087,7 @@ def test_a_mutated_artifact_is_refused_or_returns_the_original_answer():
         transport.consume_counterfactual_transport_artifact(edited)
     assert isinstance(raised.value, CausalError)
     assert raised.value.reason_code == "invalid_argument"
-    assert "counterfactual_transport.invalid_artifact" in str(raised.value)
+    assert reason_details.counterfactual_transport.INVALID_ARTIFACT in str(raised.value)
 
     # Every sampled single-bit edit either refuses or cannot change the answer.
     stride = max(1, len(artifact) // 80)
@@ -1114,7 +1125,7 @@ def test_expected_identity_and_consumer_limits_are_enforced_before_a_number():
         with pytest.raises(CausalError) as raised:
             transport.consume_counterfactual_transport_artifact(artifact, **expected)
         assert raised.value.reason_code == "invalid_argument"
-        assert "counterfactual_transport.invalid_artifact" in str(raised.value)
+        assert reason_details.counterfactual_transport.INVALID_ARTIFACT in str(raised.value)
     # Either digest alone binds the expectation.
     transport.consume_counterfactual_transport_artifact(
         artifact, expected_data_digest=result.data_digest
@@ -1124,14 +1135,16 @@ def test_expected_identity_and_consumer_limits_are_enforced_before_a_number():
     with pytest.raises(CausalUnsupportedError) as raised:
         transport.consume_counterfactual_transport_artifact(artifact, max_search_operations=1)
     assert raised.value.reason_code == "route_not_supported"
-    assert "counterfactual_transport.bounds_exceeded" in str(raised.value)
+    assert reason_details.counterfactual_transport.BOUNDS_EXCEEDED in str(raised.value)
     with pytest.raises(CausalUnsupportedError) as raised:
         transport.consume_counterfactual_transport_artifact(artifact, max_laws=1)
     assert raised.value.reason_code == "route_not_supported"
     token = CancellationToken()
     token.cancel()
     with pytest.raises(CausalError) as raised:
-        transport.consume_counterfactual_transport_artifact(artifact, cancel=token)
+        transport.consume_counterfactual_transport_artifact(
+            artifact, execution=Execution(cancel=token)
+        )
     assert isinstance(raised.value, CausalError)
 
 
@@ -1200,7 +1213,9 @@ def test_identify_counterfactual_keeps_its_plan_after_the_builder_is_disposed():
     plan = derivation.derivation
     assert plan["canonical_text"] == program["derivation"]["canonical_text"]
     assert plan["rules"] and plan["cited"]
-    result = derivation.refresh(target.case.laws()).estimate()
+    result = require_success(
+        require_success(derivation.bind_snapshot(target.case.laws())).estimate()
+    )
     assert abs(result.probability - float(target.expected)) <= EXACT_TOLERANCE
 
 
@@ -1212,7 +1227,7 @@ def test_evaluate_runs_the_retained_plan_without_searching_again_after_builder_d
     receipt = derivation.derivation["search_receipt"]
     del builder
     result = derivation.evaluate(evidence=laws)
-    state = derivation.refresh(laws).estimate()
+    state = require_success(require_success(derivation.bind_snapshot(laws)).estimate())
     assert result.probability == state.probability
     assert abs(result.probability - float(target.expected)) <= EXACT_TOLERANCE
     plan = derivation.derivation
@@ -1223,32 +1238,35 @@ def test_estimate_returns_the_bound_state_of_the_retained_plan_after_builder_dis
     target = _label("effect_on_treated")
     builder = target.case.decide(target.worlds, target.event, target.given)
     derivation = builder.derivation
-    bound = derivation.refresh(target.case.laws())
+    bound = require_success(derivation.bind_snapshot(target.case.laws()))
     del builder
-    state = bound.estimate()
+    state = require_success(bound.estimate())
     assert bound.bound and not derivation.bound
     assert abs(state.probability - float(target.expected)) <= EXACT_TOLERANCE
     plan = bound.derivation
     assert plan["canonical_text"] == derivation.derivation["canonical_text"]
     with pytest.raises(CausalUnsupportedError) as raised:
-        derivation.estimate()
+        require_success(derivation.estimate())
     assert raised.value.reason_code == "transport_missing_provider"
 
 
-def test_refresh_rebinds_laws_to_the_retained_plan_after_builder_disposal():
+def test_bind_snapshot_rebinds_laws_to_the_retained_plan_after_builder_disposal():
     case = mediation_case()
     worlds, event = nested(0, 0)
     builder = case.decide(worlds, event)
     derivation = builder.derivation
-    first = derivation.refresh(case.laws())
+    first = require_success(derivation.bind_snapshot(case.laws()))
     del builder
     shifted = mediation_case(F(1, 2))
-    second = first.refresh(shifted.laws())
+    second = require_success(first.bind_snapshot(shifted.laws()))
     plan = second.derivation
     assert plan["canonical_text"] == derivation.derivation["canonical_text"]
     truth = float(shifted.models["target"].probability(nested_truth(0, 0)))
-    assert abs(second.estimate().probability - truth) <= EXACT_TOLERANCE
-    assert abs(first.estimate().probability - float(MEDIATION_TRUTH[(0, 0)])) <= EXACT_TOLERANCE
+    assert abs(require_success(second.estimate()).probability - truth) <= EXACT_TOLERANCE
+    assert (
+        abs(require_success(first.estimate()).probability - float(MEDIATION_TRUTH[(0, 0)]))
+        <= EXACT_TOLERANCE
+    )
 
 
 def test_result_export_binds_the_plan_and_the_laws_into_the_verified_identity():
@@ -1258,16 +1276,20 @@ def test_result_export_binds_the_plan_and_the_laws_into_the_verified_identity():
     del builder
     laws = target.case.laws()
     result = derivation.evaluate(evidence=laws)
-    artifact = result.export()
+    artifact = bytes(result.export())
     plan = result.derivation
     assert plan["canonical_text"] == derivation.derivation["canonical_text"]
     # The identity moves with the laws and not with the plan.
     shifted = mediation_case()  # a different model class: another premises digest
     other = _label("Y_x0_Mx0")
-    other_result = shifted.decide(*nested(0, 0)).derivation.refresh(shifted.laws()).estimate()
+    other_result = require_success(
+        require_success(
+            shifted.decide(*nested(0, 0)).derivation.bind_snapshot(shifted.laws())
+        ).estimate()
+    )
     assert other_result.premises_digest != result.premises_digest
-    again = derivation.refresh(laws).estimate()
-    assert again.export() == artifact
+    again = require_success(require_success(derivation.bind_snapshot(laws)).estimate())
+    assert bytes(again.export()) == artifact
     assert other.expected == MEDIATION_TRUTH[(0, 0)]
 
 
@@ -1276,7 +1298,7 @@ def test_consumer_recomputes_the_point_and_the_plan_after_builder_disposal():
     builder = target.case.decide(target.worlds, target.event, target.given)
     derivation = builder.derivation
     result = derivation.evaluate(evidence=target.case.laws())
-    artifact = result.export()
+    artifact = bytes(result.export())
     del builder
     consumed = transport.consume_counterfactual_transport_artifact(
         artifact,
@@ -1285,7 +1307,12 @@ def test_consumer_recomputes_the_point_and_the_plan_after_builder_disposal():
     )
     plan = consumed.derivation
     assert plan["canonical_text"] == derivation.derivation["canonical_text"]
-    assert consumed.probability == derivation.refresh(target.case.laws()).estimate().probability
+    assert (
+        consumed.probability
+        == require_success(
+            require_success(derivation.bind_snapshot(target.case.laws())).estimate()
+        ).probability
+    )
     assert consumed.independently_verified
 
 
@@ -1347,13 +1374,10 @@ def test_large_samples_converge_to_the_enumerated_truth_with_four_distinct_label
         "exact_on_estimated_tables_not_population_laws"
     )
     assert result.labels["point_estimate"] == "plug_in_point_estimate"
-    assert result.labels["statistical_inference"] == "withheld_cell_not_licensed"
+    assert result.labels["statistical_inference"] == "delta_wald_interval_calibration_annotated"
     assert result.point["smoothed"] is False
-    # The interval is never published; the standard error is the only uncertainty.
-    assert result.interval["available"] is False
-    assert result.interval["reason"] == "cell_not_licensed"
-    assert result.interval["detail"] == "counterfactual_transport_sampled.interval_not_licensed"
-    assert result.interval["calibration_reason"] == "estimator_grid_not_measured"
+    # The interval is computable; the artifact route attaches its calibration status.
+    assert result.interval == {"available": True, "status": "reported"}
     se = result.standard_error
     assert se is not None
     assert se["label"] == "uncalibrated_standard_error"
@@ -1449,7 +1473,7 @@ def test_unseen_cells_are_refused_smoothed_or_enveloped_and_never_zero_filled():
     with pytest.raises(CausalUnsupportedError) as raised:
         _estimate(derivation, tables)
     assert raised.value.reason_code == "transport_support_failure"
-    assert "counterfactual_transport_sampled.unseen_cell" in str(raised.value)
+    assert reason_details.counterfactual_transport_sampled.UNSEEN_CELL in str(raised.value)
 
     smoothed = _estimate(
         derivation, tables, unseen_rule=transport.UnseenCellRule.additive_smoothing(0.5)
@@ -1462,7 +1486,7 @@ def test_unseen_cells_are_refused_smoothed_or_enveloped_and_never_zero_filled():
     assert report["smoothed"] is True and report["pseudo_count"] == 0.5
     assert report["unseen_cells"] == 1
     assert 0.0 <= smoothed.probability <= 1.0
-    assert smoothed.interval["available"] is False
+    assert smoothed.interval == {"available": True, "status": "reported"}
 
     # Declaring the cell a structural zero is a different, labelled claim.
     structural = list(tables)
@@ -1485,12 +1509,14 @@ def test_unseen_cells_are_refused_smoothed_or_enveloped_and_never_zero_filled():
     assert enveloped.envelope is not None
     assert enveloped.envelope["label"] == "structural_envelope_vertex_family"
     assert enveloped.envelope["lower"] <= enveloped.envelope["upper"]
-    assert enveloped.envelope["upper"] - enveloped.envelope["lower"] < 0.1
+    assert 0.0 < enveloped.envelope["upper"] - enveloped.envelope["lower"] < 0.05
     assert enveloped.standard_error is None
     assert enveloped.standard_error_withheld_reason == (
         "partial_identification_has_no_single_standard_error"
     )
     assert enveloped.interval["available"] is False
+    assert enveloped.interval["status"] == "not_computable"
+    assert enveloped.interval["reason"] == "effect_not_identified"
 
     # A sparsity limit stricter than the table's unseen share refuses.
     with pytest.raises(CausalUnsupportedError) as raised:
@@ -1500,7 +1526,7 @@ def test_unseen_cells_are_refused_smoothed_or_enveloped_and_never_zero_filled():
             unseen_rule=transport.UnseenCellRule.additive_smoothing(0.5),
             limits=transport.SampledTransportLimits(max_unseen_fraction=0.0),
         )
-    assert "counterfactual_transport_sampled.sparsity_above_limit" in str(raised.value)
+    assert reason_details.counterfactual_transport_sampled.SPARSITY_ABOVE_LIMIT in str(raised.value)
 
 
 def test_overlap_must_be_declared_and_double_counting_is_refused():
@@ -1513,7 +1539,7 @@ def test_overlap_must_be_declared_and_double_counting_is_refused():
     with pytest.raises(CausalUnsupportedError) as raised:
         _estimate(derivation, tables, overlap=transport.SamplingOverlap.undeclared())
     assert raised.value.reason_code == "sampling_dependence_unknown"
-    assert "counterfactual_transport_sampled.overlap_unknown" in str(raised.value)
+    assert reason_details.counterfactual_transport_sampled.OVERLAP_UNKNOWN in str(raised.value)
 
     one_unknown = transport.SamplingOverlap(
         default="independent", pairs=((key(tables[0]), key(tables[1]), "unknown"),)
@@ -1530,7 +1556,9 @@ def test_overlap_must_be_declared_and_double_counting_is_refused():
     with pytest.raises(CausalUnsupportedError) as raised:
         _estimate(derivation, tables, overlap=unlinked)
     assert raised.value.reason_code == "route_not_supported"
-    assert "counterfactual_transport_sampled.shared_units_unlinked" in str(raised.value)
+    assert reason_details.counterfactual_transport_sampled.SHARED_UNITS_UNLINKED in str(
+        raised.value
+    )
 
     independent = _estimate(derivation, tables)
     assert len(independent.datasets) == len(tables)
@@ -1591,7 +1619,7 @@ def test_uncited_missing_and_undersized_tables_are_refused_before_a_number():
     with pytest.raises(CausalUnsupportedError) as raised:
         _estimate(derivation, withheld)
     assert raised.value.reason_code == "transport_missing_provider"
-    assert "counterfactual_transport_sampled.missing_table" in str(raised.value)
+    assert reason_details.counterfactual_transport_sampled.MISSING_TABLE in str(raised.value)
 
     extra = transport.SampledCountTable(
         "target", "target|X", (("Z", (0.0, 1.0)),), [10, 10], "snap|elsewhere"
@@ -1614,7 +1642,9 @@ def test_uncited_missing_and_undersized_tables_are_refused_before_a_number():
     with pytest.raises(CausalUnsupportedError) as raised:
         _estimate(derivation, undersized)
     assert raised.value.reason_code == "transport_support_failure"
-    assert "counterfactual_transport_sampled.sample_size_below_limit" in str(raised.value)
+    assert reason_details.counterfactual_transport_sampled.SAMPLE_SIZE_BELOW_LIMIT in str(
+        raised.value
+    )
 
 
 def test_sampled_estimate_zero_support_is_a_typed_refusal():
@@ -1626,13 +1656,13 @@ def test_sampled_estimate_zero_support_is_a_typed_refusal():
     with pytest.raises(CausalUnsupportedError) as raised:
         _estimate(derivation, tables)
     assert raised.value.reason_code == "transport_support_failure"
-    assert "counterfactual_transport.zero_conditioning_mass" in str(raised.value)
+    assert reason_details.counterfactual_transport.ZERO_CONDITIONING_MASS in str(raised.value)
 
 
 def test_sampled_artifact_round_trips_and_a_fresh_consumer_recomputes_from_the_counts(tmp_path):
     derivation, tables = _joint_tables(seed=21, n=10_000)
     result = _estimate(derivation, tables)
-    artifact = result.export()
+    artifact = bytes(result.export())
     consumed = transport.consume_sampled_counterfactual_transport_artifact(
         artifact,
         expected_premises_digest=result.premises_digest,
@@ -1642,7 +1672,7 @@ def test_sampled_artifact_round_trips_and_a_fresh_consumer_recomputes_from_the_c
     assert consumed.probability == result.probability  # bit for bit
     assert consumed.standard_error == result.standard_error
     assert consumed.labels == result.labels
-    assert consumed.interval["available"] is False
+    assert consumed.interval == {"available": True, "status": "reported"}
     assert consumed.evidence_identity == result.evidence_identity
 
     # Edited counts (data identity), a wrong expectation and consumer limits.
@@ -1652,7 +1682,7 @@ def test_sampled_artifact_round_trips_and_a_fresh_consumer_recomputes_from_the_c
         transport.consume_sampled_counterfactual_transport_artifact(edited)
     assert isinstance(raised.value, CausalError)
     assert raised.value.reason_code == "invalid_argument"
-    assert "counterfactual_transport_sampled.invalid_artifact" in str(raised.value)
+    assert reason_details.counterfactual_transport_sampled.INVALID_ARTIFACT in str(raised.value)
     with pytest.raises(CausalError) as raised:
         transport.consume_sampled_counterfactual_transport_artifact(
             artifact, expected_premises_digest="not-the-identity"
@@ -1699,7 +1729,7 @@ def test_an_exact_artifact_is_not_a_sampled_artifact():
     with pytest.raises(CausalError):
         transport.consume_sampled_counterfactual_transport_artifact(exact)
     derivation, tables = _joint_tables(seed=3, n=2_000)
-    sampled = _estimate(derivation, tables).export()
+    sampled = bytes(_estimate(derivation, tables).export())
     with pytest.raises(CausalError):
         transport.consume_counterfactual_transport_artifact(sampled)
 
@@ -1739,7 +1769,7 @@ def test_estimate_sampled_runs_the_retained_plan_after_builder_disposal():
     assert plan["cited"] and plan["canonical_text"]
     result = derivation.estimate_sampled(cited, overlap=transport.SamplingOverlap.all_independent())
     assert abs(result.probability - float(target.expected)) <= PLUG_IN_TOLERANCE
-    assert result.interval["available"] is False
+    assert result.interval == {"available": True, "status": "reported"}
     assert result.derivation_identity
 
 
@@ -1750,11 +1780,11 @@ def test_sampled_export_binds_the_counts_and_the_plan_after_builder_disposal():
     del builder
     independent = transport.SamplingOverlap.all_independent()
     result = derivation.estimate_sampled(cited, overlap=independent)
-    artifact = result.export()
+    artifact = bytes(result.export())
     plan = derivation.derivation
     assert plan["canonical_text"]
     again = derivation.estimate_sampled(list(reversed(cited)), overlap=independent)
-    assert again.export() == artifact, "the artifact is canonical in table order"
+    assert bytes(again.export()) == artifact, "the artifact is canonical in table order"
     assert again.premises_digest == result.premises_digest
     assert again.data_digest == result.data_digest
 
@@ -1764,7 +1794,7 @@ def test_sampled_consumer_recomputes_from_the_counts_after_builder_disposal():
     derivation = builder.derivation
     cited = cited_only(derivation, tables)
     result = derivation.estimate_sampled(cited, overlap=transport.SamplingOverlap.all_independent())
-    artifact = result.export()
+    artifact = bytes(result.export())
     del builder
     consumed = transport.consume_sampled_counterfactual_transport_artifact(
         artifact,

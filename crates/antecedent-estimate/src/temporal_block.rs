@@ -25,7 +25,7 @@
 //! series times over the window every design can evaluate, each design refit on
 //! its own lag-aligned rows at those times.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -38,8 +38,10 @@
 
 use antecedent_core::ExecutionContext;
 use antecedent_core::StreamDomain;
+use antecedent_core::execution::AdmissionError;
 use antecedent_data::{circular_block_length, fill_circular_block_indexes};
 
+use crate::arm::TreatmentArm;
 use crate::util::{BootstrapSeResult, finalize_bootstrap_se_ex};
 
 /// The circular-block SE families that carry their own short-series threshold.
@@ -63,6 +65,11 @@ pub enum CircularBlockFamily {
     /// DBN posteriors) resampled on one shared replicate; the statistic is the
     /// smallest over every atom's score and the weighted mixture score.
     Mixture,
+    /// A whole procedure refit under contiguous-row block resampling of one dependent
+    /// series, where the statistic is not a lag-aligned regression score (a mechanism
+    /// refit, or a projected identified functional evaluated on time-ordered rows).
+    /// No short-series threshold has been measured for it.
+    RowBlock,
 }
 
 impl CircularBlockFamily {
@@ -129,6 +136,8 @@ impl CircularBlockFamily {
             Self::SingleWindow => 45.0,
             Self::Mediation | Self::Sequential => 40.0,
             Self::Mixture => 155.0,
+            // Not measured: every reading warns until a sweep sets the threshold.
+            Self::RowBlock => f64::INFINITY,
         }
     }
 
@@ -140,6 +149,7 @@ impl CircularBlockFamily {
             Self::Mediation => "temporal mediation",
             Self::Sequential => "multi-step sequential",
             Self::Mixture => "multi-atom mixture",
+            Self::RowBlock => "row-block whole-procedure refit",
         }
     }
 
@@ -152,6 +162,7 @@ impl CircularBlockFamily {
             Self::Mediation => "mediation",
             Self::Sequential => "sequential",
             Self::Mixture => "mixture",
+            Self::RowBlock => "row_block",
         }
     }
 
@@ -318,7 +329,7 @@ pub(crate) fn politis_white_block_length(scores: &[f64]) -> Option<usize> {
     rho_through(&mut rho, big_m);
     let flat_top = |t: f64| {
         let t = t.abs();
-        if t <= 0.5 {
+        if !TreatmentArm::is_treated_indicator(t) {
             1.0
         } else if t <= 1.0 {
             2.0 * (1.0 - t)
@@ -549,6 +560,10 @@ pub struct RowBlockDraws {
     pub attempted: u32,
     /// Cooperative cancellation stopped the loop.
     pub cancelled: bool,
+    /// The admission pool refused the row map or the retained draws. No replicate past the
+    /// refusal ran, so a published SE is withheld; callers that can fail check
+    /// [`Self::ensure_admitted`].
+    pub refusal: Option<AdmissionError>,
     /// Block length in lag-aligned rows.
     pub block_length: usize,
     /// Lag-aligned rows resampled.
@@ -560,6 +575,20 @@ pub struct RowBlockDraws {
 }
 
 impl RowBlockDraws {
+    /// Refuse when the admission pool could not fund the bootstrap.
+    ///
+    /// # Errors
+    ///
+    /// The pool refusal that stopped the replicate loop.
+    pub fn ensure_admitted(&self) -> Result<(), crate::error::EstimationError> {
+        match self.refusal {
+            None => Ok(()),
+            Some(refusal) => Err(crate::error::EstimationError::data_msg(format!(
+                "admission pool cannot fund the block bootstrap: {refusal}"
+            ))),
+        }
+    }
+
     /// The [`circular_fixed_b_scale`] for this block length and row count.
     #[must_use]
     pub fn fixed_b(&self) -> f64 {
@@ -651,7 +680,7 @@ pub fn aligned_block_bootstrap(
     let (start, len) = common_time_window(designs)?;
     let block_length = block_length.clamp(1, len);
     let mut maps: Vec<Vec<usize>> = designs.iter().map(|_| vec![0usize; len]).collect();
-    let (draws, attempted, cancelled) =
+    let (draws, attempted, cancelled, refusal) =
         block_replicates(len, block_length, replicates, stream_base, ctx, |src| {
             for (design, map) in designs.iter().zip(maps.iter_mut()) {
                 let offset = start - design.first_time;
@@ -661,7 +690,15 @@ pub fn aligned_block_bootstrap(
             }
             estimate(&maps)
         });
-    Some(RowBlockDraws { draws, attempted, cancelled, block_length, rows: len, kernel_bias: 1.0 })
+    Some(RowBlockDraws {
+        draws,
+        attempted,
+        cancelled,
+        refusal,
+        block_length,
+        rows: len,
+        kernel_bias: 1.0,
+    })
 }
 
 /// Lag-aligned windows of one design of a series with gaps: window `w` ends at series time
@@ -730,7 +767,7 @@ pub fn gapped_aligned_block_bootstrap(
         (0..len).map(|i| row_of.iter().all(|rows| rows[i] != usize::MAX)).collect();
     let block_length = block_length.clamp(1, len);
     let mut maps: Vec<Vec<usize>> = designs.iter().map(|_| Vec::new()).collect();
-    let (draws, attempted, cancelled) =
+    let (draws, attempted, cancelled, refusal) =
         block_replicates(len, block_length, replicates, stream_base, ctx, |positions| {
             for map in &mut maps {
                 map.clear();
@@ -742,11 +779,19 @@ pub fn gapped_aligned_block_bootstrap(
             }
             if maps[0].is_empty() { None } else { estimate(&maps) }
         });
-    Some(RowBlockDraws { draws, attempted, cancelled, block_length, rows: len, kernel_bias: 1.0 })
+    Some(RowBlockDraws {
+        draws,
+        attempted,
+        cancelled,
+        refusal,
+        block_length,
+        rows: len,
+        kernel_bias: 1.0,
+    })
 }
 
 /// The replicate count and RNG stream base of a circular-block bootstrap. Replicate `r`
-/// draws from `ctx.rng.stream_for(StreamDomain::TemporalBlock, stream_base ^ r)`.
+/// draws from `ctx.rng.stream_for(StreamDomain::TemporalBlock, derive_stream(stream_base, r))`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BlockBootstrap {
     /// Requested replicates; zero publishes no bootstrap SE.
@@ -761,7 +806,7 @@ pub struct BlockBootstrap {
 ///
 /// `estimate` returns `None` for a replicate that cannot be fit; that replicate
 /// counts as failed for every target, so all targets always come from the same
-/// replicates. Replicate `r` draws from `ctx.rng.stream_for(StreamDomain::TemporalBlock, stream_base ^ r)`.
+/// replicates. Replicate `r` draws from `ctx.rng.stream_for(StreamDomain::TemporalBlock, derive_stream(stream_base, r))`.
 pub fn row_block_bootstrap_vec(
     rows: usize,
     block_length: usize,
@@ -771,9 +816,9 @@ pub fn row_block_bootstrap_vec(
     estimate: impl FnMut(&[usize]) -> Option<Vec<f64>>,
 ) -> RowBlockDraws {
     let block_length = block_length.clamp(1, rows.max(1));
-    let (draws, attempted, cancelled) =
+    let (draws, attempted, cancelled, refusal) =
         block_replicates(rows, block_length, replicates, stream_base, ctx, estimate);
-    RowBlockDraws { draws, attempted, cancelled, block_length, rows, kernel_bias: 1.0 }
+    RowBlockDraws { draws, attempted, cancelled, refusal, block_length, rows, kernel_bias: 1.0 }
 }
 
 /// Circular-block bootstrap over the original window axis of a series with gaps.
@@ -822,12 +867,26 @@ fn block_replicates<T: AsRef<[f64]>>(
     stream_base: u64,
     ctx: &ExecutionContext,
     mut estimate: impl FnMut(&[usize]) -> Option<T>,
-) -> (Vec<T>, u32, bool) {
-    let mut draws = Vec::with_capacity(replicates as usize);
+) -> (Vec<T>, u32, bool, Option<AdmissionError>) {
     let (mut attempted, mut cancelled) = (0u32, false);
     if rows == 0 {
-        return (draws, attempted, cancelled);
+        return (Vec::new(), attempted, cancelled, None);
     }
+    // The row map and the retained draw headers are leased before either is allocated.
+    let word = size_of::<usize>() as u64;
+    let upfront = (rows as u64)
+        .checked_mul(word)
+        .and_then(|map| map.checked_add(u64::from(replicates).checked_mul(size_of::<T>() as u64)?));
+    let held = match upfront.map(|bytes| ctx.acquire_admission(0, bytes)) {
+        Some(Ok(lease)) => lease,
+        Some(Err(AdmissionError::Cancelled)) => return (Vec::new(), 0, true, None),
+        Some(Err(refusal)) => return (Vec::new(), 0, false, Some(refusal)),
+        None => return (Vec::new(), 0, false, Some(AdmissionError::Overflow)),
+    };
+    let mut draws = Vec::with_capacity(replicates as usize);
+    // The draw values are leased once, when the first replicate shows their width.
+    let mut value_lease = None;
+    let mut refusal = None;
     let mut row_src = vec![0usize; rows];
     let progress = ctx.progress.as_ref();
     for replicate in 0..replicates {
@@ -836,21 +895,44 @@ fn block_replicates<T: AsRef<[f64]>>(
             break;
         }
         attempted += 1;
-        let mut rng =
-            ctx.rng.stream_for(StreamDomain::TemporalBlock, stream_base ^ u64::from(replicate));
+        let mut rng = ctx.rng.stream_for(
+            StreamDomain::TemporalBlock,
+            antecedent_core::derive_stream(stream_base, u64::from(replicate)),
+        );
         if fill_circular_block_indexes(rows, block_length, &mut rng, &mut row_src).is_err() {
             continue;
         }
         if let Some(values) =
             estimate(&row_src).filter(|v| v.as_ref().iter().all(|x| x.is_finite()))
         {
+            if value_lease.is_none() {
+                let bytes = (values.as_ref().len() as u64)
+                    .checked_mul(8)
+                    .and_then(|row| row.checked_mul(u64::from(replicates)));
+                match bytes.map(|bytes| ctx.acquire_admission(0, bytes)) {
+                    Some(Ok(lease)) => value_lease = Some(lease),
+                    Some(Err(AdmissionError::Cancelled)) => {
+                        cancelled = true;
+                        break;
+                    }
+                    Some(Err(error)) => {
+                        refusal = Some(error);
+                        break;
+                    }
+                    None => {
+                        refusal = Some(AdmissionError::Overflow);
+                        break;
+                    }
+                }
+            }
             draws.push(values);
         }
         if let Some(progress) = progress {
             progress.report(f64::from(replicate + 1) / f64::from(replicates), "block bootstrap");
         }
     }
-    (draws, attempted, cancelled)
+    drop((held, value_lease));
+    (draws, attempted, cancelled, refusal)
 }
 
 #[cfg(test)]
@@ -975,7 +1057,7 @@ mod tests {
             let big_m = (2 * m_hat).min(m_max).max(1);
             let flat_top = |t: f64| {
                 let t = t.abs();
-                if t <= 0.5 {
+                if !TreatmentArm::is_treated_indicator(t) {
                     1.0
                 } else if t <= 1.0 {
                     2.0 * (1.0 - t)
@@ -1166,6 +1248,7 @@ mod tests {
             draws: vec![],
             attempted: 0,
             cancelled: false,
+            refusal: None,
             block_length: 4,
             rows: 100,
             kernel_bias: exact,

@@ -30,7 +30,7 @@
 //! bootstrap interval; it never looks at the published credible interval, so it
 //! cannot detect a credible interval that is too narrow or too wide.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// RNG stream base for the aligned-row block replicates.
 const BOOTSTRAP_REFUTE_STREAM: u64 = crate::streams::BOOTSTRAP_REFUTE;
@@ -43,7 +43,7 @@ use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 use antecedent_kernels::unbiased_index;
 
 use crate::common::{
-    RefutationProblem, RefutationReport, complete_case_rows, forced_refit_estimator,
+    RefutationProblem, RefutationReport, admit_cells, complete_case_rows, forced_refit_estimator,
     full_sample_refit_ate, linear_estimator_no_bootstrap, map_drawn_problem_replicates,
     map_drawn_replicates, refit_effect_shared, with_resampled_rows,
 };
@@ -142,6 +142,7 @@ impl BootstrapRefute {
         if boot.cancelled {
             return Err(ValidationError::Cancelled);
         }
+        boot.ensure_admitted().map_err(ValidationError::from)?;
         require_survivors(boot.draws.len(), self.replicates)?;
         let scale = boot.fixed_b();
         let centre_rows: Vec<usize> = (0..aligned.rows).collect();
@@ -202,6 +203,14 @@ impl BootstrapRefute {
                 .dependence_block_length(&prep, temporal.indexer)
                 .map_err(ValidationError::from)?,
         };
+        // The full-sample refit and each replicate gather a design and an outcome.
+        let _gather = antecedent_estimate::util::admit_gather_scratch(
+            ctx,
+            rows.rows,
+            prep.design.ncols + 1,
+            self.replicates,
+        )
+        .map_err(ValidationError::from)?;
         let mut x_boot = vec![0.0; rows.rows * prep.design.ncols];
         let mut y_boot = vec![0.0; rows.rows];
         // The replicates refit least squares. When the published estimate is
@@ -246,6 +255,7 @@ impl BootstrapRefute {
         if boot.cancelled {
             return Err(ValidationError::Cancelled);
         }
+        boot.ensure_admitted().map_err(ValidationError::from)?;
         require_survivors(boot.draws.len(), self.replicates)?;
         let scale = boot.fixed_b();
         Ok(coverage_report(
@@ -287,6 +297,15 @@ impl BootstrapRefute {
         let span =
             (temporal.indexer.history() as usize + temporal.indexer.horizon() as usize).max(1);
         let block = antecedent_data::circular_block_length(span, selection.complete.len());
+        // The full-sample refit and each replicate gather a design and an outcome; a replicate
+        // keeps at most every window.
+        let _gather = antecedent_estimate::util::admit_gather_scratch(
+            ctx,
+            selection.complete.len().max(rows),
+            p + 1,
+            self.replicates,
+        )
+        .map_err(ValidationError::from)?;
         let all_rows: Vec<usize> = (0..rows).collect();
         let mut x_full = vec![0.0; rows * p];
         let mut y_full = vec![0.0; rows];
@@ -316,6 +335,7 @@ impl BootstrapRefute {
         if boot.cancelled {
             return Err(ValidationError::Cancelled);
         }
+        boot.ensure_admitted().map_err(ValidationError::from)?;
         require_survivors(boot.draws.len(), self.replicates)?;
         let scale = boot.fixed_b();
         Ok(coverage_report(
@@ -372,14 +392,36 @@ impl BootstrapRefute {
                 }
             }
         }
-        if problem.effect_refit.is_some() {
+        if problem.effect_refit.is_some() && problem.temporal.is_some() {
             return self.refute_composed(problem, ctx);
         }
-        if let Some(temporal) = problem.temporal.filter(|t| t.panel.is_none()) {
-            if let Some(time) = temporal.time_index {
-                return self.refute_temporal_series(problem, &temporal, time, workspace, ctx);
-            }
+        if let Some(temporal) = problem.temporal.filter(|t| t.panel.is_none())
+            && let Some(time) = temporal.time_index
+        {
+            return self.refute_temporal_series(problem, &temporal, time, workspace, ctx);
         }
+        if let Some(refit) = problem.effect_refit
+            && (!refit.static_bootstrap_uses_witness_columns()
+                || !matches!(problem.query.target_population, TargetPopulation::AllObserved))
+        {
+            return Err(ValidationError::NotApplicable {
+                message: "static refitter does not declare an all-observed witness-column bootstrap",
+            });
+        }
+        // A static custom refitter rebuilds a whole table for each serial draw.
+        // Fund its row maps, validity masks and gathered columns before creating them.
+        let _static_refit_scratch = if problem.temporal.is_none() && problem.effect_refit.is_some()
+        {
+            let width =
+                resample_ids.len().checked_mul(4).and_then(|v| v.checked_add(8)).ok_or_else(
+                    || ValidationError::Resource {
+                        message: "bootstrap scratch size overflow".into(),
+                    },
+                )?;
+            admit_cells(Some(ctx), n, width)?
+        } else {
+            None
+        };
         // Resample only complete-case rows so slots that are invalid in the source (whose
         // stored values are sentinels) never enter a replicate as real observations.
         let (keep, valid) = complete_case_rows(problem.data, &resample_ids)?;
@@ -395,6 +437,7 @@ impl BootstrapRefute {
         // ATT/ATC re-filter treatment labels after the table rebuild, and temporal
         // designs need the lag indexer, so those stay on the table path.
         let use_design = problem.temporal.is_none()
+            && problem.effect_refit.is_none()
             && matches!(problem.query.target_population, TargetPopulation::AllObserved);
         if use_design {
             let estimator = forced_refit_estimator(&self.estimator);

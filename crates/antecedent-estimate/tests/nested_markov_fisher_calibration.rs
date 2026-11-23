@@ -84,7 +84,8 @@ fn measure(latent: bool, test: &'static str, expected_ids: [&str; 3]) {
         }
     }
     for (tally, id) in tallies.into_iter().zip(expected_ids) {
-        assert_eq!(tally.record_id().as_deref(), Some(id));
+        let versioned = id.replacen(test, &format!("{test}.v2_validation_not_applicable"), 1);
+        assert_eq!(tally.record_id().as_deref(), Some(versioned.as_str()));
         tally.assert();
     }
 }

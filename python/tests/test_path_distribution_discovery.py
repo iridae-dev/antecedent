@@ -1,10 +1,10 @@
 """PathSpecific / Interventional queries with discovery= and CPDAG graph=.
 
 Live discovery is accepted through its review gate and then estimated like any
-other accepted structure: an oriented DAG runs, a class structure that
-PathSpecific / Interventional cannot read refuses by naming what it needs. A
-graph *posterior* is different in kind — these two estimands have no mixture
-contract across atoms — and is refused permanently.
+other accepted structure: an oriented DAG runs on that DAG, and a class structure
+(a CPDAG or PAG) runs the query's class executor on its completions. A graph
+*posterior* mixes: every atom is answered by the executor of its own structure and
+the atoms are weighted by posterior probability.
 """
 
 from __future__ import annotations
@@ -12,9 +12,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
-from antecedent.errors import CausalUnsupportedError
-
-_POSTERIOR_REFUSED = "graph-posterior structures are refused"
+from antecedent.outcomes import require_success
 
 
 def _discrete_chain():
@@ -67,16 +65,28 @@ def test_path_specific_lingam_discovery_smoke():
     identification and estimate without any manual DAG construction.
     """
     data = _discrete_chain()
-    result = antecedent.analyze(
-        data,
-        discovery=antecedent.discovery.LiNGAM(),
-        query=antecedent.PathSpecificEffect("t", "m", path_nodes=["y"]),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=antecedent.discovery.discover(
+                data,
+                method=antecedent.discovery.LiNGAM(),
+                execution=antecedent.Execution(seed=1),
+                accept_discovered=True,
+            ),
+            query=antecedent.PathSpecificEffect("t", "m", path_nodes=["y"]),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
     )
     assert result.study is not None
-    assert np.isfinite(result.estimate.ate)
+    # Discovered graph t -> y -> m with t -> m. Holding the direct t -> m arrow at t = 0,
+    # the effect through y is sum_y P(m=1 | t=0, y) * (P(y=1 | t=1) - P(y=1 | t=0)).
+    # Counts: P(m=1|t=0,y=0)=10/50, P(m=1|t=0,y=1)=40/50, P(y=1|t=1)=80/100, P(y=1|t=0)=50/100.
+    expected = (10 / 50) * (0.5 - 0.8) + (40 / 50) * (0.8 - 0.5)
+    assert result.estimate.ate == pytest.approx(expected, abs=1e-9)
+    assert expected == pytest.approx(0.18)
 
 
 def test_interventional_lingam_discovery_smoke():
@@ -85,67 +95,92 @@ def test_interventional_lingam_discovery_smoke():
     # y=1.0 deterministically, so the interventional mean has known ground truth —
     # a wildly wrong finite value must not pass.
     data = _discrete_chain()
-    result = antecedent.analyze(
-        data,
-        discovery=antecedent.discovery.LiNGAM(),
-        query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=antecedent.discovery.discover(
+                data,
+                method=antecedent.discovery.LiNGAM(),
+                execution=antecedent.Execution(seed=1),
+                accept_discovered=True,
+            ),
+            query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
     )
     assert result.study is not None
+    # t is a root of the discovered graph, so E[y | do(t=1)] = E[y | t=1] = 80/100.
+    assert result.estimate.ate == pytest.approx(0.8, abs=1e-9)
 
 
 def test_path_specific_exact_dag_posterior_map():
     data = _binary_pair()
-    with pytest.raises(CausalUnsupportedError, match=_POSTERIOR_REFUSED):
+    result = require_success(
         antecedent.analyze(
             data,
-            discovery=antecedent.discovery.ExactDagPosterior(),
+            discovery=antecedent.discovery.ExactDagPosterior().run(
+                data, execution=antecedent.Execution(seed=1)
+            ),
             query=antecedent.PathSpecificEffect("x", "y"),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
+    )
+    # The exact posterior splits its mass between the Markov-equivalent graphs x -> y and
+    # y -> x. With no mediator, the path effect on x -> y is the difference of means; on
+    # y -> x there is no path from x to y, so it is structurally zero and identified. The
+    # mixture reports the identified set between them, and the point reading is its midpoint.
+    difference = data["y"][data["x"] == 1].mean() - data["y"][data["x"] == 0].mean()
+    assert result.answer.kind == "bounds"
+    assert result.answer.detail == "identified_set"
+    assert result.answer.bounds == pytest.approx((0.0, difference), abs=1e-9)
+    assert result.estimate.ate == pytest.approx(difference / 2.0, abs=1e-9)
+    assert result.evidence_status == "supported"
 
 
-def test_path_specific_fci_rejected():
-    n = 80
-    rng = np.random.default_rng(5)
-    z = rng.normal(size=n)
-    t = z + rng.normal(size=n) * 0.3
-    y = t + z + rng.normal(size=n) * 0.3
-    data = {"z": z, "t": t, "y": y}
-    # FCI accepts as a PAG; PathSpecific reads an oriented DAG and says so.
-    with pytest.raises(ValueError, match="fully oriented|orient"):
+def test_interventional_distribution_exact_dag_posterior_mixes_the_atoms():
+    data = _discrete_chain()
+    result = require_success(
         antecedent.analyze(
             data,
-            discovery=antecedent.discovery.FCI(alpha=0.2, fdr=False),
-            query=antecedent.PathSpecificEffect("t", "y"),
-            accept_discovered=True,
+            discovery=antecedent.discovery.ExactDagPosterior().run(
+                data, execution=antecedent.Execution(seed=1)
+            ),
+            query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
             refute=False,
-            bootstrap=0,
-            seed=1,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
         )
+    )
+    assert np.isfinite(result.estimate.ate)
+    assert 0.0 <= result.estimate.ate <= 1.0
 
-
-def test_path_specific_incomplete_pc_rejected():
-    n = 80
-    rng = np.random.default_rng(5)
-    z = rng.normal(size=n)
-    t = z + rng.normal(size=n) * 0.3
-    y = t + z + rng.normal(size=n) * 0.3
-    data = {"z": z, "t": t, "y": y}
-    with pytest.raises(ValueError, match="undirected|orient"):
-        antecedent.analyze(
-            data,
-            discovery=antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0),
-            query=antecedent.PathSpecificEffect("t", "y"),
-            accept_discovered=True,
-            refute=False,
-            bootstrap=0,
-            seed=1,
+    # Known atoms and weights: A = {m -> t, m -> y, t -> y} adjusts for m,
+    # B = {t -> y} does not. Hence
+    #   A: sum_m P(m) E[y | t=1, m] = 0.35 * 0.5 + 0.65 * 0.875 = 0.74375
+    #   B: E[y | t=1] = 0.8
+    # and the posterior answer is the weighted mixture of the atoms' own answers.
+    names = ["t", "m", "y"]
+    graph_a = antecedent.Dag.from_edges(names, [("m", "t"), ("m", "y"), ("t", "y")])
+    graph_b = antecedent.Dag.from_edges(names, [("t", "y")])
+    for weight_a, expected in ((0.4, 0.4 * 0.74375 + 0.6 * 0.8), (0.9, 0.9 * 0.74375 + 0.1 * 0.8)):
+        posterior = antecedent.discovery.GraphPosterior.from_graphs(
+            names, [weight_a, 1.0 - weight_a], [graph_a, graph_b]
         )
+        mixed = require_success(
+            antecedent.analyze(
+                data,
+                discovery=posterior,
+                query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
+                refute=False,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
+            )
+        )
+        assert mixed.estimate.ate == pytest.approx(expected, abs=1e-9)
 
 
 def test_path_specific_accept_discovered_false_review_attrs():
@@ -155,14 +190,20 @@ def test_path_specific_accept_discovered_false_review_attrs():
     t = z + rng.normal(size=n) * 0.3
     y = 1.2 * t + z + rng.normal(size=n) * 0.3
     with pytest.raises(antecedent.errors.ReviewRequired) as raised:
-        antecedent.analyze(
-            {"t": t, "y": y, "z": z},
-            discovery=antecedent.discovery.FCI(alpha=0.5, fdr=False, max_cond_size=0),
-            query=antecedent.PathSpecificEffect("t", "y"),
-            accept_discovered=False,
-            refute=False,
-            bootstrap=0,
-            seed=1,
+        require_success(
+            antecedent.analyze(
+                {"t": t, "y": y, "z": z},
+                graph=antecedent.discovery.discover(
+                    {"t": t, "y": y, "z": z},
+                    method=antecedent.discovery.FCI(alpha=0.5, fdr=False, max_cond_size=0),
+                    execution=antecedent.Execution(seed=1),
+                    accept_discovered=False,
+                ),
+                query=antecedent.PathSpecificEffect("t", "y"),
+                refute=False,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
+            )
         )
     assert getattr(raised.value, "algorithm", None) == "fci"
     assert isinstance(getattr(raised.value, "pending_edge_count", None), int)
@@ -175,28 +216,42 @@ def test_analyze_path_specific_graph_cpdag_fully_oriented():
         directed=[("t", "m"), ("m", "y")],
         undirected=[],
     )
-    result = antecedent.analyze(
-        data,
-        graph=cpdag,
-        query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
-        refute=False,
-        bootstrap=0,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=cpdag,
+            query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
-    assert abs(result.ate - 0.3) < 0.1
+    # No t -> y arrow, so the path effect is the total effect E[y|t=1] - E[y|t=0] = 0.8 - 0.5.
+    assert result.ate == pytest.approx(0.3, abs=1e-9)
+    # The class is executed as itself: the result names the Cpdag, not a Dag it was coerced to.
+    assert result.inspect().support.payload["matrix_coordinate"] == (
+        "PathSpecificEffect:Cpdag:explicit:Frequentist:none"
+    )
 
 
-def test_analyze_path_specific_graph_cpdag_incomplete():
+def test_analyze_path_specific_graph_cpdag_with_an_undirected_edge():
     data = _discrete_chain()
     cpdag = antecedent.Cpdag.from_directed_undirected(
         ["t", "m", "y"],
         directed=[("t", "m")],
         undirected=[("m", "y")],
     )
-    with pytest.raises(ValueError, match="undirected|orient|not fully oriented"):
+    result = require_success(
         antecedent.analyze(
             data,
             graph=cpdag,
             query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
             refute=False,
-            bootstrap=0,
+            inference=antecedent.Frequentist(bootstrap=0),
         )
+    )
+    # Orienting m <- y would add the unshielded collider t -> m <- y, so t -> m -> y is the
+    # class's only member and the class reads its path effect, 0.8 - 0.5.
+    assert result.ate == pytest.approx(0.3, abs=1e-9)
+    assert result.inspect().support.payload["matrix_coordinate"] == (
+        "PathSpecificEffect:Cpdag:explicit:Frequentist:none"
+    )

@@ -7,8 +7,8 @@ copied_tests = false
 
 
 papers = [
-  { title = "Estimates for the Distribution Function of a Sum of Two Random Variables When the Marginal Distributions are Fixed (Makarov, Theory of Probability and its Applications 26(4):803-806, 1982)", doi = "10.1137/1126086", sections = ["the sharp bounds of P(X+Y<t) over couplings of fixed marginals"] },
-  { title = "Random variables with maximum sums (Rueschendorf, Advances in Applied Probability 14(3):623-632, 1982)", doi = "10.2307/1426677", sections = ["sharp bounds of the distribution of a sum with fixed marginals"] },
+  { title = "Estimates for the Distribution Function of a Sum of Two Random Variables When the Marginal Distributions are Fixed", citation_note = "Previously recorded title and bibliographic detail: Estimates for the Distribution Function of a Sum of Two Random Variables When the Marginal Distributions are Fixed (Makarov, Theory of Probability and its Applications 26(4):803-806, 1982)", doi = "10.1137/1126086", sections = ["the sharp bounds of P(X+Y<t) over couplings of fixed marginals"] },
+  { title = "Random variables with maximum sums", citation_note = "Previously recorded title and bibliographic detail: Random variables with maximum sums (Rueschendorf, Advances in Applied Probability 14(3):623-632, 1982)", doi = "10.2307/1426677", sections = ["sharp bounds of the distribution of a sum with fixed marginals"] },
 ]
 
 implementation_deviations = [
@@ -21,8 +21,54 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-stats/tests/joint_law_reference.rs (exhaustive transportation-table enumeration and rational definitions)",
   "crates/antecedent-stats/src/joint_law.rs",
   "crates/antecedent-contract/src/joint_law_rule.rs",
   "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs",
   "crates/antecedent/tests/joint_law_propagation_facade.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The finite-atom dependence envelopes of crates/antecedent-stats/src/joint_law.rs: Marginal construction (merged atoms, canonical order, masses), frechet_expectation_envelope / functional_envelope / product_moment_envelope / covariance_envelope / linear_variance_envelope (comonotone and countermonotone couplings with the lattice sign check) and sum_cdf_envelope / difference_cdf_envelope (the Makarov-Rueschendorf extremes at each atom, its left and right limits). Not the aligned-draw routines, the interval constructions, the exceedance decision, the correlation range, or the contract rule that supports them. Marginal and coupling definitions moved to joint_law/marginal.rs and bound items were compared unchanged apart from formatting. Interval and exceedance projection definitions moved to joint_law/projection.rs and bound items were compared unchanged apart from formatting."
+assumptions = ["Both marginals are finite with masses that are multiples of one common denominator for the enumeration (k/N, N in 4..8, at most three atoms each); the coupling extremes of any functional linear in the coupling are attained at a vertex of the transportation polytope, whose vertices are integer tables when the margins are integers.", "Atom values are dyadic so that thresholds and ties compare exactly in binary64.", "The envelope bounds the functional over all joint laws with these marginals; it makes no statement about which coupling holds."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference, which does not use the comonotone, countermonotone or Makarov forms of the product: it enumerates every integer contingency table with the marginal counts (all vertices of the transportation polytope) in exact rational arithmetic and evaluates the remaining quantities from their definitions. No upstream implementation was consulted."
+redistribution = "The reference script and its frozen output are repository-authored under MIT OR Apache-2.0; mpmath is used only to produce the frozen values and is not a product dependency. No cited paper is redistributed."
+limitations = "Neither Makarov (1982) nor Rueschendorf (1982) was retrieved; the correspondence is between the product code and the standard statements of the bounds, verified by exhaustive enumeration on small lattices, not a page-level reading. The enumeration covers at most 3x3 atoms with total mass 4 to 8; it does not exercise large atom counts, near-equal masses that differ by rounding, thresholds that fall between binary64 neighbours, the 100000-atom or 4e6-cell budgets, or continuous marginals (the finite-atom restriction is a documented deviation). Calibration of any interval built on these bounds is not measured and not examined."
+sources = ["https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No numerical defect was found: the coupling extremes of E[g] for the five closed value functionals, covariance, Var(aX+bY), P(X+Y<=t) and P(X-Y<=t) over thresholds at every atom sum and difference (and a quarter either side) agree with the exhaustive table enumeration on 19 marginal pairs (ties between the two marginals, single atoms, unequal atom counts and masses, Bernoulli-like), and the value functionals whose mixed difference changes sign on the lattice (ratio across a sign change of the denominator) are refused exactly where the independent all-pairs lattice check says so."]
+record_sha256 = "3ea5b162a0ea498bc977c05877d81c2386d6b84b15f3bb007700dbbb9bc092d2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/joint_law.rs"
+items = ["const CALIBRATION_STATUS", "const CANCEL_STRIDE", "const MASS_TOLERANCE", "const MAX_COMPONENTS", "const MAX_LATTICE_CHECKS", "const MAX_MARGINAL_ATOMS", "const STRUCTURE_RELATIVE_SLACK", "enum JointLawError", "enum PairStructure", "enum ValueFunctional", "fn as_str", "fn check_cancel", "fn correlation_range_envelope", "fn draw_spread", "fn linear_combination_moments", "fn mixture_moments", "fn ordered", "fn require_finite", "fn structure", "fn value", "struct CorrelationRangeEnvelope", "struct DrawSpread", "struct LinearMoments", "struct MixtureMoments", "struct MomentSummary", "struct ValueBounds"]
+sha256 = "8db868a38fb9329ccc302687353e239bfb4da246125b07435c6261810f57ae3b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/joint_law/projection.rs"
+items = ["const MIXTURE_EQUAL_TAIL_CONSTRUCTION", "const NORMAL_APPROXIMATION_CONSTRUCTION", "enum DecisionVerdict", "fn as_str", "fn check_level", "fn composed_exceedance_decision", "fn exceedance_verdict", "fn marginal_interval_candidate", "fn mixture_exceedance", "fn mixture_marginal", "fn normal_interval_candidate", "struct ExceedanceDecision", "struct IntervalCandidate"]
+sha256 = "d914eaf354761c121c10280cca43c3a6e0228a1e4e96ff98358c9ff2bd31a8a8"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/joint_law/marginal.rs"
+items = ["fn atoms", "fn coupled_expectation", "fn covariance_envelope", "fn difference_cdf_envelope", "fn frechet_expectation_envelope", "fn from_weighted", "fn functional_envelope", "fn linear_variance_envelope", "fn mass_at_most", "fn mass_below", "fn mean", "fn monotone_couplings", "fn negated", "fn product_moment_envelope", "fn quantile", "fn sum_cdf_envelope", "fn variance", "fn verify_structure", "struct Marginal"]
+sha256 = "6ecccb22bff51a4bb6439c9799ef3bbda9323bc33af9364b120c37a53c09aac5"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/joint_law_reference.rs"
+items = ["fn bounds", "fn coupling_extremes_match_exhaustive_table_enumeration", "fn draw_spread_exceedance_band_and_normal_interval_match_definitions", "fn f", "fn fs", "fn linear_mixture_and_correlation_moments_match_definitions", "fn marginals", "fn mixture_marginal_quantile_interval_and_exceedance_match_enumeration", "fn near", "fn reference"]
+sha256 = "e54ddba90db8b51dd671cd52df733894e219b2f36a655482fdf76d97b1cd62cf"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/joint_law_reference.py"
+sha256 = "55ef0aa030f1b2bb13556df8a86bb1d0f14f181685033787f44d4ef7109e418e"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/joint_law_reference.json"
+sha256 = "7bb51787c3a6fbd3edc1df5410774fbb4fc9a4c04cf4a4d35e25f7d944ae276b"

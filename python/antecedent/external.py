@@ -15,7 +15,7 @@ typed declarations and raises the Rust refusal as
 :class:`~antecedent.errors.CausalUnsupportedError` with its registered
 ``reason_code`` and ``remedy``. Foreign numerical work is never presented as
 native estimation: :attr:`BoundExternalClaim.native` is always ``False``, trust
-is a :class:`~antecedent.extensibility.ProviderTrust` (never ``native_licensed``),
+is a :class:`~antecedent.extensibility.ProviderTrust` (never ``native_supported``),
 and provider-declared uncertainty is a declaration, not an Antecedent interval.
 """
 
@@ -31,6 +31,14 @@ from typing import TYPE_CHECKING, Any, cast
 import numpy as np
 from numpy.typing import NDArray
 
+from antecedent import _reason_details
+
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._digest import canonical_digest
 from ._native import ExternalClaimArtifact as _NativeClaim
@@ -317,13 +325,13 @@ class ColumnResponse:
 
 @dataclass(frozen=True, slots=True)
 class Equivalence:
-    """A separately checked licence to read an observational law as interventional.
+    """A separately checked support to read an observational law as interventional.
 
     Two scopes, exactly one of which is given. ``interventional_regime`` covers
     a coordinate that differs from the request only in its regime.
     ``treatment`` with ``value_to_regime`` covers ``P(Y | T=v)`` standing for
     ``P(Y | do(T=v))`` over a grid: each conditioning value maps to exactly the
-    regime it licenses, and nothing else about the coordinate may differ. Use
+    regime it supports, and nothing else about the coordinate may differ. Use
     :meth:`conditioned` or :meth:`ExternalSpec.observational_equivalence`.
     ``justification`` names the check, for example an adjustment-set proof.
     """
@@ -489,7 +497,7 @@ class ExternalSpec:
                 {
                     "code": "invalid_argument",
                     "stage": "bind",
-                    "detail": "program_binding.no_identified_request",
+                    "detail": _reason_details.program_binding.NO_IDENTIFIED_REQUEST,
                     "offending": "request",
                     "expected": "a response-curve query with a dose grid",
                     "supplied": None,
@@ -545,10 +553,10 @@ class ExternalSpec:
         )
 
     def observational_equivalence(self, justification: str) -> Equivalence:
-        """The checked equivalence licensing :meth:`observational_quantities`.
+        """The checked equivalence support :meth:`observational_quantities`.
 
         Only call this when ``justification`` names a real check (for example the
-        backdoor adjustment set that identified the query); the license is
+        backdoor adjustment set that identified the query); the support is
         yours to assert, and it is recorded in the claim's lineage.
         """
         if self.treatment is None:
@@ -670,6 +678,7 @@ class ExternalSpec:
             CausalValueError: ``expected_identity`` is a string that is not an identity.
             CausalUnsupportedError: the artifact is corrupt or its identity differs.
         """
+        data = container_bytes(data)
         if isinstance(expected_identity, str):
             try:
                 fields = json.loads(expected_identity)
@@ -722,7 +731,7 @@ class BoundExternalClaim:
 
     @property
     def trust(self) -> ProviderTrust:
-        """How far the provider's numbers are trusted (never ``native_licensed``)."""
+        """How far the provider's numbers are trusted (never ``native_supported``)."""
         return ProviderTrust(self._meta["identity"]["trust"])
 
     @property
@@ -815,9 +824,10 @@ class BoundExternalClaim:
 
         return SourceEvidence._deferred(lambda: self._native.source_evidence)
 
-    def export(self, *, artifact_id: str = "external-claim") -> bytes:
+    @artifact_export
+    def export(self, *, artifact_id: str = "external-claim") -> ExportedArtifact:
         """Serialize the claim; reload it with :meth:`ExternalSpec.load` and ``identity``."""
-        return self._native.export(artifact_id)
+        return artifact_from_receipt(self, self._native.export(artifact_id))
 
     def explain(self) -> str:
         """What the numbers are, who supplied them, how far they are trusted and supported."""

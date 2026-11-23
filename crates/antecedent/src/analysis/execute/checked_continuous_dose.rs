@@ -1,5 +1,5 @@
 //! Retained graphless conditional continuous-dose response execution.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, CausalError, CausalExprArena, CausalQuery, DerivationTrace, Diagnostic, DiagnosticKind,
@@ -13,8 +13,14 @@ use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
 };
 
-pub(crate) type CheckedContinuousDoseOperation =
-    RandomizedTrialOperation<antecedent_core::ContinuousDoseResponseQuery, ()>;
+mod bayesian;
+
+/// The extra setting is the study's Bayesian configuration: with one, the retained operation
+/// reports the posterior of the fixed group-dose policy value instead of the kernel estimate.
+pub(crate) type CheckedContinuousDoseOperation = RandomizedTrialOperation<
+    antecedent_core::ContinuousDoseResponseQuery,
+    Option<super::BayesianConfig>,
+>;
 
 impl RandomizedTrialQuery for antecedent_core::ContinuousDoseResponseQuery {
     const OPERATION: &'static str = "CheckedContinuousDoseOperation";
@@ -23,6 +29,13 @@ impl RandomizedTrialQuery for antecedent_core::ContinuousDoseResponseQuery {
 }
 
 impl CheckedContinuousDoseOperation {
+    /// The design identification this operation records; the route lowering retains it.
+    pub(crate) fn design_identification(
+        query: &antecedent_core::ContinuousDoseResponseQuery,
+    ) -> (IdentificationResult, IdentifiedEstimand) {
+        continuous_dose_identification(query)
+    }
+
     pub(crate) fn checked(
         study: &Study,
         data: &TabularData,
@@ -36,33 +49,41 @@ impl CheckedContinuousDoseOperation {
         query.validate()?;
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
-            || !matches!(study.inference, InferenceMode::Frequentist)
-            || study.refute != RefuteSuite::None
-            || study.bootstrap_replicates != 0
-            || !study.custom_validators.is_empty()
+            || study.settings.refute != RefuteSuite::None
+            || study.settings.bootstrap_replicates != 0
+            || !study.declared.custom_validators.is_empty()
             || study.graph_posterior.is_some()
-            || study.tiered.is_some()
+            || study.declared.tiered.is_some()
             || query.baseline_groups.len() != data.row_count()
         {
             return Err(CausalError::Unsupported {
-                message: "continuous-dose response requires a graphless fixed baseline-group table and point-only frequentist execution",
+                message: "continuous-dose response requires a graphless fixed baseline-group table without refuters, bootstrap or custom validators",
             });
         }
+        let bayesian = match &study.settings.inference {
+            InferenceMode::Frequentist => None,
+            InferenceMode::Bayesian(config) => {
+                bayesian::require_scope(query, config)?;
+                Some(config.clone())
+            }
+        };
         for id in [query.outcome, query.dose, query.dose_density] {
             data.schema().get(id).map_err(CausalError::rejected)?;
         }
+        let estimator = if bayesian.is_some() {
+            EstimatorId::BayesianDosePolicy
+        } else {
+            EstimatorId::ContinuousDoseKernel
+        };
         if physical.logical.query != study.query
-            || !physical.binding().names(
-                IdentifierId::ContinuousDoseExchangeability,
-                EstimatorId::ContinuousDoseKernel,
-            )
+            || !physical.binding().names(IdentifierId::ContinuousDoseExchangeability, estimator)
         {
             return Err(CausalError::Compile {
                 message: "continuous-dose design differs from compiled plan".into(),
             });
         }
         let (identification, estimand) = continuous_dose_identification(query);
-        Ok(Self::freeze(study, query, data, physical, identification, estimand, ()))
+        Ok(Self::freeze(study, query, data, physical, identification, estimand, bayesian))
     }
 
     pub(crate) fn execute(
@@ -71,6 +92,9 @@ impl CheckedContinuousDoseOperation {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         self.begin_execute(data, ctx)?;
+        if let Some(config) = &self.extra {
+            return self.execute_bayesian(data, config, ctx);
+        }
         let numeric = |id| match data.column(id).map_err(CausalError::from)? {
             antecedent_data::ColumnView::Float64(column) => Ok(column.values.as_slice().to_vec()),
             _ => Err(CausalError::Unsupported {
@@ -97,7 +121,7 @@ impl CheckedContinuousDoseOperation {
             .map_err(|message| CausalError::Compile { message })?
         };
         let fixed_policy = self.fixed_policy_value(&outcome, &dose, &density, &groups)?;
-        let licensed_fixed_policy = self.licenses_fixed_policy(fixed_policy.as_ref(), &groups);
+        let supported_fixed_policy = self.supports_fixed_policy(fixed_policy.as_ref(), &groups);
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
@@ -133,8 +157,8 @@ impl CheckedContinuousDoseOperation {
                 fixed_policy,
             },
         );
-        if licensed_fixed_policy {
-            result.support_status = Some(crate::support::CellStatus::Licensed);
+        if supported_fixed_policy {
+            result.support_status = Some(crate::support::CellStatus::Supported);
         }
         result.treatment = None;
         Ok(result)
@@ -184,8 +208,8 @@ impl CheckedContinuousDoseOperation {
             .transpose()
     }
 
-    /// Grants the graphless license when all three fixed-policy intervals publish on supported rows.
-    fn licenses_fixed_policy(
+    /// Grants the graphless support when all three fixed-policy intervals publish on supported rows.
+    fn supports_fixed_policy(
         &self,
         fixed_policy: Option<&antecedent_estimate::continuous_dose::DosePolicyValue>,
         groups: &[String],
@@ -200,7 +224,7 @@ impl CheckedContinuousDoseOperation {
                 value.reference_interval_95,
                 value.incremental_interval_95,
             ];
-            crate::support::license_if_graphless(
+            crate::support::support_if_graphless(
                 crate::support::GraphlessSupportKey {
                     family: "continuous_dose_policy",
                     design: "fixed_group_kernel",

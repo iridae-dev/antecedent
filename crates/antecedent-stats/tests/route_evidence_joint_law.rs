@@ -177,7 +177,10 @@ fn a_declared_correlation_range_is_linear_in_the_correlation() {
         Err(JointLawError::InvalidRange(_))
     ));
     // A range outside [-1, 1] and a negative standard deviation are refused.
-    assert!(correlation_range_envelope(x, y, 2.0, 1.0, -1.5, 0.5).is_err());
+    assert!(matches!(
+        correlation_range_envelope(x, y, 2.0, 1.0, -1.5, 0.5),
+        Err(JointLawError::InvalidRange(_))
+    ));
     let negative = MomentSummary { mean: 0.0, standard_deviation: -1.0 };
     assert!(matches!(
         correlation_range_envelope(negative, y, 1.0, 1.0, 0.0, 0.5),
@@ -218,8 +221,14 @@ fn mixture_moments_split_the_total_variance_into_within_and_between() {
     near(mixture.between, 1.0);
     near(mixture.variance, 3.0);
     // Weights that do not sum to one and a negative variance are refused.
-    assert!(mixture_moments(&[0.5, 0.4], &[0.0, 2.0], &[1.0, 3.0]).is_err());
-    assert!(mixture_moments(&[0.5, 0.5], &[0.0, 2.0], &[1.0, -3.0]).is_err());
+    assert!(matches!(
+        mixture_moments(&[0.5, 0.4], &[0.0, 2.0], &[1.0, 3.0]),
+        Err(JointLawError::InvalidWeights("weights must sum to one"))
+    ));
+    assert!(matches!(
+        mixture_moments(&[0.5, 0.5], &[0.0, 2.0], &[1.0, -3.0]),
+        Err(JointLawError::InvalidVariance("component variance is negative"))
+    ));
 }
 
 #[test]

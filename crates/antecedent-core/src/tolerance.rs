@@ -1,6 +1,6 @@
 //! Numeric tolerance classes (ADR 0010 / ).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Declared numeric comparison class for a fixture or assertion.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]

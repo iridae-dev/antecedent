@@ -9,6 +9,7 @@ from antecedent.experiment import (
     estimate_cuped_effect,
 )
 from antecedent.interference import BernoulliAssignment
+from antecedent.outcomes import require_success
 
 
 def test_randomized_noncompliance_recovers_known_complier_effect_and_itt():
@@ -25,8 +26,10 @@ def test_randomized_noncompliance_recovers_known_complier_effect_and_itt():
         [f"unit-{i}" for i in range(len(outcome))],
         [f"row-{i}" for i in range(len(outcome))],
     )
-    analysis = ant.analyze(
-        {"outcome": outcome}, query=ComplierEffect("outcome", design, receipt), refute="none"
+    analysis = require_success(
+        ant.analyze(
+            {"outcome": outcome}, query=ComplierEffect("outcome", design, receipt), refute="none"
+        )
     )
     result = analysis.randomized_effect
     assert result.intention_to_treat_effect == pytest.approx(1.0)
@@ -43,10 +46,12 @@ def test_randomized_noncompliance_recovers_known_complier_effect_and_itt():
 def test_randomized_noncompliance_refuses_zero_first_stage():
     design2 = ExperimentDesign(BernoulliAssignment(0.5), [False, True], ["a", "b"], ["a", "b"])
     with pytest.raises(CausalUnsupportedError, match="positive receipt first stage"):
-        ant.analyze(
-            {"outcome": [1.0, 2.0]},
-            query=ComplierEffect("outcome", design2, [False, False]),
-            refute="none",
+        require_success(
+            ant.analyze(
+                {"outcome": [1.0, 2.0]},
+                query=ComplierEffect("outcome", design2, [False, False]),
+                refute="none",
+            )
         )
     design4 = ExperimentDesign(
         BernoulliAssignment(0.5),
@@ -55,10 +60,12 @@ def test_randomized_noncompliance_refuses_zero_first_stage():
         ["a", "b", "c", "d"],
     )
     with pytest.raises(CausalUnsupportedError, match="positive receipt first stage"):
-        ant.analyze(
-            {"outcome": [1.0, 0.0, 1.0, 0.0]},
-            query=ComplierEffect("outcome", design4, [True, False, True, False]),
-            refute="none",
+        require_success(
+            ant.analyze(
+                {"outcome": [1.0, 0.0, 1.0, 0.0]},
+                query=ComplierEffect("outcome", design4, [True, False, True, False]),
+                refute="none",
+            )
         )
 
 
@@ -69,7 +76,10 @@ def test_cuped_adjustment_removes_preassignment_signal_and_reports_se():
     result = estimate_cuped_effect(outcome, covariate, assignment, 0.5)
     assert result.effect == pytest.approx(2.0)
     assert result.adjustment_coefficient == pytest.approx(5.0)
-    assert result.standard_error >= 0.0
+    # Horvitz-Thompson scores on the pooled-covariate-centred outcome: with beta = 5 exactly,
+    # adjusted = 2 a + 5 mean(x) = 2 a + 37.5, so treated scores are 2 * 39.5 = 79 and control
+    # scores are -2 * 37.5 = -75 (all +-77 about the effect 2); se = sqrt(16 * 77^2 / (15 * 16)).
+    assert result.standard_error == pytest.approx(77.0 / np.sqrt(15.0), rel=1e-9)
     assert "pre-treatment" in result.assumptions[1]
 
 
@@ -92,27 +102,44 @@ def _complier_route_data(n: int, *, one_sided: bool):
     return outcome, assigned, received, design
 
 
-def test_retained_complier_route_licenses_interval_matching_direct_utility():
+def _wald_ratio(outcome, assigned, received):
+    """ITT over first stage from arm means, computed directly."""
+    arm = np.asarray(assigned, dtype=bool)
+    got = np.asarray(received, dtype=float)
+    itt = outcome[arm].mean() - outcome[~arm].mean()
+    return itt / (got[arm].mean() - got[~arm].mean())
+
+
+def test_retained_complier_route_supports_interval_matching_direct_utility():
     outcome, assigned, received, design = _complier_route_data(400, one_sided=False)
-    result = ant.analyze(
-        {"outcome": outcome}, query=ComplierEffect("outcome", design, received), refute="none"
+    result = require_success(
+        ant.analyze(
+            {"outcome": outcome}, query=ComplierEffect("outcome", design, received), refute="none"
+        )
     )
     fit = result.randomized_effect
     assert fit is not None
     assert fit.estimand == "cace_late"
     assert fit.interval_95 is not None
     assert fit.interval_95[0] < fit.effect < fit.interval_95[1]
-    assert fit.support_status == "licensed"
-    assert result.evidence_status == "licensed"
+    assert fit.effect == pytest.approx(_wald_ratio(outcome, assigned, received), rel=1e-9)
+    assert fit.support_status == "supported"
+    assert result.evidence_status == "supported"
 
 
-def test_retained_treatment_on_treated_route_licenses_interval():
+def test_retained_treatment_on_treated_route_supports_interval():
     outcome, assigned, received, design = _complier_route_data(400, one_sided=True)
-    result = ant.analyze(
-        {"outcome": outcome}, query=TreatmentOnTreated("outcome", design, received), refute="none"
+    result = require_success(
+        ant.analyze(
+            {"outcome": outcome},
+            query=TreatmentOnTreated("outcome", design, received),
+            refute="none",
+        )
     )
     fit = result.randomized_effect
     assert fit is not None
     assert fit.estimand == "treatment_on_treated"
     assert fit.interval_95 is not None
-    assert fit.support_status == "licensed"
+    # One-sided noncompliance: the Wald ratio is the effect on the treated.
+    assert fit.effect == pytest.approx(_wald_ratio(outcome, assigned, received), rel=1e-9)
+    assert fit.support_status == "supported"

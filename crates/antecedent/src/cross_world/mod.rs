@@ -10,7 +10,7 @@
 //!
 //! The three stages are separate and separately testable:
 //!
-//! 1. [`check`] decides whether the graph and query license the estimand and
+//! 1. [`check`] decides whether the graph and query support the estimand and
 //!    returns a machine-checkable witness
 //!    ([`antecedent_identify::cross_world`]).
 //! 2. [`antecedent_counterfactual::cross_world::evaluate_cross_world`] abducts,
@@ -20,7 +20,7 @@
 //!    evaluator, plus a separate closed-form recomputation (ordinary least
 //!    squares, or the basis regression by QR) for both mechanism families.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -67,7 +67,7 @@ impl Default for CrossWorldOptions {
     }
 }
 
-/// The point, its per-unit contrasts and the derivation that licensed it.
+/// The point, its per-unit contrasts and the derivation that supported it.
 #[derive(Clone, Debug)]
 pub struct CrossWorldEffect {
     /// Mean per-unit contrast.
@@ -92,25 +92,18 @@ pub struct CrossWorldEffect {
     /// conditioned beyond the check's floor (replay-verified only).
     pub independently_verified: bool,
     names: Vec<String>,
-    columns: Vec<Vec<f64>>,
+    columns: Arc<[Vec<f64>]>,
 }
 
+/// The refusal's own registered reason code, with its stable detail and explanation.
+///
+/// The code travels with the refusal, so a renamed detail string cannot change the error
+/// class; a code that is not a registered runtime refusal is reported as `invalid_argument`.
 fn refusal_error(refusal: CrossWorldRefusal) -> CausalError {
-    let CrossWorldRefusal { detail, message, .. } = refusal;
-    match detail {
-        "cross_world.query_outside_contract" => crate::compile_reason!(
-            "route_not_supported",
-            "cross_world.query_outside_contract: {message}"
-        ),
-        "cross_world.recanting_witness" => crate::compile_reason!(
-            "cross_world_not_identified",
-            "cross_world.recanting_witness: {message}"
-        ),
-        "cross_world.graph_outside_contract" => crate::compile_reason!(
-            "cell_not_licensed",
-            "cross_world.graph_outside_contract: {message}"
-        ),
-        _ => crate::compile_reason!("invalid_argument", "cross_world.invalid_query: {message}"),
+    let CrossWorldRefusal { code, detail, message } = refusal;
+    let code = if crate::error::is_runtime_refusal_code(code) { code } else { "invalid_argument" };
+    CausalError::Compile {
+        message: format!("{}{code}: {detail}: {message}", crate::error::REASON_PREFIX),
     }
 }
 
@@ -120,7 +113,7 @@ fn refusal_error(refusal: CrossWorldRefusal) -> CausalError {
 ///
 /// A reason-coded refusal: `cross_world_not_identified` for a recanting witness
 /// (the only nonidentification finding), `route_not_supported` for a query shape
-/// outside the two-world contract, `cell_not_licensed` for a graph outside it,
+/// outside the two-world contract, `route_not_supported` for a graph outside it,
 /// `invalid_argument` for a malformed query.
 pub fn check(graph: &Dag, query: &CrossWorldQuery) -> Result<CrossWorldWitness, CausalError> {
     check_cross_world(graph, query).map_err(refusal_error)
@@ -157,7 +150,7 @@ fn float_columns(data: &TabularData) -> Result<(Vec<String>, Vec<Vec<f64>>), Cau
 /// # Errors
 ///
 /// A reason-coded refusal (see [`check`]), `estimator_inference_mismatch` when
-/// an interval or Bayesian inference is requested, `cell_not_licensed` for an
+/// an interval or Bayesian inference is requested, `route_not_supported` for an
 /// accepted or non-DAG structure, `invalid_argument` (`cross_world.invalid_query`)
 /// when abduction is ill posed (a mechanism that cannot be inverted on the data,
 /// or exogenous terms that are not exact inversions), [`CausalError::Cancelled`]
@@ -194,8 +187,8 @@ fn evaluate_effect_probed(
         GraphRef::Dag(dag) if source == StructureSource::Explicit => dag,
         _ => {
             return Err(crate::unsupported_reason!(
-                "cell_not_licensed",
-                "cross_world.graph_outside_contract: only a supplied explicit DAG is licensed; \
+                "route_not_supported",
+                "cross_world.graph_outside_contract: only a supplied explicit DAG is supported; \
                  accepted, uncertain, latent-confounded, equivalence-class and temporal \
                  structures are refused"
             ));
@@ -244,7 +237,7 @@ fn evaluate_effect_probed(
         data_digest,
         independently_verified: false,
         names,
-        columns,
+        columns: columns.into(),
     })
 }
 

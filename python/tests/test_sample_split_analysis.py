@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import selective_discovery as sd
 from antecedent.errors import CausalValueError
 
@@ -27,16 +28,16 @@ def table(seed: int) -> dict[str, np.ndarray]:
 
 
 CONTRACT = sd.StaticContract(variables=("x", "y", "z"), alpha=0.001, fdr=None, seed=9)
-WRONG = "selective_discovery.analysis_rows_not_the_split_part"
+WRONG = reason_details.selective_discovery.ANALYSIS_ROWS_NOT_THE_SPLIT_PART
 
 
 def test_the_parts_partition_the_rows_and_discovery_sees_only_its_part() -> None:
     data = table(1)
-    split = sd.discover_on_split(CONTRACT, data, discovery_fraction=0.4, seed=5)
+    split = sd.discover_on_split(CONTRACT, data, discovery_fraction=0.4, split_seed=5)
 
     receipt = split.receipt
     assert (receipt.n_rows, receipt.n_discovery, receipt.n_analysis) == (N, 200, 300)
-    assert receipt.whole_method_calibration == "unmeasured"
+    assert receipt.whole_method_calibration == "not_measured"
     assert receipt.conditional_on_selected_graph
     split.verify()
 
@@ -62,12 +63,12 @@ def test_an_explicit_rule_names_the_discovery_rows() -> None:
         np.testing.assert_array_equal(split.analysis[name], column[250:])
 
 
-def test_only_the_analysis_part_passes_the_check_and_the_binding_says_what_it_licenses() -> None:
+def test_only_the_analysis_part_passes_the_check_and_the_binding_says_what_it_supports() -> None:
     data = table(3)
-    split = sd.discover_on_split(CONTRACT, data, discovery_fraction=0.4, seed=6)
+    split = sd.discover_on_split(CONTRACT, data, discovery_fraction=0.4, split_seed=6)
     binding = split.check_analysis_table(split.analysis)
     assert binding.conditional_on_selected_graph
-    assert binding.whole_method_calibration == "unmeasured"
+    assert binding.whole_method_calibration == "not_measured"
     assert binding.receipt_identity == split.receipt.identity
     assert binding.structure_identity == split.outcome.structure_identity
 
@@ -76,7 +77,7 @@ def test_only_the_analysis_part_passes_the_check_and_the_binding_says_what_it_li
             split.check_analysis_table(rejected)
         assert_registered_refusal(info.value)
         assert info.value.detail == WRONG
-    other = sd.discover_on_split(CONTRACT, table(4), discovery_fraction=0.4, seed=6)
+    other = sd.discover_on_split(CONTRACT, table(4), discovery_fraction=0.4, split_seed=6)
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
         split.check_analysis_table(other.analysis)
     assert info.value.detail == WRONG
@@ -84,41 +85,41 @@ def test_only_the_analysis_part_passes_the_check_and_the_binding_says_what_it_li
 
 def test_a_changed_rule_is_a_new_receipt_and_a_new_binding() -> None:
     data = table(5)
-    base = sd.discover_on_split(CONTRACT, data, discovery_fraction=0.4, seed=7)
-    again = sd.discover_on_split(CONTRACT, data, discovery_fraction=0.4, seed=7)
+    base = sd.discover_on_split(CONTRACT, data, discovery_fraction=0.4, split_seed=7)
+    again = sd.discover_on_split(CONTRACT, data, discovery_fraction=0.4, split_seed=7)
     assert base.receipt.identity == again.receipt.identity
     assert (
         base.check_analysis_table(base.analysis).identity
         == again.check_analysis_table(again.analysis).identity
     )
-    reseeded = sd.discover_on_split(CONTRACT, data, discovery_fraction=0.4, seed=8)
+    reseeded = sd.discover_on_split(CONTRACT, data, discovery_fraction=0.4, split_seed=8)
     assert reseeded.receipt.identity != base.receipt.identity
     assert (
         reseeded.check_analysis_table(reseeded.analysis).identity
         != base.check_analysis_table(base.analysis).identity
     )
-    wider = sd.discover_on_split(CONTRACT, data, discovery_fraction=0.6, seed=7)
+    wider = sd.discover_on_split(CONTRACT, data, discovery_fraction=0.6, split_seed=7)
     assert wider.receipt.n_discovery == 300
 
 
 def test_reusing_the_rows_that_selected_is_refused() -> None:
-    split = sd.discover_on_split(CONTRACT, table(6), discovery_fraction=0.4, seed=9)
+    split = sd.discover_on_split(CONTRACT, table(6), discovery_fraction=0.4, split_seed=9)
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
         split.request_unsplit_interval()
     assert_registered_refusal(info.value)
-    assert info.value.reason_code == "cell_not_licensed"
-    assert info.value.detail == "selective_discovery.downstream_interval_not_licensed"
+    assert info.value.reason_code == "selection_inference_not_supported"
+    assert info.value.detail == reason_details.selective_discovery.DOWNSTREAM_INTERVAL_NOT_SUPPORTED
 
 
 @pytest.mark.parametrize(
     ("kwargs", "detail"),
     [
-        ({"discovery_rows": [3, 3]}, "selective_discovery.split_rows_repeated"),
-        ({"discovery_rows": [N]}, "selective_discovery.split_row_out_of_range"),
-        ({"discovery_rows": list(range(N))}, "selective_discovery.split_part_empty"),
+        ({"discovery_rows": [3, 3]}, reason_details.selective_discovery.SPLIT_ROWS_REPEATED),
+        ({"discovery_rows": [N]}, reason_details.selective_discovery.SPLIT_ROW_OUT_OF_RANGE),
+        ({"discovery_rows": list(range(N))}, reason_details.selective_discovery.SPLIT_PART_EMPTY),
         (
-            {"discovery_fraction": 1.0, "seed": 1},
-            "selective_discovery.split_fraction_invalid",
+            {"discovery_fraction": 1.0, "split_seed": 1},
+            reason_details.selective_discovery.SPLIT_FRACTION_INVALID,
         ),
     ],
 )
@@ -132,10 +133,17 @@ def test_malformed_rules_are_refused_with_registered_details(
 
 
 def test_an_undeclared_rule_is_a_value_error() -> None:
-    with pytest.raises(CausalValueError):
+    with pytest.raises(
+        CausalValueError, match=r"declare discovery_rows, or discovery_fraction with split_seed"
+    ):
         sd.discover_on_split(CONTRACT, table(8))
-    with pytest.raises(CausalValueError):
-        sd.discover_on_split(CONTRACT, table(8), discovery_rows=[1], discovery_fraction=0.5, seed=1)
+    with pytest.raises(
+        CausalValueError,
+        match=r"declare discovery_rows or discovery_fraction with split_seed, not both",
+    ):
+        sd.discover_on_split(
+            CONTRACT, table(8), discovery_rows=[1], discovery_fraction=0.5, split_seed=1
+        )
 
 
 def test_the_split_parts_are_independent_ledger_sources_that_overlap_the_table_by_their_rows() -> (
@@ -143,7 +151,7 @@ def test_the_split_parts_are_independent_ledger_sources_that_overlap_the_table_b
 ):
     from antecedent import evidence_ledger as el
 
-    split = sd.discover_on_split(CONTRACT, table(4), discovery_fraction=0.4, seed=7)
+    split = sd.discover_on_split(CONTRACT, table(4), discovery_fraction=0.4, split_seed=7)
     snapshot = b"split-table"
     discovery, analysis = split.evidence_sources(snapshot)
     assert discovery.kind == analysis.kind == "observation_set"

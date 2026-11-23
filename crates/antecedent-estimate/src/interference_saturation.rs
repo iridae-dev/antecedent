@@ -1,6 +1,6 @@
 //! Exact exposure probabilities under two-stage cluster saturation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -12,6 +12,7 @@ use antecedent_stats::{
     ExposureProbabilityMethod, RandomizationContrast, exposures, randomization_mean,
 };
 
+use crate::arm::TreatmentArm;
 use crate::{EstimationError, InterferenceEstimate};
 
 /// Point estimate and observed support for one saturation exposure contrast.
@@ -81,7 +82,10 @@ pub fn estimate_saturation_interference(
         realized_saturation,
     } = &query.assignment
     else {
-        return Err(EstimationError::unsupported("two-stage saturation assignment is required"));
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("required_option_missing"),
+            "two-stage saturation assignment is required",
+        ));
     };
     let n = data.units().row_count();
     if n == 0 || assignment.len() != n || clusters.len() != n || realized_saturation.len() != n {
@@ -95,7 +99,8 @@ pub fn estimate_saturation_interference(
             | ExposureMapping::NeighborFraction
             | ExposureMapping::WeightedNeighborExposure
     ) {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("option_not_applicable"),
             "saturation effects require a built-in neighbor exposure mapping",
         ));
     }
@@ -121,7 +126,8 @@ pub fn estimate_saturation_interference(
     ids.dedup();
     let k = ids.len();
     if k < 2 || *high_clusters == 0 || *high_clusters >= k {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("positivity_violated"),
             "exact saturation requires both high and low cluster arms",
         ));
     }
@@ -168,13 +174,8 @@ pub fn estimate_saturation_interference(
         let neighbors = data
             .incoming(unit)?
             .iter()
-            .map(|edge| (edge.from as usize, edge.weight))
+            .map(|edge| (usize::try_from(edge.from.get()).expect("row id"), edge.weight))
             .collect::<Vec<_>>();
-        if neighbors.len() > 16 {
-            return Err(EstimationError::unsupported(
-                "exact saturation refuses more than 16 incoming neighbors per unit",
-            ));
-        }
         if neighbors.iter().any(|&(source, weight)| {
             clusters[source] != clusters[unit] || !weight.is_finite() || weight < 0.0
         }) {
@@ -344,6 +345,63 @@ fn saturation_cluster_interval(
     })
 }
 
+/// Most distinct treated-weight sums one neighbour distribution may carry. Count and
+/// fraction exposures need at most `neighbors + 1`; weighted exposure with integer or
+/// grid-valued weights stays far below it, and only adversarial real weights can reach it.
+const MAX_EXPOSURE_STATES: usize = 1 << 22;
+
+/// Resolution at which treated-weight sums are merged, relative to the total weight.
+const SUM_RESOLUTION: f64 = 1e9;
+
+/// Distribution of the treated-weight sum of independent Bernoulli(`saturation`) neighbours:
+/// `(sum, mass)` pairs, by dynamic programming over the neighbours (sums are merged when equal
+/// to [`SUM_RESOLUTION`] of the total weight, so equal-weight neighbours cost `O(m^2)`
+/// instead of `2^m`).
+fn treated_weight_distribution(
+    weights: &[f64],
+    saturation: f64,
+) -> Result<Vec<(f64, f64)>, EstimationError> {
+    let total: f64 = weights.iter().sum();
+    let scale = if total > 0.0 { SUM_RESOLUTION / total } else { 1.0 };
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "a rounded sum scaled to the resolution is far below i64::MAX"
+    )]
+    let key = |sum: f64| (sum * scale).round() as i64;
+    let mut states: BTreeMap<i64, (f64, f64)> = BTreeMap::new();
+    states.insert(0, (0.0, 1.0));
+    for &weight in weights {
+        if antecedent_core::numerical_admission::is_cancelled() {
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("cancelled_no_claim"),
+                "saturation exposure calculation was cancelled",
+            ));
+        }
+        let mut next: BTreeMap<i64, (f64, f64)> = BTreeMap::new();
+        for (index, &(sum, mass)) in states.values().enumerate() {
+            if index % 1024 == 0 && antecedent_core::numerical_admission::is_cancelled() {
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("cancelled_no_claim"),
+                    "saturation exposure calculation was cancelled",
+                ));
+            }
+            for (selected, probability) in [(false, 1.0 - saturation), (true, saturation)] {
+                let sum = if selected { sum + weight } else { sum };
+                let entry = next.entry(key(sum)).or_insert((sum, 0.0));
+                entry.1 += mass * probability;
+            }
+        }
+        if next.len() > MAX_EXPOSURE_STATES {
+            return Err(EstimationError::unsupported(
+                "exact saturation: the neighbour exposure distribution has more distinct \
+                 weighted sums than the state budget",
+            ));
+        }
+        states = next;
+    }
+    Ok(states.into_values().collect())
+}
+
 fn level_probabilities(
     incoming: &[Vec<(usize, f64)>],
     low: f64,
@@ -352,48 +410,51 @@ fn level_probabilities(
     mapping: &ExposureMapping,
     level: ExposureLevel,
 ) -> Result<Vec<f64>, EstimationError> {
+    if matches!(mapping, ExposureMapping::OwnTreatment | ExposureMapping::Custom(_)) {
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("option_not_applicable"),
+            "saturation effects require a built-in neighbor exposure mapping",
+        ));
+    }
     let mut probabilities = Vec::with_capacity(incoming.len());
     for neighbors in incoming {
+        // Count and fraction exposures depend on how many neighbours are treated, so every
+        // neighbour weighs one; weighted exposure keeps the edge weights.
+        let weights: Vec<f64> = match mapping {
+            ExposureMapping::WeightedNeighborExposure => {
+                neighbors.iter().map(|&(_, weight)| weight).collect()
+            }
+            _ => vec![1.0; neighbors.len()],
+        };
+        let total_weight: f64 = weights.iter().sum();
         let mut probability = 0.0;
         for (saturation, saturation_mass) in [(low, 1.0 - high_share), (high, high_share)] {
-            #[allow(
-                clippy::float_cmp,
-                reason = "exposure own-level is a categorical 0.0/1.0 flag, not a measured quantity"
-            )]
-            let own_mass = if level.own == 1.0 { saturation } else { 1.0 - saturation };
+            let own_mass = if TreatmentArm::of(level.own).is_treated() {
+                saturation
+            } else {
+                1.0 - saturation
+            };
             let mut neighbor_mass = 0.0;
-            for mask in 0..(1_usize << neighbors.len()) {
-                let mut mass = 1.0;
-                let mut treated = 0.0;
-                let mut treated_weight = 0.0;
-                let mut total_weight = 0.0;
-                for (j, &(_, weight)) in neighbors.iter().enumerate() {
-                    let selected = mask & (1 << j) != 0;
-                    mass *= if selected { saturation } else { 1.0 - saturation };
-                    treated += if selected { 1.0 } else { 0.0 };
-                    treated_weight += if selected { weight } else { 0.0 };
-                    total_weight += weight;
-                }
+            for (treated_weight, mass) in treated_weight_distribution(&weights, saturation)? {
+                #[allow(
+                    clippy::float_cmp,
+                    reason = "an empty or zero-weight neighbourhood has exposure exactly zero"
+                )]
                 let exposure = match mapping {
-                    ExposureMapping::NeighborCount => treated,
+                    ExposureMapping::NeighborCount => treated_weight,
                     ExposureMapping::NeighborFraction => {
                         if neighbors.is_empty() {
                             0.0
                         } else {
-                            treated / neighbors.len() as f64
+                            treated_weight / neighbors.len() as f64
                         }
                     }
-                    ExposureMapping::WeightedNeighborExposure => {
+                    _ => {
                         if total_weight == 0.0 {
                             0.0
                         } else {
                             treated_weight / total_weight
                         }
-                    }
-                    ExposureMapping::OwnTreatment | ExposureMapping::Custom(_) => {
-                        return Err(EstimationError::unsupported(
-                            "saturation effects require a built-in neighbor exposure mapping",
-                        ));
                     }
                 };
                 if (exposure - level.neighbors).abs() <= 1e-12 {
@@ -417,13 +478,14 @@ struct WeightedMean {
 }
 
 /// Horvitz–Thompson and Hájek means of the units realized at one exposure level, with the
-/// Cauchy-bounded variance and the per-cluster totals of that level. Not the arithmetic
+/// Cauchy-bounded variance (`(Σ |y| √(1−π) / π^(3/2))² / n²`, the square of an unbiased
+/// estimate of the sum of unit standard deviations) and the per-cluster totals of that level. Not the arithmetic
 /// weighted mean of `antecedent_kernels::weighted_mean`: the weights are inverse exposure
 /// probabilities of a requested level, and the outputs carry the design-based variance.
 ///
 /// Positivity and an absent level are refused with the saturation messages before the
 /// stats mean is read. HT and Hájek then come from `randomization_mean`. The variance
-/// stays the Cauchy bound `(Σ |y| √(1−π) / π)² / n²`, not that kernel's Young diagonal,
+/// stays the Cauchy bound described above, not that kernel's Young diagonal,
 /// and the per-cluster totals stay here.
 fn weighted_mean(
     outcomes: &[f64],
@@ -441,7 +503,8 @@ fn weighted_mean(
     for i in 0..outcomes.len() {
         let p = probabilities[i];
         if !p.is_finite() || p <= 0.0 {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("positivity_violated"),
                 "saturation exposure positivity failure for a requested level",
             ));
         }
@@ -449,15 +512,19 @@ fn weighted_mean(
             let weight = 1.0 / p;
             *cluster_totals.entry(clusters[i]).or_insert(0.0) += outcomes[i] * weight;
             weights += weight;
-            // Cauchy bounds every unknown pairwise covariance of the observed
-            // HT score contributions by the product of their standard deviations.
-            variance += (1.0 - p).sqrt() * outcomes[i].abs() / p;
+            // Cauchy bounds every unknown pairwise covariance of the HT score contributions
+            // by the product of their standard deviations, so Var(sum) <= (sum sd_i)^2 with
+            // sd_i = |y_i| sqrt((1 - p_i) / p_i). Weighting an observed unit by p^(-3/2)
+            // makes the sum unbiased for sum sd_i (P(observed) = p); weighting by 1/p
+            // would estimate sum |y_i| sqrt(1 - p_i), which falls short by sqrt(p_i).
+            variance += (1.0 - p).sqrt() * outcomes[i].abs() / (p * p.sqrt());
             units += 1;
             observed_clusters.insert(clusters[i]);
         }
     }
     if units == 0 || weights == 0.0 {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("positivity_violated"),
             "requested saturation exposure is absent from realized assignments",
         ));
     }
@@ -493,14 +560,60 @@ mod tests {
     };
     use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 
+    #[test]
+    fn saturation_exposure_distribution_observes_inherited_cancellation() {
+        let normal = super::treated_weight_distribution(&[1.0, 1.0], 0.5).unwrap();
+        assert_eq!(normal.len(), 3);
+        let ctx = antecedent_core::ExecutionContext::for_tests(3);
+        ctx.cancellation.cancel();
+        let error = antecedent_core::numerical_admission::with_context(&ctx, || {
+            super::treated_weight_distribution(&[1.0, 1.0], 0.5)
+        })
+        .unwrap_err();
+        assert_eq!(error.reason_code(), Some("cancelled_no_claim"));
+    }
+
     use super::{estimate_saturation_interference, estimate_saturation_interference_pointwise};
+    use crate::arm::TreatmentArm;
+
+    #[test]
+    fn cauchy_standard_deviation_sum_is_unbiased_for_the_exact_sd_sum() {
+        // One unit with exposure probability p = 1/4 and outcome 2: sd = 2 sqrt((1 - p) / p).
+        // The unit is observed with probability p, so p times the realized sum must equal sd.
+        let level = ExposureLevel { own: 1.0, neighbors: 0.0 };
+        let mean = super::weighted_mean(&[2.0], &[0], &[level], level, &[0.25]).unwrap();
+        let sd = 2.0 * (0.75_f64 / 0.25).sqrt();
+        assert!((0.25 * mean.variance.sqrt() - sd).abs() < 1e-12, "{}", mean.variance);
+    }
+
+    #[test]
+    fn count_exposure_probability_is_exact_beyond_sixteen_neighbors() {
+        // 24 equal-weight neighbours at saturation 0.5: P(count = 12) = C(24, 12) / 2^24.
+        let incoming = vec![(0..24).map(|j| (j, 1.0)).collect::<Vec<_>>()];
+        let level = ExposureLevel { own: 1.0, neighbors: 12.0 };
+        let probability = super::level_probabilities(
+            &incoming,
+            0.5,
+            0.5,
+            0.5,
+            &ExposureMapping::NeighborCount,
+            level,
+        )
+        .unwrap()[0];
+        let mut binomial = 1.0_f64;
+        for i in 0..12 {
+            binomial = binomial * f64::from(24 - i) / f64::from(i + 1);
+        }
+        let expected = 0.5 * binomial / f64::from(1_u32 << 24);
+        assert!((probability - expected).abs() < 1e-12, "{probability} vs {expected}");
+    }
 
     #[test]
     fn saturation_exposure_interval_covers_known_truth() {
         // Fixed finite-population potential outcomes; only the two randomization
         // stages vary. Two units per cluster expose the (own, neighbor) cells
         // exactly and preserve within-cluster assignment dependence. Twenty-four
-        // clusters per saturation arm is the licensed support boundary; the
+        // clusters per saturation arm is the supported support boundary; the
         // total (0,0) -> (1,1) contrast has known truth 2.4.
         const REPLICATES: usize = 2_000;
         const CLUSTERS: usize = 48;
@@ -510,8 +623,8 @@ mod tests {
             .flat_map(|cluster| {
                 let first = (2 * cluster) as u32;
                 [
-                    NetworkEdge { from: first, to: first + 1, weight: 1.0 },
-                    NetworkEdge { from: first + 1, to: first, weight: 1.0 },
+                    NetworkEdge::new(u64::from(first), u64::from(first + 1), 1.0),
+                    NetworkEdge::new(u64::from(first + 1), u64::from(first), 1.0),
                 ]
             })
             .collect::<Vec<_>>();
@@ -590,8 +703,8 @@ mod tests {
                 .flat_map(|cluster| {
                     let first = (2 * cluster) as u32;
                     [
-                        NetworkEdge { from: first, to: first + 1, weight: 1.0 },
-                        NetworkEdge { from: first + 1, to: first, weight: 1.0 },
+                        NetworkEdge::new(u64::from(first), u64::from(first + 1), 1.0),
+                        NetworkEdge::new(u64::from(first + 1), u64::from(first), 1.0),
                     ]
                 })
                 .collect::<Vec<_>>();
@@ -689,12 +802,13 @@ mod tests {
                                 continue;
                             }
                             let p = if high_a { 0.8 } else { 0.2 };
-                            let own_mass = if level.own == 1.0 { p } else { 1.0 - p };
+                            let own_mass =
+                                if TreatmentArm::of(level.own).is_treated() { p } else { 1.0 - p };
                             for first in [false, true] {
                                 for second in [false, true] {
                                     let g = match mapping {
                                         ExposureMapping::NeighborFraction => {
-                                            (f64::from(first) + f64::from(second)) / 2.0
+                                            f64::midpoint(f64::from(first), f64::from(second))
                                         }
                                         ExposureMapping::WeightedNeighborExposure => {
                                             (f64::from(first) + 2.0 * f64::from(second)) / 3.0
@@ -721,17 +835,20 @@ mod tests {
         let clusters = [0_u32, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3];
         let assignment =
             vec![false, false, false, true, false, false, true, true, false, true, true, true];
-        let edges =
-            (0..4)
-                .flat_map(|cluster| {
-                    let first = cluster * 3;
-                    (first..first + 3).flat_map(move |from| {
-                        (first..first + 3).filter(move |&to| to != from).map(move |to| {
-                            NetworkEdge { from: from as u32, to: to as u32, weight: 1.0 }
-                        })
+        let edges = (0..4)
+            .flat_map(|cluster| {
+                let first = cluster * 3;
+                (first..first + 3).flat_map(move |from| {
+                    (first..first + 3).filter(move |&to| to != from).map(move |to| {
+                        NetworkEdge::new(
+                            u64::try_from(from).expect("row id"),
+                            u64::try_from(to).expect("row id"),
+                            1.0,
+                        )
                     })
                 })
-                .collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
         let outcomes = (0..12)
             .map(|i| {
                 let first = i / 3 * 3;
@@ -784,10 +901,34 @@ mod tests {
     }
 
     #[test]
+    fn saturation_realization_requires_a_supported_cluster_allocation() {
+        let (network, assignment, mut query) = fixture();
+        assert!(estimate_saturation_interference(&query, &network, &assignment).is_ok());
+        let AssignmentDesign::TwoStageSaturation { realized_saturation, .. } =
+            &mut query.assignment
+        else {
+            panic!("expected saturation design");
+        };
+        *realized_saturation =
+            Arc::from([0.2, 0.8, 0.2, 0.2, 0.2, 0.2, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8]);
+        let error = estimate_saturation_interference(&query, &network, &assignment).unwrap_err();
+        assert!(error.to_string().contains("share realized saturation"));
+        let AssignmentDesign::TwoStageSaturation { realized_saturation, .. } =
+            &mut query.assignment
+        else {
+            unreachable!();
+        };
+        *realized_saturation =
+            Arc::from([0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.8, 0.8, 0.8]);
+        let error = estimate_saturation_interference(&query, &network, &assignment).unwrap_err();
+        assert!(error.to_string().contains("high-cluster count"));
+    }
+
+    #[test]
     fn exact_saturation_refuses_cross_cluster_edge() {
         let (network, assignment, query) = fixture();
         let mut edges = network.edges().to_vec();
-        edges.push(NetworkEdge { from: 0, to: 3, weight: 1.0 });
+        edges.push(NetworkEdge::new(0, 3, 1.0));
         let crossed = NetworkData::try_new(network.units().clone(), edges).unwrap();
         assert!(estimate_saturation_interference(&query, &crossed, &assignment).is_err());
     }
@@ -816,17 +957,20 @@ mod tests {
         let expanded_assignment = assignment.iter().copied().cycle().take(120).collect::<Vec<_>>();
         let outcomes = vec![1.0; 120];
         let expanded_data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
-        let expanded_edges =
-            (0..40)
-                .flat_map(|cluster| {
-                    let first = cluster * 3;
-                    (first..first + 3).flat_map(move |from| {
-                        (first..first + 3).filter(move |&to| to != from).map(move |to| {
-                            NetworkEdge { from: from as u32, to: to as u32, weight: 1.0 }
-                        })
+        let expanded_edges = (0..40)
+            .flat_map(|cluster| {
+                let first = cluster * 3;
+                (first..first + 3).flat_map(move |from| {
+                    (first..first + 3).filter(move |&to| to != from).map(move |to| {
+                        NetworkEdge::new(
+                            u64::try_from(from).expect("row id"),
+                            u64::try_from(to).expect("row id"),
+                            1.0,
+                        )
                     })
                 })
-                .collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
         let expanded = NetworkData::try_new(expanded_data, expanded_edges).unwrap();
         // The observed assignment here is arbitrary; this assertion exercises
         // the exact marginal calculation beyond the old enumeration cap.
@@ -842,17 +986,20 @@ mod tests {
         let realized = [vec![0.2; 72], vec![0.8; 72]].concat();
         let mut assignment = vec![false; 144];
         assignment[72..75].fill(true);
-        let edges =
-            (0..48)
-                .flat_map(|cluster| {
-                    let first = cluster * 3;
-                    (first..first + 3).flat_map(move |from| {
-                        (first..first + 3).filter(move |&to| to != from).map(move |to| {
-                            NetworkEdge { from: from as u32, to: to as u32, weight: 1.0 }
-                        })
+        let edges = (0..48)
+            .flat_map(|cluster| {
+                let first = cluster * 3;
+                (first..first + 3).flat_map(move |from| {
+                    (first..first + 3).filter(move |&to| to != from).map(move |to| {
+                        NetworkEdge::new(
+                            u64::try_from(from).expect("row id"),
+                            u64::try_from(to).expect("row id"),
+                            1.0,
+                        )
                     })
                 })
-                .collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
         let outcomes = (0..144).map(|unit| 1.0 + f64::from(assignment[unit])).collect::<Vec<_>>();
         let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
         let network = NetworkData::try_new(data, edges).unwrap();

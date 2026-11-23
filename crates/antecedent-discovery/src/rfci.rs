@@ -5,7 +5,7 @@
 //! 2. Lemma 3.1 unshielded-triple checks (local CI; may remove edges)
 //! 3. Zhang R1–R3 / R8–R10 plus Lemma 3.2 discriminating-path CI checks
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -42,7 +42,7 @@ use crate::result::{
     EvidenceSource, GraphEvidence, PcSepsets, discovery_assumptions,
 };
 use crate::rule_scheduling::{
-    FciOrientationRule, LpcmciR1, LpcmciR2, LpcmciR3, LpcmciR8, LpcmciR9, LpcmciR10,
+    FciOrientationRule, LpcmciR1, LpcmciR2, LpcmciR3, LpcmciR8, ZhangR9, ZhangR10,
     orient_collider_leg, orient_discriminated_collider, run_fci_orientation_to_fixed_point,
     set_marks_oriented,
 };
@@ -50,6 +50,9 @@ use crate::static_skeleton::{
     StaticCiRun, StaticSkeleton, StaticSkeletonInput, record_sepset, run_static_skeleton,
     skeleton_scored_links, static_edge_evidence,
 };
+
+/// Identity of this algorithm in its records.
+const ALGORITHM: &str = crate::pipeline::StaticAlgorithm::Rfci.as_str();
 
 /// Classic RFCI over tabular (non-temporal) data.
 #[derive(Clone)]
@@ -139,6 +142,7 @@ impl Rfci {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<StaticPagDiscoveryResult, DiscoveryError> {
+        self.constraints.validate_ci_options()?;
         self.constraints.validate()?;
         self.constraints
             .check_background_knowledge(KnowledgeScope::EquivalenceClass, variables)
@@ -163,10 +167,18 @@ impl Rfci {
             ctx,
         )?;
         let cols: Vec<&[f64]> = col_owned.iter().map(AsRef::as_ref).collect();
+        let covariance = crate::static_skeleton::CovarianceSearch::prepare(
+            &*self.ci,
+            &cols,
+            &self.constraints,
+            self.fdr,
+            ctx,
+        );
 
         let alpha = self.constraints.alpha;
         let max_cond = self.constraints.max_cond_size;
         let input = StaticSkeletonInput {
+            covariance: covariance.as_ref(),
             ci: &*self.ci,
             constraints: &self.constraints,
             cols: &cols,
@@ -217,55 +229,25 @@ impl Rfci {
 
         load_sepsets_into_state(&sepsets, &dense_of, &mut state)?;
 
-        // --- Phase 3: Zhang R1–R3 / R8–R10 + RFCI discriminating paths ---
-        let zhang: [&dyn FciOrientationRule; 6] =
-            [&LpcmciR1, &LpcmciR2, &LpcmciR3, &LpcmciR8, &LpcmciR9, &LpcmciR10];
-        let mut orient_conflicts = 0u32;
-        let mut rounds = 0u32;
-        while rounds < 10_000 {
-            rounds += 1;
-            let d = run_fci_orientation_to_fixed_point(&mut pag, &zhang, &mut state)?;
-            orient_conflicts = orient_conflicts.max(d.conflicts);
-            let mut disc_changed = false;
-            let tests_before = ci.tests;
-            let disc = rfci_discriminating_paths(
-                &mut ci,
-                &mut RfciGraph {
-                    adj: &mut adj,
-                    sepsets: &mut sepsets,
-                    pag: &mut pag,
-                    state: &mut state,
-                    dense_of: &dense_of,
-                },
-                &mut combo_scratch,
-            )?;
-            ci_tests += ci.tests - tests_before;
-            if disc.edges_changed > 0 {
-                disc_changed = true;
-                orient_conflicts = orient_conflicts.max(disc.conflicts);
-                // New edges removed ⇒ re-check Lemma 3.1 triples.
-                let tests_before = ci.tests;
-                rfci_unshielded_triples(
-                    &mut ci,
-                    &mut RfciGraph {
-                        adj: &mut adj,
-                        sepsets: &mut sepsets,
-                        pag: &mut pag,
-                        state: &mut state,
-                        dense_of: &dense_of,
-                    },
-                )?;
-                ci_tests += ci.tests - tests_before;
-                load_sepsets_into_state(&sepsets, &dense_of, &mut state)?;
-            }
-            if d.edges_changed == 0 && !disc_changed {
-                break;
-            }
-        }
+        let tests_before = ci.tests;
+        let orient_conflicts = orient_rfci(
+            &mut ci,
+            &mut RfciGraph {
+                adj: &mut adj,
+                sepsets: &mut sepsets,
+                pag: &mut pag,
+                state: &mut state,
+                dense_of: &dense_of,
+            },
+            &mut combo_scratch,
+        )?;
+        ci_tests += ci.tests - tests_before;
 
         let mut diagnostics = Vec::new();
-        diagnostics
-            .extend(crate::static_skeleton::parent_limit_diagnostic(&parent_limit_removed, "rfci"));
+        diagnostics.extend(crate::static_skeleton::parent_limit_diagnostic(
+            &parent_limit_removed,
+            ALGORITHM,
+        ));
         if !state.discriminating_skipped.is_empty() {
             diagnostics.push(DiscoveryDiagnostic {
                 code: Arc::from("rfci.discriminating_path_budget"),
@@ -276,7 +258,7 @@ impl Rfci {
                 )),
             });
         }
-        diagnostics.extend(crate::rule_scheduling::pd_path_budget_diagnostic(&state, "rfci"));
+        diagnostics.extend(crate::rule_scheduling::pd_path_budget_diagnostic(&state, ALGORITHM));
         if state.conflicts > 0 || orient_conflicts > 0 {
             diagnostics.push(DiscoveryDiagnostic {
                 code: Arc::from("rfci.orientation_conflict"),
@@ -289,21 +271,21 @@ impl Rfci {
 
         scored.retain(|s| adj.contains(edge_key(s.link.source, s.link.target)));
 
-        let edge_evidence = static_edge_evidence(&scored, &sepsets, "rfci");
+        let edge_evidence = static_edge_evidence(&scored, &sepsets, ALGORITHM);
 
         let evidence = GraphEvidence {
             graph: pag.clone(),
             edge_evidence: Arc::from(edge_evidence),
             links: Arc::from(scored),
-            source: EvidenceSource::Discovery { algorithm: Arc::from("rfci") },
+            source: EvidenceSource::Discovery { algorithm: Arc::from(ALGORITHM) },
         };
-        let review = PagReview::from_pag(pag, "rfci");
+        let review = PagReview::from_pag(pag, ALGORITHM);
 
         Ok(DiscoveryResult {
             evidence,
             review,
             algorithm: crate::pipeline::algorithm_record(
-                "rfci",
+                ALGORITHM,
                 format!(
                     "alpha={},max_cond={},fdr={}{}",
                     alpha,
@@ -312,13 +294,13 @@ impl Rfci {
                     self.constraints.knowledge_config()
                 ),
             ),
-            assumptions: discovery_assumptions("rfci", false),
+            assumptions: discovery_assumptions(ALGORITHM, false),
             iterations,
             diagnostics,
             performance: DiscoveryPerformanceRecord {
                 ci_tests,
-                links_retained: u64::try_from(adj.len()).unwrap_or(u64::MAX),
-                targets: u64::try_from(variables.len()).unwrap_or(u64::MAX),
+                links_retained: crate::pipeline::count_u64(adj.len())?,
+                targets: crate::pipeline::count_u64(variables.len())?,
                 lagged_frame_bytes: 0,
                 worker_threads: 1,
             },
@@ -334,6 +316,37 @@ struct RfciGraph<'a> {
     pag: &'a mut Pag,
     state: &'a mut OrientationState,
     dense_of: &'a dyn Fn(VariableId) -> Result<DenseNodeId, DiscoveryError>,
+}
+
+fn orient_rfci(
+    ci: &mut StaticCiRun<'_>,
+    graph: &mut RfciGraph<'_>,
+    combo_scratch: &mut Vec<VariableId>,
+) -> Result<u32, DiscoveryError> {
+    // --- Phase 3: Zhang R1–R3 / R8–R10 + RFCI discriminating paths ---
+    let zhang: [&dyn FciOrientationRule; 6] =
+        [&LpcmciR1, &LpcmciR2, &LpcmciR3, &LpcmciR8, &ZhangR9, &ZhangR10];
+    let mut orient_conflicts = 0u32;
+    let mut rounds = 0u32;
+    while rounds < 10_000 {
+        rounds += 1;
+        let d = run_fci_orientation_to_fixed_point(graph.pag, &zhang, graph.state)?;
+        orient_conflicts = orient_conflicts.max(d.conflicts);
+        let mut disc_changed = false;
+        let disc = rfci_discriminating_paths(ci, graph, combo_scratch)?;
+        if disc.edges_changed > 0 {
+            disc_changed = true;
+            orient_conflicts = orient_conflicts.max(disc.conflicts);
+            // New edges removed ⇒ re-check Lemma 3.1 triples.
+            rfci_unshielded_triples(ci, graph)?;
+            load_sepsets_into_state(graph.sepsets, graph.dense_of, graph.state)?;
+        }
+        if d.edges_changed == 0 && !disc_changed {
+            break;
+        }
+    }
+
+    Ok(orient_conflicts)
 }
 
 /// Work queue of unshielded triples `(lo, middle, hi)`, each queued at most once.
@@ -358,7 +371,7 @@ impl UnshieldedTriples {
     }
 }
 
-/// Colombo–Maathuis Lemma 3.1: local CI around unshielded triples.
+/// Colombo et al. (2012), Lemma 3.1: local CI around unshielded triples.
 fn rfci_unshielded_triples(
     ci: &mut StaticCiRun<'_>,
     graph: &mut RfciGraph<'_>,
@@ -387,23 +400,26 @@ fn rfci_unshielded_triples(
         let Some(sep_ac) = sepset_vars(graph.sepsets, a, c) else {
             continue;
         };
+        // Lemma 3.1 and Step 2 in the original RFCI paper, Section 3.2:
+        // https://arxiv.org/pdf/1104.5617. Test every unshielded triple with
+        // sep(a,c)\{b}; membership of b gates orientation, not these tests.
         let cond: Vec<VariableId> = sep_ac.into_iter().filter(|&z| z != b).collect();
 
         // a ⊥? b | sep(a,c)\{b}
-        if ci.p_value(a, b, &cond)? > ci.alpha {
+        if ci.separates(a, b, &cond)? {
             let minimal = ci.minimize_sepset(a, b, &cond)?;
             remove_edge_update(ci, graph, (a, b), &minimal, &mut triples)?;
             continue;
         }
 
-        if ci.p_value(b, c, &cond)? > ci.alpha {
+        if ci.separates(b, c, &cond)? {
             let minimal = ci.minimize_sepset(b, c, &cond)?;
             remove_edge_update(ci, graph, (b, c), &minimal, &mut triples)?;
             continue;
         }
 
         // Both dependent: orient v-structure iff b ∉ sep(a,c).
-        let b_in_sep = sepset_vars(graph.sepsets, a, c).is_some_and(|s| s.iter().any(|&z| z == b));
+        let b_in_sep = sepset_vars(graph.sepsets, a, c).is_some_and(|s| s.contains(&b));
         if !b_in_sep {
             let ad = (graph.dense_of)(a)?;
             let bd = (graph.dense_of)(b)?;
@@ -471,7 +487,7 @@ fn rfci_discriminating_paths(
                     true
                 });
                 for z in &sets {
-                    if ci.p_value(u, v, z)? > ci.alpha {
+                    if ci.separates(u, v, z)? {
                         let minimal = ci.minimize_sepset(u, v, z)?;
                         remove = Some((u, v, minimal));
                         break 'pairs;
@@ -580,27 +596,72 @@ mod tests {
     use super::*;
     use crate::test_tables::tabular_n;
 
-    #[test]
-    fn oracle_chain_recovers_skeleton() {
+    /// One retained fixture case run through the product: the variables, the adjacencies that
+    /// the oracle CI test reports as dependent, and the non-adjacencies come from the fixture.
+    struct FixtureRun {
+        variables: Vec<String>,
+        adjacencies: Vec<(usize, usize)>,
+        non_adjacencies: Vec<(usize, usize)>,
+        graph: antecedent_graph::Pag,
+    }
+
+    fn run_fixture_case(index: usize, seed: u64) -> (serde_json::Value, FixtureRun) {
         let fixture: serde_json::Value =
             serde_json::from_str(include_str!("../../../conformance/discovery/rfci/expected.json"))
                 .unwrap();
-        assert_eq!(fixture["cases"][0]["adjacencies"].as_array().unwrap().len(), 2);
-        let data = tabular_n(3, 50);
-        let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
-        let oracle = OracleCi::new([(0usize, 1usize), (1usize, 2usize)]);
-        let rfci = Rfci::new().with_fdr(false).with_ci(Arc::new(oracle));
+        let case = fixture["cases"][index].clone();
+        let variables: Vec<String> = case["variables"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap().to_string())
+            .collect();
+        let position = |name: &serde_json::Value| {
+            variables.iter().position(|v| v == name.as_str().unwrap()).unwrap()
+        };
+        let pairs = |key: &str| -> Vec<(usize, usize)> {
+            case[key]
+                .as_array()
+                .map(|rows| rows.iter().map(|r| (position(&r[0]), position(&r[1]))).collect())
+                .unwrap_or_default()
+        };
+        let adjacencies = pairs("adjacencies");
+        let non_adjacencies = pairs("non_adjacencies");
+        let data = tabular_n(variables.len(), 50);
+        let vars: Vec<VariableId> =
+            (0..variables.len()).map(|i| VariableId::from_raw(u32::try_from(i).unwrap())).collect();
+        let rfci =
+            Rfci::new().with_fdr(false).with_ci(Arc::new(OracleCi::new(adjacencies.clone())));
         let mut ws = DiscoveryWorkspace::default();
-        let ctx = ExecutionContext::for_tests(1);
-        let result = rfci.run(&data, &vars, &mut ws, &ctx).unwrap();
-        let g = &result.evidence.graph;
-        assert!(g.has_edge(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
-        assert!(g.has_edge(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)));
-        assert!(!g.has_edge(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)));
+        let result = rfci.run(&data, &vars, &mut ws, &ExecutionContext::for_tests(seed)).unwrap();
         assert_eq!(result.algorithm.id.as_ref(), "rfci");
         // No Possible-D-Sep iteration label.
         assert!(result.iterations.iter().all(|i| !i.label.contains("possible_d_sep")));
         assert!(result.iterations.iter().any(|i| i.label.contains("lemma31")));
+        let graph = result.evidence.graph.clone();
+        (case, FixtureRun { variables, adjacencies, non_adjacencies, graph })
+    }
+
+    fn node(index: usize) -> DenseNodeId {
+        DenseNodeId::from_raw(u32::try_from(index).unwrap())
+    }
+
+    #[test]
+    fn oracle_chain_recovers_skeleton() {
+        let (_, run) = run_fixture_case(0, 1);
+        assert_eq!(run.adjacencies.len(), 2);
+        for &(a, b) in &run.adjacencies {
+            assert!(run.graph.has_edge(node(a), node(b)), "{a}-{b} must be adjacent");
+        }
+        for &(a, b) in &run.non_adjacencies {
+            assert!(!run.graph.has_edge(node(a), node(b)), "{a}-{b} must be non-adjacent");
+        }
+        let count = run.variables.len();
+        let edge_count = (0..count)
+            .flat_map(|a| ((a + 1)..count).map(move |b| (a, b)))
+            .filter(|&(a, b)| run.graph.has_edge(node(a), node(b)))
+            .count();
+        assert_eq!(edge_count, run.adjacencies.len(), "no adjacency beyond the fixture's");
     }
 
     #[test]
@@ -620,23 +681,25 @@ mod tests {
 
     #[test]
     fn oracle_collider_orients_into_middle() {
-        let fixture: serde_json::Value =
-            serde_json::from_str(include_str!("../../../conformance/discovery/rfci/expected.json"))
-                .unwrap();
-        assert_eq!(fixture["cases"][1]["arrowheads_at"].as_array().unwrap().len(), 2);
-        let data = tabular_n(3, 40);
-        let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
-        let oracle = OracleCi::new([(0usize, 1usize), (1usize, 2usize)]);
-        let rfci = Rfci::new().with_fdr(false).with_ci(Arc::new(oracle));
-        let mut ws = DiscoveryWorkspace::default();
-        let ctx = ExecutionContext::for_tests(2);
-        let result = rfci.run(&data, &vars, &mut ws, &ctx).unwrap();
-        let g = &result.evidence.graph;
-        let e01 = g.edge_between(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-        let e21 = g.edge_between(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
-        let at_1_from_0 = if e01.a.raw() == 1 { e01.at_a } else { e01.at_b };
-        let at_1_from_2 = if e21.a.raw() == 1 { e21.at_a } else { e21.at_b };
-        assert!(matches!(at_1_from_0, Endpoint::Arrow));
-        assert!(matches!(at_1_from_2, Endpoint::Arrow));
+        let (case, run) = run_fixture_case(1, 2);
+        // Every endpoint of every adjacent pair that carries an arrowhead, by variable name.
+        let mut arrowheads: Vec<String> = Vec::new();
+        for &(a, b) in &run.adjacencies {
+            let edge = run.graph.edge_between(node(a), node(b)).unwrap();
+            for (end, mark) in [(edge.a.raw(), edge.at_a), (edge.b.raw(), edge.at_b)] {
+                if matches!(mark, Endpoint::Arrow) {
+                    arrowheads.push(run.variables[usize::try_from(end).unwrap()].clone());
+                }
+            }
+        }
+        arrowheads.sort();
+        let mut expected: Vec<String> = case["arrowheads_at"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap().to_string())
+            .collect();
+        expected.sort();
+        assert_eq!(arrowheads, expected);
     }
 }

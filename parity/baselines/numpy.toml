@@ -1,0 +1,5 @@
+# Fixture comparator only; installed solely in isolated retained tooling.
+project = "numpy"
+version = "2.1.3"
+source = "https://numpy.org/doc/2.1/"
+notes = "Fixed descriptive-reduction fixtures. No upstream source or tests are imported into the product. Full dependency lock: conformance/stats/ols_wls/reference.py.lock."

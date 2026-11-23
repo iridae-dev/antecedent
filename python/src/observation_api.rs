@@ -1,19 +1,20 @@
 //! Python boundary for explicit outcome-observation mechanisms.
 
+use crate::NumericColumn;
 use std::sync::Arc;
 
-use antecedent_core::{
-    CausalQuery, ContinuousDomain, GridSpec, ObservationAssumption, ObservationSpec,
-    ResponseFunctional, ResponseQuery, VariableId,
-};
-use antecedent_data::TableView;
-use antecedent_estimate::{
+use antecedent::data::TableView;
+use antecedent::estimate::{
     ObservationEstimatorOptions, ObservationMechanismEstimator, SelectedOutcomeCorrection,
 };
-use numpy::PyReadonlyArray1;
+use antecedent::prelude::VariableId;
+use antecedent::query::{
+    CausalQuery, ContinuousDomain, GridSpec, ObservationAssumption, ObservationSpec,
+    ResponseFunctional, ResponseQuery,
+};
 use pyo3::prelude::*;
 
-use crate::{columns_to_batch, dag_from_named_edges, detach_catch, py_err};
+use crate::{dag_from_named_edges, detach_catch, numeric_columns_to_batch, py_err};
 
 #[pyclass(skip_from_py_object)]
 pub(crate) struct ObservationAdjustedOutcomeResult {
@@ -101,14 +102,14 @@ pub(crate) struct ObservationArgs {
     names, columns, treatment, outcome, observation_kind, latent, *, observed=None,
     censoring=None, event=None, lower=None, upper=None, indicator=None,
     assumption_kind, assumption_variables=Vec::new(), structural_model=None,
-    delayed_entry=None, correction="aipw", observation_probability_floor=0.01,
+    delayed_entry=None, correction="aipw", observation_probability_floor=None,
     censoring_survival_floor=0.01, crossfit_folds=5
 ))]
 #[allow(clippy::too_many_arguments)]
 fn observation_adjusted_outcome(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     treatment: String,
     outcome: String,
     observation_kind: String,
@@ -124,11 +125,11 @@ fn observation_adjusted_outcome(
     structural_model: Option<String>,
     delayed_entry: Option<String>,
     correction: &str,
-    observation_probability_floor: f64,
+    observation_probability_floor: Option<f64>,
     censoring_survival_floor: f64,
     crossfit_folds: usize,
 ) -> PyResult<ObservationAdjustedOutcomeResult> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     let correction = parse_correction(correction)?;
     let args = ObservationArgs {
@@ -145,7 +146,7 @@ fn observation_adjusted_outcome(
         structural_model,
     };
     detach_catch(py, move || {
-        let loaded = antecedent_data::tabular_from_record_batch(&batch).map_err(py_err)?;
+        let loaded = batch.loaded()?;
         let data = loaded.data;
         let query =
             build_query(data.schema(), &treatment, &outcome, &args, Arc::from([0.0_f64, 1.0_f64]))?;
@@ -173,7 +174,7 @@ fn observation_adjusted_outcome(
     names, columns, edges, treatment, outcome, grid, observation_kind, latent, *,
     observed=None, censoring=None, event=None, lower=None, upper=None, indicator=None,
     assumption_kind, assumption_variables=Vec::new(), structural_model=None,
-    delayed_entry=None, correction="aipw", observation_probability_floor=0.01,
+    delayed_entry=None, correction="aipw", observation_probability_floor=None,
     censoring_survival_floor=0.01, crossfit_folds=5, accepted=false, seed=1, threads=None,
     options=None
 ))]
@@ -181,7 +182,7 @@ fn observation_adjusted_outcome(
 fn prepare_observation_response(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     edges: Vec<(String, String)>,
     treatment: String,
     outcome: String,
@@ -199,7 +200,7 @@ fn prepare_observation_response(
     structural_model: Option<String>,
     delayed_entry: Option<String>,
     correction: &str,
-    observation_probability_floor: f64,
+    observation_probability_floor: Option<f64>,
     censoring_survival_floor: f64,
     crossfit_folds: usize,
     accepted: bool,
@@ -208,7 +209,8 @@ fn prepare_observation_response(
     options: Option<Bound<'_, pyo3::types::PyDict>>,
 ) -> PyResult<crate::prepared_api::PyPreparedAnalysis> {
     let mut opts = crate::prepared_options::PrepareOptions::parse(options.as_ref())?;
-    let batch = columns_to_batch(&names, &columns)?;
+    opts.refuse_unread_declarations("an observation-corrected response")?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     let correction = parse_correction(correction)?;
     let args = ObservationArgs {
@@ -225,7 +227,7 @@ fn prepare_observation_response(
         structural_model,
     };
     detach_catch(py, move || {
-        let loaded = antecedent_data::tabular_from_record_batch(&batch).map_err(py_err)?;
+        let loaded = batch.loaded()?;
         let data = loaded.data;
         let dag = dag_from_named_edges(data.schema(), &edges)?;
         let query = build_query(data.schema(), &treatment, &outcome, &args, Arc::from(grid))?;
@@ -269,7 +271,7 @@ fn prepare_observation_response(
 fn gaussian_observation_log_likelihood(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    columns: Vec<NumericColumn<'_>>,
     treatment: String,
     outcome: String,
     observation_kind: String,
@@ -286,7 +288,7 @@ fn gaussian_observation_log_likelihood(
     assumption_variables: Vec<String>,
     structural_model: Option<String>,
 ) -> PyResult<f64> {
-    let batch = columns_to_batch(&names, &columns)?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     let args = ObservationArgs {
         kind: observation_kind,
@@ -302,7 +304,7 @@ fn gaussian_observation_log_likelihood(
         structural_model,
     };
     detach_catch(py, move || {
-        let loaded = antecedent_data::tabular_from_record_batch(&batch).map_err(py_err)?;
+        let loaded = batch.loaded()?;
         let data = loaded.data;
         let query =
             build_query(data.schema(), &treatment, &outcome, &args, Arc::from([0.0_f64, 1.0_f64]))?;
@@ -313,7 +315,7 @@ fn gaussian_observation_log_likelihood(
 }
 
 fn build_query(
-    schema: &antecedent_core::CausalSchema,
+    schema: &antecedent::prelude::CausalSchema,
     treatment: &str,
     outcome: &str,
     args: &ObservationArgs,
@@ -339,7 +341,7 @@ fn build_query(
 }
 
 pub(crate) fn build_observation(
-    schema: &antecedent_core::CausalSchema,
+    schema: &antecedent::prelude::CausalSchema,
     args: &ObservationArgs,
     latent: VariableId,
 ) -> PyResult<ObservationSpec> {
@@ -386,7 +388,7 @@ pub(crate) fn build_observation(
 }
 
 pub(crate) fn build_assumption(
-    schema: &antecedent_core::CausalSchema,
+    schema: &antecedent::prelude::CausalSchema,
     args: &ObservationArgs,
 ) -> PyResult<ObservationAssumption> {
     let variables = || {
@@ -420,7 +422,7 @@ fn parse_correction(value: &str) -> PyResult<SelectedOutcomeCorrection> {
 
 pub(crate) fn maybe_with_observation(
     query: ResponseQuery,
-    schema: &antecedent_core::CausalSchema,
+    schema: &antecedent::prelude::CausalSchema,
     args: Option<&ObservationArgs>,
 ) -> PyResult<ResponseQuery> {
     let Some(args) = args else {

@@ -17,8 +17,10 @@ Oracles (hand-classified; the Python spelling of
 from __future__ import annotations
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import composition_verification as cv
 from antecedent import transported_response as tr
+from antecedent.errors import CausalValueError
 from antecedent.transport import revalidation as rv
 
 from _refusal import assert_registered_refusal
@@ -86,7 +88,7 @@ def test_an_unchanged_scene_is_still_valid_and_its_classification_replays_from_b
     assert report.removed == ()
 
     # The same graphs sealed as `composition_verification_v1`: a fresh consumer replays.
-    data = report.export(artifact_id="transport-revalidation")
+    data = bytes(report.export(artifact_id="transport-revalidation"))
     consumed = cv.consume_composition_verification_artifact(
         data, expected_identity=report.verification_identity
     )
@@ -129,7 +131,9 @@ def test_a_calibration_record_is_never_inherited_by_another_target() -> None:
     assert "calibration_from_another_target" in claim.reasons
     assert claim.calibration_withdrawn
     refusal = refusal_of(lambda: report.require_valid("effect_trial"))
-    assert refusal.reason_code == "cell_not_licensed"
+    # The lost record is carried as a withdrawn calibration; the claim refuses only because the
+    # target data changed and it must be recomputed.
+    assert refusal.reason_code == "claim_revalidation_required"
     # A point-only claim of the same scene is recomputed, not withdrawn: it states no guarantee
     # to lose.
     assert report.claim("effect_registry").classification == "recompute"
@@ -202,7 +206,7 @@ def test_the_builder_refuses_what_a_scene_cannot_state() -> None:
             .build()
         )
     )
-    assert elsewhere.detail == "transport_revalidation.claim_target_mismatch"
+    assert elsewhere.detail == reason_details.transport_revalidation.CLAIM_TARGET_MISMATCH
     assert elsewhere.reason_code == "quantity_semantics_mismatch"
 
     orphan = refusal_of(
@@ -214,7 +218,7 @@ def test_the_builder_refuses_what_a_scene_cannot_state() -> None:
             .build()
         )
     )
-    assert orphan.detail == "transport_revalidation.source_undeclared"
+    assert orphan.detail == reason_details.transport_revalidation.SOURCE_UNDECLARED
 
     repeated = refusal_of(
         lambda: (
@@ -229,7 +233,7 @@ def test_the_builder_refuses_what_a_scene_cannot_state() -> None:
             .build()
         )
     )
-    assert repeated.detail == "transport_revalidation.duplicate_claim"
+    assert repeated.detail == reason_details.transport_revalidation.DUPLICATE_CLAIM
 
 
 def test_the_scene_identity_follows_the_response_value_at_an_unchanged_shape() -> None:
@@ -269,3 +273,131 @@ def test_observed_effects_name_the_node_they_were_observed_on() -> None:
     assert "observed_stale" in report.claim("effect_registry").reasons
     inspected = report.inspect()
     assert inspected.family == "TransportRevalidation"
+
+
+def test_observed_effects_on_a_source_node_recompute_the_claims_that_count_it() -> None:
+    assert rv.source_node_key("registry") == "source:registry"
+    report = rv.revalidate(
+        scene(1, 10),
+        scene(1, 10),
+        [rv.ObservedEffect(rv.source_node_key("registry"), "recomputed", "registry re-extracted")],
+    )
+    assert classes(report) == {
+        "effect_registry": "recompute",
+        "effect_trial": "still_valid",
+        "treat_or_wait": "recompute",
+    }
+    assert "source_evidence_changed" in report.claim("effect_registry").reasons
+    assert report.claim("effect_trial").reasons == ()
+
+
+def native_response(value: float = 2.0) -> tr.TransportedResponse:
+    """A response of a library route: it rests on no provider."""
+    return tr.TransportedResponse.declared_point(
+        [effect("clinic_b", "effect")],
+        [value],
+        transport_declaration(
+            "clinic_b", route="cohort_effect", standard_error=None, diagram=digest(7)
+        ),
+    )
+
+
+def test_a_scene_claim_reads_its_trust_from_provenance_and_refuses_a_stated_level_on_a_library_route() -> (
+    None
+):
+    def one_claim(claim_response: tr.TransportedResponse, level: str | None) -> rv.TransportScene:
+        return (
+            rv.TransportScene.builder("clinic_b", digest(1))
+            .source("trial", digest(10))
+            .transported_claim("effect", claim_response, provider_trust=level)  # type: ignore[arg-type]
+            .build()
+        )
+
+    # A declared route is another party's claim: no stated level withdraws it, a verified one holds.
+    undeclared = rv.revalidate(None, one_claim(response("effect", "trial", "clinic_b", 2.0), None))
+    assert undeclared.claim("effect").classification == "withdrawn"
+    with pytest.raises(tr.TransportedResponseRefusal) as unusable:
+        undeclared.require_valid("effect")
+    assert_registered_refusal(unusable.value)
+    unverified = rv.revalidate(
+        None, one_claim(response("effect", "trial", "clinic_b", 2.0), "unverified")
+    )
+    assert unverified.claim("effect").classification == "withdrawn"
+    verified = rv.revalidate(
+        None, one_claim(response("effect", "trial", "clinic_b", 2.0), "verified_extension")
+    )
+    assert verified.claim("effect").classification == "still_valid"
+    # The scene records the trust each claim was given.
+    assert (
+        one_claim(response("effect", "trial", "clinic_b", 2.0), None).claim("effect")["trust"]
+        == "undeclared"
+    )
+    assert (
+        one_claim(response("effect", "trial", "clinic_b", 2.0), "verified_extension").claim(
+            "effect"
+        )["trust"]
+        == "held"
+    )
+
+    # A library route rests on no provider: not_applicable, still valid; a level is refused.
+    native = rv.revalidate(None, one_claim(native_response(), None))
+    assert native.claim("effect").classification == "still_valid"
+    refused = refusal_of(lambda: one_claim(native_response(), "verified_extension"))
+    assert refused.detail == reason_details.transport_revalidation.PROVIDER_TRUST_NOT_APPLICABLE
+    assert refused.reason_code == "invalid_argument"
+    with pytest.raises(CausalValueError, match="provider_trust"):
+        one_claim(response("effect", "trial", "clinic_b", 2.0), "certified")
+
+
+def test_a_standalone_response_states_its_coordinate_standing_and_composition_node() -> None:
+    declared = response("effect", "trial", "clinic_b", 2.0)
+    coordinate = rv.response_coordinate(declared)
+    assert len(coordinate) == 64 and int(coordinate, 16) >= 0
+    # The coordinate names the target and the quantity, not the value or the source.
+    assert coordinate == rv.response_coordinate(response("effect", "registry", "clinic_b", 9.0))
+    assert coordinate != rv.response_coordinate(response("effect_r", "trial", "clinic_b", 2.0))
+    assert coordinate != rv.response_coordinate(response("effect", "trial", "clinic_c", 2.0))
+
+    stated = rv.response_claim_standing(
+        declared, cv.Calibration.held(digest(77), coordinate), provider_trust="verified_extension"
+    )
+    assert (stated.support, stated.unsupported, stated.trust) == ("supported", (), "held")
+    assert stated.calibration == cv.Calibration.held(digest(77), coordinate)
+    assert rv.response_claim_standing(declared).trust == "undeclared"
+    assert rv.response_claim_standing(declared, provider_trust="unverified").trust == "withdrawn"
+    assert rv.response_claim_standing(native_response()).trust == "not_applicable"
+    refused = refusal_of(
+        lambda: rv.response_claim_standing(native_response(), provider_trust="unverified")
+    )
+    assert refused.detail == reason_details.transport_revalidation.PROVIDER_TRUST_NOT_APPLICABLE
+
+    node = rv.response_claim_node(
+        "effect",
+        declared,
+        cv.Calibration.held(digest(77), coordinate),
+        provider_trust="verified_extension",
+    )
+    assert node.kind == "transported_result" and node.key == "effect"
+    assert node.coordinate == coordinate
+    assert node.trust == "held" and node.transformation == "declared"
+    assert node.assumptions == ("selection acts on age only",)
+    assert node.calibration == cv.Calibration.held(digest(77), coordinate)
+    other = rv.response_claim_node(
+        "effect", response("effect", "trial", "clinic_b", 3.0), provider_trust="verified_extension"
+    )
+    assert other.identity != node.identity and other.coordinate == node.coordinate
+    assert other.structure == node.structure
+
+    # The node composes in a verification graph: held trust holds, an unstated level withdraws.
+    first = cv.verify_composition(cv.CompositionGraph(nodes=(node,)))
+    assert first.classify("effect").klass == "still_valid"
+    unstated = rv.response_claim_node("effect", declared)
+    assert unstated.trust == "undeclared"
+    assert (
+        cv.verify_composition(cv.CompositionGraph(nodes=(unstated,))).classify("effect").klass
+        == "withdrawn"
+    )
+    replaced = cv.verify_composition(
+        cv.CompositionGraph(nodes=(other,)), previous=cv.CompositionGraph(nodes=(node,))
+    )
+    assert replaced.classify("effect").klass == "recompute"

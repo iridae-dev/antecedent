@@ -3,13 +3,14 @@
 //! Draws live in an Arrow-IPC (or raw f64 LE) numerical section; metadata is CBOR.
 //! Internal Rust structs are never serialized directly.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use serde::{Deserialize, Serialize};
 
 use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor};
 use crate::convert::{from_cbor, to_cbor};
 use crate::error::IoError;
+use crate::replay_tolerance::{ReplayNonFinite, ReplayScale, ReplayTolerance};
 use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
 
 /// Quantity kind on the wire.
@@ -73,6 +74,34 @@ pub struct CausalPosteriorWire {
     /// identity-link effect. Used by effect-functional hydrate (`ATE / Δ`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub treatment_contrast: Option<f64>,
+    /// How the columns the fit read were prepared, when the estimator recorded a receipt.
+    /// A physical fact about the run, so it takes no part in any identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preparation: Option<PosteriorPreparationWire>,
+}
+
+/// Preparation receipt summary recorded on a posterior.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PosteriorPreparationWire {
+    /// Stable name of the preparation backend.
+    pub backend: String,
+    /// Stable name of the end-to-end route bound.
+    pub route_bound: String,
+    /// Rows the estimator read; absent when it was handed a scan.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rows_admitted: Option<u64>,
+    /// Lower-case hex digest of the preparation plan.
+    pub receipt_digest: String,
+    /// Payload bytes the preparation admitted; absent when the writer recorded none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub admitted_bytes: Option<u64>,
+    /// Byte budget the payload was compared with; absent when none was.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub budget_bytes: Option<u64>,
+    /// What the estimator was given (`finite`, `materialized_from_scan`, `scan`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delivery: Option<String>,
 }
 
 #[allow(clippy::trivially_copy_pass_by_ref, reason = "serde's skip_serializing_if passes `&T`")]
@@ -80,7 +109,11 @@ fn is_zero_mass(mass: &f64) -> bool {
     *mass == 0.0
 }
 
-pub(crate) fn validate_posterior_meta(
+/// Validate a posterior's summary metadata and, when supplied, its stored draws.
+///
+/// # Errors
+/// Returns an error when the metadata or draws violate the posterior wire contract.
+pub fn validate_posterior_meta(
     meta: &CausalPosteriorWire,
     draws: Option<&[f64]>,
 ) -> Result<(), IoError> {
@@ -178,7 +211,10 @@ fn validate_summaries_against_draws(
 ) -> Result<(), IoError> {
     use antecedent_prob::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 
-    const RELATIVE: f64 = 1e-9;
+    // Summaries restated from the embedded draws: a relative `1e-9` of the larger value,
+    // absolute below one; a non-finite summary is a mismatch.
+    const SUMMARY: ReplayTolerance =
+        ReplayTolerance::new(1e-9, ReplayScale::LargerOrOne, ReplayNonFinite::Refuse);
     let n_draws = meta.n_draws as usize;
     let schema = PosteriorSchema {
         quantities: (0..meta.quantities.len())
@@ -188,9 +224,7 @@ fn validate_summaries_against_draws(
     let recomputed = PosteriorDraws::from_column_major(schema, n_draws, draws.to_vec())
         .map_err(|err| IoError::Convert(err.to_string()))?
         .summarize();
-    let close = |stored: f64, derived: f64| {
-        (stored - derived).abs() <= RELATIVE * derived.abs().max(stored.abs()).max(1.0)
-    };
+    let close = |stored: f64, derived: f64| SUMMARY.close(stored, derived);
     for q in 0..meta.quantities.len() {
         // The interval is the type-7 interval of the draws, or the exchangeable-rank (type-6)
         // interval a Laplace posterior publishes below its measured draw count: both are
@@ -383,6 +417,7 @@ mod tests {
             hessian_condition: 10.0,
             draws_encoding: "f64_le_colmajor".into(),
             treatment_contrast: None,
+            preparation: None,
         }
     }
 
@@ -511,6 +546,7 @@ mod tests {
             hessian_condition: 1.0,
             draws_encoding: "f64_le_colmajor".into(),
             treatment_contrast: None,
+            preparation: None,
         };
         let draws = vec![0.5f64; 8192];
         let art = encode_posterior_artifact(&meta, &draws, "meta-only", "0.1.0").unwrap();

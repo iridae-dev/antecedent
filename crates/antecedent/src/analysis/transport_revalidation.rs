@@ -43,7 +43,7 @@
 //!   state's invalidation log onto claim keys, so a stale query result recomputes
 //!   its claim and a withdrawn premise withdraws it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -77,20 +77,26 @@ const TAG_TARGET: &str = "antecedent.transport_revalidation.facade.target";
 const TAG_NODE_TARGET: &str = "antecedent.transport_revalidation.facade.node_target";
 
 /// Detail: the scene's graph does not build.
-pub const DETAIL_SCENE_INVALID: &str = "transport_revalidation.scene_invalid";
+pub const DETAIL_SCENE_INVALID: &str =
+    antecedent_core::reason_details::transport_revalidation::SCENE_INVALID;
 /// Detail: a claim names a target other than the scene's.
-pub const DETAIL_TARGET_MISMATCH: &str = "transport_revalidation.claim_target_mismatch";
+pub const DETAIL_TARGET_MISMATCH: &str =
+    antecedent_core::reason_details::transport_revalidation::CLAIM_TARGET_MISMATCH;
 /// Detail: a claim counts a source population the scene does not declare.
-pub const DETAIL_SOURCE_UNDECLARED: &str = "transport_revalidation.source_undeclared";
+pub const DETAIL_SOURCE_UNDECLARED: &str =
+    antecedent_core::reason_details::transport_revalidation::SOURCE_UNDECLARED;
 /// Detail: a claim key was used twice.
-pub const DETAIL_DUPLICATE_CLAIM: &str = "transport_revalidation.duplicate_claim";
+pub const DETAIL_DUPLICATE_CLAIM: &str =
+    antecedent_core::reason_details::transport_revalidation::DUPLICATE_CLAIM;
 /// Detail: no claim has the key.
-pub const DETAIL_UNKNOWN_CLAIM: &str = "transport_revalidation.unknown_claim";
+pub const DETAIL_UNKNOWN_CLAIM: &str =
+    antecedent_core::reason_details::transport_revalidation::UNKNOWN_CLAIM;
 /// Detail: the claim's value digest could not be formed.
-pub const DETAIL_VALUE_DIGEST: &str = "transport_revalidation.value_digest";
+pub const DETAIL_VALUE_DIGEST: &str =
+    antecedent_core::reason_details::transport_revalidation::VALUE_DIGEST;
 /// Detail: a provider trust level was given for a claim of a native route.
 pub const DETAIL_TRUST_NOT_APPLICABLE: &str =
-    "transport_revalidation.provider_trust_not_applicable";
+    antecedent_core::reason_details::transport_revalidation::PROVIDER_TRUST_NOT_APPLICABLE;
 
 /// One refusal as plain data.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -630,9 +636,9 @@ impl TransportRevalidationReport {
     /// The claim when it is usable as it stands.
     ///
     /// # Errors
-    /// The typed refusal of a claim that must be recomputed or whose license was
+    /// The typed refusal of a claim that must be recomputed or whose support was
     /// withdrawn (a calibration record from another target is refused with
-    /// `cell_not_licensed`), or `invalid_argument` for an unknown key.
+    /// `not_supported`), or `invalid_argument` for an unknown key.
     #[allow(
         clippy::result_large_err,
         reason = "a refusal is the cold path of a once-per-call check; boxing the error would change the public error type"

@@ -23,4 +23,50 @@ test_sources = [
   "crates/antecedent-contract/src/joint_law_rule.rs",
   "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs",
   "crates/antecedent/tests/joint_law_propagation_facade.rs",
+  "crates/antecedent-stats/tests/joint_law_transported_composition_reference.rs (paired moments and correlation-range endpoints against exact rationals)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "paired_moments and correlation_range_envelope in crates/antecedent-stats/src/joint_law.rs: the population moments of two aligned draw columns (means, variances, covariance) that a transported composition reads when the rows are realizations of one joint law, and the ranges of E[XY], Cov(X, Y) and Var(aX + bY) over a declared correlation range, linear in the correlation so exact at the endpoints. These are the two numeric routes of the module that no other joint-law record names; the linear-moment, mixture, aligned-functional, envelope, spread, exceedance and interval routes are reviewed under joint_law.linear_moment_propagation, joint_law.known_weight_mixture, joint_law.aligned_nonlinear_functional, joint_law.dependence_envelope, joint_law.composed_spread_and_exceedance and joint_law.composed_interval. The dispatch of which composition needs which dependence information (crates/antecedent-contract/src/joint_law_rule.rs) is a contract with no numerics of its own and is not reviewed as a method. Marginal and coupling definitions moved to joint_law/marginal.rs and bound items were compared unchanged apart from formatting. Interval and exceedance projection definitions moved to joint_law/projection.rs and bound items were compared unchanged apart from formatting."
+assumptions = ["The caller has established that the aligned rows are realizations of one joint law (an alignment identity), and the declared correlation range is an assumption about the dependence, not something the data establish.", "Population (divide by n) moments, not sample moments."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied, and no primary paper is claimed for this record."
+redistribution = "Primary work is cited, not redistributed. The reference scripts and their frozen outputs are repository-authored (MIT OR Apache-2.0) and use only the Python standard library. The scripts declare their inline script metadata but are not run in a locked, isolated environment and are not wired into any gate; their output is frozen in the JSON files and compared by the tests."
+limitations = "No primary paper is claimed: the record's papers list is empty by judgment (delta method, law of total variance and moments under a joint law are textbook identities). Nine paired-column cases agree with exact Fractions on dyadic inputs at 1e-12 relative (1 to 64 rows; offsets of 2^30 and 2^25 where a one-pass variance would lose every digit; constant, identical and perfectly anti-correlated columns), and seven correlation ranges agree (positive, negative and zero weights; a zero standard deviation; ranges touching -1 and 1; means of 2^20; a range 1/1024 wide); the refusals of a single or reversed correlation, a range outside [-1, 1], a negative or non-finite moment, and of empty, unequal or non-finite columns are executed. The range is not intersected with the correlations the marginals can attain (the module states this), so a declared range wider than the attainable one is returned as declared. The nonlinear, mixture and envelope routes are not reviewed here. The composition-dispatch contract is checked by its own inline and facade tests, which this record lists, not by a frozen reference."
+sources = ["https://docs.python.org/3/library/fractions.html", "https://docs.python.org/3/library/decimal.html"]
+findings_resolved = ["No defect found: paired moments and the endpoint ranges agree with exact rational values, including at offsets where cancellation would destroy a one-pass formula."]
+record_sha256 = "45bc1a6c206445513be82335c7c495bf12efd6937a912d95375eb4534c8efb58"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/joint_law.rs"
+items = ["enum JointLawError", "enum PairStructure", "fn as_str", "fn check_columns", "fn correlation_range_envelope", "fn ordered", "fn paired_moments", "fn require_finite", "fn structure", "struct CorrelationRangeEnvelope", "struct MomentSummary", "struct PairedMoments", "struct ValueBounds"]
+sha256 = "09853c44fdc0a09f1247fac1761915b526c773649a66374c3fbdacd028268914"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/joint_law/projection.rs"
+items = ["fn as_str"]
+sha256 = "08b6beb983af0943bb8b12590c0744fac3aab2dfb007d2f1dcfc583b56780f56"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/joint_law/marginal.rs"
+items = ["fn atoms", "fn mean"]
+sha256 = "11f6b8a61ab80fd04efa0e8258b873f27ed00850dc8015bb26e4c31eb1485e0d"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/joint_law_transported_composition_reference.rs"
+items = ["fn correlation_ranges_match_the_exact_endpoint_values", "fn f", "fn fs", "fn near", "fn paired_moments_match_the_exact_definitions", "fn reference"]
+sha256 = "5fda79bf50d658fb89dd9a24239b5823cf186e86dc96b84afd493ad64696546d"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/transported_composition_reference.py"
+sha256 = "45279724bc083dc0ae023ab6a67c6b93461e59b4aef6376d889d39c8107b5fd6"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/transported_composition_reference.json"
+sha256 = "a90df40ad7b87f0b0d39ee3f41796059284330001225d7e599de27f5119dc30b"

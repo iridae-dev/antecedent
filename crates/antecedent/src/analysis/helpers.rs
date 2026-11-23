@@ -1,6 +1,6 @@
 //! Unified `Study` facade.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Private execution helpers.
 
@@ -29,283 +29,15 @@ use crate::result::StudyResult;
 
 use super::builder::RefuteSuite;
 
-pub(crate) struct AssembleArgs<'a> {
-    pub(crate) logical: &'a LogicalAnalysisPlanRecord,
-    pub(crate) physical: &'a PhysicalExecutionPlanRecord,
-    pub(crate) identification: antecedent_identify::IdentificationResult,
-    pub(crate) estimand: IdentifiedEstimand,
-    pub(crate) estimate: EffectEstimate,
-    pub(crate) posterior: Option<antecedent_estimate::CausalPosterior>,
-    pub(crate) payload: crate::result::ResultPayload,
-    pub(crate) refutations: Vec<RefutationReport>,
-    pub(crate) diagnostics: Vec<Diagnostic>,
-    pub(crate) provenance: ProvenanceGraph,
-    pub(crate) treatment: VariableId,
-    pub(crate) outcome: VariableId,
-    /// Wall-clock nanoseconds for identify→estimate→refute.
-    pub(crate) wall_time_ns: u64,
-    /// Latency mode label when a tier was requested.
-    pub(crate) latency_mode: Option<Arc<str>>,
-    /// Per-stage timings.
-    pub(crate) stage_timings_ns: Vec<(Arc<str>, u64)>,
-    /// Bootstrap replicates requested.
-    pub(crate) bootstrap_replicates_requested: Option<u32>,
-    /// Bootstrap replicates that succeeded.
-    pub(crate) bootstrap_replicates_ok: Option<u32>,
-    /// Posterior draws (Bayesian).
-    pub(crate) n_draws: Option<u32>,
-    /// Cancellation observed during execute.
-    pub(crate) cancelled: bool,
-    /// Adaptive early-stop (bootstrap SE and/or Bayesian draws).
-    pub(crate) early_stopped: bool,
-    /// Whether the program's inference family is Bayesian.
-    pub(crate) bayesian: bool,
-}
+mod assembly;
 
-pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
-    let copy_count = args
-        .physical
-        .materializations
-        .iter()
-        .filter(|(_, m)| !matches!(m, BufferMaterialization::Borrowed))
-        .count() as u64;
-    let mut result = StudyResult {
-        logical_plan: args.logical.clone(),
-        physical_plan: args.physical.clone(),
-        identification: args.identification,
-        certificate: None,
-        estimand: args.estimand,
-        estimate: crate::PrimaryEstimate::Effect(args.estimate),
-        structural_response: None,
-        payload: args.payload,
-        posterior: args.posterior,
-        refutations: args.refutations,
-        predictive_checks: Vec::new(),
-        diagnostics: args.diagnostics,
-        provenance: args.provenance,
-        support_status: None,
-        structure_source: crate::support::StructureSource::Explicit,
-        candidate_selection: None,
-        performance: ExecutionPerformanceRecord {
-            wall_time_ns: Some(args.wall_time_ns),
-            peak_rss_bytes: None,
-            copy_count,
-            scalar_fallback_count: 0,
-            latency_mode: args.latency_mode,
-            stage_timings_ns: args.stage_timings_ns,
-            bootstrap_replicates_requested: args.bootstrap_replicates_requested,
-            bootstrap_replicates_ok: args.bootstrap_replicates_ok,
-            n_draws: args.n_draws,
-            cancelled: args.cancelled,
-            early_stopped: args.early_stopped,
-            bytes_borrowed: None,
-        },
-        treatment: Some(args.treatment),
-        outcome: args.outcome,
-        interval: None,
-        row_weights: None,
-        missing_data: None,
-        custom_validator_names: Vec::new(),
-        executed_contract: None,
-        population_registry: None,
-    };
-    result.rebind_interval(args.bayesian);
-    result
-}
+pub(crate) use assembly::{AssembleArgs, assemble_result, provenance_pair, stamp_result_context};
 
-/// Copy the support, structure, population, and caller-validator fields a
-/// checked execution stamps after [`assemble_result`].
-///
-/// The assembled result starts with an empty registry, so assigning the cloned
-/// registry matches `clone_from` on that empty slot.
-pub(crate) fn stamp_result_context(
-    result: &mut StudyResult,
-    support_status: Option<crate::support::CellStatus>,
-    structure_source: crate::support::StructureSource,
-    population_registry: Option<&antecedent_core::PopulationRegistry>,
-    custom_validator_names: &[Arc<str>],
-) {
-    result.support_status = support_status;
-    result.structure_source = structure_source;
-    result.population_registry = population_registry.cloned();
-    result.custom_validator_names = custom_validator_names.to_vec();
-}
+mod refutation;
 
-pub(crate) type ProvStep<'a> = (&'a str, &'a str, &'a [&'a str], &'a AssumptionSet);
-
-pub(crate) fn provenance_pair(first: ProvStep<'_>, second: ProvStep<'_>) -> ProvenanceGraph {
-    let mut provenance = ProvenanceGraph::new();
-    for (artifact_id, operation, parents, assumptions) in [first, second] {
-        let parent_arcs: Arc<[Arc<str>]> =
-            parents.iter().map(|p| Arc::<str>::from(*p)).collect::<Vec<_>>().into();
-        provenance.push(ProvenanceNode {
-            artifact_id: Arc::from(artifact_id),
-            operation: Arc::from(operation),
-            parents: parent_arcs,
-            assumptions: assumptions.clone(),
-            library_version: Arc::from(VERSION),
-            config_digest: Some(Arc::from("temporal")),
-        });
-    }
-    provenance
-}
-
-/// Diagnostic surfacing one validator skipped as [`antecedent_validate::ValidationOutcome::NotApplicable`]
-/// for this run.
-///
-/// This is a **per-run, data-dependent** skip — e.g. `OverlapRefuter` on a temporal
-/// design, `EValue` on a non-binary treatment, an MCMC diagnostic on a Laplace posterior
-/// — not the support matrix's permanent typed impossibility
-/// (`SupportRefusal::NotApplicable` / wire `not_applicable`). The same validator can run
-/// cleanly on a different call against the same licensed cell; a matrix `not_applicable`
-/// cell never reaches validation at all. See `docs/capabilities.md`'s "'Not applicable'
-/// means three different things".
-pub(crate) fn validator_not_applicable_diagnostic(
-    validator: antecedent_validate::ValidatorId,
-    reason: &str,
-) -> Diagnostic {
-    let mut d = Diagnostic::new(
-        "refute.validator.not_applicable",
-        DiagnosticKind::Scientific,
-        DiagnosticSeverity::Info,
-        format!(
-            "validator '{validator}' was requested but is not applicable to this run's data/estimand \
-             (per-run skip, not a permanent support-matrix refusal): {reason}"
-        ),
-    );
-    d.fields = Arc::from([(Arc::from("validator"), Arc::from(validator.as_str()))]);
-    d
-}
-
-/// Build one [`validator_not_applicable_diagnostic`] per skipped outcome.
-pub(crate) fn validator_not_applicable_diagnostics(
-    outcomes: &[antecedent_validate::ValidationOutcome],
-) -> Vec<Diagnostic> {
-    let mut diagnostics: Vec<_> = ValidationSuite::not_applicable_only(outcomes)
-        .into_iter()
-        .map(|(validator, reason)| validator_not_applicable_diagnostic(validator, &reason))
-        .collect();
-    for outcome in outcomes {
-        if let antecedent_validate::ValidationOutcome::Failed { validator, reason } = outcome {
-            let mut d = Diagnostic::new(
-                "refute.validator.failed",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Warning,
-                format!("validator {validator} could not compute a verdict: {reason}"),
-            );
-            d.fields = Arc::from([
-                (Arc::from("validator"), validator.clone()),
-                (Arc::from("reason"), reason.clone()),
-            ]);
-            diagnostics.push(d);
-        }
-    }
-    diagnostics
-}
-
-/// One effect estimate under refutation and the suite that checks it.
-///
-/// The three entry points differ only in what they return: raw outcomes, reports plus
-/// per-run skip diagnostics, or the plugin-level subset for an intervention *level*.
-pub(crate) struct RefutationRun<'a> {
-    pub(crate) data: &'a TabularData,
-    pub(crate) estimand: &'a IdentifiedEstimand,
-    pub(crate) query: &'a AverageEffectQuery,
-    pub(crate) estimate: &'a EffectEstimate,
-    pub(crate) suite: RefuteSuite,
-    /// Estimator id the refuters report against.
-    pub(crate) estimator: &'a str,
-    pub(crate) custom: &'a [Arc<dyn antecedent_validate::CustomEffectValidator>],
-    /// Present when the refuters must refit through a temporal indexer.
-    pub(crate) temporal: Option<antecedent_validate::TemporalRefitContext<'a>>,
-}
-
-impl RefutationRun<'_> {
-    /// Run the requested refuter suite, returning raw outcomes (reports and
-    /// per-run `NotApplicable` skips) without collapsing them.
-    pub(crate) fn outcomes(
-        self,
-        workspace: &mut EstimationWorkspace,
-        propensity: Option<&mut antecedent_stats::PropensityWorkspace>,
-        ctx: &ExecutionContext,
-    ) -> Result<Vec<antecedent_validate::ValidationOutcome>, CausalError> {
-        let problem = RefutationProblem::new(
-            self.data,
-            self.estimand,
-            self.query,
-            self.estimate,
-            Some(self.estimator),
-            self.temporal,
-        );
-        let mut validation = match self.suite {
-            RefuteSuite::None => {
-                if self.custom.is_empty() {
-                    return Ok(Vec::new());
-                }
-                ValidationSuite::new()
-            }
-            RefuteSuite::Cheap => ValidationSuite::overlap_and_evalue(),
-            RefuteSuite::PlaceboAndRcc => ValidationSuite::placebo_and_rcc(),
-            RefuteSuite::Full => ValidationSuite::full_effect(),
-        };
-        for v in self.custom {
-            validation = validation.with_custom(Arc::clone(v));
-        }
-        match propensity {
-            Some(pws) => validation
-                .run_with_propensity(&problem, workspace, pws, ctx)
-                .map_err(CausalError::from),
-            None => validation.run(&problem, workspace, ctx).map_err(CausalError::from),
-        }
-    }
-
-    /// Run the requested refuter suite, returning both the produced reports and one
-    /// diagnostic per validator that was requested but skipped as `NotApplicable` for this
-    /// run (see [`validator_not_applicable_diagnostic`]).
-    pub(crate) fn reports(
-        self,
-        workspace: &mut EstimationWorkspace,
-        propensity: Option<&mut antecedent_stats::PropensityWorkspace>,
-        ctx: &ExecutionContext,
-    ) -> Result<(Vec<RefutationReport>, Vec<Diagnostic>), CausalError> {
-        let outcomes = self.outcomes(workspace, propensity, ctx)?;
-        let diagnostics = validator_not_applicable_diagnostics(&outcomes);
-        Ok((ValidationSuite::reports_only(&outcomes), diagnostics))
-    }
-
-    /// Cheap/full on a plugin intervention *level*. Contrast-shaped refuters are
-    /// not licensed. Cheap is overlap only; full is overlap plus sampling-stability.
-    pub(crate) fn plugin_level(
-        self,
-        workspace: &mut EstimationWorkspace,
-        ctx: &ExecutionContext,
-    ) -> Result<(Vec<RefutationReport>, Vec<Diagnostic>), CausalError> {
-        let problem = RefutationProblem::new(
-            self.data,
-            self.estimand,
-            self.query,
-            self.estimate,
-            Some(self.estimator),
-            None,
-        );
-        let mut validation = match self.suite {
-            RefuteSuite::None => {
-                if self.custom.is_empty() {
-                    return Ok((Vec::new(), Vec::new()));
-                }
-                ValidationSuite::new()
-            }
-            RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc => ValidationSuite::overlap_only(),
-            RefuteSuite::Full => ValidationSuite::plugin_level_full(),
-        };
-        for v in self.custom {
-            validation = validation.with_custom(Arc::clone(v));
-        }
-        let outcomes = validation.run(&problem, workspace, ctx).map_err(CausalError::from)?;
-        let diagnostics = validator_not_applicable_diagnostics(&outcomes);
-        Ok((ValidationSuite::reports_only(&outcomes), diagnostics))
-    }
-}
+pub(crate) use refutation::{
+    RefutationRun, validator_not_applicable_diagnostic, validator_not_applicable_diagnostics,
+};
 
 pub(crate) fn effect_from_posterior(
     posterior: &CausalPosterior,
@@ -374,16 +106,156 @@ pub(crate) fn credible_pointwise_uncertainty(
     })
 }
 
+/// Share of rows whose raw propensity a clip moves above which the clip is said to bind.
+const CLIP_BINDING_FRACTION: f64 = 0.05;
+/// Distance from 0 or 1 within which a raw propensity is saturated.
+const SATURATION_MARGIN: f64 = 1e-8;
+
+/// Diagnostic recording that the applied overlap policy changed the answer's target or
+/// weights, which limits its empirical support ([`antecedent_io::OVERLAP_LIMITED_DIAGNOSTIC`]).
+///
+/// A clip binds when it moves a saturated propensity (within `1e-8` of 0 or 1) or at least
+/// 5% of the rows; a trim binds when it excludes any row. `None` when no report exists or the
+/// policy did not bind.
+pub(crate) fn overlap_limit_diagnostic(
+    report: Option<&antecedent_estimate::OverlapReport>,
+) -> Option<Diagnostic> {
+    let report = report?;
+    let clipped = report.clip.map_or(0.0, |_| 1.0 - report.target_population_support);
+    let saturated = report.propensity_min <= SATURATION_MARGIN
+        || report.propensity_max >= 1.0 - SATURATION_MARGIN;
+    let clip_binds = report.clip.is_some() && (saturated || clipped >= CLIP_BINDING_FRACTION);
+    let trim_binds = report.trim.is_some() && report.excluded_fraction > 0.0;
+    if !(clip_binds || trim_binds) {
+        return None;
+    }
+    let message = format!(
+        "the overlap policy changed the answer: the clip moved {:.1}% of propensities{}; the trim \
+         excluded {:.1}% of rows. The estimate holds for the clipped weights or the retained \
+         common-support rows, not the full declared population",
+        100.0 * clipped,
+        if saturated { ", including scores within 1e-8 of 0 or 1" } else { "" },
+        100.0 * report.excluded_fraction,
+    );
+    Some(
+        Diagnostic::new(
+            antecedent_io::OVERLAP_LIMITED_DIAGNOSTIC,
+            DiagnosticKind::Support,
+            DiagnosticSeverity::Warning,
+            message,
+        )
+        .with_fields([
+            ("clipped_fraction", clipped.to_string()),
+            ("excluded_fraction", report.excluded_fraction.to_string()),
+            ("saturated", saturated.to_string()),
+        ]),
+    )
+}
+
+/// Diagnostic recording that the resampling interval silently dropped replicates, which
+/// limits its support ([`antecedent_io::BOOTSTRAP_LIMITED_DIAGNOSTIC`]).
+///
+/// Fires when any replicate failed, or when fewer succeeded than were requested and the loop
+/// was not stopped early on purpose. `None` when no bootstrap ran or every replicate survived.
+pub(crate) fn bootstrap_limit_diagnostic(
+    requested: Option<u32>,
+    ok: Option<u32>,
+    failed: Option<u32>,
+    early_stopped: bool,
+) -> Option<Diagnostic> {
+    let failed_count = failed.unwrap_or(0);
+    let shortfall = match (requested, ok) {
+        (Some(requested), Some(ok)) if !early_stopped && ok < requested => requested - ok,
+        _ => 0,
+    };
+    if failed_count == 0 && shortfall == 0 {
+        return None;
+    }
+    let requested_text = requested.map_or_else(|| "unrecorded".to_owned(), |n| n.to_string());
+    let ok_text = ok.map_or_else(|| "unrecorded".to_owned(), |n| n.to_string());
+    Some(
+        Diagnostic::new(
+            antecedent_io::BOOTSTRAP_LIMITED_DIAGNOSTIC,
+            DiagnosticKind::Support,
+            DiagnosticSeverity::Warning,
+            format!(
+                "the resampling interval dropped replicates: {requested_text} requested, \
+                 {ok_text} succeeded, {failed_count} failed. The interval rests on the \
+                 surviving replicates only"
+            ),
+        )
+        .with_fields([
+            ("replicates_requested", requested_text),
+            ("replicates_ok", ok_text),
+            ("replicates_failed", failed_count.to_string()),
+        ]),
+    )
+}
+
+/// Diagnostic recording that a returned posterior's sampler or optimizer diagnostics fall short
+/// of the publication criteria ([`antecedent_io::MCMC_LIMITED_DIAGNOSTIC`]).
+///
+/// An MCMC factorization is judged by the full publication predicate; any other posterior that
+/// records sampler measurements (split R-hat, bulk ESS) is judged by split R-hat at most 1.01
+/// and bulk ESS at least 100 per chain, and every posterior by its `converged` flag. `None`
+/// when every recorded diagnostic is adequate.
+pub(crate) fn sampler_limit_diagnostic(
+    diagnostics: &antecedent_prob::InferenceDiagnostics,
+) -> Option<Diagnostic> {
+    let mut reasons: Vec<String> = Vec::new();
+    if diagnostics.factorization == antecedent_prob::HessianFactorization::Mcmc {
+        reasons.extend(diagnostics.mcmc_publication_failures().into_iter().map(str::to_owned));
+    } else {
+        if let Some(rhat) = diagnostics.rhat_max.filter(|r| !r.is_finite() || *r > 1.01) {
+            reasons.push(format!("split R-hat {rhat} is above 1.01"));
+        }
+        let floor = 100.0 * f64::from(diagnostics.n_chains.unwrap_or(1));
+        if let Some(ess) = diagnostics.ess_bulk_min.filter(|e| !e.is_finite() || *e < floor) {
+            reasons.push(format!("bulk ESS {ess} is below {floor} (100 per chain)"));
+        }
+    }
+    if !diagnostics.converged && reasons.is_empty() {
+        reasons.push("the optimizer or sampler did not report convergence".to_owned());
+    }
+    if reasons.is_empty() {
+        return None;
+    }
+    Some(
+        Diagnostic::new(
+            antecedent_io::MCMC_LIMITED_DIAGNOSTIC,
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            format!(
+                "the posterior was returned with weak sampler diagnostics: {}. Treat its draws \
+                 and intervals as provisional",
+                reasons.join("; ")
+            ),
+        )
+        .with_fields([
+            (
+                "rhat_max",
+                diagnostics.rhat_max.map_or_else(|| "unrecorded".into(), |v| v.to_string()),
+            ),
+            (
+                "ess_bulk_min",
+                diagnostics.ess_bulk_min.map_or_else(|| "unrecorded".into(), |v| v.to_string()),
+            ),
+            ("converged", diagnostics.converged.to_string()),
+            ("reasons", reasons.join("; ")),
+        ]),
+    )
+}
+
 /// Diagnostic recording which overlap policy an estimator applied.
 pub(crate) fn overlap_diagnostic(overlap: OverlapPolicy) -> Diagnostic {
-    match overlap {
-        OverlapPolicy::ExplicitOverride => Diagnostic::new(
+    match overlap.bounds() {
+        None => Diagnostic::new(
             "estimate.overlap.explicit_override",
             DiagnosticKind::Support,
             DiagnosticSeverity::Info,
             "estimator used ExplicitOverride for positivity (not a propensity-based method)",
         ),
-        OverlapPolicy::RequireDiagnostics { .. } => Diagnostic::new(
+        Some(_) => Diagnostic::new(
             "estimate.overlap.require_diagnostics",
             DiagnosticKind::Support,
             DiagnosticSeverity::Info,
@@ -394,7 +266,7 @@ pub(crate) fn overlap_diagnostic(overlap: OverlapPolicy) -> Diagnostic {
 
 /// Replace `Y` with `1{Y > c}` when the query asks for a single exceedance.
 ///
-/// Grids are not reduced to the first threshold. Licensed grid paths build a
+/// Grids are not reduced to the first threshold. Supported grid paths build a
 /// score table or evaluate each `c` explicitly.
 ///
 /// # Errors
@@ -416,7 +288,10 @@ pub(crate) fn apply_outcome_functional(
         OutcomeFunctional::ExceedanceGrid(_) => Err(CausalError::Unsupported {
             message: "exceedance grids cannot be reduced to the first threshold; use the score-table or per-threshold path",
         }),
-        OutcomeFunctional::Quantile(_) | OutcomeFunctional::Mean | _ => Ok(data.clone()),
+        OutcomeFunctional::Quantile(_) | OutcomeFunctional::Mean => Ok(data.clone()),
+        _ => Err(CausalError::Unsupported {
+            message: "this outcome functional has no data reduction on this path",
+        }),
     }
 }
 
@@ -449,6 +324,13 @@ pub(crate) fn maybe_build_functional_scores(
             | OutcomeFunctional::Quantile(_)
     ) {
         return Ok(None);
+    }
+    if est.outcome_prior.is_some() {
+        return Err(crate::unsupported_reason!(
+            "route_not_supported",
+            "an outcome-nuisance prior covers the mean average effect; functional scores are \
+             built from the unregularized outcome nuisance"
+        ));
     }
     let method = estimand.method.as_ref();
     if !(method.contains("adjustment")
@@ -551,7 +433,7 @@ pub(crate) struct AverageTarget<'a> {
     pub(crate) estimand: &'a IdentifiedEstimand,
 }
 
-/// Build scores on original `Y` and attach the exceedance grid when licensed.
+/// Build scores on original `Y` and attach the exceedance grid when supported.
 pub(crate) fn attach_average_functional_grid(
     estimate: EffectEstimate,
     target: AverageTarget<'_>,
@@ -577,16 +459,22 @@ pub(crate) fn attach_average_functional_grid(
         }
         return Ok(estimate);
     }
-    let mut config = match study.estimator_spec.as_deref() {
+    let mut config = match study.declared.estimator_spec.as_deref() {
         Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) => *config.clone(),
         _ => AipwAte::new(),
     };
-    if let Some(overlap) = study.overlap_policy {
+    if let Some(design) = study.declared.sampling_design {
+        config.inference.sampling_design =
+            antecedent_estimate::util::SamplingDeclaration::Declared(design);
+    }
+    if let Some(overlap) = study.declared.overlap_policy {
         config.overlap = overlap;
     }
     if !matches!(query.outcome_functional, OutcomeFunctional::Mean)
-        && (matches!(config.overlap, OverlapPolicy::RequireDiagnostics { trim: Some(_), .. })
-            || config.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic)
+        && (matches!(
+            config.overlap.canonical(),
+            OverlapPolicy::RequireDiagnostics { trim: Some(_), .. }
+        ) || config.inference.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic)
     {
         return Err(CausalError::Unsupported {
             message: "cross-fitted functional scores require iid inference without propensity trimming",
@@ -678,7 +566,7 @@ pub(crate) fn requested_joint_arm(
         let v = value.as_f64();
         if j >= antecedent_estimate::cell_aipw::MAX_JOINT_BINARY || !matches!(v, Some(0.0 | 1.0)) {
             return Err(CausalError::Unsupported {
-                message: "joint-cell response requires at most three binary Set levels",
+                message: "joint-cell response requires binary Set levels on a joint cell code's coordinates",
             });
         }
         arm |= u32::from(v == Some(1.0)) << j;
@@ -859,256 +747,17 @@ fn attach_tiered_evalue(
     diagnostics.push(report);
 }
 
-/// Bound and monotonize threshold-major two-arm CDF values. Covariance
-/// remains covariance of the raw fitted contrasts, not these projected CDFs.
-pub(crate) fn project_conditional_cdf(cdf: &mut [f64]) -> Result<bool, CausalError> {
-    if cdf.len() % 2 != 0 || cdf.iter().any(|x| !x.is_finite()) {
-        return Err(CausalError::Compile { message: "invalid conditional CDF grid".into() });
-    }
-    let mut changed = false;
-    for arm in 0..2 {
-        let raw: Vec<_> = cdf.iter().skip(arm).step_by(2).copied().collect();
-        let projected = antecedent_estimate::monotone_increasing(&raw);
-        for (slot, value) in cdf.iter_mut().skip(arm).step_by(2).zip(projected) {
-            let bounded = value.clamp(0.0, 1.0);
-            changed |= slot.total_cmp(&bounded).is_ne();
-            *slot = bounded;
-        }
-    }
-    Ok(changed)
-}
+mod conditional;
 
-/// Choose one outcome grid from complete rows for every contributing conditional atom.
-pub(crate) fn conditional_thresholds(
-    data: &TabularData,
-    query: &ConditionalEffectQuery,
-    adjustment: impl Iterator<Item = VariableId>,
-) -> Result<Option<Vec<f64>>, CausalError> {
-    if query.inner.outcome_functional.quantile_level().is_none() {
-        return Ok(query.inner.outcome_functional.thresholds());
-    }
-    if !matches!((&query.inner.control, &query.inner.active),
-        (Intervention::Set { value: c, .. }, Intervention::Set { value: a, .. })
-        if c.as_f64() == Some(0.0) && a.as_f64() == Some(1.0))
-    {
-        return Err(CausalError::Unsupported {
-            message: "conditional quantiles require binary 0/1 arms; a linear mean model is not a distribution model",
-        });
-    }
-    let mut ids: Vec<_> = adjustment.chain(query.inner.effect_modifiers.iter().copied()).collect();
-    ids.extend([query.inner.treatment, query.inner.outcome]);
-    let mask = data.complete_case_mask(&ids)?;
-    let y = data.float64_masked(query.inner.outcome, &mask)?;
-    Ok(Some(antecedent_estimate::empirical_threshold_grid(&y, 19)?))
-}
-
-/// Whether binary 0/1 `ConditionalEffect` exceedance/quantile uses cross-fitted AIPW scores.
-#[must_use]
-pub(crate) fn conditional_uses_crossfit_aipw(query: &ConditionalEffectQuery) -> bool {
-    let functional = &query.inner.outcome_functional;
-    if functional.thresholds().is_none() && functional.quantile_level().is_none() {
-        return false;
-    }
-    matches!(
-        (&query.inner.control, &query.inner.active),
-        (Intervention::Set { value: c, .. }, Intervention::Set { value: a, .. })
-            if c.as_f64() == Some(0.0) && a.as_f64() == Some(1.0)
-    )
-}
-
-/// Name the estimator that actually produced a `ConditionalEffect` exceedance or
-/// quantile on binary 0/1 arms.
-///
-/// Those cells record `aipw` (not `conditional.linear.adjustment`): the scalar,
-/// arm CDFs, and influence columns come from cross-fitted AIPW scores with the
-/// modifier added to the adjustment set. Non-binary levels and mean
-/// `ConditionalEffect` keep the linear plugin.
-pub(crate) fn conditional_score_estimator_diagnostic(
-    query: &ConditionalEffectQuery,
-) -> Option<Diagnostic> {
-    conditional_uses_crossfit_aipw(query).then(|| {
-        Diagnostic::new(
-            "estimate.conditional.crossfit_aipw_scores",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            "binary-arm conditional exceedance/quantile: the scalar, arm CDFs, and influence columns are cross-fitted AIPW scores (logistic propensity and per-arm outcome regressions on the modifier plus the adjustment set, standardized over the observed modifier distribution), not the conditional.linear.adjustment T×W interaction model named in the plan; the analytic SE is the AIPW influence-function SE",
-        )
-    })
-}
-
-/// Publish the actual conditional grid, whose coordinates have no score-table payload.
-pub(crate) fn conditional_quantile_grid_diagnostic(
-    data: &TabularData,
-    query: &ConditionalEffectQuery,
-    adjustment: impl Iterator<Item = VariableId>,
-) -> Result<Option<Diagnostic>, CausalError> {
-    if query.inner.outcome_functional.quantile_level().is_none() {
-        return Ok(None);
-    }
-    let thresholds = conditional_thresholds(data, query, adjustment)?.unwrap_or_default();
-    Ok(Some(Diagnostic::new(
-        "estimate.functional.quantile_grid",
-        DiagnosticKind::Scientific,
-        DiagnosticSeverity::Info,
-        format!(
-            "frozen empirical thresholds: {thresholds:?}; CDF coordinates are threshold-major, control then active"
-        ),
-    )))
-}
-
-/// Invert the two raw CDF arms, after any frozen-weight atom mixture.
-pub(crate) fn attach_conditional_quantile(
-    out: &mut EffectEstimate,
-    thresholds: &[f64],
-    raw_cdf: &[f64],
-    columns: &[Vec<f64>],
-    supported: &[bool],
-    tau: f64,
-) -> Result<(), CausalError> {
-    let mut arms = Vec::new();
-    for arm in 0..2 {
-        let means: Vec<_> = raw_cdf.iter().skip(arm).step_by(2).copied().collect();
-        let support: Vec<_> = supported.iter().skip(arm).step_by(2).copied().collect();
-        let influences: Vec<Vec<f64>> = columns
-            .iter()
-            .skip(arm)
-            .step_by(2)
-            .map(|c| {
-                let mean = c.iter().sum::<f64>() / c.len() as f64;
-                c.iter().map(|v| v - mean).collect()
-            })
-            .collect();
-        arms.push(antecedent_estimate::quantile::invert_supported_cdf(
-            thresholds,
-            &means,
-            &influences,
-            &support,
-            tau,
-        )?);
-    }
-    let influence: Vec<_> =
-        arms[1].influence.iter().zip(&arms[0].influence).map(|(a, b)| a - b).collect();
-    out.ate = arms[1].value - arms[0].value;
-    out.uncertainty.analytic.se =
-        antecedent_estimate::joint_influence_covariance(&[&influence], None)?.se(0);
-    out.scores.influence = Some(influence.into());
-    out.uncertainty.bootstrap.se = None;
-    out.family.simultaneous_interval = None;
-    Ok(())
-}
-
-/// Evaluate each exceedance threshold on `ConditionalEffect` and attach `F_a(c)`.
-///
-/// Joint covariance and simultaneous bands are the 2K raw per-arm CDF
-/// coordinates. Sparse tails refuse a finite band rather than publishing an
-/// empty-cell or first-threshold SE.
-pub(crate) fn attach_conditional_functional_grid(
-    estimate: EffectEstimate,
-    data: &TabularData,
-    query: &ConditionalEffectQuery,
-    estimand: &IdentifiedEstimand,
-    ctx: &ExecutionContext,
-) -> Result<EffectEstimate, CausalError> {
-    let Some(thresholds) =
-        conditional_thresholds(data, query, estimand.adjustment_set.iter().copied())?
-    else {
-        return Ok(estimate);
-    };
-    let y_orig = data.float64_values(query.inner.outcome).map_err(CausalError::from)?;
-    let est = antecedent_estimate::ConditionalLinearAdjustment::new()
-        .with_fold_seed(ctx.rng.master_seed());
-    let mut raw_cdf = Vec::with_capacity(thresholds.len() * 2);
-    let mut columns = Vec::with_capacity(thresholds.len() * 2);
-    let mut event_n_eff = Vec::with_capacity(thresholds.len() * 2);
-    let mut threshold_supported = Vec::with_capacity(thresholds.len() * 2);
-    let mut first = None;
-    let mut n_eff_by_arm = [0.0, 0.0];
-    for &threshold in &thresholds {
-        let data_c = apply_outcome_functional(
-            data,
-            query.inner.outcome,
-            &OutcomeFunctional::exceedance(threshold),
-        )?;
-        let mut transformed_query = query.clone();
-        transformed_query.inner.outcome_functional = OutcomeFunctional::Mean;
-        let (point, scores) =
-            est.estimate_with_arm_scores(&data_c, estimand, &transformed_query)?;
-        raw_cdf.extend([1.0 - scores.means[0], 1.0 - scores.means[1]]);
-        if scores.influence[0].len() != scores.influence[1].len()
-            || scores.influence[0].len() != scores.row_index.len()
-        {
-            return Err(CausalError::Unsupported {
-                message: "ConditionalEffect grid refused: missing per-arm influence for joint covariance",
-            });
-        }
-        for arm in 0..2 {
-            columns.push(scores.influence[arm].iter().map(|v| -v).collect::<Vec<_>>());
-            let (events, supported) =
-                tail_event_support(&scores.treatment, &scores.row_index, &y_orig, arm, threshold);
-            event_n_eff.push(events);
-            threshold_supported.push(supported);
-        }
-        n_eff_by_arm = arm_n_eff(&scores.treatment);
-        if first.is_none() {
-            first = Some(point);
-        }
-    }
-    let mut out = first.unwrap_or(estimate);
-    if columns.len() != thresholds.len() * 2 {
-        return Err(CausalError::Unsupported {
-            message: "ConditionalEffect grid refused: missing influence columns for joint covariance",
-        });
-    }
-    let refs: Vec<&[f64]> = columns.iter().map(Vec::as_slice).collect();
-    out.joint.covariance = Some(antecedent_estimate::joint_influence_covariance(&refs, None)?);
-    let n_eff = n_eff_by_arm[0] + n_eff_by_arm[1];
-    out.scores.inference = Some(inference_from_influence_columns(
-        &raw_cdf,
-        &refs,
-        &event_n_eff,
-        &threshold_supported,
-        antecedent_estimate::WeightedSupport {
-            n_eff,
-            n_eff_by_arm: n_eff_by_arm.to_vec(),
-            propensity_range: None,
-            overlap_ok: n_eff_by_arm
-                .iter()
-                .all(|n| *n >= antecedent_estimate::scores::MIN_THRESHOLD_EVENTS),
-        },
-    )?);
-    if thresholds.len() == 1 && threshold_supported.iter().any(|&supported| !supported) {
-        out.uncertainty.analytic.se = f64::NAN;
-        out.uncertainty.bootstrap.se = None;
-        out.scores.influence = None;
-        out.family.simultaneous_interval = None;
-    }
-    let mut cdf = raw_cdf.clone();
-    let rearranged = project_conditional_cdf(&mut cdf)?;
-    out = out.with_monotone_rearranged(rearranged);
-    out.joint.exceedance_cdf = Some(Arc::from(cdf));
-    if thresholds.len() > 1 {
-        out.ate = f64::NAN;
-        out.uncertainty.analytic.se = f64::NAN;
-        out.uncertainty.bootstrap.se = None;
-        out.scores.influence = None;
-        out.family.simultaneous_interval = None;
-    }
-    if let Some(tau) = query.inner.outcome_functional.quantile_level() {
-        attach_conditional_quantile(
-            &mut out,
-            &thresholds,
-            &raw_cdf,
-            &columns,
-            &threshold_supported,
-            tau,
-        )?;
-    }
-    Ok(out)
-}
+pub(crate) use conditional::{
+    attach_conditional_functional_grid, attach_conditional_quantile,
+    conditional_quantile_grid_diagnostic, conditional_score_estimator_diagnostic,
+    conditional_thresholds, conditional_uses_crossfit_aipw, project_conditional_cdf,
+};
 
 pub(crate) fn tail_event_support(
     treatment: &[f64],
-    row_index: &[u32],
+    row_index: &[antecedent_data::GlobalId],
     outcome: &[f64],
     arm: usize,
     threshold: f64,
@@ -1123,7 +772,7 @@ pub(crate) fn tail_event_support(
         if (t - target).abs() > 1e-12 {
             continue;
         }
-        let Some(&y) = outcome.get(row as usize) else {
+        let Some(&y) = outcome.get(usize::try_from(row.get()).expect("row id")) else {
             continue;
         };
         if !y.is_finite() {
@@ -1371,7 +1020,11 @@ pub(crate) fn evaluate_bayesian_prior_sensitivity(
     CausalError,
 > {
     use antecedent_validate::{ExternalAlphaSensitivity, PriorSensitivity};
-    if let Some(ext) = cfg.external_compose.as_ref() {
+    if let Some(ext) = cfg
+        .external_compose
+        .as_ref()
+        .filter(|ext| crate::inference::external_compose_is_positional(ext, prep))
+    {
         let alphas_applied: Arc<[f64]> = posterior.conflict_summary.as_ref().map_or_else(
             || Arc::clone(&ext.composed.alphas_applied),
             |cs| Arc::clone(&cs.alphas_applied),
@@ -1409,5 +1062,44 @@ mod cdf_review_tests {
         );
         assert!(!super::project_conditional_cdf(&mut values).unwrap());
         assert!(super::project_conditional_cdf(&mut [f64::NAN, 0.5]).is_err());
+    }
+
+    fn field<'a>(diagnostic: &'a antecedent_core::Diagnostic, key: &str) -> &'a str {
+        diagnostic.fields.iter().find(|(k, _)| &**k == key).map(|(_, v)| &**v).unwrap()
+    }
+
+    #[test]
+    fn dropped_bootstrap_replicates_limit_support() {
+        let d = super::bootstrap_limit_diagnostic(Some(200), Some(190), Some(10), false).unwrap();
+        assert_eq!(&*d.code, antecedent_io::BOOTSTRAP_LIMITED_DIAGNOSTIC);
+        assert_eq!(d.severity, antecedent_core::DiagnosticSeverity::Warning);
+        assert_eq!(field(&d, "replicates_requested"), "200");
+        assert_eq!(field(&d, "replicates_ok"), "190");
+        assert_eq!(field(&d, "replicates_failed"), "10");
+        // A shortfall with no recorded failure still limits support; a deliberate early stop,
+        // a clean run and no bootstrap do not.
+        assert!(super::bootstrap_limit_diagnostic(Some(200), Some(150), None, false).is_some());
+        assert!(super::bootstrap_limit_diagnostic(Some(200), Some(150), Some(0), true).is_none());
+        assert!(super::bootstrap_limit_diagnostic(Some(200), Some(200), Some(0), false).is_none());
+        assert!(super::bootstrap_limit_diagnostic(None, None, None, false).is_none());
+    }
+
+    #[test]
+    fn weak_sampler_diagnostics_limit_support() {
+        let mut inference = antecedent_prob::InferenceDiagnostics::analytic("test");
+        assert!(super::sampler_limit_diagnostic(&inference).is_none());
+        inference.n_chains = Some(4);
+        inference.rhat_max = Some(1.2);
+        inference.ess_bulk_min = Some(800.0);
+        let d = super::sampler_limit_diagnostic(&inference).unwrap();
+        assert_eq!(&*d.code, antecedent_io::MCMC_LIMITED_DIAGNOSTIC);
+        assert_eq!(field(&d, "rhat_max"), "1.2");
+        inference.rhat_max = Some(1.0);
+        assert!(super::sampler_limit_diagnostic(&inference).is_none());
+        inference.ess_bulk_min = Some(50.0);
+        assert!(super::sampler_limit_diagnostic(&inference).is_some());
+        inference.ess_bulk_min = Some(800.0);
+        inference.converged = false;
+        assert!(super::sampler_limit_diagnostic(&inference).is_some());
     }
 }

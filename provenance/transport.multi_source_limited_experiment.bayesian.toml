@@ -9,7 +9,7 @@ papers = []
 
 implementation_deviations = [
   "Dirichlet posterior means of the supplied finite laws, structural zeros held at zero, pushed through the multi-source identifier the frequentist record already runs. A tiny concentration stays at the target interventional truth. No TemporalAdmg. No interval.",
-  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+  "A mapped coefficient prior, an external power prior, and a request for a not-measured band refuse.",
 ]
 
 upstream_implementations_observed = []
@@ -17,3 +17,30 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-estimate/tests/mz_transport_execution.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Dirichlet posterior mean of the supplied finite law (MultiSource namespace), then the multi-source transport identifier over the updated laws, structural zeros held at zero."
+no_independent_algorithm = "dirichlet_posterior_mean / dirichlet_supported_mean return (w_i + c)/(sum w + k c) and the downstream evaluation is the covered route's existing finite computation. posterior_mean.rs also holds the normal and ridge routes and the Gaussian-kernel local-quadratic route, which belong to other records."
+covered_by = ["estimate.posterior_mean_kernel", "composition.multi_source"]
+derivation = "Dirichlet(c,...,c) prior and weights w on k atoms give posterior mean (w_i + c) / (sum w + k c); structural zeros are held at zero and updated as a (k-1)-atom law; checked against exact rationals in posterior_mean_reference.rs and in the route's own test."
+record_sha256 = "a80253b09cb8156896350f39350a18e7a7782ef349df73a7152c6a3c772836fa"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/posterior_mean.rs"
+items = ["enum DirichletNamespace", "enum PosteriorRequest", "enum ScalarNamespace", "enum ScoreNamespace", "fn covariance_entry_posterior", "fn details", "fn dirichlet_posterior_mean", "fn dirichlet_supported_mean", "fn known_variance_posterior", "fn normal_mean_posterior", "fn refuse", "fn scale_of", "fn score_contrast_posterior", "fn shrink"]
+sha256 = "4d92ec840144292fc528750bee65061fc89dca05b4e2cb417d05c4db01db6fa1"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
+items = ["fn close", "fn dirichlet_means_equal_the_exact_pseudo_count_update_and_keep_structural_zeros", "fn fixture", "fn floats", "fn known_variance_and_covariance_entries_equal_the_exact_update", "fn normal", "fn normal_mean_and_score_contrast_equal_the_exact_conjugate_update", "fn num", "fn ridge_coefficient_posterior_equals_the_exact_penalized_normal_equations", "fn the_updates_have_the_prior_and_flat_limits_and_refuse_invalid_scales"]
+sha256 = "797f8cafc3029d0e15baeff295478c1e44048060c621667045881e97d823a09f"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/mz_transport_execution.rs"
+items = ["const XV", "const YV", "const Z", "fn a_recorded_margin_of_a_shared_joint_is_projected_within_every_replicate", "fn bound", "fn combined_formula_matches_the_target_interventional_truth", "fn empirical_tables_run_through_the_same_formula_with_a_joint_bootstrap", "fn exact_laws_publish_no_interval", "fn fig_2_analogue_obstruction_is_real_two_models_agree_on_every_experiment", "fn fig_2_obstruction_is_real_the_papers_two_models_agree_on_every_experiment", "fn identical_shared_dataset_tables_are_resampled_as_one", "fn joint_bootstrap", "fn multi_source_posterior_consumer_replays_the_dirichlet_weights", "fn multi_source_posterior_mean_stays_at_the_target_truth", "fn multi_source_posterior_refuses_a_mapped_prior", "fn posterior_laws", "fn request", "fn source_order_does_not_change_the_number", "fn truth", "fn two_sources_certifying_one_factor_give_the_same_truth_either_way", "fn undeclared_or_unsupported_dependence_withholds_the_interval_not_the_point", "fn unrelatable_tables_of_one_dataset_withhold_the_interval_not_the_point"]
+sha256 = "cc86987e770c5a045d9bda1269cec84e37aae8247b6b3aa8d9f9c4bd41f2a101"

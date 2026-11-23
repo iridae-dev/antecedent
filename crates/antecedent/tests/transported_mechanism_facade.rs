@@ -17,7 +17,7 @@
 //! first-order variance of `E[Y | do(X = 2)]` has gradient `(3, 6, 0, 1, 2, 2.5)` over
 //! `(a_M, b_MX, a_X, a_Y, b_YX, b_YM)` and equals `0.36 + 0.09 + 0.04 + 0.015625 = 0.505625`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -259,6 +259,7 @@ fn carried_and_refitted_components_give_the_hand_computed_law_and_a_typed_receip
     assert_eq!(receipt.identity, transported.identity_hex());
     assert_eq!(receipt.identity.len(), 64);
     assert_eq!(receipt.source_plan_identity, source.plan_identity_hex());
+    assert_eq!(receipt.source_plan_identity_version, source.plan_identity_version());
     assert_eq!(receipt.source_population, "pop");
     assert_eq!(receipt.target_population, "clinic_b");
     assert_eq!(receipt.selection_targets, vec!["M".to_owned()]);
@@ -305,7 +306,7 @@ fn a_changed_number_at_an_unchanged_shape_moves_the_identity_and_a_consumer_rede
 }
 
 #[test]
-fn the_variance_is_parameter_only_scoped_and_the_interval_is_closed() {
+fn the_variance_is_parameter_only_scoped_and_the_interval_is_its_first_order_wald_band() {
     let source = prepare(uncertain_chain(), DependenceInput::Unknown, false);
     let mut declaration = transport(&["M"], vec![refit_m(1.5, Some(m_law()))]);
     declaration.dependence = DependenceInput::IndependentByDesign {
@@ -319,9 +320,11 @@ fn the_variance_is_parameter_only_scoped_and_the_interval_is_closed() {
     assert_eq!(value.scope, UNCERTAINTY_SCOPE);
     assert_eq!(value.functional.method, "first_order_delta_method");
 
-    let closed = transported.interval().unwrap_err();
-    assert_eq!(closed.code(), "cell_not_licensed");
-    assert_eq!(details(&closed), vec!["mechanism_transport.interval_route_closed"]);
+    // Independent closed form: 7.5 -/+ z(0.975) * sqrt(0.505625).
+    let band = transported.interval(&at_x(2.0), 0.95).unwrap();
+    let half = 1.959_963_984_540_054 * 0.505_625_f64.sqrt();
+    near(band.lower, 7.5 - half);
+    near(band.upper, 7.5 + half);
 
     // An unknown dependence refuses the variance, never the point.
     let unknown =
@@ -373,8 +376,9 @@ fn a_selection_arrow_dominates_an_invariance_declaration() {
     }];
     let error = source.transport_to(&declaration, &ctx()).unwrap_err();
     assert!(
-        details(&error)
-            .contains(&"mechanism_composition.population_selection_arrow_into_mechanism"),
+        details(&error).contains(
+            &antecedent_core::reason_details::mechanism_composition::POPULATION_SELECTION_ARROW_INTO_MECHANISM
+        ),
         "{:?}",
         details(&error)
     );
@@ -394,8 +398,9 @@ fn declared_and_unknown_refits_and_declared_sources_are_refused_by_name() {
     };
     let error = source.transport_to(&transport(&["M"], vec![written]), &ctx()).unwrap_err();
     assert!(
-        details(&error)
-            .contains(&"mechanism_composition.provenance_declared_mechanism_unacknowledged"),
+        details(&error).contains(
+            &antecedent_core::reason_details::mechanism_composition::PROVENANCE_DECLARED_MECHANISM_UNACKNOWLEDGED
+        ),
         "{:?}",
         details(&error)
     );
@@ -414,7 +419,10 @@ fn declared_and_unknown_refits_and_declared_sources_are_refused_by_name() {
     // A declared (not fitted) source mechanism is not carried.
     let declared = prepare(chain(true), DependenceInput::Unknown, true);
     let error = declared.transport_to(&transport(&["M"], vec![]), &ctx()).unwrap_err();
-    assert!(details(&error).contains(&"mechanism_transport.origin_not_fitted"));
+    assert!(
+        details(&error)
+            .contains(&antecedent_core::reason_details::mechanism_transport::ORIGIN_NOT_FITTED)
+    );
     assert!(
         error.refusals.iter().any(|r| r.code == "mechanism_composition_incoherent"),
         "{:?}",

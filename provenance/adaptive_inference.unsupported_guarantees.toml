@@ -1,0 +1,38 @@
+# Algorithm provenance for adaptive_inference.unsupported_guarantees (see docs/adaptive-inference.md).
+
+feature_id = "adaptive_inference.unsupported_guarantees"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# No primary paper: unsupported adjacent variant; refuses a guarantee no construction yields.
+papers = [
+]
+implementation_deviations = [
+ "Whole-procedure calibration designs (data-generating process, nominal level, support range, boundary probes) are frozen in crates/antecedent-estimate/tests/adaptive_inference_calibration.rs and are not measured; a reported interval carries that status as an annotation.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent/tests/adaptive_inference_facade.rs",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "unsupported_variant"
+rationale = "A unsupported adjacent variant: a guarantee no construction yields (the error rate of a posterior stopping rule, a stagewise adjustment of a group-sequential result) is an unsupported claim that refuses with its own code and detail. Intervals are not such claims: they are reported with a calibration annotation and are covered by the other adaptive_inference records."
+no_independent_algorithm = "adaptive_inference.rs gives the stopping decision and the group-sequential result an UnsupportedClaim whose refusal names the unsupported guarantee (estimator_inference_mismatch for the stopping-rule error rate, route_not_supported otherwise); the estimators' own numerics belong to the other adaptive_inference records and no interval is computed here."
+record_sha256 = "a1e21a0eb64c176329f1d03215c36f1fe6d7e8c8b1df12627f5e54ca4b851d7a"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/adaptive_inference.rs"
+items = ["fn mismatch", "fn new", "fn refusal", "fn stopping_reliability_unsupported", "fn unsupported", "struct AdaptiveInferenceError", "struct GroupSequentialResult", "struct StoppingDecision", "struct UnsupportedClaim"]
+sha256 = "af13c2d3cf5aadb88b3adec8fec28572d228d2bf96135514ed92e5e255fac471"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/adaptive_inference_facade.rs"
+items = ["fn a_group_sequential_repeated_interval_is_bound_to_its_record", "fn a_group_sequential_rule_is_not_supported_for_a_thompson_assignment", "fn a_measured_interval_names_the_measured_cell_and_refuses_every_other_procedure", "fn a_posterior_stopping_decision_follows_the_declared_expected_loss_rule", "fn a_thompson_credible_interval_inside_the_measured_range_is_bound_to_its_record", "fn a_weighted_contrast_and_a_confidence_sequence_are_bound_to_their_records", "fn close", "fn confidence_sequences_of_a_known_truth_trial_contain_the_arm_means", "fn contrast_request", "fn ctx", "fn decision_theoretic_stopping_is_not_supported_for_a_probability_best_rule", "fn each_missing_element_is_refused_at_prepare_with_its_own_detail", "fn epsilon_greedy_trial", "fn epsilon_greedy_trials_recover_the_contrast_over_seeded_replicates", "fn exported_contract_and_result_are_consumed_by_a_fresh_reader", "fn fixed_sample_inference_of_adaptive_data_is_refused_while_the_posterior_runs", "fn group_sequential_decisions_use_the_independent_boundaries_and_statistics", "fn group_sequential_trial", "fn looks_for", "fn repeated_measures_subjects_are_the_unit_and_the_contrast_recovers_the_truth", "fn repeated_measures_trial", "fn session", "fn skeleton", "fn the_hierarchical_cluster_cell_is_not_delivered_not_analysed_as_repeated_measures", "fn the_posterior_of_a_thompson_trial_is_the_conjugate_posterior_of_its_counts", "fn the_probability_floor_is_enforced_and_never_clipped", "fn thompson_trial", "fn welch"]
+sha256 = "7de14ac50a18e727784120a4d52bb8d008bb1dcab2f50613e8b03759afec9196"

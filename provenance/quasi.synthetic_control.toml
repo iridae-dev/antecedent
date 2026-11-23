@@ -1,0 +1,34 @@
+feature_id = "quasi.synthetic_control"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Point-only synthetic control (crates/antecedent-estimate/src/synthetic_control.rs, executed by
+# crates/antecedent/src/analysis/execute/checked_synthetic_control.rs; plan ids
+# quasi.synthetic_control and quasi.synthetic_did).
+modules = [
+ "crates/antecedent-estimate/src/synthetic_control.rs",
+ "crates/antecedent/src/analysis/execute/checked_synthetic_control.rs",
+]
+
+papers = [
+ { title = "Synthetic Control Methods for Comparative Case Studies: Estimating the Effect of California's Tobacco Control Program", doi = "10.1198/jasa.2009.ap08746", sections = ["simplex donor weights fitted on the pre-intervention periods; placebo runs over the donor pool"] },
+ { title = "Synthetic Difference-in-Differences", doi = "10.1257/aer.20190159", sections = ["unit and time weights with an additive unit and time effect"] },
+ { title = "The Augmented Synthetic Control Method", doi = "10.1080/01621459.2021.1929245", sections = ["ridge outcome-model correction of the synthetic-control estimate"] },
+]
+
+implementation_deviations = [
+ "Donor weights are simplex-constrained least squares on the pre-period outcomes only, with no covariates and no predictor weighting matrix.",
+ "The route publishes a point estimate, the leave-one-donor-out placebo effects with a descriptive rank, and, only under a declared uniform choice of the treated unit, the exact randomization tail fraction of a sharp null. It publishes no interval and no standard error; the placebo rank is not a p-value.",
+ "The synthetic difference-in-differences and ridge-augmented variants follow the cited constructions in form; their published guarantees are not claimed.",
+ "The convex-donor counterfactual, donors unaffected by the intervention and a persisting pre-period relation are declared assumptions.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/synthetic_control.rs (in-module tests: a known convex donor combination, additive unit and time effects, the exhaustive sharp-null tail over every possible treated unit)",
+ "crates/antecedent/tests/synthetic_control_route.rs (retained route, artifact round trip, refusal of a fabricated standard error, support refusals)",
+]

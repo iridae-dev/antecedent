@@ -1,0 +1,28 @@
+feature_id = "measurement.soft_exposure"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Measurement Error in Nonlinear Models", doi = "10.1201/9781420010138", sections = ["Ch. 4 regression calibration: substituting E[X | W] for the mismeasured covariate in a linear model"] },
+ { title = "Multiple Imputation for Nonresponse in Surveys", doi = "10.1002/9780470316696", sections = ["Ch. 3 combining multiple imputations (Rubin's rules)"] },
+ { title = "Maximum Likelihood from Incomplete Data Via the EM Algorithm", doi = "10.1111/j.2517-6161.1977.tb01600.x", sections = ["EM algorithm for the Gaussian outcome model used to condition imputation draws on the outcome"] },
+]
+
+implementation_deviations = [
+ "Posterior-mean substitution is regression calibration with the supplied per-unit probabilities as the calibrated E[X | .]; the claim that the probabilities are calibrated is the analyst's declaration and is not tested.",
+ "The reported covariance is the HC0 sandwich with the extra residual variance beta^2 q(1-q) accounted for as derived in-repo, not a published estimator.",
+ "Imputation draws X given the outcome from a Gaussian outcome model fitted by EM with the probabilities as prior and bootstrapped refits; Rubin's rules are valid only when that model contains the relation the analysis relies on.",
+ "The reliability report compares stated probabilities with repeat codings in bins and never gates an analysis.",
+ "Coverage is not inherited and not measured.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-stats/src/measurement_error/exposure_tests.rs (substitution_on_calibrated_probabilities_recovers_the_coefficient_where_a_draw_does_not)",
+ "crates/antecedent-estimate/tests/measurement_exposure_reference.rs (soft_exposure_substitution_and_rubin_match_exact_rational_arithmetic, seeded_imputation_matches_the_independent_port_draw_for_draw, reliability_bins_match_exact_rational_arithmetic)",
+ "python/tests/test_measurement_exposure.py (test_posterior_mean_substitution_is_least_squares_with_an_hc0_sandwich)",
+]

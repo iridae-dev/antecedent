@@ -15,6 +15,7 @@ import numpy as np
 import pytest
 from antecedent.errors import CausalError
 from antecedent.estimators import Aipw, PropensityMatching, PropensityWeighting
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -31,14 +32,16 @@ def _binary(n: int = 1200, seed: int = 4) -> dict[str, np.ndarray]:
 
 
 def _estimate(data: dict[str, np.ndarray], estimator: Any, *, control: float, active: float) -> Any:
-    return ant.analyze(
-        data,
-        graph=STATIC_DAG,
-        query=ant.AverageEffect("t", "y", control_level=control, active_level=active),
-        estimator=estimator,
-        refute="none",
-        bootstrap=0,
-        seed=3,
+    return require_success(
+        ant.analyze(
+            data,
+            graph=STATIC_DAG,
+            query=ant.AverageEffect("t", "y", control_level=control, active_level=active),
+            estimator=estimator,
+            refute="none",
+            inference=ant.Frequentist(bootstrap=0),
+            execution=ant.Execution(seed=3),
+        )
     )
 
 
@@ -49,7 +52,7 @@ def test_a_one_two_coding_gives_the_zero_one_answer(estimator: Any) -> None:
     base = _estimate(data, estimator(bootstrap=0), control=0.0, active=1.0)
     recoded = _estimate(shifted, estimator(bootstrap=0), control=1.0, active=2.0)
     assert recoded.answer.value == base.answer.value
-    assert abs(base.answer.value - 2.0) < 0.4
+    assert abs(base.answer.value - 2.0) < 0.15
 
 
 def test_swapping_active_and_control_flips_the_sign() -> None:
@@ -105,3 +108,32 @@ def test_the_default_refuses_and_a_bad_policy_is_rejected() -> None:
     assert raised.value.reason_code == "treatment_level_undeclared"
     with pytest.raises(ValueError, match="other_levels"):
         PropensityWeighting(other_levels="drop")._wire()  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "estimator", [ant.estimators.LinearAdjustment, ant.estimators.GlmAdjustment]
+)
+def test_regressions_refuse_by_default_and_exclude_when_declared(estimator: Any) -> None:
+    data = _three_level()
+    kwargs: dict[str, Any] = (
+        {"family": "gaussian_identity"} if estimator is ant.estimators.GlmAdjustment else {}
+    )
+    with pytest.raises(CausalError) as raised:
+        _estimate(data, estimator(bootstrap=0, **kwargs), control=0.0, active=2.0)
+    assert raised.value.reason_code == "treatment_level_undeclared"
+    declared = _estimate(
+        data,
+        estimator(bootstrap=0, other_levels="exclude_undeclared", **kwargs),
+        control=0.0,
+        active=2.0,
+    )
+    keep = data["t"] != 1.0
+    by_hand = _estimate(
+        {name: values[keep] for name, values in data.items()},
+        estimator(bootstrap=0, **kwargs),
+        control=0.0,
+        active=2.0,
+    )
+    assert declared.answer.value == by_hand.answer.value
+    with pytest.raises(ValueError, match="other_levels"):
+        estimator(other_levels="drop")  # type: ignore[arg-type]

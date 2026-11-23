@@ -5,7 +5,7 @@
 //! run seed itself: two samplers given the same seed must not replay the same underlying
 //! uniform sequence.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CausalRng, RngFactory, StreamDomain};
 

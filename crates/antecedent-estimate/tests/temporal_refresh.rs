@@ -66,7 +66,7 @@ fn invalidation_detail(result: Result<impl std::fmt::Debug, EstimationError>) ->
         panic!("expected a coded refusal");
     };
     assert_eq!(code, "route_not_supported");
-    message
+    message.into_string()
 }
 
 #[test]
@@ -106,15 +106,18 @@ fn refresh_posterior_mean_stays_at_the_new_period_response() {
 }
 
 #[test]
-fn refresh_posterior_refuses_an_unmeasured_band() {
+fn refresh_posterior_refuses_an_not_measured_band() {
     let error = normal_mean_posterior(
         &[3.0, 5.0, 10.0],
-        PosteriorRequest::UnmeasuredBand,
+        PosteriorRequest::CredibleBand,
         ScalarNamespace::Refresh,
     )
     .unwrap_err();
     let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
-    assert!(message.contains("refresh_posterior.unmeasured_band"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::refresh_posterior::BAND_NOT_CONSTRUCTED),
+        "{message}"
+    );
 }
 
 #[test]
@@ -150,7 +153,10 @@ fn third_period_appended_slice_or_changed_horizon_invalidates() {
             RefreshDecision::Invalidated(RefreshInvalidation::HorizonChanged)
         );
         let message = invalidation_detail(refresh_held(&held(true), new, evaluate));
-        assert!(message.contains("temporal_refresh.horizon_changed"), "{message}");
+        assert!(
+            message.contains(antecedent_core::reason_details::temporal_refresh::HORIZON_CHANGED),
+            "{message}"
+        );
     }
 }
 
@@ -163,7 +169,10 @@ fn third_period_changed_lag_alignment_invalidates() {
         RefreshDecision::Invalidated(RefreshInvalidation::LagAlignmentChanged)
     );
     let message = invalidation_detail(refresh_held(&held(false), new, evaluate));
-    assert!(message.contains("temporal_refresh.lag_alignment_changed"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_refresh::LAG_ALIGNMENT_CHANGED),
+        "{message}"
+    );
 }
 
 #[test]
@@ -175,7 +184,12 @@ fn third_period_altered_intervention_history_invalidates() {
         RefreshDecision::Invalidated(RefreshInvalidation::InterventionHistoryChanged)
     );
     let message = invalidation_detail(refresh_held(&held(false), new, evaluate));
-    assert!(message.contains("temporal_refresh.intervention_history_changed"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::temporal_refresh::INTERVENTION_HISTORY_CHANGED
+        ),
+        "{message}"
+    );
 }
 
 #[test]
@@ -194,7 +208,10 @@ fn third_period_changed_selection_regimes_graph_or_proof_invalidates() {
             RefreshDecision::Invalidated(RefreshInvalidation::PremisesChanged)
         );
         let message = invalidation_detail(refresh_held(&held(false), new, evaluate));
-        assert!(message.contains("temporal_refresh.premises_changed"), "{message}");
+        assert!(
+            message.contains(antecedent_core::reason_details::temporal_refresh::PREMISES_CHANGED),
+            "{message}"
+        );
     }
 }
 
@@ -207,7 +224,10 @@ fn third_period_new_snapshot_with_identical_period_is_stale() {
         RefreshDecision::Invalidated(RefreshInvalidation::StaleSnapshot)
     );
     let message = invalidation_detail(refresh_held(&held(true), new, evaluate));
-    assert!(message.contains("temporal_refresh.stale_snapshot"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_refresh::STALE_SNAPSHOT),
+        "{message}"
+    );
     // A new period under the old snapshot id, and an unchanged identity, are stale too.
     let mut same_snapshot = replacement();
     same_snapshot.snapshot_id = identity().snapshot_id;
@@ -237,7 +257,10 @@ fn third_period_invalid_replacement_is_refused_before_evaluation() {
         assert!(!called);
         let EstimationError::Refused { code, message } = error else { panic!("coded refusal") };
         assert_eq!(code, "invalid_argument");
-        assert!(message.contains("temporal_refresh.invalid_replacement"));
+        assert!(
+            message
+                .contains(antecedent_core::reason_details::temporal_refresh::INVALID_REPLACEMENT)
+        );
     }
 }
 
@@ -250,7 +273,8 @@ fn third_period_invalidated_refresh_never_runs_the_evaluator() {
         called = true;
         evaluate(id)
     });
-    assert!(result.is_err());
+    let message = invalidation_detail(result);
+    assert!(message.starts_with("temporal_refresh.horizon_changed:"), "{message}");
     assert!(!called, "a stale proof must not be re-evaluated");
 }
 
@@ -312,7 +336,11 @@ fn period_reseal_unsealed_edit_of_a_receipt_is_refused() {
     let (refreshed, mut receipt) = refresh_held(&held, replacement(), evaluate).unwrap();
     receipt.new_period = ObservationPeriod { start: 11, end: 21 };
     let message = invalidation_detail(accept_refresh(&held, &receipt, refreshed));
-    assert!(message.contains("temporal_refresh.receipt_digest_mismatch"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::temporal_refresh::RECEIPT_DIGEST_MISMATCH),
+        "{message}"
+    );
 }
 
 #[test]
@@ -338,7 +366,10 @@ fn period_reseal_resealed_receipt_for_another_period_or_snapshot_is_refused() {
     for forged in [other_period, other_snapshot, other_proof, flipped_interval] {
         let message =
             invalidation_detail(accept_refresh(&held, &reseal(forged), refreshed.clone()));
-        assert!(message.contains("temporal_refresh.receipt_mismatch"), "{message}");
+        assert!(
+            message.contains(antecedent_core::reason_details::temporal_refresh::RECEIPT_MISMATCH),
+            "{message}"
+        );
     }
 }
 
@@ -352,7 +383,10 @@ fn period_reseal_receipt_for_a_different_held_result_is_refused() {
     other.period = ObservationPeriod { start: -5, end: 0 };
     let held_b = HeldTemporalResult { identity: other, value: 0.0, interval_present: true };
     let message = invalidation_detail(accept_refresh(&held_b, &receipt, refreshed));
-    assert!(message.contains("temporal_refresh.receipt_mismatch"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_refresh::RECEIPT_MISMATCH),
+        "{message}"
+    );
 }
 
 #[test]
@@ -361,7 +395,10 @@ fn period_reseal_refreshed_result_keeping_an_interval_is_refused() {
     let (mut refreshed, receipt) = refresh_held(&held, replacement(), evaluate).unwrap();
     refreshed.interval_present = true;
     let message = invalidation_detail(accept_refresh(&held, &receipt, refreshed));
-    assert!(message.contains("temporal_refresh.stale_interval"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_refresh::STALE_INTERVAL),
+        "{message}"
+    );
 }
 
 #[test]
@@ -370,14 +407,26 @@ fn resealed_refresh_cannot_change_inference_or_validate_an_invalid_window() {
     let (fresh, mut receipt) = refresh_held(&held, replacement(), evaluate).unwrap();
     receipt.inference_claim = "confidence_interval";
     receipt.digest = receipt.compute_digest();
-    assert!(accept_refresh(&held, &receipt, fresh).is_err());
+    assert_eq!(
+        invalidation_detail(accept_refresh(&held, &receipt, fresh)),
+        "temporal_refresh.receipt_mismatch: the receipt changes the point-only inference claim"
+    );
 
     let (mut fresh, mut receipt) = refresh_held(&held, replacement(), evaluate).unwrap();
     fresh.identity.period.end = fresh.identity.period.start;
     receipt.new_identity_digest = fresh.identity.digest();
     receipt.new_period = fresh.identity.period;
     receipt.digest = receipt.compute_digest();
-    assert!(accept_refresh(&held, &receipt, fresh).is_err());
+    let EstimationError::Refused { code, message } =
+        accept_refresh(&held, &receipt, fresh).unwrap_err()
+    else {
+        panic!("expected a coded refusal");
+    };
+    assert_eq!(code, "invalid_argument");
+    assert_eq!(
+        message.as_ref(),
+        "temporal_refresh.invalid_replacement: the replacement period is empty or reversed"
+    );
 }
 
 #[test]

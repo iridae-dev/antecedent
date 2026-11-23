@@ -9,7 +9,7 @@ papers = []
 
 implementation_deviations = [
   "A Dirichlet posterior on the finite law the decision functional already reads. The published number is the functional of the posterior mean. A wide concentration stays at the finite-law expectation 1.5. No interval.",
-  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+  "A mapped coefficient prior, an external power prior, and a request for a credible band refuse (route_not_supported).",
 ]
 
 upstream_implementations_observed = []
@@ -17,3 +17,24 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent/tests/posterior_mean_decision.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Dirichlet posterior mean of the finite law that a decision functional already reads; the published number is the functional of that mean. No interval."
+no_independent_algorithm = "dirichlet_posterior_mean returns (w_i + c)/(sum w + k c); the functional is the existing decision functional. posterior_mean.rs also holds the Gaussian-kernel local-quadratic route (exp, powi), a different record, which was not mapped."
+covered_by = ["decision.functionals", "decision.functional_inverse"]
+derivation = "Dirichlet(c,...,c) prior with multinomial weights w gives posterior mean (w_i + c)/(sum_j w_j + k c); verified in dirichlet_posterior_mean."
+record_sha256 = "e1d29e838461af3b70155e7649178a58e1bd4da45e2da9d45bf5f631a438b47c"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/posterior_mean.rs"
+items = ["enum DirichletNamespace", "enum PosteriorRequest", "fn details", "fn dirichlet_posterior_mean", "fn refuse", "fn scale_of"]
+sha256 = "9206ff4bf652c875d9facff5fbbb756af44c2debc2697bd68004be5927f4fffb"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/posterior_mean_decision.rs"
+items = ["fn contract", "fn decision_posterior_consumer_replays_the_dirichlet_weights", "fn decision_posterior_mean_keeps_the_finite_law_expectation", "fn decision_posterior_refuses_a_mapped_prior", "fn expectation", "fn finite_action_inverse_posterior_consumer_replays_the_selected_action", "fn finite_action_inverse_posterior_refuses_an_not_measured_band", "fn finite_action_inverse_posterior_uses_the_dirichlet_mean", "fn functional_inverse_posterior_consumer_replays_the_mean_law", "fn functional_inverse_posterior_refuses_an_external_power_prior", "fn functional_inverse_posterior_uses_the_dirichlet_mean", "fn inverse_on", "fn law", "fn quantity", "fn refusal"]
+sha256 = "ba3ff2d407628e8a7e7d2634da4f6af840a2f74b218aa7bc0851a66bd59cf2e3"

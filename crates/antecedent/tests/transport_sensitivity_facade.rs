@@ -7,7 +7,7 @@
 //! `[1.75, 2.25]`, `[1.5, 2.5]`. A proportional bound of `0.25` of `2.0` is a shift of
 //! `0.5` at the bound: `[1.5, 2.5]`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::sensitivity_decision::{consume, export};
 use antecedent::analysis::transport_sensitivity::{
@@ -167,7 +167,10 @@ fn a_response_that_cannot_be_shifted_is_refused_with_its_own_reason() {
         error,
         TransportSensitivityEntryRefusal::Range(TransportSensitivityRefusal::NoScalarFamily { .. })
     ));
-    assert_eq!(error.detail(), "transport_sensitivity.no_scalar_family");
+    assert_eq!(
+        error.detail(),
+        antecedent_core::reason_details::transport_sensitivity::NO_SCALAR_FAMILY
+    );
 
     // A proportional shift of zero is no range.
     let zero = point("clinic_b", 0.0);

@@ -5,18 +5,21 @@ use crate::transport_common::{
 };
 use crate::transport_statistical_api::parse_statistical_input;
 use crate::{graphs::Admg, transport_interference_api::parse_catalog};
-use antecedent_core::{SearchLimits, Value, VariableDomain, VariableId, reason_code};
-use antecedent_estimate::transport_scenarios::ScenarioSetReport;
-use antecedent_expr::ExactEvaluationLimits;
-use antecedent_graph::SelectionDiagram;
-use antecedent_identify::{
-    ClassicalTransportQuery, ConditionalTransportQuery,
-    sid::scenarios::{ScenarioCoordinate, TransportScenario, TransportScenarioSet},
+use antecedent::estimate::ExactEvaluationLimits;
+use antecedent::estimate::transport_scenarios::ScenarioSetReport;
+use antecedent::execution::SearchLimits;
+use antecedent::graph::SelectionDiagram;
+use antecedent::identify::sid::scenarios::{
+    ScenarioCoordinate, TransportScenario, TransportScenarioSet,
 };
-use antecedent_io::IoError;
-use antecedent_io::transport_scenario_artifact::{
+use antecedent::identify::{ClassicalTransportQuery, ConditionalTransportQuery};
+use antecedent::io::IoError;
+use antecedent::io::transport_scenario_artifact::{
     TransportScenarioArtifactWire, TransportScenarioConsumeLimits, scenario_refusal,
 };
+use antecedent::prelude::{Value, VariableId};
+use antecedent::query::VariableDomain;
+use antecedent::reason::reason_code;
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -89,18 +92,29 @@ fn parse_coordinates(
 /// `status` keeps the serialized scenario spellings (`structurally_unidentified`,
 /// `unevaluated`); the execution statuses `unsupported_provider` and
 /// `support_failure` belong to identified scenarios whose evaluation then failed.
-fn scenario_identification_status(status: &str) -> &'static str {
-    antecedent_core::TransportOutcomeKind::from_identification_status(status)
-        .unwrap_or(antecedent_core::TransportOutcomeKind::Identified)
-        .as_str()
+fn scenario_identification_status(status: &str) -> PyResult<&'static str> {
+    use antecedent::query::TransportOutcomeKind;
+    if matches!(status, "unsupported_provider" | "support_failure") {
+        return Ok(TransportOutcomeKind::Identified.as_str());
+    }
+    TransportOutcomeKind::from_identification_status(status)
+        .map(TransportOutcomeKind::as_str)
+        .ok_or_else(|| {
+            crate::value_err(format!("unknown scenario identification status {status:?}"))
+        })
 }
 
-fn report_json(report: &ScenarioSetReport, names: &[String]) -> serde_json::Value {
+fn report_json(report: &ScenarioSetReport, names: &[String]) -> PyResult<serde_json::Value> {
+    let statuses = report
+        .scenarios
+        .iter()
+        .map(|s| scenario_identification_status(s.status))
+        .collect::<PyResult<Vec<_>>>()?;
     let name = |v: &VariableId| names[v.as_usize()].clone();
-    serde_json::json!({
+    Ok(serde_json::json!({
         "status": "available",
         "scope": SCOPE,
-        "scenarios": report.scenarios.iter().map(|s| {
+        "scenarios": report.scenarios.iter().zip(&statuses).map(|(s, identification)| {
             let point = s.distribution.as_ref().map(|d| serde_json::json!({
                 "outcomes": d.outcomes.iter().map(name).collect::<Vec<_>>(),
                 "atoms": d.atoms.iter().map(|row| row.iter().map(Value::as_f64).collect::<Vec<_>>()).collect::<Vec<_>>(),
@@ -111,7 +125,7 @@ fn report_json(report: &ScenarioSetReport, names: &[String]) -> serde_json::Valu
                 "name": s.name.as_ref(),
                 "weight": s.weight,
                 "status": s.status,
-                "identification_status": scenario_identification_status(s.status),
+                "identification_status": identification,
                 "detail": s.detail.as_ref().map(|d| crate::transport_common::resolve_variable_ids(d, names)),
                 "point": point,
             })
@@ -148,7 +162,7 @@ fn report_json(report: &ScenarioSetReport, names: &[String]) -> serde_json::Valu
             "explored": r.explored,
             "unevaluated": r.unevaluated,
         })),
-    })
+    }))
 }
 
 /// Accept an `ExactTransportData` wrapper or a sequence of laws.
@@ -161,7 +175,7 @@ fn law_sequence<'py>(laws: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
 pub(crate) struct PreparedTransportScenariosStage {
     inner: antecedent::PreparedTransportScenarios,
     graph: Admg,
-    catalog: antecedent_core::EvidenceCatalog,
+    catalog: antecedent::query::EvidenceCatalog,
     last: Option<ScenarioSetReport>,
     max_support_rows: usize,
     memory_bytes: Option<u64>,
@@ -179,7 +193,7 @@ impl PreparedTransportScenariosStage {
     pub(crate) fn prepared_and_report(
         &self,
     ) -> Option<(
-        &antecedent_estimate::transport_scenarios::PreparedScenarioSet,
+        &antecedent::estimate::transport_scenarios::PreparedScenarioSet,
         &ScenarioSetReport,
         &[String],
     )> {
@@ -191,13 +205,13 @@ impl PreparedTransportScenariosStage {
 
 /// Supplied exact laws, or `StatisticalTransportData` for the empirical plug-in.
 enum Provider {
-    Exact(antecedent_expr::ExactTransportData),
-    Empirical(antecedent_estimate::StatisticalTransportInput),
+    Exact(antecedent::estimate::ExactTransportData),
+    Empirical(antecedent::estimate::StatisticalTransportInput),
 }
 
 fn parse_provider(
     laws: &Bound<'_, PyAny>,
-    catalog: &antecedent_core::EvidenceCatalog,
+    catalog: &antecedent::query::EvidenceCatalog,
     graph: &Admg,
     max_support_rows: usize,
 ) -> PyResult<Provider> {
@@ -222,7 +236,7 @@ impl PreparedTransportScenariosStage {
         let ctx = execution_context(0, memory_bytes.or(self.memory_bytes), cancel);
         let inner = self.inner.clone();
         let report = crate::detach_catch(py, move || inner.estimate(&ctx).map_err(error))?;
-        let payload = report_json(&report, &self.graph.names).to_string();
+        let payload = report_json(&report, &self.graph.names)?.to_string();
         self.last = Some(report);
         Ok(payload)
     }
@@ -258,7 +272,7 @@ impl PreparedTransportScenariosStage {
         self.inner.prepared().plan_summary().into_iter().map(|(n, k)| (n.to_string(), k)).collect()
     }
 
-    /// Inference across scenarios sharing data is not licensed; always refuses.
+    /// Inference across scenarios sharing data is not supported; always refuses.
     fn aggregate_interval(&self) -> PyResult<()> {
         self.inner.aggregate_interval().map_err(error)
     }
@@ -267,7 +281,7 @@ impl PreparedTransportScenariosStage {
     fn export(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
         let report = self.last.as_ref().ok_or_else(|| {
             crate::refusal(
-                antecedent_core::reason_code!("not_executed"),
+                antecedent::reason::reason_code!("not_executed"),
                 "transport.no_execution_claim: estimate before exporting a scenario artifact",
             )
         })?;
@@ -360,8 +374,8 @@ fn prepare_transport_scenarios_stage(
     let provider = parse_provider(laws, &catalog, &named, max_support_rows)?;
     if conditioned.is_some() && matches!(provider, Provider::Empirical(_)) {
         return Err(crate::refusal(
-            reason_code!("cell_not_licensed"),
-            "admg_transport.interval_withheld: counted laws are not licensed for a conditional \
+            reason_code!("route_not_supported"),
+            "admg_transport.counted_laws_unsupported: counted laws are not supported for a conditional \
              scenario question; the route publishes exact-law points only",
         ));
     }
@@ -449,7 +463,7 @@ fn consume_transport_scenarios_artifact(
             TransportScenarioArtifactWire::consume_with_limits(&bytes, limits, &ctx)
                 .map_err(scenario_error)?;
         for scenario in &wire.scenarios {
-            let graph = antecedent_io::admg_from_wire(&scenario.graph).map_err(error)?;
+            let graph = antecedent::io::admg_from_wire(&scenario.graph).map_err(error)?;
             crate::transport_exact_api::validate_artifact_names(&names, &graph)?;
         }
         // The frame's names must be exactly the ones the identity binds: the
@@ -463,7 +477,7 @@ fn consume_transport_scenarios_artifact(
                 "transport scenario artifact names disagree with its coordinate schema",
             ));
         }
-        let mut payload = report_json(&report, &names);
+        let mut payload = report_json(&report, &names)?;
         payload["premises_digest"] = wire.premises_digest.clone().into();
         Ok(payload.to_string())
     })

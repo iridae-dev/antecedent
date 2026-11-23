@@ -49,7 +49,7 @@ pub(crate) fn fit_temporal_dag_effect(
     }
 
     let mut temporal = TemporalLinearAdjustment::new();
-    temporal.inner.bootstrap_replicates = 0;
+    temporal.inner.inference.bootstrap_replicates = 0;
     temporal.inner.overlap = OverlapPolicy::ExplicitOverride;
     let prepared = temporal
         .prepare(
@@ -61,6 +61,21 @@ pub(crate) fn fit_temporal_dag_effect(
             &context.kernel_policy,
         )
         .map_err(CausalError::from)?;
+    if operation.config().white_innovation.is_some() {
+        let fit = crate::analysis::white_innovation_window::fit_white_innovation_window(
+            operation.config(),
+            &prepared,
+            target.query().horizon_steps,
+            target.identification().status,
+            context,
+        )?;
+        return Ok(CheckedBayesianTemporalDagFit {
+            estimate: fit.estimate,
+            posterior: fit.posterior,
+            prepared: fit.prepared,
+            estimator: fit.estimator,
+        });
+    }
     let coefficient_names = antecedent_estimate::temporal_coefficient_names(
         data,
         target.estimand(),

@@ -7,8 +7,8 @@ from typing import Any
 import antecedent
 import numpy as np
 import pytest
-from antecedent.estimation import PreparedAnalysis
 from antecedent.intervention import Set
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_json
 
@@ -80,8 +80,15 @@ def test_confounded_pulse_recovers_structural_surface_unadjusted_does_not():
         policy="pulse",
         treatment_lag=1,
     )
-    adjusted = antecedent.analyze(
-        data, graph=_CONFOUNDED_EDGES, query=query, refute=False, bootstrap=0, seed=21
+    adjusted = require_success(
+        antecedent.analyze(
+            data,
+            graph=_CONFOUNDED_EDGES,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=21),
+        )
     )
     np.testing.assert_allclose(
         _means(adjusted), _CONFOUNDED["contract"]["surface"]["mean"], atol=atol
@@ -89,8 +96,15 @@ def test_confounded_pulse_recovers_structural_surface_unadjusted_does_not():
     _assert_identified(adjusted, _IDENT)
     assert adjusted.support.status == "supported"
 
-    unadjusted = antecedent.analyze(
-        data, graph=[("t", 1, "y", 0)], query=query, refute=False, bootstrap=0, seed=21
+    unadjusted = require_success(
+        antecedent.analyze(
+            data,
+            graph=[("t", 1, "y", 0)],
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=21),
+        )
     )
     np.testing.assert_allclose(
         _means(unadjusted),
@@ -101,9 +115,17 @@ def test_confounded_pulse_recovers_structural_surface_unadjusted_does_not():
 
     tdag = antecedent.TemporalDag.from_lagged_edges(["t", "y", "z"], _CONFOUNDED_EDGES)
     accepted = antecedent.AcceptedGraph.from_graph(tdag, algorithm_id="hand")
-    click = PreparedAnalysis.prepare(
-        data, graph=accepted, query=query, refute=False, seed=21
-    ).estimate(data, seed=21)
+    click = require_success(
+        antecedent.estimate(
+            antecedent.prepare(
+                data,
+                graph=accepted,
+                query=query,
+                refute=False,
+                execution=antecedent.Execution(seed=21),
+            )
+        )
+    )
     np.testing.assert_allclose(_means(click), _CONFOUNDED["contract"]["surface"]["mean"], atol=atol)
     _assert_identified(click, _IDENT)
 
@@ -121,8 +143,15 @@ def test_confounded_multi_horizon_keeps_z_at_short_horizon():
         policy="pulse",
         treatment_lag=1,
     )
-    result = antecedent.analyze(
-        data, graph=_CONFOUNDED_EDGES, query=query, refute=False, bootstrap=0, seed=29
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=_CONFOUNDED_EDGES,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=29),
+        )
     )
     mean = _means(result)
     expected = spec["surface"]["mean"]
@@ -134,16 +163,20 @@ def test_confounded_multi_horizon_keeps_z_at_short_horizon():
     np.testing.assert_allclose(mean[3], expected[3], atol=h2_atol)
     assert abs(mean[2] - mean[0] - 2.0) <= atol
 
-    click = PreparedAnalysis.prepare(
-        data,
-        graph=antecedent.AcceptedGraph.from_graph(
-            antecedent.TemporalDag.from_lagged_edges(["t", "y", "z"], _CONFOUNDED_EDGES),
-            algorithm_id="hand",
-        ),
-        query=query,
-        refute=False,
-        seed=29,
-    ).estimate(data, seed=29)
+    click = require_success(
+        antecedent.estimate(
+            antecedent.prepare(
+                data,
+                graph=antecedent.AcceptedGraph.from_graph(
+                    antecedent.TemporalDag.from_lagged_edges(["t", "y", "z"], _CONFOUNDED_EDGES),
+                    algorithm_id="hand",
+                ),
+                query=query,
+                refute=False,
+                execution=antecedent.Execution(seed=29),
+            )
+        )
+    )
     np.testing.assert_allclose(_means(click), mean, atol=atol)
     assert click.identification.horizon_adjustment_sets == (("z@-1",), ())
 
@@ -153,21 +186,25 @@ def test_confounded_pulse_and_sustained_match_structural_contrast():
     atol = float(_CONFOUNDED["tolerance"]["atol"])
     expected = float(_CONFOUNDED["contract"]["pulse_effect_projection"]["contrast"])
     estimators = _CONFOUNDED["contract"]["estimators"]
-    pulse = antecedent.analyze(
-        data,
-        graph=_CONFOUNDED_EDGES,
-        query=antecedent.PulseEffect("t", "y", treatment_lag=1, horizon_steps=1),
-        refute=False,
-        bootstrap=0,
-        seed=23,
+    pulse = require_success(
+        antecedent.analyze(
+            data,
+            graph=_CONFOUNDED_EDGES,
+            query=antecedent.PulseEffect("t", "y", treatment_lag=1, horizon_steps=1),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=23),
+        )
     )
-    sustained = antecedent.analyze(
-        data,
-        graph=_CONFOUNDED_EDGES,
-        query=antecedent.SustainedEffect("t", "y", treatment_lag=1, horizon_steps=1),
-        refute=False,
-        bootstrap=0,
-        seed=23,
+    sustained = require_success(
+        antecedent.analyze(
+            data,
+            graph=_CONFOUNDED_EDGES,
+            query=antecedent.SustainedEffect("t", "y", treatment_lag=1, horizon_steps=1),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=23),
+        )
     )
     _assert_identified(pulse, _IDENT, estimator=estimators["pulse"])
     _assert_identified(sustained, _IDENT, estimator=estimators["sustained"])
@@ -177,24 +214,28 @@ def test_confounded_pulse_and_sustained_match_structural_contrast():
 
     tdag = antecedent.TemporalDag.from_lagged_edges(["t", "y", "z"], _CONFOUNDED_EDGES)
     accepted = antecedent.AcceptedGraph.from_graph(tdag, algorithm_id="hand")
-    accepted_pulse = antecedent.analyze(
-        data,
-        graph=accepted,
-        query=antecedent.PulseEffect("t", "y", treatment_lag=1, horizon_steps=1),
-        refute=False,
-        bootstrap=0,
-        seed=23,
+    accepted_pulse = require_success(
+        antecedent.analyze(
+            data,
+            graph=accepted,
+            query=antecedent.PulseEffect("t", "y", treatment_lag=1, horizon_steps=1),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=23),
+        )
     )
     _assert_identified(accepted_pulse, _IDENT, estimator=estimators["pulse"])
     assert accepted_pulse.ate == pytest.approx(expected, abs=atol)
 
-    unadjusted = antecedent.analyze(
-        data,
-        graph=[("t", 1, "y", 0)],
-        query=antecedent.PulseEffect("t", "y", treatment_lag=1, horizon_steps=1),
-        refute=False,
-        bootstrap=0,
-        seed=23,
+    unadjusted = require_success(
+        antecedent.analyze(
+            data,
+            graph=[("t", 1, "y", 0)],
+            query=antecedent.PulseEffect("t", "y", treatment_lag=1, horizon_steps=1),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=23),
+        )
     )
     _assert_identified(unadjusted, _UNADJUSTED["identification"], estimator=estimators["pulse"])
     assert unadjusted.ate == pytest.approx(_UNADJUSTED["pulse_contrast"], abs=atol)
@@ -211,8 +252,15 @@ def test_horizon_support_is_per_cell_not_union():
         policy="pulse",
         treatment_lag=1,
     )
-    result = antecedent.analyze(
-        data, graph=_SUPPORT_EDGES, query=query, refute=False, bootstrap=0, seed=11
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=_SUPPORT_EDGES,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=11),
+        )
     )
     spec = _SUPPORT["contract"]["support"]
     assert result.support.status == spec["status"]
@@ -228,19 +276,21 @@ def test_horizon_support_is_per_cell_not_union():
     assert union_min <= 5.0 <= union_max
     assert any("inspect support.point_status" in warning for warning in result.support.warnings)
 
-    path = antecedent.analyze(
-        data,
-        graph=_SUPPORT_EDGES,
-        query=antecedent.InterventionResponse(
-            "y",
-            intervention=Set("t", 5.0),
-            horizons=[1, 8],
-            policy="pulse",
-            treatment_lag=1,
-        ),
-        refute=False,
-        bootstrap=0,
-        seed=11,
+    path = require_success(
+        antecedent.analyze(
+            data,
+            graph=_SUPPORT_EDGES,
+            query=antecedent.InterventionResponse(
+                "y",
+                intervention=Set("t", 5.0),
+                horizons=[1, 8],
+                policy="pulse",
+                treatment_lag=1,
+            ),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=11),
+        )
     )
     assert path.support.status == "extrapolative"
     assert list(path.support.point_status) == ["supported", "outside_empirical_support"]

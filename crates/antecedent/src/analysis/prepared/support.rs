@@ -1,10 +1,10 @@
 //! Shared prepare-time predicates and score-table helpers.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::analysis::builder::DataInput;
 use crate::analysis::execute::Study;
-use crate::analysis::query_license::{prepared_rule, unlicensed_combination};
+use crate::analysis::query_support::{prepared_rule, unsupported_combination};
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::result::StudyResult;
@@ -59,7 +59,7 @@ pub(super) fn score_table_treatment_col(analysis: &Study, table: &ScoreTable) ->
     let values = data.float64_values(table.treatment).ok()?;
     let mut col = Vec::with_capacity(table.n_rows);
     for &idx in table.row_index.iter() {
-        col.push(*values.get(idx as usize)?);
+        col.push(*values.get(usize::try_from(idx.get()).ok()?)?);
     }
     Some(col)
 }
@@ -103,6 +103,14 @@ pub(super) fn overlay_prepared_score_functional(
         CausalQuery::ConditionalEffect(q) => &q.inner.outcome_functional,
         _ => return Ok(()),
     };
+    // This private adapter is called only on the result just produced by the
+    // current prepared execution. Never use it to restore a caller-mutated result.
+    if matches!(&result.authority, crate::result::RuntimeRefutationAuthority::Invalidated) {
+        return Err(CausalError::Conflict {
+            what: "result",
+            detail: "score functional overlay cannot issue authority for a modified result",
+        });
+    }
     let effect = result.estimate.as_effect().cloned().ok_or_else(|| CausalError::Compile {
         message: "score functional overlay requires an effect estimate".into(),
     })?;
@@ -120,26 +128,44 @@ pub(super) fn overlay_prepared_score_functional(
     } else {
         crate::analysis::helpers::attach_score_functional_grid(effect, table.clone())?
     };
-    if functional.quantile_level().is_some() {
-        if let Some(response) = result.payload.response_mut() {
-            response.estimate = antecedent_core::ResponseIdentification::PointIdentified(
-                antecedent_core::ResponseValue::Scalar(estimate.ate),
-            );
-            response.uncertainty = antecedent_core::ResponseUncertainty::Scalar {
-                standard_error: estimate.se_analytic(),
-                lower: estimate.ate
-                    - crate::result::reported_se_interval_z() * estimate.se_analytic(),
-                upper: estimate.ate
-                    + crate::result::reported_se_interval_z() * estimate.se_analytic(),
+    if functional.quantile_level().is_some()
+        && let Some(response) = result.payload.response_mut()
+    {
+        response.estimate = antecedent_core::ResponseIdentification::PointIdentified(
+            antecedent_core::ResponseValue::Scalar(estimate.ate),
+        );
+        let standard_error = estimate.se_analytic();
+        // An interval needs a usable standard error; a missing or degenerate one
+        // is withheld rather than published as a point-width band.
+        response.uncertainty = if standard_error.is_finite() && standard_error > 0.0 {
+            let half_width = crate::result::reported_se_interval_z() * standard_error;
+            antecedent_core::ResponseUncertainty::Scalar {
+                standard_error,
+                lower: estimate.ate - half_width,
+                upper: estimate.ate + half_width,
                 level: 0.95,
                 interpretation: antecedent_core::IntervalInterpretation::Confidence,
                 draws: None,
-            };
-        }
+            }
+        } else {
+            antecedent_core::ResponseUncertainty::None
+        };
     }
     result.estimate = crate::PrimaryEstimate::Effect(estimate);
     result.rebind_interval(result.posterior.is_some());
-    result.diagnostics.extend(diagnostics);
+    // Reports on the pre-overlay estimate cannot certify this new target.
+    // The outer prepared boundary issues a fresh owner after the overlay.
+    if !result.view.refutations.is_empty() {
+        result.view.refutations.clear();
+        result.view.diagnostics.push(antecedent_core::Diagnostic::new(
+            "refute.score_functional.withheld",
+            antecedent_core::DiagnosticKind::Scientific,
+            antecedent_core::DiagnosticSeverity::Info,
+            "refutations of the pre-overlay estimate are withheld for the score-derived target",
+        ));
+    }
+    result.view.diagnostics.extend(diagnostics);
+    result.authority = crate::result::RuntimeRefutationAuthority::Fresh;
     Ok(())
 }
 
@@ -149,14 +175,18 @@ pub(super) fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalEr
         // posterior identification cache is built.
         match (&analysis.data, &analysis.query) {
             (DataInput::Tabular(_), CausalQuery::Response(query)) => {
-                crate::analysis::execute::graph_posterior_response_supported(query)?;
+                // A derivative or multi-coordinate level is answered atom by atom, and each
+                // atom's executor states its own refusals.
+                if !crate::analysis::execute::atom_route_response(query) {
+                    crate::analysis::execute::graph_posterior_response_supported(query)?;
+                }
             }
             (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(query))
-                if matches!(analysis.inference, InferenceMode::Frequentist)
+                if matches!(analysis.settings.inference, InferenceMode::Frequentist)
                     && query.horizons.len() != 1 =>
             {
                 return Err(CausalError::Unsupported {
-                    message: "Frequentist DBN-posterior mediation is licensed for one horizon; \
+                    message: "Frequentist DBN-posterior mediation is supported for one horizon; \
                               multi-horizon grids need their own joint uncertainty contract",
                 });
             }
@@ -170,7 +200,16 @@ pub(super) fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalEr
                 DataInput::Tabular(_),
                 CausalQuery::AverageEffect(_)
                 | CausalQuery::Response(_)
-                | CausalQuery::ConditionalEffect(_),
+                | CausalQuery::ConditionalEffect(_)
+                | CausalQuery::Transport(_)
+                | CausalQuery::Interference(_)
+                | CausalQuery::Mediation(_)
+                | CausalQuery::PathSpecific(_)
+                | CausalQuery::NestedCounterfactual(_)
+                | CausalQuery::Counterfactual(_)
+                | CausalQuery::Distribution(_)
+                | CausalQuery::AnomalyAttribution(_)
+                | CausalQuery::ChangeAttribution(_),
             )
             | (
                 DataInput::Temporal(_) | DataInput::Event(_),
@@ -180,30 +219,34 @@ pub(super) fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalEr
                 | CausalQuery::NestedCounterfactual(_)
                 | CausalQuery::PathSpecific(_)
                 | CausalQuery::Counterfactual(_)
-                | CausalQuery::Distribution(_),
+                | CausalQuery::Distribution(_)
+                | CausalQuery::AnomalyAttribution(_)
+                | CausalQuery::ChangeAttribution(_),
             ) => Ok(()),
-            _ => Err(crate::support_reason!(
-                "data_modality_not_licensed",
-                "graph_posterior on the prepared handle is licensed only for tabular \
-                 AverageEffect/Response/ConditionalEffect and series TemporalEffect, \
-                 TemporalMediationEffect, or temporal Response"
+            _ => Err(crate::unsupported_reason!(
+                "data_modality_not_supported",
+                "graph_posterior on the prepared handle is supported only for tabular \
+                 AverageEffect/Response/ConditionalEffect/Transport/Interference/Mediation/\
+                 PathSpecific/NestedCounterfactual/Counterfactual/Anomaly and Change \
+                 attribution and series \
+                 TemporalEffect, TemporalMediationEffect, or temporal Response"
             )),
         };
     }
     let modality = crate::analysis::execute::data_modality(&analysis.data);
     let Some(rule) = prepared_rule(&analysis.query, modality) else {
-        return Err(unlicensed_combination());
+        return Err(unsupported_combination());
     };
     if !rule.admits(analysis.graph.class(), analysis.structure_source) {
         return Err(rule.refusal());
     }
     if let DataInput::Panel(panel) = &analysis.data {
-        crate::analysis::builder::refuse_unlicensed_panel_route(
+        crate::analysis::builder::refuse_unsupported_panel_route(
             &analysis.query,
             analysis.graph.class(),
-            &analysis.inference,
+            &analysis.settings.inference,
             panel,
-            analysis.split.as_ref(),
+            analysis.declared.split.as_ref(),
         )?;
     }
     Ok(())

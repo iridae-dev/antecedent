@@ -4,4 +4,4 @@
 
 ## Expected summary
 
-Top-level keys: `estimator, formula, identifier, notes, tolerance, true_effect` (6 fields).
+Top-level keys: `estimator, evidence_kind, evidence_proposition, evidence_roles, evidence_source, formula, identifier, limitations, notes, oracle, tolerance, true_effect` (12 fields).

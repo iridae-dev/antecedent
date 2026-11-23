@@ -37,15 +37,16 @@
 //! closed form `theta = b / c` (`b` pairs with the case exposed, `c` with the
 //! control exposed).
 //!
-//! # Inference claim: point only
+//! # Inference
 //!
-//! No interval is reported. A Wald interval `beta_hat +- z / sqrt(I(beta_hat))`
-//! would rest on asymptotics (many informative sets, bounded set size, a fixed
-//! `beta`, independent sets given the matching) that this cell neither checks nor
-//! measures, so the interval route is closed with a typed refusal until a coverage
-//! record exists.
+//! The Wald interval `beta_hat +- z / sqrt(I(beta_hat))` on the log scale, exponentiated
+//! for the odds ratio, is reported with the observed information at the maximizer. It rests
+//! on asymptotics (many informative sets, bounded set size, a fixed `beta`, independent
+//! sets given the matching); its calibration status is an annotation resolved from the
+//! coverage records and never a gate. With 1:1 matching `I = b c / (b + c)`, so the log-scale
+//! variance is the closed form `1/b + 1/c`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::EstimationError;
 use crate::util::refuse;
@@ -84,13 +85,15 @@ pub struct MatchedSetCounts {
     pub singleton: usize,
 }
 
-/// The conditional odds ratio from matched sets, point only.
+/// The conditional odds ratio from matched sets, with its observed information.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ConditionalOddsRatio {
     /// Conditional maximum likelihood estimate of `beta = log(theta)`.
     pub log_odds_ratio: f64,
     /// `exp(log_odds_ratio)`.
     pub odds_ratio: f64,
+    /// Observed (= expected) information `I(beta_hat)` of the conditional likelihood.
+    pub information: f64,
     /// What every declared set contributed.
     pub counts: MatchedSetCounts,
 }
@@ -105,7 +108,7 @@ pub fn parse_matched_sampling(name: &str) -> Result<(), EstimationError> {
     } else {
         Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "matched_case_control.sampling_design",
+            antecedent_core::reason_details::matched_case_control::SAMPLING_DESIGN,
             &format!(
                 "sampling '{name}' is not the declared design; the cell takes matched sets \
                  sampled on the outcome ('{MATCHED_SAMPLING}')"
@@ -127,32 +130,46 @@ pub fn parse_matched_estimand(name: &str) -> Result<(), EstimationError> {
         MATCHED_ESTIMAND => Ok(()),
         "population_risk" | "absolute_risk" | "risk_difference" | "risk_ratio" => Err(refuse(
             antecedent_core::reason_code!("effect_not_identified"),
-            "matched_case_control.absolute_risk_not_identified",
+            antecedent_core::reason_details::matched_case_control::ABSOLUTE_RISK_NOT_IDENTIFIED,
             &format!(
                 "'{name}' is not identified from matched sets sampled on the outcome: the case \
                  fraction is fixed by design, so absolute risks need outcome prevalence or \
                  selection information this cell does not take; only the conditional odds \
-                 ratio is licensed"
+                 ratio is supported"
             ),
         )),
         other => Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "matched_case_control.estimand_not_supported",
-            &format!("estimand '{other}' is not licensed; only '{MATCHED_ESTIMAND}' is"),
+            antecedent_core::reason_details::matched_case_control::ESTIMAND_NOT_SUPPORTED,
+            &format!("estimand '{other}' is not supported; only '{MATCHED_ESTIMAND}' is"),
         )),
     }
 }
 
-/// The refusal of the closed interval route: the point is kept, no interval exists.
-#[must_use]
-pub fn refuse_matched_interval() -> EstimationError {
-    refuse(
-        antecedent_core::reason_code!("cell_not_licensed"),
-        "matched_case_control.interval_withheld",
-        "no interval is reported: a Wald interval needs asymptotic conditions (many informative \
-         sets, bounded set size, a fixed odds ratio) that no coverage record has measured; the \
-         point estimate is retained",
-    )
+impl ConditionalOddsRatio {
+    /// Standard error of the log odds ratio, `1 / sqrt(I(beta_hat))`.
+    #[must_use]
+    pub fn log_standard_error(&self) -> f64 {
+        self.information.recip().sqrt()
+    }
+
+    /// Equal-tailed Wald interval of the log odds ratio at `level`; `None` for a level outside
+    /// `(0, 1)` or a non-positive information.
+    #[must_use]
+    pub fn log_odds_ratio_interval(&self, level: f64) -> Option<(f64, f64)> {
+        if !(level > 0.0 && level < 1.0 && self.information.is_finite() && self.information > 0.0) {
+            return None;
+        }
+        let half =
+            antecedent_stats::special::normal_ppf(0.5 + level / 2.0) * self.log_standard_error();
+        Some((self.log_odds_ratio - half, self.log_odds_ratio + half))
+    }
+
+    /// The log-scale Wald interval exponentiated: the interval of the conditional odds ratio.
+    #[must_use]
+    pub fn odds_ratio_interval(&self, level: f64) -> Option<(f64, f64)> {
+        self.log_odds_ratio_interval(level).map(|(lo, hi)| (lo.exp(), hi.exp()))
+    }
 }
 
 /// Accumulated informative sets of one `(n, k, t)` type.
@@ -205,7 +222,7 @@ fn cancelled(ctx: &ExecutionContext) -> Result<(), EstimationError> {
     if ctx.cancellation.is_cancelled() {
         Err(refuse(
             antecedent_core::reason_code!("transport_budget_cancel"),
-            "matched_case_control.budget",
+            antecedent_core::reason_details::matched_case_control::BUDGET,
             "conditional odds ratio solve cancelled; no estimate is reported, which is not a \
              verdict on the data",
         ))
@@ -253,7 +270,7 @@ fn classify(
     let invalid = |message: &str| {
         refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "matched_case_control.invalid_data",
+            antecedent_core::reason_details::matched_case_control::INVALID_DATA,
             message,
         )
     };
@@ -307,7 +324,7 @@ fn classify(
     if counts.informative == 0 {
         return Err(refuse(
             antecedent_core::reason_code!("effect_not_identified"),
-            "matched_case_control.no_informative_sets",
+            antecedent_core::reason_details::matched_case_control::NO_INFORMATIVE_SETS,
             &format!(
                 "none of the {} matched sets is informative ({} outcome-degenerate, {} exposure-\
                  concordant): concordant sets carry no information about the odds ratio",
@@ -321,7 +338,7 @@ fn classify(
 fn not_finite(informative: usize, which: &str) -> EstimationError {
     refuse(
         antecedent_core::reason_code!("route_not_supported"),
-        "matched_case_control.estimate_not_finite",
+        antecedent_core::reason_details::matched_case_control::ESTIMATE_NOT_FINITE,
         &format!(
             "the conditional likelihood is monotone in the log odds ratio over the {informative} \
              informative sets ({which}): the maximum likelihood estimate does not exist"
@@ -408,7 +425,13 @@ pub fn conditional_odds_ratio(
         ));
     }
     let beta = solve_log_odds_ratio(&sets.types, informative, ctx)?;
-    Ok(ConditionalOddsRatio { log_odds_ratio: beta, odds_ratio: beta.exp(), counts: sets.counts })
+    let (_, information) = score_information(&sets.types, beta);
+    Ok(ConditionalOddsRatio {
+        log_odds_ratio: beta,
+        odds_ratio: beta.exp(),
+        information,
+        counts: sets.counts,
+    })
 }
 
 #[cfg(test)]

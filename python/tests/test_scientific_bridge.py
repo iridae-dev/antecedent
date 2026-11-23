@@ -23,10 +23,12 @@ import sys
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import measurement_models as mm
 from antecedent import scientific_bridge as sb
 from antecedent.errors import CausalTypeError, CausalValueError
 from antecedent.joint_distribution import ScientificQuantity
+from antecedent.outcomes import require_success
 from antecedent.scientific_bridge import ScientificBridgeRefusal
 
 from _refusal import assert_registered_refusal
@@ -78,12 +80,14 @@ def assert_refusal(error, code, detail):
     assert_registered_refusal(error)
     assert error.reason_code == code, (error.reason_code, str(error))
     assert error.detail == detail, (error.detail, str(error))
-    assert error.remedy, "a refusal states what would license the request"
+    assert error.remedy, "a refusal states what would support the request"
 
 
 def refused(call, code, detail):
     with pytest.raises(ScientificBridgeRefusal) as caught:
-        call()
+        # A refused operation returns a typed refusal Outcome; require_success
+        # re-raises that same refusal so its code, detail and remedy are asserted.
+        require_success(call())
     assert_refusal(caught.value, code, detail)
     return caught.value
 
@@ -142,7 +146,7 @@ def correction_contract(model=None, *, source_class="measured_outcome", **overri
     return sb.BridgeContract(**fields)
 
 
-# --------------------------------------------------------------------------- licensed bridges
+# --------------------------------------------------------------------------- supported bridges
 
 
 def test_the_surrogate_bridge_is_the_numpy_trial_level_regression():
@@ -155,7 +159,7 @@ def test_the_surrogate_bridge_is_the_numpy_trial_level_regression():
 
     bridge = sb.prepare_scientific_bridge(surrogate_contract())
     source = surrogate_source(0.8)
-    claim = bridge.derive(source)
+    claim = require_success(bridge.derive(source))
 
     assert claim.value == pytest.approx(intercept + slope * 0.8, abs=1e-12)
     assert claim.value == pytest.approx(0.796, abs=1e-12)
@@ -189,11 +193,11 @@ def test_the_surrogate_bridge_is_the_numpy_trial_level_regression():
 
 def test_the_derivation_is_deterministic_and_the_identity_binds_the_source_claim():
     bridge = sb.prepare_scientific_bridge(surrogate_contract())
-    first = bridge.derive(surrogate_source(0.8))
-    again = bridge.derive(surrogate_source(0.8))
+    first = require_success(bridge.derive(surrogate_source(0.8)))
+    again = require_success(bridge.derive(surrogate_source(0.8)))
     assert (first.claim_id, first.value) == (again.claim_id, again.value)
     # A different source claim at the same value is a different derived claim under one contract.
-    other = bridge.derive(surrogate_source(0.8, label="another-claim"))
+    other = require_success(bridge.derive(surrogate_source(0.8, label="another-claim")))
     assert other.claim_id != first.claim_id
     assert other.contract_identity == first.contract_identity
     assert other.value == first.value
@@ -219,7 +223,7 @@ def test_a_measured_prevalence_is_the_latent_prevalence_only_through_the_model()
 
     bridge = sb.prepare_scientific_bridge(correction_contract())
     source = sb.SourceClaim.declared("flag-prevalence", recorded, prevalence("schema:flag"))
-    latent = bridge.derive(source)
+    latent = require_success(bridge.derive(source))
     assert latent.value == pytest.approx(expected, abs=1e-12)
     assert abs(latent.value - recorded) > 0.1, "the measured value is not the construct"
     assert latent.mapping == "measurement_correction"
@@ -228,12 +232,16 @@ def test_a_measured_prevalence_is_the_latent_prevalence_only_through_the_model()
     # The forward map recovers the recorded prevalence: the algebra p* = Se pi + (1 - Sp)(1 - pi).
     forward = sb.prepare_scientific_bridge(correction_contract(source_class="latent_construct"))
     pi = 0.5
-    back = forward.derive(
-        sb.SourceClaim.declared("latent-prevalence", pi, prevalence("construct:disease"))
+    back = require_success(
+        forward.derive(
+            sb.SourceClaim.declared("latent-prevalence", pi, prevalence("construct:disease"))
+        )
     )
     assert back.value == pytest.approx(sensitivity * pi + (1 - specificity) * (1 - pi), abs=1e-12)
-    exact = forward.derive(
-        sb.SourceClaim.declared("latent-from-bridge", expected, prevalence("construct:disease"))
+    exact = require_success(
+        forward.derive(
+            sb.SourceClaim.declared("latent-from-bridge", expected, prevalence("construct:disease"))
+        )
     )
     assert exact.value == pytest.approx(recorded, abs=1e-12)
 
@@ -260,7 +268,7 @@ def enumerated_confounded_truth():
     return association, standardized[1] - standardized[0]
 
 
-def predictive_contract(assumptions=()):
+def predictive_contract(assumptions=(), source_class="predictive_quantity"):
     return sb.BridgeContract(
         kind="predictive_causal_quantity",
         source=outcome(
@@ -270,7 +278,7 @@ def predictive_contract(assumptions=()):
             regime="observational",
             functional="contrast",
         ),
-        source_class="predictive_quantity",
+        source_class=source_class,
         target=outcome(
             "cohort:y",
             units="probability",
@@ -285,6 +293,18 @@ def predictive_contract(assumptions=()):
     )
 
 
+def test_an_associational_quantity_is_never_a_causal_quantity_without_an_identification():
+    assert "associational_quantity" in sb.QUANTITY_CLASSES
+    error = refused(
+        lambda: sb.prepare_scientific_bridge(
+            predictive_contract(source_class="associational_quantity")
+        ),
+        "bridge_substitution_refused",
+        reason_details.scientific_bridge.ASSOCIATION_AS_INTERVENTION,
+    )
+    assert "associational_quantity" in error.message
+
+
 def test_an_association_is_a_causal_quantity_only_under_a_named_identification():
     association, effect = enumerated_confounded_truth()
     assert association == pytest.approx(0.54, abs=1e-12)
@@ -293,7 +313,7 @@ def test_an_association_is_a_causal_quantity_only_under_a_named_identification()
     error = refused(
         lambda: sb.prepare_scientific_bridge(predictive_contract()),
         "bridge_substitution_refused",
-        "scientific_bridge.association_as_intervention",
+        reason_details.scientific_bridge.ASSOCIATION_AS_INTERVENTION,
     )
     assert association - effect == pytest.approx(0.24, abs=1e-12)  # the wrong number refused
     assert "predictive_quantity" in error.message
@@ -318,7 +338,7 @@ def test_an_association_is_a_causal_quantity_only_under_a_named_identification()
             functional="contrast",
         ),
     )
-    claim = bridge.derive(source)
+    claim = require_success(bridge.derive(source))
     assert claim.value == pytest.approx(effect, abs=1e-12)
     assert claim.mapping == "identity"
 
@@ -355,11 +375,11 @@ def test_stated_parameter_and_utility_bridges_have_closed_form_values():
             ),
         ),
     )
-    value = (
-        sb.prepare_scientific_bridge(preference)
-        .derive(sb.SourceClaim.declared("stated", 0.5, stated))
-        .value
-    )
+    value = require_success(
+        sb.prepare_scientific_bridge(preference).derive(
+            sb.SourceClaim.declared("stated", 0.5, stated)
+        )
+    ).value
     assert value == pytest.approx(0.6 * 0.5, abs=1e-12)
 
     parameter = outcome(
@@ -392,11 +412,11 @@ def test_stated_parameter_and_utility_bridges_have_closed_form_values():
             ),
         ),
     )
-    value = (
-        sb.prepare_scientific_bridge(contrast)
-        .derive(sb.SourceClaim.declared("coefficient", 2.5, parameter))
-        .value
-    )
+    value = require_success(
+        sb.prepare_scientific_bridge(contrast).derive(
+            sb.SourceClaim.declared("coefficient", 2.5, parameter)
+        )
+    ).value
     assert value == pytest.approx(2.5 * 0.4, abs=1e-12)
 
     endpoint = outcome("trial:qaly", units="qaly", population="adults", functional="average_effect")
@@ -421,11 +441,11 @@ def test_stated_parameter_and_utility_bridges_have_closed_form_values():
             ),
         ),
     )
-    value = (
-        sb.prepare_scientific_bridge(priced)
-        .derive(sb.SourceClaim.declared("qaly-gain", 0.3, endpoint))
-        .value
-    )
+    value = require_success(
+        sb.prepare_scientific_bridge(priced).derive(
+            sb.SourceClaim.declared("qaly-gain", 0.3, endpoint)
+        )
+    ).value
     assert value == pytest.approx(0.3 * 30_000.0, rel=1e-12)
 
 
@@ -437,7 +457,7 @@ def test_the_six_named_substitutions_are_refused_with_registered_codes_and_remed
     refused(
         lambda: sb.prepare_scientific_bridge(correction_contract(assumptions=())),
         "proxy_offered_as_construct",
-        "scientific_bridge.proxy_as_construct",
+        reason_details.scientific_bridge.PROXY_AS_CONSTRUCT,
     )
     # stated preference as realized behavior
     stated = outcome(
@@ -467,7 +487,7 @@ def test_the_six_named_substitutions_are_refused_with_registered_codes_and_remed
             )
         ),
         "bridge_substitution_refused",
-        "scientific_bridge.stated_preference_as_realized_behavior",
+        reason_details.scientific_bridge.STATED_PREFERENCE_AS_REALIZED_BEHAVIOR,
     )
     # scientific endpoint as utility
     endpoint = outcome("trial:qaly", units="qaly", population="adults", functional="average_effect")
@@ -491,7 +511,7 @@ def test_the_six_named_substitutions_are_refused_with_registered_codes_and_remed
             )
         ),
         "bridge_substitution_refused",
-        "scientific_bridge.scientific_endpoint_as_utility",
+        reason_details.scientific_bridge.SCIENTIFIC_ENDPOINT_AS_UTILITY,
     )
     # predictive importance as causal effect and model score as probability: closed whatever is
     # declared
@@ -527,7 +547,7 @@ def test_the_six_named_substitutions_are_refused_with_registered_codes_and_remed
             )
         ),
         "bridge_substitution_refused",
-        "scientific_bridge.predictive_importance_as_causal_effect",
+        reason_details.scientific_bridge.PREDICTIVE_IMPORTANCE_AS_CAUSAL_EFFECT,
     )
     score = outcome(
         "m:score", units="score", population="registry", regime="observational", functional="mean"
@@ -553,7 +573,7 @@ def test_the_six_named_substitutions_are_refused_with_registered_codes_and_remed
             )
         ),
         "bridge_substitution_refused",
-        "scientific_bridge.model_score_as_probability",
+        reason_details.scientific_bridge.MODEL_SCORE_AS_PROBABILITY,
     )
 
 
@@ -562,7 +582,7 @@ def test_a_missing_assumption_and_an_assumption_naming_no_evidence_are_refused()
     refused(
         lambda: sb.prepare_scientific_bridge(contract),
         "bridge_assumption_missing",
-        "scientific_bridge.assumption_missing",
+        reason_details.scientific_bridge.ASSUMPTION_MISSING,
     )
     anonymous = surrogate_contract(
         assumptions=(sb.Assumption("validation", "surrogate_validation", "validated"),)
@@ -570,7 +590,7 @@ def test_a_missing_assumption_and_an_assumption_naming_no_evidence_are_refused()
     refused(
         lambda: sb.prepare_scientific_bridge(anonymous),
         "bridge_assumption_missing",
-        "scientific_bridge.assumption_evidence_missing",
+        reason_details.scientific_bridge.ASSUMPTION_EVIDENCE_MISSING,
     )
 
 
@@ -582,7 +602,7 @@ def test_value_kinds_are_not_interchangeable():
         error = refused(
             lambda contract=contract: sb.prepare_scientific_bridge(contract),
             "bridge_substitution_refused",
-            "scientific_bridge.value_kind_substitution",
+            reason_details.scientific_bridge.VALUE_KIND_SUBSTITUTION,
         )
         assert held in error.message and requested in error.message
     # A law held and required as itself has no bridge route.
@@ -590,17 +610,19 @@ def test_value_kinds_are_not_interchangeable():
         contract = surrogate_contract(source_value=kind, target_value=kind)
         refused(
             lambda contract=contract: sb.prepare_scientific_bridge(contract),
-            "cell_not_licensed",
-            "scientific_bridge.value_kind_not_carried",
+            "bridge_mapping_not_supported",
+            reason_details.scientific_bridge.VALUE_KIND_NOT_CARRIED,
         )
     # A consumer that requires a law from a bridged mean is refused.
-    claim = sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
+    claim = require_success(
+        sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
+    )
     claim.require_value_kind("mean")
     for needed in ("predictive_law", "posterior", "identified_set", "joint_outcome_law"):
         refused(
             lambda needed=needed: claim.require_value_kind(needed),
             "bridge_substitution_refused",
-            "scientific_bridge.value_kind_substitution",
+            reason_details.scientific_bridge.VALUE_KIND_SUBSTITUTION,
         )
 
 
@@ -614,7 +636,7 @@ def test_population_regime_and_the_claimed_quantity_must_agree():
     refused(
         lambda: sb.prepare_scientific_bridge(other_population),
         "bridge_binding_mismatch",
-        "scientific_bridge.population_mismatch",
+        reason_details.scientific_bridge.POPULATION_MISMATCH,
     )
     other_regime = surrogate_contract(
         target=outcome("trial:survival", units="log_hazard", regime="do(t=2)")
@@ -622,7 +644,7 @@ def test_population_regime_and_the_claimed_quantity_must_agree():
     refused(
         lambda: sb.prepare_scientific_bridge(other_regime),
         "bridge_binding_mismatch",
-        "scientific_bridge.regime_mismatch",
+        reason_details.scientific_bridge.REGIME_MISMATCH,
     )
     wrong = sb.SourceClaim.declared(
         "another-variable",
@@ -630,9 +652,9 @@ def test_population_regime_and_the_claimed_quantity_must_agree():
         outcome("trial:other", units="mmol_per_l"),
     )
     refused(
-        lambda: bridge.derive(wrong),
+        lambda: require_success(bridge.derive(wrong)),
         "bridge_binding_mismatch",
-        "scientific_bridge.quantity_mismatch",
+        reason_details.scientific_bridge.QUANTITY_MISMATCH,
     )
     other_units = sb.SourceClaim(
         claim_id=surrogate_source().claim_id,
@@ -642,12 +664,16 @@ def test_population_regime_and_the_claimed_quantity_must_agree():
         identities=surrogate_source().identities,
     )
     refused(
-        lambda: bridge.derive(other_units),
+        lambda: require_success(bridge.derive(other_units)),
         "bridge_binding_mismatch",
-        "scientific_bridge.units_mismatch",
+        reason_details.scientific_bridge.UNITS_MISMATCH,
     )
     law = sb.SourceClaim.declared("a-law", None, contract.source, kind="mixture")
-    refused(lambda: bridge.derive(law), "cell_not_licensed", "scientific_bridge.source_not_point")
+    refused(
+        lambda: require_success(bridge.derive(law)),
+        "bridge_mapping_not_supported",
+        reason_details.scientific_bridge.SOURCE_NOT_POINT,
+    )
 
 
 def test_a_transported_bridge_names_its_premise_or_is_refused():
@@ -655,7 +681,7 @@ def test_a_transported_bridge_names_its_premise_or_is_refused():
     error = refused(
         lambda: sb.prepare_scientific_bridge(children),
         "bridge_assumption_missing",
-        "scientific_bridge.transport_premise_missing",
+        reason_details.scientific_bridge.TRANSPORT_PREMISE_MISSING,
     )
     assert "adults" in error.message and "children" in error.message
 
@@ -666,10 +692,10 @@ def test_a_transported_bridge_names_its_premise_or_is_refused():
         applies_to=sb.Scope("children", "do(t=1)"),
         evidence="selection-diagram:pediatric",
     )
-    licensed = surrogate_contract(population="children", transport=premise)
-    bridge = sb.prepare_scientific_bridge(licensed)
+    supported = surrogate_contract(population="children", transport=premise)
+    bridge = sb.prepare_scientific_bridge(supported)
     assert bridge.transported
-    claim = bridge.derive(surrogate_source(0.8, population="children"))
+    claim = require_success(bridge.derive(surrogate_source(0.8, population="children")))
     assert claim.transported and claim.value == pytest.approx(0.796, abs=1e-12)
     assert claim.transportability_premise == "same-surrogate-relationship"
     assert "transportability:same-surrogate-relationship" in claim.unresolved
@@ -685,7 +711,7 @@ def test_a_transported_bridge_names_its_premise_or_is_refused():
             surrogate_contract(population="children", transport=wrong)
         ),
         "bridge_binding_mismatch",
-        "scientific_bridge.transport_premise_mismatch",
+        reason_details.scientific_bridge.TRANSPORT_PREMISE_MISMATCH,
     )
 
 
@@ -693,42 +719,46 @@ def test_validation_minimums_and_the_validated_range_are_enforced():
     source_quantity = outcome("trial:biomarker", units="mmol_per_l")
     refused(
         lambda: sb.prepare_scientific_bridge(surrogate_contract(min_trials=5)),
-        "bridge_mapping_not_licensed",
-        "scientific_bridge.validation_trials_too_few",
+        "bridge_mapping_not_supported",
+        reason_details.scientific_bridge.VALIDATION_TRIALS_TOO_FEW,
     )
     refused(
         lambda: sb.prepare_scientific_bridge(surrogate_contract(min_r_squared=0.995)),
-        "bridge_mapping_not_licensed",
-        "scientific_bridge.validation_r_squared_too_low",
+        "bridge_mapping_not_supported",
+        reason_details.scientific_bridge.VALIDATION_R_SQUARED_TOO_LOW,
     )
     bridge = sb.prepare_scientific_bridge(surrogate_contract())
     for inside, expected in ((0.0, 0.06), (1.5, 1.44)):
-        value = bridge.derive(
-            sb.SourceClaim.declared(f"edge-{inside}", inside, source_quantity)
+        value = require_success(
+            bridge.derive(sb.SourceClaim.declared(f"edge-{inside}", inside, source_quantity))
         ).value
         assert value == pytest.approx(expected, abs=1e-12)
     for beyond in (-0.01, 1.51, 3.0):
         refused(
-            lambda beyond=beyond: bridge.derive(
-                sb.SourceClaim.declared(f"beyond-{beyond}", beyond, source_quantity)
+            lambda beyond=beyond: require_success(
+                bridge.derive(sb.SourceClaim.declared(f"beyond-{beyond}", beyond, source_quantity))
             ),
-            "bridge_mapping_not_licensed",
-            "scientific_bridge.outside_validated_range",
+            "bridge_mapping_not_supported",
+            reason_details.scientific_bridge.OUTSIDE_VALIDATED_RANGE,
         )
     # Recorded prevalences outside [1 - Sp, Se] cannot arise from any latent prevalence.
     correction = sb.prepare_scientific_bridge(correction_contract())
     for impossible in (0.05, 0.95):
         refused(
-            lambda impossible=impossible: correction.derive(
-                sb.SourceClaim.declared(f"p-{impossible}", impossible, prevalence("schema:flag"))
+            lambda impossible=impossible: require_success(
+                correction.derive(
+                    sb.SourceClaim.declared(
+                        f"p-{impossible}", impossible, prevalence("schema:flag")
+                    )
+                )
             ),
-            "bridge_mapping_not_licensed",
-            "scientific_bridge.outside_attainable_range",
+            "bridge_mapping_not_supported",
+            reason_details.scientific_bridge.OUTSIDE_ATTAINABLE_RANGE,
         )
     refused(
         lambda: sb.prepare_scientific_bridge(correction_contract(clinic_model(0.55, 0.5, 0.1))),
         "measurement_not_identified",
-        "scientific_bridge.youden_too_small",
+        reason_details.scientific_bridge.YOUDEN_TOO_SMALL,
     )
 
 
@@ -748,7 +778,7 @@ def test_malformed_declarations_are_input_errors_before_native_code():
     with pytest.raises(CausalTypeError):
         sb.prepare_scientific_bridge("not a contract")
     with pytest.raises(CausalTypeError):
-        sb.prepare_scientific_bridge(surrogate_contract()).derive("not a claim")
+        require_success(sb.prepare_scientific_bridge(surrogate_contract()).derive("not a claim"))
     with pytest.raises(CausalValueError):
         sb.Assumption("x", "not_a_kind", "statement")
 
@@ -759,76 +789,95 @@ def test_malformed_declarations_are_input_errors_before_native_code():
 def test_a_refused_derivation_or_replacement_leaves_the_prepared_bridge_unchanged():
     bridge = sb.prepare_scientific_bridge(surrogate_contract())
     identity = bridge.contract_identity
-    before = bridge.derive(surrogate_source(0.8))
+    before = require_success(bridge.derive(surrogate_source(0.8)))
 
     # A refreshed source about the same quantity recomputes under the same contract.
-    refreshed = bridge.derive(surrogate_source(1.0, label="refreshed"))
+    refreshed = require_success(bridge.derive(surrogate_source(1.0, label="refreshed")))
     assert refreshed.contract_identity == identity
     assert refreshed.value == pytest.approx(0.06 + 0.92 * 1.0, abs=1e-12)
 
     refused(
-        lambda: bridge.derive(surrogate_source(2.0, label="beyond")),
-        "bridge_mapping_not_licensed",
-        "scientific_bridge.outside_validated_range",
+        lambda: require_success(bridge.derive(surrogate_source(2.0, label="beyond"))),
+        "bridge_mapping_not_supported",
+        reason_details.scientific_bridge.OUTSIDE_VALIDATED_RANGE,
     )
     refused(
         lambda: bridge.with_contract(surrogate_contract(min_r_squared=0.995)),
-        "bridge_mapping_not_licensed",
-        "scientific_bridge.validation_r_squared_too_low",
+        "bridge_mapping_not_supported",
+        reason_details.scientific_bridge.VALIDATION_R_SQUARED_TOO_LOW,
     )
     assert bridge.contract_identity == identity
-    after = bridge.derive(surrogate_source(0.8))
+    after = require_success(bridge.derive(surrogate_source(0.8)))
     assert (after.claim_id, after.value) == (before.claim_id, before.value)
 
-    # A licensed replacement is a different bridge with a different identity.
+    # A supported replacement is a different bridge with a different identity.
     replaced = bridge.with_contract(surrogate_contract(min_r_squared=0.95))
     assert replaced.contract_identity != identity
 
 
 def test_a_withdrawn_or_superseded_source_makes_the_bridged_claim_inapplicable():
-    claim = sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
-    current = claim.freshness()
+    claim = require_success(
+        sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
+    )
+    offline = require_success(claim.freshness())
+    assert offline.historically_valid and offline.currently_applicable is None
+    snapshot = claim.source()["data_snapshot"]
+    current = require_success(claim.freshness(current_snapshot=snapshot))
     assert current.historically_valid and current.currently_applicable is True
+    moved = require_success(claim.freshness(current_snapshot="0" * 64))
+    assert moved.currently_applicable is False
     for kwargs in ({"source_withdrawn": True}, {"source_superseded": True}):
-        standing = claim.freshness(**kwargs)
+        standing = require_success(claim.freshness(**kwargs))
         assert standing.currently_applicable is False
         assert standing.historically_valid, "history is preserved, only applicability changes"
 
 
-def test_no_interval_posterior_or_joint_law_is_licensed():
-    claim = sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
-    error = refused(claim.interval, "cell_not_licensed", "scientific_bridge.interval_not_licensed")
+def test_no_interval_posterior_or_joint_law_is_supported():
+    claim = require_success(
+        sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
+    )
+    error = refused(
+        claim.interval,
+        "route_not_supported",
+        reason_details.scientific_bridge.INTERVAL_NOT_SUPPORTED,
+    )
     assert error.stage == "scientific_bridge"
-    consumed = sb.consume_scientific_bridge_artifact(claim.export("closed"))
-    refused(consumed.interval, "cell_not_licensed", "scientific_bridge.interval_not_licensed")
+    consumed = require_success(sb.consume_scientific_bridge_artifact(bytes(claim.export("closed"))))
+    refused(
+        consumed.interval,
+        "route_not_supported",
+        reason_details.scientific_bridge.INTERVAL_NOT_SUPPORTED,
+    )
     refused(
         lambda: consumed.claim.require_value_kind("posterior"),
         "bridge_substitution_refused",
-        "scientific_bridge.value_kind_substitution",
+        reason_details.scientific_bridge.VALUE_KIND_SUBSTITUTION,
     )
 
 
+@pytest.mark.requires_calibration
 def test_a_scoped_interval_needs_the_source_standard_error_and_a_measured_design():
     import math
 
     contract = surrogate_contract()
     quantity = outcome("trial:biomarker", units="mmol_per_l")
     # No source standard error: refused naming it.
-    claim = sb.prepare_scientific_bridge(contract).derive(surrogate_source())
+    claim = require_success(sb.prepare_scientific_bridge(contract).derive(surrogate_source()))
     refused(
         lambda: claim.interval(0.95),
-        "cell_not_licensed",
-        "scientific_bridge.interval_source_uncertainty_required",
+        "required_option_missing",
+        reason_details.scientific_bridge.INTERVAL_SOURCE_UNCERTAINTY_REQUIRED,
     )
-    # Four validation trials are below the measured 15 to 40: refused with the typed reason.
-    claim = sb.prepare_scientific_bridge(contract).derive(
-        sb.SourceClaim.declared("biomarker-effect", 0.8, quantity, standard_error=0.1)
+    # Four validation trials are below the measured 15 to 40: the interval is reported and its
+    # calibration says no current record measured it.
+    claim = require_success(
+        sb.prepare_scientific_bridge(contract).derive(
+            sb.SourceClaim.declared("biomarker-effect", 0.8, quantity, standard_error=0.1)
+        )
     )
-    refused(
-        lambda: claim.interval(0.95),
-        "cell_not_licensed",
-        "scientific_bridge.interval_scope_outside_measured",
-    )
+    reported = require_success(claim.interval(0.95))
+    assert reported.lower < reported.upper
+    assert reported.calibration["status"] != "calibrated"
     # Twenty validation trials, source standard error declared: published, bound to a record.
     trials = [
         (0.5 + 1.5 * i / 19.0, 0.1 + 0.9 * (0.5 + 1.5 * i / 19.0) + 0.1 * math.sin(i))
@@ -837,26 +886,36 @@ def test_a_scoped_interval_needs_the_source_standard_error_and_a_measured_design
     wide = surrogate_contract(
         mapping=sb.TrialLevelMapping(trials=trials, min_trials=4, min_r_squared=0.5)
     )
-    claim = sb.prepare_scientific_bridge(wide).derive(
-        sb.SourceClaim.declared("biomarker-effect", 1.2, quantity, standard_error=0.1)
+    claim = require_success(
+        sb.prepare_scientific_bridge(wide).derive(
+            sb.SourceClaim.declared("biomarker-effect", 1.2, quantity, standard_error=0.1)
+        )
     )
-    interval = claim.interval(0.95)
+    interval = require_success(claim.interval(0.95))
     assert interval.lower < interval.value < interval.upper
-    assert interval.licensed_by == "coverage_record"
+    assert interval.supported_by == "coverage_record"
     assert interval.coverage_record.startswith("cov.bridged_claim_interval.")
     assert interval.degrees_of_freedom == 18.0
     # An unscoped request is still refused.
-    refused(claim.interval, "cell_not_licensed", "scientific_bridge.interval_not_licensed")
+    refused(
+        claim.interval,
+        "route_not_supported",
+        reason_details.scientific_bridge.INTERVAL_NOT_SUPPORTED,
+    )
 
 
 # --------------------------------------------------------------------------- artifact
 
 
 def test_the_artifact_replays_independently_and_refuses_corruption_and_a_wrong_identity():
-    claim = sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
-    exported = claim.artifact("surrogate-bridge")
+    claim = require_success(
+        sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
+    )
+    exported = claim.export("surrogate-bridge")
 
-    consumed = sb.consume_scientific_bridge_artifact(exported.data, exported.expectation.identity)
+    consumed = require_success(
+        sb.consume_scientific_bridge_artifact(exported.data, exported.expectation.identity)
+    )
     assert consumed.identity == exported.expectation.identity
     assert consumed.claim.value == claim.value
     assert consumed.claim.claim_id == claim.claim_id
@@ -871,14 +930,16 @@ def test_the_artifact_replays_independently_and_refuses_corruption_and_a_wrong_i
 
     # Another identity is another artifact.
     refused(
-        lambda: sb.consume_scientific_bridge_artifact(exported.data, "0" * 64),
+        lambda: require_success(sb.consume_scientific_bridge_artifact(exported.data, "0" * 64)),
         "route_not_supported",
-        "scientific_bridge.identity_mismatch",
+        reason_details.scientific_bridge.IDENTITY_MISMATCH,
     )
-    other = sb.prepare_scientific_bridge(surrogate_contract()).derive(
-        surrogate_source(1.0, label="another")
+    other = require_success(
+        sb.prepare_scientific_bridge(surrogate_contract()).derive(
+            surrogate_source(1.0, label="another")
+        )
     )
-    assert other.artifact("another").expectation.identity != exported.expectation.identity
+    assert other.export("another").expectation.identity != exported.expectation.identity
 
     # A flipped byte anywhere in the body, and truncation, are refused.
     for position in (
@@ -889,19 +950,27 @@ def test_the_artifact_replays_independently_and_refuses_corruption_and_a_wrong_i
         damaged = bytearray(exported.data)
         damaged[position] ^= 0xFF
         with pytest.raises(ScientificBridgeRefusal) as caught:
-            sb.consume_scientific_bridge_artifact(bytes(damaged), exported.expectation.identity)
+            require_success(
+                sb.consume_scientific_bridge_artifact(bytes(damaged), exported.expectation.identity)
+            )
         assert_registered_refusal(caught.value)
     with pytest.raises(ScientificBridgeRefusal):
-        sb.consume_scientific_bridge_artifact(exported.data[: len(exported.data) // 3])
+        require_success(
+            sb.consume_scientific_bridge_artifact(exported.data[: len(exported.data) // 3])
+        )
     with pytest.raises(CausalTypeError):
-        sb.consume_scientific_bridge_artifact("not bytes")
+        require_success(sb.consume_scientific_bridge_artifact("not bytes"))
 
 
 def test_a_measurement_correction_artifact_carries_its_model_and_replays():
     bridge = sb.prepare_scientific_bridge(correction_contract())
-    claim = bridge.derive(sb.SourceClaim.declared("flag", 0.31, prevalence("schema:flag")))
-    exported = claim.artifact("flag-bridge")
-    consumed = sb.consume_scientific_bridge_artifact(exported.data, exported.expectation.identity)
+    claim = require_success(
+        bridge.derive(sb.SourceClaim.declared("flag", 0.31, prevalence("schema:flag")))
+    )
+    exported = claim.export("flag-bridge")
+    consumed = require_success(
+        sb.consume_scientific_bridge_artifact(exported.data, exported.expectation.identity)
+    )
     assert consumed.claim.value == pytest.approx(11 / 70, abs=1e-12)
     assert consumed.claim.mapping == "measurement_correction"
     assert consumed.claim.fit is None
@@ -909,14 +978,17 @@ def test_a_measurement_correction_artifact_carries_its_model_and_replays():
 
 
 def test_a_fresh_process_consumes_the_artifact_against_the_retained_identity(tmp_path):
-    claim = sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
-    exported = claim.artifact("fresh")
+    claim = require_success(
+        sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
+    )
+    exported = claim.export("fresh")
     path = tmp_path / "bridge.bin"
     path.write_bytes(exported.data)
     script = (
         "import json, sys\n"
         "from antecedent import scientific_bridge as sb\n"
-        "c = sb.consume_scientific_bridge_artifact(open(sys.argv[1], 'rb').read(), sys.argv[2])\n"
+        "from antecedent.outcomes import require_success\n"
+        "c = require_success(sb.consume_scientific_bridge_artifact(open(sys.argv[1], 'rb').read(), sys.argv[2]))\n"
         "print(json.dumps({'value': c.claim.value, 'claim_id': c.claim.claim_id,\n"
         "                  'slope': c.claim.fit.slope, 'identity': c.identity,\n"
         "                  'transported': c.claim.transported}))\n"
@@ -941,4 +1013,18 @@ def test_a_fresh_process_consumes_the_artifact_against_the_retained_identity(tmp
         cwd=tmp_path,
     )
     assert refused_run.returncode != 0
-    assert "scientific_bridge.identity_mismatch" in refused_run.stderr
+    assert reason_details.scientific_bridge.IDENTITY_MISMATCH in refused_run.stderr
+
+
+def test_misspelled_contract_key_refused():
+    from antecedent import _native
+
+    wire = surrogate_contract().to_wire()
+    wire["correlaton"] = 0.9
+    with pytest.raises(ValueError, match="correlaton"):
+        _native.scientific_bridge_contract_identity(json.dumps(wire))
+    wire.pop("correlaton")
+    wire["assumptions"] = [wire["assumptions"][0]]
+    wire["transport"] = {"id": "t", "statement": "s", "evidence": None, "extra_scope": 1}
+    with pytest.raises(ValueError, match="extra_scope"):
+        _native.scientific_bridge_contract_identity(json.dumps(wire))

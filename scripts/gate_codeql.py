@@ -37,9 +37,7 @@ for lang in ("rust", "python", "actions"):
     path = out / f"{lang}.sarif"
     data = json.loads(path.read_text(encoding="utf-8"))
     for run in data.get("runs", []):
-        run["results"] = [
-            r for r in run.get("results", []) if r.get("ruleId") not in excluded
-        ]
+        run["results"] = [r for r in run.get("results", []) if r.get("ruleId") not in excluded]
     n = sum(len(run.get("results", [])) for run in data.get("runs", []))
     print(f"{lang}: {n} finding(s)")
     total += n

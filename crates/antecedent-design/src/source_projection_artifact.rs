@@ -2,7 +2,7 @@
 //!
 //! These projections replay an original artifact consumer. Their identity binds
 //! the whole original source, exact coordinates and affine decision expression.
-//! They do not authenticate observations, issue native authority, or license
+//! They do not authenticate observations, issue native authority, or support
 //! uncertainty. Native unresolved operations require a separate actual executor.
 
 use antecedent_contract::ScientificQuantity;
@@ -130,7 +130,9 @@ impl SourceProjectionArtifact {
         let mut bytes = MAGIC.to_vec();
         bytes.extend(to_cbor(self).map_err(original_refusal)?);
         if bytes.len() > MAX_SOURCE_PROJECTION_BYTES {
-            return Err(invalid_projection("source_projection.limits_exceeded"));
+            return Err(invalid_projection(
+                antecedent_core::reason_details::source_projection::LIMITS_EXCEEDED,
+            ));
         }
         Ok(bytes)
     }
@@ -139,7 +141,9 @@ impl SourceProjectionArtifact {
     pub fn consume(bytes: &[u8], expected_identity: &str) -> Result<Self, IoError> {
         let artifact = Self::inspect(bytes)?;
         if artifact.identity != expected_identity {
-            return Err(invalid_projection("source_projection.identity_mismatch"));
+            return Err(invalid_projection(
+                antecedent_core::reason_details::source_projection::IDENTITY_MISMATCH,
+            ));
         }
         Ok(artifact)
     }
@@ -148,23 +152,30 @@ impl SourceProjectionArtifact {
     /// The resulting report retains every unresolved original operation.
     pub fn inspect(bytes: &[u8]) -> Result<Self, IoError> {
         if bytes.len() > MAX_SOURCE_PROJECTION_BYTES {
-            return Err(invalid_projection("source_projection.limits_exceeded"));
+            return Err(invalid_projection(
+                antecedent_core::reason_details::source_projection::LIMITS_EXCEEDED,
+            ));
         }
-        let body = bytes
-            .strip_prefix(MAGIC)
-            .ok_or_else(|| invalid_projection("source_projection.invalid_artifact"))?;
-        let artifact: Self = from_cbor(body)
-            .map_err(|_| invalid_projection("source_projection.invalid_artifact"))?;
+        let body = bytes.strip_prefix(MAGIC).ok_or_else(|| {
+            invalid_projection(antecedent_core::reason_details::source_projection::INVALID_ARTIFACT)
+        })?;
+        let artifact: Self = from_cbor(body).map_err(|_| {
+            invalid_projection(antecedent_core::reason_details::source_projection::INVALID_ARTIFACT)
+        })?;
         if artifact.version != 1 || artifact.identity != artifact.recomputed_identity()? {
-            return Err(invalid_projection("source_projection.identity_mismatch"));
+            return Err(invalid_projection(
+                antecedent_core::reason_details::source_projection::IDENTITY_MISMATCH,
+            ));
         }
         if artifact.report != reconstruct(&artifact.source, &artifact.projection)? {
-            return Err(invalid_projection("source_projection.replay_mismatch"));
+            return Err(invalid_projection(
+                antecedent_core::reason_details::source_projection::REPLAY_MISMATCH,
+            ));
         }
         Ok(artifact)
     }
 
-    /// Original source bytes for a separately licensed execution resolver.
+    /// Original source bytes for a separately supported execution resolver.
     #[must_use]
     pub fn original_bytes(&self) -> &[u8] {
         match &self.source {
@@ -228,12 +239,15 @@ fn reconstruct(
             original.contract.clone()
         }
         SourceProjection::CausalContract => {
-            return Err(invalid_projection("source_projection.causal_source_unavailable"));
+            return Err(invalid_projection(
+                antecedent_core::reason_details::source_projection::CAUSAL_SOURCE_UNAVAILABLE,
+            ));
         }
-        SourceProjection::Attestation => original
-            .attestation
-            .clone()
-            .ok_or_else(|| invalid_projection("source_projection.attestation_unavailable"))?,
+        SourceProjection::Attestation => original.attestation.clone().ok_or_else(|| {
+            invalid_projection(
+                antecedent_core::reason_details::source_projection::ATTESTATION_UNAVAILABLE,
+            )
+        })?,
         SourceProjection::QuantityCoordinates => json!({"quantities":original.quantities}),
         SourceProjection::AffineDecision { contract } => affine_output(&original, contract, None)?,
         SourceProjection::AffineFunctional { contract, action_id } => {
@@ -247,22 +261,22 @@ fn reconstruct(
         unresolved: original.unresolved,
         trust: original.trust,
         output,
-        scope: "source-backed semantic/numerical replay; no source authentication, executable authority, unit conversion, distribution or calibration license".into(),
+        scope: "source-backed semantic/numerical replay; no source authentication, executable authority, unit conversion, distribution or calibration support".into(),
     })
 }
 
 fn native_source(bytes: &[u8]) -> Result<OriginalSource, IoError> {
     let evidence = SourceEvidence::from_result(bytes).map_err(original_refusal)?;
     let original = evidence.original_consumption().map_err(original_refusal)?;
-    let response = original
-        .body
-        .response
-        .as_ref()
-        .ok_or_else(|| invalid_projection("source_projection.response_unavailable"))?;
+    let response = original.body.response.as_ref().ok_or_else(|| {
+        invalid_projection(antecedent_core::reason_details::source_projection::RESPONSE_UNAVAILABLE)
+    })?;
     let ResponseIdentificationWire::PointIdentified(ResponseValueWire::Surface { mean, .. }) =
         &response.estimate
     else {
-        return Err(invalid_projection("source_projection.mean_grid_required"));
+        return Err(invalid_projection(
+            antecedent_core::reason_details::source_projection::MEAN_GRID_REQUIRED,
+        ));
     };
     let native_contract = original.contract.as_ref().expect("original checked contract");
     let snapshot = SemanticDigest::from_bytes(native_contract.identities.data_snapshot).to_hex();
@@ -272,7 +286,9 @@ fn native_source(bytes: &[u8]) -> Result<OriginalSource, IoError> {
         || mean.len() != quantities.len()
         || mean.iter().any(|value| !value.is_finite())
     {
-        return Err(invalid_projection("source_projection.mean_binding_mismatch"));
+        return Err(invalid_projection(
+            antecedent_core::reason_details::source_projection::MEAN_BINDING_MISMATCH,
+        ));
     }
     Ok(OriginalSource {
         digest: SemanticDigest::from_bytes(original.artifact_digest).to_hex(),
@@ -294,7 +310,9 @@ fn native_source(bytes: &[u8]) -> Result<OriginalSource, IoError> {
 
 fn external_source(bytes: &[u8]) -> Result<OriginalSource, IoError> {
     if bytes.len() > MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES {
-        return Err(invalid_projection("source_projection.limits_exceeded"));
+        return Err(invalid_projection(
+            antecedent_core::reason_details::source_projection::LIMITS_EXCEEDED,
+        ));
     }
     let mut reader =
         ArtifactReader::open_seek(std::io::Cursor::new(bytes)).map_err(original_refusal)?;
@@ -303,9 +321,13 @@ fn external_source(bytes: &[u8]) -> Result<OriginalSource, IoError> {
         .sections
         .iter()
         .try_fold(0_u64, |total, section| total.checked_add(section.uncompressed_size))
-        .ok_or_else(|| invalid_projection("source_projection.limits_exceeded"))?;
+        .ok_or_else(|| {
+            invalid_projection(antecedent_core::reason_details::source_projection::LIMITS_EXCEEDED)
+        })?;
     if declared > MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES as u64 {
-        return Err(invalid_projection("source_projection.limits_exceeded"));
+        return Err(invalid_projection(
+            antecedent_core::reason_details::source_projection::LIMITS_EXCEEDED,
+        ));
     }
     let meta = reader.load_section("external_claim.meta").map_err(original_refusal)?;
     let metadata: ExternalClaimMetadata = from_cbor(meta.as_bytes()).map_err(original_refusal)?;
@@ -313,7 +335,9 @@ fn external_source(bytes: &[u8]) -> Result<OriginalSource, IoError> {
         ExternalClaimArtifact::from_bytes(bytes, &metadata.identity).map_err(original_refusal)?;
     let identity = &claim.metadata().identity;
     if identity.quantities.len() > 4096 {
-        return Err(invalid_projection("source_projection.limits_exceeded"));
+        return Err(invalid_projection(
+            antecedent_core::reason_details::source_projection::LIMITS_EXCEEDED,
+        ));
     }
     Ok(OriginalSource {
         digest: blake3_hex(bytes),
@@ -343,13 +367,17 @@ fn affine_output(
         || source.quantities.len() > 4096
         || selected.is_some_and(|action| action.len() > 256)
     {
-        return Err(invalid_projection("source_projection.limits_exceeded"));
+        return Err(invalid_projection(
+            antecedent_core::reason_details::source_projection::LIMITS_EXCEEDED,
+        ));
     }
     let contract = contract_from_json(json).map_err(original_refusal)?;
     if contract.actions.len() > 256
         || contract.actions.iter().any(|action| action.inputs.len() > 4096)
     {
-        return Err(invalid_projection("source_projection.limits_exceeded"));
+        return Err(invalid_projection(
+            antecedent_core::reason_details::source_projection::LIMITS_EXCEEDED,
+        ));
     }
     let coordinates = source
         .quantities
@@ -372,9 +400,15 @@ fn affine_output(
         let index = coordinates
             .iter()
             .position(|source| source.require_same_coordinate(quantity).is_ok())
-            .ok_or_else(|| invalid_projection("source_projection.coordinate_mismatch"))?;
+            .ok_or_else(|| {
+                invalid_projection(
+                    antecedent_core::reason_details::source_projection::COORDINATE_MISMATCH,
+                )
+            })?;
         if !source.supported[index] {
-            return Err(invalid_projection("source_projection.unsupported_coordinate"));
+            return Err(invalid_projection(
+                antecedent_core::reason_details::source_projection::UNSUPPORTED_COORDINATE,
+            ));
         }
     }
     let means = MeanSource {
@@ -384,6 +418,7 @@ fn affine_output(
         snapshot_id: source.snapshot.clone(),
         causal_contract_id: source.digest.clone(),
         rng_id: "no_sampling".into(),
+        estimate: crate::decision_eval::MeanEstimate::Frequentist,
     };
     if let Some(action_id) = selected {
         return affine_functional_output(&contract, action_id, means, &source.supported);
@@ -395,7 +430,7 @@ fn affine_output(
         })?;
     Ok(json!({"contract_identity":result.contract_identity,"utility_units":contract.utility_units,
         "actions":result.actions.iter().map(|action| json!({"id":action.id,"expected_utility":action.expected_utility,"criterion_value":action.value,"standard_error":action.standard_error})).collect::<Vec<_>>(),
-        "point_only":true,"calibration":"unmeasured","caller_declared_utility_units":true}))
+        "point_only":true,"calibration":"not_measured","caller_declared_utility_units":true}))
 }
 
 fn affine_functional_output(
@@ -440,7 +475,7 @@ fn affine_functional_output(
         json!({"contract_identity":contract.identity().map_err(|cause| IoError::Refused { code:antecedent_core::reason_code!("decision_contract_unsatisfied"),message:format!("source_projection.affine_contract_refused: {cause:?}") })?,"utility_units":contract.utility_units,
             "action_id":action_id,"value":result.value,"standard_error":result.standard_error,
             "actions":[{"id":action_id,"expected_utility":result.value,"criterion_value":result.value,"standard_error":result.standard_error}],
-            "point_only":true,"calibration":"unmeasured","caller_declared_utility_units":true}),
+            "point_only":true,"calibration":"not_measured","caller_declared_utility_units":true}),
     )
 }
 

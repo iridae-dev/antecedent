@@ -13,9 +13,9 @@
 //! The diagnostic is a linear-Gaussian-mean Wald test of a single node's mechanism. A
 //! non-rejection never certifies invariance (`non_rejection_certifies_invariance` is always
 //! `false`), it informs only a selection node on the compared node, and its Type I error and
-//! power are unmeasured.
+//! power are `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 
@@ -54,7 +54,8 @@ impl MechanismDiscrepancyRefusal {
             Some((code, detail, message)) => Self { code, detail, message },
             None => Self {
                 code: antecedent_core::reason_code!("invalid_argument"),
-                detail: "mechanism_discrepancy.invalid_artifact".to_owned(),
+                detail: antecedent_core::reason_details::mechanism_discrepancy::INVALID_ARTIFACT
+                    .to_owned(),
                 message: error.to_string(),
             },
         }
@@ -65,15 +66,20 @@ impl MechanismDiscrepancyRefusal {
     pub fn from_estimation(error: &EstimationError) -> Self {
         match error {
             EstimationError::Refused { code, message }
-            | EstimationError::RefusedWithFields { code, message, .. } => {
-                let (detail, rest) = message
-                    .split_once(": ")
-                    .unwrap_or(("mechanism_discrepancy.invalid_request", message.as_str()));
-                Self { code, detail: detail.to_owned(), message: rest.to_owned() }
-            }
+            | EstimationError::RefusedWithFields { code, message, .. } => Self {
+                code,
+                detail: message
+                    .detail()
+                    .unwrap_or(
+                        antecedent_core::reason_details::mechanism_discrepancy::INVALID_REQUEST,
+                    )
+                    .to_owned(),
+                message: message.explanation().to_owned(),
+            },
             other => Self {
                 code: antecedent_core::reason_code!("invalid_argument"),
-                detail: "mechanism_discrepancy.invalid_request".to_owned(),
+                detail: antecedent_core::reason_details::mechanism_discrepancy::INVALID_REQUEST
+                    .to_owned(),
                 message: other.to_string(),
             },
         }
@@ -108,12 +114,11 @@ pub fn run_mechanism_discrepancy(
     if !source_ids.is_empty() && !target_ids.is_empty() {
         let ids: BTreeSet<&str> = source_ids.iter().map(String::as_str).collect();
         if target_ids.iter().any(|id| ids.contains(id.as_str())) {
-            return Err(MechanismDiscrepancyArtifactError::Refused {
-                code: antecedent_core::reason_code!("route_not_supported"),
-                message: "mechanism_discrepancy.dependence_unknown: source and target share \
-                          units, so their estimates are not independent"
-                    .to_owned(),
-            });
+            return Err(MechanismDiscrepancyArtifactError::refused(
+                antecedent_core::reason_code!("route_not_supported"),
+                antecedent_core::reason_details::mechanism_discrepancy::DEPENDENCE_UNKNOWN,
+                "source and target share units, so their estimates are not independent",
+            ));
         }
     }
     MechanismDiscrepancyArtifact::seal(request)
@@ -168,6 +173,9 @@ mod tests {
             run_mechanism_discrepancy(&request, &ids(&["a", "b"]), &ids(&["b", "c"])).unwrap_err();
         let refusal = MechanismDiscrepancyRefusal::from_artifact_error(&error);
         assert_eq!(refusal.code, "route_not_supported");
-        assert_eq!(refusal.detail, "mechanism_discrepancy.dependence_unknown");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::mechanism_discrepancy::DEPENDENCE_UNKNOWN
+        );
     }
 }

@@ -1,0 +1,1 @@
+["use:super::{CausalQueryWire,IoError,causal_query_from_wire};#0","fn:validate_id#0","fn:validate_ids#0","fn:validate_intervention_ids#0","fn:validate_response_functional_ids#0","fn:validate_response_query_ids#0","fn:validate_query_ids#0"]

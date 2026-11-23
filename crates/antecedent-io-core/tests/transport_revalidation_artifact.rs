@@ -100,7 +100,7 @@ fn a_fresh_consumer_rederives_the_report_from_bytes() {
 }
 
 #[test]
-fn a_calibration_record_from_another_target_is_withdrawn_and_never_inherited() {
+fn a_calibration_record_from_another_target_is_withdrawn_never_inherited_and_not_refused() {
     let current = scene(10, SceneCalibration::Held { record: d(90), established_at_target: d(99) });
     let (_, meta) =
         TransportRevalidationArtifact::seal(None, &current, &BTreeMap::new()).expect("seals");
@@ -108,7 +108,9 @@ fn a_calibration_record_from_another_target_is_withdrawn_and_never_inherited() {
     assert_eq!(effect.class, "withdrawn");
     assert_eq!(effect.reasons, vec!["calibration_from_another_target".to_owned()]);
     assert_eq!(effect.calibration_state, "lost");
-    assert!(effect.refusal_code.is_some());
+    // A lost calibration annotates the claim's interval; the claim itself is not refused.
+    assert_eq!(effect.refusal_code, None);
+    assert_eq!(effect.refusal_detail, None);
     // The point value of the withdrawn claim is not recomputed by this report.
     assert_eq!(claim(&meta, "sibling").class, "still_valid");
 }
@@ -126,7 +128,7 @@ fn a_resealed_report_that_upgrades_a_claim_does_not_replay() {
     assert_eq!(error, TransportRevalidationArtifactError::ReplayMismatch("claim classification"));
     let (code, detail, _) = error.refusal().expect("a registered refusal");
     assert_eq!(code, "invalid_argument");
-    assert_eq!(detail, "transport_revalidation.replay_mismatch");
+    assert_eq!(detail, antecedent_core::reason_details::transport_revalidation::REPLAY_MISMATCH);
 }
 
 #[test]
@@ -140,10 +142,12 @@ fn a_resealed_scene_edit_does_not_replay_and_an_unsealed_edit_changes_identity()
         TransportRevalidationArtifact::from_meta(&reseal(moved), None).expect_err("scene edited");
     assert!(matches!(error, TransportRevalidationArtifactError::ReplayMismatch(_)), "{error:?}");
 
-    // The same edit without resealing is an identity mismatch or a replay mismatch, never accepted.
+    // The same edit without resealing: the stored removals no longer replay from the scenes.
     let mut unsealed = meta.clone();
     unsealed.removed.push("ghost".to_owned());
-    assert!(TransportRevalidationArtifact::from_meta(&unsealed, None).is_err());
+    let error = TransportRevalidationArtifact::from_meta(&unsealed, None)
+        .expect_err("an unsealed edit is refused");
+    assert_eq!(error, TransportRevalidationArtifactError::ReplayMismatch("removed claims"));
 
     // A retained identity of another report.
     let error = TransportRevalidationArtifact::from_meta(&meta, Some(&"0".repeat(64)))
@@ -176,5 +180,22 @@ fn unknown_features_versions_and_noncanonical_scenes_are_refused() {
     unordered.current.claims.reverse();
     let error = TransportRevalidationArtifact::from_meta(&reseal(unordered), None)
         .expect_err("claims not in key order");
+    assert!(matches!(error, TransportRevalidationArtifactError::Malformed(_)), "{error:?}");
+}
+
+#[test]
+fn observed_effects_must_be_listed_in_canonical_key_order() {
+    use antecedent_io_core::composition_verification_artifact::EffectWire;
+
+    let (_, meta) = sealed_after_new_data();
+    let effect = |key: &str| EffectWire {
+        key: key.to_owned(),
+        kind: "recomputed".to_owned(),
+        text: "data".to_owned(),
+    };
+    let mut unordered = meta.clone();
+    unordered.effects = vec![effect("b"), effect("a")];
+    let error = TransportRevalidationArtifact::from_meta(&reseal(unordered), None)
+        .expect_err("effects not in key order");
     assert!(matches!(error, TransportRevalidationArtifactError::Malformed(_)), "{error:?}");
 }

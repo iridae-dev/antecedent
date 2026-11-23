@@ -3,7 +3,101 @@
   "case": "temporal_class_mediation_truth",
   "oracle": {
     "kind": "closed_form",
-    "method": "Path-product rule of the linear temporal structural equation model m_i = a t_{i-1} + 0.6 z_{i-1} + 0.15 e_i, y_i = 1 + c t_{i-1} + b m_i + 5 z_{i-1} with a = 0.8, b = 0.55, c = 0.25 (t_i = z_i + a period-4 +-1 pattern, z_i a period-4 +-1 confounder, e_i = (i mod 5) - 2). At horizon 1 (treatment at origin -1, outcome at 0) the natural indirect effect through the mediator is a*b, the natural direct effect is c, and the total effect is c + a*b: intervening on t@-1 changes m@0 by a per unit and y@0 by c directly plus b per unit of m@0. The confounder z@-1 and the mediator noise shift levels only, never these contrasts, so the values are exact structural quantities of the equations, independent of any estimator."
+    "method": "Path-product rule of the linear temporal structural equation model m_i = a t_{i-1} + 0.6 z_{i-1} + 0.15 e_i, y_i = 1 + c t_{i-1} + b m_i + 5 z_{i-1} with a = 0.8, b = 0.55, c = 0.25 (t_i = z_i + a period-4 +-1 pattern, z_i a period-4 +-1 confounder, e_i = (i mod 5) - 2). At horizon 1 (treatment at origin -1, outcome at 0) the natural indirect effect through the mediator is a*b, the natural direct effect is c, and the total effect is c + a*b: intervening on t@-1 changes m@0 by a per unit and y@0 by c directly plus b per unit of m@0. The confounder z@-1 and the mediator noise shift levels only, never these contrasts, so the values are exact structural quantities of the equations, independent of any estimator.",
+    "formula": "mediated = a*b = 0.44, direct = c = 0.25, total = c + a*b = 0.69, constant over rows.",
+    "generator": "conformance/estimate/temporal_class_mediation_truth/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/temporal_class_mediation_truth/reference.py --check",
+    "environment_lock": "conformance/estimate/temporal_class_mediation_truth/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "horizon_1.mediated",
+      "horizon_1.direct",
+      "horizon_1.total"
+    ],
+    "context_only_outputs": [
+      "structural coefficients (inputs, re-used by the derivation)",
+      "tolerance.frequentist and tolerance.bayesian"
+    ],
+    "independence_basis": "The generator evaluates the stated structural equations by substitution under nested interventions on 40 rows and checks that each contrast is constant across rows; it imports no Antecedent code and no statistics package. The shared object is the stated linear equations; the sign pattern and noise are placeholders because the contrasts do not depend on them.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+    "reference_review": {
+      "scope": "Horizon-1 natural direct, indirect and total effects of a linear temporal mediation model.",
+      "independence_basis": "The generator evaluates the stated structural equations by substitution under nested interventions on 40 rows and checks that each contrast is constant across rows; it imports no Antecedent code and no statistics package. The shared object is the stated linear equations; the sign pattern and noise are placeholders because the contrasts do not depend on them.",
+      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Structural quantities of the stated equations at horizon 1 only; nothing is derived about what an estimator recovers from the finite series, and the Bayesian tolerance is a loose band. No calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/temporal_class_mediation_truth/reference.py",
+          "sha256": "870e943c1e7d18b12ba1f53d0ec4f8d7f0ce5588684d9c88667be9e35c29ea20"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/temporal_class_mediation_truth/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/checked_temporal_class_mediation_route_evidence.rs",
+          "items": [
+            "const CHECKED_DEPENDENCY",
+            "const MEDIATED_TRUTH",
+            "const N",
+            "const POSTERIOR_N",
+            "fn assert_theorem_targets",
+            "fn changed_cpdag",
+            "fn changed_posterior",
+            "fn checked_temporal_class_mediation_lifecycle_covers_all_class_envelope_coordinates",
+            "fn checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordinates",
+            "fn checked_temporal_class_mediation_refuses_schema_changes_and_binds_its_structure",
+            "fn class_graph",
+            "fn confounded_series",
+            "fn has_cached_identification",
+            "fn known_truth_posterior",
+            "fn mediation_pin",
+            "fn mediation_query",
+            "fn oriented_cpdag",
+            "fn posterior_series",
+            "fn posterior_with_weights",
+            "struct MediationPin"
+          ],
+          "sha256": "485987b2e6931240dbdf180bdb0ed3329b65f8a35f02a3b6108b204c1424192a"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/temporal_mediation_horizons.rs",
+          "items": [
+            "const A",
+            "const B",
+            "const C_PRIME",
+            "const N",
+            "fn assert_horizon_one_mediated",
+            "fn class_mediation_study",
+            "fn col",
+            "fn confounded_mediation_series",
+            "fn estimate_h1",
+            "fn has_cached",
+            "fn mediation_truth",
+            "fn multi_horizon_parent_identification_is_the_conservative_join",
+            "fn named_z",
+            "fn oriented_mediation_cpdag",
+            "fn prepare_click",
+            "fn query",
+            "fn structural_mediated",
+            "fn temporal_class_bayesian_mediation_cheap_and_full_run",
+            "fn temporal_class_bayesian_mediation_returns_identified_sets",
+            "fn temporal_cpdag_mediation_cheap_and_full_run_per_completion",
+            "fn temporal_cpdag_mediation_returns_per_horizon_identified_sets",
+            "fn temporal_mediation_i1_not_equal_i2_on_confounded_pulse",
+            "fn temporal_pag_mediation_is_a_window_route_and_reads_one_horizon"
+          ],
+          "sha256": "256048f868fc3db951b6e61d611736827f7c9dd876a64d022ccf10cf9b7b7f63"
+        }
+      ],
+      "fixture_payload_sha256": "6d69ee4f7f29fbcc1ce9dc7cf08e860b21d810167b55e79aee059c524c3e4667"
+    }
   },
   "structural": {
     "a": 0.8,
@@ -16,7 +110,7 @@
     "total": 0.69
   },
   "tolerance": {
-    "frequentist": 1e-6,
+    "frequentist": 1e-06,
     "bayesian": 0.08
   }
 }

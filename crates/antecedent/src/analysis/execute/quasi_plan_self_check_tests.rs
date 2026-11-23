@@ -35,6 +35,12 @@ fn forged_plans(
     [query, plan_id, identifier, estimator].map(Arc::new)
 }
 
+/// The forged plan is refused by the plan self-check itself, not by an unrelated precondition.
+fn assert_refused_as_forged<T>(result: Result<T, crate::CausalError>, message: &str) {
+    let error = result.err().expect("a forged plan is refused");
+    assert!(error.to_string().contains(message), "{error}");
+}
+
 fn panel_did() -> (TabularData, Study) {
     let mut ids = Vec::new();
     let mut treated = Vec::new();
@@ -61,15 +67,27 @@ fn panel_did_refuses_a_forged_plan_or_structure_source() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, study) = panel_did();
     let physical = Arc::new(study.plan(&ctx).unwrap());
+    let view = crate::planner::plan_view::checks::assert_view_agrees("PanelDid", &physical);
+    assert_eq!(view.family(), crate::planner::RouteFamily::DesignBased);
     assert!(CheckedPanelDidOperation::checked(&study, &data, &physical).is_ok());
     let CausalQuery::PanelDid(mut other) = study.query.clone() else { unreachable!() };
     other.clusters = other.clusters.iter().map(|_| Arc::<str>::from("c0")).collect();
     for forged in forged_plans(&physical, other) {
-        assert!(CheckedPanelDidOperation::checked(&study, &data, &forged).is_err());
+        assert_refused_as_forged(
+            CheckedPanelDidOperation::checked(&study, &data, &forged),
+            "panel DiD design differs from its compiled plan",
+        );
     }
     let mut explicit = study.clone();
     explicit.structure_source = crate::support::StructureSource::Explicit;
-    assert!(CheckedPanelDidOperation::checked(&explicit, &data, &physical).is_err());
+    let error = CheckedPanelDidOperation::checked(&explicit, &data, &physical)
+        .expect_err("an explicit structure source is refused");
+    assert!(
+        error
+            .to_string()
+            .contains("panel DiD currently accepts only the graphless two-period panel"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -95,11 +113,16 @@ fn synthetic_control_refuses_a_forged_plan() {
     );
     let study = Study::tabular(data.clone()).query(query).build().unwrap();
     let physical = Arc::new(study.plan(&ctx).unwrap());
+    let view = crate::planner::plan_view::checks::assert_view_agrees("SyntheticControl", &physical);
+    assert_eq!(view.family(), crate::planner::RouteFamily::DesignBased);
     assert!(CheckedSyntheticControlOperation::checked(&study, &data, &physical).is_ok());
     let CausalQuery::SyntheticControl(mut other) = study.query.clone() else { unreachable!() };
     other.treated_unit = Arc::from("a");
     for forged in forged_plans(&physical, other) {
-        assert!(CheckedSyntheticControlOperation::checked(&study, &data, &forged).is_err());
+        assert_refused_as_forged(
+            CheckedSyntheticControlOperation::checked(&study, &data, &forged),
+            "synthetic panel design differs from its compiled plan",
+        );
     }
 }
 
@@ -131,13 +154,20 @@ fn local_polynomial_ratio_refuses_a_forged_plan() {
         cutoff: 0.0,
         bandwidth: 1.0,
         kink: true,
+        options: None,
     };
     let study = Study::tabular(data.clone()).query(query).build().unwrap();
     let physical = Arc::new(study.plan(&ctx).unwrap());
+    let view =
+        crate::planner::plan_view::checks::assert_view_agrees("LocalPolynomialRatio", &physical);
+    assert_eq!(view.family(), crate::planner::RouteFamily::DesignBased);
     assert!(CheckedLocalPolynomialRatioOperation::checked(&study, &data, &physical).is_ok());
     let CausalQuery::LocalPolynomialRatio(mut other) = study.query.clone() else { unreachable!() };
     other.bandwidth = 0.5;
     for forged in forged_plans(&physical, other) {
-        assert!(CheckedLocalPolynomialRatioOperation::checked(&study, &data, &forged).is_err());
+        assert_refused_as_forged(
+            CheckedLocalPolynomialRatioOperation::checked(&study, &data, &forged),
+            "local ratio design differs from its compiled plan",
+        );
     }
 }

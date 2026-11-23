@@ -3,21 +3,100 @@
 //! Re-exported from [`crate::analysis_wire`], which joins them to the
 //! identification and diagnostic wires of `antecedent-io-core`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+//! Older readers that deny unknown fields may refuse records containing the optional
+//! uncertainty and provenance metadata added to this wire.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+mod refutation;
+
+#[cfg(test)]
 use std::sync::Arc;
+
+pub use refutation::{
+    descriptive_scope, refutation_from_wire, refutation_to_wire, whole_target_diagnostic_scope,
+};
 
 use antecedent_estimate::{
     BootstrapAccounting, ClipSensitivity, EffectEstimate, FirstStageDiagnostics, OverlapPolicy,
     OverlapReport, PropensityInterval,
 };
-use antecedent_validate::RefutationReport;
+#[cfg(test)]
+use antecedent_validate::target_native::{RefutationTarget, TargetFamily, TargetQuadrant};
+#[cfg(test)]
+use antecedent_validate::{RefutationReport, RefutationScope};
 use serde::{Deserialize, Serialize};
 
-use antecedent_io_core::analysis_wire::RefutationReportWire;
+pub use antecedent_io_core::analysis_wire::JointCovarianceWire;
+#[cfg(test)]
+use antecedent_io_core::analysis_wire::{RefutationReportWire, RefutationScopeWire};
 
 use crate::error::IoError;
 use crate::trace::{AssumptionRecordWire, assumptions_from_wire, assumptions_to_wire};
+
+/// Analytic standard-error method, including the requested HAC lag.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum AnalyticSeKindWire {
+    /// IID or homoskedastic.
+    Homoskedastic,
+    /// HC0 sandwich.
+    Hc0,
+    /// HC1 sandwich.
+    Hc1,
+    /// HC2 sandwich.
+    Hc2,
+    /// HC3 sandwich.
+    Hc3,
+    /// Cluster-robust.
+    Cluster,
+    /// Multiway cluster-robust.
+    Multiway,
+    /// Newey-West with its lag.
+    NeweyWest {
+        /// Lag.
+        lag: u64,
+    },
+    /// Panel cluster HAC with its lag.
+    PanelClusterHac {
+        /// Lag.
+        lag: u64,
+    },
+    /// Equal-weighted cosine series error with its number of cosine terms. Artifacts written
+    /// before this kind existed never carry it and decode unchanged.
+    SeriesEwc {
+        /// Cosine terms (the Student-t degrees of freedom).
+        terms: u64,
+    },
+}
+
+/// Circular-block SE family.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum BlockFamilyWire {
+    /// One window.
+    SingleWindow,
+    /// Mediation.
+    Mediation,
+    /// Sequential.
+    Sequential,
+    /// Mixture.
+    Mixture,
+    /// Whole-procedure row block.
+    RowBlock,
+}
+
+/// Circular-block resampling geometry.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct BlockResamplingWire {
+    /// Block length in aligned rows.
+    pub block_length: u64,
+    /// Aligned rows resampled.
+    pub rows: u64,
+    /// Kernel-bias scaling factor.
+    pub kernel_bias: f64,
+}
 
 /// Effect estimate wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -27,6 +106,21 @@ pub struct EffectEstimateWire {
     pub ate: f64,
     /// Analytic SE.
     pub se_analytic: f64,
+    /// Analytic SE method, when recorded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub analytic_kind: Option<AnalyticSeKindWire>,
+    /// Student-t reference degrees of freedom, or normal reference if absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub analytic_reference_df: Option<f64>,
+    /// Circular-block resampling geometry, when recorded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub block_resampling: Option<BlockResamplingWire>,
+    /// Circular-block SE family, when recorded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub block_family: Option<BlockFamilyWire>,
+    /// Observations that informed the fit, when recorded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub n_obs: Option<u64>,
     /// Bootstrap SE.
     pub se_bootstrap: Option<f64>,
     /// Bootstrap ok.
@@ -42,7 +136,7 @@ pub struct EffectEstimateWire {
     /// Assumptions.
     pub assumptions: Vec<AssumptionRecordWire>,
     /// Overlap policy tag.
-    pub overlap_policy: String,
+    pub overlap_policy: EstimateOverlapPolicyWire,
     /// Clip.
     pub overlap_clip: Option<f64>,
     /// Trim.
@@ -100,7 +194,7 @@ pub struct EffectEstimateWire {
     /// Portable fitted effect, bound into the result body identity.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fitted_effect: Option<antecedent_estimate::FittedEffect>,
-    /// Licensed pointwise CATE standard errors, when computed.
+    /// Supported pointwise CATE standard errors, when computed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cate_se: Option<Vec<f64>>,
     /// Forest leaf-dispersion diagnostic per row. Not a standard error.
@@ -130,6 +224,94 @@ pub struct EffectEstimateWire {
     /// Candidate-selection provenance, including screen/estimate row splits.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub candidate_selection: Option<CandidateSelectionWire>,
+    /// How the columns the estimator read were prepared, when it recorded a receipt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preparation: Option<PreparationWire>,
+}
+
+/// Overlap policy of an estimate on the wire; its clip and trim ride beside it on
+/// [`EffectEstimateWire`].
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum EstimateOverlapPolicyWire {
+    /// Overlap diagnostics are required (with the optional clip and trim).
+    RequireDiagnostics,
+    /// The caller overrode the overlap requirement.
+    ExplicitOverride,
+}
+
+/// Why a first-stage / Anderson-Rubin uncertainty statement was withheld.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum UncertaintyWithheldWire {
+    /// The Anderson-Rubin set needs homoskedastic errors.
+    AndersonRubinRequiresHomoskedastic,
+    /// The Anderson-Rubin set is a union of disjoint intervals.
+    AndersonRubinSetIsUnion,
+    /// The Anderson-Rubin set is empty.
+    AndersonRubinSetEmpty,
+    /// The Anderson-Rubin set needs excluded instruments.
+    AndersonRubinRequiresExcludedInstruments,
+    /// The Anderson-Rubin level is not in `(0, 1)`.
+    AndersonRubinInvalidLevel,
+    /// The Anderson-Rubin critical value could not be computed.
+    AndersonRubinCriticalValueFailed,
+}
+
+impl UncertaintyWithheldWire {
+    /// The estimator's tag for this reason.
+    #[must_use]
+    pub const fn tag(self) -> &'static str {
+        match self {
+            Self::AndersonRubinRequiresHomoskedastic => "anderson_rubin_requires_homoskedastic",
+            Self::AndersonRubinSetIsUnion => "anderson_rubin_set_is_union",
+            Self::AndersonRubinSetEmpty => "anderson_rubin_set_empty",
+            Self::AndersonRubinRequiresExcludedInstruments => {
+                "anderson_rubin_requires_excluded_instruments"
+            }
+            Self::AndersonRubinInvalidLevel => "anderson_rubin_invalid_level",
+            Self::AndersonRubinCriticalValueFailed => "anderson_rubin_critical_value_failed",
+        }
+    }
+
+    /// The reason an estimator tag names, or `None` for a tag this format does not define.
+    #[must_use]
+    pub fn from_tag(tag: &str) -> Option<Self> {
+        [
+            Self::AndersonRubinRequiresHomoskedastic,
+            Self::AndersonRubinSetIsUnion,
+            Self::AndersonRubinSetEmpty,
+            Self::AndersonRubinRequiresExcludedInstruments,
+            Self::AndersonRubinInvalidLevel,
+            Self::AndersonRubinCriticalValueFailed,
+        ]
+        .into_iter()
+        .find(|reason| reason.tag() == tag)
+    }
+}
+
+/// Preparation receipt summary recorded on an estimate.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PreparationWire {
+    /// Stable name of the preparation backend.
+    pub backend: String,
+    /// Stable name of the end-to-end route bound.
+    pub route_bound: String,
+    /// Rows the estimator read; absent when it was handed a scan.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rows_admitted: Option<u64>,
+    /// Lower-case hex digest of the preparation plan.
+    pub receipt_digest: String,
+    /// Payload bytes the preparation admitted; absent when the writer recorded none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub admitted_bytes: Option<u64>,
+    /// Byte budget the payload was compared with; absent when none was.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub budget_bytes: Option<u64>,
+    /// What the estimator was given (`finite`, `materialized_from_scan`, `scan`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delivery: Option<String>,
 }
 
 /// Screen / estimate split recorded on a batch estimate artifact.
@@ -145,21 +327,11 @@ pub struct CandidateSelectionWire {
     /// Family size.
     pub family_size: usize,
     /// Screen-half row indexes.
-    pub screen_rows: Vec<u32>,
+    pub screen_rows: Vec<u64>,
     /// Estimate-half row indexes.
-    pub estimate_rows: Vec<u32>,
+    pub estimate_rows: Vec<u64>,
     /// Whether the halves are disjoint.
     pub disjoint: bool,
-}
-
-/// Joint covariance, column-major.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct JointCovarianceWire {
-    /// Number of functionals.
-    pub dim: usize,
-    /// Covariance entries.
-    pub values: Vec<f64>,
 }
 
 /// Simultaneous inference over a declared score family.
@@ -199,7 +371,7 @@ pub struct ScoreTableWire {
     /// Complete-case row count.
     pub n_rows: u64,
     /// Original row indexes.
-    pub row_index: Vec<u32>,
+    pub row_index: Vec<u64>,
     /// Fold ids.
     pub fold_ids: Vec<u32>,
     /// Fold count.
@@ -294,23 +466,99 @@ pub struct FirstStageDiagnosticsWire {
     /// Homoskedastic Anderson–Rubin set `(lower, upper, level)`; endpoints may be infinite.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub anderson_rubin: Option<(f64, f64, f64)>,
-    /// Why AR / licensed IV uncertainty was withheld.
+    /// Why AR / supported IV uncertainty was withheld.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub uncertainty_withheld: Option<String>,
+    pub uncertainty_withheld: Option<UncertaintyWithheldWire>,
+}
+
+fn kind_to_wire(kind: antecedent_estimate::AnalyticSeKind) -> AnalyticSeKindWire {
+    use antecedent_estimate::AnalyticSeKind as K;
+    match kind {
+        K::Homoskedastic => AnalyticSeKindWire::Homoskedastic,
+        K::Hc0 => AnalyticSeKindWire::Hc0,
+        K::Hc1 => AnalyticSeKindWire::Hc1,
+        K::Hc2 => AnalyticSeKindWire::Hc2,
+        K::Hc3 => AnalyticSeKindWire::Hc3,
+        K::Cluster => AnalyticSeKindWire::Cluster,
+        K::Multiway => AnalyticSeKindWire::Multiway,
+        K::NeweyWest { lag } => {
+            AnalyticSeKindWire::NeweyWest { lag: crate::width::lossless_u64(lag) }
+        }
+        K::PanelClusterHac { lag } => {
+            AnalyticSeKindWire::PanelClusterHac { lag: crate::width::lossless_u64(lag) }
+        }
+        K::SeriesEwc { terms } => {
+            AnalyticSeKindWire::SeriesEwc { terms: crate::width::lossless_u64(terms) }
+        }
+    }
+}
+
+fn kind_from_wire(
+    kind: AnalyticSeKindWire,
+) -> Result<antecedent_estimate::AnalyticSeKind, IoError> {
+    use antecedent_estimate::AnalyticSeKind as K;
+    Ok(match kind {
+        AnalyticSeKindWire::Homoskedastic => K::Homoskedastic,
+        AnalyticSeKindWire::Hc0 => K::Hc0,
+        AnalyticSeKindWire::Hc1 => K::Hc1,
+        AnalyticSeKindWire::Hc2 => K::Hc2,
+        AnalyticSeKindWire::Hc3 => K::Hc3,
+        AnalyticSeKindWire::Cluster => K::Cluster,
+        AnalyticSeKindWire::Multiway => K::Multiway,
+        AnalyticSeKindWire::NeweyWest { lag } => {
+            K::NeweyWest { lag: usize::try_from(lag).map_err(|_| IoError::TooLarge)? }
+        }
+        AnalyticSeKindWire::PanelClusterHac { lag } => {
+            K::PanelClusterHac { lag: usize::try_from(lag).map_err(|_| IoError::TooLarge)? }
+        }
+        AnalyticSeKindWire::SeriesEwc { terms } => {
+            K::SeriesEwc { terms: usize::try_from(terms).map_err(|_| IoError::TooLarge)? }
+        }
+    })
+}
+
+fn family_to_wire(family: antecedent_estimate::CircularBlockFamily) -> BlockFamilyWire {
+    use antecedent_estimate::CircularBlockFamily as F;
+    match family {
+        F::SingleWindow => BlockFamilyWire::SingleWindow,
+        F::Mediation => BlockFamilyWire::Mediation,
+        F::Sequential => BlockFamilyWire::Sequential,
+        F::Mixture => BlockFamilyWire::Mixture,
+        F::RowBlock => BlockFamilyWire::RowBlock,
+    }
+}
+
+fn family_from_wire(family: BlockFamilyWire) -> antecedent_estimate::CircularBlockFamily {
+    use antecedent_estimate::CircularBlockFamily as F;
+    match family {
+        BlockFamilyWire::SingleWindow => F::SingleWindow,
+        BlockFamilyWire::Mediation => F::Mediation,
+        BlockFamilyWire::Sequential => F::Sequential,
+        BlockFamilyWire::Mixture => F::Mixture,
+        BlockFamilyWire::RowBlock => F::RowBlock,
+    }
 }
 
 /// Encode effect estimate.
 #[must_use]
+#[allow(clippy::too_many_lines, reason = "the complete estimate wire fields stay together")]
 pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
-    let (overlap_policy, overlap_clip, overlap_trim) = match e.provenance.overlap {
-        OverlapPolicy::ExplicitOverride => ("explicit_override".into(), None, None),
-        OverlapPolicy::RequireDiagnostics { clip, trim } => {
-            ("require_diagnostics".into(), clip, trim)
-        }
+    let (overlap_policy, overlap_clip, overlap_trim) = match e.provenance.overlap.bounds() {
+        None => (EstimateOverlapPolicyWire::ExplicitOverride, None, None),
+        Some((clip, trim)) => (EstimateOverlapPolicyWire::RequireDiagnostics, clip, trim),
     };
     EffectEstimateWire {
         ate: e.ate,
         se_analytic: e.se_analytic(),
+        analytic_kind: e.uncertainty.analytic.kind.map(kind_to_wire),
+        analytic_reference_df: e.uncertainty.analytic.reference_df,
+        block_resampling: e.uncertainty.block.resampling.map(|r| BlockResamplingWire {
+            block_length: crate::width::lossless_u64(r.block_length),
+            rows: crate::width::lossless_u64(r.rows),
+            kernel_bias: r.kernel_bias,
+        }),
+        block_family: e.uncertainty.block.family.map(family_to_wire),
+        n_obs: e.provenance.n_obs,
         se_bootstrap: e.se_bootstrap(),
         bootstrap_replicates_ok: e.uncertainty.bootstrap.replicates_ok,
         bootstrap_replicates_failed: e.uncertainty.bootstrap.replicates_failed,
@@ -328,7 +576,11 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
                 df2: crate::width::lossless_u64(diagnostic.df2),
                 partial_r2: diagnostic.partial_r2,
                 anderson_rubin: diagnostic.anderson_rubin,
-                uncertainty_withheld: diagnostic.uncertainty_withheld.map(str::to_owned),
+                // The estimator names the closed set `UncertaintyWithheldWire` defines; a tag
+                // outside it has no wire spelling the decoder would accept, so it is not written.
+                uncertainty_withheld: diagnostic
+                    .uncertainty_withheld
+                    .and_then(UncertaintyWithheldWire::from_tag),
             }
         }),
         retained_memory_bytes: e.provenance.retained_memory_bytes,
@@ -353,14 +605,23 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
             .collect(),
         evalue: e.diagnostics.evalue,
         evalue_threshold: e.diagnostics.evalue_threshold,
+        preparation: e.provenance.preparation.as_deref().map(|p| PreparationWire {
+            backend: p.backend.clone(),
+            route_bound: p.route_bound.clone(),
+            rows_admitted: p.rows_admitted,
+            receipt_digest: p.receipt_digest.clone(),
+            admitted_bytes: p.admitted_bytes,
+            budget_bytes: p.budget_bytes,
+            delivery: p.delivery.clone(),
+        }),
         candidate_selection: e.family.candidate_selection.as_ref().map(|s| {
             CandidateSelectionWire {
                 screen_id: s.screen_id.to_string(),
                 procedure: s.procedure.to_string(),
                 winner_index: s.winner_index,
                 family_size: s.family_size,
-                screen_rows: s.screen_rows.to_vec(),
-                estimate_rows: s.estimate_rows.to_vec(),
+                screen_rows: s.screen_rows.iter().map(|id| id.get()).collect(),
+                estimate_rows: s.estimate_rows.iter().map(|id| id.get()).collect(),
                 disjoint: s.disjoint,
             }
         }),
@@ -415,28 +676,26 @@ fn score_table_to_wire(table: &antecedent_estimate::ScoreTable) -> ScoreTableWir
     }
 }
 
-fn score_table_from_wire(
-    wire: &ScoreTableWire,
-) -> Result<antecedent_estimate::ScoreTable, IoError> {
+fn score_table_from_wire(wire: ScoreTableWire) -> Result<antecedent_estimate::ScoreTable, IoError> {
     let domain = antecedent_estimate::ScoreTableWire {
-        observed_arm: wire.observed_arm.clone(),
-        propensities: wire.propensities.clone(),
-        observed_outcome: wire.observed_outcome.clone(),
+        observed_arm: wire.observed_arm,
+        propensities: wire.propensities,
+        observed_outcome: wire.observed_outcome,
         n_rows: wire.n_rows,
-        row_index: wire.row_index.clone(),
-        fold_ids: wire.fold_ids.clone(),
+        row_index: wire.row_index,
+        fold_ids: wire.fold_ids,
         n_folds: wire.n_folds,
-        scores: wire.scores.clone(),
+        scores: wire.scores,
         columns: wire
             .columns
-            .iter()
+            .into_iter()
             .map(|c| antecedent_estimate::ScoreColumn { arm: c.arm, threshold: c.threshold })
             .collect(),
-        adjustment_set: wire.adjustment_set.clone(),
-        nuisance_provenance: wire.nuisance_provenance.clone(),
+        adjustment_set: wire.adjustment_set,
+        nuisance_provenance: wire.nuisance_provenance,
         propensity_clip: wire.propensity_clip,
         treatment: wire.treatment,
-        intervened: wire.intervened.clone(),
+        intervened: wire.intervened,
     };
     antecedent_estimate::ScoreTable::from_wire(domain).map_err(|e| IoError::Convert(e.to_string()))
 }
@@ -469,12 +728,32 @@ fn overlap_report_to_wire(report: &OverlapReport) -> OverlapReportWire {
 
 /// Decode an effect estimate without dropping its assumptions or diagnostic evidence.
 ///
+/// This clones the wire; [`effect_estimate_from_owned_wire`] consumes it and moves the large
+/// score, scenario and CATE columns into the estimate instead.
+///
 /// # Errors
 ///
 /// Invalid assumption labels or scopes.
 pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimate, IoError> {
-    let overlap = overlap_policy_from_wire(w)?;
-    let overlap_report = w.overlap_report.as_ref().map(overlap_report_from_wire).transpose()?;
+    effect_estimate_from_owned_wire(w.clone())
+}
+
+/// [`effect_estimate_from_wire`] for an owned wire: its vectors become the estimate's
+/// columns without a copy.
+///
+/// # Errors
+///
+/// Invalid assumption labels or scopes.
+#[allow(clippy::too_many_lines, reason = "the validated wire is decoded as one estimate")]
+pub fn effect_estimate_from_owned_wire(w: EffectEstimateWire) -> Result<EffectEstimate, IoError> {
+    validate_effect_estimate_wire(&w)?;
+    let overlap = match w.overlap_policy {
+        EstimateOverlapPolicyWire::RequireDiagnostics => {
+            OverlapPolicy::RequireDiagnostics { clip: w.overlap_clip, trim: w.overlap_trim }
+        }
+        EstimateOverlapPolicyWire::ExplicitOverride => OverlapPolicy::ExplicitOverride,
+    };
+    let overlap_report = w.overlap_report.map(overlap_report_from_wire).transpose()?;
     let first_stage = w.first_stage_diagnostics.as_ref().map(first_stage_from_wire).transpose()?;
     let mut estimate = EffectEstimate::from_parts(
         w.ate,
@@ -492,62 +771,132 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
         w.retained_memory_bytes,
     )
     .with_first_stage_diagnostics(first_stage);
-    if let Some(table) = w.score_table.as_ref() {
+    if w.analytic_reference_df.is_some_and(|df| !df.is_finite() || df < 0.0) {
+        return Err(IoError::Convert(
+            "analytic reference degrees of freedom must be nonnegative and finite".into(),
+        ));
+    }
+    estimate.uncertainty.analytic.kind = w.analytic_kind.map(kind_from_wire).transpose()?;
+    estimate.uncertainty.analytic.reference_df = w.analytic_reference_df;
+    estimate.uncertainty.block.resampling = w
+        .block_resampling
+        .map(|r| {
+            if !r.kernel_bias.is_finite() {
+                return Err(IoError::Convert("block kernel bias must be finite".into()));
+            }
+            Ok(antecedent_estimate::BlockResampling {
+                block_length: usize::try_from(r.block_length).map_err(|_| IoError::TooLarge)?,
+                rows: usize::try_from(r.rows).map_err(|_| IoError::TooLarge)?,
+                kernel_bias: r.kernel_bias,
+            })
+        })
+        .transpose()?;
+    estimate.uncertainty.block.family = w.block_family.map(family_from_wire);
+    estimate.provenance.n_obs = w.n_obs;
+
+    if let Some(table) = w.score_table {
         estimate = estimate.with_score_table(Some(score_table_from_wire(table)?));
     }
-    if let Some(cdf) = w.exceedance_cdf.as_ref() {
-        estimate = estimate.with_exceedance_cdf(Some(cdf.clone().into()));
+    if let Some(cdf) = w.exceedance_cdf {
+        estimate = estimate.with_exceedance_cdf(Some(cdf.into()));
     }
     estimate = estimate.with_monotone_rearranged(w.monotone_rearranged);
-    if let Some(c) = &w.joint_covariance {
+    if let Some(c) = w.joint_covariance {
         if c.dim == 0
             || c.values.len() != c.dim.saturating_mul(c.dim)
             || c.values.iter().any(|v| !v.is_finite())
         {
             return Err(IoError::Convert("invalid joint covariance".into()));
         }
-        estimate.joint.covariance = Some(antecedent_estimate::JointCovariance {
-            dim: c.dim,
-            values: c.values.clone().into(),
-        });
+        estimate.joint.covariance =
+            Some(antecedent_estimate::JointCovariance { dim: c.dim, values: c.values.into() });
     }
-    estimate.scores.inference =
-        w.score_inference.as_ref().map(score_inference_from_wire).transpose()?;
+    estimate.scores.inference = w.score_inference.map(score_inference_from_wire).transpose()?;
     estimate.family.simultaneous_interval = w.simultaneous_interval;
     estimate.family.adjusted_p_values = w.adjusted_p_values;
     estimate.family.contrast = w.family_contrast;
     estimate.family.contrast_interval = w.family_contrast_interval;
     estimate.diagnostics.evalue = w.evalue;
     estimate.diagnostics.evalue_threshold = w.evalue_threshold;
+    estimate.provenance.preparation = w.preparation.map(|p| {
+        std::sync::Arc::new(
+            antecedent_estimate::PreparationSummary::from_parts(
+                p.backend,
+                p.route_bound,
+                p.rows_admitted,
+                p.receipt_digest,
+            )
+            .with_resources(p.admitted_bytes, p.budget_bytes, p.delivery),
+        )
+    });
     estimate.family.candidate_selection =
         w.candidate_selection.as_ref().map(candidate_selection_from_wire).transpose()?;
-    estimate.scenarios.effects = w.scenario_effects.clone().map(Into::into);
-    estimate.scenarios.intervals = w.scenario_intervals.clone().map(Into::into);
+    estimate.scenarios.effects = w.scenario_effects.map(Into::into);
+    estimate.scenarios.intervals = w.scenario_intervals.map(Into::into);
     estimate.joint.interaction_structurally_zero = w.interaction_structurally_zero.unwrap_or(false);
     estimate.heterogeneity.unit_effects_homogeneous = w.unit_effects_homogeneous.unwrap_or(false);
-    if let Some(model) = &w.fitted_effect {
-        if model.version == 1 && model.predictor.version == 1 {
-            model.validate().map_err(|e| IoError::Convert(e.to_string()))?;
-            estimate.heterogeneity.fitted_effect = Some(std::sync::Arc::new(model.clone()));
-        }
+    if let Some(model) = w.fitted_effect {
+        model.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+        estimate.heterogeneity.fitted_effect = Some(std::sync::Arc::new(model));
     }
-    estimate.heterogeneity.cate = w.cate.clone().map(Into::into);
-    estimate.heterogeneity.cate_se = w.cate_se.clone().map(Into::into);
-    estimate.heterogeneity.cate_leaf_dispersion = w.cate_leaf_dispersion.clone().map(Into::into);
+    estimate.heterogeneity.cate = w.cate.map(Into::into);
+    estimate.heterogeneity.cate_se = w.cate_se.map(Into::into);
+    estimate.heterogeneity.cate_leaf_dispersion = w.cate_leaf_dispersion.map(Into::into);
     estimate.crossfit.outcome_oof_r2 = w.outcome_oof_r2;
     estimate.crossfit.treatment_oof_logloss = w.treatment_oof_logloss;
     estimate.crossfit.folds = w.crossfit_folds;
     estimate.crossfit.seed = w.crossfit_seed;
     estimate.crossfit.learner_provenance = w
         .learner_provenance
-        .iter()
+        .into_iter()
         .map(|(spec, implementation, version)| antecedent_estimate::LearnerProvenance {
-            spec: spec.clone(),
-            implementation: implementation.clone(),
-            version: version.clone(),
+            spec,
+            implementation,
+            version,
         })
         .collect();
     Ok(estimate)
+}
+
+// Infinite interval endpoints are meaningful for unbounded confidence sets.
+fn valid_interval((lo, hi, level): (f64, f64, f64)) -> bool {
+    !lo.is_nan() && !hi.is_nan() && lo <= hi && level.is_finite() && level > 0.0 && level < 1.0
+}
+
+fn validate_effect_estimate_wire(w: &EffectEstimateWire) -> Result<(), IoError> {
+    let nonnegative = |v: f64| v.is_finite() && v >= 0.0;
+    let probability = |v: f64| v.is_finite() && (0.0..=1.0).contains(&v);
+    let finite_values = |v: &Vec<f64>| v.iter().all(|x| x.is_finite());
+    let nonnegative_values = |v: &Vec<f64>| v.iter().all(|&x| nonnegative(x));
+    // Graph-posterior envelopes can withhold the scalar without a marker in this wire.
+    if !(w.ate.is_finite() || w.ate.is_nan())
+        // AnalyticSe documents NaN as the sentinel for withheld uncertainty.
+        || !(w.se_analytic.is_nan() || nonnegative(w.se_analytic))
+        || w.se_bootstrap.is_some_and(|v| !nonnegative(v))
+        || (w.se_bootstrap.is_some() && w.bootstrap_replicates_ok.is_some_and(|n| n < 2))
+        || w.overlap_clip.is_some_and(|v| !v.is_finite() || v <= 0.0 || v >= 0.5)
+        || w.overlap_trim.is_some_and(|v| !v.is_finite() || v <= 0.0 || v >= 0.5)
+        || w.evalue.is_some_and(|v| v.is_nan() || v < 1.0)
+        || w.evalue_threshold.is_some_and(f64::is_nan)
+        || w.adjusted_p_values.is_some_and(|(a, b)| !probability(a) || !probability(b))
+        || w.simultaneous_interval.is_some_and(|v| !valid_interval(v))
+        || w.family_contrast_interval.is_some_and(|v| !valid_interval(v))
+        || w.family_contrast.is_some_and(|(value, se)| !value.is_finite() || !nonnegative(se))
+        || w.scenario_intervals.as_ref().is_some_and(|v| v.iter().any(|&(lo, hi)| lo.is_nan() || hi.is_nan() || lo > hi))
+        || w.scenario_effects.as_ref().is_some_and(|v| !finite_values(v))
+        || w.cate.as_ref().is_some_and(|v| !finite_values(v))
+        || w.cate_se.as_ref().is_some_and(|v| !nonnegative_values(v))
+        || w.cate_leaf_dispersion.as_ref().is_some_and(|v| !nonnegative_values(v))
+        || w.cate.as_ref().zip(w.cate_se.as_ref()).is_some_and(|(a, b)| a.len() != b.len())
+        || w.cate.as_ref().zip(w.cate_leaf_dispersion.as_ref()).is_some_and(|(a, b)| a.len() != b.len())
+        || w.exceedance_cdf.as_ref().is_some_and(|v| !finite_values(v))
+        || w.outcome_oof_r2.is_some_and(|v| !v.is_finite() || v > 1.0)
+        || w.treatment_oof_logloss.is_some_and(|v| !nonnegative(v))
+        || w.crossfit_folds.is_some_and(|v| v < 2)
+    {
+        return Err(IoError::Convert("invalid effect estimate evidence".into()));
+    }
+    Ok(())
 }
 
 fn first_stage_from_wire(
@@ -559,6 +908,8 @@ fn first_stage_from_wire(
         || !(0.0..=1.0).contains(&diagnostic.partial_r2)
         || diagnostic.df1 == 0
         || diagnostic.df2 == 0
+        || diagnostic.anderson_rubin.is_some_and(|v| !valid_interval(v))
+        || (diagnostic.anderson_rubin.is_some() && diagnostic.uncertainty_withheld.is_some())
     {
         return Err(IoError::Convert("invalid first-stage diagnostic evidence".into()));
     }
@@ -568,31 +919,12 @@ fn first_stage_from_wire(
         df2: usize::try_from(diagnostic.df2).map_err(|_| IoError::TooLarge)?,
         partial_r2: diagnostic.partial_r2,
         anderson_rubin: diagnostic.anderson_rubin,
-        uncertainty_withheld: match diagnostic.uncertainty_withheld.as_deref() {
-            None => None,
-            Some("anderson_rubin_requires_homoskedastic") => {
-                Some("anderson_rubin_requires_homoskedastic")
-            }
-            Some("anderson_rubin_set_is_union") => Some("anderson_rubin_set_is_union"),
-            Some("anderson_rubin_set_empty") => Some("anderson_rubin_set_empty"),
-            Some("anderson_rubin_requires_excluded_instruments") => {
-                Some("anderson_rubin_requires_excluded_instruments")
-            }
-            Some("anderson_rubin_invalid_level") => Some("anderson_rubin_invalid_level"),
-            Some("anderson_rubin_critical_value_failed") => {
-                Some("anderson_rubin_critical_value_failed")
-            }
-            Some(_) => {
-                return Err(IoError::Convert(
-                    "unknown first-stage uncertainty_withheld reason".into(),
-                ));
-            }
-        },
+        uncertainty_withheld: diagnostic.uncertainty_withheld.map(UncertaintyWithheldWire::tag),
     })
 }
 
 fn score_inference_from_wire(
-    s: &ScoreInferenceWire,
+    s: ScoreInferenceWire,
 ) -> Result<antecedent_estimate::scores::ScoreInference, IoError> {
     let n = s.raw_means.len();
     if n == 0
@@ -601,16 +933,24 @@ fn score_inference_from_wire(
         || s.event_n_eff.len() != n
         || s.threshold_supported.len() != n
         || s.raw_means.iter().any(|v| !v.is_finite())
-        || s.lower.iter().zip(&s.upper).zip(&s.threshold_supported).any(
-            |((&lo, &hi), &supported)| {
+        || s.lower.iter().zip(&s.upper).zip(&s.threshold_supported).zip(&s.raw_means).any(
+            |(((&lo, &hi), &supported), &mean)| {
                 if supported {
-                    !lo.is_finite() || !hi.is_finite() || lo > hi
+                    lo.is_nan() || hi.is_nan() || lo > mean || mean > hi
                 } else {
-                    !((lo.is_nan() && hi.is_nan())
-                        || (lo.is_finite() && hi.is_finite() && lo <= hi))
+                    !((lo.is_nan() && hi.is_nan()) || (!lo.is_nan() && !hi.is_nan() && lo <= hi))
                 }
             },
         )
+        || s.critical_value.is_nan()
+        || s.critical_value < 0.0
+        || s.event_n_eff.iter().any(|v| !v.is_finite() || *v < 0.0)
+        || !s.n_eff.is_finite()
+        || s.n_eff < 0.0
+        || s.n_eff_by_arm.iter().any(|v| !v.is_finite() || *v < 0.0)
+        || s.propensity_range.is_some_and(|(lo, hi)| {
+            !lo.is_finite() || !hi.is_finite() || lo < 0.0 || hi > 1.0 || lo > hi
+        })
         || !s.level.is_finite()
         || s.level <= 0.0
         || s.level >= 1.0
@@ -618,31 +958,20 @@ fn score_inference_from_wire(
         return Err(IoError::Convert("invalid score inference".into()));
     }
     Ok(antecedent_estimate::scores::ScoreInference {
-        raw_means: s.raw_means.clone(),
-        lower: s.lower.clone(),
-        upper: s.upper.clone(),
+        raw_means: s.raw_means,
+        lower: s.lower,
+        upper: s.upper,
         level: s.level,
         critical_value: s.critical_value,
-        event_n_eff: s.event_n_eff.clone(),
-        threshold_supported: s.threshold_supported.clone(),
+        event_n_eff: s.event_n_eff,
+        threshold_supported: s.threshold_supported,
         support: antecedent_estimate::WeightedSupport {
             n_eff: s.n_eff,
-            n_eff_by_arm: s.n_eff_by_arm.clone(),
+            n_eff_by_arm: s.n_eff_by_arm,
             propensity_range: s.propensity_range,
             overlap_ok: s.overlap_ok,
         },
     })
-}
-
-fn overlap_policy_from_wire(w: &EffectEstimateWire) -> Result<OverlapPolicy, IoError> {
-    let overlap = match w.overlap_policy.as_str() {
-        "require_diagnostics" => {
-            OverlapPolicy::RequireDiagnostics { clip: w.overlap_clip, trim: w.overlap_trim }
-        }
-        "explicit_override" => OverlapPolicy::ExplicitOverride,
-        other => return Err(IoError::Convert(format!("unknown overlap policy `{other}`"))),
-    };
-    Ok(overlap)
 }
 
 fn candidate_selection_from_wire(
@@ -663,13 +992,25 @@ fn candidate_selection_from_wire(
         procedure: std::sync::Arc::from(s.procedure.as_str()),
         winner_index: s.winner_index,
         family_size: s.family_size,
-        screen_rows: std::sync::Arc::from(s.screen_rows.as_slice()),
-        estimate_rows: std::sync::Arc::from(s.estimate_rows.as_slice()),
+        screen_rows: s
+            .screen_rows
+            .iter()
+            .copied()
+            .map(antecedent_data::GlobalId::new)
+            .collect::<Vec<_>>()
+            .into(),
+        estimate_rows: s
+            .estimate_rows
+            .iter()
+            .copied()
+            .map(antecedent_data::GlobalId::new)
+            .collect::<Vec<_>>()
+            .into(),
         disjoint: s.disjoint,
     })
 }
 
-fn overlap_report_from_wire(wire: &OverlapReportWire) -> Result<OverlapReport, IoError> {
+fn overlap_report_from_wire(wire: OverlapReportWire) -> Result<OverlapReport, IoError> {
     let finite = [
         wire.propensity_min,
         wire.propensity_max,
@@ -725,51 +1066,21 @@ fn overlap_report_from_wire(wire: &OverlapReportWire) -> Result<OverlapReport, I
         target_population_support: wire.target_population_support,
         excluded_regions: wire
             .excluded_regions
-            .iter()
+            .into_iter()
             .map(|region| PropensityInterval { low: region.low, high: region.high })
             .collect::<Vec<_>>()
             .into(),
         clip: wire.clip,
         trim: wire.trim,
         retained_fraction: wire.retained_fraction,
-        clip_sensitivity: wire.clip_sensitivity.as_ref().map(|sensitivity| ClipSensitivity {
-            thresholds: sensitivity.thresholds.clone().into(),
-            ess: sensitivity.ess.clone().into(),
-            treated_ess: sensitivity.treated_ess.clone().into(),
-            control_ess: sensitivity.control_ess.clone().into(),
-            extreme_weight_counts: sensitivity.extreme_weight_counts.clone().into(),
+        clip_sensitivity: wire.clip_sensitivity.map(|sensitivity| ClipSensitivity {
+            thresholds: sensitivity.thresholds.into(),
+            ess: sensitivity.ess.into(),
+            treated_ess: sensitivity.treated_ess.into(),
+            control_ess: sensitivity.control_ess.into(),
+            extreme_weight_counts: sensitivity.extreme_weight_counts.into(),
         }),
     })
-}
-
-/// Encode refutation.
-#[must_use]
-pub fn refutation_to_wire(r: &RefutationReport) -> RefutationReportWire {
-    RefutationReportWire {
-        refuter: r.refuter.to_string(),
-        original_ate: r.original_ate,
-        refuted_ate: r.refuted_ate,
-        comparison: r.comparison,
-        informative: r.informative,
-        passed: r.passed,
-        failure_condition: r.failure_condition.as_ref().map(ToString::to_string),
-        replicates: r.replicates,
-    }
-}
-
-/// Decode refutation.
-#[must_use]
-pub fn refutation_from_wire(w: &RefutationReportWire) -> RefutationReport {
-    RefutationReport::new(
-        Arc::from(w.refuter.as_str()),
-        w.original_ate,
-        w.refuted_ate,
-        w.comparison,
-        w.informative,
-        w.passed,
-        w.failure_condition.as_ref().map(|s| Arc::<str>::from(s.as_str())),
-        w.replicates,
-    )
 }
 
 #[cfg(test)]
@@ -791,6 +1102,264 @@ mod tests {
     use antecedent_io_core::analysis_wire::*;
 
     #[test]
+    fn refutation_scope_roundtrips_without_recreating_producer_authority() {
+        let mut report =
+            RefutationReport::new("target.subset_stability", 12.0, 12.1, 0.4, true, true, None, 30);
+        let legacy = refutation_to_wire(&report);
+        assert!(serde_json::to_value(&legacy).unwrap().get("scope").is_none());
+        let target = RefutationTarget::new(
+            TargetFamily::TemporalEffect,
+            TargetQuadrant::TEMPORAL_FREQUENTIST,
+            [format!(
+                "scope:v1:temporal_class_completion:2:0:1:{}|level",
+                antecedent_core::identity::to_hex(&[3; 32])
+            )],
+            [9; 32],
+        )
+        .unwrap();
+        report.scope = Some(RefutationScope::TemporalClassCompletion {
+            outer_atom: 2,
+            horizon_index: 0,
+            horizon: 1,
+            completion_digest: [3; 32],
+            target,
+        });
+        let wire = refutation_to_wire(&report);
+        let mut future = serde_json::to_value(&wire).unwrap();
+        future["scope"]["kind"] = serde_json::json!("future_scope");
+        assert!(serde_json::from_value::<RefutationReportWire>(future).is_err());
+        let decoded = refutation_from_wire(&wire).unwrap();
+        assert_eq!(decoded.scope, report.scope);
+        if let Some(RefutationScope::TemporalClassCompletion { target, .. }) = &decoded.scope {
+            assert_eq!(target.labels().len(), 1);
+        } else {
+            panic!("expected completion scope");
+        }
+        assert_eq!(decoded.produced_by, None);
+        let mut duplicate = wire.clone();
+        if let Some(RefutationScopeWire::TemporalClassCompletion { target, .. }) =
+            &mut duplicate.scope
+        {
+            target.labels.push(target.labels[0].clone());
+            let mut writer =
+                antecedent_core::identity::CanonicalWriter::new("antecedent.refutation_target");
+            writer
+                .text(&target.family)
+                .text("temporal.frequentist")
+                .texts(&target.labels)
+                .bytes(&target.source);
+            target.identity = writer.finish();
+        }
+        assert!(refutation_from_wire(&duplicate).is_err());
+        let mut multi = wire.clone();
+        if let Some(RefutationScopeWire::TemporalClassCompletion { target, .. }) = &mut multi.scope
+        {
+            target.labels.push(target.labels[0].replace("|level", "|second_level"));
+            let mut writer =
+                antecedent_core::identity::CanonicalWriter::new("antecedent.refutation_target");
+            writer
+                .text(&target.family)
+                .text("temporal.frequentist")
+                .texts(&target.labels)
+                .bytes(&target.source);
+            target.identity = writer.finish();
+        }
+        let multi = refutation_from_wire(&multi).unwrap();
+        if let Some(RefutationScope::TemporalClassCompletion { target, .. }) = multi.scope {
+            assert_eq!(target.labels().len(), 2);
+        } else {
+            panic!("expected completion scope");
+        }
+        let mut wrong_selector = wire.clone();
+        if let Some(RefutationScopeWire::TemporalClassCompletion { horizon, .. }) =
+            &mut wrong_selector.scope
+        {
+            *horizon = 2;
+        }
+        assert!(refutation_from_wire(&wrong_selector).is_err());
+        for field in 0..3 {
+            let mut changed = wire.clone();
+            if let Some(RefutationScopeWire::TemporalClassCompletion {
+                outer_atom,
+                horizon_index,
+                completion_digest,
+                ..
+            }) = &mut changed.scope
+            {
+                match field {
+                    0 => *outer_atom += 1,
+                    1 => *horizon_index += 1,
+                    _ => completion_digest[0] ^= 1,
+                }
+            }
+            assert!(refutation_from_wire(&changed).is_err());
+        }
+        let mut malformed = wire;
+        if let Some(RefutationScopeWire::TemporalClassCompletion { target, .. }) =
+            &mut malformed.scope
+        {
+            target.identity[0] ^= 1;
+        } else {
+            panic!("expected completion scope");
+        }
+        assert!(refutation_from_wire(&malformed).is_err());
+    }
+
+    #[test]
+    fn effect_wire_rejects_malformed_evidence_and_preserves_unbounded_values() {
+        let effect =
+            EffectEstimate::new(1.0, 0.2, AssumptionSet::new(), OverlapPolicy::ExplicitOverride);
+        let valid = effect_estimate_to_wire(&effect);
+        let mutations: &[fn(&mut EffectEstimateWire)] = &[
+            |w| w.ate = f64::INFINITY,
+            |w| w.se_analytic = -1.0,
+            |w| w.se_analytic = f64::INFINITY,
+            |w| w.se_bootstrap = Some(f64::NAN),
+            |w| {
+                w.se_bootstrap = Some(0.1);
+                w.bootstrap_replicates_ok = Some(1);
+            },
+            |w| w.overlap_clip = Some(0.5),
+            |w| w.overlap_trim = Some(0.0),
+            |w| w.evalue = Some(f64::NAN),
+            |w| w.evalue_threshold = Some(f64::NAN),
+            |w| w.adjusted_p_values = Some((0.1, 1.1)),
+            |w| w.simultaneous_interval = Some((2.0, 1.0, 0.95)),
+            |w| w.family_contrast_interval = Some((0.0, 1.0, 1.0)),
+            |w| w.family_contrast = Some((1.0, -0.1)),
+            |w| w.scenario_intervals = Some(vec![(f64::NAN, 1.0)]),
+            |w| w.scenario_effects = Some(vec![f64::INFINITY]),
+            |w| w.cate = Some(vec![f64::NAN]),
+            |w| w.cate_se = Some(vec![-0.1]),
+            |w| w.cate_leaf_dispersion = Some(vec![f64::INFINITY]),
+            |w| {
+                w.cate = Some(vec![1.0]);
+                w.cate_se = Some(vec![0.1, 0.2]);
+            },
+            |w| w.exceedance_cdf = Some(vec![f64::NAN]),
+            |w| w.outcome_oof_r2 = Some(1.1),
+            |w| w.treatment_oof_logloss = Some(-0.1),
+            |w| w.crossfit_folds = Some(1),
+        ];
+        for (index, mutate) in mutations.iter().enumerate() {
+            let mut wire = valid.clone();
+            mutate(&mut wire);
+            assert!(effect_estimate_from_wire(&wire).is_err(), "mutation {index}");
+        }
+        let mut unbounded = valid;
+        unbounded.evalue = Some(f64::INFINITY);
+        unbounded.evalue_threshold = Some(0.0);
+        unbounded.simultaneous_interval = Some((f64::NEG_INFINITY, f64::INFINITY, 0.95));
+        unbounded.scenario_intervals = Some(vec![(f64::NEG_INFINITY, 1.0)]);
+        unbounded.exceedance_cdf = Some(vec![-0.1, 1.1]);
+        assert!(effect_estimate_from_wire(&unbounded).is_ok());
+
+        // IV and point-only estimators use NaN for withheld analytic uncertainty,
+        // including routes with no analytic-kind or first-stage marker.
+        let mut withheld = unbounded.clone();
+        withheld.se_analytic = f64::NAN;
+        assert!(withheld.analytic_kind.is_none());
+        let decoded = effect_estimate_from_wire(&withheld).unwrap();
+        assert!(effect_estimate_to_wire(&decoded).se_analytic.is_nan());
+        withheld.first_stage_diagnostics = Some(FirstStageDiagnosticsWire {
+            f_statistic: 2.0,
+            df1: 1,
+            df2: 10,
+            partial_r2: 0.2,
+            anderson_rubin: Some((f64::NEG_INFINITY, f64::INFINITY, 0.95)),
+            uncertainty_withheld: None,
+        });
+        let decoded = effect_estimate_from_wire(&withheld).unwrap();
+        assert!(effect_estimate_to_wire(&decoded).se_analytic.is_nan());
+
+        // Scenario envelopes and exceedance grids do not publish a scalar ATE.
+        let mut envelope = withheld.clone();
+        envelope.ate = f64::NAN;
+        envelope.scenario_effects = None;
+        envelope.exceedance_cdf = None;
+        assert!(
+            effect_estimate_to_wire(&effect_estimate_from_wire(&envelope).unwrap()).ate.is_nan()
+        );
+        envelope.exceedance_cdf = None;
+        envelope.scenario_effects = Some(vec![1.0, 2.0]);
+        assert!(
+            effect_estimate_to_wire(&effect_estimate_from_wire(&envelope).unwrap()).ate.is_nan()
+        );
+        envelope.scenario_effects = None;
+        envelope.exceedance_cdf = Some(vec![0.2, 0.4]);
+        assert!(
+            effect_estimate_to_wire(&effect_estimate_from_wire(&envelope).unwrap()).ate.is_nan()
+        );
+    }
+
+    #[test]
+    fn score_and_first_stage_wire_validate_support_and_sets() {
+        let score = ScoreInferenceWire {
+            raw_means: vec![0.2, 0.4],
+            lower: vec![f64::NEG_INFINITY, f64::NAN],
+            upper: vec![f64::INFINITY, f64::NAN],
+            level: 0.95,
+            critical_value: f64::INFINITY,
+            event_n_eff: vec![2.0, 0.0],
+            threshold_supported: vec![true, false],
+            n_eff: 2.0,
+            n_eff_by_arm: vec![1.0, 1.0],
+            propensity_range: Some((0.0, 1.0)),
+            overlap_ok: true,
+        };
+        assert!(score_inference_from_wire(score.clone()).is_ok());
+        let mutations: &[fn(&mut ScoreInferenceWire)] = &[
+            |s| s.critical_value = f64::NAN,
+            |s| s.event_n_eff[0] = -1.0,
+            |s| s.n_eff = f64::INFINITY,
+            |s| s.n_eff_by_arm[0] = -1.0,
+            |s| s.propensity_range = Some((0.8, 0.2)),
+            |s| s.lower[0] = 0.3,
+            |s| s.upper[1] = 1.0,
+        ];
+        for (index, mutate) in mutations.iter().enumerate() {
+            let mut invalid = score.clone();
+            mutate(&mut invalid);
+            assert!(score_inference_from_wire(invalid).is_err(), "mutation {index}");
+        }
+        let diagnostic = FirstStageDiagnosticsWire {
+            f_statistic: 1.0,
+            df1: 1,
+            df2: 2,
+            partial_r2: 0.2,
+            anderson_rubin: Some((f64::NEG_INFINITY, f64::INFINITY, 0.95)),
+            uncertainty_withheld: None,
+        };
+        assert!(first_stage_from_wire(&diagnostic).is_ok());
+        let mut invalid = diagnostic.clone();
+        invalid.anderson_rubin = Some((2.0, 1.0, 0.95));
+        assert!(first_stage_from_wire(&invalid).is_err());
+        invalid = diagnostic;
+        invalid.uncertainty_withheld = Some(UncertaintyWithheldWire::AndersonRubinSetIsUnion);
+        assert!(first_stage_from_wire(&invalid).is_err());
+    }
+
+    #[test]
+    fn series_ewc_kind_round_trips_and_existing_kinds_decode_unchanged() {
+        use antecedent_estimate::AnalyticSeKind as K;
+        let kind = K::SeriesEwc { terms: 25 };
+        let wire = kind_to_wire(kind);
+        let bytes = serde_json::to_vec(&wire).unwrap();
+        assert_eq!(bytes, br#"{"series_ewc":{"terms":25}}"#);
+        let decoded: AnalyticSeKindWire = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(kind_from_wire(decoded).unwrap(), kind);
+        // Encodings written before the kind existed decode to the same kinds.
+        for (text, expected) in [
+            (r#"{"newey_west":{"lag":3}}"#, K::NeweyWest { lag: 3 }),
+            (r#"{"panel_cluster_hac":{"lag":2}}"#, K::PanelClusterHac { lag: 2 }),
+            (r#""cluster""#, K::Cluster),
+        ] {
+            let decoded: AnalyticSeKindWire = serde_json::from_str(text).unwrap();
+            assert_eq!(kind_from_wire(decoded).unwrap(), expected);
+        }
+    }
+
+    #[test]
     fn learner_outputs_survive_wire_round_trip() {
         let mut effect = EffectEstimate::new(
             2.0,
@@ -810,10 +1379,52 @@ mod tests {
         effect.crossfit.treatment_oof_logloss = Some(0.4);
         effect.crossfit.folds = Some(5);
         effect.crossfit.seed = Some(42);
+        effect.uncertainty.analytic.kind =
+            Some(antecedent_estimate::AnalyticSeKind::NeweyWest { lag: 3 });
+        effect.uncertainty.analytic.reference_df = Some(7.0);
+        effect.uncertainty.block.resampling = Some(antecedent_estimate::BlockResampling {
+            block_length: 4,
+            rows: 40,
+            kernel_bias: 1.2,
+        });
+        effect.uncertainty.block.family = Some(antecedent_estimate::CircularBlockFamily::Mediation);
+        effect.provenance.n_obs = Some(40);
         let wire = effect_estimate_to_wire(&effect);
         let bytes = serde_json::to_vec(&wire).unwrap();
         let decoded: EffectEstimateWire = serde_json::from_slice(&bytes).unwrap();
         let restored = effect_estimate_from_wire(&decoded).unwrap();
+        assert_eq!(restored.uncertainty.analytic, effect.uncertainty.analytic);
+        assert_eq!(restored.uncertainty.block, effect.uncertainty.block);
+        assert_eq!(restored.provenance.n_obs, effect.provenance.n_obs);
+        let critical = |e: &EffectEstimate| {
+            antecedent_stats::student_t_ppf(0.975, e.uncertainty.analytic.reference_df.unwrap())
+        };
+        assert_eq!(
+            (
+                restored.ate - critical(&restored) * restored.se_analytic(),
+                restored.ate + critical(&restored) * restored.se_analytic()
+            ),
+            (
+                effect.ate - critical(&effect) * effect.se_analytic(),
+                effect.ate + critical(&effect) * effect.se_analytic()
+            )
+        );
+        let mut legacy = serde_json::to_value(&wire).unwrap();
+        for field in
+            ["analytic_kind", "analytic_reference_df", "block_resampling", "block_family", "n_obs"]
+        {
+            legacy.as_object_mut().unwrap().remove(field);
+        }
+        let legacy: EffectEstimateWire = serde_json::from_value(legacy).unwrap();
+        let legacy = effect_estimate_from_wire(&legacy).unwrap();
+        assert_eq!(legacy.uncertainty.analytic.kind, None);
+        assert_eq!(legacy.uncertainty.analytic.reference_df, None);
+        assert_eq!(legacy.uncertainty.block, antecedent_estimate::BlockSeRecord::default());
+        assert_eq!(legacy.provenance.n_obs, None);
+        let mut zero_df = wire.clone();
+        zero_df.analytic_reference_df = Some(0.0);
+        let zero_df = effect_estimate_from_wire(&zero_df).unwrap();
+        assert_eq!(zero_df.uncertainty.analytic.reference_df, Some(0.0));
         assert_eq!(restored.crossfit.outcome_oof_r2, effect.crossfit.outcome_oof_r2);
         assert_eq!(restored.crossfit.treatment_oof_logloss, effect.crossfit.treatment_oof_logloss);
         assert_eq!(restored.crossfit.folds, effect.crossfit.folds);
@@ -1026,17 +1637,51 @@ mod tests {
     }
 
     #[test]
+    fn every_withheld_reason_round_trips_through_its_tag_and_the_wire_spelling() {
+        for tag in [
+            "anderson_rubin_requires_homoskedastic",
+            "anderson_rubin_set_is_union",
+            "anderson_rubin_set_empty",
+            "anderson_rubin_requires_excluded_instruments",
+            "anderson_rubin_invalid_level",
+            "anderson_rubin_critical_value_failed",
+        ] {
+            let reason = UncertaintyWithheldWire::from_tag(tag).expect("defined reason");
+            assert_eq!(reason.tag(), tag);
+            assert_eq!(serde_json::to_string(&reason).unwrap(), format!("\"{tag}\""));
+        }
+        assert_eq!(UncertaintyWithheldWire::from_tag("other"), None);
+        assert_eq!(
+            serde_json::to_string(&EstimateOverlapPolicyWire::RequireDiagnostics).unwrap(),
+            "\"require_diagnostics\""
+        );
+        assert_eq!(
+            serde_json::to_string(&EstimateOverlapPolicyWire::ExplicitOverride).unwrap(),
+            "\"explicit_override\""
+        );
+    }
+
+    #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the reference fixture checks one complete round trip"
+    )]
     fn effect_estimate_preserves_assumption_evidence() {
         let wire = EffectEstimateWire {
             ate: 1.0,
             se_analytic: 0.1,
+            analytic_kind: None,
+            analytic_reference_df: None,
+            block_resampling: None,
+            block_family: None,
+            n_obs: None,
             se_bootstrap: Some(0.2),
             bootstrap_replicates_ok: Some(99),
             bootstrap_replicates_failed: Some(1),
             bootstrap_cancelled: true,
             bootstrap_early_stopped: true,
             assumptions: vec![descriptive_assumption()],
-            overlap_policy: "require_diagnostics".into(),
+            overlap_policy: EstimateOverlapPolicyWire::RequireDiagnostics,
             overlap_clip: Some(0.01),
             overlap_trim: Some(0.02),
             overlap_report: Some(OverlapReportWire {
@@ -1092,9 +1737,78 @@ mod tests {
             evalue: None,
             evalue_threshold: None,
             candidate_selection: None,
+            preparation: Some(PreparationWire {
+                backend: "direct_arrow".into(),
+                route_bound: "rows_only".into(),
+                rows_admitted: Some(100),
+                receipt_digest: "ab".repeat(32),
+                admitted_bytes: Some(2_400),
+                budget_bytes: Some(1 << 20),
+                delivery: Some("finite".into()),
+            }),
         };
+        // A present fitted model must survive conversion or be refused, including
+        // unknown versions at either layer; never silently erase it.
+        let mut fitted = wire.clone();
+        fitted.fitted_effect = Some(antecedent_estimate::FittedEffect {
+            version: 1,
+            features: vec![0],
+            intercept: true,
+            predictor: antecedent_learn::PortablePredictor {
+                version: 1,
+                columns: 2,
+                provenance: antecedent_learn::learner::LearnerProvenance {
+                    spec: "linear".into(),
+                    implementation: "test".into(),
+                    version: "1".into(),
+                },
+                model: antecedent_learn::PredictionMap::Linear {
+                    coefficients: vec![1.0, 2.0],
+                    logistic: false,
+                },
+            },
+            support: None,
+        });
+        let converted = effect_estimate_from_wire(&fitted).unwrap();
+        assert_eq!(effect_estimate_to_wire(&converted).fitted_effect, fitted.fitted_effect);
+        for predictor_version in [false, true] {
+            let mut changed = fitted.clone();
+            let model = changed.fitted_effect.as_mut().unwrap();
+            if predictor_version {
+                model.predictor.version = 2;
+            } else {
+                model.version = 2;
+            }
+            assert!(effect_estimate_from_owned_wire(changed).is_err());
+        }
         let domain = effect_estimate_from_wire(&wire).unwrap();
         assert_eq!(effect_estimate_to_wire(&domain), wire);
+        let summary = domain.provenance.preparation.as_ref().unwrap();
+        assert_eq!(summary.rows_admitted, Some(100));
+        assert_eq!(summary.admitted_bytes, Some(2_400));
+        assert_eq!(summary.budget_bytes, Some(1 << 20));
+        assert_eq!(summary.delivery.as_deref(), Some("finite"));
+        // A writer that recorded no resource facts round-trips as none, never as zero.
+        let mut bare = wire.clone();
+        if let Some(p) = bare.preparation.as_mut() {
+            p.admitted_bytes = None;
+            p.budget_bytes = None;
+            p.delivery = None;
+        }
+        let bare_domain = effect_estimate_from_wire(&bare).unwrap();
+        assert_eq!(effect_estimate_to_wire(&bare_domain), bare);
+        let bare_json = serde_json::to_string(&bare).unwrap();
+        assert!(!bare_json.contains("admitted_bytes") && !bare_json.contains("delivery"));
+
+        let mut without = wire;
+        without.preparation = None;
+        let domain = effect_estimate_from_wire(&without).unwrap();
+        assert!(domain.provenance.preparation.is_none());
+        assert_eq!(effect_estimate_to_wire(&domain), without);
+        let json = serde_json::to_string(&without).unwrap();
+        assert!(!json.contains("preparation"), "an absent receipt must emit no key");
+        let old: EffectEstimateWire = serde_json::from_str(&json).unwrap();
+        assert_eq!(old, without);
     }
 
     #[test]

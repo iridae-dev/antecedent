@@ -1,8 +1,8 @@
-//! Effect-suite applicability: `ConditionalEffect` Placebo/RCC run on the licensed
+//! Effect-suite applicability: `ConditionalEffect` Placebo/RCC run on the supported
 //! interaction-model scalar. Per-run `NotApplicable` skips remain pinned for temporal
 //! overlap in `manufacturing_temporal.rs`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -16,7 +16,7 @@ use antecedent_data::{
 };
 use antecedent_graph::{Dag, DenseNodeId};
 
-/// `ConditionalEffectQuery` executes through `ConditionalLinearAdjustment`. The licensed
+/// `ConditionalEffectQuery` executes through `ConditionalLinearAdjustment`. The supported
 /// number is the interaction-model scalar at Ē[W], so Placebo / RCC refit that model
 /// rather than skipping because the estimator id is not `linear.adjustment.ate`.
 fn conditional_query_fixture(n: usize) -> (TabularData, Dag, ConditionalEffectQuery) {
@@ -70,17 +70,20 @@ fn conditional_effect_placebo_and_rcc_run_on_interaction_scalar() {
         .build()
         .unwrap();
     let result = analysis.run(&ExecutionContext::for_tests(1)).unwrap();
-    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+    // y = 1 + 2 t + 0.5 t w has no noise and w = i mod 5 averages 2 over the 120 rows, so the
+    // interaction-model scalar at the mean modifier is exactly 2 + 0.5 * 2 = 3.
+    let ate = result.estimate().as_effect().unwrap().ate;
+    assert!((ate - 3.0).abs() < 1e-8, "conditional ATE {ate} vs 3");
     let names: Vec<&str> = result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
     assert!(
         names.iter().any(|n| n.contains("placebo")),
-        "placebo must run on the licensed conditional scalar; got {names:?}"
+        "placebo must run on the supported conditional scalar; got {names:?}"
     );
     assert!(
         names
             .iter()
             .any(|n| n.contains("random.common_cause") || n.contains("random_common_cause")),
-        "RCC must run on the licensed conditional scalar; got {names:?}"
+        "RCC must run on the supported conditional scalar; got {names:?}"
     );
     assert!(
         result.diagnostics.iter().all(|d| d.code.as_ref() != "refute.validator.not_applicable"),

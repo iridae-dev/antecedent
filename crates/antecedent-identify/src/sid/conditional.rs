@@ -74,11 +74,11 @@
 //! [`ConditionalNonTransportabilityProof`], which keeps the candidate as its
 //! explanation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::conditional_witness::{
-    ConditionalWitnessCheck, ConditionalWitnessRecord, WitnessSearch, search_conditional_witness,
-    verify_conditional_witness,
+    ConditionalWitnessCheck, ConditionalWitnessRecord, WitnessMeter, WitnessSearch,
+    search_conditional_witness_within, verify_conditional_witness,
 };
 use super::mixed_source::{Checker, Set};
 use super::{
@@ -96,11 +96,14 @@ use antecedent_expr::{CausalExprArena, ExprId, ExprNode};
 use antecedent_graph::{Admg, DSeparationWorkspace, DenseNodeId, SelectionDiagram};
 use std::sync::Arc;
 
-/// Observed variables in the selection diagram.
+/// Observed variables a *stored artifact* of this route may declare. This is a
+/// parse bound for serialized records only; the decision itself applies no
+/// count cap and is bounded by its [`SearchLimits`] and memory charge.
 pub const ADMG_CONDITIONAL_MAX_OBSERVED: usize = 6;
-/// Treatments in one query.
+/// Treatments a stored artifact of this route may declare (parse bound only).
 pub const ADMG_CONDITIONAL_MAX_TREATMENTS: usize = 3;
-/// Conditioned variables in one query.
+/// Conditioned variables a stored artifact of this route may declare (parse
+/// bound only).
 pub const ADMG_CONDITIONAL_MAX_CONDITIONED: usize = 3;
 /// Search limits of one decision (every stage together). They are the defaults
 /// and the maxima; larger limits refuse. Memory and cancellation come from the
@@ -113,17 +116,19 @@ pub const ADMG_CONDITIONAL_DEFAULT_LIMITS: SearchLimits =
 pub(crate) const ADMG_CONDITIONAL_MEMORY_BYTES: u64 = DEFAULT_SEARCH_MEMORY_BYTES;
 
 /// A declared bound: graph size, treatments, conditioned set or search limits.
-const BOUNDS_EXCEEDED: &str = "admg_transport.bounds_exceeded";
+const BOUNDS_EXCEEDED: &str = antecedent_core::reason_details::admg_transport::BOUNDS_EXCEEDED;
 /// The reduced joint was not certified.
-const NOT_CERTIFIED: &str = "admg_transport.not_certified";
+const NOT_CERTIFIED: &str = antecedent_core::reason_details::admg_transport::NOT_CERTIFIED;
 /// An exactly verified two-model witness proves non-transportability.
-const PROVEN_NON_TRANSPORTABLE: &str = "admg_transport.proven_non_transportable";
+const PROVEN_NON_TRANSPORTABLE: &str =
+    antecedent_core::reason_details::admg_transport::PROVEN_NON_TRANSPORTABLE;
 /// A certified joint whose searched formulas do not bind to the catalog.
-const MISSING_EVIDENCE: &str = "admg_transport.missing_evidence";
+const MISSING_EVIDENCE: &str = antecedent_core::reason_details::admg_transport::MISSING_EVIDENCE;
 /// A limit or cancellation stopped the decision.
-const BUDGET: &str = "admg_transport.budget";
+const BUDGET: &str = antecedent_core::reason_details::admg_transport::BUDGET;
 /// A stored derivation or candidate does not check.
-const INVALID_DERIVATION: &str = "admg_transport.invalid_derivation";
+const INVALID_DERIVATION: &str =
+    antecedent_core::reason_details::admg_transport::INVALID_DERIVATION;
 
 /// Stage names, in evaluation order.
 const STAGES: [&str; 3] = ["rule_two_reduction", "classical_sid", "catalog_binding"];
@@ -146,14 +151,22 @@ pub fn admg_conditional_refusal(
             Some((reason_code!("route_not_supported"), BOUNDS_EXCEEDED))
         }
         IdentificationError::InvalidInput { message }
-            if message.starts_with("admg_transport.invalid_query") =>
+            if message
+                .starts_with(antecedent_core::reason_details::admg_transport::INVALID_QUERY) =>
         {
-            Some((reason_code!("invalid_argument"), "admg_transport.invalid_query"))
+            Some((
+                reason_code!("invalid_argument"),
+                antecedent_core::reason_details::admg_transport::INVALID_QUERY,
+            ))
         }
         IdentificationError::InvalidCatalog { message }
-            if message.starts_with("admg_transport.invalid_catalog") =>
+            if message
+                .starts_with(antecedent_core::reason_details::admg_transport::INVALID_CATALOG) =>
         {
-            Some((reason_code!("invalid_argument"), "admg_transport.invalid_catalog"))
+            Some((
+                reason_code!("invalid_argument"),
+                antecedent_core::reason_details::admg_transport::INVALID_CATALOG,
+            ))
         }
         IdentificationError::InvalidDerivation { code } if *code == INVALID_DERIVATION => {
             Some((reason_code!("transport_not_certified"), INVALID_DERIVATION))
@@ -745,19 +758,14 @@ impl ConditionalTransportDecision {
     }
 }
 
-/// Validate the query against the diagram: coordinates, disjointness, populations
-/// and the declared bounds.
+/// Validate the query against the diagram: coordinates, disjointness and
+/// populations. There is no count cap: the work is charged to the decision's
+/// search budget.
 pub(super) fn validate(
     diagram: &SelectionDiagram,
     query: &ConditionalTransportQuery,
 ) -> Result<(), IdentificationError> {
     let graph = diagram.causal_graph();
-    if graph.node_count() > ADMG_CONDITIONAL_MAX_OBSERVED
-        || query.base.treatments.len() > ADMG_CONDITIONAL_MAX_TREATMENTS
-        || query.conditioned_on.len() > ADMG_CONDITIONAL_MAX_CONDITIONED
-    {
-        return Err(bounds_exceeded());
-    }
     let base = &query.base;
     if base.outcomes.is_empty() {
         return Err(invalid_query("at least one outcome is required"));
@@ -872,9 +880,8 @@ fn poll_cancellation(ctx: &ExecutionContext) -> Result<(), IdentificationError> 
 /// the decision's shared budget (operations, depth, memory, cancellation).
 /// On the record paths ([`ConditionalTransportDerivation::from_record_checked`],
 /// preparation and artifact consumption) it only polls cancellation: the check
-/// is at most `|W| (|W| + 1) / 2 + |W|` separation tests over a graph of at most
-/// [`ADMG_CONDITIONAL_MAX_OBSERVED`] nodes (both refused before any check), so
-/// it is not metered there.
+/// is at most `|W| (|W| + 1) / 2 + |W|` separation tests, where `W` is the
+/// conditioned set the record already declares, so it is not metered there.
 fn check_reduction(
     diagram: &SelectionDiagram,
     query: &ConditionalTransportQuery,
@@ -934,7 +941,7 @@ fn check_reduction(
 /// receipt of explored and unevaluated stages, never a verdict.
 ///
 /// # Errors
-/// Limits above [`ADMG_CONDITIONAL_DEFAULT_LIMITS`] or a query outside the bounds
+/// Limits above [`ADMG_CONDITIONAL_DEFAULT_LIMITS`]
 /// (`admg_transport.bounds_exceeded`), an invalid query or catalog, or a
 /// derivation that fails its own check.
 pub fn decide_admg_conditional_transport(
@@ -1075,6 +1082,20 @@ pub(super) fn decide_charged(
     }
 }
 
+/// The decision's shared budget as a witness-search meter: one charge per block and direction,
+/// and every quote derived from the operations the budget still allows.
+struct SharedWitnessMeter<'a, 'c>(&'a mut SharedSearch<'c>);
+
+impl WitnessMeter for SharedWitnessMeter<'_, '_> {
+    fn charge(&mut self, bytes: u64) -> Result<(), IdentificationError> {
+        use super::SearchCharge;
+        self.0.charge(1, bytes).map_err(super::stop_error)
+    }
+    fn operations_remaining(&self) -> u64 {
+        self.0.operations_remaining()
+    }
+}
+
 /// The witness stage of a decision whose reduced joint sID did not certify:
 /// search for an exactly verified two-model witness of the conditional query
 /// ([`super::conditional_witness`]), one charge of `search` per parameter block
@@ -1098,12 +1119,11 @@ fn witness_stage(
     search: &mut SharedSearch<'_>,
     ctx: &ExecutionContext,
 ) -> Result<ConditionalTransportDecision, IdentificationError> {
-    use super::SearchCharge;
     search.begin_stage();
-    let found = search_conditional_witness(
+    let found = search_conditional_witness_within(
         diagram,
         query,
-        &mut |bytes| search.charge(1, bytes).map_err(super::stop_error),
+        &mut SharedWitnessMeter(&mut *search),
         ctx,
     );
     let outcome = match found {
@@ -1219,7 +1239,6 @@ fn reduce(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use antecedent_core::MemoryBudget;
 
     use crate::test_support::{d, v};
 
@@ -1353,7 +1372,7 @@ mod tests {
         let error = reduce(&diagram, &query, &mut search).unwrap_err();
         assert_eq!(search.stop_of(&error), antecedent_core::SearchStop::Operations);
         let mut small = ExecutionContext::for_tests(1);
-        small.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(8) };
+        small.set_memory_limit(Some(8));
         let mut search = SharedSearch::new(SearchBudget::new(limits, &small).unwrap());
         let error = reduce(&diagram, &query, &mut search).unwrap_err();
         assert_eq!(search.stop_of(&error), antecedent_core::SearchStop::Memory);
@@ -1387,7 +1406,10 @@ mod tests {
         let ctx = ExecutionContext::for_tests(1);
         let limits = SearchLimits { operations: 64, depth: 4 };
         let fresh = || SharedSearch::new(SearchBudget::new(limits, &ctx).unwrap());
-        let invalid = Some(("transport_not_certified", "admg_transport.invalid_derivation"));
+        let invalid = Some((
+            "transport_not_certified",
+            antecedent_core::reason_details::admg_transport::INVALID_DERIVATION,
+        ));
         // The honest reduction (W is a descendant of Y and stays) checks, and the
         // check charges its one maximality test.
         let mut search = fresh();
@@ -1423,7 +1445,7 @@ mod tests {
         assert_eq!(search.stop_of(&error), antecedent_core::SearchStop::Operations);
         assert_eq!(search.operations(), 1, "the search test ran, the check test did not");
         let mut small = ExecutionContext::for_tests(1);
-        small.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(8) };
+        small.set_memory_limit(Some(8));
         let mut search = SharedSearch::new(SearchBudget::new(limits, &small).unwrap());
         let error =
             verify_search_reduction(&diagram, &query, &[], &[v(2)], &mut search).unwrap_err();
@@ -1464,7 +1486,7 @@ mod tests {
         assert!(limit >= dropped && limit >= reduction.max(classical).max(binding));
         let at = |hard: u64| {
             let mut tight = ExecutionContext::for_tests(1);
-            tight.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(hard) };
+            tight.set_memory_limit(Some(hard));
             decide_admg_conditional_transport(&diagram, &query, &catalog, limits, &tight).unwrap()
         };
         let ConditionalTransportDecision::Exhausted(receipt) = at(limit) else {
@@ -1511,7 +1533,8 @@ mod tests {
         assert!(matches!(decided, ConditionalTransportDecision::ProvenNonTransportable(_)));
         let total = full.operations();
         let witness_peak = full.peak_bytes();
-        // The last charge is a witness attempt: one operation short stops there.
+        // One operation short: the witness search is quoted against the operations the
+        // budget still allows, and the budget (not the shape) refuses its attempts.
         let short = SearchLimits { operations: total - 1, depth: limits.depth };
         let ConditionalTransportDecision::Exhausted(receipt) =
             decide_admg_conditional_transport(&diagram, &query, &catalog, short, &ctx).unwrap()
@@ -1519,7 +1542,7 @@ mod tests {
             panic!("a stop inside the witness search is a receipt");
         };
         assert_eq!(receipt.stop, antecedent_core::SearchStop::Operations);
-        assert_eq!(receipt.operations_consumed, Some(total - 1));
+        assert!(receipt.operations_consumed.is_some_and(|used| used < total));
         assert_eq!(receipt.explored, ["stage:rule_two_reduction", "stage:classical_sid"]);
         assert_eq!(receipt.unevaluated, ["stage:conditional_witness"]);
         // The witness stage charges its own live-state estimate on top of the
@@ -1539,8 +1562,7 @@ mod tests {
             "the witness attempt charges {attempt} bytes"
         );
         let mut tight = ExecutionContext::for_tests(1);
-        tight.memory =
-            MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(witness_peak - 1) };
+        tight.set_memory_limit(Some(witness_peak - 1));
         let ConditionalTransportDecision::Exhausted(receipt) =
             decide_admg_conditional_transport(&diagram, &query, &catalog, limits, &tight).unwrap()
         else {

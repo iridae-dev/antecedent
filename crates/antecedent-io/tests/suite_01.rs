@@ -13,8 +13,12 @@ mod artifact_compat_inherited;
 mod artifact_compat_predictive_adaptive_golden;
 #[path = "artifact_compat_recalc_receipt.rs"]
 mod artifact_compat_recalc_receipt;
+#[path = "bayesian_posterior_row_artifact.rs"]
+mod bayesian_posterior_row_artifact;
 #[path = "categorical_treatment_artifact.rs"]
 mod categorical_treatment_artifact;
+#[path = "choice_inference_result_artifact.rs"]
+mod choice_inference_result_artifact;
 #[path = "cohort_interval_artifact.rs"]
 mod cohort_interval_artifact;
 #[path = "compact_export.rs"]
@@ -41,6 +45,8 @@ mod external_binding_wire;
 mod external_claim_artifact;
 #[path = "external_column_claim_artifact.rs"]
 mod external_column_claim_artifact;
+#[path = "flagship_decision_artifact.rs"]
+mod flagship_decision_artifact;
 #[path = "frozen_scores_artifact.rs"]
 mod frozen_scores_artifact;
 #[path = "joint_bayesian_source_dependence_ledger.rs"]

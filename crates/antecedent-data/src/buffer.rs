@@ -4,7 +4,7 @@
 //! Unsafe code here is limited to pointer→slice projection under an owner
 //! lifetime contract.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     unsafe_code,
@@ -21,6 +21,7 @@ pub struct F64Buffer {
     /// Known to hold no `NaN` (set by a scan that found none; the values are
     /// immutable, so the fact survives clones and re-wraps).
     nan_free: bool,
+    admission: Option<Arc<antecedent_core::execution::AdmissionLease>>,
 }
 
 #[derive(Clone, Debug)]
@@ -90,13 +91,26 @@ impl F64Buffer {
     /// Owned buffer.
     #[must_use]
     pub fn owned(values: impl Into<Arc<[f64]>>) -> Self {
-        Self { inner: F64BufferInner::Owned(values.into()), nan_free: false }
+        Self { inner: F64BufferInner::Owned(values.into()), nan_free: false, admission: None }
     }
 
     /// Foreign-backed buffer.
     #[must_use]
     pub fn foreign(buf: ForeignF64Buffer) -> Self {
-        Self { inner: F64BufferInner::Foreign(buf), nan_free: false }
+        Self { inner: F64BufferInner::Foreign(buf), nan_free: false, admission: None }
+    }
+
+    /// Retain an allocation lease in this buffer and every subsequent clone.
+    ///
+    /// Attach before publishing the buffer: pre-existing uncharged aliases cannot
+    /// acquire a lease retroactively. Values and scientific identities stay unchanged.
+    #[must_use]
+    pub fn with_admission(
+        mut self,
+        lease: Arc<antecedent_core::execution::AdmissionLease>,
+    ) -> Self {
+        self.admission = Some(lease);
+        self
     }
 
     /// Whether the values are known to hold no `NaN`.
@@ -174,5 +188,59 @@ impl From<Vec<f64>> for F64Buffer {
 impl PartialEq for F64Buffer {
     fn eq(&self, other: &Self) -> bool {
         self.as_slice() == other.as_slice()
+    }
+}
+
+/// Keeps the allocation behind an offset foreign window alive.
+#[cfg(test)]
+#[derive(Debug)]
+struct OffsetOwner(Vec<f64>);
+
+#[cfg(test)]
+impl ForeignBufferOwner for OffsetOwner {}
+
+/// Contiguous offset window into `values`, kept as a foreign buffer.
+///
+/// A `NumPy` noncontiguous array is not imported. [`ForeignF64Buffer`] is the
+/// ingestion path that already accepts a pointer and a length: an offset into a
+/// larger allocation, which is the unit-stride window of that array. A strided
+/// view does not grow a second snapshot type.
+#[cfg(test)]
+#[must_use]
+pub(crate) fn foreign_offset_f64(values: Vec<f64>, start: usize, len: usize) -> F64Buffer {
+    assert!(
+        start.checked_add(len).is_some_and(|end| end <= values.len()),
+        "offset window is outside the allocation"
+    );
+    let owner = Arc::new(OffsetOwner(values));
+    let ptr = owner.0.as_ptr().wrapping_add(start);
+    // SAFETY: `owner` keeps the `Vec<f64>` allocation alive and immutable. `start + len`
+    // is in range, so `ptr` addresses `len` aligned `f64`s (or is empty and unread).
+    // Moving the `Arc` does not reallocate.
+    let foreign = unsafe { ForeignF64Buffer::new(owner, ptr, len) };
+    F64Buffer::foreign(foreign)
+}
+
+#[cfg(test)]
+mod admission_tests {
+    use super::F64Buffer;
+    use antecedent_core::ExecutionContext;
+    use std::sync::Arc;
+
+    #[test]
+    fn allocation_admission_survives_clones_until_the_final_buffer_drops() {
+        let context = ExecutionContext::for_tests(1).with_memory_limit(Some(64));
+        let uncharged = F64Buffer::owned(Arc::<[f64]>::from([1.0, 2.0, 3.0, 4.0]));
+        let buffer =
+            uncharged.clone().with_admission(Arc::new(context.acquire_admission(0, 32).unwrap()));
+        assert_eq!(buffer, uncharged);
+        assert_eq!(buffer.as_ptr(), uncharged.as_ptr());
+        drop(uncharged);
+        let retained = buffer.clone();
+        drop(buffer);
+        assert_eq!(context.admission().available().bytes(), 32);
+        assert_eq!(retained.as_slice(), &[1.0, 2.0, 3.0, 4.0]);
+        drop(retained);
+        assert_eq!(context.admission().available().bytes(), 64);
     }
 }

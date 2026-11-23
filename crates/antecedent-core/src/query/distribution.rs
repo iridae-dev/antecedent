@@ -1,9 +1,14 @@
 //! Query submodule.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::InterventionFault;
 use std::sync::Arc;
 
+use crate::canonical_encode::{
+    CanonicalEncode, count, encode_list, encode_variable_set, encode_variables,
+};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 use crate::intervention::Intervention;
 use crate::value::Value;
@@ -26,6 +31,18 @@ pub struct InterventionalDistributionQuery {
     pub conditioning: Arc<[VariableId]>,
     /// Target population.
     pub target_population: TargetPopulation,
+}
+
+/// Every field is written. `outcomes` index the result and keep their order;
+/// `interventions` keep their declared order; `conditioning` is a set and is
+/// encoded in ascending id order.
+impl CanonicalEncode for InterventionalDistributionQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        encode_variables(writer, &self.outcomes);
+        encode_list(writer, &self.interventions);
+        encode_variable_set(writer, &self.conditioning);
+        self.target_population.encode(writer);
+    }
 }
 
 impl InterventionalDistributionQuery {
@@ -68,22 +85,33 @@ impl InterventionalDistributionQuery {
     /// Empty outcomes, invalid interventions, an intervened outcome, or
     /// conditioning overlap.
     pub fn validate(&self) -> Result<(), QueryError> {
+        // Walk every sequence leaf without materializing a target vector for
+        // each outcome or conditioning variable.
+        fn targets(iv: &Intervention, variable: VariableId) -> bool {
+            match iv {
+                Intervention::Sequence(sequence) => {
+                    sequence.steps.iter().any(|step| targets(&step.intervention, variable))
+                }
+                other => other.primary_variable() == Some(variable),
+            }
+        }
         if self.outcomes.is_empty() {
             return Err(QueryError::EmptyDistributionOutcomes);
         }
         for iv in self.interventions.iter() {
-            iv.validate().map_err(|e| QueryError::InvalidIntervention(e.to_string()))?;
+            iv.validate()
+                .map_err(|e| QueryError::InvalidIntervention(InterventionFault::Rejected(e)))?;
         }
         for &y in self.outcomes.iter() {
-            if self.interventions.iter().any(|iv| iv.primary_variable() == Some(y)) {
+            if self.interventions.iter().any(|iv| targets(iv, y)) {
                 return Err(QueryError::OutcomeIsInterventionTarget { id: y });
             }
         }
         for &z in self.conditioning.iter() {
-            if self.outcomes.iter().any(|&y| y == z) {
+            if self.outcomes.contains(&z) {
                 return Err(QueryError::ConditioningOverlapsOutcomeOrIntervention);
             }
-            if self.interventions.iter().any(|iv| iv.primary_variable() == Some(z)) {
+            if self.interventions.iter().any(|iv| targets(iv, z)) {
                 return Err(QueryError::ConditioningOverlapsOutcomeOrIntervention);
             }
         }
@@ -116,6 +144,21 @@ pub struct PathSpecificEffectQuery {
     pub max_paths: usize,
     /// Maximum path length (edges).
     pub max_len: usize,
+}
+
+/// Every field is written. `path_nodes` constrain the path set in any order and
+/// are encoded in ascending id order. The enumeration caps change which paths
+/// are summed, so they are part of the query.
+impl CanonicalEncode for PathSpecificEffectQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.treatment.encode(writer);
+        self.outcome.encode(writer);
+        encode_variable_set(writer, &self.path_nodes);
+        self.control.encode(writer);
+        self.active.encode(writer);
+        self.target_population.encode(writer);
+        writer.word(count(self.max_paths)).word(count(self.max_len));
+    }
 }
 
 impl PathSpecificEffectQuery {
@@ -180,6 +223,11 @@ impl PathSpecificEffectQuery {
         if self.path_nodes.iter().any(|&n| n == self.treatment || n == self.outcome) {
             return Err(QueryError::PathNodeOverlapsTreatmentOrOutcome);
         }
+        for intervention in [&self.control, &self.active] {
+            intervention.validate().map_err(|error| {
+                QueryError::InvalidIntervention(super::fault::InterventionFault::Rejected(error))
+            })?;
+        }
         let control_var =
             self.control.primary_variable().ok_or(QueryError::AmbiguousInterventionTarget)?;
         if control_var != self.treatment {
@@ -198,5 +246,58 @@ impl PathSpecificEffectQuery {
         }
         self.target_population.validate()?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod sequence_target_regressions {
+    use super::*;
+    use crate::intervention::{InterventionSequence, SequencedIntervention, TemporalPolicy};
+
+    #[test]
+    fn distribution_checks_every_sequence_target() {
+        let v = VariableId::from_raw;
+        let sequence = Intervention::sequence(InterventionSequence::new(vec![
+            SequencedIntervention::new(
+                Intervention::set(v(0), Value::f64(1.0)),
+                TemporalPolicy::pulse(0),
+            ),
+            SequencedIntervention::new(
+                Intervention::set(v(1), Value::f64(2.0)),
+                TemporalPolicy::pulse(1),
+            ),
+        ]));
+        assert!(matches!(
+            InterventionalDistributionQuery::new(v(1), [sequence.clone()]).validate(),
+            Err(QueryError::OutcomeIsInterventionTarget { .. })
+        ));
+        assert!(matches!(
+            InterventionalDistributionQuery::new(v(2), [sequence.clone()])
+                .with_conditioning([v(1)])
+                .validate(),
+            Err(QueryError::ConditioningOverlapsOutcomeOrIntervention)
+        ));
+        assert!(
+            InterventionalDistributionQuery::new(v(2), [sequence.clone()])
+                .with_conditioning([v(3)])
+                .validate()
+                .is_ok()
+        );
+        let nested =
+            Intervention::sequence(InterventionSequence::new(vec![SequencedIntervention::new(
+                sequence,
+                TemporalPolicy::pulse(2),
+            )]));
+        for intervention in [nested, Intervention::set(v(1), Value::f64(1.0))] {
+            assert!(matches!(InterventionalDistributionQuery::new(v(2), [intervention.clone()])
+                .with_outcomes([v(2), v(1)]).validate(),
+                Err(QueryError::OutcomeIsInterventionTarget { id }) if id == v(1)));
+            assert!(matches!(
+                InterventionalDistributionQuery::new(v(2), [intervention])
+                    .with_conditioning([v(1)])
+                    .validate(),
+                Err(QueryError::ConditioningOverlapsOutcomeOrIntervention)
+            ));
+        }
     }
 }

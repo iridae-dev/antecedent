@@ -13,7 +13,7 @@
 //! * Normal quantiles: `z(0.975) = 1.959964`; the Bonferroni quantile for three
 //!   candidates at the 95% level, `z(1 - 0.05 / 6) = 2.39398`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::decision_reliability::{
     CandidateCoupling, CandidateDraws, CandidateOrigin, CohortUtilityDraws, ConfidenceSetBasis,
@@ -85,7 +85,7 @@ fn derived_components_match_the_enumerated_law_and_stay_separate() {
     let prepared = PreparedDecisionReliability::assess(law(10), None, request(), &ctx()).unwrap();
     let derived = prepared.derive_uncertainty(&IntervalRequest::marginal(0.95), &ctx()).unwrap();
     assert_eq!(derived.decided_id, "A");
-    assert_eq!(derived.standing, DerivedStanding::DerivedUnmeasured);
+    assert_eq!(derived.standing, DerivedStanding::DerivedNotMeasured);
     assert!(!derived.assumptions.is_empty());
     // Component one is carried over unchanged from the report.
     assert_eq!(derived.source, SourceUncertainty::KnownLaw);
@@ -136,13 +136,19 @@ fn derived_components_match_the_enumerated_law_and_stay_separate() {
 }
 
 #[test]
-fn derived_uncertainty_is_never_published_or_combined() {
+fn derived_uncertainty_is_published_with_its_calibration_and_never_combined() {
     let prepared = PreparedDecisionReliability::assess(law(10), None, request(), &ctx()).unwrap();
     let derived = prepared.derive_uncertainty(&IntervalRequest::marginal(0.9), &ctx()).unwrap();
     for route in PublishedRoute::ALL {
-        let refusal = publish_derived_route(&derived, route).unwrap_err();
-        assert_eq!(refusal.code, "cell_not_licensed");
-        assert_eq!(refusal.detail, "decision_reliability.cell_not_licensed");
+        // Ten draws at a 90% level lie outside every measured record: the route is
+        // published and the slot says it is not calibrated here.
+        let slot = publish_derived_route(&derived, route).unwrap();
+        assert_ne!(
+            slot.status,
+            antecedent_io_core::contract_section::CalibrationStatus::Calibrated,
+            "{}",
+            route.as_str()
+        );
     }
     assert_eq!(
         derived.combined_uncertainty().unwrap_err().reason_code(),
@@ -162,7 +168,10 @@ fn derivation_refuses_a_small_effective_sample_and_an_invalid_level() {
     )
     .unwrap_err();
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "decision_reliability.effective_sample_size_too_small");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_reliability::EFFECTIVE_SAMPLE_SIZE_TOO_SMALL
+    );
     // A level outside [0.5, 0.9999].
     for level in [0.3, 1.0, f64::NAN] {
         let refusal = derive_decision_uncertainty(
@@ -215,6 +224,9 @@ fn simultaneous_multiplicity_widens_every_numerical_interval() {
     // Eight reported intervals: the per-interval level is 1 - 0.05 / 8.
     let a = simultaneous.numerical.utilities.iter().find(|u| u.id == "A").unwrap();
     assert!((a.interval.level - (1.0 - 0.05 / 8.0)).abs() < 1e-12);
+    // The Bonferroni half-width is z(1 - 0.05 / 16) * SE_A, z = 2.734368786533177 (scipy ppf).
+    assert!((width(&simultaneous) - 2.0 * 2.734_368_786_533_177 * SE_A).abs() < 1e-5);
+    assert!((width(&marginal) - 2.0 * Z_975 * SE_A).abs() < 1e-6);
 }
 
 #[test]
@@ -235,16 +247,24 @@ fn a_fresh_consumer_rederives_from_the_carried_draws() {
     let mut edited = derived;
     edited.selection.corrected.as_mut().unwrap().lower -= 0.25;
     let refusal = prepared.verify_derived(&edited, &ctx()).unwrap_err();
-    assert_eq!(refusal.detail, "decision_reliability.invalid_input");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_reliability::INVALID_INPUT
+    );
     // A consumer that retained another candidate-set digest refuses the artifact.
     let wrong = DecisionReliabilityExpectation {
         decided_id: Some("B".into()),
         ..DecisionReliabilityExpectation::default()
     };
-    assert!(
+    let refusal =
         consume_derived_uncertainty(&bytes, &wrong, &IntervalRequest::marginal(0.95), &ctx())
-            .is_err()
+            .unwrap_err();
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_reliability::ARTIFACT,
+        "{refusal:?}"
     );
+    assert!(refusal.message.contains("decision_mismatch"), "{refusal:?}");
 }
 
 fn cohort_output(joint_law: JointLawDeclaration) -> CohortUtilityDraws {
@@ -311,7 +331,10 @@ fn point_only_and_undeclared_producer_outputs_refuse_with_typed_reasons() {
     }))
     .unwrap_err();
     assert_eq!(cohort_point.code, "joint_law_required");
-    assert_eq!(cohort_point.detail, "decision_reliability.producer_point_only");
+    assert_eq!(
+        cohort_point.detail,
+        antecedent_core::reason_details::decision_reliability::PRODUCER_POINT_ONLY
+    );
     let rollout_point = reach_decision_carrier(ProducerOutput::PointOnly(PointOnlyOutput {
         producer: ProducerKind::SequentialRollout,
         identity: "model".into(),
@@ -338,11 +361,14 @@ fn point_only_and_undeclared_producer_outputs_refuse_with_typed_reasons() {
     let mut disagreeing = cohort_output(JointLawDeclaration::OneSharedLaw);
     disagreeing.reported_means = vec![("treat".into(), 9.0)];
     let refusal = reach_decision_carrier(ProducerOutput::Cohort(disagreeing)).unwrap_err();
-    assert_eq!(refusal.detail, "decision_reliability.producer_mean_disagrees");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_reliability::PRODUCER_MEAN_DISAGREES
+    );
 }
 
 #[test]
-fn rollout_noise_decides_whether_ranking_statements_are_licensed() {
+fn rollout_noise_decides_whether_ranking_statements_are_supported() {
     let rollout = |noise: RolloutNoise| RolloutUtilityDraws {
         model_identity: "model".into(),
         stream_scheme: "keyed".into(),
@@ -385,7 +411,7 @@ fn rollout_noise_decides_whether_ranking_statements_are_licensed() {
     let refusal =
         PreparedDecisionReliability::assess_producer(&keyed, None, request(), &ctx()).unwrap_err();
     assert_eq!(refusal.code, "joint_law_required");
-    // Structural exogenous noise is one shared law and licenses ranking statements.
+    // Structural exogenous noise is one shared law and supports ranking statements.
     let structural =
         reach_decision_carrier(ProducerOutput::Rollout(rollout(RolloutNoise::StructuralExogenous)))
             .unwrap();

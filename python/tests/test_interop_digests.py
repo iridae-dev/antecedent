@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 
 import numpy as np
 import pytest
 from antecedent import _native, artifacts
+from antecedent import _reason_details as reason_details
 from antecedent._digest import canonical_digest
 from antecedent.errors import CausalSerializationError
 from antecedent.extensibility import (
@@ -19,6 +21,7 @@ from antecedent.extensibility import (
     ProviderVerificationFixture,
     UnknownProviderError,
 )
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -80,6 +83,122 @@ def test_the_digest_is_independent_of_key_order_and_separates_domains_and_types(
         canonical_digest("d", [float("nan")])
 
 
+def test_digest_refuses_lossy_keys_integers_and_nonfinite_complex_arrays() -> None:
+    for value in ({1: "x"}, {1: "x", "1": "y"}, {"nested": {None: 2}}):
+        with pytest.raises(TypeError, match="mapping keys must be strings"):
+            canonical_digest("d", value)
+    for value in (-(1 << 63) - 1, 1 << 64, (1 << 64) + 1):
+        with pytest.raises(ValueError, match="i64/u64"):
+            canonical_digest("d", {"number": value})
+        with pytest.raises(ValueError, match="i64/u64"):
+            _native.canonical_json_digest_hex("d", json.dumps({"number": value}))
+    for value in (complex(float("nan"), 0), complex(0, float("inf"))):
+        with pytest.raises(ValueError, match="JSON"):
+            canonical_digest("d", np.array([value], dtype=np.complex128))
+    # The same accepted JSON values still use Rust's original typed encoding.
+    valid = {"a": [-(1 << 63), (1 << 64) - 1, 1.5, True]}
+    assert canonical_digest("d", valid) == _native.canonical_json_digest_hex(
+        "d", json.dumps(valid, allow_nan=False)
+    )
+    assert canonical_digest("d", np.uint64((1 << 64) - 1)) == canonical_digest("d", (1 << 64) - 1)
+    assert canonical_digest("d", np.int64(-3)) == canonical_digest("d", -3)
+    assert canonical_digest("d", np.float64(1.25)) == canonical_digest("d", 1.25)
+    extended = np.longdouble("1.25")
+    if isinstance(extended.item(), np.generic):
+        with pytest.raises(TypeError, match="no canonical scalar form"):
+            canonical_digest("d", extended)
+    else:
+        assert canonical_digest("d", extended) == canonical_digest("d", extended.item())
+    finite = np.array([1 + 2j], dtype=np.complex128)
+    assert canonical_digest("d", finite) == canonical_digest("d", finite.copy())
+
+    class NestedScalar(np.float64):
+        def item(self):
+            return {1: "x"}
+
+    with pytest.raises(TypeError, match="mapping keys must be strings"):
+        canonical_digest("d", {"value": NestedScalar(1.0)})
+
+
+def test_provider_receipt_does_not_cover_lossy_request_aliases() -> None:
+    registry = _registry()
+    request = {"data": {"y": [1.0, 3.0]}, "metadata": {"1": "x"}}
+    fixture = ProviderVerificationFixture(
+        name="truth",
+        request=request,
+        expected_estimate=[2.0],
+        expected_uncertainty=None,
+        expected_assumptions=("fixture",),
+        expected_support_status="caller_asserted",
+        expected_provenance={"version": "1"},
+        artifact_digest=hashlib.sha256(b"receipt").hexdigest(),
+    )
+    receipt = registry.verify("mean", [fixture], evidence_origin="independent/v1")
+    assert receipt.covers(request)
+    key_alias = {"data": {"y": [1.0, 3.0]}, "metadata": {1: "x"}}
+    assert not receipt.covers(key_alias)
+    with pytest.raises(ProviderRefusal) as caught:
+        require_success(registry.execute("mean", key_alias))
+    assert caught.value.detail == "provider.request_not_canonical"
+
+    # Structured-scalar item() previously produced a tuple containing an
+    # unchecked mapping, which JSON then coerced to the verified string key.
+    records = np.zeros(1, dtype=[("payload", object)])
+    records["payload"][0] = {1: "x"}
+    structured = records[0]
+    structured_registry = _registry()
+    list_request = {"data": {"y": [1.0, 3.0]}, "metadata": [{"1": "x"}]}
+    structured_receipt = structured_registry.verify(
+        "mean", [replace(fixture, request=list_request)], evidence_origin="independent/v1"
+    )
+    assert structured_receipt.covers(list_request)
+    structured_alias = {"data": {"y": [1.0, 3.0]}, "metadata": structured}
+    assert not structured_receipt.covers(structured_alias)
+    with pytest.raises(ProviderRefusal) as caught:
+        require_success(structured_registry.execute("mean", structured_alias))
+    assert caught.value.detail == "provider.request_not_canonical"
+
+    # serde_json used to round both integers to the same f64 as this
+    # independently verified float request.
+    large_registry = _registry()
+    float_request = {"data": {"y": [1.0, 3.0]}, "metadata": {"n": float(1 << 64)}}
+    large_receipt = large_registry.verify(
+        "mean", [replace(fixture, request=float_request)], evidence_origin="independent/v1"
+    )
+    assert large_receipt.covers(float_request)
+    for value in (1 << 64, (1 << 64) + 1):
+        alias = {"data": {"y": [1.0, 3.0]}, "metadata": {"n": value}}
+        assert not large_receipt.covers(alias)
+        with pytest.raises(ProviderRefusal) as caught:
+            require_success(large_registry.execute("mean", alias))
+        assert caught.value.detail == "provider.request_not_canonical"
+
+
+def test_pandas_column_labels_do_not_alias_provider_receipts() -> None:
+    pd = pytest.importorskip("pandas")
+    registry = _registry()
+    table = pd.DataFrame({"1": [1.0, 2.0]})
+    request = {"data": {"y": [1.0, 3.0]}, "metadata": table}
+    fixture = ProviderVerificationFixture(
+        name="truth",
+        request=request,
+        expected_estimate=[2.0],
+        expected_uncertainty=None,
+        expected_assumptions=("fixture",),
+        expected_support_status="caller_asserted",
+        expected_provenance={"version": "1"},
+        artifact_digest=hashlib.sha256(b"receipt").hexdigest(),
+    )
+    receipt = registry.verify("mean", [fixture], evidence_origin="independent/v1")
+    assert receipt.covers(request)
+    assert canonical_digest("d", table) == canonical_digest("d", table.copy())
+    alias = {"data": {"y": [1.0, 3.0]}, "metadata": pd.DataFrame({1: [1.0, 2.0]})}
+    assert not receipt.covers(alias)
+    with pytest.raises(ProviderRefusal) as caught:
+        require_success(registry.execute("mean", alias))
+    assert caught.value.detail == "provider.request_not_canonical"
+
+
 def test_two_datasets_that_print_alike_have_different_request_digests() -> None:
     pd = pytest.importorskip("pandas")
     rng = np.random.default_rng(0)
@@ -88,15 +207,15 @@ def test_two_datasets_that_print_alike_have_different_request_digests() -> None:
     other.loc[10_000, "y"] += 1e-6
     assert repr(frame) == repr(other), "the repr elides the row that differs"
     registry = _registry()
-    first = registry.execute("mean", {"data": frame})
-    second = registry.execute("mean", {"data": other})
-    again = registry.execute("mean", {"data": frame.copy()})
+    first = require_success(registry.execute("mean", {"data": frame}))
+    second = require_success(registry.execute("mean", {"data": other}))
+    again = require_success(registry.execute("mean", {"data": frame.copy()}))
     assert _header(first)["request_digest"] != _header(second)["request_digest"]
     assert _header(first)["request_digest"] == _header(again)["request_digest"]
     assert first.provenance["request_digest_method"] == "canonical_json_v2"
     # The same columns as a dict of arrays, a different container, are another request form.
     columns = {name: frame[name].to_numpy() for name in frame.columns}
-    assert registry.execute("mean", {"data": columns}).estimate.shape == (1,)
+    assert require_success(registry.execute("mean", {"data": columns})).estimate.shape == (1,)
 
 
 def test_array_requests_are_hashed_by_dtype_shape_and_bytes() -> None:
@@ -104,9 +223,9 @@ def test_array_requests_are_hashed_by_dtype_shape_and_bytes() -> None:
     base = np.arange(6.0).reshape(2, 3)
 
     def digest(value) -> str:
-        return _header(registry.execute("mean", {"data": {"y": [1.0]}, "x": value}))[
-            "request_digest"
-        ]
+        return _header(
+            require_success(registry.execute("mean", {"data": {"y": [1.0]}, "x": value}))
+        )["request_digest"]
 
     assert digest(base) == digest(base.copy())
     assert digest(base) == digest(base.astype(">f8")), "byte order is not identity"
@@ -126,7 +245,7 @@ def test_a_request_with_no_canonical_form_is_refused_never_hashed_by_repr() -> N
             return "Opaque()"
 
     with pytest.raises(ProviderRefusal) as caught:
-        registry.execute("mean", {"data": {"y": [1.0]}, "handle": Opaque()})
+        require_success(registry.execute("mean", {"data": {"y": [1.0]}, "handle": Opaque()}))
     error = caught.value
     assert isinstance(error, ValueError)
     assert error.detail == "provider.request_not_canonical"
@@ -135,18 +254,20 @@ def test_a_request_with_no_canonical_form_is_refused_never_hashed_by_repr() -> N
     assert_registered_refusal(error)
     # A mapping cannot pose as the digest of an array.
     with pytest.raises(ProviderRefusal, match="reserved"):
-        registry.execute(
-            "mean", {"data": {"y": [1.0]}, "x": {"__antecedent_array__": {"blake3": "0" * 64}}}
+        require_success(
+            registry.execute(
+                "mean", {"data": {"y": [1.0]}, "x": {"__antecedent_array__": {"blake3": "0" * 64}}}
+            )
         )
     # Non-finite numbers in a list are refused, not hashed.
     with pytest.raises(ProviderRefusal, match="canonical digest"):
-        registry.execute("mean", {"data": {"y": [1.0]}, "x": [float("nan")]})
+        require_success(registry.execute("mean", {"data": {"y": [1.0]}, "x": [float("nan")]}))
 
 
 def test_registry_refusals_carry_reason_codes_and_remedies_and_keep_their_classes() -> None:
     registry = _registry()
     with pytest.raises(UnknownProviderError) as unknown:
-        registry.execute("absent", {})
+        require_success(registry.execute("absent", {}))
     error = unknown.value
     assert isinstance(error, KeyError) and isinstance(error, ProviderRefusal)
     assert error.detail == "provider.not_registered" and error.remedy
@@ -156,9 +277,9 @@ def test_registry_refusals_carry_reason_codes_and_remedies_and_keep_their_classe
     assert isinstance(duplicate.value, ValueError)
     assert duplicate.value.detail == "provider.already_registered"
     with pytest.raises(ProviderRefusal) as native:
-        registry.register("other", Mean(), trust=ProviderTrust.NATIVE_LICENSED)
+        registry.register("other", Mean(), trust=ProviderTrust.NATIVE_SUPPORTED)
     assert native.value.reason_code == "external_verification_failed"
-    assert native.value.detail == "provider.native_licence_not_available"
+    assert native.value.detail == "provider.native_support_not_available"
     wrong = ProviderVerificationFixture(
         name="truth",
         request={"data": {"y": [1.0, 3.0]}},
@@ -172,16 +293,17 @@ def test_registry_refusals_carry_reason_codes_and_remedies_and_keep_their_classe
     with pytest.raises(ProviderRefusal) as failed:
         registry.verify("mean", [wrong], evidence_origin="independent/v1")
     assert failed.value.reason_code == "external_verification_failed"
-    assert failed.value.detail == "external_object_verification.failed_probe"
+    assert failed.value.detail == reason_details.external_object_verification.FAILED_PROBE
     assert failed.value.offending == "truth" and failed.value.remedy
     assert (
-        registry.execute("mean", {"data": {"y": [1.0]}}).trust is ProviderTrust.EXTERNALLY_ATTESTED
+        require_success(registry.execute("mean", {"data": {"y": [1.0]}})).trust
+        is ProviderTrust.EXTERNALLY_ATTESTED
     )
 
 
 def test_a_provider_result_loads_through_artifacts_as_its_declared_header() -> None:
     registry = _registry()
-    result = registry.execute("mean", {"data": {"y": [1.0, 3.0]}})
+    result = require_success(registry.execute("mean", {"data": {"y": [1.0, 3.0]}}))
     loaded = artifacts.loads(result.host_artifact)
     assert loaded.payload_kind == "provider_result"
     assert loaded.artifact_id == "provider-result:mean"
@@ -194,5 +316,7 @@ def test_a_provider_result_loads_through_artifacts_as_its_declared_header() -> N
     assert result.host_artifact.startswith(b"CAUSAL\0\0"), "new results use the shared container"
     tampered = bytearray(result.host_artifact)
     tampered[-1] ^= 1
-    with pytest.raises(CausalSerializationError):
+    with pytest.raises(
+        CausalSerializationError, match=r"checksum mismatch for section `provider_result\.artifact`"
+    ):
         artifacts.loads(bytes(tampered))

@@ -1,10 +1,11 @@
-"""Numeric evidence for licensed TemporalCpdag/Pag Pulse cells."""
+"""Numeric evidence for supported TemporalCpdag/Pag Pulse cells."""
 
 from __future__ import annotations
 
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_json
 
@@ -84,23 +85,39 @@ def test_temporal_class_pulse_pin(accepted: bool, class_name: str, graph_fn, dia
         assert identified.status == "NotIdentified"
         assert len(identified.certificate["cases"]) == 3
         with pytest.raises(antecedent.errors.CausalCompileError, match="no identified mass"):
-            antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0)
+            require_success(
+                antecedent.analyze(
+                    data,
+                    graph=graph,
+                    query=query,
+                    refute=False,
+                    inference=antecedent.Frequentist(bootstrap=0),
+                )
+            )
         return
     section = _PIN[class_name]
     expected = float(section["pulse"]["ate"])
     tol = float(section["pulse"]["absolute_tolerance"])
 
-    fresh = antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0, seed=1)
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
+    )
+    prepared = antecedent.prepare(
         data,
         graph=graph,
         query=query,
         refute=False,
-        bootstrap=0,
-        seed=1,
-        latency="interactive",
+        inference=antecedent.Frequentist(bootstrap=0, profile="interactive"),
+        execution=antecedent.Execution(seed=1),
     )
-    click = prepared.estimate(data, seed=1)
+    click = require_success(antecedent.estimate(prepared))
 
     expected_source = "accepted" if accepted else "explicit"
     assert prepared.structure_source == expected_source
@@ -118,7 +135,16 @@ def test_temporal_class_pulse_pin(accepted: bool, class_name: str, graph_fn, dia
         for diagnostic in fresh.diagnostics
     )
 
-    cheap = antecedent.analyze(data, graph=graph, query=query, refute="cheap", bootstrap=0, seed=1)
+    cheap = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=query,
+            refute="cheap",
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
+    )
     assert cheap.validation.ran
     assert any("refute.envelope.effect_mixture" in diagnostic for diagnostic in cheap.diagnostics)
     assert cheap.ate == pytest.approx(expected, abs=tol)
@@ -131,16 +157,42 @@ def test_temporal_class_single_step_sustained_matches_pulse(class_name: str, gra
     if class_name == "pag":
         for query in (_pulse(_PIN), _sustained(_PIN)):
             with pytest.raises(antecedent.errors.CausalCompileError, match="no identified mass"):
-                antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0)
+                require_success(
+                    antecedent.analyze(
+                        data,
+                        graph=graph,
+                        query=query,
+                        refute=False,
+                        inference=antecedent.Frequentist(bootstrap=0),
+                    )
+                )
         return
-    pulse = antecedent.analyze(
-        data, graph=graph, query=_pulse(_PIN), refute=False, bootstrap=0, seed=1
+    pulse = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=_pulse(_PIN),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
     )
-    sustained = antecedent.analyze(
-        data, graph=graph, query=_sustained(_PIN), refute=False, bootstrap=0, seed=1
+    sustained = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=_sustained(_PIN),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
     )
     assert pulse.ate == pytest.approx(sustained.ate, abs=1e-10)
-    assert class_name in {"cpdag", "pag"}
+    # Both equal the pinned closed-form envelope mean, not only each other.
+    assert pulse.ate == pytest.approx(
+        float(_PIN[class_name]["pulse"]["ate"]),
+        abs=float(_PIN[class_name]["pulse"]["absolute_tolerance"]),
+    )
 
 
 @pytest.mark.parametrize("class_name,graph_fn", [("cpdag", _cpdag), ("pag", _pag)])
@@ -149,27 +201,71 @@ def test_temporal_class_bayesian_builds(class_name: str, graph_fn) -> None:
     graph = graph_fn(accepted=False)
     if class_name == "pag":
         with pytest.raises(antecedent.errors.CausalCompileError, match="no identified mass"):
-            antecedent.analyze(
-                data,
-                graph=graph,
-                query=_pulse(_PIN),
-                inference=antecedent.Bayesian(n_draws=16, backend="conjugate"),
-                refute=False,
-                bootstrap=0,
-                seed=1,
+            require_success(
+                antecedent.analyze(
+                    data,
+                    graph=graph,
+                    query=_pulse(_PIN),
+                    inference=antecedent.Bayesian(n_draws=16, backend="conjugate"),
+                    refute=False,
+                    execution=antecedent.Execution(seed=1),
+                )
             )
         return
-    result = antecedent.analyze(
-        data,
-        graph=graph,
-        query=_pulse(_PIN),
-        inference=antecedent.Bayesian(n_draws=16, backend="conjugate"),
-        refute=False,
-        bootstrap=0,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=_pulse(_PIN),
+            inference=antecedent.Bayesian(n_draws=16, backend="conjugate"),
+            refute=False,
+            execution=antecedent.Execution(seed=1),
+        )
     )
     assert result.structural_weight_basis == "completion_enumeration"
     assert any(
         "estimate.temporal_class.enumeration_not_probability" in diagnostic
         for diagnostic in result.diagnostics
     )
+
+
+def test_temporal_cpdag_bayesian_identified_set_matches_the_closed_form_completions() -> None:
+    """The two completions' effects are exactly 2 and 2 + 0.5 Cov(z, t) / Var(t) = 3.2136
+    on this noise-free series; the Bayesian identified set is their posterior means."""
+    result = require_success(
+        antecedent.analyze(
+            _series(_PIN),
+            graph=_cpdag(accepted=False),
+            query=_pulse(_PIN),
+            inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
+            refute=False,
+            execution=antecedent.Execution(seed=1),
+        )
+    )
+    lower, upper = result.answer.bounds
+    expected_upper = 2.0 * float(_PIN["cpdag"]["pulse"]["ate"]) - 2.0
+    assert lower == pytest.approx(2.0, abs=0.05)
+    assert upper == pytest.approx(expected_upper, abs=0.05)
+
+
+def test_temporal_cpdag_frequentist_answer_is_the_identified_set_not_the_pinned_mean() -> None:
+    """The pinned 2.6068 is the enumeration-weighted summary of two disagreeing completions
+    (2 and 3.2136, closed form). The safe answer is their identified set; the scalar is only
+    the weighted summary."""
+    result = require_success(
+        antecedent.analyze(
+            _series(_PIN),
+            graph=_cpdag(accepted=False),
+            query=_pulse(_PIN),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
+    )
+    mean = float(_PIN["cpdag"]["pulse"]["ate"])
+    assert result.answer.kind == "bounds"
+    assert result.answer.detail == "identified_set"
+    lower, upper = result.answer.bounds
+    assert lower == pytest.approx(2.0, abs=1e-9)
+    assert upper == pytest.approx(2.0 * mean - 2.0, abs=1e-8)
+    assert lower < mean < upper

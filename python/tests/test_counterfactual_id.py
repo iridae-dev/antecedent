@@ -9,13 +9,15 @@ from __future__ import annotations
 
 import itertools
 
+import antecedent
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.counterfactual_id import (
     EffectOnTreated,
     consume_counterfactual_id_artifact,
     prepare_effect_on_treated,
 )
-from antecedent.errors import CausalError
+from antecedent.errors import CausalError, CausalTypeError
 from antecedent.graph import Admg, Cpdag
 
 LEVELS = {"x": [0.0, 1.0], "m": [0.0, 1.0], "y": [0.0, 1.0]}
@@ -106,6 +108,24 @@ def test_export_and_consume_replay_the_point_and_recompute_it_independently() ->
     assert again.independently_verified
 
 
+def test_a_consumer_holding_the_law_digest_refuses_an_artifact_computed_on_another_law() -> None:
+    effect = prepare().evaluate(probabilities=observational(frontdoor_model(0.1)))
+    other = prepare().evaluate(probabilities=observational(frontdoor_model(0.3)))
+    assert effect.data_digest != other.data_digest
+    bound = consume_counterfactual_id_artifact(
+        effect.artifact, expected_data_digest=effect.data_digest
+    )
+    assert bound.independently_verified
+    assert bound.probability == effect.probability
+    assert bound.data_digest == effect.data_digest
+    with pytest.raises(CausalError) as wrong_law:
+        consume_counterfactual_id_artifact(effect.artifact, expected_data_digest=other.data_digest)
+    assert wrong_law.value.reason_code == "invalid_argument"
+    assert reason_details.counterfactual_id.INVALID_ARTIFACT in str(wrong_law.value)
+    with pytest.raises(CausalTypeError):
+        consume_counterfactual_id_artifact(effect.artifact, expected_data_digest=7)  # type: ignore[arg-type]
+
+
 def test_a_mutated_artifact_is_refused_with_its_reason_code() -> None:
     effect = prepare().evaluate(probabilities=observational(frontdoor_model()))
     artifact = bytearray(effect.artifact)
@@ -145,7 +165,7 @@ def test_refusals_carry_reason_codes() -> None:
         )
     )
     assert error.reason_code == "route_not_supported"
-    assert "counterfactual_id.conflicting_subscripts" in str(error)
+    assert reason_details.counterfactual_id.CONFLICTING_SUBSCRIPTS in str(error)
     assert "not a proof of non-identifiability" in str(error)
 
     def ett(graph=None, **overrides):
@@ -160,24 +180,22 @@ def test_refusals_carry_reason_codes() -> None:
         (ett(observed=1.0), "invalid_argument", "invalid_query"),
         (ett(operations=100_001), "route_not_supported", "bounds_exceeded"),
         (ett(operations=2), "transport_budget_cancel", "budget"),
-        (
-            ett(levels={"x": [0.0, 1.0], "m": [0.0, 1.0, 2.0, 3.0, 4.0], "y": [0.0, 1.0]}),
-            "route_not_supported",
-            "bounds_exceeded",
-        ),
     ]
     for call, code, detail in cases:
         error = refusal(call)
         assert error.reason_code == code, (code, str(error))
         assert f"counterfactual_id.{detail}" in str(error)
+    # Identification has no count cap on levels: five levels are decided, not refused.
+    five = ett(levels={"x": [0.0, 1.0], "m": [0.0, 1.0, 2.0, 3.0, 4.0], "y": [0.0, 1.0]})()
+    assert five.names == ("x", "m", "y")
     error = refusal(ett(Cpdag.from_edges(["x", "m", "y"], [])))
-    assert error.reason_code == "cell_not_licensed"
+    assert error.reason_code == "route_not_supported"
     # A law without positivity for this functional.
     error = refusal(
         lambda: prepare().evaluate(probabilities=[0.2, 0.2, 0.0, 0.0, 0.1, 0.1, 0.2, 0.2])
     )
     assert error.reason_code == "invalid_argument"
-    assert "counterfactual_id.positivity_violation" in str(error)
+    assert reason_details.counterfactual_id.POSITIVITY_VIOLATION in str(error)
 
 
 def test_the_binary_complement_answers_where_id_star_stops() -> None:
@@ -205,7 +223,9 @@ def test_the_binary_complement_answers_where_id_star_stops() -> None:
     assert consumed.independently_verified
     # With a three-level treatment the ID* refusal stands (not a verdict).
     levels["x"] = [0.0, 1.0, 2.0]
-    with pytest.raises(CausalError, match="counterfactual_id.conflicting_subscripts") as caught:
+    with pytest.raises(
+        CausalError, match=reason_details.counterfactual_id.CONFLICTING_SUBSCRIPTS
+    ) as caught:
         prepare_effect_on_treated(
             graph, levels, treatment="x", active=1.0, observed=0.0, outcome="y", outcome_level=1.0
         )
@@ -258,8 +278,18 @@ def test_a_cancelled_search_is_a_budget_stop_with_its_receipt() -> None:
             observed=0.0,
             outcome="y",
             outcome_level=1.0,
-            cancel=token,
+            execution=antecedent.Execution(cancel=token),
         )
     assert stopped.value.reason_code == "transport_budget_cancel"
-    assert "counterfactual_id.budget" in str(stopped.value)
+    assert reason_details.counterfactual_id.BUDGET in str(stopped.value)
     assert "receipt: stop search.cancelled" in str(stopped.value)
+
+
+def test_a_count_table_whose_total_exceeds_u64_is_refused_not_wrapped() -> None:
+    # A wrapped sum would normalise the cells against a wrong (small) denominator.
+    huge = 2**63
+    with pytest.raises(CausalError) as refused:
+        prepare().evaluate(counts=[huge, huge, 1, 0, 0, 0, 0, 0])
+    assert refused.value.reason_code == "invalid_argument"
+    assert reason_details.counterfactual_id.INVALID_QUERY in str(refused.value)
+    assert "exceeds" in str(refused.value)

@@ -1,0 +1,445 @@
+# /// script
+# requires-python = ">=3.12,<3.13"
+# dependencies = []
+# ///
+"""Independent finite-lag two-channel panel reference, never a fitted causal route.
+
+Run with --write to regenerate the retained CSV/truth; --check checks them.
+Only Python's standard library is used. No production estimator is imported.
+SPDX-License-Identifier: MIT OR Apache-2.0
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import io
+import json
+import math
+import random
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+SEED = 20261021
+GROUPS = 4
+PERIODS = 24
+LAG_A = (0.6, 0.3, 0.1)
+LAG_B = (0.5, 0.35, 0.15)
+HALF_SATURATION = 2.0
+AR_COEFFICIENT = 0.45
+INNOVATION_SD = 0.2
+GROUP_SD = 0.35
+SEASONS = (0.0, 0.2, -0.1, 0.1)
+# Keep retained precision intact. Standard-library arithmetic may differ by a
+# few ULPs across supported interpreters; only JSON truth floats have this bound.
+TRUTH_ABSOLUTE_TOLERANCE = 1e-13
+LEVELS = (0.0, 4.0)
+WORLDS = {"reference": (0.0, 0.0), "a": (4.0, 0.0), "b": (0.0, 4.0), "joint": (4.0, 4.0)}
+
+
+def saturation(exposure: float) -> float:
+    return exposure / (exposure + HALF_SATURATION)
+
+
+def carryover(history: list[float], weights: tuple[float, ...]) -> float:
+    """Current exposure is last; two actual pre-period observations initialize lag."""
+    return sum(weight * history[-1 - lag] for lag, weight in enumerate(weights))
+
+
+def mean_outcome(
+    a: float, b: float, group: float, season: int, z: float, interaction: float
+) -> float:
+    sa, sb = saturation(a), saturation(b)
+    return 2.0 + group + SEASONS[season] + 0.7 * z + 3.0 * sa + 2.0 * sb + interaction * sa * sb
+
+
+def panel(design: str, interaction: float) -> tuple[list[dict], list[dict]]:
+    """Paired variants share random draws; latent drivers stay out of observed CSV."""
+    if design not in ("randomized", "confounded"):
+        raise ValueError("unknown panel design")
+    rng = random.Random(SEED)
+    observed, truth = [], []
+    for group in range(GROUPS):
+        intercept = rng.gauss(0.0, GROUP_SD)
+        initial_a = [rng.choice(LEVELS), rng.choice(LEVELS)]
+        initial_b = [rng.choice(LEVELS), rng.choice(LEVELS)]
+        history_a, history_b = initial_a.copy(), initial_b.copy()
+        error = rng.gauss(0.0, INNOVATION_SD / math.sqrt(1.0 - AR_COEFFICIENT**2))
+        group_truth = {
+            "group": group,
+            "intercept": intercept,
+            "initial_a": initial_a,
+            "initial_b": initial_b,
+            "initial_error": error,
+            "periods": [],
+        }
+        # Include the history in the observed data, with outcome absent: it is not
+        # an invented zero-history initialization and never a fitted outcome row.
+        for offset in range(-2, 0):
+            observed.append(
+                {
+                    "group": group,
+                    "time": offset,
+                    "season": offset % 4,
+                    "z": "",
+                    "channel_a": initial_a[offset + 2],
+                    "channel_b": initial_b[offset + 2],
+                    "outcome": "",
+                }
+            )
+        for time in range(PERIODS):
+            z = rng.gauss(0.0, 1.0)
+            latent = rng.gauss(0.0, 1.0)
+            probability_a = 0.35 if z < 0.0 else 0.65
+            probability_b = 0.65 if z < 0.0 else 0.35
+            random_a = 4.0 if rng.random() < probability_a else 0.0
+            random_b = 4.0 if rng.random() < probability_b else 0.0
+            innovation = rng.gauss(0.0, INNOVATION_SD)
+            error = AR_COEFFICIENT * error + innovation
+            if design == "randomized":
+                a, b, omitted = random_a, random_b, 0.0
+            else:
+                # No off-diagonal joint assignments, plus an unobserved common
+                # cause. Smooth curves cannot fill either scientific gap.
+                a = b = 4.0 if latent + 0.4 * z > 0.0 else 0.0
+                omitted = 0.8 * latent
+            history_a.append(a)
+            history_b.append(b)
+            mean = mean_outcome(
+                carryover(history_a, LAG_A),
+                carryover(history_b, LAG_B),
+                intercept,
+                time % 4,
+                z,
+                interaction,
+            )
+            observed.append(
+                {
+                    "group": group,
+                    "time": time,
+                    "season": time % 4,
+                    "z": z,
+                    "channel_a": a,
+                    "channel_b": b,
+                    "outcome": mean + omitted + error,
+                }
+            )
+            group_truth["periods"].append(
+                {
+                    "time": time,
+                    "z": z,
+                    "latent": latent,
+                    "innovation": innovation,
+                    "ar_error": error,
+                    "conditional_mean": mean + omitted,
+                }
+            )
+        truth.append(group_truth)
+    return observed, truth
+
+
+def regime_paths(
+    groups: list[dict], levels: tuple[float, float], interaction: float
+) -> list[list[float]]:
+    """Population mean over retained groups/z/history; outcome noise integrated out."""
+    paths = []
+    for group in groups:
+        a, b = group["initial_a"].copy(), group["initial_b"].copy()
+        outcomes = []
+        for period in group["periods"]:
+            a.append(levels[0])
+            b.append(levels[1])
+            outcomes.append(
+                mean_outcome(
+                    carryover(a, LAG_A),
+                    carryover(b, LAG_B),
+                    group["intercept"],
+                    period["time"] % 4,
+                    period["z"],
+                    interaction,
+                )
+            )
+        paths.append(outcomes)
+    return paths
+
+
+def whole_program_panel() -> tuple[list[dict], list[int]]:
+    """An actual independent whole-program assignment realization, retained separately."""
+    observed, groups = panel("randomized", 1.5)
+    rng = random.Random(194)
+    assigned = [rng.randrange(4) for _ in groups]
+    worlds = list(WORLDS.values())
+    for row in observed:
+        if row["time"] < 0:
+            continue
+        group, time = row["group"], row["time"]
+        levels = worlds[assigned[group]]
+        row["channel_a"], row["channel_b"] = levels
+        row["outcome"] = (
+            regime_paths(groups, levels, 1.5)[group][time]
+            + groups[group]["periods"][time]["ar_error"]
+        )
+    return observed, assigned
+
+
+def reference() -> dict:
+    variants = {}
+    for name, interaction in (("additive", 0.0), ("interaction", 1.5)):
+        _, groups = panel("randomized", interaction)
+        worlds = {
+            world: regime_paths(groups, levels, interaction) for world, levels in WORLDS.items()
+        }
+        means = {
+            world: [sum(path[t] for path in paths) / GROUPS for t in range(PERIODS)]
+            for world, paths in worlds.items()
+        }
+        delta = [
+            means["joint"][t] - means["a"][t] - means["b"][t] + means["reference"][t]
+            for t in range(PERIODS)
+        ]
+        heldout = regime_paths(groups, (4.0, 4.0), interaction)
+        variants[name] = {
+            "interaction_coefficient": interaction,
+            "world_paths": worlds,
+            "world_means": means,
+            "delta_ab_by_time": delta,
+            "delta_ab_horizon_mean": sum(delta) / PERIODS,
+            "heldout_joint": {"levels": [4.0, 4.0], "duration": PERIODS, "group_paths": heldout},
+            "latent_truth": groups,
+        }
+    _, confounded_truth = panel("confounded", 1.5)
+    return {
+        "format": "antecedent.independent_joint_panel.v1",
+        "seed": SEED,
+        "dimensions": {"groups": GROUPS, "periods": PERIODS, "history_periods": 2},
+        "population": "uniform over four retained groups, period-specific observed z and initial histories",
+        "target": "mean scheduled-world response, then joint-a-b+reference; not predictive outcomes",
+        "mechanism": {
+            "lag_a": LAG_A,
+            "lag_b": LAG_B,
+            "half_saturation": HALF_SATURATION,
+            "channel_coefficients": [3.0, 2.0],
+            "intercept_mean": 2.0,
+            "group_intercept_sd": GROUP_SD,
+            "pooling": "shared Normal(0, group_intercept_sd^2) law",
+            "season_coefficients": SEASONS,
+            "z_coefficient": 0.7,
+        },
+        "dependence": {
+            "independent_groups": True,
+            "within_group": "stationary Gaussian AR(1)",
+            "ar_coefficient": AR_COEFFICIENT,
+            "innovation_sd": INNOVATION_SD,
+            "initial_error_variance": INNOVATION_SD**2 / (1.0 - AR_COEFFICIENT**2),
+        },
+        "designs": {
+            "whole_program_randomized": {
+                "assignment_seed": 194,
+                "assignment": "independent uniform draw among four complete programs at each group's origin",
+                "assigned_program_indices": whole_program_panel()[1],
+                "program_order": list(WORLDS),
+                "probabilities": [0.25, 0.25, 0.25, 0.25],
+                "exogenous_context": "z and season paths are generated independently of whole-program assignment",
+                "inference_limit": "one retained group per program; no calibrated uncertainty or fit promotion",
+            },
+            "randomized": {
+                "assignment": "conditionally independent channel draws given z: P(A=4|z)=0.35 if z<0 else 0.65; P(B=4|z)=0.65 if z<0 else 0.35; minimum joint-cell probability 0.1225",
+                "joint_levels": [[a, b] for a in LEVELS for b in LEVELS],
+                "causal_identification": "sequential randomized design premise; production identification still required",
+                "heldout": "24-step constant joint program is not used as an observed trajectory",
+            },
+            "confounded": {
+                "assignment": "A=B=4*I(U+0.4*z>0), U unobserved and contributes 0.8*U to outcome",
+                "joint_levels": [[0.0, 0.0], [4.0, 4.0]],
+                "missing_worlds": ["a", "b"],
+                "expected_causal_claim": "withhold",
+                "obligations": [
+                    "unobserved assignment-outcome common cause",
+                    "no off-diagonal joint support",
+                ],
+                "latent_truth": confounded_truth,
+            },
+        },
+        "variants": variants,
+        "evidence": {
+            "kind": "independent synthetic reference only",
+            "fit": "not performed",
+            "calibration": "not_measured",
+            "external_parity": "not measured",
+            "additive_variant": "zero-interaction reference shares the same histories, covariates and noise",
+        },
+    }
+
+
+def csv_text(rows: list[dict]) -> str:
+    target = io.StringIO(newline="")
+    writer = csv.DictWriter(
+        target,
+        fieldnames=["group", "time", "season", "z", "channel_a", "channel_b", "outcome"],
+        lineterminator="\n",
+    )
+    writer.writeheader()
+    writer.writerows(rows)
+    return target.getvalue()
+
+
+ORACLE = {'kind': 'closed_form',
+ 'method': 'retained structural data generator with population truth',
+ 'independence_basis': 'Structural-mean population truth for a four-group, 24-period '
+                       'two-channel panel (seeded stdlib generator): world mean paths, '
+                       'delta = joint-a-b+reference. This review added an independent '
+                       'identity check: the retained delta equals interaction*(S_joint '
+                       '- S_a - S_b + S_ref) with S_w the product of saturated lagged '
+                       'exposures from the retained initial histories, so group '
+                       'intercepts, seasons, z and AR errors must cancel. Only the '
+                       'Python standard library is used; no estimator, simulator or '
+                       'identification routine is imported. Truth is the structural '
+                       'mean with noise integrated out. The cancellation identity is a '
+                       'second derivation of the delta from the lag weights and '
+                       'saturation alone.',
+ 'generator': 'conformance/response/joint_panel/reference.py',
+ 'command': 'uv run --frozen --script conformance/response/joint_panel/reference.py '
+            '--check',
+ 'environment_lock': 'conformance/response/joint_panel/reference.py.lock',
+ 'generator_retained': True,
+ 'asserted_outputs': ['world mean paths and the interaction delta used by the '
+                      'shared-draw response test',
+                      'retained group intercepts and initial histories',
+                      'randomized_interaction.csv rows'],
+ 'context_only_outputs': ['confounded design obligations',
+                          'whole-program assignment and acceptance artifacts not read '
+                          'by the cited assertion',
+                          'evidence/format labels'],
+ 'historical_exposure': "The original generator's authorship is unrecorded; its source "
+                        'was read in full during this review and the product '
+                        'implementation was not consulted. The generator was edited '
+                        'here only to add the identity check, the locked-environment '
+                        'header and review carry-through.'}
+
+
+def artifacts() -> dict[str, str]:
+    files = {
+        "expected.json": json.dumps({"oracle": ORACLE, **reference()}, indent=2, sort_keys=True)
+        + "\n"
+    }
+    for design in ("randomized", "confounded"):
+        for name, coefficient in (("additive", 0.0), ("interaction", 1.5)):
+            rows, _ = panel(design, coefficient)
+            files[f"{design}_{name}.csv"] = csv_text(rows)
+    files["whole_program_interaction.csv"] = csv_text(whole_program_panel()[0])
+    return files
+
+
+def same_truth(expected, generated) -> bool:
+    """Exact metadata/shapes, stable finite floating truth; no production dependency."""
+    if type(expected) is not type(generated):
+        return False
+    if isinstance(expected, float):
+        return (
+            math.isfinite(expected)
+            and math.isfinite(generated)
+            and math.isclose(expected, generated, rel_tol=0.0, abs_tol=TRUTH_ABSOLUTE_TOLERANCE)
+        )
+    if isinstance(expected, dict):
+        return expected.keys() == generated.keys() and all(
+            same_truth(value, generated[key]) for key, value in expected.items()
+        )
+    if isinstance(expected, list):
+        return len(expected) == len(generated) and all(
+            same_truth(left, right) for left, right in zip(expected, generated, strict=True)
+        )
+    return expected == generated
+
+
+def matches_artifact(name: str, retained: str, generated: str) -> bool:
+    """JSON truth and CSV panels both hold to the declared absolute tolerance.
+
+    CSV text cells stay exact. Numeric cells carry `random.gauss` draws, which pass through the
+    platform's `log` and `cos` and so differ in their last bits between math libraries."""
+    if name == "expected.json":
+        kept = json.loads(retained)
+        # The retained reference_review binds this script by digest and is carried through.
+        kept["oracle"] = {k: v for k, v in kept["oracle"].items() if k != "reference_review"}
+        return same_truth(kept, json.loads(generated))
+    kept_rows = list(csv.reader(io.StringIO(retained)))
+    new_rows = list(csv.reader(io.StringIO(generated)))
+    if [len(row) for row in kept_rows] != [len(row) for row in new_rows]:
+        return False
+    for kept_row, new_row in zip(kept_rows, new_rows, strict=True):
+        for kept_cell, new_cell in zip(kept_row, new_row, strict=True):
+            try:
+                left, right = float(kept_cell), float(new_cell)
+            except ValueError:
+                if kept_cell != new_cell:
+                    return False
+                continue
+            if not same_truth(left, right):
+                return False
+    return True
+
+
+def interaction_identity_problems(document: dict) -> list[str]:
+    """delta_ab must equal interaction * (S_joint - S_a - S_b + S_ref).
+
+    A second derivation from the lag weights and the saturation only: group intercepts,
+    seasons, the observed covariate and AR errors all cancel in the double difference."""
+    problems = []
+    for name, variant in document["variants"].items():
+        c = variant["interaction_coefficient"]
+        for t in range(PERIODS):
+            total = 0.0
+            for group in variant["latent_truth"]:
+                products = {}
+                for world, levels in WORLDS.items():
+                    a, b = list(group["initial_a"]), list(group["initial_b"])
+                    for _ in range(t + 1):
+                        a.append(levels[0])
+                        b.append(levels[1])
+                    products[world] = saturation(carryover(a, LAG_A)) * saturation(carryover(b, LAG_B))
+                total += c * (
+                    products["joint"] - products["a"] - products["b"] + products["reference"]
+                )
+            if abs(total / GROUPS - variant["delta_ab_by_time"][t]) > TRUTH_ABSOLUTE_TOLERANCE:
+                problems.append(f"{name}: delta at t={t} differs from the interaction identity")
+        if name == "additive" and any(abs(v) > TRUTH_ABSOLUTE_TOLERANCE for v in variant["delta_ab_by_time"]):
+            problems.append("additive variant has a nonzero interaction delta")
+    return problems
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--write", action="store_true")
+    mode.add_argument("--check", action="store_true")
+    args = parser.parse_args()
+    failed = []
+    for name, content in artifacts().items():
+        path = HERE / name
+        if args.write and name == "expected.json" and path.is_file():
+            review = json.loads(path.read_text(encoding="utf-8"))["oracle"].get("reference_review")
+            if review:
+                document = json.loads(content)
+                document["oracle"]["reference_review"] = review
+                content = json.dumps(document, indent=2, sort_keys=True) + "\n"
+        if args.write:
+            path.write_text(content, encoding="utf-8", newline="\n")
+        elif not path.is_file() or not matches_artifact(
+            name, path.read_text(encoding="utf-8"), content
+        ):
+            failed.append(name)
+    if args.check:
+        failed += interaction_identity_problems(
+            json.loads((HERE / "expected.json").read_text(encoding="utf-8"))
+        )
+    if failed:
+        parser.exit(1, f"joint panel reference differs: {', '.join(failed)}\n")
+    print(
+        "joint panel reference: six retained artifacts verified"
+        if args.check
+        else "joint panel reference written"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

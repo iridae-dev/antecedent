@@ -1,20 +1,30 @@
 //! Replayable artifact for a composed uncertain quantity.
 //!
-//! Format version 1, kind `joint_law_propagation_v1`. The artifact binds, in
+//! Format version 2, kind `joint_law_propagation_v1`. The artifact binds, in
 //! one sealed identity, the identities of the inputs (the evidence each rests
 //! on, its role in the composition and how its draws are aligned), the
-//! alignment identity the rows share, the propagation rule that licensed the
+//! alignment identity the rows share, the propagation rule that supported the
 //! computation (operation, dependence declaration and reading), the numbers
 //! the computation consumed as IEEE bit patterns, the stored result and the
 //! label the result carries (`point_only`, `uncalibrated_spread`,
 //! `structural_envelope` or `assumption_range`).
+//!
+//! Version 2 stores the result as a typed body ([`PropagationResultWire`]).
+//! Version 1 stored it as a list of named `(name, u64)` entries; the reader
+//! still accepts that layout and maps it into the typed body, so stored
+//! artifacts keep replaying. The identity excludes the result and is derived
+//! under the identity version of the first layout, so an artifact's identity
+//! is the same in both layouts.
 //!
 //! # What a consumer does
 //!
 //! A consumer trusts none of it. It recomputes the identity over the rule,
 //! inputs, numbers and plan; re-runs the propagation rule on the stored
 //! declaration and requires the stored route, label and alignment identity to
-//! be the ones the rule yields; recomputes the result from the stored numbers
+//! be the ones the rule yields; requires the stored numbers to be the ones the
+//! operation names (unit coefficients for a sum, coefficients summing to zero
+//! for a contrast, the product functional for a product, the matching envelope
+//! query); recomputes the result from the stored numbers
 //! and accepts only identical result bits. What this protects against:
 //! corruption, edits that are not resealed, and resealed edits that change the
 //! operation, the dependence declaration, the alignment identity, a number or
@@ -33,14 +43,22 @@
 //!
 //! A `uncalibrated_spread` result (a variance, a Monte Carlo standard error, an
 //! exceedance probability with its Monte Carlo band and a verdict against a
-//! cutoff) is computed at the composed coordinate under the licensed
+//! cutoff) is computed at the composed coordinate under the supported
 //! dependence route. The verdict is about the Monte Carlo band of the stated
 //! probability only. The artifact carries no interval and no coverage
 //! statement: an interval at a composed coordinate needs a measured coverage
 //! record, which the artifact does not hold and the rule's interval reading
 //! refuses without.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+mod wire;
+
+pub use wire::{
+    BoundsWire, ConsumedJointLawPropagation, EnvelopeQuantityWire, EnvelopeQueryWire,
+    JointLawPropagationArtifactWire, MarginalWire, PropagationInputWire, PropagationRequestWire,
+    PropagationResultWire, PropagationRuleWire, VerdictWire,
+};
 
 use antecedent_contract::{
     ExternalRefusal, InputAlignment, InputRole, JOINT_LAW_STAGE, PropagationDependence,
@@ -49,20 +67,24 @@ use antecedent_contract::{
 };
 use antecedent_core::{ExecutionContext, IdentityDomain};
 use antecedent_stats::{
-    DecisionVerdict, JointLawError, Marginal, MomentSummary, ValueBounds, ValueFunctional,
-    aligned_functional_draws, aligned_functional_mean, composed_exceedance_decision,
-    correlation_range_envelope, covariance_envelope, difference_cdf_envelope, draw_spread,
-    functional_envelope, linear_combination_moments, linear_variance_envelope, mixture_exceedance,
-    mixture_moments, paired_moments, pooled_dependence_envelope, product_moment_envelope,
-    sum_cdf_envelope,
+    DecisionVerdict, JointLawError, MomentSummary, ValueFunctional, aligned_functional_draws,
+    aligned_functional_mean, composed_exceedance_decision, correlation_range_envelope,
+    covariance_envelope, difference_cdf_envelope, draw_spread, functional_envelope,
+    linear_combination_moments, linear_variance_envelope, mixture_exceedance, mixture_moments,
+    paired_moments, pooled_dependence_envelope, product_moment_envelope, sum_cdf_envelope,
 };
-use serde::{Deserialize, Serialize};
 
 use crate::IoError;
 use crate::distribution_artifact::MAX_DISTRIBUTION_DRAWS;
 
-/// The artifact format this reader writes and accepts.
-pub const JOINT_LAW_PROPAGATION_ARTIFACT_VERSION: u32 = 1;
+/// The artifact format this reader writes.
+pub const JOINT_LAW_PROPAGATION_ARTIFACT_VERSION: u32 = 2;
+/// The earlier format, whose result is a list of named entries; the reader
+/// accepts it and maps it into the typed result.
+pub const JOINT_LAW_PROPAGATION_LEGACY_ARTIFACT_VERSION: u32 = 1;
+/// The version the identity digest is derived under. The identity covers no
+/// result, so the result layout revision does not change it.
+const JOINT_LAW_PROPAGATION_IDENTITY_VERSION: u32 = 1;
 /// The feature marker (and artifact kind) of the accepted format.
 pub const JOINT_LAW_PROPAGATION_ARTIFACT_FEATURE: &str = "joint_law_propagation_v1";
 /// Most inputs one composition may name.
@@ -74,6 +96,38 @@ pub const MAX_JOINT_LAW_PROPAGATION_ARTIFACT_BYTES: usize = 8 * 1024 * 1024;
 pub const MAX_JOINT_LAW_PROPAGATION_TEXT_BYTES: usize = 4096;
 /// Most shared-evidence identities the artifact may record.
 pub const MAX_JOINT_LAW_PROPAGATION_SHARED_EVIDENCE: usize = 4096;
+
+/// Intake bounds for a joint-law propagation artifact. The defaults are the
+/// `JOINT_LAW_PROPAGATION_MAX_*` and `MAX_JOINT_LAW_PROPAGATION_*` constants and
+/// [`MAX_DISTRIBUTION_DRAWS`]; a consumer with a larger budget passes its own to
+/// [`JointLawPropagationArtifactWire::decode_within`] and
+/// [`JointLawPropagationArtifactWire::consume_within`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct JointLawPropagationLimits {
+    /// Most encoded bytes.
+    pub max_bytes: usize,
+    /// Most inputs one composition may name, and the most entries of a coefficient,
+    /// mean, variance, weight, estimate or component list.
+    pub max_inputs: usize,
+    /// Most draws of an aligned or enumerated marginal.
+    pub max_draws: usize,
+    /// Longest identity, label or name, in bytes.
+    pub max_text_bytes: usize,
+    /// Most shared-evidence identities.
+    pub max_shared_evidence: usize,
+}
+
+impl Default for JointLawPropagationLimits {
+    fn default() -> Self {
+        Self {
+            max_bytes: MAX_JOINT_LAW_PROPAGATION_ARTIFACT_BYTES,
+            max_inputs: JOINT_LAW_PROPAGATION_MAX_INPUTS,
+            max_draws: MAX_DISTRIBUTION_DRAWS,
+            max_text_bytes: MAX_JOINT_LAW_PROPAGATION_TEXT_BYTES,
+            max_shared_evidence: MAX_JOINT_LAW_PROPAGATION_SHARED_EVIDENCE,
+        }
+    }
+}
 
 /// Why a joint-law propagation artifact was refused.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -144,12 +198,12 @@ impl JointLawPropagationArtifactError {
             Self::Refused { refusals } => refusals.clone(),
             Self::IdentityMismatch | Self::ResultMismatch => make(
                 invalid,
-                "joint_law_propagation.artifact_refused",
+                antecedent_core::reason_details::joint_law_propagation::ARTIFACT_REFUSED,
                 "supply the artifact whose identity equals the retained one and whose result recomputes from its stored inputs and rule",
             ),
             Self::Cancelled => make(
                 cancelled,
-                "joint_law_propagation.cancelled",
+                antecedent_core::reason_details::joint_law_propagation::CANCELLED,
                 "rerun without cancellation; the cancellation is not a verdict on the composition",
             ),
             Self::Decode(_)
@@ -159,7 +213,7 @@ impl JointLawPropagationArtifactError {
             | Self::Encode(_)
             | Self::Malformed(_) => make(
                 invalid,
-                "joint_law_propagation.artifact_invalid",
+                antecedent_core::reason_details::joint_law_propagation::ARTIFACT_INVALID,
                 "supply an intact joint_law_propagation_v1 artifact of the supported layout",
             ),
         }
@@ -188,7 +242,7 @@ fn invalid_request(offending: &str, remedy: &'static str) -> Error {
             ExternalRefusal::new(
                 antecedent_core::reason_code!("invalid_argument"),
                 JOINT_LAW_STAGE,
-                "joint_law_propagation.invalid_request",
+                antecedent_core::reason_details::joint_law_propagation::INVALID_REQUEST,
             )
             .with_offending(offending.to_owned())
             .with_remedy(remedy),
@@ -199,12 +253,12 @@ fn invalid_request(offending: &str, remedy: &'static str) -> Error {
 fn math_error(error: JointLawError) -> Error {
     match error {
         JointLawError::StructureNotVerified { structure } => route_refusal(
-            "joint_law_propagation.structure_not_verified",
+            antecedent_core::reason_details::joint_law_propagation::STRUCTURE_NOT_VERIFIED,
             structure,
             "the value function must have a verified mixed-difference sign on the marginals' support for its coupling extremes to be bounds; use one of the closed functionals on a support where it holds, or supply the aligned joint law",
         ),
         JointLawError::BudgetExceeded(what) => route_refusal(
-            "joint_law_propagation.bounds_exceeded",
+            antecedent_core::reason_details::joint_law_propagation::BOUNDS_EXCEEDED,
             what,
             "coarsen the marginals or the draw set to within the declared bounds",
         ),
@@ -217,284 +271,7 @@ fn math_error(error: JointLawError) -> Error {
     }
 }
 
-// ----------------------------------------------------------------- the wire
-
-/// One input of the composition.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct PropagationInputWire {
-    /// Stable input identity.
-    pub input_id: String,
-    /// Identity of the evidence the input rests on.
-    pub evidence_id: String,
-    /// The input's role (`estimate`, `transported_interval`, ...).
-    pub role: String,
-    /// `aligned`, `independent_marginals` or `moments_only`.
-    pub alignment: String,
-    /// The alignment identity, present exactly when `alignment` is `aligned`.
-    pub alignment_id: Option<String>,
-}
-
-/// The propagation rule's declaration.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct PropagationRuleWire {
-    /// The operation's stable name.
-    pub operation: String,
-    /// `unknown`, `declared_independent`, `covariance`, `aligned_joint_law`,
-    /// `known_weights`, `correlation_range` or `marginals_only`.
-    pub dependence: String,
-    /// The covariance declaration identity, for `covariance`.
-    pub covariance_id: Option<String>,
-    /// Lower correlation bits, for `correlation_range`.
-    pub rho_lo: Option<u64>,
-    /// Upper correlation bits, for `correlation_range`.
-    pub rho_hi: Option<u64>,
-    /// The reading (`point`, `spread` or `envelope`).
-    pub reading: String,
-}
-
-/// A finite marginal, as bit patterns.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct MarginalWire {
-    /// Atom values.
-    pub values: Vec<u64>,
-    /// Atom masses.
-    pub masses: Vec<u64>,
-}
-
-impl MarginalWire {
-    /// A marginal of equal-mass draws.
-    #[must_use]
-    pub fn from_draws(draws: &[f64]) -> Self {
-        let mass = 1.0 / draws.len().max(1) as f64;
-        Self {
-            values: draws.iter().map(|v| v.to_bits()).collect(),
-            masses: vec![mass.to_bits(); draws.len()],
-        }
-    }
-
-    fn marginal(&self) -> Result<Marginal, Error> {
-        Marginal::from_weighted(&floats(&self.values), &floats(&self.masses)).map_err(math_error)
-    }
-}
-
-/// What an envelope over every coupling is asked for.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields, rename_all = "snake_case")]
-pub enum EnvelopeQueryWire {
-    /// `P(X + Y <= t)`.
-    SumCdf {
-        /// Threshold bits.
-        threshold: u64,
-    },
-    /// `P(X - Y <= t)`.
-    DifferenceCdf {
-        /// Threshold bits.
-        threshold: u64,
-    },
-    /// `E[X Y]`.
-    ProductMoment,
-    /// `Cov(X, Y)`.
-    Covariance,
-    /// `Var(a X + b Y)`.
-    LinearVariance {
-        /// Coefficient of `X`, bits.
-        a: u64,
-        /// Coefficient of `Y`, bits.
-        b: u64,
-    },
-    /// `E[g(X, Y)]` for a closed value functional.
-    Functional {
-        /// The functional's stable name.
-        functional: String,
-    },
-}
-
-/// The numbers a computation consumed.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields, rename_all = "snake_case")]
-pub enum PropagationRequestWire {
-    /// `sum a_i X_i` from means and a covariance (delta method).
-    LinearCombination {
-        /// Coefficient bits.
-        coefficients: Vec<u64>,
-        /// Mean bits.
-        means: Vec<u64>,
-        /// Row-major covariance bits.
-        covariance: Vec<u64>,
-    },
-    /// `a X + b Y` from aligned draws.
-    AlignedLinearCombination {
-        /// Coefficient of `X`, bits.
-        a: u64,
-        /// Coefficient of `Y`, bits.
-        b: u64,
-        /// Draws of `X`, bits.
-        x: Vec<u64>,
-        /// Draws of `Y`, bits, row-aligned with `x`.
-        y: Vec<u64>,
-    },
-    /// `E[g(X, Y)]` from aligned draws.
-    AlignedFunctional {
-        /// The functional's stable name.
-        functional: String,
-        /// Draws of `X`, bits.
-        x: Vec<u64>,
-        /// Draws of `Y`, bits, row-aligned with `x`.
-        y: Vec<u64>,
-    },
-    /// The spread of the rows `g(x_i, y_i)` of aligned draws (spread reading).
-    AlignedFunctionalSpread {
-        /// The functional's stable name.
-        functional: String,
-        /// Draws of `X`, bits.
-        x: Vec<u64>,
-        /// Draws of `Y`, bits, row-aligned with `x`.
-        y: Vec<u64>,
-    },
-    /// `P(g(X, Y) > threshold)` from aligned draws with its Monte Carlo band
-    /// and a verdict against a probability cutoff (spread reading).
-    AlignedExceedance {
-        /// The functional's stable name.
-        functional: String,
-        /// Draws of `X`, bits.
-        x: Vec<u64>,
-        /// Draws of `Y`, bits, row-aligned with `x`.
-        y: Vec<u64>,
-        /// Threshold of the composed value, bits.
-        threshold: u64,
-        /// Probability cutoff of the verdict, bits.
-        cutoff: u64,
-        /// Level of the Monte Carlo band, bits.
-        band_level: u64,
-    },
-    /// `P(X > threshold)` of a finite mixture of draw sets with known weights
-    /// (spread reading).
-    MixtureExceedance {
-        /// Weight bits.
-        weights: Vec<u64>,
-        /// Draws of each component, bits.
-        components: Vec<Vec<u64>>,
-        /// Threshold, bits.
-        threshold: u64,
-    },
-    /// A finite mixture with known weights.
-    Mixture {
-        /// Weight bits.
-        weights: Vec<u64>,
-        /// Component mean bits.
-        means: Vec<u64>,
-        /// Component variance bits.
-        variances: Vec<u64>,
-    },
-    /// A Fréchet-Hoeffding envelope of two marginals.
-    FrechetEnvelope {
-        /// The query.
-        query: EnvelopeQueryWire,
-        /// Marginal of `X`.
-        x: MarginalWire,
-        /// Marginal of `Y`.
-        y: MarginalWire,
-    },
-    /// Ranges over the declared correlation range (in the rule).
-    CorrelationRange {
-        /// Mean of `X`, bits.
-        x_mean: u64,
-        /// Standard deviation of `X`, bits.
-        x_sd: u64,
-        /// Mean of `Y`, bits.
-        y_mean: u64,
-        /// Standard deviation of `Y`, bits.
-        y_sd: u64,
-        /// Coefficient of `X`, bits.
-        a: u64,
-        /// Coefficient of `Y`, bits.
-        b: u64,
-    },
-    /// The pooled estimate and variance over the declared correlation range.
-    PooledCorrelationRange {
-        /// Study estimate bits.
-        estimates: Vec<u64>,
-        /// Study standard error bits.
-        standard_errors: Vec<u64>,
-    },
-}
-
-/// The versioned artifact.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct JointLawPropagationArtifactWire {
-    /// Format version.
-    pub version: u32,
-    /// Required feature marker.
-    pub required_features: Vec<String>,
-    /// The rule that licensed the computation.
-    pub rule: PropagationRuleWire,
-    /// The inputs.
-    pub inputs: Vec<PropagationInputWire>,
-    /// The numbers consumed.
-    pub request: PropagationRequestWire,
-    /// The route the rule yielded.
-    pub route: String,
-    /// The label of the result.
-    pub label: String,
-    /// The alignment identity the rows share, for an aligned route.
-    pub alignment_id: Option<String>,
-    /// The covariance declaration identity, for a covariance route.
-    pub covariance_id: Option<String>,
-    /// Evidence identities shared by two or more inputs.
-    pub shared_evidence: Vec<String>,
-    /// The stored result: named values (floats as bit patterns, counts as
-    /// integers).
-    pub result: Vec<(String, u64)>,
-    /// Digest of everything above except the result.
-    pub identity: String,
-}
-
-/// A consumed artifact.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ConsumedJointLawPropagation {
-    /// The identity that was recomputed and verified.
-    pub identity: String,
-    /// The operation.
-    pub operation: String,
-    /// The route.
-    pub route: String,
-    /// The label of the result.
-    pub label: String,
-    /// The alignment identity, for an aligned route.
-    pub alignment_id: Option<String>,
-    /// The replayed named values, bit-identical to the stored ones.
-    pub result: Vec<(String, u64)>,
-}
-
-impl ConsumedJointLawPropagation {
-    /// A named float value.
-    #[must_use]
-    pub fn value(&self, name: &str) -> Option<f64> {
-        if is_count(name) {
-            return None;
-        }
-        self.result.iter().find(|(n, _)| n == name).map(|(_, bits)| f64::from_bits(*bits))
-    }
-
-    /// Whether the result is an envelope (a structural envelope or an
-    /// assumption range) and so is not a point.
-    #[must_use]
-    pub fn is_envelope(&self) -> bool {
-        self.label != antecedent_contract::POINT_ONLY_LABEL
-            && self.label != antecedent_contract::UNCALIBRATED_SPREAD_LABEL
-    }
-}
-
 // ----------------------------------------------------------- conversions
-
-/// Result names that hold an integer count or code, not float bits.
-fn is_count(name: &str) -> bool {
-    matches!(name, "n_rows" | "verdict_code")
-}
 
 /// Stable integer code of a decision verdict: `0` act, `1` withhold, `2`
 /// unresolved.
@@ -513,11 +290,6 @@ fn floats(bits: &[u64]) -> Vec<f64> {
 
 fn bits_of(values: &[f64]) -> Vec<u64> {
     values.iter().map(|v| v.to_bits()).collect()
-}
-
-fn bound_pair(name: &str, bounds: ValueBounds, out: &mut Vec<(String, u64)>) {
-    out.push((format!("{name}_lower"), bounds.lower.to_bits()));
-    out.push((format!("{name}_upper"), bounds.upper.to_bits()));
 }
 
 /// The dependence declaration as stable wire fields.
@@ -610,15 +382,17 @@ fn request_from_wire(
 
 // ----------------------------------------------------------------- bounds
 
-fn check_bounds(wire: &JointLawPropagationArtifactWire) -> Result<(), Error> {
+fn check_bounds(
+    wire: &JointLawPropagationArtifactWire,
+    limits: &JointLawPropagationLimits,
+) -> Result<(), Error> {
     let too_large = Error::LimitsExceeded;
-    if wire.inputs.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS {
+    if wire.inputs.len() > limits.max_inputs {
         return Err(too_large("inputs"));
     }
-    let long = |text: &str| text.len() > MAX_JOINT_LAW_PROPAGATION_TEXT_BYTES;
+    let long = |text: &str| text.len() > limits.max_text_bytes;
     let long_opt = |text: &Option<String>| text.as_deref().is_some_and(long);
-    if wire.shared_evidence.len() > MAX_JOINT_LAW_PROPAGATION_SHARED_EVIDENCE
-        || wire.required_features.len() > 16
+    if wire.shared_evidence.len() > limits.max_shared_evidence || wire.required_features.len() > 16
     {
         return Err(too_large("shared evidence"));
     }
@@ -640,46 +414,39 @@ fn check_bounds(wire: &JointLawPropagationArtifactWire) -> Result<(), Error> {
                 || long(&input.alignment)
                 || long_opt(&input.alignment_id)
         })
-        || wire.result.iter().any(|(name, _)| long(name))
     {
         return Err(too_large("text"));
     }
     let draws = |n: usize| {
-        if n > MAX_DISTRIBUTION_DRAWS { Err(too_large("draws")) } else { Ok(()) }
+        if n > limits.max_draws { Err(too_large("draws")) } else { Ok(()) }
     };
     match &wire.request {
         PropagationRequestWire::LinearCombination { coefficients, means, covariance } => {
-            if coefficients.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS
-                || means.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS
-                || covariance.len()
-                    > JOINT_LAW_PROPAGATION_MAX_INPUTS * JOINT_LAW_PROPAGATION_MAX_INPUTS
+            if coefficients.len() > limits.max_inputs
+                || means.len() > limits.max_inputs
+                || covariance.len() > limits.max_inputs.saturating_mul(limits.max_inputs)
             {
                 return Err(too_large("linear combination"));
             }
         }
         PropagationRequestWire::AlignedLinearCombination { x, y, .. }
-        | PropagationRequestWire::AlignedFunctional { x, y, .. } => {
-            draws(x.len())?;
-            draws(y.len())?;
-        }
-        PropagationRequestWire::AlignedFunctionalSpread { x, y, .. }
+        | PropagationRequestWire::AlignedFunctional { x, y, .. }
+        | PropagationRequestWire::AlignedFunctionalSpread { x, y, .. }
         | PropagationRequestWire::AlignedExceedance { x, y, .. } => {
             draws(x.len())?;
             draws(y.len())?;
         }
         PropagationRequestWire::MixtureExceedance { weights, components, .. } => {
-            if weights.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS
-                || components.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS
-            {
+            if weights.len() > limits.max_inputs || components.len() > limits.max_inputs {
                 return Err(too_large("mixture components"));
             }
             let total: usize = components.iter().map(Vec::len).sum();
             draws(total)?;
         }
         PropagationRequestWire::Mixture { weights, means, variances } => {
-            if weights.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS
-                || means.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS
-                || variances.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS
+            if weights.len() > limits.max_inputs
+                || means.len() > limits.max_inputs
+                || variances.len() > limits.max_inputs
             {
                 return Err(too_large("mixture components"));
             }
@@ -692,15 +459,10 @@ fn check_bounds(wire: &JointLawPropagationArtifactWire) -> Result<(), Error> {
         }
         PropagationRequestWire::CorrelationRange { .. } => {}
         PropagationRequestWire::PooledCorrelationRange { estimates, standard_errors } => {
-            if estimates.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS
-                || standard_errors.len() > JOINT_LAW_PROPAGATION_MAX_INPUTS
-            {
+            if estimates.len() > limits.max_inputs || standard_errors.len() > limits.max_inputs {
                 return Err(too_large("pooled studies"));
             }
         }
-    }
-    if wire.result.len() > 16 {
-        return Err(too_large("result values"));
     }
     Ok(())
 }
@@ -732,7 +494,7 @@ pub fn joint_law_propagation_identity(
         IdentityDomain::Program,
         &(
             JOINT_LAW_PROPAGATION_ARTIFACT_FEATURE,
-            JOINT_LAW_PROPAGATION_ARTIFACT_VERSION,
+            JOINT_LAW_PROPAGATION_IDENTITY_VERSION,
             rule,
             inputs,
             request,
@@ -755,6 +517,40 @@ fn require_len(actual: usize, expected: usize, what: &str) -> Result<(), Error> 
     }
 }
 
+/// Relative tolerance under which contrast coefficients sum to zero.
+const CONTRAST_SUM_TOLERANCE: f64 = 1e-12;
+
+/// Whether the stored linear coefficients are the ones `operation` names: a sum
+/// has unit coefficients, a contrast coefficients summing to zero, a transform
+/// one coefficient. A non-finite coefficient is left to the computation, which
+/// refuses it with its own typed error.
+#[allow(
+    clippy::float_cmp,
+    reason = "a sum's coefficients are the exact literal 1.0, not a computed quantity"
+)]
+fn coefficients_fit(operation: PropagationOperation, coefficients: &[f64]) -> bool {
+    use PropagationOperation as Op;
+    if coefficients.iter().any(|c| !c.is_finite()) {
+        return true;
+    }
+    match operation {
+        Op::Sum => coefficients.iter().all(|c| *c == 1.0),
+        Op::Contrast => {
+            let total: f64 = coefficients.iter().sum();
+            let scale: f64 = coefficients.iter().map(|c| c.abs()).sum();
+            total.abs() <= CONTRAST_SUM_TOLERANCE * scale
+        }
+        Op::LinearTransform => coefficients.len() == 1,
+        _ => true,
+    }
+}
+
+/// Whether the stored functional is the one `operation` names: a product is
+/// the `product` functional, any other nonlinear operation names its own.
+fn functional_fits(operation: PropagationOperation, functional: &str) -> bool {
+    operation != PropagationOperation::Product || functional == ValueFunctional::Product.as_str()
+}
+
 /// Whether the numbers fit the route and operation the rule yielded.
 fn variant_fits(
     operation: PropagationOperation,
@@ -771,36 +567,44 @@ fn variant_fits(
     let nonlinear =
         matches!(operation, Op::Product | Op::NonlinearFunctional | Op::TransportedComposition);
     match (route, request) {
-        (PropagationRoute::LinearMoments, W::LinearCombination { .. })
-        | (PropagationRoute::AlignedJointLaw, W::AlignedLinearCombination { .. }) => linear,
-        (PropagationRoute::AlignedJointLaw, W::AlignedFunctional { .. }) => nonlinear,
+        (PropagationRoute::LinearMoments, W::LinearCombination { coefficients, .. }) => {
+            linear && coefficients_fit(operation, &floats(coefficients))
+        }
+        (PropagationRoute::AlignedJointLaw, W::AlignedLinearCombination { a, b, .. }) => {
+            linear && coefficients_fit(operation, &[f64::from_bits(*a), f64::from_bits(*b)])
+        }
+        (PropagationRoute::AlignedJointLaw, W::AlignedFunctional { functional, .. }) => {
+            nonlinear && functional_fits(operation, functional)
+        }
         // The draw-based spread and decision numbers are a spread reading's
         // own: a point reading is not given a spread under its own label.
         (
             PropagationRoute::AlignedJointLaw,
-            W::AlignedFunctionalSpread { .. } | W::AlignedExceedance { .. },
-        ) => spread && nonlinear,
+            W::AlignedFunctionalSpread { functional, .. } | W::AlignedExceedance { functional, .. },
+        ) => spread && nonlinear && functional_fits(operation, functional),
         (PropagationRoute::KnownWeightMixture, W::MixtureExceedance { .. }) => {
             spread && operation == Op::Mixture
         }
         (PropagationRoute::KnownWeightMixture, W::Mixture { .. }) => operation == Op::Mixture,
         (PropagationRoute::FrechetEnvelope, W::FrechetEnvelope { query, .. }) => match query {
-            EnvelopeQueryWire::SumCdf { .. }
-            | EnvelopeQueryWire::DifferenceCdf { .. }
-            | EnvelopeQueryWire::LinearVariance { .. } => {
+            EnvelopeQueryWire::SumCdf { .. } => operation == Op::Sum,
+            EnvelopeQueryWire::DifferenceCdf { .. } => operation == Op::Contrast,
+            EnvelopeQueryWire::LinearVariance { a, b } => {
                 matches!(operation, Op::Sum | Op::Contrast | Op::WeightedSum)
+                    && coefficients_fit(operation, &[f64::from_bits(*a), f64::from_bits(*b)])
             }
             EnvelopeQueryWire::ProductMoment | EnvelopeQueryWire::Covariance => {
                 operation == Op::Product
             }
-            EnvelopeQueryWire::Functional { .. } => {
+            EnvelopeQueryWire::Functional { functional } => {
                 matches!(operation, Op::Product | Op::NonlinearFunctional)
+                    && functional_fits(operation, functional)
             }
         },
-        (
-            PropagationRoute::CorrelationRangeEnvelope,
-            W::CorrelationRange { .. } | W::PooledCorrelationRange { .. },
-        ) => true,
+        (PropagationRoute::CorrelationRangeEnvelope, W::CorrelationRange { a, b, .. }) => {
+            !linear || coefficients_fit(operation, &[f64::from_bits(*a), f64::from_bits(*b)])
+        }
+        (PropagationRoute::CorrelationRangeEnvelope, W::PooledCorrelationRange { .. }) => true,
         _ => false,
     }
 }
@@ -810,62 +614,52 @@ fn evaluate_envelope(
     x: &MarginalWire,
     y: &MarginalWire,
     ctx: &ExecutionContext,
-) -> Result<Vec<(String, u64)>, Error> {
+) -> Result<PropagationResultWire, Error> {
+    use EnvelopeQuantityWire as Quantity;
     let (mx, my) = (x.marginal()?, y.marginal()?);
     let cancel = &ctx.cancellation;
-    let mut out = Vec::new();
-    match query {
+    let (quantity, bounds) = match query {
         EnvelopeQueryWire::SumCdf { threshold } => {
             let t = f64::from_bits(*threshold);
-            bound_pair("sum_cdf", sum_cdf_envelope(&mx, &my, t).map_err(math_error)?, &mut out);
+            (Quantity::SumCdf, sum_cdf_envelope(&mx, &my, t).map_err(math_error)?)
         }
         EnvelopeQueryWire::DifferenceCdf { threshold } => {
             let t = f64::from_bits(*threshold);
-            bound_pair(
-                "difference_cdf",
-                difference_cdf_envelope(&mx, &my, t).map_err(math_error)?,
-                &mut out,
-            );
+            (Quantity::DifferenceCdf, difference_cdf_envelope(&mx, &my, t).map_err(math_error)?)
         }
-        EnvelopeQueryWire::ProductMoment => bound_pair(
-            "product_moment",
+        EnvelopeQueryWire::ProductMoment => (
+            Quantity::ProductMoment,
             product_moment_envelope(&mx, &my, cancel).map_err(math_error)?,
-            &mut out,
         ),
-        EnvelopeQueryWire::Covariance => bound_pair(
-            "covariance",
-            covariance_envelope(&mx, &my, cancel).map_err(math_error)?,
-            &mut out,
-        ),
-        EnvelopeQueryWire::LinearVariance { a, b } => bound_pair(
-            "linear_variance",
+        EnvelopeQueryWire::Covariance => {
+            (Quantity::Covariance, covariance_envelope(&mx, &my, cancel).map_err(math_error)?)
+        }
+        EnvelopeQueryWire::LinearVariance { a, b } => (
+            Quantity::LinearVariance,
             linear_variance_envelope(f64::from_bits(*a), f64::from_bits(*b), &mx, &my, cancel)
                 .map_err(math_error)?,
-            &mut out,
         ),
         EnvelopeQueryWire::Functional { functional } => {
             let functional = ValueFunctional::from_name(functional)
                 .ok_or_else(|| Error::Malformed("unknown value functional".to_owned()))?;
-            bound_pair(
-                "functional",
+            (
+                Quantity::Functional,
                 functional_envelope(&mx, &my, functional, cancel).map_err(math_error)?,
-                &mut out,
-            );
+            )
         }
-    }
-    Ok(out)
+    };
+    Ok(PropagationResultWire::Envelope { quantity, bounds: bounds.into() })
 }
 
 fn evaluate_correlation_range(
     rule: &PropagationRuleWire,
     request: &PropagationRequestWire,
     n_inputs: usize,
-) -> Result<Vec<(String, u64)>, Error> {
+) -> Result<PropagationResultWire, Error> {
     let (Some(lo), Some(hi)) = (rule.rho_lo, rule.rho_hi) else {
         return Err(Error::Malformed("correlation range missing".to_owned()));
     };
     let (rho_lo, rho_hi) = (f64::from_bits(lo), f64::from_bits(hi));
-    let mut out = Vec::new();
     match request {
         PropagationRequestWire::CorrelationRange { x_mean, x_sd, y_mean, y_sd, a, b } => {
             let x = MomentSummary {
@@ -885,9 +679,11 @@ fn evaluate_correlation_range(
                 rho_hi,
             )
             .map_err(math_error)?;
-            bound_pair("product_moment", range.product_moment, &mut out);
-            bound_pair("covariance", range.covariance, &mut out);
-            bound_pair("linear_variance", range.linear_variance, &mut out);
+            Ok(PropagationResultWire::CorrelationRange {
+                product_moment: range.product_moment.into(),
+                covariance: range.covariance.into(),
+                linear_variance: range.linear_variance.into(),
+            })
         }
         PropagationRequestWire::PooledCorrelationRange { estimates, standard_errors } => {
             require_len(estimates.len(), n_inputs, "study")?;
@@ -898,14 +694,19 @@ fn evaluate_correlation_range(
                 rho_hi,
             )
             .map_err(|e| Error::Malformed(e.to_string()))?;
-            out.push(("pooled_estimate_lower".to_owned(), envelope.estimate_min.to_bits()));
-            out.push(("pooled_estimate_upper".to_owned(), envelope.estimate_max.to_bits()));
-            out.push(("pooled_variance_lower".to_owned(), envelope.variance_min.to_bits()));
-            out.push(("pooled_variance_upper".to_owned(), envelope.variance_max.to_bits()));
+            Ok(PropagationResultWire::PooledRange {
+                estimate: BoundsWire {
+                    lower: envelope.estimate_min.to_bits(),
+                    upper: envelope.estimate_max.to_bits(),
+                },
+                variance: BoundsWire {
+                    lower: envelope.variance_min.to_bits(),
+                    upper: envelope.variance_max.to_bits(),
+                },
+            })
         }
-        _ => return Err(Error::Malformed("request is not a correlation range".to_owned())),
+        _ => Err(Error::Malformed("request is not a correlation range".to_owned())),
     }
-    Ok(out)
 }
 
 /// The mean and variance of a linear combination under the declared covariance.
@@ -915,13 +716,12 @@ fn evaluate_linear_combination(
     coefficients: &[u64],
     means: &[u64],
     covariance: &[u64],
-) -> Result<Vec<(String, u64)>, Error> {
+) -> Result<PropagationResultWire, Error> {
     require_len(coefficients.len(), n_inputs, "coefficient")?;
     if rule.dependence == "declared_independent"
         && covariance.len() == n_inputs * n_inputs
         && (0..n_inputs).any(|i| {
-            (0..n_inputs)
-                .any(|j| i != j && f64::from_bits(covariance[i * n_inputs + j]).abs() > 0.0)
+            (0..n_inputs).any(|j| i != j && f64::from_bits(covariance[i * n_inputs + j]) != 0.0)
         })
     {
         return Err(invalid_request(
@@ -931,7 +731,7 @@ fn evaluate_linear_combination(
     }
     let m = linear_combination_moments(&floats(coefficients), &floats(means), &floats(covariance))
         .map_err(math_error)?;
-    Ok(vec![("mean".to_owned(), m.mean.to_bits()), ("variance".to_owned(), m.variance.to_bits())])
+    Ok(PropagationResultWire::Moments { mean: m.mean.to_bits(), variance: m.variance.to_bits() })
 }
 
 /// The moments of `a x + b y` over aligned draws.
@@ -941,7 +741,7 @@ fn evaluate_aligned_linear_combination(
     b: u64,
     x: &[u64],
     y: &[u64],
-) -> Result<Vec<(String, u64)>, Error> {
+) -> Result<PropagationResultWire, Error> {
     require_len(2, n_inputs, "aligned column")?;
     let (a, b) = (f64::from_bits(a), f64::from_bits(b));
     if !a.is_finite() || !b.is_finite() {
@@ -954,12 +754,12 @@ fn evaluate_aligned_linear_combination(
         return Err(math_error(JointLawError::NonFinite("combination moment")));
     }
     let variance = variance.max(0.0);
-    Ok(vec![
-        ("mean".to_owned(), mean.to_bits()),
-        ("variance".to_owned(), variance.to_bits()),
-        ("covariance".to_owned(), pm.covariance.to_bits()),
-        ("n_rows".to_owned(), pm.n as u64),
-    ])
+    Ok(PropagationResultWire::AlignedMoments {
+        mean: mean.to_bits(),
+        variance: variance.to_bits(),
+        covariance: pm.covariance.to_bits(),
+        n_rows: pm.n as u64,
+    })
 }
 
 /// The exceedance decision of an aligned functional; `levels` are the threshold, the
@@ -971,7 +771,7 @@ fn evaluate_aligned_exceedance(
     y: &[u64],
     levels: [u64; 3],
     ctx: &ExecutionContext,
-) -> Result<Vec<(String, u64)>, Error> {
+) -> Result<PropagationResultWire, Error> {
     let [threshold, cutoff, band_level] = levels;
     require_len(2, n_inputs, "aligned column")?;
     let functional = ValueFunctional::from_name(functional)
@@ -986,13 +786,13 @@ fn evaluate_aligned_exceedance(
         None,
     )
     .map_err(math_error)?;
-    Ok(vec![
-        ("probability".to_owned(), decision.probability.to_bits()),
-        ("standard_error".to_owned(), decision.standard_error.to_bits()),
-        ("band".to_owned(), decision.band.to_bits()),
-        ("verdict_code".to_owned(), verdict_code(decision.verdict)),
-        ("n_rows".to_owned(), decision.n as u64),
-    ])
+    Ok(PropagationResultWire::AlignedExceedance {
+        probability: decision.probability.to_bits(),
+        standard_error: decision.standard_error.to_bits(),
+        band: decision.band.to_bits(),
+        verdict: decision.verdict.into(),
+        n_rows: decision.n as u64,
+    })
 }
 
 /// Compute the named result values of `request`.
@@ -1001,7 +801,7 @@ fn evaluate(
     request: &PropagationRequestWire,
     n_inputs: usize,
     ctx: &ExecutionContext,
-) -> Result<Vec<(String, u64)>, Error> {
+) -> Result<PropagationResultWire, Error> {
     if ctx.cancellation.is_cancelled() {
         return Err(Error::Cancelled);
     }
@@ -1019,7 +819,7 @@ fn evaluate(
             let (xs, ys) = (floats(x), floats(y));
             let mean = aligned_functional_mean(&xs, &ys, functional, &ctx.cancellation)
                 .map_err(math_error)?;
-            Ok(vec![("mean".to_owned(), mean.to_bits()), ("n_rows".to_owned(), xs.len() as u64)])
+            Ok(PropagationResultWire::AlignedMean { mean: mean.to_bits(), n_rows: xs.len() as u64 })
         }
         PropagationRequestWire::AlignedFunctionalSpread { functional, x, y } => {
             require_len(2, n_inputs, "aligned column")?;
@@ -1029,12 +829,12 @@ fn evaluate(
                 aligned_functional_draws(&floats(x), &floats(y), functional, &ctx.cancellation)
                     .map_err(math_error)?;
             let spread = draw_spread(&rows, None).map_err(math_error)?;
-            Ok(vec![
-                ("mean".to_owned(), spread.mean.to_bits()),
-                ("variance".to_owned(), spread.variance.to_bits()),
-                ("mean_standard_error".to_owned(), spread.mean_standard_error.to_bits()),
-                ("n_rows".to_owned(), spread.n as u64),
-            ])
+            Ok(PropagationResultWire::AlignedSpread {
+                mean: spread.mean.to_bits(),
+                variance: spread.variance.to_bits(),
+                mean_standard_error: spread.mean_standard_error.to_bits(),
+                n_rows: spread.n as u64,
+            })
         }
         PropagationRequestWire::AlignedExceedance {
             functional,
@@ -1054,21 +854,21 @@ fn evaluate(
             let (probability, standard_error) =
                 mixture_exceedance(&floats(weights), &borrowed, f64::from_bits(*threshold))
                     .map_err(math_error)?;
-            Ok(vec![
-                ("probability".to_owned(), probability.to_bits()),
-                ("standard_error".to_owned(), standard_error.to_bits()),
-            ])
+            Ok(PropagationResultWire::MixtureExceedance {
+                probability: probability.to_bits(),
+                standard_error: standard_error.to_bits(),
+            })
         }
         PropagationRequestWire::Mixture { weights, means, variances } => {
             require_len(weights.len(), n_inputs, "mixture component")?;
             let m = mixture_moments(&floats(weights), &floats(means), &floats(variances))
                 .map_err(math_error)?;
-            Ok(vec![
-                ("mean".to_owned(), m.mean.to_bits()),
-                ("variance".to_owned(), m.variance.to_bits()),
-                ("within".to_owned(), m.within.to_bits()),
-                ("between".to_owned(), m.between.to_bits()),
-            ])
+            Ok(PropagationResultWire::Mixture {
+                mean: m.mean.to_bits(),
+                variance: m.variance.to_bits(),
+                within: m.within.to_bits(),
+                between: m.between.to_bits(),
+            })
         }
         PropagationRequestWire::FrechetEnvelope { query, x, y } => {
             require_len(2, n_inputs, "marginal")?;
@@ -1079,7 +879,7 @@ fn evaluate(
             evaluate_correlation_range(rule, request, n_inputs)
         }
     }?;
-    if result.iter().any(|(name, bits)| !is_count(name) && !f64::from_bits(*bits).is_finite()) {
+    if result.float_entries().iter().any(|(_, bits)| !f64::from_bits(*bits).is_finite()) {
         return Err(math_error(JointLawError::NonFinite("propagation result")));
     }
     Ok(result)
@@ -1097,7 +897,7 @@ fn plan_for(
     if !variant_fits(plan.operation, plan.route, request, spread) {
         return Err(invalid_request(
             plan.route.as_str(),
-            "supply the numbers the licensed route consumes (a covariance for the linear route, aligned draws for the aligned route, weights for a mixture, two marginals for an envelope); a chained transformation is checked by the rule but its stages run in the caller",
+            "supply the numbers the supported route consumes (a covariance for the linear route, aligned draws for the aligned route, weights for a mixture, two marginals for an envelope); a chained transformation is checked by the rule but its stages run in the caller",
         ));
     }
     Ok(plan)
@@ -1109,12 +909,25 @@ impl JointLawPropagationArtifactWire {
     ///
     /// # Errors
     /// A refused request (each refusal carries its registered code and
-    /// remedy), numbers that do not fit the licensed route, a failed
+    /// remedy), numbers that do not fit the supported route, a failed
     /// computation, cancellation or an encoding failure.
     pub fn seal(
         declared: &PropagationRequest,
         request: PropagationRequestWire,
         ctx: &ExecutionContext,
+    ) -> Result<Self, Error> {
+        Self::seal_within(declared, request, ctx, &JointLawPropagationLimits::default())
+    }
+
+    /// [`Self::seal`] under the caller's bounds instead of the defaults.
+    ///
+    /// # Errors
+    /// As [`Self::seal`]; a bound of `limits` exceeded is `LimitsExceeded`.
+    pub fn seal_within(
+        declared: &PropagationRequest,
+        request: PropagationRequestWire,
+        ctx: &ExecutionContext,
+        limits: &JointLawPropagationLimits,
     ) -> Result<Self, Error> {
         let (dependence, covariance_id, rho_lo, rho_hi) = dependence_wire(&declared.dependence);
         let rule = PropagationRuleWire {
@@ -1153,7 +966,7 @@ impl JointLawPropagationArtifactWire {
             result,
             identity,
         };
-        check_bounds(&wire)?;
+        check_bounds(&wire, limits)?;
         Ok(wire)
     }
 
@@ -1162,7 +975,18 @@ impl JointLawPropagationArtifactWire {
     /// # Errors
     /// A bound exceeded or an encoding failure.
     pub fn export(&self) -> Result<Vec<u8>, Error> {
-        check_bounds(self)?;
+        self.export_within(&JointLawPropagationLimits::default())
+    }
+
+    /// [`Self::export`] under the caller's bounds instead of the defaults.
+    ///
+    /// # Errors
+    /// As [`Self::export`].
+    pub fn export_within(&self, limits: &JointLawPropagationLimits) -> Result<Vec<u8>, Error> {
+        if self.version != JOINT_LAW_PROPAGATION_ARTIFACT_VERSION {
+            return Err(Error::UnsupportedVersion { version: self.version });
+        }
+        check_bounds(self, limits)?;
         crate::to_cbor(self).map_err(|e| Error::Encode(e.to_string()))
     }
 
@@ -1172,11 +996,19 @@ impl JointLawPropagationArtifactWire {
     /// # Errors
     /// A decoding failure, another version or a foreign feature.
     pub fn decode(bytes: &[u8]) -> Result<Self, Error> {
-        if bytes.len() > MAX_JOINT_LAW_PROPAGATION_ARTIFACT_BYTES {
+        Self::decode_within(bytes, &JointLawPropagationLimits::default())
+    }
+
+    /// [`Self::decode`] under the caller's bounds instead of the defaults.
+    ///
+    /// # Errors
+    /// As [`Self::decode`]; a bound of `limits` exceeded is `LimitsExceeded`.
+    pub fn decode_within(bytes: &[u8], limits: &JointLawPropagationLimits) -> Result<Self, Error> {
+        if bytes.len() > limits.max_bytes {
             return Err(Error::LimitsExceeded("artifact bytes"));
         }
         let wire: Self = crate::decode_with_version(bytes, |version| {
-            if version == JOINT_LAW_PROPAGATION_ARTIFACT_VERSION {
+            if is_supported_version(version) {
                 Ok(())
             } else {
                 Err(Error::UnsupportedVersion { version })
@@ -1185,7 +1017,7 @@ impl JointLawPropagationArtifactWire {
         if wire.required_features != [JOINT_LAW_PROPAGATION_ARTIFACT_FEATURE] {
             return Err(Error::UnsupportedSemantics("required features"));
         }
-        check_bounds(&wire)?;
+        check_bounds(&wire, limits)?;
         Ok(wire)
     }
 
@@ -1201,13 +1033,26 @@ impl JointLawPropagationArtifactWire {
         expected_identity: Option<&str>,
         ctx: &ExecutionContext,
     ) -> Result<ConsumedJointLawPropagation, Error> {
-        if self.version != JOINT_LAW_PROPAGATION_ARTIFACT_VERSION {
+        self.consume_within(expected_identity, ctx, &JointLawPropagationLimits::default())
+    }
+
+    /// [`Self::consume`] under the caller's bounds instead of the defaults.
+    ///
+    /// # Errors
+    /// As [`Self::consume`]; a bound of `limits` exceeded is `LimitsExceeded`.
+    pub fn consume_within(
+        &self,
+        expected_identity: Option<&str>,
+        ctx: &ExecutionContext,
+        limits: &JointLawPropagationLimits,
+    ) -> Result<ConsumedJointLawPropagation, Error> {
+        if !is_supported_version(self.version) {
             return Err(Error::UnsupportedVersion { version: self.version });
         }
         if self.required_features != [JOINT_LAW_PROPAGATION_ARTIFACT_FEATURE] {
             return Err(Error::UnsupportedSemantics("required features"));
         }
-        check_bounds(self)?;
+        check_bounds(self, limits)?;
         let recomputed = joint_law_propagation_identity(
             &self.rule,
             &self.inputs,
@@ -1222,10 +1067,10 @@ impl JointLawPropagationArtifactWire {
         if recomputed != self.identity {
             return Err(Error::IdentityMismatch);
         }
-        if let Some(expected) = expected_identity {
-            if expected != recomputed {
-                return Err(Error::IdentityMismatch);
-            }
+        if let Some(expected) = expected_identity
+            && expected != recomputed
+        {
+            return Err(Error::IdentityMismatch);
         }
         // The rule decides again from the stored declaration: a resealed edit
         // that changes the operation, the dependence declaration, an
@@ -1252,6 +1097,13 @@ impl JointLawPropagationArtifactWire {
             result,
         })
     }
+}
+
+/// Whether this reader accepts the stored format version: the current one and
+/// the earlier named-list layout.
+const fn is_supported_version(version: u32) -> bool {
+    version == JOINT_LAW_PROPAGATION_ARTIFACT_VERSION
+        || version == JOINT_LAW_PROPAGATION_LEGACY_ARTIFACT_VERSION
 }
 
 /// Bit patterns of a float slice, for building request wires.

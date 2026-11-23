@@ -11,7 +11,7 @@ on does not change.
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from decimal import Decimal
 from numbers import Complex, Real
 from typing import Any
@@ -144,6 +144,56 @@ def count(
             reason_code=reason_code,
         )
     return number
+
+
+def finite_float_protocol(value: object, what: str) -> float:
+    """Validate a finite value exposing the float protocol, excluding booleans."""
+    if isinstance(value, bool) or not hasattr(value, "__float__"):
+        raise CausalTypeError(f"{what} must be a real number")
+    number = float(value)
+    if not math.isfinite(number):
+        raise CausalValueError(f"{what} must be finite")
+    return number
+
+
+def finite_number(value: object, what: str) -> float:
+    """Validate the finite int/float/NumPy numeric policy used by typed models."""
+    if isinstance(value, bool) or not isinstance(value, (int, float, np.integer, np.floating)):
+        raise CausalTypeError(f"{what} must be a real number")
+    number = float(value)
+    if not math.isfinite(number):
+        raise CausalValueError(f"{what} must be finite")
+    return number
+
+
+def nonempty_name(value: object, what: str) -> str:
+    """Validate a nonempty name, retaining whitespace-only values."""
+    if not isinstance(value, str) or not value:
+        raise CausalTypeError(f"{what} must be a non-empty string")
+    return value
+
+
+def name(value: object, what: str) -> str:
+    """Validate a non-blank name with the shared name-type refusal."""
+    if not isinstance(value, str) or not value.strip():
+        raise CausalTypeError(f"{what} must be a non-empty string")
+    return value
+
+
+def named_choice(value: object, what: str, allowed: Iterable[str]) -> str:
+    """Validate a nonblank name, then require membership in materialized options."""
+    checked = name(value, what)
+    options = tuple(allowed)
+    if checked not in options:
+        raise CausalValueError(f"{what} must be one of {options}, got {checked!r}")
+    return checked
+
+
+def listed_choice(value: str, what: str, allowed: Sequence[str]) -> str:
+    """Require membership using the historical comma-separated option message."""
+    if value not in allowed:
+        raise CausalValueError(f"{what} must be one of {', '.join(allowed)}; got {value!r}")
+    return value
 
 
 def text(

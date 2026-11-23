@@ -1,9 +1,8 @@
 //! Builder independent execution of a checked temporal class response.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{Arc, CausalError, CausalQuery, ExecutionContext, StudyResult, TimeSeriesData};
-use crate::analysis::proof_support::Procedure;
 
 impl super::Study {
     /// Execute a retained TemporalCpdag/TemporalPag response through the class
@@ -15,25 +14,16 @@ impl super::Study {
         operation: &crate::analysis::CheckedTemporalClassResponseOperation,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let Procedure { identifier, estimator, bootstrap_replicates, validation } =
-            operation.procedure();
         let mut bound = self.clone();
         bound.graph = Arc::new(operation.source_graph().clone());
         bound.graph_posterior = None;
-        bound.tiered = None;
+        bound.declared.tiered = None;
         bound.query = CausalQuery::Response(operation.query().clone());
-        bound.temporal_identification_cache = None;
-        bound.temporal_class_identification_cache = Some(Arc::clone(operation.bundle()));
-        bound.temporal_class_posterior_identification_cache = None;
-        bound.dbn_posterior_identification_cache = None;
-        bound.inference = operation.inference().clone();
-        bound.identifier = Some(identifier);
-        bound.estimator = Some(estimator);
-        bound.bootstrap_replicates = bootstrap_replicates;
-        bound.refute = validation;
-        bound.custom_validators.clear();
-        bound.max_completions = operation.max_completions();
-        bound.class_prior = operation.class_prior().cloned();
+        bound.install_identification(crate::analysis::IdentificationCache::TemporalClass(
+            Arc::clone(operation.bundle()),
+        ));
+        operation.sealed().bind_study(&mut bound);
+        bound.declared.class_prior = operation.class_prior().cloned();
         bound.execute_temporal_class_response(data, operation.query(), operation.physical(), ctx)
     }
 }

@@ -2,14 +2,14 @@
 //!
 //! Oracles (by construction of the dependency table):
 //!
-//! - the calibration record is declared unmeasured and the draws are rows of one aligned joint
+//! - the calibration record is declared `not_measured` and the draws are rows of one aligned joint
 //!   posterior, keyed by the source units, the draw count and the seed;
 //! - both enter the law and the decision only; the fit and everything that reads only data keep
 //!   the identities of the same request with the inputs removed;
 //! - a fresh state recomputes every declared stage, and a changed draw count or seed is a
 //!   different alignment input.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg(feature = "calibration-internal")]
 use antecedent::analysis::recalc_bayesian::PosteriorSummarySpec;
@@ -100,7 +100,7 @@ fn recomputed(plan: &RecalcPlan, stage: Stage) -> bool {
 fn a_fresh_joint_plan_declares_calibration_and_alignment_and_moves_only_law_and_decision() {
     let request = request();
     let ids = request.identities();
-    assert_eq!(ids.own(Stage::Calibration), CalibrationInput::Unmeasured.identity());
+    assert_eq!(ids.own(Stage::Calibration), CalibrationInput::NotMeasured.identity());
     assert!(ids.contains(Stage::Coupling));
     assert!(!ids.contains(Stage::Representation));
 

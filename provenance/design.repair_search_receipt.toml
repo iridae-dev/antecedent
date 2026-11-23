@@ -1,0 +1,49 @@
+# Algorithm provenance for design.repair_search_receipt.
+
+feature_id = "design.repair_search_receipt"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+]
+implementation_deviations = [
+ "A replayed receipt is a structural recomputation by the family checker from the stored hypothetical delta; it carries no numeric or causal claim.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent-design/tests/repair_artifact.rs",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Sealed repair-search receipt: contract family, candidates, obligations, per-subset hypothetical evidence deltas, checker derivation and the search receipt. Scoped re-review compared every bound item across both source paths; the wire declarations and conversion implementations are unchanged. Scoped 2026-11-07 re-review compared outcome encoding against the previous bound implementation: invalid and unevaluated cases omit deltas, candidate lookup and refusal order are unchanged, and valid outcomes carry the same computed regimes. The exact backdoor round-trip and replay engineering test passed; no new independent reference was generated."
+no_independent_algorithm = "Declarations, canonical identity and replay of a structural sufficiency check; no estimator."
+record_sha256 = "7ccad89348990ff6e8230c10f756497ccadf9f5879d95ab59967525ea0e86680"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/repair.rs"
+items = ["const REPAIR_MAX_MEMORY_BYTES", "const REPAIR_MAX_OPERATIONS", "const REPAIR_RECEIPT_REGIONS", "enum FamilyVerdict", "enum RepairClassification", "enum RepairObjective", "fn as_str", "fn base_law", "fn bounds", "fn budget", "fn check", "fn check_bounds", "fn check_regimes", "fn classify", "fn contract_id", "fn covered", "fn dag", "fn default", "fn delta_of_regimes", "fn diagram", "fn evaluate", "fn family_id", "fn from_identification", "fn hypothetical_regimes", "fn invalid_request", "fn new", "fn next", "fn not_a_failure", "fn outcome", "fn population", "fn prepare", "fn query", "fn rank", "fn repair", "fn screen", "fn status", "fn subset_cost", "fn subset_label", "fn treatment", "fn try_new", "fn unresolved_obligations", "fn verify", "fn walk", "struct BackdoorRepairFamily", "struct LexCombinations", "struct RepairCancelled", "struct RepairDerivation", "struct RepairError", "struct RepairLimits", "struct RepairOutcome", "struct RepairReceipt", "struct RepairReport", "struct Searcher", "struct Subsets", "struct TransportRepairFamily", "struct Walk", "trait RepairFamily", "type Item"]
+sha256 = "a970647dba962a976f12d77d682d02a89cd12dbf122f84c2704080f1721b7a2e"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/repair_artifact.rs"
+items = ["const BODY_SECTION", "const MAX_REPAIR_ARTIFACT_BYTES", "const MAX_REPAIR_OBLIGATIONS", "const MAX_REPAIR_OUTCOMES", "const REPAIR_ARTIFACT_KIND", "const REPAIR_ARTIFACT_VERSION", "enum Rebuilt", "enum RepairFamilyRef", "fn arcs", "fn bounds", "fn budget", "fn build", "fn candidate_from_wire", "fn candidate_wire", "fn candidates", "fn check_rebuilt_contract", "fn check_shape", "fn classification_from_name", "fn classify_verdict", "fn consume", "fn consume_with_read_limits", "fn default", "fn dense_static", "fn digest", "fn evidence_wire", "fn encode_repair_outcomes", "fn family", "fn first_difference", "fn from_bytes", "fn from_bytes_with_limits", "fn from_candidate", "fn from_io", "fn graph_route_wires", "fn invalid", "fn kind_from_name", "fn mismatch", "fn objective_from_name", "fn objective_name", "fn obligation_from_wire", "fn obligation_wire", "fn obligations", "fn outcome_name", "fn outcome_wire", "fn raw", "fn rebuild", "fn rebuild_identification", "fn rebuild_z_transport", "fn reference", "fn regimes_wire", "fn repair_error_to_artifact", "fn replay_deltas", "fn scope_from_parts", "fn scope_parts", "fn sealed", "fn stop_wire", "fn strings", "fn to_bytes", "fn unsupported_version", "struct RepairArtifactError", "struct RepairConsumeLimits", "struct RepairReadLimits", "struct RepairReportArtifact", "type GraphRouteWires"]
+sha256 = "cb8d0a3f9ff4b9ce095c0982b1e6588d2b0c7c11f8e147e5f54d55f9d55ba5c4"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/repair_artifact/wire.rs"
+items = ["enum SensitivityMethodWire", "fn from", "struct AssumptionWire", "struct BackdoorPremisesWire", "struct DerivationWire", "struct DurableStudyCandidateWire", "struct ExpectedEvidenceWire", "struct IdentificationPremisesWire", "struct ObligationWire", "struct RepairDataWire", "struct RepairLimitsWire", "struct RepairOutcomeWire", "struct RepairPremisesWire", "struct RepairReceiptWire", "struct RepairReportWire", "struct RepairStopWire", "struct SensitivityFindingWire", "struct TransportPremisesWire", "struct ZTransportPremisesWire"]
+sha256 = "73f03615c1da22d85ed82ebc602025dadf083c4b7dc7ffa0825ff6f8885ca675"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/repair_artifact.rs"
+items = ["const T", "const TY", "const W1", "const W2", "const W3", "const X", "const Y", "const Z1", "const Z2", "fn a_report_for_another_contract_cannot_be_exported_under_this_family", "fn artifact_keeps_obligation_ids_kinds_and_the_source_proof_step", "fn assumption_obligations_survive_the_artifact_and_block_certification", "fn backdoor_artifact", "fn backdoor_artifact_round_trips_through_the_container_and_replays_identically", "fn backdoor_candidates", "fn backdoor_family", "fn beyond_depth_is_stored_as_not_examined", "fn consume", "fn ctx", "fn dag7", "fn detail", "fn observation", "fn replay_recomputes_the_verdict_from_the_stored_delta", "fn resealed_mutation_of_candidate_obligation_classification_or_receipt_is_refused", "fn run", "fn separate_studies_cannot_meet_the_joint_regime_in_the_stored_report", "fn study", "fn transport_artifact", "fn transport_artifact_round_trips_and_stores_the_hypothetical_delta", "fn transport_catalog", "fn transport_family", "fn truncated_search_is_retained_as_unevaluated_never_as_impossible", "fn unknown_version_and_kind_are_refused_and_stored_limits_are_bounded", "fn v", "fn vars"]
+sha256 = "50742d7cec30e4069e719b3e6d76a778f0445867546c1a145bfb088eb6bce5b0"

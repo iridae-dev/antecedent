@@ -1,6 +1,6 @@
 //! Unified `Study` facade execution (split by modality for SRP).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub(super) use std::sync::Arc;
 pub(super) use std::time::Instant;
@@ -52,18 +52,21 @@ pub(super) use crate::accepted::{AcceptedGraph, GraphClass, GraphRef};
 pub(super) use crate::callback_plan::mark_python_callback_plan;
 pub(super) use crate::error::CausalError;
 pub(super) use crate::gcm::{
-    anomaly_attribution_query_with, attribute_distribution_change, attribute_unit_change,
-    counterfactual_ite, fit_gcm, map_mechanism_fit, mechanism_change_detection,
+    anomaly_attribution_query_with, attribute_distribution_change, attribute_unit_change, fit_gcm,
+    map_mechanism_fit, mechanism_change_detection,
 };
 pub(super) use crate::inference::{
     BayesianConfig, InferenceMode, resolve_bayesian_prior_with_conflict,
 };
 pub(super) use crate::planner::{
-    LogicalAnalysisPlan, PhysicalExecutionPlan, StaticAteCompileInput,
-    StaticCpdagResponseCompileInput, StaticDistributionCompileInput, StaticPagAteCompileInput,
+    LogicalAnalysisPlan, PhysicalExecutionPlan, StaticAdmgPathSpecificCompileInput,
+    StaticAteCompileInput, StaticCpdagPathSpecificCompileInput, StaticCpdagResponseCompileInput,
+    StaticDistributionCompileInput, StaticPagAteCompileInput, StaticPagPathSpecificCompileInput,
     StaticPagResponseCompileInput, StaticPathSpecificCompileInput, StaticResponseCompileInput,
     TemporalClassEffectCompileInput, compile_logical_codetermined_joint,
-    compile_logical_distribution, compile_logical_path_specific, compile_logical_static_ate,
+    compile_logical_distribution, compile_logical_path_specific,
+    compile_logical_path_specific_admg, compile_logical_path_specific_cpdag,
+    compile_logical_path_specific_pag, compile_logical_static_ate,
     compile_logical_static_cpdag_ate, compile_logical_static_cpdag_response,
     compile_logical_static_pag_ate, compile_logical_static_pag_response,
     compile_logical_static_response, compile_logical_temporal_class_effect,
@@ -79,19 +82,19 @@ pub(super) use crate::strategy_table::{
     DEFAULT_PAG_ESTIMATOR_ID, DEFAULT_PAG_IDENTIFIER_ID, DEFAULT_PATH_ESTIMATOR_ID,
     DEFAULT_PATH_IDENTIFIER_ID, DEFAULT_RESPONSE_IDENTIFIER_ID, EstimatorId, IdentifierId,
     StaticEstimateInput, StaticEstimateWorkspaces, estimate_provenance_step,
-    estimate_static_effect, identify_admg, identify_admg_query, identify_cpdag, identify_pag,
-    identify_provenance_step, identify_static, identify_static_query,
-    identify_static_query_with_rd, identify_temporal_cpdag_configured,
-    identify_temporal_pag_configured, require_identified, select_claim, select_estimand,
-    validate_static_pair,
+    estimate_static_effect, identify_admg, identify_admg_query, identify_provenance_step,
+    identify_static_query, identify_static_query_in_context, identify_static_query_with_rd,
+    identify_temporal_cpdag_configured, identify_temporal_pag_configured, require_identified,
+    select_claim, select_estimand, validate_static_pair,
 };
 
 pub(super) use super::builder::{DataInput, RdConfig, RefuteSuite};
 pub(super) use super::helpers::{
     AssembleArgs, RefutationRun, assemble_result, credible_scalar_uncertainty,
     effect_from_posterior, evaluate_bayesian_prior_sensitivity, overlap_diagnostic,
-    project_for_ate_estimate, projection_diagnostic, provenance_pair, push_conflict_diagnostics,
-    validator_not_applicable_diagnostic, validator_not_applicable_diagnostics,
+    overlap_limit_diagnostic, project_for_ate_estimate, projection_diagnostic, provenance_pair,
+    push_conflict_diagnostics, validator_not_applicable_diagnostic,
+    validator_not_applicable_diagnostics,
 };
 
 /// Build-time declarations no click rebinds.
@@ -105,12 +108,13 @@ pub(super) use super::helpers::{
 #[doc(hidden)]
 #[derive(Clone, Debug)]
 pub struct StudyConfig {
+    pub(crate) data_diagnostics: Option<crate::DataDiagnostics>,
     /// Set at [`crate::StudyBuilder::build`] when the caller did not call
     /// `.refute(..)` explicitly and the default refute suite
     /// (`RefuteSuite::PlaceboAndRcc`) was silently downgraded to
     /// `RefuteSuite::None` because the requested cell was
     /// `NotApplicable`/`Refused` while the `RefuteSuite::None` cell for the
-    /// same query was `Licensed`/`Allowlisted`. Holds the suite that was
+    /// same query was `Supported`. Holds the suite that was
     /// requested before the downgrade (always some suite other than
     /// `None`); `None` here means no downgrade happened. Surfaced to the
     /// caller as diagnostic `exec.refute.default_suite_unsupported`.
@@ -137,9 +141,20 @@ pub struct StudyConfig {
     pub(crate) selection_diagram: Option<antecedent_graph::SelectionDiagram>,
     /// Trial columns frozen for a transport query.
     pub(crate) transport_trial: Option<super::builder::TransportTrialSpec>,
-    /// Prepare-time transport formula + certificate.
-    pub(crate) transport_identification_cache:
-        Option<Arc<antecedent_identify::TransportIdentification>>,
+    /// Executable search of a structure-discovery query.
+    pub(crate) discovery: Option<Arc<super::structure_route::DiscoverySpec>>,
+    /// Mechanism fit of an attribution or simulation query; `None` runs the
+    /// standard registry.
+    pub(crate) mechanisms: Option<Arc<super::structure_route::MechanismProgram>>,
+    /// Provenance of a graph posterior accepted from a compiled structure search.
+    pub(crate) posterior_provenance: Option<Arc<crate::accepted::StructureProvenance>>,
+    /// The `AverageEffect` the caller asked for on series data under a `TemporalDag`,
+    /// `TemporalCpdag` or `TemporalPag`, when the build compiled it as its lag-0 pulse contrast. The support
+    /// cell is the `AverageEffect` cell; every result discloses the reading.
+    pub(crate) lag_zero_average_effect: Option<antecedent_core::AverageEffectQuery>,
+    /// What a development build ran although a release build would have refused it at build
+    /// time. Not part of the study's identity; always empty in a release build.
+    pub(crate) would_refuse: Vec<antecedent_core::WouldRefuse>,
 }
 
 /// Prepared analysis (static or temporal).
@@ -158,63 +173,79 @@ pub struct Study {
     /// was used; `graph` then holds only a placeholder shape (variable count / modality
     /// only — never consulted for identification). Mutually exclusive with a "real" `graph`.
     pub(crate) graph_posterior: Option<GraphPosterior>,
-    /// Caller-supplied mass over incomplete-temporal class members.
-    pub(crate) class_prior: Option<crate::ClassPrior>,
-    /// Optional cap on `TemporalCpdag` / `TemporalPag` completion search.
-    pub(crate) max_completions: Option<usize>,
     /// Matrix structure-source axis recorded at [`crate::StudyBuilder::build`].
     pub(crate) structure_source: crate::support::StructureSource,
-    /// Licensed vs allowlisted evidence status recorded at build. `None` when
+    /// Supported vs not-supported evidence status recorded at build. `None` when
     /// the query is not on the public matrix axis.
     pub(crate) support_status: Option<crate::support::CellStatus>,
     pub(crate) query: CausalQuery,
-    pub(crate) refute: RefuteSuite,
-    pub(crate) bootstrap_replicates: u32,
-    pub(crate) split: Option<DiscoveryEstimationSplit>,
-    pub(crate) identifier: Option<IdentifierId>,
-    pub(crate) estimator: Option<EstimatorId>,
-    pub(crate) estimator_spec: Option<Arc<crate::estimator_spec::EstimatorSpec>>,
-    pub(crate) inference: InferenceMode,
-    pub(crate) overlap_policy: Option<OverlapPolicy>,
-    pub(crate) population_registry: Option<PopulationRegistry>,
-    /// Digests of the participant labels bound to the rows of the data.
-    pub(crate) participants: Option<antecedent_io::ParticipantBindingWire>,
-    /// Declared handling of missing values, when the caller declared one.
-    pub(crate) missing: Option<antecedent_data::MissingDeclaration>,
-    pub(crate) custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     pub(crate) latency_mode: Option<super::latency::LatencyMode>,
-    /// Prepare-time identification for the static ATE path (including the
-    /// general-ID result and functional estimand of a bidirected ADMG), set
-    /// only by [`Study::prepare`]. Identification depends solely on
-    /// (identifier, graph, query, rd) — all frozen at prepare — so reusing it
-    /// per estimate click is exact; `None` (every builder-constructed study)
-    /// identifies on each run.
-    pub(crate) identification_cache: Option<Arc<super::prepared::CachedStaticIdentification>>,
-    /// Prepare-time generalized-adjustment envelope for a supplied PAG.
-    pub(crate) pag_identification_cache: Option<Arc<super::prepared::CachedPagIdentification>>,
-    /// Prepare-time MEC envelope for a supplied CPDAG.
-    pub(crate) cpdag_identification_cache: Option<Arc<super::prepared::CachedCpdagIdentification>>,
-    /// Prepare-time temporal-backdoor identification + indexer for temporal response.
-    pub(crate) temporal_identification_cache:
-        Option<Arc<super::prepared::CachedTemporalIdentification>>,
-    /// Prepare-time TemporalCpdag/Pag envelope.
-    pub(crate) temporal_class_identification_cache:
-        Option<Arc<super::prepared::CachedTemporalClassIdentification>>,
-    /// Prepare-time per-atom identification and weights for a static graph posterior.
-    pub(crate) graph_posterior_identification_cache:
-        Option<Arc<super::prepared::CachedGraphPosteriorIdentification>>,
-    /// Prepare-time per-atom identification, indexers, and weights for a DBN posterior.
-    pub(crate) dbn_posterior_identification_cache:
-        Option<Arc<super::prepared::CachedDbnPosteriorIdentification>>,
-    /// Prepare-time TemporalCpdag/Pag graph-posterior class envelopes.
-    pub(crate) temporal_class_posterior_identification_cache:
-        Option<Arc<super::prepared::CachedTemporalClassPosteriorIdentification>>,
-    /// Optional tier-rule background for O(p) closure certification.
-    pub(crate) tiered: Option<antecedent_graph::TieredBackground>,
+    /// The identification product [`Study::prepare`] installed: the static contrast
+    /// (including the general-ID result and functional estimand of a bidirected
+    /// ADMG), a PAG or CPDAG envelope, the temporal backdoor by horizon, a temporal
+    /// class envelope, a transport formula, or the per-atom products of a graph
+    /// posterior. Identification depends solely on (identifier, graph, query, rd) —
+    /// all frozen at prepare — so reusing it per estimate click is exact; `None`
+    /// (every builder-constructed study) identifies on each run. The kinds are
+    /// mutually exclusive; see the typed accessors in `identification_slot`.
+    pub(crate) identification: Option<super::prepared::IdentificationCache>,
     /// Network + assignment of an interference query, rebound to each click's rows.
     pub(crate) interference: Option<super::builder::InterferenceSpec>,
     /// Shared fold assignment / covariate design when this study is part of a batch.
     pub(crate) shared_batch_design: Option<Arc<super::batch::SharedBatchDesign>>,
+    /// Internal request to retain point-time class completion witnesses for checked refits.
+    pub(crate) retain_response_witnesses: bool,
+    /// Shared operational work budget of the checked temporal validation.
+    pub(crate) temporal_validation_budget: Option<antecedent_core::TemporalBudget>,
+    /// Mechanism selections a counterfactual refit on resampled rows conditions on.
+    pub(crate) counterfactual_selection: Option<Arc<crate::gcm::SelectedFamilies>>,
+    /// Per-click declarations a rebinding may replace.
+    pub(crate) declared: StudyDeclarations,
+    /// Inference, refutation and resampling choices of this analysis.
+    pub(crate) settings: StudyInference,
+}
+
+/// The per-click declarations of a [`Study`], held together so a rebinding replaces them as one group.
+#[derive(Clone, Debug)]
+pub(crate) struct StudyDeclarations {
+    /// Caller-supplied mass over incomplete-temporal class members.
+    pub(crate) class_prior: Option<crate::ClassPrior>,
+    /// Optional cap on `TemporalCpdag` / `TemporalPag` completion search.
+    pub(crate) max_completions: Option<usize>,
+    pub(crate) split: Option<DiscoveryEstimationSplit>,
+    pub(crate) identifier: Option<IdentifierId>,
+    pub(crate) estimator: Option<EstimatorId>,
+    pub(crate) estimator_spec: Option<Arc<crate::estimator_spec::EstimatorSpec>>,
+    pub(crate) overlap_policy: Option<OverlapPolicy>,
+    pub(crate) population_registry: Option<PopulationRegistry>,
+    /// The resolved weighted target population, when one was declared. Its weights are the
+    /// registered custom distribution the query names, which carries the identity.
+    pub(crate) weighted_target: Option<Arc<crate::analysis::weighted_target::WeightedTargetReport>>,
+    /// The weights of a weighted target of a trial-to-target transport study.
+    pub(crate) weighted_transport:
+        Option<Arc<crate::analysis::weighted_target::WeightedTransportWeights>>,
+    /// Digests of the participant labels bound to the rows of the data.
+    pub(crate) participants: Option<antecedent_io::ParticipantBindingWire>,
+    /// Declared handling of missing values, when the caller declared one.
+    pub(crate) missing: Option<antecedent_data::MissingDeclaration>,
+    /// Declared sampling design of the rows, held by every estimator that bootstraps or splits.
+    pub(crate) sampling_design: Option<antecedent_core::DeclaredSamplingDesign>,
+    /// Declared cluster labels or serial kernel, read by the joint-cell response's variance.
+    pub(crate) score_dependence: Option<antecedent_estimate::ScoreDependence>,
+    pub(crate) custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
+    /// Optional tier-rule background for O(p) closure certification.
+    pub(crate) tiered: Option<antecedent_graph::TieredBackground>,
+}
+
+/// The inference, refutation and resampling choices of a [`Study`].
+#[derive(Clone, Debug)]
+pub(crate) struct StudyInference {
+    pub(crate) refute: RefuteSuite,
+    pub(crate) bootstrap_replicates: u32,
+    /// Retain the joint replicates of a temporal response surface (see
+    /// [`crate::StudyBuilder::retain_joint_horizons`]).
+    pub(crate) retain_joint_horizons: bool,
+    pub(crate) inference: InferenceMode,
 }
 
 impl std::ops::Deref for Study {
@@ -229,9 +260,21 @@ mod admg_posterior;
 mod admg_posterior_response;
 mod attribution_path;
 mod checked_attribution;
+mod class_attribution;
+mod identification_slot;
+mod pulse_support;
+mod temporal_admg_mediation;
 mod temporal_attribution;
+pub(crate) use temporal_admg_mediation::mediation_window_namespace;
+pub(crate) use temporal_attribution::TemporalRowProvenance;
+mod temporal_admg_posterior;
+mod temporal_pag_mediation;
 pub(crate) use attribution_path::{CheckedCounterfactualPlan, CounterfactualProcedure};
-pub(crate) use checked_attribution::CheckedAttributionOperation;
+pub(crate) use checked_attribution::{
+    CheckedAttributionOperation, attribute_bootstrap_supported, attribute_posterior_draws,
+    attribute_posterior_supported, attribute_runs_checked, is_mechanism_change_query,
+    mechanism_change_posterior_declared,
+};
 mod bayesian_basis_path;
 mod checked_bayesian_basis_ate;
 mod checked_bayesian_basis_cate;
@@ -253,7 +296,9 @@ mod checked_cell_aipw_response;
 pub(crate) use checked_bayesian_dag_conditional::{
     CheckedBayesianConditionalOperation, CheckedBayesianConditionalOperationPremises,
 };
+mod bayesian_level_refutation;
 mod bayesian_path;
+mod bayesian_quantile_path;
 mod bayesian_robust_ate_path;
 mod bayesian_specialist_path;
 mod checked_bayesian_static_mediation;
@@ -263,8 +308,20 @@ mod checked_local_polynomial_ratio;
 mod checked_longitudinal_regime;
 mod checked_panel_did;
 mod checked_randomized;
+mod class_derivative_refutation;
+mod class_response_refutation;
+mod curve_refutation;
+mod derivative_refutation;
+mod front_door_derivative_refutation;
+mod gcm_bootstrap;
+mod posterior_witness_state;
 mod randomized_fit;
+mod randomized_quantile_path;
 mod randomized_trial;
+mod rollout_finish;
+mod structural_zero;
+mod temporal_response_refutation;
+mod transport_refutation;
 use randomized_trial::{RandomizedTrialOperation, RandomizedTrialQuery};
 mod checked_static_mediation;
 mod checked_survival;
@@ -285,6 +342,26 @@ pub(crate) use checked_local_polynomial_ratio::{
     CheckedLocalPolynomialRatioOperation, local_polynomial_ratio_identification,
 };
 pub(crate) use checked_longitudinal_regime::CheckedLongitudinalRegimeOperation;
+mod checked_sequential_contrast;
+pub(crate) use checked_sequential_contrast::CheckedSequentialContrastOperation;
+mod checked_family_routes;
+mod checked_history_match;
+mod checked_route;
+mod checked_static_cross_world;
+pub(crate) use checked_family_routes::{
+    CheckedClassAttributionOperation, CheckedTemporalAdmgOperation,
+};
+pub(crate) use checked_history_match::CheckedHistoryMatchOperation;
+pub(crate) use checked_route::{
+    CheckedAssociationOperation, CheckedDiscoveryOperation, CheckedRouteOperation,
+    CheckedScientificRoute, finish_family_result,
+};
+pub(crate) use checked_static_cross_world::CheckedStaticCrossWorldOperation;
+mod checked_association;
+pub(crate) use checked_association::count_prior_of;
+mod checked_iv_bounds;
+mod checked_temporal_design;
+pub(crate) use checked_iv_bounds::CheckedIvBoundsOperation;
 pub(crate) use checked_panel_did::CheckedPanelDidOperation;
 pub(crate) use checked_panel_did::panel_did_graphless_key;
 pub(crate) use checked_panel_did::panel_did_identification;
@@ -296,35 +373,69 @@ pub(crate) use checked_survival::{CheckedSurvivalOperation, survival_identificat
 pub(crate) use checked_synthetic_control::{
     CheckedSyntheticControlOperation, synthetic_control_identification,
 };
+pub(crate) use checked_temporal_design::CheckedTemporalDesignOperation;
 pub(crate) use checked_temporal_mediation::CheckedTemporalMediationOperation;
 mod atom_mix;
+mod atom_route_posterior;
+pub(crate) use atom_route_posterior::atom_route_response;
+mod dbn_route_posterior;
+pub(crate) use dbn_route_posterior::{dbn_atoms, dbn_route_query, dbn_route_window_namespace};
+pub(crate) use temporal_admg_posterior::temporal_admg_posterior_window_namespace;
+mod interference_posterior;
+mod transport_class;
+mod transport_posterior;
+pub(crate) use transport_posterior::ipw_estimable;
+mod class_counterfactual;
+mod class_distribution;
 mod class_envelope_se;
+mod class_path_specific;
 mod class_posterior;
 mod class_posterior_response;
 mod completion_fit_memo;
+mod cross_world_posterior;
 pub(crate) use checked_temporal_effect::CheckedTemporalEffectExecution;
 mod compile;
+mod compile_decision;
+pub(crate) use compile_decision::require_carrier;
+pub use compile_decision::{
+    BAYESIAN_REALIZATION, DECISION_NEXT_ATTEMPTS, DISTRIBUTIONAL_CARRIER, DecisionCarrierError,
+    DecisionCompileRequest, DecisionDemand, INTERVENTIONAL_LAW, MissingCarrier, PublishedCarriers,
+    ROBUST_OVER_IDENTIFIED_SET, ScoredDecision, score_decision,
+};
 mod compile_graph_posterior;
+mod compile_planning;
+pub(crate) use compile_planning::compile_planning;
+pub use compile_planning::{PlannedExperiment, PlanningPlan, STANDALONE_PLANNING};
 mod plan_id;
+mod planning_simulation;
 pub(super) use compile::compile_logical_admg_response;
 mod route_input;
-pub(crate) use route_input::{RouteInput, StaticMediationSource};
+pub(crate) use route_input::{PathSpecificMixedSource, RouteInput, StaticMediationSource};
+mod structural_route;
+pub(crate) use structural_route::structure_search_identification;
 mod dbn_mediation_frequentist;
 mod mediation_streams;
 use mediation_streams::{MediationRoute, mediation_block_stream, mediation_mechanism_seed};
 mod checked_static_response;
 mod dispatch;
 mod identified_set_diagnostics;
+mod interference_refutation;
+mod mediation_mixed;
+mod mediation_refutation;
 mod multi_env_path;
 mod pag_path;
+mod panel_link_path;
 mod panel_path;
 mod response_path;
+mod route_call;
+mod temporal_iv_path;
 pub(crate) use checked_static_response::{
     CheckedDerivativeResponseOperation, CheckedStaticDagResponseOperation,
     CheckedStaticDagResponseOperationPremises,
 };
 pub(crate) use checked_temporal_class_effect::CheckedTemporalClassEffectExecution;
 pub(crate) use temporal_path::checked_temporal_response::CheckedTemporalResponseExecution;
+mod bayesian_quasi_common;
 mod checked_bayesian_specialist;
 #[path = "exec_checked_bayesian_temporal_class_effect.rs"]
 mod checked_bayesian_temporal_class_effect;
@@ -341,10 +452,12 @@ mod checked_temporal_graph_posterior_effect;
 mod checked_temporal_graph_posterior_response;
 mod checked_transport_trial;
 mod sequential_validation;
+mod series_weights;
 mod static_missing;
 mod static_path;
 #[cfg(test)]
 mod study_clone_tests;
+mod temporal_admg_path;
 mod temporal_class_effect_core;
 mod temporal_class_mediation_posterior;
 mod temporal_class_point;
@@ -353,6 +466,7 @@ mod temporal_class_posterior_response;
 mod temporal_effect_core;
 mod temporal_mediation_core;
 mod temporal_path;
+mod temporal_point_uncertainty;
 mod temporal_posterior_response;
 mod transport_interference_path;
 mod tuple_bootstrap;
@@ -389,9 +503,10 @@ pub(super) use tuple_bootstrap::{
 };
 
 pub(crate) use dispatch::push_gaussian_likelihood_disclosure;
+pub(crate) use dispatch::push_lag_zero_average_effect_disclosure;
 pub(crate) use dispatch::{
-    ANOMALY_DIRICHLET_BACKEND, CHANGE_DIRICHLET_BACKEND, COUNTERFACTUAL_DIRICHLET_BACKEND,
-    ROBUST_ATE_BOOTSTRAP_BACKEND,
+    ANOMALY_DIRICHLET_BACKEND, ATTRIBUTE_DIRICHLET_BACKEND, CHANGE_DIRICHLET_BACKEND,
+    COUNTERFACTUAL_DIRICHLET_BACKEND, ROBUST_ATE_BOOTSTRAP_BACKEND,
 };
 pub(crate) use static_path::{CheckedUnknownTiered, DistributionGraph};
 pub(crate) use transport_interference_path::live_transport_identification;
@@ -409,7 +524,10 @@ pub use checked_static_class_response::CheckedStaticClassResponseInfo;
 pub use checked_static_mediation::CheckedStaticMediationInfo;
 pub use checked_static_response::{CheckedDerivativeResponseInfo, CheckedStaticDagResponseInfo};
 pub use checked_temporal_class_effect::CheckedTemporalClassEffectInfo;
-pub use checked_temporal_class_mediation::CheckedTemporalClassMediationInfo;
+pub use checked_temporal_class_mediation::{
+    CheckedTemporalClassMediationInfo, CheckedTemporalMediationProofMass,
+    CheckedTemporalMediationTargetInfo, TemporalMediationProofMassBasis,
+};
 pub use checked_temporal_effect::CheckedTemporalDagEffectInfo;
 pub use checked_temporal_mediation::CheckedTemporalMediationInfo;
 pub use checked_transport_trial::CheckedTransportTrialInfo;
@@ -428,3 +546,6 @@ mod quasi_plan_self_check_tests;
 
 #[cfg(test)]
 mod tests;
+
+mod compile_robust;
+pub use compile_robust::CompiledRobustDecision;

@@ -24,12 +24,12 @@
 //!
 //! Non-rejection does **not** prove constancy ([`ConstancyConclusion::NotRejected`] is the
 //! absence of evidence against the null at the stated level). The test's Type I error and
-//! power are *unmeasured* ([`CalibrationStatus::Unmeasured`]); no coverage or false-positive
-//! claim is made here, and the result grants no causal or interval license. The per-partition
+//! power are *`not_measured`* ([`CalibrationStatus::NotMeasured`]); no coverage or false-positive
+//! claim is made here, and the result grants no causal or interval support. The per-partition
 //! effects are exposed so transport diagnostics, prior transfer and policy generalization can
 //! consume them directly.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
@@ -46,15 +46,15 @@ pub const EFFECT_CONSTANCY_NULL: &str = "effect equal across all declared partit
 /// Inference claim of the route.
 pub const EFFECT_CONSTANCY_INFERENCE_CLAIM: &str = "point_only";
 
-/// Most partitions one test accepts.
+/// Reference partition count of a test; not enforced.
 pub const EFFECT_CONSTANCY_MAX_PARTITIONS: usize = 1024;
 
 /// Statement attached to every result: non-rejection is not evidence of constancy.
 pub const NON_REJECTION_CAVEAT: &str = "failing to reject the null does not prove the effect is \
                                         constant across partitions";
 
-/// Statement attached to every result about the unmeasured error rates.
-pub const POWER_CAVEAT: &str = "Type I error and power of this test are unmeasured; the test may \
+/// Statement attached to every result about the `not_measured` error rates.
+pub const POWER_CAVEAT: &str = "Type I error and power of this test are not_measured; the test may \
                                 lack power to detect heterogeneity of a size that matters";
 
 /// Relative tolerance for covariance symmetry and its agreement with the standard errors.
@@ -142,7 +142,7 @@ pub enum ConstancyConclusion {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CalibrationStatus {
     /// Null Type I error and power have not been measured; no claim is made.
-    Unmeasured,
+    NotMeasured,
 }
 
 /// Global heterogeneity test output.
@@ -213,7 +213,7 @@ pub struct EffectConstancyResult {
     pub non_rejection_caveat: &'static str,
     /// [`POWER_CAVEAT`].
     pub power_caveat: &'static str,
-    /// Calibration state: unmeasured.
+    /// Calibration state: `not_measured`.
     pub calibration: CalibrationStatus,
     /// The declared multiplicity family.
     pub family: ContrastFamily,
@@ -251,27 +251,24 @@ fn quadratic_form(lower: &[f64], n: usize, x: &[f64]) -> f64 {
 fn validate_inputs(partitions: &[PartitionEstimate], alpha: f64) -> Result<(), EstimationError> {
     let invalid = reason_code!("invalid_argument");
     if !(alpha > 0.0 && alpha < 1.0) {
-        return Err(refuse(invalid, "effect_constancy.invalid_alpha", "alpha must lie in (0, 1)"));
+        return Err(refuse(
+            invalid,
+            antecedent_core::reason_details::effect_constancy::INVALID_ALPHA,
+            "alpha must lie in (0, 1)",
+        ));
     }
     if partitions.len() < 2 {
         return Err(refuse(
             invalid,
-            "effect_constancy.too_few_partitions",
+            antecedent_core::reason_details::effect_constancy::TOO_FEW_PARTITIONS,
             "a constancy test needs at least two partitions",
-        ));
-    }
-    if partitions.len() > EFFECT_CONSTANCY_MAX_PARTITIONS {
-        return Err(refuse(
-            invalid,
-            "effect_constancy.too_many_partitions",
-            "the partition count exceeds the supported bound",
         ));
     }
     for p in partitions {
         if !p.effect.is_finite() || !p.standard_error.is_finite() {
             return Err(refuse(
                 invalid,
-                "effect_constancy.non_finite_estimate",
+                antecedent_core::reason_details::effect_constancy::NON_FINITE_ESTIMATE,
                 "an effect or standard error is not finite",
             ));
         }
@@ -279,7 +276,7 @@ fn validate_inputs(partitions: &[PartitionEstimate], alpha: f64) -> Result<(), E
         if p.standard_error <= 0.0 || !variance.is_finite() || variance <= 0.0 {
             return Err(refuse(
                 invalid,
-                "effect_constancy.invalid_standard_error",
+                antecedent_core::reason_details::effect_constancy::INVALID_STANDARD_ERROR,
                 "a partition standard error is not positive",
             ));
         }
@@ -297,14 +294,14 @@ fn validate_comparability(partitions: &[PartitionEstimate]) -> Result<(), Estima
     {
         return Err(refuse(
             incompatible,
-            "effect_constancy.incompatible_partitions",
+            antecedent_core::reason_details::effect_constancy::INCOMPATIBLE_PARTITIONS,
             "partition and estimand identities must not be blank",
         ));
     }
     if partitions.iter().any(|p| &p.estimand != first) {
         return Err(refuse(
             incompatible,
-            "effect_constancy.incompatible_partitions",
+            antecedent_core::reason_details::effect_constancy::INCOMPATIBLE_PARTITIONS,
             "partitions estimate different effects (estimand, units, regime or population \
              differ); the global test is refused",
         ));
@@ -313,14 +310,14 @@ fn validate_comparability(partitions: &[PartitionEstimate]) -> Result<(), Estima
     if !partitions.iter().all(|p| labels.insert(p.label.as_str())) {
         return Err(refuse(
             incompatible,
-            "effect_constancy.incompatible_partitions",
+            antecedent_core::reason_details::effect_constancy::INCOMPATIBLE_PARTITIONS,
             "partition labels are not unique",
         ));
     }
     if partitions.iter().any(|p| p.support == PartitionSupport::Unsupported) {
         return Err(refuse(
             incompatible,
-            "effect_constancy.unsupported_partition",
+            antecedent_core::reason_details::effect_constancy::UNSUPPORTED_PARTITION,
             "a partition's coordinate is unsupported and cannot enter the test",
         ));
     }
@@ -334,7 +331,13 @@ fn validate_covariance(
 ) -> Result<(), EstimationError> {
     let invalid = reason_code!("invalid_argument");
     let k = partitions.len();
-    let bad = |message: &str| refuse(invalid, "effect_constancy.invalid_covariance", message);
+    let bad = |message: &str| {
+        refuse(
+            invalid,
+            antecedent_core::reason_details::effect_constancy::INVALID_COVARIANCE,
+            message,
+        )
+    };
     if covariance.len() != k * k {
         return Err(bad("the covariance is not k x k for the supplied partitions"));
     }
@@ -387,7 +390,7 @@ fn wald_statistic(effects: &[f64], covariance: &[f64]) -> Result<f64, Estimation
     let lower = antecedent_stats::cholesky_spd(&v, m).ok_or_else(|| {
         refuse(
             reason_code!("invalid_argument"),
-            "effect_constancy.invalid_covariance",
+            antecedent_core::reason_details::effect_constancy::INVALID_COVARIANCE,
             "the covariance of the contrasts is not positive definite",
         )
     })?;
@@ -417,7 +420,7 @@ fn contrast_pairs(
             let at = labels.iter().position(|l| *l == reference.as_str()).ok_or_else(|| {
                 refuse(
                     reason_code!("invalid_argument"),
-                    "effect_constancy.unknown_reference",
+                    antecedent_core::reason_details::effect_constancy::UNKNOWN_REFERENCE,
                     "the reference partition is not among the declared partitions",
                 )
             })?;
@@ -441,7 +444,7 @@ fn contrast_reports(
         if !(variance.is_finite() && variance > 0.0) {
             return Err(refuse(
                 reason_code!("invalid_argument"),
-                "effect_constancy.invalid_covariance",
+                antecedent_core::reason_details::effect_constancy::INVALID_COVARIANCE,
                 "a contrast has a non-positive variance",
             ));
         }
@@ -451,7 +454,7 @@ fn contrast_reports(
         if !difference.is_finite() || !z.is_finite() {
             return Err(refuse(
                 reason_code!("invalid_argument"),
-                "effect_constancy.non_finite_estimate",
+                antecedent_core::reason_details::effect_constancy::NON_FINITE_ESTIMATE,
                 "a contrast overflows at the supplied scale",
             ));
         }
@@ -538,7 +541,7 @@ pub fn test_effect_constancy(
     if !statistic.is_finite() || pooled_effect.is_some_and(|p| !p.is_finite()) {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "effect_constancy.non_finite_estimate",
+            antecedent_core::reason_details::effect_constancy::NON_FINITE_ESTIMATE,
             "the statistic overflows at the supplied scale",
         ));
     }
@@ -563,7 +566,7 @@ pub fn test_effect_constancy(
         },
         non_rejection_caveat: NON_REJECTION_CAVEAT,
         power_caveat: POWER_CAVEAT,
-        calibration: CalibrationStatus::Unmeasured,
+        calibration: CalibrationStatus::NotMeasured,
         family: family.clone(),
         contrasts,
         pooled_effect,

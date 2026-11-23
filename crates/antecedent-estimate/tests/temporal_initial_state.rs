@@ -10,7 +10,7 @@
 //! its mode gives `0.46`. The panel itself is half `s0 = 0`, so its observed-state
 //! mean (`0.395`) is a third, different quantity.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::cast_precision_loss,
     clippy::cast_possible_wrap,
@@ -29,7 +29,6 @@ use antecedent_estimate::temporal_dependent_interval::{
 use antecedent_estimate::temporal_initial_state::{
     FixedStateEffect, FixedStateQuery, INITIAL_STATE_MAX_STATES, InitialStateLaw,
     InitialStatePopulation, InitialStateSpec, MarginalizedEffect, MarginalizedQuery,
-    route_frozen_refusal,
 };
 
 /// `P(l = 1 | s0, a1)` in tenths, indexed `[s0][a1]`.
@@ -41,7 +40,7 @@ const SEQUENCE: [u32; 2] = [0, 0];
 
 fn refused(error: EstimationError) -> (&'static str, String) {
     match error {
-        EstimationError::Refused { code, message } => (code, message),
+        EstimationError::Refused { code, message } => (code, message.into_string()),
         other => panic!("expected a registered refusal, got {other:?}"),
     }
 }
@@ -71,14 +70,14 @@ fn panel() -> TemporalUnitPanel {
                         let n_cell = n_l / 2;
                         let ones = n_cell / 10 * (M10[s0][a1][l][a2] + shift) as u64;
                         for k in 0..n_cell {
-                            histories.push(SequenceHistory {
-                                time_id: histories.len() as u64,
-                                s0: s0 as u32,
-                                a1: a1 as u32,
-                                l2: l as u32,
-                                a2: a2 as u32,
-                                y: if k < ones { 1.0 } else { 0.0 },
-                            });
+                            histories.push(SequenceHistory::two_step(
+                                histories.len() as u64,
+                                s0 as u32,
+                                a1 as u32,
+                                l as u32,
+                                a2 as u32,
+                                if k < ones { 1.0 } else { 0.0 },
+                            ));
                         }
                     }
                 }
@@ -152,7 +151,10 @@ fn initial_state_posterior_refuses_a_mapped_prior() {
     )
     .unwrap_err();
     let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
-    assert!(message.contains("initial_state_posterior.mapped_prior"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::initial_state_posterior::MAPPED_PRIOR),
+        "{message}"
+    );
 }
 
 #[test]
@@ -184,14 +186,14 @@ fn initial_state_sum_differs_from_fixing_the_state_at_its_mode() {
     let marginalized = target_query(0.7).effect(&p).unwrap();
     // The mode of the target law is s0 = 1; fixing it is the wrong answer to the
     // target-marginal question.
-    let at_mode = FixedStateQuery { sequence: SEQUENCE, s0: 1 }.effect(&p).unwrap();
+    let at_mode = FixedStateQuery { sequence: SEQUENCE.to_vec(), s0: 1 }.effect(&p).unwrap();
     assert!((at_mode.value - 0.46).abs() < 1e-12);
     assert!((marginalized.value - at_mode.value).abs() > 0.03, "fixing the state is wrong here");
-    let at_zero = FixedStateQuery { sequence: SEQUENCE, s0: 0 }.effect(&p).unwrap();
+    let at_zero = FixedStateQuery { sequence: SEQUENCE.to_vec(), s0: 0 }.effect(&p).unwrap();
     assert!((at_zero.value - 0.33).abs() < 1e-12);
     assert!(at_zero.value < marginalized.value && marginalized.value < at_mode.value);
     // The panel's own observed-state law is yet another quantity.
-    let observed = ObservedStateSequence { sequence: SEQUENCE };
+    let observed = ObservedStateSequence { sequence: SEQUENCE.to_vec() };
     let units = p.units().iter().collect::<Vec<_>>();
     let observed = observed.estimate(&units).unwrap();
     assert!((observed - 0.395).abs() < 1e-12);
@@ -201,14 +203,14 @@ fn initial_state_sum_differs_from_fixing_the_state_at_its_mode() {
 #[test]
 fn initial_state_sum_results_are_typed_and_labelled_distinctly() {
     let p = panel();
-    let fixed = FixedStateQuery { sequence: SEQUENCE, s0: 1 }.effect(&p).unwrap();
+    let fixed = FixedStateQuery { sequence: SEQUENCE.to_vec(), s0: 1 }.effect(&p).unwrap();
     let marginalized = target_query(0.7).effect(&p).unwrap();
     assert_eq!(fixed.label(), "fixed_initial_state");
     assert_eq!(marginalized.label(), "marginalized_initial_state");
     assert_ne!(FixedStateEffect::LABEL, MarginalizedEffect::LABEL);
     assert_eq!(fixed.s0, 1);
     assert_eq!(fixed.sequence, SEQUENCE);
-    let fixed_estimator = FixedStateQuery { sequence: SEQUENCE, s0: 1 };
+    let fixed_estimator = FixedStateQuery { sequence: SEQUENCE.to_vec(), s0: 1 };
     let marginal_estimator = target_query(0.7);
     assert_eq!(TemporalEstimator::label(&fixed_estimator), "fixed_initial_state");
     assert_eq!(TemporalEstimator::label(&marginal_estimator), "marginalized_initial_state");
@@ -245,12 +247,18 @@ fn source_state_only_refuses_a_source_law_and_a_point_state() {
     let (code, message) =
         refused(MarginalizedQuery::new(SEQUENCE, InitialStateSpec::Law(source)).unwrap_err());
     assert_eq!(code, "transport_missing_evidence");
-    assert!(message.contains("initial_state.target_law_missing"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::initial_state::TARGET_LAW_MISSING),
+        "{message}"
+    );
 
     let (code, message) =
         refused(MarginalizedQuery::new(SEQUENCE, InitialStateSpec::Point(1)).unwrap_err());
     assert_eq!(code, "transport_missing_evidence");
-    assert!(message.contains("initial_state.target_law_missing"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::initial_state::TARGET_LAW_MISSING),
+        "{message}"
+    );
 }
 
 #[test]
@@ -265,10 +273,17 @@ fn source_state_only_refuses_support_gaps_bounds_and_malformed_laws() {
     let query = MarginalizedQuery::new(SEQUENCE, InitialStateSpec::Law(gap)).unwrap();
     let (code, message) = refused(query.effect(&panel()).unwrap_err());
     assert_eq!(code, "transport_support_failure");
-    assert!(message.contains("initial_state.support_gap"), "{message}");
-    let (_, message) =
-        refused(FixedStateQuery { sequence: SEQUENCE, s0: 7 }.effect(&panel()).unwrap_err());
-    assert!(message.contains("initial_state.support_gap"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::initial_state::SUPPORT_GAP),
+        "{message}"
+    );
+    let (_, message) = refused(
+        FixedStateQuery { sequence: SEQUENCE.to_vec(), s0: 7 }.effect(&panel()).unwrap_err(),
+    );
+    assert!(
+        message.contains(antecedent_core::reason_details::initial_state::SUPPORT_GAP),
+        "{message}"
+    );
 
     let many = (0..=INITIAL_STATE_MAX_STATES as u32)
         .map(|s| (s, 1.0 / (INITIAL_STATE_MAX_STATES + 1) as f64))
@@ -276,7 +291,10 @@ fn source_state_only_refuses_support_gaps_bounds_and_malformed_laws() {
     let (code, message) =
         refused(InitialStateLaw::new(InitialStatePopulation::Target, "many", many).unwrap_err());
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("initial_state.too_many_states"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::initial_state::TOO_MANY_STATES),
+        "{message}"
+    );
     let at_cap = (0..INITIAL_STATE_MAX_STATES as u32)
         .map(|s| (s, 1.0 / INITIAL_STATE_MAX_STATES as f64))
         .collect();
@@ -289,11 +307,16 @@ fn source_state_only_refuses_support_gaps_bounds_and_malformed_laws() {
         vec![(0, 1.5), (1, -0.5)],
         vec![(0, f64::NAN), (1, 1.0)],
     ] {
-        assert!(InitialStateLaw::new(InitialStatePopulation::Target, "s", bad).is_err());
+        let error =
+            InitialStateLaw::new(InitialStatePopulation::Target, "s", bad.clone()).unwrap_err();
+        let expected = if bad.is_empty() {
+            "at least one state"
+        } else {
+            "distinct states and finite non-negative masses summing to one"
+        };
+        assert!(format!("{error:?}").contains(expected), "{bad:?}: {error:?}");
     }
-    assert!(InitialStateLaw::new(InitialStatePopulation::Target, "", vec![(0, 1.0)]).is_err());
-
-    let (code, message) = refused(route_frozen_refusal());
-    assert_eq!(code, "cell_not_licensed");
-    assert!(message.contains("initial_state.route_frozen"), "{message}");
+    let error =
+        InitialStateLaw::new(InitialStatePopulation::Target, "", vec![(0, 1.0)]).unwrap_err();
+    assert!(format!("{error:?}").contains("needs a snapshot id"), "{error:?}");
 }

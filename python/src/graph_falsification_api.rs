@@ -4,16 +4,16 @@
 //! node-permutation comparison, every refusal and the self-describing report are Rust's. The
 //! report crosses as JSON.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
+use antecedent::data::TableView;
 use antecedent::gcm::{
     GraphFalsificationConfig, GraphFalsificationOutcome, GraphFalsificationReport,
     GraphUninformativeReason, evaluate_graph as facade_evaluate_graph,
 };
-use antecedent_core::VariableId;
-use antecedent_data::TableView;
+use antecedent::prelude::VariableId;
 use pyo3::prelude::*;
 
 use crate::{dag_from_named_edges, detach_catch, py_err, py_execution_context};
@@ -78,7 +78,7 @@ fn graph_falsification_json(report: &GraphFalsificationReport, names: &[String])
         "cache_hits": report.cache_hits,
         "tests_skipped": report.tests_skipped,
         "max_ci_tests": report.max_ci_tests,
-        "stop": report.stop.map(antecedent_core::SearchStop::code),
+        "stop": report.stop.map(antecedent::execution::SearchStop::code),
         "search_receipt": receipt,
         "limitations": report.limitations.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
     })
@@ -111,7 +111,7 @@ fn evaluate_graph_py(
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<String> {
-    let (data, _) = crate::tabular_from_py_columns(names.clone(), columns)?;
+    let data = crate::tabular_from_py_columns(names.clone(), columns)?;
     detach_catch(py, move || {
         let g = dag_from_named_edges(data.schema(), &edges)?;
         let defaults = GraphFalsificationConfig::default();

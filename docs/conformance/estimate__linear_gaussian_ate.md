@@ -9,4 +9,4 @@
 
 ## Expected summary
 
-Top-level keys: `adjustment_set, atol, edges, generation, n, oracle, outcome, reference, reference_ate, reference_source, rtol, scm, tolerance_class, treatment, true_ate` (15 fields).
+Top-level keys: `adjustment_set, atol, edges, generation, historical_generation, historical_oracle, historical_reference, n, oracle, outcome, reference, reference_ate, reference_source, rtol, scm, tolerance_class, treatment, true_ate` (18 fields).

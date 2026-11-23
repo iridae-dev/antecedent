@@ -13,30 +13,92 @@ use antecedent::{RandomizedEffectQuery, Study};
 use antecedent_core::VariableId;
 use antecedent_data::TabularData;
 
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
+
 #[test]
 fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
     use antecedent_core::RandomizationDesign;
 
-    fn run_case(query: RandomizedEffectQuery, outcomes: &[f64], design: &str) {
+    /// Difference of the arithmetic means of `outcomes` over the `treated` and the rest.
+    fn diff_means(outcomes: &[f64], treated: &[bool]) -> f64 {
+        let (mut st, mut nt, mut sc, mut nc) = (0.0, 0.0, 0.0, 0.0);
+        for (y, &t) in outcomes.iter().zip(treated) {
+            if t {
+                st += y;
+                nt += 1.0;
+            } else {
+                sc += y;
+                nc += 1.0;
+            }
+        }
+        st / nt - sc / nc
+    }
+
+    /// `sqrt(s1^2 / n1 + s0^2 / n0)` with unbiased sample variances.
+    fn neyman_se(outcomes: &[f64], treated: &[bool]) -> f64 {
+        let part = |want: bool| {
+            let ys: Vec<f64> = outcomes
+                .iter()
+                .zip(treated)
+                .filter(|&(_, &t)| t == want)
+                .map(|(&y, _)| y)
+                .collect();
+            let n = ys.len() as f64;
+            let mean = ys.iter().sum::<f64>() / n;
+            ys.iter().map(|y| (y - mean).powi(2)).sum::<f64>() / (n - 1.0) / n
+        };
+        (part(true) + part(false)).sqrt()
+    }
+
+    fn run_case(
+        query: RandomizedEffectQuery,
+        outcomes: &[f64],
+        design: &str,
+        expected_effect: f64,
+        neyman: Option<f64>,
+    ) {
         let data = TabularData::from_f64_columns([("outcome", outcomes)]).unwrap();
         let ctx = ExecutionContext::for_tests(0xCA11_BA7E);
         let prepared =
             Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
         let result = prepared.estimate(&data, &ctx).unwrap();
+        retained_graphless::assert_retained_graphless_program(
+            "calibrated_randomized_intervals_round_tr",
+            &prepared,
+            &result,
+            &ctx,
+        );
         let fit = result.randomized_effect().unwrap();
         let [lower, upper] = fit.interval_95.expect("supported randomized design interval");
         assert_eq!(fit.assignment_design.as_ref(), design);
-        assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+        assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
+        // The effect is the difference of arm means, computed here from the outcomes.
+        assert!(
+            (fit.effect - expected_effect).abs() < 1e-9,
+            "{design}: {} vs {expected_effect}",
+            fit.effect
+        );
         assert!(lower <= fit.effect && fit.effect <= upper);
+        if let Some(se) = neyman {
+            assert!(
+                (fit.standard_error.unwrap() - se).abs() < 1e-9,
+                "{design}: se {:?} vs {se}",
+                fit.standard_error
+            );
+            let half = 1.959_963_984_540_054 * se;
+            assert!((lower - (fit.effect - half)).abs() < 1e-9, "{lower} vs {}", fit.effect - half);
+            assert!((upper - (fit.effect + half)).abs() < 1e-9, "{upper} vs {}", fit.effect + half);
+        }
         assert!(fit.standard_error.unwrap() > 0.0);
         assert_eq!(
-            result.interval.as_ref().unwrap().method,
+            result.interval().as_ref().unwrap().method,
             antecedent_core::IntervalMethod::AnalyticSe
         );
         let executed_contract = prepared.contract_for_result(&result).unwrap();
-        assert_eq!(executed_contract.support_status, result.support_status);
+        assert_eq!(executed_contract.support_status, result.support_status());
         let support = executed_contract.reasoning.support.as_ref().unwrap();
-        assert_eq!(support.matrix_status.as_ref(), "licensed");
+        assert_eq!(support.matrix_status.as_ref(), "supported");
         assert!(support.matrix_coordinate.is_some());
         let bytes =
             prepared.encode_contracted_result(&result, "randomized-interval", &ctx).unwrap();
@@ -45,16 +107,16 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         assert_eq!(artifact.randomized_effect.as_ref().unwrap().interval_95, Some([lower, upper]));
         assert_eq!(
             artifact.randomized_effect.as_ref().unwrap().graphless_support_status.as_deref(),
-            Some("licensed")
+            Some("supported")
         );
-        let mut forged_license = artifact.clone();
-        forged_license.randomized_effect.as_mut().unwrap().graphless_support_status =
-            Some("refused".into());
+        let mut forged_support = artifact.clone();
+        forged_support.randomized_effect.as_mut().unwrap().graphless_support_status =
+            Some("not_supported".into());
         assert!(
             antecedent_io::encode_analysis_result_artifact(
-                &forged_license,
+                &forged_support,
                 header.variable_names.clone(),
-                "forged-license"
+                "forged-support"
             )
             .is_err()
         );
@@ -89,7 +151,7 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         {
             // A pre-matrix artifact has no support-status field. It remains
             // readable as a legacy off-axis result, but a new encoder must
-            // restamp the exact licensed status before issuing an artifact.
+            // restamp the exact supported status before issuing an artifact.
             let mut legacy_body = artifact.clone();
             legacy_body.randomized_effect.as_mut().unwrap().graphless_support_status = None;
             assert!(
@@ -147,6 +209,7 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         |n: usize| (0..n).map(|i| Arc::<str>::from(format!("unit-{i}"))).collect::<Vec<_>>();
     let n = 60;
     let assignment = (0..n).map(|i| i < 30).collect::<Vec<_>>();
+    let complete_mask = assignment.clone();
     let outcomes = (0..n)
         .map(|i| 1.0 + 2.0 * f64::from(assignment[i]) + 0.5 * (i as f64 * 0.3).sin())
         .collect::<Vec<_>>();
@@ -162,6 +225,8 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         ),
         &outcomes,
         "complete",
+        diff_means(&outcomes, &complete_mask),
+        Some(neyman_se(&outcomes, &complete_mask)),
     );
 
     let n = 400;
@@ -169,6 +234,7 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
     let outcomes = (0..n)
         .map(|i| 1.0 + 2.0 * f64::from(assignment[i]) + 0.5 * (i as f64 * 0.3).sin())
         .collect::<Vec<_>>();
+    let bernoulli_mask = assignment.clone();
     run_case(
         RandomizedEffectQuery::bernoulli_itt(
             VariableId::from_raw(0),
@@ -180,6 +246,8 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         ),
         &outcomes,
         "bernoulli",
+        diff_means(&outcomes, &bernoulli_mask),
+        None,
     );
 
     let arms = (0..n).map(|i| i % 4).collect::<Vec<_>>();
@@ -198,10 +266,19 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         units(n),
         ("control", "a"),
     );
-    run_case(fit, &outcomes, "multi_arm");
+    let (mut a0, mut n0, mut a1, mut n1) = (0.0, 0.0, 0.0, 0.0);
+    for (y, arm) in outcomes.iter().zip(&arms) {
+        match arm {
+            0 => (a0, n0) = (a0 + y, n0 + 1.0),
+            1 => (a1, n1) = (a1 + y, n1 + 1.0),
+            _ => {}
+        }
+    }
+    run_case(fit, &outcomes, "multi_arm", a1 / n1 - a0 / n0, None);
 
     let n = 120;
     let assignment = (0..n).map(|i| i / 2 < 30).collect::<Vec<_>>();
+    let cluster_mask = assignment.clone();
     let outcomes = (0..n)
         .map(|i| 1.0 + 2.0 * f64::from(assignment[i]) + 0.5 * (i as f64 * 0.3).sin())
         .collect::<Vec<_>>();
@@ -219,9 +296,12 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         ),
         &outcomes,
         "cluster",
+        diff_means(&outcomes, &cluster_mask),
+        None,
     );
 
     let assignment = (0..n).map(|i| i % 30 < 15).collect::<Vec<_>>();
+    let stratified_mask = assignment.clone();
     let outcomes = (0..n)
         .map(|i| 1.0 + 2.0 * f64::from(assignment[i]) + 0.5 * (i as f64 * 0.3).sin())
         .collect::<Vec<_>>();
@@ -241,6 +321,8 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         ),
         &outcomes,
         "stratified",
+        diff_means(&outcomes, &stratified_mask),
+        None,
     );
 
     let first = (0..n).map(|i| i / 30 % 2 == 1).collect::<Vec<_>>();
@@ -253,6 +335,7 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
                 + 0.5 * (i as f64 * 0.3).sin()
         })
         .collect::<Vec<_>>();
+    let factorial_effect = diff_means(&outcomes, &first);
     run_case(
         RandomizedEffectQuery::with_design(
             RandomizationDesign::Factorial2x2 {
@@ -269,11 +352,13 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         ),
         &outcomes,
         "factorial_2x2",
+        factorial_effect,
+        None,
     );
 }
 
 #[test]
-fn graphless_interval_license_refuses_zero_variance_despite_assignment_support() {
+fn graphless_interval_support_refuses_zero_variance_despite_assignment_support() {
     use antecedent_core::RandomizationDesign;
 
     let n = 60;
@@ -297,7 +382,7 @@ fn graphless_interval_license_refuses_zero_variance_despite_assignment_support()
         let ctx = ExecutionContext::for_tests(0xD364_E123);
         let result = Study::tabular(data).query(query).build().unwrap().run(&ctx).unwrap();
         assert_eq!(result.randomized_effect().unwrap().interval_95, None);
-        assert_eq!(result.support_status, None);
+        assert_eq!(result.support_status(), None);
     }
 }
 
@@ -341,8 +426,8 @@ fn multi_arm_retained_study_reports_all_contrasts_and_refuses_missing_support() 
         fit.multi_arm_values.iter().map(|(_, _, _, support)| *support).collect::<Vec<_>>(),
         [2, 2, 2]
     );
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
-    assert_eq!(result.support_status, None);
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert_eq!(result.support_status(), None);
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "known_random_assignment"
     )));
@@ -412,8 +497,10 @@ fn graphless_bernoulli_itt_runs_and_retains_design_units() {
 
     let estimate = result.randomized_effect().unwrap();
     assert_eq!(estimate.effect, 3.0);
-    assert_eq!(estimate.variance_upper_bound, 3.25);
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    // For p = 1/2 the observed-arm conservative estimator is 4 Σy² / n².
+    let expected_bound = outcomes.iter().map(|y| y * y).sum::<f64>() / 4.0;
+    assert_eq!(estimate.variance_upper_bound, expected_bound);
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
     assert_eq!(
         estimate.assignment_units.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
         ["a", "b", "c", "d"]
@@ -423,10 +510,54 @@ fn graphless_bernoulli_itt_runs_and_retains_design_units() {
         ["r0", "r1", "r2", "r3"]
     );
     assert_eq!(result.treatment, None);
-    assert_eq!(result.support_status, None);
+    assert_eq!(result.support_status(), None);
 
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
+    let prepared_result = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(prepared_result.randomized_effect().unwrap().effect, 3.0);
+    assert_eq!(prepared_result.randomized_effect().unwrap().variance_upper_bound, expected_bound);
+    let bytes = prepared
+        .encode_contracted_result(&prepared_result, "bernoulli-conservative-bound", &ctx)
+        .unwrap();
+    let (mut container, header, current) =
+        antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(
+        current.randomized_effect.as_ref().unwrap().uncertainty,
+        "bernoulli_ht_conservative_variance_no_interval"
+    );
+    assert_eq!(current.randomized_effect.as_ref().unwrap().variance, expected_bound);
+    // An old point-only record remains inspectable with its old label and value,
+    // but the same stale record cannot be emitted by the current encoder.
+    let mut legacy = current;
+    let old_fit = legacy.randomized_effect.as_mut().unwrap();
+    old_fit.uncertainty = "bernoulli_ht_design_variance_no_interval".into();
+    old_fit.variance = 3.25;
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &legacy,
+            header.variable_names.clone(),
+            "old-bound-new-export"
+        )
+        .is_err()
+    );
+    let body_index =
+        container.sections.iter().position(|s| s.id == "analysis_result.body").unwrap();
+    let (descriptor, section) = antecedent_io::pack_section_shared(
+        "analysis_result.body",
+        "application/cbor",
+        antecedent_io::to_cbor(&legacy).unwrap().into(),
+        antecedent_io::CompressPolicy::Auto,
+    );
+    container.sections[body_index] = section;
+    container.manifest.sections[body_index] = descriptor;
+    let mut old_bytes = Vec::new();
+    container.write_to(&mut old_bytes).unwrap();
+    let (_, _, old_body) = antecedent_io::decode_analysis_result_artifact(&old_bytes).unwrap();
+    let old_fit = old_body.randomized_effect.unwrap();
+    assert_eq!(old_fit.uncertainty, "bernoulli_ht_design_variance_no_interval");
+    assert_eq!(old_fit.variance, 3.25);
+
     let refreshed = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(refreshed.randomized_effect().unwrap().effect, 3.0);
     assert_eq!(refreshed.treatment, None);
@@ -461,7 +592,7 @@ fn fixed_cuped_bernoulli_itt_adjusts_in_native_retained_execution() {
         adjusted.uncertainty.as_ref(),
         "bernoulli_fixed_cuped_ht_conservative_variance_no_interval"
     );
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, antecedent_core::Assumption::Custom { id, .. }
         if id.as_ref() == "fixed_pre_assignment_cuped"
@@ -498,7 +629,7 @@ fn multi_covariate_ancova_runs_in_retained_study_and_artifact() {
     assert!((adjusted.effect - 2.).abs() < 1e-10);
     assert!(adjusted.variance_upper_bound < 1e-20);
     assert_eq!(adjusted.uncertainty.as_ref(), "bernoulli_ancova_hc0_variance_no_interval");
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, antecedent_core::Assumption::Custom { id, .. }
         if id.as_ref() == "ancova_pre_assignment_covariates"
@@ -559,7 +690,7 @@ fn bernoulli_encouragement_retains_wald_cace_and_refuses_fabricated_interval() {
     assert!((effect.variance_upper_bound - 16.0 / 7.0).abs() < 1e-12);
     assert_eq!(effect.estimand.as_ref(), "cace_late");
     assert_eq!(effect.uncertainty.as_ref(), "bernoulli_wald_cace_influence_variance_no_interval");
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, antecedent_core::Assumption::Custom { id, .. }
         if id.as_ref() == "exclusion_restriction"
@@ -664,7 +795,7 @@ fn complete_randomization_enumerates_fisher_sharp_null_without_interval() {
             .randomization_p_value,
         effect.randomization_p_value
     );
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, antecedent_core::Assumption::Custom { id, .. }
         if id.as_ref() == "fisher_sharp_null_two_sided"
@@ -725,8 +856,8 @@ fn fixed_cell_factorial_reports_both_main_effects_and_interaction_without_interv
     assert_eq!(factorial.second_factor_variance, Some(1.0));
     assert_eq!(factorial.factorial_interaction_variance, Some(4.0));
     assert_eq!(factorial.estimand.as_ref(), "factorial_primary_main_effect");
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
-    assert_eq!(result.support_status, None);
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert_eq!(result.support_status(), None);
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, antecedent_core::Assumption::Custom { id, .. }
         if id.as_ref() == "known_random_assignment"
@@ -788,7 +919,7 @@ fn switchback_itt_retains_periods_and_sequence_variance() {
         estimate.uncertainty.as_ref(),
         "switchback_independent_sequence_sandwich_variance_no_interval"
     );
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, antecedent_core::Assumption::Custom { id, .. }
         if id.as_ref() == "switchback_no_carryover"
@@ -905,7 +1036,7 @@ fn cluster_randomized_itt_uses_cluster_totals_and_assignment_units() {
         &record.assumption, antecedent_core::Assumption::Custom { id, .. }
         if id.as_ref() == "no_between_cluster_interference"
     )));
-    assert_eq!(result.support_status, None);
+    assert_eq!(result.support_status(), None);
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
     assert_eq!(
@@ -978,6 +1109,52 @@ fn complete_randomization_keeps_its_own_neyman_construction_at_300_rows() {
     assert_eq!(fit.assignment_design.as_ref(), "complete");
     assert_eq!(fit.uncertainty.as_ref(), "complete_neyman_normal_interval");
     let [lower, upper] = fit.interval_95.expect("complete randomization publishes its interval");
-    assert!(lower < fit.effect && fit.effect < upper);
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    // Neyman: difference of arm means, sqrt(s1^2/n1 + s0^2/n0), normal 95% interval.
+    let moments = |want: bool| {
+        let ys: Vec<f64> = (0..n).filter(|&i| assignment[i] == want).map(|i| outcomes[i]).collect();
+        let m = ys.len() as f64;
+        let mean = ys.iter().sum::<f64>() / m;
+        (mean, ys.iter().map(|y| (y - mean).powi(2)).sum::<f64>() / (m - 1.0) / m)
+    };
+    let ((mt, vt), (mc, vc)) = (moments(true), moments(false));
+    let (effect, se) = (mt - mc, (vt + vc).sqrt());
+    assert!((fit.effect - effect).abs() < 1e-9, "{} vs {effect}", fit.effect);
+    assert!((fit.standard_error.unwrap() - se).abs() < 1e-9, "{:?} vs {se}", fit.standard_error);
+    assert!((lower - (effect - 1.959_963_984_540_054 * se)).abs() < 1e-9, "{lower}");
+    assert!((upper - (effect + 1.959_963_984_540_054 * se)).abs() < 1e-9, "{upper}");
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
+}
+
+#[test]
+fn fisher_large_scale_includes_the_observed_allocation() {
+    let outcomes = [
+        -7.199_619_291_182_174,
+        -6.495_018_842_300_632,
+        -9.402_742_742_215_064,
+        -7_413_320_277_575_814.0,
+        -0.430_139_582_939_972_45,
+    ];
+    let data = TabularData::from_f64_columns([("outcome", &outcomes[..])]).unwrap();
+    let query = RandomizedEffectQuery::with_design(
+        antecedent_core::RandomizationDesign::Complete { treated_units: 2 },
+        VariableId::from_raw(0),
+        [false, false, true, true, false],
+        [0.4; 5],
+        ["u0", "u1", "u2", "u3", "u4"].map(Arc::<str>::from),
+        ["y0", "y1", "y2", "y3", "y4"].map(Arc::<str>::from),
+        ("control", "treated"),
+    )
+    .with_exact_randomization_test();
+    let ctx = ExecutionContext::for_tests(61);
+    let result = Study::tabular(data.clone())
+        .query(query)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap()
+        .estimate(&data, &ctx)
+        .unwrap();
+    let effect = result.randomized_effect().unwrap();
+    assert_eq!(effect.randomization_allocations, Some(10));
+    assert!(effect.randomization_p_value.unwrap() >= 0.1);
 }

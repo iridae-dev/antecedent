@@ -2,7 +2,7 @@
 //! oracles, exact recovery on noiseless data, and the declared-export and shifted-cohort
 //! refusals. No coverage is measured here; see `cohort_linear_effect_calibration.rs`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::float_cmp,
     reason = "bounded indices and exact enumerated comparisons in a calibration fixture"
@@ -10,7 +10,7 @@
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::cohort_linear_effect::{
-    DETAIL_NOT_LICENSED, DETAIL_REQUIRES_NATIVE_FIT, FIT_PROCEDURE_ID, NativeCohortFit,
+    DETAIL_NOT_SUPPORTED, DETAIL_REQUIRES_NATIVE_FIT, FIT_PROCEDURE_ID, NativeCohortFit,
     NativeFitRows, declared_export_refusal, fit_cohort_linear_effect, native_cohort_interval,
     native_cohort_interval_for,
 };
@@ -99,9 +99,15 @@ fn noiseless_data_recover_the_effect_coefficients_exactly() {
 #[test]
 fn a_fit_with_too_few_rows_or_a_singular_design_is_refused() {
     let (x, t, y) = one_modifier(60, 0.1);
-    assert!(fit_cohort_linear_effect(&y[..4], &t[..4], &[&x[..4]]).is_err());
+    assert_eq!(
+        fit_cohort_linear_effect(&y[..4], &t[..4], &[&x[..4]]).err().unwrap().to_string(),
+        "cohort linear effect: the fit needs more rows than design columns"
+    );
     let constant = vec![1.0; 60];
-    assert!(fit_cohort_linear_effect(&y, &t, &[&constant]).is_err());
+    assert_eq!(
+        fit_cohort_linear_effect(&y, &t, &[&constant]).err().unwrap().to_string(),
+        "cohort linear effect: the design is singular"
+    );
 }
 
 fn native_of(x: &[f64], t: &[f64], y: &[f64]) -> NativeCohortFit {
@@ -143,7 +149,10 @@ fn the_native_interval_is_a_symmetric_student_t_band_over_the_recomputed_standar
     // Wider at 0.95 than at 0.90.
     let narrow = native_cohort_interval(&native, &source, 0.90).unwrap();
     assert!(narrow.upper - narrow.lower < interval.upper - interval.lower);
-    assert!(native_cohort_interval(&native, &source, 1.0).is_err());
+    assert_eq!(
+        native_cohort_interval(&native, &source, 1.0).err().unwrap().to_string(),
+        "invalid_argument: cohort_decision.interval_level_invalid (level)"
+    );
 }
 
 #[test]
@@ -164,7 +173,7 @@ fn a_declared_export_cannot_claim_a_native_fit() {
     })
     .unwrap();
     assert_eq!(declared_export_refusal().detail, DETAIL_REQUIRES_NATIVE_FIT);
-    assert_eq!(declared_export_refusal().code, "cell_not_licensed");
+    assert_eq!(declared_export_refusal().code, "route_not_supported");
     // The same numbers carry a different identity, and replaying the real rows against
     // the declared export is refused.
     assert_ne!(native.export().identity(), declared.identity());
@@ -174,7 +183,10 @@ fn a_declared_export_cannot_claim_a_native_fit() {
         features: vec![x.clone()],
         feature_ids: vec!["x".into()],
     };
-    assert!(NativeCohortFit::replay(rows.clone(), &declared).is_err());
+    assert_eq!(
+        NativeCohortFit::replay(rows.clone(), &declared).err().unwrap().to_string(),
+        "cohort linear effect: the retained rows do not reproduce the export"
+    );
     // A forged marker over declared numbers is refused: the replay recomputes it.
     let mut forged = response();
     forged.conditioning = native.export().body().response.conditioning.clone();
@@ -190,7 +202,10 @@ fn a_declared_export_cannot_claim_a_native_fit() {
         mask: vec![],
     })
     .unwrap();
-    assert!(NativeCohortFit::replay(rows.clone(), &forged_export).is_err());
+    assert_eq!(
+        NativeCohortFit::replay(rows.clone(), &forged_export).err().unwrap().to_string(),
+        "cohort linear effect: the retained rows do not reproduce the export"
+    );
     // The genuine export replays to itself.
     let replayed = NativeCohortFit::replay(rows, native.export()).unwrap();
     assert_eq!(replayed.export().identity(), native.export().identity());
@@ -218,5 +233,104 @@ fn a_shifted_cohort_stays_point_only() {
     )
     .unwrap();
     let error = native_cohort_interval(&native, &source, 0.95).unwrap_err();
-    assert_eq!(error.detail, DETAIL_NOT_LICENSED);
+    assert_eq!(error.detail, DETAIL_NOT_SUPPORTED);
+    assert_eq!(error.code, "route_not_supported");
+}
+
+// -- exact multiprecision reference --------------------------------------------------------------
+// `oracle_data/cohort_linear_effect_reference.py` refits each design by OLS with the HC3 sandwich
+// in 50-digit arithmetic (on the uncentred basis), forms the cohort-mean contrast and its standard
+// error, inverts the Student-t distribution function from the incomplete beta function, and
+// freezes the binary64 roundings.
+
+fn reference() -> serde_json::Value {
+    serde_json::from_str(include_str!("oracle_data/cohort_linear_effect_reference.json")).unwrap()
+}
+
+fn column(v: &serde_json::Value) -> Vec<f64> {
+    v.as_array().unwrap().iter().map(|x| x.as_f64().unwrap()).collect()
+}
+
+fn rel_close(got: f64, want: f64, rel: f64, what: &str) {
+    let tol = rel * want.abs().max(1e-300);
+    assert!((got - want).abs() <= tol, "{what}: got {got} want {want} tol {tol}");
+}
+
+#[test]
+fn coefficients_and_hc3_covariance_equal_the_multiprecision_fit_with_zero_one_and_two_modifiers() {
+    let fx = reference();
+    for case in fx["fits"].as_array().unwrap() {
+        let name = case["name"].as_str().unwrap();
+        let features: Vec<Vec<f64>> =
+            case["features"].as_array().unwrap().iter().map(column).collect();
+        let columns: Vec<&[f64]> = features.iter().map(Vec::as_slice).collect();
+        let fit = fit_cohort_linear_effect(
+            &column(&case["outcome"]),
+            &column(&case["treatment"]),
+            &columns,
+        )
+        .unwrap();
+        assert_eq!(fit.width as u64, case["width"].as_u64().unwrap(), "{name}");
+        let coefficients = column(&case["coefficients"]);
+        let covariance = column(&case["covariance"]);
+        let scale = coefficients.iter().fold(0.0_f64, |m, c| m.max(c.abs()));
+        for (got, want) in fit.coefficients.iter().zip(&coefficients) {
+            assert!(
+                (got - want).abs() <= 1e-9 * scale.max(1.0),
+                "{name} coefficient {got} vs {want}"
+            );
+        }
+        let vscale = covariance.iter().fold(0.0_f64, |m, c| m.max(c.abs()));
+        for (got, want) in fit.covariance.iter().zip(&covariance) {
+            assert!((got - want).abs() <= 1e-8 * vscale, "{name} covariance {got} vs {want}");
+        }
+    }
+}
+
+#[test]
+fn student_t_critical_values_equal_the_inverted_incomplete_beta() {
+    for q in reference()["t_quantiles"].as_array().unwrap() {
+        let df = q["df"].as_f64().unwrap();
+        let p = q["p"].as_f64().unwrap();
+        rel_close(
+            antecedent_stats::special::student_t_ppf(p, df),
+            q["want"].as_f64().unwrap(),
+            1e-9,
+            &format!("t({p}; {df})"),
+        );
+    }
+}
+
+#[test]
+fn the_cohort_mean_interval_equals_the_reference_point_standard_error_and_bands() {
+    let fx = reference();
+    let case = &fx["fits"][1];
+    let (x, t, y) =
+        (column(&case["features"][0]), column(&case["treatment"]), column(&case["outcome"]));
+    let native = native_of(&x, &t, &y);
+    let interval = &fx["interval"];
+    let cohort = column(&interval["cohort"]);
+    let (source, first) = native_cohort_interval_for(
+        &native,
+        &cohort_of(&cohort, "target"),
+        "unit",
+        0.95,
+        &ExecutionContext::for_tests(1),
+    )
+    .unwrap();
+    rel_close(source.mean_contrast(), interval["point"].as_f64().unwrap(), 1e-9, "cohort point");
+    rel_close(
+        first.standard_error,
+        interval["se"].as_f64().unwrap(),
+        1e-8,
+        "cohort standard error",
+    );
+    assert_eq!({ first.degrees_of_freedom }, interval["df"].as_u64().unwrap());
+    for band in interval["levels"].as_array().unwrap() {
+        let level = band["level"].as_f64().unwrap();
+        let got = native_cohort_interval(&native, &source, level).unwrap();
+        rel_close(got.critical_value, band["critical"].as_f64().unwrap(), 1e-9, "critical");
+        rel_close(got.lower, band["lower"].as_f64().unwrap(), 1e-8, "lower");
+        rel_close(got.upper, band["upper"].as_f64().unwrap(), 1e-8, "upper");
+    }
 }

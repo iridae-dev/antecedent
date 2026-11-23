@@ -16,39 +16,39 @@ from antecedent.errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from antecedent.outcomes import require_success
 
 
-def _three_treatment_data():
+def _three_treatment_data(n=600):
     rng = np.random.default_rng(31)
-    x = rng.normal(size=200)
-    a, b, c = (0.3 * x + rng.normal(size=200) for _ in range(3))
-    y = 1.0 + a - 0.5 * b + 0.25 * c + x + rng.normal(scale=0.2, size=200)
+    x = rng.normal(size=n)
+    a, b, c = (0.3 * x + rng.normal(size=n) for _ in range(3))
+    y = 1.0 + a - 0.5 * b + 0.25 * c + x + rng.normal(scale=0.2, size=n)
     data = {"x": x, "a": a, "b": b, "c": c, "y": y}
     graph = [("x", t) for t in "abc"] + [("x", "y")] + [(t, "y") for t in "abc"]
     return data, graph
 
 
-def test_jacobian_over_two_treatments_names_a_remedy():
+def test_jacobian_over_three_treatments_is_estimated_not_refused():
+    # The plug-in gradient has no fixed treatment count: three treatments are estimated,
+    # and the additive truth y = 1 + a - 0.5 b + 0.25 c + x has Jacobian (1, -0.5, 0.25).
     data, graph = _three_treatment_data()
-    with pytest.raises(CausalEstimateError) as raised:
+    result = require_success(
         antecedent.analyze(
             data,
             query=antecedent.ResponseJacobian(["a", "b", "c"], ["y"], at=[0.0, 0.0, 0.0]),
             graph=graph,
         )
-    err = raised.value
-    # The message and (absent) reason code are unchanged; the remedy is separate.
-    assert str(err) == "plug-in response Jacobian supports at most two treatments"
-    assert getattr(err, "reason_code", None) is None
-    assert err.remedy is not None
-    assert "at most two treatments" in err.remedy
-    assert "AverageDerivative" in err.remedy
-    assert err.remedy not in str(err)
+    )
+    # A derivative-family answer is the native vector or matrix, not a point grid.
+    jacobian = np.asarray(result.estimate, dtype=float).ravel()
+    assert jacobian.shape == (3,)
+    assert np.allclose(jacobian, [1.0, -0.5, 0.25], atol=0.05)
 
 
-def test_directional_derivative_over_two_treatments_names_a_remedy():
+def test_directional_derivative_over_three_treatments_is_estimated_not_refused():
     data, graph = _three_treatment_data()
-    with pytest.raises(CausalEstimateError) as raised:
+    result = require_success(
         antecedent.analyze(
             data,
             query=antecedent.DirectionalDerivative(
@@ -56,10 +56,10 @@ def test_directional_derivative_over_two_treatments_names_a_remedy():
             ),
             graph=graph,
         )
-    err = raised.value
-    assert str(err) == "plug-in directional derivative supports at most two treatments"
-    assert err.remedy is not None
-    assert "ResponseJacobian" in err.remedy
+    )
+    # The derivative along the first coordinate is the additive slope of y in a.
+    derivative = float(np.asarray(result.estimate, dtype=float).ravel()[0])
+    assert derivative == pytest.approx(1.0, abs=0.05)
 
 
 def test_remedy_defaults_to_none_on_every_error():
@@ -75,12 +75,14 @@ def test_remedy_defaults_to_none_on_every_error():
 def test_a_native_refusal_without_a_remedy_reads_none():
     data = {"a": np.arange(40, dtype=float), "y": np.arange(40, dtype=float)}
     with pytest.raises(CausalUnsupportedError, match="temporal response cell") as raised:
-        antecedent.analyze(
-            data,
-            query=antecedent.InterventionResponse(
-                "y", intervention=intervention.Soft("a", "replacement")
-            ),
-            graph=[("a", "y")],
+        require_success(
+            antecedent.analyze(
+                data,
+                query=antecedent.InterventionResponse(
+                    "y", intervention=intervention.Soft("a", "replacement")
+                ),
+                graph=[("a", "y")],
+            )
         )
     assert raised.value.remedy is None
 
@@ -95,17 +97,16 @@ def test_python_refusal_accepts_a_remedy_without_changing_its_message():
     assert remedied.reason_code == plain.reason_code
 
 
-def test_conditional_effect_over_several_modifiers_names_the_multi_modifier_routes():
-    # The frequentist interaction regression fits one modifier; a modifier set
-    # is refused up front, with the routes that take one in ``remedy``.
-    with pytest.raises(CausalUnsupportedError) as raised:
-        antecedent.ConditionalEffect("t", "y", ["w", "v"])
-    err = raised.value
-    assert str(err) == "ConditionalEffect takes one modifier column"
-    assert err.reason_code is None
-    assert err.remedy is not None
-    assert "antecedent.handoff.econml(result, modifiers=[...])" in err.remedy
-    assert "BayesianConditional" in err.remedy
-    assert err.remedy not in str(err)
+def test_conditional_effect_accepts_a_modifier_set_and_refuses_malformed_modifiers():
+    # A modifier set is accepted and normalized; empty, repeated or non-string
+    # modifiers are invalid arguments (typed errors, not a route refusal).
+    several = antecedent.ConditionalEffect("t", "y", ["w", "v"])
+    assert several.modifiers == ("w", "v")
+    assert antecedent.ConditionalEffect("t", "y", ("w", "v")) == several
+    for bad in ([], ["w", "w"], ["w", 3], 3):
+        with pytest.raises(CausalValueError):
+            antecedent.ConditionalEffect("t", "y", bad)
     # A single column name is unchanged.
-    assert antecedent.ConditionalEffect("t", "y", "w").modifier == "w"
+    single = antecedent.ConditionalEffect("t", "y", "w")
+    assert single.modifier == "w"
+    assert single.modifiers == ("w",)

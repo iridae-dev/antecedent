@@ -1,14 +1,50 @@
 //! Native authority for classical identification and exact-law stage evaluation.
 use crate::graphs::Admg;
 use crate::transport_interference_api::parse_catalog;
-use antecedent_core::{ExecutionContext, RegimeId, Value, VariableId};
-use antecedent_expr::{Assignment, ExactEvaluationLimits, ExactTransportData};
-use antecedent_graph::SelectionDiagram;
-use antecedent_identify::{
+use antecedent::estimate::{Assignment, ExactEvaluationLimits, ExactTransportData};
+use antecedent::graph::SelectionDiagram;
+use antecedent::identify::{
     ClassicalTransportQuery, ClassicalTransportResult, SidLimits, identify_classical_transport,
 };
+use antecedent::prelude::{ExecutionContext, Value, VariableId};
+use antecedent::schema::RegimeId;
 use pyo3::prelude::*;
 use std::sync::Arc;
+
+fn sensitivity_mechanism_id(
+    names: &[String],
+    name: &str,
+    unknown_message: &'static str,
+) -> PyResult<VariableId> {
+    let index = names
+        .iter()
+        .position(|candidate| candidate == name)
+        .ok_or_else(|| error(unknown_message))?;
+    Ok(VariableId::from_raw(u32::try_from(index).map_err(|_| error(unknown_message))?))
+}
+
+// The two mechanism families share this envelope; their receipt and mechanism key differ.
+macro_rules! mechanism_sensitivity_json {
+    ($result:ident, $outcome:expr, $key:literal, $name:expr, $threshold:expr, $receipt:expr) => {
+        serde_json::to_string(&serde_json::json!({
+            "estimand": $result.estimand,
+            "outcome": $outcome,
+            $key: $name,
+            "source_population": $result.source_population,
+            "target_population": $result.target_population,
+            "source_kernel_binding": {"regime": $result.source_kernel_binding.0.raw(), "snapshot": $result.source_kernel_binding.1},
+            "target_parent_binding": {"regime": $result.target_parent_binding.0.raw(), "snapshot": $result.target_parent_binding.1},
+            "assumptions": $result.assumptions,
+            "baseline": $result.baseline,
+            "assumption_range": {"minimum": $result.minimum, "maximum": $result.maximum},
+            "interval_interpretation": "assumption range; not a sampling interval or sharp causal bound",
+            "decision_threshold": $threshold,
+            "tipping_fraction": $result.tipping_fraction,
+            "fraction_domain": $result.fraction_domain,
+            "optimization_receipt": $receipt,
+        })).map_err(error)
+    };
+}
 
 type ExactStagePayload = (Vec<Vec<f64>>, Vec<f64>, String, Vec<String>);
 
@@ -17,10 +53,12 @@ pub(crate) struct ClassicalTransportStage {
     result: ClassicalTransportResult,
     graph: Admg,
     diagram: SelectionDiagram,
-    certificate: antecedent_io::transport_certificate::TransportCertificateWire,
+    certificate: antecedent::io::transport_certificate::TransportCertificateWire,
 }
 impl ClassicalTransportStage {
-    pub(crate) fn identified(&self) -> PyResult<antecedent_identify::ClassicalTransportDerivation> {
+    pub(crate) fn identified(
+        &self,
+    ) -> PyResult<antecedent::identify::ClassicalTransportDerivation> {
         match &self.result {
             ClassicalTransportResult::Identified(proof) => Ok(proof.as_ref().clone()),
             _ => Err(error("statistical evaluation requires a native checked derivation")),
@@ -42,7 +80,8 @@ impl ClassicalTransportStage {
     fn export(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
         let artifact = self.certificate.export().map_err(error)?;
         let mut bytes = b"ANTECEDENT-TRANSPORT-CERTIFICATE\x01".to_vec();
-        bytes.extend(antecedent_io::to_cbor(&(self.graph.names.clone(), artifact)).map_err(error)?);
+        bytes
+            .extend(antecedent::io::to_cbor(&(self.graph.names.clone(), artifact)).map_err(error)?);
         Ok(pyo3::types::PyBytes::new(py, &bytes).unbind())
     }
     fn certificate_json(&self) -> PyResult<String> {
@@ -51,11 +90,12 @@ impl ClassicalTransportStage {
     #[pyo3(signature=(catalog,*,max_steps=100_000,max_depth=256))]
     fn proof_graph_json(
         &self,
+        py: Python<'_>,
         catalog: &Bound<'_, PyAny>,
         max_steps: usize,
         max_depth: usize,
     ) -> PyResult<String> {
-        let antecedent_io::transport_certificate::CertificateOutcome::Identified(proof) =
+        let antecedent::io::transport_certificate::CertificateOutcome::Identified(proof) =
             &self.certificate.outcome
         else {
             return Err(error("proof graph requires an identified theorem result"));
@@ -73,15 +113,17 @@ impl ClassicalTransportStage {
             source: Arc::from(self.certificate.source.as_str()),
             target: Arc::from(self.certificate.target.as_str()),
         };
-        let view = proof
-            .inspect(
-                &self.diagram,
-                &query,
-                &catalog,
-                SidLimits { steps: max_steps, depth: max_depth },
-                &ExecutionContext::production_default(0),
-            )
-            .map_err(error)?;
+        let view = crate::detach_catch(py, || {
+            proof
+                .inspect(
+                    &self.diagram,
+                    &query,
+                    &catalog,
+                    SidLimits { steps: max_steps, depth: max_depth },
+                    &crate::execution_api::context(0),
+                )
+                .map_err(error)
+        })?;
         let steps = view
             .steps
             .iter()
@@ -124,7 +166,7 @@ impl ClassicalTransportStage {
             ClassicalTransportResult::Identified(_) => "identified",
             ClassicalTransportResult::ProvenNonTransportable(_) => "proven_non_transportable",
             ClassicalTransportResult::NotCertified => {
-                antecedent_core::TransportOutcomeKind::NotCertified.as_str()
+                antecedent::query::TransportOutcomeKind::NotCertified.as_str()
             }
         }
     }
@@ -166,8 +208,9 @@ impl ClassicalTransportStage {
         let catalog = parse_catalog(catalog, &self.graph)?;
         crate::detach_catch(py, move || {
             let mut ctx = ExecutionContext::production_default(0);
-            ctx.memory.hard_limit_bytes = memory_bytes;
+            ctx.set_memory_limit(memory_bytes);
             crate::apply_cancel(&mut ctx, cancel);
+            crate::execution_api::apply(&mut ctx);
             let result = proof
                 .search_catalog(
                     &diagram,
@@ -184,23 +227,23 @@ impl ClassicalTransportStage {
                 .collect();
             let status = result.identification_status().as_str();
             let mut value = match result {
-                antecedent_identify::CatalogTransportResult::Identified(bound) => {
+                antecedent::identify::CatalogTransportResult::Identified(bound) => {
                     serde_json::json!({
                     "outcome":"identified", "searched":bound.searched_alternatives().iter().map(AsRef::as_ref).collect::<Vec<_>>(),
                     "missing_factors":[],"future_experiments":future,"exhausted":false,"finite_catalog_complete":false})
                 }
-                antecedent_identify::CatalogTransportResult::MissingEvidence {
+                antecedent::identify::CatalogTransportResult::MissingEvidence {
                     searched,
                     obligations,
                 } => serde_json::json!({
                     "outcome":"missing_evidence", "searched":searched.iter().map(AsRef::as_ref).collect::<Vec<_>>(),
                     "missing_factors":obligations.iter().map(AsRef::as_ref).collect::<Vec<_>>(),"future_experiments":future,
                     "exhausted":!obligations.iter().any(|note|note.contains("capped")),"finite_catalog_complete":false}),
-                antecedent_identify::CatalogTransportResult::NotCertified {
+                antecedent::identify::CatalogTransportResult::NotCertified {
                     searched,
                     obligations,
                 } => serde_json::json!({
-                    "outcome":antecedent_core::TransportOutcomeKind::NotCertified.as_str(), "searched":searched.iter().map(AsRef::as_ref).collect::<Vec<_>>(),
+                    "outcome":antecedent::query::TransportOutcomeKind::NotCertified.as_str(), "searched":searched.iter().map(AsRef::as_ref).collect::<Vec<_>>(),
                     "missing_factors":obligations.iter().map(AsRef::as_ref).collect::<Vec<_>>(),"future_experiments":future,
                     "exhausted":!obligations.iter().any(|note|note.contains("capped")),"finite_catalog_complete":false}),
             };
@@ -208,7 +251,7 @@ impl ClassicalTransportStage {
             Ok(value.to_string())
         })
     }
-    #[pyo3(signature = (catalog, laws, assignments, *, max_operations=10_000_000, max_depth=256, max_support_rows=1_000_000, memory_bytes=None))]
+    #[pyo3(signature = (catalog, laws, assignments, *, max_operations=10_000_000, max_depth=256, max_support_rows=1_000_000, max_steps=100_000, memory_bytes=None))]
     fn evaluate_exact(
         &self,
         py: Python<'_>,
@@ -218,6 +261,7 @@ impl ClassicalTransportStage {
         max_operations: usize,
         max_depth: usize,
         max_support_rows: usize,
+        max_steps: usize,
         memory_bytes: Option<u64>,
     ) -> PyResult<ExactStagePayload> {
         let mut prepared = self.prepare_exact(
@@ -228,12 +272,13 @@ impl ClassicalTransportStage {
             max_operations,
             max_depth,
             max_support_rows,
+            max_steps,
             memory_bytes,
             None,
         )?;
         prepared.estimate(py, None, None)
     }
-    #[pyo3(signature = (catalog, laws, assignments, *, max_operations=10_000_000, max_depth=256, max_support_rows=1_000_000, memory_bytes=None, cancel=None))]
+    #[pyo3(signature = (catalog, laws, assignments, *, max_operations=10_000_000, max_depth=256, max_support_rows=1_000_000, max_steps=100_000, memory_bytes=None, cancel=None))]
     fn prepare_exact(
         &self,
         py: Python<'_>,
@@ -243,6 +288,7 @@ impl ClassicalTransportStage {
         max_operations: usize,
         max_depth: usize,
         max_support_rows: usize,
+        max_steps: usize,
         memory_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<PreparedExactStage> {
@@ -262,11 +308,12 @@ impl ClassicalTransportStage {
         let graph = Admg { admg: self.graph.admg.clone(), names: self.graph.names.clone() };
         crate::detach_catch(py, move || {
             let mut ctx = ExecutionContext::production_default(0);
-            ctx.memory.hard_limit_bytes = memory_bytes;
+            ctx.set_memory_limit(memory_bytes);
             crate::apply_cancel(&mut ctx, cancel);
+            crate::execution_api::apply(&mut ctx);
             let functional = match proof.bind_catalog_with_context(
                 &catalog,
-                antecedent_identify::SidLimits { steps: max_operations, depth: max_depth },
+                antecedent::identify::SidLimits { steps: max_steps, depth: max_depth },
                 &ctx,
             ) {
                 Ok(bound) => bound,
@@ -274,12 +321,12 @@ impl ClassicalTransportStage {
                     .search_catalog(
                         &diagram,
                         &catalog,
-                        SidLimits { steps: max_operations, depth: max_depth },
+                        SidLimits { steps: max_steps, depth: max_depth },
                         &ctx,
                     )
                     .map_err(error)?
                 {
-                    antecedent_identify::CatalogTransportResult::Identified(bound) => *bound,
+                    antecedent::identify::CatalogTransportResult::Identified(bound) => *bound,
                     other => {
                         return Err(crate::transport_common::catalog_search_refusal(
                             &other,
@@ -340,8 +387,9 @@ fn identify_classical_transport_stage(
     let named = Admg { admg: graph.admg.clone(), names: graph.names.clone() };
     crate::detach_catch(py, move || {
         let mut ctx = ExecutionContext::production_default(0);
-        ctx.memory.hard_limit_bytes = memory_bytes;
+        ctx.set_memory_limit(memory_bytes);
         crate::apply_cancel(&mut ctx, cancel);
+        crate::execution_api::apply(&mut ctx);
         let result = identify_classical_transport(
             &diagram,
             &query,
@@ -350,12 +398,13 @@ fn identify_classical_transport_stage(
         )
         .map_err(error)?;
         let certificate =
-            antecedent_io::transport_certificate::TransportCertificateWire::from_result(
+            antecedent::io::transport_certificate::TransportCertificateWire::from_result(
                 &diagram,
                 &query,
                 vec![],
                 &result,
                 SidLimits { steps: max_steps, depth: max_depth },
+                &named.names,
                 &ctx,
             )
             .map_err(error)?;
@@ -384,7 +433,7 @@ fn identify_meta_transport_stage(
             .map(|name| resolve(&graph.names, name))
             .collect::<PyResult<Arc<[VariableId]>>>()
     };
-    let query = antecedent_identify::MetaTransportQuery::from_catalog(
+    let query = antecedent::identify::MetaTransportQuery::from_catalog(
         coordinates(outcomes)?,
         coordinates(treatments)?,
         target.into(),
@@ -405,9 +454,10 @@ fn identify_meta_transport_stage(
     let named = Admg { admg: graph.admg.clone(), names: graph.names.clone() };
     crate::detach_catch(py, move || {
         let mut ctx = ExecutionContext::production_default(0);
-        ctx.memory.hard_limit_bytes = memory_bytes;
+        ctx.set_memory_limit(memory_bytes);
         crate::apply_cancel(&mut ctx, cancel);
-        let result = antecedent_identify::identify_meta_transport(
+        crate::execution_api::apply(&mut ctx);
+        let result = antecedent::identify::identify_meta_transport(
             &aligned,
             &query,
             SidLimits { steps: max_steps, depth: max_depth },
@@ -426,12 +476,13 @@ fn identify_meta_transport_stage(
             target: query.target.clone(),
         };
         let certificate =
-            antecedent_io::transport_certificate::TransportCertificateWire::from_result(
+            antecedent::io::transport_certificate::TransportCertificateWire::from_result(
                 &diagram,
                 &classical,
                 sources,
                 &result,
                 SidLimits { steps: max_steps, depth: max_depth },
+                &named.names,
                 &ctx,
             )
             .map_err(error)?;
@@ -455,17 +506,19 @@ fn consume_transport_certificate(
     if memory_bytes.is_some_and(|n| bytes.len() as u64 > n) {
         return Err(error("certificate memory budget"));
     }
-    let (names, bytes): (Vec<String>, Vec<u8>) = antecedent_io::from_cbor(bytes).map_err(error)?;
+    let (names, bytes): (Vec<String>, Vec<u8>) = antecedent::io::from_cbor(bytes).map_err(error)?;
     crate::detach_catch(py, move || {
         let mut ctx = ExecutionContext::production_default(0);
-        ctx.memory.hard_limit_bytes = memory_bytes;
+        ctx.set_memory_limit(memory_bytes);
         crate::apply_cancel(&mut ctx, cancel);
+        crate::execution_api::apply(&mut ctx);
         let limits = SidLimits { steps: max_steps, depth: max_depth };
-        let certificate = antecedent_io::transport_certificate::TransportCertificateWire::consume(
+        let certificate = antecedent::io::transport_certificate::TransportCertificateWire::consume(
             &bytes, limits, &ctx,
         )
         .map_err(error)?;
         let (diagram, _, result) = certificate.check(limits, &ctx).map_err(error)?;
+        certificate.check_variable_names(&names).map_err(error)?;
         validate_artifact_names(&names, diagram.causal_graph())?;
         if names.len() != diagram.causal_graph().node_count()
             || names.iter().collect::<std::collections::BTreeSet<_>>().len() != names.len()
@@ -483,9 +536,9 @@ fn consume_transport_certificate(
 
 pub(crate) fn validate_artifact_names(
     names: &[String],
-    graph: &antecedent_graph::Admg,
+    graph: &antecedent::graph::Admg,
 ) -> PyResult<()> {
-    if names.len() != graph.node_count() || names.iter().collect::<std::collections::BTreeSet<_>>().len() != names.len() || graph.nodes().iter().any(|node| !matches!(node, antecedent_core::NodeRef::Static(v) if v.as_usize() < names.len())) {
+    if names.len() != graph.node_count() || names.iter().collect::<std::collections::BTreeSet<_>>().len() != names.len() || graph.nodes().iter().any(|node| !matches!(node, antecedent::query::NodeRef::Static(v) if v.as_usize() < names.len())) {
         return Err(error("invalid artifact coordinate names"));
     }
     Ok(())
@@ -496,7 +549,7 @@ pub(crate) fn validate_artifact_names(
 /// spelling it reads as.
 #[pyfunction]
 fn transport_identification_statuses() -> (Vec<&'static str>, Vec<(&'static str, &'static str)>) {
-    use antecedent_core::TransportOutcomeKind as K;
+    use antecedent::query::TransportOutcomeKind as K;
     (
         K::IDENTIFICATION.iter().map(|kind| kind.as_str()).collect(),
         K::LEGACY_IDENTIFICATION_SPELLINGS
@@ -518,7 +571,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
 pub(crate) fn parse_exact_data(
     laws: &Bound<'_, PyAny>,
-    catalog: &antecedent_core::EvidenceCatalog,
+    catalog: &antecedent::query::EvidenceCatalog,
     graph: &Admg,
     max_support_rows: usize,
 ) -> PyResult<ExactTransportData> {
@@ -529,7 +582,7 @@ pub(crate) fn parse_exact_data(
 struct PreparedExactStage {
     inner: antecedent::PreparedStudy<antecedent::ExactPreparedState>,
     graph: Admg,
-    catalog: antecedent_core::EvidenceCatalog,
+    catalog: antecedent::query::EvidenceCatalog,
     last: Option<antecedent::ExactStudyResult>,
     memory_bytes: Option<u64>,
     max_support_rows: usize,
@@ -537,8 +590,9 @@ struct PreparedExactStage {
 impl PreparedExactStage {
     fn ctx(&self, cancel: Option<crate::PyCancellationToken>) -> ExecutionContext {
         let mut ctx = ExecutionContext::production_default(0);
-        ctx.memory.hard_limit_bytes = self.memory_bytes;
+        ctx.set_memory_limit(self.memory_bytes);
         crate::apply_cancel(&mut ctx, cancel);
+        crate::execution_api::apply(&mut ctx);
         ctx
     }
 
@@ -562,7 +616,7 @@ impl PreparedExactStage {
         perturbed_conditional_mechanism: Option<String>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
-        let spec = antecedent_validate::FixedGraphMechanismSensitivitySpec {
+        let spec = antecedent::validate::FixedGraphMechanismSensitivitySpec {
             outcome_values,
             parent_cardinalities,
             treatment_levels,
@@ -575,7 +629,7 @@ impl PreparedExactStage {
             source_kernel: source_kernel
                 .into_iter()
                 .map(|(parent_levels, outcome_probabilities)| {
-                    antecedent_validate::SourceOutcomeKernelRow {
+                    antecedent::validate::SourceOutcomeKernelRow {
                         parent_levels,
                         outcome_probabilities,
                     }
@@ -583,7 +637,7 @@ impl PreparedExactStage {
                 .collect(),
             source_parent_law: source_parent_law
                 .into_iter()
-                .map(|(parent_levels, probability)| antecedent_validate::SourceParentLawRow {
+                .map(|(parent_levels, probability)| antecedent::validate::SourceParentLawRow {
                     parent_levels,
                     probability,
                 })
@@ -591,7 +645,7 @@ impl PreparedExactStage {
             target_parent_law: target_parent_law
                 .into_iter()
                 .map(|(treatment_level, parent_levels, probability)| {
-                    antecedent_validate::TargetParentLawRow {
+                    antecedent::validate::TargetParentLawRow {
                         treatment_level,
                         parent_levels,
                         probability,
@@ -605,78 +659,51 @@ impl PreparedExactStage {
             if perturbed_treatment_level.is_some() || perturbed_root_mechanism.is_some() {
                 return Err(error("choose one sensitivity mechanism family"));
             }
-            let mechanism_index = self
-                .graph
-                .names
-                .iter()
-                .position(|name| name == &mechanism_name)
-                .ok_or_else(|| error("unknown conditional mechanism"))?;
-            let mechanism = VariableId::from_raw(
-                u32::try_from(mechanism_index)
-                    .map_err(|_| error("unknown conditional mechanism"))?,
-            );
+            let mechanism = sensitivity_mechanism_id(
+                &self.graph.names,
+                &mechanism_name,
+                "unknown conditional mechanism",
+            )?;
             let result = crate::detach_catch(py, move || {
                 inner
                     .mechanism_sensitivity_conditional_mechanism(&spec, mechanism, &ctx)
                     .map_err(error)
             })?;
-            return serde_json::to_string(&serde_json::json!({
-                "estimand": result.estimand,
-                "outcome": self.graph.names[result.outcome.as_usize()],
-                "perturbed_conditional_mechanism": mechanism_name,
-                "source_population": result.source_population,
-                "target_population": result.target_population,
-                "source_kernel_binding": {"regime": result.source_kernel_binding.0.raw(), "snapshot": result.source_kernel_binding.1},
-                "target_parent_binding": {"regime": result.target_parent_binding.0.raw(), "snapshot": result.target_parent_binding.1},
-                "assumptions": result.assumptions,
-                "baseline": result.baseline,
-                "assumption_range": {"minimum": result.minimum, "maximum": result.maximum},
-                "interval_interpretation": "assumption range; not a sampling interval or sharp causal bound",
-                "decision_threshold": decision_threshold,
-                "tipping_fraction": result.tipping_fraction,
-                "fraction_domain": result.fraction_domain,
-                "optimization_receipt": {
+            return mechanism_sensitivity_json!(
+                result,
+                self.graph.names[result.outcome.as_usize()],
+                "perturbed_conditional_mechanism",
+                mechanism_name,
+                decision_threshold,
+                serde_json::json!({
                     "minimizing_mechanism_level_by_parent_stratum": result.minimizing_mechanism_level_by_parent_stratum,
-                    "maximizing_mechanism_level_by_parent_stratum": result.maximizing_mechanism_level_by_parent_stratum
-                }
-            })).map_err(error);
+                    "maximizing_mechanism_level_by_parent_stratum": result.maximizing_mechanism_level_by_parent_stratum,
+                })
+            );
         }
         if let Some(mechanism_name) = perturbed_root_mechanism {
             if perturbed_treatment_level.is_some() {
                 return Err(error("choose one sensitivity mechanism family"));
             }
-            let mechanism_index = self
-                .graph
-                .names
-                .iter()
-                .position(|name| name == &mechanism_name)
-                .ok_or_else(|| error("unknown root mechanism"))?;
-            let mechanism = VariableId::from_raw(
-                u32::try_from(mechanism_index).map_err(|_| error("unknown root mechanism"))?,
-            );
+            let mechanism = sensitivity_mechanism_id(
+                &self.graph.names,
+                &mechanism_name,
+                "unknown root mechanism",
+            )?;
             let result = crate::detach_catch(py, move || {
                 inner.mechanism_sensitivity_root_mechanism(&spec, mechanism, &ctx).map_err(error)
             })?;
-            return serde_json::to_string(&serde_json::json!({
-                "estimand": result.estimand,
-                "outcome": self.graph.names[result.outcome.as_usize()],
-                "perturbed_root_mechanism": mechanism_name,
-                "source_population": result.source_population,
-                "target_population": result.target_population,
-                "source_kernel_binding": {"regime": result.source_kernel_binding.0.raw(), "snapshot": result.source_kernel_binding.1},
-                "target_parent_binding": {"regime": result.target_parent_binding.0.raw(), "snapshot": result.target_parent_binding.1},
-                "assumptions": result.assumptions,
-                "baseline": result.baseline,
-                "assumption_range": {"minimum": result.minimum, "maximum": result.maximum},
-                "interval_interpretation": "assumption range; not a sampling interval or sharp causal bound",
-                "decision_threshold": decision_threshold,
-                "tipping_fraction": result.tipping_fraction,
-                "fraction_domain": result.fraction_domain,
-                "optimization_receipt": {
+            return mechanism_sensitivity_json!(
+                result,
+                self.graph.names[result.outcome.as_usize()],
+                "perturbed_root_mechanism",
+                mechanism_name,
+                decision_threshold,
+                serde_json::json!({
                     "minimizing_mechanism_level": result.minimizing_mechanism_level,
-                    "maximizing_mechanism_level": result.maximizing_mechanism_level
-                }
-            })).map_err(error);
+                    "maximizing_mechanism_level": result.maximizing_mechanism_level,
+                })
+            );
         }
         let result = crate::detach_catch(py, move || {
             if let Some(level) = perturbed_treatment_level {
@@ -784,7 +811,6 @@ impl PreparedExactStage {
         let ctx = self.ctx(cancel);
         let inner = self.inner.clone();
         let execution = execution.unwrap_or_else(|| inner.inspect().identities.execution);
-        self.last = None;
         let result = crate::detach_catch(py, move || {
             inner.estimate_checked(&execution, &ctx).map_err(error)
         })?;
@@ -792,48 +818,53 @@ impl PreparedExactStage {
         self.last = Some(result);
         Ok(payload)
     }
-    #[pyo3(signature=(laws,cancel=None))]
-    fn refresh(
-        &mut self,
+    #[pyo3(signature=(laws,*,cancel=None))]
+    fn bind_snapshot(
+        &self,
         py: Python<'_>,
         laws: &Bound<'_, PyAny>,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<ExactStagePayload> {
+    ) -> PyResult<Self> {
         let data = parse_exact_data(laws, &self.catalog, &self.graph, self.max_support_rows)?;
         let ctx = self.ctx(cancel);
-        let mut candidate = self.inner.clone();
-        let (candidate, result) = crate::detach_catch(py, move || {
-            let result = candidate.refresh(data, &ctx).map_err(error)?;
-            Ok((candidate, result))
-        })?;
-        self.inner = candidate;
-        self.catalog = self.inner.evidence_catalog().clone();
-        let payload = self.payload(&result)?;
-        self.last = Some(result);
-        Ok(payload)
+        let current = self.inner.clone();
+        let inner =
+            crate::detach_catch(py, move || current.bind_snapshot(data, &ctx).map_err(error))?;
+        Ok(Self {
+            catalog: inner.evidence_catalog().clone(),
+            inner,
+            graph: self.graph.clone(),
+            last: None,
+            memory_bytes: self.memory_bytes,
+            max_support_rows: self.max_support_rows,
+        })
     }
-    #[pyo3(signature=(laws,cancel=None))]
-    fn replace_snapshot(
-        &mut self,
+
+    #[pyo3(signature=(at,*,cancel=None))]
+    fn rebind(
+        &self,
         py: Python<'_>,
-        laws: &Bound<'_, PyAny>,
+        at: std::collections::BTreeMap<String, f64>,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<()> {
-        let data = parse_exact_data(laws, &self.catalog, &self.graph, self.max_support_rows)?;
+    ) -> PyResult<Self> {
+        let request = crate::transport_common::assignment_from_pairs(&self.graph.names, at)?;
         let ctx = self.ctx(cancel);
-        let mut candidate = self.inner.clone();
-        let candidate = crate::detach_catch(py, move || {
-            candidate.replace_snapshot(data, &ctx).map_err(error)?;
-            Ok(candidate)
+        let current = self.inner.clone();
+        let inner = crate::detach_catch(py, move || {
+            current.rebind_assignment(request, &ctx).map_err(error)
         })?;
-        self.inner = candidate;
-        self.catalog = self.inner.evidence_catalog().clone();
-        self.last = None;
-        Ok(())
+        Ok(Self {
+            inner,
+            graph: self.graph.clone(),
+            catalog: self.catalog.clone(),
+            last: None,
+            memory_bytes: self.memory_bytes,
+            max_support_rows: self.max_support_rows,
+        })
     }
     fn inspection_json(&self) -> String {
         let view = self.inner.inspect();
-        let factors:Vec<_> = view.factors.iter().map(|f| serde_json::json!({"expression":f.expression.raw(),"population":f.binding.population.as_ref(),"regime":f.binding.regime.map(antecedent_core::RegimeId::raw),"variables":f.variables.iter().map(|v|self.graph.names[v.as_usize()].as_str()).collect::<Vec<_>>(),"conditioned_on":f.conditioned_on.iter().map(|v|self.graph.names[v.as_usize()].as_str()).collect::<Vec<_>>(),"interventions":f.interventions.iter().map(|v|self.graph.names[v.as_usize()].as_str()).collect::<Vec<_>>()})).collect();
+        let factors:Vec<_> = view.factors.iter().map(|f| serde_json::json!({"expression":f.expression.raw(),"population":f.binding.population.as_ref(),"regime":f.binding.regime.map(antecedent::schema::RegimeId::raw),"variables":f.variables.iter().map(|v|self.graph.names[v.as_usize()].as_str()).collect::<Vec<_>>(),"conditioned_on":f.conditioned_on.iter().map(|v|self.graph.names[v.as_usize()].as_str()).collect::<Vec<_>>(),"interventions":f.interventions.iter().map(|v|self.graph.names[v.as_usize()].as_str()).collect::<Vec<_>>()})).collect();
         let executed = self.last.is_some();
         let support:Vec<_>=self.last.iter().flat_map(|r|r.distribution().support.iter()).map(|r|serde_json::json!({
             "expression":r.expression.raw(),"status":r.status,"denominator":r.denominator,
@@ -845,7 +876,7 @@ impl PreparedExactStage {
             .as_ref()
             .map_or("unavailable", |slot| slot.status.as_str());
         let uncertainty_reason = match &view.reasoning.uncertainty {
-            antecedent_contract::SlotAvailability::Unavailable { reason } => reason.as_ref(),
+            antecedent::contract::SlotAvailability::Unavailable { reason } => reason.as_ref(),
             _ => "",
         };
         serde_json::json!({
@@ -873,6 +904,17 @@ impl PreparedExactStage {
             ("kernels".into(), "exact_discrete_memoized_elimination".into()),
         ])
     }
+    #[pyo3(signature=(seed=None))]
+    fn fork(&self, seed: Option<u64>) -> PyResult<Self> {
+        let mut branch = self.freeze();
+        let mut ctx = self.ctx(None);
+        if let Some(seed) = seed {
+            ctx.rng = antecedent::execution::RngFactory::from_seed(seed);
+        }
+        branch.inner = self.inner.requote_execution(&ctx).map_err(error)?;
+        branch.last = None;
+        Ok(branch)
+    }
     fn freeze(&self) -> Self {
         Self {
             inner: self.inner.clone(),
@@ -885,8 +927,9 @@ impl PreparedExactStage {
     }
     fn export(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
         let result = self.last.as_ref().ok_or_else(|| error("transport.no_execution_claim"))?;
-        let artifact = self.inner.export(result).map_err(error)?;
-        let bytes = antecedent_io::to_cbor(&(self.graph.names.clone(), artifact)).map_err(error)?;
+        let artifact = self.inner.export_named(result, &self.graph.names).map_err(error)?;
+        let bytes =
+            antecedent::io::to_cbor(&(self.graph.names.clone(), artifact)).map_err(error)?;
         let mut framed = b"ANTECEDENT-EXACT-TRANSPORT\x01".to_vec();
         framed.extend(bytes);
         Ok(pyo3::types::PyBytes::new(py, &framed).unbind())
@@ -903,12 +946,13 @@ impl PreparedExactStage {
 }
 
 #[pyfunction]
-#[pyo3(signature=(bytes,*,max_operations=10_000_000,max_depth=256,memory_bytes=None,cancel=None))]
+#[pyo3(signature=(bytes,*,max_operations=10_000_000,max_depth=256,max_support_rows=1_000_000,memory_bytes=None,cancel=None))]
 fn consume_exact_transport(
     py: Python<'_>,
-    bytes: Vec<u8>,
+    bytes: &[u8],
     max_operations: usize,
     max_depth: usize,
+    max_support_rows: usize,
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<PreparedExactStage> {
@@ -920,16 +964,21 @@ fn consume_exact_transport(
             .strip_prefix(b"ANTECEDENT-EXACT-TRANSPORT\x01")
             .ok_or_else(|| error("invalid exact transport artifact format"))?;
         let (names, artifact): (Vec<String>, Vec<u8>) =
-            antecedent_io::from_cbor(payload).map_err(error)?;
+            antecedent::io::from_cbor(payload).map_err(error)?;
         let mut ctx = ExecutionContext::production_default(0);
-        ctx.memory.hard_limit_bytes = memory_bytes;
+        ctx.set_memory_limit(memory_bytes);
         crate::apply_cancel(&mut ctx, cancel);
-        let (inner, result) = antecedent::PreparedStudy::<antecedent::ExactPreparedState>::consume(
-            &artifact,
-            ExactEvaluationLimits { operations: max_operations, depth: max_depth },
-            &ctx,
-        )
-        .map_err(error)?;
+        crate::execution_api::apply(&mut ctx);
+        let (inner, result, bound) =
+            antecedent::PreparedStudy::<antecedent::ExactPreparedState>::consume_named(
+                &artifact,
+                ExactEvaluationLimits { operations: max_operations, depth: max_depth },
+                &ctx,
+            )
+            .map_err(error)?;
+        if bound != names {
+            return Err(error("variable names do not match the artifact's name mapping"));
+        }
         if names.len() != inner.diagram().causal_graph().node_count()
             || names.iter().collect::<std::collections::BTreeSet<_>>().len() != names.len()
         {
@@ -944,7 +993,7 @@ fn consume_exact_transport(
             catalog,
             last: Some(result),
             memory_bytes,
-            max_support_rows: max_operations,
+            max_support_rows,
         })
     })
 }

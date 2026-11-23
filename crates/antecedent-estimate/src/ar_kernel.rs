@@ -29,28 +29,55 @@
 //! treatment lags) is invisible to the fit at short `n`; the short-series warning, not
 //! this factor, says the series is too short for the dependence.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Largest absolute autoregressive coefficient a fit reports (Andrews & Monahan 1992 cap
 /// the AR(1) coefficient the same way, so a near-unit-root score cannot make the model
 /// long-run variance unbounded).
 pub(crate) const MAX_AR_RHO: f64 = 0.97;
 
-/// Largest autoregressive order the BIC search considers.
+/// Largest autoregressive order the fixed-capacity score-likelihood model carries.
 pub(crate) const MAX_AR_ORDER: usize = 4;
+
+/// Largest order of the BIC search over `n` rows by the Schwert rule `⌊12 (n/100)^{1/4}⌋`,
+/// never below [`MAX_AR_ORDER`], so the model space grows with the sample.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the rule is a small non-negative real floored to an order below n"
+)]
+pub(crate) fn schwert_order(n: usize) -> usize {
+    let rule = (12.0 * (n as f64 / 100.0).powf(0.25)).floor() as usize;
+    rule.max(MAX_AR_ORDER)
+}
 
 /// Fewest rows on which a score model is fitted; shorter series keep factor 1.
 const MIN_ROWS: usize = 8;
 
-/// Longest autocorrelation tail summed for the model long-run variance.
-const MAX_ACF_LAGS: usize = 20_000;
+/// Size below which an autocorrelation tail is negligible for the model long-run variance.
+const TAIL_TOLERANCE: f64 = 1e-12;
+
+/// Lags an autocorrelation tail is summed to when it does not decay by itself.
+///
+/// A root closer to the unit circle than `1/rows` cannot be told from a unit root by `rows`
+/// observations, and a geometric tail of ratio `1 − 1/rows` falls below [`TAIL_TOLERANCE`]
+/// after `−ln(TAIL_TOLERANCE) · rows` lags. That bounds a near-unit-root fit by what the sample
+/// can resolve instead of by a fixed lag count.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the product is a positive lag count far below usize::MAX for any resident sample"
+)]
+fn resolvable_lags(rows: usize) -> usize {
+    (-TAIL_TOLERANCE.ln() * rows.max(1) as f64).ceil() as usize
+}
 
 /// Kernel-bias factor of one influence series at block length `block`:
 /// `1/√f`, `f` the fraction of the fitted autoregression's long-run variance that the
 /// Bartlett kernel at `block` keeps, `f = (1 + 2 Σ_{k<ℓ} (1 − k/ℓ) ρ_k) / (1 + 2 Σ_k ρ_k)`
 /// with `ρ_k` the model autocorrelation. Two fits are read and the larger factor kept:
 /// a Kendall-corrected AR(1) (`ρ̂ + (1 + 3ρ̂)/n`, capped at 0.97) and, when BIC selects
-/// an order of at least 2 (Yule–Walker, `q ≤ 4`), that AR(q). A model with no positive
+/// an order of at least 2 (Yule–Walker, `q` up to the Schwert order of the sample), that AR(q). A model with no positive
 /// long-run excess, a constant or non-finite series, or fewer than 8 rows gives `1`.
 #[must_use]
 pub fn kernel_bias_factor(influence: &[f64], block: usize) -> f64 {
@@ -69,7 +96,7 @@ pub fn kernel_bias_factor(influence: &[f64], block: usize) -> f64 {
     if rho1 > 0.0 {
         fraction = fraction.min(bartlett_capture(&ar1_acf(rho1, block), block));
     }
-    let model = bic_autoregression(&s);
+    let model = bic_autoregression_to(&s, schwert_order(n));
     if model.phi.len() >= 2 {
         fraction = fraction.min(bartlett_capture(&model.acf(block), block));
     }
@@ -103,17 +130,39 @@ pub(crate) fn bartlett_capture(acf: &[f64], block: usize) -> f64 {
 
 /// Model autocorrelations `ρ_0 = 1, ρ_1, …` of an AR(1) with coefficient `rho`, summed
 /// until the tail is negligible (at least `block` lags).
+///
+/// The tail is geometric, so it falls below [`TAIL_TOLERANCE`] after `ln(tol)/ln|ρ|` lags: the
+/// sum stops there with no fixed lag count. A coefficient outside the stationary range has no
+/// decaying tail to sum and keeps the lags the kernel reads.
 pub(crate) fn ar1_acf(rho: f64, block: usize) -> Vec<f64> {
+    let decay = rho.abs();
+    let tail_lags = if decay > 0.0 && decay < 1.0 {
+        // The ratio is positive and finite for a decaying coefficient.
+        resolvable_decay_lags(decay)
+    } else {
+        0
+    };
+    let lag_limit = block.max(tail_lags).saturating_add(2);
     let mut acf = vec![1.0];
     let mut value = 1.0;
-    for k in 1..MAX_ACF_LAGS {
+    for k in 1..lag_limit {
         value *= rho;
-        if k > block && value.abs() < 1e-12 {
+        if k > block && value.abs() < TAIL_TOLERANCE {
             break;
         }
         acf.push(value);
     }
     acf
+}
+
+/// Lags after which a geometric tail of ratio `decay` in `(0, 1)` is below [`TAIL_TOLERANCE`].
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the quotient is positive and, for a ratio below one, a lag count the tail loop reaches"
+)]
+fn resolvable_decay_lags(decay: f64) -> usize {
+    (TAIL_TOLERANCE.ln() / decay.ln()).ceil() as usize
 }
 
 /// Bias-corrected lag-1 autocorrelation of a mean-zero series (Kendall 1954:
@@ -137,6 +186,8 @@ pub(crate) struct Autoregression {
     pub(crate) phi: Vec<f64>,
     /// Sample autocorrelations `r_0 = 1, r_1 … r_q` (the model's own up to lag `q`).
     autocorrelation: Vec<f64>,
+    /// Rows the model was fitted on; they bound how far a slowly decaying tail is resolvable.
+    rows: usize,
 }
 
 impl Autoregression {
@@ -145,13 +196,14 @@ impl Autoregression {
     pub(crate) fn acf(&self, block: usize) -> Vec<f64> {
         let q = self.phi.len();
         let mut rho = self.autocorrelation.clone();
-        for k in (q + 1)..MAX_ACF_LAGS {
+        let lag_limit = block.saturating_add(resolvable_lags(self.rows)).max(q + 2);
+        for k in (q + 1)..lag_limit {
             let next: f64 = self.phi.iter().enumerate().map(|(j, f)| f * rho[k - 1 - j]).sum();
             if !next.is_finite() {
                 break;
             }
             rho.push(next);
-            if k > block && rho[k + 1 - q..=k].iter().all(|r| r.abs() < 1e-12) {
+            if k > block && rho[k + 1 - q..=k].iter().all(|r| r.abs() < TAIL_TOLERANCE) {
                 break;
             }
         }
@@ -159,13 +211,26 @@ impl Autoregression {
     }
 }
 
+/// Smallest relative innovation-variance shrink and level a Levinson step may leave: below it
+/// the reduction is rounding noise and `ln(variance)` is not a usable BIC term.
+const RELATIVE_VARIANCE_FLOOR: f64 = 64.0 * f64::EPSILON;
+
 /// Levinson–Durbin fit of a mean-zero series `s` (uncentred autocovariances, the
 /// convention of [`kendall_rho`]) with `q ≤ MAX_AR_ORDER` minimizing
 /// `n ln σ̂²_q + q ln n`. The Toeplitz autocovariance is positive definite, so every
 /// fitted model is stationary.
 pub(crate) fn bic_autoregression(s: &[f64]) -> Autoregression {
+    bic_autoregression_to(s, MAX_AR_ORDER)
+}
+
+/// [`bic_autoregression`] over orders up to `order_limit` (and `n - 2`).
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "the comparison deliberately refuses unordered values"
+)]
+pub(crate) fn bic_autoregression_to(s: &[f64], order_limit: usize) -> Autoregression {
     let n = s.len();
-    let max_order = MAX_AR_ORDER.min(n.saturating_sub(2));
+    let max_order = order_limit.min(n.saturating_sub(2));
     let gamma: Vec<f64> = (0..=max_order).map(|k| dot(&s[k..], s) / n as f64).collect();
     if gamma[0] <= 0.0 || !gamma[0].is_finite() {
         return Autoregression::default();
@@ -178,7 +243,9 @@ pub(crate) fn bic_autoregression(s: &[f64]) -> Autoregression {
         let acc = gamma[order]
             - phi.iter().enumerate().map(|(j, f)| f * gamma[order - 1 - j]).sum::<f64>();
         let reflection = acc / variance;
-        if !reflection.is_finite() || reflection.abs() >= 1.0 {
+        // Stop where the Levinson update would leave only rounding noise of the innovation
+        // variance: `1 − reflection²` within a few ulps of zero (or a non-stationary step).
+        if !reflection.is_finite() || 1.0 - reflection * reflection <= RELATIVE_VARIANCE_FLOOR {
             break;
         }
         let mut next: Vec<f64> =
@@ -186,7 +253,7 @@ pub(crate) fn bic_autoregression(s: &[f64]) -> Autoregression {
         next.push(reflection);
         phi = next;
         variance *= 1.0 - reflection * reflection;
-        if variance <= 0.0 || variance.is_nan() {
+        if !(variance > RELATIVE_VARIANCE_FLOOR * gamma[0]) {
             break;
         }
         let bic = nf * variance.ln() + order as f64 * nf.ln();
@@ -196,7 +263,7 @@ pub(crate) fn bic_autoregression(s: &[f64]) -> Autoregression {
         }
     }
     let autocorrelation = gamma[..=best.len()].iter().map(|g| g / gamma[0]).collect();
-    Autoregression { phi: best, autocorrelation }
+    Autoregression { phi: best, autocorrelation, rows: n }
 }
 
 /// Dot product over the common length of `a` and `b` with four independent
@@ -220,6 +287,14 @@ pub(crate) fn dot(a: &[f64], b: &[f64]) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn schwert_order_grows_with_the_sample_and_never_drops_below_the_floor() {
+        assert_eq!(schwert_order(1), MAX_AR_ORDER);
+        assert_eq!(schwert_order(8), 6);
+        assert_eq!(schwert_order(100), 12);
+        assert!(schwert_order(10_000) > schwert_order(100));
+    }
 
     /// Deterministic AR(1) series with Gaussian innovations (Box–Muller on splitmix64).
     fn gaussian_series(n: usize, rho: f64, seed: u64) -> Vec<f64> {
@@ -252,6 +327,26 @@ mod tests {
         // No positive excess: the kernel keeps everything.
         assert!((bartlett_capture(&[1.0, -0.3, 0.09], 5) - 1.0).abs() < 1e-12);
         assert!((bartlett_capture(&[1.0], 5) - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn the_autocorrelation_tail_stops_at_its_decay_or_at_what_the_sample_resolves() {
+        // A decaying AR(1) stops where its geometric tail is negligible: no fixed lag count.
+        let acf = ar1_acf(0.97, 10);
+        assert!(acf.len() > 900 && acf.len() < 920, "{}", acf.len());
+        assert!(acf.last().unwrap().abs() >= TAIL_TOLERANCE * 0.97);
+        // A coefficient with no decaying tail keeps just the lags the kernel reads.
+        assert_eq!(ar1_acf(1.0, 10).len(), 12);
+        // A near-unit-root autoregression is summed only as far as its sample resolves.
+        let near_unit = |rows| Autoregression {
+            phi: vec![1.0 - 1e-9],
+            autocorrelation: vec![1.0, 1.0 - 1e-9],
+            rows,
+        };
+        let short = near_unit(100).acf(10);
+        assert!(short.len() <= 10 + resolvable_lags(100) + 2, "{}", short.len());
+        let long = near_unit(400).acf(10);
+        assert!(long.len() > short.len(), "more rows resolve a longer tail");
     }
 
     #[test]

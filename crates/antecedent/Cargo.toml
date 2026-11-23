@@ -6,7 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
-description = "Identification-first causal inference: identify → estimate → refute, with uncertainty about causal structure preserved"
+description = "A compiler and evidence-aware runtime for causal science: discovery, identification, estimation, interventions and counterfactuals under structural uncertainty"
 readme = "README.md"
 homepage.workspace = true
 documentation.workspace = true
@@ -14,16 +14,26 @@ keywords.workspace = true
 categories.workspace = true
 autotests = false
 
+[package.metadata.scientific-test-features]
+suite_01 = ["calibration-internal"]
+suite_06 = ["calibration-internal"]
+
 [lints]
 workspace = true
 
 [features]
-default = []
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent-core/development", "antecedent-contract/development", "antecedent-data/development", "antecedent-discovery/development", "antecedent-estimate/development", "antecedent-expr/development", "antecedent-graph/development", "antecedent-identify/development", "antecedent-io/development", "antecedent-io-core/development", "antecedent-prob/development", "antecedent-stats/development", "antecedent-validate/development", "antecedent-model/development", "antecedent-learn/development", "antecedent-counterfactual/development", "antecedent-attribution/development", "antecedent-design/development", "antecedent-state/development", "antecedent-kernels/development"]
+default = ["file-source"]
+# Parquet and Arrow IPC table files (`analysis::file_table`).
+file-source = ["antecedent-data/parquet", "antecedent-data/ipc"]
 calibration-internal = ["antecedent-estimate/calibration-internal", "antecedent-io/calibration-internal", "antecedent-validate/calibration-internal"]
 ml-gbdt = ["antecedent-estimate/ml-gbdt", "antecedent-model/ml-gbdt"]
 ml-forest = ["antecedent-estimate/ml-forest", "antecedent-model/ml-forest"]
 ml-full = ["ml-gbdt", "ml-forest"]
 ml-neural = ["antecedent-estimate/ml-neural"]
+# Burn's WGPU backend for the neural learner (opt-in accelerator distribution).
+ml-neural-wgpu = ["ml-neural", "antecedent-learn/ml-neural-wgpu"]
 
 [dependencies]
 antecedent-core = { workspace = true }
@@ -35,6 +45,7 @@ antecedent-expr = { workspace = true }
 antecedent-graph = { workspace = true }
 antecedent-identify = { workspace = true }
 antecedent-io = { workspace = true }
+antecedent-io-core = { workspace = true }
 antecedent-prob = { workspace = true }
 antecedent-stats = { workspace = true }
 antecedent-validate = { workspace = true }
@@ -49,11 +60,12 @@ thiserror = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 blake3 = { workspace = true }
+ciborium = { workspace = true }
 
 [dev-dependencies]
+antecedent-core = { workspace = true, features = ["test-support"] }
 antecedent-test-support = { workspace = true }
 criterion.workspace = true
-ciborium = { workspace = true }
 antecedent-identify = { workspace = true, features = ["test-util"] }
 # The calibration harness and lifecycle tests measure the closed X4 interval estimator.
 antecedent-estimate = { workspace = true, features = ["calibration-internal"] }
@@ -64,7 +76,55 @@ arrow-array = { workspace = true }
 arrow-schema = { workspace = true }
 
 [[test]]
+name = "grid_functional_effect_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "grid_functional_posterior_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "grid_mechanism_design_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "grid_response_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "grid_static_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "grid_temporal_effect_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "grid_temporal_response_bayesian_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "grid_temporal_response_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
 name = "recalc_joint_bayesian"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "choice_inference_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "mnar_interval_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "graph_imputation_interval_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "categorical_posterior_calibration"
 required-features = ["calibration-internal"]
 
 [[test]]
@@ -169,6 +229,10 @@ path = "../../examples/rust/noise_replay.rs"
 name = "intrinsic_influence"
 path = "../../examples/rust/intrinsic_influence.rs"
 
+[[example]]
+name = "feedback_three_questions"
+path = "../../examples/rust/feedback_three_questions.rs"
+
 [[bench]]
 name = "staged_handle"
 harness = false
@@ -202,16 +266,8 @@ name = "weighted_interval_calibration"
 path = "tests/weighted_interval_calibration.rs"
 
 [[test]]
-name = "missing_data_routes"
-path = "tests/missing_data_routes.rs"
-
-[[test]]
 name = "observational_survival_policy_routes"
 path = "tests/observational_survival_policy_routes.rs"
-
-[[test]]
-name = "sampling_weight_routes"
-path = "tests/sampling_weight_routes.rs"
 
 [[test]]
 name = "adjusted_recalc_precision"
@@ -242,6 +298,14 @@ name = "bayesian_temporal"
 path = "tests/bayesian_temporal.rs"
 
 [[test]]
+name = "bayesian_temporal_mediation_validation_targets"
+path = "tests/bayesian_temporal_mediation_validation_targets.rs"
+
+[[test]]
+name = "temporal_graph_posterior_product_routes"
+path = "tests/temporal_graph_posterior_product_routes.rs"
+
+[[test]]
 name = "calibration_admg"
 path = "tests/calibration_admg.rs"
 
@@ -260,10 +324,6 @@ path = "tests/calibration_backlog.rs"
 [[test]]
 name = "calibration_bayesian_static"
 path = "tests/calibration_bayesian_static.rs"
-
-[[test]]
-name = "bayesian_draw_controls"
-path = "tests/bayesian_draw_controls.rs"
 
 [[test]]
 name = "calibration_posterior_draws"
@@ -326,16 +386,16 @@ name = "cluster_dml_calibration"
 path = "tests/cluster_dml_calibration.rs"
 
 [[test]]
+name = "dml_outcome_prior_calibration"
+path = "tests/dml_outcome_prior_calibration.rs"
+
+[[test]]
 name = "compiler_consistency"
 path = "tests/compiler_consistency.rs"
 
 [[test]]
 name = "composition_exit_gate"
 path = "tests/composition_exit_gate.rs"
-
-[[test]]
-name = "conditional_ipcw"
-path = "tests/conditional_ipcw.rs"
 
 [[test]]
 name = "counterfactual_transport_lifecycle"
@@ -364,6 +424,7 @@ path = "tests/evidence_synthesis_calibration.rs"
 [[test]]
 name = "gcm"
 path = "tests/gcm.rs"
+required-features = ["calibration-internal"]
 
 [[test]]
 name = "generic_aipw_precision"
@@ -372,6 +433,22 @@ path = "tests/generic_aipw_precision.rs"
 [[test]]
 name = "identity_contract"
 path = "tests/identity_contract.rs"
+
+[[test]]
+name = "horizon_one_equivalence"
+path = "tests/horizon_one_equivalence.rs"
+
+[[test]]
+name = "composition_cross_surface_slices"
+path = "tests/composition_cross_surface_slices.rs"
+
+[[test]]
+name = "cross_surface_horizon"
+path = "tests/cross_surface_horizon.rs"
+
+[[test]]
+name = "flagship_decision_fixture"
+path = "tests/flagship_decision_fixture.rs"
 
 [[test]]
 name = "joint_law_composed_interval_calibration"
@@ -390,12 +467,12 @@ name = "learned_continuous_calibration"
 path = "tests/learned_continuous_calibration.rs"
 
 [[test]]
-name = "licensed_compiler"
-path = "tests/licensed_compiler.rs"
+name = "supported_compiler"
+path = "tests/supported_compiler.rs"
 
 [[test]]
-name = "licensed_static_cells"
-path = "tests/licensed_static_cells.rs"
+name = "supported_static_cells"
+path = "tests/supported_static_cells.rs"
 
 [[test]]
 name = "linear_adjustment_route_evidence"
@@ -494,6 +571,66 @@ name = "smoothed_dose_calibration"
 path = "tests/smoothed_dose_calibration.rs"
 
 [[test]]
+name = "learned_continuous_bootstrap_calibration"
+path = "tests/learned_continuous_bootstrap_calibration.rs"
+
+[[test]]
+name = "randomized_quantile_interval_calibration"
+path = "tests/randomized_quantile_interval_calibration.rs"
+
+[[test]]
+name = "mechanism_composition_interval_calibration"
+path = "tests/mechanism_composition_interval_calibration.rs"
+
+[[test]]
+name = "typed_transported_mechanism_interval_calibration"
+path = "tests/typed_transported_mechanism_interval_calibration.rs"
+
+[[test]]
+name = "temporal_derivative_refuter_known_truth"
+path = "tests/temporal_derivative_refuter_known_truth.rs"
+
+[[test]]
+name = "class_derivative_known_truth"
+path = "tests/class_derivative_known_truth.rs"
+
+[[test]]
+name = "temporal_admg_derivative_known_truth"
+path = "tests/temporal_admg_derivative_known_truth.rs"
+
+[[test]]
+name = "temporal_class_derivative_known_truth"
+path = "tests/temporal_class_derivative_known_truth.rs"
+
+[[test]]
+name = "graph_posterior_derivative_known_truth"
+path = "tests/graph_posterior_derivative_known_truth.rs"
+
+[[test]]
+name = "temporal_graph_posterior_derivative_known_truth"
+path = "tests/temporal_graph_posterior_derivative_known_truth.rs"
+
+[[test]]
+name = "class_graph_posterior_derivative_known_truth"
+path = "tests/class_graph_posterior_derivative_known_truth.rs"
+
+[[test]]
+name = "cross_world_counterfactual_posterior_truth"
+path = "tests/cross_world_counterfactual_posterior_truth.rs"
+
+[[test]]
+name = "derivative_refuter_known_truth"
+path = "tests/derivative_refuter_known_truth.rs"
+
+[[test]]
+name = "response_curve_validation_known_truth"
+path = "tests/response_curve_validation_known_truth.rs"
+
+[[test]]
+name = "response_curve_validation_routes_known_truth"
+path = "tests/response_curve_validation_routes_known_truth.rs"
+
+[[test]]
 name = "staged_derivatives"
 path = "tests/staged_derivatives.rs"
 
@@ -554,6 +691,15 @@ name = "transported_decision_facade"
 path = "tests/transported_decision_facade.rs"
 
 [[test]]
+name = "development_build"
+path = "tests/development_build.rs"
+required-features = ["development"]
+
+[[test]]
+name = "release_not_supported"
+path = "tests/release_not_supported.rs"
+
+[[test]]
 name = "suite_01"
 path = "tests/suite_01.rs"
 
@@ -588,3 +734,721 @@ path = "tests/suite_08.rs"
 [[test]]
 name = "suite_09"
 path = "tests/suite_09.rs"
+
+[[test]]
+name = "path_specific_admg_route"
+path = "tests/path_specific_admg_route.rs"
+
+[[test]]
+name = "path_specific_pag_route"
+path = "tests/path_specific_pag_route.rs"
+
+[[test]]
+name = "path_specific_mixed_graph_route_evidence"
+path = "tests/path_specific_mixed_graph_route_evidence.rs"
+
+[[test]]
+name = "interventional_distribution_class_route_evidence"
+path = "tests/interventional_distribution_class_route_evidence.rs"
+
+[[test]]
+name = "mediation_mixed_graph_route_evidence"
+path = "tests/mediation_mixed_graph_route_evidence.rs"
+
+[[test]]
+name = "temporal_pag_mediation"
+path = "tests/temporal_pag_mediation.rs"
+
+[[test]]
+name = "horizon_composition"
+path = "tests/horizon_composition.rs"
+
+[[test]]
+name = "treatment_score_product"
+path = "tests/treatment_score_product.rs"
+
+[[test]]
+name = "unsupported_design_routes"
+path = "tests/unsupported_design_routes.rs"
+
+[[test]]
+name = "temporal_design_routes"
+path = "tests/temporal_design_routes.rs"
+
+[[test]]
+name = "lag_zero_average_effect"
+path = "tests/lag_zero_average_effect.rs"
+
+[[test]]
+name = "lowered_dispatch"
+path = "tests/lowered_dispatch.rs"
+
+[[test]]
+name = "acyclic_identity_regression"
+path = "tests/acyclic_identity_regression.rs"
+
+[[test]]
+name = "cyclic_family_fixtures"
+path = "tests/cyclic_family_fixtures.rs"
+
+[[test]]
+name = "staleness_facade"
+path = "tests/staleness_facade.rs"
+
+[[test]]
+name = "functional_validation"
+path = "tests/functional_validation.rs"
+
+[[test]]
+name = "mediation_decomposition_validation"
+path = "tests/mediation_decomposition_validation.rs"
+
+[[test]]
+name = "file_table_capacity"
+path = "tests/file_table_capacity.rs"
+required-features = ["file-source"]
+
+[[test]]
+name = "structure_compiler_routes"
+path = "tests/structure_compiler_routes.rs"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "structure_prior_routes"
+path = "tests/structure_prior_routes.rs"
+
+[[test]]
+name = "quasi_rollout_routes"
+path = "tests/quasi_rollout_routes.rs"
+
+[[test]]
+name = "plan_view"
+path = "tests/plan_view.rs"
+
+[[test]]
+name = "plan_view_stages"
+path = "tests/plan_view_stages.rs"
+
+[[test]]
+name = "report"
+path = "tests/report.rs"
+
+[[test]]
+name = "association_count_conjugate"
+path = "tests/association_count_conjugate.rs"
+
+[[test]]
+name = "count_conjugate_calibration"
+path = "tests/count_conjugate_calibration.rs"
+
+[[test]]
+name = "named_composed_prior"
+path = "tests/named_composed_prior.rs"
+
+[[test]]
+name = "joint_panel_streamed_memory"
+path = "tests/joint_panel_streamed_memory.rs"
+
+[[test]]
+name = "joint_panel_compiled"
+path = "tests/joint_panel_compiled.rs"
+
+[[test]]
+name = "graph_posterior_functional_routes"
+path = "tests/graph_posterior_functional_routes.rs"
+
+[[example]]
+name = "joint_panel_workflow"
+path = "../../examples/rust/joint_panel_workflow.rs"
+
+[[example]]
+name = "reference_host"
+path = "../../examples/rust/reference_host.rs"
+
+[[bench]]
+name = "transport_measured"
+harness = false
+
+[[test]]
+name = "family_contract_conformance"
+path = "tests/family_contract_conformance.rs"
+
+[[test]]
+name = "calibration_decision_contract"
+path = "tests/calibration_decision_contract.rs"
+
+[[test]]
+name = "period_refresh_reference"
+path = "tests/period_refresh_reference.rs"
+
+[[test]]
+name = "estimate_uncertainty_reference"
+path = "tests/estimate_uncertainty_reference.rs"
+
+[[test]]
+name = "smoothed_dose_reference"
+path = "tests/smoothed_dose_reference.rs"
+
+[[test]]
+name = "temporal_response_observation_adjusted_reference"
+path = "tests/temporal_response_observation_adjusted_reference.rs"
+
+[[test]]
+name = "cells_01_panel_search_inputs"
+path = "tests/cells_01_panel_search_inputs.rs"
+
+[[test]]
+name = "cells_00_time_varying_panel"
+path = "tests/cells_00_time_varying_panel.rs"
+
+[[test]]
+name = "cells_03_joint_panel"
+path = "tests/cells_03_joint_panel.rs"
+
+[[test]]
+name = "cells_07_joint_panel"
+path = "tests/cells_07_joint_panel.rs"
+
+[[test]]
+name = "cells_06_joint_panel_broader"
+path = "tests/cells_06_joint_panel_broader.rs"
+
+[[test]]
+name = "unavailable_a_declarations"
+path = "tests/unavailable_a_declarations.rs"
+
+[[test]]
+name = "unavailable_b_static_panel_refusals"
+path = "tests/unavailable_b_static_panel_refusals.rs"
+
+[[test]]
+name = "build_quasi_experimental_synthetic_dependence"
+path = "tests/build_quasi_experimental_synthetic_dependence.rs"
+
+[[test]]
+name = "transport_interference_cell_evidence"
+path = "tests/transport_interference_cell_evidence.rs"
+
+[[test]]
+name = "cross_world_dag_validation_truth"
+path = "tests/cross_world_dag_validation_truth.rs"
+
+[[test]]
+name = "codetermined_bayesian_response_truth"
+path = "tests/codetermined_bayesian_response_truth.rs"
+
+[[test]]
+name = "bayesian_intervention_response_refuter_truth"
+path = "tests/bayesian_intervention_response_refuter_truth.rs"
+
+[[test]]
+name = "conditional_effect_admg_validation_truth"
+path = "tests/conditional_effect_admg_validation_truth.rs"
+
+[[test]]
+name = "lag_zero_average_effect_truth"
+path = "tests/lag_zero_average_effect_truth.rs"
+
+[[test]]
+name = "cross_world_class_truth"
+path = "tests/cross_world_class_truth.rs"
+
+[[test]]
+name = "attribution_refuter_known_truth"
+path = "tests/attribution_refuter_known_truth.rs"
+
+[[test]]
+name = "cross_world_posterior_truth"
+path = "tests/cross_world_posterior_truth.rs"
+
+[[test]]
+name = "temporal_conditional_validation_truth"
+path = "tests/temporal_conditional_validation_truth.rs"
+
+[[test]]
+name = "intervention_response_class_validation_truth"
+path = "tests/intervention_response_class_validation_truth.rs"
+
+[[test]]
+name = "response_curve_posterior_validation_truth"
+path = "tests/response_curve_posterior_validation_truth.rs"
+
+[[test]]
+name = "conditional_effect_admg_bayesian_interval"
+path = "tests/conditional_effect_admg_bayesian_interval.rs"
+
+[[test]]
+name = "class_attribution_known_truth"
+path = "tests/class_attribution_known_truth.rs"
+
+[[test]]
+name = "cross_world_temporal_truth"
+path = "tests/cross_world_temporal_truth.rs"
+
+[[test]]
+name = "temporal_window_route_evidence"
+path = "tests/temporal_window_route_evidence.rs"
+
+[[test]]
+name = "distribution_validation_route_evidence"
+path = "tests/distribution_validation_route_evidence.rs"
+
+[[test]]
+name = "functional_graph_posterior_mixture_truth"
+path = "tests/functional_graph_posterior_mixture_truth.rs"
+
+[[test]]
+name = "graphless_did_known_truth"
+path = "tests/graphless_did_known_truth.rs"
+
+[[test]]
+name = "class_posterior_known_truth"
+path = "tests/class_posterior_known_truth.rs"
+
+[[test]]
+name = "temporal_class_posterior_known_truth"
+path = "tests/temporal_class_posterior_known_truth.rs"
+
+[[test]]
+name = "class_explicit_known_truth"
+path = "tests/class_explicit_known_truth.rs"
+
+[[test]]
+name = "admg_frontdoor_validation_known_truth"
+path = "tests/admg_frontdoor_validation_known_truth.rs"
+
+[[test]]
+name = "dag_response_validation_known_truth"
+path = "tests/dag_response_validation_known_truth.rs"
+
+[[test]]
+name = "counterfactual_accepted_known_truth"
+path = "tests/counterfactual_accepted_known_truth.rs"
+
+[[test]]
+name = "tiered_average_effect_closed_form"
+path = "tests/tiered_average_effect_closed_form.rs"
+
+[[test]]
+name = "dirichlet_update_exact"
+path = "tests/dirichlet_update_exact.rs"
+
+[[test]]
+name = "learned_continuous_posterior_exact"
+path = "tests/learned_continuous_posterior_exact.rs"
+
+[[test]]
+name = "smoothed_dose_posterior_exact"
+path = "tests/smoothed_dose_posterior_exact.rs"
+
+[[test]]
+name = "recalc_exact_effect"
+path = "tests/recalc_exact_effect.rs"
+
+[[test]]
+name = "scenario_claims_exact"
+path = "tests/scenario_claims_exact.rs"
+
+[[test]]
+name = "native_response_claims_exact"
+path = "tests/native_response_claims_exact.rs"
+
+[[test]]
+name = "recalc_cell_exact_effect"
+path = "tests/recalc_cell_exact_effect.rs"
+
+[[test]]
+name = "recalc_attempt_exact_effect"
+path = "tests/recalc_attempt_exact_effect.rs"
+
+[[test]]
+name = "source_evidence_exact"
+path = "tests/source_evidence_exact.rs"
+
+[[test]]
+name = "callback_downstream_exact"
+path = "tests/callback_downstream_exact.rs"
+
+[[test]]
+name = "joint_sensitivity_source_exact"
+path = "tests/joint_sensitivity_source_exact.rs"
+
+[[test]]
+name = "recalc_composite_hand_utilities"
+path = "tests/recalc_composite_hand_utilities.rs"
+
+[[test]]
+name = "proposal_arrival_exact"
+path = "tests/proposal_arrival_exact.rs"
+
+[[test]]
+name = "conditional_study_ranking_exact"
+path = "tests/conditional_study_ranking_exact.rs"
+
+[[test]]
+name = "estimator_support_enumeration"
+path = "tests/estimator_support_enumeration.rs"
+required-features = ["development"]
+
+[[test]]
+name = "tier_diagnostics_exact"
+path = "tests/tier_diagnostics_exact.rs"
+
+[[test]]
+name = "temporal_lagged_instrument_known_truth"
+path = "tests/temporal_lagged_instrument_known_truth.rs"
+
+[[test]]
+name = "temporal_glm_link_contrast_known_truth"
+path = "tests/temporal_glm_link_contrast_known_truth.rs"
+
+[[test]]
+name = "temporal_dag_adjustment_known_truth"
+path = "tests/temporal_dag_adjustment_known_truth.rs"
+
+[[test]]
+name = "temporal_sequential_gcomp_class_known_truth"
+path = "tests/temporal_sequential_gcomp_class_known_truth.rs"
+
+[[test]]
+name = "interference_estimators_known_truth"
+path = "tests/interference_estimators_known_truth.rs"
+
+[[test]]
+name = "static_adjustment_known_truth"
+path = "tests/static_adjustment_known_truth.rs"
+
+[[test]]
+name = "frontdoor_known_truth"
+path = "tests/frontdoor_known_truth.rs"
+
+[[test]]
+name = "bayesian_static_known_truth"
+path = "tests/bayesian_static_known_truth.rs"
+
+[[test]]
+name = "temporal_sequential_gcomp_multistep_known_truth"
+path = "tests/temporal_sequential_gcomp_multistep_known_truth.rs"
+
+[[test]]
+name = "admg_response_known_truth"
+path = "tests/admg_response_known_truth.rs"
+
+[[test]]
+name = "bayesian_rd_known_truth"
+path = "tests/bayesian_rd_known_truth.rs"
+
+[[test]]
+name = "response_cells_known_truth"
+path = "tests/response_cells_known_truth.rs"
+
+[[test]]
+name = "graph_imputation_known_truth"
+path = "tests/graph_imputation_known_truth.rs"
+
+[[test]]
+name = "prepared_adjusted_retarget"
+path = "tests/prepared_adjusted_retarget.rs"
+
+[[test]]
+name = "prepared_adjusted_retarget_calibration"
+path = "tests/prepared_adjusted_retarget_calibration.rs"
+
+[[test]]
+name = "compiled_robust_decisions"
+path = "tests/compiled_robust_decisions.rs"
+
+[[test]]
+name = "bayesian_randomized_calibration"
+
+[[test]]
+name = "bayesian_design_support_rows"
+
+[[test]]
+name = "bounds_association_calibration"
+
+[[test]]
+name = "bounds_association_support"
+
+[[test]]
+name = "local_designs_calibration"
+
+[[test]]
+name = "local_design_support_routes"
+
+[[test]]
+name = "measurement_composition_calibration"
+
+[[test]]
+name = "measurement_composition_horizon_calibration"
+
+[[test]]
+name = "measurement_exposure_calibration"
+
+[[test]]
+name = "measured_exposure_calibration"
+
+[[test]]
+name = "measured_exposure_known_truth"
+
+[[test]]
+name = "transport_weighted_target_calibration"
+path = "tests/transport_weighted_target_calibration.rs"
+
+[[test]]
+name = "weighted_target_effect"
+path = "tests/weighted_target_effect.rs"
+
+[[test]]
+name = "composition_chain"
+path = "tests/composition_chain.rs"
+
+[[test]]
+name = "weighted_target_effect_calibration"
+path = "tests/weighted_target_effect_calibration.rs"
+
+[[test]]
+name = "weighted_target_trial_transport"
+path = "tests/weighted_target_trial_transport.rs"
+
+[[test]]
+name = "graph_posterior_weighted_target"
+path = "tests/graph_posterior_weighted_target.rs"
+
+[[test]]
+name = "graph_posterior_weighted_target_calibration"
+path = "tests/graph_posterior_weighted_target_calibration.rs"
+
+[[test]]
+name = "pooled_structure_and_prior_selection"
+path = "tests/pooled_structure_and_prior_selection.rs"
+
+[[test]]
+name = "weighted_target_transport_calibration"
+path = "tests/weighted_target_transport_calibration.rs"
+
+[[test]]
+name = "panel_did_calibration"
+
+[[test]]
+name = "synthetic_control_calibration"
+
+[[test]]
+name = "rollout_design_support_rows"
+
+[[test]]
+name = "temporal_design_calibration"
+
+[[test]]
+name = "temporal_routes_calibration"
+
+[[test]]
+name = "temporal_route_support_rows"
+
+[[test]]
+name = "fitted_model_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "joint_response_calibration"
+
+[[test]]
+name = "temporal_design_statements_calibration"
+
+[[test]]
+name = "panel_did_statements_calibration"
+
+[[test]]
+name = "local_designs_statements_calibration"
+
+[[test]]
+name = "measurement_composition_statements_calibration"
+
+[[test]]
+name = "bayesian_randomized_statements_calibration"
+
+[[test]]
+name = "bounds_association_statements_calibration"
+
+[[test]]
+name = "discovery_statements_calibration"
+
+[[test]]
+name = "dose_grid_statements_calibration"
+
+[[test]]
+name = "temporal_routes_statements_calibration"
+
+[[test]]
+name = "fitted_model_statements_calibration"
+
+[[test]]
+name = "temporal_transport_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "refuter_error_rates_calibration"
+
+[[test]]
+name = "static_mechanism_bootstrap_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "continuous_program_search_reliability"
+
+[[test]]
+name = "joint_panel_calibration"
+
+[[test]]
+name = "panel_did_range_calibration"
+
+[[test]]
+name = "synthetic_control_range_calibration"
+
+[[test]]
+name = "temporal_design_range_calibration"
+
+[[test]]
+name = "temporal_routes_range_calibration"
+
+[[test]]
+name = "bounds_association_range_calibration"
+
+[[test]]
+name = "conjugate_routes_calibration"
+
+[[test]]
+name = "temporal_wider_range_calibration"
+
+[[test]]
+name = "graphless_wider_range_calibration"
+
+[[test]]
+name = "policy_value_error_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "latent_soft_intervention"
+path = "tests/latent_soft_intervention.rs"
+required-features = ["development"]
+
+[[test]]
+name = "events"
+path = "tests/events.rs"
+required-features = ["development"]
+
+[[test]]
+name = "event_count_calibration"
+path = "tests/event_count_calibration.rs"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "composition_posterior_decision_bundle"
+path = "tests/composition_posterior_decision_bundle.rs"
+
+[[test]]
+name = "bridge_transport_premise_calibration"
+
+[[test]]
+name = "cluster_sampling_assumption_union_calibration"
+
+[[test]]
+name = "continuous_chain_transport_calibration"
+
+[[test]]
+name = "cyclic_posterior_predictive_calibration"
+
+[[test]]
+name = "cyclic_target_feedback_choice_calibration"
+
+[[test]]
+name = "fitted_dependent_measurement_calibration"
+
+[[test]]
+name = "graph_imputation_binary_cluster_calibration"
+
+[[test]]
+name = "graph_imputation_kernel_cluster_calibration"
+
+[[test]]
+name = "graph_imputation_kernel_transport_calibration"
+
+[[test]]
+name = "graph_imputation_mar_cluster_calibration"
+
+[[test]]
+name = "graph_imputation_predictive_calibration"
+
+[[test]]
+name = "graph_imputation_predictive_cluster_calibration"
+
+[[test]]
+name = "graph_imputation_transport_calibration"
+
+[[test]]
+name = "graph_narrow_cross_fitted_policy_calibration"
+
+[[test]]
+name = "graph_narrow_cross_fitted_subsampling_policy_calibration"
+
+[[test]]
+name = "graph_narrow_policy_calibration"
+
+[[test]]
+name = "iid_sampling_assumption_union_calibration"
+
+[[test]]
+name = "joint_transport_predictive_calibration"
+
+[[test]]
+name = "sampled_temporal_path_transport_calibration"
+
+[[test]]
+name = "sequential_policy_choice_calibration"
+
+[[test]]
+name = "trial_ipw_predictive_calibration"
+
+[[example]]
+name = "fitted_feedback_decision"
+path = "../../examples/rust/fitted_feedback_decision.rs"
+
+[[example]]
+name = "trial_to_target_decision"
+path = "../../examples/rust/trial_to_target_decision.rs"
+
+[[example]]
+name = "check_trial_proxy"
+path = "../../examples/rust/check_trial_proxy.rs"
+
+[[example]]
+name = "whole_cluster_uncertainty"
+path = "../../examples/rust/whole_cluster_uncertainty.rs"
+
+[[example]]
+name = "evaluate_fixed_policies"
+path = "../../examples/rust/evaluate_fixed_policies.rs"
+
+[[example]]
+name = "transport_selected_path"
+path = "../../examples/rust/transport_selected_path.rs"
+
+[[example]]
+name = "shared_measurement_errors"
+path = "../../examples/rust/shared_measurement_errors.rs"
+
+[[test]]
+name = "suite_10"
+path = "tests/suite_10.rs"
+
+[[test]]
+name = "suite_11"
+path = "tests/suite_11.rs"
+
+[[test]]
+name = "suite_12"
+path = "tests/suite_12.rs"
+
+[[test]]
+name = "suite_13"
+path = "tests/suite_13.rs"

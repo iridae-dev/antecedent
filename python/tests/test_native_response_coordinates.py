@@ -12,7 +12,9 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent import Admg, ResponseCurve, analyze, intervention, transport
+from antecedent import _reason_details as reason_details
 from antecedent.external import ExternalRefusal
+from antecedent.outcomes import require_success
 from antecedent.results.coordinates import response_coordinates
 
 GRID = [-0.5, 0.0, 0.5]
@@ -25,7 +27,9 @@ def _curve_data(seed: int = 23) -> dict[str, np.ndarray]:
 
 
 def _analyze_curve():
-    return analyze(_curve_data(), query=ResponseCurve("a", "y", grid=GRID), graph=[("a", "y")])
+    return require_success(
+        analyze(_curve_data(), query=ResponseCurve("a", "y", grid=GRID), graph=[("a", "y")])
+    )
 
 
 def test_native_coordinates_equal_the_python_derivation_and_the_hand_values():
@@ -59,7 +63,7 @@ def test_population_and_transform_are_declared_not_inferred():
 def test_units_are_required(units):
     with pytest.raises(ExternalRefusal) as refusal:
         _analyze_curve().response_coordinates(outcome_units=units)
-    assert refusal.value.detail == "coordinate_support.units_required"
+    assert refusal.value.detail == reason_details.coordinate_support.UNITS_REQUIRED
     assert refusal.value.reason_code == "invalid_argument"
 
 
@@ -68,10 +72,12 @@ def _policy_result(spec):
     x = rng.normal(size=400)
     a = 0.7 * x + rng.normal(size=400)
     y = 1.0 + 2.0 * a + 0.8 * x + rng.normal(scale=0.1, size=400)
-    return antecedent.analyze(
-        {"x": x, "a": a, "y": y},
-        query=antecedent.InterventionResponse("y", intervention=spec),
-        graph=[("x", "a"), ("x", "y"), ("a", "y")],
+    return require_success(
+        antecedent.analyze(
+            {"x": x, "a": a, "y": y},
+            query=antecedent.InterventionResponse("y", intervention=spec),
+            graph=[("x", "a"), ("x", "y"), ("a", "y")],
+        )
     )
 
 
@@ -93,7 +99,7 @@ def test_a_stochastic_policy_is_never_scalarized_into_a_regime():
     assert tuple(result.support.point_status) == ("extrapolative",)
     with pytest.raises(ExternalRefusal) as refusal:
         result.response_coordinates(outcome_units="mmHg")
-    assert refusal.value.detail == "coordinate_support.regime_not_describable"
+    assert refusal.value.detail == reason_details.coordinate_support.REGIME_NOT_DESCRIBABLE
     assert refusal.value.reason_code == "route_not_supported"
 
 
@@ -103,14 +109,16 @@ def test_a_jacobian_refuses_with_a_typed_coordinate_support_detail():
     a = 0.5 * x + rng.normal(size=500)
     b = -0.2 * x + rng.normal(size=500)
     y = 8.0 + 1.5 * a - 0.75 * b + x + rng.normal(scale=0.15, size=500)
-    result = antecedent.analyze(
-        {"x": x, "a": a, "b": b, "y": y},
-        query=antecedent.ResponseJacobian(["a", "b"], ["y"], at=[0.0, 0.0]),
-        graph=[("x", "a"), ("x", "b"), ("x", "y"), ("a", "y"), ("b", "y")],
+    result = require_success(
+        antecedent.analyze(
+            {"x": x, "a": a, "b": b, "y": y},
+            query=antecedent.ResponseJacobian(["a", "b"], ["y"], at=[0.0, 0.0]),
+            graph=[("x", "a"), ("x", "b"), ("x", "y"), ("a", "y"), ("b", "y")],
+        )
     )
     with pytest.raises(ExternalRefusal) as refusal:
         result.response_coordinates(outcome_units="mmHg")
-    assert refusal.value.detail == "coordinate_support.functional_not_described"
+    assert refusal.value.detail == reason_details.coordinate_support.FUNCTIONAL_NOT_DESCRIBED
     assert refusal.value.supplied == "jacobian"
 
 
@@ -138,7 +146,9 @@ def _transported_with_a_missing_coordinate():
             ),
         )
     )
-    return analyze(data, graph=Admg.from_edges(["x", "y"], [("x", "y")]), query=query)
+    return require_success(
+        analyze(data, graph=Admg.from_edges(["x", "y"], [("x", "y")]), query=query)
+    )
 
 
 def test_transport_grid_diagnostics_are_scoped_to_their_coordinate():
@@ -166,13 +176,15 @@ def test_transport_grid_diagnostics_are_scoped_to_their_coordinate():
 
 
 def test_analyze_populates_native_scientific_coordinates_with_declared_units():
-    result = analyze(
-        _curve_data(),
-        query=ResponseCurve("a", "y", grid=GRID),
-        graph=[("a", "y")],
-        outcome_units="mmHg",
-        quantity_population="clinic",
-        quantity_transform="identity",
+    result = require_success(
+        analyze(
+            _curve_data(),
+            query=ResponseCurve("a", "y", grid=GRID),
+            graph=[("a", "y")],
+            outcome_units="mmHg",
+            quantity_population="clinic",
+            quantity_transform="identity",
+        )
     )
     assert result.quantities == result.response_coordinates(
         outcome_units="mmHg", population="clinic"
@@ -201,19 +213,21 @@ def test_declared_response_coordinates_survive_a_fresh_checked_artifact_consumer
     from antecedent import artifacts
     from antecedent.errors import CausalSerializationError
 
-    result = analyze(
-        _curve_data(),
-        query=ResponseCurve("a", "y", grid=GRID),
-        graph=[("a", "y")],
-        outcome_units="mmHg",
-        quantity_population="clinic",
+    result = require_success(
+        analyze(
+            _curve_data(),
+            query=ResponseCurve("a", "y", grid=GRID),
+            graph=[("a", "y")],
+            outcome_units="mmHg",
+            quantity_population="clinic",
+        )
     )
-    encoded = result.export()
+    encoded = bytes(result.export())
     decoded = artifacts.loads(encoded)
     assert decoded.to_dict()["payload"]["response"]["coordinates"] == json.loads(
         json.dumps([quantity._wire() for quantity in result.quantities])
     )
-    acceptance = artifacts.accept(encoded)
+    acceptance = artifacts.accept(encoded, replay=True)
     assert result.claim_id == bytes(decoded.contract["claim"]["claim_id"]).hex()
     assert result.inspect().claim_id == result.claim_id
     artifact_path = tmp_path / "response.bin"
@@ -226,7 +240,7 @@ def test_declared_response_coordinates_survive_a_fresh_checked_artifact_consumer
 import json, sys
 from antecedent import artifacts
 payload = open(sys.argv[1], 'rb').read()
-print(json.dumps({'acceptance': artifacts.accept(payload),
+print(json.dumps({'acceptance': artifacts.accept(payload, replay=True),
                   'coordinates': artifacts.loads(payload).to_dict()['payload']['response']['coordinates']}))
 """,
             str(artifact_path),
@@ -249,7 +263,7 @@ print(json.dumps({'acceptance': artifacts.accept(payload),
         artifact_id=decoded.artifact_id,
         contract=decoded.contract,
     )
-    assert artifacts.accept(repacked) == acceptance
+    assert artifacts.accept(repacked, replay=True) == acceptance
     # The native encoder reuses independent contract verification; a valid
     # coordinate with changed units cannot retain the original body-bound claim.
     with pytest.raises(CausalSerializationError, match="claim.id"):
@@ -279,17 +293,19 @@ def test_response_export_refuses_semantic_relabeling_of_the_executed_response():
 
     from antecedent.errors import CausalValueError
 
-    result = analyze(
-        _curve_data(),
-        query=ResponseCurve("a", "y", grid=GRID),
-        graph=[("a", "y")],
-        outcome_units="mmHg",
+    result = require_success(
+        analyze(
+            _curve_data(),
+            query=ResponseCurve("a", "y", grid=GRID),
+            graph=[("a", "y")],
+            outcome_units="mmHg",
+        )
     )
     changed = result.model_copy(
         update={"quantities": (replace(result.quantities[0], horizon=1), *result.quantities[1:])}
     )
     with pytest.raises(CausalValueError, match="executed native response"):
-        changed.export()
+        bytes(changed.export())
 
 
 @pytest.mark.parametrize(
@@ -298,7 +314,7 @@ def test_response_export_refuses_semantic_relabeling_of_the_executed_response():
 def test_response_metadata_without_declared_units_is_refused(metadata):
     from antecedent.errors import CausalValueError
 
-    with pytest.raises(CausalValueError, match="require declared outcome_units"):
+    with pytest.raises(CausalValueError, match="require outcome_units"):
         analyze(
             _curve_data(), query=ResponseCurve("a", "y", grid=GRID), graph=[("a", "y")], **metadata
         )
@@ -314,7 +330,7 @@ def test_declared_native_response_coordinates_feed_public_decision_composition()
         _curve_data(),
         query=query,
         graph=[("a", "y")],
-        bootstrap=0,
+        inference=antecedent.Frequentist(bootstrap=0),
         outcome_units="kg",
         quantity_population="clinic",
         quantity_transform="log",
@@ -323,7 +339,8 @@ def test_declared_native_response_coordinates_feed_public_decision_composition()
         result, outcome_units="kg", dose_units="mg", population="clinic", transform="log"
     )
     claim = program_claims.native_claim(result, program)
-    assert claim.coordinates == result.quantities
+    response = require_success(result)
+    assert claim.coordinates == response.quantities
     contract = decision.Contract(
         actions=(
             decision.Action("A", inputs=(claim.coordinates[0],), utility=decision.x(0)),
@@ -334,11 +351,17 @@ def test_declared_native_response_coordinates_feed_public_decision_composition()
         target_population="clinic",
     )
     source = claim.as_decision_source(contract)
-    assert source.coordinates == result.quantities
-    evaluated = contract.evaluate(source.source)
+    assert source.coordinates == response.quantities
+    evaluated = require_success(contract.evaluate(source.source))
     by_id = {action.id: action for action in evaluated.actions}
-    assert by_id["B"].expected_utility == pytest.approx(result.response.values[-1][0])
+    assert by_id["B"].expected_utility == pytest.approx(response.response.values[-1][0])
     assert evaluated.selected == ("B",)
+    direct = contract.evaluate(result, program=program)
+    assert direct.accepted
+    assert require_success(direct).selected == evaluated.selected
+    assert [action.expected_utility for action in require_success(direct).actions] == [
+        action.expected_utility for action in evaluated.actions
+    ]
     for changed in (
         replace(program, outcome_units="lb"),
         replace(program, population_id="elsewhere"),

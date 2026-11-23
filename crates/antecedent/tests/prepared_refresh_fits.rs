@@ -37,18 +37,19 @@ fn refresh_counts_and_matches_fresh(functional: Option<OutcomeFunctional>) -> Cr
 
     let mut prepared = builder(&first, functional.clone()).build().unwrap().prepare(&ctx).unwrap();
     let cache = CrossfitNuisanceCache::new();
-    let (refreshed, _) = cache.scope(|| prepared.refresh(second.clone(), &ctx));
+    let (refreshed, _) = cache.scope(|| rebind_estimate(&mut prepared, second.clone(), &ctx));
     let refreshed = refreshed.unwrap();
     let stats = cache.stats();
 
     // Neither of these runs inside a scope, so every fit is a fresh one.
     let fresh = builder(&second, functional).build().unwrap().prepare(&ctx).unwrap();
     let expected = fresh.estimate_retained(&ctx).unwrap();
-    let (a, b) = (refreshed.estimate.as_effect().unwrap(), expected.estimate.as_effect().unwrap());
+    let (a, b) =
+        (refreshed.estimate().as_effect().unwrap(), expected.estimate().as_effect().unwrap());
     assert_eq!(a.ate.to_bits(), b.ate.to_bits());
     assert_eq!(a.se_analytic().to_bits(), b.se_analytic().to_bits());
     assert_eq!(a.scores.table, b.scores.table);
-    assert_eq!(refreshed.executed_contract, expected.executed_contract);
+    assert_eq!(refreshed.executed_contract(), expected.executed_contract());
     assert!(prepared.score_table().is_some(), "an AllObserved iid AIPW plan freezes its scores");
     assert_eq!(prepared.score_table(), fresh.score_table(), "frozen scores are the fresh build");
     stats
@@ -71,4 +72,17 @@ fn a_functional_refresh_fits_each_nuisance_once() {
     assert!(stats.propensity_reuses >= 1, "{stats:?}");
     assert_eq!(stats.propensity_fits, 1, "{stats:?}");
     assert!(stats.outcome_reuses >= 1, "{stats:?}");
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

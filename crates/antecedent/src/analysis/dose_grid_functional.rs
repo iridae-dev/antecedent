@@ -6,8 +6,8 @@
 //! `contrast`), on a fixed, caller-declared bandwidth. Level and contrast claims,
 //! derivative claims and the simultaneous band are separate: a derivative needs a
 //! derivative claim, a level or contrast needs a pointwise-level claim, and the
-//! simultaneous band is closed (`dose_grid.simultaneous_band_closed`). Every interval
-//! is pointwise with calibration `unmeasured`: no coverage claim is made, and the
+//! simultaneous band is not supported (`dose_grid.no_simultaneous_band_method`). Every interval
+//! is pointwise with calibration `not_measured`: no coverage claim is made, and the
 //! smoothing bias is not included. A dose that is not supported (outside the observed
 //! range, or with too little local weight) is refused, never extrapolated;
 //! [`dose_support_table`] shows the per-dose labels without refusing.
@@ -17,12 +17,13 @@
 //! exported table and refuses any resealed change of premise, table or value.
 //! A `quadratic_mean` request explicitly attests an exact quadratic conditional mean;
 //! polynomial reproduction accounts for its zero smoothing bias, with sampling
-//! calibration still unmeasured. Its artifact binds this additional premise and feature.
+//! calibration still `not_measured`. Its artifact binds this additional premise and feature.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_estimate::dose_grid_functional::{
-    ClaimSet, DoseDesign, DoseFunctional, IntervalCalibration,
+    BiasAwareDoseGrid, ClaimSet, DoseDesign, DoseFunctional, DoseGridRequest, IntervalCalibration,
+    estimate_dose_grid_bias_aware,
 };
 pub use antecedent_io::dose_grid_functional_artifact::{
     DOSE_GRID_ARTIFACT_FEATURE, DOSE_GRID_ARTIFACT_VERSION, DOSE_GRID_BAND_CLOSED,
@@ -30,6 +31,10 @@ pub use antecedent_io::dose_grid_functional_artifact::{
     DoseContrastWire, DoseFunctionalWire, DoseGridArtifactError, DoseGridArtifactWire,
     DoseGridConsumeLimits, DoseGridRequestWire, DoseGridResultWire, DosePointWire, DoseSupportWire,
     dose_support_table,
+};
+pub use antecedent_io::dose_grid_functional_artifact::{
+    DOSE_GRID_BAND_BIAS_AWARE, DOSE_GRID_BIAS_AWARE_FEATURE, DoseBiasAwareRequestWire,
+    DoseBiasAwareResultWire,
 };
 
 use crate::error::CausalError;
@@ -45,13 +50,34 @@ impl DoseGridFunctional {
     ///
     /// # Errors
     /// A typed refusal whose detail is one of `dose_grid.graph_not_certified`,
-    /// `dose_grid.simultaneous_band_closed`, `dose_grid.derivative_without_claim`,
+    /// `dose_grid.no_simultaneous_band_method`, `dose_grid.derivative_without_claim`,
     /// `dose_grid.level_without_claim`, `dose_grid.invalid_request`,
     /// `dose_grid.bandwidth_outside_range`, `dose_grid.unsupported_dose`,
     /// `dose_grid.insufficient_local_weight` or `dose_grid.non_finite_result`; see
     /// [`DoseGridArtifactError::refusal`].
     pub fn evaluate(request: DoseGridRequestWire) -> Result<Self, DoseGridArtifactError> {
         Ok(Self { artifact: DoseGridArtifactWire::seal(request)? })
+    }
+
+    /// Evaluate with bounded worker, memory and cancellation controls.
+    /// # Errors
+    /// As [`Self::evaluate`], including execution refusals.
+    pub fn evaluate_with_context(
+        request: DoseGridRequestWire,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, DoseGridArtifactError> {
+        Ok(Self { artifact: DoseGridArtifactWire::seal_with_context(request, ctx)? })
+    }
+
+    /// Consume with bounded worker, memory and cancellation controls.
+    /// # Errors
+    /// As [`Self::consume`], including execution refusals.
+    pub fn consume_with_context(
+        bytes: &[u8],
+        limits: DoseGridConsumeLimits,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, DoseGridArtifactError> {
+        Ok(Self { artifact: DoseGridArtifactWire::consume_typed_with_context(bytes, limits, ctx)? })
     }
 
     /// Consume an exported artifact by recomputing the local-quadratic fit from its

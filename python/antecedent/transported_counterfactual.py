@@ -31,13 +31,13 @@ A selection node on a mediator or outcome mechanism is outside the class: two mo
 on the whole source population and differ on the target contrast. When the contrast is
 sensitive to the selected mechanism the refusal retains the explicit two-model witness
 (:attr:`TransportedCounterfactualRefusal.witness`) and is
-``transport_proven_non_transportable``; otherwise it is ``cell_not_licensed`` with no witness
+``transport_proven_non_transportable``; otherwise it is ``route_not_supported`` with no witness
 (the class excludes it, no impossibility is claimed).
 
 The GENERAL class (nonparametric mechanisms, recanting witnesses, nonlinear additive noise)
 stays closed: :func:`antecedent.temporal_counterfactual.transported_path_specific` never
 evaluates. The claim here is a point under a fully specified structural fit; calibration is
-unmeasured.
+not_measured.
 """
 
 from __future__ import annotations
@@ -48,7 +48,13 @@ from dataclasses import asdict, dataclass, field
 from functools import partial
 from typing import Any
 
-from ._artifact_protocol import ExportedArtifact
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._mean_binding import bind_mean_reading
 from ._native import (
@@ -59,6 +65,7 @@ from ._native import (
 )
 from ._refusal import raise_refusal
 from ._scientific import ScientificResult
+from ._validate import nonempty_name as _name
 from ._validate import real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
@@ -79,12 +86,6 @@ __all__ = [
     "consume_transported_counterfactual_artifact",
     "transported_path_specific_effect",
 ]
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value:
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
 
 
 def _non_finite(what: str) -> CausalValueError:
@@ -435,9 +436,9 @@ class TransportedCounterfactualRefusal(StructuredRefusal):
 
     ``reason_code`` and ``remedy`` are the inherited registered fields. ``detail`` is the
     namespaced ``transported_counterfactual.*`` slot: ``nonadditive_mechanism``,
-    ``noise_law_not_shared`` and ``cross_world_independence_missing`` (``cell_not_licensed``;
+    ``noise_law_not_shared`` and ``cross_world_independence_missing`` (``route_not_supported``;
     ``offending`` names the undeclared premise), ``selection_on_mechanism``
-    (``transport_proven_non_transportable`` with ``witness`` set, or ``cell_not_licensed``
+    (``transport_proven_non_transportable`` with ``witness`` set, or ``route_not_supported``
     without one), ``overlap_failure`` (``transport_support_failure``; ``offending`` is the
     target point outside the source support), ``factor_missing``
     (``transport_missing_evidence``; ``missing_factors``), ``artifact_changed``
@@ -471,7 +472,7 @@ class TransportedPathSpecificEffect(ScientificResult):
     ``target_contrast`` is ``sum_z P_T(z) G(z)``; ``source_contrast`` is the same contrast
     under the source covariate law (what a source-only analysis would report);
     ``unit_contrasts`` holds ``G`` at every target support point in canonical point order.
-    ``inference_claim`` is ``"point_only"``: no interval, and calibration is unmeasured.
+    ``inference_claim`` is ``"point_only"``: no interval, and calibration is not_measured.
     """
 
     _mean_binding: Any = field(default=None, init=False, repr=False, compare=False)
@@ -484,15 +485,10 @@ class TransportedPathSpecificEffect(ScientificResult):
     identity: TransportedCounterfactualIdentity
     _artifact_bytes: bytes
 
-    def artifact(self) -> ExportedArtifact[TransportedPathSpecificEffect]:
-        """Bytes and producer metadata; load returns the typed consumed result."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self)
-
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[TransportedPathSpecificEffect]:
         """The checksummed ``transported_counterfactual_v1`` artifact."""
-        return self._artifact_bytes
+        return artifact_from_receipt(self, self._artifact_bytes)
 
     def __repr__(self) -> str:
         return (
@@ -535,7 +531,7 @@ class TransportedPathSpecificEffect(ScientificResult):
             "Checked: " + ("; ".join(self.derivation.checked) or "nothing") + ".",
             "Declared, not checked: " + ("; ".join(self.derivation.declared) or "nothing") + ".",
             f"Claim: {self.derivation.claim}",
-            f"Inference: {self.inference_claim} (calibration unmeasured).",
+            f"Inference: {self.inference_claim} (calibration not_measured).",
         ]
         return "\n".join(lines)
 
@@ -546,6 +542,7 @@ class TransportedPathSpecificEffect(ScientificResult):
         expected_identity: TransportedCounterfactualIdentity | Mapping[str, str] | None = None,
     ) -> TransportedPathSpecificEffect:
         """Replay an exported artifact; see :func:`consume_transported_counterfactual_artifact`."""
+        artifact = container_bytes(artifact)
         return consume_transported_counterfactual_artifact(
             artifact, expected_identity=expected_identity
         )
@@ -553,6 +550,7 @@ class TransportedPathSpecificEffect(ScientificResult):
 
 @bind_mean_reading
 def _effect(report_json: str, artifact: bytes) -> TransportedPathSpecificEffect:
+    artifact = container_bytes(artifact)
     report = json.loads(report_json)
     result = report["result"]
     derivation = result["derivation"]
@@ -656,6 +654,10 @@ def transported_path_specific_effect(
 
 
 @bind_mean_reading
+@artifact_consumer(
+    proof="transported_counterfactual.consume_transported_counterfactual_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def consume_transported_counterfactual_artifact(
     artifact: bytes,
     *,
@@ -675,6 +677,7 @@ def consume_transported_counterfactual_artifact(
     ``offending`` names the changed field). A stored result that does not replay, corruption
     and unknown major versions raise :class:`~antecedent.errors.CausalSerializationError`.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     if expected_identity is None:

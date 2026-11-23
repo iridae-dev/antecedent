@@ -7,7 +7,7 @@
 //! dependency set, the replay contract, the trust the provider claims). Its
 //! canonical identity binds both.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 
@@ -16,7 +16,7 @@ use antecedent_core::identity::{CanonicalWriter, SemanticDigest};
 use super::refusal::{
     CallbackRefusal, blank_field, duplicate_name, invalid_quantity, invalid_support,
     meaning_not_for_kind, nested_inputs_mismatch, no_operations, operation_not_for_kind,
-    replay_contract_incomplete, too_many_items, trust_incomplete, update_declaration_mismatch,
+    replay_contract_incomplete, trust_incomplete, update_declaration_mismatch,
 };
 use crate::composition_provenance::CompositionStage;
 use crate::evidence_ledger::SourceId;
@@ -30,15 +30,20 @@ use crate::{
     LawProviderContract, PosteriorProviderContract, ProviderObjectIdentity,
     ProviderVerificationReceipt, ScientificQuantity, SignalProviderContract,
 };
+use antecedent_core::named_variants;
 
 /// Version word written into every callback declaration identity. Bump only
 /// when the canonical encoding below changes.
 pub const CALLBACK_PROTOCOL_VERSION: u64 = 1;
-/// Most dependencies one declaration may list.
+// The sizes below are the defaults that decoders of untrusted callback records apply to their
+// own input. Validating a declaration is linear in its size, so the declaration itself imposes
+// no count or length bound.
+
+/// Default bound on dependencies per declaration that a decoder of untrusted input applies.
 pub const MAX_CALLBACK_DEPENDENCIES: usize = 1024;
-/// Most inputs one declaration may list.
+/// Default bound on inputs per declaration that a decoder of untrusted input applies.
 pub const MAX_CALLBACK_INPUTS: usize = 256;
-/// Longest identity or name, in bytes.
+/// Default bound on an identity or name, in bytes, that a decoder of untrusted input applies.
 pub const MAX_CALLBACK_TEXT_BYTES: usize = MAX_INTERFACE_TEXT_BYTES;
 /// The component name's single produced port.
 pub const CALLBACK_OUTPUT_PORT: &str = "output";
@@ -56,26 +61,15 @@ pub enum CallbackKind {
     Nested,
 }
 
+named_variants! {
+    CallbackKind {
+        Law => "law",
+        Posterior => "posterior",
+        Nested => "nested",
+    }
+}
+
 impl CallbackKind {
-    /// Every kind.
-    pub const ALL: [Self; 3] = [Self::Law, Self::Posterior, Self::Nested];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Law => "law",
-            Self::Posterior => "posterior",
-            Self::Nested => "nested",
-        }
-    }
-
-    /// Parse the name written by [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
-    }
-
     const fn tag(self) -> u64 {
         match self {
             Self::Law => 1,
@@ -102,29 +96,17 @@ pub enum CallbackOperation {
     PosteriorUpdate,
 }
 
+named_variants! {
+    CallbackOperation {
+        Mean => "mean",
+        Sample => "sample",
+        Cdf => "cdf",
+        Quantile => "quantile",
+        PosteriorUpdate => "posterior_update",
+    }
+}
+
 impl CallbackOperation {
-    /// Every operation, in canonical order.
-    pub const ALL: [Self; 5] =
-        [Self::Mean, Self::Sample, Self::Cdf, Self::Quantile, Self::PosteriorUpdate];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Mean => "mean",
-            Self::Sample => "sample",
-            Self::Cdf => "cdf",
-            Self::Quantile => "quantile",
-            Self::PosteriorUpdate => "posterior_update",
-        }
-    }
-
-    /// Parse the name written by [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|operation| operation.as_str() == name)
-    }
-
     /// The provider capability the operation is.
     #[must_use]
     pub const fn capability(self) -> ExternalCapability {
@@ -178,36 +160,18 @@ pub enum DependencyKind {
     ClosureState,
 }
 
+named_variants! {
+    DependencyKind {
+        Data => "data",
+        Model => "model",
+        Environment => "environment",
+        File => "file",
+        RemoteService => "remote_service",
+        ClosureState => "closure_state",
+    }
+}
+
 impl DependencyKind {
-    /// Every kind.
-    pub const ALL: [Self; 6] = [
-        Self::Data,
-        Self::Model,
-        Self::Environment,
-        Self::File,
-        Self::RemoteService,
-        Self::ClosureState,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Data => "data",
-            Self::Model => "model",
-            Self::Environment => "environment",
-            Self::File => "file",
-            Self::RemoteService => "remote_service",
-            Self::ClosureState => "closure_state",
-        }
-    }
-
-    /// Parse the name written by [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
-    }
-
     const fn tag(self) -> u64 {
         match self {
             Self::Data => 1,
@@ -435,11 +399,7 @@ pub struct CallbackDeclaration {
 }
 
 fn check_text(field: &str, text: &str) -> Result<(), CallbackRefusal> {
-    if text.trim().is_empty() || text.len() > MAX_CALLBACK_TEXT_BYTES {
-        Err(blank_field(field))
-    } else {
-        Ok(())
-    }
+    if text.trim().is_empty() { Err(blank_field(field)) } else { Ok(()) }
 }
 
 impl CallbackDeclaration {
@@ -456,21 +416,14 @@ impl CallbackDeclaration {
         match &self.trust {
             CallbackTrust::Unverified => {}
             CallbackTrust::ExternallyAttested { attestor } => {
-                if attestor.trim().is_empty() || attestor.len() > MAX_CALLBACK_TEXT_BYTES {
+                if attestor.trim().is_empty() {
                     return Err(trust_incomplete());
                 }
             }
             CallbackTrust::ExactRequestVerified { receipt_digest } => {
-                if receipt_digest.trim().is_empty()
-                    || receipt_digest.len() > MAX_CALLBACK_TEXT_BYTES
-                {
+                if receipt_digest.trim().is_empty() {
                     return Err(trust_incomplete());
                 }
-            }
-        }
-        if let EvidenceBasis::Declared(sources) = &self.evidence {
-            if sources.len() > MAX_CALLBACK_DEPENDENCIES {
-                return Err(too_many_items("evidence"));
             }
         }
         // The projection is part of the declaration: it must be a valid
@@ -552,9 +505,6 @@ impl CallbackDeclaration {
     }
 
     fn validate_inputs(&self) -> Result<(), CallbackRefusal> {
-        if self.inputs.len() > MAX_CALLBACK_INPUTS {
-            return Err(too_many_items("inputs"));
-        }
         let mut names = BTreeSet::new();
         let mut from_callbacks = 0usize;
         for input in &self.inputs {
@@ -572,14 +522,9 @@ impl CallbackDeclaration {
             {
                 return Err(meaning_not_for_kind(&input.name, "input"));
             }
-            if let InputSupplier::Callback { identity, evidence } = &input.supplier {
+            if let InputSupplier::Callback { identity, .. } = &input.supplier {
                 from_callbacks += 1;
                 check_text("input.callback_identity", identity)?;
-                if let EvidenceBasis::Declared(sources) = evidence {
-                    if sources.len() > MAX_CALLBACK_DEPENDENCIES {
-                        return Err(too_many_items("input.evidence"));
-                    }
-                }
             }
         }
         match (self.kind == CallbackKind::Nested, from_callbacks > 0) {
@@ -590,9 +535,6 @@ impl CallbackDeclaration {
 
     fn validate_dependencies_and_replay(&self) -> Result<(), CallbackRefusal> {
         if let DependencyDeclaration::Complete(dependencies) = &self.dependencies {
-            if dependencies.len() > MAX_CALLBACK_DEPENDENCIES {
-                return Err(too_many_items("dependencies"));
-            }
             let mut seen = BTreeSet::new();
             for dependency in dependencies {
                 check_text("dependency.name", &dependency.name)?;
@@ -604,16 +546,14 @@ impl CallbackDeclaration {
         }
         match &self.replay {
             ReplayContract::SeededStochastic { stream_id } => {
-                if stream_id.trim().is_empty() || stream_id.len() > MAX_CALLBACK_TEXT_BYTES {
+                if stream_id.trim().is_empty() {
                     return Err(replay_contract_incomplete("stream_id"));
                 }
             }
             ReplayContract::SideEffecting {
                 retry: RetryContract::IdempotentKey { max_attempts },
-            } => {
-                if *max_attempts == 0 {
-                    return Err(replay_contract_incomplete("max_attempts"));
-                }
+            } if *max_attempts == 0 => {
+                return Err(replay_contract_incomplete("max_attempts"));
             }
             _ => {}
         }
@@ -651,7 +591,7 @@ impl CallbackDeclaration {
     /// consumed port per input.
     ///
     /// The produced port is point-only when only a mean is offered and
-    /// unmeasured otherwise; it is never measured, so no interval or posterior
+    /// `not_measured` otherwise; it is never measured, so no interval or posterior
     /// guarantee is carried.
     #[must_use]
     pub fn interface_contract(&self) -> InterfaceContract {
@@ -669,7 +609,7 @@ impl CallbackDeclaration {
         if carries {
             produced = produced
                 .with_uncertainty(self.meaning)
-                .with_calibration(CalibrationStatus::Unmeasured);
+                .with_calibration(CalibrationStatus::NotMeasured);
         } else {
             produced = produced.with_calibration(CalibrationStatus::PointOnly);
         }

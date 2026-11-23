@@ -88,9 +88,13 @@
 //! ([`SequenceKind::MixtureHoeffding`], arms at `alpha / (2 (K - 1))`) keep
 //! that construction when they are replayed. The sequence is a finite-time
 //! theorem under its premise; it is not a measured coverage of the whole
-//! procedure, and every number carries [`DERIVED_UNMEASURED`].
+//! procedure, and every number carries [`DERIVED_NOT_MEASURED`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+mod borrowing;
+
+pub use borrowing::{ArmBorrowing, PriorDataConflict};
 
 use std::collections::VecDeque;
 
@@ -99,7 +103,7 @@ use antecedent_core::{CanonicalWriter, CausalRng};
 use super::AdaptiveInferenceError as Error;
 use super::capacity::{CapacityError, ResourceBudget, ResourceReceipt, SimulationShape};
 use super::confidence_sequence::{SequenceKind, SequenceState};
-use super::historical_prior::{BorrowingPlan, HistoricalPrior, ResolvedArmPrior};
+use super::historical_prior::{BorrowingPlan, ResolvedArmPrior};
 use super::participant_posterior::{
     ArmEvidence, CorrelationModel, CorrelationPrior, ExactPosterior, PosteriorRequest,
     exact_posterior,
@@ -107,13 +111,23 @@ use super::participant_posterior::{
 use super::procedure_contract::{
     ContractGap, MAX_PROCEDURE_ARMS, MAX_PROCEDURE_UNITS, ProcedureContractError,
 };
-use super::procedure_law::{apply_exploration_floor, first_maximum, normalize_probabilities};
+use super::procedure_law::{
+    apply_exploration_floor, first_maximum, first_maximum_within_tolerance, normalize_probabilities,
+};
 use super::procedure_repeated_measures::{CellLabel, MAX_UNIT_LAG};
 use super::procedure_simulation::{MAX_SIMULATION_REPLICATIONS, draw};
-use super::procedure_uncertainty::DERIVED_UNMEASURED;
+use super::procedure_uncertainty::DERIVED_NOT_MEASURED;
+use antecedent_core::named_variants;
 
 /// Most binary responses per participant.
 pub const MAX_PARTICIPANT_RESPONSES: u32 = 32;
+/// Width of the band around a decision threshold inside which a posterior
+/// quantity is read as equal to the threshold. The participant posterior is a
+/// quadrature in the logit of the arm mean accurate to about `1e-10` (the
+/// bound its own check, [`ExactPosterior::probability_error`], reads), and at
+/// small counts its quantities are rational numbers that land exactly on round
+/// thresholds, so a comparison inside the band would be decided by rounding.
+const THRESHOLD_BAND: f64 = 1e-9;
 /// Most looks of one participant procedure.
 pub const MAX_PARTICIPANT_LOOKS: usize = 64;
 
@@ -248,12 +262,16 @@ impl ParticipantSpec {
         let mut gaps = Vec::new();
         let arms = declaration.arms;
         if !(2..=MAX_PROCEDURE_ARMS).contains(&arms) {
-            gaps.push(ContractGap::Invalid("adaptive_inference.arms_invalid"));
+            gaps.push(ContractGap::Invalid(
+                antecedent_core::reason_details::adaptive_inference::ARMS_INVALID,
+            ));
         }
         match declaration.responses {
             None => gaps.push(ContractGap::OutcomeStructureMissing),
             Some(m) if !(2..=MAX_PARTICIPANT_RESPONSES).contains(&m) => {
-                gaps.push(ContractGap::Invalid("adaptive_inference.measurements_invalid"));
+                gaps.push(ContractGap::Invalid(
+                    antecedent_core::reason_details::adaptive_inference::MEASUREMENTS_INVALID,
+                ));
             }
             Some(_) => {}
         }
@@ -267,7 +285,9 @@ impl ParticipantSpec {
             }
             (None, Some(prior)) if prior.is_valid() => Some(CorrelationModel::Estimated(prior)),
             _ => {
-                gaps.push(ContractGap::Invalid("adaptive_inference.correlation_invalid"));
+                gaps.push(ContractGap::Invalid(
+                    antecedent_core::reason_details::adaptive_inference::CORRELATION_INVALID,
+                ));
                 None
             }
         };
@@ -279,7 +299,7 @@ impl ParticipantSpec {
             Some(plan) => {
                 let resolved = plan.resolve().filter(|r| r.len() == arms);
                 if resolved.is_none() {
-                    gaps.push(ContractGap::Invalid("adaptive_inference.historical_prior_invalid"));
+                    gaps.push(ContractGap::Invalid(antecedent_core::reason_details::adaptive_inference::HISTORICAL_PRIOR_INVALID));
                 }
                 resolved
             }
@@ -290,7 +310,9 @@ impl ParticipantSpec {
             Some(schedule) => {
                 total = schedule.iter().map(|&n| u64::from(n)).sum();
                 if schedule.len() < 2 || schedule.contains(&0) {
-                    gaps.push(ContractGap::Invalid("adaptive_inference.looks_not_ordered"));
+                    gaps.push(ContractGap::Invalid(
+                        antecedent_core::reason_details::adaptive_inference::LOOKS_NOT_ORDERED,
+                    ));
                 }
                 if schedule.len() > MAX_PARTICIPANT_LOOKS {
                     gaps.push(ContractGap::Capacity(CapacityError::DeclaredLooks {
@@ -307,13 +329,17 @@ impl ParticipantSpec {
             }
         }
         if declaration.lag_looks > MAX_UNIT_LAG {
-            gaps.push(ContractGap::Invalid("adaptive_inference.outcome_availability_invalid"));
+            gaps.push(ContractGap::Invalid(
+                antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_INVALID,
+            ));
         }
         match declaration.min_exploration {
             None => gaps.push(ContractGap::AssignmentPolicyMissing),
             Some(floor) => {
                 if !(floor.is_finite() && floor > 0.0 && floor <= 1.0 / arms as f64) {
-                    gaps.push(ContractGap::Invalid("adaptive_inference.rule_mismatch"));
+                    gaps.push(ContractGap::Invalid(
+                        antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
+                    ));
                 }
             }
         }
@@ -331,7 +357,9 @@ impl ParticipantSpec {
                     rules.participant_cap.is_none_or(|cap| cap > 0 && u64::from(cap) <= total);
                 let loss_ok = rules.loss_threshold.is_finite() && rules.loss_threshold > 0.0;
                 if !(loss_ok && futility_ok && cap_ok) {
-                    gaps.push(ContractGap::Invalid("adaptive_inference.rule_mismatch"));
+                    gaps.push(ContractGap::Invalid(
+                        antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
+                    ));
                 }
             }
         }
@@ -342,7 +370,7 @@ impl ParticipantSpec {
                     && settings.tuning_samples.is_finite()
                     && settings.tuning_samples > 0.0)
                 {
-                    gaps.push(ContractGap::Invalid("adaptive_inference.anytime_settings_invalid"));
+                    gaps.push(ContractGap::Invalid(antecedent_core::reason_details::adaptive_inference::ANYTIME_SETTINGS_INVALID));
                 }
             }
         }
@@ -610,7 +638,7 @@ impl ParticipantSpec {
     /// the prior. `looks_performed` is the number of looks already made.
     ///
     /// # Errors
-    /// [`Error::PremiseFailed`] with `adaptive_inference.borrowing_frozen`
+    /// [`Error::PremiseFailed`] with `adaptive_inference.borrowing_fixed_after_first_look`
     /// when a different plan is proposed after the first look; an invalid
     /// proposal.
     pub fn amend_borrowing(
@@ -623,7 +651,7 @@ impl ParticipantSpec {
         }
         if looks_performed > 0 {
             return Err(Error::PremiseFailed {
-                detail: "adaptive_inference.borrowing_frozen",
+                detail: antecedent_core::reason_details::adaptive_inference::BORROWING_FIXED_AFTER_FIRST_LOOK,
                 message: "historical borrowing is part of the declared procedure and is frozen before recruitment; a change after the first look would let the data choose the prior",
             });
         }
@@ -668,7 +696,9 @@ pub fn beta_binomial_pmf(responses: u32, mean: f64, correlation: f64) -> Vec<f64
         }
     }
     let total: f64 = pmf.iter().sum();
-    pmf.iter_mut().for_each(|p| *p /= total);
+    for p in &mut pmf {
+        *p /= total;
+    }
     pmf
 }
 
@@ -687,26 +717,16 @@ pub enum StopReason {
     Horizon,
 }
 
+named_variants! {
+    StopReason {
+        ExpectedLoss => "expected_loss",
+        Futility => "futility",
+        RecruitmentCap => "recruitment_cap",
+        Horizon => "horizon",
+    }
+}
+
 impl StopReason {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::ExpectedLoss => "expected_loss",
-            Self::Futility => "futility",
-            Self::RecruitmentCap => "recruitment_cap",
-            Self::Horizon => "horizon",
-        }
-    }
-
-    /// Parse a wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::ExpectedLoss, Self::Futility, Self::RecruitmentCap, Self::Horizon]
-            .into_iter()
-            .find(|reason| reason.as_str() == name)
-    }
-
     /// Whether a declared decision, rather than the schedule, ended the
     /// procedure.
     #[must_use]
@@ -786,7 +806,7 @@ pub struct ComparisonReading {
 pub struct FrequentistClaim {
     /// Always `anytime_valid_frequentist`.
     pub paradigm: &'static str,
-    /// Always `derived_unmeasured`.
+    /// Always `derived_not_measured`.
     pub calibration: &'static str,
     /// Label of the sequence construction ([`SequenceKind::label`]).
     pub sequence: &'static str,
@@ -922,6 +942,58 @@ struct Walk {
     completed: u32,
 }
 
+/// One private look before public interval publication. Empty confidence
+/// intersections remain observable to coverage simulations without constructing
+/// an invalid public interval or interrupting posterior allocation/stopping.
+struct LookSnapshot<'a> {
+    look: usize,
+    enrolled: u32,
+    tallies: &'a [Tally],
+    sequences: &'a [SequenceState],
+    view: &'a View,
+    row: &'a [f64],
+    decision: LookDecision,
+}
+
+struct CoverageReading {
+    decision: LookDecision,
+    best_treatment: usize,
+    covered: bool,
+    contrast_covered: bool,
+}
+
+impl LookSnapshot<'_> {
+    fn reading(&self, spec: &ParticipantSpec) -> Result<LookReading, Error> {
+        spec.reading(
+            self.look,
+            self.enrolled,
+            self.tallies,
+            self.sequences,
+            self.view,
+            self.row.to_vec(),
+            self.decision,
+        )
+    }
+
+    fn coverage(&self, truth: &[f64]) -> CoverageReading {
+        let intervals: Vec<_> =
+            self.sequences.iter().map(SequenceState::reading_for_coverage).collect();
+        let covered = intervals.iter().zip(truth).all(|(interval, &truth)| {
+            interval.is_some_and(|interval| interval.lower <= truth && truth <= interval.upper)
+        });
+        let best_treatment = 1 + first_maximum(&self.view.means()[1..]);
+        let contrast_covered = match (intervals[0], intervals[best_treatment]) {
+            (Some(control), Some(treatment)) => {
+                let difference = truth[best_treatment] - truth[0];
+                treatment.lower - control.upper <= difference
+                    && difference <= treatment.upper - control.lower
+            }
+            _ => false,
+        };
+        CoverageReading { decision: self.decision, best_treatment, covered, contrast_covered }
+    }
+}
+
 impl ParticipantSpec {
     fn exact(
         &self,
@@ -982,14 +1054,14 @@ impl ParticipantSpec {
     fn fired(&self, view: &View, enrolled: u32) -> Option<(StopReason, usize)> {
         let losses = &view.exact.expected_loss;
         let negated: Vec<f64> = losses.iter().map(|l| -l).collect();
-        let cheapest = first_maximum(&negated);
-        if losses[cheapest] < self.decisions.loss_threshold {
+        let cheapest = first_maximum_within_tolerance(&negated, THRESHOLD_BAND);
+        if losses[cheapest] < self.decisions.loss_threshold - THRESHOLD_BAND {
             return Some((StopReason::ExpectedLoss, cheapest));
         }
-        if let Some(rule) = self.decisions.futility {
-            if view.exact.exceedance.iter().all(|&p| p < rule.threshold) {
-                return Some((StopReason::Futility, 0));
-            }
+        if let Some(rule) = self.decisions.futility
+            && view.exact.exceedance.iter().all(|&p| p < rule.threshold - THRESHOLD_BAND)
+        {
+            return Some((StopReason::Futility, 0));
         }
         if self.decisions.participant_cap.is_some_and(|cap| enrolled >= cap) {
             return Some((StopReason::RecruitmentCap, first_maximum(view.means())));
@@ -1046,7 +1118,7 @@ impl ParticipantSpec {
         let best_treatment_comparison = comparisons[best_treatment - 1];
         let frequentist = FrequentistClaim {
             paradigm: "anytime_valid_frequentist",
-            calibration: DERIVED_UNMEASURED,
+            calibration: DERIVED_NOT_MEASURED,
             sequence: self.sequence.label(),
             alpha: self.anytime.alpha,
             alpha_per_comparison: 2.0 * self.alpha_per_arm(),
@@ -1075,7 +1147,7 @@ impl ParticipantSpec {
         source: &mut dyn Enrolment,
         detail: Detail,
         cancelled: &dyn Fn() -> bool,
-        observer: &mut dyn FnMut(&LookReading) -> Result<(), Error>,
+        observer: &mut dyn FnMut(&LookSnapshot<'_>) -> Result<(), Error>,
     ) -> Result<Walk, Error> {
         let arms = self.arms();
         let looks = self.enrolment.len();
@@ -1101,13 +1173,13 @@ impl ParticipantSpec {
             let batch = source.batch(look, size, &row)?;
             enrolled += size;
             pending.push_back(batch);
-            if pending.len() > self.declaration.lag_looks {
-                if let Some(completed) = pending.pop_front() {
-                    for participant in completed {
-                        tallies[participant.arm].record(participant.successes);
-                        sequences[participant.arm]
-                            .push(f64::from(participant.successes) / f64::from(self.responses))?;
-                    }
+            if pending.len() > self.declaration.lag_looks
+                && let Some(completed) = pending.pop_front()
+            {
+                for participant in completed {
+                    tallies[participant.arm].record(participant.successes);
+                    sequences[participant.arm]
+                        .push(f64::from(participant.successes) / f64::from(self.responses))?;
                 }
             }
             view = self.view(&tallies, detail, cancelled)?;
@@ -1119,9 +1191,15 @@ impl ParticipantSpec {
                 },
                 None => LookDecision::Continue,
             };
-            let reading =
-                self.reading(look, enrolled, &tallies, &sequences, &view, row, decision)?;
-            observer(&reading)?;
+            observer(&LookSnapshot {
+                look,
+                enrolled,
+                tallies: &tallies,
+                sequences: &sequences,
+                view: &view,
+                row: &row,
+                decision,
+            })?;
             if matches!(decision, LookDecision::Stop { .. }) {
                 let completed = tallies.iter().map(completed_count).sum();
                 return Ok(Walk { looks_run: look + 1, enrolled, completed });
@@ -1299,10 +1377,6 @@ fn success_pmfs(
     Ok(truth.iter().map(|&mean| beta_binomial_pmf(spec.responses(), mean, correlation)).collect())
 }
 
-fn covers(arm: &ArmReading, truth: f64) -> bool {
-    arm.lower <= truth && truth <= arm.upper
-}
-
 /// Run the declared procedure `request.replications` times under the arm
 /// means `truth`, within the library work and memory bounds.
 ///
@@ -1375,11 +1449,11 @@ pub fn simulate_participant_procedure_within(
             pmfs: &pmfs,
         };
         let mut covered_every_look = true;
-        let mut last: Option<LookReading> = None;
-        let walk = spec.walk(&mut source, Detail::Lean, cancelled, &mut |reading| {
-            covered_every_look &=
-                reading.frequentist.arms.iter().zip(truth).all(|(arm, &t)| covers(arm, t));
-            last = Some(reading.clone());
+        let mut last: Option<CoverageReading> = None;
+        let walk = spec.walk(&mut source, Detail::Lean, cancelled, &mut |snapshot| {
+            let reading = snapshot.coverage(truth);
+            covered_every_look &= reading.covered;
+            last = Some(reading);
             Ok(())
         })?;
         let Some(reading) = last else {
@@ -1388,11 +1462,8 @@ pub fn simulate_participant_procedure_within(
         let LookDecision::Stop { reason, arm } = reading.decision else {
             return Err(Error::Numerical("a replicate ended without a decision"));
         };
-        let covered_at_stop =
-            reading.frequentist.arms.iter().zip(truth).all(|(a, &t)| covers(a, t));
-        let best = reading.frequentist.best_treatment;
-        let comparison = reading.frequentist.best_treatment_comparison;
-        let difference = truth[best] - truth[0];
+        let covered_at_stop = reading.covered;
+        let best = reading.best_treatment;
         replicates.push(ParticipantReplicate {
             look: walk.looks_run - 1,
             reason,
@@ -1402,8 +1473,7 @@ pub fn simulate_participant_procedure_within(
             best_treatment: best,
             covered_every_look,
             covered_at_stop,
-            contrast_covered_at_stop: comparison.lower <= difference
-                && difference <= comparison.upper,
+            contrast_covered_at_stop: reading.contrast_covered,
         });
         receipt
             .record_replicate(walk.looks_run, walk.enrolled, spec.work_per_participant(), states)
@@ -1475,7 +1545,9 @@ pub fn simulate_participant_history(
         successes: Vec::new(),
         assignment: Vec::new(),
     };
-    let walk = spec.walk(&mut source, Detail::Lean, cancelled, &mut |_| Ok(()))?;
+    let walk = spec.walk(&mut source, Detail::Lean, cancelled, &mut |snapshot| {
+        snapshot.reading(spec).map(|_| ())
+    })?;
     Ok(source.into_history(spec, walk.looks_run))
 }
 
@@ -1568,9 +1640,9 @@ pub fn run_participant_procedure_within(
     let outcome = if cancelled() {
         Err(Error::Cancelled)
     } else {
-        spec.walk(&mut source, Detail::Lean, &uninterrupted, &mut |reading| {
-            readings.push(reading.clone());
-            if matches!(reading.decision, LookDecision::Continue) && cancelled() {
+        spec.walk(&mut source, Detail::Lean, &uninterrupted, &mut |snapshot| {
+            readings.push(snapshot.reading(spec)?);
+            if matches!(snapshot.decision, LookDecision::Continue) && cancelled() {
                 return Err(Error::Cancelled);
             }
             Ok(())
@@ -1606,7 +1678,7 @@ impl Enrolment for Replayed<'_> {
     fn batch(&mut self, look: usize, size: u32, row: &[f64]) -> Result<Vec<Participant>, Error> {
         if look >= self.history.batches.len() {
             return Err(Error::PremiseFailed {
-                detail: "adaptive_inference.stopping_not_replayed",
+                detail: antecedent_core::reason_details::adaptive_inference::STOPPING_NOT_REPLAYED,
                 message: "the retained history ends at a look where the declared decisions do not stop the procedure",
             });
         }
@@ -1618,7 +1690,8 @@ impl Enrolment for Replayed<'_> {
                 || recorded.iter().zip(row).any(|(a, b)| (a - b).abs() > REPLAY_TOLERANCE)
             {
                 return Err(Error::PremiseFailed {
-                    detail: "adaptive_inference.assignment_not_replayed",
+                    detail:
+                        antecedent_core::reason_details::adaptive_inference::ASSIGNMENT_NOT_REPLAYED,
                     message: "the retained assignment probabilities are not the declared policy's allocation from the completed participants and the declared priors",
                 });
             }
@@ -1700,20 +1773,20 @@ impl ParticipantSpec {
             }
             if incomplete > 0 {
                 return Err(Error::PremiseFailed {
-                    detail: "adaptive_inference.batch_incomplete",
+                    detail: antecedent_core::reason_details::adaptive_inference::BATCH_INCOMPLETE,
                     message: "a batch whose follow-up delay has elapsed holds participants without complete responses; decisions are taken only on batches of completed participants, never on a partial batch",
                 });
             }
         }
         let mut readings = Vec::with_capacity(performed);
         let mut source = Replayed { history, cursor: 0 };
-        let walk = self.walk(&mut source, Detail::Full, cancelled, &mut |reading| {
-            readings.push(reading.clone());
+        let walk = self.walk(&mut source, Detail::Full, cancelled, &mut |snapshot| {
+            readings.push(snapshot.reading(self)?);
             Ok(())
         })?;
         if walk.looks_run != performed {
             return Err(Error::PremiseFailed {
-                detail: "adaptive_inference.stopping_not_replayed",
+                detail: antecedent_core::reason_details::adaptive_inference::STOPPING_NOT_REPLAYED,
                 message: "the procedure continued past a look at which the declared decisions stop it",
             });
         }
@@ -1721,121 +1794,71 @@ impl ParticipantSpec {
     }
 }
 
-// -- Borrowing receipt ----------------------------------------------------------------------------
+#[cfg(test)]
+mod empty_sequence_regression_tests {
+    use super::*;
+    use crate::adaptive_inference::BetaPrior;
 
-/// What one arm borrowed from its historical sources, and whether the current
-/// data of the arm agree with what it borrowed.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ArmBorrowing {
-    /// The arm (0 is the control).
-    pub arm: usize,
-    /// Every historical source with its counts and its discount.
-    pub sources: Vec<HistoricalPrior>,
-    /// Historical responses the discounts are worth: the sum over the sources
-    /// of their trials times their discounts.
-    pub effective_historical_sample_size: f64,
-    /// The effective sample size `alpha + beta` of the resolved prior, the
-    /// declared initial prior included.
-    pub prior_effective_sample_size: f64,
-    /// Participants of the arm whose responses had completed.
-    pub current_participants: u64,
-    /// The prior-data conflict diagnostic; `None` for an arm that borrowed
-    /// nothing or has no completed participant.
-    pub conflict: Option<PriorDataConflict>,
-}
+    struct TailTrajectory;
 
-/// Agreement between the resolved (borrowed) prior of an arm and its current
-/// data, read from the exact posteriors of the two.
-///
-/// The current-data posterior is the arm mean under the declared initial prior
-/// and the participant-aware likelihood of the completed participants alone;
-/// the borrowed prior is the arm's resolved Beta prior. Both are independent
-/// distributions of the arm mean, so `current_exceeds_prior` is the exact
-/// probability that a draw of the former exceeds a draw of the latter. It is a
-/// diagnostic of how far the borrowed information sits from the new data, not a
-/// test with an error rate.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PriorDataConflict {
-    /// Probability that the arm mean drawn from the current-data posterior
-    /// exceeds the one drawn from the borrowed prior.
-    pub current_exceeds_prior: f64,
-    /// `2 min(p, 1 - p)` of that probability: near zero when the current data
-    /// sit entirely on one side of what was borrowed, one when they agree.
-    pub agreement: f64,
-}
-
-impl ParticipantSpec {
-    /// The borrowing receipt of a retained history: per arm, every source with
-    /// its discount, the effective historical sample size, and the prior-data
-    /// conflict between the borrowed prior and the participants whose
-    /// responses had completed.
-    ///
-    /// # Errors
-    /// A history that disagrees with the declaration in shape or counts, a
-    /// posterior the quadrature cannot resolve, or cancellation.
-    pub fn borrowing_receipt(
-        &self,
-        history: &ParticipantHistory,
-        cancelled: &dyn Fn() -> bool,
-    ) -> Result<Vec<ArmBorrowing>, Error> {
-        let mut counts = vec![vec![0_u64; self.responses as usize + 1]; self.arms()];
-        for (&arm, success) in history.arms.iter().zip(&history.successes) {
-            let Some(successes) = *success else { continue };
-            if arm >= self.arms() || successes > self.responses {
-                return Err(Error::Shape(
-                    "a participant's arm or success count is outside the declaration",
-                ));
-            }
-            counts[arm][successes as usize] += 1;
-        }
-        let mut receipt = Vec::with_capacity(self.arms());
-        for (arm, ((resolved, declared), histogram)) in
-            self.priors.iter().zip(&self.borrowing.arms).zip(&counts).enumerate()
-        {
-            let current_participants: u64 = histogram.iter().sum();
-            let conflict = if resolved.sources.is_empty() || current_participants == 0 {
-                None
-            } else {
-                let silent = vec![0_u64; histogram.len()];
-                let pair = [
-                    ArmEvidence {
-                        prior_alpha: resolved.prior.alpha,
-                        prior_beta: resolved.prior.beta,
-                        counts: &silent,
-                    },
-                    ArmEvidence {
-                        prior_alpha: declared.initial.alpha,
-                        prior_beta: declared.initial.beta,
-                        counts: histogram,
-                    },
-                ];
-                let posterior = exact_posterior(
-                    &PosteriorRequest {
-                        responses: self.responses,
-                        correlation: self.correlation,
-                        arms: &pair,
-                        exceedance_margin: Some(0.0),
-                    },
-                    cancelled,
-                )?;
-                let exceeds = *posterior
-                    .exceedance
-                    .first()
-                    .ok_or(Error::Numerical("the conflict comparison returned no exceedance"))?;
-                Some(PriorDataConflict {
-                    current_exceeds_prior: exceeds,
-                    agreement: 2.0 * exceeds.min(1.0 - exceeds),
+    impl Enrolment for TailTrajectory {
+        fn batch(&mut self, look: usize, size: u32, _: &[f64]) -> Result<Vec<Participant>, Error> {
+            Ok((0..size)
+                .map(|i| Participant {
+                    arm: i as usize % 2,
+                    successes: if look == 0 { 0 } else { 2 },
                 })
-            };
-            receipt.push(ArmBorrowing {
-                arm,
-                sources: resolved.sources.clone(),
-                effective_historical_sample_size: resolved.borrowed_sample_size,
-                prior_effective_sample_size: resolved.effective_sample_size,
-                current_participants,
-                conflict,
-            });
+                .collect())
         }
-        Ok(receipt)
+    }
+
+    #[test]
+    fn coverage_walk_finishes_after_an_empty_sequence_and_scores_contrast_misses() {
+        // Each arm sees 200 zero proportions, then 200 ones, then 200 ones.
+        // This path has positive probability under the declared independent
+        // Bernoulli(1/2) responses and positive allocation probabilities.
+        let spec = ParticipantSpec::new(ParticipantDeclaration {
+            arms: 2,
+            responses: Some(2),
+            correlation: Some(0.0),
+            correlation_prior: None,
+            borrowing: Some(BorrowingPlan::uniform(2, BetaPrior::UNIFORM)),
+            enrolment: Some(vec![400; 3]),
+            lag_looks: 0,
+            min_exploration: Some(0.1),
+            decisions: Some(DecisionRules {
+                loss_threshold: 1e-12,
+                futility: None,
+                participant_cap: None,
+            }),
+            anytime: Some(AnytimeSettings { alpha: 0.05, tuning_samples: 100.0 }),
+        })
+        .unwrap();
+        let mut looks = 0;
+        let mut empty_looks = 0;
+        let mut final_coverage = None;
+        let walk = spec
+            .walk(&mut TailTrajectory, Detail::Lean, &|| false, &mut |snapshot| {
+                looks += 1;
+                let coverage = snapshot.coverage(&[0.5, 0.5]);
+                if snapshot.sequences.iter().any(|s| s.reading_for_coverage().is_none()) {
+                    empty_looks += 1;
+                    assert!(!coverage.covered);
+                    assert!(!coverage.contrast_covered);
+                    assert!(snapshot.reading(&spec).is_err(), "public intervals still refuse");
+                }
+                final_coverage = Some(coverage);
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(walk.looks_run, 3);
+        assert_eq!(looks, 3);
+        assert_eq!(empty_looks, 2);
+        let coverage = final_coverage.unwrap();
+        assert!(!coverage.covered && !coverage.contrast_covered);
+        assert!(matches!(
+            coverage.decision,
+            LookDecision::Stop { reason: StopReason::Horizon, .. }
+        ));
     }
 }

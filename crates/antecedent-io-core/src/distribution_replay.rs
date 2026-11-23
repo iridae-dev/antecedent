@@ -1,6 +1,6 @@
 //! Detached finite-discrete replay for checked functional artifacts.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{RegimeId, Value, VariableId};
 use antecedent_expr::{
@@ -18,27 +18,55 @@ use crate::{
 /// Wire format version of the portable factor laws.
 pub const FACTOR_LAWS_FORMAT: u16 = 1;
 const MASS_TOLERANCE: f64 = 1e-9;
-const MAX_REPLAY_CELLS: usize = 1_000_000;
-const MAX_REPLAY_OPERATIONS: usize = 50_000_000;
+/// Default most table cells (domain levels plus factor entries) a replay admits.
+pub const MAX_REPLAY_CELLS: usize = 1_000_000;
+/// Default most evaluator operations (support cells times program nodes) a replay performs.
+pub const MAX_REPLAY_OPERATIONS: usize = 50_000_000;
 
-/// Recompute every finite-discrete distribution atom from its checked program and portable
-/// factor laws. Returns a stable dependency/error key suitable for a refusal report.
-#[allow(
-    clippy::too_many_lines,
-    reason = "The bounded joint atom enumeration and its validation must share one replay context."
-)]
-pub(crate) fn replay_distribution_atoms(
-    query: &CausalQueryWire,
+/// Resource bounds of the detached finite-discrete replay of a checked functional artifact.
+/// The defaults are [`MAX_REPLAY_CELLS`] and [`MAX_REPLAY_OPERATIONS`]; a consumer with a
+/// larger budget passes its own to [`crate::contract_section::verify_contract_against_body_within`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ReplayLimits {
+    /// Most table cells a replay admits.
+    pub max_cells: usize,
+    /// Most evaluator operations a replay performs.
+    pub max_operations: usize,
+}
+
+impl Default for ReplayLimits {
+    fn default() -> Self {
+        Self { max_cells: MAX_REPLAY_CELLS, max_operations: MAX_REPLAY_OPERATIONS }
+    }
+}
+
+/// Work one replay was admitted for, so a caller that replays several members under one
+/// [`ReplayLimits`] can charge each against what the earlier ones left.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct ReplayCharge {
+    /// Table cells the replay admitted.
+    pub cells: usize,
+    /// Evaluator and scan operations the replay was bounded by.
+    pub operations: usize,
+}
+
+impl ReplayLimits {
+    /// The limits left after `spent` has been charged; a spent budget leaves zero.
+    pub(crate) fn remaining_after(&self, spent: ReplayCharge) -> Self {
+        Self {
+            max_cells: self.max_cells.saturating_sub(spent.cells),
+            max_operations: self.max_operations.saturating_sub(spent.operations),
+        }
+    }
+}
+
+fn prepare_distribution_replay(
+    query: &crate::InterventionalDistributionQueryWire,
     result: &InterventionalDistributionWire,
     program_wire: &FunctionalProgramWire,
     laws: &DistributionFactorLawsWire,
-) -> Result<(), ContractReason> {
-    let CausalQueryWire::Distribution(query) = query else {
-        return Err(ContractReason::DistributionQueryKind);
-    };
-    if !matches!(query.target_population, crate::TargetPopulationWire::AllObserved) {
-        return Err(ContractReason::DistributionPopulation);
-    }
+    limits: &ReplayLimits,
+) -> Result<(FunctionalProgram, EmpiricalTableProvider, usize), ContractReason> {
     if laws.format != FACTOR_LAWS_FORMAT {
         return Err(ContractReason::DistributionFactorLawsFormat);
     }
@@ -53,78 +81,62 @@ pub(crate) fn replay_distribution_atoms(
         functional_program_from_wire(program_wire, antecedent_expr::ProgramLimits::default())
             .map_err(|_| ContractReason::DistributionFunctionalProgram)?;
     verify_requirements(&program, query, laws)?;
-    validate_law_size(laws)?;
-    let provider = provider_from_laws(laws)?;
-
-    let outcomes: Vec<_> = query.outcomes.iter().copied().map(VariableId::from_raw).collect();
-    let conditioning: Vec<_> =
-        query.conditioning.iter().copied().map(VariableId::from_raw).collect();
-    let interventions = query
-        .interventions
-        .iter()
-        .map(|intervention| match intervention {
-            InterventionWire::Set { variable, value } => {
-                Ok((VariableId::from_raw(*variable), value.to_value()))
-            }
-            _ => Err(ContractReason::DistributionInterventionKind),
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let evaluator = program.compile().map_err(|_| ContractReason::DistributionProgramCompile)?;
-    let y_support = provider
-        .support(&outcomes, &EvalContext::default())
-        .map_err(|_| ContractReason::DistributionOutcomeSupport)?;
-    let z_support = provider
-        .support(&conditioning, &EvalContext::default())
-        .map_err(|_| ContractReason::DistributionConditioningSupport)?;
-    let bound: Vec<_> = outcomes
-        .iter()
-        .copied()
-        .chain(conditioning.iter().copied())
-        .chain(interventions.iter().map(|(variable, _)| *variable))
-        .collect();
-    let free: Vec<_> = program
-        .free_variables()
-        .iter()
-        .copied()
-        .filter(|variable| !bound.contains(variable))
-        .collect();
-    let outcome_cells = support_cells(laws, &outcomes)?;
-    let conditioning_cells = support_cells(laws, &conditioning)?;
-    let free_cells = support_cells(laws, &free)?;
-    let max_program_nodes = program.arena().len().max(1);
-    if outcome_cells
-        .saturating_mul(conditioning_cells)
-        .saturating_mul(free_cells)
-        .saturating_mul(max_program_nodes)
-        > MAX_REPLAY_OPERATIONS
-    {
+    validate_law_size(laws, limits)?;
+    let atom_width = query.outcomes.len().saturating_add(query.conditioning.len()).max(1);
+    let atom_scans =
+        result.atoms.len().saturating_mul(result.atoms.len()).saturating_mul(atom_width);
+    let scan_work = law_scan_work(laws).saturating_add(atom_scans);
+    if scan_work == usize::MAX || scan_work > limits.max_operations {
         return Err(ContractReason::DistributionReplayResourceLimit);
     }
-    for (variable, value) in &interventions {
-        let domain = laws
-            .domains
-            .iter()
-            .find(|(id, _)| *id == variable.raw())
-            .ok_or(ContractReason::DistributionFactorDomains)?;
-        if !domain.1.iter().any(|level| level.to_value() == *value) {
-            return Err(ContractReason::DistributionInterventionOutsideDomain);
-        }
-    }
-    let free_support = provider
-        .support(&free, &EvalContext::default())
-        .map_err(|_| ContractReason::DistributionFreeVariableSupport)?;
+    let provider = provider_from_laws(laws)?;
+    Ok((program, provider, scan_work))
+}
+
+#[derive(Clone, Copy)]
+struct DistributionEnumeration<'a> {
+    outcomes: &'a [VariableId],
+    conditioning: &'a [VariableId],
+    interventions: &'a [(VariableId, Value)],
+    free: &'a [VariableId],
+    y_support: &'a [std::sync::Arc<[Value]>],
+    z_support: &'a [std::sync::Arc<[Value]>],
+    free_support: &'a [std::sync::Arc<[Value]>],
+    provider: &'a EmpiricalTableProvider,
+    evaluator: &'a antecedent_expr::ProgramEvaluator,
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "enumeration and its atom verification share one replay context"
+)]
+fn verify_distribution_enumeration(
+    input: DistributionEnumeration<'_>,
+    result: &InterventionalDistributionWire,
+) -> Result<(), ContractReason> {
+    let DistributionEnumeration {
+        outcomes,
+        conditioning,
+        interventions,
+        free,
+        y_support,
+        z_support,
+        free_support,
+        provider,
+        evaluator,
+    } = input;
     let free_law = if free.is_empty() {
         None
     } else {
-        Some(FactorSpec::new(&free, &[], &[], DomainRef::Observational))
+        Some(FactorSpec::new(free, &[], &[], DomainRef::Observational))
     };
 
     let mut expected = Vec::with_capacity(y_support.len().saturating_mul(z_support.len()));
-    for z_row in z_support.iter() {
+    for z_row in z_support {
         let z_pairs: Vec<_> = conditioning.iter().copied().zip(z_row.iter().cloned()).collect();
         let mut probabilities = vec![0.0; y_support.len()];
         let mut total_weight = 0.0;
-        for free_row in free_support.iter() {
+        for free_row in free_support {
             let free_pairs: Vec<_> = free.iter().copied().zip(free_row.iter().cloned()).collect();
             let mut base = Assignment::from_pairs(
                 interventions
@@ -147,11 +159,11 @@ pub(crate) fn replay_distribution_atoms(
             }
             let mut row_values = Vec::with_capacity(y_support.len());
             let mut evaluable = true;
-            for y_row in y_support.iter() {
+            for y_row in y_support {
                 for (variable, value) in outcomes.iter().copied().zip(y_row.iter().cloned()) {
                     base.set(variable, value);
                 }
-                match evaluator.evaluate_with(&provider, &EvalContext::default(), &base) {
+                match evaluator.evaluate_with(provider, &EvalContext::default(), &base) {
                     Ok(probability)
                         if probability.is_finite() && (0.0..=1.0).contains(&probability) =>
                     {
@@ -168,7 +180,7 @@ pub(crate) fn replay_distribution_atoms(
                     }
                     Err(_) => return Err(ContractReason::DistributionExpressionEvaluation),
                 }
-                for variable in &outcomes {
+                for variable in outcomes {
                     base.remove(*variable);
                 }
             }
@@ -215,6 +227,102 @@ pub(crate) fn replay_distribution_atoms(
     Ok(())
 }
 
+/// Recompute every finite-discrete distribution atom from its checked program and portable
+/// factor laws. Returns a stable dependency/error key suitable for a refusal report.
+#[allow(
+    clippy::too_many_lines,
+    reason = "The bounded joint atom enumeration and its validation must share one replay context."
+)]
+pub(crate) fn replay_distribution_atoms(
+    query: &CausalQueryWire,
+    result: &InterventionalDistributionWire,
+    program_wire: &FunctionalProgramWire,
+    laws: &DistributionFactorLawsWire,
+    limits: &ReplayLimits,
+) -> Result<(), ContractReason> {
+    let CausalQueryWire::Distribution(query) = query else {
+        return Err(ContractReason::DistributionQueryKind);
+    };
+    if !matches!(query.target_population, crate::TargetPopulationWire::AllObserved) {
+        return Err(ContractReason::DistributionPopulation);
+    }
+    let (program, provider, scan_work) =
+        prepare_distribution_replay(query, result, program_wire, laws, limits)?;
+
+    let outcomes: Vec<_> = query.outcomes.iter().copied().map(VariableId::from_raw).collect();
+    let conditioning: Vec<_> =
+        query.conditioning.iter().copied().map(VariableId::from_raw).collect();
+    let interventions = query
+        .interventions
+        .iter()
+        .map(|intervention| match intervention {
+            InterventionWire::Set { variable, value } => {
+                Ok((VariableId::from_raw(*variable), value.to_value()))
+            }
+            _ => Err(ContractReason::DistributionInterventionKind),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let evaluator = program.compile().map_err(|_| ContractReason::DistributionProgramCompile)?;
+    let y_support = provider
+        .support(&outcomes, &EvalContext::default())
+        .map_err(|_| ContractReason::DistributionOutcomeSupport)?;
+    let z_support = provider
+        .support(&conditioning, &EvalContext::default())
+        .map_err(|_| ContractReason::DistributionConditioningSupport)?;
+    let bound: Vec<_> = outcomes
+        .iter()
+        .copied()
+        .chain(conditioning.iter().copied())
+        .chain(interventions.iter().map(|(variable, _)| *variable))
+        .collect();
+    let free: Vec<_> = program
+        .free_variables()
+        .iter()
+        .copied()
+        .filter(|variable| !bound.contains(variable))
+        .collect();
+    let outcome_cells = support_cells(laws, &outcomes, limits)?;
+    let conditioning_cells = support_cells(laws, &conditioning, limits)?;
+    let free_cells = support_cells(laws, &free, limits)?;
+    let max_program_nodes = program.arena().len().max(1);
+    if outcome_cells
+        .checked_mul(conditioning_cells)
+        .and_then(|n| n.checked_mul(free_cells))
+        .and_then(|n| n.checked_mul(max_program_nodes))
+        .and_then(|n| n.checked_add(scan_work))
+        .is_none_or(|n| n > limits.max_operations)
+    {
+        return Err(ContractReason::DistributionReplayResourceLimit);
+    }
+    for (variable, value) in &interventions {
+        let domain = laws
+            .domains
+            .iter()
+            .find(|(id, _)| *id == variable.raw())
+            .ok_or(ContractReason::DistributionFactorDomains)?;
+        if !domain.1.iter().any(|level| level.to_value() == *value) {
+            return Err(ContractReason::DistributionInterventionOutsideDomain);
+        }
+    }
+    let free_support = provider
+        .support(&free, &EvalContext::default())
+        .map_err(|_| ContractReason::DistributionFreeVariableSupport)?;
+    verify_distribution_enumeration(
+        DistributionEnumeration {
+            outcomes: &outcomes,
+            conditioning: &conditioning,
+            interventions: &interventions,
+            free: &free,
+            y_support: &y_support,
+            z_support: &z_support,
+            free_support: &free_support,
+            provider: &provider,
+            evaluator: &evaluator,
+        },
+        result,
+    )
+}
+
 /// Recompute a checked discrete scalar functional from its program and empirical factor laws.
 ///
 /// The returned key names a stable refusal reason and is suitable for an independent
@@ -224,11 +332,13 @@ pub(crate) fn replay_functional_scalar(
     reported: Option<f64>,
     program_wire: &FunctionalProgramWire,
     laws: &DistributionFactorLawsWire,
-) -> Result<(), ContractReason> {
+    limits: &ReplayLimits,
+) -> Result<ReplayCharge, ContractReason> {
     if !matches!(
         query,
         CausalQueryWire::AverageEffect { .. }
             | CausalQueryWire::PathSpecific(_)
+            | CausalQueryWire::NestedCounterfactual { .. }
             | CausalQueryWire::Response(_)
     ) {
         return Err(ContractReason::FunctionalEffectQueryKind);
@@ -251,7 +361,12 @@ pub(crate) fn replay_functional_scalar(
         functional_program_from_wire(program_wire, antecedent_expr::ProgramLimits::default())
             .map_err(|_| ContractReason::FunctionalEffectFunctionalProgram)?;
     verify_scalar_requirements(&program, laws)?;
-    validate_law_size(laws).map_err(|_| ContractReason::FunctionalEffectFactorLawsResourceLimit)?;
+    validate_law_size(laws, limits)
+        .map_err(|_| ContractReason::FunctionalEffectFactorLawsResourceLimit)?;
+    let scan_work = law_scan_work(laws);
+    if scan_work == usize::MAX || scan_work > limits.max_operations {
+        return Err(ContractReason::FunctionalEffectReplayResourceLimit);
+    }
     let provider = provider_from_laws(laws).map_err(|reason| match reason {
         ContractReason::DistributionFactorNormalization => {
             ContractReason::FunctionalEffectFactorNormalization
@@ -259,11 +374,14 @@ pub(crate) fn replay_functional_scalar(
         _ => ContractReason::FunctionalEffectFactorLaws,
     })?;
     let free = program.free_variables();
-    let free_cells =
-        support_cells(laws, free).map_err(|_| ContractReason::FunctionalEffectFactorDomains)?;
-    if free_cells.saturating_mul(program.arena().len().max(1)) > MAX_REPLAY_OPERATIONS {
-        return Err(ContractReason::FunctionalEffectReplayResourceLimit);
-    }
+    let free_cells = support_cells(laws, free, limits)
+        .map_err(|_| ContractReason::FunctionalEffectFactorDomains)?;
+    let operations = free_cells
+        .checked_mul(program.arena().len().max(1))
+        .and_then(|n| n.checked_add(scan_work))
+        .filter(|n| *n <= limits.max_operations)
+        .ok_or(ContractReason::FunctionalEffectReplayResourceLimit)?;
+    let charge = ReplayCharge { cells: law_cells(laws), operations: operations.max(1) };
     let support = provider
         .support(free, &EvalContext::default())
         .map_err(|_| ContractReason::FunctionalEffectFreeVariableSupport)?;
@@ -303,7 +421,7 @@ pub(crate) fn replay_functional_scalar(
     if !expected.is_finite() || (expected - reported).abs() > 1e-10 * (1.0 + expected.abs()) {
         return Err(ContractReason::FunctionalEffectResultMismatch);
     }
-    Ok(())
+    Ok(charge)
 }
 
 fn verify_scalar_requirements(
@@ -539,7 +657,36 @@ fn insert_factor_table(
     Ok(())
 }
 
-fn validate_law_size(laws: &DistributionFactorLawsWire) -> Result<(), ContractReason> {
+// Conservative comparison bounds for the linear scans performed while building the
+// empirical provider. Saturation turns an unrepresentable bound into a refusal.
+fn law_scan_work(laws: &DistributionFactorLawsWire) -> usize {
+    let domain_count = laws.domains.len();
+    let max_levels = laws.domains.iter().map(|(_, levels)| levels.len()).max().unwrap_or(0);
+    let mut work = domain_count.saturating_mul(domain_count);
+    for (_, levels) in &laws.domains {
+        work = work.saturating_add(levels.len().saturating_mul(levels.len()));
+    }
+    for table in &laws.factors {
+        let width = table.key.variables.len().saturating_add(table.key.conditioned_on.len());
+        let rows = table.rows.len();
+        // Duplicate assignments and condition groups each scan prior rows. Comparing a
+        // row or condition may examine every value. Domain lookups and level membership
+        // are repeated for every row and column; table shape also looks up each domain.
+        let duplicates = rows.saturating_mul(rows).saturating_mul(width.max(1));
+        let groups =
+            rows.saturating_mul(rows).saturating_mul(table.key.conditioned_on.len().max(1));
+        let domain_lookups = rows
+            .saturating_add(1)
+            .saturating_mul(width)
+            .saturating_mul(domain_count.saturating_add(max_levels));
+        work =
+            work.saturating_add(duplicates).saturating_add(groups).saturating_add(domain_lookups);
+    }
+    work
+}
+
+/// Table cells (domain levels plus factor entries) the laws occupy.
+fn law_cells(laws: &DistributionFactorLawsWire) -> usize {
     let domain_entries =
         laws.domains.iter().fold(0usize, |total, (_, levels)| total.saturating_add(levels.len()));
     let factor_cells = laws.factors.iter().fold(0usize, |total, factor| {
@@ -547,7 +694,14 @@ fn validate_law_size(laws: &DistributionFactorLawsWire) -> Result<(), ContractRe
             subtotal.saturating_add(row.values.len().saturating_add(1))
         }))
     });
-    if domain_entries.saturating_add(factor_cells) > MAX_REPLAY_CELLS {
+    domain_entries.saturating_add(factor_cells)
+}
+
+fn validate_law_size(
+    laws: &DistributionFactorLawsWire,
+    limits: &ReplayLimits,
+) -> Result<(), ContractReason> {
+    if law_cells(laws) > limits.max_cells {
         return Err(ContractReason::DistributionReplayResourceLimit);
     }
     Ok(())
@@ -556,6 +710,7 @@ fn validate_law_size(laws: &DistributionFactorLawsWire) -> Result<(), ContractRe
 fn support_cells(
     laws: &DistributionFactorLawsWire,
     variables: &[VariableId],
+    limits: &ReplayLimits,
 ) -> Result<usize, ContractReason> {
     let count = variables
         .iter()
@@ -566,7 +721,7 @@ fn support_cells(
                 .map(|(_, levels)| product.saturating_mul(levels.len()))
         })
         .ok_or(ContractReason::DistributionFactorDomains)?;
-    if count > MAX_REPLAY_CELLS {
+    if count > limits.max_cells {
         return Err(ContractReason::DistributionReplayResourceLimit);
     }
     Ok(count)
@@ -577,6 +732,25 @@ mod tests {
     use super::*;
     use crate::contract_reason::ContractReason;
     use crate::{DistributionFactorRowWire, DistributionFactorTableWire};
+
+    fn replay_distribution_atoms(
+        query: &CausalQueryWire,
+        result: &InterventionalDistributionWire,
+        program: &FunctionalProgramWire,
+        laws: &DistributionFactorLawsWire,
+    ) -> Result<(), ContractReason> {
+        super::replay_distribution_atoms(query, result, program, laws, &ReplayLimits::default())
+    }
+
+    fn replay_functional_scalar(
+        query: &CausalQueryWire,
+        reported: Option<f64>,
+        program: &FunctionalProgramWire,
+        laws: &DistributionFactorLawsWire,
+    ) -> Result<(), ContractReason> {
+        super::replay_functional_scalar(query, reported, program, laws, &ReplayLimits::default())
+            .map(|_| ())
+    }
     use antecedent_expr::{
         CausalExprArena, FunctionalProgram, InterventionAssignment, ProgramLimits, ProgramSchema,
         ProgramVariable,
@@ -711,6 +885,25 @@ mod tests {
     }
 
     #[test]
+    fn replay_charges_quadratic_provider_and_atom_scans_before_work() {
+        let (query, result, program, mut laws) = replay_fixture();
+        let row = laws.factors[0].rows[0].clone();
+        laws.factors[0].rows = vec![row; 128];
+        let limits = ReplayLimits { max_operations: 1_000, ..ReplayLimits::default() };
+        assert_eq!(
+            super::replay_distribution_atoms(&query, &result, &program, &laws, &limits),
+            Err(ContractReason::DistributionReplayResourceLimit)
+        );
+
+        let (query, mut result, program, laws) = replay_fixture();
+        result.atoms = vec![result.atoms[0].clone(); 128];
+        assert_eq!(
+            super::replay_distribution_atoms(&query, &result, &program, &laws, &limits),
+            Err(ContractReason::DistributionReplayResourceLimit)
+        );
+    }
+
+    #[test]
     fn independent_replay_recomputes_distribution_atoms_from_factor_laws() {
         let (query, result, program, laws) = replay_fixture();
         replay_distribution_atoms(&query, &result, &program, &laws).unwrap();
@@ -802,5 +995,54 @@ mod tests {
             replay_functional_scalar(&query, Some(0.0), &program, &zero_mass),
             Err(ContractReason::FunctionalEffectFactorNormalization)
         );
+    }
+
+    #[test]
+    fn caller_replay_limits_refuse_what_the_defaults_admit() {
+        let (query, program, laws) = scalar_fixture();
+        super::replay_functional_scalar(
+            &query,
+            Some(0.75),
+            &program,
+            &laws,
+            &ReplayLimits::default(),
+        )
+        .unwrap();
+        let few_cells = ReplayLimits { max_cells: 1, ..ReplayLimits::default() };
+        assert_eq!(
+            super::replay_functional_scalar(&query, Some(0.75), &program, &laws, &few_cells),
+            Err(ContractReason::FunctionalEffectFactorLawsResourceLimit)
+        );
+        let few_operations = ReplayLimits { max_operations: 0, ..ReplayLimits::default() };
+        assert_eq!(
+            super::replay_functional_scalar(&query, Some(0.75), &program, &laws, &few_operations),
+            Err(ContractReason::FunctionalEffectReplayResourceLimit)
+        );
+    }
+
+    #[test]
+    fn replays_of_one_family_share_one_budget() {
+        let (query, program, laws) = scalar_fixture();
+        let charge = super::replay_functional_scalar(
+            &query,
+            Some(0.75),
+            &program,
+            &laws,
+            &ReplayLimits::default(),
+        )
+        .unwrap();
+        assert!(charge.cells > 0 && charge.operations > 0);
+        // A budget that admits exactly one replay admits the first and refuses the second.
+        let exact = ReplayLimits { max_cells: charge.cells, max_operations: charge.operations };
+        let left = exact.remaining_after(charge);
+        assert_eq!((left.max_cells, left.max_operations), (0, 0));
+        super::replay_functional_scalar(&query, Some(0.75), &program, &laws, &exact).unwrap();
+        assert_eq!(
+            super::replay_functional_scalar(&query, Some(0.75), &program, &laws, &left),
+            Err(ContractReason::FunctionalEffectFactorLawsResourceLimit)
+        );
+        // Charging more than is left saturates at zero instead of wrapping.
+        let over = ReplayLimits { max_cells: 1, max_operations: 1 }.remaining_after(charge);
+        assert_eq!((over.max_cells, over.max_operations), (0, 0));
     }
 }

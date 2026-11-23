@@ -58,6 +58,8 @@ pub struct StructuralTransportCertificateWire {
     pub target: String,
     /// Complete meta source collection, or empty for classical sID.
     pub sources: Vec<MetaSource>,
+    /// Variable name of every graph coordinate, or empty. Covered by the artifact identity.
+    pub variable_names: Vec<String>,
     /// Untrusted outcome to check.
     pub outcome: CertificateOutcome,
     /// Independently reconstructed four reasoning slots.
@@ -118,6 +120,7 @@ impl StructuralTransportCertificateWire {
         sources: Vec<MetaSource>,
         result: &ClassicalTransportResult,
         limits: SidLimits,
+        variable_names: &[String],
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
         let outcome = match result {
@@ -133,8 +136,8 @@ impl StructuralTransportCertificateWire {
         };
         let edges = crate::admg_to_wire(diagram.causal_graph())?;
         let wire = Self {
-            version: 1,
-            required_features: vec!["checked_transport_certificate_v1".into()],
+            version: 2,
+            required_features: vec!["checked_transport_certificate_v2".into()],
             nodes: diagram
                 .causal_graph()
                 .nodes()
@@ -152,6 +155,7 @@ impl StructuralTransportCertificateWire {
             source: query.source.to_string(),
             target: query.target.to_string(),
             sources,
+            variable_names: variable_names.to_vec(),
             reasoning: structural_reasoning(&outcome),
             outcome,
         };
@@ -167,13 +171,58 @@ impl StructuralTransportCertificateWire {
         ctx: &ExecutionContext,
     ) -> Result<(SelectionDiagram, ClassicalTransportQuery, ClassicalTransportResult), IoError>
     {
-        if self.version != 1
-            || self.required_features != ["checked_transport_certificate_v1"]
+        if self.version != 2
+            || self.required_features != ["checked_transport_certificate_v2"]
             || self.reasoning != structural_reasoning(&self.outcome)
             || ctx.cancellation.is_cancelled()
             || self.nodes.len() > limits.steps
         {
             return Err(err("unsupported or invalid transport certificate"));
+        }
+        // Reject malformed coordinates before constructing a potentially large graph.
+        // A set avoids rescanning all nodes for every outcome, treatment and selection.
+        let nodes: std::collections::BTreeSet<u32> = self.nodes.iter().copied().collect();
+        let outcomes: std::collections::BTreeSet<u32> = self.outcomes.iter().copied().collect();
+        let treatments: std::collections::BTreeSet<u32> = self.treatments.iter().copied().collect();
+        let unique = |xs: &[u32]| {
+            xs.iter().copied().collect::<std::collections::BTreeSet<_>>().len() == xs.len()
+        };
+        if self.outcomes.is_empty()
+            || self.source == self.target
+            || self.source.is_empty()
+            || self.target.is_empty()
+            || !outcomes.is_subset(&nodes)
+            || !treatments.is_subset(&nodes)
+            || !outcomes.is_disjoint(&treatments)
+        {
+            return Err(err("invalid certificate query"));
+        }
+        if nodes.len() != self.nodes.len()
+            || outcomes.len() != self.outcomes.len()
+            || treatments.len() != self.treatments.len()
+            || !unique(&self.selections)
+            || self.selections.iter().any(|v| !nodes.contains(v))
+            || self.sources.windows(2).any(|pair| pair[0].population >= pair[1].population)
+            || self.sources.first().is_some_and(|source| {
+                source.population != self.source || source.selections != self.selections
+            })
+            || self.sources.iter().any(|source| {
+                source.population.trim().is_empty()
+                    || source.population == self.target
+                    || !unique(&source.selections)
+                    || source.selections.windows(2).any(|w| w[0] >= w[1])
+                    || source.selections.iter().any(|v| !nodes.contains(v))
+            })
+        {
+            return Err(err("invalid certificate coordinates or source collection"));
+        }
+        if !self.variable_names.is_empty()
+            && (self.variable_names.len() != self.nodes.len()
+                || self.variable_names.iter().any(|name| name.trim().is_empty())
+                || self.variable_names.iter().collect::<std::collections::BTreeSet<_>>().len()
+                    != self.variable_names.len())
+        {
+            return Err(err("invalid certificate variable names"));
         }
         let mut graph = Admg::empty();
         for v in &self.nodes {
@@ -201,36 +250,6 @@ impl StructuralTransportCertificateWire {
             source: Arc::from(self.source.as_str()),
             target: Arc::from(self.target.as_str()),
         };
-        if query.outcomes.is_empty()
-            || query.source == query.target
-            || query.source.is_empty()
-            || query.target.is_empty()
-            || self.outcomes.iter().any(|v| !self.nodes.contains(v) || self.treatments.contains(v))
-            || self.treatments.iter().any(|v| !self.nodes.contains(v))
-        {
-            return Err(err("invalid certificate query"));
-        }
-        let unique =
-            |xs: &[u32]| xs.iter().collect::<std::collections::BTreeSet<_>>().len() == xs.len();
-        if !unique(&self.nodes)
-            || !unique(&self.outcomes)
-            || !unique(&self.treatments)
-            || !unique(&self.selections)
-            || self.sources.windows(2).any(|pair| pair[0].population >= pair[1].population)
-            || self
-                .sources
-                .first()
-                .is_some_and(|s| s.population != self.source || s.selections != self.selections)
-            || self.sources.iter().any(|s| {
-                s.population.trim().is_empty()
-                    || s.population == self.target
-                    || !unique(&s.selections)
-                    || s.selections.windows(2).any(|w| w[0] >= w[1])
-                    || s.selections.iter().any(|v| !self.nodes.contains(v))
-            })
-        {
-            return Err(err("invalid certificate coordinates or source collection"));
-        }
         let result = match &self.outcome {
             CertificateOutcome::Identified(proof) => {
                 if proof.proof.sources != self.sources {
@@ -253,6 +272,17 @@ impl StructuralTransportCertificateWire {
         };
         Ok((diagram, query, result))
     }
+    /// Check a caller's variable names against the identity-covered name mapping.
+    /// # Errors
+    /// Unless `names` equals the stored mapping (an artifact without one accepts only the
+    /// empty list).
+    pub fn check_variable_names(&self, names: &[String]) -> Result<(), IoError> {
+        if self.variable_names.as_slice() == names {
+            Ok(())
+        } else {
+            Err(err("variable names do not match the verified name mapping"))
+        }
+    }
     /// Sectioned, checksummed storage of this structural claim.
     /// # Errors
     /// Container or serialization failure.
@@ -260,7 +290,7 @@ impl StructuralTransportCertificateWire {
         use crate::container::{ArtifactManifest, CompressPolicy, EncodedArtifact, pack_section};
         use crate::wire::{ArtifactKind, FormatVersion, ProvenanceWire, SemanticVersion};
         let (desc, section) = pack_section(
-            "transport_certificate_v1",
+            "transport_certificate_v2",
             "application/cbor",
             crate::to_cbor(self)?,
             CompressPolicy::Never,
@@ -278,7 +308,7 @@ impl StructuralTransportCertificateWire {
         limits: SidLimits,
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
-        if ctx.memory.hard_limit_bytes.is_some_and(|n| bytes.len() as u64 > n)
+        if ctx.memory_limit_bytes().is_some_and(|n| bytes.len() as u64 > n)
             || ctx.cancellation.is_cancelled()
         {
             return Err(err("certificate budget/cancellation"));
@@ -287,7 +317,7 @@ impl StructuralTransportCertificateWire {
         if artifact.manifest.artifact_kind
             != crate::wire::ArtifactKind::Other(crate::artifact_kinds::TRANSPORT_CERTIFICATE.into())
             || artifact.sections.len() != 1
-            || artifact.sections[0].id != "transport_certificate_v1"
+            || artifact.sections[0].id != "transport_certificate_v2"
         {
             return Err(err("unsupported transport certificate container"));
         }
@@ -313,7 +343,7 @@ pub fn read_bounded_transport_artifact(
     {
         return Err(err("invalid transport container/cancellation"));
     }
-    if ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes.len() as u64 > limit) {
+    if ctx.memory_limit_bytes().is_some_and(|limit| bytes.len() as u64 > limit) {
         return Err(err("transport artifact decode memory budget"));
     }
     let length = u32::from_le_bytes(bytes[12..16].try_into().map_err(err)?) as usize;
@@ -322,6 +352,7 @@ pub fn read_bounded_transport_artifact(
         return Err(err("transport manifest size"));
     }
     let manifest: crate::container::ArtifactManifest = crate::from_cbor(&bytes[16..end])?;
+    manifest.refuse_development()?;
     if manifest.format_version.major != 1
         || manifest.minimum_reader_version.major > 1
         || manifest.minimum_reader_version.minor > 0
@@ -333,7 +364,7 @@ pub fn read_bounded_transport_artifact(
         .iter()
         .try_fold(bytes.len() as u64, |n, s| n.checked_add(s.uncompressed_size.checked_mul(4)?))
         .ok_or_else(|| err("transport artifact memory overflow"))?;
-    if ctx.memory.hard_limit_bytes.is_some_and(|limit| logical > limit) {
+    if ctx.memory_limit_bytes().is_some_and(|limit| logical > limit) {
         return Err(err("transport artifact decode memory budget"));
     }
     crate::container::EncodedArtifact::read_from(bytes)
@@ -369,10 +400,39 @@ mod tests {
             source: Arc::from("a"),
             target: meta.target,
         };
-        let wire =
-            TransportCertificateWire::from_result(&diagram, &query, sources, &result, limits, &ctx)
-                .unwrap();
+        let wire = TransportCertificateWire::from_result(
+            &diagram,
+            &query,
+            sources,
+            &result,
+            limits,
+            &[],
+            &ctx,
+        )
+        .unwrap();
         TransportCertificateWire::consume(&wire.export().unwrap(), limits, &ctx).unwrap();
+        // Coordinates are rejected before graph reconstruction, even if graph edges are bad.
+        let mut invalid = wire.clone();
+        invalid.nodes = (0..1_024).collect();
+        invalid.nodes.push(0);
+        invalid.directed = vec![(0, u32::MAX)];
+        assert!(
+            invalid
+                .check(limits, &ctx)
+                .unwrap_err()
+                .to_string()
+                .contains("invalid certificate coordinates")
+        );
+        invalid.nodes.pop();
+        invalid.outcomes = vec![u32::MAX];
+        assert!(
+            invalid
+                .check(limits, &ctx)
+                .unwrap_err()
+                .to_string()
+                .contains("invalid certificate query")
+        );
+
         let mut altered = wire.clone();
         altered.target = "other".into();
         assert!(altered.check(limits, &ctx).is_err());
@@ -393,6 +453,7 @@ mod tests {
         incomplete.outcome =
             CertificateOutcome::NotCertified { reason: "identification_budget".into() };
         incomplete.reasoning = structural_reasoning(&incomplete.outcome);
+        incomplete.variable_names = vec!["x".into(), "y".into()];
         if let Ok(path) = std::env::var("ANTECEDENT_WRITE_NOTCERT_FIXTURE") {
             let mut framed = b"ANTECEDENT-TRANSPORT-CERTIFICATE\x01".to_vec();
             framed.extend(crate::to_cbor(&(vec!["x", "y"], incomplete.export().unwrap())).unwrap());

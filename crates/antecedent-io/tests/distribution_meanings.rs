@@ -91,7 +91,7 @@ fn effect_posterior_and_observational_law_refuse_an_interventional_threshold() {
         assert_refused(
             error,
             "distribution_meaning_mismatch",
-            "distribution_meaning.incompatible_operation",
+            antecedent_core::reason_details::distribution_meaning::INCOMPATIBLE_OPERATION,
         );
     }
     for meaning in
@@ -101,7 +101,7 @@ fn effect_posterior_and_observational_law_refuse_an_interventional_threshold() {
         assert_refused(
             error,
             "quantity_semantics_mismatch",
-            "distribution_meaning.observational_not_interventional",
+            antecedent_core::reason_details::distribution_meaning::OBSERVATIONAL_NOT_INTERVENTIONAL,
         );
     }
 }
@@ -122,7 +122,7 @@ fn resealed_meaning_change_is_refused_by_a_fresh_consumer() {
         assert_refused(
             error,
             "quantity_semantics_mismatch",
-            "aligned_joint_draws.identity_expected",
+            antecedent_core::reason_details::aligned_joint_draws::IDENTITY_EXPECTED,
         );
     }
 }

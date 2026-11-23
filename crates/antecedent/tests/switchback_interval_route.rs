@@ -7,6 +7,9 @@ use antecedent::{RandomizedEffectQuery, Study};
 use antecedent_core::{RandomizationDesign, VariableId};
 use antecedent_data::TabularData;
 
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
+
 fn study(
     sequences: usize,
     periods: usize,
@@ -41,6 +44,26 @@ fn study(
     (TabularData::from_f64_columns([("outcome", outcomes.as_slice())]).unwrap(), query)
 }
 
+/// The Horvitz-Thompson contrast `mean(Y A / p) - mean(Y (1 - A) / (1 - p))` of the fixture's
+/// declared assignment probability, recomputed from the generating formulas.
+fn horvitz_thompson(sequences: usize, periods: usize, probability: f64) -> f64 {
+    let n = sequences * periods;
+    let (mut treated, mut control) = (0.0, 0.0);
+    for i in 0..n {
+        let assigned = (i.wrapping_mul(137) + (i / periods) * 31) % 11 < 5;
+        let y = 1.0
+            + 0.5 * ((i / periods) as f64 * 0.7).sin()
+            + 0.3 * ((i % periods) as f64 * 0.4).cos()
+            + if assigned { 1.4 } else { 0.0 };
+        if assigned {
+            treated += y / probability;
+        } else {
+            control += y / (1.0 - probability);
+        }
+    }
+    (treated - control) / n as f64
+}
+
 #[test]
 fn supported_switchback_interval_round_trips_and_rejects_forgery() {
     let (data, query) = study(30, 24, 0.2);
@@ -48,14 +71,25 @@ fn supported_switchback_interval_round_trips_and_rejects_forgery() {
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "supported_switchback_interval_round_trip",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let fit = result.randomized_effect().unwrap();
     let [lower, upper] = fit.interval_95.expect("supported switchback interval");
+    assert!(
+        (fit.effect - horvitz_thompson(30, 24, 0.2)).abs() < 1e-9,
+        "{} vs the Horvitz-Thompson contrast of the declared design",
+        fit.effect
+    );
     assert!(lower < fit.effect && fit.effect < upper);
     assert!(fit.standard_error.unwrap() > 0.0);
     assert_eq!(fit.uncertainty.as_ref(), "switchback_independent_sequence_student_interval");
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
     assert_eq!(
-        result.interval.as_ref().unwrap().method,
+        result.interval().as_ref().unwrap().method,
         antecedent_core::IntervalMethod::AnalyticSe
     );
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
@@ -67,7 +101,7 @@ fn supported_switchback_interval_round_trips_and_rejects_forgery() {
     assert_eq!(artifact.randomized_effect.as_ref().unwrap().interval_95, Some([lower, upper]));
     assert_eq!(
         artifact.randomized_effect.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
     let mut forged = artifact.clone();
     forged.randomized_effect.as_mut().unwrap().interval_95.as_mut().unwrap()[1] += 0.5;
@@ -80,7 +114,8 @@ fn supported_switchback_interval_round_trips_and_rejects_forgery() {
         .is_err()
     );
     let mut forged = artifact;
-    forged.randomized_effect.as_mut().unwrap().graphless_support_status = Some("refused".into());
+    forged.randomized_effect.as_mut().unwrap().graphless_support_status =
+        Some("not_supported".into());
     assert!(
         antecedent_io::encode_analysis_result_artifact(
             &forged,
@@ -106,14 +141,22 @@ fn sparse_or_weak_switchback_remains_point_only() {
             .unwrap();
         let fit = result.randomized_effect().unwrap();
         assert!(fit.effect.is_finite());
+        assert!(
+            (fit.effect - horvitz_thompson(sequences, 24, probability)).abs() < 1e-9,
+            "{sequences} sequences: {} vs the Horvitz-Thompson contrast",
+            fit.effect
+        );
         assert_eq!(fit.interval_95, None);
-        assert_eq!(result.support_status, None);
-        assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+        assert_eq!(result.support_status(), None);
+        assert_eq!(
+            result.interval().as_ref().unwrap().method,
+            antecedent_core::IntervalMethod::None
+        );
     }
 }
 
 #[test]
-fn unequal_sequence_period_counts_refuse_interval_and_license() {
+fn unequal_sequence_period_counts_refuse_interval_and_support() {
     let (data, mut query) = study(30, 24, 0.5);
     let mut sequence_ids = query.assignment_units.to_vec();
     sequence_ids[0] = Arc::from("s1");
@@ -127,15 +170,16 @@ fn unequal_sequence_period_counts_refuse_interval_and_license() {
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(result.randomized_effect().unwrap().interval_95, None);
-    assert_eq!(result.support_status, None);
+    assert_eq!(result.support_status(), None);
     let bytes = prepared.encode_contracted_result(&result, "unbalanced-switchback", &ctx).unwrap();
     let (_, header, mut artifact) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
-    artifact.randomized_effect.as_mut().unwrap().graphless_support_status = Some("licensed".into());
+    artifact.randomized_effect.as_mut().unwrap().graphless_support_status =
+        Some("supported".into());
     assert!(
         antecedent_io::encode_analysis_result_artifact(
             &artifact,
             header.variable_names,
-            "forged-unbalanced-switchback-license"
+            "forged-unbalanced-switchback-support"
         )
         .is_err()
     );

@@ -1,6 +1,6 @@
 //! Staged execution for model-scoped Bayesian IV and sharp-RD estimators.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, AverageEffectQuery, BayesianConfig, CausalError, CausalPosterior, CausalQuery, Dag,
@@ -8,11 +8,12 @@ use super::{
     IdentificationResult, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
     IdentifierId, InferenceDiagnostics, InferenceMode, Instant, OverlapPolicy,
     PhysicalExecutionPlan, SharpRdConfig, SharpRdIdentifier, Strategy, Study, StudyResult,
-    TabularData, elapsed_ns, identify_static_query, require_identified, select_estimand,
+    TabularData, elapsed_ns, require_identified, select_estimand,
 };
 use antecedent_estimate::DrawSpec;
 use antecedent_estimate::bayesian_iv::{
-    IvSample, StageVariances, fit_bayesian_iv_joint_fixed_loading,
+    IvDesignSample, IvSample, StageVariances, fit_bayesian_iv_joint_fixed_loading,
+    fit_bayesian_iv_joint_fixed_loading_design,
 };
 use antecedent_estimate::bayesian_rd::{RdSample, fit_bayesian_sharp_rd};
 use antecedent_prob::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
@@ -22,8 +23,10 @@ pub(super) fn check_bayesian_iv_scope(
     estimand: &IdentifiedEstimand,
     config: &BayesianConfig,
 ) -> Result<(), CausalError> {
-    if estimand.instruments.len() != 1 || !estimand.adjustment_set.is_empty() {
-        return Err(CausalError::Compile{message:"iv.bayesian_joint_linear currently supports exactly one instrument and no exogenous adjustment covariates".into()});
+    if estimand.instruments.is_empty() {
+        return Err(CausalError::Compile {
+            message: "iv.bayesian_joint_linear requires at least one instrument".into(),
+        });
     }
     if config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
         || config.has_transfer()
@@ -62,6 +65,47 @@ pub(super) struct BayesianSpecialistInputs<'a> {
 }
 
 impl Study {
+    /// A specialist's identification in the executor order: the prepared or
+    /// retained static claim, else a fresh one by `identifier`. The reused claim is
+    /// taken only when it is exactly the fresh one: the plan binds the same
+    /// identifier and estimator, no discontinuity design is declared, the claim
+    /// answers `target`, and it lists no per-estimand alternatives (so narrowing it
+    /// to the selected estimand left it unchanged). The flag is `true` only for a
+    /// prepared claim.
+    pub(super) fn specialist_identification(
+        &self,
+        graph: &Dag,
+        target: &CausalQuery,
+        (identifier, estimator): (IdentifierId, EstimatorId),
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<(IdentificationResult, IdentifiedEstimand, bool), CausalError> {
+        let binding = physical.binding();
+        let reusable = self.rd.is_none()
+            && binding.identifier.named() == Some(identifier)
+            && binding.estimator.named() == Some(estimator);
+        if let Some((cache, prepared)) =
+            self.reuse_static_identification(physical).filter(|(cache, _)| {
+                reusable
+                    && cache.identification.query == *target
+                    && cache.identification.estimand_claims.is_empty()
+            })
+        {
+            return Ok((cache.identification.clone(), cache.estimand.clone(), prepared));
+        }
+        super::report_identify_compute(ctx);
+        let identification = crate::strategy_table::identify_static_query_in_context(
+            identifier,
+            graph,
+            target,
+            None,
+            Some(ctx),
+        )?;
+        require_identified(&identification)?;
+        let estimand = select_estimand(&identification, estimator)?;
+        Ok((identification, estimand, false))
+    }
+
     pub(super) fn execute_bayesian_iv(
         &self,
         data: &TabularData,
@@ -70,17 +114,18 @@ impl Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let identification = identify_static_query(
-            IdentifierId::Iv,
+        let (identification, estimand, identify_cached) = self.specialist_identification(
             graph,
             &CausalQuery::AverageEffect(query.clone()),
+            (IdentifierId::Iv, EstimatorId::BayesianIvJointLinear),
+            physical,
+            ctx,
         )?;
         require_identified(&identification)?;
-        let estimand = select_estimand(&identification, EstimatorId::BayesianIvJointLinear)?;
-        let InferenceMode::Bayesian(config) = &self.inference else {
-            return Err(CausalError::Compile {
-                message: "iv.bayesian_joint_linear requires Bayesian inference".into(),
-            });
+        let InferenceMode::Bayesian(config) = &self.settings.inference else {
+            return Err(CausalError::unsupported_inference(
+                "iv.bayesian_joint_linear requires Bayesian inference",
+            ));
         };
         self.execute_bayesian_iv_identified(
             data,
@@ -90,7 +135,7 @@ impl Study {
                 identification: &identification,
                 estimand: &estimand,
                 config,
-                identify_cached: false,
+                identify_cached,
             },
             ctx,
         )
@@ -112,14 +157,34 @@ impl Study {
         let frequentist = antecedent_estimate::TwoStageLeastSquares::new();
         let prep = frequentist.prepare(data, estimand, query).map_err(CausalError::from)?;
         let n = prep.nrows;
-        let z: Vec<f64> = (0..n).map(|r| prep.instruments_matrix[n + r]).collect();
-        let result = fit_bayesian_iv_joint_fixed_loading(
-            &IvSample { instrument: &z, treatment: &prep.treatment, outcome: &prep.outcome },
-            config.prior_scale,
-            StageVariances { treatment: 1.0, outcome: 1.0 },
-            DrawSpec::new(config.n_draws, ctx.rng.master_seed()),
-            10.0,
-        )
+        let (instrument_count, covariate_count) = (prep.z_ncols - 1, prep.x_ncols - 1);
+        let stage_variances = StageVariances { treatment: 1.0, outcome: 1.0 };
+        let draw_spec = DrawSpec::new(config.n_draws, ctx.rng.master_seed());
+        let result = if instrument_count == 1 && covariate_count == 0 {
+            let z: Vec<f64> = (0..n).map(|r| prep.instruments_matrix[n + r]).collect();
+            fit_bayesian_iv_joint_fixed_loading(
+                &IvSample { instrument: &z, treatment: &prep.treatment, outcome: &prep.outcome },
+                config.prior_scale,
+                stage_variances,
+                draw_spec,
+                10.0,
+            )
+        } else {
+            fit_bayesian_iv_joint_fixed_loading_design(
+                &IvDesignSample {
+                    instruments: &prep.instruments_matrix[n..],
+                    n_instruments: instrument_count,
+                    covariates: &prep.exogenous_matrix[n..],
+                    n_covariates: covariate_count,
+                    treatment: &prep.treatment,
+                    outcome: &prep.outcome,
+                },
+                config.prior_scale,
+                stage_variances,
+                draw_spec,
+                10.0,
+            )
+        }
         .map_err(CausalError::from)?;
         let effect_draws: Vec<f64> =
             result.effect_draws.iter().map(|v| v * prep.treatment_delta).collect();
@@ -144,7 +209,9 @@ impl Study {
             "bayesian_iv.model_scope",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
-            "joint linear Gaussian structural model; fixed unit disturbance loading and declared stage variances of 1.0; one instrument; no adjustment covariates",
+            format!(
+                "joint linear Gaussian structural model; fixed unit disturbance loading and declared stage variances of 1.0; {instrument_count} instrument(s) with a joint partial first-stage F; {covariate_count} exogenous adjustment covariate(s) entering both equations"
+            ),
         )];
         Ok(self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
@@ -176,19 +243,29 @@ impl Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let rd=self.rd.ok_or_else(||CausalError::Compile{message:"rd.bayesian_local_linear requires builder.rd_config(running_variable, cutoff, bandwidth)".into()})?;
-        let identification = SharpRdIdentifier::new(SharpRdConfig::new(
-            rd.running_variable,
-            rd.cutoff,
-            rd.bandwidth,
-        ))
-        .identify_on(graph, CausalQuery::AverageEffect(query.clone()))
-        .map_err(CausalError::from)?;
-        require_identified(&identification)?;
-        let estimand = select_estimand(&identification, EstimatorId::BayesianRdLocalLinear)?;
-        let InferenceMode::Bayesian(config) = &self.inference else {
-            return Err(CausalError::Compile {
-                message: "rd.bayesian_local_linear requires Bayesian inference".into(),
-            });
+        // The design identifies once, at compile; only a plan that retained none identifies
+        // here and reports the refusal.
+        let target = CausalQuery::AverageEffect(query.clone());
+        let reused = self
+            .reuse_static_identification_if(physical, |cache| cache.identification.query == target);
+        let (identification, estimand, identify_cached) = if let Some((cache, prepared)) = reused {
+            (cache.identification.clone(), cache.estimand.clone(), prepared)
+        } else {
+            let identification = SharpRdIdentifier::new(SharpRdConfig::new(
+                rd.running_variable,
+                rd.cutoff,
+                rd.bandwidth,
+            ))
+            .identify_on(graph, target)
+            .map_err(CausalError::from)?;
+            require_identified(&identification)?;
+            let estimand = select_estimand(&identification, EstimatorId::BayesianRdLocalLinear)?;
+            (identification, estimand, false)
+        };
+        let InferenceMode::Bayesian(config) = &self.settings.inference else {
+            return Err(CausalError::unsupported_inference(
+                "rd.bayesian_local_linear requires Bayesian inference",
+            ));
         };
         self.execute_bayesian_rd_identified(
             data,
@@ -199,7 +276,7 @@ impl Study {
                 identification: &identification,
                 estimand: &estimand,
                 config,
-                identify_cached: false,
+                identify_cached,
             },
             ctx,
         )
@@ -307,5 +384,6 @@ fn effect_posterior(
         unevaluable_mass: 0.0,
         early_stopped: false,
         treatment_contrast: contrast,
+        preparation: None,
     }
 }

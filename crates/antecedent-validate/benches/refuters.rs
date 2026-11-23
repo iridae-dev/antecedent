@@ -3,7 +3,7 @@
 //! Prints wall time and the bits of each report's numbers per thread count, so a change to the
 //! replicate loops can be checked for both speed and bit-identical output.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -107,7 +107,7 @@ fn main() {
         ExprId::from_raw(0),
     );
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+    let est = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let ctx = ExecutionContext::for_tests(5);
     let original =
@@ -125,6 +125,8 @@ fn main() {
     for threads in [1u32, 4] {
         let mut ctx = ExecutionContext::for_tests(5);
         ctx.parallelism = Parallelism::bounded(NonZeroThreadCount::new(threads).unwrap());
+        ctx =
+            ctx.with_admission(antecedent_core::execution::AdmissionPool::fixed(threads, u64::MAX));
         let report = |name: &str, run: &dyn Fn(&mut EstimationWorkspace) -> RefutationReport| {
             let (elapsed, r) = best_of(|| run(&mut EstimationWorkspace::default()));
             println!(

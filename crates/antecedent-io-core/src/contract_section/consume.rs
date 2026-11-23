@@ -1,12 +1,19 @@
 //! Contract seal, claim acceptance and host projection.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::verify::verify_contract_against_body;
+use super::dr_replay::{HeldSource, SourceReplayBounds, hold_source_section};
+use super::verify::{
+    contract_unresolved_split, contract_unresolved_with_source, producer_encoding_unresolved,
+    verify_stored_payloads,
+};
 
 use std::sync::Arc;
 
-use antecedent_contract::{AcceptanceReport, ConsumerProfile, HandoffReceipt};
+use antecedent_contract::{
+    AcceptanceReport, ClaimDomains, ClaimKind, ConsumerProfile, DomainStatus, HandoffReceipt,
+    IDENTIFICATION_NOT_CLAIMED,
+};
 use antecedent_core::SemanticDigest;
 use serde::{Deserialize, Serialize};
 
@@ -14,13 +21,13 @@ use super::{
     AnalysisResultConsumption, AnalysisResultContractWire, CONTRACT_SECTION,
     CONTRACT_SECTION_FORMAT, ClaimSectionWire, ContractIdentitiesWire,
 };
-use crate::contract_reason::ContractReason;
+use crate::contract_reason::{ContractReason, publish_reasons};
 use crate::contract_wire::{
     IdentificationSlotWire, ReasoningSectionWire, SlotSectionWire, SupportSlotWire,
 };
 use crate::identity::{ClaimIdentityWire, IdentificationProductWire, claim_digest, payload_digest};
 use crate::{
-    AnalysisResultHeader, AnalysisResultWire, IoError, RefutationReportWire,
+    AnalysisResultHeader, AnalysisResultWire, EncodedArtifact, IoError, RefutationReportWire,
     StructuralWeightBasisWire, to_cbor,
 };
 
@@ -122,51 +129,113 @@ pub(in crate::contract_section) fn contract_seal_of(
 ///
 /// Covers every body field: scalar, standard error, assumptions, diagnostics,
 /// refutations, response, posterior draws, mediation grid, structural atoms,
-/// and the identification certificate.
+/// and the identification certificate. The native execution observation is a
+/// record of how one run did its work (a fit, or a reuse of a frozen fit), not
+/// part of what the result claims, so the claim identity leaves it out: a
+/// retained study that re-estimates reproduces its own claim.
 ///
 /// # Errors
 ///
 /// CBOR encode failure.
 pub fn result_digest(body: &AnalysisResultWire) -> Result<[u8; 32], IoError> {
-    crate::identity::payload_digest_of("analysis_result.body", body)
+    if body.native_execution.is_none() {
+        return crate::identity::payload_digest_of("analysis_result.body", body);
+    }
+    let mut claimed = body.clone();
+    claimed.native_execution = None;
+    crate::identity::payload_digest_of("analysis_result.body", &claimed)
 }
 
 /// Claim kind implied by a result body and its identification slot.
 ///
 /// The single rule shared by the producer and the independent consumer.
 #[must_use]
-pub fn claim_kind_name(
+pub fn claim_kind(
     body: &AnalysisResultWire,
     identification: Option<&IdentificationSlotWire>,
-) -> &'static str {
+) -> ClaimKind {
     if body.policy_value.is_some() {
-        return "policy_value";
+        return ClaimKind::PolicyValue;
     }
     if body.response.is_some() {
-        return "response";
+        return ClaimKind::Response;
+    }
+    // A description of the observed law is associational whatever its identification slot
+    // says: no slot turns an association section into a causal claim.
+    if body.association.is_some() {
+        return ClaimKind::Associational;
+    }
+    // An identified set is never a point, whatever status the identification slot carries.
+    if body.iv_bounds.is_some() {
+        return ClaimKind::Bounds;
     }
     let Some(slot) = identification else {
-        return "point";
+        return ClaimKind::Point;
     };
     match slot.status.as_str() {
-        "partially_identified" => return "bounds",
+        "partially_identified" => return ClaimKind::Bounds,
         "nonparametrically_identified"
         | "identified_under_parametric_restrictions"
         | "identified_under_prior_restrictions"
         | "graph_dependent" => {}
         // `not_identified`, `not_certified`, `proven_non_transportable`, or any spelling this reader
         // does not know: never a point.
-        _ => return "incomplete",
+        _ => return ClaimKind::Incomplete,
     }
     // Any mass short of full identification, or a weighted mixture, is not a point.
     if slot.identified_mass < 1.0 || slot.weight_basis.is_some() {
         if body.structural_response.as_ref().is_some_and(|mixture| mixture.identified_set.is_some())
         {
-            return "bounds";
+            return ClaimKind::Bounds;
         }
-        return "mixture";
+        return ClaimKind::Mixture;
     }
-    "point"
+    ClaimKind::Point
+}
+
+/// Wire spelling of [`claim_kind`].
+#[must_use]
+pub fn claim_kind_name(
+    body: &AnalysisResultWire,
+    identification: Option<&IdentificationSlotWire>,
+) -> &'static str {
+    claim_kind(body, identification).as_str()
+}
+
+/// Whether an identification section states that identification is not claimed.
+///
+/// A noncausal claim has nothing to identify, so its identification slot is
+/// unavailable for the stable reason [`IDENTIFICATION_NOT_CLAIMED`]. Any other
+/// unavailable reason, or a present slot, is an ordinary causal claim.
+#[must_use]
+pub fn identification_not_claimed(section: &SlotSectionWire<IdentificationSlotWire>) -> bool {
+    section.value.is_none() && section.unavailable.as_deref() == Some(IDENTIFICATION_NOT_CLAIMED)
+}
+
+/// [`claim_kind`] over the whole identification section.
+///
+/// A section that states identification is not claimed implies an
+/// `associational` claim whatever the body carries; every other section reads
+/// as [`claim_kind`] does. The producer and the independent consumer both
+/// call this one rule.
+#[must_use]
+pub fn claim_kind_of_section(
+    body: &AnalysisResultWire,
+    identification: &SlotSectionWire<IdentificationSlotWire>,
+) -> ClaimKind {
+    if identification_not_claimed(identification) {
+        return ClaimKind::Associational;
+    }
+    claim_kind(body, identification.value.as_ref())
+}
+
+/// Wire spelling of [`claim_kind_of_section`].
+#[must_use]
+pub fn claim_kind_name_of_section(
+    body: &AnalysisResultWire,
+    identification: &SlotSectionWire<IdentificationSlotWire>,
+) -> &'static str {
+    claim_kind_of_section(body, identification).as_str()
 }
 
 /// Refuter ids whose outcome speaks to empirical support (overlap / positivity).
@@ -174,19 +243,65 @@ pub(in crate::contract_section) fn is_support_refuter(refuter: &str) -> bool {
     refuter.starts_with("overlap.") || refuter == "positivity"
 }
 
-/// Empirical support label from executed refutations.
+/// Diagnostic code an estimate records when its overlap policy binds (see
+/// [`support_empirical`]).
+pub const OVERLAP_LIMITED_DIAGNOSTIC: &str = "estimate.overlap.limited";
+
+/// Diagnostic code an estimate records when its resampling interval dropped replicates.
+pub const BOOTSTRAP_LIMITED_DIAGNOSTIC: &str = "estimate.bootstrap.limited";
+
+/// Diagnostic code a result records when its returned posterior has weak sampler diagnostics.
+pub const MCMC_LIMITED_DIAGNOSTIC: &str = "estimate.mcmc.limited";
+
+/// Suffix that marks a body diagnostic as limiting empirical support.
+const LIMITED_DIAGNOSTIC_SUFFIX: &str = ".limited";
+
+/// Area a `.limited` diagnostic code names: the code without the `.limited` suffix and without
+/// a leading `estimate.` (`estimate.overlap.limited` is `overlap`, `cyclic.limited` is
+/// `cyclic`). `None` for a code that does not end in `.limited`.
+fn limited_area(code: &str) -> Option<&str> {
+    let area = code.strip_suffix(LIMITED_DIAGNOSTIC_SUFFIX)?;
+    let area = area.strip_prefix("estimate.").unwrap_or(area);
+    (!area.is_empty()).then_some(area)
+}
+
+/// Empirical support label from executed refutations and the estimate's diagnostics.
 ///
-/// `None` when no support check ran; `supported` when every support check
-/// passed; `failed:<refuter>` naming the first failed check otherwise. Other
-/// refuters (placebo, sensitivity, ...) do not speak to support.
+/// Precedence: `failed:<refuter>` naming the first failed overlap / positivity check; then
+/// `limited:<area>` for the first body diagnostic whose code ends in `.limited` (the code
+/// without `.limited` and a leading `estimate.`, so `estimate.overlap.limited` gives
+/// `limited:overlap`); then `limited:refuter.<id>` for the first failed non-support refuter
+/// (evidence against the assumptions, not a contradiction of support); then `supported` when
+/// every support check passed; `None` when no support check ran and nothing limits support.
 #[must_use]
-pub fn support_empirical(refutations: &[RefutationReportWire]) -> Option<String> {
-    let mut checks = refutations.iter().filter(|report| is_support_refuter(&report.refuter));
-    let first = checks.next()?;
-    std::iter::once(first).chain(checks).find(|report| !report.passed).map_or_else(
-        || Some("supported".into()),
-        |failed| Some(format!("failed:{}", failed.refuter)),
-    )
+pub fn support_empirical(
+    refutations: &[RefutationReportWire],
+    diagnostics: &[crate::DiagnosticWire],
+) -> Option<String> {
+    // A mixed legacy/scoped collection cannot establish a whole-result verdict.
+    let has_scoped = refutations.iter().any(|report| report.scope.is_some());
+    if has_scoped {
+        // Unscoped diagnostics cannot be safely attributed to the whole target
+        // when scoped checks are present; retain them without a whole verdict.
+        return None;
+    }
+    let mut checks = refutations
+        .iter()
+        .filter(|report| !has_scoped && is_support_refuter(&report.refuter))
+        .peekable();
+    if let Some(failed) = checks.clone().find(|report| !report.passed) {
+        return Some(format!("failed:{}", failed.refuter));
+    }
+    if let Some(area) = diagnostics.iter().find_map(|diagnostic| limited_area(&diagnostic.code)) {
+        return Some(format!("limited:{area}"));
+    }
+    if let Some(failed) = refutations
+        .iter()
+        .find(|report| !has_scoped && !is_support_refuter(&report.refuter) && !report.passed)
+    {
+        return Some(format!("limited:refuter.{}", failed.refuter));
+    }
+    checks.peek().map(|_| "supported".into())
 }
 
 /// Identification / support / evaluated domain statuses of a claim.
@@ -204,13 +319,27 @@ pub struct ClaimDomainsWire {
 ///
 /// Identified (and evaluated) only for a full-mass, nonparametric or
 /// parametric identification. Supported only when the matrix cell is
-/// licensed and every executed support check passed; a failed check is
+/// supported and every executed support check passed; a failed check is
 /// `contradicted`; a refused or not-applicable cell is `outside_scope`.
 #[must_use]
 pub fn claim_domains(
     support: Option<&SupportSlotWire>,
     identification: Option<&IdentificationSlotWire>,
 ) -> ClaimDomainsWire {
+    let domains = claim_domain_statuses(support, identification);
+    ClaimDomainsWire {
+        identification: domains.identification.as_str().into(),
+        support: domains.support.as_str().into(),
+        evaluated: domains.evaluated.as_str().into(),
+    }
+}
+
+/// [`claim_domains`] as typed statuses.
+#[must_use]
+pub fn claim_domain_statuses(
+    support: Option<&SupportSlotWire>,
+    identification: Option<&IdentificationSlotWire>,
+) -> ClaimDomains {
     let identified = identification.is_some_and(|slot| {
         slot.unidentified_mass == 0.0
             && slot.unevaluable_mass == 0.0
@@ -221,20 +350,54 @@ pub fn claim_domains(
             )
     });
     let support_domain = match support {
-        Some(slot) if matches!(slot.matrix_status.as_str(), "refused" | "not_applicable") => {
-            "outside_scope"
+        Some(slot) if matches!(slot.matrix_status.as_str(), "not_supported" | "not_applicable") => {
+            DomainStatus::OutsideScope
         }
-        Some(slot) if slot.empirical.starts_with("failed:") => "contradicted",
-        Some(slot) if slot.matrix_status == "licensed" && slot.empirical == "supported" => {
-            "supported"
+        Some(slot) if slot.empirical.starts_with("failed:") => DomainStatus::Contradicted,
+        Some(slot) if slot.empirical.starts_with("limited:") => DomainStatus::Limited,
+        Some(slot) if slot.matrix_status == "supported" && slot.empirical == "supported" => {
+            DomainStatus::Supported
         }
-        _ => "unknown",
+        _ => DomainStatus::Unknown,
     };
+    ClaimDomains::new(
+        if identified { DomainStatus::Identified } else { DomainStatus::Unknown },
+        support_domain,
+        if identified { DomainStatus::Evaluated } else { DomainStatus::Unknown },
+    )
+}
+
+/// [`claim_domains`] over the whole identification section.
+///
+/// A noncausal claim reports identification as `not_claimed`, never as a
+/// failed or unknown identification, and is evaluated: the association it
+/// states was computed from the data the result carries. Its support domain is
+/// read exactly as a causal claim's.
+#[must_use]
+pub fn claim_domains_of_section(
+    support: Option<&SupportSlotWire>,
+    identification: &SlotSectionWire<IdentificationSlotWire>,
+) -> ClaimDomainsWire {
+    let domains = claim_domain_statuses_of_section(support, identification);
     ClaimDomainsWire {
-        identification: if identified { "identified" } else { "unknown" }.into(),
-        support: support_domain.into(),
-        evaluated: if identified { "evaluated" } else { "unknown" }.into(),
+        identification: domains.identification.as_str().into(),
+        support: domains.support.as_str().into(),
+        evaluated: domains.evaluated.as_str().into(),
     }
+}
+
+/// [`claim_domains_of_section`] as typed statuses.
+#[must_use]
+pub fn claim_domain_statuses_of_section(
+    support: Option<&SupportSlotWire>,
+    identification: &SlotSectionWire<IdentificationSlotWire>,
+) -> ClaimDomains {
+    let mut domains = claim_domain_statuses(support, identification.value.as_ref());
+    if identification_not_claimed(identification) {
+        domains.identification = DomainStatus::NotClaimed;
+        domains.evaluated = DomainStatus::Evaluated;
+    }
+    domains
 }
 
 /// Wire spelling of a structural weight basis.
@@ -379,15 +542,222 @@ pub(in crate::contract_section) fn require_payload_digest<T>(
     }
 }
 
-/// Consume analysis-result bytes without caller context.
+/// An analysis-result artifact read and checked for integrity, with nothing recomputed.
 ///
-/// Decode failures are errors. Missing or unverifiable contracts are
-/// successful consumptions whose [`AcceptanceReport`] refuses verification.
+/// Loading decodes the header, body and contract section and rehashes every stored payload
+/// against its advertised digest. It never replays a number: [`AnalysisResultLoad::replay`] does
+/// that, on request, for a result that did not come from the loading process.
+#[derive(Clone, Debug)]
+pub struct AnalysisResultLoad {
+    /// Decoded header.
+    pub header: AnalysisResultHeader,
+    /// Decoded body.
+    pub body: AnalysisResultWire,
+    /// Contract section, when present and well-formed enough to decode.
+    pub contract: Option<AnalysisResultContractWire>,
+    /// BLAKE3 of the received artifact bytes.
+    pub artifact_digest: [u8; 32],
+    /// Why the artifact is not intact: a missing, unreadable or unrecognized contract section,
+    /// or a stored payload that disagrees with its digest. Empty when it is intact.
+    pub integrity: Vec<Arc<str>>,
+    artifact: EncodedArtifact,
+}
+
+impl AnalysisResultLoad {
+    /// Whether the contract section is present, recognized and agrees with its digests.
+    #[must_use]
+    pub fn is_intact(&self) -> bool {
+        self.integrity.is_empty()
+    }
+
+    /// Recompute the published numbers from the evidence the contract carries.
+    ///
+    /// An artifact that is not intact has nothing to replay and reports its integrity reasons.
+    #[must_use]
+    pub fn replay(&self, options: &ReplayOptions) -> ReplayReport {
+        let Some(contract) =
+            self.contract.as_ref().filter(|contract| contract.format == CONTRACT_SECTION_FORMAT)
+        else {
+            return ReplayReport {
+                integrity: self.integrity.clone(),
+                not_replayable: Vec::new(),
+                mismatches: Vec::new(),
+            };
+        };
+        // The witness is read only for a contract that declares an operation to replay with it.
+        let held: Option<HeldSource> = contract
+            .program
+            .as_ref()
+            .is_some_and(|program| program.checked_dr_lowering.is_some())
+            .then(|| hold_source_section(&self.artifact, &options.source.witness))
+            .flatten();
+        let source = held.as_ref().map(|held| held.replay(&options.source));
+        let (integrity, replayed) = contract_unresolved_split(
+            &self.header,
+            &self.body,
+            contract,
+            &options.limits,
+            source.as_ref(),
+        );
+        let (not_replayable, mismatches): (Vec<_>, Vec<_>) =
+            publish_reasons(replayed).into_iter().partition(is_gap);
+        ReplayReport { integrity: publish_reasons(integrity), not_replayable, mismatches }
+    }
+}
+
+/// Reasons that name a retained lowering or fit the artifact does not carry, besides every
+/// `dependencies.*` reason.
+const MISSING_RETAINED_EVIDENCE: [&str; 4] = [
+    "checked_aipw.row_binding",
+    "program.checked_aipw_lowering",
+    "program.checked_linear_adjustment_lowering",
+    "program.functional_effect_response_grid",
+];
+
+/// A gap names evidence the artifact does not carry; every other replay finding is a number or
+/// binding that was recomputed and does not agree.
+fn is_gap(reason: &Arc<str>) -> bool {
+    reason.starts_with("dependencies.") || MISSING_RETAINED_EVIDENCE.contains(&reason.as_ref())
+}
+
+/// Cells a requested replay admits: ten times the bound the implicit paths keep.
+const REQUESTED_REPLAY_CELLS: usize = 10 * crate::distribution_replay::MAX_REPLAY_CELLS;
+/// Evaluator operations a requested replay performs: ten times the implicit bound.
+const REQUESTED_REPLAY_OPERATIONS: usize = 10 * crate::distribution_replay::MAX_REPLAY_OPERATIONS;
+/// Working memory a requested source replay may admit.
+const REQUESTED_REPLAY_MEMORY_BYTES: u64 = 8 * 1024 * 1024 * 1024;
+
+/// What a replay may spend. A replay is always asked for, so its defaults are larger than the
+/// bounds of the implicit paths: the cost is never a surprise on a result the caller just made.
+#[derive(Clone, Debug)]
+pub struct ReplayOptions {
+    /// Bounds of the finite-discrete replay.
+    pub limits: crate::distribution_replay::ReplayLimits,
+    /// Bounds of the replay of a carried full-source witness.
+    pub source: SourceReplayBounds,
+}
+
+impl Default for ReplayOptions {
+    fn default() -> Self {
+        Self {
+            limits: crate::distribution_replay::ReplayLimits {
+                max_cells: REQUESTED_REPLAY_CELLS,
+                max_operations: REQUESTED_REPLAY_OPERATIONS,
+            },
+            source: SourceReplayBounds {
+                memory_bytes: REQUESTED_REPLAY_MEMORY_BYTES,
+                ..SourceReplayBounds::default()
+            },
+        }
+    }
+}
+
+/// The outcome of replaying a loaded result.
+///
+/// Three kinds of finding, kept apart: the artifact is not intact (`integrity`), a part cannot
+/// be replayed because the evidence is not carried (`not_replayable`), or a recomputed part
+/// does not agree with the published one (`mismatches`). All three empty means every part the
+/// artifact publishes was replayed and agrees.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReplayReport {
+    /// Integrity reasons: see [`AnalysisResultLoad::integrity`].
+    pub integrity: Vec<Arc<str>>,
+    /// Parts with no replay, or whose evidence the artifact does not carry.
+    pub not_replayable: Vec<Arc<str>>,
+    /// Parts that were recomputed and differ, or whose bindings do not hold.
+    pub mismatches: Vec<Arc<str>>,
+}
+
+impl ReplayReport {
+    /// Every published part replayed and agrees.
+    #[must_use]
+    pub fn replayed(&self) -> bool {
+        self.integrity.is_empty() && self.not_replayable.is_empty() && self.mismatches.is_empty()
+    }
+
+    /// Something was recomputed and disagrees, or the artifact is not intact.
+    #[must_use]
+    pub fn failed(&self) -> bool {
+        !self.integrity.is_empty() || !self.mismatches.is_empty()
+    }
+}
+
+/// Read analysis-result bytes and check their integrity, replaying nothing.
 ///
 /// # Errors
 ///
 /// Wrong artifact kind, missing header/body, or invalid CBOR.
-pub fn consume_analysis_result(bytes: &[u8]) -> Result<AnalysisResultConsumption, IoError> {
+pub fn load_analysis_result(bytes: &[u8]) -> Result<AnalysisResultLoad, IoError> {
+    let (artifact, header, body) = crate::decode_analysis_result_artifact(bytes)?;
+    let artifact_digest = payload_digest("analysis_result.bytes", bytes);
+    let (contract, integrity) = match super::decode_analysis_result_contract(&artifact) {
+        Err(_) | Ok(None) => (None, vec![Arc::from(CONTRACT_SECTION)]),
+        Ok(Some(contract)) if contract.format != CONTRACT_SECTION_FORMAT => {
+            (Some(contract), vec![Arc::from("contract_format")])
+        }
+        Ok(Some(contract)) => {
+            // A load checks what the producer sealed: reasons the producer omits by design
+            // (absent lowerings and other replay inputs) are replay findings, not integrity.
+            let integrity = publish_reasons(producer_encoding_unresolved(
+                &contract,
+                verify_stored_payloads(&contract),
+            ));
+            (Some(contract), integrity)
+        }
+    };
+    Ok(AnalysisResultLoad { header, body, contract, artifact_digest, integrity, artifact })
+}
+
+/// Replay analysis-result bytes without caller context.
+///
+/// Decode failures are errors. Missing or unreplayable contracts are
+/// successful consumptions whose [`AcceptanceReport`] does not accept them as a replayed
+/// program. A caller that only reads the result uses [`load_analysis_result`], which replays
+/// nothing.
+///
+/// # Errors
+///
+/// Wrong artifact kind, missing header/body, or invalid CBOR.
+pub fn replay_analysis_result(bytes: &[u8]) -> Result<AnalysisResultConsumption, IoError> {
+    replay_analysis_result_within(bytes, &crate::distribution_replay::ReplayLimits::default())
+}
+
+/// [`replay_analysis_result`] with the finite-discrete replay held to the caller's
+/// [`ReplayLimits`](crate::distribution_replay::ReplayLimits) instead of the defaults.
+///
+/// # Errors
+///
+/// As [`replay_analysis_result`].
+pub fn replay_analysis_result_within(
+    bytes: &[u8],
+    limits: &crate::distribution_replay::ReplayLimits,
+) -> Result<AnalysisResultConsumption, IoError> {
+    consume_with_source_bounds(bytes, limits, &SourceReplayBounds::default())
+}
+
+/// [`replay_analysis_result`] with the replay of a carried full-source witness held to the
+/// caller's [`SourceReplayBounds`] instead of the defaults.
+///
+/// [`replay_analysis_result`] uses the witness the same way under the default bounds; this
+/// entry exists to bound the witness, the replay's working memory and its cancellation. An
+/// artifact without a witness, or whose contract declares no replayable operation, is consumed
+/// exactly as without one.
+///
+/// # Errors
+///
+/// As [`replay_analysis_result`].
+pub fn replay_analysis_result_with_source(
+    bytes: &[u8],
+    bounds: &SourceReplayBounds,
+) -> Result<AnalysisResultConsumption, IoError> {
+    consume_with_source_bounds(bytes, &crate::distribution_replay::ReplayLimits::default(), bounds)
+}
+
+fn consume_with_source_bounds(
+    bytes: &[u8],
+    limits: &crate::distribution_replay::ReplayLimits,
+    bounds: &SourceReplayBounds,
+) -> Result<AnalysisResultConsumption, IoError> {
     let (artifact, header, body) = crate::decode_analysis_result_artifact(bytes)?;
     let artifact_digest = payload_digest("analysis_result.bytes", bytes);
     let contract = match super::decode_analysis_result_contract(&artifact) {
@@ -405,17 +775,45 @@ pub fn consume_analysis_result(bytes: &[u8]) -> Result<AnalysisResultConsumption
                     Some(Arc::from(format!("invalid_contract_section:{err}"))),
                 ),
                 artifact_digest,
+                method_provenance: None,
             });
         }
     };
-    let acceptance = accept_contract(&header, &body, contract.as_ref());
-    Ok(AnalysisResultConsumption { header, body, contract, acceptance, artifact_digest })
+    // The witness is read only for a contract that declares an operation to replay with it.
+    let held: Option<HeldSource> = contract
+        .as_ref()
+        .filter(|contract| {
+            contract.program.as_ref().is_some_and(|program| program.checked_dr_lowering.is_some())
+        })
+        .and_then(|_| hold_source_section(&artifact, &bounds.witness));
+    let source = held.as_ref().map(|held| held.replay(bounds));
+    let acceptance = accept_contract(&header, &body, contract.as_ref(), limits, source.as_ref());
+    // Descriptive and outside acceptance: a section not bound to the declared ids is not read.
+    let method_provenance = contract.as_ref().and_then(|contract| {
+        crate::decode_method_provenance_section(
+            &artifact,
+            contract.identifier.as_deref(),
+            contract.estimator.as_deref(),
+        )
+        .ok()
+        .flatten()
+    });
+    Ok(AnalysisResultConsumption {
+        header,
+        body,
+        contract,
+        acceptance,
+        artifact_digest,
+        method_provenance,
+    })
 }
 
 pub(in crate::contract_section) fn accept_contract(
     header: &AnalysisResultHeader,
     body: &AnalysisResultWire,
     contract: Option<&AnalysisResultContractWire>,
+    limits: &crate::distribution_replay::ReplayLimits,
+    source: Option<&super::dr_replay::SourceReplay<'_>>,
 ) -> AcceptanceReport {
     let Some(contract) = contract else {
         return AcceptanceReport::new(
@@ -435,7 +833,8 @@ pub(in crate::contract_section) fn accept_contract(
             Some(Arc::from("unknown_contract_format")),
         );
     }
-    let unresolved = verify_contract_against_body(header, body, contract);
+    let unresolved =
+        publish_reasons(contract_unresolved_with_source(header, body, contract, limits, source));
     let verified = unresolved.is_empty();
     let claim_present = contract.claim.is_some();
     let operations: Arc<[Arc<str>]> = match (verified, claim_present) {
@@ -455,9 +854,9 @@ pub(in crate::contract_section) fn accept_contract(
         (false, _) => storage_ops(),
     };
     let restriction = if !verified {
-        Some(Arc::from("unverified_contract_references"))
+        Some(Arc::from("unreplayed_contract_references"))
     } else if !claim_present {
-        Some(Arc::from("verified_program_without_claim"))
+        Some(Arc::from("replayed_program_without_claim"))
     } else {
         None
     };
@@ -490,7 +889,7 @@ pub(in crate::contract_section) fn storage_ops() -> Arc<[Arc<str>]> {
 
 /// Accept / verify a claim from bytes under a consumer profile.
 ///
-/// Reuses [`consume_analysis_result`] / [`verify_contract_against_body`]. Unknown
+/// Reuses [`replay_analysis_result`] / [`super::verify::verify_contract_against_body`]. Unknown
 /// required features refuse claim acceptance; storage/forwarding remains allowed.
 ///
 /// # Errors
@@ -500,7 +899,7 @@ pub fn accept_claim(
     bytes: &[u8],
     profile: &ConsumerProfile,
 ) -> Result<(AnalysisResultConsumption, HandoffReceipt), IoError> {
-    let mut consumed = consume_analysis_result(bytes)?;
+    let mut consumed = replay_analysis_result(bytes)?;
     let claim_id = receipt_input(&consumed);
     if !profile.understands(AcceptanceOp::VerifyContract.as_str())
         || !profile.understands(AcceptanceOp::InspectClaim.as_str())
@@ -526,7 +925,7 @@ pub fn accept_claim(
     } else {
         let mut omitted: Vec<Arc<str>> = Vec::new();
         if !consumed.acceptance.unresolved.is_empty() {
-            omitted.push(Arc::from("verified_references"));
+            omitted.push(Arc::from("replayed_references"));
         }
         if !consumed.acceptance.claim_present {
             omitted.push(Arc::from("claim"));
@@ -619,7 +1018,12 @@ pub fn project_claim_host(consumed: &AnalysisResultConsumption) -> ClaimHostProj
         return unsupported_host(consumed, consumed.acceptance.accepts_as_claim());
     };
     let value = match (claim.kind.as_str(), claim.value_bits) {
-        ("point", Some(bits)) => serde_json::Value::from(f64::from_bits(bits)),
+        // A non-finite point estimate is not JSON-representable; it must not collapse into the
+        // `null` that means an explicitly absent value.
+        ("point", Some(bits)) => serde_json::Number::from_f64(f64::from_bits(bits)).map_or_else(
+            || serde_json::Value::String("non_finite".into()),
+            serde_json::Value::Number,
+        ),
         ("point", None) => serde_json::Value::Null,
         ("bounds" | "incomplete", _) => serde_json::Value::String("unbounded".into()),
         ("refusal", _) => serde_json::Value::String("unsupported".into()),
@@ -628,7 +1032,7 @@ pub fn project_claim_host(consumed: &AnalysisResultConsumption) -> ClaimHostProj
     // Domains are re-derived from rehashed reasoning slots; when references do
     // not verify, the stored strings are the sender's say-so and are not shown.
     let domain = |stored: &str| {
-        if consumed.acceptance.verified_references {
+        if consumed.acceptance.replayed_references {
             serde_json::Value::String(stored.to_owned())
         } else {
             serde_json::Value::Null
@@ -674,4 +1078,32 @@ pub fn project_lossy_scalar(
     view.accepts_as_claim = false;
     let claim_id = receipt_input(consumed);
     (view, HandoffReceipt::lossy_scalar(claim_id, "restricted"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn gap(reason: &str) -> bool {
+        is_gap(&Arc::from(reason))
+    }
+
+    #[test]
+    fn missing_evidence_is_not_replayable_and_a_recomputed_difference_is_a_mismatch() {
+        assert!(gap("dependencies.checked_conditional_effect_operation"));
+        assert!(gap("program.checked_aipw_lowering"));
+        assert!(gap("program.functional_effect_response_grid"));
+        assert!(!gap("program.checked_aipw_lowering.target"));
+        assert!(!gap("program.functional_effect_response_grid.member_value"));
+        assert!(!gap("claim.id"));
+    }
+
+    #[test]
+    fn a_requested_replay_may_spend_more_than_the_implicit_paths() {
+        let requested = ReplayOptions::default();
+        let implicit = crate::distribution_replay::ReplayLimits::default();
+        assert!(requested.limits.max_cells > implicit.max_cells);
+        assert!(requested.limits.max_operations > implicit.max_operations);
+        assert!(requested.source.memory_bytes > SourceReplayBounds::default().memory_bytes);
+    }
 }

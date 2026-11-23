@@ -5,13 +5,15 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal
 
+from ..._artifact_protocol import ExportedArtifact, artifact_export, artifact_from_receipt
 from ..._defaults import OMITTED
+from ..._scientific import ScientificResult
 from ...errors import CausalUnsupportedError, CausalValueError
 from ...graph import Admg
 from ...learners import LearnerSpec, Logistic, Ridge, _learner_wire
 
 if TYPE_CHECKING:
-    from ...estimation import PreparedAnalysis
+    from ...estimation import _PreparedEngine
 
 
 from .catalog import SelectionDiagram
@@ -33,6 +35,11 @@ class TrialAipwData:
     source: Sequence[bool]
     randomization: Sequence[float]
     sampling: Literal["nested_cohort", "independent_samples"]
+
+    def _buffers(self, names: Sequence[str]) -> dict[str, Any]:
+        from .._buffers import trial_buffers
+
+        return trial_buffers(self, names)
 
     def _json(self, names: Sequence[str]) -> str:
         import json
@@ -74,15 +81,13 @@ class TrialAipwQuery:
 
 @dataclass(frozen=True, slots=True)
 class TransportInference:
-    """Frozen joint outer bootstrap; intervals remain nominal and uncalibrated."""
+    """Joint outer bootstrap and nominal coverage; RNG belongs to Execution.seed."""
 
     bootstrap: int = OMITTED["transport_bootstrap"]
     coverage_level: float = OMITTED["transport_coverage_level"]
-    seed: int = 1
 
     def __post_init__(self) -> None:
         _non_negative("bootstrap", self.bootstrap)
-        _non_negative("seed", self.seed)
         if not isinstance(self.coverage_level, (int, float)) or not (
             0.0 < float(self.coverage_level) < 1.0
         ):
@@ -90,8 +95,8 @@ class TransportInference:
 
 
 @dataclass(frozen=True, slots=True)
-class TransportControls:
-    """Physical resource limits, separate from scientific inference settings."""
+class _TransportLimits:
+    """Private translation into legacy native compiler parameters."""
 
     max_operations: int = 10_000_000
     max_depth: int = 256
@@ -115,7 +120,7 @@ class TrialNuisanceDiagnostics:
 
 
 @dataclass(frozen=True, slots=True)
-class LearnedTrialEstimate:
+class LearnedTrialEstimate(ScientificResult):
     acceptance: Any = field(default=None, init=False, repr=False, compare=False)
 
     estimate: float
@@ -142,8 +147,9 @@ class LearnedTrialEstimate:
             "reasoning": self.inspect().to_dict(),
         }
 
-    def export(self) -> bytes:
-        return bytes(self._execution.export())
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
+        return artifact_from_receipt(self, bytes(self._execution.export()))
 
     def inspect(self) -> Any:
         import json
@@ -177,17 +183,18 @@ def prepare_trial(
     *,
     provider: TrialAipw | None = None,
     inference: TransportInference | None = None,
-    controls: TransportControls | None = None,
-) -> PreparedAnalysis[LearnedTrialEstimate]:
+    controls: _TransportLimits | None = None,
+    seed: int = 1,
+) -> _PreparedEngine[LearnedTrialEstimate]:
     """Prepare a checked binary contrast; baseline covariates must match its certificate."""
     import json
 
     from ... import _native
-    from ...estimation import PreparedAnalysis, _Controls
+    from ...estimation import _Controls, _PreparedEngine
 
     provider = provider or TrialAipw()
     inference = inference or TransportInference()
-    controls = controls or TransportControls()
+    controls = controls or _TransportLimits()
     if (controls.max_operations, controls.max_depth, controls.max_support_rows) != (
         10_000_000,
         256,
@@ -213,10 +220,8 @@ def prepare_trial(
         query.outcome,
         data,
         json.dumps(options),
-        seed=inference.seed,
+        seed=seed,
         memory_bytes=controls.memory_bytes,
         cancel=controls.cancel,
     )
-    return PreparedAnalysis(
-        native, kind="learned_trial", controls=_Controls(cancel=controls.cancel)
-    )
+    return _PreparedEngine(native, kind="learned_trial", controls=_Controls(cancel=controls.cancel))

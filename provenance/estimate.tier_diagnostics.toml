@@ -1,0 +1,21 @@
+feature_id = "estimate.tier_diagnostics"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Sensitivity analysis in observational research: introducing the E-value (VanderWeele, Ding, 2017)", sections = ["E-value for a risk ratio RR: RR + sqrt(RR(RR-1)); approximation RR ~ exp(0.91 d) for a standardized mean difference d"] },
+]
+
+implementation_deviations = [
+ "The formula is implemented as the record states it; the paper itself was not consulted during implementation. d is the effect divided by the sample standard deviation of the outcome; only a point E-value is attached and an E-value that embeds a converted interval limit is reported unavailable.",
+ "No estimator is added: the diagnostics read the executed result's tier-closure adjustment set and its own overlap report and refit nothing (docs/guides/tier-diagnostics.md).",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/tests/tier_diagnostics.rs",
+]

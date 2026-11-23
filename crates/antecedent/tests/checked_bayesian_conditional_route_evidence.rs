@@ -1,6 +1,7 @@
 //! Builder-independent evidence for Bayesian DAG conditional effects.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, StructureSource, Study,
 };
@@ -10,7 +11,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 fn conditional_scm() -> (TabularData, Dag, ConditionalEffectQuery) {
     conditional_scm_with_noise(false)
@@ -74,7 +75,7 @@ fn sealed_and_one_shot_bayesian_conditional_agree_on_a_wide_table() {
             .unwrap()
     };
     let prepared = study(RefuteSuite::None).prepare(&ctx).unwrap();
-    assert!(prepared.checked_bayesian_conditional_operation().is_some());
+    assert!(matches!(prepared.retained_operation(), RetainedOperation::BayesianConditional(..)));
     let sealed = prepared.estimate(&data, &ctx).unwrap();
     // Placebo-and-RCC is not a sealed suite, so this runs the one-shot path.
     let one_shot = study(RefuteSuite::PlaceboAndRcc).run(&ctx).unwrap();
@@ -84,9 +85,14 @@ fn sealed_and_one_shot_bayesian_conditional_agree_on_a_wide_table() {
     assert!(projected(&one_shot), "one-shot projects the unused column away");
     assert!(projected(&sealed), "sealed execution projects the unused column away");
     assert_eq!(
-        sealed.estimate.as_effect().unwrap().ate.to_bits(),
-        one_shot.estimate.as_effect().unwrap().ate.to_bits()
+        sealed.estimate().as_effect().unwrap().ate.to_bits(),
+        one_shot.estimate().as_effect().unwrap().ate.to_bits()
     );
+    // And both are the structural truth, not merely each other: y = 1 + 0.7u + 2t + 0.5tz +
+    // 0.25tw is linear with both modifiers centred over complete cycles of the table (1200 rows
+    // are 150 cycles of z and 200 of w), so the average conditional contrast is exactly 2.
+    let ate = sealed.estimate().as_effect().unwrap().ate;
+    assert!((ate - 2.0).abs() < 0.02, "ate={ate}"); // observed 0.0066 (prior shrinkage)
 }
 
 #[test]
@@ -108,7 +114,7 @@ fn bayesian_conditional_default_estimator_ignores_builder_call_order() {
     for (label, builder) in [("inference-first", inference_first), ("query-first", query_first)] {
         let prepared = builder.build().unwrap().prepare(&ctx).unwrap();
         assert!(
-            prepared.checked_bayesian_conditional_operation().is_some(),
+            matches!(prepared.retained_operation(), RetainedOperation::BayesianConditional(..)),
             "{label}: expected the sealed Bayesian conditional operation"
         );
         assert_eq!(
@@ -156,7 +162,7 @@ fn bayesian_conditional_effect_keeps_target_prior_and_procedure_after_builder_dr
                 "ConditionalEffect:Dag:{}:Bayesian:{label}",
                 if accepted { "accepted" } else { "explicit" }
             );
-            assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed));
+            assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Supported));
             assert_eq!(
                 prepared.structure_source(),
                 if accepted { StructureSource::Accepted } else { StructureSource::Explicit }
@@ -167,9 +173,9 @@ fn bayesian_conditional_effect_keeps_target_prior_and_procedure_after_builder_dr
                 }
                 other => panic!("{coordinate}: support was not available: {other:?}"),
             }
-            let plan = prepared
-                .checked_bayesian_conditional_operation()
-                .expect("retained Bayesian conditional operation");
+            let RetainedOperation::BayesianConditional(plan) = prepared.retained_operation() else {
+                panic!("retained Bayesian conditional operation")
+            };
             assert_eq!(plan.query(), &query);
             assert_eq!(plan.inference(), &InferenceMode::Bayesian(config));
             assert_eq!(plan.validation(), suite);
@@ -189,9 +195,9 @@ fn bayesian_conditional_effect_keeps_target_prior_and_procedure_after_builder_dr
             // is the empirical-population mean of the conditional contrast.
             // Both modifiers have mean zero and the independent SCM mean is 2.
             assert!(
-                (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2,
+                (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.02,
                 "{coordinate}: {}",
-                result.estimate.as_effect().unwrap().ate
+                result.estimate().as_effect().unwrap().ate
             );
             assert_eq!(result.posterior.as_ref().unwrap().draws.n_draws, 96);
             assert!(result.posterior.as_ref().unwrap().draws.schema.quantities.len() >= 7);
@@ -204,10 +210,10 @@ fn bayesian_conditional_effect_keeps_target_prior_and_procedure_after_builder_dr
                     "{coordinate}: missing prior sensitivity"
                 );
             }
-            let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
             assert_eq!(
-                refreshed.estimate.as_effect().unwrap().ate.to_bits(),
-                result.estimate.as_effect().unwrap().ate.to_bits()
+                refreshed.estimate().as_effect().unwrap().ate.to_bits(),
+                result.estimate().as_effect().unwrap().ate.to_bits()
             );
 
             let artifact = prepared
@@ -217,11 +223,24 @@ fn bayesian_conditional_effect_keeps_target_prior_and_procedure_after_builder_dr
                     &ctx,
                 )
                 .unwrap();
-            let consumed = consume_analysis_result(&artifact).unwrap();
+            let consumed = replay_analysis_result(&artifact).unwrap();
             assert!(consumed.acceptance.unresolved.iter().any(|reason| {
                 reason.as_ref() == "dependencies.checked_bayesian_conditional_operation"
             }));
-            assert!(!consumed.acceptance.accepts_as_verified_program());
+            assert!(!consumed.acceptance.accepts_as_replayed_program());
         }
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

@@ -1,0 +1,42 @@
+feature_id = "decision_evidence.decision_classification"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Normal-Normal expected value of sample information is the standard textbook result;
+# no paper algorithm is implemented here.
+papers = []
+
+implementation_deviations = [
+ "Classification compares the delta-method sampling interval at every vertex of the declared assumption box with the decision threshold, and the assumption range with the same threshold: robust when both sides agree everywhere, assumption-dependent when the preferred action changes inside the declared range, unresolved otherwise. It is a classification, not a probability.",
+ "Planning reuses the existing Normal-Normal FutureStudyProgram; the belief is centered on the current contrast with the delta-method variance, a declared planning model and not a calibrated posterior. Assumption-narrowing candidates re-run the classification and are best cases, not expectations.",
+ "Stage digests chain so that a decision-rule change reuses the derived quantity and an estimate-identity or premise change invalidates it.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-design/src/decision_evidence/derive.rs (decision_is_robust_assumption_dependent_or_unresolved, a_threshold_change_changes_only_the_rule_identity)",
+ "crates/antecedent-design/src/decision_evidence/plan.rs (more_units_have_value_when_the_decision_is_statistically_open, narrowing_an_assumption_can_resolve_an_assumption_dependent_decision)",
+ "crates/antecedent-design/src/decision_evidence/reuse.rs (rule_change_reuses_everything_before_the_decision, premise_change_reuses_nothing_and_new_observations_keep_the_premise, withdrawal_unsupports_composed_evidence)",
+ "crates/antecedent/tests/decision_evidence_workflow.rs (the_decision_is_robust_assumption_dependent_or_unresolved_and_the_reasons_are_named)",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Classification of a two-action decision by the side of a threshold on which an interval and an assumption range lie, with a stage-digest chain; no paper algorithm. The only statistical component is the existing Normal-Normal EVSI program. Scoped re-review compared all named definitions across the source split; only the relative module path to DesignDetails changed. Joint-experiment compilation was also compared across its split paths; all named definitions are unchanged. Scoped 2026-11-07 re-review compared covariance validation before and after extraction: shape, finite values, LDL tolerance, symmetry and pairwise bounds are unchanged, as is refusal ordering. Six focused unit tests passed, including an indefinite matrix satisfying pairwise bounds; no independent reference was generated. Re-review of the derived result: its calibration field is now the status of the calibration slot that the interval's own construction resolves from the shipped coverage records (decision_interval_calibration_slot, called from derive; the basis is built from the derivation before annotation, derive_uncalibrated), and stays not_measured when the request has no sampling-only interval. The slot only annotates the interval: the margin, the vertex enumeration, the verdict, the assumption range and the digest chain are unchanged, and a calibration status never withholds or changes a classification."
+no_independent_algorithm = "Interval-versus-threshold comparison, vertex enumeration of a declared box and digest chaining."
+covered_by = ["decision.contract"]
+inline_tests = true
+record_sha256 = "6bbe02c9fb7abebb1973231068c2d1f61f60721b097d6e91003af8d75797d02a"
+artifacts = [
+ { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/derive.rs", items = ["module"], sha256 = "4982d01517f88500f1afbcd07e3b77aeb2f8128780714f73a5e5347388cd8d36" },
+ { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/derive/decision.rs", items = ["module"], sha256 = "7d323c5b7c414126951b8b9099358b6b41db7e7d5e218e1d82b9abf653471f8a" },
+ { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/mod.rs", items = ["module"], sha256 = "e50dd873ff0f7b71b00c779c1dc688629312595fdcab5a892ca848be54f6838a" },
+ { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/compile.rs", items = ["module"], sha256 = "baf299d9e2d8647ef88f03a3a6b424dc00b5ac9e4ef5614f552a77be62a37c46" },
+ { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/plan.rs", items = ["module"], sha256 = "a836ae7256d8d2f9e14c218ab7b376e49c4493a4a977a98aaac8401b171931b3" },
+ { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/reuse.rs", items = ["module"], sha256 = "8d1dfede9a0f805f41616142afc2bf9d70d62e9bbd7f65f9c0267719584196ea" },
+]

@@ -31,15 +31,17 @@
 //!   snapshot or provider named in [`ResumeContext`]. An ordinary loaded result supplies none
 //!   of them, so every derived stage is then recomputed or refused, never reused.
 //! - Retargeting reuses frozen scores only when the estimator's retarget route is declared
-//!   licensed ([`RetargetSupport::Licensed`]); otherwise a target change recomputes the
+//!   supported ([`RetargetSupport::Supported`]); otherwise a target change recomputes the
 //!   score artifact, and an incompatible target is refused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::fmt;
+use std::sync::Arc;
 
 use crate::identity::CanonicalWriter;
+use crate::named_variants;
 
 mod standing;
 
@@ -73,6 +75,25 @@ impl StageIdentity {
         Self(hasher.finish())
     }
 
+    /// Digest the same framed inputs as [`Self::of`], checking the caller's
+    /// budget or cancellation between bounded hash updates.
+    ///
+    /// # Errors
+    /// Propagates the caller's check error without publishing a partial identity.
+    pub fn try_of<E>(
+        label: &str,
+        parts: &[&[u8]],
+        mut check: impl FnMut() -> Result<(), E>,
+    ) -> Result<Self, E> {
+        let mut hasher = CanonicalWriter::new(STAGE_IDENTITY_KEY);
+        hasher.try_bytes(label.as_bytes(), &mut check)?.word(parts.len() as u64);
+        for part in parts {
+            hasher.try_bytes(part, &mut check)?;
+        }
+        check()?;
+        Ok(Self(hasher.finish()))
+    }
+
     /// Raw digest bytes.
     #[must_use]
     pub const fn as_bytes(&self) -> &[u8; 32] {
@@ -88,22 +109,7 @@ impl StageIdentity {
     /// Parse the 64-character lowercase hex encoding written by [`Self::to_hex`].
     #[must_use]
     pub fn from_hex(text: &str) -> Option<Self> {
-        fn nibble(byte: u8) -> Option<u8> {
-            match byte {
-                b'0'..=b'9' => Some(byte - b'0'),
-                b'a'..=b'f' => Some(byte - b'a' + 10),
-                _ => None,
-            }
-        }
-        let raw = text.as_bytes();
-        if raw.len() != 64 {
-            return None;
-        }
-        let mut out = [0_u8; 32];
-        for (slot, pair) in out.iter_mut().zip(raw.chunks_exact(2)) {
-            *slot = (nibble(pair[0])? << 4) | nibble(pair[1])?;
-        }
-        Some(Self(out))
+        crate::identity::digest_from_lower_hex(text).map(Self)
     }
 
     /// The three-state class of this identity against the one retained for the same
@@ -142,6 +148,9 @@ impl fmt::Display for StageIdentity {
 pub struct Branch(u8);
 
 impl Branch {
+    /// The first branch, which every layout admits.
+    pub const ZERO: Self = Self(0);
+
     /// Branch `index`, or `None` when it is not below [`MAX_EXTERNAL_BRANCHES`].
     #[must_use]
     pub const fn new(index: u8) -> Option<Self> {
@@ -289,7 +298,7 @@ impl Stage {
     /// Declared dependency edges, in order. The first edge is the stage's primary dependency.
     ///
     /// The score artifact depends on the target population only when the estimator's
-    /// retarget route is not declared licensed: with a licensed retarget the frozen scores
+    /// retarget route is not declared supported: with a supported retarget the frozen scores
     /// are target-independent and only the law reads the target.
     #[must_use]
     pub fn dependencies(self, retarget: RetargetSupport) -> Vec<Self> {
@@ -452,32 +461,32 @@ impl StageIdentities {
     }
 }
 
-/// Whether the estimator's frozen-score row-weight retarget route is licensed.
+/// Whether the estimator's frozen-score row-weight retarget route is supported.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RetargetSupport {
-    /// Licensed: a compatible target-weight change reweights frozen scores without a refit.
-    Licensed,
-    /// Not declared licensed: a target change recomputes the score artifact.
+    /// Supported: a compatible target-weight change reweights frozen scores without a refit.
+    Supported,
+    /// Not declared supported: a target change recomputes the score artifact.
     NotDeclared,
-    /// The requested weights are not a licensed function of the adjustment set: a target
+    /// The requested weights are not a supported function of the adjustment set: a target
     /// change is refused.
     Incompatible,
 }
 
 /// Whether the requested treatment grid or operation is inside the declared route.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RequestSupport {
     /// On the declared grid and operation set.
     OnGrid,
     /// Off the declared grid.
     OffGrid {
-        /// A separately licensed route that serves the request, when one exists.
-        licensed_route: Option<&'static str>,
+        /// A separately supported route that serves the request, when one exists.
+        supported_route: Option<Arc<str>>,
     },
     /// An operation the declared route does not support.
     Unsupported {
-        /// A separately licensed route that serves the request, when one exists.
-        licensed_route: Option<&'static str>,
+        /// A separately supported route that serves the request, when one exists.
+        supported_route: Option<Arc<str>>,
     },
 }
 
@@ -513,9 +522,9 @@ pub enum Boundary {
 }
 
 /// The declared capabilities a plan is made under.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RecalcCapabilities {
-    /// Retarget license of the estimator.
+    /// Retarget support of the estimator.
     pub retarget: RetargetSupport,
     /// Whether the request is inside the declared route.
     pub request: RequestSupport,
@@ -524,13 +533,13 @@ pub struct RecalcCapabilities {
 }
 
 impl RecalcCapabilities {
-    /// In-process, on-grid, with the given retarget license.
+    /// In-process, on-grid, with the given retarget support.
     #[must_use]
     pub const fn in_process(retarget: RetargetSupport) -> Self {
         Self { retarget, request: RequestSupport::OnGrid, boundary: Boundary::InProcess }
     }
 
-    /// Fresh process with `resume`, on-grid, with the given retarget license.
+    /// Fresh process with `resume`, on-grid, with the given retarget support.
     #[must_use]
     pub const fn fresh_process(retarget: RetargetSupport, resume: ResumeContext) -> Self {
         Self { retarget, request: RequestSupport::OnGrid, boundary: Boundary::FreshProcess(resume) }
@@ -563,25 +572,15 @@ pub enum Revalidation {
     Withdrawn,
 }
 
+named_variants! {
+    Revalidation {
+        StillValid => "still_valid",
+        Recompute => "recompute",
+        Withdrawn => "withdrawn",
+    }
+}
+
 impl Revalidation {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::StillValid => "still_valid",
-            Self::Recompute => "recompute",
-            Self::Withdrawn => "withdrawn",
-        }
-    }
-
-    /// Parse a wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::StillValid, Self::Recompute, Self::Withdrawn]
-            .into_iter()
-            .find(|class| class.as_str() == name)
-    }
-
     /// The more severe of two classes (`withdrawn` over `recompute` over `still_valid`).
     #[must_use]
     pub fn worst(self, other: Self) -> Self {
@@ -644,7 +643,7 @@ pub enum MissingDependency {
 }
 
 /// Why a stage was refused.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RefusalReason {
     /// A dependency the fresh process was not given.
     Unavailable {
@@ -653,15 +652,15 @@ pub enum RefusalReason {
     },
     /// The treatment request is off the declared grid.
     OffGrid {
-        /// A separately licensed route that serves the request, when one exists.
-        licensed_route: Option<&'static str>,
+        /// A separately supported route that serves the request, when one exists.
+        supported_route: Option<Arc<str>>,
     },
     /// The requested operation is outside the declared route.
     Unsupported {
-        /// A separately licensed route that serves the request, when one exists.
-        licensed_route: Option<&'static str>,
+        /// A separately supported route that serves the request, when one exists.
+        supported_route: Option<Arc<str>>,
     },
-    /// The target weights are not a licensed function of the adjustment set.
+    /// The target weights are not a supported function of the adjustment set.
     RetargetIncompatible,
     /// A dependency was refused.
     Blocked {
@@ -675,15 +674,19 @@ impl RefusalReason {
     #[must_use]
     pub const fn detail(&self) -> &'static str {
         match self {
-            Self::Unavailable { missing: MissingDependency::Fit } => "recalc.unavailable_fit",
-            Self::Unavailable { missing: MissingDependency::Data } => "recalc.unavailable_data",
-            Self::Unavailable { missing: MissingDependency::Provider } => {
-                "recalc.unavailable_provider"
+            Self::Unavailable { missing: MissingDependency::Fit } => {
+                crate::reason_details::recalc::UNAVAILABLE_FIT
             }
-            Self::OffGrid { .. } => "recalc.off_grid_request",
-            Self::Unsupported { .. } => "recalc.unsupported_request",
-            Self::RetargetIncompatible => "recalc.retarget_incompatible",
-            Self::Blocked { .. } => "recalc.blocked_by_refused_dependency",
+            Self::Unavailable { missing: MissingDependency::Data } => {
+                crate::reason_details::recalc::UNAVAILABLE_DATA
+            }
+            Self::Unavailable { missing: MissingDependency::Provider } => {
+                crate::reason_details::recalc::UNAVAILABLE_PROVIDER
+            }
+            Self::OffGrid { .. } => crate::reason_details::recalc::OFF_GRID_REQUEST,
+            Self::Unsupported { .. } => crate::reason_details::recalc::UNSUPPORTED_REQUEST,
+            Self::RetargetIncompatible => crate::reason_details::recalc::RETARGET_INCOMPATIBLE,
+            Self::Blocked { .. } => crate::reason_details::recalc::BLOCKED_BY_REFUSED_DEPENDENCY,
         }
     }
 
@@ -696,18 +699,18 @@ impl RefusalReason {
             }
             Self::Unavailable { .. } => "score_table_unavailable",
             Self::OffGrid { .. } | Self::Unsupported { .. } => "route_not_supported",
-            Self::RetargetIncompatible => "construction_not_licensed",
+            Self::RetargetIncompatible => "construction_not_supported",
             Self::Blocked { .. } => "not_executed",
         }
     }
 }
 
 /// Per-stage outcome of a plan.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StageStatus {
     /// The stage's artifact is valid as it is.
     Reused {
-        /// The dependency whose unchanged identity licensed reuse: the stage itself for an
+        /// The dependency whose unchanged identity supported reuse: the stage itself for an
         /// input, otherwise its primary (first declared) dependency.
         dependency: Stage,
     },
@@ -767,8 +770,8 @@ impl fmt::Display for RefusalReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.detail())?;
         match self {
-            Self::OffGrid { licensed_route: Some(route) }
-            | Self::Unsupported { licensed_route: Some(route) } => write!(f, "[{route}]"),
+            Self::OffGrid { supported_route: Some(route) }
+            | Self::Unsupported { supported_route: Some(route) } => write!(f, "[{route}]"),
             Self::Blocked { by } => write!(f, "[{by}]"),
             _ => Ok(()),
         }
@@ -786,7 +789,7 @@ impl fmt::Display for StageStatus {
 }
 
 /// One row of a plan.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StageEntry {
     /// The stage.
     pub stage: Stage,
@@ -831,7 +834,7 @@ impl RecalcPlan {
                 continue;
             }
             let status = planner.decide(stage);
-            planner.record(stage, status);
+            planner.record(stage, status.clone());
             let identity = identities.get(&stage).copied().unwrap_or(StageIdentity::ABSENT);
             entries.push(StageEntry { stage, status, identity });
         }
@@ -889,8 +892,8 @@ impl RecalcPlan {
     /// The first refused stage and its reason.
     #[must_use]
     pub fn first_refusal(&self) -> Option<(Stage, RefusalReason)> {
-        self.entries.iter().find_map(|e| match e.status {
-            StageStatus::Refused { reason } => Some((e.stage, reason)),
+        self.entries.iter().find_map(|e| match &e.status {
+            StageStatus::Refused { reason } => Some((e.stage, reason.clone())),
             _ => None,
         })
     }
@@ -959,10 +962,10 @@ impl Planner<'_> {
             Boundary::FreshProcess(resume) => Some(resume),
             Boundary::InProcess => None,
         };
-        if let Some(resume) = resume {
-            if let Some(status) = self.fresh_status(stage, &deps, resume) {
-                return status;
-            }
+        if let Some(resume) = resume
+            && let Some(status) = self.fresh_status(stage, &deps, resume)
+        {
+            return status;
         }
         if let Some(by) = self.refused_dependency(&deps, None) {
             return StageStatus::Refused { reason: RefusalReason::Blocked { by } };
@@ -984,13 +987,13 @@ impl Planner<'_> {
         if stage != Stage::TreatmentGrid {
             return None;
         }
-        match self.caps.request {
+        match &self.caps.request {
             RequestSupport::OnGrid => None,
-            RequestSupport::OffGrid { licensed_route } => {
-                Some(RefusalReason::OffGrid { licensed_route })
+            RequestSupport::OffGrid { supported_route } => {
+                Some(RefusalReason::OffGrid { supported_route: supported_route.clone() })
             }
-            RequestSupport::Unsupported { licensed_route } => {
-                Some(RefusalReason::Unsupported { licensed_route })
+            RequestSupport::Unsupported { supported_route } => {
+                Some(RefusalReason::Unsupported { supported_route: supported_route.clone() })
             }
         }
     }

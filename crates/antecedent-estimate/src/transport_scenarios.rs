@@ -13,11 +13,12 @@
 //! the existing ADMG conditional prepared path: the reduced joint's exact plan
 //! at `do(x, w')`, normalized at the requested `w''`. A zero-mass conditioning
 //! event is that scenario's `support_failure`. Counted laws are refused for a
-//! conditional set (`cell_not_licensed`, `admg_transport.interval_withheld`),
-//! as the standalone route refuses them: it publishes exact-law points only.
+//! conditional set (`not_supported`, `admg_transport.counted_laws_unsupported`; a development
+//! build runs them), as the standalone route does: it publishes exact-law points only.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::fmt::Write as _;
 use std::sync::Arc;
 
 use antecedent_core::VariableId;
@@ -434,7 +435,7 @@ pub const SCENARIO_EXACT_PROVIDER: &str = "transport.exact_supplied_laws";
 fn refuse_scenario(
     refusal: antecedent_identify::sid::scenarios::ScenarioSetRefusal,
 ) -> EstimationError {
-    EstimationError::refused(refusal.code, format!("{}: {}", refusal.detail, refusal.message))
+    EstimationError::refused_detail(refusal.code, refusal.detail, &refusal.message)
 }
 
 /// Check every sample row and intervention against the set's shared coordinate
@@ -497,21 +498,17 @@ fn check_schema(
 }
 
 /// The conditional route publishes exact-law points only: counted laws (an
-/// empirical plug-in) are refused before anything compiles, as the standalone
-/// conditional preparation refuses them.
-fn refuse_counted_laws(data: &antecedent_expr::ExactTransportData) -> Result<(), EstimationError> {
-    if data.laws().iter().any(|law| law.empirical_counts().is_some()) {
-        return Err(conditional_counts_refusal());
-    }
+/// empirical plug-in) are gated before anything compiles, as the standalone
+/// conditional preparation gates them.
+fn require_conditional_counts_supported(
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<(), EstimationError> {
+    antecedent_core::support_gate::require_supported(
+        ctx,
+        antecedent_core::reason_details::admg_transport::COUNTED_LAWS_UNSUPPORTED,
+        &["admg_conditional.counted_law_plugin_check"],
+    )?;
     Ok(())
-}
-
-fn conditional_counts_refusal() -> EstimationError {
-    EstimationError::refused(
-        antecedent_core::reason_code!("cell_not_licensed"),
-        "admg_transport.interval_withheld: counted laws are not licensed for a conditional \
-         scenario question; the route publishes exact-law points only",
-    )
 }
 
 /// Compile each identified scenario of a decided set once against supplied
@@ -529,8 +526,10 @@ pub fn prepare_transport_scenarios(
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<PreparedScenarioSet, EstimationError> {
     check_schema(&decision, &data, &request)?;
-    if decision.question.is_conditional() {
-        refuse_counted_laws(&data)?;
+    if decision.question.is_conditional()
+        && data.laws().iter().any(|law| law.empirical_counts().is_some())
+    {
+        require_conditional_counts_supported(ctx)?;
     }
     let plans = compile_all(&decision, &data, &request, limits, ctx)?;
     Ok(PreparedScenarioSet { decision, data, empirical: None, request, limits, plans })
@@ -557,7 +556,7 @@ pub fn prepare_empirical_transport_scenarios(
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<PreparedScenarioSet, EstimationError> {
     if decision.question.is_conditional() {
-        return Err(conditional_counts_refusal());
+        require_conditional_counts_supported(ctx)?;
     }
     check_samples(&decision, &input)?;
     let options = crate::EmpiricalTableOptions {
@@ -580,8 +579,7 @@ pub fn prepare_empirical_transport_scenarios(
         None => antecedent_expr::ExactTransportData::try_new(
             input.supplied.clone(),
             max_joint_cells.max(1),
-        )
-        .map_err(|e| EstimationError::data_msg(e.to_string()))?,
+        )?,
     };
     let mut prepared = prepare_transport_scenarios(decision, data, request, limits, ctx)?;
     prepared.empirical = Some(Arc::new(input));
@@ -753,12 +751,13 @@ fn outcome_detail(
             let mut detail = obligations.join("; ");
             if let Some(candidate) = candidate {
                 let hedge = candidate.s_hedge().to_record();
-                detail.push_str(&format!(
+                let _ = write!(
+                    detail,
                     "; inspection-only candidate (not a proof): reduced-joint s-hedge forest \
                      {{{}}} inside {{{}}}",
                     names(&hedge.smaller.nodes),
                     names(&hedge.larger.nodes)
-                ));
+                );
             }
             detail
         }
@@ -768,11 +767,12 @@ fn outcome_detail(
                 .to_owned();
             if let Some(candidate) = proof.candidate() {
                 let hedge = candidate.s_hedge().to_record();
-                detail.push_str(&format!(
+                let _ = write!(
+                    detail,
                     "; reduced-joint s-hedge forest {{{}}} inside {{{}}}",
                     names(&hedge.smaller.nodes),
                     names(&hedge.larger.nodes)
-                ));
+                );
             }
             detail
         }

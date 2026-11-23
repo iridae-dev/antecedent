@@ -3,8 +3,21 @@
   "oracle": {
     "kind": "closed_form",
     "method": "closed_form_linear_scm",
-    "generator": "temporary clean-room harness (deleted after artifact import)",
-    "formula": "For identical X distributions and Y=a+bX, changing only a by delta changes E[Y] by delta and assigns the exact mechanism Shapley contribution to Y."
+    "generator": "conformance/attribution/distribution_change_grid/reference.py",
+    "formula": "For identical X distributions and Y=a+bX, changing only a by delta changes E[Y] by delta and assigns the exact mechanism Shapley contribution to Y.",
+    "command": "uv run --frozen --script conformance/attribution/distribution_change_grid/reference.py --check",
+    "environment_lock": "conformance/attribution/distribution_change_grid/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "total_change",
+      "x and y component contributions (y_intercept_plus_five)"
+    ],
+    "context_only_outputs": [
+      "null_change case (not read by the executing assertion)",
+      "sampled_absolute_tolerance declaration"
+    ],
+    "independence_basis": "The generator defines the hybrid payoff E[Y] = (a_cmp if y in the coalition else a_base) + b E[X] with a common arbitrary E[X], and computes Shapley values by averaging marginal contributions over all player orders; it imports no Antecedent code and no statistics package. The shared object is the fixture statement that the payoff depends on the Y mechanism only.",
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded."
   },
   "cases": [
     {
@@ -13,7 +26,10 @@
       "comparison_intercept": 6.0,
       "slope": 2.0,
       "total_change": 5.0,
-      "component_contributions": {"x": 0.0, "y": 5.0}
+      "component_contributions": {
+        "x": 0.0,
+        "y": 5.0
+      }
     },
     {
       "id": "null_change",
@@ -21,11 +37,14 @@
       "comparison_intercept": 1.0,
       "slope": 2.0,
       "total_change": 0.0,
-      "component_contributions": {"x": 0.0, "y": 0.0}
+      "component_contributions": {
+        "x": 0.0,
+        "y": 0.0
+      }
     }
   ],
   "comparison": {
-    "deterministic_absolute_tolerance": 1e-8,
+    "deterministic_absolute_tolerance": 1e-08,
     "sampled_absolute_tolerance": 0.15
   }
 }

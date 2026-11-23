@@ -1,0 +1,1347 @@
+//! Lowering of the design-based and specialist cells: transport, interference, randomized
+//! effects, policy value, dose response, difference-in-differences, synthetic control,
+//! local-polynomial ratio, survival, longitudinal regimes, sequential contrasts and
+//! history matching.
+//!
+//! A design identifies its target, not a graph. Layer two therefore retains the design's
+//! own identification product: the assumption set of the assignment mechanism (known
+//! randomization, parallel trends, overlap, carryover, the interference exposure model,
+//! regime support), built once by the operation that executes the design and bound to the
+//! scientific target when the target is world-indexed. The prepare-time caches compile
+//! retains beside it are exactly the ones preparation would install, so preparation does
+//! not identify again.
+//!
+//! Layer one is a world-indexed target where the design intervenes on a schema variable
+//! (the sequential regimes, the local ratio at its cutoff, the dose grid, the transported
+//! contrast) and a typed functional otherwise. Layer three carries the realization the
+//! study declares and, for a frequentist study, whether its sampling law is design-based
+//! (over the assignment of fixed units) or superpopulation (over sampled units); the model
+//! slots, folds and randomization test the design fits. Layer five quotes the one design
+//! matrix a cell fits (an ANCOVA randomized effect) and states for every other cell what
+//! it fits instead.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+#[cfg(test)]
+#[path = "design_based_tests.rs"]
+mod tests;
+
+use std::collections::BTreeSet;
+use std::sync::Arc;
+
+use antecedent_contract::ClaimKind;
+use antecedent_core::{
+    AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus, Conditioning,
+    ContinuousDoseResponseQuery, GraphFamily, HistoryMatchQuery, IdentificationStatus,
+    InferenceSelection, InterferenceQuery, Intervention, InterventionContrast, InterventionWorld,
+    IvBoundsQuery, LocalPolynomialRatioQuery, LongitudinalRegimeQuery, ModelAssumptions,
+    ObservationUnit, OrderedFloatBits, OutcomeQuantity, PanelDidQuery, PolicyValueQuery,
+    QuantityUnits, RandomizedEffectQuery, ScientificTarget, ScientificWorldId, ScoreFrequentist,
+    ScoreModel, SequentialContrastQuery, SurvivalQuery, SyntheticControlQuery, TargetForm,
+    TargetPopulation, TemporalDesignQuery, TimeFrame, TransportQuery, Value, VariableId,
+    WorldAction, WorldBinding, WorldCollection,
+};
+use antecedent_data::TableView;
+use antecedent_data::TabularData;
+use antecedent_identify::compiled_product::IdentificationObligation;
+use antecedent_identify::{
+    CompiledIdentificationProduct, CompiledProductParts, IdentificationClaimClass,
+    IdentificationOutcome, IdentificationResult,
+};
+
+use super::{LoweringContext, RD_IDENTIFIES_PER_EXECUTION, RouteCell};
+use crate::accepted::GraphClass;
+use crate::analysis::IdentificationCache;
+use crate::analysis::execute::{
+    CheckedContinuousDoseOperation, CheckedHistoryMatchOperation, CheckedInterferenceOperation,
+    CheckedIvBoundsOperation, CheckedLongitudinalRegimeOperation, CheckedPolicyValueOperation,
+    CheckedSequentialContrastOperation, CheckedTemporalDesignOperation, RouteInput,
+    local_polynomial_ratio_identification, panel_did_graphless_key, panel_did_identification,
+    randomized_identification, survival_identification, synthetic_control_identification,
+};
+use crate::error::CausalError;
+use crate::planner::lowered::{
+    ClaimDemand, DesignShape, FunctionalKind, IdentificationLayer, LoweredParts, LoweredProgram,
+    LoweringDepth, PhysicalLayer, ProblemTarget, RetainedIdentification, ScientificProblem,
+    UncertaintyReading, WidthSource,
+};
+use crate::planner::statistical::{
+    DeclaredProgram, FoldPlan, ModelRole, ModelSlot, Realization, ResampleUnit, ResamplingMethod,
+    ResamplingPlan, StatisticalProgram,
+};
+use crate::{EstimatorId, IdentifierId, InferenceMode, Study};
+
+/// Every cell this family lowers completely.
+pub(super) const LOWERED: [RouteCell; 14] = [
+    RouteCell::TransportMixed,
+    RouteCell::InterferenceDag,
+    RouteCell::RandomizedEffect,
+    RouteCell::PolicyValue,
+    RouteCell::PanelDid,
+    RouteCell::SyntheticControl,
+    RouteCell::ContinuousDoseResponse,
+    RouteCell::LocalPolynomialRatio,
+    RouteCell::Survival,
+    RouteCell::LongitudinalRegime,
+    RouteCell::SequentialContrast,
+    RouteCell::HistoryMatch,
+    RouteCell::TemporalDesign,
+    RouteCell::IvBounds,
+];
+
+/// Replicates of a randomization test that enumerates every admissible reassignment
+/// rather than sampling a fixed number of them.
+const EXHAUSTIVE_REASSIGNMENT: u32 = 0;
+/// World ids of a two-world contrast.
+const CONTROL_WORLD: u32 = 0;
+const ACTIVE_WORLD: u32 = 1;
+/// Declaration name used when the route record names no estimator.
+const UNNAMED_ESTIMATOR: &str = "unnamed";
+/// Why an ANCOVA design with a categorical covariate is not quoted.
+const UNCODED_ANCOVA_COVARIATE: &str = "an ANCOVA covariate is categorical without a declared \
+                                        contrast coding; the fit sizes the design at execution";
+/// Why a design cell without a quotable design is not quoted.
+const UNQUOTED_DESIGN: &str = "the design is sized at execution";
+
+/// Which population a frequentist sampling law speaks for.
+#[derive(Clone, Copy)]
+enum SamplingBasis {
+    /// Randomization law over the assignment of the fixed units in the study.
+    DesignBased,
+    /// Sampling law over units drawn from a population.
+    Superpopulation,
+}
+
+impl SamplingBasis {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::DesignBased => "design_based",
+            Self::Superpopulation => "superpopulation",
+        }
+    }
+}
+
+/// What one design cell contributes beyond the declared program.
+struct DesignCell {
+    target: ProblemTarget,
+    identification: IdentificationResult,
+    models: Vec<ModelSlot>,
+    folds: Option<FoldPlan>,
+    /// A randomization test, or the design's own whole-procedure resample (a rollout's
+    /// whole-unit bootstrap, a synthetic panel's placebo or conformal permutations, a
+    /// calendar-time block bootstrap), that the design runs in place of the declared resampling.
+    randomization_test: Option<ResamplingPlan>,
+    basis: SamplingBasis,
+    width: WidthSource,
+    claim: ClaimKind,
+}
+
+impl DesignCell {
+    /// A cell with no fold plan or own resampling and the superpopulation sampling law;
+    /// the `with_*` methods set what a design declares beyond that.
+    const fn new(
+        target: ProblemTarget,
+        identification: IdentificationResult,
+        models: Vec<ModelSlot>,
+        width: WidthSource,
+        claim: ClaimKind,
+    ) -> Self {
+        Self {
+            target,
+            identification,
+            models,
+            folds: None,
+            randomization_test: None,
+            basis: SamplingBasis::Superpopulation,
+            width,
+            claim,
+        }
+    }
+
+    const fn with_basis(mut self, basis: SamplingBasis) -> Self {
+        self.basis = basis;
+        self
+    }
+
+    const fn with_folds(mut self, folds: Option<FoldPlan>) -> Self {
+        self.folds = folds;
+        self
+    }
+
+    const fn with_randomization_test(mut self, test: Option<ResamplingPlan>) -> Self {
+        self.randomization_test = test;
+        self
+    }
+}
+
+/// Lower one cell of this family.
+pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalError> {
+    let Some(input) = cx.input.filter(|_| LOWERED.contains(&cx.cell)) else {
+        return Err(not_lowered(cx));
+    };
+    let study = cx.study;
+    let plan = cx.plan;
+    let record = &plan.logical.record;
+    let identifier =
+        record.identifier.as_deref().and_then(|name| name.parse::<IdentifierId>().ok());
+    let estimator = record.estimator.as_deref().and_then(|name| name.parse::<EstimatorId>().ok());
+    // A plan offered the program of an earlier compile of the same identification inputs
+    // (a one-shot run stamping its executed contract) reads that program's products and
+    // does not identify again.
+    let offered = plan
+        .lowered()
+        .and_then(LoweredProgram::retained_identification)
+        .filter(|retained| retained.key.is_some() && retained.key == super::retention_key(study));
+    let caches = match offered {
+        Some(retained) => retained.caches.to_vec(),
+        None => study.identify_caches(plan, cx.ctx)?,
+    };
+    let cell = design_cell(cx, input, &caches)?;
+    let identification =
+        if matches!(estimator, Some(EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear)) {
+            IdentificationLayer::PerExecution { reason: RD_IDENTIFIES_PER_EXECUTION }
+        } else {
+            IdentificationLayer::Retained(Arc::new(RetainedIdentification::new(
+                Some(retain_product(&cell.identification, &cell.target)?),
+                caches,
+                super::retention_key(study),
+            )?))
+        };
+    let design = design_shape(cx, input, cell.width);
+    let statistical = statistical_program(study, identifier, estimator, design, &cell)?;
+    let scientific = ScientificProblem {
+        runtime_query: super::has_runtime_callback(&study.query).then(|| study.query.clone()),
+        identity_scope: if super::has_runtime_callback(&study.query) {
+            crate::planner::lowered::ProgramIdentityScope::RuntimeCallbackDeclarationOnly
+        } else {
+            crate::planner::lowered::ProgramIdentityScope::Semantic
+        },
+        target: cell.target,
+        plan_id: Arc::clone(&record.plan_id),
+        data: record.data_classification,
+        graph_class: study.graph.class().as_str(),
+        query_variables: Arc::clone(&record.query_variables),
+        source_digest: None,
+        support_coordinate: crate::analysis::contract::matrix_coordinate(study).map(Arc::from),
+        supported: matches!(study.support_status, Some(crate::support::CellStatus::Supported)),
+        support_status: study.support_status,
+    };
+    // An identified set is read as an envelope under frequentist inference: the sampling
+    // interval is about the set, not a replacement for it.
+    let envelope = cell.claim == ClaimKind::Bounds && !study.settings.inference.is_bayesian();
+    let claim = ClaimDemand {
+        uncertainty: if envelope {
+            UncertaintyReading::Envelope
+        } else {
+            uncertainty(&study.settings.inference)
+        },
+        kind: Some(cell.claim),
+    };
+    let evidence = super::decision::evidence_program(cx, None, &statistical)?;
+    Ok(LoweredParts {
+        cell: cx.cell,
+        depth: LoweringDepth::Complete,
+        scientific,
+        identification,
+        statistical,
+        evidence,
+        physical: PhysicalLayer { operators: Arc::from(Vec::new()), design },
+        claim,
+    }
+    .finish())
+}
+
+/// Layer five. An ANCOVA randomized effect quotes its design `[1 | assignment |
+/// covariates]` from the data; the assignment is the query's vector, not a source
+/// column, so the design is never gathered directly. Every other cell states what it
+/// fits instead and carries no rows or columns.
+fn design_shape(
+    cx: &LoweringContext<'_>,
+    input: RouteInput<'_>,
+    width: WidthSource,
+) -> DesignShape {
+    match (input, width) {
+        (RouteInput::RandomizedEffect { query, .. }, WidthSource::Quoted) => {
+            super::quote_adjustment_width(cx, &query.ancova_covariates, &[]).map_or_else(
+                |_| DesignShape::not_design_based(UNCODED_ANCOVA_COVARIATE),
+                DesignShape::materialized,
+            )
+        }
+        // Only the ANCOVA design is quoted; a cell that names `Quoted` without one is
+        // stated as unquoted rather than carrying the planner's sizing as a quote.
+        (_, WidthSource::Quoted) => DesignShape::not_design_based(UNQUOTED_DESIGN),
+        (_, WidthSource::NotDesignBased(reason)) => DesignShape::not_design_based(reason),
+    }
+}
+
+fn not_lowered(cx: &LoweringContext<'_>) -> CausalError {
+    crate::compile_reason!(
+        "route_not_lowered",
+        "the design-based lowering does not lower {} without its parsed design route",
+        cx.cell.as_str()
+    )
+}
+
+/// What every design lowering reads beside its own query.
+struct DesignEnv<'a> {
+    study: &'a Study,
+    data: &'a TabularData,
+    inference: InferenceSelection,
+    caches: &'a [IdentificationCache],
+}
+
+impl<'a> DesignEnv<'a> {
+    fn new(study: &'a Study, data: &'a TabularData, caches: &'a [IdentificationCache]) -> Self {
+        Self { study, data, inference: inference_selection(&study.settings.inference), caches }
+    }
+}
+
+/// One design route's contribution to the lowered program: its target, the identification
+/// its operation records and the statistical facts the cell declares.
+trait DesignLowering {
+    fn design_cell(&self, env: &DesignEnv<'_>) -> Result<DesignCell, CausalError>;
+}
+
+/// The target, design identification and statistical facts of one parsed design route.
+fn design_cell(
+    cx: &LoweringContext<'_>,
+    input: RouteInput<'_>,
+    caches: &[IdentificationCache],
+) -> Result<DesignCell, CausalError> {
+    let study = cx.study;
+    match input {
+        RouteInput::TransportMixed { data, query, class } => {
+            TransportRoute { query, class }.design_cell(&DesignEnv::new(study, data, caches))
+        }
+        RouteInput::InterferenceDag { data, query, .. } => {
+            query.design_cell(&DesignEnv::new(study, data, caches))
+        }
+        RouteInput::RandomizedEffect { data, query } => {
+            query.design_cell(&DesignEnv::new(study, data, caches))
+        }
+        RouteInput::PolicyValue { data, query } => {
+            query.design_cell(&DesignEnv::new(study, data, caches))
+        }
+        RouteInput::PanelDid { data, query } => {
+            query.design_cell(&DesignEnv::new(study, data, caches))
+        }
+        RouteInput::SyntheticControl { data, query } => {
+            query.design_cell(&DesignEnv::new(study, data, caches))
+        }
+        RouteInput::ContinuousDoseResponse { data, query } => {
+            query.design_cell(&DesignEnv::new(study, data, caches))
+        }
+        RouteInput::LocalPolynomialRatio { data, query } => {
+            query.design_cell(&DesignEnv::new(study, data, caches))
+        }
+        RouteInput::Survival { data, query } => {
+            query.design_cell(&DesignEnv::new(study, data, caches))
+        }
+        RouteInput::LongitudinalRegime { data, query } => {
+            query.design_cell(&DesignEnv::new(study, data, caches))
+        }
+        RouteInput::SequentialContrast { data, query } => {
+            query.design_cell(&DesignEnv::new(study, data, caches))
+        }
+        RouteInput::HistoryMatch { data, query } => {
+            query.design_cell(&DesignEnv::new(study, data, caches))
+        }
+        RouteInput::TemporalDesign { data, query } => {
+            query.design_cell(&DesignEnv::new(study, data, caches))
+        }
+        RouteInput::IvBounds { data, query } => {
+            query.design_cell(&DesignEnv::new(study, data, caches))
+        }
+        _ => Err(not_lowered(cx)),
+    }
+}
+
+/// A trial-to-target transport with the graph class its selection diagram is stated under.
+struct TransportRoute<'a> {
+    query: &'a TransportQuery,
+    class: GraphClass,
+}
+
+impl DesignLowering for TransportRoute<'_> {
+    fn design_cell(&self, env: &DesignEnv<'_>) -> Result<DesignCell, CausalError> {
+        let query = self.query;
+        let single = env.caches.iter().find_map(|cache| match cache {
+            IdentificationCache::Transport(identified) => Some(Arc::clone(identified)),
+            _ => None,
+        });
+        let identification = match single {
+            Some(identified) => Study::transport_design_identification(query, &identified)?.0,
+            // A Cpdag or Pag names no single selection diagram: the identification is the
+            // class envelope of the sID outcomes of its members.
+            None => env
+                .caches
+                .iter()
+                .find_map(|cache| match cache {
+                    IdentificationCache::Cpdag(class) if class.transport.is_some() => {
+                        Some(class.identification.clone())
+                    }
+                    IdentificationCache::Pag(class) if class.transport.is_some() => {
+                        Some(class.identification.clone())
+                    }
+                    _ => None,
+                })
+                .ok_or_else(|| CausalError::Compile {
+                    message: "transport compile retained no transport identification".into(),
+                })?,
+        };
+        let (treatment, outcome) =
+            query.response.functional.primary_pair().ok_or_else(|| CausalError::Compile {
+                message: "transport response names no treatment/outcome pair".into(),
+            })?;
+        let mut assumptions = identification.required_assumptions.clone();
+        assumptions.push(declared(
+            "transport.populations",
+            format!(
+                "the response is transported from population {} to population {}",
+                query.source_population, query.target_population
+            ),
+        ));
+        let family = graph_family_of(self.class);
+        let binding = binding(env.data, query.response.target_population.clone(), "row", outcome)?;
+        let target = binary_contrast(
+            &binding,
+            vec![set(treatment, 1.0)],
+            vec![set(treatment, 0.0)],
+            ModelAssumptions::new(family, assumptions),
+            env.inference,
+        )?;
+        let mut models =
+            vec![slot(ModelRole::Outcome, "trial_to_target_ipw", &[treatment], Some(outcome))];
+        if let Some(trial) = env.study.transport_trial.as_ref() {
+            models.push(slot(
+                ModelRole::Nuisance,
+                "supplied_selection_probability",
+                &[trial.trial],
+                Some(trial.selection_probability),
+            ));
+            models.push(slot(
+                ModelRole::Propensity,
+                "supplied_treatment_probability",
+                &[treatment],
+                Some(trial.treatment_probability),
+            ));
+        }
+        Ok(DesignCell::new(
+            ProblemTarget::Target(target),
+            identification,
+            models,
+            WidthSource::NotDesignBased(
+                "trial-to-target weighting of outcome means fits no design matrix",
+            ),
+            ClaimKind::Point,
+        ))
+    }
+}
+
+impl DesignLowering for InterferenceQuery {
+    fn design_cell(&self, env: &DesignEnv<'_>) -> Result<DesignCell, CausalError> {
+        let query = self;
+        let partial = matches!(
+            query.assignment,
+            antecedent_core::AssignmentDesign::ClusterRandomization { .. }
+                | antecedent_core::AssignmentDesign::TwoStageSaturation { .. }
+                | antecedent_core::AssignmentDesign::ObservedExposure { .. }
+        );
+        // Dispatch runs the checked operation for these assignments and the
+        // one-shot exposure route for the others; record the identification it runs.
+        let (identification, _) = if partial {
+            CheckedInterferenceOperation::design_identification(
+                query,
+                &env.study.settings.inference,
+            )
+        } else {
+            Study::interference_route_identification(
+                query,
+                env.study.settings.inference.is_bayesian(),
+            )
+        };
+        let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, .. } =
+            query.functional;
+        let observed =
+            matches!(query.assignment, antecedent_core::AssignmentDesign::ObservedExposure { .. });
+        let mut models = vec![slot(ModelRole::Outcome, "exposure_contrast", &[], Some(outcome))];
+        if observed {
+            models.push(slot(ModelRole::Propensity, "supplied_exposure_probability", &[], None));
+        }
+        Ok(DesignCell::new(
+            functional(env.study, FunctionalKind::ExposureContrast, outcome),
+            identification,
+            models,
+            WidthSource::NotDesignBased(
+                "exposure-weighted outcome means over a fixed network fit no design matrix",
+            ),
+            ClaimKind::Point,
+        )
+        .with_basis(if observed {
+            SamplingBasis::Superpopulation
+        } else {
+            SamplingBasis::DesignBased
+        }))
+    }
+}
+
+impl DesignLowering for RandomizedEffectQuery {
+    fn design_cell(&self, env: &DesignEnv<'_>) -> Result<DesignCell, CausalError> {
+        let query = self;
+        let (identification, _) = randomized_identification(query);
+        let (_, _, method, assignment_unit, _) = antecedent_core::randomized_graphless_coordinate(
+            &query.design,
+            query.estimand,
+            query.received_treatment.is_some(),
+            query.fixed_cuped.is_some(),
+            !query.ancova_covariates.is_empty(),
+        );
+        let mut covariates: Vec<VariableId> = query.ancova_covariates.to_vec();
+        covariates.extend(query.fixed_cuped.map(|(covariate, _)| covariate));
+        let ancova = !query.ancova_covariates.is_empty();
+        Ok(DesignCell::new(
+            functional(env.study, FunctionalKind::AssignmentContrast, query.outcome),
+            identification,
+            vec![slot(ModelRole::Outcome, method, &covariates, Some(query.outcome))],
+            // An ANCOVA fit is the design [1 | assignment | covariates], quoted from the
+            // data in `design_shape`; the attached program re-plans the record from it.
+            if ancova {
+                WidthSource::Quoted
+            } else {
+                WidthSource::NotDesignBased("a difference of arm means fits no design matrix")
+            },
+            ClaimKind::Point,
+        )
+        .with_randomization_test(query.exact_randomization_test.then_some(ResamplingPlan {
+            method: ResamplingMethod::Permutation,
+            replicates: EXHAUSTIVE_REASSIGNMENT,
+            unit: assignment_resample_unit(assignment_unit),
+        }))
+        .with_basis(if ancova {
+            SamplingBasis::Superpopulation
+        } else {
+            SamplingBasis::DesignBased
+        }))
+    }
+}
+
+impl DesignLowering for PolicyValueQuery {
+    fn design_cell(&self, env: &DesignEnv<'_>) -> Result<DesignCell, CausalError> {
+        let query = self;
+        let (identification, _) = CheckedPolicyValueOperation::design_identification(query)?;
+        let ipw = query.mu0.is_empty();
+        let (_, method, _) = antecedent_core::policy_graphless_coordinate(
+            query.multi_action.is_some(),
+            ipw,
+            query.uplift_bin_count > 0,
+            query.multi_action.as_ref().is_some_and(|policy| !policy.cate_groups.is_empty()),
+            query.regret.is_some(),
+            !ipw && query.crossfit_fold_ownership_valid && !query.disjoint_training_subjects,
+        );
+        let mut models = vec![
+            slot(ModelRole::Outcome, method, &[], Some(query.outcome)),
+            slot(ModelRole::Propensity, "known_randomized_propensity", &[], None),
+        ];
+        if !ipw {
+            models.push(slot(
+                ModelRole::Nuisance,
+                "frozen_conditional_outcome_predictions",
+                &[],
+                Some(query.outcome),
+            ));
+        }
+        Ok(DesignCell::new(
+            functional(env.study, FunctionalKind::PolicyValue, query.outcome),
+            identification,
+            models,
+            WidthSource::NotDesignBased("a weighted policy value score fits no design matrix"),
+            ClaimKind::PolicyValue,
+        ))
+    }
+}
+
+impl DesignLowering for PanelDidQuery {
+    fn design_cell(&self, env: &DesignEnv<'_>) -> Result<DesignCell, CausalError> {
+        let query = self;
+        let (identification, _) = panel_did_identification(query);
+        let key = panel_did_graphless_key(query.design);
+        let mut models = match &query.robust {
+            Some(robust) => rollout_did_models(robust, query.outcome),
+            None => vec![slot(ModelRole::Outcome, key.method, &[], Some(query.outcome))],
+        };
+        if let Some(augmented) = &query.augmented {
+            models.push(slot(
+                ModelRole::Propensity,
+                "supplied_treatment_propensity",
+                &[augmented.outcome_pre],
+                Some(augmented.propensity),
+            ));
+            models.push(slot(
+                ModelRole::Nuisance,
+                "supplied_untreated_change_prediction",
+                &[augmented.outcome_pre],
+                Some(augmented.untreated_change_prediction),
+            ));
+        }
+        let unit = if env.study.declared.sampling_design
+            == Some(antecedent_core::DeclaredSamplingDesign::IndependentSubjectTrajectories)
+        {
+            ResampleUnit::Subject
+        } else {
+            ResampleUnit::Cluster
+        };
+        Ok(DesignCell::new(
+            functional(env.study, FunctionalKind::EffectOnTreated, query.outcome),
+            identification,
+            models,
+            WidthSource::NotDesignBased(
+                "a difference of cluster outcome changes fits no design matrix",
+            ),
+            ClaimKind::Point,
+        )
+        .with_randomization_test(query.resampling.map(|resampling| ResamplingPlan {
+            method: ResamplingMethod::Bootstrap,
+            replicates: resampling.replicates,
+            unit,
+        })))
+    }
+}
+
+impl DesignLowering for SyntheticControlQuery {
+    fn design_cell(&self, env: &DesignEnv<'_>) -> Result<DesignCell, CausalError> {
+        let query = self;
+        let (identification, _) = synthetic_control_identification(query);
+        let family = match (query.method, query.augmentation_ridge.is_some()) {
+            (antecedent_core::SyntheticPanelMethod::Control, false) => "simplex_donor_weights",
+            (antecedent_core::SyntheticPanelMethod::Control, true) => {
+                "simplex_donor_weights_ridge_augmented"
+            }
+            (antecedent_core::SyntheticPanelMethod::DifferenceInDifferences, false) => {
+                "synthetic_did_unit_and_period_weights"
+            }
+            (antecedent_core::SyntheticPanelMethod::DifferenceInDifferences, true) => {
+                "synthetic_did_unit_and_period_weights_ridge_augmented"
+            }
+        };
+        let rollout_plan = query.rollout.as_ref().map(|rollout| match rollout.interval {
+            antecedent_core::SyntheticInterval::Conformal => ResamplingPlan {
+                method: ResamplingMethod::Permutation,
+                replicates: EXHAUSTIVE_REASSIGNMENT,
+                unit: ResampleUnit::CalendarBlock,
+            },
+            antecedent_core::SyntheticInterval::PlaceboVariance => ResamplingPlan {
+                method: ResamplingMethod::Permutation,
+                replicates: rollout.replicates,
+                unit: ResampleUnit::Subject,
+            },
+        });
+        Ok(DesignCell::new(
+            functional(env.study, FunctionalKind::EffectOnTreated, query.outcome),
+            identification,
+            vec![slot(ModelRole::Outcome, family, &[], Some(query.outcome))],
+            WidthSource::NotDesignBased(
+                "simplex donor weights are fit on the pre-period panel, not a design matrix",
+            ),
+            ClaimKind::Point,
+        )
+        .with_randomization_test(rollout_plan.or_else(|| {
+            query.uniform_unit_randomization.then_some(ResamplingPlan {
+                method: ResamplingMethod::Permutation,
+                replicates: EXHAUSTIVE_REASSIGNMENT,
+                unit: ResampleUnit::Subject,
+            })
+        }))
+        .with_basis(if query.uniform_unit_randomization {
+            SamplingBasis::DesignBased
+        } else {
+            SamplingBasis::Superpopulation
+        }))
+    }
+}
+
+impl DesignLowering for ContinuousDoseResponseQuery {
+    fn design_cell(&self, env: &DesignEnv<'_>) -> Result<DesignCell, CausalError> {
+        let query = self;
+        let (identification, _) = CheckedContinuousDoseOperation::design_identification(query);
+        let target = if query.target_doses.is_empty() {
+            functional(env.study, FunctionalKind::PolicyValue, query.outcome)
+        } else {
+            let binding = binding(env.data, TargetPopulation::AllObserved, "row", query.outcome)?;
+            let worlds = query
+                .target_doses
+                .iter()
+                .enumerate()
+                .map(|(index, dose)| {
+                    world(
+                        u32::try_from(index).map_err(|_| CausalError::Compile {
+                            message: "the dose grid has more points than a world id holds".into(),
+                        })?,
+                        vec![set(query.dose, *dose)],
+                        false,
+                        &binding,
+                    )
+                })
+                .collect::<Result<Vec<_>, CausalError>>()?;
+            ProblemTarget::Target(ScientificTarget::new(
+                TargetForm::Worlds(
+                    WorldCollection::new(worlds).map_err(|error| target_error(&error))?,
+                ),
+                ModelAssumptions::new(
+                    GraphFamily::Graphless,
+                    identification.required_assumptions.clone(),
+                ),
+                env.inference,
+            ))
+        };
+        let claim = if query.target_doses.is_empty() {
+            ClaimKind::PolicyValue
+        } else {
+            ClaimKind::Response
+        };
+        Ok(DesignCell::new(
+            target,
+            identification,
+            vec![
+                slot(
+                    ModelRole::Propensity,
+                    "supplied_conditional_dose_density",
+                    &[query.dose],
+                    Some(query.dose_density),
+                ),
+                slot(ModelRole::Outcome, "epanechnikov_kernel", &[query.dose], Some(query.outcome)),
+            ],
+            WidthSource::NotDesignBased(
+                "a local kernel average per baseline group fits no design matrix",
+            ),
+            claim,
+        ))
+    }
+}
+
+impl DesignLowering for LocalPolynomialRatioQuery {
+    fn design_cell(&self, env: &DesignEnv<'_>) -> Result<DesignCell, CausalError> {
+        let query = self;
+        let (identification, _) = local_polynomial_ratio_identification(query);
+        let population = TargetPopulation::LocalAtCutoff {
+            running: query.running,
+            cutoff: OrderedFloatBits::from_f64(query.cutoff),
+        };
+        let binding = binding(env.data, population, "row", query.outcome)?;
+        let target = binary_contrast(
+            &binding,
+            vec![set(query.treatment, 1.0)],
+            vec![set(query.treatment, 0.0)],
+            ModelAssumptions::new(
+                GraphFamily::Graphless,
+                identification.required_assumptions.clone(),
+            ),
+            env.inference,
+        )?;
+        let family = if query.kink { "local_linear_slope_change" } else { "local_linear_jump" };
+        let temporal_replicates =
+            query.options.as_ref().and_then(|options| options.temporal_replicates);
+        Ok(DesignCell::new(
+            ProblemTarget::Target(target),
+            identification,
+            vec![
+                slot(ModelRole::Outcome, family, &[query.running], Some(query.outcome)),
+                slot(ModelRole::Instrument, family, &[query.running], Some(query.treatment)),
+            ],
+            WidthSource::NotDesignBased(
+                "two one-sided local fits inside the bandwidth, not one adjustment design",
+            ),
+            ClaimKind::Point,
+        )
+        .with_randomization_test(temporal_replicates.map(|replicates| ResamplingPlan {
+            method: ResamplingMethod::BlockBootstrap,
+            replicates,
+            unit: ResampleUnit::CalendarBlock,
+        })))
+    }
+}
+
+impl DesignLowering for SurvivalQuery {
+    fn design_cell(&self, env: &DesignEnv<'_>) -> Result<DesignCell, CausalError> {
+        let query = self;
+        let (identification, _) = survival_identification(query);
+        let mut inputs = vec![query.treatment];
+        inputs.extend(query.delayed_entry);
+        let family =
+            if query.known_censoring.is_some() { "ipcw_product_limit" } else { "product_limit" };
+        let mut models = vec![slot(ModelRole::Outcome, family, &inputs, Some(query.duration))];
+        if let Some(known) = &query.known_censoring {
+            models.push(slot(
+                ModelRole::Nuisance,
+                "known_censoring_survival",
+                &known.columns,
+                None,
+            ));
+        }
+        Ok(DesignCell::new(
+            functional(env.study, FunctionalKind::SurvivalContrast, query.duration),
+            identification,
+            models,
+            WidthSource::NotDesignBased("arm product-limit estimators fit no design matrix"),
+            ClaimKind::Response,
+        ))
+    }
+}
+
+impl DesignLowering for LongitudinalRegimeQuery {
+    fn design_cell(&self, env: &DesignEnv<'_>) -> Result<DesignCell, CausalError> {
+        let query = self;
+        let (identification, _) = CheckedLongitudinalRegimeOperation::design_identification(query);
+        let mut models = vec![slot(
+            ModelRole::Propensity,
+            "supplied_sequential_treatment_probabilities",
+            &[],
+            None,
+        )];
+        let outcome_family = match query.method {
+            antecedent_core::LongitudinalRegimeMethod::Ipw => None,
+            antecedent_core::LongitudinalRegimeMethod::GFormula => Some("supplied_period_rewards"),
+            antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => {
+                Some("supplied_sequential_q_scores")
+            }
+            antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel => {
+                Some("stabilized_iptw_additive_msm")
+            }
+        };
+        models.extend(
+            outcome_family.map(|family| slot(ModelRole::Outcome, family, &[], Some(query.outcome))),
+        );
+        let folds = query.fold_ids.iter().collect::<BTreeSet<_>>().len();
+        Ok(DesignCell::new(
+            functional(env.study, FunctionalKind::RegimeValue, query.outcome),
+            identification,
+            models,
+            WidthSource::NotDesignBased(
+                "sequentially weighted subject values fit no design matrix",
+            ),
+            ClaimKind::Point,
+        )
+        .with_folds((folds > 0).then_some(FoldPlan {
+            folds,
+            unit: ResampleUnit::Subject,
+            embargo: None,
+        })))
+    }
+}
+
+impl DesignLowering for SequentialContrastQuery {
+    fn design_cell(&self, env: &DesignEnv<'_>) -> Result<DesignCell, CausalError> {
+        let query = self;
+        let (identification, _) = CheckedSequentialContrastOperation::design_identification(query);
+        let binding = binding(env.data, TargetPopulation::AllObserved, "subject", query.outcome)?;
+        let regime = |actions: [u8; 2]| {
+            vec![
+                set(query.first_treatment, f64::from(actions[0])),
+                set(query.second_treatment, f64::from(actions[1])),
+            ]
+        };
+        let target = binary_contrast(
+            &binding,
+            regime(query.active),
+            regime(query.control),
+            ModelAssumptions::new(
+                GraphFamily::Graphless,
+                identification.required_assumptions.clone(),
+            ),
+            env.inference,
+        )?;
+        let mut second_history: Vec<VariableId> = query.baseline.to_vec();
+        second_history.push(query.first_treatment);
+        second_history.extend(query.intermediate.iter().copied());
+        let mut outcome_history = second_history.clone();
+        outcome_history.push(query.second_treatment);
+        Ok(DesignCell::new(
+            ProblemTarget::Target(target),
+            identification,
+            vec![
+                slot(
+                    ModelRole::Propensity,
+                    "crossfit_first_decision_propensity",
+                    &query.baseline,
+                    Some(query.first_treatment),
+                ),
+                slot(
+                    ModelRole::Propensity,
+                    "crossfit_second_decision_propensity",
+                    &second_history,
+                    Some(query.second_treatment),
+                ),
+                slot(
+                    ModelRole::Outcome,
+                    "crossfit_sequential_outcome_regression",
+                    &outcome_history,
+                    Some(query.outcome),
+                ),
+            ],
+            WidthSource::NotDesignBased(
+                "augmented sequential scores average per-subject nuisance fits",
+            ),
+            ClaimKind::Point,
+        )
+        .with_folds(Some(FoldPlan {
+            folds: query.fold_count as usize,
+            unit: ResampleUnit::Subject,
+            embargo: None,
+        })))
+    }
+}
+
+impl DesignLowering for HistoryMatchQuery {
+    fn design_cell(&self, env: &DesignEnv<'_>) -> Result<DesignCell, CausalError> {
+        let query = self;
+        let (identification, _) = CheckedHistoryMatchOperation::design_identification(query);
+        let mut match_inputs = vec![query.treated];
+        match_inputs.extend(query.period);
+        // A Bayesian request is the outcome-model estimator: one Gaussian regression of the
+        // outcome on period effects, the history-mean score and the treated-centred
+        // interaction. The matching estimator has no posterior.
+        let bayesian = env.study.settings.inference.is_bayesian();
+        let mut model_inputs = match_inputs.clone();
+        model_inputs.extend(query.history.iter().copied());
+        let models = if bayesian {
+            vec![slot(
+                ModelRole::Outcome,
+                "gaussian_period_history_outcome_model",
+                &model_inputs,
+                Some(query.outcome),
+            )]
+        } else {
+            vec![
+                slot(ModelRole::Nuisance, "history_mean_score", &query.history, None),
+                slot(
+                    ModelRole::Outcome,
+                    "within_period_nearest_neighbor",
+                    &match_inputs,
+                    Some(query.outcome),
+                ),
+            ]
+        };
+        Ok(DesignCell::new(
+            functional(env.study, FunctionalKind::HistoryMatch, query.outcome),
+            identification,
+            models,
+            WidthSource::NotDesignBased(if bayesian {
+                "the Gaussian outcome model's posterior is the model-based effect on the treated, not a design-based width"
+            } else {
+                "nearest-neighbor matching on a history score fits no design matrix"
+            }),
+            ClaimKind::Point,
+        ))
+    }
+}
+
+impl DesignLowering for IvBoundsQuery {
+    fn design_cell(&self, env: &DesignEnv<'_>) -> Result<DesignCell, CausalError> {
+        let query = self;
+        let (identification, _) = CheckedIvBoundsOperation::design_identification(query);
+        let mut inputs = vec![query.treatment, query.instrument];
+        inputs.extend(query.weight);
+        Ok(DesignCell::new(
+            functional(env.study, FunctionalKind::IdentifiedSet, query.outcome),
+            identification,
+            vec![slot(
+                ModelRole::Outcome,
+                "binary_instrument_response_types",
+                &inputs,
+                Some(query.outcome),
+            )],
+            WidthSource::NotDesignBased(
+                "the observed cell law of a binary instrument fits no design matrix",
+            ),
+            ClaimKind::Bounds,
+        ))
+    }
+}
+
+// The cell of a sequentially randomized unit-period design or of regime survival: the
+// recorded assignment law (or the fitted treatment and censoring laws) and the outcome
+// functional the excursion or the regime contrast reads.
+impl DesignLowering for TemporalDesignQuery {
+    fn design_cell(&self, env: &DesignEnv<'_>) -> Result<DesignCell, CausalError> {
+        let query = self;
+        let (identification, _) = CheckedTemporalDesignOperation::design_identification(query);
+        let (kind, claim) = temporal_functional(&query.assignment);
+        Ok(DesignCell::new(
+            functional(env.study, kind, query.outcome),
+            identification,
+            temporal_models(query),
+            WidthSource::NotDesignBased(
+                "unit-clustered weighted ratios and pooled logistic fits are sized at execution",
+            ),
+            claim,
+        ))
+    }
+}
+
+/// The functional kind and claim a temporal design's assignment reads.
+fn temporal_functional(
+    assignment: &antecedent_core::TemporalAssignment,
+) -> (FunctionalKind, ClaimKind) {
+    use antecedent_core::{TemporalAssignment, TemporalDoseTarget};
+    match assignment {
+        TemporalAssignment::Interference { .. } => {
+            (FunctionalKind::ExposureContrast, ClaimKind::Point)
+        }
+        TemporalAssignment::RegimeSurvival { .. } => {
+            (FunctionalKind::SurvivalContrast, ClaimKind::Point)
+        }
+        TemporalAssignment::Dose {
+            target:
+                TemporalDoseTarget::SmoothedCurve { .. } | TemporalDoseTarget::LocalQuadratic { .. },
+            ..
+        } => (FunctionalKind::AssignmentContrast, ClaimKind::Response),
+        _ => (FunctionalKind::AssignmentContrast, ClaimKind::Point),
+    }
+}
+
+/// The model slots a temporal design fits for its assignment.
+fn temporal_models(query: &antecedent_core::TemporalDesignQuery) -> Vec<ModelSlot> {
+    use antecedent_core::TemporalAssignment;
+    match &query.assignment {
+        TemporalAssignment::RegimeSurvival { treatment, censored, confounders, .. } => {
+            let mut history: Vec<VariableId> = confounders.to_vec();
+            let mut models = vec![slot(
+                ModelRole::Propensity,
+                "pooled_logistic_treatment",
+                &history,
+                Some(*treatment),
+            )];
+            history.push(*treatment);
+            models.push(slot(
+                ModelRole::Nuisance,
+                "pooled_logistic_censoring",
+                &history,
+                Some(*censored),
+            ));
+            models.push(slot(
+                ModelRole::Outcome,
+                "pooled_logistic_hazard",
+                &history,
+                Some(query.outcome),
+            ));
+            models
+        }
+        TemporalAssignment::ObservationalExcursion { treatment, history } => vec![
+            slot(
+                ModelRole::Propensity,
+                "pooled_logistic_assignment_history",
+                history,
+                Some(*treatment),
+            ),
+            slot(ModelRole::Outcome, "horvitz_thompson_excursion", &[], Some(query.outcome)),
+        ],
+        TemporalAssignment::ObservationalRegime { treatment, confounders, method, .. } => {
+            let mut history: Vec<VariableId> = confounders.to_vec();
+            history.push(*treatment);
+            vec![
+                slot(
+                    ModelRole::Propensity,
+                    "per_period_logistic_treatment_history",
+                    &history,
+                    Some(*treatment),
+                ),
+                slot(ModelRole::Outcome, method.name(), &history, Some(query.outcome)),
+            ]
+        }
+        _ => vec![
+            slot(ModelRole::Propensity, "recorded_sequential_assignment_law", &[], None),
+            slot(ModelRole::Outcome, "horvitz_thompson_excursion", &[], Some(query.outcome)),
+        ],
+    }
+}
+
+/// The model slots of a heterogeneity-robust or covariate-adjusted rollout: the estimator's
+/// outcome model and, for a covariate-adjusted 2x2, its nuisance models.
+fn rollout_did_models(
+    robust: &antecedent_core::HeterogeneityRobustDid,
+    outcome: VariableId,
+) -> Vec<ModelSlot> {
+    use antecedent_core::{DidNuisanceMethod, RolloutDidEstimator};
+    let family = match robust.estimator {
+        RolloutDidEstimator::CallawaySantAnna => "group_time_two_by_two_comparisons",
+        RolloutDidEstimator::SunAbraham => "interaction_weighted_cohort_event_time_contrasts",
+        RolloutDidEstimator::Imputation => "untreated_two_way_fixed_effects_imputation",
+    };
+    let mut models = vec![slot(ModelRole::Outcome, family, &robust.covariates, Some(outcome))];
+    if !robust.covariates.is_empty() {
+        if matches!(
+            robust.nuisance,
+            DidNuisanceMethod::OutcomeRegression | DidNuisanceMethod::DoublyRobust
+        ) {
+            models.push(slot(
+                ModelRole::Nuisance,
+                "linear_untreated_change_regression",
+                &robust.covariates,
+                Some(outcome),
+            ));
+        }
+        if matches!(
+            robust.nuisance,
+            DidNuisanceMethod::InverseProbabilityWeighting | DidNuisanceMethod::DoublyRobust
+        ) {
+            models.push(slot(
+                ModelRole::Propensity,
+                "logistic_cohort_propensity",
+                &robust.covariates,
+                None,
+            ));
+        }
+    }
+    models
+}
+
+/// The declared program, with the design's models, folds, randomization test and the
+/// sampling basis of a frequentist realization.
+fn statistical_program(
+    study: &Study,
+    identifier: Option<IdentifierId>,
+    estimator: Option<EstimatorId>,
+    design: DesignShape,
+    cell: &DesignCell,
+) -> Result<StatisticalProgram, CausalError> {
+    let mut statistical = StatisticalProgram::declared(DeclaredProgram {
+        identifier,
+        estimator,
+        inference: &study.settings.inference,
+        bootstrap_replicates: study.settings.bootstrap_replicates,
+        sampling_design: study.declared.sampling_design,
+        design,
+        operators: Vec::new(),
+    })?;
+    if cell.claim == ClaimKind::Bounds
+        && matches!(statistical.realization, Realization::Frequentist(_))
+    {
+        let name = estimator.map_or(UNNAMED_ESTIMATOR, |estimator| estimator.as_str());
+        statistical.realization = Realization::Envelope(
+            antecedent_core::PartialIdentificationEnvelope::new(format!("identified_set.{name}"))
+                .map_err(|error| CausalError::Compile { message: error.to_string() })?,
+        );
+    } else if matches!(statistical.realization, Realization::Frequentist(_)) {
+        let name = estimator.map_or(UNNAMED_ESTIMATOR, |estimator| estimator.as_str());
+        let score = ScoreModel::new(format!("{name}.{}", cell.basis.as_str()))
+            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        statistical.realization = Realization::Frequentist(ScoreFrequentist::new(score));
+    }
+    statistical.models = Arc::from(cell.models.clone());
+    statistical.folds = cell.folds;
+    if let Some(test) = cell.randomization_test {
+        statistical.resampling = Some(test);
+    }
+    Ok(statistical)
+}
+
+/// Retain the design identification, bound to a world-indexed target.
+fn retain_product(
+    identification: &IdentificationResult,
+    target: &ProblemTarget,
+) -> Result<CompiledIdentificationProduct, CausalError> {
+    let (outcome, class) = identification_claim(identification.status);
+    let mut parts = CompiledProductParts::new(outcome, class);
+    let retained = match target {
+        ProblemTarget::Target(target) => {
+            let (worlds, assembled) = match target.form() {
+                TargetForm::Contrast(contrast) => (contrast.worlds().worlds(), true),
+                TargetForm::Worlds(worlds) => (worlds.worlds(), false),
+                _ => {
+                    return Err(CausalError::Compile {
+                        message: "a design lowers only a world collection or a contrast".into(),
+                    });
+                }
+            };
+            parts.world_obligations = worlds
+                .iter()
+                .map(|world| {
+                    IdentificationObligation::for_world(
+                        world.id(),
+                        outcome,
+                        class,
+                        Vec::new(),
+                        None,
+                    )
+                })
+                .collect();
+            if assembled {
+                parts.assembled =
+                    Some(IdentificationObligation::assembled(outcome, class, Vec::new(), None));
+            }
+            CompiledIdentificationProduct::retain_for_target(identification, parts, target)
+        }
+        ProblemTarget::Targets(_) | ProblemTarget::QueryFunctional { .. } => {
+            CompiledIdentificationProduct::retain(identification, parts)
+        }
+    };
+    retained.map_err(|refusal| CausalError::Compile { message: refusal.to_string() })
+}
+
+/// Identified under the design alone is an identified claim; under a parametric model or a
+/// prior it is evaluated inside that model.
+const fn identification_claim(
+    status: IdentificationStatus,
+) -> (IdentificationOutcome, IdentificationClaimClass) {
+    match status {
+        IdentificationStatus::NonparametricallyIdentified => {
+            (IdentificationOutcome::Identified, IdentificationClaimClass::IdentifiedClaim)
+        }
+        IdentificationStatus::IdentifiedUnderParametricRestrictions
+        | IdentificationStatus::IdentifiedUnderPriorRestrictions => {
+            (IdentificationOutcome::Identified, IdentificationClaimClass::ModelConditional)
+        }
+        IdentificationStatus::PartiallyIdentified
+        | IdentificationStatus::GraphDependent
+        | IdentificationStatus::NotIdentified => {
+            (IdentificationOutcome::Unidentified, IdentificationClaimClass::ModelConditional)
+        }
+    }
+}
+
+const fn uncertainty(inference: &InferenceMode) -> UncertaintyReading {
+    match inference {
+        InferenceMode::Frequentist => UncertaintyReading::Sampling,
+        InferenceMode::Bayesian(_) => UncertaintyReading::Posterior,
+    }
+}
+
+const fn inference_selection(inference: &InferenceMode) -> InferenceSelection {
+    match inference {
+        InferenceMode::Frequentist => InferenceSelection::Frequentist,
+        InferenceMode::Bayesian(_) => InferenceSelection::Bayesian,
+    }
+}
+
+/// The resample unit of a randomized design's assignment unit.
+fn assignment_resample_unit(assignment_unit: &str) -> ResampleUnit {
+    match assignment_unit {
+        "cluster" => ResampleUnit::Cluster,
+        "sequence" => ResampleUnit::Subject,
+        _ => ResampleUnit::Row,
+    }
+}
+
+/// The typed functional `kind` on `outcome`, keyed by the canonical digest of the
+/// study's query so two designs of one kind lower to different programs.
+fn functional(study: &Study, kind: FunctionalKind, outcome: VariableId) -> ProblemTarget {
+    super::query_functional(study, kind, Some(outcome))
+}
+
+fn slot(
+    role: ModelRole,
+    family: &str,
+    inputs: &[VariableId],
+    output: Option<VariableId>,
+) -> ModelSlot {
+    ModelSlot { role, family: Arc::from(family), inputs: Arc::from(inputs), output }
+}
+
+fn set(variable: VariableId, value: f64) -> Intervention {
+    Intervention::Set { variable, value: Value::Float64(value) }
+}
+
+/// A design premise recorded beside the design's own identification assumptions.
+fn declared(id: &str, description: String) -> AssumptionRecord {
+    AssumptionRecord {
+        assumption: antecedent_core::Assumption::Custom {
+            id: Arc::from(id),
+            description: Arc::from(description),
+        },
+        source: AssumptionSource::UserDeclared,
+        scope: AssumptionScope::Identification,
+        status: AssumptionStatus::Declared,
+    }
+}
+
+/// The unconditional mean of `outcome` per `unit` over `population`.
+fn binding(
+    data: &TabularData,
+    population: TargetPopulation,
+    unit: &str,
+    outcome: VariableId,
+) -> Result<WorldBinding, CausalError> {
+    let spec = data.schema().get(outcome)?;
+    let units = QuantityUnits::new(spec.unit.as_deref().unwrap_or("unspecified"))
+        .map_err(|error| target_error(&error))?;
+    WorldBinding::new(
+        population,
+        ObservationUnit::new(unit).map_err(|error| target_error(&error))?,
+        OutcomeQuantity::mean(outcome, units).map_err(|error| target_error(&error))?,
+        Conditioning::unconditional(),
+    )
+    .map_err(|error| target_error(&error))
+}
+
+fn world(
+    raw: u32,
+    interventions: Vec<Intervention>,
+    reference: bool,
+    binding: &WorldBinding,
+) -> Result<InterventionWorld, CausalError> {
+    InterventionWorld::new(
+        ScientificWorldId::from_raw(raw),
+        WorldAction::at_decision(interventions).map_err(|error| target_error(&error))?,
+        reference,
+        binding.clone(),
+        TimeFrame::static_decision(),
+    )
+    .map_err(|error| target_error(&error))
+}
+
+/// `E[Y(active)] − E[Y(control)]`, with the control world as the reference.
+fn binary_contrast(
+    binding: &WorldBinding,
+    active: Vec<Intervention>,
+    control: Vec<Intervention>,
+    assumptions: ModelAssumptions,
+    inference: InferenceSelection,
+) -> Result<ScientificTarget, CausalError> {
+    let worlds = WorldCollection::new([
+        world(CONTROL_WORLD, control, true, binding)?,
+        world(ACTIVE_WORLD, active, false, binding)?,
+    ])
+    .map_err(|error| target_error(&error))?;
+    let contrast = InterventionContrast::difference(
+        worlds,
+        ScientificWorldId::from_raw(ACTIVE_WORLD),
+        ScientificWorldId::from_raw(CONTROL_WORLD),
+        ScientificWorldId::from_raw(CONTROL_WORLD),
+    )
+    .map_err(|error| target_error(&error))?;
+    Ok(ScientificTarget::new(TargetForm::Contrast(contrast), assumptions, inference))
+}
+
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the error is consumed by map_err at every call site"
+)]
+fn target_error(error: &antecedent_core::ScientificTargetError) -> CausalError {
+    CausalError::Compile { message: error.to_string() }
+}
+
+/// The design assumptions a lowered program retained, for inspection.
+#[cfg(test)]
+pub(super) fn retained_assumptions(
+    program: &LoweredProgram,
+) -> Option<antecedent_core::AssumptionSet> {
+    program
+        .retained_identification()
+        .and_then(|retained| retained.product.as_ref())
+        .map(|product| product.assumptions().clone())
+}
+
+/// The graph family a target is stated under for an accepted graph class. Exhaustive, so a new
+/// class must choose its family here.
+const fn graph_family_of(class: GraphClass) -> GraphFamily {
+    match class {
+        GraphClass::Dag => GraphFamily::Dag,
+        GraphClass::Admg => GraphFamily::Admg,
+        GraphClass::Cpdag => GraphFamily::Cpdag,
+        GraphClass::Pag => GraphFamily::Pag,
+        GraphClass::TemporalDag => GraphFamily::TemporalDag,
+        GraphClass::TemporalCpdag => GraphFamily::TemporalCpdag,
+        GraphClass::TemporalPag => GraphFamily::TemporalPag,
+        GraphClass::TemporalAdmg => GraphFamily::TemporalAdmg,
+        GraphClass::RandomizedTrial => GraphFamily::Graphless,
+    }
+}

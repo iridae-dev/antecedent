@@ -23,7 +23,8 @@
 //!   the contrasted arms. This restriction is recorded on the result.
 //!
 //! [`FrontDoorOutcomeModel::Auto`] picks `Saturated` when every mediator has at most
-//! [`MAX_SATURATED_MEDIATOR_LEVELS`] distinct values and `ArmLinear` otherwise.
+//! [`MAX_SATURATED_MEDIATOR_LEVELS`] distinct values (or `sqrt(n)` in a larger sample) and
+//! `ArmLinear` otherwise.
 //!
 //! # Standard error
 //!
@@ -40,7 +41,7 @@
 //! analytic SE is `sqrt(Σ_i (φ_active,i − φ_control,i)²) / n`; it is heteroskedasticity-robust
 //! and assumes independent rows.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -68,12 +69,13 @@ use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::frontdoor::{PreparedFrontDoorProblem, prepare_frontdoor_problem};
 use crate::overlap::OverlapPolicy;
-use crate::util::{BootstrapSeResult, stats_err};
+use crate::util::BootstrapSeResult;
 
-/// Largest number of distinct treatment values treated as arms.
+/// Distinct treatment values always treated as arms; a larger sample admits `n / 4` (an average
+/// of four rows per arm), so only a treatment with nearly unique values is read as continuous.
 pub(crate) const MAX_TREATMENT_LEVELS: usize = 32;
-/// Largest per-mediator distinct-value count for which [`FrontDoorOutcomeModel::Auto`]
-/// selects the saturated cell-mean model.
+/// Per-mediator distinct-value count up to which [`FrontDoorOutcomeModel::Auto`] always
+/// selects the saturated cell-mean model; a larger sample admits `sqrt(n)` levels.
 pub(crate) const MAX_SATURATED_MEDIATOR_LEVELS: usize = 16;
 
 /// Stable id of the positivity requirement checked by the saturated model.
@@ -106,6 +108,12 @@ pub struct FrontDoorFunctional {
     pub overlap: OverlapPolicy,
     /// Outcome model inside the functional.
     pub outcome_model: FrontDoorOutcomeModel,
+    /// Sampling design of the rows, for the bootstrap. The functional carries no unit labels,
+    /// so it can only draw single rows: undeclared, that is the subject draw of one row per
+    /// subject; a declared design never allows a row-level draw, and a declared clustered
+    /// panel or dependent series is refused outright (see
+    /// [`Self::prepare`]).
+    pub sampling_design: crate::util::SamplingDeclaration,
 }
 
 impl Default for FrontDoorFunctional {
@@ -123,14 +131,40 @@ impl FrontDoorFunctional {
             bootstrap_replicates: 200,
             overlap: OverlapPolicy::ExplicitOverride,
             outcome_model: FrontDoorOutcomeModel::Auto,
+            sampling_design: crate::util::SamplingDeclaration::Undeclared,
         }
     }
 
-    /// Set the number of bootstrap replicates (`0` reports only the influence-function SE).
-    #[must_use]
-    pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
-        self.bootstrap_replicates = replicates;
-        self
+    crate::inference::with_bootstrap_replicates!();
+
+    crate::inference::with_sampling_design!();
+
+    /// Refuse a declared clustered panel or dependent series, which this estimator cannot read.
+    ///
+    /// Both the influence-function error and the bootstrap treat single rows as independent
+    /// draws, and the table carries no cluster label or lag to do otherwise, so under either
+    /// design the published error would be too small. Independent subject trajectories are
+    /// held to the bootstrap's own rule (a row-level draw is refused unless undeclared).
+    fn require_declared_design_read(&self) -> Result<(), EstimationError> {
+        use antecedent_core::DeclaredSamplingDesign as Design;
+        let crate::util::SamplingDeclaration::Declared(
+            design @ (Design::ClusteredPanel | Design::DependentTimeSeries),
+        ) = self.sampling_design
+        else {
+            return Ok(());
+        };
+        Err(EstimationError::refused(
+            antecedent_core::reason_code!("option_not_applicable"),
+            format!(
+                "FrontDoorFunctional declares the {} design, but its influence-function error \
+                 and its bootstrap draw single rows as independent and the table carries no \
+                 cluster label or lag, so the declared dependence would be silently ignored and \
+                 the error too small. Next attempt: declare independent subject trajectories if \
+                 the rows are independent, or use FrontDoorTwoStage with cluster labels for a \
+                 clustered panel",
+                design.as_str(),
+            ),
+        ))
     }
 
     /// Set the outcome model.
@@ -151,6 +185,7 @@ impl FrontDoorFunctional {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedFrontDoorProblem, EstimationError> {
+        self.require_declared_design_read()?;
         prepare_frontdoor_problem(data, estimand, query, self.overlap)
     }
 
@@ -161,6 +196,7 @@ impl FrontDoorFunctional {
         identification: &IdentificationResult,
         estimand_index: usize,
     ) -> Result<crate::frontdoor::CheckedFrontDoorPreparation, EstimationError> {
+        self.require_declared_design_read()?;
         crate::frontdoor::prepare_frontdoor_checked(
             data,
             identification,
@@ -268,7 +304,14 @@ impl FrontDoorFunctional {
     ) -> Result<BootstrapSeResult, EstimationError> {
         let n = problem.nrows;
         let k = problem.mediators.len();
-        crate::util::bootstrap_se_with_scratch(
+        // Each worker gathers treatment, outcome, and `k` mediator columns.
+        let _gather = crate::util::admit_gather_scratch(ctx, n, k + 2, self.bootstrap_replicates)?;
+        crate::util::bootstrap_by_design(
+            crate::util::BootstrapDesign {
+                clusters: None,
+                series_block: None,
+                declared: self.sampling_design,
+            },
             self.bootstrap_replicates,
             ctx,
             0xF80E_u64,
@@ -321,8 +364,8 @@ fn resolve_model(requested: FrontDoorOutcomeModel, mediators: &[Arc<[f64]>]) -> 
         FrontDoorOutcomeModel::ArmLinear => ResolvedModel::ArmLinear,
         FrontDoorOutcomeModel::Auto => {
             let discrete = mediators.iter().all(|m| {
-                level_codes(m)
-                    .is_some_and(|(_, levels)| levels.len() <= MAX_SATURATED_MEDIATOR_LEVELS)
+                let allowed = MAX_SATURATED_MEDIATOR_LEVELS.max(m.len().isqrt());
+                level_codes(m).is_some_and(|(_, levels)| levels.len() <= allowed)
             });
             if discrete { ResolvedModel::Saturated } else { ResolvedModel::ArmLinear }
         }
@@ -414,14 +457,16 @@ fn contrast(
     let (arm_of, arms) = level_codes(sample.treatment).ok_or_else(|| {
         EstimationError::data_msg("front-door functional needs a finite treatment")
     })?;
-    if arms.len() > MAX_TREATMENT_LEVELS {
-        return Err(EstimationError::unsupported(
+    if arms.len() > MAX_TREATMENT_LEVELS.max(n / 4) {
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "frontdoor.functional needs a discrete treatment (its observed values are the arms of the functional); use frontdoor.linear_two_stage for a continuous treatment under its recorded linearity restriction",
         ));
     }
     let (Some(arm_a), Some(arm_c)) = (level_index(&arms, active), level_index(&arms, control))
     else {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("positivity_violated"),
             "frontdoor.functional needs both contrasted treatment levels to be observed: P(M | T=t) is estimated from the rows at that level",
         ));
     };
@@ -592,7 +637,9 @@ impl OutcomeFit {
             if n_arm < ncols {
                 return Err(rank_deficient);
             }
-            let fit = backend.least_squares(&x, n_arm, ncols, &y, ols).map_err(stats_err)?;
+            let fit = backend
+                .least_squares(&x, n_arm, ncols, &y, ols)
+                .map_err(crate::error::EstimationError::from)?;
             if fit.rank < ncols {
                 return Err(rank_deficient);
             }
@@ -880,7 +927,7 @@ mod tests {
         assert!(effect.se_analytic() < 0.05, "se={}", effect.se_analytic());
         assert!((effect.ate - 2.0).abs() < 4.0 * effect.se_analytic(), "ate={}", effect.ate);
 
-        let linear = FrontDoorTwoStage { bootstrap_replicates: 0, ..FrontDoorTwoStage::new() };
+        let linear = FrontDoorTwoStage::new().with_bootstrap_replicates(0);
         let prep = linear.prepare(&data, &frontdoor_estimand(), &query()).unwrap();
         let shortcut = linear
             .fit(&prep, &mut FrontDoorWorkspace::default(), &ctx(), AssumptionSet::new())
@@ -974,5 +1021,30 @@ mod tests {
         let boot = effect.se_bootstrap().expect("bootstrap SE");
         let rel = (effect.se_analytic() - boot).abs() / boot;
         assert!(rel < 0.15, "analytic={} boot={boot}", effect.se_analytic());
+    }
+
+    #[test]
+    fn a_declared_panel_or_series_is_refused_and_a_declared_row_draw_never_runs() {
+        use antecedent_core::DeclaredSamplingDesign as Design;
+
+        let data = binary_scm_draw(400, 5);
+        for design in [Design::ClusteredPanel, Design::DependentTimeSeries] {
+            let est = no_bootstrap(FrontDoorOutcomeModel::Auto).with_sampling_design(design);
+            let err = est.prepare(&data, &frontdoor_estimand(), &query()).unwrap_err();
+            assert!(
+                matches!(err, EstimationError::Refused { code: "option_not_applicable", .. }),
+                "err={err}"
+            );
+            assert!(err.to_string().contains("Next attempt"), "err={err}");
+        }
+        // Rows are the only draw unit: a declared trajectory design forbids a row-level draw,
+        // while the analytic error alone (no bootstrap) is unaffected.
+        let design = Design::IndependentSubjectTrajectories;
+        let est =
+            FrontDoorFunctional::new().with_bootstrap_replicates(20).with_sampling_design(design);
+        let err = fit(&est, &data, &frontdoor_estimand()).unwrap_err();
+        assert!(err.to_string().contains("row_iid"), "err={err}");
+        let est = no_bootstrap(FrontDoorOutcomeModel::Auto).with_sampling_design(design);
+        fit(&est, &data, &frontdoor_estimand()).unwrap();
     }
 }

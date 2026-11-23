@@ -15,7 +15,7 @@
 //! - against an earlier state that declared the same request, moving only the calibration
 //!   record recomputes the law and the decision and reuses the fit.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::BayesianConfig;
 use antecedent::analysis::recalc_bayesian::{
@@ -46,7 +46,7 @@ fn request() -> BayesianRequest {
     prior.push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(2, 10.0)));
     prior.push(PriorSpec::KnownResidualVariance(1.0));
     BayesianRequest {
-        columns: vec![("t".into(), t), ("y".into(), y)],
+        columns: vec![("t".into(), t), ("y".into(), y)].into(),
         edges: vec![(0, 1)],
         treatment: VariableId::from_raw(0),
         outcome: VariableId::from_raw(1),
@@ -73,7 +73,7 @@ fn a_fresh_bayesian_plan_declares_calibration_and_coupling_and_moves_only_law_an
 
     // The declared inputs are the typed identities, and no representation is declared: the
     // session consumes no measurement model.
-    assert_eq!(ids.own(Stage::Calibration), CalibrationInput::Unmeasured.identity());
+    assert_eq!(ids.own(Stage::Calibration), CalibrationInput::NotMeasured.identity());
     assert_eq!(ids.own(Stage::Coupling), CouplingInput::None.identity());
     assert!(!ids.contains(Stage::Representation));
 

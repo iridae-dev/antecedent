@@ -1,19 +1,37 @@
 # Fuzz targets
 
-Build with nightly + cargo-fuzz:
+These `cargo-fuzz` targets feed arbitrary bytes to the parsers, decoders and constructors that
+read untrusted input. Each must return a typed error and never panic or allocate past its cap.
+This page lists the targets, says how to run one, and states what the fuzzer does and does not
+cover.
+
+Run a target with nightly and cargo-fuzz, from the repository root:
 
 ```bash
 cargo +nightly install cargo-fuzz
 cargo +nightly fuzz run schema_names
 ```
 
-Existing targets:
+CI neither builds nor runs these targets. On a development machine, `scripts/fuzz.sh` builds
+every target and runs each for 60 seconds; `build` only checks that the harnesses compile, and
+`run SECONDS TARGET...` runs chosen targets for longer:
+
+```bash
+bash scripts/fuzz.sh
+bash scripts/fuzz.sh build
+bash scripts/fuzz.sh run 600 artifact_container query_wire
+```
+
+## Targets
+
+Core construction:
 
 - `schema_names` — schema construction
-- `dag_ops` — DAG insert / d-separation
-- `kernel_reductions` — masked reductions
+- `dag_ops` — DAG insert / d-separation, and the cyclic-graph edge contract
+- `kernel_reductions` — masked reductions, solver size arithmetic, singular blocks
+- `cyclic_admissibility` — linear cyclic admissibility (zero diagonal, no stored inverse)
 
-P3.5 additions:
+Containers, plans and the language boundary:
 
 - `artifact_container` — `EncodedArtifact::read_from` (length-cap / checksum paths)
 - `expression_arena` — `CausalExprArena` intern + estimand method `FromStr`
@@ -21,14 +39,14 @@ P3.5 additions:
 - `python_boundary` — DOT/`dag_from_dot` + schema names (Rust side of FFI)
 - `arrow_metadata` — malformed Arrow `RecordBatch` → `tabular_from_record_batch`
 
-IO decoder additions:
+IO decoders:
 
 - `query_wire` — `from_cbor::<CausalQueryWire>` then `causal_query_from_wire`
 - `contract_section` — `decode_analysis_result_contract` on a container, and `from_cbor::<AnalysisResultContractWire>` plus `validate_contract_section`
 - `artifact_reader` — `MappedArtifactReader::from_bytes` (mmap is file-only)
 - `causal_payload` — `decode_causal_payload_artifact` (dispatches payload kinds)
 
-Artifact and declaration parsers (each takes arbitrary bytes and must return a typed error, never panic or allocate past its cap):
+Artifact and declaration parsers:
 
 - `transport_handoff` — `TransportHandoffArtifact::inspect` / `from_bytes`
 - `joint_law_propagation` — `JointLawPropagationArtifactWire::decode`, then `consume` on whatever decodes (replay cost)
@@ -54,9 +72,12 @@ Artifact and declaration parsers (each takes arbitrary bytes and must return a t
 - `sequential_evaluation_artifact` — `SequentialEvaluationArtifact::from_bytes` and `consume`
 - `study_plan_artifact` — `StudyPlanArtifactWire` CBOR decode, then `consume_with_limits`
 - `transport_artifacts` — joint Bayesian, ADMG conditional (and obstruction), mz and z transport artifacts: `decode` and `consume`
-- `decision_json` — `contract_from_json` and `contract_from_json_refusal` (there is no `result_from_json`; results export JSON only)
+- `decision_json` — `contract_from_json` and `contract_from_json_refusal` (there is no
+  `result_from_json`; results export JSON only). A stored identity is ignored.
 
-Corpus notes: seed each target from a valid exported artifact of its kind (the golden fixtures
+## Corpus and scope
+
+Seed each target from a valid exported artifact of its kind (the golden fixtures
 used by the artifact round-trip tests are the natural seeds), plus truncations and single-byte
 flips of them. Semantic-mutation coverage (a resealed edit that must be refused on re-derivation)
 is in the per-artifact tests, not the fuzzer; the fuzzer's job is the no-panic and bounded-allocation
@@ -64,12 +85,10 @@ property. Targets pass `None` for the expected identity so that decoding, not th
 comparison, is what is exercised. These targets depend on `antecedent-io-core` and `antecedent-design`
 by path; `cargo +nightly fuzz build` refreshes `fuzz/Cargo.lock`.
 
-Not reached: Arrow C Data Interface. The safe ingest is `tabular_from_arrow_c_columns`, and `ArrowCColumn` is only built from an existing Arrow array or an `unsafe` FFI pair. There is no byte-slice parser for that boundary. `arrow_metadata` already fuzzes `tabular_from_record_batch`. The per-artifact `decode` methods are not one public dispatcher.
+`arrow_metadata` fuzzes `tabular_from_record_batch` and the safe Arrow C Data Interface
+constructors (`ArrowCColumn::from_arrow_array`, stream import). An exported column outlives the
+source array, and a failed import or a failed stream releases the exporter. There is still no
+byte-slice parser for a raw FFI pair. The per-artifact `decode` methods are not one public
+dispatcher.
 
-CI builds every target and does not run the fuzzer:
-
-```bash
-cargo +nightly fuzz build
-```
-
-Targets exercise core construction; they must not import pinned external baseline source.
+Targets must not import pinned external baseline source.

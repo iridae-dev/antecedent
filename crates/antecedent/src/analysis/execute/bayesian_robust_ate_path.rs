@@ -22,11 +22,16 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        Self::ensure_bayesian_robust_ate_admitted(&self.inference, query)?;
+        Self::ensure_bayesian_robust_ate_admitted(&self.settings.inference, query)?;
         let identifier = physical.binding().identifier_or(RouteDefaults::STATIC_ATE)?;
         let estimator = EstimatorId::BayesianRobustAte;
+        let reused = self.reuse_static_identification_if(physical, |_| {
+            self.rd.is_none()
+                && matches!(self.query, CausalQuery::AverageEffect(_))
+                && physical.binding().resolves_to(RouteDefaults::STATIC_ATE, identifier, estimator)
+        });
         let (identification, estimand, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+            identification_from_cache_or(ctx, reused, || {
                 let identified = identify_static_query_with_rd(
                     identifier,
                     graph,
@@ -37,10 +42,10 @@ impl super::Study {
             })?;
         let (data_est, query_est, estimand_est) = project_for_ate_estimate(data, query, &estimand)?;
         let input = robust_ate_input(&data_est, &query_est)?;
-        let InferenceMode::Bayesian(cfg) = &self.inference else {
-            return Err(CausalError::Compile {
-                message: "bayesian.robust_ate requires Bayesian inference".into(),
-            });
+        let InferenceMode::Bayesian(cfg) = &self.settings.inference else {
+            return Err(CausalError::unsupported_inference(
+                "bayesian.robust_ate requires Bayesian inference",
+            ));
         };
         if cfg.has_transfer() {
             return Err(CausalError::Unsupported {
@@ -91,13 +96,13 @@ impl super::Study {
         query: &AverageEffectQuery,
     ) -> Result<(), CausalError> {
         if !inference.is_bayesian() {
-            return Err(CausalError::Unsupported {
-                message: "bayesian.robust_ate requires Bayesian inference",
-            });
+            return Err(CausalError::unsupported_inference(
+                "bayesian.robust_ate requires Bayesian inference",
+            ));
         }
         if query.target_population != antecedent_core::TargetPopulation::AllObserved
             || query.outcome_functional != antecedent_core::OutcomeFunctional::Mean
-            || query.effect_modifiers.len() > 0
+            || !query.effect_modifiers.is_empty()
             || query.control
                 != antecedent_core::Intervention::set(
                     query.treatment,
@@ -188,6 +193,7 @@ fn robust_ate_posterior(
         unevaluable_mass: 0.0,
         early_stopped: false,
         treatment_contrast: None,
+        preparation: None,
     };
     Ok(posterior)
 }

@@ -5,7 +5,7 @@ Workflow job ids (the keys under `jobs:`) are what `parity/release.toml`
 names in `required_jobs`. `gh run view --json jobs` reports display names
 instead: the job's `name:` with every `${{ matrix.* }}` expanded, one job
 per matrix combination ("Rust ubuntu-latest", "Rust ubuntu-latest facade",
-"Wheel macos-14 py3.12").
+"Wheel macos-latest py3.12").
 This module parses the workflow as YAML and owns that id -> display-name
 mapping, so no gate re-derives it with a regex.
 
@@ -28,11 +28,11 @@ import itertools
 import json
 import re
 import sys
-import tomllib
 from pathlib import Path
 from typing import Any
 
 import yaml
+from _repo import load_toml
 
 # Relative to the working directory: every gate runs from the repo root, and a
 # gate self-test runs from an overlay whose ci.yml may be deliberately broken.
@@ -186,7 +186,7 @@ def required_jobs(
     schema gate call it rather than re-parsing the TOML.
     """
     release = RELEASE_TOML if release is None else release
-    rows = tomllib.loads(release.read_text(encoding="utf-8")).get("capabilities", [])
+    rows = load_toml(release).get("capabilities", [])
     wanted: list[str] = []
     problems: list[str] = []
     for row in rows:
@@ -214,69 +214,6 @@ def required_jobs(
                     f"release.toml {row.get('id')}: required job {job!r} missing from ci.yml"
                 )
     return wanted, problems
-
-
-PUBLISH_WORKFLOWS = (Path(".github") / "workflows" / "publish-release.yml",)
-ATTESTATION = "gate_calibration_attestation.sh"
-
-
-def _needs(job: dict[str, Any]) -> list[str]:
-    needs = job.get("needs") or []
-    return [needs] if isinstance(needs, str) else list(needs)
-
-
-def _reaches(jobs: dict[str, dict[str, Any]], start: str, target: str, seen: set[str]) -> bool:
-    """Whether `start` depends on `target` through `needs`, directly or transitively."""
-    for dep in _needs(jobs.get(start, {})):
-        if dep == target or (dep not in seen and _reaches(jobs, dep, target, seen | {dep})):
-            return True
-    return False
-
-
-def publish_gating(paths: tuple[Path, ...] | None = None) -> list[str]:
-    """Problems with how the publish workflows gate on calibration attestation.
-
-    Each workflow must run `scripts/gate_calibration_attestation.sh` in a job
-    whose checkout has the full history (`fetch-depth: 0`), before any other
-    step of that job, and every other job must depend on that job (directly or
-    transitively), so no wheel is built and nothing is published unattested.
-    """
-    problems: list[str] = []
-    for path in PUBLISH_WORKFLOWS if paths is None else paths:
-        try:
-            jobs = load_jobs(path)
-        except (OSError, WorkflowError) as error:
-            problems.append(f"{path}: {error}")
-            continue
-        gating = []
-        for job_id, job in jobs.items():
-            steps = job.get("steps") or []
-            for index, step in enumerate(steps):
-                if ATTESTATION in str(step.get("run", "")):
-                    gating.append((job_id, index))
-        if not gating:
-            problems.append(f"{path.name}: no step runs {ATTESTATION}")
-            continue
-        job_id, index = gating[0]
-        steps = jobs[job_id].get("steps") or []
-        before = steps[:index]
-        checkout = [s for s in before if str(s.get("uses", "")).startswith("actions/checkout")]
-        if len(before) != len(checkout):
-            problems.append(
-                f"{path.name}: job {job_id!r} runs steps before the calibration attestation"
-            )
-        if not checkout or (checkout[0].get("with") or {}).get("fetch-depth") != 0:
-            problems.append(
-                f"{path.name}: job {job_id!r} checks out without fetch-depth: 0, so the "
-                "attestation cannot reach each record's calibration_sha"
-            )
-
-        for other in jobs:
-            if other != job_id and not _reaches(jobs, other, job_id, {other}):
-                problems.append(
-                    f"{path.name}: job {other!r} does not depend on the attestation job {job_id!r}"
-                )
-    return problems
 
 
 def main(argv: list[str]) -> int:
@@ -307,11 +244,6 @@ def main(argv: list[str]) -> int:
                     print(f"  - {problem}", file=sys.stderr)
                 return 1
             print(" ".join(wanted))
-            return 0
-        if command == "publish-gating":
-            # publish-gating [WORKFLOW...] : publish workflows run the attestation first.
-            problems = publish_gating(tuple(Path(p) for p in rest) or None)
-            print(json.dumps({"problems": problems}))
             return 0
         if command == "job-ids":
             print(json.dumps(sorted(load_jobs())))

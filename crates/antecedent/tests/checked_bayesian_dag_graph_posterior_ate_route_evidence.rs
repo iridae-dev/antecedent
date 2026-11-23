@@ -1,12 +1,13 @@
 //! Builder independent evidence for Bayesian DAG graph-posterior ATE execution.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_discovery::adjacency_mask::set_edge;
 use antecedent_discovery::{GraphPosterior, SamplingSummary};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use antecedent_prob::InferenceDiagnostics;
 
 fn data() -> TabularData {
@@ -77,21 +78,25 @@ fn bayesian_dag_graph_posterior_ate_is_sealed_across_validation_lifecycle() {
         let mut prepared = builder.prepare(&context).unwrap();
         drop(builder);
 
-        let plan = prepared
-            .checked_bayesian_graph_posterior_ate_info()
-            .expect("sealed Bayesian graph-posterior operation");
+        let RetainedOperation::BayesianGraphPosteriorAte(plan) = prepared.retained_operation()
+        else {
+            panic!("sealed Bayesian graph-posterior operation")
+        };
         assert_eq!(plan.query, query);
         assert_eq!(plan.estimator.as_str(), "bayesian.gcomp");
         assert_eq!(plan.validation, suite);
-        assert_eq!(plan.graph_keys.as_ref(), graph_posterior.graph_keys.as_ref());
+        assert_eq!(plan.graph_keys.as_ref(), graph_posterior.graph_keys().as_ref());
         assert_eq!(plan.weights.as_ref(), &[0.5, 0.5]);
         assert!(plan.inference.starts_with("bayesian:"));
 
         let result = prepared.estimate(&data, &context).unwrap();
+        // The fixture is balanced within each (z, t) cell with zero-mean noise, so the
+        // z-adjusted contrast is exactly 2 while the unadjusted one is 3 (P(z=1|t=1) = 3/4 against
+        // P(z=1|t=0) = 1/4): the posterior mean sits at 2 up to the prior's shrinkage.
         assert!(
-            (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.12,
+            (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.005,
             "ATE={}",
-            result.estimate.as_effect().unwrap().ate
+            result.estimate().as_effect().unwrap().ate
         );
         let posterior_result = result.posterior.as_ref().expect("joint posterior retained");
         assert!(posterior_result.draws.n_draws >= 96);
@@ -104,24 +109,40 @@ fn bayesian_dag_graph_posterior_ate_is_sealed_across_validation_lifecycle() {
             RefuteSuite::PlaceboAndRcc => unreachable!(),
         }
 
-        let refreshed = prepared.refresh(data.clone(), &context).unwrap();
+        let refreshed = rebind_estimate(&mut prepared, data.clone(), &context).unwrap();
         assert!(
-            (refreshed.estimate.as_effect().unwrap().ate
-                - result.estimate.as_effect().unwrap().ate)
+            (refreshed.estimate().as_effect().unwrap().ate
+                - result.estimate().as_effect().unwrap().ate)
                 .abs()
                 < 1e-10
         );
-        let retained = prepared.checked_bayesian_graph_posterior_ate_info().unwrap();
+        let RetainedOperation::BayesianGraphPosteriorAte(retained) = prepared.retained_operation()
+        else {
+            panic!("retained Bayesian graph-posterior operation")
+        };
         assert_eq!(retained.graph_keys, plan.graph_keys);
         assert_eq!(retained.weights, plan.weights);
 
         let artifact = prepared
             .encode_contracted_result(&refreshed, "bayesian-dag-graph-posterior-ate", &context)
             .unwrap();
-        let consumed = consume_analysis_result(&artifact).unwrap();
+        let consumed = replay_analysis_result(&artifact).unwrap();
         assert!(consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_bayesian_graph_posterior_ate_operation"
         }));
-        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert!(!consumed.acceptance.accepts_as_replayed_program());
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

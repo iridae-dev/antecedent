@@ -1,4 +1,72 @@
 {
+  "oracle": {
+    "kind": "closed_form",
+    "method": "closed-form algebra and enumerated finite laws",
+    "independence_basis": "Front-door adjustment evaluated in exact rationals on the retained contingency table (0.282), and E[X4|do(X2=x)] for the latent Verma SCM by enumeration over the latent variable (0.3275, 0.5025, contrast 0.175), with the 16000-row population cells verified to be integers. Both quantities are computed from structural/enumerated definitions in exact arithmetic with no Antecedent code. The front-door value uses the retained table of the front-door fixture as input (bound as an input fixture); its own derivation of that table is not re-reviewed here.",
+    "generator": "conformance/recalculation/checked_static_design/reference.py",
+    "command": "uv run --frozen --script conformance/recalculation/checked_static_design/reference.py --check",
+    "environment_lock": "conformance/recalculation/checked_static_design/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "frontdoor_discrete_contrast",
+      "verma_do_means",
+      "verma_contrast"
+    ],
+    "context_only_outputs": [
+      "iv_effect, rd_jump, rd_hc1_variance, frontdoor_linear_effect and frontdoor_hc0_variance: no executing assertion reads these fixture fields (the design test hard-codes its own literals); not derived here",
+      "oracle_kind label"
+    ],
+    "historical_exposure": "Written during this review from the fixture README and the test's data construction; no product implementation source was consulted. Authorship of the original arithmetic is unrecorded.",
+    "reference_review": {
+      "scope": "Only the three fixture fields the static recalculation test reads. The design-recalculation constants are explicitly outside this review.",
+      "independence_basis": "Both quantities are computed from structural/enumerated definitions in exact arithmetic with no Antecedent code. The front-door value uses the retained table of the front-door fixture as input (bound as an input fixture); its own derivation of that table is not re-reviewed here.",
+      "historical_exposure": "Written during this review from the fixture README and the test's data construction; no product implementation source was consulted. Authorship of the original arithmetic is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Static binary cases only. IV, regression-discontinuity and linear front-door design constants (and their HC variances) remain unreviewed because nothing reads them from the fixture. No coverage claim.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/recalculation/checked_static_design/reference.py",
+          "sha256": "a27455bedff034c369c7e13b7889e365bc9c6604241da319ed414e77fee0f3aa"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/recalculation/checked_static_design/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "input_fixture",
+          "path": "conformance/estimate/admg_frontdoor_functional/expected.json",
+          "sha256": "e14574359dfdba5a1f95e35a62a00caaa6775397f443bbdb440a5b20394b3a33"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/recalc_static.rs",
+          "items": [
+            "fn adjacent_dag_and_unsorted_grid_refuse_before_work",
+            "fn bounded_search_missing_provider_and_shared_evidence_keep_point_only_contract",
+            "fn changed_transport_law_reuses_other_population_factors",
+            "fn complementary_sources_actual_counts_and_independent_artifact",
+            "fn dense_factor_workspace_respects_budget_before_provider_construction",
+            "fn empirical_refresh_reuses_only_unchanged_factor_inputs",
+            "fn frontdoor_actual_components_and_coordinate_reuse",
+            "fn generic_refresh_exports_actual_refreshed_factor_snapshot",
+            "fn graph_and_query_substitution_recheck_identification",
+            "fn mz",
+            "fn rebind_estimate",
+            "fn refusal_is_transactional_and_receipts_do_not_grant_live_factors",
+            "fn response",
+            "fn static_oracle",
+            "fn utility",
+            "fn verma_checked_scalar_functionals_match_enumerated_latent_scm"
+          ],
+          "sha256": "beafb17fa72d4774d9738017d18385fd67dfcb8faa6d1875b2686dd57105f836"
+        }
+      ],
+      "fixture_payload_sha256": "75806cabb949592c60d26b8994ac9e6f25ed438007431888bc82a9f0d7407cde"
+    }
+  },
   "oracle_kind": "closed_form_and_enumerated_finite_law",
   "frontdoor_discrete_contrast": 0.282,
   "verma_do_means": [

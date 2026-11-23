@@ -6,7 +6,7 @@
 //! supplied regime laws. The fixtures live with the identifier's tests and are
 //! included here by path so one oracle serves both layers.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "../../antecedent-identify/tests/support/counterfactual_transport_adapter.rs"]
 mod counterfactual_transport_adapter;
@@ -79,7 +79,7 @@ fn refusal_code(error: &EstimationError) -> &'static str {
 
 fn refusal_message(error: &EstimationError) -> String {
     match error {
-        EstimationError::Refused { message, .. } => message.clone(),
+        EstimationError::Refused { message, .. } => message.to_string(),
         other => panic!("expected a registered refusal, got {other:?}"),
     }
 }
@@ -209,7 +209,9 @@ fn zero_support_conditioning_is_a_typed_refusal_not_a_number() {
     let error = evaluate(&derivation, &data).unwrap_err();
     assert_eq!(refusal_code(&error), "transport_support_failure");
     assert!(
-        refusal_message(&error).contains("counterfactual_transport.zero_conditioning_mass"),
+        refusal_message(&error).contains(
+            antecedent_core::reason_details::counterfactual_transport::ZERO_CONDITIONING_MASS
+        ),
         "{error:?}"
     );
     // The same query is defined, and enumerated, in the source population.
@@ -270,7 +272,7 @@ fn absent_mislabelled_and_counted_laws_are_refused_before_a_number() {
     let error = evaluate(&derivation, &swapped).unwrap_err();
     assert!(matches!(error, EstimationError::Refused { .. }), "{error:?}");
 
-    // An empirical plug-in is not licensed: sampled inference is a separate route.
+    // An empirical plug-in is not supported: sampled inference is a separate route.
     let mut laws: Vec<ExactDiscreteLaw> = data.laws().to_vec();
     let law = &laws[0];
     laws[0] = ExactDiscreteLaw::try_empirical(
@@ -285,7 +287,7 @@ fn absent_mislabelled_and_counted_laws_are_refused_before_a_number() {
     .unwrap();
     let empirical = ExactTransportData::try_new(laws, 1 << 16).unwrap();
     let error = evaluate(&derivation, &empirical).unwrap_err();
-    assert_eq!(refusal_code(&error), "cell_not_licensed");
+    assert_eq!(refusal_code(&error), "route_not_supported");
 }
 
 #[test]

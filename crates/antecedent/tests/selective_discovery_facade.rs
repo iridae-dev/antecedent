@@ -18,8 +18,8 @@ use antecedent::analysis::selective_discovery::{
     request_selection_diagram, revalidate_after_discovery,
 };
 use antecedent_contract::composition_verification::{
-    CompositionGraph, CompositionNode, DependencyKind, NodeKind, NumericalCause, Revalidation,
-    WithdrawalKind,
+    CompositionGraph, CompositionNode, DependencyKind, NodeKind, NumericalCause, PriorAuthority,
+    Revalidation, WithdrawalKind,
 };
 use antecedent_contract::evidence_ledger::{EvidenceLedger, Overlap};
 use antecedent_core::recalc::{
@@ -233,7 +233,7 @@ fn plan(previous: &StageIdentities, requested: &StageIdentities) -> RecalcPlan {
     RecalcPlan::plan(
         previous,
         requested,
-        &RecalcCapabilities::in_process(RetargetSupport::Licensed),
+        &RecalcCapabilities::in_process(RetargetSupport::Supported),
     )
 }
 
@@ -254,7 +254,10 @@ fn a_resolved_structure_is_accepted_and_a_class_needs_a_declared_completion() {
     let acceptance = GraphAcceptance { declared_by: "reviewer".to_owned(), completion: None };
     let refusal = accepted_graph_stage_identity(&class.outcome, &acceptance).unwrap_err();
     assert_eq!(refusal.code, "discovered_structure_unresolved");
-    assert_eq!(refusal.detail, "selective_discovery.unresolved_structure");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::selective_discovery::UNRESOLVED_STRUCTURE
+    );
     assert_eq!(refusal.unresolved_edges.len(), 3);
 
     // A declared completion is accepted, and its identity and label are part of the result.
@@ -274,7 +277,10 @@ fn a_resolved_structure_is_accepted_and_a_class_needs_a_declared_completion() {
     bounded.search_incomplete = true;
     bounded.bounded_search_receipts = vec![("pc.depth_budget".to_owned(), "exhausted".to_owned())];
     let refusal = accepted_graph_stage_identity(&bounded, &acceptance).unwrap_err();
-    assert_eq!(refusal.detail, "selective_discovery.search_incomplete");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::selective_discovery::SEARCH_INCOMPLETE
+    );
     assert_eq!(refusal.bounded_search_receipts.len(), 1);
 }
 
@@ -407,13 +413,50 @@ fn a_changed_structure_recomputes_and_a_changed_completion_reaches_the_anchor() 
         "a completion is recorded as a declaration, not a discovery"
     );
 
-    // A different discovered structure: recompute with a changed structure.
+    // The collider is fully oriented, while the chain retains unresolved edges.
+    // The graph declaration changes as well as its structure, so the earlier
+    // claims lose their authority until the new premises have been accepted.
     let before = claim_graph(&run(&collider(), &data), None);
     let after = claim_graph(&class, None);
+    let before_graph = before.node("discovery.graph").unwrap();
+    let after_graph = after.node("discovery.graph").unwrap();
+    assert!(before_graph.assumptions.contains(&"unresolved_edges=0".to_owned()));
+    assert!(after_graph.assumptions.contains(&"equivalence_class_not_a_single_graph".to_owned()));
     let result = revalidate_after_discovery(&before, &after).unwrap();
     let graph = result.claim("discovery.graph").unwrap();
     assert!(graph.numerical.iter().any(|r| matches!(r.cause, NumericalCause::StructureChanged)));
-    assert_eq!(result.claim("decision").unwrap().class, Revalidation::Recompute);
+    assert_eq!(result.claim("discovery.data").unwrap().class, Revalidation::StillValid);
+    for key in ["discovery.graph"].into_iter().chain(DOWNSTREAM) {
+        let claim = result.claim(key).unwrap();
+        assert_eq!(claim.class, Revalidation::Withdrawn, "{key}");
+        assert_eq!(claim.authority, PriorAuthority::NotRetained, "{key}");
+        assert!(
+            claim.withdrawals.iter().any(|withdrawal| {
+                withdrawal.kind == WithdrawalKind::Retired
+                    && withdrawal.origin == "discovery.graph"
+                    && withdrawal.detail == "assumptions_changed"
+            }),
+            "{key}: {:?}",
+            claim.withdrawals
+        );
+    }
+
+    // A changed fully oriented collider with the same declared assumptions
+    // requires recomputation, without retiring the prior scientific premises.
+    let alternative =
+        oracle_contract("dsep:collider", vec![vec![], vec![], vec![0, 1, 3], vec![]], 4);
+    let after = claim_graph(&run(&alternative, &data), None);
+    assert_eq!(before_graph.assumptions, after.node("discovery.graph").unwrap().assumptions);
+    let result = revalidate_after_discovery(&before, &after).unwrap();
+    let graph = result.claim("discovery.graph").unwrap();
+    assert!(graph.numerical.iter().any(|r| matches!(r.cause, NumericalCause::StructureChanged)));
+    assert_eq!(result.claim("discovery.data").unwrap().class, Revalidation::StillValid);
+    for key in ["discovery.graph"].into_iter().chain(DOWNSTREAM) {
+        let claim = result.claim(key).unwrap();
+        assert_eq!(claim.class, Revalidation::Recompute, "{key}");
+        assert_eq!(claim.authority, PriorAuthority::NotRetained, "{key}");
+        assert!(claim.withdrawals.is_empty(), "{key}: {:?}", claim.withdrawals);
+    }
 }
 
 #[test]
@@ -476,7 +519,10 @@ fn a_discovered_structure_transport_request_returns_the_unresolved_edges() {
     let external = discovered_structure_refusal(&refusal);
     external.validate().unwrap();
     assert_eq!(external.code, "discovered_structure_unresolved");
-    assert_eq!(external.detail, "selective_discovery.unresolved_structure");
+    assert_eq!(
+        external.detail,
+        antecedent_core::reason_details::selective_discovery::UNRESOLVED_STRUCTURE
+    );
     let offending = external.offending.as_deref().unwrap();
     assert_eq!(offending.split(';').count(), 3);
     assert!(offending.contains("undirected_in_equivalence_class"));
@@ -504,7 +550,10 @@ fn a_fresh_process_resumes_from_the_artifact_only_with_the_raw_data() {
     // Fresh consumer: bytes and retained identity only, then the raw data.
     let artifact = SelectiveDiscoveryArtifact::from_bytes(&bytes, Some(&retained)).unwrap();
     let missing = StaticSelectiveDiscovery::resume(&contract, None, artifact.state(), &ctx());
-    assert_eq!(missing.unwrap_err().detail(), Some("selective_discovery.raw_data_missing"));
+    assert_eq!(
+        missing.unwrap_err().detail(),
+        Some(antecedent_core::reason_details::selective_discovery::RAW_DATA_MISSING)
+    );
     let (resumed, report) =
         StaticSelectiveDiscovery::resume(&contract, Some(&data), artifact.state(), &ctx()).unwrap();
     assert_eq!(report.work.ci_tests_attempted, 0);
@@ -517,7 +566,10 @@ fn a_fresh_process_resumes_from_the_artifact_only_with_the_raw_data() {
     let other = table(250, 11);
     let err = StaticSelectiveDiscovery::resume(&contract, Some(&other), artifact.state(), &ctx())
         .unwrap_err();
-    assert_eq!(err.detail(), Some("selective_discovery.data_mismatch"));
+    assert_eq!(
+        err.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::DATA_MISMATCH)
+    );
 
     // A semantic mutation, resealed so the container is consistent: each statistic is a valid
     // statistic, and the replay reaches another graph than the recorded one.
@@ -530,7 +582,10 @@ fn a_fresh_process_resumes_from_the_artifact_only_with_the_raw_data() {
     let edited = SelectiveDiscoveryArtifact::from_bytes(&edited_bytes, None).unwrap();
     let err = StaticSelectiveDiscovery::resume(&contract, Some(&data), edited.state(), &ctx())
         .unwrap_err();
-    assert_eq!(err.detail(), Some("selective_discovery.replay_diverged"));
+    assert_eq!(
+        err.detail(),
+        Some(antecedent_core::reason_details::selective_discovery::REPLAY_DIVERGED)
+    );
     // And a consumer that retained the identity refuses the resealed artifact outright.
     assert!(SelectiveDiscoveryArtifact::from_bytes(&edited_bytes, Some(&retained)).is_err());
 }

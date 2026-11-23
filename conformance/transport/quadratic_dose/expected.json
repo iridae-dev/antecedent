@@ -1,4 +1,61 @@
 {
+  "oracle": {
+    "kind": "closed_form",
+    "method": "exact conditional-mean polynomial",
+    "independence_basis": "Exact polynomial identities for the level, derivative and contrast, plus an exact weighted local-quadratic fit of the noiseless mean at several doses (triangular weights, rational arithmetic) that reproduces level, slope and curvature, with a cubic-mean control showing the fit would be biased otherwise. Rational arithmetic only; the local fit uses weights of this script's own choosing, not the product's kernel, so it establishes the spanning argument rather than the product's numerics. The mean function is the fixture's statement.",
+    "generator": "conformance/transport/quadratic_dose/reference.py",
+    "command": "uv run --frozen --script conformance/transport/quadratic_dose/reference.py --check",
+    "environment_lock": "conformance/transport/quadratic_dose/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "conditional-mean coefficients",
+      "contrast between doses 1 and 3"
+    ],
+    "context_only_outputs": [
+      "from and to dose fields (the test hard-codes 1 and 3)",
+      "oracle_kind label"
+    ],
+    "historical_exposure": "Written during this review from the fixture README and the asserting test; no product implementation source was consulted. Authorship of the original arithmetic is unrecorded.",
+    "reference_review": {
+      "scope": "Quadratic conditional mean; exact zero smoothing bias of a local quadratic design; contrast 3 by arithmetic.",
+      "independence_basis": "Rational arithmetic only; the local fit uses weights of this script's own choosing, not the product's kernel, so it establishes the spanning argument rather than the product's numerics. The mean function is the fixture's statement.",
+      "historical_exposure": "Written during this review from the fixture README and the asserting test; no product implementation source was consulted. Authorship of the original arithmetic is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Noiseless exact-mean case; sampling uncertainty, bandwidth selection and coverage are not addressed. Calibration not_measured.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/transport/quadratic_dose/reference.py",
+          "sha256": "f28c552db32cceff60570c05f4e70ef305277caad7c0c103779b0b95671c00fa"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/transport/quadratic_dose/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent-estimate/tests/dose_grid_functional.rs",
+          "items": [
+            "const GRID",
+            "const N",
+            "fn claims",
+            "fn contrast_between_named_doses_matches_closed_form",
+            "fn design",
+            "fn level_and_derivative_recover_truth_under_alternating_noise_within_tolerance",
+            "fn local_quadratic_reference",
+            "fn request",
+            "fn run",
+            "fn truth_derivative",
+            "fn truth_level"
+          ],
+          "sha256": "1a2893e49848f64fc2cc6a095aa1d9e2f32136433f39e92f8ec96f55ead317ca"
+        }
+      ],
+      "fixture_payload_sha256": "755a3c530f78da2330f5b81f6cece40ee2b7dedf5e8d521a18fac028d717d4e1"
+    }
+  },
   "oracle_kind": "closed_form",
   "conditional_mean_coefficients": [
     1.0,

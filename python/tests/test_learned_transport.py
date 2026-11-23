@@ -7,6 +7,7 @@ import pytest
 from antecedent import transport as tr
 from antecedent.errors import CausalUnsupportedError
 from antecedent.learners import Linear, Logistic
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced
 
 from test_transport_statistical import fixture
@@ -15,10 +16,10 @@ from test_transport_statistical import fixture
 def test_categorical_provider_uses_common_lifecycle_and_verified_load():
     identified, catalog, data = fixture()
     query = advanced.StatisticalTransportQuery(identified, catalog, {"x": 1.0}, bootstrap=9)
-    study = advanced.prepare(query, data, provider=tr.LearnedCategorical(Logistic()))
-    result = study.estimate()
+    study = ac.prepare(data, query=query, provider=tr.LearnedCategorical(Logistic()))
+    result = require_success(study.estimate())
     assert result.mean("y") == pytest.approx(0.8, abs=1e-6)
-    loaded = ac.load(result.export())
+    loaded = require_success(ac.load(bytes(result.export())))
     assert loaded.mean("y") == result.mean("y")
     assert "learned" in str(result.inspect().to_dict()).lower()
     assert result.uncertainty["row"]["calibration_binding"] is None
@@ -40,45 +41,52 @@ def trial_fixture(sampling="independent_samples"):
 @pytest.mark.parametrize("sampling", ["independent_samples", "nested_cohort"])
 def test_trial_lifecycle_retains_paired_score_and_atomic_refresh(sampling):
     query, data = trial_fixture(sampling)
-    study = advanced.prepare(
-        query,
+    study = ac.prepare(
         data,
+        query=query,
         provider=tr.TrialAipw(outcome=Linear(), folds=3),
-        inference=tr.TransportInference(bootstrap=5, seed=8),
+        inference=tr.TransportInference(bootstrap=5),
+        execution=ac.Execution(seed=8),
     )
     assert not study.inspect().uncertainty.available
-    result = study.estimate()
+    result = require_success(study.estimate())
     assert result.estimate == pytest.approx(2.0)
     assert result.interval == pytest.approx((2.0, 2.0))
     assert len(result.replicates) == 5
-    loaded = ac.load(result.export())
+    loaded = require_success(ac.load(bytes(result.export())))
     assert loaded.estimate == result.estimate
     assert loaded.replicates == result.replicates
     assert not loaded.inspect().uncertainty.payload.get("calibration_binding")
     with pytest.raises(ValueError, match="known randomization probabilities are invalid"):
-        study.refresh(dataclasses.replace(data, randomization=[0.0] * 200))
-    assert study.estimate().estimate == result.estimate
-    assert study.plan.structure_source if hasattr(study.plan, "structure_source") else True
-    with pytest.raises(CausalUnsupportedError, match="Transport retains inference settings"):
-        study.estimate(seed=9)
+        require_success(
+            ac.estimate(ac.rebind(study, data=dataclasses.replace(data, randomization=[0.0] * 200)))
+        )
+    assert require_success(study.estimate()).estimate == result.estimate
+    assert study.inspect().identification.available
+    alternative = ac.reconfigure(study, execution=ac.Execution(seed=9))
+    assert require_success(alternative.estimate()).estimate == pytest.approx(2.0)
 
 
 def test_trial_rejects_unsupported_sampling_and_uncertified_covariates():
     query, data = trial_fixture()
     with pytest.raises(ValueError, match="unknown variant `clustered`"):
-        advanced.prepare(query, dataclasses.replace(data, sampling="clustered"))
+        ac.prepare(dataclasses.replace(data, sampling="clustered"), query=query)
     with pytest.raises(ValueError, match="invalid certified trial AIPW input or options"):
-        advanced.prepare(query, dataclasses.replace(data, covariates={"a": [0.0] * 200}))
+        ac.prepare(dataclasses.replace(data, covariates={"a": [0.0] * 200}), query=query)
 
 
 def test_trial_identity_binds_sampling_design():
     query, data = trial_fixture()
-    independent = advanced.prepare(query, data, inference=tr.TransportInference(0)).estimate()
-    nested = advanced.prepare(
-        query,
-        dataclasses.replace(data, sampling="nested_cohort"),
-        inference=tr.TransportInference(0),
-    ).estimate()
+    independent = require_success(
+        ac.prepare(data, query=query, inference=tr.TransportInference(0)).estimate()
+    )
+    nested = require_success(
+        ac.prepare(
+            dataclasses.replace(data, sampling="nested_cohort"),
+            query=query,
+            inference=tr.TransportInference(0),
+        ).estimate()
+    )
     assert independent.inspect().execution_id != nested.inspect().execution_id
     assert independent.interval is None
 
@@ -97,12 +105,14 @@ def test_recursive_learned_provider_composes_complementary_sources():
     query = advanced.TransportResponseGridQuery(
         identified, catalog, ({"x": 0.0}, {"x": 1.0}), bootstrap=9
     )
-    result = advanced.prepare(
-        query, tr.StatisticalTransportData(samples), provider=tr.LearnedCategorical()
-    ).estimate()
+    result = require_success(
+        ac.prepare(
+            tr.StatisticalTransportData(samples), query=query, provider=tr.LearnedCategorical()
+        ).estimate()
+    )
     assert [result.mean(i, "y") for i in range(2)] == pytest.approx([0.26, 0.74], abs=1e-6)
     assert result.contrast(1, 0, "y").estimate == pytest.approx(0.48, abs=1e-6)
-    assert ac.load(result.export()).points == result.points
+    assert require_success(ac.load(bytes(result.export()))).points == result.points
 
 
 @pytest.mark.parametrize("misspecified", ["membership", "outcome"])
@@ -131,49 +141,64 @@ def test_trial_nuisance_misspecification_cases_are_separate(misspecified):
     query = advanced.TrialAipwQuery(
         graph, advanced.SelectionDiagram("trial", "target", ["z"]), "a", "y"
     )
-    result = advanced.prepare(
-        query, data, provider=tr.TrialAipw(outcome=Linear()), inference=tr.TransportInference(0)
-    ).estimate()
-    assert result.estimate == pytest.approx(2.0, abs=0.16)
+    result = require_success(
+        ac.prepare(
+            data,
+            query=query,
+            provider=tr.TrialAipw(outcome=Linear()),
+            inference=tr.TransportInference(0),
+        ).estimate()
+    )
+    # Truth 2.0 in both cases (E[effect] over the target law). Observed deviations: 0.023
+    # (membership, correct outcome model) and 0.142 (outcome misspecified, linear fit of a
+    # quadratic).
+    assert result.estimate == pytest.approx(2.0, abs=0.06 if misspecified == "membership" else 0.16)
     assert result.interval is None
 
 
 def test_trial_transformation_preview_uses_common_contract():
     query, data = trial_fixture()
-    study = advanced.prepare(
-        query,
+    study = ac.prepare(
         data,
+        query=query,
         provider=tr.TrialAipw(Linear(), Logistic(), folds=3),
         inference=tr.TransportInference(bootstrap=0),
     )
     report = study.preview_transform("compatible_data_replace")
-    assert report
-    assert study.preview_transform("change_graph") != report
+    assert report["intent"] == "compatible_data_replace"
+    assert report["refused"] == "false"
+    graph_change = study.preview_transform("change_graph")
+    assert graph_change["refused"] == "true"
+    assert "transport.reprepare_required" in graph_change["refusal"]
+    assert graph_change["input_execution"] == report["input_execution"]
 
 
-def test_prepare_trial_executes_retained_checked_score_after_builder_disposal():
+def test_canonical_trial_executes_retained_checked_score_after_builder_disposal():
     """The prepared trial handle retains its certificate, snapshot, and seed."""
     query_builder, data = trial_fixture("independent_samples")
-    study = advanced.prepare_trial(
-        query_builder,
+    study = ac.prepare(
         data,
+        query=query_builder,
         provider=tr.TrialAipw(outcome=Linear(), folds=3),
-        inference=tr.TransportInference(bootstrap=5, seed=8),
+        inference=tr.TransportInference(bootstrap=5),
+        execution=ac.Execution(seed=8),
     )
     del query_builder
     plan = study.inspect()
     assert plan.identification.available
     assert not plan.uncertainty.available
-    result = study.estimate()
+    result = require_success(study.estimate())
     assert result.estimate == pytest.approx(2.0)
     assert result.interval == pytest.approx((2.0, 2.0))
     assert len(result.replicates) == 5
-    loaded = ac.load(result.export())
+    loaded = require_success(ac.load(bytes(result.export())))
     assert loaded.estimate == result.estimate
     assert loaded.replicates == result.replicates
-    refreshed = study.refresh(data)
+    refreshed = require_success(ac.estimate(ac.rebind(study, data=data)))
     assert refreshed.estimate == result.estimate
     assert refreshed.replicates == result.replicates
-    with pytest.raises(ValueError, match="reprepare_required"):
-        study.refresh(dataclasses.replace(data, sampling="nested_cohort"))
-    assert study.estimate().estimate == result.estimate
+    with pytest.raises(CausalUnsupportedError, match="reprepare_required"):
+        require_success(
+            ac.estimate(ac.rebind(study, data=dataclasses.replace(data, sampling="nested_cohort")))
+        )
+    assert require_success(study.estimate()).estimate == result.estimate

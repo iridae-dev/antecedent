@@ -6,6 +6,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent.estimators import DML, DRLearner
+from antecedent.outcomes import require_success
 
 
 def _linear_scm(n: int = 240, seed: int = 3):
@@ -18,17 +19,24 @@ def _linear_scm(n: int = 240, seed: int = 3):
 
 def test_dml_auto_recovers_ate():
     data, graph = _linear_scm()
-    result = antecedent.analyze(
-        data,
-        graph=graph,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        estimator=DML(learner="auto", folds=4),
-        bootstrap=0,
-        refute=False,
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            estimator=DML(learner="auto", folds=4),
+            inference=antecedent.Frequentist(bootstrap=0),
+            refute=False,
+            execution=antecedent.Execution(seed=1),
+        )
     )
     assert result.estimate.estimator_id == "dml"
-    assert abs(result.ate - 2.0) < 0.45
+    # Truth 2.0 within three reported standard errors (observed gap 0.03, se 0.134), and the
+    # least-squares reading adjusted for z, the same identified quantity, within two.
+    design = np.column_stack([np.ones(len(data["t"])), data["t"], data["z"]])
+    ols = np.linalg.lstsq(design, data["y"], rcond=None)[0][1]
+    assert abs(result.ate - 2.0) < 3.0 * result.estimate.se_analytic
+    assert abs(result.ate - ols) < 2.0 * result.estimate.se_analytic
     assert result.estimate.outcome_oof_r2 is not None
     assert result.estimate.treatment_oof_logloss is not None
     assert result.estimate.crossfit_folds == 4
@@ -45,14 +53,16 @@ def test_drlearner_returns_cate():
     y = (1.0 + z) * t + 0.3 * z + rng.normal(size=n) * 0.35
     data = {"t": t, "y": y, "z": z}
     graph = [("z", "t"), ("z", "y"), ("t", "y")]
-    result = antecedent.analyze(
-        data,
-        graph=graph,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        estimator=DRLearner(learner="ridge", folds=4),
-        bootstrap=0,
-        refute=False,
-        seed=2,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            estimator=DRLearner(learner="ridge", folds=4),
+            inference=antecedent.Frequentist(bootstrap=0),
+            refute=False,
+            execution=antecedent.Execution(seed=2),
+        )
     )
     assert result.estimate.estimator_id == "dr.learner"
     assert result.estimate.cate is not None
@@ -60,6 +70,12 @@ def test_drlearner_returns_cate():
     assert result.estimate.cate_se is not None
     assert len(result.estimate.cate_se) == n
     assert abs(result.ate - float(np.mean(result.estimate.cate))) < 1e-9
+    # The unit effect is 1 + z: the learned CATE tracks it (observed RMSE 0.044) and the
+    # average effect is 1 + mean(z) up to sampling error.
+    cate = np.asarray(result.estimate.cate)
+    assert float(np.sqrt(np.mean((cate - (1.0 + z)) ** 2))) < 0.12
+    assert float(np.corrcoef(cate, z)[0, 1]) > 0.99
+    assert abs(result.ate - (1.0 + float(np.mean(z)))) < 0.2
 
 
 @pytest.mark.parametrize("estimator", [DML(), DRLearner()])
@@ -70,11 +86,11 @@ def test_staged_learner_artifact_roundtrip(estimator):
         graph=graph,
         query=antecedent.AverageEffect("t", "y"),
         estimator=estimator,
-        bootstrap=0,
+        inference=antecedent.Frequentist(bootstrap=0),
         refute="none",
     )
-    result = prepared.estimate(data)
-    restored = antecedent.load(result.export())
+    result = require_success(antecedent.estimate(prepared))
+    restored = require_success(antecedent.load(bytes(result.export())))
     payload = restored.decoded_artifact.payload
     assert (
         tuple(tuple(p) for p in payload["learner_provenance"]) == result.estimate.learner_provenance

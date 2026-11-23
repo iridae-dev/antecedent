@@ -9,8 +9,7 @@ use std::sync::Arc;
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::{
     AdjustedEstimate, Availability, EstimationError, JointCovariance, MeanPair, ReportingScale,
-    compare_raw_adjusted, raw_contrast, refuse_column_attribution, refuse_transform_interval,
-    transform_mean_pair,
+    compare_raw_adjusted, raw_contrast, refuse_column_attribution, transform_mean_pair,
 };
 
 #[path = "common/checks.rs"]
@@ -66,8 +65,11 @@ fn the_gap_is_raw_minus_adjusted_and_carries_no_interval() {
     close(comparison.adjusted.estimate, 3.5, "adjusted");
     // The covariance of the raw and the adjusted estimate is not carried: the gap has a typed
     // reason instead of a standard error, and the adjusted SE is never folded into it.
-    assert_eq!(comparison.gap_interval.code, "cell_not_licensed");
-    assert_eq!(comparison.gap_interval.detail, "descriptive_comparison.gap_interval_unavailable");
+    assert_eq!(comparison.gap_interval.code, "route_not_supported");
+    assert_eq!(
+        comparison.gap_interval.detail,
+        antecedent_core::reason_details::descriptive_comparison::GAP_INTERVAL_UNAVAILABLE
+    );
 }
 
 #[test]
@@ -85,12 +87,12 @@ fn an_adjusted_estimate_of_another_coding_or_population_is_not_compared() {
         (
             AdjustedEstimate { active: 2.0, ..AdjustedEstimate::mean_difference(3.0, None) },
             "route_not_supported",
-            "descriptive_comparison.estimand_coding_mismatch",
+            antecedent_core::reason_details::descriptive_comparison::ESTIMAND_CODING_MISMATCH,
         ),
         (
             AdjustedEstimate { control: 1.0, ..AdjustedEstimate::mean_difference(3.0, None) },
             "route_not_supported",
-            "descriptive_comparison.estimand_coding_mismatch",
+            antecedent_core::reason_details::descriptive_comparison::ESTIMAND_CODING_MISMATCH,
         ),
         (
             AdjustedEstimate {
@@ -98,7 +100,7 @@ fn an_adjusted_estimate_of_another_coding_or_population_is_not_compared() {
                 ..AdjustedEstimate::mean_difference(0.3, None)
             },
             "route_not_supported",
-            "descriptive_comparison.estimand_coding_mismatch",
+            antecedent_core::reason_details::descriptive_comparison::ESTIMAND_CODING_MISMATCH,
         ),
         (
             AdjustedEstimate {
@@ -106,17 +108,17 @@ fn an_adjusted_estimate_of_another_coding_or_population_is_not_compared() {
                 ..AdjustedEstimate::mean_difference(3.0, None)
             },
             "population_not_estimable",
-            "descriptive_comparison.population_not_all_observed",
+            antecedent_core::reason_details::descriptive_comparison::POPULATION_NOT_ALL_OBSERVED,
         ),
         (
             AdjustedEstimate::mean_difference(f64::NAN, None),
             "invalid_argument",
-            "descriptive_comparison.invalid_data",
+            antecedent_core::reason_details::descriptive_comparison::INVALID_DATA,
         ),
         (
             AdjustedEstimate::mean_difference(3.0, Some(-1.0)),
             "invalid_argument",
-            "descriptive_comparison.invalid_data",
+            antecedent_core::reason_details::descriptive_comparison::INVALID_DATA,
         ),
     ] {
         let (got, message) = refused(compare_raw_adjusted(&y, &t, adjusted, &ctx()).unwrap_err());
@@ -127,7 +129,7 @@ fn an_adjusted_estimate_of_another_coding_or_population_is_not_compared() {
 
 #[test]
 fn malformed_rows_and_empty_arms_are_refused() {
-    let invalid = "descriptive_comparison.invalid_data";
+    let invalid = antecedent_core::reason_details::descriptive_comparison::INVALID_DATA;
     for (y, t) in [
         (vec![], vec![]),
         (vec![1.0, 2.0], vec![0.0]),
@@ -141,7 +143,12 @@ fn malformed_rows_and_empty_arms_are_refused() {
     }
     let (code, message) = refused(raw_contrast(&[1.0, 2.0], &[1.0, 1.0], &ctx()).unwrap_err());
     assert_eq!(code, "arm_not_populated");
-    assert!(message.starts_with("descriptive_comparison.arm_not_populated"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::descriptive_comparison::ARM_NOT_POPULATED
+        ),
+        "{message}"
+    );
 }
 
 #[test]
@@ -150,7 +157,10 @@ fn a_one_row_arm_has_a_typed_reason_instead_of_a_standard_error() {
     close(raw.difference, 5.0 - 1.5, "difference");
     let reason = raw.se.unavailable().expect("a one-row arm has no sample variance");
     assert_eq!(reason.code, "invalid_argument");
-    assert_eq!(reason.detail, "descriptive_comparison.arm_too_small");
+    assert_eq!(
+        reason.detail,
+        antecedent_core::reason_details::descriptive_comparison::ARM_TOO_SMALL
+    );
     assert_eq!(raw.mean_pair().covariance.unavailable(), Some(reason));
 }
 
@@ -171,12 +181,11 @@ fn log_risk_ratio_and_its_delta_method_variance_match_the_hand_computation() {
 }
 
 #[test]
-fn a_transform_rejects_more_scales_than_the_declared_bound() {
+fn a_transform_evaluates_every_declared_scale_without_a_count_cap() {
     let pair = MeanPair::new(0.4, 0.2, None);
     let scales = [ReportingScale::MeanDifference; 5];
-    let (code, message) = refused(transform_mean_pair(&pair, &scales).unwrap_err());
-    assert_eq!(code, "invalid_argument");
-    assert!(message.contains("at most four reporting scales"), "{message}");
+    let transform = transform_mean_pair(&pair, &scales).unwrap();
+    assert_eq!(transform.contrasts.len(), 5);
 }
 
 #[test]
@@ -259,7 +268,10 @@ fn a_missing_joint_covariance_gives_points_and_a_typed_reason_never_a_zero() {
     close(transform.contrasts[1].value, 0.2, "point");
     let reason = transform.covariance.unavailable().expect("no covariance was carried");
     assert_eq!(reason.code, "required_option_missing");
-    assert_eq!(reason.detail, "descriptive_comparison.joint_covariance_unavailable");
+    assert_eq!(
+        reason.detail,
+        antecedent_core::reason_details::descriptive_comparison::JOINT_COVARIANCE_UNAVAILABLE
+    );
     assert_eq!(transform.se(0), None);
 }
 
@@ -274,7 +286,12 @@ fn a_joint_covariance_is_read_at_the_named_entries() {
         let (code, message) =
             refused(MeanPair::from_joint_covariance(0.4, 0.2, &joint, i, j).unwrap_err());
         assert_eq!(code, "invalid_argument");
-        assert!(message.starts_with("descriptive_comparison.invalid_covariance"), "{message}");
+        assert!(
+            message.starts_with(
+                antecedent_core::reason_details::descriptive_comparison::INVALID_COVARIANCE
+            ),
+            "{message}"
+        );
     }
     let asymmetric =
         JointCovariance { dim: 2, values: Arc::from(vec![0.01_f64, 0.002, 0.003, 0.004]) };
@@ -287,34 +304,50 @@ fn a_joint_covariance_is_read_at_the_named_entries() {
 fn a_transform_outside_its_domain_or_on_a_bad_covariance_is_refused() {
     let log_rr = [ReportingScale::LogRiskRatio];
     for (pair, scales, detail) in [
-        (MeanPair::new(0.4, 0.0, None), &log_rr[..], "descriptive_comparison.transform_domain"),
-        (MeanPair::new(-0.1, 0.2, None), &log_rr[..], "descriptive_comparison.transform_domain"),
+        (
+            MeanPair::new(0.4, 0.0, None),
+            &log_rr[..],
+            antecedent_core::reason_details::descriptive_comparison::TRANSFORM_DOMAIN,
+        ),
+        (
+            MeanPair::new(-0.1, 0.2, None),
+            &log_rr[..],
+            antecedent_core::reason_details::descriptive_comparison::TRANSFORM_DOMAIN,
+        ),
         (
             MeanPair::new(1.0, 0.2, None),
             &[ReportingScale::LogOddsRatio][..],
-            "descriptive_comparison.transform_domain",
+            antecedent_core::reason_details::descriptive_comparison::TRANSFORM_DOMAIN,
         ),
         (
             MeanPair::new(1.2, 0.2, None),
             &[ReportingScale::RiskDifference][..],
-            "descriptive_comparison.transform_domain",
+            antecedent_core::reason_details::descriptive_comparison::TRANSFORM_DOMAIN,
         ),
-        (MeanPair::new(f64::NAN, 0.2, None), &log_rr[..], "descriptive_comparison.invalid_data"),
-        (MeanPair::new(0.4, 0.2, None), &[][..], "descriptive_comparison.invalid_data"),
+        (
+            MeanPair::new(f64::NAN, 0.2, None),
+            &log_rr[..],
+            antecedent_core::reason_details::descriptive_comparison::INVALID_DATA,
+        ),
+        (
+            MeanPair::new(0.4, 0.2, None),
+            &[][..],
+            antecedent_core::reason_details::descriptive_comparison::INVALID_DATA,
+        ),
         (
             MeanPair::new(0.4, 0.2, Some([0.01, 0.02, 0.004])),
             &log_rr[..],
-            "descriptive_comparison.invalid_covariance",
+            antecedent_core::reason_details::descriptive_comparison::INVALID_COVARIANCE,
         ),
         (
             MeanPair::new(0.4, 0.2, Some([-0.01, 0.0, 0.004])),
             &log_rr[..],
-            "descriptive_comparison.invalid_covariance",
+            antecedent_core::reason_details::descriptive_comparison::INVALID_COVARIANCE,
         ),
         (
             MeanPair::new(0.4, 0.2, Some([f64::NAN, 0.0, 0.004])),
             &log_rr[..],
-            "descriptive_comparison.invalid_covariance",
+            antecedent_core::reason_details::descriptive_comparison::INVALID_COVARIANCE,
         ),
     ] {
         let (code, message) = refused(transform_mean_pair(&pair, scales).unwrap_err());
@@ -340,18 +373,39 @@ fn scale_names_round_trip_and_an_unknown_scale_is_refused() {
     }
     let (code, message) = refused(ReportingScale::parse("hazard_ratio").unwrap_err());
     assert_eq!(code, "route_not_supported");
-    assert!(message.starts_with("descriptive_comparison.scale_not_supported"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::descriptive_comparison::SCALE_NOT_SUPPORTED
+        ),
+        "{message}"
+    );
 }
 
 #[test]
-fn an_interval_and_a_column_attribution_are_closed_routes() {
-    let (code, message) = refused(refuse_transform_interval());
-    assert_eq!(code, "cell_not_licensed");
-    assert!(message.starts_with("descriptive_comparison.interval_withheld"), "{message}");
+fn a_transformed_interval_is_the_hand_delta_method_wald_interval_and_attribution_is_closed() {
+    // Pair (mu1, mu0) = (0.6, 0.4) with Var = (0.01, 0.02) and Cov = 0.004.
+    let pair = MeanPair::new(0.6, 0.4, Some([0.01, 0.004, 0.02]));
+    let transform =
+        transform_mean_pair(&pair, &[ReportingScale::RiskDifference, ReportingScale::LogRiskRatio])
+            .unwrap();
+    let z = 1.959_963_984_540_054;
+    // Risk difference: gradient (1, -1), variance 0.01 + 0.02 - 2 * 0.004 = 0.022.
+    let (lo, hi) = transform.interval(0, 0.95).unwrap();
+    let half = z * 0.022_f64.sqrt();
+    assert!((lo - (0.2 - half)).abs() < 1e-12 && (hi - (0.2 + half)).abs() < 1e-12);
+    // Log risk ratio: gradient (1/0.6, -1/0.4), variance 0.01/0.36 + 0.02/0.16 - 2 * 0.004/0.24.
+    let variance: f64 = 0.01 / 0.36 + 0.02 / 0.16 - 2.0 * 0.004 / 0.24;
+    let half = z * variance.sqrt();
+    let centre = (0.6_f64 / 0.4).ln();
+    let (lo, hi) = transform.interval(1, 0.95).unwrap();
+    assert!((lo - (centre - half)).abs() < 1e-12 && (hi - (centre + half)).abs() < 1e-12);
+    assert!(transform.interval(2, 0.95).is_none() && transform.interval(0, 1.0).is_none());
     let (code, message) = refused(refuse_column_attribution());
     assert_eq!(code, "effect_not_identified");
     assert!(
-        message.starts_with("descriptive_comparison.column_attribution_not_identified"),
+        message.starts_with(
+            antecedent_core::reason_details::descriptive_comparison::COLUMN_ATTRIBUTION_NOT_IDENTIFIED
+        ),
         "{message}"
     );
 }

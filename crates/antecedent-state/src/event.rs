@@ -1,6 +1,6 @@
 //! State events.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{AssumptionRecord, CausalQuery};
 
@@ -11,6 +11,10 @@ use crate::store::{
 
 /// Events that update [`crate::CausalState`] without auto-rerunning analyses.
 #[derive(Clone, Debug)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "an event is applied once and dropped; boxing a variant would change the public API"
+)]
 pub enum StateEvent {
     /// Append a data batch reference.
     AppendData(DataBatchRef),

@@ -6,7 +6,7 @@
 //! family-wise coverage over the replications is at least the nominal level minus a stated
 //! Monte-Carlo tolerance of three binomial standard errors. It also asserts the max-t band is
 //! strictly wider than every marginal Wald band. Calibrated coverage of the band is measured
-//! separately by `batch_retarget_calibration.rs` (coverage unmeasured).
+//! separately by `batch_retarget_calibration.rs` (coverage `not_measured`).
 //!
 //! SCM: `Z ~ N(0, 1)`, `P(T = 1 | Z) = logistic(-0.2 + 0.8 Z)`,
 //! `Y = Z + 2 T + 0.5 T Z + 0.5 e`, so the conditional effect is `2 + 0.5 Z`. Under the
@@ -14,7 +14,7 @@
 //! `E_w[Z] = s`, so the retargeted ATE is `2 + 0.5 s` exactly: 2.0 (uniform weights), 2.2
 //! (`s = 0.4`) and 1.8 (`s = -0.4`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,
@@ -82,7 +82,10 @@ fn replicate(data_seed: u64, band_seed: u64, draws: u32) -> SimultaneousBand {
         .map(|(k, &s)| RetargetClaim {
             name: format!("c{k}"),
             query_index: 0,
-            weights: rows.iter().map(|&r| (s * z[r as usize]).exp()).collect(),
+            weights: rows
+                .iter()
+                .map(|r| (s * z[usize::try_from(r.get()).expect("row")]).exp())
+                .collect(),
             depends_on: vec![VariableId::from_raw(Z)],
         })
         .collect();
@@ -125,7 +128,12 @@ fn the_max_t_band_covers_the_known_retargeted_truths_family_wise() {
     // The max-t multiplier averaged over the replications exceeds the marginal 1.96: the
     // Monte-Carlo error of the mean of 300 critical values is far below the gap.
     let mean_critical = critical_sum / REPS as f64;
-    assert!(mean_critical > Z975 + 0.01, "mean critical value {mean_critical}");
+    // Observed mean 2.218; the Bonferroni value 2.394 and the marginal 1.96 are both excluded.
+    assert!((2.15..2.29).contains(&mean_critical), "mean critical value {mean_critical}");
+    assert!(
+        coverage <= LEVEL + tolerance,
+        "family-wise coverage {coverage} above {LEVEL} + {tolerance}: the band is too wide"
+    );
 }
 
 /// The family band is strictly wider than each marginal Wald band on a replication with enough
@@ -140,5 +148,7 @@ fn the_max_t_band_is_strictly_wider_than_each_marginal_band() {
         assert!(member.value - member.lower > marginal_half, "{}", member.name);
     }
     // Three correlated claims need less than the independent three-claim multiplier (about 2.39).
-    assert!(band.critical_value < 2.4, "c = {}", band.critical_value);
+    // The observed multiplier is 2.217 (400000 draws); the independent-claims value 2.39, which
+    // the Bonferroni split also gives, and the marginal 1.96 are both excluded.
+    assert!((2.15..2.28).contains(&band.critical_value), "c = {}", band.critical_value);
 }

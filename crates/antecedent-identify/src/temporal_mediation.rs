@@ -4,7 +4,7 @@
 //! decompose via path products once a mediator set participates on treatment→
 //! outcome pathways in the template.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -24,6 +24,51 @@ use crate::result::{
 };
 use crate::temporal_backdoor::{TemporalBackdoorIdentifier, TemporalIdentificationResult};
 
+// Bound temporary parent/mediator collections and scans before premise
+// checks or reachability allocate structures derived from the template.
+fn admit_mediation_scratch(
+    template: &TemporalDag,
+    query: &MediationQuery,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_core::execution::AdmissionLease, IdentificationError> {
+    use crate::error::IdentificationBudget;
+    if ctx.cancellation.is_cancelled() {
+        return Err(IdentificationError::Cancelled);
+    }
+    let nodes = template.nodes().len() as u64;
+    let mediators = query.mediators.len() as u64;
+    budget.charge_work(nodes).map_err(crate::error::temporal_materialization_error)?;
+    let mut edges = 0u64;
+    for i in 0..template.nodes().len() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled);
+        }
+        edges = edges
+            .checked_add(
+                template.children(antecedent_graph::DenseNodeId::from_index(i)).len() as u64
+            )
+            .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Steps))?;
+    }
+    let work = nodes
+        .checked_add(mediators)
+        .and_then(|v| v.checked_add(edges))
+        .and_then(|v| v.checked_add(1))
+        .and_then(|v| v.checked_mul(mediators.checked_add(edges)?.checked_add(1)?))
+        .and_then(|v| v.checked_mul(8))
+        .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Steps))?;
+    budget.charge_work(work).map_err(crate::error::temporal_materialization_error)?;
+    let bytes = mediators
+        .checked_add(edges)
+        .and_then(|v| v.checked_mul(256))
+        .and_then(|v| v.checked_add(4096))
+        .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Memory))?;
+    if bytes > budget.limits().max_bytes {
+        return Err(IdentificationError::budget(IdentificationBudget::Memory));
+    }
+    ctx.acquire_admission(0, bytes).map_err(crate::error::map_admission_error)
+}
+
 /// Certified shared adjustment set for one horizon (see
 /// [`TemporalMediationIdentifier::identify_with_horizon`]).
 struct MediationAdjustment {
@@ -42,7 +87,7 @@ fn describe_keys(keys: &[TemporalNodeKey], outcome_offset: i32) -> String {
     let items: Vec<String> = keys
         .iter()
         .map(|key| {
-            let lag = outcome_offset - key.offset;
+            let lag = i64::from(outcome_offset) - i64::from(key.offset);
             if lag == 0 {
                 format!("v{}[t]", key.variable.raw())
             } else {
@@ -51,6 +96,27 @@ fn describe_keys(keys: &[TemporalNodeKey], outcome_offset: i32) -> String {
         })
         .collect();
     format!("{{{}}}", items.join(", "))
+}
+
+/// An admitted baseline adjustment set. Clones share both the nodes and their lease.
+/// Caller-created copies of the borrowed slice are outside this owner's accounting.
+#[derive(Clone, Debug)]
+pub struct AdmittedTemporalAdjustmentNodes {
+    inner: Arc<AdmittedTemporalAdjustmentNodesInner>,
+}
+
+#[derive(Debug)]
+struct AdmittedTemporalAdjustmentNodesInner {
+    nodes: Vec<TemporalNodeKey>,
+    _lease: antecedent_core::execution::AdmissionLease,
+}
+
+impl std::ops::Deref for AdmittedTemporalAdjustmentNodes {
+    type Target = [TemporalNodeKey];
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner.nodes
+    }
 }
 
 /// Temporal linear mediation identifier.
@@ -93,6 +159,13 @@ impl TemporalMediationIdentifier {
                  natural effects alias controlled effects in linear temporal mediation",
             ));
         }
+        // One result cannot carry several horizons; answering for the first and dropping the
+        // rest would silently ignore part of the declared grid.
+        if query.horizons.len() > 1 {
+            return Err(IdentificationError::unsupported(
+                "identify answers one horizon; call identify_with_horizon once per declared horizon",
+            ));
+        }
         let horizon = query.horizons.first().copied().unwrap_or(1);
         self.identify_horizon(template, query, horizon).map(|(id, _)| id)
     }
@@ -104,12 +177,22 @@ impl TemporalMediationIdentifier {
         query: &MediationQuery,
         horizon: u32,
     ) -> Result<(IdentificationResult, TemporalIdentificationResult), IdentificationError> {
-        Self::ensure_mediators_intercept(template, query)?;
-        // Template premises (one mediator, T@lag-1 and M/Y contemporaneous,
-        // no treatment-induced mediator/outcome parent) stay required for the
-        // linear path-product and keep their refusal.
-        let _premises = Self::adjustment_nodes(template, query)?;
-        let temporal = self.identify_backdoor(template, query, horizon)?;
+        let ctx = self
+            .temporal
+            .inner
+            .config
+            .context
+            .clone()
+            .unwrap_or_else(|| antecedent_core::ExecutionContext::production_default(0));
+        let mut budget = self.temporal.temporal_budget().unwrap_or_else(|| {
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
+        });
+        let _premise_lease = admit_mediation_scratch(template, query, &mut budget, &ctx)?;
+        Self::ensure_mediators_intercept(template, query, &ctx)?;
+        // Use the same caller budget for premise traversal and backdoor growth.
+        let _premises = Self::adjustment_nodes_admitted(template, query, &mut budget, &ctx)?;
+        let temporal_identifier = self.temporal.clone().with_temporal_context(&ctx, &budget);
+        let temporal = self.identify_backdoor(&temporal_identifier, template, query, horizon)?;
         let adjustment = Self::mediation_adjustment(query, &temporal)?;
         let id = Self::mediation_result(query, horizon, &temporal, &adjustment)?;
         Ok((id, temporal))
@@ -123,11 +206,14 @@ impl TemporalMediationIdentifier {
     /// a set that blocks `M←…→Y` confounding as well as the `T→Y` backdoor
     /// paths. `I(h)` alone certifies only the last. `S(h)` is `I(h)` plus every
     /// parent of `M` and `Y` other than `T` and `M` that is not a descendant of
-    /// the treatment or the mediator, and it is certified on the unfolded DAG:
+    /// the treatment or the mediator, and it is certified on the unfolded DAG. For a
+    /// mediator set `M = {M₁…M_q}` every statement holds for each member (the
+    /// regressions are `M_j ~ T + S` for each `j` and `Y ~ T + M₁…M_q + S`, whose product
+    /// sum `Σ_j a_j b_j` is the block-mediated effect):
     ///
-    /// * no member descends from `T` or `M`;
-    /// * `T ⊥ M | S` with `T`'s outgoing edges removed (mediator model);
-    /// * `{T, M} ⊥ Y | S` with the outgoing edges of `T` and `M` removed
+    /// * no member descends from `T` or any `M_j`;
+    /// * `T ⊥ M_j | S` with `T`'s outgoing edges removed (mediator models);
+    /// * `{T, M₁…M_q} ⊥ Y | S` with the outgoing edges of `T` and every `M_j` removed
     ///   (outcome model: joint back-door for the controlled `(T, M)` contrast);
     /// * `T ⊥ Y | S` with `T`'s outgoing edges removed (reduced-form Total).
     ///
@@ -137,27 +223,61 @@ impl TemporalMediationIdentifier {
         query: &MediationQuery,
         temporal: &TemporalIdentificationResult,
     ) -> Result<MediationAdjustment, IdentificationError> {
-        let [mediator] = query.mediators.as_ref() else {
+        if query.mediators.is_empty() {
             return Err(IdentificationError::unsupported(
-                "temporal mediation requires one mediator",
+                "temporal mediation requires at least one mediator",
             ));
-        };
+        }
         let dag = &temporal.unfolded.dag;
         let dense = |key: TemporalNodeKey| {
             temporal
                 .indexer
                 .dense_id(key)
                 .map(DenseNodeId::from_raw)
-                .map_err(|e| IdentificationError::msg(e.to_string()))
+                .map_err(IdentificationError::construction)
         };
         let t = dense(temporal.treatment_key)?;
         let y = dense(temporal.outcome_key)?;
-        let m =
-            dense(TemporalNodeKey { variable: *mediator, offset: temporal.outcome_key.offset })?;
+        let mediator_nodes = query
+            .mediators
+            .iter()
+            .map(|&mediator| {
+                dense(TemporalNodeKey { variable: mediator, offset: temporal.outcome_key.offset })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         let mut gws = GraphWorkspace::default();
+        // The path-product estimator models mediators at the outcome slice.
+        // An earlier mediator is covered when all its outcome paths pass through
+        // one of those modeled nodes; only bypassing paths need extra offsets.
+        let mut treatment_descendants = BitSet::with_len(dag.node_count());
+        let mut outcome_ancestors = BitSet::with_len(dag.node_count());
+        dag.descendants_of(&[t], &mut treatment_descendants, &mut gws);
+        let mediator_cut = GraphOverlay::remove_outgoing(dag.node_count(), &mediator_nodes);
+        dag.view(&mediator_cut).ancestors_of(&[y], &mut outcome_ancestors, &mut gws);
+        for index in 0..dag.node_count() {
+            let node = DenseNodeId::from_index(index);
+            if !treatment_descendants.contains(node) || !outcome_ancestors.contains(node) {
+                continue;
+            }
+            let key =
+                temporal.indexer.key_of(node.raw()).map_err(IdentificationError::construction)?;
+            if key.offset >= temporal.treatment_key.offset
+                && key.offset < temporal.outcome_key.offset
+                && query.mediators.contains(&key.variable)
+            {
+                return Err(IdentificationError::NotCertified {
+                    message: "temporal mediation: a treatment-descendant mediator at an earlier \
+                              slice reaches the outcome without a modeled outcome-slice mediator; \
+                              the current path-product estimand cannot represent that path",
+                });
+            }
+        }
         let mut downstream = BitSet::with_len(dag.node_count());
-        dag.descendants_of(&[t, m], &mut downstream, &mut gws);
+        let mut sources = Vec::with_capacity(1 + mediator_nodes.len());
+        sources.push(t);
+        sources.extend_from_slice(&mediator_nodes);
+        dag.descendants_of(&sources, &mut downstream, &mut gws);
 
         let backdoor: Vec<DenseNodeId> = temporal
             .result
@@ -168,8 +288,10 @@ impl TemporalMediationIdentifier {
         let mut set: Vec<DenseNodeId> =
             backdoor.iter().copied().filter(|&z| !downstream.contains(z)).collect();
         let mut mediator_outcome = Vec::new();
-        for &p in dag.parents(m).iter().chain(dag.parents(y)) {
-            if p == t || p == m || downstream.contains(p) || set.contains(&p) {
+        let mediator_parents: Vec<DenseNodeId> =
+            mediator_nodes.iter().flat_map(|&m| dag.parents(m).iter().copied()).collect();
+        for &p in mediator_parents.iter().chain(dag.parents(y)) {
+            if p == t || mediator_nodes.contains(&p) || downstream.contains(p) || set.contains(&p) {
                 continue;
             }
             set.push(p);
@@ -181,10 +303,15 @@ impl TemporalMediationIdentifier {
         let n = dag.node_count();
         let mut dws = DSeparationWorkspace::default();
         let treatment_cut = GraphOverlay::remove_outgoing(n, &[t]);
-        let joint_cut = GraphOverlay::remove_outgoing(n, &[t, m]);
-        let mediator_ok = dag.view(&treatment_cut).is_d_separated(t, m, &set, &mut dws)?;
-        let outcome_ok = dag.view(&joint_cut).is_d_separated(t, y, &set, &mut dws)?
-            && dag.view(&joint_cut).is_d_separated(m, y, &set, &mut dws)?;
+        let joint_cut = GraphOverlay::remove_outgoing(n, &sources);
+        let mut mediator_ok = true;
+        for &m in &mediator_nodes {
+            mediator_ok &= dag.view(&treatment_cut).is_d_separated(t, m, &set, &mut dws)?;
+        }
+        let mut outcome_ok = dag.view(&joint_cut).is_d_separated(t, y, &set, &mut dws)?;
+        for &m in &mediator_nodes {
+            outcome_ok &= dag.view(&joint_cut).is_d_separated(m, y, &set, &mut dws)?;
+        }
         let total_ok = dag.view(&treatment_cut).is_d_separated(t, y, &set, &mut dws)?;
         if !(mediator_ok && outcome_ok && total_ok) {
             return Err(IdentificationError::NotCertified {
@@ -203,8 +330,13 @@ impl TemporalMediationIdentifier {
         })
     }
 
+    #[allow(
+        clippy::unused_self,
+        reason = "preserves the procedure and its established call structure"
+    )]
     fn identify_backdoor(
         &self,
+        temporal_identifier: &TemporalBackdoorIdentifier,
         template: &TemporalDag,
         mediation: &MediationQuery,
         horizon_steps: u32,
@@ -224,7 +356,7 @@ impl TemporalMediationIdentifier {
             target_population: mediation.target_population.clone(),
             effect_modifiers: std::sync::Arc::from([]),
         };
-        self.temporal.identify_temporal(template, &te)
+        temporal_identifier.identify_temporal(template, &te)
     }
 
     #[allow(
@@ -373,6 +505,7 @@ impl TemporalMediationIdentifier {
             },
             hedge: None,
             estimand_claims: Vec::new(),
+            temporal_leases: Vec::new(),
         })
     }
 
@@ -406,11 +539,21 @@ impl TemporalMediationIdentifier {
     fn ensure_mediators_intercept(
         template: &TemporalDag,
         query: &MediationQuery,
+        ctx: &antecedent_core::ExecutionContext,
     ) -> Result<(), IdentificationError> {
-        let med: std::collections::HashSet<VariableId> = query.mediators.iter().copied().collect();
+        let mut med = std::collections::HashSet::new();
+        for &variable in query.mediators.iter() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(IdentificationError::Cancelled);
+            }
+            med.insert(variable);
+        }
         let mut has_t_to_m = false;
         let mut has_m_to_y = false;
         for e in template.edges() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(IdentificationError::Cancelled);
+            }
             let Some((from, to)) = e.parent_child() else {
                 continue;
             };
@@ -445,26 +588,75 @@ impl TemporalMediationIdentifier {
     pub fn adjustment_nodes(
         template: &TemporalDag,
         query: &MediationQuery,
+    ) -> Result<AdmittedTemporalAdjustmentNodes, IdentificationError> {
+        let ctx = antecedent_core::ExecutionContext::production_default(0);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        Self::adjustment_nodes_within(template, query, &mut budget, &ctx)
+    }
+
+    /// Resolve baseline parents under a caller-provided cumulative temporal budget.
+    pub fn adjustment_nodes_within(
+        template: &TemporalDag,
+        query: &MediationQuery,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<AdmittedTemporalAdjustmentNodes, IdentificationError> {
+        let lease = admit_mediation_scratch(template, query, budget, ctx)?;
+        let nodes = Self::adjustment_nodes_admitted(template, query, budget, ctx)?;
+        Ok(AdmittedTemporalAdjustmentNodes {
+            inner: Arc::new(AdmittedTemporalAdjustmentNodesInner { nodes, _lease: lease }),
+        })
+    }
+
+    // The caller retains the scratch admission across this entire traversal.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "identification steps and their shared state form one bounded procedure"
+    )]
+    fn adjustment_nodes_admitted(
+        template: &TemporalDag,
+        query: &MediationQuery,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
     ) -> Result<Vec<TemporalNodeKey>, IdentificationError> {
-        let [mediator] = query.mediators.as_ref() else {
+        if query.mediators.is_empty() {
             return Err(IdentificationError::unsupported(
-                "temporal mediation requires one mediator",
+                "temporal mediation requires at least one mediator",
             ));
-        };
+        }
         let treatment = TemporalNodeKey { variable: query.treatment, offset: -1 };
-        let mediator_key = TemporalNodeKey { variable: *mediator, offset: 0 };
+        let mediator_keys: Vec<TemporalNodeKey> = query
+            .mediators
+            .iter()
+            .map(|&mediator| TemporalNodeKey { variable: mediator, offset: 0 })
+            .collect();
         let mut adjustment = Vec::new();
         let mut has_t_m = false;
         let mut has_m_y = false;
         let mut history = 1;
-        let mut variable_count =
-            query.treatment.raw().max(query.outcome.raw()).max(mediator.raw()) + 1;
+        let mut variable_count = query
+            .mediators
+            .iter()
+            .map(|mediator| mediator.raw())
+            .fold(query.treatment.raw().max(query.outcome.raw()), u32::max)
+            .checked_add(1)
+            .ok_or_else(|| IdentificationError::out_of_range("temporal variable count overflow"))?;
         for node in template.nodes() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(IdentificationError::Cancelled);
+            }
             if let NodeRef::Lagged { variable, .. } = node {
-                variable_count = variable_count.max(variable.raw() + 1);
+                let count = variable.raw().checked_add(1).ok_or_else(|| {
+                    IdentificationError::out_of_range("temporal variable count overflow")
+                })?;
+                variable_count = variable_count.max(count);
             }
         }
         for edge in template.edges() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(IdentificationError::Cancelled);
+            }
             let (from, to) = edge.parent_child().expect("directed temporal edge");
             let (
                 NodeRef::Lagged { variable: source, lag: source_lag },
@@ -473,18 +665,18 @@ impl TemporalMediationIdentifier {
             else {
                 continue;
             };
-            if target != *mediator && target != query.outcome {
+            if !query.mediators.contains(&target) && target != query.outcome {
                 continue;
             }
             let lag = source_lag.raw() - target_lag.raw();
             history = history.max(lag);
             let key = TemporalNodeKey {
                 variable: source,
-                offset: -i32::try_from(lag).map_err(|e| IdentificationError::msg(e.to_string()))?,
+                offset: -i32::try_from(lag).map_err(IdentificationError::construction)?,
             };
-            has_t_m |= target == *mediator && key == treatment;
-            has_m_y |= target == query.outcome && key == mediator_key;
-            if key != treatment && key != mediator_key && !adjustment.contains(&key) {
+            has_t_m |= query.mediators.contains(&target) && key == treatment;
+            has_m_y |= target == query.outcome && mediator_keys.contains(&key);
+            if key != treatment && !mediator_keys.contains(&key) && !adjustment.contains(&key) {
                 adjustment.push(key);
             }
         }
@@ -494,31 +686,46 @@ impl TemporalMediationIdentifier {
             ));
         }
         let indexer = antecedent_data::TemporalIndexer::new(variable_count, history, 1)
-            .map_err(|e| IdentificationError::msg(e.to_string()))?;
-        let dense =
-            |key| indexer.dense_id(key).map_err(|e| IdentificationError::msg(e.to_string()));
+            .map_err(IdentificationError::construction)?;
+        let dense = |key| indexer.dense_id(key).map_err(IdentificationError::construction);
         let t = dense(treatment)?;
-        let m = dense(mediator_key)?;
+        let mediator_nodes =
+            mediator_keys.iter().map(|&key| dense(key)).collect::<Result<Vec<_>, _>>()?;
         for &key in &adjustment {
+            if ctx.cancellation.is_cancelled() {
+                return Err(IdentificationError::Cancelled);
+            }
             let z = dense(key)?;
-            let induced = t == z
-                || crate::temporal_window::reaches_in_window(
+            let mut induced = t == z || mediator_nodes.contains(&z);
+            if !induced {
+                induced = crate::temporal_window::reaches_in_window(
                     template,
                     treatment,
                     key,
                     variable_count,
                     history,
                     1,
-                )
-                || m == z
-                || crate::temporal_window::reaches_in_window(
-                    template,
-                    mediator_key,
-                    key,
-                    variable_count,
-                    history,
-                    1,
-                );
+                    budget,
+                    ctx,
+                )?;
+            }
+            if !induced {
+                for &mediator_key in &mediator_keys {
+                    if crate::temporal_window::reaches_in_window(
+                        template,
+                        mediator_key,
+                        key,
+                        variable_count,
+                        history,
+                        1,
+                        budget,
+                        ctx,
+                    )? {
+                        induced = true;
+                        break;
+                    }
+                }
+            }
             if induced {
                 return Err(IdentificationError::unsupported(
                     "treatment-induced mediation covariates require a larger path model",
@@ -545,6 +752,182 @@ mod tests {
         g.insert_directed(t1, m0).unwrap();
         g.insert_directed(m0, y0).unwrap();
         g
+    }
+
+    #[test]
+    fn sparse_variable_reachability_obeys_caller_limits() {
+        let mut graph = chain_template();
+        let sparse = graph.add_lagged(VariableId::from_raw(16), Lag::from_raw(1)).unwrap();
+        let outcome = antecedent_graph::DenseNodeId::from_index(2);
+        graph.insert_directed(sparse, outcome).unwrap();
+        let query = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::Mediated,
+        );
+        let ctx = antecedent_core::ExecutionContext::for_tests(4);
+        let mut limits = ctx.temporal_materialization_limits();
+        limits.max_graph_nodes = 10;
+        let mut budget = antecedent_core::TemporalBudget::new(limits);
+        assert!(matches!(
+            TemporalMediationIdentifier::adjustment_nodes_within(&graph, &query, &mut budget, &ctx),
+            Err(IdentificationError::Budget { budget: crate::error::IdentificationBudget::Memory })
+        ));
+        limits.max_graph_nodes = 32;
+        let mut budget = antecedent_core::TemporalBudget::new(limits);
+        let parents =
+            TemporalMediationIdentifier::adjustment_nodes_within(&graph, &query, &mut budget, &ctx)
+                .unwrap();
+        assert!(
+            parents.contains(&TemporalNodeKey { variable: VariableId::from_raw(16), offset: -1 })
+        );
+        let mut small = ctx.temporal_materialization_limits();
+        small.max_work = 1;
+        let shared = antecedent_core::TemporalBudget::new(small);
+        let identifier = TemporalMediationIdentifier {
+            temporal: TemporalBackdoorIdentifier::new().with_temporal_context(&ctx, &shared),
+            ..TemporalMediationIdentifier::new()
+        };
+        assert!(matches!(
+            identifier.identify_with_horizon(&graph, &query, 1),
+            Err(IdentificationError::Budget { .. })
+        ));
+        // Clones of the supplied allowance see the work charged by premise
+        // checks and backdoor growth, rather than an independent default budget.
+        let mut shared =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let identifier = TemporalMediationIdentifier {
+            temporal: TemporalBackdoorIdentifier::new().with_temporal_context(&ctx, &shared),
+            ..TemporalMediationIdentifier::new()
+        };
+        identifier.identify_with_horizon(&chain_template(), &query, 1).unwrap();
+        let entire_allowance = shared.limits().max_work;
+        assert!(shared.charge_work(entire_allowance).is_err());
+        ctx.cancellation.cancel();
+        let mut budget = antecedent_core::TemporalBudget::new(limits);
+        assert!(matches!(
+            TemporalMediationIdentifier::adjustment_nodes_within(&graph, &query, &mut budget, &ctx),
+            Err(IdentificationError::Cancelled)
+        ));
+    }
+
+    #[test]
+    fn adjustment_nodes_clones_retain_the_admission() {
+        let query = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::Mediated,
+        );
+        let pool = antecedent_core::execution::AdmissionPool::fixed(1, 100_000);
+        let ctx = antecedent_core::ExecutionContext::for_tests(5).with_admission(pool.clone());
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let nodes = TemporalMediationIdentifier::adjustment_nodes_within(
+            &chain_template(),
+            &query,
+            &mut budget,
+            &ctx,
+        )
+        .unwrap();
+        let cloned = nodes.clone();
+        let remaining = pool.available().bytes();
+        assert!(remaining < 100_000);
+        drop(nodes);
+        assert_eq!(pool.available().bytes(), remaining);
+        drop(cloned);
+        assert_eq!(pool.available().bytes(), 100_000);
+    }
+
+    #[test]
+    fn extreme_sparse_variable_refuses_without_dense_allocation() {
+        let mut graph = chain_template();
+        let sparse =
+            graph.add_lagged(VariableId::from_raw(1_000_000_000), Lag::from_raw(1)).unwrap();
+        graph.insert_directed(sparse, antecedent_graph::DenseNodeId::from_index(2)).unwrap();
+        let query = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::Mediated,
+        );
+        // The unfolding window is refused (node limit) before any dense allocation.
+        assert!(TemporalMediationIdentifier::adjustment_nodes(&graph, &query).is_err());
+    }
+
+    #[test]
+    fn maximum_variable_id_refuses_before_unfolding() {
+        let query = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(u32::MAX)],
+            MediationContrast::Mediated,
+        );
+        assert!(matches!(
+            TemporalMediationIdentifier::adjustment_nodes(&chain_template(), &query),
+            Err(IdentificationError::OutOfRange { .. })
+        ));
+        let mut graph = chain_template();
+        graph.add_lagged(VariableId::from_raw(u32::MAX), Lag::CONTEMPORANEOUS).unwrap();
+        let query = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::Mediated,
+        );
+        assert!(matches!(
+            TemporalMediationIdentifier::adjustment_nodes(&graph, &query),
+            Err(IdentificationError::OutOfRange { .. })
+        ));
+    }
+
+    #[test]
+    fn earlier_mediator_on_causal_path_refuses_without_blocking_supported_horizons() {
+        // T(-1) -> M(0) -> Y(1) via the lag-one M -> Y edge. The
+        // estimator's M(1) coefficient alone cannot represent that path.
+        let mut graph = TemporalDag::empty();
+        let t1 = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let m0 = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let m1 = graph.add_lagged(VariableId::from_raw(1), Lag::from_raw(1)).unwrap();
+        let y0 = graph.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        graph.insert_directed(t1, m0).unwrap();
+        graph.insert_directed(m0, y0).unwrap();
+        graph.insert_directed(m1, y0).unwrap();
+        let q = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::Mediated,
+        );
+        let id = TemporalMediationIdentifier::new();
+        let error = id.identify_with_horizon(&graph, &q, 2).unwrap_err();
+        assert!(
+            matches!(error, IdentificationError::NotCertified { message } if message.contains("earlier"))
+        );
+        // At h=1 the same graph's mediated path goes through M at Y's slice.
+        assert!(id.identify_with_horizon(&graph, &q, 1).is_ok());
+        // At h=2 no earlier mediator lies on a causal path in the chain-only graph.
+        assert!(id.identify_with_horizon(&chain_template(), &q, 2).is_ok());
+        // An earlier M(0) reaching Y(1) through the modeled N(1) is covered.
+        // Use an acyclic mediator chain: autoregressive templates have a separate
+        // existing finite-history refusal and cannot serve as a positive control.
+        let mut intercepted = chain_template();
+        let prior_m = intercepted.add_lagged(VariableId::from_raw(1), Lag::from_raw(1)).unwrap();
+        let current_n =
+            intercepted.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+        let current_y =
+            intercepted.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        intercepted.insert_directed(prior_m, current_n).unwrap();
+        intercepted.insert_directed(current_n, current_y).unwrap();
+        let block_query = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1), VariableId::from_raw(3)],
+            MediationContrast::Mediated,
+        );
+        let result = id.identify_with_horizon(&intercepted, &block_query, 2);
+        assert!(result.is_ok(), "{result:?}");
     }
 
     #[test]
@@ -632,6 +1015,36 @@ mod tests {
             &a.assumption,
             Assumption::Custom { id, .. } if id.as_ref() == "natural_controlled_alias"
         )));
+    }
+
+    /// `T@-1 -> M1 -> M2 -> Y` with `T@-1 -> Y`: M1 and M2 are ordered mediators.
+    fn ordered_mediators_template() -> TemporalDag {
+        let mut g = TemporalDag::empty();
+        let t1 = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let m1 = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let m2 = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        let y0 = g.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(t1, m1).unwrap();
+        g.insert_directed(m1, m2).unwrap();
+        g.insert_directed(m2, y0).unwrap();
+        g.insert_directed(t1, y0).unwrap();
+        g
+    }
+
+    #[test]
+    fn identifies_an_ordered_mediator_set() {
+        let g = ordered_mediators_template();
+        let q = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(3),
+            [VariableId::from_raw(1), VariableId::from_raw(2)],
+            MediationContrast::Mediated,
+        );
+        let id = TemporalMediationIdentifier::new().identify(&g, &q).unwrap();
+        assert!(matches!(id.status, IdentificationStatus::IdentifiedUnderParametricRestrictions));
+        assert_eq!(id.estimands[0].mediators.len(), 2);
+        // The ordered mediators are not adjustment covariates of one another.
+        assert!(id.estimands[0].adjustment_set.is_empty());
     }
 
     fn confounded_mediator_template() -> TemporalDag {

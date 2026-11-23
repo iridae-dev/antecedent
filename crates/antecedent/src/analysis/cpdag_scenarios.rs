@@ -9,13 +9,13 @@
 //! unweighted structural envelope over the identified ones, and the identified,
 //! unidentified, unevaluated and never-enumerated counts apart, never
 //! renormalized. No graph probability is assigned and no inferential statement
-//! across completions is licensed.
+//! across completions is supported.
 //!
 //! [`StudyBuilder::scenario_shared_covariance`] is the separate point-only cell:
 //! one joint covariance matrix of per-scenario plug-in estimates from the same
 //! complete-row sample, never an interval.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::StudyBuilder;
 use antecedent_core::{ExecutionContext, SearchLimits};
 use antecedent_estimate::cpdag_scenarios::{CpdagScenarioReport, PreparedCpdagScenarios};
@@ -78,7 +78,7 @@ impl StudyBuilder {
             query,
             evidence,
             budget,
-            memory_limit_bytes: ctx.memory.hard_limit_bytes,
+            memory_limit_bytes: ctx.memory_limit_bytes(),
             data,
             request,
             evaluation: limits,

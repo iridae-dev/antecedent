@@ -4,20 +4,20 @@
 //! [`SharedBatchDesign`]: one fold seed/count every query cross-fits with and, when
 //! every query shares a certified adjustment set, one compiled `[1 | Z…]` covariate
 //! design. Each query draws its own `crossfit_fold_plan` from that shared seed.
-//! Cross-fitted AIPW nuisances are shared through one
+//! Cross-fitted nuisances (AIPW, learner-backed DML and doubly robust) are shared through one
 //! [`antecedent_estimate::CrossfitNuisanceCache`] per estimate: a propensity or
 //! outcome fit is reused only when every input it reads is bit-identical (rows,
-//! treatment coding, adjustment design, fold plan, learner options and, for the
-//! outcome, the outcome column), so a shared result equals the per-query fit bit
-//! for bit. See [`SharedBatchDesign`].
+//! treatment coding, adjustment design, sampling weights, fold plan, learner options and, for
+//! the outcome, the outcome column), so a shared result equals the per-query fit bit
+//! for bit. The cache is charged to the caller's [`ExecutionContext`] admission pool: its
+//! keys and predictions evict under a small budget, and a fit that cannot be retained runs
+//! unshared. See [`SharedBatchDesign`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
-use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ExecutionContext, ResponseQuery, VariableId,
-};
+use antecedent_core::{AverageEffectQuery, ExecutionContext, ResponseQuery, VariableId};
 
 /// Query frozen on a [`PreparedBatch`] handle.
 #[derive(Clone, Debug)]
@@ -28,45 +28,21 @@ pub enum BatchQuery {
     Response(ResponseQuery),
 }
 
-/// Contrast used for family p-values / FDR on a joint-cell batch.
-///
-/// `estimate.ate` on `cell.aipw` is the requested interventional **level**, not
-/// a contrast. Family tests use a declared score-difference contrast instead.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum CellFamilyContrast {
-    /// Requested cell minus the all-zero control (same contrast as cell.aipw refuters).
-    CellMinusControl,
-    /// 2×2 non-additivity `+μ00 −μ10 −μ01 +μ11`.
-    Interaction,
-}
-
-impl CellFamilyContrast {
-    /// Stable wire name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::CellMinusControl => "cell_minus_control",
-            Self::Interaction => "interaction",
-        }
-    }
-}
-
-impl std::str::FromStr for CellFamilyContrast {
-    type Err = CausalError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "cell_minus_control" => Ok(Self::CellMinusControl),
-            "interaction" => Ok(Self::Interaction),
-            other => Err(CausalError::Compile {
-                message: format!(
-                    "unknown family_contrast={other:?}; use cell_minus_control|interaction"
-                ),
-            }),
-        }
+super::string_enum! {
+    /// Contrast used for family p-values / FDR on a joint-cell batch.
+    ///
+    /// `estimate.ate` on `cell.aipw` is the requested interventional **level**, not
+    /// a contrast. Family tests use a declared score-difference contrast instead.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    pub enum CellFamilyContrast, lookup = from_name {
+        /// Requested cell minus the all-zero control (same contrast as cell.aipw refuters).
+        CellMinusControl => "cell_minus_control",
+        /// 2×2 non-additivity `+μ00 −μ10 −μ01 +μ11`.
+        Interaction => "interaction",
     }
 }
 use antecedent_data::{TableView, TabularData, ValidityBitmap};
+use antecedent_estimate::score_posterior::ScorePosteriorOptions;
 use antecedent_estimate::{
     CrossfitNuisanceCache, DEFAULT_AIPW_FOLDS, NuisanceScopeUse, PreparedPropensityProblem,
 };
@@ -79,7 +55,7 @@ use super::batch_retarget::{
     BatchRetargetError, BatchRetargetReport, BatchRetargetRequest, BatchScores, ScoreSource,
     retarget_family,
 };
-use super::builder::{RefuteSuite, StudyBuilder};
+use super::builder::{DataInput, RefuteSuite, StudyBuilder};
 use super::execute::Study;
 use super::latency::LatencyMode;
 use super::prepared::PreparedStudy;
@@ -120,9 +96,9 @@ pub struct CandidateScreen {
     /// Procedure used to pick the winner after the screen.
     pub procedure: CandidateProcedure,
     /// Row indexes used to screen candidates.
-    pub screen_rows: std::sync::Arc<[u32]>,
+    pub screen_rows: std::sync::Arc<[antecedent_data::GlobalId]>,
     /// Row indexes used to estimate the surfaced family.
-    pub estimate_rows: std::sync::Arc<[u32]>,
+    pub estimate_rows: std::sync::Arc<[antecedent_data::GlobalId]>,
 }
 
 /// Provenance recorded on each batch result.
@@ -137,9 +113,9 @@ pub struct CandidateSelection {
     /// Family size.
     pub family_size: usize,
     /// Screen half.
-    pub screen_rows: std::sync::Arc<[u32]>,
+    pub screen_rows: std::sync::Arc<[antecedent_data::GlobalId]>,
     /// Estimate half.
-    pub estimate_rows: std::sync::Arc<[u32]>,
+    pub estimate_rows: std::sync::Arc<[antecedent_data::GlobalId]>,
     /// Whether the two halves are disjoint.
     pub disjoint: bool,
 }
@@ -154,7 +130,7 @@ pub struct SharedCovariateDesign {
     /// `1 + adjustment_set.len()`.
     pub design_ncols: usize,
     /// Original-row index of each design row.
-    pub row_index: Arc<[u32]>,
+    pub row_index: Arc<[antecedent_data::GlobalId]>,
 }
 
 /// Shared fold seed/count and optional shared covariate design for a batch.
@@ -255,13 +231,19 @@ impl SharedBatchDesign {
     /// # Errors
     ///
     /// A row index outside the prepared table.
-    pub fn folds_for(&self, row_index: &[u32]) -> Result<Vec<u32>, CausalError> {
+    pub fn folds_for(
+        &self,
+        row_index: &[antecedent_data::GlobalId],
+    ) -> Result<Vec<u32>, CausalError> {
         let mut out = Vec::with_capacity(row_index.len());
         for &row in row_index {
-            let id =
-                self.fold_ids.get(row as usize).copied().ok_or_else(|| CausalError::Compile {
-                    message: "shared fold assignment does not cover a complete-case row".into(),
-                })?;
+            let id = self
+                .fold_ids
+                .get(usize::try_from(row.get()).unwrap_or(usize::MAX))
+                .copied()
+                .ok_or_else(|| CausalError::Compile {
+                message: "shared fold assignment does not cover a complete-case row".into(),
+            })?;
             out.push(id);
         }
         Ok(out)
@@ -275,7 +257,7 @@ impl SharedBatchDesign {
     pub fn design_for(
         &self,
         adjustment: &[VariableId],
-        row_index: &[u32],
+        row_index: &[antecedent_data::GlobalId],
     ) -> Result<Option<Vec<f64>>, CausalError> {
         let Some(cov) = self.covariate.as_ref() else {
             return Ok(None);
@@ -285,7 +267,7 @@ impl SharedBatchDesign {
         }
         let mut slot = vec![u32::MAX; self.fold_ids.len()];
         for (i, &row) in cov.row_index.iter().enumerate() {
-            if let Some(entry) = slot.get_mut(row as usize) {
+            if let Some(entry) = slot.get_mut(usize::try_from(row.get()).unwrap_or(usize::MAX)) {
                 *entry = u32::try_from(i).unwrap_or(u32::MAX);
             }
         }
@@ -293,7 +275,10 @@ impl SharedBatchDesign {
         let ncols = cov.design_ncols;
         let mut out = vec![0.0; n * ncols];
         for (i, &row) in row_index.iter().enumerate() {
-            let src = slot.get(row as usize).copied().unwrap_or(u32::MAX);
+            let src = slot
+                .get(usize::try_from(row.get()).unwrap_or(usize::MAX))
+                .copied()
+                .unwrap_or(u32::MAX);
             if src == u32::MAX {
                 return Err(CausalError::Compile {
                     message: "shared covariate design is missing a complete-case row".into(),
@@ -331,12 +316,47 @@ impl SharedBatchDesign {
                         .into(),
                 });
             }
+            // The shared design replaces the query's own prepared design, so it must carry the
+            // same complete-case rows with the same values in every column.
+            let ncols = problem.design_ncols;
+            let own = design_frame(&problem.row_index, &problem.design_matrix, ncols)?;
+            let shared = design_frame(&problem.row_index, &design, ncols)?;
+            antecedent_contract::rewrite_legality::check_executed(
+                antecedent_contract::rewrite_legality::Rewrite::SHARED_ROW_DESIGN_PREPARATION,
+                &own,
+                &[shared],
+            )
+            .map_err(|refusal| CausalError::Compile { message: refusal.to_string() })?;
             problem.design_matrix = design.into();
             problem.shared_design = true;
             return Ok(true);
         }
         Ok(false)
     }
+}
+
+/// Executed frame of a column-major design: each complete-case row with its values.
+fn design_frame(
+    row_index: &[antecedent_data::GlobalId],
+    design: &[f64],
+    ncols: usize,
+) -> Result<antecedent_contract::rewrite_legality::FrameFingerprint, CausalError> {
+    use antecedent_contract::rewrite_legality::{FrameLedger, value_row_id};
+    let n = row_index.len();
+    let refused = |refusal: antecedent_contract::rewrite_legality::RewriteRefusal| {
+        CausalError::Compile { message: refusal.to_string() }
+    };
+    let mut ledger =
+        FrameLedger::try_new("complete_case_design", "static_cross_section", "unweighted")
+            .map_err(refused)?;
+    for (i, row) in row_index.iter().enumerate() {
+        let id = value_row_id(
+            row.get(),
+            (0..ncols).map(|c| design.get(c * n + i).copied().unwrap_or(f64::NAN)),
+        );
+        ledger.record(&id, "0", &row.get().to_string(), "unweighted");
+    }
+    Ok(ledger.fingerprint())
 }
 
 fn common_adjustment(sets: &[Arc<[VariableId]>]) -> Option<&[VariableId]> {
@@ -367,7 +387,7 @@ fn compile_shared_covariates(
     let mut row_index = Vec::with_capacity(n);
     for (i, &keep) in mask.iter().enumerate() {
         if keep {
-            row_index.push(u32::try_from(i).unwrap_or(u32::MAX));
+            row_index.push(antecedent_data::GlobalId::new(u64::try_from(i).expect("row id")));
         }
     }
     Ok(SharedCovariateDesign {
@@ -387,10 +407,11 @@ enum BatchGraph {
 /// Shared-table batch of static average-effect queries.
 ///
 /// Binds data once. Prepared plans share one [`SharedBatchDesign`] (folds and,
-/// when licensed, the covariate matrix). Estimation still runs per-query plans
+/// when supported, the covariate matrix). Estimation still runs per-query plans
 /// in parallel chunks.
 #[derive(Clone, Debug)]
 pub struct BatchStudy {
+    data_diagnostics: Option<crate::DataDiagnostics>,
     data: TabularData,
     graph: BatchGraph,
     /// `None` leaves the per-query builder's omitted table and latency tier in force.
@@ -405,15 +426,38 @@ pub struct BatchStudy {
     estimator_spec: Option<EstimatorSpec>,
     screen: Option<CandidateScreen>,
     family_contrast: Option<CellFamilyContrast>,
+    family_posterior: Option<ScorePosteriorOptions>,
+    /// What the batch's nuisance cache may keep ([`Self::retention`]).
+    retention: antecedent_state::retention::RetentionMode,
+}
+
+/// The nuisance cache of one batch call: charged to the caller's admission pool, and empty by
+/// construction when `retention` does not allow fitted state to be kept.
+pub(crate) fn batch_nuisance_cache(
+    ctx: &ExecutionContext,
+    retention: antecedent_state::retention::RetentionMode,
+) -> Arc<CrossfitNuisanceCache> {
+    if retention.retains_fitted_state() {
+        CrossfitNuisanceCache::charged_to(ctx)
+    } else {
+        CrossfitNuisanceCache::bounded(Some(ctx), 0, 0)
+    }
 }
 
 impl BatchStudy {
-    /// Start a batch over `data` and a static DAG.
+    /// Configure automatic fit-free diagnostics for every member; `None` disables them.
     #[must_use]
-    pub fn new(data: TabularData, graph: Dag) -> Self {
+    pub fn data_diagnostics(mut self, policy: Option<crate::DataDiagnostics>) -> Self {
+        self.data_diagnostics = policy;
+        self
+    }
+
+    /// A batch over `data` and `graph` with every option at its default.
+    fn with_graph(data: TabularData, graph: BatchGraph) -> Self {
         Self {
             data,
-            graph: BatchGraph::Dag(graph),
+            graph,
+            data_diagnostics: Some(crate::DataDiagnostics::default()),
             bootstrap_replicates: None,
             refute: None,
             latency_mode: None,
@@ -422,7 +466,15 @@ impl BatchStudy {
             estimator_spec: None,
             screen: None,
             family_contrast: Some(CellFamilyContrast::CellMinusControl),
+            family_posterior: None,
+            retention: antecedent_state::retention::RetentionMode::FullReusable,
         }
+    }
+
+    /// Start a batch over `data` and a static DAG.
+    #[must_use]
+    pub fn new(data: TabularData, graph: Dag) -> Self {
+        Self::with_graph(data, BatchGraph::Dag(graph))
     }
 
     /// Start a batch over a declared [`TieredBackground`].
@@ -431,24 +483,24 @@ impl BatchStudy {
     /// uses the same [`crate::StudyBuilder::tiered_background`] path as a single-query study.
     #[must_use]
     pub fn tiered(data: TabularData, background: TieredBackground) -> Self {
-        Self {
-            data,
-            graph: BatchGraph::Tiered(background),
-            bootstrap_replicates: None,
-            refute: None,
-            latency_mode: None,
-            identifier: None,
-            estimator: None,
-            estimator_spec: None,
-            screen: None,
-            family_contrast: Some(CellFamilyContrast::CellMinusControl),
-        }
+        Self::with_graph(data, BatchGraph::Tiered(background))
     }
 
     /// Record a screen/estimate split for candidate-selection provenance.
     #[must_use]
     pub fn candidate_screen(mut self, screen: CandidateScreen) -> Self {
         self.screen = Some(screen);
+        self
+    }
+
+    /// How results are retained. Only [`RetentionMode::FullReusable`] lets the batch keep
+    /// fitted nuisances for reuse; a reduced mode builds an empty nuisance cache, so every
+    /// fit runs unshared and no hidden cache keeps what the mode dropped.
+    ///
+    /// [`RetentionMode::FullReusable`]: antecedent_state::retention::RetentionMode::FullReusable
+    #[must_use]
+    pub fn retention(mut self, mode: antecedent_state::retention::RetentionMode) -> Self {
+        self.retention = mode;
         self
     }
 
@@ -515,16 +567,19 @@ impl BatchStudy {
     /// under: the structured estimator-spec identity (the same one a study's contract
     /// carries, including a non-default propensity nuisance), or the bare estimator id, or
     /// `"default"` when none was chosen. Equal fingerprints mean one configuration.
-    #[must_use]
-    pub fn estimator_fingerprint(&self) -> String {
+    ///
+    /// # Errors
+    ///
+    /// The estimator-spec identity cannot be encoded; a failure never becomes a fingerprint
+    /// string that could be compared or stored.
+    pub fn estimator_fingerprint(&self) -> Result<String, CausalError> {
         match (&self.estimator_spec, self.estimator) {
-            (Some(spec), _) => antecedent_io::digest_hex(
+            (Some(spec), _) => Ok(antecedent_io::digest_hex(
                 antecedent_core::IdentityDomain::InferenceBinding,
                 &super::contract_identity::estimator_spec_identity(spec),
-            )
-            .unwrap_or_else(|error| format!("unencodable:{error}")),
-            (None, Some(id)) => id.as_str().to_string(),
-            (None, None) => "default".to_string(),
+            )?),
+            (None, Some(id)) => Ok(id.as_str().to_string()),
+            (None, None) => Ok("default".to_string()),
         }
     }
 
@@ -535,6 +590,18 @@ impl BatchStudy {
     #[must_use]
     pub const fn family_contrast(mut self, contrast: Option<CellFamilyContrast>) -> Self {
         self.family_contrast = contrast;
+        self
+    }
+
+    /// Also publish the Bayesian-bootstrap posterior of the declared family contrast on
+    /// [`Self::prepare_cells`] results: the frozen cross-fit scores are reweighted by
+    /// Dirichlet(1, ..., 1) row weights shared by every member of the family, so the draws
+    /// are one aligned joint posterior of the contrast (for the interaction, the complete
+    /// non-additivity, not a difference of marginal intervals). Conditional on the cross-fit
+    /// nuisances; calibration is `not_measured`. `None` publishes no posterior.
+    #[must_use]
+    pub const fn family_posterior(mut self, posterior: Option<ScorePosteriorOptions>) -> Self {
+        self.family_posterior = posterior;
         self
     }
 
@@ -563,46 +630,30 @@ impl BatchStudy {
                 message: "batch estimate_many requires at least one query".into(),
             });
         }
+        let fingerprint = self.estimator_fingerprint()?;
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
-        let shared = self.compile_shared_ate(&data, queries, ctx.rng.master_seed())?;
-        let threads = ctx.parallelism.max_threads.get().max(1) as usize;
-        let nuisances = CrossfitNuisanceCache::new();
-        let mut out = Vec::with_capacity(queries.len());
-        let mut uses = Vec::with_capacity(queries.len());
-        for chunk in queries.chunks(threads) {
-            std::thread::scope(|scope| {
-                let handles: Vec<_> = chunk
-                    .iter()
-                    .map(|q| {
-                        scope.spawn(|| {
-                            nuisances.scope(|| self.run_one_on(&data, q, ctx, shared.as_ref()))
-                        })
-                    })
-                    .collect();
-                for handle in handles {
-                    match handle.join() {
-                        Ok((Ok(result), used)) => {
-                            out.push(result);
-                            uses.push(used);
-                        }
-                        Ok((Err(err), _)) => return Err(err),
-                        Err(_) => {
-                            return Err(CausalError::Compile {
-                                message: "batch worker panicked".into(),
-                            });
-                        }
-                    }
+        let shared = self.compile_shared_ate(&data, queries, ctx)?;
+        let nuisances = batch_nuisance_cache(ctx, self.retention);
+        let completed = ctx
+            .try_map_indexed(queries.len(), |index, inner| {
+                if inner.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled {
+                        stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
+                    });
                 }
-                Ok(())
-            })?;
-        }
+                let (result, used) = nuisances
+                    .scope(|| self.run_one_on(&data, &queries[index], inner, shared.as_ref()));
+                result.map(|result| (result, used))
+            })
+            .map_err(batch_map_error)?;
+        let (mut out, uses): (Vec<_>, Vec<_>) = completed.into_iter().unzip();
         attach_batch_joint_inference(&mut out, &data, queries, self.screen.as_ref());
         attach_shared_design_diagnostics(
             &mut out,
             shared.as_ref(),
             &nuisances,
             &uses,
-            &self.estimator_fingerprint(),
+            &fingerprint,
         );
         Ok(out)
     }
@@ -621,34 +672,66 @@ impl BatchStudy {
         queries: &[AverageEffectQuery],
         ctx: &ExecutionContext,
     ) -> Result<PreparedBatch, CausalError> {
+        self.prepare_mode(queries, ctx, true)
+    }
+
+    /// Identify, lower and quote a batch without fitting operations or score tables.
+    ///
+    /// # Errors
+    /// Empty query list, unsupported declarations, or preparation admission failures.
+    pub fn prepare_deferred(
+        &self,
+        queries: &[AverageEffectQuery],
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedBatch, CausalError> {
+        self.prepare_mode(queries, ctx, false)
+    }
+
+    fn prepare_mode(
+        &self,
+        queries: &[AverageEffectQuery],
+        ctx: &ExecutionContext,
+        materialized: bool,
+    ) -> Result<PreparedBatch, CausalError> {
+        let _diagnostic_profiles = super::data_diagnostics::batch_profiles();
         if queries.is_empty() {
             return Err(CausalError::Compile {
                 message: "batch prepare requires at least one query".into(),
             });
         }
+        let fingerprint = self.estimator_fingerprint()?;
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
-        let shared = self.compile_shared_ate(&data, queries, ctx.rng.master_seed())?;
-        let nuisances = CrossfitNuisanceCache::new();
+        let shared = self.compile_shared_ate(&data, queries, ctx)?;
+        let nuisances = batch_nuisance_cache(ctx, self.retention);
         let mut plans = Vec::with_capacity(queries.len());
         for query in queries {
             let mut study = self.study_for_data(&data, query)?;
             study.shared_batch_design.clone_from(&shared);
-            plans.push(nuisances.scope(|| study.prepare(ctx)).0?);
+            plans.push(
+                nuisances
+                    .scope(|| {
+                        if materialized { study.prepare(ctx) } else { study.prepare_deferred(ctx) }
+                    })
+                    .0?,
+            );
         }
         Ok(PreparedBatch {
+            retention: self.retention,
             plans,
             queries: queries.iter().cloned().map(BatchQuery::Average).collect(),
             screen: self.screen.clone(),
             shared_design: shared,
             family_contrast: None,
-            estimator_fingerprint: Arc::from(self.estimator_fingerprint()),
+            family_posterior: None,
+            estimator_fingerprint: Arc::from(fingerprint),
+            execution_owner: materialized.then(|| BatchExecutionOwner::capture(ctx)).transpose()?,
         })
     }
 
     /// Compile discrete joint `InterventionResponse` cells into a reusable prepared batch.
     ///
     /// Defaults to [`EstimatorId::CellAipw`] when the batch has no estimator override.
-    /// Licensed on a DAG and on `CoDetermined` via joint ADMG adjustment on the
+    /// Supported on a DAG and on `CoDetermined` via joint ADMG adjustment on the
     /// known closure graph. Unknown has no single ADMG. Bare ADMG
     /// `InterventionResponse` already refuses.
     ///
@@ -669,6 +752,28 @@ impl BatchStudy {
         queries: &[ResponseQuery],
         ctx: &ExecutionContext,
     ) -> Result<PreparedBatch, CausalError> {
+        self.prepare_cells_mode(queries, ctx, true)
+    }
+
+    /// Prepare supported joint-cell declarations without fitting operations or scores.
+    ///
+    /// # Errors
+    /// Empty or unsupported query family, or preparation admission failures.
+    pub fn prepare_cells_deferred(
+        &self,
+        queries: &[ResponseQuery],
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedBatch, CausalError> {
+        self.prepare_cells_mode(queries, ctx, false)
+    }
+
+    fn prepare_cells_mode(
+        &self,
+        queries: &[ResponseQuery],
+        ctx: &ExecutionContext,
+        materialized: bool,
+    ) -> Result<PreparedBatch, CausalError> {
+        let _diagnostic_profiles = super::data_diagnostics::batch_profiles();
         if queries.is_empty() {
             return Err(CausalError::Compile {
                 message: "batch prepare_cells requires at least one query".into(),
@@ -682,32 +787,42 @@ impl BatchStudy {
                  with analyze (Study::run)"
             ));
         }
+        let fingerprint = self.estimator_fingerprint()?;
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
-        let shared = self.compile_shared_cells(&data, queries, ctx.rng.master_seed())?;
+        let shared = self.compile_shared_cells(&data, queries, ctx)?;
         let mut plans = Vec::with_capacity(queries.len());
         let mut frozen = Vec::with_capacity(queries.len());
         for query in queries {
             let mut study = self.study_for_response_on(&data, query)?;
             study.shared_batch_design.clone_from(&shared);
-            plans.push(study.prepare(ctx)?);
+            plans.push(if materialized {
+                study.prepare(ctx)?
+            } else {
+                study.prepare_deferred(ctx)?
+            });
             frozen.push(BatchQuery::Response(query.clone()));
         }
         Ok(PreparedBatch {
+            retention: self.retention,
             plans,
             queries: frozen,
             screen: self.screen.clone(),
             shared_design: shared,
             family_contrast: self.family_contrast,
-            estimator_fingerprint: Arc::from(self.estimator_fingerprint()),
+            family_posterior: self.family_posterior,
+            estimator_fingerprint: Arc::from(fingerprint),
+            execution_owner: materialized.then(|| BatchExecutionOwner::capture(ctx)).transpose()?,
         })
     }
 
-    fn study_for_response_on(
+    /// The per-query builder with this batch's refutation, bootstrap, latency, identifier and
+    /// estimator settings applied. `default_estimator` stands in when the batch names none.
+    fn configure(
         &self,
-        data: &TabularData,
-        query: &ResponseQuery,
-    ) -> Result<Study, CausalError> {
-        let mut builder = self.bind_graph(Study::tabular(data.clone()))?.query(query.clone());
+        mut builder: StudyBuilder,
+        default_estimator: Option<EstimatorId>,
+    ) -> StudyBuilder {
+        builder = builder.data_diagnostics(self.data_diagnostics.clone());
         if let Some(suite) = self.refute {
             builder = builder.refute(suite);
         }
@@ -720,46 +835,75 @@ impl BatchStudy {
         if let Some(id) = self.identifier {
             builder = builder.identifier(id);
         }
-        builder = match &self.estimator_spec {
-            Some(spec) => builder.estimator(spec.clone()),
-            None => builder.estimator(self.estimator.unwrap_or(EstimatorId::CellAipw)),
-        };
-        builder.build()
+        if let Some(spec) = &self.estimator_spec {
+            builder = builder.estimator(spec.clone());
+        } else if let Some(est) = self.estimator.or(default_estimator) {
+            builder = builder.estimator(est);
+        }
+        builder
+    }
+
+    fn study_for_response_on(
+        &self,
+        data: &TabularData,
+        query: &ResponseQuery,
+    ) -> Result<Study, CausalError> {
+        let builder = self.bind_graph(Study::tabular(data.clone()))?.query(query.clone());
+        self.configure(builder, Some(EstimatorId::CellAipw)).build()
     }
 
     fn compile_shared_ate(
         &self,
         data: &TabularData,
         queries: &[AverageEffectQuery],
-        fold_seed: u64,
+        ctx: &ExecutionContext,
     ) -> Result<Option<Arc<SharedBatchDesign>>, CausalError> {
-        let mut sets = Vec::with_capacity(queries.len());
-        for query in queries {
-            sets.push(self.ate_adjustment_set(query)?);
-        }
-        Ok(Some(Arc::new(SharedBatchDesign::compile(
-            data,
-            &sets,
-            u32::try_from(DEFAULT_AIPW_FOLDS).unwrap_or(5),
-            fold_seed,
-        )?)))
+        self.compile_shared(data, queries, ctx, Self::ate_adjustment_set)
     }
 
     fn compile_shared_cells(
         &self,
         data: &TabularData,
         queries: &[ResponseQuery],
-        fold_seed: u64,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<Arc<SharedBatchDesign>>, CausalError> {
+        self.compile_shared(data, queries, ctx, Self::cell_adjustment_set)
+    }
+
+    /// The shared cross-fit design over the adjustment sets `adjustment_set` selects for each
+    /// of `queries`. Each set is read from the compiled identification of that query's study
+    /// under the caller's context, so the shared work is admitted by, and cancelled with, the
+    /// call that asked for it; the fold seed is the context's master seed.
+    #[allow(
+        clippy::type_complexity,
+        reason = "the signature describes the existing typed operation"
+    )]
+    fn compile_shared<Q>(
+        &self,
+        data: &TabularData,
+        queries: &[Q],
+        ctx: &ExecutionContext,
+        adjustment_set: fn(
+            &Self,
+            &TabularData,
+            &Q,
+            &ExecutionContext,
+        ) -> Result<Arc<[VariableId]>, CausalError>,
     ) -> Result<Option<Arc<SharedBatchDesign>>, CausalError> {
         let mut sets = Vec::with_capacity(queries.len());
         for query in queries {
-            sets.push(self.cell_adjustment_set(query)?);
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled {
+                    stage: crate::analysis::stage::STAGE_IDENTIFY,
+                });
+            }
+            sets.push(adjustment_set(self, data, query, ctx)?);
         }
         Ok(Some(Arc::new(SharedBatchDesign::compile(
             data,
             &sets,
             u32::try_from(DEFAULT_AIPW_FOLDS).unwrap_or(5),
-            fold_seed,
+            ctx.rng.master_seed(),
         )?)))
     }
 
@@ -780,25 +924,8 @@ impl BatchStudy {
         data: &TabularData,
         query: &AverageEffectQuery,
     ) -> Result<Study, CausalError> {
-        let mut builder = self.bind_graph(Study::tabular(data.clone()))?.query(query.clone());
-        if let Some(suite) = self.refute {
-            builder = builder.refute(suite);
-        }
-        if let Some(replicates) = self.bootstrap_replicates {
-            builder = builder.bootstrap_replicates(replicates);
-        }
-        if let Some(mode) = self.latency_mode {
-            builder = builder.latency_mode(mode);
-        }
-        if let Some(id) = self.identifier {
-            builder = builder.identifier(id);
-        }
-        if let Some(spec) = &self.estimator_spec {
-            builder = builder.estimator(spec.clone());
-        } else if let Some(est) = self.estimator {
-            builder = builder.estimator(est);
-        }
-        builder.build()
+        let builder = self.bind_graph(Study::tabular(data.clone()))?.query(query.clone());
+        self.configure(builder, None).build()
     }
 
     fn bind_graph(&self, builder: StudyBuilder) -> Result<StudyBuilder, CausalError> {
@@ -808,43 +935,61 @@ impl BatchStudy {
         }
     }
 
+    /// The adjustment set of the study this batch would build for `query`, read from that
+    /// study's compiled identification under the caller's context.
     fn ate_adjustment_set(
         &self,
+        data: &TabularData,
         query: &AverageEffectQuery,
+        ctx: &ExecutionContext,
     ) -> Result<Arc<[VariableId]>, CausalError> {
+        if let BatchGraph::Tiered(background) = &self.graph
+            && background.within_tier == antecedent_graph::WithinTier::Unknown
+        {
+            return Ok(Arc::from([]));
+        }
+        let identification = self.study_for_data(data, query)?.identify_structure_within(ctx)?;
+        let crate::Identification::Point { result, .. } = &identification else {
+            return Err(CausalError::Compile {
+                message: "batch identification is not a single-graph product".into(),
+            });
+        };
         match &self.graph {
-            BatchGraph::Dag(graph) => {
-                ate_adjustment_set(graph, query, self.identifier, self.estimator)
+            BatchGraph::Dag(_) => {
+                let estimator = self.estimator.unwrap_or(EstimatorId::Aipw);
+                Ok(crate::strategy_table::select_estimand(result, estimator)?.adjustment_set)
             }
-            BatchGraph::Tiered(background) => {
-                if background.within_tier == antecedent_graph::WithinTier::Unknown {
-                    return Ok(Arc::from([]));
-                }
-                let identification = antecedent_identify::identify_tiered(background, query)?;
-                identification.estimands.first().map(|e| Arc::clone(&e.adjustment_set)).ok_or_else(
-                    || CausalError::Compile {
+            BatchGraph::Tiered(_) => {
+                result.estimands.first().map(|e| Arc::clone(&e.adjustment_set)).ok_or_else(|| {
+                    CausalError::Compile {
                         message: "tiered batch identifier returned no estimand".into(),
-                    },
-                )
+                    }
+                })
             }
         }
     }
 
-    fn cell_adjustment_set(&self, query: &ResponseQuery) -> Result<Arc<[VariableId]>, CausalError> {
+    fn cell_adjustment_set(
+        &self,
+        data: &TabularData,
+        query: &ResponseQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<Arc<[VariableId]>, CausalError> {
+        let identification =
+            self.study_for_response_on(data, query)?.identify_structure_within(ctx)?;
+        let crate::Identification::Point { result, .. } = &identification else {
+            return Err(CausalError::Compile {
+                message: "batch prepare_cells identification is not a single-graph product".into(),
+            });
+        };
+        let first = result.estimands.first().map(|e| Arc::clone(&e.adjustment_set));
         match &self.graph {
-            BatchGraph::Dag(graph) => cell_adjustment_set(graph, query, self.identifier),
-            BatchGraph::Tiered(background) => {
-                let identification = antecedent_identify::identify_tiered_joint(
-                    background,
-                    self.data.schema(),
-                    query,
-                )?;
-                identification.estimands.first().map(|e| Arc::clone(&e.adjustment_set)).ok_or(
-                    CausalError::Unsupported {
-                        message: antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE,
-                    },
-                )
-            }
+            BatchGraph::Dag(_) => first.ok_or_else(|| CausalError::Compile {
+                message: "batch prepare_cells identifier returned no estimand".into(),
+            }),
+            BatchGraph::Tiered(_) => first.ok_or(CausalError::Unsupported {
+                message: antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE,
+            }),
         }
     }
 }
@@ -863,16 +1008,119 @@ fn is_discrete_joint_cell(query: &ResponseQuery) -> bool {
         )
 }
 
+/// Ownership and numerical policies under which retained batch state was materialized.
+///
+/// The zero-sized lease is only a pool-identity witness; it does not claim to reserve fit
+/// bytes. Actual numerical allocations keep their own leases in that same admission pool.
+#[derive(Clone, Debug)]
+struct BatchExecutionOwner {
+    pool_identity: Arc<antecedent_core::execution::AdmissionLease>,
+    cache_policy: antecedent_core::execution::CachePolicy,
+    kernel_policy: antecedent_core::execution::KernelPolicy,
+    determinism: antecedent_core::execution::Determinism,
+}
+
+impl BatchExecutionOwner {
+    fn capture(ctx: &ExecutionContext) -> Result<Self, CausalError> {
+        let lease = ctx.acquire_admission(0, 0).map_err(|error| {
+            crate::error::resource_admission_error(
+                error,
+                crate::analysis::stage::STAGE_ESTIMATE_POINT,
+            )
+        })?;
+        Ok(Self {
+            pool_identity: Arc::new(lease),
+            cache_policy: ctx.cache_policy,
+            kernel_policy: ctx.kernel_policy,
+            determinism: ctx.determinism,
+        })
+    }
+
+    fn compatible(&self, ctx: &ExecutionContext) -> bool {
+        self.pool_identity.belongs_to(&ctx.admission())
+            && self.cache_policy == ctx.cache_policy
+            && self.kernel_policy == ctx.kernel_policy
+            && self.determinism == ctx.determinism
+    }
+}
+
 /// Frozen batch of prepared average-effect (and joint-cell) plans.
 #[derive(Clone, Debug)]
 pub struct PreparedBatch {
+    retention: antecedent_state::retention::RetentionMode,
     plans: Vec<PreparedStudy>,
     queries: Vec<BatchQuery>,
     screen: Option<CandidateScreen>,
     shared_design: Option<Arc<SharedBatchDesign>>,
     family_contrast: Option<CellFamilyContrast>,
+    family_posterior: Option<ScorePosteriorOptions>,
     /// [`BatchStudy::estimator_fingerprint`] of the batch this was prepared from.
     estimator_fingerprint: Arc<str>,
+    execution_owner: Option<BatchExecutionOwner>,
+}
+
+/// Immutable executed family, retaining the exact materialized plans and estimated scores.
+///
+/// Results include the final family covariance, contrasts and sharing diagnostics. Retargets
+/// read this execution's score snapshot; another execution cannot replace those scores.
+#[derive(Clone, Debug)]
+pub struct CompletedBatch {
+    prepared: PreparedBatch,
+    results: Vec<Arc<StudyResult>>,
+    scores: BatchScores,
+}
+
+impl CompletedBatch {
+    /// The exact executed observations, shared without copying their column storage.
+    ///
+    /// # Errors
+    /// A malformed family with no bound tabular plan.
+    pub fn bound_table(&self) -> Result<&TabularData, CausalError> {
+        self.prepared.bound_data()
+    }
+
+    /// Materialized plans bound to the observations this execution used.
+    #[must_use]
+    pub fn prepared(&self) -> &PreparedBatch {
+        &self.prepared
+    }
+
+    /// Final scientific results in declared query order.
+    #[must_use]
+    pub fn results(&self) -> &[Arc<StudyResult>] {
+        &self.results
+    }
+
+    /// The study's bibliography: the sources of every result, de-duplicated across results,
+    /// each with the caveats of the records citing it (see [`crate::bibliography`]).
+    #[must_use = "the bibliography is computed on each call"]
+    pub fn bibliography(&self) -> Vec<antecedent_io::method_provenance::CitationWire> {
+        crate::bibliography(self.results.iter().map(AsRef::as_ref))
+    }
+
+    /// Estimated score tables, including empty slots where retention was unavailable.
+    #[must_use]
+    pub fn scores(&self) -> &BatchScores {
+        &self.scores
+    }
+
+    /// Consume the execution without copying its retained state.
+    #[must_use]
+    pub fn into_parts(self) -> (PreparedBatch, Vec<Arc<StudyResult>>, BatchScores) {
+        (self.prepared, self.results, self.scores)
+    }
+
+    /// Retarget this execution's retained scores under an explicit population declaration.
+    ///
+    /// # Errors
+    /// Invalid families, unavailable scores, incompatible row snapshots, or cancellation.
+    pub fn retarget(
+        &self,
+        request: &BatchRetargetRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<BatchRetargetReport, BatchRetargetError> {
+        self.prepared.retarget(&self.scores, request, ctx)
+    }
 }
 
 impl PreparedBatch {
@@ -894,6 +1142,241 @@ impl PreparedBatch {
         self.shared_design.as_deref()
     }
 
+    /// Install per-member observers, allowing adapters to attach query identity to events.
+    ///
+    /// The sinks are execution controls and are stripped from completed native plans.
+    ///
+    /// # Errors
+    /// The observer count differs from the family size, or a member cannot stream stages.
+    pub fn with_stage_sinks(
+        &self,
+        sinks: Vec<Arc<dyn crate::analysis::stage::StageResultSink>>,
+    ) -> Result<Self, CausalError> {
+        if sinks.len() != self.plans.len() {
+            return Err(CausalError::Compile {
+                message: "batch stage observers require one sink per query".into(),
+            });
+        }
+        if self.plans.iter().any(|plan| !plan.streams_stages()) {
+            return Err(crate::unsupported_reason!(
+                "stage_stream_unavailable",
+                "batch stage observers require every member to support progressive scalar stages"
+            ));
+        }
+        let plans = self
+            .plans
+            .iter()
+            .zip(sinks)
+            .map(|(plan, sink)| {
+                let mut private = plan.clone();
+                private.set_stage_sink(Some(sink));
+                private
+            })
+            .collect();
+        Ok(self.with_plans(plans))
+    }
+
+    /// Branch onto new observations without fitting or changing this handle.
+    ///
+    /// The declared candidate-screen estimate subset is applied once, before binding plans.
+    /// Identification can be retained; row-bound fits and scores are invalidated.
+    ///
+    /// # Errors
+    /// Incompatible schema or screen rows, preparation admission failures, or cancellation.
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "the operation accepts owned input as part of its interface"
+    )]
+    pub fn rebind_data(
+        &self,
+        data: TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        let data = subset_estimate_rows(&data, self.screen.as_ref())?;
+        self.branch_bound(data, ctx)
+    }
+
+    /// Requote the bound observations and shared design under execution controls, fit-free.
+    ///
+    /// A new seed rebuilds the shared fold fingerprint and all seed-bound statistical plans.
+    ///
+    /// # Errors
+    /// Preparation admission failures or cancellation.
+    pub fn reconfigure_execution(&self, ctx: &ExecutionContext) -> Result<Self, CausalError> {
+        if self
+            .shared_design
+            .as_ref()
+            .is_some_and(|design| design.fold_seed != ctx.rng.master_seed())
+            || self.execution_owner.as_ref().is_some_and(|owner| !owner.compatible(ctx))
+        {
+            return self.branch_bound(self.bound_data()?.clone(), ctx);
+        }
+        let plans = self
+            .plans
+            .iter()
+            .map(|plan| plan.requote_batch_execution(ctx))
+            .collect::<Result<Vec<_>, _>>()?;
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
+        }
+        Ok(self.with_plans(plans))
+    }
+
+    /// Count of materialized member operations retained by this immutable branch.
+    #[must_use]
+    pub fn materialized_plan_count(&self) -> usize {
+        self.plans.iter().filter(|plan| plan.is_materialized()).count()
+    }
+
+    /// Count of retained per-member score tables; a deferred branch has none.
+    #[must_use]
+    pub fn retained_score_table_count(&self) -> usize {
+        self.plans.iter().filter(|plan| plan.score_table().is_some()).count()
+    }
+
+    /// Copy family declarations without cloning plans that the caller is replacing.
+    fn with_plans(&self, plans: Vec<PreparedStudy>) -> Self {
+        Self {
+            retention: self.retention,
+            plans,
+            queries: self.queries.clone(),
+            screen: self.screen.clone(),
+            shared_design: self.shared_design.clone(),
+            family_contrast: self.family_contrast,
+            family_posterior: self.family_posterior,
+            estimator_fingerprint: Arc::clone(&self.estimator_fingerprint),
+            execution_owner: self.execution_owner.clone(),
+        }
+    }
+
+    fn bound_data(&self) -> Result<&TabularData, CausalError> {
+        match self.plans.first().map(|plan| &plan.study().data) {
+            Some(DataInput::Tabular(data)) => Ok(data),
+            _ => Err(CausalError::Compile {
+                message: "a prepared batch requires at least one bound tabular plan".into(),
+            }),
+        }
+    }
+
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "the operation accepts owned input as part of its interface"
+    )]
+    fn branch_bound(&self, data: TabularData, ctx: &ExecutionContext) -> Result<Self, CausalError> {
+        let shared = self
+            .shared_design
+            .as_ref()
+            .map(|design| {
+                let adjustment_sets = design
+                    .covariate
+                    .as_ref()
+                    .map(|covariate| vec![Arc::clone(&covariate.adjustment_set)])
+                    .unwrap_or_default();
+                SharedBatchDesign::compile(
+                    &data,
+                    &adjustment_sets,
+                    design.n_folds,
+                    ctx.rng.master_seed(),
+                )
+                .map(Arc::new)
+            })
+            .transpose()?;
+        let plans = self
+            .plans
+            .iter()
+            .map(|plan| plan.rebind_batch_data(data.clone(), shared.clone(), ctx))
+            .collect::<Result<Vec<_>, _>>()?;
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
+        }
+        let mut branch = self.with_plans(plans);
+        branch.shared_design = shared;
+        branch.execution_owner = None;
+        Ok(branch)
+    }
+
+    /// Explicitly execute the bound family, retaining the exact materialized native plans.
+    ///
+    /// Materialization and execution share one nuisance scope per member. Family inference
+    /// is attached before any result is frozen. Failure or cancellation publishes no state.
+    ///
+    /// # Errors
+    /// Statistical, resource or cancellation failures from any family member.
+    pub fn execute_retained(&self, ctx: &ExecutionContext) -> Result<CompletedBatch, CausalError> {
+        // Requote admission even when the seed agrees. Retained state may only cross an
+        // execution boundary under its original admission ownership and numerical policies.
+        let bound = self.reconfigure_execution(ctx)?;
+        let data = bound.bound_data()?;
+        let shared = bound.shared_design.clone();
+        let nuisances = batch_nuisance_cache(ctx, bound.retention);
+        let completed = ctx
+            .try_map_indexed(bound.plans.len(), |index, inner| {
+                if inner.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled {
+                        stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
+                    });
+                }
+                let (result, used) = nuisances.scope(|| {
+                    let (mut ready, scores_owed) =
+                        bound.plans[index].materialize_for_estimate(inner)?;
+                    let result = ready.estimate_with_shared(data, shared.clone(), inner)?;
+                    if let Some(from_shared_design) = scores_owed {
+                        ready.retain_estimated_scores(&result, from_shared_design, inner)?;
+                    }
+                    ready.set_stage_sink(None);
+                    Ok::<_, CausalError>((ready, result))
+                });
+                result.map(|(ready, result)| (ready, result, used))
+            })
+            .map_err(batch_map_error)?;
+        let mut plans = Vec::with_capacity(completed.len());
+        let mut results = Vec::with_capacity(completed.len());
+        let mut uses = Vec::with_capacity(completed.len());
+        for (plan, result, used) in completed {
+            plans.push(plan);
+            results.push(result);
+            uses.push(used);
+        }
+        attach_prepared_batch_joint_inference(
+            &mut results,
+            data,
+            &bound.queries,
+            bound.screen.as_ref(),
+            bound.family_contrast,
+            bound.family_posterior.map(|options| (options, ctx)),
+        );
+        attach_shared_design_diagnostics(
+            &mut results,
+            shared.as_ref(),
+            &nuisances,
+            &uses,
+            &bound.estimator_fingerprint,
+        );
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled {
+                stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
+            });
+        }
+        let scores = BatchScores::new(
+            ScoreSource::Estimated,
+            results
+                .iter()
+                .map(|result| {
+                    result.estimate.as_effect().and_then(|effect| effect.scores.table.clone())
+                })
+                .collect(),
+        );
+        Ok(CompletedBatch {
+            prepared: Self {
+                plans,
+                execution_owner: Some(BatchExecutionOwner::capture(ctx)?),
+                ..bound
+            },
+            results: results.into_iter().map(Arc::new).collect(),
+            scores,
+        })
+    }
+
     /// Re-estimate every frozen plan on `data` and attach joint-family inference.
     ///
     /// # Errors
@@ -907,37 +1390,27 @@ impl PreparedBatch {
         let data = subset_estimate_rows(data, self.screen.as_ref())?;
         let shared =
             self.shared_design.as_ref().map(|s| s.rebind(&data).map(Arc::new)).transpose()?;
-        let mut out = Vec::with_capacity(self.plans.len());
-        let mut uses = Vec::with_capacity(self.plans.len());
-        let nuisances = CrossfitNuisanceCache::new();
-        let threads = ctx.parallelism.max_threads.get().max(1) as usize;
-        for chunk in self.plans.chunks(threads) {
-            std::thread::scope(|scope| {
-                let handles: Vec<_> = chunk
-                    .iter()
-                    .map(|plan| {
-                        scope.spawn(|| {
-                            nuisances
-                                .scope(|| plan.estimate_with_shared(&data, shared.clone(), ctx))
-                        })
-                    })
-                    .collect();
-                for handle in handles {
-                    let (result, used) = handle.join().map_err(|_| CausalError::Compile {
-                        message: "prepared batch worker panicked".into(),
-                    })?;
-                    out.push(result?);
-                    uses.push(used);
+        let nuisances = batch_nuisance_cache(ctx, self.retention);
+        let completed = ctx
+            .try_map_indexed(self.plans.len(), |index, inner| {
+                if inner.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled {
+                        stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
+                    });
                 }
-                Ok::<(), CausalError>(())
-            })?;
-        }
+                let (result, used) = nuisances
+                    .scope(|| self.plans[index].estimate_with_shared(&data, shared.clone(), inner));
+                result.map(|result| (result, used))
+            })
+            .map_err(batch_map_error)?;
+        let (mut out, uses): (Vec<_>, Vec<_>) = completed.into_iter().unzip();
         attach_prepared_batch_joint_inference(
             &mut out,
             &data,
             &self.queries,
             self.screen.as_ref(),
             self.family_contrast,
+            self.family_posterior.map(|options| (options, ctx)),
         );
         attach_shared_design_diagnostics(
             &mut out,
@@ -1025,912 +1498,46 @@ impl PreparedBatch {
     }
 }
 
-fn ate_adjustment_set(
-    graph: &Dag,
-    query: &AverageEffectQuery,
-    identifier: Option<IdentifierId>,
-    estimator: Option<EstimatorId>,
-) -> Result<Arc<[VariableId]>, CausalError> {
-    let identifier = identifier.unwrap_or(crate::strategy_table::DEFAULT_IDENTIFIER_ID);
-    let estimator = estimator.unwrap_or(EstimatorId::Aipw);
-    let identification = crate::strategy_table::identify_static(identifier, graph, query)?;
-    let estimand = crate::strategy_table::select_estimand(&identification, estimator)?;
-    Ok(estimand.adjustment_set)
-}
+mod family_inference;
 
-fn cell_adjustment_set(
-    graph: &Dag,
-    query: &ResponseQuery,
-    identifier: Option<IdentifierId>,
-) -> Result<Arc<[VariableId]>, CausalError> {
-    let identifier = identifier.unwrap_or(crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER_ID);
-    let identification = crate::strategy_table::identify_static_query(
-        identifier,
-        graph,
-        &CausalQuery::Response(query.clone()),
-    )?;
-    identification.estimands.first().map(|e| Arc::clone(&e.adjustment_set)).ok_or_else(|| {
-        CausalError::Compile {
-            message: "batch prepare_cells identifier returned no estimand".into(),
-        }
-    })
-}
+use family_inference::{
+    attach_batch_joint_inference, attach_prepared_batch_joint_inference,
+    attach_shared_design_diagnostics,
+};
+#[cfg(test)]
+use family_inference::{embed_centered_influence, two_sided_p};
 
-/// Record the shared design and, per result, whether its cross-fitted propensity /
-/// outcome fit was shared with another query of the batch (`uses[i]` is result `i`'s
-/// nuisance scope).
-fn attach_shared_design_diagnostics(
-    results: &mut [StudyResult],
-    shared: Option<&Arc<SharedBatchDesign>>,
-    nuisances: &CrossfitNuisanceCache,
-    uses: &[NuisanceScopeUse],
-    estimator_fingerprint: &str,
-) {
-    let Some(shared) = shared else {
-        return;
-    };
-    let shares_covariates = shared.covariate.is_some();
-    let flag = |b: bool| Arc::<str>::from(if b { "true" } else { "false" });
-    for (i, result) in results.iter_mut().enumerate() {
-        let (shares_propensity, shares_outcome) =
-            uses.get(i).map_or((false, false), |used| nuisances.shared_with_another_scope(used));
-        let mut d = antecedent_core::Diagnostic::new(
-            "batch.shared_design",
-            antecedent_core::DiagnosticKind::Scientific,
-            antecedent_core::DiagnosticSeverity::Info,
-            format!(
-                "shared fold seed/count (n_folds={}); covariates={}; each query draws its own matching fold plan; cross-fitted propensity {} and outcome regressions {} with another query (reused only when rows, treatment coding, adjustment design, fold plan and learner options are identical)",
-                shared.n_folds,
-                if shares_covariates { "shared" } else { "per-query" },
-                if shares_propensity { "shared" } else { "not shared" },
-                if shares_outcome { "shared" } else { "not shared" },
-            ),
-        );
-        d.fields = Arc::from([
-            (Arc::from("n_folds"), Arc::from(shared.n_folds.to_string())),
-            (Arc::from("shares_covariates"), flag(shares_covariates)),
-            (Arc::from("shares_propensity"), flag(shares_propensity)),
-            (Arc::from("shares_outcome_residualization"), flag(shares_outcome)),
-            (Arc::from("estimator_config"), Arc::from(estimator_fingerprint)),
-        ]);
-        // A prepared plan can carry the diagnostic from its prepare; this estimate's
-        // sharing replaces it.
-        result.diagnostics.retain(|d| d.code.as_ref() != "batch.shared_design");
-        result.diagnostics.push(d);
-    }
-}
+mod selection;
 
-fn attach_prepared_batch_joint_inference(
-    results: &mut [StudyResult],
-    data: &TabularData,
-    queries: &[BatchQuery],
-    screen: Option<&CandidateScreen>,
-    family_contrast: Option<CellFamilyContrast>,
-) {
-    attach_batch_family_joint_inference(results, data, queries, screen, family_contrast);
-}
+#[cfg(test)]
+use selection::{argmin_finite, screen_row_bitmap};
+use selection::{attach_candidate_selection, resolve_max_t_critical, subset_estimate_rows};
 
-fn attach_batch_joint_inference(
-    results: &mut [StudyResult],
-    data: &TabularData,
-    queries: &[AverageEffectQuery],
-    screen: Option<&CandidateScreen>,
-) {
-    let family: Vec<BatchQuery> = queries.iter().cloned().map(BatchQuery::Average).collect();
-    attach_batch_family_joint_inference(results, data, &family, screen, None);
-}
-
-fn batch_claim_alignment(
-    query: &BatchQuery,
-) -> (antecedent_core::TargetPopulation, Vec<VariableId>) {
-    match query {
-        BatchQuery::Average(q) => {
-            let mut ids = vec![q.treatment, q.outcome];
-            ids.extend(q.effect_modifiers.iter().copied());
-            (q.target_population.clone(), ids)
-        }
-        BatchQuery::Response(q) => {
-            let mut ids = q.functional.treatment_ids();
-            ids.extend(q.functional.outcome_ids());
-            (q.target_population.clone(), ids)
-        }
-    }
-}
-
-/// Drop every family-level p-value and contrast from `results` and record why on each.
-fn withhold_family_inference(results: &mut [StudyResult], message: &str) {
-    for result in results.iter_mut() {
-        let Some(effect) = result.estimate.as_effect_mut() else {
-            continue;
-        };
-        effect.family.adjusted_p_values = None;
-        effect.family.contrast = None;
-        effect.family.contrast_interval = None;
-        result.diagnostics.push(antecedent_core::Diagnostic::new(
-            "batch.joint_if",
-            antecedent_core::DiagnosticKind::Scientific,
-            antecedent_core::DiagnosticSeverity::Info,
-            message,
-        ));
-    }
-}
-
-#[allow(
-    clippy::too_many_lines,
-    reason = "aligns every result's influence to the shared row universe, forms the level covariance, then branches on the declared family contrast; each early exit must also record candidate selection, so the phases share one `results` borrow"
-)]
-fn attach_batch_family_joint_inference(
-    results: &mut [StudyResult],
-    data: &TabularData,
-    queries: &[BatchQuery],
-    screen: Option<&CandidateScreen>,
-    family_contrast: Option<CellFamilyContrast>,
-) {
-    if results.len() < 2 {
-        attach_candidate_selection(results, screen, &[], &[], None);
-        return;
-    }
-    let mut level_aligned = Vec::new();
-    let mut row_sets = Vec::new();
-    let full_n = data.row_count();
-    for (result, query) in results.iter().zip(queries) {
-        match align_influence_to_rows(
-            data,
-            result,
-            query,
-            result.estimate.as_effect().and_then(|effect| effect.scores.influence.as_deref()),
-        ) {
-            Ok((col, rows)) => {
-                level_aligned.push(col);
-                row_sets.push(rows);
-            }
-            Err(reason) => {
-                attach_batch_inference_unavailable(results, screen, reason);
-                return;
-            }
-        }
-    }
-    let cols: Vec<&[f64]> = level_aligned.iter().map(Vec::as_slice).collect();
-    let Ok(level_cov) = antecedent_estimate::joint_influence_covariance(&cols, None) else {
-        attach_batch_inference_unavailable(
-            results,
-            screen,
-            "batch joint IF covariance could not be formed",
-        );
-        return;
-    };
-    let crit = resolve_max_t_critical(results, &level_cov, "simultaneous interval");
-    for (i, result) in results.iter_mut().enumerate() {
-        let Some(effect) = result.estimate.as_effect_mut() else {
-            continue;
-        };
-        effect.joint.covariance = Some(level_cov.clone());
-        if let Some(c) = crit {
-            effect.family.simultaneous_interval =
-                Some((effect.ate - c * level_cov.se(i), effect.ate + c * level_cov.se(i), 0.95));
-        }
-    }
-
-    let cell_family = queries.iter().any(|q| matches!(q, BatchQuery::Response(_)));
-    if cell_family {
-        match family_contrast {
-            None => {
-                withhold_family_inference(
-                    results,
-                    "shared-row joint IF on cell levels; no family contrast declared, p-values omitted",
-                );
-                attach_candidate_selection(results, screen, &[], &[], None);
-                return;
-            }
-            Some(kind) => {
-                let mut contrast_aligned = Vec::new();
-                let mut contrast_values = Vec::new();
-                for ((result, query), rows) in results.iter().zip(queries).zip(&row_sets) {
-                    let Some((value, scores)) = cell_family_contrast_claim(result, query, kind)
-                    else {
-                        withhold_family_inference(
-                            results,
-                            &format!(
-                                "shared-row joint IF on cell levels; {} contrast could not be formed, p-values omitted",
-                                kind.as_str()
-                            ),
-                        );
-                        attach_candidate_selection(results, screen, &[], &[], None);
-                        return;
-                    };
-                    if scores.len() != rows.len() {
-                        attach_batch_inference_unavailable(
-                            results,
-                            screen,
-                            "batch family contrast influence length did not match the complete-case row universe",
-                        );
-                        return;
-                    }
-                    contrast_aligned.push(embed_centered_influence(&scores, rows, full_n));
-                    contrast_values.push(value);
-                }
-                let contrast_cols: Vec<&[f64]> =
-                    contrast_aligned.iter().map(Vec::as_slice).collect();
-                let Ok(contrast_cov) =
-                    antecedent_estimate::joint_influence_covariance(&contrast_cols, None)
-                else {
-                    withhold_family_inference(
-                        results,
-                        "shared-row joint IF on cell levels; family contrast covariance could not be formed, p-values omitted",
-                    );
-                    attach_candidate_selection(results, screen, &[], &[], None);
-                    return;
-                };
-                let contrast_crit =
-                    resolve_max_t_critical(results, &contrast_cov, "family-contrast interval");
-                attach_family_p_values(
-                    results,
-                    &contrast_values,
-                    &contrast_cov,
-                    contrast_crit,
-                    Some(kind),
-                    screen,
-                );
-                return;
-            }
-        }
-    }
-
-    let values: Vec<f64> = results
-        .iter()
-        .filter_map(|result| result.estimate.as_effect().map(|effect| effect.ate))
-        .collect();
-    attach_family_p_values(results, &values, &level_cov, crit, None, screen);
-}
-
-fn align_influence_to_rows(
-    data: &TabularData,
-    result: &StudyResult,
-    query: &BatchQuery,
-    inf: Option<&[f64]>,
-) -> Result<(Vec<f64>, Vec<usize>), &'static str> {
-    let (target_population, mut ids) = batch_claim_alignment(query);
-    if !matches!(target_population, antecedent_core::TargetPopulation::AllObserved) {
-        return Err("batch joint IF requires AllObserved");
-    }
-    let Some(inf) = inf else {
-        return Err("batch joint IF requires per-claim influence");
-    };
-    ids.extend(result.estimand.adjustment_set.iter().copied());
-    ids.extend(result.estimand.instruments.iter().copied());
-    ids.extend(result.estimand.mediators.iter().copied());
-    if let Some(table) = result.estimate.as_effect().and_then(|effect| effect.scores.table.as_ref())
-    {
-        ids.push(table.treatment);
-        ids.extend(table.intervened.iter().copied());
-    }
-    let Ok(mask) = data.complete_case_mask(&ids) else {
-        return Err("batch joint IF complete-case masks did not align");
-    };
-    let rows: Vec<_> = mask.iter().enumerate().filter_map(|(i, &keep)| keep.then_some(i)).collect();
-    if rows.len() != inf.len() || rows.len() < 2 {
-        return Err("batch joint IF influence length did not match the complete-case row universe");
-    }
-    Ok((embed_centered_influence(inf, &rows, data.row_count()), rows))
-}
-
-/// Place a claim's influence values on the full row universe so claims with different
-/// complete cases share one covariance. The joint covariance divides by `N(N-1)` where the
-/// claim's own standard error divides by `n(n-1)`, so the centred values are scaled by
-/// `sqrt(N(N-1)/(n(n-1)))`: the embedded column then has exactly the claim's variance.
-fn embed_centered_influence(inf: &[f64], rows: &[usize], full_n: usize) -> Vec<f64> {
-    let n = inf.len() as f64;
-    let big_n = full_n as f64;
-    let scale = (big_n * (big_n - 1.0) / (n * (n - 1.0))).sqrt();
-    let mean = inf.iter().sum::<f64>() / n;
-    let mut col = vec![0.0; full_n];
-    for (&r, &v) in rows.iter().zip(inf) {
-        col[r] = (v - mean) * scale;
-    }
-    col
-}
-
-fn response_requested_arm(query: &ResponseQuery) -> Option<u32> {
-    super::helpers::requested_joint_arm(query).ok()
-}
-
-fn cell_family_contrast_claim(
-    result: &StudyResult,
-    query: &BatchQuery,
-    kind: CellFamilyContrast,
-) -> Option<(f64, Vec<f64>)> {
-    let BatchQuery::Response(query) = query else {
-        return None;
-    };
-    if query.outcome_functional.quantile_level().is_some() {
-        return None;
-    }
-    let table = result.estimate.as_effect()?.scores.table.as_ref()?;
-    if table.distinct_threshold_count() > 1 {
-        return None;
-    }
-    let arm = response_requested_arm(query)?;
-    let (contrast, scores) =
-        antecedent_estimate::family_cell_contrast(table, arm, kind.as_str()).ok()?;
-    Some((contrast.value, scores))
-}
-
-/// Two-sided p-value for a Wald statistic `value / se`.
-///
-/// A non-finite or non-positive SE describes a degenerate or broken estimate
-/// (a constant influence column, a negative-variance covariance entry), not
-/// infinite precision. Returning `NaN` in that case — rather than folding it
-/// into `z = +inf`, `p = 0` — keeps the test out of BH/BY ranking instead of
-/// handing it the family's strongest "discovery".
-fn two_sided_p(value: f64, se: f64) -> f64 {
-    if !se.is_finite() || se <= 0.0 {
-        return f64::NAN;
-    }
-    let z = value.abs() / se;
-    2.0 * antecedent_stats::student_t_sf(z, 1.0e8)
-}
-
-fn attach_family_p_values(
-    results: &mut [StudyResult],
-    values: &[f64],
-    cov: &antecedent_estimate::JointCovariance,
-    crit: Option<f64>,
-    contrast: Option<CellFamilyContrast>,
-    screen: Option<&CandidateScreen>,
-) {
-    let mut p_values = Vec::with_capacity(results.len());
-    let mut rank_stats = Vec::with_capacity(results.len());
-    for (i, value) in values.iter().copied().enumerate() {
-        let se = cov.se(i);
-        p_values.push(two_sided_p(value, se));
-        rank_stats.push((value, se));
-    }
-    let bh = antecedent_stats::benjamini_hochberg(&p_values);
-    let by = antecedent_stats::benjamini_yekutieli(&p_values);
-    for (i, result) in results.iter_mut().enumerate() {
-        let Some(effect) = result.estimate.as_effect_mut() else {
-            continue;
-        };
-        effect.family.adjusted_p_values = Some((bh[i], by[i]));
-        if contrast.is_some() {
-            let se = cov.se(i);
-            effect.family.contrast = Some((values[i], se));
-            effect.family.contrast_interval =
-                crit.map(|c| (values[i] - c * se, values[i] + c * se, 0.95));
-        }
-        let mut d = antecedent_core::Diagnostic::new(
-            "batch.joint_if",
-            antecedent_core::DiagnosticKind::Scientific,
-            antecedent_core::DiagnosticSeverity::Info,
-            match contrast {
-                Some(kind) => format!(
-                    "shared-row joint IF; family contrast {}={:.4} (se={:.4}); BH={:.4} BY={:.4}{}",
-                    kind.as_str(),
-                    values[i],
-                    cov.se(i),
-                    bh.get(i).copied().unwrap_or(f64::NAN),
-                    by.get(i).copied().unwrap_or(f64::NAN),
-                    crit.map(|c| format!(" max-t_0.95={c:.3}")).unwrap_or_default()
-                ),
-                None => format!(
-                    "shared-row joint IF; BH={:.4} BY={:.4}{}",
-                    bh.get(i).copied().unwrap_or(f64::NAN),
-                    by.get(i).copied().unwrap_or(f64::NAN),
-                    crit.map(|c| format!(" max-t_0.95={c:.3}")).unwrap_or_default()
-                ),
-            },
-        );
-        let mut fields = vec![
-            (
-                std::sync::Arc::from("bh_q"),
-                std::sync::Arc::from(format!("{}", bh.get(i).copied().unwrap_or(f64::NAN))),
-            ),
-            (
-                std::sync::Arc::from("by_q"),
-                std::sync::Arc::from(format!("{}", by.get(i).copied().unwrap_or(f64::NAN))),
-            ),
-        ];
-        if let Some(kind) = contrast {
-            fields.push((
-                std::sync::Arc::from("family_contrast"),
-                std::sync::Arc::from(kind.as_str()),
-            ));
-            fields.push((
-                std::sync::Arc::from("contrast_value"),
-                std::sync::Arc::from(format!("{}", values[i])),
-            ));
-        }
-        d.fields = std::sync::Arc::from(fields);
-        result.diagnostics.push(d);
-    }
-    attach_candidate_selection(results, screen, &bh, &by, Some(&rank_stats));
-}
-
-fn subset_estimate_rows(
-    data: &TabularData,
-    screen: Option<&CandidateScreen>,
-) -> Result<TabularData, CausalError> {
-    let Some(screen) = screen else {
-        return Ok(data.clone());
-    };
-    if screen.screen_id.is_empty()
-        || screen.estimate_rows.is_empty()
-        || screen.screen_rows.is_empty()
-    {
-        return Err(CausalError::Compile {
-            message:
-                "recorded candidate screens require an id and nonempty screen/estimate row sets"
-                    .into(),
-        });
-    }
-    let n = data.row_count();
-    for rows in [&screen.screen_rows, &screen.estimate_rows] {
-        let mut seen = std::collections::HashSet::new();
-        for &r in rows.iter() {
-            if r as usize >= n || !seen.insert(r) {
-                return Err(CausalError::Compile {
-                    message: "candidate-selection row indexes must be unique and within the table"
-                        .into(),
-                });
-            }
-        }
-    }
-    let mut bytes = vec![0u8; n.div_ceil(8)];
-    for &r in screen.estimate_rows.iter() {
-        let i = r as usize;
-        if i >= n {
-            return Err(CausalError::Compile {
-                message: "candidate-selection estimate_rows exceed the table".into(),
-            });
-        }
-        bytes[i / 8] |= 1 << (i % 8);
-    }
-    let mask = ValidityBitmap::from_bytes(bytes, n).map_err(CausalError::from)?;
-    data.with_analysis_mask(mask).map_err(CausalError::from)
-}
-
-/// Resolve the max-t critical value for a joint covariance, attaching a
-/// diagnostic to every result when the band cannot be formed.
-///
-/// `max_t_critical` refuses on a non-PSD correlation matrix, a non-finite or
-/// non-positive SE, or an asymmetric covariance. Unlike `.ok()`, this makes
-/// that refusal visible: "not claimed" (no family declared) and "computation
-/// failed" must read differently on the result.
-fn resolve_max_t_critical(
-    results: &mut [StudyResult],
-    cov: &antecedent_estimate::JointCovariance,
-    what: &str,
-) -> Option<f64> {
-    match antecedent_estimate::max_t_critical(cov, 0.95, 4096, 1) {
-        Ok(c) => Some(c),
-        Err(err) => {
-            for result in results.iter_mut() {
-                result.diagnostics.push(antecedent_core::Diagnostic::new(
-                    "batch.joint_if.max_t_unavailable",
-                    antecedent_core::DiagnosticKind::Scientific,
-                    antecedent_core::DiagnosticSeverity::Warning,
-                    format!("max-t band unavailable for the {what}: {err}"),
-                ));
-            }
-            None
-        }
-    }
-}
-
-fn attach_batch_inference_unavailable(
-    results: &mut [StudyResult],
-    screen: Option<&CandidateScreen>,
-    reason: &str,
-) {
-    for result in results.iter_mut() {
-        result.diagnostics.push(antecedent_core::Diagnostic::new(
-            "batch.joint_if.unavailable",
-            antecedent_core::DiagnosticKind::Scientific,
-            antecedent_core::DiagnosticSeverity::Warning,
-            reason,
-        ));
-    }
-    attach_candidate_selection(results, screen, &[], &[], None);
-}
-
-fn rows_disjoint(a: &[u32], b: &[u32]) -> bool {
-    let mut left: Vec<u32> = a.to_vec();
-    let mut right: Vec<u32> = b.to_vec();
-    left.sort_unstable();
-    right.sort_unstable();
-    left.dedup();
-    right.dedup();
-    let mut i = 0;
-    let mut j = 0;
-    while i < left.len() && j < right.len() {
-        match left[i].cmp(&right[j]) {
-            std::cmp::Ordering::Equal => return false,
-            std::cmp::Ordering::Less => i += 1,
-            std::cmp::Ordering::Greater => j += 1,
-        }
-    }
-    true
-}
-
-#[allow(
-    clippy::too_many_lines,
-    reason = "ranks the family by the screen's procedure (BH, BY, max-t or none) and writes one selection record onto every result; the procedures share the same result walk"
-)]
-fn attach_candidate_selection(
-    results: &mut [StudyResult],
-    screen: Option<&CandidateScreen>,
-    bh: &[f64],
-    by: &[f64],
-    rank_stats: Option<&[(f64, f64)]>,
-) {
-    let family_size = results.len();
-    let (selection, recorded) = match screen {
-        None => (
-            CandidateSelection {
-                screen_id: std::sync::Arc::from("unrecorded"),
-                procedure: CandidateProcedure::Unrecorded,
-                winner_index: None,
-                family_size,
-                screen_rows: std::sync::Arc::from([]),
-                estimate_rows: std::sync::Arc::from([]),
-                disjoint: false,
-            },
-            false,
-        ),
-        Some(screen) => {
-            let disjoint = rows_disjoint(&screen.screen_rows, &screen.estimate_rows);
-            let winner_index = match screen.procedure {
-                CandidateProcedure::BenjaminiHochberg => bh
-                    .iter()
-                    .enumerate()
-                    .min_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
-                    .map(|(i, _)| i),
-                CandidateProcedure::BenjaminiYekutieli => by
-                    .iter()
-                    .enumerate()
-                    .min_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
-                    .map(|(i, _)| i),
-                CandidateProcedure::Unrecorded => None,
-                CandidateProcedure::MaxT => rank_stats.map_or_else(
-                    || {
-                        results
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, result)| {
-                                result.estimate.as_effect().is_some_and(|effect| {
-                                    effect.ate.is_finite()
-                                        && effect.se_analytic().is_finite()
-                                        && effect.se_analytic() >= 0.0
-                                })
-                            })
-                            .max_by(|a, b| {
-                                let score = |result: &StudyResult| {
-                                    result.estimate.as_effect().map(|effect| {
-                                        let scale = effect.se_analytic().abs().max(1e-12);
-                                        effect.ate.abs() / scale
-                                    })
-                                };
-                                score(a.1)
-                                    .partial_cmp(&score(b.1))
-                                    .unwrap_or(std::cmp::Ordering::Equal)
-                            })
-                            .map(|(i, _)| i)
-                    },
-                    |stats| {
-                        stats
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, (value, se))| {
-                                value.is_finite() && se.is_finite() && *se >= 0.0
-                            })
-                            .max_by(|a, b| {
-                                let sa = a.1.1.abs().max(1e-12);
-                                let sb = b.1.1.abs().max(1e-12);
-                                (a.1.0.abs() / sa)
-                                    .partial_cmp(&(b.1.0.abs() / sb))
-                                    .unwrap_or(std::cmp::Ordering::Equal)
-                            })
-                            .map(|(i, _)| i)
-                    },
-                ),
-            };
-            (
-                CandidateSelection {
-                    screen_id: std::sync::Arc::clone(&screen.screen_id),
-                    procedure: screen.procedure,
-                    winner_index,
-                    family_size,
-                    screen_rows: std::sync::Arc::clone(&screen.screen_rows),
-                    estimate_rows: std::sync::Arc::clone(&screen.estimate_rows),
-                    disjoint,
-                },
-                true,
-            )
-        }
-    };
-    for result in results.iter_mut() {
-        result.candidate_selection = Some(selection.clone());
-        if let Some(effect) = result.estimate.as_effect_mut() {
-            effect.family.candidate_selection =
-                Some(antecedent_estimate::CandidateSelectionRecord {
-                    screen_id: std::sync::Arc::clone(&selection.screen_id),
-                    procedure: std::sync::Arc::from(selection.procedure.as_str()),
-                    winner_index: selection.winner_index,
-                    family_size: selection.family_size,
-                    screen_rows: std::sync::Arc::clone(&selection.screen_rows),
-                    estimate_rows: std::sync::Arc::clone(&selection.estimate_rows),
-                    disjoint: selection.disjoint,
-                });
-        }
-        if recorded {
-            let mut d = antecedent_core::Diagnostic::new(
-                "batch.candidate_selection",
-                antecedent_core::DiagnosticKind::Scientific,
-                antecedent_core::DiagnosticSeverity::Info,
-                format!(
-                    "screen={} procedure={} winner={:?} disjoint={}",
-                    selection.screen_id,
-                    selection.procedure.as_str(),
-                    selection.winner_index,
-                    selection.disjoint
-                ),
-            );
-            d.fields = std::sync::Arc::from([
-                (std::sync::Arc::from("screen_id"), std::sync::Arc::clone(&selection.screen_id)),
-                (
-                    std::sync::Arc::from("procedure"),
-                    std::sync::Arc::from(selection.procedure.as_str()),
-                ),
-                (
-                    std::sync::Arc::from("winner_index"),
-                    std::sync::Arc::from(
-                        selection
-                            .winner_index
-                            .map_or_else(|| "unavailable".into(), |i| i.to_string()),
-                    ),
-                ),
-                (
-                    std::sync::Arc::from("disjoint"),
-                    std::sync::Arc::from(if selection.disjoint { "true" } else { "false" }),
-                ),
-            ]);
-            result.diagnostics.push(d);
-            if !selection.disjoint {
-                result.diagnostics.push(antecedent_core::Diagnostic::new(
-                    "batch.candidate_selection.overlap",
-                    antecedent_core::DiagnosticKind::Support,
-                    antecedent_core::DiagnosticSeverity::Warning,
-                    "screen and estimate row sets are not disjoint",
-                ));
-            }
-        } else {
-            result.diagnostics.push(antecedent_core::Diagnostic::new(
-                "batch.candidate_selection.unrecorded",
-                antecedent_core::DiagnosticKind::Scientific,
-                antecedent_core::DiagnosticSeverity::Info,
-                "no candidate-selection split has been recorded; simultaneous inference covers only the fixed supplied family and excludes screening uncertainty",
-            ));
-        }
-        if recorded {
-            result.diagnostics.push(antecedent_core::Diagnostic::new(
-                "batch.candidate_selection.ranked_on_reported_family",
-                antecedent_core::DiagnosticKind::Scientific,
-                antecedent_core::DiagnosticSeverity::Info,
-                "winner is ranked on the reported estimate-sample family; screen_rows are recorded provenance and were not used to select",
-            ));
+fn batch_map_error(
+    error: antecedent_core::execution::MapExecutionError<CausalError>,
+) -> CausalError {
+    match error {
+        antecedent_core::execution::MapExecutionError::Work(error) => error,
+        antecedent_core::execution::MapExecutionError::Admission(
+            antecedent_core::execution::AdmissionError::Cancelled,
+        ) => CausalError::Cancelled { stage: crate::analysis::stage::STAGE_ESTIMATE_POINT },
+        antecedent_core::execution::MapExecutionError::Admission(error) => {
+            CausalError::Resource { message: error.to_string() }
         }
     }
 }
 
 #[cfg(test)]
-mod fail_open_regression_tests {
-    use super::*;
-
-    #[test]
-    fn degenerate_se_is_undefined_not_a_discovery() {
-        // `se == 0` with a nonzero point estimate is a broken/degenerate estimate
-        // (e.g. a constant influence column), not infinite precision.
-        assert!(two_sided_p(5.0, 0.0).is_nan());
-        // `se == NaN` (e.g. `sqrt` of a negative covariance entry) is likewise undefined.
-        assert!(two_sided_p(5.0, f64::NAN).is_nan());
-        // a genuinely testable claim is unaffected.
-        let p = two_sided_p(3.0, 1.0);
-        assert!(p.is_finite() && p > 0.0 && p < 1.0);
-    }
-
-    #[test]
-    fn degenerate_se_is_excluded_from_bh_by_instead_of_ranked_first() {
-        // One degenerate claim (se=0, nonzero point estimate) next to one ordinary
-        // claim (se=1). Before the fix `two_sided_p(5.0, 0.0) == 0.0`, which BH/BY
-        // treat as the strongest possible discovery (adjusted p = q = 0).
-        let degenerate_p = two_sided_p(5.0, 0.0);
-        let ordinary_p = two_sided_p(3.0, 1.0);
-        let p_values = [degenerate_p, ordinary_p];
-        let bh = antecedent_stats::benjamini_hochberg(&p_values);
-        let by = antecedent_stats::benjamini_yekutieli(&p_values);
-        assert!(
-            bh[0].is_nan(),
-            "degenerate claim must not receive an adjusted p-value, got {}",
-            bh[0]
-        );
-        assert!(
-            by[0].is_nan(),
-            "degenerate claim must not receive an adjusted q-value, got {}",
-            by[0]
-        );
-        // the ordinary claim's family size stays 2 (conservative fill of the
-        // invalid test as p=1), it is not silently shrunk to 1.
-        let expected_bh = (2.0 * ordinary_p).min(1.0);
-        let expected_by = (3.0 * ordinary_p).min(1.0); // m=2 harmonic factor H_2 = 1.5
-        assert!((bh[1] - expected_bh).abs() < 1e-12, "bh={} expected={}", bh[1], expected_bh);
-        assert!((by[1] - expected_by).abs() < 1e-12, "by={} expected={}", by[1], expected_by);
-    }
-}
+mod fail_open_regression_tests;
 
 #[cfg(test)]
-mod max_t_diagnostic_tests {
-    use super::*;
-    use antecedent_core::{
-        CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-    };
-    use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage};
-    use antecedent_graph::DenseNodeId;
-
-    fn one_result() -> StudyResult {
-        let n = 20;
-        let mut t = vec![0.0; n];
-        let mut y = vec![0.0; n];
-        for i in 0..n {
-            let ti = f64::from(u32::try_from(i % 2).unwrap());
-            t[i] = ti;
-            y[i] = 2.0 * ti;
-        }
-        let mut builder = CausalSchemaBuilder::new();
-        for (name, role) in [("t", RoleHint::TreatmentCandidate), ("y", RoleHint::OutcomeCandidate)]
-        {
-            builder
-                .add_variable(
-                    name,
-                    ValueType::Continuous,
-                    SmallRoleSet::from_hint(role),
-                    None,
-                    None,
-                    MeasurementSpec::default(),
-                )
-                .unwrap();
-        }
-        let schema = builder.build().unwrap();
-        let cols: Vec<OwnedColumn> = [t, y]
-            .into_iter()
-            .enumerate()
-            .map(|(i, values)| {
-                OwnedColumn::Float64(
-                    Float64Column::new(
-                        VariableId::from_raw(u32::try_from(i).unwrap()),
-                        Arc::from(values),
-                        ValidityBitmap::all_valid(n),
-                    )
-                    .unwrap(),
-                )
-            })
-            .collect();
-        let data =
-            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
-        let mut dag = Dag::with_variables(2);
-        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-        let query =
-            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let ctx = ExecutionContext::for_tests(1);
-        Study::tabular(data)
-            .graph(dag)
-            .query(query)
-            .bootstrap_replicates(0)
-            .refute(RefuteSuite::None)
-            .build()
-            .unwrap()
-            .run(&ctx)
-            .unwrap()
-    }
-
-    #[test]
-    fn max_t_failure_leaves_a_diagnostic_instead_of_silent_none() {
-        let base = one_result();
-        let mut results = vec![base.clone(), base];
-        // A zero-variance claim next to a real one: `max_t_critical` refuses
-        // ("max-t requires positive finite SEs") on the degenerate diagonal entry.
-        let cov = antecedent_estimate::JointCovariance {
-            dim: 2,
-            values: Arc::from([0.0, 0.0, 0.0, 4.0]),
-        };
-        assert!(antecedent_estimate::max_t_critical(&cov, 0.95, 4096, 1).is_err());
-
-        let crit = resolve_max_t_critical(&mut results, &cov, "test interval");
-        assert!(crit.is_none());
-        for result in &results {
-            assert!(
-                result.diagnostics.iter().any(|d| &*d.code == "batch.joint_if.max_t_unavailable"
-                    && d.severity == antecedent_core::DiagnosticSeverity::Warning),
-                "expected a max_t_unavailable warning, got {:?}",
-                result.diagnostics
-            );
-        }
-    }
-}
+mod max_t_diagnostic_tests;
 
 #[cfg(test)]
-mod selection_review_tests {
-    use super::*;
-
-    #[test]
-    fn embedded_influence_keeps_the_claims_own_variance() {
-        // Six complete cases out of ten table rows. The claim's own variance is
-        // S / (n (n - 1)) with S the centred sum of squares; the joint covariance of the
-        // embedded column must reproduce it exactly.
-        let inf = [1.0, -2.0, 0.5, 3.0, -1.5, 4.0];
-        let rows = [0usize, 2, 3, 5, 6, 9];
-        let n = inf.len() as f64;
-        let mean = inf.iter().sum::<f64>() / n;
-        let s: f64 = inf.iter().map(|v| (v - mean).powi(2)).sum();
-        let own_variance = s / (n * (n - 1.0));
-        let col = embed_centered_influence(&inf, &rows, 10);
-        let cov = antecedent_estimate::joint_influence_covariance(&[col.as_slice()], None).unwrap();
-        assert!(
-            (cov.get(0, 0) - own_variance).abs() < 1e-12 * own_variance,
-            "joint variance {} vs own {own_variance}",
-            cov.get(0, 0)
-        );
-    }
-
-    #[test]
-    fn recorded_splits_reject_empty_duplicate_and_out_of_range_rows() {
-        let values = [0.0, 1.0, 2.0];
-        let data = TabularData::from_f64_columns([("x", values.as_slice())]).unwrap();
-        for (screen_rows, estimate_rows) in [
-            (vec![], vec![1]),
-            (vec![0], vec![]),
-            (vec![0, 0], vec![1]),
-            (vec![3], vec![1]),
-            (vec![0], vec![1, 1]),
-            (vec![0], vec![3]),
-        ] {
-            let screen = CandidateScreen {
-                screen_id: "review".into(),
-                procedure: CandidateProcedure::MaxT,
-                screen_rows: screen_rows.into(),
-                estimate_rows: estimate_rows.into(),
-            };
-            assert!(subset_estimate_rows(&data, Some(&screen)).is_err());
-        }
-    }
-}
+mod selection_review_tests;
 
 #[cfg(test)]
-mod shared_fold_tests {
-    use super::*;
+mod shared_fold_tests;
 
-    /// The shared assignment is a balanced shuffle keyed by the master seed: fold sizes
-    /// differ by at most one, the same seed reproduces it, another seed changes it, and
-    /// it is not the periodic `row % k` pattern that aliases with alternating designs.
-    #[test]
-    fn shared_folds_are_a_seeded_balanced_shuffle_not_row_modulo() {
-        let n = 103usize;
-        let values: Vec<f64> = (0..n).map(|i| i as f64).collect();
-        let data = TabularData::from_f64_columns([("x", values.as_slice())]).unwrap();
-        let compile = |seed: u64| SharedBatchDesign::compile(&data, &[], 5, seed).unwrap();
-        let a = compile(7);
-        let mut counts = [0usize; 5];
-        for &fold in a.fold_ids.iter() {
-            counts[fold as usize] += 1;
-        }
-        // 103 rows dealt round-robin over 5 folds: sizes 21, 21, 21, 20, 20.
-        counts.sort_unstable();
-        assert_eq!(counts, [20, 20, 21, 21, 21]);
-        assert_eq!(a.fold_ids, compile(7).fold_ids);
-        assert_ne!(a.fold_ids, compile(8).fold_ids);
-        let modulo: Vec<u32> = (0..n).map(|i| u32::try_from(i % 5).unwrap()).collect();
-        assert_ne!(a.fold_ids.to_vec(), modulo);
-        assert_eq!(a.fold_seed, 7);
-        // Rebinding to a same-size table keeps the seed, hence the assignment.
-        assert_eq!(a.rebind(&data).unwrap().fold_ids, a.fold_ids);
-    }
-}
+#[cfg(test)]
+mod shared_preparation_legality_tests;

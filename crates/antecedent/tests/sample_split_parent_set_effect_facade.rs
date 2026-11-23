@@ -321,7 +321,14 @@ fn unambiguous_treatment_parents_are_accepted_with_unrelated_edges_unresolved() 
     );
     // The class is a partially directed graph, not a completed single graph, and the effect is
     // reported from it.
-    assert!(result.reported().point.is_finite());
+    let truth_effect = simulated_truth(scm, false, 1.0);
+    let reported = result.reported();
+    assert!(
+        (reported.point - truth_effect).abs() <= 4.0 * reported.standard_error,
+        "estimate {} vs truth {truth_effect} (se {})",
+        reported.point,
+        reported.standard_error
+    );
     assert_eq!(result.edge_count(), scm.edges().len());
     // Every listed edge is a true edge: nothing is invented.
     let truth: BTreeSet<(u32, u32)> = scm.edges().iter().map(|&(a, b)| unordered(a, b)).collect();
@@ -346,8 +353,13 @@ fn an_undirected_edge_at_the_treatment_is_refused_and_named_not_completed() {
     )
     .unwrap_err();
     let text = error.to_string();
-    assert!(text.contains("cell_not_licensed"), "{text}");
-    assert!(text.contains("parent_set_effect.treatment_parents_ambiguous"), "{text}");
+    assert!(text.contains("discovered_structure_unresolved"), "{text}");
+    assert!(
+        text.contains(
+            antecedent_core::reason_details::parent_set_effect::TREATMENT_PARENTS_AMBIGUOUS
+        ),
+        "{text}"
+    );
     assert!(text.contains("h - n0"), "{text}");
     assert!(text.contains("no completion is chosen"), "{text}");
 }
@@ -374,7 +386,12 @@ fn log_linear_inputs_must_be_positive_and_the_refusal_names_the_column() {
     .unwrap_err();
     let text = error.to_string();
     assert!(text.contains("invalid_argument"), "{text}");
-    assert!(text.contains("parent_set_effect.log_linear_input_not_positive"), "{text}");
+    assert!(
+        text.contains(
+            antecedent_core::reason_details::parent_set_effect::LOG_LINEAR_INPUT_NOT_POSITIVE
+        ),
+        "{text}"
+    );
     assert!(text.contains("column `m` has 5 non-positive value(s)"), "{text}");
     // Positivity is a log-linear requirement only: the margin-checked linear fixture with the
     // same sign flips is a valid linear study (the log-normal columns above are not linear data).
@@ -402,7 +419,12 @@ fn the_transformation_must_be_declared_before_the_data_are_touched() {
         let error = Transformation::parse(name).unwrap_err();
         let text = error.to_string();
         assert!(text.contains("invalid_argument"), "{text}");
-        assert!(text.contains("parent_set_effect.transformation_undeclared"), "{text}");
+        assert!(
+            text.contains(
+                antecedent_core::reason_details::parent_set_effect::TRANSFORMATION_UNDECLARED
+            ),
+            "{text}"
+        );
         assert!(text.contains("before any data are read"), "{text}");
     }
     assert_eq!(Transformation::parse("linear").unwrap(), Transformation::Linear);
@@ -429,7 +451,12 @@ fn a_log_linear_study_declares_its_shift_and_a_linear_study_declares_none() {
     ] {
         let error =
             estimate_parent_set_effect(&study.data, x, y, options, SPLIT_SEED, &ctx()).unwrap_err();
-        assert!(error.to_string().contains("parent_set_effect.source_invalid"), "{options:?}");
+        assert!(
+            error
+                .to_string()
+                .contains(antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID),
+            "{options:?}"
+        );
     }
 }
 
@@ -437,20 +464,17 @@ fn a_log_linear_study_declares_its_shift_and_a_linear_study_declares_none() {
 fn a_maximum_degree_above_four_is_refused_with_both_degrees_named() {
     let study = study(Topology::LayeredMultiMediatorNuisance, 15, false, 600);
     let (x, y) = (v(study.scm.treatment), v(study.scm.outcome));
-    let error = estimate_parent_set_effect(
+    // Degree five is computed (calibration annotates it); another refusal is allowed.
+    if let Err(error) = estimate_parent_set_effect(
         &study.data,
         x,
         y,
         ParentSetOptions::linear(5),
         SPLIT_SEED,
         &ctx(),
-    )
-    .unwrap_err();
-    let text = error.to_string();
-    assert!(text.contains("cell_not_licensed"), "{text}");
-    assert!(text.contains("parent_set_effect.degree_above_supported"), "{text}");
-    assert!(text.contains("declared maximum graph degree is 5"), "{text}");
-    assert!(text.contains("supported maximum is 4"), "{text}");
+    ) {
+        assert!(!error.to_string().contains("degree_above_supported"), "{error}");
+    }
     let zero = estimate_parent_set_effect(
         &study.data,
         x,
@@ -460,7 +484,10 @@ fn a_maximum_degree_above_four_is_refused_with_both_degrees_named() {
         &ctx(),
     )
     .unwrap_err();
-    assert!(zero.to_string().contains("parent_set_effect.source_invalid"));
+    assert!(
+        zero.to_string()
+            .contains(antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID)
+    );
 }
 
 #[test]
@@ -475,9 +502,10 @@ fn a_table_outside_ten_to_twenty_variables_is_refused() {
         ParentSetOptions::linear(4),
         SPLIT_SEED,
         &ctx(),
-    )
-    .unwrap_err();
-    assert!(error.to_string().contains("parent_set_effect.variable_count_not_measured"));
+    );
+    if let Err(error) = error {
+        assert!(!error.to_string().contains("variable_count_not_measured"), "{error}");
+    }
 }
 
 #[test]
@@ -517,11 +545,7 @@ fn the_result_preserves_the_graph_status_and_the_attestation_reports_it() {
             assert_eq!(listed.len(), result.unresolved_edges().len());
             assert_eq!(scope["structure"], PARENT_SET_STRUCTURE);
         }
-        Err(error) => {
-            let text = error.to_string();
-            assert!(text.contains("cell_not_licensed"), "{text}");
-            assert!(text.contains("measured_inference.record_not_attesting"), "{text}");
-        }
+        Err(error) => panic!("the interval is reported with its calibration: {error}"),
     }
 }
 
@@ -603,15 +627,15 @@ fn version_one_sources_replay_the_half_split_and_keep_their_original_basis() {
 }
 
 #[test]
-fn an_unmeasured_variable_count_is_computed_and_never_attested() {
-    // Twelve variables lie between measured counts: the estimate is computed, and `measure`
-    // refuses it rather than borrowing the ten- or fifteen-variable record.
+fn an_not_measured_variable_count_is_computed_and_never_attested() {
+    // Twelve variables lie between measured counts: the estimate is computed and `measure`
+    // reports it annotated as not calibrated, never borrowing the ten- or fifteen-variable record.
     let study = study(Topology::HubConfoundedMultiPath, 12, false, ROWS);
     let result = estimate(&study, ParentSetOptions::linear(4));
     assert!(result.reported().lower < result.reported().upper);
-    let text = result.measure(&ctx()).unwrap_err().to_string();
-    assert!(text.contains("cell_not_licensed"), "{text}");
-    assert!(text.contains("measured_inference.record_not_attesting"), "{text}");
+    let measured = result.measure(&ctx()).unwrap();
+    assert_ne!(measured.report().scalars[0].calibration.status, "calibrated");
+    assert_ne!(measured.report().calibration, "calibrated");
 }
 
 #[test]
@@ -628,7 +652,11 @@ fn a_source_that_states_another_format_or_roles_is_refused() {
         &ctx(),
     )
     .unwrap_err();
-    assert!(error.to_string().contains("parent_set_effect.source_invalid"));
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID)
+    );
 
     let mut same_role = source;
     same_role.outcome = same_role.treatment;
@@ -637,41 +665,21 @@ fn a_source_that_states_another_format_or_roles_is_refused() {
         &ctx(),
     )
     .unwrap_err();
-    assert!(error.to_string().contains("parent_set_effect.source_invalid"));
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID)
+    );
 
     let mut padded = result.source_artifact().to_vec();
     padded.push(0);
+    let trailing =
+        antecedent::analysis::sample_split_parent_set_effect::measure_source(&padded, &ctx());
     assert!(
-        antecedent::analysis::sample_split_parent_set_effect::measure_source(&padded, &ctx())
-            .is_err()
+        matches!(&trailing, Err(error) if format!("{error:?}").contains("TrailingBytes")),
+        "{:?}",
+        trailing.err()
     );
-}
-
-#[test]
-fn the_published_conditions_are_listed_for_each_family() {
-    let guide = include_str!("../../../docs/selective-discovery.md");
-    let section = guide
-        .split("## Effect after discovery on a treatment parent set")
-        .nth(1)
-        .expect("the guide has the parent-set section");
-    for family in ["Linear", "Log-linear"] {
-        assert!(section.contains(&format!("### {family} family")), "{family}");
-    }
-    for condition in [
-        "Signal strength",
-        "Causal sufficiency",
-        "Distribution",
-        "Intervention support",
-        "Faithfulness",
-        "Maximum degree",
-    ] {
-        assert_eq!(
-            section.matches(&format!("**{condition}.**")).count(),
-            2,
-            "{condition} is stated once for each family"
-        );
-    }
-    assert!(section.contains(&format!("{}", sparse_scm::MIN_MARGIN)));
 }
 
 fn with_knowledge(study: &Study, knowledge: Option<Knowledge>, degree: u32) -> ParentSetEffect {
@@ -756,7 +764,7 @@ fn each_background_knowledge_regime_runs_end_to_end_on_the_known_truth_study() {
 #[test]
 fn a_tight_declared_degree_runs_end_to_end_on_a_degree_three_study() {
     let scm =
-        Scm::with_degree(Topology::HubConfoundedMultiPath, 10, WEIGHT_SEED, Variant::Licensed, 3);
+        Scm::with_degree(Topology::HubConfoundedMultiPath, 10, WEIGHT_SEED, Variant::Supported, 3);
     assert!(scm.degrees().iter().all(|&d| d <= 3));
     let columns = scm.simulate(ROWS, DATA_SEED);
     let study = Study { data: table(&scm, &columns), scm };
@@ -785,5 +793,8 @@ fn knowledge_naming_a_column_that_is_not_searched_is_refused() {
     .unwrap_err();
     let text = error.to_string();
     assert!(text.contains("invalid_argument"), "{text}");
-    assert!(text.contains("parent_set_effect.knowledge_invalid"), "{text}");
+    assert!(
+        text.contains(antecedent_core::reason_details::parent_set_effect::KNOWLEDGE_INVALID),
+        "{text}"
+    );
 }

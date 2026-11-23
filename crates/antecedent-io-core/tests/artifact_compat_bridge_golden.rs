@@ -10,7 +10,7 @@
 //! Generate or refresh it with
 //! `cargo test -p antecedent-io-core --test artifact_compat_bridge_golden -- --ignored write_`
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -123,6 +123,10 @@ fn surrogate_contract() -> BridgeContract {
             evidence: Some("meta-analysis:ckd-2024".into()),
         }],
         transport: None,
+
+        mapping_uncertainty: None,
+        source_dependence: None,
+        estimand_bridge: None,
     }
 }
 
@@ -132,7 +136,7 @@ fn derived() -> (BridgedClaim, ClaimEnvelope, ScientificQuantity) {
     let quantity = contract.source.quantity.clone();
     let bridged =
         derive_bridged_claim(&contract, &BridgeSource { claim: &source, quantity: &quantity })
-            .expect("licensed bridge");
+            .expect("supported bridge");
     (bridged, source, quantity)
 }
 

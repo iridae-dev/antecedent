@@ -1,10 +1,12 @@
 //! Conservative structural transportability identification.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
-use antecedent_core::{ResponseFunctional, TransportOutcome, TransportQuery, VariableId};
+use antecedent_core::{
+    ExecutionContext, ResponseFunctional, TransportOutcome, TransportQuery, VariableId,
+};
 use antecedent_graph::{BitSet, DenseNodeId, SelectionDiagram};
 
 use crate::selection_separation::{
@@ -165,11 +167,44 @@ impl TransportIdentifier {
         diagram: &SelectionDiagram,
         query: &TransportQuery,
     ) -> Result<TransportIdentification, IdentificationError> {
+        Self::identify_in_context(diagram, query, None)
+    }
+
+    /// Identify under the caller's cancellation and exact-search storage budget.
+    ///
+    /// # Errors
+    /// The errors of [`Self::identify`], or a typed memory/cancellation outcome.
+    pub fn identify_with_context(
+        &self,
+        diagram: &SelectionDiagram,
+        query: &TransportQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<TransportIdentification, IdentificationError> {
+        let result = Self::identify_in_context(diagram, query, Some(ctx))?;
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled);
+        }
+        Ok(result)
+    }
+
+    fn identify_in_context(
+        diagram: &SelectionDiagram,
+        query: &TransportQuery,
+        context: Option<&ExecutionContext>,
+    ) -> Result<TransportIdentification, IdentificationError> {
+        if context.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+            return Err(IdentificationError::Cancelled);
+        }
         antecedent_core::execution_attempt::run_operation(
             antecedent_core::execution_attempt::Operation::Identification,
             || {
                 crate::execution_counts::note_check();
-                let result = Self::identify_structural(diagram, query)?;
+                let result = Self::identify_structural_within(
+                    diagram,
+                    query,
+                    standardizer_subset_budget(),
+                    context,
+                )?;
                 let bound = bind_catalog(result, query);
                 if matches!(bound, TransportIdentification::MissingEvidence(_))
                     && diagram.causal_graph().district_count()
@@ -197,13 +232,6 @@ impl TransportIdentifier {
         )
     }
 
-    fn identify_structural(
-        diagram: &SelectionDiagram,
-        query: &TransportQuery,
-    ) -> Result<TransportIdentification, IdentificationError> {
-        Self::identify_structural_within(diagram, query, standardizer_subset_budget())
-    }
-
     #[allow(
         clippy::too_many_lines,
         reason = "one linear identification pipeline whose stages share the prepared graph and workspace"
@@ -212,6 +240,7 @@ impl TransportIdentifier {
         diagram: &SelectionDiagram,
         query: &TransportQuery,
         subset_budget: usize,
+        context: Option<&ExecutionContext>,
     ) -> Result<TransportIdentification, IdentificationError> {
         query.validate().map_err(|error| IdentificationError::invalid_input(error.to_string()))?;
         let graph = diagram.causal_graph();
@@ -274,6 +303,15 @@ impl TransportIdentifier {
                 &outcome_ancestors,
             );
         }
+        // Reflexive descendants of the treatments, computed once.
+        let treatment_nodes =
+            treatments.iter().map(|x| prepared.var_to_dense(*x)).collect::<Result<Vec<_>, _>>()?;
+        let mut treated_downstream = BitSet::with_len(graph.node_count());
+        graph.descendants_of(
+            &treatment_nodes,
+            &mut treated_downstream,
+            &mut antecedent_graph::GraphWorkspace::default(),
+        );
         if !source_experiments_cover(query, &treatments) {
             return Ok(TransportIdentification::MissingEvidence(MissingEvidenceCertificate {
                 reason: Arc::from("transport.source_experiment_missing"),
@@ -294,15 +332,6 @@ impl TransportIdentifier {
         // quantity the query asks for. Such a diagram falls through to the S-admissible
         // search and then to `NotCertified`.
         let mut safe_standardizers = !relevant_selection.iter().any(|z| outcomes.contains(z));
-        // Reflexive descendants of the treatments, computed once.
-        let treatment_nodes =
-            treatments.iter().map(|x| prepared.var_to_dense(*x)).collect::<Result<Vec<_>, _>>()?;
-        let mut treated_downstream = BitSet::with_len(graph.node_count());
-        graph.descendants_of(
-            &treatment_nodes,
-            &mut treated_downstream,
-            &mut antecedent_graph::GraphWorkspace::default(),
-        );
         for z in &relevant_selection {
             let dz = prepared.var_to_dense(*z)?;
             let downstream = treated_downstream.contains(dz);
@@ -313,21 +342,7 @@ impl TransportIdentifier {
         if safe_standardizers {
             let over: Arc<[VariableId]> = relevant_selection.clone().into();
             return Ok(TransportIdentification::Transportable {
-                formula: TransportFormula::Standardize {
-                    over: Arc::clone(&over),
-                    source_response: response_factor(
-                        Arc::clone(&query.source_population),
-                        &outcomes,
-                        &over,
-                        &treatments,
-                    ),
-                    target_law: response_factor(
-                        Arc::clone(&query.target_population),
-                        &over,
-                        &[],
-                        &[],
-                    ),
-                },
+                formula: standardization_formula(query, &outcomes, &treatments, &over),
                 certificate: TransportCertificate {
                     rule: Arc::from("transport.sid.standardize"),
                     selection_targets: over,
@@ -343,26 +358,18 @@ impl TransportIdentifier {
         // P*(y | do(x)) = sum_z P(y | do(x), z) P*(z). We search all pre-treatment
         // observed subsets so that the target factor is observational P*(z), rather
         // than silently treating a post-treatment law as observational.
-        let search =
-            s_admissible_standardizers(diagram, &prepared, &outcomes, &treatments, subset_budget)?;
+        let search = s_admissible_standardizers(
+            diagram,
+            &prepared,
+            &outcomes,
+            &treatments,
+            subset_budget,
+            context,
+        )?;
         if let StandardizerSearch::Found(over) = &search {
             let over = Arc::clone(over);
             return Ok(TransportIdentification::Transportable {
-                formula: TransportFormula::Standardize {
-                    over: Arc::clone(&over),
-                    source_response: response_factor(
-                        Arc::clone(&query.source_population),
-                        &outcomes,
-                        &over,
-                        &treatments,
-                    ),
-                    target_law: response_factor(
-                        Arc::clone(&query.target_population),
-                        &over,
-                        &[],
-                        &[],
-                    ),
-                },
+                formula: standardization_formula(query, &outcomes, &treatments, &over),
                 certificate: TransportCertificate {
                     rule: Arc::from("transport.sid.s_admissible"),
                     selection_targets: diagram.selection_targets().to_vec().into(),
@@ -413,6 +420,28 @@ impl TransportIdentifier {
             });
         }
 
+        // No tier above applies. An intervention on non-ancestors of the outcomes still leaves
+        // the outcomes' law as the target's observational law, whatever the selection structure
+        // around them.
+        if !outcomes.iter().any(|y| {
+            prepared.var_to_dense(*y).is_ok_and(|dense| treated_downstream.contains(dense))
+        }) {
+            return Ok(TransportIdentification::Transportable {
+                formula: TransportFormula::Direct(response_factor(
+                    Arc::clone(&query.target_population),
+                    &outcomes,
+                    &[],
+                    &[],
+                )),
+                certificate: TransportCertificate {
+                    rule: Arc::from("transport.sid.treatment_irrelevant"),
+                    selection_targets: diagram.selection_targets().to_vec().into(),
+                    premises: Arc::from([Arc::from(
+                        "no treatment is an ancestor of a requested outcome, so the outcome law under the intervention is the target observational law",
+                    )]),
+                },
+            });
+        }
         if matches!(search, StandardizerSearch::Capped) {
             return Ok(TransportIdentification::NotCertified(NotCertifiedCertificate {
                 reason: Arc::from("transport.sid.standardizer_search_capped"),
@@ -429,6 +458,24 @@ impl TransportIdentifier {
                 "a population-varying outcome ancestor lies in a graph requiring general c-component recursion; no non-transportability claim is made",
             ),
         }))
+    }
+}
+
+fn standardization_formula(
+    query: &TransportQuery,
+    outcomes: &[VariableId],
+    treatments: &[VariableId],
+    over: &Arc<[VariableId]>,
+) -> TransportFormula {
+    TransportFormula::Standardize {
+        over: Arc::clone(over),
+        source_response: response_factor(
+            Arc::clone(&query.source_population),
+            outcomes,
+            over,
+            treatments,
+        ),
+        target_law: response_factor(Arc::clone(&query.target_population), over, &[], &[]),
     }
 }
 
@@ -499,7 +546,7 @@ fn target_g_formula(
             rule: Arc::from("transport.sid.target_g_formula"),
             selection_targets: diagram.selection_targets().to_vec().into(),
             premises: Arc::from([Arc::from(
-                "causal sufficiency licenses the target observational truncated factorization",
+                "causal sufficiency supports the target observational truncated factorization",
             )]),
         },
     })
@@ -539,11 +586,9 @@ fn bind_catalog(
         };
         let needed = need.needed_variables();
         let regime = catalog.satisfying_regime(&need).map(|regime| regime.id);
-        if sampling_valid {
-            if let Some(regime) = regime {
-                factor.regime = Some(regime);
-                continue;
-            }
+        if sampling_valid && let Some(regime) = regime {
+            factor.regime = Some(regime);
+            continue;
         }
         // A catalog is an evidence declaration, and silence is not evidence: a target factor no
         // declared regime supplies is missing, whether or not the catalog lists any regime for
@@ -579,6 +624,7 @@ fn s_admissible_standardizers(
     outcomes: &[VariableId],
     treatments: &[VariableId],
     subset_budget: usize,
+    context: Option<&ExecutionContext>,
 ) -> Result<StandardizerSearch, IdentificationError> {
     let graph = diagram.causal_graph();
     let n = graph.node_count();
@@ -604,6 +650,15 @@ fn s_admissible_standardizers(
         treated.insert(*node);
     }
     let targets = dense_all(prepared, diagram.selection_targets())?;
+    let mut search = context.map(crate::exact_search::ExactSearch::open).transpose()?;
+    if let Some(search) = &mut search {
+        let nodes = n.saturating_add(targets.len());
+        if !search.hold(crate::exact_search::graph_bytes(nodes))?
+            || !search.fund_enumeration(candidates.len(), usize::MAX, 1)?
+        {
+            return Err(IdentificationError::budget(crate::IdentificationBudget::Memory));
+        }
+    }
     let selection = MutilatedSelection::build(graph, &all, &treated, &targets)?;
     let mut found = None;
     let end = for_each_admissible_subset(
@@ -612,7 +667,7 @@ fn s_admissible_standardizers(
         &treatment_nodes,
         &candidates,
         subset_budget,
-        || Ok(()),
+        || search.as_mut().map_or(Ok(()), crate::exact_search::ExactSearch::observe),
         |subset| {
             found = Some(
                 subset
@@ -912,6 +967,13 @@ mod tests {
     #[test]
     fn multi_node_district_returns_scoped_negative_certificate() {
         let mut graph = Admg::with_variables(3);
+        // The treatment acts on the outcome, so the intervention is relevant to it.
+        graph
+            .insert_directed(
+                dense(&graph, VariableId::from_raw(0)),
+                dense(&graph, VariableId::from_raw(2)),
+            )
+            .unwrap();
         graph
             .insert_directed(
                 dense(&graph, VariableId::from_raw(1)),
@@ -1164,7 +1226,31 @@ mod tests {
         let (z, y) = (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1));
         graph.insert_directed(z, y).unwrap();
         graph.insert_bidirected(z, y).unwrap();
+        // The treatment X acts on the outcome, so the intervention is not irrelevant to it.
+        graph.insert_directed(DenseNodeId::from_raw(2), y).unwrap();
         SelectionDiagram::try_new(graph, [VariableId::from_raw(0)]).unwrap()
+    }
+
+    #[test]
+    fn treatment_that_is_not_an_outcome_ancestor_transports_the_target_outcome_law() {
+        // Z -> Y, Z <-> Y, X isolated, selection on Z: X cannot affect Y, so the response to
+        // do(X) is the target's observational P*(y), whatever the collider at Z does to
+        // standardization.
+        let mut graph = Admg::with_variables(3);
+        let (z, y) = (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1));
+        graph.insert_directed(z, y).unwrap();
+        graph.insert_bidirected(z, y).unwrap();
+        let diagram = SelectionDiagram::try_new(graph, [VariableId::from_raw(0)]).unwrap();
+        let result = TransportIdentifier::new().identify(&diagram, &query_over(1, 2)).unwrap();
+        let TransportIdentification::Transportable { formula, certificate } = result else {
+            panic!("the target outcome law transports: {result:?}");
+        };
+        assert_eq!(&*certificate.rule, "transport.sid.treatment_irrelevant");
+        let TransportFormula::Direct(factor) = formula else { panic!("direct formula") };
+        assert_eq!(&*factor.population, "target");
+        assert_eq!(*factor.variables, [VariableId::from_raw(1)]);
+        assert!(factor.conditioned_on.is_empty());
+        assert!(factor.interventions.is_empty());
     }
 
     #[test]
@@ -1175,6 +1261,7 @@ mod tests {
             &selected_collider_graph(25),
             &query,
             64,
+            None,
         )
         .unwrap();
         let TransportIdentification::NotCertified(refusal) = capped else {
@@ -1186,12 +1273,38 @@ mod tests {
             &selected_collider_graph(3),
             &query,
             usize::MAX,
+            None,
         )
         .unwrap();
         let TransportIdentification::NotCertified(refusal) = exhaustive else {
             panic!("expected a refusal: {exhaustive:?}");
         };
         assert_eq!(&*refusal.reason, "transport.sid.multinode_c_component_not_implemented");
+    }
+
+    #[test]
+    fn contextual_standardizer_search_keeps_its_result_and_returns_budget_leases() {
+        let diagram = selected_collider_graph(3);
+        let query = query_over(1, 2);
+        let identifier = TransportIdentifier::new();
+        let baseline = identifier.identify(&diagram, &query).unwrap();
+        let ample =
+            antecedent_core::ExecutionContext::for_tests(17).with_memory_limit(Some(1 << 20));
+        let before = ample.admission().available();
+        assert_eq!(identifier.identify_with_context(&diagram, &query, &ample).unwrap(), baseline);
+        assert_eq!(ample.admission().available(), before);
+        let tiny = antecedent_core::ExecutionContext::for_tests(17).with_memory_limit(Some(1));
+        let before = tiny.admission().available();
+        assert!(matches!(
+            identifier.identify_with_context(&diagram, &query, &tiny),
+            Err(IdentificationError::Budget { budget: crate::IdentificationBudget::Memory })
+        ));
+        assert_eq!(tiny.admission().available(), before);
+        ample.cancellation.cancel();
+        assert_eq!(
+            identifier.identify_with_context(&diagram, &query, &ample),
+            Err(IdentificationError::Cancelled)
+        );
     }
 
     #[test]

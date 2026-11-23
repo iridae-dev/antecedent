@@ -6,16 +6,16 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Causality: Models, Reasoning, and Inference (2nd ed.)", doi = "10.1017/CBO9780511803161", sections = ["Chapter 1: conditional probability and the Markovian factorization", "Chapter 3: the do-operator and truncated factorization; observing versus intervening"] },
-  { title = "Estimating Prevalence from the Results of a Screening Test (Rogan and Gladen, Am J Epidemiol 107:71-76)", doi = "10.1093/oxfordjournals.aje.a112510", sections = ["Sensitivity and specificity as the declared error of a binary indicator"] },
+  { title = "Causality", citation_note = "Previously recorded title and bibliographic detail: Causality: Models, Reasoning, and Inference (2nd ed.)", doi = "10.1017/CBO9780511803161", sections = ["Chapter 1: conditional probability and the Markovian factorization", "Chapter 3: the do-operator and truncated factorization; observing versus intervening"] },
+  { title = "ESTIMATING PREVALENCE FROM THE RESULTS OF A SCREENING TEST", citation_note = "Previously recorded title and bibliographic detail: Estimating Prevalence from the Results of a Screening Test (Rogan and Gladen, Am J Epidemiol 107:71-76)", doi = "10.1093/oxfordjournals.aje.a112510", sections = ["Sensitivity and specificity as the declared error of a binary indicator"] },
 ]
 
 implementation_deviations = [
   "Conditioning and intervention are not new methods: the conditional law is the ratio of two finite sums of the composed model's exact joint law, and the interventional law is the model's existing truncated factorization. The module adds the pairing, the operation tag in the claim's identity and the refusals; it estimates nothing.",
   "A measured signal is conditioned on through Bayes inversion of the declared likelihood P(recorded | construct) against the model's own law of the construct. The route rests on the premise that the indicator is conditionally independent of the outcome and of every other observed variable given the construct (non-differential error); that premise is declared by the measurement model's error structure and error declared to differ by arm, population or time is refused, not pooled. The Rogan-Gladen estimator is cited only for the sensitivity/specificity parameterisation; the prevalence correction itself is a different route.",
-  "A recorded value of an indicator used as the construct, an assigned value in a conditioning slot, and a request that mixes observations with an intervention are refused with typed details. The mixed (conditional interventional) distribution is not computed.",
+  "A recorded indicator used as the construct, an assigned value smuggled into a conditioning-only slot, and a variable both observed and intervened on are refused with typed details. Explicit observation-after-intervention requests now compute the bounded finite or linear-Gaussian mixed conditional law; this supersedes the original no-mixed-query restriction.",
   "A threshold-crossing query lists, for each observed level of one signal, the exact conditional probability and the probability of observing that level; a threshold no observed level reaches is refused with the most extreme conditional probability attained.",
-  "Values are exact given the declared tables and carry no sampling uncertainty. A value computed from tables fitted to a sample is a labelled point value; no interval, posterior or calibration claim is made and both routes are closed with cell_not_licensed.",
+  "Values are exact given the declared finite tables or linear-Gaussian coefficients. Fitted mechanisms give labelled point values. Retained counts and regression data now permit Dirichlet/Normal-Inverse-Gamma parameter redraw with explicitly uncalibrated spread; this is distinct from a measured probability interval. Calibration-dependent parameter intervals remain closed without attesting records.",
 ]
 
 upstream_implementations_observed = []
@@ -27,4 +27,39 @@ test_sources = [
   "crates/antecedent-contract/src/observation_query.rs",
   "crates/antecedent-io-core/tests/observation_query_artifact.rs",
   "crates/antecedent/tests/observation_query_facade.rs",
+  "conformance/composition/dirichlet_conditioning/expected.json (independent Beta quadrature for posterior-functional moments; no sampling-coverage claim)",
+  "crates/antecedent-model/tests/finite_law_conditioning_reference.rs (exact rational enumeration of condition, intervene, observation after intervention, measured-indicator and threshold queries)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "observation_query::condition, intervene, condition_after_intervention, condition_on_measured and threshold_crossing_observations on a composed finite model with tabular mechanisms: the conditional law as a ratio of sums of the exact joint, the interventional law, observation after intervention, the Bayes-inverted conditional given the recorded value of an indicator with a declared likelihood, and the per-level threshold-crossing table with its tolerance and unreachable refusal. The joint law and truncated factorization are produced by ComposedFinite (record mechanism_composition.acyclic_joint_model, which carries its own review); this review does not take that joint on trust: the reference enumerates the declared tables itself and the product must agree on every query. Not reviewed: the Gaussian conditioning route (condition_gaussian), the finite Bayes model and Beta-Bernoulli updates and the evidence-requirement solves (reviewed under observation_query.posterior_update and observation_query.evidence_requirement), the Dirichlet and Normal-Inverse-Gamma parameter redraw, and the wire/artifact encodings."
+assumptions = ["The model is a finite Markovian composition whose tables the caller declared; the reference uses the same tables and the premise that the indicator is conditionally independent of every other variable given the construct.", "Probabilities are dyadic so the doubles handed to the product are exact rationals; the product's floating-point sums are compared to the exact values at 1e-12 absolute."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library (Fraction). It declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Three random dyadic models of four variables (a three-level root, a binary child, a ternary indicator with a level of zero probability under every parent, and a ternary outcome with two parents) with 5 to 6 conditionings, 4 interventions, 3 observations after intervention, 11 measured-indicator queries (likelihoods including zeros and an indicator that excludes a construct level) and 28 to 42 threshold queries per model (thresholds at an attained conditional, at the extremes and just above the largest), plus the zero-evidence and unreachable refusals, all compared at 1e-12. The measured-indicator oracle adds the indicator as an extra variable and conditions the enlarged model, which is the definition the product's summation formula must agree with. Models are small (at most 54 joint cells); wide laws, large level counts and the cancellation guards of a long chain are covered only by the existing tests of the module, not by this reference. Conditioning on an observation of probability zero is checked as a refusal only for the routes listed. The Rogan-Gladen citation supplies the sensitivity/specificity parameterisation only and nothing of it is implemented; no paper was retrieved."
+sources = ["https://doi.org/10.1017/CBO9780511803161"]
+findings_resolved = ["No defect found: condition, intervene, condition_after_intervention, condition_on_measured and threshold_crossing_observations agreed with the exact enumeration on every query, including refusals. Level order of the law is the model's own and differs from the declared order of a table; the review matches levels by name."]
+record_sha256 = "935518107bd707258ef0dbd9983af474ceccfefd0b9ef8dae264693b6c8a7f46"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/observation_query.rs"
+items = ["const LEVEL_TOLERANCE", "const MAX_BAYES_HYPOTHESES", "const MAX_BAYES_OBSERVATION_LEVELS", "const MAX_BAYES_TABLE_CELLS", "const MAX_BAYES_UPDATE_WORK", "const SIMPLEX_TOLERANCE", "enum Direction", "enum ObservationQueryError", "enum UnreachableBound", "fn alpha", "fn beta", "fn bucketed", "fn check_closed_probability", "fn check_update_work", "fn composition", "fn condition", "fn condition_after_intervention", "fn condition_gaussian", "fn condition_on_measured", "fn distinct_names", "fn hypotheses", "fn intervene", "fn intervened_law", "fn level_index", "fn likelihood", "fn mean", "fn named_levels", "fn new", "fn observation_levels", "fn posterior", "fn posterior_from_counts", "fn prior", "fn resolve_assignments", "fn threshold_crossing_observations", "fn variable_index", "struct BayesPosterior", "struct ConditionalDistribution", "struct GaussianConditional", "struct MeasuredConditional", "struct SignalLevelOutcome", "struct ThresholdCrossing"]
+sha256 = "8543bea014ce170c1141bd893f3b6bfcc477a0e750af8501b26e5acbab531a22"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/tests/finite_law_conditioning_reference.rs"
+items = ["const TOL", "fn borrowed", "fn build", "fn compare", "fn pairs", "fn queries_match_an_exact_rational_enumeration", "fn strings"]
+sha256 = "777fe06d1ee17b9d3f014cca0dc55a13ca009439c79189d4260af67e0a308404"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-model/tests/oracle_data/finite_law_conditioning_reference.py"
+sha256 = "4bfc55b393da4fb3f9a953a9bc275c2d4eb11c6e9bf09bc02d055a6c95215d24"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-model/tests/oracle_data/finite_law_conditioning_reference.json"
+sha256 = "b9527895d7a96ebbd5d17e8fe64ec3314b107ae13cea148ad591d1587c6de65f"

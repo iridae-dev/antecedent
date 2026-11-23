@@ -5,7 +5,11 @@
 
 use pyo3::prelude::*;
 
+use super::array_fit_api;
 use super::sequential_evaluation_api;
+use super::staleness_api;
+use super::temporal_design_api;
+use super::unsupported_design_api;
 use super::{
     AnalysisResult, ArrowLoadInfo, AteAnalysisResult, BayesianConfig, CandidateSelectionSection,
     CausalAttributionError, CausalCancelledError, CausalCompileError, CausalCounterfactualError,
@@ -18,59 +22,74 @@ use super::{
     PosteriorSection, PredictSummary, ProbabilityIntervalSection, PyCancellationToken, PyDict,
     RefutationReportView, RefuteSuite, RpcmciDiscoverySummary, ScoreInferenceSection,
     ScoreTableSection, ValidationFailureSection, ValidationSection, adaptive_inference_api,
-    adaptive_participant_api, adaptive_procedure_api, artifact_api, ate_api, attribution_api,
-    bayesian, bounds_api, candidate_screen_api, categorical_treatment_api, closed_pilot_api,
+    adaptive_participant_api, adaptive_policy_api, adaptive_procedure_api, artifact_api,
+    association_api, ate_api, attribution_api, bayesian, bounds_api, candidate_screen_api,
+    categorical_posterior_candidate_api, categorical_treatment_api, checked_claim_api,
     cohort_decision_api, compact_export_api, composition_api, composition_bundle_api,
     composition_verification_api, counterfactual_id_api, cpdag_scenario_api, cross_world_api,
     cross_world_execution_api, decision_api, decision_reliability_api, default_user_threads,
     derived_treatment_api, descriptive_api, design_api, design_ranking_api,
     discovered_transport_api, discovery_api, discretized_composition_api, distribution_api,
     dose_grid_api, effect_constancy_api, effect_constancy_review_api, evidence_ledger_api,
-    execution_attempt_api, experiment_api, external_api, factorial_api, forward_source_api,
-    gcm_api, graph_falsification_api, graph_io, graphs, interface_contract_api,
-    interference_saturation_api, inverse_outcome_api, inverse_query_api, joint_law_propagation_api,
-    joint_transport_api, latent_class_api, learned_continuous_api, learned_joint_api,
-    learned_trial_api, load_float64_arrow_c_columns, load_float64_columns,
-    matched_case_control_api, measured_inference_api, measurement_model_api,
-    mechanism_composition_api, mechanism_discrepancy_api, msm_sensitivity_api,
-    multi_level_treatment_api, nested_bayesian_api, nested_fisher_api, nonlinear_mediation_api,
-    observation_api, observation_query_api, observational_interference_api,
-    observational_policy_api, observational_survival_api, policy_api, predictive_assessment_api,
+    evidence_plan_api, execution_attempt_api, experiment_api, external_api, fallback_report_api,
+    fallback_stage_api, forward_source_api, gcm_api, graph_falsification_api, graph_io,
+    graph_selection_api, graphs, horizon_composition_api, interface_adapters_api,
+    interface_contract_api, interference_saturation_api, inverse_outcome_api, inverse_query_api,
+    joint_law_propagation_api, joint_response_api, joint_transport_api, latent_class_api,
+    learned_continuous_api, learned_joint_api, learned_trial_api, load_float64_arrow_c_columns,
+    load_float64_columns, load_float64_panel_columns, matched_case_control_api,
+    measured_exposure_api, measured_inference_api, measurement_exposure_api, measurement_model_api,
+    mechanism_composition_api, mechanism_discrepancy_api, mnar_fixed_shift_api,
+    mnar_sensitivity_api, msm_sensitivity_api, multi_level_treatment_api, nested_bayesian_api,
+    nested_fisher_api, nonlinear_mediation_api, observation_api, observation_query_api,
+    observational_interference_api, observational_policy_api, observational_survival_api,
+    policy_api, posterior_boundary_api, posterior_row_api, predictive_assessment_api,
     preflight_api, prepared_api, prior_bank, prior_signal_api, program_claims_api,
-    proposal_arrival_api, provider_api, provider_callbacks_api, quasi_api, recalc_adjusted_api,
-    recalc_api, recalc_bayesian_api, recalc_cell_api, recalc_composite_api, recalc_design_api,
-    recalc_dr_api, recalc_external_api, recalc_static_api, recalc_temporal_api, recovery_api,
-    recovery_chain_api, regimes_api, repair_api, response_api, scenario_invariance_api,
-    scientific_bridge_api, selective_discovery_api, sensitivity_decision_api,
-    sensitivity_source_api, set_not_identified_error_class, set_review_error_class,
-    set_unsupported_error_class, set_value_error_class, smoothed_dose_api, source_evidence_api,
-    source_projection_api, stability, state_api, study_planning_api, survival_api, temporal_api,
-    temporal_counterfactual_api, temporal_extension_api, temporal_license, temporal_transport_api,
-    transport_admg_conditional_api, transport_counterfactual_api,
-    transport_counterfactual_sampled_api, transport_exact_api, transport_grid_api,
-    transport_interference_api, transport_joint_sensitivity_api, transport_mixed_api,
-    transport_mz_api, transport_revalidation_api, transport_scenario_api,
+    propagation_chain_api, proposal_arrival_api, provider_api, provider_callbacks_api, quasi_api,
+    recalc_adjusted_api, recalc_api, recalc_bayesian_api, recalc_cell_api, recalc_composite_api,
+    recalc_design_api, recalc_dr_api, recalc_external_api, recalc_standing_api, recalc_static_api,
+    recalc_temporal_api, recovery_api, recovery_chain_api, regimes_api, repair_api, response_api,
+    scenario_invariance_api, scientific_bridge_api, scope_refusal_api, selective_discovery_api,
+    sensitivity_decision_api, sensitivity_source_api, set_not_identified_error_class,
+    set_review_error_class, set_unsupported_error_class, set_value_error_class, smoothed_dose_api,
+    source_evidence_api, source_projection_api, stability, state_api, study_planning_api,
+    survival_api, temporal_api, temporal_counterfactual_api, temporal_extension_api,
+    temporal_support, temporal_transport_api, transport_admg_conditional_api,
+    transport_counterfactual_api, transport_counterfactual_sampled_api, transport_exact_api,
+    transport_grid_api, transport_interference_api, transport_joint_sensitivity_api,
+    transport_mixed_api, transport_mz_api, transport_revalidation_api, transport_scenario_api,
     transport_statistical_api, transport_z_api, transported_constructors_api,
-    transported_counterfactual_api, transported_response_api, value_err, vector_treatment_api,
+    transported_counterfactual_api, transported_response_api, typed_mechanism_transport_api,
+    value_err, vector_treatment_api,
 };
 
 pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     register_native_errors(m)?;
     register_native_functions(m)?;
     register_native_classes(m)?;
+    super::compiled_route_api::register(m)?;
     gcm_api::register(m)?;
+    super::gcm_estimand_api::register(m)?;
     graph_falsification_api::register(m)?;
     super::intrinsic_influence_api::register(m)?;
+    super::file_source_api::register(m)?;
+    super::pag_completion_api::register(m)?;
+    super::cohort_pushdown_api::register(m)?;
+    super::discovered_transport_trial_api::register(m)?;
+    super::finite_discrete_api::register(m)?;
+    super::published_decision_api::register(m)?;
+    super::recipe_logistic_api::register(m)?;
     super::intervention_callback_api::register(m)?;
     super::intervention_program_api::register(m)?;
     state_api::register(m)?;
+    super::retained_refresh_api::register(m)?;
     prepared_api::register(m)?;
     bayesian::register(m)?;
     stability::register(m)?;
     prior_bank::register(m)?;
     prior_signal_api::register(m)?;
     response_api::register(m)?;
-    temporal_license::register(m)?;
+    temporal_support::register(m)?;
     transport_interference_api::register(m)?;
     transport_exact_api::register(m)?;
     transport_grid_api::register(m)?;
@@ -80,16 +99,23 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     transport_mixed_api::register(m)?;
     study_planning_api::register(m)?;
     repair_api::register(m)?;
+    evidence_plan_api::register(m)?;
     recovery_api::register(m)?;
-    closed_pilot_api::register(m)?;
+    scope_refusal_api::register(m)?;
     nested_fisher_api::register(m)?;
     nested_bayesian_api::register(m)?;
     learned_joint_api::register(m)?;
     measured_inference_api::register(m)?;
     joint_law_propagation_api::register(m)?;
+    propagation_chain_api::register(m)?;
     cross_world_execution_api::register(m)?;
     joint_transport_api::register(m)?;
     msm_sensitivity_api::register(m)?;
+    graph_selection_api::register(m)?;
+    mnar_sensitivity_api::register(m)?;
+    crate::events_api::register(m)?;
+    crate::latent_soft_intervention_api::register(m)?;
+    mnar_fixed_shift_api::register(m)?;
     mechanism_discrepancy_api::register(m)?;
     inverse_outcome_api::register(m)?;
     inverse_query_api::register(m)?;
@@ -115,24 +141,32 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     derived_treatment_api::register(m)?;
     matched_case_control_api::register(m)?;
     descriptive_api::register(m)?;
+    adaptive_policy_api::register(m)?;
     candidate_screen_api::register(m)?;
     preflight_api::register(m)?;
     observation_api::register(m)?;
     bounds_api::register(m)?;
+    association_api::register(m)?;
     artifact_api::register(m)?;
+    array_fit_api::register(m)?;
     decision_api::register(m)?;
     distribution_api::register(m)?;
     external_api::register(m)?;
     effect_constancy_api::register(m)?;
     effect_constancy_review_api::register(m)?;
     recalc_api::register(m)?;
+    recalc_standing_api::register(m)?;
     recalc_adjusted_api::register(m)?;
     recalc_dr_api::register(m)?;
     recalc_design_api::register(m)?;
     recalc_bayesian_api::register(m)?;
+    joint_response_api::register(m)?;
+    checked_claim_api::register(m)?;
     recalc_temporal_api::register(m)?;
     recalc_external_api::register(m)?;
     recalc_composite_api::register(m)?;
+    staleness_api::register(m)?;
+    super::target_validation_api::register(m)?;
     execution_attempt_api::register(m)?;
     source_evidence_api::register(m)?;
     source_projection_api::register(m)?;
@@ -143,27 +177,40 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     recovery_chain_api::register(m)?;
     vector_treatment_api::register(m)?;
     categorical_treatment_api::register(m)?;
+    categorical_posterior_candidate_api::register(m)?;
     multi_level_treatment_api::register(m)?;
     observational_survival_api::register(m)?;
     observational_policy_api::register(m)?;
     compact_export_api::register(m)?;
+    crate::method_provenance_api::register(m)?;
     cohort_decision_api::register(m)?;
     nonlinear_mediation_api::register(m)?;
+    crate::cyclic_system_api::register(m)?;
+    crate::external_mechanism_api::register(m)?;
+    crate::joint_panel_api::register(m)?;
     latent_class_api::register(m)?;
     temporal_counterfactual_api::register(m)?;
     transported_counterfactual_api::register(m)?;
     scenario_invariance_api::register(m)?;
     provider_api::register(m)?;
+    super::external_learner_api::register(m)?;
     composition_api::register(m)?;
     composition_bundle_api::register(m)?;
     measurement_model_api::register(m)?;
+    measurement_exposure_api::register(m)?;
+    measured_exposure_api::register(m)?;
     mechanism_composition_api::register(m)?;
+    typed_mechanism_transport_api::register(m)?;
     observation_query_api::register(m)?;
     evidence_ledger_api::register(m)?;
     sequential_evaluation_api::register(m)?;
     scientific_bridge_api::register(m)?;
     composition_verification_api::register(m)?;
+    super::composition_effects_api::register(m)?;
+    super::decision_compile_api::register(m)?;
+    super::mixed_decision_api::register(m)?;
     interface_contract_api::register(m)?;
+    interface_adapters_api::register(m)?;
     provider_callbacks_api::register(m)?;
     selective_discovery_api::register(m)?;
     predictive_assessment_api::register(m)?;
@@ -174,7 +221,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     transported_constructors_api::register(m)?;
     decision_reliability_api::register(m)?;
     program_claims_api::register(m)?;
-    m.add("__version__", antecedent_core::VERSION)?;
+    m.add("__version__", antecedent::schema::VERSION)?;
     // Surfaced so the Python package can refuse to stay silent when an
     // unoptimized extension sneaks in: a stale editable install rebuilt through
     // PEP 517/660 defaults to Cargo's debug profile, which keeps every estimate
@@ -188,6 +235,9 @@ fn register_native_errors(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // [`with_remedy`]), so a caller never needs `getattr(err, "remedy", None)`.
     m.py().get_type::<CausalError>().setattr("remedy", m.py().None())?;
     m.py().get_type::<CausalError>().setattr("refusal_fields", m.py().None())?;
+    m.py()
+        .get_type::<CausalError>()
+        .setattr("route_diagnostics", pyo3::types::PyTuple::empty(m.py()))?;
     m.add("CausalError", m.py().get_type::<CausalError>())?;
     m.add("CausalIdentifyError", m.py().get_type::<CausalIdentifyError>())?;
     m.add("CausalEstimateError", m.py().get_type::<CausalEstimateError>())?;
@@ -221,7 +271,7 @@ pub(crate) mod transport_defaults {
 ///
 /// `bootstrap` applies on resampling routes (the builder omits it on static and
 /// Bayesian response surfaces and counterfactuals); `refute` is downgraded to
-/// `none` on a cell that does not license it; `latency` is never injected.
+/// `none` on a cell that does not support it; `latency` is never injected.
 #[pyfunction]
 fn omitted_defaults(py: Python<'_>) -> PyResult<Py<PyAny>> {
     let dict = PyDict::new(py);
@@ -247,11 +297,8 @@ fn omitted_defaults(py: Python<'_>) -> PyResult<Py<PyAny>> {
     )?;
     dict.set_item("prior_scale", BayesianConfig::laplace().prior_scale)?;
     // Propensity overlap default shared by every propensity-score estimator.
-    let (clip, trim) = match antecedent_estimate::default_propensity_overlap() {
-        antecedent_estimate::OverlapPolicy::RequireDiagnostics { clip, trim } => (clip, trim),
-        antecedent_estimate::OverlapPolicy::ExplicitOverride => {
-            return Err(value_err("the default propensity overlap policy requires diagnostics"));
-        }
+    let Some((clip, trim)) = antecedent::estimate::default_propensity_overlap().bounds() else {
+        return Err(value_err("the default propensity overlap policy requires diagnostics"));
     };
     dict.set_item("overlap_clip", clip)?;
     dict.set_item("overlap_trim", trim)?;
@@ -263,7 +310,7 @@ fn omitted_defaults(py: Python<'_>) -> PyResult<Py<PyAny>> {
 
 #[pyfunction]
 fn identification_status_names() -> Vec<String> {
-    use antecedent_core::IdentificationStatus as S;
+    use antecedent::schema::IdentificationStatus as S;
     fn name(status: S) -> String {
         match status {
             S::NonparametricallyIdentified
@@ -291,11 +338,43 @@ fn identification_status_names() -> Vec<String> {
 /// list `CausalUnsupportedError(reason_code=...)` validates against.
 #[pyfunction]
 fn runtime_refusal_codes() -> Vec<&'static str> {
-    antecedent_core::reason_code::RUNTIME_REFUSAL_CODES.to_vec()
+    antecedent::reason::reason_code::RUNTIME_REFUSAL_CODES.to_vec()
+}
+
+/// The committed host-integration JSON Schema, exactly as generated.
+#[pyfunction]
+fn host_schema_text() -> &'static str {
+    antecedent::host::HOST_SCHEMA_TEXT
+}
+
+/// Host status (`supported`, `partial`, `unsupported`) of a claim from its wire names;
+/// `None` for a name outside the registered vocabularies.
+#[pyfunction]
+fn host_status_of_claim(
+    kind: &str,
+    identification: &str,
+    support: &str,
+    evaluated: &str,
+) -> Option<&'static str> {
+    antecedent::host::HostStatus::of_claim_names(kind, identification, support, evaluated)
+        .map(antecedent::host::HostStatus::as_str)
+}
+
+/// Host status of an operation from its applicability and readiness wire names; `None` for a
+/// name outside the registered vocabularies.
+#[pyfunction]
+#[pyo3(signature = (applicability, readiness=None))]
+fn host_status_of_operation(applicability: &str, readiness: Option<&str>) -> Option<&'static str> {
+    antecedent::host::HostStatus::of_operation_names(applicability, readiness)
+        .map(antecedent::host::HostStatus::as_str)
 }
 
 fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(host_schema_text, m)?)?;
+    m.add_function(wrap_pyfunction!(host_status_of_claim, m)?)?;
+    m.add_function(wrap_pyfunction!(host_status_of_operation, m)?)?;
     m.add_function(wrap_pyfunction!(load_float64_columns, m)?)?;
+    m.add_function(wrap_pyfunction!(load_float64_panel_columns, m)?)?;
     m.add_function(wrap_pyfunction!(load_float64_arrow_c_columns, m)?)?;
     m.add_function(wrap_pyfunction!(set_review_error_class, m)?)?;
     m.add_function(wrap_pyfunction!(set_unsupported_error_class, m)?)?;
@@ -309,6 +388,7 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     discovery_api::register(m)?;
     temporal_api::register(m)?;
     attribution_api::register(m)?;
+    horizon_composition_api::register(m)?;
     graph_io::register(m)?;
     design_api::register(m)?;
     design_ranking_api::register(m)?;
@@ -316,10 +396,20 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     experiment_api::register(m)?;
     interference_saturation_api::register(m)?;
     observational_interference_api::register(m)?;
-    factorial_api::register(m)?;
+    fallback_report_api::register(m)?;
+    fallback_stage_api::register(m)?;
+    super::planning_api::register(m)?;
     regimes_api::register(m)?;
+    unsupported_design_api::register(m)?;
+    temporal_design_api::register(m)?;
+    super::pooled_measurement_api::register(m)?;
     quasi_api::register(m)?;
     survival_api::register(m)?;
+    posterior_row_api::register(m)?;
+    posterior_boundary_api::register(m)?;
+    super::support_matrix_api::register(m)?;
+    super::bound_study_ranking_api::register(m)?;
+    super::graph_score_api::register(m)?;
     Ok(())
 }
 
@@ -339,6 +429,7 @@ fn register_native_classes(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ValidationSection>()?;
     m.add_class::<ValidationFailureSection>()?;
     m.add_class::<PerformanceSection>()?;
+    m.add_class::<crate::ResamplingSection>()?;
     m.add_class::<PyCancellationToken>()?;
     m.add_class::<PosteriorArtifact>()?;
     m.add_class::<AnalysisResult>()?;

@@ -6,6 +6,7 @@
 //! back as structured JSON for the Python layer to raise as its own exception type; corruption
 //! and unknown versions raise `CausalSerializationError`.
 
+use crate::NumericColumn;
 use crate::bridge::{artifact_refusal_json, check_declared_size};
 use antecedent::analysis::latent_class_effects::{
     LatentClassArtifactError, LatentClassConfigWire, LatentClassDataWire, LatentClassEffects,
@@ -35,7 +36,7 @@ fn failure(error: &LatentClassArtifactError) -> PyErr {
     match error {
         LatentClassArtifactError::LimitsExceeded(what) => with_reason_code(
             value_err(format!("latent_class.limits_exceeded: {what}")),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ),
         other => crate::serialization_err(other.to_string()),
     }
@@ -46,33 +47,31 @@ fn parse<T: serde::de::DeserializeOwned>(text: &str, what: &str) -> PyResult<T> 
     serde_json::from_str(text).map_err(|e| {
         with_reason_code(
             value_err(format!("latent_class.invalid_request: {what}: {e}")),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         )
     })
 }
 
 /// The dataset a digest-bound artifact is consumed against: outcome, treatment, covariate names
 /// and covariate columns.
-type LatentClassColumns<'py> = (
-    PyReadonlyArray1<'py, f64>,
-    PyReadonlyArray1<'py, f64>,
-    Vec<String>,
-    Vec<PyReadonlyArray1<'py, f64>>,
-);
+type LatentClassColumns<'py> =
+    (PyReadonlyArray1<'py, f64>, PyReadonlyArray1<'py, f64>, Vec<String>, Vec<NumericColumn<'py>>);
 
 /// Fit the mixture on declared columns: `(report json, artifact bytes, refusal json)`; an export
 /// over its byte budget returns the report and the refusal with no artifact.
 #[pyfunction]
-#[pyo3(signature = (outcome, treatment, covariates, covariate_names, config_json, artifact_id, *, digest_bound=false))]
+#[pyo3(signature = (outcome, treatment, covariates, covariate_names, config_json, artifact_id, *, digest_bound=false, memory_limit_bytes=None, cancel=None))]
 fn evaluate_latent_class_effects(
     py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     treatment: PyReadonlyArray1<'_, f64>,
-    covariates: Vec<PyReadonlyArray1<'_, f64>>,
+    covariates: Vec<NumericColumn<'_>>,
     covariate_names: Vec<String>,
     config_json: &str,
     artifact_id: &str,
     digest_bound: bool,
+    memory_limit_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<EvaluatePayload> {
     let config: LatentClassConfigWire = parse(config_json, "config")?;
     let request = LatentClassRequestWire {
@@ -81,11 +80,15 @@ fn evaluate_latent_class_effects(
             outcome: outcome.as_array().to_vec(),
             treatment: treatment.as_array().to_vec(),
             covariate_names,
-            covariates: covariates.iter().map(|c| c.as_array().to_vec()).collect(),
+            covariates: covariates
+                .iter()
+                .map(|c| c.to_vec("covariate"))
+                .collect::<PyResult<_>>()?,
         },
     };
     let artifact_id = artifact_id.to_owned();
-    detach_catch(py, move || match LatentClassEffects::fit(&request) {
+    let ctx = crate::measured_inference_api::context(0, memory_limit_bytes, cancel);
+    detach_catch(py, move || match LatentClassEffects::fit_with(&request, &ctx) {
         Ok(done) => {
             let report = serde_json::to_string(&done.report())
                 .map_err(|e| crate::serialization_err(e.to_string()))?;
@@ -116,27 +119,35 @@ fn evaluate_latent_class_effects(
 /// `expected_identity_json` is an identity the caller retained independently; a changed
 /// configuration, dataset or result is refused against it.
 #[pyfunction]
-#[pyo3(signature = (artifact, expected_identity_json=None, *, memory_limit_bytes=None, data=None))]
+#[pyo3(signature = (artifact, expected_identity_json=None, *, memory_limit_bytes=None, cancel=None, data=None))]
 fn consume_latent_class_artifact(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expected_identity_json: Option<String>,
     memory_limit_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
     data: Option<LatentClassColumns<'_>>,
 ) -> PyResult<ConsumePayload> {
     let expected: Option<LatentClassIdentity> = match expected_identity_json {
         Some(text) => Some(parse(&text, "identity")?),
         None => None,
     };
-    let data = data.map(|(outcome, treatment, covariate_names, covariates)| LatentClassDataWire {
-        outcome: outcome.as_array().to_vec(),
-        treatment: treatment.as_array().to_vec(),
-        covariate_names,
-        covariates: covariates.iter().map(|c| c.as_array().to_vec()).collect(),
-    });
-    let ctx = crate::measured_inference_api::context(0, memory_limit_bytes, None);
+    let data = data
+        .map(|(outcome, treatment, covariate_names, covariates)| -> PyResult<LatentClassDataWire> {
+            Ok(LatentClassDataWire {
+                outcome: outcome.as_array().to_vec(),
+                treatment: treatment.as_array().to_vec(),
+                covariate_names,
+                covariates: covariates
+                    .iter()
+                    .map(|c| c.to_vec("covariate"))
+                    .collect::<PyResult<_>>()?,
+            })
+        })
+        .transpose()?;
+    let ctx = crate::measured_inference_api::context(0, memory_limit_bytes, cancel);
     detach_catch(py, move || {
-        match LatentClassEffects::consume_with(&artifact, expected.as_ref(), data.as_ref(), &ctx) {
+        match LatentClassEffects::consume_with(artifact, expected.as_ref(), data.as_ref(), &ctx) {
             Ok(done) => {
                 let report = serde_json::to_string(&done.report())
                     .map_err(|e| crate::serialization_err(e.to_string()))?;

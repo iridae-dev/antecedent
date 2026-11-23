@@ -5,15 +5,17 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-papers = [
- { title = "A characterization of Markov equivalence classes for acyclic digraphs", doi = "10.1214/aos/1031833662", sections = ["static same-skeleton / same-v-structure characterization only; no context-augmented equivalence theorem is claimed"] },
- { title = "Causal discovery for time series from multiple datasets with latent contexts", doi = "10.48550/arXiv.2306.12896", sections = ["context-variable semantics from J-PCMCI+ only; discovery and latent-context identification are not implemented here"] },
-]
+# Explicit judgment, not an unfilled field: the context-node support is a node kind in the same marked-edge
+# container; no J-PCMCI+ discovery, context-system identification or context-specific equivalence is implemented,
+# so no paper introduces what it computes. graph.temporal_cpdag carries the container's mapping.
+papers = []
 
 implementation_deviations = [
  "The implementation augments a TemporalCpdag with typed context nodes and edges; it does not implement J-PCMCI+, context-system discovery, conditional-independence testing, or latent-context identification.",
  "Context insertion is representational and does not derive or certify a context-specific Markov equivalence class.",
  "The static same-skeleton and same-v-structure theorem does not by itself establish completeness for temporal or context-augmented orientations.",
+ "A context node is treated as an exogenous regime indicator at the present: a directed edge from a lagged node into a context is refused with a typed error (ContextCaused), and a context may not cause a lagged node of the past (FutureToPast, the context counted as contemporaneous). The container does not model a lag structure for a context, and an undirected context-system edge may be stored until it is oriented away from the context.",
+ "A fully directed graph with context nodes converts to a TemporalDag: an untagged context becomes the contemporaneous node of its variable, a root, with node order kept. A context that carries an environment tag, or whose variable already occupies the contemporaneous slot, cannot be represented and the conversion refuses with a typed error (ContextNotRepresentable); the environment tag is not carried into the TemporalDag.",
 ]
 
 upstream_implementations_observed = [
@@ -22,4 +24,30 @@ upstream_implementations_observed = [
 
 test_sources = [
  "TemporalCpdag context-node unit tests (crates/antecedent-graph/src/cpdag.rs)",
+  "crates/antecedent-graph/tests/temporal_cpdag_invariants_reference.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "A marked-edge container for temporal CPDAGs with typed context nodes: it stores Tail-Arrow, Tail-Tail and Conflict-Conflict marks between lagged or context nodes and enforces local invariants (no duplicate edge, no contemporaneous or lagged self edge, no directed cycle, no future-to-past directed edge, orientation only of an existing undirected edge)."
+no_independent_algorithm = "cpdag.rs and marked_storage.rs contain adjacency bookkeeping, directed reachability for the cycle check and conversion to a TemporalDag; they contain no square root, logarithm, exponential, solve or sampling and no orientation or completion rule. An independent edge-map model with depth-first reachability agrees with the container on the accept or reject decision and the stored edges after every operation of every short sequence over four, three and six nodes, and on the conversion to a TemporalDag at the end of each."
+record_sha256 = "324c69b67ca224d2fc3d36dee378370eea91bf44b3565f1daedad80cfa0aba66"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-graph/src/cpdag.rs"
+items = ["fn add_context", "fn add_lagged", "fn add_node", "fn empty", "fn insert_directed", "fn insert_marked", "fn insert_undirected", "fn orient_undirected", "fn to_directed_skeleton", "fn try_into_temporal_dag", "struct TemporalCpdag"]
+sha256 = "40c1189af8b6e0e5e82fdb9c5380468974e783e0d5e4ab778fb5ca43e44247bb"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-graph/src/marked_storage.rs"
+items = ["fn all_marked_edges", "fn children", "fn directed_children", "fn directed_parents", "fn edge_between", "fn edges", "fn is_directed_out", "fn is_empty", "fn new", "fn nodes", "fn parents", "struct AdjEntry"]
+sha256 = "9a97c5c9db85fb8652e4c254cb39540bbcb80f88377862a420453827b4db935c"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-graph/tests/temporal_cpdag_invariants_reference.rs"
+items = ["const LAGGED", "enum Node", "fn a_context_may_cause_present_system_nodes_but_not_past_ones", "fn a_directed_edge_into_a_context_is_refused_with_a_typed_error", "fn a_fully_directed_graph_with_contexts_converts_with_contexts_as_lag_zero_roots", "fn context_and_lagged", "fn contexts_a_temporal_dag_cannot_represent_are_refused_with_a_typed_reason", "fn cycles_longer_than_two_are_rejected_after_orientation_too", "fn every_short_operation_sequence_matches_the_independent_model", "fn nodes_with_context"]
+sha256 = "7f91d80940f4de95240fbd503a8ace1482173b9a753ef8fea4888e4ca5d4ea98"

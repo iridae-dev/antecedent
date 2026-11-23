@@ -1,4 +1,13 @@
-"""Recursive / exact law. Same verbs as the statistical and complementary examples."""
+"""What response curve does a target population have, given exact laws from a source experiment?
+
+No data are simulated: the source experiment's laws of ``y`` under ``do(x = 0)`` and
+``do(x = 1)`` are supplied exactly (``P(y = 1)`` is 0.5 and 0.8), so the script asserts the
+transported curve equals ``[0.5, 0.8]``, that rebinding to replacement laws gives ``[0.4, 0.7]``
+and leaves the first result unchanged, and that the result exports and loads. Exact laws carry no
+sampling uncertainty, so no interval is inferred; the transport assumptions are declared, not
+tested. The calls are the same as in `transport_statistical.py` and `transport_meta_grid.py`.
+
+Run: ``python examples/python/transport_exact.py``."""
 
 import antecedent as ant
 
@@ -53,7 +62,7 @@ def main() -> None:
     )
     result = ant.analyze(data, graph=graph, query=query)
     assert result.answer.kind == "response"
-    assert [row[0] for row in result.response.values] == [0.5, 0.8]
+    assert [row[0] for row in result.value.response.values] == [0.5, 0.8]
     _slots(result, uncertainty=False)
     print(result)
 
@@ -77,9 +86,12 @@ def main() -> None:
             ),
         )
     )
-    refreshed = result.refresh(replacement)
-    assert [row[0] for row in refreshed.response.values] == [0.4, 0.7]
-    consumed = ant.load(result.export())
+    # Rebinding branches the study on the replacement laws; the first result is unchanged.
+    refreshed = ant.estimate(ant.rebind(result.study, data=replacement))
+    assert [row[0] for row in refreshed.value.response.values] == [0.4, 0.7]
+    assert [row[0] for row in result.value.response.values] == [0.5, 0.8]
+    artifact = result.export()
+    consumed = ant.load(artifact, expected=artifact.expectation)
     assert consumed is not None
     print(refreshed)
 

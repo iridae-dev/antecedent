@@ -20,12 +20,14 @@
 //! that retained the identity independently also refuses a consistently resealed artifact of
 //! another run. The artifact decides nothing and computes nothing: it carries scores.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::recalc::{RetargetSupport, Stage, StageIdentities, StageIdentity};
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
+use crate::artifact_codec::{
+    f64s_to_le_bytes as f64_bytes, u32s_to_le_bytes as u32_bytes, u64s_to_le_bytes as u64_bytes,
+};
 use crate::recalc_receipt_artifact::{DeclaredStageWire, identities_from_wire, identities_to_wire};
 use crate::score_wire::{ScoreColumn, ScoreTableWire};
 
@@ -37,12 +39,37 @@ pub const FROZEN_SCORES_ARTIFACT_FEATURE: &str = "frozen_scores_v1";
 pub const MAX_FROZEN_SCORES_ARTIFACT_BYTES: usize = 128 * 1024 * 1024;
 /// Most complete-case rows a frozen score table may carry.
 pub const MAX_FROZEN_SCORE_ROWS: usize = 1 << 21;
-/// Most score columns a frozen score table may carry.
-pub const MAX_FROZEN_SCORE_COLUMNS: usize = 64;
 /// Most score values (rows times columns) a frozen score table may carry.
 pub const MAX_FROZEN_SCORE_VALUES: usize = 1 << 22;
 /// Most stage declarations the artifact may carry.
 pub const MAX_FROZEN_SCORE_STAGES: usize = 64;
+
+/// Intake bounds for a stored frozen score table. The defaults are the `MAX_FROZEN_SCORE_*`
+/// constants and [`MAX_FROZEN_SCORES_ARTIFACT_BYTES`]; there is no separate column cap, as
+/// rows times columns is bounded by `max_values`. A consumer with a larger budget passes its
+/// own to [`FrozenScoreTable::from_bytes_within`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FrozenScoresIntakeLimits {
+    /// Most container bytes.
+    pub max_bytes: usize,
+    /// Most complete-case rows.
+    pub max_rows: usize,
+    /// Most score values (rows times columns).
+    pub max_values: usize,
+    /// Most stage declarations.
+    pub max_stages: usize,
+}
+
+impl Default for FrozenScoresIntakeLimits {
+    fn default() -> Self {
+        Self {
+            max_bytes: MAX_FROZEN_SCORES_ARTIFACT_BYTES,
+            max_rows: MAX_FROZEN_SCORE_ROWS,
+            max_values: MAX_FROZEN_SCORE_VALUES,
+            max_stages: MAX_FROZEN_SCORE_STAGES,
+        }
+    }
+}
 
 const ARTIFACT_KIND: &str = crate::artifact_kinds::FROZEN_SCORES;
 const META_SECTION: &str = "frozen_scores_meta";
@@ -54,7 +81,7 @@ crate::sectioned_artifact_enum! {
     #[derive(Clone, Debug, PartialEq, Eq)]
     FrozenScoresArtifactError {
         noun: "frozen scores",
-        identity: "frozen_scores.identity_mismatch",
+        identity: antecedent_core::reason_details::frozen_scores::IDENTITY_MISMATCH,
         variants {}
         display(f) {}
     }
@@ -67,13 +94,11 @@ impl FrozenScoresArtifactError {
     /// values, limits and encoding failures.
     #[must_use]
     pub fn refusal(&self) -> Option<(&'static str, &'static str, String)> {
-        let text = self.to_string();
-        let explanation =
-            text.split_once(": ").map_or_else(|| text.clone(), |(_, rest)| rest.to_owned());
+        let explanation = antecedent_core::refusal::explanation_of(&self.to_string());
         match self {
             Self::IdentityMismatch { .. } => Some((
                 antecedent_core::reason_code!("route_not_supported"),
-                "frozen_scores.identity_mismatch",
+                antecedent_core::reason_details::frozen_scores::IDENTITY_MISMATCH,
                 explanation,
             )),
             _ => None,
@@ -118,14 +143,6 @@ pub struct FrozenScoresMeta {
 }
 
 // -- identity -----------------------------------------------------------------------------
-
-fn u32_bytes(values: &[u32]) -> Vec<u8> {
-    values.iter().flat_map(|v| v.to_le_bytes()).collect()
-}
-
-fn f64_bytes(values: &[f64]) -> Vec<u8> {
-    crate::artifact_codec::f64s_to_le_bytes(values)
-}
 
 fn opt_f64_bytes(value: Option<f64>) -> Vec<u8> {
     match value {
@@ -186,7 +203,7 @@ fn compute_identity(
         f64_bytes(&t.propensities),
         f64_bytes(&t.observed_outcome),
         t.n_rows.to_le_bytes().to_vec(),
-        u32_bytes(&t.row_index),
+        u64_bytes(&t.row_index),
         u32_bytes(&t.fold_ids),
         t.n_folds.to_le_bytes().to_vec(),
         f64_bytes(&t.scores),
@@ -203,16 +220,16 @@ fn compute_identity(
 
 // -- validation ---------------------------------------------------------------------------
 
-fn check_bounds(table: &ScoreTablePlain) -> Result<usize, FrozenScoresArtifactError> {
+fn check_bounds(
+    table: &ScoreTablePlain,
+    limits: &FrozenScoresIntakeLimits,
+) -> Result<usize, FrozenScoresArtifactError> {
     let limit = |what| Err(FrozenScoresArtifactError::LimitsExceeded(what));
     let n = usize::try_from(table.n_rows).unwrap_or(usize::MAX);
-    if n > MAX_FROZEN_SCORE_ROWS {
+    if n > limits.max_rows {
         return limit("score rows");
     }
-    if table.columns.len() > MAX_FROZEN_SCORE_COLUMNS {
-        return limit("score columns");
-    }
-    if n.saturating_mul(table.columns.len()) > MAX_FROZEN_SCORE_VALUES {
+    if n.saturating_mul(table.columns.len()) > limits.max_values {
         return limit("score values");
     }
     if table.adjustment_set.len() > MAX_ADJUSTMENT || table.intervened.len() > MAX_ADJUSTMENT {
@@ -247,7 +264,7 @@ fn check_shape(
     if table.row_index.windows(2).any(|w| w[0] >= w[1]) {
         return Err(malformed("row ids must be strictly increasing"));
     }
-    let last = table.row_index.last().copied().map_or(0, u64::from);
+    let last = table.row_index.last().copied().unwrap_or(0);
     if input_rows == 0 || last >= input_rows || n as u64 > input_rows {
         return Err(malformed("row ids must lie inside the input row count"));
     }
@@ -257,8 +274,11 @@ fn check_shape(
     Ok(())
 }
 
-fn check_identities(meta: &FrozenScoresMeta) -> Result<StageIdentities, FrozenScoresArtifactError> {
-    if meta.declared.len() > MAX_FROZEN_SCORE_STAGES {
+fn check_identities(
+    meta: &FrozenScoresMeta,
+    limits: &FrozenScoresIntakeLimits,
+) -> Result<StageIdentities, FrozenScoresArtifactError> {
+    if meta.declared.len() > limits.max_stages {
         return Err(FrozenScoresArtifactError::LimitsExceeded("stage declarations"));
     }
     if meta.estimator.is_empty() || meta.estimator.len() > MAX_TEXT_BYTES {
@@ -278,7 +298,7 @@ fn check_identities(meta: &FrozenScoresMeta) -> Result<StageIdentities, FrozenSc
         return Err(FrozenScoresArtifactError::IdentityMismatch { field: "snapshot_digest" });
     }
     let fit = hex_identity(&meta.fit_identity, "fit identity")?;
-    let effective = declared.effective(RetargetSupport::Licensed);
+    let effective = declared.effective(RetargetSupport::Supported);
     if effective.get(&Stage::ScoreArtifact) != Some(&fit) {
         return Err(FrozenScoresArtifactError::IdentityMismatch { field: "fit_identity" });
     }
@@ -288,16 +308,18 @@ fn check_identities(meta: &FrozenScoresMeta) -> Result<StageIdentities, FrozenSc
 fn check(
     mut meta: FrozenScoresMeta,
     expected_identity: Option<&str>,
+    limits: &FrozenScoresIntakeLimits,
 ) -> Result<FrozenScoreTable, FrozenScoresArtifactError> {
     if meta.version != FROZEN_SCORES_ARTIFACT_VERSION {
         return Err(FrozenScoresArtifactError::UnsupportedVersion { version: meta.version });
     }
-    if meta.feature != FROZEN_SCORES_ARTIFACT_FEATURE {
-        return Err(FrozenScoresArtifactError::UnsupportedSemantics("feature marker"));
-    }
-    let n = check_bounds(&meta.table)?;
+    crate::artifact_codec::require_semantics::<FrozenScoresArtifactError>(
+        meta.feature == FROZEN_SCORES_ARTIFACT_FEATURE,
+        "feature marker",
+    )?;
+    let n = check_bounds(&meta.table, limits)?;
     check_shape(&meta.table, n, meta.input_rows)?;
-    let declared = check_identities(&meta)?;
+    let declared = check_identities(&meta, limits)?;
     // The estimator's decoder applies the same checks (finite scores, propensities in
     // [0, 1], fold ids below the fold count, a sane clip); the text keeps its
     // `invalid argument` rendering.
@@ -335,12 +357,7 @@ fn encode_parts_impl(
     meta: &FrozenScoresMeta,
     artifact_id: &str,
 ) -> Result<Vec<u8>, FrozenScoresArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(FrozenScoresArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes =
-        to_cbor(meta).map_err(|error| FrozenScoresArtifactError::Encode(error.to_string()))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "frozen_scores",
@@ -348,13 +365,10 @@ fn encode_parts_impl(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection {
-            id: META_SECTION,
-            content_type: crate::CONTENT_CBOR,
-            bytes: &meta_bytes,
-        }],
+        META_SECTION,
+        meta,
+        &[],
     )
-    .map_err(|error| crate::map_artifact_check!(error, FrozenScoresArtifactError))
 }
 
 /// Decode the metadata section of a container, refusing another version before the metadata
@@ -367,27 +381,22 @@ fn encode_parts_impl(
 #[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn decode_parts(bytes: &[u8]) -> Result<FrozenScoresMeta, FrozenScoresArtifactError> {
-    decode_parts_impl(bytes)
+    decode_parts_impl(bytes, MAX_FROZEN_SCORES_ARTIFACT_BYTES)
 }
 
-fn decode_parts_impl(bytes: &[u8]) -> Result<FrozenScoresMeta, FrozenScoresArtifactError> {
-    let parts = crate::decode_container(
+fn decode_parts_impl(
+    bytes: &[u8],
+    max_bytes: usize,
+) -> Result<FrozenScoresMeta, FrozenScoresArtifactError> {
+    crate::artifact_codec::decode_sectioned(
         ARTIFACT_KIND,
-        MAX_FROZEN_SCORES_ARTIFACT_BYTES,
-        &[META_SECTION],
+        max_bytes,
+        META_SECTION,
+        &[],
+        FROZEN_SCORES_ARTIFACT_VERSION,
         bytes,
     )
-    .map_err(|error| crate::map_artifact_check!(error, FrozenScoresArtifactError))?;
-    let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(FrozenScoresArtifactError::Malformed("unsupported container layout".into()));
-    };
-    crate::decode_with_version(&meta_bytes, |version| {
-        if version == FROZEN_SCORES_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(FrozenScoresArtifactError::UnsupportedVersion { version })
-        }
-    })
+    .map(|(meta, _)| meta)
 }
 
 // -- public type --------------------------------------------------------------------------
@@ -397,7 +406,7 @@ fn decode_parts_impl(bytes: &[u8]) -> Result<FrozenScoresMeta, FrozenScoresArtif
 pub struct FrozenScoreParts {
     /// Estimator identity label.
     pub estimator: String,
-    /// Effective identity of the score-artifact stage under a licensed retarget.
+    /// Effective identity of the score-artifact stage under a supported retarget.
     pub fit_identity: StageIdentity,
     /// Own-input digests of the producing workflow.
     pub declared: StageIdentities,
@@ -433,7 +442,7 @@ impl FrozenScoreTable {
             identity: String::new(),
         };
         meta.identity = compute_identity(&meta, &parts.declared)?.to_hex();
-        check(meta, None)
+        check(meta, None, &FrozenScoresIntakeLimits::default())
     }
 
     /// The stored metadata, with declarations in topological order.
@@ -511,7 +520,19 @@ impl FrozenScoreTable {
         bytes: &[u8],
         expected_identity: Option<&str>,
     ) -> Result<Self, FrozenScoresArtifactError> {
-        check(decode_parts_impl(bytes)?, expected_identity)
+        Self::from_bytes_within(bytes, expected_identity, &FrozenScoresIntakeLimits::default())
+    }
+
+    /// [`Self::from_bytes`] under the caller's intake bounds.
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a bound of `limits` exceeded is `LimitsExceeded`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        limits: &FrozenScoresIntakeLimits,
+    ) -> Result<Self, FrozenScoresArtifactError> {
+        check(decode_parts_impl(bytes, limits.max_bytes)?, expected_identity, limits)
     }
 
     /// Validate metadata as a consumer would, for hidden test reseals.
@@ -524,7 +545,7 @@ impl FrozenScoreTable {
         meta: FrozenScoresMeta,
         expected_identity: Option<&str>,
     ) -> Result<Self, FrozenScoresArtifactError> {
-        check(meta, expected_identity)
+        check(meta, expected_identity, &FrozenScoresIntakeLimits::default())
     }
 
     /// Recompute the identity of `meta` after an edit, for hidden test reseals.

@@ -6,15 +6,15 @@
 //! `direct` (no selection) gives `P_s(y | do(x))`; `outcome_shift` (selection on
 //! `y`) is not transportable. Expected values are computed here from the laws.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
 use antecedent::{PreparedTransportScenarios, StudyBuilder, consume_transport_scenarios_artifact};
 use antecedent_core::{
     DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind, EvidenceRegime,
-    ExecutionContext, MemoryBudget, ProgressSink, RegimeId, RegimeKind, SearchLimits, SearchStop,
-    Value, VariableCoordinate, VariableDomain, VariableId,
+    ExecutionContext, ProgressSink, RegimeId, RegimeKind, SearchLimits, SearchStop, Value,
+    VariableCoordinate, VariableDomain, VariableId,
 };
 use antecedent_estimate::transport_scenarios::{
     STRUCTURAL_ENVELOPE_INTERPRETATION, ScenarioSetReport,
@@ -254,8 +254,14 @@ fn declared_weights_are_never_renormalized_over_survivors() {
     // Weights must be declared for all scenarios or none, and sum to at most one.
     let mut partial = three(Some([0.3, 0.2, 0.4]));
     partial[0].weight = None;
-    assert!(TransportScenarioSet::try_new(partial).is_err());
-    assert!(TransportScenarioSet::try_new(three(Some([0.6, 0.3, 0.4]))).is_err());
+    assert_eq!(
+        TransportScenarioSet::try_new(partial).unwrap_err().detail,
+        antecedent_core::reason_details::scenarios::INVALID_WEIGHTS
+    );
+    assert_eq!(
+        TransportScenarioSet::try_new(three(Some([0.6, 0.3, 0.4]))).unwrap_err().detail,
+        antecedent_core::reason_details::scenarios::INVALID_WEIGHTS
+    );
 }
 
 #[test]
@@ -383,8 +389,11 @@ fn inference_across_scenarios_is_refused() {
         IoError::Refused { code, message } => (code, message),
         other => panic!("expected a coded refusal, got {other:?}"),
     };
-    assert_eq!(code, "scenario_aggregate_not_licensed");
-    assert!(message.starts_with("scenarios.shared_data_aggregate"), "{message}");
+    assert_eq!(code, "scenario_aggregate_not_supported");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::scenarios::SHARED_DATA_AGGREGATE),
+        "{message}"
+    );
 }
 
 #[test]
@@ -519,7 +528,7 @@ fn scenarios_disagreeing_on_names_domains_or_units_refuse_with_schema_mismatch()
     ] {
         assert_eq!(
             (refusal.code, refusal.detail),
-            ("schema_mismatch", "scenarios.coordinate_mismatch")
+            ("schema_mismatch", antecedent_core::reason_details::scenarios::COORDINATE_MISMATCH)
         );
     }
 }
@@ -545,7 +554,10 @@ fn laws_requests_and_catalogs_are_validated_against_the_shared_schema() {
     let (code, message) =
         refused_code(try_prepare(three(None), catalog(false), data, BUDGET, &ctx));
     assert_eq!(code, "schema_mismatch");
-    assert!(message.starts_with("scenarios.coordinate_mismatch"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::scenarios::COORDINATE_MISMATCH),
+        "{message}"
+    );
     // A request outside the declared domain of the treatment.
     let set = TransportScenarioSet::try_new(three(None)).unwrap();
     let outside = StudyBuilder::transport_scenarios(
@@ -595,7 +607,10 @@ fn laws_requests_and_catalogs_are_validated_against_the_shared_schema() {
     let (code, message) =
         refused_code(try_prepare(three(None), pinned, laws(SOURCE, true), BUDGET, &ctx));
     assert_eq!(code, "invalid_argument");
-    assert!(message.starts_with("scenarios.catalog_selections"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::scenarios::CATALOG_SELECTIONS),
+        "{message}"
+    );
 }
 
 #[test]
@@ -701,7 +716,7 @@ fn the_shared_budget_observes_depth_and_memory() {
     // not decided, so it is not `explored`; the entry charge on a later scenario
     // and the cumulative memory of the set are pinned in their own tests.
     let mut tight = ExecutionContext::for_tests(1);
-    tight.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(1500) };
+    tight.set_memory_limit(Some(1500));
     let report = try_prepare(three(None), catalog(true), laws(SOURCE, true), BUDGET, &tight)
         .unwrap()
         .estimate(&ExecutionContext::for_tests(1))
@@ -996,7 +1011,10 @@ fn sample_rows_are_validated_against_the_shared_schema() {
             input.samples[1].columns.get_mut(&v(Y)).unwrap()[0] = Some(bad);
         }));
         assert_eq!(code, "schema_mismatch", "{bad}");
-        assert!(message.starts_with("scenarios.coordinate_mismatch"), "{message}");
+        assert!(
+            message.starts_with(antecedent_core::reason_details::scenarios::COORDINATE_MISMATCH),
+            "{message}"
+        );
     }
     // A column for a variable the schema does not declare.
     let (code, _) = refused_code(attempt(&|input| {
@@ -1027,7 +1045,7 @@ fn decided_with(
     memory: Option<u64>,
 ) -> ScenarioSetDecision {
     let mut ctx = ExecutionContext::for_tests(1);
-    ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: memory };
+    ctx.set_memory_limit(memory);
     antecedent_identify::sid::scenarios::decide_transport_scenarios(
         &TransportScenarioSet::try_new(scenarios).unwrap(),
         &query(),
@@ -1200,7 +1218,7 @@ fn a_report_truncated_by_a_recorded_bound_replays_to_the_identical_prefix() {
     // under it even though its own context has no limit.
     for limit in [memory_to_decide(only("direct")), memory_to_decide(only("direct")) + PER] {
         let mut tight = ExecutionContext::for_tests(1);
-        tight.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(limit) };
+        tight.set_memory_limit(Some(limit));
         let prepared =
             try_prepare(three(None), catalog(true), laws(SOURCE, true), BUDGET, &tight).unwrap();
         let report = prepared.estimate(&ctx).unwrap();

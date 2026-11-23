@@ -1,0 +1,610 @@
+//! Path-restricted natural effects over the ADMGs a PAG leaves open.
+//!
+//! # Why the MAG is not enough
+//!
+//! A PAG describes a Markov equivalence class of maximal ancestral graphs. A MAG is a
+//! summary of one latent projection only up to m-separation, and a path-specific effect is
+//! not a function of the m-separation model: it is a functional of the structural equations,
+//! which see the bidirected edges and the directed edges of the projection itself. Two
+//! ADMGs with the same MAG can disagree on whether the effect is identified at all.
+//! `T -> M -> Y, T -> Y` and the same graph with `M <-> Y` added both have the complete
+//! tournament as their MAG (an ancestral graph cannot carry a confounder between a node and
+//! its descendant, so the bidirected edge is absorbed into `M -> Y`), yet the effect along
+//! `T -> M -> Y` is identified without the confounder and has a recanting district with it.
+//! Running the district formula on one MAG completion therefore answers for one of the
+//! ADMGs and silently for none of the others.
+//!
+//! # The ADMGs a MAG stands for
+//!
+//! Let `G` be the latent projection of any structural model the MAG `M` represents, so that
+//! the MAG of `G` is `M` (Richardson & Spirtes 2002: `a` and `b` are adjacent iff no set
+//! inside `An(a) ∪ An(b)` m-separates them, and the mark at `b` is a tail iff `a ∈ An(b)`).
+//! Then
+//!
+//! * a directed edge `a -> b` of `G` is a directed edge of `M` (it makes `a` an ancestor of
+//!   `b` and the pair adjacent);
+//! * a bidirected edge `a <-> b` of `G` joins an `M`-adjacent pair, and if that pair is a
+//!   directed edge of `M` the edge is invisible (Zhang 2008, Lemma 9: a visible edge excludes
+//!   a latent common cause);
+//! * a pair that is not adjacent in `M` carries no edge in `G`.
+//!
+//! So `G` is an edge-subgraph of the dominating ADMG that keeps every edge of `M` and adds
+//! `a <-> b` beside each invisible `a -> b`. Adjacency and ancestry only grow when edges are
+//! added, which makes the set of subgraphs whose MAG is exactly `M` searchable by
+//! backtracking over the pool: an undecided edge can still add adjacency and ancestry but
+//! never remove it, so a branch is cut as soon as the graph with every undecided edge
+//! included cannot reach a required adjacency or ancestry of `M`, or the graph with none of
+//! them already has an adjacency or ancestry `M` forbids. The members are the ADMGs `M`
+//! cannot tell apart, and the latent projection of the true model is one of them.
+//!
+//! # What the route reports
+//!
+//! The path-specific identifier decides every member on its own graph, because which edges
+//! start a selected path, which districts recant and which kernels hedge are all properties
+//! of that graph. The completion is read as follows.
+//!
+//! * One member, or members that all yield the same functional (same canonical expression),
+//!   identify the effect by that functional: the PAG determines the effect even though it
+//!   may not determine the graph. A PAG whose MAG has only visible edges, no redundant
+//!   edge and no circle mark has exactly one member, the MAG itself, and the district
+//!   formula on it is the answer.
+//! * Members that identify different functionals leave the effect an identified set: one
+//!   case per distinct functional, estimated separately and published as the set.
+//! * A member the identifier refuses (a recanting district, a hedge, a witness) makes the
+//!   completion unidentified. No functional is correct for every model the MAG represents,
+//!   so the completion carries unidentified mass and the route refuses rather than report a
+//!   point.
+//! * A search that stops at its bound has not decided the members. The completion is
+//!   refused with a search-bounded diagnostic, never read as a point.
+//!
+//! Circle marks add the other layer of ambiguity: every MAG completion of the PAG is read
+//! this way, and completions that disagree are an identified set across completions in the
+//! same envelope.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+use antecedent_core::{CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity};
+use antecedent_graph::{Admg, BitSet, DSeparationWorkspace, DenseNodeId, Endpoint, Pag};
+
+use crate::envelope::{GraphFeature, IdentificationEnvelope, carries_identified_mass};
+use crate::error::IdentificationError;
+use crate::generalized::{GeneralizedAdjustmentIdentifier, invisible_directed_edges};
+use crate::identifier::IdentificationWorkspace;
+use crate::path_specific::PathSpecificIdentifier;
+use crate::result::IdentificationResult;
+use std::sync::Arc;
+
+/// Diagnostic code of a completion whose ADMG candidates could not all be enumerated within
+/// the search bound. The refusal it accompanies is a bound, not a statement about the graph.
+pub const PAG_ADMG_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str =
+    "identify.path_specific_pag.search_bounded";
+
+/// The ADMGs a circle-free MAG cannot distinguish from the latent projection of the model.
+#[derive(Clone, Debug)]
+pub struct AdmgCandidates {
+    /// Every ADMG whose MAG is the given MAG (node labels preserved).
+    pub members: Vec<Admg>,
+    /// The search stopped at its budget (the configured completion operations, or the storage
+    /// the context could lease for another candidate); `members` is then incomplete and must
+    /// not be read as the full set. This is the not-certified outcome of the enumeration.
+    pub bounded: bool,
+}
+
+/// Relation of an adjacent pair in the MAG, with the lower dense index first.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum MagPair {
+    Absent,
+    /// Lower index is the tail: `lo -> hi`.
+    Forward,
+    /// Higher index is the tail: `hi -> lo`.
+    Backward,
+    Bidirected,
+}
+
+/// Adjacency and ancestry of one pair in a candidate ADMG.
+#[derive(Clone, Copy, Debug, Default)]
+struct PairInfo {
+    adjacent: bool,
+    lo_anc_hi: bool,
+    hi_anc_lo: bool,
+}
+
+impl MagPair {
+    /// Whether a graph that can still gain edges can reach this pair: `info` is the graph
+    /// with every undecided edge included.
+    fn reachable_from(self, info: PairInfo) -> bool {
+        match self {
+            Self::Absent => true,
+            Self::Forward => info.adjacent && info.lo_anc_hi,
+            Self::Backward => info.adjacent && info.hi_anc_lo,
+            Self::Bidirected => info.adjacent,
+        }
+    }
+
+    /// Whether the pair is still consistent in a graph that can only gain edges: `info` is
+    /// the graph with no undecided edge included.
+    fn admits_from_below(self, info: PairInfo) -> bool {
+        match self {
+            Self::Absent => !info.adjacent,
+            Self::Forward => !info.hi_anc_lo,
+            Self::Backward => !info.lo_anc_hi,
+            Self::Bidirected => !info.lo_anc_hi && !info.hi_anc_lo,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum PoolEdge {
+    Directed(DenseNodeId, DenseNodeId),
+    Bidirected(DenseNodeId, DenseNodeId),
+}
+
+/// Adjacency and ancestry of every pair `i < j` (index `i * n + j`) of `admg`.
+///
+/// Adjacent means an inducing path exists, which Richardson & Spirtes (Cor. 5.3) decide by
+/// one m-separation test given `(An(a) ∪ An(b)) \ {a, b}`.
+fn pair_infos(
+    admg: &Admg,
+    ws: &mut DSeparationWorkspace,
+) -> Result<Vec<PairInfo>, IdentificationError> {
+    let n = admg.node_count();
+    let ancestors = admg.strict_ancestor_sets();
+    let mut out = vec![PairInfo::default(); n * n];
+    let mut given = BitSet::with_len(n);
+    for i in 0..n {
+        let x = DenseNodeId::from_index(i);
+        for j in (i + 1)..n {
+            let y = DenseNodeId::from_index(j);
+            let direct = admg.children(x).contains(&y)
+                || admg.children(y).contains(&x)
+                || admg.bidirected_neighbors(x).contains(&y);
+            let adjacent = direct || {
+                given.clone_from(&ancestors[i]);
+                given.union_with(&ancestors[j]);
+                given.remove(x);
+                given.remove(y);
+                !admg
+                    .is_m_separated(x, y, &given.to_dense_ids(), ws)
+                    .map_err(IdentificationError::from)?
+            };
+            out[i * n + j] = PairInfo {
+                adjacent,
+                lo_anc_hi: ancestors[j].contains(x),
+                hi_anc_lo: ancestors[i].contains(y),
+            };
+        }
+    }
+    Ok(out)
+}
+
+/// Backtracking enumeration of the sub-ADMGs of the dominating pool whose MAG is the target.
+struct CandidateSearch<'a> {
+    nodes: usize,
+    pool: &'a [PoolEdge],
+    target: &'a [MagPair],
+    blank: &'a Admg,
+    states: usize,
+    /// Backtracking states the search may visit (the configured completion operations).
+    max_states: usize,
+    members: Vec<Vec<bool>>,
+    /// Storage leased for each retained member mask, held until the search is dropped.
+    member_leases: Vec<antecedent_core::execution::AdmissionLease>,
+    ws: DSeparationWorkspace,
+    context: Option<&'a antecedent_core::ExecutionContext>,
+}
+
+impl CandidateSearch<'_> {
+    fn graph(
+        &self,
+        include: &[bool],
+        decided: usize,
+        rest: bool,
+    ) -> Result<Admg, IdentificationError> {
+        let mut admg = self.blank.clone();
+        for (index, edge) in self.pool.iter().enumerate() {
+            let keep = if index < decided { include[index] } else { rest };
+            if !keep {
+                continue;
+            }
+            let inserted = match *edge {
+                PoolEdge::Directed(a, b) => admg.insert_directed(a, b),
+                PoolEdge::Bidirected(a, b) => admg.insert_bidirected(a, b),
+            };
+            inserted.map_err(IdentificationError::from)?;
+        }
+        Ok(admg)
+    }
+
+    /// Visit the branch with the first `decided` pool edges fixed. `false` once a bound is hit.
+    fn visit(&mut self, decided: usize, include: &mut [bool]) -> Result<bool, IdentificationError> {
+        if self.context.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+            return Err(IdentificationError::Cancelled);
+        }
+        self.states += 1;
+        if self.states > self.max_states {
+            return Ok(false);
+        }
+        let upper = self.graph(include, decided, true)?;
+        let upper_info = pair_infos(&upper, &mut self.ws)?;
+        let lower = self.graph(include, decided, false)?;
+        let lower_info = pair_infos(&lower, &mut self.ws)?;
+        let n = self.nodes;
+        for i in 0..n {
+            for j in (i + 1)..n {
+                let target = self.target[i * n + j];
+                if !target.reachable_from(upper_info[i * n + j])
+                    || !target.admits_from_below(lower_info[i * n + j])
+                {
+                    return Ok(true);
+                }
+            }
+        }
+        if decided == self.pool.len() {
+            // Nothing is undecided: both bounds are the graph itself, so it has the MAG.
+            if let Some(ctx) = self.context {
+                // Each retained candidate leases its own mask storage, so the number of
+                // members is bounded by the context's admission pool, not a constant.
+                let bytes =
+                    (include.len() as u64).saturating_add(std::mem::size_of::<Vec<bool>>() as u64);
+                match ctx.acquire_admission(0, bytes) {
+                    Ok(lease) => self.member_leases.push(lease),
+                    Err(antecedent_core::execution::AdmissionError::Cancelled) => {
+                        return Err(IdentificationError::Cancelled);
+                    }
+                    Err(_) => return Ok(false),
+                }
+            }
+            self.members.push(include.to_vec());
+            return Ok(true);
+        }
+        include[decided] = true;
+        if !self.visit(decided + 1, include)? {
+            return Ok(false);
+        }
+        include[decided] = false;
+        self.visit(decided + 1, include)
+    }
+}
+
+/// An ADMG over the nodes of `pag` (labels preserved) with no edges.
+fn blank_admg(pag: &Pag) -> Result<Admg, IdentificationError> {
+    let mut admg = Admg::empty();
+    for &node in pag.nodes() {
+        admg.add_node(node).map_err(IdentificationError::from)?;
+    }
+    Ok(admg)
+}
+
+/// The dominating pool and the MAG's pair relations.
+fn pool_of(mag: &Pag) -> Result<(Vec<PoolEdge>, Vec<MagPair>), IdentificationError> {
+    let n = mag.node_count();
+    let mut pool = Vec::new();
+    let mut bidirected = Vec::new();
+    let mut target = vec![MagPair::Absent; n * n];
+    for i in 0..n {
+        let a = DenseNodeId::from_index(i);
+        for (b, at_a, at_b) in mag.neighbors(a) {
+            if b.raw() < a.raw() {
+                continue;
+            }
+            let slot = i * n + b.as_usize();
+            match (at_a, at_b) {
+                (Endpoint::Tail, Endpoint::Arrow) => {
+                    pool.push(PoolEdge::Directed(a, b));
+                    target[slot] = MagPair::Forward;
+                }
+                (Endpoint::Arrow, Endpoint::Tail) => {
+                    pool.push(PoolEdge::Directed(b, a));
+                    target[slot] = MagPair::Backward;
+                }
+                (Endpoint::Arrow, Endpoint::Arrow) => {
+                    bidirected.push(PoolEdge::Bidirected(a, b));
+                    target[slot] = MagPair::Bidirected;
+                }
+                _ => {
+                    return Err(IdentificationError::unsupported(
+                        "ADMG candidates of a MAG require directed and bidirected marks only",
+                    ));
+                }
+            }
+        }
+    }
+    for (tail, head) in invisible_directed_edges(mag) {
+        bidirected.push(PoolEdge::Bidirected(tail, head));
+    }
+    pool.extend(bidirected);
+    Ok((pool, target))
+}
+
+/// Reserve the bounded search's live recursion scratch before
+/// allocating the edge pool. This conservative quote covers both branches' graph/pair
+/// workspaces at every possible edge depth. Result graphs
+/// are leased separately for the actual number of successful candidate masks.
+fn candidate_search_admission(
+    nodes: usize,
+    context: Option<&antecedent_core::ExecutionContext>,
+) -> Result<(Option<antecedent_core::execution::AdmissionLease>, u64), IdentificationError> {
+    let Some(ctx) = context else { return Ok((None, 0)) };
+    if ctx.cancellation.is_cancelled() {
+        return Err(IdentificationError::Cancelled);
+    }
+    let memory =
+        || IdentificationError::Budget { budget: crate::error::IdentificationBudget::Memory };
+    let n = u64::try_from(nodes).map_err(|_| memory())?;
+    let pairs = n.checked_mul(n).ok_or_else(memory)?;
+    let edges = n.checked_mul(n.saturating_sub(1)).ok_or_else(memory)?;
+    // Three adjacency families, labels, insertion scratch and Vec growth; the
+    // bound also covers the separation workspace and ancestor bitsets per level.
+    let graph = pairs
+        .checked_mul(64)
+        .and_then(|v| v.checked_add(n.checked_mul(256)?))
+        .and_then(|v| v.checked_add(std::mem::size_of::<Admg>() as u64))
+        .ok_or_else(memory)?;
+    let pair_bytes =
+        pairs.checked_mul(std::mem::size_of::<PairInfo>() as u64).ok_or_else(memory)?;
+    let per_depth =
+        graph.checked_add(pair_bytes).and_then(|v| v.checked_mul(2)).ok_or_else(memory)?;
+    let recursion =
+        per_depth.checked_mul(edges.checked_add(1).ok_or_else(memory)?).ok_or_else(memory)?;
+    let pool = edges
+        .checked_mul((2 * std::mem::size_of::<PoolEdge>()) as u64)
+        .and_then(|v| v.checked_add(pairs.checked_mul(std::mem::size_of::<MagPair>() as u64)?))
+        .ok_or_else(memory)?;
+    let bytes = recursion.checked_add(pool).ok_or_else(memory)?;
+    let lease = candidate_bytes_admission(bytes, ctx)?;
+    Ok((Some(lease), graph))
+}
+
+fn candidate_bytes_admission(
+    bytes: u64,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_core::execution::AdmissionLease, IdentificationError> {
+    ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
+        _ => IdentificationError::Budget { budget: crate::error::IdentificationBudget::Memory },
+    })
+}
+
+/// The not-certified outcome of a completion whose ADMG candidates could not all be
+/// enumerated within the search budget: an execution diagnostic marks it, so it is not read as
+/// a scientific non-identification of the graph.
+pub(crate) fn search_bounded_result(query: &CausalQuery) -> IdentificationResult {
+    let mut result = crate::generalized::not_identified(
+        query.clone(),
+        "the ADMG candidates of this MAG exceed the enumeration budget",
+    );
+    result.diagnostics.push(Diagnostic::new(
+        PAG_ADMG_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
+        DiagnosticKind::Execution,
+        DiagnosticSeverity::Warning,
+        "the ADMGs that share this MAG's m-separation model could not all be enumerated within \
+         the search budget, so the effect was not decided on every one of them; the completion \
+         is not certified, never read as a point",
+    ));
+    result
+}
+
+impl GeneralizedAdjustmentIdentifier {
+    /// Every ADMG whose MAG is `mag`: the graphs that share its m-separation model and so
+    /// cannot be told apart from the PAG, one of which is the latent projection of the true
+    /// model.
+    ///
+    /// # Errors
+    ///
+    /// A graph that is not a circle-free directed/bidirected MAG, a graph error, or
+    /// cancellation/storage refusal under the configured caller context.
+    pub fn admg_candidates_of_mag(&self, mag: &Pag) -> Result<AdmgCandidates, IdentificationError> {
+        let (_scratch_retention, graph_bytes) =
+            candidate_search_admission(mag.node_count(), self.config.context.as_ref())?;
+        let (pool, target) = pool_of(mag)?;
+        let blank = blank_admg(mag)?;
+        let mut search = CandidateSearch {
+            nodes: mag.node_count(),
+            pool: &pool,
+            target: &target,
+            blank: &blank,
+            states: 0,
+            max_states: self.config.completion_operations,
+            members: Vec::new(),
+            member_leases: Vec::new(),
+            ws: DSeparationWorkspace::default(),
+            context: self.config.context.as_ref(),
+        };
+        let mut include = vec![false; pool.len()];
+        let complete = search.visit(0, &mut include)?;
+        let _result_retention = self
+            .config
+            .context
+            .as_ref()
+            .map(|ctx| {
+                let bytes = graph_bytes.checked_mul(search.members.len() as u64).ok_or(
+                    IdentificationError::Budget {
+                        budget: crate::error::IdentificationBudget::Memory,
+                    },
+                )?;
+                candidate_bytes_admission(bytes, ctx)
+            })
+            .transpose()?;
+        let members = search
+            .members
+            .iter()
+            .map(|mask| search.graph(mask, pool.len(), false))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(AdmgCandidates { members, bounded: !complete })
+    }
+
+    /// Identify a path-restricted natural effect, or a natural direct effect, over a PAG.
+    ///
+    /// Each MAG completion is read through the ADMGs it stands for (see the module
+    /// documentation): the path-specific identifier decides every one, completions whose
+    /// candidates all agree on one functional identify the effect by it, candidates that
+    /// differ yield one case per distinct functional, and a refused candidate leaves the
+    /// completion unidentified. The envelope's status is nonparametrically identified only
+    /// when every candidate of every completion yields the same functional.
+    ///
+    /// # Errors
+    ///
+    /// A query the path-specific identifier does not read, or a completion that fails to
+    /// prepare.
+    pub fn identify_pag_path_specific_envelope(
+        &self,
+        pag: &Pag,
+        query: &CausalQuery,
+    ) -> Result<IdentificationEnvelope<Pag>, IdentificationError> {
+        let identifier = PathSpecificIdentifier::new();
+        let mut workspace = IdentificationWorkspace::default();
+        let mut completions = 0usize;
+        let mut candidates = 0usize;
+        let mut distinct = 0usize;
+        let mut envelope = self.pag_envelope_with_candidates(pag, |mag| {
+            completions += 1;
+            let found = self.admg_candidates_of_mag(mag)?;
+            candidates += found.members.len();
+            if found.bounded || found.members.is_empty() {
+                let result = search_bounded_result(query);
+                return Ok(vec![result]);
+            }
+            let mut forms: Vec<Option<String>> = Vec::new();
+            let mut results = Vec::new();
+            for admg in &found.members {
+                let prepared = identifier.prepare(admg)?;
+                let mut result = identifier.identify(&prepared, query, &mut workspace)?;
+                if !carries_identified_mass(result.status) {
+                    result.diagnostics.push(Diagnostic::new(
+                        "identify.path_specific_pag.unidentified_candidate",
+                        DiagnosticKind::Scientific,
+                        DiagnosticSeverity::Info,
+                        format!(
+                            "one of the {} ADMG(s) with this MAG leaves the effect unidentified; \
+                             no functional is correct for every model the MAG represents",
+                            found.members.len()
+                        ),
+                    ));
+                    return Ok(vec![result]);
+                }
+                let form = functional_form(&result);
+                if forms.contains(&form) {
+                    continue;
+                }
+                forms.push(form);
+                results.push(result);
+            }
+            distinct += results.len();
+            Ok(results)
+        })?;
+        envelope.push_features([GraphFeature {
+            kind: Arc::from("pag_admg_candidates"),
+            detail: Arc::from(format!(
+                "{completions} MAG completion(s) read through {candidates} ADMG candidate(s) \
+                 sharing their m-separation models; {distinct} distinct functional(s)"
+            )),
+        }]);
+        Ok(envelope)
+    }
+}
+
+/// Identify an interventional distribution over one ADMG: IDC when the query conditions, the
+/// complete ID algorithm otherwise.
+pub(crate) fn identify_distribution_on(
+    admg: &Admg,
+    query: &CausalQuery,
+    workspace: &mut IdentificationWorkspace,
+) -> Result<IdentificationResult, IdentificationError> {
+    if matches!(query, CausalQuery::Distribution(q) if !q.conditioning.is_empty()) {
+        let idc = crate::idc::IdcIdentifier::new();
+        let prepared = idc.prepare(admg)?;
+        idc.identify(&prepared, query, workspace)
+    } else {
+        let id = crate::id::IdIdentifier::new();
+        let prepared = id.prepare(admg)?;
+        id.identify(&prepared, query, workspace)
+    }
+}
+
+impl GeneralizedAdjustmentIdentifier {
+    /// Identify an interventional distribution over the ADMGs a PAG leaves open.
+    ///
+    /// Each MAG completion is read through every ADMG that shares its m-separation model (see
+    /// the module documentation): completions whose candidates all agree on one functional
+    /// identify the distribution by it, candidates that differ yield one case per distinct
+    /// functional, and a refused candidate leaves the completion unidentified.
+    ///
+    /// # Errors
+    ///
+    /// A query the algorithm does not read, or a completion that fails to prepare.
+    pub fn identify_pag_distribution_envelope(
+        &self,
+        pag: &Pag,
+        query: &CausalQuery,
+    ) -> Result<IdentificationEnvelope<Pag>, IdentificationError> {
+        let mut workspace = IdentificationWorkspace::default();
+        self.pag_envelope_with_candidates(pag, |mag| {
+            let found = self.admg_candidates_of_mag(mag)?;
+            if found.bounded || found.members.is_empty() {
+                return Ok(vec![search_bounded_result(query)]);
+            }
+            let mut forms: Vec<Option<String>> = Vec::new();
+            let mut results = Vec::new();
+            for admg in &found.members {
+                let result = identify_distribution_on(admg, query, &mut workspace)?;
+                if !carries_identified_mass(result.status) {
+                    return Ok(vec![result]);
+                }
+                let form = functional_form(&result);
+                if forms.contains(&form) {
+                    continue;
+                }
+                forms.push(form);
+                results.push(result);
+            }
+            Ok(results)
+        })
+    }
+}
+
+/// Canonical text of a result's first functional, the form candidates are compared by.
+fn functional_form(result: &IdentificationResult) -> Option<String> {
+    let estimand = result.estimands.first()?;
+    ((estimand.functional.raw() as usize) < result.arena.len())
+        .then(|| result.arena.pretty(estimand.functional))
+}
+
+#[cfg(test)]
+mod candidate_context_tests {
+    use super::*;
+    use antecedent_core::{CancellationToken, ExecutionContext};
+
+    fn mag() -> Pag {
+        let mut mag = Pag::with_variables(3);
+        mag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        mag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        mag
+    }
+
+    #[test]
+    fn mag_candidates_observe_context_before_allocating_and_return_admission() {
+        let mag = mag();
+        let mut identifier = GeneralizedAdjustmentIdentifier::new();
+        let baseline = identifier.admg_candidates_of_mag(&mag).unwrap();
+        let limited = ExecutionContext::for_tests(9).with_memory_limit(Some(1));
+        identifier.config.context = Some(limited.clone());
+        assert!(matches!(
+            identifier.admg_candidates_of_mag(&mag),
+            Err(IdentificationError::Budget { .. })
+        ));
+        assert_eq!(limited.admission.available().bytes(), 1);
+        let mut cancelled = ExecutionContext::for_tests(9);
+        cancelled.cancellation = CancellationToken::cancel_after_checks(1);
+        identifier.config.context = Some(cancelled);
+        assert!(matches!(
+            identifier.admg_candidates_of_mag(&mag),
+            Err(IdentificationError::Cancelled)
+        ));
+        let funded = ExecutionContext::for_tests(9).with_memory_limit(Some(1 << 24));
+        identifier.config.context = Some(funded.clone());
+        let actual = identifier.admg_candidates_of_mag(&mag).unwrap();
+        assert_eq!(actual.members, baseline.members);
+        assert_eq!(actual.bounded, baseline.bounded);
+        assert_eq!(funded.admission.available().bytes(), 1 << 24);
+    }
+}

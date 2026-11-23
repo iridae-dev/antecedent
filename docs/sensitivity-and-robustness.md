@@ -1,23 +1,26 @@
-# Sensitivity and robustness
+# Probe sensitivity to assumptions you cannot test
 
-A decision often rests on something that cannot be tested from the data: that
-there is no unmeasured confounding, that two populations share a mechanism, that
-the causal graph is the right one. The routes on this page carry such an
+Use this page when a conclusion or a decision rests on something the data cannot test: that
+there is no unmeasured confounding, that missing outcomes are missing at random, that two
+populations share a mechanism, that the causal graph is the right one. The routes here
+carry such an
 assumption into the decision as a declared range, report where the best action
-switches, and keep the range apart from sampling uncertainty.
+switches, and keep the range apart from sampling uncertainty. For refuters and
+sensitivity ranges bound to the quantity a single result reports (E-values, omitted-variable
+bias, Rosenbaum bounds), use [refute the reported quantity](guides/target-native-validation.md).
 
-Four modules:
+Pick the module by question:
 
 | Module | Question | Claim |
 | --- | --- | --- |
-| `antecedent.msm_sensitivity` | How far can a stratified ATE move if unmeasured confounding shifts the odds of treatment by at most a factor Lambda? | assumption range; calibration unmeasured |
+| `antecedent.msm_sensitivity` | How far can a stratified ATE move if unmeasured confounding shifts the odds of treatment by at most a factor Lambda? | assumption range; calibration not_measured |
+| `antecedent.mnar_sensitivity` | How does an arm-mean effect, and the decision resting on it, move if the missing outcomes depart from missing at random by a bounded, declared amount? | assumption range per declared departure; untestable assumption; calibration not_measured |
 | `antecedent.sensitivity_decision` | Over a declared assumption grid, does the best action change, and where? | point-only; grid points only |
 | `antecedent.decision_robust` | Is the choice robust across causal structures, support-robust, graph-dependent or under-claimed? | point-only verdicts over supplied structures |
-| `antecedent.mechanism_discrepancy` | Does the mechanism of one node differ between a source and a target population? | asymptotic Wald diagnostic; calibration unmeasured |
+| `antecedent.mechanism_discrepancy` | Does the mechanism of one node differ between a source and a target population? | asymptotic Wald diagnostic; calibration not_measured |
 
-Registry authority is `parity/promotion.toml`; this page restates it. For the
-label vocabulary (point-only, no claim, closed without a measured calibration) see
-[decisions, design, repair and estimator breadth](decisions-breadth.md).
+For the label vocabulary (point-only, no claim, closed without a measured calibration) see
+[decision routes at a glance](decisions.md#routes-at-a-glance).
 
 ## Three quantities that are never merged
 
@@ -31,15 +34,105 @@ Every route here keeps these apart, and refuses to add them together:
 - the **sampling interval** is reported next to the decision, never inside the
   range. The MSM strata are supplied as exact quantities, so no sampling interval
   is reported at all (`sampling interval: not reported`), and asking to compose
-  one with the range is refused with `cell_not_licensed`
-  (`msm_sensitivity.composition_not_licensed`, or
-  `sensitivity_decision_composition.composition_not_licensed` at decide time).
+  one with the range is refused with `route_not_supported`
+  (`msm_sensitivity.composition_not_supported`, or
+  `sensitivity_decision_composition.composition_not_supported` at decide time).
+
+## Missing outcomes not at random: `mnar_ate_sensitivity`
+
+Runnable example: [`examples/python/missing_outcome_sensitivity.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/missing_outcome_sensitivity.py).
+
+Complete-case analysis and multiple imputation both assume the missing outcomes follow the
+observed ones given what the model conditions on. Nothing in the data tests that, so
+`antecedent.mnar_sensitivity` relaxes it by one explicit, bounded parameter and re-runs the
+declared estimand, the difference of the arms' full-population mean outcomes, across a declared
+grid:
+
+```python
+from antecedent import mnar_sensitivity as mnar
+
+result = mnar.mnar_ate_sensitivity(
+    treatment, outcome,                    # outcome entries None / NaN are missing
+    model="delta_pattern_mixture",         # or "exponential_tilting_selection"
+    loading="treated_only",                # which arm departs
+    lower=-5.0, upper=5.0,                 # a bounded range that contains 0 (MAR)
+    decisions={"treat": 1.0},              # act when the effect exceeds the threshold
+)
+result.mar.effect                          # parameter 0: the missing-at-random estimate
+result.grid                                # the effect as a function of the parameter
+result.tipping_point("sign").negative      # where the sign of the effect changes
+result.decisions[0].changes_within_range   # does the declared decision change?
+```
+
+- **Delta-adjusted pattern mixture.** The missing outcomes of an arm are the observed outcomes
+  shifted by `loading * delta`. The arm mean is `ybar + loading * delta * missing_fraction`, so
+  the effect moves by exactly `delta` times the missing fraction; `delta = 0` reproduces the
+  missing-at-random estimate.
+- **Bounded selection model.** The odds of observing an outcome are `exp(alpha - loading * theta * y)`,
+  which tilts the missing-pattern law to `f_obs(y) exp(loading * theta * y)`. The tilt acts on
+  the observed outcome values, so the imputed mean stays inside their range for every finite
+  `theta`; `theta = 0` is missing at random.
+- **Tipping points.** For the sign of the effect, whether the conditional sampling interval
+  excludes the null, and every declared decision (act when the effect exceeds a threshold), the
+  smallest departure on each side of MAR at which the conclusion changes, refined by bisection
+  inside the grid cell with its certified bracket.
+
+**Estimators.** `difference_in_means` (the default, no covariates) and the adjusted
+`regression_adjusted`, `ipw` and `aipw`, which read `covariates=`. At every grid point an adjusted
+estimator is re-run on the table the departure completes: a missing outcome is imputed from its
+arm's outcome regression plus the shift, or, for the selection model, plus the mean regression
+residual under the tilted weights `exp(loading * theta * y)` of the observed outcomes; the arm
+regressions are refitted on the completed table and averaged over every unit, or the Hajek
+weighted and augmented weighted contrasts use a logistic propensity model. Parameter zero
+imputes the fitted values, which is the missing-at-random estimate. The per-point sampling
+interval of an adjusted estimator is a seeded bootstrap (`bootstrap_replicates`, `seed`) that
+resamples units within arm and repeats the imputation fit, so imputation uncertainty is in it.
+The route from an analysis result is `outcome.value.mnar_sensitivity(data=..., model=..., lower=..., upper=...)`
+(Python, on the value of an `ant.analyze(...)` or `ant.estimate(...)` outcome) and `mnar_sensitivity_for_study` (Rust). Both bind the complete target of the study's
+average-effect query. The analysis is the full-population difference of the arm means at the two
+treatment levels, so a target population, an outcome functional, effect modifiers or intervention
+levels other than that contrast are refused with `mnar_sensitivity.unsupported_target`, which names
+them. Python takes the checked adjustment set of the result's identification; Rust takes the
+adjustment set as an argument and checks it against the study's DAG with the joint backdoor
+criterion (`adjustment_not_valid`, or `graph_not_supported` for a graph posterior).
+
+What is reported, and what is kept apart:
+
+| Item | Meaning |
+| --- | --- |
+| `assumption_range` | The envelope of the point effects over the declared range. An assumption range: `is_confidence_interval` and `empirically_established` are always `False`. |
+| `assumptions` | The departure assumption, status `untestable`, and the treatment-ignorability assumption held fixed. |
+| `point.sampling` | A sampling interval conditional on that parameter value, at the stated `level`: the delta method for `difference_in_means`, the seeded bootstrap for an adjusted estimator. Reported beside the range with its calibration status; composing the two refuses (`route_not_supported` / `mnar_sensitivity.composition_not_supported`). |
+| `observed_case_effect` | The estimate from the observed outcomes alone, which equals the missing-at-random estimate here. |
+
+Refusals use `MnarSensitivityRefusal` with detail `mnar_sensitivity.<slot>`:
+`mechanism_not_declared` (`required_option_missing`: the departure cannot be inferred from the
+data, so declare it), `unsupported_mechanism`, `unsupported_estimator` (an estimator with no
+completed-table form, such as a causal forest, is refused rather than silently replaced),
+`unsupported_target`, `adjustment_not_valid`, `graph_not_supported`, `covariates_required`, `covariates_not_used`, `design_singular` (a singular covariate design or a
+propensity outside (0, 1)), `invalid_bootstrap`, `unsupported_query`, `unbounded_range` (a non-finite or oversized bound), `range_excludes_mar`,
+`composition_not_supported`, `invalid_data`, `invalid_loading`, `invalid_level`,
+`invalid_decision`, `invalid_tolerance`, `insufficient_observed` and `bounds_exceeded`. A
+multiple-imputation declaration of `missing_not_at_random` is refused with this analysis named as
+the next attempt (see [missing data](guides/missing-data.md)).
+
+Each tipping point is found by scanning every grid cell at eight interior points and
+bisecting the continuous effect function (the conditional sampling interval for the
+excludes-null conclusion) inside the first cell where the conclusion differs from its
+missing-at-random value, separately on each side of MAR; the interval conclusion of an adjusted
+estimator is scanned on the declared grid only, because each evaluation is a bootstrap.
 
 ## Marginal sensitivity model: `msm_ate_sensitivity`
 
 The Tan (2006) / Zhao-Small-Bhattacharya (2019) marginal sensitivity model for a
 binary treatment, a discrete adjustment set (finite strata) and exact population
-inputs. Strata can be built by hand or from a plain table with
+inputs. The target is the average treatment effect
+`sum_x p(x) (E[Y | T=1, X=x] - E[Y | T=0, X=x])` over the strata `x`. The sensitivity
+parameter Lambda (at least 1) bounds unmeasured confounding: the odds of treatment given
+the covariates and a potential outcome lie between `1/Lambda` and `Lambda` times the odds
+given the covariates alone. Lambda = 1 is no unmeasured confounding. Each
+`MsmStratum` holds the stratum mass `p(x)`, the propensity `P(T=1 | X=x)` and the treated
+and control outcome laws. Strata can be built by hand or from a plain table with
 `MsmStratum.table`.
 
 ```python
@@ -86,26 +179,29 @@ What you get back:
 Refusals use the `msm_sensitivity.*` namespace: `lambda_below_one`,
 `lambda_range_empty` (a `lambda_max` of exactly one), `positivity` (a propensity
 of 0 or 1), `stratum_mass`, `outcome_law`, `invalid_threshold`, `invalid_tolerance`
-and `bounds_exceeded` (`lambda_max` above 1000). All raise `MsmSensitivityRefusal`,
-a `StructuredRefusal`.
+and `bounds_exceeded` (`lambda_max` above `1e12`, or a stratum, outcome-atom or grid count
+above the [supported input bounds](supported-bounds.md)). All raise `MsmSensitivityRefusal`,
+a `StructuredRefusal`; see
+[structured refusals and their remedies](reference/refusal-codes.md#structured-refusals-and-their-remedies)
+for its fields.
 
-For an analysis result, supply a sample explicitly rather than rebuilding laws
+For an analysis outcome (`ate_result = ant.analyze(...)`), supply a sample explicitly rather than rebuilding laws
 from an aggregate ATE:
 
 ```python
-sample_bounds = ate_result.msm_sensitivity(data=sample, lambda_max=3.0)
+sample_bounds = ate_result.value.msm_sensitivity(data=sample, lambda_max=3.0)
 assert sample_bounds.input_basis == "empirical_plugin"
 ```
 
 This route requires a checked static binary-treatment `AverageEffect` and the
-same finite adjustment set. At Lambda = 1 the new MSM model declares
+same finite adjustment set. At Lambda = 1 the MSM model declares
 conditional ignorability within those strata; the original analysis query or
 identification premises do not certify that added assumption. In particular,
 a front-door or general-ID estimator need not equal this empirical stratified
 ATE even when both address the same query. The supplemental sample supplies empirical stratum
 masses, propensities and discrete outcome laws. Its bounds are sharp for the
 empirical distribution and estimate population bounds; sampling uncertainty is
-unmeasured and withheld. The sample gets its own content digest and is explicitly
+not_measured and withheld. The sample gets its own content digest and is explicitly
 labelled supplemental, so it is never represented as the original analysis
 snapshot. `to_sensitivity_artifact` carries this distinction, the original
 program identity and the sampling limitation into a decision. Every stratum
@@ -140,20 +236,20 @@ artifact = result.to_sensitivity_artifact(
     ],
     causal_contract_id="checked-contract",
 )
-decided = sd.decide(artifact.contract(), artifact)
-decided.kind                  # "invariant_action": treat leads at every Lambda in [1, 2]
-decided.invariant_action      # "treat"
+decided = sd.decide(artifact.contract(), artifact)   # an Outcome; read decided.refusal first
+decided.value.kind                  # "invariant_action": treat leads at every Lambda in [1, 2]
+decided.value.invariant_action      # "treat"
 ```
 
-`decided.kind` is one of:
+`decided.value.kind` is one of:
 
 - `invariant_action`: one action leads at every evaluated point and every range
   vertex;
-- `assumption_dependent`: the leader switches. `decided.switch` gives the
+- `assumption_dependent`: the leader switches. `decided.value.switch` gives the
   `from_actions`, `to_actions`, the `bracket` and whether the crossing is `exact`
   (a tie on a grid point) or interpolated, which is labelled an interpolation;
 - `no_robust_action`: the best action depends on where inside the range the
-  surface lies (`outcome.reason == "mixed_within_range"`);
+  surface lies (`decided.value.outcome.reason == "mixed_within_range"`);
 - `unresolved`.
 
 Only the declared grid points are evaluated; nothing between them is. `range=`
@@ -164,14 +260,15 @@ ranged surface refuse. A `SensitivityArtifact` exports, and
 it and refuses a resealed or foreign artifact. It can be embedded in a
 [composition bundle](composition.md) as a `sensitivity` node.
 
-A joint mechanism sensitivity enters the same way through
-`SensitivityArtifact.from_joint_sensitivity(...)`; `from_surface(...)` takes a
-hand-supplied surface (the tests derive their oracles by hand: a gamma grid
-`{0, 1, 2}` with action A worth `2 - gamma` against B worth 1 leads A, ties at 1
-and leads B).
+A joint mechanism sensitivity of a prepared transport stage enters the same way through
+`sensitivity_decision.evaluate_joint_sensitivity(stage, deviation, effect=..., actions=...,
+causal_contract_id=...)`; `SensitivityArtifact.from_surface(...)` takes a
+hand-supplied surface. For example, on a gamma grid
+`{0, 1, 2}` with action A worth `2 - gamma` against B worth 1, A leads at 0, the two tie
+at 1 and B leads at 2.
 
 Refusals use `SensitivityRefusal` with detail in
-`sensitivity_decision_composition.*`: `composition_not_licensed`, `wrong_contract`
+`sensitivity_decision_composition.*`: `composition_not_supported`, `wrong_contract`
 (mixed estimands, unlike units, weights on a ranged surface), `unsupported_coordinate`,
 `invalid_surface`, `bounds_exceeded`.
 
@@ -192,7 +289,9 @@ claims = [
     decision_robust.Claim.evaluated("s1", law_1, support=decision_robust.Support("supported")),
     decision_robust.Claim.evaluated("s2", law_2, support=decision_robust.Support("supported")),
 ]
-robust = decision_robust.robust(contract, claims, kind="graph_dependent")
+from antecedent.outcomes import require_success
+
+robust = require_success(decision_robust.robust(contract, claims, kind="graph_dependent"))
 robust.verdict.kind       # "structurally_robust", or "graph_dependent_choice" when they disagree
 robust.selected           # the action, or None when the choice depends on the structure
 print(robust.explain())
@@ -201,7 +300,8 @@ print(robust.explain())
 Verdict kinds include `structurally_robust`, `support_robust`, `support_dependent`,
 `graph_dependent_choice`, `unsupported_extrapolation`, `insufficient_claims`,
 `no_admissible_action`, `worst_case_choice`, `bayes_choice` and `report_only`.
-`finite_scenarios`, `graph_dependent`, `weighted_atoms` and `point_claim` are
+`decision_robust.robust` returns an `Outcome`; `require_success` returns its value or raises
+the refusal. `finite_scenarios`, `graph_dependent`, `weighted_atoms` and `point_claim` are
 shorthand for the claim kinds, and `identified_sets` handles intervals. Bayes over
 an identified set has no probability law and is refused. A decision whose value
 came from an external callback keeps its attested value and trust limit in the
@@ -250,9 +350,9 @@ Read it as a diagnostic, not a certificate:
   not invariant, so a selection node there cannot be excluded; non-rejection
   leaves it open and says nothing about selection nodes on other variables.
 - It is a linear-Gaussian-mean diagnostic: a shift in a nonlinear or higher-moment
-  feature may go undetected. Type I error and power are **unmeasured**
-  (`calibration == "unmeasured"`, `inference_claim ==
-  "asymptotic_wald_calibration_unmeasured"`).
+  feature may go undetected. Type I error and power are **not_measured**
+  (`calibration == "not_measured"`, `inference_claim ==
+  "asymptotic_wald_calibration_not_measured"`).
 - The test is valid only for **independent** samples. Shared units
   (`dependence="shared_units"` or a common `unit_ids` entry) or an unknown
   dependence refuse as `dependence_unknown`.
@@ -274,6 +374,7 @@ parent set, unit or protocol id, or a blank declaration; `route_not_supported`),
 
 | Item | Carried forward | Not measured or not claimed |
 | --- | --- | --- |
+| MNAR range | the effect at every grid point, the tipping points and decision changes, the untestable assumption record | coverage of any interval; that the departure holds; the conditional sampling intervals are not combined with the range |
 | MSM range | into a `SensitivityArtifact`, a decision, a bundle node | coverage of any interval; a sampling interval (withheld) |
 | Tipping Lambda | bracket with a certified bisection tolerance | a probability that the threshold is crossed |
 | Assumption-dependent switch | exact tie, or a labelled interpolation | anything between grid points |
@@ -281,13 +382,12 @@ parent set, unit or protocol id, or a blank declaration; `route_not_supported`),
 | Mechanism discrepancy | statistic, p-value, minimal detectable differences, `informs_selection_on` | Type I error, power; invariance on non-rejection |
 
 Every standard error, p-value and interval on this page is a diagnostic with
-calibration unmeasured. It is reported so it can be
+calibration not_measured. It is reported so it can be
 inspected, not as a confidence statement.
 
 Runnable examples:
-[`msm_sensitivity.py`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/msm_sensitivity.py) and
-[`mechanism_discrepancy.py`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/mechanism_discrepancy.py).
+[`msm_sensitivity.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/msm_sensitivity.py) and
+[`mechanism_discrepancy.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/mechanism_discrepancy.py).
 
-Related: [the lifecycle](lifecycle.md),
-[transport and counterfactuals](transport-counterfactuals.md),
-[decisions](decisions.md).
+Related: [target-native validation](guides/target-native-validation.md) (refutations and sensitivity ranges for the quantity a result reports), [evaluating actions with a decision contract](decisions.md),
+[transport and counterfactuals](transport-counterfactuals.md).

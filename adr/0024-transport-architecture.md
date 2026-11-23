@@ -1,4 +1,4 @@
-# ADR 0024 — Transport architecture and licensing
+# ADR 0024 — Transport architecture and support
 
 - Status: Accepted
 - Date: 2026-09-20
@@ -6,7 +6,7 @@
 
 ## Context
 
-1.10 licensed one transport cell: `analyze` + `TransportQuery` + trial-to-target
+1.10 supported one transport cell: `analyze` + `TransportQuery` + trial-to-target
 IPW on an explicit ADMG. Identification is the implemented sID subset
 (`Direct` or S-admissible standardize). `NotCertified` means no implemented
 sound rule applied. That refusal also absorbed "the required source experiment
@@ -15,7 +15,7 @@ impossibility witness or from an unimplemented multi-node branch.
 
 transport (T0–T10) is structural population transport, not statistical
 prior/evidence transport (`antecedent.priors`). It must not grow a second
-workflow engine or a new `analyze` matrix shape. The licensed trial-IPW cell
+workflow engine or a new `analyze` matrix shape. The supported trial-IPW cell
 stays. New work lives in `antecedent.transport` and in core catalog / outcome
 records that identify and later estimate consume.
 
@@ -90,7 +90,7 @@ fit the 1.10 matrix shape.
 - **Evaluate** — evaluator × evidence setting × target functional.
 - **Uncertainty** — uncertainty method × evaluator × observation contract.
 
-The licensed trial-IPW `analyze` cell remains the one public analyze route
+The supported trial-IPW `analyze` cell remains the one public analyze route
 for transport. New identify/catalog surfaces are not analyze cells.
 
 ### Extension points
@@ -107,9 +107,9 @@ Stay on the ADR 0020 prepared handle and ADR 0022 claim/identity model.
 - No durable wire-format break. New optional fields default to absent. A new
   `TransportIdentification` / wire variant (`MissingEvidence`) is additive:
   existing `Transportable` / `NotCertified` artifacts still decode. The
-  licensed trial-IPW path requires available evidence before estimation.
+  supported trial-IPW path requires available evidence before estimation.
 
-### Existing licensed cell
+### Existing supported cell
 
 `analyze` + explicit `Admg` + Frequentist + validation `none` + trial column
 bindings is unchanged. Recursive factorization and `NotCertified` still refuse
@@ -119,10 +119,10 @@ transport work through `analyze` except this cell.
 ## T2 addendum — identification-product identity
 
 T2 lowers `TransportFormula` into the existing `antecedent-expr` arena. The
-licensed trial-IPW cell's identification product no longer stores a stub
+supported trial-IPW cell's identification product no longer stores a stub
 `E[Y | do(T)]` (`inspectable_do_expectation`). Inspect and the identification
 digest now name the lowered Direct / Standardize / Recursive formula. That is
-an intentional identity change for the licensed cell's identification product,
+an intentional identity change for the supported cell's identification product,
 not a silent rewrite of the stub. Trial-IPW **estimation** still gates on
 Direct / Standardize and does not evaluate the arena.
 
@@ -148,6 +148,6 @@ population or regime swap is a different `ExprId` and fails certificate bind.
 - Python `antecedent.transport` grows catalog dataclasses. Existing
   `TransportQuery(source_experiments=..., trial=...)` stays byte-compatible.
 - T3–T5 (classical sID completeness, exact table evaluators, prepared
-  lifecycle) are implemented. T6.1–T6.2 license empirical frequency joints and
+  lifecycle) are implemented. T6.1–T6.2 support empirical frequency joints and
   their IID outer bootstrap on that handle. Learner-backed factors, cluster
   bootstrap, and multi-source search remain later.

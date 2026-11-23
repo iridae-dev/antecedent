@@ -19,7 +19,9 @@ import sys
 from pathlib import Path
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import composition_bundle as cb
+from antecedent.outcomes import require_success
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import generate_cross_surface_bundle_fixtures as bundle_gen  # noqa: E402
@@ -61,7 +63,9 @@ def _rust_bundle_bytes() -> bytes:
 
 def test_xsurface_rust_built_bundle_verifies_under_the_python_declared_identity() -> None:
     expected = bundle_gen.build_bundle()
-    consumed = cb.consume_bundle(_rust_bundle_bytes(), expected_identity=expected.identity)
+    consumed = require_success(
+        cb.consume_bundle(_rust_bundle_bytes(), expected_identity=expected.identity)
+    )
     assert consumed.identity == expected.identity
     _assert_hand_derived_truth(consumed)
     # The Merkle digests of every node agree with the Python-assembled twin.
@@ -77,10 +81,10 @@ def test_xsurface_rust_built_bundle_refuses_another_identity_and_changed_bytes()
     data = _rust_bundle_bytes()
     identity = bundle_gen.build_bundle().identity
     with pytest.raises(cb.ExpectedIdentityMismatchRefusal) as wrong:
-        cb.consume_bundle(data, expected_identity="0" * 64)
-    assert wrong.value.detail == "composition_bundle.expected_identity_mismatch"
+        require_success(cb.consume_bundle(data, expected_identity="0" * 64))
+    assert wrong.value.detail == reason_details.composition_bundle.EXPECTED_IDENTITY_MISMATCH
     with pytest.raises(cb.CompositionBundleRefusal):
-        cb.consume_bundle(_flip_middle_byte(data), expected_identity=identity)
+        require_success(cb.consume_bundle(_flip_middle_byte(data), expected_identity=identity))
 
 
 def test_xsurface_python_bundle_identity_equals_the_committed_fixture_constant() -> None:
@@ -95,7 +99,9 @@ def test_xsurface_python_bundle_identity_equals_the_committed_fixture_constant()
     if not bin_path.is_file():
         pytest.skip(f"missing {bin_path}; generate it with: {bundle_gen.PY_COMMAND}")
     # The committed bytes are consumed under the in-process identity.
-    consumed = cb.consume_bundle(bin_path.read_bytes(), expected_identity=bundle.identity)
+    consumed = require_success(
+        cb.consume_bundle(bin_path.read_bytes(), expected_identity=bundle.identity)
+    )
     _assert_hand_derived_truth(consumed)
 
 

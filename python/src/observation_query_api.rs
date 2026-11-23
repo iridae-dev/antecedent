@@ -14,20 +14,21 @@ use antecedent::analysis::observation_posterior::{
     FiniteBayesInput, conjugate_posterior, finite_posterior,
 };
 use antecedent::analysis::observation_query::{
-    Direction, ObservationClaim, ObservationQueryRefusal, ObservationRequest,
-    ObservationResultWire, consume_observation_query_artifact,
+    ContinuousAssignments, Direction, ObservationClaim, ObservationQueryRefusal,
+    ObservationQueryWire, ObservationRequest, ObservationResultWire, ParameterRedrawRequest,
+    RedrawPrior, consume_observation_query_artifact, retain_counts, retain_regression,
 };
-use antecedent_contract::{
+use antecedent::contract::{
     ExternalRefusal, InferenceBasis, MeasuredIndicator, ObservationOperation, ObservedSlot,
     SlotProvenance, SlotValue, calibration_refusal, interval_refusal,
 };
-use antecedent_core::measurement_model::{MeasurementKind, RepresentationVersion};
+use antecedent::scientific::{MeasurementKind, RepresentationVersion};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
 
 use crate::measurement_model_api::{
-    list, member, object, opt_text, parse, parse_model, present, real, small, text,
+    list, member, object, opt_text, parse, parse_model, present, real, reals, small, text,
 };
 use crate::mechanism_composition_api::PreparedCompositionHandle;
 use crate::transport_common::execution_context;
@@ -54,7 +55,7 @@ fn refusals_json(code: &str, refusals: &[ExternalRefusal]) -> String {
         json!({
             "code": code,
             "stage": "observe",
-            "detail": "observation_query.request_unsupported",
+            "detail": antecedent::reason::reason_details::observation_query::REQUEST_UNSUPPORTED,
             "message": "observation query refused",
             "offending": Json::Null,
             "expected": Json::Null,
@@ -74,7 +75,17 @@ fn bits_levels(values: &[(String, u64)]) -> Json {
     Json::Array(values.iter().map(|(l, p)| json!([l, f64::from_bits(*p)])).collect())
 }
 
-fn result_json(result: &ObservationResultWire) -> Json {
+fn bayes_factor_range_status(factor: f64) -> &'static str {
+    if factor.is_infinite() {
+        "overflow"
+    } else if factor == 0.0 {
+        "underflow"
+    } else {
+        "finite"
+    }
+}
+
+fn result_json(result: &ObservationResultWire, query: Option<&ObservationQueryWire>) -> Json {
     match result {
         ObservationResultWire::Conditional {
             operation,
@@ -115,6 +126,48 @@ fn result_json(result: &ObservationResultWire) -> Json {
                 "crosses": x,
             })).collect::<Vec<_>>(),
         }),
+        ObservationResultWire::GaussianConditional {
+            operation,
+            mean_bits,
+            variance_bits,
+            evidence_log_density_bits,
+        } => {
+            let density = evidence_log_density_bits.map(f64::from_bits);
+            let density_status = match density {
+                None => "not_observed",
+                Some(v) if v.is_finite() => "finite",
+                Some(v) if v.is_infinite() => "out_of_range",
+                Some(_) => "undefined",
+            };
+            json!({
+                "kind": "gaussian_conditional", "operation": operation,
+                "mean": f64::from_bits(*mean_bits), "variance": f64::from_bits(*variance_bits),
+                "evidence_log_density": density, "evidence_log_density_status": density_status,
+            })
+        }
+        ObservationResultWire::ParameterDraws {
+            quantities,
+            draws,
+            point_bits,
+            values_bits,
+            alignment_identity,
+            reading,
+        } => {
+            let width = quantities.len().max(1);
+            let rows: Vec<Json> = values_bits
+                .chunks(width)
+                .map(|row| Json::Array(row.iter().map(|b| json!(f64::from_bits(*b))).collect()))
+                .collect();
+            json!({
+                "kind": "parameter_draws",
+                "quantities": quantities,
+                "draws": draws,
+                "point": point_bits.iter().map(|b| f64::from_bits(*b)).collect::<Vec<_>>(),
+                "values": rows,
+                "alignment_identity": alignment_identity,
+                "reading": reading,
+            })
+        }
         ObservationResultWire::FinitePosterior {
             posterior,
             log_evidence_bits,
@@ -137,23 +190,73 @@ fn result_json(result: &ObservationResultWire) -> Json {
             "beta": f64::from_bits(*beta_bits),
             "predictive_success": f64::from_bits(*predictive_success_bits),
         }),
-        ObservationResultWire::RequiredBayesFactor { factor_bits, already_satisfied } => json!({
-            "kind": "required_bayes_factor",
-            "factor": f64::from_bits(*factor_bits),
-            "already_satisfied": already_satisfied,
-        }),
+        ObservationResultWire::RequiredBayesFactor { factor_bits, already_satisfied } => {
+            let factor = f64::from_bits(*factor_bits);
+            let log_factor = match query {
+                Some(ObservationQueryWire::RequiredBayesFactor {
+                    prior_bits, level_bits, ..
+                }) => {
+                    let prior = f64::from_bits(*prior_bits);
+                    let level = f64::from_bits(*level_bits);
+                    if *already_satisfied {
+                        0.0
+                    } else {
+                        (level.ln() - (-level).ln_1p()) - (prior.ln() - (-prior).ln_1p())
+                    }
+                }
+                _ => return Json::Null,
+            };
+            let status = bayes_factor_range_status(factor);
+            json!({
+                "kind": "required_bayes_factor",
+                "factor": if status == "finite" { Some(factor) } else { None },
+                "factor_status": status,
+                "log_factor": log_factor,
+                "already_satisfied": already_satisfied,
+            })
+        }
         ObservationResultWire::RequiredObservations {
             observations,
             value_bits,
             already_satisfied,
             bayes_factor_bits,
-        } => json!({
-            "kind": "required_observations",
-            "observations": observations,
-            "value": f64::from_bits(*value_bits),
-            "already_satisfied": already_satisfied,
-            "bayes_factor": bayes_factor_bits.map(f64::from_bits),
-        }),
+        } => {
+            let factor = bayes_factor_bits.map(f64::from_bits);
+            let (status, log_factor) = match (factor, query) {
+                (None, Some(ObservationQueryWire::RequiredObservationsBinarySignal { .. })) => {
+                    ("not_needed", None)
+                }
+                (None, _) => ("not_applicable", None),
+                (
+                    Some(value),
+                    Some(ObservationQueryWire::RequiredObservationsBinarySignal {
+                        direction,
+                        rate_given_hypothesis_bits,
+                        rate_given_complement_bits,
+                        ..
+                    }),
+                ) => {
+                    let h = f64::from_bits(*rate_given_hypothesis_bits);
+                    let c = f64::from_bits(*rate_given_complement_bits);
+                    let (num, den) = if direction == "raise" { (h, c) } else { (1.0 - h, 1.0 - c) };
+                    if den == 0.0 {
+                        ("infinite", None)
+                    } else if num == 0.0 {
+                        ("zero", None)
+                    } else {
+                        let status = bayes_factor_range_status(value);
+                        (status, Some(num.ln() - den.ln()))
+                    }
+                }
+                (Some(_), _) => ("unavailable", None),
+            };
+            json!({
+                "kind": "required_observations", "observations": observations,
+                "value": f64::from_bits(*value_bits), "already_satisfied": already_satisfied,
+                "bayes_factor": factor, "bayes_factor_status": status,
+                "log_bayes_factor": log_factor,
+            })
+        }
     }
 }
 
@@ -165,7 +268,7 @@ fn claim_payload(py: Python<'_>, claim: &ObservationClaim) -> Refused<Claimed> {
                     "identity": claim.identity(),
                     "operation": claim.operation(),
                     "inference_basis": claim.inference_basis(),
-                    "result": result_json(claim.result()),
+                    "result": result_json(claim.result(), Some(claim.query())),
                 })
                 .to_string(),
                 PyBytes::new(py, &bytes).unbind(),
@@ -262,6 +365,36 @@ fn parse_pairs(map: &Map<String, Json>, key: &str) -> PyResult<Vec<(String, Stri
         .collect()
 }
 
+fn parse_real_pairs(map: &Map<String, Json>, key: &str) -> PyResult<Vec<(String, f64)>> {
+    match map.get(key) {
+        None | Some(Json::Null) => Ok(Vec::new()),
+        Some(Json::Array(entries)) => entries
+            .iter()
+            .map(|entry| {
+                let pair = entry.as_array().filter(|p| p.len() == 2 && p[0].is_string());
+                pair.and_then(|p| {
+                    p[1].as_f64().map(|v| (p[0].as_str().unwrap_or_default().to_owned(), v))
+                })
+                .ok_or_else(|| crate::value_err(format!("`{key}` must hold [name, value] pairs")))
+            })
+            .collect(),
+        Some(_) => Err(crate::value_err(format!("`{key}` must be a list"))),
+    }
+}
+
+fn parse_continuous(map: &Map<String, Json>) -> PyResult<ContinuousAssignments> {
+    match map.get("continuous") {
+        None | Some(Json::Null) => Ok(ContinuousAssignments::default()),
+        Some(value) => {
+            let inner = object(value, "continuous assignments")?;
+            Ok(ContinuousAssignments {
+                observed: parse_real_pairs(inner, "observed")?,
+                interventions: parse_real_pairs(inner, "interventions")?,
+            })
+        }
+    }
+}
+
 fn parse_request(value: &Json) -> PyResult<ObservationRequest> {
     let map = object(value, "observation request")?;
     let operation = match text(map, "operation")?.as_str() {
@@ -274,7 +407,71 @@ fn parse_request(value: &Json) -> PyResult<ObservationRequest> {
         outcome: text(map, "outcome")?,
         conditioning: parse_slots(map, "conditioning")?,
         interventions: parse_pairs(map, "interventions")?,
+        continuous: parse_continuous(map)?,
     })
+}
+
+fn opt_real(map: &Map<String, Json>, key: &str) -> PyResult<Option<f64>> {
+    match present(map, key) {
+        None => Ok(None),
+        Some(_) => real(map, key).map(Some),
+    }
+}
+
+fn parse_retained(
+    value: &Json,
+) -> PyResult<
+    Result<antecedent::analysis::observation_query::RetainedMechanismWire, ObservationQueryRefusal>,
+> {
+    let map = object(value, "retained mechanism")?;
+    let variable = text(map, "variable")?;
+    match text(map, "kind")?.as_str() {
+        "regression" => {
+            let y = reals(map, "y")?;
+            let parents_value = object(member(map, "parents")?, "retained parents")?;
+            let mut columns: Vec<(String, Vec<f64>)> = Vec::new();
+            for name in parents_value.keys() {
+                columns.push((name.clone(), reals(parents_value, name)?));
+            }
+            let borrowed: Vec<(&str, &[f64])> =
+                columns.iter().map(|(n, c)| (n.as_str(), c.as_slice())).collect();
+            Ok(retain_regression(&variable, &borrowed, &y))
+        }
+        "counts" => {
+            let rows = list(map, "rows")?
+                .iter()
+                .map(|entry| {
+                    let pair = entry.as_array().filter(|p| p.len() == 2);
+                    let parsed = pair.and_then(|p| {
+                        let config = p[0]
+                            .as_array()?
+                            .iter()
+                            .map(|c| {
+                                let c = c.as_array().filter(|c| c.len() == 2)?;
+                                Some((c[0].as_str()?.to_owned(), c[1].as_str()?.to_owned()))
+                            })
+                            .collect::<Option<Vec<_>>>()?;
+                        let counts = p[1]
+                            .as_array()?
+                            .iter()
+                            .map(|c| {
+                                let c = c.as_array().filter(|c| c.len() == 2)?;
+                                Some((c[0].as_str()?.to_owned(), c[1].as_u64()?))
+                            })
+                            .collect::<Option<Vec<_>>>()?;
+                        Some((config, counts))
+                    });
+                    parsed.ok_or_else(|| {
+                        crate::value_err(
+                            "`rows` must hold [[[parent, level], ...], [[level, count], ...]] entries",
+                        )
+                    })
+                })
+                .collect::<PyResult<Vec<_>>>()?;
+            Ok(Ok(retain_counts(&variable, rows)))
+        }
+        other => Err(crate::value_err(format!("unknown retained mechanism kind `{other}`"))),
+    }
 }
 
 // ---------------------------------------------------------------- entry points
@@ -295,6 +492,96 @@ fn observation_query_observe(
         Ok(inner.observe(&request, &ctx))
     })?;
     Ok(claimed(py, outcome))
+}
+
+/// Answer a conditional query with its parameter uncertainty by retained-data redraw.
+#[pyfunction]
+#[pyo3(signature = (handle, request_json, uncertainty_json, *, cancel=None))]
+fn observation_query_observe_with_uncertainty(
+    py: Python<'_>,
+    handle: PyRef<'_, PreparedCompositionHandle>,
+    request_json: &str,
+    uncertainty_json: &str,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<Refused<Claimed>> {
+    let request = parse_request(&parse(request_json, "observation request")?)?;
+    let value = parse(uncertainty_json, "parameter uncertainty")?;
+    let map = object(&value, "parameter uncertainty")?;
+    let mut retained = Vec::new();
+    for entry in list(map, "retained")? {
+        match parse_retained(entry)? {
+            Ok(item) => retained.push(item),
+            Err(refusal) => return Ok(refused(&refusal)),
+        }
+    }
+    let defaults = RedrawPrior::default();
+    let prior = match present(map, "prior") {
+        None => defaults,
+        Some(prior) => {
+            let p = object(prior, "redraw prior")?;
+            RedrawPrior {
+                dirichlet_alpha: opt_real(p, "dirichlet_alpha")?
+                    .unwrap_or(defaults.dirichlet_alpha),
+                coefficient_precision: opt_real(p, "coefficient_precision")?
+                    .unwrap_or(defaults.coefficient_precision),
+                variance_shape: opt_real(p, "variance_shape")?.unwrap_or(defaults.variance_shape),
+                variance_scale: opt_real(p, "variance_scale")?.unwrap_or(defaults.variance_scale),
+            }
+        }
+    };
+    let draws = small(map, "draws")?;
+    let seed = match present(map, "seed") {
+        None => 0,
+        Some(_) => crate::measurement_model_api::unsigned(map, "seed")?,
+    };
+    let redraw = ParameterRedrawRequest { request, retained, prior, draws, seed };
+    let inner = handle.inner.clone();
+    let outcome = crate::detach_catch(py, move || {
+        let ctx = execution_context(0, None, cancel);
+        Ok(inner.observe_with_parameter_uncertainty(&redraw, &ctx))
+    })?;
+    Ok(claimed(py, outcome))
+}
+
+/// The interval of one redrawn quantity, or the typed refusal: `(json, refusal json)`.
+#[pyfunction]
+#[pyo3(signature = (artifact, quantity, construction, evidence_rows, *, cancel=None))]
+fn observation_query_parameter_interval(
+    py: Python<'_>,
+    artifact: &[u8],
+    quantity: &str,
+    construction: &str,
+    evidence_rows: u64,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<Refused<String>> {
+    let bytes = artifact.to_vec();
+    let quantity = quantity.to_owned();
+    let construction = construction.to_owned();
+    let outcome = crate::detach_catch(py, move || {
+        let ctx = execution_context(0, None, cancel);
+        Ok(ObservationClaim::from_artifact(&bytes, None, &ctx)
+            .and_then(|claim| claim.parameter_interval(&quantity, &construction, evidence_rows)))
+    })?;
+    Ok(match outcome {
+        Ok(interval) => (
+            Some(
+                json!({
+                    "quantity": interval.quantity,
+                    "coordinate_id": interval.coordinate_id,
+                    "record_id": interval.record_id,
+                    "calibration": serde_json::to_value(&interval.calibration)
+                        .unwrap_or(serde_json::Value::Null),
+                    "construction": interval.construction,
+                    "nominal_level": interval.nominal_level,
+                    "label": interval.label,
+                    "bounds": interval.bounds.map(|(lo, hi)| json!([lo, hi])),
+                })
+                .to_string(),
+            ),
+            None,
+        ),
+        Err(refusal) => refused(&refusal),
+    })
 }
 
 /// Both laws of one assignment from one model.
@@ -485,14 +772,14 @@ fn observation_query_required_observations_conjugate(
     Ok(claimed(py, result))
 }
 
-/// The closed routes: `interval` or `calibrated_probability`. Always the
+/// The unsupported routes: `interval` or `calibrated_probability`. Always the
 /// typed refusal.
 #[pyfunction]
-fn observation_query_closed(route: &str) -> PyResult<String> {
+fn observation_query_unsupported(route: &str) -> PyResult<String> {
     let refusal = match route {
         "interval" => interval_refusal(),
         "calibrated_probability" => calibration_refusal(),
-        other => return Err(crate::value_err(format!("unknown closed route `{other}`"))),
+        other => return Err(crate::value_err(format!("unknown unsupported route `{other}`"))),
     };
     Ok(refusals_json(refusal.code, &[refusal]))
 }
@@ -510,8 +797,22 @@ fn observation_query_consume(
     let expected = expected_identity.map(str::to_owned);
     let outcome = crate::detach_catch(py, move || {
         let ctx = execution_context(0, None, cancel);
-        Ok(consume_observation_query_artifact(&bytes, expected.as_deref(), &ctx))
+        let consumed = consume_observation_query_artifact(&bytes, expected.as_deref(), &ctx);
+        let query = if matches!(&consumed, Ok(value) if matches!(&value.result, ObservationResultWire::RequiredBayesFactor { .. } | ObservationResultWire::RequiredObservations { .. }))
+        {
+            Some(
+                antecedent::io::observation_query_artifact::ObservationQueryArtifactWire::decode(
+                    &bytes,
+                )
+                .map_err(|error| crate::value_err(error.to_string()))?
+                .query,
+            )
+        } else {
+            None
+        };
+        Ok((consumed, query))
     })?;
+    let (outcome, query) = outcome;
     Ok(match outcome {
         Ok(consumed) => (
             Some(
@@ -519,7 +820,7 @@ fn observation_query_consume(
                     "identity": consumed.identity,
                     "operation": consumed.operation,
                     "inference_basis": consumed.inference_basis,
-                    "result": result_json(&consumed.result),
+                    "result": result_json(&consumed.result, query.as_ref()),
                 })
                 .to_string(),
             ),
@@ -548,19 +849,19 @@ fn count_fitted_observation_build(
     };
     if nodes_json.len() > 4 * 1024 * 1024 || evidence_json.len() > 64 * 1024 {
         return Err(crate::value_err_code(
-            antecedent_core::reason_code!("invalid_argument"),
-            "observation_query.count_fitted_bounds_exceeded",
+            antecedent::reason::reason_code!("invalid_argument"),
+            antecedent::reason::reason_details::observation_query::COUNT_FITTED_BOUNDS_EXCEEDED,
         ));
     }
     let nodes: Vec<CountFittedNodeWire> = serde_json::from_str(nodes_json).map_err(|e| {
         crate::value_err_code(
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
             format!("observation_query.invalid_request: {e}"),
         )
     })?;
     let evidence: Vec<(String, String)> = serde_json::from_str(evidence_json).map_err(|e| {
         crate::value_err_code(
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
             format!("observation_query.invalid_request: {e}"),
         )
     })?;
@@ -590,7 +891,7 @@ fn count_fitted_of(
         CountFittedIntervalArtifactWire, CountFittedObservation,
     };
     let wire: CountFittedIntervalArtifactWire =
-        antecedent_io::from_cbor(bytes).map_err(crate::transport_common::error)?;
+        antecedent::io::from_cbor(bytes).map_err(crate::transport_common::error)?;
     Ok(CountFittedObservation::from_source(wire))
 }
 
@@ -637,6 +938,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(count_fitted_observation_point, module)?)?;
     module.add_function(wrap_pyfunction!(count_fitted_observation_interval, module)?)?;
     module.add_function(wrap_pyfunction!(observation_query_observe, module)?)?;
+    module.add_function(wrap_pyfunction!(observation_query_observe_with_uncertainty, module)?)?;
+    module.add_function(wrap_pyfunction!(observation_query_parameter_interval, module)?)?;
     module.add_function(wrap_pyfunction!(observation_query_pair, module)?)?;
     module.add_function(wrap_pyfunction!(observation_query_threshold, module)?)?;
     module.add_function(wrap_pyfunction!(observation_query_finite_posterior, module)?)?;
@@ -648,7 +951,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
         observation_query_required_observations_conjugate,
         module
     )?)?;
-    module.add_function(wrap_pyfunction!(observation_query_closed, module)?)?;
+    module.add_function(wrap_pyfunction!(observation_query_unsupported, module)?)?;
     module.add_function(wrap_pyfunction!(observation_query_consume, module)?)?;
     Ok(())
 }

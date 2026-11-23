@@ -4,7 +4,7 @@
 //! structural-mixture axes together without extending the exhaustive legacy
 //! `CausalPayloadKind` enum.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +18,10 @@ use crate::{
 const ARTIFACT_KIND: &str = crate::artifact_kinds::ANALYSIS_RESULT;
 const HEADER_SECTION: &str = "analysis_result.header";
 const BODY_SECTION: &str = "analysis_result.body";
+// Only composite analysis results with an unreported mediation point use this
+// extension. Other artifacts retain the stable 0.5 container format.
+pub(crate) const ABSENT_MEDIATION_POINT_FORMAT: crate::FormatVersion =
+    crate::FormatVersion { major: 0, minor: 6 };
 
 /// One posterior interval summary in a temporal mediation slice.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -71,8 +75,8 @@ pub struct TemporalMediationSliceWire {
     pub method: String,
     /// Horizon-specific adjustment set.
     pub adjustment: Vec<crate::HorizonAdjustmentNodeWire>,
-    /// Requested effect.
-    pub effect: f64,
+    /// Requested effect, absent when the horizon has only bounds or is unidentified.
+    pub effect: Option<f64>,
     /// Total effect.
     pub total: Option<f64>,
     /// Direct effect.
@@ -136,6 +140,9 @@ pub enum IdentifiedSetIntervalMethodWire {
     /// Product-posterior envelope quantiles at Imbens–Manski tails.
     #[serde(alias = "imbens_manski_posterior_draws")]
     ProductPosteriorEnvelopeQuantile,
+    /// Frequentist Imbens–Manski interval whose SDs come from the completions' joint
+    /// row influence.
+    ImbensManskiInfluence,
 }
 
 /// Interval for the identified set of a class-aware scalar effect. Frequentist
@@ -191,6 +198,7 @@ impl IdentifiedSetIntervalMethodWire {
         match method {
             Method::ImbensManskiSharedBlock => Ok(Self::ImbensManskiSharedBlock),
             Method::ProductPosteriorEnvelopeQuantile => Ok(Self::ProductPosteriorEnvelopeQuantile),
+            Method::ImbensManskiInfluence => Ok(Self::ImbensManskiInfluence),
             other => Err(IoError::Convert(format!(
                 "identified-set interval construction {other:?} has no wire tag"
             ))),
@@ -204,6 +212,7 @@ impl IdentifiedSetIntervalMethodWire {
         match self {
             Self::ImbensManskiSharedBlock => Method::ImbensManskiSharedBlock,
             Self::ProductPosteriorEnvelopeQuantile => Method::ProductPosteriorEnvelopeQuantile,
+            Self::ImbensManskiInfluence => Method::ImbensManskiInfluence,
         }
     }
 }
@@ -381,7 +390,7 @@ pub struct PolicyValueWire {
     pub reference_standard_error: f64,
     /// Paired incremental value SE.
     pub incremental_standard_error: f64,
-    /// Pointwise 95% interval for policy value when licensed by the retained route.
+    /// Pointwise 95% interval for policy value when supported by the retained route.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub policy_interval_95: Option<[f64; 2]>,
     /// Paired pointwise 95% interval for policy minus reference value.
@@ -395,7 +404,7 @@ pub struct PolicyValueWire {
     pub propensity_max: f64,
     /// Explicit uncertainty semantics.
     pub uncertainty: String,
-    /// Exact graphless policy license, absent when no policy row matches.
+    /// Exact graphless policy support, absent when no policy row matches.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graphless_support_status: Option<String>,
     /// Held-out randomized uplift by descending frozen score bin.
@@ -462,7 +471,7 @@ pub struct ContinuousDoseResponseWire {
     /// Fixed group-to-dose policy value, when requested by the query.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fixed_policy: Option<DosePolicyValueWire>,
-    /// Exact graphless fixed-dose policy license, absent for off-axis results.
+    /// Exact graphless fixed-dose policy support, absent for off-axis results.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graphless_support_status: Option<String>,
 }
@@ -567,7 +576,7 @@ pub struct PanelDidWire {
     pub clusters: usize,
     /// Explicit uncertainty semantics tag.
     pub uncertainty: String,
-    /// Exact graphless two-period `DiD` license, absent off-axis.
+    /// Exact graphless two-period `DiD` support, absent off-axis.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graphless_support_status: Option<String>,
     /// Cohort, period, event time, effect, treated count, control count, SE, cluster count.
@@ -579,6 +588,9 @@ pub struct PanelDidWire {
     /// Propensity range, effective control count, and caller cross-fit declaration.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub augmented: Option<(f64, f64, f64, bool)>,
+    /// Completed whole-cluster refits behind a resample interval.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replicates_ok: Option<u32>,
 }
 
 /// Synthetic-control point result and donor-support diagnostics.
@@ -621,6 +633,25 @@ pub struct SyntheticControlWire {
     /// Positive donor outcome-model ridge penalty.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub augmentation_ridge: Option<f64>,
+    /// Support read from an unbalanced panel; present exactly when the query declared it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observed_window: Option<ObservedWindowWire>,
+}
+
+/// The treated unit's observed window and the donors it admitted.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ObservedWindowWire {
+    /// Observed pre-intervention periods of the treated unit, ascending.
+    pub pre_periods: Vec<i64>,
+    /// Observed post-intervention periods of the treated unit, ascending.
+    pub post_periods: Vec<i64>,
+    /// Donors observed in every window period.
+    pub donors_used: usize,
+    /// Excluded units with the number of window periods each misses, in unit order.
+    pub donors_dropped: Vec<(String, usize)>,
+    /// Observed unit-periods no estimate read.
+    pub unread_rows: usize,
 }
 
 /// Point-only synthetic `DiD` result with unit and time simplex weights.
@@ -652,6 +683,10 @@ pub struct SyntheticDidWire {
     /// Absolute synthetic-DiD contrast for every candidate treated unit.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub randomization_statistics: Vec<(String, f64)>,
+    /// Rounding tolerance within which a candidate ties the observed statistic. Absent means
+    /// strict ranking, the only rule earlier artifacts used.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub randomization_ranking_tolerance: Option<f64>,
 }
 
 /// Retained local ratio result and its fixed-bandwidth normal interval.
@@ -688,7 +723,7 @@ pub struct LocalPolynomialRatioWire {
     pub first_stage_standard_error: f64,
     /// Interval construction or legacy point-only uncertainty semantics.
     pub uncertainty: String,
-    /// Exact graphless license status; absent for off-axis or legacy results.
+    /// Exact graphless support status; absent for off-axis or legacy results.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graphless_support_status: Option<String>,
 }
@@ -769,7 +804,7 @@ pub struct RandomizedEffectWire {
     pub minimum_assignment_probability: f64,
     /// Explicit no-interval uncertainty contract.
     pub uncertainty: String,
-    /// Exact graphless license status; absent for off-axis results.
+    /// Exact graphless support status; absent for off-axis results.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graphless_support_status: Option<String>,
 }
@@ -793,11 +828,268 @@ pub struct SurvivalDifferenceBandWire {
     pub upper: Vec<f64>,
     /// Subject-bootstrap draws satisfying support.
     pub replicates_ok: u32,
-    /// Exact graphless simultaneous-band license (`licensed`), when the
-    /// published band and arm support match a licensed band row. Absent for
+    /// Exact graphless simultaneous-band support (`supported`), when the
+    /// published band and arm support match a supported band row. Absent for
     /// off-axis bands.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graphless_support_status: Option<String>,
+}
+
+/// The retained posterior of a Bayesian analysis row.
+///
+/// Every coordinate has a posterior mean and an equal-tailed 95% credible interval; the
+/// covariance across coordinates is the covariance of the retained joint draws, so draw `k` of
+/// every coordinate comes from one posterior sample. The calibration is always `not_measured`
+/// and support is separate from calibration. The IPW randomized-arm row has its own exact
+/// graphless support and retained replay inputs; other rows remain unsupported.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PosteriorRowWire {
+    /// Estimator id of the row, for example `bayesian.piecewise_survival`.
+    pub estimator: String,
+    /// The target the posterior answers.
+    pub target: String,
+    /// Always `posterior`.
+    pub uncertainty: String,
+    /// Calibration status of every interval (`not_measured`).
+    pub calibration: String,
+    /// Whether an exact graphless support admits this row's construction.
+    pub supported: bool,
+    /// Whole-procedure replay inputs of a supported randomized-arm IPW pseudo-posterior.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub randomized_ipow: Option<crate::randomized_ipow_wire::RandomizedIpowWire>,
+    /// Name of every coordinate, in order.
+    pub coordinates: Vec<String>,
+    /// Posterior mean of each coordinate.
+    pub mean: Vec<f64>,
+    /// Lower endpoint of each coordinate's equal-tailed 95% credible interval.
+    pub lower: Vec<f64>,
+    /// Upper endpoint of each coordinate's equal-tailed 95% credible interval.
+    pub upper: Vec<f64>,
+    /// Joint covariance across the coordinates, row-major, from the retained draws.
+    pub covariance: Option<Vec<f64>>,
+    /// Exact posterior mean (known residual variance only).
+    pub exact_mean: Option<Vec<f64>>,
+    /// Exact posterior covariance, row-major (known residual variance only).
+    pub exact_covariance: Option<Vec<f64>>,
+    /// Posterior draws behind the intervals.
+    pub draws: usize,
+    /// Named scalar summaries.
+    pub extras: std::collections::BTreeMap<String, f64>,
+    /// Named vector summaries.
+    pub vectors: std::collections::BTreeMap<String, Vec<f64>>,
+}
+
+/// What every stored posterior row's uncertainty is.
+pub const POSTERIOR_ROW_UNCERTAINTY: &str = "posterior";
+/// Calibration status of every posterior row.
+pub const POSTERIOR_ROW_CALIBRATION: &str = "not_measured";
+
+impl PosteriorRowWire {
+    /// An empty posterior of `estimator` over `coordinates`, calibration status `not_measured`.
+    #[must_use]
+    pub fn new(estimator: &str, target: String, coordinates: Vec<String>, draws: usize) -> Self {
+        Self {
+            estimator: estimator.to_owned(),
+            target,
+            uncertainty: POSTERIOR_ROW_UNCERTAINTY.to_owned(),
+            calibration: POSTERIOR_ROW_CALIBRATION.to_owned(),
+            supported: false,
+            randomized_ipow: None,
+            coordinates,
+            mean: Vec::new(),
+            lower: Vec::new(),
+            upper: Vec::new(),
+            covariance: None,
+            exact_mean: None,
+            exact_covariance: None,
+            draws,
+            extras: std::collections::BTreeMap::new(),
+            vectors: std::collections::BTreeMap::new(),
+        }
+    }
+
+    /// Set the means and the credible intervals.
+    #[must_use]
+    pub fn with_intervals(mut self, mean: Vec<f64>, intervals: &[[f64; 2]]) -> Self {
+        self.mean = mean;
+        self.lower = intervals.iter().map(|&[lower, _]| lower).collect();
+        self.upper = intervals.iter().map(|&[_, upper]| upper).collect();
+        self
+    }
+
+    /// Whether every stored number is finite.
+    #[must_use]
+    pub fn all_finite(&self) -> bool {
+        let optional = |values: &Option<Vec<f64>>| {
+            values.as_ref().is_none_or(|v| v.iter().all(|x| x.is_finite()))
+        };
+        self.mean.iter().chain(&self.lower).chain(&self.upper).all(|v| v.is_finite())
+            && optional(&self.covariance)
+            && optional(&self.exact_mean)
+            && optional(&self.exact_covariance)
+            && self.extras.values().all(|v| v.is_finite())
+            && self.vectors.values().flatten().all(|v| v.is_finite())
+    }
+
+    /// The shape and marker checks every consumer applies before trusting the row.
+    ///
+    /// # Errors
+    /// An unsupported support, a changed uncertainty or calibration marker, misaligned arrays or a
+    /// non-finite value.
+    pub fn validate(&self) -> Result<(), crate::IoError> {
+        let width = self.coordinates.len();
+        let square =
+            |values: &Option<Vec<f64>>| values.as_ref().is_none_or(|v| v.len() == width * width);
+        if self.uncertainty != POSTERIOR_ROW_UNCERTAINTY
+            || self.calibration != POSTERIOR_ROW_CALIBRATION
+            || self.supported != self.randomized_ipow.is_some()
+            || self.randomized_ipow.as_ref().is_some_and(|source| {
+                self.estimator != crate::randomized_ipow_wire::ESTIMATOR
+                    || self.target != crate::randomized_ipow_wire::TARGET
+                    || !source.supported(width)
+            })
+            || self.estimator.is_empty()
+            || width == 0
+            || self.mean.len() != width
+            || self.lower.len() != width
+            || self.upper.len() != width
+            || !square(&self.covariance)
+            || !square(&self.exact_covariance)
+            || self.exact_mean.as_ref().is_some_and(|v| v.len() != width)
+            || self.draws < 2
+            || !self.all_finite()
+            || self.lower.iter().zip(&self.upper).any(|(lower, upper)| lower > upper)
+        {
+            return Err(crate::IoError::Convert(
+                "a posterior row must have supported support semantics, not_measured calibration and aligned finite arrays".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Retained observational two-decision regime contrast and its uncertainty.
+///
+/// The cross-fit scores are kept so a loader recomputes the means, the standard error and the
+/// interval. The result is unsupported and its repeated-sampling calibration is `not_measured`.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SequentialContrastWire {
+    /// Active regime actions.
+    pub active_regime: [u8; 2],
+    /// Control regime actions.
+    pub control_regime: [u8; 2],
+    /// Cross-fit active minus control.
+    pub contrast: f64,
+    /// Cross-fit active-regime mean.
+    pub active_mean: f64,
+    /// Cross-fit control-regime mean.
+    pub control_mean: f64,
+    /// Subjects scored.
+    pub evaluated_rows: u64,
+    /// Smallest regime-action probability used in a score.
+    pub minimum_action_probability: f64,
+    /// Declared positivity floor.
+    pub min_probability: f64,
+    /// Standard error of the mean contrast score (normal-interval report).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub standard_error: Option<f64>,
+    /// Normal interval at `coverage` (normal-interval report).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval: Option<[f64; 2]>,
+    /// Symmetric posterior interval centered on the cross-fit contrast.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub posterior_symmetric_interval: Option<[f64; 2]>,
+    /// Nominal central coverage of the interval.
+    pub coverage: f64,
+    /// Cross-fit active score of each subject.
+    pub active_scores: Vec<f64>,
+    /// Cross-fit control score of each subject.
+    pub control_scores: Vec<f64>,
+    /// Active minus control score of each subject.
+    pub contrast_scores: Vec<f64>,
+    /// `normal_interval_calibration_not_measured` or the modular posterior label.
+    pub uncertainty: String,
+    /// Always `not_measured`.
+    pub calibration: String,
+    /// Always `false`.
+    pub supported: bool,
+}
+
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "the serializer callback requires a reference"
+)]
+const fn is_zero_lag(lag: &usize) -> bool {
+    *lag == 0
+}
+
+/// Retained within-period history-matched contrast, its matched pairs and standard error.
+///
+/// The pairs and the within-arm variance estimates of their units are kept so a loader recomputes
+/// the contrast, the weight total and the Abadie-Imbens standard error. The periods of the pairs
+/// are kept so a loader recomputes the Newey-West standard error and interval over the matched
+/// periods too. The result is unsupported.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct HistoryMatchWire {
+    /// Sampling-weighted mean of treated-minus-matched-control outcomes.
+    pub contrast: f64,
+    /// Abadie-Imbens standard error; absent when a matched unit or donor has no same-arm
+    /// neighbour in its period.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub standard_error: Option<f64>,
+    /// Sum of sampling weights on the matched treated units.
+    pub weight_total: f64,
+    /// Row indices of matched treated units.
+    pub matched_queries: Vec<usize>,
+    /// Row index of the control each matched query used.
+    pub matched_donors: Vec<usize>,
+    /// Outcome difference of each matched pair.
+    pub differences: Vec<f64>,
+    /// Sampling weight of each matched treated unit.
+    pub pair_weights: Vec<f64>,
+    /// Within-arm outcome variance estimate of each matched treated unit, in pair order; empty
+    /// exactly when `standard_error` is absent.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub query_variances: Vec<f64>,
+    /// Within-arm outcome variance estimate of the control each matched query used, in pair
+    /// order; empty exactly when `standard_error` is absent.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub donor_variances: Vec<f64>,
+    /// Treated rows with no control inside their period and the caliper.
+    pub unmatched_treated: Vec<usize>,
+    /// Periods in which at least one treated unit matched.
+    pub periods_matched: usize,
+    /// Calendar period of each matched treated unit, in pair order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pair_periods: Vec<i64>,
+    /// Newey-West standard error over the matched periods; absent when fewer than two periods
+    /// hold a match.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub serial_standard_error: Option<f64>,
+    /// Lower endpoint of the 95% interval around the contrast: the fixed-b interval under the
+    /// fixed-b uncertainty label, the normal interval under the earlier label.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval_lower: Option<f64>,
+    /// Upper endpoint of that interval.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval_upper: Option<f64>,
+    /// Bartlett truncation lag of the Newey-West estimate; zero when it is absent.
+    #[serde(default, skip_serializing_if = "is_zero_lag")]
+    pub serial_bandwidth: usize,
+    /// The caliper, when one was declared.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub caliper: Option<f64>,
+    /// `abadie_imbens_and_newey_west_fixed_b_period_interval_calibration_not_measured`, or
+    /// `abadie_imbens_and_newey_west_period_interval_calibration_not_measured` on an artifact
+    /// written with the normal period interval. The label names the interval's construction.
+    pub uncertainty: String,
+    /// Always `not_measured`.
+    pub calibration: String,
+    /// Always `false`.
+    pub supported: bool,
 }
 
 /// Retained randomized survival or competing-risk curve and uncertainty.
@@ -837,7 +1129,7 @@ pub struct SurvivalWire {
     /// Realized control and treated subject counts for graphless support.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub assignment_counts: Option<[usize; 2]>,
-    /// Exact graphless scalar-interval license; absent for off-axis results.
+    /// Exact graphless scalar-interval support; absent for off-axis results.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graphless_support_status: Option<String>,
     /// Caller-supplied fixed censoring function; absent for unweighted estimates.
@@ -858,7 +1150,7 @@ pub struct LongitudinalRegimeWire {
     /// Named point method, defaulting to IPW for older artifacts.
     #[serde(default = "default_longitudinal_result_method")]
     pub method: String,
-    /// Exact graphless sequential-DR license; absent for off-axis results.
+    /// Exact graphless sequential-DR support; absent for off-axis results.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graphless_support_status: Option<String>,
     /// Identity of materialized caller rule; source code is not replayable.
@@ -946,9 +1238,9 @@ pub struct InterferencePointwiseIntervalWire {
 pub struct InterferenceInferenceWire {
     /// Construction identifier.
     pub method: String,
-    /// Exact graphless interference license (`licensed`), when a published
-    /// interval and cluster support match a licensed row. Absent otherwise, and
-    /// on legacy artifacts written before the interference license existed.
+    /// Exact graphless interference support (`supported`), when a published
+    /// interval and cluster support match a supported row. Absent otherwise, and
+    /// on legacy artifacts written before the interference support existed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graphless_support_status: Option<String>,
     /// Pointwise interval when support passes.
@@ -968,6 +1260,9 @@ pub struct InterferenceInferenceWire {
 /// Composite result body. Every scientific axis is independently optional.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct AnalysisResultWire {
+    /// Optional native execution v1 facts, separate from scientific support.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_execution: Option<crate::native_execution_wire::NativeExecutionWire>,
     /// Original query.
     pub query: CausalQueryWire,
     /// Structural identification and derivation.
@@ -1004,9 +1299,35 @@ pub struct AnalysisResultWire {
     /// Randomized survival or competing-risk curve.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub survival: Option<SurvivalWire>,
+    /// Posterior of a Bayesian analysis row, in place of the
+    /// frequentist section of the same query.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub posterior_row: Option<PosteriorRowWire>,
     /// Subject-owned prespecified longitudinal regime point value.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub longitudinal_regime: Option<LongitudinalRegimeWire>,
+    /// Observational two-decision regime contrast, unsupported.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sequential_contrast: Option<SequentialContrastWire>,
+    /// Within-period history-matched contrast, unsupported.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub history_match: Option<HistoryMatchWire>,
+    /// Sharp bounds on the average effect under a binary instrument, unsupported. Absent on
+    /// every other result, so their bodies and digests are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub iv_bounds: Option<IvBoundsWire>,
+    /// Noncausal association of the observed data, unsupported. Absent on every other result,
+    /// so their bodies and digests are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub association: Option<AssociationWire>,
+    /// Rollout design effects with whole-procedure uncertainty, unsupported. Absent on every
+    /// other result, so their bodies and digests are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quasi_rollout: Option<QuasiRolloutWire>,
+    /// Sequentially randomized unit-period design or regime survival, unsupported. Absent on
+    /// every other result, so their bodies and digests are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub temporal_design: Option<TemporalDesignWire>,
     /// Independent-cluster exposure support and pointwise inference.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interference_inference: Option<InterferenceInferenceWire>,
@@ -1017,7 +1338,7 @@ pub struct AnalysisResultWire {
     pub interventional_distribution: Option<InterventionalDistributionWire>,
     /// Scalar standard error when justified. Absent when the published interval
     /// is an Anderson–Rubin set (`interval_lower` / `interval_upper`) or when
-    /// no scalar SE is licensed.
+    /// no scalar SE is supported.
     pub standard_error: Option<f64>,
     /// Lower endpoint of a published Anderson–Rubin set. May be infinite.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1025,6 +1346,22 @@ pub struct AnalysisResultWire {
     /// Upper endpoint of a published Anderson–Rubin set. May be infinite.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interval_upper: Option<f64>,
+    /// Joint score-family covariance retained by the producing execution. Its values
+    /// are sealed evidence; a standalone scalar program cannot replay the other members.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub joint_covariance: Option<crate::JointCovarianceWire>,
+    /// Nominal simultaneous interval of this member (lower, upper, level).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub simultaneous_interval: Option<(f64, f64, f64)>,
+    /// Family BH and BY adjusted p-values, when published.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub adjusted_p_values: Option<(f64, f64)>,
+    /// Declared score-family contrast (value, standard error).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub family_contrast: Option<(f64, f64)>,
+    /// Nominal simultaneous contrast interval (lower, upper, level).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub family_contrast_interval: Option<(f64, f64, f64)>,
     /// Estimation assumptions.
     pub assumptions: Vec<AssumptionRecordWire>,
     /// Execution and scientific diagnostics.
@@ -1045,18 +1382,24 @@ pub struct AnalysisResultWire {
     /// unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unit_effects: Option<UnitEffectsWire>,
+    /// Per-outcome counterfactual contrasts of a query with several outcomes or a joint
+    /// baseline, in place of [`Self::unit_effects`].
+    ///
+    /// Absent on every other result, so their bodies (and digests) are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub counterfactual_contrasts: Option<CounterfactualContrastsWire>,
     /// Complete-case-aligned CATE point predictions.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cate: Option<Vec<f64>>,
+    pub cate: Option<std::sync::Arc<[f64]>>,
     /// Portable fitted effect, bound into the result body identity.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub fitted_effect: Option<antecedent_learn::FittedEffect>,
-    /// Licensed pointwise CATE standard errors, when computed.
+    pub fitted_effect: Option<std::sync::Arc<antecedent_learn::FittedEffect>>,
+    /// Supported pointwise CATE standard errors, when computed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cate_se: Option<Vec<f64>>,
+    pub cate_se: Option<std::sync::Arc<[f64]>>,
     /// Forest leaf-dispersion diagnostic per row. Not a standard error.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cate_leaf_dispersion: Option<Vec<f64>>,
+    pub cate_leaf_dispersion: Option<std::sync::Arc<[f64]>>,
     /// Held-out outcome R².
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub outcome_oof_r2: Option<f64>,
@@ -1128,7 +1471,8 @@ pub fn encode_analysis_result_artifact(
 ///
 /// The section is additive. Old readers ignore it; this encoder does not raise
 /// `minimum_reader_version`. A present contract is validated and bound to the
-/// body query and header names before write.
+/// body query and header names before write. A mediation grid with a withheld
+/// point independently requires analysis-result format and reader version 0.6.
 ///
 /// # Errors
 ///
@@ -1139,12 +1483,89 @@ pub fn encode_analysis_result_artifact_with_contract(
     artifact_id: &str,
     contract: Option<&crate::AnalysisResultContractWire>,
 ) -> Result<EncodedArtifact, IoError> {
-    validate::validate_result(result, &variable_names, false)?;
+    encode_analysis_result_artifact_with_contract_and_source(
+        result,
+        variable_names,
+        artifact_id,
+        contract,
+        None,
+    )
+}
+
+/// Encode a composite result, optionally attaching the contract section and the
+/// full-source witness ([`crate::SOURCE_WITNESS_SECTION`]).
+///
+/// Both sections are additive and old readers ignore them; this encoder does not
+/// raise `minimum_reader_version`. A contract also brings the additive
+/// [`crate::METHOD_PROVENANCE_SECTION`], derived from its sealed identifier and
+/// estimator. With no source the output is exactly that of
+/// [`encode_analysis_result_artifact_with_contract`]. A present source is
+/// checked against the default [`crate::SourceWitnessLimits`] and against the
+/// header names, and is packed after the contract section. Binding the witness
+/// to a data-snapshot digest is the verifier's step ([`crate::verify_source_witness`]).
+/// A mediation grid with a withheld point independently requires analysis-result
+/// format and reader version 0.6.
+///
+/// # Errors
+///
+/// Returns an error when validation, contract binding, source-witness shape or
+/// size, or CBOR encoding fails.
+pub fn encode_analysis_result_artifact_with_contract_and_source(
+    result: &AnalysisResultWire,
+    variable_names: Vec<String>,
+    artifact_id: &str,
+    contract: Option<&crate::AnalysisResultContractWire>,
+    source: Option<&crate::SourceWitnessWire>,
+) -> Result<EncodedArtifact, IoError> {
+    let provenance = contract.map(|contract| {
+        crate::method_provenance(contract.identifier.as_deref(), contract.estimator.as_deref())
+    });
+    encode_analysis_result_artifact_with_provenance(
+        result,
+        variable_names,
+        artifact_id,
+        contract,
+        source,
+        provenance.as_ref(),
+    )
+}
+
+/// Check every input of a composite-result encoding before anything is packed: the provenance
+/// binds to the contract, the source witness matches the variables, and the body and contract
+/// verify.
+fn check_encoding_inputs(
+    result: &AnalysisResultWire,
+    variable_names: &[String],
+    contract: Option<&crate::AnalysisResultContractWire>,
+    source: Option<&crate::SourceWitnessWire>,
+    provenance: Option<&crate::MethodProvenanceWire>,
+) -> Result<(), IoError> {
+    if let Some(provenance) = provenance {
+        let contract = contract.ok_or_else(|| {
+            IoError::Convert("method provenance requires a contract section".into())
+        })?;
+        crate::method_provenance::check_bound(
+            provenance,
+            contract.identifier.as_deref(),
+            contract.estimator.as_deref(),
+        )?;
+    }
+    if let Some(source) = source {
+        source.check_declared(&crate::SourceWitnessLimits::default())?;
+        if source.columns.len() != variable_names.len() {
+            return Err(crate::SourceWitnessError::Malformed(
+                "column count differs from variable names",
+            )
+            .into());
+        }
+    }
+    validate::validate_result(result, variable_names, false)?;
     if let Some(contract) = contract {
         crate::validate_contract_section(contract)?;
-        let header = AnalysisResultHeader { variable_names: variable_names.clone() };
-        let unresolved =
-            crate::contract_section::verify_contract_for_encoding(&header, result, contract);
+        let header = AnalysisResultHeader { variable_names: variable_names.to_vec() };
+        let unresolved = crate::contract_section::verify_contract_for_encoding_with_source(
+            &header, result, contract, source,
+        );
         if !unresolved.is_empty() {
             return Err(IoError::Convert(format!(
                 "contract does not verify against analysis_result body: {}",
@@ -1152,6 +1573,28 @@ pub fn encode_analysis_result_artifact_with_contract(
             )));
         }
     }
+    Ok(())
+}
+
+/// Encode a composite result exactly as [`encode_analysis_result_artifact_with_contract_and_source`],
+/// with the [`crate::METHOD_PROVENANCE_SECTION`] the producer resolved for the executed route.
+///
+/// A producer that resolved an identifier or estimator the contract leaves undeclared passes the
+/// provenance of the resolved route; a component the contract declares must be the one named.
+///
+/// # Errors
+///
+/// The errors of [`encode_analysis_result_artifact_with_contract_and_source`], provenance without
+/// a contract, or provenance naming another identifier or estimator than the contract declares.
+pub fn encode_analysis_result_artifact_with_provenance(
+    result: &AnalysisResultWire,
+    variable_names: Vec<String>,
+    artifact_id: &str,
+    contract: Option<&crate::AnalysisResultContractWire>,
+    source: Option<&crate::SourceWitnessWire>,
+    provenance: Option<&crate::MethodProvenanceWire>,
+) -> Result<EncodedArtifact, IoError> {
+    check_encoding_inputs(result, &variable_names, contract, source, provenance)?;
     let header = to_cbor(&AnalysisResultHeader { variable_names })?;
     let body = to_cbor(result)?;
     let (header_descriptor, header_section) = pack_section_shared(
@@ -1175,10 +1618,46 @@ pub fn encode_analysis_result_artifact_with_contract(
         sections_desc.push(descriptor);
         sections.push(section);
     }
+    if let Some(provenance) = provenance {
+        // Descriptive: the provenance records behind the executed identifier and estimator.
+        let (descriptor, section) = pack_section_shared(
+            crate::METHOD_PROVENANCE_SECTION,
+            "application/cbor",
+            to_cbor(provenance)?.into(),
+            CompressPolicy::Auto,
+        );
+        sections_desc.push(descriptor);
+        sections.push(section);
+    }
+    if let Some(source) = source {
+        let payload = to_cbor(source)?;
+        if u64::try_from(payload.len()).map_err(|_| crate::SourceWitnessError::TooLarge)?
+            > crate::SourceWitnessLimits::default().max_bytes
+        {
+            return Err(crate::SourceWitnessError::TooLarge.into());
+        }
+        let (descriptor, section) = pack_section_shared(
+            crate::SOURCE_WITNESS_SECTION,
+            "application/cbor",
+            payload.into(),
+            CompressPolicy::Auto,
+        );
+        sections_desc.push(descriptor);
+        sections.push(section);
+    }
+    let format = if result
+        .mediation_grid
+        .as_ref()
+        .is_some_and(|grid| grid.slices.iter().any(|slice| slice.effect.is_none()))
+    {
+        ABSENT_MEDIATION_POINT_FORMAT
+    } else {
+        STABLE_FORMAT
+    };
     Ok(EncodedArtifact {
         manifest: ArtifactManifest {
-            format_version: STABLE_FORMAT,
-            minimum_reader_version: STABLE_FORMAT,
+            format_version: format,
+            minimum_reader_version: format,
             artifact_kind: ArtifactKind::Other(ARTIFACT_KIND.into()),
             library_version: SemanticVersion::from_crate_version(antecedent_core::VERSION)?,
             artifact_id: artifact_id.into(),
@@ -1213,12 +1692,77 @@ pub fn decode_analysis_result_artifact(
         .ok_or_else(|| IoError::Convert(format!("missing section `{BODY_SECTION}`")))?;
     let decoded_header: AnalysisResultHeader = from_cbor(&header.data)?;
     let decoded_body: AnalysisResultWire = from_cbor(&body.data)?;
+    if decoded_body
+        .mediation_grid
+        .as_ref()
+        .is_some_and(|grid| grid.slices.iter().any(|slice| slice.effect.is_none()))
+        && artifact.manifest.format_version != ABSENT_MEDIATION_POINT_FORMAT
+    {
+        return Err(IoError::Convert(
+            "withheld mediation points require analysis result format 0.6".into(),
+        ));
+    }
     validate::validate_result(&decoded_body, &decoded_header.variable_names, true)?;
     Ok((artifact, decoded_header, decoded_body))
 }
 
+/// Decode the optional full-source witness section. Missing is `Ok(None)`.
+///
+/// The section's byte length is checked against `limits.max_bytes` before any
+/// of it is decoded, and the decoded declared sizes are checked again.
+///
+/// # Errors
+///
+/// More than one section with the witness id, a section over the byte limit,
+/// invalid CBOR, an unsupported witness format or declared sizes over `limits`.
+pub fn decode_source_witness_section(
+    artifact: &EncodedArtifact,
+    limits: &crate::SourceWitnessLimits,
+) -> Result<Option<crate::SourceWitnessWire>, IoError> {
+    let mut found =
+        artifact.sections.iter().filter(|section| section.id == crate::SOURCE_WITNESS_SECTION);
+    let Some(section) = found.next() else {
+        return Ok(None);
+    };
+    if found.next().is_some() {
+        return Err(IoError::Convert(format!(
+            "duplicate section `{}`",
+            crate::SOURCE_WITNESS_SECTION
+        )));
+    }
+    if !matches!(u64::try_from(section.data.len()), Ok(bytes) if bytes <= limits.max_bytes) {
+        return Err(crate::SourceWitnessError::TooLarge.into());
+    }
+    let witness: crate::SourceWitnessWire = from_cbor(&section.data)?;
+    witness.check_declared(limits)?;
+    Ok(Some(witness))
+}
+
+mod association;
+mod counterfactual_contrasts;
 mod graphless;
+mod iv_bounds;
+mod quasi_rollout;
+mod recomputed_support;
+pub mod rollout_support;
+pub mod stated_section_rows;
+mod temporal_design;
 mod validate;
+
+pub use association::{
+    ASSOCIATION_ANALYSES, ASSOCIATION_ANALYTIC_UNCERTAINTY, ASSOCIATION_NO_UNCERTAINTY,
+    ASSOCIATION_POSTERIOR_UNCERTAINTY, ASSOCIATION_RESAMPLING_UNCERTAINTY,
+    AssociationConjugateWire, AssociationPosteriorWire, AssociationPredictionWire,
+    AssociationResamplingWire, AssociationTermWire, AssociationWire,
+};
+pub(crate) use counterfactual_contrasts::validate_outcome_contrasts;
+pub use counterfactual_contrasts::{CounterfactualContrastsWire, OutcomeContrastWire};
+pub use iv_bounds::{
+    IV_BOUNDS_BAYESIAN_METHOD, IV_BOUNDS_FREQUENTIST_METHOD, IV_BOUNDS_POINT_UNCERTAINTY,
+    IvBoundsIntervalWire, IvBoundsPosteriorWire, IvBoundsWire,
+};
+pub use quasi_rollout::{DesignEffectWire, QuasiRolloutWire, rederive_rollout_summary};
+pub use temporal_design::TemporalDesignWire;
 
 pub(crate) use validate::validate_interventional_distribution;
 

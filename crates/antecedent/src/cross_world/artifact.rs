@@ -1,7 +1,9 @@
 //! The replayable cross-world artifact: export from a computed effect, and
 //! consume by replay plus the independent closed-form recomputation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::sync::Arc;
 
 use antecedent_core::ExecutionContext;
 use antecedent_data::TabularData;
@@ -49,7 +51,7 @@ impl CrossWorldEffect {
             query: CrossWorldQueryWire::from_query(&self.query),
             mechanism: self.mechanism.wire_tag().into(),
             estimand: CROSS_WORLD_ESTIMAND.into(),
-            columns: self.columns.clone(),
+            columns: Arc::clone(&self.columns),
             witness: self.witness.clone(),
             point_bits: self.point.to_bits(),
             data_digest: String::new(),

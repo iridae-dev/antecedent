@@ -10,7 +10,7 @@
 //! `(0.2, 0.3, 0.5)` has row contrasts `(1.5, 2.25, 2.5)` and weighted mean
 //! `0.2 * 1.5 + 0.3 * 2.25 + 0.5 * 2.5 = 2.225`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::cohort_decision::{CohortBinding, CohortColumn};
 use antecedent::analysis::transported_cohort::{
@@ -47,7 +47,8 @@ fn columns(effect: f64) -> Vec<(String, Vec<f64>)> {
     vec![("t".into(), t), ("y".into(), y), ("z".into(), z)]
 }
 
-/// The exported analysis result of a DR-learner fit.
+/// The exported analysis result of a DR-learner fit, carrying the full source table so a
+/// consumer replays the fit and verifies the parent claim.
 fn fit(effect: f64) -> Vec<u8> {
     let columns = columns(effect);
     let borrowed: Vec<(&str, &[f64])> =
@@ -68,7 +69,7 @@ fn fit(effect: f64) -> Vec<u8> {
         .unwrap();
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&data, &ctx()).unwrap();
-    prepared.encode_contracted_result(&result, "dr-fit", &ctx()).unwrap()
+    prepared.encode_contracted_result_with_source(&result, &data, "dr-fit", &ctx()).unwrap()
 }
 
 fn cohort_of(population: &str, z: &[f64], w: &[f64]) -> CohortBinding {
@@ -149,7 +150,10 @@ fn the_decision_source_is_the_existing_surface_with_the_same_mean() {
     assert_eq!(source.outcome_units(), "mmHg");
     // Units are never inferred.
     let error = transported.decision_source(" ", &ctx()).unwrap_err();
-    assert_eq!(error.detail, "transported_effect.outcome_units_required");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::transported_effect::OUTCOME_UNITS_REQUIRED
+    );
     assert_eq!(error.code, "invalid_argument");
 }
 
@@ -241,14 +245,20 @@ fn every_unmet_premise_is_named() {
 
     let error = run("clinic_a", &cohort(), None).unwrap_err();
     assert_eq!(error.code, "transport_missing_evidence");
-    assert_eq!(error.detail, "transported_effect.shift_declaration_required");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::transported_effect::SHIFT_DECLARATION_REQUIRED
+    );
     assert!(!error.remedy.is_empty());
 
     // A selection arrow into the outcome mechanism.
     let arrow = SelectionShiftDeclaration::new("clinic_a", "clinic_b", "S", &["z", "y"], &["z"]);
     let error = run("clinic_a", &cohort(), Some(&arrow)).unwrap_err();
     assert_eq!(error.code, "transport_not_certified");
-    assert_eq!(error.detail, "transported_effect.selection_enters_mechanism");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::transported_effect::SELECTION_ENTERS_MECHANISM
+    );
     assert_eq!(error.subject, "y");
 
     // Modifiers that are not exactly the model's features.
@@ -256,28 +266,37 @@ fn every_unmet_premise_is_named() {
         SelectionShiftDeclaration::new("clinic_a", "clinic_b", "S", &["z"], &["z", "age"]);
     let error = run("clinic_a", &cohort(), Some(&modifiers)).unwrap_err();
     assert_eq!(error.code, "transport_not_certified");
-    assert_eq!(error.detail, "transported_effect.modifier_set_mismatch");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::transported_effect::MODIFIER_SET_MISMATCH
+    );
 
     // A declaration for other populations.
     let wrong = SelectionShiftDeclaration::new("clinic_x", "clinic_b", "S", &["z"], &["z"]);
     let error = run("clinic_a", &cohort(), Some(&wrong)).unwrap_err();
-    assert_eq!(error.detail, "transported_effect.shift_declaration_mismatch");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::transported_effect::SHIFT_DECLARATION_MISMATCH
+    );
 
     // The cohort is declared to be the model's own population.
     let same = cohort_of("clinic_a", &[0.0], &[1.0]);
     let error = run("clinic_a", &same, Some(&declaration())).unwrap_err();
     assert_eq!(error.code, "quantity_semantics_mismatch");
-    assert_eq!(error.detail, "transported_effect.population_not_different");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::transported_effect::POPULATION_NOT_DIFFERENT
+    );
 
     // Overlap: a disjoint feature and a row outside the fitted box.
     let disjoint = cohort_of("clinic_b", &[3.0, 4.0], &[0.5, 0.5]);
     let error = run("clinic_a", &disjoint, Some(&declaration())).unwrap_err();
     assert_eq!(error.code, "transport_support_failure");
-    assert_eq!(error.detail, "transported_effect.no_overlap");
+    assert_eq!(error.detail, antecedent_core::reason_details::transported_effect::NO_OVERLAP);
     let beyond = cohort_of("clinic_b", &[0.0, 3.0], &[0.5, 0.5]);
     let error = run("clinic_a", &beyond, Some(&declaration())).unwrap_err();
     assert_eq!(error.code, "transport_support_failure");
-    assert_eq!(error.detail, "transported_effect.out_of_support");
+    assert_eq!(error.detail, antecedent_core::reason_details::transported_effect::OUT_OF_SUPPORT);
     assert!(error.subject.contains("patient-1"), "{}", error.subject);
 
     // A feature the model does not have, and a categorical feature.
@@ -292,7 +311,10 @@ fn every_unmet_premise_is_named() {
     .unwrap();
     let error = run("clinic_a", &schema, Some(&declaration())).unwrap_err();
     assert_eq!(error.code, "schema_mismatch");
-    assert_eq!(error.detail, "transported_effect.feature_schema_mismatch");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::transported_effect::FEATURE_SCHEMA_MISMATCH
+    );
     let levels = CohortBinding::new(
         "s",
         "clinic_b",
@@ -315,11 +337,14 @@ fn every_unmet_premise_is_named() {
         &ctx(),
     )
     .unwrap_err();
-    assert_eq!(error.detail, "cohort_decision.wrong_parent_identity");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::cohort_decision::WRONG_PARENT_IDENTITY
+    );
 }
 
 #[test]
-fn interval_and_law_requests_are_refused_with_the_licensing_evidence() {
+fn interval_and_law_requests_are_refused_with_the_support_evidence() {
     let bytes = fit(2.0);
     let transported = transport_cohort_effect_from_result(
         &bytes,
@@ -331,10 +356,13 @@ fn interval_and_law_requests_are_refused_with_the_licensing_evidence() {
     )
     .unwrap();
     let interval = transported.interval_refusal();
-    assert_eq!(interval.code, "cell_not_licensed");
-    assert_eq!(interval.detail, "transported_effect.interval_not_licensed");
+    assert_eq!(interval.code, "route_not_supported");
+    assert_eq!(
+        interval.detail,
+        antecedent_core::reason_details::transported_effect::INTERVAL_NOT_SUPPORTED
+    );
     assert!(interval.remedy.contains("coverage"));
     let law = transported.law_refusal();
     assert_eq!(law.code, "decision_contract_unsatisfied");
-    assert_eq!(law.detail, "transported_effect.law_not_supplied");
+    assert_eq!(law.detail, antecedent_core::reason_details::transported_effect::LAW_NOT_SUPPLIED);
 }

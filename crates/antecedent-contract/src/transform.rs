@@ -5,7 +5,7 @@
 //! Composition unions layer effects and concatenates unresolved
 //! obligations; it cannot drop an earlier unresolved obligation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -20,7 +20,7 @@ pub enum SemanticLayer {
     Target,
     /// Structural identification.
     Identification,
-    /// Licensed program (premises + products + inferential commitments).
+    /// Supported program (premises + products + inferential commitments).
     Program,
     /// Inference binding (priors, numeric knobs, validation).
     Inference,
@@ -127,7 +127,7 @@ pub enum TransformIntent {
     DisplayPrecision,
     /// Compatible data append/replace (same observation contract).
     CompatibleDataReplace,
-    /// Licensed prepared `retarget`.
+    /// Supported prepared `retarget`.
     Retarget,
     /// Display-only filter; not a new population or query.
     FilterDisplay,
@@ -243,7 +243,7 @@ impl TransformationReport {
     /// Whether all frozen contract inputs still match, including the data snapshot.
     ///
     /// Program equality alone cannot detect a refresh that preserves the target
-    /// and identification. This is a freshness check, not an execution license.
+    /// and identification. This is a freshness check, not an execution support.
     #[must_use]
     pub fn binds_contract(
         &self,
@@ -458,13 +458,13 @@ mod tests {
             [failed.clone()],
         );
         let chained = first.compose(&second);
-        assert!(chained.obligations.iter().any(|o| *o == failed));
+        assert!(chained.obligations.contains(&failed));
         assert!(chained.obligations.iter().any(ObligationRecord::is_unresolved));
         assert_eq!(chained.input_identities.as_ref(), first_input.as_slice());
 
         // A later resolved record cannot erase an earlier unresolved one.
         let reversed = second.compose(&first);
-        assert!(reversed.obligations.iter().any(|o| *o == failed));
+        assert!(reversed.obligations.contains(&failed));
         assert_eq!(reversed.input_identities.as_ref(), second_input.as_slice());
     }
 

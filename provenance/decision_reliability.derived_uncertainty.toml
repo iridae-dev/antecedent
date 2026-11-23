@@ -13,20 +13,56 @@ copied_tests = false
 # critical values (marginal over all candidates, or over the competitors of the best on paired
 # differences), not the exact multivariate-t critical values of Hsu.
 papers = [
-  { title = "Probable Inference, the Law of Succession, and Statistical Inference (Wilson, J. Am. Stat. Assoc. 22:209-212, 1927)", doi = "10.1080/01621459.1927.10502953", sections = ["score interval for a binomial proportion"] },
-  { title = "Multiple Comparisons: Theory and Methods (Hsu, Chapman and Hall, 1996; the DOI is the publisher record titled Multiple Comparisons)", doi = "10.1201/b15074", sections = ["multiple comparisons with the best: the idea of a confidence set for the best candidate; the critical values here are Bonferroni, not Hsu's exact multivariate-t values"] },
-  { title = "The Optimizer's Curse: Skepticism and Postdecision Surprise in Decision Analysis (Smith and Winkler, Management Science 52, 2006)", doi = "10.1287/mnsc.1050.0451", sections = ["upward bias of the selected maximum of noisy estimates"] },
+  { title = "Probable Inference, the Law of Succession, and Statistical Inference", citation_note = "Previously recorded title and bibliographic detail: Probable Inference, the Law of Succession, and Statistical Inference (Wilson, J. Am. Stat. Assoc. 22:209-212, 1927)", doi = "10.1080/01621459.1927.10502953", sections = ["score interval for a binomial proportion"] },
+  { title = "Multiple Comparisons", citation_note = "Previously recorded title and bibliographic detail: Multiple Comparisons: Theory and Methods (Hsu, Chapman and Hall, 1996; the DOI is the publisher record titled Multiple Comparisons)", doi = "10.1201/b15074", sections = ["multiple comparisons with the best: the idea of a confidence set for the best candidate; the critical values here are Bonferroni, not Hsu's exact multivariate-t values"] },
+  { title = "The Optimizer’s Curse: Skepticism and Postdecision Surprise in Decision Analysis", citation_note = "Previously recorded title and bibliographic detail: The Optimizer's Curse: Skepticism and Postdecision Surprise in Decision Analysis (Smith and Winkler, Management Science 52, 2006)", doi = "10.1287/mnsc.1050.0451", sections = ["upward bias of the selected maximum of noisy estimates"] },
 ]
 implementation_deviations = [
   "Source-distribution uncertainty is carried unchanged and never added to the numerical or selection components; a probability is a probability under the supplied law and no interval here covers a wrong law.",
   "Monte Carlo errors are treated as normal at the reported effective sample size and estimated standard errors as known; below MIN_NORMAL_ESS the derivation refuses. Candidates an adaptive search considered but did not retain are counted, never covered.",
   "The confidence set for the best is Bonferroni-based, not Hsu's exact multiple-comparisons-with-the-best procedure: marginal standard errors with alpha/(2k) per candidate (any dependence), or, when the candidate-by-draw table is small enough, paired differences against each competitor with alpha/(k-1). Both are conservative; no sharper joint critical value is implemented.",
-  "Derived-unmeasured: publish refuses with cell_not_licensed until a coverage record measures the route at its coordinate (candidate-set size, Monte Carlo budget, selection rule). The measurement design is data in coverage_design.rs; nothing is measured.",
+  "Derived-not_measured: publish reports a not-measured calibration slot until a coverage record measures the route at its coordinate (candidate-set size, Monte Carlo budget, selection rule). The measurement design is data in coverage_design.rs; nothing is measured.",
   "Producers that hold only a point (cohort mean, rollout mean) are refused (joint_law_required / diagnostic_not_available); implementation-keyed shared-noise rollouts are marginal-only and cannot support ranking probabilities.",
 ]
 upstream_implementations_observed = []
+modules = ["crates/antecedent-design/src/decision_reliability/interval.rs"]
+
 test_sources = [
+  "crates/antecedent-design/tests/decision_reliability_reference.rs (derive_uncertainty on eight scenarios against a definition-level reference)",
   "crates/antecedent-design/tests/decision_reliability_intervals.rs",
   "crates/antecedent-design/tests/decision_reliability_producers.rs",
   "crates/antecedent-design/tests/decision_reliability.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "derive_uncertainty in crates/antecedent-design/src/decision_reliability/interval.rs: the Wald interval of utilities and of differences to the decided candidate, the Wilson interval at the reported effective sample size, the multiplicity adjustment (marginal or Bonferroni over every reported interval), the confidence set for the best candidate (paired comparisons with Bonferroni over the competitors up to 64 candidates, marginal two-sided Bonferroni beyond) and the selection-corrected simultaneous interval. It relies on the mc_error review of decision_reliability.sampled_decision for the standard errors and effective sizes and on the norm_inv kernel for critical values (compared with the standard library's NormalDist at 1e-8). Not the report assembly, the draw carrier, the coverage calibration or the publication support beyond the simultaneous-multiplicity refusal."
+assumptions = ["Monte Carlo errors are normal at the reported effective sample size and standard errors are known; the reference reproduces the construction, so it shows the arithmetic is as documented, not that the intervals cover.", "The best-candidate set is Bonferroni, not Hsu's exact multivariate-t set; the product states this and the reference follows the product's stated construction."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared the product with definitions evaluated by an executing reference written for this review (standard library only; exact rational arithmetic for the Maritz-Jarrett weights); no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review (nothing downloaded): the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. Its output is frozen in the JSON file and compared by the test."
+limitations = "Eight scenarios are compared at 1e-8 relative on intervals, critical values and half-widths: two expected-utility problems (independent and shared streams) (3 to 4 candidates, 100 to 150 quarter-grid draws, 0.8 to 0.99 levels, marginal and simultaneous multiplicity, ranking with baseline and top-k), a shared median problem, an independent upper-tail CVaR problem, a shared threshold problem with exact ties, a shared problem with lognormal(0, 1.2) importance weights (Kish effective size about 70), an autocorrelated 900-draw stream with batch means, and a 70-candidate problem that takes the marginal Bonferroni branch. Ranking probabilities are recomputed by direct enumeration over draws with tie sharing. Not exercised against a reference: candidate sets near the 64-candidate switch, searches with unretained candidates, the held-out and split-draw validation paths (the selection-corrected interval is compared for the no-validation path only), effective sizes between 30 and 100 at the refusal boundary other than through the 30 floor itself, and any coverage. Derived-not_measured by design: publication is annotated not measured until a coverage record exists. The cited works were not retrieved."
+sources = ["https://doi.org/10.1080/01621459.1927.10502953", "https://doi.org/10.1201/b15074", "https://doi.org/10.1287/mnsc.1050.0451"]
+findings_resolved = ["No defect found: Wald and Wilson intervals, per-interval levels under simultaneous multiplicity, the paired and marginal best-candidate sets with their critical values, and the selection-corrected half-widths and critical value agree with the reference on all eight scenarios; a simultaneous request is refused at publication."]
+record_sha256 = "5e05eee3f89045bce4e3f49805f70ac1a39a75d4be373fe6ef914c6b6aef0413"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_reliability/interval.rs"
+items = ["const DERIVED_UNCERTAINTY_VERSION", "const MAX_INTERVAL_LEVEL", "const MAX_PAIRED_COMPARISON_CANDIDATES", "const MIN_INTERVAL_LEVEL", "const MIN_NORMAL_ESS", "enum ConfidenceSetBasis", "enum DerivedStanding", "enum IntervalMultiplicity", "enum NumericalIntervalMethod", "enum ProbabilityQuantity", "fn alpha", "fn assumptions", "fn confidence_set", "fn corrected_interval", "fn critical", "fn derive_uncertainty", "fn numerical_component", "fn paired_confidence_set", "fn publish", "fn require_normal_ess", "fn validate", "fn wald", "fn wilson", "struct DerivedUncertainty", "struct IntervalRequest", "struct NumericalComponent", "struct NumericalInterval", "struct OptimalityConfidenceSet", "struct ProbabilityInterval", "struct SelectionComponent", "struct SelectionCorrectedInterval", "struct UtilityInterval"]
+sha256 = "0b390bbe895a8ce86a7acfe3cf296cfa8da5e1eddf1c3772bd0f4e37bed07392"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/decision_reliability_reference.rs"
+items = ["fn carrier", "fn check_interval", "fn close", "fn dependence", "fn derived_uncertainty_matches_the_definition_level_reference", "fn differences_match_the_definition_level_reference", "fn estimates_match_the_definition_level_reference", "fn floats", "fn functional", "fn plan", "fn reference"]
+sha256 = "015549e251e8b1517c84a556c767ff78f9386c6e569cc291104650a25bd7c1ca"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-design/tests/oracle_data/decision_reliability_reference.py"
+sha256 = "24af126f7a08d9db2df77545fe5069fdba02d2a7379b1ab9392dcdb8cd4f8172"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-design/tests/oracle_data/decision_reliability_reference.json"
+sha256 = "d651e4da09571a0e0447282fdffb97b8cc9c628d3ac53929f221fecb1fb355c7"

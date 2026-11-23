@@ -1,10 +1,13 @@
 //! Abduction–action–prediction engine.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalRng, ExecutionContext, Intervention, StreamDomain, VariableId};
+use antecedent_core::intervention::{AdmitError, ExecutionSurface, InterventionOperation};
+use antecedent_core::{
+    CausalRng, ExecutionContext, Intervention, StreamDomain, TemporalPolicy, Value, VariableId,
+};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::DenseNodeId;
 use antecedent_model::{
@@ -15,6 +18,48 @@ use antecedent_model::{
 };
 
 use crate::error::CounterfactualError;
+
+/// Admit `intervention` on a counterfactual world.
+///
+/// The operation is the same one a static model admits. A shift is not a set.
+/// A pulse, a sustained action, and an initial-state change are refused.
+///
+/// # Errors
+///
+/// [`CounterfactualError`] naming the operation this surface cannot perform.
+pub fn admit_counterfactual(
+    intervention: &Intervention,
+    temporal: Option<&TemporalPolicy>,
+) -> Result<InterventionOperation, CounterfactualError> {
+    ExecutionSurface::Counterfactual.admit(intervention, temporal).map_err(counterfactual_refusal)
+}
+
+/// Refuse an initial-state change on a counterfactual world.
+///
+/// # Errors
+///
+/// [`CounterfactualError`] naming `initial_state_change`.
+pub fn admit_counterfactual_initial_state(
+    law_name: &str,
+    level: f64,
+) -> Result<(), CounterfactualError> {
+    let operation = InterventionOperation::initial_state(law_name, Value::f64(level))
+        .map_err(|error| CounterfactualError::model_msg(error.to_string()))?;
+    ExecutionSurface::Counterfactual
+        .admit_operation(&operation)
+        .map_err(|refusal| CounterfactualError::model_msg(refusal.to_string()))?;
+    Err(CounterfactualError::model_msg(
+        "an initial-state change replaces the initial-state law and is not a hard clamp",
+    ))
+}
+
+fn counterfactual_refusal(error: AdmitError) -> CounterfactualError {
+    match error {
+        AdmitError::Refused(refusal) => CounterfactualError::model_msg(refusal.to_string()),
+        AdmitError::Invalid(invalid) => CounterfactualError::model_msg(invalid.to_string()),
+        other => CounterfactualError::model_msg(other.to_string()),
+    }
+}
 
 /// Stream index of the abduction draw within [`StreamDomain::Counterfactual`].
 const ABDUCTION_STREAM: u64 = 0xAB_D0;
@@ -210,7 +255,11 @@ impl CounterfactualEngine {
     ) -> Result<ExogenousPosterior, CounterfactualError> {
         let n = data.row_count();
         let n_nodes = self.model.n_nodes();
-        let mut noise = vec![0.0; n * n_nodes];
+        // Built straight into the shared allocation (an exact-size iterator collects into an
+        // `Arc<[f64]>` without a second buffer), so publishing the posterior copies nothing.
+        let mut noise: Arc<[f64]> = std::iter::repeat_n(0.0, n * n_nodes).collect();
+        let noise_buf = Arc::get_mut(&mut noise)
+            .ok_or_else(|| CounterfactualError::model_msg("noise buffer is unexpectedly shared"))?;
         let mut kind = NoiseInferenceKind::Invertible;
         let mut assumed_columns = vec![false; n_nodes];
 
@@ -255,7 +304,7 @@ impl CounterfactualEngine {
             }
             let node = gather.child;
             let idx = node.as_usize();
-            let out = &mut noise[idx * n..(idx + 1) * n];
+            let out = &mut noise_buf[idx * n..(idx + 1) * n];
             let need = gather.n_parents().max(1).saturating_mul(n);
             if parent_buf.len() < need {
                 parent_buf.resize(need, 0.0);
@@ -289,7 +338,7 @@ impl CounterfactualEngine {
         }
 
         Ok(ExogenousPosterior {
-            noise: Arc::from(noise),
+            noise,
             n_units: n,
             n_nodes,
             kind,
@@ -445,6 +494,12 @@ impl CounterfactualEngine {
         // Columnar: values[world * (stored_width * n_units) + slot * n_units + unit]
         let stored: Option<Vec<DenseNodeId>> = outcomes_only.then(|| outcome_dense.clone());
         let stored_width = stored.as_ref().map_or(n_nodes, Vec::len);
+        let cells = n_worlds
+            .checked_mul(stored_width)
+            .and_then(|c| c.checked_mul(n_units))
+            .zip(n_units.checked_mul(n_nodes))
+            .and_then(|(all, values)| all.checked_add(values));
+        let _lease = crate::error::admit_cells(ctx, "counterfactual world values", cells)?;
         let mut all = vec![0.0; n_worlds * stored_width * n_units];
         let mut notes = Vec::new();
         notes.push(Arc::from(format!("noise_inference={:?}", exo.kind)));
@@ -464,6 +519,9 @@ impl CounterfactualEngine {
                         return Err(CounterfactualError::NestedNotAllowed);
                     }
                 }
+            }
+            for iv in world.interventions.iter() {
+                admit_counterfactual(iv, None)?;
             }
             let overlay =
                 InterventionOverlay::from_interventions(&self.model, &world.interventions)?;
@@ -499,16 +557,16 @@ impl CounterfactualEngine {
             }
         }
 
-        Ok(CounterfactualResult {
-            values: Arc::from(all),
+        CounterfactualResult::new(
+            Arc::from(all),
             n_worlds,
             n_units,
             n_nodes,
-            retained_nodes: stored.map(Arc::from),
-            outcomes: Arc::from(outcome_dense),
-            noise_kind: exo.kind,
+            stored.map(Arc::from),
+            Arc::from(outcome_dense),
+            exo.kind,
             notes,
-        })
+        )
     }
 
     /// Individual treatment effect `Y_{do(a)} − Y_{do(c)}` per unit under the abduced noise.
@@ -544,33 +602,34 @@ impl CounterfactualEngine {
         let o = self.model.dense_of(outcome).ok_or_else(|| {
             CounterfactualError::model_msg(format!("unknown outcome variable {outcome}"))
         })?;
-        let mut ite = vec![0.0; exo.n_units];
-        for u in 0..exo.n_units {
-            let ya = res.get(0, o, u);
-            let yc = res.get(1, o, u);
-            ite[u] = ya - yc;
-        }
+        let ya = res.outcome_column(0, o)?;
+        let yc = res.outcome_column(1, o)?;
+        let ite: Vec<f64> = ya.iter().zip(yc).map(|(a, c)| a - c).collect();
         Ok(Arc::from(ite))
     }
 }
 
 /// Counterfactual result tensor (world × node × unit), columnar.
+///
+/// The storage layout is private: [`CounterfactualResult::new`] checks that the buffer holds
+/// exactly `n_worlds × stored_width × n_units` values, and every accessor then slices within
+/// it. A mismatch can never surface as a slice panic.
 #[derive(Clone, Debug)]
 pub struct CounterfactualResult {
     /// Flat storage: `n_worlds × stored_width × n_units`, node-major within a
     /// world. `stored_width` is `n_nodes` for full retention or
     /// `retained_nodes.len()` for outcomes-only results.
-    pub values: Arc<[f64]>,
+    values: Arc<[f64]>,
     /// Worlds.
     pub n_worlds: usize,
     /// Units.
-    pub n_units: usize,
+    n_units: usize,
     /// Nodes in the model (the logical width; storage may retain fewer).
-    pub n_nodes: usize,
+    n_nodes: usize,
     /// Node columns actually retained, in storage order; `None` = every node
     /// (the historical layout). Access values through [`Self::get`] /
     /// [`Self::outcome_column`], which resolve slots either way.
-    pub retained_nodes: Option<Arc<[DenseNodeId]>>,
+    retained_nodes: Option<Arc<[DenseNodeId]>>,
     /// Requested outcome dense ids.
     pub outcomes: Arc<[DenseNodeId]>,
     /// Noise inference kind (visible assumption).
@@ -579,7 +638,74 @@ pub struct CounterfactualResult {
     pub notes: Vec<Arc<str>>,
 }
 
+/// Mean of the finite outcomes of one world, with the population it was taken over.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct OutcomeMean {
+    /// Mean of the finite outcomes; `NaN` when none is finite.
+    pub mean: f64,
+    /// Units whose outcome was finite and entered the mean.
+    pub n_used: usize,
+    /// Units in the world; `n_units - n_used` were dropped as non-finite.
+    pub n_units: usize,
+}
+
 impl CounterfactualResult {
+    /// Build a result, checking the buffer against the declared shape.
+    ///
+    /// # Errors
+    ///
+    /// `values.len()` differs from `n_worlds × stored_width × n_units`, or a retained node
+    /// lies outside the model.
+    #[allow(clippy::too_many_arguments, reason = "the full result record, validated together")]
+    pub fn new(
+        values: Arc<[f64]>,
+        n_worlds: usize,
+        n_units: usize,
+        n_nodes: usize,
+        retained_nodes: Option<Arc<[DenseNodeId]>>,
+        outcomes: Arc<[DenseNodeId]>,
+        noise_kind: NoiseInferenceKind,
+        notes: Vec<Arc<str>>,
+    ) -> Result<Self, CounterfactualError> {
+        let width = retained_nodes.as_ref().map_or(n_nodes, |r| r.len());
+        let expected = n_worlds.checked_mul(width).and_then(|v| v.checked_mul(n_units));
+        if expected != Some(values.len()) {
+            return Err(CounterfactualError::model_msg(
+                "counterfactual result buffer does not match n_worlds x stored width x n_units",
+            ));
+        }
+        if retained_nodes.as_ref().is_some_and(|r| r.iter().any(|n| n.as_usize() >= n_nodes)) {
+            return Err(CounterfactualError::model_msg(
+                "counterfactual result retains a node outside the model",
+            ));
+        }
+        Ok(Self { values, n_worlds, n_units, n_nodes, retained_nodes, outcomes, noise_kind, notes })
+    }
+
+    /// The stored values, world-major then node-slot then unit.
+    #[must_use]
+    pub fn values(&self) -> &[f64] {
+        &self.values
+    }
+
+    /// Units per world.
+    #[must_use]
+    pub fn n_units(&self) -> usize {
+        self.n_units
+    }
+
+    /// Nodes in the model (the logical width; storage may retain fewer).
+    #[must_use]
+    pub fn n_nodes(&self) -> usize {
+        self.n_nodes
+    }
+
+    /// Node columns actually retained, in storage order; `None` = every node.
+    #[must_use]
+    pub fn retained_nodes(&self) -> Option<&[DenseNodeId]> {
+        self.retained_nodes.as_deref()
+    }
+
     /// Storage width per world (retained columns).
     #[must_use]
     pub fn stored_width(&self) -> usize {
@@ -595,51 +721,66 @@ impl CounterfactualResult {
         }
     }
 
-    /// Value at world/node/unit (`NaN` when out of range or not retained,
-    /// matching the historical out-of-range convention).
+    /// Value at world/node/unit, or `None` when the world or unit is out of range or the
+    /// node was not retained.
     #[must_use]
-    pub fn get(&self, world: usize, node: DenseNodeId, unit: usize) -> f64 {
+    pub fn try_get(&self, world: usize, node: DenseNodeId, unit: usize) -> Option<f64> {
         if world >= self.n_worlds || unit >= self.n_units {
-            return f64::NAN;
+            return None;
         }
-        let Some(slot) = self.slot_of(node) else {
-            return f64::NAN;
-        };
+        let slot = self.slot_of(node)?;
         let width = self.stored_width();
         let i = world * width * self.n_units + slot * self.n_units + unit;
-        self.values.get(i).copied().unwrap_or(f64::NAN)
+        self.values.get(i).copied()
+    }
+
+    /// Value at world/node/unit (`NaN` when out of range or not retained). Prefer
+    /// [`Self::try_get`], which keeps "absent" distinct from a genuine `NaN` value.
+    #[must_use]
+    pub fn get(&self, world: usize, node: DenseNodeId, unit: usize) -> f64 {
+        self.try_get(world, node, unit).unwrap_or(f64::NAN)
     }
 
     /// Units whose outcome is finite in `world` (the population
     /// [`Self::streaming_outcome_mean`] averages over).
     #[must_use]
     pub fn finite_outcome_count(&self, world: usize, outcome: DenseNodeId) -> usize {
-        (0..self.n_units).filter(|&u| self.get(world, outcome, u).is_finite()).count()
+        self.outcome_column(world, outcome)
+            .map_or(0, |column| column.iter().filter(|v| v.is_finite()).count())
     }
 
-    /// Streaming mean of the *finite* outcomes for one world (no full retention
-    /// required). Non-finite units are dropped; compare [`Self::finite_outcome_count`]
-    /// with `n_units` to learn how many. Returns `NaN` when no finite outcomes are
-    /// available.
+    /// Mean of the *finite* outcomes of one world together with how many units entered it,
+    /// so a caller never reads a mean over a different population than `n_units`. Non-finite
+    /// units are dropped; the mean is `NaN` when none is finite.
     #[must_use]
-    pub fn streaming_outcome_mean(&self, world: usize, outcome: DenseNodeId) -> f64 {
-        let mut sum = 0.0;
-        let mut n = 0usize;
-        for u in 0..self.n_units {
-            let v = self.get(world, outcome, u);
+    pub fn outcome_mean(&self, world: usize, outcome: DenseNodeId) -> OutcomeMean {
+        let Ok(column) = self.outcome_column(world, outcome) else {
+            return OutcomeMean { mean: f64::NAN, n_used: 0, n_units: 0 };
+        };
+        let (mut sum, mut n) = (0.0, 0usize);
+        for &v in column {
             if v.is_finite() {
                 sum += v;
                 n += 1;
             }
         }
-        if n == 0 { f64::NAN } else { sum / n as f64 }
+        let mean = if n == 0 { f64::NAN } else { sum / n as f64 };
+        OutcomeMean { mean, n_used: n, n_units: column.len() }
+    }
+
+    /// Streaming mean of the *finite* outcomes for one world (no full retention
+    /// required). Non-finite units are dropped; use [`Self::outcome_mean`] to receive the
+    /// number of units averaged with the mean. `NaN` when no finite outcomes are available.
+    #[must_use]
+    pub fn streaming_outcome_mean(&self, world: usize, outcome: DenseNodeId) -> f64 {
+        self.outcome_mean(world, outcome).mean
     }
 
     /// Borrowed outcome column for one world (`length = n_units`).
     ///
     /// # Errors
     ///
-    /// World out of range.
+    /// World out of range, or the outcome was not retained.
     pub fn outcome_column(
         &self,
         world: usize,
@@ -653,7 +794,9 @@ impl CounterfactualResult {
         })?;
         let width = self.stored_width();
         let start = world * width * self.n_units + slot * self.n_units;
-        Ok(&self.values[start..start + self.n_units])
+        self.values.get(start..start + self.n_units).ok_or_else(|| {
+            CounterfactualError::model_msg("counterfactual result buffer is shorter than its shape")
+        })
     }
 }
 
@@ -745,257 +888,14 @@ fn complete_outcome_mean(
     Ok(res.streaming_outcome_mean(world, outcome))
 }
 
-fn interventions_overlap(outer: &[Intervention], inner: &[Intervention]) -> bool {
-    outer
-        .iter()
-        .filter_map(Intervention::primary_variable)
-        .any(|ov| inner.iter().any(|i| i.primary_variable() == Some(ov)))
-}
-
-/// Interventions, frozen set and outcome of a nested counterfactual query.
-#[derive(Debug, Clone, Copy)]
-pub struct NestedSpec<'a> {
-    /// Outer-world interventions.
-    pub outer: &'a [Intervention],
-    /// Inner-world interventions.
-    pub inner: &'a [Intervention],
-    /// Nodes held at their outer-world value in the inner world.
-    pub frozen: &'a [VariableId],
-    /// Outcome variable.
-    pub outcome: VariableId,
-}
-
-/// Nested counterfactual (twin-network) under shared abduced noise.
-///
-/// The query `Y_{inner, F_{outer}}`: the outcome under the `inner` interventions
-/// while every variable in `frozen` keeps the value it takes in the `outer` world.
-/// For the mediation contrast `Y_{x, M_{x'}}` take `outer = do(X = x')`,
-/// `inner = do(X = x)` and `frozen = {M}`.
-///
-/// 1. Abduct exogenous noise once from factual data.
-/// 2. Evaluate the **outer** world.
-/// 3. Freeze each node of `frozen` at its outer counterfactual value. Soft/stochastic
-///    outer interventions are realized first; freezes store those realized values.
-/// 4. Evaluate the **inner** world with those freezes plus `inner`. Every node that is
-///    not frozen — including nodes between an inner target and the outcome, and side
-///    paths such as a second mediator — is re-evaluated under the inner intervention.
-///
-/// Freezing more than the mediators changes the estimand (it holds every frozen path
-/// at the outer world), which is why the set is an argument rather than inferred.
-/// Supports Set, Shift, Soft, and Stochastic interventions.
-///
-/// # Errors
-///
-/// Unsupported intervention kinds, a frozen node that is an `inner` target or the
-/// outcome, unknown variables, abduction/predict failures.
-pub fn nested_counterfactual(
-    engine: &CounterfactualEngine,
-    data: &TabularData,
-    spec: &NestedSpec<'_>,
-    ws: &mut MechanismWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<f64, CounterfactualError> {
-    // Intervention-kind validation lives in the `_with_exo` body.
-    let exo = engine.abduct(data, AbductionMissingPolicy::Error, ctx)?;
-    nested_counterfactual_with_exo(engine, &exo, spec, ws, ctx)
-}
-
-/// [`nested_counterfactual`] against a caller-supplied [`ExogenousPosterior`]
-/// (abduct once, evaluate many nested queries).
-///
-/// # Errors
-///
-/// Unsupported intervention kinds, an invalid frozen set, or predict failures.
-#[allow(
-    clippy::needless_range_loop,
-    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
-)]
-pub fn nested_counterfactual_with_exo(
-    engine: &CounterfactualEngine,
-    exo: &ExogenousPosterior,
-    spec: &NestedSpec<'_>,
-    ws: &mut MechanismWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<f64, CounterfactualError> {
-    let NestedSpec { outer, inner, frozen, outcome } = *spec;
-    for iv in outer.iter().chain(inner.iter()) {
-        match iv {
-            Intervention::Set { .. }
-            | Intervention::Shift { .. }
-            | Intervention::Soft { .. }
-            | Intervention::Stochastic { .. } => {}
-            Intervention::Sequence(_) => {
-                return Err(CounterfactualError::model_msg(
-                    "nested_counterfactual does not accept Sequence inside outer/inner; \
-                     pass flat intervention slices",
-                ));
-            }
-            _ => {
-                return Err(CounterfactualError::model_msg(format!(
-                    "nested_counterfactual unsupported intervention kind: {iv:?}"
-                )));
-            }
-        }
-    }
-    let n_nodes = exo.n_nodes;
-    let n_units = exo.n_units;
-    let outcome_dense = engine.model.dense_of(outcome).ok_or_else(|| {
-        CounterfactualError::model_msg(format!("unknown outcome variable {outcome}"))
-    })?;
-
-    let mut inner_targets = vec![false; n_nodes];
-    for iv in inner {
-        if let Some(v) = iv.primary_variable() {
-            if let Some(d) = engine.model.dense_of(v) {
-                inner_targets[d.as_usize()] = true;
-            }
-        }
-    }
-    let mut is_frozen = vec![false; n_nodes];
-    for &var in frozen {
-        let node = engine
-            .model
-            .dense_of(var)
-            .ok_or_else(|| CounterfactualError::model_msg(format!("unknown frozen node {var}")))?
-            .as_usize();
-        if node == outcome_dense.as_usize() || inner_targets[node] {
-            return Err(CounterfactualError::model_msg(format!(
-                "frozen node {var} is the outcome or an inner intervention target; a node cannot \
-                 be both held at its outer value and re-evaluated"
-            )));
-        }
-        is_frozen[node] = true;
-    }
-
-    let outer_world =
-        CounterfactualWorld { unit_rows: None, interventions: Arc::from(outer.to_vec()) };
-    // Full retention: the freeze step below reads every frozen node's column.
-    let outer_res = engine.predict(exo, &[outer_world], &[], true, ws, ctx)?;
-
-    let mut freeze_ivs: Vec<Intervention> = Vec::new();
-    let mut need_unitwise = false;
-    for node in 0..n_nodes {
-        if !is_frozen[node] {
-            continue;
-        }
-        let start = node * n_units;
-        let col = &outer_res.values[start..start + n_units];
-        // A non-finite column is not a constant. `NaN - NaN` is not greater than
-        // the tolerance, so a NaN column used to be frozen as if it were constant.
-        match column_is_finite_constant(col) {
-            Some(first) => {
-                let var = engine.model.output_layout.variables[node];
-                freeze_ivs.push(Intervention::set(var, antecedent_core::Value::f64(first)));
-            }
-            None if col.is_empty() => {}
-            None => {
-                need_unitwise = true;
-                break;
-            }
-        }
-    }
-
-    if need_unitwise {
-        // Column-frozen single pass. Per unit, the historical loop hard-set
-        // every frozen node to its outer value and ran a full-table `predict`
-        // to read one row — O(n_units² · nodes). Mechanism evaluation is
-        // row-wise for the non-temporal families, so freezing every unit at
-        // once (frozen nodes keep their outer *columns*; every other node is
-        // re-evaluated) produces the identical per-row values in one
-        // O(n_units · nodes) pass. Stochastic inner interventions also match
-        // bit-for-bit: each per-unit `predict` call restarted the same `0xCF_01`
-        // stream and sampled full columns in topological order, exactly as the
-        // single pass does.
-        let overlay = InterventionOverlay::from_interventions(&engine.model, inner)?;
-        let row_independent = nested_rows_independent(engine, &overlay, &is_frozen, n_nodes)?;
-
-        if row_independent {
-            let frozen =
-                FrozenOuter { outer_res: &outer_res, overlay: &overlay, is_frozen: &is_frozen };
-            return nested_column_frozen_mean(engine, exo, &frozen, outcome_dense, ws, ctx);
-        }
-
-        // Row-coupled (temporal) mechanisms cannot be evaluated per unit by
-        // freezing: the historical fallback hard-set every frozen node to
-        // unit u's outer value across *all* rows and ran a full-column
-        // evaluation — a state-space mechanism then rolls its recursion over
-        // that constant-filled column with every unit's abduced noise, so
-        // "unit u's counterfactual" mixed other units' noise and a fabricated
-        // constant history. Refuse rather than return a contaminated number;
-        // a true single-series slice evaluation is the follow-up.
-        return Err(CounterfactualError::model_msg(
-            "nested counterfactual over row-coupled (temporal) mechanisms with \
-             unit-varying outer values is not supported: per-unit freezing \
-             contaminates state-space evaluation across rows. Refusing rather \
-             than returning a silently mixed result.",
-        ));
-    }
-
-    let mut combined = freeze_ivs;
-    combined.extend_from_slice(inner);
-    let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from(combined) };
-    let res = engine.predict(exo, &[world], &[outcome], true, ws, ctx)?;
-    complete_outcome_mean(&res, 0, outcome_dense)
-}
-
-/// Whether every mechanism the nested pass would evaluate is row-independent.
-/// Row-coupled (temporal) families make `out[u]` depend on other rows, which
-/// the column-frozen pass cannot reproduce; those refuse. Overlay-driven nodes
-/// (hard set / stochastic / soft) never consult the fitted mechanism, so they are
-/// row-independent regardless of family.
-#[allow(
-    clippy::needless_range_loop,
-    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
-)]
-fn nested_rows_independent(
-    engine: &CounterfactualEngine,
-    overlay: &InterventionOverlay,
-    is_frozen: &[bool],
-    n_nodes: usize,
-) -> Result<bool, CounterfactualError> {
-    let mut row_independent = true;
-    for node in 0..n_nodes {
-        if is_frozen[node]
-            || overlay.hard_set[node].is_some()
-            || overlay.stochastic[node].is_some()
-            || overlay.soft[node].is_some()
-        {
-            continue;
-        }
-        let slot = engine.model.mechanisms.get(DenseNodeId::from_raw(
-            u32::try_from(node)
-                .map_err(|_| CounterfactualError::model_msg("node index exceeds u32 capacity"))?,
-        ));
-        row_independent &= matches!(
-            slot,
-            MechanismSlot::LinearGaussian { .. }
-                | MechanismSlot::HierarchicalLinear { .. }
-                | MechanismSlot::Bvar { .. }
-                | MechanismSlot::Constant { .. }
-                | MechanismSlot::Discrete { .. }
-                | MechanismSlot::GaussianProcess { .. }
-                // A basis expansion reads only its own row's parents and
-                // disturbance, exactly like the linear family it extends.
-                | MechanismSlot::LinearBasis { .. }
-                | MechanismSlot::DiscreteBasis { .. }
-                // Tree ensembles read only their own row's parents and disturbance.
-                | MechanismSlot::TreeAdditive { .. }
-                | MechanismSlot::TreeCategorical { .. }
-                // A state-space mechanism's abduced noise is its residual path, so
-                // evaluation is `mean(parents) + noise[row]`: row-wise like the linear family.
-                | MechanismSlot::LinearGaussianStateSpace { .. }
-                | MechanismSlot::ConditionalLinearGaussianStateSpace { .. }
-        );
-    }
-    Ok(row_independent)
-}
-
-/// `Some(value)` when every entry is finite and within `1e-12` of the first.
-/// An empty column and any non-finite entry are not constants.
-fn column_is_finite_constant(col: &[f64]) -> Option<f64> {
-    let &first = col.first()?;
-    (first.is_finite() && col.iter().all(|&v| (v - first).abs() <= 1e-12)).then_some(first)
-}
+#[path = "engine_nested.rs"]
+mod nested;
+#[cfg(test)]
+use nested::column_is_finite_constant;
+use nested::interventions_overlap;
+pub use nested::{
+    NestedSpec, nested_counterfactual, nested_counterfactual_with_exo, nested_hard_counterfactual,
+};
 
 /// Evaluate one world's nodes into `values`, in parent-gather order.
 ///
@@ -1049,81 +949,12 @@ fn evaluate_world_into(
     Ok(())
 }
 
-/// The outer world, the inner overlay and the frozen-node mask a nested evaluation reads.
-#[derive(Clone, Copy)]
-struct FrozenOuter<'a> {
-    outer_res: &'a CounterfactualResult,
-    overlay: &'a InterventionOverlay,
-    is_frozen: &'a [bool],
-}
-
 /// Prediction options: whether nested interventions are allowed, and whether only the
 /// requested outcome columns are retained.
 #[derive(Clone, Copy)]
 struct PredictMode {
     allow_nested: bool,
     outcomes_only: bool,
-}
-
-/// One-pass evaluation of the unit-wise nested counterfactual: frozen nodes
-/// keep their outer counterfactual *columns*; every other node is re-evaluated
-/// row-wise with the abduced noise. Bit-identical to the per-unit
-/// freeze-and-predict loop for row-independent mechanisms (see the caller's
-/// derivation and the differential test).
-fn nested_column_frozen_mean(
-    engine: &CounterfactualEngine,
-    exo: &ExogenousPosterior,
-    frozen: &FrozenOuter<'_>,
-    outcome_dense: DenseNodeId,
-    ws: &mut MechanismWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<f64, CounterfactualError> {
-    let FrozenOuter { outer_res, overlay, is_frozen } = *frozen;
-    let n_units = exo.n_units;
-    let n_nodes = exo.n_nodes;
-    let mut rng = ctx.rng.stream_for(StreamDomain::Counterfactual, PREDICT_STREAM);
-    let mut values_buf = outer_res.values[..n_nodes * n_units].to_vec();
-    let mut values = ValueBatchMut::new(n_units, n_nodes, &mut values_buf)?;
-    let mut parent_buf = Vec::new();
-    evaluate_world_into(
-        WorldEvaluation { model: &engine.model, exo, overlay, frozen: Some(is_frozen), ctx },
-        &mut rng,
-        &mut values,
-        &mut parent_buf,
-        ws,
-    )?;
-    let start = outcome_dense.as_usize() * n_units;
-    let mut sum = 0.0;
-    let mut count = 0usize;
-    for &v in &values_buf[start..start + n_units] {
-        if v.is_finite() {
-            sum += v;
-            count += 1;
-        }
-    }
-    if count != n_units {
-        return Err(CounterfactualError::model_msg(format!(
-            "nested CF outcome is non-finite for {} of {} units; refusing to average the rest",
-            n_units - count,
-            n_units
-        )));
-    }
-    Ok(sum / count as f64)
-}
-
-/// Alias for [`nested_counterfactual`] (historical name).
-///
-/// # Errors
-///
-/// As [`nested_counterfactual`].
-pub fn nested_hard_counterfactual(
-    engine: &CounterfactualEngine,
-    data: &TabularData,
-    spec: &NestedSpec<'_>,
-    ws: &mut MechanismWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<f64, CounterfactualError> {
-    nested_counterfactual(engine, data, spec, ws, ctx)
 }
 
 #[cfg(test)]
@@ -1145,9 +976,53 @@ mod tests {
     fn a_non_finite_column_is_not_a_constant() {
         assert_eq!(column_is_finite_constant(&[1.0, 1.0]), Some(1.0));
         assert_eq!(column_is_finite_constant(&[1.0, 1.0 + 2e-12]), None);
+        assert_eq!(column_is_finite_constant(&[0.0, 5e-13]), None);
+        assert_eq!(column_is_finite_constant(&[0.0, -0.0]), Some(0.0));
         assert_eq!(column_is_finite_constant(&[f64::NAN, f64::NAN]), None);
         assert_eq!(column_is_finite_constant(&[1.0, f64::NAN]), None);
         assert_eq!(column_is_finite_constant(&[]), None);
+    }
+
+    #[test]
+    fn nested_tiny_unit_variation_preserves_each_mediator_value() {
+        let x = [0.0, 0.0];
+        let m = [0.0, 5e-13];
+        let y = [0.0, 0.5];
+        let data = TabularData::from_f64_columns([
+            ("x", x.as_slice()),
+            ("m", m.as_slice()),
+            ("y", y.as_slice()),
+        ])
+        .unwrap();
+        let mut graph = Dag::with_variables(3);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        graph.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let model = antecedent_model::CompiledCausalModel::compile(graph).unwrap();
+        let linear = |coeffs: Vec<f64>| MechanismSlot::LinearGaussian {
+            intercept: 0.0,
+            coeffs: Arc::from(coeffs),
+            sigma: 1.0,
+        };
+        let store = CompiledMechanismStore {
+            slots: Arc::from(vec![linear(vec![]), linear(vec![1.0]), linear(vec![1e12])]),
+        };
+        let engine = CounterfactualEngine::new(model.with_mechanisms(store));
+        let mut workspace = MechanismWorkspace::default();
+        let got = nested_counterfactual(
+            &engine,
+            &data,
+            &NestedSpec {
+                outer: &[Intervention::set(VariableId::from_raw(0), Value::f64(0.0))],
+                inner: &[Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
+                frozen: &[VariableId::from_raw(1)],
+                outcome: VariableId::from_raw(2),
+            },
+            &mut workspace,
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap();
+        // The two frozen mediator values produce outcomes 0 and 0.5.
+        assert!((got - 0.25).abs() < 1e-14, "got {got}");
     }
 
     fn unit_normal(rng: &mut antecedent_core::CausalRng) -> f64 {
@@ -1951,7 +1826,7 @@ mod tests {
         assert!(fast.to_bits() == reference.to_bits(), "fast={fast:?} reference={reference:?}");
     }
 
-    /// P1 regression: the historical per-unit fallback froze every non-inner
+    /// Regression: the historical per-unit fallback froze every non-inner
     /// node to unit u's value across *all* rows and evaluated full columns, so
     /// a state-space outcome rolled its recursion over a fabricated constant
     /// history with every unit's noise. That path must refuse, not return a
@@ -2293,16 +2168,35 @@ mod tests {
 
     #[test]
     fn result_access_does_not_alias_adjacent_units_or_invent_empty_mean() {
-        let result = CounterfactualResult {
-            values: Arc::from([1.0, 2.0, 3.0, 4.0]),
-            n_worlds: 1,
-            n_units: 2,
-            n_nodes: 2,
-            retained_nodes: None,
-            outcomes: Arc::from([DenseNodeId::from_raw(1)]),
-            noise_kind: NoiseInferenceKind::Invertible,
-            notes: Vec::new(),
-        };
+        let result = CounterfactualResult::new(
+            Arc::from([1.0, 2.0, 3.0, 4.0]),
+            1,
+            2,
+            2,
+            None,
+            Arc::from([DenseNodeId::from_raw(1)]),
+            NoiseInferenceKind::Invertible,
+            Vec::new(),
+        )
+        .unwrap();
+        assert!(
+            CounterfactualResult::new(
+                Arc::from([1.0, 2.0, 3.0]),
+                1,
+                2,
+                2,
+                None,
+                Arc::from([]),
+                NoiseInferenceKind::Invertible,
+                Vec::new(),
+            )
+            .is_err(),
+            "a buffer that does not match the shape is refused"
+        );
+        assert_eq!(result.try_get(0, DenseNodeId::from_raw(0), 2), None);
+        assert_eq!(result.try_get(0, DenseNodeId::from_raw(1), 1), Some(4.0));
+        let mean = result.outcome_mean(0, DenseNodeId::from_raw(1));
+        assert_eq!((mean.mean, mean.n_used, mean.n_units), (3.5, 2, 2));
         assert!(result.get(0, DenseNodeId::from_raw(0), 2).is_nan());
         assert!(result.get(usize::MAX, DenseNodeId::from_raw(0), 0).is_nan());
         assert!(result.streaming_outcome_mean(1, DenseNodeId::from_raw(0)).is_nan());
@@ -2418,5 +2312,29 @@ mod tests {
             assert!((replay.get(0, DenseNodeId::from_raw(1), i) - hand_demand).abs() < 1e-9);
             assert!((replay.get(0, DenseNodeId::from_raw(1), i) - d1[i]).abs() < 1e-9);
         }
+    }
+
+    #[test]
+    fn counterfactual_set_matches_static_and_refuses_a_rewritten_action() {
+        let variable = antecedent_core::VariableId::from_raw(0);
+        let set = Intervention::set(variable, Value::f64(1.0));
+        let counterfactual = admit_counterfactual(&set, None).unwrap();
+        let static_op =
+            antecedent_core::intervention::ExecutionSurface::Static.admit(&set, None).unwrap();
+        assert_eq!(counterfactual, static_op);
+        let shift = Intervention::shift(variable, Value::f64(1.0));
+        let shifted = admit_counterfactual(&shift, None).unwrap();
+        assert_ne!(shifted, counterfactual);
+        assert_eq!(shifted.name(), "shift");
+        let pulse = admit_counterfactual(&set, Some(&TemporalPolicy::pulse(0))).unwrap_err();
+        assert!(pulse.to_string().contains("pulse"));
+        let sustained =
+            admit_counterfactual(&set, Some(&TemporalPolicy::sustained(0, 0))).unwrap_err();
+        assert!(sustained.to_string().contains("sustained"));
+        assert_ne!(pulse.to_string(), sustained.to_string());
+        let soft = Intervention::soft(variable, MechanismOverride::constant(1.0));
+        assert_eq!(admit_counterfactual(&soft, None).unwrap().name(), "soft");
+        let initial = admit_counterfactual_initial_state("x0", 2.0).unwrap_err();
+        assert!(initial.to_string().contains("initial_state_change"));
     }
 }

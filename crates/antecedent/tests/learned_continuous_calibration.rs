@@ -6,7 +6,7 @@
 //! score, the overlap gate, and the design-specific analytic influence variance
 //! (`LearnedContinuousOptions::analytic_interval_internal`). The previously
 //! proposed percentile bootstrap failed its sample-size grid and is not scored
-//! as a licensed candidate. No component AIPW formula is scored on its own.
+//! as a supported candidate. No component AIPW formula is scored on its own.
 //!
 //! * `learned_trial_aipw_nested_cohort_continuous_mean_contrast` and
 //!   `learned_trial_aipw_independent_samples_continuous_mean_contrast` are the two
@@ -24,12 +24,12 @@
 //! The two non-record tests print `calibration-measurement` lines and assert only the
 //! refusal property; they are not coverage records. The gate sweeps the sample-size grid
 //! (`ANTECEDENT_CALIBRATION_GRID_POINT`, read by `grid_n`) for the two coverage records
-//! only (`grid_group` in `scripts/gate_calibration.sh`); these two run once, at the base
+//! only (`grid` in `parity/calibration_groups.toml`); these two run once, at the base
 //! point.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 #[path = "learned_continuous_dgp/mod.rs"]
@@ -37,7 +37,7 @@ mod dgp;
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::{
-    LEARNED_CONTINUOUS_BOUNDS, LearnedContinuousOptions, LearnerSpec, LinearSpec, TrialAipwInput,
+    LearnedContinuousOptions, LearnerSpec, LinearSpec, TrialAipwInput,
     learned_continuous_interval_internal,
 };
 use antecedent_identify::TransportIdentifier;
@@ -47,8 +47,8 @@ use common::calibration::{
 };
 use dgp::{Design, Scenario, draw, graph};
 
-/// Bootstrap replicates per execution: the frozen replicate floor of the cell.
-const REPLICATES: u32 = LEARNED_CONTINUOUS_BOUNDS.1;
+/// Bootstrap replicates per execution in the coverage grid.
+const REPLICATES: u32 = 199;
 
 fn analytic_construction() -> Construction {
     Construction {
@@ -110,7 +110,7 @@ fn analytic_record(design: Design, test: &'static str, dgp_name: &'static str) {
     for row in rows {
         match row {
             Some((_, band)) => {
-                tally.bind(
+                tally.bind_validation(
                     &analytic_construction(),
                     ScopeFacts {
                         row_count: (n.0 + n.1) as u64,
@@ -118,6 +118,7 @@ fn analytic_record(design: Design, test: &'static str, dgp_name: &'static str) {
                         posterior_draws: None,
                         unidentified_mass: 0.0,
                     },
+                    "not_applicable",
                 );
                 tally.record(Some(band), truth);
             }

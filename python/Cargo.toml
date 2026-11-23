@@ -19,35 +19,20 @@ crate-type = ["cdylib"]
 workspace = true
 
 [features]
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent/development"]
 default = ["ml-full", "ml-neural"]
-calibration-internal = ["antecedent/calibration-internal", "antecedent-io/calibration-internal", "antecedent-estimate/calibration-internal", "antecedent-validate/calibration-internal"]
-ml-gbdt = ["antecedent/ml-gbdt", "antecedent-estimate/ml-gbdt"]
-ml-forest = ["antecedent/ml-forest", "antecedent-estimate/ml-forest"]
+ml-gbdt = ["antecedent/ml-gbdt"]
+ml-forest = ["antecedent/ml-forest"]
 ml-full = ["ml-gbdt", "ml-forest"]
-ml-neural = ["antecedent/ml-neural", "antecedent-estimate/ml-neural"]
+ml-neural = ["antecedent/ml-neural"]
+# Opt-in accelerator distribution, forwarded through the facade: links Burn's WGPU backend
+# into the learner `ml-neural` already pulls in. The CPU wheel never enables it.
+accelerator-wgpu = ["ml-neural", "antecedent/ml-neural-wgpu"]
 
 [dependencies]
 blake3.workspace = true
-antecedent-core = { workspace = true }
-antecedent-contract = { workspace = true }
-antecedent-data = { workspace = true, features = ["arrow"] }
 antecedent = { workspace = true }
-antecedent-io = { workspace = true }
-antecedent-prob = { workspace = true }
-# Type conversion only (mediation estimand / graph construction for analyze*).
-antecedent-expr = { workspace = true }
-antecedent-graph = { workspace = true }
-antecedent-identify = { workspace = true }
-antecedent-design = { workspace = true }
-antecedent-model = { workspace = true }
-antecedent-attribution = { workspace = true }
-antecedent-stats = { workspace = true }
-antecedent-validate = { workspace = true }
-antecedent-discovery = { workspace = true }
-# Concrete estimator structs for the `estimator_config=` parser; the
-# `antecedent` facade re-exports `EstimatorSpec` but not the structs it wraps.
-antecedent-estimate = { workspace = true }
-antecedent-learn = { workspace = true }
 # `extension-module` is also set on the workspace pyo3 dependency: this cdylib
 # must not link libpython. `build.rs` links libpython only into the test harness.
 # `multiple-pymethods` is the second impl on Dag, Cpdag, Pag, and Admg.

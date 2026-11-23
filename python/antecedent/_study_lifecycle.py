@@ -75,6 +75,11 @@ def retain_preparation(fn: Callable[P, R]) -> Callable[P, R]:
         columns = _data_column_map(data, names) if names else {}
         resolved = resolve_columns(query, columns)
         result = fn(*args, **kwargs)
+        retained_backend = getattr(result, "_retain_preparation", None)
+        if callable(retained_backend):
+            # Immutable backends return a retained replacement rather than receiving
+            # mutation-only fields from the ordinary historical engine.
+            return cast(R, retained_backend(request, columns, query, resolved))
         # Native preparation owns the checked declaration. Detach its Python views too,
         # so a caller editing the original query cannot relabel that retained product.
         for attribute in ("_query", "_display_query", "_transport_stage"):
@@ -111,20 +116,24 @@ def guard_design(study: Any, data: Any) -> None:
             equal = _same(normalized, study._resolved_design_query)
         except (ValueError, TypeError) as error:
             refusal = CausalValueError(
-                f"frozen design column {name!r} is invalid: {error}; use study.reprepare(data)",
+                f"frozen design column {name!r} is invalid: {error}; prepare the new design with ant.prepare(data, ...)",
                 reason_code="invalid_argument",
             )
             setattr(refusal, "offending", name)  # noqa: B010 — structured optional error field
-            refusal.remedy = "use study.reprepare(data) to resolve and check the new design"
+            refusal.remedy = (
+                "prepare the new design with ant.prepare(data, ...), which resolves and checks it"
+            )
             raise refusal from error
         if not equal:
             refusal = CausalValueError(
                 f"frozen design column {name!r} changed values or row order; "
-                "use study.reprepare(data) to declare a new design",
+                "prepare the new design with ant.prepare(data, ...)",
                 reason_code="invalid_argument",
             )
             setattr(refusal, "offending", name)  # noqa: B010 — structured optional error field
-            refusal.remedy = "use study.reprepare(data) to resolve and check the new design"
+            refusal.remedy = (
+                "prepare the new design with ant.prepare(data, ...), which resolves and checks it"
+            )
             raise refusal
 
 

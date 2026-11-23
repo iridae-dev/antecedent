@@ -1,6 +1,6 @@
 //! Estimate clicks and sealed-operation dispatch for a prepared handle.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     CheckedAipwOperation, CheckedFrontDoorOperation, CheckedGlmAdjustmentOperation,
@@ -73,9 +73,9 @@ impl ClickNotes {
 
 /// The sealed operation a click rebound to its rows.
 ///
-/// Only the routes whose receipts bind complete-case rows appear here: a
-/// refresh must replace exactly these, and no other retained operation, so
-/// the procedure chosen at preparation cannot change under it. Operations are
+/// Routes whose receipts or empirical factor providers bind rows appear here:
+/// refresh retains the exact rebound operation that produced its result without
+/// changing the procedure selected at preparation. Operations are
 /// boxed so a click frame holds one small value however many routes it names.
 pub(crate) enum Rebound {
     Linear(Box<CheckedLinearOperation>),
@@ -86,8 +86,8 @@ pub(crate) enum Rebound {
     Iv(Box<CheckedIvOperation>),
     Conditional(Box<CheckedConditionalOperation>),
     CellAipwResponse(Box<CheckedCellAipwResponseOperation>),
-    /// The receipts [`PreparedExecution::rebind_for_dispatch`] rebinds for the
-    /// shared tabular dispatcher.
+    /// A row-bound operation retained by either the shared dispatcher or a
+    /// sealed functional click, including its checked empirical providers.
     Dispatch(Box<PreparedExecution>),
 }
 
@@ -128,17 +128,78 @@ impl PreparedStudy {
         self.estimate_with_shared(data, shared, ctx)
     }
 
+    /// Execute a declaration-only, precompiled Bayesian DAG atom as part of an
+    /// already lowered composite. The composite supplies its own exact program
+    /// identity; arbitrary routes or calls outside that dispatch are refused.
+    /// The child execution retains its own proof and incomplete-data binding is
+    /// left for the enclosing operation to seal.
+    #[cfg(test)]
+    pub(crate) fn execute_compiled_bayesian_atom(
+        &self,
+        data: &TabularData,
+        enclosing_program: antecedent_core::SemanticDigest,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        if ctx.lowered_dispatch() != Some(enclosing_program) {
+            return Err(crate::unsupported_reason!(
+                "public_builder_reentry",
+                "graph_imputation.wrong_dispatch: a graph atom must execute within its retained composite"
+            ));
+        }
+        if !matches!(&self.execution, PreparedExecution::BayesianGcomp(_)) {
+            return Err(crate::unsupported_reason!(
+                "route_not_lowered",
+                "graph_imputation.atom_not_lowered: this graph has no retained Bayesian g-computation atom"
+            ));
+        }
+        let mut notes = ClickNotes::deferred();
+        self.estimate_with_shared_unnamed(data, None, ctx, &mut notes)
+    }
+
+    /// Execute the retained binding with native observations on success or failure.
+    pub fn estimate_retained_observed(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> antecedent_core::execution_attempt::ExecutionAttempt<StudyResult, CausalError> {
+        antecedent_core::execution_attempt::observe_with_context(ctx, || {
+            self.estimate_retained(ctx)
+        })
+    }
+
     pub(crate) fn estimate_with_shared(
         &self,
         data: &TabularData,
         shared: Option<Arc<crate::analysis::batch::SharedBatchDesign>>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        if !self.materialized {
+            return self.materialize(ctx)?.estimate_with_shared(data, shared, ctx);
+        }
+        if crate::analysis::functional_validation::requested(&self.analysis) {
+            // The validated result is stamped with the contract it executed under, as every other
+            // click is, so a claim can be sealed from it.
+            let input = crate::analysis::builder::DataInput::Tabular(data.clone());
+            let result = crate::analysis::functional_validation::validate_data(
+                &self.analysis,
+                input.clone(),
+                ctx,
+            )?;
+            return self.stamp(&input, result, ctx);
+        }
         // A stats-layer refusal of a regression, GLM, IV or matching design fit learns here
         // which plan it was for and, for a rank refusal, which columns are dependent on the
         // table the fit read.
-        self.estimate_with_shared_unnamed(data, shared, ctx, &mut ClickNotes::default())
+        let mut observed = antecedent_core::execution_attempt::observe_with_context(ctx, || {
+            antecedent_estimate::prepare::with_preparation_budget(
+                crate::planner::PhysicalExecutionPlan::preparation_budget(ctx),
+                || self.estimate_with_shared_unnamed(data, shared, ctx, &mut ClickNotes::default()),
+            )
             .map_err(|error| self.name_stats_refusal(data, error, ctx))
+        });
+        if let Ok(result) = &mut observed.result {
+            result.view.performance.native_execution.clone_from(&observed.facts);
+        }
+        observed.result
     }
 
     /// Name a stats-layer refusal for this plan and the table the fit read.
@@ -153,6 +214,10 @@ impl PreparedStudy {
 
     /// The click on `data`, recording in `notes` what it derived. A deferring
     /// `notes` leaves the result's executed contract for the caller to bind.
+    ///
+    /// Every tabular click, sealed or dispatched, passes here: the plan's lowered
+    /// program is required, the click runs inside its dispatch scope, and the
+    /// result carries its identity.
     pub(super) fn estimate_with_shared_unnamed(
         &self,
         data: &TabularData,
@@ -160,7 +225,84 @@ impl PreparedStudy {
         ctx: &ExecutionContext,
         notes: &mut ClickNotes,
     ) -> Result<StudyResult, CausalError> {
+        let lowered = self.plan.require_lowered(None)?.identity();
+        let scoped = ctx.enter_lowered_dispatch(lowered);
+        let mut result = if crate::analysis::missing_imputation::imputes(self.study()) {
+            self.estimate_imputed(data, shared.as_ref(), &scoped, notes)?
+        } else {
+            self.estimate_click(data, shared, &scoped, notes)?
+        };
+        result.stamp_lowered_program(self.plan.require_lowered(None)?);
+        // Every prepared tabular operation executes on these caller-supplied rows, including
+        // retained operations that bypass the ordinary dispatch stamping path. Preserve the
+        // engine-owned input identity before any whole-target refuter checks the result.
+        if result.executed_input.is_none() {
+            let input = DataInput::Tabular(data.clone());
+            result.executed_input =
+                Some(crate::analysis::target_validation::executed_input_identity(&input, ctx)?);
+        }
+        crate::analysis::target_validation::stamp_route_refutations(&mut result);
+        Ok(result)
+    }
+
+    /// The click under a declared multiple imputation: the retained operation runs on every
+    /// completed table and the fits are pooled. The contract is bound once, to the submitted
+    /// (incomplete) rows and the declared imputation, unless `notes` defers it. A refresh
+    /// keeps the retained operation: no per-table rebinding is recorded.
+    #[inline(never)]
+    fn estimate_imputed(
+        &self,
+        data: &TabularData,
+        shared: Option<&Arc<crate::analysis::batch::SharedBatchDesign>>,
+        ctx: &ExecutionContext,
+        notes: &ClickNotes,
+    ) -> Result<StudyResult, CausalError> {
+        let mut result = crate::analysis::missing_imputation::impute_fit_pool(
+            self.study(),
+            data,
+            ctx,
+            |table, ctx| {
+                let mut inner = ClickNotes::deferred();
+                self.estimate_click(table, shared.cloned(), ctx, &mut inner)
+            },
+        )?;
+        // Pooling reuses a completed-table result; its reports and owner do not
+        // certify the pooled estimate or the original incomplete data.
+        if !result.refutations.is_empty() {
+            result.view.refutations.clear();
+            result.view.diagnostics.push(antecedent_core::Diagnostic::new(
+                "refute.imputation.withheld",
+                antecedent_core::DiagnosticKind::Scientific,
+                antecedent_core::DiagnosticSeverity::Info,
+                "completed-table refutations are withheld for the pooled estimate",
+            ));
+        }
+        result.executed_input = Some(crate::analysis::target_validation::executed_input_identity(
+            &DataInput::Tabular(data.clone()),
+            ctx,
+        )?);
+        result.authority = crate::result::RuntimeRefutationAuthority::Fresh;
+        crate::analysis::target_validation::stamp_route_refutations(&mut result);
+        if !notes.defers_contract() {
+            result.executed_contract = Some(self.executed_contract(
+                &DataInput::Tabular(data.clone()),
+                self.analysis.settings.refute,
+                None,
+            )?);
+        }
+        Ok(result)
+    }
+
+    /// The click itself; see [`Self::estimate_with_shared_unnamed`].
+    fn estimate_click(
+        &self,
+        data: &TabularData,
+        shared: Option<Arc<crate::analysis::batch::SharedBatchDesign>>,
+        ctx: &ExecutionContext,
+        notes: &mut ClickNotes,
+    ) -> Result<StudyResult, CausalError> {
         self.ensure_schema_compatible(data)?;
+        self.analysis.refuse_unread_sampling_weights_for_route(data)?;
         // The retained operation executes itself; each implementation runs in
         // its own frame, so this one holds a single result slot.
         if let Some(result) = self.execution.operation().estimate_tabular(self, data, ctx, notes)? {
@@ -178,7 +320,8 @@ impl PreparedStudy {
         // record which refutation reports are caller-attested. Without the names,
         // the claim would drop custom-validator evidence from `attested` and from
         // the claim identity.
-        result.custom_validator_names = click_analysis
+        result.extras.custom_validator_names = click_analysis
+            .declared
             .custom_validators
             .iter()
             .map(|validator| Arc::from(validator.name()))
@@ -200,7 +343,7 @@ impl PreparedStudy {
         )?;
         notes.rebound = rebound.map(Rebound::Dispatch);
         notes.scores = click_scores;
-        self.stamp_deferrable(&click_analysis.data, result, notes.defers_contract())
+        self.stamp_deferrable(&click_analysis.data, result, notes.defers_contract(), ctx)
     }
 
     /// Rebind the row-bound dispatch receipts to `data`. Boxed and built out
@@ -212,5 +355,45 @@ impl PreparedStudy {
         data: &TabularData,
     ) -> Result<Option<Box<PreparedExecution>>, CausalError> {
         Ok(self.execution.rebind_for_dispatch(data)?.map(Box::new))
+    }
+}
+
+#[cfg(test)]
+mod graph_imputation_atom_tests {
+    use super::*;
+    use crate::{BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, Study};
+    use antecedent_core::{AverageEffectQuery, SemanticDigest, VariableId};
+    use antecedent_graph::{Dag, NodeRef};
+
+    #[test]
+    fn deferred_atom_executes_only_under_its_enclosing_program_without_a_public_rebuild() {
+        let treatment: Vec<f64> = (0..96).map(|i| f64::from(i % 2)).collect();
+        let outcome: Vec<f64> =
+            (0..96).map(|i| 2.0 * treatment[i] + ((i * 11 % 19) as f64) / 19.0).collect();
+        let data =
+            TabularData::from_f64_columns([("t", treatment.as_slice()), ("y", outcome.as_slice())])
+                .unwrap();
+        let mut graph = Dag::empty();
+        let t = graph.add_node(NodeRef::Static(VariableId::from_raw(0))).unwrap();
+        let y = graph.add_node(NodeRef::Static(VariableId::from_raw(1))).unwrap();
+        graph.insert_directed(t, y).unwrap();
+        let ctx = ExecutionContext::for_tests(11);
+        let study = Study::tabular(data.clone())
+            .graph(graph)
+            .query(AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)))
+            .estimator(EstimatorId::BayesianGcomp)
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)))
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        let atom = study.prepare_deferred(&ctx).unwrap();
+        let parent = SemanticDigest::from_bytes([7; 32]);
+        assert!(atom.execute_compiled_bayesian_atom(&data, parent, &ctx).is_err());
+        let unrelated = ctx.enter_lowered_dispatch(SemanticDigest::from_bytes([8; 32]));
+        assert!(atom.execute_compiled_bayesian_atom(&data, parent, &unrelated).is_err());
+        let bound = ctx.enter_lowered_dispatch(parent);
+        let result = atom.execute_compiled_bayesian_atom(&data, parent, &bound).unwrap();
+        assert!(result.estimate().as_effect().unwrap().ate.is_finite());
+        assert!(result.executed_contract.is_none());
     }
 }

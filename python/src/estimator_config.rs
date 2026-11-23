@@ -18,18 +18,16 @@
 //!   the estimator(s) it does belong to. Dropping a config key silently is exactly the bug
 //!   class this module exists to prevent.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
-
-use std::sync::Arc;
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::EstimatorSpec;
-use antecedent_estimate::{
+use antecedent::estimate::{
     AipwAte, AnalyticSeKind, CaliperScale, CausalForest, DistanceMatching, DmlAte, DmlScore,
     DrLearner, FrontDoorTwoStage, GlmAdjustmentAte, LearnerSpec, LinearAdjustmentAte,
     LinearFitKind, PropensityMatching, PropensityStratification, PropensityWeighting,
     TwoStageLeastSquares, WaldIv,
 };
-use antecedent_stats::{GlmFamily, GlmOptions};
+use antecedent::inference::{GlmFamily, GlmOptions};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
@@ -39,180 +37,11 @@ use pyo3::types::{PyAny, PyDict};
 /// when `estimator_config` is supplied without an explicit `estimator=` kwarg.
 const DEFAULT_ESTIMATOR_ID: &str = "linear.adjustment.ate";
 
-/// One `(estimator_id, valid_keys)` row. Table-driven: adding a configurable estimator or a
-/// key to an existing one is a data change here, not a new branch scattered through the
-/// parser. The unknown-key / wrong-estimator error messages are both derived from this table.
-const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
-    (
-        "linear.adjustment.ate",
-        &[
-            "bootstrap_replicates",
-            "se_kind",
-            "se_lag",
-            "cluster_ids",
-            "source_cluster_ids",
-            "source_sampling_weights",
-            "multiway_ids",
-            "panel_times",
-            "fit_kind",
-            "fit_lambda",
-            "fit_c",
-        ],
-    ),
-    (
-        "propensity.weighting",
-        &[
-            "bootstrap_replicates",
-            "glm_options",
-            "overlap",
-            "other_levels",
-            "cluster_ids",
-            "source_cluster_ids",
-            "source_sampling_weights",
-        ],
-    ),
-    (
-        "propensity.matching",
-        &[
-            "bootstrap_replicates",
-            "se_kind",
-            "se_lag",
-            "cluster_ids",
-            "multiway_ids",
-            "panel_times",
-            "glm_options",
-            "caliper",
-            "caliper_scale",
-            "overlap",
-            "other_levels",
-            "source_sampling_weights",
-        ],
-    ),
-    (
-        "propensity.stratification",
-        &[
-            "bootstrap_replicates",
-            "glm_options",
-            "n_strata",
-            "overlap",
-            "other_levels",
-            "cluster_ids",
-            "source_cluster_ids",
-            "source_sampling_weights",
-        ],
-    ),
-    (
-        "distance.matching",
-        &[
-            "bootstrap_replicates",
-            "se_kind",
-            "se_lag",
-            "cluster_ids",
-            "multiway_ids",
-            "panel_times",
-            "glm_options",
-            "caliper",
-            "overlap",
-            "source_sampling_weights",
-        ],
-    ),
-    (
-        "aipw",
-        &[
-            "bootstrap_replicates",
-            "se_kind",
-            "se_lag",
-            "cluster_ids",
-            "source_cluster_ids",
-            "multiway_ids",
-            "panel_times",
-            "glm_options",
-            "overlap",
-            "propensity_penalty",
-            "nuisance_fallback",
-            "cluster_dml",
-            "other_levels",
-            "source_sampling_weights",
-        ],
-    ),
-    (
-        "glm.adjustment",
-        &[
-            "bootstrap_replicates",
-            "se_kind",
-            "se_lag",
-            "cluster_ids",
-            "source_cluster_ids",
-            "multiway_ids",
-            "panel_times",
-            "glm_options",
-            "family",
-            "source_sampling_weights",
-        ],
-    ),
-    (
-        "frontdoor.linear_two_stage",
-        &["bootstrap_replicates", "se_kind", "se_lag", "cluster_ids", "source_cluster_ids"],
-    ),
-    (
-        "iv.wald",
-        &[
-            "bootstrap_replicates",
-            "se_kind",
-            "se_lag",
-            "cluster_ids",
-            "multiway_ids",
-            "panel_times",
-        ],
-    ),
-    (
-        "iv.2sls",
-        &[
-            "bootstrap_replicates",
-            "se_kind",
-            "se_lag",
-            "cluster_ids",
-            "multiway_ids",
-            "panel_times",
-        ],
-    ),
-    // `rd.sharp` has no `EstimatorSpec` variant (see estimator_spec.rs doc comment) — its
-    // triple is applied via the pre-existing `StudyBuilder::rd_config` path instead, merged
-    // with the loose `running_variable`/`cutoff`/`bandwidth` kwargs by `merge_rd_triple`.
-    // `se_kind` selects the jump coefficient's residual-based SE (`RdConfig::with_se_kind`).
-    ("rd.sharp", &["running_variable", "cutoff", "bandwidth", "se_kind"]),
-    (
-        "dml",
-        &[
-            "learner",
-            "outcome",
-            "treatment",
-            "score",
-            "folds",
-            "overlap",
-            "other_levels",
-            "cluster_dml",
-            "source_sampling_weights",
-        ],
-    ),
-    (
-        "dr.learner",
-        &[
-            "learner",
-            "outcome",
-            "treatment",
-            "final_learner",
-            "folds",
-            "overlap",
-            "cluster_dml",
-            "source_sampling_weights",
-        ],
-    ),
-    (
-        "causal.forest",
-        &["n_trees", "min_leaf", "max_depth", "honesty", "source_cluster_ids", "min_clusters"],
-    ),
-];
+mod catalog;
+mod cluster_dml;
+
+use catalog::{estimators_accepting, supported_estimator_ids, valid_keys_for};
+use cluster_dml::{ClusterDmlConfig, build_cluster_dml, declare_units};
 
 /// Valid `glm_options` sub-dict keys (see [`build_glm_options`]).
 const GLM_OPTION_KEYS: &[&str] = &["max_iter", "tol", "ridge_on_separation"];
@@ -220,35 +49,12 @@ const GLM_OPTION_KEYS: &[&str] = &["max_iter", "tol", "ridge_on_separation"];
 /// Valid `propensity_penalty` sub-dict keys (see [`build_propensity_nuisance`]).
 const PROPENSITY_PENALTY_KEYS: &[&str] = &["kind", "lambdas", "inner_folds"];
 
-/// Valid `cluster_dml` sub-dict keys (see [`build_cluster_dml`]).
-const CLUSTER_DML_KEYS: &[&str] = &[
-    "cluster_ids",
-    "second_cluster_ids",
-    "source_cluster_ids",
-    "source_second_cluster_ids",
-    "min_clusters",
-    "min_components_per_fold",
-    "unit",
-];
-
 /// Estimators with a flexible-learner cross-fit and no dependence option: a cluster or
 /// dependence key on them is a typed refusal, not an unknown key.
 const FLEXIBLE_LEARNER_IDS: &[&str] = &["dml", "dr.learner", "causal.forest"];
 
 /// Dependence declarations those estimators refuse (see [`FLEXIBLE_LEARNER_IDS`]).
 const DEPENDENCE_KEYS: &[&str] = &["cluster_ids", "cluster_dml", "multiway_ids"];
-
-fn valid_keys_for(estimator_id: &str) -> Option<&'static [&'static str]> {
-    ESTIMATOR_KEYS.iter().find(|(id, _)| *id == estimator_id).map(|(_, keys)| *keys)
-}
-
-fn estimators_accepting(key: &str) -> Vec<&'static str> {
-    ESTIMATOR_KEYS.iter().filter(|(_, keys)| keys.contains(&key)).map(|(id, _)| *id).collect()
-}
-
-fn supported_estimator_ids() -> Vec<&'static str> {
-    ESTIMATOR_KEYS.iter().map(|(id, _)| *id).collect()
-}
 
 fn format_id_list(ids: &[&str]) -> String {
     let mut sorted: Vec<&str> = ids.to_vec();
@@ -329,10 +135,9 @@ pub(crate) fn parse_estimator_config(
             && !declares_units
         {
             let message =
-                antecedent_estimate::flexible_learner_dependence_refusal(resolved_id, &key)
-                    .to_string();
-            let (code, tail) = antecedent_core::reason_code::split_prefix(&message).unwrap_or((
-                antecedent_core::reason_code!("route_not_supported"),
+                antecedent::refusal::flexible_learner_dependence(resolved_id, &key).to_string();
+            let (code, tail) = antecedent::reason::reason_code::split_prefix(&message).unwrap_or((
+                antecedent::reason::reason_code!("route_not_supported"),
                 message.as_str(),
             ));
             return Err(crate::value_err_code(code, tail));
@@ -346,7 +151,7 @@ pub(crate) fn parse_estimator_config(
                          valid keys for {resolved_id:?} are: {}",
                         format_id_list(valid_keys),
                     )),
-                    antecedent_core::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_code!("invalid_argument"),
                 ));
             }
             return Err(crate::with_reason_code(
@@ -356,7 +161,7 @@ pub(crate) fn parse_estimator_config(
                     format_id_list(&owners),
                     format_id_list(valid_keys),
                 )),
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
             ));
         }
     }
@@ -371,7 +176,17 @@ pub(crate) fn parse_estimator_config(
         });
     }
 
-    let spec = build_configured_spec(resolved_id, dict, ambient_bootstrap)?;
+    let mut spec = build_configured_spec(resolved_id, dict, ambient_bootstrap)?;
+    if let Some(request) = build_bootstrap_interval(dict)? {
+        // The spec is already configured, so the study defaults are never read.
+        let unused = antecedent::estimator_spec::BuildDefaults {
+            bootstrap_replicates: ambient_bootstrap,
+            overlap_policy: None,
+            population_registry: None,
+            sampling_design: None,
+        };
+        spec = spec.with_bootstrap_interval(request, unused).map_err(crate::py_err)?;
+    }
     Ok(ParsedEstimatorConfig { spec: Some(spec), ..ParsedEstimatorConfig::default() })
 }
 
@@ -504,20 +319,74 @@ fn get_f64_list(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<Vec<f64>
     })
 }
 
+/// The declared outcome-nuisance prior of a cross-fitted AIPW estimate: a posterior artifact
+/// (`prior_artifact`, bytes) and the optional mapping of its coefficients onto the outcome
+/// regression (`prior_mapping`). The artifact is decoded here; mapping it onto the design
+/// columns happens when the problem is prepared.
+fn build_outcome_prior(
+    dict: &Bound<'_, PyDict>,
+) -> PyResult<Option<antecedent::estimate::OutcomePriorSource>> {
+    let artifact = dict.get_item("prior_artifact")?.filter(|value| !value.is_none());
+    let mapping = dict.get_item("prior_mapping")?.filter(|value| !value.is_none());
+    let composed = dict.get_item("composed_prior")?.filter(|value| !value.is_none());
+    let selection = dict.get_item("alpha_selection")?.filter(|value| !value.is_none());
+    if let Some(selection) = selection {
+        if artifact.is_some() || mapping.is_some() || composed.is_some() {
+            return Err(crate::value_err(
+                "estimator_config['alpha_selection'] is the whole prior: it takes no \
+                 prior_artifact, prior_mapping or composed_prior",
+            ));
+        }
+        return crate::prior_bank::outcome_prior_from_alpha_selection(selection.cast::<PyDict>()?)
+            .map(Some);
+    }
+    if let Some(composed) = composed {
+        if artifact.is_some() || mapping.is_some() {
+            return Err(crate::value_err(
+                "estimator_config['composed_prior'] is the whole prior: it takes no \
+                 prior_artifact and its coordinate mapping is declared by renaming its \
+                 coefficient names",
+            ));
+        }
+        return crate::prior_bank::outcome_prior_from_composed(composed.cast::<PyDict>()?)
+            .map(Some);
+    }
+    let Some(artifact) = artifact else {
+        if mapping.is_some() {
+            return Err(crate::value_err(
+                "estimator_config['prior_mapping'] requires prior_artifact",
+            ));
+        }
+        return Ok(None);
+    };
+    let bytes: Vec<u8> = artifact.extract().map_err(|_| {
+        crate::value_err(format!(
+            "estimator_config['prior_artifact'] must be bytes, got {}",
+            type_name(&artifact)
+        ))
+    })?;
+    let mapping = mapping
+        .map(|value| crate::prior_bank::mapping_from_dict(value.cast::<PyDict>()?))
+        .transpose()?;
+    antecedent::inference::outcome_prior_source_from_artifact(&bytes, mapping.as_ref())
+        .map(Some)
+        .map_err(crate::py_err)
+}
+
 /// The declared per-source-row sampling weights, validated as a weighted population: a
 /// negative, NaN or infinite weight (named by its row) or all-zero weights are refused here.
 fn build_sampling_weights(
     dict: &Bound<'_, PyDict>,
-) -> PyResult<Option<antecedent_estimate::SamplingWeights>> {
+) -> PyResult<Option<antecedent::estimate::SamplingWeights>> {
     let Some(weights) = get_f64_list(dict, "source_sampling_weights")? else { return Ok(None) };
-    antecedent_estimate::SamplingWeights::new(weights).map(Some).map_err(coded_refusal)
+    antecedent::estimate::SamplingWeights::new(weights).map(Some).map_err(coded_refusal)
 }
 
 /// A typed estimation refusal as a value error carrying its registered reason code.
-pub(crate) fn coded_refusal(error: antecedent_estimate::EstimationError) -> PyErr {
+pub(crate) fn coded_refusal(error: antecedent::estimate::EstimationError) -> PyErr {
     let message = error.to_string();
-    let (code, tail) = antecedent_core::reason_code::split_prefix(&message)
-        .unwrap_or((antecedent_core::reason_code!("invalid_argument"), message.as_str()));
+    let (code, tail) = antecedent::reason::reason_code::split_prefix(&message)
+        .unwrap_or((antecedent::reason::reason_code!("invalid_argument"), message.as_str()));
     crate::value_err_code(code, tail)
 }
 
@@ -668,6 +537,79 @@ fn build_family(dict: &Bound<'_, PyDict>) -> PyResult<Option<GlmFamily>> {
 /// Build [`GlmOptions`] from the `glm_options` nested dict. `nb_alpha` (NB2 dispersion policy)
 /// is intentionally not exposed yet — see the P5b report's gap list — so it always keeps
 /// [`GlmOptions::default`]'s `MethodOfMoments` policy.
+/// Keys of the `bootstrap_interval` sub-dict.
+const BOOTSTRAP_INTERVAL_KEYS: &[&str] =
+    &["level", "wave_size", "min_replicates", "se_rel_tol", "half_width_rel_tol"];
+
+/// A requested bootstrap interval: `{"level": float, "wave_size": int, "min_replicates": int,
+/// "se_rel_tol": float | None, "half_width_rel_tol": float | None}`. Absent keys take the
+/// defaults of [`antecedent::estimate::IntervalRequest`]; the replicate cap is
+/// `bootstrap_replicates`. Tolerances must be positive and finite, the level inside (0, 1).
+fn build_bootstrap_interval(
+    dict: &Bound<'_, PyDict>,
+) -> PyResult<Option<antecedent::estimate::IntervalRequest>> {
+    let Some(v) = dict.get_item("bootstrap_interval")? else { return Ok(None) };
+    let sub = v.cast::<PyDict>().map_err(|_| {
+        crate::value_err(format!(
+            "estimator_config['bootstrap_interval'] must be a dict, got {}",
+            type_name(&v)
+        ))
+    })?;
+    for (key_obj, _val) in sub.iter() {
+        let key: String = key_obj.extract().map_err(|_| {
+            crate::value_err("estimator_config['bootstrap_interval'] keys must be str")
+        })?;
+        if !BOOTSTRAP_INTERVAL_KEYS.contains(&key.as_str()) {
+            return Err(crate::value_err(format!(
+                "unknown estimator_config['bootstrap_interval'] key {key:?}; valid keys are: {}",
+                BOOTSTRAP_INTERVAL_KEYS.join(", "),
+            )));
+        }
+    }
+    let mut request = antecedent::estimate::IntervalRequest::default();
+    if let Some(level) = get_f64(sub, "level")? {
+        request.level = level;
+    }
+    if let Some(wave_size) = get_u32(sub, "wave_size")? {
+        request.wave_size = wave_size;
+    }
+    if let Some(minimum) = get_u32(sub, "min_replicates")? {
+        request.min_replicates = minimum;
+    }
+    // `None` declares the tolerance off; an absent key keeps the default.
+    for (key, slot) in [
+        ("se_rel_tol", &mut request.se_rel_tol),
+        ("half_width_rel_tol", &mut request.half_width_rel_tol),
+    ] {
+        if let Some(raw) = sub.get_item(key)? {
+            *slot = if raw.is_none() {
+                None
+            } else {
+                Some(raw.extract::<f64>().map_err(|_| {
+                    crate::value_err(format!(
+                        "estimator_config['bootstrap_interval'][{key:?}] must be a float or None"
+                    ))
+                })?)
+            };
+        }
+    }
+    let valid = request.level > 0.0
+        && request.level < 1.0
+        && request.wave_size > 0
+        && [request.se_rel_tol, request.half_width_rel_tol]
+            .into_iter()
+            .flatten()
+            .all(|tol| tol.is_finite() && tol > 0.0);
+    if !valid {
+        return Err(invalid(
+            "estimator_config['bootstrap_interval'] needs a level inside (0, 1), a positive \
+             wave_size and positive finite tolerances"
+                .to_owned(),
+        ));
+    }
+    Ok(Some(request))
+}
+
 fn build_glm_options(dict: &Bound<'_, PyDict>) -> PyResult<Option<GlmOptions>> {
     let Some(v) = dict.get_item("glm_options")? else { return Ok(None) };
     let sub = v.cast::<PyDict>().map_err(|_| {
@@ -694,19 +636,65 @@ fn build_glm_options(dict: &Bound<'_, PyDict>) -> PyResult<Option<GlmOptions>> {
     if let Some(tol) = get_f64(sub, "tol")? {
         opts.tol = tol;
     }
+    // Estimation refuses every separated fit, so a separation ridge would be computed and
+    // discarded: a value here would change the analysis identity without changing any number.
+    // `None` (the setting estimation always uses) is accepted; a value is refused and the
+    // penalty that does reach a kept fit is named.
     if let Some(raw) = sub.get_item("ridge_on_separation")? {
-        opts.ridge_on_separation = if raw.is_none() {
-            None
-        } else {
-            Some(raw.extract::<f64>().map_err(|_| {
+        if !raw.is_none() {
+            raw.extract::<f64>().map_err(|_| {
                 crate::value_err(
                     "estimator_config['glm_options']['ridge_on_separation'] must be a float or \
                      None",
                 )
-            })?)
-        };
+            })?;
+            return Err(crate::value_err(
+                "glm_options ridge_on_separation has no effect on an estimate: every estimator \
+                 refuses a separated propensity or outcome fit rather than keep a ridge refit. To \
+                 estimate with a penalized propensity, declare Aipw(propensity_penalty=...); to \
+                 handle extreme propensities, declare an overlap clip or trim",
+            ));
+        }
+        opts.ridge_on_separation = None;
     }
     Ok(Some(opts))
+}
+
+/// Materialize a penalty sequence only after checking the finite legacy policy.
+/// A sequence that changes length during iteration is refused before it can
+/// grow beyond the checked reservation.
+pub(crate) fn bounded_penalty_values(raw: &Bound<'_, PyAny>, field: &str) -> PyResult<Vec<f64>> {
+    let invalid_sequence = || invalid(format!("{field} must be a finite sequence of floats"));
+    let count = raw.len().map_err(|error| {
+        if error.is_instance_of::<pyo3::exceptions::PyOverflowError>(raw.py()) {
+            crate::refusal(
+                "execution_resource_limit",
+                "penalty grid exceeds the per-declaration configuration cap",
+            )
+        } else {
+            invalid_sequence()
+        }
+    })?;
+    antecedent::estimate::RidgeTuning::check_context_free_grid_len(count)
+        .map_err(|error| crate::py_err(antecedent::CausalError::from(error)))?;
+    let mut values = Vec::new();
+    values.try_reserve_exact(count).map_err(|_| {
+        crate::refusal("execution_resource_limit", "penalty grid allocation failed")
+    })?;
+    for item in raw.try_iter().map_err(|_| invalid_sequence())? {
+        if values.len() == count {
+            return Err(invalid(format!("{field} changed length during iteration")));
+        }
+        values.push(
+            item.map_err(|_| invalid_sequence())?
+                .extract::<f64>()
+                .map_err(|_| invalid_sequence())?,
+        );
+    }
+    if values.len() != count {
+        return Err(invalid(format!("{field} changed length during iteration")));
+    }
+    Ok(values)
 }
 
 /// Kind and tuning of one declared penalty sub-dict (`propensity_penalty`, or a
@@ -715,8 +703,8 @@ fn build_glm_options(dict: &Bound<'_, PyDict>) -> PyResult<Option<GlmOptions>> {
 fn penalty_declaration(
     sub: &Bound<'_, PyDict>,
     field: &str,
-) -> PyResult<(String, antecedent_estimate::RidgeTuning)> {
-    use antecedent_estimate::RidgeTuning;
+) -> PyResult<(String, antecedent::estimate::RidgeTuning)> {
+    use antecedent::estimate::RidgeTuning;
     for (key_obj, _val) in sub.iter() {
         let key: String = key_obj
             .extract()
@@ -740,16 +728,16 @@ fn penalty_declaration(
         }
     };
     let lambdas = match sub.get_item("lambdas")? {
-        Some(raw) => raw.extract::<Vec<f64>>().map_err(|_| {
-            invalid(format!("estimator_config['{field}']['lambdas'] must be a list of floats"))
-        })?,
+        Some(raw) => {
+            bounded_penalty_values(&raw, &format!("estimator_config['{field}']['lambdas']"))?
+        }
         None => defaults.lambdas().to_vec(),
     };
     let inner_folds =
         get_u32(sub, "inner_folds")?.map_or(defaults.inner_folds(), |folds| folds as usize);
     let tuning = RidgeTuning::new(&lambdas, inner_folds).map_err(|error| {
         let message = error.to_string();
-        let tail = antecedent_core::reason_code::split_prefix(&message)
+        let tail = antecedent::reason::reason_code::split_prefix(&message)
             .map_or(message.as_str(), |(_, tail)| tail);
         invalid(tail.to_string())
     })?;
@@ -763,12 +751,12 @@ fn penalty_declaration(
 /// unpenalized, no-fallback default.
 ///
 /// An `ml` fallback is accepted here and refused with its registered reason code when the GLM
-/// fit fails (a flexible destination has no cross-fitted license); a penalized fallback beside a
+/// fit fails (a flexible destination has no cross-fitted support); a penalized fallback beside a
 /// penalized primary is refused by the estimator as an incoherent declaration.
 fn build_propensity_nuisance(
     dict: &Bound<'_, PyDict>,
-) -> PyResult<Option<antecedent_estimate::PropensityNuisance>> {
-    use antecedent_estimate::{NuisanceFallback, PropensityNuisance, RidgeTuning};
+) -> PyResult<Option<antecedent::estimate::PropensityNuisance>> {
+    use antecedent::estimate::{NuisanceFallback, PropensityNuisance, RidgeTuning};
     let from_kind = |kind: &str, tuning: RidgeTuning| match kind {
         "ridge_logistic" => NuisanceFallback::RidgeLogistic(tuning),
         _ => NuisanceFallback::Lasso(tuning),
@@ -819,152 +807,19 @@ fn build_propensity_nuisance(
     Ok(Some(nuisance.with_fallback(fallback)))
 }
 
-/// Declared cluster-DML independence unit of an `aipw` estimator and its row labels.
-struct ClusterDmlConfig {
-    spec: antecedent_estimate::ClusterDml,
-    first: Vec<u32>,
-    second: Option<Vec<u32>>,
-    /// The labels are those of every row of the source table, not of the analysed rows.
-    per_source_row: bool,
-}
-
-/// Build the declared cluster-DML independence unit of `aipw` and its row labels from
-/// `cluster_dml` (`{"cluster_ids": [int], "min_clusters": int, "unit": "cluster" | "dyad",
-/// "second_cluster_ids": [int], "min_components_per_fold": int}`).
-///
-/// A `dyad` unit takes the second endpoint labels (`second_cluster_ids`, required) and a
-/// minimum components per fold; a `cluster` unit takes neither.
-fn build_cluster_dml(dict: &Bound<'_, PyDict>) -> PyResult<Option<ClusterDmlConfig>> {
-    use antecedent_estimate::{ClusterDml, DEFAULT_MIN_CLUSTERS, DEFAULT_MIN_COMPONENTS_PER_FOLD};
-    let Some(value) = dict.get_item("cluster_dml")? else {
-        return Ok(None);
-    };
-    let sub = value.cast::<PyDict>().map_err(|_| {
-        invalid(format!(
-            "estimator_config['cluster_dml'] must be a dict, got {}",
-            type_name(&value)
-        ))
-    })?;
-    for (key_obj, _val) in sub.iter() {
-        let key: String = key_obj
-            .extract()
-            .map_err(|_| invalid("estimator_config['cluster_dml'] keys must be str".to_string()))?;
-        if !CLUSTER_DML_KEYS.contains(&key.as_str()) {
-            return Err(invalid(format!(
-                "unknown estimator_config['cluster_dml'] key {key:?}; valid keys are: {}",
-                CLUSTER_DML_KEYS.join(", "),
-            )));
-        }
-    }
-    let retained = get_u32_list(sub, "cluster_ids")?;
-    let source = get_u32_list(sub, "source_cluster_ids")?;
-    let (ids, per_source_row) = match (retained, source) {
-        (Some(ids), None) => (ids, false),
-        (None, Some(ids)) => (ids, true),
-        (Some(_), Some(_)) => {
-            return Err(invalid(
-                "estimator_config['cluster_dml'] takes cluster_ids or source_cluster_ids, not both"
-                    .to_string(),
-            ));
-        }
-        (None, None) => {
-            return Err(invalid(
-                "estimator_config['cluster_dml'] requires cluster_ids".to_string(),
-            ));
-        }
-    };
-    let second = match (
-        get_u32_list(sub, "second_cluster_ids")?,
-        get_u32_list(sub, "source_second_cluster_ids")?,
-    ) {
-        (second, None) if !per_source_row => second,
-        (None, second) if per_source_row => second,
-        (None, None) => None,
-        _ => {
-            return Err(invalid(
-                "estimator_config['cluster_dml'] declares both endpoints per analysed row \
-                 (cluster_ids, second_cluster_ids) or per source row (source_cluster_ids, \
-                 source_second_cluster_ids), not a mixture"
-                    .to_string(),
-            ));
-        }
-    };
-    let min_clusters = get_u32(sub, "min_clusters")?.map_or(DEFAULT_MIN_CLUSTERS, |m| m as usize);
-    let min_components = get_u32(sub, "min_components_per_fold")?;
-    let refused = |error: antecedent_estimate::EstimationError| {
-        let message = error.to_string();
-        let tail = antecedent_core::reason_code::split_prefix(&message)
-            .map_or(message.as_str(), |(_, tail)| tail);
-        invalid(tail.to_string())
-    };
-    let spec = match get_string(sub, "unit")?.as_deref().unwrap_or("cluster") {
-        "cluster" => {
-            if second.is_some() || min_components.is_some() {
-                return Err(invalid(
-                    "estimator_config['cluster_dml'] second_cluster_ids and \
-                     min_components_per_fold belong to unit='dyad'"
-                        .to_string(),
-                ));
-            }
-            ClusterDml::new(min_clusters).map_err(refused)?
-        }
-        "dyad" => {
-            match &second {
-                None => {
-                    return Err(invalid(
-                        "estimator_config['cluster_dml'] unit='dyad' requires second_cluster_ids"
-                            .to_string(),
-                    ));
-                }
-                Some(second) if second.len() != ids.len() => {
-                    return Err(invalid(format!(
-                        "estimator_config['cluster_dml'] second_cluster_ids has {} labels but \
-                         cluster_ids has {}",
-                        second.len(),
-                        ids.len()
-                    )));
-                }
-                Some(_) => {}
-            }
-            let per_fold = min_components.map_or(DEFAULT_MIN_COMPONENTS_PER_FOLD, |m| m as usize);
-            ClusterDml::dyadic(min_clusters, per_fold).map_err(refused)?
-        }
-        other => {
-            return Err(invalid(format!(
-                "estimator_config['cluster_dml']['unit'] {other:?} is not recognized; \
-                 use cluster|dyad"
-            )));
-        }
-    };
-    Ok(Some(ClusterDmlConfig { spec, first: ids, second, per_source_row }))
-}
-
-/// Store a parsed cluster-DML declaration on an estimator's [`DeclaredUnits`](antecedent_estimate::DeclaredUnits).
-fn declare_units(units: &mut antecedent_estimate::DeclaredUnits, config: Option<ClusterDmlConfig>) {
-    let Some(ClusterDmlConfig { spec, first, second, per_source_row }) = config else {
-        return;
-    };
-    units.spec = Some(spec);
-    let (first_slot, second_slot) = if per_source_row {
-        (&mut units.first_source, &mut units.second_source)
-    } else {
-        (&mut units.first, &mut units.second)
-    };
-    *first_slot = Some(first);
-    *second_slot = second;
-}
-
 /// Build the caller-configured [`EstimatorSpec`] for one of the ten estimators
-/// [`ESTIMATOR_KEYS`] covers (excluding `rd.sharp`, handled separately in
+/// `ESTIMATOR_KEYS` covers (excluding `rd.sharp`, handled separately in
 /// [`parse_estimator_config`]). By the time this runs, every key in `dict` has already been
-/// validated against `resolved_id`'s row in [`ESTIMATOR_KEYS`], so extracting a field this
+/// validated against `resolved_id`'s row in `ESTIMATOR_KEYS`, so extracting a field this
 /// estimator doesn't support is impossible — the field simply won't be present.
 /// Propensity overlap policy from `{"clip": float | None, "trim": float | None}`.
 ///
 /// An absent `overlap` key keeps the estimator's default (clip at 0.01, no
 /// trim). A present mapping sets both bounds: an omitted or `None` bound turns
 /// that operation off. Each bound must lie in `(0, 0.5)`.
-fn build_overlap(dict: &Bound<'_, PyDict>) -> PyResult<Option<antecedent_estimate::OverlapPolicy>> {
+fn build_overlap(
+    dict: &Bound<'_, PyDict>,
+) -> PyResult<Option<antecedent::estimate::OverlapPolicy>> {
     let Some(value) = dict.get_item("overlap")? else {
         return Ok(None);
     };
@@ -994,7 +849,7 @@ fn build_overlap(dict: &Bound<'_, PyDict>) -> PyResult<Option<antecedent_estimat
         }
         Ok(Some(bound))
     };
-    Ok(Some(antecedent_estimate::OverlapPolicy::RequireDiagnostics {
+    Ok(Some(antecedent::estimate::OverlapPolicy::RequireDiagnostics {
         clip: bound("clip")?,
         trim: bound("trim")?,
     }))
@@ -1005,7 +860,7 @@ fn build_overlap(dict: &Bound<'_, PyDict>) -> PyResult<Option<antecedent_estimat
 /// declared levels.
 fn build_other_levels(
     dict: &Bound<'_, PyDict>,
-) -> PyResult<Option<antecedent_estimate::OtherLevels>> {
+) -> PyResult<Option<antecedent::estimate::OtherLevels>> {
     let Some(value) = dict.get_item("other_levels")? else {
         return Ok(None);
     };
@@ -1016,8 +871,8 @@ fn build_other_levels(
         ))
     })?;
     match name.as_str() {
-        "refuse" => Ok(Some(antecedent_estimate::OtherLevels::Refuse)),
-        "exclude_undeclared" => Ok(Some(antecedent_estimate::OtherLevels::ExcludeUndeclared)),
+        "refuse" => Ok(Some(antecedent::estimate::OtherLevels::Refuse)),
+        "exclude_undeclared" => Ok(Some(antecedent::estimate::OtherLevels::ExcludeUndeclared)),
         other => Err(invalid(format!(
             "estimator_config other_levels must be \"refuse\" or \"exclude_undeclared\", got {other:?}"
         ))),
@@ -1034,15 +889,60 @@ pub(crate) fn get_learner(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Optio
         let json: String = dict.py().import("json")?.call_method1("dumps", (wire,))?.extract()?;
         serde_json::from_str::<LearnerSpec>(&json).map_err(|e| invalid(format!("{key}: {e}")))?
     };
-    spec.validate().map_err(|e| invalid(format!("{key}: {e}")))?;
+    spec.validate().map_err(|e| {
+        // A spec above a declared size limit is the resource refusal the fit would raise, not
+        // a malformed value.
+        if e.is_resource_limit() {
+            crate::refusal("execution_resource_limit", format!("{key}: {e}"))
+        } else {
+            invalid(format!("{key}: {e}"))
+        }
+    })?;
     Ok(Some(spec))
 }
 
 fn invalid(message: String) -> PyErr {
     crate::with_reason_code(
         crate::value_err(message),
-        antecedent_core::reason_code!("invalid_argument"),
+        antecedent::reason::reason_code!("invalid_argument"),
     )
+}
+
+/// Keys that only qualify another key: `(companion, owner)`. A companion without its owner
+/// would be read by nothing, so it is refused rather than silently dropped.
+const COMPANION_KEYS: &[(&str, &str)] = &[
+    ("se_lag", "se_kind"),
+    ("fit_lambda", "fit_kind"),
+    ("fit_c", "fit_kind"),
+    ("caliper_scale", "caliper"),
+    ("min_clusters", "source_cluster_ids"),
+];
+
+/// The first companion key that no key present would read, as a refusal message.
+///
+/// `fit_lambda` is read by `fit_kind` `ridge`/`lasso` only and `fit_c` by `huber` only;
+/// `se_lag` by the lag-parameterized `se_kind` tags, which [`build_se_kind`] checks itself.
+fn orphan_companion(has: &dyn Fn(&str) -> bool, fit_kind: Option<&str>) -> Option<String> {
+    for (companion, owner) in COMPANION_KEYS {
+        if has(companion) && !has(owner) {
+            return Some(format!(
+                "estimator_config[{companion:?}] has no effect without {owner:?}; \
+                 it is refused rather than ignored"
+            ));
+        }
+    }
+    let reader: [(&str, &[&str]); 2] = [("fit_lambda", &["ridge", "lasso"]), ("fit_c", &["huber"])];
+    for (companion, kinds) in reader {
+        if has(companion) && fit_kind.is_some_and(|kind| !kinds.contains(&kind)) {
+            return Some(format!(
+                "estimator_config[{companion:?}] is only read when fit_kind is {}, got {:?}; \
+                 it is refused rather than ignored",
+                kinds.join(" or "),
+                fit_kind.unwrap_or_default(),
+            ));
+        }
+    }
+    None
 }
 
 fn build_configured_spec(
@@ -1050,6 +950,13 @@ fn build_configured_spec(
     dict: &Bound<'_, PyDict>,
     ambient_bootstrap: u32,
 ) -> PyResult<EstimatorSpec> {
+    let has = |key: &str| dict.contains(key).unwrap_or(false);
+    if let Some(message) = orphan_companion(&has, get_string(dict, "fit_kind")?.as_deref()) {
+        return Err(crate::with_reason_code(
+            crate::value_err(message),
+            antecedent::reason::reason_code!("invalid_argument"),
+        ));
+    }
     let bootstrap = get_u32(dict, "bootstrap_replicates")?.unwrap_or(ambient_bootstrap);
     let se_kind = build_se_kind(dict)?;
     let cluster_ids = get_u32_list(dict, "cluster_ids")?;
@@ -1060,6 +967,24 @@ fn build_configured_spec(
     let overlap = build_overlap(dict)?;
     let other_levels = build_other_levels(dict)?;
     let sampling_weights = build_sampling_weights(dict)?;
+
+    // These estimators expose the same optional inference settings in the same order.
+    macro_rules! apply_se_cluster_panel {
+        ($est:ident) => {
+            if let Some(k) = se_kind {
+                $est = $est.with_se_kind(k);
+            }
+            if let Some(ids) = cluster_ids {
+                $est = $est.with_cluster_ids(ids);
+            }
+            if let Some(mw) = multiway_ids {
+                $est = $est.with_multiway_ids(mw);
+            }
+            if let Some(pt) = panel_times {
+                $est = $est.with_panel_times(pt);
+            }
+        };
+    }
 
     Ok(match resolved_id {
         "linear.adjustment.ate" => {
@@ -1081,6 +1006,9 @@ fn build_configured_spec(
             }
             if let Some(fit) = build_fit_kind(dict)? {
                 est = est.with_fit_kind(fit);
+            }
+            if let Some(policy) = other_levels {
+                est = est.with_other_levels(policy);
             }
             if let Some(weights) = sampling_weights {
                 est = est.with_sampling_weights(weights);
@@ -1111,18 +1039,7 @@ fn build_configured_spec(
         }
         "propensity.matching" => {
             let mut est = PropensityMatching::new().with_bootstrap_replicates(bootstrap);
-            if let Some(k) = se_kind {
-                est = est.with_se_kind(k);
-            }
-            if let Some(ids) = cluster_ids {
-                est = est.with_cluster_ids(ids);
-            }
-            if let Some(mw) = multiway_ids {
-                est = est.with_multiway_ids(mw);
-            }
-            if let Some(pt) = panel_times {
-                est = est.with_panel_times(pt);
-            }
+            apply_se_cluster_panel!(est);
             if let Some(opts) = glm_options {
                 est = est.with_glm_options(opts);
             }
@@ -1163,6 +1080,9 @@ fn build_configured_spec(
             if let Some(n) = get_u32(dict, "n_strata")? {
                 est = est.with_n_strata(n);
             }
+            if let Some(adjusted) = get_bool(dict, "regression_adjustment")? {
+                est = est.with_regression_adjustment(adjusted);
+            }
             if let Some(policy) = overlap {
                 est = est.with_overlap(policy);
             }
@@ -1182,18 +1102,7 @@ fn build_configured_spec(
         }
         "distance.matching" => {
             let mut est = DistanceMatching::new().with_bootstrap_replicates(bootstrap);
-            if let Some(k) = se_kind {
-                est = est.with_se_kind(k);
-            }
-            if let Some(ids) = cluster_ids {
-                est = est.with_cluster_ids(ids);
-            }
-            if let Some(mw) = multiway_ids {
-                est = est.with_multiway_ids(mw);
-            }
-            if let Some(pt) = panel_times {
-                est = est.with_panel_times(pt);
-            }
+            apply_se_cluster_panel!(est);
             if let Some(opts) = glm_options {
                 est = est.with_glm_options(opts);
             }
@@ -1248,6 +1157,9 @@ fn build_configured_spec(
             if let Some(weights) = sampling_weights {
                 est = est.with_sampling_weights(weights);
             }
+            if let Some(prior) = build_outcome_prior(dict)? {
+                est = est.with_outcome_prior(prior);
+            }
             if let Some(ClusterDmlConfig { spec, first, second, per_source_row }) = cluster_dml {
                 est = est.with_cluster_dml(spec);
                 est = if per_source_row {
@@ -1288,6 +1200,9 @@ fn build_configured_spec(
             if let Some(fam) = build_family(dict)? {
                 est = est.with_family(fam);
             }
+            if let Some(policy) = other_levels {
+                est = est.with_other_levels(policy);
+            }
             if let Some(weights) = sampling_weights {
                 est = est.with_sampling_weights(weights);
             }
@@ -1299,43 +1214,21 @@ fn build_configured_spec(
                 est = est.with_se_kind(k);
             }
             if let Some(ids) = cluster_ids {
-                est = est.with_cluster_ids(Arc::from(ids));
+                est = est.with_cluster_ids(ids);
             }
             if let Some(ids) = source_cluster_ids {
-                est = est.with_source_cluster_ids(Arc::from(ids));
+                est = est.with_source_cluster_ids(ids);
             }
             est.into()
         }
         "iv.wald" => {
             let mut est = WaldIv::new().with_bootstrap_replicates(bootstrap);
-            if let Some(k) = se_kind {
-                est = est.with_se_kind(k);
-            }
-            if let Some(ids) = cluster_ids {
-                est = est.with_cluster_ids(ids);
-            }
-            if let Some(mw) = multiway_ids {
-                est = est.with_multiway_ids(mw);
-            }
-            if let Some(pt) = panel_times {
-                est = est.with_panel_times(pt);
-            }
+            apply_se_cluster_panel!(est);
             est.into()
         }
         "iv.2sls" => {
             let mut est = TwoStageLeastSquares::new().with_bootstrap_replicates(bootstrap);
-            if let Some(k) = se_kind {
-                est = est.with_se_kind(k);
-            }
-            if let Some(ids) = cluster_ids {
-                est = est.with_cluster_ids(ids);
-            }
-            if let Some(mw) = multiway_ids {
-                est = est.with_multiway_ids(mw);
-            }
-            if let Some(pt) = panel_times {
-                est = est.with_panel_times(pt);
-            }
+            apply_se_cluster_panel!(est);
             est.into()
         }
         "dml" => {
@@ -1366,6 +1259,9 @@ fn build_configured_spec(
             declare_units(&mut est.units, build_cluster_dml(dict)?);
             if let Some(weights) = sampling_weights {
                 est = est.with_sampling_weights(weights);
+            }
+            if let Some(prior) = build_outcome_prior(dict)? {
+                est = est.with_outcome_prior(prior);
             }
             est.into()
         }
@@ -1411,10 +1307,10 @@ fn build_configured_spec(
             }
             if let Some(ids) = source_cluster_ids {
                 let min_clusters = get_u32(dict, "min_clusters")?
-                    .map_or(antecedent_estimate::DEFAULT_MIN_CLUSTERS, |m| m as usize);
+                    .map_or(antecedent::estimate::DEFAULT_MIN_CLUSTERS, |m| m as usize);
                 est = est
                     .with_cluster_dml(
-                        antecedent_estimate::ClusterDml::new(min_clusters)
+                        antecedent::estimate::ClusterDml::new(min_clusters)
                             .map_err(coded_refusal)?,
                     )
                     .with_source_cluster_ids(ids);
@@ -1429,4 +1325,44 @@ fn build_configured_spec(
             )));
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::orphan_companion;
+
+    fn refusal(keys: &[&str], fit_kind: Option<&str>) -> Option<String> {
+        orphan_companion(&|key| keys.contains(&key), fit_kind)
+    }
+
+    #[test]
+    fn companions_without_their_owner_are_refused() {
+        for (companion, owner) in [
+            ("se_lag", "se_kind"),
+            ("fit_lambda", "fit_kind"),
+            ("fit_c", "fit_kind"),
+            ("caliper_scale", "caliper"),
+            ("min_clusters", "source_cluster_ids"),
+        ] {
+            let message = refusal(&[companion], None).expect("orphan companion refused");
+            assert!(message.contains(companion) && message.contains(owner), "{message}");
+            assert!(refusal(&[companion, owner], None).is_none());
+        }
+    }
+
+    #[test]
+    fn fit_parameters_are_read_only_by_their_fit_kind() {
+        assert!(refusal(&["fit_kind", "fit_lambda"], Some("ridge")).is_none());
+        assert!(refusal(&["fit_kind", "fit_lambda"], Some("lasso")).is_none());
+        assert!(refusal(&["fit_kind", "fit_c"], Some("huber")).is_none());
+        assert!(refusal(&["fit_kind", "fit_lambda"], Some("ols")).is_some());
+        assert!(refusal(&["fit_kind", "fit_lambda"], Some("huber")).is_some());
+        assert!(refusal(&["fit_kind", "fit_c"], Some("ridge")).is_some());
+        assert!(refusal(&["fit_kind", "fit_c", "fit_lambda"], Some("huber")).is_some());
+    }
+
+    #[test]
+    fn no_companions_is_accepted() {
+        assert!(refusal(&["se_kind", "bootstrap_replicates"], None).is_none());
+    }
 }

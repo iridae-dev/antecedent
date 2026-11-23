@@ -8,19 +8,59 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Estimating Prevalence from the Results of a Screening Test (Rogan and Gladen, Am J Epidemiol 107:71-76)", doi = "10.1093/oxfordjournals.aje.a112510", sections = ["Estimator and variance"] },
+ { title = "ESTIMATING PREVALENCE FROM THE RESULTS OF A SCREENING TEST", citation_note = "Previously recorded title and bibliographic detail: Estimating Prevalence from the Results of a Screening Test (Rogan and Gladen, Am J Epidemiol 107:71-76)", doi = "10.1093/oxfordjournals.aje.a112510", sections = ["Estimator and variance"] },
 ]
 
 implementation_deviations = [
  "K-category matrix inversion is the standard generalization; the Jacobian of the outcome-mean map is a central finite difference (step 1e-6 relative), not an analytic derivative.",
  "Corrected proportions are not projected onto the simplex.",
- "No interval; coverage is unmeasured.",
+ "No interval; coverage is not measured.",
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-stats/tests/measurement_correction_reference.rs (exact-rational binary corrections and 60-digit analytic-Jacobian categorical corrections)",
  "closed-form attenuation and misclassification algebra",
  "independently simulated seeded DGPs with known coefficients",
  "hand-computed one-way ANOVA and confusion-matrix inversion",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "ConfusionMatrix, ObservedClassSummary and corrected_categories in crates/antecedent-stats/src/measurement_error.rs: the inversion pi = C^{-1} p* for a column-stochastic confusion matrix C[observed, true], the outcome means by true category mu = Q^{-1} ybar with Q[j][t] = C[j][t] pi_t / p*_j, the delta-method covariances of the corrected proportions and of the outcome means over the observed proportions (multinomial), the class means (independent) and the confusion columns (independent multinomials from the validation counts), the central-difference Jacobian of the outcome-mean map, the 1-norm condition number and the condition refusal. Not the binary routes (reviewed under measurement.binary_misclassification), the estimator layer that supports a correction, or the externally supplied latent posterior. Classification correction definitions moved to measurement_error/classification.rs and bound items were compared unchanged apart from formatting."
+assumptions = ["Misclassification depends on the true category only (non-differential given the true category); the observed class summaries and the validation columns are independent samples.", "The confusion matrix is known or estimated from validation counts with one multinomial per true category.", "Corrected proportions are not projected onto the simplex."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the stated definitions, derivatives derived by hand, in exact rational arithmetic and at 60 digits (mpmath); no upstream implementation was consulted. The cited sources were not retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited sources are linked, not redistributed."
+limitations = "The Rogan and Gladen paper was not retrieved (nothing downloaded, no local copy); the K-category inversion and delta method are checked against a hand derivation, with the Jacobian of (pi, mu) taken by central differences at 60 digits with a step of 1e-20 (truncation about 1e-40), against the product's step of 1e-6 relative. The comparison covers five designs with two to four categories, a rare class (20 of 400), a nearly flat outcome contrast (class means 100 and 100.5, condition number 49) and an unbalanced four-category matrix, at 1e-11 for proportions and means and 1e-8 for covariances. It does not examine near-singular confusion matrices beyond condition 49, empty latent categories, or coverage; the covariance is a first-order approximation."
+sources = ["https://doi.org/10.1093/oxfordjournals.aje.a112510", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No defect found: the corrected proportions, outcome means, both covariance matrices and the condition number agree with the 60-digit analytic Jacobian; the finite-difference step of the product costs at most the stated tolerance on these designs.", "The two-category case reproduces the binary Rogan-Gladen correction and its variance exactly, so the multinomial confusion-column covariance reduces to the binomial sensitivity and specificity variances."]
+record_sha256 = "d5abc4d3d4acb2eef99214010f423998a2cedd2059b32fc114ed655bb21e3f8b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/measurement_error.rs"
+items = ["enum MeasurementErrorError", "fn matvec"]
+sha256 = "ef1c3ef5c606e4adc0a5c92addedf455130e81d259fc3f00d7098fcc19394328"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/measurement_error/classification.rs"
+items = ["fn category_outcome_means", "fn check_count", "fn column_counts", "fn congruence", "fn corrected_categories", "fn corrected_prevalence", "fn corrected_risk_difference_differential", "fn corrected_risk_difference_nondifferential", "fn from_validation_counts", "fn levels", "fn matrix", "fn new", "fn one_norm", "fn require_youden", "fn youden", "struct BinaryErrorRates", "struct ConfusionMatrix", "struct CorrectedCategorical", "struct CorrectedProportion", "struct CorrectedRiskDifference", "struct ObservedClassSummary", "struct TwoByTwoCounts"]
+sha256 = "caf7a5dc4c04f0705c127283e5d8a8e4c89de072bff2c6c829aebaeb9ec02a46"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/measurement_correction_reference.rs"
+items = ["fn categorical_corrections_match_the_analytic_delta_method", "fn categorical_inputs", "fn close", "fn corrected_prevalence_matches_exact_rational_arithmetic", "fn number", "fn numbers", "fn rates", "fn reference", "fn risk_differences_match_exact_rational_arithmetic", "fn two_categories_reproduce_the_binary_correction"]
+sha256 = "bb17cf370380b0dc49a0e853eecf1343ea7b19be4a8b9367b33ad12f50eb1bfb"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/measurement_correction_reference.py"
+sha256 = "7a8fdeeb6208d5d70e6a7a25235024e0301e4bc284895e79009a57368081d2ec"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/measurement_correction_reference.json"
+sha256 = "11dadcf2116c5e439ce7c1e0242ca2c2891011656879ea8bd9f6e4a57cace3f1"

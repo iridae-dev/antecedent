@@ -10,7 +10,7 @@
 //! credible endpoints are Monte Carlo quantile estimates; 5%/95% tail ESS does
 //! not guarantee the precision of their 2.5%/97.5% endpoints.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::needless_range_loop, reason = "fixed-size eleven-coordinate algebra")]
 use antecedent_core::{CausalRng, ExecutionContext, RngFactory, StreamDomain};
@@ -298,15 +298,12 @@ pub fn fit(
 ) -> Result<Posterior, BayesianRefusal> {
     validate(counts, prior, options)?;
     let required = (options.chains * options.draws * OUTPUTS * 8 * 4 + 65536) as u64;
-    if ctx
-        .memory
-        .hard_limit_bytes
-        .into_iter()
-        .chain(ctx.memory.soft_limit_bytes)
-        .any(|limit| required > limit)
-    {
+    if ctx.memory_limit_bytes().into_iter().any(|limit| required > limit) {
         return Err(BayesianRefusal::Budget("posterior/diagnostic memory limit"));
     }
+    let _admitted = ctx
+        .acquire_admission(0, required)
+        .map_err(|_| BayesianRefusal::Budget("posterior/diagnostic admission pool"))?;
     let mut shapes = [(0.0, 0.0); 3];
     for k in 0..3 {
         shapes[k] = (prior.alpha[k], prior.beta[k]);
@@ -489,7 +486,7 @@ mod tests {
             ));
         }
         let mut small_memory = ExecutionContext::for_tests(0);
-        small_memory.memory.hard_limit_bytes = Some(0);
+        small_memory.set_memory_limit(Some(0));
         assert!(matches!(
             fit(&[1; 16], &prior, &Options::default(), &small_memory),
             Err(BayesianRefusal::Budget(_))

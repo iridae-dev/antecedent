@@ -1,6 +1,12 @@
-//! Unified `Study` facade.
+//! The `Study` builder and the analysis routes it compiles to.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+//! [`crate::Study`] collects data, a structure, a query and options; it compiles to a plan,
+//! prepares to a reusable [`crate::PreparedStudy`], or runs to a [`crate::StudyResult`]. Most
+//! callers need only those crate-root re-exports. The submodules hold the declarations and
+//! results of individual routes (transport, panel designs, decision evidence, adaptive
+//! procedures and others) for callers who use those routes directly.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Reference getters on checked operations. The expansion is the function the
 /// invocation writes: the same visibility, attributes, signature, and
@@ -18,6 +24,75 @@ macro_rules! checked_ref {
 }
 pub(crate) use checked_ref;
 
+/// Declare a fieldless enum with a stable string spelling per variant.
+///
+/// Generates the enum (attributes and variant docs pass through), `ALL`, `as_str`, a lookup
+/// function named by `lookup = ...` returning `Option<Self>`, `Display` (the same spelling)
+/// and `FromStr` (a `CausalError::Compile` naming the accepted spellings), so the spelling
+/// is written once per variant and the four conversions cannot drift apart.
+macro_rules! string_enum {
+    (
+        $(#[$meta:meta])*
+        $vis:vis enum $name:ident, lookup = $lookup:ident {
+            $(
+                $(#[$vmeta:meta])*
+                $variant:ident => $text:literal,
+            )+
+        }
+    ) => {
+        $(#[$meta])*
+        $vis enum $name {
+            $(
+                $(#[$vmeta])*
+                $variant,
+            )+
+        }
+
+        impl $name {
+            /// Every variant, in declaration order.
+            pub const ALL: &'static [Self] = &[$(Self::$variant),+];
+
+            /// Stable spelling.
+            #[must_use]
+            pub const fn as_str(self) -> &'static str {
+                match self {
+                    $(Self::$variant => $text,)+
+                }
+            }
+
+            /// Variant with the stable spelling `name`.
+            #[must_use]
+            pub fn $lookup(name: &str) -> Option<Self> {
+                match name {
+                    $($text => Some(Self::$variant),)+
+                    _ => None,
+                }
+            }
+        }
+
+        impl ::std::fmt::Display for $name {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                f.write_str(self.as_str())
+            }
+        }
+
+        impl ::std::str::FromStr for $name {
+            type Err = $crate::error::CausalError;
+
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                Self::$lookup(s).ok_or_else(|| $crate::error::CausalError::Compile {
+                    message: format!(
+                        "unknown {} {s:?}; use {}",
+                        stringify!($name),
+                        [$($text),+].join("|"),
+                    ),
+                })
+            }
+        }
+    };
+}
+pub(crate) use string_enum;
+
 pub mod api;
 
 pub mod adaptive_inference;
@@ -25,11 +100,17 @@ pub mod adaptive_participant_procedure;
 pub mod adaptive_procedure_declaration;
 pub mod adaptive_procedure_report;
 mod admg_conditional_transport;
+mod alpha_selection;
+pub mod array_fits;
+pub mod association;
 mod batch;
 mod batch_export;
 mod batch_retarget;
+pub mod bayesian_posterior_row;
 mod builder;
 mod candidate_screen_units;
+/// Scientifically closed categorical posterior compiler candidate.
+pub mod categorical_posterior_candidate;
 pub mod categorical_treatment;
 mod checked_bayesian_class_conditional;
 mod checked_bayesian_graph_posterior;
@@ -39,18 +120,24 @@ mod checked_class_graph_posterior_effect;
 mod checked_conditional;
 mod checked_graph_posterior;
 mod checked_propensity;
+mod checked_sealed_procedure;
 mod checked_temporal_class_effect;
 mod checked_temporal_class_response;
 mod checked_temporal_effect;
 mod checked_temporal_graph_posterior_effect;
 mod checked_temporal_graph_posterior_response;
 mod checked_temporal_response;
-pub mod closed_pilots;
+pub mod choice_inference;
+pub mod choice_ranking;
 pub mod cohort_decision;
 pub mod compact_export;
+pub mod compiled_linear;
 pub mod composition;
+pub mod composition_decision_terminal;
 pub mod composition_verification;
+mod conditional_admg;
 pub mod conditional_study_ranking;
+pub mod continuous_measurement;
 mod contract;
 mod contract_identity;
 mod cost;
@@ -65,6 +152,7 @@ pub mod decision_reliability;
 mod derived_treatment;
 mod design_exports;
 pub mod design_ranking;
+mod design_section_rows;
 pub mod discovered_transport;
 pub mod discovered_transport_estimate;
 pub mod discovered_transport_temporal;
@@ -74,26 +162,70 @@ pub mod dose_grid_functional;
 pub mod effect_constancy;
 pub mod effect_constancy_consumers;
 pub mod evidence_ledger;
+pub mod evidence_plan;
 mod exact;
 mod execute;
+pub mod fallback;
+#[cfg(feature = "file-source")]
+pub mod file_table;
+mod finite_discrete;
+pub mod scope_refusals;
+mod targeted_refit;
+mod weighted_target;
+pub use finite_discrete::{FiniteDiscreteContrast, finite_discrete_contrast};
+pub(crate) mod four_way;
+pub(crate) mod functional_sensitivity;
+pub(crate) mod functional_validation;
+pub mod graph_imputation;
+pub mod graph_imputation_effect_decision;
+pub mod graph_imputation_kernel_transport_decision;
+pub mod graph_imputation_mar_transport_decision;
+#[cfg(test)]
+mod graph_imputation_mix;
+#[cfg(test)]
+mod graph_imputation_receipt;
+pub mod graph_imputation_transport_decision;
+pub mod horizon_composition;
+mod imputed_graph_selection;
 pub mod interface_contract;
 mod inverse_outcome;
 pub mod inverse_query;
 pub mod inverse_sources;
+mod joint_contrast_binding;
+mod joint_interval_artifact;
 pub mod joint_law_composed_basis;
 pub mod joint_law_propagation;
 mod joint_sensitivity;
 mod joint_sensitivity_uncertainty;
+pub mod joint_transport_effect_decision;
+pub mod joint_transport_predictive_decision;
+pub mod trial_ipw_predictive_decision;
+pub mod trial_ipw_transport_decision;
+pub use joint_interval_artifact::{
+    JOINT_INTERVAL_ARTIFACT_VERSION, JointIntervalConsumeLimits, JointIntervalConsumption,
+    JointIntervalNumerics, JointSensitivityIntervalArtifact,
+};
+pub mod events;
+pub mod fitted_dependent_measurement;
 pub mod latent_class_effects;
+pub mod latent_soft_intervention;
 mod learned_continuous;
-pub mod learned_joint_closed;
+pub mod learned_joint_scope;
 mod learned_trial;
+pub mod matching_posterior_refusal;
+pub mod measured_exposure;
 pub mod measurement_model;
 pub mod mechanism_composition;
 pub mod mechanism_discrepancy;
 pub(crate) mod mechanism_exports;
+mod mediator_read;
 mod missing_data;
+mod missing_imputation;
+mod missing_imputation_vector;
+pub mod missing_support;
 mod mixed_source;
+pub mod mnar_fixed_shift;
+pub mod mnar_sensitivity;
 pub mod msm_sensitivity;
 pub mod multi_level_treatment;
 mod mz_transport;
@@ -105,10 +237,15 @@ pub mod observation_query;
 pub mod observational_policy;
 pub mod observational_survival;
 pub mod per_population_discovery;
+pub mod planning;
+pub mod posterior_boundaries;
 pub mod predictive_assessment;
 mod preflight;
+pub mod propagation_chain;
+pub mod propagation_chain_decision;
+pub mod propagation_chain_robust_decision;
 pub mod provider_callbacks;
-pub(crate) mod query_license;
+pub(crate) mod query_support;
 mod rank_drop_estimate;
 pub mod recalc_adjusted;
 pub mod recalc_cell;
@@ -118,9 +255,12 @@ pub mod recalc_dr;
 pub mod recalc_receipt;
 pub mod recalc_temporal;
 pub mod recalc_temporal_measured;
+pub mod recipe_glm;
 mod recovery;
 pub mod recovery_chain;
 pub mod repair;
+pub mod repeated_measures_posterior_report;
+mod resource_policy;
 pub mod sample_split_analysis;
 pub mod sample_split_effect;
 pub mod sample_split_parent_set_effect;
@@ -129,7 +269,11 @@ pub mod selective_discovery;
 pub mod sensitivity_decision;
 pub mod sequential_evaluation;
 mod smoothed_dose;
+pub mod staleness;
 mod statistical;
+pub mod structure_route;
+mod structure_stability;
+pub mod target_validation;
 pub mod temporal_counterfactual;
 mod temporal_extensions;
 #[doc(hidden)]
@@ -146,6 +290,7 @@ pub mod transported_constructors;
 pub mod transported_counterfactual;
 pub mod transported_measurement;
 pub mod transported_mechanism;
+pub mod typed_transported_mechanism;
 pub mod vector_treatment;
 mod z_transport;
 mod z_transport_sensitivity_artifact;
@@ -200,13 +345,20 @@ pub(crate) use checked_temporal_graph_posterior_response::{
     CheckedTemporalGraphPosteriorResponse, CheckedTemporalGraphPosteriorResponsePremises,
     TemporalPosteriorResponseProof,
 };
+pub use choice_inference::{
+    ChoiceInferenceOutcome, ChoiceInferenceRefusal, ChoiceInferenceSession, ConsumedChoiceResult,
+    consume_choice_inference_result_artifact, retained_source_from_artifact,
+};
 pub use composition_verification::{
     CompositionVerification, CompositionVerificationRefusal, ConsumedCompositionVerification,
-    consume_composition_verification_artifact,
+    DecisionArtifact, DecisionAuthority, DecisionAuthorityBinding, FlagshipDependence,
+    FlagshipError, FlagshipWorkflow, LoadedDecision, MixedDecision, PeriodReplay, PriorReplay,
+    UtilityReplay, consume_composition_verification_artifact, load_decision, replay_decision,
 };
+pub use continuous_measurement::{ContinuousErrorInput, ContinuousMeasurementEstimate};
 pub use cost::{
-    BatchCostEstimate, CostEstimate, InferenceDefault, JointCellCostEstimate, RetargetCostEstimate,
-    estimate_joint_cell_cost,
+    BatchCostEstimate, CostEstimate, CostModel, CostModelError, InferenceDefault,
+    JointCellCostEstimate, RetargetCostEstimate, estimate_joint_cell_cost,
 };
 pub use counterfactual_transport::{
     CounterfactualTransportConsumption, CounterfactualTransportObstructionReport,
@@ -238,17 +390,21 @@ pub use exact::{
     ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities, ExactStudyInspection,
     ExactStudyResult,
 };
+pub use imputed_graph_selection::{
+    GraphSelectionPerImputation, estimate_with_graph_selection_per_imputation,
+};
 pub use interface_contract::{
-    ConsumedInterfaceContract, InterfaceContractExport, InterfaceContractRefusal,
-    check_interface_composition, check_interface_composition_with_ledger,
-    check_interface_connection, consume_interface_contract_artifact, export_interface_contract,
+    ConsumedInterfaceContract, CyclicComponentDeclaration, InterfaceContractExport,
+    InterfaceContractRefusal, check_interface_composition, check_interface_composition_with_cyclic,
+    check_interface_composition_with_ledger, check_interface_connection,
+    consume_interface_contract_artifact, export_interface_contract,
     inspect_interface_contract_artifact,
 };
 pub use inverse_outcome::{
-    ActionConstraint, ActionOutcome, ActionSpec, ActionStatus, EnumeratedStatus, ForwardEvaluation,
-    ForwardInterval, INVERSE_SCOPE_NOTE, IntervalMeta, IntervalScope, InverseOutcomeError,
-    InverseOutcomeReport, InverseQuery, MAX_INVERSE_ACTIONS, MAX_INVERSE_FORWARD_POINTS,
-    SupportBasis, TargetDirection, classify_inverse_outcome,
+    ActionConstraint, ActionOutcome, ActionReason, ActionSpec, ActionStatus, EnumeratedStatus,
+    ForwardEvaluation, ForwardInterval, INVERSE_SCOPE_NOTE, IntervalMeta, IntervalScope,
+    InverseOutcomeError, InverseOutcomeReport, InverseQuery, SupportBasis, TargetDirection,
+    classify_inverse_outcome,
 };
 pub use joint_law_propagation::{
     ComposedInterval, CorrelationRangeSummary, ExceedanceQuery, JointLawPropagationRefusal,
@@ -267,7 +423,8 @@ pub use joint_sensitivity::{
 };
 pub use joint_sensitivity_uncertainty::JointSamplingWire;
 pub use learned_continuous::{
-    LearnedContinuousResult, PreparedLearnedContinuous, consume_learned_continuous_artifact,
+    LearnedContinuousBootstrapInterval, LearnedContinuousResult, PreparedLearnedContinuous,
+    consume_learned_continuous_artifact,
 };
 pub use learned_trial::{LearnedTrialResult, LearnedTrialState};
 pub use measurement_model::{
@@ -276,14 +433,18 @@ pub use measurement_model::{
     PreparedMeasurementModel, consume_measurement_model_artifact,
 };
 pub use mechanism_composition::{
-    ConsumedComposition, DependenceInput, MechanismCompositionExport, MechanismCompositionRefusal,
-    MechanismCompositionRequest, MechanismInput, MechanismRefit, MechanismSource,
-    PreparedMechanismComposition, consume_mechanism_composition_artifact,
+    ConsumedComposition, DependenceInput, FirstOrderInterval, MechanismCompositionExport,
+    MechanismCompositionRefusal, MechanismCompositionRequest, MechanismInput, MechanismRefit,
+    MechanismSource, PreparedMechanismComposition, consume_mechanism_composition_artifact,
+};
+pub use missing_support::{
+    MissingInference, MissingModality, MissingRouteCell, MissingRouteSupport,
+    missing_support_table, route_missing_support,
 };
 pub use mixed_source::{MixedSourceResult, PreparedMixedSource, consume_mixed_source_artifact};
 pub use mz_transport::{MzTransportResult, PreparedMzTransport, consume_mz_transport_artifact};
 pub use predictive_assessment::{
-    PredictiveAssessmentRefusal, PreparedPredictiveAssessment,
+    PredictiveAssessmentRefusal, PreparedPredictiveAssessment, RetainedPredictiveReplicates,
     consume_predictive_assessment_artifact, fit_declaration_from_ledger,
     observation_keys_from_ledger, posterior_predictive_predictor,
 };
@@ -294,12 +455,25 @@ pub use preflight::{
     PropensityOutcome, RankDropPlan, RankDropPolicy, RankReport, ScoreQuantile, SpanCheck,
     fit_diagnostics_design, plan_rank_drop, preflight_design,
 };
+pub use propagation_chain::{
+    ChainAuthority, FamilyDependence, FamilyEstimate, FamilyTable, PropagationChain,
+    consume_propagation_chain, family_table, independent_product_table,
+};
+pub use propagation_chain_decision::{
+    ChainDecisionError, ChainDecisionPlan, ChainDecisionResult,
+    compile_action_world_chain_decision, compile_chain_decision,
+    compile_transported_law_chain_decision, consume_chain_decision,
+};
+pub use propagation_chain_robust_decision::{
+    ChainRobustDecisionPlan, ChainRobustDecisionResult, RobustActionBound, RobustConstraintBound,
+    compile_chain_robust_decision, consume_chain_robust_decision,
+};
 pub use provider_callbacks::{
     CallbackConnectionError, CallbackExecution, CallbackExecutionError, CallbackExecutionPolicy,
     CallbackRegistrationError, CallbackResume, CallbackSession, FnCallback, ProviderCallback,
     check_callback_connection, check_claim_to_callback, consume_callback_result,
     export_callback_result, forecast_law_from_sample, inspect_callback_result,
-    predictive_law_source, refuse_identification_licence, refuse_interval, refuse_joint_law,
+    predictive_law_source, refuse_identification_evidence, refuse_interval, refuse_joint_law,
     refuse_native_trust, refuse_posterior_guarantee, register_callback_source,
     supersede_callback_source, verification_holds,
 };
@@ -309,16 +483,24 @@ pub use recovery::{
     consume_observation_recovery_artifact,
 };
 pub use scientific_bridge::{
-    BridgeInspection, ConsumedScientificBridge, PreparedScientificBridge, ScientificBridgeExport,
-    ScientificBridgeRefusal, ScientificBridgeResult, consume_scientific_bridge_artifact,
+    BridgeChainCompileError, BridgeInspection, ConsumedScientificBridge,
+    ConsumedScientificBridgeDistribution, DistributionBridgeInspection, PreparedScientificBridge,
+    PreparedScientificBridgeDistribution, ScientificBridgeDistributionResult,
+    ScientificBridgeExport, ScientificBridgeRefusal, ScientificBridgeResult,
+    consume_scientific_bridge_artifact, consume_scientific_bridge_distribution_artifact,
+    scientific_bridge_artifact_shape,
 };
-pub use smoothed_dose::{PreparedSmoothedDose, SmoothedDoseResult, consume_smoothed_dose_artifact};
+pub use smoothed_dose::{
+    PreparedSmoothedDose, SmoothedDoseInterval, SmoothedDosePosteriorResult, SmoothedDoseResult,
+    consume_smoothed_dose_artifact, consume_smoothed_dose_posterior_artifact,
+    consume_smoothed_dose_posterior_artifact_with_context,
+};
 pub use statistical::{
-    StatisticalBindingView, StatisticalContrast, StatisticalPreparedState,
-    StatisticalStudyInspection, StatisticalStudyResult,
+    DeferredStatisticalTransport, StatisticalBindingView, StatisticalContrast,
+    StatisticalPreparedState, StatisticalStudyInspection, StatisticalStudyResult,
 };
 pub use temporal_extensions::{
-    IntervalEstimand, TemporalInitialState, TemporalWindow,
+    IntervalEstimand, TemporalInitialState, TemporalWindow, consume_period_refresh_artifact,
     consume_temporal_initial_state_artifact, consume_temporal_refresh_artifact,
     temporal_dependent_interval,
 };
@@ -331,8 +513,8 @@ pub use tier_diagnostics::{
 };
 pub use transport_common::EvidenceSearch;
 pub use transport_grid::{
-    TransportGridData, TransportGridFailure, TransportGridPoint, TransportGridQuery,
-    TransportGridResult, TransportGridState,
+    DeferredTransportGrid, TransportGridData, TransportGridFailure, TransportGridPoint,
+    TransportGridQuery, TransportGridResult, TransportGridState,
 };
 pub use transport_scenarios::{
     EmpiricalScenarioInput, PreparedTransportScenarios, consume_transport_scenarios_artifact,
@@ -342,37 +524,42 @@ pub use z_transport_sensitivity_artifact::ZTransportSensitivityArtifactWire;
 mod graph_posterior_target;
 mod helpers;
 mod identification_cache;
+pub(crate) mod identification_seal;
 mod latency;
+pub(crate) mod lowering;
 mod posterior_binding;
 mod prepared;
 pub(crate) mod proof_support;
 mod route_guards;
 mod stage;
+pub(crate) mod streamed_route;
 mod transport_common;
 pub(crate) use graph_posterior_target::GraphPosteriorEffectTarget;
+pub(crate) use prepared::IdentificationCache;
 
 pub use antecedent_contract::{
-    BlockedOperation, LicensedNeighbor, NextAction, OperationKind, OperationReadiness,
-    OperationReport, PremiseChange, SemanticApplicability,
+    BlockedOperation, NextAction, OperationKind, OperationReadiness, OperationReport,
+    PremiseChange, SemanticApplicability, SupportedNeighbor,
 };
 pub use batch::{
     BatchQuery, BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection,
-    CellFamilyContrast, PreparedBatch, SharedBatchDesign, SharedCovariateDesign,
+    CellFamilyContrast, CompletedBatch, PreparedBatch, SharedBatchDesign, SharedCovariateDesign,
 };
 pub use batch_export::{TidyKind, TidyRow};
 pub use batch_retarget::{
     BATCH_RETARGET_SCOPE_NOTE, BandMember, BatchRetargetError, BatchRetargetReport,
     BatchRetargetRequest, BatchScores, ClaimPoint, ClaimReport, ContrastPoint, ContrastReport,
-    FamilyCovariance, MAX_T_MAX_DRAWS, MAX_T_MIN_DRAWS, MemberFailure, RetargetClaim,
-    RetargetContrast, ScoreSource, SimultaneousBand, UncertaintyKind,
+    FamilyCovariance, MemberFailure, RetargetClaim, RetargetContrast, ScoreSource,
+    SimultaneousBand, UncertaintyKind,
 };
 // Max-t evaluator entries kept for the calibration wiring (the published route is
 // `BatchRetargetReport::simultaneous_interval`).
 #[doc(hidden)]
-pub use batch_retarget::{max_t_critical_value, simultaneous_band_unpublished};
+pub use batch_retarget::max_t_critical_value;
 pub use builder::{InterferenceSpec, RdConfig, RefuteSuite, StudyBuilder, TransportTrialSpec};
 pub use candidate_screen_units::{ScreenSplitReceipt, ScreenUnits};
-pub use contract::CausalContract;
+pub(crate) use contract::assumption_label;
+pub use contract::{CausalContract, PreparedInspection};
 pub use decision_contract_facade::{
     ActionRobustness, AdaptedClaims, AdaptedDecision, AdapterError, AdmissibilityError,
     AdmissibilityRules, AdmissibleContractArtifact, AdmissibleDecisionContract, AtomSupport,
@@ -391,6 +578,11 @@ pub use decision_contract_facade::{
 };
 pub use execute::DagResponseOrigin;
 pub use execute::Study;
+pub use execute::{
+    BAYESIAN_REALIZATION, DECISION_NEXT_ATTEMPTS, DISTRIBUTIONAL_CARRIER, DecisionCarrierError,
+    DecisionCompileRequest, DecisionDemand, INTERVENTIONAL_LAW, MissingCarrier, PublishedCarriers,
+    ROBUST_OVER_IDENTIFIED_SET, ScoredDecision, score_decision,
+};
 pub use latency::{
     ComputeBudget, INTERACTIVE_BOOTSTRAP, INTERACTIVE_MAX_ENVELOPE_GRAPHS, INTERACTIVE_N_DRAWS,
     LatencyMode, REPORT_BOOTSTRAP, REPORT_N_DRAWS, ResolvedLatencyBudget, STANDARD_BOOTSTRAP,
@@ -406,10 +598,16 @@ pub use prepared::{
     CheckedStaticClassEffectInfo, CheckedStaticClassResponseInfo, CheckedStaticMediationInfo,
     CheckedTemporalClassEffectInfo, CheckedTemporalClassMediationInfo,
     CheckedTemporalDagEffectInfo, CheckedTemporalDagResponseInfo, CheckedTemporalMediationInfo,
-    CheckedUnknownTieredAverageInfo, PreparedStudy,
+    CheckedTemporalMediationProofMass, CheckedTemporalMediationTargetInfo,
+    CheckedUnknownTieredAverageInfo, PreparedIdentificationView, PreparedStudy,
+    TemporalMediationProofMassBasis,
 };
 pub use prepared::{
     CheckedBayesianTemporalClassEffectInfo, CheckedTemporalGraphPosteriorEffectInfo,
+};
+pub use prepared::{
+    CheckedDerivativeResponseInfo, CheckedPropensityInfo, CheckedStaticDagResponseInfo,
+    RetainedOperation,
 };
 pub use prepared::{CheckedTemporalClassResponseInfo, CheckedTemporalGraphPosteriorResponseInfo};
 pub use stage::{StageEvent, StageResultSink};
@@ -418,13 +616,14 @@ pub(crate) use checked_temporal_response::{
     CheckedTemporalResponseOperation, TemporalResponseHorizonEvidence, temporal_response_is_direct,
 };
 pub use execute::{CheckedBayesianSpecialistInfo, CheckedTransportTrialInfo};
-pub(crate) use execute::{parametric_scm_identification, response_witness_ate};
+pub(crate) use execute::{
+    parametric_scm_identification, parametric_scm_identification_over, response_witness_ate,
+};
 
 pub mod proposal_arrival;
 pub mod recalc_attempt;
 pub mod recalc_bayesian;
 pub mod recalc_external;
-#[cfg(feature = "calibration-internal")]
 pub mod recalc_joint_bayesian;
 /// Shared finite static response and multi-source transport recalculation.
 pub mod recalc_static;
@@ -436,6 +635,59 @@ pub mod sensitivity_source;
 /// Independently retained original source diagnostics and contributor mappings.
 pub mod source_evidence;
 pub mod source_projection;
+mod temporal_admg_contrast;
+mod temporal_iv_identification;
+mod white_innovation_window;
 
 #[doc(hidden)]
 pub use temporal_extensions::validate_temporal_dependent_interval;
+
+/// Retained nonlinear equilibrium programs and independent artifact replay.
+pub use antecedent_io::cyclic_system_artifact::{
+    CyclicExecutionReport, CyclicExecutionRequest, CyclicFitRequest, consume_cyclic_artifact,
+};
+
+/// Typed continuous-time and equation-system execution with independent replay.
+pub use antecedent_io::cyclic_family_artifact::{
+    CyclicFamilyAnswer, CyclicFamilyReport, CyclicFamilyRequest, CyclicInterventionWorld,
+    CyclicWorldAnswer, CyclicWorldWire, RecoveredDrawOriginWire, consume_cyclic_family,
+};
+
+pub mod bridge_transport_decision;
+pub mod bridge_transport_premise_assessment;
+/// Cyclic specialization of the common retained prepared-analysis handle.
+pub mod cyclic;
+pub mod cyclic_action_world_decision;
+pub mod cyclic_component_composition;
+pub mod cyclic_evidence;
+pub mod cyclic_posterior_action_decision;
+pub mod cyclic_target_feedback_decision;
+pub mod sampling_assumption_union;
+pub mod sequential_policy_reliability;
+pub mod temporal_path_transport;
+pub use cyclic_component_composition::{
+    ComponentFeedbackError, ComponentFeedbackRequest, ComponentFeedbackWorld, FeedbackConnection,
+    PreparedComponentFeedback, ScalarFeedbackComponent, VectorFeedbackComponent,
+    VectorFeedbackConnection, VectorFeedbackOutput, VectorFeedbackRequest,
+    prepare_component_feedback, prepare_component_feedback_with_ledger,
+    prepare_vector_component_feedback, prepare_vector_component_feedback_with_ledger,
+};
+
+/// Checked nonlinear two-channel panel compiler and retained programs.
+pub mod joint_panel;
+
+pub use prepared::{JointResponseResult, PreparedJointResponse};
+
+mod data_diagnostics;
+pub use data_diagnostics::{
+    DataDiagnosticCheck, DataDiagnosticColumn, DataDiagnosticContext, DataDiagnosticFinding,
+    DataDiagnostics, DataDiagnosticsError, DataDiagnosticsReport, diagnose_data,
+};
+
+pub mod checked_claim_composition;
+
+pub mod robust_decision;
+
+#[cfg(test)]
+#[path = "propagation_chain_decision_tests.rs"]
+mod propagation_chain_decision_tests;

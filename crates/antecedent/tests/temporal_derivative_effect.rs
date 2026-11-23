@@ -1,5 +1,5 @@
-//! Local linear slopes of a temporal response, one horizon, no interval.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+//! Local linear slopes of a temporal response, one horizon, with their whole-procedure band.
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -94,6 +94,10 @@ fn functionals() -> Vec<(&'static str, ResponseFunctional)> {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn temporal_dag_derivatives_publish_the_linear_slope() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/estimate/temporal_derivative/expected.json"
@@ -102,8 +106,46 @@ fn temporal_dag_derivatives_publish_the_linear_slope() {
     let data = series();
     let graph = graph();
     let ctx = ExecutionContext::for_tests(11);
-    let tolerance = pin["tolerance"].as_f64().unwrap();
+    // The structural values from the generating coefficients (Y = 3 + 2 X + 0.5 B, V = 1 + X - B,
+    // B alternating so E[B] = 1/2), derived here and required to equal the retained pin: the mean
+    // response is 3.25 + 2x = 7.25 at x = 2, so the slope is 2, the log-treatment slope 2 * 2,
+    // the log-outcome slope 2 / 7.25, the elasticity 4 / 7.25, and the Jacobian is the
+    // coefficient matrix [[2, 0.5], [1, -1]] with directional derivative [[2, .5], [1, -1]] (1, 2).
+    let level = 3.0 + 0.5 * 0.5 + 2.0 * 2.0;
+    let structural: [(&str, Vec<f64>); 7] = [
+        ("point", vec![2.0]),
+        ("elasticity", vec![2.0 * 2.0 / level]),
+        ("semi_treatment", vec![2.0 * 2.0]),
+        ("semi_outcome", vec![2.0 / level]),
+        ("average", vec![2.0]),
+        ("jacobian", vec![2.0, 0.5, 1.0, -1.0]),
+        ("directional", vec![2.0 + 0.5 * 2.0, 1.0 - 2.0]),
+    ];
+    for (key, values) in &structural {
+        let pinned: Vec<f64> = pin[*key].as_f64().map_or_else(
+            || pin[*key].as_array().unwrap().iter().map(|x| x.as_f64().unwrap()).collect(),
+            |x| vec![x],
+        );
+        for (derived, pinned) in values.iter().zip(&pinned) {
+            assert!((derived - pinned).abs() < 1e-12, "{key}: {derived} vs pin {pinned}");
+        }
+    }
+    // Per-key tolerances at about three times the deviation observed over both inference modes
+    // and both graph inputs. The kernel-weighted local slope of the single treatment reads
+    // 2.0033 (a 0.0033 local-confounding term of the alternating covariate; the elasticity and
+    // log-scale readings inherit it), while the multivariate Jacobian and directional
+    // derivatives are exact least-squares coefficients of this noiseless linear series
+    // (deviation 1e-14).
+    let tolerance_of = |key: &str| match key {
+        "point" | "average" => 0.01,
+        "semi_treatment" => 0.02,
+        "elasticity" => 0.003,
+        "semi_outcome" => 0.0015,
+        "jacobian" | "directional" => 1e-9,
+        other => panic!("no tolerance for {other}"),
+    };
     for (key, functional) in functionals() {
+        let tolerance = tolerance_of(key);
         for accepted in [false, true] {
             for bayesian in [false, true] {
                 let builder = Study::series(data.clone())
@@ -124,7 +166,7 @@ fn temporal_dag_derivatives_publish_the_linear_slope() {
                 let study = builder.clone().build().unwrap();
                 assert_eq!(
                     study.support_status(),
-                    Some(antecedent::support::CellStatus::Licensed),
+                    Some(antecedent::support::CellStatus::Supported),
                     "{key} accepted={accepted} bayesian={bayesian}"
                 );
                 let prepared = study.prepare(&ctx).unwrap();
@@ -159,8 +201,27 @@ fn temporal_dag_derivatives_publish_the_linear_slope() {
                         .any(|d| { d.code.as_ref() == "estimate.temporal.linear_derivative" })
                 );
                 assert!(result.posterior.is_none());
-                if let Some(binding) = &result.interval {
-                    assert_eq!(binding.method, antecedent_core::IntervalMethod::None);
+                // Bayesian: the credible band of the joint slope-posterior draws.
+                // Frequentist: the shared circular-block band, withheld when this
+                // exact-fit fixture leaves the replicates without spread.
+                let method = result.interval().as_ref().map(|binding| binding.method);
+                if bayesian {
+                    assert_eq!(
+                        method,
+                        Some(antecedent_core::IntervalMethod::PosteriorQuantile),
+                        "{key}"
+                    );
+                } else {
+                    assert!(
+                        matches!(
+                            method,
+                            Some(
+                                antecedent_core::IntervalMethod::CircularBlockSe
+                                    | antecedent_core::IntervalMethod::None
+                            )
+                        ),
+                        "{key} {method:?}"
+                    );
                 }
                 let plan = &result.logical_plan;
                 let estimator =
@@ -264,4 +325,109 @@ fn derivative_support_reports_a_point_outside_the_observed_series() {
         run(directional([3.0, 0.5])).response().unwrap().support.status,
         SupportStatus::Supported
     );
+}
+
+#[test]
+fn derivative_artifacts_are_consumed_under_the_estimator_the_plan_chose() {
+    let data = series();
+    let graph = graph();
+    let ctx = ExecutionContext::for_tests(11);
+    let (key, functional) = functionals().into_iter().next().unwrap();
+    for bayesian in [false, true] {
+        let builder = Study::series(data.clone())
+            .query(CausalQuery::Response(attach(functional.clone())))
+            .graph(graph.clone())
+            .refute(RefuteSuite::None);
+        let builder = if bayesian {
+            builder.inference(InferenceMode::Bayesian(
+                BayesianConfig::conjugate().prior_scale(1_000.0).n_draws(8),
+            ))
+        } else {
+            builder
+        };
+        let prepared = builder.build().unwrap().prepare(&ctx).unwrap();
+        let result = prepared.estimate_retained(&ctx).unwrap();
+        let bytes = prepared
+            .encode_contracted_result(&result, "temporal-derivative", &ctx)
+            .unwrap_or_else(|error| panic!("{key} bayesian={bayesian}: {error}"));
+        let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
+        let contract = consumed.contract.as_ref().expect("a contracted derivative artifact");
+        assert_eq!(
+            contract.estimator.as_deref(),
+            prepared.plan().logical.record.estimator.as_deref(),
+            "{key} bayesian={bayesian}"
+        );
+        assert!(contract.estimator.is_some(), "{key} bayesian={bayesian}");
+    }
+}
+
+/// The scaled derivatives are functions of the back-door fit `y[t] ~ 1 + x[t-1]` (the graph has
+/// no edge between `x` and `b`, so `b` needs no adjustment) and the fitted mean response at the
+/// evaluation point `x = 2`. Here that fit is recomputed by hand from the normal equations
+/// (slope `Sxy / Sxx`, intercept `ybar - slope * xbar`) and the four scalar scales are
+/// `s`, `s * 2 / m`, `2 * s` and `s / m` with `m = a + 2 s`. The fixture-wide 0.05 band cannot
+/// tell the marginal mean response from the response at `b = 0` (7) or `b = 1` (7.5), which move
+/// the log scales by about 0.01 to 0.02; the 1e-6 band here does.
+#[test]
+fn temporal_derivative_log_scales_use_the_fitted_mean_response_claims_06() {
+    let data = series();
+    let n = 80;
+    let xs: Vec<f64> = (0..n - 1).map(|t| 1.0 + ((t as f64) * 0.37).sin()).collect();
+    let ys: Vec<f64> =
+        (0..n - 1).map(|t| 3.0 + 2.0 * xs[t] + 0.5 * if t % 2 == 0 { 0.0 } else { 1.0 }).collect();
+    let count = xs.len() as f64;
+    let (xbar, ybar) = (xs.iter().sum::<f64>() / count, ys.iter().sum::<f64>() / count);
+    let sxy: f64 = xs.iter().zip(&ys).map(|(x, y)| (x - xbar) * (y - ybar)).sum();
+    let sxx: f64 = xs.iter().map(|x| (x - xbar).powi(2)).sum();
+    let slope = sxy / sxx;
+    let mean_response = ybar - slope * xbar + 2.0 * slope;
+    // The vector functionals are exact in this noise-free design: y and v are linear in
+    // (x[t-1], b[t-1]) and both are parents, so the Jacobian is [[2, 0.5], [1, -1]] and the
+    // derivative along (1, 2) is (2 + 1, 1 - 2) = (3, -1); the average derivative is the slope.
+    let expected = [
+        ("point", vec![slope]),
+        ("elasticity", vec![2.0 * slope / mean_response]),
+        ("semi_treatment", vec![2.0 * slope]),
+        ("semi_outcome", vec![slope / mean_response]),
+        ("average", vec![slope]),
+        ("jacobian", vec![2.0, 0.5, 1.0, -1.0]),
+        ("directional", vec![3.0, -1.0]),
+    ];
+    let graph = graph();
+    let ctx = ExecutionContext::for_tests(11);
+    for (key, functional) in functionals() {
+        let Some((_, want)) = expected.iter().find(|(name, _)| *name == key) else {
+            continue;
+        };
+        for bayesian in [false, true] {
+            let builder = Study::series(data.clone())
+                .query(CausalQuery::Response(attach(functional.clone())))
+                .graph(graph.clone())
+                .refute(RefuteSuite::None);
+            let builder = if bayesian {
+                builder.inference(InferenceMode::Bayesian(
+                    BayesianConfig::conjugate().prior_scale(1_000.0).n_draws(8),
+                ))
+            } else {
+                builder
+            };
+            let result =
+                builder.build().unwrap().prepare(&ctx).unwrap().estimate_retained(&ctx).unwrap();
+            let response = result.response().unwrap();
+            let ResponseIdentification::PointIdentified(value) = &response.estimate else {
+                panic!("{key} bayesian={bayesian}: point-identified slope expected");
+            };
+            let got: Vec<f64> = match value {
+                ResponseValue::Scalar(x) => vec![*x],
+                ResponseValue::Jacobian { values, .. } => values.to_vec(),
+                ResponseValue::Vector(x) => x.to_vec(),
+                other => panic!("{key} bayesian={bayesian}: unexpected {other:?}"),
+            };
+            assert_eq!(got.len(), want.len(), "{key} bayesian={bayesian}");
+            let band = if bayesian { 5e-3 } else { 1e-6 };
+            for (got, want) in got.iter().zip(want) {
+                assert!((got - want).abs() < band, "{key} bayesian={bayesian}: {got} vs {want}");
+            }
+        }
+    }
 }

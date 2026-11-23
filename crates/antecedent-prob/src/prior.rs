@@ -3,12 +3,13 @@
 //! Priors are recorded as assumptions; they do not create nonparametric
 //! identification.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
 use antecedent_core::{PriorAssumption, VariableId};
 
+use crate::conjugate_moment_match::{BetaHyperparameters, GammaHyperparameters};
 use crate::error::ProbError;
 
 /// Floor applied when converting effect-draw SD into a prior scale.
@@ -348,6 +349,15 @@ pub enum PriorSpec {
     /// `V0 = D^{1/2} R D^{1/2}` with `D = diag(variance)` and `R` this matrix.
     /// Absent, `V0` is diagonal.
     CoefficientCorrelation(CoefficientCorrelation),
+    /// `Beta(α, β)` prior on a proportion, such as the probability that an outcome
+    /// in a cell exceeds a threshold. Consumed by the Beta-Binomial backend
+    /// ([`crate::conjugate_counts::BetaBinomialPosterior`]); a Gaussian regression
+    /// fit refuses a set that carries it.
+    Beta(BetaHyperparameters),
+    /// `Gamma(shape, rate)` prior on a Poisson rate. Consumed by the Gamma-Poisson
+    /// backend ([`crate::conjugate_counts::GammaPoissonPosterior`]); a Gaussian
+    /// regression fit refuses a set that carries it.
+    Gamma(GammaHyperparameters),
 }
 
 /// Symmetric positive-definite correlation matrix (row-major `p × p`, unit
@@ -691,6 +701,14 @@ impl PriorSpec {
                     "Dense coefficient prior scale V0 (off-diagonal prior covariance)",
                 ),
             },
+            Self::Beta(_) => PriorAssumption {
+                id: Arc::from("beta_proportion"),
+                description: Arc::from("Beta prior on a proportion (Beta-Binomial conjugate)"),
+            },
+            Self::Gamma(_) => PriorAssumption {
+                id: Arc::from("gamma_rate"),
+                description: Arc::from("Gamma prior on a Poisson rate (Gamma-Poisson conjugate)"),
+            },
         }
     }
 
@@ -710,6 +728,8 @@ impl PriorSpec {
             Self::CoefficientCorrelation(c) => {
                 CoefficientCorrelation::new(c.dim, c.matrix.clone()).map(|_| ())
             }
+            Self::Beta(p) => p.validate(),
+            Self::Gamma(p) => p.validate(),
             Self::KnownResidualVariance(v) => {
                 if !(*v > 0.0) || !v.is_finite() {
                     return Err(ProbError::InvalidPrior {
@@ -778,6 +798,11 @@ impl GaussianVarianceModel {
                     inv_gamma = Some(*p);
                 }
                 PriorSpec::GaussianCoefficients(_) | PriorSpec::CoefficientCorrelation(_) => {}
+                PriorSpec::Beta(_) | PriorSpec::Gamma(_) => {
+                    return Err(ProbError::InvalidPrior {
+                        message: "a Beta or Gamma prior belongs to the conjugate count backends, not a Gaussian regression",
+                    });
+                }
             }
         }
         if let Some(sigma2) = known {
@@ -877,6 +902,8 @@ impl PriorSet {
         let mut n_coef = 0usize;
         let mut n_residual = 0usize;
         let mut n_corr = 0usize;
+        let mut n_beta = 0usize;
+        let mut n_gamma = 0usize;
         for s in &self.specs {
             match s {
                 PriorSpec::GaussianCoefficients(_) => {
@@ -888,7 +915,18 @@ impl PriorSet {
                 PriorSpec::CoefficientCorrelation(_) => {
                     n_corr = n_corr.saturating_add(1);
                 }
+                PriorSpec::Beta(_) => {
+                    n_beta = n_beta.saturating_add(1);
+                }
+                PriorSpec::Gamma(_) => {
+                    n_gamma = n_gamma.saturating_add(1);
+                }
             }
+        }
+        if n_beta > 1 || n_gamma > 1 {
+            return Err(ProbError::InvalidPrior {
+                message: "PriorSet must contain at most one Beta prior and at most one Gamma prior",
+            });
         }
         if n_coef > 1 {
             return Err(ProbError::InvalidPrior {
@@ -939,6 +977,41 @@ impl PriorSet {
             PriorSpec::ResidualInvGamma(p) => Some(*p),
             _ => None,
         })
+    }
+
+    /// Beta proportion prior, if any.
+    #[must_use]
+    pub fn beta_prior(&self) -> Option<BetaHyperparameters> {
+        self.specs.iter().find_map(|s| match s {
+            PriorSpec::Beta(p) => Some(*p),
+            _ => None,
+        })
+    }
+
+    /// Gamma rate prior, if any.
+    #[must_use]
+    pub fn gamma_prior(&self) -> Option<GammaHyperparameters> {
+        self.specs.iter().find_map(|s| match s {
+            PriorSpec::Gamma(p) => Some(*p),
+            _ => None,
+        })
+    }
+
+    /// Refuse a set that carries a Beta or Gamma prior.
+    ///
+    /// Gaussian regression backends call this so a count-model prior is never
+    /// silently ignored by a fit that cannot consume it.
+    ///
+    /// # Errors
+    ///
+    /// The set holds a [`PriorSpec::Beta`] or [`PriorSpec::Gamma`].
+    pub fn reject_count_priors(&self) -> Result<(), ProbError> {
+        if self.specs.iter().any(|s| matches!(s, PriorSpec::Beta(_) | PriorSpec::Gamma(_))) {
+            return Err(ProbError::InvalidPrior {
+                message: "a Beta or Gamma prior belongs to the conjugate count backends, not a Gaussian regression",
+            });
+        }
+        Ok(())
     }
 
     /// Known residual variance, if any.

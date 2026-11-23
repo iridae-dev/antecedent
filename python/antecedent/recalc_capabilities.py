@@ -1,6 +1,6 @@
 """Operation-level inventory of prepared and attested callback recalculation families.
 
-This contract selects an existing adapter, not an execution license. The adapter
+This contract selects an existing adapter, not an execution support. The adapter
 must still check the request's complete identities, support and inference status.
 Planner capability flags and readable artifacts never supply executable state.
 """
@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from enum import StrEnum
 from functools import cache
+
+from antecedent import _reason_details
 
 from . import _native
 from .errors import CausalValueError
@@ -96,8 +98,8 @@ class Capability:
     adapters: tuple[Adapter, ...]
     compatible_operation: str
     refusal_code: str = "route_not_supported"
-    refusal_detail: str = "recalc.capability_adapter_unavailable"
-    inference: str = "Preserve the producing claim; reuse never licenses uncertainty."
+    refusal_detail: str = _reason_details.recalc.CAPABILITY_ADAPTER_UNAVAILABLE
+    inference: str = "Preserve the producing claim; reuse never supports uncertainty."
 
 
 _BASE = (
@@ -183,7 +185,7 @@ _EXTERNAL = tuple(
 _STANDING = (
     IdentityRequirement(
         Stage.CALIBRATION,
-        ("calibration record identity", "coordinate it holds at", "unmeasured/point-only state"),
+        ("calibration record identity", "coordinate it holds at", "not_measured/point-only state"),
     ),
     IdentityRequirement(
         Stage.REPRESENTATION, ("model family", "representation version", "measurement model")
@@ -300,7 +302,7 @@ _LIVE = Adapter(
     "antecedent.recalc_cell.CellSession.execute",
     "antecedent::analysis::recalc_cell::execute_cell_with_receipt",
     "checked selective execution",
-    "Cell-AIPW at its licensed binary-treatment quantity; cross-fit AIPW uses RecalcSession.execute. Full supplied data, checked graph and native identities are required.",
+    "Cell-AIPW at its supported binary-treatment quantity; cross-fit AIPW uses RecalcSession.execute. Full supplied data, checked graph and native identities are required.",
 )
 _CROSSFIT = replace(
     _LIVE,
@@ -341,7 +343,7 @@ _SCORES = Adapter(
     "antecedent.recalc_cell.ScoreResumeSession.retarget",
     "antecedent::analysis::recalc_cell::execute_resumed_retarget",
     "same-row reweight/resummarize",
-    "Loaded frozen AIPW/cell scores, unchanged snapshot/row IDs/folds/query/action grid; weights depend only on licensed adjustment variables; utility may change. No new-row prediction or refit.",
+    "Loaded frozen AIPW/cell scores, unchanged snapshot/row IDs/folds/query/action grid; weights depend only on supported adjustment variables; utility may change. No new-row prediction or refit.",
 )
 _PREDICT = Adapter(
     RetainedKind.PREDICTOR,
@@ -375,7 +377,7 @@ _ADJUSTED = Adapter(
     "antecedent.recalc_adjusted.AdjustedSession.execute",
     "antecedent::analysis::recalc_adjusted::execute_adjusted_with_receipt",
     "checked selective adjusted execution",
-    "Linear/GLM and vector/categorical mean contrasts over a checked common adjustment set. Compatible contrasts, same-row target weights and utility reuse the joint fit; raw snapshot/model/roles/coding changes refit. Full coefficient covariance retained; conditional analytic uncertainty has unmeasured calibration. Receipts and flags provide no portable fit.",
+    "Linear/GLM and vector/categorical mean contrasts over a checked common adjustment set. Compatible contrasts, same-row target weights and utility reuse the joint fit; raw snapshot/model/roles/coding changes refit. Full coefficient covariance retained; conditional analytic uncertainty has not_measured calibration. Receipts and flags provide no portable fit.",
 )
 _ADJUSTED_PREDICT = replace(
     _ADJUSTED,
@@ -399,7 +401,7 @@ _STATIC_RESPONSE = Adapter(
     "antecedent.recalc_static.StaticResponseSession.execute",
     "antecedent::analysis::recalc_static::execute_static_response_with_receipt",
     "checked finite ADMG mean response",
-    "General-ID ADMG with bidirected edges, at least two increasing finite support points, and selected mean contrasts; raw graph/data/query changes recheck native dependencies. No derivatives, arbitrary target weights or inference license.",
+    "General-ID ADMG with bidirected edges, at least two increasing finite support points, and selected mean contrasts; raw graph/data/query changes recheck native dependencies. No derivatives, arbitrary target weights or inference support.",
 )
 _MZ = replace(
     _STATIC_RESPONSE,
@@ -429,7 +431,7 @@ _DESIGN = Adapter(
     "antecedent.recalc_design.DesignSession.execute",
     "antecedent::analysis::recalc_design::execute_design_with_receipt",
     "checked design selective execution",
-    "Binary-instrument IV 2SLS, configured sharp local-linear RD, or linear front-door path product, with actual fitted native proof/state. Unsupported IV decision bounds refuse with attempted point and actual diagnostics; no new interval license.",
+    "Binary-instrument IV 2SLS, configured sharp local-linear RD, or linear front-door path product, with actual fitted native proof/state. Unsupported IV decision bounds refuse with attempted point and actual diagnostics; no new interval support.",
 )
 _DESIGN_RESUME = replace(
     _DESIGN,
@@ -455,7 +457,7 @@ _BAYESIAN = Adapter(
     "antecedent.recalc_bayesian.BayesianSession.execute",
     "antecedent::analysis::recalc_bayesian::execute_bayesian_with_receipt",
     "native-issued ordinary posterior projection",
-    "Checked conjugate Gaussian identity effect model, linear or quadratic basis. Summary/utility reuse actual aligned native rows; model/data/prior/RNG/draw-budget changes refit. Posterior quantiles are model projections with unmeasured calibration. Caller draws and joint transport publication are unsupported.",
+    "Checked conjugate Gaussian identity effect model, linear or quadratic basis. Summary/utility reuse actual aligned native rows; model/data/prior/RNG/draw-budget changes refit. Posterior quantiles are model projections with not_measured calibration. Caller draws and joint transport publication are unsupported.",
 )
 _BAYESIAN_RESUME = replace(
     _BAYESIAN,
@@ -491,7 +493,7 @@ _CALLBACK = Adapter(
     "antecedent.recalc_external.ExternalCallbackSession.execute",
     "antecedent::analysis::recalc_external::ExternalCallbackSession::execute",
     "bounded attested foreign mean callback",
-    "Actual callable under exact program/request/payload/provider/environment/seed dependencies. Deterministic or seeded policies may reuse; stateful calls run anew. Side-effect failures require supported idempotency for automatic retry. Outputs stay externally attested with no native causal authority or uncertainty license.",
+    "Actual callable under exact program/request/payload/provider/environment/seed dependencies. Deterministic or seeded policies may reuse; stateful calls run anew. Side-effect failures require supported idempotency for automatic retry. Outputs stay externally attested with no native causal authority or uncertainty support.",
 )
 
 
@@ -520,13 +522,13 @@ def capability_matrix() -> tuple[Capability, ...]:
                     adapters = (_ADJUSTED, _ADJUSTED_PREDICT)
                 compatible = {
                     Operation.UTILITY: "Reuse the checked fit and law; recompute only the changed net-benefit rule.",
-                    Operation.FUNCTIONAL: "Evaluate supported numeric or declared-level mean contrasts from retained joint coefficients and covariance. Other functionals have no execution license.",
+                    Operation.FUNCTIONAL: "Evaluate supported numeric or declared-level mean contrasts from retained joint coefficients and covariance. Other functionals have no execution support.",
                     Operation.TARGET: "Same-row finite nonnegative weights depending only on checked adjustment variables standardize the retained response model; changed row law/data refit.",
                     Operation.ACTION_GRID: "Supported finite numeric actions and declared categorical contrasts reuse the model; changed categorical level/reference/coding declarations refit and recheck support.",
                     Operation.DATA: "New rows or outcomes in a supplied snapshot invalidate the fit; scoped retained-model prediction separately validates feature schema and treatment support without fitting.",
                     Operation.STRUCTURE: "Changed causal roles, graph or adjustment set rerun checked identification and affected fits; incompatible adjustment refuses.",
                     Operation.LEARNER: "Declared OLS covariance or GLM family/fit-option and RNG changes invalidate the model. Arbitrary learners/bases are unsupported.",
-                    Operation.INFERENCE: "Declared model covariance changes invalidate the joint fit. No calibrated intervals or additional resampling/inference settings are licensed.",
+                    Operation.INFERENCE: "Declared model covariance changes invalidate the joint fit. No calibrated intervals or additional resampling/inference settings are supported.",
                     Operation.RESUME: "No adjusted fitted-state artifact loader: supplied compatible raw data refit at the fresh-process boundary; receipt-only/flag-only resume refuses.",
                 }[operation]
             if family == Family.EXTERNAL and operation in (
@@ -552,7 +554,7 @@ def capability_matrix() -> tuple[Capability, ...]:
                     compatible = "Reuse checked finite mean response values and compatible compiled factor programs; changed raw graph/query/support/catalog/laws recheck affected native work. Unsupported functionals and off-support actions refuse."
                 elif operation in (Operation.TARGET, Operation.PROVIDER):
                     adapters = (_MZ,)
-                    compatible = "Only compatible finite catalog-bound laws and actual cited source regimes; changed population/proof/provider coordinates recheck preparation. Caller callbacks and row weights supply no execution license."
+                    compatible = "Only compatible finite catalog-bound laws and actual cited source regimes; changed population/proof/provider coordinates recheck preparation. Caller callbacks and row weights supply no execution support."
                 elif operation == Operation.RESUME:
                     adapters = (_STATIC_RESUME, _MZ_RESUME)
                     compatible = "Fresh supplied raw inputs require preparation; independent artifact consumers replay result proof/points without supplying executable session state."
@@ -604,7 +606,7 @@ def capability_matrix() -> tuple[Capability, ...]:
             if family == Family.DOUBLY_ROBUST:
                 if operation in (Operation.UTILITY, Operation.TARGET):
                     adapters = (*_LIVE_ADAPTERS, _SCORES)
-                    compatible = "Reuse same-row licensed scores; recheck target weights/support and recompute law/decision as required. A new target law is unsupported."
+                    compatible = "Reuse same-row supported scores; recheck target weights/support and recompute law/decision as required. A new target law is unsupported."
                 elif operation == Operation.DATA:
                     adapters = (*_LIVE_ADAPTERS, _DR_PREDICT, _PREDICT)
                     compatible = "Supplied new rows/outcomes require native refitting; a portable predictor only predicts on new feature rows."

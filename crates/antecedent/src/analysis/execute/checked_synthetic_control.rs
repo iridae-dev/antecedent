@@ -16,18 +16,61 @@ use antecedent_estimate::synthetic_control::exact_synthetic_unit_randomization_t
 use antecedent_estimate::synthetic_control::fit_augmented_synthetic_control;
 use antecedent_estimate::synthetic_control::fit_synthetic_control;
 use antecedent_estimate::synthetic_control::fit_synthetic_did;
+use antecedent_estimate::synthetic_control::restrict_to_observed_window;
 use antecedent_estimate::synthetic_control::{
     AugmentedSyntheticControlFit, SyntheticConstantEffectMethod, SyntheticControlFit,
     SyntheticUnitRandomizationTest, exact_synthetic_constant_effect_test,
 };
 
+mod bayesian;
+mod rollout;
+
+use super::BayesianConfig;
+pub(super) use bayesian::bayesian_synthetic_panel_plan_ids;
+
+/// The extra setting is the study's Bayesian configuration: with one, the retained operation
+/// reports a posterior instead of the frequentist point result.
 pub(crate) type CheckedSyntheticControlOperation =
-    RandomizedTrialOperation<antecedent_core::SyntheticControlQuery, ()>;
+    RandomizedTrialOperation<antecedent_core::SyntheticControlQuery, Option<BayesianConfig>>;
 
 impl RandomizedTrialQuery for antecedent_core::SyntheticControlQuery {
     const OPERATION: &'static str = "CheckedSyntheticControlOperation";
     const REFRESH_MISMATCH: &'static str =
         "synthetic-control refresh requires the prepared schema and row order";
+}
+
+/// Plan id, identifier and estimator a compiled synthetic panel query records: the rollout
+/// estimators of a query with intervals, otherwise those of its panel method.
+pub(super) fn synthetic_query_plan_ids(
+    query: &antecedent_core::SyntheticControlQuery,
+) -> (&'static str, &'static str, &'static str) {
+    use antecedent_core::SyntheticInterval;
+    let identifier = synthetic_query_identifier(query).as_str();
+    match (query.rollout.as_ref().map(|rollout| rollout.interval), query.method) {
+        (Some(SyntheticInterval::Conformal), _) => {
+            ("quasi.synthetic_control", identifier, "quasi.synthetic_control_conformal")
+        }
+        (Some(SyntheticInterval::PlaceboVariance), SyntheticPanelMethod::Control) => {
+            ("quasi.synthetic_control", identifier, "quasi.multi_unit_synthetic_control_placebo")
+        }
+        (
+            Some(SyntheticInterval::PlaceboVariance),
+            SyntheticPanelMethod::DifferenceInDifferences,
+        ) => ("quasi.synthetic_did", identifier, "quasi.multi_unit_synthetic_did_placebo"),
+        (None, method) => synthetic_panel_plan_ids(method),
+    }
+}
+
+/// The identification premise a compiled synthetic panel query rests on: the conformal
+/// interval always refits simplex donor weights, every other route follows the panel method.
+fn synthetic_query_identifier(query: &antecedent_core::SyntheticControlQuery) -> IdentifierId {
+    use antecedent_core::SyntheticInterval;
+    match query.rollout.as_ref().map(|rollout| rollout.interval) {
+        Some(SyntheticInterval::Conformal) => IdentifierId::ConvexDonorCounterfactual,
+        Some(SyntheticInterval::PlaceboVariance) | None => {
+            IdentifierId::for_synthetic_panel(query.method)
+        }
+    }
 }
 
 /// Plan id, identifier and estimator a compiled synthetic panel plan records.
@@ -37,12 +80,14 @@ pub(super) fn synthetic_panel_plan_ids(
     match method {
         antecedent_core::SyntheticPanelMethod::Control => (
             "quasi.synthetic_control",
-            "quasi.convex_donor_counterfactual",
+            IdentifierId::for_synthetic_panel(method).as_str(),
             "quasi.synthetic_control_simplex",
         ),
-        antecedent_core::SyntheticPanelMethod::DifferenceInDifferences => {
-            ("quasi.synthetic_did", "quasi.convex_unit_time_trends", "quasi.synthetic_did_simplex")
-        }
+        antecedent_core::SyntheticPanelMethod::DifferenceInDifferences => (
+            "quasi.synthetic_did",
+            IdentifierId::for_synthetic_panel(method).as_str(),
+            "quasi.synthetic_did_simplex",
+        ),
     }
 }
 
@@ -58,22 +103,40 @@ impl CheckedSyntheticControlOperation {
             });
         };
         query.validate()?;
+        if query.observed_window_support {
+            refuse_observed_window_options(query, &study.settings.inference)?;
+        }
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
-            || !matches!(study.inference, InferenceMode::Frequentist)
-            || study.refute != RefuteSuite::None
-            || study.bootstrap_replicates != 0
-            || !study.custom_validators.is_empty()
+            || study.settings.refute != RefuteSuite::None
+            || study.settings.bootstrap_replicates != 0
+            || !study.declared.custom_validators.is_empty()
             || study.graph_posterior.is_some()
-            || study.tiered.is_some()
+            || study.declared.tiered.is_some()
             || query.units.len() != data.row_count()
         {
             return Err(CausalError::Unsupported {
-                message: "synthetic control requires a graphless balanced panel, one treated unit, and point-only frequentist execution",
+                message: "synthetic control requires a graphless balanced panel, one treated unit, and point-only frequentist execution or the Bayesian posterior",
             });
         }
+        let bayesian = match &study.settings.inference {
+            InferenceMode::Frequentist => None,
+            InferenceMode::Bayesian(config) => {
+                super::bayesian_quasi_common::require_built_in_model(
+                    config,
+                    "the Bayesian synthetic control",
+                )?;
+                bayesian::refuse_unread_options(query)?;
+                Some(config.clone())
+            }
+        };
+        rollout::refuse_sampling_design(query, study.declared.sampling_design)?;
         data.schema().get(query.outcome).map_err(CausalError::rejected)?;
-        let (plan_id, identifier, estimator) = synthetic_panel_plan_ids(query.method);
+        let (plan_id, identifier, estimator) = if bayesian.is_some() {
+            bayesian_synthetic_panel_plan_ids()
+        } else {
+            synthetic_query_plan_ids(query)
+        };
         if physical.logical.query != study.query
             || physical.logical.record.plan_id.as_ref() != plan_id
             || !physical.binding().names_wire(identifier, estimator)
@@ -82,10 +145,17 @@ impl CheckedSyntheticControlOperation {
                 message: "synthetic panel design differs from its compiled plan".into(),
             });
         }
-        let (identification, estimand) = synthetic_control_identification(query);
-        Ok(Self::freeze(study, query, data, physical, identification, estimand, ()))
+        let (identification, estimand) =
+            study.design_identification_or(physical, || synthetic_control_identification(query));
+        Ok(Self::freeze(study, query, data, physical, identification, estimand, bayesian))
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        clippy::type_complexity,
+        reason = "the operation keeps its checked inputs and execution context together"
+    )]
     pub(crate) fn execute(
         &self,
         data: &TabularData,
@@ -101,17 +171,46 @@ impl CheckedSyntheticControlOperation {
             }
         };
         let units: Vec<String> = self.query.units.iter().map(ToString::to_string).collect();
+        if self.extra.is_some() && self.query.rollout.is_some() {
+            return self.execute_bayesian_rollout(data, y, ctx);
+        }
+        if self.extra.is_some() {
+            return self.execute_bayesian(data, y, &units, ctx);
+        }
+        if self.query.rollout.is_some() {
+            return self.execute_rollout(data, y, ctx);
+        }
         if self.query.method == SyntheticPanelMethod::DifferenceInDifferences {
             return self.execute_did(data, ctx, y, &units);
         }
+        // An unbalanced panel is read over the treated unit's observed window: the donor pool
+        // is the units observed in every window period, and no observation is invented.
+        let window = if self.query.observed_window_support {
+            Some(
+                restrict_to_observed_window(
+                    y,
+                    &units,
+                    &self.query.periods,
+                    &self.query.treated_unit,
+                    self.query.intervention_period,
+                )
+                .map_err(|message| crate::compile_reason!("positivity_violated", "{}", message))?,
+            )
+        } else {
+            None
+        };
+        let (fit_y, fit_units, fit_periods) = match &window {
+            Some((ry, ru, rp, _)) => (ry.as_slice(), ru.as_slice(), rp.as_slice()),
+            None => (y, units.as_slice(), &self.query.periods[..]),
+        };
         let augmentation = self
             .query
             .augmentation_ridge
             .map(|ridge| {
                 fit_augmented_synthetic_control(
-                    y,
-                    &units,
-                    &self.query.periods,
+                    fit_y,
+                    fit_units,
+                    fit_periods,
                     &self.query.treated_unit,
                     self.query.intervention_period,
                     ridge,
@@ -123,9 +222,9 @@ impl CheckedSyntheticControlOperation {
             augmented.control.clone()
         } else {
             fit_synthetic_control(
-                y,
-                &units,
-                &self.query.periods,
+                fit_y,
+                fit_units,
+                fit_periods,
                 &self.query.treated_unit,
                 self.query.intervention_period,
             )
@@ -144,7 +243,7 @@ impl CheckedSyntheticControlOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::for_synthetic_panel(self.query.method), EstimatorId::SyntheticControl), self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
                     "estimate.quasi.synthetic_control.support",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
@@ -160,7 +259,10 @@ impl CheckedSyntheticControlOperation {
                         randomization.as_ref().map(|test| test.p_value),
                         self.query.sharp_null_effect.unwrap_or(0.0)
                     ),
-                )]),
+                )]
+                .into_iter()
+                .chain(window.as_ref().map(|(_, _, _, support)| observed_window_note(support)))
+                .collect()),
         );
         result.payload = crate::result::ResultPayload::SyntheticControl(self.control_payload(
             fit,
@@ -168,6 +270,7 @@ impl CheckedSyntheticControlOperation {
             randomization,
             effect,
             effective_donors,
+            window.as_ref().map(|(_, _, _, support)| support),
         ));
         result.treatment = None;
         Ok(result)
@@ -229,6 +332,7 @@ impl CheckedSyntheticControlOperation {
         randomization: Option<SyntheticUnitRandomizationTest>,
         effect: f64,
         effective_donors: f64,
+        window: Option<&antecedent_estimate::synthetic_control::ObservedWindowSupport>,
     ) -> crate::SyntheticControlEstimate {
         crate::SyntheticControlEstimate {
             effect,
@@ -252,7 +356,7 @@ impl CheckedSyntheticControlOperation {
             } else if randomization.is_some() {
                 "point_only_with_exact_unit_randomization_p_value_no_interval"
             } else {
-                "point_only_with_unlicensed_placebo_rank"
+                "point_only_with_unsupported_placebo_rank"
             }),
             randomization_p_value: randomization.as_ref().map(|test| test.p_value),
             randomization_null_effect: randomization
@@ -271,6 +375,17 @@ impl CheckedSyntheticControlOperation {
             unadjusted_effect: augmentation.map(|_| fit.effect),
             outcome_model_correction: augmentation.map(|fit| fit.outcome_model_correction),
             augmentation_ridge: augmentation.map(|fit| fit.ridge_penalty),
+            observed_window: window.map(|support| crate::ObservedWindowReport {
+                pre_periods: support.pre_periods.as_slice().into(),
+                post_periods: support.post_periods.as_slice().into(),
+                donors_used: support.donors_used,
+                donors_dropped: support
+                    .donors_dropped
+                    .iter()
+                    .map(|(unit, missing)| (Arc::<str>::from(unit.as_str()), *missing))
+                    .collect(),
+                unread_rows: support.unread_rows,
+            }),
         }
     }
 
@@ -324,7 +439,7 @@ impl CheckedSyntheticControlOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::for_synthetic_panel(self.query.method), EstimatorId::SyntheticControl), self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
                     "estimate.quasi.synthetic_did.support",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
@@ -360,6 +475,10 @@ impl CheckedSyntheticControlOperation {
             randomization_null_effect: randomization
                 .as_ref()
                 .map(|_| self.query.sharp_null_effect.unwrap_or(0.0)),
+            randomization_ranking_tolerance: randomization
+                .as_ref()
+                .map(|test| test.ranking_tolerance)
+                .filter(|tolerance| *tolerance > 0.0),
             randomization_statistics: randomization.map_or_else(
                 || Arc::from([]),
                 |test| {
@@ -387,6 +506,59 @@ impl Study {
     }
 }
 
+/// The options an observed-window synthetic control cannot combine with: the synthetic
+/// difference in differences and the randomization tests read a balanced panel, the staggered
+/// and conformal rollouts refit every adopting unit on the full grid, and the Bayesian
+/// posterior reads the balanced fit.
+fn refuse_observed_window_options(
+    query: &antecedent_core::SyntheticControlQuery,
+    inference: &InferenceMode,
+) -> Result<(), CausalError> {
+    let option = if query.method == SyntheticPanelMethod::DifferenceInDifferences {
+        "synthetic difference in differences"
+    } else if query.uniform_unit_randomization {
+        "unit randomization inference"
+    } else if query.rollout.is_some() {
+        "conformal or placebo-variance intervals"
+    } else if matches!(inference, InferenceMode::Bayesian(_)) {
+        "the Bayesian posterior"
+    } else {
+        return Ok(());
+    };
+    Err(crate::compile_reason!(
+        "option_not_applicable",
+        "{}: reading an unbalanced panel over the \
+         treated unit's observed window supports the simplex and augmented synthetic control \
+         point fit; {option} reads a balanced panel. Next attempt: drop the observed-window \
+         option and supply a balanced panel, or drop {option}",
+        antecedent_core::reason_details::synthetic_control_panel::OBSERVED_WINDOW_OPTION
+    ))
+}
+
+/// The support an observed-window fit read, as a diagnostic of the result.
+fn observed_window_note(
+    support: &antecedent_estimate::synthetic_control::ObservedWindowSupport,
+) -> Diagnostic {
+    Diagnostic::new(
+        "estimate.quasi.synthetic_control.observed_window_support",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        format!(
+            "unbalanced panel read over the treated unit's observed window: weights fitted on \
+             pre-periods {:?}, effect averaged over post-periods {:?}; {} donors observed \
+             throughout the window were used and {} units missing part of it (unit, missing \
+             window periods: {:?}) were excluded; {} observed unit-periods were not read; \
+             nothing was imputed",
+            support.pre_periods,
+            support.post_periods,
+            support.donors_used,
+            support.donors_dropped.len(),
+            support.donors_dropped,
+            support.unread_rows
+        ),
+    )
+}
+
 /// Declared panel-design assumptions, before the method-specific counterfactual assumption is appended.
 fn declared_panel_assumptions(
     query: &antecedent_core::SyntheticControlQuery,
@@ -403,7 +575,14 @@ fn declared_panel_assumptions(
             "no_concurrent_treated_unit_specific_shock",
             "no other treated-unit-specific shock starts at intervention",
         ),
-        ("balanced_panel", "all donor and treated units are observed at the same periods"),
+        if query.observed_window_support {
+            (
+                "donors_observed_throughout_treated_window",
+                "the donors are the units observed in every period the treated unit is observed; no period of any unit is imputed",
+            )
+        } else {
+            ("balanced_panel", "all donor and treated units are observed at the same periods")
+        },
     ] {
         assumptions.push(antecedent_core::AssumptionRecord {
             assumption: antecedent_core::Assumption::Custom {
@@ -413,6 +592,19 @@ fn declared_panel_assumptions(
             source: antecedent_core::AssumptionSource::UserDeclared,
             scope: antecedent_core::AssumptionScope::Identification,
             status: antecedent_core::AssumptionStatus::Declared,
+        });
+    }
+    if query.observed_window_support {
+        assumptions.push(antecedent_core::AssumptionRecord {
+            assumption: antecedent_core::Assumption::Custom {
+                id: Arc::from("attrition_unrelated_to_untreated_outcomes"),
+                description: Arc::from(
+                    "whether the treated unit and each donor is observed in a period is unrelated to its untreated outcome, so the donors observed throughout the window represent the counterfactual; not testable from the observed rows",
+                ),
+            },
+            source: antecedent_core::AssumptionSource::UserDeclared,
+            scope: antecedent_core::AssumptionScope::Identification,
+            status: antecedent_core::AssumptionStatus::Untestable,
         });
     }
     if query.uniform_unit_randomization {
@@ -439,6 +631,9 @@ fn declared_panel_assumptions(
             status: antecedent_core::AssumptionStatus::Declared,
         });
     }
+    if let Some(rollout) = &query.rollout {
+        push_rollout_assumptions(&mut assumptions, rollout);
+    }
     if query.augmentation_ridge.is_some() {
         assumptions.push(antecedent_core::AssumptionRecord {
             assumption: antecedent_core::Assumption::Custom {
@@ -451,6 +646,51 @@ fn declared_panel_assumptions(
         });
     }
     assumptions
+}
+
+/// Assumptions a synthetic panel with intervals adds for its adoption design, target
+/// population and interval construction.
+fn push_rollout_assumptions(
+    assumptions: &mut antecedent_core::AssumptionSet,
+    rollout: &antecedent_core::SyntheticRollout,
+) {
+    let declared: Vec<(&str, &str)> = match rollout.interval {
+        antecedent_core::SyntheticInterval::Conformal => vec![
+            (
+                "post_period_residuals_exchangeable_with_pre_period_residuals",
+                "under the hypothesized effect, the treated unit's synthetic-control residuals are exchangeable over time (exact) or weakly dependent and stationary (approximate)",
+            ),
+            (
+                "target_population_treated_unit_post_periods",
+                "the target is the treated unit's effect at each post period, and their average under a constant effect",
+            ),
+        ],
+        antecedent_core::SyntheticInterval::PlaceboVariance => vec![
+            (
+                "staggered_adoption_with_never_treated_donors",
+                "each adopting unit stays treated from its adoption period on, and the never-treated units are unaffected donors",
+            ),
+            (
+                "treated_untreated_errors_exchangeable_with_donors",
+                "the adopting units' untreated errors are exchangeable with the never-treated units', so placebo reassignments estimate the sampling variance",
+            ),
+            (
+                "target_population_adopting_units_post_periods",
+                "the target is the post-period-weighted average effect over the adopting units' post-adoption periods",
+            ),
+        ],
+    };
+    for (id, description) in declared {
+        assumptions.push(antecedent_core::AssumptionRecord {
+            assumption: antecedent_core::Assumption::Custom {
+                id: Arc::from(id),
+                description: Arc::from(description),
+            },
+            source: antecedent_core::AssumptionSource::UserDeclared,
+            scope: antecedent_core::AssumptionScope::Identification,
+            status: antecedent_core::AssumptionStatus::Declared,
+        });
+    }
 }
 
 pub(crate) fn synthetic_control_identification(

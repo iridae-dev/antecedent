@@ -1,16 +1,23 @@
 #!/usr/bin/env python3
-"""Use the first batch of results as prior evidence for a second batch.
+"""How do you carry one batch's posterior forward as the prior for the next batch?
 
-We estimate an average effect on batch A, save its posterior, and pass it to
-Bayesian(prior_from=...) for an independent batch B. Both batches use the
-same graph and model design, so their coefficient positions match.
+Two independent batches of 180 rows are simulated from one declared mechanism,
+y = 2 t + z + noise, with z confounding t, so the true average effect of t is 2.0
+(a fixture truth of the generator). The script fits batch A, exports its posterior,
+and passes it to ``Bayesian(prior_from=...)`` for batch B; both use the same graph and
+model design, so their coefficient positions match. It asserts that each posterior
+mean lies within 0.2 of 2.0 and that batch B's posterior is narrower than batch A's.
+The narrowing reflects the added evidence under the declared graph; it does not test
+that graph or show the batches share one mechanism.
 
-Install with `python -m pip install antecedent`; see examples/README.md."""
+Run: ``python examples/python/sequential_bayes.py``."""
 
 from __future__ import annotations
 
+import antecedent as _ant_api
 import numpy as np
 from antecedent import AverageEffect, Bayesian, analyze
+from antecedent.outcomes import require_success
 
 
 def _batch(n: int, seed: int) -> tuple[dict[str, np.ndarray], list[tuple[str, str]]]:
@@ -27,31 +34,41 @@ def main() -> None:
     data_b, _ = _batch(180, seed=2)
     query = AverageEffect(treatment="t", outcome="y")
 
-    batch_a = analyze(
+    outcome_a = analyze(
         data_a,
         graph=edges,
         query=query,
         inference=Bayesian(n_draws=128),
         refute="none",
-        seed=11,
+        execution=_ant_api.Execution(seed=11),
     )
+    batch_a = require_success(outcome_a)
     assert batch_a.posterior is not None
-    # Prior hydration needs the posterior payload; batch_a.export() saves the full execution.
-    artifact = batch_a.study.export_artifact()
+    # Prior hydration needs the posterior payload; a plain export would save the full execution.
+    artifact = bytes(outcome_a.export(quantity="posterior"))
 
-    batch_b = analyze(
+    outcome_b = analyze(
         data_b,
         graph=edges,
         query=query,
         inference=Bayesian(n_draws=128, prior_from=artifact),
         refute="none",
-        seed=12,
+        execution=_ant_api.Execution(seed=12),
     )
+    batch_b = require_success(outcome_b)
     print("Calibration:", batch_b.calibration.status)
-    assert batch_b.study.estimate().posterior is not None
+    assert require_success(_ant_api.estimate(outcome_b.study)).posterior is not None
     assert batch_b.posterior is not None
     assert np.isfinite(batch_b.posterior.effect_mean)
     assert batch_b.identification.assumption_count >= 1
+    # Declared truth: the effect of t is 2.0 in both batches.
+    assert abs(batch_a.posterior.effect_mean - 2.0) < 0.2, batch_a.posterior.effect_mean
+    assert abs(batch_b.posterior.effect_mean - 2.0) < 0.2, batch_b.posterior.effect_mean
+    # Carrying batch A's posterior forward as the prior narrows batch B's.
+    assert batch_b.posterior.effect_sd < batch_a.posterior.effect_sd, (
+        batch_b.posterior.effect_sd,
+        batch_a.posterior.effect_sd,
+    )
     print(
         f"A effect_mean={batch_a.posterior.effect_mean:.4f} "
         f"B effect_mean={batch_b.posterior.effect_mean:.4f} "

@@ -14,6 +14,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent.errors import CausalUnsupportedError, CausalValueError
+from antecedent.outcomes import require_success
 
 STATIC_DAG = [("z", "t"), ("z", "y"), ("t", "y")]
 EFFECT = 0.4
@@ -29,12 +30,14 @@ def _linear_scm(n: int = 1000, seed: int = 3272793) -> dict[str, np.ndarray]:
 
 
 def _analyze(data: dict[str, np.ndarray], **kwargs: Any) -> Any:
-    return ant.analyze(
-        data,
-        graph=STATIC_DAG,
-        query=ant.AverageEffect("t", "y"),
-        inference=ant.Bayesian(**kwargs),
-        refute="none",
+    return require_success(
+        ant.analyze(
+            data,
+            graph=STATIC_DAG,
+            query=ant.AverageEffect("t", "y"),
+            inference=ant.Bayesian(**kwargs),
+            refute="none",
+        )
     )
 
 
@@ -94,11 +97,13 @@ def test_a_route_that_does_not_enforce_the_controls_refuses_them() -> None:
         ["t", "y", "z"], [("z", "y"), ("t", "y")], [("z", "t")]
     )
     with pytest.raises(CausalUnsupportedError) as caught:
-        ant.analyze(
-            _linear_scm(),
-            graph=cpdag,
-            query=ant.AverageEffect("t", "y"),
-            inference=ant.Bayesian(n_draws=3000, draw_controls="measured"),
+        require_success(
+            ant.analyze(
+                _linear_scm(),
+                graph=cpdag,
+                query=ant.AverageEffect("t", "y"),
+                inference=ant.Bayesian(n_draws=3000, draw_controls="measured"),
+            )
         )
     assert caught.value.reason_code == "invalid_argument"
 

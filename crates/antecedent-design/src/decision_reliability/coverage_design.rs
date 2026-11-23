@@ -10,7 +10,7 @@
 //! A cell is the *whole procedure* (draw, estimate, select, interval), not the interval
 //! formula alone.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use serde::{Deserialize, Serialize};
 
@@ -29,7 +29,7 @@ pub enum TruthKind {
 /// One route's measurement design.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct CoverageCell {
-    /// Route the cell would license.
+    /// Route the cell would support.
     pub route: &'static str,
     /// What is claimed and what is scored.
     pub claim: &'static str,

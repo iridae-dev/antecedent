@@ -1,0 +1,64 @@
+feature_id = "estimate.randomized.bayesian"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-estimate/src/randomized_posterior.rs"]
+
+papers = [
+ { title = "The Bayesian Bootstrap", sections = ["the Bayesian bootstrap: flat Dirichlet weights on the observed units"] },
+ { title = "Bayesian Data Analysis (3rd edition, Gelman, Carlin, Stern, Dunson, Vehtari and Rubin)", sections = ["Chapter 2, Section 2.1: estimating a probability from binomial data"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent-estimate/src/randomized_posterior.rs. It states: That interval is not a posterior.",
+  "The finite-population estimand is published under additive unit effects, Y_i(k) = Y_i(0) + delta_k, because the data never identify how a unit unobserved outcomes move with its observed one. The contrast is then the contrast of the arm means and shares the superpopulation law. This is the Neyman bound (the variance of the observed contrast of means is sum w_k^2 S_k^2 / n_k minus S_tau^2 / n, and additive effects set S_tau^2 to zero, its largest value), so the interval is conservative when unit effects vary. The earlier independent-imputation law, which scales each arm variance by 1 - n_k / n, is no longer published.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/bayesian_randomized_routes.rs",
+  "crates/antecedent-estimate/tests/randomized_posterior_reference.rs (30-digit exact superpopulation and finite-population contrast laws for Bernoulli and Gaussian arms)",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "posterior_arm_contrasts (and posterior_arm_contrasts_with_draws, which only adds quantile-grid draws of the same law) of crates/antecedent-estimate/src/randomized_posterior.rs with its lattice convolution (posterior_lattice.rs): the constant-probability and arm-population checks, the Beta(a0 + s, b0 + m - s) arm posterior of a Bernoulli arm, the Normal-Inverse-Gamma Student-t arm marginal (kappa, a, b updates), the finite-population estimand, which under additive unit effects uses the same arm-mean laws (no separate discrete or predictive-sum law), the contrast mean, standard deviation, equal-tailed interval and strict positive probability. Not posterior_two_arm and posterior_factorial_2x2 (thin wrappers over the same arm laws, exercised only by the in-crate tests), the Horvitz-Thompson or design-based routes, unit-varying propensities (refused), or interval coverage. The Bayesian-bootstrap citation of this record belongs to the sibling score posterior; this module is conjugate (Beta and Normal-Inverse-Gamma)."
+assumptions = ["Known constant arm probabilities; units in an arm are exchangeable draws from the arm law (Bernoulli with a Beta prior, or Gaussian with a Normal-Inverse-Gamma prior); arms are independent.", "The superpopulation estimand is the contrast of arm means in the sampling population; the finite-population estimand is the contrast of the arm means over the trial units under additive unit effects, which gives it the superpopulation arm-mean law.", "The continuous contrast laws are discretized on a lattice (sixteen cells per arm scale with a 1e-8 tail window); both estimands use the same continuous arm laws. Accuracy of the continuous laws is stated against the exact integral at the stated tolerances."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with 30-digit exact arm-contrast laws (numerical integration for the continuous laws, the same quadrature for the finite-population law under additive unit effects, including a three-arm contrast by iterated quadrature) written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Seven contrasts on two tables: a three-arm binary table (12, 10 and 11 units; Beta(1, 2) prior) with the superpopulation contrasts arm0 - arm1 and arm1 - arm2 and the finite-population contrasts arm0 - arm1, arm1 - arm2 and (arm0 - (arm1 + arm2) / 2), and a two-arm Gaussian table (8 and 12 units) under both estimands. The arm posterior means and standard deviations agree to 1e-9; the contrast mean and the interval ends of the continuous laws within 0.01 and 0.02 of the exact standard deviation, the standard deviation within 1%, the positive probability within 2e-3; the finite-population contrasts, which share the superpopulation laws, are compared on the same tolerances (the former exact discrete comparison at 1e-9 no longer applies). Superpopulation contrasts with more than two nonzero weights have no quadrature reference here. Not exercised: priors with shapes near one, many arms, very small arms, other credible levels, and coverage of the intervals. The cited publications were not retrieved."
+sources = ["https://doi.org/10.1214/aos/1176345338", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["The finite-population estimand changed. Re-read the module and compared it with the reference: the Beta-Binomial enumeration, the finite-population Student predictive sum, the discrete lattice path and the ArmLaw::FiniteBinary variant are removed, and both estimands now read the Beta(a0 + s, b0 + m - s) or Normal-Inverse-Gamma Student-t arm-mean posterior; the lattice width is always the narrowest arm scale over sixteen cells and the convolution always takes the continuous (half-cell) path. The reason is that the earlier law imputed unobserved outcomes independently of the observed one and so understated the spread whenever potential outcomes move together; additive unit effects give the Neyman bound, which is conservative. The reference script now writes the finite-population cases as the same Beta or Student integrals (and an iterated quadrature for arm0 - (arm1 + arm2) / 2) and the test compares every case to 1% of the sd. This review did not rerun the reference or the test; it compared the code, the reference script and the test source by reading. The arm updates and the equal-tailed interval and strict positive probability are unchanged. A no-op binding of normalize and ln_gamma in the module only holds an import list, which is untidy but not a numerical issue.", "The record cites the Bayesian bootstrap but this module does not use it; the review records that its numerics are conjugate and that the bootstrap lies in the score-posterior records."]
+record_sha256 = "528a3a6f71046d67b31b2733007691cda77d896f76fb59e9dd18eb5cd3508a3e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/randomized_posterior.rs"
+items = ["const BERNOULLI_ARM_LIKELIHOOD", "const GAUSSIAN_ARM_LIKELIHOOD", "const RANDOMIZATION_IGNORABILITY", "const WINDOW_TAIL", "enum ArmLaw", "enum ArmOutcomeModel", "enum RandomizedEstimand", "fn arm_laws", "fn arm_term", "fn bernoulli_arm", "fn check_contrasts", "fn gaussian_arm", "fn invalid", "fn law_scale", "fn posterior_arm_contrasts", "fn posterior_arm_contrasts_with_draws", "fn posterior_factorial_2x2", "fn posterior_two_arm", "fn refused", "fn summarize_contrast", "fn validate_rows", "struct ArmBetaPrior", "struct ArmContrastRequest", "struct ArmData", "struct ArmNormalPrior", "struct ArmPosteriorSpec", "struct ArmPosteriorSummary", "struct ContrastSummary", "struct RandomizationEvidence", "struct RandomizedPosterior"]
+sha256 = "afcb9533d6a250482a2e2bf5148b9ee378f8c11d5f58be09434a8772d9a0e160"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/posterior_lattice.rs"
+items = ["fn mean", "fn probability_positive", "fn standard_deviation", "fn value"]
+sha256 = "1fbbe6497cbc61c70500049a794aaaff93be52cf4d5edb0d6020e6aa41f6efb5"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/randomized_posterior_reference.rs"
+items = ["fn every_contrast_law_matches_the_exact_reference", "fn floats"]
+sha256 = "9dc1bc9f99460761530878d0c6d9f8a53b18b77c0a75e9ed95db96d81a49546d"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/randomized_posterior_reference.py"
+sha256 = "b64d36b8fdb12ca2d63a96a7b01817442ebad8b1d767aefca9bcf47cfe4a9d44"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/randomized_posterior_reference.json"
+sha256 = "50ec71c8647d3bd187dc23543e7c22c4c4a896b66c8dae98bc4ad60638fe2c8a"

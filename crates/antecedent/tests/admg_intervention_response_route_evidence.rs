@@ -1,11 +1,12 @@
 //! Lifecycle evidence for sealed explicit/accepted ADMG scalar response routes.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, reason = "one loop covers every licensed coordinate")]
+#![allow(clippy::too_many_lines, reason = "one loop covers every supported coordinate")]
 #![allow(clippy::float_cmp, reason = "grid members are pinned to their exact literal levels")]
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, CellStatus, EstimatorId, IdentifierId, InferenceMode,
     RefuteSuite, StructureSource, Study,
@@ -20,7 +21,7 @@ use antecedent_discovery::{
     GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_admg, set_edge,
 };
 use antecedent_graph::{Admg, DenseNodeId};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use antecedent_prob::InferenceDiagnostics;
 
 fn fixture(outcome_shift: f64) -> (TabularData, Admg) {
@@ -115,7 +116,7 @@ fn explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes
                     prepared.structure_source(),
                     if accepted { StructureSource::Accepted } else { StructureSource::Explicit }
                 );
-                assert_eq!(prepared.support_status(), Some(CellStatus::Licensed));
+                assert_eq!(prepared.support_status(), Some(CellStatus::Supported));
                 let contract = prepared.contract().unwrap();
                 assert_eq!(contract.query_kind.as_ref(), "InterventionResponse");
                 assert_eq!(contract.identifier.as_deref(), Some("general.id"));
@@ -135,9 +136,10 @@ fn explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes
                     }
                     other => panic!("{coordinate}: support unavailable: {other:?}"),
                 }
-                let members = prepared
-                    .checked_functional_effect_response_members()
-                    .expect("sealed response operation retains its scalar member");
+                let RetainedOperation::AdmgResponseCurve(members) = prepared.retained_operation()
+                else {
+                    panic!("sealed response operation retains its scalar member")
+                };
                 assert_eq!(members.len(), 1);
                 assert_eq!(members[0].grid_value(), level);
                 assert_eq!(
@@ -161,7 +163,9 @@ fn explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes
 
                 let result = prepared.estimate(&data, &context).unwrap();
                 assert!(
-                    (response_value(&result) - truth).abs() < if bayesian { 0.06 } else { 1e-12 }
+                    (response_value(&result) - truth).abs() < if bayesian { 0.003 } else { 1e-12 },
+                    "{}",
+                    response_value(&result)
                 );
                 if bayesian {
                     assert_eq!(result.posterior.as_ref().unwrap().draws.n_draws, 1024);
@@ -190,15 +194,20 @@ fn explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes
                     );
                 }
                 let (refreshed_data, _) = fixture(0.4);
-                let refreshed = prepared.refresh(refreshed_data, &context).unwrap();
+                let refreshed = rebind_estimate(&mut prepared, refreshed_data, &context).unwrap();
                 assert!(
                     (response_value(&refreshed) - (truth + 0.4)).abs()
-                        < if bayesian { 0.06 } else { 1e-12 }
+                        < if bayesian { 0.003 } else { 1e-12 },
+                    "{}",
+                    response_value(&refreshed)
                 );
-                assert!(prepared.checked_functional_effect_response_members().is_some());
+                assert!(matches!(
+                    prepared.retained_operation(),
+                    RetainedOperation::AdmgResponseCurve(..)
+                ));
                 let artifact =
                     prepared.encode_contracted_result(&refreshed, &coordinate, &context).unwrap();
-                let consumed = consume_analysis_result(&artifact).unwrap();
+                let consumed = replay_analysis_result(&artifact).unwrap();
                 if bayesian {
                     assert!(
                         consumed.acceptance.unresolved.iter().any(|reason| {
@@ -208,7 +217,7 @@ fn explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes
                         "{coordinate}: {:?}",
                         consumed.acceptance.unresolved
                     );
-                    assert!(!consumed.acceptance.accepts_as_verified_program());
+                    assert!(!consumed.acceptance.accepts_as_replayed_program());
                 } else {
                     assert!(
                         consumed.acceptance.unresolved.iter().any(|reason| {
@@ -217,7 +226,7 @@ fn explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes
                         "{coordinate}: {:?}",
                         consumed.acceptance.unresolved
                     );
-                    assert!(!consumed.acceptance.accepts_as_verified_program());
+                    assert!(!consumed.acceptance.accepts_as_replayed_program());
                 }
             }
         }
@@ -271,9 +280,10 @@ fn explicit_and_accepted_admg_scalar_response_runs_plugin_level_refuters() {
                     }
                     other => panic!("{coordinate}: support unavailable: {other:?}"),
                 }
-                let members = prepared
-                    .checked_functional_effect_response_members()
-                    .expect("sealed response operation retains its scalar member");
+                let RetainedOperation::AdmgResponseCurve(members) = prepared.retained_operation()
+                else {
+                    panic!("sealed response operation retains its scalar member")
+                };
                 assert_eq!(members.len(), 1);
                 assert_eq!(members[0].grid_value(), 1.0);
                 assert_eq!(
@@ -282,12 +292,12 @@ fn explicit_and_accepted_admg_scalar_response_runs_plugin_level_refuters() {
                 );
                 let result = prepared.estimate(&data, &context).unwrap();
                 assert!(
-                    (response_value(&result) - truth).abs() < if bayesian { 0.08 } else { 1e-12 },
+                    (response_value(&result) - truth).abs() < if bayesian { 0.02 } else { 1e-12 },
                     "{coordinate}: {}",
                     response_value(&result)
                 );
                 assert_plugin_level_validation(&result, suite, &coordinate);
-                let refreshed = prepared.refresh(data.clone(), &context).unwrap();
+                let refreshed = rebind_estimate(&mut prepared, data.clone(), &context).unwrap();
                 assert_plugin_level_validation(&refreshed, suite, &coordinate);
             }
         }
@@ -345,8 +355,14 @@ fn graph_posterior_admg_intervention_response_is_sealed_across_refuters() {
             let mut prepared = study.prepare(&context).unwrap();
             drop(builder);
             drop(study);
-            assert!(prepared.has_checked_admg_graph_posterior_response_operation());
-            let plan = prepared.checked_admg_graph_posterior_response_info().unwrap();
+            assert!(matches!(
+                prepared.retained_operation(),
+                RetainedOperation::AdmgGraphPosteriorResponse(..)
+            ));
+            let RetainedOperation::AdmgGraphPosteriorResponse(plan) = prepared.retained_operation()
+            else {
+                panic!("sealed ADMG graph-posterior response operation")
+            };
             assert_eq!(plan.query, query);
             assert_eq!(plan.weights.as_ref(), &[0.8, 0.2]);
             assert_eq!(plan.identified.len(), 2);
@@ -362,6 +378,18 @@ fn graph_posterior_admg_intervention_response_is_sealed_across_refuters() {
             assert_eq!(plan.validation, suite);
             let result = prepared.estimate(&data, &context).unwrap();
             let mixture = result.structural_response.as_ref().expect("posterior response mass");
+            // Both atoms share the front-door structure, so the identified mass answers with the
+            // atom's own value (0.596 exactly, or its Bayesian posterior mean).
+            let value = match &result.response().expect("response").estimate {
+                ResponseIdentification::GraphDependent(atoms) => {
+                    assert_eq!(atoms.len(), 1);
+                    atoms[0].1.clone()
+                }
+                ResponseIdentification::PointIdentified(value) => value.clone(),
+                other => panic!("expected an answered response, got {other:?}"),
+            };
+            let ResponseValue::Scalar(value) = value else { panic!("scalar response") };
+            assert!((value - 0.596).abs() < if bayesian { 0.03 } else { 1e-12 }, "{value}");
             let expected_unidentified = if suite == RefuteSuite::None { 0.2 } else { 0.0 };
             assert!((mixture.identified_mass - (1.0 - expected_unidentified)).abs() < 1e-12);
             assert!((mixture.unidentified_mass - expected_unidentified).abs() < 1e-12);
@@ -379,16 +407,47 @@ fn graph_posterior_admg_intervention_response_is_sealed_across_refuters() {
                 }
                 RefuteSuite::PlaceboAndRcc => unreachable!(),
             }
-            let refreshed = prepared.refresh(data.clone(), &context).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, data.clone(), &context).unwrap();
             let refreshed_mass = refreshed.structural_response.as_ref().unwrap();
             assert!((refreshed_mass.identified_mass - (1.0 - expected_unidentified)).abs() < 1e-12);
             assert!((refreshed_mass.unidentified_mass - expected_unidentified).abs() < 1e-12);
+            if suite != RefuteSuite::None {
+                // The mixed route checks are descriptive and require independent replay;
+                // they must not establish a whole-result support verdict.
+                let artifact = prepared
+                    .encode_contracted_result(&refreshed, "admg-gp-response", &context)
+                    .unwrap();
+                let consumed = replay_analysis_result(&artifact).unwrap();
+                assert!(!consumed.body.refutations.is_empty());
+                assert!(consumed.body.refutations.iter().all(|report| report.scope.is_some()));
+                assert!(
+                    antecedent_io::support_empirical(
+                        &consumed.body.refutations,
+                        &consumed.body.diagnostics
+                    )
+                    .is_none()
+                );
+                assert!(
+                    consumed
+                        .acceptance
+                        .unresolved
+                        .iter()
+                        .any(|reason| reason.as_ref() == "dependencies.scoped_refutation_replay")
+                );
+                assert!(!consumed.acceptance.accepts_as_claim());
+                continue;
+            }
             let artifact = prepared
                 .encode_contracted_result(&refreshed, "admg-gp-response", &context)
                 .unwrap();
-            let consumed = consume_analysis_result(&artifact).unwrap();
+            let consumed = replay_analysis_result(&artifact).unwrap();
+            assert!(consumed.body.refutations.is_empty());
+            assert!(!consumed.acceptance.unresolved.iter().any(|reason| matches!(
+                reason.as_ref(),
+                "dependencies.refutation_replay" | "dependencies.scoped_refutation_replay"
+            )));
             assert!(
-                consumed.acceptance.accepts_as_verified_program()
+                consumed.acceptance.accepts_as_replayed_program()
                     || !consumed.acceptance.unresolved.is_empty(),
                 "independent consumer must verify the route or explain its dependency refusal"
             );
@@ -418,7 +477,7 @@ fn assert_plugin_level_validation(
     );
     assert!(
         result.refutations.iter().all(|report| report.refuter.as_ref() != "sensitivity.evalue"),
-        "{coordinate}: E-value is not licensed for an intervention level"
+        "{coordinate}: E-value is not supported for an intervention level"
     );
     match suite {
         RefuteSuite::Cheap => {
@@ -442,10 +501,23 @@ fn assert_plugin_level_validation(
                                 key.as_ref() == "validator" && value.as_ref() == validator
                             })
                     }),
-                    "{coordinate}: {validator} is not licensed on a functional.effect level"
+                    "{coordinate}: {validator} is not supported on a functional.effect level"
                 );
             }
         }
         RefuteSuite::None | RefuteSuite::PlaceboAndRcc => unreachable!(),
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

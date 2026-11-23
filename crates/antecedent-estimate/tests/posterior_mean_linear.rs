@@ -28,18 +28,18 @@ fn refusal(error: EstimationError) -> String {
     format!("{code} {message}")
 }
 
-fn treatment(name: &str, values: &[f64]) -> TreatmentColumn {
+fn treatment(name: &str, values: &[f64]) -> TreatmentColumn<'static> {
     TreatmentColumn {
-        name: name.into(),
-        values: values.to_vec(),
+        name: name.to_owned().into(),
+        values: values.to_vec().into(),
         adjustment_set: vec![],
         row_snapshot: "snap".into(),
     }
 }
 
-fn vector_input() -> VectorTreatmentInput {
+fn vector_input() -> VectorTreatmentInput<'static> {
     VectorTreatmentInput {
-        outcome: vec![3.0, 2.0, 5.0, 1.0, 0.0, 4.0],
+        outcome: vec![3.0, 2.0, 5.0, 1.0, 0.0, 4.0].into(),
         row_snapshot: "snap".into(),
         adjustment: vec![],
         treatments: vec![
@@ -79,7 +79,10 @@ fn vector_posterior_refuses_a_mapped_prior() {
             .unwrap_err(),
     );
     assert!(message.contains("route_not_supported"), "{message}");
-    assert!(message.contains("vector_posterior.mapped_prior"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::vector_posterior::MAPPED_PRIOR),
+        "{message}"
+    );
 }
 
 #[test]
@@ -93,7 +96,7 @@ fn vector_posterior_consumer_replays_the_hand_normal_equations() {
     let _ = summarize_vector_design(&vector_input()).unwrap();
 }
 
-fn categorical_input() -> CategoricalTreatmentInput {
+fn categorical_input() -> CategoricalTreatmentInput<'static> {
     let rows = [
         ("c", 9.0),
         ("a", 1.0),
@@ -144,7 +147,11 @@ fn categorical_posterior_refuses_an_external_power_prior() {
         .unwrap_err(),
     );
     assert!(message.contains("route_not_supported"), "{message}");
-    assert!(message.contains("categorical_posterior.external_power_prior"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::categorical_posterior::EXTERNAL_POWER_PRIOR),
+        "{message}"
+    );
 }
 
 #[test]
@@ -186,7 +193,7 @@ fn quadratic_posterior_mean_stays_near_the_linear_dose_response() {
 }
 
 #[test]
-fn quadratic_posterior_refuses_an_unmeasured_band() {
+fn quadratic_posterior_refuses_an_not_measured_band() {
     let (dose, outcome) = line();
     let message = refusal(
         local_quadratic_posterior(
@@ -194,13 +201,17 @@ fn quadratic_posterior_refuses_an_unmeasured_band() {
             &outcome,
             10.0,
             3.0,
-            PosteriorRequest::UnmeasuredBand,
+            PosteriorRequest::CredibleBand,
             LocalQuadraticNamespace::QuadraticDose,
         )
         .unwrap_err(),
     );
-    assert!(message.contains("cell_not_licensed"), "{message}");
-    assert!(message.contains("quadratic_posterior.unmeasured_band"), "{message}");
+    assert!(message.contains("not_supported"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::quadratic_posterior::BAND_NOT_CONSTRUCTED),
+        "{message}"
+    );
 }
 
 #[test]
@@ -270,7 +281,10 @@ fn dose_grid_posterior_refuses_a_mapped_prior() {
         .unwrap_err(),
     );
     assert!(message.contains("route_not_supported"), "{message}");
-    assert!(message.contains("dose_grid_posterior.mapped_prior"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::dose_grid_posterior::MAPPED_PRIOR),
+        "{message}"
+    );
 }
 
 #[test]

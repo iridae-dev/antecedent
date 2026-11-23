@@ -1,6 +1,6 @@
 //! End-to-end continuous-response facade coverage.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -65,7 +65,14 @@ fn response_curve_runs_through_public_study_facade() {
         panic!("expected a point-identified response surface");
     };
     assert_eq!(mean.len(), 3);
-    assert!(mean.iter().all(|value| value.is_finite()));
+    // The structural curve is E[Y | do(t)] = 1 + 2 t + 0.8 E[z] + 0.05 E[sin(i / 13)], linear in
+    // t, with the sample means of the confounder and the noise term computed here.
+    let mean_z = z.iter().sum::<f64>() / n as f64;
+    let mean_noise = (0..n).map(|i| (i as f64 / 13.0).sin() * 0.05).sum::<f64>() / n as f64;
+    for (value, t) in mean.iter().zip([-0.5, 0.0, 0.5]) {
+        let truth = 1.0 + 2.0 * t + 0.8 * mean_z + mean_noise;
+        assert!((value - truth).abs() < 1e-1, "curve at {t}: {value} vs {truth}");
+    }
 }
 
 #[test]
@@ -110,10 +117,31 @@ fn simultaneous_curve_band_runs_through_public_study_facade() {
         .unwrap()
         .run(&ExecutionContext::for_tests(50))
         .unwrap();
-    assert!(matches!(
-        result.response().unwrap().uncertainty,
-        ResponseUncertainty::SimultaneousBand { replicates: 100, .. }
-    ));
+    let response = result.response().unwrap();
+    let ResponseUncertainty::SimultaneousBand { lower, upper, replicates: 100, .. } =
+        &response.uncertainty
+    else {
+        panic!("expected a 100-replicate simultaneous band, got {:?}", response.uncertainty);
+    };
+    let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
+        &response.estimate
+    else {
+        panic!("expected a point-identified response surface");
+    };
+    // The structural curve is 1 + 2 t plus the sample mean of the residual term; the band must
+    // bracket the estimate and the truth at every grid point, with a positive width.
+    let mean_noise = (0..n).map(|i| 0.15 * (f64::from(i) / 7.0).sin()).sum::<f64>() / f64::from(n);
+    for (g, t) in [-0.5, 0.0, 0.5].into_iter().enumerate() {
+        let truth = 1.0 + 2.0 * t + mean_noise;
+        assert!(
+            lower[g] < truth && truth < upper[g],
+            "grid {g}: [{}, {}] vs {truth}",
+            lower[g],
+            upper[g]
+        );
+        assert!(lower[g] < mean[g] && mean[g] < upper[g]);
+        assert!(upper[g] - lower[g] < 0.2, "band at {g} is unreasonably wide");
+    }
     assert!(result.provenance.get("estimate.response.kennedy_dr_simultaneous").is_some());
 }
 
@@ -190,6 +218,19 @@ fn selected_outcome_curve_runs_through_facade_without_complete_data_bands() {
     let response = result.response().unwrap();
     assert_eq!(response.uncertainty, ResponseUncertainty::None);
     assert_eq!(response.provenance_id.as_ref(), "estimate.response.observation_adjusted");
+    // Every row is selected and the outcome is noiseless, so the adjusted curve is the
+    // structural curve 1 + 2 t + 0.8 E[confounder].
+    let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
+        &response.estimate
+    else {
+        panic!("expected a point-identified response surface");
+    };
+    let mean_c = confounder.iter().sum::<f64>() / n as f64;
+    for (value, t) in mean.iter().zip([-0.5, 0.0, 0.5]) {
+        let truth = 1.0 + 2.0 * t + 0.8 * mean_c;
+        eprintln!("DBG4 {value} {truth}");
+        assert!((value - truth).abs() < 1e-1, "selected curve at {t}: {value} vs {truth}");
+    }
     assert!(result.provenance.get("estimate.response.observation_adjusted").is_some());
 }
 
@@ -230,7 +271,9 @@ fn intervention_response_runs_through_public_study_facade_with_its_own_strategy(
     else {
         panic!("expected scalar intervention response");
     };
-    assert!((value - 1.5).abs() < 0.25, "value={value}");
+    let mean_z = z.iter().sum::<f64>() / n as f64;
+    let truth = 1.0 + 2.0 * 0.25 + 0.8 * mean_z;
+    assert!((value - truth).abs() < 1e-2, "value={value} truth={truth}");
 }
 
 /// Known-truth pin for `response.intervention_gcomp`: see
@@ -268,7 +311,7 @@ fn intervention_response_conforms_to_known_truth_fixture() {
     });
 
     // Exercise both the direct `Study::run` path and the prepared handle (which is
-    // what the licensed cell actually uses on the Python `PreparedAnalysis` surface),
+    // what the supported cell actually uses on the Python `PreparedAnalysis` surface),
     // on the explicit and the accepted structure axis, and pin every run against the
     // same fixture truth.
     let truth = fixture["contract"]["true_response"].as_f64().unwrap();
@@ -294,7 +337,7 @@ fn intervention_response_conforms_to_known_truth_fixture() {
         let prepared = study.prepare(&ExecutionContext::for_tests(52)).unwrap();
         let via_prepared = prepared.estimate(&data, &ExecutionContext::for_tests(52)).unwrap();
         for (label, result) in [("direct", &direct), ("prepared", &via_prepared)] {
-            assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+            assert_eq!(result.support_status().unwrap().as_str(), "supported");
             let response = result.response().unwrap();
             assert_eq!(response.provenance_id.as_ref(), "estimate.response.intervention_gcomp");
             let ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) =
@@ -441,7 +484,7 @@ fn two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contr
         let fresh = study.clone().run(&ctx).unwrap();
         let click = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
         for curve in [&fresh, &click] {
-            assert_eq!(curve.support_status.unwrap().as_str(), "licensed");
+            assert_eq!(curve.support_status().unwrap().as_str(), "supported");
             let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
                 &curve.response().unwrap().estimate
             else {
@@ -549,9 +592,19 @@ fn graph_posterior_response_retains_probability_atoms_and_mass() {
             structural.weight_basis,
             antecedent::result::StructuralWeightBasis::PosteriorProbability
         );
-        assert!(structural.conditional_on_identified.is_some());
+        // The mean exists only where the contributing atoms share one point-identified
+        // estimand; otherwise the atoms keep their own values.
+        assert_eq!(
+            structural.conditional_on_identified.is_some(),
+            matches!(
+                structural.aggregation_policy,
+                Some(antecedent::StructuralAggregationPolicy::SameEstimandWeightedMean)
+            ),
+            "{:?}",
+            structural.aggregation_policy
+        );
         assert!((structural.identified_mass + structural.unidentified_mass - 1.0).abs() < 1e-10);
-        assert_eq!(structural.atoms.len(), gp.n_graphs);
+        assert_eq!(structural.atoms.len(), gp.n_graphs());
         assert!(result.response().is_some());
     }
 }
@@ -602,7 +655,7 @@ fn prepared_graph_posterior_response_reuses_identification() {
             .diagnostics
             .iter()
             .any(|d| d.code.as_ref() == "estimate.response.graph_posterior.joint_if_se"
-                || d.code.as_ref() == "estimate.response.graph_posterior.uncertainty_withheld")
+                || d.code.as_ref() == "estimate.response.graph_posterior.no_uncertainty_method")
     );
     assert!((structural.identified_mass + structural.unidentified_mass - 1.0).abs() <= 1.0 + 1e-9);
 }
@@ -651,6 +704,61 @@ fn graph_posterior_intervention_response_cheap_and_full_run_plugin_refuters() {
     }
 }
 
+/// The plugin-level refuters of an exceedance level refit the exceedance target, not the raw
+/// outcome mean, so every refuted value stays on the probability scale.
+#[test]
+#[allow(
+    clippy::explicit_iter_loop,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
+fn exceedance_level_refutation_refits_the_exceedance_target() {
+    let n = 240;
+    let z: Vec<f64> = (0..n).map(|i| (i as f64 / 17.0).sin()).collect();
+    let treatment: Vec<f64> = (0..n).map(|i| z[i] + (i as f64 / 11.0).cos()).collect();
+    let outcome: Vec<f64> = (0..n)
+        .map(|i| 10.0 + 2.0 * treatment[i] + 0.8 * z[i] + (i as f64 / 5.0).sin() * 0.3)
+        .collect();
+    let data = TabularData::from_f64_columns([
+        ("treatment", treatment.as_slice()),
+        ("outcome", outcome.as_slice()),
+        ("confounder", z.as_slice()),
+    ])
+    .unwrap();
+    let mut graph = Dag::with_variables(3);
+    graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(0.25))]),
+    })
+    .with_outcome_functional(antecedent_core::OutcomeFunctional::exceedance(10.5));
+
+    let result = Study::tabular(data)
+        .graph(graph)
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::Full)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(53))
+        .unwrap();
+    assert!(!result.refutations.is_empty(), "the exceedance level must be refuted");
+    for report in result.refutations.iter() {
+        assert!(
+            (-1e-9..=1.0 + 1e-9).contains(&report.original_ate),
+            "{} original {} is not a probability",
+            report.refuter,
+            report.original_ate
+        );
+        assert!(
+            report.refuted_ate.is_nan() || (-1.0..=2.0).contains(&report.refuted_ate),
+            "{} refuted value {} is not on the exceedance scale",
+            report.refuter,
+            report.refuted_ate
+        );
+    }
+}
+
 #[test]
 fn prepared_response_refute_is_refused() {
     let (data, graph, query) = mean_curve_study();
@@ -667,7 +775,7 @@ fn prepared_response_refute_is_refused() {
     let prior = prepared.estimate(&data, &ctx).unwrap();
     let err = prepared.refute(&prior, &data, RefuteSuite::Cheap, &ctx).unwrap_err();
     let msg = err.to_string();
-    assert!(msg.starts_with("refused:"), "{msg}");
+    assert!(msg.starts_with("reason=route_not_supported:"), "{msg}");
     assert!(msg.contains("AverageEffect and scalar InterventionResponse"), "{msg}");
 }
 
@@ -779,11 +887,10 @@ fn response_values(value: &ResponseValue) -> Vec<f64> {
     }
 }
 
-/// D-2: numeric known-truth pin of the static graph-posterior
-/// response `conditional_on_identified` mean for `InterventionResponse` and
-/// `ResponseCurve`, Frequentist and Bayesian. Only the Frequentist scalar
-/// aggregate carries a joint-IF SE; curves and Bayesian aggregates withhold
-/// their multi-atom interval, so these cells carry numeric pins, not coverage.
+/// D-2: numeric known-truth pin of the static graph-posterior response atoms and
+/// identified set for `InterventionResponse` and `ResponseCurve`, Frequentist and
+/// Bayesian. The two identified atoms name different estimands, so no mean and no
+/// aggregate interval is published; these cells carry numeric pins, not coverage.
 #[test]
 #[allow(
     clippy::too_many_lines,
@@ -861,10 +968,12 @@ fn graph_posterior_response_known_truth_conditional_on_identified() {
                     < 1e-12,
                 "{mode} {label}: unidentified mass must stay out of the mean"
             );
-            let got = response_values(
-                structural.conditional_on_identified.as_ref().expect("conditional mean"),
+            // The direct and the Z-adjusted atom name different estimands, so no mean is
+            // formed: the atoms keep their own values and the identified set is their range.
+            assert!(
+                structural.conditional_on_identified.is_none(),
+                "{mode} {label}: a mean across different estimands is withheld"
             );
-            // Each identified atom keeps its own graph-specific value.
             let atom_values: Vec<Vec<f64>> = structural
                 .atoms
                 .iter()
@@ -881,42 +990,38 @@ fn graph_posterior_response_known_truth_conditional_on_identified() {
                     assert!((a - b).abs() < tolerance, "{mode} {label} atom value {a} vs {b}");
                 }
             }
-            assert_eq!(got.len(), expected_values.len(), "{mode} {label}");
-            for (g, (a, b)) in got.iter().zip(&expected_values).enumerate() {
-                assert!(
-                    (a - b).abs() < tolerance,
-                    "{mode} {label} conditional_on_identified[{g}]={a}, pinned {b}"
-                );
-            }
-            let uncertainty = &result.response().unwrap().uncertainty;
-            let has_diagnostic = |code: &str| {
-                result.diagnostics.iter().any(|diagnostic| diagnostic.code.as_ref() == code)
-            };
-            if mode == "frequentist" && label == "InterventionResponse" {
-                // A scalar frozen-weight aggregate takes the joint-IF SE of
-                // the identified atoms on the shared sample.
-                let ResponseUncertainty::Scalar { standard_error, lower, upper, .. } = uncertainty
-                else {
-                    panic!("{mode} {label}: joint-IF aggregate SE expected, got {uncertainty:?}");
+            let set = structural.identified_set.as_ref().expect("identified set");
+            assert_eq!(set.lower.len(), expected_values.len(), "{mode} {label}");
+            let range = |g: usize| {
+                let (a, b) = if label == "ResponseCurve" {
+                    (atom_curves[0][g], atom_curves[1][g])
+                } else {
+                    (atom_curves[0][level_index], atom_curves[1][level_index])
                 };
-                assert!(standard_error.is_finite() && *standard_error > 0.0);
-                assert!(lower < &got[0] && &got[0] < upper, "{mode} {label}: interval brackets");
-                assert!(has_diagnostic("estimate.response.graph_posterior.joint_if_se"));
-            } else {
+                (a.min(b), a.max(b))
+            };
+            for g in 0..expected_values.len() {
+                let (lo, hi) = range(g);
                 assert!(
-                    matches!(uncertainty, ResponseUncertainty::None),
-                    "{mode} {label}: multi-atom aggregate uncertainty is withheld"
-                );
-                assert!(
-                    has_diagnostic("estimate.response.graph_posterior.uncertainty_withheld"),
-                    "{mode} {label}: withheld aggregate interval is disclosed"
+                    (set.lower[g] - lo).abs() < tolerance && (set.upper[g] - hi).abs() < tolerance,
+                    "{mode} {label} identified_set[{g}]=[{}, {}], pinned [{lo}, {hi}]",
+                    set.lower[g],
+                    set.upper[g]
                 );
             }
+            assert!(
+                matches!(result.response().unwrap().uncertainty, ResponseUncertainty::None),
+                "{mode} {label}: no aggregate uncertainty without an aggregate"
+            );
+            assert!(
+                result.diagnostics.iter().any(|diagnostic| diagnostic.code.as_ref()
+                    == "estimate.response.graph_posterior.no_uncertainty_method"),
+                "{mode} {label}: the withheld aggregate is disclosed"
+            );
         }
     }
-    // Frequentist InterventionResponse cheap/full: the plugin-level refuters run
-    // on the same frozen law and the pinned conditional-on-identified level holds.
-    let tolerance = pin["frequentist_abs_tolerance"].as_f64().unwrap();
+    // Frequentist InterventionResponse cheap/full: plugin-level refuters run on each
+    // atom's own level, retained per atom.
     for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
         let result = Study::tabular(data.clone())
             .graph_posterior(known_truth_mixture_posterior(&weights))
@@ -928,15 +1033,13 @@ fn graph_posterior_response_known_truth_conditional_on_identified() {
             .unwrap()
             .run(&ExecutionContext::for_tests(pin["seed"].as_u64().unwrap()))
             .unwrap();
-        let structural = result.structural_response.as_ref().expect("structural response");
-        let got = response_values(structural.conditional_on_identified.as_ref().unwrap());
-        assert!(
-            (got[0] - expected_curve[level_index]).abs() < tolerance,
-            "{suite:?} InterventionResponse conditional_on_identified={}, pinned {}",
-            got[0],
-            expected_curve[level_index]
-        );
         assert!(!result.refutations.is_empty(), "{suite:?} must run plugin-level refuters");
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|d| d.code.as_ref() == "refute.response.graph_posterior.per_atom")
+        );
     }
 }
 
@@ -1078,11 +1181,11 @@ fn two_adjustment_posterior(weights: [f64; 2]) -> antecedent_discovery::GraphPos
     .unwrap()
 }
 
-/// Atoms that drop different complete-case rows (missing `z1` early, missing
-/// `z2` late, equal counts) are mixed on the shared data rows by their row
-/// indices, not by position; the interval honours `confidence_level`.
+/// Atoms that adjust for different covariates (and so drop different complete-case
+/// rows) name different estimands: each keeps its own independently fitted value and
+/// no frozen-weight mean or joint-IF interval is formed across them.
 #[test]
-fn graph_posterior_response_joint_if_aligns_atom_rows_by_index() {
+fn graph_posterior_response_different_adjustments_publish_atoms_not_a_mean() {
     let n = 160;
     let data = two_covariate_response_data(n, [&|i| i >= 12, &|i| i < n - 12]);
     let t = VariableId::from_raw(0);
@@ -1146,40 +1249,16 @@ fn graph_posterior_response_joint_if_aligns_atom_rows_by_index() {
         assert!((value - got).abs() < 1e-12, "atom value {got} vs independent fit {value}");
     }
 
-    // Row-aligned frozen-weight mixture: each atom's centred influence sits on
-    // its own data rows, scaled to the full sample.
-    let mass: f64 = weights.iter().sum();
-    let mut aligned = vec![0.0; n];
-    let mut positional = vec![0.0; n - 12];
-    for ((_, scores), weight) in atoms.iter().zip(weights) {
-        let column = &scores.columns[0];
-        let rows = column.len();
-        let center = column.iter().sum::<f64>() / rows as f64;
-        for (&row, &value) in scores.row_index.iter().zip(column) {
-            aligned[row as usize] += weight / mass * (value - center) * n as f64 / rows as f64;
-        }
-        for (slot, value) in positional.iter_mut().zip(column) {
-            *slot += weight / mass * value;
-        }
-    }
-    let se =
-        antecedent_estimate::joint_influence_covariance(&[aligned.as_slice()], None).unwrap().se(0);
-    let positional_se =
-        antecedent_estimate::joint_influence_covariance(&[positional.as_slice()], None)
-            .unwrap()
-            .se(0);
-    assert!((se - positional_se).abs() > 1e-3 * se, "fixture must separate the two mixings");
-    let ResponseUncertainty::Scalar { standard_error, level, lower, upper, .. } =
-        result.response().unwrap().uncertainty
-    else {
-        panic!("scalar joint-IF aggregate interval expected");
-    };
-    assert!((standard_error - se).abs() < 1e-10 * se, "{standard_error} vs aligned {se}");
-    assert!((level - 0.9).abs() < 1e-15);
-    let point = (weights[0] * atoms[0].0 + weights[1] * atoms[1].0) / mass;
-    let z = antecedent_stats::normal_ppf(0.95);
-    assert!((lower - (point - z * se)).abs() < 1e-10);
-    assert!((upper - (point + z * se)).abs() < 1e-10);
+    // The atoms adjust for different covariates, so they name different estimands: no
+    // mean and no joint-IF interval is published, and the atoms span the identified set.
+    assert!(structural.conditional_on_identified.is_none());
+    let set = structural.identified_set.as_ref().unwrap();
+    let (low, high) = (atoms[0].0.min(atoms[1].0), atoms[0].0.max(atoms[1].0));
+    assert!((set.lower[0] - low).abs() < 1e-12 && (set.upper[0] - high).abs() < 1e-12);
+    assert!(matches!(result.response().unwrap().uncertainty, ResponseUncertainty::None));
+    let codes: Vec<&str> = result.diagnostics.iter().map(|d| d.code.as_ref()).collect();
+    assert!(codes.contains(&"estimate.response.graph_posterior.no_uncertainty_method"));
+    assert!(!codes.contains(&"estimate.response.graph_posterior.joint_if_se"));
 }
 
 /// An identified atom whose estimation fails is unevaluable: its mass is
@@ -1221,10 +1300,52 @@ fn graph_posterior_response_failed_atom_is_graph_dependent() {
     );
 }
 
-/// The prepared handle refuses what every graph-posterior response click
-/// refuses, before building the posterior identification cache.
+struct CancelAfterIdentification {
+    token: antecedent_core::CancellationToken,
+}
+
+impl antecedent_core::ProgressSink for CancelAfterIdentification {
+    fn report(&self, _fraction: f64, stage: &str) {
+        if stage == "identify.compute" {
+            self.token.cancel();
+        }
+    }
+}
+
+/// A cancellation raised while the atoms are fitted ends the run as a cancellation; it is not
+/// absorbed into unevaluable posterior mass.
 #[test]
-fn prepared_graph_posterior_response_refuses_multi_coordinate_intervention() {
+fn graph_posterior_response_cancellation_is_not_unevaluable_mass() {
+    let data = two_covariate_response_data(160, [&|_| true, &|_| true]);
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(0.25))]),
+    });
+    let mut ctx = ExecutionContext::for_tests(5);
+    let token = ctx.cancellation.clone();
+    ctx.progress = Some(Arc::new(CancelAfterIdentification { token }));
+    let outcome = Study::tabular(data)
+        .graph_posterior(two_adjustment_posterior([0.6, 0.4]))
+        .query(CausalQuery::Response(query))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ctx);
+    match outcome {
+        Err(antecedent::CausalError::Cancelled { .. }) => {}
+        other => panic!(
+            "a cancelled run must report cancellation, got {:?}",
+            other.map(|r| r.structural_response.clone())
+        ),
+    }
+}
+
+/// The prepared handle does not refuse a several-coordinate level of a graph-posterior response:
+/// each atom answers it with its own executor, and identification waits for the estimate.
+#[test]
+fn prepared_graph_posterior_response_answers_multi_coordinate_intervention_atom_by_atom() {
     let data = two_covariate_response_data(80, [&|_| true, &|_| true]);
     let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
         outcome: VariableId::from_raw(1),
@@ -1233,7 +1354,7 @@ fn prepared_graph_posterior_response_refuses_multi_coordinate_intervention() {
             Intervention::set(VariableId::from_raw(2), Value::f64(0.0)),
         ]),
     });
-    let study = Study::tabular(data)
+    let study = Study::tabular(data.clone())
         .graph_posterior(two_adjustment_posterior([0.5, 0.5]))
         .query(CausalQuery::Response(query))
         .inference(InferenceMode::Frequentist)
@@ -1241,25 +1362,14 @@ fn prepared_graph_posterior_response_refuses_multi_coordinate_intervention() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let (ctx, stages) = {
-        #[derive(Default)]
-        struct Stages(std::sync::Mutex<Vec<String>>);
-        impl antecedent_core::ProgressSink for Stages {
-            fn report(&self, _fraction: f64, stage: &str) {
-                self.0.lock().unwrap().push(stage.to_owned());
-            }
-        }
-        let stages = Arc::new(Stages::default());
-        let mut ctx = ExecutionContext::for_tests(1);
-        ctx.progress = Some(Arc::clone(&stages) as Arc<dyn antecedent_core::ProgressSink>);
-        (ctx, stages)
-    };
-    let err = study.prepare(&ctx).unwrap_err();
-    assert!(err.to_string().contains("one intervention coordinate"), "{err}");
-    assert!(
-        stages.0.lock().unwrap().iter().all(|stage| stage != "identify.compute"),
-        "no posterior identification before the refusal"
-    );
+    let ctx = ExecutionContext::for_tests(1);
+    // A several-coordinate level is answered atom by atom through each atom's own executor, so
+    // preparing it is not refused up front.
+    let prepared = study.prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let mixture = result.structural_response.as_ref().expect("a structural mixture");
+    assert_eq!(mixture.atoms.len(), 2);
+    assert!((mixture.identified_mass - 1.0).abs() < 1e-12, "{}", mixture.identified_mass);
 }
 
 /// Graph posterior with twice the Interactive cap of distinct backdoor-identified

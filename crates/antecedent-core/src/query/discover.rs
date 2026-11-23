@@ -1,0 +1,911 @@
+//! Structure-discovery query: the variables searched, the search method with
+//! its declared inference mode, and the bounds the search runs under.
+//!
+//! A discovery query names a structure search, not a causal contrast. Its
+//! answer is a graph or graph class (a DAG, a CPDAG or PAG that stays a class,
+//! their temporal counterparts, one temporal class per regime) or a posterior
+//! over structures, and it reaches downstream analyses only through the review
+//! gate of an accepted graph.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+use super::fault::DiscoverFault;
+use std::sync::Arc;
+
+use crate::canonical_encode::{CanonicalEncode, count, encode_variables, flag};
+use crate::identity::CanonicalWriter;
+use crate::ids::VariableId;
+
+use super::error::QueryError;
+
+/// Inference mode a discovery method declares.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum DiscoveryInference {
+    /// Constraint- or score-based search that returns one structure or class.
+    Frequentist,
+    /// Posterior over structures under a declared prior and score.
+    Bayesian,
+}
+
+impl DiscoveryInference {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Frequentist => "frequentist",
+            Self::Bayesian => "bayesian",
+        }
+    }
+}
+
+/// The structure class a discovery method returns.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum DiscoveredClass {
+    /// One static DAG.
+    Dag,
+    /// A static Markov equivalence class; undirected marks stay part of the class.
+    Cpdag,
+    /// A static partial ancestral graph; circle marks stay part of the class.
+    Pag,
+    /// One lagged temporal DAG.
+    TemporalDag,
+    /// A temporal Markov equivalence class.
+    TemporalCpdag,
+    /// A temporal partial ancestral graph.
+    TemporalPag,
+    /// One temporal CPDAG per declared regime.
+    RegimeTemporalCpdags,
+    /// A posterior over static DAGs.
+    DagPosterior,
+    /// The exact edge marginals of a static DAG posterior, without graph atoms.
+    DagEdgeMarginals,
+    /// A posterior over bounded-lag DBN templates.
+    TemporalDagPosterior,
+    /// A posterior over Markov equivalence classes: every atom is a CPDAG and carries the
+    /// summed posterior mass of the DAGs that share it.
+    CpdagPosterior,
+    /// A posterior over PAG classes: every atom is a PAG with its circle marks.
+    PagPosterior,
+    /// The sampling distribution of a frequentist search under a declared resampling
+    /// design: per-edge and per-structure selection frequencies, not a graph.
+    StructureStability,
+}
+
+impl DiscoveredClass {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Dag => "dag",
+            Self::Cpdag => "cpdag",
+            Self::Pag => "pag",
+            Self::TemporalDag => "temporal_dag",
+            Self::TemporalCpdag => "temporal_cpdag",
+            Self::TemporalPag => "temporal_pag",
+            Self::RegimeTemporalCpdags => "regime_temporal_cpdags",
+            Self::DagPosterior => "dag_posterior",
+            Self::DagEdgeMarginals => "dag_edge_marginals",
+            Self::TemporalDagPosterior => "temporal_dag_posterior",
+            Self::CpdagPosterior => "cpdag_posterior",
+            Self::PagPosterior => "pag_posterior",
+            Self::StructureStability => "structure_stability",
+        }
+    }
+
+    /// Whether the class is over lagged (temporal) structures.
+    #[must_use]
+    pub const fn is_temporal(self) -> bool {
+        matches!(
+            self,
+            Self::TemporalDag
+                | Self::TemporalCpdag
+                | Self::TemporalPag
+                | Self::RegimeTemporalCpdags
+                | Self::TemporalDagPosterior
+        )
+    }
+
+    /// Whether the answer is an equivalence class whose unresolved marks are
+    /// part of the class (a CPDAG or PAG, static or temporal), not a set of
+    /// orientations still to be chosen.
+    #[must_use]
+    pub const fn is_equivalence_class(self) -> bool {
+        matches!(
+            self,
+            Self::Cpdag
+                | Self::Pag
+                | Self::TemporalCpdag
+                | Self::TemporalPag
+                | Self::RegimeTemporalCpdags
+        )
+    }
+}
+
+/// Soft weighting of a CI-screened posterior's candidate edges.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
+pub enum ScreenWeight {
+    /// Uniform among the screened candidates.
+    #[default]
+    None,
+    /// Log Bayes factor for dependence.
+    BayesFactor,
+    /// Posterior probability of dependence.
+    PosteriorDependence,
+}
+
+impl ScreenWeight {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::BayesFactor => "bayes_factor",
+            Self::PosteriorDependence => "posterior_dependence",
+        }
+    }
+}
+
+impl CanonicalEncode for ScreenWeight {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer.word(match self {
+            Self::None => 1,
+            Self::BayesFactor => 2,
+            Self::PosteriorDependence => 3,
+        });
+    }
+}
+
+/// The tag that precedes a method's canonical encoding when it carries a structure prior.
+///
+/// No method tag reaches this word, so a method without a prior encodes exactly as it always
+/// has and a method with one can never encode like another.
+const STRUCTURE_PRIOR_TAG: u64 = 64;
+
+/// A declared prior over DAG structures, by variable id, beyond the single global edge
+/// probability: per-edge inclusion probabilities and a soft tier order.
+///
+/// The prior is modular: every factor multiplies the weight of a directed edge, so the exact
+/// dynamic programme and the order, structure and template samplers use it with no other change.
+/// Hard background knowledge (forbidden, required and tiered edges) is a separate statement that
+/// enters through the search configuration; a hard constraint always wins over a factor here.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StructurePriorSpec {
+    /// Independent Bernoulli inclusion probability of every edge the map does not list.
+    pub edge_inclusion: Option<f64>,
+    /// `(from, to, p)`: the prior probability that the directed edge `from -> to` is present.
+    pub edges: Arc<[(VariableId, VariableId, f64)]>,
+    /// Inclusion probability of the edges `edges` does not list.
+    pub default_edge: Option<f64>,
+    /// Soft tiers, earliest first: a present edge from a later tier into an earlier one has its
+    /// prior odds multiplied by `exp(-soft_tier_log_penalty)`.
+    pub soft_tiers: Arc<[Arc<[VariableId]>]>,
+    /// Log-penalty of an edge against the soft tier order; `Some` exactly when tiers are listed.
+    pub soft_tier_log_penalty: Option<f64>,
+}
+
+impl StructurePriorSpec {
+    /// Whether the prior states nothing beyond the uniform prior.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.edge_inclusion.is_none()
+            && self.edges.is_empty()
+            && self.default_edge.is_none()
+            && self.soft_tiers.is_empty()
+            && self.soft_tier_log_penalty.is_none()
+    }
+
+    /// The prior as a stable statement: the per-edge probabilities and the soft tiers, in
+    /// the order declared. Variables are written by id (`v3->v4`).
+    #[must_use]
+    pub fn statement(&self) -> String {
+        let mut parts: Vec<String> = Vec::new();
+        if let Some(p) = self.edge_inclusion {
+            parts.push(format!("edge_inclusion={p}"));
+        }
+        if !self.edges.is_empty() {
+            let edges: Vec<String> = self
+                .edges
+                .iter()
+                .map(|(from, to, p)| format!("v{}->v{}:{p}", from.raw(), to.raw()))
+                .collect();
+            parts.push(format!("edges=[{}]", edges.join(",")));
+        }
+        if let Some(p) = self.default_edge {
+            parts.push(format!("default_edge={p}"));
+        }
+        if !self.soft_tiers.is_empty() {
+            let tiers: Vec<String> = self
+                .soft_tiers
+                .iter()
+                .map(|tier| {
+                    let members: Vec<String> =
+                        tier.iter().map(|v| format!("v{}", v.raw())).collect();
+                    format!("[{}]", members.join(","))
+                })
+                .collect();
+            parts.push(format!("soft_tiers=[{}]", tiers.join(",")));
+            if let Some(penalty) = self.soft_tier_log_penalty {
+                parts.push(format!("soft_tier_log_penalty={penalty}"));
+            }
+        }
+        parts.join(";")
+    }
+
+    /// Whether the declaration is consistent over `variables`: probabilities in `(0, 1)`, no
+    /// self edge, no edge listed twice, a finite non-negative penalty exactly when tiers are
+    /// listed, and every named variable among those searched.
+    fn is_valid_over(&self, variables: &[VariableId]) -> bool {
+        let probability = |p: f64| p.is_finite() && p > 0.0 && p < 1.0;
+        let searched = |v: &VariableId| variables.contains(v);
+        if self.edge_inclusion.is_some_and(|p| !probability(p))
+            || self.default_edge.is_some_and(|p| !probability(p))
+        {
+            return false;
+        }
+        let mut seen: Vec<(VariableId, VariableId)> = Vec::with_capacity(self.edges.len());
+        for &(from, to, p) in self.edges.iter() {
+            if from == to
+                || !probability(p)
+                || !searched(&from)
+                || !searched(&to)
+                || seen.contains(&(from, to))
+            {
+                return false;
+            }
+            seen.push((from, to));
+        }
+        match (self.soft_tiers.is_empty(), self.soft_tier_log_penalty) {
+            (true, None) => true,
+            (false, Some(penalty)) => {
+                penalty.is_finite()
+                    && penalty >= 0.0
+                    && self.soft_tiers.iter().all(|tier| tier.iter().all(searched))
+            }
+            _ => false,
+        }
+    }
+}
+
+/// Edges in id order (a per-edge map is a set), then every other field.
+impl CanonicalEncode for StructurePriorSpec {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer.opt_real(self.edge_inclusion);
+        let mut edges = self.edges.to_vec();
+        edges.sort_by_key(|(from, to, _)| (from.raw(), to.raw()));
+        writer.word(count(edges.len()));
+        for (from, to, p) in edges {
+            writer.word(u64::from(from.raw())).word(u64::from(to.raw())).real(p);
+        }
+        writer.opt_real(self.default_edge);
+        writer.word(count(self.soft_tiers.len()));
+        for tier in self.soft_tiers.iter() {
+            encode_variables(writer, tier);
+        }
+        writer.opt_real(self.soft_tier_log_penalty);
+    }
+}
+
+/// A structure-search method and the options that change what it returns.
+///
+/// The conditional-independence test, multiple-testing rule, background
+/// knowledge, prior and score enter through [`SearchBounds::configuration`].
+#[derive(Clone, Debug, PartialEq)]
+pub enum DiscoveryMethod {
+    /// Static PC: a CPDAG.
+    Pc,
+    /// Static FCI: a PAG.
+    Fci,
+    /// Static RFCI: a PAG.
+    Rfci,
+    /// Greedy equivalence search (Gaussian BIC): a CPDAG.
+    Ges {
+        /// Soft PC-skeleton screening of insert candidates.
+        screen_pc: bool,
+        /// Cap on the T/H subset enumeration; `None` uses the method default.
+        max_subset: Option<u32>,
+    },
+    /// `DirectLiNGAM`: a DAG under a linear non-Gaussian model.
+    DirectLingam {
+        /// Absolute coefficient below which an edge is pruned.
+        prune_threshold: f64,
+    },
+    /// NOTEARS continuous structure search: a DAG under a linear SEM.
+    Notears {
+        /// L1 penalty.
+        lambda: f64,
+        /// Absolute weight below which an edge is dropped.
+        threshold: f64,
+        /// Standardize columns before the search.
+        standardize: bool,
+    },
+    /// Lagged PCMCI: a temporal DAG of lagged links.
+    Pcmci,
+    /// PCMCI+: a temporal CPDAG including contemporaneous links.
+    PcmciPlus,
+    /// LPCMCI: a temporal PAG under latent confounding.
+    Lpcmci,
+    /// J-PCMCI+ over several environments: a temporal CPDAG.
+    JpcmciPlus,
+    /// Regime PCMCI over a supplied regime assignment: one temporal CPDAG per regime.
+    Rpcmci {
+        /// Shortest regime segment admitted; `None` uses the method default.
+        min_regime_len: Option<u32>,
+    },
+    /// Exact DAG posterior by enumeration (small graphs).
+    ExactDagPosterior {
+        /// Per-edge prior and soft tiers; `None` is the uniform prior.
+        prior: Option<StructurePriorSpec>,
+    },
+    /// Exact DAG posterior edge marginals (medium graphs, no atoms).
+    ExactDagMarginals {
+        /// Per-edge prior and soft tiers; `None` is the uniform prior.
+        prior: Option<StructurePriorSpec>,
+    },
+    /// Order MCMC DAG posterior.
+    OrderMcmc {
+        /// Refuse a chain set whose convergence diagnostics fail.
+        diagnostics_gate: bool,
+        /// Per-edge prior and soft tiers; `None` is the uniform prior.
+        prior: Option<StructurePriorSpec>,
+    },
+    /// Structure MCMC DAG posterior.
+    StructureMcmc {
+        /// Per-edge prior and soft tiers; `None` is the uniform prior.
+        prior: Option<StructurePriorSpec>,
+    },
+    /// PC-skeleton screening followed by structure MCMC.
+    CiScreenedPosterior {
+        /// Soft weighting of the screened candidates.
+        weight: ScreenWeight,
+        /// Per-edge prior and soft tiers; `None` is the uniform prior.
+        prior: Option<StructurePriorSpec>,
+    },
+    /// CI screen of every variable, then exact edge marginals of the focus variables'
+    /// skeleton neighbourhood under the screen's per-edge prior. The marginals are conditional
+    /// on the screen.
+    ScreenedExactMarginals {
+        /// Variables of interest; the exact set grows outward from them.
+        focus: Arc<[VariableId]>,
+        /// Most variables the exact computation runs on (at most the exact ceiling).
+        max_variables: u32,
+        /// Prior inclusion probability of an edge between a pair the screen kept.
+        in_probability: f64,
+        /// Prior inclusion probability of an edge between any other pair.
+        out_probability: f64,
+        /// Per-edge prior the caller lists; an edge it lists keeps its value over the screen's.
+        prior: Option<StructurePriorSpec>,
+    },
+    /// Bounded-lag DBN template posterior.
+    DbnPosterior {
+        /// Sample by MCMC even where exact enumeration is feasible.
+        force_mcmc: bool,
+        /// Per-edge prior and soft tiers; `None` is the uniform prior.
+        prior: Option<StructurePriorSpec>,
+    },
+    /// Exact posterior over PAG classes of the Gaussian maximal ancestral graphs of a few
+    /// variables (latent confounding allowed), scored by BIC.
+    ExactPagPosterior,
+    /// Metropolis posterior over PAG classes of the Gaussian maximal ancestral graphs of up to
+    /// eight variables, by single-pair link moves.
+    PagMcmc,
+    /// Posterior over Markov equivalence classes: the DAG posterior of `base` with every
+    /// DAG replaced by its CPDAG and the mass of DAGs that share a CPDAG summed. `base`
+    /// is a DAG-posterior method that lists its graphs.
+    ClassPosterior {
+        /// The DAG-posterior method whose atoms are collapsed.
+        base: Box<DiscoveryMethod>,
+    },
+    /// Sampling distribution of a frequentist search: `base` re-run on `replicates`
+    /// resamples drawn under the study's declared sampling design (independent
+    /// subjects: rows; a dependent series: circular blocks; a panel: whole units), with
+    /// the per-edge and per-structure selection frequencies it returned.
+    BootstrapStability {
+        /// The frequentist search that is re-run.
+        base: Box<DiscoveryMethod>,
+        /// Resamples drawn.
+        replicates: u32,
+    },
+}
+
+impl DiscoveryMethod {
+    /// Stable algorithm id, written to the logical plan's `discovery_algorithm`.
+    #[must_use]
+    pub const fn id(&self) -> &'static str {
+        match self {
+            Self::Pc => "pc",
+            Self::Fci => "fci",
+            Self::Rfci => "rfci",
+            Self::Ges { .. } => "ges",
+            Self::DirectLingam { .. } => "direct_lingam",
+            Self::Notears { .. } => "notears",
+            Self::Pcmci => "pcmci",
+            Self::PcmciPlus => "pcmci_plus",
+            Self::Lpcmci => "lpcmci",
+            Self::JpcmciPlus => "jpcmci_plus",
+            Self::Rpcmci { .. } => "rpcmci",
+            Self::ExactDagPosterior { .. } => "exact_dag_posterior",
+            Self::ExactDagMarginals { .. } => "exact_dag_marginals",
+            Self::OrderMcmc { .. } => "order_mcmc",
+            Self::StructureMcmc { .. } => "structure_mcmc",
+            Self::CiScreenedPosterior { .. } => "ci_screened_posterior",
+            Self::ScreenedExactMarginals { .. } => "screened_exact_marginals",
+            Self::DbnPosterior { .. } => "dbn_posterior",
+            Self::ClassPosterior { .. } => "class_posterior",
+            Self::ExactPagPosterior => "exact_pag_posterior",
+            Self::PagMcmc => "pag_mcmc",
+            Self::BootstrapStability { .. } => "bootstrap_stability",
+        }
+    }
+
+    /// The inference mode the method declares.
+    #[must_use]
+    pub const fn inference(&self) -> DiscoveryInference {
+        match self {
+            Self::ExactDagPosterior { .. }
+            | Self::ExactDagMarginals { .. }
+            | Self::ScreenedExactMarginals { .. }
+            | Self::OrderMcmc { .. }
+            | Self::StructureMcmc { .. }
+            | Self::CiScreenedPosterior { .. }
+            | Self::DbnPosterior { .. }
+            | Self::ExactPagPosterior
+            | Self::PagMcmc
+            | Self::ClassPosterior { .. } => DiscoveryInference::Bayesian,
+            Self::Pc
+            | Self::Fci
+            | Self::Rfci
+            | Self::Ges { .. }
+            | Self::DirectLingam { .. }
+            | Self::Notears { .. }
+            | Self::Pcmci
+            | Self::PcmciPlus
+            | Self::Lpcmci
+            | Self::JpcmciPlus
+            | Self::Rpcmci { .. }
+            | Self::BootstrapStability { .. } => DiscoveryInference::Frequentist,
+        }
+    }
+
+    /// The structure class the method returns.
+    #[must_use]
+    pub const fn output(&self) -> DiscoveredClass {
+        match self {
+            Self::Pc | Self::Ges { .. } => DiscoveredClass::Cpdag,
+            Self::Fci | Self::Rfci => DiscoveredClass::Pag,
+            Self::DirectLingam { .. } | Self::Notears { .. } => DiscoveredClass::Dag,
+            Self::Pcmci => DiscoveredClass::TemporalDag,
+            Self::PcmciPlus | Self::JpcmciPlus => DiscoveredClass::TemporalCpdag,
+            Self::Lpcmci => DiscoveredClass::TemporalPag,
+            Self::Rpcmci { .. } => DiscoveredClass::RegimeTemporalCpdags,
+            Self::ExactDagPosterior { .. }
+            | Self::OrderMcmc { .. }
+            | Self::StructureMcmc { .. }
+            | Self::CiScreenedPosterior { .. } => DiscoveredClass::DagPosterior,
+            Self::ExactDagMarginals { .. } | Self::ScreenedExactMarginals { .. } => {
+                DiscoveredClass::DagEdgeMarginals
+            }
+            Self::DbnPosterior { .. } => DiscoveredClass::TemporalDagPosterior,
+            Self::ClassPosterior { .. } => DiscoveredClass::CpdagPosterior,
+            Self::ExactPagPosterior | Self::PagMcmc => DiscoveredClass::PagPosterior,
+            Self::BootstrapStability { .. } => DiscoveredClass::StructureStability,
+        }
+    }
+
+    /// Whether the method searches lagged structure over time series.
+    #[must_use]
+    pub const fn is_temporal(&self) -> bool {
+        match self {
+            // A wrapper searches what its base searches.
+            Self::ClassPosterior { base } | Self::BootstrapStability { base, .. } => {
+                (**base).is_temporal()
+            }
+            _ => self.output().is_temporal(),
+        }
+    }
+
+    /// Whether the method decides adjacencies with conditional-independence tests,
+    /// so its significance level is part of what it returns.
+    #[must_use]
+    pub const fn uses_independence_tests(&self) -> bool {
+        match self {
+            Self::ClassPosterior { base } | Self::BootstrapStability { base, .. } => {
+                (**base).uses_independence_tests()
+            }
+            _ => matches!(
+                self,
+                Self::Pc
+                    | Self::Fci
+                    | Self::Rfci
+                    | Self::Ges { .. }
+                    | Self::Pcmci
+                    | Self::PcmciPlus
+                    | Self::Lpcmci
+                    | Self::JpcmciPlus
+                    | Self::Rpcmci { .. }
+                    | Self::CiScreenedPosterior { .. }
+                    | Self::ScreenedExactMarginals { .. }
+            ),
+        }
+    }
+
+    /// Whether the method samples its posterior by MCMC and needs a schedule.
+    #[must_use]
+    pub const fn samples_posterior(&self) -> bool {
+        match self {
+            Self::ClassPosterior { base } => (**base).samples_posterior(),
+            _ => matches!(
+                self,
+                Self::OrderMcmc { .. }
+                    | Self::StructureMcmc { .. }
+                    | Self::CiScreenedPosterior { .. }
+                    | Self::DbnPosterior { .. }
+                    | Self::PagMcmc
+            ),
+        }
+    }
+
+    /// The per-edge prior and soft tiers the search runs under, if it declares any.
+    ///
+    /// A wrapper reports the prior of the search it wraps.
+    #[must_use]
+    pub fn structure_prior(&self) -> Option<&StructurePriorSpec> {
+        match self {
+            Self::ExactDagPosterior { prior }
+            | Self::ExactDagMarginals { prior }
+            | Self::OrderMcmc { prior, .. }
+            | Self::StructureMcmc { prior }
+            | Self::CiScreenedPosterior { prior, .. }
+            | Self::ScreenedExactMarginals { prior, .. }
+            | Self::DbnPosterior { prior, .. } => prior.as_ref(),
+            Self::ClassPosterior { base } | Self::BootstrapStability { base, .. } => {
+                base.structure_prior()
+            }
+            _ => None,
+        }
+    }
+}
+
+/// The tag, then every option that changes the search.
+impl CanonicalEncode for DiscoveryMethod {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        // A prior leads the encoding behind a tag no method uses; none leaves it untouched.
+        if let Self::ExactDagPosterior { prior: Some(prior) }
+        | Self::ExactDagMarginals { prior: Some(prior) }
+        | Self::OrderMcmc { prior: Some(prior), .. }
+        | Self::StructureMcmc { prior: Some(prior) }
+        | Self::CiScreenedPosterior { prior: Some(prior), .. }
+        | Self::ScreenedExactMarginals { prior: Some(prior), .. }
+        | Self::DbnPosterior { prior: Some(prior), .. } = self
+        {
+            writer.word(STRUCTURE_PRIOR_TAG);
+            prior.encode(writer);
+        }
+        match self {
+            Self::Pc => {
+                writer.word(1);
+            }
+            Self::Fci => {
+                writer.word(2);
+            }
+            Self::Rfci => {
+                writer.word(3);
+            }
+            Self::Ges { screen_pc, max_subset } => {
+                writer.word(4).word(flag(*screen_pc)).opt_word(max_subset.map(u64::from));
+            }
+            Self::DirectLingam { prune_threshold } => {
+                writer.word(5).real(*prune_threshold);
+            }
+            Self::Notears { lambda, threshold, standardize } => {
+                writer.word(6).real(*lambda).real(*threshold).word(flag(*standardize));
+            }
+            Self::Pcmci => {
+                writer.word(7);
+            }
+            Self::PcmciPlus => {
+                writer.word(8);
+            }
+            Self::Lpcmci => {
+                writer.word(9);
+            }
+            Self::JpcmciPlus => {
+                writer.word(10);
+            }
+            Self::Rpcmci { min_regime_len } => {
+                writer.word(11).opt_word(min_regime_len.map(u64::from));
+            }
+            Self::ExactDagPosterior { .. } => {
+                writer.word(12);
+            }
+            Self::ExactDagMarginals { .. } => {
+                writer.word(13);
+            }
+            Self::OrderMcmc { diagnostics_gate, .. } => {
+                writer.word(14).word(flag(*diagnostics_gate));
+            }
+            Self::StructureMcmc { .. } => {
+                writer.word(15);
+            }
+            Self::CiScreenedPosterior { weight, .. } => {
+                writer.word(16);
+                weight.encode(writer);
+            }
+            Self::DbnPosterior { force_mcmc, .. } => {
+                writer.word(17).word(flag(*force_mcmc));
+            }
+            Self::ScreenedExactMarginals {
+                focus,
+                max_variables,
+                in_probability,
+                out_probability,
+                ..
+            } => {
+                writer.word(22).word(u64::from(*max_variables));
+                writer.real(*in_probability).real(*out_probability);
+                encode_variables(writer, focus);
+            }
+            Self::ExactPagPosterior => {
+                writer.word(20);
+            }
+            Self::PagMcmc => {
+                writer.word(21);
+            }
+            Self::ClassPosterior { base } => {
+                writer.word(18);
+                (**base).encode(writer);
+            }
+            Self::BootstrapStability { base, replicates } => {
+                writer.word(19).word(u64::from(*replicates));
+                (**base).encode(writer);
+            }
+        }
+    }
+}
+
+/// MCMC schedule of a sampled structure posterior.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct SearchSchedule {
+    /// Independent chains.
+    pub chains: u32,
+    /// Warmup draws discarded per chain.
+    pub warmup: u32,
+    /// Post-warmup draws per chain, before thinning.
+    pub draws: u32,
+    /// Keep every `thin`-th post-warmup draw.
+    pub thin: u32,
+}
+
+impl CanonicalEncode for SearchSchedule {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer
+            .word(u64::from(self.chains))
+            .word(u64::from(self.warmup))
+            .word(u64::from(self.draws))
+            .word(u64::from(self.thin));
+    }
+}
+
+/// The bounds a structure search runs under.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SearchBounds {
+    /// Significance level of the independence tests (constraint methods and
+    /// screening); ignored by methods that test nothing.
+    pub alpha: f64,
+    /// Largest conditioning set a test may use.
+    pub max_cond_size: u32,
+    /// Largest lag searched; `0` for a static search.
+    pub max_lag: u32,
+    /// MCMC schedule of a sampled posterior.
+    pub schedule: Option<SearchSchedule>,
+    /// Digest of the executable configuration the search runs: the
+    /// conditional-independence test, the multiple-testing rule, the
+    /// background knowledge, the multi-dataset or regime constraints, the
+    /// structural prior and the score. Two searches that differ in any of
+    /// them are different queries.
+    pub configuration: [u8; 32],
+}
+
+impl CanonicalEncode for SearchBounds {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer.real(self.alpha).word(u64::from(self.max_cond_size)).word(u64::from(self.max_lag));
+        match &self.schedule {
+            Some(schedule) => {
+                writer.word(1);
+                schedule.encode(writer);
+            }
+            None => {
+                writer.word(0);
+            }
+        }
+        writer.bytes(&self.configuration);
+    }
+}
+
+/// Structure-discovery query.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DiscoverQuery {
+    /// Variables searched, in column order.
+    pub variables: Arc<[VariableId]>,
+    /// Search method.
+    pub method: DiscoveryMethod,
+    /// Search bounds.
+    pub bounds: SearchBounds,
+}
+
+/// Every field is written; the variables keep their order, which is the
+/// column order the search reads.
+impl CanonicalEncode for DiscoverQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        encode_variables(writer, &self.variables);
+        self.method.encode(writer);
+        self.bounds.encode(writer);
+    }
+}
+
+/// What is wrong with the options of `method`, or `None`.
+///
+/// A wrapper is checked against what it wraps: a class posterior collapses a DAG posterior
+/// that lists its graphs, and a stability search re-runs one frequentist search that
+/// returns a structure.
+fn method_fault(method: &DiscoveryMethod) -> Option<DiscoverFault> {
+    match method {
+        DiscoveryMethod::DirectLingam { prune_threshold }
+            if !(prune_threshold.is_finite() && *prune_threshold >= 0.0) =>
+        {
+            Some(DiscoverFault::LingamPruneThreshold)
+        }
+        DiscoveryMethod::Notears { lambda, threshold, .. }
+            if !(lambda.is_finite()
+                && *lambda >= 0.0
+                && threshold.is_finite()
+                && *threshold >= 0.0) =>
+        {
+            Some(DiscoverFault::NotearsPenalty)
+        }
+        DiscoveryMethod::Ges { max_subset: Some(0), .. } => Some(DiscoverFault::GesSubsetCap),
+        DiscoveryMethod::ClassPosterior { base } => match &**base {
+            DiscoveryMethod::ExactDagPosterior { .. }
+            | DiscoveryMethod::OrderMcmc { .. }
+            | DiscoveryMethod::StructureMcmc { .. }
+            | DiscoveryMethod::CiScreenedPosterior { .. }
+            | DiscoveryMethod::DbnPosterior { .. } => method_fault(base),
+            _ => Some(DiscoverFault::ClassPosteriorBase),
+        },
+        DiscoveryMethod::BootstrapStability { base, replicates } => {
+            if *replicates < 2 {
+                return Some(DiscoverFault::StabilityResamples);
+            }
+            match &**base {
+                DiscoveryMethod::Pc
+                | DiscoveryMethod::Fci
+                | DiscoveryMethod::Rfci
+                | DiscoveryMethod::Ges { .. }
+                | DiscoveryMethod::DirectLingam { .. }
+                | DiscoveryMethod::Notears { .. }
+                | DiscoveryMethod::Pcmci
+                | DiscoveryMethod::PcmciPlus
+                | DiscoveryMethod::Lpcmci
+                | DiscoveryMethod::JpcmciPlus
+                | DiscoveryMethod::Rpcmci { .. } => method_fault(base),
+                _ => Some(DiscoverFault::StabilityBase),
+            }
+        }
+        _ => None,
+    }
+}
+
+impl DiscoverQuery {
+    /// A search over `variables` with `method` under `bounds`.
+    #[must_use]
+    pub fn new(
+        variables: impl Into<Arc<[VariableId]>>,
+        method: DiscoveryMethod,
+        bounds: SearchBounds,
+    ) -> Self {
+        Self { variables: variables.into(), method, bounds }
+    }
+
+    /// The inference mode the method declares.
+    #[must_use]
+    pub const fn inference(&self) -> DiscoveryInference {
+        self.method.inference()
+    }
+
+    /// The structure class the search returns.
+    #[must_use]
+    pub const fn output(&self) -> DiscoveredClass {
+        self.method.output()
+    }
+
+    /// Validate the variables, the method options and the bounds.
+    ///
+    /// # Errors
+    ///
+    /// [`QueryError::InvalidDiscover`] for no variables or a repeated one, a
+    /// significance level outside `(0, 1)` on a testing method, a lag on a
+    /// static method, a non-finite or negative method threshold, or a sampled
+    /// posterior without a schedule (or with a zero chain, draw or thinning count).
+    pub fn validate(&self) -> Result<(), QueryError> {
+        let invalid = |fault: DiscoverFault| Err(QueryError::InvalidDiscover(fault));
+        if self.variables.is_empty() {
+            return invalid(DiscoverFault::NoVariables);
+        }
+        if self.method.uses_independence_tests()
+            && !(self.bounds.alpha.is_finite()
+                && self.bounds.alpha > 0.0
+                && self.bounds.alpha < 1.0)
+        {
+            return invalid(DiscoverFault::SignificanceLevel);
+        }
+        if self.method.is_temporal()
+            && self.method.uses_independence_tests()
+            && self.bounds.max_lag.checked_mul(2).is_none()
+        {
+            return invalid(DiscoverFault::DoubledLagOverflow);
+        }
+        let mut sorted = self.variables.to_vec();
+        sorted.sort_unstable();
+        if sorted.windows(2).any(|pair| pair[0] == pair[1]) {
+            return invalid(DiscoverFault::RepeatedVariable);
+        }
+        if !self.method.is_temporal() && self.bounds.max_lag != 0 {
+            return invalid(DiscoverFault::StaticSearchLag);
+        }
+        if let Some(fault) = method_fault(&self.method) {
+            return invalid(fault);
+        }
+        if self.method.structure_prior().is_some_and(|prior| !prior.is_valid_over(&self.variables))
+        {
+            return invalid(DiscoverFault::StructurePrior);
+        }
+        if self.method.samples_posterior() {
+            match self.bounds.schedule {
+                Some(schedule)
+                    if schedule.chains >= 1 && schedule.draws >= 1 && schedule.thin >= 1 => {}
+                Some(_) => {
+                    return invalid(DiscoverFault::McmcSchedule);
+                }
+                None => return invalid(DiscoverFault::PosteriorNeedsSchedule),
+            }
+        }
+        Ok(())
+    }
+
+    /// Number of searched variables, as a canonical count.
+    #[must_use]
+    pub fn width(&self) -> u64 {
+        count(self.variables.len())
+    }
+}
+
+#[cfg(test)]
+mod numeric_option_regressions {
+    use super::*;
+    #[test]
+    fn invalid_alpha_and_doubled_lag_refuse_before_query_identity() {
+        let bounds = SearchBounds {
+            alpha: 0.05,
+            max_cond_size: 2,
+            max_lag: 1,
+            schedule: None,
+            configuration: [0; 32],
+        };
+        let variable = VariableId::from_raw(0);
+        for alpha in [f64::NAN, f64::INFINITY, 0.0, 1.0, -0.1] {
+            let mut query = DiscoverQuery::new([variable], DiscoveryMethod::Pcmci, bounds.clone());
+            query.bounds.alpha = alpha;
+            assert!(matches!(
+                query.validate(),
+                Err(QueryError::InvalidDiscover(DiscoverFault::SignificanceLevel))
+            ));
+        }
+        let mut query = DiscoverQuery::new([variable], DiscoveryMethod::Pcmci, bounds);
+        query.bounds.max_lag = u32::MAX;
+        assert!(matches!(
+            query.validate(),
+            Err(QueryError::InvalidDiscover(DiscoverFault::DoubledLagOverflow))
+        ));
+        query.bounds.max_lag = u32::MAX / 2;
+        assert!(query.validate().is_ok());
+    }
+}

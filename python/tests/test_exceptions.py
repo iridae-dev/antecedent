@@ -5,6 +5,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 
 def test_unknown_ci_raises_compile_error():
@@ -14,7 +15,9 @@ def test_unknown_ci_raises_compile_error():
     with pytest.raises(
         antecedent.errors.CausalCompileError, match="unknown CI test name: not_a_real_ci"
     ):
-        antecedent.discovery.PCMCI(max_lag=1, ci="not_a_real_ci").run((["x", "y"], [x, y]), seed=1)
+        antecedent.discovery.PCMCI(max_lag=1, ci="not_a_real_ci").run(
+            (["x", "y"], [x, y]), execution=antecedent.Execution(seed=1)
+        )
 
 
 def test_unknown_edge_variable_raises_data_error():
@@ -22,13 +25,15 @@ def test_unknown_edge_variable_raises_data_error():
     t = np.zeros(n)
     y = np.ones(n)
     with pytest.raises(antecedent.errors.CausalDataError, match="unknown variable name `missing`"):
-        antecedent.analyze(
-            {"t": t, "y": y},
-            graph=[("missing", "y")],
-            query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            refute=False,
-            bootstrap=0,
-            seed=1,
+        require_success(
+            antecedent.analyze(
+                {"t": t, "y": y},
+                graph=[("missing", "y")],
+                query=antecedent.AverageEffect(treatment="t", outcome="y"),
+                refute=False,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=1),
+            )
         )
 
 

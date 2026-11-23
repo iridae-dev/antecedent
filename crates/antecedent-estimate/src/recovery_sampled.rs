@@ -22,12 +22,11 @@
 //! it is refused as `route_not_supported` /
 //! `sampled_recovery.unrecoverable_pattern` with the offending patterns retained.
 //!
-//! Calibration of the interval (whole-method coverage) is UNMEASURED: no coverage
-//! claim is made and the public interval route stays closed
-//! ([`sampled_recovery_route_frozen`]). The digests are fingerprints (FNV-based),
-//! not cryptographic.
+//! The interval is reported with its calibration annotation; whole-method coverage is
+//! `not_measured` outside the measured scope, and no coverage claim is made. The digests
+//! are fingerprints (FNV-based), not cryptographic.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::fmt;
@@ -47,29 +46,24 @@ use antecedent_identify::{
 
 use antecedent_kernels::{norm_cdf, norm_inv};
 
+use crate::arm::TreatmentArm;
 use crate::recovery::{RecoveredLaw, evaluate_exact_recovery, evaluate_recovered_effect};
 use crate::splitmix::{mix64, seed_mix, splitmix64};
 
-/// Most bootstrap replicates one request may run.
-pub const SAMPLED_RECOVERY_MAX_REPLICATES: usize = 2000;
-/// Fewest bootstrap replicates required by the supported `BCa` protocol.
-pub const SAMPLED_RECOVERY_MIN_REPLICATES: usize = 2000;
 /// Most observation rows one request may carry.
 pub const SAMPLED_RECOVERY_MAX_ROWS: usize = 1_000_000;
-/// Most binary substantive variables (`X ∪ O`) one request may recover.
+/// Binary substantive variables (`X ∪ O`) every request may carry. Larger requests are admitted
+/// while the dense observed-law cell count stays within the exact recovery's cell bound.
 pub const SAMPLED_RECOVERY_MAX_BINARY_VARIABLES: usize = 6;
 /// Nominal level of the whole-row `BCa` interval.
 pub(crate) const SAMPLED_RECOVERY_INTERVAL_LEVEL: f64 = 0.95;
 /// Original source artifact status, distinct from measured-envelope authorization.
-pub const SAMPLED_RECOVERY_CALIBRATION: &str = "unmeasured";
+pub const SAMPLED_RECOVERY_CALIBRATION: &str = "not_measured";
 
 /// Why a sampled-recovery request was refused. The detail and reason code are
 /// fixed per kind.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum SampledRecoveryDetail {
-    /// The sampled provider or interval route is requested before full-path
-    /// truth, calibration and replay pass.
-    RouteFrozen,
     /// An interval was requested from per-margin variances alone.
     ComponentVarianceOnly,
     /// An observation pattern, zero cell or graph violates the exact recovery
@@ -92,14 +86,23 @@ impl SampledRecoveryDetail {
     #[must_use]
     pub const fn detail(self) -> &'static str {
         match self {
-            Self::RouteFrozen => "sampled_recovery.route_frozen",
-            Self::ComponentVarianceOnly => "sampled_recovery.component_variance_only",
-            Self::UnrecoverablePattern => "sampled_recovery.unrecoverable_pattern",
-            Self::TooManyFailedReplicates => "sampled_recovery.too_many_failed_replicates",
-            Self::BoundsExceeded => "sampled_recovery.bounds_exceeded",
-            Self::InvalidInput => "sampled_recovery.invalid_input",
-            Self::ReceiptMismatch => "sampled_recovery.receipt_mismatch",
-            Self::Cancelled => "sampled_recovery.cancelled",
+            Self::ComponentVarianceOnly => {
+                antecedent_core::reason_details::sampled_recovery::COMPONENT_VARIANCE_ONLY
+            }
+            Self::UnrecoverablePattern => {
+                antecedent_core::reason_details::sampled_recovery::UNRECOVERABLE_PATTERN
+            }
+            Self::TooManyFailedReplicates => {
+                antecedent_core::reason_details::sampled_recovery::TOO_MANY_FAILED_REPLICATES
+            }
+            Self::BoundsExceeded => {
+                antecedent_core::reason_details::sampled_recovery::BOUNDS_EXCEEDED
+            }
+            Self::InvalidInput => antecedent_core::reason_details::sampled_recovery::INVALID_INPUT,
+            Self::ReceiptMismatch => {
+                antecedent_core::reason_details::sampled_recovery::RECEIPT_MISMATCH
+            }
+            Self::Cancelled => antecedent_core::reason_details::sampled_recovery::CANCELLED,
         }
     }
 
@@ -107,8 +110,8 @@ impl SampledRecoveryDetail {
     #[must_use]
     pub const fn reason_code(self) -> &'static str {
         match self {
-            Self::RouteFrozen | Self::ComponentVarianceOnly => {
-                antecedent_core::reason_code!("cell_not_licensed")
+            Self::ComponentVarianceOnly => {
+                antecedent_core::reason_code!("estimator_inference_mismatch")
             }
             Self::UnrecoverablePattern | Self::TooManyFailedReplicates | Self::BoundsExceeded => {
                 antecedent_core::reason_code!("route_not_supported")
@@ -184,17 +187,6 @@ fn from_recovery(error: &RecoveryError) -> SampledRecoveryError {
         patterns: Vec::new(),
         recovery: Some(error.detail),
     }
-}
-
-/// The route-level refusal of the public sampled interval: closed until full-path
-/// truth, calibration and replay pass.
-#[must_use]
-pub fn sampled_recovery_route_frozen() -> SampledRecoveryError {
-    refusal(
-        SampledRecoveryDetail::RouteFrozen,
-        "the sampled observation-recovery interval route is closed until the whole-method \
-         calibration grid, public producer and artifact consumer pass",
-    )
 }
 
 /// The refusal of an interval built from per-margin variances alone: the margins
@@ -292,8 +284,7 @@ pub struct SampledBcaReceipt {
 pub struct SampledRecoveryConfig {
     /// Explicit supported interval procedure.
     pub interval_method: SampledIntervalMethod,
-    /// Bootstrap replicates, from `SAMPLED_RECOVERY_MIN_REPLICATES` to
-    /// `SAMPLED_RECOVERY_MAX_REPLICATES`.
+    /// Bootstrap replicates, at least 2; the count is bounded by the declared work limit.
     pub replicates: usize,
     /// Bootstrap seed; replicate `r` draws from a stream depending only on
     /// `(seed, r)`.
@@ -491,7 +482,7 @@ impl SampledRecoveryReceipt {
                 }
             }
         }
-        hex_digest(&digest)
+        digest.finish_hex()
     }
 
     /// Whether the stored digest is the recomputed one.
@@ -571,6 +562,7 @@ impl SampledRecoveryResult {
             None,
             0.,
         )
+        .with_validation("not_applicable")
     }
 
     /// Covariance of recovered-law cells `i` and `j`.
@@ -614,11 +606,6 @@ fn write_pattern(digest: &mut CanonicalWriter, pattern: ObservationPattern) {
     digest.bytes(&[pattern.responses, pattern.proxies, pattern.fully]);
 }
 
-/// Lowercase hex of a finished canonical digest.
-fn hex_digest(digest: &CanonicalWriter) -> String {
-    digest.finish_hex()
-}
-
 fn to_u64(value: usize) -> u64 {
     u64::try_from(value).unwrap_or(u64::MAX)
 }
@@ -652,13 +639,12 @@ impl Layout {
     fn new(query: &ObservationRecoveryQuery) -> Result<Self, SampledRecoveryError> {
         let k = query.partially_observed.len();
         let m = query.fully_observed.len();
-        if k + m > SAMPLED_RECOVERY_MAX_BINARY_VARIABLES {
+        // Pattern bits are `u8` masks, so each role holds at most seven variables; the dense
+        // law is then bounded by its cell count below, not by a variable count.
+        if k > 7 || m > 7 {
             return Err(refusal(
                 SampledRecoveryDetail::BoundsExceeded,
-                format!(
-                    "{} binary variables; at most {SAMPLED_RECOVERY_MAX_BINARY_VARIABLES}",
-                    k + m
-                ),
+                format!("{k} partially and {m} fully observed variables; at most 7 of each"),
             ));
         }
         let mut axes = Vec::new();
@@ -691,7 +677,16 @@ impl Layout {
         let mut cells = 1usize;
         for (axis, card) in cards.iter().enumerate().rev() {
             strides[axis] = cells;
-            cells *= card;
+            cells = cells.saturating_mul(*card);
+        }
+        if cells > antecedent_identify::RECOVERY_MAX_OBSERVED_CELLS {
+            return Err(refusal(
+                SampledRecoveryDetail::BoundsExceeded,
+                format!(
+                    "{cells} observed-law cells; the dense law carries at most {}",
+                    antecedent_identify::RECOVERY_MAX_OBSERVED_CELLS
+                ),
+            ));
         }
         let mut layout = Self { axes, roles, strides, cards, cells, k, m, complete: Vec::new() };
         let responses = mask(k);
@@ -767,19 +762,11 @@ impl Layout {
 
 fn validate_config(config: &SampledRecoveryConfig) -> Result<(), SampledRecoveryError> {
     let invalid = |message: &str| Err(refusal(SampledRecoveryDetail::InvalidInput, message));
-    if config.replicates > SAMPLED_RECOVERY_MAX_REPLICATES {
-        return Err(refusal(
-            SampledRecoveryDetail::BoundsExceeded,
-            format!("{} replicates; at most {SAMPLED_RECOVERY_MAX_REPLICATES}", config.replicates),
-        ));
+    if config.interval_method == SampledIntervalMethod::Bca && config.max_failed_fraction != 0.0 {
+        return invalid("BCa allows zero failed replicates");
     }
-    if config.interval_method == SampledIntervalMethod::Bca
-        && (config.replicates != 2000 || config.max_failed_fraction != 0.0)
-    {
-        return invalid("BCa requires exactly 2000 replicates and zero allowed failed replicates");
-    }
-    if config.replicates < SAMPLED_RECOVERY_MIN_REPLICATES {
-        return invalid("too few replicates to form a 95% BCa interval");
+    if config.replicates < 2 {
+        return invalid("too few replicates to form the BCa interval");
     }
     if !(config.max_failed_fraction.is_finite()
         && (0.0..=0.5).contains(&config.max_failed_fraction))
@@ -840,14 +827,14 @@ fn check_input(
     if input.snapshot_id.is_empty() {
         return invalid("the snapshot id is empty".to_string());
     }
-    if let Some(bound) = &derivation.observed().snapshot {
-        if bound.as_ref() != input.snapshot_id {
-            return invalid(format!(
-                "the rows' snapshot {:?} is not the snapshot {:?} the catalog binds",
-                input.snapshot_id,
-                bound.as_ref()
-            ));
-        }
+    if let Some(bound) = &derivation.observed().snapshot
+        && bound.as_ref() != input.snapshot_id
+    {
+        return invalid(format!(
+            "the rows' snapshot {:?} is not the snapshot {:?} the catalog binds",
+            input.snapshot_id,
+            bound.as_ref()
+        ));
     }
     if let Some(row) = input.rows.iter().find(|row| !layout.valid(row.pattern)) {
         return invalid(format!("row {} has a pattern the proxy model excludes", row.id));
@@ -868,7 +855,7 @@ fn input_digest(input: &SampledObservationInput) -> String {
         digest.word(row.id);
         write_pattern(&mut digest, row.pattern);
     }
-    hex_digest(&digest)
+    digest.finish_hex()
 }
 
 /// Probability that the outcome is 1, normalized by the evaluated total.
@@ -880,7 +867,7 @@ fn outcome_one_probability(distribution: &ExactDistribution, outcome: VariableId
     let mut total = 0.0;
     for (atom, p) in distribution.atoms.iter().zip(distribution.probabilities.iter()) {
         total += *p;
-        if atom.get(axis).and_then(Value::as_f64).is_some_and(|value| value > 0.5) {
+        if atom.get(axis).and_then(Value::as_f64).is_some_and(TreatmentArm::is_treated_indicator) {
             one += *p;
         }
     }
@@ -1007,7 +994,7 @@ impl Run<'_> {
             counts[self.cells_of_row[draw]] += 1;
             digest.word(rows[draw].id);
         }
-        (counts, hex_digest(&digest))
+        (counts, digest.finish_hex())
     }
 
     fn replicate(&self, id: usize) -> Result<Replicated, SampledRecoveryError> {
@@ -1126,7 +1113,7 @@ fn covariance(samples: &[Vec<f64>]) -> Vec<f64> {
     out.iter().map(|value| value / divisor).collect()
 }
 
-/// Efron (1987) `BCa` transformation. This is an unmeasured candidate, not a
+/// Efron (1987) `BCa` transformation. This is a `not_measured` candidate, not a
 /// finite-sample coverage guarantee. Failures and unresolved tails are refused.
 #[allow(
     clippy::float_cmp,
@@ -1382,7 +1369,10 @@ mod digest_tests {
     fn receipt_digest_matches_the_independent_derivation() {
         // Golden vector derived in Python from the documented framing (tags, length-prefixed
         // text and byte masks, little-endian words and real bit patterns) and a from-scratch
-        // BLAKE3.
+        // BLAKE3 (`tests/oracle_data/sampled_receipt_digest_reference.py`). The interval
+        // calibration text is part of the framing: the status was renamed from `unmeasured`
+        // to `not_measured`, and the reference reproduces the earlier vector for the old text
+        // and this one for the current text.
         let receipt = SampledRecoveryReceipt {
             snapshot_id: "snap".to_string(),
             rows: 4,
@@ -1429,7 +1419,7 @@ mod digest_tests {
         };
         assert_eq!(
             receipt.recompute_digest(),
-            "9703333fd08577d574671f74075f8bb2653412e2200112811a27e040d61e880b"
+            "f431887cf34ec45b0cd19426814494b847d938c617e1e3d014e96136c6cfa9d8"
         );
     }
 }

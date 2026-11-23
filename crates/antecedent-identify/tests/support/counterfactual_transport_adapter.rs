@@ -14,7 +14,7 @@
 //! root; it reaches both as `crate::finite_scm_oracle` and
 //! `crate::counterfactual_transport_cases`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     dead_code,
@@ -111,10 +111,10 @@ pub fn evidence_controllable(case: &Case) -> Vec<&'static str> {
             continue;
         }
         for (name, _) in &spec.regime {
-            if let Some(known) = case.graph.observed.iter().find(|n| **n == name.as_str()) {
-                if !out.contains(known) {
-                    out.push(*known);
-                }
+            if let Some(known) = case.graph.observed.iter().find(|n| **n == name.as_str())
+                && !out.contains(known)
+            {
+                out.push(*known);
             }
         }
     }

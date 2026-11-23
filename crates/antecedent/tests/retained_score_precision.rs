@@ -84,7 +84,7 @@ fn portable(
         n_variables: if quantity == ScoreQuantity::Interaction { 4 } else { 3 },
         edges,
         target: Some(weights),
-        target_row_ids: Some(rows),
+        target_row_ids: Some(rows.iter().map(|id| id.get()).collect()),
         utility: utility(),
         quantity,
         changed_inputs: vec![],
@@ -189,7 +189,7 @@ fn fit_inner(n: usize, seed: u64, mode: u8) -> Result<Sample, FitFailure> {
             )
         };
         let mut req = DrRequest {
-            columns,
+            columns: columns.into(),
             edges: edges.clone(),
             treatment: 0,
             outcome: 1,

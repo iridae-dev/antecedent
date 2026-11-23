@@ -195,7 +195,10 @@ fn semantic_mutations_are_refused() {
         MechanismCompositionArtifactError::Incoherent { refusals } => {
             assert_eq!(refusals.len(), 1);
             assert_eq!(refusals[0].code, "quantity_semantics_mismatch");
-            assert_eq!(refusals[0].detail, "mechanism_composition.units_mismatch");
+            assert_eq!(
+                refusals[0].detail,
+                antecedent_core::reason_details::mechanism_composition::UNITS_MISMATCH
+            );
             assert_eq!(refusals[0].offending.as_deref(), Some("M->Y"));
             refusals[0].validate().unwrap();
         }
@@ -208,11 +211,10 @@ fn semantic_mutations_are_refused() {
     reseal(&mut dropped);
     match dropped.consume(None, &ctx()).unwrap_err() {
         MechanismCompositionArtifactError::Incoherent { refusals } => {
-            assert!(
-                refusals
-                    .iter()
-                    .any(|r| r.detail == "mechanism_composition.identity_parent_without_mechanism")
-            );
+            assert!(refusals.iter().any(|r| {
+                r.detail
+                    == antecedent_core::reason_details::mechanism_composition::IDENTITY_PARENT_WITHOUT_MECHANISM
+            }));
         }
         other => panic!("{other:?}"),
     }
@@ -295,7 +297,10 @@ fn uncertainty_artifact_needs_a_declared_dependence_and_unknown_is_a_joint_law_r
         MechanismCompositionArtifactError::Incoherent { refusals } => {
             assert_eq!(refusals.len(), 1);
             assert_eq!(refusals[0].code, "joint_law_required");
-            assert_eq!(refusals[0].detail, "mechanism_composition.posterior_dependence_unknown");
+            assert_eq!(
+                refusals[0].detail,
+                antecedent_core::reason_details::mechanism_composition::POSTERIOR_DEPENDENCE_UNKNOWN
+            );
             assert!(refusals[0].remedy.is_some());
         }
         other => panic!("{other:?}"),
@@ -486,13 +491,17 @@ fn a_semantic_plan_binds_to_numbers_and_a_foreign_population_needs_its_admission
     // Numbers must exist for every planned mechanism.
     let mut missing = numbers();
     missing.remove("M");
-    assert!(lower_plan(&plan, &missing, PosteriorDependence::Unknown).is_err());
+    let absent = lower_plan(&plan, &missing, PosteriorDependence::Unknown).unwrap_err();
+    assert!(matches!(absent, MechanismCompositionArtifactError::Malformed(_)), "{absent:?}");
 
     // M fitted in another population: refused without a declaration ...
     let refusals = check_mechanism_composition(&declaration("source")).unwrap_err();
     assert_eq!(refusals.len(), 1);
     assert_eq!(refusals[0].code, "quantity_semantics_mismatch");
-    assert_eq!(refusals[0].detail, "mechanism_composition.population_undeclared_transport");
+    assert_eq!(
+        refusals[0].detail,
+        antecedent_core::reason_details::mechanism_composition::POPULATION_UNDECLARED_TRANSPORT
+    );
     // ... and admitted by a selection diagram that does not point into M.
     let mut admitted = declaration("source");
     admitted.admissions.push(TransportAdmission {
@@ -512,12 +521,42 @@ fn a_semantic_plan_binds_to_numbers_and_a_foreign_population_needs_its_admission
     reseal(&mut stripped);
     match stripped.consume(None, &ctx()).unwrap_err() {
         MechanismCompositionArtifactError::Incoherent { refusals } => {
-            assert!(
-                refusals
-                    .iter()
-                    .any(|r| r.detail == "mechanism_composition.population_undeclared_transport")
-            );
+            assert!(refusals.iter().any(|r| {
+                r.detail
+                    == antecedent_core::reason_details::mechanism_composition::POPULATION_UNDECLARED_TRANSPORT
+            }));
         }
         other => panic!("{other:?}"),
     }
+}
+
+#[test]
+fn non_finite_wire_numbers_are_refused_by_the_coherence_checker_on_consume() {
+    use antecedent_io_core::mechanism_composition_artifact::DomainWire;
+    let independent = uncertain_chain(PosteriorDependence::IndependentByDesign {
+        justification: "disjoint trials".into(),
+    });
+    let wire =
+        MechanismCompositionArtifactWire::seal(&independent, contrast_query(), &ctx()).unwrap();
+    assert!(wire.consume(None, &ctx()).is_ok());
+
+    // A resealed NaN interval end is a different premise, and the checker refuses it.
+    let mut nan_support = wire.clone();
+    nan_support.premises.mechanisms[0].output_support =
+        DomainWire::Interval { lo: f64::NAN, hi: 1.0 };
+    reseal(&mut nan_support);
+    assert!(matches!(
+        nan_support.consume(None, &ctx()),
+        Err(MechanismCompositionArtifactError::Incoherent { .. })
+    ));
+
+    // A resealed NaN covariance entry is refused rather than propagated into the variance.
+    let mut nan_covariance = wire.clone();
+    let uncertainty = nan_covariance.premises.mechanisms[1].uncertainty.as_mut().unwrap();
+    uncertainty.covariance[0] = f64::NAN;
+    reseal(&mut nan_covariance);
+    assert!(matches!(
+        nan_covariance.consume(None, &ctx()),
+        Err(MechanismCompositionArtifactError::Incoherent { .. })
+    ));
 }

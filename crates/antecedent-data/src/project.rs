@@ -1,6 +1,6 @@
 //! Column projection: narrow a table to the variables needed after identification.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{HashMap, HashSet};
 
@@ -8,7 +8,6 @@ use antecedent_core::{CausalSchemaBuilder, VariableId};
 
 use crate::dataset::TabularData;
 use crate::error::DataError;
-use crate::storage::OwnedColumnarStorage;
 use crate::table::TableView;
 
 /// Dense-id remap produced by [`TabularData::project`].
@@ -84,9 +83,7 @@ impl TabularData {
                 )
                 .map_err(DataError::from)?;
             let new_id = VariableId::from_raw(u32::try_from(new_idx).map_err(|_| {
-                DataError::InvalidArgument {
-                    message: "projected schema exceeds VariableId range".into(),
-                }
+                DataError::overflow("projected schema variable count as VariableId")
             })?);
             old_to_new.insert(old_id, new_id);
             let col = storage
@@ -97,7 +94,7 @@ impl TabularData {
         }
 
         let new_schema = builder.build().map_err(DataError::from)?;
-        let new_storage = OwnedColumnarStorage::try_new(
+        let new_storage = storage.derive(
             new_schema,
             cols,
             storage.analysis_mask().cloned(),
@@ -125,6 +122,7 @@ mod tests {
 
     use super::*;
     use crate::column::{Float64Column, OwnedColumn, ValidityBitmap};
+    use crate::storage::OwnedColumnarStorage;
     use antecedent_core::{MeasurementSpec, RoleHint, SmallRoleSet, ValueType};
     use std::sync::Arc;
 

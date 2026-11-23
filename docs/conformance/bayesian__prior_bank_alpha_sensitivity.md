@@ -15,4 +15,4 @@ notes`.
 
 ## Expected summary
 
-Top-level keys: `alpha, alpha_multipliers, m1_closer_to_source_than_m0, n, n_draws, notes, require_finite_effect_means, source_coef_variance, source_treatment_mean` (9 fields).
+Top-level keys: `alpha, alpha_multipliers, evidence_kind, evidence_proposition, evidence_roles, evidence_source, limitations, m1_closer_to_source_than_m0, n, n_draws, notes, require_finite_effect_means, source_coef_variance, source_treatment_mean` (14 fields).

@@ -15,7 +15,7 @@
 //!   proven by the estimator, not asserted by the wrapper.
 //! - **Portable score resume.** [`ScoreResumeSession`] is built only from a
 //!   [`FrozenScoreTable`] (cell or cross-fit scores exported from a live session or read from
-//!   artifact bytes) and holds no data and no fitted model. It supports exactly one licensed
+//!   artifact bytes) and holds no data and no fitted model. It supports exactly one supported
 //!   operation: retarget the frozen scores by row weights over the same row ids and recompute
 //!   the law and decision, with zero fits. Anything that would need the data or a fit (a
 //!   changed outcome, folds, graph, adjustment, data snapshot or new rows) is refused with the
@@ -32,7 +32,7 @@
 //! there), and it runs for real: the declared-adjustment descendant screen over the requested
 //! graph, counted once.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -58,8 +58,8 @@ use crate::graph::{Dag, DenseNodeId};
 
 use super::recalc_common::{Fields, float_bytes, identity as digest, literal, table_from_columns};
 use super::recalc_receipt::{
-    Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRunError, RecalcSession,
-    ReceiptRecorder, TargetWeights, UtilitySpec, decide,
+    Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRequestCode, RecalcRunError,
+    RecalcSession, ReceiptRecorder, TargetWeights, UtilitySpec, decide,
 };
 
 type Columns = Vec<(String, Vec<f64>)>;
@@ -82,7 +82,8 @@ pub enum ScoreQuantity {
         /// The requested cell mask.
         arm: u32,
     },
-    /// The 2x2 interaction contrast `mu00 - mu10 - mu01 + mu11`.
+    /// The highest-order interaction contrast of the `2^k` cell table (`mu00 - mu10 - mu01 +
+    /// mu11` on a 2x2 table).
     Interaction,
 }
 
@@ -223,7 +224,7 @@ impl CellRequest {
 
     fn data(&self) -> Result<TabularData, RecalcRunError> {
         table_from_columns(&self.columns)
-            .map_err(|_| RecalcRunError::Request("recalc.invalid_data"))
+            .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidData))
     }
 }
 
@@ -237,7 +238,7 @@ fn dag_of(n_variables: u32, edges: &[(u32, u32)]) -> Result<Dag, RecalcRunError>
     for (from, to) in edges {
         graph
             .insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to))
-            .map_err(|_| RecalcRunError::Request("recalc.invalid_graph"))?;
+            .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidGraph))?;
     }
     Ok(graph)
 }
@@ -264,7 +265,7 @@ fn screen_adjustment(
     outcome: Option<u32>,
     adjustment: &[u32],
 ) -> Result<(), RecalcRunError> {
-    let invalid = RecalcRunError::Request("recalc.invalid_adjustment_set");
+    let invalid = RecalcRunError::Request(RecalcRequestCode::InvalidAdjustmentSet);
     let in_range = |v: &u32| *v < n_variables;
     if treatments.is_empty()
         || !treatments.iter().all(in_range)
@@ -290,7 +291,7 @@ fn quantity_value(
             return result
                 .contrast
                 .map(|c| (c.value, c.se))
-                .ok_or(RecalcRunError::Request("recalc.contrast_unavailable"));
+                .ok_or(RecalcRunError::Request(RecalcRequestCode::ContrastUnavailable));
         }
         ScoreQuantity::CellMinusControl { arm } => {
             cell_minus_control_coefficients(table, arm).map_err(estimation)?
@@ -321,7 +322,7 @@ fn score_law(
         antecedent_estimate::retarget(table, weights, depends_on, Some(ancestry), None, None)
             .map_err(estimation)?;
     if overlap_failed {
-        return Err(RecalcRunError::Request("recalc.weighted_overlap_failed"));
+        return Err(RecalcRunError::Request(RecalcRequestCode::WeightedOverlapFailed));
     }
     recorder.record(Counter::Reweight, 1);
     let (ate, std_error) = quantity_value(table, &result, quantity)?;
@@ -344,14 +345,14 @@ pub(crate) fn freeze(
     input_rows: u64,
     retarget: RetargetSupport,
 ) -> Result<FrozenScoreTable, RecalcRunError> {
-    if retarget != RetargetSupport::Licensed {
-        return Err(RecalcRunError::Request("recalc.retarget_not_licensed"));
+    if retarget != RetargetSupport::Supported {
+        return Err(RecalcRunError::Request(RecalcRequestCode::RetargetNotSupported));
     }
     let fit_identity = declared
-        .effective(RetargetSupport::Licensed)
+        .effective(RetargetSupport::Supported)
         .get(&Stage::ScoreArtifact)
         .copied()
-        .ok_or(RecalcRunError::Request("recalc.score_stage_undeclared"))?;
+        .ok_or(RecalcRunError::Request(RecalcRequestCode::ScoreStageUndeclared))?;
     FrozenScoreTable::seal(FrozenScoreParts {
         estimator: table.nuisance_provenance.to_string(),
         fit_identity,
@@ -359,16 +360,16 @@ pub(crate) fn freeze(
         input_rows,
         table: table.to_wire(),
     })
-    .map_err(|_| RecalcRunError::Request("recalc.frozen_scores_rejected"))
+    .map_err(|_| RecalcRunError::Request(RecalcRequestCode::FrozenScoresRejected))
 }
 
 /// Export the frozen cross-fit AIPW scores of a live [`RecalcSession`] as a portable
 /// artifact. `input_rows` is the row count of the data the session last ran on, and
-/// `retarget` the license the session was run under (only a licensed route is exportable).
+/// `retarget` the support the session was run under (only a supported route is exportable).
 ///
 /// # Errors
 ///
-/// [`RecalcRunError::NoLiveState`] without a live score table; `Request` for an unlicensed
+/// [`RecalcRunError::NoLiveState`] without a live score table; `Request` for an unsupported
 /// route or scores the artifact format rejects.
 pub fn freeze_crossfit_scores(
     session: &RecalcSession,
@@ -403,18 +404,18 @@ impl Default for CellSession {
 }
 
 impl CellSession {
-    /// An empty session with the retarget route declared licensed.
+    /// An empty session with the retarget route declared supported.
     #[must_use]
     pub fn new() -> Self {
         Self {
             live: None,
             previous: StageIdentities::new(),
             input_rows: 0,
-            retarget: RetargetSupport::Licensed,
+            retarget: RetargetSupport::Supported,
         }
     }
 
-    /// Declare the estimator's retarget license for later plans.
+    /// Declare the estimator's retarget support for later plans.
     pub fn set_retarget_support(&mut self, retarget: RetargetSupport) {
         self.retarget = retarget;
     }
@@ -452,7 +453,7 @@ impl CellSession {
     ///
     /// # Errors
     ///
-    /// [`RecalcRunError::NoLiveState`] without live scores; `Request` for an unlicensed route
+    /// [`RecalcRunError::NoLiveState`] without live scores; `Request` for an unsupported route
     /// or scores the artifact format rejects.
     pub fn export_scores(&self) -> Result<FrozenScoreTable, RecalcRunError> {
         let live = self.live.as_ref().ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?;
@@ -474,16 +475,18 @@ fn fit_cells(
         spec.adjustment.iter().map(|&v| VariableId::from_raw(v)).collect();
     recorder.record(Counter::ScoreComputation, 1);
     let (fitted, fits) = count_cell_model_fits(|| {
-        estimator.fit_scores(
-            &data,
-            &antecedent_estimate::CellScoreSpec {
-                treatments: &treatments,
-                outcome: VariableId::from_raw(spec.outcome),
-                adjustment: &adjustment,
-                functional: &OutcomeFunctional::Mean,
-                continuous: None,
-            },
-        )
+        antecedent_core::numerical_admission::with_context(ctx, || {
+            estimator.fit_scores(
+                &data,
+                &antecedent_estimate::CellScoreSpec {
+                    treatments: &treatments,
+                    outcome: VariableId::from_raw(spec.outcome),
+                    adjustment: &adjustment,
+                    functional: &OutcomeFunctional::Mean,
+                    continuous: None,
+                },
+            )
+        })
     });
     recorder.record(Counter::FoldFit, fits);
     fitted.map_err(estimation)
@@ -491,7 +494,7 @@ fn fit_cells(
 
 fn cell_n_variables(request: &CellRequest) -> Result<u32, RecalcRunError> {
     u32::try_from(request.columns.len())
-        .map_err(|_| RecalcRunError::Request("recalc.invalid_graph"))
+        .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidGraph))
 }
 
 fn identify_cells(
@@ -501,7 +504,7 @@ fn identify_cells(
     let n = cell_n_variables(request)?;
     let spec = &request.spec;
     if spec.treatments.len() > antecedent_estimate::MAX_JOINT_BINARY {
-        return Err(RecalcRunError::Request("recalc.invalid_adjustment_set"));
+        return Err(RecalcRunError::Request(RecalcRequestCode::InvalidAdjustmentSet));
     }
     let graph = dag_of(n, &spec.edges)?;
     screen_adjustment(&graph, n, &spec.treatments, Some(spec.outcome), &spec.adjustment)?;
@@ -537,13 +540,6 @@ fn run_cell_stages(
         held.map(|(_, decision)| decision).ok_or(RecalcRunError::NoLiveState(Stage::Decision))?
     };
     Ok(CellLive { table, law, decision })
-}
-
-/// The registered reason code of a malformed cell or resume request (`invalid_argument`): the
-/// `recalc.*` request details this module emits all carry it.
-#[must_use]
-pub fn cell_request_reason_code() -> &'static str {
-    antecedent_core::reason_code!("invalid_argument")
 }
 
 /// Plan `request` against the session, run only what the plan says must run, count the work,
@@ -614,7 +610,7 @@ pub struct ScoreResumeRequest {
     pub target: Option<TargetWeights>,
     /// The original row ids the weights are indexed by. When given they must equal the frozen
     /// scores' row ids exactly; when `None` only the row count is checked.
-    pub target_row_ids: Option<Vec<u32>>,
+    pub target_row_ids: Option<Vec<u64>>,
     /// Net-benefit rule.
     pub utility: UtilitySpec,
     /// The reported contrast.
@@ -707,7 +703,7 @@ impl ScoreResumeSession {
                 || matches!(stage, Stage::Graph | Stage::TargetPopulation | Stage::Utility)
                 || !changed.insert(*stage)
             {
-                return Err(RecalcRunError::Request("recalc.invalid_changed_input"));
+                return Err(RecalcRunError::Request(RecalcRequestCode::InvalidChangedInput));
             }
             ids.set(*stage, *own);
         }
@@ -730,7 +726,7 @@ impl ScoreResumeSession {
     /// identity is bound to the artifact. Before the first run the boundary is a fresh
     /// process; afterwards the session holds its law and decision and plans in process.
     #[must_use]
-    fn licensed_plan(&self, requested: &StageIdentities) -> RecalcPlan {
+    fn supported_plan(&self, requested: &StageIdentities) -> RecalcPlan {
         let boundary = if self.live.is_some() {
             Boundary::InProcess
         } else {
@@ -741,7 +737,7 @@ impl ScoreResumeSession {
             })
         };
         let caps = RecalcCapabilities {
-            retarget: RetargetSupport::Licensed,
+            retarget: RetargetSupport::Supported,
             request: RequestSupport::OnGrid,
             boundary,
         };
@@ -752,7 +748,7 @@ impl ScoreResumeSession {
     /// `Unavailable { missing: Data }`.
     fn refusal_plan(&self, requested: &StageIdentities) -> RecalcPlan {
         let caps = RecalcCapabilities {
-            retarget: RetargetSupport::Licensed,
+            retarget: RetargetSupport::Supported,
             request: RequestSupport::OnGrid,
             boundary: Boundary::FreshProcess(ResumeContext {
                 portable_scores: true,
@@ -769,7 +765,7 @@ impl ScoreResumeSession {
     /// [`RecalcRunError::Refused`] with the honest plan, or `Request` for a malformed change.
     pub fn plan(&self, request: &ScoreResumeRequest) -> Result<RecalcPlan, RecalcRunError> {
         let requested = self.requested(request)?;
-        let plan = self.licensed_plan(&requested);
+        let plan = self.supported_plan(&requested);
         if plan.is_executable() && is_reused(&plan, Stage::ScoreArtifact) {
             Ok(plan)
         } else {
@@ -779,14 +775,15 @@ impl ScoreResumeSession {
 
     fn check_rows(&self, request: &ScoreResumeRequest) -> Result<(), RecalcRunError> {
         if let Some(ids) = &request.target_row_ids {
-            if ids.as_slice() != self.table.row_index.as_ref() {
-                return Err(RecalcRunError::Request("recalc.row_ids_mismatch"));
+            let stored: Vec<u64> = self.table.row_index.iter().map(|id| id.get()).collect();
+            if ids.as_slice() != stored.as_slice() {
+                return Err(RecalcRunError::Request(RecalcRequestCode::RowIdsMismatch));
             }
         }
-        if let Some(target) = &request.target {
-            if target.weights.len() != self.table.n_rows {
-                return Err(RecalcRunError::Request("recalc.row_count_mismatch"));
-            }
+        if let Some(target) = &request.target
+            && target.weights.len() != self.table.n_rows
+        {
+            return Err(RecalcRunError::Request(RecalcRequestCode::RowCountMismatch));
         }
         Ok(())
     }
@@ -843,7 +840,7 @@ pub fn execute_resumed_retarget(
 ) -> Result<RecalcOutcome, RecalcRunError> {
     request.utility.validate()?;
     let requested = session.requested(request)?;
-    let plan = session.licensed_plan(&requested);
+    let plan = session.supported_plan(&requested);
     if !plan.is_executable() || !is_reused(&plan, Stage::ScoreArtifact) {
         return Err(RecalcRunError::Refused(Box::new(session.refusal_plan(&requested))));
     }

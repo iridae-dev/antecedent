@@ -8,14 +8,16 @@
 //! An equivalence class stays an equivalence class: an edge whose endpoint marks are not
 //! both resolved is reported as unresolved and no function in this module chooses a member.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalWriter, NodeRef, VariableId};
 use antecedent_graph::{
-    Cpdag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TemporalCpdag, TemporalDag,
+    Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TemporalCpdag, TemporalDag,
+    TemporalPag,
 };
 
 use super::identity::Digest;
+use antecedent_core::named_variants;
 
 const STRUCTURE_TAG: &str = "antecedent.selective_discovery.structure.v1";
 
@@ -30,34 +32,28 @@ pub enum StructureClass {
     TemporalDag,
     /// Temporal CPDAG (contemporaneous links oriented up to equivalence).
     TemporalCpdag,
+    /// Temporal partial ancestral graph (latent confounding allowed).
+    TemporalPag,
+}
+
+named_variants! {
+    StructureClass {
+        Cpdag => "cpdag",
+        Pag => "pag",
+        TemporalDag => "temporal_dag",
+        TemporalCpdag => "temporal_cpdag",
+        TemporalPag => "temporal_pag",
+    }
 }
 
 impl StructureClass {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Cpdag => "cpdag",
-            Self::Pag => "pag",
-            Self::TemporalDag => "temporal_dag",
-            Self::TemporalCpdag => "temporal_cpdag",
-        }
-    }
-
-    /// Parse a wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::Cpdag, Self::Pag, Self::TemporalDag, Self::TemporalCpdag]
-            .into_iter()
-            .find(|class| class.as_str() == name)
-    }
-
     const fn tag(self) -> u64 {
         match self {
             Self::Cpdag => 0,
             Self::Pag => 1,
             Self::TemporalDag => 2,
             Self::TemporalCpdag => 3,
+            Self::TemporalPag => 4,
         }
     }
 
@@ -131,6 +127,15 @@ pub enum Mark {
     Conflict,
 }
 
+named_variants! {
+    Mark {
+        Tail => "tail",
+        Arrow => "arrow",
+        Circle => "circle",
+        Conflict => "conflict",
+    }
+}
+
 impl Mark {
     const fn from_endpoint(endpoint: Endpoint) -> Self {
         match endpoint {
@@ -139,25 +144,6 @@ impl Mark {
             Endpoint::Circle => Self::Circle,
             Endpoint::Conflict => Self::Conflict,
         }
-    }
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Tail => "tail",
-            Self::Arrow => "arrow",
-            Self::Circle => "circle",
-            Self::Conflict => "conflict",
-        }
-    }
-
-    /// Parse a wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::Tail, Self::Arrow, Self::Circle, Self::Conflict]
-            .into_iter()
-            .find(|mark| mark.as_str() == name)
     }
 
     const fn tag(self) -> u64 {
@@ -305,6 +291,13 @@ impl DiscoveredStructure {
         Self::finish(StructureClass::Cpdag, graph.nodes(), edges)
     }
 
+    /// From a static DAG, held as the CPDAG whose every edge is directed: a DAG search names
+    /// one graph, and this form tabulates its edges with the classes' canonical identity.
+    #[must_use]
+    pub fn from_dag(graph: &Dag) -> Self {
+        Self::from_cpdag(&Cpdag::from_dag(graph))
+    }
+
     /// From a static PAG.
     #[must_use]
     pub fn from_pag(graph: &Pag) -> Self {
@@ -334,6 +327,23 @@ impl DiscoveredStructure {
     pub fn from_temporal_cpdag(graph: &TemporalCpdag) -> Self {
         let edges = collect_edges(graph.nodes(), graph.edges());
         Self::finish(StructureClass::TemporalCpdag, graph.nodes(), edges)
+    }
+
+    /// From a temporal PAG.
+    #[must_use]
+    pub fn from_temporal_pag(graph: &TemporalPag) -> Self {
+        let nodes = graph.nodes();
+        let mut collected = Vec::new();
+        for i in 0..graph.node_count() {
+            for j in (i + 1)..graph.node_count() {
+                if let Some(edge) =
+                    graph.edge_between(DenseNodeId::from_index(i), DenseNodeId::from_index(j))
+                {
+                    collected.push(edge);
+                }
+            }
+        }
+        Self::finish(StructureClass::TemporalPag, nodes, collect_edges(nodes, collected))
     }
 
     /// Rebuild from parts already in canonical order (an artifact consumer).

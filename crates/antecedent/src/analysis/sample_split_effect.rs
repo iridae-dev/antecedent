@@ -30,12 +30,12 @@
 //! # What is outside
 //!
 //! The same rows used both to discover and to estimate are a different construction and are
-//! never licensed ([`super::sample_split_analysis::SplitDiscovery::request_unsplit_interval`]
+//! never supported ([`super::sample_split_analysis::SplitDiscovery::request_unsplit_interval`]
 //! refuses). Weak or near-cancelling edges, a misspecified test, a declared completion, other
 //! tests or thresholds, other levels and tables outside five to seven variables are outside
 //! the measured construction.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CalibrationBasis, ExecutionContext, VariableId};
 use antecedent_data::{TableView, TabularData};
@@ -56,6 +56,11 @@ pub struct SplitEffect {
 }
 
 /// Split `data`, discover on one part and estimate the treatment's effect on the other.
+///
+/// This is a specialized checked path outside the central compiler: it runs the discovery
+/// contract and the measured-inference owner under the caller's context and refuses an
+/// unresolved structure, but it is not lowered as one combined discovery-and-estimation
+/// program.
 ///
 /// The discovery contract's seed is the context's master seed; `split_seed` decides the
 /// row permutation. Every column of `data` is searched and must be a finite float64 column.
@@ -205,9 +210,9 @@ impl SplitEffect {
     ///
     /// # Errors
     ///
-    /// The refusals of [`estimate_effect_on_split`], and `cell_not_licensed`
-    /// (`measured_inference.record_not_attesting`) when no current attesting, non-boundary
-    /// record measured this construction at this analysis row count.
+    /// The refusals of [`estimate_effect_on_split`]. Where no current attesting, non-boundary
+    /// record measured this construction at this analysis row count, the interval is still
+    /// reported and its calibration is `not_measured` or `outside_measured_scope`.
     pub fn measure(&self, ctx: &ExecutionContext) -> Result<MeasuredInference, IoError> {
         split_effect::measure(&self.source, ctx)
     }

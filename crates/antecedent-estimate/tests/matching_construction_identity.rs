@@ -8,7 +8,7 @@
 //! naming where it departs from one-nearest-neighbour matching, and its own calibration
 //! design registered with the gate. This test reads those registrations.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::path::PathBuf;
 
@@ -53,11 +53,11 @@ fn matching_changed_numerical_construction_has_own_identity() {
     // registered with the gate under its own name.
     let design = repository_file("crates/antecedent-estimate/tests/knn_matching_calibration.rs");
     assert!(design.contains("fn knn_matching_interval_ci_coverage()"));
-    assert!(design.contains("#[ignore = \"calibration: run via scripts/gate_calibration.sh\"]"));
-    let gate = repository_file("scripts/gate_calibration.sh");
+    assert!(design.contains("#[ignore = \"calibration: run via scripts/measure_calibration.sh\"]"));
+    let groups = repository_file("parity/calibration_groups.toml");
     assert!(
-        gate.lines().any(|line| line.contains("--test knn_matching_calibration")
-            || line.contains("run_knn_matching_calibration knn_matching_interval_ci_coverage")),
-        "scripts/gate_calibration.sh does not register the knn matching coverage design"
+        groups.contains("target = \"knn_matching_calibration\"")
+            && groups.contains("tests = [\"knn_matching_interval_ci_coverage\"]"),
+        "parity/calibration_groups.toml does not register the knn matching coverage design"
     );
 }

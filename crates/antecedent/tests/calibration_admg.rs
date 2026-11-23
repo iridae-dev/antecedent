@@ -15,16 +15,16 @@
 //! Bayesian configuration) at 0.95, and the same construction at 0.90 from the
 //! same replicates (`common::reported`). Replicate 0 checks that accepted
 //! structure and the cheap / full validation suites report the identical
-//! interval, so one measurement covers every licensed structure × validation
+//! interval, so one measurement covers every supported structure × validation
 //! coordinate. Every tally is keyed through [`keyed`], this file's one
 //! emission point: the key states only the emitting test, the DGP and the
 //! scored interval method, and the construction each record describes is read
 //! from the runtime by binding every scored execution
 //! (`common::calibration_bind`).
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -91,6 +91,43 @@ fn uniform(seed: u64) -> impl FnMut() -> f64 {
 }
 
 fn frontdoor_data(n: usize, seed: u64) -> TabularData {
+    let (t, m, y) = frontdoor_columns(n, seed);
+    TabularData::from_f64_columns([("t", t.as_slice()), ("m", m.as_slice()), ("y", y.as_slice())])
+        .unwrap()
+}
+
+/// The plug-in front-door `P(Y = 1 | do(T = t))`, by counting the rows:
+/// `sum_m P(m | t) sum_t' P(Y = 1 | t', m) P(t')`.
+fn counted_frontdoor(cols: &(Vec<f64>, Vec<f64>, Vec<f64>), t_level: f64) -> f64 {
+    let (t, m, y) = cols;
+    let n = t.len() as f64;
+    let count = |tv: Option<f64>, mv: Option<f64>, yv: Option<f64>| -> f64 {
+        (0..t.len())
+            .filter(|&i| {
+                tv.is_none_or(|v| t[i] == v)
+                    && mv.is_none_or(|v| m[i] == v)
+                    && yv.is_none_or(|v| y[i] == v)
+            })
+            .count() as f64
+    };
+    [0.0, 1.0]
+        .into_iter()
+        .map(|mv| {
+            let p_m = count(Some(t_level), Some(mv), None) / count(Some(t_level), None, None);
+            let inner: f64 = [0.0, 1.0]
+                .into_iter()
+                .map(|tp| {
+                    count(Some(tp), Some(mv), Some(1.0)) / count(Some(tp), Some(mv), None)
+                        * count(Some(tp), None, None)
+                        / n
+                })
+                .sum();
+            p_m * inner
+        })
+        .sum()
+}
+
+fn frontdoor_columns(n: usize, seed: u64) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
     let mut u01 = uniform(seed);
     let (mut t, mut m, mut y) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
     for i in 0..n {
@@ -99,8 +136,7 @@ fn frontdoor_data(n: usize, seed: u64) -> TabularData {
         m[i] = f64::from(u01() < 0.2 + 0.6 * t[i]);
         y[i] = f64::from(u01() < 0.1 + 0.4 * m[i] + 0.3 * u);
     }
-    TabularData::from_f64_columns([("t", t.as_slice()), ("m", m.as_slice()), ("y", y.as_slice())])
-        .unwrap()
+    (t, m, y)
 }
 
 fn frontdoor_admg() -> Admg {
@@ -186,7 +222,7 @@ fn distribution_query() -> CausalQuery {
 
 type Extract = fn(&StudyResult) -> [Option<(f64, f64)>; 2];
 
-/// Score `extract(result)` against `truth`; replicate 0 checks the licensed
+/// Score `extract(result)` against `truth`; replicate 0 checks the supported
 /// structure × validation coordinates report the same interval.
 #[allow(
     clippy::too_many_arguments,
@@ -207,7 +243,7 @@ fn coverage(
 
 /// [`coverage`] for the study built on `structure`; replicate 0 checks the
 /// validation suites on that structure (and accepted structure, which is
-/// licensed beside the explicit one only).
+/// supported beside the explicit one only).
 #[allow(
     clippy::too_many_arguments,
     reason = "one calibration cell per call: test, cell, structure, query, inference, suites, extractor, truth and seed family are the cell coordinates"
@@ -238,7 +274,7 @@ fn coverage_on(
                 accepted.into_iter().chain(suites.iter().map(|&s| (structure, s)))
             {
                 let (_, other) = run(&data, query(), inference(), other_structure, suite, seed)
-                    .expect("licensed coordinate runs");
+                    .expect("supported coordinate runs");
                 assert_eq!(extract(&other), pair, "{other_structure:?} {suite:?}");
             }
         }
@@ -260,7 +296,7 @@ fn coverage_on(
 /// (its analytic SE is NaN), so the reported interval is `ate ± z·se_boot`
 /// at the Study's default 199 replicates.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn average_effect_admg_frontdoor_frequentist_nominal_coverage() {
     let cell = Cell {
         query: "AverageEffect",
@@ -286,7 +322,7 @@ fn average_effect_admg_frontdoor_frequentist_nominal_coverage() {
 /// Bayesian `functional.effect` posterior (Bayesian-bootstrap Dirichlet row
 /// law over the identified CPT factors): the published `q025` / `q975`.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn average_effect_admg_frontdoor_bayesian_nominal_coverage() {
     let cell = Cell {
         query: "AverageEffect",
@@ -314,7 +350,7 @@ fn average_effect_admg_frontdoor_bayesian_nominal_coverage() {
 /// column is the binary mean, the `Y = 1` atom (checked in replicate 0 of the
 /// shape test).
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn interventional_distribution_admg_frontdoor_bayesian_nominal_coverage() {
     let cell = Cell {
         query: "InterventionalDistribution",
@@ -345,7 +381,7 @@ fn interventional_distribution_admg_frontdoor_bayesian_nominal_coverage() {
 /// The same Frequentist `functional.effect` average effect under a graph
 /// posterior whose single atom is the front-door ADMG.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn average_effect_admg_graph_posterior_frequentist_nominal_coverage() {
     let cell = Cell {
         query: "AverageEffect",
@@ -372,7 +408,7 @@ fn average_effect_admg_graph_posterior_frequentist_nominal_coverage() {
 /// The same Bayesian `functional.effect` posterior under a graph posterior
 /// whose single atom is the front-door ADMG.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn average_effect_admg_graph_posterior_bayesian_nominal_coverage() {
     let cell = Cell {
         query: "AverageEffect",
@@ -401,6 +437,12 @@ fn average_effect_admg_graph_posterior_bayesian_nominal_coverage() {
 #[test]
 fn admg_frontdoor_coordinates_publish_the_scored_interval() {
     let data = frontdoor_data(600, 3);
+    let cols = frontdoor_columns(600, 3);
+    let plug_in_do1 = counted_frontdoor(&cols, 1.0);
+    let plug_in_ate = plug_in_do1 - counted_frontdoor(&cols, 0.0);
+    // The sample is large enough that the plug-in sits near the generating 0.24, so a
+    // wrong adjustment (the confounded contrast is far from it) cannot pass either check.
+    assert!((plug_in_ate - ATE_TRUTH).abs() < 0.1, "{plug_in_ate}");
     let (_, freq) = run(
         &data,
         ate_query(),
@@ -411,15 +453,17 @@ fn admg_frontdoor_coordinates_publish_the_scored_interval() {
     )
     .expect("the Frequentist coordinate runs");
     assert!(
-        freq.estimate.as_effect().unwrap().se_analytic().is_nan(),
+        freq.estimate().as_effect().unwrap().se_analytic().is_nan(),
         "functional.effect has no analytic SE"
     );
     assert_eq!(
-        freq.estimate.as_effect().unwrap().uncertainty.bootstrap.replicates_ok,
+        freq.estimate().as_effect().unwrap().uncertainty.bootstrap.replicates_ok,
         Some(199),
         "Study default bootstrap"
     );
     assert!(scalar_normal_pair(&freq)[0].is_some());
+    let ate = freq.estimate().as_effect().unwrap().ate;
+    assert!((ate - plug_in_ate).abs() < 1e-12, "functional ate {ate} vs counted {plug_in_ate}");
     let (_, dist) =
         run(&data, distribution_query(), bayes(), Structure::Explicit, RefuteSuite::None, 3)
             .expect("the Bayesian distribution coordinate runs");
@@ -431,6 +475,13 @@ fn admg_frontdoor_coordinates_publish_the_scored_interval() {
         posterior.draws.column(col).unwrap(),
         posterior.draws.column(col + 1 + one).unwrap(),
         "the effect column is the P(Y = 1) atom"
+    );
+    // The reported atom mass is the Dirichlet posterior mean of the front-door mass, which is
+    // centred on the counted plug-in (the row-law prior shifts it by O(1/n)).
+    assert!(
+        (atoms[one].probability - plug_in_do1).abs() < 0.02,
+        "atom {} vs counted {plug_in_do1}",
+        atoms[one].probability
     );
     assert!(posterior_pair(&dist, col)[0].is_some());
 }

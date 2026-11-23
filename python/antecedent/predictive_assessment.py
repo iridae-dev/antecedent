@@ -33,10 +33,10 @@ What is decided here, and what is not:
   ensemble estimator, which is not proper for the empirical law).
 * **Point values and a record-gated interval.** Differences are paired on the shared observations
   with a standard error under the declared dependence; diagnostics are labelled ``diagnostic``
-  and ``unmeasured``. :meth:`PredictiveAssessment.score_interval` returns the interval of an
+  and ``not_measured``. :meth:`PredictiveAssessment.score_interval` returns the interval of an
   expected score or difference only for a held-out or unfitted predictor under a declared
-  dependence where a current coverage record measured the construction, and raises
-  ``cell_not_licensed`` elsewhere; a score is not causal validity
+  dependence, with a calibration status that is ``calibrated`` only where a current coverage record measured the construction, and raises
+  ``not_supported`` for any other predictor or dependence; a score is not causal validity
   (:meth:`PredictiveAssessment.causal_validity`) and not the probability of a claim
   (:meth:`PredictiveAssessment.score_as_probability`).
 * **Artifact.** :meth:`PredictiveAssessment.export` writes ``predictive_assessment_v1``;
@@ -56,12 +56,20 @@ from dataclasses import dataclass
 from typing import Any
 
 from . import _native
-from ._artifact_protocol import ExportedArtifact
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._freeze import thaw
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count as _count
-from .errors import CausalTypeError, CausalValueError
+from ._validate import name as _name
+from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .execution import Execution, resolve_execution
 
 __all__ = [
     "Bernoulli",
@@ -79,10 +87,12 @@ __all__ = [
     "Observations",
     "OverlapStatus",
     "PointEvaluated",
+    "PosteriorReplicates",
     "PredictiveAssessment",
     "PredictiveAssessmentRefusal",
     "PredictiveReport",
     "Predictor",
+    "ReplicateBounds",
     "ScoreDifference",
     "ScoreInterval",
     "Target",
@@ -94,6 +104,7 @@ __all__ = [
     "keys",
     "ledger_observations",
     "observation_key",
+    "posterior_replicates",
     "replicate_laws",
     "score_case",
 ]
@@ -107,8 +118,8 @@ class PredictiveAssessmentRefusal(StructuredRefusal):
 
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code`` (for
     example ``quantity_semantics_mismatch``, ``sampling_dependence_unknown``,
-    ``evidence_double_counted``, ``cell_not_licensed``) and a ``predictive_assessment.*``
-    ``detail`` that says what would license the request.
+    ``evidence_double_counted``, ``not_supported``) and a ``predictive_assessment.*``
+    ``detail`` that says what would support the request.
     """
 
 
@@ -126,12 +137,6 @@ def _dumps(value: object) -> str:
         return json.dumps(thaw(value), allow_nan=False, separators=(",", ":"))
     except ValueError as error:
         raise CausalValueError("a predictive assessment declares only finite numbers") from error
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
 
 
 def _floats(values: Iterable[object], what: str) -> list[float]:
@@ -169,6 +174,11 @@ def observation_key(domain: str, key: int | str | bytes) -> str:
     To share observations with an evidence ledger use :func:`keys`, which is the ledger's own
     observation identity.
     """
+    key = (
+        container_bytes(key)
+        if isinstance(key, (bytes, bytearray, memoryview, ExportedArtifact))
+        else key
+    )
     from . import evidence_ledger as el  # noqa: PLC0415
 
     return str(
@@ -431,6 +441,13 @@ class FitDeclaration:
     wire: dict[str, Any]
 
     @classmethod
+    def per_case(cls, fits: Sequence[FitDeclaration]) -> FitDeclaration:
+        """Declare the fit lineage separately for each forecast case, in case order."""
+        if any(not isinstance(fit, cls) or fit.wire.get("kind") == "per_case" for fit in fits):
+            raise CausalValueError("per-case fits must be non-nested FitDeclaration values")
+        return cls({"kind": "per_case", "cases": [fit.wire for fit in fits]})
+
+    @classmethod
     def fitted_on(cls, observation_keys: Iterable[str]) -> FitDeclaration:
         """Fitted or tuned on exactly these observations (lineage already resolved)."""
         return cls({"kind": "fitted_on", "keys": [_key(k) for k in observation_keys]})
@@ -614,6 +631,104 @@ class Predictor:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class ReplicateBounds:
+    """Bounds of the posterior predictive replicates a Bayesian study retains.
+
+    Declared on the study (``Bayesian(predictive_replicates=ReplicateBounds(...))``): the fit
+    builds ``n_sims`` replicates (capped by the posterior draws it holds) of every design row,
+    for a design of at most ``max_rows`` rows, and the Execution memory pool must admit them for
+    as long as the result holds them. Read them back with :func:`posterior_replicates`.
+    """
+
+    n_sims: int = 200
+    max_rows: int = 10_000
+
+    def __post_init__(self) -> None:
+        _count(self.n_sims, "n_sims", minimum=1, maximum=2**32 - 1, reason_code="invalid_argument")
+        _count(
+            self.max_rows, "max_rows", minimum=1, maximum=2**32 - 1, reason_code="invalid_argument"
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class PosteriorReplicates:
+    """The posterior predictive replicates of one Bayesian fit as predictive laws.
+
+    ``laws[i]`` is the sample law of design row ``i`` (the replicates of that row), ``outcomes[i]``
+    the outcome observed there and ``rows[i]`` its row in the source table. The replicates are
+    drawn at parameters fitted to these very rows, so :meth:`predictor` declares the fit as all of
+    them (an ``in_sample`` assessment, refused when held-out observations are required) unless
+    the caller supplies the declaration.
+    """
+
+    target: Target
+    model: str
+    laws: tuple[EmpiricalSample, ...]
+    outcomes: tuple[float, ...]
+    rows: tuple[int, ...]
+
+    @classmethod
+    def from_native(cls, native: Any) -> PosteriorReplicates:
+        """The replicates a native result retained."""
+        return cls(
+            target=Target(str(native.quantity), str(native.population), str(native.units)),
+            model=str(native.model),
+            laws=tuple(EmpiricalSample(list(draws)) for draws in native.laws),
+            outcomes=tuple(float(value) for value in native.outcomes),
+            rows=tuple(int(row) for row in native.rows),
+        )
+
+    @property
+    def n_sims(self) -> int:
+        """Replicate draws behind every row's law."""
+        return len(self.laws[0].draws) if self.laws else 0
+
+    def ids(self, domain: str) -> list[str]:
+        """Observation keys of the design rows: ``keys(domain, rows)`` of the source table."""
+        return keys(domain, self.rows)
+
+    def observations(self, domain: str = "analysis_rows") -> Observations:
+        """The observed outcomes of the design rows as realized observations."""
+        return Observations(self.target, self.ids(domain), "real", list(self.outcomes))
+
+    def predictor(
+        self,
+        name: str = "posterior_predictive",
+        *,
+        domain: str = "analysis_rows",
+        fit: FitDeclaration | None = None,
+    ) -> Predictor:
+        """The replicates as a native predictor of the design rows.
+
+        ``fit`` defaults to a fit on every design row of ``domain``, which is what the posterior
+        was conditioned on; pass :meth:`FitDeclaration.undeclared` or a ledger declaration to
+        state otherwise.
+        """
+        declared = fit if fit is not None else FitDeclaration.fitted_on(self.ids(domain))
+        return Predictor(
+            name, self.laws, self.target, source=LawSource.native(self.model), fit=declared
+        )
+
+
+def posterior_replicates(result: Any) -> PosteriorReplicates:
+    """The posterior predictive replicates a Bayesian result retained at fit time.
+
+    Raises:
+        CausalUnsupportedError: ``option_not_applicable`` when the study did not declare
+            ``Bayesian(predictive_replicates=ReplicateBounds(...))``.
+    """
+    posterior = getattr(result, "posterior", None)
+    replicates = getattr(posterior, "predictive_replicates", None)
+    if not isinstance(replicates, PosteriorReplicates):
+        raise CausalUnsupportedError(
+            "this result retained no posterior predictive replicates; declare "
+            "Bayesian(predictive_replicates=ReplicateBounds(n_sims, max_rows)) on the study",
+            reason_code="option_not_applicable",
+        )
+    return replicates
+
+
 # --------------------------------------------------------------------------- results
 
 
@@ -715,7 +830,7 @@ class DistributionDrift:
 
 @dataclass(repr=False, frozen=True, slots=True)
 class Diagnostics(ScientificResult):
-    """Calibration and sharpness diagnostics: labelled ``diagnostic``, calibration ``unmeasured``."""
+    """Calibration and sharpness diagnostics: labelled ``diagnostic``, calibration ``not_measured``."""
 
     label: str
     calibration: str
@@ -775,7 +890,9 @@ class ScoreInterval(ScientificResult):
 
     ``mean`` is the mean of the case scores (or paired differences) and ``lower``/``upper`` the
     Student-t interval at ``level`` with ``standard_error`` under the declared ``dependence``.
-    ``coverage_record`` names the current coverage record that licensed it. The interval is a
+    ``calibration`` is its calibration status (``calibrated``, ``outside_measured_scope``,
+    ``measured_below_nominal`` or ``not_measured``); ``coverage_record`` names the current coverage
+    record that supported it, empty where none did. The interval is a
     statement about the expected score under the declared sampling design, not about the
     assessed cases alone and not about causal validity; ``assumptions`` states what it rests on.
     """
@@ -793,6 +910,7 @@ class ScoreInterval(ScientificResult):
     dependence: str
     construction: str
     coverage_record: str
+    calibration: str
     calibration_sha: str
     assumptions: str
 
@@ -954,14 +1072,6 @@ class PredictiveAssessment(ScientificResult):
 
     __slots__ = ("_handle", "_report")
 
-    def artifact(
-        self, artifact_id: str = _DEFAULT_ARTIFACT_ID
-    ) -> ExportedArtifact[PredictiveAssessment]:
-        """Bytes and producer metadata; load returns the typed consumed result."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self, artifact_id)
-
     def __init__(self, handle: Any) -> None:
         self._handle = handle
         self._report = _report(json.loads(handle.report_json()))
@@ -979,13 +1089,18 @@ class PredictiveAssessment(ScientificResult):
         """The identity digests of the inputs."""
         return self._report.identity
 
-    def export(self, artifact_id: str = _DEFAULT_ARTIFACT_ID) -> bytes:
+    @artifact_export
+    def export(
+        self, artifact_id: str = _DEFAULT_ARTIFACT_ID
+    ) -> ExportedArtifact[PredictiveAssessment]:
         """The portable ``predictive_assessment_v1`` artifact.
 
         It stores the laws, the observations, the declarations and the results; a consumer
         re-scores every case from them.
         """
-        return bytes(_unwrap(self._handle.export(_name(artifact_id, "artifact_id"))))
+        return artifact_from_receipt(
+            self, bytes(_unwrap(self._handle.export(_name(artifact_id, "artifact_id"))))
+        )
 
     def _closed(self, payload: str) -> None:
         raise_refusal(payload, PredictiveAssessmentRefusal)
@@ -1000,18 +1115,18 @@ class PredictiveAssessment(ScientificResult):
     ) -> ScoreInterval:
         """The interval of a predictor's expected score, or of the expected difference to ``reference``.
 
-        It is published only for a held-out or unfitted predictor under a declared dependence,
-        where a current coverage record measured the construction at this design, score, law
-        family, level and number of cases; the record is resolved in Rust. The number of cases must
-        lie in the range a shipped record measured for the declared dependence; the measurement
-        designs cover ``iid`` 400 to 102,400 in contiguous grids, ``cluster`` 800 to 3,200 and
-        ``serial`` 1,600 to 6,400, and the shipped records cover ``iid`` 400 to 1,600 until the
-        larger grids are measured. There is no extrapolation beyond the shipped range. With no
-        predictor and score named the request is unscoped and raises ``cell_not_licensed``.
+        It is reported for a held-out or unfitted predictor under a declared dependence. Its
+        ``calibration`` is ``calibrated`` only where a current coverage record measured the
+        construction at this design, score, law family, level and number of cases; the record is
+        resolved in Rust. The measurement designs cover ``iid`` 400 to 102,400 in contiguous
+        grids, ``cluster`` 800 to 3,200 and ``serial`` 1,600 to 6,400, and the shipped records
+        cover ``iid`` 400 to 1,600 until the larger grids are measured. Outside that range the
+        interval is still reported, with ``outside_measured_scope`` or ``not_measured``. With no
+        predictor and score named the request is unscoped and raises
+        ``quantity_semantics_mismatch``.
 
         Raises:
-            PredictiveAssessmentRefusal: ``cell_not_licensed`` outside a measured design,
-                ``sampling_dependence_unknown`` with no declared dependence,
+            PredictiveAssessmentRefusal: ``sampling_dependence_unknown`` with no declared dependence,
                 ``evidence_double_counted`` or ``evidence_overlap_unknown`` for an in-sample or
                 unverified predictor.
         """
@@ -1058,7 +1173,7 @@ def assess(
     comparisons: Sequence[tuple[str, str]] = (),
     require_held_out: bool = False,
     score_interval: tuple[float, str] | None = None,
-    seed: int = 0,
+    execution: Execution | None = None,
 ) -> PredictiveAssessment:
     """Assess predictive laws against realized observations.
 
@@ -1073,8 +1188,9 @@ def assess(
             (``quantity_semantics_mismatch``), a callback law (``route_not_supported``), an iid
             declaration for a temporal or clustered design (``sampling_dependence_unknown``), an
             unmet held-out requirement (``evidence_double_counted`` / ``evidence_overlap_unknown``)
-            or a requested interval (``cell_not_licensed``).
+            or a requested interval (``not_supported``).
     """
+    execution = resolve_execution(execution)
     if not isinstance(observations, Observations):
         raise CausalTypeError("observations must be an Observations")
     if not isinstance(design, ValidationDesign):
@@ -1109,12 +1225,18 @@ def assess(
     handle = _unwrap(
         _native.predictive_assessment_assess(
             _dumps(spec),
-            seed=_count(seed, "seed", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"),
+            seed=_count(
+                execution.seed, "seed", minimum=0, maximum=2**64 - 1, reason_code="invalid_argument"
+            ),
         )
     )
     return PredictiveAssessment(handle)
 
 
+@artifact_consumer(
+    proof="predictive_assessment.consume_predictive_assessment_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def consume_predictive_assessment_artifact(
     artifact: bytes,
     expected_identity: Identity | Mapping[str, Any] | str | None = None,
@@ -1131,6 +1253,7 @@ def consume_predictive_assessment_artifact(
             identity, ``predictive_assessment.report_replay_mismatch`` for a stored value that
             does not recompute, and the contract's own refusal for stored declarations it refuses.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     expected: str | None

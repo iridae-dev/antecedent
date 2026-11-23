@@ -16,6 +16,7 @@
 //! A consumer holding the original data can additionally check
 //! [`MeasurementModelArtifact::covers_data_identity`].
 
+use crate::replay_tolerance::{ReplayNonFinite, ReplayScale, ReplayTolerance};
 use antecedent_core::identity::SemanticDigest;
 use antecedent_core::measurement_model::{
     ArmBinding, BinaryArmRates, CorrectedFunctionalRecord, DifferentialAxis, ErrorStructure,
@@ -30,7 +31,6 @@ use antecedent_stats::measurement_error::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::convert::{from_cbor, to_cbor};
 use crate::error::IoError;
 
 /// Maximum artifact bytes accepted before decode allocation.
@@ -39,11 +39,13 @@ pub const MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES: usize = 8 * 1024 * 1024;
 pub const MEASUREMENT_MODEL_ARTIFACT_VERSION: u16 = 1;
 /// Most per-imputation fits one artifact carries.
 pub const MAX_MEASUREMENT_IMPUTATIONS: usize = 10_000;
-const MAX_DIM: usize = 66;
 const ARTIFACT_KIND: &str = crate::artifact_kinds::MEASUREMENT_MODEL;
 const META_SECTION: &str = "measurement_model_meta";
-/// Relative tolerance of the replay comparison.
-const REPLAY_TOLERANCE: f64 = 1e-10;
+/// Replay policy: a stored point, standard error or variance reproduces the closed form of the
+/// moments to a relative `1e-10` of the larger of the two (absolute near zero); non-finite is
+/// refused.
+const REPLAY: ReplayTolerance =
+    ReplayTolerance::new(1e-10, ReplayScale::OnePlusLarger, ReplayNonFinite::Refuse);
 
 // ---------------------------------------------------------------------------
 // Wire types
@@ -654,15 +656,8 @@ fn identities_to_wire(model: &MeasurementModel) -> MeasurementIdentityWire {
 }
 
 fn digest_from_hex(hex: &str) -> Result<SemanticDigest, IoError> {
-    if hex.len() != 64 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return Err(convert("a digest is 64 hexadecimal characters"));
-    }
-    let mut bytes = [0_u8; 32];
-    for (i, slot) in bytes.iter_mut().enumerate() {
-        *slot = u8::from_str_radix(&hex[2 * i..2 * i + 2], 16)
-            .map_err(|_| convert("a digest is 64 hexadecimal characters"))?;
-    }
-    Ok(SemanticDigest::from_bytes(bytes))
+    antecedent_contract::evidence_ledger::parse_digest_hex(hex)
+        .ok_or_else(|| convert("a digest is 64 hexadecimal characters"))
 }
 
 fn record_to_wire(record: &CorrectedFunctionalRecord) -> RecordWire {
@@ -737,9 +732,14 @@ fn moments_to_wire(m: &LinearMoments) -> MomentsWire {
 }
 
 fn moments_from_wire(w: &MomentsWire) -> Result<LinearMoments, IoError> {
-    let dim = w.dim as usize;
-    if !(2..=MAX_DIM).contains(&dim) {
+    // The design width is bounded by the payload, not a literal: the Gram matrix stored
+    // with the moments must be exactly `dim x dim`, and the artifact byte budget bounds it.
+    let dim = usize::try_from(w.dim).map_err(|_| IoError::TooLarge)?;
+    if dim < 2 {
         return Err(IoError::TooLarge);
+    }
+    if dim.checked_mul(dim) != Some(w.gram_bits.len()) {
+        return Err(convert("moments dimension does not match the stored Gram matrix"));
     }
     Ok(LinearMoments {
         n: usize::try_from(w.n).map_err(|_| IoError::TooLarge)?,
@@ -875,8 +875,6 @@ fn replay_from_wire(wire: &ReplayWire) -> Result<MeasurementReplay, IoError> {
         } => {
             if coefficients_bits.len() > MAX_MEASUREMENT_IMPUTATIONS
                 || covariances_bits.len() > MAX_MEASUREMENT_IMPUTATIONS
-                || coefficients_bits.iter().any(|c| c.len() > MAX_DIM)
-                || covariances_bits.iter().any(|c| c.len() > MAX_DIM * MAX_DIM)
             {
                 return Err(IoError::TooLarge);
             }
@@ -1062,7 +1060,10 @@ pub fn replay_values(
                 point: result.corrected,
                 naive_point: Some(result.naive),
                 variance: result.variance,
-                rows: table.exposed_total + table.unexposed_total,
+                rows: table
+                    .exposed_total
+                    .checked_add(table.unexposed_total)
+                    .ok_or_else(|| convert("exposure group totals overflow".to_owned()))?,
                 functional_id: "risk_difference",
             })
         }
@@ -1076,7 +1077,10 @@ pub fn replay_values(
             let result = corrected_categories(classes, &matrix, *max_condition)
                 .map_err(|e| convert(e.to_string()))?;
             let k = levels.len();
-            let rows: u64 = classes.iter().map(|c| c.count).sum();
+            let rows: u64 = classes
+                .iter()
+                .try_fold(0_u64, |sum, c| sum.checked_add(c.count))
+                .ok_or_else(|| convert("observed class counts overflow".to_owned()))?;
             let (point, naive, variance, id) = match functional {
                 CategoricalReplayFunctional::Proportion(level) => {
                     let i = level_index(levels, level)?;
@@ -1137,10 +1141,7 @@ fn linear_values(moments: &LinearMoments, index: usize) -> Result<ReplayedValues
 }
 
 fn near(stored: f64, replayed: f64) -> bool {
-    if !(stored.is_finite() && replayed.is_finite()) {
-        return false;
-    }
-    (stored - replayed).abs() <= REPLAY_TOLERANCE * (1.0 + stored.abs().max(replayed.abs()))
+    REPLAY.close(stored, replayed)
 }
 
 // ---------------------------------------------------------------------------
@@ -1219,12 +1220,12 @@ fn validate_metadata(meta: &MeasurementModelMetadata) -> Result<(), IoError> {
             "the stored result is not the recomputation of its inputs under the model",
         ));
     }
-    if let Some(se) = record.standard_error {
-        if !near(se * se, values.variance) {
-            return Err(refused(
-                "the stored standard error is not the recomputation of its inputs under the model",
-            ));
-        }
+    if let Some(se) = record.standard_error
+        && !near(se * se, values.variance)
+    {
+        return Err(refused(
+            "the stored standard error is not the recomputation of its inputs under the model",
+        ));
     }
     Ok(())
 }
@@ -1302,11 +1303,7 @@ impl MeasurementModelArtifact {
     /// A blank artifact id, an invalid state or an oversized payload refuses.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, IoError> {
         validate_metadata(&self.metadata)?;
-        if artifact_id.trim().is_empty() {
-            return Err(convert("missing artifact id"));
-        }
-        let meta_bytes = to_cbor(&self.metadata)?;
-        crate::encode_container(
+        crate::artifact_codec::encode_sectioned_io(
             &crate::ArtifactContainer {
                 kind: ARTIFACT_KIND,
                 note: "measurement_model",
@@ -1314,13 +1311,11 @@ impl MeasurementModelArtifact {
                 artifact_id,
                 library_version: env!("CARGO_PKG_VERSION"),
             },
-            &[crate::OutSection {
-                id: META_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &meta_bytes,
-            }],
+            META_SECTION,
+            &self.metadata,
+            &[],
+            "unsupported measurement model layout",
         )
-        .map_err(|error| error.into_io("unsupported measurement model layout"))
     }
 
     /// Load, check against an independently retained model identity, and
@@ -1335,21 +1330,35 @@ impl MeasurementModelArtifact {
     /// artifacts, an identity that is not the expected one, and a result that
     /// does not recompute refuse.
     pub fn from_bytes(bytes: &[u8], expected_model_identity: &str) -> Result<Self, IoError> {
-        if bytes.len() > MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES {
+        Self::from_bytes_within(
+            bytes,
+            expected_model_identity,
+            MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES,
+        )
+    }
+
+    /// [`Self::from_bytes`] under the caller's byte bound instead of [`MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a file over `max_bytes` is `TooLarge`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected_model_identity: &str,
+        max_bytes: usize,
+    ) -> Result<Self, IoError> {
+        if bytes.len() > max_bytes {
             return Err(IoError::TooLarge);
         }
         digest_from_hex(expected_model_identity)?;
-        let parts = crate::decode_container(
-            ARTIFACT_KIND,
-            MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES,
-            &[META_SECTION],
-            bytes,
-        )
-        .map_err(|error| error.into_io("unsupported measurement model layout"))?;
-        let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-            return Err(convert("unsupported measurement model layout"));
-        };
-        let metadata: MeasurementModelMetadata = from_cbor(&meta_bytes)?;
+        let (metadata, []): (MeasurementModelMetadata, _) =
+            crate::artifact_codec::decode_sectioned_io(
+                ARTIFACT_KIND,
+                max_bytes,
+                META_SECTION,
+                &[],
+                "unsupported measurement model layout",
+                bytes,
+            )?;
         if metadata.identities.model != expected_model_identity {
             return Err(refused(
                 "the artifact's model identity differs from the identity the consumer retained",

@@ -4,7 +4,7 @@
 //! the retained assignment history. None of them analyses the final sample as
 //! if the design had been fixed, and none reports a calibrated interval: every
 //! interval-like number is labelled uncalibrated by its caller and the
-//! interval route stays closed until whole-procedure coverage is measured.
+//! interval route is not supported.
 //!
 //! * [`beta_bernoulli`]: the conjugate posterior of Bernoulli arms, the
 //!   posterior probability that an arm is best and the posterior expected loss
@@ -48,15 +48,22 @@
 //! probability, and expected-loss, futility and recruitment-cap decisions at
 //! completed-participant batch boundaries, with a posterior claim and a
 //! time-uniform confidence-sequence claim read at every look.
+//! [`repeated_measures_posterior`] is the exact conjugate posterior of the arm means of such a
+//! trial under the same declared within-unit dependence: it conditions on the observed units
+//! and so needs no correction for the adaptation (the likelihood principle), while the
+//! frequentist statements above are calibrated to the whole procedure.
 //! [`capacity`] holds the resource bounds of all of these routes, one class of
 //! limit per refusal, and the receipt a simulation returns.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub mod beta_bernoulli;
 pub mod capacity;
+pub mod choice_procedure;
 pub mod confidence_sequence;
+pub mod dirichlet_choice;
 pub mod group_sequential;
+pub mod hierarchical_choice;
 pub mod historical_prior;
 pub mod participant_posterior;
 pub mod participant_procedure;
@@ -65,27 +72,39 @@ pub mod procedure_law;
 pub mod procedure_repeated_measures;
 pub mod procedure_simulation;
 pub mod procedure_uncertainty;
+pub mod repeated_measures_posterior;
 pub mod weighting;
 
 use thiserror::Error;
 
 pub use beta_bernoulli::{
-    BetaPosterior, MAX_ARM_TRIALS, MAX_BANDIT_ARMS, best_arm_probabilities, expected_losses,
+    BetaPosterior, EXACT_BETA_TRIALS, MAX_BANDIT_ARMS, best_arm_probabilities, expected_losses,
     probability_exceeds, probability_superior, regularized_incomplete_beta,
 };
 pub use capacity::{
     CapacityError, MAX_RETAINED_LOOKS, MAX_SIMULATION_MEMORY_BYTES, MAX_SIMULATION_WORK,
     ResourceBudget, ResourceReceipt,
 };
+pub use choice_procedure::{
+    ChoiceKernel, ChoiceLaw, ChoiceProcedureSpec, ChoiceStoppingRule, ChoiceTerminalAtom,
+    MAX_CHOICE_PROCEDURE_LOOKS, MAX_CHOICE_PROCEDURE_OPTIONS, MAX_CHOICE_PROCEDURE_UNITS,
+    enumerate_choice_law,
+};
 pub use confidence_sequence::{
     ArmSequence, MAX_SEQUENCE_OBSERVATIONS, PLUG_IN_LAMBDA_CAP, SequenceKind, SequenceState,
     bounded_mean_confidence_sequence, contrast_bounds, mixture_hoeffding_radius,
     plug_in_confidence_sequence,
 };
+pub use dirichlet_choice::{DirichletPosterior, MAX_CHOICE_COUNT, MAX_CHOICE_OPTIONS};
 pub use group_sequential::{
     Boundaries, MAX_LOOKS, Sidedness, SpendingFunction, StagewiseInference, StagewiseLook,
     boundaries, crossing_probabilities, first_crossing, stagewise_inference,
     stagewise_upper_p_value,
+};
+pub use hierarchical_choice::{
+    HierarchicalChoicePosterior, HierarchicalChoicePrior, HierarchicalSummary,
+    MAX_DISTINCT_HISTOGRAMS, MAX_HIERARCHICAL_CHOICES, MAX_HIERARCHICAL_OPTIONS,
+    QUADRATURE_ERROR_LIMIT,
 };
 pub use historical_prior::{
     ArmPrior, BorrowingPlan, HistoricalPrior, MAX_HISTORICAL_SOURCES, MAX_HISTORICAL_TRIALS,
@@ -129,11 +148,17 @@ pub use procedure_simulation::{
     SimulationSummary, simulate_procedure, simulate_procedure_within,
 };
 pub use procedure_uncertainty::{
-    AnytimeCellBound, AnytimeReport, BayesianReport, DERIVED_UNMEASURED, DecisionReport,
+    AnytimeCellBound, AnytimeReport, BayesianReport, DERIVED_NOT_MEASURED, DecisionReport,
     EstimandStatement, EstimatorLaw, Functional, InversionGrid, InversionInterval,
     MAX_INVERSION_LAWS, ObservedTerminal, OrderingPValues, PosteriorMeanGap, UncertaintyParadigm,
     admit, anytime_exclusion_probability, anytime_valid_report, bayesian_report, decision_report,
     inversion_interval, ordering_p_values, posterior_mean_gaps,
+};
+pub use repeated_measures_posterior::{
+    ArmMeanPosterior, ContrastPosterior, MAX_POSTERIOR_UNITS, NormalMeanPrior,
+    REPEATED_MEASURES_POSTERIOR_LIKELIHOOD, RepeatedMeasuresPosterior,
+    RepeatedMeasuresPosteriorRequest, SELECTION_IGNORABILITY_PREMISE, SelectionEvidence,
+    SelectionMechanism, UnitRecord, repeated_measures_posterior,
 };
 pub use weighting::{
     AdaptiveEstimate, Estimand, MAX_ADAPTIVE_UNITS, MAX_WEIGHTED_ARMS, OutcomeModelPrior,
@@ -195,6 +220,51 @@ pub(crate) const PANEL_NODES: usize = 12;
 /// Gauss-Legendre rule shared by the panels of the quadrature routines.
 pub(crate) fn panel_rule() -> (Vec<f64>, Vec<f64>) {
     crate::special::gauss_legendre(PANEL_NODES)
+}
+
+/// Halvings by which a graded rule shrinks its end panel.
+const GRADED_HALVINGS: i32 = 14;
+
+/// Nodes and weights of a composite Gauss-Legendre rule on `[lo, hi]` with `panels` equal panels,
+/// whose end panel is halved fourteen times toward `lo` (`grade_lo`) or `hi` (`grade_hi`).
+///
+/// A Beta density `x^(a-1)` and distribution function `x^a` with a fractional shape are not
+/// analytic at the end of their support, and equal panels integrate them with an error that
+/// falls only as `h^(a+1)`: a few times `1e-8` at `a = 1.5` on the first panel of a flat
+/// posterior. Geometric grading toward the singular end restores the rate of an analytic
+/// integrand.
+pub(crate) fn graded_rule(
+    rule: &(Vec<f64>, Vec<f64>),
+    lo: f64,
+    hi: f64,
+    panels: usize,
+    grade_lo: bool,
+    grade_hi: bool,
+) -> (Vec<f64>, Vec<f64>) {
+    let width = (hi - lo) / panels as f64;
+    let mut edges: Vec<f64> = (0..=panels).map(|p| lo + width * p as f64).collect();
+    edges[panels] = hi;
+    for j in 1..=GRADED_HALVINGS {
+        let shrink = 0.5_f64.powi(j);
+        if grade_lo {
+            edges.push(lo + width * shrink);
+        }
+        if grade_hi {
+            edges.push(hi - width * shrink);
+        }
+    }
+    edges.sort_by(f64::total_cmp);
+    edges.dedup();
+    let mut nodes = Vec::with_capacity((edges.len() - 1) * rule.0.len());
+    let mut weights = Vec::with_capacity(nodes.capacity());
+    for pair in edges.windows(2) {
+        let (centre, half) = (0.5 * (pair[0] + pair[1]), 0.5 * (pair[1] - pair[0]));
+        for (u, w) in rule.0.iter().zip(&rule.1) {
+            nodes.push(centre + half * u);
+            weights.push(half * w);
+        }
+    }
+    (nodes, weights)
 }
 
 /// Nodes and weights of a composite Gauss-Legendre rule on `[lo, hi]` with

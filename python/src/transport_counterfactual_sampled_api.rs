@@ -12,18 +12,19 @@ use crate::transport_counterfactual_api::{
     PreparedCounterfactualTransportNative, io_refusal, regime_label, variable_name,
 };
 use crate::transport_z_api::to_py_json;
-use antecedent_core::{EvidenceCatalog, SearchLimits};
-use antecedent_estimate::counterfactual_transport_sampled::{
+use antecedent::estimate::ExactEvaluationLimits;
+use antecedent::estimate::counterfactual_transport_sampled::{
     DatasetOverlap, OverlapDeclaration, SampledAxis, SampledCounterfactualTransportEstimate,
-    SampledRegimeCounts, SampledRegimeCountsParts, SampledTableKey, SampledTransportLimits,
-    SampledTransportRequest, SamplingDesign, UnseenCellRule,
+    SampledIntervalOutcome, SampledRegimeCounts, SampledRegimeCountsParts, SampledTableKey,
+    SampledTransportLimits, SampledTransportRequest, SamplingDesign, UnseenCellRule,
 };
-use antecedent_expr::ExactEvaluationLimits;
-use antecedent_io::sampled_counterfactual_transport_artifact::{
+use antecedent::execution::SearchLimits;
+use antecedent::io::sampled_counterfactual_transport_artifact::{
     SampledCounterfactualTransportArtifactWire, SampledCounterfactualTransportConsumeLimits,
     SampledCounterfactualTransportExpectedIdentity, consume_sampled_counterfactual_transport,
     sampled_counterfactual_transport_artifact,
 };
+use antecedent::query::EvidenceCatalog;
 use pyo3::prelude::*;
 use std::sync::Arc;
 
@@ -31,7 +32,7 @@ use std::sync::Arc;
 const SAMPLED_SCOPE: &str = "counterfactual_transport_sampled_counts_point_only";
 
 /// One count-table key: `(population, regime label, concrete interventions)`.
-type TableKeyTuple = (String, String, Vec<(String, f64)>);
+pub(crate) type TableKeyTuple = (String, String, Vec<(String, f64)>);
 
 fn level_bits(level: f64) -> u64 {
     (level + 0.0).to_bits()
@@ -126,12 +127,20 @@ fn estimate_json(
             "method": estimate.inference.method,
             "standard_error": standard_error,
             "standard_error_withheld_reason": estimate.inference.standard_error_withheld_reason,
-            "interval": {
-                "available": false,
-                "status": "withheld",
-                "reason": estimate.inference.interval.code,
-                "detail": estimate.inference.interval.detail,
-                "calibration_reason": estimate.inference.interval.reason,
+            "interval": match &estimate.inference.interval {
+                SampledIntervalOutcome::Reported => serde_json::json!({
+                    "available": true,
+                    "status": "reported",
+                }),
+                SampledIntervalOutcome::NotComputable { code, detail, reason } => {
+                    serde_json::json!({
+                        "available": false,
+                        "status": "not_computable",
+                        "reason": code,
+                        "detail": detail,
+                        "absence_reason": reason,
+                    })
+                }
             },
         },
     })
@@ -167,8 +176,9 @@ impl SampledCounterfactualTransportResultNative {
         (identity.premises_digest, identity.data_digest)
     }
 
-    /// Replay the sealed artifact, build the delta Wald interval and bind it to
-    /// its currently attesting coverage record, or refuse `cell_not_licensed`.
+    /// Replay the sealed artifact and build the delta Wald interval, annotated with
+    /// its calibration status; a design the delta method does not cover refuses
+    /// `route_not_supported`.
     #[pyo3(signature=(*, memory_bytes=None, cancel=None))]
     fn measure_interval(
         &self,
@@ -204,7 +214,7 @@ fn regime_of<'c>(
     catalog: &'c EvidenceCatalog,
     population: &str,
     label: &str,
-) -> PyResult<&'c antecedent_core::EvidenceRegime> {
+) -> PyResult<&'c antecedent::query::EvidenceRegime> {
     catalog
         .regimes
         .iter()
@@ -216,7 +226,7 @@ fn regime_of<'c>(
         })
 }
 
-fn parse_count_table(
+pub(crate) fn parse_count_table(
     table: &Bound<'_, PyAny>,
     catalog: &EvidenceCatalog,
     graph: &Admg,
@@ -298,7 +308,7 @@ fn table_key(
     })
 }
 
-fn parse_overlap(
+pub(crate) fn parse_overlap(
     overlap: &(String, Vec<(TableKeyTuple, TableKeyTuple, String)>),
     catalog: &EvidenceCatalog,
     graph: &Admg,
@@ -323,7 +333,7 @@ fn parse_overlap(
     Ok(declaration)
 }
 
-fn parse_unseen_rule(rule: &(String, Option<f64>)) -> PyResult<UnseenCellRule> {
+pub(crate) fn parse_unseen_rule(rule: &(String, Option<f64>)) -> PyResult<UnseenCellRule> {
     let parameter = |what: &str| {
         rule.1.ok_or_else(|| crate::value_err(format!("the {what} rule needs a parameter")))
     };

@@ -4,7 +4,7 @@
 //! and calls it, so an example that panics, or whose own assertion against the
 //! simulation's truth fails, fails the suite instead of surviving until a reader runs it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[allow(
     dead_code,
@@ -12,6 +12,13 @@
 )]
 #[path = "../../../examples/rust/ate_quickstart.rs"]
 mod ate_quickstart;
+
+#[allow(
+    dead_code,
+    reason = "the example keeps its own `main`, which this test never calls; only `run` is used"
+)]
+#[path = "../../../examples/rust/feedback_three_questions.rs"]
+mod feedback_three_questions;
 
 #[allow(
     dead_code,
@@ -168,6 +175,18 @@ mod noise_replay;
 #[path = "../../../examples/rust/intrinsic_influence.rs"]
 mod intrinsic_influence;
 
+#[allow(
+    dead_code,
+    reason = "the example keeps its own `main`, which this test never calls; only `run` is used"
+)]
+#[path = "../../../examples/rust/reference_host.rs"]
+mod reference_host;
+
+#[test]
+fn example_reference_host_runs() {
+    reference_host::run().unwrap();
+}
+
 #[test]
 fn example_ate_quickstart_runs() {
     ate_quickstart::run().unwrap();
@@ -190,7 +209,7 @@ fn example_discover_then_estimate_runs() {
 
 #[test]
 fn example_gcm_do_runs() {
-    gcm_do::run().unwrap();
+    on_large_stack("example-gcm-do", || gcm_do::run().unwrap());
 }
 
 #[test]
@@ -220,7 +239,7 @@ fn example_rank_designs_runs() {
 
 #[test]
 fn example_sales_spreadsheet_e2e_runs() {
-    sales_spreadsheet_e2e::run().unwrap();
+    on_large_stack("example-sales-spreadsheet-e2e", || sales_spreadsheet_e2e::run().unwrap());
 }
 
 #[test]
@@ -268,7 +287,7 @@ fn example_shared_exogenous_counterfactual_runs() {
 
 #[test]
 fn example_intervention_programs_runs() {
-    intervention_programs::run().unwrap();
+    on_large_stack("example-intervention-programs", || intervention_programs::run().unwrap());
 }
 
 #[cfg(all(feature = "ml-gbdt", feature = "ml-forest"))]
@@ -289,5 +308,22 @@ fn example_noise_replay_runs() {
 
 #[test]
 fn example_intrinsic_influence_runs() {
-    intrinsic_influence::run().unwrap();
+    on_large_stack("example-intrinsic-influence", || intrinsic_influence::run().unwrap());
+}
+
+#[test]
+fn example_feedback_three_questions_runs() {
+    feedback_three_questions::run().unwrap();
+}
+
+/// Runs an example that executes a compiled model route on a thread with a stack large enough
+/// for debug builds of the shared prepared dispatcher.
+fn on_large_stack(name: &str, body: impl FnOnce() + Send + 'static) {
+    std::thread::Builder::new()
+        .name(name.into())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(body)
+        .expect("spawn example thread")
+        .join()
+        .expect("example panicked");
 }

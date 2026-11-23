@@ -1,6 +1,6 @@
 //! CPDAG/PAG graph-posterior `AverageEffect`: policy, mass, and weight basis.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -335,10 +335,10 @@ fn class_posterior_disagreeing_estimands_are_not_a_scalar_mixture() {
     );
     assert_eq!(result.identification.status, IdentificationStatus::GraphDependent);
     assert!(
-        !result.estimate.as_effect().unwrap().ate.is_finite()
-            || (result.estimate.as_effect().unwrap().ate - fake_mixture).abs() > 0.2,
+        !result.estimate().as_effect().unwrap().ate.is_finite()
+            || (result.estimate().as_effect().unwrap().ate - fake_mixture).abs() > 0.2,
         "disagreeing estimands must not publish the DAG-mixture scalar {fake_mixture}, got {}",
-        result.estimate.as_effect().unwrap().ate
+        result.estimate().as_effect().unwrap().ate
     );
     let mixture = result.structural_response.as_ref().unwrap();
     assert_eq!(mixture.weight_basis, StructuralWeightBasis::PosteriorProbability);
@@ -382,13 +382,13 @@ fn class_graph_posterior_inspect_and_execute_agree_on_support_status() {
                 let inspected = builder.clone().inspect().unwrap();
                 assert_eq!(
                     inspected.support_status,
-                    Some(CellStatus::Licensed),
-                    "{label} {inference:?} {suite:?} inspect must publish licensed"
+                    Some(CellStatus::Supported),
+                    "{label} {inference:?} {suite:?} inspect must publish supported"
                 );
                 let preflight = builder.clone().capability().unwrap();
                 assert_eq!(
                     preflight.applicability,
-                    SemanticApplicability::Licensed,
+                    SemanticApplicability::Supported,
                     "{label} {inference:?} {suite:?} capability must agree with inspect"
                 );
                 let built = builder.build().unwrap();
@@ -399,7 +399,8 @@ fn class_graph_posterior_inspect_and_execute_agree_on_support_status() {
                 );
                 let result = built.run(&ctx).unwrap();
                 assert_eq!(
-                    result.support_status, inspected.support_status,
+                    result.support_status(),
+                    inspected.support_status,
                     "{label} {inference:?} {suite:?} execute must match cheap inspect"
                 );
                 assert_eq!(
@@ -533,8 +534,8 @@ fn class_posterior_disagreeing_estimands_skip_scalar_mixture_refuter() {
         "disagreeing estimands must not invent a scalar mixture refuter"
     );
     assert!(
-        !result.estimate.as_effect().unwrap().ate.is_finite()
-            || (result.estimate.as_effect().unwrap().ate - fake_mixture).abs() > 0.2,
+        !result.estimate().as_effect().unwrap().ate.is_finite()
+            || (result.estimate().as_effect().unwrap().ate - fake_mixture).abs() > 0.2,
         "disagreeing estimands must not publish the DAG-mixture scalar {fake_mixture}"
     );
     for report in &result.refutations {
@@ -560,7 +561,10 @@ fn class_posterior_known_truth_mixture_pin() {
     let weights: Vec<f64> =
         pin["posterior_weights"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
     let unidentified_truth = pin["expected_unidentified_mass"].as_f64().unwrap();
-    let tolerance = pin["effect_abs_tolerance"].as_f64().unwrap();
+    // The design is balanced with zero-mean noise in every cell, so the estimates equal the
+    // closed forms 3 and 2 to rounding (observed gap far below 1e-9); the pin's published
+    // tolerance is far wider than the 1.0 spacing of the atoms needs.
+    let tolerance = 1e-9;
     let data = mixture_data(n);
     let cpdag =
         cpdag_posterior(&weights, &[oriented(false), oriented(true), reverse_causal_cpdag()]);
@@ -571,7 +575,7 @@ fn class_posterior_known_truth_mixture_pin() {
     );
     assert_eq!(result.identification.status, IdentificationStatus::GraphDependent);
     assert!(
-        !result.estimate.as_effect().unwrap().ate.is_finite(),
+        !result.estimate().as_effect().unwrap().ate.is_finite(),
         "Cpdag: scalar ate must stay withheld when estimands disagree"
     );
     let mixture = result.structural_response.as_ref().expect("Cpdag: mixture");
@@ -607,7 +611,10 @@ fn class_posterior_known_truth_mixture_pin() {
 fn class_posterior_same_estimand_two_atom_mixture_pin() {
     let pin = known_truth_mixture_pin();
     let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
-    let tolerance = pin["effect_abs_tolerance"].as_f64().unwrap();
+    // The design is balanced with zero-mean noise in every cell, so the estimates equal the
+    // closed forms 3 and 2 to rounding (observed gap far below 1e-9); the pin's published
+    // tolerance is far wider than the 1.0 spacing of the atoms needs.
+    let tolerance = 1e-9;
     let direct_effect = pin["identified_atom_effects"][0].as_f64().unwrap();
     let data = mixture_data(n);
     let weights = [0.6, 0.4];
@@ -618,9 +625,9 @@ fn class_posterior_same_estimand_two_atom_mixture_pin() {
         "Cpdag: same empty adjustment must scalar-mix"
     );
     assert!(
-        (result.estimate.as_effect().unwrap().ate - direct_effect).abs() < tolerance,
+        (result.estimate().as_effect().unwrap().ate - direct_effect).abs() < tolerance,
         "Cpdag: mixture mean={} truth={direct_effect}",
-        result.estimate.as_effect().unwrap().ate
+        result.estimate().as_effect().unwrap().ate
     );
     let mixture = result.structural_response.as_ref().expect("Cpdag: mixture");
     let conditional = match mixture.conditional_on_identified.as_ref() {
@@ -629,7 +636,7 @@ fn class_posterior_same_estimand_two_atom_mixture_pin() {
     };
     assert!((conditional - direct_effect).abs() < tolerance);
     assert!(
-        result.estimate.as_effect().unwrap().se_analytic().is_finite(),
+        result.estimate().as_effect().unwrap().se_analytic().is_finite(),
         "Cpdag: two-atom same-estimand mix must publish a joint IF SE"
     );
     assert!(
@@ -643,7 +650,7 @@ fn class_posterior_same_estimand_two_atom_mixture_pin() {
 
 #[test]
 fn class_posterior_frequentist_numeric_pins() {
-    // Licensed evidence entry covering both the disagreeing-estimand fixture
+    // Supported evidence entry covering both the disagreeing-estimand fixture
     // (identified set + retained unidentified mass) and the same-estimand
     // two-atom mixture scalar + joint IF SE pin.
     let pin = known_truth_mixture_pin();
@@ -657,21 +664,36 @@ fn class_posterior_frequentist_numeric_pins() {
     let weights: Vec<f64> =
         pin["posterior_weights"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
     let unidentified_truth = pin["expected_unidentified_mass"].as_f64().unwrap();
-    let tolerance = pin["effect_abs_tolerance"].as_f64().unwrap();
+    // The design is balanced with zero-mean noise in every cell, so the estimates equal the
+    // closed forms 3 and 2 to rounding (observed gap far below 1e-9); the pin's published
+    // tolerance is far wider than the 1.0 spacing of the atoms needs.
+    let tolerance = 1e-9;
     let direct_effect = atom_effects[0];
     let data = mixture_data(n);
     let disagree =
         cpdag_posterior(&weights, &[oriented(false), oriented(true), reverse_causal_cpdag()]);
     let disagree_result = run(data.clone(), disagree, InferenceMode::Frequentist);
     assert!(has_policy(&disagree_result, StructuralAggregationPolicy::GraphDependentAtoms));
-    assert!(!disagree_result.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(!disagree_result.estimate().as_effect().unwrap().ate.is_finite());
     let disagree_mix = disagree_result.structural_response.as_ref().unwrap();
     assert!((disagree_mix.unidentified_mass - unidentified_truth).abs() < 1e-12);
+    // The two identified completions-of-atoms estimate the closed-form effects 3 (no
+    // adjustment) and 2 (adjusting for z); the published set is exactly their span.
+    let set = disagree_mix.identified_set.as_ref().expect("identified set");
+    assert!(
+        (set.lower[0] - atom_effects[1]).abs() < 1e-6
+            && (set.upper[0] - atom_effects[0]).abs() < 1e-6,
+        "identified set [{}, {}] vs closed-form [{}, {}]",
+        set.lower[0],
+        set.upper[0],
+        atom_effects[1],
+        atom_effects[0]
+    );
     let same = cpdag_posterior(&[0.6, 0.4], &[oriented(false), outcome_parent_cpdag()]);
     let same_result = run(data, same, InferenceMode::Frequentist);
     assert!(has_policy(&same_result, StructuralAggregationPolicy::SameEstimandWeightedMean));
-    assert!((same_result.estimate.as_effect().unwrap().ate - direct_effect).abs() < tolerance);
-    assert!(same_result.estimate.as_effect().unwrap().se_analytic().is_finite());
+    assert!((same_result.estimate().as_effect().unwrap().ate - direct_effect).abs() < tolerance);
+    assert!(same_result.estimate().as_effect().unwrap().se_analytic().is_finite());
 }
 
 #[test]
@@ -695,6 +717,24 @@ fn two_completion_cpdag_mask_identifies() {
         envelope.cases.iter().any(|case| !case.result.estimands.is_empty()),
         "identified completions must carry an estimand"
     );
+    // The CPDAG z -> y <- t with z - t undirected has exactly two Markov-equivalent DAGs:
+    // z -> t (the back-door path t <- z -> y must be blocked: adjust for z) and t -> z (no
+    // back-door path: the empty set). Both identify, with unit weight each.
+    assert_eq!(envelope.cases.len(), 2, "one case per completion");
+    assert!((envelope.identified_weight.0 - 2.0).abs() < 1e-12, "{}", envelope.identified_weight.0);
+    let mut sets: Vec<Vec<u32>> = envelope
+        .cases
+        .iter()
+        .map(|case| {
+            assert_eq!(case.result.estimands.len(), 1);
+            let mut set: Vec<u32> =
+                case.result.estimands[0].adjustment_set.iter().map(|v| v.raw()).collect();
+            set.sort_unstable();
+            set
+        })
+        .collect();
+    sets.sort();
+    assert_eq!(sets, vec![vec![], vec![2]]);
 }
 
 #[test]
@@ -709,6 +749,7 @@ fn identified_pag_mask_roundtrips() {
         antecedent_discovery::adjacency_mask::pag_from_adjacency_mask(mask, mark_mask, 3).unwrap();
     assert!(back.has_edge(d(2), d(0)));
     assert!(back.has_edge(d(0), d(1)));
+    assert!(!back.has_edge(d(2), d(1)), "the round trip must not invent a z - y edge");
     let envelope = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
         .identify_pag_envelope(&back, &ate());
     assert!(envelope.is_ok(), "{envelope:?}");
@@ -719,6 +760,11 @@ fn identified_pag_mask_roundtrips() {
         envelope.status,
         envelope.identified_weight.0
     );
+    // The decoded graph is the same PAG, so its envelope is the original's.
+    let original = original.unwrap();
+    assert_eq!(envelope.status, original.status);
+    assert!((envelope.identified_weight.0 - original.identified_weight.0).abs() < 1e-12);
+    assert_eq!(envelope.cases.len(), original.cases.len());
 }
 
 #[test]
@@ -918,6 +964,23 @@ fn class_posterior_graph_posterior_intervention_response_cheap_and_full_run() {
                     !result.refutations.is_empty(),
                     "{label} {inference:?} {suite:?} must run plugin-level refuters"
                 );
+                for report in &result.refutations {
+                    let Some(antecedent_validate::RefutationScope::StaticClassCompletion {
+                        outer_atom,
+                        completion_digest,
+                        target,
+                    }) = &report.scope
+                    else {
+                        panic!("{label}: report lacks completion scope")
+                    };
+                    assert_eq!(target.family(), antecedent_validate::TargetFamily::WorldValued);
+                    let prefix = format!(
+                        "scope:v1:static_class_completion:{}:{}|",
+                        outer_atom,
+                        antecedent_core::identity::to_hex(completion_digest)
+                    );
+                    assert!(target.labels().iter().all(|label| label.starts_with(&prefix)));
+                }
                 assert!(
                     result
                         .diagnostics
@@ -969,7 +1032,7 @@ fn class_posterior_atom_kind_defaults_to_dag_masks() {
         },
     )
     .unwrap();
-    assert_eq!(gp.atom_kind, GraphPosteriorAtomKind::Dag);
+    assert_eq!(gp.atom_kind(), GraphPosteriorAtomKind::Dag);
 }
 
 #[test]
@@ -981,7 +1044,7 @@ fn class_posterior_does_not_publish_largest_atom_posterior_as_aggregate() {
         InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)),
     );
     assert!(has_policy(&result, StructuralAggregationPolicy::SameEstimandWeightedMean));
-    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(result.estimate().as_effect().unwrap().ate.is_finite());
     assert!(result.posterior.is_none());
     let mixture = result.structural_response.as_ref().unwrap();
     assert_eq!(mixture.atoms.iter().filter(|a| a.posterior.is_some()).count(), 2);
@@ -989,6 +1052,6 @@ fn class_posterior_does_not_publish_largest_atom_posterior_as_aggregate() {
         result
             .diagnostics
             .iter()
-            .any(|d| d.code.as_ref() == "estimate.graph_posterior.posterior_withheld")
+            .any(|d| d.code.as_ref() == "estimate.graph_posterior.no_posterior_method")
     );
 }

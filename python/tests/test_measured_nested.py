@@ -1,4 +1,4 @@
-"""Normal nested scalar licensing retains original unmeasured model artifacts."""
+"""Normal nested scalar support retains original not_measured model artifacts."""
 
 import json
 import subprocess
@@ -8,8 +8,13 @@ from statistics import NormalDist
 
 import numpy as np
 import pytest
-from antecedent import _native
-from antecedent.errors import CausalCancelledError, CausalError
+from antecedent import Execution, ResourceLimits, _native
+from antecedent import _reason_details as reason_details
+from antecedent.errors import (
+    CausalCancelledError,
+    CausalError,
+    CausalResourceError,
+)
 from antecedent.inference import MeasuredInference
 from antecedent.transport import advanced as tr
 
@@ -22,10 +27,13 @@ def produce(bayesian, shape=1, **changes):
         prior = tr.NestedMarkovPrior(
             **{name: (shape, shape) for name in tr.NestedMarkovPrior().coordinates}
         )
-        return tr.binary_nested_markov(**({"prior": prior, "seed": 817} | kwargs))
+        return tr.binary_nested_markov(
+            **({"prior": prior, "execution": Execution(seed=817)} | kwargs)
+        )
     return tr.binary_nested_markov_fisher_interval(**kwargs)
 
 
+@pytest.mark.requires_calibration
 @pytest.mark.parametrize("bayesian,shape", [(False, 1), (True, 1), (True, 2)])
 def test_normal_nested_all_three_measured_scalars_replay_original_source(bayesian, shape, tmp_path):
     assert hasattr(
@@ -35,7 +43,7 @@ def test_normal_nested_all_three_measured_scalars_replay_original_source(bayesia
     assert isinstance(measured, MeasuredInference)
     assert [scalar.name for scalar in measured.scalars] == ["mean0", "mean1", "contrast"]
     source = measured.source_report()
-    assert source["calibration"] == "unmeasured"
+    assert source["calibration"] == "not_measured"
     if bayesian:
         posterior = source["posterior"]
         samples = np.asarray(posterior["samples"]).reshape(4 * 4096, 14)
@@ -43,7 +51,7 @@ def test_normal_nested_all_three_measured_scalars_replay_original_source(bayesia
         points = np.asarray(posterior["mean"])[11:14]
         intervals = np.quantile(samples[:, 11:14], [0.025, 0.975], axis=0).T
         assert points == pytest.approx(samples[:, 11:14].mean(axis=0), abs=2e-12)
-        assert source["inference"] == "posterior_candidate_withheld_calibration_unmeasured"
+        assert source["inference"] == "posterior_candidate_withheld_calibration_not_measured"
     else:
         contrast = source["point"]["receipt"]["contrast"]
         points = np.array([*contrast["model_means"], contrast["model_contrast"]])
@@ -57,7 +65,7 @@ def test_normal_nested_all_three_measured_scalars_replay_original_source(bayesia
         assert scalar.record_id and len(scalar.calibration_sha) == 40
         assert scalar.basis["scope"]["row_count"] == 4000
     path = tmp_path / "measured-nested.cbor"
-    path.write_bytes(measured.export())
+    path.write_bytes(bytes(measured.export()))
     loaded = MeasuredInference.load(path.read_bytes(), expected=measured.expected_identity)
     assert loaded.inspect() == measured.inspect()
     assert loaded.source_artifact() == measured.source_artifact()
@@ -76,7 +84,8 @@ print(json.dumps(r.inspect(),sort_keys=True))
     assert observed == measured.inspect()
     with pytest.raises(CausalError):
         MeasuredInference.load(
-            measured.export(), expected=replace(measured.expected_identity, scalars=("contrast",))
+            bytes(measured.export()),
+            expected=replace(measured.expected_identity, scalars=("contrast",)),
         )
     with pytest.raises(CausalError):
         MeasuredInference.load(measured.source_artifact(), expected=measured.expected_identity)
@@ -84,33 +93,43 @@ print(json.dumps(r.inspect(),sort_keys=True))
     cancelled.cancel()
     with pytest.raises(CausalCancelledError):
         MeasuredInference.load(
-            measured.export(), expected=measured.expected_identity, cancel=cancelled
+            bytes(measured.export()), expected=measured.expected_identity, cancel=cancelled
         )
 
 
+def _annotated_not_calibrated(result):
+    assert isinstance(result, MeasuredInference)
+    assert [scalar.name for scalar in result.scalars] == ["mean0", "mean1", "contrast"]
+    for scalar in result.scalars:
+        assert scalar.interval[0] <= scalar.point <= scalar.interval[1]
+        assert scalar.calibration != "calibrated"
+
+
 @pytest.mark.parametrize("bayesian", [False, True])
-def test_normal_nested_unmeasured_protocol_refusals_are_not_candidate_successes(bayesian):
+def test_normal_nested_not_measured_protocols_are_annotated_not_calibrated(bayesian):
+    # A protocol, prior or level the grid did not measure is computed and annotated; it never
+    # borrows the calibration of the measured protocol.
     for kwargs in ({"max_iterations": 49999}, {"tolerance": 2e-11}):
-        with pytest.raises(CausalError):
-            produce(bayesian, **kwargs)
+        _annotated_not_calibrated(produce(bayesian, **kwargs))
     if bayesian:
-        with pytest.raises(CausalError):
-            produce(True, shape=3)
+        _annotated_not_calibrated(produce(True, shape=3))
     else:
-        with pytest.raises(CausalError):
-            produce(False, nominal_level=0.90)
+        _annotated_not_calibrated(produce(False, nominal_level=0.90))
     cancelled = _native.CancellationToken()
     cancelled.cancel()
     with pytest.raises(CausalCancelledError):
-        produce(bayesian, cancel=cancelled)
-    with pytest.raises(CausalError):
-        produce(bayesian, memory_limit_bytes=0)
+        produce(bayesian, execution=Execution(cancel=cancelled))
+    with pytest.raises(
+        CausalResourceError, match=reason_details.measured_inference.MEMORY_BUDGET_EXCEEDED
+    ):
+        produce(bayesian, execution=Execution(limits=ResourceLimits(memory_bytes=0)))
 
 
+@pytest.mark.requires_calibration
 @pytest.mark.parametrize("bayesian", [False, True])
 def test_normal_nested_measured_artifact_preserves_retained_source_expectations(bayesian, tmp_path):
     measured = produce(bayesian)
-    artifact = measured.export()
+    artifact = bytes(measured.export())
     loaded = MeasuredInference.load(artifact, expected=measured.expected_identity)
     assert loaded.source_artifact() == measured.source_artifact()
     assert loaded.source_report() == measured.source_report()

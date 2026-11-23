@@ -16,16 +16,16 @@
 //!
 //! ```text
 //! P(θ ∉ [L, U] | Ĝ = g) = α_n(g)                    if g ∈ 𝒢*(θ)
-//!                        = m(g)                      otherwise (bias of an unlicensed g)
+//!                        = m(g)                      otherwise (bias of an unsupported g)
 //! P(θ ∉ [L, U])        ≤ α_n + P(Ĝ ∉ 𝒢*(θ))         (union bound over the selection event)
 //! ```
 //!
 //! where `α_n` is the analysis procedure's own finite-sample miscoverage at the analysis row
 //! count `n_ana`. The first term is what an interval states. The second is the probability that
-//! discovery did not return a graph that licenses the question: it is not controlled by `α`,
+//! discovery did not return a graph that supports the question: it is not controlled by `α`,
 //! it depends on the sample size, the faithfulness of the data-generating process and the CI
-//! test, and no interval procedure reports it. A split therefore licenses exactly one
-//! statement: an interval for the effect *given the selected graph*. It does not license "the
+//! test, and no interval procedure reports it. A split therefore supports exactly one
+//! statement: an interval for the effect *given the selected graph*. It does not support "the
 //! interval covers the true effect with probability `1 - α`" without a measured bound on
 //! `P(Ĝ ∉ 𝒢*(θ))` for this method at this coordinate.
 //!
@@ -110,7 +110,7 @@
 //! * **Not a coverage claim.** The route removes a dependence; it does not measure error.
 //!   No interval produced downstream of it is labelled calibrated for the whole method. The
 //!   calibration design is recorded below, to be measured, and the calibration lookup for any
-//!   such interval stays unmeasured until a record exists for this coordinate.
+//!   such interval reports `not_measured` until a record exists for this coordinate.
 //! * **Not for dependent rows.** A random row partition of temporal, panel, clustered or
 //!   otherwise dependent rows leaves dependence between the parts, so the independence the
 //!   derivation uses does not hold. The route is for rows declared exchangeable; a
@@ -151,7 +151,7 @@
 //! both select and analyse are the reuse case and refuse an interval; a refresh never
 //! converts reuse into a split.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -164,7 +164,7 @@ use antecedent_data::{
 use super::identity::{
     DataIdentity, Digest, SELECTIVE_IDENTITY_VERSION, column_digest, static_data_identity,
 };
-use super::refusal::SelectiveDiscoveryError;
+use super::refusal::{SelectiveDiscoveryError, invalid};
 use crate::error::DiscoveryError;
 
 const SPLIT_TAG: &str = "antecedent.selective_discovery.sample_split.v1";
@@ -174,14 +174,6 @@ const MASK_TAG: &str = "antecedent.selective_discovery.sample_split.mask.v1";
 fn not_supported(detail: &'static str, remedy: impl Into<String>) -> SelectiveDiscoveryError {
     SelectiveDiscoveryError::refused(
         antecedent_core::reason_code!("route_not_supported"),
-        detail,
-        remedy,
-    )
-}
-
-fn invalid(detail: &'static str, remedy: impl Into<String>) -> SelectiveDiscoveryError {
-    SelectiveDiscoveryError::refused(
-        antecedent_core::reason_code!("invalid_argument"),
         detail,
         remedy,
     )
@@ -244,19 +236,19 @@ impl SplitRule {
                 rows.sort_unstable();
                 if rows.windows(2).any(|w| w[0] == w[1]) {
                     return Err(invalid(
-                        "selective_discovery.split_rows_repeated",
+                        antecedent_core::reason_details::selective_discovery::SPLIT_ROWS_REPEATED,
                         "a row is named twice in the discovery rows",
                     ));
                 }
                 if rows.last().is_some_and(|&r| r >= n_rows) {
                     return Err(invalid(
-                        "selective_discovery.split_row_out_of_range",
+                        antecedent_core::reason_details::selective_discovery::SPLIT_ROW_OUT_OF_RANGE,
                         format!("a discovery row is not below the row count {n_rows}"),
                     ));
                 }
                 if let Some(row) = rows.iter().find(|r| eligible.binary_search(r).is_err()) {
                     return Err(invalid(
-                        "selective_discovery.split_row_excluded",
+                        antecedent_core::reason_details::selective_discovery::SPLIT_ROW_EXCLUDED,
                         format!(
                             "discovery row {row} was excluded before the split (outside the \
                              analysis mask, or incomplete in a searched variable); name only \
@@ -269,7 +261,7 @@ impl SplitRule {
             Self::SeededPermutation { seed, discovery_fraction } => {
                 if !(*discovery_fraction > 0.0 && *discovery_fraction < 1.0) {
                     return Err(invalid(
-                        "selective_discovery.split_fraction_invalid",
+                        antecedent_core::reason_details::selective_discovery::SPLIT_FRACTION_INVALID,
                         "the discovery fraction must lie strictly between 0 and 1",
                     ));
                 }
@@ -297,7 +289,7 @@ impl SplitRule {
             eligible.iter().copied().filter(|r| !in_discovery.contains(r)).collect();
         if discovery.is_empty() || analysis.is_empty() {
             return Err(invalid(
-                "selective_discovery.split_part_empty",
+                antecedent_core::reason_details::selective_discovery::SPLIT_PART_EMPTY,
                 "both the discovery rows and the analysis rows must be non-empty",
             ));
         }
@@ -411,7 +403,7 @@ impl SampleSplitReceipt {
             && self.masked_out_rows.iter().all(|r| self.incomplete_rows.binary_search(r).is_err());
         if !consistent {
             return Err(invalid(
-                "selective_discovery.split_receipt_mismatch",
+                antecedent_core::reason_details::selective_discovery::SPLIT_RECEIPT_MISMATCH,
                 "the receipt's excluded rows are not valid for its row count and mask",
             ));
         }
@@ -440,7 +432,7 @@ impl SampleSplitReceipt {
         let overlap = discovery.iter().any(|row| analysis.binary_search(row).is_ok());
         if overlap || discovery.len() + analysis.len() != eligible.len() {
             return Err(invalid(
-                "selective_discovery.split_not_disjoint",
+                antecedent_core::reason_details::selective_discovery::SPLIT_NOT_DISJOINT,
                 "the discovery and analysis rows overlap or do not cover the eligible rows",
             ));
         }
@@ -450,14 +442,14 @@ impl SampleSplitReceipt {
             || rows_identity(ROWS_TAG, &analysis) != self.analysis_rows_identity
         {
             return Err(invalid(
-                "selective_discovery.split_receipt_mismatch",
+                antecedent_core::reason_details::selective_discovery::SPLIT_RECEIPT_MISMATCH,
                 "the receipt's row sets are not the ones its rule assigns over its recorded \
                  exclusions; re-split from the declared rule",
             ));
         }
         if self.identity != receipt_identity(self) {
             return Err(invalid(
-                "selective_discovery.split_receipt_mismatch",
+                antecedent_core::reason_details::selective_discovery::SPLIT_RECEIPT_MISMATCH,
                 "the receipt's identity does not cover its recorded contents",
             ));
         }
@@ -503,13 +495,13 @@ impl SampleSplitReceipt {
         let storage = source.storage();
         if storage.analysis_mask().map(mask_identity) != self.mask_identity {
             return Err(invalid(
-                "selective_discovery.split_mask_mismatch",
+                antecedent_core::reason_details::selective_discovery::SPLIT_MASK_MISMATCH,
                 "the source table's analysis mask is not the mask this split filtered by",
             ));
         }
         if storage.weights().map(column_digest) != self.weights.as_ref().map(|w| w.source) {
             return Err(invalid(
-                "selective_discovery.split_weights_mismatch",
+                antecedent_core::reason_details::selective_discovery::SPLIT_WEIGHTS_MISMATCH,
                 "the source table's weights are not the weights this split carried",
             ));
         }
@@ -518,7 +510,7 @@ impl SampleSplitReceipt {
             Ok(())
         } else {
             Err(invalid(
-                "selective_discovery.split_source_mismatch",
+                antecedent_core::reason_details::selective_discovery::SPLIT_SOURCE_MISMATCH,
                 "replaying the rule on the source table does not reproduce the receipt; the \
                  source is not the table that was split",
             ))
@@ -548,7 +540,7 @@ impl SampleSplitReceipt {
             Ok(())
         } else {
             Err(invalid(
-                "selective_discovery.analysis_rows_not_the_split_part",
+                antecedent_core::reason_details::selective_discovery::ANALYSIS_ROWS_NOT_THE_SPLIT_PART,
                 "the analysis table is not the analysis part of this split; an analysis on the \
                  discovery rows or on the unsplit table reuses the rows discovery saw and has \
                  no interval on account of discovery",
@@ -662,7 +654,7 @@ impl SplitRows {
         let (discovery, analysis) = self.receipt.verify_rows()?;
         if discovery != self.discovery_row_ids || analysis != self.analysis_row_ids {
             return Err(invalid(
-                "selective_discovery.split_rows_mismatch",
+                antecedent_core::reason_details::selective_discovery::SPLIT_ROWS_MISMATCH,
                 "the parts' original row ids are not the rows the receipt assigns",
             ));
         }
@@ -674,7 +666,7 @@ impl SplitRows {
             let storage = part.storage();
             if part.row_count() != rows {
                 return Err(invalid(
-                    "selective_discovery.split_rows_mismatch",
+                    antecedent_core::reason_details::selective_discovery::SPLIT_ROWS_MISMATCH,
                     "a part does not hold as many rows as the receipt assigns it",
                 ));
             }
@@ -682,14 +674,14 @@ impl SplitRows {
                 || storage.analysis_mask().is_some_and(|m| (0..m.len()).any(|i| !m.is_valid(i)))
             {
                 return Err(invalid(
-                    "selective_discovery.split_mask_mismatch",
+                    antecedent_core::reason_details::selective_discovery::SPLIT_MASK_MISMATCH,
                     "a part's analysis mask is not the all-included mask of rows that passed \
                      the recorded mask",
                 ));
             }
             if storage.weights().map(column_digest) != digest {
                 return Err(invalid(
-                    "selective_discovery.split_weights_mismatch",
+                    antecedent_core::reason_details::selective_discovery::SPLIT_WEIGHTS_MISMATCH,
                     "a part's weights are not the weights the receipt recorded for its rows",
                 ));
             }
@@ -702,7 +694,7 @@ impl SplitRows {
                 static_data_identity(part, variables).map_err(SelectiveDiscoveryError::from)?;
             if identity.digest != recorded.digest {
                 return Err(invalid(
-                    "selective_discovery.split_receipt_mismatch",
+                    antecedent_core::reason_details::selective_discovery::SPLIT_RECEIPT_MISMATCH,
                     "a part's content is not the content the receipt recorded",
                 ));
             }
@@ -775,7 +767,7 @@ pub fn split_rows(
     for spec in schema.variables() {
         let values = data.float64_values(spec.id).map_err(|_| {
             not_supported(
-                "selective_discovery.split_unsupported_rows",
+                antecedent_core::reason_details::selective_discovery::SPLIT_UNSUPPORTED_ROWS,
                 format!("variable `{}` is not a float64 column; split a numeric table", spec.name),
             )
         })?;
@@ -791,7 +783,10 @@ pub fn split_rows(
             })
             .collect::<Result<Vec<_>, DataError>>()
             .map_err(|error| {
-                not_supported("selective_discovery.split_unsupported_rows", error.to_string())
+                not_supported(
+                    antecedent_core::reason_details::selective_discovery::SPLIT_UNSUPPORTED_ROWS,
+                    error.to_string(),
+                )
             })?;
         let mask = storage.analysis_mask().map(|_| ValidityBitmap::all_valid(rows.len()));
         let weights: Option<Arc<[f64]>> =
@@ -800,15 +795,16 @@ pub fn split_rows(
             .map(TabularData::new)
             .map_err(|error| match error {
                 DataError::InvalidWeights { .. } => invalid(
-                    "selective_discovery.split_part_weight_invalid",
+                    antecedent_core::reason_details::selective_discovery::SPLIT_PART_WEIGHT_INVALID,
                     format!(
                         "a part has no positive weight ({error}); give the rule rows that carry \
                          weight, or drop the zero-weight rows before splitting"
                     ),
                 ),
-                other => {
-                    not_supported("selective_discovery.split_unsupported_rows", other.to_string())
-                }
+                other => not_supported(
+                    antecedent_core::reason_details::selective_discovery::SPLIT_UNSUPPORTED_ROWS,
+                    other.to_string(),
+                ),
             })
     };
     let discovery = part(&discovery_rows)?;
@@ -884,22 +880,22 @@ mod tests {
         let repeated = SplitRule::Explicit { discovery_rows: vec![1, 1] };
         assert_eq!(
             repeated.assign(4).unwrap_err().detail(),
-            Some("selective_discovery.split_rows_repeated")
+            Some(antecedent_core::reason_details::selective_discovery::SPLIT_ROWS_REPEATED)
         );
         let out = SplitRule::Explicit { discovery_rows: vec![9] };
         assert_eq!(
             out.assign(4).unwrap_err().detail(),
-            Some("selective_discovery.split_row_out_of_range")
+            Some(antecedent_core::reason_details::selective_discovery::SPLIT_ROW_OUT_OF_RANGE)
         );
         let all = SplitRule::Explicit { discovery_rows: vec![0, 1, 2, 3] };
         assert_eq!(
             all.assign(4).unwrap_err().detail(),
-            Some("selective_discovery.split_part_empty")
+            Some(antecedent_core::reason_details::selective_discovery::SPLIT_PART_EMPTY)
         );
         let fraction = SplitRule::SeededPermutation { seed: 1, discovery_fraction: 1.0 };
         assert_eq!(
             fraction.assign(4).unwrap_err().detail(),
-            Some("selective_discovery.split_fraction_invalid")
+            Some(antecedent_core::reason_details::selective_discovery::SPLIT_FRACTION_INVALID)
         );
     }
 }

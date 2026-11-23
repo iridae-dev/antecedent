@@ -1,10 +1,15 @@
-//! Identification of response functionals through pairwise backdoor adjustment.
+//! Identification of response functionals: pairwise back-door adjustment for single-treatment
+//! functionals, joint adjustment for functionals over several treatments.
 //!
 //! The response estimand remains function-valued; the synthetic unit contrasts built in the
 //! expression arena are identification witnesses for the required treatment/outcome pairs, not
-//! a claim that a continuous response is itself a binary ATE.
+//! a claim that a continuous response is itself a binary ATE. An `InterventionResponse` is the
+//! exception: its estimand states the declared intervention (a hard level's mean, or the
+//! dose-response surface a declared Shift or stochastic policy is a functional of; see
+//! [`crate::response_intervention`]), and an intervention identification cannot state is
+//! refused with a next attempt.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -19,9 +24,32 @@ use antecedent_graph::Dag;
 use crate::backdoor::{BackdoorIdentifier, PreparedIdentificationGraph};
 use crate::error::IdentificationError;
 use crate::identifier::IdentificationWorkspace;
+use crate::response_intervention::{
+    RESPONSE_POLICY_NEEDS_ADJUSTMENT, ResponseIntervention, classify_all,
+};
 use crate::result::{
     DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
 };
+
+fn merge_assumptions(target: &mut AssumptionSet, source: &AssumptionSet) {
+    for record in &source.entries {
+        if !target.entries.contains(record) {
+            target.push(record.clone());
+        }
+    }
+}
+
+fn accumulate_pair_evidence(
+    assumptions: &mut AssumptionSet,
+    performance: &mut IdentificationPerformanceRecord,
+    result: &IdentificationResult,
+) {
+    merge_assumptions(assumptions, &result.required_assumptions);
+    performance.candidates_examined =
+        performance.candidates_examined.saturating_add(result.performance.candidates_examined);
+    performance.sets_returned =
+        performance.sets_returned.saturating_add(result.performance.sets_returned);
+}
 
 /// Backdoor identifier for scalar/vector continuous-response functionals.
 #[derive(Clone, Debug, Default)]
@@ -71,17 +99,27 @@ impl ResponseIdentifier {
             ));
         }
         require_observation_claim(response)?;
+        // Every declared intervention is classified before any route runs, so no route can
+        // answer a different question than the one declared.
+        let answered = match &response.functional {
+            ResponseFunctional::InterventionResponse { interventions, .. } => {
+                classify_all(interventions)?
+            }
+            _ => Vec::new(),
+        };
 
+        if let Some(result) = self.identify_multi_treatment_joint(prepared, query, response)? {
+            return Ok(result);
+        }
         if matches!(response.functional, ResponseFunctional::InterventionResponse { .. })
             && response.functional.treatment_ids().len() > 1
         {
-            let mut result = crate::GeneralizedAdjustmentIdentifier::new()
-                .identify_joint_dag_response(prepared.dag(), response)?;
-            for record in &prepared.declared_assumptions().entries {
-                if !result.required_assumptions.entries.contains(record) {
-                    result.required_assumptions.push(record.clone());
-                }
-            }
+            // Joint adjustment owns its existing scientific search limits; it shares the
+            // response caller's cancellation token and admission pool.
+            let mut joint = crate::GeneralizedAdjustmentIdentifier::new();
+            joint.config.context.clone_from(&self.backdoor.config.context);
+            let mut result = joint.identify_joint_dag_response(prepared.dag(), response)?;
+            merge_assumptions(&mut result.required_assumptions, prepared.declared_assumptions());
             return Ok(result);
         }
 
@@ -99,17 +137,15 @@ impl ResponseIdentifier {
                 .with_target_population(response.target_population.clone());
             let witness_query = CausalQuery::AverageEffect(witness.clone());
             let result = self.backdoor.identify(prepared, &witness_query, workspace)?;
-            for record in &result.required_assumptions.entries {
-                if !assumptions.entries.contains(record) {
-                    assumptions.push(record.clone());
-                }
-            }
-            performance.candidates_examined = performance
-                .candidates_examined
-                .saturating_add(result.performance.candidates_examined);
-            performance.sets_returned =
-                performance.sets_returned.saturating_add(result.performance.sets_returned);
+            accumulate_pair_evidence(&mut assumptions, &mut performance, &result);
+            let target = answered
+                .iter()
+                .find(|(variable, _)| *variable == Some(treatment))
+                .map(|(_, declared)| declared);
             if result.status != IdentificationStatus::NonparametricallyIdentified {
+                if target.is_some_and(ResponseIntervention::is_policy) {
+                    return Err(IdentificationError::unsupported(RESPONSE_POLICY_NEEDS_ADJUSTMENT));
+                }
                 // Back-door failed for this pair: general ID decides it. A response naming one
                 // pair is identified as itself; a Jacobian or directional derivative names many,
                 // and each pair gets its own ID run whose functional joins the shared arena.
@@ -147,16 +183,7 @@ impl ResponseIdentifier {
                     ),
                 );
                 derivation.steps.extend(general.derivation.steps.iter().cloned());
-                for record in &general.required_assumptions.entries {
-                    if !assumptions.entries.contains(record) {
-                        assumptions.push(record.clone());
-                    }
-                }
-                performance.candidates_examined = performance
-                    .candidates_examined
-                    .saturating_add(general.performance.candidates_examined);
-                performance.sets_returned =
-                    performance.sets_returned.saturating_add(general.performance.sets_returned);
+                accumulate_pair_evidence(&mut assumptions, &mut performance, &general);
                 diagnostics.extend(general.diagnostics.iter().cloned());
                 for estimand in &general.estimands {
                     let mut copy = estimand.clone();
@@ -173,33 +200,20 @@ impl ResponseIdentifier {
                     performance,
                 ));
             };
-            let functional = match &response.functional {
-                ResponseFunctional::InterventionResponse { interventions, .. } => {
-                    let level = interventions.iter().find_map(|iv| match iv {
-                        antecedent_core::Intervention::Set { variable, value }
-                            if *variable == treatment =>
-                        {
-                            Some(value.clone())
-                        }
-                        _ => None,
-                    });
-                    match level {
-                        Some(level) => arena.backdoor_mean(
-                            treatment,
-                            outcome,
-                            first.adjustment_set.as_ref(),
-                            level,
-                        ),
-                        None => arena.backdoor_ate(
-                            treatment,
-                            outcome,
-                            first.adjustment_set.as_ref(),
-                            Value::f64(1.0),
-                            Value::f64(0.0),
-                        ),
-                    }
+            // An intervention response states its own declared intervention; only the
+            // derivative and curve functionals keep the unit contrast as the identification
+            // witness of their pair.
+            let functional = match target {
+                Some(answered) => {
+                    answered.record(treatment, &mut derivation, &mut assumptions);
+                    answered.backdoor_functional(
+                        &mut arena,
+                        treatment,
+                        outcome,
+                        first.adjustment_set.as_ref(),
+                    )
                 }
-                _ => arena.backdoor_ate(
+                None => arena.backdoor_ate(
                     treatment,
                     outcome,
                     first.adjustment_set.as_ref(),
@@ -234,7 +248,116 @@ impl ResponseIdentifier {
     }
 }
 
-fn response_pairs(
+impl ResponseIdentifier {
+    /// Joint identification of a Jacobian or directional derivative over two or more treatments.
+    ///
+    /// The partial derivative of `E[Y | do(t_1..t_k)]` in one coordinate holds the other
+    /// treatments fixed by intervention, so it is a property of the joint response surface and
+    /// not of any single-treatment effect `E[Y | do(T_j)]` (which also carries the path through
+    /// the other treatments). Each outcome is therefore decided by the joint back-door search
+    /// over all treatments; if no common set exists the query is reported not identified rather
+    /// than answered with pairwise sets. `None` when the functional is not such a derivative.
+    fn identify_multi_treatment_joint(
+        &self,
+        prepared: &PreparedIdentificationGraph,
+        query: &CausalQuery,
+        response: &ResponseQuery,
+    ) -> Result<Option<IdentificationResult>, IdentificationError> {
+        let mut joint = crate::GeneralizedAdjustmentIdentifier::new();
+        joint.config.context.clone_from(&self.backdoor.config.context);
+        multi_treatment_joint_route(
+            query,
+            response,
+            prepared.declared_assumptions().clone(),
+            |surface| joint.identify_joint_dag_response(prepared.dag(), surface),
+        )
+    }
+}
+
+/// The joint route for a Jacobian or directional derivative over two or more treatments, on any
+/// graph class: `identify_surface` decides the joint response surface of one outcome over all
+/// treatments (a joint-adjustment search on the caller's graph). `None` when the functional is
+/// not such a derivative; not identified as soon as one outcome has no common joint set.
+pub(crate) fn multi_treatment_joint_route(
+    query: &CausalQuery,
+    response: &ResponseQuery,
+    declared: AssumptionSet,
+    mut identify_surface: impl FnMut(
+        &ResponseQuery,
+    ) -> Result<IdentificationResult, IdentificationError>,
+) -> Result<Option<IdentificationResult>, IdentificationError> {
+    {
+        let (ResponseFunctional::Jacobian { outcomes, treatments, .. }
+        | ResponseFunctional::DirectionalDerivative { outcomes, treatments, .. }) =
+            &response.functional
+        else {
+            return Ok(None);
+        };
+        if treatments.len() < 2 {
+            return Ok(None);
+        }
+        let mut arena = CausalExprArena::new();
+        let mut estimands = Vec::with_capacity(outcomes.len());
+        let mut derivation = DerivationTrace::default();
+        let mut assumptions = declared;
+        let mut performance = IdentificationPerformanceRecord::default();
+        let mut diagnostics = Vec::new();
+        for &outcome in outcomes.iter() {
+            // The joint search certifies the response surface over all treatments for one
+            // outcome; the surrogate only names that surface, its levels are not used.
+            let mut surrogate = response.clone();
+            surrogate.functional = ResponseFunctional::InterventionResponse {
+                outcome,
+                interventions: treatments
+                    .iter()
+                    .map(|&t| antecedent_core::Intervention::set(t, Value::f64(0.0)))
+                    .collect(),
+            };
+            let mut result = identify_surface(&surrogate)?;
+            accumulate_pair_evidence(&mut assumptions, &mut performance, &result);
+            diagnostics.append(&mut result.diagnostics);
+            if result.status != IdentificationStatus::NonparametricallyIdentified
+                || result.estimands.is_empty()
+            {
+                derivation.push(
+                    "response.joint_adjustment",
+                    format!(
+                        "no common adjustment set identifies the joint response of {outcome} \
+                         over the {} treatments; pairwise sets would identify single-treatment \
+                         effects, not the partial derivative of the joint response",
+                        treatments.len()
+                    ),
+                );
+                let mut refused = IdentificationResult::not_identified(
+                    query.clone(),
+                    derivation,
+                    assumptions,
+                    performance,
+                );
+                refused.diagnostics = diagnostics;
+                return Ok(Some(refused));
+            }
+            derivation.steps.extend(result.derivation.steps.iter().cloned());
+            for estimand in &result.estimands {
+                let mut copy = estimand.clone();
+                copy.functional = arena.import(&result.arena, estimand.functional);
+                estimands.push(copy);
+            }
+        }
+        let mut identified = IdentificationResult::identified(
+            query.clone(),
+            estimands,
+            arena,
+            derivation,
+            assumptions,
+            performance,
+        );
+        identified.diagnostics = diagnostics;
+        Ok(Some(identified))
+    }
+}
+
+pub(crate) fn response_pairs(
     functional: &ResponseFunctional,
 ) -> Result<Vec<(VariableId, VariableId)>, IdentificationError> {
     let pairs = match functional {
@@ -392,6 +515,208 @@ mod tests {
         assert!(result.required_assumptions.entries.iter().any(|r| {
             r.assumption == Assumption::CausalMarkov && r.scope == AssumptionScope::Identification
         }));
+    }
+
+    fn jacobian_over(treatments: &[u32], outcomes: &[u32], directional: bool) -> CausalQuery {
+        let tr: Arc<[VariableId]> = treatments.iter().map(|&t| VariableId::from_raw(t)).collect();
+        let out: Arc<[VariableId]> = outcomes.iter().map(|&y| VariableId::from_raw(y)).collect();
+        let at: Arc<[f64]> = treatments.iter().map(|_| 0.0).collect();
+        let functional = if directional {
+            ResponseFunctional::DirectionalDerivative {
+                outcomes: out,
+                treatments: tr,
+                at,
+                direction: treatments.iter().map(|_| 1.0).collect(),
+            }
+        } else {
+            ResponseFunctional::Jacobian {
+                outcomes: out,
+                treatments: tr,
+                at,
+                scale: antecedent_core::DerivativeScale::Identity,
+            }
+        };
+        CausalQuery::Response(ResponseQuery::new(functional))
+    }
+
+    fn identify_query(dag: &Dag, query: &CausalQuery) -> IdentificationResult {
+        let identifier = ResponseIdentifier::new();
+        let prepared = identifier.prepare_with_assumptions(dag, AssumptionSet::new()).unwrap();
+        identifier.identify(&prepared, query, &mut IdentificationWorkspace::default()).unwrap()
+    }
+
+    /// `T1 -> T2 -> Y`. The single-treatment effect of T1 on Y is the total effect through T2,
+    /// but the partial derivative of the joint response holds T2 fixed. The result must be the
+    /// joint response surface (one estimand per outcome, a mean conditional on both
+    /// treatments), never the pairwise total-effect contrasts.
+    #[test]
+    fn chain_jacobian_is_the_joint_response_not_the_total_effect() {
+        let mut dag = Dag::with_variables(3);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        dag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        for directional in [false, true] {
+            let result = identify_query(&dag, &jacobian_over(&[0, 1], &[2], directional));
+            assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
+            assert_eq!(result.estimands.len(), 1, "one joint estimand per outcome, not per pair");
+            assert!(
+                matches!(
+                    result.arena.node(result.estimands[0].functional),
+                    antecedent_expr::ExprNode::Expectation { .. }
+                ),
+                "the joint response is a mean over both treatments, not a one-treatment contrast"
+            );
+            assert!(
+                result.derivation.steps.iter().any(|s| &*s.rule == "response.joint_adjustment")
+            );
+            assert!(!result.derivation.steps.iter().any(|s| &*s.rule == "response.backdoor"));
+            assert!(matches!(result.query, CausalQuery::Response(_)));
+        }
+    }
+
+    /// Two independent treatments and two outcomes: one joint estimand per outcome, in order.
+    #[test]
+    fn independent_treatments_get_one_joint_estimand_per_outcome() {
+        let mut dag = Dag::with_variables(4);
+        for (from, to) in [(0, 2), (1, 2), (0, 3), (1, 3)] {
+            dag.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+        }
+        let result = identify_query(&dag, &jacobian_over(&[0, 1], &[2, 3], false));
+        assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(result.estimands.len(), 2);
+        assert!(result.estimands.iter().all(|e| e.adjustment_set.is_empty()));
+    }
+
+    /// `T1 -> U -> T2`, `U -> Y`, `T2 -> Y`. Pairwise, T1 and T2 each have a back-door set
+    /// ({} and {U}); jointly, U descends from T1 so it cannot be adjusted for and the T2-Y
+    /// back-door path through U stays open. The partial derivative is therefore not identified
+    /// by joint adjustment, and pairwise sets must not be reported in its place.
+    #[test]
+    fn pairwise_sets_do_not_identify_a_joint_derivative_they_cannot_certify_together() {
+        let mut dag = Dag::with_variables(4);
+        // 0 = T1, 1 = T2, 2 = U, 3 = Y
+        for (from, to) in [(0, 2), (2, 1), (2, 3), (1, 3)] {
+            dag.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+        }
+        for directional in [false, true] {
+            let result = identify_query(&dag, &jacobian_over(&[0, 1], &[3], directional));
+            assert_eq!(result.status, IdentificationStatus::NotIdentified);
+            assert!(result.estimands.is_empty());
+        }
+        // A single-treatment derivative of T2 alone is still identified pairwise with {U}.
+        let single = identify_query(&dag, &jacobian_over(&[1], &[3], false));
+        assert_eq!(single.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(single.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
+    }
+
+    fn intervention_response(
+        outcome: u32,
+        intervention: antecedent_core::Intervention,
+    ) -> CausalQuery {
+        CausalQuery::Response(ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: VariableId::from_raw(outcome),
+            interventions: Arc::from([intervention]),
+        }))
+    }
+
+    /// `Z -> T`, `Z -> Y`, `T -> Y` (0 = T, 1 = Y, 2 = Z).
+    fn confounded() -> Dag {
+        let mut dag = Dag::with_variables(3);
+        for (from, to) in [(2, 0), (2, 1), (0, 1)] {
+            dag.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+        }
+        dag
+    }
+
+    /// A shift or a declared law is not the 1-versus-0 contrast: the result is the dose-response
+    /// surface under back-door adjustment, labelled with the policy actually answered and
+    /// carrying the positivity assumption that policy needs.
+    #[test]
+    fn non_set_interventions_are_answered_as_a_labelled_surface_not_a_contrast() {
+        let t = VariableId::from_raw(0);
+        for intervention in [
+            antecedent_core::Intervention::shift(t, Value::f64(0.5)),
+            antecedent_core::Intervention::stochastic(
+                t,
+                antecedent_core::StochasticPolicy::bernoulli(0.3),
+            ),
+            antecedent_core::Intervention::stochastic(
+                t,
+                antecedent_core::StochasticPolicy::gaussian(0.5, 0.25),
+            ),
+        ] {
+            let result = identify_query(&confounded(), &intervention_response(1, intervention));
+            assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
+            assert_eq!(result.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
+            assert!(
+                matches!(
+                    result.arena.node(result.estimands[0].functional),
+                    antecedent_expr::ExprNode::Expectation { .. }
+                ),
+                "a policy is not a treated-versus-control contrast"
+            );
+            let step = result
+                .derivation
+                .steps
+                .iter()
+                .find(|step| &*step.rule == "response.intervention")
+                .expect("the answered intervention is labelled");
+            assert!(step.detail.contains("answered intervention on"), "{step:?}");
+            assert!(result.required_assumptions.entries.iter().any(|record| {
+                record.assumption == Assumption::Positivity
+                    && record.scope == AssumptionScope::Identification
+            }));
+        }
+    }
+
+    /// A hard level is not a policy: no policy label, no extra assumption.
+    #[test]
+    fn a_set_level_carries_no_policy_label() {
+        let t = VariableId::from_raw(0);
+        let result = identify_query(
+            &confounded(),
+            &intervention_response(1, antecedent_core::Intervention::set(t, Value::f64(1.0))),
+        );
+        assert!(!result.derivation.steps.iter().any(|step| &*step.rule == "response.intervention"));
+        assert!(matches!(
+            result.arena.node(result.estimands[0].functional),
+            antecedent_expr::ExprNode::Expectation { .. }
+        ));
+    }
+
+    #[test]
+    fn an_inexpressible_intervention_refuses_naming_a_next_attempt() {
+        let t = VariableId::from_raw(0);
+        let identifier = ResponseIdentifier::new();
+        let dag = confounded();
+        let prepared = identifier.prepare_with_assumptions(&dag, AssumptionSet::new()).unwrap();
+        // A shift whose size is itself unbound is not a declared shift.
+        let unbound = intervention_response(
+            1,
+            antecedent_core::Intervention::shift(t, Value::symbolic_intervention()),
+        );
+        let error = identifier
+            .identify(&prepared, &unbound, &mut IdentificationWorkspace::default())
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("next attempt"), "{error}");
+    }
+
+    /// `Y1 -> T -> Y2`: for (T, Y1) the outcome precedes the treatment, so no adjustment set
+    /// exists. A level may fall to general ID; a policy needs the surface and must refuse.
+    #[test]
+    fn a_policy_without_back_door_adjustment_refuses_instead_of_answering_a_contrast() {
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(0)).unwrap();
+        let t = VariableId::from_raw(0);
+        let identifier = ResponseIdentifier::new();
+        let prepared = identifier.prepare_with_assumptions(&dag, AssumptionSet::new()).unwrap();
+        let query =
+            intervention_response(1, antecedent_core::Intervention::shift(t, Value::f64(0.5)));
+        let error = identifier
+            .identify(&prepared, &query, &mut IdentificationWorkspace::default())
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("next attempt"), "{error}");
     }
 
     #[test]

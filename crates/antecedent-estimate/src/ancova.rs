@@ -125,7 +125,10 @@ pub const MIN_UNITS_PER_ARM_FOR_SMALL_ARM_INTERVAL: usize = 2;
 /// floor.
 pub const MIN_ROWS_FOR_SMALL_ARM_INTERVAL: usize = 100;
 
-/// Most covariates of a [`small_arm_interval_95`], the same bound as the Bernoulli interval.
+/// Covariates up to which the small-arm interval's coverage is measured, the envelope of the
+/// Bernoulli interval. [`small_arm_interval_95`] publishes inside it;
+/// [`small_arm_interval_any_covariates_95`] computes the same HC2 Student interval for any
+/// covariate count, outside the measured envelope.
 pub const MAX_COVARIATES_FOR_SMALL_ARM_INTERVAL: usize = 2;
 
 /// Treatment coefficient with an HC2 Student interval for arms too small for a normal one.
@@ -154,10 +157,27 @@ pub struct SmallArmInterval {
 ///
 /// Returns `None` for misaligned or non-finite inputs, fewer than
 /// [`MIN_UNITS_PER_ARM_FOR_SMALL_ARM_INTERVAL`] rows in an arm, more than
-/// [`MAX_COVARIATES_FOR_SMALL_ARM_INTERVAL`] covariates, a rank-deficient design, a row of
-/// leverage 1, or a variance that is not positive (constant outcomes within each arm).
+/// [`MAX_COVARIATES_FOR_SMALL_ARM_INTERVAL`] covariates (use
+/// [`small_arm_interval_any_covariates_95`]), a rank-deficient design, a row of leverage 1, or
+/// a variance that is not positive (constant outcomes within each arm).
 #[must_use]
 pub fn small_arm_interval_95(
+    outcome: &[f64],
+    assignment: &[bool],
+    covariates: &[&[f64]],
+) -> Option<SmallArmInterval> {
+    if covariates.len() > MAX_COVARIATES_FOR_SMALL_ARM_INTERVAL {
+        return None;
+    }
+    small_arm_interval_any_covariates_95(outcome, assignment, covariates)
+}
+
+/// [`small_arm_interval_95`] for any number of covariates. The HC2 leverage correction and the
+/// Bell–McCaffrey degrees of freedom are computed for the fitted design, so the interval is
+/// the same construction; its coverage is measured only up to
+/// [`MAX_COVARIATES_FOR_SMALL_ARM_INTERVAL`] covariates, so beyond that it is not calibrated.
+#[must_use]
+pub fn small_arm_interval_any_covariates_95(
     outcome: &[f64],
     assignment: &[bool],
     covariates: &[&[f64]],
@@ -165,8 +185,7 @@ pub fn small_arm_interval_95(
     let n = outcome.len();
     let q = covariates.len() + 2;
     let treated = assignment.iter().filter(|&&value| value).count();
-    if covariates.len() > MAX_COVARIATES_FOR_SMALL_ARM_INTERVAL
-        || assignment.len() != n
+    if assignment.len() != n
         || covariates.iter().any(|x| x.len() != n)
         || n <= q
         || treated < MIN_UNITS_PER_ARM_FOR_SMALL_ARM_INTERVAL
@@ -298,6 +317,50 @@ mod tests {
                 "Bernoulli ANCOVA HC0 n={n} covariates={covariate_count} p={probability:.3} known-truth coverage: {covered}/{published} = {rate:.4}"
             );
             assert!((0.93..=0.985).contains(&rate));
+        }
+    }
+
+    /// Measurement harness for the covariate count beyond the support: the HC0 normal interval's
+    /// known-truth coverage with three to six covariates under the cells of the supported record.
+    /// Run with `--ignored --nocapture`; the support widens only for counts whose every measured
+    /// cell falls inside the supported coverage band.
+    #[test]
+    #[ignore = "measurement harness: prints coverage for covariate counts outside the support"]
+    fn bernoulli_ancova_hc0_coverage_beyond_two_covariates_is_measured_not_supported() {
+        const REPLICATES: usize = 2_000;
+        for (n, covariate_count, probability) in
+            [(400, 3, 0.5), (400, 4, 0.5), (600, 5, 0.5), (600, 6, 0.5), (400, 3, 0.2)]
+        {
+            let xs: Vec<Vec<f64>> = (0..covariate_count)
+                .map(|j| {
+                    (0..n)
+                        .map(|i| (0.17 * f64::from(j + 1) * i as f64 + f64::from(j)).sin())
+                        .collect()
+                })
+                .collect();
+            let refs: Vec<&[f64]> = xs.iter().map(Vec::as_slice).collect();
+            let effect = (0..n).map(|i| 1.4 + 0.2 * xs[0][i]).sum::<f64>() / n as f64;
+            let (mut covered, mut scored) = (0, 0);
+            for rep in 0..REPLICATES {
+                let assignment = (0..n)
+                    .map(|i| crate::splitmix::keyed_unit(rep as u64, i as u64) < probability)
+                    .collect::<Vec<_>>();
+                let outcome = (0..n)
+                    .map(|i| {
+                        2.0 + 1.2 * xs[0][i] - 0.7 * xs[1][i]
+                            + 0.5 * (0.29 * i as f64).sin()
+                            + f64::from(assignment[i]) * (1.4 + 0.2 * xs[0][i])
+                    })
+                    .collect::<Vec<_>>();
+                let Ok(fit) = fit_ancova(&outcome, &assignment, &refs) else { continue };
+                let radius = 1.959_963_984_540_054 * fit.hc0_variance.sqrt();
+                scored += 1;
+                covered += usize::from((fit.effect - effect).abs() <= radius);
+            }
+            eprintln!(
+                "Bernoulli ANCOVA HC0 n={n} covariates={covariate_count} p={probability:.3} known-truth coverage: {covered}/{scored} = {:.4}",
+                covered as f64 / f64::from(scored.max(1))
+            );
         }
     }
 

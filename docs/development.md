@@ -1,5 +1,21 @@
 # Development
 
+This page is the contributor and maintainer reference for the checks that guard the repository: what CI runs, which gate to run locally for which change, how scientific and calibration records are earned, and how a release is cut. Read [CONTRIBUTING.md](https://github.com/iridae-dev/antecedent/blob/v3.0.0/CONTRIBUTING.md) first for the clone-to-pull-request path. [How Antecedent checks its scientific methods](guides/scientific-verification.md) explains how provenance, independent references, executing assertions and calibration support a claim; this page describes the procedures that maintain that evidence.
+
+Names: the product is **Antecedent**. The Python distribution and import name is `antecedent`. The Rust
+facade crate is `antecedent` (`cargo add antecedent`); the supporting crates are `antecedent-*` on
+crates.io.
+
+| To do this | Read |
+| --- | --- |
+| Preview or check the documentation | [Documentation preview and checks](#documentation-preview-and-checks) |
+| Understand what CI runs and in what order | [CI vs local gates](#ci-vs-local-gates) |
+| Run one gate for a focused change | [Gates (local)](#gates-local), [Public API snapshots](#public-api-snapshots), [Python lint / types](#python-lint-types), [Native extension builds](#native-extension-builds) |
+| Choose the kind of test, or check the performance, feature and dependency rules | [Tests that matter](#tests-that-matter), [Performance rules](#performance-rules-merge-blockers), [Feature flags](#feature-flags), [Unsafe / deps](#unsafe-deps) |
+| Earn or check a scientific record | [Recorded scientific tests](#recorded-scientific-tests), [Earning platforms](#earning-platforms) |
+| Measure, probe or check a coverage record | [Coverage records](#coverage-records) |
+| Bump the version, cut and publish a release | [Versions](#versions), [Release candidates](#release-candidates), [Releases](#releases), [crates.io (Rust)](#cratesio-rust) |
+
 ## Documentation preview and checks
 
 In a separate checkout or worktree with the matching Antecedent installed:
@@ -9,86 +25,108 @@ python -m pip install -r requirements-docs.txt
 python scripts/generate_example_catalog.py --check
 python scripts/generate_doc_release_links.py --check
 python scripts/check_docs_experience.py
+python scripts/example_coverage.py --check
+python scripts/run_doc_examples.py
 python scripts/render_notebooks.py
 mkdocs build --strict
 python scripts/build_python_api_docs.py site/python
 mkdocs serve
 ```
 
-Notebook rendering executes setup cells and code in real isolated kernels. It produces HTML in `target/doc-notebook-previews`; source notebooks keep no saved outputs. Avoid running calibration or release-registry generators just to preview prose. The publication manifest excludes branch audits and one-off measurements while retaining evidence source paths. See [documentation sources](https://github.com/iridae-dev/antecedent/blob/v2.4.0/docs/README.md) for editorial conventions.
+These are the checks the `docs` workflow (`.github/workflows/docs.yml`) runs on every pull request, against a wheel it builds from the commit; it then verifies the built HTML with `python scripts/check_docs_site.py site`. `scripts/run_doc_examples.py` executes the documented Python snippets and embedded examples against the installed package. Notebook rendering executes setup cells and code in real isolated kernels. It produces HTML in `target/doc-notebook-previews`; source notebooks keep no saved outputs. Avoid running calibration or release-registry generators just to preview prose. The publication manifest (`scripts/docs_publication.toml`) keeps evidence-linked sources at their paths and out of the published site. See [documentation sources](https://github.com/iridae-dev/antecedent/blob/v3.0.0/docs/README.md) for editorial conventions.
 
+`scripts/example_coverage.py` prints, for every example-catalog entry, whether each of its Python, Rust and notebook sources is executed, compiled only, or skipped and why. It reads what the runners select (the Python suite, the documentation build and the Rust example suite) and runs nothing; `--check` fails on a source no runner selects unless its catalog entry states the reason in an `unexecuted` table.
 
-Product name: **Antecedent**. Python distribution/import: `antecedent`. Rust
-day-1 facade: `antecedent` (`cargo add antecedent`). Supporting crates are
-`antecedent-*` on crates.io.
+Published pages link repository sources (provenance and parity records, tests, examples, ADRs) at the tag of the release they document, so a released page keeps naming the evidence it shipped with. Write such a link against any ref and run `python scripts/generate_doc_release_links.py`, which pins it; the link check fails a published page that names `main` or another release tag. The tag is created from the release commit, so before then a pinned link names nothing on GitHub and is checked against the working tree instead.
 
 ## CI vs local gates
 
-For optimized local test commands, measured bottlenecks and the CI build
+For optimized local test commands, test scheduling and the CI build
 strategy, see [test performance](guides/test-performance.md).
 
-GitHub Actions CI (`ci.yml`) runs the following checks on every PR:
+GitHub Actions CI (`ci.yml`) runs the gate in tiers. The gate jobs run sections of
+`scripts/gate_release.sh`, and the engineering jobs run the selections of its `engineering`,
+`development` and `python-lint` sections; cheap checks come first and the record-currency job last.
+CI executes no scientific assertion and no calibration measurement:
 
-- **`rust`** — fmt, DCO, and the workspace Rust tests and doctests. The facade
-  and remaining packages run in parallel on Ubuntu; both suites also run on
-  macOS after merge. Three lints that can hide a
-  real defect (`cast_possible_truncation`, `cast_sign_loss`, `float_cmp`) are
-  never allowed file-wide in library code: an allow sits on the smallest item or
-  statement that needs it and states its reason (`scripts/gate_lint_allows.sh`).
-- **`features`** — Clippy and the feature combinations crates.io users get (default
-  features, each optional feature alone, `--no-default-features`), which the
-  workspace-wide jobs never build because the `python` member enables `ml-full`
-  and `ml-neural`.
-- **`deny`** — `cargo deny check` (licenses, advisories, sources) and the
-  crates.io publish dry-run.
-- **`gates`** — requires every parallel `gate-sections` job to pass. Each starts
-  with the calibration attestation (`scripts/gate_calibration_attestation.sh`).
-  The sections divide inventory, promotion evidence, graphless and support
-  matrix checks, checked execution, feature gates, and benchmark smokes.
-  Running `scripts/gate_release.sh` without `--section` still executes all of
-  them for a local release-candidate check.
-- **`python-lint`** — `scripts/gate_python_lint.sh` (Ruff, mypy), then pytest with an
-  85% coverage floor after building the native extension.
-- **`python-wheels`** — builds and tests the supported wheel matrix.
+0. **`static`** — source reading only, no build and no test: the DCO sign-off of every commit (a
+   step of the CI job, not of the gate script), rustfmt, lint allows, test
+   targets, crate ownership, the test registry and lane filters, parity inventories, provenance,
+   capability records, the one support count (`scripts/gate_support.py`), the method children and
+   method specifications, bounds, release claims, links and
+   every generated file being current, and that every scientific and calibration record is current
+   (`scientific_records.py status --check`, `calibration_status.py --check`).
+1. **Builds** — compile, list or lint; no test runs. **`features`** (Clippy and the feature
+   combinations crates.io users get: default features, each optional feature alone,
+   `--no-default-features`), **`public-api`** (public items match `parity/public_api/*.txt`),
+   **`cited-tests`** (eight shards; every cited test is a compiled, non-ignored test),
+   **`benches`** (Criterion smoke, skipped on a pull request that touches no bench),
+   **`python-native`** (the extension the Python jobs share) and **`deny`** (`cargo deny check`,
+   and the crates.io publish dry-run on a pull request that changes a crate manifest or the
+   publish scripts). The fuzz targets are built and run on a development machine with
+   `bash scripts/fuzz.sh`, not in CI.
+2. **Engineering tests** — tests of the software with no scientific claim. **`rust`** (the
+   engineering nextest selection and doctests; the facade and remaining packages run in parallel on
+   Ubuntu, both also on macOS after merge), **`development`** (the development build that runs
+   `not_supported` routes), **`python-lint`** (Ruff, mypy, script tests, then pytest without the
+   `requires_calibration` and `calibration_simulation` markers, with an 85% coverage floor) and **`python-wheels`** (builds
+   and tests the supported wheel matrix). The optional learner and Gaussian-process feature tests
+   run in `features` on every pull request.
+3. **`scientific`** — one job, `bash scripts/gate_release.sh --section scientific`: the same two
+   currency checks as `static`, alone and without a build. It fails while any scientific or
+   calibration record is owed; the records a change owes are earned on a development machine
+   (`bash scripts/test.sh`) and committed with it.
+4. **Release candidate** — `scripts/gate_release_candidate.sh`, run locally (below): the CI-run
+   check, the record-currency checks, scale cases and the installed wheel. It re-runs no
+   scientific assertion.
 
-**Statistical calibration is measured on a development machine before you push,
-never on GitHub.** CI only checks that the committed coverage records match the
-code being uploaded, and the `gates` job fails when they do not (see
-[Coverage records](#coverage-records)). Criterion benchmark smokes do run
-through `gate_release.sh`; they check execution, not timing regressions.
-`cargo deny` runs inside `gate_release.sh` only when `cargo-deny` is on PATH,
-which it is not in CI.
+Running `scripts/gate_release.sh` without `--section` executes tiers 0 to 3 locally in order.
 
-## Gates (local / slow path)
+**Scientific tests and statistical calibration are earned on a development machine, never on
+GitHub.** CI only checks that the committed records are current. See [Earning and checking the records](guides/scientific-verification.md#earning-and-checking-the-records) for the
+model and every lane command. Criterion benchmark smokes check
+execution, not timing regressions; a pull request labelled `perf` also runs `bench-regression`,
+which benchmarks six hot paths at the base and the head commit in one job and compares them
+(`scripts/bench_regression.py`). The `deny` section of `gate_release.sh` runs `cargo deny check`
+when `cargo-deny` is on PATH and otherwise warns and continues; the release-candidate gate sets
+`REQUIRE_CARGO_DENY=1`, which makes it mandatory. CI's `deny` job runs `cargo deny check` itself.
 
-Feature gates own inventory honesty + conformance for a domain. Run them locally
-before a release, or when a change might break something unintended:
+## Gates (local)
+
+Run one of these on its own when a change might break something unintended. All but
+`scripts/test.sh` (bare) and `scripts/measure_calibration.sh`, which earn records on a development
+machine, are steps of `scripts/gate_release.sh`:
 
 ```bash
-bash scripts/gate_estimate_ci.sh
-bash scripts/gate_bayesian.sh
-bash scripts/gate_gcm.sh
-bash scripts/gate_pag.sh
-bash scripts/gate_context.sh
-bash scripts/gate_attribution.sh
-bash scripts/gate_design_state.sh
+python3 scripts/check_parity_inventories.py   # every parity inventory: done rows have evidence, exit artifacts exist
 bash scripts/gate_upstream_names.sh
-bash scripts/gate_response_calibration.sh
-bash scripts/gate_causal_artifacts.sh
-bash scripts/gate_estimate_reuse.sh
-bash scripts/gate_composition.sh   # composition consuming contract/claim tests must actually run
-bash scripts/gate_transport.sh     # transport stage contracts; every fixture family runs a positive and a counterexample
-bash scripts/gate_gcm_conformance.sh   # policies, mechanism selection, falsification, noise replay, intrinsic influence: every clause runs a cited test; batch benches assert their regression bound
+bash scripts/gate_composition.sh   # composition consuming contract/claim tests resolve to real tests
+bash scripts/gate_transport.sh     # transport stage contracts; every fixture family has a positive and a counterexample
+bash scripts/gate_gcm_conformance.sh   # policies, mechanism selection, falsification, noise replay, intrinsic influence: every clause cites a test
 bash scripts/gate_metadata_consistency.sh
 bash scripts/gate_evidence_reachability.sh
-bash scripts/gate_support_matrix.sh   # public license cells; default refused
-bash scripts/gate_checked_execution.sh   # every licensed estimator executes from its retained checked plan with no builder alive
+python3 scripts/gate_support.py       # the one support rule over every unit, and the one support count
+python3 scripts/gate_support.py --cited-tests   # every cited test is compiled and not ignored (builds test binaries)
+python3 scripts/gate_not_supported_sites.py   # `not_supported` is built only in require_supported
+python3 scripts/check_method_children.py
+python3 scripts/reconcile_method_specs.py --check
+python3 scripts/check_acceptance_manifest.py --require-bound
+bash scripts/gate_checked_execution.sh   # every supported estimator cites a test that executes from its retained checked plan
 bash scripts/gate_docs_support_matrix.sh
 bash scripts/gate_public_api.sh   # published crates' public items match parity/public_api/*.txt
-bash scripts/measure_calibration.sh   # coverage / CI Type I: measure what is owed, collect, attest
-bash scripts/gate_release.sh       # prior gates + inventory + benches + optional deny
+bash scripts/test.sh                  # engineering, then owed scientific and owed calibration
+bash scripts/measure_calibration.sh   # coverage / CI Type I: measure what is not current, collect, print the status
+bash scripts/gate_release.sh       # tiers 0 to 3 in order
 bash scripts/gate_python_lint.sh   # local equivalent of the CI lint/type checks
 ```
+
+### Capability inventory status
+
+Mark a `parity/*.toml` capability `done` only with conformance under `conformance/`
+**or** a named harness in the gate script, plus a recorded reference-generation
+command when black-box comparison applies.
+
+Statuses: `pending` | `done`.
 
 ## Public API snapshots
 
@@ -99,11 +137,201 @@ compares the listing with the committed `parity/public_api/<crate>.txt`. Any
 difference fails the gate with a line diff. An intended API change is made
 deliberate by regenerating the snapshots (`bash scripts/gate_public_api.sh
 --write`) and committing the diff, which a reviewer then reads as the API
-change. The gate runs in the `inventory` section of `gate_release.sh`. Keep
+change. The gate runs in the `public-api` section of `gate_release.sh`. Keep
 cross-crate plumbing that is not a supported API out of the snapshot by making
 it `pub(crate)`, or, when another workspace crate or a fixture needs it, behind
 a `test-util`-style feature (see `antecedent-identify`) rather than
 `#[doc(hidden)] pub`.
+
+## Python lint / types
+
+`scripts/gate_python_lint.sh` runs **ruff** (check + format) and **mypy** over
+`python/antecedent` (including hand-written `.pyi` stubs for `_native`). It is a
+local equivalent of the checks in the separate CI `python-lint` job; the
+wheel-matrix job does not run lint or type checks.
+
+```bash
+cd python
+uv sync --group dev
+# If CONDA_PREFIX and VIRTUAL_ENV are both set, unset CONDA_PREFIX first.
+bash ../scripts/gate_python_lint.sh
+```
+
+Or individually:
+
+```bash
+cd python && uv run ruff check antecedent tests ../examples/python ../scripts ../benchmarks ../conformance
+uv run ruff format --check antecedent tests ../examples/python
+uv run mypy
+```
+
+## Native extension builds
+
+All Python builds of `antecedent._native` — wheels, `maturin develop`, and the
+editable rebuild uv performs when the install goes stale — compile with Cargo's
+release profile (`[tool.maturin] profile = "release"` in `python/pyproject.toml`).
+Do not remove that pin: the PEP 517/660 default is the debug profile, which
+produces bit-identical estimates at roughly 50× the wall time, so nothing
+downstream notices. A debug-profile extension warns on import (the flag is
+`antecedent._native.__build_optimized__`), and `tests/test_build_profile.py`
+fails the pytest suite — locally and in CI — if the extension under test is
+unoptimized (`ANTECEDENT_ALLOW_DEBUG_NATIVE=1` opts out deliberately).
+
+## Tests that matter
+
+| Kind | Role |
+|------|------|
+| Unit / property | Algorithm invariants, graph witnesses, numeric edge cases |
+| Conformance | Frozen fixtures vs expected outputs (`conformance/`) |
+| Calibration | Coverage / Type I / null FPR (`parity/calibration_groups.toml`, measured locally by `measure_calibration.sh`) |
+| Cross-language | Python bindings exercise the same semantics |
+| Criterion benches | Designated hot paths; release gate locally and in CI |
+| Fuzz | Parsers / graph / artifact surfaces under `fuzz/`, run locally by `scripts/fuzz.sh` |
+
+Tolerance classes live in `antecedent-core` (ADR 0010). Do not tighten or loosen a
+conformance band without an ADR-level reason.
+
+## Performance rules (merge blockers)
+
+- Data layout and copy policy are designed with the algorithm, not after.
+- No per-observation dynamic dispatch / Python / hash / heap in scalar inner loops
+  unless the slow path is API-explicit and separately benched.
+- Scalar kernels are the correctness reference; SIMD/BLAS/parallel paths pass the
+  same tests.
+- Do not change statistical semantics to go faster (sample selection, masking,
+  conditioning order, randomization, stopping rules, estimands).
+- Parallelism is bounded by `ExecutionContext`.
+- Superlinear storage must expose bounds, streaming, or refuse — not OOM later.
+
+See [hot_paths.md](hot_paths.md).
+
+## Feature flags
+
+Cargo features mean “optional adapter / heavy backend,” never “different numbers
+on the default path.”
+
+Always on: `faer`, portable kernels, `ExecutionContext` parallelism (`rayon`
+rejected).
+
+Optional features include `antecedent-data/arrow`, `antecedent-model/gaussian-process`,
+`antecedent-learn/ml-gbdt`, `ml-forest`, `ml-neural`. A feature that gates no code is not
+declared (the HMC backend is always compiled), and there is no `simd-runtime`
+feature, so `KernelPolicy::allow_arch_simd` always selects the portable kernels.
+Ingest and exchange adapters are optional features and never reshape core types.
+The `development` feature (and `scripts/dev_python.sh` for Python, which
+installs a development build and checks `antecedent.build_flavor()`) turns the
+support gate into a recorder: a route that lacks provenance or an independent
+scientific check runs instead of refusing, and its result carries `would_refuse`
+(the `not_supported` code, the detail and the missing evidence). Scientific
+refusals still refuse. A development build is for exercising unsupported routes
+and developing their evidence; artifacts it seals are stamped `development` and
+release consumers refuse them, so never ship, publish or write fixtures from one.
+The only place a `not_supported` refusal is built is
+`antecedent_core::support_gate::require_supported`, and
+`scripts/gate_not_supported_sites.py` enforces that. See
+[How Antecedent checks its scientific methods](guides/scientific-verification.md#the-evidence-model).
+CI compiles the feature combinations crates.io users get (default features, each
+optional feature alone, `--no-default-features`) in the `features` job.
+
+## Unsafe / deps
+
+Reviewed `unsafe` is concentrated in `antecedent-kernels` (SIMD), the
+`antecedent-data` buffer/Arrow FFI adapters (`unsafe from_ffi`), and IO mmap
+(`unsafe open_path_mapped`; safe `open_path` is an owned snapshot).
+New `unsafe` needs justification in review. Dependency and license policy: ADR 0008 and `deny.toml`.
+
+## Recorded scientific tests
+
+The scientific assertions (those whose claims carry the `scientific` role, plus the uncited ones in
+`parity/scientific_tests.toml`; calibration simulations and acceptance measurements are excluded)
+are recorded in `parity/scientific_records.toml`: per assertion, its exact selector, roles, the
+commit it passed at, a fingerprint of its dependencies and the time. While the fingerprint still
+matches, the recorded pass carries forward and the assertion does not rerun. What the fingerprint
+covers, and what owed means for support, is in [Earning and checking the records](guides/scientific-verification.md#earning-and-checking-the-records).
+
+```bash
+bash scripts/test.sh                                  # engineering, then owed scientific, then owed calibration
+bash scripts/test.sh scientific                       # owed scientific assertions only
+bash scripts/test.sh scientific --only PATTERN        # owed rows matching PATTERN (substring or glob)
+bash scripts/test.sh scientific --all                 # manual: rerun and re-record everything
+python3 scripts/scientific_records.py status          # which assertions are owed
+python3 scripts/scientific_records.py status --check  # exit 1 if any owed; executes nothing (CI)
+```
+
+`scientific_records.py run` is the one entry point that executes scientific assertions. The
+engineering lane excludes them (the nextest default filter and the pytest `scientific` marker are
+both derived from the registries). Scientific assertions are Rust tests: every owed test target is
+built once with coverage instrumentation and each assertion runs by its exact selector. A pass is
+recorded with its dependency manifest, as each target finishes, only while its inputs still match (see
+[Earning and checking the records](guides/scientific-verification.md#earning-and-checking-the-records)).
+The capability, transport, composition, checked-execution and
+GCM conformance gates only resolve their rows to exact tests (`run_evidence_rows.py --static`).
+The runner proves the exact assertion executed and was not ignored; failures are reported and never
+recorded. A recorded pass is evidence for support only; it is never a calibration measurement or
+coverage record.
+
+## Earning platforms
+
+A record is earned on the machine of the developer who implemented its feature, whatever its
+platform, and committed with the change. Every other machine, CI included, only checks that the
+record is current. `scripts/evidence_platforms.py` holds the reviewed platforms; each has its own
+policy id, Nix system, build recipes, sandbox rule and reviewed compile-time registry:
+
+| platform (Rust host triple) | Nix system | policy | compile-time registry |
+| --- | --- | --- | --- |
+| `aarch64-apple-darwin` | `aarch64-darwin` | `nix-darwin-private-tmp-audit-v1` | `nix/compile-time-reviewed.json` |
+| `x86_64-unknown-linux-gnu` | `x86_64-linux` | `nix-linux-sandbox-audit-v1` | `nix/compile-time-reviewed.x86_64-unknown-linux-gnu.json` |
+| `aarch64-unknown-linux-gnu` | `aarch64-linux` | `nix-linux-sandbox-audit-v1` | `nix/compile-time-reviewed.aarch64-unknown-linux-gnu.json` |
+
+**Earning.** The commands are the same on every platform (`bash scripts/test.sh`,
+`bash scripts/measure_calibration.sh`, `python3 scripts/calibration_probe.py`), and the tree holds
+each platform's whole policy: pinned toolchain archives, recipes and reviewed registry. Earning
+selects the policy of the host it runs on and refuses, before building, on a host with no
+reviewed policy. `python3 scripts/evidence_platforms.py status` prints the host's policy and
+whether it can earn. On Apple silicon nothing changes.
+
+**On Linux** (`x86_64` or `aarch64`, glibc, a multi-user Nix), run the earning command. Its first
+run prepares the host, as `python3 scripts/evidence_platforms.py prepare` does on its own:
+
+- It checks the daemon's sandbox: `/etc/nix/nix.conf` is root-owned, has no include line and sets
+  `sandbox = true` and `sandbox-fallback = false`; the daemon reports the same and exposes no host
+  path but `/bin/sh` mapped into the store. NixOS writes this by default. Elsewhere only root can
+  change the file, so the refusal prints the command:
+  `printf 'sandbox = true\nsandbox-fallback = false\n' | sudo tee -a /etc/nix/nix.conf && sudo systemctl restart nix-daemon`.
+- It checks that the reviewed registry licenses every compile-time unit the host's Cargo
+  resolves, and names any that it does not.
+- It realises what an evidence build reads besides the source (`nix/evidence-inputs.nix`: the
+  toolchain archives by their pinned SHA-256, the build tools of the locked nixpkgs and the crates
+  of `Cargo.lock`), online. Evidence builds themselves stay offline and without substitutes.
+
+This is repeated when the recipes, the registry or `Cargo.lock` change. The first build under a
+new recipe set or lock is also rebuilt and compared bit for bit, as `--check-reproducible` asks
+for on Apple silicon.
+
+**Registries after a `Cargo.lock` change.** Each registry is bound to the lock's hash, so a
+changed lock owes every platform's registry, and a record is rechecked against the registry of
+the platform it names. `python3 scripts/evidence_platforms.py draft-registry --all` rebinds them
+from any host: it resolves each platform's unit graphs as that platform's Cargo would, keeps every
+reviewed row and adds each new build-script or procedural-macro unit (and what it depends on) as
+`unresolved`. Earning refuses an `unresolved` unit. Read what the unit reads on that platform
+(`nix/compile-time-audit.md`, `nix/linux/compile-time-audit.md`), set its `source_projection` to
+`reviewed-safe` or `complete-source`, and commit the registries with the lock.
+
+**Which platform earned a record.** A record's dependency manifest
+(`parity/evidence_manifests/<dependency_manifest>.json`) names it in `nix_build.policy.target`.
+`nix_build.policy.id` and `nix_build.tools.host` (the compiler's host triple) must be that
+platform's, and its recipe digests must be of that platform's recipes; the manifest checker
+refuses a receipt whose fields disagree.
+
+**On a machine of another platform.** You can check that the record is current: currency compares
+source fingerprints, the compiler pin, `Cargo.lock` and the record's own platform registry, all
+read from the repository, so the answer is the same on every host
+(`scientific_records.py status --check`, `calibration_status.py --check`). You cannot replay it. A
+coverage record's replicate digests are bit-exact and depend on the platform's math library, so
+`calibration_probe.py` does not run a record earned elsewhere and reports
+`earned on <platform>; this host (<host>) cannot replay its digests`, never a mismatch; a probe
+attestation covers only a measurement of its own platform. A record that a change makes owed is
+re-earned on the platform of whoever makes the change, and then names that platform.
 
 ## Coverage records
 
@@ -127,11 +355,11 @@ record-emitting group once per grid point with
 | grid | points | used for |
 | --- | --- | --- |
 | `STANDARD` | `n/2, n, 2n` | every design whose base `n` exceeds 100 (`grid_n`) |
-| `SHORT_SERIES` | `3n/4, n, 2n` | series of at most 100 steps, whose base is already the shortest series the construction is licensed for (`grid_n`) |
+| `SHORT_SERIES` | `3n/4, n, 2n` | series of at most 100 steps, whose base is already the shortest series the construction is supported for (`grid_n`) |
 | `HEAVY` | `n/2, n, 3n/2` | designs that run for hours at their base (Bayesian derivative and Jacobian bands, ADMG front door, the 2500-row counterfactual designs) |
 
-The base point (point 1, also what an unset variable means) is the design as it
-was measured before the grid, on the same replicate data; points 0 and 2 salt
+The base point (point 1, also what an unset variable means) is the design at its
+base `n`, with unsalted generators; points 0 and 2 salt
 every generator in the harness, so each point measures independent data and
 stays deterministic. A test name's `nNNN` names the base point.
 
@@ -143,9 +371,9 @@ points, and the row is a boundary when any point is. It refuses a record that
 misses a point, or whose points do not measure strictly growing sample sizes (a
 design that does not scale its `n`). The matcher labels an execution
 `calibrated` only inside `n_min..n_max` of a record that passed at every point;
-a record that failed at any point is `scope_not_assessed` /
+a record that failed at any point is `measured_below_nominal` /
 `boundary_record` over its whole range, reporting the failing point's
-coverage; outside the range it is `scope_not_assessed` /
+coverage; outside the range it is `outside_measured_scope` /
 `sample_size_outside_measured_range`. Nothing is extrapolated.
 
 A boundary record can recover the passing part of its range, but only from an
@@ -166,7 +394,7 @@ in the middle of the grid leaves nothing to recover. The matcher is
 axis, the attestation and the scope checks unchanged), governed by the lowest
 coverage over those points in the measurement and the confirmation, and it
 reports that range as the scope. A row count in the failing region, or between
-it and the range, is still `scope_not_assessed` / `boundary_record`.
+it and the range, is still `measured_below_nominal` / `boundary_record`.
 `scripts/gate_parity_schema.sh` checks that the stated range is exactly what the
 grid and the confirmation establish.
 
@@ -197,67 +425,43 @@ A wiring smoke run (`ANTECEDENT_CALIBRATION_SMOKE=1` with a small
 `--smoke --log-dir <dir> --out <scratch.toml>`, which writes a scratch registry
 and never touches `parity/`.
 
-### When a record stands
+### Two flows: engineering and calibration
+
+Engineering and calibration are separate flows. A measurement is made on a development machine
+and never in CI; CI fails while a coverage record is owed (`calibration_status.py --check`), but
+calibration status never changes support or refuses a route. See [Earning and checking the records](guides/scientific-verification.md#earning-and-checking-the-records).
 
 The measurement is deterministic: every replicate's data and resamples come
 from fixed seeds, so re-running unchanged code reproduces the same numbers
 (`crates/antecedent-estimate/tests/coverage_determinism.rs` holds that in
-ordinary CI). A record therefore stands until the code it measured changes,
-and is never re-measured on a timer.
+ordinary CI). A record is never re-measured on a timer.
 
-`scripts/calibration_surface.list` is the only owner of that code. It assigns
-every path that can move a number (crate sources, manifests, the toolchain, the
-shared harness, each calibration suite) to a facet:
+**Dependency manifest.** When the collector stamps a measurement, and when a
+probe passes, `scripts/evidence_earning.py` writes a content-addressed manifest of
+everything the test depends on: the sources of the workspace crates in its
+dependency closure, the test file with its helpers and the DGP file, `Cargo.lock`
+and the workspace manifest, the toolchain and compiler, embedded and declared
+inputs (`parity/fingerprint_inputs.toml`), build scripts, the build configuration
+and `ANTECEDENT_*` values. The scientific records use the same manifests; the full
+list is in [Earning and checking the records](guides/scientific-verification.md#earning-and-checking-the-records).
 
-- `core` — shared numerical and harness code (least-squares, conjugate,
-  bootstrap, RNG, facade dispatch, manifests, toolchain). Every record
-  carries it: a core edit owes a re-measurement unless a reviewed replay
-  waiver covers the change.
-- `estimator.*` / `identity.*` — one estimator or identification
-  implementation. A change owes only the records that use that estimator or
-  identity.
-- narrower facets — `mechanism` (the fitted-SCM crates and the dispatch path
-  that alone reaches them), `design`, one `suite.<file>` per calibration
-  suite, and `registry_mirror` (generated tables no measurement reads). A
-  change invalidates only the records carrying the facet.
+**Status.** `python3 scripts/calibration_status.py status` classifies every
+record in `parity/coverage_records.toml`:
 
-Each record's `facets` are derived from the record itself by
-`scripts/calibration_facets.py`: the suite of its test and DGP file, and every
-`estimator.*` / `identity.*` (or `mechanism` / `design`) a `key` line assigns
-to its fields. Every record also carries `core`. `scripts/gate_parity_schema.sh`
-rejects a record whose facets are not exactly the derived set. `estimator.*` /
-`identity.*` isolation is the `key` line: a change owes only records whose
-fields match. For `mechanism` / `design`, `check` still fails when a file
-outside the facet names the facet's items, unless an `allow` line records that
-reviewed reference exactly; a new reference or a stale entry fails.
+- `current` — the record's dependency manifest (written by the collector when it
+  stamps a measurement at HEAD) still matches the tree, or a passing probe
+  attestation of its measurement has a manifest that still matches
+  (see [Probes](#probes));
+- `probe_owed` — not current, and the measurement stored replicate digests, so a
+  probe can reproduce them;
+- `measurement_owed` — not current and nothing to probe; only a re-measurement
+  makes it current.
 
-A record is **attested** while none of its facets differs between its
-`calibration_sha` and the tree.
-
-### The rule: measure locally, CI rejects what does not match
-
-A change to statistical code is measured on your machine before you push. CI
-rejects an upload whose records do not match the code:
-`scripts/gate_calibration_attestation.sh` runs first in the `gates` job on every
-pull request and every push to `main`, and again inside `gate_release.sh`. It
-never runs a replicate. It compares file contents through git and takes a few
-seconds. It fails when:
-
-- a record **owes a re-measurement**: a path in a facet it depends on changed
-  between its `calibration_sha` and the tree, and no valid replay waiver covers
-  the change. The failure names the drifted facets, their changed paths, the
-  number of records owed, and the command to run;
-- a record's `calibration_sha` **does not resolve**. A rebase, squash or deleted
-  branch orphans the commit a record names. Push the branch or a tag that
-  preserves it (`git tag calibration/<name> <sha>` and
-  `git push origin calibration/<name>`), or re-measure. The `gates` job checks
-  out with `fetch-depth: 0`, so any pushed commit or tag resolves;
-- a replay waiver is invalid, or the list or its facet boundaries are broken
-  (`calibration_facets.py check`).
-
-Records that are attested, or `attested_by_replay` under a valid waiver, pass.
-The same check is what a release cut requires, so there is no separate release
-mode.
+A record without a dependency manifest is never current through its
+measurement. `status --owed` prints the ids that are not current, `status --json`
+the counts and per-record status. `status` always exits 0; `calibration_status.py --check`
+exits 1 while any item is owed and is what CI and the release candidate run. The runtime snapshot of attesting record ids is the
+`current` set.
 
 ### Measuring
 
@@ -271,9 +475,11 @@ One command, from a clean checkout of the commit you are about to push:
 bash scripts/measure_calibration.sh --dry-run   # the groups it would run
 bash scripts/measure_calibration.sh --pilot     # 8-replicate smoke timings; no coverage evidence
 bash scripts/measure_calibration.sh --dry-run   # projection from this commit's pilot
-bash scripts/measure_calibration.sh             # measure what is owed, collect, re-run the gate
+bash scripts/measure_calibration.sh             # measure what is not current, collect, print the status
+bash scripts/measure_calibration.sh --owed      # the same set, spelled out (`calibration_status.py status --owed`)
+bash scripts/measure_calibration.sh --owed --only PATTERN  # owed work whose group, record id/test or route matches
 bash scripts/measure_calibration.sh --all       # re-measure every group
-bash scripts/measure_calibration.sh --missing-only # fill missing evidence while waivers are pending
+bash scripts/measure_calibration.sh --missing-only # fill missing evidence; keep prior evidence
 bash scripts/measure_calibration.sh --missing-only --group 'weighted_interval_calibration:*'
 bash scripts/measure_calibration.sh --jobs 6    # parallel groups (default: the core count)
 ```
@@ -281,24 +487,27 @@ bash scripts/measure_calibration.sh --jobs 6    # parallel groups (default: the 
 It refuses a dirty working tree, because a measurement must correspond to a real
 commit. It then works in four steps:
 
-1. It asks `scripts/calibration_facets.py` which records owe a re-measurement
-   (or name a commit this clone lacks). `scripts/calibration_groups.py` maps
+1. It asks `scripts/calibration_status.py status` which records are not current;
+   probe first, so a record whose digests reproduce is not measured again. `scripts/calibration_groups.py` maps
    those records to the gate groups that measure them.
-2. It builds the selected test binaries once, then runs each group alone through
-   `scripts/gate_calibration.sh`, several at a time; a record-emitting group runs
-   as one job per sample-size grid point
-   (`ANTECEDENT_CALIBRATION_GRID_POINTS=<k>`), so the points of a long group run
-   side by side. The run includes the gate's inline 2000-replicate rechecks, per
+2. It builds the selected test binaries in one Nix derivation, coverage-instrumented,
+   then runs each group's test binary (`parity/calibration_groups.toml` names it) through
+   the shared evidence runner (`scripts/calibration_runner.py`), several at a time; a
+   record-emitting group runs as one job per sample-size grid point, so the points of a
+   long group run side by side. The run includes the gate's inline 2000-replicate rechecks, per
    point. It prints each job's start and its result with elapsed time. The gate's logs go to
    `target/calibration-records/`, where the collector reads them, and earlier
-   logs and consoles move to durable, SHA-scoped run directories under
-   `target/calibration-archives/`. Each group's console
-   output goes to `target/calibration-console/`, and its wall time is appended
-   to `target/calibration-timings.tsv` for post-run review.
-3. It runs `scripts/collect_coverage_records.py --keep-attested` (without the
+   logs move to durable, SHA-scoped run directories under
+   `target/calibration-archives/`. Beside each log the runner stores the code regions
+   the job executed (`<stem>.coverage.json`) and, once, the Nix build records
+   (`evidence-builds.json`): the collector binds each record to the items its
+   measurement ran. Each job's wall time is appended to
+   `target/calibration-timings.tsv` for post-run review.
+3. It runs `scripts/collect_coverage_records.py --keep-not_measured` (without the
    flag under `--all`). Each record is stamped with the commit it was measured
-   at. Records that still stand keep their own `calibration_sha`.
-4. It runs the attestation gate on the result.
+   at and the fingerprint of its test there. Records the logs do not re-measure
+   keep their own `calibration_sha` and `fingerprint`.
+4. It prints the calibration status of the result.
 
 Commit `parity/coverage_records.toml` and the files the collector regenerates,
 then push. A normal run that fails its calibration band stops before collection.
@@ -309,13 +518,24 @@ as a whole, with reasons; its logs stay available. The wrapper still exits with 
 failure after saving the completed evidence. Replacement IDs belonging to skipped
 groups are deferred, leaving their original evidence intact.
 
-Without `--all`, the selection has three parts:
+The default runner and `--owed` both use the checker's owed list. Each coverage
+study needs a record from its own test and current protocol. A sibling study
+on the same route can measure a different range or interval. The checker also
+includes missing routes, open ledger rows and stale coverage records.
 
-- the groups behind owed records;
-- any group in a calibration suite that has no record in the registry yet;
-- when anything else runs, the pass/fail gates that emit no record (CI Type I,
-  discovery FPR, SBC, `gate_response_calibration.sh`). Nothing can attest those
-  gates, so they run with every re-measurement.
+`parity/calibration_obligations.toml` maps the range studies to their graphless
+support row (family, design and method) or prepared joint-response construction.
+It names pass/fail groups explicitly. A gate owes a run when any configured grid
+point lacks a passing receipt for its protocol or the earlier pass can no longer
+be carried against its executed inputs. A prospective study outside published
+support remains runnable with `--all`.
+
+A reviewed pass/fail carry in `parity/calibration_gate_carries.toml` records the
+source revision reviewed and the reason the changes preserve those gates. Each
+digest binds the exact group definition and the complete original grid receipts.
+The checker compares the reviewed tree with the working tree on subsequent
+runs, including the listed fixtures and calibration protocol inputs. The gate
+ledger retains the measurement revision, counts and decisions.
 
 Formal runner measurements use `suite_coverage_fwer.v1` after the complete source
 family and hypothesis audit are frozen in `scripts/calibration_family_manifest.json`
@@ -343,12 +563,12 @@ explicit review of every reference, seed stream and cumulative risk allocation.
 
 A method revision informed by earlier results needs a new independent validation
 domain and an unused cumulative hypothesis slot before new outcomes are observed.
-`parity/calibration_decision_allocations.json` retains the original risk budget and
-spent HC1 slot while reserving a separate HC3 construction under
-`release_2_4_1_weighted_hc3_validation_v1`. The new family manifest binds this receipt's
-hash. HC3 was selected after the older results; it was not present in the initial
-source roster. Its independent validation consumes another slot within the original
-256-cell allowance. Changing the domain never supplies another family alpha or
+`parity/calibration_decision_allocations.json` records the risk budget and every spent
+or reserved slot; for example, it keeps the spent HC1 slot and reserves the HC3
+construction, chosen after the HC1 results were seen, under its own domain
+`release_2_4_1_weighted_hc3_validation_v1`. The family manifest binds that file's
+hash, and the HC3 validation consumes another slot within the same 256-cell
+allowance. Changing the domain never supplies another family alpha or
 recycles an earlier slot. Unknown slot reuse and changed constructions fail closed.
 
 This controls false rejections of coverage compatibility for that frozen validation
@@ -358,12 +578,12 @@ decisions remain durable, including a first look superseded by its registered
 recheck. Earlier collected evidence retains its original decision protocol.
 
 Use `--missing-only` to finish an incomplete collection while existing evidence awaits
-reviewed waivers. It selects groups with neither matching coverage records nor a
-complete passed entry in `parity/calibration_gates.toml`, irrespective of facet drift.
+a probe or a re-measurement. It selects groups with neither matching coverage records nor a
+complete passed entry in `parity/calibration_gates.toml`, irrespective of status.
 The collector uses `--keep-existing`: it preserves every old record, its original SHA,
 and earlier gate evidence, and refuses collisions with existing record IDs.
 For incremental evidence-only batches, `--no-cells --defer-generated` also leaves
-licensed support metadata and generated assets for the final combined harvest.
+support metadata and generated assets for the final combined harvest.
 Raw-log validation and whole-group completeness still apply.
 `--group` restricts the selected set by a quoted full-label glob; repeat it for multiple
 groups. A filter matching nothing fails before measurement. To remeasure a numerically changed construction already in the registry, select its
@@ -377,17 +597,17 @@ more replicates apply their registered final-look decision directly, without an 
 The formal family protocol accepts only these three registered replicate budgets.
 Decide the budget before examining results, retain the outcomes, and do not search
 seeds or repeat until a pass. These options do not
-waive drift: the final attestation gate still requires actual replay waivers or new
-evidence. Passing collected records whose numerical outputs changed must be
-explicitly replayed or remeasured separately; `--missing-only` does not select them.
+make a record current: only new evidence or a passing probe does. Passing collected records whose numerical outputs changed must be
+remeasured separately; `--missing-only` does not select them.
 
-Facets and replay waivers keep the cost proportional to the change:
+Manifests and probes keep the cost proportional to the change:
 
-- an edit confined to one suite owes only that suite's records;
-- an estimator or identification-path edit owes only the records that use it;
-- a `mechanism` edit owes only the fitted-SCM records;
-- a reviewed change that cannot move a number owes nothing, through a waiver;
-- a `core` edit owes every record, unless a reviewed replay waiver covers it;
+- an edit to a crate a record's test does not depend on leaves it current;
+- a workspace-version edit changes nothing;
+- a change that cannot move a number is cleared once a probe reproduces the
+  records' digests and writes a manifest of the new tree;
+- a change to a shared crate, the lock file or the toolchain owes every
+  record that depends on it.
 
 **How long it takes.** Groups run side by side (`measure_calibration.sh
 --jobs`). Independent seeds inside a group run across `map_replicates` workers;
@@ -401,78 +621,93 @@ collector. The next `--dry-run` projects the 400-replicate pass and expected
 Only the test runner's simulation time scales with replicate count; Cargo and
 gate startup are charged once per job. The projection is approximate: convergence
 does not scale perfectly with replicates, and a changed coverage rate changes the recheck
-count. Without a pilot at HEAD, `--dry-run` gives no duration estimate. An old
-forecast that summed wall times of suites competing on the same CPU substantially
-overstated the full-pass time. The measurement runs the longest previously measured grid
-jobs first (falling back to pilot timings) to reduce the final straggler. A change that drifts one suite or
-facet costs only the groups behind its records.
+count. Without a pilot at HEAD, `--dry-run` gives no duration estimate. The wall-clock
+projection is the larger of the total work spread over the cores and the longest single
+task; it never sums the wall times of jobs that shared CPUs. The measurement runs the longest previously measured grid
+jobs first (falling back to pilot timings) to reduce the final straggler. A change
+costs only the groups behind the records it owes.
 
-The collector refuses to stamp HEAD while the surface its records depend on
-differs from HEAD. It keeps a rechecked point's more precise run, rewrites the
-`calibration` / `calibration_reason` pair on every licensed cell and estimator
-row (a licensed cell whose every reported-level record is a boundary also states
+The collector refuses to stamp HEAD while the sources a manifest reads
+(`crates/`, `python/`, the manifests and the toolchain file) differ from HEAD. It keeps a rechecked point's more precise run, rewrites the
+`calibration` / `calibration_reason` pair on every supported cell and estimator
+row (a supported cell whose every reported-level record is a boundary also states
 `calibration_reason = "boundary_record"` beside its list), and regenerates `crates/antecedent-io-core/data/coverage_records.json`
 (the snapshot `coverage_records_data` loads).
 `scripts/gate_parity_schema.sh` then checks what those rows claim. To collect
-logs measured at another commit, pass `--sha <commit>`. After you edit
-`scripts/calibration_surface.list`, `collect_coverage_records.py --retag`
-recomputes the facets without measuring anything.
-`python3 scripts/calibration_facets.py status` prints the per-commit, per-facet
-drift report on its own.
+logs measured at another commit, pass `--sha <commit>`; those records carry no
+manifest and stay owed to a probe or a re-measurement.
 
-### Replay waivers
+### Probes
 
-A reviewed change that cannot move a measured number (a new field with a
-default, a diagnostic) can stand in for a re-measurement through a waiver in
-`parity/calibration_waivers.toml`, which is outside the surface. A waiver names
-`from` (the commit or tag the records were measured at), `to` (the commit it
-attests forward to), the exact surface `paths` that changed between them, a
-`justification`, `reviewed_by`, and `replay` records, each with the waived
-paths its test `exercises`. A record is **attested_by_replay** only when it was
-measured at `from`, every drifted path in its facets is one the waiver names,
-and none of those facets changed between `to` and the tree. Any other change
-leaves it owing, as before.
-
-The evidence is a replay: `calibration_facets.py replay --waiver <id>`, run on a
-clean checkout of `to`, re-runs the gate groups behind the replay records
-through the unchanged `scripts/gate_calibration.sh` and compares each emitted
-`calibration-record` payload with the stored record bit for bit (covered count,
-observed, mcse, replicates and every other emitted field). It writes the
-outcome (the commit replayed at, the record ids, `identical`, any differing
-fields, and a fingerprint of each stored record) into the waiver. `check`
-fails a waiver whose replay was not identical, whose outcome is missing or was
-run elsewhere, whose stored records changed since, whose `from` or `to` does not
-resolve, which names a path that is off the surface or unchanged within its
-range, or whose `exercises` are empty, name a path outside the waiver, leave a
-waived path unexercised, or name a file the record's test cannot reach or a facet
-it does not carry. The attestation gate reports covered records as
-`attested_by_replay (waiver <id>)`, accepts them, and prints their count and
-waiver ids.
+A measurement stores, for every grid point, the chained digests of its first
+10 / 32 / 100 / 320 / 1000 replicates (the record's `probe` table). Replicate
+`k` is a deterministic function of `k`, and the harness folds each replicate's
+interval endpoints, truth and bound scope facts, as raw bits in a fixed order,
+into a fingerprint (`CoverageTally::record`, `ReplicateDigest`). Re-running the
+record's test at `ANTECEDENT_CALIBRATION_NSIM=k` therefore reproduces the stored
+prefix digest exactly when the first `k` replicates are bit-identical. A match
+for `k` replicates bounds the per-replicate rate of any undetected change at
+`3/k`; the bound has to fit inside the record's margin, the observed coverage
+minus the acceptance floor at its worst grid point (3 MCSE for a boundary
+record).
 
 ```bash
-python3 scripts/calibration_facets.py replay-candidates --from <measured tag> --to <sha>
-# write the waiver (without `outcome`), check out `to`, then:
-python3 scripts/calibration_facets.py replay --waiver <id> --dry-run   # the gate groups it runs
-python3 scripts/calibration_facets.py replay --waiver <id>
+python3 scripts/calibration_probe.py quick   --dry-run   # k = 10 per grid point; the commands only
+python3 scripts/calibration_probe.py bounded             # k = smallest stored prefix >= 3/margin
+python3 scripts/calibration_probe.py bounded --record <id>
 ```
 
-Mark a `parity/*.toml` capability `done` only with conformance under `conformance/`
-**or** a named harness in the gate script, plus a recorded reference-generation
-command when black-box comparison applies.
+Each probe runs the record's group through the shared calibration runner under
+the measurement's frozen decision environment, in smoke mode (never gated), on a
+clean commit, with logs in `target/calibration-probe/`. It writes
+`parity/calibration_probe_attestations.toml`, one row per record and
+measurement: `record_id`, `calibration_sha`, `sha` (the probed commit),
+`fingerprint` (the record's dependency-closure identity at that commit), `k`,
+`bound = 3/k`, `result`, and for a pass its `dependency_manifest` and
+`measurement_digest`. A mismatch leaves the record owed. A record whose
+margin needs more replicates than its longest stored prefix, or that stores no
+digests, is reported `owed`; only a
+re-measurement makes it current. `quick` is a cheap detector: a record stands on a row
+only when `k` is at least what its margin needs.
 
-Statuses: `pending` | `in_progress` | `done`. No waiver vocabulary.
+`calibration_status.py status` counts a record as current when a passing row
+covers its measurement and the row's manifest still matches the tree.
+Commit the attestation file with the change it attests; re-measuring a record
+drops its rows.
+
+## Versions
+
+Workspace and Python package versions follow `[workspace.package].version` in `Cargo.toml`.
+Artifact format is frozen separately — see [artifacts.md](artifacts.md).
+
+MSRV: Rust 1.97, edition 2024. Python: CPython 3.11–3.14.
+
+Keep `[workspace.package].version` in `Cargo.toml` and `version` in
+`python/pyproject.toml` in sync:
+
+```bash
+bash scripts/set_version.sh X.Y.Z
+```
+
+`set_version.sh` also updates path-dependency pins under `crates/*/Cargo.toml`,
+the Python fallback `__version__`, the local package entry in `python/uv.lock`,
+`CITATION.cff` and the generated release snippets (the supported-versions table in
+`SECURITY.md`, install pins), refreshes `Cargo.lock` offline, and freezes the previous
+cut's supported-cell block in `docs/release-notes/` so a later matrix regen cannot
+overwrite it. `bash scripts/set_version.sh --check X.Y.Z` writes nothing and fails when
+the tree is not at that version. The generator rewrites live supported-cell markers only in
+`docs/release-notes/vX.Y.Z.md` for the current workspace version.
 
 ## Release candidates
 
 The independent [practitioner acceptance suite](practitioner-acceptance.md)
-is an additional cut requirement for each release. Run its Python and Rust jobs and both scale
-sizes against the candidate, and close its leftover ledger. It remains outside
-`gate_release.sh`; passing the commands below alone does not discharge S.
+is an additional requirement for each release. Run its Python and Rust jobs at both scale
+sizes against the candidate, and close every entry in its leftover ledger. It stays outside
+`gate_release.sh`, so passing the commands below does not replace it.
 
-`gate_release.sh` is the PR inventory; a release is cut with
+`gate_release.sh` is the pull-request gate; a release is cut with
 `scripts/gate_release_candidate.sh` (which `scripts/tag_release.sh` runs before
-tagging). It refuses a dirty tree, `SKIP_PRIOR_GATES`, `SKIP_PYTHON_SMOKE` and
-`ALLOW_SKIP_PYTHON_SMOKE`, and requires `cargo-deny`. It needs one input:
+tagging). It refuses a dirty tree and requires `cargo-deny`. It needs one input:
 
 ```bash
 CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
@@ -483,136 +718,31 @@ CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
   the commit being cut (`gh run list --workflow ci.yml --commit "$(git rev-parse HEAD)"`).
   The gate reads it with `gh run view <id> --json headSha,jobs` and requires
   every job id listed in `parity/release.toml` `required_jobs` to have
-  succeeded. Job ids are `ci.yml` keys (`rust`, `features`, `deny`, `gates`,
-  `python-lint`, `python-wheels`); a run reports display names instead, one per matrix
+  succeeded. Job ids are `ci.yml` keys (`static`, `rust`, `features`, `public-api`,
+  `cited-tests`, `benches`, `deny`, `development`, `python-lint`, `scientific`,
+  `python-wheels`); a run reports display names instead, one per matrix
   combination ("Rust ubuntu-latest", "Rust ubuntu-latest facade",
-  "Rust macos-latest facade", "Wheel macos-14 py3.12"). The Rust facade
+  "Rust macos-latest facade", "Wheel macos-latest py3.12"). The Rust facade
   and remaining-workspace suites are both required on Ubuntu and macOS;
   together they execute the workspace's tests and doctests.
   `scripts/ci_workflow.py` parses `ci.yml` as YAML and expands every matrix
   combination, so a missing or failed wheel leg fails the cut.
-- The gate then runs `gate_release.sh` (which includes the same calibration
-  attestation every PR passes), Python lint/types, the Python suite with
-  its coverage floor, and builds one wheel into a fresh directory, installs it
-  into a fresh venv and runs the full Python test suite against that installed
-  wheel (outside `python/`, so the source tree cannot shadow it).
+- The gate then runs every other section of `gate_release.sh` with `cargo-deny` required (its
+  `static` section requires zero owed scientific records and zero owed calibration records;
+  nothing is re-run or re-recorded), runs the release inventory with no unresolved row,
+  the composition and decision exit stories, the release-only scale cases and the release-closure
+  receipts, and builds one wheel into a fresh directory, installs it into a fresh venv and runs
+  the documented examples, the cyclic-systems gate and the full Python test suite against that
+  installed wheel (outside `python/`, so the source tree cannot shadow it).
 
 Each gate that decides a release has a `--self-test` mode that feeds it
 deliberately broken input and requires a failure: `gate_composition.sh`, `gate_transport.sh`, `gate_gcm_conformance.sh`,
 `gate_parity_schema.sh`, `gate_docs_support_matrix.sh`,
-`gate_release_candidate.sh` and `gate_calibration_attestation.sh`, plus the
-citation, reachability, metadata and support-matrix gates.
+`gate_release_candidate.sh`, plus the
+citation, reachability, metadata and support gates.
 `scripts/gate_selftests.sh` runs all of them. Each case builds a repo overlay and
 runs a whole gate, so it takes tens of minutes and is run on demand (after
 changing a gate or its cases), not by `gate_release.sh` or CI.
-
-## Python lint / types
-
-`scripts/gate_python_lint.sh` runs **ruff** (check + format) and **mypy** over
-`python/antecedent` (including hand-written `.pyi` stubs for `_native`). It is a
-local equivalent of the checks in the separate CI `python-lint` job; the
-wheel-matrix job does not run lint or type checks.
-
-```bash
-cd python
-uv sync --group dev
-# If CONDA_PREFIX and VIRTUAL_ENV are both set, unset CONDA_PREFIX first.
-bash ../scripts/gate_python_lint.sh
-```
-
-Or individually:
-
-```bash
-cd python && uv run ruff check antecedent tests ../examples/python
-uv run ruff format --check antecedent tests ../examples/python
-uv run mypy
-```
-
-## Native extension builds
-
-All Python builds of `antecedent._native` — wheels, `maturin develop`, and the
-editable rebuild uv performs when the install goes stale — compile with Cargo's
-release profile (`[tool.maturin] profile = "release"` in `python/pyproject.toml`).
-Do not remove that pin: the PEP 517/660 default is the debug profile, which
-produces bit-identical estimates at roughly 50× the wall time, so nothing
-downstream notices. A debug-profile extension warns on import (the flag is
-`antecedent._native.__build_optimized__`), and `tests/test_build_profile.py`
-fails the pytest suite — locally and in CI — if the extension under test is
-unoptimized (`ANTECEDENT_ALLOW_DEBUG_NATIVE=1` opts out deliberately).
-
-## Tests that matter
-
-| Kind | Role |
-|------|------|
-| Unit / property | Algorithm invariants, graph witnesses, numeric edge cases |
-| Conformance | Frozen fixtures vs expected outputs (`conformance/`) |
-| Calibration | Coverage / Type I / null FPR (`gate_calibration.sh`, measured locally by `measure_calibration.sh`) |
-| Cross-language | Python bindings exercise the same semantics |
-| Criterion benches | Designated hot paths; release gate locally and in CI |
-| Fuzz | Parsers / graph / artifact surfaces under `fuzz/` |
-
-Tolerance classes live in `antecedent-core` (ADR 0010). Do not tighten or loosen a
-conformance band without an ADR-level reason.
-
-## Performance rules (merge blockers)
-
-- Data layout and copy policy are designed with the algorithm, not after.
-- No per-observation dynamic dispatch / Python / hash / heap in scalar inner loops
-  unless the slow path is API-explicit and separately benched.
-- Scalar kernels are the correctness reference; SIMD/BLAS/parallel paths pass the
-  same tests.
-- Do not change statistical semantics to go faster (sample selection, masking,
-  conditioning order, randomization, stopping rules, estimands).
-- Parallelism is bounded by `ExecutionContext`.
-- Superlinear storage must expose bounds, streaming, or refuse — not OOM later.
-
-See [hot_paths.md](hot_paths.md).
-
-## Feature flags
-
-Cargo features mean “optional adapter / heavy backend,” never “different numbers
-on the default path.”
-
-Always on: `faer`, portable kernels, `ExecutionContext` parallelism (`rayon`
-rejected).
-
-Present today (examples): `antecedent-data/arrow`, `antecedent-model/gaussian-process`,
-`antecedent-learn/ml-gbdt`, `ml-forest`, `ml-neural`. A feature that gates no code is not
-declared (the HMC backend is always compiled), and there is no `simd-runtime`
-feature, so `KernelPolicy::allow_arch_simd` always selects the portable kernels.
-Ingest and exchange adapters are optional features and never reshape core types.
-CI compiles the feature combinations crates.io users get (default features, each
-optional feature alone, `--no-default-features`) in the `features` job.
-
-## Unsafe / deps
-
-Reviewed `unsafe` is concentrated in `antecedent-kernels` (SIMD), the
-`antecedent-data` buffer/Arrow FFI adapters (`unsafe from_ffi`), and IO mmap
-(`unsafe open_path_mapped`; safe `open_path` is an owned snapshot).
-New `unsafe` needs justification in review. Dependency and license policy:
-[security_review.md](security_review.md), ADR 0008.
-
-## Versions
-
-Workspace and Python package versions follow `[workspace.package].version` in `Cargo.toml`.
-Artifact format is frozen separately — see [artifacts.md](artifacts.md).
-
-MSRV: Rust 1.85, edition 2024. Python: CPython 3.11–3.14.
-
-Keep `[workspace.package].version` in `Cargo.toml` and `version` in
-`python/pyproject.toml` in sync:
-
-```bash
-bash scripts/set_version.sh X.Y.Z
-```
-
-`set_version.sh` also updates path-dependency pins under `crates/*/Cargo.toml`,
-the Python fallback `__version__`, and the local package entry in
-`python/uv.lock`, and freezes the previous cut's licensed-cell block in
-`docs/release-notes/` so a later matrix regen cannot overwrite it. Refresh
-`Cargo.lock` with `cargo update -p antecedent` (or a workspace check) before
-committing. The generator rewrites live licensed-cell markers only in
-`docs/release-notes/vX.Y.Z.md` for the current workspace version.
 
 ## Releases
 
@@ -632,19 +762,18 @@ Before merging the release PR:
    examples, formulas, assumptions, refusal reasons, artifact formats, and
    Python/Rust agreement. Remove temporary cut notes and provisional wording.
 2. Run the relevant tests, formatters, linters, and documentation checks locally.
-   Open a PR and require the CI jobs on the committed HEAD, including the
-   `gates` job (`gate_release.sh`), Python lint/pytest, and `python-wheels`
-   matrix. The full release gate runs in CI; a local full run is optional.
+   Open a PR and require the CI jobs on the committed HEAD, including
+   every job in `parity/release.toml` `required_jobs` (`static`, `scientific`,
+   `python-lint`, `python-wheels` and the rest). The pull-request gate runs in CI; a local full run
+   is optional.
 3. For an actual release cut, run
-   `CI_RUN_ID=<run> bash scripts/gate_release_candidate.sh`. Every coverage
-   record must be attested, exactly as on every PR: measured, in a run that
-   passed, at a commit whose calibration surface matches HEAD in every facet the
-   record depends on.
+   `CI_RUN_ID=<run> bash scripts/gate_release_candidate.sh`. Like CI, it fails while
+   any scientific or calibration record is owed and re-runs neither lane; earn owed
+   records on a development machine (`bash scripts/test.sh`) and commit them first.
 4. Run `cargo deny check` with a freshly fetched advisory database. A cached
    offline audit is useful evidence, but does not establish current advisory status.
-5. Run `bash scripts/publish_crates.sh --dry-run`. Inspect any fallback to
-   `cargo check` for unpublished workspace dependencies: that is not a completed
-   package verification for those crates.
+5. Run `bash scripts/publish_crates.sh --dry-run`. Cargo verifies the packaged
+   crate graph together, including dependencies introduced by this release.
 6. Build wheel and source-distribution artifacts and test installation outside
    the checkout, without an editable install. Verify the supported OS/Python wheel
    matrix before publishing; one local extension build covers only that environment.
@@ -658,8 +787,7 @@ is optional: when it is present, `target_version` names the release notes
 absent, X.Y.Z is the workspace package version in `Cargo.toml` and the missing
 file is not an error. Those notes must be current, the supported-versions table
 in `SECURITY.md` and the version in `CITATION.cff` must name that version, and
-release-status text must match the cut. Coverage records must be attested at
-HEAD. Tag only the approved, clean commit after these checks pass.
+release-status text must match the cut. Tag only the approved, clean commit after these checks pass.
 Do not remove the release gate's clean-diff check to accommodate pending edits.
 
 Tagged releases drive docs and artifact publishing (GitHub Release assets and
@@ -669,11 +797,9 @@ from that run before any publishing job starts; it does not rebuild the wheels.
 
 ```bash
 # Optional: bump and commit on main first (X.Y.Z is the version being cut)
-bash scripts/set_version.sh X.Y.Z
-cargo update -p antecedent
-git add Cargo.toml Cargo.lock python/pyproject.toml python/uv.lock \
-  python/antecedent/__init__.py crates/*/Cargo.toml fuzz/Cargo.lock \
-  CHANGELOG.md CITATION.cff docs/release-notes/
+bash scripts/set_version.sh X.Y.Z    # also refreshes Cargo.lock
+git add -u                           # every tracked file the bump and changelog changed
+git add docs/release-notes/          # the release notes for X.Y.Z
 git commit -s -m "chore: bump version to X.Y.Z"
 
 # Tag current (or just-bumped) version and push
@@ -681,13 +807,14 @@ CI_RUN_ID=<ci run on HEAD> bash scripts/tag_release.sh   # runs gate_release_can
 git push origin vX.Y.Z
 ```
 
-Workflow [`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/main/.github/workflows/publish-release.yml)
+Workflow [`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/.github/workflows/publish-release.yml)
 reuses the 16 wheels built and fully tested by the green `main` CI run on the
 exact tag commit, then publishes to public PyPI and the GitHub Release as
 **independent jobs**. It builds the docs bundle from that run's Python 3.12
-Linux wheel. Trusted publishing (`id-token: write`) must not
-wait on GitHub asset uploads: a unicorn on `uploads.github.com` skipped PyPI
-for 1.10.0 while crates.io succeeded. Release assets are
+Linux wheel, and neither PyPI nor crates.io is touched until that documentation
+job has succeeded. Trusted publishing (`id-token: write`) must not
+wait on GitHub asset uploads, so an outage of `uploads.github.com` cannot block
+PyPI. Release assets are
 uploaded one file at a time with retries. A manual retry may supply
 `reuse_run_id`, but that run must be a successful `main` push CI run on the
 exact tag commit and contain the complete wheel matrix.
@@ -717,23 +844,10 @@ bash scripts/publish_crates.sh --execute
 ```
 
 The `crates-dry-run` and `publish-crates` jobs of
-[`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/main/.github/workflows/publish-release.yml)
+[`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/.github/workflows/publish-release.yml)
 publish the crates as part of the same tagged release as the wheels: every crate is
 dry-run before PyPI is touched, and the upload runs after PyPI succeeded, in the
 `release` environment. Set repository secret `CRATES_IO_TOKEN`.
 
-Checklist before the first public crate release:
-
-1. `cargo test --workspace` green; run `bash scripts/gate_release.sh` locally before the cut.
-2. `bash scripts/publish_crates.sh --dry-run` succeeds.
-3. Root `CHANGELOG.md` has notes for the version.
-4. Tag `vX.Y.Z` (or dispatch the workflow) with `CRATES_IO_TOKEN` configured.
-5. Confirm `cargo add antecedent` resolves on crates.io / docs.rs.
-
-## Repo create checklist
-
-1. Create a GitHub repository and push this tree.
-2. Enable Actions.
-3. Confirm `workspace.package.repository` in `Cargo.toml` matches the remote.
-4. Configure PyPI trusted publisher for `publish-release.yml`.
-5. Tag `vX.Y.Z` for the version being cut (or bump first) to cut wheels + PyPI (+ crates.io with token).
+After the tagged release publishes, confirm that `cargo add antecedent` resolves the
+new version on crates.io and that docs.rs built it.

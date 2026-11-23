@@ -20,7 +20,7 @@
 //!
 //! # What each class means
 //!
-//! * `still_valid`: nothing it rests on changed and no license it states was
+//! * `still_valid`: nothing it rests on changed and no support it states was
 //!   lost. The earlier numbers and uncertainty stand.
 //! * `recompute`: data, evidence, a model or representation version or a
 //!   structural derivation it uses changed. The earlier fit and uncertainty
@@ -33,7 +33,7 @@
 //!   that no longer holds it, or a record established for another target, is
 //!   refused). A calibration withdrawal leaves the point value untouched.
 //!
-//! Stage reuse never proves a claim still licensed: support, provider trust
+//! Stage reuse never proves a claim still supported: support, provider trust
 //! and calibration are rechecked at the current coordinates.
 //!
 //! # Lifecycle
@@ -64,9 +64,21 @@
 //! records first ([`registry_record_identity`]) and treats one that does not
 //! name a currently attesting record as a requirement without a record.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+//! # Flagship
+//!
+//! [`FlagshipWorkflow`] runs one decision on the cluster-randomized trial, the
+//! checked temporal period effect, the conjugate cost posterior, and an affine
+//! endpoint-to-margin bridge. Each input contributes the variance its route
+//! published. The three inputs are estimated apart, so their recorded
+//! dependence is independence. The bridge keeps its slope-source covariance.
+//! A utility change refits nothing. A prior change refits the cost posterior.
+//! A period change refits the temporal mechanisms. Withdrawing the trial
+//! withdraws the margin and the decision and leaves the temporal and cost claims.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 
 use antecedent_contract::ExternalRefusal;
 use antecedent_contract::claim::{ClaimEnvelope, ClaimFreshness};
@@ -101,7 +113,7 @@ pub struct CompositionVerificationRefusal {
     pub detail: String,
     /// What was refused.
     pub message: String,
-    /// The declaration or evidence that would license the request.
+    /// The declaration or evidence that would support the request.
     pub remedy: Option<String>,
 }
 
@@ -133,13 +145,13 @@ impl CompositionVerificationRefusal {
     fn from_structured(refusal: &ExternalRefusal) -> Self {
         let mut message = format!("refused at stage `{}`", refusal.stage);
         if let Some(offending) = &refusal.offending {
-            message.push_str(&format!("; claim `{offending}`"));
+            let _ = write!(message, "; claim `{offending}`");
         }
         if let Some(expected) = &refusal.expected {
-            message.push_str(&format!("; {expected}"));
+            let _ = write!(message, "; {expected}");
         }
         if let Some(supplied) = &refusal.supplied {
-            message.push_str(&format!("; license lost: {supplied}"));
+            let _ = write!(message, "; support lost: {supplied}");
         }
         Self {
             code: refusal.code,
@@ -360,15 +372,28 @@ pub fn contract_effects(
 /// invalidated recomputes, and one whose premise the log shows removed (a
 /// withdrawn constraint) is withdrawn. An invalidation of every result applies
 /// to every bound node. The most severe entry per node wins and its cause
-/// names the stage input that moved.
+/// names the stage input that moved. When the log trimmed entries after `since`, it cannot
+/// show what changed, so every binding is refused with the trimmed range and chain head
+/// ([`antecedent_state::PrunedHistory`]) rather than reported as unchanged.
 #[must_use]
 pub fn invalidation_effects(
     log: &InvalidationLog,
     since: StateVersion,
     bindings: &[(&str, InvalidationTarget)],
 ) -> BTreeMap<String, ObservedEffect> {
+    let entries = match log.entries_after(since) {
+        Ok(entries) => entries,
+        Err(pruned) => {
+            return bindings
+                .iter()
+                .map(|(key, _)| {
+                    ((*key).to_owned(), ObservedEffect::Refused { detail: pruned.to_string() })
+                })
+                .collect();
+        }
+    };
     let mut classes: BTreeMap<String, (Revalidation, String)> = BTreeMap::new();
-    for entry in log.entries.iter().filter(|e| e.at_version.raw() > since.raw()) {
+    for entry in entries {
         let class = entry.revalidation();
         let source = entry.input.map_or_else(
             || "unattributed".to_owned(),
@@ -426,12 +451,19 @@ pub fn registry_record_identity(record_id: &str) -> SemanticDigest {
 /// code it measured.
 #[must_use]
 pub fn registry_record_attests(record: &SemanticDigest) -> bool {
-    use antecedent_io::coverage_records_data::{CoverageRecord, RECORDS};
-    RECORDS.iter().any(|row| {
-        let row: &CoverageRecord = std::borrow::Borrow::borrow(&row);
-        registry_record_identity(row.id) == *record
-            && antecedent_io::calibration::record_attests_current_code(row)
-    })
+    use std::collections::HashSet;
+    use std::sync::LazyLock;
+
+    use antecedent_io::coverage_records_data::RECORDS;
+
+    static ATTESTING: LazyLock<HashSet<SemanticDigest>> = LazyLock::new(|| {
+        RECORDS
+            .iter()
+            .filter(|row| antecedent_io::calibration::record_attests_current_code(row))
+            .map(|row| registry_record_identity(row.id))
+            .collect()
+    });
+    ATTESTING.contains(record)
 }
 
 /// A declaration with every record that does not name a currently attesting
@@ -595,9 +627,9 @@ impl CompositionVerification {
     /// The claim when it is usable as it stands.
     ///
     /// # Errors
-    /// The typed refusal of a claim that must be recomputed or whose license
-    /// was withdrawn (calibration inherited from an object that no longer
-    /// holds it refuses with `cell_not_licensed`).
+    /// The typed refusal of a claim that must be recomputed or whose support
+    /// was withdrawn. Calibration inherited from an object that no longer
+    /// holds it is reported on the claim and does not refuse.
     pub fn require_valid(
         &self,
         key: &str,
@@ -702,4 +734,405 @@ pub fn consume_composition_verification_artifact(
     CompositionVerificationArtifact::from_bytes(bytes, expected_identity)
         .map(|artifact| ConsumedCompositionVerification { artifact })
         .map_err(|e| CompositionVerificationRefusal::artifact(&e))
+}
+
+#[path = "flagship_mixed.rs"]
+mod flagship_mixed;
+
+pub use flagship_mixed::{
+    DecisionArtifact, DecisionAuthority, DecisionAuthorityBinding, FlagshipDependence,
+    FlagshipError, FlagshipWorkflow, LoadedDecision, MixedDecision, PeriodReplay, PriorReplay,
+    UtilityReplay, load_decision, replay_decision,
+};
+
+#[cfg(test)]
+mod flagship_mixed_tests {
+    use antecedent_contract::bridge::SourceMappingDependence;
+    use antecedent_contract::mixed_module::{CutFeedback, MixedModulePolicy};
+    use antecedent_core::ExecutionContext;
+    use antecedent_expr::execution_counts::count_static_work;
+    use antecedent_prob::fit_counts::count_bayesian_work;
+    use antecedent_stats::fit_counts::count_least_squares_solves;
+
+    use super::{FlagshipDependence, FlagshipError, FlagshipWorkflow, Revalidation, load_decision};
+    use crate::analysis::LinearDependence;
+
+    /// Replays measure per-thread work counters, so they run on the test's own
+    /// thread with a larger stack rather than on the thread `execute` spawns.
+    fn on_large_stack(run: impl FnOnce() + Send + 'static) {
+        std::thread::Builder::new()
+            .stack_size(8 * 1024 * 1024)
+            .spawn(run)
+            .expect("spawn the workflow test")
+            .join()
+            .expect("the workflow test panicked");
+    }
+
+    fn context() -> ExecutionContext {
+        ExecutionContext::for_tests(0xF1A6)
+    }
+
+    #[test]
+    fn decision_keeps_lawful_dependence_and_joint_uncertainty() {
+        let workflow = FlagshipWorkflow::execute(&context(), FlagshipDependence::Independent)
+            .expect("workflow");
+        let decision = workflow.decision().expect("current decision");
+        assert_eq!(workflow.cluster_design(), "cluster");
+        assert!(workflow.cluster_uncertainty().contains("cluster"));
+        assert!(workflow.cluster_variance() > 0.0);
+        assert_eq!(workflow.temporal_means(), 2);
+        assert!(workflow.cost_draws() > 0);
+        assert!(matches!(decision.dependence, LinearDependence::DeclaredIndependent));
+        assert!(matches!(
+            decision.margin.dependence,
+            SourceMappingDependence::SlopeCovariance { covariance, .. }
+                if covariance.to_bits() != 0.0f64.to_bits()
+        ));
+        let mean = decision.joint.value("mean").expect("joint mean");
+        let variance = decision.joint.value("variance").expect("joint variance");
+        let margin = decision.margin.variance;
+        let temporal = decision.temporal_variance;
+        let cost = decision.cost_variance;
+        let mut expected = 0.0;
+        expected += margin;
+        expected += temporal;
+        expected += cost;
+        let mut dropped = 0.0;
+        dropped += margin;
+        dropped += cost;
+        assert!(temporal > 0.0);
+        assert_eq!(variance.to_bits(), expected.to_bits());
+        assert_ne!(variance.to_bits(), dropped.to_bits());
+        assert_ne!(decision.margin.mean.to_bits(), decision.margin.plug_in_mean.to_bits());
+        let act = decision.evaluation.actions.iter().find(|action| action.id == "act");
+        assert_eq!(act.expect("act").expected_utility.to_bits(), mean.to_bits());
+        assert_eq!(decision.joint.route(), "linear_moments");
+    }
+
+    #[test]
+    fn utility_only_change_performs_zero_causal_refits() {
+        on_large_stack(|| {
+            let mut workflow =
+                FlagshipWorkflow::execute(&context(), FlagshipDependence::Independent)
+                    .expect("workflow");
+            let effect = workflow.cluster_effect().to_bits();
+            let temporal = workflow.temporal_effect().to_bits();
+            let temporal_variance =
+                workflow.decision().expect("current decision").temporal_variance.to_bits();
+            let cost = workflow.cost_mean().to_bits();
+            let before = workflow
+                .decision()
+                .expect("current decision")
+                .joint
+                .value("mean")
+                .expect("mean")
+                .to_bits();
+            let (((replay, bayesian), temporal_work), solves) = count_least_squares_solves(|| {
+                count_static_work(|| {
+                    count_bayesian_work(|| workflow.utility_only(3.0, &context()).expect("utility"))
+                })
+            });
+            assert_eq!(solves, 0);
+            assert_eq!(bayesian.model_fits, 0);
+            assert_eq!(bayesian.posterior_draws, 0);
+            assert_eq!(temporal_work.factor_builds, 0);
+            assert_eq!(replay.temporal_factor_builds, 0);
+            assert_eq!(replay.temporal_identifications, 0);
+            assert_eq!(replay.bayesian_model_fits, 0);
+            assert_eq!(replay.bayesian_posterior_draws, 0);
+            assert_eq!(replay.bayesian_identifications, 0);
+            assert_eq!(workflow.cluster_trials(), 1);
+            assert_eq!(workflow.cluster_effect().to_bits(), effect);
+            assert_eq!(workflow.temporal_effect().to_bits(), temporal);
+            assert_eq!(
+                workflow.decision().expect("current decision").temporal_variance.to_bits(),
+                temporal_variance
+            );
+            assert_eq!(workflow.cost_mean().to_bits(), cost);
+            assert_ne!(
+                workflow
+                    .decision()
+                    .expect("current decision")
+                    .joint
+                    .value("mean")
+                    .expect("mean")
+                    .to_bits(),
+                before
+            );
+        });
+    }
+
+    #[test]
+    fn prior_change_invalidates_only_the_cost_posterior() {
+        on_large_stack(|| {
+            let mut workflow =
+                FlagshipWorkflow::execute(&context(), FlagshipDependence::Independent)
+                    .expect("workflow");
+            let effect = workflow.cluster_effect().to_bits();
+            let temporal = workflow.temporal_effect().to_bits();
+            let temporal_variance =
+                workflow.decision().expect("current decision").temporal_variance.to_bits();
+            let cost = workflow.cost_mean().to_bits();
+            let ((replay, temporal_work), bayesian) = count_bayesian_work(|| {
+                count_static_work(|| workflow.prior_change(10.0, &context()).expect("prior"))
+            });
+            assert!(replay.score_recomputed);
+            assert!(replay.identification_reused);
+            assert!(replay.bayesian_model_fits > 0);
+            assert_eq!(replay.bayesian_identifications, 0);
+            assert_eq!(bayesian.model_fits, replay.bayesian_model_fits);
+            assert_eq!(temporal_work.factor_builds, 0);
+            assert_eq!(workflow.cluster_trials(), 1);
+            assert_eq!(workflow.cluster_effect().to_bits(), effect);
+            assert_eq!(workflow.temporal_effect().to_bits(), temporal);
+            assert_eq!(
+                workflow.decision().expect("current decision").temporal_variance.to_bits(),
+                temporal_variance
+            );
+            assert_ne!(workflow.cost_mean().to_bits(), cost);
+        });
+    }
+
+    #[test]
+    fn period_change_invalidates_only_the_temporal_products() {
+        on_large_stack(|| {
+            let mut workflow =
+                FlagshipWorkflow::execute(&context(), FlagshipDependence::Independent)
+                    .expect("workflow");
+            let effect = workflow.cluster_effect().to_bits();
+            let cost = workflow.cost_mean().to_bits();
+            let (replay, bayesian) = count_bayesian_work(|| {
+                workflow.period_change((0, 49), &context()).expect("period")
+            });
+            assert!(replay.score_recomputed);
+            assert!(replay.identification_reused);
+            assert!(replay.temporal_factor_builds > 0);
+            assert_eq!(replay.temporal_identifications, 0);
+            assert_eq!(bayesian.model_fits, 0);
+            assert_eq!(bayesian.posterior_draws, 0);
+            assert_eq!(workflow.cluster_trials(), 1);
+            assert_eq!(workflow.cluster_effect().to_bits(), effect);
+            assert_eq!(workflow.cost_mean().to_bits(), cost);
+            assert!(workflow.decision().expect("current decision").temporal_variance > 0.0);
+        });
+    }
+
+    #[test]
+    fn withdrawal_removes_the_affected_claim_and_leaves_the_temporal_claim() {
+        let mut workflow = FlagshipWorkflow::execute(&context(), FlagshipDependence::Independent)
+            .expect("workflow");
+        let verification = workflow.withdraw_cluster().expect("withdrawal");
+        let class = |key: &str| verification.classify(key).expect(key).class;
+        assert_eq!(class("cluster_trial"), Revalidation::Withdrawn);
+        assert_eq!(class("margin_bridge"), Revalidation::Withdrawn);
+        assert_eq!(class("decision"), Revalidation::Withdrawn);
+        assert_eq!(class("temporal_drift"), Revalidation::StillValid);
+        assert_eq!(class("bayesian_cost"), Revalidation::StillValid);
+    }
+
+    #[test]
+    fn loaded_artifact_reproduces_the_decision() {
+        let workflow = FlagshipWorkflow::execute(&context(), FlagshipDependence::Independent)
+            .expect("workflow");
+        let artifact = workflow.export_decision().expect("export");
+        let loaded = load_decision(
+            &artifact.bytes,
+            Some(&artifact.identity),
+            workflow.authority(),
+            &context(),
+        )
+        .expect("load");
+        let decision = workflow.decision().expect("current decision");
+        assert_eq!(loaded.mean.to_bits(), decision.joint.value("mean").expect("mean").to_bits());
+        assert_eq!(
+            loaded.variance.to_bits(),
+            decision.joint.value("variance").expect("variance").to_bits()
+        );
+        assert_eq!(loaded.evaluation.verdict, decision.evaluation.verdict);
+        assert_eq!(loaded.evaluation.contract_identity, decision.evaluation.contract_identity);
+    }
+
+    fn independent() -> FlagshipWorkflow {
+        FlagshipWorkflow::execute(&context(), FlagshipDependence::Independent).expect("workflow")
+    }
+
+    fn declared(
+        base: &FlagshipWorkflow,
+        margin_temporal: f64,
+        margin_cost: f64,
+        temporal_cost: f64,
+    ) -> FlagshipDependence {
+        let decision = base.decision().expect("current decision");
+        let (margin, temporal, cost) =
+            (decision.margin.variance, decision.temporal_variance, decision.cost_variance);
+        FlagshipDependence::Covariance {
+            id: "flagship-cross".to_owned(),
+            margin_temporal: margin_temporal * (margin * temporal).sqrt(),
+            margin_cost: margin_cost * (margin * cost).sqrt(),
+            temporal_cost: temporal_cost * (temporal * cost).sqrt(),
+        }
+    }
+
+    #[test]
+    fn declared_cross_covariance_enters_the_decision_variance() {
+        let base = independent();
+        let dependence = declared(&base, 0.3, -0.2, 0.1);
+        let FlagshipDependence::Covariance { margin_temporal, margin_cost, temporal_cost, .. } =
+            dependence.clone()
+        else {
+            panic!("a declared covariance");
+        };
+        let workflow = FlagshipWorkflow::execute(&context(), dependence).expect("declared");
+        let decision = workflow.decision().expect("current decision");
+        assert_eq!(
+            decision.dependence,
+            LinearDependence::Covariance { id: "flagship-cross".to_owned() }
+        );
+        // Coefficients (1, 1, -1) at benefit 1: Var = sum c_i c_j S_ij
+        //   = S_mm + S_tt + S_cc + 2 (S_mt - S_mc - S_tc).
+        let expected = decision.margin.variance
+            + decision.temporal_variance
+            + decision.cost_variance
+            + 2.0 * (margin_temporal - margin_cost - temporal_cost);
+        let variance = decision.joint.value("variance").expect("joint variance");
+        assert!((variance - expected).abs() <= 1.0e-9 * expected.abs(), "{variance} vs {expected}");
+        let independent_variance =
+            base.decision().expect("current decision").joint.value("variance").expect("variance");
+        assert!((variance - independent_variance).abs() > 1.0e-9 * independent_variance);
+        assert_eq!(
+            decision.joint.value("mean").expect("mean").to_bits(),
+            base.decision().expect("current decision").joint.value("mean").expect("mean").to_bits()
+        );
+    }
+
+    #[test]
+    fn a_covariance_that_is_not_positive_semidefinite_is_refused() {
+        let base = independent();
+        let dependence = declared(&base, 0.9, 0.9, -0.9);
+        match FlagshipWorkflow::execute(&context(), dependence) {
+            Err(FlagshipError::Dependence(_)) => {}
+            Err(other) => panic!("expected a dependence refusal, got {other}"),
+            Ok(_) => panic!("a non positive semidefinite covariance was accepted"),
+        }
+    }
+
+    #[test]
+    fn exported_decision_round_trips_the_declared_dependence() {
+        let base = independent();
+        let base_artifact = base.export_decision().expect("export");
+        let workflow = FlagshipWorkflow::execute(&context(), declared(&base, 0.3, -0.2, 0.1))
+            .expect("declared");
+        let artifact = workflow.export_decision().expect("export");
+        assert_ne!(artifact.identity, base_artifact.identity);
+        let loaded = load_decision(
+            &artifact.bytes,
+            Some(&artifact.identity),
+            workflow.authority(),
+            &context(),
+        )
+        .expect("load");
+        let decision = workflow.decision().expect("current decision");
+        assert_eq!(
+            loaded.variance.to_bits(),
+            decision.joint.value("variance").expect("variance").to_bits()
+        );
+        assert_eq!(loaded.mean.to_bits(), decision.joint.value("mean").expect("mean").to_bits());
+        assert!(
+            load_decision(
+                &artifact.bytes,
+                Some(&base_artifact.identity),
+                workflow.authority(),
+                &context()
+            )
+            .is_err()
+        );
+    }
+
+    fn modular(policy: CutFeedback) -> MixedModulePolicy {
+        MixedModulePolicy::declared_modular("shared cost parameter; priors reconciled", policy)
+            .expect("a non-blank reconciliation")
+    }
+
+    fn reloaded_variance(workflow: &FlagshipWorkflow) -> (f64, String) {
+        let artifact = workflow.export_decision().expect("export");
+        let loaded = load_decision(
+            &artifact.bytes,
+            Some(&artifact.identity),
+            workflow.authority(),
+            &context(),
+        )
+        .expect("load");
+        (loaded.variance, artifact.identity)
+    }
+
+    #[test]
+    fn cut_and_feedback_give_different_reloaded_variances() {
+        let base = independent();
+        let dependence = declared(&base, 0.3, -0.2, 0.1);
+        let FlagshipDependence::Covariance { margin_temporal, margin_cost, temporal_cost, .. } =
+            dependence.clone()
+        else {
+            panic!("a declared covariance");
+        };
+        let run = |policy: &MixedModulePolicy| {
+            FlagshipWorkflow::execute_with_policy(&context(), dependence.clone(), policy)
+                .expect("modular workflow")
+        };
+        let cut = run(&modular(CutFeedback::Cut));
+        let feedback = run(&modular(CutFeedback::Feedback));
+        let diagonal = base.decision().expect("current decision").margin.variance
+            + base.decision().expect("current decision").temporal_variance
+            + base.decision().expect("current decision").cost_variance;
+        // Coefficients (1, 1, -1) at benefit 1. Cut zeroes the cost cross-terms:
+        //   Var_cut = S_mm + S_tt + S_cc + 2 S_mt.
+        // Feedback keeps them: Var_feedback = Var_cut - 2 (S_mc + S_tc).
+        let expected_cut = diagonal + 2.0 * margin_temporal;
+        let expected_feedback = diagonal + 2.0 * (margin_temporal - margin_cost - temporal_cost);
+        let (cut_variance, cut_identity) = reloaded_variance(&cut);
+        let (feedback_variance, feedback_identity) = reloaded_variance(&feedback);
+        assert!((cut_variance - expected_cut).abs() <= 1.0e-9 * expected_cut.abs());
+        assert!((feedback_variance - expected_feedback).abs() <= 1.0e-9 * expected_feedback.abs());
+        assert!((cut_variance - feedback_variance).abs() > 1.0e-9 * cut_variance);
+        assert_ne!(cut_identity, feedback_identity);
+        // Feedback carries the same numbers as the coherent joint, but the policy
+        // is part of the sealed claim, so the identities differ.
+        let coherent = FlagshipWorkflow::execute(&context(), dependence).expect("coherent");
+        let (coherent_variance, coherent_identity) = reloaded_variance(&coherent);
+        assert!((coherent_variance - expected_feedback).abs() <= 1.0e-9 * expected_feedback.abs());
+        assert_ne!(coherent_identity, feedback_identity);
+        assert_ne!(coherent_identity, cut_identity);
+    }
+
+    #[test]
+    fn feedback_without_a_declared_covariance_is_refused_and_cut_is_independent() {
+        match FlagshipWorkflow::execute_with_policy(
+            &context(),
+            FlagshipDependence::Independent,
+            &modular(CutFeedback::Feedback),
+        ) {
+            Err(FlagshipError::Policy(_)) => {}
+            Err(other) => panic!("expected a policy refusal, got {other}"),
+            Ok(_) => panic!("feedback over independence was accepted"),
+        }
+        let base = independent();
+        let cut = FlagshipWorkflow::execute_with_policy(
+            &context(),
+            FlagshipDependence::Independent,
+            &modular(CutFeedback::Cut),
+        )
+        .expect("cut");
+        assert_eq!(reloaded_variance(&cut).0.to_bits(), reloaded_variance(&base).0.to_bits());
+        assert_eq!(reloaded_variance(&cut).1, reloaded_variance(&base).1);
+    }
+
+    #[test]
+    fn execute_runs_from_a_default_sized_test_thread() {
+        let trials = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(|| independent().cluster_trials())
+            .expect("spawn the workflow test")
+            .join()
+            .expect("the workflow test panicked");
+        assert_eq!(trials, 1);
+    }
 }

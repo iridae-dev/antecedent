@@ -1,0 +1,51 @@
+feature_id = "state.ols_refresh"
+implementation_crate = "antecedent-state"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-state/src/ols_refresh.rs"]
+
+papers = [
+ { title = "Some theorems in least squares (Plackett, Biometrika 37:149-157)", sections = ["recursive updating of the least-squares estimate with appended observations"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent-state/src/ols_refresh.rs. It states: A fractional weight is not representable here and is refused rather than rounded.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-state/tests/ols_refresh_contract.rs",
+ "exact rational replay of append, window, evict, count and mask operations on offset and twelve-decade data sets (crates/antecedent-state/tests/ols_refresh_reference.rs, frozen from crates/antecedent-state/tests/oracle_data/ols_refresh_reference.py)",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "OlsRefresh in crates/antecedent-state/src/ols_refresh.rs for a least-squares summary of retained rows: the sample size, coefficients and residual variance of the cached snapshot after each of append_row, append_window, evict_row, set_count and set_mask, against the result recomputed from the live rows (unmasked, positive count, counted by their integer weight). Not a review of summary-only retention, spill and decode, source identity and digest bookkeeping, the refusals, or the ledger counts beyond the sample size; those keep their existing tests. The in-place numerics are those of LinearOlsSuffStats (reviewed in state.incremental_ols)."
+assumptions = ["The model is ordinary least squares on the live rows, each row counted by its integer count weight; masked and zero-count rows are retained but contribute nothing.", "The coefficients solve X'X b = X'y and the residual variance is SSE / (n - p) with n the weighted count, defined for n > p.", "An evicted row, a changed count or a changed mask drops the summary and rebuilds it from the retained rows; appends and windows update it in place."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed."
+limitations = "The primary source (Plackett 1950) was not re-read in this review (no downloads were made and no copy was read from this environment); the least-squares definitions are standard. Three data sets of 14 rows are used with eight operations each. Measured limits of the one-pass centered scatter, recorded in the test tolerances and not defects of the refresh logic: with a year regressor near 1e6 and a response near 1e9 the coefficients are exact to 1e-6 relative, and cached and fresh results can differ by more than the merge tolerance in the intercept (the slope error times the offset) and by 3e-8 relative in the residual variance. check_against_fresh now accepts coefficients that differ element-wise beyond the tolerance when the two vectors give the same fit (the fitted value at the column means and the fitted spread over the rows agree within the merge tolerance, LinearOlsSuffStats::coefficients_agree) and a residual variance within the merge tolerance of the response's total variance (variances_agree); a changed row or a wrong slope still fails (unit test); with the response near 1e12 (ulp as large as the noise) the slope keeps about four digits and the residual variance 1e-4 relative; with R squared of 1 - 1e-13 the residual variance from summary statistics keeps about two digits (6e-3 relative), the cancellation inherent in forming SSE from sums of squares. The implementation of those accumulations is shared with state.incremental_ols, whose record states the same offset limitation."
+sources = ["https://docs.python.org/3/library/fractions.html"]
+findings_resolved = ["After every operation the cached sample size, coefficients and residual variance equal the exact rational result on the live rows: to 1e-8 relative on a year regressor near 2020 with a response near 1e8 (variance 1.2e-8) and to 3e-14 on four columns scaled over twelve decades; check_against_fresh agrees on both.", "No defect was found in the refresh logic and no product code changed; the accuracy limits of the underlying accumulation at extreme offsets and near-perfect fits are measured and recorded rather than removed."]
+record_sha256 = "ce1c750245e4d48fea978a9deeac00ee2d1029e43dfac3a34734986858621627"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-state/src/ols_refresh.rs"
+items = ["const SOURCE_TAG", "enum RefreshOutcome", "fn add", "fn add_to_stats", "fn append_row", "fn append_window", "fn check_against_fresh", "fn check_refresh_source", "fn check_source", "fn checked_ids", "fn derive", "fn digest_row", "fn digest_start", "fn evict_row", "fn fresh_snapshot", "fn ledger", "fn live", "fn new", "fn position", "fn rebuild", "fn recomputes", "fn refuse_retention", "fn require", "fn retention", "fn rows", "fn set_count", "fn set_mask", "fn snapshot", "fn snapshot_of", "fn source", "fn stats", "fn take", "fn validate", "fn validate_regression_row", "struct OlsLedgerState", "struct OlsRefresh", "struct OlsSnapshot", "struct RefreshRow"]
+sha256 = "d28ac6cb5d0bce086f1d6e55b039779679e7c6b0274081dc74c70efd533bed8b"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-state/tests/ols_refresh_reference.rs"
+items = ["fn agree", "fn every_operation_leaves_the_exact_least_squares_result", "fn index"]
+sha256 = "c305f4bd9384430efb6cc2d1fed9277ad433dbca83bd5e2268d9bc45397742a0"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-state/tests/oracle_data/ols_refresh_reference.py"
+sha256 = "97df990047c50b83b0ba24f99a81a424574650c6d9d0c39813700aac29884640"

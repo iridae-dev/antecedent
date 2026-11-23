@@ -1,7 +1,7 @@
 //! Sealed temporal response execution for a fixed `TemporalDag`: a dose × horizon
 //! mean curve or a single-step intervention response, frequentist or Bayesian.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -31,10 +31,7 @@ pub(crate) fn temporal_response_is_direct(query: &ResponseQuery) -> bool {
         ResponseFunctional::MeanCurve { .. } => true,
         ResponseFunctional::InterventionResponse { interventions, .. } => {
             interventions.len() == 1
-                && matches!(
-                    antecedent_estimate::plan_from_response_query(query),
-                    Ok(Some(antecedent_estimate::TemporalInterventionPlan::Single { .. }))
-                )
+                && matches!(antecedent_estimate::single_temporal_intervention(query), Ok(Some(_)))
         }
         _ => false,
     }
@@ -64,7 +61,7 @@ impl TemporalResponseHorizonEvidence {
                 message: "temporal response estimand is not supplied by its horizon proof".into(),
             });
         }
-        let expected_offset = effect_query.outcome_offset();
+        let expected_offset = effect_query.outcome_offset()?;
         let treatment_key = TemporalNodeKey {
             variable: effect_query.treatment,
             offset: effect_query.try_treatment_offset()?,
@@ -198,21 +195,28 @@ pub(crate) struct CheckedTemporalResponseOperation {
     fitter: antecedent_estimate::TemporalResponseEstimator,
     bootstrap_replicates: u32,
     grid: Arc<[f64]>,
+    /// Dose-by-horizon cells the response surface materializes.
+    surface_cells: usize,
+    /// The surface retains its joint horizon replicates (see
+    /// [`Self::with_joint_horizons`]).
+    retain_joint: bool,
 }
 
-/// The dose grid of a direct temporal response, refusing one that is empty or
-/// exceeds the dose-by-horizon materialization limit.
+/// Bytes one dose-by-horizon cell materializes: mean, lower, upper, dose and horizon.
+const SURFACE_CELL_BYTES: u64 = 5 * std::mem::size_of::<f64>() as u64;
+
+/// The dose grid of a direct temporal response and its dose-by-horizon cell count,
+/// refusing a grid that is empty or whose cell count overflows. The size of the
+/// surface is not capped here: execution admits its bytes against the memory budget
+/// of the context it runs under (see `CheckedTemporalResponseOperation::admit_surface`).
 fn checked_response_grid(
     query: &ResponseQuery,
     spec: &antecedent_core::TemporalResponseSpec,
-) -> Result<Vec<f64>, CausalError> {
+) -> Result<(Vec<f64>, usize), CausalError> {
     let grid = match &query.functional {
         ResponseFunctional::MeanCurve { treatment, .. } => treatment.grid.values()?,
-        _ => match antecedent_estimate::plan_from_response_query(query) {
-            Ok(Some(antecedent_estimate::TemporalInterventionPlan::Single {
-                level: Some(level),
-                ..
-            })) => vec![level],
+        _ => match antecedent_estimate::single_temporal_intervention(query) {
+            Ok(Some((_, Some(level), _))) => vec![level],
             _ => Vec::new(),
         },
     };
@@ -220,15 +224,20 @@ fn checked_response_grid(
         ResponseFunctional::MeanCurve { .. } => grid.len(),
         _ => 1,
     };
-    if cells_per_horizon == 0
-        || cells_per_horizon.saturating_mul(spec.horizons.len())
-            > antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS
-    {
+    if cells_per_horizon == 0 {
         return Err(CausalError::Unsupported {
-            message: "temporal response dose-by-horizon grid exceeds its materialization limit",
+            message: "temporal response requires a non-empty dose grid",
         });
     }
-    Ok(grid)
+    let cells = cells_per_horizon
+        .checked_mul(spec.horizons.len())
+        .filter(|&cells| {
+            u64::try_from(cells).is_ok_and(|cells| cells.checked_mul(SURFACE_CELL_BYTES).is_some())
+        })
+        .ok_or(CausalError::Unsupported {
+            message: "temporal response dose-by-horizon cell count overflows",
+        })?;
+    Ok((grid, cells))
 }
 
 impl CheckedTemporalResponseOperation {
@@ -252,7 +261,7 @@ impl CheckedTemporalResponseOperation {
             });
         }
         let (treatment, outcome) = require_primary_pair(&query.functional)?;
-        let grid = checked_response_grid(query, spec)?;
+        let (grid, surface_cells) = checked_response_grid(query, spec)?;
         let expected_estimator = EstimatorId::temporal_response_for(inference);
         if identifier != IdentifierId::TemporalBackdoorUnfolded || estimator != expected_estimator {
             return Err(CausalError::Compile {
@@ -306,8 +315,13 @@ impl CheckedTemporalResponseOperation {
         let signature = temporal_graph_signature(graph).ok_or_else(|| CausalError::Compile {
             message: "temporal response graph holds a node that is not a lagged variable".into(),
         })?;
-        let fitter = antecedent_estimate::TemporalResponseEstimator::new()
+        let mut fitter = antecedent_estimate::TemporalResponseEstimator::new()
             .with_bootstrap_replicates(bootstrap_replicates);
+        if let InferenceMode::Bayesian(config) = inference
+            && let Some(gate) = config.white_innovation
+        {
+            fitter = fitter.with_white_innovation(gate);
+        }
         Ok(Self {
             graph: graph.clone(),
             graph_signature: signature,
@@ -320,7 +334,28 @@ impl CheckedTemporalResponseOperation {
             fitter,
             bootstrap_replicates,
             grid: grid.into(),
+            surface_cells,
+            retain_joint: false,
         })
+    }
+
+    /// Retain the joint replicates of the surface for composition across horizons.
+    ///
+    /// A Frequentist operation publishes the replicates of its joint circular-block bootstrap.
+    /// A Bayesian one replaces its per-horizon conjugate fits, whose draws are independent
+    /// marginals, by the block-weight posterior over the whole surface with one draw per
+    /// posterior draw requested, and publishes those draws.
+    #[must_use]
+    pub(crate) fn with_joint_horizons(mut self, on: bool) -> Self {
+        self.retain_joint = on;
+        self.fitter = self.fitter.with_joint_replicates(on);
+        if on && let InferenceMode::Bayesian(config) = &self.inference {
+            self.fitter = self
+                .fitter
+                .with_block_weight_posterior(true)
+                .with_bootstrap_replicates(u32::try_from(config.n_draws).unwrap_or(u32::MAX));
+        }
+        self
     }
 
     /// Frequentist or Bayesian inference fixed at preparation.
@@ -363,6 +398,7 @@ impl CheckedTemporalResponseOperation {
     #[must_use]
     pub(crate) fn procedure(&self) -> TemporalResponseProcedure {
         let uncertainty = match &self.inference {
+            InferenceMode::Bayesian(_) if self.retain_joint => "bayesian.block_weight_draws",
             InferenceMode::Bayesian(_) => "bayesian.posterior_draws",
             InferenceMode::Frequentist if self.bootstrap_replicates == 0 => {
                 "frequentist.no_interval"
@@ -402,6 +438,7 @@ impl CheckedTemporalResponseOperation {
                 stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
             });
         }
+        let _surface = self.admit_surface(ctx)?;
         let pairs = self.horizon_pairs();
         let status = self.primary()?.identification.status;
         self.fitter
@@ -427,8 +464,16 @@ impl CheckedTemporalResponseOperation {
                 stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
             });
         }
+        let _surface = self.admit_surface(ctx)?;
         let pairs = self.horizon_pairs();
         let status = self.primary()?.identification.status;
+        if self.retain_joint {
+            // The block-weight posterior over the whole surface: one draw refits every horizon.
+            return self
+                .fitter
+                .estimate(data, &pairs, &self.query, status, self.assumptions.clone(), ctx)
+                .map_err(CausalError::from);
+        }
         self.fitter
             .estimate_bayesian(
                 data,
@@ -442,6 +487,32 @@ impl CheckedTemporalResponseOperation {
                 ctx,
             )
             .map_err(CausalError::from)
+    }
+
+    /// Take the bytes of the response surface from the operation's admission budget
+    /// for the duration of the returned lease. The surface is bounded by the memory
+    /// budget the context declares; a context with no declared budget keeps the
+    /// default ceiling of [`antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS`] cells.
+    fn admit_surface(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<antecedent_core::execution::AdmissionLease, CausalError> {
+        if ctx.memory_limit_bytes().is_none()
+            && self.surface_cells > antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS
+        {
+            return Err(CausalError::Resource {
+                message: format!(
+                    "temporal response surface of {} dose-by-horizon cells exceeds the default \
+                     ceiling of {}; declare a memory limit to size the surface by its budget",
+                    self.surface_cells,
+                    antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS
+                ),
+            });
+        }
+        // The cell count was checked against u64 byte overflow when the operation was sealed.
+        let bytes = u64::try_from(self.surface_cells)
+            .map_or(u64::MAX, |cells| cells.saturating_mul(SURFACE_CELL_BYTES));
+        crate::retained_refresh::admit(ctx, bytes, "temporal response surface")
     }
 
     fn horizon_pairs(&self) -> Vec<(&IdentifiedEstimand, &TemporalIndexer)> {
@@ -531,6 +602,19 @@ mod tests {
         )
         .unwrap();
         (operation, data)
+    }
+
+    #[test]
+    fn surface_admission_follows_the_declared_memory_budget() {
+        let (mut operation, _) = operation(0);
+        operation.surface_cells = antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS + 1;
+        let bytes = operation.surface_cells as u64 * SURFACE_CELL_BYTES;
+        let unbudgeted = ExecutionContext::for_tests(41).with_memory_limit(None);
+        assert!(matches!(operation.admit_surface(&unbudgeted), Err(CausalError::Resource { .. })));
+        let roomy = ExecutionContext::for_tests(41).with_memory_limit(Some(bytes));
+        assert!(operation.admit_surface(&roomy).is_ok());
+        let tight = ExecutionContext::for_tests(41).with_memory_limit(Some(bytes - 1));
+        assert!(matches!(operation.admit_surface(&tight), Err(CausalError::Resource { .. })));
     }
 
     #[test]

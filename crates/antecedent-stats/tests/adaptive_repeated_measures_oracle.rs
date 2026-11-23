@@ -22,10 +22,10 @@
 //! Each family, outcome structure, analysis route and monitoring combination
 //! is its own test: evidence for one cell is not evidence for another.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::adaptive_inference::{
-    AdaptiveInferenceError as Error, AnalysisEstimator, ContractGap, DERIVED_UNMEASURED,
+    AdaptiveInferenceError as Error, AnalysisEstimator, ContractGap, DERIVED_NOT_MEASURED,
     FinalAnalysis, GaussianMixtureLaw, MAX_UNIT_LAG, OutcomeModelPrior, OutcomeStructure,
     RepeatedMeasuresDeclaration, RepeatedMeasuresRequest, RepeatedMeasuresSpec, Sidedness,
     StoppingRule, UncertaintyParadigm, UnitAssignment, UnitSummary, WeightScheme,
@@ -308,7 +308,7 @@ fn simulated_cluster_robust_contrast_matches_the_exact_mixture_under_compound_sy
     let exact = exact_fixed_contrast_law(&spec, &means).unwrap();
     let law = simulate_repeated_measures(&spec, &means, &request(20_000, 11), &never).unwrap();
     let summary = law.summarize(0.4, 1.96).unwrap();
-    close(summary.undefined_fraction, exact.undefined_mass, 0.012, "undefined fraction");
+    close(summary.undefined_fraction, exact.undefined_mass, 0.008, "undefined fraction");
     assert!(
         summary.bias.abs() <= 5.0 * summary.monte_carlo_standard_error,
         "mean estimate is unbiased within 5 Monte Carlo standard errors: bias {} mcse {}",
@@ -317,7 +317,7 @@ fn simulated_cluster_robust_contrast_matches_the_exact_mixture_under_compound_sy
     );
     let expected = exact.variance();
     assert!(
-        (summary.variance / expected - 1.0).abs() < 0.07,
+        (summary.variance / expected - 1.0).abs() < 0.01,
         "simulated variance {} against exact {expected}",
         summary.variance
     );
@@ -342,7 +342,7 @@ fn simulated_variance_scales_with_the_design_effect() {
         let law = simulate_repeated_measures(spec, &means, &request(12_000, 5), &never).unwrap();
         let summary = law.summarize(0.0, 1.96).unwrap();
         assert!(
-            (summary.variance / exact.variance() - 1.0).abs() < 0.08,
+            (summary.variance / exact.variance() - 1.0).abs() < 0.01,
             "simulated variance {} against exact {}",
             summary.variance,
             exact.variance()
@@ -371,7 +371,7 @@ fn simulated_gls_summary_under_ar1_matches_the_closed_form_variance() {
     let summary = law.summarize(0.3, 1.96).unwrap();
     assert!(summary.bias.abs() <= 5.0 * summary.monte_carlo_standard_error);
     assert!(
-        (summary.variance / exact.variance() - 1.0).abs() < 0.07,
+        (summary.variance / exact.variance() - 1.0).abs() < 0.03,
         "simulated variance {} against exact {}",
         summary.variance,
         exact.variance()
@@ -397,7 +397,7 @@ fn a_clustered_outcome_simulates_to_the_random_effect_variance() {
     let summary = law.summarize(0.0, 1.96).unwrap();
     assert!(summary.bias.abs() <= 5.0 * summary.monte_carlo_standard_error);
     assert!(
-        (summary.variance / exact.variance() - 1.0).abs() < 0.08,
+        (summary.variance / exact.variance() - 1.0).abs() < 0.01,
         "simulated variance {} against exact {}",
         summary.variance,
         exact.variance()
@@ -447,7 +447,7 @@ fn the_derivation_reports_exact_forms_and_monte_carlo_error_separately() {
     let means = [0.0, 0.2];
     let derived =
         derive_repeated_measures(&spec, &means, &request(2_000, 7), 1.96, &never).unwrap();
-    assert_eq!(derived.calibration, DERIVED_UNMEASURED);
+    assert_eq!(derived.calibration, DERIVED_NOT_MEASURED);
     assert_eq!(derived.paradigm, UncertaintyParadigm::FrequentistFixedSample);
     assert_eq!(derived.route, "cluster_robust_unit_summaries");
     close(derived.design_effect, 1.0 + 2.0 * 0.3, 1e-12, "design effect");
@@ -555,7 +555,10 @@ fn a_missing_within_unit_correlation_is_its_own_refusal() {
         cluster_robust(UnitSummary::Mean),
     ));
     assert_eq!(gaps, vec![ContractGap::WithinUnitCorrelationMissing]);
-    assert_eq!(gaps[0].detail(), "adaptive_inference.within_unit_correlation_missing");
+    assert_eq!(
+        gaps[0].detail(),
+        antecedent_core::reason_details::adaptive_inference::WITHIN_UNIT_CORRELATION_MISSING
+    );
     assert_eq!(
         gaps[0].reason_code(),
         antecedent_core::reason_code!("adaptive_contract_incomplete")
@@ -579,7 +582,7 @@ fn a_missing_variance_component_of_a_cluster_is_its_own_refusal() {
     assert_eq!(only_between_missing, vec![ContractGap::BetweenUnitVarianceMissing]);
     assert_eq!(
         only_between_missing[0].detail(),
-        "adaptive_inference.between_unit_variance_missing"
+        antecedent_core::reason_details::adaptive_inference::BETWEEN_UNIT_VARIANCE_MISSING
     );
     let both = gaps_of(declaration(
         even(),
@@ -621,11 +624,11 @@ fn every_missing_element_gives_its_own_gap() {
     assert_eq!(
         details,
         vec![
-            "adaptive_inference.policy_history_missing",
-            "adaptive_inference.interim_analyses_missing",
-            "adaptive_inference.outcome_structure_missing",
-            "adaptive_inference.final_analysis_missing",
-            "adaptive_inference.stopping_rule_missing",
+            antecedent_core::reason_details::adaptive_inference::POLICY_HISTORY_MISSING,
+            antecedent_core::reason_details::adaptive_inference::INTERIM_ANALYSES_MISSING,
+            antecedent_core::reason_details::adaptive_inference::OUTCOME_STRUCTURE_MISSING,
+            antecedent_core::reason_details::adaptive_inference::FINAL_ANALYSIS_MISSING,
+            antecedent_core::reason_details::adaptive_inference::STOPPING_RULE_MISSING,
         ]
     );
 }
@@ -637,29 +640,41 @@ fn inconsistent_elements_are_refused_with_their_own_detail() {
     };
     assert_eq!(
         one(repeated(1, 1.0, Some(compound(0.2)))),
-        vec![ContractGap::Invalid("adaptive_inference.measurements_invalid")]
+        vec![ContractGap::Invalid(
+            antecedent_core::reason_details::adaptive_inference::MEASUREMENTS_INVALID
+        )]
     );
     assert_eq!(
         one(repeated(33, 1.0, Some(compound(0.2)))),
-        vec![ContractGap::Invalid("adaptive_inference.measurements_invalid")]
+        vec![ContractGap::Invalid(
+            antecedent_core::reason_details::adaptive_inference::MEASUREMENTS_INVALID
+        )]
     );
     assert_eq!(
         one(repeated(4, 0.0, Some(compound(0.2)))),
-        vec![ContractGap::Invalid("adaptive_inference.variance_invalid")]
+        vec![ContractGap::Invalid(
+            antecedent_core::reason_details::adaptive_inference::VARIANCE_INVALID
+        )]
     );
     // rho = 1 is singular.
     assert_eq!(
         one(repeated(4, 1.0, Some(compound(1.0)))),
-        vec![ContractGap::Invalid("adaptive_inference.correlation_invalid")]
+        vec![ContractGap::Invalid(
+            antecedent_core::reason_details::adaptive_inference::CORRELATION_INVALID
+        )]
     );
     // rho (m - 1) must exceed -1: -0.5 * 3 = -1.5.
     assert_eq!(
         one(repeated(4, 1.0, Some(compound(-0.5)))),
-        vec![ContractGap::Invalid("adaptive_inference.correlation_invalid")]
+        vec![ContractGap::Invalid(
+            antecedent_core::reason_details::adaptive_inference::CORRELATION_INVALID
+        )]
     );
     assert_eq!(
         one(repeated(4, 1.0, Some(autoregressive(1.0)))),
-        vec![ContractGap::Invalid("adaptive_inference.correlation_invalid")]
+        vec![ContractGap::Invalid(
+            antecedent_core::reason_details::adaptive_inference::CORRELATION_INVALID
+        )]
     );
     // Stopping other than no stopping is a separate cell.
     let mut stopped = declaration(
@@ -674,7 +689,9 @@ fn inconsistent_elements_are_refused_with_their_own_detail() {
     });
     assert_eq!(
         gaps_of(stopped),
-        vec![ContractGap::Invalid("adaptive_inference.repeated_measures_stopping_not_derived")]
+        vec![ContractGap::Invalid(
+            antecedent_core::reason_details::adaptive_inference::REPEATED_MEASURES_STOPPING_NOT_DERIVED
+        )]
     );
     // The follow-up delay is bounded in batches.
     let lagged = |lag_looks: usize| {
@@ -690,7 +707,9 @@ fn inconsistent_elements_are_refused_with_their_own_detail() {
     assert!(RepeatedMeasuresSpec::new(lagged(MAX_UNIT_LAG)).is_ok());
     assert_eq!(
         gaps_of(lagged(MAX_UNIT_LAG + 1)),
-        vec![ContractGap::Invalid("adaptive_inference.outcome_availability_invalid")]
+        vec![ContractGap::Invalid(
+            antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_INVALID
+        )]
     );
     // A contrast of an arm with itself.
     let mut same = declaration(
@@ -701,7 +720,12 @@ fn inconsistent_elements_are_refused_with_their_own_detail() {
     );
     same.analysis =
         Some(FinalAnalysis { estimator: cluster_robust(UnitSummary::Mean), plus: 1, minus: 1 });
-    assert_eq!(gaps_of(same), vec![ContractGap::Invalid("adaptive_inference.analysis_invalid")]);
+    assert_eq!(
+        gaps_of(same),
+        vec![ContractGap::Invalid(
+            antecedent_core::reason_details::adaptive_inference::ANALYSIS_INVALID
+        )]
+    );
 }
 
 #[test]
@@ -714,7 +738,7 @@ fn a_fixed_sample_analysis_after_adaptive_assignment_is_refused() {
     ));
     assert_eq!(
         premise_detail(admit_repeated_measures(&spec, UncertaintyParadigm::FrequentistFixedSample)),
-        "adaptive_inference.fixed_sample_design_adaptive"
+        antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_DESIGN_ADAPTIVE
     );
     // The adaptive-weighting paradigm with a fixed-sample contrast is the same refusal.
     assert_eq!(
@@ -722,16 +746,16 @@ fn a_fixed_sample_analysis_after_adaptive_assignment_is_refused() {
             &spec,
             UncertaintyParadigm::FrequentistAdaptiveWeighting
         )),
-        "adaptive_inference.fixed_sample_design_adaptive"
+        antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_DESIGN_ADAPTIVE
     );
     // Neither the simulation nor the derivation runs.
     assert_eq!(
         premise_detail(simulate_repeated_measures(&spec, &[0.0, 0.2], &request(10, 1), &never)),
-        "adaptive_inference.fixed_sample_design_adaptive"
+        antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_DESIGN_ADAPTIVE
     );
     assert_eq!(
         premise_detail(derive_repeated_measures(&spec, &[0.0, 0.2], &request(10, 1), 1.96, &never)),
-        "adaptive_inference.fixed_sample_design_adaptive"
+        antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_DESIGN_ADAPTIVE
     );
 }
 
@@ -748,7 +772,7 @@ fn the_independence_assumption_is_refused_for_dependent_measurements() {
             &dependent,
             UncertaintyParadigm::FrequentistFixedSample
         )),
-        "adaptive_inference.independence_assumed_for_dependent_measurements"
+        antecedent_core::reason_details::adaptive_inference::INDEPENDENCE_ASSUMED_FOR_DEPENDENT_MEASUREMENTS
     );
     // A cluster with a random effect is dependent too.
     let clustered = spec_of(declaration(
@@ -768,7 +792,7 @@ fn the_independence_assumption_is_refused_for_dependent_measurements() {
             &request(10, 1),
             &never
         )),
-        "adaptive_inference.independence_assumed_for_dependent_measurements"
+        antecedent_core::reason_details::adaptive_inference::INDEPENDENCE_ASSUMED_FOR_DEPENDENT_MEASUREMENTS
     );
     // Without a declared correlation the declaration itself is refused, so an
     // iid analysis cannot be reached by omission.
@@ -797,7 +821,7 @@ fn the_independence_assumption_is_refused_for_dependent_measurements() {
     // variance of the contrast under independence.
     let exact = exact_fixed_contrast_law(&independent, &[0.0, 0.0]).unwrap();
     assert!(
-        (summary.mean_reported_variance / exact.variance() - 1.0).abs() < 0.15,
+        (summary.mean_reported_variance / exact.variance() - 1.0).abs() < 0.02,
         "reported {} against exact {}",
         summary.mean_reported_variance,
         exact.variance()
@@ -821,7 +845,7 @@ fn other_paradigms_are_separate_cells_and_not_derived() {
     ] {
         assert_eq!(
             premise_detail(admit_repeated_measures(&spec, paradigm)),
-            "adaptive_inference.repeated_measures_paradigm_not_derived",
+            antecedent_core::reason_details::adaptive_inference::REPEATED_MEASURES_PARADIGM_NOT_DERIVED,
             "{}",
             paradigm.as_str()
         );
@@ -829,7 +853,7 @@ fn other_paradigms_are_separate_cells_and_not_derived() {
     // The weighting analysis is not a fixed-sample analysis.
     assert_eq!(
         premise_detail(admit_repeated_measures(&spec, UncertaintyParadigm::FrequentistFixedSample)),
-        "adaptive_inference.fixed_sample_design_adaptive"
+        antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_DESIGN_ADAPTIVE
     );
 }
 
@@ -858,7 +882,7 @@ fn a_guarantee_is_never_paired_across_cells() {
     ));
     assert_eq!(
         premise_detail(cell.transfer_to(&clustered.cell())),
-        "adaptive_inference.guarantee_not_transferable"
+        antecedent_core::reason_details::adaptive_inference::GUARANTEE_NOT_TRANSFERABLE
     );
     // The single-outcome cell of the same family and paradigm is a different cell.
     assert_eq!(
@@ -866,7 +890,7 @@ fn a_guarantee_is_never_paired_across_cells() {
             "epsilon_greedy/single_outcome/final_analysis_only/no_stopping",
             "frequentist_adaptive_weighting"
         )),
-        "adaptive_inference.guarantee_not_transferable"
+        antecedent_core::reason_details::adaptive_inference::GUARANTEE_NOT_TRANSFERABLE
     );
     // The same axes under another paradigm is a different statement.
     assert_eq!(
@@ -874,13 +898,13 @@ fn a_guarantee_is_never_paired_across_cells() {
             "epsilon_greedy/repeated_measures/final_analysis_only/no_stopping",
             "anytime_valid_frequentist"
         )),
-        "adaptive_inference.guarantee_not_transferable"
+        antecedent_core::reason_details::adaptive_inference::GUARANTEE_NOT_TRANSFERABLE
     );
     // A fixed-allocation guarantee does not carry to the adaptive family.
     let fixed = fixed_spec(10, 3, 0.3, UnitSummary::Mean);
     assert_eq!(
         premise_detail(fixed.cell().transfer_to(&cell)),
-        "adaptive_inference.guarantee_not_transferable"
+        antecedent_core::reason_details::adaptive_inference::GUARANTEE_NOT_TRANSFERABLE
     );
 }
 
@@ -894,7 +918,7 @@ fn an_adaptive_or_weighted_procedure_has_no_closed_form_law() {
     ));
     assert_eq!(
         premise_detail(exact_fixed_contrast_law(&spec, &[0.0, 0.0])),
-        "adaptive_inference.exact_law_unavailable"
+        antecedent_core::reason_details::adaptive_inference::EXACT_LAW_UNAVAILABLE
     );
     let fixed = fixed_spec(10, 3, 0.3, UnitSummary::Mean);
     assert_eq!(exact_fixed_contrast_law(&fixed, &[0.0]), Err(Error::Shape("one mean per arm")));

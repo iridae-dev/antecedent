@@ -268,7 +268,12 @@ def load_composite(
         or build.get("default_features") is not True
     ):
         raise ValueError("ordinary guarded build does not bind the final source")
-    gate_hash = sha256(_git(root, "show", f"{source_sha}:scripts/gate_calibration.sh"))
+    try:
+        gate = _git(root, "show", f"{source_sha}:scripts/measure_calibration_groups.sh")
+    except subprocess.CalledProcessError:
+        # A capture taken before the driver took this name holds it under the earlier one.
+        gate = _git(root, "show", f"{source_sha}:scripts/gate_calibration.sh")
+    gate_hash = sha256(gate)
     if execution.get("source") != source_sha or execution.get("gate") != {
         "before": gate_hash,
         "after": gate_hash,

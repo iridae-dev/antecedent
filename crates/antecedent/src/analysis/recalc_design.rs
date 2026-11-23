@@ -1,14 +1,14 @@
 //! Shared-plan recalculation of checked IV, sharp RD and linear front-door effects.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::PreparedStudy;
 use super::recalc_common::{
     Fields, dag_from_edges, float_bytes, identity, literal, table_from_columns,
 };
 use super::recalc_receipt::{
-    Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRunError, ReceiptRecorder, UtilitySpec,
-    decide,
+    Columns, Counter, DecisionValue, LawValue, NonFinite, RecalcOutcome, RecalcRequestCode,
+    RecalcRunError, ReceiptRecorder, UtilitySpec, decide,
 };
+use super::{PreparedStudy, RetainedOperation};
 use crate::{CausalError, IdentifierId, RefuteSuite, Study, StudyResult};
 use antecedent_core::recalc::{
     Boundary, RecalcCapabilities, RecalcPlan, RequestSupport, ResumeContext, RetargetSupport,
@@ -50,7 +50,7 @@ pub enum DesignModel {
 #[derive(Clone, Debug)]
 pub struct DesignRequest {
     /// Columns in stable variable-id order; missing values use complete-case semantics.
-    pub columns: Vec<(String, Vec<f64>)>,
+    pub columns: Columns,
     /// Directed edges over those stable coordinates.
     pub edges: Vec<(u32, u32)>,
     /// Treatment coordinate, compared at zero and one.
@@ -110,10 +110,7 @@ impl DesignRequest {
         ids.set(Stage::DataSnapshot, identity("design.snapshot", &data));
         ids.set(
             Stage::RowDesign,
-            literal(
-                "design.rows",
-                &format!("complete_case.{}", self.columns.first().map_or(0, |(_, v)| v.len())),
-            ),
+            literal("design.rows", &format!("complete_case.{}", self.columns.n_rows())),
         );
         ids.set(
             Stage::TreatmentGrid,
@@ -145,16 +142,8 @@ impl DesignRequest {
     }
     fn validate(&self) -> Result<(), RecalcRunError> {
         self.utility.validate()?;
-        let n = self.columns.first().map_or(0, |(_, v)| v.len());
-        let names: std::collections::BTreeSet<_> =
-            self.columns.iter().map(|(name, _)| name).collect();
-        if n == 0
-            || names.len() != self.columns.len()
-            || self.columns.iter().any(|(name, v)| {
-                name.is_empty() || v.len() != n || v.iter().any(|x| x.is_infinite())
-            })
-        {
-            return Err(RecalcRunError::Request("recalc.invalid_data"));
+        if !self.columns.is_well_formed(NonFinite::MissingAsNan) {
+            return Err(RecalcRunError::Request(RecalcRequestCode::InvalidData));
         }
         let design_role = match self.model {
             DesignModel::Iv2Sls { instrument } => instrument,
@@ -162,24 +151,23 @@ impl DesignRequest {
             DesignModel::Frontdoor { mediator } => mediator,
         };
         let roles = [self.treatment, self.outcome, design_role];
-        if roles.iter().any(|&id| id as usize >= self.columns.len())
-            || roles.into_iter().collect::<std::collections::BTreeSet<_>>().len() != 3
-        {
-            return Err(RecalcRunError::Request("recalc.invalid_design_roles"));
+        if !self.columns.are_distinct_roles(&roles) {
+            return Err(RecalcRunError::Request(RecalcRequestCode::InvalidDesignRoles));
         }
-        if let DesignModel::Rd { cutoff, bandwidth, .. } = self.model {
-            if !cutoff.is_finite() || !bandwidth.is_finite() || bandwidth <= 0. {
-                return Err(RecalcRunError::Request("recalc.invalid_rd_window"));
-            }
+        if let DesignModel::Rd { cutoff, bandwidth, .. } = self.model
+            && (!cutoff.is_finite() || !bandwidth.is_finite() || bandwidth <= 0.)
+        {
+            return Err(RecalcRunError::Request(RecalcRequestCode::InvalidRdWindow));
         }
         Ok(())
     }
     fn data(&self) -> Result<TabularData, RecalcRunError> {
         table_from_columns(&self.columns)
-            .map_err(|_| RecalcRunError::Request("recalc.invalid_data"))
+            .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidData))
     }
     fn study(&self, data: TabularData) -> Result<Study, RecalcRunError> {
-        let graph = dag_from_edges(self.columns.len(), &self.edges, "recalc.invalid_graph")?;
+        let graph =
+            dag_from_edges(self.columns.len(), &self.edges, RecalcRequestCode::InvalidGraph)?;
         let builder = Study::tabular(data)
             .graph(graph)
             .query(AverageEffectQuery::with_levels(
@@ -205,24 +193,28 @@ impl DesignRequest {
         Ok(builder.build()?)
     }
     fn check_design(&self, prepared: &PreparedStudy) -> Result<(), RecalcRunError> {
-        let matches = match self.model {
-            DesignModel::Iv2Sls { instrument } => prepared.checked_iv().is_some_and(|p| {
-                p.lowering().instruments.as_ref() == [VariableId::from_raw(instrument)]
-            }),
-            DesignModel::Rd { running_variable, cutoff, bandwidth } => {
-                prepared.checked_rd_preparation().is_some_and(|p| {
-                    p.lowering().running_variable.raw() == running_variable
-                        && p.lowering().cutoff.to_bits() == cutoff.to_bits()
-                        && p.lowering().bandwidth.to_bits() == bandwidth.to_bits()
-                })
+        let matches = match (&self.model, prepared.retained_operation()) {
+            (DesignModel::Iv2Sls { instrument }, RetainedOperation::Iv(p)) => {
+                p.lowering().instruments.as_ref() == [VariableId::from_raw(*instrument)]
             }
-            DesignModel::Frontdoor { mediator } => {
-                prepared.checked_frontdoor_linear().is_some_and(|p| {
-                    p.lowering().mediators.as_ref() == [VariableId::from_raw(mediator)]
-                })
+            (
+                DesignModel::Rd { running_variable, cutoff, bandwidth },
+                RetainedOperation::CheckedRd(p),
+            ) => {
+                p.lowering().running_variable.raw() == *running_variable
+                    && p.lowering().cutoff.to_bits() == cutoff.to_bits()
+                    && p.lowering().bandwidth.to_bits() == bandwidth.to_bits()
             }
+            (DesignModel::Frontdoor { mediator }, RetainedOperation::FrontDoorLinear(p)) => {
+                p.lowering().mediators.as_ref() == [VariableId::from_raw(*mediator)]
+            }
+            _ => false,
         };
-        if matches { Ok(()) } else { Err(RecalcRunError::Request("recalc.design_not_checked")) }
+        if matches {
+            Ok(())
+        } else {
+            Err(RecalcRunError::Request(RecalcRequestCode::DesignNotChecked))
+        }
     }
 }
 /// A typed execution refusal; IV weakness preserves the existing engine's actual AR output.
@@ -318,7 +310,7 @@ impl DesignSession {
     pub fn result(&self) -> Option<&StudyResult> {
         self.live.as_ref().map(|l| l.result.as_ref())
     }
-    /// Plan against actual retained state. Population reweighting is not licensed.
+    /// Plan against actual retained state. Population reweighting is not supported.
     #[must_use]
     pub fn plan(&self, r: &DesignRequest, ctx: &ExecutionContext) -> RecalcPlan {
         RecalcPlan::plan(
@@ -345,20 +337,14 @@ fn recomputed(plan: &RecalcPlan, stage: Stage) -> bool {
     matches!(plan.status(stage), Some(StageStatus::Recomputed { .. }))
 }
 fn fit_guard(r: &DesignRequest, ctx: &ExecutionContext) -> Result<(), RecalcRunError> {
-    let n = r.columns.first().map_or(0, |(_, v)| v.len()) as u64;
+    let n = r.columns.n_rows() as u64;
     let p = r.columns.len() as u64;
     let bytes = n
         .saturating_mul(p)
         .saturating_mul(128)
         .saturating_add(p.saturating_mul(p).saturating_mul(128));
-    if ctx
-        .memory
-        .hard_limit_bytes
-        .into_iter()
-        .chain(ctx.memory.soft_limit_bytes)
-        .any(|limit| bytes > limit)
-    {
-        return Err(RecalcRunError::Request("recalc.memory_budget_exceeded"));
+    if ctx.memory_limit_bytes().into_iter().any(|limit| bytes > limit) {
+        return Err(RecalcRunError::Request(RecalcRequestCode::MemoryBudgetExceeded));
     }
     Ok(())
 }
@@ -372,9 +358,9 @@ fn summarize_checked_result(
             let effect = result
                 .estimate
                 .as_effect()
-                .ok_or(RecalcRunError::Request("recalc.design_effect_unavailable"))?;
+                .ok_or(RecalcRunError::Request(RecalcRequestCode::DesignEffectUnavailable))?;
             if !effect.ate.is_finite() {
-                return Err(RecalcRunError::Request("recalc.design_point_unavailable"));
+                return Err(RecalcRunError::Request(RecalcRequestCode::DesignPointUnavailable));
             }
             let law = LawValue { ate: effect.ate, std_error: effect.se_analytic() };
             recorder.record(Counter::LawSummary, 1);
@@ -396,9 +382,11 @@ pub struct DesignReplay {
 
 /// Independently consume a design artifact and replay it against supplied raw data.
 ///
-/// The existing reader remains unchanged. Its missing RD operation is discharged only
-/// by running the checked engine and matching the complete data, program, inference,
-/// execution and scientific-result bindings. The producing seed must be supplied.
+/// The bytes-only reader may lack the checked numerical operation. For these three
+/// supported designs, that specific gap is discharged only after running the checked
+/// engine and matching the complete data, program, inference, execution and result
+/// bindings. All other unresolved obligations still refuse. The producing seed must
+/// be supplied; bytes-only acceptance is unchanged.
 /// # Errors
 /// Missing raw data, malformed or unsupported artifact, checked-engine refusal, or any
 /// mismatch of the supplied data/configuration/execution context and original result.
@@ -407,34 +395,52 @@ pub fn consume_design_with_data(
     request: Option<&DesignRequest>,
     ctx: &ExecutionContext,
 ) -> Result<DesignReplay, DesignRunError> {
-    let source = antecedent_io::consume_analysis_result(bytes)
-        .map_err(|_| RecalcRunError::Request("recalc.invalid_design_artifact"))?;
-    let request = request.ok_or(RecalcRunError::Request("recalc.design_data_unavailable"))?;
+    let source = antecedent_io::replay_analysis_result(bytes)
+        .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidDesignArtifact))?;
+    let request =
+        request.ok_or(RecalcRunError::Request(RecalcRequestCode::DesignDataUnavailable))?;
+    let expected_estimator = match request.model {
+        DesignModel::Iv2Sls { .. } => "iv.2sls",
+        DesignModel::Rd { .. } => "rd.sharp",
+        DesignModel::Frontdoor { .. } => "frontdoor.linear_two_stage",
+    };
     if !source.acceptance.recognized
         || !source.acceptance.claim_present
-        || source.contract.is_none()
+        || source
+            .contract
+            .as_ref()
+            .and_then(|contract| contract.program.as_ref())
+            .and_then(|program| program.commitments.resolved_estimator.as_deref())
+            != Some(expected_estimator)
         || source.acceptance.unresolved.iter().any(|reason| {
-            !matches!(request.model, DesignModel::Rd { .. })
-                || reason.as_ref() != "dependencies.checked_rd_operation"
+            !matches!(
+                (&request.model, reason.as_ref()),
+                // These requests are independently rebuilt below and compared in full;
+                // the bytes-only reader still cannot replay their numerical operation.
+                (
+                    DesignModel::Iv2Sls { .. } | DesignModel::Frontdoor { .. },
+                    "dependencies.checked_estimator_operation",
+                ) | (DesignModel::Rd { .. }, "dependencies.checked_rd_operation")
+            )
         })
     {
-        return Err(RecalcRunError::Request("recalc.design_artifact_unverified").into());
+        return Err(RecalcRunError::Request(RecalcRequestCode::DesignArtifactUnverified).into());
     }
     let mut session = DesignSession::new();
     let outcome = execute_design_with_receipt(&mut session, request, ctx)?;
-    let replayed = antecedent_io::consume_analysis_result(&session.export_result()?)
-        .map_err(|_| RecalcRunError::Request("recalc.invalid_design_artifact"))?;
+    let replayed = antecedent_io::replay_analysis_result(&session.export_result()?)
+        .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidDesignArtifact))?;
     // Compare the existing canonical wire digest, including unavailable numeric
     // representations, rather than floating-point PartialEq on NaN diagnostics.
     let normalize = |body: &antecedent_io::AnalysisResultWire| {
         antecedent_io::result_digest(body)
-            .map_err(|_| RecalcRunError::Request("recalc.invalid_design_artifact"))
+            .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidDesignArtifact))
     };
     if source.header != replayed.header
         || source.contract != replayed.contract
         || normalize(&source.body)? != normalize(&replayed.body)?
     {
-        return Err(RecalcRunError::Request("recalc.design_artifact_mismatch").into());
+        return Err(RecalcRunError::Request(RecalcRequestCode::DesignArtifactMismatch).into());
     }
     Ok(DesignReplay { session, outcome, artifact_digest: source.artifact_digest })
 }
@@ -455,9 +461,9 @@ pub fn execute_design_with_receipt(
         return Err(RecalcRunError::Refused(Box::new(plan)).into());
     }
     if ctx.cancellation.is_cancelled() {
-        return Err(RecalcRunError::Request("recalc.cancelled").into());
+        return Err(RecalcRunError::Request(RecalcRequestCode::Cancelled).into());
     }
-    let mut recorder = ReceiptRecorder::new();
+    let mut recorder = ReceiptRecorder::charged_to(ctx);
     let held = session.live.as_ref();
     let (prepared, result, fit_ctx) = if recomputed(&plan, Stage::ScoreArtifact) {
         fit_guard(r, ctx)?;
@@ -470,12 +476,12 @@ pub fn execute_design_with_receipt(
                 let result = prepared.estimate_retained(ctx)?;
                 (prepared, result)
             } else {
-                let mut prepared = held
+                let prepared = held
                     .ok_or(RecalcRunError::NoLiveState(Stage::Identification))?
                     .prepared
-                    .as_ref()
-                    .clone();
-                let result = prepared.refresh(data, ctx)?;
+                    .rebind_data(data, ctx)?
+                    .materialize(ctx)?;
+                let result = prepared.estimate_retained(ctx)?;
                 r.check_design(&prepared)?;
                 (prepared, result)
             };
@@ -484,7 +490,7 @@ pub fn execute_design_with_receipt(
                     .estimate
                     .as_effect()
                     .and_then(|e| e.diagnostics.first_stage.as_ref())
-                    .ok_or(RecalcRunError::Request("recalc.iv_diagnostics_unavailable"))?;
+                    .ok_or(RecalcRunError::Request(RecalcRequestCode::IvDiagnosticsUnavailable))?;
                 if !diagnostics
                     .anderson_rubin
                     .is_some_and(|(lo, hi, _)| lo.is_finite() && hi.is_finite())

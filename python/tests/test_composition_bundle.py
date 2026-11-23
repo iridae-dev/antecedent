@@ -21,13 +21,15 @@ from pathlib import Path
 import antecedent as ac
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import composition_bundle as cb
 from antecedent import decision, external
-from antecedent.errors import CausalUnsupportedError
+from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.joint_distribution import (
     DistributionIdentity,
     JointDistributionArtifact,
 )
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 
@@ -93,11 +95,11 @@ def _mean_contract(claim: external.BoundExternalClaim) -> decision.Contract:
 def _joint_bytes(law: JointDistributionArtifact | None = None) -> dict[str, bytes]:
     contract = gen.decision_contract()
     law = law or gen.decision_source()
-    result = contract.evaluate(law)
+    result = require_success(contract.evaluate(law))
     return {
-        "contract": contract.export(artifact_id="contract"),
-        "law": law.export("law"),
-        "result": result.export(artifact_id="result"),
+        "contract": bytes(contract.export(artifact_id="contract")),
+        "law": bytes(law.export("law")),
+        "result": bytes(result.export(artifact_id="result")),
     }
 
 
@@ -118,7 +120,11 @@ def _joint_bundle(parts: dict[str, bytes] | None = None) -> cb.Bundle:
 
 
 def _consume(bundle: cb.Bundle, supplied: cb.SuppliedSources | None = None) -> cb.ConsumedBundle:
-    return cb.consume_bundle(bundle.export(), expected_identity=bundle.identity, supplied=supplied)
+    return require_success(
+        cb.consume_bundle(
+            bytes(bundle.export()), expected_identity=bundle.identity, supplied=supplied
+        )
+    )
 
 
 def _failed_stage(consumed: cb.ConsumedBundle, node_id: str) -> str:
@@ -165,14 +171,15 @@ def test_python_built_bundle_is_consumed_in_process_and_reports_the_decision() -
 def test_fresh_interpreter_consumes_the_exported_bundle(tmp_path: Path) -> None:
     bundle = _joint_bundle()
     path = tmp_path / "bundle.bin"
-    path.write_bytes(bundle.export())
+    path.write_bytes(bytes(bundle.export()))
     script = textwrap.dedent(
         """
         import json, sys
         from antecedent import composition_bundle as cb
+        from antecedent.outcomes import require_success
 
         data = open(sys.argv[1], "rb").read()
-        consumed = cb.consume_bundle(data, expected_identity=sys.argv[2])
+        consumed = require_success(cb.consume_bundle(data, expected_identity=sys.argv[2]))
         consumed.require_verified()
         print(json.dumps({
             "verified": consumed.all_verified,
@@ -207,7 +214,7 @@ def test_order_invariance_and_deterministic_derived_ids() -> None:
     forward = _joint_builder(parts).build()
     reverse = _joint_builder(parts, reverse=True).build()
     assert forward.identity == reverse.identity
-    assert forward.export(artifact_id="same") == reverse.export(artifact_id="same")
+    assert bytes(forward.export(artifact_id="same")) == bytes(reverse.export(artifact_id="same"))
 
     derived = cb.Bundle.builder().add_artifact("auto", parts["law"])
     again = cb.Bundle.builder().add_artifact("distribution", parts["law"])
@@ -217,14 +224,14 @@ def test_order_invariance_and_deterministic_derived_ids() -> None:
 
 def _wrong_identity() -> None:
     bundle = _joint_bundle()
-    cb.consume_bundle(bundle.export(), expected_identity="0" * IDENTITY_LEN)
+    require_success(cb.consume_bundle(bytes(bundle.export()), expected_identity="0" * IDENTITY_LEN))
 
 
 def _flipped_byte() -> None:
     bundle = _joint_bundle()
-    data = bytearray(bundle.export())
+    data = bytearray(bytes(bundle.export()))
     data[len(data) // 2] ^= 0xFF
-    cb.consume_bundle(bytes(data), expected_identity=bundle.identity)
+    require_success(cb.consume_bundle(bytes(data), expected_identity=bundle.identity))
 
 
 def _unknown_kind() -> None:
@@ -289,7 +296,7 @@ def test_tamper_table_names_the_failed_stage_on_the_dependent_node() -> None:
     renamed = tuple(
         dataclasses.replace(q, variable_id="p2") if i == 0 else q for i, q in enumerate(gen.COLUMNS)
     )
-    swapped = _consume(_joint_bundle({**parts, "law": _law(renamed).export("law")}))
+    swapped = _consume(_joint_bundle({**parts, "law": bytes(_law(renamed).export("law"))}))
     assert swapped.node("law").verified
     assert _failed_stage(swapped, "result") == "tampered_quantity"
     assert swapped.value("result", "safe.expected_utility") is None
@@ -309,7 +316,7 @@ def test_tamper_table_names_the_failed_stage_on_the_dependent_node() -> None:
         target_population="target",
     )
     mismatched = _consume(
-        _joint_bundle({**parts, "contract": other.export(artifact_id="contract")})
+        _joint_bundle({**parts, "contract": bytes(other.export(artifact_id="contract"))})
     )
     assert _failed_stage(mismatched, "result") == "graph_or_snapshot_mismatch"
 
@@ -332,7 +339,7 @@ def test_joint_requirement_over_a_mean_only_claim_is_unsupported_law() -> None:
     with pytest.raises(cb.UnsupportedLawRefusal) as refused:
         consumed.require_verified()
     assert refused.value.reason_code == "joint_law_required"
-    assert refused.value.detail == "composition_bundle.unsupported_law"
+    assert refused.value.detail == reason_details.composition_bundle.UNSUPPORTED_LAW
 
 
 def test_external_mean_decision_is_exportable_as_a_point_only_attested_result() -> None:
@@ -344,7 +351,7 @@ def test_external_mean_decision_is_exportable_as_a_point_only_attested_result() 
     builder = cb.Bundle.builder()
     builder.add_artifact("external_claim", claim, node_id="claim")
     builder.add_artifact(
-        "decision_contract", contract.export(artifact_id="contract"), node_id="contract"
+        "decision_contract", bytes(contract.export(artifact_id="contract")), node_id="contract"
     )
     builder.add_artifact("decision_result", result, node_id="result")
     bundle = builder.connect("claim", "result").connect("contract", "result").build()
@@ -359,7 +366,7 @@ def test_external_mean_decision_is_exportable_as_a_point_only_attested_result() 
     assert "requires_law" not in consumed.node("contract").facts
 
     # The decision is the Rust evaluation of the same means, not a stored claim.
-    assert contract.evaluate(claim).selected == ("treat",)
+    assert require_success(contract.evaluate(claim)).selected == ("treat",)
 
     # The same means under another request still carry the stored decision: it rests on
     # the digest of the means, and the request is a separate, checked fact.
@@ -368,7 +375,7 @@ def test_external_mean_decision_is_exportable_as_a_point_only_attested_result() 
         cb.Bundle.builder()
         .add_artifact("external_claim", changed, node_id="claim")
         .add_artifact(
-            "decision_contract", contract.export(artifact_id="contract"), node_id="contract"
+            "decision_contract", bytes(contract.export(artifact_id="contract")), node_id="contract"
         )
         .add_artifact("decision_result", result, node_id="result")
         .connect("claim", "result")
@@ -481,3 +488,39 @@ def test_describe_reports_facts_read_from_the_decoded_artifact() -> None:
         cb.describe_artifact("distribution", claim)
     with pytest.raises(CausalUnsupportedError):
         cb.describe_artifact("decision_contract", b"junk")
+
+
+def test_consumer_bounds_refuse_a_bundle_beyond_them_before_any_node_is_verified() -> None:
+    bundle = _joint_bundle()
+    data = bytes(bundle.export())
+    # A bundle of three nodes and two edges consumes at exactly its own size.
+    fitted = require_success(
+        cb.consume_bundle(
+            data,
+            expected_identity=bundle.identity,
+            max_bundle_bytes=len(data),
+            max_nodes=3,
+            max_edges=2,
+        )
+    )
+    fitted.require_verified()
+    assert fitted.identity == bundle.identity
+    # One unit below any bound refuses as oversized with the registered code, and a
+    # refused bound never reports a partially verified bundle.
+    for bound in (
+        {"max_bundle_bytes": len(data) - 1},
+        {"max_nodes": 2},
+        {"max_edges": 1},
+        {"max_embedded_bytes": 1},
+    ):
+        with pytest.raises(cb.OversizedRefusal) as caught:
+            require_success(cb.consume_bundle(data, expected_identity=bundle.identity, **bound))
+        assert caught.value.bundle_stage == "oversized", bound
+        assert caught.value.detail == reason_details.composition_bundle.OVERSIZED
+        assert_registered_refusal(caught.value)
+    with pytest.raises(CausalValueError):
+        cb.consume_bundle(data, expected_identity=bundle.identity, max_nodes=0)
+    with pytest.raises(CausalTypeError):
+        cb.consume_bundle(data, expected_identity=bundle.identity, max_edges=True)
+    with pytest.raises(CausalValueError):
+        cb.consume_bundle(data, expected_identity=bundle.identity, max_nodes=3, actual_claims={})

@@ -6,8 +6,7 @@ use super::{
     ExecutionContext, IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras,
     IdentifiedExecuteFinish, IdentifiedResultContext, IdentifierId, InferenceMode, Instant,
     PhysicalExecutionPlan, RefuteSuite, Strategy, Study, StudyResult, TableView, TabularData,
-    VariableId, bayesian_gcomp, elapsed_ns, finish_identified_execute_with_context,
-    identify_static_query, select_claim,
+    VariableId, bayesian_gcomp, elapsed_ns, finish_identified_execute_with_context, select_claim,
 };
 use crate::analysis::prepared::Inspect;
 use crate::analysis::proof_support::{EstimandClaim, proof_supplies_with_mediators};
@@ -19,6 +18,7 @@ use antecedent_expr::{FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVa
 pub(crate) struct CheckedBayesianStaticMediationOperation {
     graph: Dag,
     query: antecedent_core::MediationQuery,
+    target: antecedent_core::ScientificTarget,
     cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
     physical: std::sync::Arc<PhysicalExecutionPlan>,
     program: FunctionalProgram,
@@ -49,6 +49,7 @@ impl CheckedBayesianStaticMediationOperation {
         data: &TabularData,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         cache: &Arc<crate::analysis::prepared::CachedStaticIdentification>,
+        ctx: &ExecutionContext,
     ) -> Result<Self, CausalError> {
         let CausalQuery::Mediation(query) = &study.query else {
             return Err(CausalError::Compile {
@@ -59,13 +60,13 @@ impl CheckedBayesianStaticMediationOperation {
             message: "checked Bayesian static mediation requires a supplied DAG",
         })?;
         query.validate()?;
-        let InferenceMode::Bayesian(config) = &study.inference else {
+        let InferenceMode::Bayesian(config) = &study.settings.inference else {
             return Err(CausalError::Compile {
                 message: "checked Bayesian mediation requires a Bayesian configuration".into(),
             });
         };
         ensure_mediation_prior_admitted(config, data, query)?;
-        verify_mediation_proof(study, physical, cache, graph)?;
+        verify_mediation_proof(study, physical, cache, graph, ctx)?;
 
         let program_schema = ProgramSchema::new(
             data.schema()
@@ -92,6 +93,13 @@ impl CheckedBayesianStaticMediationOperation {
         Ok(Self {
             graph: graph.clone(),
             query: query.clone(),
+            target: super::checked_static_mediation::theorem_mediation_target(
+                query,
+                data.schema(),
+                &cache.identification.required_assumptions,
+                antecedent_core::InferenceSelection::Bayesian,
+                None,
+            )?,
             cache: Arc::clone(cache),
             physical: physical.clone(),
             program,
@@ -99,7 +107,7 @@ impl CheckedBayesianStaticMediationOperation {
             design_roles: roles.into(),
             source_rows,
             config: config.clone(),
-            validation: study.refute,
+            validation: study.settings.refute,
             result_context: IdentifiedResultContext::from_study(study),
         })
     }
@@ -118,6 +126,15 @@ impl CheckedBayesianStaticMediationOperation {
     pub(crate) fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
         if data.schema() != &self.schema
             || self.program.mapping().source != self.cache.estimand.functional
+            || self.target.identity()
+                != super::checked_static_mediation::theorem_mediation_target(
+                    &self.query,
+                    &self.schema,
+                    &self.cache.identification.required_assumptions,
+                    antecedent_core::InferenceSelection::Bayesian,
+                    None,
+                )?
+                .identity()
         {
             return Err(CausalError::Compile {
                 message: "Bayesian mediation refresh changed its semantic schema or target".into(),
@@ -250,12 +267,13 @@ fn verify_mediation_proof(
     physical: &PhysicalExecutionPlan,
     cache: &crate::analysis::prepared::CachedStaticIdentification,
     graph: &Dag,
+    ctx: &ExecutionContext,
 ) -> Result<(), CausalError> {
     if !matches!(
         study.structure_source,
         crate::support::StructureSource::Explicit | crate::support::StructureSource::Accepted
-    ) || !study.refute.is_point_or_placebo()
-        || !study.custom_validators.is_empty()
+    ) || !study.settings.refute.is_point_or_placebo()
+        || !study.declared.custom_validators.is_empty()
         || cache.identification.query != study.query
         || !matches!(
             cache.identification.status,
@@ -272,7 +290,26 @@ fn verify_mediation_proof(
             message: "Bayesian mediation proof, procedure, structure, or validation changed after preparation".into(),
         });
     }
-    let verified = identify_static_query(IdentifierId::PathSpecificNatural, graph, &study.query)?;
+    if physical.static_graph().is_some_and(|retained| retained == graph)
+        && crate::analysis::proof_support::verify_retained_static(
+            physical,
+            &cache.identification,
+            &cache.estimand,
+            "Bayesian mediation proof is not justified by its retained graph",
+        )? == crate::analysis::proof_support::RetainedProof::Sealed
+    {
+        return Ok(());
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
+    }
+    let verified = crate::strategy_table::identify_static_query_in_context(
+        IdentifierId::PathSpecificNatural,
+        graph,
+        &study.query,
+        None,
+        Some(ctx),
+    )?;
     let (verified, verified_estimand) = select_claim(verified, EstimatorId::StaticMediationLinear)?;
     if verified.query != cache.identification.query
         || !verified_estimand.same_claim_with_mediators(&cache.estimand)
@@ -309,6 +346,7 @@ impl Inspect for CheckedBayesianStaticMediationOperation {
         let edges = self.graph().directed_edge_pairs_sorted();
         CheckedStaticMediationInfo {
             query: query.clone(),
+            scientific_target: self.target.clone(),
             identifier: IdentifierId::PathSpecificNatural,
             estimator: EstimatorId::StaticMediationLinear,
             adjustment_set: Arc::clone(&estimand.adjustment_set),
@@ -385,7 +423,7 @@ mod tests {
                         .build()
                         .unwrap();
                     let physical = study.compile(&ctx).unwrap();
-                    let identified = identify_static_query(
+                    let identified = crate::strategy_table::identify_static_query(
                         IdentifierId::PathSpecificNatural,
                         &graph,
                         &study.query,
@@ -402,10 +440,23 @@ mod tests {
                         &data,
                         &Arc::new(physical.clone()),
                         &cache,
+                        &ctx,
                     )
                     .unwrap();
                     assert_eq!(operation.inspect().0, &query);
                     assert_eq!(operation.inspect().3, validation);
+                    let info = operation.info();
+                    assert!(matches!(
+                        info.scientific_target.form(),
+                        antecedent_core::TargetForm::Mediation(_)
+                    ));
+                    assert_eq!(
+                        info.scientific_target.inference(),
+                        antecedent_core::InferenceSelection::Bayesian
+                    );
+                    let mut changed = operation.clone();
+                    changed.query.active = Intervention::set(query.treatment, Value::f64(0.9));
+                    assert!(matches!(changed.rebind(&data), Err(CausalError::Compile { .. })));
                     let result = operation.execute(&data, &ctx).unwrap();
                     assert!((result.estimate.as_effect().unwrap().ate - truth).abs() < 0.18);
                     let posterior = result.posterior.as_ref().expect("posterior retained");

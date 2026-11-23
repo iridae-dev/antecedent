@@ -8,21 +8,61 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Estimating Prevalence from the Results of a Screening Test (Rogan and Gladen, Am J Epidemiol 107:71-76)", doi = "10.1093/oxfordjournals.aje.a112510", sections = ["Estimator and variance"] },
- { title = "Measurement Error in Nonlinear Models: A Modern Perspective (2nd ed.)", doi = "10.1201/9781420010138", sections = ["Ch. 3 Linear regression and attenuation", "Ch. 4 Regression calibration"] },
+ { title = "ESTIMATING PREVALENCE FROM THE RESULTS OF A SCREENING TEST", citation_note = "Previously recorded title and bibliographic detail: Estimating Prevalence from the Results of a Screening Test (Rogan and Gladen, Am J Epidemiol 107:71-76)", doi = "10.1093/oxfordjournals.aje.a112510", sections = ["Estimator and variance"] },
+ { title = "Measurement Error in Nonlinear Models", citation_note = "Previously recorded title and bibliographic detail: Measurement Error in Nonlinear Models: A Modern Perspective (2nd ed.)", doi = "10.1201/9781420010138", sections = ["Ch. 3 Linear regression and attenuation", "Ch. 4 Regression calibration"] },
 ]
 
 implementation_deviations = [
  "Rogan and Gladen give the variance for known rates; the extension adding Var(Se) and Var(Sp) is a first-order delta method derived in-repo, with shared rates keeping the arm covariance.",
  "Corrected proportions are reported unclipped to [0,1] and flagged.",
- "Only outcome misclassification; exposure misclassification is a closed adjacent route.",
- "No interval; coverage is unmeasured.",
+ "Only outcome misclassification; a misclassified exposure is corrected by its own entry points (correct_exposure_misclassification).",
+ "No interval; coverage is not measured.",
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-stats/tests/measurement_correction_reference.rs (exact-rational binary corrections and 60-digit analytic-Jacobian categorical corrections)",
  "closed-form attenuation and misclassification algebra",
  "independently simulated seeded DGPs with known coefficients",
  "hand-computed one-way ANOVA and confusion-matrix inversion",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "BinaryErrorRates, corrected_prevalence, corrected_risk_difference_nondifferential and corrected_risk_difference_differential in crates/antecedent-stats/src/measurement_error.rs: the Rogan-Gladen inversion pi = (p* + Sp - 1)/(Se + Sp - 1), the delta-method variance split into the sampling part Var(p*)/J^2 and the rate part ((1 - pi)^2 Var(Sp) + pi^2 Var(Se))/J^2, the shared-rate risk difference (p1* - p0*)/J with variance RD^2 (Var(Se) + Var(Sp))/J^2 that keeps the arm covariance, the per-arm independent-rate difference, the binomial rate variances of from_validation_counts, the Youden-index refusal and the outside-the-unit-interval flag. Not the classical continuous-error route (the Carroll et al. attenuation and regression calibration sections of this record belong to measurement.classical_continuous_error), exposure misclassification (closed), or the estimator layer that supports a correction. Classification correction definitions moved to measurement_error/classification.rs and bound items were compared unchanged apart from formatting."
+assumptions = ["Outcome misclassification with known or independently estimated sensitivity and specificity; the observed proportion is binomial and the rate estimates are independent of it.", "Rogan and Gladen give the variance for known rates; the variance with estimated rates is a first-order delta method derived in the repository, with partial derivatives d pi/d p* = 1/J, d pi/d Sp = (1 - pi)/J and d pi/d Se = -pi/J.", "Corrected proportions are reported unclipped and flagged when they leave [0, 1]."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the stated definitions, derivatives derived by hand, in exact rational arithmetic and at 60 digits (mpmath); no upstream implementation was consulted. The cited sources were not retrieved."
+redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited sources are linked, not redistributed."
+limitations = "The Rogan and Gladen paper was not retrieved (nothing downloaded, no local copy); the check is of the code against the stated inversion and a hand derivation of the delta method. The comparison covers eight prevalence cases (counts of zero and all, a perfect test, a Youden index of 0.15, validation counts from 1 to 5000, rare events), four shared-rate and two per-arm risk differences, at 1e-12 relative in exact rationals. The delta-method variance is first order: it is not shown to approximate the sampling variance of the estimator, which degrades as the Youden index approaches zero, and no interval or coverage is claimed or measured. Differential correction assumes the two arms' validation samples are independent."
+sources = ["https://doi.org/10.1093/oxfordjournals.aje.a112510", "https://doi.org/10.1201/9781420010138", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No defect found: the corrected values, the sampling and rate variance components, the shared-rate arm covariance (the rate part of the difference is RD^2 (Var(Se) + Var(Sp))/J^2, not a sum over arms), the per-arm sums and the unit-interval flag agree with the exact rational computation on every case.", "A two-category categorical correction reproduces the binary prevalence and its variance (corrected proportion to 1e-13, variance to 1e-12), tying the two routes together."]
+record_sha256 = "d5fbc3875067a724fbd2d14ee3268c97699217f5de6b9d92700375dfcac38095"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/measurement_error.rs"
+items = ["enum MeasurementErrorError", "fn matvec"]
+sha256 = "ef1c3ef5c606e4adc0a5c92addedf455130e81d259fc3f00d7098fcc19394328"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/measurement_error/classification.rs"
+items = ["fn category_outcome_means", "fn check_count", "fn column_counts", "fn congruence", "fn corrected_categories", "fn corrected_prevalence", "fn corrected_risk_difference_differential", "fn corrected_risk_difference_nondifferential", "fn from_validation_counts", "fn levels", "fn matrix", "fn new", "fn one_norm", "fn require_youden", "fn youden", "struct BinaryErrorRates", "struct ConfusionMatrix", "struct CorrectedCategorical", "struct CorrectedProportion", "struct CorrectedRiskDifference", "struct ObservedClassSummary", "struct TwoByTwoCounts"]
+sha256 = "caf7a5dc4c04f0705c127283e5d8a8e4c89de072bff2c6c829aebaeb9ec02a46"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/measurement_correction_reference.rs"
+items = ["fn categorical_corrections_match_the_analytic_delta_method", "fn categorical_inputs", "fn close", "fn corrected_prevalence_matches_exact_rational_arithmetic", "fn number", "fn numbers", "fn rates", "fn reference", "fn risk_differences_match_exact_rational_arithmetic", "fn two_categories_reproduce_the_binary_correction"]
+sha256 = "bb17cf370380b0dc49a0e853eecf1343ea7b19be4a8b9367b33ad12f50eb1bfb"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/measurement_correction_reference.py"
+sha256 = "7a8fdeeb6208d5d70e6a7a25235024e0301e4bc284895e79009a57368081d2ec"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/measurement_correction_reference.json"
+sha256 = "11dadcf2116c5e439ce7c1e0242ca2c2891011656879ea8bd9f6e4a57cace3f1"

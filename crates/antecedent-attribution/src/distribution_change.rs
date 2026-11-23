@@ -4,7 +4,7 @@
 //! change in the outcome marginal to mechanism replacements via Shapley values
 //! (Budhathoki et al. 2021).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -24,7 +24,7 @@ use crate::change_common::{
     ChangeAllocation, ChangeOptions, DISTRIBUTION_STREAM, run_change_allocation,
     sample_outcome_law, stream_tag, total_change,
 };
-use crate::coalition::full_coalition_mask;
+use crate::coalition::{Coalition, full_coalition_mask};
 use crate::error::AttributionError;
 use crate::prep::{require_mechanism_or_joint, resolve_change_populations, resolve_outcome_dense};
 use crate::result::ChangeAttributionResult;
@@ -37,7 +37,7 @@ pub use crate::change_common::DifferenceMeasure;
 pub struct DistributionChangeOptions {
     /// Difference measure on the outcome samples.
     pub measure: DifferenceMeasure,
-    /// Samples drawn per coalition evaluation.
+    /// Draws per coalition: at least one for means, two for variance or Gaussian KL.
     pub n_samples: usize,
     /// RNG seed for sampling.
     pub seed: u64,
@@ -66,6 +66,7 @@ pub fn distribution_change(
     options: &DistributionChangeOptions,
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, AttributionError> {
+    crate::change_common::validate_change_sample_count(options.measure, options.n_samples)?;
     validate_distribution_change_query(query)?;
     let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;
     distribution_change_on_populations(
@@ -78,7 +79,7 @@ pub fn distribution_change(
     )
 }
 
-fn validate_distribution_change_query(
+pub(crate) fn validate_distribution_change_query(
     query: &ChangeAttributionQuery,
 ) -> Result<(), AttributionError> {
     query.validate()?;
@@ -126,6 +127,7 @@ pub(crate) fn distribution_change_with_fit_uncertainty(
             "fit-uncertainty bootstrap needs >= 2 replicates and a level in (0, 1)",
         ));
     }
+    crate::change_common::validate_change_sample_count(options.measure, options.n_samples)?;
     validate_distribution_change_query(query)?;
     let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;
     let mut point = distribution_change_on_populations(
@@ -153,7 +155,10 @@ pub(crate) fn distribution_change_with_fit_uncertainty(
         if worker.cancellation.is_cancelled() {
             return Err(AttributionError::Cancelled);
         }
-        let mut rng = worker.rng.stream_for(StreamDomain::Attribution, 0xB007_5712 ^ b as u64);
+        let mut rng = worker.rng.stream_for(
+            StreamDomain::Attribution,
+            antecedent_core::derive_stream(0xB007_5712, b as u64),
+        );
         let refit = resample(&baseline_data, &mut rng).and_then(|base| {
             let cmp = resample(&comparison_data, &mut rng)?;
             distribution_change_on_populations(graph_model, &base, &cmp, query, options, worker)
@@ -197,6 +202,111 @@ pub(crate) fn distribution_change_with_fit_uncertainty(
         total_interval,
     });
     Ok(point)
+}
+
+/// Row weights for refitting both populations of a change attribution with the mechanism
+/// families held at the ones selected on the unweighted populations.
+#[derive(Clone, Copy, Debug)]
+pub enum PopulationRefit<'a> {
+    /// One continuous (Dirichlet) weight vector per population: the Bayesian bootstrap.
+    RowWeights {
+        /// Weights of the resolved baseline rows.
+        baseline: &'a [f64],
+        /// Weights of the resolved comparison rows.
+        comparison: &'a [f64],
+    },
+    /// One vector of bootstrap counts per population: the multinomial or block bootstrap.
+    Counts {
+        /// Counts of the resolved baseline rows.
+        baseline: &'a [f64],
+        /// Counts of the resolved comparison rows.
+        comparison: &'a [f64],
+    },
+}
+
+impl PopulationRefit<'_> {
+    fn parts(&self) -> (&[f64], &[f64], bool) {
+        match self {
+            Self::RowWeights { baseline, comparison } => (baseline, comparison, false),
+            Self::Counts { baseline, comparison } => (baseline, comparison, true),
+        }
+    }
+
+    /// Weights of the baseline population.
+    pub(crate) fn baseline(&self) -> &[f64] {
+        self.parts().0
+    }
+
+    /// Weights of the comparison population.
+    pub(crate) fn comparison(&self) -> &[f64] {
+        self.parts().1
+    }
+
+    /// Whether the weights are counts (zero allowed) rather than positive row weights.
+    pub(crate) fn is_counts(&self) -> bool {
+        self.parts().2
+    }
+}
+
+/// Refit `model` on `data` under `weights`, holding the selected `assignments`.
+pub(crate) fn refit_under_weights(
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    assignments: &[antecedent_model::MechanismAssignment],
+    weights: &[f64],
+    counts: bool,
+    ctx: &ExecutionContext,
+) -> Result<CompiledMechanismStore, AttributionError> {
+    let registry = MechanismRegistry::standard();
+    Ok(if counts {
+        registry.refit_frequency_weighted_polled(model, data, assignments, weights, &|| {
+            ctx.cancellation.is_cancelled()
+        })?
+    } else {
+        registry.refit_weighted_polled(model, data, assignments, weights, &|| {
+            ctx.cancellation.is_cancelled()
+        })?
+    })
+}
+
+/// The mechanisms of both populations refit under `refit`, families held at the ones selected
+/// on the unweighted populations.
+pub(crate) fn refit_populations(
+    graph_model: &CompiledCausalModel,
+    baseline_data: &TabularData,
+    comparison_data: &TabularData,
+    refit: &PopulationRefit<'_>,
+    ctx: &ExecutionContext,
+) -> Result<(CompiledMechanismStore, CompiledMechanismStore), AttributionError> {
+    if refit.baseline().len() != baseline_data.row_count()
+        || refit.comparison().len() != comparison_data.row_count()
+    {
+        return Err(AttributionError::invalid_input(
+            "attribution refit weights must match resolved population sizes",
+        ));
+    }
+    let registry = MechanismRegistry::standard();
+    let (_, baseline_assignments) =
+        registry.assign_and_fit(graph_model, baseline_data, SelectionPolicy::BestScore)?;
+    let (_, comparison_assignments) =
+        registry.assign_and_fit(graph_model, comparison_data, SelectionPolicy::BestScore)?;
+    let baseline = refit_under_weights(
+        graph_model,
+        baseline_data,
+        &baseline_assignments,
+        refit.baseline(),
+        refit.is_counts(),
+        ctx,
+    )?;
+    let comparison = refit_under_weights(
+        graph_model,
+        comparison_data,
+        &comparison_assignments,
+        refit.comparison(),
+        refit.is_counts(),
+        ctx,
+    )?;
+    Ok((baseline, comparison))
 }
 
 fn distribution_change_on_populations(
@@ -246,6 +356,7 @@ pub fn distribution_change_with_row_weights(
     comparison_weights: &[f64],
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, AttributionError> {
+    crate::change_common::validate_change_sample_count(options.measure, options.n_samples)?;
     validate_distribution_change_query(query)?;
     let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;
     if baseline_weights.len() != baseline_data.row_count()
@@ -271,6 +382,56 @@ pub fn distribution_change_with_row_weights(
         &comparison_data,
         &comparison_assignments,
         comparison_weights,
+    )?;
+    distribution_change_with_mechanisms(graph_model, baseline, comparison, query, options, ctx)
+}
+
+/// Evaluate a mechanism attribution after refitting both populations under
+/// frequency weights (multinomial bootstrap counts). A count of zero drops that row
+/// from the refit. Mechanism families are selected once on the unweighted
+/// populations and held fixed, as on the Bayesian-bootstrap path.
+///
+/// # Errors
+/// Counts of the wrong length, negative or all zero, incompatible selected
+/// mechanisms, cancellation, or attribution failures.
+pub fn distribution_change_with_frequency_weights(
+    graph_model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &ChangeAttributionQuery,
+    options: &DistributionChangeOptions,
+    baseline_counts: &[f64],
+    comparison_counts: &[f64],
+    ctx: &ExecutionContext,
+) -> Result<ChangeAttributionResult, AttributionError> {
+    crate::change_common::validate_change_sample_count(options.measure, options.n_samples)?;
+    validate_distribution_change_query(query)?;
+    let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;
+    if baseline_counts.len() != baseline_data.row_count()
+        || comparison_counts.len() != comparison_data.row_count()
+    {
+        return Err(AttributionError::invalid_input(
+            "bootstrap attribution counts must match resolved population sizes",
+        ));
+    }
+    let registry = MechanismRegistry::standard();
+    let (_, baseline_assignments) =
+        registry.assign_and_fit(graph_model, &baseline_data, SelectionPolicy::BestScore)?;
+    let (_, comparison_assignments) =
+        registry.assign_and_fit(graph_model, &comparison_data, SelectionPolicy::BestScore)?;
+    let cancelled = || ctx.cancellation.is_cancelled();
+    let baseline = registry.refit_frequency_weighted_polled(
+        graph_model,
+        &baseline_data,
+        &baseline_assignments,
+        baseline_counts,
+        &cancelled,
+    )?;
+    let comparison = registry.refit_frequency_weighted_polled(
+        graph_model,
+        &comparison_data,
+        &comparison_assignments,
+        comparison_counts,
+        &cancelled,
     )?;
     distribution_change_with_mechanisms(graph_model, baseline, comparison, query, options, ctx)
 }
@@ -312,7 +473,7 @@ fn distribution_change_with_mechanisms(
         comparison: comparison_mechs,
         player_kinds,
         player_dense,
-        scratch_mask: 0,
+        scratch: Coalition::empty(),
         outcome: outcome_dense,
         measure: options.measure,
         n_samples: options.n_samples,
@@ -321,11 +482,12 @@ fn distribution_change_with_mechanisms(
         ws: MechanismWorkspace::default(),
         values_buf: Vec::new(),
         baseline_law: None,
+        law_memo: crate::change_common::LawMemo::default(),
     };
 
-    let v0 = payoff.value(0)?;
+    let v0 = payoff.value(&Coalition::empty())?;
     let full_mask = full_coalition_mask(players.len())?;
-    let v_full = payoff.value(full_mask)?;
+    let v_full = payoff.value(&full_mask)?;
     let total = total_change(options.measure, v0, v_full);
 
     let request = ChangeAllocation {
@@ -404,17 +566,16 @@ pub(crate) fn joint_players(
         AttributionComponents::Inputs
             | AttributionComponents::InputsAndMechanisms
             | AttributionComponents::All
-    ) {
-        if let Some(gather) = model.gather_for(outcome) {
-            for &p in gather.parents.iter() {
-                let var = model.output_layout.variables[p.as_usize()];
-                let comp = ComponentId::from_variable(var);
-                if let Some(idx) = players.iter().position(|&c| c == comp) {
-                    kinds[idx] = PlayerKind::Both;
-                } else {
-                    players.push(comp);
-                    kinds.push(PlayerKind::Input);
-                }
+    ) && let Some(gather) = model.gather_for(outcome)
+    {
+        for &p in gather.parents.iter() {
+            let var = model.output_layout.variables[p.as_usize()];
+            let comp = ComponentId::from_variable(var);
+            if let Some(idx) = players.iter().position(|&c| c == comp) {
+                kinds[idx] = PlayerKind::Both;
+            } else {
+                players.push(comp);
+                kinds.push(PlayerKind::Input);
             }
         }
     }
@@ -430,7 +591,7 @@ pub(crate) fn joint_players(
 }
 
 struct MechanismSwapPayoff<'a> {
-    /// Hybrid model whose slots reflect `scratch_mask`: baseline slots everywhere except
+    /// Hybrid model whose slots reflect `scratch`: baseline slots everywhere except
     /// comparison slots for set mechanism-player bits.
     hybrid: CompiledCausalModel,
     baseline: CompiledMechanismStore,
@@ -438,8 +599,8 @@ struct MechanismSwapPayoff<'a> {
     player_kinds: Vec<PlayerKind>,
     /// Dense node per player, hoisted at construction.
     player_dense: Vec<Option<DenseNodeId>>,
-    /// Mask currently applied to `hybrid`.
-    scratch_mask: u64,
+    /// Coalition currently applied to `hybrid`.
+    scratch: Coalition,
     outcome: DenseNodeId,
     measure: DifferenceMeasure,
     n_samples: usize,
@@ -450,9 +611,15 @@ struct MechanismSwapPayoff<'a> {
     values_buf: Vec<f64>,
     /// Cached `(μ₀, σ₀²)` of the all-baseline outcome law for KL payoffs.
     baseline_law: Option<(f64, f64)>,
+    /// Outcome laws computed so far, by coalition.
+    law_memo: crate::change_common::LawMemo,
 }
 
 impl crate::change_common::CachedOutcomeLawPayoff for MechanismSwapPayoff<'_> {
+    fn law_memo(&mut self) -> &mut crate::change_common::LawMemo {
+        &mut self.law_memo
+    }
+
     fn measure(&self) -> DifferenceMeasure {
         self.measure
     }
@@ -465,14 +632,14 @@ impl crate::change_common::CachedOutcomeLawPayoff for MechanismSwapPayoff<'_> {
         self.baseline_law = Some(law);
     }
 
-    fn law_at(&mut self, mask: u64) -> Result<(f64, f64), AttributionError> {
-        self.sample_outcome_law(mask)
+    fn law_at(&mut self, coalition: &Coalition) -> Result<(f64, f64), AttributionError> {
+        self.sample_outcome_law(coalition)
     }
 }
 
 impl CoalitionPayoff for MechanismSwapPayoff<'_> {
-    fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
-        crate::change_common::CachedOutcomeLawPayoff::cached_payoff_value(self, mask)
+    fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
+        crate::change_common::CachedOutcomeLawPayoff::cached_payoff_value(self, coalition)
     }
 
     fn fork<'a>(&'a self) -> Option<Box<dyn CoalitionPayoff + Send + 'a>> {
@@ -482,7 +649,7 @@ impl CoalitionPayoff for MechanismSwapPayoff<'_> {
             comparison: self.comparison.clone(),
             player_kinds: self.player_kinds.clone(),
             player_dense: self.player_dense.clone(),
-            scratch_mask: self.scratch_mask,
+            scratch: self.scratch.clone(),
             outcome: self.outcome,
             measure: self.measure,
             n_samples: self.n_samples,
@@ -491,12 +658,13 @@ impl CoalitionPayoff for MechanismSwapPayoff<'_> {
             ws: MechanismWorkspace::default(),
             values_buf: Vec::new(),
             baseline_law: self.baseline_law,
+            law_memo: crate::change_common::LawMemo::default(),
         }))
     }
 }
 
 impl MechanismSwapPayoff<'_> {
-    /// Outcome law under the hybrid model selected by `mask`.
+    /// Outcome law under the hybrid model selected by `coalition`.
     ///
     /// A coalition bit means "use this player's comparison-fitted mechanism"; everything
     /// else stays at baseline. That mechanism swap is the *only* lever, and deliberately so.
@@ -508,24 +676,27 @@ impl MechanismSwapPayoff<'_> {
     /// distribution collapsed to a point mass, so a regime difference that preserved the
     /// mean — a variance shift, a shape change — produced identical coalition values and was
     /// attributed exactly zero.
-    fn sample_outcome_law(&mut self, mask: u64) -> Result<(f64, f64), AttributionError> {
+    fn sample_outcome_law(
+        &mut self,
+        coalition: &Coalition,
+    ) -> Result<(f64, f64), AttributionError> {
         // Patch the hybrid's slot array incrementally: only bits that changed since the
         // previous mask are touched (restore to baseline on clear, swap in the comparison
         // slot on set). `Input`-kind players never swap slots; the resulting store is
         // value-identical to rebuilding the full hybrid from baseline for every coalition.
-        let diff = mask ^ self.scratch_mask;
-        if diff != 0 {
+        let changed = coalition.symmetric_difference(&self.scratch);
+        if !changed.is_empty() {
             let slots = unique_slots(&mut self.hybrid.mechanisms.slots);
-            for (i, dense) in self.player_dense.iter().enumerate() {
-                if diff & (1u64 << i) == 0 || matches!(self.player_kinds[i], PlayerKind::Input) {
+            for i in changed {
+                if matches!(self.player_kinds[i], PlayerKind::Input) {
                     continue;
                 }
-                let Some(d) = dense else { continue };
+                let Some(d) = self.player_dense[i] else { continue };
                 let idx = d.as_usize();
-                let src = if mask & (1u64 << i) != 0 { &self.comparison } else { &self.baseline };
+                let src = if coalition.contains(i) { &self.comparison } else { &self.baseline };
                 slots[idx] = src.slots[idx].clone();
             }
-            self.scratch_mask = mask;
+            self.scratch = coalition.clone();
         }
         sample_outcome_law(
             &self.hybrid,
@@ -676,6 +847,61 @@ mod tests {
         (model, data)
     }
 
+    #[test]
+    fn sampled_distribution_counts_follow_the_measure() {
+        let (model, data) = two_period_chain_with_noise();
+        let query = ChangeAttributionQuery::new(
+            VariableId::from_raw(1),
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+        )
+        .with_allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() });
+        let ctx = ExecutionContext::for_tests(1);
+        let opts = |measure, n_samples| DistributionChangeOptions { measure, n_samples, seed: 3 };
+        for measure in [
+            DifferenceMeasure::MeanDiff,
+            DifferenceMeasure::VarianceDiff,
+            DifferenceMeasure::GaussianKl,
+        ] {
+            assert!(matches!(
+                distribution_change(&model, &data, &query, &opts(measure, 0), &ctx),
+                Err(AttributionError::InvalidInput { .. })
+            ));
+            assert!(matches!(
+                crate::latent_blocks::distribution_change_blocks(
+                    &model,
+                    &data,
+                    &query,
+                    &opts(measure, 0),
+                    &[],
+                    None,
+                    &ctx
+                ),
+                Err(AttributionError::InvalidInput { .. })
+            ));
+        }
+        assert!(
+            distribution_change(&model, &data, &query, &opts(DifferenceMeasure::MeanDiff, 1), &ctx)
+                .is_ok()
+        );
+        for measure in [DifferenceMeasure::VarianceDiff, DifferenceMeasure::GaussianKl] {
+            assert!(matches!(
+                distribution_change(&model, &data, &query, &opts(measure, 1), &ctx),
+                Err(AttributionError::InvalidInput { .. })
+            ));
+        }
+        assert!(
+            distribution_change(
+                &model,
+                &data,
+                &query,
+                &opts(DifferenceMeasure::VarianceDiff, 2),
+                &ctx
+            )
+            .is_ok()
+        );
+    }
+
     /// The row bootstrap reports estimation uncertainty the permutation-sampling standard error
     /// cannot: exact Shapley has none of the latter (`stderr` is `None`), yet refitting on
     /// resampled 40-row populations moves the contributions.
@@ -756,6 +982,7 @@ mod tests {
         struct Case {
             id: String,
             total_change: f64,
+            component_contributions: std::collections::BTreeMap<String, f64>,
         }
         #[derive(Deserialize)]
         struct Comparison {
@@ -805,6 +1032,19 @@ mod tests {
             y_contrib.contribution,
             x_contrib,
             result.contributions
+        );
+        // The fixture's exact mechanism-Shapley values: the whole shift belongs to y, none to x.
+        let tolerance = fixture.comparison.sampled_absolute_tolerance;
+        assert!(
+            (y_contrib.contribution - expected.component_contributions["y"]).abs() <= tolerance,
+            "y contribution {} vs fixture {}",
+            y_contrib.contribution,
+            expected.component_contributions["y"]
+        );
+        assert!(
+            (x_contrib - expected.component_contributions["x"]).abs() <= tolerance,
+            "x contribution {x_contrib} vs fixture {}",
+            expected.component_contributions["x"]
         );
         // Exact Shapley efficiency is an algebraic identity of the cached telescoping sum
         // (every coalition value is deterministic under CRN), so no Monte Carlo slack.
@@ -887,20 +1127,35 @@ mod tests {
     fn measure_value_gaussian_kl_matches_closed_form() {
         // KL(N(2,3) ‖ N(0,1)) = 0.5 * (ln(1/3) + (3 + (2-0)^2)/1 - 1)
         let expected = 0.5_f64 * ((1.0_f64 / 3.0).ln() + 7.0 - 1.0);
-        let got =
-            measure_value(DifferenceMeasure::GaussianKl, 1, 2.0, 3.0, Some((0.0, 1.0))).unwrap();
+        let got = measure_value(
+            DifferenceMeasure::GaussianKl,
+            &Coalition::from_bits(1),
+            2.0,
+            3.0,
+            Some((0.0, 1.0)),
+        )
+        .unwrap();
         assert!((got - expected).abs() < 1e-12, "got={got} expected={expected}");
 
         // The all-baseline coalition (mask == 0) is defined as exactly zero
         // divergence, regardless of the sampled (mu, var) passed in — matching
         // `v(∅) == 0` used by the efficiency identity above.
-        let empty =
-            measure_value(DifferenceMeasure::GaussianKl, 0, 2.0, 3.0, Some((0.0, 1.0))).unwrap();
+        let empty = measure_value(
+            DifferenceMeasure::GaussianKl,
+            &Coalition::empty(),
+            2.0,
+            3.0,
+            Some((0.0, 1.0)),
+        )
+        .unwrap();
         assert!(empty.abs() < f64::EPSILON, "expected exact 0.0, got {empty}");
 
         // Missing cached baseline law with a non-empty mask is a hard error, not a
         // silent 0.0 — the payoff must have cached v(∅) first.
-        assert!(measure_value(DifferenceMeasure::GaussianKl, 1, 2.0, 3.0, None).is_err());
+        assert!(
+            measure_value(DifferenceMeasure::GaussianKl, &Coalition::from_bits(1), 2.0, 3.0, None)
+                .is_err()
+        );
     }
 
     #[test]

@@ -1,9 +1,10 @@
-//! Public lifecycle evidence for the two licensed explicit-DAG interference routes.
+//! Public lifecycle evidence for the two supported explicit-DAG interference routes.
 #![allow(clippy::float_cmp, reason = "integration test asserts exact deterministic estimates")]
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     BayesianConfig, EstimatorId, IdentifierId, InferenceMode, InterferenceSpec, RefuteSuite,
     StructureSource, Study,
@@ -14,7 +15,7 @@ use antecedent_core::{
 };
 use antecedent_data::{NetworkData, NetworkEdge, TableView, TabularData};
 use antecedent_graph::Dag;
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 fn query() -> InterferenceQuery {
     InterferenceQuery::new(
@@ -52,8 +53,16 @@ fn cluster_partial_interference_total_effect_passes_public_prepare_estimate_arti
         .flat_map(|cluster| {
             let first = cluster * 2;
             [
-                NetworkEdge { from: first, to: first + 1, weight: 1.0 },
-                NetworkEdge { from: first + 1, to: first, weight: 1.0 },
+                NetworkEdge::new(
+                    u64::try_from(first).expect("row id"),
+                    u64::try_from(first + 1).expect("row id"),
+                    1.0,
+                ),
+                NetworkEdge::new(
+                    u64::try_from(first + 1).expect("row id"),
+                    u64::try_from(first).expect("row id"),
+                    1.0,
+                ),
             ]
         })
         .collect::<Vec<_>>();
@@ -71,25 +80,26 @@ fn cluster_partial_interference_total_effect_passes_public_prepare_estimate_arti
     let ctx = ExecutionContext::for_tests(6194);
     let direct = study.run(&ctx).unwrap();
     let prepared = study.prepare(&ctx).unwrap();
-    assert_eq!(prepared.checked_interference_info().unwrap().query, cluster_query());
-    assert_eq!(
-        prepared.checked_interference_info().unwrap().estimator,
-        EstimatorId::InterferenceClusterNeyman
-    );
+    let RetainedOperation::Interference(info) = prepared.retained_operation() else {
+        panic!("prepared cluster interference operation")
+    };
+    assert_eq!(info.query, cluster_query());
+    assert_eq!(info.estimator, EstimatorId::InterferenceClusterNeyman);
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert!(
-        (direct.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate).abs()
+        (direct.estimate().as_effect().unwrap().ate - result.estimate().as_effect().unwrap().ate)
+            .abs()
             < 1e-12
     );
-    assert_eq!(direct.support_status, result.support_status);
-    assert_eq!(result.support_status, None);
-    assert!((result.estimate.as_effect().unwrap().ate - 3.0).abs() < 1e-12);
-    assert!((result.estimate.as_effect().unwrap().se_analytic() - 2.0_f64.sqrt()).abs() < 1e-12);
-    assert!(result.estimate.as_effect().unwrap().family.simultaneous_interval.is_none());
+    assert_eq!(direct.support_status(), result.support_status());
+    assert_eq!(result.support_status(), None);
+    assert!((result.estimate().as_effect().unwrap().ate - 3.0).abs() < 1e-12);
+    assert!((result.estimate().as_effect().unwrap().se_analytic() - 2.0_f64.sqrt()).abs() < 1e-12);
+    assert!(result.estimate().as_effect().unwrap().family.simultaneous_interval.is_none());
     assert_eq!(result.interference().unwrap().minimum_exposure_probability, 0.5);
     let artifact =
         prepared.encode_contracted_result(&result, "cluster-total-effect", &ctx).unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     assert!(
         consumed
             .acceptance
@@ -120,10 +130,12 @@ fn design_fixture() -> (TabularData, Vec<bool>, Vec<NetworkEdge>, serde_json::Va
         .as_array()
         .unwrap()
         .iter()
-        .map(|edge| NetworkEdge {
-            from: u32::try_from(edge[0].as_u64().unwrap()).expect("node id fits u32"),
-            to: u32::try_from(edge[1].as_u64().unwrap()).expect("node id fits u32"),
-            weight: edge[2].as_f64().unwrap(),
+        .map(|edge| {
+            NetworkEdge::new(
+                edge[0].as_u64().expect("edge endpoint"),
+                edge[1].as_u64().expect("edge endpoint"),
+                edge[2].as_f64().unwrap(),
+            )
         })
         .collect();
     (
@@ -155,10 +167,12 @@ fn bayesian_fixture() -> (TabularData, Vec<bool>, Vec<NetworkEdge>, serde_json::
         .as_array()
         .unwrap()
         .iter()
-        .map(|edge| NetworkEdge {
-            from: u32::try_from(edge[0].as_u64().unwrap()).expect("node id fits u32"),
-            to: u32::try_from(edge[1].as_u64().unwrap()).expect("node id fits u32"),
-            weight: 1.0,
+        .map(|edge| {
+            NetworkEdge::new(
+                edge[0].as_u64().expect("edge endpoint"),
+                edge[1].as_u64().expect("edge endpoint"),
+                1.0,
+            )
         })
         .collect();
     (
@@ -207,8 +221,9 @@ fn bernoulli_neighbor_count_design_route_is_sealed_refreshable_and_artifact_scop
     let mut prepared = builder.prepare(&context).unwrap();
     drop(builder);
 
-    let plan =
-        prepared.checked_interference_info().expect("prepared design-based interference operation");
+    let RetainedOperation::Interference(plan) = prepared.retained_operation() else {
+        panic!("prepared design-based interference operation")
+    };
     assert_eq!(prepared.structure_source(), StructureSource::Explicit);
     assert_eq!(plan.query, query());
     assert_eq!(plan.identifier, IdentifierId::InterferenceDesign);
@@ -217,7 +232,7 @@ fn bernoulli_neighbor_count_design_route_is_sealed_refreshable_and_artifact_scop
     assert_eq!(plan.network_edge_count, 2);
 
     let result = prepared.estimate(&data, &context).unwrap();
-    assert_eq!(result.support_status, Some(antecedent::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::CellStatus::Supported));
     let estimated = result.interference().expect("design-based contrast");
     let truth = &fixture["expected"];
     let tolerance = fixture["tolerance"]["atol"].as_f64().unwrap();
@@ -240,33 +255,66 @@ fn bernoulli_neighbor_count_design_route_is_sealed_refreshable_and_artifact_scop
     let artifact = prepared
         .encode_contracted_result(&result, "checked-interference-design", &context)
         .unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     assert!(consumed.acceptance.unresolved.iter().any(|dependency| {
         dependency.as_ref() == "dependencies.checked_interference_operation"
     }));
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 
     let shifted = shifted_outcomes(&data, 0.5);
-    let refreshed = prepared.refresh(shifted, &context).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, shifted, &context).unwrap();
     assert!(
         (refreshed.interference().unwrap().contrast.horvitz_thompson
             - estimated.contrast.horvitz_thompson)
             .abs()
             <= tolerance
     );
-    assert_eq!(prepared.checked_interference_info().unwrap().network_edge_count, 2);
+    let RetainedOperation::Interference(retained) = prepared.retained_operation() else {
+        panic!("refreshed interference operation")
+    };
+    assert_eq!(retained.network_edge_count, 2);
     let refreshed_artifact = prepared
         .encode_contracted_result(&refreshed, "checked-interference-design-refresh", &context)
         .unwrap();
     assert!(
-        consume_analysis_result(&refreshed_artifact)
+        replay_analysis_result(&refreshed_artifact)
             .unwrap()
             .acceptance
             .unresolved
             .iter()
             .any(|dependency| dependency.as_ref() == "dependencies.checked_interference_operation")
     );
-    assert!(prepared.refresh(wrong_unit_count(), &context).is_err());
+    let refused = rebind_estimate(&mut prepared, wrong_unit_count(), &context).unwrap_err();
+    assert!(
+        refused.to_string().contains("network, assignment, and unit table row counts must match"),
+        "{refused}"
+    );
+}
+
+#[test]
+fn a_replacement_for_other_units_of_the_same_count_is_refused_by_the_network_identity() {
+    let (data, assignment, edges, _) = design_fixture();
+    let units = antecedent_data::UnitKey::from_row_labels(["north", "south"]).unwrap();
+    let keyed = data.clone().with_unit_key(units.clone()).unwrap();
+    let builder = build(keyed.clone(), assignment, edges, false);
+    let context = ExecutionContext::for_tests(6193);
+    let mut prepared = builder.prepare(&context).unwrap();
+
+    let same_units = shifted_outcomes(&data, 0.5).with_unit_key(units).unwrap();
+    rebind_estimate(&mut prepared, same_units, &context).unwrap();
+
+    let swapped = antecedent_data::UnitKey::from_row_labels(["south", "north"]).unwrap();
+    let other_order = shifted_outcomes(&data, 0.5).with_unit_key(swapped).unwrap();
+    let refused = rebind_estimate(&mut prepared, other_order, &context).unwrap_err();
+    assert!(refused.to_string().contains("other units than the declared network"), "{refused}");
+
+    let renamed = antecedent_data::UnitKey::from_row_labels(["east", "west"]).unwrap();
+    let other_units = shifted_outcomes(&data, 0.5).with_unit_key(renamed).unwrap();
+    let refused = rebind_estimate(&mut prepared, other_units, &context).unwrap_err();
+    assert!(refused.to_string().contains("other units than the declared network"), "{refused}");
+
+    rebind_estimate(&mut prepared, shifted_outcomes(&data, 1.0), &context)
+        .expect("an unkeyed replacement inherits the declared units");
 }
 
 #[test]
@@ -277,8 +325,9 @@ fn conjugate_gaussian_interference_route_is_sealed_refreshable_and_artifact_scop
     let mut prepared = builder.prepare(&context).unwrap();
     drop(builder);
 
-    let plan =
-        prepared.checked_interference_info().expect("prepared Bayesian interference operation");
+    let RetainedOperation::Interference(plan) = prepared.retained_operation() else {
+        panic!("prepared Bayesian interference operation")
+    };
     assert_eq!(prepared.structure_source(), StructureSource::Explicit);
     assert_eq!(plan.query, query());
     assert_eq!(plan.identifier, IdentifierId::InterferenceDesign);
@@ -287,14 +336,14 @@ fn conjugate_gaussian_interference_route_is_sealed_refreshable_and_artifact_scop
     assert_eq!(plan.network_edge_count, 4);
 
     let result = prepared.estimate(&data, &context).unwrap();
-    assert_eq!(result.support_status, Some(antecedent::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::CellStatus::Supported));
     assert_eq!(
         result.identification.status,
         antecedent_core::IdentificationStatus::IdentifiedUnderParametricRestrictions
     );
     let truth = fixture["expected_contrast"].as_f64().unwrap();
     let tolerance = fixture["tolerance"].as_f64().unwrap();
-    assert!((result.estimate.as_effect().unwrap().ate - truth).abs() < tolerance);
+    assert!((result.estimate().as_effect().unwrap().ate - truth).abs() < tolerance);
     assert_eq!(result.posterior.as_ref().unwrap().draws.n_draws, 20_000);
     assert!(result.posterior.as_ref().unwrap().assumptions.entries.iter().any(|record| {
         matches!(&record.assumption, antecedent_core::Assumption::ParametricRestriction(item)
@@ -304,29 +353,115 @@ fn conjugate_gaussian_interference_route_is_sealed_refreshable_and_artifact_scop
     let artifact = prepared
         .encode_contracted_result(&result, "checked-interference-bayesian", &context)
         .unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     assert!(consumed.acceptance.unresolved.iter().any(|dependency| {
         dependency.as_ref() == "dependencies.checked_interference_operation"
     }));
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 
-    let refreshed = prepared.refresh(shifted_outcomes(&data, 0.5), &context).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, shifted_outcomes(&data, 0.5), &context).unwrap();
     assert!(
-        (refreshed.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate)
+        (refreshed.estimate().as_effect().unwrap().ate
+            - result.estimate().as_effect().unwrap().ate)
             .abs()
             < tolerance
     );
-    assert_eq!(prepared.checked_interference_info().unwrap().unit_count, 4);
+    let RetainedOperation::Interference(retained) = prepared.retained_operation() else {
+        panic!("refreshed interference operation")
+    };
+    assert_eq!(retained.unit_count, 4);
     let refreshed_artifact = prepared
         .encode_contracted_result(&refreshed, "checked-interference-bayesian-refresh", &context)
         .unwrap();
     assert!(
-        consume_analysis_result(&refreshed_artifact)
+        replay_analysis_result(&refreshed_artifact)
             .unwrap()
             .acceptance
             .unresolved
             .iter()
             .any(|dependency| dependency.as_ref() == "dependencies.checked_interference_operation")
     );
-    assert!(prepared.refresh(wrong_unit_count(), &context).is_err());
+    let refused = rebind_estimate(&mut prepared, wrong_unit_count(), &context).unwrap_err();
+    assert!(
+        refused.to_string().contains("network, assignment, and unit table row counts must match"),
+        "{refused}"
+    );
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
+}
+
+#[test]
+fn full_study_admits_initial_and_refutation_probability_work_as_one_procedure() {
+    use antecedent::CausalError;
+    use antecedent_stats::interference::ExposureProbabilityMethod;
+
+    let outcomes = vec![1.0; 21];
+    let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
+    let mut query = InterferenceQuery::new(
+        AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) },
+        ExposureMapping::NeighborCount,
+        InterferenceFunctional::ExposureContrast {
+            outcome: VariableId::from_raw(0),
+            from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+            to: ExposureLevel { own: 1.0, neighbors: 0.0 },
+        },
+    );
+    query.probability_draws = 100;
+    let build_study = |assignment: Vec<bool>| {
+        let network = NetworkData::try_new(data.clone(), []).unwrap();
+        Study::tabular(data.clone())
+            .graph(Dag::with_variables(1))
+            .query(CausalQuery::Interference(query.clone()))
+            .interference(InterferenceSpec { network, assignment: Arc::from(assignment) })
+            .refute(RefuteSuite::Full)
+            .bootstrap_replicates(2)
+            .build()
+            .unwrap()
+    };
+    let base = ExecutionContext::for_tests(7);
+    // 21 units, ceil(log2(21+1))=5, no edges, 100 Monte Carlo draws,
+    // two levels for the initial estimate and for each of two redraws.
+    let aggregate = 21 * (5 + 4) * 100 * 6;
+    let low = base.with_exposure_probability_work_limit(aggregate - 1);
+    let exact = base.with_exposure_probability_work_limit(aggregate);
+    let assignment = (0..21).map(|i| i % 2 == 0).collect();
+    let study = build_study(assignment);
+    let prepared = study.prepare(&base).unwrap();
+    assert!(matches!(prepared.estimate(&data, &low), Err(CausalError::Resource { .. })));
+    let result = prepared.estimate(&data, &exact).unwrap();
+    let estimate = result.interference().unwrap();
+    assert!(matches!(
+        estimate.from_probability_method,
+        ExposureProbabilityMethod::MonteCarlo { draws: 100, .. }
+    ));
+    assert!(matches!(
+        estimate.to_probability_method,
+        ExposureProbabilityMethod::MonteCarlo { draws: 100, .. }
+    ));
+    let redraw = result
+        .refutations
+        .iter()
+        .find(|r| r.refuter.as_ref() == "interference.randomization_unbiasedness")
+        .unwrap();
+    assert_eq!(redraw.replicates, 2);
+
+    // With no treated unit the point estimator cannot evaluate the active
+    // exposure. A low ceiling must refuse first; the admitted run reaches
+    // that distinct point-estimation error.
+    let absent = build_study(vec![false; 21]);
+    let absent = absent.prepare(&base).unwrap();
+    assert!(matches!(absent.estimate(&data, &low), Err(CausalError::Resource { .. })));
+    let point_error = absent.estimate(&data, &exact).unwrap_err();
+    assert!(point_error.to_string().contains("requested exposure is absent"), "{point_error}");
 }

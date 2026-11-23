@@ -3,7 +3,7 @@
 //! Normal–Inv-Gamma (or known-σ² Normal) posterior with diagonal Gaussian
 //! coefficient prior. Draws are columnar; no object-per-draw storage.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -57,6 +57,7 @@ pub fn fit_conjugate_gaussian(
     options: &BayesFitOptions,
     workspace: &mut LaplaceWorkspace,
 ) -> Result<BayesFitResult, ProbError> {
+    prior.reject_count_priors()?;
     fit_with_absolute_scale_resolved(design, prior, |prior| {
         fit_conjugate_gaussian_resolved(design, prior, options, workspace)
     })
@@ -83,6 +84,8 @@ pub(crate) fn fit_with_absolute_scale_resolved(
     let Some(indices) = prior.absolute_coefficient_scale() else {
         return fit(prior);
     };
+    // The plug-in reads the design before the delegated fit can validate it.
+    validate_design(BayesLikelihood::GaussianIdentity, design)?;
     let (sigma2, source) = match prior.known_residual_variance() {
         Some(v) => (v, "known residual variance"),
         None => (ols_residual_variance(design)?, "target OLS residual variance, df n-p"),
@@ -104,6 +107,13 @@ pub(crate) fn fit_with_absolute_scale_resolved(
 ///
 /// `β̂` is the weighted least-squares solution and `n` counts rows with a positive
 /// weight (the WLS residual quadratic form has expectation `σ² (n − p)`).
+fn check_preprocess_cancelled() -> Result<(), ProbError> {
+    if antecedent_core::numerical_admission::is_cancelled() {
+        return Err(ProbError::Admission(antecedent_core::execution::AdmissionError::Cancelled));
+    }
+    Ok(())
+}
+
 #[allow(
     clippy::neg_cmp_op_on_partial_ord,
     reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
@@ -111,7 +121,13 @@ pub(crate) fn fit_with_absolute_scale_resolved(
 fn ols_residual_variance(design: BayesDesignRef<'_>) -> Result<f64, ProbError> {
     let nrows = design.nrows;
     let ncols = design.ncols;
-    let n_pos = (0..nrows).filter(|&r| design.weights.map_or(1.0, |w| w[r]) > 0.0).count();
+    let mut n_pos = 0;
+    for r in 0..nrows {
+        if r % 4096 == 0 {
+            check_preprocess_cancelled()?;
+        }
+        n_pos += usize::from(design.weights.map_or(1.0, |w| w[r]) > 0.0);
+    }
     if n_pos <= ncols {
         return Err(ProbError::Inference {
             message: "absolute-scale prior plug-in needs the target residual variance, which \
@@ -121,28 +137,64 @@ fn ols_residual_variance(design: BayesDesignRef<'_>) -> Result<f64, ProbError> {
     let mut xtx = vec![0.0; ncols * ncols];
     let mut xty = vec![0.0; ncols];
     for r in 0..nrows {
+        if r % 64 == 0 {
+            check_preprocess_cancelled()?;
+        }
         let w = design.weights.map_or(1.0, |ww| ww[r]);
         if w == 0.0 {
             continue;
         }
         let yr = design.y[r] - design.offsets.map_or(0.0, |oo| oo[r]);
         for c1 in 0..ncols {
+            if c1 % 64 == 0 {
+                check_preprocess_cancelled()?;
+            }
             let x1 = design.x_colmajor[c1 * nrows + r];
             xty[c1] += w * x1 * yr;
             for c2 in c1..ncols {
+                if c2 % 4096 == 0 {
+                    check_preprocess_cancelled()?;
+                }
                 xtx[c1 * ncols + c2] += w * x1 * design.x_colmajor[c2 * nrows + r];
             }
         }
     }
     for c1 in 0..ncols {
+        if c1 % 64 == 0 {
+            check_preprocess_cancelled()?;
+        }
         for c2 in 0..c1 {
+            if c2 % 4096 == 0 {
+                check_preprocess_cancelled()?;
+            }
             xtx[c1 * ncols + c2] = xtx[c2 * ncols + c1];
         }
     }
+    check_preprocess_cancelled()?;
     let beta = solve_posterior_mean(&xtx, ncols, &xty)?.mean;
+    check_preprocess_cancelled()?;
     #[allow(clippy::cast_precision_loss, reason = "row counts are far below 2^52")]
     let df = (n_pos - ncols) as f64;
-    let sigma2 = residual_ss_from_design(design, &beta) / df;
+    let mut rss = 0.0;
+    for r in 0..nrows {
+        if r % 64 == 0 {
+            check_preprocess_cancelled()?;
+        }
+        let w = design.weights.map_or(1.0, |ww| ww[r]);
+        if w == 0.0 {
+            continue;
+        }
+        let mut pred = design.offsets.map_or(0.0, |oo| oo[r]);
+        for (c, &coefficient) in beta[..ncols].iter().enumerate() {
+            if c % 4096 == 0 {
+                check_preprocess_cancelled()?;
+            }
+            pred += design.x_colmajor[c * nrows + r] * coefficient;
+        }
+        let resid = design.y[r] - pred;
+        rss += w * resid * resid;
+    }
+    let sigma2 = rss.max(0.0) / df;
     if !(sigma2 > 0.0) || !sigma2.is_finite() {
         return Err(ProbError::Inference {
             message: "absolute-scale prior plug-in: the target OLS residual variance is zero \
@@ -160,7 +212,9 @@ fn fit_conjugate_gaussian_resolved(
 ) -> Result<BayesFitResult, ProbError> {
     let nrows = design.nrows;
     let ncols = design.ncols;
-    validate_design(BayesLikelihood::GaussianIdentity, design)?;
+    if workspace.immutable_gaussian_key(design).is_none() {
+        validate_design(BayesLikelihood::GaussianIdentity, design)?;
+    }
 
     workspace.prepare(nrows, ncols, options.n_draws);
 
@@ -185,12 +239,14 @@ fn fit_conjugate_gaussian_resolved(
     // coefficient correlation (a hydrated full-covariance prior).
     let prec = prior.coefficient_precision(&coef_prior)?;
 
-    let (map, draws, include_sigma2, condition, exact_cov) = if let Some(sigma2) = known_sigma2 {
+    let (map, draws, include_sigma2, condition, exact_cov, rss_resolved) = if let Some(sigma2) =
+        known_sigma2
+    {
         let (mean, cov, condition) =
             posterior_known_sigma2(ncols, &coef_prior, &prec, xtx, xty, sigma2)?;
         let draws =
             draw_mvn_known_sigma(&mean, &cov, sigma2, options.n_draws, options.seed, workspace)?;
-        (mean, draws, false, condition, Some(cov))
+        (mean, draws, false, condition, Some(cov), true)
     } else {
         let post = posterior_nig(
             ncols,
@@ -209,7 +265,7 @@ fn fit_conjugate_gaussian_resolved(
             options.seed,
             workspace,
         )?;
-        (post.mean, draws, true, post.condition, None)
+        (post.mean, draws, true, post.condition, None, post.rss_resolved)
     };
 
     let schema = if include_sigma2 {
@@ -229,6 +285,11 @@ fn fit_conjugate_gaussian_resolved(
     // merely on different scales.
     let mut diagnostics = InferenceDiagnostics::analytic("conjugate_gaussian");
     diagnostics.hessian_condition = condition;
+    if !rss_resolved {
+        diagnostics.notes.push(
+            "residual sum of squares formed from raw moments is within rounding of zero".into(),
+        );
+    }
     // The known-σ² posterior is exactly Gaussian, so its covariance is published
     // (the NIG coefficient marginal is Student-t and has none).
     Ok(BayesFitResult { draws: posterior, map, diagnostics, cov: exact_cov })
@@ -242,12 +303,17 @@ fn ensure_conjugate_gram(
     design: BayesDesignRef<'_>,
     workspace: &mut LaplaceWorkspace,
 ) -> (f64, f64) {
-    let key = crate::backend::ConjugateGramKey::from_design(&design);
+    if let Some(moments) = workspace.restore_immutable_gaussian_moments(design) {
+        return moments;
+    }
+    let key = workspace
+        .immutable_gaussian_key(design)
+        .unwrap_or_else(|| crate::backend::ConjugateGramKey::from_design(&design));
     let n2 = design.ncols.saturating_mul(design.ncols);
     let nrows = design.nrows;
     let ncols = design.ncols;
 
-    // Cache only XᵀX (+ n_eff from weights). Always recompute Xᵀy / yᵀy: SBC
+    // Borrowed designs cache only XᵀX (+ n_eff from weights). Recompute Xᵀy / yᵀy: SBC
     // reallocates equal-length outcome buffers that allocators often recycle to
     // the same address, so a y-pointer key would restore a stale likelihood.
     let xtx_hit = workspace.conjugate_key == Some(key) && workspace.conjugate_xtx.len() == n2;
@@ -262,17 +328,21 @@ fn ensure_conjugate_gram(
             let w = design.weights.map_or(1.0, |ww| ww[r]);
             n_eff += w;
         }
-        for c1 in 0..ncols {
-            for c2 in c1..ncols {
-                let mut acc = 0.0;
-                for r in 0..nrows {
-                    let w = design.weights.map_or(1.0, |ww| ww[r]);
-                    let x1 = design.x_colmajor[c1 * nrows + r];
-                    let x2 = design.x_colmajor[c2 * nrows + r];
-                    acc += w * x1 * x2;
+        if design.weights.is_none() {
+            antecedent_stats::gram::form_xtx(design.x_colmajor, nrows, ncols, xtx);
+        } else {
+            for c1 in 0..ncols {
+                for c2 in c1..ncols {
+                    let mut acc = 0.0;
+                    for r in 0..nrows {
+                        let w = design.weights.map_or(1.0, |ww| ww[r]);
+                        let x1 = design.x_colmajor[c1 * nrows + r];
+                        let x2 = design.x_colmajor[c2 * nrows + r];
+                        acc += w * x1 * x2;
+                    }
+                    xtx[c1 * ncols + c2] = acc;
+                    xtx[c2 * ncols + c1] = acc;
                 }
-                xtx[c1 * ncols + c2] = acc;
-                xtx[c2 * ncols + c1] = acc;
             }
         }
         workspace.conjugate_xtx.clear();
@@ -301,6 +371,7 @@ fn ensure_conjugate_gram(
         }
         xty[c1] = acc;
     }
+    workspace.cache_immutable_gaussian_moments(design, yty, n_eff);
     (yty, n_eff)
 }
 
@@ -340,20 +411,20 @@ fn posterior_known_sigma2(
 }
 
 /// Posterior mean, precision factor and condition from [`solve_posterior_mean`].
-struct ScaledSolve {
+pub(crate) struct ScaledSolve {
     /// Posterior mean `m` in the original coordinates.
-    mean: Vec<f64>,
+    pub(crate) mean: Vec<f64>,
     /// Cholesky factor of the equilibrated precision `D⁻¹ A D⁻¹`.
     chol: Vec<f64>,
     /// Equilibration scales `D` (powers of two).
     scales: Vec<f64>,
     /// Condition lower bound of the equilibrated precision.
-    condition: f64,
+    pub(crate) condition: f64,
 }
 
 impl ScaledSolve {
     /// `A⁻¹ = D⁻¹ (D⁻¹ A D⁻¹)⁻¹ D⁻¹` in the original coordinates.
-    fn inverse(&self) -> Vec<f64> {
+    pub(crate) fn inverse(&self) -> Vec<f64> {
         let n = self.scales.len();
         let mut inv = invert_spd_from_chol(&self.chol, n);
         for i in 0..n {
@@ -375,7 +446,11 @@ impl ScaledSolve {
 /// two scales make the transform exact in floating point, so a design whose columns are
 /// merely in different units (say `1e8` and `1e-3`) is judged by the condition of the
 /// equilibrated system, not by its units.
-fn solve_posterior_mean(a: &[f64], ncols: usize, rhs: &[f64]) -> Result<ScaledSolve, ProbError> {
+pub(crate) fn solve_posterior_mean(
+    a: &[f64],
+    ncols: usize,
+    rhs: &[f64],
+) -> Result<ScaledSolve, ProbError> {
     let scales = antecedent_kernels::symmetric_scales(a, ncols);
     if scales.len() != ncols {
         return Err(ProbError::Shape {
@@ -408,6 +483,9 @@ struct NigPosterior {
     beta_n: f64,
     /// Condition lower bound of the equilibrated posterior precision `V_n^{-1}`.
     condition: f64,
+    /// Whether the residual sum of squares is resolved above the rounding noise of its terms.
+    /// Always true when it is computed from the design; the moment form can cancel.
+    rss_resolved: bool,
 }
 
 /// Weighted normal-linear-model moments the NIG update reads.
@@ -460,8 +538,8 @@ fn posterior_nig(
             let vn = solved.inverse();
             let (mean, condition) = (solved.mean, solved.condition);
 
-            let rss = match design {
-                Some(d) => residual_ss_from_design(d, &mean),
+            let (rss, rss_resolved) = match design {
+                Some(d) => (residual_ss_from_design(d, &mean), true),
                 None => residual_ss_from_moments(ncols, &mean, xtx, xty, yty),
             };
             let prior_quad = prec.quadratic(&mean, &prior.mean);
@@ -476,7 +554,7 @@ fn posterior_nig(
             // Cholesky of Vn (scale matrix for β | σ²): cov(β|σ²) = σ² Vn
             let chol = cholesky_spd(&vn, ncols)?;
             crate::fit_counts::note_posterior_fit();
-            Ok(NigPosterior { mean, scale_chol: chol, alpha_n, beta_n, condition })
+            Ok(NigPosterior { mean, scale_chol: chol, alpha_n, beta_n, condition, rss_resolved })
         },
     )
 }
@@ -509,8 +587,16 @@ fn residual_ss_from_design(design: BayesDesignRef<'_>, mean: &[f64]) -> f64 {
 /// RSS = ‖y − X m‖² from Gram moments: `y'y − 2 m'X'y + m'(X'X)m`.
 ///
 /// Subtracts the cross term in two passes. Prefer [`residual_ss_from_design`]
-/// when `y` and `X` are available — this form still loses digits for huge `|y|`.
-fn residual_ss_from_moments(ncols: usize, mean: &[f64], xtx: &[f64], xty: &[f64], yty: f64) -> f64 {
+/// when `y` and `X` are available — this form still loses digits for huge `|y|`. The second
+/// return value is false when the clamped result is within `64 ε` of the magnitude of its
+/// terms, i.e. it is rounding noise rather than a residual sum of squares.
+fn residual_ss_from_moments(
+    ncols: usize,
+    mean: &[f64],
+    xtx: &[f64],
+    xty: &[f64],
+    yty: f64,
+) -> (f64, bool) {
     let mut mn_xty = 0.0;
     for i in 0..ncols {
         mn_xty += mean[i] * xty[i];
@@ -527,7 +613,9 @@ fn residual_ss_from_moments(ncols: usize, mean: &[f64], xtx: &[f64], xty: &[f64]
     rss -= mn_xty;
     rss -= mn_xty;
     rss += mn_xtx_mn;
-    rss.max(0.0)
+    let magnitude = yty.abs() + 2.0 * mn_xty.abs() + mn_xtx_mn.abs();
+    let resolved = rss > 64.0 * f64::EPSILON * magnitude;
+    (rss.max(0.0), resolved)
 }
 
 #[allow(
@@ -545,9 +633,19 @@ fn draw_mvn_known_sigma(
     let ncols = mean.len();
     let chol = cholesky_spd(cov, ncols)?;
     let mut rng = crate::streams::direct_draw_rng(seed);
-    let mut values = vec![0.0; n_draws * ncols];
+    let cells = n_draws
+        .checked_mul(ncols)
+        .ok_or(ProbError::Shape { message: "draw buffer size overflow" })?;
+    let _admitted = crate::admission::admit_cells(None, cells)?;
+    let mut values = vec![0.0; cells];
     let z = &mut workspace.draw_scratch[..ncols];
     for d in 0..n_draws {
+        if antecedent_core::numerical_admission::is_cancelled() {
+            return Err(ProbError::Refused {
+                code: antecedent_core::reason_code!("transport_budget_cancel"),
+                message: "conjugate.cancelled: posterior drawing cancelled".into(),
+            });
+        }
         let draw_attempt = antecedent_core::execution_attempt::OperationGuard::begin(
             antecedent_core::execution_attempt::Operation::PosteriorDraw,
         );
@@ -588,9 +686,19 @@ fn draw_nig(
 ) -> Result<Arc<[f64]>, ProbError> {
     let ncols = mean.len();
     let mut rng = crate::streams::direct_draw_rng(seed);
-    let mut values = vec![0.0; n_draws * (ncols + 1)];
+    let cells = n_draws
+        .checked_mul(ncols + 1)
+        .ok_or(ProbError::Shape { message: "draw buffer size overflow" })?;
+    let _admitted = crate::admission::admit_cells(None, cells)?;
+    let mut values = vec![0.0; cells];
     let z = &mut workspace.draw_scratch[..ncols];
     for d in 0..n_draws {
+        if antecedent_core::numerical_admission::is_cancelled() {
+            return Err(ProbError::Refused {
+                code: antecedent_core::reason_code!("transport_budget_cancel"),
+                message: "conjugate.cancelled: posterior drawing cancelled".into(),
+            });
+        }
         let draw_attempt = antecedent_core::execution_attempt::OperationGuard::begin(
             antecedent_core::execution_attempt::Operation::PosteriorDraw,
         );
@@ -824,6 +932,49 @@ mod tests {
         assert_eq!(fit.draws.n_quantities(), 3);
         let sig = fit.draws.column(2).unwrap();
         assert!(sig.iter().all(|&s| s > 0.0));
+    }
+
+    #[test]
+    fn owned_gaussian_moments_match_cold_fits_across_draws_and_outcomes() {
+        let (x, y) = simple_design();
+        let x: Arc<[f64]> = Arc::from(x);
+        let mut workspace = LaplaceWorkspace::default();
+        let prior = PriorSet::weakly_informative(2);
+        for shift in [0.0, 3.0, -2.0] {
+            let y: Arc<[f64]> = Arc::from(y.iter().map(|v| v + shift).collect::<Vec<_>>());
+            workspace
+                .bind_immutable_gaussian_design(Arc::clone(&x), Arc::clone(&y), y.len(), 2)
+                .unwrap();
+            let design = BayesDesignRef {
+                x_colmajor: &x,
+                y: &y,
+                nrows: y.len(),
+                ncols: 2,
+                weights: None,
+                offsets: None,
+            };
+            for (seed, n_draws) in [(3, 64), (4, 128), (3, 64)] {
+                let opts = BayesFitOptions { n_draws, seed, ..BayesFitOptions::default() };
+                let warm = fit_conjugate_gaussian(design, &prior, &opts, &mut workspace).unwrap();
+                let cold =
+                    fit_conjugate_gaussian(design, &prior, &opts, &mut LaplaceWorkspace::default())
+                        .unwrap();
+                assert_eq!(warm.map, cold.map);
+                assert_eq!(warm.draws.values, cold.draws.values);
+                let weights = vec![2.0; y.len()];
+                let weighted = BayesDesignRef { weights: Some(&weights), ..design };
+                let changed =
+                    fit_conjugate_gaussian(weighted, &prior, &opts, &mut workspace).unwrap();
+                let reference = fit_conjugate_gaussian(
+                    weighted,
+                    &prior,
+                    &opts,
+                    &mut LaplaceWorkspace::default(),
+                )
+                .unwrap();
+                assert_eq!(changed.draws.values, reference.draws.values);
+            }
+        }
     }
 
     #[test]
@@ -1274,6 +1425,42 @@ mod tests {
         let plain = fit(&coef_prior([0.25; 2], ig, false));
         assert_eq!(marked.map, plain.map);
         assert!(plug_in_sigma2(&marked).is_none());
+    }
+
+    #[test]
+    fn absolute_scale_plug_in_rejects_malformed_design_before_reading_it() {
+        let (x, y) = noisy_design(4, 1.0);
+        let short = [1.0];
+        let valid = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 4,
+            ncols: 2,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let malformed = [
+            ("predictors", BayesDesignRef { x_colmajor: &short, ..valid }),
+            ("outcomes", BayesDesignRef { y: &short, ..valid }),
+            ("weights", BayesDesignRef { weights: Some(&short), ..valid }),
+            ("offsets", BayesDesignRef { offsets: Some(&short), ..valid }),
+        ];
+        for residual in [
+            PriorSpec::ResidualInvGamma(InvGammaPrior::weakly_informative()),
+            PriorSpec::KnownResidualVariance(1.0),
+        ] {
+            let marked = coef_prior([1.0; 2], residual, true);
+            for (field, design) in malformed {
+                let err = fit_conjugate_gaussian(
+                    design,
+                    &marked,
+                    &BayesFitOptions { n_draws: 2, ..BayesFitOptions::default() },
+                    &mut LaplaceWorkspace::default(),
+                )
+                .expect_err(field);
+                assert!(matches!(err, ProbError::Shape { .. }), "{field}: {err:?}");
+            }
+        }
     }
 
     #[test]

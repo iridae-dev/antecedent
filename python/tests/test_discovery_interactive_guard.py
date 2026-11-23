@@ -1,4 +1,4 @@
-"""discovery= + latency=interactive must fail closed (backlog D)."""
+"""A live discovery configuration never enters preparation; executed discovery feeds any profile."""
 
 from __future__ import annotations
 
@@ -7,19 +7,23 @@ import math
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _scm import confounded_scm
 
 
-def test_discovery_plus_interactive_raises_unsupported():
+@pytest.mark.parametrize("profile", ["interactive", "standard"])
+def test_discovery_plus_interactive_raises_unsupported(profile):
     data, _edges = confounded_scm(n=400, seed=11)
-    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="interactive estimate path"):
-        antecedent.analyze(
-            data,
-            discovery=antecedent.discovery.PC(alpha=0.2, fdr=False, max_cond_size=2),
-            query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            latency="interactive",
-            seed=1,
+    with pytest.raises(antecedent.errors.CausalTypeError, match="executed discovery result"):
+        require_success(
+            antecedent.analyze(
+                data,
+                discovery=antecedent.discovery.PC(alpha=0.2, fdr=False, max_cond_size=2),
+                query=antecedent.AverageEffect(treatment="t", outcome="y"),
+                inference=antecedent.Frequentist(profile=profile),
+                execution=antecedent.Execution(seed=1),
+            )
         )
 
 
@@ -32,27 +36,50 @@ def test_discovery_plus_standard_still_allowed():
     t = rng.normal(size=n)
     w = rng.normal(size=n)
     y = 1.5 * t + w + rng.normal(size=n) * 0.3
-    result = antecedent.analyze(
-        {"t": t, "y": y, "w": w},
-        discovery=antecedent.discovery.PC(alpha=0.001, fdr=False, max_cond_size=2),
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        latency="standard",
-        seed=1,
-        refute=False,
-        accept_discovered=True,
+    result = require_success(
+        antecedent.analyze(
+            {"t": t, "y": y, "w": w},
+            graph=antecedent.discovery.discover(
+                {"t": t, "y": y, "w": w},
+                method=antecedent.discovery.PC(alpha=0.001, fdr=False, max_cond_size=2),
+                execution=antecedent.Execution(seed=1),
+                accept_discovered=True,
+            ),
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Frequentist(profile="standard"),
+            execution=antecedent.Execution(seed=1),
+            refute=False,
+        )
     )
     assert abs(result.ate - 1.5) < 4.0 * result.estimate.se_analytic
 
 
 def test_interactive_with_supplied_graph_ok():
     data, edges = confounded_scm(n=400, seed=11)
-    result = antecedent.analyze(
-        data,
-        graph=edges,
-        query=antecedent.AverageEffect(treatment="t", outcome="y"),
-        latency="interactive",
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Frequentist(profile="interactive"),
+            execution=antecedent.Execution(seed=1),
+        )
     )
     assert math.isfinite(result.ate)
-    assert abs(result.ate - 2.0) < 0.5
+    assert abs(result.ate - 2.0) < 4.0 * result.estimate.se_analytic
     assert result.performance.latency_mode == "interactive"
+
+
+def test_search_result_as_discovery_is_refused_with_the_next_attempt():
+    # A constraint search's run(...) result is neither a graph posterior nor an accepted graph.
+    data, _edges = confounded_scm(n=400, seed=11)
+    searched = antecedent.discovery.FCI(alpha=0.2, fdr=False).run(data)
+    with pytest.raises(
+        antecedent.errors.CausalTypeError, match="takes a graph posterior"
+    ) as caught:
+        antecedent.analyze(
+            data,
+            discovery=searched,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        )
+    assert "discovery.discover" in str(caught.value)

@@ -2,7 +2,10 @@
 #![no_main]
 
 use antecedent_core::ToleranceClass;
-use antecedent_kernels::{BitMaskView, F64VectorView, portable, scalar};
+use antecedent_kernels::{
+    BitMaskView, CholeskyError, F64MatrixView, F64VectorView, cholesky_spd_into, equilibrate_into,
+    gauss_jordan_solve, invert_square, portable, scalar, symmetric_scales,
+};
 use libfuzzer_sys::fuzz_target;
 
 fn floats_agree(a: f64, b: f64) -> bool {
@@ -17,7 +20,77 @@ fn options_agree(a: Option<f64>, b: Option<f64>) -> bool {
     }
 }
 
+/// A product that does not fit in `usize` is a refusal, not a view or a solve.
+fn solver_size_arithmetic_refuses_overflow() {
+    let wide = usize::MAX / 2 + 1;
+    assert!(F64VectorView::strided(&[0.0], usize::MAX, 2).is_err());
+    assert!(F64MatrixView::column_major(&[], wide, 2).is_err());
+    let mut matrix = [];
+    let mut rhs = [];
+    assert!(!gauss_jordan_solve(&mut matrix, &mut rhs, wide, 1));
+    let mut matrix = [];
+    let mut rhs = [];
+    assert!(!gauss_jordan_solve(&mut matrix, &mut rhs, 0, 0));
+    let mut sink = [];
+    assert!(scalar::pairwise_l1_fill(&[1.0, 2.0], &mut sink).is_err());
+    assert!(matches!(
+        cholesky_spd_into(&[1.0, 0.0, 0.0, 1.0], 2, &mut [0.0]),
+        Err(CholeskyError::BufferTooShort)
+    ));
+}
+
+/// A pivot at or below the equilibrated floor is not a successful solve.
+fn numerically_singular_block_is_not_a_successful_solve() {
+    let mut factor = [0.0; 4];
+    cholesky_spd_into(&[4.0, 0.0, 0.0, 9.0], 2, &mut factor).expect("scaled diagonal");
+    assert!((factor[0] - 2.0).abs() < 1e-12);
+    assert!((factor[3] - 3.0).abs() < 1e-12);
+
+    let singular = [1.0, 1.0, 1.0, 1.0];
+    assert!(invert_square(&singular, 2).is_none());
+    let mut blocked = singular;
+    let mut rhs = [1.0, 0.0];
+    assert!(!gauss_jordan_solve(&mut blocked, &mut rhs, 2, 1));
+    assert!(matches!(
+        cholesky_spd_into(&singular, 2, &mut factor),
+        Err(CholeskyError::NotPositiveDefinite { index: 1 })
+    ));
+
+    // Second pivot after the row exchange is about 1e-13, below the 1e-12 floor.
+    let near = [1.0, -1.0, -(1.0 + 1.0e-13), 1.0];
+    assert!(invert_square(&near, 2).is_none());
+    let mut near_factor = near;
+    assert!(!gauss_jordan_solve(&mut near_factor, &mut rhs, 2, 1));
+    assert!(invert_square(&[1e10, 1e10, 1e10, 1e10 + 1e-6], 2).is_none());
+}
+
+/// Inversion and one right-hand side share the singularity verdict.
+fn invert_and_solve_share_a_verdict(block: [f64; 4]) {
+    let inverted = invert_square(&block, 2);
+    let scales = symmetric_scales(&block, 2);
+    let mut equilibrated = [0.0; 4];
+    equilibrate_into(&block, &scales, 2, &mut equilibrated);
+    let mut rhs = [1.0, 0.0];
+    let solved = if block.iter().any(|value| !value.is_finite()) {
+        false
+    } else {
+        gauss_jordan_solve(&mut equilibrated, &mut rhs, 2, 1)
+    };
+    assert_eq!(inverted.is_some(), solved, "verdict split on {block:?}");
+}
+
 fuzz_target!(|data: &[u8]| {
+    solver_size_arithmetic_refuses_overflow();
+    numerically_singular_block_is_not_a_successful_solve();
+    if data.len() >= 8 {
+        let mut block = [0.0; 4];
+        for (slot, chunk) in block.iter_mut().zip(data.chunks(2)) {
+            let mut bits = [0u8; 2];
+            bits[..chunk.len()].copy_from_slice(chunk);
+            *slot = f64::from(u16::from_le_bytes(bits)) / 32.0 - 100.0;
+        }
+        invert_and_solve_share_a_verdict(block);
+    }
     if data.len() < 4 {
         return;
     }

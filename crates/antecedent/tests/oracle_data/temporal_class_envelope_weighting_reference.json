@@ -1,0 +1,50 @@
+{
+  "n": 600,
+  "adjustments": [
+    [
+      "z"
+    ],
+    [
+      "z"
+    ],
+    [],
+    [],
+    [
+      "z"
+    ],
+    [
+      "z"
+    ]
+  ],
+  "completion_effects": [
+    1.9618169375112835,
+    1.9618169375112835,
+    2.7205364575924182,
+    2.7205364575924182,
+    1.9618169375112835,
+    1.9618169375112835
+  ],
+  "weights": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+  ],
+  "identified_mass": 0.8571428571428571,
+  "unidentified_mass": 0.14285714285714285,
+  "point": 2.2147234442049952,
+  "bound_lower": 1.9618169375112835,
+  "bound_upper": 2.7205364575924182,
+  "wrong_weightings": {
+    "distinct_effect_mean": 2.341176697551851,
+    "unidentified_as_zero": 1.8983343807471387,
+    "adjust_z_only": 1.9618169375112835,
+    "adjust_none_only": 2.7205364575924182
+  },
+  "interval_level": 0.9,
+  "critical_value_one_sided": 1.2815515655446006,
+  "critical_value_two_sided": 1.6448536269514715,
+  "absolute_tolerance": 1e-09
+}

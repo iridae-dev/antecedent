@@ -1,0 +1,1 @@
+["use:std::collections::{BTreeMap,BTreeSet};#0","use:crate::bayesian_panel_did::{DidPrior,fit_nig,require_one_unit_per_cluster,summarize};#0","use:crate::error::EstimationError;#0","use:crate::util::DrawSpec;#0","const:CONTRAST_SEED_STRIDE#0","struct:BayesianEventTimeEffect#0","type:Panel#0","fn:balanced_panel#0","fn:change_score#0","fn:fit_bayesian_event_study#0","mod:tests#0"]

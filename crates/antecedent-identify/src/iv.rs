@@ -1,6 +1,6 @@
 //! Instrumental-variable identification for DAGs.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -11,8 +11,9 @@ use antecedent_core::{
 use antecedent_expr::CausalExprArena;
 use antecedent_graph::{BitSet, DSeparationWorkspace, Dag, DenseNodeId, GraphWorkspace};
 
-use crate::backdoor::{PreparedIdentificationGraph, dense_to_var, remove_outgoing, var_to_dense};
+use crate::backdoor::{PreparedIdentificationGraph, dense_to_var, remove_outgoing};
 use crate::error::IdentificationError;
+use crate::identification_run::IdentificationRun;
 use crate::identifier::IdentificationWorkspace;
 use crate::result::{
     DerivationTrace, EstimandClaim, IdentificationPerformanceRecord, IdentificationResult,
@@ -108,9 +109,10 @@ impl InstrumentalVariableIdentifier {
         query: CausalQuery,
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
-        let dag = prepared.dag();
-        let t = var_to_dense(ate.treatment, dag)?;
-        let y = var_to_dense(ate.outcome, dag)?;
+        crate::identification_run::require_marginal_target(ate)?;
+        let run = IdentificationRun::open(prepared, ate, "iv")?;
+        let dag = run.dag();
+        let (t, y) = (run.t, run.y);
 
         // Candidates: all nodes except T,Y, with parents of T checked first.
         let parents_of_t: Vec<DenseNodeId> =
@@ -137,11 +139,7 @@ impl InstrumentalVariableIdentifier {
             }
         }
 
-        let mut assumptions = AssumptionSet::new();
-        assumptions.push(crate::assumptions::causal_markov("iv"));
-        for record in &prepared.declared_assumptions().entries {
-            assumptions.push(record.clone());
-        }
+        let mut assumptions = run.base_assumptions();
 
         let mut derivation = DerivationTrace::default();
         derivation.push(
@@ -160,7 +158,7 @@ impl InstrumentalVariableIdentifier {
             ));
         }
 
-        // What the graph cannot certify: d-connection licenses a first stage but not a
+        // What the graph cannot certify: d-connection supports a first stage but not a
         // non-zero one, and the Wald ratio is the average effect only under a constant
         // linear structural effect (with heterogeneous effects it is the complier local
         // average effect, and only under monotonicity).
@@ -181,17 +179,7 @@ impl InstrumentalVariableIdentifier {
                 status: IdentificationStatus::IdentifiedUnderParametricRestrictions,
                 required_assumptions: claim_assumptions,
             });
-            let (active, control) = match (&ate.active, &ate.control) {
-                (
-                    antecedent_core::Intervention::Set { value: active, .. },
-                    antecedent_core::Intervention::Set { value: control, .. },
-                ) => (active.clone(), control.clone()),
-                _ => {
-                    return Err(IdentificationError::UnsupportedQuery {
-                        message: "IV ATE requires Set interventions",
-                    });
-                }
-            };
+            let (active, control) = run.hard_set_levels("IV ATE requires Set interventions")?;
             let functional = arena
                 .iv_wald(ate.treatment, ate.outcome, &[z_var], &active, &control)
                 .map_err(|_| IdentificationError::UnsupportedQuery {
@@ -226,7 +214,7 @@ fn iv_default(assumption: Assumption) -> AssumptionRecord {
 }
 
 /// The restriction that decides which effect the Wald ratio is.
-fn wald_effect_restriction() -> AssumptionRecord {
+pub(crate) fn wald_effect_restriction() -> AssumptionRecord {
     iv_default(Assumption::ParametricRestriction(antecedent_core::ParametricAssumption {
         id: Arc::from(IV_EFFECT_RESTRICTION_ID),
         description: Arc::from(
@@ -238,7 +226,9 @@ fn wald_effect_restriction() -> AssumptionRecord {
 }
 
 /// Records one instrument's ratio relies on: its exclusion restriction and relevance.
-fn instrument_assumptions(instrument: antecedent_core::VariableId) -> [AssumptionRecord; 2] {
+pub(crate) fn instrument_assumptions(
+    instrument: antecedent_core::VariableId,
+) -> [AssumptionRecord; 2] {
     [
         iv_default(Assumption::ExclusionRestriction { instrument }),
         iv_default(Assumption::Custom {
@@ -252,8 +242,42 @@ fn instrument_assumptions(instrument: antecedent_core::VariableId) -> [Assumptio
     ]
 }
 
+/// Check a supplied instrument against the graph criterion of
+/// [`InstrumentalVariableIdentifier`]: not a treatment descendant, relevant to the
+/// treatment, and d-separated from the outcome once the treatment's out-edges are cut.
+///
+/// # Errors
+///
+/// [`IdentificationError::InvalidQuery`] for variables outside the graph or colliding roles.
+pub fn check_instrument(
+    graph: &Dag,
+    instrument: antecedent_core::VariableId,
+    treatment: antecedent_core::VariableId,
+    outcome: antecedent_core::VariableId,
+) -> Result<bool, IdentificationError> {
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::Identification,
+        || {
+            let valid = |id: antecedent_core::VariableId| (id.raw() as usize) < graph.node_count();
+            if !valid(instrument) || !valid(treatment) || !valid(outcome) || treatment == outcome {
+                return Err(IdentificationError::InvalidQuery {
+                    message: "invalid instrument roles".into(),
+                });
+            }
+            is_valid_instrument(
+                graph,
+                DenseNodeId::from_raw(instrument.raw()),
+                DenseNodeId::from_raw(treatment.raw()),
+                DenseNodeId::from_raw(outcome.raw()),
+                &mut GraphWorkspace::default(),
+                &mut DSeparationWorkspace::default(),
+            )
+        },
+    )
+}
+
 /// Whether `z` is a valid instrument for `t` -> `y`.
-fn is_valid_instrument(
+pub(crate) fn is_valid_instrument(
     dag: &Dag,
     z: DenseNodeId,
     t: DenseNodeId,
@@ -459,3 +483,7 @@ mod tests {
         assert!(res.estimands.is_empty());
     }
 }
+
+#[cfg(test)]
+#[path = "iv_enumeration_tests.rs"]
+mod enumeration_tests;

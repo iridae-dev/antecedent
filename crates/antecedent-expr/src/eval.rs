@@ -1,22 +1,19 @@
 //! Compiled topological evaluators for causal expressions.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use antecedent_core::{Value, VariableId};
 
+use crate::extended::{Quantity, QuantitySum};
 use crate::provider::{Assignment, DistributionProvider, EvalContext, EvalError, FactorSpec};
 use crate::{
     CausalExprArena, ContrastOp, DomainRef, ExprId, ExprNode, InterventionSetId, OutcomeExprId,
     PopulationKeyId, VarSetId,
 };
 use antecedent_core::RegimeId;
-
-/// A difference `l − r` no larger than this many machine epsilons of `|l| + |r|` is
-/// indistinguishable from zero: each term carries at least half an ulp of rounding error.
-const CANCELLATION_TOLERANCE: f64 = 8.0 * f64::EPSILON;
 
 /// One step in a compiled evaluation plan (child references are slot indices).
 #[derive(Clone, Debug)]
@@ -99,7 +96,8 @@ impl CompiledEvaluator {
         env: &Assignment,
     ) -> Result<f64, EvalError> {
         let mut scratch = env.clone();
-        self.eval_slot(arena, provider, ctx, &mut scratch, self.root)
+        self.eval_slot(arena, provider, ctx, &mut scratch, self.root, false)
+            .map(|result| result.value.to_f64())
     }
 
     /// Compile an expression DAG into slot-addressed ops (post-order).
@@ -155,7 +153,8 @@ impl CompiledEvaluator {
         // and restoring its own variables (see `with_scoped_bindings`) rather
         // than cloning the assignment per support row.
         let mut scratch = env.clone();
-        self.eval_slot(arena, provider, ctx, &mut scratch, self.root)
+        self.eval_slot(arena, provider, ctx, &mut scratch, self.root, false)
+            .map(|result| result.value.to_f64())
     }
 
     /// Evaluate over all posterior draws (`provider.n_draws()`), or a single
@@ -182,6 +181,14 @@ impl CompiledEvaluator {
         }
     }
 
+    /// Evaluate `slot`, returning its value with the magnitude its rounding error scales with.
+    ///
+    /// `track` asks for that error scale. It is required below a ratio's denominator, where it
+    /// decides whether the denominator is zero to working precision, and skipped elsewhere.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "One dispatch keeps every operation's value and error-scale rule together"
+    )]
     fn eval_slot(
         &self,
         arena: &CausalExprArena,
@@ -189,7 +196,8 @@ impl CompiledEvaluator {
         ctx: &EvalContext,
         env: &mut Assignment,
         slot: usize,
-    ) -> Result<f64, EvalError> {
+        track: bool,
+    ) -> Result<Quantity, EvalError> {
         // Density / scalar under `env`. Expectations and contrasts are scalars;
         // other ops are densities in the free variables bound by `env`.
         match &self.ops[slot] {
@@ -224,39 +232,59 @@ impl CompiledEvaluator {
                 };
                 // Interventions bind targets; bind them into the shared
                 // scratch assignment for the lookup, restored on exit.
-                with_scoped_bindings(env, spec.intervention.iter().map(|a| a.variable), |env| {
-                    for a in spec.intervention {
-                        env.set(a.variable, a.value.clone());
-                    }
-                    provider.probability(&spec, env, ctx)
-                })
+                let density = with_scoped_bindings(
+                    env,
+                    spec.intervention.iter().map(|a| a.variable),
+                    |env| {
+                        for a in spec.intervention {
+                            env.set(a.variable, a.value.clone());
+                        }
+                        provider.probability(&spec, env, ctx)
+                    },
+                )?;
+                Ok(Quantity::leaf(density, track))
             }
-            EvalOp::Kernel { body } => self.eval_slot(arena, provider, ctx, env, *body),
+            EvalOp::Kernel { body } => self.eval_slot(arena, provider, ctx, env, *body, track),
             EvalOp::Product { children } => {
-                let mut prod = 1.0;
+                let mut product = Quantity::ONE;
+                // A factor whose cell is not in the table makes the product unknown unless
+                // another factor is exactly zero: a zero weight on that context means the
+                // cell is never reached and the term contributes nothing. Every other error
+                // propagates at once.
+                let mut missing = false;
+                let mut zero = false;
                 for &c in children.iter() {
-                    prod *= self.eval_slot(arena, provider, ctx, env, c)?;
+                    match self.eval_slot(arena, provider, ctx, env, c, track) {
+                        Ok(factor) => {
+                            zero |= factor.value.is_zero();
+                            product = product.times(factor, track);
+                        }
+                        Err(EvalError::MissingTableEntry) => missing = true,
+                        Err(error) => return Err(error),
+                    }
                 }
-                Ok(prod)
+                if missing && !zero {
+                    return Err(EvalError::MissingTableEntry);
+                }
+                Ok(product)
             }
             EvalOp::SumOut { variables, body } => {
-                self.eval_sum_out(arena, provider, ctx, env, *variables, *body)
+                self.eval_sum_out(arena, provider, ctx, env, *variables, *body, track)
             }
             EvalOp::IntegralOut { variables, body } => {
-                self.eval_integral_out(arena, provider, ctx, env, *variables, *body)
+                self.eval_integral_out(arena, provider, ctx, env, *variables, *body, track)
             }
             EvalOp::Ratio { numerator, denominator } => {
-                let num = self.eval_slot(arena, provider, ctx, env, *numerator)?;
-                let (den, cancellation_scale) =
-                    self.eval_denominator(arena, provider, ctx, env, *denominator)?;
-                // A denominator that is a difference of two terms is zero to working precision
-                // when the terms agree to rounding error: the residue is noise, and dividing by
-                // it returns a huge, meaningless estimate.
-                if den == 0.0 || den.abs() <= CANCELLATION_TOLERANCE * cancellation_scale {
+                let num = self.eval_slot(arena, provider, ctx, env, *numerator, track)?;
+                // The denominator always carries its error scale: a difference, a signed sum,
+                // or a product containing one is zero to working precision when its terms agree
+                // to rounding error, and dividing by that residue returns a huge, meaningless
+                // estimate.
+                let den = self.eval_slot(arena, provider, ctx, env, *denominator, true)?;
+                let Some(quotient) = num.divide(den, track) else {
                     return Err(provider.zero_denominator(arena, self.origins[slot], env));
-                }
-                let quotient = num / den;
-                if !quotient.is_finite() {
+                };
+                if !quotient.value.to_f64().is_finite() {
                     return Err(EvalError::NonFiniteRatio);
                 }
                 Ok(quotient)
@@ -271,37 +299,21 @@ impl CompiledEvaluator {
                         env,
                         function.variable(),
                         *distribution,
+                        track,
                     )
                 })
             }
             EvalOp::Contrast { left, right, op } => {
-                let l = self.eval_slot(arena, provider, ctx, env, *left)?;
-                let r = self.eval_slot(arena, provider, ctx, env, *right)?;
+                let l = self.eval_slot(arena, provider, ctx, env, *left, track)?;
+                let r = self.eval_slot(arena, provider, ctx, env, *right, track)?;
                 match op {
-                    ContrastOp::Difference => Ok(l - r),
+                    ContrastOp::Difference => Ok(l.difference(r, track)),
                 }
             }
         }
     }
 
-    /// Denominator value and the magnitude its rounding error scales with: `|l| + |r|` for a
-    /// difference `l − r`, zero otherwise.
-    fn eval_denominator(
-        &self,
-        arena: &CausalExprArena,
-        provider: &dyn DistributionProvider,
-        ctx: &EvalContext,
-        env: &mut Assignment,
-        slot: usize,
-    ) -> Result<(f64, f64), EvalError> {
-        if let EvalOp::Contrast { left, right, op: ContrastOp::Difference } = &self.ops[slot] {
-            let l = self.eval_slot(arena, provider, ctx, env, *left)?;
-            let r = self.eval_slot(arena, provider, ctx, env, *right)?;
-            return Ok((l - r, l.abs() + r.abs()));
-        }
-        Ok((self.eval_slot(arena, provider, ctx, env, slot)?, 0.0))
-    }
-
+    #[allow(clippy::too_many_arguments, reason = "Evaluation context plus the slot to fold")]
     fn eval_sum_out(
         &self,
         arena: &CausalExprArena,
@@ -310,27 +322,16 @@ impl CompiledEvaluator {
         env: &mut Assignment,
         variables: VarSetId,
         body: usize,
-    ) -> Result<f64, EvalError> {
+        track: bool,
+    ) -> Result<Quantity, EvalError> {
         let vars = arena.var_set(variables);
         let rows = provider.support(vars, ctx)?;
-        with_scoped_bindings(env, vars.iter().copied(), |env| {
-            let mut sum = 0.0;
-            for row in rows.iter() {
-                if row.len() != vars.len() {
-                    return Err(EvalError::SupportShape {
-                        expected: vars.len(),
-                        actual: row.len(),
-                    });
-                }
-                for (i, &v) in vars.iter().enumerate() {
-                    env.set(v, row[i].clone());
-                }
-                sum += self.eval_slot(arena, provider, ctx, env, body)?;
-            }
-            Ok(sum)
+        fold_rows(env, vars, rows.iter().map(|row| (&**row, 1.0)), track, |env, _| {
+            self.eval_slot(arena, provider, ctx, env, body, track)
         })
     }
 
+    #[allow(clippy::too_many_arguments, reason = "Evaluation context plus the slot to fold")]
     fn eval_integral_out(
         &self,
         arena: &CausalExprArena,
@@ -339,49 +340,32 @@ impl CompiledEvaluator {
         env: &mut Assignment,
         variables: VarSetId,
         body: usize,
-    ) -> Result<f64, EvalError> {
+        track: bool,
+    ) -> Result<Quantity, EvalError> {
         let vars = arena.var_set(variables);
         if let Some(nodes) = provider.quadrature(vars, ctx)? {
-            return with_scoped_bindings(env, vars.iter().copied(), |env| {
-                let mut acc = 0.0;
-                for (row, weight) in nodes.iter() {
-                    if row.len() != vars.len() {
-                        return Err(EvalError::SupportShape {
-                            expected: vars.len(),
-                            actual: row.len(),
-                        });
-                    }
-                    for (i, &v) in vars.iter().enumerate() {
-                        env.set(v, row[i].clone());
-                    }
-                    acc += *weight * self.eval_slot(arena, provider, ctx, env, body)?;
-                }
-                Ok(acc)
-            });
+            return fold_rows(
+                env,
+                vars,
+                nodes.iter().map(|(row, weight)| (&**row, *weight)),
+                track,
+                |env, weight| {
+                    let value = self.eval_slot(arena, provider, ctx, env, body, track)?;
+                    Ok(Quantity::leaf(weight, track).times(value, track))
+                },
+            );
         }
         // Discrete / counting-measure fallback (IntegralOut ≡ SumOut).
         let rows = provider.support(vars, ctx).map_err(|e| match e {
             EvalError::EmptySupport(_) => EvalError::UnsupportedIntegralOut,
             other => other,
         })?;
-        with_scoped_bindings(env, vars.iter().copied(), |env| {
-            let mut sum = 0.0;
-            for row in rows.iter() {
-                if row.len() != vars.len() {
-                    return Err(EvalError::SupportShape {
-                        expected: vars.len(),
-                        actual: row.len(),
-                    });
-                }
-                for (i, &v) in vars.iter().enumerate() {
-                    env.set(v, row[i].clone());
-                }
-                sum += self.eval_slot(arena, provider, ctx, env, body)?;
-            }
-            Ok(sum)
+        fold_rows(env, vars, rows.iter().map(|row| (&**row, 1.0)), track, |env, _| {
+            self.eval_slot(arena, provider, ctx, env, body, track)
         })
     }
 
+    #[allow(clippy::too_many_arguments, reason = "Evaluation context plus the slot to fold")]
     fn eval_expectation(
         &self,
         arena: &CausalExprArena,
@@ -390,7 +374,8 @@ impl CompiledEvaluator {
         env: &mut Assignment,
         outcome_var: VariableId,
         distribution: usize,
-    ) -> Result<f64, EvalError> {
+        track: bool,
+    ) -> Result<Quantity, EvalError> {
         // E[f | D] = Σ_{x ∈ support(free(D))} f(x) · dens(D, x)
         // Free variables per slot are precomputed at compile time; only the
         // env-dependent filtering happens per evaluation.
@@ -411,33 +396,51 @@ impl CompiledEvaluator {
         enum_vars.sort_by_key(|v| v.raw());
         enum_vars.dedup();
 
-        if enum_vars.is_empty() {
-            let dens = self.eval_slot(arena, provider, ctx, env, distribution)?;
+        let weighted_outcome = |env: &mut Assignment| -> Result<Quantity, EvalError> {
+            let dens = self.eval_slot(arena, provider, ctx, env, distribution, track)?;
             let y = provider.outcome(outcome_var, env, ctx)?;
-            return Ok(y * dens);
+            Ok(Quantity::leaf(y, track).times(dens, track))
+        };
+        if enum_vars.is_empty() {
+            return weighted_outcome(env);
         }
 
         let rows = provider.support(&enum_vars, ctx)?;
-        with_scoped_bindings(env, enum_vars.iter().copied(), |env| {
-            let mut acc = 0.0;
-            for row in rows.iter() {
-                if row.len() != enum_vars.len() {
-                    return Err(EvalError::SupportShape {
-                        expected: enum_vars.len(),
-                        actual: row.len(),
-                    });
-                }
-                for (i, &v) in enum_vars.iter().enumerate() {
-                    env.set(v, row[i].clone());
-                }
-                let dens = self.eval_slot(arena, provider, ctx, env, distribution)?;
-                let y = provider.outcome(outcome_var, env, ctx)?;
-                acc += y * dens;
-            }
-            Ok(acc)
+        fold_rows(env, &enum_vars, rows.iter().map(|row| (&**row, 1.0)), track, |env, _| {
+            weighted_outcome(env)
         })
     }
 }
+
+/// Bind each support row over `vars` into the shared scratch assignment and accumulate
+/// `term(env, weight)` with a compensated sum, restoring prior bindings on exit.
+///
+/// The one loop behind `SumOut`, both forms of `IntegralOut`, and `Expectation`: a row whose
+/// length is not `vars.len()` is refused before anything is bound from it.
+fn fold_rows<'r>(
+    env: &mut Assignment,
+    vars: &[VariableId],
+    rows: impl IntoIterator<Item = (&'r [Value], f64)>,
+    track: bool,
+    mut term: impl FnMut(&mut Assignment, f64) -> Result<Quantity, EvalError>,
+) -> Result<Quantity, EvalError> {
+    with_scoped_bindings(env, vars.iter().copied(), |env| {
+        let mut total = QuantitySum::new(track);
+        for (row, weight) in rows {
+            if row.len() != vars.len() {
+                return Err(EvalError::SupportShape { expected: vars.len(), actual: row.len() });
+            }
+            for (&v, value) in vars.iter().zip(row) {
+                env.set(v, value.clone());
+            }
+            total.add(term(env, weight)?);
+        }
+        Ok(total.total())
+    })
+}
+
+/// Scopes with at most this many bound variables save their prior bindings inline.
+const INLINE_SCOPE: usize = 4;
 
 /// Run `f` against the shared scratch assignment, then restore any prior
 /// bindings of `vars` (removing bindings that did not exist before).
@@ -448,15 +451,28 @@ impl CompiledEvaluator {
 /// observationally identical to the previous clone-per-row scheme, without the
 /// per-row `Assignment` clone. Restoration also runs on the error path so a
 /// failed inner evaluation leaves the scratch assignment as it found it.
+/// Saved bindings live in an inline buffer, so a scope allocates only when it binds more than
+/// [`INLINE_SCOPE`] variables.
 pub(crate) fn with_scoped_bindings<T>(
     env: &mut Assignment,
     vars: impl IntoIterator<Item = VariableId>,
     f: impl FnOnce(&mut Assignment) -> Result<T, EvalError>,
 ) -> Result<T, EvalError> {
-    let saved: Vec<(VariableId, Option<Value>)> =
-        vars.into_iter().map(|v| (v, env.get(v).cloned())).collect();
+    type Saved = (VariableId, Option<Value>);
+    let mut inline: [Option<Saved>; INLINE_SCOPE] = [const { None }; INLINE_SCOPE];
+    let mut spill: Vec<Saved> = Vec::new();
+    let mut used = 0;
+    for v in vars {
+        let saved = (v, env.get(v).cloned());
+        if used < INLINE_SCOPE {
+            inline[used] = Some(saved);
+            used += 1;
+        } else {
+            spill.push(saved);
+        }
+    }
     let result = f(env);
-    for (v, prev) in saved {
+    for (v, prev) in inline.into_iter().flatten().chain(spill) {
         match prev {
             Some(value) => env.set(v, value),
             None => {
@@ -476,7 +492,7 @@ fn compile_rec(
     if let Some(&slot) = expr_to_slot.get(&id.raw()) {
         return Ok(slot);
     }
-    let op = match arena.node(id).clone() {
+    let op = match arena.node(id) {
         ExprNode::Distribution {
             variables,
             conditioned_on,
@@ -485,45 +501,45 @@ fn compile_rec(
             population,
             regime,
         } => EvalOp::Distribution {
-            variables,
-            conditioned_on,
-            intervention,
-            domain,
-            population,
-            regime,
+            variables: *variables,
+            conditioned_on: *conditioned_on,
+            intervention: *intervention,
+            domain: *domain,
+            population: *population,
+            regime: *regime,
         },
         ExprNode::Kernel { body, .. } => {
-            let compiled = compile_rec(arena, body, ops, expr_to_slot)?;
+            let compiled = compile_rec(arena, *body, ops, expr_to_slot)?;
             EvalOp::Kernel { body: compiled }
         }
         ExprNode::Product(list) => {
             let mut children = Vec::new();
-            for &c in arena.list(list) {
+            for &c in arena.list(*list) {
                 children.push(compile_rec(arena, c, ops, expr_to_slot)?);
             }
             EvalOp::Product { children: Arc::from(children) }
         }
         ExprNode::SumOut { variables, expr } => {
-            let body = compile_rec(arena, expr, ops, expr_to_slot)?;
-            EvalOp::SumOut { variables, body }
+            let body = compile_rec(arena, *expr, ops, expr_to_slot)?;
+            EvalOp::SumOut { variables: *variables, body }
         }
         ExprNode::IntegralOut { variables, expr } => {
-            let body = compile_rec(arena, expr, ops, expr_to_slot)?;
-            EvalOp::IntegralOut { variables, body }
+            let body = compile_rec(arena, *expr, ops, expr_to_slot)?;
+            EvalOp::IntegralOut { variables: *variables, body }
         }
         ExprNode::Ratio { numerator, denominator } => {
-            let n = compile_rec(arena, numerator, ops, expr_to_slot)?;
-            let d = compile_rec(arena, denominator, ops, expr_to_slot)?;
+            let n = compile_rec(arena, *numerator, ops, expr_to_slot)?;
+            let d = compile_rec(arena, *denominator, ops, expr_to_slot)?;
             EvalOp::Ratio { numerator: n, denominator: d }
         }
         ExprNode::Expectation { function, distribution } => {
-            let dist = compile_rec(arena, distribution, ops, expr_to_slot)?;
-            EvalOp::Expectation { function, distribution: dist }
+            let dist = compile_rec(arena, *distribution, ops, expr_to_slot)?;
+            EvalOp::Expectation { function: *function, distribution: dist }
         }
         ExprNode::Contrast { left, right, op } => {
-            let l = compile_rec(arena, left, ops, expr_to_slot)?;
-            let r = compile_rec(arena, right, ops, expr_to_slot)?;
-            EvalOp::Contrast { left: l, right: r, op }
+            let l = compile_rec(arena, *left, ops, expr_to_slot)?;
+            let r = compile_rec(arena, *right, ops, expr_to_slot)?;
+            EvalOp::Contrast { left: l, right: r, op: *op }
         }
     };
     let slot = ops.len();
@@ -1189,8 +1205,8 @@ mod tests {
     fn scoped_intervention_binding_restores_between_siblings() {
         // SumOut_z Product[ P(· | z, do(z:=1)), P(z) ]: the first factor binds
         // z:=1 for its own lookup only; the sibling P(z) must still see the
-        // row's z. Correct scoping gives Σ_z 2.0 · P(z) = 2.0; a leaked
-        // binding would give 2.0 · P(z=1) per row = 2.8.
+        // row's z. Correct scoping gives Σ_z 0.5 · P(z) = 0.5; a leaked
+        // binding would give 0.5 · P(z=1) per row = 0.7.
         let mut arena = CausalExprArena::new();
         let z = v(0);
         let zset = arena.intern_var_set([z]);
@@ -1219,7 +1235,7 @@ mod tests {
             population: "",
             regime: None,
         };
-        p.insert_probability(&shadow_spec, &Assignment::from_pairs([(z, f(1.0))]), 2.0).unwrap();
+        p.insert_probability(&shadow_spec, &Assignment::from_pairs([(z, f(1.0))]), 0.5).unwrap();
         let marg_spec = FactorSpec {
             variables: &[z],
             conditioned_on: &[],
@@ -1233,7 +1249,117 @@ mod tests {
 
         let val =
             arena.compile(sum).unwrap().evaluate(&arena, &p, &EvalContext::default()).unwrap();
-        assert!((val - 2.0).abs() < 1e-12, "val={val}");
+        assert!((val - 0.5).abs() < 1e-12, "val={val}");
+    }
+
+    #[test]
+    fn a_zero_weight_context_with_no_table_entry_contributes_nothing() {
+        // Σ_{z,y} P(y | z) P(z) with P(z=1) = 0 and no row of z = 1 at all: the cell
+        // P(y | z=1) is not estimable, but its weight is exactly zero, so the term is zero and
+        // the sum is the z = 0 term, 1.0. The missing factor is listed first on purpose.
+        let mut arena = CausalExprArena::new();
+        let (y, z) = (v(0), v(1));
+        let yset = arena.intern_var_set([y]);
+        let zset = arena.intern_var_set([z]);
+        let yzset = arena.intern_var_set([y, z]);
+        let empty = arena.empty_var_set();
+        let empty_i = arena.empty_intervention_set();
+        let y_given_z = arena.intern_distribution(yset, zset, empty_i, DomainRef::Observational);
+        let z_marginal = arena.intern_distribution(zset, empty, empty_i, DomainRef::Observational);
+        let list = arena.intern_list([y_given_z, z_marginal]);
+        let product = arena.intern(ExprNode::Product(list));
+        let sum = arena.intern(ExprNode::SumOut { variables: yzset, expr: product });
+
+        let mut p = EmpiricalTableProvider::new();
+        p.set_domain(y, [f(0.0), f(1.0)]);
+        p.set_domain(z, [f(0.0), f(1.0)]);
+        let cond_spec = FactorSpec {
+            variables: &[y],
+            conditioned_on: &[z],
+            intervention: &[],
+            domain: DomainRef::Observational,
+            population: "",
+            regime: None,
+        };
+        for (level, probability) in [(0.0, 0.25), (1.0, 0.75)] {
+            p.insert_probability(
+                &cond_spec,
+                &Assignment::from_pairs([(y, f(level)), (z, f(0.0))]),
+                probability,
+            )
+            .unwrap();
+        }
+        let marg_spec = FactorSpec {
+            variables: &[z],
+            conditioned_on: &[],
+            intervention: &[],
+            domain: DomainRef::Observational,
+            population: "",
+            regime: None,
+        };
+        p.insert_probability(&marg_spec, &Assignment::from_pairs([(z, f(0.0))]), 1.0).unwrap();
+        p.insert_probability(&marg_spec, &Assignment::from_pairs([(z, f(1.0))]), 0.0).unwrap();
+        let val =
+            arena.compile(sum).unwrap().evaluate(&arena, &p, &EvalContext::default()).unwrap();
+        assert!((val - 1.0).abs() < 1e-12, "val={val}");
+
+        // A positive weight on the unobserved context still refuses.
+        let mut positive = p.clone();
+        positive
+            .insert_probability(&marg_spec, &Assignment::from_pairs([(z, f(1.0))]), 0.5)
+            .unwrap();
+        let err = arena.compile(sum).unwrap().evaluate(&arena, &positive, &EvalContext::default());
+        assert_eq!(err, Err(EvalError::MissingTableEntry));
+    }
+
+    #[test]
+    fn an_underflowed_positive_factor_cannot_hide_a_missing_table_entry() {
+        let mut arena = CausalExprArena::new();
+        let empty = arena.empty_var_set();
+        let empty_i = arena.empty_intervention_set();
+        let mut provider = EmpiricalTableProvider::new();
+        let mut factors = Vec::new();
+        let mut env = Assignment::new();
+        for id in 0..3 {
+            let variable = v(id);
+            let variables = arena.intern_var_set([variable]);
+            factors.push(arena.intern_distribution(
+                variables,
+                empty,
+                empty_i,
+                DomainRef::Observational,
+            ));
+            env.set(variable, f(0.0));
+            if id < 2 {
+                let spec = FactorSpec {
+                    variables: &[variable],
+                    conditioned_on: &[],
+                    intervention: &[],
+                    domain: DomainRef::Observational,
+                    population: "",
+                    regime: None,
+                };
+                provider.insert_probability(&spec, &env, 1e-200).unwrap();
+            }
+        }
+        // This inner product is positive in the evaluator's extended arithmetic, even
+        // though converting 1e-400 to f64 rounds to zero. Its context is still reachable.
+        let inner_list = arena.intern_list([factors[0], factors[1]]);
+        let inner = arena.intern(ExprNode::Product(inner_list));
+        for children in [[factors[2], inner], [inner, factors[2]]] {
+            let list = arena.intern_list(children);
+            let product = arena.intern(ExprNode::Product(list));
+            // Normalizing by the same tiny context makes the suppressed missing factor
+            // observable as the bogus answer 1, rather than an underflowed final answer.
+            let ratio = arena.intern(ExprNode::Ratio { numerator: product, denominator: inner });
+            let result = arena.compile(ratio).unwrap().evaluate_with(
+                &arena,
+                &provider,
+                &EvalContext::default(),
+                &env,
+            );
+            assert_eq!(result, Err(EvalError::MissingTableEntry));
+        }
     }
 
     #[test]
@@ -1313,7 +1439,7 @@ mod tests {
             population: "",
             regime: None,
         };
-        p.insert_probability(&obs_spec, &Assignment::from_pairs([]), 3.0).unwrap();
+        p.insert_probability(&obs_spec, &Assignment::from_pairs([]), 1.0).unwrap();
         p.insert_probability(&interv_spec, &Assignment::from_pairs([]), 0.0).unwrap();
 
         let err = arena
@@ -1533,7 +1659,7 @@ mod tests {
 
     #[test]
     fn ratio_that_overflows_is_an_error_not_infinity() {
-        // 3 / 5e-324 = inf. The denominator is nonzero, so only the quotient check catches it.
+        // 1 / the smallest positive subnormal overflows; the denominator is nonzero.
         let mut arena = CausalExprArena::new();
         let empty = arena.empty_var_set();
         let empty_i = arena.empty_intervention_set();
@@ -1543,7 +1669,7 @@ mod tests {
         let ratio = arena.intern(ExprNode::Ratio { numerator, denominator });
         let mut p = EmpiricalTableProvider::new();
         for (domain, value) in
-            [(DomainRef::Observational, 3.0), (DomainRef::Interventional, 5e-324)]
+            [(DomainRef::Observational, 1.0), (DomainRef::Interventional, f64::from_bits(1))]
         {
             let spec = FactorSpec {
                 variables: &[],
@@ -1558,6 +1684,68 @@ mod tests {
         assert_eq!(
             arena.compile(ratio).unwrap().evaluate(&arena, &p, &EvalContext::default()),
             Err(EvalError::NonFiniteRatio)
+        );
+    }
+
+    fn scalar_leaf(arena: &mut CausalExprArena, domain: DomainRef) -> ExprId {
+        let empty = arena.empty_var_set();
+        let empty_i = arena.empty_intervention_set();
+        arena.intern_distribution(empty, empty, empty_i, domain)
+    }
+
+    fn scalar_provider(levels: [(DomainRef, f64); 2]) -> EmpiricalTableProvider {
+        let mut p = EmpiricalTableProvider::new();
+        for (domain, value) in levels {
+            let spec = FactorSpec {
+                variables: &[],
+                conditioned_on: &[],
+                intervention: &[],
+                domain,
+                population: "",
+                regime: None,
+            };
+            p.insert_probability(&spec, &Assignment::new(), value).unwrap();
+        }
+        p
+    }
+
+    #[test]
+    fn ratio_of_underflowing_products_cancels_before_conversion() {
+        // Both products are 1e-400 times a modest factor: each underflows to zero in plain
+        // f64, yet their quotient is exactly the ratio of the modest factors.
+        let mut arena = CausalExprArena::new();
+        let tiny = scalar_leaf(&mut arena, DomainRef::Observational);
+        let half = scalar_leaf(&mut arena, DomainRef::Interventional);
+        let numerator_list = arena.intern_list([tiny, tiny, half]);
+        let denominator_list = arena.intern_list([tiny, tiny]);
+        let numerator = arena.intern(ExprNode::Product(numerator_list));
+        let denominator = arena.intern(ExprNode::Product(denominator_list));
+        let ratio = arena.intern(ExprNode::Ratio { numerator, denominator });
+        let p =
+            scalar_provider([(DomainRef::Observational, 1e-200), (DomainRef::Interventional, 0.5)]);
+        let value =
+            arena.compile(ratio).unwrap().evaluate(&arena, &p, &EvalContext::default()).unwrap();
+        assert!((value - 0.5).abs() < 1e-15, "value={value}");
+    }
+
+    #[test]
+    fn ratio_by_a_product_containing_a_cancelling_difference_is_a_zero_denominator() {
+        // (0.1 + 0.2 - 0.3) * 0.7 is rounding residue, not a denominator.
+        let mut arena = CausalExprArena::new();
+        let a = scalar_leaf(&mut arena, DomainRef::Observational);
+        let b = scalar_leaf(&mut arena, DomainRef::Interventional);
+        let difference =
+            arena.intern(ExprNode::Contrast { left: a, right: b, op: ContrastOp::Difference });
+        let list = arena.intern_list([difference, b]);
+        let product = arena.intern(ExprNode::Product(list));
+        let ratio = arena.intern(ExprNode::Ratio { numerator: a, denominator: product });
+        let p = scalar_provider([
+            (DomainRef::Observational, 0.1 + 0.2),
+            (DomainRef::Interventional, 0.3),
+        ]);
+        assert_eq!(
+            arena.compile(ratio).unwrap().evaluate(&arena, &p, &EvalContext::default()),
+            Err(EvalError::DivisionByZero)
         );
     }
 }

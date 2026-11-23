@@ -15,13 +15,13 @@
 //! rank-deficient adjustment design are refused with the columns named. The numerical rank
 //! machinery of [`preflight_design`] detects these; it is never used to drop a column.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, VariableId, reason_code};
 use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::{
-    EstimationError, FactorizedJointConfig, FactorizedJointFit, MAX_FACTORIZED_COMPONENTS,
-    RefusalFields, fit_factorized_joint_cells,
+    EstimationError, FactorizedJointConfig, FactorizedJointFit, MAX_JOINT_BINARY, RefusalFields,
+    fit_factorized_joint_cells,
 };
 use serde::{Deserialize, Serialize};
 
@@ -70,7 +70,8 @@ pub struct SourceColumn {
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Transformation {
-    /// The joint cell of up to three binary components; bit `j` is the `j`-th construction
+    /// The joint cell of binary components (at most the 31 a `u32` cell code addresses, and no
+    /// more than the complete-case rows can populate); bit `j` is the `j`-th construction
     /// source. Injective: setting the cell sets every component.
     JointCell,
     /// Product of the components. Many-to-one: it does not fix the components.
@@ -130,6 +131,11 @@ pub struct DerivedTreatmentDeclaration {
     pub exclusions: Vec<DeclaredExclusion>,
 }
 
+/// How the adjustment set of every plan was established: the caller declared it and the check
+/// screened it for constituents, descendants and copies, but no graph was consulted, so the
+/// plan is not a graph identification of the derived treatment's effect.
+pub const DERIVED_ADJUSTMENT_BASIS: &str = "declared";
+
 /// The accepted construction: what the estimator may use.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct DerivedTreatmentPlan {
@@ -149,6 +155,9 @@ pub struct DerivedTreatmentPlan {
     pub rows_complete: usize,
     /// The fit-free preflight report of the accepted design (review flags included).
     pub report: PreflightReport,
+    /// How the adjustment set was established: always [`DERIVED_ADJUSTMENT_BASIS`]
+    /// (`declared`), never a back-door identification.
+    pub adjustment_basis: &'static str,
 }
 
 fn refuse(
@@ -167,13 +176,13 @@ fn refuse(
         remedy: Some(remedy.to_string()),
         ..RefusalFields::default()
     };
-    EstimationError::refused_with_fields(code, format!("{detail}: {message}"), fields).into()
+    EstimationError::refused_detail_with_fields(code, detail, message, fields).into()
 }
 
 fn invalid(declaration: &str, message: &str) -> CausalError {
     refuse(
         reason_code!("derived_treatment_invalid"),
-        "joint_cells.derived_declaration_invalid",
+        antecedent_core::reason_details::joint_cells::DERIVED_DECLARATION_INVALID,
         message,
         declaration,
         Vec::new(),
@@ -195,7 +204,7 @@ impl DerivedTreatmentDeclaration {
     /// # Errors
     ///
     /// `derived_treatment_invalid` for an empty or duplicated name, a role that contradicts its
-    /// measurement time, no construction source (or more than three for a joint cell),
+    /// measurement time, no construction source (or more than 31 for a joint cell),
     /// invalid legal values, a many-to-one transformation declared as a joint-component
     /// intervention, or an exclusion without a justification or whose rule does not match the
     /// column's role.
@@ -235,7 +244,7 @@ impl DerivedTreatmentDeclaration {
         }
         let components = self.construction().len();
         let max_components = if self.transformation == Transformation::JointCell {
-            MAX_FACTORIZED_COMPONENTS
+            MAX_JOINT_BINARY
         } else {
             usize::MAX
         };
@@ -243,7 +252,7 @@ impl DerivedTreatmentDeclaration {
             return Err(invalid(
                 name,
                 "a derived treatment needs at least one treatment-construction source (at most \
-                 three binary components for a joint cell)",
+                 31 binary components for a joint cell; the rows must populate every joint cell)",
             ));
         }
         if self.transformation != Transformation::JointCell
@@ -251,7 +260,7 @@ impl DerivedTreatmentDeclaration {
         {
             return Err(refuse(
                 reason_code!("derived_treatment_invalid"),
-                "joint_cells.derived_intervention_not_defined",
+                antecedent_core::reason_details::joint_cells::DERIVED_INTERVENTION_NOT_DEFINED,
                 "a product or sum does not fix its components, so an intervention on it cannot \
                  set them jointly; declare derived_level or use a joint cell",
                 name,
@@ -289,7 +298,7 @@ impl DerivedTreatmentDeclaration {
             let mismatch = |message: &str| {
                 refuse(
                     reason_code!("derived_treatment_invalid"),
-                    "joint_cells.derived_exclusion_rule_mismatch",
+                    antecedent_core::reason_details::joint_cells::DERIVED_EXCLUSION_RULE_MISMATCH,
                     message,
                     name,
                     vec![column.to_string()],
@@ -328,7 +337,7 @@ fn resolve(data: &TabularData, declaration: &str, name: &str) -> Result<Variable
     data.schema().id_of(name).map_err(|_| {
         refuse(
             reason_code!("invalid_argument"),
-            "joint_cells.derived_unknown_column",
+            antecedent_core::reason_details::joint_cells::DERIVED_UNKNOWN_COLUMN,
             &format!("column {name:?} is not in the data"),
             declaration,
             vec![name.to_string()],
@@ -352,7 +361,7 @@ fn derived_values(
     let illegal = |value: f64, what: &str| {
         refuse(
             reason_code!("derived_treatment_invalid"),
-            "joint_cells.derived_illegal_value",
+            antecedent_core::reason_details::joint_cells::DERIVED_ILLEGAL_VALUE,
             &format!("{what} {value} is outside the declared legal values"),
             &declaration.name,
             declaration.construction().iter().map(|s| s.name.clone()).collect(),
@@ -402,7 +411,7 @@ fn screen_adjustment(
         if !adjustment.contains(&exclusion.column) {
             return Err(named(
                 vec![exclusion.column.clone()],
-                "joint_cells.derived_exclusion_not_in_adjustment",
+                antecedent_core::reason_details::joint_cells::DERIVED_EXCLUSION_NOT_IN_ADJUSTMENT,
                 "a declared exclusion names a column that is not in the adjustment set",
                 "remove the stale exclusion",
             ));
@@ -416,7 +425,7 @@ fn screen_adjustment(
     if kept.iter().any(|name| name == outcome) {
         return Err(named(
             vec![outcome.to_string()],
-            "joint_cells.derived_outcome_in_adjustment",
+            antecedent_core::reason_details::joint_cells::DERIVED_OUTCOME_IN_ADJUSTMENT,
             "the outcome is in the adjustment set",
             "remove the outcome from the adjustment set",
         ));
@@ -427,7 +436,7 @@ fn screen_adjustment(
             Some(ConstituentRole::TreatmentConstruction) => {
                 return Err(named(
                     vec![name.clone()],
-                    "joint_cells.derived_constituent_in_adjustment",
+                    antecedent_core::reason_details::joint_cells::DERIVED_CONSTITUENT_IN_ADJUSTMENT,
                     "a treatment-construction column is in the adjustment set, which makes the \
                      derived treatment a function of its own covariates",
                     "remove it, or declare a constituent_of_treatment exclusion with a \
@@ -437,7 +446,7 @@ fn screen_adjustment(
             Some(ConstituentRole::ForbiddenDescendant) => {
                 return Err(named(
                     vec![name.clone()],
-                    "joint_cells.derived_descendant_in_adjustment",
+                    antecedent_core::reason_details::joint_cells::DERIVED_DESCENDANT_IN_ADJUSTMENT,
                     "a column measured after the treatment is in the adjustment set",
                     "remove it, or declare a post_treatment_descendant exclusion with a \
                      justification",
@@ -470,7 +479,7 @@ fn refuse_duplicate_groups(
         if duplicated_components.len() >= 2 {
             return Err(named(
                 duplicated_components,
-                "joint_cells.derived_duplicate_constituents",
+                antecedent_core::reason_details::joint_cells::DERIVED_DUPLICATE_CONSTITUENTS,
                 "treatment-construction columns are exact copies of one another, so some joint \
                  cells cannot occur and the components are not separately identified",
                 "construct the treatment from distinct components",
@@ -479,7 +488,7 @@ fn refuse_duplicate_groups(
         if group.columns.iter().any(|c| c == outcome) {
             return Err(named(
                 group.columns.clone(),
-                "joint_cells.derived_outcome_in_adjustment",
+                antecedent_core::reason_details::joint_cells::DERIVED_OUTCOME_IN_ADJUSTMENT,
                 "the outcome is duplicated by another column",
                 "remove the copy of the outcome",
             ));
@@ -487,7 +496,7 @@ fn refuse_duplicate_groups(
         if !duplicated_components.is_empty() && !in_group(kept).is_empty() {
             return Err(named(
                 group.columns.clone(),
-                "joint_cells.derived_constituent_copy_in_adjustment",
+                antecedent_core::reason_details::joint_cells::DERIVED_CONSTITUENT_COPY_IN_ADJUSTMENT,
                 "an adjustment column is an undeclared exact copy of a treatment-construction \
                  column",
                 "remove the copy, or declare it as a source and exclude it under a causal rule",
@@ -548,6 +557,7 @@ pub fn check_derived_treatment(
         adjustment: adjustment_ids,
         protected: Vec::new(),
         arms: vec![ArmSpec { role: "cell", levels: Vec::new() }],
+        memory_limit_bytes: None,
     };
     let report = preflight_design(&input, ctx)?;
 
@@ -560,7 +570,7 @@ pub fn check_derived_treatment(
     }) {
         return Err(named(
             finding.columns.clone(),
-            "joint_cells.derived_treatment_tracked_by_covariates",
+            antecedent_core::reason_details::joint_cells::DERIVED_TREATMENT_TRACKED_BY_COVARIATES,
             &format!(
                 "a treatment-construction column is near-deterministically predicted by the \
                  adjustment columns ({})",
@@ -592,9 +602,10 @@ pub fn check_derived_treatment(
             ),
             ..RefusalFields::default()
         };
-        return Err(EstimationError::refused_with_fields(
+        return Err(EstimationError::refused_detail_with_fields(
             reason_code!("design_rank_deficient"),
-            format!("joint_cells.derived_rank_deficient: {message}"),
+            antecedent_core::reason_details::joint_cells::DERIVED_RANK_DEFICIENT,
+            message,
             fields,
         )
         .into());
@@ -609,14 +620,21 @@ pub fn check_derived_treatment(
         observed_levels,
         rows_complete: report.rows_complete,
         report,
+        adjustment_basis: DERIVED_ADJUSTMENT_BASIS,
     })
 }
 
 /// Check the declaration, then estimate its joint cells with factorized propensities.
 ///
-/// The declaration must be a [`Transformation::JointCell`] of at most three binary
-/// components. The check runs first; its refusals are returned unchanged. The point estimates
-/// and aligned scores of the supported cells come back with the plan; no interval is licensed.
+/// This is a specialized checked path outside the central compiler. It checks the
+/// construction (constituents, descendants, copies, legal values, design rank) and the cell
+/// support, and it takes the caller's `ctx`. It does not check the adjustment set against a
+/// graph: the plan reports `adjustment_basis == "declared"`, so the cells are
+/// point estimates under a declared adjustment, never an identified effect.
+///
+/// The declaration must be a [`Transformation::JointCell`] of at most 31 binary
+/// components (the fit refuses when the rows cannot populate every joint cell). The check runs
+/// first; its refusals are returned unchanged. The point estimates and aligned scores of the supported cells come back with the plan; no interval is supported.
 ///
 /// # Errors
 ///
@@ -635,7 +653,7 @@ pub fn estimate_derived_joint_cells(
     if declaration.transformation != Transformation::JointCell {
         return Err(refuse(
             reason_code!("derived_treatment_invalid"),
-            "joint_cells.derived_not_a_joint_cell",
+            antecedent_core::reason_details::joint_cells::DERIVED_NOT_A_JOINT_CELL,
             "factorized joint cells estimate a joint-cell transformation only",
             &declaration.name,
             Vec::new(),

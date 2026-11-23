@@ -3,7 +3,7 @@
 //! Implements Gerhardus & Runge (2020): middle marks, weakly-minimal sepsets,
 //! interleaved ancestral / non-ancestral removal with orientation (Alg. 1).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::TimeSeriesData;
@@ -219,3 +219,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "lpcmci_oracle_tests.rs"]
+mod oracle_tests;

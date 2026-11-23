@@ -1,16 +1,26 @@
 #!/usr/bin/env python3
-"""Combine evidence from earlier surveys for a new survey analysis.
+"""How can earlier surveys inform the analysis of a new one?
 
-Two simulated surveys provide prior evidence. We rank them using similarity
-scores supplied by the caller, choose their weights, and combine them for
-the target analysis. The library does not infer those similarity judgments.
+Two simulated surveys provide prior evidence. You rank them using similarity
+scores you supply, choose their weights, and combine them for the target
+analysis. Antecedent does not infer those similarity judgments.
 
-Install with `python -m pip install antecedent`; see examples/README.md."""
+The surveys are simulated from declared mechanisms with known average effects:
+2.0 and 1.5 in the two earlier surveys and 1.8 in the target. These are fixture
+truths of the generator, so the example checks that each fitted effect lands near
+its declared value and that the combined prior does not pull the target away from
+it (each within 0.3). The tolerances are loose because each survey is small. The combined
+prior is only as sound as the supplied similarity scores and weights.
+
+Run: `python examples/python/prior_bank_surveys.py`."""
 
 from __future__ import annotations
 
+import dataclasses
+
 import antecedent
 import numpy as np
+from antecedent.outcomes import require_success
 
 
 def _survey(
@@ -35,17 +45,19 @@ def _fit_artifact(
     *,
     seed: int,
 ) -> tuple[bytes, float]:
-    result = antecedent.analyze(
+    outcome = antecedent.analyze(
         data,
         graph=edges,
         query=antecedent.AverageEffect(treatment="t", outcome="y"),
         inference=antecedent.Bayesian(n_draws=96, backend="conjugate"),
         refute="none",
-        seed=seed,
+        execution=antecedent.Execution(seed=seed),
     )
+    result = require_success(outcome)
     assert result.posterior is not None
     # The prior catalog consumes a posterior payload, not a full execution export.
-    return result.study.export_artifact(), float(result.posterior.effect_mean)
+    posterior = outcome.export(quantity="posterior")
+    return bytes(posterior), float(result.posterior.effect_mean)
 
 
 def main() -> None:
@@ -94,20 +106,23 @@ def main() -> None:
         ),
     ]
     catalog = antecedent.priors.PriorCatalog.from_sources(sources)
-    # Tags that must match exactly (caller similarity handles soft context scores).
+    # Product and population must match exactly. How alike the contexts are is a matter of
+    # degree, scored by the caller below.
     reports = catalog.compatible_with(
         query=query,
         variables=["z", "t", "y"],
         tags={"product": "widget", "population": "field"},
     )
-    # Caller-owned similarity (library does not invent domain scores).
+    # How similar each earlier context is to the target is the caller's judgment; nothing
+    # infers it from the data.
     similarity = {"survey_launch": 0.85, "survey_retention": 0.55}
     ranked = catalog.rank(reports, similarity)
     accepted = [r for r in ranked if r.status in ("compatible", "partial")]
     assert accepted, "expected at least one compatible prior source"
 
-    # Hydrate coefficient priors from effect summaries via compose specs.
-    # Matching design (same T/Y/Z) → power-prior on 3-coef Gaussian approx.
+    # Each earlier survey becomes a Gaussian prior over the target design's three coefficients;
+    # the treatment coefficient carries that survey's posterior mean. The surveys share the
+    # target's design, so each enters at full power-prior weight (alpha = 1).
     specs = [
         antecedent.priors.ExternalPriorSourceSpec(
             id="survey_launch",
@@ -122,7 +137,8 @@ def main() -> None:
             weight=antecedent.priors.ExternalPriorWeight(alpha=1.0),
         ),
     ]
-    # Similarity → mixture weights (normalized leftover stays on baseline).
+    # Similarity sets the mixture weights: the two surveys share 0.6 in proportion to their
+    # scores, and the remaining 0.4 stays on the weak baseline prior.
     w_launch = similarity["survey_launch"]
     w_ret = similarity["survey_retention"]
     w_sum = w_launch + w_ret
@@ -135,37 +151,38 @@ def main() -> None:
             {"p_value": 0.4, "kl": 0.05},
             {"p_value": 0.3, "kl": 0.1},
         ],
-        # Population tags come from catalog meta (same "field" as target → no transport).
+        # Source populations are read from the catalog entries. All are "field", like the
+        # target, so no transport policy is needed.
         prior_sources=sources,
         target_population=tags_t["population"],
     )
-    # Clear offline conflict for fit; α' already applied.
-    prior_for_fit = antecedent.priors.ComposedPrior(
-        mean=composed.mean,
-        variance=composed.variance,
-        source_ids=composed.source_ids,
-        alphas_requested=composed.alphas_requested,
-        alphas_applied=composed.alphas_applied,
-        mixture_weights=composed.mixture_weights,
-        sources=composed.sources,
-        conflict=None,
-    )
+    # The conflict policy has already discounted the weights from the supplied signals; drop
+    # it so the fit does not apply it again.
+    prior_for_fit = dataclasses.replace(composed, conflict=None)
 
-    target = antecedent.analyze(
-        data_t,
-        graph=edges,
-        query=query,
-        inference=antecedent.Bayesian(
-            n_draws=96,
-            backend="conjugate",
-            prior_from=prior_for_fit,
-        ),
-        refute="full",
-        seed=13,
+    target = require_success(
+        antecedent.analyze(
+            data_t,
+            graph=edges,
+            query=query,
+            inference=antecedent.Bayesian(
+                n_draws=96,
+                backend="conjugate",
+                prior_from=prior_for_fit,
+            ),
+            refute="full",
+            execution=antecedent.Execution(seed=13),
+        )
     )
     print("Calibration:", target.calibration.status)
     assert target.posterior is not None
     assert np.isfinite(target.posterior.effect_mean)
+    # Declared truths: the earlier surveys fit their own effects, and the target
+    # posterior stays near its declared effect after the combined prior is applied.
+    assert abs(mean_a - 2.0) < 0.3, mean_a
+    assert abs(mean_b - 1.5) < 0.3, mean_b
+    assert abs(target.posterior.effect_mean - 1.8) < 0.3, target.posterior.effect_mean
+    assert {r.artifact_id for r in accepted} == {"survey_launch", "survey_retention"}
     sens = target.validation.prior_sensitivity
     assert sens is not None and sens.alphas is not None
     assert target.validation.prior_predictive is not None

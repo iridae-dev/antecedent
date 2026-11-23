@@ -1,6 +1,6 @@
 //! [`TableView`] trait — public causal table API (ADR 0004).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CausalSchema, VariableId};
 

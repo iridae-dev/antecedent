@@ -30,7 +30,7 @@
 //! dependence between source estimates and native estimates is the caller's
 //! declaration (the evidence ledger decides whether the *data* overlap).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -41,8 +41,6 @@ use crate::synthesis::{
     hierarchical_normal_borrowing,
 };
 
-/// Version of the transported-synthesis semantics.
-pub const TRANSPORTED_SYNTHESIS_VERSION: u32 = 1;
 /// Most summaries one transported synthesis may combine.
 pub const MAX_TRANSPORTED_SUMMARIES: usize = 256;
 
@@ -136,12 +134,12 @@ fn validate(summaries: &[TransportAwareSummary]) -> Result<(), TransportedSynthe
             if !transport_variance.is_finite() || *transport_variance < 0.0 {
                 return Err(TransportedSynthesisError::InvalidTransportVariance { index });
             }
-            if let Some(previous) = variance_of_key.insert(transport_key, *transport_variance) {
-                if previous.to_bits() != transport_variance.to_bits() {
-                    return Err(TransportedSynthesisError::InconsistentTransportVariance {
-                        key: transport_key.clone(),
-                    });
-                }
+            if let Some(previous) = variance_of_key.insert(transport_key, *transport_variance)
+                && previous.to_bits() != transport_variance.to_bits()
+            {
+                return Err(TransportedSynthesisError::InconsistentTransportVariance {
+                    key: transport_key.clone(),
+                });
             }
         }
     }
@@ -198,11 +196,11 @@ pub fn transport_aware_covariance(
         };
         cov[i * k + i] += tau_a;
         for (j, b) in summaries.iter().enumerate().skip(i + 1) {
-            if let SummaryOrigin::Transported { transport_key: kb, .. } = &b.origin {
-                if ka == kb {
-                    cov[i * k + j] += tau_a;
-                    cov[j * k + i] += tau_a;
-                }
+            if let SummaryOrigin::Transported { transport_key: kb, .. } = &b.origin
+                && ka == kb
+            {
+                cov[i * k + j] += tau_a;
+                cov[j * k + i] += tau_a;
             }
         }
     }
@@ -291,12 +289,12 @@ pub fn borrow_transported(
     validate(summaries)?;
     let mut seen: BTreeSet<&str> = BTreeSet::new();
     for s in summaries {
-        if let SummaryOrigin::Transported { transport_key, .. } = &s.origin {
-            if !seen.insert(transport_key) {
-                return Err(TransportedSynthesisError::SharedTransportNeedsCovariance {
-                    key: transport_key.clone(),
-                });
-            }
+        if let SummaryOrigin::Transported { transport_key, .. } = &s.origin
+            && !seen.insert(transport_key)
+        {
+            return Err(TransportedSynthesisError::SharedTransportNeedsCovariance {
+                key: transport_key.clone(),
+            });
         }
     }
     let effective_variances: Vec<f64> = summaries

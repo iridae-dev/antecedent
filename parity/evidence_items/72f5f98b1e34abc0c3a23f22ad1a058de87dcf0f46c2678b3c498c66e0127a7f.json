@@ -1,0 +1,1 @@
+["use:antecedent_core::ExecutionContext;#0","use:antecedent_estimate::complier_posterior::bayesian_complier_effect;#0","use:antecedent_estimate::score_posterior::ScorePosteriorOptions;#0","use:serde_json::Value;#0","const:DRAWS#0","fn:floats#0","fn:empirical#0","fn:within#0","fn:the_ratio_and_intention_to_treat_laws_match_the_exact_distribution_functions#0"]

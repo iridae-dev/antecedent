@@ -7,4 +7,4 @@ Clean-room synthetic SCM generated inline by
 
 ## Expected summary
 
-Top-level keys: `estimator, generation, identifier, notes, reference, tolerance, true_effect` (7 fields).
+Top-level keys: `estimator, evidence_kind, evidence_proposition, evidence_roles, evidence_source, generation, historical_reference, identifier, limitations, notes, oracle, tolerance, true_effect` (13 fields).

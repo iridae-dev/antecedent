@@ -1,4 +1,14 @@
-"""Typed prediction models shared by causal estimators and transport providers."""
+"""Typed prediction models shared by causal estimators and transport providers.
+
+A learner fits a nuisance function (an outcome regression or a propensity) inside an
+estimator; it does not change the estimand. Pass one as ``learner=``, ``outcome=`` or
+``treatment=`` of an estimator such as :class:`antecedent.estimators.DML`, for example
+``DML(outcome=learners.RandomForest(), treatment=learners.Logistic())``. A string names a
+learner by its registered name instead. :data:`LearnerSpec` is the union of these classes.
+
+Every declaration validates its settings when constructed and raises
+:class:`~antecedent.errors.CausalValueError` for a value out of range.
+"""
 
 from __future__ import annotations
 
@@ -66,7 +76,10 @@ class Logistic:
 
 @dataclass(frozen=True, slots=True)
 class Ridge:
-    """Least squares with a nonnegative ridge penalty."""
+    """Least squares with a nonnegative ridge (L2) penalty.
+
+    * ``penalty`` -- the penalty weight, finite and at least zero. Default ``1.0``.
+    """
 
     penalty: float = 1.0
 
@@ -79,7 +92,12 @@ class Ridge:
 
 @dataclass(frozen=True, slots=True)
 class ElasticNet:
-    """Elastic-net regression; l1_ratio is between zero and one."""
+    """Elastic-net regression: least squares with a mixed L1 and L2 penalty.
+
+    * ``penalty`` -- the overall penalty weight, finite and at least zero. Default ``1.0``.
+    * ``l1_ratio`` -- the share of the penalty on the L1 term, between zero (ridge) and one
+      (lasso). Default ``0.5``.
+    """
 
     penalty: float = 1.0
     l1_ratio: float = 0.5
@@ -105,7 +123,12 @@ class ElasticNet:
 
 @dataclass(frozen=True, slots=True)
 class GradientBoostedTrees:
-    """Gradient boosting through the optional CPU provider."""
+    """Gradient-boosted trees through the optional CPU provider.
+
+    * ``trees`` -- the number of boosting rounds, a positive 32-bit integer. Default ``300``.
+    * ``depth`` -- the maximum depth of each tree. Default ``6``.
+    * ``learning_rate`` -- the shrinkage of each round, finite and positive. Default ``0.05``.
+    """
 
     trees: int = 300
     depth: int = 6
@@ -127,7 +150,11 @@ class GradientBoostedTrees:
 
 @dataclass(frozen=True, slots=True)
 class RandomForest:
-    """Random forest or extra-trees through the optional CPU provider."""
+    """Random forest or extra-trees through the optional CPU provider.
+
+    * ``extra_trees`` -- use extremely randomized trees instead of a random forest. Default
+      ``False``.
+    """
 
     extra_trees: bool = False
 
@@ -141,24 +168,42 @@ class RandomForest:
 
 @dataclass(frozen=True, slots=True)
 class NeuralNet:
-    """CPU-native neural nuisance learner included in the standard Python wheel."""
+    """Neural nuisance learner. Runs on the CPU in the standard Python wheel.
+
+    ``device`` is ``"cpu"`` (default, never touches a device), ``"gpu"`` (the device backend of
+    the separate accelerator distribution; refused with the reason when the runtime, adapter,
+    dtype, operator, or device memory does not apply), or ``"auto"`` (the device when every
+    check passes and the fit is large enough to pay for its copies, otherwise the CPU, with the
+    reason recorded in the learner provenance). The learner provenance names the library,
+    device, and any fallback of the route that actually ran.
+
+    * ``hidden`` -- the hidden-layer width. Default ``32``.
+    * ``epochs`` -- the training epochs. Default ``40``.
+    * ``learning_rate`` -- finite and positive. Default ``0.05``.
+    """
 
     hidden: int = 32
     epochs: int = 40
     learning_rate: float = 0.05
+    device: str = "cpu"
 
     def __post_init__(self) -> None:
         _count("hidden", self.hidden)
         _count("epochs", self.epochs)
         _positive("learning_rate", self.learning_rate)
+        if not isinstance(self.device, str) or self.device not in ("cpu", "gpu", "auto"):
+            raise ValueError("device must be one of 'cpu', 'gpu', or 'auto'")
 
     def _wire(self) -> dict[str, object]:
-        return {
+        wire: dict[str, object] = {
             "kind": "neural_net",
             "hidden": self.hidden,
             "epochs": self.epochs,
             "learning_rate": self.learning_rate,
         }
+        if self.device != "cpu":
+            wire["device"] = self.device
+        return wire
 
 
 LearnerSpec: TypeAlias = (

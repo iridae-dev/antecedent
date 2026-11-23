@@ -11,6 +11,7 @@ def test_transport_route_types_and_misspelled_names_are_rejected(tmp_path):
     fixture = tmp_path / "positive.py"
     mypy = [sys.executable, "-m", "mypy", "--cache-dir", str(tmp_path / "mypy-cache")]
     fixture.write_text("""from typing import assert_type
+from antecedent.outcomes import Outcome, require_success
 from antecedent import cross_world_execution as cwx
 from antecedent import discretized_composition as dc
 from antecedent import inverse_sources as src
@@ -36,8 +37,8 @@ def checked(
     discretized = dc.discretize(composition, 4)
     assert_type(discretized, dc.PreparedDiscretizedComposition)
     contrast = discretized.mean_contrast(dc.DiscreteContrast.ate("Y", "X", 3, 0))
-    assert_type(contrast, dc.DiscretizedContrast)
-    assert_type(contrast.error_bound, float)
+    assert_type(contrast, Outcome[dc.DiscretizedContrast])
+    assert_type(require_success(contrast).error_bound, float)
 
     assert_type(account.unit_mean_sampling_variance, float | None)
     assert_type(account.units[0].predictive_variance, float)

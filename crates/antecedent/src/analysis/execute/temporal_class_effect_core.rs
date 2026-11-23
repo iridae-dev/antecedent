@@ -3,12 +3,12 @@
 //!
 //! The sealed operation ([`super::CheckedTemporalClassEffectExecution`]), the
 //! one-shot route and the sealed Bayesian operation all resolve their proof,
-//! gate their own licence, and call these functions. Callers own what they
+//! gate their own support, and call these functions. Callers own what they
 //! admit (the sealed frequentist operation takes no class prior and no
 //! Bayesian fit; the one-shot route does), never how an admitted fit is
 //! computed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::sequential_validation::{SequentialValidation, SequentialValidationAtom};
 use super::temporal_effect_core::{FitFinishMeta, mixture_read_variables, shared_gap_report};
@@ -144,6 +144,11 @@ pub(super) fn fit_temporal_class_effect(
     inputs: &TemporalClassEffectInputs<'_>,
     ctx: &ExecutionContext,
 ) -> Result<TemporalClassEffectFit, CausalError> {
+    // The completions' lag windows and shared bootstrap are fit on the unweighted series.
+    super::series_weights::refuse_unread_series_weights(
+        inputs.data,
+        "the class-aware temporal effect",
+    )?;
     require_identified_class_mass(&inputs.bundle.envelope.envelope)?;
     if !inputs.query.effect_modifiers.is_empty() {
         fit_class_conditional(inputs, ctx)
@@ -158,28 +163,32 @@ fn fit_class_conditional(
     inputs: &TemporalClassEffectInputs<'_>,
     ctx: &ExecutionContext,
 ) -> Result<TemporalClassEffectFit, CausalError> {
-    let (estimate, estimand, _, diagnostics, structural) =
-        super::temporal_class_point::assemble_temporal_class_conditional(
-            inputs.data,
-            inputs.query,
-            &inputs.bundle.envelope,
-            inputs.graph_class,
-            inputs.refute,
-            inputs.inference,
-            ctx.kernel_policy,
-        )?;
+    let fit = super::temporal_class_point::assemble_temporal_class_conditional(
+        inputs.data,
+        inputs.query,
+        &inputs.bundle.envelope,
+        inputs.graph_class,
+        inputs.refute,
+        (inputs.inference, inputs.bootstrap_replicates),
+        ctx,
+    )?;
+    let outcome = fit.outcome;
+    // Point only when no replicates were requested and no posterior was drawn.
+    let point_only = outcome.posterior.is_none()
+        && outcome.replicates_ok.is_none()
+        && outcome.identified_set.is_none();
     Ok(TemporalClassEffectFit {
-        estimand,
-        estimate,
+        estimand: fit.estimand,
+        estimate: outcome.estimate,
         estimator_id: EstimatorId::TemporalLinearAdjustment,
         refutations: Vec::new(),
-        diagnostics,
-        posterior: None,
-        structural,
+        diagnostics: fit.diagnostics,
+        posterior: outcome.posterior,
+        structural: fit.structural,
         predictive_checks: Vec::new(),
-        bootstrap_replicates_ok: None,
-        cancelled: false,
-        point_only: true,
+        bootstrap_replicates_ok: outcome.replicates_ok,
+        cancelled: outcome.cancelled,
+        point_only,
         missing_data: None,
     })
 }
@@ -457,7 +466,7 @@ pub(super) fn fit_class_sequential(
         let variables = mixture_read_variables(
             [inputs.query.treatment, inputs.query.outcome],
             run.seq_atoms.iter().map(|atom| &atom.estimand),
-            run.seq_atoms.iter().map(|atom| &atom.graph),
+            run.seq_atoms.iter().map(|atom| atom.graph.as_ref()),
         );
         Some(shared_gap_report(inputs.data, &variables, &run.windows)?)
     };
@@ -524,19 +533,18 @@ fn fit_sequential_completion(
     run.total_w += weight;
     if let Some(posterior) = posterior.as_ref() {
         run.atom_posteriors.insert(key, posterior.clone());
-        if let Some(col) = posterior.effect_column() {
-            if let Ok(draws) = posterior.draws.column(col) {
-                run.per_graph.push(GraphEffectDraws {
-                    graph_key: key,
-                    effect_draws: Arc::from(draws.to_vec()),
-                });
-            }
+        if let Some(col) = posterior.effect_column()
+            && let Ok(draws) = posterior.draws.column(col)
+        {
+            run.per_graph
+                .push(GraphEffectDraws { graph_key: key, effect_draws: Arc::from(draws.to_vec()) });
         }
     }
     run.seq_atom_keys.push(key);
     run.seq_atoms.push(SequentialValidationAtom {
         weight,
-        graph: dag,
+        graph: Arc::new(dag),
+        _graph_lease: None,
         indexer: indexer.clone(),
         estimand,
         status: case.result.status,

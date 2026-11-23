@@ -7,7 +7,7 @@
 //! Explicit scheduler module — rules are applied via a delta queue, not a
 //! single procedural blob that rescans all edges after every change.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_graph::{DenseNodeId, Endpoint, MiddleMark, NodeRef, Pag, TemporalPag};
 
@@ -18,7 +18,7 @@ use crate::orientation::{
     OrientationError, OrientationQueue, OrientationState, PagOps, RuleDelta, drive_to_fixed_point,
     focus_nodes,
 };
-use crate::uncovered_paths::{EndpointPattern, uncovered_pd_paths_with_budget};
+use crate::uncovered_paths::{EndpointPattern, for_each_uncovered_pd_path};
 
 /// Enqueue a changed node and its adjacency (local delta, not full-graph re-seed).
 fn enqueue_local<G: PagOps>(graph: &G, id: DenseNodeId, queue: &mut OrientationQueue) {
@@ -164,7 +164,7 @@ fn apply_orient_collider<G: PagOps>(
                     state.mark_ambiguous_triple(a, b, c);
                     continue;
                 };
-                if sep.iter().any(|&z| z == b) {
+                if sep.contains(&b) {
                     continue; // non-collider
                 }
                 // Orient a *→ b ←* c
@@ -345,33 +345,9 @@ fn apply_r3<G: PagOps>(
     Ok(delta)
 }
 
-/// Force an arrowhead at `into` for the R4 discriminating-path collider certificate.
-///
-/// Unlike [`orient_collider_leg`] (used by the plain sepset-based collider rule, where a
-/// pre-existing tail genuinely contradicts the premise and must be pinned as a conflict), a
-/// discriminating path is Zhang's stronger, self-contained certificate: once the path is
-/// found and `c` is not in `Sep(a,b)`, both `d_k *→ c` and `c ←* b` hold regardless of
-/// whatever mark previously sat at `c`. So a tail here is overwritten outright, not flagged.
-/// A pinned `Conflict` endpoint is still left alone, and a resulting cycle is still recorded
-/// as a conflict rather than applied.
-fn force_collider_arrow<G: PagOps>(
-    graph: &mut G,
-    state: &mut OrientationState,
-    delta: &mut RuleDelta,
-    from: DenseNodeId,
-    into: DenseNodeId,
-) -> Result<bool, OrientationError> {
-    let Some((at_from, at_into)) = marks_between(graph, from, into) else {
-        return Ok(false);
-    };
-    if matches!(at_into, Endpoint::Arrow | Endpoint::Conflict) {
-        return Ok(false);
-    }
-    set_marks_oriented(graph, state, delta, from, into, at_from, Endpoint::Arrow)
-}
-
 /// Zhang R4, collider branch: orient the triple `d_k ↔ c ↔ b` (arrowheads at both ends of
-/// both edges). Returns whether the graph changed.
+/// both edges). A pre-existing tail contradicts the certificate and is pinned
+/// as a conflict, as in the ordinary collider rule. Returns whether the graph changed.
 pub(crate) fn orient_discriminated_collider<G: PagOps>(
     graph: &mut G,
     state: &mut OrientationState,
@@ -382,7 +358,7 @@ pub(crate) fn orient_discriminated_collider<G: PagOps>(
 ) -> Result<bool, OrientationError> {
     let mut changed = false;
     for (from, into) in [(d_k, c), (b, c), (c, d_k), (c, b)] {
-        changed |= force_collider_arrow(graph, state, delta, from, into)?;
+        changed |= orient_collider_leg(graph, state, delta, from, into)?;
     }
     Ok(changed)
 }
@@ -422,7 +398,7 @@ fn apply_discriminating_path<G: PagOps>(
         let Some(sep) = state.sepset(a, b) else {
             continue;
         };
-        let c_in_sep = sep.iter().any(|&z| z == c);
+        let c_in_sep = sep.contains(&c);
         let collider = discriminating_implies_collider(c_in_sep);
         let Some(e_cb) = graph.edge_between(c, b) else {
             continue;
@@ -511,11 +487,6 @@ fn apply_r8<G: PagOps>(
     Ok(delta)
 }
 
-/// Per-search bounds on the uncovered potentially-directed path enumeration of R9 / R10.
-const PD_PATH_MAX_PATHS: usize = 8;
-/// Maximum path length (nodes) for the R9 / R10 enumeration.
-const PD_PATH_MAX_LEN: usize = 8;
-
 /// Diagnostic for edges R9 / R10 left open because their path search ran out of budget.
 #[must_use]
 pub(crate) fn pd_path_budget_diagnostic(
@@ -525,12 +496,43 @@ pub(crate) fn pd_path_budget_diagnostic(
     (!state.pd_path_skipped.is_empty()).then(|| crate::result::DiscoveryDiagnostic {
         code: std::sync::Arc::from(format!("{algorithm}.pd_path_budget")),
         message: std::sync::Arc::from(format!(
-            "R9/R10 uncovered potentially-directed path search exceeded {PD_PATH_MAX_PATHS} \
-             paths of up to {PD_PATH_MAX_LEN} nodes on {} edge(s) without finding a licensing \
-             path; their circle marks were left unresolved (sound, possibly incomplete)",
+            "R9/R10 uncovered potentially-directed path search exhausted its effort budget on \
+             {} edge(s) without finding a support path; their circle marks were left \
+             unresolved (sound, possibly incomplete)",
             state.pd_path_skipped.len()
         )),
     })
+}
+
+fn weak_sep_contains(
+    state: &OrientationState,
+    a: DenseNodeId,
+    b: DenseNodeId,
+    middle: DenseNodeId,
+) -> bool {
+    state.sepset(a, b).is_some_and(|sep| {
+        sep.contains(&middle) && (state.is_weakly_minimal(a, b) || sep.len() <= 1)
+    })
+}
+
+// LPCMCI prime-rule condition iv: before the first arrowhead into a path's middle,
+// each unshielded triple must have that middle in a retained separating set.
+fn prime_path_evidence<G: PagOps>(
+    graph: &G,
+    state: &OrientationState,
+    path: &[DenseNodeId],
+) -> bool {
+    for triple in path.windows(3) {
+        if marks_between(graph, triple[0], triple[1])
+            .is_some_and(|(_, at_middle)| matches!(at_middle, Endpoint::Arrow))
+        {
+            return true;
+        }
+        if !weak_sep_contains(state, triple[0], triple[2], triple[1]) {
+            return false;
+        }
+    }
+    true
 }
 
 fn apply_r9<G: PagOps>(
@@ -557,35 +559,53 @@ fn apply_r9<G: PagOps>(
                 let Some(sep) = state.sepset(b1, c) else {
                     continue;
                 };
-                if !sep.iter().any(|&z| z == a) {
+                if !sep.contains(&a) {
                     continue;
                 }
                 if !state.is_weakly_minimal(b1, c) && !sep.is_empty() {
                     // Static FCI never runs weakly-minimal reduction. Allow empty/singleton
                     // sepsets as trivially weakly minimal (R9 is singleton-only on this path);
-                    // larger unmarked sepsets do not license R9.
+                    // larger unmarked sepsets do not support R9.
                     if sep.len() > 1 {
                         continue;
                     }
                 }
-                let initial = [
+                let Some((at_a_b1, at_b1)) = marks_between(graph, a, b1) else { continue };
+                let circle_circle =
+                    matches!((at_a_b1, at_b1), (Endpoint::Circle, Endpoint::Circle));
+                let arrow_at_b1 = matches!(at_a_b1, Endpoint::Circle | Endpoint::Tail)
+                    && matches!(at_b1, Endpoint::Arrow);
+                if !circle_circle && !arrow_at_b1 {
+                    continue;
+                }
+                let general = [
                     EndpointPattern::circle_circle(),
                     EndpointPattern::circle_arrow(),
                     EndpointPattern::directed(),
                 ];
-                let (paths, truncated) = uncovered_pd_paths_with_budget(
+                let directed = [EndpointPattern::directed()];
+                let initial = if circle_circle { &general[..] } else { &directed[..] };
+                let mut qualifies = false;
+                let truncated = for_each_uncovered_pd_path(
                     graph,
                     b1,
                     c,
-                    &initial,
-                    PD_PATH_MAX_PATHS,
-                    PD_PATH_MAX_LEN,
+                    initial,
+                    state.pd_path_budget,
+                    |path| {
+                        let evidence = arrow_at_b1
+                            || (weak_sep_contains(state, a, path[1], b1)
+                                && prime_path_evidence(graph, state, path));
+                        if evidence && !path.contains(&a) && !graph.has_edge(a, path[1]) {
+                            qualifies = true;
+                            std::ops::ControlFlow::Break(())
+                        } else {
+                            std::ops::ControlFlow::Continue(())
+                        }
+                    },
                 );
-                let qualifies = paths.iter().any(|path| {
-                    path.len() >= 3 && !path.contains(&a) && !graph.has_edge(a, path[1])
-                });
                 if !qualifies {
-                    // Any path found licenses the orientation; a truncated search that found
+                    // Any path found supports the orientation; a truncated search that found
                     // none cannot rule one out, so the edge is left open and recorded.
                     if truncated {
                         state.pd_path_skipped.insert((a.raw(), c.raw()));
@@ -643,52 +663,61 @@ fn apply_r10<G: PagOps>(
         ];
         for &a in &o_arrow_into {
             // Need two distinct parents (≠ a) with node-disjoint uncovered PD paths from a.
-            let mut path_for_parent: Vec<(DenseNodeId, Vec<DenseNodeId>)> = Vec::new();
+            let mut paths_for_parent: Vec<(DenseNodeId, Vec<Vec<DenseNodeId>>)> = Vec::new();
             let mut any_truncated = false;
             for &p in &parents_into {
                 if p == a {
                     continue;
                 }
-                let (paths, truncated) = uncovered_pd_paths_with_budget(
+                let mut paths: Vec<Vec<DenseNodeId>> = Vec::new();
+                any_truncated |= for_each_uncovered_pd_path(
                     graph,
                     a,
                     p,
                     &initial,
-                    PD_PATH_MAX_PATHS,
-                    PD_PATH_MAX_LEN,
+                    state.pd_path_budget,
+                    |path| {
+                        if path.len() >= 3
+                            && !path.contains(&c)
+                            && !graph.has_edge(path[path.len() - 2], c)
+                        {
+                            let mut extended = path.to_vec();
+                            extended.push(c);
+                            if prime_path_evidence(graph, state, &extended) {
+                                paths.push(path.to_vec());
+                            }
+                        }
+                        std::ops::ControlFlow::Continue(())
+                    },
                 );
-                any_truncated |= truncated;
-                if let Some(path) = paths.into_iter().find(|p| p.len() >= 3 && !p.contains(&c)) {
-                    path_for_parent.push((p, path));
+                if !paths.is_empty() {
+                    paths_for_parent.push((p, paths));
                 }
             }
-            let mut found_pair = false;
-            'pair: for i in 0..path_for_parent.len() {
-                for j in (i + 1)..path_for_parent.len() {
-                    let (p1, ref path1) = path_for_parent[i];
-                    let (p2, ref path2) = path_for_parent[j];
-                    if p1 == p2 {
-                        continue;
-                    }
-                    // Node-disjoint except `a`, and first successors of `a` non-adjacent.
-                    if !paths_node_disjoint_except_a(path1, path2, a) {
-                        continue;
-                    }
-                    let Some(&u) = path1.get(1) else {
-                        continue;
-                    };
-                    let Some(&v) = path2.get(1) else {
-                        continue;
-                    };
-                    if u == v || graph.has_edge(u, v) {
-                        continue;
-                    }
-                    found_pair = true;
-                    break 'pair;
-                }
-            }
+            let found_pair = (0..paths_for_parent.len()).any(|i| {
+                ((i + 1)..paths_for_parent.len()).any(|j| {
+                    let (p1, ref paths1) = paths_for_parent[i];
+                    let (p2, ref paths2) = paths_for_parent[j];
+                    p1 != p2
+                        && paths1.iter().any(|path1| {
+                            paths2.iter().any(|path2| {
+                                // Node-disjoint except `a`, and first successors of `a`
+                                // distinct and non-adjacent.
+                                paths_node_disjoint_except_a(path1, path2, a)
+                                    && match (path1.get(1), path2.get(1)) {
+                                        (Some(&u), Some(&v)) => {
+                                            u != v
+                                                && !graph.has_edge(u, v)
+                                                && weak_sep_contains(state, u, v, a)
+                                        }
+                                        _ => false,
+                                    }
+                            })
+                        })
+                })
+            });
             if !found_pair {
-                // A pair found within budget licenses the orientation; without one, a
+                // A pair found within budget supports the orientation; without one, a
                 // truncated search cannot rule one out, so the edge is left open and recorded.
                 if any_truncated {
                     state.pd_path_skipped.insert((a.raw(), c.raw()));
@@ -707,6 +736,197 @@ fn apply_r10<G: PagOps>(
     Ok(delta)
 }
 
+fn all_nodes<G: PagOps>(graph: &G) -> Vec<DenseNodeId> {
+    (0..graph.node_count())
+        .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("node index fits u32")))
+        .collect()
+}
+
+const POTENTIALLY_DIRECTED_START: [EndpointPattern; 3] = [
+    EndpointPattern::circle_circle(),
+    EndpointPattern::circle_arrow(),
+    EndpointPattern::directed(),
+];
+
+/// Zhang's R9: `a o→ c` and an uncovered potentially directed path from `a` to `c` whose second
+/// node is not adjacent to `c` give `a → c`.
+///
+/// Every node is a candidate source on every pass: a change anywhere along a path can complete
+/// it, so the local queue of the other rules would miss firings. Paths of any length are searched
+/// up to the effort budget; an edge whose search runs out without a support path is left open
+/// and reported.
+fn apply_zhang_r9<G: PagOps>(
+    graph: &mut G,
+    state: &mut OrientationState,
+    queue: &mut OrientationQueue,
+) -> Result<RuleDelta, OrientationError> {
+    let mut delta = RuleDelta::default();
+    let _ = focus_nodes(graph.node_count(), queue);
+    for a in all_nodes(graph) {
+        let nbrs: Vec<_> = graph.neighbors(a).into_iter().map(|(x, _, _)| x).collect();
+        for c in nbrs {
+            let Some((at_a, at_c)) = marks_between(graph, a, c) else {
+                continue;
+            };
+            if !matches!(at_a, Endpoint::Circle) || !matches!(at_c, Endpoint::Arrow) {
+                continue;
+            }
+            let mut qualifies = false;
+            let truncated = for_each_uncovered_pd_path(
+                graph,
+                a,
+                c,
+                &POTENTIALLY_DIRECTED_START,
+                state.pd_path_budget,
+                |path| {
+                    if graph.has_edge(c, path[1]) {
+                        std::ops::ControlFlow::Continue(())
+                    } else {
+                        qualifies = true;
+                        std::ops::ControlFlow::Break(())
+                    }
+                },
+            );
+            if !qualifies {
+                if truncated {
+                    state.pd_path_skipped.insert((a.raw(), c.raw()));
+                }
+                continue;
+            }
+            if set_marks_oriented(graph, state, &mut delta, a, c, Endpoint::Tail, Endpoint::Arrow)?
+            {
+                delta.edges_changed += 1;
+                enqueue_local(graph, a, queue);
+                enqueue_local(graph, c, queue);
+            }
+        }
+    }
+    delta.fixed_point = delta.edges_changed == 0;
+    Ok(delta)
+}
+
+/// Zhang's R10: `a o→ c`, two directed edges `p1 → c ← p2`, and uncovered potentially directed
+/// paths from `a` to `p1` and to `p2` whose second nodes `μ ≠ ω` are not adjacent give
+/// `a → c`. A path may be the single edge `a *-* p` when it is potentially directed (then `μ` is
+/// `p`); a longer path does not pass through `c`.
+fn apply_zhang_r10<G: PagOps>(
+    graph: &mut G,
+    state: &mut OrientationState,
+    queue: &mut OrientationQueue,
+) -> Result<RuleDelta, OrientationError> {
+    let mut delta = RuleDelta::default();
+    let _ = focus_nodes(graph.node_count(), queue);
+    for c in all_nodes(graph) {
+        let nbrs: Vec<_> = graph.neighbors(c).into_iter().map(|(x, _, _)| x).collect();
+        let mut sources = Vec::new();
+        let mut parents = Vec::new();
+        for &n in &nbrs {
+            let Some((at_n, at_c)) = marks_between(graph, n, c) else {
+                continue;
+            };
+            if matches!(at_c, Endpoint::Arrow) && matches!(at_n, Endpoint::Circle) {
+                sources.push(n);
+            }
+            if matches!(at_c, Endpoint::Arrow) && matches!(at_n, Endpoint::Tail) {
+                parents.push(n);
+            }
+        }
+        for &a in &sources {
+            let mut seconds: Vec<(DenseNodeId, Vec<DenseNodeId>)> = Vec::new();
+            let mut truncated = false;
+            for &p in &parents {
+                if p == a {
+                    continue;
+                }
+                let mut firsts: Vec<DenseNodeId> = Vec::new();
+                if let Some((at_a, at_p)) = marks_between(graph, a, p)
+                    && matches!(at_a, Endpoint::Circle | Endpoint::Tail)
+                    && matches!(at_p, Endpoint::Circle | Endpoint::Arrow)
+                {
+                    firsts.push(p);
+                }
+                truncated |= for_each_uncovered_pd_path(
+                    graph,
+                    a,
+                    p,
+                    &POTENTIALLY_DIRECTED_START,
+                    state.pd_path_budget,
+                    |path| {
+                        if !path.contains(&c) && !firsts.contains(&path[1]) {
+                            firsts.push(path[1]);
+                        }
+                        std::ops::ControlFlow::Continue(())
+                    },
+                );
+                if !firsts.is_empty() {
+                    seconds.push((p, firsts));
+                }
+            }
+            let supported = (0..seconds.len()).any(|i| {
+                ((i + 1)..seconds.len()).any(|j| {
+                    seconds[i].1.iter().any(|&mu| {
+                        seconds[j].1.iter().any(|&omega| mu != omega && !graph.has_edge(mu, omega))
+                    })
+                })
+            });
+            if !supported {
+                if truncated {
+                    state.pd_path_skipped.insert((a.raw(), c.raw()));
+                }
+                continue;
+            }
+            if set_marks_oriented(graph, state, &mut delta, a, c, Endpoint::Tail, Endpoint::Arrow)?
+            {
+                delta.edges_changed += 1;
+                enqueue_local(graph, a, queue);
+                enqueue_local(graph, c, queue);
+            }
+        }
+    }
+    delta.fixed_point = delta.edges_changed == 0;
+    Ok(delta)
+}
+
+/// Zhang's unprimed R9 for static FCI.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct ZhangR9;
+
+impl FciOrientationRule for ZhangR9 {
+    #[cfg(test)]
+    fn id(&self) -> &'static str {
+        "fci.zhang_r9"
+    }
+
+    fn apply(
+        &self,
+        graph: &mut Pag,
+        state: &mut OrientationState,
+        queue: &mut OrientationQueue,
+    ) -> Result<RuleDelta, OrientationError> {
+        apply_zhang_r9(graph, state, queue)
+    }
+}
+
+/// Zhang's unprimed R10 for static FCI.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct ZhangR10;
+
+impl FciOrientationRule for ZhangR10 {
+    #[cfg(test)]
+    fn id(&self) -> &'static str {
+        "fci.zhang_r10"
+    }
+
+    fn apply(
+        &self,
+        graph: &mut Pag,
+        state: &mut OrientationState,
+        queue: &mut OrientationQueue,
+    ) -> Result<RuleDelta, OrientationError> {
+        apply_zhang_r10(graph, state, queue)
+    }
+}
+
 /// Two uncovered PD paths are node-disjoint except at the shared start `a`.
 fn paths_node_disjoint_except_a(
     path1: &[DenseNodeId],
@@ -717,7 +937,7 @@ fn paths_node_disjoint_except_a(
         if n == a {
             continue;
         }
-        if path2.iter().any(|&m| m == n) {
+        if path2.contains(&n) {
             return false;
         }
     }
@@ -983,11 +1203,10 @@ impl LpcmciOrientationRule for LpcmciR9 {
 /// Incomplete by construction (sound, may leave circles R10′ would orient):
 /// - paths of two nodes are excluded (`p.len() >= 3`), so the case where the parent is
 ///   itself the first node after `a` (μ = β in Zhang's notation) is never used;
-/// - only the first qualifying path per parent is kept, so a pair that is node-disjoint
-///   only through a later path is missed;
-/// - the path enumeration is bounded (8 paths of up to 8 nodes per parent); an edge whose
-///   search runs out without a licensing pair is left open and reported as
-///   `<algorithm>.pd_path_budget` rather than failing the run.
+/// - the path enumeration is exhaustive up to an effort budget
+///   ([`OrientationState::pd_path_budget`], path extensions per search, no limit on path
+///   length or count); an edge whose search runs out without a support pair is left open and
+///   reported as `<algorithm>.pd_path_budget` rather than failing the run.
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct LpcmciR10;
 
@@ -1164,8 +1383,8 @@ pub(crate) fn default_fci_rules() -> [&'static dyn FciOrientationRule; 8] {
         &LpcmciR3,
         &LpcmciDiscriminatingPathRule,
         &LpcmciR8,
-        &LpcmciR9,
-        &LpcmciR10,
+        &ZhangR9,
+        &ZhangR10,
     ]
 }
 

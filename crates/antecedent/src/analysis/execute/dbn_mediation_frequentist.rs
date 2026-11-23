@@ -50,6 +50,9 @@ struct DbnMediationAggregate {
     replicates_requested: bool,
     replicates_ok: u32,
     family: antecedent_estimate::CircularBlockFamily,
+    /// Whether the atoms were combined into one frozen-weight mean; false when their
+    /// estimands differ or are only partially identified, and no scalar is published.
+    mixed: bool,
 }
 
 /// Identified, unidentified and unevaluable shares of the posterior mass.
@@ -72,6 +75,7 @@ struct DbnMediationParts {
     atoms: Vec<crate::result::StructuralResponseAtom>,
     masses: DbnMediationMasses,
     atom_points: Vec<f64>,
+    aggregation_policy: crate::result::StructuralAggregationPolicy,
     horizon: u32,
     identify_cached: bool,
 }
@@ -106,16 +110,19 @@ impl super::Study {
         let started = Instant::now();
         if query.horizons.len() != 1 {
             return Err(CausalError::Unsupported {
-                message: "Frequentist DBN-posterior mediation is licensed for one horizon; \
+                message: "Frequentist DBN-posterior mediation is supported for one horizon; \
                           multi-horizon grids need their own joint uncertainty contract",
             });
         }
         let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-        let (identified, identify_cached) =
-            if let Some(cache) = self.dbn_posterior_identification_cache.as_ref() {
-                (Arc::clone(cache), true)
-            } else {
-                (
+        let (identified, identify_cached) = if let Some(cache) = self.dbn_posterior_cache() {
+            (Arc::clone(cache), true)
+        } else if let Some(cache) =
+            crate::analysis::lowering::plan_retained_dbn_posterior(self, physical)
+        {
+            (cache, false)
+        } else {
+            (
                 Arc::new(
                     crate::analysis::prepared::build_dbn_posterior_mediation_identification_cache(
                         gp, &vars, query, ctx,
@@ -123,7 +130,7 @@ impl super::Study {
                 ),
                 false,
             )
-            };
+        };
         let horizon = query.horizons[0];
         let identified = identified.mediation_horizon(horizon)?;
         let mut atoms = dbn_posterior_structural_atoms(&identified);
@@ -148,12 +155,19 @@ impl super::Study {
         let total_mass = identified.graphs.total_weight();
         let identified_mass: f64 = weights.iter().sum();
         let unidentified_mass = identified.graphs.unidentified_mass();
-        let incomplete =
-            dbn_mediation_graph_dependent(identification.status, unidentified_mass, failed_mass);
-        if incomplete {
-            identification.status = IdentificationStatus::GraphDependent;
-        }
+        let aggregation_policy =
+            resolve_structural_aggregation(&contributing_estimands, any_partial);
+        identification.status = dbn_mediation_status(
+            identification.status,
+            aggregation_policy,
+            (unidentified_mass, failed_mass),
+        );
+        let mix_scalar = matches!(
+            aggregation_policy,
+            crate::result::StructuralAggregationPolicy::SameEstimandWeightedMean
+        );
         let aggregate = self.aggregate_dbn_mediation(
+            mix_scalar,
             (&designs, &weights, identified_mass),
             &identification,
             query,
@@ -168,13 +182,14 @@ impl super::Study {
         let mut diagnostics = dbn_mediation_diagnostics(
             identification.diagnostics.clone(),
             (&identified, &aggregate, masses),
-            (resolve_structural_aggregation(&contributing_estimands, any_partial), distinct_sets),
+            (aggregation_policy, distinct_sets),
             (designs.len(), identify_cached),
         );
         let mut refutations = Vec::new();
-        if self.refute != RefuteSuite::None {
+        if self.settings.refute != RefuteSuite::None {
             refutations = self.refute_dbn_mediation_atoms(
                 (data, query),
+                mix_scalar,
                 &refute_atoms,
                 &designs,
                 &mut diagnostics,
@@ -210,13 +225,14 @@ impl super::Study {
                 atoms,
                 masses,
                 atom_points,
+                aggregation_policy,
                 horizon,
                 identify_cached,
             },
             started,
             ctx,
         );
-        result.missing_data = missing_data;
+        result.extras.missing_data = missing_data;
         Ok(result)
     }
 
@@ -224,6 +240,7 @@ impl super::Study {
     /// effects, with the shared circular-block bootstrap of the aggregate.
     fn aggregate_dbn_mediation(
         &self,
+        mix_scalar: bool,
         (designs, weights, identified_mass): (
             &[antecedent_estimate::PreparedTemporalMediation],
             &[f64],
@@ -235,6 +252,9 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> DbnMediationAggregate {
         let mix = |pick: fn(&TemporalMediationEstimate) -> Option<f64>| -> Option<f64> {
+            if !mix_scalar {
+                return None;
+            }
             let mut acc = 0.0;
             for (design, weight) in designs.iter().zip(weights) {
                 acc += weight * pick(design.estimate())?;
@@ -243,16 +263,20 @@ impl super::Study {
         };
         let point = mix(|m| Some(m.effect.ate)).unwrap_or(f64::NAN);
         let refs: Vec<&antecedent_estimate::PreparedTemporalMediation> = designs.iter().collect();
-        let shared = antecedent_estimate::shared_mediation_block_bootstrap(
-            &refs,
-            weights,
-            query.contrast,
-            self.bootstrap_replicates,
-            mediation_block_stream(MediationRoute::Dbn, horizon),
-            ctx,
-        );
+        let shared = if mix_scalar {
+            antecedent_estimate::shared_mediation_block_bootstrap(
+                &refs,
+                weights,
+                query.contrast,
+                self.settings.bootstrap_replicates,
+                mediation_block_stream(MediationRoute::Dbn, horizon),
+                ctx,
+            )
+        } else {
+            None
+        };
         let requested_se = shared.as_ref().and_then(|s| s.requested).filter(|s| s.is_finite());
-        let replicates_requested = self.bootstrap_replicates > 0;
+        let replicates_requested = mix_scalar && self.settings.bootstrap_replicates > 0;
         let (replicates_ok, replicates_attempted) = shared
             .as_ref()
             .map_or((0, 0), |s| (s.block.replicates_ok, s.block.replicates_attempted));
@@ -296,6 +320,7 @@ impl super::Study {
             replicates_requested,
             replicates_ok,
             family,
+            mixed: mix_scalar,
         }
     }
 
@@ -304,20 +329,37 @@ impl super::Study {
     fn refute_dbn_mediation_atoms(
         &self,
         (data, query): (&TimeSeriesData, &antecedent_core::MediationQuery),
+        mix_scalar: bool,
         refute_atoms: &[(u64, f64, IdentifiedEstimand, Arc<[antecedent_data::LaggedColumn]>)],
         designs: &[antecedent_estimate::PreparedTemporalMediation],
         diagnostics: &mut Vec<Diagnostic>,
         ctx: &ExecutionContext,
     ) -> Result<Vec<antecedent_validate::RefutationReport>, CausalError> {
-        let plan = QueryRefutationPlan::temporal_mediation(self.refute == RefuteSuite::Full);
+        let plan =
+            QueryRefutationPlan::temporal_mediation(self.settings.refute == RefuteSuite::Full);
         let mut per_atom = Vec::with_capacity(refute_atoms.len());
         for ((_, weight, estimand, lagged), design) in refute_atoms.iter().zip(designs) {
             let reports = plan
-                .refute_temporal_atom(data, estimand, query, design.estimate(), lagged, ctx)
+                .refute_temporal_atom_with_gaps(
+                    data,
+                    estimand,
+                    query,
+                    design.estimate(),
+                    lagged,
+                    self.declares_complete_case(),
+                    ctx,
+                )
                 .map_err(CausalError::from)?;
             per_atom.push((*weight, reports));
         }
-        let refutations = QueryRefutationPlan::mix_weighted(per_atom);
+        let (refutations, _) = super::atom_mix::finish_atom_refutations(
+            per_atom,
+            Vec::new(),
+            mix_scalar,
+            super::atom_mix::ScalarRefuterMix::Mediation,
+            None,
+            true,
+        );
         let atom_keys: String = refute_atoms
             .iter()
             .map(|(key, _, _, _)| format!("{key:x}"))
@@ -327,12 +369,21 @@ impl super::Study {
             "refute.envelope.effect_mixture",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
-            format!(
-                "mediation refuters evaluated each contributing graph atom [{atom_keys}] \
-                 against that atom's own contrast using that atom's S(h), not the pooled \
-                 mixture; reports mix by fixed graph weight and pass only if every \
-                 contributing atom passes"
-            ),
+            if mix_scalar {
+                format!(
+                    "mediation refuters evaluated each contributing graph atom [{atom_keys}] \
+                     against that atom's own contrast using that atom's S(h), not the pooled \
+                     mixture; reports mix by fixed graph weight and pass only if every \
+                     contributing atom passes"
+                )
+            } else {
+                format!(
+                    "mediation refuters evaluated each contributing graph atom [{atom_keys}] \
+                     against that atom's own contrast using that atom's S(h); the atoms name \
+                     different or partially identified estimands, so the outer mix is skipped \
+                     and per-atom reports are retained, not compared against a pooled mixture"
+                )
+            },
         ));
         Ok(refutations)
     }
@@ -358,6 +409,7 @@ impl super::Study {
             atoms,
             masses,
             atom_points,
+            aggregation_policy,
             horizon,
             identify_cached,
         } = parts;
@@ -368,6 +420,7 @@ impl super::Study {
             shared,
             replicates_requested,
             replicates_ok,
+            mixed,
             ..
         } = aggregate;
         let uncertainty = match shared {
@@ -379,8 +432,20 @@ impl super::Study {
             }
             _ => antecedent_estimate::TemporalMediationUncertainty::Unavailable,
         };
-        let structural_response =
-            dbn_mediation_structural_mixture(atoms, masses, (horizon, point), &atom_points);
+        let structural_response = dbn_mediation_structural_mixture(
+            atoms,
+            masses,
+            (horizon, mixed.then_some(point), aggregation_policy),
+            &atom_points,
+        );
+        let slice_identified_set = (!mixed)
+            .then(|| {
+                let lower = atom_points.iter().copied().fold(f64::INFINITY, f64::min);
+                let upper = atom_points.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+                (lower.is_finite() && upper.is_finite())
+                    .then_some(antecedent_estimate::TemporalMediationIdentifiedSet { lower, upper })
+            })
+            .flatten();
         let mediation_grid = antecedent_estimate::TemporalMediationGrid {
             slices: Arc::from([antecedent_estimate::TemporalMediationSlice {
                 horizon,
@@ -389,7 +454,7 @@ impl super::Study {
                 adjustment,
                 estimate: mediation.clone(),
                 uncertainty,
-                identified_set: None,
+                identified_set: slice_identified_set,
                 diagnostics: diagnostics.clone(),
             }]),
             joint_posterior: false,
@@ -545,7 +610,8 @@ fn dbn_mediation_diagnostics(
                 "frozen posterior weights; identified_mass={}; unidentified_mass={}; \
              unevaluable_mass={}; each atom uses its own S(h) (its I(h) plus \
              mediator-outcome confounders); Total, Direct and Mediated are fixed-weight \
-             means over evaluable atoms; failed estimation is not mixed into unidentified \
+             means over evaluable atoms when every atom names one point-identified \
+             estimand, and are withheld otherwise; failed estimation is not mixed into unidentified \
              mass; the mass split is in structural_response",
                 masses.identified, masses.unidentified, masses.failed
             ),
@@ -582,22 +648,22 @@ fn dbn_mediation_diagnostics(
     diagnostics
 }
 
-/// Whether the unidentified or unevaluable posterior mass makes the aggregate
-/// graph dependent.
-fn dbn_mediation_graph_dependent(
+/// The aggregate's status: graph dependent under unidentified or unevaluable mass or
+/// disagreeing estimands, partially identified under a shared set-identified estimand.
+fn dbn_mediation_status(
     status: IdentificationStatus,
-    unidentified_mass: f64,
-    failed_mass: f64,
-) -> bool {
+    policy: crate::result::StructuralAggregationPolicy,
+    (unidentified_mass, failed_mass): (f64, f64),
+) -> IdentificationStatus {
     resolve_posterior_status(
         status,
-        crate::result::StructuralAggregationPolicy::SameEstimandWeightedMean,
+        policy,
         PosteriorMassSummary {
             unidentified: unidentified_mass,
             failed: failed_mass,
             ..PosteriorMassSummary::default()
         },
-    ) == IdentificationStatus::GraphDependent
+    )
 }
 
 /// The posterior-probability mixture of the atoms, with the range of their
@@ -605,7 +671,11 @@ fn dbn_mediation_graph_dependent(
 fn dbn_mediation_structural_mixture(
     atoms: Vec<crate::result::StructuralResponseAtom>,
     masses: DbnMediationMasses,
-    (horizon, point): (u32, f64),
+    (horizon, point, aggregation_policy): (
+        u32,
+        Option<f64>,
+        crate::result::StructuralAggregationPolicy,
+    ),
     atom_points: &[f64],
 ) -> crate::result::StructuralResponseMixture {
     let lower = atom_points.iter().copied().fold(f64::INFINITY, f64::min);
@@ -624,9 +694,10 @@ fn dbn_mediation_structural_mixture(
             upper: Arc::from([upper]),
         }),
         identified_set_interval: None,
-        conditional_on_identified: Some(ResponseValue::Scalar(point)),
+        conditional_on_identified: point.map(ResponseValue::Scalar),
         full_mass_scope: true,
         truncated_atoms: 0,
+        aggregation_policy: Some(aggregation_policy),
     }
 }
 
@@ -636,11 +707,22 @@ fn dbn_mediation_band_diagnostics(
     aggregate: &DbnMediationAggregate,
     atom_count: usize,
 ) -> Vec<Diagnostic> {
-    let DbnMediationAggregate { shared, requested_se, replicates_requested, family, .. } =
+    let DbnMediationAggregate { shared, requested_se, replicates_requested, family, mixed, .. } =
         aggregate;
     let (requested_se, replicates_requested, family) =
         (*requested_se, *replicates_requested, *family);
     let mut diagnostics = Vec::new();
+    if !mixed {
+        diagnostics.push(Diagnostic::new(
+            "estimate.dbn_posterior.mediation.no_scalar_method",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            "the contributing atoms name different or partially identified estimands, so no \
+             frozen-weight Total, Direct or Mediated mean, and no bootstrap band for one, is \
+             published; per-atom values and their range are in structural_response",
+        ));
+        return diagnostics;
+    }
     match shared.as_ref() {
         Some(s) if replicates_requested && requested_se.is_some() => {
             diagnostics.push(Diagnostic::new(
@@ -680,7 +762,7 @@ fn dbn_mediation_band_diagnostics(
             diagnostics.extend(warning);
         }
         _ => diagnostics.push(Diagnostic::new(
-            "estimate.dbn_posterior.mediation.uncertainty_withheld",
+            "estimate.dbn_posterior.mediation.no_uncertainty_method",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Warning,
             if replicates_requested {
@@ -694,4 +776,51 @@ fn dbn_mediation_band_diagnostics(
         )),
     }
     diagnostics
+}
+
+#[cfg(test)]
+mod aggregation_policy_tests {
+    use super::*;
+    use crate::result::StructuralAggregationPolicy;
+
+    #[test]
+    fn disagreeing_atom_estimands_make_the_aggregate_graph_dependent() {
+        let status = IdentificationStatus::NonparametricallyIdentified;
+        assert_eq!(
+            dbn_mediation_status(
+                status,
+                StructuralAggregationPolicy::SameEstimandWeightedMean,
+                (0.0, 0.0),
+            ),
+            status
+        );
+        assert_eq!(
+            dbn_mediation_status(
+                status,
+                StructuralAggregationPolicy::GraphDependentAtoms,
+                (0.0, 0.0)
+            ),
+            IdentificationStatus::GraphDependent
+        );
+        assert_eq!(
+            dbn_mediation_status(
+                status,
+                StructuralAggregationPolicy::SameEstimandWeightedMean,
+                (0.25, 0.0),
+            ),
+            IdentificationStatus::GraphDependent
+        );
+    }
+
+    #[test]
+    fn a_shared_set_identified_estimand_is_demoted_to_partial_identification() {
+        assert_eq!(
+            dbn_mediation_status(
+                IdentificationStatus::NonparametricallyIdentified,
+                StructuralAggregationPolicy::IdentifiedSetEnvelope,
+                (0.0, 0.0),
+            ),
+            IdentificationStatus::PartiallyIdentified
+        );
+    }
 }

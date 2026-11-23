@@ -1,6 +1,6 @@
 //! Builder-independent execution of a checked temporal graph-posterior effect.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, CausalError, CausalQuery, ExecutionContext, InferenceMode, StudyResult, TimeSeriesData,
@@ -37,18 +37,13 @@ impl super::Study {
         click.data = series_input(&self.data, data.clone());
         click.query = CausalQuery::TemporalEffect(query.clone());
         click.graph_posterior = Some(operation.posterior().clone());
-        click.inference = operation.inference().clone();
-        click.refute = operation.validation();
-        click.bootstrap_replicates = operation.bootstrap_replicates();
-        click.split = operation.split().copied();
-        click.max_completions = operation.max_completions();
-        click.custom_validators = Vec::new();
-        click.estimator = Some(operation.estimator());
-        click.identifier = Some(operation.identifier());
+        operation.sealed().bind_study(&mut click);
+        click.declared.split = operation.split().copied();
         match operation.proof() {
             CheckedTemporalGraphPosteriorProof::Dbn(cache) => {
-                click.dbn_posterior_identification_cache = Some(Arc::clone(cache));
-                click.temporal_class_posterior_identification_cache = None;
+                click.install_identification(crate::analysis::IdentificationCache::DbnPosterior(
+                    Arc::clone(cache),
+                ));
                 match operation.inference() {
                     InferenceMode::Frequentist => click.execute_dbn_posterior_frequentist(
                         data,
@@ -67,8 +62,9 @@ impl super::Study {
                 }
             }
             CheckedTemporalGraphPosteriorProof::Class(cache) => {
-                click.temporal_class_posterior_identification_cache = Some(Arc::clone(cache));
-                click.dbn_posterior_identification_cache = None;
+                click.install_identification(
+                    crate::analysis::IdentificationCache::TemporalClassPosterior(Arc::clone(cache)),
+                );
                 click.execute_temporal_class_graph_posterior(
                     data,
                     operation.posterior(),

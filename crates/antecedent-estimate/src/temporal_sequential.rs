@@ -8,7 +8,7 @@
 //! facade validation refits this same engine for each perturbed graph atom.
 //! No second identifier.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 // Dense ids originate as u32; nonnegative row indices and bounded replicate counts are intentional.
 #![cfg_attr(
@@ -20,6 +20,13 @@
     )
 )]
 
+mod bayesian;
+mod bootstrap;
+mod design;
+use bayesian::BayesianComposition;
+use bootstrap::block_bootstrap_estimate;
+use design::{extend_mechanism_design, weight_sequential_windows};
+
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -27,13 +34,14 @@ use antecedent_core::{
     AssumptionStatus, CausalRng, ExecutionContext, IdentificationStatus, Lag, ParametricAssumption,
     TargetPopulation, TemporalEffectQuery, TemporalNodeKey, TemporalPolicy, VariableId,
 };
-use antecedent_data::{LaggedColumn, LaggedSampleWorkspace, TemporalIndexer, TimeSeriesData};
+use antecedent_data::{LaggedColumn, TemporalIndexer, TimeSeriesData};
 use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
 use antecedent_graph::{DenseNodeId, TemporalDag};
+use antecedent_model::history_operators::{HistoryScan, SequentialRegression};
 use antecedent_prob::{BayesLikelihood, PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 use antecedent_stats::{
-    CompiledDesign, DenseLinearAlgebra, DesignColumnMap, DesignColumnRole, FaerBackend,
-    LeastSquaresFit, LeastSquaresWorkspace, StatsError,
+    CompiledDesign, DesignColumnMap, DesignColumnRole, LeastSquaresFit, LeastSquaresWorkspace,
+    StatsError,
 };
 
 use crate::serial_dependence::{DependenceScope, SerialDependence};
@@ -87,7 +95,7 @@ pub struct SequentialInference<'a> {
     pub bayesian: Option<&'a BayesianGComputationAte>,
 }
 
-/// One intervened unfolded node and the licensed overlay applied there.
+/// One intervened unfolded node and the supported overlay applied there.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SequentialNodeOverlay {
     /// Template variable.
@@ -265,14 +273,40 @@ pub fn estimate_sustained_window_gaps_if(
     gaps: bool,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>, Option<crate::GapSelection>), EstimationError>
 {
-    let (overlays, delta) = sustained_contrast_overlays(query, problem.estimand, inference.status)?;
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    estimate_sustained_window_gaps_if_within(
+        problem,
+        query,
+        inference,
+        ctx,
+        validation,
+        gaps,
+        &mut budget,
+    )
+}
+
+/// Fit one sustained window using an operation-wide temporal budget.
+pub fn estimate_sustained_window_gaps_if_within(
+    problem: &SequentialProblem<'_>,
+    query: &TemporalEffectQuery,
+    inference: SequentialInference<'_>,
+    ctx: &ExecutionContext,
+    validation: Option<&mut Vec<SequentialBayesianMechanism>>,
+    gaps: bool,
+    budget: &mut antecedent_core::TemporalBudget,
+) -> Result<(EffectEstimate, Option<CausalPosterior>, Option<crate::GapSelection>), EstimationError>
+{
+    let (overlays, delta) =
+        sustained_contrast_overlays(query, problem.estimand, inference.status, budget, ctx)?;
     if inference.bayesian.is_some_and(|est| est.likelihood != BayesLikelihood::GaussianIdentity) {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "sequential Bayesian g-computation requires GaussianIdentity",
         ));
     }
     if inference.bayesian.is_some_and(|est| est.backend == crate::BayesianBackendKind::Hmc) {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("estimator_inference_mismatch"),
             "composed sustained HMC requires derived-contrast chain diagnostics; use conjugate or Laplace",
         ));
     }
@@ -280,7 +314,7 @@ pub fn estimate_sustained_window_gaps_if(
         problem,
         &SequenceTarget {
             outcome: query.outcome,
-            outcome_offset: query.outcome_offset(),
+            outcome_offset: query.outcome_offset()?,
             overlays: &overlays,
         },
         SequentialEval::Contrast { delta },
@@ -289,6 +323,7 @@ pub fn estimate_sustained_window_gaps_if(
         query.effect_modifiers.as_ref(),
         validation,
         gaps,
+        budget,
     )
 }
 
@@ -311,15 +346,19 @@ pub fn estimate_sustained_window_with_validation(
     ctx: &ExecutionContext,
     validation: Option<&mut Vec<SequentialBayesianMechanism>>,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
-    let (overlays, delta) = sustained_contrast_overlays(query, problem.estimand, inference.status)?;
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    let (overlays, delta) =
+        sustained_contrast_overlays(query, problem.estimand, inference.status, &mut budget, ctx)?;
     let bayesian = inference.bayesian;
     if bayesian.is_some_and(|est| est.likelihood != BayesLikelihood::GaussianIdentity) {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "sequential Bayesian g-computation requires GaussianIdentity",
         ));
     }
     if bayesian.is_some_and(|est| est.backend == crate::BayesianBackendKind::Hmc) {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("estimator_inference_mismatch"),
             "composed sustained HMC requires derived-contrast chain diagnostics; use conjugate or Laplace",
         ));
     }
@@ -327,7 +366,7 @@ pub fn estimate_sustained_window_with_validation(
         problem,
         &SequenceTarget {
             outcome: query.outcome,
-            outcome_offset: query.outcome_offset(),
+            outcome_offset: query.outcome_offset()?,
             overlays: &overlays,
         },
         SequentialEval::Contrast { delta },
@@ -335,7 +374,19 @@ pub fn estimate_sustained_window_with_validation(
         ctx,
         query.effect_modifiers.as_ref(),
         validation,
+        &mut budget,
     )
+}
+
+struct SustainedOverlays {
+    values: Vec<SequentialMechanismOverlay>,
+    _lease: antecedent_core::execution::AdmissionLease,
+}
+impl std::ops::Deref for SustainedOverlays {
+    type Target = [SequentialMechanismOverlay];
+    fn deref(&self) -> &Self::Target {
+        &self.values
+    }
 }
 
 /// Validate a multi-step Sustained contrast and build its per-time overlays and
@@ -344,10 +395,23 @@ fn sustained_contrast_overlays(
     query: &TemporalEffectQuery,
     estimand: &IdentifiedEstimand,
     status: IdentificationStatus,
-) -> Result<(Vec<SequentialMechanismOverlay>, f64), EstimationError> {
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<(SustainedOverlays, f64), EstimationError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(antecedent_core::TemporalMaterializationError::Cancelled.into());
+    }
+    budget.charge_work(query.effect_modifiers.len() as u64)?;
+    let validation = antecedent_core::admit_temporal_intervention_validation(
+        [&query.control, &query.active],
+        budget,
+        ctx,
+    )?;
     query.validate()?;
+    drop(validation);
     let TemporalPolicy::Sustained { from, until } = query.policy else {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "sequential estimator requires a sustained window",
         ));
     };
@@ -366,17 +430,43 @@ fn sustained_contrast_overlays(
     }
     let active = crate::adjustment::intervention_f64(&query.active)?;
     let delta = active - crate::adjustment::intervention_f64(&query.control)?;
-    let overlays = (from..=until)
-        .map(|offset| {
-            SequentialMechanismOverlay::from(SequentialNodeOverlay {
-                variable: query.treatment,
-                offset,
-                level: Some(active),
-                shift: 0.0,
-            })
-        })
-        .collect();
-    Ok((overlays, delta))
+    let count = query.policy.offset_count()?;
+    budget.charge_offsets(count)?;
+    budget.charge_work(count)?;
+    let bytes = count
+        .checked_mul(256)
+        .and_then(|n| n.checked_add(512))
+        .ok_or(antecedent_core::TemporalMaterializationError::Limit { dimension: "bytes" })?;
+    if bytes > budget.limits().max_bytes {
+        return Err(
+            antecedent_core::TemporalMaterializationError::Limit { dimension: "bytes" }.into()
+        );
+    }
+    let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            antecedent_core::TemporalMaterializationError::Cancelled
+        }
+        other => antecedent_core::TemporalMaterializationError::Admission(other),
+    })?;
+    let mut overlays = Vec::new();
+    overlays
+        .try_reserve_exact(
+            usize::try_from(count)
+                .map_err(|_| antecedent_core::TemporalMaterializationError::Allocation)?,
+        )
+        .map_err(|_| antecedent_core::TemporalMaterializationError::Allocation)?;
+    for offset in from..=until {
+        if ctx.cancellation.is_cancelled() {
+            return Err(antecedent_core::TemporalMaterializationError::Cancelled.into());
+        }
+        overlays.push(SequentialMechanismOverlay::from(SequentialNodeOverlay {
+            variable: query.treatment,
+            offset,
+            level: Some(active),
+            shift: 0.0,
+        }));
+    }
+    Ok((SustainedOverlays { values: overlays, _lease: lease }, delta))
 }
 
 /// A Frequentist multi-step Sustained contrast prepared once for repeated OLS
@@ -421,19 +511,29 @@ impl SequentialContrastDesign {
         ctx: &ExecutionContext,
         gaps: bool,
     ) -> Result<Self, EstimationError> {
-        let (overlays, delta) = sustained_contrast_overlays(query, problem.estimand, status)?;
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let (overlays, delta) =
+            sustained_contrast_overlays(query, problem.estimand, status, &mut budget, ctx)?;
         let setup = SequentialSetup::build_with_gaps(
             problem,
             &SequenceTarget {
                 outcome: query.outcome,
-                outcome_offset: query.outcome_offset(),
+                outcome_offset: query.outcome_offset()?,
                 overlays: &overlays,
             },
             SequentialEval::Contrast { delta },
             query.effect_modifiers.as_ref(),
             ctx,
             gaps,
+            &mut budget,
         )?;
+        if setup.sampling_weights.is_some() {
+            return Err(crate::sampling_weights::unsupported_route(
+                "a shared bootstrap over a prepared sustained design refits unweighted windows; \
+                 sampling weights are read by the direct frequentist sustained contrast",
+            ));
+        }
         Ok(Self { setup })
     }
 
@@ -625,16 +725,28 @@ pub fn estimate_sequence_mechanisms(
         ));
     }
     if bayesian.is_some_and(|est| est.likelihood != BayesLikelihood::GaussianIdentity) {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "sequential Bayesian g-computation requires GaussianIdentity",
         ));
     }
     if bayesian.is_some_and(|est| est.backend == crate::BayesianBackendKind::Hmc) {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("estimator_inference_mismatch"),
             "composed sequence HMC requires derived-contrast chain diagnostics; use conjugate or Laplace",
         ));
     }
-    estimate_sequential(problem, target, SequentialEval::Level, inference, ctx, &[], None)
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    estimate_sequential(
+        problem,
+        target,
+        SequentialEval::Level,
+        inference,
+        ctx,
+        &[],
+        None,
+        &mut budget,
+    )
 }
 
 /// RNG stream base for the sequential circular-block row bootstrap.
@@ -645,6 +757,8 @@ const SEQUENTIAL_BLOCK_STREAM: u64 = 0x5120_0000;
 /// being the unfolded window that ends at series time `max_lag + r`.
 #[derive(Debug)]
 struct SequentialSetup {
+    // Admission for graph-shaped setup buffers retained by this design.
+    _temporal_lease: antecedent_core::execution::AdmissionLease,
     node_count: usize,
     order: Vec<usize>,
     parents: Vec<Vec<usize>>,
@@ -669,6 +783,9 @@ struct SequentialSetup {
     /// `Some(complete)` when the series has gaps and the rows are its intact windows only:
     /// `complete[w]` says whether the window at position `w` of the original axis is one.
     window_complete: Option<Vec<bool>>,
+    /// What declared sampling weights did to the windows; every mechanism's design is then
+    /// the root-weighted design of its windows, so each solve is weighted least squares.
+    sampling_weights: Option<crate::sampling_weights::SamplingWeightRecord>,
 }
 
 /// Full-sample OLS solves of a [`SequentialSetup`], one per fitted mechanism in fitting order.
@@ -685,7 +802,9 @@ impl SequentialSetup {
         modifiers: &[VariableId],
         ctx: &ExecutionContext,
     ) -> Result<Self, EstimationError> {
-        Self::build_with_gaps(problem, target, eval, modifiers, ctx, false)
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        Self::build_with_gaps(problem, target, eval, modifiers, ctx, false, &mut budget)
     }
 
     #[allow(
@@ -703,28 +822,60 @@ impl SequentialSetup {
         modifiers: &[VariableId],
         ctx: &ExecutionContext,
         gaps: bool,
+        budget: &mut antecedent_core::TemporalBudget,
     ) -> Result<Self, EstimationError> {
         let SequentialProblem { data, graph, indexer, .. } = *problem;
         let SequenceTarget { outcome, outcome_offset, overlays } = *target;
         let modifiers =
             if matches!(eval, SequentialEval::Contrast { .. }) { modifiers } else { &[] };
-        let unfolded =
-            graph.unfold(indexer.clone()).map_err(|e| EstimationError::data_msg(e.to_string()))?;
+        let unfolded = graph.unfold_within(indexer.clone(), budget, ctx)?;
         let dag = &unfolded.dag;
         let node_count = dag.node_count();
+        let mut edges = 0u64;
+        budget.charge_work(node_count as u64)?;
+        for i in 0..node_count {
+            if ctx.cancellation.is_cancelled() {
+                return Err(antecedent_core::TemporalMaterializationError::Cancelled.into());
+            }
+            edges = edges.checked_add(dag.parents(DenseNodeId::from_index(i)).len() as u64).ok_or(
+                antecedent_core::TemporalMaterializationError::Limit { dimension: "work" },
+            )?;
+        }
+        let work = (node_count as u64)
+            .checked_mul(32)
+            .and_then(|n| edges.checked_mul(128).and_then(|e| n.checked_add(e)))
+            .ok_or(antecedent_core::TemporalMaterializationError::Limit { dimension: "work" })?;
+        budget.charge_work(work)?;
+        let bytes = (node_count as u64)
+            .checked_mul(1024)
+            .and_then(|n| edges.checked_mul(512).and_then(|e| n.checked_add(e)))
+            .and_then(|n| n.checked_add(4096))
+            .ok_or(antecedent_core::TemporalMaterializationError::Limit { dimension: "bytes" })?;
+        if bytes > budget.limits().max_bytes {
+            return Err(antecedent_core::TemporalMaterializationError::Limit {
+                dimension: "bytes",
+            }
+            .into());
+        }
+        let temporal_lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+            antecedent_core::execution::AdmissionError::Cancelled => {
+                antecedent_core::TemporalMaterializationError::Cancelled
+            }
+            other => antecedent_core::TemporalMaterializationError::Admission(other),
+        })?;
         let outcome = indexer
-            .dense_id(TemporalNodeKey { variable: outcome, offset: outcome_offset })
-            .map_err(|e| EstimationError::data_msg(e.to_string()))? as usize;
+            .dense_id(TemporalNodeKey { variable: outcome, offset: outcome_offset })?
+            as usize;
         let mut intervention = vec![false; node_count];
         let mut overlay_at = vec![None; node_count];
         for &overlay in overlays {
-            let dense = indexer
-                .dense_id(TemporalNodeKey {
-                    variable: overlay.node.variable,
-                    offset: overlay.node.offset,
-                })
-                .map_err(|e| EstimationError::data_msg(e.to_string()))?
-                as usize;
+            if ctx.cancellation.is_cancelled() {
+                return Err(antecedent_core::TemporalMaterializationError::Cancelled.into());
+            }
+            let dense = indexer.dense_id(TemporalNodeKey {
+                variable: overlay.node.variable,
+                offset: overlay.node.offset,
+            })? as usize;
             if intervention[dense] {
                 return Err(EstimationError::unsupported(
                     "Sequence assigns the same (variable, time) twice; refuse rather than collapse",
@@ -736,6 +887,9 @@ impl SequentialSetup {
         let mut needed = vec![false; node_count];
         let mut pending = vec![outcome];
         while let Some(i) = pending.pop() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(antecedent_core::TemporalMaterializationError::Cancelled.into());
+            }
             if needed[i] {
                 continue;
             }
@@ -761,8 +915,7 @@ impl SequentialSetup {
         let anchor = order
             .iter()
             .map(|&i| indexer.key_of(i as u32).map(|k| k.offset))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| EstimationError::data_msg(e.to_string()))?
+            .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .max()
             .unwrap_or(0)
@@ -771,8 +924,7 @@ impl SequentialSetup {
         let mut column_of = vec![0; node_count];
         let mut max_lag = 0;
         for &i in &order {
-            let key =
-                indexer.key_of(i as u32).map_err(|e| EstimationError::data_msg(e.to_string()))?;
+            let key = indexer.key_of(i as u32)?;
             let lag = u32::try_from(anchor - key.offset)
                 .map_err(|_| EstimationError::unsupported("invalid unfolded time offset"))?;
             max_lag = max_lag.max(lag);
@@ -791,9 +943,7 @@ impl SequentialSetup {
                 if hard || parent_ids.is_empty() || !parent_ids.iter().any(|&p| intervention[p]) {
                     continue;
                 }
-                let key = indexer
-                    .key_of(i as u32)
-                    .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+                let key = indexer.key_of(i as u32)?;
                 let lag = u32::try_from(anchor - key.offset)
                     .map_err(|_| EstimationError::unsupported("invalid unfolded time offset"))?;
                 max_lag = max_lag.max(lag);
@@ -809,15 +959,8 @@ impl SequentialSetup {
                 }
             }
         }
-        let plan = data.plan_lagged_sample(max_lag, Arc::from(columns.clone()))?;
-        let mut workspace = LaggedSampleWorkspace::default();
-        let (sample, window_complete) = if gaps {
-            let (sample, complete) =
-                plan.prepare_complete_windows(data, &mut workspace, &ctx.kernel_policy)?;
-            (sample, Some(complete))
-        } else {
-            (plan.prepare(data, &mut workspace, &ctx.kernel_policy)?, None)
-        };
+        let mut scan = HistoryScan::plan(data, max_lag, Arc::from(columns.clone()))?;
+        let (sample, window_complete) = scan.windows(data, &ctx.kernel_policy, gaps)?;
         let n = sample.n;
         if n < 3 {
             return Err(EstimationError::unsupported(
@@ -830,17 +973,17 @@ impl SequentialSetup {
         let mut interaction_at = vec![Vec::new(); node_count];
         let mut node_modifier_values = vec![Vec::new(); node_count];
         for &i in &order {
+            if ctx.cancellation.is_cancelled() {
+                return Err(antecedent_core::TemporalMaterializationError::Cancelled.into());
+            }
             parents[i] =
                 dag.parents(DenseNodeId::from_raw(i as u32)).iter().map(|p| p.as_usize()).collect();
             // Stable coefficient positions across time copies, independent of dense
             // node order in the unfolding.
-            let child =
-                indexer.key_of(i as u32).map_err(|e| EstimationError::data_msg(e.to_string()))?;
+            let child = indexer.key_of(i as u32)?;
             let mut keyed = Vec::with_capacity(parents[i].len());
             for &p in &parents[i] {
-                let parent = indexer
-                    .key_of(p as u32)
-                    .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+                let parent = indexer.key_of(p as u32)?;
                 let lag = child.offset.checked_sub(parent.offset).ok_or_else(|| {
                     EstimationError::unsupported("unfolded parent lag overflowed")
                 })?;
@@ -904,12 +1047,20 @@ impl SequentialSetup {
             }
             designs[i] = Some(design);
         }
+        let sampling_weights = weight_sequential_windows(
+            problem.data,
+            &mut designs,
+            max_lag as usize,
+            n,
+            gaps || !modifiers.is_empty() || !matches!(eval, SequentialEval::Contrast { .. }),
+        )?;
         let mut factual = vec![0.0; node_count];
         for &i in &order {
             let col = sample.column(column_of[i]);
             factual[i] = col.iter().sum::<f64>() / n as f64;
         }
         Ok(Self {
+            _temporal_lease: temporal_lease,
             node_count,
             order,
             parents,
@@ -926,6 +1077,7 @@ impl SequentialSetup {
             interaction_at,
             node_modifier_values,
             window_complete,
+            sampling_weights,
         })
     }
 
@@ -952,6 +1104,47 @@ impl SequentialSetup {
             slope += coefficients[slot] * self.modifier_mean(node, modifier, rows);
         }
         slope
+    }
+
+    /// Per-row score of the modifier means a `Contrast` reads:
+    /// `Σ_{i,m} ∂contrast/∂w̄_{i,m} · (w_{i,m,t} − w̄_{i,m})` over fitted nodes `i` and
+    /// modifiers `m`. The contrast evaluates every interaction at the sample mean of its
+    /// modifier, so the mean's sampling error moves the contrast even with the
+    /// coefficients held fixed. The contrast is linear in each single mean, so the
+    /// gradient is the exact change from replacing that mean's interaction slots with a
+    /// unit step. `None` for a `Level` and for a contrast that reads no modifier mean.
+    fn modifier_mean_scores(&self, base: &[Vec<f64>]) -> Option<Vec<f64>> {
+        if self.modifiers.is_empty() || !matches!(self.eval, SequentialEval::Contrast { .. }) {
+            return None;
+        }
+        let value = self.propagate(base, &self.factual, None);
+        let mut score = vec![0.0; self.n];
+        let mut any = false;
+        for &i in &self.order {
+            if base[i].is_empty() {
+                continue;
+            }
+            for (modifier, column) in self.node_modifier_values[i].iter().enumerate() {
+                // A unit step in this mean adds each parent's interaction coefficient to
+                // that parent's main slope.
+                let mut stepped = base.to_vec();
+                for (parent, slots) in self.interaction_at[i].iter().enumerate() {
+                    if let Some(&slot) = slots.get(modifier) {
+                        stepped[i][parent + 1] += base[i][slot];
+                    }
+                }
+                let slope = self.propagate(&stepped, &self.factual, None) - value;
+                if !slope.is_finite() || slope == 0.0 {
+                    continue;
+                }
+                let mean = self.modifier_mean(i, modifier, None);
+                for (s, w) in score.iter_mut().zip(column) {
+                    *s += slope * (w - mean);
+                }
+                any = true;
+            }
+        }
+        any.then_some(score)
     }
 
     fn propagate(&self, coefficients: &[Vec<f64>], factual: &[f64], rows: Option<&[usize]>) -> f64 {
@@ -1026,7 +1219,8 @@ impl SequentialSetup {
                     (design.nrows, design.ncols)
                 };
                 coefficients[i] =
-                    FaerBackend.least_squares(x_boot, nrows, ncols, y_boot, ls_ws)?.coefficients;
+                    SequentialRegression::solve_design(x_boot, nrows, ncols, y_boot, None, ls_ws)?
+                        .coefficients;
             }
         }
         Ok(coefficients)
@@ -1043,11 +1237,12 @@ impl SequentialSetup {
             .iter()
             .filter_map(|&i| {
                 let design = self.designs[i].as_ref()?;
-                let fit = FaerBackend.least_squares(
+                let fit = SequentialRegression::solve_design(
                     &design.matrix,
                     design.nrows,
                     design.ncols,
                     &design.outcome,
+                    None,
                     ls_ws,
                 );
                 Some((i, fit))
@@ -1221,78 +1416,7 @@ impl SequentialSetup {
     }
 }
 
-/// Append modifier main effects and intervened-parent interactions.
-///
-/// Parent slopes stay in columns `1..=parents`. Each intervened parent then
-/// gains one `parent × modifier` column per modifier, after any modifier that
-/// is not already a parent.
-fn extend_mechanism_design(
-    design: CompiledDesign,
-    parent_values: &[&[f64]],
-    intervened: &[bool],
-    modifier_values: &[&[f64]],
-    modifier_ids: &[VariableId],
-    modifier_is_parent: &[bool],
-) -> Result<(CompiledDesign, Vec<Vec<usize>>), EstimationError> {
-    let mut slots = vec![Vec::new(); parent_values.len()];
-    if modifier_values.is_empty() || !intervened.iter().any(|flag| *flag) {
-        return Ok((design, slots));
-    }
-    let mut extras = Vec::new();
-    let mut roles = Vec::new();
-    for (values, (&id, &already)) in
-        modifier_values.iter().zip(modifier_ids.iter().zip(modifier_is_parent))
-    {
-        if !already {
-            extras.push((*values).to_vec());
-            roles.push(id);
-        }
-    }
-    let base = design.ncols;
-    let n_main = extras.len();
-    let mut products = 0usize;
-    for (modifier, values) in modifier_values.iter().enumerate() {
-        for (parent, (column, &is_intervened)) in parent_values.iter().zip(intervened).enumerate() {
-            if !is_intervened {
-                continue;
-            }
-            extras.push(column.iter().zip(*values).map(|(left, right)| left * right).collect());
-            roles.push(modifier_ids[modifier]);
-            slots[parent].push(base + n_main + products);
-            products += 1;
-        }
-    }
-    Ok((append_design_columns(design, &extras, &roles)?, slots))
-}
-
-fn append_design_columns(
-    mut design: CompiledDesign,
-    extras: &[Vec<f64>],
-    roles: &[VariableId],
-) -> Result<CompiledDesign, EstimationError> {
-    if extras.is_empty() {
-        return Ok(design);
-    }
-    let mut matrix = design.matrix.to_vec();
-    let mut column_roles = Vec::with_capacity(design.ncols);
-    for index in 0..design.ncols {
-        column_roles.push(
-            design
-                .columns
-                .role(index)
-                .ok_or_else(|| EstimationError::stats_msg("design column role is missing"))?,
-        );
-    }
-    for (extra, &role) in extras.iter().zip(roles) {
-        matrix.extend_from_slice(extra);
-        column_roles.push(DesignColumnRole::Covariate(role));
-    }
-    design.ncols = column_roles.len();
-    design.matrix = Arc::from(matrix);
-    design.columns = DesignColumnMap::from_roles(column_roles);
-    Ok(design)
-}
-
+#[allow(clippy::too_many_arguments, reason = "the inputs describe one estimation procedure")]
 fn estimate_sequential(
     problem: &SequentialProblem<'_>,
     target: &SequenceTarget<'_>,
@@ -1301,21 +1425,14 @@ fn estimate_sequential(
     ctx: &ExecutionContext,
     modifiers: &[VariableId],
     validation: Option<&mut Vec<SequentialBayesianMechanism>>,
+    budget: &mut antecedent_core::TemporalBudget,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
     estimate_sequential_with_gaps(
-        problem, target, eval, inference, ctx, modifiers, validation, false,
+        problem, target, eval, inference, ctx, modifiers, validation, false, budget,
     )
     .map(|(effect, posterior, _)| (effect, posterior))
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
-)]
-#[allow(
-    clippy::too_many_lines,
-    reason = "point, replicate and Bayesian evaluation share the setup, block length and per-mechanism fits of one sequential estimate"
-)]
 #[allow(
     clippy::too_many_arguments,
     reason = "the sequential estimator's inputs plus the gap switch; each is a distinct caller input"
@@ -1327,401 +1444,39 @@ fn estimate_sequential_with_gaps(
     inference: SequentialInference<'_>,
     ctx: &ExecutionContext,
     modifiers: &[VariableId],
-    mut validation: Option<&mut Vec<SequentialBayesianMechanism>>,
+    validation: Option<&mut Vec<SequentialBayesianMechanism>>,
     gaps: bool,
+    budget: &mut antecedent_core::TemporalBudget,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>, Option<crate::GapSelection>), EstimationError>
 {
-    let SequentialProblem { data, indexer, estimand, .. } = *problem;
     let SequentialInference { status, assumptions, bootstrap_replicates, bayesian } = inference;
     if gaps && bayesian.is_some() && !matches!(eval, SequentialEval::Contrast { .. }) {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "a series with gaps is combined with the composed Bayesian posterior for the sustained contrast only: a level also reads root-mean scores with a consecutive-row standard error",
         ));
     }
-    let setup = SequentialSetup::build_with_gaps(problem, target, eval, modifiers, ctx, gaps)?;
+    let setup =
+        SequentialSetup::build_with_gaps(problem, target, eval, modifiers, ctx, gaps, budget)?;
+    if bayesian.is_some() && setup.sampling_weights.is_some() {
+        return Err(crate::sampling_weights::unsupported_route(
+            "sampling weights are read by the frequentist sustained contrast; the composed \
+             Bayesian posterior fits unweighted mechanisms",
+        ));
+    }
     let selection = setup
         .window_complete
         .clone()
         .map(|complete| crate::GapSelection { first_time: setup.max_lag as usize, complete });
-    let order = &setup.order;
-    let parents = &setup.parents;
-    let designs = &setup.designs;
     let mut ls_ws = LeastSquaresWorkspace::default();
     if let Some(estimator) = bayesian {
-        // Both the Sustained contrast and a Sequence level temper each stationary mechanism
-        // by the long-run-variance ratio of the target's own linear combination of that
-        // mechanism's coefficients: the gradient of the composed value, summed over the
-        // mechanism's unfolded time copies (coefficient positions are stable across
-        // copies). The value is linear in each coefficient, so central differences at the
-        // OLS fit are exact up to rounding.
-        let ols_base = setup.fit_ols(None, &mut ls_ws, &mut Vec::new(), &mut Vec::new()).ok();
-        let contrast_gradient = match ols_base.as_ref() {
-            None => None,
-            Some(base) => {
-                let per_node = setup.gradient(base);
-                let mut gradients: std::collections::HashMap<VariableId, Vec<f64>> =
-                    std::collections::HashMap::new();
-                for &i in order {
-                    if base[i].is_empty() {
-                        continue;
-                    }
-                    let variable = indexer
-                        .key_of(i as u32)
-                        .map_err(|e| EstimationError::data_msg(e.to_string()))?
-                        .variable;
-                    let entry =
-                        gradients.entry(variable).or_insert_with(|| vec![0.0; base[i].len()]);
-                    for k in 0..base[i].len().min(entry.len()) {
-                        entry[k] += per_node[i][k];
-                    }
-                }
-                Some(gradients)
-            }
-        };
-        // A level also reads the sample means of its exogenous roots, held fixed in the
-        // g-formula. Their sampling error is a first-order (delta-method) shift of the
-        // level: the score of the root means combined by their gradient, whose long-run
-        // variance sets the shift's standard deviation.
-        let root_mean_se = ols_base
-            .as_ref()
-            .and_then(|base| setup.root_mean_scores(base))
-            .map_or(0.0, |scores| crate::serial_dependence::mean_standard_error(&scores));
-        let mut mechanism_posts = vec![None; setup.node_count];
-        let mut mechanism_of = vec![0; setup.node_count];
-        let mut mechanisms: Vec<(VariableId, Vec<LaggedColumn>, usize)> = Vec::new();
-        let mut count = usize::MAX;
-        for &i in order {
-            if designs[i].is_some() {
-                let child = indexer
-                    .key_of(i as u32)
-                    .map_err(|e| EstimationError::data_msg(e.to_string()))?;
-                let mut parent_columns = Vec::with_capacity(parents[i].len());
-                for &p in &parents[i] {
-                    let parent = indexer
-                        .key_of(p as u32)
-                        .map_err(|e| EstimationError::data_msg(e.to_string()))?;
-                    let lag = child
-                        .offset
-                        .checked_sub(parent.offset)
-                        .ok_or_else(|| {
-                            EstimationError::unsupported("unfolded parent lag overflowed")
-                        })
-                        .and_then(|delta| {
-                            u32::try_from(delta).map_err(|_| {
-                                EstimationError::unsupported(
-                                    "causal lag is not a nonnegative offset",
-                                )
-                            })
-                        })?;
-                    parent_columns
-                        .push(LaggedColumn { variable: parent.variable, lag: Lag::from_raw(lag) });
-                }
-                if mechanisms.iter().any(|(variable, columns, _)| {
-                    *variable == child.variable && columns != &parent_columns
-                }) {
-                    return Err(EstimationError::unsupported(
-                        "stationary mechanism has inconsistent unfolded parents",
-                    ));
-                }
-                if let Some((_, _, owner)) = mechanisms.iter().find(|(variable, columns, owner)| {
-                    *variable == child.variable
-                        && columns == &parent_columns
-                        && designs[*owner].as_ref().map(|design| design.ncols)
-                            == designs[i].as_ref().map(|design| design.ncols)
-                }) {
-                    mechanism_of[i] = *owner;
-                    continue;
-                }
-                // Fit each stationary mechanism once on its unique observed
-                // time-series rows. Overlapping unfolded windows must not
-                // multiply the likelihood or create independent copies of beta.
-                let mut columns = parent_columns.clone();
-                columns.push(LaggedColumn { variable: child.variable, lag: Lag::CONTEMPORANEOUS });
-                let use_modifiers = setup.interaction_at[i].iter().any(|slots| !slots.is_empty());
-                if use_modifiers {
-                    for &modifier in &setup.modifiers {
-                        columns
-                            .push(LaggedColumn { variable: modifier, lag: Lag::CONTEMPORANEOUS });
-                    }
-                }
-                let max_lag = columns.iter().map(|c| c.lag.raw()).max().unwrap_or(0);
-                let plan = data.plan_lagged_sample(max_lag, Arc::from(columns))?;
-                let mut workspace = LaggedSampleWorkspace::default();
-                let (sample, segments) = if gaps {
-                    let (sample, complete) =
-                        plan.prepare_complete_windows(data, &mut workspace, &ctx.kernel_policy)?;
-                    (sample, Some(crate::serial_dependence::window_segments(&complete)))
-                } else {
-                    (plan.prepare(data, &mut workspace, &ctx.kernel_policy)?, None)
-                };
-                let covs: Vec<_> = parent_columns
-                    .iter()
-                    .enumerate()
-                    .skip(1)
-                    .map(|(j, c)| (c.variable, sample.column(j)))
-                    .collect();
-                let design = CompiledDesign::linear_adjustment(
-                    sample.column(0),
-                    &covs,
-                    sample.column(parent_columns.len()),
-                    &[],
-                )?;
-                let design = if use_modifiers {
-                    let parent_values: Vec<&[f64]> =
-                        (0..parent_columns.len()).map(|j| sample.column(j)).collect();
-                    let modifier_values: Vec<&[f64]> = setup
-                        .modifiers
-                        .iter()
-                        .enumerate()
-                        .map(|(m, _)| sample.column(parent_columns.len() + 1 + m))
-                        .collect();
-                    let intervened: Vec<bool> =
-                        parents[i].iter().map(|&parent| setup.intervention[parent]).collect();
-                    let modifier_is_parent: Vec<bool> = setup
-                        .modifiers
-                        .iter()
-                        .map(|modifier| {
-                            parent_columns.iter().any(|column| column.variable == *modifier)
-                        })
-                        .collect();
-                    let (design, slots) = extend_mechanism_design(
-                        design,
-                        &parent_values,
-                        &intervened,
-                        &modifier_values,
-                        &setup.modifiers,
-                        &modifier_is_parent,
-                    )?;
-                    if slots != setup.interaction_at[i] {
-                        return Err(EstimationError::unsupported(
-                            "sustained modifier columns do not match the unfolded design",
-                        ));
-                    }
-                    design
-                } else {
-                    design
-                };
-                let width = design.ncols;
-                let prep = PreparedBayesianProblem {
-                    design,
-                    method: estimand.method.clone(),
-                    adjustment_set: Arc::from([]),
-                    active: 1.0,
-                    control: 0.0,
-                    overlap: OverlapPolicy::ExplicitOverride,
-                    coef_names: None,
-                    unit_ids: None,
-                    // Rows are time-ordered, so the stated model is the serial-dependence-
-                    // corrected generalized posterior for the Sustained contrast and the
-                    // Sequence level alike, each tempered along its own gradient.
-                    serial_dependence: {
-                        // Without an OLS gradient (rank-deficient unfolded design) the
-                        // sum of slopes stands in for the direction; a level also reads
-                        // every intercept.
-                        let direction = contrast_gradient
-                            .as_ref()
-                            .and_then(|g| g.get(&child.variable).cloned())
-                            .filter(|direction| direction.len() == width)
-                            .unwrap_or_else(|| {
-                                let intercept = match eval {
-                                    SequentialEval::Contrast { .. } => 0.0,
-                                    SequentialEval::Level => 1.0,
-                                };
-                                (0..width).map(|k| if k == 0 { intercept } else { 1.0 }).collect()
-                            });
-                        let scope = DependenceScope::Direction(Arc::from(direction));
-                        match segments {
-                            Some(segments) => {
-                                SerialDependence::SegmentedTempering { scope, segments }
-                            }
-                            None => SerialDependence::LongRunTempering(scope),
-                        }
-                    },
-                };
-                let mut est = estimator.clone();
-                est.seed = est.seed.wrapping_add(u64::from(child.variable.raw()));
-                let post = est.fit(&prep, status, &mut BayesianGCompWorkspace::default(), ctx)?;
-                if let Some(contexts) = validation.as_deref_mut() {
-                    contexts.push(SequentialBayesianMechanism {
-                        variable: child.variable,
-                        prepared: prep.clone(),
-                        posterior: post.clone(),
-                    });
-                }
-                count = count.min(post.draws.n_draws);
-                mechanism_posts[i] = Some(post);
-                mechanism_of[i] = i;
-                mechanisms.push((child.variable, parent_columns, i));
-            }
-        }
-        let mut posterior = mechanism_posts.iter().flatten().next().cloned().ok_or_else(|| {
-            EstimationError::unsupported("sustained contrast has no fitted outcome mechanism")
-        })?;
-        let mut coefficient_columns = vec![Vec::new(); setup.node_count];
-        let mut coefficients = vec![Vec::new(); setup.node_count];
-        for &i in order {
-            let Some(design) = &designs[i] else {
-                continue;
-            };
-            let post = mechanism_posts[mechanism_of[i]].as_ref().ok_or_else(|| {
-                EstimationError::unsupported("stationary mechanism was not fitted")
-            })?;
-            coefficient_columns[i] = (0..design.ncols)
-                .map(|index| {
-                    post.draws
-                        .schema
-                        .quantities
-                        .iter()
-                        .position(|q| {
-                            matches!(
-                                q,
-                                PosteriorQuantityKind::Coefficient { index: j, .. }
-                                    if *j == index
-                            )
-                        })
-                        .ok_or_else(|| EstimationError::stats_msg("missing sequential coefficient"))
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            coefficients[i].resize(design.ncols, 0.0);
-        }
-        let mut root_rng = CausalRng::from_seed(estimator.seed ^ ROOT_MEAN_STREAM);
-        let mut values = Vec::with_capacity(count);
-        for draw in 0..count {
-            for &i in order {
-                if designs[i].is_some() {
-                    let post = mechanism_posts[mechanism_of[i]].as_ref().ok_or_else(|| {
-                        EstimationError::unsupported("stationary mechanism was not fitted")
-                    })?;
-                    for (value, &column) in coefficients[i].iter_mut().zip(&coefficient_columns[i])
-                    {
-                        *value = post.draws.column(column)?[draw];
-                    }
-                }
-            }
-            let level = setup.propagate(&coefficients, &setup.factual, None);
-            values.push(if root_mean_se > 0.0 {
-                level + root_mean_se * antecedent_kernels::standard_normal(&mut root_rng)
-            } else {
-                level
-            });
-        }
-        let draws = PosteriorDraws::from_column_major(
-            PosteriorSchema {
-                quantities: Arc::from([PosteriorQuantityKind::Effect {
-                    name: Arc::from("sustained_window"),
-                }]),
-            },
-            count,
-            values,
-        )?;
-        posterior.summaries = draws.summarize();
-        posterior.draws = draws;
-        for post in mechanism_posts.iter().flatten().skip(1) {
-            posterior.assumptions.entries.extend(post.assumptions.entries.iter().cloned());
-            for note in &post.diagnostics.notes {
-                if !posterior.diagnostics.notes.contains(note) {
-                    posterior.diagnostics.notes.push(Arc::clone(note));
-                }
-            }
-        }
-        if matches!(eval, SequentialEval::Level) {
-            posterior.assumptions.entries.push(AssumptionRecord {
-                assumption: Assumption::ParametricRestriction(ParametricAssumption {
-                    id: "temporal.sequential.level_posterior".into(),
-                    description: "each stationary mechanism's likelihood is tempered by the \
-                        long-run-variance ratio of the level's own gradient (rows are \
-                        time-ordered), and the sample means of exogenous root nodes the level \
-                        reads enter as a first-order (delta-method) normal shift whose \
-                        variance is the long-run variance of their gradient-weighted scores"
-                        .into(),
-                }),
-                source: AssumptionSource::AlgorithmDefault {
-                    algorithm: "temporal.sequential.linear_sem".into(),
-                },
-                scope: AssumptionScope::Estimation,
-                status: AssumptionStatus::Declared,
-            });
-        }
-        posterior.assumptions.entries.extend(assumptions.entries);
-        let effect = EffectEstimate::new(
-            posterior.summaries.mean[0],
-            posterior.summaries.sd[0],
-            posterior.assumptions.clone(),
-            OverlapPolicy::ExplicitOverride,
-        );
+        let composition =
+            BayesianComposition { setup: &setup, problem, eval, estimator, status, ctx, gaps };
+        let (effect, posterior) = composition.estimate(assumptions, validation, &mut ls_ws)?;
         return Ok((effect, Some(posterior), selection));
     }
-    let full = setup.fit_full(&mut ls_ws);
-    let coefficients = setup.coefficients_of(&full)?;
-    let point = setup.propagate(&coefficients, &setup.factual, None);
-    // Circular blocks of consecutive lag-aligned rows (every row keeps its intact
-    // unfolded window), every mechanism refit on the same rows, and the replicate
-    // SD scaled by the circular-Bartlett fixed-b factor and the kernel-bias
-    // factor of the contrast influence, as on the single-window path
-    // ([`crate::temporal_block`]). Blocks are at least the unfolded span and
-    // lengthen when the contrast's estimating score, or any mechanism's
-    // normal-equation score, is persistently dependent. The influence and block
-    // length are returned on the estimate so callers can report the resampling
-    // geometry without rebuilding the design. The lengthening refits every
-    // mechanism for its scores and scans each; without replicates no interval
-    // is published and the rule length is returned instead.
-    let influence = setup.influence_from(&coefficients);
-    let resampled_rows = setup.window_complete.as_ref().map_or(setup.n, Vec::len);
-    let block_length = match &setup.window_complete {
-        // On a series with gaps the scores of the compacted rows are not consecutive, so the
-        // dependence-adaptive length is not defined; the structural rule stands, on the
-        // original window axis.
-        Some(_) => {
-            antecedent_data::circular_block_length(setup.max_lag as usize + 1, resampled_rows)
-        }
-        None if bootstrap_replicates > 0 => {
-            setup.dependence_block_length_with(influence.as_deref(), &full)
-        }
-        None => antecedent_data::circular_block_length(setup.max_lag as usize + 1, setup.n),
-    };
-    let target: Vec<&[f64]> = influence.as_deref().into_iter().collect();
-    let boot = match &setup.window_complete {
-        Some(complete) => crate::temporal_block::gapped_row_block_bootstrap(
-            complete,
-            block_length,
-            bootstrap_replicates,
-            SEQUENTIAL_BLOCK_STREAM,
-            ctx,
-            |rows| setup.evaluate(Some(rows), &mut ls_ws).ok().map(|value| vec![value]),
-        ),
-        None => crate::temporal_block::row_block_bootstrap_vec(
-            setup.n,
-            block_length,
-            bootstrap_replicates,
-            SEQUENTIAL_BLOCK_STREAM,
-            ctx,
-            |rows| setup.evaluate(Some(rows), &mut ls_ws).ok().map(|value| vec![value]),
-        )
-        .with_kernel_bias(&target),
-    };
-    let kernel_bias = boot.kernel_bias;
-    let se = boot.se_result(0);
-    let mut effect = EffectEstimate::from_parts(
-        point,
-        f64::NAN,
-        crate::adjustment::BootstrapAccounting {
-            se: se.se,
-            replicates_ok: (bootstrap_replicates > 0).then_some(se.replicates_ok),
-            replicates_failed: (bootstrap_replicates > 0).then_some(se.replicates_failed),
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-        },
-        assumptions,
-        OverlapPolicy::ExplicitOverride,
-        None,
-        None,
-    );
-    effect.scores.influence = influence.map(Arc::from);
-    effect.uncertainty.block.resampling = Some(crate::adjustment::BlockResampling {
-        block_length,
-        rows: resampled_rows,
-        kernel_bias,
-    });
+    let effect =
+        block_bootstrap_estimate(&setup, assumptions, bootstrap_replicates, ctx, &mut ls_ws)?;
     Ok((effect, None, selection))
 }
 
@@ -1765,10 +1520,9 @@ mod tests {
         (data, graph)
     }
 
-    // Both offsets carry the same Set level (0.5): `resolve_schedule_active_level`
-    // refuses a joint schedule whose Set steps disagree (a genuine per-node dose
-    // schedule the single-literal contrast cannot certify), and these tests exercise
-    // a multi-offset hard-set schedule, not a per-node dose difference.
+    // Both offsets carry the same Set level (0.5): these tests exercise a
+    // multi-offset hard-set schedule, not a per-node dose difference (which
+    // `resolve_schedule_active_level` certifies at a level-free reference).
     fn hard_overlays() -> Vec<SequentialMechanismOverlay> {
         [(-2, 0.5), (-1, 0.5)]
             .into_iter()
@@ -1818,6 +1572,56 @@ mod tests {
         assert!((run(None) - 2.5).abs() < 1e-12);
         assert!((run(Some(node(Some(4.0), 0.0))) - 2.0).abs() < 1e-12);
         assert!((run(Some(node(None, 1.0))) - 3.0).abs() < 1e-12);
+    }
+
+    /// Repeating a Bayesian sequence with the same seed preserves every retained draw.
+    #[test]
+    fn bayesian_sequence_repeats_draws_for_the_same_seed() {
+        let (data, graph) = fixture();
+        let overlays = hard_overlays();
+        let schedule: Vec<(VariableId, i32, Option<f64>)> =
+            overlays.iter().map(|o| (o.node.variable, o.node.offset, o.node.level)).collect();
+        let identified = antecedent_identify::TemporalBackdoorIdentifier::new()
+            .identify_temporal_schedule(
+                &graph,
+                VariableId::from_raw(1),
+                0,
+                &schedule,
+                None,
+                TargetPopulation::AllObserved,
+            )
+            .unwrap();
+        let estimand = identified.result.estimands.first().unwrap();
+        let estimator = BayesianGComputationAte::new();
+        let run = || {
+            let (_, posterior) = estimate_sequence_mechanisms(
+                &SequentialProblem {
+                    data: &data,
+                    graph: &graph,
+                    indexer: &identified.indexer,
+                    estimand,
+                },
+                &SequenceTarget {
+                    outcome: VariableId::from_raw(1),
+                    outcome_offset: 0,
+                    overlays: &overlays,
+                },
+                SequentialInference {
+                    status: IdentificationStatus::NonparametricallyIdentified,
+                    assumptions: AssumptionSet::new(),
+                    bootstrap_replicates: 0,
+                    bayesian: Some(&estimator),
+                },
+                &ExecutionContext::for_tests(5),
+            )
+            .unwrap();
+            posterior.unwrap().draws.values
+        };
+        let first = run();
+        let second = run();
+        assert!(!first.is_empty());
+        assert_eq!(first.len(), second.len());
+        assert!(first.iter().zip(second.iter()).all(|(a, b)| a.to_bits() == b.to_bits()));
     }
 
     /// A Bayesian Sequence level is tempered like a Sustained contrast (its mechanisms carry

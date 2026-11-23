@@ -11,7 +11,7 @@
 //! right or wrong, so reports are `informative: false`; `passed` only records
 //! whether the estimate stayed within `rel_delta_threshold` of its published value.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

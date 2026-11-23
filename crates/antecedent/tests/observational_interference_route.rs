@@ -9,6 +9,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{EstimatorId, InterferenceSpec, RefuteSuite, Study};
 use antecedent_core::{
     AssignmentDesign, CausalQuery, ExecutionContext, ExposureLevel, ExposureMapping,
@@ -17,7 +18,7 @@ use antecedent_core::{
 use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 use antecedent_graph::Dag;
 use antecedent_io::{
-    consume_analysis_result, interference_query_from_wire, interference_query_to_wire,
+    interference_query_from_wire, interference_query_to_wire, replay_analysis_result,
 };
 
 fn fixture() -> (TabularData, Vec<bool>, InterferenceQuery, Vec<NetworkEdge>) {
@@ -39,10 +40,10 @@ fn fixture() -> (TabularData, Vec<bool>, InterferenceQuery, Vec<NetworkEdge>) {
         },
     );
     let edges = vec![
-        NetworkEdge { from: 0, to: 1, weight: 1.0 },
-        NetworkEdge { from: 1, to: 0, weight: 1.0 },
-        NetworkEdge { from: 2, to: 3, weight: 1.0 },
-        NetworkEdge { from: 3, to: 2, weight: 1.0 },
+        NetworkEdge::new(0, 1, 1.0),
+        NetworkEdge::new(1, 0, 1.0),
+        NetworkEdge::new(2, 3, 1.0),
+        NetworkEdge::new(3, 2, 1.0),
     ];
     (data, assignment, query, edges)
 }
@@ -62,14 +63,14 @@ fn observational_network_contrast_retains_truth_assumptions_and_artifact() {
         .unwrap();
     let ctx = ExecutionContext::for_tests(352);
     let prepared = study.prepare(&ctx).unwrap();
-    assert_eq!(
-        prepared.checked_interference_info().unwrap().estimator,
-        EstimatorId::InterferenceObservationalIpw
-    );
+    let RetainedOperation::Interference(info) = prepared.retained_operation() else {
+        panic!("prepared observational interference operation")
+    };
+    assert_eq!(info.estimator, EstimatorId::InterferenceObservationalIpw);
     let result = prepared.estimate(&data, &ctx).unwrap();
-    assert_eq!(result.support_status, None);
-    assert!((result.estimate.as_effect().unwrap().ate - 6.0).abs() < 1e-12);
-    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+    assert_eq!(result.support_status(), None);
+    assert!((result.estimate().as_effect().unwrap().ate - 6.0).abs() < 1e-12);
+    assert!(result.estimate().as_effect().unwrap().se_analytic().is_nan());
     let observed = result.interference().unwrap();
     assert!((observed.contrast.hajek - 6.0).abs() < 1e-12);
     assert!((observed.contrast.conservative_variance - 36.0).abs() < 1e-12);
@@ -87,7 +88,7 @@ fn observational_network_contrast_retains_truth_assumptions_and_artifact() {
             .unwrap()
             .contains("known, fixed")
     );
-    assert!(result.estimate.as_effect().unwrap().provenance.assumptions.entries.iter().any(|entry| matches!(&entry.assumption, antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "interference.network_exchangeability")));
+    assert!(result.estimate().as_effect().unwrap().provenance.assumptions.entries.iter().any(|entry| matches!(&entry.assumption, antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "interference.network_exchangeability")));
     assert!(result.diagnostics.iter().any(|d| {
         d.code.as_ref() == "estimate.interference.observational_ipw"
             && d.fields
@@ -96,14 +97,14 @@ fn observational_network_contrast_retains_truth_assumptions_and_artifact() {
     }));
     let artifact =
         prepared.encode_contracted_result(&result, "observational-network", &ctx).unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     assert_eq!(consumed.body.query, antecedent_io::CausalQueryWire::Interference(wire));
     assert!(consumed.body.standard_error.is_none());
     assert!(consumed.body.interval_lower.is_none());
     let mut tampered = artifact;
     let middle = tampered.len() / 2;
     tampered[middle] ^= 0x40;
-    assert!(consume_analysis_result(&tampered).is_err());
+    assert!(replay_analysis_result(&tampered).is_err());
 }
 
 #[test]
@@ -119,11 +120,11 @@ fn known_probabilities_retain_pointwise_interval_and_artifact() {
             outcomes.push(baseline + 2.0 * f64::from(treated));
             assignment.push(treated);
             clusters.push(cluster as u32);
-            edges.push(NetworkEdge {
-                from: (2 * cluster + 1 - unit) as u32,
-                to: (2 * cluster + unit) as u32,
-                weight: 1.0,
-            });
+            edges.push(NetworkEdge::new(
+                u64::try_from(2 * cluster + 1 - unit).expect("row id"),
+                u64::try_from(2 * cluster + unit).expect("row id"),
+                1.0,
+            ));
         }
     }
     let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
@@ -155,10 +156,18 @@ fn known_probabilities_retain_pointwise_interval_and_artifact() {
     let result = prepared.estimate(&data, &ctx).unwrap();
     let interval = result.interference_inference().unwrap().interval.as_ref().unwrap();
     assert!(interval.lower < 2.0 && interval.upper > 2.0);
+    // The Hajek contrast with propensity 1/2 is the treated-minus-control mean: the effect 2
+    // plus the baseline difference of the odd and even clusters, computed here from the data.
+    let baseline = |cluster: usize| 1.0 + (cluster % 7) as f64 / 10.0;
+    let odd: f64 = (0..60).filter(|c| c % 2 == 1).map(baseline).sum::<f64>() / 30.0;
+    let even: f64 = (0..60).filter(|c| c % 2 == 0).map(baseline).sum::<f64>() / 30.0;
+    let point = result.estimate().as_effect().unwrap().ate;
+    assert!((point - (2.0 + odd - even)).abs() < 1e-9, "{point} vs {}", 2.0 + odd - even);
+    assert!((0.5 * (interval.lower + interval.upper) - point).abs() < 1e-9);
     assert_eq!(interval.degrees_of_freedom, 59.0);
     assert_eq!(interval.first_stage_arm_clusters, [30, 30]);
     let artifact = prepared.encode_contracted_result(&result, "known-network", &ctx).unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     let wire = consumed.body.interference_inference.unwrap();
     assert_eq!(wire.method, "observational_known_exposure_cluster_t");
     assert!(wire.interval.is_some());
@@ -173,9 +182,10 @@ fn observational_network_refuses_missing_assumption_and_cross_cluster_edge() {
     {
         *assume_network_exchangeability = false;
     }
-    assert!(query.validate().is_err());
+    let invalid = query.validate().unwrap_err();
+    assert_eq!(format!("{invalid:?}"), "InvalidInterference(ObservedExposure)");
     let (_, _, query, _) = fixture();
-    edges.push(NetworkEdge { from: 0, to: 2, weight: 1.0 });
+    edges.push(NetworkEdge::new(0, 2, 1.0));
     let network = NetworkData::try_new(data.clone(), edges).unwrap();
     let study = Study::tabular(data)
         .graph(Dag::with_variables(1))
@@ -184,5 +194,9 @@ fn observational_network_refuses_missing_assumption_and_cross_cluster_edge() {
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
-    assert!(study.prepare(&ExecutionContext::for_tests(352)).is_err());
+    let refusal = study.prepare(&ExecutionContext::for_tests(352)).unwrap_err();
+    assert_eq!(
+        format!("{refusal:?}"),
+        "Estimate(Unsupported { message: \"partial-interference assumption violated: network edge crosses cluster boundary\" })"
+    );
 }

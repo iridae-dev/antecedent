@@ -9,6 +9,7 @@ evidence_kind = "internal_known_truth"
 python_facade = "full"
 evidence_test = "crates/antecedent-attribution/src/shapley.rs"
 evidence_assertion = "exact_shapley_recovers_additive_game"
+known_truth_reference = { kind = "closed_form", source = "crates/antecedent-attribution/src/shapley.rs::exact_shapley_recovers_additive_game", proposition = "For an additive coalition payoff with weights [1,2,3], each exact Shapley allocation equals its weight.", tolerance = "absolute 1e-9", limitations = "Three-player additive game only; this does not validate arbitrary payoff functions or Monte Carlo error estimates." }
 notes = "Exact + Monte Carlo / permutation Shapley with size limits and MC stderr"
 
 [[capabilities]]
@@ -18,6 +19,7 @@ evidence_kind = "implementation_exists"
 python_facade = "thin"
 evidence_test = "crates/antecedent-attribution/src/coalition.rs"
 evidence_assertion = "cache_hit_miss_and_disable"
+limitations = "Implementation-exists evidence: the cited assertion cache_hit_miss_and_disable shows the behavior executes and returns the asserted outcome. It is software coverage only and supplies no independent numerical truth, coverage or calibration."
 notes = "Semantic coalition cache keyed by mask + tag under CachePolicy (ExecutionContext; no dedicated Python type)"
 
 [[capabilities]]
@@ -43,32 +45,32 @@ notes = "Regression-hybrid robust variant; antecedent.attribution.attribute_dist
 [[capabilities]]
 id = "attribution.mechanism_change_detection"
 status = "done"
-evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/attribution/mechanism_change_detect"
+evidence_kind = "implementation_exists"
+smoke_fixture = "conformance/attribution/mechanism_change_detect"
 evidence_test = "crates/antecedent/tests/attribution.rs"
 evidence_assertion = "mechanism_change_detect_conformance"
-limitations = "Qualitative detection truth (which mechanism changed), not a numeric magnitude. Baseline and comparison populations each need at least 10 rows (refused otherwise); the baseline is cross-fit (k-fold) so both residual samples are out-of-sample, matching the comparison side and avoiding anti-conservative Type-I inflation under a covariate shift with no mechanism change."
+limitations = "The fixture asserts only that y is flagged on one seeded two-period dataset under mean_diff; no statistic, p-value, power or false-positive rate is derived, and agreement is a software detection check, not independent known truth. Baseline and comparison populations each need at least 10 rows (refused otherwise); the baseline is cross-fit (k-fold) so both residual samples are out-of-sample."
 python_facade = "full"
 notes = "Detection separate from attribution (LR / mean-diff / classifier proxy); antecedent.attribution.mechanism_change_detection"
 
 [[capabilities]]
 id = "attribution.mechanism_change_kernel"
 status = "done"
-evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/attribution/mechanism_change_kernel_shift"
+evidence_kind = "implementation_exists"
+smoke_fixture = "conformance/attribution/mechanism_change_kernel_shift"
 evidence_test = "crates/antecedent/tests/attribution.rs"
 evidence_assertion = "mechanism_change_kernel_conformance"
-limitations = "Qualitative detection truth, not a numeric magnitude. Same minimum-population-size and cross-fitted-baseline caveats as attribution.mechanism_change_detection."
+limitations = "The fixture asserts only that y is flagged on one seeded two-period dataset under the kernel two-sample test; no MMD value, p-value, power or false-positive rate is derived, so this is a software detection check, not independent known truth. Same minimum-population-size and cross-fitted-baseline caveats as attribution.mechanism_change_detection."
 notes = "MMD² RBF kernel two-sample on residuals"
 
 [[capabilities]]
 id = "attribution.mechanism_change_change_point"
 status = "done"
-evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/attribution/mechanism_change_change_point"
+evidence_kind = "implementation_exists"
+smoke_fixture = "conformance/attribution/mechanism_change_change_point"
 evidence_test = "crates/antecedent/tests/attribution.rs"
 evidence_assertion = "mechanism_change_change_point_conformance"
-limitations = "Qualitative detection truth, not a numeric magnitude. Same minimum-population-size and cross-fitted-baseline caveats as attribution.mechanism_change_detection; a comparison (or baseline) segment with no measured variation is refused rather than reported as a p=0 certainty."
+limitations = "The fixture asserts only that y is flagged on one seeded two-period dataset under the known-split change-point test; no statistic, p-value, power or false-positive rate is derived, so this is a software detection check, not independent known truth. Same minimum-population-size and cross-fitted-baseline caveats as attribution.mechanism_change_detection; a segment with no measured variation is refused rather than reported as a p=0 certainty."
 notes = "Known-split Gaussian change-point on concatenated residuals"
 
 [[capabilities]]
@@ -128,5 +130,6 @@ evidence_kind = "internal_known_truth"
 python_facade = "full"
 evidence_test = "crates/antecedent/tests/attribution.rs"
 evidence_assertion = "distribution_change_y_shift_conformance"
+known_truth_fixture = "conformance/attribution/distribution_change_y_shift"
 limitations = "The cited test exercises the distribution_change y-shift facade path against its conformance pin; the mechanism-change and structure-change facade conformances in the same file are cited by their own rows."
 notes = "Facade + conformance tests under crates/antecedent/tests/attribution.rs; Python antecedent.attribution + package helpers"

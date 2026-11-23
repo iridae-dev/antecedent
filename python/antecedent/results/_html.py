@@ -69,6 +69,7 @@ _STYLE = """<style>
 .antecedent-ar-banner.ar-ok { background: rgba(16, 185, 129, 0.18); }
 .antecedent-ar-banner.ar-bad { background: rgba(239, 68, 68, 0.18); }
 .antecedent-ar-banner.ar-caution { background: rgba(245, 158, 11, 0.22); }
+.antecedent-ar-banner.ar-noncausal { background: rgba(100, 116, 139, 0.2); }
 .antecedent-ar-banner-method { font-weight: 400; opacity: 0.75; font-size: 0.85em; }
 .antecedent-ar-callout {
   background: rgba(245, 158, 11, 0.20);
@@ -134,7 +135,7 @@ def _refutation_table_html(validation: ValidationView) -> str:
             verdict, verdict_class = "not informative", "antecedent-ar-muted"
         rows.append(
             "<tr>"
-            f"<td>{_esc(r.refuter)}</td>"
+            f"<td>{_esc(r.refuter)}{(' (' + _esc(r.scope_kind) + ')') if r.scope_kind else ''}</td>"
             f"<td>{_esc(fmt_float(r.original_ate))}</td>"
             f"<td>{_esc(fmt_float(r.refuted_ate))}</td>"
             f"<td>{_esc(fmt_float(r.comparison))}</td>"
@@ -142,8 +143,13 @@ def _refutation_table_html(validation: ValidationView) -> str:
             "</tr>"
         )
     body = "".join(rows)
+    notice = (
+        '<div class="antecedent-ar-row antecedent-ar-muted">Whole-result verdict unavailable; checks are scoped.</div>'
+        if validation.passed is None
+        else ""
+    )
     return (
-        '<table class="antecedent-ar-table">'
+        notice + '<table class="antecedent-ar-table">'
         "<thead><tr>"
         "<th>Refuter</th><th>Original</th><th>Refuted</th><th>Comparison</th><th>Result</th>"
         "</tr></thead>"
@@ -159,7 +165,12 @@ def _adjustment_chips_html(adjustment_set: Sequence[str]) -> str:
     return f'<span class="antecedent-ar-chips">{chips}</span>'
 
 
-_BANNER_CLASS = {"identified": "ar-ok", "caution": "ar-caution", "not_identified": "ar-bad"}
+_BANNER_CLASS = {
+    "identified": "ar-ok",
+    "caution": "ar-caution",
+    "not_identified": "ar-bad",
+    "noncausal": "ar-noncausal",
+}
 
 
 def _analysis_result_body(result: AnalysisResult) -> str:

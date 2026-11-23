@@ -12,7 +12,7 @@
 //! one series and does not affect any counterfactual of the outcome, so it is not
 //! carried.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

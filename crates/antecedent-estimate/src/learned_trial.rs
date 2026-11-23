@@ -144,6 +144,17 @@ pub struct TrialAipwEstimate {
     /// Per-row AIPW scores whose sample mean is [`Self::estimate`].
     #[serde(default)]
     pub scores: Vec<f64>,
+    /// The nuisance implementations are caller-supplied and not verified by this route.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub external_nuisances_unverified: bool,
+}
+
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "serde skip_serializing_if callbacks take a reference to the field"
+)]
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 /// Validate certificate/provider compatibility before fitting any nuisance.
@@ -219,13 +230,48 @@ fn strata(input: &TrialAipwInput) -> [Vec<usize>; 3] {
 }
 fn cancelled(ctx: &ExecutionContext) -> Result<(), EstimationError> {
     if ctx.cancellation.is_cancelled() {
-        Err(EstimationError::Refused {
-            code: antecedent_core::reason_code!("transport_budget_cancel"),
-            message: "trial transport cancelled".into(),
-        })
+        Err(EstimationError::refused(
+            antecedent_core::reason_code!("transport_budget_cancel"),
+            "trial transport cancelled",
+        ))
     } else {
         Ok(())
     }
+}
+
+/// Check the existing trial workspace bound under the actual caller without fitting.
+/// # Errors
+/// Workspace overflow, physical memory refusal or cancelled execution.
+pub fn check_trial_aipw_resources(
+    input: &TrialAipwInput,
+    options: &TrialAipwOptions,
+    ctx: &ExecutionContext,
+) -> Result<(), EstimationError> {
+    cancelled(ctx)?;
+    let n = input.source.len();
+    let bytes = input
+        .features
+        .len()
+        .checked_add(32)
+        .and_then(|p| n.checked_mul(p))
+        .and_then(|n| n.checked_mul(8))
+        .and_then(|n| n.checked_add(usize::try_from(options.bootstrap).ok()?.checked_mul(16)?))
+        .ok_or_else(|| {
+            EstimationError::refused(
+                antecedent_core::reason_code!("transport_budget_cancel"),
+                "trial workspace overflow",
+            )
+        })?;
+    if ctx
+        .memory_limit_bytes()
+        .is_some_and(|limit| u64::try_from(bytes).map_or(true, |bytes| bytes > limit))
+    {
+        return Err(EstimationError::refused(
+            antecedent_core::reason_code!("transport_budget_cancel"),
+            "trial workspace budget",
+        ));
+    }
+    Ok(())
 }
 
 /// Fit the certified score with shared OOF roles and joint outer refits.
@@ -239,18 +285,7 @@ pub fn estimate_trial_aipw(
 ) -> Result<TrialAipwEstimate, EstimationError> {
     validate_trial_aipw(id, input, options)?;
     cancelled(ctx)?;
-    let n = input.source.len();
-    let bytes = input
-        .features
-        .len()
-        .checked_add(32)
-        .and_then(|p| n.checked_mul(p))
-        .and_then(|n| n.checked_mul(8))
-        .and_then(|n| n.checked_add(options.bootstrap as usize * 16))
-        .ok_or_else(|| EstimationError::data_msg("trial workspace overflow"))?;
-    if ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes as u64 > limit) {
-        return Err(EstimationError::data_msg("trial workspace budget"));
-    }
+    check_trial_aipw_resources(input, options, ctx)?;
     let folds = trial_fold_assignment(input, options.folds);
     let mut result = fit_point(id, input, options, &folds, ctx)?;
     let groups = bootstrap_groups(input);
@@ -300,6 +335,53 @@ pub fn estimate_trial_aipw(
     );
     result.interval = interval;
     result.uncertainty_reason = reason.map(str::to_owned);
+    Ok(result)
+}
+
+/// Fit a certified trial-to-target AIPW point with caller-supplied nuisance factories.
+///
+/// Each factory receives only its selected training and prediction rows. Provider
+/// validity and prior training overlap are not verified; the result records that
+/// boundary. External bootstrap refits are not implemented and are explicitly refused.
+/// # Errors
+/// Invalid inputs, unsupported inference, incompatible factories, failed fit, or cancellation.
+pub fn estimate_trial_aipw_with_factories(
+    id: &TransportIdentification,
+    input: &TrialAipwInput,
+    options: &TrialAipwOptions,
+    ctx: &ExecutionContext,
+    outcome: &dyn antecedent_learn::LearnerFactory,
+    membership: &dyn antecedent_learn::LearnerFactory,
+) -> Result<TrialAipwEstimate, EstimationError> {
+    if options.bootstrap != 0 {
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
+            "external trial nuisance factories currently require bootstrap=0",
+        ));
+    }
+    validate_trial_aipw(id, input, options)?;
+    cancelled(ctx)?;
+    check_trial_aipw_resources(input, options, ctx)?;
+    for (factory, requested) in
+        [(outcome, PredictionTask::Regression), (membership, PredictionTask::BinaryProbability)]
+    {
+        if factory.task() != requested {
+            return Err(crate::learn_nuisance::learn_err(
+                antecedent_learn::LearnError::TaskMismatch { requested, supported: factory.task() },
+            ));
+        }
+    }
+    let folds = trial_fold_assignment(input, options.folds);
+    let mut result = fit_point_with_factories(
+        id,
+        input,
+        &folds,
+        ctx,
+        &antecedent_learn::IsolatedFactory::new(outcome),
+        &antecedent_learn::IsolatedFactory::new(membership),
+    )?;
+    result.external_nuisances_unverified = true;
+    result.uncertainty_reason = Some("bootstrap_not_requested".to_owned());
     Ok(result)
 }
 
@@ -356,10 +438,21 @@ pub fn bootstrap_rows(
             StreamDomain::Estimate,
             0x5452_0000_0000_0000 | ((group as u64) << 32) | u64::from(replicate),
         );
+        antecedent_core::DeclaredSamplingDesign::IndependentSubjectTrajectories
+            .apply_resampling(antecedent_core::ResamplingRule::RowSubjectIid)
+            .map_err(|error| {
+                EstimationError::Data(antecedent_data::DataError::SamplingDesign(error))
+            })?;
         let mut selected = Vec::new();
-        fill_resample_indexes(ResamplingPlan::IidBootstrap, members.len(), &mut rng, &mut selected)
-            .map_err(|e| EstimationError::data_msg(e.to_string()))?;
-        rows.extend(selected.into_iter().map(|i| members[i as usize]));
+        fill_resample_indexes(
+            ResamplingPlan::IidBootstrap,
+            members.len(),
+            &mut rng,
+            &mut selected,
+        )?;
+        rows.extend(
+            selected.into_iter().map(|i| members[usize::try_from(i.get()).expect("row id")]),
+        );
     }
     Ok(rows)
 }
@@ -401,6 +494,29 @@ fn fit_point(
     ctx: &ExecutionContext,
 ) -> Result<TrialAipwEstimate, EstimationError> {
     cancelled(ctx)?;
+    let membership_factory = resolve_for(options.membership, PredictionTask::BinaryProbability)
+        .map_err(crate::learn_nuisance::learn_err)?;
+    let outcome_factory = resolve_for(options.outcome, PredictionTask::Regression)
+        .map_err(crate::learn_nuisance::learn_err)?;
+    fit_point_with_factories(
+        id,
+        input,
+        folds,
+        ctx,
+        outcome_factory.as_ref(),
+        membership_factory.as_ref(),
+    )
+}
+
+fn fit_point_with_factories(
+    id: &TransportIdentification,
+    input: &TrialAipwInput,
+    folds: &[u16],
+    ctx: &ExecutionContext,
+    outcome_factory: &dyn antecedent_learn::LearnerFactory,
+    membership_factory: &dyn antecedent_learn::LearnerFactory,
+) -> Result<TrialAipwEstimate, EstimationError> {
+    cancelled(ctx)?;
     let n = input.source.len();
     let mut design = vec![1.0; n];
     for col in &input.covariates {
@@ -409,12 +525,8 @@ fn fit_point(
     let x = DesignView::from_column_major(&design, n, input.features.len() + 1)
         .map_err(crate::learn_nuisance::learn_err)?;
     let source: Vec<f64> = input.source.iter().map(|s| f64::from(*s)).collect();
-    let membership_factory = resolve_for(options.membership, PredictionTask::BinaryProbability)
-        .map_err(crate::learn_nuisance::learn_err)?;
-    let outcome_factory = resolve_for(options.outcome, PredictionTask::Regression)
-        .map_err(crate::learn_nuisance::learn_err)?;
     let membership = cross_fit_selected(
-        membership_factory.as_ref(),
+        membership_factory,
         x,
         TargetView::new(&source),
         folds,
@@ -428,7 +540,7 @@ fn fit_point(
             (0..n).map(|i| input.source[i] && input.treatment[i] == arm).collect();
         outcomes.push(
             cross_fit_selected(
-                outcome_factory.as_ref(),
+                outcome_factory,
                 x,
                 TargetView::new(&input.outcome),
                 folds,
@@ -476,6 +588,7 @@ fn fit_point(
         mu1,
         provenance,
         scores,
+        external_nuisances_unverified: false,
     })
 }
 
@@ -485,7 +598,7 @@ fn fit_point(
 pub fn validate_trial_query(
     query: &antecedent_core::TransportQuery,
 ) -> Result<(), EstimationError> {
-    query.validate().map_err(|e| EstimationError::data_msg(e.to_string()))?;
+    query.validate()?;
     match &query.response.functional {
         antecedent_core::ResponseFunctional::MeanCurve { treatment, .. } => match &treatment.grid {
             antecedent_core::GridSpec::Values(values) if values.as_ref() == [0.0, 1.0] => {}
@@ -523,6 +636,26 @@ mod tests {
     use antecedent_identify::{PopulationFactor, TransportCertificate};
     use std::sync::Arc;
 
+    #[test]
+    fn cancelled_fit_refuses_before_resolving_invalid_membership() {
+        let options = TrialAipwOptions {
+            membership: LearnerSpec::Linear(antecedent_learn::LinearSpec {}),
+            ..TrialAipwOptions::default()
+        };
+        let data = intercept_only_input(TrialSampling::IndependentSamples);
+        let ctx = ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        assert!(matches!(
+            fit_point(&direct_certificate(), &data, &options, &[], &ctx),
+            Err(EstimationError::Refused { code: "transport_budget_cancel", .. })
+        ));
+        let active = ExecutionContext::for_tests(1);
+        assert!(matches!(
+            fit_point(&direct_certificate(), &data, &options, &[], &active),
+            Err(EstimationError::Learner(_))
+        ));
+    }
+
     fn direct_certificate() -> TransportIdentification {
         TransportIdentification::Transportable {
             formula: TransportFormula::Direct(PopulationFactor {
@@ -552,6 +685,41 @@ mod tests {
             randomization: vec![0.5; n as usize],
             sampling,
         }
+    }
+
+    #[test]
+    fn caller_factories_match_trial_nuisances_and_are_marked_unverified() {
+        let input = intercept_only_input(TrialSampling::IndependentSamples);
+        let options = TrialAipwOptions { bootstrap: 0, ..TrialAipwOptions::default() };
+        let ctx = ExecutionContext::for_tests(3);
+        let outcome = resolve_for(options.outcome, PredictionTask::Regression).unwrap();
+        let membership =
+            resolve_for(options.membership, PredictionTask::BinaryProbability).unwrap();
+        let expected = estimate_trial_aipw(&direct_certificate(), &input, &options, &ctx).unwrap();
+        let actual = estimate_trial_aipw_with_factories(
+            &direct_certificate(),
+            &input,
+            &options,
+            &ctx,
+            outcome.as_ref(),
+            membership.as_ref(),
+        )
+        .unwrap();
+        assert!((actual.estimate - expected.estimate).abs() < 1e-12);
+        assert!(actual.external_nuisances_unverified);
+        assert_eq!(actual.uncertainty_reason.as_deref(), Some("bootstrap_not_requested"));
+        let unsupported = TrialAipwOptions { bootstrap: 2, ..options };
+        assert!(
+            estimate_trial_aipw_with_factories(
+                &direct_certificate(),
+                &input,
+                &unsupported,
+                &ctx,
+                outcome.as_ref(),
+                membership.as_ref()
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -612,3 +780,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "learned_trial_reference_tests.rs"]
+mod reference_tests;

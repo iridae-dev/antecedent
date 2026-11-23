@@ -1,4 +1,4 @@
-"""Prepare-route dispatch for :class:`~antecedent.estimation.PreparedAnalysis`.
+"""Prepare-route dispatch for :class:`~antecedent.prepared.PreparedAnalysis`.
 
 The route body is unchanged. Helpers that the rest of ``estimation`` still
 calls stay in that module and are imported here. ``estimation`` loads this
@@ -9,12 +9,15 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from numbers import Real
 from typing import Any, Literal, cast
 
 import numpy as np
 
-from ._columns import resolved, resolved_opt, resolved_scalar
+from ._columns import resolved, resolved_opt, resolved_scalar, scalar_or_values
 from ._native import PreparedAnalysis as _NativePreparedAnalysis
+from ._temporal_design import TEMPORAL_DESIGN_QUERIES, temporal_design_keywords
+from .descriptive import Association
 from .discovery import DbnPosterior, ExactDagPosterior, GraphPosterior
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .estimation import _RESPONSE_FAMILY, _not_applicable, _static_edges
@@ -28,7 +31,17 @@ from .experiment import (
     SwitchbackEffect,
     TreatmentOnTreated,
 )
-from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
+from .graph import (
+    Admg,
+    Cpdag,
+    Dag,
+    Pag,
+    TemporalAdmg,
+    TemporalCpdag,
+    TemporalDag,
+    TemporalPag,
+    TieredBackground,
+)
 from .inference import (
     Bayesian,
     ClassPrior,
@@ -52,11 +65,15 @@ from .policy import (
 )
 from .quasi import (
     AugmentedPanelDiD,
+    CovariateAdjustedDiD,
     FuzzyRegressionDiscontinuity,
+    IvBounds,
     PanelDifferenceInDifferences,
+    PeriodHistoryMatch,
     RegressionKink,
     SharpRegressionDiscontinuity,
     StaggeredAdoption,
+    StaggeredRollout,
     SyntheticControl,
     SyntheticDifferenceInDifferences,
 )
@@ -69,6 +86,7 @@ from .query import (
     Counterfactual,
     DirectionalDerivative,
     Elasticity,
+    FeedbackMechanism,
     InterventionalDistribution,
     InterventionResponse,
     MediationEffect,
@@ -83,8 +101,9 @@ from .query import (
     TemporalConditionalPulse,
     TemporalConditionalSustained,
     TemporalMediationEffect,
+    TemporalQuery,
 )
-from .regimes import LongitudinalRegime
+from .regimes import LongitudinalRegime, SequentialContrast
 from .survival import CompetingRisksOutcome, SurvivalOutcome
 from .transport.advanced import TransportQuery
 
@@ -103,6 +122,19 @@ _RESPONSE_NUISANCE_KEYS = frozenset(
 _RESPONSE_CONFIG_KEYS = _RESPONSE_NUISANCE_KEYS | frozenset(
     {"simultaneous_replicates", "multiplier_seed", "export_row_diagnostics"}
 )
+#: Static structures other than a DAG that a static query binds directly: the compiler runs the
+#: query's class executor on the equivalence class, the latent-confounded ADMG, or the
+#: contemporaneous projection of a temporal ADMG.
+_STATIC_CLASS_GRAPHS = (Cpdag, Pag, Admg, TemporalAdmg)
+#: The static derivative queries.
+_DERIVATIVE_QUERIES = (
+    PointDerivative,
+    AverageDerivative,
+    Elasticity,
+    SemiElasticity,
+    DirectionalDerivative,
+    ResponseJacobian,
+)
 _RESPONSE_ESTIMATORS = {
     "response_curve": "response.kennedy_dr",
     "point_derivative": "response.kennedy_dr",
@@ -115,12 +147,18 @@ _RESPONSE_ESTIMATORS = {
 }
 
 
-def _refuse_admg_response(graph: Any, query: Any) -> None:
-    if isinstance(graph, Admg) and isinstance(query, ConditionalEffect):
-        raise CausalUnsupportedError(
-            "refused: ConditionalEffect on Admg has no compile arm; "
-            "Dag, Cpdag, and Pag are licensed."
-        )
+def _structure_prior_option(discovery: Any) -> dict[str, Any]:
+    """The prepare option that carries the per-edge prior of a posterior search still to run.
+
+    A posterior that was already run carries its prior in its atoms; a search handed to a
+    study runs inside it, so the study reads the prior the configuration declares.
+    """
+    prior = discovery.prior if isinstance(discovery, (ExactDagPosterior, DbnPosterior)) else None
+    kwargs = {} if prior is None else prior._native_kwargs()
+    options: dict[str, Any] = {"structure_prior": kwargs} if kwargs else {}
+    if isinstance(discovery, ExactDagPosterior):
+        options.update({f"exact_{key}": value for key, value in discovery._score_options().items()})
+    return options
 
 
 def _check_response_strategy(
@@ -143,8 +181,10 @@ def _check_response_strategy(
                 f"{query.kind} requires identifier='response.backdoor'; got {identifier!r}"
             )
         return
+    # A derivative on a class structure, ADMG or temporal ADMG is identified by one adjustment
+    # set valid in every member (a curve or level on a Cpdag, Pag or Admg routes earlier).
     expected_identifier = (
-        "generalized.adjustment" if isinstance(graph, (Pag, Cpdag)) else "response.backdoor"
+        "generalized.adjustment" if isinstance(graph, _STATIC_CLASS_GRAPHS) else "response.backdoor"
     )
     if identifier not in (None, expected_identifier):
         raise ValueError(
@@ -203,6 +243,23 @@ def _parse_response_estimator_config(
 def _response_options_wire(options: Mapping[str, Any], seed: int) -> dict[str, Any]:
     """A curve's response options; the simultaneous-band multipliers follow the study seed."""
     return {"multiplier_seed": seed, **options}
+
+
+def _feedback_tuple(
+    feedback: FeedbackMechanism | None,
+) -> tuple[int, float, float, float, float, str | None, float] | None:
+    """The declared feedback mechanism in the native argument order."""
+    if feedback is None:
+        return None
+    return (
+        feedback.delay,
+        feedback.level,
+        feedback.autoregression,
+        feedback.input_gain,
+        feedback.innovation_variance,
+        feedback.initial_law,
+        feedback.initial_state,
+    )
 
 
 def _lagged_edges(
@@ -279,17 +336,24 @@ def _encode_interventions(
 #: family is added by appending one row in its phase, never by editing the
 #: compound arms that stay inline.
 _COMPILE_ROUTES: tuple[tuple[tuple[type, ...], str, str], ...] = (
+    ((TemporalQuery,), "_temporal_query", "pre"),
     ((PolicyValue, MultiActionPolicyValue), "_policy_value", "pre"),
     ((ConditionalDoseResponse,), "_continuous_dose_response", "pre"),
     ((RandomizedEffect,), "_randomized_effect", "pre"),
     ((ComplierEffect, TreatmentOnTreated), "_complier_effect", "pre"),
     ((SwitchbackEffect,), "_switchback_effect", "pre"),
     ((PanelDifferenceInDifferences, StaggeredAdoption, AugmentedPanelDiD), "_panel_did", "pre"),
+    ((StaggeredRollout, CovariateAdjustedDiD), "_rollout_did", "pre"),
     ((SyntheticControl, SyntheticDifferenceInDifferences), "_synthetic_control", "pre"),
     ((SharpRegressionDiscontinuity,), "_sharp_rd", "pre"),
     ((FuzzyRegressionDiscontinuity, RegressionKink), "_local_polynomial_ratio", "pre"),
     ((LongitudinalRegime,), "_longitudinal_regime", "pre"),
+    ((SequentialContrast,), "_sequential_contrast", "pre"),
+    ((PeriodHistoryMatch,), "_history_match", "pre"),
+    ((IvBounds,), "_iv_bounds", "pre"),
+    ((Association,), "_association", "pre"),
     ((SurvivalOutcome, CompetingRisksOutcome), "_survival", "pre"),
+    (TEMPORAL_DESIGN_QUERIES, "_temporal_design", "pre"),
     ((TransportQuery,), "_transport", "post_temporal"),
     ((InterferenceQuery,), "_interference", "post_temporal"),
     ((AnomalyAttribution, ChangeAttribution), "_attribution", "post_temporal"),
@@ -333,13 +397,33 @@ class _PrepareRoute:
         if self.estimator_config:
             raise _not_applicable("estimator_config", route)
 
-    def _refuse_ids(self, route: str) -> None:
+    def _refuse_ids(self, route: str, bayesian_id: str | None = None) -> None:
+        selected = getattr(self.estimator, "value", self.estimator)
+        if (
+            bayesian_id is not None
+            and selected == bayesian_id
+            and isinstance(self.inference, Bayesian)
+            and self.identifier is None
+        ):
+            return
         if self.identifier is not None or self.estimator is not None:
             raise CausalUnsupportedError(
                 f"{route} selects its identifier and estimator itself; custom "
                 "identifier= / estimator= are not supported",
                 reason_code="option_not_applicable",
             )
+
+    def _select_ids(self) -> None:
+        """Hand the caller's identifier and estimator to the native compiler.
+
+        The routes that call this accept a family of estimators (design-based and Bayesian
+        arm contrasts, the temporal linear, link-contrast and lagged-instrument estimators);
+        the compiler owns which combinations are valid and refuses the rest by code.
+        """
+        if self.identifier is not None:
+            self.options["identifier"] = getattr(self.identifier, "value", self.identifier)
+        if self.estimator is not None:
+            self.options["estimator"] = getattr(self.estimator, "value", self.estimator)
 
     def _explicit_refute(self) -> bool:
         return self.refute is not None and self.refute not in (False, "none")
@@ -359,6 +443,15 @@ class _PrepareRoute:
 
     def compile(self) -> tuple[Any, Literal["average", "response_curve", "intervention_response"]]:
         query = self.query
+        if (self.options.get("inference") or {}).get("count_prior") and not isinstance(
+            query, Association
+        ):
+            raise CausalUnsupportedError(
+                f"{type(query).__name__} does not read a Beta or Gamma prior; a count prior is the "
+                "prior of a conditional or exceedance Association "
+                "(Bayesian(prior_from=<Beta or Gamma prior>))",
+                reason_code="option_not_applicable",
+            )
         handler = self._route("pre")
         if handler is not None:
             return getattr(self, handler)()
@@ -382,9 +475,9 @@ class _PrepareRoute:
         if self.frame is not None and not temporal:
             raise CausalUnsupportedError(
                 f"{type(query).__name__} is a static query; panel, multi-environment and "
-                "event data are licensed for temporal queries (Pulse / Sustained / "
+                "event data are supported for temporal queries (Pulse / Sustained / "
                 "TemporalMediation / temporal response)",
-                reason_code="data_modality_not_licensed",
+                reason_code="data_modality_not_supported",
             )
         if temporal:
             return self._temporal()
@@ -396,29 +489,30 @@ class _PrepareRoute:
             # A requested replicate count is refused before the structural
             # refusals: it is the caller's own request, not the cell's shape.
             self._refuse_response_bootstrap()
-        _refuse_admg_response(self.graph, query)
         handler = self._route("post_admg")
         if handler is not None:
             return getattr(self, handler)()
+        # A class structure is bound as itself: the compiler runs the query's class executor on
+        # it and the result names that class. A DAG (or an edge list) is the explicit structure.
+        class_graph = self.graph if isinstance(self.graph, _STATIC_CLASS_GRAPHS) else None
         if isinstance(query, InterventionalDistribution):
             self._refuse_estimator_config("InterventionalDistribution")
             self._refuse_ids("InterventionalDistribution (general.id + functional.distribution)")
-            admg = isinstance(self.graph, Admg)
             native = _NativePreparedAnalysis.prepare_distribution(
                 self.names,
                 self.columns,
-                [] if admg else _static_edges(self.graph),
+                [] if class_graph is not None else _static_edges(self.graph),
                 query.outcome,
                 dict(query.interventions),
-                graph=self.graph if admg else None,
+                graph=class_graph,
                 conditioning=list(query.conditioning) or None,
                 accepted=self.accepted,
                 **self._common(),
             )
             return native, "average"
-        edges = _static_edges(self.graph)
+        edges = [] if class_graph is not None else _static_edges(self.graph)
         if isinstance(query, (MediationEffect, NestedCounterfactual, Counterfactual)):
-            return self._static_kind(edges)
+            return self._static_kind(edges, class_graph)
         if isinstance(query, PathSpecificEffect):
             self._refuse_estimator_config("PathSpecificEffect")
             self._refuse_ids("PathSpecificEffect (path_specific.natural + functional.effect)")
@@ -433,27 +527,145 @@ class _PrepareRoute:
                 path_nodes=list(query.path_nodes) if query.path_nodes is not None else None,
                 max_paths=query.max_paths,
                 max_len=query.max_len,
+                graph=class_graph,
                 accepted=self.accepted,
                 **self._common(),
             )
             return native, "average"
         raise CausalTypeError(f"unsupported query type: {type(query)!r}")
 
+    def _temporal_query(self) -> tuple[Any, Any]:
+        """Bind the original typed target to its existing native temporal family."""
+        attachment = self.query
+        query = attachment.query
+        self._refuse_estimator_config("TemporalQuery (native unfolded temporal estimator)")
+        derivative = isinstance(
+            query,
+            (
+                AverageDerivative,
+                PointDerivative,
+                Elasticity,
+                SemiElasticity,
+                DirectionalDerivative,
+                ResponseJacobian,
+            ),
+        )
+        if derivative:
+            from .observation import Complete
+
+            if query.observation is not None and not isinstance(query.observation, Complete):
+                raise CausalUnsupportedError(
+                    "temporal derivatives require complete observations",
+                    reason_code="option_not_applicable",
+                )
+            if query.observation_assumptions:
+                raise CausalUnsupportedError(
+                    "temporal derivatives require the observed population",
+                    reason_code="option_not_applicable",
+                )
+            target = _derivative_target_spec(query)
+        else:
+            target = {
+                "kind": query.kind,
+                "treatments": [getattr(query, "treatment", "")],
+                "outcomes": [query.outcome],
+                "at": None,
+                "direction": None,
+                "order": 1,
+                "scale": "identity",
+                "weighting": "observed",
+            }
+        target |= {
+            "control_level": getattr(query, "control_level", 0.0),
+            "active_level": getattr(query, "active_level", 1.0),
+            "mediators": [query.mediator] if isinstance(query, NestedCounterfactual) else [],
+            "path_nodes": list(query.path_nodes)
+            if getattr(query, "path_nodes", None) is not None
+            else None,
+            "max_paths": getattr(query, "max_paths", 64),
+            "max_len": getattr(query, "max_len", 16),
+            "interventions": list(getattr(query, "interventions", {}).items()),
+            "conditioning": list(getattr(query, "conditioning", ())),
+        }
+        discovery = self.discovery
+        if discovery is not None and not isinstance(discovery, (DbnPosterior, GraphPosterior)):
+            raise CausalUnsupportedError(
+                "TemporalQuery graph uncertainty requires a temporal graph posterior",
+                reason_code="option_not_applicable",
+            )
+        native_graph = self.graph
+        if native_graph is not None and not isinstance(
+            native_graph, (TemporalDag, TemporalCpdag, TemporalPag, TemporalAdmg)
+        ):
+            native_graph = TemporalDag.from_lagged_edges(self.names, _lagged_edges(native_graph))
+        dbn = (
+            None
+            if not isinstance(discovery, DbnPosterior)
+            else {
+                "max_lag": discovery.max_lag,
+                "force_mcmc": discovery.force_mcmc,
+                "n_chains": discovery.n_chains,
+                "n_warmup": discovery.n_warmup,
+                "n_draws": discovery.n_draws,
+            }
+        )
+        spec = {
+            "target": target,
+            "temporal": {
+                "horizons": list(attachment.horizons),
+                "policy": attachment.policy,
+                "treatment_lag": attachment.treatment_lag,
+                "max_history_lag": attachment.max_history_lag,
+                "window": attachment.window,
+            },
+            "discovery": dbn,
+            "posterior": discovery if isinstance(discovery, GraphPosterior) else None,
+            "response_options": None,
+            **_class_prior_kwargs(self.class_prior),
+            **_max_completions_kwargs(self.max_completions),
+        }
+        from .population import coerce_target_population
+
+        options = dict(self.options)
+        options.update(_structure_prior_option(discovery))
+        population = coerce_target_population(getattr(query, "target_population", None))
+        if population is not None:
+            options["target_population"] = population
+        native = _NativePreparedAnalysis.prepare_temporal_query(
+            self.names,
+            self.columns,
+            native_graph,
+            spec,
+            options=options,
+            seed=self.seed,
+            threads=self.threads,
+            frame=self.frame,
+            accepted=self.accepted,
+        )
+        return native, "response_curve" if derivative else "average"
+
     # -- graph posterior ------------------------------------------------------
     def _graph_posterior(self) -> tuple[Any, Any]:
         query, discovery = self.query, self.discovery
-        self._refuse_ids("PreparedAnalysis graph-posterior discovery (per posterior atom)")
+        if self.options.get("weighted_target") is not None:
+            # A declared target population runs the requested estimator on every atom (the
+            # targeted mixture); the compiler checks the pairing.
+            self._select_ids()
+        else:
+            self._refuse_ids("PreparedAnalysis graph-posterior discovery (per posterior atom)")
         if self.frame is not None and self.frame["kind"] != "events":
             raise CausalUnsupportedError(
-                "graph-posterior cells are licensed on one table, one series, or one event "
+                "graph-posterior cells are supported on one table, one series, or one event "
                 "stream; a panel or multi-environment mixture has no single atom weighting",
-                reason_code="data_modality_not_licensed",
+                reason_code="data_modality_not_supported",
             )
         static = isinstance(discovery, (ExactDagPosterior, GraphPosterior))
         temporal = isinstance(discovery, (DbnPosterior, GraphPosterior))
         shared: dict[str, Any] = dict(self._common())
         if isinstance(discovery, GraphPosterior):
             shared["posterior"] = discovery
+        elif _structure_prior_option(discovery):
+            shared["options"] = {**dict(self.options), **_structure_prior_option(discovery)}
         dbn: dict[str, Any] = {"frame": self.frame} if temporal else {}
         dbn |= (
             {}
@@ -497,8 +709,26 @@ class _PrepareRoute:
                 **shared,
             )
             return native, "response_curve"
+        if static and isinstance(query, _DERIVATIVE_QUERIES):
+            # Every atom (a DAG, a class, an ADMG) runs the derivative's executor on its own
+            # structure; the atoms mix by posterior probability.
+            _refuse_derivative_observation(query)
+            response_options = _parse_response_estimator_config(query, self.estimator_config)
+            target = _derivative_target_spec(query)
+            native = _NativePreparedAnalysis.prepare_graph_posterior_derivative(
+                self.names,
+                self.columns,
+                target.pop("kind"),
+                target.pop("treatments"),
+                target.pop("outcomes"),
+                **target,
+                response_options=dict(response_options) if response_options else None,
+                **shared,
+            )
+            return native, "response_curve"
         self._refuse_estimator_config(
-            "a graph-posterior mixture other than AverageEffect or a static ResponseCurve"
+            "a graph-posterior mixture other than AverageEffect, a static ResponseCurve or a "
+            "derivative"
         )
         if static and isinstance(query, ConditionalEffect):
             from .query import coerce_outcome_functional
@@ -508,7 +738,7 @@ class _PrepareRoute:
                 self.columns,
                 query.treatment,
                 query.outcome,
-                query.modifier,
+                list(query.modifiers),
                 control_level=query.control_level,
                 active_level=query.active_level,
                 outcome_functional=coerce_outcome_functional(
@@ -525,7 +755,7 @@ class _PrepareRoute:
             )
             if any(kind not in ("set", "shift") for kind in kinds):
                 raise CausalUnsupportedError(
-                    "graph-posterior InterventionResponse is licensed for one Set or Shift "
+                    "graph-posterior InterventionResponse is supported for one Set or Shift "
                     "intervention coordinate",
                     reason_code="option_not_applicable",
                 )
@@ -620,22 +850,168 @@ class _PrepareRoute:
                 **shared,
             )
             return native, response_kind
+        if static and self.frame is None:
+            mixed = self._graph_posterior_cross_world(shared)
+            if mixed is not None:
+                return mixed
         raise CausalUnsupportedError(
-            "graph-posterior structures are refused: a path, distribution, or mediation "
-            "mixture is not a single estimand across posterior atoms. "
-            "Licensed graph-posterior cells are AverageEffect / "
-            "ConditionalEffect / ResponseCurve / one-coordinate InterventionResponse on "
-            "DAG, CPDAG, PAG, and ADMG atoms and Pulse / Sustained / TemporalMediationEffect / "
-            "temporal ResponseCurve / one-coordinate InterventionResponse on DBN and "
+            "this query has no graph-posterior mixture. Graph-posterior cells are "
+            "AverageEffect / ConditionalEffect / ResponseCurve / InterventionResponse / the "
+            "derivatives, MediationEffect / PathSpecificEffect / Counterfactual / "
+            "NestedCounterfactual / InterventionalDistribution / AnomalyAttribution / "
+            "ChangeAttribution / TransportQuery on DAG, CPDAG, PAG and ADMG atoms, and Pulse / "
+            "Sustained / "
+            "TemporalMediationEffect / temporal ResponseCurve / InterventionResponse on DBN and "
             "temporal-class atoms",
             reason_code="option_not_applicable",
         )
+
+    def _graph_posterior_cross_world(self, shared: dict[str, Any]) -> tuple[Any, Any] | None:
+        """Mediation, counterfactual, path-restricted, natural direct, distribution, attribution
+        and transport.
+
+        Every atom of the posterior is answered by the explicit executor of its own structure
+        and the atoms are mixed by posterior probability; the native compiler owns which
+        validation suites and inference modes apply.
+        """
+        query = self.query
+        route = type(query).__name__
+        if isinstance(query, TransportQuery):
+            from .transport._impl import _response_args
+
+            columns = query.trial_columns
+            if columns is None:
+                raise CausalValueError(
+                    "TransportQuery on analyze reads its trial columns: pass trial=, "
+                    "selection_probability= and treatment_probability="
+                )
+            if query.target is not None:
+                raise CausalUnsupportedError(
+                    "a weighted target population applies to a trial-to-target transport on one "
+                    "selection diagram; a graph posterior does not carry it",
+                    reason_code="option_not_applicable",
+                )
+            response = _response_args(query.query)
+            native = _NativePreparedAnalysis.prepare_graph_posterior_transport(
+                self.names,
+                self.columns,
+                list(query.diagram.selections),
+                query.diagram.source,
+                query.diagram.target,
+                list(query.source_experiments),
+                response["kind"],
+                response["treatments"],
+                response["outcomes"],
+                columns[0],
+                columns[1],
+                columns[2],
+                grid=response["grid"],
+                at=response["at"],
+                direction=response["direction"],
+                order=response["order"],
+                scale=response["scale"],
+                weighting=response["weighting"],
+                **shared,
+            )
+            return native, "average"
+        arguments: dict[str, Any]
+        if isinstance(query, MediationEffect):
+            arguments = {
+                "kind": "mediation",
+                "treatment": query.treatment,
+                "outcome": query.outcome,
+                "mediators": list(query.mediators),
+                "contrast": query.contrast,
+                "control_level": query.control_level,
+                "active_level": query.active_level,
+            }
+        elif isinstance(query, Counterfactual):
+            if query.also_outcomes or query.active_interventions or query.control_interventions:
+                raise CausalUnsupportedError(
+                    "a counterfactual over a graph posterior answers one outcome under one "
+                    "treatment in every atom; also_outcomes and a joint baseline are answered on "
+                    "a supplied or accepted structure",
+                    reason_code="option_not_applicable",
+                )
+            arguments = {
+                "kind": "counterfactual",
+                "treatment": query.treatment,
+                "outcome": query.outcome,
+                "control_level": query.control_level,
+                "active_level": query.active_level,
+            }
+        elif isinstance(query, NestedCounterfactual):
+            arguments = {
+                "kind": "nested_counterfactual",
+                "treatment": query.treatment,
+                "outcome": query.outcome,
+                "mediators": [query.mediator],
+                "control_level": query.control_level,
+                "active_level": query.active_level,
+            }
+        elif isinstance(query, PathSpecificEffect):
+            arguments = {
+                "kind": "path_specific",
+                "treatment": query.treatment,
+                "outcome": query.outcome,
+                "control_level": query.control_level,
+                "active_level": query.active_level,
+                "path_nodes": list(query.path_nodes) if query.path_nodes is not None else None,
+                "max_paths": query.max_paths,
+                "max_len": query.max_len,
+            }
+        elif isinstance(query, InterventionalDistribution):
+            arguments = {
+                "kind": "distribution",
+                "outcome": query.outcome,
+                "interventions": dict(query.interventions),
+                "conditioning": list(query.conditioning) or None,
+            }
+        elif isinstance(query, AnomalyAttribution):
+            reference = (
+                (float(query.reference.center), float(query.reference.scale))
+                if query.reference is not None
+                else None
+            )
+            arguments = {
+                "kind": "anomaly_attribution",
+                "targets": list(query.targets),
+                "max_units": int(query.max_units),
+                "reference": reference,
+            }
+        elif isinstance(query, ChangeAttribution):
+            arguments = {
+                "kind": "change_attribution",
+                "outcome": query.outcome,
+                "baseline_start": int(query.baseline_start),
+                "baseline_end": int(query.baseline_end),
+                "comparison_start": int(query.comparison_start),
+                "comparison_end": int(query.comparison_end),
+            }
+        else:
+            return None
+        self._refuse_estimator_config(route)
+        self._refuse_ids(route)
+        if self.bootstrap and isinstance(self.inference, Bayesian):
+            raise CausalUnsupportedError(
+                f"Bayesian {route} over a graph posterior publishes its Bayesian-bootstrap "
+                "posterior; bootstrap= applies to Frequentist inference",
+                reason_code="option_not_applicable",
+            )
+        native = _NativePreparedAnalysis.prepare_graph_posterior_kind(
+            self.names, self.columns, arguments.pop("kind"), **arguments, **shared
+        )
+        return native, "average"
 
     # -- temporal -------------------------------------------------------------
     def _temporal(self) -> tuple[Any, Any]:
         query, graph = self.query, self.graph
         self._refuse_estimator_config(f"{type(query).__name__} (fixed temporal estimator)")
-        class_graph = graph if isinstance(graph, (TemporalCpdag, TemporalPag)) else None
+        # A temporal ADMG travels beside the equivalence classes: the compiler identifies a
+        # pulse, sustained or conditional contrast on its unrolled window.
+        class_graph = (
+            graph if isinstance(graph, (TemporalCpdag, TemporalPag, TemporalAdmg)) else None
+        )
         lagged = (
             []
             if class_graph is not None
@@ -653,7 +1029,7 @@ class _PrepareRoute:
             query,
             (PulseEffect, SustainedEffect, TemporalConditionalPulse, TemporalConditionalSustained),
         ):
-            self._refuse_ids("PulseEffect / SustainedEffect (fixed temporal backdoor estimator)")
+            self._select_ids()
             native = _NativePreparedAnalysis.prepare_temporal_effect(
                 self.names,
                 self.columns,
@@ -702,11 +1078,13 @@ class _PrepareRoute:
             raise CausalValueError(
                 f"temporal response requires estimator={expected!r}; got {self.estimator!r}"
             )
-        if self._explicit_refute():
+        # A temporal intervention level's cheap/full suite is the per-horizon
+        # Pulse-witness refuter state (unsupported); the native study runs it.
+        if self._explicit_refute() and not isinstance(self.query, InterventionResponse):
             raise CausalUnsupportedError(
-                "not_applicable: PreparedAnalysis temporal ResponseCurve/InterventionResponse "
-                "cheap/full does not denote; cheap and full name the ATE-shaped scalar refuter "
-                "suite and a function-valued estimand has no such state. Use refute='none'."
+                "not_applicable: PreparedAnalysis temporal ResponseCurve cheap/full does not "
+                "denote; cheap and full name the ATE-shaped scalar refuter suite and a "
+                "function-valued curve has no such state. Use refute='none'."
             )
         if isinstance(self.inference, Bayesian) and self.bootstrap:
             raise CausalUnsupportedError(
@@ -727,7 +1105,7 @@ class _PrepareRoute:
                 raise CausalUnsupportedError(
                     "an observation mechanism adds a latent schema column to one series; "
                     "panel, multi-environment and event frames carry fixed partitions",
-                    reason_code="data_modality_not_licensed",
+                    reason_code="data_modality_not_supported",
                 )
             names, columns = _ensure_latent_schema_column(names, columns, query.observation)
         observation_kwargs = _temporal_observation_kwargs(query)
@@ -770,12 +1148,62 @@ class _PrepareRoute:
             policy=query.policy,
             treatment_lag=query.treatment_lag,
             max_history_lag=query.max_history_lag,
+            feedback=_feedback_tuple(query.feedback),
             **common,
             **observation_kwargs,
         )
         return native, response_kind
 
     # -- static average / conditional ------------------------------------------
+    def _lag_zero_average(self, functional: Any) -> tuple[Any, Any]:
+        """An AverageEffect on one series under a temporal graph: the lag-0 contrast.
+
+        It is compiled as the pulse at offset 0 read at horizon 1 and keeps the
+        AverageEffect support cell; the result carries ``estimate.temporal_class.lag_zero_average_effect``.
+        """
+        query, graph = self.query, self.graph
+        if functional is not None:
+            raise CausalUnsupportedError(
+                "a lag-0 AverageEffect on a temporal graph is the mean contrast. Next attempt: "
+                "a temporal ResponseCurve for another functional",
+                reason_code="route_not_supported",
+            )
+        if getattr(query, "target_population", None) is not None:
+            raise CausalUnsupportedError(
+                "a lag-0 AverageEffect on a temporal graph is the contrast over all observed "
+                "periods; omit target_population",
+                reason_code="route_not_supported",
+            )
+        try:
+            control, active = float(query.control_level), float(query.active_level)
+        except (TypeError, ValueError) as error:
+            raise CausalValueError(
+                "a lag-0 AverageEffect on a temporal graph takes numeric control and active levels"
+            ) from error
+        self._refuse_estimator_config("AverageEffect on a temporal graph (lag-0 pulse)")
+        self._select_ids()
+        class_graph = graph if isinstance(graph, (TemporalCpdag, TemporalPag)) else None
+        lagged = [] if class_graph is not None else _lagged_edges(graph)
+        native = _NativePreparedAnalysis.prepare_temporal_effect(
+            self.names,
+            self.columns,
+            lagged,
+            query.treatment,
+            query.outcome,
+            policy="pulse",
+            treatment_lag=0,
+            horizon_steps=1,
+            control_level=control,
+            active_level=active,
+            accepted=self.accepted,
+            class_graph=class_graph,
+            as_average_effect=True,
+            **_class_prior_kwargs(self.class_prior),
+            **_max_completions_kwargs(self.max_completions),
+            **self._common(),
+        )
+        return native, "average"
+
     def _average(self) -> tuple[Any, Any]:
         from .query import coerce_outcome_functional
 
@@ -788,6 +1216,8 @@ class _PrepareRoute:
                 reason_code="option_not_applicable",
             )
         functional = coerce_outcome_functional(getattr(query, "outcome_functional", None))
+        if isinstance(graph, (TemporalDag, TemporalCpdag, TemporalPag)):
+            return self._lag_zero_average(functional)
         if isinstance(graph, TieredBackground):
             if self.identifier is not None:
                 raise CausalUnsupportedError(
@@ -855,7 +1285,7 @@ class _PrepareRoute:
         self._refuse_estimator_config("ConditionalDoseResponse")
         if self._explicit_refute() or self.bootstrap:
             raise _not_applicable("refute/bootstrap", "ConditionalDoseResponse")
-        if self.inference is not None and not isinstance(self.inference, Frequentist):
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
             raise _not_applicable("inference", "ConditionalDoseResponse")
         design = self.design_columns or {}
         native = _NativePreparedAnalysis.prepare_continuous_dose_response(
@@ -895,7 +1325,7 @@ class _PrepareRoute:
                 "PolicyValue carries its randomized design and does not accept graph= or discovery=",
                 reason_code="option_not_applicable",
             )
-        self._refuse_ids("PolicyValue")
+        self._refuse_ids("PolicyValue", "bayesian.binary_policy_value")
         self._refuse_estimator_config("PolicyValue")
         if self._explicit_refute() or self.bootstrap:
             raise CausalUnsupportedError(
@@ -904,9 +1334,9 @@ class _PrepareRoute:
             )
         from .inference import Frequentist
 
-        if self.inference is not None and not isinstance(self.inference, Frequentist):
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
             raise CausalUnsupportedError(
-                "PolicyValue supports row-score frequentist uncertainty only",
+                "PolicyValue supports row-score frequentist uncertainty or a Bayesian posterior",
                 reason_code="option_not_applicable",
             )
         if isinstance(query, MultiActionPolicyValue):
@@ -960,22 +1390,10 @@ class _PrepareRoute:
             reference=query.reference,
             available=resolved_opt(query.available),
         )
-        propensity = (
-            [float(query.propensity)]
-            if isinstance(query.propensity, (int, float))
-            else list(resolved(query.propensity))
-        )
-        costs = (
-            [float(query.policy.costs)]
-            if isinstance(query.policy.costs, (int, float))
-            else list(query.policy.costs)
-        )
+        propensity = scalar_or_values(resolved_scalar(query.propensity))
+        costs = scalar_or_values(query.policy.costs)
         reference = query.reference or BinaryPolicy([False] * len(query.policy.actions))
-        reference_costs = (
-            [float(reference.costs)]
-            if isinstance(reference.costs, (int, float))
-            else list(reference.costs)
-        )
+        reference_costs = scalar_or_values(reference.costs)
         uplift_bin_ids: list[int] = []
         if query.uplift_scores is not None:
             uplift_bin_ids = [0] * len(query.policy.actions)
@@ -1110,7 +1528,7 @@ class _PrepareRoute:
                 reason_code="option_not_applicable",
             )
         if isinstance(query.design, MultiArmExperimentDesign):
-            self._refuse_ids("RandomizedEffect")
+            self._select_ids()
             self._refuse_estimator_config("RandomizedEffect")
             if self._explicit_refute():
                 raise CausalUnsupportedError(
@@ -1152,7 +1570,7 @@ class _PrepareRoute:
             raise CausalUnsupportedError(
                 "unsupported randomized assignment design", reason_code="route_not_supported"
             )
-        self._refuse_ids("RandomizedEffect")
+        self._select_ids()
         self._refuse_estimator_config("RandomizedEffect")
         if self._explicit_refute():
             raise CausalUnsupportedError(
@@ -1166,10 +1584,10 @@ class _PrepareRoute:
         if isinstance(assignment, BernoulliAssignment):
             design_kind = "bernoulli"
             probabilities = assignment.probabilities
-            if isinstance(probabilities, (float, int)):
+            if isinstance(probabilities, Real):
                 probabilities = [float(probabilities)] * n
             else:
-                probabilities = list(probabilities)
+                probabilities = scalar_or_values(probabilities)
                 if len(probabilities) == 1:
                     probabilities *= n
         elif isinstance(assignment, CompleteRandomization):
@@ -1243,16 +1661,16 @@ class _PrepareRoute:
                 "PanelDifferenceInDifferences carries its own design and does not accept graph= or discovery=",
                 reason_code="option_not_applicable",
             )
-        self._refuse_ids("PanelDifferenceInDifferences")
+        self._refuse_ids("PanelDifferenceInDifferences", "bayesian.panel_did")
         self._refuse_estimator_config("PanelDifferenceInDifferences")
         if self._explicit_refute() or self.bootstrap:
             raise CausalUnsupportedError(
                 "PanelDifferenceInDifferences has no refutation or bootstrap route",
                 reason_code="option_not_applicable",
             )
-        if self.inference is not None and not isinstance(self.inference, Frequentist):
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
             raise CausalUnsupportedError(
-                "PanelDifferenceInDifferences supports a cluster standard error only",
+                "PanelDifferenceInDifferences supports a cluster standard error or a Bayesian posterior",
                 reason_code="option_not_applicable",
             )
         names, columns = self.names, self.columns
@@ -1271,6 +1689,8 @@ class _PrepareRoute:
                 list(design["subjects"]),
                 list(design["clusters"]),
                 query.predictions_cross_fitted,
+                resampling=query.resampling,
+                replicates=query.replicates,
                 accepted=False,
                 **self._common(),
             )
@@ -1324,11 +1744,11 @@ class _PrepareRoute:
         query = cast(SyntheticControl | SyntheticDifferenceInDifferences, self.query)
         if self.graph is not None or self.discovery is not None:
             raise _not_applicable("graph/discovery", "SyntheticControl")
-        self._refuse_ids("SyntheticControl")
+        self._refuse_ids("SyntheticControl", "bayesian.synthetic_control")
         self._refuse_estimator_config("SyntheticControl")
         if self._explicit_refute() or self.bootstrap:
             raise _not_applicable("refute/bootstrap", "SyntheticControl")
-        if self.inference is not None and not isinstance(self.inference, Frequentist):
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
             raise _not_applicable("inference", "SyntheticControl")
         design = self.design_columns
         if design is None:
@@ -1347,9 +1767,227 @@ class _PrepareRoute:
             augmentation_ridge=query.augmentation_ridge
             if isinstance(query, SyntheticControl)
             else None,
+            conformal=query.conformal if isinstance(query, SyntheticControl) else False,
+            adoptions=None if query.adoptions is None else list(query.adoptions),
+            placebo_replicates=query.placebo_replicates,
+            observed_window_support=isinstance(query, SyntheticControl)
+            and query.observed_window_support,
             accepted=False,
             **self._common(),
         )
+        return native, "average"
+
+    def _temporal_design(self) -> tuple[Any, Literal["average"]]:
+        """A sequentially randomized unit-period design, or regime survival.
+
+        The recorded assignment law is the design; the estimator follows the inference
+        (the excursion or regime-survival estimator, or its Bayesian counterpart).
+        """
+        query = self.query
+        route = type(query).__name__
+        if self.graph is not None or self.discovery is not None:
+            raise _not_applicable("graph/discovery", route)
+        self._refuse_ids(route)
+        self._refuse_estimator_config(route)
+        if self._explicit_refute():
+            raise CausalUnsupportedError(
+                f"{route} has no refutation suite; its uncertainty is the design's own",
+                reason_code="option_not_applicable",
+            )
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
+            raise _not_applicable("inference", route)
+        design = self.design_columns
+        if design is None:
+            raise CausalValueError("temporal design columns were not bound at prepare")
+        declared = self.options.get("inference") or {}
+        if isinstance(self.inference, Bayesian):
+            if (
+                declared.get("prior_artifact") is not None
+                or declared.get("composed_prior")
+                or declared.get("count_prior")
+            ):
+                raise _not_applicable("prior_from / composed prior", route)
+            # The design's posterior is its own; the conjugate declaration carries the draw
+            # count and prior scale without selecting a regression backend.
+            inference = {
+                "mode": "conjugate",
+                "n_draws": declared.get("n_draws"),
+                "prior_scale": float(declared.get("prior_scale", 10.0)),
+            }
+        else:
+            inference = {"mode": "frequentist", "prior_scale": 10.0}
+        native = _NativePreparedAnalysis.prepare_temporal_design(
+            self.names,
+            self.columns,
+            query.outcome,
+            list(design["units"]),
+            list(design["periods"]),
+            design["spec"],
+            **temporal_design_keywords(query),
+            seed=self.seed,
+            threads=self.threads,
+            options={**self.options, "inference": inference},
+        )
+        return native, "average"
+
+    def _iv_bounds(self) -> tuple[Any, Literal["average"]]:
+        """Bounds on the average effect under a binary instrument, as an identified set.
+
+        The estimator follows the inference (the Imbens-Manski row-bootstrap interval, or the
+        Bayesian-bootstrap posterior of the endpoints); ``bootstrap=`` adds the frequentist
+        interval.
+        """
+        query = cast(IvBounds, self.query)
+        route = "IvBounds"
+        if self.graph is not None or self.discovery is not None:
+            raise _not_applicable("graph/discovery", route)
+        self._refuse_ids(route)
+        self._refuse_estimator_config(route)
+        if self._explicit_refute():
+            raise CausalUnsupportedError(
+                f"{route} has no refutation suite; it reports an identified set",
+                reason_code="option_not_applicable",
+            )
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
+            raise _not_applicable("inference", route)
+        declared = self.options.get("inference") or {}
+        if isinstance(self.inference, Bayesian):
+            if (
+                declared.get("prior_artifact") is not None
+                or declared.get("composed_prior")
+                or declared.get("count_prior")
+            ):
+                raise _not_applicable("prior_from / composed prior", route)
+            inference = {
+                "mode": "conjugate",
+                "n_draws": declared.get("n_draws"),
+                "prior_scale": float(declared.get("prior_scale", 10.0)),
+            }
+        else:
+            inference = {"mode": "frequentist", "prior_scale": 10.0}
+        native = _NativePreparedAnalysis.prepare_iv_bounds(
+            self.names,
+            self.columns,
+            query.outcome,
+            query.treatment,
+            query.instrument,
+            query.weight,
+            seed=self.seed,
+            threads=self.threads,
+            options={**self.options, "inference": inference},
+        )
+        return native, "average"
+
+    def _association(self) -> tuple[Any, Literal["average"]]:
+        """A noncausal association of the observed data, picked by the declared selection rule.
+
+        The inference selects the uncertainty: analytic or resampling standard errors, or the
+        posterior (conjugate Normal-Inverse-Gamma for a Gaussian outcome on unweighted rows,
+        the Bayesian bootstrap otherwise); ``bootstrap=`` adds the frequentist resampling spread.
+        """
+        query = cast(Association, self.query)
+        route = "Association"
+        if self.graph is not None or self.discovery is not None:
+            raise _not_applicable("graph/discovery", route)
+        self._refuse_ids(route)
+        self._refuse_estimator_config(route)
+        if self._explicit_refute():
+            raise CausalUnsupportedError(
+                f"{route} has no refutation suite; it describes the observed law",
+                reason_code="option_not_applicable",
+            )
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
+            raise _not_applicable("inference", route)
+        declared = self.options.get("inference") or {}
+        if isinstance(self.inference, Bayesian):
+            if declared.get("prior_artifact") is not None or declared.get("composed_prior"):
+                raise _not_applicable("a Gaussian prior_from / composed prior", route)
+            inference = {
+                "mode": "conjugate",
+                "n_draws": declared.get("n_draws"),
+                "prior_scale": float(declared.get("prior_scale", 10.0)),
+            }
+            if declared.get("count_prior"):
+                # A Beta or Gamma prior makes each cell's posterior the closed-form conjugate one.
+                inference["count_prior"] = declared["count_prior"]
+        else:
+            inference = {"mode": "frequentist", "prior_scale": 10.0}
+        native = _NativePreparedAnalysis.prepare_association(
+            self.names,
+            self.columns,
+            query.outcome,
+            list(query.predictors),
+            list(query.conditioning),
+            query.functional,
+            folds=query.folds if query.functional == "predictive" else None,
+            threshold=query.threshold if query.functional == "exceedance" else None,
+            outcome_scale=None if query.outcome_scale == "schema" else query.outcome_scale,
+            weight=query.weight,
+            refused_after=query.refused_after,
+            series=query.temporal,
+            seed=self.seed,
+            threads=self.threads,
+            options={**self.options, "inference": inference},
+        )
+        return native, "average"
+
+    def _rollout_did(self) -> tuple[Any, Literal["average"]]:
+        query = cast(StaggeredRollout | CovariateAdjustedDiD, self.query)
+        route = type(query).__name__
+        if self.graph is not None or self.discovery is not None:
+            raise _not_applicable("graph/discovery", route)
+        self._refuse_ids(route, "bayesian.panel_did")
+        self._refuse_estimator_config(route)
+        if self._explicit_refute() or self.bootstrap:
+            raise CausalUnsupportedError(
+                f"{route} resamples whole clusters through resampling=; it has no refutation "
+                "or bootstrap= route",
+                reason_code="option_not_applicable",
+            )
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
+            raise _not_applicable("inference", route)
+        design = self.design_columns
+        if design is None:
+            raise CausalValueError("rollout DiD design columns were not bound at prepare")
+        if isinstance(query, StaggeredRollout):
+            native = _NativePreparedAnalysis.prepare_rollout_did(
+                self.names,
+                self.columns,
+                query.outcome,
+                list(design["subjects"]),
+                list(design["clusters"]),
+                list(design["periods"]),
+                list(design["cohorts"]),
+                estimator=query.estimator,
+                comparison=query.comparison,
+                nuisance=query.nuisance,
+                base_period=query.base_period,
+                aggregation=query.aggregation,
+                anticipation=int(query.anticipation),
+                covariates=list(query.covariates),
+                resampling=query.resampling,
+                replicates=query.replicates,
+                observation=query.observation,
+                attrition_shift_bound=query.attrition_shift_bound,
+                accepted=False,
+                **self._common(),
+            )
+        else:
+            native = _NativePreparedAnalysis.prepare_covariate_adjusted_did(
+                self.names,
+                self.columns,
+                query.outcome,
+                list(design["treated"]),
+                list(design["post"]),
+                list(design["subjects"]),
+                list(design["clusters"]),
+                list(query.covariates),
+                nuisance=query.nuisance,
+                resampling=query.resampling,
+                replicates=query.replicates,
+                accepted=False,
+                **self._common(),
+            )
         return native, "average"
 
     def _sharp_rd(self) -> tuple[Any, Literal["average"]]:
@@ -1392,11 +2030,11 @@ class _PrepareRoute:
         query = cast(FuzzyRegressionDiscontinuity | RegressionKink, self.query)
         if self.graph is not None or self.discovery is not None:
             raise _not_applicable("graph/discovery", "local polynomial ratio")
-        self._refuse_ids("local polynomial ratio")
+        self._refuse_ids("local polynomial ratio", "bayesian.local_ratio")
         self._refuse_estimator_config("local polynomial ratio")
         if self._explicit_refute() or self.bootstrap:
             raise _not_applicable("refute/bootstrap", "local polynomial ratio")
-        if self.inference is not None and not isinstance(self.inference, Frequentist):
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
             raise _not_applicable("inference", "local polynomial ratio")
         native = _NativePreparedAnalysis.prepare_local_polynomial_ratio(
             self.names,
@@ -1407,6 +2045,10 @@ class _PrepareRoute:
             query.cutoff,
             query.bandwidth,
             kink=isinstance(query, RegressionKink),
+            bandwidth_rule=query.bandwidth_rule,
+            temporal_replicates=query.temporal_replicates,
+            density_test=query.density_test,
+            balance_covariates=list(query.balance_covariates),
             accepted=False,
             **self._common(),
         )
@@ -1428,9 +2070,10 @@ class _PrepareRoute:
                 "randomized survival has no refutation route",
                 reason_code="option_not_applicable",
             )
-        if self.inference is not None and not isinstance(self.inference, Frequentist):
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
             raise CausalUnsupportedError(
-                "randomized survival supports only frequentist subject-bootstrap inference",
+                "randomized survival supports frequentist subject-bootstrap inference or a "
+                "Bayesian piecewise-exponential posterior (Bayesian(design_model=PiecewiseHazards))",
                 reason_code="option_not_applicable",
             )
         if not query.randomized:
@@ -1478,6 +2121,100 @@ class _PrepareRoute:
         )
         return native, "average"
 
+    def _design_only(self, route: str, allowed_ids: tuple[str, ...]) -> None:
+        """Refuse the graph, refutation and estimator options a design-carrying query ignores.
+
+        ``allowed_ids`` are the estimator ids the query answers; selecting one is the same route.
+        """
+        if self.graph is not None or self.discovery is not None:
+            raise CausalUnsupportedError(
+                f"{route} carries its own design and does not accept graph= or discovery=",
+                reason_code="option_not_applicable",
+            )
+        selected = getattr(self.estimator, "value", self.estimator)
+        if self.identifier is not None or (
+            self.estimator is not None and selected not in allowed_ids
+        ):
+            raise CausalUnsupportedError(
+                f"{route} selects its identifier and estimator itself; custom "
+                "identifier= / estimator= are not supported",
+                reason_code="option_not_applicable",
+            )
+        self._refuse_estimator_config(route)
+        if self._explicit_refute() or self.bootstrap:
+            raise CausalUnsupportedError(
+                f"{route} has no refutation or bootstrap route",
+                reason_code="option_not_applicable",
+            )
+
+    def _sequential_contrast(self) -> tuple[Any, Literal["average"]]:
+        query = cast(SequentialContrast, self.query)
+        selected = getattr(self.estimator, "value", self.estimator)
+        bayesian = isinstance(self.inference, Bayesian)
+        self._design_only(
+            "SequentialContrast",
+            ("sequential.crossfit_contrast.wald", "bayesian.sequential_crossfit_contrast"),
+        )
+        if selected is not None and bayesian != (
+            selected == "bayesian.sequential_crossfit_contrast"
+        ):
+            raise CausalUnsupportedError(
+                f"estimator {selected!r} does not run under this inference mode: the normal "
+                "interval is Frequentist and the modular posterior is Bayesian",
+                reason_code="estimator_inference_mismatch",
+            )
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
+            raise CausalUnsupportedError(
+                "SequentialContrast supports a normal interval or a Bayesian posterior",
+                reason_code="option_not_applicable",
+            )
+        design = self.design_columns
+        if design is None:
+            raise CausalValueError("sequential contrast folds were not bound at prepare")
+        native = _NativePreparedAnalysis.prepare_sequential_contrast(
+            self.names,
+            self.columns,
+            query.outcome,
+            query.first_treatment,
+            query.second_treatment,
+            list(query.baseline),
+            list(query.intermediate),
+            (int(query.active[0]), int(query.active[1])),
+            (int(query.control[0]), int(query.control[1])),
+            list(design["fold_of_row"]),
+            int(design["fold_count"]),
+            float(query.min_probability),
+            accepted=False,
+            **self._common(),
+        )
+        return native, "average"
+
+    def _history_match(self) -> tuple[Any, Literal["average"]]:
+        query = cast(PeriodHistoryMatch, self.query)
+        self._design_only(
+            "PeriodHistoryMatch",
+            ("matching.period_history_contrast", "bayesian.period_history_outcome_model"),
+        )
+        # The matching contrast has no posterior; Bayesian inference reaches the model-based
+        # effect on the treated only through the outcome-model estimator, which the native
+        # compiler checks against the inference mode.
+        selected = getattr(self.estimator, "value", self.estimator)
+        if selected == "bayesian.period_history_outcome_model":
+            self._select_ids()
+        native = _NativePreparedAnalysis.prepare_history_match(
+            self.names,
+            self.columns,
+            query.outcome,
+            query.treated,
+            list(query.history),
+            query.period,
+            query.weight,
+            query.caliper,
+            accepted=False,
+            **self._common(),
+        )
+        return native, "average"
+
     def _longitudinal_regime(self) -> tuple[Any, Literal["average"]]:
         query = cast(LongitudinalRegime, self.query)
         if self.graph is not None or self.discovery is not None:
@@ -1485,16 +2222,16 @@ class _PrepareRoute:
                 "LongitudinalRegime carries its own sequential design and does not accept graph= or discovery=",
                 reason_code="option_not_applicable",
             )
-        self._refuse_ids("LongitudinalRegime")
+        self._refuse_ids("LongitudinalRegime", "bayesian.sequential_regime_value")
         self._refuse_estimator_config("LongitudinalRegime")
         if self._explicit_refute() or self.bootstrap:
             raise CausalUnsupportedError(
                 "LongitudinalRegime has no refutation or bootstrap route",
                 reason_code="option_not_applicable",
             )
-        if self.inference is not None and not isinstance(self.inference, Frequentist):
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
             raise CausalUnsupportedError(
-                "LongitudinalRegime supports frequentist inference only",
+                "LongitudinalRegime supports frequentist inference or a Bayesian sequential posterior",
                 reason_code="option_not_applicable",
             )
         if not query.probabilities_known_by_design:
@@ -1549,18 +2286,30 @@ class _PrepareRoute:
 
         query, graph = self.query, self.graph
         self._refuse_estimator_config("ConditionalEffect (fixed conditional estimator)")
-        class_graph = isinstance(graph, (Pag, Cpdag))
-        expected_identifier = "generalized.adjustment" if class_graph else "backdoor.adjustment"
-        expected_estimator = (
-            "conditional.bayesian"
-            if isinstance(self.inference, Bayesian)
-            else "conditional.linear.adjustment"
-        )
+        mixed_graph = isinstance(graph, Admg)
+        class_graph = isinstance(graph, (Pag, Cpdag)) or mixed_graph
+        if mixed_graph:
+            # A bidirected structure is read by IDC: the modifier-conditioned contrast.
+            expected_identifier = "general.id"
+            expected_estimator = "functional.effect"
+        else:
+            expected_identifier = "generalized.adjustment" if class_graph else "backdoor.adjustment"
+            expected_estimator = (
+                "conditional.bayesian"
+                if isinstance(self.inference, Bayesian)
+                else "conditional.linear.adjustment"
+            )
         if self.identifier not in (None, expected_identifier) or self.estimator not in (
             None,
             expected_estimator,
         ):
-            prefix = "Cpdag/Pag ConditionalEffect" if class_graph else "ConditionalEffect"
+            prefix = (
+                "Admg ConditionalEffect"
+                if mixed_graph
+                else "Cpdag/Pag ConditionalEffect"
+                if class_graph
+                else "ConditionalEffect"
+            )
             raise CausalUnsupportedError(
                 f"{prefix} requires {expected_identifier} and {expected_estimator}"
             )
@@ -1570,7 +2319,7 @@ class _PrepareRoute:
             [] if class_graph else _static_edges(graph),
             query.treatment,
             query.outcome,
-            query.modifier,
+            list(query.modifiers),
             graph=graph if class_graph else None,
             control_level=query.control_level,
             active_level=query.active_level,
@@ -1584,33 +2333,47 @@ class _PrepareRoute:
         )
         return native, "average"
 
-    def _static_kind(self, edges: list[tuple[str, str]]) -> tuple[Any, Any]:
+    def _static_kind(
+        self, edges: list[tuple[str, str]], class_graph: Any = None
+    ) -> tuple[Any, Any]:
         query = self.query
         self._refuse_estimator_config(f"{type(query).__name__}")
-        expected_id = (
-            "path_specific.natural"
-            if isinstance(query, (MediationEffect, NestedCounterfactual))
-            else "gcm.parametric"
-        )
-        expected_est = (
-            "mediation.linear"
-            if isinstance(query, (MediationEffect, NestedCounterfactual))
-            else "gcm.fit"
-        )
-        if self.identifier not in (None, expected_id) or self.estimator not in (None, expected_est):
-            raise CausalUnsupportedError(f"{query.kind} requires {expected_id} and {expected_est}")
-        if isinstance(query, Counterfactual) and self._explicit_refute():
-            raise CausalUnsupportedError(
-                "refused: Counterfactual cheap/full are not licensed; there is no "
-                "native ITE refuter suite and ATE refuters do not apply.",
-                reason_code="cell_not_licensed",
+        if class_graph is not None:
+            # The class executor resolves its own identifier and estimator for the structure
+            # (ID* or the per-completion route, the functional plug-in, a mechanism fit).
+            self._refuse_ids(f"{type(query).__name__} on a {type(class_graph).__name__}")
+        else:
+            expected_id = (
+                "path_specific.natural"
+                if isinstance(query, (MediationEffect, NestedCounterfactual))
+                else "gcm.parametric"
             )
-        if isinstance(query, Counterfactual) and self.bootstrap:
-            raise CausalUnsupportedError("counterfactual sampling uncertainty is unavailable")
-        if isinstance(query, NestedCounterfactual) and self.bootstrap:
+            expected_est = (
+                "mediation.linear"
+                if isinstance(query, (MediationEffect, NestedCounterfactual))
+                else "gcm.fit"
+            )
+            if self.identifier not in (None, expected_id) or self.estimator not in (
+                None,
+                expected_est,
+            ):
+                raise CausalUnsupportedError(
+                    f"{query.kind} requires {expected_id} and {expected_est}"
+                )
+        if (
+            isinstance(query, Counterfactual)
+            and self.bootstrap
+            and isinstance(self.inference, Bayesian)
+        ):
             raise CausalUnsupportedError(
-                "NestedCounterfactualEffect is point-only until its interval route is calibrated",
-                reason_code="cell_not_licensed",
+                "Bayesian Counterfactual publishes its mechanism-refit posterior; bootstrap= "
+                "applies to the Frequentist mechanism-refit bootstrap",
+                reason_code="option_not_applicable",
+            )
+        if isinstance(query, NestedCounterfactual) and self.bootstrap and class_graph is None:
+            raise CausalUnsupportedError(
+                "NestedCounterfactualEffect has no bootstrap interval method; its result is point-only",
+                reason_code="not_supported",
             )
         native = _NativePreparedAnalysis.prepare_static_kind(
             self.names,
@@ -1629,6 +2392,14 @@ class _PrepareRoute:
             contrast=query.contrast if isinstance(query, MediationEffect) else "mediated",
             control_level=query.control_level,
             active_level=query.active_level,
+            extra_outcomes=list(query.also_outcomes) if isinstance(query, Counterfactual) else [],
+            joint_active=list(query.active_interventions.items())
+            if isinstance(query, Counterfactual)
+            else [],
+            joint_control=list(query.control_interventions.items())
+            if isinstance(query, Counterfactual)
+            else [],
+            graph=class_graph,
             accepted=self.accepted,
             **self._common(),
         )
@@ -1665,6 +2436,11 @@ class _PrepareRoute:
                 "selection_probability= and treatment_probability="
             )
         response = _response_args(query.query)
+        if query.target is not None:
+            from .population import WeightedPopulation
+
+            target = cast(WeightedPopulation, query.target)
+            self.options["weighted_target"] = target._declaration(self.names)
         native = _NativePreparedAnalysis.prepare_transport(
             self.names,
             self.columns,
@@ -1794,17 +2570,17 @@ class _PrepareRoute:
         route = type(query).__name__
         self._refuse_ids(route)
         self._refuse_estimator_config(route)
-        if self.bootstrap:
+        # A Frequentist replicate count runs the whole-procedure mechanism-refit row
+        # bootstrap (unsupported, calibration not_measured); the Bayesian cell publishes
+        # its Bayesian-bootstrap posterior instead.
+        if self.bootstrap and isinstance(self.inference, Bayesian):
             raise CausalUnsupportedError(
-                f"{route} sampling uncertainty is unavailable",
+                f"Bayesian {route} publishes its Bayesian-bootstrap posterior; bootstrap= "
+                "applies to the Frequentist mechanism-refit bootstrap",
                 reason_code="option_not_applicable",
             )
-        if self._explicit_refute():
-            raise CausalUnsupportedError(
-                f"{route} has no refuter suite: GCM attribution scores are not "
-                "an average treatment effect, and the average-effect refuters do not apply",
-                reason_code="option_not_applicable",
-            )
+        # Cheap and full validation run the functional refuter state on the whole
+        # attribution vector (native, unsupported); the ATE-shaped suites do not apply.
         if isinstance(self.graph, Dag):
             edges = [(str(a), str(b)) for a, b in self.graph.edges()]
         elif isinstance(self.graph, Sequence) and not isinstance(self.graph, (str, bytes)):
@@ -1861,19 +2637,32 @@ class _PrepareRoute:
     def _response(self) -> tuple[Any, Any]:
         query, graph = self.query, self.graph
         # A scalar Dag InterventionResponse has an ATE-shaped state, so the
-        # refuter suite denotes on it; a curve or a derivative is function
-        # valued and cheap/full name nothing there. Admg InterventionResponse
-        # cheap/full is the plugin-level suite on the identified mean.
+        # refuter suite denotes on it (Bayesian: the unsupported Bayesian refuter
+        # state); a curve is function valued and cheap/full name nothing there; a
+        # derivative runs its own unsupported refuter state. Admg
+        # InterventionResponse cheap/full is the plugin-level suite on the
+        # identified mean.
         if isinstance(graph, Admg) and isinstance(query, (ResponseCurve, InterventionResponse)):
             response_options = _parse_response_estimator_config(query, self.estimator_config)
             return self._admg_response(response_options)
-        scalar_dag_response = isinstance(query, InterventionResponse) and isinstance(graph, Dag)
+        # A plain edge list is a supplied Dag here, as it is for every other static route.
+        edge_list = (
+            isinstance(graph, Sequence)
+            and not isinstance(graph, (str, bytes))
+            and all(isinstance(item, Sequence) and len(item) == 2 for item in graph)
+        )
+        scalar_dag_response = isinstance(query, InterventionResponse) and (
+            isinstance(graph, Dag) or edge_list
+        )
         if self._explicit_refute() and scalar_dag_response:
             # The response executor has no validation stage; the study runs the
             # suite as the second click of every estimate.
             self.deferred_suite = "placebo" if self.refute is True else str(self.refute)
             self.options.pop("refute", None)
-        if self._explicit_refute() and not scalar_dag_response:
+        derivative = isinstance(query, _DERIVATIVE_QUERIES)
+        # A static derivative's cheap/full suite is the derivative refuter state
+        # (unsupported); the native study runs it, so the suite stays in the options.
+        if self._explicit_refute() and not scalar_dag_response and not derivative:
             raise CausalUnsupportedError(
                 "not_applicable: a function-valued response has no ATE-shaped state for the "
                 "cheap/full/placebo refuter suite; prepare it with refute='none'",
@@ -1895,6 +2684,10 @@ class _PrepareRoute:
             estimator=self.estimator,
             inference=self.inference,
         )
+        if derivative and isinstance(graph, _STATIC_CLASS_GRAPHS):
+            # Each completion of a class (or the ADMG itself) is identified by one adjustment
+            # set; the class executor publishes a point or the completions' identified set.
+            return self._derivative([], response_options, graph)
         edges = _static_edges(graph)
         if isinstance(query, ResponseCurve):
             return self._response_curve(edges, response_options)
@@ -2019,14 +2812,18 @@ class _PrepareRoute:
         from .query import coerce_outcome_functional
 
         query, graph = self.query, self.graph
-        if not isinstance(self.inference, Frequentist):
-            raise CausalUnsupportedError("CoDetermined joint cells are Frequentist cell.aipw")
+        bayesian = not isinstance(self.inference, Frequentist)
         if self.identifier not in (None, "generalized.adjustment"):
             raise CausalUnsupportedError(
                 "CoDetermined joint cells require identifier generalized.adjustment"
             )
-        if self.estimator not in (None, "cell.aipw"):
-            raise CausalUnsupportedError("CoDetermined joint cells require estimator cell.aipw")
+        # The Frequentist joint cell is cell.aipw; a Bayesian declaration runs
+        # response.bayesian over the same closure set and is unsupported.
+        expected_estimator = "response.bayesian" if bayesian else "cell.aipw"
+        if self.estimator not in (None, expected_estimator):
+            raise CausalUnsupportedError(
+                f"CoDetermined joint cells require estimator {expected_estimator}"
+            )
         from . import intervention as intervention_specs
 
         supplied = query.intervention
@@ -2120,11 +2917,10 @@ class _PrepareRoute:
         from .query import coerce_outcome_functional
 
         query = self.query
-        bayesian = isinstance(self.inference, Bayesian)
-        if bayesian and self._explicit_refute():
-            raise CausalUnsupportedError(
-                "not_applicable: Bayesian InterventionResponse cheap/full does not denote"
-            )
+        # A Bayesian intervention level's cheap/full suite is the Bayesian refuter
+        # state (plugin-level suite on the posterior-mean level, prior and posterior
+        # predictive checks, and under full level-native prior sensitivity). It runs
+        # as the deferred second click and stays unsupported.
         treatments, kinds, parameters = _encode_interventions(
             query.intervention,
             route="response.intervention_gcomp",
@@ -2147,59 +2943,79 @@ class _PrepareRoute:
         return native, "intervention_response"
 
     def _derivative(
-        self, edges: list[tuple[str, str]], response_options: Mapping[str, Any]
+        self,
+        edges: list[tuple[str, str]],
+        response_options: Mapping[str, Any],
+        class_graph: Any = None,
     ) -> tuple[Any, Any]:
-        from .observation import Complete
-
         query = self.query
-        if getattr(query, "observation", None) is not None and not isinstance(
-            query.observation, Complete
-        ):
-            raise CausalUnsupportedError("derivatives require complete observations")
-        if query.observation_assumptions:
-            raise CausalUnsupportedError("derivatives require the unweighted observed population")
-        if isinstance(query, (DirectionalDerivative, ResponseJacobian)):
-            treatments = list(query.treatments)
-            outcomes = list(query.outcomes)
-        else:
-            treatments = [query.treatment]
-            outcomes = [query.outcome]
-        at = getattr(query, "at", None)
-        if isinstance(query, (DirectionalDerivative, ResponseJacobian)):
-            at = [at[t] for t in treatments] if isinstance(at, Mapping) else list(query.at)
-        elif at is not None:
-            at = [at]
-        direction = getattr(query, "direction", None)
-        if direction is not None:
-            direction = (
-                [direction[t] for t in treatments]
-                if isinstance(direction, Mapping)
-                else list(direction)
-            )
-        scale = (
-            "log_log"
-            if isinstance(query, Elasticity)
-            else "log_" + query.log_scale
-            if isinstance(query, SemiElasticity)
-            else "identity"
-        )
+        _refuse_derivative_observation(query)
+        target = _derivative_target_spec(query)
         native = _NativePreparedAnalysis.prepare_derivative(
             self.names,
             self.columns,
             edges,
-            query.kind,
-            treatments,
-            outcomes,
-            at=at,
-            direction=direction,
-            order=getattr(query, "order", 1),
-            scale=scale,
-            weighting=getattr(query, "weighting", None) or "observed",
+            target.pop("kind"),
+            target.pop("treatments"),
+            target.pop("outcomes"),
+            **target,
             response_options=dict(response_options),
+            graph=class_graph,
             accepted=self.accepted,
             **self._common(),
         )
         return native, "response_curve"
+
+
+def _refuse_derivative_observation(query: Any) -> None:
+    """A static derivative reads complete observations of the unweighted observed population."""
+    from .observation import Complete
+
+    if getattr(query, "observation", None) is not None and not isinstance(
+        query.observation, Complete
+    ):
+        raise CausalUnsupportedError("derivatives require complete observations")
+    if query.observation_assumptions:
+        raise CausalUnsupportedError("derivatives require the unweighted observed population")
+
+
+def _derivative_target_spec(query: Any) -> dict[str, Any]:
+    """Resolve scalar/vector coordinates once for static and temporal native targets."""
+    if isinstance(query, (DirectionalDerivative, ResponseJacobian)):
+        treatments = list(query.treatments)
+        outcomes = list(query.outcomes)
+    else:
+        treatments = [query.treatment]
+        outcomes = [query.outcome]
+    at = getattr(query, "at", None)
+    if isinstance(query, (DirectionalDerivative, ResponseJacobian)):
+        at = [at[t] for t in treatments] if isinstance(at, Mapping) else list(query.at)
+    elif at is not None:
+        at = [at]
+    direction = getattr(query, "direction", None)
+    if direction is not None:
+        direction = (
+            [direction[t] for t in treatments]
+            if isinstance(direction, Mapping)
+            else list(direction)
+        )
+    scale = (
+        "log_log"
+        if isinstance(query, Elasticity)
+        else "log_" + query.log_scale
+        if isinstance(query, SemiElasticity)
+        else "identity"
+    )
+    return {
+        "kind": query.kind,
+        "treatments": treatments,
+        "outcomes": outcomes,
+        "at": at,
+        "direction": direction,
+        "order": getattr(query, "order", 1),
+        "scale": scale,
+        "weighting": getattr(query, "weighting", None) or "observed",
+    }
 
 
 def _check_quantile_functional(
@@ -2223,6 +3039,7 @@ def _check_quantile_functional(
     ):
         raise CausalUnsupportedError(
             "quantiles require Frequentist AllObserved AIPW AverageEffect, binary "
-            "ConditionalEffect with one modifier, or cell-AIPW joint response; use prepare + "
-            "retarget for score-table target weights"
+            "ConditionalEffect (one modifier or a modifier set), or cell-AIPW joint response; use prepare + "
+            "retarget for score-table target weights",
+            reason_code="route_not_supported",
         )

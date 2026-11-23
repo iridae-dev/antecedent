@@ -8,6 +8,9 @@
 //! [`DbnPosterior`]; ), and Zhang FCI orientation plumbing via
 //! [`PagOps`] / [`FciOrientationRule`].
 //!
+//! This example is a compile check that the entry point is exported and constructible; it
+//! asserts no behaviour (behaviour is covered by the crate's tests).
+//!
 //! ```
 //! use antecedent_discovery::Pcmci;
 //!
@@ -15,7 +18,7 @@
 //! let _ = alg;
 //! ```
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -46,15 +49,19 @@ pub mod ci_screened_posterior;
 pub mod combinations;
 pub mod conflict_resolution;
 pub mod constraints;
+pub mod cyclic_fci;
 pub mod dbn_posterior;
 pub mod discriminating_paths;
+pub mod edge_prior;
 pub mod engine;
 pub mod error;
 pub mod evidence;
 pub mod exact_enumeration;
 pub mod exact_marginals;
+pub mod exact_pag_posterior;
 pub mod fci;
 pub mod ges;
+pub mod graph_imputation_enumeration;
 pub mod graph_mcmc;
 pub mod graph_posterior;
 #[cfg(test)]
@@ -66,6 +73,7 @@ pub mod lingam;
 pub mod lpcmci;
 pub mod lpcmci_phases;
 pub mod notears;
+pub mod observed_marginals;
 pub mod order_mcmc;
 pub mod orientation;
 pub mod pc;
@@ -79,14 +87,17 @@ pub mod rfci;
 pub mod rpcmci;
 pub mod rule_scheduling;
 pub mod selective;
+pub mod stability;
 mod static_skeleton;
 pub mod structure_mcmc;
+pub mod temporal_admg_atoms;
+pub mod temporal_admg_posterior;
 #[cfg(test)]
 mod test_tables;
 pub mod uncovered_paths;
 pub mod weakly_minimal;
 
-pub use adjacency_mask::{AdjacencyMask, MAX_POSTERIOR_NODES};
+pub use adjacency_mask::{AdjacencyMask, LagMask, edge_bits_fit};
 pub use ci::{
     CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery, CiResult, CiWorkspace,
     ConditionalIndependence, ConditionalIndependenceTest, ConfidenceMethod, PartialCorrelation,
@@ -94,7 +105,7 @@ pub use ci::{
 };
 
 pub use antecedent_stats::{FdrAdjustment, MultipleTestingMethod};
-pub use ci_screened_posterior::{CiScreenedPosterior, CiSoftWeight};
+pub use ci_screened_posterior::{CiScreenedPosterior, CiSoftWeight, ScreenedMarginals};
 pub use constraints::{
     BackgroundKnowledge, CandidateCatalog, CiMaskType, CompiledConstraints, ContextKind,
     CrossEnvLinkAssumption, DiscoveryConstraints, JpcmciNodeRole, KnowledgeFault, KnowledgeScope,
@@ -105,11 +116,16 @@ pub use dbn_posterior::{
     temporal_pag_from_dbn_masks,
 };
 pub use discriminating_paths::DiscriminatingPathBudget;
+pub use edge_prior::{EdgePriors, SoftTiers};
 pub use engine::{DiscoveryWorkspace, PcmciEngine};
 pub use error::DiscoveryError;
 pub use evidence::threshold_scored_links;
 pub use exact_enumeration::ExactDagPosterior;
 pub use exact_marginals::{EXACT_MARGINAL_MAX_NODES, ExactDagMarginals, exact_dag_marginals};
+pub use exact_pag_posterior::{
+    PAG_ENUM_MAX_NODES, PAG_MCMC_MAX_NODES, PAG_MCMC_WORK_BUDGET, PagMcmcSchedule,
+    exact_pag_posterior, pag_posterior_mcmc,
+};
 pub use fci::{Fci, StaticPagDiscoveryResult};
 pub use ges::Ges;
 pub use graph_posterior::{
@@ -144,7 +160,14 @@ pub use rule_scheduling::{
     LpcmciDiscriminatingPathRule, LpcmciOrientCollider, LpcmciOrientationRule, LpcmciR1,
     run_lpcmci_orientation,
 };
+pub use stability::{EdgeSelection, MarkSelection, StructureSelection, StructureStability};
 pub use structure_mcmc::StructureMcmc;
+pub use temporal_admg_atoms::{
+    TemporalAdmgAtom, has_lagged_edge, lagged_edge_bit, temporal_admg_from_lagged_atoms,
+    with_lagged_edge,
+};
+pub use temporal_admg_posterior::TemporalAdmgPosterior;
+pub use uncovered_paths::PdPathBudget;
 
 // Additional orientation helpers stay under their modules for advanced callers:
 // `antecedent_discovery::orientation::*` and `antecedent_discovery::rule_scheduling::*`.

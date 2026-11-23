@@ -1,6 +1,6 @@
 //! Estimator-side handling of explicit outcome-observation mechanisms.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -12,6 +12,7 @@
 
 use std::sync::Arc;
 
+use antecedent_core::diagnostic::{RouteCheck, RouteKind, RouteMass, RouteNativeDiagnostic};
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, CausalResponse, Diagnostic, DiagnosticKind, DiagnosticScope,
@@ -22,10 +23,11 @@ use antecedent_core::{
 use antecedent_data::{TableView, TabularData, TimeSeriesData};
 use antecedent_stats::{
     FaerBackend, GaussianObservation, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace,
-    fit_glm, fit_observation_logistic, gaussian_observation_log_likelihood, kaplan_meier_ipcw,
-    selected_outcome_pseudo_values,
+    fit_glm, fit_observation_logistic_admitting, gaussian_observation_log_likelihood,
+    kaplan_meier_ipcw, selected_outcome_pseudo_values,
 };
 
+use crate::arm::TreatmentArm;
 use crate::{ContinuousResponseEstimator, EstimationError};
 
 /// Selected-outcome correction used after fitting the observation model.
@@ -37,13 +39,60 @@ pub enum SelectedOutcomeCorrection {
     Aipw,
 }
 
+/// The refusal of a failed observation-model fit. A converged fit whose observation
+/// probabilities reach within `1e-8` of 0 or 1 means some rows have essentially no chance of
+/// being observed (or of being missing): a positivity problem in the data, so it refuses as
+/// `positivity_violated`, keeping the fit's diagnostics. Every other failure keeps its own
+/// refusal.
+pub(crate) fn observation_fit_error(error: antecedent_stats::StatsError) -> EstimationError {
+    let saturated = matches!(
+        error,
+        antecedent_stats::StatsError::GlmRefused {
+            kind: antecedent_stats::GlmRefusalKind::BoundarySaturated,
+            ..
+        }
+    );
+    let refused = EstimationError::from(error);
+    if !saturated {
+        return refused;
+    }
+    let mut fields = refused.refusal_fields().map(std::borrow::Cow::into_owned).unwrap_or_default();
+    let rows = fields.boundary_count.map_or_else(
+        || "some rows".to_owned(),
+        |count| format!("{count} row{}", if count == 1 { "" } else { "s" }),
+    );
+    fields.remedy = Some(
+        "restrict the population or covariates to where both observed and unobserved rows \
+         occur, or obtain data or a design that observes those rows"
+            .to_owned(),
+    );
+    EstimationError::refused_detail_with_fields(
+        antecedent_core::reason_code!("positivity_violated"),
+        "observation.boundary_saturated",
+        format!(
+            "the observation model gives {rows} a probability of being observed within 1e-8 of \
+             0 or 1, so those rows have essentially no chance of the other observation status \
+             and an inverse-probability weight is unsupported there. Restrict the population to \
+             where both occur"
+        ),
+        fields,
+    )
+}
+
 /// Numerical choices for observation-mechanism estimation.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ObservationEstimatorOptions {
     /// Selected-outcome correction.
     pub selected_correction: SelectedOutcomeCorrection,
-    /// Floor for fitted observation probabilities.
-    pub observation_probability_floor: f64,
+    /// Declared floor for fitted observation probabilities; `None` when the caller declared
+    /// none.
+    ///
+    /// An undeclared floor computes, identifies and binds calibration exactly as the declared
+    /// default [`DEFAULT_OBSERVATION_PROBABILITY_FLOOR`], but a fitted observation probability
+    /// within `1e-8` of 0 or 1 refuses as `positivity_violated` instead of being clamped. A
+    /// declared floor governs those rows. Read the resolved value with
+    /// [`Self::observation_floor`].
+    pub observation_probability_floor: Option<f64>,
     /// Floor for estimated censoring survival.
     pub censoring_survival_floor: f64,
     /// Deterministic row-index folds for augmented-path nuisance cross-fitting.
@@ -53,11 +102,31 @@ pub struct ObservationEstimatorOptions {
     pub crossfit_folds: usize,
 }
 
+/// The observation-probability floor used when the caller declares none.
+pub const DEFAULT_OBSERVATION_PROBABILITY_FLOOR: f64 = 0.01;
+
+impl ObservationEstimatorOptions {
+    /// The resolved observation-probability floor: the declared value, else the default.
+    /// Identity, wire and calibration bindings use this value, so an undeclared floor and the
+    /// same value declared explicitly are indistinguishable there.
+    #[must_use]
+    pub fn observation_floor(&self) -> f64 {
+        self.observation_probability_floor.unwrap_or(DEFAULT_OBSERVATION_PROBABILITY_FLOOR)
+    }
+
+    /// Whether the caller declared the floor, so that it governs saturated observation
+    /// probabilities rather than leaving them refused.
+    #[must_use]
+    pub const fn observation_floor_declared(&self) -> bool {
+        self.observation_probability_floor.is_some()
+    }
+}
+
 impl Default for ObservationEstimatorOptions {
     fn default() -> Self {
         Self {
             selected_correction: SelectedOutcomeCorrection::Aipw,
-            observation_probability_floor: 0.01,
+            observation_probability_floor: None,
             censoring_survival_floor: 0.01,
             crossfit_folds: 5,
         }
@@ -140,7 +209,8 @@ pub fn temporal_curve_outcome_regressors(
     identifications: &[(&antecedent_expr::IdentifiedEstimand, &antecedent_data::TemporalIndexer)],
 ) -> Result<Vec<TemporalNodeKey>, EstimationError> {
     let temporal = query.temporal.as_ref().ok_or_else(|| {
-        EstimationError::unsupported(
+        EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("required_option_missing"),
             "temporal observation correction requires ResponseQuery.temporal",
         )
     })?;
@@ -161,9 +231,7 @@ pub fn temporal_curve_outcome_regressors(
             offset: treatment_offset.saturating_sub(outcome_offset),
         });
         for &dense in estimand.adjustment_set.iter() {
-            let key = indexer
-                .key_of(dense.raw())
-                .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+            let key = indexer.key_of(dense.raw())?;
             keys.push(TemporalNodeKey {
                 variable: key.variable,
                 offset: key.offset.saturating_sub(outcome_offset),
@@ -277,6 +345,47 @@ pub struct ObservationAdjustedOutcome {
     /// for the selected-outcome mechanism (no such boundary applies) and for a censoring
     /// correction whose censoring survival never reached the floor.
     pub tail_restriction: Option<f64>,
+    /// Share of rows at or past [`Self::tail_restriction`] (before it for left censoring):
+    /// the mass whose events cannot be observed. `Some` exactly when `tail_restriction` is.
+    pub tail_mass: Option<f64>,
+    /// The censoring check a censoring correction passed: every observed row's censoring
+    /// survival reached the positivity floor (a row below it is a refusal, never a pass).
+    /// Its unevaluable mass is [`Self::tail_mass`], or a measured zero when no tail was
+    /// restricted. `None` for the selected-outcome mechanism, which has no censoring.
+    pub censoring: Option<RouteNativeDiagnostic>,
+}
+
+impl ObservationAdjustedOutcome {
+    /// Result diagnostics for the censoring checks of this correction.
+    ///
+    /// The restricted-tail model restriction (when the censoring survival reached the floor
+    /// within follow-up) and the passed censoring check, each carrying its unevaluable mass.
+    /// Empty for the selected-outcome mechanism.
+    #[must_use = "dropped diagnostics are not on the result"]
+    pub fn censoring_diagnostics(&self) -> Vec<Diagnostic> {
+        let mut diagnostics = Vec::new();
+        if let Some(tau) = self.tail_restriction {
+            diagnostics.push(
+                Diagnostic::new(
+                    "response.observation_censoring_tail_unidentified",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Warning,
+                    format!(
+                        "the censoring survival reaches the positivity floor at {tau}; every unit still at risk there was censored, so no event beyond that boundary is observable and the published mean is the restricted mean of the outcome up to it, not the unrestricted mean"
+                    ),
+                )
+                .with_route(RouteNativeDiagnostic::model_restriction(
+                    self.tail_mass
+                        .and_then(|mass| RouteMass::new(mass).ok())
+                        .unwrap_or_else(RouteMass::unreported),
+                )),
+            );
+        }
+        if let Some(check) = self.censoring {
+            diagnostics.push(check.to_diagnostic());
+        }
+        diagnostics
+    }
 }
 
 /// Explicit observation-mechanism estimator.
@@ -310,7 +419,7 @@ impl ObservationMechanismEstimator {
     /// refit in sample. [`SelectedOutcomeCorrection::Ipw`] deliberately keeps its in-sample
     /// maximum-likelihood propensity, which is the published estimator.
     ///
-    /// Cross-fitting removes the in-sample nuisance bias; it does not by itself license an
+    /// Cross-fitting removes the in-sample nuisance bias; it does not by itself support an
     /// interval, and this path still publishes no standard error.
     ///
     /// # Errors
@@ -339,7 +448,8 @@ impl ObservationMechanismEstimator {
         match &query.observation {
             ObservationSpec::Selected { observed, indicator, .. } => {
                 if delayed_entry.is_some() {
-                    return Err(EstimationError::unsupported(
+                    return Err(EstimationError::unsupported_coded(
+                        antecedent_core::reason_code!("option_not_applicable"),
                         "delayed entry applies only to right-censoring IPCW",
                     ));
                 }
@@ -358,7 +468,8 @@ impl ObservationMechanismEstimator {
             ),
             ObservationSpec::LeftCensored { observed, censoring, event, .. } => {
                 if delayed_entry.is_some() {
-                    return Err(EstimationError::unsupported(
+                    return Err(EstimationError::unsupported_coded(
+                        antecedent_core::reason_code!("option_not_applicable"),
                         "delayed entry is not defined for left-censoring sign reversal",
                     ));
                 }
@@ -378,7 +489,8 @@ impl ObservationMechanismEstimator {
                 "complete outcomes do not require observation-mechanism correction",
             )),
             ObservationSpec::IntervalCensored { .. } | ObservationSpec::Truncated { .. } => {
-                Err(EstimationError::unsupported(
+                Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("required_option_missing"),
                     "interval censoring and truncation require the opt-in Gaussian likelihood",
                 ))
             }
@@ -428,7 +540,8 @@ impl ObservationMechanismEstimator {
         let (outcome, treatment) = match &query.functional {
             ResponseFunctional::MeanCurve { outcome, treatment } => (*outcome, treatment.variable),
             _ => {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
                     "observation-adjusted response composition currently supports MeanCurve only",
                 ));
             }
@@ -441,7 +554,8 @@ impl ObservationMechanismEstimator {
                     .iter()
                     .any(|variable| !conditioning.contains(variable))
             {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("required_option_missing"),
                     "selected-outcome response correction requires OutcomeIndependentGiven to include the treatment and every causal adjustment variable",
                 ));
             }
@@ -459,7 +573,8 @@ impl ObservationMechanismEstimator {
                     .iter()
                     .any(|variable| !conditioning.contains(variable))
             {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("required_option_missing"),
                     "conditional censoring response requires IndependentGiven to include treatment and every causal adjustment variable",
                 ));
             }
@@ -473,11 +588,13 @@ impl ObservationMechanismEstimator {
             });
         }
         if response_estimator.options.simultaneous_replicates.is_some() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("estimator_inference_mismatch"),
                 "simultaneous bands are unavailable for observation-adjusted response curves",
             ));
         }
         let adjusted = self.adjusted_outcome(data, query, delayed_entry)?;
+        let censoring_diagnostics = adjusted.censoring_diagnostics();
         let adjusted_data = data
             .with_replaced_float(outcome, Arc::from(adjusted.values))
             .map_err(EstimationError::from)?;
@@ -522,16 +639,7 @@ impl ObservationMechanismEstimator {
                 "every selection indicator is 1, so the selected-outcome correction is the raw recorded outcome; a mis-coded indicator would look like no selection",
             ));
         }
-        if let Some(tau) = adjusted.tail_restriction {
-            response.support.warnings.push(Diagnostic::new(
-                "response.observation_censoring_tail_unidentified",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Warning,
-                format!(
-                    "the censoring survival reaches the positivity floor at {tau}; every unit still at risk there was censored, so no event beyond that boundary is observable and the published mean is the restricted mean of the outcome up to it, not the unrestricted mean"
-                ),
-            ));
-        }
+        response.support.warnings.extend(censoring_diagnostics);
         Ok(response)
     }
 
@@ -562,7 +670,7 @@ impl ObservationMechanismEstimator {
     ///
     /// # Errors
     ///
-    /// Unlicensed pair, missing containment, delayed entry, or primitive failure.
+    /// Unsupported pair, missing containment, delayed entry, or primitive failure.
     pub fn adjust_temporal_series(
         &self,
         data: &TimeSeriesData,
@@ -571,20 +679,22 @@ impl ObservationMechanismEstimator {
         outcome_regressors: &[TemporalNodeKey],
     ) -> Result<(TimeSeriesData, ObservationAdjustedOutcome), EstimationError> {
         query.validate()?;
-        query.require_licensed_temporal_observation()?;
+        query.require_supported_temporal_observation()?;
         if query.observation == ObservationSpec::Complete {
             return Err(EstimationError::unsupported(
                 "complete outcomes do not require observation-mechanism correction",
             ));
         }
         let temporal = query.temporal.as_ref().ok_or_else(|| {
-            EstimationError::unsupported(
+            EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("required_option_missing"),
                 "temporal observation correction requires ResponseQuery.temporal",
             )
         })?;
         let offset = temporal.treatment_offset()?;
         if offset > 0 {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "temporal observation conditioning cannot use a future treatment offset",
             ));
         }
@@ -629,6 +739,8 @@ impl ObservationMechanismEstimator {
             weights,
             method: subset.method,
             tail_restriction: subset.tail_restriction,
+            tail_mass: subset.tail_mass,
+            censoring: subset.censoring,
         };
         let series = data.with_replaced_float(outcome, Arc::from(values))?;
         Ok((series, adjusted))
@@ -661,20 +773,22 @@ impl ObservationMechanismEstimator {
         anchors: &[usize],
     ) -> Result<Vec<f64>, EstimationError> {
         query.validate()?;
-        query.require_licensed_temporal_observation()?;
+        query.require_supported_temporal_observation()?;
         if query.observation == ObservationSpec::Complete {
             return Err(EstimationError::unsupported(
                 "complete outcomes do not require observation-mechanism correction",
             ));
         }
         let temporal = query.temporal.as_ref().ok_or_else(|| {
-            EstimationError::unsupported(
+            EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("required_option_missing"),
                 "temporal observation correction requires ResponseQuery.temporal",
             )
         })?;
         let offset = temporal.treatment_offset()?;
         if offset > 0 {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "temporal observation conditioning cannot use a future treatment offset",
             ));
         }
@@ -744,7 +858,8 @@ impl ObservationMechanismEstimator {
                     )?
                     .values)
             }
-            _ => Err(EstimationError::unsupported(
+            _ => Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "temporal observation correction supports selected and left/right censoring only",
             )),
         }
@@ -770,7 +885,8 @@ impl ObservationMechanismEstimator {
             .temporal
             .as_ref()
             .ok_or_else(|| {
-                EstimationError::unsupported(
+                EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("required_option_missing"),
                     "temporal observation correction requires ResponseQuery.temporal",
                 )
             })?
@@ -879,7 +995,8 @@ impl ObservationMechanismEstimator {
             matches!(assumption, ObservationAssumption::Structural(name) if name.as_ref() == "gaussian_observation_likelihood")
         });
         if !opted_in {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("required_option_missing"),
                 "Gaussian censoring/truncation likelihood requires an explicit structural opt-in",
             ));
         }
@@ -888,8 +1005,9 @@ impl ObservationMechanismEstimator {
     }
 
     fn validate_options(&self) -> Result<(), EstimationError> {
-        if !self.options.observation_probability_floor.is_finite()
-            || !(0.0..0.5).contains(&self.options.observation_probability_floor)
+        let floor = self.options.observation_floor();
+        if !floor.is_finite()
+            || !(0.0..0.5).contains(&floor)
             || !self.options.censoring_survival_floor.is_finite()
             || !(0.0..1.0).contains(&self.options.censoring_survival_floor)
             || self.options.crossfit_folds < 2
@@ -940,7 +1058,7 @@ impl ObservationMechanismEstimator {
         extras: Option<&OutcomeModelExtras>,
         layout: FoldLayout<'_>,
     ) -> Result<ObservationAdjustedOutcome, EstimationError> {
-        if indicator.iter().all(|&r| r == 1.0) {
+        if indicator.iter().all(|&r| TreatmentArm::exact(r).is_some_and(TreatmentArm::is_treated)) {
             if observed.iter().any(|value| !value.is_finite()) {
                 return Err(EstimationError::unsupported("selected outcomes must be finite"));
             }
@@ -949,6 +1067,8 @@ impl ObservationMechanismEstimator {
                 weights: vec![1.0; observed.len()],
                 method: Arc::from("observation.selected.complete_collapse.v1"),
                 tail_restriction: None,
+                tail_mass: None,
+                censoring: None,
             });
         }
         let (probabilities, outcome_predictions) = match self.options.selected_correction {
@@ -956,12 +1076,14 @@ impl ObservationMechanismEstimator {
             // published estimator, and estimating the propensity in sample is what makes it
             // efficient — cross-fitting here would deviate from the citation to no end.
             SelectedOutcomeCorrection::Ipw => {
-                let fit = fit_observation_logistic(
+                let fit = fit_observation_logistic_admitting(
                     indicator,
                     covariates,
                     n_cov,
-                    self.options.observation_probability_floor,
-                )?;
+                    self.options.observation_floor(),
+                    self.options.observation_floor_declared(),
+                )
+                .map_err(observation_fit_error)?;
                 (fit.probabilities, None)
             }
             // The augmented path is where sample splitting earns its keep: the AIPW
@@ -992,6 +1114,8 @@ impl ObservationMechanismEstimator {
                 SelectedOutcomeCorrection::Aipw => "observation.selected.crossfit_logistic_aipw.v1",
             }),
             tail_restriction: None,
+            tail_mass: None,
+            censoring: None,
         })
     }
 
@@ -1018,7 +1142,7 @@ impl ObservationMechanismEstimator {
     ) -> Result<CrossFittedSelectedNuisances, EstimationError> {
         let n = indicator.len();
         let folds = self.options.crossfit_folds;
-        let ncols = if n == 0 { 0 } else { covariates.len() / n };
+        let ncols = covariates.len().checked_div(n).unwrap_or(0);
         if extras.is_some_and(|extras| extras.values.len() != n * extras.ncols) {
             return Err(EstimationError::unsupported(
                 "outcome-model regressors must align with observation rows",
@@ -1046,13 +1170,23 @@ impl ObservationMechanismEstimator {
             }
             let train_indicator: Vec<f64> = train.iter().map(|&i| indicator[i]).collect();
             let train_covariates = subset_colmajor(covariates, n, ncols, &train);
-            let fit = fit_observation_logistic(
+            let fit = fit_observation_logistic_admitting(
                 &train_indicator,
                 &train_covariates,
                 ncols,
-                self.options.observation_probability_floor,
+                self.options.observation_floor(),
+                self.options.observation_floor_declared(),
             )
-            .map_err(|_| {
+            .map_err(|error| {
+                if matches!(
+                    error,
+                    antecedent_stats::StatsError::GlmRefused {
+                        kind: antecedent_stats::GlmRefusalKind::BoundarySaturated,
+                        ..
+                    }
+                ) {
+                    return observation_fit_error(error);
+                }
                 EstimationError::unsupported(
                     "a cross-fitting fold cannot support the observation model; reduce crossfit_folds or supply more rows covering both observed and unobserved outcomes",
                 )
@@ -1124,7 +1258,8 @@ impl ObservationMechanismEstimator {
             ));
         }
         if !conditioning.is_empty() && delayed_entry.is_some() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "conditional Cox IPCW does not support delayed entry",
             ));
         }
@@ -1219,15 +1354,26 @@ impl ObservationMechanismEstimator {
         // tau`) is the original-scale boundary `-tau` (unidentified for `observed <= -tau`).
         let tail_restriction =
             tail_restriction_transformed.map(|tau| if reverse { -tau } else { tau });
+        let tail_mass = tail_restriction_transformed.map(|tau| {
+            let beyond = transformed.iter().filter(|&&value| value >= tau).count();
+            beyond as f64 / transformed.len().max(1) as f64
+        });
         // Horvitz–Thompson transform: Y* = Y · (δ / G). Censored rows contribute
         // exactly 0; uncensored rows are upweighted by 1/G. The unweighted mean
         // of Y* is the IPCW mean. Dropping the zeros would be complete-case
         // analysis, not IPCW.
         let values = observed.iter().zip(&weights).map(|(&y, &w)| y * w).collect();
+        let unevaluable_mass =
+            RouteMass::new(tail_mass.unwrap_or(0.0)).unwrap_or_else(|_| RouteMass::unreported());
         Ok(ObservationAdjustedOutcome {
             values,
             weights,
             tail_restriction,
+            tail_mass,
+            censoring: Some(RouteNativeDiagnostic::check(
+                RouteKind::Censoring,
+                RouteCheck::new(false, unevaluable_mass),
+            )),
             method: Arc::from(if n_cov > 0 {
                 if reverse {
                     "observation.left_censored.cox_ipcw_sign_reversal.v1"
@@ -1261,7 +1407,10 @@ fn require_unlagged_outcome_regressor(
     outcome_regressors: &[TemporalNodeKey],
 ) -> Result<(), EstimationError> {
     if outcome_regressors.iter().any(|key| key.variable == outcome && key.offset != 0) {
-        return Err(EstimationError::unsupported(LAGGED_OUTCOME_REGRESSOR_REFUSAL));
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
+            LAGGED_OUTCOME_REGRESSOR_REFUSAL,
+        ));
     }
     Ok(())
 }
@@ -1272,7 +1421,8 @@ fn temporal_conditioning_ids(query: &ResponseQuery) -> Result<&[VariableId], Est
         ObservationSpec::RightCensored { .. } | ObservationSpec::LeftCensored { .. } => {
             censoring_independence(query)
         }
-        _ => Err(EstimationError::unsupported(
+        _ => Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "temporal observation correction supports selected and left/right censoring only",
         )),
     }
@@ -1289,7 +1439,8 @@ pub(crate) fn require_temporal_observation_containment(
             if !conditioning.contains(&treatment)
                 || adjustment.iter().any(|variable| !conditioning.contains(variable))
             {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("required_option_missing"),
                     "selected-outcome response correction requires OutcomeIndependentGiven to include the treatment and every causal adjustment variable",
                 ));
             }
@@ -1300,7 +1451,8 @@ pub(crate) fn require_temporal_observation_containment(
                 && (!conditioning.contains(&treatment)
                     || adjustment.iter().any(|variable| !conditioning.contains(variable)))
             {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("required_option_missing"),
                     "conditional censoring response requires IndependentGiven to include treatment and every causal adjustment variable",
                 ));
             }
@@ -1358,7 +1510,8 @@ fn exact_outcome_independence(query: &ResponseQuery) -> Result<&[VariableId], Es
             _ => None,
         });
     let Some(first) = claims.next() else {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("required_option_missing"),
             "selected-outcome correction requires OutcomeIndependentGiven",
         ));
     };
@@ -1380,9 +1533,10 @@ fn censoring_independence(query: &ResponseQuery) -> Result<&[VariableId], Estima
         ObservationAssumption::IndependentGiven(vars) => Ok(vars),
         // Preserve the previously accepted empty outcome-independence spelling.
         ObservationAssumption::OutcomeIndependentGiven(vars) if vars.is_empty() => Ok(vars),
-        _ => {
-            Err(EstimationError::unsupported("conditional censoring requires IndependentGiven(Z)"))
-        }
+        _ => Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("required_option_missing"),
+            "conditional censoring requires IndependentGiven(Z)",
+        )),
     }
 }
 
@@ -1475,7 +1629,9 @@ fn fit_selected_outcome_regression(
     ncols: usize,
 ) -> Result<Vec<f64>, EstimationError> {
     let n = observed.len();
-    let rows: Vec<usize> = (0..n).filter(|&i| indicator[i] == 1.0).collect();
+    let rows: Vec<usize> = (0..n)
+        .filter(|&i| TreatmentArm::exact(indicator[i]).is_some_and(TreatmentArm::is_treated))
+        .collect();
     if rows.len() <= ncols + 1 {
         return Err(EstimationError::unsupported(
             "too few selected rows for augmented outcome regression",
@@ -1519,7 +1675,8 @@ fn gaussian_observations(
             ));
         }
         ObservationSpec::Selected { .. } => {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "selected outcomes use logistic IPW/AIPW, not the Gaussian observation likelihood",
             ));
         }
@@ -1594,6 +1751,7 @@ mod tests {
     use antecedent_core::{
         ContinuousDomain, GridSpec, ObservationAssumption, ResponseFunctional, ResponseQuery,
     };
+    use antecedent_stats::fit_observation_logistic;
 
     use super::*;
 
@@ -1633,6 +1791,70 @@ mod tests {
         TabularData::from_f64_columns([("a", x), ("y", y), ("r", r), ("x", x)]).unwrap()
     }
 
+    /// The passed censoring check and its unevaluable mass as the result diagnostics carry them.
+    fn assert_passed_censoring(adjusted: &ObservationAdjustedOutcome) {
+        let records: Vec<RouteNativeDiagnostic> = adjusted
+            .censoring_diagnostics()
+            .iter()
+            .filter_map(RouteNativeDiagnostic::from_diagnostic)
+            .collect();
+        let passed = records
+            .iter()
+            .find(|record| record.kind() == Some(RouteKind::Censoring))
+            .expect("a censoring correction states the censoring check it passed");
+        assert!(!passed.failed(), "{passed:?}");
+        assert_eq!(passed.unevaluable_mass().get(), Some(adjusted.tail_mass.unwrap_or(0.0)));
+        assert_eq!(
+            records.iter().any(|record| record.is_model_restriction()),
+            adjusted.tail_restriction.is_some(),
+            "the restricted tail is a model restriction, and only then: {records:?}"
+        );
+    }
+
+    /// Observed iff `x > 0` except a few flips at the boundary: the converged, unseparated
+    /// logistic fit saturates far from the flips.
+    fn saturated_selection_sample() -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+        let x: Vec<f64> = (0..400).map(|i| -3.0 + 6.0 * (f64::from(i) + 0.5) / 400.0).collect();
+        let flips = [190, 193, 196, 198, 201, 203, 206, 209];
+        let r: Vec<f64> = x
+            .iter()
+            .enumerate()
+            .map(|(i, &v)| f64::from((v > 0.0) != flips.contains(&i)))
+            .collect();
+        let y: Vec<f64> = x
+            .iter()
+            .zip(&r)
+            .map(|(&x, &r)| if r == 1.0 { 2.0 + 3.0 * x } else { f64::NAN })
+            .collect();
+        (x, r, y)
+    }
+
+    #[test]
+    fn a_saturated_observation_probability_refuses_unless_a_floor_is_declared() {
+        let (x, r, y) = saturated_selection_sample();
+        let data = selected_table(&x, &y, &r);
+        for correction in [SelectedOutcomeCorrection::Ipw, SelectedOutcomeCorrection::Aipw] {
+            let undeclared = ObservationMechanismEstimator::new(ObservationEstimatorOptions {
+                selected_correction: correction,
+                ..ObservationEstimatorOptions::default()
+            });
+            let err = undeclared.adjusted_outcome(&data, &selected_query(), None).unwrap_err();
+            assert_eq!(err.reason_code(), Some("positivity_violated"), "{correction:?}: {err}");
+
+            let declared = ObservationMechanismEstimator::new(ObservationEstimatorOptions {
+                selected_correction: correction,
+                observation_probability_floor: Some(0.01),
+                ..ObservationEstimatorOptions::default()
+            });
+            let adjusted = declared.adjusted_outcome(&data, &selected_query(), None).unwrap();
+            for (&weight, &seen) in adjusted.weights.iter().zip(&r) {
+                if seen == 1.0 {
+                    assert!(weight.is_finite() && weight <= 1.0 / 0.01 + 1e-9, "{weight}");
+                }
+            }
+        }
+    }
+
     #[test]
     fn selected_aipw_nuisances_are_fit_without_the_row_they_are_applied_to() {
         // The property cross-fitting exists to provide. Row 0 falls in fold 0, so the
@@ -1653,16 +1875,15 @@ mod tests {
             &train_indicator,
             &train_covariates,
             1,
-            estimator.options.observation_probability_floor,
+            estimator.options.observation_floor(),
         )
         .unwrap()
         .probability_at(&[x[0]])
         .unwrap();
 
-        let in_sample =
-            fit_observation_logistic(&r, &x, 1, estimator.options.observation_probability_floor)
-                .unwrap()
-                .probabilities[0];
+        let in_sample = fit_observation_logistic(&r, &x, 1, estimator.options.observation_floor())
+            .unwrap()
+            .probabilities[0];
 
         assert_eq!(r[0], 1.0, "row 0 must be selected for its weight to be 1/p");
         let used = 1.0 / adjusted.weights[0];
@@ -1866,6 +2087,7 @@ mod tests {
         // driven straight to zero, so no event beyond tau=3 is ever observable and the
         // fit must say so instead of staying silent.
         assert_eq!(adjusted.tail_restriction, Some(3.0));
+        assert_passed_censoring(&adjusted);
 
         // What the estimator actually returns is the restricted mean E[Y * 1{Y<3}],
         // computed here independently of the implementation: censored rows contribute
@@ -1908,6 +2130,7 @@ mod tests {
             .unwrap();
         assert_eq!(adjusted.method.as_ref(), "observation.right_censored.cox_ipcw.v1");
         assert_eq!(adjusted.tail_restriction, Some(1.0));
+        assert_passed_censoring(&adjusted);
         let mean = adjusted.values.iter().sum::<f64>() / n as f64;
         // Uncensored rows carry unit weight (no censoring precedes them), so the result is
         // the restricted mean E[Y · 1{Y < 1}] of the grid, far from E[Y] = 1.
@@ -1938,6 +2161,8 @@ mod tests {
             )
             .unwrap();
         assert_eq!(adjusted.tail_restriction, None);
+        assert_passed_censoring(&adjusted);
+        assert_eq!(adjusted.censoring_diagnostics().len(), 1);
     }
 
     #[test]

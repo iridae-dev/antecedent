@@ -1,6 +1,6 @@
 //! Discovery errors.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_data::DataError;
 use antecedent_graph::GraphError;
@@ -72,5 +72,23 @@ impl DiscoveryError {
     #[must_use]
     pub fn stats_msg(message: impl Into<String>) -> Self {
         Self::Stats(StatsError::Backend(message.into()))
+    }
+}
+
+impl<E> From<antecedent_core::execution::MapExecutionError<E>> for DiscoveryError
+where
+    Self: From<E>,
+{
+    fn from(error: antecedent_core::execution::MapExecutionError<E>) -> Self {
+        match error {
+            antecedent_core::execution::MapExecutionError::Admission(error) => {
+                if matches!(error, antecedent_core::execution::AdmissionError::Cancelled) {
+                    Self::Cancelled
+                } else {
+                    Self::Resource(error.to_string())
+                }
+            }
+            antecedent_core::execution::MapExecutionError::Work(error) => Self::from(error),
+        }
     }
 }

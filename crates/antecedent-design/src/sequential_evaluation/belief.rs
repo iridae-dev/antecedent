@@ -1,6 +1,6 @@
 //! Bayes belief updates and the once-only record of observations and actions.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::evidence_ledger::{
     EvidenceLedger, LedgerError, ObservationId, SourceDeclaration, SourceKind,

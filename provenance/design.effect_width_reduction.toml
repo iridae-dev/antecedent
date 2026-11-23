@@ -23,5 +23,50 @@ test_sources = [
 ]
 
 implementation_deviations = [
- "The typed Python EffectWidth declaration preserves signed original se_before-se_after Gram arithmetic and prospective information for measurements/interventions/environments; it does not turn the SE reduction into a licensed posterior interval width.",
+ "The typed Python EffectWidth declaration preserves signed original se_before-se_after Gram arithmetic and prospective information for measurements/interventions/environments; it does not turn the SE reduction into a supported posterior interval width.",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The ReduceEffectPosteriorWidth objective of crates/antecedent-design/src/ranker.rs, reached through DesignRanker::rank with an EffectWidthContext: the baseline treatment standard error sqrt(sigma^2 [G^-1]_tt) from a Cholesky solve, and the signed reduction se0 - se1 for each candidate kind (more samples by row scaling, an environment with its own Gram and variance or by row scaling when it has none, measured columns bordered one at a time with the last declared variance, an intervention design Gram), with the refusals of a mis-shaped column, Gram, variance or treatment column and of a singular baseline. Not a review of the other objectives, of the ranking and Monte Carlo machinery, or of the Python declaration that builds the context. Entropy and decision scoring definitions moved to dedicated ranker modules; every bound definition and the other bound artifacts were compared unchanged apart from visibility and formatting."
+assumptions = ["The design is ordinary least squares with a known residual variance, so the standard error of coefficient t is sqrt(sigma^2 [(X'X)^-1]_tt); a candidate's updated Gram is formed the way the candidate describes (rows of the same population scale the Gram, a pooled environment adds its Gram, a measured column borders it).", "More rows of the same population scale the Gram by (n + m)/n, so the standard error scales by sqrt(n/(n + m)); the reference scales the Gram and inverts in full rather than using that identity.", "The reduction is signed: a design that raises the standard error scores negative."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote a separate reference of its own from the stated definitions; no upstream implementation or test source was consulted or copied."
+redistribution = "The reference script, its frozen output and the test are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited primary sources are linked, not redistributed."
+limitations = "The reference is one three-column correlated Gram (condition number under 4) and one five-column Hilbert-like Gram with condition number about 6e5, with a treatment column in the interior; a Gram with condition number near 1e12 is not exercised, nor are designs with hundreds of columns. The objective is a Gram-matrix arithmetic under a linear-Gaussian model with known variance; it is not a posterior interval width, and the record says so. Two declarations are not consulted once a Gram is supplied: additional_rows of an environment plan is ignored when the environment has a Gram (the Gram carries its own sample size), and the n of an environment Gram or an intervention design is not read; a caller that declares inconsistent values is not told. A measurement plan that lists the same variable twice is refused only because the second border has the wrong length. Calibration remains deferred."
+sources = ["https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["Every candidate kind reduces the treatment standard error by the full-inverse value to 1e-12 relative on the well-conditioned Gram and to 1e-8 on the ill-conditioned one, including a negative reduction for a noisier environment, an environment pooled by Gram versus by rows, a plan that mixes matched and unmatched variables (the unmatched one contributes nothing) and a two-column border that keeps the last declared variance.", "A mis-shaped measured column, a repeated measured variable, an environment Gram of the wrong size, a non-positive variance, a treatment column outside the design and a singular baseline Gram are each refused with a typed error and never scored as zero. No defect was found and no product code changed."]
+record_sha256 = "684a9402c0fd53d02f9cc7b288e6e48bdac5623f92c0062472d85f456cea96ca"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/ranker.rs"
+items = ["const MAX_RANK_DRAWS", "const RANK_STREAM", "fn assemble_ranking", "fn check_constraints", "fn critical_value", "fn default", "fn exact_expectation", "fn filter_active_candidates", "fn n_looks", "fn new", "fn observation_reliability", "fn paired", "fn paired_difference", "fn prepare_decision", "fn push", "fn rank", "fn run_mc_scoring_loop", "fn uncertainty_ok", "fn unmapped_decision_candidate", "fn validate", "fn validate_config", "fn validate_rank_inputs", "struct ActiveScoring", "struct DecisionRegistry", "struct DesignConstraints", "struct DesignEvaluationContext", "struct DesignRankConfig", "struct DesignRanker", "struct EffectWidthContext", "struct EnvironmentGramSpec", "struct InterventionDesignEffect", "struct MeasureColumnSpec", "struct ModelLoglikDraws", "struct RankDrawStats", "struct ScoringRun"]
+sha256 = "346413bb5614069b16e3bed457df57beee2e6a408523fa8d34d0d008a5cfc878"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/ranker/entropy.rs"
+items = ["fn exact_gain", "fn likelihood", "fn new", "fn posterior_entropy"]
+sha256 = "e9d8fc502644f2a29c10b798fb117438cd3d01ff2922115c3bd74a92b4449f82"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/ranker/decision_scoring.rs"
+items = ["fn evaluation", "fn new", "fn score", "struct DecisionScoring"]
+sha256 = "d913dd6907113daf953c7a2688b7bd5203d1cf69ee6ec93890fd1a4319f11335"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/effect_width_reference.rs"
+items = ["fn a_noisier_environment_is_a_negative_reduction_and_the_gram_wins_over_declared_rows", "fn an_ill_conditioned_gram_keeps_the_reduction_to_the_full_inverse_value", "fn close", "fn context", "fn environment", "fn every_candidate_kind_reduces_the_treatment_se_by_the_full_inverse_value", "fn f", "fn flat", "fn malformed_designs_are_refused_not_scored_as_zero", "fn measure", "fn reference", "fn sampling", "fn score"]
+sha256 = "1b0aaafe99ecc4fcd94027ccf55abb903574e504dc49d3e5e1029a91125d80dd"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-design/tests/oracle_data/effect_width_reference.py"
+sha256 = "dbe25c572567585184006ae2022fd0748978cccedc09bc56864140c761c72187"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-design/tests/oracle_data/effect_width_reference.json"
+sha256 = "046d1f09018ad6264f8787d2b76f770e9a38e2f051c5895ffc09d3c727964c07"

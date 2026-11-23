@@ -5,12 +5,12 @@
 //! declared range, the minimum local effective sample size, the declared claims and
 //! a compact `(dose, outcome)` table. It stores the full result: per-dose support
 //! labels with local effective sample sizes, the point values with pointwise
-//! standard errors and intervals (calibration `unmeasured`, smoothing bias not
+//! standard errors and intervals (calibration `not_measured`, smoothing bias not
 //! included), the measured numerical residual of the local solves, and the closed
 //! simultaneous-band marker.
 //! The optional caller-attested exact quadratic mean premise requires
 //! `dose_grid_quadratic_mean_v1`; polynomial reproduction accounts for zero smoothing
-//! bias under that premise. The sampling calibration remains unmeasured. Omitting the
+//! bias under that premise. The sampling calibration remains `not_measured`. Omitting the
 //! premise preserves the historical format and digests.
 //!
 //! A consumer trusts nothing in the result. It re-validates the stored request,
@@ -23,18 +23,34 @@
 //! result then differs.
 //!
 //! Scope. Pointwise intervals are normal intervals around the smoother's level,
-//! derivative or contrast with calibration unmeasured: no coverage claim is made.
-//! A simultaneous band is a different claim and is closed; an artifact for it is
-//! never produced and a stored band marker other than `closed` is refused.
+//! derivative or contrast with calibration `not_measured`: no coverage claim is made.
+//! Without a declared curvature bound the simultaneous band is not supported and a stored band
+//! marker other than `closed` is refused. A request that declares `bias_aware` (a bound on
+//! the absolute third derivative of the dose response, the multiplier replicates and the
+//! band's seed) requires `dose_grid_bias_aware_band_v1` and stores, beside the unchanged
+//! row, the bias-aware intervals and, for a grid of two or more doses, the simultaneous band
+//! (`simultaneous_band = "bias_aware"`). The band is replayed from the stored seed, so a
+//! consumer recomputes it bit for bit. Omitting the declaration preserves the historical
+//! format and digests.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+//! Declared rows. A request may also declare `sampling_weights` (one per row), a `cluster` id
+//! per row, or a `serial_lag` (rows in time order at unit spacing); any of them requires
+//! `dose_grid_declared_rows_v1`. Weights multiply the kernel weights and the standard error is
+//! the weighted-score sandwich; clusters give the one-way cluster-robust variance with the
+//! `t_{G-1}` reference; a lag gives the Newey-West variance; clusters and a lag are not offered
+//! together, and the bias-aware band draws its multipliers per cluster or per block of
+//! `lag + 1` rows. The weights, cluster ids and lag are bound by the premises and data digests,
+//! and a request that declares none of them keeps the historical format and digests.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{IdentityDomain, SupportReport, SupportStatus};
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::dose_grid_functional::{
     ClaimSet, DoseDesign, DoseFunctional, DoseGridRequest, DoseGridRow, IntervalCalibration,
-    PointwiseInterval, dose_support_report, estimate_dose_grid_functional,
-    estimate_dose_grid_quadratic_mean,
+    PointwiseInterval, RowDeclaration, RowDependence, dose_support_report,
+    estimate_dose_grid_bias_aware_declared, estimate_dose_grid_functional_declared,
+    estimate_dose_grid_quadratic_mean_declared,
 };
 use serde::{Deserialize, Serialize};
 
@@ -47,11 +63,17 @@ pub const DOSE_GRID_ARTIFACT_FEATURE: &str = "dose_grid_functional_row_v1";
 /// Additional required semantics: caller attests an exact conditional quadratic mean.
 pub const DOSE_GRID_QUADRATIC_FEATURE: &str = "dose_grid_quadratic_mean_v1";
 /// Calibration status of every interval of this row.
-pub const DOSE_GRID_CALIBRATION: &str = "unmeasured";
+pub const DOSE_GRID_CALIBRATION: &str = "not_measured";
 /// State of the simultaneous band of this row.
 pub const DOSE_GRID_BAND_CLOSED: &str = "closed";
 /// The only inference claim of this row.
-pub const DOSE_GRID_INFERENCE_CLAIM: &str = "pointwise_calibration_unmeasured";
+pub const DOSE_GRID_INFERENCE_CLAIM: &str = "pointwise_calibration_not_measured";
+/// Additional required semantics: bias-aware intervals and band under a curvature bound.
+pub const DOSE_GRID_BIAS_AWARE_FEATURE: &str = "dose_grid_bias_aware_band_v1";
+/// Additional required semantics: declared sampling weights, clusters or a serial lag.
+pub const DOSE_GRID_DECLARED_ROWS_FEATURE: &str = "dose_grid_declared_rows_v1";
+/// State of a simultaneous band built under the declared curvature bound.
+pub const DOSE_GRID_BAND_BIAS_AWARE: &str = "bias_aware";
 
 const DESIGN_RANDOMIZED: &str = "randomized_dose";
 const DESIGN_OBSERVATIONAL: &str = "observational";
@@ -101,14 +123,27 @@ impl DoseGridArtifactError {
         match self {
             Self::UnsupportedSemantics(_) => (
                 antecedent_core::reason_code!("route_not_supported"),
-                "dose_grid.unsupported_semantics".to_owned(),
+                antecedent_core::reason_details::dose_grid::UNSUPPORTED_SEMANTICS.to_owned(),
             ),
-            Self::LimitsExceeded(_) => (invalid, "dose_grid.consumer_limit_exceeded".to_owned()),
+            Self::LimitsExceeded(_) => (
+                invalid,
+                antecedent_core::reason_details::dose_grid::CONSUMER_LIMIT_EXCEEDED.to_owned(),
+            ),
             Self::Refused { code, detail, .. } => (*code, detail.clone()),
-            Self::ResultMismatch => (invalid, "dose_grid.result_replay_mismatch".to_owned()),
-            Self::PremisesMismatch => (invalid, "dose_grid.premises_mismatch".to_owned()),
-            Self::DataMismatch => (invalid, "dose_grid.data_identity_mismatch".to_owned()),
-            Self::Undecodable(_) => (invalid, "dose_grid.undecodable".to_owned()),
+            Self::ResultMismatch => (
+                invalid,
+                antecedent_core::reason_details::dose_grid::RESULT_REPLAY_MISMATCH.to_owned(),
+            ),
+            Self::PremisesMismatch => {
+                (invalid, antecedent_core::reason_details::dose_grid::PREMISES_MISMATCH.to_owned())
+            }
+            Self::DataMismatch => (
+                invalid,
+                antecedent_core::reason_details::dose_grid::DATA_IDENTITY_MISMATCH.to_owned(),
+            ),
+            Self::Undecodable(_) => {
+                (invalid, antecedent_core::reason_details::dose_grid::UNDECODABLE.to_owned())
+            }
         }
     }
 }
@@ -123,14 +158,46 @@ impl From<DoseGridArtifactError> for IoError {
 impl From<EstimationError> for DoseGridArtifactError {
     fn from(error: EstimationError) -> Self {
         match error {
-            EstimationError::Refused { code, message }
-            | EstimationError::RefusedWithFields { code, message, .. } => {
-                let (detail, text) = message.split_once(": ").unwrap_or(("dose_grid.refused", ""));
-                Self::Refused { code, detail: detail.to_owned(), message: text.to_owned() }
+            EstimationError::Stats(
+                antecedent_stats::StatsError::Cancelled
+                | antecedent_stats::StatsError::Admission(
+                    antecedent_core::execution::AdmissionError::Cancelled,
+                ),
+            )
+            | EstimationError::Admission(antecedent_core::execution::AdmissionError::Cancelled) => {
+                Self::Refused {
+                    code: antecedent_core::reason_code!("transport_budget_cancel"),
+                    detail: antecedent_core::reason_details::dose_grid::CANCELLED.into(),
+                    message: "dose grid cancelled".into(),
+                }
             }
+            EstimationError::Stats(error @ antecedent_stats::StatsError::ResourceLimit { .. }) => {
+                Self::Refused {
+                    code: antecedent_core::reason_code!("transport_budget_cancel"),
+                    detail: antecedent_core::reason_details::dose_grid::RESOURCE_LIMIT.into(),
+                    message: error.to_string(),
+                }
+            }
+            EstimationError::Admission(error)
+            | EstimationError::Stats(antecedent_stats::StatsError::Admission(error)) => {
+                Self::Refused {
+                    code: antecedent_core::reason_code!("transport_budget_cancel"),
+                    detail: antecedent_core::reason_details::dose_grid::RESOURCE_LIMIT.into(),
+                    message: error.to_string(),
+                }
+            }
+            EstimationError::Refused { code, message }
+            | EstimationError::RefusedWithFields { code, message, .. } => Self::Refused {
+                code,
+                detail: message
+                    .detail()
+                    .unwrap_or(antecedent_core::reason_details::dose_grid::REFUSED)
+                    .to_owned(),
+                message: message.explanation().to_owned(),
+            },
             other => Self::Refused {
                 code: antecedent_core::reason_code!("invalid_argument"),
-                detail: "dose_grid.invalid_request".to_owned(),
+                detail: antecedent_core::reason_details::dose_grid::INVALID_REQUEST.to_owned(),
                 message: other.to_string(),
             },
         }
@@ -184,7 +251,7 @@ pub struct DoseGridRequestWire {
     pub design: String,
     /// Caller-attested exact `E[Y|D=d] = beta0 + beta1*d + beta2*d²`.
     /// Under this premise polynomial reproduction implies zero smoothing bias.
-    /// It is not inferred from the observed residuals; sampling calibration stays unmeasured.
+    /// It is not inferred from the observed residuals; sampling calibration stays `not_measured`.
     #[serde(default, skip_serializing_if = "is_false")]
     pub quadratic_mean: bool,
     /// The one named functional.
@@ -203,6 +270,82 @@ pub struct DoseGridRequestWire {
     pub dose: Vec<f64>,
     /// Observed outcomes, aligned with `dose`.
     pub outcome: Vec<f64>,
+    /// Declared curvature bound, band replicates and band seed of the bias-aware claims.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bias_aware: Option<DoseBiasAwareRequestWire>,
+    /// Sampling weights, one per row (finite, non-negative, at least one positive). Rows of
+    /// weight zero are deleted; the rest are normalized to mean one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sampling_weights: Option<Vec<f64>>,
+    /// Cluster id of each row; the variance is one-way cluster-robust. Not combined with
+    /// `serial_lag`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cluster: Option<Vec<u32>>,
+    /// Newey-West (Bartlett) lag for rows in time order at unit spacing; at least one and below
+    /// the number of rows. Not combined with `cluster`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub serial_lag: Option<u64>,
+}
+
+/// What the declared rows did, stored beside the unchanged row.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DoseDeclaredRowsResultWire {
+    /// Rows used after zero-weight rows were deleted.
+    pub rows_used: u64,
+    /// Rows of weight zero that were deleted (zero without weights).
+    pub zero_weight_rows: u64,
+    /// Kish effective size of the sampling weights of the rows used, when weights were declared.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weight_effective_sample_size: Option<f64>,
+    /// Sum of the declared weights of the rows used before normalization.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weight_sum: Option<f64>,
+    /// Clusters among the rows used, when rows were clustered.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clusters: Option<u64>,
+    /// Newey-West lag, when rows were serially dependent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub serial_lag: Option<u64>,
+    /// `normal` or `student_t_clusters_minus_one`: the reference of the pointwise interval.
+    pub interval_reference: String,
+}
+
+/// The declaration of the bias-aware intervals and band.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DoseBiasAwareRequestWire {
+    /// Bound on the absolute third derivative of the dose response.
+    pub curvature_bound: f64,
+    /// Gaussian multiplier replicates of the band.
+    pub band_replicates: u64,
+    /// Seed of the band's multiplier stream.
+    pub band_seed: u64,
+}
+
+/// The stored bias-aware intervals and band, beside the unchanged row.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DoseBiasAwareResultWire {
+    /// Declared curvature bound.
+    pub curvature_bound: f64,
+    /// Worst-case smoothing bias of each reported coordinate.
+    pub smoothing_bias_bound: Vec<f64>,
+    /// Bias-aware pointwise lower endpoints.
+    pub lower: Vec<f64>,
+    /// Bias-aware pointwise upper endpoints.
+    pub upper: Vec<f64>,
+    /// Lower band envelope (a grid of two or more doses only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub band_lower: Option<Vec<f64>>,
+    /// Upper band envelope.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub band_upper: Option<Vec<f64>>,
+    /// Sup-t critical value of the band.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub band_critical_value: Option<f64>,
+    /// Multiplier replicates behind the band (zero without a band).
+    pub band_replicates: u64,
 }
 
 /// One pointwise value (a level or a derivative) on the wire.
@@ -225,7 +368,7 @@ pub struct DosePointWire {
     pub upper: f64,
     /// Nominal level the normal quantile was taken at; not a coverage claim.
     pub nominal_level: f64,
-    /// Calibration status (`unmeasured`).
+    /// Calibration status (`not_measured`).
     pub calibration: String,
     /// Whether smoothing bias is accounted for: only the attested exact-quadratic scope.
     pub smoothing_bias_included: bool,
@@ -253,7 +396,7 @@ pub struct DoseContrastWire {
     pub upper: f64,
     /// Nominal level the normal quantile was taken at; not a coverage claim.
     pub nominal_level: f64,
-    /// Calibration status (`unmeasured`).
+    /// Calibration status (`not_measured`).
     pub calibration: String,
     /// Whether smoothing bias is accounted for: only the attested exact-quadratic scope.
     pub smoothing_bias_included: bool,
@@ -297,7 +440,7 @@ pub struct DoseGridResultWire {
     pub fits: usize,
     /// Largest absolute sum of linearized influences (zero in exact arithmetic).
     pub max_abs_influence_sum: f64,
-    /// Calibration status of every interval (`unmeasured`).
+    /// Calibration status of every interval (`not_measured`).
     pub calibration: String,
     /// Whether zero smoothing bias is derived under the attested exact-quadratic scope.
     pub smoothing_bias_included: bool,
@@ -305,6 +448,12 @@ pub struct DoseGridResultWire {
     pub simultaneous_band: String,
     /// The only inference claim of this row.
     pub inference_claim: String,
+    /// Bias-aware intervals and band under the declared curvature bound.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bias_aware: Option<DoseBiasAwareResultWire>,
+    /// What declared sampling weights, clusters or a serial lag did.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub declared_rows: Option<DoseDeclaredRowsResultWire>,
 }
 
 /// Versioned dose-grid result with every premise needed for replay.
@@ -340,6 +489,11 @@ struct PremisesView<'a> {
     minimum_local_ess: u64,
     claims: &'a DoseClaimsWire,
     rows: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bias_aware: Option<(u64, u64, u64)>,
+    /// `(weights declared, clusters declared, serial lag)`; absent for plain rows.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    declared_rows: Option<(bool, bool, Option<u64>)>,
 }
 
 #[derive(Serialize)]
@@ -347,6 +501,10 @@ struct DataView {
     tag: &'static str,
     dose: Vec<u64>,
     outcome: Vec<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sampling_weights: Option<Vec<u64>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cluster: Option<Vec<u32>>,
 }
 
 fn bits(values: &[f64]) -> Vec<u64> {
@@ -358,10 +516,16 @@ const fn is_false(value: &bool) -> bool {
     !*value
 }
 
-fn required_features(quadratic_mean: bool) -> Vec<String> {
+fn required_features(quadratic_mean: bool, bias_aware: bool, declared_rows: bool) -> Vec<String> {
     let mut features = vec![DOSE_GRID_ARTIFACT_FEATURE.to_owned()];
     if quadratic_mean {
         features.push(DOSE_GRID_QUADRATIC_FEATURE.to_owned());
+    }
+    if bias_aware {
+        features.push(DOSE_GRID_BIAS_AWARE_FEATURE.to_owned());
+    }
+    if declared_rows {
+        features.push(DOSE_GRID_DECLARED_ROWS_FEATURE.to_owned());
     }
     features
 }
@@ -372,7 +536,7 @@ fn status_name(label: SupportStatus) -> String {
 
 fn calibration_name(calibration: IntervalCalibration) -> String {
     match calibration {
-        IntervalCalibration::Unmeasured => DOSE_GRID_CALIBRATION.to_owned(),
+        IntervalCalibration::NotMeasured => DOSE_GRID_CALIBRATION.to_owned(),
     }
 }
 
@@ -442,7 +606,38 @@ impl DoseGridRequestWire {
             minimum_local_ess: self.minimum_local_ess.to_bits(),
             claims: &self.claims,
             rows: self.dose.len(),
+            bias_aware: self.bias_aware.map(|declared| {
+                (declared.curvature_bound.to_bits(), declared.band_replicates, declared.band_seed)
+            }),
+            declared_rows: self.declares_rows().then_some((
+                self.sampling_weights.is_some(),
+                self.cluster.is_some(),
+                self.serial_lag,
+            )),
         }
+    }
+
+    /// Whether any of the sampling weights, clusters or serial lag is declared.
+    fn declares_rows(&self) -> bool {
+        self.sampling_weights.is_some() || self.cluster.is_some() || self.serial_lag.is_some()
+    }
+
+    /// The declaration as the estimator reads it.
+    fn row_declaration(&self) -> Result<RowDeclaration<'_>, DoseGridArtifactError> {
+        let dependence = match (&self.cluster, self.serial_lag) {
+            (Some(_), Some(_)) => {
+                return Err(DoseGridArtifactError::UnsupportedSemantics(
+                    "clusters and a serial lag are not offered together: a panel needs a unit and a time",
+                ));
+            }
+            (Some(groups), None) => RowDependence::Clustered(groups),
+            (None, Some(lag)) => RowDependence::Serial {
+                lag: usize::try_from(lag)
+                    .map_err(|_| DoseGridArtifactError::LimitsExceeded("serial lag"))?,
+            },
+            (None, None) => RowDependence::Independent,
+        };
+        Ok(RowDeclaration { sampling_weights: self.sampling_weights.as_deref(), dependence })
     }
 
     fn premises_digest(&self) -> Result<String, IoError> {
@@ -454,6 +649,8 @@ impl DoseGridRequestWire {
             tag: "dose_grid_functional_data_v1",
             dose: bits(&self.dose),
             outcome: bits(&self.outcome),
+            sampling_weights: self.sampling_weights.as_deref().map(bits),
+            cluster: self.cluster.clone(),
         };
         crate::digest_hex(IdentityDomain::DataSnapshot, &view)
     }
@@ -466,7 +663,10 @@ impl DoseGridRequestWire {
     }
 
     /// Run the row on this request and render its result.
-    fn evaluate(&self) -> Result<DoseGridResultWire, DoseGridArtifactError> {
+    fn evaluate(
+        &self,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<DoseGridResultWire, DoseGridArtifactError> {
         let design = self.design()?;
         let functional = self.functional()?;
         let request = DoseGridRequest {
@@ -484,17 +684,74 @@ impl DoseGridRequestWire {
             },
             design,
         };
-        let row = if self.quadratic_mean {
-            estimate_dose_grid_quadratic_mean(&request)?
-        } else {
-            estimate_dose_grid_functional(&request)?
+        let (row, bias_aware) = match self.bias_aware {
+            Some(declared) => {
+                let rows = self.row_declaration()?;
+                if self.quadratic_mean {
+                    return Err(DoseGridArtifactError::UnsupportedSemantics(
+                        "the exact-quadratic premise and a curvature bound are separate rows",
+                    ));
+                }
+                let replicates = usize::try_from(declared.band_replicates)
+                    .map_err(|_| DoseGridArtifactError::LimitsExceeded("band replicates"))?;
+                if replicates > 100_000 {
+                    return Err(DoseGridArtifactError::LimitsExceeded("band replicates"));
+                }
+                // Each replicate costs rows x grid doses, so the product is bounded, not just
+                // the replicate count.
+                let work = (replicates as u128)
+                    .saturating_mul(self.dose.len() as u128)
+                    .saturating_mul(self.grid.len().max(1) as u128);
+                if work > MAX_BAND_WORK {
+                    return Err(DoseGridArtifactError::LimitsExceeded("band work"));
+                }
+                // The band is replayed from its own seed, whatever the caller's context.
+                let mut band_ctx = ctx.clone();
+                band_ctx.rng = antecedent_core::RngFactory::from_seed(declared.band_seed);
+                let fit = estimate_dose_grid_bias_aware_declared(
+                    &request,
+                    &rows,
+                    declared.curvature_bound,
+                    replicates,
+                    &band_ctx,
+                )?;
+                let section = DoseBiasAwareResultWire {
+                    curvature_bound: fit.curvature_bound,
+                    smoothing_bias_bound: fit.smoothing_bias_bound.clone(),
+                    lower: fit.intervals.iter().map(|interval| interval.lower).collect(),
+                    upper: fit.intervals.iter().map(|interval| interval.upper).collect(),
+                    band_lower: fit.band.as_ref().map(|band| band.lower.clone()),
+                    band_upper: fit.band.as_ref().map(|band| band.upper.clone()),
+                    band_critical_value: fit.band_critical_value,
+                    band_replicates: fit.band_replicates as u64,
+                };
+                (fit.row, Some(section))
+            }
+            None if self.quadratic_mean => (
+                estimate_dose_grid_quadratic_mean_declared(
+                    &request,
+                    &self.row_declaration()?,
+                    ctx,
+                )?,
+                None,
+            ),
+            None => (
+                estimate_dose_grid_functional_declared(&request, &self.row_declaration()?, ctx)?,
+                None,
+            ),
         };
         let points = self.evaluation_points(functional);
-        let result = self.render(&row, &points, design);
+        let mut result = self.render(&row, &points, design);
+        if let Some(section) = bias_aware {
+            if section.band_lower.is_some() {
+                DOSE_GRID_BAND_BIAS_AWARE.clone_into(&mut result.simultaneous_band);
+            }
+            result.bias_aware = Some(section);
+        }
         if !result_is_finite(&result) {
             return Err(DoseGridArtifactError::Refused {
                 code: antecedent_core::reason_code!("transport_numerical_failure"),
-                detail: "dose_grid.non_finite_result".to_owned(),
+                detail: antecedent_core::reason_details::dose_grid::NON_FINITE_RESULT.to_owned(),
                 message: "the local fit produced a non-finite value".to_owned(),
             });
         }
@@ -564,6 +821,20 @@ impl DoseGridRequestWire {
                 "open".to_owned()
             },
             inference_claim: DOSE_GRID_INFERENCE_CLAIM.to_owned(),
+            bias_aware: None,
+            declared_rows: (!row.declared.is_plain()).then(|| DoseDeclaredRowsResultWire {
+                rows_used: row.n_rows as u64,
+                zero_weight_rows: row.declared.weights.map_or(0, |w| w.zero_weight_rows),
+                weight_effective_sample_size: row.declared.weights.map(|w| w.effective_sample_size),
+                weight_sum: row.declared.weights.map(|w| w.weight_sum),
+                clusters: row.declared.clusters.map(|g| g as u64),
+                serial_lag: row.declared.lag.map(|l| l as u64),
+                interval_reference: if row.declared.clusters.is_some() {
+                    "student_t_clusters_minus_one".to_owned()
+                } else {
+                    "normal".to_owned()
+                },
+            }),
         }
     }
 
@@ -630,7 +901,20 @@ fn result_is_finite(result: &DoseGridResultWire) -> bool {
         && result.support.iter().all(|s| s.dose.is_finite() && s.local_ess.is_finite())
         && result.bandwidth.is_finite()
         && result.max_abs_influence_sum.is_finite()
+        && result.bias_aware.as_ref().is_none_or(|section| {
+            section
+                .smoothing_bias_bound
+                .iter()
+                .chain(&section.lower)
+                .chain(&section.upper)
+                .chain(section.band_lower.iter().flatten())
+                .chain(section.band_upper.iter().flatten())
+                .all(|v| v.is_finite())
+        })
 }
+
+/// Most `replicates x rows x grid doses` a declared simultaneous band may cost.
+const MAX_BAND_WORK: u128 = 10_000_000_000;
 
 impl DoseGridArtifactWire {
     /// Evaluate the row on `request` and seal the result with both digests.
@@ -639,12 +923,26 @@ impl DoseGridArtifactWire {
     /// The row's typed refusal (`dose_grid.*`), a stored collection above the default
     /// consumer bounds, or an unsupported spelling.
     pub fn seal(request: DoseGridRequestWire) -> Result<Self, DoseGridArtifactError> {
+        Self::seal_with_context(request, &antecedent_core::ExecutionContext::production_default(0))
+    }
+
+    /// Seal under execution controls without changing the artifact premises.
+    /// # Errors
+    /// As [`Self::seal`], including execution refusals.
+    pub fn seal_with_context(
+        request: DoseGridRequestWire,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, DoseGridArtifactError> {
         request.check_limits(&DoseGridConsumeLimits::default())?;
-        let result = request.evaluate()?;
+        let result = request.evaluate(ctx)?;
         let undecodable = |e: IoError| DoseGridArtifactError::Undecodable(e.to_string());
         let wire = Self {
             version: DOSE_GRID_ARTIFACT_VERSION,
-            required_features: required_features(request.quadratic_mean),
+            required_features: required_features(
+                request.quadratic_mean,
+                request.bias_aware.is_some(),
+                request.declares_rows(),
+            ),
             premises_digest: request.premises_digest().map_err(undecodable)?,
             data_digest: request.data_digest().map_err(undecodable)?,
             request,
@@ -673,23 +971,39 @@ impl DoseGridArtifactWire {
 
     fn validate_shape(&self) -> Result<(), DoseGridArtifactError> {
         let unsupported = DoseGridArtifactError::UnsupportedSemantics;
-        if self.required_features != required_features(self.request.quadratic_mean) {
+        if self.required_features
+            != required_features(
+                self.request.quadratic_mean,
+                self.request.bias_aware.is_some(),
+                self.request.declares_rows(),
+            )
+        {
             return Err(unsupported("required features"));
         }
         if self.result.calibration != DOSE_GRID_CALIBRATION
             || self.result.smoothing_bias_included != self.request.quadratic_mean
             || self.result.inference_claim != DOSE_GRID_INFERENCE_CLAIM
         {
-            return Err(unsupported("this row publishes pointwise unmeasured intervals only"));
+            return Err(unsupported("this row publishes pointwise not_measured intervals only"));
         }
-        if self.result.simultaneous_band != DOSE_GRID_BAND_CLOSED
-            || self.request.claims.simultaneous_band
+        let band_open = self.result.bias_aware.as_ref().is_some_and(|s| s.band_lower.is_some());
+        let expected_band =
+            if band_open { DOSE_GRID_BAND_BIAS_AWARE } else { DOSE_GRID_BAND_CLOSED };
+        if self.result.simultaneous_band != expected_band
+            || self.request.bias_aware.is_some() != self.result.bias_aware.is_some()
+            || (self.request.claims.simultaneous_band && !band_open)
         {
-            return Err(unsupported("the simultaneous band is closed"));
+            return Err(unsupported(
+                "the simultaneous band is not supported without a declared curvature bound",
+            ));
         }
         if self.request.dose.len() != self.request.outcome.len() {
             return Err(unsupported("dose and outcome tables must align"));
         }
+        if self.request.declares_rows() != self.result.declared_rows.is_some() {
+            return Err(unsupported("declared rows and their stored accounting must agree"));
+        }
+        self.request.row_declaration()?;
         Ok(())
     }
 
@@ -737,6 +1051,21 @@ impl DoseGridArtifactWire {
         bytes: &[u8],
         limits: DoseGridConsumeLimits,
     ) -> Result<Self, DoseGridArtifactError> {
+        Self::consume_typed_with_context(
+            bytes,
+            limits,
+            &antecedent_core::ExecutionContext::production_default(0),
+        )
+    }
+
+    /// Recompute an artifact under execution controls.
+    /// # Errors
+    /// As [`Self::consume_typed`], including execution refusals.
+    pub fn consume_typed_with_context(
+        bytes: &[u8],
+        limits: DoseGridConsumeLimits,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, DoseGridArtifactError> {
         let wire = Self::decode(bytes).map_err(|e| match e {
             IoError::Refused { .. } => DoseGridArtifactError::UnsupportedSemantics("shape"),
             other => DoseGridArtifactError::Undecodable(other.to_string()),
@@ -752,7 +1081,7 @@ impl DoseGridArtifactWire {
         crate::require_digest(&wire.data_digest, wire.request.data_digest(), undecodable, || {
             DoseGridArtifactError::DataMismatch
         })?;
-        let fresh = wire.request.evaluate()?;
+        let fresh = wire.request.evaluate(ctx)?;
         let stored = crate::to_cbor(&wire.result).map_err(undecodable)?;
         let recomputed = crate::to_cbor(&fresh).map_err(undecodable)?;
         if stored != recomputed {

@@ -6,15 +6,19 @@
 //! reuses it together with the shared exogenous states; a request that changes
 //! the factual evidence, a mechanism table or exogenous law, the structure, the
 //! population or the history has a different identity and abduces again.
-//! Reuse is never a license: the matrix, the closed readings and the joint-law
+//! Reuse is never support: the matrix, the unsupported readings and the joint-law
 //! rule are applied to every request before any work, reused or not.
 //!
-//! The row is exact enumeration: nothing is sampled, so `shared_draws` is
-//! always zero and no interval or posterior is produced (those readings are
-//! closed; see `docs/cross-world-execution.md` for the recorded calibration
-//! design that would be required to open a sampled route).
+//! The row is exact: nothing is sampled, so `shared_draws` is always zero and no
+//! interval or posterior is produced (those readings are not supported; see
+//! `docs/cross-world-execution.md` for the recorded calibration design that
+//! would be required to open a sampled route). Up to the joint-state bound the
+//! exogenous posterior is enumerated and retained; past it the same quantity is
+//! computed by exact variable elimination ([`super::factorized`]), which retains
+//! nothing (its work depends on the worlds and the quantity) and records its plan
+//! in [`FiniteExecutionResult::elimination`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -25,9 +29,11 @@ use antecedent_contract::{
 };
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 
+use super::factorized::{EliminationWork, infer_unit};
 use super::finite_scm::{
-    FactualUnit, FiniteQuantity, FiniteScm, FiniteWorld, MAX_ABDUCTION_WORK, Posterior, WorldPlan,
-    abduct_unit, evaluate_worlds, validate_units, validate_worlds,
+    CompensatedSum, CompiledScm, FactualUnit, FiniteQuantity, FiniteScm, FiniteWorld,
+    MAX_ABDUCTION_WORK, MAX_EVALUATION_WORK, Posterior, WorldPlan, abduct_unit, evaluate_worlds,
+    validate_units, validate_worlds,
 };
 use super::matrix::{
     CapabilityStatus, ConditioningKind, EvidenceKind, HistoryKind, InterventionKind, MatrixRefusal,
@@ -41,7 +47,8 @@ use super::stages::{
     stream_identity,
 };
 
-/// Most abductions an executor retains; the smallest identity is evicted.
+/// Default most abductions an executor retains; the smallest identity is evicted. A caller
+/// with another budget builds the executor with [`FiniteScmExecutor::with_max_retained`].
 pub const MAX_RETAINED: usize = 4096;
 /// The only claim of this row.
 pub const INFERENCE_LABEL: &str = "point_only";
@@ -75,8 +82,46 @@ impl NoiseCoupling {
 pub enum ExogenousInference {
     /// Exact enumeration of the joint exogenous states.
     ExactEnumeration,
-    /// Posterior sampling: closed, no coverage record exists.
+    /// Posterior sampling: not supported; exact enumeration is the exogenous posterior.
     PosteriorSampling,
+}
+
+/// How an execution obtained the exogenous posterior it evaluated the worlds under.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ExogenousMethod {
+    /// Every joint exogenous state was enumerated; the posterior is retained per unit.
+    JointEnumeration,
+    /// The joint space exceeded the enumeration bound: the quantity was computed exactly by
+    /// variable elimination over the factor graph, and nothing is retained.
+    VariableElimination,
+}
+
+impl ExogenousMethod {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::JointEnumeration => "joint_enumeration",
+            Self::VariableElimination => "variable_elimination",
+        }
+    }
+}
+
+/// The plan and work of an exact variable-elimination execution, over all its units.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EliminationReceipt {
+    /// Units eliminated.
+    pub units: u64,
+    /// Most variables of one unit's factor graph.
+    pub max_nodes: u64,
+    /// Most factors one unit's graph started with.
+    pub max_factors: u64,
+    /// Entries of the largest table formed.
+    pub peak_table_entries: u64,
+    /// Multiply-accumulate operations over all units.
+    pub multiplications: u64,
+    /// Digest over every unit's elimination order.
+    pub plan_digest: String,
 }
 
 /// A cross-world request over a fully declared finite SCM.
@@ -98,7 +143,7 @@ pub struct FiniteExecutionRequest {
     pub exogenous: ExogenousInference,
     /// Target population, when different from the mechanisms' population.
     pub target_population: Option<String>,
-    /// The reading asked for; only a point is licensed.
+    /// The reading asked for; only a point is supported.
     pub reading: RequestedReading,
 }
 
@@ -154,7 +199,7 @@ pub struct ExecutionReceipt {
 /// The answer of one execution.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FiniteExecutionResult {
-    /// The matrix row that licensed the request.
+    /// The matrix row that supported the request.
     pub matrix_row: &'static str,
     /// Mean of the unit values (units in id order).
     pub value: f64,
@@ -168,24 +213,120 @@ pub struct FiniteExecutionResult {
     pub receipt: ExecutionReceipt,
     /// The inference label (`point_only`).
     pub label: &'static str,
+    /// How the exogenous posterior was obtained.
+    pub method: ExogenousMethod,
+    /// The elimination plan and work, when [`Self::method`] is variable elimination.
+    pub elimination: Option<EliminationReceipt>,
+    /// The exact spread of the quantity over the exogenous noise, present exactly when the
+    /// spread reading was requested.
+    pub spread: Option<NoiseSpread>,
+}
+
+/// The exact distribution of one unit's counterfactual quantity over its exogenous posterior.
+#[derive(Clone, Debug, PartialEq)]
+pub struct UnitSpread {
+    /// The unit.
+    pub unit: String,
+    /// `(value, posterior probability)` pairs, ascending in value, one per distinct value.
+    pub distribution: Vec<(f64, f64)>,
+    /// Posterior variance of the quantity over the unit's exogenous noise.
+    pub variance: f64,
+}
+
+/// The exact noise spread of an execution: not a sampling uncertainty of an estimate and
+/// carrying no coverage statement. The mechanisms are declared, so the only randomness left is
+/// the exogenous posterior, which is enumerated.
+#[derive(Clone, Debug, PartialEq)]
+pub struct NoiseSpread {
+    /// Per-unit distributions, sorted by unit id.
+    pub units: Vec<UnitSpread>,
+    /// Variance of the unit mean `value` over the exogenous noise, with the units' exogenous
+    /// terms independent given their own evidence: the sum of the unit variances over the
+    /// squared unit count.
+    pub mean_variance: f64,
+    /// The label of this reading.
+    pub label: &'static str,
+}
+
+/// The label of the exact noise spread.
+pub const SPREAD_LABEL: &str = "exact_noise_spread";
+/// The label of the envelope over a declared parameter set.
+pub const ENVELOPE_LABEL: &str = "declared_set_envelope";
+
+/// One member's contribution to an envelope.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EnvelopeMember {
+    /// Position in the declared set (0 is the request's own mechanisms).
+    pub index: usize,
+    /// The member's point value (the mean of its unit values).
+    pub value: f64,
+}
+
+/// One unit's range over the declared set.
+#[derive(Clone, Debug, PartialEq)]
+pub struct UnitEnvelope {
+    /// The unit.
+    pub unit: String,
+    /// Smallest value over the set.
+    pub lower: f64,
+    /// Largest value over the set.
+    pub upper: f64,
+}
+
+/// The minimum and maximum of the point value over a finite declared parameter set.
+///
+/// It is exactly the range over the declared members, each executed by the exact point row; it
+/// says nothing about parameter values between or beyond the members.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FiniteEnvelopeResult {
+    /// Smallest mean value over the set.
+    pub lower: f64,
+    /// Largest mean value over the set.
+    pub upper: f64,
+    /// Index of the member attaining `lower` (the first on ties).
+    pub lower_member: usize,
+    /// Index of the member attaining `upper` (the first on ties).
+    pub upper_member: usize,
+    /// Every member's value in declaration order.
+    pub members: Vec<EnvelopeMember>,
+    /// Per-unit ranges, sorted by unit id.
+    pub units: Vec<UnitEnvelope>,
+    /// `declared_set_envelope`.
+    pub label: &'static str,
 }
 
 /// A selective executor over the fully declared finite SCM rows.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct FiniteScmExecutor {
     retained: BTreeMap<String, Arc<RetainedAbduction>>,
     counters: WorkCounters,
+    max_retained: usize,
+}
+
+impl Default for FiniteScmExecutor {
+    fn default() -> Self {
+        Self::with_max_retained(MAX_RETAINED)
+    }
 }
 
 fn digest(tag: &str) -> CanonicalWriter {
     CanonicalWriter::new(&format!("antecedent.counterfactual.selective.{tag}.v1"))
 }
 
-fn abduction_identity(mechanism: &str, evidence: &str, shared_exogenous: bool) -> String {
+fn abduction_identity(
+    mechanism: &str,
+    evidence: &str,
+    shared_exogenous: bool,
+    method: ExogenousMethod,
+) -> String {
     let structure =
         if shared_exogenous { "shared_exogenous_joint" } else { "independent_exogenous_markov" };
+    let inference = match method {
+        ExogenousMethod::JointEnumeration => "exact_enumeration",
+        ExogenousMethod::VariableElimination => "exact_variable_elimination",
+    };
     let mut w = digest("abduction");
-    w.text(mechanism).text(evidence).text("exact_enumeration").text(structure);
+    w.text(mechanism).text(evidence).text(inference).text(structure);
     w.finish_hex()
 }
 
@@ -204,6 +345,29 @@ fn draws_digest(identity: &str, scm: &FiniteScm, unit: &str, posterior: &Posteri
     w.finish_hex()
 }
 
+fn unit_spread(unit: &str, mut distribution: Vec<(f64, f64)>) -> UnitSpread {
+    distribution.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let mut mean = CompensatedSum::default();
+    for (v, w) in &distribution {
+        mean.add(v * w);
+    }
+    let mean = mean.total();
+    let mut var = CompensatedSum::default();
+    for (v, w) in &distribution {
+        var.add(w * (v - mean) * (v - mean));
+    }
+    UnitSpread { unit: unit.to_owned(), distribution, variance: var.total() }
+}
+
+fn noise_spread(units: Vec<UnitSpread>) -> NoiseSpread {
+    let mut sum = CompensatedSum::default();
+    for u in &units {
+        sum.add(u.variance);
+    }
+    let n = units.len() as f64;
+    NoiseSpread { mean_variance: sum.total() / (n * n), units, label: SPREAD_LABEL }
+}
+
 fn classify(request: &FiniteExecutionRequest, involved: &[usize]) -> QuantityClass {
     let routed = involved.iter().any(|w| !request.worlds[*w].routes.is_empty());
     if routed {
@@ -216,6 +380,24 @@ fn classify(request: &FiniteExecutionRequest, involved: &[usize]) -> QuantityCla
     }
 }
 
+fn same_structure(a: &FiniteScm, b: &FiniteScm) -> bool {
+    a.population == b.population
+        && a.history == b.history
+        && a.exogenous.len() == b.exogenous.len()
+        && a.exogenous
+            .iter()
+            .zip(&b.exogenous)
+            .all(|(x, y)| x.name == y.name && x.pmf.len() == y.pmf.len())
+        && a.variables.len() == b.variables.len()
+        && a.variables.iter().zip(&b.variables).all(|(x, y)| {
+            x.name == y.name
+                && x.levels == y.levels
+                && x.parents == y.parents
+                && x.exogenous == y.exogenous
+                && x.table.len() == y.table.len()
+        })
+}
+
 fn matrix_error(refusal: MatrixRefusal) -> CrossWorldExecutionError {
     refuse_missing(
         refusal.code,
@@ -226,11 +408,53 @@ fn matrix_error(refusal: MatrixRefusal) -> CrossWorldExecutionError {
     )
 }
 
+fn check_enumeration_work(
+    method: ExogenousMethod,
+    compiled: &CompiledScm<'_>,
+    units: usize,
+    request: &FiniteExecutionRequest,
+) -> Result<(), CrossWorldExecutionError> {
+    if method == ExogenousMethod::JointEnumeration {
+        if units.saturating_mul(compiled.joint_states) > MAX_ABDUCTION_WORK {
+            return Err(invalid(
+                antecedent_core::reason_details::cross_world_execution::BOUNDS_EXCEEDED,
+                "abduction_work",
+            ));
+        }
+        if compiled
+            .joint_states
+            .saturating_mul(request.scm.variables.len())
+            .saturating_mul(request.worlds.len())
+            > MAX_EVALUATION_WORK
+        {
+            return Err(invalid(
+                antecedent_core::reason_details::cross_world_execution::BOUNDS_EXCEEDED,
+                "evaluation_work",
+            ));
+        }
+    }
+    Ok(())
+}
+
 impl FiniteScmExecutor {
-    /// An executor with nothing retained.
+    /// An executor with nothing retained that keeps at most [`MAX_RETAINED`] abductions.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// An executor with nothing retained that keeps at most `max_retained` abductions
+    /// (the smallest identity is evicted first). Zero retains nothing, so every request
+    /// abduces again.
+    #[must_use]
+    pub fn with_max_retained(max_retained: usize) -> Self {
+        Self { retained: BTreeMap::new(), counters: WorkCounters::default(), max_retained }
+    }
+
+    /// The most abductions this executor retains.
+    #[must_use]
+    pub const fn max_retained(&self) -> usize {
+        self.max_retained
     }
 
     /// Cumulative observed work.
@@ -264,27 +488,36 @@ impl FiniteScmExecutor {
     fn static_checks(request: &FiniteExecutionRequest) -> Result<(), CrossWorldExecutionError> {
         if request.exogenous == ExogenousInference::PosteriorSampling {
             return Err(refuse(
-                antecedent_core::reason_code!("cell_not_licensed"),
-                "cross_world_execution.sampled_abduction_not_licensed",
+                antecedent_core::reason_code!("estimator_inference_mismatch"),
+                antecedent_core::reason_details::cross_world_execution::SAMPLED_ABDUCTION_NOT_SUPPORTED,
                 Some("posterior_sampling".to_owned()),
-                "this row enumerates the exogenous posterior exactly; a sampled posterior has \
-                 no measured coverage record for the whole abduction-action-prediction path, \
-                 so request exact enumeration",
+                "this row enumerates the exogenous posterior exactly; a sampled posterior only \
+                 adds Monte Carlo error to an exactly computable quantity, so request exact \
+                 enumeration",
             ));
         }
-        if let Some(target) = &request.target_population {
-            if target != &request.scm.population {
-                let refused = MatrixRequest {
-                    quantity: QuantityClass::TransportedCrossWorld,
-                    model: ModelClass::FiniteMarkovianScm,
-                    conditioning: ConditioningKind::FactualEvidence,
-                    interventions: InterventionKind::Hard,
-                    population: PopulationKind::Transported,
-                    history: HistoryKind::NoHistory,
-                    evidence: EvidenceKind::DeclaredMechanisms,
-                };
-                return decide(&refused).map(|_| ()).map_err(matrix_error);
-            }
+        if request.reading == RequestedReading::Envelope {
+            return Err(refuse(
+                antecedent_core::reason_code!("route_not_supported"),
+                antecedent_core::reason_details::cross_world_execution::ENVELOPE_NEEDS_PARAMETER_SET,
+                Some("envelope".to_owned()),
+                "an envelope is the range over a declared set of parameterisations; declare the \
+                 set and call execute_envelope, or request the point or spread reading",
+            ));
+        }
+        if let Some(target) = &request.target_population
+            && target != &request.scm.population
+        {
+            let refused = MatrixRequest {
+                quantity: QuantityClass::TransportedCrossWorld,
+                model: ModelClass::FiniteMarkovianScm,
+                conditioning: ConditioningKind::FactualEvidence,
+                interventions: InterventionKind::Hard,
+                population: PopulationKind::Transported,
+                history: HistoryKind::NoHistory,
+                evidence: EvidenceKind::DeclaredMechanisms,
+            };
+            return decide(&refused).map(|_| ()).map_err(matrix_error);
         }
         if request.evidence_history != request.scm.history {
             let refused = MatrixRequest {
@@ -348,7 +581,14 @@ impl FiniteScmExecutor {
             operation,
             inputs,
             dependence,
-            reading: request.reading,
+            // The noise spread is a property of the exactly enumerated exogenous law, not a
+            // composition of estimates, so the pairing it needs is the point reading's: the
+            // same aligned joint law, or the same refusal.
+            reading: if request.reading == RequestedReading::Spread {
+                RequestedReading::Point
+            } else {
+                request.reading
+            },
         })
         .map(|_| ())
         .map_err(from_external)
@@ -364,6 +604,10 @@ impl FiniteScmExecutor {
     /// # Errors
     /// A typed refusal ([`CrossWorldExecutionError::Refused`]) or cancellation.
     #[allow(clippy::too_many_lines, reason = "one sequential pipeline of five named stages")]
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact equality preserves discrete values and normalization boundaries"
+    )]
     pub fn execute(
         &mut self,
         request: &FiniteExecutionRequest,
@@ -371,13 +615,16 @@ impl FiniteScmExecutor {
     ) -> Result<FiniteExecutionResult, CrossWorldExecutionError> {
         poll(ctx)?;
         Self::static_checks(request)?;
-        let compiled = request.scm.compile()?;
+        let compiled = request.scm.compile_layout()?;
         let units = validate_units(&request.scm, &request.units)?;
         validate_worlds(&request.scm, &request.worlds)?;
         request.quantity.validate(&request.scm, request.worlds.len())?;
-        if units.len().saturating_mul(compiled.joint_states) > MAX_ABDUCTION_WORK {
-            return Err(invalid("cross_world_execution.bounds_exceeded", "abduction_work"));
-        }
+        let method = if compiled.enumerable() {
+            ExogenousMethod::JointEnumeration
+        } else {
+            ExogenousMethod::VariableElimination
+        };
+        check_enumeration_work(method, &compiled, units.len(), request)?;
         let involved = request.quantity.involved_worlds(&request.worlds);
         let conditioning = if units.iter().all(|u| u.observed.is_empty()) {
             ConditioningKind::NoEvidence
@@ -405,7 +652,10 @@ impl FiniteScmExecutor {
             .iter()
             .map(|u| {
                 let evidence = u.digest();
-                (abduction_identity(&mechanism, &evidence, compiled.shared_exogenous), evidence)
+                (
+                    abduction_identity(&mechanism, &evidence, compiled.shared_exogenous, method),
+                    evidence,
+                )
             })
             .collect();
         let mut set = digest("abduction_set");
@@ -419,6 +669,17 @@ impl FiniteScmExecutor {
         }
         let evidence_ids = evidence_set.finish_hex();
         Self::check_pairing(request, row, &involved, &evidence_ids, &abduction_set)?;
+        if method == ExogenousMethod::VariableElimination {
+            return self.execute_eliminated(
+                request,
+                &compiled,
+                &units,
+                row,
+                (&mechanism, &abduction_set),
+                &identities,
+                ctx,
+            );
+        }
 
         // Abduction (stage 2) and exogenous draws (stage 3): reuse by identity.
         let before = self.counters;
@@ -456,23 +717,24 @@ impl FiniteScmExecutor {
 
         // Action-specific prediction (stage 4) and summary (stage 5).
         let plans: Vec<WorldPlan> = (0..request.worlds.len())
-            .map(|w| WorldPlan::new(&request.scm, &request.worlds, w))
+            .map(|w| WorldPlan::from_validated(&request.scm, &request.worlds, w))
             .collect();
         let n_vars = request.scm.variables.len();
         let mut values = vec![vec![0u8; n_vars]; request.worlds.len()];
         let mut answers = Vec::with_capacity(units.len());
-        let mut total = 0.0;
+        let mut total = CompensatedSum::default();
         for (unit, retained) in units.iter().zip(&resolved) {
             poll(ctx)?;
-            let mut value = 0.0;
+            let mut expectation = CompensatedSum::default();
             for (state, weight) in &retained.posterior.states {
                 evaluate_worlds(&compiled, &plans, *state as usize, &mut values);
-                value += weight * request.quantity.at_state(&values);
+                expectation.add(weight * request.quantity.at_state(&values));
             }
+            let value = expectation.total();
             counters.world_predictions += request.worlds.len() as u64;
             counters.posterior_states_predicted +=
                 (retained.posterior.states.len() * request.worlds.len()) as u64;
-            total += value;
+            total.add(value);
             answers.push(UnitAnswer {
                 unit: unit.unit.clone(),
                 value,
@@ -480,15 +742,34 @@ impl FiniteScmExecutor {
             });
         }
         counters.summaries += 1;
-        let mean = total / answers.len() as f64;
+        let mean = total.total() / answers.len() as f64;
+        let spread = if request.reading == RequestedReading::Spread {
+            let mut spreads = Vec::with_capacity(units.len());
+            for (unit, retained) in units.iter().zip(&resolved) {
+                poll(ctx)?;
+                let mut distribution: Vec<(f64, f64)> = Vec::new();
+                for (state, weight) in &retained.posterior.states {
+                    evaluate_worlds(&compiled, &plans, *state as usize, &mut values);
+                    let v = request.quantity.at_state(&values);
+                    match distribution.iter_mut().find(|(x, _)| *x == v) {
+                        Some(entry) => entry.1 += weight,
+                        None => distribution.push((v, *weight)),
+                    }
+                }
+                spreads.push(unit_spread(&unit.unit, distribution));
+            }
+            Some(noise_spread(spreads))
+        } else {
+            None
+        };
 
         let (receipt, stages) =
-            Self::receipts(request, &mechanism, &resolved, computed, &abduction_set);
+            Self::receipts(request, &mechanism, &resolved, computed, &abduction_set)?;
         // Commit atomically after every stage succeeded.
         for entry in &resolved {
             self.retained.entry(entry.identity.clone()).or_insert_with(|| Arc::clone(entry));
         }
-        while self.retained.len() > MAX_RETAINED {
+        while self.retained.len() > self.max_retained {
             if let Some(first) = self.retained.keys().next().cloned() {
                 self.retained.remove(&first);
             }
@@ -502,6 +783,233 @@ impl FiniteScmExecutor {
             work: counters.since(before),
             receipt,
             label: INFERENCE_LABEL,
+            method,
+            elimination: None,
+            spread,
+        })
+    }
+
+    /// The execution past the enumeration bound: per unit, exact variable elimination of the
+    /// factor graph of the exogenous terms and the per-world variables.
+    ///
+    /// The elimination depends on the worlds and the quantity as well as the evidence, so no
+    /// abduction is retained and none is reused; every stage reports `Computed`.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the identities one execution has already derived"
+    )]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the bounded scientific procedure keeps its checks together"
+    )]
+    fn execute_eliminated(
+        &mut self,
+        request: &FiniteExecutionRequest,
+        compiled: &CompiledScm<'_>,
+        units: &[FactualUnit],
+        row: &MatrixRow,
+        (mechanism, abduction_set): (&str, &str),
+        identities: &[(String, String)],
+        ctx: &ExecutionContext,
+    ) -> Result<FiniteExecutionResult, CrossWorldExecutionError> {
+        let spread_requested = request.reading == RequestedReading::Spread;
+        if spread_requested && matches!(request.quantity, FiniteQuantity::MeanContrast { .. }) {
+            return Err(refuse(
+                antecedent_core::reason_code!("route_not_supported"),
+                antecedent_core::reason_details::cross_world_execution::SPREAD_NEEDS_ENUMERATION,
+                Some("variable_elimination".to_owned()),
+                "elimination computes the first moment of the quantity only; the spread of a \
+                 mean contrast needs its second moment, so reduce the exogenous space below \
+                 the enumeration bound or request a probability quantity (an indicator's \
+                 variance is p(1-p))",
+            ));
+        }
+        let mut spreads = Vec::new();
+        let before = self.counters;
+        let mut counters = self.counters;
+        // The factual world is one more world, with no interventions and no routes.
+        let mut extended = request.worlds.clone();
+        extended.push(FiniteWorld {
+            name: "factual".to_owned(),
+            interventions: Vec::new(),
+            routes: Vec::new(),
+        });
+        let plans: Vec<WorldPlan> = (0..extended.len())
+            .map(|w| WorldPlan::from_validated(&request.scm, &extended, w))
+            .collect();
+        let mut work = EliminationWork::default();
+        let mut resolved: Vec<Arc<RetainedAbduction>> = Vec::with_capacity(units.len());
+        let mut answers = Vec::with_capacity(units.len());
+        let mut total = CompensatedSum::default();
+        let mut plan_digests = digest("elimination_plans");
+        let mut elimination = EliminationReceipt {
+            units: 0,
+            max_nodes: 0,
+            max_factors: 0,
+            peak_table_entries: 0,
+            multiplications: 0,
+            plan_digest: String::new(),
+        };
+        for (unit, (identity, evidence)) in units.iter().zip(identities) {
+            poll(ctx)?;
+            let inferred = infer_unit(compiled, &plans, &request.quantity, unit, &mut work, ctx)?;
+            counters.abductions += 1;
+            counters.world_predictions += request.worlds.len() as u64;
+            elimination.units += 1;
+            elimination.max_nodes = elimination.max_nodes.max(inferred.nodes);
+            elimination.max_factors = elimination.max_factors.max(inferred.factors);
+            elimination.peak_table_entries =
+                elimination.peak_table_entries.max(inferred.peak_table_entries);
+            elimination.multiplications =
+                elimination.multiplications.saturating_add(inferred.multiplications);
+            plan_digests.text(&inferred.plan_digest);
+            let posterior = Posterior {
+                states: Vec::new(),
+                evidence_probability: inferred.evidence_probability,
+            };
+            let mut draws = digest("draws");
+            draws.text(identity).text(&unit.unit).text(&inferred.plan_digest);
+            draws.word(request.scm.exogenous.len() as u64);
+            for exo in &request.scm.exogenous {
+                draws.text(&stream_identity(&unit.unit, &exo.name, PURPOSE_POSTERIOR_STATE));
+            }
+            draws.real(inferred.evidence_probability);
+            resolved.push(Arc::new(RetainedAbduction {
+                identity: identity.clone(),
+                unit: unit.unit.clone(),
+                mechanism_digest: mechanism.to_owned(),
+                evidence_digest: evidence.clone(),
+                posterior,
+                draws_digest: draws.finish_hex(),
+            }));
+            total.add(inferred.value);
+            if spread_requested {
+                let p = inferred.value;
+                let mut distribution = Vec::new();
+                if p < 1.0 {
+                    distribution.push((0.0, 1.0 - p));
+                }
+                if p > 0.0 {
+                    distribution.push((1.0, p));
+                }
+                spreads.push(unit_spread(&unit.unit, distribution));
+            }
+            answers.push(UnitAnswer {
+                unit: unit.unit.clone(),
+                value: inferred.value,
+                evidence_probability: inferred.evidence_probability,
+            });
+        }
+        elimination.plan_digest = plan_digests.finish_hex();
+        let spread = spread_requested.then(|| noise_spread(spreads));
+        counters.summaries += 1;
+        let mean = total.total() / answers.len() as f64;
+        let (receipt, stages) =
+            Self::receipts(request, mechanism, &resolved, units.len(), abduction_set)?;
+        self.counters = counters;
+        Ok(FiniteExecutionResult {
+            matrix_row: row.id,
+            value: mean,
+            units: answers,
+            stages,
+            work: counters.since(before),
+            receipt,
+            label: INFERENCE_LABEL,
+            method: ExogenousMethod::VariableElimination,
+            elimination: Some(elimination),
+            spread,
+        })
+    }
+
+    /// The range of the exact point value over a finite declared parameter set: the request's
+    /// own mechanisms (member 0) and every entry of `alternatives`.
+    ///
+    /// Every member must share the request's structure (population, history, exogenous names
+    /// and cardinalities, variable names, levels, parents and exogenous assignments) and may
+    /// differ in its exogenous laws and mechanism tables. Each member is executed by the exact
+    /// point row; evidence outside a member's support refuses the whole envelope. The request's
+    /// reading must be `Envelope`.
+    ///
+    /// # Errors
+    /// A typed refusal for an empty set, a member of different structure, a reading other than
+    /// the envelope, or any refusal of the member executions.
+    pub fn execute_envelope(
+        &mut self,
+        request: &FiniteExecutionRequest,
+        alternatives: &[FiniteScm],
+        ctx: &ExecutionContext,
+    ) -> Result<FiniteEnvelopeResult, CrossWorldExecutionError> {
+        poll(ctx)?;
+        if request.reading != RequestedReading::Envelope {
+            return Err(refuse(
+                antecedent_core::reason_code!("invalid_argument"),
+                antecedent_core::reason_details::cross_world_execution::ENVELOPE_READING_REQUIRED,
+                Some(request.reading.as_str().to_owned()),
+                "execute_envelope answers the envelope reading only; set the request's reading \
+                 to the envelope",
+            ));
+        }
+        if alternatives.is_empty() {
+            return Err(refuse(
+                antecedent_core::reason_code!("invalid_argument"),
+                antecedent_core::reason_details::cross_world_execution::ENVELOPE_PARAMETER_SET_EMPTY,
+                None,
+                "an envelope over the request's single parameterisation is its point value; \
+                 declare at least one alternative parameterisation or request the point reading",
+            ));
+        }
+        for (i, alt) in alternatives.iter().enumerate() {
+            if !same_structure(&request.scm, alt) {
+                return Err(refuse(
+                    antecedent_core::reason_code!("invalid_argument"),
+                    antecedent_core::reason_details::cross_world_execution::ENVELOPE_MEMBER_STRUCTURE_DIFFERS,
+                    Some(format!("member_{}", i + 1)),
+                    "every member of the declared set must share the request's population, \
+                     history, variables, parents and exogenous assignments, and differ only \
+                     in exogenous laws and mechanism tables",
+                ));
+            }
+        }
+        let mut members = Vec::with_capacity(alternatives.len() + 1);
+        let mut unit_ranges: Vec<UnitEnvelope> = Vec::new();
+        for (index, scm) in std::iter::once(&request.scm).chain(alternatives).enumerate() {
+            poll(ctx)?;
+            let mut member = request.clone();
+            member.scm = scm.clone();
+            member.reading = RequestedReading::Point;
+            let out = self.execute(&member, ctx)?;
+            if index == 0 {
+                unit_ranges = out
+                    .units
+                    .iter()
+                    .map(|u| UnitEnvelope { unit: u.unit.clone(), lower: u.value, upper: u.value })
+                    .collect();
+            } else {
+                for (range, u) in unit_ranges.iter_mut().zip(&out.units) {
+                    range.lower = range.lower.min(u.value);
+                    range.upper = range.upper.max(u.value);
+                }
+            }
+            members.push(EnvelopeMember { index, value: out.value });
+        }
+        let mut lower_member = 0;
+        let mut upper_member = 0;
+        for m in &members {
+            if m.value < members[lower_member].value {
+                lower_member = m.index;
+            }
+            if m.value > members[upper_member].value {
+                upper_member = m.index;
+            }
+        }
+        Ok(FiniteEnvelopeResult {
+            lower: members[lower_member].value,
+            upper: members[upper_member].value,
+            lower_member,
+            upper_member,
+            members,
+            units: unit_ranges,
+            label: ENVELOPE_LABEL,
         })
     }
 
@@ -511,7 +1019,7 @@ impl FiniteScmExecutor {
         resolved: &[Arc<RetainedAbduction>],
         computed: usize,
         abduction_set: &str,
-    ) -> (ExecutionReceipt, Vec<StageReceipt>) {
+    ) -> Result<(ExecutionReceipt, Vec<StageReceipt>), CrossWorldExecutionError> {
         let mut exo = digest("exogenous_set");
         for r in resolved {
             exo.text(&r.draws_digest);
@@ -520,7 +1028,7 @@ impl FiniteScmExecutor {
         let mut worlds = digest("world_set");
         worlds.word(request.worlds.len() as u64);
         for world in &request.worlds {
-            worlds.text(&world.digest());
+            worlds.text(&world.digest()?);
         }
         let world_digest = worlds.finish_hex();
         let mut prediction = digest("prediction");
@@ -564,6 +1072,6 @@ impl FiniteScmExecutor {
             stage(ExecutionStage::ActionPrediction, &prediction_digest, StageStatus::Computed),
             stage(ExecutionStage::SummaryDecision, &summary_digest, StageStatus::Computed),
         ];
-        (receipt, stages)
+        Ok((receipt, stages))
     }
 }

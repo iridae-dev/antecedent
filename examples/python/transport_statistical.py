@@ -1,4 +1,12 @@
-"""Single-source empirical table. Same verbs as the exact and complementary examples."""
+"""What response curve does a target population have, given one table from a source experiment?
+
+The hand-written 150-row source table has ``P(y = 1)`` of 0.5 under ``x = 0`` and 0.8 under
+``x = 1``, so the script asserts the transported curve is ``[0.5, 0.8]``, and that rebinding a
+replacement table gives ``[0.4, 0.7]`` and leaves the first result unchanged. This call requests
+no bootstrap, so the script checks that no interval is reported; the transport assumptions are
+declared, not tested. The calls are the same as in `transport_exact.py`.
+
+Run: ``python examples/python/transport_statistical.py``."""
 
 import antecedent as ant
 
@@ -37,7 +45,7 @@ def main() -> None:
     }
     result = ant.analyze(data, graph=graph, query=query)
     assert result.answer.kind == "response"
-    assert [row[0] for row in result.response.values] == [0.5, 0.8]
+    assert [row[0] for row in result.value.response.values] == [0.5, 0.8]
     _slots(result, uncertainty=False)
     print(result)
 
@@ -45,8 +53,10 @@ def main() -> None:
         "x": [0.0] * 50 + [1.0] * 100,
         "y": [0.0] * 30 + [1.0] * 20 + [0.0] * 30 + [1.0] * 70,
     }
-    refreshed = result.refresh(replacement)
-    assert [round(row[0], 2) for row in refreshed.response.values] == [0.4, 0.7]
+    # Rebinding branches the study on the replacement table; the first result is unchanged.
+    refreshed = ant.estimate(ant.rebind(result.study, data=replacement))
+    assert [round(row[0], 2) for row in refreshed.value.response.values] == [0.4, 0.7]
+    assert [row[0] for row in result.value.response.values] == [0.5, 0.8]
     print(refreshed)
 
 

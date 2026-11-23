@@ -14,6 +14,7 @@
 //! is stored, and one that appears is refused. Limits an artifact records are
 //! provenance; a stored limit larger than the consumer's refuses.
 
+use crate::exact_transport_laws::canonical_laws;
 use crate::{
     IoError, admg_from_wire, admg_to_wire,
     exact_law_wire::ExactLawWire,
@@ -33,9 +34,9 @@ use antecedent_identify::{
 use serde::{Deserialize, Serialize};
 
 /// The artifact format this reader writes and accepts.
-pub const MIXED_SOURCE_ARTIFACT_VERSION: u32 = 1;
+pub const MIXED_SOURCE_ARTIFACT_VERSION: u32 = 2;
 /// The feature marker of the accepted format.
-pub const MIXED_SOURCE_ARTIFACT_FEATURE: &str = "checked_mixed_source_point_v1";
+pub const MIXED_SOURCE_ARTIFACT_FEATURE: &str = "checked_mixed_source_point_v2";
 /// The only uncertainty claim of this route: exact laws, a point, no interval.
 pub const MIXED_SOURCE_POINT_ONLY: &str = "point_only";
 
@@ -168,6 +169,9 @@ pub struct MixedSourceArtifactWire {
     pub premises_digest: String,
     /// Digest of the data identity (refresh-replaceable snapshot ids).
     pub data_digest: String,
+    /// Digest of the whole stored artifact but this field: the laws' probabilities, the
+    /// requests, the limits and the reported points that the other two digests leave out.
+    pub evidence_digest: String,
 }
 
 /// Everything a replay reconstructed and recomputed.
@@ -220,41 +224,12 @@ impl MixedSourceArtifactWire {
 /// `(regime, snapshot, dataset)` of every catalog binding and
 /// `(population, regime, snapshot)` of every law, sorted.
 fn data_digest(catalog: &EvidenceCatalog, laws: &[ExactLawWire]) -> Result<String, IoError> {
-    let mut bindings = catalog
-        .bindings
-        .iter()
-        .map(|b| {
-            (
-                b.regime.raw(),
-                b.snapshot_identity.to_string(),
-                b.dataset_identity.as_deref().map(str::to_owned),
-            )
-        })
-        .collect::<Vec<_>>();
-    bindings.sort();
-    let mut snapshots = laws
-        .iter()
-        .map(|law| (law.population.clone(), law.regime, law.snapshot.clone()))
-        .collect::<Vec<_>>();
-    snapshots.sort();
+    let bindings = crate::exact_transport_laws::sorted_catalog_bindings(catalog);
+    let snapshots = crate::exact_transport_laws::sorted_law_snapshots(laws);
     crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("mixed_source_data_v1", bindings, snapshots),
     )
-}
-
-fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoError> {
-    let mut laws = data
-        .laws()
-        .iter()
-        .map(|law| {
-            let wire = ExactLawWire::from_law(law);
-            crate::to_cbor(&(&wire.population, wire.regime, &wire.interventions))
-                .map(|key| (key, wire))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    laws.sort_by(|a, b| a.0.cmp(&b.0));
-    Ok(laws.into_iter().map(|(_, law)| law).collect())
 }
 
 fn bindings_of(functional: &BoundMixedSourceFunctional) -> Vec<(u32, String, String)> {
@@ -323,10 +298,22 @@ impl MixedSourceArtifactWire {
             results: input.results.iter().map(MixedSourcePointWire::from_distribution).collect(),
             uncertainty: MIXED_SOURCE_POINT_ONLY.into(),
             premises_digest: String::new(),
+            evidence_digest: String::new(),
         };
         wire.premises_digest = wire.expected_premises_digest()?;
+        wire.evidence_digest = wire.expected_evidence_digest()?;
         wire.validate_shape()?;
         Ok(wire)
+    }
+
+    /// The evidence digest the stored artifact should carry.
+    ///
+    /// # Errors
+    /// The artifact does not encode.
+    pub fn expected_evidence_digest(&self) -> Result<String, IoError> {
+        crate::evidence_digest::evidence_digest("mixed_source_evidence_v2", self, |wire| {
+            wire.evidence_digest = String::new();
+        })
     }
 
     /// The digest the stored premises should carry. Recomputing it grants
@@ -508,6 +495,12 @@ impl MixedSourceArtifactWire {
             }
             distributions.push(distribution);
         }
+        crate::require_digest(
+            &wire.evidence_digest,
+            wire.expected_evidence_digest(),
+            std::convert::identity,
+            || MixedSourceArtifactError::EvidenceMismatch.into(),
+        )?;
         Ok(ConsumedMixedSource { functional, data, requests, distributions, wire })
     }
 }

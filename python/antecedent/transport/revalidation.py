@@ -38,7 +38,8 @@ identity the caller holds.
 * :class:`TransportClaimState` holds the current scene and advances it only when a revalidation
   succeeds, so a refused refresh leaves the state unchanged.
 * :meth:`TransportRevalidation.export` writes the claim-level verification as
-  ``composition_verification_v1``; :func:`antecedent.composition_verification.consume` replays
+  ``composition_verification_v1``;
+  :func:`antecedent.composition_verification.consume_composition_verification_artifact` replays
   the classification from the bytes.
 
 Rust owns the identities, the classification, the sealed verification and every refusal; this
@@ -55,11 +56,15 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
 from .. import _native
+from .._artifact_protocol import ExportedArtifact, artifact_export, artifact_from_receipt
 from .._columns import coerce_fields
 from .._refusal import raise_refusal
 from .._scientific import ScientificResult
 from .._validate import choice, text
+from ..composition_verification import Calibration as CompositionCalibration
+from ..composition_verification import Node as CompositionNode
 from ..errors import CausalTypeError
+from ..state import CausalState
 from ..transported_response import TransportedResponse, TransportedResponseRefusal
 
 __all__ = [
@@ -72,7 +77,12 @@ __all__ = [
     "TransportRevalidation",
     "TransportScene",
     "TransportSceneBuilder",
+    "TransportedClaimStanding",
     "claim_node_key",
+    "invalidation_effects",
+    "response_claim_node",
+    "response_claim_standing",
+    "response_coordinate",
     "revalidate",
     "source_node_key",
 ]
@@ -83,6 +93,14 @@ TARGET_NODE_KEY = "target_population"
 DIAGRAM_NODE_KEY = "selection_diagram"
 
 TrustStanding = Literal["not_applicable", "held", "withdrawn", "undeclared"]
+ProviderTrustLevel = Literal[
+    "native_supported", "externally_attested", "verified_extension", "unverified"
+]
+_PROVIDER_TRUST = ("native_supported", "externally_attested", "verified_extension", "unverified")
+
+
+def _provider_trust(level: str | None) -> str | None:
+    return None if level is None else choice(level, "provider_trust", _PROVIDER_TRUST)
 
 
 def claim_node_key(key: str) -> str:
@@ -117,6 +135,10 @@ class Calibration:
     ``held`` is a record the claim holds itself, established at ``established_at_target``
     (default: the target of the scene it is declared in); ``inherited`` is a record claimed from
     another claim of the scene.
+
+    Build one with the class methods :meth:`point_only`, :meth:`required`, :meth:`held` or
+    :meth:`inherited`. ``record`` is the 64-hex identity of a calibration record you hold;
+    nothing here declares or measures one.
     """
 
     kind: Literal["point_only", "required", "held", "inherited"]
@@ -136,14 +158,26 @@ class Calibration:
 
     @classmethod
     def held(cls, record: str, established_at_target: str | None = None) -> Calibration:
-        """A record the claim holds itself (a 64-hex identity)."""
+        """A record the claim holds itself (a 64-hex identity).
+
+        ``established_at_target`` is the target identity the record was established at
+        (:attr:`TransportSceneBuilder.target_identity`); ``None`` (the default) means the
+        target of the scene the claim is declared in.
+
+        Raises:
+            CausalValueError: ``record`` is empty.
+        """
         return cls("held", _hex(record, "record"), established_at_target)
 
     @classmethod
     def inherited(
         cls, from_claim: str, record: str, established_at_target: str | None = None
     ) -> Calibration:
-        """A record claimed from the claim ``from_claim`` of the same scene."""
+        """A record claimed from the claim ``from_claim`` of the same scene.
+
+        The claim holds the record only while ``from_claim`` holds it at the same target and
+        quantity. ``established_at_target`` as :meth:`held`.
+        """
         return cls("inherited", _hex(record, "record"), established_at_target, from_claim)
 
     def _wire(self) -> dict[str, Any]:
@@ -201,8 +235,11 @@ class TransportSceneBuilder:
 
     @property
     def target_identity(self) -> str:
-        """The identity the scene gives its target: the population and the content identity of
-        its declaration and data. A calibration record established at this target names it."""
+        """The identity the scene gives its target population and its data.
+
+        It binds the population and the content identity of its declaration and data. A
+        calibration record established at this target names it (``established_at_target``).
+        """
         return str(
             _native.transport_scene_target_identity(
                 self.target_population, self.target_data_identity
@@ -212,13 +249,19 @@ class TransportSceneBuilder:
     def target_support(
         self, unsupported_coordinates: Sequence[str] | None
     ) -> TransportSceneBuilder:
-        """Declare the target outside the support the transport needs, naming the coordinates
-        (``None`` restores a supported target)."""
+        """Declare the target outside the support the transport needs, naming the coordinates.
+
+        ``None`` restores a supported target. A target outside the support withdraws every
+        transported claim.
+        """
         coordinates = None if unsupported_coordinates is None else tuple(unsupported_coordinates)
         return replace(self, unsupported_target=coordinates)
 
     def source(self, population: str, evidence_identity: str) -> TransportSceneBuilder:
-        """Declare a source population with the content identity of its evidence."""
+        """Declare a source population with the content identity of its evidence.
+
+        Declaring a population again replaces its evidence identity.
+        """
         text(population, "population", non_empty=True)
         entry = (population, _hex(evidence_identity, "evidence_identity"))
         kept = tuple(s for s in self.sources if s[0] != population)
@@ -231,7 +274,16 @@ class TransportSceneBuilder:
         calibration: Calibration | None = None,
         trust: TrustStanding = "not_applicable",
     ) -> TransportSceneBuilder:
-        """Add a transported claim from a response and the calibration it states."""
+        """Add a transported claim from a response and the calibration it states.
+
+        ``calibration`` defaults to :meth:`Calibration.point_only`. ``trust`` states the claim's
+        provider-trust standing directly: ``"not_applicable"`` (default), ``"held"``,
+        ``"withdrawn"`` or ``"undeclared"``. Use :meth:`transported_claim` to read it from the
+        response's provenance instead.
+
+        Raises:
+            CausalTypeError: ``response`` is not a ``TransportedResponse``.
+        """
         if not isinstance(response, TransportedResponse):
             raise CausalTypeError("response must be a TransportedResponse")
         stated = calibration or Calibration.point_only()
@@ -244,10 +296,45 @@ class TransportSceneBuilder:
         }
         return replace(self, claims=(*self.claims, claim), responses=(*self.responses, response))
 
+    def transported_claim(
+        self,
+        key: str,
+        response: TransportedResponse,
+        calibration: Calibration | None = None,
+        provider_trust: ProviderTrustLevel | None = None,
+    ) -> TransportSceneBuilder:
+        """Add a transported claim whose trust standing is read from its provenance.
+
+        A claim of a library route is ``not_applicable``; a ``declared`` route is another party's
+        claim, so its trust is that of the provider that supplied it (``provider_trust``), and a
+        declared claim with no stated level is ``undeclared``, which withdraws it for provider
+        trust until the level is stated.
+
+        Raises:
+            TransportedResponseRefusal: at :meth:`build`, a provider level given to a library
+                route (``transport_revalidation.provider_trust_not_applicable``).
+        """
+        if not isinstance(response, TransportedResponse):
+            raise CausalTypeError("response must be a TransportedResponse")
+        stated = calibration or Calibration.point_only()
+        claim: dict[str, Any] = {
+            "kind": "transported_claim",
+            "key": text(key, "key", non_empty=True),
+            "response": len(self.responses),
+            "calibration": stated._wire(),
+            "provider_trust": _provider_trust(provider_trust),
+        }
+        return replace(self, claims=(*self.claims, claim), responses=(*self.responses, response))
+
     def decision(
         self, key: str, identity: str, quantity: str, rests_on: Sequence[str] = ()
     ) -> TransportSceneBuilder:
-        """Add a decision resting on claims of the scene."""
+        """Add a decision resting on claims of the scene.
+
+        ``identity`` and ``quantity`` are the 64-hex identities of the decision and the
+        quantity it acts on; ``rests_on`` lists the keys of the claims it rests on. A decision
+        is reclassified with the claims it rests on.
+        """
         claim: dict[str, Any] = {
             "kind": "decision",
             "key": text(key, "key", non_empty=True),
@@ -287,12 +374,15 @@ class TransportSceneBuilder:
 
 @dataclass(repr=False, frozen=True, slots=True, eq=False)
 class TransportScene(ScientificResult):
-    """Everything that decides which claims about one target are licensed.
+    """Everything that decides which claims about one target are supported.
 
     ``target_identity`` is the identity of the target (population and data); ``selection_diagram``
     the content identity of the diagrams the claims name; ``sources`` the declared source
     populations with their evidence identities; ``claims`` every claim and decision with its
-    identities and dependencies.
+    identities and dependencies. ``target_supported`` is ``False`` when the builder declared
+    the target outside the support.
+
+    Build one with :meth:`builder`.
     """
 
     target_identity: str
@@ -304,8 +394,11 @@ class TransportScene(ScientificResult):
 
     @classmethod
     def builder(cls, target_population: str, target_data_identity: str) -> TransportSceneBuilder:
-        """A builder for a scene about ``target_population``; ``target_data_identity`` is the
-        content identity (64 hex) of the target's declaration and data."""
+        """A :class:`TransportSceneBuilder` for a scene about ``target_population``.
+
+        ``target_data_identity`` is the content identity (64 hex) of the target's declaration
+        and data.
+        """
         return TransportSceneBuilder(target_population, target_data_identity)
 
     @classmethod
@@ -321,7 +414,11 @@ class TransportScene(ScientificResult):
         )
 
     def claim(self, key: str) -> Mapping[str, Any]:
-        """One declared claim by key."""
+        """One declared claim by key.
+
+        Raises:
+            CausalTypeError: no claim has that key.
+        """
         for item in self.claims:
             if item["key"] == key:
                 return item
@@ -341,6 +438,10 @@ class ClaimRevalidation:
     each. ``prior_authority`` is ``retained`` or ``not_retained``. ``calibration_withdrawn`` is
     ``True`` when the record the claim relied on no longer holds: its point value is left as it
     was.
+
+    ``key`` is the claim key and ``kind`` ``transported`` or ``decision``. ``calibration`` is
+    the claim's uncertainty guarantee after revalidation: ``not_applicable``, ``held``,
+    ``inherited``, ``lost`` or ``required``.
     """
 
     key: str
@@ -393,7 +494,11 @@ class TransportRevalidation(ScientificResult):
         )
 
     def claim(self, key: str) -> ClaimRevalidation:
-        """The classification of one claim."""
+        """The classification of one claim.
+
+        Raises:
+            CausalTypeError: no claim has that key.
+        """
         for item in self.claims:
             if item.key == key:
                 return item
@@ -404,16 +509,21 @@ class TransportRevalidation(ScientificResult):
 
         Raises:
             TransportedResponseRefusal: the typed refusal of a claim that must be recomputed or
-                whose license was withdrawn (a calibration record from another target is
-                ``cell_not_licensed``), or ``invalid_argument`` for an unknown key.
+                whose support was withdrawn (a calibration record from another target is
+                ``not_supported``), or ``invalid_argument`` for an unknown key.
         """
         _unwrap(self._handle.require_valid(key))
         return self.claim(key)
 
-    def export(self, *, artifact_id: str = "transport-revalidation") -> bytes:
-        """The claim-level verification as ``composition_verification_v1``; a fresh consumer
-        replays the classification."""
-        return bytes(_unwrap(self._handle.export(artifact_id)))
+    @artifact_export
+    def export(self, *, artifact_id: str = "transport-revalidation") -> ExportedArtifact[Any]:
+        """Export the claim-level verification as ``composition_verification_v1``.
+
+        A fresh consumer replays the classification with
+        :func:`antecedent.composition_verification.consume_composition_verification_artifact`.
+        ``artifact_id`` defaults to ``"transport-revalidation"``.
+        """
+        return artifact_from_receipt(self, bytes(_unwrap(self._handle.export(artifact_id))))
 
 
 def _effects(effects: Sequence[ObservedEffect] | None) -> str | None:
@@ -424,6 +534,30 @@ def _effects(effects: Sequence[ObservedEffect] | None) -> str | None:
     return json.dumps([e._wire() for e in effects])
 
 
+def invalidation_effects(
+    state: CausalState,
+    since: int,
+    bindings: Sequence[tuple[str, str, int | str | None]],
+) -> tuple[ObservedEffect, ...]:
+    """The effects of a state's invalidation log after version ``since`` on bound claims.
+
+    ``bindings`` holds ``(claim_key, target_kind, target_id)``: the state target a claim rests
+    on, ``query`` (a registered query id), ``model``, ``suff_stat`` (a key), ``all_results``,
+    ``lag_indexes``, ``graph_scores``, ``particle_filters`` or ``mechanism_diagnostics``. An
+    event that changed a stage input after ``since`` makes the claim ``recomputed``; one that
+    removed a premise makes it ``withdrawn``; a claim nothing touched has no effect. Pass the
+    result to :func:`revalidate` or :meth:`TransportClaimState.observe`.
+    """
+    if not isinstance(state, CausalState):
+        raise CausalTypeError("state must be a CausalState")
+    wire = [
+        (str(key), str(kind), None if ident is None else str(ident))
+        for key, kind, ident in bindings
+    ]
+    parsed = json.loads(state.claim_invalidation_effects(int(since), wire))
+    return tuple(ObservedEffect(item["key"], item["kind"], item["text"]) for item in parsed)
+
+
 def revalidate(
     previous: TransportScene | None,
     current: TransportScene,
@@ -431,7 +565,17 @@ def revalidate(
 ) -> TransportRevalidation:
     """Classify every claim of ``current`` against ``previous`` under the observed ``effects``.
 
-    ``previous=None`` is a first verification. Refuses a scene whose graph does not build.
+    ``previous=None`` is a first verification. ``effects`` are observations such as those
+    from :func:`invalidation_effects`; default ``None``.
+
+    Returns:
+        A :class:`TransportRevalidation`; read ``claim(key).classification`` or call
+        ``require_valid(key)``.
+
+    Raises:
+        TransportedResponseRefusal: a scene whose graph does not build.
+        CausalTypeError: ``previous`` or ``current`` is not a ``TransportScene``, or an effect
+            is not an :class:`ObservedEffect`.
     """
     if previous is not None and not isinstance(previous, TransportScene):
         raise CausalTypeError("previous must be a TransportScene or None")
@@ -446,22 +590,30 @@ def revalidate(
 
 
 class TransportClaimState:
-    """The current scene of a set of transported claims, advanced only by a successful
-    revalidation. A refused observation leaves the state exactly as it was."""
+    """The current scene of a set of transported claims, advanced only by a successful revalidation.
+
+    A refused observation leaves the state exactly as it was. Construct it empty and call
+    :meth:`observe` with each new scene; the first observation is a first verification.
+    """
 
     def __init__(self) -> None:
         self._native = _native.TransportClaimStateHandle()
 
     @property
     def scene(self) -> TransportScene | None:
-        """The scene the last successful observation recorded."""
+        """The scene the last successful observation recorded, or ``None`` before the first."""
         handle = self._native.scene()
         return None if handle is None else TransportScene._of(handle)
 
     def observe(
         self, scene: TransportScene, effects: Sequence[ObservedEffect] | None = None
     ) -> TransportRevalidation:
-        """Classify ``scene`` against the recorded scene and, only on success, record it."""
+        """Classify ``scene`` against the recorded scene and, only on success, record it.
+
+        Raises:
+            TransportedResponseRefusal: the revalidation is refused; the state is unchanged.
+            CausalTypeError: ``scene`` is not a ``TransportScene``.
+        """
         if not isinstance(scene, TransportScene):
             raise CausalTypeError("scene must be a TransportScene")
         handle = _unwrap(self._native.observe(scene._handle, _effects(effects)))
@@ -470,3 +622,119 @@ class TransportClaimState:
     def __repr__(self) -> str:
         recorded = self.scene
         return f"<TransportClaimState recorded={recorded is not None}>"
+
+
+# --------------------------------------------------------------------------- standalone response
+
+
+@dataclass(repr=False, frozen=True, slots=True, eq=False)
+class TransportedClaimStanding(ScientificResult):
+    """The standing of one transported response as a claim.
+
+    ``support`` is ``supported`` or ``unsupported`` (with the ``unsupported`` coordinates, from
+    the receipt's support label); ``trust`` follows the response's provenance; ``calibration`` is
+    the declaration the caller stated.
+    """
+
+    support: str
+    unsupported: tuple[str, ...]
+    trust: TrustStanding
+    calibration: CompositionCalibration
+
+    @classmethod
+    def _from_wire(cls, wire: Mapping[str, Any]) -> TransportedClaimStanding:
+        c = wire["calibration"]
+        calibration = CompositionCalibration(
+            c["kind"], c.get("record"), c.get("coordinate"), c.get("from")
+        )
+        return cls(
+            support=str(wire["support"]["kind"]),
+            unsupported=tuple(str(x) for x in wire["support"]["coordinates"]),
+            trust=wire["trust"],
+            calibration=calibration,
+        )
+
+
+def _response_calibration(calibration: CompositionCalibration | None) -> str:
+    stated = calibration or CompositionCalibration.point_only()
+    if not isinstance(stated, CompositionCalibration):
+        raise CausalTypeError("calibration must be a composition_verification.Calibration")
+    return json.dumps(stated.to_wire())
+
+
+def response_coordinate(response: TransportedResponse) -> str:
+    """The evaluation coordinate of a standalone transported response (64 hex characters).
+
+    It names the response's target population and the quantity it answers; a calibration record
+    established for exactly this response at this target is declared with
+    ``composition_verification.Calibration.held(record, response_coordinate(response))``.
+    """
+    if not isinstance(response, TransportedResponse):
+        raise CausalTypeError("response must be a TransportedResponse")
+    return str(_unwrap(_native.transported_response_coordinate(response._handle)))
+
+
+def response_claim_standing(
+    response: TransportedResponse,
+    calibration: CompositionCalibration | None = None,
+    *,
+    provider_trust: ProviderTrustLevel | None = None,
+) -> TransportedClaimStanding:
+    """Support, provenance trust and declared calibration of one transported response.
+
+    Raises:
+        TransportedResponseRefusal: a provider level given to a response of a library route
+            (``transport_revalidation.provider_trust_not_applicable``).
+    """
+    if not isinstance(response, TransportedResponse):
+        raise CausalTypeError("response must be a TransportedResponse")
+    text_ = _unwrap(
+        _native.transported_response_standing(
+            response._handle, _response_calibration(calibration), _provider_trust(provider_trust)
+        )
+    )
+    return TransportedClaimStanding._from_wire(json.loads(text_))
+
+
+def response_claim_node(
+    key: str,
+    response: TransportedResponse,
+    calibration: CompositionCalibration | None = None,
+    *,
+    provider_trust: ProviderTrustLevel | None = None,
+) -> CompositionNode:
+    """The composition-verification node of one transported response, carrying its standing.
+
+    The node is a ``transported_result`` whose identity binds the receipt and the value, whose
+    structure is the receipt's selection-diagram identities and whose coordinate is
+    :func:`response_coordinate`; add it to a ``composition_verification.CompositionGraph``.
+    """
+    if not isinstance(response, TransportedResponse):
+        raise CausalTypeError("response must be a TransportedResponse")
+    wire = json.loads(
+        _unwrap(
+            _native.transported_response_node(
+                text(key, "key", non_empty=True),
+                response._handle,
+                _response_calibration(calibration),
+                _provider_trust(provider_trust),
+            )
+        )
+    )
+    c = wire["calibration"]
+    return CompositionNode(
+        key=wire["key"],
+        kind=wire["kind"],
+        identity=wire["identity"],
+        structure=wire.get("structure"),
+        representation=wire.get("representation"),
+        coordinate=wire["coordinate"],
+        unsupported=tuple(wire.get("unsupported", ())),
+        trust=wire["trust"],
+        calibration=CompositionCalibration(
+            c["kind"], c.get("record"), c.get("coordinate"), c.get("from")
+        ),
+        assumptions=tuple(wire["assumptions"]),
+        transformation=wire.get("transformation"),
+        evidence=tuple(wire["evidence"]),
+    )

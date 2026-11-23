@@ -1,6 +1,6 @@
 //! Numerical and refusal evidence for Bayesian quadratic-basis g-computation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,
@@ -39,7 +39,7 @@ fn quadratic_fixture(n: usize) -> (Vec<f64>, Vec<f64>, Vec<f64>, f64, Vec<f64>) 
 fn basis_gcomp_matches_independent_quadratic_ate_and_cate_reference() {
     let n = 400;
     let (treatment, outcome, z, ate_truth, cate_truth) = quadratic_fixture(n);
-    let rows: Vec<u32> = (1000..1000 + n as u32).collect();
+    let rows: Vec<u64> = (1000u64..1000 + u64::try_from(n).expect("n")).collect();
     let folds: Vec<u16> = (0..n).map(|i| (i % 5) as u16).collect();
     let result = BayesianBasisGComputation
         .fit(
@@ -66,7 +66,9 @@ fn basis_gcomp_matches_independent_quadratic_ate_and_cate_reference() {
     assert!(result.predictions.provenance.prior_id.contains("sd_8"));
     assert_eq!(result.predictions.draw_count, 600);
     assert_eq!(result.ate_draws.len(), 600);
-    assert!((result.ate_mean - ate_truth).abs() < 0.06, "ATE {} vs {ate_truth}", result.ate_mean);
+    // The noise is a small deterministic sine (0.08 amplitude) on a model the basis spans
+    // exactly: observed errors are 1.4e-4 (ATE) and 2.4e-3 (CATE RMSE).
+    assert!((result.ate_mean - ate_truth).abs() < 1e-3, "ATE {} vs {ate_truth}", result.ate_mean);
 
     let effects: Vec<f64> = (0..n)
         .map(|row| {
@@ -83,14 +85,14 @@ fn basis_gcomp_matches_independent_quadratic_ate_and_cate_reference() {
         .sum::<f64>()
         / n as f64)
         .sqrt();
-    assert!(cate_rmse < 0.07, "CATE RMSE {cate_rmse}");
+    assert!(cate_rmse < 0.01, "CATE RMSE {cate_rmse}");
     assert_eq!(result.predictions.diagnostics.fold_count, Some(5));
     assert_eq!(BayesianBasisGComputation.task(), PredictionTask::Regression);
     assert_eq!(BayesianBasisGComputation.estimator_id(), "bayesian.basis_gcomp");
 }
 
 #[test]
-fn basis_gcomp_refuses_unlicensed_population_and_non_binary_or_degenerate_treatment() {
+fn basis_gcomp_refuses_unsupported_population_and_non_binary_or_degenerate_treatment() {
     let (treatment, outcome, z, _, _) = quadratic_fixture(80);
     let ctx = ExecutionContext::for_tests(1);
     let spec = BayesianBasisSpec { n_draws: 8, ..Default::default() };

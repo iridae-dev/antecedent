@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import math
 
+import antecedent
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import vector_treatment
 from antecedent.errors import (
     CausalSerializationError,
@@ -103,15 +105,15 @@ def test_vector_joint_wald_and_holm_match_closed_forms() -> None:
     assert result.contrasts[high].p_holm == pytest.approx(max(holm_low, raw[high]), abs=1e-9)
 
 
-def test_vector_calibration_is_unmeasured_and_says_so() -> None:
+def test_vector_calibration_is_not_measured_and_says_so() -> None:
     result = fit()
-    assert result.calibration == "unmeasured"
-    assert result.inference_claim == "asymptotic_wald_calibration_unmeasured"
-    assert any("calibration is unmeasured" in c for c in result.caveats)
+    assert result.calibration == "not_measured"
+    assert result.inference_claim == "asymptotic_wald_calibration_not_measured"
+    assert any("calibration is not_measured" in c for c in result.caveats)
     assert any("no interval" in c for c in result.caveats)
     assert any("caller owns" in c for c in result.caveats)
     summary = result.to_dict()
-    assert summary["calibration"] == "unmeasured"
+    assert summary["calibration"] == "not_measured"
     assert "artifact" not in summary
     assert summary["covariance"][0][1] == pytest.approx(-3.0 * S, abs=1e-9)
 
@@ -129,6 +131,17 @@ def test_vector_adjustment_columns_are_shared() -> None:
     result = fit(adjust={"w": W})
     assert result.adjustment == ("w",)
     assert result.identity.adjustment_set_id != fit().identity.adjustment_set_id
+    # Independent least squares on the shared design [1, t1, t2, w]: the treatment block moves
+    # with the adjustment column and its covariance is sigma^2 (X'X)^-1 on the treatment rows.
+    design = np.column_stack([np.ones(6), X1, X2, W])
+    beta, *_ = np.linalg.lstsq(design, np.array(Y), rcond=None)
+    residual = np.array(Y) - design @ beta
+    sigma2 = float(residual @ residual) / (6 - 4)
+    cov = sigma2 * np.linalg.inv(design.T @ design)
+    assert result.residual_df == 2
+    assert result.estimates == pytest.approx(beta[1:3], abs=1e-9)
+    assert result.estimates != pytest.approx([2.75, 0.75], abs=1e-3)
+    assert result.covariance == pytest.approx(cov[1:3, 1:3], abs=1e-9)
 
 
 def test_vector_incompatible_adjustment_set_snapshot_and_rows_refuse() -> None:
@@ -140,45 +153,45 @@ def test_vector_incompatible_adjustment_set_snapshot_and_rows_refuse() -> None:
         )
     assert isinstance(other_set.value, CausalUnsupportedError)
     assert other_set.value.reason_code == "route_not_supported"
-    assert other_set.value.detail == "vector_treatment.adjustment_set_mismatch"
+    assert other_set.value.detail == reason_details.vector_treatment.ADJUSTMENT_SET_MISMATCH
     assert_registered_refusal(other_set.value)
 
     with pytest.raises(VectorTreatmentRefusal) as other_snapshot:
         joint_effects(Y, {"t1": X1, "t2": Treatment(X2, snapshot="elsewhere")}, snapshot="snap")
-    assert other_snapshot.value.detail == "vector_treatment.row_snapshot_mismatch"
+    assert other_snapshot.value.detail == reason_details.vector_treatment.ROW_SNAPSHOT_MISMATCH
     assert other_snapshot.value.reason_code == "route_not_supported"
 
     with pytest.raises(VectorTreatmentRefusal) as short:
         joint_effects(Y, {"t1": X1, "t2": X2[:-1]})
-    assert short.value.detail == "vector_treatment.row_count_mismatch"
+    assert short.value.detail == reason_details.vector_treatment.ROW_COUNT_MISMATCH
 
 
 def test_vector_degenerate_designs_refuse_with_typed_details() -> None:
     with pytest.raises(VectorTreatmentRefusal) as constant:
         joint_effects(Y, {"t1": X1, "t2": [1.0] * 6})
     assert constant.value.reason_code == "design_rank_deficient"
-    assert constant.value.detail == "vector_treatment.treatment_without_variation"
+    assert constant.value.detail == reason_details.vector_treatment.TREATMENT_WITHOUT_VARIATION
     assert_registered_refusal(constant.value)
 
     with pytest.raises(VectorTreatmentRefusal) as collinear:
         joint_effects(Y, {"t1": X1, "t2": [2.0 * v for v in X1]})
-    assert collinear.value.detail == "vector_treatment.collinear_treatments"
+    assert collinear.value.detail == reason_details.vector_treatment.COLLINEAR_TREATMENTS
 
     with pytest.raises(VectorTreatmentRefusal) as single:
         joint_effects(Y, {"t1": X1})
     assert single.value.reason_code == "invalid_argument"
-    assert single.value.detail == "vector_treatment.too_few_treatments"
+    assert single.value.detail == reason_details.vector_treatment.TOO_FEW_TREATMENTS
 
     with pytest.raises(VectorTreatmentRefusal) as nan:
         joint_effects([float("nan"), *Y[1:]], {"t1": X1, "t2": X2})
-    assert nan.value.detail == "vector_treatment.non_finite_value"
+    assert nan.value.detail == reason_details.vector_treatment.NON_FINITE_VALUE
 
     with pytest.raises(VectorTreatmentRefusal) as unknown:
         fit(contrasts=[Contrast("bad", {"zzz": 1.0})])
-    assert unknown.value.detail == "vector_treatment.unknown_contrast_coefficient"
+    assert unknown.value.detail == reason_details.vector_treatment.UNKNOWN_CONTRAST_COEFFICIENT
     with pytest.raises(VectorTreatmentRefusal) as empty:
         fit(contrasts=[Contrast("empty", {})])
-    assert empty.value.detail == "vector_treatment.empty_contrast"
+    assert empty.value.detail == reason_details.vector_treatment.EMPTY_CONTRAST
 
 
 def test_vector_input_validation_is_typed() -> None:
@@ -192,14 +205,14 @@ def test_vector_input_validation_is_typed() -> None:
         fit(contrasts=[42])  # type: ignore[list-item]
     with pytest.raises(VectorTreatmentRefusal) as bad_weight:
         fit(contrasts=[Contrast("inf", {"t1": float("inf")})])
-    assert bad_weight.value.detail == "vector_treatment.non_finite_value"
+    assert bad_weight.value.detail == reason_details.vector_treatment.NON_FINITE_VALUE
     with pytest.raises(CausalTypeError):
         consume_joint_effects("not bytes")  # type: ignore[arg-type]
 
 
 def test_vector_artifact_round_trip_recomputes_everything() -> None:
     result = fit(contrasts=[DIFF, SUM], adjust={"w": W})
-    again = consume_joint_effects(result.export(), expected_identity=result.identity)
+    again = consume_joint_effects(bytes(result.export()), expected_identity=result.identity)
     assert again.names == result.names
     assert again.coefficients == result.coefficients
     assert again.contrasts == result.contrasts
@@ -207,7 +220,9 @@ def test_vector_artifact_round_trip_recomputes_everything() -> None:
     assert np.array_equal(again.covariance, result.covariance)
     assert again.identity == result.identity
     # A mapping form of the retained identity is accepted too.
-    mapped = consume_joint_effects(result.export(), expected_identity=result.to_dict()["identity"])
+    mapped = consume_joint_effects(
+        bytes(result.export()), expected_identity=result.to_dict()["identity"]
+    )
     assert mapped.identity == result.identity
 
 
@@ -217,8 +232,13 @@ def test_vector_robust_covariance_embeds_a_summary_and_replays() -> None:
     assert robust.replay == "robust_summary"
     assert robust.covariance_kind == "hc1"
     assert not np.allclose(robust.covariance, model.covariance)
+    # Independent HC1 sandwich on the frozen n = 6 design.
+    design = np.column_stack([np.ones(6), X1, X2])
+    assert robust.covariance == pytest.approx(
+        sandwich(design, np.array(Y), "hc1")[1:, 1:], rel=1e-8, abs=1e-12
+    )
     assert robust.estimates == pytest.approx(model.estimates, abs=1e-12)
-    again = consume_joint_effects(robust.export(), expected_identity=robust.identity)
+    again = consume_joint_effects(bytes(robust.export()), expected_identity=robust.identity)
     assert np.array_equal(again.covariance, robust.covariance)
 
 
@@ -251,19 +271,23 @@ def test_vector_robust_fit_has_no_row_ceiling_and_matches_an_independent_sandwic
     expected = sandwich(design, outcome, kind)[1:, 1:]
     assert result.covariance == pytest.approx(expected, rel=1e-8, abs=1e-14)
     # The artifact is a summary of fixed size, and a fresh consumer replays it bit for bit.
-    assert len(result.export()) < 64 * 1024
-    again = consume_joint_effects(result.export(), expected_identity=result.identity)
+    assert len(bytes(result.export())) < 64 * 1024
+    again = consume_joint_effects(bytes(result.export()), expected_identity=result.identity)
     assert np.array_equal(again.covariance, result.covariance)
 
 
 def test_vector_consume_respects_the_memory_limit() -> None:
     result = fit(covariance="hc1")
-    assert consume_joint_effects(result.export(), memory_limit_bytes=10_000_000).identity == (
-        result.identity
-    )
+    assert consume_joint_effects(
+        bytes(result.export()),
+        execution=antecedent.Execution(limits=antecedent.ResourceLimits(memory_bytes=10_000_000)),
+    ).identity == (result.identity)
     with pytest.raises(VectorTreatmentRefusal) as refused:
-        consume_joint_effects(result.export(), memory_limit_bytes=1)
-    assert refused.value.detail == "vector_treatment.memory_budget_exceeded"
+        consume_joint_effects(
+            bytes(result.export()),
+            execution=antecedent.Execution(limits=antecedent.ResourceLimits(memory_bytes=1)),
+        )
+    assert refused.value.detail == reason_details.vector_treatment.MEMORY_BUDGET_EXCEEDED
 
 
 def test_vector_resealed_change_is_refused_against_the_retained_identity() -> None:
@@ -272,22 +296,22 @@ def test_vector_resealed_change_is_refused_against_the_retained_identity() -> No
     original = fit(contrasts=[DIFF], snapshot="snap")
     changed = joint_effects([3.5, *Y[1:]], {"t1": X1, "t2": X2}, contrasts=[DIFF], snapshot="snap")
     # Alone the changed artifact is internally consistent ...
-    assert consume_joint_effects(changed.export()).identity == changed.identity
+    assert consume_joint_effects(bytes(changed.export())).identity == changed.identity
     # ... but against the identity the consumer retained it is refused.
     with pytest.raises(VectorTreatmentRefusal) as refused:
-        consume_joint_effects(changed.export(), expected_identity=original.identity)
+        consume_joint_effects(bytes(changed.export()), expected_identity=original.identity)
     assert refused.value.reason_code == "route_not_supported"
-    assert refused.value.detail == "vector_treatment.wrong_contract"
+    assert refused.value.detail == reason_details.vector_treatment.WRONG_CONTRACT
     assert refused.value.offending == "design"
     assert_registered_refusal(refused.value)
     dropped = fit(snapshot="snap")
     with pytest.raises(VectorTreatmentRefusal) as contracts:
-        consume_joint_effects(dropped.export(), expected_identity=original.identity)
+        consume_joint_effects(bytes(dropped.export()), expected_identity=original.identity)
     assert contracts.value.offending == "contrasts"
 
 
 def test_vector_corrupt_artifact_raises_a_serialization_error() -> None:
-    data = bytearray(fit().export())
+    data = bytearray(bytes(fit().export()))
     data[len(data) // 2] ^= 0xFF
     with pytest.raises(CausalSerializationError):
         consume_joint_effects(bytes(data))

@@ -1,12 +1,13 @@
 //! Builder-independent evidence for checked TemporalCpdag/TemporalPag responses
 //! (mean curve and single-step intervention response, both inferences).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, reason = "one loop covers every licensed coordinate")]
+#![allow(clippy::too_many_lines, reason = "one loop covers every supported coordinate")]
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, GraphClass, IdentifierId, InferenceMode,
     RefuteSuite, Study,
@@ -176,9 +177,11 @@ fn all_temporal_class_response_coordinates_execute_from_retained_source_proofs()
                     let one_shot = builder.run(&ctx).unwrap();
                     let mut prepared = builder.prepare(&ctx).unwrap();
                     drop(builder);
-                    let plan = prepared
-                        .checked_temporal_class_response_info()
-                        .expect("class response must retain its complete execution plan");
+                    let RetainedOperation::TemporalClassResponse(plan) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("class response must retain its complete execution plan")
+                    };
                     assert_eq!(plan.query, query);
                     assert_eq!(plan.graph_class, class);
                     assert_eq!(plan.identifier, IdentifierId::GeneralizedAdjustment);
@@ -196,7 +199,7 @@ fn all_temporal_class_response_coordinates_execute_from_retained_source_proofs()
                     assert!(plan.identified_mass > 0.0);
 
                     let result = prepared.estimate_series(&initial, &ctx).unwrap();
-                    assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{label}");
+                    assert_eq!(result.support_status().unwrap().as_str(), "supported", "{label}");
                     assert!(
                         result
                             .diagnostics
@@ -244,10 +247,12 @@ fn all_temporal_class_response_coordinates_execute_from_retained_source_proofs()
                         prepared.refresh_series(widened, &ctx).is_err(),
                         "{label}: schema-changing refresh must be refused"
                     );
-                    assert_eq!(
-                        prepared.checked_temporal_class_response_info().unwrap().query,
-                        query
-                    );
+                    let RetainedOperation::TemporalClassResponse(retained) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("class response retains its plan")
+                    };
+                    assert_eq!(retained.query, query);
                     let artifact = prepared
                         .encode_contracted_result(
                             &refreshed,
@@ -255,7 +260,7 @@ fn all_temporal_class_response_coordinates_execute_from_retained_source_proofs()
                             &ctx,
                         )
                         .unwrap();
-                    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
                     assert!(
                         consumed.acceptance.unresolved.iter().any(|dependency| {
                             dependency.as_ref()
@@ -264,7 +269,7 @@ fn all_temporal_class_response_coordinates_execute_from_retained_source_proofs()
                         "{label}: {:?}",
                         consumed.acceptance.unresolved
                     );
-                    assert!(!consumed.acceptance.accepts_as_verified_program());
+                    assert!(!consumed.acceptance.accepts_as_replayed_program());
                 }
             }
         }

@@ -19,16 +19,22 @@ the portable answer. Nothing is removed from the result object; this only govern
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import asdict, is_dataclass
+from dataclasses import fields, is_dataclass
 from typing import Any
 
-from .._unset_license import unset_dose_license, unset_panel_license, unset_policy_license
+from .._unset_support import unset_dose_support, unset_panel_support, unset_policy_support
+
+
+def _field_values(value: Any) -> dict[str, Any]:
+    """A dataclass's fields by name, shallow: a retained result freezes its mappings to
+    read-only proxies, which ``dataclasses.asdict`` cannot deep-copy."""
+    return {field.name: getattr(value, field.name) for field in fields(value)}
 
 
 def _normalize(value: Any) -> Any:
     """JSON-native, order-stable form so live (tuples) and wire (lists) compare equal."""
     if is_dataclass(value) and not isinstance(value, type):
-        value = asdict(value)
+        value = _field_values(value)
     if isinstance(value, Mapping):
         out: dict[str, Any] = {}
         for key, item in value.items():
@@ -70,7 +76,7 @@ class _FamilySpec:
         self.live_fn = live_fn
         self.wire_fn = wire_fn
         # wire -> {canonical name: value} for fields the live result always fills but
-        # the wire omits when unset (an unset license, derived from the wire's own
+        # the wire omits when unset (an unset support, derived from the wire's own
         # numbers exactly as the live estimate derives it).
         self.wire_defaults = wire_defaults
 
@@ -78,7 +84,7 @@ class _FamilySpec:
         if self.live_fn is not None:
             return _normalize(self.live_fn(section))
         raw = (
-            asdict(section)
+            _field_values(section)
             if is_dataclass(section) and not isinstance(section, type)
             else dict(section)
         )
@@ -105,7 +111,7 @@ _PANEL_PLAIN = _FamilySpec(
     },
     exclude=frozenset({"assumptions", "cohort", "design", "period"}),
     wire_defaults=lambda wire: {
-        "graphless_support_status": unset_panel_license(
+        "graphless_support_status": unset_panel_support(
             has_interval=wire.get("interval_95") is not None
         )
     },
@@ -116,7 +122,7 @@ def _event_study_uncertainty(any_interval: bool) -> str:
     return (
         "event_time_pointwise_normal_intervals_independent_clusters"
         if any_interval
-        else "cluster_robust_se_only_pointwise_cr1_unlicensed"
+        else "cluster_robust_se_only_pointwise_cr1_unsupported"
     )
 
 
@@ -132,6 +138,11 @@ def _panel_from_live(section: Any) -> dict[str, Any]:
             "propensity_max": section.propensity_max,
             "effective_control_sample_size": section.effective_control_sample_size,
             "nuisance_predictions_cross_fitted": section.nuisance_predictions_cross_fitted,
+            # Only a whole-cluster resample publishes an interval and its standard error.
+            "interval_95": getattr(section, "interval_95", None),
+            "standard_error": getattr(section, "standard_error", None)
+            if getattr(section, "interval_95", None) is not None
+            else None,
         }
     effects = getattr(section, "effects", None)
     if effects is None:
@@ -168,6 +179,10 @@ def _panel_from_wire(wire: Mapping[str, Any]) -> dict[str, Any]:
             "propensity_max": p_max,
             "effective_control_sample_size": ess,
             "nuisance_predictions_cross_fitted": declared,
+            "interval_95": wire.get("interval_95"),
+            "standard_error": wire.get("standard_error")
+            if wire.get("interval_95") is not None
+            else None,
         }
     tuples = wire.get("event_time_effects")
     if not tuples:
@@ -191,10 +206,10 @@ def _panel_from_wire(wire: Mapping[str, Any]) -> dict[str, Any]:
     return {"event_time_effects": rows, "uncertainty": _event_study_uncertainty(any_interval)}
 
 
-def _policy_unset_license(wire: Mapping[str, Any]) -> dict[str, str]:
-    """The label the live policy estimate publishes when the wire leaves the license unset."""
+def _policy_unset_support(wire: Mapping[str, Any]) -> dict[str, str]:
+    """The label the live policy estimate publishes when the wire leaves the support unset."""
     return {
-        "graphless_support_status": unset_policy_license(
+        "graphless_support_status": unset_policy_support(
             has_regret=wire.get("regret") is not None,
             has_interval=wire.get("policy_interval_95") is not None
             or any(row.get("interval_95") is not None for row in wire.get("uplift_bins") or ())
@@ -205,12 +220,12 @@ def _policy_unset_license(wire: Mapping[str, Any]) -> dict[str, str]:
     }
 
 
-def _dose_unset_license(wire: Mapping[str, Any]) -> dict[str, str]:
-    """The label the live dose estimate publishes when the wire leaves the license unset."""
+def _dose_unset_support(wire: Mapping[str, Any]) -> dict[str, str]:
+    """The label the live dose estimate publishes when the wire leaves the support unset."""
     fixed = wire.get("fixed_policy")
     interval = fixed.get("incremental_interval_95") if isinstance(fixed, Mapping) else None
     return {
-        "graphless_support_status": unset_dose_license(
+        "graphless_support_status": unset_dose_support(
             has_incremental_interval=interval is not None
         )
     }
@@ -229,7 +244,7 @@ STRUCTURED_FAMILIES: dict[str, _FamilySpec] = {
             "support_status": "graphless_support_status",
         },
         exclude=frozenset({"assumptions", "diagnostics", "evaluation_method"}),
-        wire_defaults=_policy_unset_license,
+        wire_defaults=_policy_unset_support,
     ),
     "panel_did": _FamilySpec(live_fn=_panel_from_live, wire_fn=_panel_from_wire),
     "survival": _FamilySpec(
@@ -253,6 +268,8 @@ STRUCTURED_FAMILIES: dict[str, _FamilySpec] = {
             }
         ),
     ),
+    # The live dataclass and the wire body spell every field alike.
+    "posterior_row": _FamilySpec(),
     "longitudinal_regime": _FamilySpec(
         exclude=frozenset(
             {
@@ -268,6 +285,34 @@ STRUCTURED_FAMILIES: dict[str, _FamilySpec] = {
             }
         ),
     ),
+    "sequential_contrast": _FamilySpec(
+        exclude=frozenset(
+            {
+                "assumptions",
+                "calibration",
+                "fits_computed",
+                "fits_reused",
+                "supported",
+                "calibration_measured",
+                "support_status",
+            }
+        ),
+    ),
+    # The live dataclass and the wire body spell every field alike (the interval and the
+    # posterior are nested records); an identified set carries its recomputable observed law.
+    "iv_bounds": _FamilySpec(),
+    # The live dataclasses spell every field as the wire body (terms are nested records); the
+    # calibration ``not_measured`` and the three false flags travel on both sides.
+    "association": _FamilySpec(),
+    "history_match": _FamilySpec(
+        exclude=frozenset({"calibration", "supported", "calibration_measured", "support_status"}),
+    ),
+    # The live dataclass and the wire body spell every field alike (effects are nested
+    # records); calibration ``not_measured`` and ``supported`` false travel on both sides.
+    "quasi_rollout": _FamilySpec(),
+    # The live dataclass spells every field as the wire body; a probability floor that was
+    # not reported is ``None`` on both sides.
+    "temporal_design": _FamilySpec(),
     "continuous_dose_response": _FamilySpec(
         live_renames={"support_status": "graphless_support_status"},
         # Live-only descriptive labels; the method and whether a policy value was
@@ -275,7 +320,7 @@ STRUCTURED_FAMILIES: dict[str, _FamilySpec] = {
         exclude=frozenset(
             {"assumptions", "diagnostics", "evaluation_method", "policy_value_estimated"}
         ),
-        wire_defaults=_dose_unset_license,
+        wire_defaults=_dose_unset_support,
     ),
 }
 
@@ -283,6 +328,34 @@ STRUCTURED_FAMILIES: dict[str, _FamilySpec] = {
 def canonical_from_live(slot: str, section: Any) -> dict[str, Any]:
     """Portable claim dict from a live result section dataclass."""
     return STRUCTURED_FAMILIES[slot].from_live(section)
+
+
+# Diagnostic code by which a result states the graphless support row its design section
+# meets. The wire section's own ``supported`` stays false; the statement is the diagnostic.
+SECTION_ROW_CODES: dict[str, str] = {
+    "association": "estimate.association.graphless_support",
+    "iv_bounds": "estimate.iv_bounds.graphless_support",
+    "sequential_contrast": "estimate.sequential_contrast.graphless_support",
+    "history_match": "estimate.history_match.graphless_support",
+    "temporal_design": "estimate.temporal_design.graphless_support",
+}
+
+
+def wire_section_with_stated_row(payload: Mapping[str, Any], slot: str) -> Any:
+    """The wire section of ``slot`` with ``supported`` read from the result's diagnostics.
+
+    The live section reports the stated row as ``supported``; this gives the exported body
+    the same reading.
+    """
+    section = payload.get(slot)
+    if not isinstance(section, Mapping):
+        return section
+    code = SECTION_ROW_CODES[slot]
+    diagnostics = payload.get("diagnostics")
+    stated = isinstance(diagnostics, (list, tuple)) and any(
+        isinstance(entry, Mapping) and entry.get("code") == code for entry in diagnostics
+    )
+    return {**section, "supported": True} if stated else section
 
 
 def canonical_from_wire(slot: str, wire: Mapping[str, Any]) -> dict[str, Any]:

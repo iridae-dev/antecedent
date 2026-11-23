@@ -32,11 +32,10 @@
 //! # Inference
 //!
 //! The original joint outer refit percentile bootstrap, resampled per design with
-//! a floor of [`LEARNED_CONTINUOUS_MIN_BOOTSTRAP`], failed its sample-size coverage
-//! grid. It remains available only to calibration-internal code and to the older
-//! learned-trial route. A design-specific analytic influence interval is now
-//! measured by the calibration harness and exposed through the public interval
-//! route for the two declared IID designs. It is a pointwise Wald interval;
+//! a floor of [`LEARNED_CONTINUOUS_MIN_BOOTSTRAP`] replicates, failed its sample-size coverage
+//! grid; its calibration annotation reports `measured_below_nominal`, and the interval is still
+//! reported. A design-specific analytic influence interval is the second interval route for
+//! the two declared IID designs. It is a pointwise Wald interval;
 //! nuisance convergence at the cross-fitting product rate remains an assumption.
 //!
 //! Two replicate behaviors are documented rather than changed (their effect on coverage is
@@ -59,13 +58,18 @@ use antecedent_identify::TransportIdentification;
 use antecedent_learn::{LearnerProvenance, LearnerSpec};
 use serde::{Deserialize, Serialize};
 
-/// Fewest bootstrap replicates accepted by the closed legacy interval request.
-pub const LEARNED_CONTINUOUS_MIN_BOOTSTRAP: u32 = 199;
-/// Most bootstrap replicates one request may ask for.
+/// Fewest bootstrap replicates from which a percentile interval can be formed.
+pub const LEARNED_CONTINUOUS_MIN_BOOTSTRAP: u32 = 2;
+/// Largest replicate count of the measured bootstrap envelope. It is a reference point the
+/// artifact premises record, not a ceiling: the public route runs no replicates, and the
+/// internal calibration route admits its work against the execution context.
 pub const LEARNED_CONTINUOUS_MAX_BOOTSTRAP: u32 = 2000;
-/// Most cross-fit folds one request may ask for.
+/// Largest fold count of the measured envelope; a reference point the artifact premises record,
+/// not a ceiling. The fold count is bounded by the stratum sizes and the `u16` fold ids
+/// ([`validate_learned_continuous`] through the trial validation).
 pub const LEARNED_CONTINUOUS_MAX_FOLDS: usize = 20;
-/// `(max folds, min bootstrap, max bootstrap)`: the frozen bounds an artifact's premises bind.
+/// `(folds, min bootstrap, max bootstrap)` of the measured envelope: the reference bounds an
+/// artifact's premises record.
 pub const LEARNED_CONTINUOUS_BOUNDS: (usize, u32, u32) = (
     LEARNED_CONTINUOUS_MAX_FOLDS,
     LEARNED_CONTINUOUS_MIN_BOOTSTRAP,
@@ -79,7 +83,10 @@ pub(crate) const LEARNED_CONTINUOUS_TARGET: &str = "target_mean_contrast";
 /// Point-only status: no interval was requested.
 pub(crate) const CONTINUOUS_POINT_ONLY: &str = "point_only";
 /// Withheld status: an interval was requested and is withheld with a reason.
-pub(crate) const CONTINUOUS_WITHHELD: &str = "withheld";
+pub(crate) const CONTINUOUS_TOO_FEW_REPLICATES: &str = "too_few_replicates";
+/// A bootstrap interval was requested; `learned_continuous_interval_internal` forms it and
+/// its calibration annotation carries the status.
+pub(crate) const CONTINUOUS_BOOTSTRAP_INTERVAL: &str = "bootstrap_interval_requested";
 /// Reason for a point-only estimate.
 pub(crate) const CONTINUOUS_NO_INTERVAL_REQUESTED: &str = "no_interval_requested";
 /// Available design-specific analytic influence interval.
@@ -93,14 +100,14 @@ pub struct LearnedContinuousOptions {
     pub outcome: LearnerSpec,
     /// Source-membership nuisance in the observed sampling design.
     pub membership: LearnerSpec,
-    /// Shared cross-fit fold count, `2..=`[`LEARNED_CONTINUOUS_MAX_FOLDS`].
+    /// Shared cross-fit fold count, at least 2 and at most the smallest stratum size.
     pub folds: usize,
     /// Smallest out-of-fold membership probability the estimate accepts, in `(0, 0.5)`.
     pub min_membership_probability: f64,
     /// Smallest arm probability of the known randomization, in `(0, 0.5)`.
     pub min_treatment_probability: f64,
-    /// Requested bootstrap replicates, at most [`LEARNED_CONTINUOUS_MAX_BOOTSTRAP`].
-    /// Legacy percentile-bootstrap request. The analytic interval uses zero.
+    /// Requested bootstrap replicates. Legacy percentile-bootstrap request. The analytic
+    /// interval uses zero.
     pub bootstrap: u32,
     /// Nominal coverage of the analytic interval.
     pub coverage_level: f64,
@@ -138,12 +145,13 @@ impl LearnedContinuousOptions {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LearnedContinuousUncertainty {
-    /// [`CONTINUOUS_POINT_ONLY`], [`CONTINUOUS_WITHHELD`] or [`CONTINUOUS_AVAILABLE`].
+    /// [`CONTINUOUS_POINT_ONLY`], [`CONTINUOUS_BOOTSTRAP_INTERVAL`], [`CONTINUOUS_TOO_FEW_REPLICATES`]
+    /// (too few replicates) or [`CONTINUOUS_AVAILABLE`].
     pub status: String,
-    /// [`CONTINUOUS_NO_INTERVAL_REQUESTED`], `estimator_inference_mismatch` or
-    /// `cell_not_licensed`.
+    /// [`CONTINUOUS_NO_INTERVAL_REQUESTED`], `joint_outer_bootstrap` or
+    /// `estimator_inference_mismatch`.
     pub reason: String,
-    /// The namespaced detail when the request was below the replicate floor.
+    /// The namespaced detail when the bootstrap request was below the replicate floor.
     pub detail: Option<String>,
     /// Bootstrap replicates the request asked for; none ran.
     pub replicates_requested: u32,
@@ -160,19 +168,19 @@ impl LearnedContinuousUncertainty {
             replicates_requested: 0,
         }
     }
-    /// The status of a request for `bootstrap` replicates on the closed route.
+    /// The status of a request for `bootstrap` replicates on the unsupported route.
     #[must_use]
     pub fn for_request(bootstrap: u32) -> Self {
         let (status, reason, detail) = if bootstrap == 0 {
             (CONTINUOUS_POINT_ONLY, CONTINUOUS_NO_INTERVAL_REQUESTED, None)
         } else if bootstrap < LEARNED_CONTINUOUS_MIN_BOOTSTRAP {
             (
-                CONTINUOUS_WITHHELD,
+                CONTINUOUS_TOO_FEW_REPLICATES,
                 antecedent_core::reason_code!("estimator_inference_mismatch"),
-                Some("learned_transport.bootstrap_below_floor"),
+                Some(antecedent_core::reason_details::learned_transport::BOOTSTRAP_BELOW_FLOOR),
             )
         } else {
-            (CONTINUOUS_WITHHELD, antecedent_core::reason_code!("cell_not_licensed"), None)
+            (CONTINUOUS_BOOTSTRAP_INTERVAL, "joint_outer_bootstrap", None)
         };
         Self {
             status: status.into(),
@@ -239,18 +247,6 @@ fn support_refusal(detail: &str, message: &str) -> EstimationError {
     refuse(antecedent_core::reason_code!("transport_support_failure"), detail, message)
 }
 
-/// The legacy refusal constructor kept for callers of the old closed route.
-#[must_use]
-#[doc(hidden)]
-pub fn refuse_learned_continuous_interval() -> EstimationError {
-    refuse(
-        antecedent_core::reason_code!("cell_not_licensed"),
-        "learned_transport.interval_withheld",
-        "the learned continuous interval route is closed pending promotion of the \
-         measured analytic candidate; the point estimate is retained",
-    )
-}
-
 /// Refuse a sampling design other than the two declared IID designs.
 ///
 /// # Errors
@@ -263,10 +259,10 @@ pub fn parse_learned_continuous_sampling(name: &str) -> Result<TrialSampling, Es
         "independent_samples" => Ok(TrialSampling::IndependentSamples),
         other => Err(refuse(
             antecedent_core::reason_code!("sampling_dependence_unknown"),
-            "learned_transport.non_iid_design",
+            antecedent_core::reason_details::learned_transport::NON_IID_DESIGN,
             &format!(
                 "sampling '{other}' is not a declared IID design; only nested_cohort and \
-                 independent_samples are licensed"
+                 independent_samples are supported"
             ),
         )),
     }
@@ -284,10 +280,10 @@ pub fn parse_learned_continuous_target(name: &str) -> Result<(), EstimationError
     }
     Err(refuse(
         antecedent_core::reason_code!("route_not_supported"),
-        "learned_transport.cate_requested",
+        antecedent_core::reason_details::learned_transport::CATE_REQUESTED,
         &format!(
             "target '{name}' is not the population mean contrast; conditional, heterogeneous \
-             and simultaneous targets are not licensed"
+             and simultaneous targets are not supported"
         ),
     ))
 }
@@ -295,8 +291,7 @@ pub fn parse_learned_continuous_target(name: &str) -> Result<(), EstimationError
 /// Validate a request before any nuisance is fitted.
 ///
 /// # Errors
-/// Declared bounds above the frozen caps (`learned_transport.bounds_exceeded`),
-/// randomization probabilities outside the declared bound
+/// Randomization probabilities outside the declared bound
 /// (`learned_transport.treatment_overlap`), or any [`validate_trial_aipw`] failure.
 #[doc(hidden)]
 pub fn validate_learned_continuous(
@@ -304,18 +299,6 @@ pub fn validate_learned_continuous(
     input: &TrialAipwInput,
     options: &LearnedContinuousOptions,
 ) -> Result<(), EstimationError> {
-    if options.folds > LEARNED_CONTINUOUS_MAX_FOLDS
-        || options.bootstrap > LEARNED_CONTINUOUS_MAX_BOOTSTRAP
-    {
-        return Err(refuse(
-            antecedent_core::reason_code!("route_not_supported"),
-            "learned_transport.bounds_exceeded",
-            &format!(
-                "at most {LEARNED_CONTINUOUS_MAX_FOLDS} folds and \
-                 {LEARNED_CONTINUOUS_MAX_BOOTSTRAP} bootstrap replicates"
-            ),
-        ));
-    }
     for threshold in [options.min_membership_probability, options.min_treatment_probability] {
         if !(threshold > 0.0 && threshold < 0.5) {
             return Err(EstimationError::data_msg(
@@ -330,7 +313,7 @@ pub fn validate_learned_continuous(
             && (*p < bound || *p > 1.0 - bound)
         {
             return Err(support_refusal(
-                "learned_transport.treatment_overlap",
+                antecedent_core::reason_details::learned_transport::TREATMENT_OVERLAP,
                 &format!("randomization probability {p} leaves [{bound}, {}]", 1.0 - bound),
             ));
         }
@@ -354,7 +337,7 @@ pub fn check_membership_overlap(
     let lowest = membership.iter().copied().fold(f64::INFINITY, f64::min);
     if lowest < floor || membership.iter().any(|p| !p.is_finite()) {
         return Err(support_refusal(
-            "learned_transport.membership_overlap",
+            antecedent_core::reason_details::learned_transport::MEMBERSHIP_OVERLAP,
             &format!("out-of-fold membership probability {lowest} is below the declared {floor}"),
         ));
     }
@@ -396,18 +379,14 @@ pub fn estimate_learned_continuous(
     })
 }
 
-/// The internal estimator the calibration harness measures: the joint outer refit
-/// percentile bootstrap of the whole cross-fitted estimator, grouped per design.
-///
-/// The public route never calls this because its percentile intervals failed coverage.
-/// It is compiled only with the `calibration-internal` feature, which only the facade's
-/// dev-dependencies enable (calibration harness and lifecycle tests): an ordinary
-/// dependent cannot reach the interval around the `cell_not_licensed` refusal.
+/// The joint outer refit percentile bootstrap of the whole cross-fitted estimator, grouped per
+/// design. Its percentile intervals measured below nominal in the coverage grid; that is
+/// reported by the interval's calibration annotation (`measured_below_nominal`), never by
+/// withholding the interval.
 ///
 /// # Errors
 /// As [`estimate_learned_continuous`]; and `estimator_inference_mismatch`
 /// (`learned_transport.bootstrap_below_floor`) below the replicate floor.
-#[cfg(feature = "calibration-internal")]
 #[doc(hidden)]
 pub fn learned_continuous_interval_internal(
     id: &TransportIdentification,
@@ -419,7 +398,7 @@ pub fn learned_continuous_interval_internal(
     if options.bootstrap < LEARNED_CONTINUOUS_MIN_BOOTSTRAP {
         return Err(refuse(
             antecedent_core::reason_code!("estimator_inference_mismatch"),
-            "learned_transport.bootstrap_below_floor",
+            antecedent_core::reason_details::learned_transport::BOOTSTRAP_BELOW_FLOOR,
             &format!(
                 "{} replicates is below the floor of {LEARNED_CONTINUOUS_MIN_BOOTSTRAP}",
                 options.bootstrap
@@ -446,8 +425,9 @@ pub fn estimate_learned_continuous_analytic_interval(
     if options.bootstrap != 0 {
         return Err(refuse(
             antecedent_core::reason_code!("estimator_inference_mismatch"),
-            "learned_transport.bootstrap_not_licensed",
-            "the percentile bootstrap failed calibration; request the analytic interval with bootstrap=0",
+            antecedent_core::reason_details::learned_transport::BOOTSTRAP_NOT_SUPPORTED,
+            "this route forms the analytic interval and takes bootstrap=0; the percentile \
+             bootstrap interval is formed by the bootstrap interval route",
         ));
     }
     let mut run = estimate_learned_continuous(id, input, options, ctx)?;
@@ -516,9 +496,8 @@ pub fn learned_continuous_analytic_interval(
     Ok((variance.sqrt(), (run.estimate - width, run.estimate + width)))
 }
 
-#[cfg(feature = "calibration-internal")]
 impl LearnedContinuousOptions {
-    /// Internal candidate for coverage measurement; no public interval is licensed.
+    /// Internal candidate for coverage measurement; no public interval is supported.
     #[doc(hidden)]
     pub fn analytic_interval_internal(
         &self,
@@ -545,15 +524,19 @@ mod tests {
             (none.status.as_str(), none.reason.as_str()),
             ("point_only", "no_interval_requested")
         );
-        let low = LearnedContinuousUncertainty::for_request(50);
+        let low = LearnedContinuousUncertainty::for_request(1);
         assert_eq!(low.reason, "estimator_inference_mismatch");
-        assert_eq!(low.detail.as_deref(), Some("learned_transport.bootstrap_below_floor"));
-        let closed = LearnedContinuousUncertainty::for_request(199);
         assert_eq!(
-            (closed.status.as_str(), closed.reason.as_str()),
-            ("withheld", "cell_not_licensed")
+            low.detail.as_deref(),
+            Some(antecedent_core::reason_details::learned_transport::BOOTSTRAP_BELOW_FLOOR)
         );
-        assert!(closed.detail.is_none() && !closed.available());
+        let requested = LearnedContinuousUncertainty::for_request(199);
+        assert_eq!(
+            (requested.status.as_str(), requested.reason.as_str()),
+            ("bootstrap_interval_requested", "joint_outer_bootstrap")
+        );
+        assert_eq!(requested.detail, None);
+        assert!(!requested.available());
     }
 
     #[test]

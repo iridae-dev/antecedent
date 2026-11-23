@@ -1,8 +1,140 @@
 //! Query submodule.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::ids::VariableId;
+
+use super::fault::{
+    AssociationFault, AttributeFault, DiscoverFault, HistoryMatchFault, InterferenceFault,
+    InterventionFault, IvBoundsFault, LocalPolynomialRatioFault, LongitudinalRegimeFault,
+    PanelDesignFault, PolicyValueFault, ResponseFault, SequentialContrastFault, SimulateFault,
+    SurvivalFault, TemporalDesignFault, TransportFault,
+};
+
+/// Why a randomized-effect declaration is refused. Each variant is one violated
+/// contract; the display text is the stable human-readable statement of it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
+pub enum RandomizedEffectFault {
+    /// Refused: multi-arm contrasts do not combine with receipt adjustment, CUPED, ANCOVA, or exact Fisher inference.
+    #[error(
+        "multi-arm contrasts do not combine with receipt adjustment, CUPED, ANCOVA, or exact Fisher inference"
+    )]
+    MultiArmCombination,
+    /// Refused: multi-arm labels, assignment, probabilities, and distinct unit identities must align.
+    #[error("multi-arm labels, assignment, probabilities, and distinct unit identities must align")]
+    MultiArmAlignment,
+    /// Refused: multi-arm observed actions and known probability rows must agree.
+    #[error("multi-arm observed actions and known probability rows must agree")]
+    MultiArmProbabilityRows,
+    /// Refused: multi-arm positivity failure: every declared arm needs observed support.
+    #[error("multi-arm positivity failure: every declared arm needs observed support")]
+    MultiArmPositivity,
+    /// Refused: randomization inference requires an unadjusted complete two-arm design.
+    #[error("randomization inference requires an unadjusted complete two-arm design")]
+    ExactTestDesign,
+    /// Refused: CACE/LATE requires Bernoulli assignment, row-aligned treatment receipt, and no CUPED adjustment.
+    #[error(
+        "CACE/LATE requires Bernoulli assignment, row-aligned treatment receipt, and no CUPED adjustment"
+    )]
+    ReceiptDesign,
+    /// Refused: treatment-on-treated requires observed one-sided noncompliance: no control-assigned unit received treatment.
+    #[error(
+        "treatment-on-treated requires observed one-sided noncompliance: no control-assigned unit received treatment"
+    )]
+    TreatmentOnTreatedNoncompliance,
+    /// Refused: treatment receipt is only valid for a CACE/LATE or treatment-on-treated query.
+    #[error("treatment receipt is only valid for a CACE/LATE or treatment-on-treated query")]
+    ReceiptWithoutComplier,
+    /// Refused: fixed CUPED requires Bernoulli or cluster assignment, a distinct pre-assignment covariate, and a finite externally fixed coefficient.
+    #[error(
+        "fixed CUPED requires Bernoulli or cluster assignment, a distinct pre-assignment covariate, and a finite externally fixed coefficient"
+    )]
+    FixedCupedDesign,
+    /// Refused: ANCOVA requires distinct pre-assignment covariates, independent unit-level Bernoulli assignment with a common probability, and residual degrees of freedom.
+    #[error(
+        "ANCOVA requires distinct pre-assignment covariates, independent unit-level Bernoulli assignment with a common probability, and residual degrees of freedom"
+    )]
+    AncovaDesign,
+    /// Refused: factorial contrasts do not combine with receipt adjustment or CUPED on this route.
+    #[error("factorial contrasts do not combine with receipt adjustment or CUPED on this route")]
+    FactorialCombination,
+    /// Refused: assignment, probabilities, and unit identities must have at least two aligned rows.
+    #[error("assignment, probabilities, and unit identities must have at least two aligned rows")]
+    RowAlignment,
+    /// Refused: assignment inclusion probabilities must be finite and strictly between zero and one.
+    #[error("assignment inclusion probabilities must be finite and strictly between zero and one")]
+    AssignmentProbabilityRange,
+    /// Refused: assignment and outcome unit labels must be non-empty.
+    #[error("assignment and outcome unit labels must be non-empty")]
+    EmptyUnitLabel,
+    /// Refused: retained randomized ITT requires one outcome unit per row.
+    #[error("retained randomized ITT requires one outcome unit per row")]
+    DuplicateOutcomeUnit,
+    /// Refused: individual randomization requires one assignment unit per row.
+    #[error("individual randomization requires one assignment unit per row")]
+    DuplicateAssignmentUnit,
+    /// Refused: treatment arm labels must be distinct and non-empty.
+    #[error("treatment arm labels must be distinct and non-empty")]
+    ArmLabels,
+    /// Refused: both assigned arms must be observed.
+    #[error("both assigned arms must be observed")]
+    UnobservedArm,
+    /// Refused: complete-randomization variance requires at least two units in each arm.
+    #[error("complete-randomization variance requires at least two units in each arm")]
+    CompleteArmSize,
+    /// Refused: complete assignment must match the declared treated count.
+    #[error("complete assignment must match the declared treated count")]
+    CompleteTreatedCount,
+    /// Refused: complete assignment probabilities must equal `treated_units / n`.
+    #[error("complete assignment probabilities must equal treated_units / n")]
+    CompleteProbability,
+    /// Refused: assignment and probability must be constant within each randomized cluster.
+    #[error("assignment and probability must be constant within each randomized cluster")]
+    ClusterConstancy,
+    /// Refused: cluster-randomization variance requires at least two clusters in each arm.
+    #[error("cluster-randomization variance requires at least two clusters in each arm")]
+    ClusterArmSize,
+    /// Refused: cluster assignment must match declared treated count and inclusion probability.
+    #[error("cluster assignment must match declared treated count and inclusion probability")]
+    ClusterAllocation,
+    /// Refused: stratified block labels and allocations must align with rows.
+    #[error("stratified block labels and allocations must align with rows")]
+    StratifiedAlignment,
+    /// Refused: each block must have a consistent allocation and inclusion probability.
+    #[error("each block must have a consistent allocation and inclusion probability")]
+    StratifiedConsistency,
+    /// Refused: stratified variance requires at least two units per arm in every block.
+    #[error("stratified variance requires at least two units per arm in every block")]
+    StratifiedArmSize,
+    /// Refused: stratified assignment must match declared block counts and inclusion probabilities.
+    #[error("stratified assignment must match declared block counts and inclusion probabilities")]
+    StratifiedAllocation,
+    /// Refused: factorial design requires four cells with at least two units each, aligned second-factor assignment, and distinct labels.
+    #[error(
+        "factorial design requires four cells with at least two units each, aligned second-factor assignment, and distinct labels"
+    )]
+    FactorialCells,
+    /// Refused: factorial observed cell counts and primary-factor inclusion probabilities must match the fixed four-cell allocation.
+    #[error(
+        "factorial observed cell counts and primary-factor inclusion probabilities must match the fixed four-cell allocation"
+    )]
+    FactorialAllocation,
+    /// Refused: switchback period labels must be non-empty and aligned with rows.
+    #[error("switchback period labels must be non-empty and aligned with rows")]
+    SwitchbackLabels,
+    /// Refused: switchback periods must be unique within each sequence.
+    #[error("switchback periods must be unique within each sequence")]
+    SwitchbackDuplicatePeriod,
+    /// Refused: switchback variance requires at least two independent sequences.
+    #[error("switchback variance requires at least two independent sequences")]
+    SwitchbackSequences,
+    /// Refused: a switchback needs at least two distinct periods; one period per sequence is a single-period randomized trial.
+    #[error(
+        "a switchback needs at least two distinct periods; with one period for every sequence the assignment never switches back, so it is a single-period randomized trial. Next attempt: the static randomized effect (a Bernoulli, complete, cluster or stratified design) for one period, or add the later periods of each sequence"
+    )]
+    SwitchbackSinglePeriod,
+}
 
 /// Errors from query construction or validation.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -10,28 +142,55 @@ use crate::ids::VariableId;
 pub enum QueryError {
     /// Invalid continuous-response configuration.
     #[error("invalid response query: {0}")]
-    InvalidResponse(String),
+    InvalidResponse(ResponseFault),
     /// Invalid transportability configuration.
     #[error("invalid transport query: {0}")]
-    InvalidTransport(String),
+    InvalidTransport(TransportFault),
     /// Invalid randomization/interference configuration.
     #[error("invalid interference query: {0}")]
-    InvalidInterference(String),
+    InvalidInterference(InterferenceFault),
     /// Invalid randomized experiment contract.
     #[error("invalid randomized-effect query: {0}")]
-    InvalidRandomizedEffect(String),
+    InvalidRandomizedEffect(PanelDesignFault),
+    /// A randomized-effect declaration violates one named contract.
+    #[error("invalid randomized-effect query: {0}")]
+    RandomizedEffectRefused(RandomizedEffectFault),
     /// Invalid held-out policy value contract.
     #[error("invalid policy-value query: {0}")]
-    InvalidPolicyValue(String),
+    InvalidPolicyValue(PolicyValueFault),
     /// Invalid survival or competing-risk observation contract.
     #[error("invalid survival query: {0}")]
-    InvalidSurvival(String),
+    InvalidSurvival(SurvivalFault),
     /// Invalid longitudinal regime value or subject-level fold contract.
     #[error("invalid longitudinal-regime query: {0}")]
-    InvalidLongitudinalRegime(String),
+    InvalidLongitudinalRegime(LongitudinalRegimeFault),
+    /// Invalid within-period history match.
+    #[error("invalid history-match query: {0}")]
+    InvalidHistoryMatch(HistoryMatchFault),
+    /// Invalid instrumental-variable bounds declaration.
+    #[error("invalid iv-bounds query: {0}")]
+    InvalidIvBounds(IvBoundsFault),
+    /// Invalid noncausal association declaration.
+    #[error("invalid association query: {0}")]
+    InvalidAssociation(AssociationFault),
+    /// Invalid observational sequential regime contrast.
+    #[error("invalid sequential-contrast query: {0}")]
+    InvalidSequentialContrast(SequentialContrastFault),
     /// Invalid fixed-cutoff local-polynomial ratio design.
     #[error("invalid local-polynomial ratio query: {0}")]
-    InvalidLocalPolynomialRatio(String),
+    InvalidLocalPolynomialRatio(LocalPolynomialRatioFault),
+    /// Invalid structure-discovery query.
+    #[error("invalid discover query: {0}")]
+    InvalidDiscover(DiscoverFault),
+    /// Invalid attribution query on a fitted structural model.
+    #[error("invalid attribute query: {0}")]
+    InvalidAttribute(AttributeFault),
+    /// Invalid simulation query on a fitted structural model.
+    #[error("invalid simulate query: {0}")]
+    InvalidSimulate(SimulateFault),
+    /// Invalid sequentially randomized unit-period design.
+    #[error("invalid temporal-design query: {0}")]
+    InvalidTemporalDesign(TemporalDesignFault),
     /// Treatment and outcome are the same variable.
     #[error("treatment and outcome are the same variable {id}")]
     TreatmentEqualsOutcome {
@@ -63,9 +222,15 @@ pub enum QueryError {
     /// Horizon must be at least one time step.
     #[error("horizon_steps must be >= 1")]
     NonPositiveHorizon,
+    /// The horizon cannot be represented as a signed temporal offset.
+    #[error("horizon {horizon_steps} exceeds signed temporal offset range")]
+    TemporalOutcomeOffsetOverflow {
+        /// Requested horizon that exceeds the signed temporal offset range.
+        horizon_steps: u32,
+    },
     /// Nested intervention failed validation.
     #[error("invalid intervention: {0}")]
-    InvalidIntervention(String),
+    InvalidIntervention(InterventionFault),
     /// Counterfactual query has no outcomes.
     #[error("counterfactual query requires at least one outcome")]
     EmptyCounterfactualOutcomes,

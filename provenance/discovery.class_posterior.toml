@@ -1,0 +1,57 @@
+feature_id = "discovery.class_posterior"
+implementation_crate = "antecedent-discovery"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "A characterization of Markov equivalence classes for acyclic digraphs", sections = ["Markov equivalence of acyclic digraphs: same skeleton and same unshielded colliders", "essential graph as the representative of an equivalence class"] },
+ { title = "Causal inference and causal explanation with background knowledge", sections = ["orientation rules that complete a partially directed graph to the essential graph"] },
+ { title = "Estimating the Dimension of a Model", doi = "10.1214/aos/1176344136", sections = ["BIC score, equal for Markov-equivalent Gaussian DAGs"] },
+]
+
+implementation_deviations = [
+ "The class posterior is not a separate sampler: it runs the exact, order-MCMC, structure-MCMC or CI-screened DAG posterior unchanged and sums the posterior mass of DAGs that share an essential graph, so every guarantee and limit of the wrapped sampler carries over and none is added.",
+ "The essential graph of each DAG atom is computed by the skeleton, the DAG's unshielded colliders and Meek's rules R1 to R4 run to a fixed point, the construction GES already uses; the class of a score-equivalent Gaussian BIC posterior is therefore identified exactly, and orientation beyond the class is not read from the data.",
+ "The per-edge Monte-Carlo errors, split R-hat and bulk ESS of the DAG indicators are dropped because they describe DAG edge bits, not class bits; the chain diagnostics of the DAG draws stay on the result and the Kish count is recomputed on the class weights.",
+ "A bounded-lag template posterior is collapsed onto the essential graph of its one-step window: lagged edges start directed by time, the unshielded colliders of the window and Meek's rules R1 to R4 orient the rest, and lagged parents are treated as exogenous roots, so a collider between lagged parents that the stationary unrolling would shield through earlier lags counts as unshielded.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs::class_collapse_partitions_every_dag_by_skeleton_and_unshielded_colliders (all 25 and 543 labelled DAGs on three and four variables against an independent skeleton-plus-unshielded-collider partition)",
+ "crates/antecedent-discovery/src/graph_posterior.rs unit test dags_of_one_equivalence_class_pool_their_mass (hand-built chain and collider atoms with known classes and summed mass)",
+ "crates/antecedent/tests/structure_uncertainty_routes.rs (compiled class posterior equals the engine collapse bit for bit on three variables)",
+ "python/tests/test_structure_uncertainty_routes.py (a chain without a collider pools three DAGs into one class)",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The static (non-lagged) DAG-to-equivalence-class collapse in GraphPosterior::to_equivalence_classes: the class assigned to each DAG atom, the encoding of reversible versus compelled edges, pooling of exact DAG mass and renormalisation, over every labelled DAG on three and four variables (11 and 185 classes) with the exact Gaussian-BIC posterior as the weights. The lagged-template collapse, the wrapped samplers and per-edge Monte-Carlo diagnostics are not reviewed."
+assumptions = ["Two DAGs are Markov equivalent exactly when their skeletons and unshielded colliders agree; the independent reference uses that characterisation, not the product's Meek-rule construction.", "A compelled edge is one all class members orient identically; the essential graph is therefore the union of member edges with both bits set for reversible adjacencies.", "Class probabilities are exact functions of the wrapped DAG posterior and inherit its limits; they say nothing about causal identification or about non-Gaussian data."]
+historical_exposure = "Historical author exposure cannot be established from retained artifacts. This review used no upstream implementation or test source. The primary papers listed were not re-read in full for this review: the executed check is against the Verma-Pearl equivalence criterion implemented independently in the test, and the class counts 11 and 185 are reproduced by that criterion rather than taken from the literature."
+redistribution = "New tests are repository-authored under MIT OR Apache-2.0; no third-party code, data or papers are redistributed."
+limitations = "Verified for three and four variables only, on one random linear-Gaussian dataset per size; the pooled masses are exact for the BIC posterior but the classes of larger graphs rely on the same code path. The temporal collapse, which treats lagged parents as exogenous and may count a collider the stationary unrolling would shield as unshielded, has no independent reference and keeps its documented deviation unreviewed. MCMC-derived class posteriors inherit sampling error and are not covered. GES now explicitly refuses the signed-uniform score. Its Gaussian BIC search and the equivalence-class mapping retain the reviewed behavior."
+sources = ["https://doi.org/10.1214/aos/1176344136", "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs"]
+findings_resolved = ["No defect found: for all 25 three-variable and 543 four-variable DAGs the collapsed atoms are exactly the skeleton-plus-collider classes, each atom equals the union of its members' directed edges, and each class mass equals the sum of its members' exact posterior mass.", "Replaced hand-built chain/collider atoms as the only executing evidence for the collapse with an exhaustive partition check that does not use the product's essential-graph code."]
+record_sha256 = "14d07ecc9047df54f31a85445f2c7688173cf67bcc7bb2aa062d99c7d4090fb9"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/graph_posterior.rs"
+items = ["enum GraphPosteriorAtomKind", "fn accumulate_marginals", "fn adjacency_mask_from_cpdag", "fn algorithm", "fn atom_kind", "fn atoms", "fn dag_from_adjacency_mask", "fn default", "fn diagnostics", "fn distinct_graph_keys", "fn edge_bit", "fn edge_ess", "fn edge_marginals", "fn edge_mcse", "fn edge_rhat", "fn ess", "fn from_atoms", "fn graph_keys", "fn has_edge", "fn into_word", "fn lag_bidirected_masks", "fn lag_masks", "fn lagged_edge_marginals", "fn lagged_edge_mcse", "fn mark_atoms", "fn max_lag", "fn n", "fn n_directed_edges", "fn n_graphs", "fn n_vars", "fn new", "fn orientation_marginals", "fn rejected_invalid", "fn require_word_capacity", "fn set_edge", "fn to_equivalence_classes", "fn to_temporal_equivalence_classes", "fn uniform", "fn weights", "fn with_algorithm", "fn with_atom_kind", "fn with_lag_masks", "fn with_lagged_marginals", "struct GraphPosterior", "struct GraphPrior", "struct SamplingSummary"]
+sha256 = "60688a125cdbb18ea04e139ffdc9dae86f02c7994dccce813d612271df5470c5"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/ges.rs"
+items = ["const ALGORITHM", "const GES_SCHEDULE", "enum SearchPhase", "fn assemble", "fn contains", "fn default", "fn empty_cpdag", "fn ges_score_data", "fn get", "fn has_edge", "fn local_score_or_degenerate", "fn new", "fn orient_by_knowledge", "fn pc_skeleton_pairs", "fn pdag_to_dag", "fn run", "fn run_ges_schedule", "fn score_family_label", "fn score_gain_tolerance", "fn seed_required_edges", "fn validate_request", "fn with_ci", "fn with_constraints", "fn with_fdr_adjustment", "struct Footprint", "struct Ges", "struct GesDeltaCache", "struct GesSearch", "struct InsertPairCache", "struct PairInsert", "struct ReverseCache", "struct ReverseInsert"]
+sha256 = "b20c118c0cf9b1e71f84fd1678b9189291f33e5e96fa23c65948b22ac342e638"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs"
+items = ["fn class_collapse_partitions_every_dag_by_skeleton_and_unshielded_colliders", "fn equivalence_signature", "type Signature"]
+sha256 = "fad817ae1dcdb2b0500b3f4507d3cfd3194069b668e92c0cf2ef7efa285ba358"

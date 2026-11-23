@@ -2,11 +2,11 @@
 //!
 //! Format version 1 of the artifact (`checked_smoothed_dose_transport_v1`).
 //! A consumer never fits a learner or resamples. Before any replay work it refuses a
-//! stored bound that is looser than this build's compiled bound (compared field by field:
-//! a larger cap, a lower replicate floor or a node count this build does not offer; an
-//! equal or tighter stored bound is accepted, so a v1 artifact stays readable after a
-//! future build raises a cap), a request above the stored bounds, a request above its own
-//! row and covariate limits, and a replay workspace estimate above its memory limit (the
+//! stored enforced bound that is looser than this build's (a lower replicate floor, a node
+//! count this build does not offer or a larger workspace cap; an equal or tighter stored
+//! bound is accepted, so a v1 artifact stays readable after a future build raises a cap), a
+//! request whose node count the stored bounds do not offer, a request above its own row and
+//! covariate limits, and a replay workspace estimate above its memory limit (the
 //! mandatory 512 MiB cap, lowered by the consumer's own limit or context hard memory
 //! limit). It then re-derives the transport certificate from the stored graph and smoothed-dose
 //! query and requires the stored certificate record to match; re-validates the request
@@ -45,14 +45,14 @@
 //! The verified identity is three digests: premises (graph, selections, smoothed-dose
 //! query, certificate, options, seed, fold scheme, frozen bounds, feature schema,
 //! sampling design, variable names), data (rows, doses, known densities) and evidence
-//! (the whole executed result, fold models included). The interval route is closed
-//! (`cell_not_licensed`), so the format has no interval field; the stored status is
+//! (the whole executed result, fold models included). The interval route is not supported
+//! (`not_supported`), so the format has no interval field; the stored status is
 //! re-derived.
 use crate::{IoError, admg_from_wire, admg_to_wire, wire::AdmgWire};
 use antecedent_core::{ExecutionContext, IdentityDomain, SmoothedDoseTransportQuery, VariableId};
 use antecedent_estimate::smoothed_dose::{
-    SMOOTHED_DOSE_BOUNDS, SMOOTHED_DOSE_FOLD_SCHEME, SmoothedDoseBounds,
-    evaluate_smoothed_dose_models, parse_smoothing_kernel, smoothed_dose_fold_assignment,
+    SMOOTHED_DOSE_BOUNDS, SmoothedDoseBounds, evaluate_smoothed_dose_models,
+    parse_smoothing_kernel, smoothed_dose_fold_assignment, smoothed_dose_fold_scheme,
     smoothed_dose_memory_cap, smoothed_dose_workspace_bytes,
 };
 use antecedent_estimate::{
@@ -119,7 +119,8 @@ pub struct SmoothedDoseQueryWire {
 }
 
 impl SmoothedDoseQueryWire {
-    /// The wire form of a query.
+    /// The wire form of a query. Dose-grid and support values retain their
+    /// IEEE-754 representations, including the sign of zero.
     #[must_use]
     pub fn from_query(query: &SmoothedDoseTransportQuery) -> Self {
         Self {
@@ -229,6 +230,9 @@ struct PremisesView<'a> {
     features: &'a [u32],
     sampling: antecedent_estimate::TrialSampling,
     variable_names: &'a [String],
+    /// The Newey-West lag; absent without one, so plain premises keep their digest.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    serial_lag: Option<u32>,
 }
 
 #[derive(Serialize)]
@@ -239,6 +243,11 @@ struct DataView<'a> {
     dose: &'a [f64],
     dose_density: &'a [f64],
     source: &'a [bool],
+    /// Declared sampling weights and clusters; absent without them, so plain rows keep their digest.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sampling_weights: Option<&'a [f64]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cluster: Option<&'a [u32]>,
 }
 
 #[derive(Serialize)]
@@ -259,9 +268,42 @@ type Refusal = SmoothedDoseArtifactError;
 
 fn replay_refusal(error: EstimationError) -> Refusal {
     match error {
-        EstimationError::Refused { code, message } => Refusal::ReplayRefused { code, message },
+        EstimationError::Refused { code, message } => {
+            Refusal::ReplayRefused { code, message: message.into_string() }
+        }
         other => Refusal::InvalidRequest(other.to_string()),
     }
+}
+
+/// Inspect only the model-owned decode boundary after ordinary decoding has
+/// failed. Checked predictor deserialization remains the single numerical-map
+/// validator; codec error text is never used to infer scientific refusal kinds.
+fn malformed_fold_model(bytes: &[u8]) -> bool {
+    fn field<'a>(value: &'a ciborium::Value, name: &str) -> Option<&'a ciborium::Value> {
+        let ciborium::Value::Map(fields) = value else { return None };
+        let mut matching = fields.iter().filter_map(|(key, value)| {
+            matches!(key, ciborium::Value::Text(key) if key == name).then_some(value)
+        });
+        let value = matching.next()?;
+        // Duplicate keys are a codec failure, not a valid semantic boundary.
+        matching.next().is_none().then_some(value)
+    }
+
+    let Ok(value) = crate::from_cbor::<ciborium::Value>(bytes) else { return false };
+    if field(&value, "version").and_then(|v| v.deserialized::<u32>().ok())
+        != Some(SMOOTHED_DOSE_ARTIFACT_VERSION)
+    {
+        return false;
+    }
+    let Some(models) = field(&value, "result").and_then(|result| field(result, "models")) else {
+        return false;
+    };
+    ["outcome", "membership"].into_iter().any(|role| {
+        let Some(ciborium::Value::Array(models)) = field(models, role) else { return false };
+        models
+            .iter()
+            .any(|model| model.deserialized::<antecedent_learn::PortablePredictor>().is_err())
+    })
 }
 
 impl SmoothedDoseArtifactWire {
@@ -315,10 +357,11 @@ impl SmoothedDoseArtifactWire {
                 options: &self.options,
                 bounds: &self.bounds,
                 seed: self.seed,
-                fold_scheme: SMOOTHED_DOSE_FOLD_SCHEME,
+                fold_scheme: smoothed_dose_fold_scheme(&self.input),
                 features: &self.input.features,
                 sampling: self.input.sampling,
                 variable_names: &self.variable_names,
+                serial_lag: self.input.serial_lag,
             },
         )
     }
@@ -337,6 +380,8 @@ impl SmoothedDoseArtifactWire {
                 dose: &self.input.dose,
                 dose_density: &self.input.dose_density,
                 source: &self.input.source,
+                sampling_weights: self.input.sampling_weights.as_deref(),
+                cluster: self.input.cluster.as_deref(),
             },
         )
     }
@@ -399,15 +444,31 @@ impl SmoothedDoseArtifactWire {
     ///
     /// # Errors
     /// [`IoError::UnsupportedVersion`], or a decoding failure (an artifact carrying an
-    /// interval field fails here).
+    /// interval field fails here). Invalid embedded fold predictors retain the
+    /// typed [`Refusal::ProvenanceMismatch`] classification.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        crate::decode_with_version(bytes, |version| {
+        Self::decode_with_model_refusal(bytes, SMOOTHED_DOSE_BOUNDS.max_workspace_bytes)
+    }
+
+    fn decode_with_model_refusal(bytes: &[u8], max_reparse_bytes: u64) -> Result<Self, IoError> {
+        match crate::decode_with_version(bytes, |version| {
             if version == SMOOTHED_DOSE_ARTIFACT_VERSION {
                 Ok(())
             } else {
                 Err(IoError::UnsupportedVersion { version })
             }
-        })
+        }) {
+            Err(IoError::Cbor(_))
+                if u64::try_from(bytes.len()).is_ok_and(|size| size <= max_reparse_bytes)
+                    && malformed_fold_model(bytes) =>
+            {
+                // Predictor invariants are enforced during serde, before verify
+                // can classify their violation. Keep the family's semantic error
+                // at its consumption boundary without accepting an invalid model.
+                Err(Refusal::ProvenanceMismatch.into())
+            }
+            result => result,
+        }
     }
 
     /// Decode and independently verify without fitting or resampling, under the caller's
@@ -421,7 +482,8 @@ impl SmoothedDoseArtifactWire {
         limits: SmoothedDoseConsumeLimits,
         ctx: &ExecutionContext,
     ) -> Result<ConsumedSmoothedDose, IoError> {
-        let wire = Self::decode(bytes)?;
+        let reparse_cap = limits.max_memory_bytes.min(smoothed_dose_memory_cap(ctx));
+        let wire = Self::decode_with_model_refusal(bytes, reparse_cap)?;
         let identification = wire.verify(limits, ctx)?;
         Ok(ConsumedSmoothedDose { wire, identification })
     }
@@ -437,31 +499,19 @@ impl SmoothedDoseArtifactWire {
     /// stored bound is equal to or tighter than the compiled one.
     fn looser_stored_bound(&self) -> Option<&'static str> {
         let (stored, own) = (&self.bounds, &SMOOTHED_DOSE_BOUNDS);
+        // The size bounds (grid, folds, replicates, rows, covariates, degree, knots) are the
+        // producer's measured envelope, recorded in the premises and not enforced: a request
+        // is bounded by the replay workspace estimate. The node set, the replicate floor and
+        // the workspace cap are enforced.
         [
-            (stored.max_grid > own.max_grid, "stored bound max_grid exceeds this build's"),
             (
                 stored.quadrature_nodes.iter().any(|q| !own.quadrature_nodes.contains(q)),
                 "stored bound quadrature_nodes offers a node count this build does not",
             ),
-            (stored.max_folds > own.max_folds, "stored bound max_folds exceeds this build's"),
             (
                 stored.min_bootstrap < own.min_bootstrap,
                 "stored bound min_bootstrap is below this build's floor",
             ),
-            (
-                stored.max_bootstrap > own.max_bootstrap,
-                "stored bound max_bootstrap exceeds this build's",
-            ),
-            (stored.max_rows > own.max_rows, "stored bound max_rows exceeds this build's"),
-            (
-                stored.max_features > own.max_features,
-                "stored bound max_features exceeds this build's",
-            ),
-            (
-                stored.max_basis_degree > own.max_basis_degree,
-                "stored bound max_basis_degree exceeds this build's",
-            ),
-            (stored.max_knots > own.max_knots, "stored bound max_knots exceeds this build's"),
             (
                 stored.max_workspace_bytes > own.max_workspace_bytes,
                 "stored bound max_workspace_bytes exceeds this build's",
@@ -489,15 +539,7 @@ impl SmoothedDoseArtifactWire {
         }
         let o = &self.options;
         let b = &self.bounds;
-        if self.query.grid.len() > b.max_grid
-            || o.folds > b.max_folds
-            || o.bootstrap > b.max_bootstrap
-            || !b.quadrature_nodes.contains(&o.quadrature_nodes)
-            || n > b.max_rows
-            || self.input.features.len() > b.max_features
-            || o.basis.degree > b.max_basis_degree
-            || o.basis.knots.len() > b.max_knots
-        {
+        if !b.quadrature_nodes.contains(&o.quadrature_nodes) {
             return Err(Refusal::LimitsExceeded("request above the stored frozen bounds"));
         }
         let r = &self.result;
@@ -610,7 +652,7 @@ impl SmoothedDoseArtifactWire {
         validate_smoothed_dose(&id, &query, &self.input, &self.options).map_err(replay_refusal)?;
         let r = &self.result;
         if r.folds.count != self.options.folds
-            || r.folds.scheme != SMOOTHED_DOSE_FOLD_SCHEME
+            || r.folds.scheme != smoothed_dose_fold_scheme(&self.input)
             || r.folds.assignment != smoothed_dose_fold_assignment(&self.input, self.options.folds)
         {
             return Err(Refusal::FoldMismatch.into());
@@ -618,7 +660,7 @@ impl SmoothedDoseArtifactWire {
         self.check_provenance()?;
         let mut replay_ctx = ExecutionContext::production_default(self.seed);
         replay_ctx.parallelism = ctx.parallelism;
-        replay_ctx.memory = ctx.memory;
+        replay_ctx.set_memory_limit(ctx.memory_limit_bytes());
         replay_ctx.cancellation = ctx.cancellation.clone();
         let replay = evaluate_smoothed_dose_models(
             &query,
@@ -672,11 +714,36 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_frozen_bounds_are_the_recorded_ones() {
+    fn smoothed_query_wire_retains_single_zero_and_support_bits() {
+        for zero in [-0.0_f64, 0.0_f64] {
+            let query = SmoothedDoseTransportQuery {
+                outcome: VariableId::from_raw(0),
+                dose: VariableId::from_raw(1),
+                source_population: Arc::from("trial"),
+                target_population: Arc::from("target"),
+                grid: Arc::from([zero]),
+                bandwidth: 1.0,
+                kernel: antecedent_core::SmoothingKernel::Epanechnikov,
+                dose_support: (zero, 1.0),
+                density_provenance: Arc::from("known"),
+            };
+            query.validate().unwrap();
+            let wire = SmoothedDoseQueryWire::from_query(&query);
+            let decoded: SmoothedDoseQueryWire =
+                crate::from_cbor(&crate::to_cbor(&wire).unwrap()).unwrap();
+            let back = decoded.to_query().unwrap();
+            back.validate().unwrap();
+            assert_eq!(back.grid[0].to_bits(), zero.to_bits());
+            assert_eq!(back.dose_support.0.to_bits(), zero.to_bits());
+        }
+    }
+
+    #[test]
+    fn the_bounds_are_the_recorded_ones() {
         let b = SMOOTHED_DOSE_BOUNDS;
         assert_eq!(
             (b.max_grid, b.quadrature_nodes, b.max_folds, b.min_bootstrap, b.max_bootstrap),
-            (16, [16, 32], 20, 199, 2000)
+            (16, [16, 32], 20, 2, 2000)
         );
         assert_eq!(
             (b.max_rows, b.max_features, b.max_basis_degree, b.max_knots),

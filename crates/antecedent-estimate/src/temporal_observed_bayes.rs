@@ -8,7 +8,7 @@
 //! event inequalities remain in the outcome likelihood; no estimated IPCW weights or
 //! corrected pseudo-outcomes are treated as complete Gaussian data.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![cfg_attr(
     test,
     allow(
@@ -19,27 +19,29 @@
     )
 )]
 
+use crate::arm::TreatmentArm;
 use crate::{
     BayesianGComputationAte, CausalPosterior, EstimationError, SequentialMechanismOverlay,
-    SequentialNodeOverlay, TemporalIdentification, TemporalInterventionPlan,
-    plan_from_response_query,
+    SequentialNodeOverlay, TemporalIdentification, TemporalInterventionKind,
+    TemporalInterventionPlan, plan_from_response_query,
 };
 use antecedent_core::{
-    Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
-    CausalResponse, CausalRng, Diagnostic, DiagnosticKind, DiagnosticScope, DiagnosticSeverity,
-    ExecutionContext, HorizonIdentification, IdentificationStatus, ObservationSpec,
-    ParametricAssumption, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion, SupportReport,
-    SupportStatus, VariableId,
+    Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
+    AssumptionStatus, CausalResponse, CausalRng, Diagnostic, DiagnosticKind, DiagnosticScope,
+    DiagnosticSeverity, ExecutionContext, HorizonIdentification, IdentificationStatus,
+    ObservationSpec, ParametricAssumption, ResponseFunctional, ResponseIdentification,
+    ResponseQuery, ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion,
+    SupportReport, SupportStatus, TemporalResponseSpec, VariableId,
 };
 use antecedent_data::{TableView, TemporalIndexer, TimeSeriesData};
+use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{DenseNodeId, TemporalDag};
 use antecedent_kernels::{quantile_type7_sorted, standard_normal};
 use antecedent_prob::{
     BayesDesignRef, BayesFitOptions, BayesLikelihood, GaussianCoefficientPrior,
-    HessianFactorization, InferenceDiagnostics, LaplaceWorkspace, PosteriorDraws,
-    PosteriorQuantityKind, PosteriorSchema, PriorSet, PriorSpec, fit_conjugate_gaussian,
-    mcmc_summary,
+    HessianFactorization, InferenceDiagnostics, LaplaceWorkspace, McmcSummary, PosteriorDraws,
+    PosteriorQuantityKind, PosteriorSchema, PosteriorSummary, PriorSet, PriorSpec,
+    fit_conjugate_gaussian, mcmc_summary,
 };
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -125,16 +127,12 @@ fn read_column(data: &TimeSeriesData, variable: VariableId) -> Result<Vec<f64>, 
     Ok(values)
 }
 
-#[allow(
-    clippy::float_cmp,
-    reason = "the flag column is a 0/1 coding written by the data layer, so exact comparison against those two values is the intended test"
-)]
 fn observations(
     data: &TimeSeriesData,
     query: &ResponseQuery,
     outcome: VariableId,
 ) -> Result<Vec<Observation>, EstimationError> {
-    query.require_licensed_temporal_observation()?;
+    query.require_supported_temporal_observation()?;
     let (latent, observed, indicator, censor) = match query.observation {
         ObservationSpec::Selected { latent, observed, indicator } => {
             (latent, observed, indicator, None)
@@ -146,7 +144,8 @@ fn observations(
             (latent, observed, event, Some((censoring, false)))
         }
         _ => {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "observed temporal posterior needs selection or one-sided censoring",
             ));
         }
@@ -161,12 +160,13 @@ fn observations(
     let bounds = censor.map(|(v, _)| read_column(data, v)).transpose()?;
     let mut result = Vec::with_capacity(y.len());
     for i in 0..y.len() {
-        if flags[i] != 0.0 && flags[i] != 1.0 {
+        // The flag column is a 0/1 coding written by the data layer: any other value is refused.
+        let Some(arm) = TreatmentArm::exact(flags[i]) else {
             return Err(EstimationError::data_msg(
                 "observation indicator must be complete binary data",
             ));
-        }
-        if flags[i] == 1.0 {
+        };
+        if arm.is_treated() {
             if !y[i].is_finite() {
                 return Err(EstimationError::data_msg("observed outcome must be finite"));
             }
@@ -282,9 +282,24 @@ fn mechanism_templates(
     graph: &TemporalDag,
     outcome: VariableId,
 ) -> Result<MechanismTemplates, EstimationError> {
+    mechanism_templates_inner(graph, outcome, None)
+}
+
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the value is bounded by the validated estimator input"
+)]
+fn mechanism_templates_inner(
+    graph: &TemporalDag,
+    outcome: VariableId,
+    ctx: Option<&ExecutionContext>,
+) -> Result<MechanismTemplates, EstimationError> {
     let mut parents: BTreeMap<VariableId, Vec<(VariableId, usize)>> = BTreeMap::new();
     parents.insert(outcome, Vec::new());
     for node in 0..graph.node_count() {
+        if ctx.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+            return Err(antecedent_core::TemporalMaterializationError::Cancelled.into());
+        }
         let child = graph.temporal_key(DenseNodeId::from_raw(node as u32)).ok_or_else(|| {
             EstimationError::data_msg("temporal node is missing from the unfolded graph")
         })?;
@@ -293,6 +308,9 @@ fn mechanism_templates(
         }
         let entry = parents.entry(child.variable).or_default();
         for &p in graph.parents(DenseNodeId::from_raw(node as u32)) {
+            if ctx.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+                return Err(antecedent_core::TemporalMaterializationError::Cancelled.into());
+            }
             let parent = graph.temporal_key(p).ok_or_else(|| {
                 EstimationError::data_msg("temporal parent is missing from the unfolded graph")
             })?;
@@ -402,14 +420,50 @@ struct EvaluationNode {
     overlay: Option<SequentialMechanismOverlay>,
 }
 struct Evaluation {
+    overlay_lease: Option<antecedent_core::execution::AdmissionLease>,
+    _evaluation_lease: antecedent_core::execution::AdmissionLease,
     order: Vec<usize>,
     nodes: Vec<EvaluationNode>,
     outcome: usize,
 }
+fn retain_outcome_dependencies(
+    order: &mut Vec<usize>,
+    nodes: &[EvaluationNode],
+    outcome: usize,
+    ctx: &ExecutionContext,
+) -> Result<(), EstimationError> {
+    use antecedent_core::TemporalMaterializationError as T;
+    // Evaluate only dependencies of the requested cell. The indexer can
+    // include unrelated schema columns without an empirical model/mean.
+    let mut needed = vec![false; nodes.len()];
+    let mut pending = vec![outcome];
+    while let Some(i) = pending.pop() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(T::Cancelled.into());
+        }
+        if needed[i] {
+            continue;
+        }
+        needed[i] = true;
+        if nodes[i].overlay.is_some_and(|overlay| overlay.node.level.is_some()) {
+            continue;
+        }
+        if let Some((_, parents)) = &nodes[i].mechanism {
+            pending.extend(parents.iter().copied());
+        }
+    }
+    order.retain(|&i| needed[i]);
+    Ok(())
+}
+
 impl Evaluation {
     #[allow(
         clippy::cast_possible_truncation,
         reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
+    )]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the bounded estimation procedure keeps its related calculations together"
     )]
     fn new(
         graph: &TemporalDag,
@@ -417,48 +471,116 @@ impl Evaluation {
         outcome: VariableId,
         horizon: u32,
         overlays: Vec<SequentialMechanismOverlay>,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &ExecutionContext,
     ) -> Result<Self, EstimationError> {
-        let unfolded =
-            graph.unfold(indexer.clone()).map_err(|e| EstimationError::data_msg(e.to_string()))?;
-        let mut order: Vec<usize> = unfolded
-            .dag
-            .topological_order()
-            .ok_or_else(|| EstimationError::data_msg("cyclic unfolding"))?
-            .into_iter()
-            .map(DenseNodeId::as_usize)
-            .collect();
-        let keys = (0..unfolded.dag.node_count())
-            .map(|i| indexer.key_of(i as u32).map_err(|e| EstimationError::data_msg(e.to_string())))
-            .collect::<Result<Vec<_>, _>>()?;
-        let positions = keys
-            .iter()
-            .enumerate()
-            .map(|(i, key)| ((key.variable, key.offset), i))
-            .collect::<BTreeMap<_, _>>();
-        let templates = mechanism_templates(graph, outcome)?
-            .into_iter()
-            .enumerate()
-            .map(|(i, (v, p))| (v, (i, p)))
-            .collect::<BTreeMap<_, _>>();
-        let mut nodes = keys
-            .iter()
-            .map(|key| {
-                let mechanism = templates.get(&key.variable).and_then(|(model, parents)| {
-                    parents
-                        .iter()
-                        .map(|(variable, lag)| {
-                            i32::try_from(*lag)
-                                .ok()
-                                .and_then(|lag| key.offset.checked_sub(lag))
-                                .and_then(|offset| positions.get(&(*variable, offset)).copied())
-                        })
-                        .collect::<Option<Vec<_>>>()
-                        .map(|parents| (*model, parents))
-                });
-                EvaluationNode { variable: key.variable, mechanism, overlay: None }
-            })
-            .collect::<Vec<_>>();
+        use antecedent_core::TemporalMaterializationError as T;
+        let unfolded = graph.unfold_within(indexer.clone(), budget, ctx)?;
+        let n = u64::try_from(indexer.dense_len())
+            .map_err(|_| T::Limit { dimension: "graph nodes" })?;
+        budget.charge_work(n)?;
+        let mut edges = 0u64;
+        for i in 0..indexer.dense_len() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            edges = edges
+                .checked_add(unfolded.dag.children(DenseNodeId::from_index(i)).len() as u64)
+                .ok_or(T::Limit { dimension: "graph edges" })?;
+        }
+        let template_nodes = graph.node_count() as u64;
+        budget.charge_work(template_nodes)?;
+        let mut template_edges = 0u64;
+        for i in 0..graph.node_count() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            template_edges = template_edges
+                .checked_add(graph.parents(DenseNodeId::from_index(i)).len() as u64)
+                .ok_or(T::Limit { dimension: "work" })?;
+        }
+        let slices = u64::from(indexer.history())
+            .checked_add(u64::from(indexer.horizon()))
+            .ok_or(T::Limit { dimension: "work" })?;
+        let parent_steps =
+            template_edges.checked_mul(slices).ok_or(T::Limit { dimension: "work" })?;
+        let work = n
+            .checked_mul(16)
+            .and_then(|n| edges.checked_mul(16).and_then(|e| n.checked_add(e)))
+            .and_then(|n| parent_steps.checked_mul(32).and_then(|e| n.checked_add(e)))
+            .ok_or(T::Limit { dimension: "work" })?;
+        budget.charge_work(work)?;
+        let bytes = n
+            .checked_mul(1024)
+            .and_then(|n| edges.checked_mul(512).and_then(|e| n.checked_add(e)))
+            .and_then(|n| parent_steps.checked_mul(128).and_then(|e| n.checked_add(e)))
+            .and_then(|n| n.checked_add(4096))
+            .ok_or(T::Limit { dimension: "bytes" })?;
+        if bytes > budget.limits().max_bytes {
+            return Err(T::Limit { dimension: "bytes" }.into());
+        }
+        let evaluation_lease = ctx
+            .acquire_admission(0, bytes)
+            .map_err(crate::temporal_response::temporal_admission_error)?;
+        let mut order = Vec::with_capacity(indexer.dense_len());
+        for id in unfolded.topological_order() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            order.push(id.as_usize());
+        }
+        let mut keys = Vec::with_capacity(indexer.dense_len());
+        let mut positions = BTreeMap::new();
+        for i in 0..unfolded.dag.node_count() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            let key = indexer.key_of(i as u32)?;
+            positions.insert((key.variable, key.offset), i);
+            keys.push(key);
+        }
+        let mut templates = BTreeMap::new();
+        for (i, (variable, parents)) in
+            mechanism_templates_inner(graph, outcome, Some(ctx))?.into_iter().enumerate()
+        {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            templates.insert(variable, (i, parents));
+        }
+        let mut nodes = Vec::with_capacity(keys.len());
+        for key in &keys {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            let mechanism = if let Some((model, parents)) = templates.get(&key.variable) {
+                let mut positions_for_parents = Vec::with_capacity(parents.len());
+                let mut complete = true;
+                for (variable, lag) in parents {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(T::Cancelled.into());
+                    }
+                    let position = i32::try_from(*lag)
+                        .ok()
+                        .and_then(|lag| key.offset.checked_sub(lag))
+                        .and_then(|offset| positions.get(&(*variable, offset)).copied());
+                    if let Some(position) = position {
+                        positions_for_parents.push(position)
+                    } else {
+                        complete = false;
+                        break;
+                    }
+                }
+                complete.then_some((*model, positions_for_parents))
+            } else {
+                None
+            };
+            nodes.push(EvaluationNode { variable: key.variable, mechanism, overlay: None });
+        }
         for overlay in overlays {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
             let position =
                 positions.get(&(overlay.node.variable, overlay.node.offset)).ok_or_else(|| {
                     EstimationError::data_msg("intervention outside temporal unfolding")
@@ -476,24 +598,8 @@ impl Evaluation {
         let outcome = *positions
             .get(&(outcome, offset))
             .ok_or_else(|| EstimationError::data_msg("outcome outside temporal unfolding"))?;
-        // Evaluate only dependencies of the requested cell. The indexer can
-        // include unrelated schema columns without an empirical model/mean.
-        let mut needed = vec![false; nodes.len()];
-        let mut pending = vec![outcome];
-        while let Some(i) = pending.pop() {
-            if needed[i] {
-                continue;
-            }
-            needed[i] = true;
-            if nodes[i].overlay.is_some_and(|overlay| overlay.node.level.is_some()) {
-                continue;
-            }
-            if let Some((_, parents)) = &nodes[i].mechanism {
-                pending.extend(parents.iter().copied());
-            }
-        }
-        order.retain(|&i| needed[i]);
-        Ok(Self { order, nodes, outcome })
+        retain_outcome_dependencies(&mut order, &nodes, outcome, ctx)?;
+        Ok(Self { overlay_lease: None, _evaluation_lease: evaluation_lease, order, nodes, outcome })
     }
     fn value(&self, models: &[Mechanism], means: &BTreeMap<VariableId, f64>) -> f64 {
         crate::temporal_sequential::propagate_linear_level(
@@ -518,6 +624,41 @@ impl Evaluation {
     }
 }
 
+/// The resolved response target of a validated request.
+struct ResponseTarget {
+    outcome: VariableId,
+    treatment: VariableId,
+    /// The dose grid of a mean curve; `None` for an intervention-response cell.
+    doses: Option<Vec<f64>>,
+}
+
+/// The identified estimand of each requested horizon with its unfolded-graph indexer.
+type Horizons<'a> = &'a [(&'a IdentifiedEstimand, &'a TemporalIndexer)];
+
+/// What the data augmentation starts from: the outcome's observation states, the observed
+/// non-outcome columns (with the outcome column at its start path) and the moments of the
+/// exact outcomes that disperse each chain's latent start.
+struct ObservedInputs {
+    observations: Vec<Observation>,
+    base: BTreeMap<VariableId, Vec<f64>>,
+    center: f64,
+    spread: f64,
+}
+
+/// The retained draws of every chain: the response cells (cell-major) and, per retained sweep,
+/// the mechanism parameters followed by the cell values, as the convergence summary reads them.
+struct ChainDraws {
+    cells: Vec<f64>,
+    parameters: Vec<f64>,
+    chains: usize,
+    per_chain: usize,
+    warmup: usize,
+    n_parameters: usize,
+    count: usize,
+    /// Holds the admitted buffer bytes until the draws are consumed.
+    _admission: antecedent_core::execution::AdmissionLease,
+}
+
 /// Infer a temporal mean surface from the selected/censored Gaussian likelihood.
 ///
 /// Four data-augmentation chains share each stationary mechanism across time.
@@ -528,17 +669,13 @@ impl Evaluation {
 /// Initial latent history has independent N(0, `prior_scale²`) priors. This is a
 /// parametric observed-data model, not a Bayesian IPCW pseudo-likelihood.
 ///
+/// The estimate runs in stages: validate the request and resolve its target, prepare the
+/// observed inputs, compile one evaluation per dose and horizon cell, run the Gibbs chains,
+/// check their convergence, and assemble the response and posterior from the same draws.
+///
 /// # Errors
 /// Invalid observation data, incompatible priors/likelihood, numerical failure,
 /// cancellation, or failure of the MCMC publication gate.
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits; chain, warmup and per-chain iteration counts are sampler settings far below u32::MAX"
-)]
-#[allow(
-    clippy::too_many_lines,
-    reason = "validate the identification, build the observed mechanisms, then fit and summarize every horizon and dose from the same draws"
-)]
 pub fn estimate_observed_temporal_response(
     data: &TimeSeriesData,
     graph: &TemporalDag,
@@ -548,12 +685,102 @@ pub fn estimate_observed_temporal_response(
     ctx: &ExecutionContext,
 ) -> Result<(CausalResponse, CausalPosterior), EstimationError> {
     let TemporalIdentification { horizons: identifications, status, mut assumptions } = identified;
-    query.validate()?;
+    let mut temporal_budget =
+        antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    let temporal = validate_request(
+        query,
+        estimator,
+        ctx,
+        identifications.len(),
+        status,
+        &mut temporal_budget,
+    )?;
+    let target = response_target(query)?;
+    require_observation_containment(data, query, identifications, &target)?;
+    let inputs = observed_inputs(data, graph, query, target.outcome)?;
+    let planned = plan_from_response_query(query, &mut temporal_budget, ctx)?;
+    if planned
+        .as_ref()
+        .and_then(TemporalInterventionPlan::mechanism_overlays)
+        .is_some_and(|mut overlays| overlays.any(|overlay| overlay.bounds.is_some()))
+    {
+        assumptions.push(SequentialMechanismOverlay::mean_target_assumption());
+    }
+    let (evaluations, grid) = compile_cells(
+        graph,
+        temporal,
+        planned.as_ref(),
+        identifications,
+        &target,
+        &mut temporal_budget,
+        ctx,
+    )?;
+    let sweeps = run_chains(data, graph, estimator, ctx, &target, &inputs, &evaluations)?;
+    let (diagnostics, summary) = gibbs_diagnostics(&sweeps)?;
+    assumptions.push(observation_assumption(query));
+    let cells = evaluations.len();
+    let ChainDraws { cells: values, count, .. } = sweeps;
+    let schema = PosteriorSchema {
+        quantities: (0..cells)
+            .map(|cell| PosteriorQuantityKind::Scalar {
+                name: format!("response.cell.{cell}").into(),
+            })
+            .collect::<Vec<_>>()
+            .into(),
+    };
+    let draws = PosteriorDraws::from_column_major(schema, count, values)?;
+    let summaries = draws.summarize();
+    let response = assemble_response(
+        ResponseContext {
+            query,
+            temporal,
+            identifications,
+            status,
+            assumptions: &assumptions,
+            grid,
+            dose_axis: target.doses.is_some(),
+            cells,
+            count,
+        },
+        &draws,
+        &summaries,
+        &summary,
+    )?;
+    let posterior = CausalPosterior {
+        subsampled_out_mass: 0.0,
+        unevaluable_mass: 0.0,
+        draws,
+        summaries,
+        identification: status,
+        prior_sensitivity: None,
+        conflict_summary: None,
+        diagnostics,
+        assumptions,
+        unidentified_mass: 0.0,
+        early_stopped: false,
+        treatment_contrast: None,
+        preparation: None,
+    };
+    Ok((response, posterior))
+}
+
+/// Check the estimator, the cancellation state and that every requested horizon is identified;
+/// the request's temporal specification.
+fn validate_request<'q>(
+    query: &'q ResponseQuery,
+    estimator: &BayesianGComputationAte,
+    ctx: &ExecutionContext,
+    horizon_count: usize,
+    status: IdentificationStatus,
+    budget: &mut antecedent_core::TemporalBudget,
+) -> Result<&'q TemporalResponseSpec, EstimationError> {
+    crate::validate_temporal_response_within(query, budget, ctx)?;
     if ctx.cancellation.is_cancelled() {
         return Err(EstimationError::data_msg("observed temporal posterior cancelled"));
     }
     if estimator.likelihood != BayesLikelihood::GaussianIdentity || estimator.prior.is_some() {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
             "observed temporal mechanisms require Gaussian likelihood and independent isotropic mechanism priors",
         ));
     }
@@ -564,7 +791,7 @@ pub fn estimate_observed_temporal_response(
         .temporal
         .as_ref()
         .ok_or_else(|| EstimationError::unsupported("temporal query required"))?;
-    if identifications.len() != temporal.horizons.len()
+    if horizon_count != temporal.horizons.len()
         || !matches!(
             status,
             IdentificationStatus::NonparametricallyIdentified
@@ -575,6 +802,11 @@ pub fn estimate_observed_temporal_response(
             "observed temporal posterior requires every horizon identified",
         ));
     }
+    Ok(temporal)
+}
+
+/// The outcome, treatment and dose grid of a mean curve or intervention-level response.
+fn response_target(query: &ResponseQuery) -> Result<ResponseTarget, EstimationError> {
     let (outcome, treatment, doses) = match &query.functional {
         ResponseFunctional::MeanCurve { outcome, treatment } => {
             (*outcome, treatment.variable, Some(treatment.grid.values()?))
@@ -583,23 +815,34 @@ pub fn estimate_observed_temporal_response(
             (*outcome, interventions[0].target_variables()[0], None)
         }
         _ => {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "observed temporal posterior supports mean curves and intervention levels",
             ));
         }
     };
+    Ok(ResponseTarget { outcome, treatment, doses })
+}
+
+/// The observation model's conditioning set must be fully observed and exclude the latent
+/// outcome, and the adjustment variables must contain it.
+fn require_observation_containment(
+    data: &TimeSeriesData,
+    query: &ResponseQuery,
+    identifications: Horizons<'_>,
+    target: &ResponseTarget,
+) -> Result<(), EstimationError> {
     let mut adjustment = Vec::new();
     for &(estimand, indexer) in identifications {
         for id in estimand.adjustment_set.iter() {
-            adjustment.push(
-                indexer
-                    .key_of(id.raw())
-                    .map_err(|e| EstimationError::data_msg(e.to_string()))?
-                    .variable,
-            );
+            adjustment.push(indexer.key_of(id.raw())?.variable);
         }
     }
-    crate::observation::require_temporal_observation_containment(query, treatment, &adjustment)?;
+    crate::observation::require_temporal_observation_containment(
+        query,
+        target.treatment,
+        &adjustment,
+    )?;
     for assumption in query.observation_assumptions.iter() {
         let (antecedent_core::ObservationAssumption::IndependentGiven(conditioning)
         | antecedent_core::ObservationAssumption::OutcomeIndependentGiven(conditioning)) =
@@ -608,14 +851,29 @@ pub fn estimate_observed_temporal_response(
             continue;
         };
         for &v in conditioning.iter() {
-            if v == outcome || read_column(data, v)?.iter().any(|x| !x.is_finite()) {
+            if v == target.outcome || read_column(data, v)?.iter().any(|x| !x.is_finite()) {
                 return Err(EstimationError::data_msg(
                     "observation conditioning must be fully observed and exclude the latent outcome",
                 ));
             }
         }
     }
-    let obs = observations(data, query, outcome)?;
+    Ok(())
+}
+
+/// The observation states of the outcome, the observed non-outcome columns and the moments of
+/// the exact outcomes.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "dense node ids are u32 by construction, so every index below the graph's node count fits"
+)]
+fn observed_inputs(
+    data: &TimeSeriesData,
+    graph: &TemporalDag,
+    query: &ResponseQuery,
+    outcome: VariableId,
+) -> Result<ObservedInputs, EstimationError> {
+    let observations = observations(data, query, outcome)?;
     let mut base = BTreeMap::new();
     for node in 0..graph.node_count() {
         let v = graph
@@ -634,7 +892,7 @@ pub fn estimate_observed_temporal_response(
             base.insert(v, values);
         }
     }
-    let exact: Vec<_> = obs
+    let exact: Vec<_> = observations
         .iter()
         .filter_map(|o| if let Observation::Exact(y) = o { Some(*y) } else { None })
         .collect();
@@ -650,7 +908,8 @@ pub fn estimate_observed_temporal_response(
     };
     base.insert(
         outcome,
-        obs.iter()
+        observations
+            .iter()
             .map(|o| match *o {
                 Observation::Exact(y) => y,
                 Observation::Lower(y) => center.max(y),
@@ -659,63 +918,105 @@ pub fn estimate_observed_temporal_response(
             })
             .collect(),
     );
-    let planned = plan_from_response_query(query)?;
-    if planned
-        .as_ref()
-        .and_then(TemporalInterventionPlan::mechanism_overlays)
-        .is_some_and(|overlays| overlays.iter().any(|overlay| overlay.bounds.is_some()))
-    {
-        assumptions.push(SequentialMechanismOverlay::mean_target_assumption());
-    }
+    Ok(ObservedInputs { observations, base, center, spread })
+}
 
+/// The compiled evaluation of every dose-by-horizon cell and the response grid it covers.
+fn compile_cells(
+    graph: &TemporalDag,
+    temporal: &TemporalResponseSpec,
+    planned: Option<&TemporalInterventionPlan>,
+    identifications: Horizons<'_>,
+    target: &ResponseTarget,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<(Vec<Evaluation>, Vec<f64>), EstimationError> {
+    let (outcome, treatment, doses) = (target.outcome, target.treatment, &target.doses);
     let mut evaluations = Vec::new();
     let mut grid = Vec::new();
-    for dose in doses.clone().unwrap_or_else(|| vec![0.0]) {
+    for dose in doses.as_deref().unwrap_or(&[0.0]).iter().copied() {
         for (&horizon, &(_, indexer)) in temporal.horizons.iter().zip(identifications) {
-            let overlays = if let Some(plan) = &planned {
-                if let Some(overlays) = plan.mechanism_overlays() {
-                    overlays
-                } else {
-                    let TemporalInterventionPlan::Single { treatment, level, shift } = *plan else {
-                        return Err(EstimationError::unsupported(
-                            "a temporal intervention without mechanism overlays must be a single schedule",
-                        ));
-                    };
-                    temporal
-                        .policy
-                        .active_offsets()
-                        .map_err(|e| EstimationError::data_msg(e.to_string()))?
-                        .iter()
-                        .map(|&at| {
-                            SequentialNodeOverlay { variable: treatment, offset: at, level, shift }
-                                .into()
-                        })
-                        .collect()
+            use antecedent_core::TemporalMaterializationError as T;
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            let count = match planned.map(TemporalInterventionPlan::kind) {
+                Some(TemporalInterventionKind::Sequential { overlays }) => overlays.len() as u64,
+                Some(TemporalInterventionKind::Mechanisms { overlays }) => overlays.len() as u64,
+                _ => temporal.policy.offset_count()?,
+            };
+            budget.charge_offsets(count)?;
+            budget.charge_work(count)?;
+            let bytes = count
+                .checked_mul(256)
+                .and_then(|n| n.checked_add(512))
+                .ok_or(T::Limit { dimension: "bytes" })?;
+            if bytes > budget.limits().max_bytes {
+                return Err(T::Limit { dimension: "bytes" }.into());
+            }
+            let overlay_lease = ctx
+                .acquire_admission(0, bytes)
+                .map_err(crate::temporal_response::temporal_admission_error)?;
+            let mut overlays = Vec::new();
+            overlays
+                .try_reserve_exact(usize::try_from(count).map_err(|_| T::Allocation)?)
+                .map_err(|_| T::Allocation)?;
+            if let Some(iter) = planned.and_then(TemporalInterventionPlan::mechanism_overlays) {
+                for overlay in iter {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(T::Cancelled.into());
+                    }
+                    overlays.push(overlay);
                 }
             } else {
-                temporal
-                    .policy
-                    .active_offsets()
-                    .map_err(|e| EstimationError::data_msg(e.to_string()))?
-                    .iter()
-                    .map(|&at| {
-                        SequentialNodeOverlay {
-                            variable: treatment,
-                            offset: at,
-                            level: Some(dose),
-                            shift: 0.0,
-                        }
-                        .into()
-                    })
-                    .collect()
-            };
-            evaluations.push(Evaluation::new(graph, indexer, outcome, horizon, overlays)?);
+                let (variable, level, shift) = match planned.map(TemporalInterventionPlan::kind) {
+                    Some(TemporalInterventionKind::Single { treatment, level, shift }) => {
+                        (*treatment, *level, *shift)
+                    }
+                    None => (treatment, Some(dose), 0.0),
+                    _ => {
+                        return Err(EstimationError::unsupported("invalid temporal response plan"));
+                    }
+                };
+                for offset in temporal.policy.offsets()? {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(T::Cancelled.into());
+                    }
+                    overlays.push(SequentialNodeOverlay { variable, offset, level, shift }.into());
+                }
+            }
+            let mut evaluation =
+                Evaluation::new(graph, indexer, outcome, horizon, overlays, budget, ctx)?;
+            evaluation.overlay_lease = Some(overlay_lease);
+            evaluations.push(evaluation);
             if doses.is_some() {
                 grid.push(dose);
             }
             grid.push(f64::from(horizon));
         }
     }
+    Ok((evaluations, grid))
+}
+
+/// Run the Gibbs chains and retain every sweep after warmup.
+///
+/// The buffer sizes are inspected and admitted before any mechanism design or workspace is
+/// allocated. Chains run sequentially, so only one chain's mechanism buffers are live.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "chain, warmup and per-chain iteration counts are sampler settings far below u32::MAX"
+)]
+fn run_chains(
+    data: &TimeSeriesData,
+    graph: &TemporalDag,
+    estimator: &BayesianGComputationAte,
+    ctx: &ExecutionContext,
+    target: &ResponseTarget,
+    inputs: &ObservedInputs,
+    evaluations: &[Evaluation],
+) -> Result<ChainDraws, EstimationError> {
+    let outcome = target.outcome;
+    let ObservedInputs { observations: obs, base, center, spread } = inputs;
     let chains = 4;
     let per_chain = estimator.n_draws.div_ceil(chains).max(1024);
     let warmup = 512;
@@ -723,8 +1024,6 @@ pub fn estimate_observed_temporal_response(
         .checked_mul(per_chain)
         .ok_or_else(|| EstimationError::data_msg("posterior draw count overflow"))?;
     let cells = evaluations.len();
-    // Inspect dimensions before allocating any mechanism design or workspace.
-    // Chains run sequentially, so only one chain's mechanism buffers are live.
     let dimensions = mechanism_templates(graph, outcome)?
         .values()
         .map(|parents| {
@@ -734,9 +1033,15 @@ pub fn estimate_observed_temporal_response(
         .collect::<Vec<_>>();
     let (n_parameters, bytes) =
         posterior_buffer_budget(&dimensions, data.row_count(), base.len(), count, cells)?;
-    if ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes as u128 > u128::from(limit)) {
+    if ctx.memory_limit_bytes().is_some_and(|limit| bytes as u128 > u128::from(limit)) {
         return Err(EstimationError::data_msg("observed temporal posterior exceeds memory budget"));
     }
+    let admission =
+        ctx.acquire_admission(0, u64::try_from(bytes).unwrap_or(u64::MAX)).map_err(|error| {
+            EstimationError::data_msg(format!(
+                "observed temporal posterior is not admitted: {error}"
+            ))
+        })?;
     let mut draws = vec![0.0; count * cells];
     let mut parameters = Vec::with_capacity(count * n_parameters);
     for chain in 0..chains {
@@ -747,7 +1052,7 @@ pub fn estimate_observed_temporal_response(
         // sampling stream is unchanged).
         let mut start_rng = CausalRng::from_seed(chain_seed ^ CHAIN_START_STREAM);
         let mut values = base.clone();
-        values.insert(outcome, dispersed_latent_start(&obs, center, spread, &mut start_rng));
+        values.insert(outcome, dispersed_latent_start(obs, *center, *spread, &mut start_rng));
         let mut models = mechanisms(data, graph, outcome, estimator.prior_scale)?;
         for iteration in 0..warmup + per_chain {
             if ctx.cancellation.is_cancelled() {
@@ -756,7 +1061,7 @@ pub fn estimate_observed_temporal_response(
             for model in &mut models {
                 model.draw(&values, &mut rng)?;
             }
-            sweep(&mut values, outcome, &obs, &models, estimator.prior_scale.powi(2), &mut rng)?;
+            sweep(&mut values, outcome, obs, &models, estimator.prior_scale.powi(2), &mut rng)?;
             if iteration < warmup {
                 continue;
             }
@@ -773,7 +1078,29 @@ pub fn estimate_observed_temporal_response(
             }
         }
     }
-    let summary = mcmc_summary(&parameters, chains, per_chain, n_parameters);
+    Ok(ChainDraws {
+        cells: draws,
+        parameters,
+        chains,
+        per_chain,
+        warmup,
+        n_parameters,
+        count,
+        _admission: admission,
+    })
+}
+
+/// The convergence record of the chains and its publication gate.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "chain, warmup and per-chain iteration counts are sampler settings far below u32::MAX"
+)]
+fn gibbs_diagnostics(
+    sweeps: &ChainDraws,
+) -> Result<(InferenceDiagnostics, McmcSummary), EstimationError> {
+    let ChainDraws { parameters, chains, per_chain, warmup, n_parameters, .. } = sweeps;
+    let (chains, per_chain, warmup, n_parameters) = (*chains, *per_chain, *warmup, *n_parameters);
+    let summary = mcmc_summary(parameters, chains, per_chain, n_parameters);
     let mut diagnostics = InferenceDiagnostics::analytic("temporal.observed_gaussian.gibbs");
     diagnostics.factorization = HessianFactorization::Mcmc;
     diagnostics.n_chains = Some(chains as u32);
@@ -789,14 +1116,19 @@ pub fn estimate_observed_temporal_response(
     diagnostics.max_abs_delta_h = Some(0.0);
     diagnostics.notes.push("Exact Gibbs conditional updates have unit acceptance; no Hamiltonian integration is performed (zero integration-error convention).".into());
     diagnostics.all_chains_moved =
-        Some(antecedent_prob::all_chains_moved(&parameters, chains, per_chain, n_parameters));
+        Some(antecedent_prob::all_chains_moved(parameters, chains, per_chain, n_parameters));
     diagnostics.converged = diagnostics.mcmc_publication_ok();
-    if !diagnostics.allows_posterior() {
-        return Err(EstimationError::stats_msg(format!(
-            "observed temporal Gibbs publication gate: R-hat={}, bulk ESS={}, tail ESS={}",
-            summary.max_rhat, summary.min_bulk_ess, summary.min_tail_ess
-        )));
+    if let Some(error) = diagnostics.publication_error(format!(
+        "observed temporal Gibbs publication gate: R-hat={}, bulk ESS={}, tail ESS={}",
+        summary.max_rhat, summary.min_bulk_ess, summary.min_tail_ess
+    )) {
+        return Err(error.into());
     }
+    Ok((diagnostics, summary))
+}
+
+/// The parametric restriction the observed-data Gaussian model carries.
+fn observation_assumption(query: &ResponseQuery) -> AssumptionRecord {
     let observation_independence = if matches!(query.observation, ObservationSpec::Selected { .. })
     {
         "selection-indicator trajectory is independent of the full latent outcome trajectory"
@@ -804,7 +1136,7 @@ pub fn estimate_observed_temporal_response(
         "censoring-bound trajectory is independent of the full latent outcome trajectory; \
          the event indicator is determined by the outcome and censoring bound"
     };
-    assumptions.push(AssumptionRecord {
+    AssumptionRecord {
         assumption: Assumption::ParametricRestriction(ParametricAssumption {
             id: "temporal.observed_gaussian_sem".into(),
             description: format!(
@@ -824,17 +1156,48 @@ pub fn estimate_observed_temporal_response(
         },
         scope: AssumptionScope::Estimation,
         status: AssumptionStatus::Declared,
-    });
-    let schema = PosteriorSchema {
-        quantities: (0..cells)
-            .map(|cell| PosteriorQuantityKind::Scalar {
-                name: format!("response.cell.{cell}").into(),
-            })
-            .collect::<Vec<_>>()
-            .into(),
-    };
-    let draws = PosteriorDraws::from_column_major(schema, count, draws)?;
-    let summaries = draws.summarize();
+    }
+}
+
+/// What the response is assembled from, beside the draws and their summaries.
+struct ResponseContext<'a> {
+    query: &'a ResponseQuery,
+    temporal: &'a TemporalResponseSpec,
+    identifications: Horizons<'a>,
+    status: IdentificationStatus,
+    assumptions: &'a AssumptionSet,
+    /// The covered `(dose?, horizon)` points, row-major over cells.
+    grid: Vec<f64>,
+    /// Whether the grid carries a dose axis before the horizon axis.
+    dose_axis: bool,
+    /// Response cells and retained draws per cell.
+    cells: usize,
+    count: usize,
+}
+
+/// The response surface: pointwise credible band, the simultaneous band of the joint draws,
+/// the identification record per horizon and the support report.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
+fn assemble_response(
+    context: ResponseContext<'_>,
+    draws: &PosteriorDraws,
+    summaries: &PosteriorSummary,
+    summary: &McmcSummary,
+) -> Result<CausalResponse, EstimationError> {
+    let ResponseContext {
+        query,
+        temporal,
+        identifications,
+        status,
+        assumptions,
+        grid,
+        dose_axis,
+        cells,
+        count,
+    } = context;
     let mut lower = Vec::new();
     let mut upper = Vec::new();
     let mut columns = Vec::with_capacity(cells);
@@ -862,17 +1225,13 @@ pub fn estimate_observed_temporal_response(
                 adjustment: id
                     .adjustment_set
                     .iter()
-                    .map(|v| {
-                        indexer
-                            .key_of(v.raw())
-                            .map_err(|e| EstimationError::data_msg(e.to_string()))
-                    })
+                    .map(|v| indexer.key_of(v.raw()))
                     .collect::<Result<Vec<_>, _>>()?
                     .into(),
             })
         })
         .collect::<Result<Vec<_>, EstimationError>>()?;
-    let dimension = if doses.is_some() { 2 } else { 1 };
+    let dimension = if dose_axis { 2 } else { 1 };
     let minima = (0..dimension)
         .map(|axis| grid.chunks(dimension).map(|point| point[axis]).fold(f64::INFINITY, f64::min))
         .collect::<Vec<_>>();
@@ -884,7 +1243,7 @@ pub fn estimate_observed_temporal_response(
     let mut response = CausalResponse {
         estimand: query.functional.clone(),
         identification_status: status,
-        estimate: ResponseIdentification::PointIdentified(if doses.is_none() && cells == 1 {
+        estimate: ResponseIdentification::PointIdentified(if !dose_axis && cells == 1 {
             ResponseValue::Scalar(summaries.mean[0])
         } else {
             ResponseValue::Surface {
@@ -940,22 +1299,9 @@ pub fn estimate_observed_temporal_response(
          the whole grid around the posterior mean, under the Gaussian SEM, independent \
          innovations and the declared trajectory ignorability",
     );
-    let posterior = CausalPosterior {
-        subsampled_out_mass: 0.0,
-        unevaluable_mass: 0.0,
-        draws,
-        summaries,
-        identification: status,
-        prior_sensitivity: None,
-        conflict_summary: None,
-        diagnostics,
-        assumptions,
-        unidentified_mass: 0.0,
-        early_stopped: false,
-        treatment_contrast: None,
-    };
-    Ok((response, posterior))
+    Ok(response)
 }
+
 // Conservative numeric-buffer peak, excluding caller-owned input. The dense
 // allowance covers design, response, cached Gram/Hessian/factor matrices,
 // conjugate posterior temporaries, and coefficient/prior/sampling scratch.
@@ -1032,7 +1378,11 @@ mod evaluation_boundary_tests {
         let mut models = mechanisms(&data, &graph, variable, 1.0).unwrap();
         models[0].beta = vec![2.0, 0.5];
         let means = BTreeMap::from([(variable, 3.0)]);
-        let natural = Evaluation::new(&graph, &indexer, variable, 1, Vec::new()).unwrap();
+        let ctx = ExecutionContext::for_tests(1);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let natural =
+            Evaluation::new(&graph, &indexer, variable, 1, Vec::new(), &mut budget, &ctx).unwrap();
         // Boundary y[-1] is empirical 3, not 2 + .5*3; only y[0] is propagated.
         assert!((natural.value(&models, &means) - 3.5).abs() < 1e-12);
         let intervention = Evaluation::new(
@@ -1044,6 +1394,8 @@ mod evaluation_boundary_tests {
                 SequentialNodeOverlay { variable, offset: -1, level: Some(10.0), shift: 0.0 }
                     .into(),
             ],
+            &mut budget,
+            &ctx,
         )
         .unwrap();
         assert!((intervention.value(&models, &means) - 7.0).abs() < 1e-12);
@@ -1055,6 +1407,8 @@ mod evaluation_boundary_tests {
             vec![
                 SequentialNodeOverlay { variable, offset: 0, level: Some(9.0), shift: 0.0 }.into(),
             ],
+            &mut budget,
+            &ctx,
         )
         .unwrap();
         // A hard level needs neither its own natural mean nor any ancestors.
@@ -1196,3 +1550,6 @@ mod design_cache_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod conditional_reference_tests;

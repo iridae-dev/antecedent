@@ -5,6 +5,31 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 papers = []
-implementation_deviations = ["Original joint sensitivity v3 and its full checked baseline/proof/laws are independently consumed and reexecuted by the original joint sensitivity engine. Original sensitivity surface adapter recomputes and checks the complete surface before source lineage is published.", "Original stored uncertainty and declared provider assumptions remain unchanged; no new statistical method, native execution authority or calibration license."]
+implementation_deviations = ["Original joint sensitivity v3 and its full checked baseline/proof/laws are independently consumed and reexecuted by the original joint sensitivity engine. Original sensitivity surface adapter recomputes and checks the complete surface before source lineage is published.", "Original stored uncertainty and declared provider assumptions remain unchanged; no new statistical method, native execution authority or calibration support."]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent/tests/source_evidence.rs", "crates/antecedent/tests/joint_sensitivity_lifecycle.rs", "python/tests/test_composition_source_lineage.py"]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Source lineage of an independently consumed and re-executed joint sensitivity artifact: the full checked baseline, proof and laws are recomputed by the original engine before lineage is published."
+no_independent_algorithm = "sensitivity_source.rs routes the artifact through the original joint sensitivity consumer and records lineage; it has no floating-point arithmetic and the surface values are the original engine's."
+record_sha256 = "62e93b070a71ad344da3c66389ea4cb753a517c0c750e4cbd28438a02a8a9306"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/sensitivity_source.rs"
+items = ["const MAGIC", "const MAX_BYTES", "fn checked", "fn checked_with_limits", "fn consume", "fn consume_with_limits", "fn default", "fn export", "fn export_with_limits", "fn original_bytes", "fn provenance_chain", "fn sensitivity_invalid", "fn summary", "fn surface", "struct SourceBackedSensitivity", "struct SourceLimits", "struct Wire"]
+sha256 = "284d3caf63ba53274ae3f38b67aff72ff1d97198e377cc4a89208e10954d060a"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/joint_sensitivity_lifecycle.rs"
+items = ["const W", "const X", "const Y", "const Z", "fn a_mutated_joint_artifact_fails_consumption_for_the_right_reason", "fn a_resealed_declared_memory_cap_is_bound_by_the_premises_digest_not_by_replay", "fn a_z_transport_artifact_is_refused_by_the_mz_consumer", "fn artifact", "fn baseline_bytes", "fn builder", "fn catalog", "fn consume", "fn data", "fn diagram", "fn empirical_counts", "fn prepare", "fn prepared_z_stage_evaluates_joint_sensitivity_without_reidentifying", "fn probabilities", "fn query", "fn refused", "fn reseal", "fn resealed_semantic_mutations_fail_replay_for_the_right_reason", "fn source_backed_sensitivity_replays_full_original_source_and_rejects_changed_surface", "fn spec", "fn stored_limits_above_the_consumer_maxima_refuse_before_any_work", "fn the_declared_composition_names_the_endpoint_bootstrap", "fn the_endpoint_bootstrap_interval_replays", "fn the_exported_joint_artifact_is_replayed_by_an_independent_consumer", "fn the_one_factor_sensitivity_artifact_is_unchanged_and_refuses_the_joint_format", "fn the_producer_binds_premises_and_data_and_refuses_a_cancelled_frontier", "fn the_range_artifact_refuses_a_forged_sampling_interval", "fn unknown_wire_fields_are_refused", "struct Builder", "struct CancelAfterFirstLine"]
+sha256 = "1f62380124c4dac19e3047705ab05b877fcaee068b0263b5d05d0aad383190bb"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/source_evidence.rs"
+items = ["fn actual_action_contributors_preserve_original_diagnostics_without_synthesized_local_values", "fn bounded_evidence_refuses_oversized_logical_sections_before_decompression", "fn contract", "fn full_original_source_comparison_rejects_changed_science_and_seed", "fn native_inverse_artifact_replays_original_source_diagnostics_and_rejects_changed_mean_binding", "fn opaque_resolution_executes_original_preparation_and_rejects_changed_science", "fn original_diagnostic_scopes_and_semantic_coordinate_values_survive_consumption", "fn original_external_attestation_retains_exact_support_request_and_source_without_native_authority", "fn original_native_source_chain_is_typed_and_independently_rederived", "fn produce_source", "fn source", "fn source_with"]
+sha256 = "dcd4f15cfba98d4264589cee79e5925a7ab79873757013c31e84201af6f5268f"

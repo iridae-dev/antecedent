@@ -5,13 +5,14 @@
 //! `p` in its identity) and the cohort decision source built from exactly that export.
 //! The consumer re-verifies both under their retained identities, recomputes the
 //! weighted cohort mean and its model-based standard error from the stored rows and
-//! coefficients, and issues `point +/- t_{n-p} se`. The reported scalar must resolve to
-//! a currently attesting calibration record of the native construction; a declared
-//! (caller-built) export, a shifted cohort and an unmeasured level are refused.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+//! coefficients, and issues `point +/- t_{n-p} se`. The reported scalar carries the
+//! calibration status the coverage records give the native construction; a declared
+//! (caller-built) export, a shifted cohort and a level outside `(0, 1)` are refused.
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{
     MeasuredExpectation, MeasuredInference, ScalarExecution, authorize, compare_replay, decode,
 };
+use super::{invalid, refused};
 use crate::IoError;
 use antecedent_core::{ExecutionContext, IdentityDomain};
 use antecedent_estimate::cohort_linear_effect::{
@@ -24,13 +25,6 @@ use serde::{Deserialize, Serialize};
 
 /// Route name the measured envelope is consumed under.
 pub const ROUTE: &str = "cohort_interval";
-
-fn refused(detail: &str, message: &str) -> IoError {
-    IoError::Refused {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
-        message: format!("{detail}: {message}"),
-    }
-}
 
 fn from_interval(error: &CohortIntervalRefusal) -> IoError {
     IoError::Refused {
@@ -87,12 +81,18 @@ impl CohortIntervalArtifactWire {
     ) -> Result<Vec<u8>, IoError> {
         let export = native.export();
         let rows = native.rows();
-        let export_bytes = export
-            .to_bytes("cohort_interval_model")
-            .map_err(|e| refused("cohort_decision.fitted_model_invalid", &e.to_string()))?;
-        let source_bytes = source
-            .to_bytes("cohort_interval_source")
-            .map_err(|e| refused("cohort_decision.source_invalid", &e.to_string()))?;
+        let export_bytes = export.to_bytes("cohort_interval_model").map_err(|e| {
+            invalid(
+                antecedent_core::reason_details::cohort_decision::FITTED_MODEL_INVALID,
+                &e.to_string(),
+            )
+        })?;
+        let source_bytes = source.to_bytes("cohort_interval_source").map_err(|e| {
+            invalid(
+                antecedent_core::reason_details::cohort_decision::SOURCE_INVALID,
+                &e.to_string(),
+            )
+        })?;
         crate::to_cbor(&Self {
             version: 1,
             export: export_bytes,
@@ -109,26 +109,35 @@ impl CohortIntervalArtifactWire {
         })
     }
 
-    /// Replay both artifacts and bind the interval to the current calibration evidence.
+    /// Replay both artifacts and annotate the interval with its calibration status.
     ///
     /// # Errors
-    /// A changed or tampered artifact, a declared export, a shifted cohort, an invalid
-    /// level, or a construction with no currently attesting record.
+    /// A changed or tampered artifact, a declared export, a shifted cohort, or an invalid
+    /// level.
     pub fn measure(bytes: &[u8], ctx: &ExecutionContext) -> Result<MeasuredInference, IoError> {
         let wire: Self = crate::from_cbor(bytes)?;
         if wire.version != 1 || crate::to_cbor(&wire)? != bytes {
-            return Err(refused(
-                "measured_inference.artifact_mismatch",
+            return Err(invalid(
+                antecedent_core::reason_details::measured_inference::ARTIFACT_MISMATCH,
                 "cohort interval source is not canonical version 1",
             ));
         }
         let export =
             CompactExport::consume(&wire.export, &ExportLimits::default(), &wire.export_identity)
-                .map_err(|e| refused("cohort_decision.fitted_model_invalid", &e.to_string()))?;
+                .map_err(|e| {
+                invalid(
+                    antecedent_core::reason_details::cohort_decision::FITTED_MODEL_INVALID,
+                    &e.to_string(),
+                )
+            })?;
         if wire.fit_rows.outcome.len() > MAX_FIT_ROWS
             || wire.fit_rows.features.len() > MAX_FIT_FEATURES
         {
-            return Err(refused("measured_inference.bounds_exceeded", "fit rows exceed bounds"));
+            return Err(refused(
+                antecedent_core::reason_code!("route_not_supported"),
+                antecedent_core::reason_details::measured_inference::BOUNDS_EXCEEDED,
+                "fit rows exceed bounds",
+            ));
         }
         // The native-fit marker is never trusted: refit from the retained rows and
         // require the stored export to be exactly what the fit produces.
@@ -143,7 +152,8 @@ impl CohortIntervalArtifactWire {
         )
         .map_err(|_| {
             refused(
-                "cohort_decision.interval_requires_native_fit",
+                antecedent_core::reason_code!("route_not_supported"),
+                antecedent_core::reason_details::cohort_decision::INTERVAL_REQUIRES_NATIVE_FIT,
                 "the retained rows do not reproduce the export; a declared export is point-only",
             )
         })?;
@@ -152,7 +162,7 @@ impl CohortIntervalArtifactWire {
             &CohortExpectation::for_identity(wire.source_identity.clone()),
             ctx,
         )
-        .map_err(|e| refused(e.detail, &e.to_string()))?;
+        .map_err(|e| refused(e.code, e.detail, &e.to_string()))?;
         let interval =
             native_cohort_interval(&native, &source, wire.level).map_err(|e| from_interval(&e))?;
         let body = export.body();
@@ -206,8 +216,8 @@ impl CohortIntervalArtifactWire {
         if expected.candidate_digest
             != crate::identity::digest_canonical(IdentityDomain::Claim, &wire.source).to_hex()
         {
-            return Err(refused(
-                "measured_inference.artifact_mismatch",
+            return Err(invalid(
+                antecedent_core::reason_details::measured_inference::ARTIFACT_MISMATCH,
                 "retained source digest differs from the envelope source",
             ));
         }

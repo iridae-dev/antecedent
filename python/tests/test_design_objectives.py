@@ -4,10 +4,16 @@ from __future__ import annotations
 
 import math
 
+import antecedent as ant
 import numpy as np
 import pytest
 from antecedent import _native, design
-from antecedent.errors import CausalDesignError, CausalTypeError, CausalValueError
+from antecedent.errors import (
+    CausalDesignError,
+    CausalTypeError,
+    CausalUnsupportedError,
+    CausalValueError,
+)
 
 MC = design.MonteCarlo(2, 2, 4, 0.0)
 
@@ -32,7 +38,7 @@ def test_structural_declarations_use_shared_result_without_a_fake_score() -> Non
     assert "caller-declared" in result.explain()
     assert "score=" not in repr(result)
     with pytest.raises(CausalValueError, match="structural_sufficiency_cost"):
-        result.export()
+        bytes(result.export())
     with pytest.raises(CausalValueError, match="structural"):
         design.rank_designs(candidates, prior=design.StructurePrior.uniform([True]))
     with pytest.raises(CausalTypeError, match="mixed"):
@@ -83,7 +89,7 @@ def test_graph_entropy_uses_original_channel_and_retains_heuristic_label() -> No
         assert not hasattr(c, "probability")
     native = _native.rank_designs(
         [1.0, 1.0],
-        [1, 0],
+        b"\x01\x00",
         [0, 1],
         [
             {"kind": "increase_sampling_rate", "additional_samples": 1, "tag": 0},
@@ -172,7 +178,7 @@ def test_callable_regret_reaches_native_exact_preposterior_without_affine_restri
         (0.0, 1.0), utility, design.StatePrior.draws((0.25, 0.75)), design.BinomialSignal()
     )
     result = design.rank_designs(
-        [design.Sampling(1, id="one"), design.Measurement((0,), id="unlicensed")],
+        [design.Sampling(1, id="one"), design.Measurement((0,), id="unsupported")],
         objective=objective,
         monte_carlo=MC,
         rng_seed=5,
@@ -183,11 +189,11 @@ def test_callable_regret_reaches_native_exact_preposterior_without_affine_restri
     assert result.best.score == pytest.approx(0.03125, abs=1e-13)
     assert result.best.evaluation == "exact"
     assert result.best.implemented_functional == "preposterior_expected_value_of_sample_information"
-    assert result.violations[0].id == "unlicensed"
-    assert result.violations[0].constraint == "unlicensed_candidate"
+    assert result.violations[0].id == "unsupported"
+    assert result.violations[0].constraint == "unsupported_candidate"
     assert "decision_regret" in result.explain()
     with pytest.raises(CausalValueError, match="decision_regret"):
-        result.export()
+        bytes(result.export())
     with pytest.raises(CausalValueError, match="do not apply"):
         design.rank_designs(
             [design.Sampling(1)], objective=objective, cost_map=design.CostMap("a", "a", 1.0)
@@ -251,3 +257,107 @@ def test_value_gate_uses_absolute_identified_mass_including_unchanged_plans() ->
     assert by_id["unchanged"].probability == pytest.approx(0.75)
     assert result.gate.rejected == ("unchanged",)
     assert [entry.id for entry in result.candidates] == ["unlock"]
+
+
+def _supported_study():
+    n = 120
+    z = np.sin(np.arange(n) / 7.0)
+    t = (z + np.cos(np.arange(n) / 5.0) > 0).astype(float)
+    return ant.prepare(
+        {"t": t, "y": 1.0 + 2.0 * t + 0.5 * z, "z": z},
+        graph=[("z", "t"), ("z", "y"), ("t", "y")],
+        query=ant.AverageEffect("t", "y"),
+        refute="none",
+        inference=ant.Frequentist(bootstrap=0),
+        execution=ant.Execution(seed=3),
+    )
+
+
+def test_a_ranking_bound_to_a_study_reports_unsupported_plans_and_keeps_declared_positions() -> (
+    None
+):
+    study = _supported_study()
+    prior = design.StructurePrior((3.0, 1.0), (True, False), (1, 2))
+    plans = [
+        design.Sampling(1, id="unchanged"),
+        design.Measurement((5,), id="unlock"),
+        design.Measurement((6,), id="other"),
+    ]
+    free = design.rank_designs(plans, prior=prior, variable_unlocks={0: [5]})
+    assert free.violations == (), "without a contract nothing marks more rows as unsupported"
+    assert free.candidate("unchanged").score == pytest.approx(0.0)
+
+    bound = design.rank_designs(plans, prior=prior, variable_unlocks={0: [5]}, study=study)
+    unlock = bound.candidate("unlock")
+    assert isinstance(unlock, design.IdentificationCandidate)
+    # The unlock variable moves the unidentified quarter of the prior to identified: 3/4 -> 1.
+    assert unlock.score == pytest.approx(0.25) and unlock.probability == pytest.approx(1.0)
+    assert unlock.index == 1, "positions are those of the declared plans"
+    assert (
+        bound.candidate("other").score == pytest.approx(0.0) and bound.candidate("other").index == 2
+    )
+    assert [(v.id, v.index, v.constraint) for v in bound.violations] == [
+        ("unchanged", 0, "unsupported_candidate")
+    ]
+    assert "structural non-identification" in bound.violations[0].detail
+    assert all(c.id != "unchanged" for c in bound.candidates), "a violation is never scored"
+
+
+def test_a_ranking_preview_reads_the_obligations_without_scoring() -> None:
+    study = _supported_study()
+    prior = design.StructurePrior((3.0, 1.0), (True, False), (1, 2))
+    plans = [design.Sampling(1, id="unchanged"), design.Measurement((5,), id="unlock")]
+    preview = design.preview_ranking(study, plans, prior=prior, variable_unlocks={0: [5]})
+    assert [o.id for o in preview.obligations] == [
+        "design.posterior_or_envelope",
+        "design.hypothetical_data_model",
+        "design.candidate_mapping",
+        "design.cost_constraints",
+        "design.update_rule",
+    ]
+    assert all(o.kind == "check_not_run" and o.status == "declared" for o in preview.obligations)
+    assert preview.obligations[-1].required_check
+    assert preview.unidentified_mass == pytest.approx(0.25)
+    assert preview.target == study.inspect().target_id
+    assert [(v.id, v.constraint) for v in preview.violations] == [
+        ("unchanged", "unsupported_candidate")
+    ]
+    assert preview.unresolved is False
+    # Without an unlock list a measurement has no supported identification update.
+    bare = design.preview_ranking(study, [design.Measurement((5,), id="m")], prior=prior)
+    assert [(v.id, v.constraint) for v in bare.violations] == [("m", "unsupported_candidate")]
+
+
+def test_a_width_ranking_is_bound_to_the_studys_own_target() -> None:
+    study = _supported_study()
+    objective = design.EffectWidth((4.0, 0.0, 0.0, 9.0), sigma2=4.0, treatment_col=1, n=20)
+    plans = [design.Sampling(20, id="sample")]
+    own = study.inspect().target_id
+    ranked = design.rank_designs(plans, objective=objective, study=study, decision_target=own)
+    assert ranked.candidate("sample").score == pytest.approx(2 / 3 - math.sqrt(2) / 3, abs=1e-13)
+    other = "0" * 64
+    assert other != own
+    with pytest.raises(CausalUnsupportedError):
+        design.rank_designs(plans, objective=objective, study=study, decision_target=other)
+    with pytest.raises(CausalUnsupportedError):
+        design.preview_ranking(
+            study,
+            plans,
+            prior=design.StructurePrior((1.0,), (True,), (1,)),
+            objective=objective,
+            decision_target=other,
+        )
+
+
+def test_a_study_bound_ranking_refuses_what_it_does_not_bind() -> None:
+    study = _supported_study()
+    prior = design.StructurePrior((3.0, 1.0), (True, False), (1, 2))
+    plans = [design.Measurement((5,))]
+    with pytest.raises(CausalValueError, match="decision_target"):
+        design.rank_designs(plans, prior=prior, decision_target="0" * 64)
+    with pytest.raises(CausalValueError, match="64-character"):
+        design.rank_designs(plans, prior=prior, study=study, decision_target="abc")
+    with pytest.raises(CausalTypeError, match="prepared study"):
+        design.rank_designs(plans, prior=prior, study=object())  # type: ignore[arg-type]
+    with pytest.raises(CausalValueError, match="study="):
+        design.rank_designs([design.StructuralCandidate("s", True, 1)], study=study)

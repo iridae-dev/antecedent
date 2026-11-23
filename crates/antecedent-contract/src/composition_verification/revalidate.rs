@@ -29,12 +29,12 @@
 //! The class is `withdrawn` when any withdrawal stands, `recompute` when only
 //! numerical reasons stand, and `still_valid` otherwise. Numerical
 //! invalidation and withdrawal are kept apart in the result: a claim can need
-//! recomputation without losing any license, and can be withdrawn with its
+//! recomputation without losing any support, and can be withdrawn with its
 //! numbers intact. The earlier fit and uncertainty are retained only by a
 //! `still_valid` claim: reusing a structural derivation after the data were
 //! replaced recomputes the numbers and keeps no authority for the old fit.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -236,7 +236,7 @@ pub enum NumericalCause {
     /// earlier uncertainty statement carries no authority.
     CalibrationChanged,
     /// Coordinates that were outside the support are supported again: the
-    /// earlier numbers were never licensed there.
+    /// earlier numbers were never supported there.
     SupportRestored,
 }
 
@@ -271,7 +271,7 @@ pub struct NumericalReason {
     pub cause: NumericalCause,
 }
 
-/// What kind of license was lost.
+/// What kind of support was lost.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[non_exhaustive]
 pub enum WithdrawalKind {
@@ -301,7 +301,7 @@ impl WithdrawalKind {
     }
 }
 
-/// One withdrawn license.
+/// One withdrawn support.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Withdrawal {
     /// What was lost.
@@ -384,7 +384,7 @@ pub struct ClaimRevalidation {
     pub class: Revalidation,
     /// Why the numbers are stale (sorted, distinct).
     pub numerical: Vec<NumericalReason>,
-    /// Which licenses were lost (sorted, distinct).
+    /// Which supports were lost (sorted, distinct).
     pub withdrawals: Vec<Withdrawal>,
     /// Whether the earlier fit and uncertainty stand.
     pub authority: PriorAuthority,
@@ -400,38 +400,36 @@ impl ClaimRevalidation {
     }
 
     /// The typed refusal for a claim that is not usable as it stands, or
-    /// `None` for a `still_valid` claim.
+    /// `None` for a `still_valid` claim and for a claim that only lost its
+    /// calibration: the point value stands and the interval's calibration
+    /// status carries the loss.
     #[must_use]
     pub fn refusal(&self) -> Option<ExternalRefusal> {
         let stage = "revalidate";
-        if let Some(w) = self.withdrawals.iter().min_by_key(|w| (w.kind, &w.origin)) {
+        let standing = self.withdrawals.iter().filter(|w| w.kind != WithdrawalKind::Calibration);
+        if let Some(w) = standing.min_by_key(|w| (w.kind, &w.origin)) {
             let (code, detail, remedy) = match w.kind {
-                WithdrawalKind::Calibration => (
-                    antecedent_core::reason_code!("cell_not_licensed"),
-                    "composition_verification.calibration_not_held",
-                    "establish a calibration record at this claim's coordinate, or report the \
-                     point value without an interval or posterior",
-                ),
+                WithdrawalKind::Calibration => return None,
                 WithdrawalKind::Support => (
-                    antecedent_core::reason_code!("claim_license_withdrawn"),
-                    "composition_verification.support_withdrawn",
+                    antecedent_core::reason_code!("claim_support_withdrawn"),
+                    antecedent_core::reason_details::composition_verification::SUPPORT_WITHDRAWN,
                     "restrict the claim to coordinates inside the support, or supply evidence \
                      that extends it",
                 ),
                 WithdrawalKind::ProviderTrust => (
-                    antecedent_core::reason_code!("claim_license_withdrawn"),
-                    "composition_verification.provider_trust_withdrawn",
+                    antecedent_core::reason_code!("claim_support_withdrawn"),
+                    antecedent_core::reason_details::composition_verification::PROVIDER_TRUST_WITHDRAWN,
                     "re-verify the provider at its current identity, or use a native route",
                 ),
                 WithdrawalKind::Retired => (
-                    antecedent_core::reason_code!("claim_license_withdrawn"),
-                    "composition_verification.input_retired",
+                    antecedent_core::reason_code!("claim_support_withdrawn"),
+                    antecedent_core::reason_details::composition_verification::INPUT_RETIRED,
                     "recompute the claim from the successor of the retired input, or declare \
                      a replacement",
                 ),
                 WithdrawalKind::Unexecutable => (
-                    antecedent_core::reason_code!("claim_license_withdrawn"),
-                    "composition_verification.stage_unexecutable",
+                    antecedent_core::reason_code!("claim_support_withdrawn"),
+                    antecedent_core::reason_details::composition_verification::STAGE_UNEXECUTABLE,
                     "supply the data, fit or provider the stage needs, or recompute it",
                 ),
             };
@@ -443,13 +441,13 @@ impl ClaimRevalidation {
                     .with_remedy(remedy),
             );
         }
-        if self.class == Revalidation::Recompute {
+        if !self.numerical.is_empty() {
             let origin = self.numerical.first().map_or("unknown", |r| r.origin.as_str());
             return Some(
                 ExternalRefusal::new(
                     antecedent_core::reason_code!("claim_revalidation_required"),
                     stage,
-                    "composition_verification.recompute_required",
+                    antecedent_core::reason_details::composition_verification::RECOMPUTE_REQUIRED,
                 )
                 .with_offending(self.key.clone())
                 .with_expected(format!("origin {origin}"))
@@ -521,7 +519,7 @@ impl GraphRevalidation {
             return Err(ExternalRefusal::new(
                 antecedent_core::reason_code!("invalid_argument"),
                 "revalidate",
-                "composition_verification.unknown_claim",
+                antecedent_core::reason_details::composition_verification::UNKNOWN_CLAIM,
             )
             .with_offending(key.to_owned())
             .with_remedy("name a claim declared in the current composition graph"));
@@ -610,14 +608,12 @@ fn own_causes(
             {
                 causes.push(NumericalCause::SupportRestored);
             }
-            if !coordinate_changed {
-                if let (Some(was), Some(is)) =
+            if !coordinate_changed
+                && let (Some(was), Some(is)) =
                     (held_record(&before.calibration), held_record(&node.calibration))
-                {
-                    if was != is {
-                        causes.push(NumericalCause::CalibrationChanged);
-                    }
-                }
+                && was != is
+            {
+                causes.push(NumericalCause::CalibrationChanged);
             }
             if before.identity != node.identity && !structure_changed {
                 // A node that carries a structural derivation and whose
@@ -679,6 +675,7 @@ fn propagate_cause(kind: DependencyKind, cause: NumericalCause) -> NumericalCaus
 }
 
 fn own_withdrawals(
+    previous: &CompositionGraph,
     current: &CompositionGraph,
     key: &str,
     effect: Option<&ObservedEffect>,
@@ -686,6 +683,20 @@ fn own_withdrawals(
     let node = current.node(key).expect("key from the current graph");
     let own = |kind, detail: String| Withdrawal { kind, origin: key.to_owned(), via: None, detail };
     let mut out = Vec::new();
+    if let Some(before) = previous.node(key) {
+        // A replaced scientific premise removes authority for the old claim.
+        // Recomputed numbers do not attest the changed declarations.
+        for (changed, detail) in [
+            (before.kind != node.kind, "node_kind_changed"),
+            (before.assumptions != node.assumptions, "assumptions_changed"),
+            (before.transformation != node.transformation, "transformation_changed"),
+            (before.evidence != node.evidence, "evidence_changed"),
+        ] {
+            if changed {
+                out.push(own(WithdrawalKind::Retired, detail.to_owned()));
+            }
+        }
+    }
     if let SupportStanding::Unsupported { coordinates } = &node.support {
         out.push(own(WithdrawalKind::Support, coordinates.join(",")));
     }
@@ -802,7 +813,7 @@ pub fn revalidate(
                 .into_iter()
                 .map(|cause| NumericalReason { origin: key.to_owned(), via: None, cause })
                 .collect(),
-            withdrawals: own_withdrawals(current, key, effect).into_iter().collect(),
+            withdrawals: own_withdrawals(previous, current, key, effect).into_iter().collect(),
             holding: None,
         };
         // Dependencies that vanished from the graph cannot be done without.

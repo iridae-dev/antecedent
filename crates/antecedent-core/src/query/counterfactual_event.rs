@@ -13,10 +13,11 @@
 //! shapes it answers. The effect of treatment on the treated,
 //! `P(Y_x = y | X = x')`, is [`CounterfactualEventQuery::effect_on_treated`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::cross_world::{ExogenousCoupling, MAX_CROSS_WORLDS, WorldId, WorldSpec};
+use super::cross_world::{ExogenousCoupling, WorldId, WorldSpec};
 use super::error::QueryError;
+use super::fault::InterventionFault;
 use crate::ids::VariableId;
 
 /// `variable` takes `level` in `world`.
@@ -35,9 +36,7 @@ impl CounterfactualEvent {
     /// [`QueryError::InvalidIntervention`] for a non-finite level.
     pub fn new(world: WorldId, variable: VariableId, level: f64) -> Result<Self, QueryError> {
         if !level.is_finite() {
-            return Err(QueryError::InvalidIntervention(
-                "a counterfactual event level must be finite".into(),
-            ));
+            return Err(QueryError::InvalidIntervention(InterventionFault::EventLevelNotFinite));
         }
         // One level, one spelling: -0.0 and 0.0 are the same level.
         let level = level + 0.0;
@@ -87,7 +86,7 @@ impl CounterfactualEventQuery {
     /// # Errors
     ///
     /// [`QueryError::InvalidIntervention`] when no or more than
-    /// [`MAX_CROSS_WORLDS`] worlds are given, an event names an unknown world, or
+    /// [`WorldId::CAPACITY`] worlds are given, an event names an unknown world, or
     /// the event conjunction is empty.
     pub fn new(
         worlds: Vec<WorldSpec>,
@@ -114,20 +113,14 @@ impl CounterfactualEventQuery {
     ///
     /// See [`Self::new`].
     pub fn validate(&self) -> Result<(), QueryError> {
-        if !(1..=MAX_CROSS_WORLDS).contains(&self.worlds.len()) {
-            return Err(QueryError::InvalidIntervention(
-                "a counterfactual event query names between one and eight worlds".into(),
-            ));
+        if !(1..=WorldId::CAPACITY).contains(&self.worlds.len()) {
+            return Err(QueryError::InvalidIntervention(InterventionFault::EventWorlds));
         }
         if self.event.is_empty() {
-            return Err(QueryError::InvalidIntervention(
-                "a counterfactual event query needs at least one event".into(),
-            ));
+            return Err(QueryError::InvalidIntervention(InterventionFault::EventsEmpty));
         }
         if self.event.iter().chain(&self.given).any(|a| a.world.index() >= self.worlds.len()) {
-            return Err(QueryError::InvalidIntervention(
-                "a counterfactual event names an unknown world".into(),
-            ));
+            return Err(QueryError::InvalidIntervention(InterventionFault::EventUnknownWorld));
         }
         Ok(())
     }
@@ -151,17 +144,14 @@ impl CounterfactualEventQuery {
     ) -> Result<Self, QueryError> {
         if treatment == outcome {
             return Err(QueryError::InvalidIntervention(
-                "treatment and outcome must be distinct".into(),
+                InterventionFault::TreatmentOutcomeNotDistinct,
             ));
         }
         if !active.is_finite()
             || !observed.is_finite()
             || (active + 0.0).to_bits() == (observed + 0.0).to_bits()
         {
-            return Err(QueryError::InvalidIntervention(
-                "the counterfactual and the observed treatment levels must be finite and distinct"
-                    .into(),
-            ));
+            return Err(QueryError::InvalidIntervention(InterventionFault::EffectOnTreatedLevels));
         }
         let natural = WorldId::new(0);
         let treated = WorldId::new(1);
@@ -200,42 +190,54 @@ impl CounterfactualEventQuery {
     /// Canonical text: equal queries render equal. It names every world with its
     /// interventions and routes (as IEEE bits), the coupling and both
     /// conjunctions. This is the digest input, not a display format.
+    ///
+    /// # Panics
+    /// Panics if writing to an in-memory string unexpectedly fails.
     #[must_use]
     pub fn canonical_text(&self) -> String {
-        use std::fmt::Write as _;
-        let mut out = String::from("counterfactual_event_query_v1;coupling=");
-        out.push_str(self.coupling.tag());
+        let mut out = String::new();
+        self.write_canonical(&mut out).expect("writing to a string cannot fail");
+        out
+    }
+
+    /// Write the same canonical text to a caller-supplied fallible sink.
+    ///
+    /// # Errors
+    /// Propagates an error from the sink.
+    pub fn write_canonical(&self, out: &mut impl std::fmt::Write) -> std::fmt::Result {
+        out.write_str("counterfactual_event_query_v1;coupling=")?;
+        out.write_str(self.coupling.tag())?;
         for (index, world) in self.worlds.iter().enumerate() {
-            let _ = write!(out, ";world{index}{{do=[");
+            write!(out, ";world{index}{{do=[")?;
             for (variable, value) in world.interventions() {
-                let _ = write!(out, "{}:{:016x},", variable.raw(), value.to_bits());
+                write!(out, "{}:{:016x},", variable.raw(), value.to_bits())?;
             }
-            out.push_str("];reads=[");
+            out.write_str("];reads=[")?;
             for route in world.routes() {
-                let _ = write!(
+                write!(
                     out,
                     "{}>{}@{},",
                     route.parent.raw(),
                     route.child.raw(),
                     route.source.index()
-                );
+                )?;
             }
-            out.push_str("]}");
+            out.write_str("]}")?;
         }
         for (label, atoms) in [("event", &self.event), ("given", &self.given)] {
-            let _ = write!(out, ";{label}=[");
+            write!(out, ";{label}=[")?;
             for atom in atoms {
-                let _ = write!(
+                write!(
                     out,
                     "w{}.{}:{:016x},",
                     atom.world.index(),
                     atom.variable.raw(),
                     atom.level_bits
-                );
+                )?;
             }
-            out.push(']');
+            out.write_char(']')?;
         }
-        out
+        Ok(())
     }
 }
 
@@ -277,6 +279,21 @@ mod tests {
         assert_eq!(ett.coupling(), ExogenousCoupling::SharedLatentExogenous);
         assert!(ett.canonical_text().contains("coupling=shared_latent_exogenous"));
         assert_ne!(ett.canonical_text(), one.canonical_text());
+    }
+
+    #[test]
+    fn canonical_sink_preserves_text_and_propagates_write_failure() {
+        struct Refuse;
+        impl std::fmt::Write for Refuse {
+            fn write_str(&mut self, _: &str) -> std::fmt::Result {
+                Err(std::fmt::Error)
+            }
+        }
+        let query = CounterfactualEventQuery::effect_on_treated(v(0), 1.0, 0.0, v(2), 1.0).unwrap();
+        let mut text = String::new();
+        query.write_canonical(&mut text).unwrap();
+        assert_eq!(text, query.canonical_text());
+        assert!(query.write_canonical(&mut Refuse).is_err());
     }
 
     #[test]

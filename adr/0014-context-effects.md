@@ -23,5 +23,5 @@ temporal mediation, and panel/multi-env refinements without stubs.
 
 ## Consequences
 
-`scripts/gate_context.sh` gates inventory honesty, conformance pins, and
+`scripts/check_parity_inventories.py` gates inventory honesty, conformance pins, and
 regime/mediation criterion smokes.

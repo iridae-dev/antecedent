@@ -1,8 +1,107 @@
 //! Partial-correlation kernels.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
+
+use crate::numeric::CompensatedSum;
+
+/// Compensated column mean. A non-finite entry makes the mean non-finite, which every caller
+/// already turns into a refusal through [`constant_column`], so the fallback that
+/// `crate::numeric::mean` applies to infinities is not needed here.
+fn column_mean(values: &[f64]) -> f64 {
+    CompensatedSum::of(values.iter().copied()) / values.len() as f64
+}
+
+/// Gram, coefficient and residual buffers of one solve.
+#[derive(Clone, Debug, Default)]
+struct SolveScratch {
+    /// `XtX` / Gram (`p^2`).
+    gram: Vec<f64>,
+    /// The Gram as formed, kept because the elimination overwrites `gram` and a refinement
+    /// step solves against the same matrix again (`p^2`).
+    gram_formed: Vec<f64>,
+    /// Coefficients of X then Y (`2p`).
+    beta: Vec<f64>,
+    /// Refinement corrections of X then Y (`2p`).
+    correction: Vec<f64>,
+    /// Residual of X.
+    rx: Vec<f64>,
+    /// Residual of Y.
+    ry: Vec<f64>,
+}
+
+/// Smallest Gram pivot (relative to the unit diagonal) above which the normal-equation
+/// solution is already accurate to rounding and no refinement is run.
+///
+/// The Gram of unit-scaled columns squares the design's condition number, so a pivot `q`
+/// costs roughly `eps / q` of relative accuracy in the coefficients. Below this threshold
+/// (about 1e-4, i.e. a conditioning column explained to 99.99% by the others) one
+/// corrected-semi-normal-equations step recovers the digits the Gram lost. The decision
+/// depends on the Gram alone, so the lone and shared-batch paths always agree on it.
+const REFINE_PIVOT: f64 = 1e-4;
+
+impl SolveScratch {
+    fn prepare(&mut self, n: usize, ncols: usize) {
+        let need_gram = ncols.saturating_mul(ncols);
+        if self.gram.len() < need_gram {
+            self.gram.resize(need_gram, 0.0);
+        }
+        if self.gram_formed.len() < need_gram {
+            self.gram_formed.resize(need_gram, 0.0);
+        }
+        if self.beta.len() < 2 * ncols {
+            self.beta.resize(2 * ncols, 0.0);
+        }
+        if self.correction.len() < 2 * ncols {
+            self.correction.resize(2 * ncols, 0.0);
+        }
+        if self.rx.len() < n {
+            self.rx.resize(n, 0.0);
+        }
+        if self.ry.len() < n {
+            self.ry.resize(n, 0.0);
+        }
+    }
+
+    /// Solve the normal equations for X and Y (Gram and `X'x`, `X'y` already stored in
+    /// `gram` and `beta`) and leave the residuals of both targets in `rx` and `ry`.
+    ///
+    /// When the elimination reports a small pivot, one step of corrected semi-normal
+    /// equations is applied: the residual is formed from the design itself, not the Gram,
+    /// and the correction `G d = Z'r` is solved against the same factorized matrix. That
+    /// removes the squared-conditioning error of the Gram solve while the Gram stays shared
+    /// across a batch. `false` when the Gram is singular under the pivot policy.
+    fn solve(&mut self, cols: &[&[f64]], x: &[f64], y: &[f64]) -> bool {
+        let n = x.len();
+        let ncols = cols.len();
+        let nn = ncols * ncols;
+        self.gram_formed[..nn].copy_from_slice(&self.gram[..nn]);
+        let Some(pivot) = solve_inplace(&mut self.gram[..nn], &mut self.beta[..2 * ncols], ncols)
+        else {
+            return false;
+        };
+        residual_from_cols(x, cols, &self.beta[..ncols], &mut self.rx[..n]);
+        residual_from_cols(y, cols, &self.beta[ncols..2 * ncols], &mut self.ry[..n]);
+        if pivot >= REFINE_PIVOT {
+            return true;
+        }
+        for (c, col) in cols.iter().enumerate() {
+            self.correction[c] = dot(col, &self.rx[..n]);
+            self.correction[ncols + c] = dot(col, &self.ry[..n]);
+        }
+        self.gram[..nn].copy_from_slice(&self.gram_formed[..nn]);
+        if solve_inplace(&mut self.gram[..nn], &mut self.correction[..2 * ncols], ncols).is_none() {
+            return false;
+        }
+        for (b, d) in self.beta[..2 * ncols].iter_mut().zip(&self.correction[..2 * ncols]) {
+            *b += d;
+        }
+        residual_from_cols(x, cols, &self.beta[..ncols], &mut self.rx[..n]);
+        residual_from_cols(y, cols, &self.beta[ncols..2 * ncols], &mut self.ry[..n]);
+        true
+    }
+}
 
 /// Scratch for residualization and Pearson correlation.
 ///
@@ -15,14 +114,7 @@ pub struct ParCorrWorkspace {
     /// on `[1, Z…]` in a scale-free basis. A constant or collinear column is a refusal,
     /// not a ridge.
     pub design: Vec<f64>,
-    /// `XtX` / Gram (`p^2`).
-    gram: Vec<f64>,
-    /// Coefficients of X then Y (`2p`).
-    beta: Vec<f64>,
-    /// Residual of X.
-    rx: Vec<f64>,
-    /// Residual of Y.
-    ry: Vec<f64>,
+    scratch: SolveScratch,
     capacity_n: usize,
     capacity_p: usize,
 }
@@ -35,26 +127,9 @@ impl ParCorrWorkspace {
         if self.design.len() < need_design {
             self.design.resize(need_design, 0.0);
         }
-        self.prepare_solve(n, ncols);
+        self.scratch.prepare(n, ncols);
         self.capacity_n = self.capacity_n.max(n);
         self.capacity_p = self.capacity_p.max(p);
-    }
-
-    /// Everything but the design matrix: Gram, the two coefficient vectors, residuals.
-    fn prepare_solve(&mut self, n: usize, ncols: usize) {
-        let need_gram = ncols.saturating_mul(ncols);
-        if self.gram.len() < need_gram {
-            self.gram.resize(need_gram, 0.0);
-        }
-        if self.beta.len() < 2 * ncols {
-            self.beta.resize(2 * ncols, 0.0);
-        }
-        if self.rx.len() < n {
-            self.rx.resize(n, 0.0);
-        }
-        if self.ry.len() < n {
-            self.ry.resize(n, 0.0);
-        }
     }
 
     /// Retained row capacity.
@@ -101,24 +176,19 @@ fn pearson_floored(x: &[f64], y: &[f64], floors: Option<(f64, f64)>) -> Option<f
         return None;
     }
     let nf = n as f64;
-    let mut mx = 0.0;
-    let mut my = 0.0;
-    for i in 0..n {
-        mx += x[i];
-        my += y[i];
-    }
-    mx /= nf;
-    my /= nf;
-    let mut cxx = 0.0;
-    let mut cyy = 0.0;
-    let mut cxy = 0.0;
+    let mx = column_mean(x);
+    let my = column_mean(y);
+    let mut cxx = CompensatedSum::default();
+    let mut cyy = CompensatedSum::default();
+    let mut cxy = CompensatedSum::default();
     for i in 0..n {
         let dx = x[i] - mx;
         let dy = y[i] - my;
-        cxx += dx * dx;
-        cyy += dy * dy;
-        cxy += dx * dy;
+        cxx.add(dx * dx);
+        cyy.add(dy * dy);
+        cxy.add(dx * dy);
     }
+    let (cxx, cyy, cxy) = (cxx.total(), cyy.total(), cxy.total());
     let (floor_x, floor_y) = floors.unwrap_or((raw_floor(mx, nf), raw_floor(my, nf)));
     if constant_column(cxx, floor_x) || constant_column(cyy, floor_y) {
         return None;
@@ -143,8 +213,8 @@ fn raw_floor(mean: f64, nf: f64) -> f64 {
 /// constant or non-finite has no variation to explain: any residual is noise.
 fn residual_floor(raw: &[f64]) -> f64 {
     let nf = raw.len() as f64;
-    let mean = raw.iter().sum::<f64>() / nf;
-    let css = raw.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>();
+    let mean = column_mean(raw);
+    let css = CompensatedSum::of(raw.iter().map(|v| (v - mean) * (v - mean)));
     if constant_column(css, raw_floor(mean, nf)) {
         f64::INFINITY
     } else {
@@ -175,20 +245,17 @@ fn build_design(z_cols: &[&[f64]], n: usize, design: &mut [f64]) -> bool {
 /// One column of [`build_design`]: centered and scaled to unit sum of squares into `out`.
 fn scale_column(z: &[f64], n: usize, out: &mut [f64]) -> bool {
     let nf = n as f64;
-    let mut mean = 0.0;
-    for &v in z.iter().take(n) {
-        if !v.is_finite() {
-            return false;
-        }
-        mean += v;
+    if z.iter().take(n).any(|v| !v.is_finite()) {
+        return false;
     }
-    mean /= nf;
-    let mut css = 0.0;
+    let mean = column_mean(&z[..n]);
+    let mut css = CompensatedSum::default();
     for r in 0..n {
         let d = z[r] - mean;
         out[r] = d;
-        css += d * d;
+        css.add(d * d);
     }
+    let css = css.total();
     if constant_column(css, raw_floor(mean, nf)) {
         return false;
     }
@@ -199,16 +266,50 @@ fn scale_column(z: &[f64], n: usize, out: &mut [f64]) -> bool {
     true
 }
 
+/// Number of independent accumulators in the canonical dot product.
+const DOT_LANES: usize = 4;
+
+/// Sum of `term(0) .. term(len)` over [`DOT_LANES`] independent accumulators.
+///
+/// Element `i` goes to lane `i % DOT_LANES`; the lanes are combined as
+/// `(l0 + l1) + (l2 + l3)` and the remaining `len % DOT_LANES` elements are then added
+/// in index order. Independent accumulators break the serial add dependency so the loop
+/// pipelines and vectorises, and this fixed order is the one reduction every Gram entry,
+/// target product and refinement product uses, so the lone and shared-batch paths stay
+/// bit-identical.
+#[allow(
+    clippy::inline_always,
+    reason = "Inlining enables the measured fixed-order vectorized reduction."
+)]
+#[inline(always)]
+fn lane_sum(len: usize, term: impl Fn(usize) -> f64) -> f64 {
+    let blocks = len / DOT_LANES;
+    let mut lanes = [0.0_f64; DOT_LANES];
+    for b in 0..blocks {
+        let base = b * DOT_LANES;
+        for (k, lane) in lanes.iter_mut().enumerate() {
+            *lane += term(base + k);
+        }
+    }
+    let mut acc = (lanes[0] + lanes[1]) + (lanes[2] + lanes[3]);
+    for i in blocks * DOT_LANES..len {
+        acc += term(i);
+    }
+    acc
+}
+
+/// Canonical dot product of two equal-length slices (see [`lane_sum`]).
+fn dot(a: &[f64], b: &[f64]) -> f64 {
+    debug_assert_eq!(a.len(), b.len());
+    lane_sum(a.len().min(b.len()), |i| a[i] * b[i])
+}
+
 fn form_gram(design: &[f64], n: usize, ncols: usize, gram: &mut [f64]) {
     gram.fill(0.0);
     for c1 in 0..ncols {
+        let a = &design[c1 * n..(c1 + 1) * n];
         for c2 in c1..ncols {
-            let mut acc = 0.0;
-            let a = &design[c1 * n..(c1 + 1) * n];
-            let b = &design[c2 * n..(c2 + 1) * n];
-            for r in 0..n {
-                acc += a[r] * b[r];
-            }
+            let acc = dot(a, &design[c2 * n..(c2 + 1) * n]);
             gram[c1 * ncols + c2] = acc;
             gram[c2 * ncols + c1] = acc;
         }
@@ -216,7 +317,7 @@ fn form_gram(design: &[f64], n: usize, ncols: usize, gram: &mut [f64]) {
 }
 
 fn form_xty(design: &[f64], y: &[f64], n: usize, ncols: usize, out: &mut [f64]) {
-    let y_mean = y.iter().sum::<f64>() / n as f64;
+    let y_mean = column_mean(&y[..n]);
     for c in 0..ncols {
         let col = &design[c * n..(c + 1) * n];
         out[c] = centered_dot(col, y, y_mean);
@@ -224,35 +325,31 @@ fn form_xty(design: &[f64], y: &[f64], n: usize, ncols: usize, out: &mut [f64]) 
 }
 
 fn centered_dot(col: &[f64], y: &[f64], y_mean: f64) -> f64 {
-    let mut acc = 0.0;
-    for r in 0..col.len() {
-        acc += col[r] * (y[r] - y_mean);
-    }
-    acc
+    lane_sum(col.len().min(y.len()), |r| col[r] * (y[r] - y_mean))
 }
 
-/// Gauss–Jordan with partial pivoting on `nrhs` right-hand sides stored back to back
-/// (`ncols` each). Columns are already unit-scaled, so the pivot floor is relative to a
-/// correlation Gram (diagonals are 1) and a mixed-scale conditioning column is not
+/// Gauss–Jordan with partial pivoting on the two right-hand sides (X then Y) stored back
+/// to back (`ncols` each). Columns are already unit-scaled, so the pivot floor is relative
+/// to a correlation Gram (diagonals are 1) and a mixed-scale conditioning column is not
 /// declared singular.
 ///
 /// Pivoting and the row operations depend on the Gram alone, so each right-hand side
 /// sees exactly the operations a solve of that vector by itself would apply, and one
 /// elimination serving X and Y returns bit-identical coefficients to two. A Cholesky
-/// factorization would not: it rounds differently and its pivot floor (`64 eps`
-/// Gauss-Jordan on a unit-scaled Gram.
+/// factorization would not: it rounds differently and its pivot floor (`64 eps`) is a
+/// different refusal contract.
 ///
 /// The diagonal is already 1, so [`crate::gram::symmetric_scales`] would be the
 /// identity. The pivot floor is [`crate::gram::EQUILIBRATED_PIVOT_FLOOR`] times
 /// that diagonal: the same predicate [`crate::gram::invert_square`] applies
-/// after equilibration.
-fn solve_inplace(gram: &mut [f64], rhs: &mut [f64], ncols: usize, nrhs: usize) -> bool {
-    crate::gram::gauss_jordan_solve(gram, rhs, ncols, nrhs)
+/// after equilibration. Returns the smallest accepted pivot, `None` when singular.
+fn solve_inplace(gram: &mut [f64], rhs: &mut [f64], ncols: usize) -> Option<f64> {
+    crate::gram::gauss_jordan_solve_with_pivot(gram, rhs, ncols, 2)
 }
 
 fn residual_from_cols(y: &[f64], cols: &[&[f64]], beta: &[f64], out: &mut [f64]) {
     let n = y.len();
-    let y_mean = y.iter().sum::<f64>() / n as f64;
+    let y_mean = column_mean(y);
     for r in 0..n {
         let mut pred = 0.0;
         for (col, b) in cols.iter().zip(beta) {
@@ -293,22 +390,18 @@ fn partial_correlation_impl(
     if !build_design(z_cols, n, design) {
         return None;
     }
-    let gram = &mut workspace.gram[..ncols * ncols];
-    let beta = &mut workspace.beta[..2 * ncols];
-    form_gram(design, n, ncols, gram);
-    form_xty(design, x, n, ncols, &mut beta[..ncols]);
-    form_xty(design, y, n, ncols, &mut beta[ncols..]);
-    if !solve_inplace(gram, beta, ncols, 2) {
+    let scratch = &mut workspace.scratch;
+    form_gram(design, n, ncols, &mut scratch.gram[..ncols * ncols]);
+    form_xty(design, x, n, ncols, &mut scratch.beta[..ncols]);
+    form_xty(design, y, n, ncols, &mut scratch.beta[ncols..2 * ncols]);
+    let cols: Vec<&[f64]> = design.chunks_exact(n).collect();
+    if !scratch.solve(&cols, x, y) {
         return None;
     }
-    let mut cols: Vec<&[f64]> = Vec::with_capacity(ncols);
-    cols.extend(design.chunks_exact(n));
-    residual_from_cols(x, &cols, &beta[..ncols], &mut workspace.rx[..n]);
-    residual_from_cols(y, &cols, &beta[ncols..], &mut workspace.ry[..n]);
     // Finite zero-variance residuals ⇒ trivial conditional independence (r = 0).
     // Non-finite residuals must stay None: `constant_column` also fires on NaN css,
     // so pearson alone cannot distinguish them from a real constant residual.
-    pearson_after_residualize(&workspace.rx[..n], &workspace.ry[..n], x, y, corr)
+    pearson_after_residualize(&scratch.rx[..n], &scratch.ry[..n], x, y, corr)
 }
 
 /// A Pearson kernel taking optional per-column constant-column floors.
@@ -326,8 +419,12 @@ fn pearson_after_residualize(
     y: &[f64],
     corr: FlooredPearson,
 ) -> Option<f64> {
-    match corr(rx, ry, Some((residual_floor(x), residual_floor(y)))) {
+    let (floor_x, floor_y) = (residual_floor(x), residual_floor(y));
+    match corr(rx, ry, Some((floor_x, floor_y))) {
         Some(r) => Some(r),
+        // A raw column with no variation has no correlation with anything: undefined, not
+        // independent. Only a residual that Z explains away is trivially independent.
+        None if !(floor_x.is_finite() && floor_y.is_finite()) => None,
         None if rx.iter().chain(ry.iter()).all(|v| v.is_finite()) => Some(0.0),
         None => None,
     }
@@ -359,6 +456,47 @@ enum ColumnSlot {
     At(usize),
 }
 
+/// Largest number of dense cache cells (`Option<f64>`, 16 bytes each) a [`PairCache`] holds
+/// before it falls back to a sparse map keyed by the pair actually requested.
+const DENSE_CACHE_CELLS: usize = 1 << 16;
+
+/// Memo of one `f64` per ordered `(row, col)` column pair of a batch.
+///
+/// Dense and indexed directly when the `rows * cols` grid fits [`DENSE_CACHE_CELLS`]; sparse
+/// otherwise, because a batch over very many columns usually touches only a few pairs. The
+/// stored values are produced by the same loops either way, so the choice never changes a result.
+enum PairCache {
+    Dense { cols: usize, cells: Vec<Option<f64>> },
+    Sparse(HashMap<(usize, usize), f64>),
+}
+
+impl PairCache {
+    fn new(rows: usize, cols: usize) -> Self {
+        match rows.checked_mul(cols) {
+            Some(cells) if cells <= DENSE_CACHE_CELLS => {
+                Self::Dense { cols, cells: vec![None; cells] }
+            }
+            _ => Self::Sparse(HashMap::new()),
+        }
+    }
+
+    fn get(&self, key: (usize, usize)) -> Option<f64> {
+        match self {
+            Self::Dense { cols, cells } => cells[key.0 * cols + key.1],
+            Self::Sparse(map) => map.get(&key).copied(),
+        }
+    }
+
+    fn insert(&mut self, key: (usize, usize), value: f64) {
+        match self {
+            Self::Dense { cols, cells } => cells[key.0 * *cols + key.1] = Some(value),
+            Self::Sparse(map) => {
+                map.insert(key, value);
+            }
+        }
+    }
+}
+
 /// Outcome of answering a query from [`SharedDesign`].
 enum Served {
     Answer(Option<f64>),
@@ -375,8 +513,8 @@ struct SharedDesign {
     n: usize,
     pool: Vec<f64>,
     slot: Vec<ColumnSlot>,
-    gram_pair: HashMap<(usize, usize), f64>,
-    target_dot: HashMap<(usize, usize), f64>,
+    gram_pair: PairCache,
+    target_dot: PairCache,
     target_mean: Vec<Option<f64>>,
 }
 
@@ -386,8 +524,8 @@ impl SharedDesign {
             n,
             pool: Vec::new(),
             slot: vec![ColumnSlot::Unseen; columns],
-            gram_pair: HashMap::new(),
-            target_dot: HashMap::new(),
+            gram_pair: PairCache::new(columns, columns),
+            target_dot: PairCache::new(columns, columns),
             target_mean: vec![None; columns],
         }
     }
@@ -422,25 +560,21 @@ impl SharedDesign {
     }
 
     fn gram_entry(&mut self, key: (usize, usize), offs: (usize, usize)) -> f64 {
-        if let Some(&v) = self.gram_pair.get(&key) {
+        if let Some(v) = self.gram_pair.get(key) {
             return v;
         }
         let (a, b) = (self.scaled(offs.0), self.scaled(offs.1));
-        let mut acc = 0.0;
-        for r in 0..self.n {
-            acc += a[r] * b[r];
-        }
+        let acc = dot(a, b);
         self.gram_pair.insert(key, acc);
         acc
     }
 
     fn target_entry(&mut self, columns: &[&[f64]], idx: usize, target: usize, off: usize) -> f64 {
-        if let Some(&v) = self.target_dot.get(&(idx, target)) {
+        if let Some(v) = self.target_dot.get((idx, target)) {
             return v;
         }
         let y = columns[target];
-        let mean =
-            *self.target_mean[target].get_or_insert_with(|| y.iter().sum::<f64>() / self.n as f64);
+        let mean = *self.target_mean[target].get_or_insert_with(|| column_mean(&y[..self.n]));
         let acc = centered_dot(self.scaled(off), y, mean);
         self.target_dot.insert((idx, target), acc);
         acc
@@ -471,34 +605,25 @@ impl SharedDesign {
                 Err(false) => return Served::Lone,
             }
         }
-        workspace.prepare_solve(n, ncols);
+        let scratch = &mut workspace.scratch;
+        scratch.prepare(n, ncols);
         for c1 in 0..ncols {
             for c2 in c1..ncols {
                 let key = (z_idx[c1].min(z_idx[c2]), z_idx[c1].max(z_idx[c2]));
                 let v = self.gram_entry(key, (offs[c1], offs[c2]));
-                workspace.gram[c1 * ncols + c2] = v;
-                workspace.gram[c2 * ncols + c1] = v;
+                scratch.gram[c1 * ncols + c2] = v;
+                scratch.gram[c2 * ncols + c1] = v;
             }
         }
         for c in 0..ncols {
-            workspace.beta[c] = self.target_entry(columns, z_idx[c], q.x, offs[c]);
-            workspace.beta[ncols + c] = self.target_entry(columns, z_idx[c], q.y, offs[c]);
-        }
-        let gram = &mut workspace.gram[..ncols * ncols];
-        let beta = &mut workspace.beta[..2 * ncols];
-        if !solve_inplace(gram, beta, ncols, 2) {
-            return Served::Answer(None);
+            scratch.beta[c] = self.target_entry(columns, z_idx[c], q.x, offs[c]);
+            scratch.beta[ncols + c] = self.target_entry(columns, z_idx[c], q.y, offs[c]);
         }
         let cols: Vec<&[f64]> = offs.iter().map(|&o| self.scaled(o)).collect();
-        residual_from_cols(x, &cols, &beta[..ncols], &mut workspace.rx[..n]);
-        residual_from_cols(y, &cols, &beta[ncols..], &mut workspace.ry[..n]);
-        Served::Answer(pearson_after_residualize(
-            &workspace.rx[..n],
-            &workspace.ry[..n],
-            x,
-            y,
-            corr,
-        ))
+        if !scratch.solve(&cols, x, y) {
+            return Served::Answer(None);
+        }
+        Served::Answer(pearson_after_residualize(&scratch.rx[..n], &scratch.ry[..n], x, y, corr))
     }
 }
 
@@ -559,7 +684,9 @@ impl From<bool> for ParCorrMode {
 ///
 /// # Errors
 ///
-/// [`crate::view::ViewError::InvalidShape`] when `out.len() != queries.len()`.
+/// [`crate::view::ViewError::InvalidShape`] when the output length or column lengths
+/// differ, a query/conditioning column is out of range, or a conditioning range is
+/// invalid. Invalid requests leave `out` untouched.
 pub fn partial_correlation_batch(
     columns: &[&[f64]],
     queries: &[ParCorrQuery],
@@ -573,6 +700,31 @@ pub fn partial_correlation_batch(
             message: "partial correlation out.len() must equal queries.len()",
         });
     }
+    let rows = columns.first().map_or(0, |column| column.len());
+    if columns.iter().any(|column| column.len() != rows) {
+        return Err(crate::view::ViewError::InvalidShape {
+            message: "partial correlation columns must have equal lengths",
+        });
+    }
+    for query in queries {
+        if query.x >= columns.len() || query.y >= columns.len() {
+            return Err(crate::view::ViewError::InvalidShape {
+                message: "partial correlation query column out of range",
+            });
+        }
+        let conditioning = query
+            .z_start
+            .checked_add(query.z_len)
+            .and_then(|end| z_flat.get(query.z_start..end))
+            .ok_or(crate::view::ViewError::InvalidShape {
+                message: "partial correlation conditioning range out of bounds",
+            })?;
+        if conditioning.iter().any(|&column| column >= columns.len()) {
+            return Err(crate::view::ViewError::InvalidShape {
+                message: "partial correlation conditioning column out of range",
+            });
+        }
+    }
     // Queries of one batch usually repeat conditioning columns; a lone query gains
     // nothing from the bookkeeping.
     let mut shared = (queries.len() > 1)
@@ -583,11 +735,11 @@ pub fn partial_correlation_batch(
     let mut z_bufs: Vec<&[f64]> = Vec::new();
     for (qi, q) in queries.iter().enumerate() {
         // Queries with nothing to condition on, or too few rows, never touch the pool.
-        if let Some(sd) = shared.as_mut().filter(|sd| q.z_len > 0 && sd.n >= 3) {
-            if let Served::Answer(r) = sd.query(columns, q, z_flat, workspace, corr) {
-                out[qi] = r;
-                continue;
-            }
+        if let Some(sd) = shared.as_mut().filter(|sd| q.z_len > 0 && sd.n >= 3)
+            && let Served::Answer(r) = sd.query(columns, q, z_flat, workspace, corr)
+        {
+            out[qi] = r;
+            continue;
         }
         z_bufs.clear();
         let end = q.z_start + q.z_len;
@@ -605,14 +757,60 @@ pub fn partial_correlation_batch(
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::float_cmp,
+    clippy::cast_sign_loss,
+    reason = "Exact zero and bounded nonnegative fixture indices are intentional."
+)]
 mod tests {
     use antecedent_core::{KernelPolicy, ToleranceClass};
 
     use super::*;
     use crate::dispatch::{KernelImpl, select_impl};
 
-    /// The solve this module used before the two right-hand sides shared one
-    /// elimination: Gram formed and eliminated once for X and again for Y.
+    #[test]
+    fn batch_query_indices_are_checked_before_writing_any_result() {
+        let first = [1.0, 2.0, 3.0, 4.0];
+        let second = [4.0, 1.0, 3.0, 2.0];
+        let columns = [&first[..], &second[..]];
+        let valid = ParCorrQuery { x: 0, y: 1, z_start: 0, z_len: 0 };
+        for bad in [
+            ParCorrQuery { x: 2, ..valid },
+            ParCorrQuery { y: 2, ..valid },
+            ParCorrQuery { z_start: usize::MAX, z_len: 1, ..valid },
+            ParCorrQuery { z_start: 2, ..valid },
+            ParCorrQuery { z_len: 1, ..valid },
+        ] {
+            for mode in [ParCorrMode::Native, ParCorrMode::Portable] {
+                let mut out = [Some(0.25), Some(0.5)];
+                let result = partial_correlation_batch(
+                    &columns,
+                    &[valid, bad],
+                    &[2],
+                    &mut out,
+                    &mut ParCorrWorkspace::default(),
+                    mode,
+                );
+                assert!(result.is_err());
+                assert_eq!(out, [Some(0.25), Some(0.5)]);
+            }
+        }
+        assert!(
+            partial_correlation_batch(
+                &[&first, &second[..3]],
+                &[valid],
+                &[],
+                &mut [None],
+                &mut ParCorrWorkspace::default(),
+                ParCorrMode::Native,
+            )
+            .is_err()
+        );
+    }
+
+    /// The solve with each target eliminated by itself: Gram formed and eliminated once
+    /// for X and again for Y, each with its own refinement decision. The joint
+    /// elimination and the shared-batch cache must reproduce it bit for bit.
     fn two_solve_reference(
         x: &[f64],
         y: &[f64],
@@ -625,21 +823,84 @@ mod tests {
         if !build_design(z_cols, n, &mut design) {
             return None;
         }
+        let cols: Vec<&[f64]> = design.chunks_exact(n).collect();
         let mut residuals = Vec::new();
         for target in [x, y] {
             let mut gram = vec![0.0; ncols * ncols];
             let mut beta = vec![0.0; ncols];
             form_gram(&design, n, ncols, &mut gram);
             form_xty(&design, target, n, ncols, &mut beta);
-            if !solve_inplace(&mut gram, &mut beta, ncols, 1) {
-                return None;
-            }
-            let cols: Vec<&[f64]> = design.chunks_exact(n).collect();
+            let formed = gram.clone();
+            let pivot = crate::gram::gauss_jordan_solve_with_pivot(&mut gram, &mut beta, ncols, 1)?;
             let mut out = vec![0.0; n];
             residual_from_cols(target, &cols, &beta, &mut out);
+            if pivot < REFINE_PIVOT {
+                let mut correction: Vec<f64> = cols.iter().map(|c| dot(c, &out)).collect();
+                let mut again = formed;
+                crate::gram::gauss_jordan_solve_with_pivot(&mut again, &mut correction, ncols, 1)?;
+                for (b, d) in beta.iter_mut().zip(&correction) {
+                    *b += d;
+                }
+                residual_from_cols(target, &cols, &beta, &mut out);
+            }
             residuals.push(out);
         }
         pearson_after_residualize(&residuals[0], &residuals[1], x, y, corr)
+    }
+
+    #[test]
+    fn lane_dot_matches_compensated_sum_and_handles_every_tail() {
+        let mut state = 0x9E37_79B9_7F4A_7C15_u64;
+        let mut unit = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state >> 11) as f64 / (1u64 << 53) as f64 - 0.5
+        };
+        for len in 0..40 {
+            let a: Vec<f64> = (0..len).map(|_| unit()).collect();
+            let b: Vec<f64> = (0..len).map(|_| unit()).collect();
+            let exact = CompensatedSum::of(a.iter().zip(&b).map(|(p, q)| p * q));
+            let got = dot(&a, &b);
+            assert!((got - exact).abs() <= 1e-14 * (1.0 + f64::from(len)), "len {len}");
+            // Fixed order: a repeat is bit-identical.
+            assert_eq!(got.to_bits(), dot(&a, &b).to_bits());
+        }
+        assert_eq!(dot(&[], &[]), 0.0);
+    }
+
+    #[test]
+    fn refinement_restores_orthogonality_of_residuals_on_a_near_collinear_design() {
+        let n = 400;
+        let z1: Vec<f64> = (0..n).map(|i| (0.37 * f64::from(i)).sin()).collect();
+        let z2: Vec<f64> =
+            (0..n).map(|i| z1[i as usize] + 2e-4 * (1.9 * f64::from(i)).cos()).collect();
+        let x: Vec<f64> = (0..n)
+            .map(|i| 3.0 * z1[i as usize] - 2.0 * z2[i as usize] + (0.7 * f64::from(i)).sin())
+            .collect();
+        let y: Vec<f64> = (0..n).map(|i| z2[i as usize] + (1.1 * f64::from(i)).cos()).collect();
+        let z_cols: [&[f64]; 2] = [&z1, &z2];
+        let nn = n as usize;
+        let mut design = vec![0.0; nn * 2];
+        assert!(build_design(&z_cols, nn, &mut design));
+        let cols: Vec<&[f64]> = design.chunks_exact(nn).collect();
+        let mut scratch = SolveScratch::default();
+        scratch.prepare(nn, 2);
+        form_gram(&design, nn, 2, &mut scratch.gram[..4]);
+        form_xty(&design, &x, nn, 2, &mut scratch.beta[..2]);
+        form_xty(&design, &y, nn, 2, &mut scratch.beta[2..4]);
+        // Unrefined normal-equation solution, for comparison.
+        let mut gram = scratch.gram[..4].to_vec();
+        let mut beta = scratch.beta[..4].to_vec();
+        let pivot = solve_inplace(&mut gram, &mut beta, 2).expect("regular");
+        assert!(pivot < REFINE_PIVOT, "the design must exercise refinement: {pivot}");
+        let mut plain = vec![0.0; nn];
+        residual_from_cols(&x, &cols, &beta[..2], &mut plain);
+        let skew = |r: &[f64]| cols.iter().map(|c| dot(c, r).abs()).fold(0.0, f64::max);
+        assert!(scratch.solve(&cols, &x, &y));
+        assert!(skew(&scratch.rx[..nn]) <= skew(&plain));
+        assert!(skew(&scratch.rx[..nn]) <= 1e-12, "{}", skew(&scratch.rx[..nn]));
+        assert!(skew(&scratch.ry[..nn]) <= 1e-12, "{}", skew(&scratch.ry[..nn]));
     }
 
     #[test]
@@ -993,6 +1254,46 @@ mod tests {
             assert!((scalar - 1.0).abs() < 1e-8, "scalar at scale {scale}: {scalar}");
             assert!((portable - 1.0).abs() < 1e-8, "portable at scale {scale}: {portable}");
         }
+    }
+
+    #[test]
+    fn near_collinear_conditioning_matches_well_conditioned_reparametrization() {
+        // Z2 = Z1 + 1e-5 * w: the unit-scaled Gram has a pivot near 1e-10, so the plain
+        // normal-equation solve loses most digits. The span of (Z1, Z2) equals that of
+        // (Z1, w), which is well conditioned, so both must give the same partial
+        // correlation, and the batch path must reproduce the lone one bit for bit.
+        let n = 300;
+        let z1: Vec<f64> = (0..n).map(|i| (0.37 * i as f64).sin()).collect();
+        let w: Vec<f64> = (0..n).map(|i| (1.3 * i as f64 + 0.2).cos()).collect();
+        let z2: Vec<f64> = (0..n).map(|i| z1[i] + 1e-5 * w[i]).collect();
+        let e1: Vec<f64> = (0..n).map(|i| (2.9 * i as f64 + 0.5).sin()).collect();
+        let e2: Vec<f64> = (0..n).map(|i| (4.1 * i as f64 + 1.1).cos()).collect();
+        let x: Vec<f64> =
+            (0..n).map(|i| 2.0 * z1[i] - 3.0 * z2[i] + 0.5 * e1[i] + 0.2 * e2[i]).collect();
+        let y: Vec<f64> = (0..n).map(|i| z1[i] + z2[i] + 0.4 * e1[i] - 0.3 * e2[i]).collect();
+        let mut ws = ParCorrWorkspace::default();
+        let near = partial_correlation_scalar(&x, &y, &[&z1, &z2], &mut ws).unwrap();
+        let oracle = partial_correlation_scalar(&x, &y, &[&z1, &w], &mut ws).unwrap();
+        assert!((near - oracle).abs() < 1e-7, "refined {near} vs reparametrized {oracle}");
+
+        let columns: [&[f64]; 5] = [&x, &y, &z1, &z2, &w];
+        let queries = [
+            ParCorrQuery { x: 0, y: 1, z_start: 0, z_len: 2 },
+            ParCorrQuery { x: 0, y: 1, z_start: 0, z_len: 2 },
+        ];
+        let z_flat = [2usize, 3];
+        let mut out = [None; 2];
+        partial_correlation_batch(
+            &columns,
+            &queries,
+            &z_flat,
+            &mut out,
+            &mut ws,
+            ParCorrMode::Native,
+        )
+        .unwrap();
+        assert_eq!(out[0].map(f64::to_bits), Some(near.to_bits()));
+        assert_eq!(out[1].map(f64::to_bits), Some(near.to_bits()));
     }
 
     #[test]

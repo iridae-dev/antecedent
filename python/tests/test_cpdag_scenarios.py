@@ -11,6 +11,7 @@ is not a descendant of ``b``.
 import antecedent
 import pytest
 from antecedent import Admg, Cpdag
+from antecedent import _reason_details as reason_details
 from antecedent.errors import (
     CausalResourceError,
     CausalSerializationError,
@@ -18,6 +19,7 @@ from antecedent.errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from antecedent.execution import Execution
 from antecedent.transport import advanced as transport
 
 NAMES = ["a", "b", "c"]
@@ -129,8 +131,8 @@ def test_enumerated_truth_effects_and_envelope():
     assert not hasattr(result, "weights") and not hasattr(result, "mass")
     with pytest.raises(transport.CpdagScenarioRefusal) as refused:
         result.aggregate_interval()
-    assert refused.value.reason_code == "scenario_aggregate_not_licensed"
-    assert refused.value.detail == "scenarios.shared_data_aggregate"
+    assert refused.value.reason_code == "scenario_aggregate_not_supported"
+    assert refused.value.detail == reason_details.scenarios.SHARED_DATA_AGGREGATE
     assert isinstance(refused.value, CausalUnsupportedError)
 
 
@@ -188,7 +190,9 @@ def test_missing_evidence_is_counted_not_redistributed():
     backward = result.completion(sorted(BACKWARD))
     assert backward.point is None and backward.detail
     assert backward.evidence_identity == "ev-backward"
-    with pytest.raises(CausalValueError):
+    with pytest.raises(
+        CausalValueError, match=r"completion [0-9a-f]{64} produced no point \(missi"
+    ):
         backward.mean("c")
     # The envelope ranges over the two identified completions only: 0.38 is absent.
     assert result.envelope.mean_range("c") == pytest.approx((0.8, 0.8))
@@ -234,7 +238,7 @@ def test_budget_stop_retains_explored_and_unevaluated():
     assert partial.receipt.not_enumerated == 3
     assert partial.envelope is None
     # The recorded limit replays: the consumer reproduces the identical prefix.
-    replayed = transport.consume_cpdag_scenarios_artifact(partial.export())
+    replayed = transport.consume_cpdag_scenarios_artifact(bytes(partial.export()))
     assert replayed.completions == partial.completions
     assert replayed.counts == partial.counts and replayed.receipt == partial.receipt
 
@@ -257,29 +261,29 @@ def test_budget_stop_retains_explored_and_unevaluated():
 def test_cancelled_report_is_not_exportable():
     token = antecedent.state.CancellationToken()
     token.cancel()
-    cancelled = run(cancel=token)
+    cancelled = run(execution=Execution(cancel=token))
     assert cancelled.completions == () and cancelled.counts.not_enumerated == 4
     assert cancelled.counts.unevaluated == 4 and cancelled.envelope is None
     assert cancelled.receipt.stop == "search.cancelled" and not cancelled.exportable
     with pytest.raises(transport.CpdagScenarioRefusal) as refused:
-        cancelled.export()
+        bytes(cancelled.export())
     assert refused.value.reason_code == "cancelled_no_claim"
-    assert refused.value.detail == "cpdag_scenarios.cancelled_not_exportable"
+    assert refused.value.detail == reason_details.cpdag_scenarios.CANCELLED_NOT_EXPORTABLE
 
 
 def test_export_and_fresh_consume_reproduce_the_report():
     result = run()
-    artifact = result.export()
+    artifact = bytes(result.export())
     assert artifact.startswith(PREFIX)
     consumed = transport.consume_cpdag_scenarios_artifact(artifact)
     assert consumed.cpdag_identity == result.cpdag_identity
     assert consumed.completions == result.completions
     assert consumed.counts == result.counts and consumed.envelope == result.envelope
     assert consumed.premises_digest and consumed.data_digest
-    assert consumed.export() == artifact
+    assert bytes(consumed.export()) == artifact
     # Per-completion evidence with a missing completion replays as well.
     partial = run(evidence=[bind(sorted(FORWARD), "ev-forward")])
-    again = transport.consume_cpdag_scenarios_artifact(partial.export())
+    again = transport.consume_cpdag_scenarios_artifact(bytes(partial.export()))
     assert again.completions == partial.completions and again.counts == partial.counts
 
 
@@ -332,7 +336,7 @@ def _frame(names, inner):
 
 
 def test_tampered_artifacts_refuse_with_typed_details():
-    artifact = run().export()
+    artifact = bytes(run().export())
     names, inner = _unframe(artifact)
     assert names == NAMES and _frame(names, inner) == artifact
     # Evidence identity is data: the data digest refuses first.
@@ -341,25 +345,33 @@ def test_tampered_artifacts_refuse_with_typed_details():
     with pytest.raises(transport.CpdagScenarioRefusal) as refused:
         transport.consume_cpdag_scenarios_artifact(_frame(names, changed))
     assert refused.value.reason_code == "invalid_argument"
-    assert refused.value.detail == "cpdag_scenarios.data_identity_mismatch"
+    assert refused.value.detail == reason_details.cpdag_scenarios.DATA_IDENTITY_MISMATCH
     # The question is a premise: the premises digest refuses.
     premises = _frame(names, bytes(inner).replace(b"src_pop", b"src_poq"))
     assert premises != artifact
     with pytest.raises(transport.CpdagScenarioRefusal) as refused:
         transport.consume_cpdag_scenarios_artifact(premises)
-    assert refused.value.detail == "cpdag_scenarios.premises_mismatch"
+    assert refused.value.detail == reason_details.cpdag_scenarios.PREMISES_MISMATCH
     # Damaged or foreign bytes are serialization failures, not refusals.
-    with pytest.raises(CausalSerializationError):
+    with pytest.raises(
+        CausalSerializationError, match=r"cbor error: 2 trailing bytes after the CBOR item"
+    ):
         transport.consume_cpdag_scenarios_artifact(artifact[:-4] + b"\x00\x00\x00\x00")
-    with pytest.raises(CausalSerializationError):
+    with pytest.raises(CausalSerializationError, match=r"invalid cpdag scenario artifact format"):
         transport.consume_cpdag_scenarios_artifact(b"not an artifact")
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(
+        CausalTypeError,
+        match=r"an artifact is bytes or ExportedArtifact; read paths with Path\.read_bytes\(\)",
+    ):
         transport.consume_cpdag_scenarios_artifact("text")
     # The names the report is read with are bound by the coordinate schema.
     with pytest.raises(CausalSerializationError, match="coordinate schema"):
         transport.consume_cpdag_scenarios_artifact(_frame(["c", "b", "a"], inner))
     # The consumer's own limits bound the replay: the artifact cannot raise them.
-    with pytest.raises(CausalResourceError):
+    with pytest.raises(
+        CausalResourceError,
+        match=r"cpdag_scenarios\.consumer_limit_exceeded: consumer limit exceeded \(budget\): completion search budget",
+    ):
         transport.consume_cpdag_scenarios_artifact(artifact, max_steps=1)
 
 
@@ -372,10 +384,13 @@ def test_refusals_carry_exact_code_and_detail():
 
     # A graph that is not maximally oriented: a -> b - c compels b -> c.
     compelled = Cpdag.from_directed_undirected(NAMES, [("a", "b")], [("b", "c")])
-    assert refusal(lambda: run(compelled)) == ("invalid_argument", "cpdag_scenarios.not_a_cpdag")
+    assert refusal(lambda: run(compelled)) == (
+        "invalid_argument",
+        reason_details.cpdag_scenarios.NOT_A_CPDAG,
+    )
     # Evidence for a completion this CPDAG does not have (a collider), or twice for one.
     collider = bind([("a", "b"), ("c", "b")], "ev-collider")
-    mismatch = ("invalid_argument", "cpdag_scenarios.evidence_identity_mismatch")
+    mismatch = ("invalid_argument", reason_details.cpdag_scenarios.EVIDENCE_IDENTITY_MISMATCH)
     assert refusal(lambda: run(evidence=[collider])) == mismatch
     twice = [bind(sorted(FORWARD), "ev-1"), bind(sorted(FORWARD), "ev-2")]
     assert refusal(lambda: run(evidence=twice)) == mismatch
@@ -389,20 +404,27 @@ def test_refusals_carry_exact_code_and_detail():
 
 def test_inputs_are_checked_before_any_search():
     graph = Admg.from_edges(NAMES, [("a", "b"), ("b", "c")], [("a", "c")])
-    with pytest.raises(CausalUnsupportedError, match="cpdag_scenarios.selection_or_latent") as e:
+    with pytest.raises(
+        CausalUnsupportedError, match=reason_details.cpdag_scenarios.SELECTION_OR_LATENT
+    ) as e:
         run(graph)
     assert e.value.reason_code == "route_not_supported"
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(
+        CausalTypeError, match=r"cpdag must be a Cpdag \(or a discovery result holding one\)"
+    ):
         run("a - b - c")
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=r"evidence must be CompletionEvidence values"):
         run(evidence="ev")
     # One shared declaration names no completion; per-completion evidence must name one.
-    with pytest.raises(CausalValueError):
+    with pytest.raises(
+        CausalValueError,
+        match=r"a single evidence declaration is shared by every completion; pass a sequence to bind evidence per co",
+    ):
         run(evidence=bind(sorted(FORWARD), "ev"))
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalValueError, match=r"per-completion evidence must name its completion"):
         run(evidence=[shared()])
     # A coordinate schema naming an unknown variable is a schema mismatch.
     bad = [*coordinates(), transport.VariableCoordinate("q", "binary")]
-    with pytest.raises(CausalValueError, match="scenarios.coordinate_mismatch") as e:
+    with pytest.raises(CausalValueError, match=reason_details.scenarios.COORDINATE_MISMATCH) as e:
         run(coordinates=bad)
     assert e.value.reason_code == "schema_mismatch"

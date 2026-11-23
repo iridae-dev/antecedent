@@ -1,0 +1,32 @@
+{
+  "fixture_id": "response.curve_refuter_states",
+  "dgp": "Z=sin(i/17); T=.6*Z+.8*cos(1.13*i)+.4*e; Y=1+2*T+.8*Z+.3*e; i=0..599; e=sum of 12 uniforms minus 6 from one 64-bit LCG stream (state 20240611; T's noise over all rows, then Y's)",
+  "rows": 600,
+  "intercept": 1.0,
+  "treatment_coefficient": 2.0,
+  "confounder_coefficient": 0.8,
+  "grid": [
+    -0.8,
+    0.0,
+    0.8
+  ],
+  "off_support_at": 2.55,
+  "curve_absolute_tolerance": 0.15,
+  "oracle": {
+    "kind": "closed_form",
+    "method": "linear law in `dgp`: the interventional mean at level x is intercept + treatment_coefficient * x + confounder_coefficient * mean(Z), the back-door average of the structural mean over the observed confounder; the confounded (unadjusted) slope is larger than the coefficient 2, so the adjusted curve is separated from the unadjusted one",
+    "generator": "conformance/response/curve_refuter_states/reference.py",
+    "command": "uv run --frozen --script conformance/response/curve_refuter_states/reference.py --check",
+    "environment_lock": "conformance/response/curve_refuter_states/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "the curve at each grid point (intercept + 2 x + 0.8 mean(Z)) within curve_absolute_tolerance",
+      "the planted off-support grid point lies beyond the largest treatment value"
+    ],
+    "context_only_outputs": [
+      "fixture_id and dgp text (checked only as a guard on the model used)"
+    ],
+    "independence_basis": "The generator regenerates the stated rows from the integer noise recurrence and solves the exact rational normal equations of Y on 1, T, Z; it imports no Antecedent code and no statistics package. The shared object is the stated law and the noise recurrence.",
+    "historical_exposure": "Written for this fixture from the stated law and declared inputs; no product implementation source was consulted and no earlier pinned numbers are reused."
+  }
+}

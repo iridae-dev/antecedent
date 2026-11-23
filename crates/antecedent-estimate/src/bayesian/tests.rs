@@ -183,9 +183,11 @@ fn gaussian_conditional_design_supports_multiple_declared_modifiers() {
     let mut duplicate = query.inner.clone();
     duplicate.effect_modifiers = Arc::from(vec![w1, w1]);
     let duplicate = antecedent_core::ConditionalEffectQuery::try_new(duplicate).unwrap();
-    assert!(
-        BayesianGComputationAte::new().prepare_conditional(&data, &estimand, &duplicate).is_err()
-    );
+    let error = BayesianGComputationAte::new()
+        .prepare_conditional(&data, &estimand, &duplicate)
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("distinct modifiers"), "{error}");
 }
 
 #[test]
@@ -203,6 +205,7 @@ fn conditional_logit_contrast_uses_both_intervention_rows_on_outcome_scale() {
     )
     .unwrap();
     let problem = PreparedBayesianProblem {
+        target_moments: None,
         design,
         method: Arc::from("backdoor.adjustment"),
         adjustment_set: Arc::from([]),
@@ -217,6 +220,7 @@ fn conditional_logit_contrast_uses_both_intervention_rows_on_outcome_scale() {
         ])),
         unit_ids: None,
         serial_dependence: SerialDependence::Iid,
+        preparation: None,
     };
     let quantities: Vec<_> = (0..4)
         .map(|index| PosteriorQuantityKind::Coefficient { index, name: None })
@@ -232,7 +236,7 @@ fn conditional_logit_contrast_uses_both_intervention_rows_on_outcome_scale() {
         4,
         17,
     );
-    let mut rng = antecedent_core::CausalRng::from_seed(17 ^ 0x4D4F_4449_4649_4552);
+    let mut rng = antecedent_core::CausalRng::from_seed(0x11 ^ 0x4D4F_4449_4649_4552);
     let weights = antecedent_kernels::bayesian_bootstrap_weights(&mut rng, 4, false);
     let expected = weights
         .iter()
@@ -320,10 +324,7 @@ fn bayesian_and_frequentist_share_ate() {
     );
     let query = AverageEffectQuery::binary_ate(t, y);
 
-    let freq = crate::adjustment::LinearAdjustmentAte {
-        bootstrap_replicates: 0,
-        ..crate::adjustment::LinearAdjustmentAte::new()
-    };
+    let freq = crate::adjustment::LinearAdjustmentAte::new().with_bootstrap_replicates(0);
     let prep = freq.prepare(&data, &estimand, &query).unwrap();
     let mut ws = crate::adjustment::EstimationWorkspace::default();
     let freq_est =
@@ -348,8 +349,11 @@ fn bayesian_and_frequentist_share_ate() {
         .unwrap();
     let eq = post.effect_column().unwrap();
     let mean = post.summaries.mean[eq];
+    // Noise-free y = 2 T + 0.5 Z: the least-squares effect is exactly 2 and the diffuse
+    // (scale 100) prior shrinks the posterior mean by about 2e-6 only.
     assert!((freq_est.ate - 2.0).abs() < 1e-6, "frequentist ate={}", freq_est.ate);
-    assert!((mean - freq_est.ate).abs() < 0.05, "bayes={mean} freq={}", freq_est.ate);
+    assert!((mean - 2.0).abs() < 1e-4, "bayes={mean} truth=2");
+    assert!((mean - freq_est.ate).abs() < 1e-4, "bayes={mean} freq={}", freq_est.ate);
     assert_eq!(post.identification, IdentificationStatus::NonparametricallyIdentified);
     let coef_names: Vec<_> = post
         .draws
@@ -363,6 +367,35 @@ fn bayesian_and_frequentist_share_ate() {
         .collect();
     assert!(coef_names.contains(&"intercept"), "{coef_names:?}");
     assert!(coef_names.iter().any(|n| n.starts_with("coef_")), "{coef_names:?}");
+}
+
+#[test]
+fn posterior_records_the_preparation_receipt_of_the_admitted_columns() {
+    let (data, t, y, z) = linear_scm_table(80);
+    let estimand = IdentifiedEstimand::backdoor(
+        "backdoor.adjustment",
+        Arc::from(vec![z]),
+        ExprId::from_raw(0),
+    );
+    let query = AverageEffectQuery::binary_ate(t, y);
+    let estimator =
+        BayesianGComputationAte { n_draws: 96, seed: 17, ..BayesianGComputationAte::new() };
+    let prepared = estimator.prepare(&data, &estimand, &query).unwrap();
+    let receipt = prepared.preparation.clone().expect("prepare records the receipt");
+    assert_eq!(receipt.rows_admitted, Some(80));
+    let mut workspace = BayesianGCompWorkspace::default();
+    let posterior = estimator
+        .fit(
+            &prepared,
+            IdentificationStatus::NonparametricallyIdentified,
+            &mut workspace,
+            &ExecutionContext::production(17, 1),
+        )
+        .unwrap();
+    let recorded = posterior.preparation.as_ref().expect("posterior carries the receipt");
+    assert_eq!(recorded.backend, receipt.backend);
+    assert_eq!(recorded.rows_admitted, Some(80));
+    assert_eq!(recorded.receipt_digest, receipt.receipt_digest);
 }
 
 #[test]
@@ -432,21 +465,25 @@ fn prior_predictive_effect_follows_the_explicit_effect_prior_not_the_intercept()
     assert!((mean + 3.0).abs() < 0.04, "mean={mean}");
     assert!((sd - 0.5).abs() < 0.03, "sd={sd}");
     for (mean, sd) in [(f64::NAN, 1.0), (0.0, 0.0), (0.0, f64::INFINITY), (0.0, -1.0)] {
-        assert!(
-            nonidentified_with_prior(
-                &prior,
-                mean,
-                sd,
-                InferenceDiagnostics::analytic("none"),
-                8,
-                1
-            )
-            .is_err()
-        );
+        let error = nonidentified_with_prior(
+            &prior,
+            mean,
+            sd,
+            InferenceDiagnostics::analytic("none"),
+            8,
+            1,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("finite mean and a positive finite sd"), "{error}");
     }
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn temporal_prepared_design_conjugate_recovers_pulse() {
     use antecedent_core::{
         CausalSchemaBuilder, Lag, MeasurementSpec, RoleHint, SmallRoleSet, TemporalEffectQuery,
@@ -547,8 +584,10 @@ fn temporal_prepared_design_conjugate_recovers_pulse() {
         .unwrap();
     let eq = post.effect_column().unwrap();
     let mean = post.summaries.mean[eq];
-    assert!((mean - 0.8).abs() < 0.05, "bayesian temporal pulse mean={mean}");
-    assert!(post.probability_below(0.0).unwrap().is_finite());
+    // y_t = 0.8 x_{t-1} exactly, so the effect posterior sits at 0.8 (observed gap 8e-6)
+    // and puts no mass below zero.
+    assert!((mean - 0.8).abs() < 1e-4, "bayesian temporal pulse mean={mean}");
+    assert_eq!(post.probability_below(0.0).unwrap(), 0.0);
 }
 
 #[test]
@@ -636,7 +675,7 @@ fn hierarchical_unit_effects_widen_posterior_vs_stacked() {
         ExprId::from_raw(0),
     );
     let query = AverageEffectQuery::binary_ate(treatment, outcome);
-    let freq = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+    let freq = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
     let prep = freq.prepare(&data, &estimand, &query).unwrap();
     let stacked = BayesianGComputationAte::from_prepared_estimation(&prep);
     let mut hierarchical = stacked.clone();
@@ -660,6 +699,35 @@ fn hierarchical_unit_effects_widen_posterior_vs_stacked() {
     let sd_s = post_s.summaries.sd[eq];
     let sd_h = post_h.summaries.sd[eq];
     assert!(sd_s.is_finite() && sd_h.is_finite(), "sd stacked={sd_s} hierarchical={sd_h}");
+    // Independent reference: with whole units in one arm and no covariates, the effect is
+    // the difference of the arm means of the 40 unit means, whose standard error is
+    // sqrt(s1^2/20 + s0^2/20) from the between-unit sample variances (0.369 here).
+    let unit_means = |even: bool| -> Vec<f64> {
+        (0..n_units)
+            .filter(|u| (u % 2 == 0) == even)
+            .map(|u| {
+                let unit_eff = 1.6 * ((u as f64) * 0.31).sin();
+                let a = if even { 1.0 } else { 0.0 };
+                (0..t_len).map(|k| 2.0 * a + unit_eff + 0.15 * ((k + 1) as f64).sin()).sum::<f64>()
+                    / t_len as f64
+            })
+            .collect()
+    };
+    let sample_var = |x: &[f64]| {
+        let m = x.iter().sum::<f64>() / x.len() as f64;
+        x.iter().map(|v| (v - m).powi(2)).sum::<f64>() / (x.len() - 1) as f64
+    };
+    let (treated_means, control_means) = (unit_means(true), unit_means(false));
+    let cluster_se = (sample_var(&treated_means) / treated_means.len() as f64
+        + sample_var(&control_means) / control_means.len() as f64)
+        .sqrt();
+    // Observed sd_h / se = 0.96 (the variance components are moment estimates); the
+    // stacked iid posterior is 0.36 of it.
+    assert!(
+        (0.9..1.02).contains(&(sd_h / cluster_se)),
+        "hierarchical sd {sd_h} vs between-unit standard error {cluster_se}"
+    );
+    assert!(sd_s < 0.5 * cluster_se, "stacked sd {sd_s} must understate {cluster_se}");
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../../conformance/estimate/panel_hierarchical_vs_stacked/expected.json"
     ))
@@ -728,7 +796,7 @@ fn unit_ids_length_mismatch_is_an_error() {
         ExprId::from_raw(0),
     );
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let freq = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+    let freq = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
     let prep = freq.prepare(&data, &estimand, &query).unwrap();
     let mut bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
     bprep.unit_ids = Some(vec![0, 1]);
@@ -826,7 +894,7 @@ fn poisson_random_intercept_does_not_consume_whitened_outcome() {
         ExprId::from_raw(0),
     );
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let freq = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+    let freq = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
     let prep = freq.prepare(&data, &estimand, &query).unwrap();
 
     // Whitening is applicable on this panel and would change the outcome column.
@@ -975,97 +1043,48 @@ fn pulse_graph() -> antecedent_graph::TemporalDag {
     g
 }
 
-/// Default replicate count for the coverage gate (matches
-/// `crates/antecedent/tests/common/calibration.rs`, which this crate cannot import).
-const CALIBRATION_N_SIM: u32 = 400;
+// The shared calibration harness is compiled once per crate, in `calibration_coverage`.
+use crate::calibration_coverage::calibration;
 
-/// Replicate count, honoring `ANTECEDENT_CALIBRATION_NSIM` for local smoke runs.
-fn calibration_n_sim() -> u32 {
-    std::env::var("ANTECEDENT_CALIBRATION_NSIM")
-        .ok()
-        .and_then(|v| v.parse::<u32>().ok())
-        .filter(|&n| n > 0)
-        .unwrap_or(CALIBRATION_N_SIM)
+/// Equal-tailed posterior interval of the effect column at `level`, read at the
+/// rounded order-statistic index; `None` (a miss) with fewer than two finite draws.
+fn posterior_interval(post: &CausalPosterior, level: f64) -> Option<(f64, f64)> {
+    let eq = post.effect_column().unwrap();
+    let col = post.draws.column(eq).unwrap();
+    let mut v: Vec<f64> = col.iter().copied().filter(|x| x.is_finite()).collect();
+    if v.len() < 2 {
+        return None;
+    }
+    v.sort_by(f64::total_cmp);
+    let lo_p = (1.0 - level) / 2.0;
+    let last = (v.len() - 1) as f64;
+    // `q` is a probability and `last >= 0`, so the rounded product is a valid index.
+    #[allow(
+        clippy::cast_sign_loss,
+        reason = "the rounded index is clamped to [0, last] so it is non-negative and in range"
+    )]
+    let at = |q: f64| v[(last * q).round().clamp(0.0, last) as usize];
+    Some((at(lo_p), at(1.0 - lo_p)))
 }
 
-/// Two-sided coverage tally: `level ± 3·MCSE`, `MCSE = sqrt(level(1-level)/n)`.
-/// At 400 replicates and 90% that is `[0.855, 0.945]`, so under- and
-/// over-coverage both fail.
-struct CoverageGate {
-    name: &'static str,
-    level: f64,
-    covered: u32,
-    scored: u32,
-    length_sum: f64,
-}
-
-impl CoverageGate {
-    fn new(name: &'static str, level: f64) -> Self {
-        Self { name, level, covered: 0, scored: 0, length_sum: 0.0 }
-    }
-
-    /// Score the equal-tailed posterior interval of the effect column.
-    fn record(&mut self, post: &CausalPosterior, truth: f64) {
-        self.scored += 1;
-        let eq = post.effect_column().unwrap();
-        let col = post.draws.column(eq).unwrap();
-        let mut v: Vec<f64> = col.iter().copied().filter(|x| x.is_finite()).collect();
-        if v.len() < 2 {
-            return;
-        }
-        v.sort_by(f64::total_cmp);
-        let lo_p = (1.0 - self.level) / 2.0;
-        let last = (v.len() - 1) as f64;
-        // `q` is a probability and `last >= 0`, so the rounded product is a valid index.
-        #[allow(
-            clippy::cast_sign_loss,
-            reason = "the rounded index is clamped to [0, last] so it is non-negative and in range"
-        )]
-        let at = |q: f64| v[(last * q).round().clamp(0.0, last) as usize];
-        let (lo, hi) = (at(lo_p), at(1.0 - lo_p));
-        self.length_sum += hi - lo;
-        if truth >= lo && truth <= hi {
-            self.covered += 1;
-        }
-    }
-
-    fn assert(&self) {
-        let n = f64::from(self.scored);
-        let rate = f64::from(self.covered) / n;
-        let mcse = (self.level * (1.0 - self.level) / n).sqrt();
-        let lo = (self.level - 3.0 * mcse).max(0.0);
-        let hi = (self.level + 3.0 * mcse).min(1.0);
-        eprintln!(
-            "calibration {}: nominal={:.2} coverage={rate:.3} mcse={mcse:.4} band=[{lo:.3}, {hi:.3}] \
-             mean_length={:.4} ({}/{} covered)",
-            self.name,
-            self.level,
-            self.length_sum / n,
-            self.covered,
-            self.scored
-        );
-        assert!(
-            rate >= lo && rate <= hi,
-            "{} {:.0}% coverage={rate:.3} outside [{lo:.3}, {hi:.3}] ({}/{})",
-            self.name,
-            self.level * 100.0,
-            self.covered,
-            self.scored
-        );
-    }
+/// The shared harness's two-sided coverage tally (`level ± 3·MCSE` at 400 replicates,
+/// `[0.855, 0.945]` at 90%, so under- and over-coverage both fail), gated by the
+/// suite's family decision when the runner supplies its frozen context.
+fn coverage_gate(name: &'static str, level: f64) -> calibration::CoverageTally {
+    calibration::CoverageTally::new(name, level)
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_pulse_conjugate_nominal_90_coverage() {
     use crate::temporal_adjustment::TemporalLinearAdjustment;
     use antecedent_core::{TemporalEffectQuery, TemporalPolicy};
     use antecedent_graph::ensure_lagged;
     use antecedent_identify::TemporalBackdoorIdentifier;
 
-    let n_sim = calibration_n_sim();
+    let n_sim = calibration::n_sim();
     let n = 160usize;
-    let mut gate = CoverageGate::new("bayesian pulse (conjugate, direct estimator)", 0.9);
+    let mut gate = coverage_gate("bayesian pulse (conjugate, direct estimator)", 0.9);
     let g = pulse_graph();
     let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
         .with_policy(TemporalPolicy::pulse(-1))
@@ -1074,7 +1093,7 @@ fn bayesian_pulse_conjugate_nominal_90_coverage() {
     let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
     let estimand = id_res.result.estimands.first().unwrap();
     let temporal = TemporalLinearAdjustment::new();
-    for s in 0..n_sim {
+    let intervals = calibration::map_replicates(n_sim, |s| {
         // Vary the sampler seed per replicate: a fixed seed reuses one set of
         // posterior draws, so its Monte-Carlo quantile error is shared by every
         // replicate instead of averaging out.
@@ -1082,12 +1101,12 @@ fn bayesian_pulse_conjugate_nominal_90_coverage() {
             inner: BayesianGComputationAte {
                 backend: BayesianBackendKind::ConjugateGaussian,
                 n_draws: 240,
-                seed: 21 + u64::from(s),
+                seed: 21 + s,
                 prior_scale: 8.0,
                 ..BayesianGComputationAte::new()
             },
         };
-        let data = noisy_lag1_pulse_series(n, 9_000 + u64::from(s));
+        let data = noisy_lag1_pulse_series(n, 9_000 + s);
         let prep = temporal
             .prepare(
                 &data,
@@ -1108,22 +1127,25 @@ fn bayesian_pulse_conjugate_nominal_90_coverage() {
                 &ExecutionContext::for_tests(1),
             )
             .unwrap();
-        gate.record(&post, 0.8);
+        posterior_interval(&post, 0.9)
+    });
+    for interval in intervals {
+        gate.record(interval, 0.8);
     }
     gate.assert();
     let _ = ensure_lagged;
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_sustained_single_step_conjugate_nominal_90_coverage() {
     use crate::temporal_adjustment::TemporalLinearAdjustment;
     use antecedent_core::{TemporalEffectQuery, TemporalPolicy};
     use antecedent_identify::TemporalBackdoorIdentifier;
 
-    let n_sim = calibration_n_sim();
+    let n_sim = calibration::n_sim();
     let n = 160usize;
-    let mut gate = CoverageGate::new("bayesian single-step sustained (conjugate)", 0.9);
+    let mut gate = coverage_gate("bayesian single-step sustained (conjugate)", 0.9);
     let g = pulse_graph();
     let q =
         TemporalEffectQuery::sustained(VariableId::from_raw(0), VariableId::from_raw(1), -1, 1.0)
@@ -1133,7 +1155,7 @@ fn bayesian_sustained_single_step_conjugate_nominal_90_coverage() {
     let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
     let estimand = id_res.result.estimands.first().unwrap();
     let temporal = TemporalLinearAdjustment::new();
-    for s in 0..n_sim {
+    let intervals = calibration::map_replicates(n_sim, |s| {
         // Vary the sampler seed per replicate: a fixed seed reuses one set of
         // posterior draws, so its Monte-Carlo quantile error is shared by every
         // replicate instead of averaging out.
@@ -1141,12 +1163,12 @@ fn bayesian_sustained_single_step_conjugate_nominal_90_coverage() {
             inner: BayesianGComputationAte {
                 backend: BayesianBackendKind::ConjugateGaussian,
                 n_draws: 240,
-                seed: 22 + u64::from(s),
+                seed: 22 + s,
                 prior_scale: 8.0,
                 ..BayesianGComputationAte::new()
             },
         };
-        let data = noisy_lag1_pulse_series(n, 11_000 + u64::from(s));
+        let data = noisy_lag1_pulse_series(n, 11_000 + s);
         let prep = temporal
             .prepare(
                 &data,
@@ -1167,21 +1189,24 @@ fn bayesian_sustained_single_step_conjugate_nominal_90_coverage() {
                 &ExecutionContext::for_tests(1),
             )
             .unwrap();
-        gate.record(&post, 0.8);
+        posterior_interval(&post, 0.9)
+    });
+    for interval in intervals {
+        gate.record(interval, 0.8);
     }
     gate.assert();
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_sustained_multi_step_conjugate_nominal_90_coverage() {
     use crate::temporal_sequential::estimate_sustained_window;
     use antecedent_core::{TemporalEffectQuery, TemporalPolicy};
     use antecedent_identify::TemporalBackdoorIdentifier;
 
-    let n_sim = calibration_n_sim();
+    let n_sim = calibration::n_sim();
     let n = 160usize;
-    let mut gate = CoverageGate::new("bayesian multi-step sustained (conjugate)", 0.9);
+    let mut gate = coverage_gate("bayesian multi-step sustained (conjugate)", 0.9);
     let g = pulse_graph();
     let q =
         TemporalEffectQuery::sustained(VariableId::from_raw(0), VariableId::from_raw(1), -2, 1.0)
@@ -1190,18 +1215,18 @@ fn bayesian_sustained_multi_step_conjugate_nominal_90_coverage() {
             .with_max_history_lag(Some(2));
     let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
     let estimand = id_res.result.estimands.first().unwrap();
-    for s in 0..n_sim {
+    let intervals = calibration::map_replicates(n_sim, |s| {
         // Vary the sampler seed per replicate: a fixed seed reuses one set of
         // posterior draws, so its Monte-Carlo quantile error is shared by every
         // replicate instead of averaging out.
         let bayes = BayesianGComputationAte {
             backend: BayesianBackendKind::ConjugateGaussian,
             n_draws: 240,
-            seed: 23 + u64::from(s),
+            seed: 23 + s,
             prior_scale: 8.0,
             ..BayesianGComputationAte::new()
         };
-        let data = noisy_lag1_pulse_series(n, 13_000 + u64::from(s));
+        let data = noisy_lag1_pulse_series(n, 13_000 + s);
         let (_, posterior) = estimate_sustained_window(
             &crate::temporal_sequential::SequentialProblem {
                 data: &data,
@@ -1219,7 +1244,10 @@ fn bayesian_sustained_multi_step_conjugate_nominal_90_coverage() {
             &ExecutionContext::for_tests(1),
         )
         .unwrap();
-        gate.record(posterior.as_ref().unwrap(), 0.8);
+        posterior_interval(posterior.as_ref().unwrap(), 0.9)
+    });
+    for interval in intervals {
+        gate.record(interval, 0.8);
     }
     gate.assert();
 }
@@ -1305,16 +1333,16 @@ fn unit_effect_lag1_panel(n_units: usize, t_len: usize, seed: u64) -> antecedent
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_panel_hierarchical_nominal_90_coverage() {
     use crate::temporal_adjustment::TemporalLinearAdjustment;
     use antecedent_core::{TemporalEffectQuery, TemporalPolicy};
     use antecedent_identify::TemporalBackdoorIdentifier;
 
-    let n_sim = calibration_n_sim();
+    let n_sim = calibration::n_sim();
     let n_units = 24usize;
     let t_len = 40usize;
-    let mut gate = CoverageGate::new("bayesian panel hierarchical", 0.9);
+    let mut gate = coverage_gate("bayesian panel hierarchical", 0.9);
     let g = pulse_graph();
     let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
         .with_policy(TemporalPolicy::pulse(-1))
@@ -1323,7 +1351,7 @@ fn bayesian_panel_hierarchical_nominal_90_coverage() {
     let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
     let estimand = id_res.result.estimands.first().unwrap();
     let temporal = TemporalLinearAdjustment::new();
-    for s in 0..n_sim {
+    let intervals = calibration::map_replicates(n_sim, |s| {
         // Vary the sampler seed per replicate: a fixed seed reuses one set of
         // posterior draws, so its Monte-Carlo quantile error is shared by every
         // replicate instead of averaging out.
@@ -1331,7 +1359,7 @@ fn bayesian_panel_hierarchical_nominal_90_coverage() {
             inner: BayesianGComputationAte {
                 backend: BayesianBackendKind::ConjugateGaussian,
                 n_draws: 200,
-                seed: 23 + u64::from(s),
+                seed: 23 + s,
                 prior_scale: 8.0,
                 ..BayesianGComputationAte::new()
             },
@@ -1339,7 +1367,7 @@ fn bayesian_panel_hierarchical_nominal_90_coverage() {
         // Unit `u` draws from `seed + 19·u`; a stride of 1000 keeps every
         // replicate's units disjoint (a unit stride of 1 reused series
         // across replicates, so they were not independent datasets).
-        let panel = unit_effect_lag1_panel(n_units, t_len, 13_000 + 1_000 * u64::from(s));
+        let panel = unit_effect_lag1_panel(n_units, t_len, 13_000 + 1_000 * s);
         let (prep, cluster_ids, _) = temporal
             .prepare_panel(
                 &panel,
@@ -1361,7 +1389,10 @@ fn bayesian_panel_hierarchical_nominal_90_coverage() {
                 &ExecutionContext::for_tests(1),
             )
             .unwrap();
-        gate.record(&post, 0.8);
+        posterior_interval(&post, 0.9)
+    });
+    for interval in intervals {
+        gate.record(interval, 0.8);
     }
     gate.assert();
 }
@@ -1413,7 +1444,13 @@ fn hydrate_prior_from_posterior_and_refit() {
                 && pa.description.contains("covariance"))
     }));
     let eq = post2.effect_column().unwrap();
-    assert!(post2.summaries.mean[eq].is_finite());
+    // The noise-free ATE is 2; refitting the same data under its own hydrated posterior
+    // keeps the mean there (observed 1.9994).
+    assert!(
+        (post2.summaries.mean[eq] - 2.0).abs() < 2e-3,
+        "refit mean {}",
+        post2.summaries.mean[eq]
+    );
 }
 
 /// Earns `estimate-bayes-transport-response-1`: absolute SD² must not be stored as V0.
@@ -1569,6 +1606,20 @@ fn strong_prior_moves_posterior_away_from_flat_and_data_moves_away_from_prior() 
     let eq = post_flat.effect_column().unwrap();
     let m_flat = post_flat.summaries.mean[eq];
     let m_strong = post_strong.summaries.mean[eq];
+    // True ATE = 2 on noise-free data; the flat prior recovers it (observed gap 4e-6).
+    assert!((m_flat - 2.0).abs() < 1e-4, "flat posterior mean {m_flat}");
+    // The strong prior N(0, 0.05^2 I) gives the ridge mean (X'X + I/0.05^2)^-1 X'y; the
+    // treatment coefficient (design columns: intercept, T, Z) is the ATE.
+    let zs: Vec<f64> = (0..n).map(|i| (i as f64) * 0.1).collect();
+    let ts: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 1.0 } else { 0.0 }).collect();
+    let ys: Vec<f64> = (0..n).map(|i| 2.0 * ts[i] + 0.5 * zs[i]).collect();
+    let ridge = solve_normal_equations(&[&vec![1.0; n], &ts, &zs], &ys, 1.0 / (0.05 * 0.05));
+    let eq_sd = post_strong.summaries.sd[eq];
+    assert!(
+        (m_strong - ridge[1]).abs() < 5.0 * eq_sd / 300.0_f64.sqrt() + 1e-9,
+        "strong posterior mean {m_strong} vs ridge {}",
+        ridge[1]
+    );
     // True ATE ≈ 2; flat recovers it; strong isotropic prior at 0 pulls toward 0.
     assert!((m_flat - m_strong).abs() > 0.15, "prior ignored? flat={m_flat} strong={m_strong}");
     assert!(
@@ -1625,58 +1676,51 @@ fn hydrate_mapping_hard_errors() {
     let names3: Vec<Arc<str>> =
         vec![Arc::from("intercept"), Arc::from("coef_t"), Arc::from("coef_w")];
     let baseline3 = PriorSet::weakly_informative(3);
+    let hydrate_error = |result: Result<PriorSet, EstimationError>| result.unwrap_err().to_string();
+    let error = hydrate_error(hydrate_prior(
+        &HydrateMapping::IdenticalCoefficientSubspace,
+        &HydrateSource::summaries(&quantities, &mean, &sd),
+        &HydrateTarget { baseline: &baseline3, coef_names: &names3, treatment_col: None },
+    ));
     assert!(
-        hydrate_prior(
-            &HydrateMapping::IdenticalCoefficientSubspace,
-            &HydrateSource::summaries(&quantities, &mean, &sd),
-            &HydrateTarget { baseline: &baseline3, coef_names: &names3, treatment_col: None },
-        )
-        .is_err()
+        error.contains("prior_dimension_mismatch")
+            && error.contains("dimension 2 != expected n_coef 3"),
+        "{error}"
     );
 
-    assert!(
-        hydrate_prior(
-            &HydrateMapping::EffectFunctional { source_quantity: "missing".into() },
-            &HydrateSource::summaries(&quantities, &mean, &sd).with_source_contrast(Some(1.0)),
-            &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: Some(1) },
-        )
-        .is_err()
-    );
+    let error = hydrate_error(hydrate_prior(
+        &HydrateMapping::EffectFunctional { source_quantity: "missing".into() },
+        &HydrateSource::summaries(&quantities, &mean, &sd).with_source_contrast(Some(1.0)),
+        &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: Some(1) },
+    ));
+    assert!(error.contains("missing quantity `missing`"), "{error}");
 
-    assert!(
-        hydrate_prior(
-            &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
-            &HydrateSource::summaries(&quantities, &mean, &sd),
-            &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: Some(1) },
-        )
-        .is_err()
-    );
-    assert!(
-        hydrate_prior(
-            &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
-            &HydrateSource::summaries(&quantities, &mean, &sd).with_source_contrast(Some(0.0)),
-            &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: Some(1) },
-        )
-        .is_err()
-    );
+    let error = hydrate_error(hydrate_prior(
+        &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
+        &HydrateSource::summaries(&quantities, &mean, &sd),
+        &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: Some(1) },
+    ));
+    assert!(error.contains("requires a finite nonzero source contrast"), "{error}");
+    let error = hydrate_error(hydrate_prior(
+        &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
+        &HydrateSource::summaries(&quantities, &mean, &sd).with_source_contrast(Some(0.0)),
+        &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: Some(1) },
+    ));
+    assert!(error.contains("requires a finite nonzero source contrast"), "{error}");
 
-    assert!(
-        hydrate_prior(
-            &HydrateMapping::NamedParameters { pairs: vec![("ate".into(), "no_such_coef".into())] },
-            &HydrateSource::summaries(&quantities, &mean, &sd),
-            &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: None },
-        )
-        .is_err()
-    );
+    let error = hydrate_error(hydrate_prior(
+        &HydrateMapping::NamedParameters { pairs: vec![("ate".into(), "no_such_coef".into())] },
+        &HydrateSource::summaries(&quantities, &mean, &sd),
+        &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: None },
+    ));
+    assert!(error.contains("unknown target coefficient name `no_such_coef`"), "{error}");
 
-    assert!(
-        hydrate_prior(
-            &HydrateMapping::NamedParameters { pairs: vec![("no_src".into(), "coef_t".into())] },
-            &HydrateSource::summaries(&quantities, &mean, &sd),
-            &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: None },
-        )
-        .is_err()
-    );
+    let error = hydrate_error(hydrate_prior(
+        &HydrateMapping::NamedParameters { pairs: vec![("no_src".into(), "coef_t".into())] },
+        &HydrateSource::summaries(&quantities, &mean, &sd),
+        &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: None },
+    ));
+    assert!(error.contains("source quantity `no_src` must be uniquely named"), "{error}");
 }
 
 #[test]
@@ -2118,4 +2162,142 @@ fn summary_only_sources_keep_diagonal_hydration() {
     .unwrap();
     assert!(prior.coefficient_correlation().is_none());
     assert!(prior.restrictions.iter().any(|r| r.id.as_ref() == HYDRATED_COVARIANCE_DROPPED_ID));
+}
+
+/// Binary treatment confounded by `z`; the effect `1 + 2 z` grows in `z`, so the effect on the
+/// treated differs from the all-observed effect. A small deterministic wiggle keeps the
+/// residual variance positive.
+fn arm_effect_table(n: usize) -> (TabularData, f64, f64) {
+    let z: Vec<f64> = (0..n).map(|i| (i as f64 / 7.0).sin() * 1.5).collect();
+    let t: Vec<f64> =
+        (0..n).map(|i| if z[i] + (i as f64 / 3.0).cos() > 0.0 { 1.0 } else { 0.0 }).collect();
+    let y: Vec<f64> =
+        (0..n).map(|i| t[i] * (1.0 + 2.0 * z[i]) + z[i] + (i as f64 / 5.0).sin() * 0.1).collect();
+    let treated: Vec<usize> = (0..n).filter(|&i| t[i] > 0.5).collect();
+    let untreated: Vec<usize> = (0..n).filter(|&i| t[i] < 0.5).collect();
+    let att = treated.iter().map(|&i| 1.0 + 2.0 * z[i]).sum::<f64>() / treated.len() as f64;
+    let atc = untreated.iter().map(|&i| 1.0 + 2.0 * z[i]).sum::<f64>() / untreated.len() as f64;
+    let data = TabularData::from_f64_columns([
+        ("t", t.as_slice()),
+        ("y", y.as_slice()),
+        ("z", z.as_slice()),
+    ])
+    .unwrap();
+    (data, att, atc)
+}
+
+/// Solves `(X'X + ridge I) b = X'y` by Gaussian elimination with partial pivoting.
+fn solve_normal_equations(columns: &[&[f64]], y: &[f64], ridge: f64) -> Vec<f64> {
+    let p = columns.len();
+    let mut a = vec![vec![0.0; p + 1]; p];
+    for i in 0..p {
+        for j in 0..p {
+            a[i][j] = columns[i].iter().zip(columns[j]).map(|(u, v)| u * v).sum::<f64>()
+                + if i == j { ridge } else { 0.0 };
+        }
+        a[i][p] = columns[i].iter().zip(y).map(|(u, v)| u * v).sum::<f64>();
+    }
+    for c in 0..p {
+        let pivot = (c..p).max_by(|&i, &j| a[i][c].abs().total_cmp(&a[j][c].abs())).unwrap();
+        a.swap(c, pivot);
+        for r in 0..p {
+            if r != c {
+                let f = a[r][c] / a[c][c];
+                for k in c..=p {
+                    a[r][k] -= f * a[c][k];
+                }
+            }
+        }
+    }
+    (0..p).map(|i| a[i][p] / a[i][i]).collect()
+}
+
+fn arm_effect_posterior_mean(population: antecedent_core::TargetPopulation) -> (f64, usize) {
+    let (data, _, _) = arm_effect_table(400);
+    let estimand = IdentifiedEstimand::backdoor(
+        "backdoor.adjustment",
+        Arc::from(vec![VariableId::from_raw(2)]),
+        ExprId::from_raw(0),
+    );
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+        .with_target_population(population);
+    let bayes = BayesianGComputationAte {
+        backend: BayesianBackendKind::ConjugateGaussian,
+        n_draws: 2000,
+        seed: 9,
+        prior_scale: 100.0,
+        ..BayesianGComputationAte::new()
+    };
+    let prep = bayes.prepare(&data, &estimand, &query).unwrap();
+    let mut ws = BayesianGCompWorkspace::default();
+    let post = bayes
+        .fit(
+            &prep,
+            IdentificationStatus::NonparametricallyIdentified,
+            &mut ws,
+            &ExecutionContext::for_tests(3),
+        )
+        .unwrap();
+    let eq = post.effect_column().unwrap();
+    (post.summaries.mean[eq], prep.design.ncols)
+}
+
+#[test]
+fn bayesian_gcomp_on_the_treated_and_untreated_recovers_each_arms_model_based_effect() {
+    let (_, att, atc) = arm_effect_table(400);
+    let (treated, treated_cols) =
+        arm_effect_posterior_mean(antecedent_core::TargetPopulation::Treated);
+    let (untreated, _) = arm_effect_posterior_mean(antecedent_core::TargetPopulation::Untreated);
+    let (all, all_cols) = arm_effect_posterior_mean(antecedent_core::TargetPopulation::AllObserved);
+    // Intercept, treatment, z, and one centred treatment-by-z interaction on an arm.
+    assert_eq!((treated_cols, all_cols), (4, 3));
+    assert!((treated - att).abs() < 0.03, "treated {treated} vs {att}");
+    assert!((untreated - atc).abs() < 0.04, "untreated {untreated} vs {atc}");
+    assert!((att - atc).abs() > 0.3, "the arms must differ for the check to bite");
+    // All-observed: the main-effects model's treatment coefficient, i.e. the OLS slope of
+    // y on (1, t, z).
+    let n = 400;
+    let z: Vec<f64> = (0..n).map(|i| (i as f64 / 7.0).sin() * 1.5).collect();
+    let t: Vec<f64> =
+        (0..n).map(|i| if z[i] + (i as f64 / 3.0).cos() > 0.0 { 1.0 } else { 0.0 }).collect();
+    let y: Vec<f64> =
+        (0..n).map(|i| t[i] * (1.0 + 2.0 * z[i]) + z[i] + (i as f64 / 5.0).sin() * 0.1).collect();
+    let ols = solve_normal_equations(&[&vec![1.0; n], &t, &z], &y, 0.0);
+    assert!((all - ols[1]).abs() < 5e-3, "all-observed {all} vs OLS {}", ols[1]);
+}
+
+#[test]
+fn bayesian_gcomp_arm_effect_centres_interactions_and_refuses_unsupported_targets() {
+    let (data, _, _) = arm_effect_table(400);
+    let estimand = IdentifiedEstimand::backdoor(
+        "backdoor.adjustment",
+        Arc::from(vec![VariableId::from_raw(2)]),
+        ExprId::from_raw(0),
+    );
+    let base = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let on_treated =
+        base.clone().with_target_population(antecedent_core::TargetPopulation::Treated);
+    let prep = BayesianGComputationAte::conjugate().prepare(&data, &estimand, &on_treated).unwrap();
+    let n = prep.design.nrows;
+    let treatment = &prep.design.matrix[n..2 * n];
+    let interaction = &prep.design.matrix[3 * n..4 * n];
+    let treated_rows = treatment.iter().filter(|&&t| t > 0.5).count();
+    let mean_over_treated: f64 =
+        interaction.iter().zip(treatment).filter(|(_, t)| **t > 0.5).map(|(x, _)| *x).sum::<f64>()
+            / treated_rows as f64;
+    assert!(mean_over_treated.abs() < 1e-12, "{mean_over_treated}");
+    let names = prep.coef_names.unwrap();
+    assert_eq!(names[3].as_ref(), "treatment_x_centered_z");
+
+    // A non-identity outcome model does not make the treatment coefficient the arm contrast.
+    let logit = BayesianGComputationAte::new().with_likelihood(BayesLikelihood::BernoulliLogit);
+    let error = logit.prepare(&data, &estimand, &on_treated).unwrap_err().to_string();
+    assert!(error.contains("Gaussian identity"), "{error}");
+    // A predicate population stays unsupported.
+    let predicate = base.with_target_population(antecedent_core::TargetPopulation::Predicate(
+        antecedent_core::PredicateExpr::rows(vec![0, 1, 2]),
+    ));
+    let error =
+        BayesianGComputationAte::conjugate().prepare(&data, &estimand, &predicate).unwrap_err();
+    assert!(error.to_string().contains("Treated or Untreated"), "{error}");
 }

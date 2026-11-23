@@ -73,7 +73,10 @@ fn units_mismatch_refuses_with_the_same_fields_python_reads() {
     let refusal = bind_response(&contract(), &response("kPa", &Value::Null), "c").unwrap_err();
     assert_eq!(refusal.code, "quantity_semantics_mismatch");
     assert_eq!(refusal.stage, "bind");
-    assert_eq!(refusal.detail, "external_response_binding.coordinate_units");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::external_response_binding::COORDINATE_UNITS
+    );
     assert_eq!(refusal.offending.as_deref(), Some("coordinate[1]"));
     assert_eq!(refusal.expected.as_deref(), Some("mmHg"));
     assert_eq!(refusal.supplied.as_deref(), Some("kPa"));
@@ -141,7 +144,10 @@ fn observational_wrong_graph_population_and_missing_coordinate_refuse() {
     let refusal = bind_response(&bernoulli_contract(), &wrong_graph, "c").unwrap_err();
     assert_eq!(
         (refusal.code.as_str(), refusal.detail.as_str()),
-        ("external_binding_mismatch", "external_response_binding.graph")
+        (
+            "external_binding_mismatch",
+            antecedent_core::reason_details::external_response_binding::GRAPH
+        )
     );
 
     let mut population = good.clone();
@@ -153,7 +159,10 @@ fn observational_wrong_graph_population_and_missing_coordinate_refuse() {
     )
     .unwrap_err();
     assert_eq!(refusal.code, "quantity_semantics_mismatch");
-    assert_eq!(refusal.detail, "external_response_binding.coordinate_population");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::external_response_binding::COORDINATE_POPULATION
+    );
     assert_eq!(refusal.offending.as_deref(), Some("coordinate[1]"));
 
     let mut observational = good.clone();
@@ -170,7 +179,10 @@ fn observational_wrong_graph_population_and_missing_coordinate_refuse() {
 
     let missing = bernoulli_response("graph:binary", &json!([risk(0)]), &json!([0.25]));
     let refusal = bind_response(&bernoulli_contract(), &missing, "c").unwrap_err();
-    assert_eq!(refusal.detail, "external_response_binding.dimension");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::external_response_binding::DIMENSION
+    );
     assert_eq!(refusal.expected.as_deref(), Some("2"));
     assert_eq!(refusal.supplied.as_deref(), Some("1"));
 }
@@ -198,6 +210,13 @@ fn provider_response(capabilities: &Value, request: &str, probes: &Value) -> Res
 fn bind(capabilities: &Value, request: &str, probes: &Value) -> ExternalClaimArtifact {
     bind_response(&bernoulli_contract(), &provider_response(capabilities, request, probes), "c")
         .unwrap()
+}
+
+fn convert_message(result: Result<Vec<u8>, antecedent_io::error::IoError>) -> String {
+    match result {
+        Err(antecedent_io::error::IoError::Convert(message)) => message,
+        other => panic!("expected a conversion refusal, got {other:?}"),
+    }
 }
 
 fn reseal(
@@ -228,7 +247,10 @@ fn provider_contract_identity_is_retained_by_the_artifact() {
     let bytes = artifact.to_bytes("claim").unwrap();
     assert!(reload(&bytes, &identity));
     // An edit that leaves the fingerprint stale is not a coherent identity.
-    assert!(reseal(&artifact, |i| i.provider_meaning = "posterior_predictive".into()).is_err());
+    assert_eq!(
+        convert_message(reseal(&artifact, |i| i.provider_meaning = "posterior_predictive".into())),
+        "provider fingerprint differs from its contract"
+    );
     // An edit resealed with a recomputed fingerprint differs from the retained identity.
     let resealed = reseal(&artifact, |i| {
         i.provider_meaning = "posterior_predictive".into();
@@ -274,6 +296,10 @@ fn verified_probes() -> Value {
 /// A fresh reader retains the checks, object kind, fingerprint
 /// and the verified-extension trust scope.
 #[test]
+#[allow(
+    clippy::items_after_statements,
+    reason = "the fixture keeps its local helpers with their use"
+)]
 fn verification_checks_are_retained_and_cover_only_the_fingerprint() {
     let verified = bind(&json!(["mean"]), "req-1", &verified_probes());
     let identity = verified.metadata().identity.clone();
@@ -285,20 +311,24 @@ fn verification_checks_are_retained_and_cover_only_the_fingerprint() {
     assert!(reload(&bytes, &identity));
 
     // A receipt cannot be edited into a failure, dropped, or attached to an attested claim.
-    assert!(
-        reseal(&verified, |i| {
+    assert_eq!(
+        convert_message(reseal(&verified, |i| {
             i.verification.as_mut().unwrap()[0] = VerificationProbeWire {
                 kind: "shape".into(),
                 observed: 2.0,
                 expected: 1.0,
                 tolerance: 0.0,
             };
-        })
-        .is_err()
+        })),
+        "verification receipt has a failed or unknown probe"
     );
-    assert!(reseal(&verified, |i| i.verification = None).is_err());
+    const RECEIPT_TRUST: &str = "verification receipt must accompany exactly verified trust";
+    assert_eq!(convert_message(reseal(&verified, |i| i.verification = None)), RECEIPT_TRUST);
     let attested = bind(&json!(["mean"]), "req-1", &Value::Null);
-    assert!(reseal(&attested, |i| i.verification = Some(checks.clone())).is_err());
+    assert_eq!(
+        convert_message(reseal(&attested, |i| i.verification = Some(checks.clone()))),
+        RECEIPT_TRUST
+    );
     // The same checks under another request are another fingerprint, not a reused one.
     let other = bind(&json!(["mean"]), "req-2", &verified_probes());
     assert_ne!(other.metadata().identity.provider_fingerprint, identity.provider_fingerprint);
@@ -318,7 +348,7 @@ fn trust_tier_and_lineage_survive_without_upgrade() {
     assert_eq!(wire(&verified), "verified_extension");
     for artifact in [&attested, &verified] {
         assert!(!artifact.metadata().native_estimation);
-        assert_ne!(wire(artifact), "native_licensed");
+        assert_ne!(wire(artifact), "native_supported");
         let stages = artifact
             .metadata()
             .identity

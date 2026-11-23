@@ -1,14 +1,14 @@
 //! Native issued-posterior retention and independent Gaussian algebra.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::BayesianConfig;
 use antecedent::analysis::recalc_bayesian::{
     BayesianModel, BayesianRequest, BayesianSession, PosteriorSummarySpec,
     execute_bayesian_with_receipt,
 };
-use antecedent::analysis::recalc_receipt::{RecalcRunError, UtilitySpec};
+use antecedent::analysis::recalc_receipt::{RecalcRequestCode, RecalcRunError, UtilitySpec};
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_identify::execution_counts::count_checked_identifications;
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use antecedent_prob::fit_counts::count_bayesian_work;
 use antecedent_prob::{GaussianCoefficientPrior, PriorSet, PriorSpec};
 
@@ -35,7 +35,7 @@ fn request() -> BayesianRequest {
     prior.push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(2, 10.0)));
     prior.push(PriorSpec::KnownResidualVariance(1.0));
     BayesianRequest {
-        columns: vec![("t".into(), t), ("y".into(), y)],
+        columns: vec![("t".into(), t), ("y".into(), y)].into(),
         edges: vec![(0, 1)],
         treatment: VariableId::from_raw(0),
         outcome: VariableId::from_raw(1),
@@ -99,7 +99,7 @@ fn checked_gaussian_matches_analytic_posterior_and_retains_issued_rows_body() {
     assert_eq!(utility.receipt.totals().decisions, 1);
     assert_eq!(utility.receipt.totals().law_summaries, 0);
     assert!(!utility.decision.treat);
-    consume_analysis_result(&session.export_result(&context).unwrap()).unwrap();
+    replay_analysis_result(&session.export_result(&context).unwrap()).unwrap();
 }
 #[test]
 fn configuration_rebind_preserves_causal_proof_and_errors_are_transactional() {
@@ -123,13 +123,13 @@ fn configuration_rebind_preserves_causal_proof_and_errors_are_transactional_body
     assert_eq!(work.model_fits, 1);
     assert_eq!(work.posterior_draws, 128);
     assert_eq!(out.receipt.totals().identifications, 0);
-    consume_analysis_result(&session.export_result(&context).unwrap()).unwrap();
+    replay_analysis_result(&session.export_result(&context).unwrap()).unwrap();
     let cancelled = ExecutionContext::for_tests(43);
     cancelled.cancellation.cancel();
     request.inference.n_draws = 256;
     let (refusal, work) =
         count_bayesian_work(|| execute_bayesian_with_receipt(&mut session, &request, &cancelled));
-    assert!(matches!(refusal, Err(RecalcRunError::Request("recalc.cancelled"))));
+    assert!(matches!(refusal, Err(RecalcRunError::Request(RecalcRequestCode::Cancelled))));
     assert_eq!(work.model_fits + work.posterior_draws, 0);
     request.inference.n_draws = 128;
     assert_eq!(
@@ -210,7 +210,7 @@ fn quadratic_basis_matches_independent_nig_contrast_body() {
             < 1e-12
     );
     let mut request = BayesianRequest {
-        columns: vec![("t".into(), treatment), ("z".into(), z), ("y".into(), outcome)],
+        columns: vec![("t".into(), treatment), ("z".into(), z), ("y".into(), outcome)].into(),
         edges: vec![(0, 2), (1, 0), (1, 2)],
         treatment: VariableId::from_raw(0),
         outcome: VariableId::from_raw(2),
@@ -228,13 +228,13 @@ fn quadratic_basis_matches_independent_nig_contrast_body() {
     assert_eq!(work.posterior_draws, 16_384);
     assert!((out.law.mean - mean[1]).abs() < expected_sd * 0.06);
     assert!((out.law.standard_deviation / expected_sd - 1.0).abs() < 0.03);
-    consume_analysis_result(&session.export_result(&ctx).unwrap()).unwrap();
+    replay_analysis_result(&session.export_result(&ctx).unwrap()).unwrap();
     request.inference.prior = Some(PriorSet::weakly_informative(5));
     let (failure, work) =
         count_bayesian_work(|| execute_bayesian_with_receipt(&mut session, &request, &ctx));
     assert!(matches!(
         failure,
-        Err(RecalcRunError::Request("recalc.bayesian_basis_prior_unsupported"))
+        Err(RecalcRunError::Request(RecalcRequestCode::BayesianBasisPriorUnsupported))
     ));
     assert_eq!(work.model_fits + work.posterior_draws, 0);
     request.inference.prior = None;
@@ -277,6 +277,10 @@ fn independent_inverse(mut matrix: Vec<Vec<f64>>) -> Vec<Vec<f64>> {
 fn independently_bound_prior_transfer_replays_source_and_refuses_known_double_use() {
     run_on_large_stack(independently_bound_prior_transfer_body);
 }
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn independently_bound_prior_transfer_body() {
     let ctx = ExecutionContext::for_tests(53);
     let mut source = request();
@@ -292,7 +296,7 @@ fn independently_bound_prior_transfer_body() {
         count_bayesian_work(|| execute_bayesian_with_receipt(&mut refused, &same, &ctx));
     assert!(matches!(
         failure,
-        Err(RecalcRunError::Request("recalc.bayesian_prior_likelihood_double_use"))
+        Err(RecalcRunError::Request(RecalcRequestCode::BayesianPriorLikelihoodDoubleUse))
     ));
     assert_eq!(work.model_fits + work.posterior_draws, 0);
     let mut target = same.clone();
@@ -306,7 +310,15 @@ fn independently_bound_prior_transfer_body() {
         })
     });
     assert_eq!(out.receipt.totals().identifications, checks);
-    assert!(checks >= 4); // actual independent source proof replay and target proof
+    // The target study identifies once; the bound prior's source proof is replayed once more
+    // on the source graph, so the transfer costs exactly two identifications of this graph.
+    let mut plain = target.clone();
+    plain.inference.prior_artifact = None;
+    let (_, plain_checks) = count_checked_identifications(|| {
+        execute_bayesian_with_receipt(&mut BayesianSession::new(), &plain, &ctx).unwrap()
+    });
+    assert!(plain_checks >= 1, "{plain_checks}");
+    assert_eq!(checks, 2 * plain_checks, "source proof replay plus target proof");
     assert_eq!(work.model_fits, 2);
     assert_eq!(work.posterior_draws, 1024);
     let transfer = &oracle()["prior_transfer"];
@@ -314,7 +326,50 @@ fn independently_bound_prior_transfer_body() {
         out.law.mean > transfer["source_effect"].as_f64().unwrap()
             && out.law.mean < transfer["target_effect"].as_f64().unwrap()
     );
-    let consumed = consume_analysis_result(&session.export_result(&ctx).unwrap()).unwrap();
+    // Exact conjugate transfer with known residual variance 1: the source posterior (precision
+    // 0.01 I + X'X, mean from X'y) is the prior of the target regression on y + 2 t.
+    let design = [[256.0, 128.0], [128.0, 128.0]];
+    let (mut source_moment, mut target_moment) = ([0.0; 2], [0.0; 2]);
+    for (t, y) in source.columns[0].1.iter().zip(&source.columns[1].1) {
+        source_moment[0] += y;
+        source_moment[1] += t * y;
+        target_moment[0] += y + 2.0 * t;
+        target_moment[1] += t * (y + 2.0 * t);
+    }
+    let solve = |precision: [[f64; 2]; 2], moment: [f64; 2]| {
+        let det = precision[0][0] * precision[1][1] - precision[0][1] * precision[1][0];
+        (
+            [
+                (precision[1][1] * moment[0] - precision[0][1] * moment[1]) / det,
+                (precision[0][0] * moment[1] - precision[1][0] * moment[0]) / det,
+            ],
+            precision[0][0] / det,
+        )
+    };
+    let source_precision =
+        [[design[0][0] + 0.01, design[0][1]], [design[1][0], design[1][1] + 0.01]];
+    let (source_mean, _) = solve(source_precision, source_moment);
+    let target_precision = [
+        [source_precision[0][0] + design[0][0], source_precision[0][1] + design[0][1]],
+        [source_precision[1][0] + design[1][0], source_precision[1][1] + design[1][1]],
+    ];
+    let prior_moment = [
+        source_precision[0][0] * source_mean[0] + source_precision[0][1] * source_mean[1],
+        source_precision[1][0] * source_mean[0] + source_precision[1][1] * source_mean[1],
+    ];
+    let (target_mean, target_variance) = solve(
+        target_precision,
+        [prior_moment[0] + target_moment[0], prior_moment[1] + target_moment[1]],
+    );
+    assert!(
+        // The prior is the source posterior as its 512 retained draws summarize it, so the
+        // transferred precision carries Monte Carlo error: observed 0.23 posterior sd.
+        (out.law.mean - target_mean[1]).abs() < 0.5 * target_variance.sqrt(),
+        "transferred posterior mean {} vs exact conjugate {}",
+        out.law.mean,
+        target_mean[1]
+    );
+    let consumed = replay_analysis_result(&session.export_result(&ctx).unwrap()).unwrap();
     let source_wire =
         antecedent_io::bayesian_prior_recalc_artifact::BoundBayesianPriorWire::decode(&bytes)
             .unwrap();
@@ -352,7 +407,7 @@ fn independently_bound_prior_transfer_body() {
     assert_eq!(work.model_fits, 2);
     assert_eq!(work.posterior_draws, 768);
     assert_eq!(replayed.law, out.law);
-    let fresh_consumed = consume_analysis_result(&fresh.export_result(&ctx).unwrap()).unwrap();
+    let fresh_consumed = replay_analysis_result(&fresh.export_result(&ctx).unwrap()).unwrap();
     assert!(
         fresh_consumed
             .contract
@@ -382,7 +437,7 @@ fn assert_corrupted_source_refused(
         count_bayesian_work(|| execute_bayesian_with_receipt(session, &invalid, ctx));
     assert!(matches!(
         failure,
-        Err(RecalcRunError::Request("recalc.bayesian_prior_source_unverified"))
+        Err(RecalcRunError::Request(RecalcRequestCode::BayesianPriorSourceUnverified))
     ));
     assert_eq!(work.model_fits + work.posterior_draws, 0);
     // Updating the raw-data seal does not authenticate stale posterior bytes:
@@ -401,7 +456,7 @@ fn assert_corrupted_source_refused(
         count_bayesian_work(|| execute_bayesian_with_receipt(session, &invalid, ctx));
     assert!(matches!(
         failure,
-        Err(RecalcRunError::Request("recalc.bayesian_prior_source_unverified"))
+        Err(RecalcRunError::Request(RecalcRequestCode::BayesianPriorSourceUnverified))
     ));
     assert_eq!(work.model_fits, 1);
     assert_eq!(work.posterior_draws, 512);

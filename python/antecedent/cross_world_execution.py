@@ -12,17 +12,18 @@ named world is evaluated under that same posterior state. The pipeline keeps its
 * independently drawn world noise is never paired as a counterfactual joint law: a cross-world
   event with ``coupling="independent_world_noise"`` or an undeclared coupling raises
   ``joint_law_required``; another population or an incompatible history are scientific refusals
-  naming what would license them (:func:`capability_matrix`, :func:`decide`);
+  naming what would support them (:func:`capability_matrix`, :func:`decide`);
 * an exogenous term may feed several mechanisms (latent confounding in a model whose every
   mechanism and exogenous law is declared): it takes one value that every mechanism reading it
   sees in every world, so the counterfactual is enumerated with no identification question.
   Confounding whose mechanisms are not declared is ``cross_world_not_identified``; a declared
-  model whose joint exogenous enumeration exceeds the bound is ``route_not_supported``.
+  model whose joint exogenous space exceeds the enumeration bound is executed exactly by
+  variable elimination, without forming that space.
 
 Every value is a ``point_only`` result of exact enumeration under the declared model (mechanism
-adequacy is a premise, not a check). Intervals, posteriors and a sampled abduction are closed:
+adequacy is a premise, not a check). Intervals, posteriors and a sampled abduction are not supported:
 :meth:`CrossWorldExecution.interval` and :meth:`CrossWorldExecution.posterior` always raise
-``cell_not_licensed``. :meth:`CrossWorldExecution.to_bytes` writes ``cross_world_execution_v1``;
+``sampling_dependence_unknown`` and ``uncertainty_representation_insufficient``. :meth:`CrossWorldExecution.to_bytes` writes ``cross_world_execution_v1``;
 :func:`consume_cross_world_execution_artifact` replays everything with a fresh executor and
 refuses any edit. Every number, identity and refusal is computed in Rust.
 
@@ -32,8 +33,8 @@ abduction-action-prediction path: the enumerated posterior predictive variance o
 variance of the realized-outcome mean and, for an independent sample, the sampling variance of
 the mean unit probability. Every source of uncertainty (structural, posterior, sampling,
 numerical) is listed with what the path does with it. The result is an ``uncalibrated_spread``.
-:meth:`CrossWorldExecution.measured_interval` turns the declared spread into an interval only
-where a currently attesting whole-path coverage record exists, conditional on the declared model;
+:meth:`CrossWorldExecution.measured_interval` turns the declared spread into an interval,
+annotated by its calibration slot and conditional on the declared model;
 the unqualified interval, a posterior reading and a sampled abduction stay closed. The account
 is derived from the artifact bytes, never trusted: another set of units,
 mechanisms, quantity or unit sampling is refused by :meth:`WholePathAccount.verify_against`.
@@ -43,14 +44,23 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
+from .outcomes import Answer, outcome_operation, require_success
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
@@ -83,13 +93,19 @@ __all__ = [
 ]
 
 
+def _run(execution: Execution | None, operation: Callable[..., Any], /, *args: Any) -> Any:
+    """Run a native cross-world entry under ``execution``; its token is the cancellation."""
+    runner = resolve_execution(execution)
+    return runner._call(operation, *args, runner.cancel)
+
+
 class CrossWorldExecutionRefusal(StructuredRefusal):
     """A typed scientific refusal of a cross-world request.
 
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code``
-    (``cross_world_not_identified``, ``joint_law_required``, ``cell_not_licensed``,
+    (``cross_world_not_identified``, ``joint_law_required``, ``not_supported``,
     ``route_not_supported``, ``invalid_argument``) and a ``cross_world_execution.*`` or
-    ``joint_law_propagation.*`` ``detail``; ``remedy`` names the declaration that would license
+    ``joint_law_propagation.*`` ``detail``; ``remedy`` names the declaration that would support
     the request and ``missing`` the unmet prerequisites.
     """
 
@@ -329,7 +345,7 @@ class CapabilityRow:
 
 
 def capability_matrix() -> tuple[CapabilityRow, ...]:
-    """The capability matrix: what is executed, what keeps its own route, what is closed."""
+    """The capability matrix: what is executed, what keeps its own route, what is not supported."""
     rows = json.loads(_native.cross_world_capability_matrix())
     return tuple(
         CapabilityRow(
@@ -356,11 +372,11 @@ def decide(
 ) -> dict[str, str]:
     """Decide a matrix cell.
 
-    Returns ``{"id", "status", "route", "coupling"}`` of the licensed row.
+    Returns ``{"id", "status", "route", "coupling"}`` of the supported row.
 
     Raises:
         CrossWorldExecutionRefusal: the request is outside every executed row; the refusal names
-            the closed row or dimension and what would open it.
+            the unsupported row or dimension and what would open it.
     """
     row, refusal = _native.cross_world_decide(
         quantity, model, conditioning, interventions, population, history, evidence
@@ -396,6 +412,10 @@ class ExecutionResult(ScientificResult):
     work: Mapping[str, int]
     receipt: Mapping[str, str]
 
+    @property
+    def answer(self) -> Answer:
+        return Answer("point", value=self.value, detail=self.label)
+
     @classmethod
     def _from(cls, info: Mapping[str, Any]) -> ExecutionResult:
         return cls(
@@ -421,11 +441,14 @@ class CrossWorldExecutor:
             _native_executor if _native_executor is not None else _native.CrossWorldExecutor()
         )
 
-    def execute(self, request: CrossWorldRequest, *, cancel: Any = None) -> ExecutionResult:
+    @outcome_operation
+    def execute(
+        self, request: CrossWorldRequest, *, execution: Execution | None = None
+    ) -> ExecutionResult:
         """Execute a request, reusing matching retained abductions."""
         if not isinstance(request, CrossWorldRequest):
             raise CausalTypeError("request must be a CrossWorldRequest")
-        payload, refusal = self._native.execute(request.to_json(), cancel)
+        payload, refusal = _run(execution, self._native.execute, request.to_json())
         _refuse(refusal)
         assert payload is not None
         return ExecutionResult._from(json.loads(payload))
@@ -444,13 +467,20 @@ class CrossWorldExecutor:
 
     @classmethod
     def from_artifact(
-        cls, data: bytes, *, expected_identity: Mapping[str, str] | None = None, cancel: Any = None
+        cls,
+        data: bytes,
+        *,
+        expected_identity: Mapping[str, str] | None = None,
+        execution: Execution | None = None,
     ) -> CrossWorldExecutor:
-        """An executor warmed by an artifact's verified abductions (a licensed resume)."""
+        """An executor warmed by an artifact's verified abductions (a supported resume)."""
+        data = container_bytes(data)
         if not isinstance(data, (bytes, bytearray, memoryview)):
             raise CausalTypeError("data must be bytes")
         identity = None if expected_identity is None else json.dumps(dict(expected_identity))
-        parsed, refusal = _native.CrossWorldExecutor.from_artifact(bytes(data), identity, cancel)
+        parsed, refusal = _run(
+            execution, _native.CrossWorldExecutor.from_artifact, bytes(data), identity
+        )
         _refuse(refusal)
         assert parsed is not None
         return cls(parsed[0])
@@ -465,6 +495,10 @@ class ConsumedCrossWorldExecution(ScientificResult):
     matrix_row: str
     inference_claim: str
     shared_draws: tuple[Mapping[str, Any], ...]
+
+    @property
+    def answer(self) -> Answer:
+        return self.result.answer
 
 
 def _consumed(summary: str) -> ConsumedCrossWorldExecution:
@@ -482,8 +516,13 @@ class CrossWorldExecution(ScientificResult):
     """A sealed execution: the answer, its identities and the exportable artifact."""
 
     def __init__(self, data: bytes, consumed: ConsumedCrossWorldExecution) -> None:
+        data = container_bytes(data)
         self._data = data
         self._consumed = consumed
+
+    @property
+    def answer(self) -> Answer:
+        return self.result.answer
 
     def to_dict(self) -> dict[str, Any]:
         return self._consumed.to_dict()
@@ -508,33 +547,29 @@ class CrossWorldExecution(ScientificResult):
         """Each unit's shared exogenous states."""
         return self._consumed.shared_draws
 
-    def artifact(self) -> ExportedArtifact[ConsumedCrossWorldExecution]:
-        """Typed bytes envelope for shared scientific consumption."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self)
-
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[ConsumedCrossWorldExecution]:
         """The sealed execution container, suitable for shared artifact dispatch."""
-        return self._data
+        return artifact_from_receipt(self, self._data)
 
     def to_bytes(self) -> bytes:
         """The ``cross_world_execution_v1`` artifact bytes."""
         return self._data
 
     def interval(self) -> None:
-        """Always raises ``cell_not_licensed``: no whole-path coverage record exists."""
-        _refuse(_native.cross_world_closed_reading("interval"))
+        """Always raises ``sampling_dependence_unknown``: no unit sampling is declared."""
+        _refuse(_native.cross_world_unsupported_reading("interval"))
 
     def posterior(self) -> None:
-        """Always raises ``cell_not_licensed``: no whole-path calibration record exists."""
-        _refuse(_native.cross_world_closed_reading("posterior"))
+        """Always raises ``uncertainty_representation_insufficient``."""
+        _refuse(_native.cross_world_unsupported_reading("posterior"))
 
+    @outcome_operation
     def whole_path_uncertainty(
         self,
         unit_sampling: Literal["fixed_units", "independent_sample"],
         *,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> WholePathAccount:
         """The uncalibrated whole-path spread of this execution under a declared unit sampling.
 
@@ -548,37 +583,43 @@ class CrossWorldExecution(ScientificResult):
         Raises:
             CrossWorldExecutionRefusal: undeclared unit sampling
                 (``sampling_dependence_unknown``), a sampled or transported request
-                (``cell_not_licensed``), a coupling the joint-law rule does not license, units
+                (``not_supported``), a coupling the joint-law rule does not support, units
                 with shared evidence declared independent, an exceeded bound, or cancellation.
         """
-        return _whole_path(self, unit_sampling, cancel)
+        return _whole_path(self, unit_sampling, execution)
 
+    @outcome_operation
     def measured_interval(
         self,
         unit_sampling: Literal["fixed_units", "independent_sample"],
         *,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> MeasuredCrossWorldInterval:
         """The interval of the executed quantity under a declared unit sampling.
 
-        Licensed only by a currently attesting whole-path coverage record for this model class,
-        quantity, unit sampling and unit count. The interval is a statement conditional on the
+        Always reported; ``calibration`` annotates it with the status of the whole-path coverage
+        records for this model class, quantity, unit sampling and unit count. The interval is a statement conditional on the
         declared mechanisms being the truth: ``independent_sample`` covers the population mean of
         the unit counterfactual probabilities; ``fixed_units`` covers the mean of the realized
         counterfactual outcomes of these units. A posterior statement and a sampled abduction stay
         closed: with declared mechanisms the exogenous posterior is exact.
 
         Raises:
-            CrossWorldExecutionRefusal: ``cell_not_licensed`` without an attesting record or for
-                a request outside the measured model class, or any refusal of
-                :meth:`whole_path_uncertainty`.
+            CrossWorldExecutionRefusal: ``estimator_inference_mismatch`` (sampled abduction),
+                ``transport_not_certified`` (transported request),
+                ``uncertainty_representation_insufficient`` (no determined variance), or any
+                refusal of :meth:`whole_path_uncertainty`.
         """
         if unit_sampling not in ("fixed_units", "independent_sample"):
             raise CausalValueError(
                 f"unit_sampling is 'fixed_units' or 'independent_sample'; got {unit_sampling!r}"
             )
-        payload, refusal = _native.cross_world_measured_interval(
-            self.to_bytes(), unit_sampling, json.dumps(dict(self.identity)), cancel
+        payload, refusal = _run(
+            execution,
+            _native.cross_world_measured_interval,
+            self.to_bytes(),
+            unit_sampling,
+            json.dumps(dict(self.identity)),
         )
         _refuse(refusal)
         assert payload is not None
@@ -590,7 +631,8 @@ class CrossWorldExecution(ScientificResult):
             upper=float(info["upper"]),
             level=float(info["level"]),
             unit_sampling=str(info["unit_sampling"]),
-            record_id=str(info["record_id"]),
+            record_id=None if info["record_id"] is None else str(info["record_id"]),
+            calibration=dict(info["calibration"]),
             label=str(info["label"]),
         )
 
@@ -605,23 +647,28 @@ class MeasuredCrossWorldInterval(ScientificResult):
     upper: float
     level: float
     unit_sampling: str
-    record_id: str
+    record_id: str | None
+    calibration: Mapping[str, Any]
     label: str
 
 
+@outcome_operation
 def seal(
-    request: CrossWorldRequest, *, artifact_id: str = "cross-world-execution", cancel: Any = None
+    request: CrossWorldRequest,
+    *,
+    artifact_id: str = "cross-world-execution",
+    execution: Execution | None = None,
 ) -> CrossWorldExecution:
     """Execute with a fresh executor and seal the answer, declarations and shared states.
 
     Raises:
-        CrossWorldExecutionRefusal: the request is outside the matrix or lacks a licensed
+        CrossWorldExecutionRefusal: the request is outside the matrix or lacks a supported
             coupling (see :func:`decide`).
     """
     if not isinstance(request, CrossWorldRequest):
         raise CausalTypeError("request must be a CrossWorldRequest")
-    parts, refusal = _native.cross_world_seal(
-        request.to_json(), _text(artifact_id, "artifact_id"), cancel
+    parts, refusal = _run(
+        execution, _native.cross_world_seal, request.to_json(), _text(artifact_id, "artifact_id")
     )
     _refuse(refusal)
     assert parts is not None
@@ -631,20 +678,30 @@ def seal(
     return CrossWorldExecution(bytes(data), _consumed(summary))
 
 
+@outcome_operation
+@artifact_consumer(
+    proof="cross_world_execution.consume_cross_world_execution_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+    input="data",
+)
 def consume_cross_world_execution_artifact(
-    data: bytes, *, expected_identity: Mapping[str, str] | None = None, cancel: Any = None
+    data: bytes,
+    *,
+    expected_identity: Mapping[str, str] | None = None,
+    execution: Execution | None = None,
 ) -> ConsumedCrossWorldExecution:
     """Replay an artifact with a fresh executor and refuse any difference.
 
     Raises:
         CrossWorldExecutionRefusal: an edited, truncated or foreign artifact, a retained
             identity that differs, or a declaration the matrix or the joint-law rule no longer
-            licenses.
+            supports.
     """
+    data = container_bytes(data)
     if not isinstance(data, (bytes, bytearray, memoryview)):
         raise CausalTypeError("data must be bytes")
     identity = None if expected_identity is None else json.dumps(dict(expected_identity))
-    summary, refusal = _native.cross_world_consume(bytes(data), identity, cancel)
+    summary, refusal = _run(execution, _native.cross_world_consume, bytes(data), identity)
     _refuse(refusal)
     assert summary is not None
     return _consumed(summary)
@@ -708,43 +765,51 @@ class WholePathAccount(ScientificResult):
                 return item
         raise CausalValueError(f"no uncertainty source {name!r}")
 
-    def verify_against(self, execution: CrossWorldExecution, *, cancel: Any = None) -> None:
+    def verify_against(
+        self, cross_world: CrossWorldExecution, *, execution: Execution | None = None
+    ) -> None:
         """Derive the account again from ``execution`` and require it to equal this one.
 
         A stored account of other units, mechanisms, quantity or unit sampling is refused
         (``cross_world_uncertainty.account_mismatch``), never annotated.
         """
-        if not isinstance(execution, CrossWorldExecution):
-            raise CausalTypeError("execution must be a CrossWorldExecution")
+        cross_world = require_success(cross_world)
+        if not isinstance(cross_world, CrossWorldExecution):
+            raise CausalTypeError("cross_world must be a CrossWorldExecution")
         _refuse(
-            _native.cross_world_whole_path_verify(
-                execution.to_bytes(),
+            _run(
+                execution,
+                _native.cross_world_whole_path_verify,
+                cross_world.to_bytes(),
                 self.unit_sampling,
                 self.identity,
                 self.execution_receipt_digest,
-                json.dumps(dict(execution.identity)),
-                cancel,
+                json.dumps(dict(cross_world.identity)),
             )
         )
 
     def interval(self) -> None:
-        """Always raises ``cell_not_licensed``: a spread is not an interval."""
-        _refuse(_native.cross_world_closed_reading("interval"))
+        """Always raises ``sampling_dependence_unknown``: a spread is not an interval."""
+        _refuse(_native.cross_world_unsupported_reading("interval"))
 
     def posterior(self) -> None:
-        """Always raises ``cell_not_licensed``: a spread is not a posterior."""
-        _refuse(_native.cross_world_closed_reading("posterior"))
+        """Always raises ``uncertainty_representation_insufficient``: a spread is not a posterior."""
+        _refuse(_native.cross_world_unsupported_reading("posterior"))
 
 
 def _whole_path(
-    execution: CrossWorldExecution, unit_sampling: str, cancel: Any
+    cross_world: CrossWorldExecution, unit_sampling: str, execution: Execution | None
 ) -> WholePathAccount:
     if unit_sampling not in ("fixed_units", "independent_sample", "undeclared"):
         raise CausalValueError(
             f"unit_sampling is 'fixed_units' or 'independent_sample'; got {unit_sampling!r}"
         )
-    payload, refusal = _native.cross_world_whole_path(
-        execution.to_bytes(), unit_sampling, json.dumps(dict(execution.identity)), cancel
+    payload, refusal = _run(
+        execution,
+        _native.cross_world_whole_path,
+        cross_world.to_bytes(),
+        unit_sampling,
+        json.dumps(dict(cross_world.identity)),
     )
     _refuse(refusal)
     assert payload is not None

@@ -5,11 +5,25 @@ use super::recalc_composite::CompositeSession;
 use antecedent_design::composition_boundary::SupportedVerdict;
 use antecedent_design::decision_eval::Verdict;
 use antecedent_io::recalc_receipt_artifact::{
-    CountsWire, DeclaredStageWire, RecalcReceiptArtifact, decode_parts, identities_to_wire,
+    CountsWire, DeclaredStageWire, RecalcReceiptArtifact, identities_to_wire,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
-const MAX_BYTES: usize = 4 * 1024 * 1024;
+/// Default most bytes of a sealed ranking payload built, decoded or hashed.
+const DEFAULT_MAX_BYTES: usize = 4 * 1024 * 1024;
+/// Byte budget of a conditional ranking: the sealed payload (policy, source and receipt) built,
+/// serialized, decoded or hashed may not exceed it, and a policy whose identifiers alone cannot
+/// fit is refused before any per-candidate work.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ConditionalRankingLimits {
+    /// Largest payload, in bytes.
+    pub max_bytes: usize,
+}
+impl Default for ConditionalRankingLimits {
+    fn default() -> Self {
+        Self { max_bytes: DEFAULT_MAX_BYTES }
+    }
+}
 /// Explicit original candidate declaration; the caller owns its sufficiency verdict.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -38,7 +52,8 @@ pub struct ConditionalBranch {
 pub struct ConditionalStudyPolicy {
     /// Caller-owned rule/version identity.
     pub policy_id: String,
-    /// At most64 action branches, at most512 total candidates.
+    /// One branch per actual terminal action. The table is bounded by the artifact byte
+    /// budget (it is part of the sealed payload), not by a count of branches or candidates.
     pub branches: Vec<ConditionalBranch>,
 }
 /// Registered checked request/source/artifact refusal.
@@ -50,8 +65,9 @@ pub struct ConditionalRankingError {
     pub detail: &'static str,
 }
 fn refuse(detail: &'static str) -> ConditionalRankingError {
-    let code = if detail == "conditional_study_ranking.source_unavailable"
-        || detail == "conditional_study_ranking.action_not_unique"
+    let code = if detail
+        == antecedent_core::reason_details::conditional_study_ranking::SOURCE_UNAVAILABLE
+        || detail == antecedent_core::reason_details::conditional_study_ranking::ACTION_NOT_UNIQUE
     {
         antecedent_core::reason_code!("route_not_supported")
     } else {
@@ -127,13 +143,16 @@ fn counts(c: super::recalc_receipt::StageCounts) -> CountsWire {
     }
 }
 fn source(session: &CompositeSession) -> Result<Source, ConditionalRankingError> {
-    let publication = session
-        .publication()
-        .ok_or_else(|| refuse("conditional_study_ranking.source_unavailable"))?;
-    let decision =
-        session.decision().ok_or_else(|| refuse("conditional_study_ranking.source_unavailable"))?;
+    let publication = session.publication().ok_or_else(|| {
+        refuse(antecedent_core::reason_details::conditional_study_ranking::SOURCE_UNAVAILABLE)
+    })?;
+    let decision = session.decision().ok_or_else(|| {
+        refuse(antecedent_core::reason_details::conditional_study_ranking::SOURCE_UNAVAILABLE)
+    })?;
     let SupportedVerdict::Compared(Verdict::UniquelyOptimal(selected)) = &decision.verdict else {
-        return Err(refuse("conditional_study_ranking.action_not_unique"));
+        return Err(refuse(
+            antecedent_core::reason_details::conditional_study_ranking::ACTION_NOT_UNIQUE,
+        ));
     };
     Ok(Source {
         contract_identity: decision.contract_identity.clone(),
@@ -146,18 +165,18 @@ fn source(session: &CompositeSession) -> Result<Source, ConditionalRankingError>
                 session
                     .native()
                     .producing_context()
-                    .ok_or_else(|| refuse("conditional_study_ranking.source_unavailable"))?,
+                    .ok_or_else(|| refuse(antecedent_core::reason_details::conditional_study_ranking::SOURCE_UNAVAILABLE))?,
             )
-            .map_err(|_| refuse("conditional_study_ranking.source_unavailable"))?,
+            .map_err(|_| refuse(antecedent_core::reason_details::conditional_study_ranking::SOURCE_UNAVAILABLE))?,
         callback_claims: publication
             .branches
             .iter()
             .map(|b| {
                 session
                     .callback(*b)
-                    .ok_or_else(|| refuse("conditional_study_ranking.source_unavailable"))?
+                    .ok_or_else(|| refuse(antecedent_core::reason_details::conditional_study_ranking::SOURCE_UNAVAILABLE))?
                     .export_output()
-                    .map_err(|_| refuse("conditional_study_ranking.source_unavailable"))
+                    .map_err(|_| refuse(antecedent_core::reason_details::conditional_study_ranking::SOURCE_UNAVAILABLE))
             })
             .collect::<Result<Vec<_>, _>>()?,
         actions: decision
@@ -179,14 +198,28 @@ fn source(session: &CompositeSession) -> Result<Source, ConditionalRankingError>
 fn validate(
     policy: &ConditionalStudyPolicy,
     source: &Source,
+    limits: ConditionalRankingLimits,
 ) -> Result<(), ConditionalRankingError> {
     let valid_name = |s: &str| !s.trim().is_empty() && s.len() <= 256;
-    if !valid_name(&policy.policy_id)
-        || policy.branches.is_empty()
-        || policy.branches.len() > 64
-        || policy.branches.iter().map(|b| b.candidates.len()).sum::<usize>() > 512
-    {
-        return Err(refuse("conditional_study_ranking.invalid_policy"));
+    if !valid_name(&policy.policy_id) || policy.branches.is_empty() {
+        return Err(refuse(
+            antecedent_core::reason_details::conditional_study_ranking::INVALID_POLICY,
+        ));
+    }
+    // The policy is sealed into the payload, so its identifiers alone already cost this many
+    // bytes of the artifact budget; refuse before any per-candidate work when they cannot fit.
+    let identifier_bytes: usize = policy.policy_id.len()
+        + policy
+            .branches
+            .iter()
+            .map(|b| {
+                b.action.len() + b.candidates.iter().map(|c| c.semantic_id.len()).sum::<usize>()
+            })
+            .sum::<usize>();
+    if identifier_bytes > limits.max_bytes {
+        return Err(refuse(
+            antecedent_core::reason_details::conditional_study_ranking::RESOURCE_LIMIT,
+        ));
     }
     let expected: BTreeSet<_> = source.actions.iter().map(|a| a.id.as_str()).collect();
     let mut actual = BTreeSet::new();
@@ -194,9 +227,10 @@ fn validate(
         if !valid_name(&branch.action)
             || !actual.insert(branch.action.as_str())
             || branch.candidates.is_empty()
-            || branch.candidates.len() > 128
         {
-            return Err(refuse("conditional_study_ranking.invalid_policy"));
+            return Err(refuse(
+                antecedent_core::reason_details::conditional_study_ranking::INVALID_POLICY,
+            ));
         }
         let mut candidates = BTreeSet::new();
         if branch
@@ -204,24 +238,28 @@ fn validate(
             .iter()
             .any(|c| !valid_name(&c.semantic_id) || !candidates.insert(c.semantic_id.as_str()))
         {
-            return Err(refuse("conditional_study_ranking.invalid_policy"));
+            return Err(refuse(
+                antecedent_core::reason_details::conditional_study_ranking::INVALID_POLICY,
+            ));
         }
     }
     if actual != expected {
-        return Err(refuse("conditional_study_ranking.invalid_policy"));
+        return Err(refuse(
+            antecedent_core::reason_details::conditional_study_ranking::INVALID_POLICY,
+        ));
     }
     Ok(())
 }
 fn rank(
     policy: &ConditionalStudyPolicy,
     source: &Source,
+    limits: ConditionalRankingLimits,
 ) -> Result<Vec<ConditionalRankingEntry>, ConditionalRankingError> {
-    validate(policy, source)?;
-    let branch = policy
-        .branches
-        .iter()
-        .find(|b| b.action == source.selected_action)
-        .ok_or_else(|| refuse("conditional_study_ranking.invalid_policy"))?;
+    validate(policy, source, limits)?;
+    let branch =
+        policy.branches.iter().find(|b| b.action == source.selected_action).ok_or_else(|| {
+            refuse(antecedent_core::reason_details::conditional_study_ranking::INVALID_POLICY)
+        })?;
     let candidates: Vec<_> = branch
         .candidates
         .iter()
@@ -232,8 +270,9 @@ fn rank(
             sample_budget: c.sample_budget,
         })
         .collect();
-    let result = rank_structural(&candidates)
-        .map_err(|_| refuse("conditional_study_ranking.original_ranking_refused"))?;
+    let result = rank_structural(&candidates).map_err(|_| {
+        refuse(antecedent_core::reason_details::conditional_study_ranking::ORIGINAL_RANKING_REFUSED)
+    })?;
     Ok(result
         .structural
         .into_iter()
@@ -246,15 +285,69 @@ fn rank(
         })
         .collect())
 }
-fn identity(payload: &Payload) -> Result<String, ConditionalRankingError> {
-    let mut canonical = payload.clone();
-    canonical.identity.clear();
-    let bytes = serde_json::to_vec(&canonical)
-        .map_err(|_| refuse("conditional_study_ranking.artifact_invalid"))?;
-    if bytes.len() > MAX_BYTES {
-        return Err(refuse("conditional_study_ranking.resource_limit"));
+/// The payload as the identity digest sees it: every field of [`Payload`] in declaration order,
+/// borrowed, with `identity` fixed to the empty string. Serialising it yields exactly the bytes
+/// of the payload with its identity cleared, without cloning the source and receipt bytes.
+#[derive(Serialize)]
+struct IdentityFreeView<'a> {
+    version: u16,
+    source: &'a Source,
+    historical_receipt: &'a [u8],
+    policy: &'a ConditionalStudyPolicy,
+    entries: &'a [ConditionalRankingEntry],
+    identity: &'static str,
+}
+
+/// Identity of a payload (encoding version 1): the lowercase hex BLAKE3 digest of the compact
+/// `serde_json` encoding of the payload with its `identity` field set to `""`. Fields are
+/// written in declaration order (`version`, `source`, `historical_receipt`, `policy`,
+/// `entries`, `identity`); byte strings are JSON arrays of numbers. The digest binds the
+/// encoding version through the leading `version` field, so a change of encoding is a new
+/// version, never a silent change of identity.
+fn identity(
+    payload: &Payload,
+    limits: ConditionalRankingLimits,
+) -> Result<String, ConditionalRankingError> {
+    let view = IdentityFreeView {
+        version: payload.version,
+        source: &payload.source,
+        historical_receipt: &payload.historical_receipt,
+        policy: &payload.policy,
+        entries: &payload.entries,
+        identity: "",
+    };
+    let bytes = serde_json::to_vec(&view).map_err(|_| {
+        refuse(antecedent_core::reason_details::conditional_study_ranking::ARTIFACT_INVALID)
+    })?;
+    if bytes.len() > limits.max_bytes {
+        return Err(refuse(
+            antecedent_core::reason_details::conditional_study_ranking::RESOURCE_LIMIT,
+        ));
     }
     Ok(antecedent_core::blake3_hex(&bytes))
+}
+fn retained_payload(
+    bytes: &[u8],
+    expected_identity: Option<&str>,
+    limits: ConditionalRankingLimits,
+) -> Result<Payload, ConditionalRankingError> {
+    if bytes.len() > limits.max_bytes {
+        return Err(refuse(
+            antecedent_core::reason_details::conditional_study_ranking::RESOURCE_LIMIT,
+        ));
+    }
+    let payload: Payload = serde_json::from_slice(bytes).map_err(|_| {
+        refuse(antecedent_core::reason_details::conditional_study_ranking::ARTIFACT_INVALID)
+    })?;
+    if payload.version != 1
+        || payload.identity != identity(&payload, limits)?
+        || expected_identity.is_some_and(|e| e != payload.identity)
+    {
+        return Err(refuse(
+            antecedent_core::reason_details::conditional_study_ranking::ARTIFACT_INVALID,
+        ));
+    }
+    Ok(payload)
 }
 impl ConditionalStudyRanking {
     /// Execute original structural ranking from the current actually issued terminal verdict.
@@ -264,11 +357,22 @@ impl ConditionalStudyRanking {
         session: &CompositeSession,
         policy: ConditionalStudyPolicy,
     ) -> Result<Self, ConditionalRankingError> {
+        Self::execute_with_limits(session, policy, ConditionalRankingLimits::default())
+    }
+
+    /// [`Self::execute`] under the caller's byte budget instead of the default.
+    /// # Errors
+    /// Those of [`Self::execute`], with `limits` in place of the default budget.
+    pub fn execute_with_limits(
+        session: &CompositeSession,
+        policy: ConditionalStudyPolicy,
+        limits: ConditionalRankingLimits,
+    ) -> Result<Self, ConditionalRankingError> {
         let source = source(session)?;
-        let entries = rank(&policy, &source)?;
-        let publication = session
-            .publication()
-            .ok_or_else(|| refuse("conditional_study_ranking.source_unavailable"))?;
+        let entries = rank(&policy, &source, limits)?;
+        let publication = session.publication().ok_or_else(|| {
+            refuse(antecedent_core::reason_details::conditional_study_ranking::SOURCE_UNAVAILABLE)
+        })?;
         let count_map: BTreeMap<_, _> =
             publication.receipt.entries().iter().map(|e| (e.stage, counts(e.counts))).collect();
         let receipt = RecalcReceiptArtifact::seal(
@@ -277,10 +381,12 @@ impl ConditionalStudyRanking {
             &publication.capabilities,
             &count_map,
         )
-        .map_err(|_| refuse("conditional_study_ranking.artifact_invalid"))?;
-        let historical_receipt = receipt
-            .to_bytes("conditional-study-source")
-            .map_err(|_| refuse("conditional_study_ranking.artifact_invalid"))?;
+        .map_err(|_| {
+            refuse(antecedent_core::reason_details::conditional_study_ranking::ARTIFACT_INVALID)
+        })?;
+        let historical_receipt = receipt.to_bytes("conditional-study-source").map_err(|_| {
+            refuse(antecedent_core::reason_details::conditional_study_ranking::ARTIFACT_INVALID)
+        })?;
         let mut payload = Payload {
             version: 1,
             source,
@@ -289,7 +395,7 @@ impl ConditionalStudyRanking {
             entries,
             identity: String::new(),
         };
-        payload.identity = identity(&payload)?;
+        payload.identity = identity(&payload, limits)?;
         Ok(Self { payload })
     }
     /// Source-bound artifact identity.
@@ -311,13 +417,67 @@ impl ConditionalStudyRanking {
     /// # Errors
     /// Serialization exceeds the byte budget or fails.
     pub fn to_bytes(&self) -> Result<Vec<u8>, ConditionalRankingError> {
-        let bytes = serde_json::to_vec(&self.payload)
-            .map_err(|_| refuse("conditional_study_ranking.artifact_invalid"))?;
-        if bytes.len() > MAX_BYTES {
-            return Err(refuse("conditional_study_ranking.resource_limit"));
+        self.to_bytes_with_limits(ConditionalRankingLimits::default())
+    }
+
+    /// [`Self::to_bytes`] under the caller's byte budget instead of the default.
+    /// # Errors
+    /// Those of [`Self::to_bytes`], with `limits` in place of the default budget.
+    pub fn to_bytes_with_limits(
+        &self,
+        limits: ConditionalRankingLimits,
+    ) -> Result<Vec<u8>, ConditionalRankingError> {
+        let bytes = serde_json::to_vec(&self.payload).map_err(|_| {
+            refuse(antecedent_core::reason_details::conditional_study_ranking::ARTIFACT_INVALID)
+        })?;
+        if bytes.len() > limits.max_bytes {
+            return Err(refuse(
+                antecedent_core::reason_details::conditional_study_ranking::RESOURCE_LIMIT,
+            ));
         }
         Ok(bytes)
     }
+    /// Inspect a sealed historical ranking without supplying executable source state.
+    ///
+    /// Checks its identity, historical receipt and the structural ranking of its
+    /// retained source. This does not attest that the source is the current
+    /// combined native/provider state; [`Self::consume`] performs that check.
+    /// # Errors
+    /// Bounds, encoding, identity, receipt or retained ranking mismatch.
+    pub fn inspect_retained(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+    ) -> Result<Self, ConditionalRankingError> {
+        Self::inspect_retained_with_limits(
+            bytes,
+            expected_identity,
+            ConditionalRankingLimits::default(),
+        )
+    }
+
+    /// [`Self::inspect_retained`] under the caller's byte budget instead of the default.
+    /// # Errors
+    /// Those of [`Self::inspect_retained`], with `limits` in place of the default budget.
+    pub fn inspect_retained_with_limits(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        limits: ConditionalRankingLimits,
+    ) -> Result<Self, ConditionalRankingError> {
+        let payload = retained_payload(bytes, expected_identity, limits)?;
+        let receipt = RecalcReceiptArtifact::from_bytes(&payload.historical_receipt, None)
+            .map_err(|_| {
+                refuse(antecedent_core::reason_details::conditional_study_ranking::ARTIFACT_INVALID)
+            })?;
+        if receipt.meta().requested != payload.source.requested
+            || payload.entries != rank(&payload.policy, &payload.source, limits)?
+        {
+            return Err(refuse(
+                antecedent_core::reason_details::conditional_study_ranking::ARTIFACT_INVALID,
+            ));
+        }
+        Ok(Self { payload })
+    }
+
     /// Independently consume against an explicitly replayed actual opaque combined session.
     /// Historical receipt inspection cannot replace the executing native/provider state.
     /// # Errors
@@ -327,28 +487,132 @@ impl ConditionalStudyRanking {
         session: &CompositeSession,
         expected_identity: Option<&str>,
     ) -> Result<Self, ConditionalRankingError> {
-        if bytes.len() > MAX_BYTES {
-            return Err(refuse("conditional_study_ranking.resource_limit"));
-        }
-        let payload: Payload = serde_json::from_slice(bytes)
-            .map_err(|_| refuse("conditional_study_ranking.artifact_invalid"))?;
-        if payload.version != 1
-            || payload.identity != identity(&payload)?
-            || expected_identity.is_some_and(|e| e != payload.identity)
-        {
-            return Err(refuse("conditional_study_ranking.artifact_invalid"));
-        }
-        let _receipt = RecalcReceiptArtifact::from_bytes(&payload.historical_receipt, None)
-            .map_err(|_| refuse("conditional_study_ranking.artifact_invalid"))?;
-        let receipt_meta = decode_parts(&payload.historical_receipt)
-            .map_err(|_| refuse("conditional_study_ranking.artifact_invalid"))?;
+        Self::consume_with_limits(
+            bytes,
+            session,
+            expected_identity,
+            ConditionalRankingLimits::default(),
+        )
+    }
+
+    /// [`Self::consume`] under the caller's byte budget instead of the default.
+    /// # Errors
+    /// Those of [`Self::consume`], with `limits` in place of the default budget.
+    pub fn consume_with_limits(
+        bytes: &[u8],
+        session: &CompositeSession,
+        expected_identity: Option<&str>,
+        limits: ConditionalRankingLimits,
+    ) -> Result<Self, ConditionalRankingError> {
+        let payload = retained_payload(bytes, expected_identity, limits)?;
+        let receipt = RecalcReceiptArtifact::from_bytes(&payload.historical_receipt, None)
+            .map_err(|_| {
+                refuse(antecedent_core::reason_details::conditional_study_ranking::ARTIFACT_INVALID)
+            })?;
+        let receipt_meta = receipt.meta();
         let current = source(session)?;
         if payload.source != current || receipt_meta.requested != current.requested {
-            return Err(refuse("conditional_study_ranking.source_mismatch"));
+            return Err(refuse(
+                antecedent_core::reason_details::conditional_study_ranking::SOURCE_MISMATCH,
+            ));
         }
-        if payload.entries != rank(&payload.policy, &current)? {
-            return Err(refuse("conditional_study_ranking.artifact_invalid"));
+        if payload.entries != rank(&payload.policy, &current, limits)? {
+            return Err(refuse(
+                antecedent_core::reason_details::conditional_study_ranking::ARTIFACT_INVALID,
+            ));
         }
         Ok(Self { payload })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn source(actions: &[String]) -> Source {
+        Source {
+            contract_identity: "contract".into(),
+            requested: Vec::new(),
+            input_order: vec!["native".into()],
+            actions: actions
+                .iter()
+                .map(|id| Action {
+                    id: id.clone(),
+                    status: "Optimal".into(),
+                    input_id: None,
+                    expected_utility: Some(1.0),
+                })
+                .collect(),
+            selected_action: actions[0].clone(),
+            native_response: vec![1, 2, 3],
+            callback_claims: vec![vec![4, 5]],
+        }
+    }
+
+    fn candidates(prefix: &str, count: usize, width: usize) -> Vec<ConditionalCandidate> {
+        (0..count)
+            .map(|i| ConditionalCandidate {
+                semantic_id: format!("{prefix}-{i:0>width$}"),
+                verified_sufficient: i % 2 == 0,
+                cost_units: i as u64,
+                sample_budget: 10,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_identity_view_encodes_exactly_the_payload_with_its_identity_cleared() {
+        let actions = vec!["wait".to_string(), "treat".to_string()];
+        let policy = ConditionalStudyPolicy {
+            policy_id: "rule".into(),
+            branches: actions
+                .iter()
+                .map(|a| ConditionalBranch { action: a.clone(), candidates: candidates(a, 3, 2) })
+                .collect(),
+        };
+        let source = source(&actions);
+        let entries = rank(&policy, &source, ConditionalRankingLimits::default()).unwrap();
+        let payload = Payload {
+            version: 1,
+            source,
+            historical_receipt: vec![9, 8, 7],
+            policy,
+            entries,
+            identity: "stale".into(),
+        };
+        let mut cleared = payload.clone();
+        cleared.identity.clear();
+        let expected = antecedent_core::blake3_hex(&serde_json::to_vec(&cleared).unwrap());
+        assert_eq!(identity(&payload, ConditionalRankingLimits::default()).unwrap(), expected);
+    }
+
+    #[test]
+    fn a_policy_is_bounded_by_the_byte_budget_and_not_by_counts() {
+        let actions: Vec<String> = (0..100).map(|i| format!("action-{i}")).collect();
+        let source = source(&actions);
+        let branches = |count: usize, width: usize| {
+            actions
+                .iter()
+                .map(|a| ConditionalBranch {
+                    action: a.clone(),
+                    candidates: candidates(a, count, width),
+                })
+                .collect::<Vec<_>>()
+        };
+        // 100 actions and 20_000 candidates: far past the former count caps, well inside the budget.
+        let wide = ConditionalStudyPolicy { policy_id: "rule".into(), branches: branches(200, 4) };
+        let limits = ConditionalRankingLimits::default();
+        assert!(validate(&wide, &source, limits).is_ok());
+        // The same shape with 250-byte identifiers (a 10-byte prefix and 240 digits, inside the
+        // 256-byte name limit) cannot fit the artifact budget.
+        let heavy =
+            ConditionalStudyPolicy { policy_id: "rule".into(), branches: branches(200, 240) };
+        assert_eq!(
+            validate(&heavy, &source, limits).unwrap_err().detail,
+            antecedent_core::reason_details::conditional_study_ranking::RESOURCE_LIMIT
+        );
+        // A caller-declared budget replaces the default: the heavy policy fits a larger one.
+        let larger = ConditionalRankingLimits { max_bytes: 64 * 1024 * 1024 };
+        assert!(validate(&heavy, &source, larger).is_ok());
     }
 }

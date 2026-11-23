@@ -6,7 +6,7 @@ use antecedent_design::decision_contract::{
     SourceRepresentation, StructuralPolicy, UtilityExpr,
 };
 use antecedent_design::decision_eval::{
-    DecisionEvalError, MeanSource, Verdict, evaluate_contract_on_means,
+    DecisionEvalError, MeanEstimate, MeanSource, Verdict, evaluate_contract_on_means,
 };
 
 mod common;
@@ -32,6 +32,7 @@ fn source(functional: &str) -> MeanSource {
         snapshot_id: "snap-9".into(),
         causal_contract_id: "checked-contract".into(),
         rng_id: "none:mean_grid".into(),
+        estimate: MeanEstimate::Frequentist,
     }
 }
 
@@ -122,7 +123,10 @@ fn a_nonlinear_utility_needs_more_than_a_mean() {
     assert!(needed.contains(&SourceRepresentation::JointDraws));
     let refusal = error.to_refusal();
     assert_eq!(refusal.code, "decision_contract_unsatisfied");
-    assert_eq!(refusal.detail, "decision_evaluation.mean_source_insufficient");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_evaluation::MEAN_SOURCE_INSUFFICIENT
+    );
 
     let clipped = UtilityExpr::maximum(UtilityExpr::Input(0), UtilityExpr::Const(0.0));
     assert!(matches!(
@@ -192,4 +196,48 @@ fn an_unknown_coordinate_or_a_malformed_source_refuses() {
         evaluate_contract_on_means(&contract(), &nan),
         Err(DecisionEvalError::Contract(_))
     ));
+}
+
+#[test]
+fn a_coordinate_named_twice_is_refused_instead_of_using_the_first() {
+    let mut duplicated = source("mean");
+    duplicated.coordinates[1] = duplicated.coordinates[0].clone();
+    duplicated.means[1] = 99.0;
+    let error = evaluate_contract_on_means(&contract(), &duplicated).unwrap_err();
+    assert!(
+        matches!(
+            error,
+            DecisionEvalError::Contract(
+                antecedent_design::decision_contract::DecisionContractError::InvalidDeclaration(_)
+            )
+        ),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn negative_and_positive_zero_utilities_are_tied() {
+    // Both actions read the same positive mean; one pays 1 * 0.0 = 0.0 and the other
+    // 1 * -0.0 = -0.0, which are the same utility.
+    let mut zero = contract();
+    zero.actions[0].utility = UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Const(0.0));
+    zero.actions[1].utility = UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Const(-0.0));
+    zero.actions[1].inputs = zero.actions[0].inputs.clone();
+    let result = evaluate_contract_on_means(&zero, &source("mean")).unwrap();
+    assert_eq!(result.verdict, Verdict::Indistinguishable(vec!["wait".into(), "treat".into()]));
+    assert_eq!(result.criterion_label, "expected utility of a frequentist point estimate",);
+}
+
+#[test]
+fn posterior_and_frequentist_means_do_not_share_a_criterion_label() {
+    let mut posterior = source("mean");
+    posterior.estimate = MeanEstimate::Posterior;
+    let frequentist = source("mean");
+    let posterior = evaluate_contract_on_means(&contract(), &posterior).unwrap();
+    let frequentist = evaluate_contract_on_means(&contract(), &frequentist).unwrap();
+    assert_eq!(posterior.actions[0].value.to_bits(), frequentist.actions[0].value.to_bits());
+    assert_eq!(posterior.actions[1].value.to_bits(), frequentist.actions[1].value.to_bits());
+    assert_ne!(posterior.criterion_label, frequentist.criterion_label);
+    assert!(posterior.criterion_label.contains("posterior"));
+    assert!(frequentist.criterion_label.contains("frequentist"));
 }

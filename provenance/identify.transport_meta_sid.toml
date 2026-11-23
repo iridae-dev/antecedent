@@ -13,7 +13,7 @@ implementation_deviations = [
  "Finite-catalog binding uses deterministic bounded alternatives. Search exhaustion and catalog gaps are inconclusive, never obstruction proofs.",
  "Common typed rules retain historical single-source identifiers; the Figure 5 mapping is documented in docs/architecture/transport-meta-grid.md.",
  "Negative claims require independently checked common nested forests against every declared source. Positive checking replays local premises without rerunning identification.",
- "Numerical SCM validation and bounded sampling fixtures do not license new coverage. Hours-long multi-source/grid calibration remains deferred.",
+ "Numerical SCM validation and bounded sampling fixtures do not support new coverage. Hours-long multi-source/grid calibration remains deferred.",
 ]
 upstream_implementations_observed = []
 test_sources = [
@@ -23,3 +23,26 @@ test_sources = [
  "crates/antecedent/src/analysis/transport_grid.rs",
  "python/tests/test_transport_meta_grid.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "identify_meta_transport, verify_meta_transport and verify_meta_s_hedge in crates/antecedent-identify/src/sid/meta.rs for a hard-intervention query with several source populations each declaring its own selection targets on a shared ADMG: the verdict (identified with a meta derivation, proven non-transportable with a common s-hedge, or not certified), the complementary-source construction (sum_z P_a(z | do(x)) P_b(y | do(z))), and the numeric value of the returned formula on exact source experiments. Relies on the sID review (identify.transport_sid) for the single-source engine the meta search reuses; the multi-source rules are checked here against their own enumeration. Not a review of the finite-catalog binding (sound, incomplete), of the transport grid or certificate wrappers, or of non-classical experiment families."
+assumptions = ["The reference is a finite latent-variable SCM with independent Bernoulli mechanisms (probability 0.07 + 0.03 * setting + 0.13 * parents + 0.11 * shared latent causes + interaction terms + 0.09 for a selected node), integrated over eight latent states by hand in the test, one change in mechanism per declared selection target in each source and the target; truth is the target interventional law over every outcome atom and the contrast.", "A positive verdict is checked by evaluating the proof on exact source experiments (and verify_meta_transport replays the local premises); a negative verdict is checked as a common s-hedge against every declared source, so a witness that drops an admissible source is rejected.", "Completeness is scoped by the module to the classical complete source-experiment family and is not asserted for finite catalogs."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are named by title and are not redistributed."
+limitations = "The primary paper (Bareinboim and Pearl 2013, meta-transportability) was not retrieved; the Figure 5 line mapping documented in docs/architecture/transport-meta-grid.md is taken as stated, and completeness rests on the paper plus common-s-hedge verification, not on numerics. Binary three-node ordered ADMGs over seven selection patterns with outcomes one and two nodes wide, and a four-node family, are enumerated; the mechanism probabilities stay between 0.07 and 0.83, so extreme-probability regimes (which the single-source review adds) are not exercised for the meta search, and larger graphs, more than two sources and non-binary domains are not enumerated. The unit tests inside meta.rs cover complementary sources and common-witness rejection by hand-built cases only. Calibration remains deferred."
+sources = ["Bareinboim and Pearl (2013), Meta-Transportability of Causal Effects: A Formal Approach, AISTATS (https://proceedings.mlr.press/v31/bareinboim13a.pdf; title as listed, text not retrieved)"]
+findings_resolved = ["On every ordered three-node ADMG, seven selection pairs for two sources and outcome sets of one and two nodes, each identified diagram's formula matches the enumerated target atoms and contrast, every proof replays under verify_meta_transport, and every non-transportable verdict carries a common s-hedge that verify_meta_s_hedge accepts; the four-node family leaves no unchecked obstruction.", "No defect was found and no product code changed."]
+record_sha256 = "fd25fbca7e553b6d21f4485336ce5d95880be20968dce0929b313dd7f254e834"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/sid/meta.rs"
+items = ["fn canonical", "fn check_meta_resources", "fn identify_meta_transport", "fn sources", "fn validate_meta_sources", "fn verify_meta_s_hedge", "fn verify_meta_transport", "struct MetaSource", "struct MetaTransportQuery", "type CheckedTransportDerivation"]
+sha256 = "1502ee72bd59ea5a3e5a5afac17991da50d117754d2443d8347e99857db4517e"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/tests/meta_transport_scm.rs"
+items = ["const EDGES", "fn d", "fn enumerate", "fn four_node_meta_conformance_has_no_unchecked_obstructions", "fn ordered_three_node_meta_graphs_match_every_target_atom_and_contrast", "fn v"]
+sha256 = "f6b9ba0bf77150eec1ec9e8d15c398951dde2ae473d5d6186efde872e4803012"

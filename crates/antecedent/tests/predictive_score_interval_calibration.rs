@@ -29,13 +29,13 @@
 //! design (heavy-tailed truth: Student-t with 3 df scaled to unit variance, log score)
 //! is recorded under its own functional and never gates a route.
 //!
-//! The scored interval is `construct_expected_score_interval`, the unlicensed
+//! The scored interval is `construct_expected_score_interval`, the unsupported
 //! construction, and every replicate is bound under the key `score_interval_basis` gives,
 //! which is the key the public `expected_score_interval` resolves a record with.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_sign_loss,
@@ -44,7 +44,6 @@
 )]
 #![allow(
     clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
     clippy::too_many_lines,
     reason = "bounded simulation sizes and small indices"
 )]
@@ -200,6 +199,7 @@ fn spec(design: Design, truth: Truth, n: usize, seed: u64) -> PredictiveAssessme
 }
 
 struct Scored {
+    validation: String,
     construction: Construction,
     scope: ScopeFacts,
     interval: (f64, f64),
@@ -235,6 +235,7 @@ fn replicate(
     let built = construct_expected_score_interval(&spec, &report, &query).ok()?;
     let key = built.basis.key;
     Some(Scored {
+        validation: key.validation,
         construction: Construction {
             query: key.query,
             graph_class: key.graph_class,
@@ -307,7 +308,7 @@ fn run(
     for outcome in scored {
         match outcome {
             Some(one) => {
-                tally.bind(&one.construction, one.scope);
+                tally.bind_validation(&one.construction, one.scope, &one.validation);
                 tally.record(Some(one.interval), truth);
             }
             None => tally.skip(),
@@ -317,7 +318,7 @@ fn run(
         tally.emit_named_boundary();
     } else if test == "serial_crps_mean_l95" {
         // 18,891 of 20,000 replicates cover at the largest size: a half point under the level,
-        // stable across replicate counts, so it is the measured level and not a licence.
+        // stable across replicate counts, so it is the measured level and not support.
         tally.assert_boundary_at([Some(0.945); 3]);
     } else {
         tally.assert();

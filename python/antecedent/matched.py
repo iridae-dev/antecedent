@@ -1,4 +1,4 @@
-"""Conditional odds ratio from matched case-control sets (point only).
+"""Conditional odds ratio from matched case-control sets.
 
 The data are matched sets sampled on the outcome: each stratum holds one or more
 cases and their matched controls, with a binary exposure. The one estimand is the
@@ -11,6 +11,11 @@ Sets that cannot inform the odds ratio are counted, never silently dropped: sets
 with no case or no control (singletons included) and sets whose members all share
 one exposure value contribute nothing to the likelihood.
 
+``level=...`` adds the Wald interval of the odds ratio (``interval``) with its calibration
+slot (``interval_calibration``). No coverage record measures the construction, so the slot
+status is ``not_measured``; the interval is reported regardless and is not part of the
+exported artifact.
+
 ``result.export()`` writes a JSON artifact carrying the set-shape sufficient statistic
 and a digest; :func:`replay_matched_case_control` rebuilds the sets from it and
 recomputes the estimate and counts bit for bit.
@@ -20,8 +25,7 @@ Refused, with a registered reason code:
 * any risk-scale estimand (``population_risk``, ``absolute_risk``, ``risk_difference``,
   ``risk_ratio``): ``effect_not_identified``, because the case fraction is fixed by the
   design and no prevalence or selection information is taken;
-* an interval (``level=...``): ``cell_not_licensed``, because the asymptotic
-  conditions of a Wald interval are not measured by any coverage record;
+* a ``level`` outside ``(0, 1)``: ``invalid_argument``;
 * a set collection with no informative set (``effect_not_identified``) or whose
   conditional likelihood has no finite maximizer (``route_not_supported``).
 """
@@ -29,15 +33,23 @@ Refused, with a registered reason code:
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._digest import canonical_digest
-from ._native import CancellationToken
 from ._native import matched_case_control_odds_ratio as _matched_case_control_odds_ratio
 from ._scientific import ScientificResult
-from .errors import CausalResourceError, CausalSerializationError, CausalTypeError
+from ._treatment_labels import _is_missing
+from .errors import CausalResourceError, CausalSerializationError, CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
@@ -70,7 +82,12 @@ class MatchedSetCounts:
 
 @dataclass(frozen=True, slots=True)
 class MatchedCaseControlResult(ScientificResult):
-    """The conditional odds ratio; ``claim`` is ``point_only`` and no interval exists.
+    """The conditional odds ratio, with an optional Wald ``interval`` and its calibration slot.
+
+    ``interval`` is ``(lower, upper)`` of the odds ratio at ``interval_level`` when a level
+    was requested, ``None`` otherwise; ``interval_calibration`` is its calibration slot
+    (``status`` is ``not_measured`` while no coverage record measures the construction).
+    The exported artifact carries the point and counts only.
 
     ``set_types`` is the sufficient statistic of the declared sets: one
     ``(members, cases, exposed, exposed_cases, sets)`` row per distinct set shape,
@@ -84,19 +101,20 @@ class MatchedCaseControlResult(ScientificResult):
     estimand: str = "conditional_odds_ratio"
     sampling: str = "matched_case_control"
     claim: str = "point_only"
+    interval: tuple[float, float] | None = None
+    interval_level: float | None = None
+    interval_calibration: Mapping[str, Any] | None = None
 
     @property
     def identity(self) -> str:
         """Content identity retained independently for artifact consumption."""
-        return str(json.loads(self.export())["digest"])
+        return str(json.loads(self._export_bytes())["digest"])
 
-    def artifact(self) -> ExportedArtifact[MatchedCaseControlResult]:
-        """Typed bytes envelope for shared scientific consumption."""
-        from ._artifact_protocol import exported_artifact
+    @artifact_export
+    def export(self) -> ExportedArtifact[MatchedCaseControlResult]:
+        return artifact_from_receipt(self, self._export_bytes())
 
-        return exported_artifact(self)
-
-    def export(self) -> bytes:
+    def _export_bytes(self) -> bytes:
         """A self-describing JSON artifact that :func:`replay_matched_case_control` re-derives."""
         body: dict[str, Any] = {
             "format": _FORMAT,
@@ -157,16 +175,21 @@ def matched_case_control_odds_ratio(
     sampling: str,
     estimand: str = "conditional_odds_ratio",
     level: float | None = None,
-    cancel: CancellationToken | None = None,
+    execution: Execution | None = None,
 ) -> MatchedCaseControlResult:
     """Conditional odds ratio of matched sets by exact conditional likelihood.
 
     ``stratum``, ``case`` (1 = case, 0 = control) and ``exposed`` (1 = exposed) are
-    parallel row sequences; stratum labels are compared as their ``str``. ``sampling``
-    must be ``"matched_case_control"`` (sets sampled on the outcome). ``level`` exists
-    only so that asking for an interval is a typed refusal.
+    parallel row sequences; non-missing stratum labels are compared as their ``str``. ``sampling``
+    must be ``"matched_case_control"`` (sets sampled on the outcome). A ``level`` in ``(0, 1)``
+    adds the odds-ratio Wald interval with its calibration slot.
     """
-    labels = [str(s) for s in stratum]
+    execution = resolve_execution(execution)
+    labels = []
+    for value in stratum:
+        if _is_missing(value):
+            raise CausalValueError("stratum labels must not be missing")
+        labels.append(str(value))
     case_values = _floats("case", case)
     exposed_values = _floats("exposed", exposed)
     estimate = _matched_case_control_odds_ratio(
@@ -175,10 +198,10 @@ def matched_case_control_odds_ratio(
         exposed_values,
         sampling=sampling,
         estimand=estimand,
-        interval=level is not None,
-        cancel=cancel,
+        level=level,
+        cancel=execution.cancel,
     )
-    log_or, odds_ratio, total, informative, concordant, degenerate, singleton = estimate
+    log_or, odds_ratio, total, informative, concordant, degenerate, singleton, bounds = estimate
     return MatchedCaseControlResult(
         set_types=_set_types(labels, case_values, exposed_values),
         odds_ratio=odds_ratio,
@@ -190,6 +213,9 @@ def matched_case_control_odds_ratio(
             outcome_degenerate=degenerate,
             singleton=singleton,
         ),
+        interval=None if bounds is None else (bounds[0], bounds[1]),
+        interval_level=None if bounds is None else level,
+        interval_calibration=None if bounds is None else json.loads(bounds[2]),
     )
 
 
@@ -229,12 +255,16 @@ def _expanded_rows(set_types: object, max_rows: int) -> tuple[list[str], list[fl
     return stratum, case, exposed
 
 
+@artifact_consumer(
+    proof="matched.replay_matched_case_control: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def replay_matched_case_control(
     artifact: bytes | str,
     *,
     expected_identity: str | None = None,
     max_rows: int = _MAX_REPLAY_ROWS,
-    cancel: CancellationToken | None = None,
+    execution: Execution | None = None,
 ) -> MatchedCaseControlResult:
     """Re-derive an exported result from its stored sufficient statistic.
 
@@ -244,6 +274,12 @@ def replay_matched_case_control(
     :class:`~antecedent.errors.CausalSerializationError`; one that would expand past
     ``max_rows`` rows is refused with ``CausalResourceError`` before any work.
     """
+    execution = resolve_execution(execution)
+    artifact = (
+        container_bytes(artifact)
+        if isinstance(artifact, (bytes, bytearray, memoryview, ExportedArtifact))
+        else artifact
+    )
     try:
         body = json.loads(artifact)
     except (TypeError, ValueError) as error:
@@ -276,7 +312,7 @@ def replay_matched_case_control(
         exposed=exposed,
         sampling=body["sampling"],
         estimand=body["estimand"],
-        cancel=cancel,
+        execution=execution,
     )
     if (
         again.log_odds_ratio != body["log_odds_ratio"]

@@ -6,7 +6,7 @@
 //! Cameron-Gelbach-Miller variance, checked against sums and a closed form written here;
 //! the structures it does not cover stay typed refusals.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,
@@ -182,26 +182,23 @@ fn build(raw: &Raw) -> (TabularData, IdentifiedEstimand, AverageEffectQuery) {
 }
 
 fn declared(raw: &Raw, min_clusters: usize) -> AipwAte {
-    AipwAte {
-        bootstrap_replicates: 0,
-        cluster_ids: Some(raw.cluster.clone()),
-        cluster_dml: Some(ClusterDml::new(min_clusters).unwrap()),
-        ..AipwAte::new()
-    }
+    AipwAte { cluster_dml: Some(ClusterDml::new(min_clusters).unwrap()), ..AipwAte::new() }
+        .with_bootstrap_replicates(0)
+        .with_cluster_ids(raw.cluster.clone())
 }
 
 fn declared_two_way(raw: &Raw, min_clusters: usize, per_fold: usize) -> AipwAte {
     AipwAte {
-        bootstrap_replicates: 0,
-        cluster_ids: Some(raw.cluster.clone()),
         cluster_ids_second: Some(raw.second.clone()),
         cluster_dml: Some(ClusterDml::dyadic(min_clusters, per_fold).unwrap()),
         ..AipwAte::new()
     }
+    .with_bootstrap_replicates(0)
+    .with_cluster_ids(raw.cluster.clone())
 }
 
 fn plain() -> AipwAte {
-    AipwAte { bootstrap_replicates: 0, ..AipwAte::new() }
+    AipwAte::new().with_bootstrap_replicates(0)
 }
 
 fn run(est: &AipwAte, raw: &Raw, seed: u64) -> Result<EffectEstimate, EstimationError> {
@@ -433,7 +430,10 @@ fn the_cluster_variance_has_its_closed_form_on_deterministic_scores() {
         propensities: vec![0.5; 2 * n].into(),
         observed_outcome: vec![0.0; n].into(),
         n_rows: n,
-        row_index: (0..u32::try_from(n).unwrap()).collect::<Vec<_>>().into(),
+        row_index: (0..n)
+            .map(|i| antecedent_data::GlobalId::new(u64::try_from(i).unwrap()))
+            .collect::<Vec<_>>()
+            .into(),
         fold_ids: clusters.iter().map(|c| c % 5).collect::<Vec<_>>().into(),
         n_folds: 5,
         scores: scores.into(),
@@ -446,6 +446,7 @@ fn the_cluster_variance_has_its_closed_form_on_deterministic_scores() {
         propensity_clip: None,
         treatment: VariableId::from_raw(0),
         intervened: Arc::from([]),
+        preparation: None,
     };
     let spec = ClusterDml::new(10).unwrap();
     let receipt = spec.receipt(&table, &clusters, None).unwrap();
@@ -507,24 +508,24 @@ fn an_interval_request_is_refused_with_its_reason_code() {
     let raw = draw(30, 10, 2);
     let (data, estimand, query) = build(&raw);
     for requested in [
-        AipwAte { bootstrap_replicates: 50, ..declared(&raw, 20) },
-        AipwAte { se_kind: antecedent_estimate::AnalyticSeKind::Cluster, ..declared(&raw, 20) },
+        declared(&raw, 20).with_bootstrap_replicates(50),
+        declared(&raw, 20).with_se_kind(antecedent_estimate::AnalyticSeKind::Cluster),
     ] {
         let error = requested.prepare(&data, &estimand, &query).unwrap_err();
-        code_of(&error, "cluster_interval_not_licensed");
+        code_of(&error, "cluster_interval_not_supported");
     }
     let est = declared(&raw, 20);
     let problem = est.prepare(&data, &estimand, &query).unwrap();
     let ctx = ExecutionContext::for_tests(1);
     let mut workspace = AipwWorkspace::default();
     let point = est.fit(&problem, &mut workspace, &ctx, AssumptionSet::new()).unwrap();
-    let boot = AipwAte { bootstrap_replicates: 5, ..est };
+    let boot = est.with_bootstrap_replicates(5);
     let error = boot.attach_bootstrap(&problem, &mut workspace, &ctx, point).unwrap_err();
-    code_of(&error, "cluster_interval_not_licensed");
+    code_of(&error, "cluster_interval_not_supported");
 }
 
 #[test]
-fn scope_labels_and_combinations_outside_the_license_are_refused() {
+fn scope_labels_and_combinations_outside_the_support_are_refused() {
     let raw = draw(30, 10, 4);
     let (data, estimand, query) = build(&raw);
     let trimmed = AipwAte {
@@ -539,12 +540,13 @@ fn scope_labels_and_combinations_outside_the_license_are_refused() {
     };
     code_of(&penalized.prepare(&data, &estimand, &query).unwrap_err(), "route_not_supported");
 
-    let unlabeled = AipwAte { cluster_ids: None, ..declared(&raw, 20) };
+    let mut unlabeled = declared(&raw, 20);
+    unlabeled.inference.cluster_ids = None;
     code_of(&unlabeled.prepare(&data, &estimand, &query).unwrap_err(), "required_option_missing");
 
     let mut short = raw.cluster.clone();
     short.pop();
-    let misaligned = AipwAte { cluster_ids: Some(short), ..declared(&raw, 20) };
+    let misaligned = declared(&raw, 20).with_cluster_ids(short);
     let error = misaligned.prepare(&data, &estimand, &query).unwrap_err();
     assert!(error.to_string().contains("cluster_ids length"), "{error}");
 
@@ -574,7 +576,10 @@ fn contrast_table(psi: &[f64], fold_ids: Vec<u32>) -> ScoreTable {
         propensities: vec![0.5; 2 * n].into(),
         observed_outcome: vec![0.0; n].into(),
         n_rows: n,
-        row_index: (0..u32::try_from(n).unwrap()).collect::<Vec<_>>().into(),
+        row_index: (0..n)
+            .map(|i| antecedent_data::GlobalId::new(u64::try_from(i).unwrap()))
+            .collect::<Vec<_>>()
+            .into(),
         fold_ids: fold_ids.into(),
         n_folds: 5,
         scores: scores.into(),
@@ -587,6 +592,7 @@ fn contrast_table(psi: &[f64], fold_ids: Vec<u32>) -> ScoreTable {
         propensity_clip: None,
         treatment: VariableId::from_raw(0),
         intervened: Arc::from([]),
+        preparation: None,
     }
 }
 
@@ -709,7 +715,9 @@ fn the_two_way_variance_equals_hand_computed_cgm_sums() {
     assert_eq!((receipt.reference_df, receipt.n_rows, receipt.folds), (89, 360, FOLDS));
     // A cluster-unit receipt refuses a second label set instead of ignoring it.
     let first_only = ClusterDml::new(20).unwrap();
-    assert!(first_only.receipt(t, &raw.cluster, Some(&raw.second)).is_err());
+    let error = first_only.receipt(t, &raw.cluster, Some(&raw.second)).unwrap_err();
+    code_of(&error, antecedent_core::reason_details::cluster_dml::SECOND_IDS_UNEXPECTED);
+    assert!(error.to_string().contains("a cluster unit takes one label per row"), "{error}");
 }
 
 /// A deterministic fixture with repeated endpoints in a 12 by 12 grid, `psi = alpha_a + beta_b`
@@ -762,6 +770,7 @@ fn a_materially_negative_two_way_variance_is_refused_not_truncated() {
     let error =
         ClusterDml::dyadic(10, 2).unwrap().receipt(&table, &first, Some(&second)).unwrap_err();
     assert!(matches!(error, EstimationError::Stats(_)), "{error}");
+    assert!(error.to_string().contains("materially negative"), "{error}");
 }
 
 /// Chains of shared endpoints form one unit: in each block a path of rows links first
@@ -822,9 +831,9 @@ fn the_two_way_route_reduces_to_the_one_way_route_for_a_trivial_second_dimension
 
 /// One giant component (a bridge row per block joins all blocks, or one third of the rows
 /// share a second endpoint) and an entity in both endpoint roles stay closed with
-/// `dyadic_dependence_not_licensed`, before any fit.
+/// `dyadic_dependence_not_supported`, before any fit.
 #[test]
-fn unsupported_dyadic_structures_stay_closed() {
+fn unsupported_dyadic_structures_are_refused() {
     let (blocks, na, nb) = (30usize, 3usize, 4usize);
     let raw = draw_two_way(blocks, na, nb, 5);
     let ok = run(&declared_two_way(&raw, 20, 4), &raw, 1);
@@ -836,8 +845,13 @@ fn unsupported_dyadic_structures_stay_closed() {
         bridged.second[k * na * nb] = raw.second[(k - 1) * na * nb];
     }
     let error = run(&declared_two_way(&bridged, 20, 4), &bridged, 1).unwrap_err();
-    code_of(&error, "dyadic_dependence_not_licensed");
-    assert!(error.to_string().contains("cluster_dml.dyadic_giant_component"), "{error}");
+    code_of(&error, "dyadic_dependence_not_supported");
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::cluster_dml::DYADIC_GIANT_COMPONENT),
+        "{error}"
+    );
 
     // One third of the rows share one second endpoint: a component larger than a fold's share.
     let mut heavy = raw.clone();
@@ -846,21 +860,31 @@ fn unsupported_dyadic_structures_stay_closed() {
         *slot = hub;
     }
     let error = run(&declared_two_way(&heavy, 20, 4), &heavy, 1).unwrap_err();
-    code_of(&error, "dyadic_dependence_not_licensed");
-    assert!(error.to_string().contains("cluster_dml.dyadic_giant_component"), "{error}");
+    code_of(&error, "dyadic_dependence_not_supported");
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::cluster_dml::DYADIC_GIANT_COMPONENT),
+        "{error}"
+    );
 
     // An entity that is a first endpoint of some rows and a second endpoint of others.
     let mut shared = raw.clone();
     shared.second[0] = raw.cluster[5];
     let error = run(&declared_two_way(&shared, 20, 4), &shared, 1).unwrap_err();
-    code_of(&error, "dyadic_dependence_not_licensed");
-    assert!(error.to_string().contains("cluster_dml.dyadic_shared_namespace"), "{error}");
+    code_of(&error, "dyadic_dependence_not_supported");
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::cluster_dml::DYADIC_SHARED_NAMESPACE),
+        "{error}"
+    );
     let fit = run(&declared_two_way(&raw, 20, 4), &raw, 1).unwrap();
     let error = ClusterDml::dyadic(20, 4)
         .unwrap()
         .receipt(table(&fit), &shared.cluster, Some(&shared.second))
         .unwrap_err();
-    code_of(&error, "dyadic_dependence_not_licensed");
+    code_of(&error, "dyadic_dependence_not_supported");
 }
 
 /// Too few labels at an endpoint, too few components per fold, a missing or misplaced second
@@ -871,7 +895,12 @@ fn two_way_declarations_below_their_minimum_or_incomplete_are_refused() {
     let raw = draw_two_way(12, 3, 4, 8);
     let error = run(&declared_two_way(&raw, 20, 4), &raw, 1).unwrap_err();
     code_of(&error, "too_few_clusters");
-    assert!(error.to_string().contains("cluster_dml.too_few_components"), "{error}");
+    assert!(
+        error
+            .to_string()
+            .contains(antecedent_core::reason_details::cluster_dml::TOO_FEW_COMPONENTS),
+        "{error}"
+    );
     assert!(run(&declared_two_way(&raw, 20, 2), &raw, 1).is_ok());
 
     // 90 first endpoints are below a declared minimum of 100.
@@ -915,7 +944,12 @@ fn flexible_learner_estimators_refuse_a_cluster_option_with_a_typed_reason() {
                 "{error}"
             );
             let text = error.to_string();
-            assert!(text.contains("cluster_dml.flexible_learner_closed"), "{text}");
+            assert!(
+                text.contains(
+                    antecedent_core::reason_details::cluster_dml::FLEXIBLE_LEARNER_NOT_SUPPORTED
+                ),
+                "{text}"
+            );
             assert!(text.contains(estimator) && text.contains(option), "{text}");
         }
     }
@@ -943,7 +977,9 @@ fn the_cluster_summed_covariance_matches_a_hand_calculation_on_a_fixed_table() {
     assert!((20.0_f64 / 380.0 - cov.get(0, 0)).abs() > 0.05);
     assert_eq!(spec.reference_df(&clusters, None), 9);
     // Labels that do not match the unit, or too few clusters, are typed refusals.
-    assert!(spec.influence_covariance(&[&a], &clusters, Some(&clusters)).is_err());
+    let error = spec.influence_covariance(&[&a], &clusters, Some(&clusters)).unwrap_err();
+    code_of(&error, antecedent_core::reason_details::cluster_dml::SECOND_IDS_UNEXPECTED);
+    assert!(error.to_string().contains("do not match the declared independence unit"), "{error}");
     let few: Vec<u32> = (0..9u32).flat_map(|g| [g, g]).collect();
     code_of(&spec.influence_covariance(&[&a[..18]], &few, None).unwrap_err(), "too_few_clusters");
 }
@@ -997,7 +1033,7 @@ fn the_cluster_covariance_diagonal_is_the_receipt_variance() {
     let shared = raw.cluster.clone();
     code_of(
         &spec.influence_covariance(&[&psi], &raw.cluster, Some(&shared)).unwrap_err(),
-        "dyadic_dependence_not_licensed",
+        "dyadic_dependence_not_supported",
     );
 }
 
@@ -1026,7 +1062,11 @@ fn clustered_posterior_refuses_an_external_power_prior() {
     )
     .unwrap_err();
     let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
-    assert!(message.contains("clustered_posterior.external_power_prior"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::clustered_posterior::EXTERNAL_POWER_PRIOR),
+        "{message}"
+    );
 }
 
 #[test]

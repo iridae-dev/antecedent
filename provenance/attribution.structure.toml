@@ -47,3 +47,23 @@ test_sources = [
  "conformance/attribution/structure_change_parent_swap",
  "crates/antecedent/tests/attribution.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Parent-set (structural change) attribution by a dual-graph coalition game: hybrid DAGs swap whole parent-edge sets between the baseline and comparison graphs, mechanisms are refit under each hybrid, and the outcome-marginal change is Shapley-attributed to the nodes whose parent sets differ."
+no_independent_algorithm = "structure_change.rs builds the hybrid graphs (refusing a cyclic hybrid), calls the mechanism fitter and estimate_shapley, and reports total, observed and unexplained change as differences of the returned values; it contains no sqrt, ln, exp, solve or loop over data of its own."
+covered_by = ["attribution.shapley", "attribution.distribution_change"]
+record_sha256 = "5409365556c03a5a66fb776a54508733c296668ba2f228671f343238a8e84c6c"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-attribution/src/structure_change.rs"
+items = ["fn baseline_law", "fn default", "fn law_memo", "fn measure", "fn parent_sets_differ", "fn sorted_parents", "fn structure_change", "fn structure_change_impl", "fn structure_players", "fn validate_shared_layout", "fn value", "struct StructureChangeOptions", "struct StructureFits", "struct StructureSwapPayoff", "type RefitWeights"]
+sha256 = "dd1a953819883251527665e131371d54be8ff8b03c54e88879df1da795ea6a00"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/attribution.rs"
+items = ["fn claims_03_distribution_change_y_shift_recovers_the_exact_five", "fn distribution_change_y_shift_conformance", "fn fixture", "fn mechanism_change_change_point_conformance", "fn mechanism_change_detect_conformance", "fn mechanism_change_kernel_conformance", "fn parent_swap_graphs", "fn structure_change_parent_swap_conformance", "fn two_period_chain"]
+sha256 = "ec3318d97aedf95c1fae53ac910698cb32e7ee0c3546e7f22abb289353dacff6"

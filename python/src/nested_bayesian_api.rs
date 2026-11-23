@@ -1,18 +1,13 @@
 //! Source-bound measured eleven-dimensional Bayesian lifecycle and unchanged internal candidates.
-#[cfg(feature = "calibration-internal")]
-use antecedent_core::ExecutionContext;
-use antecedent_core::reason_code;
-use antecedent_estimate::nested_markov_binary::{
+use antecedent::estimate::nested_markov_bayesian::{Options, Prior};
+use antecedent::estimate::nested_markov_binary::{
     AdmgDeclaration, FitOptions, NestedMarkovInput, Regime, RegimeCounts,
 };
-use antecedent_io::{IoError, nested_markov_bayesian_artifact::Artifact};
-use antecedent_learn::nested_markov_bayesian::{Options, Prior};
+use antecedent::io::IoError;
+use antecedent::io::nested_markov_bayesian_artifact::{Artifact, Expectation, Limits};
+use antecedent::reason::reason_code;
 use pyo3::prelude::*;
-#[cfg(feature = "calibration-internal")]
 use pyo3::types::PyBytes;
-
-#[cfg(feature = "calibration-internal")]
-use antecedent_io::nested_markov_bayesian_artifact::{Expectation, Limits};
 
 type RegimeTuple = (Option<Vec<usize>>, Vec<usize>, Vec<f64>);
 fn declared_input(
@@ -69,14 +64,12 @@ fn error(e: IoError) -> PyErr {
         ),
     }
 }
-#[cfg(feature = "calibration-internal")]
 #[pyclass(name = "NativeNestedMarkovPosteriorCandidate", frozen)]
 struct Candidate {
     artifact: Artifact,
     bytes: Vec<u8>,
     identity: String,
 }
-#[cfg(feature = "calibration-internal")]
 impl Candidate {
     fn from_artifact(artifact: Artifact) -> PyResult<Self> {
         let o = &artifact.options;
@@ -88,16 +81,15 @@ impl Candidate {
         {
             return Err(crate::refusal(
                 reason_code!("route_not_supported"),
-                "nested_markov.bayesian_sampler_scope: artifact is not the frozen Python pilot sampler",
+                "nested_markov.bayesian_sampler_scope: artifact is not the fixed Python sampler",
             ));
         }
         let bytes = artifact.export().map_err(error)?;
-        let identity = antecedent_core::blake3_hex(&bytes);
+        let identity = antecedent::identity::blake3_hex(&bytes);
         Ok(Self { artifact, bytes, identity })
     }
 }
 #[pymethods]
-#[cfg(feature = "calibration-internal")]
 impl Candidate {
     #[getter]
     fn identity(&self) -> &str {
@@ -110,7 +102,6 @@ impl Candidate {
         PyBytes::new(py, &self.bytes)
     }
 }
-#[cfg(feature = "calibration-internal")]
 #[pyfunction]
 #[allow(
     clippy::too_many_arguments,
@@ -132,14 +123,13 @@ fn nested_markov_posterior_candidate(
     let options = FitOptions { max_iterations, tolerance, ..FitOptions::default() };
     let prior = declared_prior(alpha, beta)?;
     let sampler = python_sampler(seed);
+    let ctx = crate::execution_api::context(0);
     crate::detach_catch(py, move || {
         Candidate::from_artifact(
-            Artifact::build(&input, &options, prior, sampler, &ExecutionContext::for_tests(0))
-                .map_err(error)?,
+            Artifact::build(&input, &options, prior, sampler, &ctx).map_err(error)?,
         )
     })
 }
-#[cfg(feature = "calibration-internal")]
 #[pyfunction]
 fn consume_nested_markov_posterior_candidate(
     py: Python<'_>,
@@ -152,7 +142,7 @@ fn consume_nested_markov_posterior_candidate(
             reason_code!("invalid_argument"),
         ));
     }
-    if antecedent_core::blake3_hex(bytes) != expected_identity {
+    if antecedent::identity::blake3_hex(bytes) != expected_identity {
         return Err(crate::with_reason_code(
             crate::value_err(
                 "nested_markov.bayesian_identity_mismatch: candidate identity differs from expected",
@@ -160,15 +150,11 @@ fn consume_nested_markov_posterior_candidate(
             reason_code!("invalid_argument"),
         ));
     }
+    let ctx = crate::execution_api::context(0);
     crate::detach_catch(py, move || {
         Candidate::from_artifact(
-            Artifact::consume(
-                bytes,
-                &Expectation::default(),
-                Limits::default(),
-                &ExecutionContext::for_tests(0),
-            )
-            .map_err(error)?,
+            Artifact::consume(bytes, &Expectation::default(), Limits::default(), &ctx)
+                .map_err(error)?,
         )
     })
 }
@@ -210,11 +196,8 @@ fn nested_markov_posterior_measured(
     })
 }
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    #[cfg(feature = "calibration-internal")]
     module.add_class::<Candidate>()?;
-    #[cfg(feature = "calibration-internal")]
     module.add_function(wrap_pyfunction!(nested_markov_posterior_candidate, module)?)?;
-    #[cfg(feature = "calibration-internal")]
     module.add_function(wrap_pyfunction!(consume_nested_markov_posterior_candidate, module)?)?;
     module.add_function(wrap_pyfunction!(nested_markov_posterior_measured, module)?)?;
     Ok(())

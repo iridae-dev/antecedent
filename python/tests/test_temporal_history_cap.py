@@ -8,6 +8,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent.errors import CausalIdentifyError
+from antecedent.outcomes import require_success
 
 # ------------------------------------------------------------ max_history_lag
 
@@ -36,22 +37,28 @@ def test_max_history_lag_is_a_query_field(query_type: Any) -> None:
 
 def test_max_history_lag_reaches_rust_and_bounds_the_unfolding() -> None:
     data = _autoregressive(1)
-    unbounded = ant.analyze(
-        data, graph=AUTOREGRESSIVE_DAG, query=ant.PulseEffect("t", "y", treatment_lag=1)
+    unbounded = require_success(
+        ant.analyze(
+            data, graph=AUTOREGRESSIVE_DAG, query=ant.PulseEffect("t", "y", treatment_lag=1)
+        )
     )
     # The treatment's parents sit two steps back: a one-step cap excludes them,
     # and the refusal names the field that lifts it.
     with pytest.raises(CausalIdentifyError) as caught:
+        require_success(
+            ant.analyze(
+                data,
+                graph=AUTOREGRESSIVE_DAG,
+                query=ant.PulseEffect("t", "y", treatment_lag=1, max_history_lag=1),
+            )
+        )
+    assert "raise max_history_lag" in str(caught.value)
+    capped = require_success(
         ant.analyze(
             data,
             graph=AUTOREGRESSIVE_DAG,
-            query=ant.PulseEffect("t", "y", treatment_lag=1, max_history_lag=1),
+            query=ant.PulseEffect("t", "y", treatment_lag=1, max_history_lag=2),
         )
-    assert "raise max_history_lag" in str(caught.value)
-    capped = ant.analyze(
-        data,
-        graph=AUTOREGRESSIVE_DAG,
-        query=ant.PulseEffect("t", "y", treatment_lag=1, max_history_lag=2),
     )
     assert capped.answer == unbounded.answer
     capped_report = capped.inspect().to_dict()
@@ -60,7 +67,7 @@ def test_max_history_lag_reaches_rust_and_bounds_the_unfolding() -> None:
         c["offset"] for c in capped_report["identification"]["payload"]["adjustment_coordinates"]
     ]
     assert offsets and all(offset >= -2 for offset in offsets)
-    loaded = ant.load(capped.export())
+    loaded = require_success(ant.load(bytes(capped.export())))
     assert loaded.inspect().to_dict()["target_id"] == capped_report["target_id"]
 
 

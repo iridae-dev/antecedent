@@ -1,6 +1,6 @@
 //! ADMG graph-posterior `AverageEffect`: functional.effect per atom, posterior mix.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -143,9 +143,9 @@ fn admg_frontdoor_mask_is_not_a_dag() {
     let admg = admg_from_pin(&pin);
     assert!(admg.has_bidirected());
     let mask = adjacency_mask_from_admg(&admg).unwrap();
-    assert!(!mask_is_dag(mask, admg.node_count()));
+    assert!(!mask_is_dag(&mask, admg.node_count()));
     assert!(
-        dag_from_adjacency_mask(mask, admg.node_count()).is_err(),
+        dag_from_adjacency_mask(&mask, admg.node_count()).is_err(),
         "bidirected ADMG packing must not coerce to Dag"
     );
     let back = admg_from_adjacency_mask(mask, admg.node_count()).unwrap();
@@ -165,16 +165,17 @@ fn admg_posterior_average_effect_none_runs() {
     let tolerance = pin["frequentist"]["absolute_tolerance"].as_f64().unwrap();
     let weights = [0.8, 0.2];
     let gp = admg_posterior(n, &weights, &[identified_mask, cyclic_mask(n)]);
-    assert_eq!(gp.atom_kind, GraphPosteriorAtomKind::Admg);
+    assert_eq!(gp.atom_kind(), GraphPosteriorAtomKind::Admg);
 
     for inference in [
         InferenceMode::Frequentist,
         InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)),
     ] {
+        let band: f64 = if matches!(inference, InferenceMode::Frequentist) { 1e-9 } else { 0.01 };
         let result = run(data.clone(), gp.clone(), query.clone(), inference, RefuteSuite::None);
         assert_eq!(result.logical_plan.identifier.as_deref(), Some("general.id"));
         assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.effect"));
-        assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+        assert_eq!(result.support_status().unwrap().as_str(), "supported");
         let mixture = result.structural_response.as_ref().expect("ADMG posterior mixture");
         assert_eq!(mixture.weight_basis, StructuralWeightBasis::PosteriorProbability);
         assert!(
@@ -208,14 +209,17 @@ fn admg_posterior_average_effect_none_runs() {
                 && d.message.contains("single graphs")
         }));
         assert!(
-            has_policy(&result, StructuralAggregationPolicy::SameEstimandWeightedMean)
-                || result.estimate.as_effect().unwrap().ate.is_finite(),
+            has_policy(&result, StructuralAggregationPolicy::SameEstimandWeightedMean),
             "one identified front-door atom should mix as a scalar"
         );
+        // The Frequentist route evaluates the front-door functional on the contingency counts,
+        // which the fixture's exact rational reference reproduces to round-off; the Bayesian
+        // posterior mean carries Monte Carlo error over 32 draws (observed 0.0023, held to 0.01), well inside the gap to
+        // the observational contrast (0.62) the front door removes.
         assert!(
-            (result.estimate.as_effect().unwrap().ate - expected).abs() < tolerance.max(0.02),
+            (result.estimate().as_effect().unwrap().ate - expected).abs() < band.max(tolerance),
             "identified-atom mixture should recover the front-door pin {expected}, got {}",
-            result.estimate.as_effect().unwrap().ate
+            result.estimate().as_effect().unwrap().ate
         );
         assert!(
             !result.diagnostics.iter().any(|d| {
@@ -260,13 +264,13 @@ fn admg_graph_posterior_inspect_and_execute_agree_on_support_status() {
             let inspected = builder.clone().inspect().unwrap();
             assert_eq!(
                 inspected.support_status,
-                Some(CellStatus::Licensed),
-                "{inference:?} {suite:?} inspect must publish licensed"
+                Some(CellStatus::Supported),
+                "{inference:?} {suite:?} inspect must publish supported"
             );
             let preflight = builder.clone().capability().unwrap();
             assert_eq!(
                 preflight.applicability,
-                SemanticApplicability::Licensed,
+                SemanticApplicability::Supported,
                 "{inference:?} {suite:?} capability must agree with inspect"
             );
             let built = builder.build().unwrap();
@@ -277,7 +281,8 @@ fn admg_graph_posterior_inspect_and_execute_agree_on_support_status() {
             );
             let result = built.run(&ctx).unwrap();
             assert_eq!(
-                result.support_status, inspected.support_status,
+                result.support_status(),
+                inspected.support_status,
                 "{inference:?} {suite:?} execute must match cheap inspect"
             );
         }
@@ -301,7 +306,7 @@ fn admg_posterior_average_effect_cheap_and_full_run() {
     ] {
         for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
             let result = run(data.clone(), gp.clone(), query.clone(), inference.clone(), suite);
-            assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+            assert_eq!(result.support_status().unwrap().as_str(), "supported");
             assert_eq!(result.logical_plan.identifier.as_deref(), Some("general.id"));
             assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.effect"));
             assert!(

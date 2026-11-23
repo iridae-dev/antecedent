@@ -1,4 +1,4 @@
-//! Repeated-sampling calibration of licensed temporal response intervals.
+//! Repeated-sampling calibration of supported temporal response intervals.
 //!
 //! Cells: `ResponseCurve` / `InterventionResponse` × `TemporalDag` (Frequentist and
 //! Bayesian), the observation-adjusted pair path, a horizon-dependent adjustment-set
@@ -39,9 +39,9 @@
 //! the Frequentist surface publishes no band (the analytic band would assume
 //! independent lag-aligned rows, which no DGP here satisfies); the tests assert that.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh`.
+//! Ignored tests run via `scripts/measure_calibration.sh`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,
@@ -583,7 +583,7 @@ fn frequentist_curve_tallies(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_dag_response_curve_iid_nominal_95_coverage() {
     let (tallies, disclosed) = frequentist_curve_tallies(
         "frequentist_temporal_dag_response_curve_iid_nominal_95_coverage",
@@ -607,7 +607,7 @@ const CURVE_IID_MEASURED: [[Option<f64>; 3]; 7] = [
 ];
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_dag_response_curve_ar1_nominal_95_coverage() {
     let (tallies, disclosed) = frequentist_curve_tallies(
         "frequentist_temporal_dag_response_curve_ar1_nominal_95_coverage",
@@ -642,7 +642,7 @@ const CURVE_AR1_MEASURED: [[Option<f64>; 3]; 7] = [
 /// the boundary (`response.temporal.block.persistence_boundary`); the short-series
 /// warning does not fire, because the influence does not read short.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_dag_response_curve_ar1_rho09_boundary() {
     let (tallies, disclosed) = frequentist_curve_tallies(
         "frequentist_temporal_dag_response_curve_ar1_rho09_boundary",
@@ -657,7 +657,7 @@ fn frequentist_temporal_dag_response_curve_ar1_rho09_boundary() {
 /// long-run variance, and the Politis–White threshold `2·sqrt(log10(n)/n)` still sits
 /// above the residual's lag-1 autocorrelation of 0.13. Recorded, not gated.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_dag_response_curve_ar1_rho09_n400_boundary() {
     let (tallies, disclosed) = frequentist_curve_tallies(
         "frequentist_temporal_dag_response_curve_ar1_rho09_n400_boundary",
@@ -670,7 +670,7 @@ fn frequentist_temporal_dag_response_curve_ar1_rho09_n400_boundary() {
 
 /// The same design on 1000 rows. Recorded, not gated.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_dag_response_curve_ar1_rho09_n1000_boundary() {
     let (tallies, disclosed) = frequentist_curve_tallies(
         "frequentist_temporal_dag_response_curve_ar1_rho09_n1000_boundary",
@@ -683,7 +683,7 @@ fn frequentist_temporal_dag_response_curve_ar1_rho09_n1000_boundary() {
 
 /// The same design on 100 rows. Recorded, not gated.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_dag_response_curve_ar1_rho09_n100_boundary() {
     let (tallies, disclosed) = frequentist_curve_tallies(
         "frequentist_temporal_dag_response_curve_ar1_rho09_n100_boundary",
@@ -722,6 +722,12 @@ fn frequentist_temporal_response_lengthens_blocks_under_persistence() {
     let persistent = persistent.response().expect("surface");
     let (short, long) = (block_length_record(iid), block_length_record(persistent));
     assert!(short[0] >= short[1], "the sqrt(n) rule is a floor: {short:?}");
+    // 159 lag-aligned rows (160 minus the one lost to the lag): the floor is ceil(sqrt(159)) = 13
+    // for both fits, the iid treatment keeps it (its uncapped testing length is only 3), and the
+    // persistent treatment lengthens to the uncapped length, which is below the n/3 = 53 cap.
+    assert_eq!((short[3], short[1], short[0]), (159.0, 13.0, 13.0), "{short:?}");
+    assert_eq!((long[3], long[1]), (159.0, 13.0), "{long:?}");
+    assert_eq!(long[0], long[2].min((long[3] / 3.0).floor()), "{long:?}");
     assert!(long[0] > long[1], "a persistent treatment must lengthen the blocks: {long:?}");
     assert!(long[0] > short[0], "persistent blocks exceed the iid ones: {long:?} {short:?}");
     assert!(long[0] <= (long[3] / 3.0).floor(), "capped at n/3: {long:?}");
@@ -783,8 +789,10 @@ fn frequentist_temporal_shift_response_reads_short_under_a_persistent_treatment(
     let rows = |r: &antecedent_core::CausalResponse| {
         diagnostic(r, "response.temporal.effective_rows").expect("rows")[0]
     };
-    assert!((1.0..1.05).contains(&factor(iid)), "iid factor {}", factor(iid));
-    assert!(rows(iid) > 100.0, "iid rows {}", rows(iid));
+    // An iid influence has no persistence to correct: the factor is exactly 1 and every one of
+    // the 159 lag-aligned rows is effective (observed 1.0 and 159.0).
+    assert!((factor(iid) - 1.0).abs() < 1e-9, "iid factor {}", factor(iid));
+    assert!((rows(iid) - 159.0).abs() < 1e-6, "iid rows {}", rows(iid));
     assert!(!warns_short_series(iid));
     assert!(factor(persistent) > 1.01, "persistent factor {}", factor(persistent));
     assert!(rows(persistent) < 30.0, "persistent rows {}", rows(persistent));
@@ -892,7 +900,7 @@ fn persistent_treatment_tallies(
 /// 90th percentile against 15), so the warning fires on most replicates: a covering
 /// band that reads short is warned, not silenced.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_dag_response_ar1_treatment_nominal_95_coverage() {
     let (curve, shift, curve_disclosed, shift_disclosed) = persistent_treatment_tallies(
         "frequentist_temporal_dag_response_ar1_treatment_nominal_95_coverage",
@@ -920,7 +928,7 @@ const AR1_TREATMENT_SHIFT_MEASURED: [[Option<f64>; 3]; 2] =
 /// The same design on 400 rows (about 21 effective rows for the shift level). Recorded,
 /// not gated.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_dag_response_ar1_treatment_n400_boundary() {
     let (curve, shift, curve_disclosed, shift_disclosed) = persistent_treatment_tallies(
         "frequentist_temporal_dag_response_ar1_treatment_n400_boundary",
@@ -936,7 +944,7 @@ fn frequentist_temporal_dag_response_ar1_treatment_n400_boundary() {
 /// The same design on 1000 rows (about 53 effective rows for the shift level).
 /// Recorded, not gated.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_dag_response_ar1_treatment_n1000_boundary() {
     let (curve, shift, curve_disclosed, shift_disclosed) = persistent_treatment_tallies(
         "frequentist_temporal_dag_response_ar1_treatment_n1000_boundary",
@@ -949,16 +957,16 @@ fn frequentist_temporal_dag_response_ar1_treatment_n1000_boundary() {
     boundary(&curve, &curve_disclosed);
 }
 
-/// The same design on 100 rows: the shift level reads about 10 effective rows (6.2 /
-/// 10.2 / 17.8 at the 10th / 50th / 90th percentile), covers 0.863 / 0.868, and must
-/// carry the short-series warning on at least 80% of its replicates (measured 82.5%,
-/// 330/400). After the level-influence `O_p(1)` fix (`temporal_response.rs::level_influence`)
-/// widened this design's effective-rows distribution, its 90th percentile (17.8) crosses
-/// the shared 15-row threshold often enough that a 90% floor no longer holds; 80% is the
-/// smallest multiple of 10 the measured rate clears with margin. The dose curve is
-/// recorded.
+/// The same design on 100 rows: the shift level reads about 10 effective rows and
+/// under-covers, so it must carry the short-series warning on at least 70% of its
+/// replicates. Two independent 400-replicate draws of the design warn on 82.5% (330,
+/// rows 6.2 / 10.2 / 17.8 at the 10th / 50th / 90th percentile, coverage 0.870) and
+/// 75.0% (300, rows 6.4 / 10.8 / 18.9, coverage 0.882): the 90th percentile sits above
+/// the shared 15-row threshold, the rate is near 79%, and 70% is the largest multiple
+/// of 10 that a 400-replicate draw at that rate clears by more than four standard
+/// errors. The dose curve is recorded.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_dag_response_ar1_treatment_n100_boundary() {
     let (curve, shift, curve_disclosed, shift_disclosed) = persistent_treatment_tallies(
         "frequentist_temporal_dag_response_ar1_treatment_n100_boundary",
@@ -971,8 +979,8 @@ fn frequentist_temporal_dag_response_ar1_treatment_n100_boundary() {
     boundary(&curve, &curve_disclosed);
     if disclosure_rates_gated() {
         assert!(
-            f64::from(shift_disclosed.short_series) >= 0.8 * f64::from(n_sim()),
-            "the n=100 shift response must warn short-series on at least 80% of replicates: {}/{}",
+            f64::from(shift_disclosed.short_series) >= 0.7 * f64::from(n_sim()),
+            "the n=100 shift response must warn short-series on at least 70% of replicates: {}/{}",
             shift_disclosed.short_series,
             n_sim()
         );
@@ -1026,7 +1034,7 @@ fn frequentist_intervention_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_dag_intervention_response_iid_nominal_95_coverage() {
     frequentist_intervention_coverage(
         "frequentist_temporal_dag_intervention_response_iid_nominal_95_coverage",
@@ -1051,7 +1059,7 @@ const INTERVENTION_IID_MEASURED: [[Option<f64>; 3]; 3] =
 /// simultaneous band over both horizons stays gated and covers 0.941 at 2000
 /// replicates.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_dag_intervention_response_ar1_pointwise_boundary_within_band() {
     frequentist_intervention_coverage(
         "frequentist_temporal_dag_intervention_response_ar1_pointwise_boundary_within_band",
@@ -1118,7 +1126,7 @@ fn frequentist_sequence_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_dag_sequence_iid_nominal_95_coverage() {
     frequentist_sequence_coverage(
         "frequentist_temporal_dag_sequence_iid_nominal_95_coverage",
@@ -1133,7 +1141,7 @@ const SEQUENCE_IID_MEASURED: [[Option<f64>; 3]; 3] =
     [[None, None, None], [None, None, Some(0.940)], [None, None, None]];
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_dag_sequence_ar1_nominal_95_coverage() {
     frequentist_sequence_coverage(
         "frequentist_temporal_dag_sequence_ar1_nominal_95_coverage",
@@ -1197,7 +1205,7 @@ fn bayesian_intervention_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_temporal_dag_intervention_response_iid_nominal_95_coverage() {
     assert_all_at(
         &bayesian_intervention_coverage(
@@ -1218,7 +1226,7 @@ const BAYES_INTERVENTION_IID_MEASURED: [[Option<f64>; 3]; 3] =
 /// the cell's stated generalized-posterior assumption. Before the tempering this cell was
 /// a recorded misspecification probe.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_temporal_dag_intervention_response_ar1_nominal_95_coverage() {
     assert_all_at(
         &bayesian_intervention_coverage(
@@ -1280,7 +1288,7 @@ fn observation_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_observation_selected_iid_nominal_95_coverage() {
     observation_coverage(
         "frequentist_temporal_observation_selected_iid_nominal_95_coverage",
@@ -1299,7 +1307,7 @@ const OBSERVATION_SELECTED_IID_MEASURED: [[Option<f64>; 3]; 4] = [
 ];
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_observation_selected_ar1_nominal_95_coverage() {
     observation_coverage(
         "frequentist_temporal_observation_selected_ar1_nominal_95_coverage",
@@ -1397,7 +1405,7 @@ fn observation_sequence_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_observation_sequence_iid_nominal_95_coverage() {
     observation_sequence_coverage(
         "frequentist_temporal_observation_sequence_iid_nominal_95_coverage",
@@ -1416,7 +1424,7 @@ const OBSERVATION_SEQUENCE_IID_MEASURED: [[Option<f64>; 3]; 3] = [
 ];
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_observation_sequence_ar1_nominal_95_coverage() {
     observation_sequence_coverage(
         "frequentist_temporal_observation_sequence_ar1_nominal_95_coverage",
@@ -1507,7 +1515,7 @@ fn horizon_dependent_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_horizon_dependent_iid_nominal_95_coverage() {
     horizon_dependent_coverage(
         "frequentist_temporal_horizon_dependent_iid_nominal_95_coverage",
@@ -1518,7 +1526,7 @@ fn frequentist_temporal_horizon_dependent_iid_nominal_95_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_horizon_dependent_ar1_nominal_95_coverage() {
     horizon_dependent_coverage(
         "frequentist_temporal_horizon_dependent_ar1_nominal_95_coverage",
@@ -1649,13 +1657,13 @@ fn data_column(data: &TimeSeriesData, variable: u32) -> Vec<f64> {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_cpdag_response_atom_iid_nominal_95_coverage() {
     assert_all(&class_atom_coverage("cpdag", 0.0, 200_000, &InferenceMode::Frequentist, BOOT));
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_cpdag_response_atom_ar1_nominal_95_coverage() {
     assert_all_at(
         &class_atom_coverage("cpdag", RHO_AR1, 201_000, &InferenceMode::Frequentist, BOOT),
@@ -1674,7 +1682,7 @@ const CPDAG_ATOM_AR1_MEASURED: [[Option<f64>; 3]; 6] = [
 ];
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_pag_response_atom_iid_nominal_95_coverage() {
     assert_all_at(
         &class_atom_coverage("pag", 0.0, 204_000, &InferenceMode::Frequentist, BOOT),
@@ -1687,13 +1695,13 @@ const PAG_ATOM_IID_MEASURED: [[Option<f64>; 3]; 3] =
     [[Some(0.966), None, None], [Some(0.966), None, None], [None, None, None]];
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_pag_response_atom_ar1_nominal_95_coverage() {
     assert_all(&class_atom_coverage("pag", RHO_AR1, 202_000, &InferenceMode::Frequentist, BOOT));
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_temporal_cpdag_response_atom_iid_nominal_95_coverage() {
     assert_all_at(
         &class_atom_coverage("cpdag", 0.0, 203_000, &bayes(), 0),
@@ -1712,7 +1720,7 @@ const BAYES_CPDAG_ATOM_IID_MEASURED: [[Option<f64>; 3]; 6] = [
 ];
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_temporal_pag_response_atom_iid_nominal_95_coverage() {
     assert_all(&class_atom_coverage("pag", 0.0, 205_000, &bayes(), 0));
 }

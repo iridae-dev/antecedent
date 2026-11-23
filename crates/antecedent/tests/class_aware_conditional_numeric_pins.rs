@@ -1,6 +1,6 @@
-//! Numeric pins for licensed `Cpdag`/`Pag` `ConditionalEffect` cells.
+//! Numeric pins for supported `Cpdag`/`Pag` `ConditionalEffect` cells.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -43,6 +43,35 @@ fn expand_contingency(pin: &serde_json::Value) -> TabularData {
     let pairs: Vec<(&str, &[f64])> =
         columns.iter().zip(values.iter()).map(|(name, col)| (*name, col.as_slice())).collect();
     TabularData::from_f64_columns(pairs).unwrap()
+}
+
+/// The modifier-stratified contrast `sum_z P(z) [P(y=1 | t=1, z) - P(y=1 | t=0, z)]` read straight
+/// off the contingency table by definition. With the modifier `z` conditioned on, every completion
+/// of the equivalence class adjusts for `z`, so this is the conditional effect whatever the
+/// orientation of the undirected `z - t` edge; it does not run any product code.
+fn stratified_contrast_from_table(pin: &serde_json::Value) -> f64 {
+    let cells = pin["contingency_table"].as_array().unwrap();
+    let count = |z: f64, t: f64, y: Option<f64>| -> f64 {
+        cells
+            .iter()
+            .filter(|c| {
+                c["z"].as_f64().unwrap() == z
+                    && c["t"].as_f64().unwrap() == t
+                    && y.is_none_or(|y| c["y"].as_f64().unwrap() == y)
+            })
+            .map(|c| c["count"].as_f64().unwrap())
+            .sum()
+    };
+    let total: f64 = cells.iter().map(|c| c["count"].as_f64().unwrap()).sum();
+    [0.0, 1.0]
+        .into_iter()
+        .map(|z| {
+            let weight = (count(z, 0.0, None) + count(z, 1.0, None)) / total;
+            let p1 = count(z, 1.0, Some(1.0)) / count(z, 1.0, None);
+            let p0 = count(z, 0.0, Some(1.0)) / count(z, 0.0, None);
+            weight * (p1 - p0)
+        })
+        .sum()
 }
 
 fn node(columns: &[&str], name: &str) -> DenseNodeId {
@@ -204,8 +233,14 @@ fn class_aware_conditional_pins_z_conditional_effect() {
     let freq_ate = freq["expected_ate"].as_f64().unwrap();
     let freq_tol = freq["absolute_tolerance"].as_f64().unwrap();
     let bayes_ate = bayes["expected_ate"].as_f64().unwrap();
-    let bayes_tol = bayes["absolute_tolerance"].as_f64().unwrap();
+    // The pinned posterior band is 0.01; the observed deviation is 1.5e-3 on 64 draws.
+    let bayes_tol = bayes["absolute_tolerance"].as_f64().unwrap().min(5e-3);
     let seed = bayes["seed"].as_u64().unwrap();
+    let table_truth = stratified_contrast_from_table(&pin);
+    assert!(
+        (freq_ate - table_truth).abs() < 1e-12 && (bayes_ate - table_truth).abs() < 1e-12,
+        "pinned conditional effects {freq_ate} / {bayes_ate} vs table definition {table_truth}"
+    );
     let graphs = [
         ("cpdag", ClassGraph::Cpdag(cpdag_from_pin(&pin))),
         ("pag", ClassGraph::Pag(pag_from_class_pin(&class))),
@@ -245,7 +280,7 @@ fn class_aware_conditional_pins_z_conditional_effect() {
                 for result in [&fresh, &click] {
                     assert_eq!(format!("{:?}", result.identification.status), "GraphDependent");
                     assert!(
-                        (result.estimate.as_effect().unwrap().ate - freq_ate).abs() < freq_tol,
+                        (result.estimate().as_effect().unwrap().ate - freq_ate).abs() < freq_tol,
                         "{class_name} freq"
                     );
                     assert_validation_presence(result, suite, false);
@@ -273,7 +308,7 @@ fn class_aware_conditional_pins_z_conditional_effect() {
                 );
                 for result in [&fresh, &click] {
                     assert!(
-                        (result.estimate.as_effect().unwrap().ate - bayes_ate).abs() < bayes_tol,
+                        (result.estimate().as_effect().unwrap().ate - bayes_ate).abs() < bayes_tol,
                         "{class_name} bayes"
                     );
                     assert_validation_presence(result, suite, true);
@@ -351,6 +386,12 @@ fn checked_pag_conditional_certificate_retains_completion_masses() {
         let antecedent::Identification::Envelope { envelope, .. } = crate_identification else {
             panic!("PAG conditional result did not retain its completion envelope");
         };
+        // The circle-circle pair s o-o v has three completions (s -> v, v -> s, s <-> v) and the
+        // chain r -> t -> y with the modifier r is amenable in each, so all three mass units
+        // are identified and none is not.
+        assert_eq!(envelope.cases.len(), 3);
+        assert_eq!(format!("{:?}", envelope.identified_weight), "ProbabilityMass(3.0)");
+        assert_eq!(format!("{:?}", envelope.unidentified_weight), "ProbabilityMass(0.0)");
         assert_eq!(envelope.cases.len(), expected.cases.len());
         assert_eq!(envelope.identified_weight, expected.identified_weight);
         assert_eq!(envelope.unidentified_weight, expected.unidentified_weight);

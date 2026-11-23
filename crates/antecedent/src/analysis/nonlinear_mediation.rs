@@ -6,13 +6,13 @@
 //! ignorability (no unmeasured treatment-outcome, treatment-mediator or mediator-outcome
 //! confounding and no treatment-induced mediator-outcome confounder); a declared violation
 //! refuses (`effect_not_identified` / `cross_world_not_identified`). The interventional
-//! (randomized-draw) effects are closed:
-//! `nonlinear_mediation.interventional_effects_closed`.
+//! (randomized-draw) effects are not supported:
+//! `nonlinear_mediation.interventional_effects_not_supported`.
 //!
 //! The integral over the cross-world mediator law is a deterministic Gauss-Hermite rule; the
 //! estimate is evaluated at `n` and `2n` nodes and the disagreement is the reported integration
 //! error. Bootstrap standard errors use a fixed seed and replicate ids. Calibration is
-//! **unmeasured**: no coverage claim and no public interval; the point estimates and the
+//! **`not_measured`**: no coverage claim and no public interval; the point estimates and the
 //! diagnostics are the claim.
 //!
 //! [`NonlinearMediation::estimate`] runs and seals the estimate; [`NonlinearMediation::consume`]
@@ -26,15 +26,13 @@
 //! dataset by its digest, which [`NonlinearMediation::consume_with`] then needs the caller to
 //! supply.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_estimate::nonlinear_mediation::{
     NONLINEAR_MEDIATION_CALIBRATION, NONLINEAR_MEDIATION_INTERVAL_STATUS,
     NONLINEAR_MEDIATION_MAX_DEGREE, NONLINEAR_MEDIATION_MAX_NODES, NonlinearMediationConfig,
     NonlinearMediationEstimand, NonlinearMediationEstimate, NonlinearMediationPremises,
 };
-#[allow(deprecated, reason = "the retained released name stays reachable")]
-pub use antecedent_io::nonlinear_mediation_artifact::NONLINEAR_MEDIATION_ARTIFACT_MAX_ROWS;
 pub use antecedent_io::nonlinear_mediation_artifact::{
     MediationBootstrapWire, MediationConfigWire, MediationDataWire, MediationMediatorWire,
     MediationModelSpecs, MediationOverlapWire, MediationPremiseRecord, MediationPremisesWire,

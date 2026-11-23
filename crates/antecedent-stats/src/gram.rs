@@ -1,10 +1,106 @@
 //! Form Gram matrices and related dense helpers shared by OLS paths.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+/// Column-major `X` does not cover `nrows * ncols` entries.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GramLayoutError;
+
+impl core::fmt::Display for GramLayoutError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("column-major design is shorter than nrows * ncols")
+    }
+}
+
+/// Column-major design: `ncols` contiguous columns of `nrows` `f64` values.
+///
+/// `form_xtx` writes a row-major `ncols × ncols` Gram. `accumulate_xtx_xty_row`
+/// takes one contiguous design row, which is not this column-major buffer.
+#[derive(Clone, Copy, Debug)]
+pub struct ColumnMajorDesign<'a> {
+    x: &'a [f64],
+    nrows: usize,
+    ncols: usize,
+}
+
+impl<'a> ColumnMajorDesign<'a> {
+    /// Borrow `X` when it holds at least `nrows * ncols` values.
+    ///
+    /// # Errors
+    ///
+    /// `nrows * ncols` overflows or `x` is shorter than that product.
+    pub fn new(x: &'a [f64], nrows: usize, ncols: usize) -> Result<Self, GramLayoutError> {
+        match nrows.checked_mul(ncols) {
+            Some(len) if x.len() >= len => Ok(Self { x, nrows, ncols }),
+            _ => Err(GramLayoutError),
+        }
+    }
+
+    /// Column-major values.
+    #[must_use]
+    pub const fn x(self) -> &'a [f64] {
+        self.x
+    }
+
+    /// Rows in each column.
+    #[must_use]
+    pub const fn nrows(self) -> usize {
+        self.nrows
+    }
+
+    /// Columns.
+    #[must_use]
+    pub const fn ncols(self) -> usize {
+        self.ncols
+    }
+}
+
+/// One contiguous design row for [`accumulate_xtx_xty_row`].
+#[derive(Clone, Copy, Debug)]
+pub struct DesignRow<'a> {
+    values: &'a [f64],
+}
+
+impl<'a> DesignRow<'a> {
+    /// Borrow the row. Its length is the Gram order.
+    #[must_use]
+    pub const fn new(values: &'a [f64]) -> Self {
+        Self { values }
+    }
+
+    /// The row, in column order.
+    #[must_use]
+    pub const fn as_slice(self) -> &'a [f64] {
+        self.values
+    }
+}
 
 /// Fill symmetric `ncols×ncols` `XtX` (row-major) from column-major `X`.
 pub fn form_xtx(x_colmajor: &[f64], nrows: usize, ncols: usize, xtx: &mut [f64]) {
     debug_assert!(xtx.len() >= ncols * ncols);
+    // Borrow both layouts; no n*p packing or p*p result copy. Keep tiny and
+    // skinny products on the reference loop. Explicit serial faer execution
+    // cannot oversubscribe an outer bootstrap/discovery worker.
+    if nrows >= 256 && ncols >= 16 && nrows.saturating_mul(ncols).saturating_mul(ncols) >= 524_288 {
+        let x = faer::MatRef::from_column_major_slice(&x_colmajor[..nrows * ncols], nrows, ncols);
+        let out = faer::MatMut::from_row_major_slice_mut(&mut xtx[..ncols * ncols], ncols, ncols);
+        faer::linalg::matmul::matmul(
+            out,
+            faer::Accum::Replace,
+            x.transpose(),
+            x,
+            1.0,
+            faer::Par::Seq,
+        );
+        // Consumers expect exact symmetry, including under different backend
+        // blocking choices. Both entries represent the same dot product.
+        for i in 0..ncols {
+            for j in i + 1..ncols {
+                xtx[j * ncols + i] = xtx[i * ncols + j];
+            }
+        }
+        return;
+    }
     xtx[..ncols * ncols].fill(0.0);
     accumulate_xtx(x_colmajor, nrows, ncols, xtx);
 }
@@ -26,21 +122,42 @@ pub fn form_xty(x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], xty: 
 
 /// Accumulate `XᵀX` into an existing symmetric Gram (row-major) from column-major `X`.
 ///
-/// Used by incremental OLS sufficient statistics.
+/// Used by incremental OLS sufficient statistics. Each entry is the left-to-right sum of
+/// its row products. Four entries of one Gram row are summed side by side: every entry
+/// keeps its own order of additions, and the four independent sums do not wait on one
+/// another.
 pub(crate) fn accumulate_xtx(x_colmajor: &[f64], nrows: usize, ncols: usize, xtx: &mut [f64]) {
     debug_assert!(xtx.len() >= ncols * ncols);
+    let column = |c: usize| &x_colmajor[c * nrows..(c + 1) * nrows];
+    let mut store = |c1: usize, c2: usize, acc: f64| {
+        xtx[c1 * ncols + c2] += acc;
+        if c1 != c2 {
+            xtx[c2 * ncols + c1] += acc;
+        }
+    };
     for c1 in 0..ncols {
-        for c2 in c1..ncols {
+        let col1 = column(c1);
+        let mut c2 = c1;
+        while c2 + 4 <= ncols {
+            let (a, b, c, d) = (column(c2), column(c2 + 1), column(c2 + 2), column(c2 + 3));
+            let mut acc = [0.0_f64; 4];
+            for ((((&v, &a), &b), &c), &d) in col1.iter().zip(a).zip(b).zip(c).zip(d) {
+                acc[0] += v * a;
+                acc[1] += v * b;
+                acc[2] += v * c;
+                acc[3] += v * d;
+            }
+            for (offset, &acc) in acc.iter().enumerate() {
+                store(c1, c2 + offset, acc);
+            }
+            c2 += 4;
+        }
+        for c2 in c2..ncols {
             let mut acc = 0.0;
-            let col1 = &x_colmajor[c1 * nrows..(c1 + 1) * nrows];
-            let col2 = &x_colmajor[c2 * nrows..(c2 + 1) * nrows];
-            for r in 0..nrows {
-                acc += col1[r] * col2[r];
+            for (&v, &w) in col1.iter().zip(column(c2)) {
+                acc += v * w;
             }
-            xtx[c1 * ncols + c2] += acc;
-            if c1 != c2 {
-                xtx[c2 * ncols + c1] += acc;
-            }
+            store(c1, c2, acc);
         }
     }
 }
@@ -126,6 +243,16 @@ pub fn chol_solve(chol: &[f64], n: usize, b: &[f64]) -> Option<Vec<f64>> {
     Some(x)
 }
 
+/// Solve `A x = b` for SPD `A` (row-major `n×n`) by one Cholesky factorization.
+///
+/// `None` when `A` is not numerically positive definite (the shared relative pivot rule of
+/// [`cholesky_spd`]) or `b` is shorter than `n`.
+#[must_use]
+pub fn solve_spd(a: &[f64], n: usize, b: &[f64]) -> Option<Vec<f64>> {
+    let chol = cholesky_spd(a, n)?;
+    chol_solve(&chol, n, b)
+}
+
 /// Invert a small dense matrix.
 ///
 /// Equilibration and the pivot test are [`antecedent_kernels::invert_square`]:
@@ -141,7 +268,48 @@ pub fn invert_square(a_in: &[f64], ncols: usize) -> Option<Vec<f64>> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn borrowed_blocked_gram_matches_independent_products_and_is_symmetric() {
+        let (n, p) = (1024, 32);
+        let x: Vec<_> = (0..p)
+            .flat_map(|c| {
+                (0..n).map(move |r| {
+                    let scale = if c % 3 == 0 {
+                        1e-6
+                    } else if c % 3 == 1 {
+                        1e6
+                    } else {
+                        1.0
+                    };
+                    scale * ((r as f64 * 0.13 + c as f64).sin() + 0.2)
+                })
+            })
+            .collect();
+        let mut actual = vec![0.0; p * p];
+        super::form_xtx(&x, n, p, &mut actual);
+        for i in 0..p {
+            for j in 0..p {
+                let expected: f64 = (0..n).map(|r| x[i * n + r] * x[j * n + r]).sum();
+                let magnitude: f64 = (0..n).map(|r| (x[i * n + r] * x[j * n + r]).abs()).sum();
+                assert!(
+                    (actual[i * p + j] - expected).abs()
+                        <= 16.0 * n as f64 * f64::EPSILON * magnitude
+                );
+                assert_eq!(actual[i * p + j].to_bits(), actual[j * p + i].to_bits());
+            }
+        }
+    }
     use super::*;
+
+    #[test]
+    fn column_major_design_refuses_a_short_buffer() {
+        let x = [1.0, 2.0, 3.0];
+        assert!(ColumnMajorDesign::new(&x, 2, 2).is_err());
+        let design = ColumnMajorDesign::new(&x, 3, 1).unwrap();
+        assert_eq!(design.nrows(), 3);
+        assert_eq!(design.ncols(), 1);
+        assert_eq!(DesignRow::new(&[1.0, 2.0]).as_slice().len(), 2);
+    }
 
     #[test]
     fn accumulate_row_matches_form_xtx() {

@@ -26,13 +26,16 @@
 //!   independent increments, and the first look at which the statistic
 //!   crosses.
 //!
-//! No result carries an interval or a coverage statement as a claim. Every
-//! guarantee slot is a [`WithheldGuarantee`] that refuses with
-//! `cell_not_licensed` until whole-procedure coverage of the exact procedure
-//! (assignment, outcome structure, monitoring and stopping together) has been
-//! measured. The numerics are in [`antecedent_stats::adaptive_inference`].
+//! The interval constructions ([`BayesianPosterior::credible_interval`],
+//! [`WeightedResult::wald_interval`], the confidence sequences and the repeated
+//! interval of [`crate::adaptive_measured_interval`]) are reported with a calibration
+//! annotation resolved from [`crate::adaptive_measured_interval::calibration_basis`];
+//! calibration annotates and never gates them. The one claim with no construction, the
+//! error rate of a posterior stopping rule, stays a [`UnsupportedClaim`] that refuses
+//! with `estimator_inference_mismatch`. The numerics are in
+//! [`antecedent_stats::adaptive_inference`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_stats::adaptive_inference as numerics;
@@ -49,12 +52,16 @@ pub struct AdaptiveInferenceError {
     pub code: &'static str,
     /// Namespaced detail.
     pub detail: &'static str,
-    /// What was refused and what would license it.
+    /// What was refused and what would support it.
     pub message: String,
 }
 
 impl AdaptiveInferenceError {
-    fn new(code: &'static str, detail: &'static str, message: impl Into<String>) -> Self {
+    pub(crate) fn new(
+        code: &'static str,
+        detail: &'static str,
+        message: impl Into<String>,
+    ) -> Self {
         Self { code, detail, message: message.into() }
     }
 }
@@ -74,11 +81,11 @@ impl std::fmt::Display for AdaptiveInferenceError {
 
 impl std::error::Error for AdaptiveInferenceError {}
 
-fn numeric_error(error: &NumericError) -> AdaptiveInferenceError {
+pub(crate) fn numeric_error(error: &NumericError) -> AdaptiveInferenceError {
     match error {
         NumericError::Positivity { unit, arm, probability, floor } => AdaptiveInferenceError::new(
             antecedent_core::reason_code!("adaptive_assumption_violated"),
-            "adaptive_inference.positivity_floor",
+            antecedent_core::reason_details::adaptive_inference::POSITIVITY_FLOOR,
             format!(
                 "arm {arm} had assignment probability {probability} below the declared floor {floor} at unit {unit}: its inverse-probability score is not supported; declare a clipping policy as its own route or analyse with a route that does not weight by assignment probability"
             ),
@@ -86,12 +93,12 @@ fn numeric_error(error: &NumericError) -> AdaptiveInferenceError {
         NumericError::Cancelled => cancelled(),
         NumericError::Numerical(what) => AdaptiveInferenceError::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "adaptive_inference.numerical_failure",
+            antecedent_core::reason_details::adaptive_inference::NUMERICAL_FAILURE,
             format!("{what}; no value is reported"),
         ),
         other => AdaptiveInferenceError::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "adaptive_inference.input_invalid",
+            antecedent_core::reason_details::adaptive_inference::INPUT_INVALID,
             other.to_string(),
         ),
     }
@@ -100,7 +107,7 @@ fn numeric_error(error: &NumericError) -> AdaptiveInferenceError {
 fn cancelled() -> AdaptiveInferenceError {
     AdaptiveInferenceError::new(
         antecedent_core::reason_code!("cancelled_no_claim"),
-        "adaptive_inference.cancelled",
+        antecedent_core::reason_details::adaptive_inference::CANCELLED,
         "cancelled before a result was formed; this is not a verdict on the data",
     )
 }
@@ -109,21 +116,49 @@ fn check_cancelled(ctx: &ExecutionContext) -> Result<(), AdaptiveInferenceError>
     if ctx.cancellation.is_cancelled() { Err(cancelled()) } else { Ok(()) }
 }
 
-/// A guarantee route that is closed.
+/// The adaptive-inference cancellation refusal, for the sibling choice estimators.
+pub(crate) fn refuse_if_interrupted(ctx: &ExecutionContext) -> Result<(), AdaptiveInferenceError> {
+    check_cancelled(ctx)
+}
+
+/// A claim that is not supported because no construction yields it (the error rate of a posterior
+/// stopping rule; bias-adjusted estimates after stopping). Intervals are not unsupported claims: they
+/// are reported with a calibration annotation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct WithheldGuarantee {
-    /// Always `cell_not_licensed`.
+pub struct UnsupportedClaim {
+    /// The refusal code of the unsupported claim.
     pub code: &'static str,
-    /// Namespaced detail naming the closed claim.
+    /// Namespaced detail naming the unsupported claim.
     pub detail: &'static str,
     /// Calibration reason: `estimator_grid_not_measured`.
     pub reason: &'static str,
 }
 
-impl WithheldGuarantee {
-    fn closed(detail: &'static str) -> Self {
+/// Reliability of a posterior stopping rule: a posterior threshold is a statement about the
+/// posterior, not an error rate of the rule, and no construction yields one.
+fn stopping_reliability_unsupported() -> UnsupportedClaim {
+    UnsupportedClaim {
+        code: antecedent_core::reason_code!("estimator_inference_mismatch"),
+        detail:
+            antecedent_core::reason_details::adaptive_inference::NO_STOPPING_RELIABILITY_PROCEDURE,
+        reason: antecedent_core::reason_code!("estimator_grid_not_measured"),
+    }
+}
+
+impl UnsupportedClaim {
+    /// A claim that no construction yields because the estimator does not implement that
+    /// inference mode.
+    pub(crate) fn mismatch(detail: &'static str) -> Self {
         Self {
-            code: antecedent_core::reason_code!("cell_not_licensed"),
+            code: antecedent_core::reason_code!("estimator_inference_mismatch"),
+            detail,
+            reason: antecedent_core::reason_code!("estimator_grid_not_measured"),
+        }
+    }
+
+    pub(crate) fn unsupported(detail: &'static str) -> Self {
+        Self {
+            code: antecedent_core::reason_code!("route_not_supported"),
             detail,
             reason: antecedent_core::reason_code!("estimator_grid_not_measured"),
         }
@@ -132,13 +167,17 @@ impl WithheldGuarantee {
     /// The refusal a request for the guarantee receives.
     #[must_use]
     pub fn refusal(&self, what: &str) -> AdaptiveInferenceError {
-        AdaptiveInferenceError::new(
-            self.code,
-            self.detail,
+        let message = if self.code == antecedent_core::reason_code!("estimator_inference_mismatch")
+        {
             format!(
-                "{what} is not licensed: whole-procedure coverage of this assignment, outcome structure, monitoring and stopping rule has not been measured; the point values and uncalibrated diagnostics are the result"
-            ),
-        )
+                "{what} is refused: a posterior stopping threshold is a statement about the posterior, not an error rate of the stopping rule, and no construction yields one; the posterior quantities and the decision are the result"
+            )
+        } else {
+            format!(
+                "{what} is not supported: no construction yields it for this assignment, outcome structure, monitoring and stopping rule; the point values and uncalibrated diagnostics are the result"
+            )
+        };
+        AdaptiveInferenceError::new(self.code, self.detail, message)
     }
 }
 
@@ -180,8 +219,6 @@ pub struct BayesianPosterior {
     /// The premise under which the posterior is the same under adaptive
     /// assignment.
     pub premise: &'static str,
-    /// The closed credible-interval and decision-reliability claim.
-    pub guarantee: WithheldGuarantee,
 }
 
 /// Premise of the posterior's validity under adaptive assignment.
@@ -222,12 +259,7 @@ pub fn bayesian_posterior(
             expected_loss,
         })
         .collect();
-    Ok(BayesianPosterior {
-        prior: (prior_alpha, prior_beta),
-        arms,
-        premise: POSTERIOR_PREMISE,
-        guarantee: WithheldGuarantee::closed("adaptive_inference.posterior_interval_closed"),
-    })
+    Ok(BayesianPosterior { prior: (prior_alpha, prior_beta), arms, premise: POSTERIOR_PREMISE })
 }
 
 /// A stopping rule evaluated on a posterior.
@@ -248,6 +280,10 @@ pub enum PosteriorRule {
     },
 }
 
+/// Width of the band inside which two posterior quantities, or a quantity and its threshold, are
+/// read as equal (see [`expected_loss_stopping`]).
+const DECISION_TOLERANCE: f64 = 1e-12;
+
 /// The decision a posterior stopping rule reaches at one look.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StoppingDecision {
@@ -259,8 +295,8 @@ pub struct StoppingDecision {
     pub expected_loss: f64,
     /// Whether the rule says stop.
     pub stop: bool,
-    /// The closed claim about the rule's error rates.
-    pub guarantee: WithheldGuarantee,
+    /// The unsupported claim about the rule's error rates.
+    pub guarantee: UnsupportedClaim,
 }
 
 /// Evaluate a posterior stopping rule.
@@ -280,27 +316,38 @@ pub fn expected_loss_stopping(
     if !valid || posterior.arms.is_empty() {
         return Err(AdaptiveInferenceError::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "adaptive_inference.input_invalid",
+            antecedent_core::reason_details::adaptive_inference::INPUT_INVALID,
             "a posterior rule needs a probability threshold in (0.5, 1) or a positive loss threshold",
         ));
     }
+    // Posterior quantities of small counts are rational numbers that land exactly on round
+    // thresholds and on each other, and the integrals that evaluate them carry about 1e-14 of
+    // rounding, so equal quantities are read as equal: the lowest arm among those within the band
+    // of the largest probability is the best arm, "exceeds" is strict and "below" is strict at
+    // equality.
+    let largest =
+        posterior.arms.iter().map(|arm| arm.probability_best).fold(f64::NEG_INFINITY, f64::max);
     let (best_arm, best) = posterior
         .arms
         .iter()
         .enumerate()
-        .max_by(|(_, a), (_, b)| a.probability_best.total_cmp(&b.probability_best))
+        .find(|(_, arm)| arm.probability_best >= largest - DECISION_TOLERANCE)
         .map(|(index, arm)| (index, *arm))
         .expect("a nonempty posterior has a best arm");
     let stop = match rule {
-        PosteriorRule::ProbabilityBest { threshold } => best.probability_best > threshold,
-        PosteriorRule::ExpectedLoss { loss_threshold } => best.expected_loss < loss_threshold,
+        PosteriorRule::ProbabilityBest { threshold } => {
+            best.probability_best > threshold + DECISION_TOLERANCE
+        }
+        PosteriorRule::ExpectedLoss { loss_threshold } => {
+            best.expected_loss < loss_threshold - DECISION_TOLERANCE
+        }
     };
     Ok(StoppingDecision {
         best_arm,
         probability_best: best.probability_best,
         expected_loss: best.expected_loss,
         stop,
-        guarantee: WithheldGuarantee::closed("adaptive_inference.stopping_reliability_closed"),
+        guarantee: stopping_reliability_unsupported(),
     })
 }
 
@@ -351,8 +398,6 @@ pub struct WeightedResult {
     pub effective_units: f64,
     /// Largest weight as a share of the total.
     pub max_weight_share: f64,
-    /// The closed interval claim.
-    pub guarantee: WithheldGuarantee,
 }
 
 /// Adaptively weighted augmented inverse-probability estimate of an arm mean
@@ -397,7 +442,6 @@ pub fn adaptively_weighted_estimate(
         units: fit.units,
         effective_units: fit.effective_units,
         max_weight_share: fit.max_weight_share,
-        guarantee: WithheldGuarantee::closed("adaptive_inference.interval_closed"),
     })
 }
 
@@ -417,8 +461,6 @@ pub struct SequenceResult {
     pub tuning_samples: f64,
     /// Always `uncalibrated_confidence_sequence`.
     pub label: &'static str,
-    /// The closed whole-procedure guarantee.
-    pub guarantee: WithheldGuarantee,
 }
 
 /// Time-uniform confidence sequences for `[0, 1]`-bounded arm means.
@@ -441,7 +483,7 @@ pub fn anytime_valid_arm_sequences(
     if values_by_arm.iter().flatten().any(|x| !(x.is_finite() && (0.0..=1.0).contains(x))) {
         return Err(AdaptiveInferenceError::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "adaptive_inference.outcome_invalid",
+            antecedent_core::reason_details::adaptive_inference::OUTCOME_INVALID,
             "the confidence sequence is defined for outcomes bounded in [0, 1]; rescale a known-bounded outcome or use a route for unbounded outcomes",
         ));
     }
@@ -450,7 +492,7 @@ pub fn anytime_valid_arm_sequences(
     }) {
         return Err(AdaptiveInferenceError::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "adaptive_inference.input_invalid",
+            antecedent_core::reason_details::adaptive_inference::INPUT_INVALID,
             "a contrast needs two different declared arms",
         ));
     }
@@ -471,7 +513,6 @@ pub fn anytime_valid_arm_sequences(
         arm_alpha,
         tuning_samples,
         label: "uncalibrated_confidence_sequence",
-        guarantee: WithheldGuarantee::closed("adaptive_inference.interval_closed"),
     })
 }
 
@@ -515,9 +556,9 @@ pub struct GroupSequentialResult {
     pub statistics: Vec<f64>,
     /// First look at which the statistic crossed, if any.
     pub stopped_at: Option<usize>,
-    /// The closed claim about bias-adjusted estimates and intervals after
+    /// The unsupported claim about bias-adjusted estimates and intervals after
     /// stopping.
-    pub guarantee: WithheldGuarantee,
+    pub guarantee: UnsupportedClaim,
 }
 
 /// Apply a rule to the standardized statistics of the performed looks.
@@ -540,7 +581,7 @@ pub fn group_sequential_decision(
     {
         return Err(AdaptiveInferenceError::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "adaptive_inference.input_invalid",
+            antecedent_core::reason_details::adaptive_inference::INPUT_INVALID,
             "one finite standardized statistic per performed look, at most the planned looks",
         ));
     }
@@ -555,7 +596,9 @@ pub fn group_sequential_decision(
         spend_increments: boundaries.spend_increments,
         statistics: statistics.to_vec(),
         stopped_at,
-        guarantee: WithheldGuarantee::closed("adaptive_inference.stagewise_adjustment_closed"),
+        guarantee: UnsupportedClaim::unsupported(
+            antecedent_core::reason_details::adaptive_inference::NO_STAGEWISE_ADJUSTMENT_PROCEDURE,
+        ),
     })
 }
 
@@ -572,7 +615,7 @@ pub fn standardized_difference(
     let invalid = |message: &'static str| {
         AdaptiveInferenceError::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "adaptive_inference.input_invalid",
+            antecedent_core::reason_details::adaptive_inference::INPUT_INVALID,
             message,
         )
     };
@@ -597,29 +640,43 @@ pub fn standardized_difference(
     Ok((mt - mc) / standard_error)
 }
 
-// -- calibration-internal candidate intervals ---------------------------------------------------
+// -- intervals ------------------------------------------------------------------------------
 
-/// A nominal Wald interval around an adaptively weighted estimate, for the
-/// calibration harness only. Compiled only with `calibration-internal`.
-#[cfg(feature = "calibration-internal")]
+/// A nominal Wald interval around an adaptively weighted estimate. Its calibration status is
+/// an annotation resolved from the construction's calibration basis.
 #[doc(hidden)]
 #[must_use]
 pub fn weighted_wald_interval_internal(result: &WeightedResult, level: f64) -> Option<(f64, f64)> {
-    crate::adaptive_measured_interval::weighted_wald_interval(
-        result.estimate,
-        result.uncalibrated_variance,
-        level,
-    )
+    result.wald_interval(level)
 }
 
 /// Equal-tailed Beta credible interval of one posterior arm by bisection on
-/// the incomplete beta function, for the calibration harness only.
-/// Compiled only with `calibration-internal`.
-#[cfg(feature = "calibration-internal")]
+/// the incomplete beta function.
 #[doc(hidden)]
 #[must_use]
 pub fn beta_credible_interval_internal(arm: &PosteriorArm, level: f64) -> Option<(f64, f64)> {
     crate::adaptive_measured_interval::beta_credible_interval(arm.alpha, arm.beta, level)
+}
+
+impl PosteriorArm {
+    /// Equal-tailed Beta credible interval of this arm at `level`; `None` for a level outside
+    /// `(0, 1)`.
+    #[must_use]
+    pub fn credible_interval(&self, level: f64) -> Option<(f64, f64)> {
+        crate::adaptive_measured_interval::beta_credible_interval(self.alpha, self.beta, level)
+    }
+}
+
+impl WeightedResult {
+    /// Normal-approximation interval around the weighted estimate at `level`.
+    #[must_use]
+    pub fn wald_interval(&self, level: f64) -> Option<(f64, f64)> {
+        crate::adaptive_measured_interval::weighted_wald_interval(
+            self.estimate,
+            self.uncalibrated_variance,
+            level,
+        )
+    }
 }
 
 #[cfg(test)]

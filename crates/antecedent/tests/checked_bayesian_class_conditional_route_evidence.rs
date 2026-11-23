@@ -1,8 +1,9 @@
 //! Builder-independent evidence for Bayesian conditional effects on static CPDAG and PAG
 //! classes whose every completion identifies the same adjustment target.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, GraphClass, IdentifierId, InferenceMode,
     RefuteSuite, Study,
@@ -175,12 +176,23 @@ fn bayesian_class_conditional_effect_is_sealed_across_lifecycle() {
                     let mut prepared = builder.prepare(&ctx).unwrap();
                     drop(builder);
 
-                    let plan = prepared
-                        .checked_bayesian_class_conditional_info()
-                        .expect("fully identified Bayesian class conditional operation is sealed");
-                    assert!(prepared.checked_conditional_effect_info().is_none(), "{coordinate}");
+                    let RetainedOperation::BayesianClassConditional(plan) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("fully identified Bayesian class conditional operation is sealed")
+                    };
                     assert!(
-                        prepared.checked_bayesian_conditional_operation().is_none(),
+                        !matches!(
+                            prepared.retained_operation(),
+                            RetainedOperation::CheckedConditional(..)
+                        ),
+                        "{coordinate}"
+                    );
+                    assert!(
+                        !matches!(
+                            prepared.retained_operation(),
+                            RetainedOperation::BayesianConditional(..)
+                        ),
                         "{coordinate}"
                     );
                     assert_eq!(plan.graph_class, expected_class, "{coordinate}");
@@ -215,9 +227,10 @@ fn bayesian_class_conditional_effect_is_sealed_across_lifecycle() {
                     );
 
                     let result = prepared.estimate(&original, &ctx).unwrap();
-                    // Independent linear SCM truth: E[2 + 0.5 W] for balanced W = 0..4.
+                    // Independent linear SCM truth: E[2 + 0.5 W] for balanced W = 0..4. The data
+                    // are noise free, so the only gap is prior shrinkage (observed 4.9e-4).
                     assert!(
-                        (result.effect() - 3.0).abs() < 0.2,
+                        (result.effect() - 3.0).abs() < 0.005,
                         "{coordinate}: {}",
                         result.effect()
                     );
@@ -244,17 +257,23 @@ fn bayesian_class_conditional_effect_is_sealed_across_lifecycle() {
                         "{coordinate}: one-shot and prepared clicks must agree bitwise"
                     );
 
-                    let refreshed = prepared.refresh(class_data(0.35), &ctx).unwrap();
-                    assert!((refreshed.effect() - 3.0).abs() < 0.2, "{coordinate}");
-                    let rebound = prepared.checked_bayesian_class_conditional_info().unwrap();
+                    let refreshed = rebind_estimate(&mut prepared, class_data(0.35), &ctx).unwrap();
+                    assert!((refreshed.effect() - 3.0).abs() < 0.005, "{coordinate}");
+                    let RetainedOperation::BayesianClassConditional(rebound) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("retained Bayesian class conditional operation after refresh")
+                    };
                     assert_eq!(rebound.graph_class, plan.graph_class);
                     assert_eq!(rebound.query, plan.query);
                     assert_eq!(rebound.inference, plan.inference);
                     assert_eq!(rebound.adjustment_set, plan.adjustment_set);
                     assert_eq!(rebound.completion_count, plan.completion_count);
+                    let refused = rebind_estimate(&mut prepared, reordered_class_data(), &ctx)
+                        .expect_err("a schema-changing refresh must be refused");
                     assert!(
-                        prepared.refresh(reordered_class_data(), &ctx).is_err(),
-                        "{coordinate}: schema-changing refresh must be refused"
+                        refused.to_string().contains("requires the same schema"),
+                        "{coordinate}: {refused}"
                     );
 
                     let artifact = prepared
@@ -264,7 +283,7 @@ fn bayesian_class_conditional_effect_is_sealed_across_lifecycle() {
                             &ctx,
                         )
                         .unwrap();
-                    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
                     assert!(consumed.contract.is_some());
                     assert!(
                         consumed.acceptance.unresolved.iter().any(|dependency| {
@@ -274,7 +293,7 @@ fn bayesian_class_conditional_effect_is_sealed_across_lifecycle() {
                         "{coordinate}: {:?}",
                         consumed.acceptance.unresolved
                     );
-                    assert!(!consumed.acceptance.accepts_as_verified_program());
+                    assert!(!consumed.acceptance.accepts_as_replayed_program());
                 }
             }
         }
@@ -301,9 +320,12 @@ fn partially_identified_bayesian_class_conditional_effect_is_not_sealed() {
         .unwrap();
     let prepared = builder.prepare(&ctx).unwrap();
     drop(builder);
-    assert!(prepared.checked_bayesian_class_conditional_info().is_none());
-    assert!(prepared.checked_conditional_effect_info().is_none());
-    assert!(prepared.checked_bayesian_conditional_operation().is_none());
+    assert!(!matches!(
+        prepared.retained_operation(),
+        RetainedOperation::BayesianClassConditional(..)
+    ));
+    assert!(!matches!(prepared.retained_operation(), RetainedOperation::CheckedConditional(..)));
+    assert!(!matches!(prepared.retained_operation(), RetainedOperation::BayesianConditional(..)));
 }
 
 /// Class envelopes execute through deep prepare/estimate frames in debug builds.
@@ -315,4 +337,17 @@ fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
         .unwrap()
         .join()
         .unwrap();
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

@@ -34,11 +34,11 @@
 //!   confidence set of a contrast obtained by inverting a stagewise-ordered
 //!   test whose null law is the exact law of the declared procedure.
 //!
-//! Every result carries [`DERIVED_UNMEASURED`]: the method is derived for the
+//! Every result carries [`DERIVED_NOT_MEASURED`]: the method is derived for the
 //! procedure and its law is exact under the stated model, but no coverage of
 //! the method has been measured, so none is claimed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::AdaptiveInferenceError as Error;
 use super::beta_bernoulli::{BetaPosterior, best_arm_probabilities, expected_losses};
@@ -49,7 +49,7 @@ use super::procedure_contract::{
 use super::procedure_law::{OutcomeKernel, ProcedureLaw, TerminalAtom, enumerate_law};
 
 /// Calibration status carried by every result of this module.
-pub const DERIVED_UNMEASURED: &str = "derived_unmeasured";
+pub const DERIVED_NOT_MEASURED: &str = "derived_not_measured";
 /// Most laws one inversion may evaluate.
 pub const MAX_INVERSION_LAWS: usize = 4096;
 
@@ -105,7 +105,7 @@ pub enum EstimandStatement {
 /// Registered reason code of every premise failure raised by [`admit`].
 #[must_use]
 pub fn premise_reason_code() -> &'static str {
-    antecedent_core::reason_code!("cell_not_licensed")
+    antecedent_core::reason_code!("adaptive_assumption_violated")
 }
 
 fn premise(detail: &'static str, message: &'static str) -> Error {
@@ -120,7 +120,7 @@ fn check_paradigm(spec: &ProcedureSpec, paradigm: UncertaintyParadigm) -> Result
         UncertaintyParadigm::BayesianPosterior => {
             if outcome_dependent {
                 return Err(premise(
-                    "adaptive_inference.posterior_premise_outcome_dependent_delay",
+                    antecedent_core::reason_details::adaptive_inference::POSTERIOR_PREMISE_OUTCOME_DEPENDENT_DELAY,
                     "the observed counts alone are not the likelihood when whether an outcome is observed depends on its value",
                 ));
             }
@@ -128,7 +128,7 @@ fn check_paradigm(spec: &ProcedureSpec, paradigm: UncertaintyParadigm) -> Result
         UncertaintyParadigm::DecisionTheoreticStopping => {
             if outcome_dependent {
                 return Err(premise(
-                    "adaptive_inference.posterior_premise_outcome_dependent_delay",
+                    antecedent_core::reason_details::adaptive_inference::POSTERIOR_PREMISE_OUTCOME_DEPENDENT_DELAY,
                     "a posterior expected loss from observed counts is not valid when loss of outcomes depends on their values",
                 ));
             }
@@ -137,7 +137,7 @@ fn check_paradigm(spec: &ProcedureSpec, paradigm: UncertaintyParadigm) -> Result
                 StoppingRule::PosteriorExpectedLoss { .. } | StoppingRule::PosteriorFutility { .. }
             ) {
                 return Err(premise(
-                    "adaptive_inference.rule_mismatch",
+                    antecedent_core::reason_details::adaptive_inference::PARADIGM_RULE_MISMATCH,
                     "decision-theoretic stopping needs a posterior expected-loss or futility rule",
                 ));
             }
@@ -145,19 +145,19 @@ fn check_paradigm(spec: &ProcedureSpec, paradigm: UncertaintyParadigm) -> Result
         UncertaintyParadigm::FrequentistFixedSample => {
             if !fixed {
                 return Err(premise(
-                    "adaptive_inference.fixed_sample_design_adaptive",
+                    antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_DESIGN_ADAPTIVE,
                     "a fixed-sample analysis presumes assignment probabilities fixed in advance",
                 ));
             }
             if !matches!(spec.stopping(), StoppingRule::NoStopping) {
                 return Err(premise(
-                    "adaptive_inference.fixed_sample_data_dependent_stopping",
+                    antecedent_core::reason_details::adaptive_inference::FIXED_SAMPLE_DATA_DEPENDENT_STOPPING,
                     "a fixed-sample analysis presumes a sample size that does not depend on the data",
                 ));
             }
             if outcome_dependent {
                 return Err(premise(
-                    "adaptive_inference.outcome_dependent_delay",
+                    antecedent_core::reason_details::adaptive_inference::OUTCOME_DEPENDENT_DELAY,
                     "outcomes lost depending on their values are not a fixed-sample design",
                 ));
             }
@@ -165,19 +165,19 @@ fn check_paradigm(spec: &ProcedureSpec, paradigm: UncertaintyParadigm) -> Result
         UncertaintyParadigm::FrequentistGroupSequential => {
             if !fixed {
                 return Err(premise(
-                    "adaptive_inference.group_sequential_assignment_adaptive",
+                    antecedent_core::reason_details::adaptive_inference::GROUP_SEQUENTIAL_ASSIGNMENT_ADAPTIVE,
                     "alpha-spending boundaries presume independent increments, which an outcome-adaptive assignment does not have",
                 ));
             }
             if !matches!(spec.stopping(), StoppingRule::WaldBoundaries { .. }) {
                 return Err(premise(
-                    "adaptive_inference.rule_mismatch",
+                    antecedent_core::reason_details::adaptive_inference::PARADIGM_RULE_MISMATCH,
                     "group-sequential inference needs declared boundaries over the looks",
                 ));
             }
             if outcome_dependent {
                 return Err(premise(
-                    "adaptive_inference.outcome_dependent_delay",
+                    antecedent_core::reason_details::adaptive_inference::OUTCOME_DEPENDENT_DELAY,
                     "outcomes lost depending on their values break the independent-increment model",
                 ));
             }
@@ -185,7 +185,7 @@ fn check_paradigm(spec: &ProcedureSpec, paradigm: UncertaintyParadigm) -> Result
         UncertaintyParadigm::FrequentistAdaptiveWeighting => {
             if outcome_dependent {
                 return Err(premise(
-                    "adaptive_inference.outcome_dependent_delay",
+                    antecedent_core::reason_details::adaptive_inference::OUTCOME_DEPENDENT_DELAY,
                     "the weighted scores are not martingale differences when loss of outcomes depends on their values",
                 ));
             }
@@ -193,13 +193,13 @@ fn check_paradigm(spec: &ProcedureSpec, paradigm: UncertaintyParadigm) -> Result
         UncertaintyParadigm::AnytimeValidFrequentist => {
             if outcome_dependent {
                 return Err(premise(
-                    "adaptive_inference.outcome_dependent_delay",
+                    antecedent_core::reason_details::adaptive_inference::OUTCOME_DEPENDENT_DELAY,
                     "the observed outcomes of an arm are not a prefix of an independent sequence when loss depends on their values",
                 ));
             }
             if spec.contexts().len() > 1 {
                 return Err(premise(
-                    "adaptive_inference.anytime_premise_contexts",
+                    antecedent_core::reason_details::adaptive_inference::ANYTIME_PREMISE_CONTEXTS,
                     "an arm's outcomes are not identically distributed when units of different contexts are assigned adaptively",
                 ));
             }
@@ -207,7 +207,7 @@ fn check_paradigm(spec: &ProcedureSpec, paradigm: UncertaintyParadigm) -> Result
         UncertaintyParadigm::WholeProcedureInversion => {
             if spec.contexts().len() > 1 {
                 return Err(premise(
-                    "adaptive_inference.inversion_premise_contexts",
+                    antecedent_core::reason_details::adaptive_inference::INVERSION_PREMISE_CONTEXTS,
                     "inversion is defined for a contrast of arms within one context",
                 ));
             }
@@ -250,7 +250,7 @@ pub struct BayesianReport {
     pub expected_loss: Vec<f64>,
     /// What the posterior is about.
     pub estimand: EstimandStatement,
-    /// Always [`DERIVED_UNMEASURED`].
+    /// Always [`DERIVED_NOT_MEASURED`].
     pub calibration: &'static str,
 }
 
@@ -288,7 +288,7 @@ pub fn bayesian_report(
         probability_best,
         expected_loss,
         estimand,
-        calibration: DERIVED_UNMEASURED,
+        calibration: DERIVED_NOT_MEASURED,
     })
 }
 
@@ -530,7 +530,7 @@ pub struct DecisionReport {
     /// Expected regret `E[(max_a theta_a - theta_decided) 1{decided}]`; an
     /// undecided run contributes zero and is reported separately.
     pub expected_regret: f64,
-    /// Always [`DERIVED_UNMEASURED`].
+    /// Always [`DERIVED_NOT_MEASURED`].
     pub calibration: &'static str,
 }
 
@@ -571,7 +571,7 @@ pub fn decision_report(
         undecided_probability: undecided,
         wrong_decision_probability: wrong,
         expected_regret: regret,
-        calibration: DERIVED_UNMEASURED,
+        calibration: DERIVED_NOT_MEASURED,
     })
 }
 
@@ -601,7 +601,7 @@ pub struct AnytimeReport {
     pub alpha_per_cell: f64,
     /// What the bounds are about.
     pub estimand: EstimandStatement,
-    /// Always [`DERIVED_UNMEASURED`].
+    /// Always [`DERIVED_NOT_MEASURED`].
     pub calibration: &'static str,
 }
 
@@ -642,7 +642,7 @@ pub fn anytime_valid_report(
             upper: (mean + radius).min(1.0),
         });
     }
-    Ok(AnytimeReport { bounds, alpha_per_cell, estimand, calibration: DERIVED_UNMEASURED })
+    Ok(AnytimeReport { bounds, alpha_per_cell, estimand, calibration: DERIVED_NOT_MEASURED })
 }
 
 /// Exact probability, under the success probabilities `truth` (one per
@@ -833,7 +833,7 @@ pub struct InversionInterval {
     pub upper: Option<f64>,
     /// Laws evaluated (observed work).
     pub laws_evaluated: usize,
-    /// Always [`DERIVED_UNMEASURED`]: exact for the declared grid and
+    /// Always [`DERIVED_NOT_MEASURED`]: exact for the declared grid and
     /// procedure, with no measured coverage.
     pub calibration: &'static str,
 }
@@ -910,6 +910,6 @@ pub fn inversion_interval(
         upper: accepted.last().copied(),
         accepted,
         laws_evaluated: evaluated,
-        calibration: DERIVED_UNMEASURED,
+        calibration: DERIVED_NOT_MEASURED,
     })
 }

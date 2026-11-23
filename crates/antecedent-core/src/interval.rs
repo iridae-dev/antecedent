@@ -27,11 +27,13 @@ pub enum IntervalMethod {
     AndersonRubin,
     /// No interval was formed.
     None,
+    /// Symmetric credible interval formed from posterior absolute deviations about the estimate.
+    PosteriorAbsoluteDeviation,
 }
 
 impl IntervalMethod {
     /// Closed set of methods. A new variant fails calibration tests until listed.
-    pub const ALL: [IntervalMethod; 9] = [
+    pub const ALL: [IntervalMethod; 10] = [
         Self::AnalyticSe,
         Self::BootstrapSe,
         Self::PosteriorQuantile,
@@ -41,6 +43,7 @@ impl IntervalMethod {
         Self::SimultaneousBand,
         Self::AndersonRubin,
         Self::None,
+        Self::PosteriorAbsoluteDeviation,
     ];
 
     /// Stable `snake_case` name.
@@ -50,6 +53,7 @@ impl IntervalMethod {
             Self::AnalyticSe => "analytic_se",
             Self::BootstrapSe => "bootstrap_se",
             Self::PosteriorQuantile => "posterior_quantile",
+            Self::PosteriorAbsoluteDeviation => "posterior_absolute_deviation",
             Self::UnitPosteriorQuantile => "unit_posterior_quantile",
             Self::IdentifiedSet => "identified_set",
             Self::CircularBlockSe => "circular_block_se",

@@ -1,6 +1,6 @@
 //! Shared DML-AIPW / DR-Learner recalculation against finite structural truth.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_estimate::ScoreTable;
@@ -72,7 +72,7 @@ fn original_engine(
     } else {
         builder.estimator(DmlAte::new().with_outcome(learner).with_folds(4)).build().unwrap()
     };
-    study.run(&ctx()).unwrap().estimate.as_effect().unwrap().clone()
+    study.run(&ctx()).unwrap().estimate().as_effect().unwrap().clone()
 }
 
 #[test]
@@ -93,7 +93,7 @@ fn dr_existing_score_sources_match_heterogeneous_structural_truth() {
             .iter()
             .zip(table.column(1).unwrap().iter().zip(table.column(0).unwrap()).map(|(a, c)| a - c))
         {
-            close(score, 2.0 + 0.5 * columns[2].1[usize::try_from(*row).unwrap()]);
+            close(score, 2.0 + 0.5 * columns[2].1[usize::try_from(row.get()).unwrap()]);
         }
         if dr {
             let fitted = original.heterogeneity.fitted_effect.as_ref().unwrap();
@@ -117,7 +117,7 @@ fn request(dr: bool) -> antecedent::analysis::recalc_dr::DrRequest {
     use antecedent_learn::{LearnerSpec, LinearSpec};
     let outcome = LearnerSpec::Linear(LinearSpec::default());
     DrRequest {
-        columns: columns(),
+        columns: columns().into(),
         edges: vec![(2, 0), (2, 1), (0, 1)],
         treatment: 0,
         outcome: 1,
@@ -231,26 +231,82 @@ fn dr_cate_predictions_reuse_portable_final_model_and_validate_feature_schema() 
     close(predicted[1], 2.5);
     assert_eq!(predicted, independent);
     let artifact = session.export_predictor_result(&ctx()).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
-    assert!(consumed.acceptance.accepts_as_verified_program());
+    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
+    // The serialized predictor remains usable for model-point inference, but
+    // this body does not independently replay the fitted causal estimator.
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
+    assert!(!consumed.acceptance.replayed_references);
+    assert!(
+        consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| reason.as_ref() == "dependencies.checked_estimator_operation"),
+        "{:?}",
+        consumed.acceptance.unresolved
+    );
+    let source_columns = columns();
+    let source = antecedent_data::TabularData::from_f64_columns(
+        source_columns.iter().map(|(name, values)| (name.as_str(), values.as_slice())),
+    )
+    .unwrap();
+    let sourced = session.export_predictor_result_with_source(&source, &ctx()).unwrap();
+    let verified = antecedent_io::replay_analysis_result(&sourced).unwrap();
+    assert!(verified.acceptance.accepts_as_replayed_program(), "{:?}", verified.acceptance);
+    assert!(verified.acceptance.replayed_references);
+    let mut changed_columns = source_columns.clone();
+    changed_columns[1].1[0] += 1.0;
+    let changed = antecedent_data::TabularData::from_f64_columns(
+        changed_columns.iter().map(|(name, values)| (name.as_str(), values.as_slice())),
+    )
+    .unwrap();
+    assert!(matches!(
+        session.export_predictor_result_with_source(&changed, &ctx()),
+        Err(antecedent::analysis::recalc_receipt::RecalcRunError::Execution(
+            antecedent::CausalError::Conflict { what: "source", .. }
+        ))
+    ));
+    let cancelled = ctx();
+    cancelled.cancellation.cancel();
+    assert!(matches!(
+        session.export_predictor_result_with_source(&source, &cancelled),
+        Err(antecedent::analysis::recalc_receipt::RecalcRunError::Execution(
+            antecedent::CausalError::Cancelled { .. }
+        ))
+    ));
     let model = consumed.body.fitted_effect.unwrap();
     let (replayed, actual_fits) = antecedent_learn::fit_counts::observe_resolved_fits(|| {
         model.predict(&[VariableId::from_raw(2)], &[&[-1.0, 1.0]], 2, &ctx()).unwrap()
     });
     assert_eq!(actual_fits, 0);
     assert_eq!(replayed, predicted);
-    assert!(session.predict(&[VariableId::from_raw(0)], &[&[-1.0, 1.0]], 2, &ctx()).is_err());
-    assert!(session.predict(&[VariableId::from_raw(2)], &[&[f64::NAN]], 1, &ctx()).is_err());
+    assert_eq!(
+        session
+            .predict(&[VariableId::from_raw(0)], &[&[-1.0, 1.0]], 2, &ctx())
+            .unwrap_err()
+            .to_string(),
+        antecedent_core::reason_details::recalc::DR_PREDICTION_SCHEMA_MISMATCH
+    );
+    assert_eq!(
+        session
+            .predict(&[VariableId::from_raw(2)], &[&[f64::NAN]], 1, &ctx())
+            .unwrap_err()
+            .to_string(),
+        antecedent_core::reason_details::recalc::DR_PREDICTION_SCHEMA_MISMATCH
+    );
     assert!(matches!(
         session.predict(&[VariableId::from_raw(2)], &[&[2.0]], 1, &ctx()),
         Err(antecedent::analysis::recalc_receipt::RecalcRunError::Request(
-            "recalc.dr_prediction_out_of_support"
+            antecedent::analysis::recalc_receipt::RecalcRequestCode::DrPredictionOutOfSupport
         ))
     ));
     assert_eq!(run(&mut session, &request(true)).receipt.totals().total(), 0);
     let mut dml = DrSession::new();
     run(&mut dml, &request(false));
-    assert!(dml.predict(&[VariableId::from_raw(2)], &[&[0.0]], 1, &ctx()).is_err());
+    assert_eq!(
+        dml.predict(&[VariableId::from_raw(2)], &[&[0.0]], 1, &ctx()).unwrap_err().to_string(),
+        antecedent_core::reason_details::recalc::DR_PREDICTOR_UNAVAILABLE
+    );
 }
 
 fn check_portable_retarget(
@@ -266,11 +322,9 @@ fn check_portable_retarget(
     let weights: Vec<f64> = table
         .row_index
         .iter()
-        .map(
-            |row| {
-                if request.columns[2].1[usize::try_from(*row).unwrap()] > 0.0 { 3.0 } else { 1.0 }
-            },
-        )
+        .map(|row| {
+            if request.columns[2].1[usize::try_from(row.get()).unwrap()] > 0.0 { 3.0 } else { 1.0 }
+        })
         .collect();
     let mut portable = ScoreResumeSession::resume_from_scores(restored).unwrap();
     let mut resume_request = ScoreResumeRequest {
@@ -280,7 +334,7 @@ fn check_portable_retarget(
             weights: weights.clone(),
             depends_on: vec![VariableId::from_raw(2)],
         }),
-        target_row_ids: Some(table.row_index.to_vec()),
+        target_row_ids: Some(table.row_index.iter().map(|id| id.get()).collect()),
         utility: request.utility,
         quantity: ScoreQuantity::AverageEffect,
         changed_inputs: Vec::new(),
@@ -326,7 +380,10 @@ fn dr_complete_case_rows_frozen_scores_and_fresh_refit_are_bound_to_real_data() 
         let first = run(&mut session, &request);
         let table = session.score_table().unwrap();
         assert_eq!(table.n_rows, 159);
-        assert_eq!(table.row_index.as_ref(), &(1..160).collect::<Vec<u32>>());
+        assert_eq!(
+            table.row_index.iter().map(|id| id.get()).collect::<Vec<_>>(),
+            (1..160u64).collect::<Vec<_>>()
+        );
         close(first.law.ate, 2.0 + 0.5 / 159.0);
         let exported = session.export_scores().unwrap();
         let bytes = exported.to_bytes("dr-complete-cases").unwrap();
@@ -348,13 +405,15 @@ fn dr_complete_case_rows_frozen_scores_and_fresh_refit_are_bound_to_real_data() 
             },
         );
         assert!(!unavailable.is_live());
-        assert!(
+        assert_eq!(
             antecedent::analysis::recalc_dr::execute_dr_with_receipt(
                 &mut unavailable,
                 &request,
                 &ctx()
             )
-            .is_err()
+            .unwrap_err()
+            .to_string(),
+            "recalculation refused at data_snapshot: recalc.unavailable_data"
         );
         let mut raw = DrSession::resume(
             session.identities().clone(),
@@ -406,7 +465,7 @@ fn assert_unpopulated_arm(error: &antecedent::analysis::recalc_receipt::RecalcRu
         panic!("expected executing arm refusal: {error:?}");
     };
     assert!(
-        matches!(causal.peeled(), antecedent::CausalError::Estimate(antecedent_estimate::EstimationError::Refused { code: "arm_not_populated", message }) if message.contains("dml.arm_not_populated"))
+        matches!(causal.peeled(), antecedent::CausalError::Estimate(antecedent_estimate::EstimationError::Refused { code: "arm_not_populated", message }) if message.contains(antecedent_core::reason_details::dml::ARM_NOT_POPULATED))
     );
 }
 
@@ -432,7 +491,7 @@ fn dr_plr_target_cancellation_and_invalid_refits_cannot_reuse_an_aipw_law() {
     assert!(matches!(
         error,
         antecedent::analysis::recalc_receipt::RecalcRunError::Request(
-            "recalc.invalid_target_weights"
+            antecedent::analysis::recalc_receipt::RecalcRequestCode::InvalidTargetWeights
         )
     ));
     invalid = original.clone();
@@ -448,11 +507,11 @@ fn dr_plr_target_cancellation_and_invalid_refits_cannot_reuse_an_aipw_law() {
     let cancelled = ctx();
     cancelled.cancellation.cancel();
     let error = fails_without_fits(&mut session, &original, &cancelled);
-    assert!(error.to_string().contains("recalc.cancelled"));
+    assert!(error.to_string().contains(antecedent_core::reason_details::recalc::CANCELLED));
     invalid = original.clone();
     invalid.columns[1].1[0] += 0.1;
     let mut constrained = ctx();
-    constrained.memory.hard_limit_bytes = Some(1);
+    constrained.set_memory_limit(Some(1));
     let _ = fails_without_fits(&mut session, &invalid, &constrained);
     invalid = original.clone();
     invalid.columns[0].1.fill(0.0); // No treated arm: no cross-fitted treatment contrast.
@@ -479,20 +538,19 @@ fn dr_complete_case_retarget_uses_retained_row_ids_and_checked_adjustment() {
         request.columns[1].1[0] = f64::NAN;
         let mut session = DrSession::new();
         run(&mut session, &request);
-        let weights: Vec<f64> =
-            session
-                .score_table()
-                .unwrap()
-                .row_index
-                .iter()
-                .map(|row| {
-                    if request.columns[2].1[usize::try_from(*row).unwrap()] > 0.0 {
-                        3.0
-                    } else {
-                        1.0
-                    }
-                })
-                .collect();
+        let weights: Vec<f64> = session
+            .score_table()
+            .unwrap()
+            .row_index
+            .iter()
+            .map(|row| {
+                if request.columns[2].1[usize::try_from(row.get()).unwrap()] > 0.0 {
+                    3.0
+                } else {
+                    1.0
+                }
+            })
+            .collect();
         request.target = Some(TargetWeights {
             weights: weights.clone(),
             depends_on: vec![VariableId::from_raw(2)],
@@ -544,7 +602,7 @@ fn dr_receipt_independent_reader_preserves_executed_counts_and_identity() {
     let artifact = RecalcReceiptArtifact::seal(
         &StageIdentities::new(),
         session.identities(),
-        &RecalcCapabilities::in_process(RetargetSupport::Licensed),
+        &RecalcCapabilities::in_process(RetargetSupport::Supported),
         &counts,
     )
     .unwrap();
@@ -585,7 +643,7 @@ fn bundle_receipt_bytes(
     RecalcReceiptArtifact::seal(
         &StageIdentities::new(),
         session.identities(),
-        &RecalcCapabilities::in_process(RetargetSupport::Licensed),
+        &RecalcCapabilities::in_process(RetargetSupport::Supported),
         &counts,
     )
     .unwrap()
@@ -676,4 +734,43 @@ fn dr_bundle_refuses_same_snapshot_scores_from_another_executed_fit() {
         NodeStatus::Failed { stage: BundleStage::SwappedEvidence, .. }
     ));
     assert!(consumed.require_verified().is_err());
+}
+
+/// The study fits on the columns its roles use; a column no role reads sits first, so every
+/// used column's id inside the fit differs from the id the request names.
+#[test]
+fn dr_recalc_names_the_requests_own_ids_with_an_unused_leading_column() {
+    use antecedent::analysis::recalc_dr::DrSession;
+    use antecedent::analysis::recalc_receipt::TargetWeights;
+    const T: u32 = 1;
+    const Z: u32 = 3;
+    let mut request = request(true);
+    let mut shifted = vec![(
+        "unused".to_string(),
+        (0..request.columns.n_rows()).map(|row| f64::from(u32::try_from(row).unwrap())).collect(),
+    )];
+    shifted.extend(columns());
+    request.columns = shifted.into();
+    request.edges = vec![(Z, T), (Z, 2), (T, 2)];
+    request.treatment = T;
+    request.outcome = 2;
+
+    let mut session = DrSession::new();
+    let first = run(&mut session, &request);
+    close(first.law.ate, 2.0);
+
+    let table = session.score_table().unwrap();
+    assert_eq!(table.treatment, VariableId::from_raw(T));
+    assert_eq!(&*table.adjustment_set, &[VariableId::from_raw(Z)]);
+    assert_eq!(session.fitted_effect().unwrap().features, vec![Z]);
+    assert_eq!(session.prediction_columns().unwrap(), vec!["z"]);
+    let predicted =
+        session.predict(&[VariableId::from_raw(Z)], &[&[-1.0, 1.0]], 2, &ctx()).unwrap();
+    close(predicted[0], 1.5);
+    close(predicted[1], 2.5);
+
+    let weights: Vec<f64> =
+        request.columns[3].1.iter().map(|z| if *z > 0.0 { 3.0 } else { 1.0 }).collect();
+    request.target = Some(TargetWeights { weights, depends_on: vec![VariableId::from_raw(Z)] });
+    close(run(&mut session, &request).law.ate, 2.25);
 }

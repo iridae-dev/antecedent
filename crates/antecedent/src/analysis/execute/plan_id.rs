@@ -3,13 +3,19 @@
 //! [`PlanId::as_str`] is the historical wire string. The enum is the source of
 //! those ids so a new route cannot invent a literal beside this table.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Logical-plan id written on a compiled record.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub(crate) enum PlanId {
     /// Static ADMG interventional distribution.
     StaticAdmgDistribution,
+    /// Path-restricted natural effect (or natural direct effect) on a static ADMG.
+    StaticAdmgPathSpecific,
+    /// Path-restricted natural effect (or natural direct effect) over the completions of a static CPDAG.
+    StaticCpdagPathSpecific,
+    /// Path-restricted natural effect (or natural direct effect) over the ADMGs a static PAG leaves open.
+    StaticPagPathSpecific,
     /// Static DAG conditional effect.
     StaticConditional,
     /// Static CPDAG conditional effect.
@@ -46,10 +52,32 @@ pub(crate) enum PlanId {
     LongitudinalSequentialDrRegime,
     /// Longitudinal marginal structural model.
     LongitudinalMarginalStructuralModel,
+    /// Bayesian posterior of a binary policy value.
+    BayesianPolicyValue,
+    /// Bayesian posterior of a sequential regime value.
+    BayesianSequentialRegimeValue,
+    /// Within-period history-matched contrast.
+    PeriodHistoryMatching,
+    /// Bayesian outcome-model effect on the treated of a period-and-history design.
+    BayesianPeriodHistoryOutcomeModel,
+    /// Normal interval of the observational sequential contrast.
+    SequentialCrossfitContrastWald,
+    /// Modular posterior of the observational sequential contrast.
+    BayesianSequentialCrossfitContrast,
+    /// Bayesian piecewise-exponential survival posterior.
+    BayesianPiecewiseSurvival,
+    /// Bayesian group-polynomial dose policy posterior.
+    BayesianDosePolicy,
+    /// Counterfactual on a static ADMG, PAG or CPDAG.
+    StaticClassCounterfactual,
     /// GCM tabular query.
     GcmQuery,
     /// GCM temporal query.
     GcmTemporalQuery,
+    /// GCM tabular query over the members of a structure class.
+    GcmClassQuery,
+    /// GCM temporal query over the members of a temporal structure class.
+    GcmTemporalClassQuery,
     /// Temporal CPDAG cross-world.
     TemporalCpdagCrossWorld,
     /// Temporal PAG cross-world.
@@ -58,6 +86,12 @@ pub(crate) enum PlanId {
     TemporalCrossWorldLinear,
     /// Static ADMG average effect.
     StaticAdmgAte,
+    /// Pulse, sustained or conditional contrast on a temporal ADMG, on its unrolled window.
+    TemporalAdmgContrast,
+    /// Natural mediation on the unrolled window of a temporal ADMG.
+    TemporalAdmgMediation,
+    /// Natural mediation on the unfolded window of a temporal PAG.
+    TemporalPagMediation,
     /// Temporal CPDAG effect.
     TemporalCpdagEffect,
     /// Temporal PAG effect.
@@ -74,6 +108,37 @@ pub(crate) enum PlanId {
     PanelClassResponse,
     /// Static ADMG response.
     StaticAdmgResponse,
+    /// Static ADMG conditional effect.
+    StaticAdmgConditional,
+    /// Static structure search.
+    StructureDiscovery,
+    /// Temporal structure search (series, panel or multi-environment).
+    TemporalStructureDiscovery,
+    /// Attribution on a fitted structural model.
+    GcmAttribute,
+    /// Simulation on a fitted structural model.
+    GcmSimulate,
+    /// Excursion contrasts of a sequentially randomized unit-period design.
+    TemporalDesignExcursion,
+    /// Posterior of the excursion contrasts of a sequentially randomized design.
+    BayesianTemporalDesignExcursion,
+    /// Inverse-probability weighted regime survival on subject trajectories.
+    TemporalRegimeSurvival,
+    /// Joint-likelihood posterior of regime survival on subject trajectories.
+    BayesianTemporalRegimeSurvival,
+    /// Sharp bounds on the average effect under a binary instrument.
+    IvBoundsSharp,
+    /// Bayesian-bootstrap posterior of the same bounds' endpoints.
+    BayesianIvBounds,
+    /// Frequentist noncausal association: a stratified law, regression, correlation or
+    /// scored predictive model picked by the declared selection rule.
+    Association,
+    /// Bayesian reading of the same association.
+    BayesianAssociation,
+    /// Mediation, path-restricted or natural direct effect over a graph posterior's atoms.
+    GraphPosteriorCrossWorld,
+    /// Anomaly or change attribution over a graph posterior's atoms.
+    GraphPosteriorAttribution,
 }
 
 impl PlanId {
@@ -82,6 +147,9 @@ impl PlanId {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::StaticAdmgDistribution => "static_admg_distribution",
+            Self::StaticAdmgPathSpecific => "static_admg_path_specific",
+            Self::StaticCpdagPathSpecific => "static_cpdag_path_specific",
+            Self::StaticPagPathSpecific => "static_pag_path_specific",
             Self::StaticConditional => "static_conditional",
             Self::StaticCpdagConditional => "static_cpdag_conditional",
             Self::StaticPagConditional => "static_pag_conditional",
@@ -100,12 +168,26 @@ impl PlanId {
             Self::LongitudinalGFormulaRegime => "longitudinal.g_formula_regime",
             Self::LongitudinalSequentialDrRegime => "longitudinal.sequential_dr_regime",
             Self::LongitudinalMarginalStructuralModel => "longitudinal.marginal_structural_model",
+            Self::BayesianPolicyValue => "bayesian_policy_value",
+            Self::BayesianPiecewiseSurvival => "bayesian_piecewise_survival",
+            Self::BayesianDosePolicy => "bayesian_dose_policy",
+            Self::BayesianSequentialRegimeValue => "bayesian.sequential_regime_value",
+            Self::PeriodHistoryMatching => "matching.period_history_contrast",
+            Self::BayesianPeriodHistoryOutcomeModel => "bayesian.period_history_outcome_model",
+            Self::SequentialCrossfitContrastWald => "sequential.crossfit_contrast.wald",
+            Self::BayesianSequentialCrossfitContrast => "bayesian.sequential_crossfit_contrast",
+            Self::StaticClassCounterfactual => "static_class_counterfactual",
             Self::GcmQuery => "gcm_query",
             Self::GcmTemporalQuery => "gcm_temporal_query",
+            Self::GcmClassQuery => "gcm_class_query",
+            Self::GcmTemporalClassQuery => "gcm_temporal_class_query",
             Self::TemporalCpdagCrossWorld => "temporal_cpdag_cross_world",
             Self::TemporalPagCrossWorld => "temporal_pag_cross_world",
             Self::TemporalCrossWorldLinear => "temporal.cross_world.linear",
             Self::StaticAdmgAte => "static_admg_ate",
+            Self::TemporalAdmgContrast => "temporal_admg_contrast",
+            Self::TemporalAdmgMediation => "temporal_admg_mediation",
+            Self::TemporalPagMediation => "temporal_pag_mediation",
             Self::TemporalCpdagEffect => "temporal_cpdag_effect",
             Self::TemporalPagEffect => "temporal_pag_effect",
             Self::PanelCpdagEffect => "panel_cpdag_effect",
@@ -114,6 +196,21 @@ impl PlanId {
             Self::PanelPagResponse => "panel_pag_response",
             Self::PanelClassResponse => "panel_class_response",
             Self::StaticAdmgResponse => "static_admg_response",
+            Self::StaticAdmgConditional => "static_admg_conditional",
+            Self::StructureDiscovery => "structure_discovery",
+            Self::TemporalStructureDiscovery => "temporal_structure_discovery",
+            Self::GcmAttribute => "gcm_attribute",
+            Self::GcmSimulate => "gcm_simulate",
+            Self::TemporalDesignExcursion => "temporal_design.excursion",
+            Self::BayesianTemporalDesignExcursion => "bayesian.temporal_design.excursion",
+            Self::TemporalRegimeSurvival => "temporal_design.regime_survival",
+            Self::BayesianTemporalRegimeSurvival => "bayesian.temporal_design.regime_survival",
+            Self::IvBoundsSharp => "iv_bounds.balke_pearl",
+            Self::BayesianIvBounds => "bayesian.iv_bounds.endpoint_bootstrap",
+            Self::Association => "association.descriptive",
+            Self::BayesianAssociation => "bayesian.association.descriptive",
+            Self::GraphPosteriorCrossWorld => "graph_posterior_cross_world",
+            Self::GraphPosteriorAttribution => "graph_posterior_attribution",
         }
     }
 }

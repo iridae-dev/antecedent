@@ -10,7 +10,7 @@
 //! A consumer reconstructs every numerical output from bound premises.
 //! Digests bind declarations, not the authenticity of supplied observations.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::{
     IoError,
@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 
 /// Frozen Bayesian envelope version (separate from the original point artifact).
 pub const VERSION: u32 = 1;
-/// Internal posterior artifact marker, never licensed public inference.
+/// Internal posterior artifact marker, never supported public inference.
 pub const FEATURE: &str = "binary_verma_continuous_beta_slice_posterior_internal_v1";
 /// Exact declared sampling model.
 pub const SAMPLING: &str = "iid_multinomial_integer_counts_correctly_specified_verma_nested_markov";
@@ -82,7 +82,7 @@ pub struct Artifact {
     pub coordinates: Vec<String>,
     /// Declared sampling assumption.
     pub sampling: String,
-    /// Original candidate standing remains unmeasured; a distinct outer envelope resolves scalar authority.
+    /// Original candidate standing remains `not_measured`; a distinct outer envelope resolves scalar authority.
     pub calibration: String,
     /// Inferential standing, distinct from nonparametric identification.
     pub inference: String,
@@ -159,7 +159,7 @@ pub enum BayesianFunctional {
 impl Artifact {
     /// Actual candidate construction for its own later calibration suite.
     /// Prior families and frozen numerical settings are read from this receipt;
-    /// unmeasured variants cannot borrow a different prior/settings record.
+    /// `not_measured` variants cannot borrow a different prior/settings record.
     #[must_use]
     pub fn calibration_basis(
         &self,
@@ -184,7 +184,7 @@ impl Artifact {
         } else if fixed && all_shapes(2.0) {
             "continuous_truncated_beta_mobius_beta2"
         } else {
-            "continuous_truncated_beta_mobius_declared_unmeasured"
+            "continuous_truncated_beta_mobius_declared_not_measured"
         };
         #[allow(
             clippy::cast_possible_truncation,
@@ -214,6 +214,7 @@ impl Artifact {
             u32::try_from(self.posterior.samples.len()).ok(),
             0.0,
         )
+        .with_validation("not_applicable")
     }
 
     /// Bind a checked point pilot and fit the independent continuous posterior.
@@ -237,8 +238,8 @@ impl Artifact {
             rng: nested_markov_bayesian::RNG.into(),
             coordinates: nested_markov_bayesian::COORDINATES.iter().map(|s| (*s).into()).collect(),
             sampling: SAMPLING.into(),
-            calibration: "unmeasured".into(),
-            inference: "posterior_candidate_withheld_calibration_unmeasured".into(),
+            calibration: "not_measured".into(),
+            inference: "posterior_candidate_withheld_calibration_not_measured".into(),
             point,
             prior,
             options,
@@ -290,8 +291,8 @@ impl Artifact {
             || wire.rng != nested_markov_bayesian::RNG
             || wire.coordinates != nested_markov_bayesian::COORDINATES
             || wire.sampling != SAMPLING
-            || wire.calibration != "unmeasured"
-            || wire.inference != "posterior_candidate_withheld_calibration_unmeasured"
+            || wire.calibration != "not_measured"
+            || wire.inference != "posterior_candidate_withheld_calibration_not_measured"
         {
             return Err(invalid("unsupported format or inferential standing"));
         }

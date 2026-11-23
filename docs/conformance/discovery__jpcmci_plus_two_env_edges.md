@@ -9,4 +9,4 @@ Space-dummy multivariate CI parity: `conformance/discovery/jpcmci_plus_two_env_s
 
 ## Expected summary
 
-Top-level keys: `algorithm_id, alpha, fdr, include_space_dummy, max_lag, min_lag, n_envs, n_per_env, notes, reference, tolerance_class, true_parents, var_names` (13 fields).
+Top-level keys: `algorithm_id, alpha, evidence_kind, evidence_proposition, evidence_roles, evidence_source, fdr, include_space_dummy, limitations, max_lag, min_lag, n_envs, n_per_env, notes, oracle, reference, tolerance_class, true_parents, var_names` (19 fields).

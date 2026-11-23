@@ -23,5 +23,5 @@ identification probability, effect-width, decision utility) and an embeddable
 
 ## Consequences
 
-`scripts/gate_design_state.sh` gates inventory honesty, conformance pins, and
+`scripts/check_parity_inventories.py` gates inventory honesty, conformance pins, and
 criterion smokes. deferral #2 is resolved.

@@ -1,12 +1,13 @@
 //! Partial ancestral graphs (PAGs) with circle marks.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::{Arc, OnceLock};
 
 use antecedent_core::VariableId;
 
 use crate::admg::Admg;
+use crate::directed::StaticLabels;
 use crate::error::GraphError;
 use crate::marked_storage::{self, AdjEntry};
 use crate::types::{DenseNodeId, Endpoint, MarkedEdge, MiddleMark, NodeRef};
@@ -50,6 +51,7 @@ pub(crate) struct DescendantMemo {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Pag {
     nodes: Vec<NodeRef>,
+    static_labels: StaticLabels,
     adj: Vec<Vec<AdjEntry>>,
     members: ClassMembersCache,
 }
@@ -58,17 +60,53 @@ impl Pag {
     /// Empty PAG.
     #[must_use]
     pub fn empty() -> Self {
-        Self { nodes: Vec::new(), adj: Vec::new(), members: ClassMembersCache::default() }
+        Self {
+            nodes: Vec::new(),
+            static_labels: StaticLabels::default(),
+            adj: Vec::new(),
+            members: ClassMembersCache::default(),
+        }
     }
 
     /// One [`NodeRef::Unfolded`] node per slot of `indexer`, in dense order.
+    /// The returned owner and its clones share the graph and admission lease.
     ///
     /// # Errors
+    /// Cancellation, temporal limits, admission, or invalid coordinates.
+    pub fn from_unfolding(
+        indexer: &antecedent_core::TemporalIndexer,
+    ) -> Result<crate::unfold_pag::UnfoldedTemporalPag, GraphError> {
+        crate::temporal_pag::TemporalPag::empty().unfold(indexer.clone())
+    }
+
+    /// Construct the same admitted window under the caller's context and cumulative budget.
     ///
-    /// Window larger than the node-id space.
-    pub fn from_unfolding(indexer: &antecedent_core::TemporalIndexer) -> Result<Self, GraphError> {
+    /// # Errors
+    /// Cancellation, temporal limits, admission, or invalid coordinates.
+    pub fn from_unfolding_within(
+        indexer: &antecedent_core::TemporalIndexer,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<crate::unfold_pag::UnfoldedTemporalPag, GraphError> {
+        crate::temporal_pag::TemporalPag::empty().unfold_within(indexer.clone(), budget, ctx)
+    }
+
+    /// Build inside `TemporalPag::unfold_within` after it has admitted this allocation.
+    pub(crate) fn from_unfolding_admitted(
+        indexer: &antecedent_core::TemporalIndexer,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, GraphError> {
+        use antecedent_core::TemporalMaterializationError as T;
+        if ctx.cancellation.is_cancelled() {
+            return Err(T::Cancelled.into());
+        }
         let mut g = Self::empty();
+        g.nodes.try_reserve_exact(indexer.dense_len()).map_err(|_| T::Allocation)?;
+        g.adj.try_reserve_exact(indexer.dense_len()).map_err(|_| T::Allocation)?;
         for dense in 0..indexer.dense_len() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
             let key = indexer
                 .key_of(u32::try_from(dense).map_err(|_| GraphError::TooManyNodes)?)
                 .map_err(|_| GraphError::TooManyNodes)?;
@@ -127,7 +165,7 @@ impl Pag {
     ///
     /// # Errors
     ///
-    /// Non-static or capacity.
+    /// Non-static, a `Static` label an earlier node carries, or capacity.
     pub fn add_node(&mut self, node: NodeRef) -> Result<DenseNodeId, GraphError> {
         if !node.is_static_graph_node() {
             return Err(GraphError::InvalidEndpoints {
@@ -135,21 +173,15 @@ impl Pag {
             });
         }
         let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
+        self.static_labels.claim(node)?;
         self.nodes.push(node);
         self.adj.push(Vec::new());
         self.members.0.take();
         Ok(DenseNodeId::from_raw(id))
     }
 
-    fn validate_node(&self, id: DenseNodeId) -> Result<(), GraphError> {
-        if id.as_usize() >= self.node_count() {
-            return Err(GraphError::UnknownNode { id: id.raw() });
-        }
-        Ok(())
-    }
-
-    pub(crate) fn validate_node_pub(&self, id: DenseNodeId) -> Result<(), GraphError> {
-        self.validate_node(id)
+    pub(crate) fn validate_node(&self, id: DenseNodeId) -> Result<(), GraphError> {
+        crate::types::validate_node_index(self.node_count(), id)
     }
 
     /// Whether marks are legal for a PAG (any Tail/Arrow/Circle/Conflict pair on distinct nodes).
@@ -379,7 +411,7 @@ impl Pag {
         }
         let mut capped = false;
         let mut examined = 0usize;
-        let cut = self.walk_simple_paths(x, y, max_len, |path| {
+        let cut = self.walk_simple_paths(x, y, max_len, max_paths, |path| {
             if examined >= max_paths {
                 capped = true;
                 return false;
@@ -427,9 +459,12 @@ impl Pag {
         x: DenseNodeId,
         y: DenseNodeId,
         max_len: usize,
+        max_paths: usize,
         mut visit: impl FnMut(&[DenseNodeId]) -> bool,
     ) -> bool {
         let mut cut = false;
+        let visit_budget = max_paths.saturating_mul(max_len).saturating_mul(16);
+        let mut visits = 0usize;
         let mut on_path = vec![false; self.node_count()];
         let mut path = vec![x];
         on_path[x.as_usize()] = true;
@@ -472,6 +507,11 @@ impl Pag {
                 path.pop();
                 continue;
             }
+            if visits >= visit_budget {
+                cut = true;
+                break;
+            }
+            visits += 1;
             on_path[nbr.as_usize()] = true;
             cursor.push(self.adj_of(nbr).len());
         }
@@ -611,7 +651,7 @@ impl Pag {
         if path.len() < 2 {
             return false;
         }
-        let in_z = |n: DenseNodeId| z.iter().any(|&v| v == n);
+        let in_z = |n: DenseNodeId| z.contains(&n);
         if in_z(path[0]) || in_z(path[path.len() - 1]) {
             return true;
         }
@@ -647,6 +687,52 @@ impl Pag {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pag_refuses_a_second_node_with_the_same_static_label() {
+        let label = |raw: u32| NodeRef::Static(antecedent_core::VariableId::from_raw(raw));
+        let mut g = Pag::empty();
+        let first = g.add_node(label(7)).unwrap();
+        assert!(matches!(g.add_node(label(7)), Err(GraphError::InvalidEndpoints { .. })));
+        assert_eq!(g.node_count(), 1, "a refused node leaves no trace");
+        let other = g.add_node(label(8)).unwrap();
+        assert_eq!((first.raw(), other.raw()), (0, 1));
+        // A copy claims independently of the graph it came from.
+        let mut copy = g.clone();
+        assert!(copy.add_node(label(7)).is_err());
+        copy.add_node(label(9)).unwrap();
+        g.add_node(label(9)).unwrap();
+    }
+
+    #[test]
+    fn dead_end_partial_paths_consume_the_derived_visit_budget() {
+        let mut graph = Pag::with_variables(9);
+        for a in 0..8 {
+            for b in a + 1..8 {
+                graph
+                    .insert_circle_circle(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
+                    .unwrap();
+            }
+        }
+        let x = DenseNodeId::from_raw(0);
+        let y = DenseNodeId::from_raw(8);
+        let paths = graph.definite_status_paths(x, y, 1, 9).unwrap();
+        assert!(paths.paths.is_empty());
+        assert!(paths.truncated);
+        assert!(matches!(
+            graph.m_separation_status(x, y, &[], 1, 9),
+            Err(GraphError::SearchBudgetExhausted { .. })
+        ));
+
+        let mut chain = Pag::with_variables(3);
+        chain.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        chain.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let paths = chain
+            .definite_status_paths(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2), 1, 3)
+            .unwrap();
+        assert_eq!(paths.paths.len(), 1);
+        assert!(!paths.truncated);
+    }
 
     #[test]
     fn accepts_circle_marks() {
@@ -726,7 +812,7 @@ mod tests {
                 let y = DenseNodeId::from_raw(u32::try_from(next() % u64::from(n)).unwrap());
                 let max_len = (next() % 8) as usize;
                 let mut seen = Vec::new();
-                let cut = g.walk_simple_paths(x, y, max_len, |p| {
+                let cut = g.walk_simple_paths(x, y, max_len, usize::MAX, |p| {
                     seen.push(p.to_vec());
                     true
                 });

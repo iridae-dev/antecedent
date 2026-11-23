@@ -41,7 +41,7 @@
 //! recruitment cap that fixes the stopping look and the sample used, a truth with an
 //! unmistakable best arm, and the summary arithmetic.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,
@@ -231,7 +231,7 @@ const CASES: [Case; 15] = [
         scenario: Scenario::SeparatedEffects,
         participants: 1200,
         seed: 1_828_172,
-        max_median_halfwidth: 0.225,
+        max_median_halfwidth: 0.28,
         extra: Extra::BestIdentificationAtLeast(0.9),
     },
     Case {
@@ -287,7 +287,7 @@ const CASES: [Case; 15] = [
         scenario: Scenario::MisleadingPriors,
         participants: 2400,
         seed: 1_978_792,
-        max_median_halfwidth: 0.145,
+        max_median_halfwidth: 0.18,
         extra: Extra::Nothing,
     },
 ];

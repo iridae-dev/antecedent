@@ -1,6 +1,6 @@
 //! Doubly robust CATE learner (`DrLearner`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -11,6 +11,7 @@ use antecedent_learn::{LearnerSpec, LinearSpec, LogisticSpec, PredictionTask, Ri
 use antecedent_stats::{SandwichKind, coefficient_covariance};
 
 use crate::adjustment::EffectEstimate;
+use crate::arm::TreatmentArm;
 use crate::cluster_dml_aipw::{ClusterDml, DeclaredUnits};
 use crate::error::EstimationError;
 use crate::learn_nuisance::{cached_aipw_nuisances, design_for_spec, learn_err, resolve_nuisance};
@@ -46,6 +47,8 @@ pub struct DrLearner {
     /// fit; a weighted fit keeps no retargetable score table.
     pub sampling_weights: Option<SamplingWeights>,
 }
+
+type CateFitResult = (EffectEstimate, Option<Arc<[PointwiseCateEstimate]>>);
 
 /// A prespecified profile in the complete ordered adjustment set.
 ///
@@ -272,6 +275,74 @@ impl DrLearner {
         self.publish_units(effect, problem, ctx)
     }
 
+    /// Fit the DR learner with caller-supplied first-stage nuisance factories.
+    ///
+    /// The final CATE learner remains the configured built-in learner. The external
+    /// factories receive isolated fold rows and are not retained in the built-in cache.
+    ///
+    /// # Errors
+    ///
+    /// Refuses unsupported targets, incompatible factories, invalid predictions,
+    /// failed fits, cancellation, or invalid overlap and fold declarations.
+    pub fn fit_with_factories(
+        &self,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+        mut assumptions: AssumptionSet,
+        outcome: &dyn antecedent_learn::LearnerFactory,
+        treatment: &dyn antecedent_learn::LearnerFactory,
+    ) -> Result<EffectEstimate, EstimationError> {
+        if !matches!(problem.target_population, TargetPopulation::AllObserved) {
+            return Err(EstimationError::TargetPopulation);
+        }
+        let ids = crate::learn_nuisance::retained_fold_ids(problem, self.folds, ctx)?;
+        let design = antecedent_learn::DesignView::from_column_major(
+            &problem.design_matrix,
+            problem.nrows,
+            problem.design_ncols,
+        )
+        .map_err(learn_err)?;
+        let nuisance = antecedent_learn::aipw_crossfit::cross_fit_aipw_with_factories(
+            &antecedent_learn::IsolatedFactory::new(outcome),
+            &antecedent_learn::IsolatedFactory::new(treatment),
+            design,
+            design,
+            &problem.outcome,
+            &problem.treatment,
+            (self.folds, ids),
+            ctx,
+            problem.sampling_weights.as_ref().map(|s| &*s.weights),
+        )
+        .map_err(crate::learn_nuisance::aipw_cross_fit_error)?;
+        crate::learn_nuisance::declare_unverified_factories(&mut assumptions, "dr_learner");
+        let (mut effect, _) = self.fit_from_nuisance(problem, &[], ctx, assumptions, &nuisance)?;
+        let fold_ids: Vec<u32> = nuisance.3.fold_assignment.iter().map(|&f| u32::from(f)).collect();
+        effect.crossfit.fold_assignment = Some(Arc::from(fold_ids.clone()));
+        if let Some(table) = effect.scores.table.as_mut() {
+            let unit_suffix =
+                match (problem.fold_assignment.as_deref(), problem.fold_units.as_deref()) {
+                    (None, Some(units)) => {
+                        crate::cluster_dml_aipw::provenance_suffix(units, problem.fold_unit_kind)
+                    }
+                    _ => String::new(),
+                };
+            table.nuisance_provenance = Arc::from(format!(
+                "{};route=dr_learner;outcome=caller_factory;treatment=caller_factory{unit_suffix}",
+                crate::dml::DML_CROSSFIT_PROVENANCE
+            ));
+        }
+        if problem.sampling_weights.is_some() && self.units.spec.is_some() {
+            self.units.publish_weighted(
+                effect,
+                problem,
+                &fold_ids,
+                u32::try_from(self.folds).unwrap_or(u32::MAX),
+            )
+        } else {
+            self.units.publish(effect, problem)
+        }
+    }
+
     /// Form a population ATE interval under independent homoskedastic Gaussian
     /// arm-linear outcomes, including training-fold fit uncertainty and a declared
     /// finite-ridge mean correction. The default robust fit remains unchanged.
@@ -286,7 +357,8 @@ impl DrLearner {
         level: f64,
     ) -> Result<crate::population_aipw::PopulationAipwInterval, EstimationError> {
         if self.units.spec.is_some() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "population linear DR learner requires IID AIPW",
             ));
         }
@@ -294,7 +366,8 @@ impl DrLearner {
             LearnerSpec::Linear(_) => 0.0,
             LearnerSpec::Ridge(spec) => spec.lambda,
             _ => {
-                return Err(EstimationError::unsupported(
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
                     "population linear interval requires a linear outcome learner",
                 ));
             }
@@ -366,18 +439,14 @@ impl DrLearner {
         Ok((effect, results))
     }
 
-    #[allow(
-        clippy::too_many_lines,
-        clippy::type_complexity,
-        reason = "one cohesive nuisance-fit-and-profile routine; the Result return names the optional pointwise-profile vector"
-    )]
+    #[allow(clippy::too_many_lines, reason = "one cohesive nuisance-fit-and-profile routine")]
     fn fit_with_profiles(
         &self,
         problem: &PreparedPropensityProblem,
         profiles: &[CateProfile],
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
-    ) -> Result<(EffectEstimate, Option<Arc<[PointwiseCateEstimate]>>), EstimationError> {
+    ) -> Result<CateFitResult, EstimationError> {
         if !matches!(problem.target_population, TargetPopulation::AllObserved) {
             return Err(EstimationError::TargetPopulation);
         }
@@ -386,8 +455,23 @@ impl DrLearner {
         }
         let nuisance =
             cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
+        self.fit_from_nuisance(problem, profiles, ctx, assumptions, &nuisance)
+    }
+
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one cohesive final-stage fit, prediction, uncertainty, and profile assembly"
+    )]
+    fn fit_from_nuisance(
+        &self,
+        problem: &PreparedPropensityProblem,
+        profiles: &[CateProfile],
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+        nuisance: &crate::learn_nuisance::AipwPredictions,
+    ) -> Result<CateFitResult, EstimationError> {
         let crate::dml::AipwMarginal { phi, ehat, effect } =
-            crate::dml::aipw_marginal_from_nuisance(problem, &nuisance, assumptions)?;
+            crate::dml::aipw_marginal_from_nuisance(problem, nuisance, assumptions)?;
         let raw_e = &nuisance.2;
         let (factory, _) = resolve_nuisance(
             self.final_learner,
@@ -408,19 +492,21 @@ impl DrLearner {
         // fitted on those rows too; trimmed extreme-weight rows would otherwise dominate the
         // final stage while being excluded from the estimand.
         let retained = trim_retained_rows(raw_e, trim_of(problem.overlap))?;
-        let retained_u32: Option<Vec<u32>> = retained
+        let retained_rows: Option<Vec<u64>> = retained
             .as_ref()
             .map(|rows| {
                 rows.iter()
                     .map(|&i| {
-                        u32::try_from(i).map_err(|_| {
-                            EstimationError::data_msg("row index exceeds the u32 row-id capacity")
+                        u64::try_from(i).map_err(|_| {
+                            EstimationError::data_msg(
+                                "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                            )
                         })
                     })
-                    .collect::<Result<Vec<u32>, _>>()
+                    .collect::<Result<Vec<_>, _>>()
             })
             .transpose()?;
-        let fit_view = match &retained_u32 {
+        let fit_view = match &retained_rows {
             Some(rows) => {
                 view.with_rows(antecedent_learn::RowSelection::new(rows)).map_err(learn_err)?
             }
@@ -446,7 +532,7 @@ impl DrLearner {
                 final_weights,
             )),
             problem,
-            &nuisance,
+            nuisance,
             crate::dml::CrossfitAipwTableContext {
                 folds: self.folds,
                 learners: [self.outcome, self.treatment],
@@ -546,8 +632,14 @@ fn pointwise_profile_results(
                     .all(|(col, value)| col[r] == *value)
             })
             .collect();
-        let control_count = matching.iter().filter(|&&r| problem.treatment[r] <= 0.5).count();
-        let treated_count = matching.iter().filter(|&&r| problem.treatment[r] > 0.5).count();
+        let control_count = matching
+            .iter()
+            .filter(|&&r| !TreatmentArm::is_treated_indicator(problem.treatment[r]))
+            .count();
+        let treated_count = matching
+            .iter()
+            .filter(|&&r| TreatmentArm::is_treated_indicator(problem.treatment[r]))
+            .count();
         if control_count == 0 || treated_count == 0 {
             return Err(EstimationError::data_msg(
                 "CATE profile lacks exact retained empirical support in both treatment arms",
@@ -615,13 +707,8 @@ fn pointwise_profile_results(
     Ok(output)
 }
 
-/// HC0 sandwich SEs for a linear CATE regression of orthogonal scores.
-///
-/// The regression uses `rows` (the retained common-support rows; all rows when `None`) and the
-/// covariance is the stats crate's HC0 `(XᵀX)⁻¹ Σ e² x xᵀ (XᵀX)⁻¹`, evaluated at every row's
-/// features. Cross-fitting plus Neyman orthogonality of φ makes first-stage estimation
-/// second-order. Penalized or nonlinear finals are not this OLS map, so they return `None`
-/// instead of an invented interval.
+/// HC0 sandwich SEs for a linear CATE regression of orthogonal scores, from the single
+/// definition in the learner layer (shared with the replay).
 fn linear_cate_pointwise_se(
     spec: LearnerSpec,
     x: antecedent_learn::DesignView<'_>,
@@ -630,61 +717,8 @@ fn linear_cate_pointwise_se(
     rows: Option<&[usize]>,
     weights: Option<&[f64]>,
 ) -> Option<Arc<[f64]>> {
-    if !matches!(spec, LearnerSpec::Linear(_)) {
-        return None;
-    }
-    let n = x.nrows();
-    let p = x.ncols();
-    if n == 0 || p == 0 || phi.len() != n || cate.len() != n {
-        return None;
-    }
-    let mut design = vec![0.0; n.saturating_mul(p)];
-    for c in 0..p {
-        for r in 0..n {
-            design[c * n + r] = x.get(r, c).ok()?;
-        }
-    }
-    let all_rows: Vec<usize>;
-    let used: &[usize] = if let Some(rows) = rows {
-        rows
-    } else {
-        all_rows = (0..n).collect();
-        &all_rows
-    };
-    let m = used.len();
-    let mut sub = vec![0.0; m * p];
-    for c in 0..p {
-        for (k, &r) in used.iter().enumerate() {
-            sub[c * m + k] = design[c * n + r];
-        }
-    }
-    let mut residuals: Vec<f64> = used.iter().map(|&r| phi[r] - cate[r]).collect();
-    if let Some(weights) = weights {
-        for (k, &r) in used.iter().enumerate() {
-            let root = weights[r].sqrt();
-            residuals[k] *= root;
-            for c in 0..p {
-                sub[c * m + k] *= root;
-            }
-        }
-    }
-    let cov = coefficient_covariance(&sub, m, p, &residuals, SandwichKind::Hc0).ok()?;
-    let mut se = vec![0.0; n];
-    for i in 0..n {
-        let mut v = 0.0;
-        for j in 0..p {
-            let mut cj = 0.0;
-            for k in 0..p {
-                cj += cov[j * p + k] * design[k * n + i];
-            }
-            v += design[j * n + i] * cj;
-        }
-        if !(v.is_finite() && v >= 0.0) {
-            return None;
-        }
-        se[i] = v.sqrt();
-    }
-    Some(Arc::from(se))
+    antecedent_learn::dr_replay::linear_cate_pointwise_se(spec, x, phi, cate, rows, weights)
+        .map(Arc::from)
 }
 
 #[cfg(test)]
@@ -866,6 +900,42 @@ mod tests {
     }
 
     #[test]
+    fn caller_factories_match_builtin_first_stage_and_cate() {
+        let (data, estimand, _) = interaction_scm(300, 3);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let estimator = DrLearner::new();
+        let prep = estimator.prepare(&data, &estimand, &query).unwrap();
+        let outcome =
+            antecedent_learn::resolve_for(estimator.outcome, PredictionTask::Regression).unwrap();
+        let treatment =
+            antecedent_learn::resolve_for(estimator.treatment, PredictionTask::BinaryProbability)
+                .unwrap();
+        let ctx = ExecutionContext::for_tests(1);
+        let expected = estimator.fit(&prep, &ctx, AssumptionSet::new()).unwrap();
+        let actual = estimator
+            .fit_with_factories(
+                &prep,
+                &ctx,
+                AssumptionSet::new(),
+                outcome.as_ref(),
+                treatment.as_ref(),
+            )
+            .unwrap();
+        assert!((actual.ate - expected.ate).abs() < 1e-12);
+        for (a, b) in actual
+            .heterogeneity
+            .cate
+            .as_ref()
+            .unwrap()
+            .iter()
+            .zip(expected.heterogeneity.cate.as_ref().unwrap().iter())
+        {
+            assert!((a - b).abs() < 1e-12);
+        }
+    }
+
+    #[test]
     fn interaction_recovers_monotone_cate() {
         let (data, estimand, z) = interaction_scm(900, 3);
         let query =
@@ -888,7 +958,7 @@ mod tests {
             assert!(m.abs() < 1e-10, "influence must be centered: {m}");
         }
         let se =
-            effect.heterogeneity.cate_se.as_ref().expect("linear final stage licenses CATE SEs");
+            effect.heterogeneity.cate_se.as_ref().expect("linear final stage supports CATE SEs");
         assert_eq!(se.len(), cate.len());
         assert!(se.iter().all(|&s| s.is_finite() && s > 0.0));
     }
@@ -987,6 +1057,207 @@ mod tests {
         let effect = est.fit(&prep, &ExecutionContext::for_tests(1), AssumptionSet::new()).unwrap();
         assert!(effect.heterogeneity.cate.is_some());
         assert!(effect.heterogeneity.cate_se.is_none());
+    }
+
+    /// A confounded table with one or two adjustment covariates (variable ids 2 and 3).
+    fn replay_scm(n: usize, seed: u64, two: bool) -> (TabularData, IdentifiedEstimand) {
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0x77u64);
+        let (mut z, mut w, mut t, mut y) = (vec![0.0; n], vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+        for i in 0..n {
+            let zi = standard_normal(&mut rng);
+            let wi = standard_normal(&mut rng);
+            let second = if two { wi } else { 0.0 };
+            let p = antecedent_kernels::sigmoid(-0.3 + 1.2 * zi + 0.4 * second);
+            let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
+            z[i] = zi;
+            w[i] = wi;
+            t[i] = ti;
+            y[i] = (1.0 + zi) * ti + 0.4 * zi + 0.3 * second + standard_normal(&mut rng) * 0.4;
+        }
+        let mut b = CausalSchemaBuilder::new();
+        let mut add = |name: &str, hint: RoleHint| {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(hint),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        };
+        add("t", RoleHint::TreatmentCandidate);
+        add("y", RoleHint::OutcomeCandidate);
+        add("z", RoleHint::Context);
+        if two {
+            add("w", RoleHint::Context);
+        }
+        let schema = b.build().unwrap();
+        let column = |id: u32, values: Vec<f64>| {
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(id),
+                    Arc::from(values),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            )
+        };
+        let mut cols = vec![column(0, t), column(1, y), column(2, z)];
+        let mut adjustment = vec![VariableId::from_raw(2)];
+        if two {
+            cols.push(column(3, w));
+            adjustment.push(VariableId::from_raw(3));
+        }
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        (
+            TabularData::new(storage),
+            IdentifiedEstimand::backdoor(
+                "backdoor.adjustment",
+                Arc::from(adjustment),
+                ExprId::from_raw(0),
+            ),
+        )
+    }
+
+    struct ReplayCase {
+        folds: usize,
+        seed: u64,
+        two: bool,
+        overlap: OverlapPolicy,
+        outcome: Option<LearnerSpec>,
+    }
+
+    fn bits(values: &[f64]) -> Vec<u64> {
+        values.iter().map(|v| v.to_bits()).collect()
+    }
+
+    #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one parity sweep over the declared cases, each compared field by field"
+    )]
+    fn the_learner_layer_replay_reproduces_the_fit_bit_for_bit() {
+        use antecedent_learn::dr_replay::{DrReplayInput, DrReplaySpec, replay_dr_ate};
+
+        let none_none = OverlapPolicy::RequireDiagnostics { clip: None, trim: None };
+        let cases = [
+            ReplayCase { folds: 2, seed: 1, two: false, overlap: none_none, outcome: None },
+            ReplayCase {
+                folds: 3,
+                seed: 7,
+                two: true,
+                overlap: OverlapPolicy::RequireDiagnostics { clip: Some(0.05), trim: None },
+                outcome: Some(LearnerSpec::Linear(LinearSpec {})),
+            },
+            ReplayCase {
+                folds: 4,
+                seed: 1,
+                two: false,
+                overlap: OverlapPolicy::RequireDiagnostics { clip: Some(0.02), trim: Some(0.3) },
+                outcome: None,
+            },
+            ReplayCase {
+                folds: 3,
+                seed: 7,
+                two: true,
+                overlap: OverlapPolicy::RequireDiagnostics { clip: None, trim: Some(0.2) },
+                outcome: None,
+            },
+            ReplayCase {
+                folds: 4,
+                seed: 7,
+                two: false,
+                overlap: OverlapPolicy::Default,
+                outcome: None,
+            },
+            ReplayCase {
+                folds: 2,
+                seed: 7,
+                two: true,
+                overlap: OverlapPolicy::RequireDiagnostics { clip: Some(0.05), trim: Some(0.2) },
+                outcome: None,
+            },
+        ];
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        for (index, case) in cases.iter().enumerate() {
+            let label = format!("case {index}");
+            let (data, estimand) = replay_scm(300, 11 + case.seed, case.two);
+            let mut learner = DrLearner::new().with_folds(case.folds).with_overlap(case.overlap);
+            if let Some(outcome) = case.outcome {
+                learner = learner.with_outcome(outcome);
+            }
+            let problem = learner.prepare(&data, &estimand, &query).unwrap();
+            let ctx = ExecutionContext::for_tests(case.seed);
+            let effect = learner.fit(&problem, &ctx, AssumptionSet::new()).unwrap();
+
+            let covariates: Vec<&[f64]> = problem.covariates.iter().map(|c| &c[..]).collect();
+            let row_ids: Vec<u64> = problem.row_index.iter().map(|id| id.get()).collect();
+            let replay = replay_dr_ate(
+                DrReplayInput {
+                    treatment: &problem.treatment,
+                    outcome: &problem.outcome,
+                    covariates: &covariates,
+                    row_ids: &row_ids,
+                    intercept: true,
+                },
+                DrReplaySpec {
+                    folds: learner.folds,
+                    seed: ctx.rng.master_seed(),
+                    outcome: learner.outcome,
+                    treatment: learner.treatment,
+                    final_learner: learner.final_learner,
+                    overlap: learner.overlap.replay_overlap().unwrap(),
+                    active_level_above_control: problem.treatment_levels.active
+                        > problem.treatment_levels.control,
+                },
+                &ExecutionContext::for_tests(case.seed),
+            )
+            .unwrap();
+
+            assert_eq!(effect.ate.to_bits(), replay.ate.to_bits(), "{label}: ate");
+            let cate = effect.heterogeneity.cate.as_ref().expect("cate");
+            assert_eq!(bits(cate), bits(&replay.cate), "{label}: cate");
+
+            let nuisance = cached_aipw_nuisances(
+                &problem,
+                learner.outcome,
+                learner.treatment,
+                learner.folds,
+                &ctx,
+            )
+            .unwrap();
+            assert_eq!(replay.fold_ids, nuisance.3.fold_assignment, "{label}: folds");
+            assert_eq!(bits(&replay.raw_propensity), bits(&nuisance.2), "{label}: raw propensity");
+            let marginal =
+                crate::dml::aipw_marginal_from_nuisance(&problem, &nuisance, AssumptionSet::new())
+                    .unwrap();
+            assert_eq!(bits(&replay.phi), bits(&marginal.phi), "{label}: scores");
+            assert_eq!(bits(&replay.propensity), bits(&marginal.ehat), "{label}: propensity");
+            let retained = trim_retained_rows(&nuisance.2, trim_of(problem.overlap)).unwrap();
+            assert_eq!(replay.retained, retained, "{label}: retained rows");
+            assert_eq!(replay.retained.is_some(), trim_of(problem.overlap).is_some());
+            if index == 2 {
+                let kept = replay.retained.as_ref().expect("a trim was declared");
+                assert!(kept.len() < problem.nrows, "{label}: the trim must drop rows");
+            }
+
+            let model = effect.heterogeneity.fitted_effect.as_ref().expect("fitted effect");
+            let features: Vec<u32> = problem.adjustment_set.iter().map(|v| v.raw()).collect();
+            assert_eq!(model.features, features, "{label}: feature order");
+            assert_eq!(model.intercept, replay.intercept, "{label}: intercept");
+            assert_eq!(Some(&model.predictor), replay.predictor.as_ref(), "{label}: predictor");
+            assert_eq!(model.support, replay.support, "{label}: support box");
+            assert!(model.support.is_some(), "{label}: support");
+            let rebuilt = replay.fitted_effect(features).unwrap().expect("portable");
+            assert_eq!(&rebuilt, model.as_ref(), "{label}: retained model");
+
+            let mut provenance = replay.nuisance_provenance.clone();
+            provenance.push(replay.final_provenance.clone());
+            assert_eq!(effect.crossfit.learner_provenance, provenance, "{label}: provenance");
+        }
     }
 
     #[test]

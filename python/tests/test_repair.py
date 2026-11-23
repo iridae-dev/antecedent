@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import pytest
 from antecedent import Admg, Dag, repair
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalSerializationError, CausalTypeError, CausalUnsupportedError
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 from _refusal import assert_registered_refusal
@@ -152,7 +154,7 @@ def test_assumption_obligations_are_never_satisfied_by_a_study():
     assert result.outcome == "none_certified"
     assert result.best is None
     assert result.reason_code == "transport_missing_evidence"
-    assert result.detail == "evidence_obligations.wrong_contract"
+    assert result.detail == reason_details.evidence_obligations.WRONG_CONTRACT
 
 
 # --------------------------------------------------------------- study candidate
@@ -162,7 +164,7 @@ def test_candidate_needs_unit_and_cost_semantics():
     for field, value in (("unit", " "), ("cost_unit", ""), ("timing", ""), ("recruitment", "")):
         with pytest.raises(repair.StudyCandidateRefusal) as caught:
             observation("bad", ["t", "y"], 5, **{field: value})
-        assert caught.value.detail == "study_candidate.wrong_contract"
+        assert caught.value.detail == reason_details.study_candidate.WRONG_CONTRACT
         assert caught.value.reason_code == "design_signal_invalid"
         assert_registered_refusal(caught.value)
     with pytest.raises(repair.StudyCandidateRefusal):
@@ -213,7 +215,7 @@ def test_candidate_observing_separate_regimes_cannot_claim_the_joint_factor():
     # Claiming the joint law while observing separate regimes is invalid.
     assert result.classification("liar") == "invalid"
     (row,) = [r for r in result.table if r.labels == ("liar",)]
-    assert "study_candidate.wrong_contract" in row.reasons[0]
+    assert reason_details.study_candidate.WRONG_CONTRACT in row.reasons[0]
     assert result.best is None
 
 
@@ -252,7 +254,7 @@ def test_separate_studies_cannot_meet_a_joint_regime_obligation():
     assert result.outcome == "none_certified"
     assert result.best is None
     assert result.reason_code == "transport_not_certified"
-    assert result.detail == "identification_repair.wrong_contract"
+    assert result.detail == reason_details.identification_repair.WRONG_CONTRACT
 
 
 def test_transport_family_is_repaired_by_the_source_experiment_only():
@@ -312,7 +314,7 @@ def test_objective_ranks_sufficient_subsets_and_cost_units_must_agree():
     )
     with pytest.raises(repair.RepairRefusal) as caught:
         repair.repair(backdoor(), [cheap, euros], "minimize_cost")
-    assert caught.value.detail == "identification_repair.cost_units_mismatch"
+    assert caught.value.detail == reason_details.identification_repair.COST_UNITS_MISMATCH
     assert caught.value.reason_code == "design_cost_units_mismatch"
     assert_registered_refusal(caught.value)
     with pytest.raises(ValueError, match="objective"):
@@ -328,7 +330,7 @@ def test_a_contract_that_already_identifies_is_not_a_repair_target():
             population="clinic",
             observed=["a", "b"],
         )
-    assert caught.value.detail == "identification_repair.not_a_failure"
+    assert caught.value.detail == reason_details.identification_repair.NOT_A_FAILURE
     assert_registered_refusal(caught.value)
 
 
@@ -354,9 +356,30 @@ def test_budget_truncated_search_is_exhausted_never_impossible():
     unevaluated = [r for r in result.table if r.classification == "unevaluated"]
     assert len(unevaluated) == 12
     assert result.reason_code == "transport_budget_cancel"
-    assert result.detail == "identification_repair.budget"
+    assert result.detail == reason_details.identification_repair.BUDGET
     assert "impossible" not in repr(result).lower()
     assert "impossible" not in (result.detail or "")
+
+
+def test_memory_and_cancellation_belong_to_the_execution_not_the_declaration():
+    from antecedent import Execution, ResourceLimits
+    from antecedent.state import CancellationToken
+
+    with pytest.raises(TypeError, match="unexpected keyword|got an unexpected"):
+        repair.RepairLimits(memory_bytes=1)  # type: ignore[call-arg]
+    with pytest.raises(TypeError, match="unexpected keyword|got an unexpected"):
+        repair.repair(backdoor(), candidates(), cancel=CancellationToken())  # type: ignore[call-arg]
+    tight = repair.repair(
+        backdoor(), candidates(), execution=Execution(limits=ResourceLimits(memory_bytes=1))
+    )
+    assert tight.outcome == "exhausted"
+    assert tight.receipt.stop == "search.memory"
+    assert tight.receipt.memory_limit_bytes == 1
+    token = CancellationToken()
+    token.cancel()
+    with pytest.raises(repair.RepairBudgetRefusal) as stopped:
+        repair.repair(backdoor(), candidates(), execution=Execution(cancel=token))
+    assert stopped.value.reason_code == "transport_budget_cancel"
 
 
 def test_subsets_beyond_the_declared_depth_are_not_examined_and_say_so():
@@ -371,14 +394,25 @@ def test_subsets_beyond_the_declared_depth_are_not_examined_and_say_so():
 
 
 def test_request_bounds_are_refusals():
+    # The candidate count is not itself a request bound: only the declared work and memory are.
+    # A large candidate set is searched within the declared operations and either repairs or
+    # reports what it never evaluated; it is never truncated silently.
     many = [observation(f"n{k}", ["t", "y", "z1"], k + 1) for k in range(17)]
-    with pytest.raises(repair.RepairRefusal) as caught:
-        repair.repair(backdoor(), many)
-    assert caught.value.detail == "identification_repair.bounds_exceeded"
-    assert caught.value.reason_code == "invalid_argument"
+    # No single study of these reads the joint law of {t, y, z1, z2}, so none certifies a repair.
+    searched = repair.repair(backdoor(), many)
+    assert searched.outcome == "none_certified"
+    assert searched.best is None
+    assert searched.receipt.unevaluated_total == 0
+    # One study that does read it is found among the many, within the declared work.
+    with_cohort = [*many, observation("cohort", ["t", "y", "z1", "z2"], 20)]
+    found = repair.repair(backdoor(), with_cohort)
+    assert found.outcome == "repaired"
+    assert found.best.labels == ("cohort",)
+    assert found.receipt.unevaluated_total == 0
     with pytest.raises(repair.RepairRefusal) as caught:
         repair.repair(backdoor(), candidates(), limits=repair.RepairLimits(max_operations=10**9))
-    assert caught.value.detail == "identification_repair.bounds_exceeded"
+    assert caught.value.detail == reason_details.identification_repair.BOUNDS_EXCEEDED
+    assert caught.value.reason_code == "invalid_argument"
 
 
 # ------------------------------------------------------------------- artifact
@@ -390,8 +424,8 @@ def test_export_consume_round_trip_replays_the_report():
         (transport_contract(), [trial("source_trial", "source", 3)]),
     ):
         result = repair.repair(contract, studies)
-        data = result.export()
-        replayed = repair.consume(data)
+        data = bytes(result.export())
+        replayed = require_success(repair.consume(data))
         assert replayed.outcome == result.outcome == "repaired"
         assert replayed.table == result.table
         assert replayed.obligations == result.obligations
@@ -404,7 +438,7 @@ def test_truncated_search_survives_the_artifact_as_unevaluated():
     result = repair.repair(
         backdoor(), many, limits=repair.RepairLimits(max_operations=2, max_depth=2)
     )
-    replayed = repair.consume(result.export())
+    replayed = require_success(repair.consume(bytes(result.export())))
     assert replayed.outcome == "exhausted"
     assert replayed.receipt.unevaluated_total == result.receipt.unevaluated_total > 0
     assert sum(r.classification == "unevaluated" for r in replayed.table) == len(
@@ -413,17 +447,17 @@ def test_truncated_search_survives_the_artifact_as_unevaluated():
 
 
 def test_consumer_refuses_oversized_limits_and_malformed_bytes():
-    data = repair.repair(backdoor(), candidates()).export()
+    data = bytes(repair.repair(backdoor(), candidates()).export())
     with pytest.raises(repair.RepairArtifactRefusal) as caught:
-        repair.consume(data, max_operations=1)
-    assert caught.value.detail == "repair_artifact.bounds_exceeded"
+        require_success(repair.consume(data, max_operations=1))
+    assert caught.value.detail == reason_details.repair_artifact.BOUNDS_EXCEEDED
     assert_registered_refusal(caught.value)
     with pytest.raises(CausalTypeError):
-        repair.consume("not bytes")  # type: ignore[arg-type]
+        require_success(repair.consume("not bytes"))  # type: ignore[arg-type]
     with pytest.raises(CausalSerializationError):
-        repair.consume(b"not an artifact")
+        require_success(repair.consume(b"not an artifact"))
     with pytest.raises((CausalSerializationError, repair.RepairArtifactRefusal)):
-        repair.consume(data[: len(data) // 2])
+        require_success(repair.consume(data[: len(data) // 2]))
 
 
 def test_evidence_obligations_carry_complete_native_scientific_coordinates():
@@ -504,3 +538,165 @@ def test_scientific_obligation_descriptors_refuse_wrong_population_and_duplicate
 def test_obligation_quantities_refuse_untyped_inputs(quantities):
     with pytest.raises(CausalTypeError, match="quantities must"):
         repair.obligations(backdoor(), quantities=quantities)
+
+
+# ------------------------------------------- one contract per identifier
+
+
+def frontdoor_contract(observed=("t", "y")):
+    # t -> m -> y with a unmeasured u confounding t and y: the mediator m identifies.
+    return repair.FrontDoorContract(
+        graph=Dag.from_edges(
+            ["t", "m", "y", "u"], [("t", "m"), ("m", "y"), ("u", "t"), ("u", "y")]
+        ),
+        treatment="t",
+        outcome="y",
+        population="clinic",
+        observed=list(observed),
+    )
+
+
+def test_front_door_contract_owes_the_mediator_set_as_one_joint_law():
+    (obligation,) = repair.obligations(frontdoor_contract())
+    assert obligation.kind == "provide_joint_law"
+    assert set(obligation.variables) == {"t", "m", "y"}
+    assert obligation.family == "frontdoor"
+    assert obligation.proof_step == "frontdoor.mediator_set:1"
+    result = repair.repair(
+        frontdoor_contract(),
+        [
+            observation("cohort_ty", ["t", "y"], 4),
+            observation("mediator_survey", ["t", "m", "y"], 9),
+        ],
+    )
+    assert result.outcome == "repaired"
+    assert result.best is not None and result.best.labels == ("mediator_survey",)
+    assert result.best.derivation is not None
+    assert result.best.derivation.checker == "frontdoor.adjustment"
+    assert require_success(repair.consume(bytes(result.export()))).best == result.best
+
+
+def test_front_door_contract_that_already_identifies_refuses():
+    with pytest.raises(repair.RepairRefusal) as caught:
+        frontdoor_contract(observed=("t", "m", "y"))
+    assert caught.value.detail == reason_details.identification_repair.NOT_A_FAILURE
+    assert_registered_refusal(caught.value)
+
+
+def test_instrument_validity_is_an_assumption_no_study_satisfies():
+    contract = repair.InstrumentContract(
+        graph=Dag.from_edges(
+            ["z", "t", "y", "u"], [("z", "t"), ("t", "y"), ("u", "t"), ("u", "y")]
+        ),
+        treatment="t",
+        outcome="y",
+        population="clinic",
+        observed=["t", "y"],
+    )
+    found = repair.obligations(contract)
+    assert [o.proof_step for o in found] == [
+        "iv.instrument:0",
+        "iv.exclusion:0",
+        "iv.relevance:0",
+        "iv.effect_restriction",
+    ]
+    assumptions = [o for o in found if o.kind == "establish_assumption"]
+    assert len(assumptions) == 3
+    assert all(not o.satisfiable_by_study for o in assumptions)
+    result = repair.repair(contract, [observation("instrumented", ["z", "t", "y"], 8)])
+    assert result.outcome == "none_certified"
+    assert result.classification("instrumented") == "not_certified"
+    assert result.reason_code == "transport_missing_evidence"
+    assert result.detail == reason_details.evidence_obligations.WRONG_CONTRACT
+
+
+def hedge_contract():
+    # t -> w -> y with t <-> y and w <-> y: observation cannot identify do(t).
+    return repair.HedgeContract(
+        graph=Admg.from_edges(["t", "w", "y"], [("t", "w"), ("w", "y")], [("t", "y"), ("w", "y")]),
+        treatment="t",
+        outcome="y",
+        population="clinic",
+        observed=["t", "w", "y"],
+    )
+
+
+def test_hedge_contract_owes_experiments_and_only_experiments_repair_it():
+    found = repair.obligations(hedge_contract())
+    assert [o.kind for o in found] == ["intervene", "intervene"]
+    assert [o.interventions for o in found] == [("t",), ("w",)]
+    assert found[0].proof_step.startswith("hedge:f=[")
+    assert found[1].proof_step == "hedge.surrogate:1"
+    result = repair.repair(
+        hedge_contract(),
+        [
+            trial("randomize_t", "clinic", 10, interventions=("t",)),
+            trial("randomize_w", "clinic", 6, interventions=("w",)),
+            observation("registry", ["t", "w", "y"], 2),
+        ],
+    )
+    assert result.outcome == "repaired"
+    assert result.classification("randomize_t") == "verified_sufficient"
+    assert result.classification("randomize_w") == "verified_sufficient"
+    assert result.classification("registry") == "insufficient"
+    assert result.best is not None and result.best.labels == ("randomize_w",)
+
+
+def sensitivity_contract(*, robust=False):
+    return repair.SensitivityContract(
+        graph=Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")]),
+        treatment="t",
+        outcome="y",
+        population="clinic",
+        observed=["t", "y", "z"],
+        method="e_value",
+        strength=1.4,
+        robust=robust,
+    )
+
+
+def test_sensitivity_finding_owes_the_confounder_it_names():
+    (obligation,) = repair.obligations(sensitivity_contract())
+    assert obligation.family == "sensitivity"
+    assert obligation.proof_step == "sensitivity.e_value:strength=1.4"
+    assert "unmeasured_confounder" in obligation.variables
+    result = repair.repair(
+        sensitivity_contract(),
+        [
+            observation("more_rows", ["t", "y", "z"], 3),
+            observation("assay", ["t", "y", "z", "unmeasured_confounder"], 12),
+        ],
+    )
+    assert result.outcome == "repaired"
+    assert result.best is not None and result.best.labels == ("assay",)
+    assert require_success(repair.consume(bytes(result.export()))).best == result.best
+    with pytest.raises(repair.RepairRefusal) as caught:
+        sensitivity_contract(robust=True)
+    assert caught.value.detail == reason_details.identification_repair.NOT_A_FAILURE
+
+
+def test_a_failure_reports_its_evidence_needs_as_a_capability_report():
+    graph = Dag.from_edges(["z", "t", "y", "u"], [("z", "t"), ("t", "y"), ("u", "t"), ("u", "y")])
+    contract = repair.FailureContract(
+        graph=graph, treatment="t", outcome="y", population="study", observed=["t", "y"]
+    )
+    report = contract.capability_report()
+    assert set(report) == {"next_actions", "neighbors", "unmet_obligations"}
+    actions = {a["id"] for a in report["next_actions"]}
+    assert actions == {a["id"] for a in contract.next_actions()}
+    assert "find_instrument" in actions
+    # One neighbor per repairing route family, each naming the premise it changes.
+    by_family = {n["coordinate"]: n for n in report["neighbors"]}
+    assert "identified_by:instrument" in by_family
+    assert by_family["identified_by:instrument"]["required_action"] == "find_instrument"
+    assert by_family["identified_by:instrument"]["changed"][0]["axis"] == "evidence"
+    # Every owed obligation is unmet and carries its proof step; an assumption is uncheckable.
+    owed = repair.obligations(contract)
+    assert len(report["unmet_obligations"]) == len(owed)
+    steps = {o.proof_step for o in owed}
+    assert {u["required_check"] for u in report["unmet_obligations"]} == steps
+    uncheckable = [u for u in report["unmet_obligations"] if u["kind"] == "uncheckable"]
+    assert len(uncheckable) == len([o for o in owed if o.kind == "establish_assumption"]) > 0
+    assert all(u["status"] == "untestable" for u in uncheckable)
+    # A study can meet the rest, but never an assumption.
+    assert any(u["kind"] == "check_not_run" for u in report["unmet_obligations"])

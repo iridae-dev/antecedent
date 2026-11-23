@@ -1,0 +1,21 @@
+feature_id = "inverse.composed_forward_source"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+
+implementation_deviations = [
+ "Contract, routing and analytic functional evaluation; no new estimator: the interventional response of a composed linear-Gaussian or finite model as a forward source (mean coordinates and contrasts remain estimates; outcome coordinates retain an analytic Gaussian law with residual variance, or an exact finite law), with admitted mechanisms accepted only with the carrying receipt (docs/guides/inverse-outcome.md).",
+ "Gaussian affine probability and quantile functionals use the shared kernels normal CDF, survival function and inverse CDF. Quadratic expectations and variances use Gaussian moments. Unsupported utilities and joint inputs refuse rather than being discretized or approximated.",
+ "Every number is supplied by the upstream cohort, composition or transport route, whose own provenance records govern it; the source adds no standard error and no calibration.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-design/tests/inverse_forward_source.rs",
+ "crates/antecedent/tests/inverse_forward_sources_facade.rs",
+]

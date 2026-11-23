@@ -55,7 +55,7 @@ fn decided() -> CountsWire {
 }
 
 fn in_process() -> RecalcCapabilities {
-    RecalcCapabilities::in_process(RetargetSupport::Licensed)
+    RecalcCapabilities::in_process(RetargetSupport::Supported)
 }
 
 /// A utility-only change: the decision is recomputed, nothing else runs.
@@ -192,7 +192,9 @@ fn artifact_round_trip_preserves_table_counts_and_identities() {
 fn artifact_off_grid_route_and_a_changed_boundary_round_trip_in_the_capabilities() {
     let caps = RecalcCapabilities {
         retarget: RetargetSupport::NotDeclared,
-        request: RequestSupport::OffGrid { licensed_route: Some("transport.smoothed_dose") },
+        request: RequestSupport::OffGrid {
+            supported_route: Some("transport.smoothed_dose".into()),
+        },
         boundary: Boundary::InProcess,
     };
     let artifact = RecalcReceiptArtifact::seal(
@@ -207,7 +209,7 @@ fn artifact_off_grid_route_and_a_changed_boundary_round_trip_in_the_capabilities
         plan.first_refusal(),
         Some((
             Stage::TreatmentGrid,
-            RefusalReason::OffGrid { licensed_route: Some("transport.smoothed_dose") }
+            RefusalReason::OffGrid { supported_route: Some("transport.smoothed_dose".into()) }
         ))
     );
     let loaded = RecalcReceiptArtifact::from_bytes(&artifact.to_bytes(ID).unwrap(), None).unwrap();
@@ -215,7 +217,7 @@ fn artifact_off_grid_route_and_a_changed_boundary_round_trip_in_the_capabilities
     // A changed capability declaration recomputes another plan and so refuses the old table.
     let mut meta = artifact.meta().clone();
     meta.capabilities.request = "on_grid".into();
-    meta.capabilities.licensed_route = None;
+    meta.capabilities.supported_route = None;
     assert!(matches!(consume(&reseal(meta)), Err(RecalcReceiptArtifactError::PlanMismatch { .. })));
 }
 
@@ -324,7 +326,10 @@ fn artifact_resealed_mutation_is_refused() {
     })
     .unwrap_err();
     let (code, detail, _) = error.refusal().unwrap();
-    assert_eq!((code, detail), ("route_not_supported", "recalc_receipt.totals_mismatch"));
+    assert_eq!(
+        (code, detail),
+        ("route_not_supported", antecedent_core::reason_details::recalc_receipt::TOTALS_MISMATCH)
+    );
 
     // The untouched artifact still consumes.
     assert_eq!(consume(&base).unwrap().receipt_identity(), artifact.receipt_identity());
@@ -366,7 +371,7 @@ fn artifact_a_loaded_receipt_never_claims_reuse_in_a_fresh_process() {
 
     // Supplied data resumes by recomputing every derived stage, never by reuse.
     let supplied = RecalcCapabilities::fresh_process(
-        RetargetSupport::Licensed,
+        RetargetSupport::Supported,
         ResumeContext { supplied_data: true, ..ResumeContext::default() },
     );
     let resumed =
@@ -393,12 +398,18 @@ fn artifact_a_loaded_receipt_never_claims_reuse_in_a_fresh_process() {
         matches!(&error, RecalcReceiptArtifactError::FreshProcessReuse { stage } if stage == "law")
     );
     let (code, detail, _) = error.refusal().unwrap();
-    assert_eq!((code, detail), ("score_table_unavailable", "recalc_receipt.fresh_process_reuse"));
+    assert_eq!(
+        (code, detail),
+        (
+            "score_table_unavailable",
+            antecedent_core::reason_details::recalc_receipt::FRESH_PROCESS_REUSE
+        )
+    );
 
     // Even portable scores, for which the planner would reuse the score artifact, cannot be
     // sealed: a loaded receipt recreates no score table.
     let portable = RecalcCapabilities::fresh_process(
-        RetargetSupport::Licensed,
+        RetargetSupport::Supported,
         ResumeContext { portable_scores: true, supplied_data: true, ..ResumeContext::default() },
     );
     let error = RecalcReceiptArtifact::seal(&previous, &requested, &portable, &BTreeMap::new())
@@ -410,7 +421,7 @@ fn artifact_a_loaded_receipt_never_claims_reuse_in_a_fresh_process() {
 
     // Nothing supplied: the specific unavailable results, not a reuse claim.
     let bare =
-        RecalcCapabilities::fresh_process(RetargetSupport::Licensed, ResumeContext::default());
+        RecalcCapabilities::fresh_process(RetargetSupport::Supported, ResumeContext::default());
     let artifact = RecalcReceiptArtifact::seal(
         &previous,
         &requested,
@@ -479,8 +490,14 @@ fn artifact_identity_is_order_independent() {
 fn artifact_is_bounded_and_versioned() {
     let artifact = utility_only();
     let bytes = artifact.to_bytes(ID).unwrap();
-    assert!(artifact.to_bytes("  ").is_err());
-    assert!(RecalcReceiptArtifact::from_bytes(&bytes[..bytes.len() / 2], None).is_err());
+    assert!(matches!(
+        artifact.to_bytes("  "),
+        Err(RecalcReceiptArtifactError::Encode(text)) if text == "missing artifact id"
+    ));
+    assert!(matches!(
+        RecalcReceiptArtifact::from_bytes(&bytes[..bytes.len() / 2], None),
+        Err(RecalcReceiptArtifactError::Decode(_))
+    ));
     assert!(matches!(
         RecalcReceiptArtifact::from_bytes(&vec![0_u8; 300 * 1024], None),
         Err(RecalcReceiptArtifactError::LimitsExceeded(_))
@@ -846,4 +863,60 @@ fn external_invocations_bind_branch_work_and_preserve_zero_extension_identity() 
     let changed = reseal(changed);
     assert!(consume(&changed).is_ok());
     assert_ne!(changed.receipt_identity, artifact.receipt_identity());
+}
+
+#[test]
+fn many_distinct_custom_routes_remain_owned_and_do_not_exhaust_process_state() {
+    for i in 0..80 {
+        let name = format!("custom.route_{i}");
+        let caps = RecalcCapabilities {
+            retarget: RetargetSupport::NotDeclared,
+            request: RequestSupport::OffGrid { supported_route: Some(name.clone().into()) },
+            boundary: Boundary::InProcess,
+        };
+        let original = RecalcReceiptArtifact::seal(
+            &workflow("u1", "seed1"),
+            &workflow("u1", "seed1"),
+            &caps,
+            &BTreeMap::new(),
+        )
+        .unwrap();
+        let bytes = original.to_bytes(ID).unwrap();
+        let loaded =
+            RecalcReceiptArtifact::from_bytes(&bytes, Some(original.receipt_identity())).unwrap();
+        assert_eq!(loaded.capabilities().unwrap(), caps);
+        assert_eq!(loaded.plan_identity(), original.plan_identity());
+        assert_eq!(loaded.to_bytes(ID).unwrap(), bytes);
+        assert_eq!(
+            loaded.plan().first_refusal(),
+            Some((
+                Stage::TreatmentGrid,
+                RefusalReason::OffGrid { supported_route: Some(name.clone().into()) }
+            ))
+        );
+    }
+    // Malformed on-grid declarations with distinct names must not consume a
+    // global pool or prevent a later valid custom receipt from being accepted.
+    for i in 0..80 {
+        let mut meta = utility_only().meta().clone();
+        meta.capabilities.supported_route = Some(format!("rejected.route_{i}"));
+        assert!(consume(&meta).is_err());
+    }
+    let caps = RecalcCapabilities {
+        retarget: RetargetSupport::NotDeclared,
+        request: RequestSupport::Unsupported {
+            supported_route: Some("custom.after_rejections".into()),
+        },
+        boundary: Boundary::InProcess,
+    };
+    let last = RecalcReceiptArtifact::seal(
+        &workflow("u1", "seed1"),
+        &workflow("u1", "seed1"),
+        &caps,
+        &BTreeMap::new(),
+    )
+    .unwrap();
+    let loaded = RecalcReceiptArtifact::from_bytes(&last.to_bytes(ID).unwrap(), None).unwrap();
+    assert_eq!(loaded.capabilities().unwrap(), caps);
+    assert_eq!(loaded.plan_identity(), last.plan_identity());
 }

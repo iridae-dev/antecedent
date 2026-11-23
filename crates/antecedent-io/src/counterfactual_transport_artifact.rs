@@ -1,5 +1,5 @@
 //! Independent replay of general finite counterfactual transport artifacts
-//! (kind `counterfactual_transport_v1`, format version 1).
+//! (kind `counterfactual_transport_v2`, format version 2).
 //!
 //! The wire, the digests and the typed errors are estimator-free and live in
 //! `antecedent-io-core` ([`antecedent_io_core::counterfactual_transport_wire`]);
@@ -26,7 +26,7 @@
 //! Every failure is a [`CounterfactualTransportArtifactError`] naming its slot.
 //! The artifact is point-only; this module never produces an interval.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, SearchLimits};
 use antecedent_estimate::{
@@ -248,7 +248,7 @@ fn evaluation_refusal(error: &EstimationError) -> Error {
     match error {
         EstimationError::Refused { code, message }
         | EstimationError::RefusedWithFields { code, message, .. } => {
-            Error::Replay { code, message: message.clone() }
+            Error::Replay { code, message: message.to_string() }
         }
         other => Error::LawInvalid(other.to_string()),
     }
@@ -292,8 +292,7 @@ fn check_limits(
     // The replay runs under the producer's stored memory cap, so the consumer's
     // own limit (its consume limits and the context's hard limit) must cover it.
     let memory_cap = ctx
-        .memory
-        .hard_limit_bytes
+        .memory_limit_bytes()
         .map_or(limits.search_memory_bytes, |hard| hard.min(limits.search_memory_bytes));
     if wire.search.memory_limit_bytes > memory_cap {
         return Err(exceeded("search memory limit"));
@@ -434,8 +433,14 @@ fn consume_obstructed(
         });
     }
     let check =
-        verify_counterfactual_transport_witness(&problem, &query, &catalog, &stored.witness)
-            .map_err(|error| Error::ObstructionInvalid(error.to_string()))?;
+        verify_counterfactual_transport_witness(&problem, &query, &catalog, &stored.witness, ctx)
+            .map_err(|error| {
+            if error.is_budget_or_cancel() {
+                replay_refusal(&error)
+            } else {
+                Error::ObstructionInvalid(error.to_string())
+            }
+        })?;
     if check.first_value == check.second_value {
         return Err(Error::ObstructionInvalid("the two models give the same query value".into()));
     }

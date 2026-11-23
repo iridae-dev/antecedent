@@ -17,31 +17,7 @@ from typing import Literal
 from ._columns import coerce_fields
 from ._native import temporal_response_spec as _native_temporal_response_spec
 from ._validate import count as _count
-from .errors import CausalUnsupportedError, CausalValueError
-
-# Rust names the capability. Python appends the call.
-_ADJUSTMENT_HANDOFF_CAPABILITY = "capability: adjustment handoff"
-_ADJUSTMENT_HANDOFF_CALL = "antecedent.handoff.econml(result, modifiers=[...])"
-
-
-def _append_adjustment_handoff_call(remedy: str) -> str:
-    if _ADJUSTMENT_HANDOFF_CAPABILITY in remedy and _ADJUSTMENT_HANDOFF_CALL not in remedy:
-        return remedy.replace(
-            _ADJUSTMENT_HANDOFF_CAPABILITY,
-            f"{_ADJUSTMENT_HANDOFF_CAPABILITY} ({_ADJUSTMENT_HANDOFF_CALL})",
-            1,
-        )
-    return remedy
-
-
-# What a multi-modifier ``ConditionalEffect`` refusal names instead.
-_CONDITIONAL_MULTI_MODIFIER_REMEDY = _append_adjustment_handoff_call(
-    "the frequentist interaction regression fits one modifier; for several "
-    "modifiers use the Bayesian conditional estimator "
-    "(EstimatorId::BayesianConditional), or hand the identified adjustment set "
-    "to an external CATE learner (capability: adjustment handoff), or fit one "
-    "ConditionalEffect per modifier"
-)
+from .errors import CausalValueError
 
 
 def _require_name(field_name: str, value: str) -> None:
@@ -101,7 +77,7 @@ class ExceedanceGrid:
 
 @dataclass(frozen=True, slots=True)
 class Quantile:
-    """Finite-grid quantile ``F_a^{-1}(tau)`` on licensed Frequentist CDF paths.
+    """Finite-grid quantile ``F_a^{-1}(tau)`` on supported Frequentist CDF paths.
 
     Effect queries return active minus control quantiles. ConditionalEffect
     standardizes arm CDFs over the retained modifier distribution before inversion.
@@ -148,7 +124,7 @@ def coerce_outcome_functional(spec: object | None) -> dict[str, object] | None:
 
 @dataclass(frozen=True, slots=True)
 class TemporalResponseSpec:
-    """Licensed temporal-response query policy, supplied by Rust.
+    """Supported temporal-response query policy, supplied by Rust.
 
     Python may duplicate error checking against this object. It must not
     define the cap, allowed policies, or lag default itself.
@@ -206,11 +182,53 @@ def _validate_max_history_lag(max_history_lag: int | None) -> None:
         raise CausalValueError("max_history_lag must be non-negative")
 
 
+@dataclass(frozen=True, slots=True)
+class FeedbackMechanism:
+    """Declared delayed-feedback dynamics ``s <- a s + b u + e`` of a temporal response.
+
+    The dynamics are declared, not fitted: ``autoregression`` is ``a``,
+    ``input_gain`` is ``b``, ``innovation_variance`` is the variance of ``e``, and
+    ``initial_state`` is the level of the ``initial_law`` at the origin
+    (``None`` is the contemporaneous observed law, a string names a law).
+    ``delay`` is the feedback delay in ticks before the action re-enters the
+    state; it is not ``treatment_lag``. ``level`` is the dose the pulse or
+    sustained policy holds. A response that declares one publishes the
+    finite-horizon rollout of these dynamics at every requested horizon instead
+    of the fitted dose-by-horizon surface.
+    """
+
+    _: KW_ONLY
+    delay: int
+    level: float
+    autoregression: float
+    input_gain: float
+    innovation_variance: float
+    initial_law: str | None = None
+    initial_state: float = 0.0
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "delay", _count(self.delay, "delay", minimum=1, maximum=2**32 - 1))
+        numbers = {
+            "level": self.level,
+            "autoregression": self.autoregression,
+            "input_gain": self.input_gain,
+            "innovation_variance": self.innovation_variance,
+            "initial_state": self.initial_state,
+        }
+        for name, value in numbers.items():
+            _require_finite(f"feedback {name}", value)
+        if self.innovation_variance < 0:
+            raise CausalValueError("feedback innovation_variance must not be negative")
+        if self.initial_law is not None:
+            _require_name("initial_law", self.initial_law)
+
+
 def _validate_temporal(
     horizons: Sequence[int] | None,
     policy: str,
     treatment_lag: int,
     max_history_lag: int | None,
+    feedback: FeedbackMechanism | None = None,
 ) -> None:
     """Shared temporal-attachment validation for ``ResponseCurve`` and
     ``InterventionResponse`` (ADR 0021). No-op when ``horizons`` is ``None``
@@ -218,7 +236,11 @@ def _validate_temporal(
     :data:`temporal_response_spec`.
     """
     if horizons is None:
+        if feedback is not None:
+            raise CausalValueError("feedback requires horizons; a static cell has no dynamics")
         return
+    if feedback is not None and not isinstance(feedback, FeedbackMechanism):
+        raise CausalValueError("feedback must be a FeedbackMechanism")
     _validate_horizons(horizons)
     if policy not in temporal_response_spec.allowed_policies:
         allowed = "' or '".join(temporal_response_spec.allowed_policies)
@@ -249,13 +271,31 @@ def _coordinate_values(
 
 @dataclass(frozen=True, slots=True)
 class AverageEffect:
-    """Average treatment effect (static tabular).
+    """The average treatment effect ``E[Y(active)] - E[Y(control)]`` on tabular data.
 
-    ``control_level`` and ``active_level`` name the two arms of the treatment column: numbers
-    for a numerically coded column, or both labels (``str``) for a string- or category-coded
-    one (``control_level="a", active_level="b"``). Labels are mapped to the arm codes and run
-    the declared-level contrast of the numeric path; a row at any other label is refused
-    (``treatment_level_undeclared``).
+    The mean outcome had every unit in the target population been set to ``active_level``,
+    minus the mean had every unit been set to ``control_level``. Pass it as ``query=`` to
+    :func:`antecedent.analyze` or :func:`antecedent.prepare` with a graph; identification
+    chooses the adjustment, and ``outcome.answer.value`` is the estimate.
+
+    * ``treatment`` / ``outcome`` -- column names.
+    * ``control_level`` / ``active_level`` -- the two arms of the treatment column (defaults
+      ``0.0`` and ``1.0``): numbers for a numerically coded column, or both labels (``str``) for
+      a string- or category-coded one (``control_level="a", active_level="b"``). Labels are
+      mapped to the arm codes and run the declared-level contrast of the numeric path; a row at
+      any other label is refused (``treatment_level_undeclared``).
+    * ``target_population`` -- the population the effect averages over, an
+      :mod:`antecedent.population` type such as ``Treated()``; ``None`` (default) is every
+      observed row. Estimators that cannot target a declared population refuse it
+      (``population_not_estimable``).
+    * ``outcome_functional`` -- the functional of each arm's outcome distribution that is
+      contrasted: :class:`Mean` (``None``, the default), :class:`Exceedance`,
+      :class:`ExceedanceGrid` or :class:`Quantile`.
+
+    Example::
+
+        query = antecedent.AverageEffect("t", "y")
+        outcome = antecedent.analyze(data, graph=[("z", "t"), ("z", "y"), ("t", "y")], query=query)
     """
 
     treatment: str
@@ -284,8 +324,8 @@ class PulseEffect:
     coefficient, windows keep their consecutive times (a window of weight zero stays, contributes
     nothing and is counted), weights are normalized to mean one, and the uncertainty is the
     dependence-honest circular-block bootstrap of the weighted windows. It is read by the
-    frequentist single-window fit with ``refute=False``; sustained windows, conditional effects,
-    Bayesian fits, refuters and series with gaps refuse (``option_not_applicable``).
+    frequentist fit with ``refute=False``; Bayesian fits, refuters and series with gaps refuse
+    (``option_not_applicable``).
     """
 
     treatment: str
@@ -372,7 +412,7 @@ class TemporalConditionalSustained:
     """One-modifier conditional sustained effect on a single time step.
 
     Same marginal functional as :class:`TemporalConditionalPulse`. A multi-step
-    window is not this license.
+    window is not this support.
     """
 
     treatment: str
@@ -399,7 +439,18 @@ class TemporalConditionalSustained:
 
 @dataclass(frozen=True, slots=True)
 class InterventionalDistribution:
-    """Interventional distribution query (static)."""
+    """The distribution of ``outcome`` under a hard intervention, ``P(Y | do(X = x), Z)``.
+
+    * ``outcome`` -- the outcome column.
+    * ``interventions`` -- ``{column: value}`` settings of the intervened variables (default
+      none). The outcome cannot be intervened on.
+    * ``conditioning`` -- columns ``Z`` to condition on (default none); they may not overlap the
+      outcome or the intervened variables.
+    * ``target_population`` -- the population the effect averages over, an
+      :mod:`antecedent.population` type such as ``Treated()``; ``None`` (default) is every
+      observed row. Estimators that cannot target a declared population refuse it
+      (``population_not_estimable``).
+    """
 
     outcome: str
     _: KW_ONLY
@@ -411,7 +462,25 @@ class InterventionalDistribution:
 
 @dataclass(frozen=True, slots=True)
 class PathSpecificEffect:
-    """Path-specific effect query (static)."""
+    """The effect of ``treatment`` on ``outcome`` transmitted along a restricted set of paths.
+
+    The contrast of ``active_level`` against ``control_level`` when the change propagates only
+    along the directed paths selected by ``path_nodes``; identified by the path-restricted
+    natural-effect strategy (``Identifier.PATH_SPECIFIC_NATURAL``).
+
+    * ``treatment`` / ``outcome`` -- column names.
+    * ``path_nodes`` -- intermediate variables that every counted path must pass through, in
+      any order; ``None`` (default) counts all directed paths.
+    * ``control_level`` / ``active_level`` -- the contrasted treatment values (defaults ``0.0``
+      and ``1.0``).
+    * ``max_paths`` -- the most paths enumerated (default ``64``).
+    * ``max_len`` -- the longest path enumerated, in edges (default ``16``). Both caps change
+      which paths are summed, so they are part of the question.
+    * ``target_population`` -- the population the effect averages over, an
+      :mod:`antecedent.population` type such as ``Treated()``; ``None`` (default) is every
+      observed row. Estimators that cannot target a declared population refuse it
+      (``population_not_estimable``).
+    """
 
     treatment: str
     outcome: str
@@ -427,16 +496,20 @@ class PathSpecificEffect:
 
 @dataclass(frozen=True, slots=True)
 class ConditionalEffect:
-    """Conditional / context average effect with a single effect modifier.
+    """Conditional / context average effect given one effect modifier or a set of them.
 
-    The frequentist interaction regression (and its calibrated interval) fits
-    one modifier, so a sequence of modifiers is refused with a ``remedy``
-    naming the routes that take a modifier set.
+    ``modifier`` is a column name or a non-empty sequence of distinct column
+    names; :attr:`modifiers` is the normalized tuple. The frequentist
+    interaction regression fits the whole set (the vector generalization of
+    the one-modifier model), but its interval's coverage is measured for one
+    modifier only, so a result for a modifier set carries the assumption
+    ``conditional.joint_modifier_interval_uncalibrated``. Empty, repeated or
+    non-string modifiers raise ``CausalValueError``.
     """
 
     treatment: str
     outcome: str
-    modifier: str
+    modifier: str | Sequence[str]
     _: KW_ONLY
     control_level: float = 0.0
     active_level: float = 1.0
@@ -445,11 +518,28 @@ class ConditionalEffect:
     kind: Literal["conditional"] = field(default="conditional", init=False, repr=False)
 
     def __post_init__(self) -> None:
-        if not isinstance(self.modifier, str) and isinstance(self.modifier, Sequence):
-            raise CausalUnsupportedError(
-                "ConditionalEffect takes one modifier column",
-                remedy=_CONDITIONAL_MULTI_MODIFIER_REMEDY,
+        raw = self.modifier
+        if isinstance(raw, str):
+            names: tuple[str, ...] = (raw,)
+        elif isinstance(raw, Sequence):
+            names = tuple(raw)
+        else:
+            raise CausalValueError(
+                "ConditionalEffect modifier must be a column name or a sequence of column names"
             )
+        if not names:
+            raise CausalValueError("ConditionalEffect modifier must name at least one column")
+        for name in names:
+            _require_name("ConditionalEffect modifier", name)
+        if len(set(names)) != len(names):
+            raise CausalValueError("ConditionalEffect modifiers must be distinct column names")
+        object.__setattr__(self, "modifier", names[0] if isinstance(raw, str) else names)
+
+    @property
+    def modifiers(self) -> tuple[str, ...]:
+        """The effect modifiers as a tuple of column names."""
+        raw = self.modifier
+        return (raw,) if isinstance(raw, str) else tuple(raw)
 
 
 @dataclass(frozen=True, slots=True)
@@ -500,7 +590,7 @@ class AnomalyReference:
 class AnomalyAttribution:
     """GCM anomaly scores on a supplied explicit Dag.
 
-    Licensed ``analyze(data, graph=Dag, query=AnomalyAttribution(...))`` at
+    Supported ``analyze(data, graph=Dag, query=AnomalyAttribution(...))`` at
     validation ``none``. Identification is parametric (``gcm.parametric``);
     estimator ``gcm.fit``. accepted, graph-posterior, and non-Dag graphs remain
     refused. A Bayesian run publishes a shared-Dirichlet-row-weight posterior of
@@ -528,7 +618,7 @@ class AnomalyAttribution:
 class ChangeAttribution:
     """GCM distribution-change Shapley on a supplied explicit Dag.
 
-    Licensed ``analyze(data, graph=Dag, query=ChangeAttribution(...))`` at
+    Supported ``analyze(data, graph=Dag, query=ChangeAttribution(...))`` at
     validation ``none``. Identification is parametric (``gcm.parametric``);
     estimator ``gcm.fit``. cheap/full, Bayesian, accepted, graph-posterior,
     and non-Dag graphs remain refused.
@@ -560,6 +650,13 @@ class Counterfactual:
     uncertainty is unavailable. Bayesian ``none`` publishes a mechanism
     posterior and per-draw AAP unit effects. Nested and accepted forms stay
     refused.
+
+    ``also_outcomes`` names further outcomes read from the same abduction, so the
+    result carries one contrast per outcome (``outcome`` first). ``active_interventions``
+    and ``control_interventions`` map further variables to the levels set
+    simultaneously with ``treatment`` in the active and control worlds (a joint
+    baseline); both worlds must intervene on the same variables. With none of the
+    three, the query and its result are the single-outcome counterfactual.
     """
 
     treatment: str
@@ -567,14 +664,43 @@ class Counterfactual:
     _: KW_ONLY
     control_level: float = 0.0
     active_level: float = 1.0
+    also_outcomes: Sequence[str] = ()
+    active_interventions: Mapping[str, float] = field(default_factory=dict)
+    control_interventions: Mapping[str, float] = field(default_factory=dict)
     kind: Literal["counterfactual"] = field(default="counterfactual", init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if isinstance(self.also_outcomes, str):
+            raise CausalValueError("also_outcomes must be a sequence of variable names")
+        also = tuple(self.also_outcomes)
+        for name in also:
+            _require_name("also_outcomes", name)
+        if len({self.outcome, *also}) != 1 + len(also):
+            raise CausalValueError("a counterfactual lists each outcome once")
+        active = {str(k): float(v) for k, v in dict(self.active_interventions).items()}
+        control = {str(k): float(v) for k, v in dict(self.control_interventions).items()}
+        for name, level in (*active.items(), *control.items()):
+            _require_name("joint intervention", name)
+            _require_finite("joint intervention level", level)
+        if self.treatment in active or self.treatment in control:
+            raise CausalValueError("the treatment is not repeated among the joint interventions")
+        if set(active) != set(control):
+            raise CausalValueError(
+                "a joint baseline intervenes on the same variables in the active and control worlds"
+            )
+        coerce_fields(
+            self,
+            also_outcomes=also,
+            active_interventions=active,
+            control_interventions=control,
+        )
 
 
 @dataclass(frozen=True, slots=True)
 class NestedCounterfactual:
     """Natural direct effect ``Y(1, M(0)) - Y(0, M(0))``.
 
-    Licensed for one explicit three-node Markovian DAG with linear Gaussian
+    Supported for one explicit three-node Markovian DAG with linear Gaussian
     mechanisms. The same abduced exogenous table is used in both worlds.
     """
 
@@ -637,7 +763,9 @@ class ResponseCurve:
     a ``TemporalDag``, ``TemporalCpdag``, or ``TemporalPag``. Class graphs retain
     per-completion responses and structural uncertainty. ``treatment_lag`` defaults to
     :attr:`temporal_response_spec.default_treatment_lag` (policy origin ``-lag``),
-    matching :class:`PulseEffect` / :class:`SustainedEffect`.
+    matching :class:`PulseEffect` / :class:`SustainedEffect`. Keyword-only
+    ``feedback`` declares a :class:`FeedbackMechanism`: the response is then the
+    finite-horizon rollout of the declared dynamics, not the fitted surface.
     """
 
     treatment: str
@@ -651,6 +779,7 @@ class ResponseCurve:
     policy: str = temporal_response_spec.default_policy
     treatment_lag: int = temporal_response_spec.default_treatment_lag
     max_history_lag: int | None = None
+    feedback: FeedbackMechanism | None = None
     kind: Literal["response_curve"] = field(default="response_curve", init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -684,7 +813,13 @@ class ResponseCurve:
                 "max_history_lag",
                 _count(self.max_history_lag, "max_history_lag", minimum=0, maximum=2**32 - 1),
             )
-        _validate_temporal(self.horizons, self.policy, self.treatment_lag, self.max_history_lag)
+        _validate_temporal(
+            self.horizons,
+            self.policy,
+            self.treatment_lag,
+            self.max_history_lag,
+            self.feedback,
+        )
         if (
             self.horizons is not None
             and len(self.grid) * len(self.horizons) > temporal_response_spec.max_cells
@@ -698,12 +833,34 @@ class ResponseCurve:
 
     @property
     def is_temporal(self) -> bool:
+        """``True`` when the query declares ``horizons`` and so is a temporal response."""
         return self.horizons is not None
 
 
 @dataclass(frozen=True, slots=True)
 class AverageDerivative:
-    """Population-average derivative of a continuous-treatment response."""
+    """The population-average derivative ``E[m'(A)]`` of a continuous-treatment response.
+
+    ``m(a) = E[Y | do(A = a)]`` is the dose-response curve; the derivative is averaged over the
+    observed treatment law (the only supported ``weighting``) using a Gaussian-score Riesz
+    representer. That representer assumes the treatment is homoskedastic Gaussian given the
+    adjustment set; on a skewed, heteroskedastic treatment law the interval's coverage is not
+    supported.
+
+    * ``treatment`` / ``outcome`` -- column names.
+    * ``weighting`` -- the law the derivative is averaged over; ``None`` (default) is the
+      observed treatment law.
+    * ``target_population`` -- the population the effect averages over, an
+      :mod:`antecedent.population` type such as ``Treated()``; ``None`` (default) is every
+      observed row. Estimators that cannot target a declared population refuse it
+      (``population_not_estimable``).
+    * ``observation`` / ``observation_assumptions`` -- how the scientific outcome was recorded
+      (an :mod:`antecedent.observation` mechanism) and the identifying assumptions about that
+      recording; default none.
+
+    Raises:
+        CausalValueError: when ``treatment`` or ``outcome`` is not a nonempty name.
+    """
 
     treatment: str
     outcome: str
@@ -723,7 +880,25 @@ class AverageDerivative:
 
 @dataclass(frozen=True, slots=True)
 class PointDerivative:
-    """Local derivative of a response curve at one treatment value."""
+    """The derivative ``m'(a)`` (or ``m''(a)``) of the dose-response curve at one treatment value.
+
+    ``m(a) = E[Y | do(A = a)]``. The estimate is the slope of the curve itself, not a smoothed
+    surrogate, and needs an explicit ``bandwidth`` in ``estimator_config``. The published
+    interval is robust bias-corrected, so it is centered at the bias-corrected slope rather
+    than at the point value.
+
+    * ``treatment`` / ``outcome`` -- column names.
+    * ``at`` -- the treatment value ``a``; required and finite.
+    * ``order`` -- ``1`` for the slope (default) or ``2`` for the curvature.
+    * ``target_population`` -- the population the effect averages over, an
+      :mod:`antecedent.population` type such as ``Treated()``; ``None`` (default) is every
+      observed row. Estimators that cannot target a declared population refuse it
+      (``population_not_estimable``).
+    * ``observation`` / ``observation_assumptions`` -- as on :class:`AverageDerivative`.
+
+    Raises:
+        CausalValueError: when ``at`` is not finite, ``order`` is not 1 or 2, or a name is empty.
+    """
 
     treatment: str
     outcome: str
@@ -745,7 +920,24 @@ class PointDerivative:
 
 @dataclass(frozen=True, slots=True)
 class Elasticity:
-    """Log-outcome/log-treatment derivative at a positive treatment value."""
+    """The elasticity ``a m'(a) / m(a)`` of the dose-response curve at a positive treatment value.
+
+    The percentage change in the mean outcome per percentage change in treatment at ``a``. The
+    fitted response at ``a`` must be positive, and an explicit ``bandwidth`` is needed in
+    ``estimator_config``. When the level is not statistically separated from zero no finite
+    interval is published (``response.derivative_interval_unbounded``).
+
+    * ``treatment`` / ``outcome`` -- column names.
+    * ``at`` -- the treatment value; required, finite and positive.
+    * ``target_population`` -- the population the effect averages over, an
+      :mod:`antecedent.population` type such as ``Treated()``; ``None`` (default) is every
+      observed row. Estimators that cannot target a declared population refuse it
+      (``population_not_estimable``).
+    * ``observation`` / ``observation_assumptions`` -- as on :class:`AverageDerivative`.
+
+    Raises:
+        CausalValueError: when ``at`` is not finite and positive, or a name is empty.
+    """
 
     treatment: str
     outcome: str
@@ -766,7 +958,25 @@ class Elasticity:
 
 @dataclass(frozen=True, slots=True)
 class SemiElasticity:
-    """Derivative using one logarithmic scale and one identity scale."""
+    """A semi-elasticity of the dose-response curve at one treatment value.
+
+    With ``log_scale="treatment"`` (default) it is ``a m'(a)``, the change in mean outcome per
+    proportional change in treatment; with ``log_scale="outcome"`` it is ``m'(a) / m(a)``, the
+    proportional change in mean outcome per unit of treatment.
+
+    * ``treatment`` / ``outcome`` -- column names.
+    * ``at`` -- the treatment value; finite, and positive when ``log_scale="treatment"``.
+    * ``log_scale`` -- ``"treatment"`` or ``"outcome"``.
+    * ``target_population`` -- the population the effect averages over, an
+      :mod:`antecedent.population` type such as ``Treated()``; ``None`` (default) is every
+      observed row. Estimators that cannot target a declared population refuse it
+      (``population_not_estimable``).
+    * ``observation`` / ``observation_assumptions`` -- as on :class:`AverageDerivative`.
+
+    Raises:
+        CausalValueError: when ``log_scale`` is not one of the two names, ``at`` is invalid, or a
+            name is empty.
+    """
 
     treatment: str
     outcome: str
@@ -794,12 +1004,11 @@ class SemiElasticity:
 class DirectionalDerivative:
     """Plug-in response derivative along a supplied direction (not renormalized).
 
-    The additive-GAM plug-in gradient (at most two treatments) dotted with
-    ``direction``. Frequentist results are point-only: ``uncertainty`` is empty
-    and the warning ``response.derivative_interval_withheld`` explains that its
-    coefficient-sandwich band is wired for calibration but stays closed until
-    its coverage is measured. Bayesian inference publishes a pointwise credible
-    band.
+    The additive-GAM plug-in gradient dotted with
+    ``direction``. A Frequentist result reports the coefficient-sandwich band on the identity
+    scale; for a collinear design the point stands alone and the warning
+    ``response.no_derivative_interval_method`` says why. Bayesian inference publishes a pointwise
+    credible band.
     """
 
     treatments: Sequence[str]
@@ -831,12 +1040,11 @@ class DirectionalDerivative:
 class ResponseJacobian:
     """Low-dimensional Jacobian of outcomes with respect to treatments.
 
-    Row-major outcomes x treatments from the additive-GAM plug-in gradient (at
-    most two treatments). Frequentist results are point-only: ``uncertainty``
-    is empty and the warning ``response.derivative_interval_withheld`` explains
-    that its coefficient-sandwich band is wired for calibration but stays closed
-    until its coverage is measured. Bayesian inference publishes a pointwise
-    credible band. The scalar :class:`Elasticity` query is a different
+    Row-major outcomes x treatments from the additive-GAM plug-in gradient.
+    A Frequentist result reports the coefficient-sandwich band on the
+    identity scale; for a collinear design or a transformed scale the point stands alone and
+    the warning ``response.no_derivative_interval_method`` says why. Bayesian inference
+    publishes a pointwise credible band. The scalar :class:`Elasticity` query is a different
     estimator and publishes a Frequentist Fieller interval.
     """
 
@@ -862,8 +1070,8 @@ class InterventionResponse:
     """Mean outcome under an existing static, stochastic, or modified intervention.
 
     Keyword-only ``horizons`` / ``policy`` attach a temporal intervention path
-    (ADR 0021), licensed on ``TemporalDag``, ``TemporalCpdag``, and ``TemporalPag``.
-    Class graphs retain per-completion responses and structural uncertainty. Licensed policies are
+    (ADR 0021), supported on ``TemporalDag``, ``TemporalCpdag``, and ``TemporalPag``.
+    Class graphs retain per-completion responses and structural uncertainty. Supported policies are
     Soft(``constant``/``additive_shift``/``multiplicative``/``truncated_shift``) and ``Sequence`` of those overlays
     (multi-step on one variable, or joint at one time when every coordinate
     is identified). Multiplicative scales the structural assignment; truncated shift targets its
@@ -871,7 +1079,8 @@ class InterventionResponse:
     preceding interventions. Outcomes are not clipped. Nested ``Sequence`` is unsupported.
     Multi-step never collapses to the last step. ``treatment_lag``
     defaults to :attr:`temporal_response_spec.default_treatment_lag`, matching
-    :class:`PulseEffect`.
+    :class:`PulseEffect`. Keyword-only ``feedback`` declares a
+    :class:`FeedbackMechanism`, as on :class:`ResponseCurve`.
     """
 
     outcome: str
@@ -884,6 +1093,7 @@ class InterventionResponse:
     policy: str = temporal_response_spec.default_policy
     treatment_lag: int = temporal_response_spec.default_treatment_lag
     max_history_lag: int | None = None
+    feedback: FeedbackMechanism | None = None
     outcome_functional: object | None = None
     kind: Literal["intervention_response"] = field(
         default="intervention_response", init=False, repr=False
@@ -913,14 +1123,93 @@ class InterventionResponse:
                 "max_history_lag",
                 _count(self.max_history_lag, "max_history_lag", minimum=0, maximum=2**32 - 1),
             )
-        _validate_temporal(self.horizons, self.policy, self.treatment_lag, self.max_history_lag)
+        _validate_temporal(
+            self.horizons,
+            self.policy,
+            self.treatment_lag,
+            self.max_history_lag,
+            self.feedback,
+        )
 
     @property
     def is_temporal(self) -> bool:
+        """``True`` when the query declares ``horizons`` and so is a temporal response."""
         return self.horizons is not None
 
 
+@dataclass(frozen=True, slots=True)
+class TemporalQuery:
+    """Attach temporal geometry to a typed derivative or unfolded cross-world target.
+
+    Derivatives retain the requested horizon and policy on the core response query.
+    Cross-world/distribution families use their existing one-lag unfolded mechanism;
+    unsupported geometry is refused rather than changing that target. This does not
+    denote the separately supplied two-slice SCM in temporal_counterfactual.
+    """
+
+    query: (
+        AverageDerivative
+        | PointDerivative
+        | Elasticity
+        | SemiElasticity
+        | DirectionalDerivative
+        | ResponseJacobian
+        | Counterfactual
+        | NestedCounterfactual
+        | InterventionalDistribution
+        | PathSpecificEffect
+    )
+    _: KW_ONLY
+    horizons: Sequence[int] = (1,)
+    policy: str = temporal_response_spec.default_policy
+    treatment_lag: int = temporal_response_spec.default_treatment_lag
+    max_history_lag: int | None = None
+    window: tuple[int, int] | None = None
+    kind: Literal["temporal_query"] = field(default="temporal_query", init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        from ._study_lifecycle import retain
+
+        supported = (
+            AverageDerivative,
+            PointDerivative,
+            Elasticity,
+            SemiElasticity,
+            DirectionalDerivative,
+            ResponseJacobian,
+            Counterfactual,
+            NestedCounterfactual,
+            InterventionalDistribution,
+            PathSpecificEffect,
+        )
+        if not isinstance(self.query, supported):
+            raise CausalValueError(
+                "TemporalQuery requires a derivative or unfolded cross-world query"
+            )
+        horizons = tuple(self.horizons)
+        _validate_horizons(horizons)
+        _validate_max_history_lag(self.max_history_lag)
+        if self.policy not in temporal_response_spec.allowed_policies:
+            raise CausalValueError(f"unsupported temporal policy {self.policy!r}")
+        lag = _count(self.treatment_lag, "treatment_lag", minimum=0, maximum=2**31 - 1)
+        if self.window is not None:
+            if len(self.window) != 2 or any(type(value) is not int for value in self.window):
+                raise CausalValueError("window must hold two integer offsets")
+            if self.window[0] > self.window[1]:
+                raise CausalValueError("window start must not exceed its end")
+            object.__setattr__(self, "window", tuple(self.window))
+        object.__setattr__(self, "query", retain(self.query))
+        object.__setattr__(self, "horizons", horizons)
+        object.__setattr__(self, "treatment_lag", lag)
+
+    @property
+    def is_temporal(self) -> bool:
+        """Always ``True``: a ``TemporalQuery`` is temporal by construction."""
+        return True
+
+
 __all__ = [
+    "TemporalQuery",
     "AnomalyAttribution",
     "AnomalyReference",
     "AverageDerivative",
@@ -932,6 +1221,7 @@ __all__ = [
     "Elasticity",
     "Exceedance",
     "ExceedanceGrid",
+    "FeedbackMechanism",
     "InterventionalDistribution",
     "InterventionResponse",
     "Mean",

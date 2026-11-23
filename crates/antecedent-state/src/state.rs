@@ -1,7 +1,8 @@
 //! [`CausalState`] apply / invalidate / recompute.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[cfg(test)]
 use std::sync::Arc;
 
 use antecedent_core::recalc::{ChangeKind, Revalidation, Stage, StageIdentities, StageIdentity};
@@ -9,7 +10,8 @@ use antecedent_core::{AssumptionSet, CacheBudget, ContractIdentities, QueryId, S
 
 use crate::error::StateError;
 use crate::event::StateEvent;
-use crate::invalidation::{ChangedInput, InvalidationLog, InvalidationTarget};
+use crate::invalidation::{ChangedInput, InvalidationLog, InvalidationReason, InvalidationTarget};
+use crate::refresh_contract::{RefreshChange, RefreshDisposition, RefreshRoute, route_contract};
 use crate::store::{
     CachedResult, DataCatalog, DataVersion, GraphEvidenceStore, ModelStore, QueryStore,
     ResultStore, SuffStatStore,
@@ -75,23 +77,97 @@ pub struct CausalState {
     pub invalidations: InvalidationLog,
     /// Cache budget.
     pub cache_budget: CacheBudget,
+    /// Bounds besides the cache budget.
+    pub limits: StateLimits,
     /// Sufficient statistics.
     pub suff_stats: SuffStatStore,
     /// Recorded interventions.
     pub interventions: Vec<crate::store::InterventionRecord>,
 }
 
+/// Default cache budget of a [`CausalState`]: 64 MiB.
+const DEFAULT_CACHE_BYTES: u64 = 64 * 1024 * 1024;
+
+/// Bytes budgeted for one retained audit entry: [`InvalidationEntry`](crate::InvalidationEntry)
+/// is 88 bytes on 64-bit targets and its reason is a short shared string; 128 rounds up.
+const AUDIT_ENTRY_BYTES: u64 = 128;
+
+/// Share of the cache budget the audit trail may hold, as a divisor: one eighth.
+const AUDIT_BUDGET_DIVISOR: u64 = 8;
+
+/// Bounds a [`CausalState`] keeps besides its [`CacheBudget`].
+///
+/// # Audit window
+///
+/// [`Self::audit_window_entries`] bounds [`InvalidationLog::entries`]. It is derived from what
+/// that trail is for and from the budget it shares memory with, not chosen.
+///
+/// - Staleness queries ([`CausalState::is_stale`], [`CausalState::stale_queries`] and
+///   [`CausalState::revalidation`]) read the log's index, which has one slot per distinct class
+///   and is not trimmed. They put no lower bound on the window.
+/// - The trail serves audit and replay: a reader classifies what changed after a claim's
+///   version through [`InvalidationLog::entries_after`]. A claim older than the window is
+///   refused with [`PrunedHistory`](crate::PrunedHistory), which also carries a chain head
+///   over every trimmed entry, so the window bounds what is held, never what is committed to.
+///   A larger window serves older claims; there is no size beyond which more is needed.
+/// - The trail competes with the cached results for memory, so it is a fixed share of the
+///   same budget: one eighth, at 128 bytes per entry. The default budget of 64 MiB gives
+///   64 MiB / 8 / 128 B = 65,536 entries, 8 MiB. Trimming leaves between the window and twice
+///   the window, so the trail holds at most a quarter of the budget.
+/// - The result is clamped to 1,024 entries at least, so a tiny budget still keeps the
+///   recent versions an audit asks about first, and to 2^20 entries (128 MiB) at most, so
+///   an unlimited budget cannot make the trail unbounded.
+///
+/// A version is never split: one event with more entries than the window stays whole.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct StateLimits {
+    /// Audit entries kept before the oldest whole versions are trimmed.
+    pub audit_window_entries: usize,
+}
+
+impl StateLimits {
+    /// Fewest audit entries a window keeps.
+    pub const MIN_AUDIT_WINDOW_ENTRIES: usize = 1_024;
+    /// Most audit entries a window keeps.
+    pub const MAX_AUDIT_WINDOW_ENTRIES: usize = 1 << 20;
+
+    /// The limits derived from `budget`; see the type documentation.
+    #[must_use]
+    pub fn for_cache_budget(budget: CacheBudget) -> Self {
+        let entries = budget.max_bytes / AUDIT_BUDGET_DIVISOR / AUDIT_ENTRY_BYTES;
+        let entries = usize::try_from(entries).unwrap_or(usize::MAX);
+        Self {
+            audit_window_entries: entries
+                .clamp(Self::MIN_AUDIT_WINDOW_ENTRIES, Self::MAX_AUDIT_WINDOW_ENTRIES),
+        }
+    }
+}
+
+impl Default for StateLimits {
+    /// The limits of the default 64 MiB cache budget: a 65,536-entry audit window.
+    fn default() -> Self {
+        Self::for_cache_budget(CacheBudget::new(DEFAULT_CACHE_BYTES))
+    }
+}
+
 impl Default for CausalState {
     fn default() -> Self {
-        Self::new(CacheBudget::new(64 * 1024 * 1024))
+        Self::new(CacheBudget::new(DEFAULT_CACHE_BYTES))
     }
 }
 
 impl CausalState {
-    /// Fresh state with the given cache budget.
+    /// Fresh state with the given cache budget and the [`StateLimits`] derived from it.
     #[must_use]
     pub fn new(cache_budget: CacheBudget) -> Self {
+        Self::with_limits(cache_budget, StateLimits::for_cache_budget(cache_budget))
+    }
+
+    /// Fresh state with explicit `limits`.
+    #[must_use]
+    pub fn with_limits(cache_budget: CacheBudget, limits: StateLimits) -> Self {
         Self {
+            limits,
             version: StateVersion::ZERO,
             data_catalog: DataCatalog::new(),
             graph_evidence: GraphEvidenceStore::default(),
@@ -117,10 +193,10 @@ impl CausalState {
         // event must be observationally atomic: callers use `version` as the
         // freshness boundary for cached causal results, so consuming a version
         // on an operation that did not happen would make that evidence stamp lie.
-        if let StateEvent::RemoveConstraint(id) = &event {
-            if !self.graph_evidence.constraints.iter().any(|constraint| constraint.id == id.0) {
-                return Err(StateError::UnknownId(format!("constraint {}", id.0)));
-            }
+        if let StateEvent::RemoveConstraint(id) = &event
+            && !self.graph_evidence.constraints.iter().any(|constraint| constraint.id == id.0)
+        {
+            return Err(StateError::UnknownId(format!("constraint {}", id.0)));
         }
         self.version = self.version.next();
         let v = self.version;
@@ -129,17 +205,34 @@ impl CausalState {
             StateEvent::AppendData(batch) => {
                 self.data_catalog.batches.push(batch);
                 self.data_catalog.version = self.data_catalog.version.next();
-                self.invalidate_data_dependents(v, "append_data", input);
+                self.invalidate_data_dependents(
+                    v,
+                    InvalidationReason::AppendData,
+                    input,
+                    RefreshChange::AppendRows,
+                );
             }
             StateEvent::ReplaceData(new_ver) => {
                 self.data_catalog.version = new_ver;
                 self.data_catalog.batches.clear();
-                self.invalidate_data_dependents(v, "replace_data", input);
-                self.suff_stats.ols.clear();
-                self.suff_stats.cov.clear();
-                self.suff_stats.lag_indexes.clear();
-                self.suff_stats.graph_scores.clear();
-                self.suff_stats.particle_filters.clear();
+                self.invalidate_data_dependents(
+                    v,
+                    InvalidationReason::ReplaceData,
+                    input,
+                    RefreshChange::SourceChanged,
+                );
+                if matches!(
+                    route_contract(RefreshRoute::LinearOlsGram, RefreshChange::SourceChanged),
+                    RefreshDisposition::InvalidateAndRecompute { .. }
+                ) {
+                    self.suff_stats.ols.clear();
+                }
+                if matches!(
+                    route_contract(RefreshRoute::StreamingCovariance, RefreshChange::SourceChanged),
+                    RefreshDisposition::InvalidateAndRecompute { .. }
+                ) {
+                    self.suff_stats.cov.clear();
+                }
                 // Drain through the budget-aware path so the bytes each slot was charged
                 // are returned, not stranded until the budget is exhausted.
                 let keys: Vec<_> = self.suff_stats.mechanism_diags.keys().cloned().collect();
@@ -150,30 +243,42 @@ impl CausalState {
                         &mut self.cache_budget,
                     );
                 }
-                self.invalidations.push(v, InvalidationTarget::LagIndexes, "replace_data");
-                self.invalidations.push(v, InvalidationTarget::GraphScores, "replace_data");
-                self.invalidations.push(v, InvalidationTarget::ParticleFilters, "replace_data");
+                self.invalidations.push(
+                    v,
+                    InvalidationTarget::LagIndexes,
+                    InvalidationReason::ReplaceData,
+                );
+                self.invalidations.push(
+                    v,
+                    InvalidationTarget::GraphScores,
+                    InvalidationReason::ReplaceData,
+                );
+                self.invalidations.push(
+                    v,
+                    InvalidationTarget::ParticleFilters,
+                    InvalidationReason::ReplaceData,
+                );
                 self.invalidations.push(
                     v,
                     InvalidationTarget::MechanismDiagnostics,
-                    "replace_data",
+                    InvalidationReason::ReplaceData,
                 );
             }
             StateEvent::AddGraphEvidence(rec) => {
                 self.graph_evidence.evidence.push(rec);
-                self.invalidate_all_results(v, "add_graph_evidence", input);
+                self.invalidate_all_results(v, InvalidationReason::AddGraphEvidence, input);
             }
             StateEvent::AddConstraint(rec) => {
                 self.graph_evidence.constraints.push(rec);
-                self.invalidate_all_results(v, "add_constraint", input);
+                self.invalidate_all_results(v, InvalidationReason::AddConstraint, input);
             }
             StateEvent::RemoveConstraint(id) => {
                 self.graph_evidence.constraints.retain(|c| c.id != id.0);
-                self.invalidate_all_results(v, "remove_constraint", input);
+                self.invalidate_all_results(v, InvalidationReason::RemoveConstraint, input);
             }
             StateEvent::UpdateAssumption(rec) => {
                 self.assumptions.push(rec);
-                self.invalidate_all_results(v, "update_assumption", input);
+                self.invalidate_all_results(v, InvalidationReason::UpdateAssumption, input);
             }
             StateEvent::RegisterQuery(query) => {
                 let _id = self.queries.register(query);
@@ -181,9 +286,10 @@ impl CausalState {
             }
             StateEvent::RecordIntervention(rec) => {
                 self.interventions.push(rec);
-                self.invalidate_all_results(v, "record_intervention", input);
+                self.invalidate_all_results(v, InvalidationReason::RecordIntervention, input);
             }
         }
+        self.invalidations.trim_audit(self.limits.audit_window_entries);
         Ok(v)
     }
 
@@ -328,45 +434,32 @@ impl CausalState {
         self.queries.queries.keys().copied().filter(|q| self.is_stale(*q)).collect()
     }
 
-    /// Caller-driven recomputation hook for results that carry no lineage: marks selected
-    /// queries fresh after the caller supplies new result fingerprints. Does not run
-    /// estimators itself.
-    ///
-    /// This is the unchecked path and is refused for any query whose last publication
-    /// carried a lineage: such a query is republished only through [`Self::publish_results`]
-    /// with the identities of the recomputation, so freshness is never asserted for a result
-    /// that cannot show what it was recomputed from.
+    /// Versionless refresh cannot establish when the computation started.
+    /// Capture the current version before computing and use [`Self::refresh_results_at`].
     ///
     /// # Errors
     ///
-    /// Unknown query, a lineage-bound query, or cache budget refusal.
-    pub fn refresh_results(&mut self, updates: &[(QueryId, u64, u64)]) -> Result<(), StateError> {
-        let updates: Vec<ResultPublication> = updates
-            .iter()
-            .map(|&(query, fingerprint, bytes)| ResultPublication {
-                query,
-                fingerprint,
-                bytes,
-                lineage: None,
-                data_snapshot: None,
-                identities: None,
-            })
-            .collect();
-        self.publish_results(&updates)
+    /// Always returns an invalid-event error without changing state.
+    pub fn refresh_results(&mut self, _updates: &[(QueryId, u64, u64)]) -> Result<(), StateError> {
+        Err(StateError::InvalidEvent(
+            "capture the state version before computation and use refresh_results_at".into(),
+        ))
     }
 
-    /// Publish recomputed results, refusing a republication that the data
-    /// events say cannot be a recomputation.
-    ///
-    /// A result whose data snapshot equals the one published under an earlier
-    /// data-catalog version was not recomputed on the current data, whatever
-    /// its fingerprint says.
+    /// Versionless publication cannot establish when the computation started.
+    /// Capture the current version before computing and use [`Self::publish_results_at`].
     ///
     /// # Errors
     ///
-    /// Unknown query, a snapshot that predates the latest data event, or cache
-    /// budget refusal.
-    pub fn publish_results(&mut self, updates: &[ResultPublication]) -> Result<(), StateError> {
+    /// Always returns an invalid-event error without changing state.
+    pub fn publish_results(&mut self, _updates: &[ResultPublication]) -> Result<(), StateError> {
+        Err(StateError::InvalidEvent(
+            "capture the state version before computation and use publish_results_at".into(),
+        ))
+    }
+
+    // Called only after the caller-supplied pre-computation version is checked.
+    fn publish_results_checked(&mut self, updates: &[ResultPublication]) -> Result<(), StateError> {
         for update in updates {
             if !self.queries.queries.contains_key(&update.query) {
                 return Err(StateError::UnknownId(format!("query {}", update.query.raw())));
@@ -384,16 +477,15 @@ impl CausalState {
                     update.query.raw()
                 )));
             }
-            if let Some(published) = update.data_snapshot {
-                if previous.data_version != self.data_catalog.version
-                    && published == previous.data_snapshot
-                {
-                    return Err(StateError::InvalidEvent(format!(
-                        "query {} republishes the data snapshot recorded before the latest data \
+            if let Some(published) = update.data_snapshot
+                && previous.data_version != self.data_catalog.version
+                && published == previous.data_snapshot
+            {
+                return Err(StateError::InvalidEvent(format!(
+                    "query {} republishes the data snapshot recorded before the latest data \
                          event; recompute on the current data before publishing",
-                        update.query.raw()
-                    )));
-                }
+                    update.query.raw()
+                )));
             }
             // Every stage input that changed since the previous publication must be
             // reflected in the identity layer that reads it: an identical lineage after a
@@ -462,8 +554,9 @@ impl CausalState {
         Ok(())
     }
 
-    /// Like [`Self::refresh_results`], but refuse if `expected` is no longer
-    /// the current state version. A stale commit cannot mark results fresh.
+    /// Publish bare recomputation fingerprints. Capture `expected` before starting
+    /// computation; a version that advanced in the meantime is refused.
+    /// A lineage-bound query must instead use [`Self::publish_results_at`].
     ///
     /// # Errors
     ///
@@ -474,10 +567,22 @@ impl CausalState {
         updates: &[(QueryId, u64, u64)],
     ) -> Result<(), StateError> {
         self.require_version(expected)?;
-        self.refresh_results(updates)
+        let publications: Vec<ResultPublication> = updates
+            .iter()
+            .map(|&(query, fingerprint, bytes)| ResultPublication {
+                query,
+                fingerprint,
+                bytes,
+                lineage: None,
+                data_snapshot: None,
+                identities: None,
+            })
+            .collect();
+        self.publish_results_checked(&publications)
     }
 
-    /// Like [`Self::publish_results`], refusing a stale expected version.
+    /// Publish recomputed results against a version captured before computation.
+    /// Refuse a stale expected version or a lineage that fails to reflect changed inputs.
     ///
     /// # Errors
     ///
@@ -489,7 +594,7 @@ impl CausalState {
         updates: &[ResultPublication],
     ) -> Result<(), StateError> {
         self.require_version(expected)?;
-        self.publish_results(updates)
+        self.publish_results_checked(updates)
     }
 
     fn require_version(&self, expected: StateVersion) -> Result<(), StateError> {
@@ -512,25 +617,41 @@ impl CausalState {
     fn invalidate_data_dependents(
         &mut self,
         v: StateVersion,
-        reason: &str,
+        reason: InvalidationReason,
         input: Option<ChangedInput>,
+        change: RefreshChange,
     ) {
+        // Each kept route answers the change as its contract says: an in-place update the
+        // caller applies, or a drop and recompute. The caches are cleared only when the
+        // contract says so, so the table and this method cannot drift apart.
+        let drops = |route| {
+            matches!(
+                route_contract(route, change),
+                RefreshDisposition::InvalidateAndRecompute { .. }
+            )
+        };
         self.invalidate_all_results(v, reason, input);
         for key in self.suff_stats.ols.keys().cloned().collect::<Vec<_>>() {
             self.invalidations.push(
                 v,
                 InvalidationTarget::SuffStat(key),
-                format!("{reason}:ols_may_need_append"),
+                format!("{}:ols_may_need_append", reason.as_str()),
             );
         }
         self.invalidations.push(v, InvalidationTarget::LagIndexes, reason);
         // Lag indexes become stale on data change; drop metadata.
-        self.suff_stats.lag_indexes.clear();
+        if drops(RefreshRoute::LagIndexCache) {
+            self.suff_stats.lag_indexes.clear();
+        }
         // Graph scores are data-dependent; clear until a streaming family exists.
-        self.suff_stats.graph_scores.clear();
+        if drops(RefreshRoute::GraphScoreCache) {
+            self.suff_stats.graph_scores.clear();
+        }
         self.invalidations.push(v, InvalidationTarget::GraphScores, reason);
         // Particle filters: drop on append (caller re-inits / steps a fresh filter).
-        self.suff_stats.particle_filters.clear();
+        if drops(RefreshRoute::ParticleFilter) {
+            self.suff_stats.particle_filters.clear();
+        }
         self.invalidations.push(v, InvalidationTarget::ParticleFilters, reason);
         // Mechanism diagnostics stream via caller append; log stale without clearing.
         self.invalidations.push(v, InvalidationTarget::MechanismDiagnostics, reason);
@@ -539,14 +660,15 @@ impl CausalState {
     fn invalidate_all_results(
         &mut self,
         v: StateVersion,
-        reason: &str,
+        reason: InvalidationReason,
         input: Option<ChangedInput>,
     ) {
         let ids: Vec<QueryId> = self.cached_results.results.keys().copied().collect();
-        let log = |log: &mut InvalidationLog, target: InvalidationTarget, reason: &str| match input
-        {
-            Some(input) => log.push_input(v, target, Arc::from(reason), input),
-            None => log.push(v, target, Arc::from(reason)),
+        let log = |log: &mut InvalidationLog,
+                   target: InvalidationTarget,
+                   reason: InvalidationReason| match input {
+            Some(input) => log.push_input(v, target, reason, input),
+            None => log.push(v, target, reason),
         };
         for q in ids {
             self.cached_results.remove(q, &mut self.cache_budget);
@@ -598,13 +720,72 @@ mod tests {
     }
 
     #[test]
+    fn the_audit_window_is_derived_from_the_cache_budget() {
+        let window =
+            |bytes| StateLimits::for_cache_budget(CacheBudget::new(bytes)).audit_window_entries;
+        assert_eq!(StateLimits::default().audit_window_entries, 65_536);
+        assert_eq!(CausalState::default().limits, StateLimits::default());
+        assert_eq!(window(64 * 1024 * 1024), 65_536);
+        assert_eq!(window(128 * 1024 * 1024), 131_072);
+        assert_eq!(window(0), StateLimits::MIN_AUDIT_WINDOW_ENTRIES);
+        assert_eq!(window(1 << 20), StateLimits::MIN_AUDIT_WINDOW_ENTRIES);
+        assert_eq!(window(u64::MAX), StateLimits::MAX_AUDIT_WINDOW_ENTRIES);
+        assert_eq!(
+            StateLimits::for_cache_budget(CacheBudget::unlimited()).audit_window_entries,
+            StateLimits::MAX_AUDIT_WINDOW_ENTRIES
+        );
+        assert_eq!(
+            CausalState::new(CacheBudget::new(1 << 30)).limits.audit_window_entries,
+            StateLimits::MAX_AUDIT_WINDOW_ENTRIES
+        );
+    }
+
+    #[test]
+    fn the_configured_window_trims_the_audit_trail_without_changing_staleness() {
+        let run = |limits| {
+            let mut state = CausalState::with_limits(CacheBudget::new(1 << 20), limits);
+            let q = state.queries.register(CausalQuery::AverageEffect(
+                AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)),
+            ));
+            state.refresh_results_at(state.version, &[(q, 42, 16)]).expect("cache");
+            for i in 0..12 {
+                state
+                    .apply(StateEvent::AppendData(DataBatchRef {
+                        id: Arc::from(format!("b{i}")),
+                        nrows: 4,
+                        bytes: 32,
+                    }))
+                    .expect("append");
+            }
+            (state, q)
+        };
+        let (full, _) = run(StateLimits { audit_window_entries: 1 << 16 });
+        let (small, q) = run(StateLimits { audit_window_entries: 4 });
+        assert_eq!(full.invalidations.pruned_through(), None);
+        assert!(small.invalidations.pruned_through().is_some());
+        assert!(small.invalidations.entries.len() < full.invalidations.entries.len());
+        assert_eq!(
+            usize::try_from(small.invalidations.pruned_entries()).unwrap()
+                + small.invalidations.entries.len(),
+            full.invalidations.entries.len()
+        );
+        let chain = full.invalidations.entries
+            [..usize::try_from(small.invalidations.pruned_entries()).unwrap()]
+            .iter()
+            .fold(InvalidationLog::PRUNED_GENESIS, |head, entry| entry.chained_onto(head));
+        assert_eq!(small.invalidations.pruned_head(), chain);
+        assert_eq!(small.stale_queries(), full.stale_queries());
+        assert!(small.is_stale(q) && full.is_stale(q));
+    }
+
+    #[test]
     fn append_marks_results_stale_without_autorun() {
         let mut state = CausalState::new(CacheBudget::new(1024));
         let q = state.queries.register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
             VariableId::from_raw(0),
             VariableId::from_raw(1),
         )));
-        state.refresh_results(&[(q, 42, 16)]).expect("cache");
+        state.refresh_results_at(state.version, &[(q, 42, 16)]).expect("cache");
         assert!(!state.is_stale(q));
         state
             .apply(StateEvent::AppendData(DataBatchRef {
@@ -647,7 +828,7 @@ mod tests {
             VariableId::from_raw(0),
             VariableId::from_raw(1),
         )));
-        let err = state.refresh_results(&[(q, 1, 64)]).expect_err("budget");
+        let err = state.refresh_results_at(state.version, &[(q, 1, 64)]).expect_err("budget");
         assert!(matches!(err, StateError::CacheBudget { .. }));
     }
 
@@ -672,8 +853,9 @@ mod tests {
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)),
         ));
         let unknown = QueryId::from_raw(99);
-        let err =
-            state.refresh_results(&[(known, 1, 16), (unknown, 2, 16)]).expect_err("unknown query");
+        let err = state
+            .refresh_results_at(state.version, &[(known, 1, 16), (unknown, 2, 16)])
+            .expect_err("unknown query");
         assert!(matches!(err, StateError::UnknownId(_)));
         assert!(state.cached_results.results.is_empty());
         assert_eq!(state.cache_budget.used_bytes, 0);
@@ -692,7 +874,7 @@ mod tests {
         let first = state.queries.register(query(0));
         let second = state.queries.register(query(1));
         let err = state
-            .refresh_results(&[(first, 1, 16), (second, 2, 16)])
+            .refresh_results_at(state.version, &[(first, 1, 16), (second, 2, 16)])
             .expect_err("aggregate budget");
         assert!(matches!(err, StateError::CacheBudget { .. }));
         assert!(state.cached_results.results.is_empty());
@@ -731,6 +913,34 @@ mod tests {
         })
     }
 
+    #[test]
+    fn versionless_publication_refuses_without_mutating_cache_or_lineage() {
+        let mut state = CausalState::new(CacheBudget::new(1024));
+        let q = one_query(&mut state);
+        let initial = identities(10, 20);
+        let expected = state.version;
+        state.publish_results_at(expected, &[publication(q, &initial)]).unwrap();
+        let old_version = state.version;
+        state.apply(constraint("after-computation")).unwrap();
+        let other = one_query(&mut state);
+        let current = state.version;
+        state.refresh_results_at(current, &[(other, 17, 8)]).unwrap();
+        let before = format!("{:?}", (&state.cached_results, &state.cache_budget, &state.queries));
+        let changed = publication(q, &identities(11, 20));
+        assert!(matches!(state.publish_results(&[changed]), Err(StateError::InvalidEvent(_))));
+        assert!(matches!(state.refresh_results(&[(q, 3, 8)]), Err(StateError::InvalidEvent(_))));
+        assert!(matches!(
+            state.publish_results_at(old_version, &[changed]),
+            Err(StateError::InvalidEvent(_))
+        ));
+        assert_eq!(
+            before,
+            format!("{:?}", (&state.cached_results, &state.cache_budget, &state.queries))
+        );
+        assert!(state.is_stale(q));
+        assert!(!state.is_stale(other));
+    }
+
     /// A premise event leaves the data snapshot alone, so the old data-snapshot check cannot
     /// see it: the identification layer has to move for the republication to count.
     #[test]
@@ -738,18 +948,22 @@ mod tests {
         let mut state = CausalState::new(CacheBudget::new(1024));
         let q = one_query(&mut state);
         let first = identities(10, 20);
-        state.publish_results(&[publication(q, &first)]).expect("first publication");
+        state
+            .publish_results_at(state.version, &[publication(q, &first)])
+            .expect("first publication");
         assert_eq!(state.revalidation(q), Some(Revalidation::StillValid));
 
         state.apply(constraint("c1")).expect("constraint");
         assert_eq!(state.revalidation(q), Some(Revalidation::Recompute));
-        let err = state.publish_results(&[publication(q, &first)]).expect_err("same layer");
+        let err = state
+            .publish_results_at(state.version, &[publication(q, &first)])
+            .expect_err("same layer");
         assert!(matches!(&err, StateError::InvalidEvent(m) if m.contains("graph layer")));
         assert_eq!(state.revalidation(q), Some(Revalidation::Recompute));
 
         // the same data but a re-derived identification is a recomputation
         let rederived = identities(11, 20);
-        state.publish_results(&[publication(q, &rederived)]).expect("recomputed");
+        state.publish_results_at(state.version, &[publication(q, &rederived)]).expect("recomputed");
         assert_eq!(state.revalidation(q), Some(Revalidation::StillValid));
         assert!(!state.is_stale(q));
     }
@@ -761,7 +975,7 @@ mod tests {
         let q = one_query(&mut state);
         let first = identities(10, 20);
         state.apply(constraint("c1")).expect("constraint");
-        state.publish_results(&[publication(q, &first)]).expect("publication");
+        state.publish_results_at(state.version, &[publication(q, &first)]).expect("publication");
         assert_eq!(state.revalidation(q), Some(Revalidation::StillValid));
         state
             .apply(StateEvent::RemoveConstraint(crate::store::ConstraintId(Arc::from("c1"))))
@@ -792,14 +1006,16 @@ mod tests {
     fn a_bare_refresh_cannot_republish_a_lineage_bound_result() {
         let mut state = CausalState::new(CacheBudget::new(1024));
         let q = one_query(&mut state);
-        state.publish_results(&[publication(q, &identities(10, 20))]).expect("publication");
+        state
+            .publish_results_at(state.version, &[publication(q, &identities(10, 20))])
+            .expect("publication");
         state.apply(constraint("c1")).expect("constraint");
-        let err = state.refresh_results(&[(q, 5, 8)]).expect_err("lineage-bound");
+        let err = state.refresh_results_at(state.version, &[(q, 5, 8)]).expect_err("lineage-bound");
         assert!(matches!(err, StateError::InvalidEvent(_)));
         assert!(state.is_stale(q));
         // a query that never carried a lineage keeps the caller-driven path
         let plain = one_query(&mut state);
-        state.refresh_results(&[(plain, 5, 8)]).expect("unbound query");
+        state.refresh_results_at(state.version, &[(plain, 5, 8)]).expect("unbound query");
         assert!(!state.is_stale(plain));
     }
 
@@ -807,14 +1023,17 @@ mod tests {
     fn incremental_ols_slot_matches_full_recompute() {
         let mut state = CausalState::new(CacheBudget::unlimited());
         let key: Arc<str> = Arc::from("ate_ols");
-        state.suff_stats.ols.insert(Arc::clone(&key), LinearOlsSuffStats::new(2));
+        state
+            .suff_stats
+            .ols
+            .insert(Arc::clone(&key), LinearOlsSuffStats::new(2).expect("dimension"));
         let rows_a = [1.0, 0.0, 1.0, 1.0];
         let y_a = [1.0, 3.0];
         let rows_b = [1.0, 2.0, 1.0, 3.0];
         let y_b = [5.0, 7.0];
         state.suff_stats.ols.get_mut(&key).unwrap().append_batch(&rows_a, &y_a).unwrap();
         state.suff_stats.ols.get_mut(&key).unwrap().append_batch(&rows_b, &y_b).unwrap();
-        let mut full = LinearOlsSuffStats::new(2);
+        let mut full = LinearOlsSuffStats::new(2).expect("dimension");
         let mut all_rows = rows_a.to_vec();
         all_rows.extend_from_slice(&rows_b);
         let mut all_y = y_a.to_vec();
@@ -840,7 +1059,7 @@ mod tests {
                 ),
             },
         )));
-        state.refresh_results(&[(q, 7, 16)]).expect("cache");
+        state.refresh_results_at(state.version, &[(q, 7, 16)]).expect("cache");
         assert!(!state.is_stale(q));
         state
             .apply(StateEvent::AppendData(DataBatchRef {
@@ -873,7 +1092,7 @@ mod tests {
             })
             .with_temporal(temporal),
         ));
-        state.refresh_results(&[(q, 9, 32)]).expect("cache");
+        state.refresh_results_at(state.version, &[(q, 9, 32)]).expect("cache");
         assert!(!state.is_stale(q));
         state
             .apply(StateEvent::AppendData(DataBatchRef {
@@ -884,5 +1103,39 @@ mod tests {
             .expect("append");
         assert!(state.is_stale(q));
         assert!(state.cached_results.results.is_empty());
+    }
+
+    #[test]
+    fn data_events_follow_the_route_contract_for_the_kept_summaries() {
+        use crate::suff_stats::StreamingCovariance;
+        let batch = |id: &str| DataBatchRef { id: Arc::from(id), nrows: 4, bytes: 32 };
+        for (event_is_append, change) in
+            [(true, RefreshChange::AppendRows), (false, RefreshChange::SourceChanged)]
+        {
+            let mut state = CausalState::new(CacheBudget::unlimited());
+            let ols: Arc<str> = Arc::from("ols");
+            let cov: Arc<str> = Arc::from("cov");
+            state
+                .suff_stats
+                .ols
+                .insert(Arc::clone(&ols), LinearOlsSuffStats::new(2).expect("dimension"));
+            state
+                .suff_stats
+                .cov
+                .insert(Arc::clone(&cov), StreamingCovariance::new(2).expect("dimension"));
+            let event = if event_is_append {
+                StateEvent::AppendData(batch("b"))
+            } else {
+                StateEvent::ReplaceData(DataVersion::default().next())
+            };
+            state.apply(event).expect("apply");
+            for (route, kept) in [
+                (RefreshRoute::LinearOlsGram, state.suff_stats.ols.contains_key(&ols)),
+                (RefreshRoute::StreamingCovariance, state.suff_stats.cov.contains_key(&cov)),
+            ] {
+                let expect_kept = route_contract(route, change) == RefreshDisposition::ExactUpdate;
+                assert_eq!(kept, expect_kept, "{route:?} after {change:?}");
+            }
+        }
     }
 }

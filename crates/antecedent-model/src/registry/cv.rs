@@ -2,7 +2,9 @@
 
 use std::borrow::Cow;
 
-use antecedent_core::CausalRng;
+use std::sync::Arc;
+
+use antecedent_core::{CausalRng, ExecutionContext};
 use antecedent_data::TabularData;
 use antecedent_kernels::{ViewError, shuffled_fold_assignment};
 use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
@@ -53,6 +55,10 @@ pub(super) struct FitFrame<'d> {
     /// a frame keep the scheme, so a fit that cross-validates internally (the tree
     /// families' out-of-fold noise scale) splits the way the selection does.
     pub(super) splits: ValidationSplits,
+    /// The caller's execution context, when the fit runs under one. A tree-ensemble family
+    /// admits its working set against it and polls its cancellation; the other families
+    /// never read it. Fold subsets keep it.
+    pub(super) execution: Option<Arc<ExecutionContext>>,
 }
 
 impl<'d> FitFrame<'d> {
@@ -74,7 +80,19 @@ impl<'d> FitFrame<'d> {
             groups: super::fit::unit_id_groups(data, n),
             n,
             splits: ValidationSplits::Shuffled,
+            execution: None,
         })
+    }
+
+    /// Same frame fitted under the caller's execution context.
+    pub(super) fn with_execution(mut self, ctx: &ExecutionContext) -> Self {
+        self.execution = Some(Arc::new(ctx.clone()));
+        self
+    }
+
+    /// The caller's execution context, when one was supplied.
+    pub(super) fn execution(&self) -> Option<&ExecutionContext> {
+        self.execution.as_deref()
     }
 
     /// Same frame with the declared validation-split scheme.
@@ -114,6 +132,7 @@ impl<'d> FitFrame<'d> {
             groups: self.groups.as_ref().map(|g| rows.iter().map(|&r| g[r]).collect()),
             n: rows.len(),
             splits: self.splits,
+            execution: self.execution.clone(),
         }
     }
 
@@ -124,6 +143,7 @@ impl<'d> FitFrame<'d> {
             groups: self.groups.clone(),
             n: self.n,
             splits: self.splits,
+            execution: self.execution.clone(),
         }
     }
 
@@ -142,18 +162,22 @@ pub(super) fn family_is_categorical(family: MechanismFamily) -> bool {
     family.is_categorical()
 }
 
-/// Dense stratum id per row for a categorical outcome (quantized value order).
+/// Dense stratum id per row for a categorical outcome: the rank of the row's exact value
+/// among the distinct values, in ascending value order (`-0.0` and `0.0` are one category).
 #[allow(
     clippy::cast_possible_truncation,
-    reason = "keys quantise outcomes to 1e-6 with a saturating cast that only merges values beyond 9e12 in magnitude, and a stratum id is a position among at most y.len() distinct keys, which fits u32"
+    reason = "a stratum id is a position among at most y.len() distinct values, which fits u32"
 )]
-/// Dense codes of the finite outcome values, in first-seen order.
 pub(super) fn category_strata(y: &[f64]) -> Vec<u32> {
-    let key = |v: f64| (v * 1e6).round() as i64;
-    let mut keys: Vec<i64> = y.iter().map(|&v| key(v)).collect();
-    keys.sort_unstable();
-    keys.dedup();
-    y.iter().map(|&v| keys.binary_search(&key(v)).map_or(0, |i| i as u32)).collect()
+    let canonical = |v: f64| if v == 0.0 { 0.0 } else { v };
+    let mut levels: Vec<f64> = y.iter().map(|&v| canonical(v)).collect();
+    levels.sort_unstable_by(f64::total_cmp);
+    levels.dedup_by(|a, b| a.total_cmp(b).is_eq());
+    y.iter()
+        .map(|&v| {
+            levels.binary_search_by(|level| level.total_cmp(&canonical(v))).map_or(0, |i| i as u32)
+        })
+        .collect()
 }
 
 /// Seeded fold of every row, shared by every family scored on the same node so
@@ -299,7 +323,8 @@ pub(super) fn split_plan(
 /// rescaling the outcome shifts every family's score by the same `ln(scale)` and
 /// cannot change which family wins. Held-out rows of a categorical outcome whose
 /// level is absent from a training fold are not scored (a sampling zero, not
-/// evidence against the family).
+/// evidence against the family). A fold the family cannot be fit on refuses the family: it
+/// would otherwise be ranked on fewer held-out rows than its rivals.
 pub(super) fn oof_mean_loglik(
     family: MechanismFamily,
     frame: &FitFrame<'_>,
@@ -312,19 +337,14 @@ pub(super) fn oof_mean_loglik(
     let strata = categorical.then(|| category_strata(y));
     let folds = frame.validation_folds(strata.as_deref())?;
     let p = frame.n_parents();
-    let mut total = 0.0;
-    let mut scored = 0usize;
-    let mut last_fold_error: Option<ModelError> = None;
+    let mut outcomes = Vec::with_capacity(folds.len());
     for FoldSplit { train, test } in &folds {
         poll(cancelled)?;
         if train.len() < 2 || test.is_empty() {
+            outcomes.push(FoldOutcome::Unscorable);
             continue;
         }
         let y_train: Vec<f64> = train.iter().map(|&r| y[r]).collect();
-        // A fold whose training rows cannot be fit (a quasi-separated multinomial, a
-        // parent constant within the fold) is not scored rather than failing the family:
-        // the mechanism itself is the full-data fit, which already succeeded. If no fold
-        // can be scored the family is refused with the last fit error.
         let slot = match super::fit::fit_frame_family(
             family,
             &frame.select(train),
@@ -335,7 +355,7 @@ pub(super) fn oof_mean_loglik(
         ) {
             Ok(slot) => slot,
             Err(e) => {
-                last_fold_error = Some(e);
+                outcomes.push(FoldOutcome::FitFailed(e));
                 continue;
             }
         };
@@ -349,38 +369,71 @@ pub(super) fn oof_mean_loglik(
             ParentBatch { n_rows: test.len(), n_parents: p, values: &values },
             &mut lp,
         )?;
-        for v in lp {
-            if categorical && v == f64::NEG_INFINITY {
-                continue;
+        outcomes.push(FoldOutcome::Scored(
+            lp.into_iter().filter(|v| !(categorical && *v == f64::NEG_INFINITY)).collect(),
+        ));
+    }
+    pooled_mean_loglik(outcomes)
+}
+
+/// What one validation fold contributed to a family's out-of-fold score.
+enum FoldOutcome {
+    /// The fold is too small to fit or score; every family sees the same fold, so none is scored
+    /// on it.
+    Unscorable,
+    /// The family could not be fit on the fold's training rows.
+    FitFailed(ModelError),
+    /// Held-out log-likelihoods of the fold's scored rows.
+    Scored(Vec<f64>),
+}
+
+/// Mean of the held-out log-likelihoods over every fold.
+///
+/// Families are ranked by this mean, so each must be scored on the same held-out rows. A family
+/// that cannot be fit on one fold would otherwise be averaged over fewer, possibly easier rows
+/// than its rivals; it is refused with that fit error instead.
+fn pooled_mean_loglik(outcomes: Vec<FoldOutcome>) -> Result<f64, ModelError> {
+    let mut total = 0.0;
+    let mut scored = 0usize;
+    for outcome in outcomes {
+        match outcome {
+            FoldOutcome::Unscorable => {}
+            FoldOutcome::FitFailed(error) => return Err(error),
+            FoldOutcome::Scored(values) => {
+                scored += values.len();
+                total += values.iter().sum::<f64>();
             }
-            total += v;
-            scored += 1;
         }
     }
     if scored == 0 {
-        return Err(last_fold_error.unwrap_or_else(|| ModelError::Unsupported {
+        return Err(ModelError::Unsupported {
             message: "not enough rows to cross-validate a mechanism family".into(),
-        }));
+        });
     }
     Ok(total / scored as f64)
 }
 
 /// Out-of-fold residuals of the ordinary-least-squares parent mean (the linear
-/// part of a conditional state-space mechanism).
+/// part of a conditional state-space mechanism), cut by the frame's declared
+/// validation scheme, and the first row whose residual is out of fold.
+///
+/// A shuffled or clustered scheme holds every row out once, so the first scored
+/// row is 0. The time-ordered scheme never holds out its leading block (it only
+/// trains): those rows take the residual of the first fold's fit, so the series
+/// the state-space filter runs over has no gap, and they are not scored.
 pub(super) fn oof_linear_residuals(
     frame: &FitFrame<'_>,
     y: &[f64],
     backend: FaerBackend,
     ls_ws: &mut LeastSquaresWorkspace,
     cancelled: &dyn Fn() -> bool,
-) -> Result<Vec<f64>, ModelError> {
+) -> Result<(Vec<f64>, usize), ModelError> {
     let n = y.len();
-    let fold = cv_fold_plan(n, None)?;
-    let folds = fold.iter().copied().max().map_or(0, |m| m + 1);
     let mut residual = vec![0.0; n];
-    for k in 0..folds {
+    let mut held_out = vec![false; n];
+    let mut first_fit: Option<(f64, Vec<f64>)> = None;
+    for FoldSplit { train, test } in frame.validation_folds(None)? {
         poll(cancelled)?;
-        let (train, test): (Vec<usize>, Vec<usize>) = (0..n).partition(|&r| fold[r] != k);
         if train.len() < 2 || test.is_empty() {
             continue;
         }
@@ -396,7 +449,24 @@ pub(super) fn oof_linear_residuals(
         let MechanismSlot::LinearGaussian { intercept, coeffs, .. } = slot else {
             return Err(ModelError::Unsupported { message: "linear reference fit failed".into() });
         };
+        let predict = |r: usize| {
+            let mut pred = intercept;
+            for (c, col) in frame.parents.iter().enumerate() {
+                pred += coeffs[c] * col[r];
+            }
+            pred
+        };
         for &r in &test {
+            residual[r] = y[r] - predict(r);
+            held_out[r] = true;
+        }
+        if first_fit.is_none() {
+            first_fit = Some((intercept, coeffs.to_vec()));
+        }
+    }
+    let first_scored = held_out.iter().position(|h| *h).unwrap_or(n);
+    if let Some((intercept, coeffs)) = first_fit {
+        for r in (0..first_scored).filter(|&r| !held_out[r]) {
             let mut pred = intercept;
             for (c, col) in frame.parents.iter().enumerate() {
                 pred += coeffs[c] * col[r];
@@ -404,7 +474,12 @@ pub(super) fn oof_linear_residuals(
             residual[r] = y[r] - pred;
         }
     }
-    Ok(residual)
+    if first_scored >= n {
+        return Err(ModelError::Unsupported {
+            message: "not enough rows to cross-validate a mechanism family".into(),
+        });
+    }
+    Ok((residual, first_scored))
 }
 
 /// Free parameters of a fitted mechanism, for the complexity penalty.
@@ -514,11 +589,12 @@ pub(super) fn score_family(
             // `y_{<t}` (prequential, so out of sample in the state), and the parent mean
             // it is applied to is the out-of-fold linear prediction. Row-shuffled folds
             // cannot refit the state model because the rows are a series.
-            let residual = if matches!(fitted, MechanismSlot::LinearGaussianStateSpace { .. }) {
-                y.to_vec()
-            } else {
-                oof_linear_residuals(frame, y, backend, ls_ws, cancelled)?
-            };
+            let (residual, first_scored) =
+                if matches!(fitted, MechanismSlot::LinearGaussianStateSpace { .. }) {
+                    (y.to_vec(), 0)
+                } else {
+                    oof_linear_residuals(frame, y, backend, ls_ws, cancelled)?
+                };
             let state = MechanismSlot::LinearGaussianStateSpace {
                 a: *a,
                 process_std: *process_std,
@@ -527,7 +603,7 @@ pub(super) fn score_family(
             };
             let mut lp = vec![0.0; n];
             log_prob_column(&state, &residual, ParentBatch::empty(n), &mut lp)?;
-            (lp.iter().sum::<f64>() / n.max(1) as f64, penalty)
+            (lp[first_scored..].iter().sum::<f64>() / (n - first_scored).max(1) as f64, penalty)
         }
         _ => (oof_mean_loglik(family, frame, y, backend, ls_ws, cancelled)?, penalty),
     };
@@ -542,4 +618,46 @@ pub(super) fn score_family(
         },
         fitted,
     ))
+}
+
+#[cfg(test)]
+mod category_strata_tests {
+    use super::category_strata;
+
+    #[test]
+    fn categories_closer_than_a_micro_unit_stay_distinct() {
+        let y = [0.0, 1.0, 1.0 + 1e-9, 1.0, 0.0, -0.0];
+        let strata = category_strata(&y);
+        assert_eq!(strata[0], strata[4]);
+        assert_eq!(strata[0], strata[5], "negative zero is the category zero");
+        assert_eq!(strata[1], strata[3]);
+        assert_ne!(strata[1], strata[2]);
+        assert!(strata[0] < strata[1] && strata[1] < strata[2]);
+    }
+}
+
+#[cfg(test)]
+mod pooled_score_tests {
+    use super::{FoldOutcome, ModelError, pooled_mean_loglik};
+
+    #[test]
+    fn a_fold_the_family_cannot_fit_refuses_it_instead_of_shrinking_its_rows() {
+        let failed = ModelError::Unsupported { message: "fold fit failed".into() };
+        let outcomes = vec![
+            FoldOutcome::Scored(vec![-1.0, -1.0]),
+            FoldOutcome::FitFailed(failed),
+            FoldOutcome::Scored(vec![-3.0]),
+        ];
+        assert!(pooled_mean_loglik(outcomes).is_err());
+    }
+
+    #[test]
+    fn every_fold_scored_pools_into_one_mean() {
+        let outcomes = vec![
+            FoldOutcome::Scored(vec![-1.0, -1.0]),
+            FoldOutcome::Unscorable,
+            FoldOutcome::Scored(vec![-4.0]),
+        ];
+        assert!((pooled_mean_loglik(outcomes).unwrap() + 2.0).abs() < 1e-12);
+    }
 }

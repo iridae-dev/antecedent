@@ -1,18 +1,51 @@
-//! experiment / measurement design facade helpers.
+//! Experiment and measurement design: which study, measurement or policy to run next.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+//! Use this module when the question is what to do next rather than what the current data
+//! estimate: rank candidate designs by how much they would raise the probability that a query
+//! is identified, plan experiments and sample sizes, search adaptive policy families, and
+//! evaluate decisions with their reliability and robustness records. Ranking is advisory: it
+//! runs no analysis.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
 use antecedent_contract::{ObligationKind, ObligationRecord, ObligationScope};
 use antecedent_core::{
-    AssumptionSource, AssumptionStatus, ExecutionContext, MonteCarloBudget, SemanticDigest,
+    AssumptionSource, AssumptionStatus, ExecutionContext, MonteCarloBudget, QueryId,
+    SemanticDigest, VariableId,
 };
 
 use crate::analysis::CausalContract;
 use crate::error::CausalError;
 use crate::support::CellStatus;
 
+/// Experiment planning types; [`crate::analysis::planning`] compiles and
+/// executes a plan. A plan's `experiment_candidate` and `sampling_candidate`
+/// feed [`rank_designs_bound`] with the planned sample size.
+pub use crate::analysis::planning::{PlannedExperiment, PlanningPlan, STANDALONE_PLANNING};
+/// Bounded search over history-dependent policy families (schedule, threshold, piecewise,
+/// linear feedback, tree) against a response source, with path constraints, held-out evaluation
+/// and a replayable record. A fitted causal model is a response source through
+/// [`crate::gcm::ModelPolicySource`].
+pub use antecedent_design::adaptive_policy::{
+    AdaptivePolicyError, AdaptivePolicyFamily, ParameterBound, PolicyFeature, PolicyRule,
+};
+pub use antecedent_design::adaptive_policy_search::{
+    AdaptivePolicySearchError, AdaptivePolicySearchResult, ChanceBound, ConstraintReport,
+    DrawSplit, FamilySearchResult, HeldOutDesign, HeldOutRequirement, PairedContrast,
+    PolicyAttempt, PolicyConstraints, PolicyEvaluation, PolicyObjective, PolicyPath,
+    PolicyRolloutSource, PolicySearchOptions, PolicyStanding, PreparedAdaptivePolicySearch,
+    ResponseStanding, SearchStop, StandingRequest,
+};
+pub use antecedent_design::planning::{
+    AnalyticCharacteristics, ArmComparison, FactorialContrast, FamilyCharacteristics, FamilyPower,
+    FamilySimulation, InterferenceExposure, Multiplicity, NormalPrior, OutcomeModel,
+    PLANNING_NEXT_ATTEMPTS, PlannedDesign, PlanningAssumptions, PlanningCriterion, PlanningGoal,
+    PlanningRefusal, PlanningRequest, PlanningResult, SequentialCharacteristics,
+    SequentialSimulation, SimulatedCharacteristics, SimulationSpec, StratumSpec, SuccessCriterion,
+    TestSidedness,
+};
 pub use antecedent_design::{
     AffineUtility, BinomialSignal, CandidateDesign, ConstraintViolation, DecisionConstraint,
     DecisionEvaluation, DecisionPrior, DecisionProblem, DecisionProblemId, DecisionRegistry,
@@ -21,6 +54,16 @@ pub use antecedent_design::{
     EnvironmentPlan, ExperimentPlan, GaussianMeanSignal, InterventionDesignEffect,
     MeasureColumnSpec, MeasurementPlan, ModelLoglikDraws, PreposteriorAnalysis, RankedCandidate,
     SamplingPlan, ScoreEvaluation, ScoredDesignRanking, Utility, evaluate_decision,
+};
+/// Candidate studies generated from verified obligations, the plan of options that
+/// close an identification gap, and the derived structure of a graph posterior.
+pub use antecedent_design::{
+    CandidateGeneration, CandidateTemplate, ConfounderPriorDeclaration, ConfounderValueFrame,
+    DurableStudyCandidate, EvidencePlan, EvidencePlanArtifact, EvidencePlanArtifactError,
+    GraphPosteriorSample, GridUtility, PlanOption, PlanOutcome, PlanValue, PlanValueBasis,
+    RepairReport, StudyDeclarations, StudyKind, UnmatchedObligation, UnverifiedStudy,
+    VerifiedUnlocks, generate_candidates, identified_under_intervention, mutilate,
+    structure_posterior, verified_unlocks,
 };
 use antecedent_design::{ObjectiveChannel, ObjectiveScorer};
 /// Study planning over the mz-transport and mixed-source catalogs: declared
@@ -32,10 +75,11 @@ pub use antecedent_design::{
     StudyPlanProposal, StudyPlanResult, StudyPlanRoute, StudyPlanStop, StudyProposal,
     StudySubsetOutcome, plan_studies,
 };
+pub use antecedent_stats::adaptive_inference::group_sequential::SpendingFunction;
 
 /// Obligations inspected before the existing ranker runs.
 ///
-/// This is not a second ranker. Unlicensed candidates become typed violations,
+/// This is not a second ranker. Unsupported candidates become typed violations,
 /// not proxy scores.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DesignRankPreview {
@@ -51,12 +95,16 @@ pub struct DesignRankPreview {
     pub unresolved: bool,
 }
 
-/// Rank candidate designs under an objective.
+/// Rank candidate designs under an objective, with no contract binding.
+///
+/// Crate-internal: the public entries are [`preview_design_rank`] and
+/// [`rank_designs_bound`], which refuse an unsupported or unprepared contract and
+/// report the candidates the objective cannot score before this ranker runs.
 ///
 /// # Errors
 ///
 /// Propagates design evaluation failures.
-pub fn rank_designs<A, O>(
+pub(crate) fn rank_designs<A, O>(
     ranker: &DesignRanker,
     objective: &DesignObjective,
     candidates: &[CandidateDesign],
@@ -74,7 +122,7 @@ where
 ///
 /// # Errors
 ///
-/// Unlicensed or unprepared contracts, or a width ranking across incomparable
+/// Unsupported or unprepared contracts, or a width ranking across incomparable
 /// estimands without a common decision utility.
 pub fn preview_design_rank<A, O>(
     contract: &CausalContract,
@@ -101,7 +149,7 @@ pub fn preview_design_rank<A, O>(
 ///
 /// # Errors
 ///
-/// Unlicensed/unprepared contracts, incomparable width targets, or ranker failure.
+/// Unsupported/unprepared contracts, incomparable width targets, or ranker failure.
 pub fn rank_designs_bound<A, O>(
     contract: &CausalContract,
     ranker: &DesignRanker,
@@ -128,9 +176,9 @@ where
 }
 
 fn require_rankable_contract(contract: &CausalContract) -> Result<(), CausalError> {
-    if !matches!(contract.support_status, Some(CellStatus::Licensed)) {
+    if !matches!(contract.support_status, Some(CellStatus::Supported)) {
         return Err(CausalError::Unsupported {
-            message: crate::error::RANK_DESIGNS_REQUIRES_LICENSE,
+            message: crate::error::RANK_DESIGNS_REQUIRES_SUPPORT,
         });
     }
     if contract.identities.identification_product.is_none() {
@@ -150,6 +198,11 @@ fn width_targets_incomparable(
         && decision_target.is_some_and(|target| target != contract.identities.target)
 }
 
+/// Unidentified share of the ensemble: graph weights need not be normalized, a mass is a share.
+fn normalized_unidentified_mass(graphs: &antecedent_prob::WeightedGraphSamples) -> f64 {
+    graphs.unidentified_mass() / graphs.total_weight()
+}
+
 fn id_mass_renormalized<A, O>(
     objective: &DesignObjective,
     contract: &CausalContract,
@@ -161,7 +214,8 @@ fn id_mass_renormalized<A, O>(
     let Some(slot) = contract.reasoning.identification.as_ref() else {
         return false;
     };
-    slot.unidentified_mass > 0.0 && eval.graphs.unidentified_mass() + 1e-12 < slot.unidentified_mass
+    slot.unidentified_mass > 0.0
+        && normalized_unidentified_mass(eval.graphs) + 1e-12 < slot.unidentified_mass
 }
 
 fn inspect_rank_binding<A, O>(
@@ -184,7 +238,7 @@ fn inspect_rank_binding<A, O>(
         rank_obligation(
             "design.candidate_mapping",
             "candidate_to_design_map",
-            "each candidate must map onto a licensed add-units, extend-series, pulse-window, or measure-covariate contract",
+            "each candidate must map onto a supported add-units, extend-series, pulse-window, or measure-covariate contract",
         ),
         rank_obligation(
             "design.cost_constraints",
@@ -259,7 +313,8 @@ fn inspect_rank_binding<A, O>(
     }
     DesignRankPreview {
         obligations: obligations.into(),
-        unidentified_mass: (eval.graphs.n_samples > 0).then(|| eval.graphs.unidentified_mass()),
+        unidentified_mass: (eval.graphs.n_samples > 0)
+            .then(|| normalized_unidentified_mass(eval.graphs)),
         target: contract.identities.target,
         violations: violations.into(),
         unresolved,
@@ -316,7 +371,7 @@ fn collect_width_violations(
             }
         };
         if let Some(detail) = detail {
-            violations.push(violation(index, "unlicensed_candidate", detail));
+            violations.push(violation(index, "unsupported_candidate", detail));
         }
     }
 }
@@ -344,10 +399,10 @@ fn collect_id_violations<A, O>(
                 Some("more observational units do not solve structural non-identification")
             }
             CandidateDesign::Measure(_) if unlock.is_empty() => {
-                Some("measure_covariate requires a licensed identification update")
+                Some("measure_covariate requires a supported identification update")
             }
             CandidateDesign::Intervene(_) if unlock.is_empty() && !intervene => {
-                Some("pulse-window / intervention requires a licensed identification update")
+                Some("pulse-window / intervention requires a supported identification update")
             }
             CandidateDesign::ObserveEnvironment(_) if env_unlock.is_empty() => {
                 Some("extend-series identification requires a declared environment unlock")
@@ -355,14 +410,14 @@ fn collect_id_violations<A, O>(
             _ => None,
         };
         if let Some(detail) = detail {
-            violations.push(violation(index, "unlicensed_candidate", detail));
+            violations.push(violation(index, "unsupported_candidate", detail));
         }
     }
 }
 
 /// Without a decision registry the ranking is unresolved (returns `true`). With one,
 /// a candidate the signal assigns no sample size has no data model for the
-/// value-of-information update and is unlicensed; the ranker would not score it.
+/// value-of-information update and is unsupported; the ranker would not score it.
 fn collect_decision_violations<O>(
     candidates: &[CandidateDesign],
     signal: Option<&dyn DecisionSignal<O>>,
@@ -381,7 +436,7 @@ fn collect_decision_violations<O>(
         if signal.sample_size(candidate).is_none() {
             violations.push(violation(
                 index,
-                "unlicensed_candidate",
+                "unsupported_candidate",
                 "decision signal declares no sample size for this candidate",
             ));
         }
@@ -433,29 +488,334 @@ fn active_candidates(
     (active, index_map)
 }
 
+/// Rewrite each ranked candidate's index through `map`, in place when the slice is not shared.
+fn remap_ranked(ranked: &mut Arc<[RankedCandidate]>, map: impl Fn(usize) -> usize) {
+    let remap = |item: &mut RankedCandidate| item.candidate_index = map(item.candidate_index);
+    if let Some(items) = Arc::get_mut(ranked) {
+        items.iter_mut().for_each(remap);
+    } else {
+        let mut items = ranked.to_vec();
+        items.iter_mut().for_each(remap);
+        *ranked = items.into();
+    }
+}
+
+/// `leading` followed by `trailing` with each trailing violation's candidate index mapped.
+fn remap_violations(
+    leading: Vec<ConstraintViolation>,
+    trailing: &[ConstraintViolation],
+    map: impl Fn(usize) -> usize,
+) -> Arc<[ConstraintViolation]> {
+    let mut violations = leading;
+    violations.reserve(trailing.len());
+    violations.extend(trailing.iter().cloned().map(|mut item| {
+        item.candidate_index = map(item.candidate_index);
+        item
+    }));
+    violations.into()
+}
+
 fn remap_ranking(
-    ranking: ScoredDesignRanking,
+    mut ranking: ScoredDesignRanking,
     index_map: &[usize],
     preview_violations: &[ConstraintViolation],
 ) -> ScoredDesignRanking {
-    let ranked: Vec<RankedCandidate> = ranking
-        .ranked
-        .iter()
-        .cloned()
-        .map(|mut item| {
-            item.candidate_index = index_map[item.candidate_index];
-            item
-        })
-        .collect();
-    let mut violations = preview_violations.to_vec();
-    violations.extend(ranking.violations.iter().cloned().map(|mut item| {
-        item.candidate_index = index_map[item.candidate_index];
-        item
-    }));
+    remap_ranked(&mut ranking.ranked, |index| index_map[index]);
+    let violations = remap_violations(preview_violations.to_vec(), &ranking.violations, |index| {
+        index_map[index]
+    });
     ScoredDesignRanking {
-        ranked: ranked.into(),
-        violations: violations.into(),
+        ranked: ranking.ranked,
+        violations,
         budget: ranking.budget,
         early_stopped: ranking.early_stopped,
     }
+}
+
+/// Candidate studies ranked with unlocks derived from a repair search.
+#[derive(Clone, Debug)]
+pub struct StudyDesignRanking {
+    /// The ranking of the verified studies. Candidate indices are positions in the
+    /// declared `studies` slice.
+    pub ranking: ScoredDesignRanking,
+    /// Indices of the studies the repair search verified sufficient on their own.
+    pub verified: Vec<usize>,
+    /// Every other declared study, with what the search found.
+    pub unverified: Vec<UnverifiedStudy>,
+    /// The variables the verified studies measure (outside the base law) or set:
+    /// the unlock list the ranking used for the query.
+    pub unlock: Vec<VariableId>,
+}
+
+/// Rank declared studies by identification gain, deriving the unlock lists from a
+/// finished repair search instead of a manual list.
+///
+/// Only a study that `report` classifies verified sufficient on its own unlocks
+/// identification: its measured variables outside `base_law` and its set
+/// variables become the unlock list for `query`, and its
+/// [`DurableStudyCandidate::design_action`] is what the ranker scores. Every other
+/// study is reported in [`StudyDesignRanking::unverified`] and as an
+/// `unsupported_candidate` violation, so a study that merely names a variable (or only
+/// adds rows) is never credited. Any unlock entries already in `eval` are kept.
+///
+/// For studies that set variables, supply `eval.identified_under_intervention` from
+/// [`identified_under_intervention`] on the graph posterior: one flag vector applies
+/// to every intervention candidate, so rank experiments on different target sets
+/// separately.
+///
+/// # Errors
+///
+/// As [`rank_designs_bound`].
+#[allow(clippy::too_many_arguments, reason = "the bound ranking plus the repair evidence")]
+pub fn rank_studies_bound<A, O>(
+    contract: &CausalContract,
+    ranker: &DesignRanker,
+    objective: &DesignObjective,
+    studies: &[DurableStudyCandidate],
+    report: &RepairReport,
+    base_law: &[VariableId],
+    query: QueryId,
+    eval: &DesignEvaluationContext<'_, A, O>,
+    ctx: &ExecutionContext,
+    decision_target: Option<SemanticDigest>,
+) -> Result<StudyDesignRanking, CausalError>
+where
+    A: Clone + Sync,
+    O: Clone + Sync,
+{
+    let unlocks = verified_unlocks(report, studies, base_law);
+    let not_verified = unlocks
+        .unverified
+        .iter()
+        .map(|study| {
+            violation(
+                study.index,
+                "unsupported_candidate",
+                "the repair search did not verify this study sufficient on its own",
+            )
+        })
+        .collect::<Vec<_>>();
+    let designs = unlocks.designs(studies);
+    let (indices, candidates): (Vec<usize>, Vec<CandidateDesign>) = designs.into_iter().unzip();
+    if candidates.is_empty() {
+        return Ok(StudyDesignRanking {
+            ranking: incomplete_ranking(&not_verified),
+            verified: Vec::new(),
+            unverified: unlocks.unverified,
+            unlock: unlocks.variables,
+        });
+    }
+    let mut merged: Vec<(QueryId, Arc<[VariableId]>)> =
+        eval.query_id_unlock.map(<[_]>::to_vec).unwrap_or_default();
+    if let Some((_, derived)) = unlocks.unlock_entry(query) {
+        match merged.iter_mut().find(|(id, _)| *id == query) {
+            Some((_, existing)) => {
+                let mut union: Vec<VariableId> = existing.to_vec();
+                union.extend(derived.iter().copied().filter(|v| !existing.contains(v)));
+                *existing = Arc::from(union);
+            }
+            None => merged.push((query, derived)),
+        }
+    }
+    let derived_eval = DesignEvaluationContext {
+        graphs: eval.graphs,
+        effect_width: eval.effect_width,
+        model_loglik: eval.model_loglik,
+        decisions: eval.decisions,
+        query_id_unlock: Some(&merged),
+        env_id_unlock: eval.env_id_unlock,
+        identified_under_intervention: eval.identified_under_intervention,
+        graph_features: eval.graph_features,
+    };
+    let preview =
+        preview_design_rank(contract, objective, &candidates, &derived_eval, decision_target)?;
+    let mut ranking = if preview.unresolved {
+        incomplete_ranking(&preview.violations)
+    } else {
+        let (active, index_map) = active_candidates(&candidates, &preview.violations);
+        if active.is_empty() {
+            incomplete_ranking(&preview.violations)
+        } else {
+            let scored = rank_designs(ranker, objective, &active, &derived_eval, ctx)?;
+            remap_ranking(scored, &index_map, &preview.violations)
+        }
+    };
+    // Candidate indices are positions among the verified designs; report them as
+    // positions in the declared slice, violations included.
+    let to_declared = |index: usize| indices[index];
+    remap_ranked(&mut ranking.ranked, to_declared);
+    let violations = remap_violations(not_verified, &ranking.violations, to_declared);
+    Ok(StudyDesignRanking {
+        ranking: ScoredDesignRanking {
+            ranked: ranking.ranked,
+            violations,
+            budget: ranking.budget,
+            early_stopped: ranking.early_stopped,
+        },
+        verified: indices,
+        unverified: unlocks.unverified,
+        unlock: unlocks.variables,
+    })
+}
+
+// --- Further items the language bindings use, re-exported from their defining crates ---
+
+/// Identification flags of a graph posterior, derived rather than declared.
+pub use antecedent_design::StructureIdentificationError;
+/// Candidate transport-evidence additions and their portable design records.
+pub use antecedent_design::TransportEvidenceCandidate;
+/// `antecedent-design` items at the crate root.
+pub use antecedent_design::repair;
+/// The theorem routes of a failed identification, as repair families.
+pub use antecedent_design::{FailureRoutes, failure_routes};
+/// Failure snapshots and evidence-arrival checks for bounded z-transport.
+pub use antecedent_design::{
+    ZTransportCandidateOutcome, ZTransportFailureSnapshot, ZTransportFailureSnapshotWire,
+    ZTransportPlanSpec, ZTransportPlanningError, ZTransportProposal, ZTransportProposalWire,
+    plan_z_transport_evidence, snapshot_z_transport_failure,
+};
+/// The composition boundary: what a decision input carries and what may be combined with what.
+pub mod composition_boundary {
+    pub use antecedent_design::composition_boundary::{
+        ActionDisposition, ActionStatus, AtomCombination, AtomPlan, BoundaryError,
+        CalibrationStatus, CompositionOperation, CompositionReceipt, CoordinateIssue,
+        DecisionInput, DependenceRoute, EvidenceRelation, InputProvenance, InputSource,
+        NativeExecutionRecord, PairRelation, ProviderKind, ReceiptRef, RouteKind, ScalarClaim,
+        SupportPolicy, SupportedDecision, SupportedVerdict, TrustEvidence, TrustRequirement,
+        UnsupportedActionPolicy, check_atom_combination, check_composition, check_paired_draws,
+        evaluate_functional_on_input, evaluate_with_support,
+    };
+}
+/// Adapters from claim types to decision inputs under a declared policy.
+pub mod decision_adapters {
+    pub use antecedent_design::decision_adapters::{
+        AdaptedClaims, AdaptedDecision, ClaimProbability, IdentifiedSetDecision, IdentifiedUtility,
+        IdentifiedVerdict, SuppliedClaim, adapt_finite_scenarios, adapt_graph_dependent_claims,
+        adapt_point_claim, adapt_weighted_graph_atoms, evaluate_adapted, evaluate_identified_sets,
+        utility_interval,
+    };
+}
+/// Portable decision contract and decision result artifacts.
+pub mod decision_artifact {
+    pub use antecedent_design::decision_artifact::{
+        DecisionContractArtifact, DecisionResultArtifact, MAX_DECISION_ARTIFACT_BYTES,
+        contract_from_json, contract_from_json_refusal, contract_to_json, mean_result_to_json,
+        result_to_json, source_digest,
+    };
+}
+/// Durable decision contract and the source each functional needs.
+pub mod decision_contract {
+    pub use antecedent_design::decision_contract::{
+        AdmissibleDecisionContract, ProgramObjective, ProgramSearchContract, ProgramSearchSpace,
+        SourceRepresentation, SourceRequirement, UtilityExpr,
+    };
+}
+/// Evaluate a `DecisionContract` on an aligned joint distribution artifact.
+pub mod decision_eval {
+    pub use antecedent_design::decision_eval::{
+        ActionOutcome, DecisionEvalError, DecisionResult, MeanEstimate, Verdict, evaluate_contract,
+        evaluate_contract_on_means,
+    };
+}
+/// Reliability of sampled and adaptively selected decisions.
+pub mod decision_reliability {
+    pub use antecedent_design::decision_reliability::{
+        RankingRequest, ReliabilityError, rank, support_route,
+    };
+}
+/// Durable admissible decision contract and robust decision result artifacts.
+pub mod decision_robust_artifact {
+    pub use antecedent_design::decision_robust_artifact::{
+        AdmissibleContractArtifact, ExternalCallbackReceipt, ExternalTrustLimit,
+        RobustResultArtifact, admissible_contract_from_json, admissible_contract_from_json_refusal,
+        admissible_contract_to_json, atom_digests_of,
+    };
+}
+/// Robustness of a decision across structures, support and claims.
+pub mod decision_robustness {
+    pub use antecedent_design::decision_robustness::{AtomSupport, InputSupport, RobustVerdict};
+}
+/// Decisions under structural uncertainty.
+pub mod decision_structural {
+    pub use antecedent_design::decision_structural::{
+        AtomStatus, AtomSummary, StructuralDecisionResult, StructuralVerdict,
+    };
+}
+/// Durable design-ranking artifact (`design_ranking_v1`) and its independent consumer.
+pub mod design_ranking_artifact {
+    pub use antecedent_design::design_ranking_artifact::MAX_DESIGN_RANKING_ARTIFACT_BYTES;
+}
+/// Per-candidate expected value of sample information with declared integration.
+pub mod evsi {
+    pub use antecedent_design::evsi::{CostToUtilityMap, EvsiError, StudyCostSpec};
+}
+/// Original finite-law functional replay with complete source rows and scientific identity.
+pub mod functional_source {
+    pub use antecedent_design::functional_source::LawFunctionalArtifact;
+}
+/// Checked adapter from `PriorCatalog` posterior sources to a future candidate-signal.
+pub mod prior_signal {
+    pub use antecedent_design::prior_signal::{
+        CandidateSignalPrior, CandidateSignalSource, NativeSignalFamily, PriorSignalRequest,
+        PriorSourceInput, SourceToTarget, TransportPolicyDecl, adapt_prior_to_signal,
+    };
+}
+/// Exhaustive bounded program search over checked response quantities.
+pub mod program_search {
+    pub use antecedent_design::program_search::{
+        FiniteProgramDomain, ProgramControl, ProgramFeasibility, ProgramRestriction,
+        ProgramSearchError,
+    };
+    /// Global bounds derived from expressions, with outward-rounded arithmetic.
+    pub mod certified {
+        pub use antecedent_design::program_search::certified::{
+            CertificateOptions, CertificateStop,
+        };
+    }
+    /// Bounded derivative-free search over actual compiled programs.
+    pub mod continuous {
+        pub use antecedent_design::program_search::continuous::{
+            ContinuousSearchOptions, ContinuousSearchReliability, SelectedProgramReliability,
+        };
+    }
+}
+/// Per-proposal receipt linking identification repair and design ranking.
+pub mod proposal_receipt {
+    pub use antecedent_design::proposal_receipt::{
+        Arrival, ArrivalVerdict, ArrivedEvidence, BaseFailureBinding, ChangedPremise, CostBinding,
+        DecisionReceipt, HypotheticalBinding, LineageBinding, ObservedLaw, ProposalBundle,
+        ProposalReceipt, ProposalReceiptError, ValuationBinding, on_arrival, verify,
+    };
+}
+/// Finite source-law to terminal-decision and study-ranking binding.
+pub mod rollout_artifact {
+    pub use antecedent_design::rollout_artifact::{
+        MAX_ROLLOUT_BYTES, RolloutArtifact, RolloutExpectation, consume,
+    };
+}
+/// Checked scientific standing carried from a compiled response into a decision.
+pub mod scientific_source {
+    pub use antecedent_design::scientific_source::{
+        ScientificConsumptionScope, ScientificSourcePayload,
+    };
+}
+/// `SequentialEvaluationArtifact` (`sequential_evaluation_v1`).
+pub mod sequential_evaluation_artifact {
+    pub use antecedent_design::sequential_evaluation_artifact::StepWire;
+}
+/// Source-backed projections for a portable composed workflow.
+pub mod source_projection_artifact {
+    pub use antecedent_design::source_projection_artifact::{
+        MAX_SOURCE_PROJECTION_BYTES, ProjectionSource, SourceProjection, SourceProjectionArtifact,
+    };
+}
+/// Identification flags of a graph posterior, derived rather than declared.
+pub mod structure_identification {
+    pub use antecedent_design::structure_identification::{GraphIdentFlag, identifies};
+}
+/// Portable transported decision artifact (`transported_decision_v1`).
+pub mod transported_decision_artifact {
+    pub use antecedent_design::transported_decision_artifact::{
+        ConsumedTransportedDecision, consume_transported_decision, export_transported_decision,
+    };
 }

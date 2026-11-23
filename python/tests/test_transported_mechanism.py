@@ -16,13 +16,16 @@ decide what the truth is.
 from __future__ import annotations
 
 import dataclasses
+import json
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import mechanism_composition as mc
 from antecedent.errors import CausalTypeError, CausalUnsupportedError
 from antecedent.mechanism_composition import MechanismCompositionRefusal
 from antecedent.model import fit_gcm
+from antecedent.outcomes import require_success
 
 TOL = 1e-9
 ROLES = {"X": "treatment", "M": "mediator", "Y": "outcome"}
@@ -201,6 +204,7 @@ def test_carried_and_refitted_components_give_the_path_algebra_law(source_gcm, t
     assert receipt.route == "mechanism"
     assert transported.identity == receipt.identity and len(receipt.identity) == 64
     assert receipt.source_plan_identity == source.plan_identity
+    assert receipt.source_plan_identity_version == source.plan_identity_version == 2
     assert receipt.source_population == "pop" and receipt.target_population == "clinic_b"
     assert receipt.selection_targets == ("M",)
     assert receipt.transported_variables == ("X", "Y")
@@ -213,20 +217,35 @@ def test_carried_and_refitted_components_give_the_path_algebra_law(source_gcm, t
     assert receipt.support == "extrapolative" and receipt.inference == "point_only"
     assert receipt.uncertainty_scope == SCOPE
     assert transported.native_target_data is False
+    raw = json.loads(transported._handle.receipt_json())
+    assert raw.pop("source_plan_identity_version") == 2
+    legacy = mc._receipt_of(raw)
+    assert legacy.source_plan_identity_version is None
+    with pytest.raises(ValueError, match="unknown or legacy mechanism plan identity version"):
+        legacy.as_transport_receipt()
     shared = receipt.as_transport_receipt()
     assert shared.route == "mechanism" and shared.transport_identities == (receipt.identity,)
+    assert shared.source_identity == f"antecedent.mechanism_plan.v2:{source.plan_identity}"
+    for version in (None, 1, 3, 2.0, True, "2"):
+        with pytest.raises(ValueError, match="unknown or legacy mechanism plan identity version"):
+            dataclasses.replace(
+                receipt, source_plan_identity_version=version
+            ).as_transport_receipt()
+    assert type(shared)._from_wire(shared._wire()).source_identity == shared.source_identity
 
     # The value is the target structural system's, not the source's.
     ate = mc.MeanContrast.ate("Y", "X", 1.0, 0.0)
     expected = BY[1] + BY[2] * BM_TARGET[1]
-    assert transported.mean_contrast(ate) == pytest.approx(expected, abs=TOL)
+    assert require_success(transported.mean_contrast(ate)) == pytest.approx(expected, abs=TOL)
     _, mean_one, _ = scm_law(TARGET_SPEC, {"X": 1.0})
     _, mean_zero, _ = scm_law(TARGET_SPEC, {"X": 0.0})
     names = sorted(TARGET_SPEC)
     assert (mean_one - mean_zero)[names.index("Y")] == pytest.approx(expected, abs=1e-8)
     assert expected != pytest.approx(BY[1] + BY[2] * BM_SOURCE[1], abs=0.5)
     # The source composition is untouched by the transport.
-    assert source.mean_contrast(ate) == pytest.approx(BY[1] + BY[2] * BM_SOURCE[1], abs=TOL)
+    assert require_success(source.mean_contrast(ate)) == pytest.approx(
+        BY[1] + BY[2] * BM_SOURCE[1], abs=TOL
+    )
 
 
 def test_a_refit_replaces_the_carried_mechanism_and_is_never_averaged(
@@ -238,10 +257,14 @@ def test_a_refit_replaces_the_carried_mechanism_and_is_never_averaged(
     carried = source.transport_to(transport(into=()))
     assert carried.receipt.transported_variables == ("M", "X", "Y")
     ate = mc.MeanContrast.ate("Y", "X", 1.0, 0.0)
-    assert carried.mean_contrast(ate) == pytest.approx(BY[1] + BY[2] * BM_SOURCE[1], abs=TOL)
+    assert require_success(carried.mean_contrast(ate)) == pytest.approx(
+        BY[1] + BY[2] * BM_SOURCE[1], abs=TOL
+    )
     replaced = source.transport_to(transport(into=(), refits=[refit_m(target_gcm)]))
     assert replaced.receipt.native_variables == ("M",)
-    assert replaced.mean_contrast(ate) == pytest.approx(BY[1] + BY[2] * BM_TARGET[1], abs=TOL)
+    assert require_success(replaced.mean_contrast(ate)) == pytest.approx(
+        BY[1] + BY[2] * BM_TARGET[1], abs=TOL
+    )
     assert replaced.identity != carried.identity
 
 
@@ -253,16 +276,41 @@ def test_changed_numbers_at_an_unchanged_shape_move_the_identity(source_gcm, tar
     assert moved.identity != base.identity
     assert moved.receipt.transported_variables == base.receipt.transported_variables
     # The same declaration is re-derived to the same identity by a fresh consumer.
-    again = source.verify_transport(
-        transport(refits=[refit_m(target_gcm)]), expected_identity=base.identity
+    again = require_success(
+        source.verify_transport(
+            transport(refits=[refit_m(target_gcm)]), expected_identity=base.identity
+        )
     )
     assert again == base.receipt
+
+
+def test_a_transport_is_verified_only_against_the_identity_it_re_derives(
+    source_gcm, target_gcm
+) -> None:
+    source = source_composition(source_gcm)
+    declared = transport(refits=[refit_m(target_gcm)])
+    base = source.transport_to(declared)
+    assert (
+        require_success(source.verify_transport(declared, expected_identity=base.identity))
+        == base.receipt
+    )
+    # The identity of a different declaration is not the identity of this one.
+    other = source.transport_to(transport(into=()))
+    assert other.identity != base.identity
+    mismatch = refusal_of(
+        lambda: require_success(source.verify_transport(declared, expected_identity=other.identity))
+    )
+    assert mismatch.detail == reason_details.mechanism_transport.TRANSPORT_IDENTITY_MISMATCH
+    with pytest.raises(CausalTypeError):
+        source.verify_transport("not a transport", expected_identity=base.identity)  # type: ignore[arg-type]
 
 
 # ------------------------------------------------------------------------------ uncertainty
 
 
-def test_variance_is_parameter_only_scoped_and_has_no_interval(source_gcm, target_gcm) -> None:
+def test_variance_is_parameter_only_scoped_and_reports_its_interval_uncalibrated(
+    source_gcm, target_gcm
+) -> None:
     source = source_composition(source_gcm, uncertain=True)
     transported = source.transport_to(
         transport(
@@ -282,15 +330,18 @@ def test_variance_is_parameter_only_scoped_and_has_no_interval(source_gcm, targe
     sigma[3:6, 3:6] = np.diag([0.09, 0.01, 0.0025])
     variance = float(gradient @ sigma @ gradient)
 
-    value = transported.mean_contrast_uncertainty(contrast)
+    value = require_success(transported.mean_contrast_uncertainty(contrast))
     assert value.point == pytest.approx(a_y + 2.0 * b_yx + b_ym * (a_m + 2.0 * b_mx), abs=TOL)
     assert value.variance == pytest.approx(variance, abs=1e-8)
     assert value.standard_error == pytest.approx(np.sqrt(variance), abs=1e-8)
     assert value.scope == SCOPE
     assert value.method == "first_order_delta_method"
-    closed = refusal_of(transported.interval)
-    assert closed.reason_code == "cell_not_licensed"
-    assert closed.detail == "mechanism_transport.interval_route_closed"
+    interval = transported.interval(contrast, 0.95)
+    half = 1.959963984540054 * np.sqrt(variance)
+    assert interval.point == pytest.approx(value.point, abs=TOL)
+    assert interval.lower == pytest.approx(value.point - half, abs=1e-8)
+    assert interval.upper == pytest.approx(value.point + half, abs=1e-8)
+    assert interval.calibration["status"] == "not_measured"
 
 
 def test_an_unknown_dependence_refuses_the_variance_but_not_the_point(
@@ -299,8 +350,11 @@ def test_an_unknown_dependence_refuses_the_variance_but_not_the_point(
     source = source_composition(source_gcm, uncertain=True, independent=False)
     transported = source.transport_to(transport(refits=[refit_m(target_gcm, uncertain=True)]))
     contrast = mc.MeanContrast.mean_at("Y", {"X": 2.0})
-    assert np.isfinite(transported.mean_contrast(contrast))
-    error = refusal_of(lambda: transported.mean_contrast_uncertainty(contrast))
+    # The point is the carried-and-refitted structural system's, whatever the dependence.
+    a_m, b_mx = BM_TARGET
+    expected = BY[0] + 2.0 * BY[1] + BY[2] * (a_m + 2.0 * b_mx)
+    assert require_success(transported.mean_contrast(contrast)) == pytest.approx(expected, abs=TOL)
+    error = refusal_of(lambda: require_success(transported.mean_contrast_uncertainty(contrast)))
     assert error.reason_code == "joint_law_required"
 
 
@@ -311,17 +365,15 @@ def test_the_transported_artifact_is_the_existing_one_and_replays(source_gcm, ta
     source = source_composition(source_gcm)
     transported = source.transport_to(transport(refits=[refit_m(target_gcm)]))
     exported = transported.export({"X": 2.0}, outcome="Y")
+    produced = exported.metadata["result"]
+    digest = exported.expectation.identity
     names, mean, cov = scm_law(TARGET_SPEC, {"X": 2.0})
-    assert exported.result.mean == pytest.approx(mean[names.index("Y")], abs=1e-8)
-    assert exported.result.variance == pytest.approx(
-        cov[names.index("Y"), names.index("Y")], abs=1e-8
-    )
-    consumed = mc.consume_mechanism_composition_artifact(
-        exported.artifact, exported.premises_digest
-    )
+    assert produced.mean == pytest.approx(mean[names.index("Y")], abs=1e-8)
+    assert produced.variance == pytest.approx(cov[names.index("Y"), names.index("Y")], abs=1e-8)
+    consumed = require_success(mc.consume_mechanism_composition_artifact(exported.data, digest))
     assert consumed.family == "linear_gaussian"
-    assert consumed.result.mean == pytest.approx(exported.result.mean, abs=0.0)
-    assert consumed.premises_digest == exported.premises_digest
+    assert consumed.result.mean == pytest.approx(produced.mean, abs=0.0)
+    assert consumed.premises_digest == digest == exported.metadata["premises_digest"]
 
 
 # ------------------------------------------------------------------------------ refusals
@@ -332,7 +384,10 @@ def test_a_selection_arrow_dominates_an_invariance_declaration(source_gcm) -> No
     invariance = mc.TransportInvariance("M", "population", "pop", "clinic_b", "assume:m-invariant")
     error = refusal_of(lambda: source.transport_to(transport(invariances=[invariance])))
     assert error.reason_code == "quantity_semantics_mismatch"
-    assert "mechanism_composition.population_selection_arrow_into_mechanism" in error.details
+    assert (
+        reason_details.mechanism_composition.POPULATION_SELECTION_ARROW_INTO_MECHANISM
+        in error.details
+    )
     assert error.remedy
 
 
@@ -348,12 +403,17 @@ def test_declared_and_unknown_refits_are_refused_by_name(source_gcm, target_gcm)
         evidence_id="data:M:declared",
     )
     error = refusal_of(lambda: source.transport_to(transport(refits=[written])))
-    assert "mechanism_composition.provenance_declared_mechanism_unacknowledged" in error.details
+    assert (
+        reason_details.mechanism_composition.PROVENANCE_DECLARED_MECHANISM_UNACKNOWLEDGED
+        in error.details
+    )
     # A refit of a variable the composition has no mechanism for.
     stray = dataclasses.replace(refit_m(target_gcm), variable_id="Q")
     error = refusal_of(lambda: source.transport_to(transport(refits=[stray])))
     assert error.reason_code == "quantity_semantics_mismatch"
-    assert error.detail == "mechanism_composition.identity_declaration_unknown_variable"
+    assert (
+        error.detail == reason_details.mechanism_composition.IDENTITY_DECLARATION_UNKNOWN_VARIABLE
+    )
 
 
 def test_declared_source_mechanisms_are_not_carried() -> None:
@@ -370,8 +430,12 @@ def test_declared_source_mechanisms_are_not_carried() -> None:
         admit_declared_mechanisms=True,
     )
     error = refusal_of(lambda: declared.transport_to(transport(into=("M",))))
-    assert "mechanism_transport.origin_not_fitted" in error.details
-    origin = [r for r in error.refusals if r["detail"] == "mechanism_transport.origin_not_fitted"]
+    assert reason_details.mechanism_transport.ORIGIN_NOT_FITTED in error.details
+    origin = [
+        r
+        for r in error.refusals
+        if r["detail"] == reason_details.mechanism_transport.ORIGIN_NOT_FITTED
+    ]
     assert origin and all(r["code"] == "mechanism_composition_incoherent" for r in origin)
 
 

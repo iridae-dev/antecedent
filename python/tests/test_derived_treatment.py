@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import Execution
+from antecedent import _reason_details as reason_details
 from antecedent.derived import (
     DeclaredExclusion,
     DerivedTreatment,
@@ -67,17 +69,22 @@ def truth(cell):
 def test_a_declared_joint_cell_recovers_the_known_law_and_the_interaction():
     data = draw(6000, 1, LAW)
     result = factorized_joint_cells(
-        data, declaration(), outcome="y", adjustment=["z"], seed=3, contrasts=["interaction"]
+        data,
+        declaration(),
+        outcome="y",
+        adjustment=["z"],
+        execution=Execution(seed=3),
+        contrasts=["interaction"],
     )
     assert result.claim == "point_only"
     assert result.treatments == ("t0", "t1")
     assert len(result.supported) == 4 and not result.unsupported
     for cell in result.cells:
-        assert cell.estimate == pytest.approx(truth(cell.cell), abs=0.08)
+        assert cell.estimate == pytest.approx(truth(cell.cell), abs=0.03)
         assert cell.ess > 100 and 0 < cell.propensity_min < cell.propensity_max < 1
-    assert result.cell(1, 1).estimate == pytest.approx(truth(3), abs=0.08)
+    assert result.cell(1, 1).estimate == pytest.approx(truth(3), abs=0.03)
     (interaction,) = result.contrasts
-    assert interaction.value == pytest.approx(1.0, abs=0.15)
+    assert interaction.value == pytest.approx(1.0, abs=0.05)
     by_hand = (
         result.cells[0].estimate
         - result.cells[1].estimate
@@ -92,6 +99,8 @@ def test_a_declared_joint_cell_recovers_the_known_law_and_the_interaction():
     assert "propensity=ridge_logistic" in result.provenance
     assert result.plan.observed_levels == (0.0, 1.0, 2.0, 3.0)
     assert result.plan.retained_covariates == ("z",)
+    # The adjustment is the caller's declaration, never a graph identification.
+    assert result.plan.adjustment_basis == "declared"
 
 
 def test_a_family_with_one_unsupported_cell_keeps_the_rest():
@@ -107,12 +116,12 @@ def test_a_family_with_one_unsupported_cell_keeps_the_rest():
     assert [c.status for c in result.cells] == ["supported"] * 3 + ["unsupported"]
     refused = result.cells[3]
     assert refused.refusal.code == "arm_not_populated"
-    assert refused.refusal.detail == "joint_cells.cell_empty"
+    assert refused.refusal.detail == reason_details.joint_cells.CELL_EMPTY
     assert refused.estimate is None and refused.rows == 0
     assert result.degenerate_conditionals > 0
     assert result.sensitivity.orderings[0] == ("t1", "t0")
     by_name = {c.name: c for c in result.contrasts}
-    assert by_name["cell_minus_control:1"].value == pytest.approx(0.4, abs=0.08)
+    assert by_name["cell_minus_control:1"].value == pytest.approx(0.4, abs=0.04)
     for name in ("interaction", "cell_minus_control:3"):
         assert by_name[name].value is None
         assert by_name[name].refusal_code == "joint_cell_unsupported"
@@ -124,7 +133,7 @@ def test_constituent_and_descendant_leakage_needs_a_declared_exclusion():
         lambda: check_derived_treatment(data, declaration(), outcome="y", adjustment=["z", "t1"])
     )
     assert error.reason_code == "derived_treatment_invalid"
-    assert "joint_cells.derived_constituent_in_adjustment" in str(error)
+    assert reason_details.joint_cells.DERIVED_CONSTITUENT_IN_ADJUSTMENT in str(error)
     assert error.refusal_fields["implicated_columns"] == ["t1"]
 
     excluded = declaration(
@@ -137,14 +146,14 @@ def test_constituent_and_descendant_leakage_needs_a_declared_exclusion():
     error = refusal(
         lambda: check_derived_treatment(data, declaration(), outcome="y", adjustment=["z", "post"])
     )
-    assert "joint_cells.derived_descendant_in_adjustment" in str(error)
+    assert reason_details.joint_cells.DERIVED_DESCENDANT_IN_ADJUSTMENT in str(error)
     wrong_rule = declaration(
         exclusions=[DeclaredExclusion("z", "constituent_of_treatment", "an admissible covariate")]
     )
     error = refusal(
         lambda: check_derived_treatment(data, wrong_rule, outcome="y", adjustment=["z"])
     )
-    assert "joint_cells.derived_exclusion_rule_mismatch" in str(error)
+    assert reason_details.joint_cells.DERIVED_EXCLUSION_RULE_MISMATCH in str(error)
 
 
 def test_exact_duplicate_treatments_and_rank_failure_are_refused_with_columns_named():
@@ -153,7 +162,7 @@ def test_exact_duplicate_treatments_and_rank_failure_are_refused_with_columns_na
     error = refusal(
         lambda: check_derived_treatment(duplicated, declaration(), outcome="y", adjustment=["z"])
     )
-    assert "joint_cells.derived_duplicate_constituents" in str(error)
+    assert reason_details.joint_cells.DERIVED_DUPLICATE_CONSTITUENTS in str(error)
     assert error.refusal_fields["implicated_columns"] == ["t0", "t1"]
 
     rank = {**data, "z_dup": data["z"].copy(), "z2": data["y"] * 0 + np.arange(400) % 7}
@@ -174,7 +183,7 @@ def test_illegal_values_and_contradictory_declarations_are_refused():
     data = draw(300, 5, LAW)
     narrow = declaration(legal_values=[0.0, 1.0, 2.0])
     error = refusal(lambda: check_derived_treatment(data, narrow, outcome="y", adjustment=["z"]))
-    assert "joint_cells.derived_illegal_value" in str(error)
+    assert reason_details.joint_cells.DERIVED_ILLEGAL_VALUE in str(error)
     for edit in (
         {"intervention": "joint_components", "transformation": "product"},
         {"legal_values": [0.0]},
@@ -201,29 +210,31 @@ def test_illegal_values_and_contradictory_declarations_are_refused():
         )
 
 
-def test_intervals_machine_learning_nuisance_and_lasso_are_closed():
+def test_intervals_machine_learning_nuisance_and_lasso_are_not_supported():
     data = draw(300, 6, LAW)
 
     def call(**options):
         return factorized_joint_cells(data, declaration(), outcome="y", adjustment=["z"], **options)
 
     error = refusal(lambda: call(level=0.95))
-    assert error.reason_code == "penalized_interval_not_licensed"
-    assert "joint_cells.interval_withheld" in str(error)
+    assert error.reason_code == "penalized_interval_not_supported"
+    assert reason_details.joint_cells.NO_INTERVAL_METHOD in str(error)
     for name in ("ml", "neural_network", "gradient_boosting"):
         error = refusal(lambda name=name: call(nuisance=name))
-        assert error.reason_code == "ml_nuisance_not_licensed"
-        assert "joint_cells.ml_learner_not_declared" in str(error)
+        assert error.reason_code == "ml_nuisance_not_supported"
+        assert reason_details.joint_cells.ML_LEARNER_NOT_DECLARED in str(error)
     # An interval over a learner-supplied family is closed whether or not the provider is
     # built: it is refused before any data is read.
     error = refusal(lambda: call(nuisance="random_forest", level=0.95))
-    assert error.reason_code == "ml_nuisance_not_licensed"
-    assert "joint_cells.ml_interval_withheld" in str(error)
+    assert error.reason_code == "ml_nuisance_not_supported"
+    assert reason_details.joint_cells.NO_ML_INTERVAL_METHOD in str(error)
     with pytest.raises(CausalValueError):
         call(nuisance="random_forest", penalties=[0.1])
     with pytest.raises(CausalValueError):
         call(nuisance=3)
-    assert refusal(lambda: call(nuisance="lasso")).reason_code == "selection_inference_not_licensed"
+    assert (
+        refusal(lambda: call(nuisance="lasso")).reason_code == "selection_inference_not_supported"
+    )
     assert refusal(lambda: call(nuisance="typo")).reason_code == "invalid_argument"
     assert refusal(lambda: call(ordering=["t0", "t0"])).reason_code == "invalid_argument"
 
@@ -237,25 +248,25 @@ def test_a_declared_learner_nuisance_is_cross_fitted_and_point_only():
             outcome="y",
             adjustment=["z"],
             nuisance="random_forest",
-            seed=3,
+            execution=Execution(seed=3),
             contrasts=["interaction"],
         )
     except CausalUnsupportedError as error:
         # A build without the forest provider refuses typed instead of substituting ridge.
         assert error.reason_code == "route_not_supported"
-        assert "joint_cells.learner_unavailable" in str(error)
+        assert reason_details.joint_cells.LEARNER_UNAVAILABLE in str(error)
         pytest.skip("the random_forest provider is not built into this wheel")
         return
     assert result.claim == "point_only"
     assert len(result.supported) == 4
     for cell in result.cells:
-        # Loose band: a forest's leaf means carry bootstrap noise and no rate is claimed.
-        assert cell.estimate == pytest.approx(truth(cell.cell), abs=0.2)
+        # Observed deviation 0.014 at this seed; no rate is claimed for a forest.
+        assert cell.estimate == pytest.approx(truth(cell.cell), abs=0.05)
     assert "nuisance=ml_joint_cell" in result.provenance
     assert "propensity=ridge_logistic" not in result.provenance
     assert "fold_seed=3" in result.provenance
     (interaction,) = result.contrasts
-    assert interaction.value == pytest.approx(1.0, abs=0.3)
+    assert interaction.value == pytest.approx(1.0, abs=0.06)
 
 
 def test_a_cancelled_fit_is_never_a_result():
@@ -263,7 +274,13 @@ def test_a_cancelled_fit_is_never_a_result():
     token = CancellationToken()
     token.cancel()
     with pytest.raises((CausalCancelledError, CausalUnsupportedError)):
-        factorized_joint_cells(data, declaration(), outcome="y", adjustment=["z"], cancel=token)
+        factorized_joint_cells(
+            data,
+            declaration(),
+            outcome="y",
+            adjustment=["z"],
+            execution=Execution(cancel=token),
+        )
 
 
 def test_the_joint_cell_cost_counts_are_the_hand_enumeration_and_never_a_time():
@@ -289,6 +306,11 @@ def test_the_joint_cell_cost_counts_are_the_hand_enumeration_and_never_a_time():
     assert both.conditional_strata == 6
 
 
+def test_joint_cell_cost_rejects_huge_component_count_before_allocating():
+    assert refusal(lambda: estimate_joint_cell_cost(10**9)).reason_code == "invalid_argument"
+    assert refusal(lambda: estimate_joint_cell_cost(0)).reason_code == "invalid_argument"
+
+
 def test_the_joint_cell_cost_refuses_what_the_fit_refuses():
     assert refusal(lambda: estimate_joint_cell_cost(2, ordering=[0, 0])).reason_code == (
         "invalid_argument"
@@ -298,3 +320,28 @@ def test_the_joint_cell_cost_refuses_what_the_fit_refuses():
     )
     with pytest.raises(CausalValueError):
         estimate_joint_cell_cost(2, nuisance="random_forest", penalties=[0.1])
+
+
+def test_joint_cost_refuses_oversized_penalty_sequence_before_iteration():
+    from antecedent import _native
+
+    class Oversized:
+        def __len__(self):
+            return _native._penalty_grid_max_items() + 1
+
+        def __iter__(self):
+            raise AssertionError("oversized grid must not be iterated")
+
+    with pytest.raises(CausalUnsupportedError, match="memory policy") as refused:
+        estimate_joint_cell_cost(2, penalties=Oversized())
+    assert refused.value.reason_code == "execution_resource_limit"
+    with pytest.raises(CausalUnsupportedError, match="penalty grid") as refused:
+        _native.joint_cell_cost_json(2, penalties=Oversized())
+    assert refused.value.reason_code == "execution_resource_limit"
+    for operation in (
+        lambda: estimate_joint_cell_cost(2, penalties=range(10**30)),
+        lambda: _native.joint_cell_cost_json(2, penalties=range(10**30)),
+    ):
+        with pytest.raises(CausalUnsupportedError) as overflow:
+            operation()
+        assert overflow.value.reason_code == "execution_resource_limit"

@@ -16,16 +16,24 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import json
 import os
 import subprocess
 import sys
-import tomllib
 from pathlib import Path
 from typing import Any
 
+from _repo import load_toml
+
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT_DIR = ROOT / "parity" / "public_api"
-FORMAT_VERSION = 37  # rustdoc JSON format of the pinned 1.85 toolchain
+FORMAT_VERSION = 57  # rustdoc JSON format of the pinned toolchain
+
+# Compiler-internal marker traits the toolchain implements for every eligible type;
+# they describe the toolchain, not this crate's API.
+COMPILER_MARKER_TRAITS = frozenset({
+    "TrivialClone", "core::clone::TrivialClone", "UnsafeUnpin", "core::marker::UnsafeUnpin",
+})
 
 HEADER = (
     "# Public API snapshot (rustdoc JSON, default features). Regenerate with\n"
@@ -35,11 +43,11 @@ HEADER = (
 
 
 def published_crates() -> list[str]:
-    ws = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))
+    ws = load_toml(ROOT / "Cargo.toml")
     names: list[str] = []
     for member in ws["workspace"]["members"]:
         manifest = ROOT / member / "Cargo.toml"
-        pkg = tomllib.loads(manifest.read_text(encoding="utf-8"))["package"]
+        pkg = load_toml(manifest)["package"]
         if pkg.get("publish", True) is False:
             continue
         if not (ROOT / member / "src" / "lib.rs").exists():
@@ -54,14 +62,16 @@ def run_rustdoc(crates: list[str], target_dir: Path | None) -> Path:
     env["RUSTDOCFLAGS"] = (
         "-Z unstable-options --output-format json --document-hidden-items -A warnings"
     )
-    if target_dir is not None:
-        env["CARGO_TARGET_DIR"] = str(target_dir)
+    # proc-macro2 tracks RUSTC_BOOTSTRAP. Sharing its fingerprint directory
+    # makes each switch between rustdoc and engineering rebuild the dependency tree.
+    if target_dir is None:
+        target_dir = Path(env.get("CARGO_TARGET_DIR", ROOT / "target")) / "public-api"
+    env["CARGO_TARGET_DIR"] = str(target_dir)
     cmd = ["cargo", "doc", "--no-deps", "--lib", "--quiet"]
     for name in crates:
         cmd += ["-p", name]
     subprocess.run(cmd, cwd=ROOT, env=env, check=True)
-    out = target_dir or Path(env.get("CARGO_TARGET_DIR", ROOT / "target"))
-    return out / "doc"
+    return target_dir / "doc"
 
 
 # ---------------------------------------------------------------------------
@@ -154,7 +164,7 @@ class Lister:
         return fallback
 
     def rpath(self, p: dict[str, Any]) -> str:
-        name = self.path_name(p["id"], p["name"])
+        name = self.path_name(p["id"], p["path"])
         return name + self.rargs(p.get("args"))
 
     def rargs(self, args) -> str:
@@ -188,7 +198,9 @@ class Lister:
         b = c["binding"]
         if "equality" in b:
             eq = b["equality"]
-            return f"{head} = {self.rtype(eq['type']) if 'type' in eq else self.rconst(eq['const'])}"
+            return (
+                f"{head} = {self.rtype(eq['type']) if 'type' in eq else self.rconst(eq['const'])}"
+            )
         return f"{head}: {self.rbounds(b['constraint'])}"
 
     def rbounds(self, bounds) -> str:
@@ -240,7 +252,7 @@ class Lister:
             ins = ", ".join(self.rtype(ty) for _, ty in sig["inputs"])
             out = f" -> {self.rtype(sig['output'])}" if sig.get("output") else ""
             hdr = v["header"]
-            pre = ("unsafe " if hdr["is_unsafe"] else "")
+            pre = "unsafe " if hdr["is_unsafe"] else ""
             return f"{pre}fn({ins}){out}"
         if k == "qualified_path":
             tr = f" as {self.rpath(v['trait'])}" if v.get("trait") else ""
@@ -321,9 +333,11 @@ class Lister:
     def attrs(self, item) -> str:
         pre = ""
         for a in item.get("attrs", []):
-            if "doc(hidden)" in a:
+            # Attributes are strings or objects such as {"other": "#[doc(hidden)]"}.
+            text = a if isinstance(a, str) else json.dumps(a)
+            if "doc(hidden)" in text:
                 pre += "#[doc(hidden)] "
-            if "non_exhaustive" in a:
+            if "non_exhaustive" in text:
                 pre += "#[non_exhaustive] "
         return pre
 
@@ -466,6 +480,8 @@ class Lister:
             else:
                 own_local = False
             trait = im.get("trait")
+            if trait is not None and trait["path"] in COMPILER_MARKER_TRAITS:
+                continue
             if trait is not None:
                 tid = str(trait["id"])
                 local_trait = tid in self.canon
@@ -565,7 +581,9 @@ def main() -> int:
         else:
             print(f"ok   {name}")
     if args.write:
-        stale = sorted(p for p in SNAPSHOT_DIR.glob("*.txt") if p.stem not in set(published_crates()))
+        stale = sorted(
+            p for p in SNAPSHOT_DIR.glob("*.txt") if p.stem not in set(published_crates())
+        )
         for p in stale:
             p.unlink()
             print(f"removed stale {p.relative_to(ROOT)}")

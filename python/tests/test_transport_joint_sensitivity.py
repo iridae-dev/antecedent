@@ -4,7 +4,11 @@ import json
 
 import pytest
 from antecedent import Admg
+from antecedent import _reason_details as reason_details
+from antecedent._artifact_protocol import ExportedArtifact
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError, CausalValueError
+from antecedent.execution import Execution
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 P_W = {0: 0.65, 1: 0.35}
@@ -97,7 +101,7 @@ def test_joint_sensitivity_executes_the_retained_plan_after_builder_disposal():
     assert program["rules"] == ["ztr.surrogate_factorization"]
     prepared = builder.prepare_exact(catalog, laws, {"x": 1.0})
     del builder, graph_builder
-    plan = json.loads(prepared.estimate())
+    plan = json.loads(require_success(prepared.estimate()))
     assert plan["status"] == "available"
     joint = transport.joint_mechanism_sensitivity(prepared, DEVIATION)
     lower, upper = closed_form(0.2, 0.3)
@@ -106,8 +110,8 @@ def test_joint_sensitivity_executes_the_retained_plan_after_builder_disposal():
     assert joint["baseline"] == pytest.approx(0.65 * 0.3 + 0.35 * 0.5, abs=1e-12)
     assert joint["inference_claim"] == "assumption_range"
     assert "not a confidence interval" in joint["interpretation"]
-    assert joint["uncertainty"]["status"] == "withheld"
-    assert joint["uncertainty"]["reason_code"] == "cell_not_licensed"
+    assert joint["uncertainty"]["status"] == "no_interval_method"
+    assert joint["uncertainty"]["reason_code"] == "uncertainty_representation_insufficient"
     assert [f["factor"] for f in joint["factors"]] == ["outcome_kernel", "shared_parent_marginal"]
     assert len(joint["frontier"]) == 9
     assert joint["receipt"]["stop"] is None
@@ -125,10 +129,10 @@ def test_export_joint_sensitivity_after_builder_disposal():
     builder = None
     with pytest.raises(Exception, match="estimate before exporting"):
         transport.export_joint_mechanism_sensitivity(prepared, DEVIATION)
-    plan = json.loads(prepared.estimate())
+    plan = json.loads(require_success(prepared.estimate()))
     assert plan["status"] == "available" and builder is None
     artifact = transport.export_joint_mechanism_sensitivity(prepared, DEVIATION)
-    assert isinstance(artifact, bytes) and len(artifact) > 100
+    assert isinstance(artifact, ExportedArtifact) and len(bytes(artifact)) > 100
     # The v2 one-factor consumer refuses the v3 artifact by version.
     with pytest.raises(CausalSerializationError):
         transport.consume_z_transport_sensitivity_artifact(artifact)
@@ -137,25 +141,25 @@ def test_export_joint_sensitivity_after_builder_disposal():
 def test_consume_joint_sensitivity_artifact_replays_the_retained_plan():
     prepared = prepared_stage()
     builder = None
-    plan = json.loads(prepared.estimate())
+    plan = json.loads(require_success(prepared.estimate()))
     assert plan["status"] == "available" and builder is None
     artifact = transport.export_joint_mechanism_sensitivity(prepared, DEVIATION)
     consumed = transport.consume_joint_mechanism_sensitivity_artifact(artifact)
     live = transport.joint_mechanism_sensitivity(prepared, DEVIATION)
     assert consumed["version"] == 3
-    assert consumed["outcome"]["range"] == [
+    assert list(consumed["outcome"]["range"]) == [
         live["assumption_range"]["minimum"],
         live["assumption_range"]["maximum"],
     ]
     assert consumed["inference_claim"] == "assumption_range"
     assert consumed["sampling"]["interval"] is None
-    assert consumed["sampling"]["status"] == "withheld"
+    assert consumed["sampling"]["status"] == "no_interval_method"
     assert consumed["receipt"]["operations_consumed"] == live["receipt"]["operations_consumed"]
 
 
 def test_prepare_estimate_joint_sensitivity_export_and_independent_consume():
     prepared = prepared_stage()
-    prepared.estimate()
+    require_success(prepared.estimate())
     artifact = transport.export_joint_mechanism_sensitivity(prepared, DEVIATION)
     del prepared
     consumed = transport.consume_joint_mechanism_sensitivity_artifact(artifact)
@@ -167,7 +171,7 @@ def test_prepare_estimate_joint_sensitivity_export_and_independent_consume():
     with pytest.raises(CausalUnsupportedError) as caught:
         transport.consume_joint_mechanism_sensitivity_artifact(artifact, max_search_operations=10)
     assert caught.value.reason_code == "route_not_supported"
-    assert "joint_sensitivity.consumer_limits" in str(caught.value)
+    assert reason_details.joint_sensitivity.CONSUMER_LIMITS in str(caught.value)
 
 
 def counted_stage():
@@ -193,19 +197,39 @@ def counted_stage():
 
 def test_the_endpoint_bootstrap_interval_replays():
     prepared = counted_stage()
-    plan = json.loads(prepared.estimate())
+    plan = json.loads(require_success(prepared.estimate()))
     assert plan["status"] == "available"
     first = transport.joint_mechanism_sensitivity_interval(prepared, DEVIATION, replicates=199)
     second = transport.joint_mechanism_sensitivity_interval(prepared, DEVIATION, replicates=199)
     lower, upper, coverage_target = first
     assert lower <= upper
     assert coverage_target.startswith("one_sided:")
+    # The interval is a one-sided bound on each endpoint of the assumption range: it contains the
+    # plug-in range of the counted law and the population range of the exact closed form.
+    plug_in = transport.joint_mechanism_sensitivity(prepared, DEVIATION)["assumption_range"]
+    population_lower, population_upper = closed_form(0.2, 0.3)
+    assert lower < plug_in["minimum"] < plug_in["maximum"] < upper
+    assert lower < population_lower < population_upper < upper
+    # The counted law (n = 80) is a sample of the population: its range is near, not on, the closed form.
+    assert plug_in["minimum"] == pytest.approx(population_lower, abs=0.05)
+    assert plug_in["maximum"] == pytest.approx(population_upper, abs=0.05)
     assert first == second
-    for kwargs in ({"replicates": 198}, {"replicates": 1}, {"replicates": 2001}, {"level": 0.9}):
+    # Calibration annotates: fewer replicates or another level are computed, not refused.
+    for kwargs in ({"replicates": 198}, {"level": 0.9}):
+        annotated = transport.joint_mechanism_sensitivity_interval(prepared, DEVIATION, **kwargs)
+        assert annotated.lower <= annotated.upper
+        assert annotated.calibration["status"] != "calibrated"
+    assert first.calibration["status"] in {
+        "calibrated",
+        "outside_measured_scope",
+        "measured_below_nominal",
+        "not_measured",
+    }
+    for kwargs in ({"replicates": 1}, {"replicates": 2001}):
         with pytest.raises(CausalUnsupportedError) as caught:
             transport.joint_mechanism_sensitivity_interval(prepared, DEVIATION, **kwargs)
         assert caught.value.reason_code == "route_not_supported"
-        assert "joint_sensitivity.bounds_exceeded" in str(caught.value)
+        assert reason_details.joint_sensitivity.BOUNDS_EXCEEDED in str(caught.value)
     with pytest.raises(CausalUnsupportedError) as exact:
         transport.joint_mechanism_sensitivity_interval(prepared_stage(), DEVIATION, replicates=199)
     assert exact.value.reason_code == "transport_numerical_failure"
@@ -219,55 +243,55 @@ def test_out_of_scope_requests_refuse_with_reason_codes():
             transport.JointDeviation({"outcome_kernel": 0.1}, total_budget=0.1),
             CausalUnsupportedError,
             "route_not_supported",
-            "joint_sensitivity.budget_coupling",
+            reason_details.joint_sensitivity.BUDGET_COUPLING,
         ),
         (
             transport.JointDeviation({"outcome_kernel": 0.1, "fixed_graph_parent": 0.1}),
             CausalUnsupportedError,
             "route_not_supported",
-            "joint_sensitivity.fixed_graph_parent",
+            reason_details.joint_sensitivity.FIXED_GRAPH_PARENT,
         ),
         (
             transport.JointDeviation({"fixed_graph_conditional": 0.1}),
             CausalUnsupportedError,
             "route_not_supported",
-            "joint_sensitivity.fixed_graph_conditional",
+            reason_details.joint_sensitivity.FIXED_GRAPH_CONDITIONAL,
         ),
         (
             transport.JointDeviation({"source_target_discrepancy": 0.1}),
             CausalUnsupportedError,
             "route_not_supported",
-            "joint_sensitivity.source_target_discrepancy",
+            reason_details.joint_sensitivity.SOURCE_TARGET_DISCREPANCY,
         ),
         (
             transport.JointDeviation({"treatment_mechanism": 0.1}),
             CausalValueError,
             "invalid_argument",
-            "joint_sensitivity.treatment_factor",
+            reason_details.joint_sensitivity.TREATMENT_FACTOR,
         ),
         (
             transport.JointDeviation({"outcome_kernel": 1.5}),
             CausalValueError,
             "invalid_argument",
-            "joint_sensitivity.invalid_fraction",
+            reason_details.joint_sensitivity.INVALID_FRACTION,
         ),
         (
             transport.JointDeviation({"latent_mechanism": 0.1}),
             CausalValueError,
             "invalid_argument",
-            "joint_sensitivity.unknown_factor",
+            reason_details.joint_sensitivity.UNKNOWN_FACTOR,
         ),
         (
-            transport.JointDeviation({"outcome_kernel": 0.1}, frontier_points=34),
+            transport.JointDeviation({"outcome_kernel": 0.1}, frontier_points=258),
             CausalUnsupportedError,
             "route_not_supported",
-            "joint_sensitivity.bounds_exceeded",
+            reason_details.joint_sensitivity.BOUNDS_EXCEEDED,
         ),
         (
             transport.JointDeviation({}),
             CausalUnsupportedError,
             "route_not_supported",
-            "joint_sensitivity.factor_count",
+            reason_details.joint_sensitivity.FACTOR_COUNT,
         ),
     ]
     for deviation, error, code, detail in cases:
@@ -281,22 +305,24 @@ def test_out_of_scope_requests_refuse_with_reason_codes():
             {"outcome_kernel": 0.1, "shared_parent_marginal": 0.1, third: 0.1}
         )
         with pytest.raises(
-            CausalUnsupportedError, match="joint_sensitivity.factor_count"
+            CausalUnsupportedError, match=reason_details.joint_sensitivity.FACTOR_COUNT
         ) as caught:
             transport.joint_mechanism_sensitivity(prepared, deviation)
         assert caught.value.reason_code == "route_not_supported"
     # A non-finite threshold refuses at construction with the same reason code and
     # detail as the Rust contract (invalid_argument / joint_sensitivity.invalid_threshold).
     for bad in (float("nan"), float("inf"), float("-inf")):
-        with pytest.raises(CausalValueError, match="joint_sensitivity.invalid_threshold") as caught:
+        with pytest.raises(
+            CausalValueError, match=reason_details.joint_sensitivity.INVALID_THRESHOLD
+        ) as caught:
             transport.JointDeviation({"outcome_kernel": 0.1}, decision_threshold=bad)
         assert caught.value.reason_code == "invalid_argument"
 
 
 def test_tampered_joint_artifact_fails_with_typed_errors():
     prepared = prepared_stage()
-    prepared.estimate()
-    artifact = transport.export_joint_mechanism_sensitivity(prepared, DEVIATION)
+    require_success(prepared.estimate())
+    artifact = bytes(transport.export_joint_mechanism_sensitivity(prepared, DEVIATION))
     # A flipped byte inside the embedded baseline changes the data identity.
     marker = b"snapshot_z0"
     at = artifact.index(marker)
@@ -315,7 +341,7 @@ def test_a_budget_or_cancellation_stop_keeps_the_exact_range_and_its_receipt():
     from antecedent.state import CancellationToken
 
     prepared = prepared_stage()
-    prepared.estimate()
+    require_success(prepared.estimate())
     full = transport.joint_mechanism_sensitivity(prepared, DEVIATION)
     tight = transport.JointDeviation(
         {"shared_parent_marginal": 0.3, "outcome_kernel": 0.2},
@@ -327,12 +353,35 @@ def test_a_budget_or_cancellation_stop_keeps_the_exact_range_and_its_receipt():
     # The range is exact whatever the frontier budget; the frontier is not.
     assert stopped["assumption_range"] == full["assumption_range"]
     assert stopped["receipt"]["stop"] == "search.operations"
-    assert stopped["unresolved_detail"] == "joint_sensitivity.budget"
+    assert stopped["unresolved_detail"] == reason_details.joint_sensitivity.BUDGET
     assert stopped["receipt"]["unevaluated"]
     assert any(point["status"] == "unevaluated" for point in stopped["frontier"])
     assert len(stopped["frontier"]) == len(full["frontier"])
     token = CancellationToken()
     token.cancel()
-    with pytest.raises(CausalError, match="joint_sensitivity.budget") as cancelled:
-        transport.joint_mechanism_sensitivity(prepared, DEVIATION, cancel=token)
+    with pytest.raises(CausalError, match=reason_details.joint_sensitivity.BUDGET) as cancelled:
+        transport.joint_mechanism_sensitivity(
+            prepared, DEVIATION, execution=Execution(cancel=token)
+        )
     assert cancelled.value.reason_code == "transport_budget_cancel"
+
+
+def test_interval_artifact_replays_two_draws_and_keeps_current_calibration_separate():
+    prepared = counted_stage()
+    require_success(prepared.estimate())
+    artifact = transport.export_joint_sensitivity_interval(
+        prepared, DEVIATION, seed=7, replicates=2, level=0.9
+    )
+    read = artifact.replay()
+    assert read.acceptance.replayed
+    import antecedent as ant
+
+    assert require_success(ant.load(artifact)).acceptance.replayed
+    assert read["version"] == 1 and read["seed"] == 7
+    assert read["numerical"]["counts"][0] == 2
+    assert read["calibration"]["status"] != "calibrated"
+    with pytest.raises(CausalUnsupportedError) as error:
+        artifact.replay(max_replicates=1)
+    assert error.value.reason_code == "route_not_supported"
+    with pytest.raises(CausalUnsupportedError):
+        artifact.replay(max_search_operations=1)

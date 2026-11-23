@@ -1,4 +1,4 @@
-# Joint distribution artifact contract
+# Exchange joint distributions with their meaning
 
 Joint distribution artifacts provide checked quantity meaning, aligned joint draws and
 independent artifact replay. Their numerical operations retain the meaning of the
@@ -6,10 +6,42 @@ supplied law; semantic validation does not establish causal identification or
 sampling coverage. Method-specific measured scalar intervals use the separate
 `antecedent.inference.MeasuredInference` carrier.
 
+Use a joint distribution artifact when you hand draws of several quantities to
+another consumer (a decision, an inverse query, a propagation) and the consumer
+must know what each column means and whether row `i` is one joint realization.
+The rules for combining columns are in [joint law propagation](joint-law-propagation.md).
+
+```python
+import numpy as np
+from antecedent.artifacts import DistributionIdentity, JointDistributionArtifact, ScientificQuantity
+
+quantities = tuple(
+    ScientificQuantity(
+        variable_id=f"schema:{name}", variable_name=name, role="outcome",
+        units="dimensionless", population_id="target", regime_id="do(a=1)",
+        horizon=0, functional_id="outcome",
+    )
+    for name in ("x", "y")
+)
+identity = DistributionIdentity(
+    semantic="interventional_predictive", quantities=quantities, alignment="joint",
+    source_id="study", provider_id="provider", rng_id="deterministic_exact",
+    snapshot_id="snapshot", causal_contract_id="checked-contract",
+)
+artifact = JointDistributionArtifact(identity, np.array([[0.0, 0.0], [1.0, 2.0]]))
+artifact.covariance(0, 1)                  # 0.5, over the aligned rows
+data = bytes(artifact.export("joint-example"))
+again = JointDistributionArtifact.load(data, expected_identity=identity)
+```
+
+The consumer passes the identity it retained itself; a changed identity is
+refused on load. For unweighted draws `covariance` divides by the number of draws (it is the
+covariance of the finite draw law, not an estimate of a population covariance).
+
 ## Layout and identity
 
 `DistributionArtifact` is a distinct, versioned artifact kind. It does not
-reinterpret the existing `CausalPosterior` wire. The metadata section records
+reinterpret the `CausalPosterior` wire. The metadata section records
 the distribution meaning, ordered scientific quantities, alignment, source,
 provider, RNG, snapshot, causal contract, support mask, weights, calibration
 state and provider trust. Each quantity records stable variable ID, name, role,
@@ -35,7 +67,7 @@ resealed artifact still belongs to the original population, regime, provider,
 quantity order or data snapshot. Direct composition compares declared units
 exactly. No unit is inferred or converted.
 
-The initial Rust reader accepts at most 16 MiB, 100,000 draws and 1,024 scalar
+The Rust reader accepts at most 16 MiB, 100,000 draws and 1,024 scalar
 coordinates. It validates declared section sizes before loading payloads and
 checks actual shape, finite draws, weights, masks and quantity identities
 before numerical evaluation. Covariance and nonlinear expectations require
@@ -56,7 +88,7 @@ identification result establishes that equality for the same graph, population,
 selection, regime, conditioning, time and support. The distribution tag or an
 external provider's attestation cannot establish the equality by itself.
 
-`native_licensed`, `external_attested`, `verified_extension` and `unverified`
+`native_supported`, `external_attested`, `verified_extension` and `unverified`
 are separate trust labels. Loading preserves the label; it never upgrades one
 label to another. The artifact does not by itself certify a provider, an
 identified causal estimand or an inferential guarantee.
@@ -70,22 +102,23 @@ has a stable name with an explicit one-to-one target quantity binding. It
 refuses summary-only artifacts, mixed parameter/effect meanings, failed fits,
 unidentified mass and unevaluated structural mass. It reorders by named
 bindings into draw-major rows, retaining cross-coordinate covariance and the
-complete legacy posterior metadata (including backend and treatment contrast)
+complete `CausalPosterior` metadata (including backend and treatment contrast)
 and the exact source-to-target bindings as a receipt. The reader reconstructs
-the source column order from those bindings and checks the old summaries
+the source column order from those bindings and checks the source summaries
 against the stored draws on every load. It also refuses changes to weights,
 support, alignment, distribution meaning or trust on converted artifacts.
 For an unweighted parameter or causal-functional posterior, an equal-tailed
 interval can be recomputed from loaded draws with the type-7 quantile
 rule. That interval describes posterior draw mass, not coverage.
-The converted artifact is marked `unverified` and `unmeasured`; the conversion
-cannot inherit a `CausalPosterior` provider or interval license. The `CausalPosterior` wire does not carry
+The converted artifact is marked `unverified` and `not_measured`; the conversion
+cannot inherit a `CausalPosterior` provider or interval support. The `CausalPosterior` wire does not carry
 population, regime or snapshot identities, so the caller must establish those
 in the independently retained causal contract before conversion.
 
 ## Mapped Gaussian posterior transfer
 
-`antecedent::inference::mapped_posterior_transfer` consumes an aligned
+`antecedent::inference::mapped_posterior_transfer_with` (Python:
+`antecedent.priors.mapped_posterior_transfer`) consumes an aligned
 parameter-posterior artifact under a separately supplied expected source
 identity. The caller gives a complete mapping from stable source variable IDs
 to stable target variable IDs, plus target snapshot and causal-contract IDs;
@@ -95,8 +128,8 @@ It checks units, population, regime, horizon, conditioning, role and transform
 for every mapped coefficient. It requires one constant residual-variance
 coordinate equal to the target prior's known variance, no unsupported or
 weighted coordinates, and no extra parameters. It computes the source's full
-finite-draw covariance and passes it to the existing dense covariance
-hydration, permuted into target order. An old posterior must first pass the
+finite-draw covariance and passes it to the dense covariance
+hydration, permuted into target order. A `CausalPosterior` must first pass the
 explicit checked conversion above. Positional or partial mappings refuse.
 
 A checked transfer example uses batch A design row `(1, 1)` with response `1` and batch B
@@ -104,6 +137,6 @@ row `(1, -1)` with response `3`, under `N(0, I)` and known residual variance
 `1`. A four-draw quadrature artifact has the exact first two moments of the
 batch A Gaussian posterior. With target columns reversed, sequential and
 pooled conjugate fits both produce mean `(-2/3, 4/3)` and covariance `I/3`.
-This licenses a point-only transfer calculation. Upstream posterior trust and
+This supports a point-only transfer calculation. Upstream posterior trust and
 causal identification still come from the independently checked source
 contract; the artifact's trust label is not such proof.

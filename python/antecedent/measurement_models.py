@@ -31,18 +31,18 @@ where its numbers came from. Everything downstream is conditional on that statem
     artifact = estimate.export("prevalence")
     again = mm.consume_measurement_model_artifact(artifact, prepared.model_identity)
 
-What is licensed, and what is not:
+What is supported, and what is not:
 
 * **Prepare** refuses before any number is formed: a proxy, a learned representation or a derived
   column offered as the construct, a population, regime, arm or representation the model was not
   established for (a representation change needs an explicit :class:`RepresentationMapping`, which
   carries values and never intervention meaning unless it declares the evidence for it), error that
-  differs while the analysis assumes it does not, and an operation the route does not license.
+  differs while the analysis assumes it does not, and an operation the route does not support.
 * **Estimate** forms one functional of the corrected quantity. The standard error is an
   *uncalibrated* delta-method estimate that includes the uncertainty of the estimated measurement
-  parameters where the record says it was propagated. No interval is produced:
-  :meth:`MeasurementEstimate.interval` raises ``cell_not_licensed`` until the whole
-  measurement-plus-estimation method has a measured coverage record.
+  parameters where the record says it was propagated. :meth:`MeasurementEstimate.interval` returns
+  the Wald interval as a :class:`MeasurementInterval` whose calibration slot is ``not_measured``
+  while no coverage record measures the whole measurement-plus-estimation method.
 * **Refresh** keeps the model and recomputes the numbers on new outcome-only data of the same
   question; it never changes validation parameters. :meth:`PreparedMeasurementModel
   .with_validation_parameters` is the only way the numbers a model was established with change, and
@@ -50,6 +50,12 @@ What is licensed, and what is not:
   was called on exactly as it was.
 * **Consume** recomputes the point and standard error from the stored sufficient inputs against a
   model identity the consumer retained independently of the bytes.
+
+Continuous classical error beyond the linear moment correction goes through
+:meth:`PreparedMeasurementModel.estimate_continuous` with a :class:`ContinuousErrorData`: regression
+calibration or SIMEX (Cook and Stefanski 1994) under a linear or logistic outcome model, with the
+error in the treatment, a covariate or the outcome. Logistic calibration and SIMEX report a
+bootstrap standard error over the whole procedure; the interval is reported with a ``not_measured`` calibration slot.
 
 A posterior from an external provider is trusted only as far as it is attested or verified, and
 never as native: :class:`ProviderObject` states an attestation or carries a verification receipt the
@@ -82,20 +88,32 @@ model for the target, and a route with nothing to carry each refuse with the unm
 from __future__ import annotations
 
 import json
-import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, NoReturn
 
 import numpy as np
 
+from antecedent import _reason_details
+
 from . import _native
-from ._artifact_protocol import ExportedArtifact
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._mean_binding import bind_mean_reading
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count as _shared_count
+from ._validate import finite_number as _number
+from ._validate import listed_choice as _choice
+from ._validate import name as _name
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
+from .outcomes import Answer, outcome_operation
 
 __all__ = [
     "AnalysisBinding",
@@ -112,8 +130,11 @@ __all__ = [
     "ClassicalErrorParameters",
     "ClassicalLinearData",
     "ConsumedMeasurement",
+    "ContinuousErrorData",
+    "ContinuousMeasurementEstimate",
     "LatentPosteriorData",
     "MeasurementEstimate",
+    "MeasurementInterval",
     "MeasurementIdentities",
     "MeasurementModel",
     "MeasurementModelRefusal",
@@ -135,9 +156,12 @@ __all__ = [
     "prepare_measurement_model",
     "transport_measurement_model",
     "verify_measurement_transport",
+    "PopulationValidationCounts",
+    "PooledDifferentialCorrection",
+    "transport_pooled_differential",
 ]
 
-#: Downstream operations a route may license or refuse.
+#: Downstream operations a route may support or refuse.
 OPERATIONS: tuple[str, ...] = (
     "linear_adjusted_effect",
     "linear_functional_of_coefficients",
@@ -179,26 +203,11 @@ class MeasurementModelRefusal(StructuredRefusal):
 
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code`` and a
     ``measurement_model.*`` ``detail``; ``remedy`` names the declaration or evidence that would
-    license the request when one is known.
+    support the request when one is known.
     """
 
 
 # --------------------------------------------------------------------------- validation
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
-
-
-def _number(value: object, what: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float, np.integer, np.floating)):
-        raise CausalTypeError(f"{what} must be a real number")
-    number = float(value)
-    if not math.isfinite(number):
-        raise CausalValueError(f"{what} must be finite")
-    return number
 
 
 def _count(value: object, what: str, **kwargs: Any) -> int:
@@ -236,12 +245,6 @@ def _columns(values: object, n: int, what: str) -> tuple[list[float], int]:
     if not np.all(np.isfinite(array)):
         raise CausalValueError(f"{what} must be finite")
     return [float(v) for v in array.T.reshape(-1)], int(array.shape[1])
-
-
-def _choice(value: str, what: str, allowed: Sequence[str]) -> str:
-    if value not in allowed:
-        raise CausalValueError(f"{what} must be one of {', '.join(allowed)}; got {value!r}")
-    return value
 
 
 def _dumps(value: object) -> str:
@@ -911,6 +914,106 @@ class LatentPosteriorData:
         }
 
 
+_LOCATIONS = ("treatment", "covariate", "outcome")
+_LINKS = ("identity", "logit")
+_METHODS = ("regression_calibration", "simex")
+_EXTRAPOLANTS = ("automatic", "quadratic", "linear", "rational")
+
+
+@dataclass(frozen=True, slots=True)
+class ContinuousErrorData:
+    """Data and question of one correction for continuous classical measurement error.
+
+    The design is ``(1, regressor, covariates)``. ``location`` says which column carries additive
+    error: ``"treatment"`` (``regressor`` is the error-prone treatment), ``"covariate"``
+    (``regressor`` is the error-prone covariate and the treatment is covariate column
+    ``treatment_column``) or ``"outcome"`` (``outcome`` is error-prone and ``regressor`` is the
+    error-free treatment). ``replicate_values`` (every row's measurements back to back) with
+    ``replicate_counts`` makes the error-prone column the row means; the column may then be left
+    ``None``.
+
+    ``link`` is ``"identity"`` (linear) or ``"logit"`` (0/1 outcome). ``method`` is
+    ``"regression_calibration"`` or ``"simex"`` (grid ``simex_lambdas`` plus ``0``,
+    ``simex_replicates`` remeasurements per value, ``extrapolant`` ``"automatic"`` (rational for
+    ``"identity"``, quadratic for ``"logit"``), ``"rational"``, ``"quadratic"`` or ``"linear"``;
+    an explicit polynomial choice on an identity link centres its interval on the polynomial
+    extrapolation limit, not the structural coefficient).
+    Logistic calibration and SIMEX report a bootstrap standard error over
+    ``bootstrap_replicates`` (at least 50) resamples of the whole procedure, keyed by ``seed``.
+
+    Logistic regression calibration is a first-order approximation and SIMEX retains
+    extrapolation bias; neither is guaranteed to recover the generating coefficient. Their bias
+    across repeated datasets is assessed in the scheduled measurement phase, and until then the
+    result is approximate and uncalibrated.
+    """
+
+    outcome: Any = None
+    regressor: Any = None
+    covariates: Any = None
+    replicate_values: Any = None
+    replicate_counts: Any = None
+    location: str = "treatment"
+    treatment_column: int | None = None
+    link: str = "identity"
+    method: str = "regression_calibration"
+    simex_lambdas: tuple[float, ...] = (0.5, 1.0, 1.5, 2.0)
+    simex_replicates: int = 50
+    extrapolant: str = "automatic"
+    bootstrap_replicates: int = 200
+    seed: int = 0
+
+    def __post_init__(self) -> None:
+        _choice(self.location, "location", _LOCATIONS)
+        _choice(self.link, "link", _LINKS)
+        _choice(self.method, "method", _METHODS)
+        _choice(self.extrapolant, "extrapolant", _EXTRAPOLANTS)
+        if (self.location == "covariate") != (self.treatment_column is not None):
+            raise CausalValueError(
+                "treatment_column is stated exactly when the error is in a covariate"
+            )
+
+    def to_wire(self) -> dict[str, Any]:
+        """The declaration the native layer reads."""
+        outcome = [] if self.outcome is None else _vector(self.outcome, "outcome")
+        regressor = [] if self.regressor is None else _vector(self.regressor, "regressor")
+        rows = len(regressor) if self.location == "outcome" else len(outcome)
+        covariates, k = _columns(self.covariates, rows, "covariates")
+        replicate_values = None
+        if self.replicate_values is not None:
+            replicate_values = _vector(self.replicate_values, "replicate_values")
+        replicate_counts = None
+        if self.replicate_counts is not None:
+            replicate_counts = [
+                _count(c, "replicate count", maximum=2**32 - 1)
+                for c in np.asarray(self.replicate_counts)
+            ]
+        method: dict[str, Any] = {"kind": self.method}
+        if self.method == "simex":
+            method.update(
+                lambdas=[_number(v, "simex_lambdas") for v in self.simex_lambdas],
+                replicates=_count(self.simex_replicates, "simex_replicates", maximum=2**32 - 1),
+                extrapolant=self.extrapolant,
+            )
+        return {
+            "outcome": outcome,
+            "regressor": regressor,
+            "covariates": covariates,
+            "covariate_count": k,
+            "replicate_values": replicate_values,
+            "replicate_counts": replicate_counts,
+            "location": self.location,
+            "treatment_column": None
+            if self.treatment_column is None
+            else _count(self.treatment_column, "treatment_column"),
+            "link": self.link,
+            "method": method,
+            "bootstrap_replicates": _count(
+                self.bootstrap_replicates, "bootstrap_replicates", maximum=2**32 - 1
+            ),
+            "seed": _count(self.seed, "seed"),
+        }
+
+
 MeasurementData = (
     ClassicalLinearData
     | RepeatedLinearData
@@ -926,7 +1029,7 @@ class ProviderObject:
     """The exact external object a posterior route names, and what is claimed for it.
 
     ``trust`` is ``"externally_attested"`` (with an ``attestor``) or ``"exact_request_verified"``
-    (with a ``receipt`` passed to :func:`prepare_measurement_model`). ``"native_licensed"`` is
+    (with a ``receipt`` passed to :func:`prepare_measurement_model`). ``"native_supported"`` is
     accepted only so the contract can refuse it: metadata never confers native trust.
     """
 
@@ -999,6 +1102,28 @@ class VarianceComponent:
 
 
 @dataclass(frozen=True, slots=True)
+class MeasurementInterval:
+    """The Wald interval of a corrected functional with its calibration slot.
+
+    ``calibration`` is the slot annotating the interval; its ``status`` is ``not_measured`` until
+    a coverage record measures the method. The interval is reported regardless of the status.
+    """
+
+    lower: float
+    upper: float
+    level: float
+    calibration: Mapping[str, Any]
+
+
+def _measurement_interval(handle: Any, level: float) -> MeasurementInterval:
+    """The interval of a native estimate handle, or its typed refusal."""
+    bounds, refusal = handle.interval(level)
+    raise_refusal(refusal, MeasurementModelRefusal)
+    lower, upper, slot = bounds
+    return MeasurementInterval(lower, upper, level, json.loads(slot))
+
+
+@dataclass(frozen=True, slots=True)
 class MeasurementIdentities:
     """The separately frozen identities of a model (lowercase hex).
 
@@ -1029,7 +1154,7 @@ class MeasurementEstimate(ScientificResult):
 
     ``standard_error`` is an uncalibrated delta-method estimate (``inference`` says whether one is
     reported); ``parameter_uncertainty`` says whether the measurement parameters' uncertainty is in
-    it. There is no interval: :meth:`interval` raises ``cell_not_licensed``.
+    it. :meth:`interval` returns the Wald interval with its calibration slot (``not_measured``).
     """
 
     _mean_binding: Any = field(default=None, init=False, repr=False, compare=False)
@@ -1053,17 +1178,37 @@ class MeasurementEstimate(ScientificResult):
     _model: MeasurementModel | None = field(default=None, repr=False, compare=False)
 
     @property
+    def answer(self) -> Answer:
+        return Answer("point", value=self.point, detail=self.route)
+
+    @property
+    def identities(self) -> dict[str, Any]:
+        return {
+            "model_identity": self.model_identity,
+            "functional_id": self.functional_id,
+            "data_identity": self.data_identity,
+        }
+
+    def inspect(self) -> Any:
+        from .results._report import SlotModel
+
+        return ScientificResult.inspect(self).model_copy(
+            update={
+                "uncertainty": SlotModel(
+                    available=self.standard_error is not None,
+                    reason="uncalibrated_no_interval_claim",
+                    summary="delta_method_standard_error"
+                    if self.standard_error is not None
+                    else "point_only",
+                    payload={"standard_error": self.standard_error, "variance": self.variance},
+                )
+            }
+        )
+
+    @property
     def model(self) -> MeasurementModel | None:
         """The retained measurement declaration, when produced by a prepared model."""
         return self._model
-
-    def artifact(
-        self, artifact_id: str = _DEFAULT_ARTIFACT_ID
-    ) -> ExportedArtifact[ConsumedMeasurement]:
-        """Bytes and producer metadata; load returns the typed consumed result."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self, artifact_id)
 
     @property
     def variance(self) -> float | None:
@@ -1076,10 +1221,11 @@ class MeasurementEstimate(ScientificResult):
         detail: dict[str, Any] = json.loads(self._handle.detail_json())
         return detail
 
-    def interval(self) -> None:
-        """Always raises ``cell_not_licensed``: no coverage record measures the method."""
-        raise_refusal(self._handle.interval(), MeasurementModelRefusal)
+    def interval(self, level: float = 0.95) -> MeasurementInterval:
+        """The Wald interval at ``level`` with its calibration slot (``not_measured``)."""
+        return _measurement_interval(self._handle, level)
 
+    @outcome_operation
     def downstream_linear_functional(self, weights: Any) -> tuple[float, float]:
         """Value and variance of ``weights' beta`` over the corrected coefficient vector.
 
@@ -1092,9 +1238,14 @@ class MeasurementEstimate(ScientificResult):
         )
         return float(value), float(variance)
 
-    def export(self, artifact_id: str = _DEFAULT_ARTIFACT_ID) -> bytes:
+    @artifact_export
+    def export(
+        self, artifact_id: str = _DEFAULT_ARTIFACT_ID
+    ) -> ExportedArtifact[ConsumedMeasurement]:
         """The model, its identities and the result with the inputs a consumer recomputes it from."""
-        return bytes(_unwrap(self._handle.export(_name(artifact_id, "artifact_id"))))
+        return artifact_from_receipt(
+            self, bytes(_unwrap(self._handle.export(_name(artifact_id, "artifact_id"))))
+        )
 
 
 @bind_mean_reading
@@ -1118,6 +1269,99 @@ def _estimate(handle: Any) -> MeasurementEstimate:
         parameter_uncertainty=summary["parameter_uncertainty"],
         provider_trust=summary["provider_trust"],
         representation_mapping_id=summary["representation_mapping_id"],
+        _handle=handle,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class ContinuousMeasurementEstimate:
+    """A corrected coefficient under continuous classical measurement error, bound to its model.
+
+    ``point`` is the treatment coefficient (index ``coefficient_index`` of ``coefficients``, on
+    ``(1, regressor, covariates)``) and ``naive_point`` the uncorrected one. ``standard_error`` is
+    uncalibrated: delta method for linear regression calibration, a bootstrap of the whole
+    procedure (``bootstrap_replicates`` used, ``failed_bootstrap_replicates`` failed) for logistic
+    calibration and SIMEX. ``method`` is ``regression_calibration``, ``simex`` or
+    ``outcome_error_no_correction`` (error in the outcome under an identity link, which does not
+    bias the slope). ``simex_lambdas`` and ``simex_means`` are the SIMEX path (``0`` first), one
+    mean coefficient vector per value. :meth:`interval` returns the Wald interval with its
+    calibration slot (``not_measured``).
+    """
+
+    model_identity: str
+    route: str
+    functional_id: str
+    point: float
+    naive_point: float | None
+    standard_error: float | None
+    variance_components: tuple[VarianceComponent, ...]
+    rows: int
+    data_identity: str
+    inference: str
+    parameter_uncertainty: str
+    method: str
+    link: str
+    location: str
+    treatment_column: int | None
+    error_variance: float | None
+    error_variance_standard_error: float | None
+    reliability: float | None
+    bootstrap_replicates: int
+    failed_bootstrap_replicates: int
+    seed: int | None
+    coefficients: tuple[float, ...]
+    naive_coefficients: tuple[float, ...]
+    coefficient_index: int
+    simex_lambdas: tuple[float, ...] | None
+    simex_means: tuple[tuple[float, ...], ...] | None
+    simex_extrapolant: str | None
+    _handle: Any = field(repr=False, compare=False)
+
+    @property
+    def variance(self) -> float | None:
+        """The reported variance (the square of :attr:`standard_error`)."""
+        return None if self.standard_error is None else self.standard_error**2
+
+    def interval(self, level: float = 0.95) -> MeasurementInterval:
+        """The Wald interval at ``level`` with its calibration slot (``not_measured``)."""
+        return _measurement_interval(self._handle, level)
+
+
+def _continuous(summary: dict[str, Any], handle: Any) -> ContinuousMeasurementEstimate:
+    simex = summary["simex"]
+    return ContinuousMeasurementEstimate(
+        model_identity=summary["model_identity"],
+        route=summary["route"],
+        functional_id=summary["functional_id"],
+        point=float(summary["point"]),
+        naive_point=summary["naive_point"],
+        standard_error=summary["standard_error"],
+        variance_components=tuple(
+            VarianceComponent(c["name"], float(c["variance"]))
+            for c in summary["variance_components"]
+        ),
+        rows=int(summary["rows"]),
+        data_identity=summary["data_identity"],
+        inference=summary["inference"],
+        parameter_uncertainty=summary["parameter_uncertainty"],
+        method=summary["method"],
+        link=summary["link"],
+        location=summary["location"],
+        treatment_column=summary["treatment_column"],
+        error_variance=summary["error_variance"],
+        error_variance_standard_error=summary["error_variance_standard_error"],
+        reliability=summary["reliability"],
+        bootstrap_replicates=int(summary["bootstrap_replicates"]),
+        failed_bootstrap_replicates=int(summary["failed_bootstrap_replicates"]),
+        seed=summary["seed"],
+        coefficients=tuple(float(v) for v in summary["coefficients"]),
+        naive_coefficients=tuple(float(v) for v in summary["naive_coefficients"]),
+        coefficient_index=int(summary["coefficient_index"]),
+        simex_lambdas=None if simex is None else tuple(float(v) for v in simex["lambdas"]),
+        simex_means=None
+        if simex is None
+        else tuple(tuple(float(v) for v in row) for row in simex["means"]),
+        simex_extrapolant=None if simex is None else simex["extrapolant"],
         _handle=handle,
     )
 
@@ -1157,45 +1401,82 @@ class PreparedMeasurementModel:
         return card
 
     def check_operation(self, operation: str) -> None:
-        """Raise the refusal naming what would license ``operation``; return when licensed."""
+        """Raise the refusal naming what would support ``operation``; return when supported."""
         _choice(operation, "operation", OPERATIONS)
         raise_refusal(self._handle.check_operation(operation), MeasurementModelRefusal)
 
-    def interval(self) -> None:
-        """Always raises ``cell_not_licensed``: no coverage record measures the method."""
-        raise_refusal(self._handle.interval(), MeasurementModelRefusal)
+    def interval(self) -> NoReturn:
+        """Always the typed refusal: a prepared model holds no estimate to bound.
 
-    def estimate(self, *, cancel: Any = None) -> MeasurementEstimate:
+        Form the estimate first; its :meth:`MeasurementEstimate.interval` returns the Wald interval
+        with its calibration slot.
+        """
+        raise_refusal(self._handle.interval(), MeasurementModelRefusal)
+        raise AssertionError(
+            "the native prepared-model interval always refuses"
+        )  # pragma: no cover
+
+    @outcome_operation
+    def estimate(self, *, execution: Execution | None = None) -> MeasurementEstimate:
         """Form the corrected functional from the retained data."""
-        result = _estimate(_unwrap(self._handle.estimate(cancel=cancel)))
+        execution = resolve_execution(execution)
+        result = _estimate(_unwrap(self._handle.estimate(cancel=execution.cancel)))
         from ._freeze import freeze
 
         object.__setattr__(result, "_model", freeze(self.model))
         return result
 
-    def refresh(self, data: MeasurementData, *, cancel: Any = None) -> MeasurementRefresh:
+    def estimate_continuous(
+        self, data: ContinuousErrorData, *, execution: Execution | None = None
+    ) -> ContinuousMeasurementEstimate:
+        """Correct the treatment coefficient for continuous classical measurement error.
+
+        Re-runs the prepare checks of the linear adjusted effect on this model and binding, then
+        corrects by regression calibration or SIMEX under a linear or logistic outcome model. The
+        nonlinear outcome operation stays refused by :meth:`check_operation`; this is its entry.
+
+        Raises:
+            MeasurementModelRefusal: ``measurement_not_identified`` when the model's route
+                identifies no error variance (remedy: supply replicates or a validation sample),
+                ``route_not_supported`` for a logit outcome with the error in the outcome (remedy:
+                the binary misclassification route), and the estimator's other coded refusals.
+        """
+        execution = resolve_execution(execution)
+        if not isinstance(data, ContinuousErrorData):
+            raise CausalTypeError("data must be a ContinuousErrorData")
+        summary, handle, refusal = self._handle.estimate_continuous(
+            _dumps(data.to_wire()), cancel=execution.cancel
+        )
+        raise_refusal(refusal, MeasurementModelRefusal)
+        return _continuous(json.loads(summary), handle)
+
+    def refresh(
+        self, data: MeasurementData, *, execution: Execution | None = None
+    ) -> MeasurementRefresh:
         """Recompute with new outcome-only data of the same question.
 
         Keeps the model and its identities; recomputes the point, standard error and data identity.
         Data of another route family, functional or arm pair is refused (``route_not_supported``).
         """
-        return _refreshed(self._handle.refresh(_dumps(_wire(data)), cancel=cancel))
+        execution = resolve_execution(execution)
+        return _refreshed(self._handle.refresh(_dumps(_wire(data)), cancel=execution.cancel))
 
     def with_validation_parameters(
         self,
         parameters: MeasurementParameters,
         evidence: ParameterEvidence,
         *,
-        cancel: Any = None,
+        execution: Execution | None = None,
     ) -> MeasurementRefresh:
         """Rebuild the model with new validation parameters and evidence, and recompute.
 
         The measurement and evidence identities, and so the model identity, change; every prepare
         check runs again on the new model.
         """
+        execution = resolve_execution(execution)
         return _refreshed(
             self._handle.with_validation_parameters(
-                _dumps(parameters.to_wire()), _dumps(evidence.to_wire()), cancel=cancel
+                _dumps(parameters.to_wire()), _dumps(evidence.to_wire()), cancel=execution.cancel
             )
         )
 
@@ -1249,7 +1530,7 @@ def prepare_measurement_model(
     *,
     provider: ProviderObject | None = None,
     receipt: Any = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PreparedMeasurementModel:
     """Prepare a corrected functional under a declared measurement model.
 
@@ -1261,6 +1542,7 @@ def prepare_measurement_model(
         MeasurementModelRefusal: the first failed check, with its registered ``reason_code``,
             ``measurement_model.*`` ``detail`` and ``remedy``.
     """
+    execution = resolve_execution(execution)
     provider_json = None if provider is None else _dumps(provider.to_wire())
     handle = _unwrap(
         _native.measurement_model_prepare(
@@ -1269,7 +1551,7 @@ def prepare_measurement_model(
             _dumps(_wire(data)),
             provider_json,
             receipt,
-            cancel=cancel,
+            cancel=execution.cancel,
         )
     )
     return _prepared(handle)
@@ -1304,6 +1586,34 @@ class ConsumedMeasurement(ScientificResult):
     provider_trust: str | None
     _handle: Any = field(repr=False, compare=False)
 
+    @property
+    def answer(self) -> Answer:
+        return Answer("point", value=self.point, detail=self.route)
+
+    @property
+    def identities(self) -> dict[str, Any]:
+        return {
+            "model_identity": self.model_identity,
+            "functional_id": self.functional_id,
+            "data_identity": self.data_identity,
+        }
+
+    def inspect(self) -> Any:
+        from .results._report import SlotModel
+
+        return ScientificResult.inspect(self).model_copy(
+            update={
+                "uncertainty": SlotModel(
+                    available=self.standard_error is not None,
+                    reason="uncalibrated_no_interval_claim",
+                    summary="delta_method_standard_error"
+                    if self.standard_error is not None
+                    else "point_only",
+                    payload={"standard_error": self.standard_error, "variance": self.variance},
+                )
+            }
+        )
+
     def covers_data_identity(self, identity: str) -> bool:
         """Whether the stored result was computed from data with this identity."""
         return bool(self._handle.covers_data_identity(_name(identity, "identity")))
@@ -1316,7 +1626,12 @@ class ConsumedMeasurement(ScientificResult):
         )
 
 
+@outcome_operation
 @bind_mean_reading
+@artifact_consumer(
+    proof="measurement_models.consume_measurement_model_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def consume_measurement_model_artifact(
     artifact: bytes, expected_identity: str
 ) -> ConsumedMeasurement:
@@ -1331,6 +1646,7 @@ def consume_measurement_model_artifact(
         MeasurementModelRefusal: ``measurement_binding_mismatch`` for an identity, binding or
             recomputation failure, ``invalid_argument`` for corrupt, truncated or foreign bytes.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     handle = _unwrap(
@@ -1346,7 +1662,7 @@ def consume_measurement_model_artifact(
             {
                 "code": "invalid_argument",
                 "stage": "consume",
-                "detail": "measurement_model.artifact_invalid",
+                "detail": _reason_details.measurement_model.ARTIFACT_INVALID,
                 "message": "the artifact carries a model but no result to consume",
             }
         )
@@ -1379,7 +1695,7 @@ class InvarianceDeclaration:
 
     ``invariant`` names every parameter the correction uses (``sensitivity`` and ``specificity``
     for a binary indicator, ``confusion_matrix`` for an assigned categorical label,
-    ``error_variance`` for a continuous one). A premise about one parameter does not license a
+    ``error_variance`` for a continuous one). A premise about one parameter does not support a
     correction that uses another. The premise is declared, never tested.
     """
 
@@ -1469,7 +1785,7 @@ class TransportedMeasurementEstimate(ScientificResult):
     ``estimate`` is the existing :class:`MeasurementEstimate` computed on the re-bound model
     (``estimate.model`` is ``None``: the re-bound model is identified by
     ``estimate.model_identity``). ``receipt`` and ``identity`` say how the model reached the target.
-    The standard error is conditional on the premise and uncalibrated; there is no interval.
+    The standard error is conditional on the premise; the interval carries a ``not_measured`` slot.
     """
 
     identity: str
@@ -1481,16 +1797,19 @@ class TransportedMeasurementEstimate(ScientificResult):
     def point(self) -> float:
         return self.estimate.point
 
-    def interval(self) -> None:
-        """Always raises ``cell_not_licensed``."""
-        self.estimate.interval()
+    def interval(self, level: float = 0.95) -> MeasurementInterval:
+        """The re-bound estimate's interval at ``level`` with its calibration slot."""
+        return self.estimate.interval(level)
 
-    def export(self, artifact_id: str = _DEFAULT_ARTIFACT_ID) -> bytes:
+    @artifact_export
+    def export(
+        self, artifact_id: str = _DEFAULT_ARTIFACT_ID
+    ) -> ExportedArtifact[ConsumedMeasurement]:
         """The existing measurement-model artifact of the re-bound model.
 
         It carries no receipt: a consumer re-derives it with :func:`verify_measurement_transport`.
         """
-        return self.estimate.export(artifact_id)
+        return artifact_from_receipt(self, self.estimate.export(artifact_id))
 
 
 def _structure_wire(structure: InvarianceDeclaration | DifferentialErrorDeclaration | None) -> Any:
@@ -1510,6 +1829,7 @@ def _models_wire(models: Sequence[MeasurementModel]) -> str:
     return _dumps([m.to_wire() for m in listed])
 
 
+@outcome_operation
 def transport_measurement_model(
     models: Sequence[MeasurementModel],
     analysis: AnalysisBinding,
@@ -1518,7 +1838,7 @@ def transport_measurement_model(
     structure: InvarianceDeclaration | DifferentialErrorDeclaration | None = None,
     provider: ProviderObject | None = None,
     receipt: Any = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> TransportedMeasurementEstimate:
     """Carry a measurement model to the population of ``analysis`` and correct ``data`` with it.
 
@@ -1533,6 +1853,7 @@ def transport_measurement_model(
             ``transport_not_certified`` / ``measurement_model.invariance_not_declared``,
             ``differential_error_not_pooled``) and a ``remedy``.
     """
+    execution = resolve_execution(execution)
     provider_json = None if provider is None else _dumps(provider.to_wire())
     handle, receipt_json, refusal = _native.measurement_model_transport(
         _models_wire(models),
@@ -1541,7 +1862,7 @@ def transport_measurement_model(
         _dumps(_wire(data)),
         provider_json,
         receipt,
-        cancel=cancel,
+        cancel=execution.cancel,
     )
     raise_refusal(refusal, MeasurementModelRefusal)
     assert receipt_json is not None
@@ -1578,3 +1899,87 @@ def verify_measurement_transport(
     raise_refusal(refusal, MeasurementModelRefusal)
     assert text is not None
     return MeasurementTransportReceipt._from_wire(json.loads(text))
+
+
+# --------------------------------------------------------------------------- pooled differential
+
+
+@dataclass(frozen=True, slots=True)
+class PopulationValidationCounts:
+    """One population's validation counts of a misclassified binary indicator."""
+
+    population: str
+    true_positive: int
+    false_negative: int
+    true_negative: int
+    false_positive: int
+
+    def __post_init__(self) -> None:
+        _name(self.population, "population")
+        for count_name in ("true_positive", "false_negative", "true_negative", "false_positive"):
+            _count(getattr(self, count_name), count_name)
+
+    def _counts(self) -> tuple[int, int, int, int]:
+        return (self.true_positive, self.false_negative, self.true_negative, self.false_positive)
+
+
+@dataclass(frozen=True, slots=True)
+class PooledDifferentialCorrection:
+    """The target's corrected prevalence with differential error pooled across populations.
+
+    ``sensitivity`` and ``specificity`` are ``(pooled mean logit, its variance,
+    between-population variance, target rate mean, target rate standard deviation)``. The
+    interval is an uncalibrated simulation interval (``calibration == "not_measured"``).
+    """
+
+    target_population: str
+    prevalence: float
+    interval: tuple[float, float]
+    sensitivity: tuple[float, float, float, float, float]
+    specificity: tuple[float, float, float, float, float]
+    discarded_draws: int
+    truncated_draws: int
+    draws: tuple[float, ...]
+    calibration: str
+
+
+def transport_pooled_differential(
+    sources: Sequence[PopulationValidationCounts],
+    target_population: str,
+    observed_positive: int,
+    observed_total: int,
+    *,
+    target_validation: PopulationValidationCounts | None = None,
+    draws: int = 4000,
+    execution: Execution | None = None,
+) -> PooledDifferentialCorrection:
+    """Correct the target's recorded prevalence with error rates that differ by population.
+
+    The sensitivity and specificity logits of two or more validated ``sources`` are pooled by
+    random effects; the between-population variance (the uncertainty of an invariance premise)
+    is propagated with the target's own validation sample, when supplied, and the recorded
+    prevalence into the Rogan-Gladen correction. Fewer than two sources, or pooled rates that
+    leave the target unidentified, are refused (``differential_error_not_pooled``).
+    """
+    execution = resolve_execution(execution)
+    section = _native.measurement_pooled_differential_transport(
+        [(source.population, *source._counts()) for source in sources],
+        _name(target_population, "target_population"),
+        _count(observed_positive, "observed_positive"),
+        _count(observed_total, "observed_total"),
+        target_validation=None if target_validation is None else target_validation._counts(),
+        draws=_count(draws, "draws"),
+        seed=execution.seed,
+        threads=execution.threads,
+    )
+    return PooledDifferentialCorrection(
+        target_population=section.target_population,
+        prevalence=section.prevalence,
+        interval=section.interval,
+        sensitivity=section.sensitivity,
+        specificity=section.specificity,
+        discarded_draws=section.discarded_draws,
+        truncated_draws=section.truncated_draws,
+        draws=tuple(section.draws),
+        calibration=section.calibration,
+    )

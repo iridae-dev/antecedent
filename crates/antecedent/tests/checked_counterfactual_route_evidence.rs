@@ -1,6 +1,7 @@
 //! Builder-independent checked GCM counterfactual lifecycle.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, CounterfactualQuery, ExecutionContext, Intervention, Value, VariableId,
@@ -34,25 +35,27 @@ fn checked_counterfactual_accepted_and_explicit_retain_worlds_and_refuse_portabl
         .unwrap();
         let mut prepared = builder.prepare(&ctx).unwrap();
         drop(builder);
-        let plan = prepared.checked_counterfactual_operation().expect("retained checked plan");
+        let RetainedOperation::Counterfactual(plan) = prepared.retained_operation() else {
+            panic!("retained checked plan")
+        };
         assert_eq!(plan.query(), &query);
         assert_eq!(plan.graph().node_count(), graph.node_count());
         let result = prepared.estimate(&data, &ctx).unwrap();
         let mean = result.counterfactual().unwrap().mean_ite;
-        assert!((mean - 2.0).abs() < 0.1, "mean_ite={mean}");
+        assert!((mean - 2.0).abs() < 0.001, "mean_ite={mean}");
         let refreshed_y: Vec<f64> =
             x.iter().enumerate().map(|(i, x)| 1.0 + 2.5 * x + 0.01 * (i as f64).sin()).collect();
         let refreshed_data =
             TabularData::from_f64_columns([("x", x.as_slice()), ("y", refreshed_y.as_slice())])
                 .unwrap();
-        let refreshed = prepared.refresh(refreshed_data, &ctx).unwrap();
+        let refreshed = rebind_estimate(&mut prepared, refreshed_data, &ctx).unwrap();
         let refreshed_mean = refreshed.counterfactual().unwrap().mean_ite;
-        assert!((refreshed_mean - 2.5).abs() < 0.1, "mean_ite={refreshed_mean}");
+        assert!((refreshed_mean - 2.5).abs() < 0.001, "mean_ite={refreshed_mean}");
         let bytes =
             prepared.encode_contracted_result(&refreshed, "checked-counterfactual", &ctx).unwrap();
-        let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+        let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
         assert!(
-            !consumed.acceptance.accepts_as_verified_program(),
+            !consumed.acceptance.accepts_as_replayed_program(),
             "acceptance={:?}; estimator={:?}",
             consumed.acceptance,
             consumed.contract.as_ref().map(|contract| (
@@ -71,4 +74,17 @@ fn checked_counterfactual_accepted_and_explicit_retain_worlds_and_refuse_portabl
                 .any(|reason| reason.as_ref() == "dependencies.fitted_counterfactual_mechanisms")
         );
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

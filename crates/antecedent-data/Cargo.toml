@@ -18,6 +18,8 @@ autotests = false
 workspace = true
 
 [features]
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent-core/development", "antecedent-kernels/development"]
 default = ["arrow"]
 arrow = [
     "dep:arrow-array",
@@ -26,6 +28,12 @@ arrow = [
     "arrow-array/ffi",
     "arrow-schema/ffi",
 ]
+# File-backed table sources (module `file_source`). Off by default in this
+# crate; the `antecedent` facade and the Python extension turn them on. Polars
+# was refused and its empty feature retired: the record is
+# parity/polars_decision/decision.toml.
+parquet = ["arrow", "dep:parquet"]
+ipc = ["arrow", "dep:arrow-ipc"]
 
 [dependencies]
 antecedent-core = { workspace = true }
@@ -33,6 +41,9 @@ antecedent-kernels = { workspace = true }
 arrow-array = { workspace = true, optional = true }
 arrow-schema = { workspace = true, optional = true }
 arrow-buffer = { workspace = true, optional = true }
+arrow-ipc = { workspace = true, optional = true }
+# Snappy and zstd cover the codecs pyarrow, pandas, Polars and Spark write by default.
+parquet = { workspace = true, optional = true, features = ["arrow", "snap", "zstd"] }
 realfft = { workspace = true }
 blake3 = { workspace = true }
 
@@ -42,3 +53,38 @@ serde_json = { workspace = true }
 [[test]]
 name = "suite_01"
 path = "tests/suite_01.rs"
+
+[[test]]
+name = "file_source"
+path = "tests/file_source.rs"
+required-features = ["parquet", "ipc"]
+
+[[test]]
+name = "source_setters"
+path = "tests/source_setters.rs"
+
+[[test]]
+name = "selected_columns_allocation"
+path = "tests/selected_columns_allocation.rs"
+
+[[test]]
+name = "direct_arrow_workloads"
+path = "tests/direct_arrow_workloads.rs"
+required-features = ["parquet", "ipc"]
+
+[[test]]
+name = "ipc_admission"
+path = "tests/ipc_admission.rs"
+required-features = ["ipc"]
+
+[[test]]
+name = "resample_law_reference"
+path = "tests/resample_law_reference.rs"
+
+[[test]]
+name = "surrogate_reference"
+path = "tests/surrogate_reference.rs"
+
+[[test]]
+name = "jpcmci_plus_pooled_frame_reference"
+path = "tests/jpcmci_plus_pooled_frame_reference.rs"

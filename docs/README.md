@@ -1,10 +1,14 @@
 # Documentation sources
 
-These Markdown sources build the Antecedent documentation site with MkDocs.
+These Markdown sources build the Antecedent documentation site with MkDocs. This page is for
+anyone editing them: which text is generated, where a new page belongs, and how to preview and
+check the site.
 
-Generated pages are `support-matrix.md` and `conformance/`; regenerate them
-from their source registries before committing documentation changes. Release
-notes live in `release-notes/`, one `vX.Y.Z.md` per version.
+Generated pages are `support-matrix.md`, `graphless-support-matrix.md`,
+`examples.md` and `conformance/`, and several other pages hold
+generated blocks between `generated:` comment markers. Never edit generated
+text by hand: change the source registry and rerun its generator before
+committing. Release notes live in `release-notes/`, one `vX.Y.Z.md` per version.
 
 Keep durable user guides in `guides/` and release-specific product changes in
 `release-notes/`. The top level contains established public pages whose URLs
@@ -13,7 +17,7 @@ CI run or evidence registry, rather than adding cut checklists or temporary
 status pages to the published docs tree. The standing release procedure is in
 `development.md`.
 
-Publication exclusions are declared in `scripts/docs_publication.toml`. Evidence-linked audit sources stay at their existing paths so calibration references remain stable; MkDocs and `scripts/package_docs.py` exclude them from shipped outputs. Bounds tokens are resolved from `parity/promotion.toml` at publication time. Never replace them with copied constants in source guides.
+Publication exclusions are declared in `scripts/docs_publication.toml`. Evidence-linked audit sources stay at their existing paths so calibration references remain stable; MkDocs and `scripts/package_docs.py` exclude them from shipped outputs. Bounds tokens are resolved from `parity/capability_records.toml` at publication time. Never replace them with copied constants in source guides.
 
 Complete runnable code can be embedded with `<!-- example: examples/python/name.py -->`; the build reads the tested source rather than maintaining a second copy.
 
@@ -22,10 +26,13 @@ Local preview (with a matching installed Antecedent):
 ```bash
 python -m pip install -r requirements-docs.txt
 python scripts/generate_example_catalog.py --check
+python scripts/generate_doc_release_links.py --check
 python scripts/check_docs_experience.py
+python scripts/example_coverage.py --check
+python scripts/run_doc_examples.py
 python scripts/render_notebooks.py
 mkdocs build --strict
 mkdocs serve
 ```
 
-The build splits generated release inventories into virtual reference appendices while retaining generator-owned source markers. Notebook HTML is built into `target/doc-notebook-previews`, never committed into source notebooks. Re-run rendering after changing a notebook or package.
+The build splits generated release inventories into virtual reference appendices while retaining generator-owned source markers. Notebook HTML is built into `target/doc-notebook-previews`, never committed into source notebooks. Re-run rendering after changing a notebook or package. `development.md` ("Documentation preview and checks") explains each command and how published pages pin links to repository sources.

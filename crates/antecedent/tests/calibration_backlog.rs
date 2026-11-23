@@ -2,10 +2,10 @@
 //! reports: agreeing `TemporalCpdag` mediation, Bayesian ADMG intervention and
 //! curve, and the frequentist joint influence-function band of an agreeing Pag.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh`. The non-ignored tests
+//! Ignored tests run via `scripts/measure_calibration.sh`. The non-ignored tests
 //! check one replicate's match key and do not emit a coverage record.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -100,10 +100,22 @@ fn assert_posterior_quantile(study: &Study, result: &StudyResult) {
     let contract = study.inspect().expect("inspect");
     let reported = constructions(&contract, result);
     let methods: Vec<&str> =
-        reported.iter().map(|(construction, _)| construction.interval_method.as_str()).collect();
+        reported.iter().map(|(construction, _, _)| construction.interval_method.as_str()).collect();
     assert!(
         methods.contains(&"posterior_quantile"),
         "the execution reported {methods:?}, not posterior_quantile"
+    );
+}
+
+/// A published interval must sit on the derived truth: within twice its own half-width of the
+/// midpoint (about 3.9 standard errors at the 95% level), so an unadjusted or biased estimate
+/// that merely produces some interval fails.
+fn assert_on_truth(label: &str, lower: f64, upper: f64, truth: f64) {
+    let (mid, half) = (f64::midpoint(lower, upper), (upper - lower) / 2.0);
+    assert!(half > 0.0, "{label}: degenerate interval [{lower}, {upper}]");
+    assert!(
+        (mid - truth).abs() <= 2.0 * half,
+        "{label}: interval [{lower}, {upper}] is not centred on the derived truth {truth}"
     );
 }
 
@@ -189,7 +201,7 @@ where
     for (accepted, suite) in
         [(true, RefuteSuite::None), (false, RefuteSuite::Cheap), (false, RefuteSuite::Full)]
     {
-        let (_, other) = run(accepted, suite).expect("licensed coordinate");
+        let (_, other) = run(accepted, suite).expect("supported coordinate");
         assert_eq!(posterior_intervals(&other), intervals, "accepted={accepted} {suite:?}");
     }
 }
@@ -267,7 +279,8 @@ fn publishes_mediation(kappa: f64, seed: u64) {
         run_mediation(kappa, n, false, RefuteSuite::None, seed).expect("mediation runs");
     assert_posterior_quantile(&study, &result);
     let intervals = posterior_intervals(&result);
-    assert!(intervals[0].is_some());
+    let (lower, upper) = intervals[0].expect("agreeing completions publish the posterior");
+    assert_on_truth("mediated effect", lower, upper, fixtures::mediation_truth());
     same_interval(|accepted, suite| run_mediation(kappa, n, accepted, suite, seed), intervals);
 }
 
@@ -290,12 +303,13 @@ fn intervention_response_admg_bayesian_publishes_posterior_quantile() {
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.effect"));
     assert_posterior_quantile(&study, &result);
     let intervals = posterior_intervals(&result);
-    assert!(intervals[0].is_some());
+    let (lower, upper) = intervals[0].expect("the intervention publishes the posterior");
+    assert_on_truth("P(Y=1 | do(T=1))", lower, upper, P_Y1_DO_T1);
     same_interval(|accepted, suite| run_intervention(n, accepted, suite, seed), intervals);
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_mediation_effect_temporal_cpdag_bayesian_confounded_nominal_coverage() {
     mediation_coverage(
         "temporal_mediation_effect_temporal_cpdag_bayesian_confounded_nominal_coverage",
@@ -306,7 +320,7 @@ fn temporal_mediation_effect_temporal_cpdag_bayesian_confounded_nominal_coverage
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_mediation_effect_temporal_cpdag_bayesian_unconfounded_nominal_coverage() {
     mediation_coverage(
         "temporal_mediation_effect_temporal_cpdag_bayesian_unconfounded_nominal_coverage",
@@ -317,7 +331,7 @@ fn temporal_mediation_effect_temporal_cpdag_bayesian_unconfounded_nominal_covera
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_mediation_effect_temporal_cpdag_bayesian_accepted_nominal_coverage() {
     // Accepted twin of the confounded explicit test: `AcceptedGraph::temporal_cpdag`
     // wraps the same agreeing `mediation_cpdag_two()`, whose completions all share
@@ -333,7 +347,7 @@ fn temporal_mediation_effect_temporal_cpdag_bayesian_accepted_nominal_coverage()
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_admg_bayesian_nominal_coverage() {
     let mut tallies =
         keyed_pair("intervention_response_admg_bayesian_nominal_coverage", "frontdoor_data");
@@ -367,7 +381,7 @@ fn intervention_response_admg_bayesian_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_admg_bayesian_accepted_nominal_coverage() {
     let mut tallies = keyed_pair(
         "intervention_response_admg_bayesian_accepted_nominal_coverage",
@@ -408,7 +422,7 @@ fn assert_interval_method(study: &Study, result: &StudyResult, method: &str) {
     let contract = study.inspect().expect("inspect");
     let reported = constructions(&contract, result);
     let methods: Vec<&str> =
-        reported.iter().map(|(construction, _)| construction.interval_method.as_str()).collect();
+        reported.iter().map(|(construction, _, _)| construction.interval_method.as_str()).collect();
     assert!(methods.contains(&method), "the execution reported {methods:?}, not {method}");
 }
 
@@ -525,7 +539,9 @@ fn intervention_response_pag_frequentist_publishes_analytic_se() {
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("response.intervention_gcomp"));
     assert_interval_method(&study, &result, "analytic_se");
     let interval = response_scalar(&result);
-    assert!(interval.is_some());
+    // y = 1 + 2 t + 0.8 z + e with z mean zero: E[Y | do(t = 1)] = 3.
+    let (lower, upper, ..) = interval.expect("scalar interval");
+    assert_on_truth("E[Y | do(t=1)]", lower, upper, 3.0);
     let (_, accepted) = run_pag(pag_level_query(1.0), 800, true, seed).expect("accepted pag");
     assert_eq!(response_scalar(&accepted), interval);
 }
@@ -538,6 +554,9 @@ fn response_curve_pag_frequentist_publishes_analytic_se() {
     assert_interval_method(&study, &result, "analytic_se");
     let band = response_band(&result).expect("pointwise band");
     assert_eq!(band.0.len(), PAG_GRID.len());
+    for (i, dose) in PAG_GRID.iter().enumerate() {
+        assert_on_truth(&format!("E[Y | do(t={dose})]"), band.0[i], band.1[i], 1.0 + 2.0 * dose);
+    }
     let (_, accepted) = run_pag(pag_curve_query(), 800, true, seed).expect("accepted pag");
     assert_eq!(response_band(&accepted), Some(band));
 }
@@ -550,12 +569,15 @@ fn response_curve_admg_bayesian_publishes_posterior_quantile() {
     assert_interval_method(&study, &result, "posterior_quantile");
     let band = response_band(&result).expect("pointwise credible band");
     assert_eq!(band.0.len(), ADMG_CURVE.len());
+    for (i, truth) in ADMG_CURVE_TRUTH.iter().enumerate() {
+        assert_on_truth("front-door curve", band.0[i], band.1[i], *truth);
+    }
     let (_, accepted) = run_admg_curve(400, true, seed).expect("accepted admg");
     assert_eq!(response_band(&accepted), Some(band));
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_pag_frequentist_nominal_coverage() {
     let mut tally = keyed_analytic(
         "intervention_response_pag_frequentist_nominal_coverage",
@@ -585,7 +607,7 @@ fn intervention_response_pag_frequentist_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_pag_frequentist_accepted_nominal_coverage() {
     // The accepted-graph structure of the same agreeing PAG: every completion
     // adjusts `{z}`, so `AcceptedGraph::from(agreeing_pag())` publishes the same
@@ -618,7 +640,7 @@ fn intervention_response_pag_frequentist_accepted_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_pag_frequentist_pointwise_nominal_coverage() {
     let mut tallies: Vec<CoverageTally> = PAG_GRID
         .iter()
@@ -665,7 +687,7 @@ fn response_curve_pag_frequentist_pointwise_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_pag_frequentist_accepted_pointwise_nominal_coverage() {
     // Accepted twin of `response_curve_pag_frequentist_pointwise_nominal_coverage`:
     // `AcceptedGraph::from(agreeing_pag())` publishes the same joint influence-function
@@ -711,7 +733,7 @@ fn response_curve_pag_frequentist_accepted_pointwise_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_admg_bayesian_pointwise_nominal_coverage() {
     let mut tallies: Vec<CoverageTally> = ADMG_CURVE
         .iter()
@@ -749,7 +771,7 @@ fn response_curve_admg_bayesian_pointwise_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_admg_bayesian_accepted_pointwise_nominal_coverage() {
     let mut tallies: Vec<CoverageTally> = ADMG_CURVE
         .iter()
@@ -981,7 +1003,7 @@ fn admg_rc_freq_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_admg_frequentist_nominal_coverage() {
     admg_ir_freq_coverage(
         "intervention_response_admg_frequentist_nominal_coverage",
@@ -992,7 +1014,7 @@ fn intervention_response_admg_frequentist_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_admg_frequentist_accepted_nominal_coverage() {
     admg_ir_freq_coverage(
         "intervention_response_admg_frequentist_accepted_nominal_coverage",
@@ -1003,7 +1025,7 @@ fn intervention_response_admg_frequentist_accepted_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_admg_graph_posterior_frequentist_nominal_coverage() {
     admg_ir_freq_coverage(
         "intervention_response_admg_graph_posterior_frequentist_nominal_coverage",
@@ -1016,7 +1038,7 @@ fn intervention_response_admg_graph_posterior_frequentist_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_admg_frequentist_pointwise_nominal_coverage() {
     admg_rc_freq_coverage(
         "response_curve_admg_frequentist_pointwise_nominal_coverage",
@@ -1027,7 +1049,7 @@ fn response_curve_admg_frequentist_pointwise_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_admg_frequentist_accepted_pointwise_nominal_coverage() {
     admg_rc_freq_coverage(
         "response_curve_admg_frequentist_accepted_pointwise_nominal_coverage",
@@ -1038,7 +1060,7 @@ fn response_curve_admg_frequentist_accepted_pointwise_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_admg_graph_posterior_frequentist_pointwise_nominal_coverage() {
     admg_rc_freq_coverage(
         "response_curve_admg_graph_posterior_frequentist_pointwise_nominal_coverage",
@@ -1079,7 +1101,7 @@ fn run_admg_curve_gp_bayes(n: usize, seed: u64) -> Option<(Study, StudyResult)> 
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_admg_graph_posterior_bayesian_nominal_coverage() {
     let mut tallies = keyed_pair(
         "intervention_response_admg_graph_posterior_bayesian_nominal_coverage",
@@ -1109,7 +1131,7 @@ fn intervention_response_admg_graph_posterior_bayesian_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_admg_graph_posterior_bayesian_pointwise_nominal_coverage() {
     let mut tallies: Vec<CoverageTally> = ADMG_CURVE
         .iter()
@@ -1191,7 +1213,7 @@ fn run_unknown(n: usize, seed: u64) -> Option<(Study, StudyResult)> {
 /// Joint coverage as one interval of the summed band width: truth `0` lies
 /// inside exactly when both scenario truths lie in their max-t bands.
 fn joint_band_interval(result: &StudyResult) -> Option<(f64, f64)> {
-    let bands = result.estimate.as_effect().unwrap().scenarios.intervals.as_ref()?;
+    let bands = result.estimate().as_effect().unwrap().scenarios.intervals.as_ref()?;
     if bands.len() != UNKNOWN_TRUTH.len() {
         return None;
     }
@@ -1206,11 +1228,17 @@ fn average_effect_unknown_publishes_simultaneous_band() {
     let (study, result) = run_unknown(400, 0x110_0430).expect("unknown orientation runs");
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("linear.adjustment.ate"));
     assert_interval_method(&study, &result, "simultaneous_band");
-    assert!(joint_band_interval(&result).is_some());
+    // Both scenario truths lie inside their simultaneous bands: the joint interval is the
+    // covered branch, which brackets zero.
+    let (lower, upper) = joint_band_interval(&result).expect("two scenario bands");
+    assert!(
+        lower < 0.0 && 0.0 < upper,
+        "scenario truths {UNKNOWN_TRUTH:?} not covered: [{lower}, {upper}]"
+    );
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn average_effect_unknown_frequentist_joint_band_nominal_coverage() {
     let mut tally = CoverageTally::for_record(
         RecordKey {
@@ -1533,6 +1561,70 @@ fn run_temporal_bayes(
     run_temporal_class(data, graph, query, temporal_bayes(), replicates, seed)
 }
 
+/// The adjusted g-formula value of the lag-1 dose `a` on `agreeing_temporal_series`, computed
+/// independently of the product: ordinary least squares of `y[s]` on `(1, t[s-1], z[s-1])` over
+/// `s = 1..n`, evaluated at `t = a` and the empirical mean of `z[s-1]`. Every completion of the
+/// class adjusts `{Z@-1}`, so each completion's value is this one. Returns the value and the
+/// textbook standard error `sqrt(sigma^2 x0' (X'X)^-1 x0)` of the fitted value.
+fn lagged_ols_value(data: &TimeSeriesData, dose: f64) -> (f64, f64) {
+    let column = |index: u32| -> Vec<f64> {
+        let antecedent_data::ColumnView::Float64(column) =
+            data.column(VariableId::from_raw(index)).expect("column")
+        else {
+            panic!("float column");
+        };
+        column.values.to_vec()
+    };
+    let (t, y, z) = (column(0), column(1), column(2));
+    let rows = t.len() - 1;
+    let design = |row: usize| [1.0, t[row], z[row]];
+    let mut xtx = [[0.0_f64; 3]; 3];
+    let mut xty = [0.0_f64; 3];
+    for row in 0..rows {
+        let x = design(row);
+        for i in 0..3 {
+            for j in 0..3 {
+                xtx[i][j] += x[i] * x[j];
+            }
+            xty[i] += x[i] * y[row + 1];
+        }
+    }
+    let solve = |rhs: [f64; 3]| -> [f64; 3] {
+        let mut a = [[0.0_f64; 4]; 3];
+        for i in 0..3 {
+            a[i][..3].copy_from_slice(&xtx[i]);
+            a[i][3] = rhs[i];
+        }
+        for col in 0..3 {
+            let pivot =
+                (col..3).max_by(|&p, &q| a[p][col].abs().total_cmp(&a[q][col].abs())).unwrap();
+            a.swap(col, pivot);
+            for r in 0..3 {
+                if r != col {
+                    let f = a[r][col] / a[col][col];
+                    for c in col..4 {
+                        a[r][c] -= f * a[col][c];
+                    }
+                }
+            }
+        }
+        [a[0][3] / a[0][0], a[1][3] / a[1][1], a[2][3] / a[2][2]]
+    };
+    let beta = solve(xty);
+    let rss: f64 = (0..rows)
+        .map(|row| {
+            let x = design(row);
+            (y[row + 1] - beta[0] - beta[1] * x[1] - beta[2] * x[2]).powi(2)
+        })
+        .sum();
+    let sigma2 = rss / (rows as f64 - 3.0);
+    let z_bar = z[..rows].iter().sum::<f64>() / rows as f64;
+    let x0 = [1.0, dose, z_bar];
+    let v = solve(x0);
+    let leverage: f64 = x0.iter().zip(v).map(|(a, b)| a * b).sum();
+    (beta[0] + beta[1] * dose + beta[2] * z_bar, (sigma2 * leverage).sqrt())
+}
+
 #[test]
 fn agreeing_temporal_cpdag_publishes_shared_band() {
     let data = agreeing_temporal_series(80, 0x110_0440);
@@ -1556,6 +1648,31 @@ fn agreeing_temporal_cpdag_publishes_shared_band() {
         .filter(|atom| atom.value.is_some())
         .collect();
     assert!(atoms.len() >= 2, "both orientations evaluate");
+    // Independent completion value: E[Y | do(T@-1 = 1)] adjusting {Z@-1}. The DGP gives
+    // 1 + 2 + 0.8 E[z] = 3 up to the sample mean of z; the least-squares g-formula on this very
+    // series is the finite-sample value both completions must publish, and the band is centred on
+    // it (a normal band `value +- 1.96 se`) with an `se` of the same order as the textbook one
+    // (the 19-replicate circular block bootstrap estimates it: observed ratio 1.46, so the window is a factor of two).
+    let (reference, textbook_se) = lagged_ols_value(&agreeing_temporal_series(80, 0x110_0440), 1.0);
+    assert!((reference - 3.0).abs() < 0.5, "the g-formula {reference} recovers the structural 3");
+    for atom in &atoms {
+        let antecedent_core::ResponseValue::Surface { mean, .. } = atom.value.as_ref().unwrap()
+        else {
+            panic!("a surface value");
+        };
+        assert!((mean[0] - reference).abs() < 1e-6, "{} vs {reference}", mean[0]);
+    }
+    let ResponseUncertainty::PointwiseBand { lower, upper, level, .. } = &response.uncertainty
+    else {
+        unreachable!()
+    };
+    assert!((level - 0.95).abs() < 1e-12);
+    assert!(
+        (f64::midpoint(lower[0], upper[0]) - reference).abs() < 1e-6,
+        "band centred on the value"
+    );
+    let ratio = (upper[0] - lower[0]) / (2.0 * 1.959_963_984_540_054) / textbook_se;
+    assert!((0.5..2.0).contains(&ratio), "bootstrap se / textbook se = {ratio}");
     assert!(
         atoms.iter().all(|atom| atom.response.as_ref().is_some_and(|response| {
             response.uncertainty == atoms[0].response.as_ref().unwrap().uncertainty
@@ -1572,6 +1689,12 @@ fn agreeing_temporal_cpdag_publishes_shared_band() {
         0x110_0441,
     );
     assert_interval_method(&study, &result, "posterior_quantile");
+    // The credible band holds the independent least-squares value (the conjugate posterior
+    // mean shrinks it by the weak prior only).
+    let (reference, _) = lagged_ols_value(&agreeing_temporal_series(80, 0x110_0441), 1.0);
+    let (lower, upper, _) = response_band(&result).expect("posterior band");
+    assert!(lower[0] < reference && reference < upper[0], "{lower:?} {upper:?} vs {reference}");
+    assert!(upper[0] - lower[0] < 3.0, "a credible band of ordinary width: {lower:?} {upper:?}");
 
     let (study, result) = run_temporal_class(
         agreeing_temporal_series(80, 0x110_0442),
@@ -1583,7 +1706,17 @@ fn agreeing_temporal_cpdag_publishes_shared_band() {
     );
     assert_interval_method(&study, &result, "circular_block_se");
     match response_band(&result) {
-        Some((lower, _, _)) => assert_eq!(lower.len(), 2),
+        Some((lower, upper, _)) => {
+            assert_eq!(lower.len(), 2);
+            let data = agreeing_temporal_series(80, 0x110_0442);
+            for (index, dose) in [0.0, 1.0].into_iter().enumerate() {
+                let (reference, _) = lagged_ols_value(&data, dose);
+                assert!(
+                    (f64::midpoint(lower[index], upper[index]) - reference).abs() < 1e-6,
+                    "curve band at dose {dose} is centred on the independent value {reference}"
+                );
+            }
+        }
         None => panic!("the shared curve band is pointwise"),
     }
 
@@ -1624,7 +1757,7 @@ fn record_temporal_band(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_cpdag_intervention_response_frequentist_nominal_coverage() {
     temporal_ir_coverage(
         "temporal_cpdag_intervention_response_frequentist_nominal_coverage",
@@ -1646,7 +1779,7 @@ fn temporal_cpdag_intervention_response_frequentist_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_cpdag_intervention_response_bayesian_nominal_coverage() {
     temporal_ir_coverage(
         "temporal_cpdag_intervention_response_bayesian_nominal_coverage",
@@ -1670,7 +1803,7 @@ fn temporal_cpdag_intervention_response_bayesian_nominal_coverage() {
 const TEMPORAL_DOSES: [f64; 2] = [0.0, 1.0];
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_cpdag_response_curve_frequentist_pointwise_nominal_coverage() {
     temporal_rc_coverage(
         "temporal_cpdag_response_curve_frequentist_pointwise_nominal_coverage",
@@ -1686,7 +1819,7 @@ fn temporal_cpdag_response_curve_frequentist_pointwise_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_cpdag_response_curve_bayesian_pointwise_nominal_coverage() {
     temporal_rc_coverage(
         "temporal_cpdag_response_curve_bayesian_pointwise_nominal_coverage",
@@ -1711,7 +1844,7 @@ fn accepted_temporal_cpdag() -> AcceptedGraph {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_cpdag_intervention_response_frequentist_accepted_nominal_coverage() {
     temporal_ir_coverage(
         "temporal_cpdag_intervention_response_frequentist_accepted_nominal_coverage",
@@ -1733,7 +1866,7 @@ fn temporal_cpdag_intervention_response_frequentist_accepted_nominal_coverage() 
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_cpdag_intervention_response_bayesian_accepted_nominal_coverage() {
     temporal_ir_coverage(
         "temporal_cpdag_intervention_response_bayesian_accepted_nominal_coverage",
@@ -1755,7 +1888,7 @@ fn temporal_cpdag_intervention_response_bayesian_accepted_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_cpdag_response_curve_frequentist_accepted_pointwise_nominal_coverage() {
     temporal_rc_coverage(
         "temporal_cpdag_response_curve_frequentist_accepted_pointwise_nominal_coverage",
@@ -1771,7 +1904,7 @@ fn temporal_cpdag_response_curve_frequentist_accepted_pointwise_nominal_coverage
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_cpdag_response_curve_bayesian_accepted_pointwise_nominal_coverage() {
     temporal_rc_coverage(
         "temporal_cpdag_response_curve_bayesian_accepted_pointwise_nominal_coverage",
@@ -1796,7 +1929,7 @@ fn accepted_temporal_pag() -> AcceptedGraph {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_pag_intervention_response_frequentist_nominal_coverage() {
     temporal_ir_coverage(
         "temporal_pag_intervention_response_frequentist_nominal_coverage",
@@ -1818,7 +1951,7 @@ fn temporal_pag_intervention_response_frequentist_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_pag_intervention_response_bayesian_nominal_coverage() {
     temporal_ir_coverage(
         "temporal_pag_intervention_response_bayesian_nominal_coverage",
@@ -1840,7 +1973,7 @@ fn temporal_pag_intervention_response_bayesian_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_pag_response_curve_frequentist_pointwise_nominal_coverage() {
     temporal_rc_coverage(
         "temporal_pag_response_curve_frequentist_pointwise_nominal_coverage",
@@ -1856,7 +1989,7 @@ fn temporal_pag_response_curve_frequentist_pointwise_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_pag_response_curve_bayesian_pointwise_nominal_coverage() {
     temporal_rc_coverage(
         "temporal_pag_response_curve_bayesian_pointwise_nominal_coverage",
@@ -1872,7 +2005,7 @@ fn temporal_pag_response_curve_bayesian_pointwise_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_pag_intervention_response_frequentist_accepted_nominal_coverage() {
     temporal_ir_coverage(
         "temporal_pag_intervention_response_frequentist_accepted_nominal_coverage",
@@ -1894,7 +2027,7 @@ fn temporal_pag_intervention_response_frequentist_accepted_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_pag_intervention_response_bayesian_accepted_nominal_coverage() {
     temporal_ir_coverage(
         "temporal_pag_intervention_response_bayesian_accepted_nominal_coverage",
@@ -1916,7 +2049,7 @@ fn temporal_pag_intervention_response_bayesian_accepted_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_pag_response_curve_frequentist_accepted_pointwise_nominal_coverage() {
     temporal_rc_coverage(
         "temporal_pag_response_curve_frequentist_accepted_pointwise_nominal_coverage",
@@ -1932,7 +2065,7 @@ fn temporal_pag_response_curve_frequentist_accepted_pointwise_nominal_coverage()
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_pag_response_curve_bayesian_accepted_pointwise_nominal_coverage() {
     temporal_rc_coverage(
         "temporal_pag_response_curve_bayesian_accepted_pointwise_nominal_coverage",
@@ -1958,7 +2091,7 @@ fn temporal_pag_response_curve_bayesian_accepted_pointwise_nominal_coverage() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_temporal_cpdag_graph_posterior_frequentist_nominal_coverage() {
     temporal_ir_coverage(
         "intervention_response_temporal_cpdag_graph_posterior_frequentist_nominal_coverage",
@@ -1981,7 +2114,7 @@ fn intervention_response_temporal_cpdag_graph_posterior_frequentist_nominal_cove
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_temporal_cpdag_graph_posterior_bayesian_nominal_coverage() {
     temporal_ir_coverage(
         "intervention_response_temporal_cpdag_graph_posterior_bayesian_nominal_coverage",
@@ -2004,7 +2137,7 @@ fn intervention_response_temporal_cpdag_graph_posterior_bayesian_nominal_coverag
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_temporal_pag_graph_posterior_frequentist_nominal_coverage() {
     temporal_ir_coverage(
         "intervention_response_temporal_pag_graph_posterior_frequentist_nominal_coverage",
@@ -2027,7 +2160,7 @@ fn intervention_response_temporal_pag_graph_posterior_frequentist_nominal_covera
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_temporal_pag_graph_posterior_bayesian_nominal_coverage() {
     temporal_ir_coverage(
         "intervention_response_temporal_pag_graph_posterior_bayesian_nominal_coverage",
@@ -2050,7 +2183,7 @@ fn intervention_response_temporal_pag_graph_posterior_bayesian_nominal_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_temporal_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage() {
     temporal_rc_coverage(
         "response_curve_temporal_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage",
@@ -2073,7 +2206,7 @@ fn response_curve_temporal_cpdag_graph_posterior_frequentist_pointwise_nominal_c
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_temporal_cpdag_graph_posterior_bayesian_pointwise_nominal_coverage() {
     temporal_rc_coverage(
         "response_curve_temporal_cpdag_graph_posterior_bayesian_pointwise_nominal_coverage",
@@ -2096,7 +2229,7 @@ fn response_curve_temporal_cpdag_graph_posterior_bayesian_pointwise_nominal_cove
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_temporal_pag_graph_posterior_frequentist_pointwise_nominal_coverage() {
     temporal_rc_coverage(
         "response_curve_temporal_pag_graph_posterior_frequentist_pointwise_nominal_coverage",
@@ -2119,7 +2252,7 @@ fn response_curve_temporal_pag_graph_posterior_frequentist_pointwise_nominal_cov
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_temporal_pag_graph_posterior_bayesian_pointwise_nominal_coverage() {
     temporal_rc_coverage(
         "response_curve_temporal_pag_graph_posterior_bayesian_pointwise_nominal_coverage",

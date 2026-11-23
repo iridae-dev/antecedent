@@ -13,8 +13,8 @@ use antecedent::analysis::recovery_chain::{
     ChainWitnessCheckWire, ChainWitnessWire, RecoveryChain, RecoveryChainArtifactError,
     RecoveryChainArtifactWire,
 };
-use antecedent_core::{ExecutionContext, VariableId};
-use antecedent_graph::{Admg, DenseNodeId, NodeRef};
+use antecedent::graph::{Admg, DenseNodeId, NodeRef};
+use antecedent::prelude::{ExecutionContext, VariableId};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
@@ -108,7 +108,10 @@ fn report_json(parts: &ReportParts<'_>) -> String {
         })
     });
     let (reason, detail) = if parts.outcome == "nonrecoverable" {
-        (Some("transport_proven_non_transportable"), Some("recovery_chain.nonrecoverable_witness"))
+        (
+            Some("transport_proven_non_transportable"),
+            Some(antecedent::reason::reason_details::recovery_chain::NONRECOVERABLE_WITNESS),
+        )
     } else {
         (None, None)
     };
@@ -235,39 +238,33 @@ fn recover_recovery_chain(
                 Some(wire) if evaluate => decided.recover(wire.to_law()?)?,
                 _ => decided,
             };
-            match decided.export() {
-                Ok(bytes) => {
-                    let wire = RecoveryChainArtifactWire::decode(&bytes).map_err(|e| {
-                        ChainRecoveryError::new(
-                            ChainRecoveryDetail::InvalidDerivation,
-                            e.to_string(),
-                        )
-                    })?;
-                    Ok((report_of_wire(&wire), Some(bytes)))
-                }
+            if let Ok(bytes) = decided.export() {
+                let wire = RecoveryChainArtifactWire::decode(&bytes).map_err(|e| {
+                    ChainRecoveryError::new(ChainRecoveryDetail::InvalidDerivation, e.to_string())
+                })?;
+                Ok((report_of_wire(&wire), Some(bytes)))
+            } else {
                 // A recovered decision with no law: report the plan only.
-                Err(_) => {
-                    let ChainRecoveryDecision::Recovered(plan) = decided.decision() else {
-                        return Err(ChainRecoveryError::new(
-                            ChainRecoveryDetail::InvalidDerivation,
-                            "only a recovered decision lacks an artifact",
-                        ));
-                    };
-                    let plan = ChainPlanWire::of_plan(plan);
-                    let query = ChainQueryWire::from_query(&query);
-                    let report = report_json(&ReportParts {
-                        names: &nodes,
-                        query: &query,
-                        outcome: "recovered",
-                        plan: Some(&plan),
-                        observed: None,
-                        recovered: None,
-                        witness: None,
-                        check: None,
-                        digests: None,
-                    });
-                    Ok((report, None))
-                }
+                let ChainRecoveryDecision::Recovered(plan) = decided.decision() else {
+                    return Err(ChainRecoveryError::new(
+                        ChainRecoveryDetail::InvalidDerivation,
+                        "only a recovered decision lacks an artifact",
+                    ));
+                };
+                let plan = ChainPlanWire::of_plan(plan);
+                let query = ChainQueryWire::from_query(&query);
+                let report = report_json(&ReportParts {
+                    names: &nodes,
+                    query: &query,
+                    outcome: "recovered",
+                    plan: Some(&plan),
+                    observed: None,
+                    recovered: None,
+                    witness: None,
+                    check: None,
+                    digests: None,
+                });
+                Ok((report, None))
             }
         };
         match step() {
@@ -285,14 +282,14 @@ fn recover_recovery_chain(
 #[pyo3(signature = (artifact, *, seed=0, memory_bytes=None, cancel=None))]
 fn consume_recovery_chain_artifact(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     seed: u64,
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<ConsumePayload> {
     detach_catch(py, move || {
         let ctx = execution_context(seed, memory_bytes, cancel);
-        match RecoveryChainArtifactWire::consume_typed(&artifact, &ctx) {
+        match RecoveryChainArtifactWire::consume_typed(artifact, &ctx) {
             Ok(consumed) => Ok((Some(report_of_wire(&consumed.wire)), None)),
             Err(error) => match artifact_refusal_json(&error) {
                 Some(json) => Ok((None, Some(json))),

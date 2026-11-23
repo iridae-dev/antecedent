@@ -7,8 +7,9 @@ import json
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
-from _sealed_loads import assert_answer_kept
+from _loaded_results import assert_answer_kept, assert_refutation_replay_withheld
 
 
 def sample(seed=7):
@@ -24,33 +25,59 @@ QUERY = ant.AverageEffect("t", "y")
 
 def test_one_call_study_and_frozen_export():
     data = sample()
-    first = ant.analyze(data, graph=GRAPH, query=QUERY, seed=19, bootstrap=0, refute="none")
+    first = require_success(
+        ant.analyze(
+            data,
+            graph=GRAPH,
+            query=QUERY,
+            execution=ant.Execution(seed=19),
+            inference=ant.Frequentist(bootstrap=0),
+            refute="none",
+        )
+    )
     assert first.study.inspect().identification.available
-    before = first.export()
-    assert ant.artifacts.accept(before)["accepts_as_verified_program"] == "true"
+    # With no confounder to adjust for, the effect of the randomized arm is the difference in
+    # arm means, recomputed here from the data.
+    by_hand = data["y"][data["t"] == 1].mean() - data["y"][data["t"] == 0].mean()
+    assert first.effect == pytest.approx(by_hand, abs=1e-9)
+    before = bytes(first.export())
+    assert ant.artifacts.accept(before, replay=True)["replayed"] == "true"
     assert ant.artifacts.loads(before).contract["execution"]["seed"] == 19
     old = first.inspect()
-    second = first.study.refresh({**data, "y": data["y"] + data["t"]})
+    changed = {**data, "y": data["y"] + data["t"]}
+    branch = first.study.rebind(data=changed)
+    second = require_success(branch.estimate())
     assert second.effect == pytest.approx(first.effect + 1.0)
-    assert first.export() == before
+    assert bytes(first.export()) == before
     assert first.inspect() == old
     assert second.data_snapshot_id != first.data_snapshot_id
-    assert ant.artifacts.accept(second.export())["accepts_as_verified_program"] == "true"
-    assert first.study.estimate().effect == pytest.approx(second.effect)
-    via_result = first.refresh({**data, "y": data["y"] + data["t"]})
+    assert ant.artifacts.accept(bytes(second.export()), replay=True)["replayed"] == "true"
+    assert require_success(first.study.estimate()).effect == pytest.approx(first.effect)
+    assert first.study.inspect().data_snapshot_id == first.data_snapshot_id
+    via_result = require_success(first.study.rebind(data=changed).estimate())
     assert via_result.effect == pytest.approx(second.effect)
 
 
 def test_estimate_other_data_does_not_rebind_study():
     data = sample()
-    study = ant.prepare(data, graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
-    baseline = study.estimate()
-    other = study.estimate({**data, "y": data["y"] + data["t"]})
+    study = ant.prepare(
+        data, graph=GRAPH, query=QUERY, inference=ant.Frequentist(bootstrap=0), refute="none"
+    )
+    before = study.inspect()
+    baseline = require_success(study.estimate())
+    branch = study.rebind(data={**data, "y": data["y"] + data["t"]})
+    branch_before = branch.inspect()
+    other = require_success(branch.estimate())
     assert other.data_snapshot_id != baseline.data_snapshot_id
-    assert study.inspect_plan().data_snapshot_id == baseline.data_snapshot_id
-    assert study.inspect().data_snapshot_id == other.data_snapshot_id
-    assert ant.artifacts.accept(other.export())["accepts_as_verified_program"] == "true"
-    assert study.estimate().effect == pytest.approx(baseline.effect)
+    # Native snapshot identities include sealed fit moments. Deferred studies
+    # retain their original projections; completed studies retain actual fits.
+    assert study.inspect() == before
+    assert branch.inspect() == branch_before
+    assert baseline.study.inspect().data_snapshot_id == baseline.data_snapshot_id
+    assert other.study.inspect().data_snapshot_id == other.data_snapshot_id
+    assert study.inspect().stage == branch.inspect().stage == "prepared"
+    assert ant.artifacts.accept(bytes(other.export()), replay=True)["replayed"] == "true"
+    assert require_success(study.estimate()).effect == pytest.approx(baseline.effect)
 
 
 def test_missing_row_padding_does_not_upgrade_calibration():
@@ -62,12 +89,14 @@ def test_missing_row_padding_does_not_upgrade_calibration():
     ses = []
     for total in (100, 500, 1000):
         missing = np.full(total - 100, np.nan)
-        result = ant.analyze(
-            {"t": np.r_[t, missing], "y": np.r_[y, missing]},
-            graph=[("t", "y")],
-            query=ant.AverageEffect("t", "y"),
-            refute="none",
-            bootstrap=0,
+        result = require_success(
+            ant.analyze(
+                {"t": np.r_[t, missing], "y": np.r_[y, missing]},
+                graph=[("t", "y")],
+                query=ant.AverageEffect("t", "y"),
+                refute="none",
+                inference=ant.Frequentist(bootstrap=0),
+            )
         )
         labels.append(result.calibration.describe())
         effects.append(result.effect)
@@ -80,16 +109,24 @@ def test_missing_row_padding_does_not_upgrade_calibration():
 
 
 def test_report_has_json_types_and_explicit_calibration_scope():
-    result = ant.analyze(sample(), graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
+    result = require_success(
+        ant.analyze(
+            sample(),
+            graph=GRAPH,
+            query=QUERY,
+            inference=ant.Frequentist(bootstrap=0),
+            refute="none",
+        )
+    )
     report = result.inspect()
     assert report.answer.kind == "point"
     assert report.answer.value == result.effect
     # A record measured this exact construction (Dag / Frequentist /
     # analytic_se at 0.95), but over a sample-size grid of 150 to 600 rows and
-    # this study runs 128, so the scope is not assessed and the slot names which
+    # this study runs 128, so the scope is outside the measured scope and the slot names which
     # bound put it outside and which record it would otherwise cite. That is the explicit
-    # scope the test is about: an unqualified "unavailable" would hide it.
-    assert report.calibration.status == "scope_not_assessed"
+    # scope the test is about: an unqualified "not_measured" would hide it.
+    assert report.calibration.status == "outside_measured_scope"
     assert report.calibration.reason == "sample_size_outside_measured_range"
     assert report.calibration.record_id is not None
     assert report.uncertainty.available
@@ -100,25 +137,53 @@ def test_response_retains_study_and_exports_own_execution():
     data = sample()
     data["t"] = np.random.default_rng(8).normal(size=128)
     data["y"] = 2 * data["t"] + data["z"]
-    result = ant.analyze(
-        data,
-        graph=GRAPH,
-        query=ant.ResponseCurve("t", "y", grid=[0.0, 0.5, 1.0]),
-        refute="none",
-        bootstrap=0,
+    result = require_success(
+        ant.analyze(
+            data,
+            graph=GRAPH,
+            query=ant.ResponseCurve("t", "y", grid=[0.0, 0.5, 1.0]),
+            refute="none",
+            inference=ant.Frequentist(bootstrap=0),
+        )
     )
     assert result.study is not None
     assert result.answer.kind == "response"
-    encoded = result.export()
-    result.study.refresh({**data, "y": data["y"] + 1.0})
-    assert result.export() == encoded
-    refreshed = result.refresh({**data, "y": data["y"] + 1.0})
+    encoded = bytes(result.export())
+    require_success(result.study.rebind(data={**data, "y": data["y"] + 1.0}).estimate())
+    assert bytes(result.export()) == encoded
+    refreshed = require_success(result.study.rebind(data={**data, "y": data["y"] + 1.0}).estimate())
     assert refreshed.answer.kind == "response"
-    assert result.export() == encoded
-    loaded = ant.load(encoded)
+    assert bytes(result.export()) == encoded
+    loaded = require_success(ant.load(encoded))
     assert_answer_kept(loaded)
     assert loaded.decoded_artifact.to_dict()["payload"]["response"] is not None
     assert loaded.inspect().uncertainty.available
+
+
+def test_load_replays_nothing_until_replay_is_asked_for():
+    result = require_success(
+        ant.analyze(
+            sample(),
+            graph=GRAPH,
+            query=QUERY,
+            execution=ant.Execution(seed=23),
+            inference=ant.Frequentist(bootstrap=0),
+            refute="none",
+        )
+    )
+    encoded = bytes(result.export())
+    loaded = require_success(ant.load(encoded))
+    assert loaded.acceptance.status == "loaded"
+    assert loaded.acceptance.recognized and not loaded.acceptance.replayed
+    assert loaded.answer.value == result.effect
+    replayed = loaded.replay()
+    assert replayed.acceptance.status == "replayed"
+    assert not replayed.acceptance.integrity
+    assert not replayed.acceptance.not_replayable and not replayed.acceptance.mismatches
+    assert replayed.answer == loaded.answer
+    assert bytes(replayed.export()) == encoded
+    asked = require_success(ant.load(encoded, replay=True))
+    assert asked.acceptance.status == "replayed"
 
 
 def test_refusal_retains_description_without_changing_exception_type():
@@ -127,16 +192,25 @@ def test_refusal_retains_description_without_changing_exception_type():
     report = caught.value.report
     assert report.operation == "prepare"
     assert "graph" in report.message
-    assert report.query is QUERY
+    assert report.query == QUERY
+    assert report.query is not QUERY
     assert report.identification == "unavailable"
     json.dumps(report.to_dict())
 
 
 def test_load_verified_execution_and_forward_uncontracted_body():
-    result = ant.analyze(sample(), graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
-    encoded = result.export()
-    loaded = ant.load(encoded)
-    assert loaded.acceptance.verified
+    result = require_success(
+        ant.analyze(
+            sample(),
+            graph=GRAPH,
+            query=QUERY,
+            inference=ant.Frequentist(bootstrap=0),
+            refute="none",
+        )
+    )
+    encoded = bytes(result.export())
+    loaded = require_success(ant.load(encoded, replay=True))
+    assert loaded.acceptance.replayed
     assert loaded.answer.value == result.effect
     assert loaded.inspect().program_id == result.program_id == loaded.program_id
     assert loaded.inspect().claim_id == result.claim_id == loaded.claim_id
@@ -148,7 +222,7 @@ def test_load_verified_execution_and_forward_uncontracted_body():
         loaded.inspect().uncertainty.payload["components"]
         == result.inspect().uncertainty.payload["components"]
     )
-    assert loaded.export() == encoded
+    assert bytes(loaded.export()) == encoded
     json.dumps(loaded.inspect().to_dict(), allow_nan=False)
     with pytest.raises(ant.errors.CausalUnsupportedError, match="not_executed"):
         _ = loaded.study
@@ -159,23 +233,32 @@ def test_load_verified_execution_and_forward_uncontracted_body():
         variable_names=loaded.decoded_artifact.variable_names,
         artifact_id="body-only",
     )
-    unverified = ant.load(body_only)
-    assert not unverified.acceptance.verified
+    unverified = require_success(ant.load(body_only))
+    assert not unverified.acceptance.replayed
     assert not unverified.inspect().identification.available
     assert unverified.answer.kind == "unavailable"
-    assert unverified.export() == body_only
+    assert bytes(unverified.export()) == body_only
 
 
 def test_load_in_an_independent_python_process(tmp_path):
     import subprocess
     import sys
 
-    result = ant.analyze(sample(), graph=GRAPH, query=QUERY, seed=23, bootstrap=0, refute="none")
+    result = require_success(
+        ant.analyze(
+            sample(),
+            graph=GRAPH,
+            query=QUERY,
+            execution=ant.Execution(seed=23),
+            inference=ant.Frequentist(bootstrap=0),
+            refute="none",
+        )
+    )
     path = tmp_path / "result.ant"
-    path.write_bytes(result.export())
+    path.write_bytes(bytes(result.export()))
     code = """import antecedent as ant, json, pathlib, sys
-r = ant.load(pathlib.Path(sys.argv[1]).read_bytes())
-assert r.acceptance.verified
+r = ant.load(pathlib.Path(sys.argv[1]).read_bytes(), replay=True)
+assert r.acceptance.replayed
 print(json.dumps(r.inspect().to_dict(), allow_nan=False))
 """
     completed = subprocess.run(
@@ -188,24 +271,59 @@ print(json.dumps(r.inspect().to_dict(), allow_nan=False))
 
 @pytest.mark.parametrize("latency", [None, "interactive", "standard", "report"])
 def test_one_call_and_explicit_prepare_have_same_defaults(latency):
-    kwargs = dict(graph=GRAPH, query=QUERY, seed=19, bootstrap=4, latency=latency)
-    one = ant.analyze(sample(), **kwargs)
-    two = ant.prepare(sample(), **kwargs).estimate()
+    # Native latency.rs resolves validation suites by profile; the original
+    # explicit four-replicate budget overrides every profile's bootstrap count.
+    suite, suite_id, count = {
+        None: ("placebo", "placebo+rcc", 2),
+        "interactive": ("cheap", "overlap+evalue", 2),
+        "standard": ("placebo", "placebo+rcc", 2),
+        "report": ("full", "validation.full", 14),
+    }[latency]
+    kwargs = dict(
+        graph=GRAPH,
+        query=QUERY,
+        execution=ant.Execution(seed=19),
+        inference=ant.Frequentist(bootstrap=4),
+        refute=suite,
+    )
+    one = require_success(ant.analyze(sample(), **kwargs))
+    two = require_success(ant.prepare(sample(), **kwargs).estimate())
     assert one.effect == two.effect
     assert one.estimate.se_bootstrap == two.estimate.se_bootstrap
     assert one.plan.validation_suite == two.plan.validation_suite
-    assert one.validation.count == two.validation.count
+    assert one.validation.count == two.validation.count == count
+    assert one.plan.validation_suite == suite_id
+    assert one.performance.bootstrap_replicates_requested == 4
+    assert two.performance.bootstrap_replicates_requested == 4
 
 
-def test_failed_refresh_retains_previous_binding_and_error_context():
-    study = ant.prepare(sample(), graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
-    result = study.estimate()
+def test_failed_branch_estimate_retains_previous_binding_and_error_context():
+    # The confounder adjusts the effect, so a branch whose confounder equals the treatment
+    # has a rank-deficient design while both contrast arms are still populated.
+    study = ant.prepare(
+        sample(),
+        graph=[("z", "t"), ("z", "y"), ("t", "y")],
+        query=QUERY,
+        inference=ant.Frequentist(bootstrap=0),
+        refute="none",
+    )
+    before = study.inspect()
+    result = require_success(study.estimate())
+    branch = study.rebind(
+        data={
+            "t": np.tile([0.0, 1.0], 2),
+            "y": np.zeros(4),
+            "z": np.tile([0.0, 1.0], 2),
+        }
+    )
     with pytest.raises(ant.errors.CausalEstimateError, match="rank deficient") as caught:
-        study.refresh({"t": np.zeros(2), "y": np.zeros(2), "z": np.zeros(2)})
-    assert caught.value.study is study
-    assert caught.value.report.operation == "refresh"
-    assert study.inspect().data_snapshot_id == result.data_snapshot_id
-    assert study.estimate().effect == result.effect
+        require_success(branch.estimate())
+    assert caught.value.reason_code == "design_rank_deficient"
+    assert caught.value.study is branch
+    assert caught.value.report.operation == "estimate"
+    assert study.inspect() == before
+    assert result.study.inspect().data_snapshot_id == result.data_snapshot_id
+    assert require_success(study.estimate()).effect == result.effect
 
 
 def test_partial_and_missing_evidence_are_not_scalar_success():
@@ -213,7 +331,15 @@ def test_partial_and_missing_evidence_are_not_scalar_success():
 
     from antecedent.results._report import copy_model
 
-    result = ant.analyze(sample(), graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
+    result = require_success(
+        ant.analyze(
+            sample(),
+            graph=GRAPH,
+            query=QUERY,
+            inference=ant.Frequentist(bootstrap=0),
+            refute="none",
+        )
+    )
     ident = replace(
         result.reasoning.identification,
         payload={**result.reasoning.identification.payload, "unevaluable_mass": 0.25},
@@ -245,26 +371,34 @@ def test_partial_and_missing_evidence_are_not_scalar_success():
 
 def test_refuting_an_old_result_does_not_change_its_export():
     data = sample()
-    first = ant.analyze(data, graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
-    before = first.export()
-    first.study.refresh({**data, "y": data["y"] + data["t"]})
+    first = require_success(
+        ant.analyze(
+            data, graph=GRAPH, query=QUERY, inference=ant.Frequentist(bootstrap=0), refute="none"
+        )
+    )
+    before = bytes(first.export())
+    require_success(first.study.rebind(data={**data, "y": data["y"] + data["t"]}).estimate())
     checked = first.refute(data, suite="cheap")
     assert checked.effect == first.effect
     assert checked.data_snapshot_id == first.data_snapshot_id
-    assert first.export() == before
-    assert ant.load(checked.export()).acceptance.verified
+    assert bytes(first.export()) == before
+    # The refuted result carries refutation reports, which have no checked replay: its load is
+    # recognized but not a verified program. The refutation-free export is unchanged.
+    assert_refutation_replay_withheld(require_success(ant.load(bytes(checked.export()))))
+    assert_answer_kept(require_success(ant.load(before)))
 
 
 def test_contracted_posterior_keeps_draws_and_native_uncertainty_target():
-    result = ant.analyze(
-        sample(),
-        graph=GRAPH,
-        query=QUERY,
-        bootstrap=0,
-        refute="none",
-        inference=ant.Bayesian(n_draws=32, backend="conjugate"),
+    result = require_success(
+        ant.analyze(
+            sample(),
+            graph=GRAPH,
+            query=QUERY,
+            refute="none",
+            inference=ant.Bayesian(n_draws=32, backend="conjugate"),
+        )
     )
-    loaded = ant.load(result.export())
+    loaded = require_success(ant.load(bytes(result.export())))
     assert_answer_kept(loaded)
     assert loaded.decoded_artifact.to_dict()["payload"]["posterior_artifact"]
     assert any(
@@ -279,31 +413,49 @@ def test_retarget_exports_target_weight_identity():
 
     hex64 = re.compile(r"[0-9a-f]{64}")
     data = sample()
-    result = ant.analyze(
-        data,
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=QUERY,
-        estimator="aipw",
-        bootstrap=0,
-        refute="none",
+    result = require_success(
+        ant.analyze(
+            data,
+            graph=[("z", "t"), ("z", "y"), ("t", "y")],
+            query=QUERY,
+            estimator="aipw",
+            inference=ant.Frequentist(bootstrap=0),
+            refute="none",
+        )
     )
-    retargeted = result.study.retarget(np.exp(data["z"] / 3), depends_on=["z"])
-    loaded = ant.load(retargeted.export())
+    retargeted = require_success(result.study.retarget(np.exp(data["z"] / 3), depends_on=["z"]))
+    loaded = require_success(ant.load(bytes(retargeted.export())))
     assert_answer_kept(loaded)
     weights_id = loaded.inspect().target_weights_id
     assert isinstance(weights_id, str) and hex64.fullmatch(weights_id)
     assert retargeted.inspect().target_weights_id == weights_id
     assert retargeted.inspect().claim_id == loaded.inspect().claim_id
-    original = ant.load(result.export())
+    original = require_success(ant.load(bytes(result.export())))
     assert_answer_kept(original)
     assert original.inspect().target_weights_id is None
     assert loaded.inspect().target_id != original.inspect().target_id
     assert loaded.inspect().identification_id == original.inspect().identification_id
-    other = ant.load(result.study.retarget(np.exp(data["z"] / 2), depends_on=["z"]).export())
+    other = require_success(
+        ant.load(
+            bytes(
+                require_success(
+                    result.study.retarget(np.exp(data["z"] / 2), depends_on=["z"])
+                ).export()
+            )
+        )
+    )
     assert_answer_kept(other)
     assert hex64.fullmatch(other.inspect().target_weights_id)
     assert other.inspect().target_weights_id != weights_id
-    uniform = ant.load(result.study.retarget(np.ones(len(data["t"])), depends_on=[]).export())
+    uniform = require_success(
+        ant.load(
+            bytes(
+                require_success(
+                    result.study.retarget(np.ones(len(data["t"])), depends_on=[])
+                ).export()
+            )
+        )
+    )
     assert_answer_kept(uniform)
     assert uniform.inspect().target_weights_id is None
     assert uniform.inspect().target_id == original.inspect().target_id
@@ -311,19 +463,53 @@ def test_retarget_exports_target_weight_identity():
 
 def test_prepare_entry_points_share_omitted_defaults():
     data = sample()
-    one_shot = ant.prepare(data, graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
-    prepared = ant.estimation.PreparedAnalysis.prepare(
-        data, graph=GRAPH, query=QUERY, bootstrap=0, refute="none"
+    one_shot = ant.prepare(
+        data, graph=GRAPH, query=QUERY, inference=ant.Frequentist(bootstrap=0), refute="none"
+    )
+    from antecedent.prepared import prepare
+
+    prepared = prepare(
+        data, graph=GRAPH, query=QUERY, inference=ant.Frequentist(bootstrap=0), refute="none"
     )
     assert one_shot.inspect().identification.available
     assert prepared.inspect().identification.available
+    # Both entry points resolve the omitted arguments to the same study: every identity layer of
+    # their inspections coincides.
+    first, second = one_shot.inspect(), prepared.inspect()
+    for layer in ("target_id", "identification_id", "program_id", "inference_binding_id"):
+        assert getattr(first, layer) == getattr(second, layer), layer
+        assert getattr(first, layer)
+    # ... and a study that differs in one declared argument has a different inference binding.
+    bootstrapped = ant.prepare(
+        data, graph=GRAPH, query=QUERY, inference=ant.Frequentist(bootstrap=3), refute="none"
+    )
+    assert bootstrapped.inspect().inference_binding_id != first.inference_binding_id
 
 
 def test_analyze_is_prepare_then_estimate():
     data = sample()
-    analyzed = ant.analyze(data, graph=GRAPH, query=QUERY, seed=19, bootstrap=0, refute="none")
-    prepared = ant.prepare(data, graph=GRAPH, query=QUERY, seed=19, bootstrap=0, refute="none")
-    estimated = prepared.estimate()
+    analyzed = require_success(
+        ant.analyze(
+            data,
+            graph=GRAPH,
+            query=QUERY,
+            execution=ant.Execution(seed=19),
+            inference=ant.Frequentist(bootstrap=0),
+            refute="none",
+        )
+    )
+    prepared = ant.prepare(
+        data,
+        graph=GRAPH,
+        query=QUERY,
+        execution=ant.Execution(seed=1),
+        inference=ant.Frequentist(bootstrap=0),
+        refute="none",
+    )
+    branch = prepared.reconfigure(execution=ant.Execution(seed=19))
+    estimated = require_success(branch.estimate())
+    assert prepared.execution.seed == 1
+    assert branch.execution.seed == 19
     assert analyzed.inspect().claim_id == estimated.inspect().claim_id
 
 
@@ -331,7 +517,7 @@ def test_workflow_signatures_remain_inspectable():
     import inspect
     import typing
 
-    for fn in (ant.analyze, ant.prepare, ant.load, ant.estimation.PreparedAnalysis.estimate):
+    for fn in (ant.analyze, ant.prepare, ant.load, ant.PreparedAnalysis.estimate):
         assert typing.get_type_hints(fn)["return"] is not None
         assert "kwargs" not in inspect.signature(fn).parameters
 
@@ -340,12 +526,14 @@ def test_response_envelope_does_not_render_as_an_unrestricted_curve():
     t = np.random.default_rng(31).integers(0, 2, size=160).astype(float)
     data = {"t": t, "y": 2 * t + np.random.default_rng(32).normal(size=160)}
     graph = ant.Cpdag.from_directed_undirected(["t", "y"], directed=[], undirected=[("t", "y")])
-    result = ant.analyze(
-        data,
-        graph=graph,
-        query=ant.InterventionResponse("y", intervention=ant.intervention.Set("t", 1.0)),
-        bootstrap=0,
-        refute="none",
+    result = require_success(
+        ant.analyze(
+            data,
+            graph=graph,
+            query=ant.InterventionResponse("y", intervention=ant.intervention.Set("t", 1.0)),
+            inference=ant.Frequentist(bootstrap=0),
+            refute="none",
+        )
     )
     assert result.envelope is not None
     assert result.answer.kind == "partial"
@@ -359,12 +547,14 @@ def test_cpdag_partial_identification_with_full_mass_reports_its_identified_set(
     graph = ant.Cpdag.from_directed_undirected(
         ["t", "y", "z"], [("z", "y"), ("t", "y")], [("z", "t")]
     )
-    result = ant.analyze(
-        {"t": t, "y": 1 + 2 * t + 3 * z, "z": z},
-        graph=graph,
-        query=QUERY,
-        refute="none",
-        bootstrap=0,
+    result = require_success(
+        ant.analyze(
+            {"t": t, "y": 1 + 2 * t + 3 * z, "z": z},
+            graph=graph,
+            query=QUERY,
+            refute="none",
+            inference=ant.Frequentist(bootstrap=0),
+        )
     )
     assert result.inspect().identification.payload["identified_mass"] == 1.0
     # Completions disagree, so the answer is the set they span, never a scalar.
@@ -400,11 +590,18 @@ def test_class_posterior_bounds_answer_survives_loading(kind):
     if kind == "pag":
         data["y"] = data["y"] - data["z"]
     posterior = ant.discovery.GraphPosterior.from_graphs(names, [0.4, 0.6], [graph, graph])
-    result = ant.analyze(
-        data, discovery=posterior, query=QUERY, refute="none", bootstrap=0, seed=731
+    result = require_success(
+        ant.analyze(
+            data,
+            discovery=posterior,
+            query=QUERY,
+            refute="none",
+            inference=ant.Frequentist(bootstrap=0),
+            execution=ant.Execution(seed=731),
+        )
     )
     assert result.answer.kind == "bounds"
     assert result.answer.detail == "identified_set"
-    loaded = ant.load(result.export())
+    loaded = require_success(ant.load(bytes(result.export())))
     assert_answer_kept(loaded)
     assert loaded.answer == result.answer

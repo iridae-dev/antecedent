@@ -5,6 +5,7 @@ from __future__ import annotations
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 
 def _distribution_table() -> dict[str, np.ndarray]:
@@ -31,20 +32,24 @@ def test_distribution_program_refresh_and_independent_replay() -> None:
         graph=[("z", "t"), ("z", "y"), ("t", "y")],
         query=ant.InterventionalDistribution("y", interventions={"t": 1.0}),
         refute="none",
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
     )
-    first = prepared.estimate(data)
+    original_inspection = prepared.inspect()
+    first = require_success(prepared.estimate())
     assert first.effect == pytest.approx(0.7, abs=1e-12)
-    accepted = ant.artifacts.accept(first.export())
-    assert accepted["accepts_as_verified_program"] == "true"
+    accepted = ant.artifacts.accept(bytes(first.export()), replay=True)
+    assert accepted["replayed"] == "true"
 
     changed = {**data, "y": 1.0 - data["y"]}
-    refreshed = prepared.refresh(changed)
+    refreshed = require_success(prepared.rebind(data=changed).estimate())
     assert refreshed.effect == pytest.approx(0.3, abs=1e-12)
-    accepted_refresh = ant.artifacts.accept(refreshed.export())
-    assert accepted_refresh["accepts_as_verified_program"] == "true"
+    accepted_refresh = ant.artifacts.accept(bytes(refreshed.export()), replay=True)
+    assert accepted_refresh["replayed"] == "true"
     assert accepted_refresh["program"] == accepted["program"]
     assert refreshed.data_snapshot_id != first.data_snapshot_id
+    assert prepared.inspect() == original_inspection
+    assert first.study.inspect().data_snapshot_id == first.data_snapshot_id
+    assert require_success(prepared.estimate()).effect == pytest.approx(first.effect)
 
 
 def test_linear_lowering_refresh_replays_portable_ols_moments() -> None:
@@ -58,12 +63,20 @@ def test_linear_lowering_refresh_replays_portable_ols_moments() -> None:
         query=ant.AverageEffect("t", "y"),
         estimator="linear.adjustment.ate",
         refute="none",
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
     )
-    first = prepared.estimate(data)
+    original_inspection = prepared.inspect()
+    first = require_success(prepared.estimate())
+    # Independent oracle: the OLS coefficient of t in y ~ 1 + t + z (the linear adjustment ATE).
+    design = np.column_stack([np.ones(512), t, z])
+    ols = np.linalg.lstsq(design, data["y"], rcond=None)[0]
+    assert first.effect == pytest.approx(ols[1], abs=1e-8)
     assert first.effect == pytest.approx(2.0, abs=0.2)
     changed = {**data, "y": data["y"] + 0.5 * t}
-    refreshed = prepared.refresh(changed)
+    refreshed = require_success(prepared.rebind(data=changed).estimate())
     assert refreshed.effect == pytest.approx(first.effect + 0.5, abs=1e-10)
-    consumed = ant.artifacts.accept(refreshed.export())
-    assert consumed["accepts_as_verified_program"] == "true"
+    consumed = ant.artifacts.accept(bytes(refreshed.export()), replay=True)
+    assert consumed["replayed"] == "true"
+    assert prepared.inspect() == original_inspection
+    assert first.study.inspect().data_snapshot_id == first.data_snapshot_id
+    assert require_success(prepared.estimate()).effect == pytest.approx(first.effect)

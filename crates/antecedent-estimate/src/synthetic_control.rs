@@ -29,6 +29,12 @@ pub struct SyntheticUnitRandomizationTest {
     pub statistics: Vec<(String, f64)>,
     /// Exact two-sided finite-assignment tail fraction under the sharp null.
     pub p_value: f64,
+    /// Absolute rounding tolerance within which a statistic ties the observed one.
+    ///
+    /// Zero ranks strictly. A positive value counts every assignment whose statistic is
+    /// within it of the observed statistic as at least as extreme, so the tail fraction
+    /// is never below the strict one.
+    pub ranking_tolerance: f64,
 }
 
 /// Ridge outcome-model correction to the simplex synthetic-control contrast.
@@ -168,44 +174,139 @@ fn demean(values: &[f64]) -> Vec<f64> {
     values.iter().map(|value| value - mean).collect()
 }
 
-/// Fit donor weights by projected gradient descent on the simplex.
+/// Fit donor weights by restarted accelerated projected gradient on the simplex.
 /// The fixed iteration cap and sorted donor ordering make the result deterministic.
-fn fit_weights(target: &[f64], donors: &[Vec<f64>]) -> (Vec<f64>, f64) {
+fn fit_weights(target: &[f64], donors: &[Vec<f64>]) -> Result<(Vec<f64>, f64), String> {
+    fit_weights_with_limit(target, donors, 10_000)
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
+fn fit_weights_with_limit(
+    target: &[f64],
+    donors: &[Vec<f64>],
+    iterations: usize,
+) -> Result<(Vec<f64>, f64), String> {
     let n_donors = donors.len();
     let n_pre = target.len();
-    let frobenius_sq: f64 = donors.iter().flatten().map(|value| *value * *value).sum();
+    if n_donors == 0 || n_pre == 0 || donors.iter().any(|d| d.len() != n_pre) {
+        return Err("synthetic control weight inputs have invalid shape".into());
+    }
+    // Translation by a donor is exact for simplex weights and removes common
+    // levels that otherwise dominate the gradient and step size.
+    if target.iter().chain(donors.iter().flatten()).any(|value| !value.is_finite()) {
+        return Err("synthetic control weight objective is not finite".into());
+    }
+    // Subtract first to retain representable differences on large common
+    // offsets; if a subtraction overflows, halve every operand consistently.
+    let half = (0..n_pre).any(|t| {
+        !(target[t] - donors[0][t]).is_finite()
+            || donors.iter().any(|donor| !(donor[t] - donors[0][t]).is_finite())
+    });
+    let difference = |value: f64, t: usize| {
+        if half { value * 0.5 - donors[0][t] * 0.5 } else { value - donors[0][t] }
+    };
+    let mut spread = 0.0_f64;
+    for t in 0..n_pre {
+        spread = spread.max(difference(target[t], t).abs());
+        for donor in donors {
+            spread = spread.max(difference(donor[t], t).abs());
+        }
+    }
+    let divisor = if spread == 0.0 { 1.0 } else { spread };
+    let value = |x: f64, t: usize| difference(x, t) / divisor;
+    let frobenius_sq: f64 = donors
+        .iter()
+        .flat_map(|donor| donor.iter().enumerate())
+        .map(|(t, x)| value(*x, t).powi(2))
+        .sum();
     let lipschitz = 2.0 * frobenius_sq / n_pre as f64;
-    let step = if lipschitz > 1e-15 { 1.0 / lipschitz } else { 1.0 };
-    let mut weights = vec![1.0 / n_donors as f64; n_donors];
-    for _ in 0..10_000 {
+    if !lipschitz.is_finite() {
+        return Err("synthetic control weight objective is not finite".into());
+    }
+    let step = if lipschitz > 0.0 { 1.0 / lipschitz } else { 1.0 };
+    if !step.is_finite() {
+        return Err("synthetic control weight step is not finite".into());
+    }
+    let gradient = |weights: &[f64]| -> Vec<f64> {
         let mut gradient = vec![0.0; n_donors];
         for period in 0..n_pre {
-            let residual: f64 = donors
+            let residual = donors
                 .iter()
-                .zip(&weights)
-                .map(|(donor, weight)| donor[period] * *weight)
+                .zip(weights)
+                .map(|(donor, weight)| value(donor[period], period) * *weight)
                 .sum::<f64>()
-                - target[period];
+                - value(target[period], period);
             for (index, donor) in donors.iter().enumerate() {
-                gradient[index] += 2.0 * donor[period] * residual / n_pre as f64;
+                gradient[index] += 2.0 * value(donor[period], period) * residual / n_pre as f64;
             }
         }
-        let next = project_simplex(
+        gradient
+    };
+    let mut weights = vec![1.0 / n_donors as f64; n_donors];
+    let mut momentum = weights.clone();
+    let mut time = 1.0_f64;
+    let mut converged = false;
+    for _ in 0..iterations {
+        let current_gradient = gradient(&weights);
+        if current_gradient.iter().any(|v| !v.is_finite()) {
+            return Err("synthetic control weight gradient is not finite".into());
+        }
+        // Certify stationarity at the returned weights, independent of the
+        // optimization step or accelerated iterate movement.
+        let projected = project_simplex(
             &weights
                 .iter()
-                .zip(gradient)
-                .map(|(weight, gradient)| *weight - step * gradient)
+                .zip(&current_gradient)
+                .map(|(weight, gradient)| *weight - *gradient)
                 .collect::<Vec<_>>(),
         );
-        let movement = next
+        let stationarity = projected
             .iter()
             .zip(&weights)
             .map(|(next, current)| (*next - *current).abs())
             .fold(0.0_f64, f64::max);
-        weights = next;
-        if movement < 1e-12 {
+        if stationarity < 1e-12 {
+            converged = true;
             break;
         }
+        let grad = gradient(&momentum);
+        if grad.iter().any(|v| !v.is_finite()) {
+            return Err("synthetic control weight gradient is not finite".into());
+        }
+        let next = project_simplex(
+            &momentum
+                .iter()
+                .zip(&grad)
+                .map(|(weight, gradient)| *weight - step * *gradient)
+                .collect::<Vec<_>>(),
+        );
+        // Restart if momentum points uphill at an active simplex boundary.
+        let restart: f64 = momentum
+            .iter()
+            .zip(&next)
+            .zip(&weights)
+            .map(|((m, new), old)| (m - new) * (new - old))
+            .sum();
+        let next_time = 0.5 * (1.0 + (1.0 + 4.0 * time * time).sqrt());
+        momentum = if restart > 0.0 {
+            time = 1.0;
+            next.clone()
+        } else {
+            let accelerated = next
+                .iter()
+                .zip(&weights)
+                .map(|(new, old)| new + (time - 1.0) / next_time * (new - old))
+                .collect();
+            time = next_time;
+            accelerated
+        };
+        weights = next;
+    }
+    if !converged {
+        return Err("synthetic control weight iteration did not meet its stopping criterion".into());
     }
     let rmse = ((0..n_pre)
         .map(|period| {
@@ -220,7 +321,7 @@ fn fit_weights(target: &[f64], donors: &[Vec<f64>]) -> (Vec<f64>, f64) {
         .sum::<f64>()
         / n_pre as f64)
         .sqrt();
-    (weights, rmse)
+    Ok((weights, rmse))
 }
 
 fn placebo_ratio(gap: f64, pre_rmse: f64) -> f64 {
@@ -231,6 +332,138 @@ fn placebo_ratio(gap: f64, pre_rmse: f64) -> f64 {
     } else {
         f64::INFINITY
     }
+}
+
+/// What a synthetic control reads of an unbalanced panel.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ObservedWindowSupport {
+    /// Pre-intervention periods the treated unit is observed in; the donor weights are fitted
+    /// on these periods only.
+    pub pre_periods: Vec<i64>,
+    /// Post-intervention periods the treated unit is observed in; the effect averages these.
+    pub post_periods: Vec<i64>,
+    /// Donors observed in every period of the window.
+    pub donors_used: usize,
+    /// Units other than the treated unit missing at least one period of the window, each with
+    /// the number of window periods it lacks. They are not donors.
+    pub donors_dropped: Vec<(String, usize)>,
+    /// Observed unit-periods no estimate reads: periods outside the window and the rows of
+    /// dropped donors.
+    pub unread_rows: usize,
+}
+
+/// Restrict an unbalanced panel to the treated unit's observed window.
+///
+/// The window is the set of periods in which the treated unit is observed: its observed
+/// pre-intervention periods fit the donor weights and its observed post-intervention periods
+/// define the effect. A donor is eligible only if it is observed in every period of the window,
+/// so the restricted panel is balanced by construction and nothing is imputed: a donor's
+/// missing period is never filled, periods the treated unit lacks are never read, and no
+/// unrelated period of one unit is joined to another's. The returned vectors are the rows of
+/// the treated unit and eligible donors inside the window, in input order.
+///
+/// # Errors
+///
+/// Misaligned or non-finite inputs, a repeated unit-period, an unobserved treated unit, fewer
+/// than two observed pre-intervention periods or no observed post-intervention period of the
+/// treated unit, or fewer than three donors observed through the whole window. Each support
+/// message names the next attempt.
+#[allow(
+    clippy::type_complexity,
+    reason = "the restricted rows and the support report are returned together"
+)]
+pub fn restrict_to_observed_window(
+    outcome: &[f64],
+    units: &[String],
+    periods: &[i64],
+    treated_unit: &str,
+    intervention_period: i64,
+) -> Result<(Vec<f64>, Vec<String>, Vec<i64>, ObservedWindowSupport), String> {
+    let n = outcome.len();
+    if n == 0 || units.len() != n || periods.len() != n {
+        return Err("outcome, unit, and period vectors must have equal non-zero length".into());
+    }
+    if outcome.iter().any(|value| !value.is_finite()) {
+        return Err("outcomes must be finite".into());
+    }
+    if treated_unit.is_empty() || intervention_period <= 0 {
+        return Err("treated unit and intervention period are required".into());
+    }
+    let mut panel: BTreeMap<&str, BTreeMap<i64, f64>> = BTreeMap::new();
+    for i in 0..n {
+        if units[i].is_empty() || periods[i] <= 0 {
+            return Err("unit IDs must be non-empty and periods positive".into());
+        }
+        if panel.entry(units[i].as_str()).or_default().insert(periods[i], outcome[i]).is_some() {
+            return Err("each unit must have at most one outcome per period".into());
+        }
+    }
+    let treated = panel.get(treated_unit).ok_or_else(|| {
+        "the treated unit is not observed in any period; next attempt: name a unit of the panel"
+            .to_string()
+    })?;
+    let pre: Vec<i64> =
+        treated.keys().copied().filter(|period| *period < intervention_period).collect();
+    let post: Vec<i64> =
+        treated.keys().copied().filter(|period| *period >= intervention_period).collect();
+    if pre.len() < 2 || post.is_empty() {
+        return Err(format!(
+            "the treated unit is observed in {} pre-intervention and {} post-intervention \
+             periods; the weights need at least two observed pre-intervention periods and the \
+             effect at least one observed post-intervention period. Next attempt: observe the \
+             treated unit in more periods around the intervention",
+            pre.len(),
+            post.len()
+        ));
+    }
+    let window: Vec<i64> = pre.iter().chain(&post).copied().collect();
+    let mut kept: BTreeSet<&str> = BTreeSet::new();
+    kept.insert(treated_unit);
+    let mut dropped = Vec::new();
+    for (unit, observed) in &panel {
+        if *unit == treated_unit {
+            continue;
+        }
+        let missing = window.iter().filter(|period| !observed.contains_key(*period)).count();
+        if missing == 0 {
+            kept.insert(unit);
+        } else {
+            dropped.push(((*unit).to_string(), missing));
+        }
+    }
+    let donors_used = kept.len() - 1;
+    if donors_used < 3 {
+        return Err(format!(
+            "only {donors_used} donors are observed in every one of the treated unit's {} \
+             observed periods (at least three are required); {} units miss part of the window. \
+             Next attempt: add donors observed throughout the window, or drop the periods only \
+             the treated unit has",
+            window.len(),
+            dropped.len()
+        ));
+    }
+    let in_window: BTreeSet<i64> = window.iter().copied().collect();
+    let (mut y, mut u, mut p) = (Vec::new(), Vec::new(), Vec::new());
+    for i in 0..n {
+        if kept.contains(units[i].as_str()) && in_window.contains(&periods[i]) {
+            y.push(outcome[i]);
+            u.push(units[i].clone());
+            p.push(periods[i]);
+        }
+    }
+    let unread_rows = n - y.len();
+    Ok((
+        y,
+        u,
+        p,
+        ObservedWindowSupport {
+            pre_periods: pre,
+            post_periods: post,
+            donors_used,
+            donors_dropped: dropped,
+            unread_rows,
+        },
+    ))
 }
 
 /// Fit a balanced-panel synthetic control and leave-one-donor-out placebos.
@@ -300,7 +533,7 @@ pub fn fit_synthetic_control(
         .iter()
         .map(|(_, values)| pre.iter().map(|period| values[period]).collect())
         .collect();
-    let (weights, pre_rmse) = fit_weights(&target_pre, &donor_pre);
+    let (weights, pre_rmse) = fit_weights(&target_pre, &donor_pre)?;
     let treated_post = post.iter().map(|period| treated[period]).sum::<f64>() / post.len() as f64;
     let synthetic_post: f64 = donors
         .iter()
@@ -321,7 +554,7 @@ pub fn fit_synthetic_control(
             .map(|(_, donor)| donor.clone())
             .collect();
         let (placebo_weights, placebo_rmse) =
-            fit_weights(&donor_pre[placebo_index], &reference_pre);
+            fit_weights(&donor_pre[placebo_index], &reference_pre)?;
         let pseudo_post = post.iter().map(|period| donors[placebo_index].1[period]).sum::<f64>()
             / post.len() as f64;
         let reference_post: f64 = donors
@@ -382,12 +615,6 @@ pub fn exact_synthetic_unit_randomization_test(
         panel.entry(unit).or_default().insert(*period, *value);
         period_set.insert(*period);
     }
-    if panel.len() > 32 {
-        return Err(
-            "exact synthetic unit randomization currently supports at most 32 candidate units"
-                .into(),
-        );
-    }
     let pre: Vec<i64> =
         period_set.iter().copied().filter(|period| *period < intervention_period).collect();
     let post: Vec<i64> =
@@ -400,7 +627,7 @@ pub fn exact_synthetic_unit_randomization_test(
             .iter()
             .map(|(_, values)| pre.iter().map(|period| values[period]).collect())
             .collect();
-        let (weights, _) = fit_weights(&target_pre, &donor_pre);
+        let (weights, _) = fit_weights(&target_pre, &donor_pre)?;
         let treated_post =
             post.iter().map(|period| values[period]).sum::<f64>() / post.len() as f64;
         let donor_post: f64 = donors
@@ -421,6 +648,7 @@ pub fn exact_synthetic_unit_randomization_test(
     Ok(SyntheticUnitRandomizationTest {
         p_value: extreme as f64 / statistics.len() as f64,
         statistics,
+        ranking_tolerance: 0.0,
     })
 }
 
@@ -440,9 +668,6 @@ pub fn exact_augmented_synthetic_unit_randomization_test(
     let mut candidates: Vec<&str> = units.iter().map(String::as_str).collect();
     candidates.sort_unstable();
     candidates.dedup();
-    if candidates.len() > 32 {
-        return Err("exact augmented synthetic unit randomization currently supports at most 32 candidate units".into());
-    }
     let mut statistics = Vec::with_capacity(candidates.len());
     for candidate in candidates {
         let fit = fit_augmented_synthetic_control(
@@ -466,6 +691,7 @@ pub fn exact_augmented_synthetic_unit_randomization_test(
     Ok(SyntheticUnitRandomizationTest {
         p_value: extreme as f64 / statistics.len() as f64,
         statistics,
+        ranking_tolerance: 0.0,
     })
 }
 
@@ -556,6 +782,64 @@ mod tests {
         )
     )]
     use super::*;
+    #[test]
+    fn synthetic_weights_refuse_iteration_exhaustion_without_losing_valid_solutions() {
+        use super::fit_weights;
+        for scale in [1e-10, 1.0, 1e10] {
+            let fit = fit_weights(&[scale], &[vec![0.0], vec![scale]]).unwrap();
+            assert!(fit.0[0] < 1e-10 && (fit.0[1] - 1.0).abs() < 1e-10);
+        }
+        let ordinary = fit_weights(&[1.0, 0.5], &[vec![1.0, 0.0], vec![1.0, 1.0]]).unwrap();
+        assert!((ordinary.0[0] - 0.5).abs() < 1e-12);
+        assert!((ordinary.0[1] - 0.5).abs() < 1e-12);
+        assert!(ordinary.1 < 1e-12);
+        let donors = vec![vec![1.0, 0.0], vec![1.0, 0.01], vec![1.0, 0.0]];
+        let solved = fit_weights(&[1.0, 0.008], &donors).unwrap();
+        assert!((solved.0[1] - 0.8).abs() < 1e-9);
+        let error = super::fit_weights_with_limit(&[1.0, 0.008], &donors, 0).unwrap_err();
+        assert!(error.contains("stopping criterion"));
+        let base = 1e12;
+        let shifted_target = base + 0.8;
+        let shifted = fit_weights(&[shifted_target], &[vec![base], vec![base + 1.0]]).unwrap();
+        assert!((shifted.0[1] - (shifted_target - base)).abs() < 1e-9);
+        let tiny = f64::from_bits(1);
+        let subnormal = fit_weights(&[tiny], &[vec![0.0], vec![2.0 * tiny]]).unwrap();
+        assert!((subnormal.0[1] - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn accelerated_simplex_resolves_assignment_panel_with_stationary_weights() {
+        // The fixed observed panel used by the sharp-null assignment test:
+        // every candidate is also a donor in other assignments.
+        let rows: Vec<Vec<f64>> = (0..8)
+            .map(|unit| {
+                (1..=4)
+                    .map(|period| {
+                        f64::from(unit) * 0.27
+                            + f64::from(period) * 0.13
+                            + f64::from((unit * 11 + period * 7) % 13) * 0.09
+                    })
+                    .collect()
+            })
+            .collect();
+        for target in 0..rows.len() {
+            for omitted in 0..rows.len() {
+                if omitted == target {
+                    continue;
+                }
+                let donors: Vec<_> = rows
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, _)| *i != target && *i != omitted)
+                    .map(|(_, row)| row.clone())
+                    .collect();
+                let (weights, rmse) = super::fit_weights(&rows[target], &donors).unwrap();
+                assert!(rmse.is_finite());
+                assert!(weights.iter().all(|w| w.is_finite() && *w >= 0.0));
+                assert!((weights.iter().sum::<f64>() - 1.0).abs() < 1e-10);
+            }
+        }
+    }
 
     #[test]
     fn augmented_synthetic_control_corrects_outside_convex_hull_bias() {
@@ -617,6 +901,110 @@ mod tests {
         assert_eq!(fit.placebo_effects.len(), 3);
         let too_few = fit_synthetic_control(&y[..18], &units[..18], &periods[..18], "a", 5);
         assert!(too_few.unwrap_err().contains("at least three donor"));
+    }
+
+    /// Donors a, b, c are exact convex pieces of the treated unit (weights 0.2, 0.3, 0.5) over
+    /// periods 1..=6 with a post effect of 5 at periods 5 and 6; donor d is unrelated.
+    fn exact_panel() -> (Vec<f64>, Vec<String>, Vec<i64>) {
+        let donors = [
+            ("a", [0.0, 0.0, 1.0, 0.0, 1.0, 0.0]),
+            ("b", [0.0, 1.0, 0.0, 1.0, 2.0, 2.0]),
+            ("c", [1.0, 0.0, 0.0, 1.0, 0.0, 2.0]),
+            ("d", [4.0, 1.0, 3.0, 2.0, 0.0, 5.0]),
+        ];
+        let (mut y, mut units, mut periods) = (Vec::new(), Vec::new(), Vec::new());
+        for (unit, values) in donors {
+            for (i, value) in values.into_iter().enumerate() {
+                units.push(unit.to_string());
+                periods.push(i as i64 + 1);
+                y.push(value);
+            }
+        }
+        for i in 0..6 {
+            units.push("treated".into());
+            periods.push(i as i64 + 1);
+            let value = 0.2 * donors[0].1[i] + 0.3 * donors[1].1[i] + 0.5 * donors[2].1[i];
+            y.push(value + if i >= 4 { 5.0 } else { 0.0 });
+        }
+        (y, units, periods)
+    }
+
+    #[test]
+    fn observed_window_support_fits_only_donors_observed_through_the_treated_window() {
+        let (y, units, periods) = exact_panel();
+        // The treated unit misses period 2, donor d misses period 3 and donor a misses
+        // period 2 (a period the treated unit does not have, so it is never read).
+        let gone = |unit: &str, period: i64| (unit.to_string(), period);
+        let removed = [gone("treated", 2), gone("d", 3), gone("a", 2)];
+        let keep: Vec<usize> =
+            (0..y.len()).filter(|i| !removed.contains(&(units[*i].clone(), periods[*i]))).collect();
+        let (y, units, periods): (Vec<f64>, Vec<String>, Vec<i64>) = (
+            keep.iter().map(|i| y[*i]).collect(),
+            keep.iter().map(|i| units[*i].clone()).collect(),
+            keep.iter().map(|i| periods[*i]).collect(),
+        );
+        let (ry, ru, rp, support) =
+            restrict_to_observed_window(&y, &units, &periods, "treated", 5).unwrap();
+        assert_eq!(support.pre_periods, vec![1, 3, 4]);
+        assert_eq!(support.post_periods, vec![5, 6]);
+        assert_eq!(support.donors_used, 3);
+        assert_eq!(support.donors_dropped, vec![("d".to_string(), 1)]);
+        // Donor d's rows and every row at period 2 are unread; nothing was invented.
+        assert_eq!(support.unread_rows, y.len() - ry.len());
+        assert!(rp.iter().all(|period| *period != 2) && ru.iter().all(|unit| unit != "d"));
+        let fit = fit_synthetic_control(&ry, &ru, &rp, "treated", 5).unwrap();
+        assert!((fit.effect - 5.0).abs() < 1e-5, "{}", fit.effect);
+        assert_eq!((fit.n_pre_periods, fit.n_post_periods), (3, 2));
+        let weight =
+            |name: &str| fit.donor_weights.iter().find(|(u, _)| u.as_str() == name).unwrap().1;
+        assert!((weight("a") - 0.2).abs() < 1e-4);
+        assert!((weight("b") - 0.3).abs() < 1e-4);
+        assert!((weight("c") - 0.5).abs() < 1e-4);
+        let augmented = fit_augmented_synthetic_control(&ry, &ru, &rp, "treated", 5, 1e-8).unwrap();
+        assert!((augmented.effect - 5.0).abs() < 1e-4, "{}", augmented.effect);
+        // The balanced entry point still refuses the same unbalanced panel.
+        assert!(
+            fit_synthetic_control(&y, &units, &periods, "treated", 5)
+                .unwrap_err()
+                .contains("balanced panel")
+        );
+    }
+
+    #[test]
+    fn observed_window_support_refuses_designs_without_enough_support() {
+        let (y, units, periods) = exact_panel();
+        let without = |units_gone: &[(&str, i64)]| {
+            let keep: Vec<usize> = (0..y.len())
+                .filter(|i| !units_gone.iter().any(|(u, p)| units[*i] == *u && periods[*i] == *p))
+                .collect();
+            (
+                keep.iter().map(|i| y[*i]).collect::<Vec<f64>>(),
+                keep.iter().map(|i| units[*i].clone()).collect::<Vec<String>>(),
+                keep.iter().map(|i| periods[*i]).collect::<Vec<i64>>(),
+            )
+        };
+        // One observed pre-intervention period of the treated unit.
+        let (a, b, c) = without(&[("treated", 1), ("treated", 2), ("treated", 3)]);
+        let error = restrict_to_observed_window(&a, &b, &c, "treated", 5).unwrap_err();
+        assert!(error.contains("at least two observed pre-intervention"), "{error}");
+        // No observed post-intervention period of the treated unit.
+        let (a, b, c) = without(&[("treated", 5), ("treated", 6)]);
+        let error = restrict_to_observed_window(&a, &b, &c, "treated", 5).unwrap_err();
+        assert!(error.contains("post-intervention"), "{error}");
+        // Two of the four donors miss part of the window, leaving two donors.
+        let (a, b, c) = without(&[("a", 4), ("d", 6)]);
+        let error = restrict_to_observed_window(&a, &b, &c, "treated", 5).unwrap_err();
+        assert!(error.contains("only 2 donors") && error.contains("Next attempt"), "{error}");
+        // A repeated unit-period is malformed, not unbalanced.
+        let mut repeated = (y.clone(), units.clone(), periods.clone());
+        repeated.0.push(0.0);
+        repeated.1.push("a".into());
+        repeated.2.push(1);
+        assert!(
+            restrict_to_observed_window(&repeated.0, &repeated.1, &repeated.2, "treated", 5)
+                .unwrap_err()
+                .contains("at most one outcome")
+        );
     }
 
     #[test]
@@ -731,180 +1119,14 @@ pub struct SyntheticDidFit {
     pub n_pre_periods: usize,
     /// Number of post-periods.
     pub n_post_periods: usize,
+    /// Forward rounding bound on `effect`: the floating-point accumulation error of the
+    /// contrast, from the magnitudes of the terms it sums and the weight-sum residuals.
+    pub rounding_bound: f64,
 }
 
-/// Fit unit and time simplex weights without claiming interval calibration.
-// length reflects the estimator's fixed statistical contract; refactor would change behavior
-#[allow(
-    clippy::too_many_lines,
-    reason = "build the panel, fit unit and time weights, then the effect and placebo permutation from the same donor set"
-)]
-pub fn fit_synthetic_did(
-    outcome: &[f64],
-    units: &[String],
-    periods: &[i64],
-    treated_unit: &str,
-    intervention_period: i64,
-) -> Result<SyntheticDidFit, String> {
-    let values = outcome;
-    let n = values.len();
-    if n == 0 || units.len() != n || periods.len() != n {
-        return Err(String::from(
-            "outcome, unit, and period vectors must have equal non-zero length",
-        ));
-    }
-    if values.iter().any(|value| !value.is_finite()) {
-        return Err(String::from("outcomes must be finite"));
-    }
-    if treated_unit.is_empty() || intervention_period <= 0 {
-        return Err(String::from("treated unit and intervention period are required"));
-    }
-    let mut panel: BTreeMap<String, BTreeMap<i64, f64>> = BTreeMap::new();
-    let mut all_periods = BTreeSet::new();
-    for i in 0..n {
-        if units[i].is_empty() || periods[i] <= 0 {
-            return Err(String::from("unit IDs must be non-empty and periods positive"));
-        }
-        all_periods.insert(periods[i]);
-        if panel.entry(units[i].clone()).or_default().insert(periods[i], values[i]).is_some() {
-            return Err(String::from("each unit must have exactly one outcome per period"));
-        }
-    }
-    let period_list: Vec<i64> = all_periods.into_iter().collect();
-    let pre: Vec<i64> =
-        period_list.iter().copied().filter(|period| *period < intervention_period).collect();
-    let post: Vec<i64> =
-        period_list.iter().copied().filter(|period| *period >= intervention_period).collect();
-    if pre.len() < 2 || post.is_empty() {
-        return Err(String::from(
-            "synthetic DiD requires at least two pre-periods and one post-period",
-        ));
-    }
-    if panel.len() < 3 || !panel.contains_key(treated_unit) {
-        return Err(String::from(
-            "synthetic DiD requires one treated unit and at least two donor units",
-        ));
-    }
-    let n_pre = pre.len();
-    let n_post = post.len();
-    if panel.values().any(|observed| {
-        observed.len() != period_list.len()
-            || period_list.iter().any(|period| !observed.contains_key(period))
-    }) {
-        return Err(String::from(
-            "synthetic DiD requires a balanced panel with identical periods for every unit",
-        ));
-    }
-    let treated = &panel[treated_unit];
-    let donors: Vec<(&String, &BTreeMap<i64, f64>)> =
-        panel.iter().filter(|(unit, _)| unit.as_str() != treated_unit).collect();
-    let target_pre: Vec<f64> = pre.iter().map(|period| treated[period]).collect();
-    let donor_pre: Vec<Vec<f64>> = donors
-        .iter()
-        .map(|(_, observed)| pre.iter().map(|period| observed[period]).collect())
-        .collect();
-    let (unit_weights, pre_rmse) = fit_weights(&target_pre, &donor_pre);
+mod did;
 
-    // SDID time weights (Arkhangelsky et al.) represent each donor's post-period
-    // mean as a convex combination of its pre-period values, up to a common
-    // intercept. Demeaning across donors absorbs that intercept.
-    let target_donor_mean = demean(
-        &donors
-            .iter()
-            .map(|(_, observed)| {
-                post.iter().map(|period| observed[period]).sum::<f64>() / post.len() as f64
-            })
-            .collect::<Vec<_>>(),
-    );
-    let period_profiles: Vec<Vec<f64>> = pre
-        .iter()
-        .map(|period| {
-            demean(&donors.iter().map(|(_, observed)| observed[period]).collect::<Vec<_>>())
-        })
-        .collect();
-    let (time_weights, _) = fit_weights(&target_donor_mean, &period_profiles);
-
-    let treated_post_mean =
-        post.iter().map(|period| treated[period]).sum::<f64>() / post.len() as f64;
-    let treated_pre_weighted: f64 =
-        pre.iter().zip(&time_weights).map(|(period, weight)| treated[period] * weight).sum();
-    let donor_post_mean: f64 = donors
-        .iter()
-        .zip(&unit_weights)
-        .map(|((_, observed), weight)| {
-            weight * post.iter().map(|period| observed[period]).sum::<f64>() / post.len() as f64
-        })
-        .sum();
-    let donor_joint_pre: f64 = donors
-        .iter()
-        .zip(&unit_weights)
-        .map(|((_, observed), unit_weight)| {
-            pre.iter()
-                .zip(&time_weights)
-                .map(|(period, time_weight)| unit_weight * time_weight * observed[period])
-                .sum::<f64>()
-        })
-        .sum();
-    let estimate = (treated_post_mean - treated_pre_weighted) - (donor_post_mean - donor_joint_pre);
-    if !estimate.is_finite() || !pre_rmse.is_finite() {
-        return Err(String::from("synthetic DiD estimate overflowed finite precision"));
-    }
-    let weights = donors
-        .iter()
-        .zip(unit_weights)
-        .map(|((unit, _), weight)| ((*unit).clone(), weight))
-        .collect();
-    let time_weights = pre.into_iter().zip(time_weights).collect();
-    Ok(SyntheticDidFit {
-        effect: estimate,
-        pre_treatment_rmse: pre_rmse,
-        donor_weights: weights,
-        time_weights,
-        n_donors: donors.len(),
-        n_pre_periods: n_pre,
-        n_post_periods: n_post,
-    })
-}
-
-/// Exact sharp-null assignment test for a uniformly selected synthetic-DiD treated unit.
-///
-/// Refit both unit and time weights for every possible assignment on the
-/// unchanged outcome panel. This is valid for a declared uniform one-unit
-/// randomization under the sharp null; it does not calibrate an interval or
-/// turn observational donor placebos into a randomization test.
-pub fn exact_synthetic_did_unit_randomization_test(
-    outcome: &[f64],
-    units: &[String],
-    periods: &[i64],
-    treated_unit: &str,
-    intervention_period: i64,
-) -> Result<SyntheticUnitRandomizationTest, String> {
-    fit_synthetic_did(outcome, units, periods, treated_unit, intervention_period)?;
-    let candidates: BTreeSet<&str> = units.iter().map(String::as_str).collect();
-    if candidates.len() > 32 {
-        return Err(
-            "exact synthetic DiD unit randomization currently supports at most 32 candidate units"
-                .into(),
-        );
-    }
-    let mut statistics = Vec::with_capacity(candidates.len());
-    for candidate in candidates {
-        let fit = fit_synthetic_did(outcome, units, periods, candidate, intervention_period)?;
-        statistics.push((candidate.to_string(), fit.effect.abs()));
-    }
-    let observed = statistics
-        .iter()
-        .find(|(unit, _)| unit == treated_unit)
-        .ok_or_else(|| {
-            "treated unit is absent from exact synthetic DiD randomization distribution".to_string()
-        })?
-        .1;
-    let extreme = statistics.iter().filter(|(_, statistic)| *statistic >= observed).count();
-    Ok(SyntheticUnitRandomizationTest {
-        p_value: extreme as f64 / statistics.len() as f64,
-        statistics,
-    })
-}
+pub use did::{exact_synthetic_did_unit_randomization_test, fit_synthetic_did};
 
 #[cfg(test)]
 mod synthetic_did_tests {

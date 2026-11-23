@@ -1,6 +1,6 @@
 //! CPDAG/PAG graph-posterior `AverageEffect`: class envelope per atom, then policy.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::atom_mix::{
     AtomBoundRule, AtomEvalView, AtomMixInput, AtomRefuterBatch, ScalarRefuterMix,
@@ -17,7 +17,8 @@ use super::{
     StaticEstimateWorkspaces, Strategy, Study, StudyResult, TabularData, bayesian_gcomp,
     effect_from_posterior, elapsed_ns, envelope_se_omission_diagnostic, estimate_static_effect,
     mass_fields, mix_static_envelope_se, mix_weighted_analytic_se, mixed_static_influence,
-    overlap_diagnostic, provenance_ids, resolve_posterior_status, static_aligned_influence,
+    overlap_diagnostic, overlap_limit_diagnostic, provenance_ids, resolve_posterior_status,
+    static_aligned_influence,
 };
 use crate::analysis::prepared::{
     CachedClassPosteriorAtomIdentification, CachedGraphPosteriorIdentification,
@@ -48,11 +49,13 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let conditional = matches!(self.query, CausalQuery::ConditionalEffect(_));
-        let class_tag = gp.atom_kind.as_str().to_ascii_lowercase();
-        let (identified, identify_cached) = if let Some(cache) =
-            self.graph_posterior_identification_cache.as_ref()
-        {
+        let class_tag = gp.atom_kind().as_str().to_ascii_lowercase();
+        let (identified, identify_cached) = if let Some(cache) = self.graph_posterior_cache() {
             (Arc::clone(cache), true)
+        } else if let Some(cache) =
+            crate::analysis::lowering::plan_retained_graph_posterior(self, physical)
+        {
+            (cache, false)
         } else {
             (
                 Arc::new(crate::analysis::prepared::build_graph_posterior_identification_cache(
@@ -69,7 +72,7 @@ impl super::Study {
 
         let evals = ctx.map_indexed(identified.class_atoms.len(), |i, inner| {
             let atom = &identified.class_atoms[i];
-            match &self.inference {
+            match &self.settings.inference {
                 InferenceMode::Frequentist => {
                     evaluate_class_atom_frequentist(self, data, query, atom, conditional, inner)
                 }
@@ -93,7 +96,7 @@ impl super::Study {
         );
 
         let mut diagnostics = self.class_graph_posterior_diagnostics(&mixed, &evals, &class_tag);
-        let estimator_id = match &self.inference {
+        let estimator_id = match &self.settings.inference {
             InferenceMode::Frequentist => EstimatorId::LinearAdjustmentAte,
             InferenceMode::Bayesian(_) => EstimatorId::BayesianGcomp,
         };
@@ -154,7 +157,7 @@ impl super::Study {
         class_tag: &str,
     ) -> Vec<Diagnostic> {
         let mut diagnostics = mixed.identification.diagnostics.clone();
-        if self.inference.is_bayesian() && mixed.posterior.is_none() {
+        if self.settings.inference.is_bayesian() && mixed.posterior.is_none() {
             diagnostics.push(graph_posterior_withheld_diagnostic());
         }
         diagnostics.push(Diagnostic::new(
@@ -185,6 +188,8 @@ impl super::Study {
             )),
         );
         diagnostics.push(overlap_diagnostic(mixed.estimate.provenance.overlap));
+        diagnostics
+            .extend(overlap_limit_diagnostic(mixed.estimate.diagnostics.overlap_report.as_ref()));
         let n_contributing = evals
             .iter()
             .filter(|eval| eval.estimate.as_ref().is_some_and(|estimate| estimate.ate.is_finite()))
@@ -266,6 +271,7 @@ fn fit_class_case(
     } else {
         let mut case_ws = StaticEstimateWorkspaces::default();
         let case_spec = study
+            .declared
             .estimator_spec
             .as_deref()
             .cloned()
@@ -276,9 +282,10 @@ fn fit_class_case(
                 data,
                 estimand,
                 query,
-                bootstrap_replicates: study.bootstrap_replicates,
-                overlap_policy: study.overlap_policy,
-                population_registry: study.population_registry.as_ref(),
+                bootstrap_replicates: study.settings.bootstrap_replicates,
+                overlap_policy: study.declared.overlap_policy,
+                population_registry: study.declared.population_registry.as_ref(),
+                sampling_design: study.declared.sampling_design,
             },
             atom.identification.required_assumptions.clone(),
             ctx,
@@ -349,10 +356,10 @@ fn evaluate_class_atom_frequentist(
         };
         let mut estimate =
             EffectEstimate::new(weighted / total, se, assumptions, OverlapPolicy::ExplicitOverride);
-        if atom_ifs.len() == n_contributing {
-            if let Some(inf) = mixed_static_influence(&atom_ifs, &atom_weights) {
-                estimate.scores.influence = Some(inf);
-            }
+        if atom_ifs.len() == n_contributing
+            && let Some(inf) = mixed_static_influence(&atom_ifs, &atom_weights)
+        {
+            estimate.scores.influence = Some(inf);
         }
         Some(estimate)
     } else {
@@ -379,12 +386,12 @@ fn evaluate_class_atom_bayesian(
     conditional: bool,
     ctx: &ExecutionContext,
 ) -> Result<ClassAtomEval, CausalError> {
-    let cfg = match &study.inference {
+    let cfg = match &study.settings.inference {
         InferenceMode::Bayesian(c) => c.clone(),
         InferenceMode::Frequentist => {
-            return Err(CausalError::Unsupported {
-                message: "evaluate_class_atom_bayesian requires inference=Bayesian",
-            });
+            return Err(CausalError::unsupported_inference(
+                "evaluate_class_atom_bayesian requires inference=Bayesian",
+            ));
         }
     };
     let est = bayesian_gcomp(&cfg, ctx);
@@ -554,7 +561,9 @@ fn refute_class_graph_posterior(
     ctx: &ExecutionContext,
 ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
     let AtomRefutationPolicy { aggregation: policy, estimator } = refutation;
-    if matches!(study.refute, RefuteSuite::None) && study.custom_validators.is_empty() {
+    if matches!(study.settings.refute, RefuteSuite::None)
+        && study.declared.custom_validators.is_empty()
+    {
         return Ok((Vec::new(), Vec::new()));
     }
     let mix_scalar = matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean);
@@ -577,9 +586,9 @@ fn refute_class_graph_posterior(
             let (reports, notes) = EnvelopeRefutation {
                 data,
                 query,
-                suite: study.refute,
+                suite: study.settings.refute,
                 estimator,
-                custom: &study.custom_validators,
+                custom: &study.declared.custom_validators,
                 temporal: None,
             }
             .run(&eval.refute_atoms, &mut refute_ws, ctx)?;

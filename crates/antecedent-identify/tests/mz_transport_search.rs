@@ -12,8 +12,8 @@ use std::sync::Arc;
 
 use antecedent_core::{
     DependenceGroup, DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime,
-    ExecutionContext, InterventionAssignment, MemoryBudget, RegimeBinding, RegimeId, RegimeKind,
-    SamplingDesign, SearchLimits, SearchReceipt, SearchStop, Value, VariableId,
+    ExecutionContext, InterventionAssignment, RegimeBinding, RegimeId, RegimeKind, SamplingDesign,
+    SearchLimits, SearchReceipt, SearchStop, Value, VariableId,
 };
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_identify::{
@@ -284,7 +284,7 @@ fn splitting_the_joint_experiment_across_sources_is_never_identified() {
     let MzTransportDecision::NotCertified(inspection) = decide_1ef(&split, &evidence) else {
         panic!("a split joint must stay unresolved, not identified");
     };
-    assert_eq!(inspection.detail, "mz_transport.fabricated_joint");
+    assert_eq!(inspection.detail, antecedent_core::reason_details::mz_transport::FABRICATED_JOINT);
     let stages =
         inspection.stages.iter().map(|s| (s.stage.as_str(), s.outcome)).collect::<Vec<_>>();
     assert_eq!(
@@ -412,7 +412,7 @@ fn memory_exhaustion_is_a_receipt_and_is_checked_on_every_charge() {
     // One live engine step on the four-node graph is estimated at 1536 bytes.
     for (limit, consumed) in [(1024, None), (3 * 1536, Some(3))] {
         let mut ctx = ExecutionContext::for_tests(1);
-        ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(limit) };
+        ctx.set_memory_limit(Some(limit));
         let receipt = exhausted(&figure_1_graph(), &q, MZ_TRANSPORT_DEFAULT_LIMITS, &ctx);
         assert_eq!(receipt.stop, SearchStop::Memory);
         assert_eq!(receipt.memory_limit_bytes, Some(limit));
@@ -451,7 +451,9 @@ fn one_budget_is_shared_by_every_stage() {
 #[test]
 fn limits_above_the_declared_maxima_refuse_as_bounds_exceeded() {
     let q = query(vec![source_a(), source_b()]);
-    let exceeded = IdentificationError::UnsupportedInput { code: "mz_transport.bounds_exceeded" };
+    let exceeded = IdentificationError::UnsupportedInput {
+        code: antecedent_core::reason_details::mz_transport::BOUNDS_EXCEEDED,
+    };
     for limits in [
         SearchLimits { operations: MZ_TRANSPORT_DEFAULT_LIMITS.operations + 1, depth: 24 },
         SearchLimits { operations: 4096, depth: MZ_TRANSPORT_DEFAULT_LIMITS.depth + 1 },
@@ -468,9 +470,11 @@ fn limits_above_the_declared_maxima_refuse_as_bounds_exceeded() {
 }
 
 #[test]
-fn controllable_bounds_refuse_as_bounds_exceeded_and_the_graph_size_is_not_capped() {
+fn neither_the_controllable_count_nor_the_graph_size_is_capped() {
     use antecedent_identify::validate_mz_transport_query;
-    let exceeded = IdentificationError::UnsupportedInput { code: "mz_transport.bounds_exceeded" };
+    let exceeded = IdentificationError::UnsupportedInput {
+        code: antecedent_core::reason_details::mz_transport::BOUNDS_EXCEEDED,
+    };
     let ctx = ExecutionContext::for_tests(1);
     // Twenty observed variables, far past the old ceiling of twelve, are admitted.
     let mut large = Admg::with_variables(20);
@@ -479,7 +483,7 @@ fn controllable_bounds_refuse_as_bounds_exceeded_and_the_graph_size_is_not_cappe
     }
     let q = query(vec![source_a(), source_b()]);
     assert!(validate_mz_transport_query(&large, &q, &catalog(vec![])).is_ok());
-    // Five controllables in one source.
+    // Five controllables in one source are admitted: the count has no ceiling.
     let mut wide = Admg::with_variables(6);
     for (a, b) in [(Z1, X), (X, Z2), (Z2, Y)] {
         wide.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
@@ -487,7 +491,7 @@ fn controllable_bounds_refuse_as_bounds_exceeded_and_the_graph_size_is_not_cappe
     let q = query(vec![source("a", &[0, 2, 3, 4, 5], &[]), source_b()]);
     let refused =
         decide_mz_transport(&wide, &q, &catalog(vec![]), MZ_TRANSPORT_DEFAULT_LIMITS, &ctx);
-    assert_eq!(refused.unwrap_err(), exceeded);
+    assert!(refused.as_ref().err() != Some(&exceeded), "{refused:?}");
 }
 
 /// The observable content of a decision, which must not depend on source order.
@@ -594,10 +598,16 @@ fn outcomes_carry_the_frozen_detail_codes() {
     let identified = decide(&query(vec![source_a(), source_b()]), &complementary_catalog());
     assert_eq!((identified.reason_code(), identified.detail_code()), (None, None));
     let obstruction = decide(&query(vec![source_a(), unhelpful()]), &complementary_catalog());
-    assert_eq!(obstruction.detail_code(), Some("mz_transport.checked_obstruction"));
+    assert_eq!(
+        obstruction.detail_code(),
+        Some(antecedent_core::reason_details::mz_transport::CHECKED_OBSTRUCTION)
+    );
     let partial = catalog(vec![regime(0, "target", &[]), regime(1, "a", &[Z2])]);
     let missing = decide(&query(vec![source_a(), source_b()]), &partial);
-    assert_eq!(missing.detail_code(), Some("mz_transport.missing_joint_regime"));
+    assert_eq!(
+        missing.detail_code(),
+        Some(antecedent_core::reason_details::mz_transport::MISSING_JOINT_REGIME)
+    );
     let stopped = decide_mz_transport(
         &figure_1_graph(),
         &query(vec![source_a(), source_b()]),
@@ -606,7 +616,7 @@ fn outcomes_carry_the_frozen_detail_codes() {
         &ExecutionContext::for_tests(1),
     )
     .unwrap();
-    assert_eq!(stopped.detail_code(), Some("mz_transport.budget"));
+    assert_eq!(stopped.detail_code(), Some(antecedent_core::reason_details::mz_transport::BUDGET));
 }
 
 fn identified(decision: MzTransportDecision) -> Box<antecedent_identify::MzTransportDerivation> {
@@ -694,7 +704,9 @@ fn a_checked_replay_reproduces_the_stored_search_receipt_and_refuses_any_edit() 
     };
     replay(&record, MZ_TRANSPORT_DEFAULT_LIMITS, &ctx).unwrap();
     let invalid = |e: IdentificationError| e.to_string();
-    let bounds = IdentificationError::UnsupportedInput { code: "mz_transport.bounds_exceeded" };
+    let bounds = IdentificationError::UnsupportedInput {
+        code: antecedent_core::reason_details::mz_transport::BOUNDS_EXCEEDED,
+    };
     let edits: Vec<(&str, Edit)> = vec![
         ("operations consumed", Box::new(|r| r.search.operations_consumed += 1)),
         ("depth reached", Box::new(|r| r.search.depth_reached += 1)),
@@ -732,7 +744,7 @@ fn a_checked_replay_reproduces_the_stored_search_receipt_and_refuses_any_edit() 
     let tight = SearchLimits { operations: record.search.operations_limit - 1, depth: 24 };
     assert_eq!(replay(&record, tight, &ctx).unwrap_err(), bounds);
     let mut limited = ExecutionContext::for_tests(1);
-    limited.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(1 << 20) };
+    limited.set_memory_limit(Some(1 << 20));
     assert_eq!(replay(&record, MZ_TRANSPORT_DEFAULT_LIMITS, &limited).unwrap_err(), bounds);
 }
 
@@ -752,18 +764,27 @@ fn every_identification_detail_pairs_with_its_recorded_reason_code() {
         &ctx,
     )
     .unwrap_err();
-    assert_eq!(pair(&bound), ("route_not_supported", "mz_transport.bounds_exceeded"));
+    assert_eq!(
+        pair(&bound),
+        ("route_not_supported", antecedent_core::reason_details::mz_transport::BOUNDS_EXCEEDED)
+    );
     // An invalid query: `invalid_argument`.
     let same_population = query(vec![source("target", &[Z2], &[Z1]), source_b()]);
     let invalid_query =
         decide_mz_transport(&graph, &same_population, &full, MZ_TRANSPORT_DEFAULT_LIMITS, &ctx)
             .unwrap_err();
-    assert_eq!(pair(&invalid_query), ("invalid_argument", "mz_transport.invalid_query"));
+    assert_eq!(
+        pair(&invalid_query),
+        ("invalid_argument", antecedent_core::reason_details::mz_transport::INVALID_QUERY)
+    );
     // An invalid catalog (the target supplies an experiment): `invalid_argument`.
     let experimental_target = catalog(vec![regime(0, "target", &[Z2])]);
     let invalid_catalog =
         validate_mz_transport_query(&graph, &q, &experimental_target).unwrap_err();
-    assert_eq!(pair(&invalid_catalog), ("invalid_argument", "mz_transport.invalid_catalog"));
+    assert_eq!(
+        pair(&invalid_catalog),
+        ("invalid_argument", antecedent_core::reason_details::mz_transport::INVALID_CATALOG)
+    );
     // An obstruction that does not verify: `transport_not_certified`.
     let MzTransportDecision::ProvenNonTransportable(obstruction) =
         decide(&query(vec![source_a(), unhelpful()]), &full)
@@ -777,7 +798,10 @@ fn every_identification_detail_pairs_with_its_recorded_reason_code() {
             .unwrap_err();
     assert_eq!(
         pair(&invalid_obstruction),
-        ("transport_not_certified", "mz_transport.invalid_obstruction")
+        (
+            "transport_not_certified",
+            antecedent_core::reason_details::mz_transport::INVALID_OBSTRUCTION
+        )
     );
     // A derivation that does not replay: `transport_not_certified`.
     let derivation = identified(decide(&q, &full));
@@ -795,7 +819,10 @@ fn every_identification_detail_pairs_with_its_recorded_reason_code() {
     .unwrap_err();
     assert_eq!(
         pair(&invalid_derivation),
-        ("transport_not_certified", "mz_transport.invalid_derivation")
+        (
+            "transport_not_certified",
+            antecedent_core::reason_details::mz_transport::INVALID_DERIVATION
+        )
     );
     // A cited regime the catalog lacks: `transport_missing_evidence`.
     let missing = antecedent_identify::bind_mz_transport_catalog(
@@ -804,20 +831,29 @@ fn every_identification_detail_pairs_with_its_recorded_reason_code() {
         &catalog(vec![regime(0, "target", &[]), regime(1, "a", &[Z2])]),
     )
     .unwrap_err();
-    assert_eq!(pair(&missing), ("transport_missing_evidence", "mz_transport.missing_joint_regime"));
+    assert_eq!(
+        pair(&missing),
+        (
+            "transport_missing_evidence",
+            antecedent_core::reason_details::mz_transport::MISSING_JOINT_REGIME
+        )
+    );
     // A stop: `transport_budget_cancel`.
     assert_eq!(
         pair(&IdentificationError::Cancelled),
-        ("transport_budget_cancel", "mz_transport.budget")
+        ("transport_budget_cancel", antecedent_core::reason_details::mz_transport::BUDGET)
     );
     // Errors the route does not own carry no pair.
-    assert_eq!(mz_transport_refusal(&IdentificationError::msg("other")), None);
+    assert_eq!(mz_transport_refusal(&IdentificationError::out_of_range("other")), None);
     // Every decision outcome carries its own frozen pair.
     for (decision, expected) in [
-        (decide(&query(vec![source_a(), unhelpful()]), &full), "mz_transport.checked_obstruction"),
+        (
+            decide(&query(vec![source_a(), unhelpful()]), &full),
+            antecedent_core::reason_details::mz_transport::CHECKED_OBSTRUCTION,
+        ),
         (
             decide(&q, &catalog(vec![regime(0, "target", &[]), regime(1, "a", &[Z2])])),
-            "mz_transport.missing_joint_regime",
+            antecedent_core::reason_details::mz_transport::MISSING_JOINT_REGIME,
         ),
     ] {
         assert_eq!(decision.detail_code(), Some(expected));
@@ -927,12 +963,18 @@ fn fig_1ef_split_is_non_transportable_in_the_paper_but_deliberately_not_certifie
             "an obstruction after an exchange must never be claimed: {decision:?}"
         );
         assert_ne!(decision.reason_code(), Some("transport_proven_non_transportable"));
-        assert_ne!(decision.detail_code(), Some("mz_transport.checked_obstruction"));
+        assert_ne!(
+            decision.detail_code(),
+            Some(antecedent_core::reason_details::mz_transport::CHECKED_OBSTRUCTION)
+        );
         assert!(!matches!(decision, MzTransportDecision::Identified { .. }));
         let MzTransportDecision::NotCertified(inspection) = &decision else {
             panic!("expected not_certified, got {decision:?}");
         };
-        assert_eq!(inspection.detail, "mz_transport.fabricated_joint");
+        assert_eq!(
+            inspection.detail,
+            antecedent_core::reason_details::mz_transport::FABRICATED_JOINT
+        );
         assert_eq!(decision.reason_code(), Some("transport_not_certified"));
         // The combined search ended not_certified, not in an obstruction.
         assert_eq!(inspection.stages.last().map(|s| s.outcome), Some("not_certified"));
@@ -1007,7 +1049,10 @@ fn fig_2_analogue_with_an_x_experiment_and_a_z_experiment_is_a_replayed_obstruct
             panic!("the Figure 2 analogue is non-transportable, got {decision:?}");
         };
         assert_eq!(decision.reason_code(), Some("transport_proven_non_transportable"));
-        assert_eq!(decision.detail_code(), Some("mz_transport.checked_obstruction"));
+        assert_eq!(
+            decision.detail_code(),
+            Some(antecedent_core::reason_details::mz_transport::CHECKED_OBSTRUCTION)
+        );
         // The failing c-component is {Y}, inside the confounded {X, Y}.
         assert_eq!(obstruction.c0(), [FIG2_Y]);
         // No source can exchange at the terminal, each for its own reason: a
@@ -1086,7 +1131,10 @@ fn fig_2_with_an_x_experiment_and_a_z_experiment_is_a_replayed_obstruction() {
             panic!("R-443 Figure 2 is non-transportable, got {decision:?}");
         };
         assert_eq!(decision.reason_code(), Some("transport_proven_non_transportable"));
-        assert_eq!(decision.detail_code(), Some("mz_transport.checked_obstruction"));
+        assert_eq!(
+            decision.detail_code(),
+            Some(antecedent_core::reason_details::mz_transport::CHECKED_OBSTRUCTION)
+        );
         // The failing c-component is the paper's F' = {Y, Z}, inside F = {X, Y, Z}.
         assert_eq!(obstruction.c0(), [FIG2_EXACT_Z, FIG2_EXACT_Y]);
         // No source can exchange at the terminal: a holds the active X but
@@ -1134,7 +1182,10 @@ fn target_experiments_are_refused_by_design_though_the_paper_supports_them() {
         assert!(refused.to_string().contains("target regime 1 is experimental"), "{refused}");
         assert_eq!(
             mz_transport_refusal(&refused),
-            Some(("invalid_argument", "mz_transport.invalid_catalog"))
+            Some((
+                "invalid_argument",
+                antecedent_core::reason_details::mz_transport::INVALID_CATALOG
+            ))
         );
     }
     // The same query with only observational target evidence decides normally.

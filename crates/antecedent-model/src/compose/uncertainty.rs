@@ -5,7 +5,7 @@
 //! unknown is a declaration of the composition, never a default. This module
 //! turns the declarations into one parameter covariance, or refuses.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
@@ -23,7 +23,7 @@ pub struct ParameterCovariance {
     pub parameters: Vec<ParameterId>,
     /// Row-major covariance over `parameters`.
     pub covariance: Vec<f64>,
-    /// How the cross-mechanism dependence was licensed.
+    /// How the cross-mechanism dependence was supported.
     pub dependence_label: &'static str,
 }
 
@@ -102,7 +102,7 @@ pub fn assemble_parameter_covariance(
     if !is_positive_semidefinite(&cov, p) {
         let finding = CoherenceFinding::new(
             CoherenceKind::UncertaintyAlignment,
-            "mechanism_composition.uncertainty_assembled_not_psd",
+            antecedent_core::reason_details::mechanism_composition::UNCERTAINTY_ASSEMBLED_NOT_PSD,
             "composition",
             "the declared marginals and cross-covariances do not form one valid joint law; supply a positive semidefinite joint covariance",
         );

@@ -154,22 +154,39 @@ fn negative_witness_mutations_and_evidence_substitution_fail() {
     .unwrap();
     let mut altered = witness.to_record();
     altered.evidence_setting = "finite_catalog".into();
-    assert!(
+    assert_invalid_derivation(
         antecedent_identify::sid::SHedgeCertificate::from_record_checked(
-            altered, &diagram, &query, &ctx
+            altered, &diagram, &query, &ctx,
         )
-        .is_err()
+        .map(|_| ()),
+        "transport.invalid_s_hedge_evidence",
     );
 
     let mut mutated = witness.clone();
     mutated.larger.bidirected = Arc::from([]);
-    assert!(verify_s_hedge(&diagram, &query, &mutated, &ctx).is_err());
+    assert_invalid_derivation(
+        verify_s_hedge(&diagram, &query, &mutated, &ctx),
+        "transport.invalid_s_hedge",
+    );
     let mut mutated = witness.clone();
     mutated.larger.directed = Arc::from([]);
-    assert!(verify_s_hedge(&diagram, &query, &mutated, &ctx).is_err());
+    assert_invalid_derivation(
+        verify_s_hedge(&diagram, &query, &mutated, &ctx),
+        "transport.invalid_s_hedge",
+    );
     let mut different_evidence = query;
     different_evidence.source = Arc::from("another-source");
-    assert!(verify_s_hedge(&diagram, &different_evidence, &witness, &ctx).is_err());
+    assert_invalid_derivation(
+        verify_s_hedge(&diagram, &different_evidence, &witness, &ctx),
+        "transport.invalid_s_hedge",
+    );
+}
+
+fn assert_invalid_derivation(result: Result<(), IdentificationError>, expected: &str) {
+    match result {
+        Err(IdentificationError::InvalidDerivation { code }) => assert_eq!(code, expected),
+        other => panic!("expected the invalid-derivation refusal {expected}, got {other:?}"),
+    }
 }
 
 #[test]
@@ -213,6 +230,18 @@ fn every_treatment_position_and_joint_interventions_agree_with_the_oracle() {
     }
 }
 
+#[test]
+fn extreme_mechanism_probabilities_agree_with_the_oracle() {
+    // Mechanism probabilities of 1e-4 and 0.999 make the observational weights that line 3
+    // averages and the conditionals of the c-component recursion span four decades, and a
+    // selection or parent weight of zero makes a declared discrepancy a no-op. Weights may be
+    // negative: each mechanism probability stays inside [0, 1].
+    let parameterizations =
+        [(1.0e-4, 1.0e-4, 1.0e-4, 1.0e-4), (0.999, -3.0e-4, -2.0e-4, 5.0e-4), (0.5, 0.0, 0.0, 0.0)];
+    sweep(&[0], 2, &parameterizations);
+    sweep(&[1], 2, &parameterizations);
+}
+
 #[allow(clippy::too_many_lines, reason = "Independent exhaustive oracle and provider construction")]
 #[allow(clippy::cast_possible_wrap, reason = "fixture dimensions are small literals")]
 fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, f64)]) {
@@ -229,8 +258,7 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
     let checked = std::sync::atomic::AtomicU64::new(0);
     // Each directed mask is its own graph family. Nextest reserves the machine
     // for this sweep, and the masks share that budget.
-    let workers =
-        std::thread::available_parallelism().map(std::num::NonZero::get).unwrap_or(1).min(8);
+    let workers = std::thread::available_parallelism().map_or(1, std::num::NonZero::get).min(8);
     let catalog = three_node_power_set_catalog();
     let catalog = &catalog;
     let query = &query;
@@ -617,7 +645,15 @@ fn two_population_district_recursion_fails_truth_under_kernel_population_substit
         let substituted = mean(mediator_bow_laws("target", 0.0), x as i64).unwrap();
         assert!((substituted - truth).abs() > 0.2, "population substitution went unnoticed");
         // An honestly labelled source observation cannot stand in for the target leaf.
-        assert!(mean(mediator_bow_laws("source", 0.0), x as i64).is_err());
+        match mean(mediator_bow_laws("source", 0.0), x as i64) {
+            Err(antecedent_expr::EvalError::ExactLaw(law)) => {
+                assert_eq!(law.kind, "missing_exact_provider");
+                assert_eq!(&*law.population, "target");
+                assert_eq!(law.regime, Some(RegimeId::from_raw(2)));
+                assert_eq!(*law.variables, [v(0), v(1), v(2)]);
+            }
+            other => panic!("the target leaf has no exact provider, got {other:?}"),
+        }
     }
 }
 
@@ -779,8 +815,7 @@ fn four_node_branch_conformance_has_no_unchecked_obstructions() {
     };
     // Each directed mask is its own graph family. Nextest reserves the machine
     // for this test, and the families split that budget.
-    let workers =
-        std::thread::available_parallelism().map(std::num::NonZero::get).unwrap_or(1).min(64);
+    let workers = std::thread::available_parallelism().map_or(1, std::num::NonZero::get).min(64);
     let rules = std::sync::Mutex::new(std::collections::BTreeSet::new());
     let edges = &edges;
     let query = &query;
@@ -864,8 +899,7 @@ fn four_node_branch_positives_match_latent_scm_truth() {
     let message = std::sync::Mutex::new(String::new());
     let checked = std::sync::atomic::AtomicU64::new(0);
     let visited = std::sync::atomic::AtomicU64::new(0);
-    let workers =
-        std::thread::available_parallelism().map(std::num::NonZero::get).unwrap_or(1).min(64);
+    let workers = std::thread::available_parallelism().map_or(1, std::num::NonZero::get).min(64);
     std::thread::scope(|scope| {
         for worker in 0..workers {
             let failed = &failed;
@@ -1835,7 +1869,10 @@ fn a_direct_transport_step_cannot_be_relabelled_as_figure_five_line_ten() {
     let mut relabelled = record;
     let root = relabelled.root_step;
     relabelled.steps[root].rule = Rule::Source;
-    assert!(check(relabelled).is_err());
+    assert!(matches!(
+        check(relabelled),
+        Err(IdentificationError::InvalidDerivation { code }) if code == "transport.invalid_derivation"
+    ));
 }
 
 #[test]

@@ -1,7 +1,7 @@
 """Original scoped diagnostics and independently consumed source lineage.
 
 Imported evidence retains its original claim; it supplies no executable state,
-provider trust upgrade, transformed local support value or calibration license.
+provider trust upgrade, transformed local support value or calibration support.
 """
 
 from __future__ import annotations
@@ -12,6 +12,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from .decision import Contract
 from .joint_distribution import ScientificQuantity
 
@@ -156,11 +162,13 @@ class SourceEvidence:
     def original_artifact(self) -> bytes:
         return bytes(self._handle.original_artifact())
 
-    def export(self) -> bytes:
-        return bytes(self._handle.export())
+    @artifact_export
+    def export(self) -> ExportedArtifact:
+        return artifact_from_receipt(self, bytes(self._handle.export()))
 
     @classmethod
     def consume(cls, artifact: bytes) -> SourceEvidence:
+        artifact = container_bytes(artifact)
         return cls(_native.SourceEvidenceHandle.consume(artifact))
 
 

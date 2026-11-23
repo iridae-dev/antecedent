@@ -32,4 +32,4 @@ extrapolated cell's numerical value is not a known-truth claim.
 
 ## Expected summary
 
-Top-level keys: `claim, contract, estimator_contract, fixture_id, generation, tolerance` (6 fields).
+Top-level keys: `claim, contract, estimator_contract, evidence_kind, evidence_proposition, evidence_roles, evidence_source, fixture_id, generation, limitations, oracle, tolerance` (12 fields).

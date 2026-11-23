@@ -15,13 +15,22 @@ bounded subsets, would make the contract identify::
     result.best                              # cheapest verified-sufficient subset, or None
     result.export()                          # portable, independently replayable artifact
 
-Three families are supported, each deferring to its own theorem checker rather
+Seven families are supported, each deferring to its own theorem checker rather
 than matching variable names: :class:`TransportContract` (the catalog-aware
 classical transport identifier, re-verified after the hypothetical evidence is
 applied) and :class:`BackdoorContract` (the back-door identifier on the one
 joint law a study would deliver; covariates measured in separate studies never
 combine), and :class:`ZTransportContract` (a checked z-transport failure snapshot
-whose original expression leaves are re-verified and bound). Every candidate lands in exactly one class: ``verified_sufficient``,
+whose original expression leaves are re-verified and bound). A failed
+identification also reads as one contract per identifier:
+:class:`FrontDoorContract` (a mediator set measured jointly with treatment and
+outcome), :class:`InstrumentContract` (an instrument measured jointly, with its
+relevance and exclusion left as ``establish_assumption`` obligations that no
+study satisfies), :class:`HedgeContract` (experiments on the treatment or on a
+verified surrogate on the hedge) and :class:`SensitivityContract` (the
+unmeasured confounder a non-robust sensitivity analysis names). Each refuses
+``identification_repair.not_a_failure`` when the law already observed identifies
+the effect. Every candidate lands in exactly one class: ``verified_sufficient``,
 ``insufficient``, ``not_certified``, ``invalid`` or ``unevaluated``. A search
 that a budget stopped keeps its unevaluated subsets and reports ``exhausted``:
 exhaustion is never an impossibility claim, and ``none_certified`` only says
@@ -44,10 +53,19 @@ from dataclasses import dataclass, field
 from functools import partial
 from typing import Any, Literal, Protocol, cast
 
+from antecedent import _reason_details
+
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._validate import count, names, text
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError, StructuredRefusal
+from .execution import Execution, resolve_execution
 from .graph import Admg, Dag
 from .joint_distribution import ScientificQuantity
 from .transport._impl import EvidenceCatalog
@@ -71,7 +89,17 @@ Classification = Literal[
 #: How a whole repair search ended; never an impossibility claim.
 RepairOutcome = Literal["repaired", "none_certified", "exhausted"]
 #: Which theorem checker decided a repair.
-RepairFamily = Literal["transport", "backdoor", "z_transport"]
+RepairFamily = Literal[
+    "transport",
+    "backdoor",
+    "z_transport",
+    "frontdoor",
+    "instrument",
+    "hedge",
+    "sensitivity",
+]
+#: The sensitivity analysis a :class:`SensitivityContract` finding came from.
+SensitivityMethod = Literal["e_value", "omitted_variable_bias", "tipping"]
 #: The bound that ended a search early.
 SearchStop = Literal["search.operations", "search.depth", "search.memory", "search.cancelled"]
 
@@ -120,7 +148,14 @@ class ZTransportIdentification(Protocol):
         ...
 
 
-_KINDS = ("experiment", "observation", "sample_increase")
+_KINDS = (
+    "experiment",
+    "observation",
+    "sample_increase",
+    "instrument",
+    "natural_experiment",
+    "panel",
+)
 _OBJECTIVES = ("minimize_cost", "minimize_sample_budget")
 _REFUSAL = re.compile(
     r"^(?:refused: )?reason=(?P<code>[a-z_]+): (?P<detail>[a-z_]+\.[a-z_]+): (?P<message>.*)$",
@@ -195,7 +230,7 @@ def _call(function: Any, *args: Any, **kwargs: Any) -> Any:
         detail = parsed["detail"]
         if detail.endswith(".budget"):
             kind: type[RepairRefusal] = RepairBudgetRefusal
-        elif detail.split(".", 1)[0] == "repair_artifact":
+        elif detail.split(".", 1)[0] in ("repair_artifact", "evidence_plan_artifact"):
             kind = RepairArtifactRefusal
         else:
             kind = RepairRefusal
@@ -214,7 +249,7 @@ def _semantics(name: str, text: object) -> str:
         raise StudyCandidateRefusal(
             f"a candidate needs {name}",
             reason_code="design_signal_invalid",
-            detail="study_candidate.wrong_contract",
+            detail=_reason_details.study_candidate.WRONG_CONTRACT,
         )
     return text
 
@@ -341,8 +376,13 @@ class StudyCandidate:
     """A durable description of a study that could produce evidence.
 
     ``kind`` is ``experiment`` (hard ``interventions`` plus a measured margin),
-    ``observation`` (measurement with no intervention) or ``sample_increase``
-    (more rows of an existing design; produces no new regime). ``joint=True``
+    ``observation`` (measurement with no intervention), ``sample_increase``
+    (more rows of an existing design; produces no new regime), ``instrument``
+    (an instrument, the treatment and the outcome measured jointly; it never
+    establishes that the instrument is valid), ``natural_experiment`` (variation
+    the investigator does not set; no hard intervention, and its as-if-random
+    assignment is an assumption) or ``panel`` (repeated measurement of the same
+    units; time invariance of the unmeasured causes is an assumption). ``joint=True``
     declares that ``measured`` is observed jointly on each unit. ``unit`` (and
     ``cluster``), ``timing``, ``recruitment`` and ``cost`` with its ``cost_unit``
     are required semantics: a candidate without them is refused with
@@ -395,7 +435,7 @@ class StudyCandidate:
                 raise StudyCandidateRefusal(
                     f"a candidate needs a positive {name.replace('_', ' ')}",
                     reason_code="design_signal_invalid",
-                    detail="study_candidate.wrong_contract",
+                    detail=_reason_details.study_candidate.WRONG_CONTRACT,
                 )
         if self.sample_budget is not None and _count(self.sample_budget, "sample_budget") < 0:
             raise CausalValueError("sample_budget must be non-negative")
@@ -425,6 +465,21 @@ class StudyCandidate:
         """More rows of an existing design; delivers no new regime."""
         fields.setdefault("measured", ())
         return cls(label=label, kind="sample_increase", population=population, **fields)
+
+    @classmethod
+    def instrument(cls, label: str, *, population: str, **fields: Any) -> StudyCandidate:
+        """An instrument, the treatment and the outcome measured jointly."""
+        return cls(label=label, kind="instrument", population=population, **fields)
+
+    @classmethod
+    def natural_experiment(cls, label: str, *, population: str, **fields: Any) -> StudyCandidate:
+        """Observation exploiting variation the investigator does not set."""
+        return cls(label=label, kind="natural_experiment", population=population, **fields)
+
+    @classmethod
+    def panel(cls, label: str, *, population: str, **fields: Any) -> StudyCandidate:
+        """Repeated measurement of the same units, observed jointly."""
+        return cls(label=label, kind="panel", population=population, **fields)
 
     def _wire(self) -> dict[str, Any]:
         if self.evidence is not None:
@@ -626,13 +681,14 @@ class ZTransportContract:
     failure_snapshot: bytes
     max_steps: int = 100_000
     max_depth: int = 256
-    memory_bytes: int | None = None
+    execution: Execution | None = field(default=None, repr=False, compare=False)
     _stage: Any = field(init=False, repr=False, compare=False, default=None)
 
     def __post_init__(self) -> None:
         names = _names(self.names, "names", allow_empty=False)
         if not isinstance(self.failure_snapshot, bytes):
             raise CausalTypeError("failure_snapshot must be bytes from a z-transport stage")
+        execution = resolve_execution(self.execution)
         coerce_fields(self, names=names)
         coerce_fields(
             self,
@@ -642,7 +698,7 @@ class ZTransportContract:
                 self.failure_snapshot,
                 max_steps=_count(self.max_steps, "max_steps"),
                 max_depth=_count(self.max_depth, "max_depth"),
-                memory_bytes=self.memory_bytes,
+                memory_bytes=execution.limits.memory_bytes,
             ),
         )
 
@@ -653,13 +709,18 @@ class ZTransportContract:
         *,
         catalog: EvidenceCatalog,
         names: Sequence[str],
+        execution: Execution | None = None,
     ) -> ZTransportContract:
         """Use the actual identification stage's checked failure snapshot."""
         if not callable(getattr(identification, "failure_snapshot", None)):
             raise CausalTypeError("from_identification requires a z-transport identification stage")
         if not isinstance(catalog, EvidenceCatalog):
             raise CausalTypeError("catalog must be EvidenceCatalog")
-        return cls(names=names, failure_snapshot=bytes(identification.failure_snapshot(catalog)))
+        return cls(
+            names=names,
+            failure_snapshot=bytes(identification.failure_snapshot(catalog)),
+            execution=execution,
+        )
 
     @property
     def family(self) -> str:
@@ -672,7 +733,601 @@ class ZTransportContract:
         return str(self._stage.contract_id)
 
 
-Contract = TransportContract | BackdoorContract | ZTransportContract
+def _dag_of(identification: FailedIdentification) -> Dag:
+    """The directed graph of a failed identification (a ``Dag`` or a named edge list)."""
+    graph = identification.graph
+    if isinstance(graph, Dag):
+        return graph
+    if not isinstance(graph, (list, tuple)) or not identification.names:
+        raise CausalValueError(
+            "the identification's graph must be a Dag or an edge list with names"
+        )
+    return Dag.from_edges(list(identification.names), [tuple(e) for e in graph])
+
+
+@dataclass(frozen=True, slots=True)
+class FrontDoorContract:
+    """A failed front-door contract on a fixed graph.
+
+    The contract is to identify the effect of ``treatment`` on ``outcome`` in
+    ``population`` through a mediator set that intercepts every directed path and
+    is shielded from the treatment's confounding. The criterion is read from one
+    joint law, so a repair needs a study that observes treatment, outcome and the
+    mediators together; the graph may hold variables nobody measures (the
+    unmeasured confounder, an unmeasured mediator). ``observed`` are the
+    variables measured jointly so far; if they already identify the effect the
+    contract refuses with ``identification_repair.not_a_failure``.
+    """
+
+    graph: Dag
+    treatment: str
+    outcome: str
+    population: str
+    observed: Sequence[str]
+    _stage: Any = field(init=False, repr=False, compare=False, default=None)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.graph, Dag):
+            raise CausalTypeError("FrontDoorContract requires graph=Dag(...)")
+        coerce_fields(self, observed=_names(self.observed, "observed"))
+        stage = _call(
+            _native.repair_frontdoor_contract,
+            self.graph,
+            _text(self.treatment, "treatment"),
+            _text(self.outcome, "outcome"),
+            _text(self.population, "population"),
+            list(self.observed),
+        )
+        coerce_fields(self, _stage=stage)
+
+    @classmethod
+    def from_identification(
+        cls,
+        identification: FailedIdentification,
+        *,
+        population: str,
+        observed: Sequence[str],
+    ) -> FrontDoorContract:
+        """Read the graph, treatment and outcome off an :func:`antecedent.identify` result."""
+        query = identification.query
+        return cls(
+            graph=_dag_of(identification),
+            treatment=query.treatment,
+            outcome=query.outcome,
+            population=population,
+            observed=observed,
+        )
+
+    @property
+    def family(self) -> str:
+        """``frontdoor``."""
+        return "frontdoor"
+
+    @property
+    def contract_id(self) -> str:
+        """The failed contract's stable identity."""
+        return str(self._stage.contract_id)
+
+
+@dataclass(frozen=True, slots=True)
+class InstrumentContract:
+    """A failed instrumental-variable contract on a fixed graph.
+
+    A study can deliver the joint law of an instrument, the treatment and the
+    outcome, but the instrument's relevance, its exclusion and the effect
+    restriction are ``establish_assumption`` obligations that no study satisfies:
+    a repair report over this contract never certifies on data alone. A graph with
+    no instrument owes the search for one (``iv.existence``).
+    """
+
+    graph: Dag
+    treatment: str
+    outcome: str
+    population: str
+    observed: Sequence[str]
+    _stage: Any = field(init=False, repr=False, compare=False, default=None)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.graph, Dag):
+            raise CausalTypeError("InstrumentContract requires graph=Dag(...)")
+        coerce_fields(self, observed=_names(self.observed, "observed"))
+        stage = _call(
+            _native.repair_instrument_contract,
+            self.graph,
+            _text(self.treatment, "treatment"),
+            _text(self.outcome, "outcome"),
+            _text(self.population, "population"),
+            list(self.observed),
+        )
+        coerce_fields(self, _stage=stage)
+
+    @classmethod
+    def from_identification(
+        cls,
+        identification: FailedIdentification,
+        *,
+        population: str,
+        observed: Sequence[str],
+    ) -> InstrumentContract:
+        """Read the graph, treatment and outcome off an :func:`antecedent.identify` result."""
+        query = identification.query
+        return cls(
+            graph=_dag_of(identification),
+            treatment=query.treatment,
+            outcome=query.outcome,
+            population=population,
+            observed=observed,
+        )
+
+    @property
+    def family(self) -> str:
+        """``instrument``."""
+        return "instrument"
+
+    @property
+    def contract_id(self) -> str:
+        """The failed contract's stable identity."""
+        return str(self._stage.contract_id)
+
+
+@dataclass(frozen=True, slots=True)
+class HedgeContract:
+    """A hedge: an ADMG in which observation cannot identify the effect.
+
+    Only experiments answer it. An experiment that sets ``treatment`` and
+    measures ``outcome`` observes the interventional law directly; an experiment
+    on a hedge node that intercepts every directed path from treatment to
+    outcome, while its response to the treatment is identified from observation,
+    identifies the effect through ``P(y | do(x)) = sum_w P(w | do(x)) P(y |
+    do(w))``. An observation never does. ``observed`` are the variables measured
+    jointly so far (the surrogate route needs all of them).
+    """
+
+    graph: Admg
+    treatment: str
+    outcome: str
+    population: str
+    observed: Sequence[str]
+    _stage: Any = field(init=False, repr=False, compare=False, default=None)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.graph, Admg):
+            raise CausalTypeError("HedgeContract requires graph=Admg(...)")
+        coerce_fields(self, observed=_names(self.observed, "observed"))
+        stage = _call(
+            _native.repair_hedge_contract,
+            self.graph,
+            _text(self.treatment, "treatment"),
+            _text(self.outcome, "outcome"),
+            _text(self.population, "population"),
+            list(self.observed),
+        )
+        coerce_fields(self, _stage=stage)
+
+    @classmethod
+    def from_identification(
+        cls,
+        identification: FailedIdentification,
+        *,
+        population: str,
+        observed: Sequence[str],
+    ) -> HedgeContract:
+        """Read the ADMG, treatment and outcome off a failed :func:`antecedent.identify` result."""
+        graph = identification.graph
+        if not isinstance(graph, Admg):
+            raise CausalValueError("the identification's graph must be an Admg to read a hedge")
+        query = identification.query
+        return cls(
+            graph=graph,
+            treatment=query.treatment,
+            outcome=query.outcome,
+            population=population,
+            observed=observed,
+        )
+
+    @property
+    def family(self) -> str:
+        """``hedge``."""
+        return "hedge"
+
+    @property
+    def contract_id(self) -> str:
+        """The failed contract's stable identity."""
+        return str(self._stage.contract_id)
+
+
+@dataclass(frozen=True, slots=True)
+class SensitivityContract:
+    """A non-robust sensitivity finding: the unmeasured confounder to measure.
+
+    ``strength`` is the confounder strength at which the conclusion is overturned
+    (the e-value, the robustness value or the tipping parameter named by
+    ``method``). The contract models one more common cause of ``treatment`` and
+    ``outcome`` and is repaired by a study that measures it jointly with them. A
+    ``robust`` finding owes nothing and refuses with
+    ``identification_repair.not_a_failure``.
+    """
+
+    graph: Dag
+    treatment: str
+    outcome: str
+    population: str
+    observed: Sequence[str]
+    method: SensitivityMethod
+    strength: float
+    robust: bool = False
+    _stage: Any = field(init=False, repr=False, compare=False, default=None)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.graph, Dag):
+            raise CausalTypeError("SensitivityContract requires graph=Dag(...)")
+        coerce_fields(self, observed=_names(self.observed, "observed"))
+        if isinstance(self.strength, bool) or not isinstance(self.strength, (int, float)):
+            raise CausalTypeError("strength must be a number")
+        stage = _call(
+            _native.repair_sensitivity_contract,
+            self.graph,
+            _text(self.treatment, "treatment"),
+            _text(self.outcome, "outcome"),
+            _text(self.population, "population"),
+            list(self.observed),
+            str(self.method),
+            float(self.strength),
+            bool(self.robust),
+        )
+        coerce_fields(self, _stage=stage)
+
+    @classmethod
+    def from_identification(
+        cls,
+        identification: FailedIdentification,
+        *,
+        population: str,
+        observed: Sequence[str],
+        method: SensitivityMethod,
+        strength: float,
+        robust: bool = False,
+    ) -> SensitivityContract:
+        """Read the graph, treatment and outcome off an :func:`antecedent.identify` result."""
+        query = identification.query
+        return cls(
+            graph=_dag_of(identification),
+            treatment=query.treatment,
+            outcome=query.outcome,
+            population=population,
+            observed=observed,
+            method=method,
+            strength=strength,
+            robust=robust,
+        )
+
+    @property
+    def family(self) -> str:
+        """``sensitivity``."""
+        return "sensitivity"
+
+    @property
+    def contract_id(self) -> str:
+        """The failed contract's stable identity."""
+        return str(self._stage.contract_id)
+
+
+@dataclass(frozen=True, slots=True)
+class SensitivityFinding:
+    """A sensitivity analysis whose conclusion an unmeasured confounder would overturn.
+
+    ``strength`` is the confounder strength at which the conclusion is overturned (the
+    e-value, the robustness value or the tipping parameter named by ``method``). A
+    ``robust`` finding owes nothing and adds no route.
+    """
+
+    method: SensitivityMethod
+    strength: float
+    robust: bool = False
+
+    def __post_init__(self) -> None:
+        if isinstance(self.strength, bool) or not isinstance(self.strength, (int, float)):
+            raise CausalTypeError("strength must be a number")
+
+    def _wire(self) -> tuple[str, float, bool]:
+        return (str(self.method), float(self.strength), bool(self.robust))
+
+
+@dataclass(frozen=True, slots=True)
+class FailureContract:
+    """A failed identification as every theorem route a study could repair.
+
+    Where :class:`BackdoorContract` and its siblings freeze one route, this freezes
+    the failure: the back-door, front-door, instrument and hedge families (and, given a
+    non-robust ``sensitivity`` finding, the family that measures the confounder it
+    names) are rebuilt from ``graph``, ``treatment``, ``outcome`` and the variables
+    ``observed`` jointly so far. :func:`obligations` lists what every route owes,
+    :func:`generate_candidates` the unfinished studies those obligations determine and
+    :func:`antecedent.design.evidence_plan` verifies declared studies on every route and
+    orders the options that close the gap. The unmeasured common cause of each
+    bidirected edge is nameable in candidates as ``common_cause_of_<a>_<b>`` and the
+    sensitivity confounder as ``unmeasured_confounder``. An effect the graph identifies
+    refuses ``identification_repair.not_a_failure``.
+    """
+
+    graph: Dag | Admg
+    treatment: str
+    outcome: str
+    population: str
+    observed: Sequence[str]
+    sensitivity: SensitivityFinding | None = None
+    _stage: Any = field(init=False, repr=False, compare=False, default=None)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.graph, (Dag, Admg)):
+            raise CausalTypeError("FailureContract requires graph=Dag(...) or Admg(...)")
+        if self.sensitivity is not None and not isinstance(self.sensitivity, SensitivityFinding):
+            raise CausalTypeError("sensitivity must be a SensitivityFinding")
+        coerce_fields(self, observed=_names(self.observed, "observed"))
+        native = (
+            _native.evidence_failure_admg
+            if isinstance(self.graph, Admg)
+            else _native.evidence_failure_dag
+        )
+        stage = _call(
+            native,
+            self.graph,
+            _text(self.treatment, "treatment"),
+            _text(self.outcome, "outcome"),
+            _text(self.population, "population"),
+            list(self.observed),
+            None if self.sensitivity is None else self.sensitivity._wire(),
+        )
+        coerce_fields(self, _stage=stage)
+
+    @classmethod
+    def from_identification(
+        cls,
+        identification: FailedIdentification,
+        *,
+        population: str,
+        observed: Sequence[str],
+        sensitivity: SensitivityFinding | None = None,
+    ) -> FailureContract:
+        """Read the graph, treatment and outcome off a failed :func:`antecedent.identify` result."""
+        graph = identification.graph
+        if not isinstance(graph, Admg):
+            graph = _dag_of(identification)
+        query = identification.query
+        return cls(
+            graph=graph,
+            treatment=query.treatment,
+            outcome=query.outcome,
+            population=population,
+            observed=observed,
+            sensitivity=sensitivity,
+        )
+
+    @property
+    def family(self) -> str:
+        """``failure``."""
+        return "failure"
+
+    @property
+    def contract_id(self) -> str:
+        """The failed contract's stable identity."""
+        return str(self._stage.contract_id)
+
+    @property
+    def routes(self) -> tuple[str, ...]:
+        """The theorem routes a study could repair, then the routes no checker decides."""
+        return tuple(self._stage.routes)
+
+    @property
+    def variable_names(self) -> tuple[str, ...]:
+        """Every name a candidate may use, the nameable unmeasured causes included."""
+        return tuple(self._stage.variable_names)
+
+    def next_actions(self) -> tuple[dict[str, Any], ...]:
+        """The evidence-gathering next actions the obligations imply.
+
+        ``measure_variable:<name>`` for a variable the obligations name that is not measured
+        today, ``run_experiment:<name>`` for a variable an obligation sets, ``find_instrument``
+        and ``collect_panel``, each with a description that names the obligation and its proof
+        step. An assumption obligation (an instrument's validity, the time invariance a panel
+        relies on) yields no action: no study satisfies it. Advice only; nothing is executed.
+        """
+        return tuple(dict(action) for action in self._stage.next_actions())
+
+    def capability_report(self) -> dict[str, Any]:
+        """The failure as the capability report a host reads beside the refusal.
+
+        ``next_actions`` are the evidence-gathering actions of :meth:`next_actions`;
+        ``neighbors`` lists one alternative per route family that could repair the failure
+        (``identified_by:<family>``, the evidence premise it changes and the action that
+        starts it); ``unmet_obligations`` lists every owed obligation with its proof step as
+        ``required_check``. An assumption obligation is ``uncheckable`` with status
+        ``untestable``: no study establishes it. Advice only; nothing is executed.
+        """
+        report = self._stage.capability_report()
+        return {key: tuple(dict(item) for item in report[key]) for key in report}
+
+
+@dataclass(frozen=True, slots=True)
+class UnmatchedObligation:
+    """An obligation no study can address, with why (an assumption, for example)."""
+
+    id: str
+    kind: ObligationKind
+    route: str
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class StudyTemplate:
+    """An unfinished study: everything an obligation determines, nothing it does not.
+
+    The kind, population, hard interventions, measured variables, joint measurement and
+    expected evidence come from the obligations (``addresses`` lists them). Sample size,
+    recruitment, timing, unit rules, cost and feasibility are facts about a real study
+    that only the caller knows: a template :meth:`validate` refuses and only
+    :meth:`complete` turns it into a :class:`StudyCandidate`, with every declaration
+    required and none defaulted.
+    """
+
+    label: str
+    kind: str
+    population: str
+    interventions: tuple[str, ...]
+    measured: tuple[str, ...]
+    joint: bool
+    evidence: tuple[ExpectedEvidence, ...]
+    addresses: tuple[str, ...]
+    routes: tuple[str, ...]
+    minimum_sample_size: int | None
+
+    def validate(self) -> None:
+        """Always refuses ``study_candidate.declarations_required``: a template is not a study."""
+        raise StudyCandidateRefusal(
+            f"template {self.label!r} has no sample size, recruitment, timing, unit rules, "
+            "cost or feasibility; those are caller declarations and are never defaulted",
+            reason_code="design_signal_invalid",
+            detail=_reason_details.study_candidate.DECLARATIONS_REQUIRED,
+        )
+
+    def complete(
+        self,
+        *,
+        sample_size: int,
+        recruitment: str,
+        timing: str,
+        unit: str,
+        cost: int,
+        cost_unit: str,
+        sample_budget: int,
+        feasible: bool,
+        label: str | None = None,
+        cluster: str | None = None,
+        whole_cluster_sampling: bool = False,
+        notes: Sequence[str] = (),
+        provider: str | None = None,
+    ) -> StudyCandidate:
+        """The :class:`StudyCandidate` this template becomes under the caller's declarations."""
+        if not isinstance(feasible, bool):
+            raise CausalTypeError("feasible must be declared as a bool")
+        if self.minimum_sample_size is not None and _count(sample_size, "sample_size") < (
+            self.minimum_sample_size
+        ):
+            raise StudyCandidateRefusal(
+                f"template {self.label!r} addresses an obligation that needs at least "
+                f"{self.minimum_sample_size} additional rows; the declared sample size is "
+                f"{sample_size}",
+                reason_code="design_signal_invalid",
+                detail=_reason_details.study_candidate.SAMPLE_BELOW_OBLIGATION,
+            )
+        return StudyCandidate(
+            label=self.label if label is None else label,
+            kind=self.kind,
+            population=self.population,
+            interventions=self.interventions,
+            measured=self.measured,
+            joint=self.joint,
+            sample_size=sample_size,
+            recruitment=recruitment,
+            timing=timing,
+            unit=unit,
+            cost=cost,
+            cost_unit=cost_unit,
+            cluster=cluster,
+            whole_cluster_sampling=whole_cluster_sampling,
+            sample_budget=sample_budget,
+            feasible=feasible,
+            notes=notes,
+            evidence=self.evidence,
+            provider=provider,
+        )
+
+    @classmethod
+    def _from_native(cls, value: Mapping[str, Any]) -> StudyTemplate:
+        return cls(
+            label=value["label"],
+            kind=value["kind"],
+            population=value["population"],
+            interventions=tuple(value["interventions"]),
+            measured=tuple(value["measured"]),
+            joint=bool(value["joint"]),
+            evidence=tuple(
+                ExpectedEvidence(
+                    e["population"],
+                    e["measured"],
+                    e["interventions"],
+                    e["levels"],
+                    e["conditioned_on"],
+                    e["joint"],
+                )
+                for e in value["evidence"]
+            ),
+            addresses=tuple(value["addresses"]),
+            routes=tuple(value["routes"]),
+            minimum_sample_size=value["minimum_sample_size"],
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class CandidateGeneration:
+    """The unfinished studies a failed identification's obligations determine."""
+
+    templates: tuple[StudyTemplate, ...]
+    unmatched: tuple[UnmatchedObligation, ...]
+
+
+def generate_candidates(contract: FailureContract) -> CandidateGeneration:
+    """Restate the obligations of a failed identification as unfinished study candidates.
+
+    An experiment is proposed for each experiment an obligation asks for, an observation
+    for each joint, conditional or marginal law, and, on the instrument route, an instrument
+    study and a natural experiment; the repeated-measurement alternative yields a panel. An
+    assumption (an instrument's validity, the time invariance a panel relies on) is never
+    addressed by a study and is returned in ``unmatched`` with its reason. Completing a
+    template with :meth:`StudyTemplate.complete` is the caller's declaration of cost,
+    timing, recruitment, unit rules and sample size.
+    """
+    if not isinstance(contract, FailureContract):
+        raise CausalTypeError("generate_candidates requires a FailureContract")
+    return _generation_of(contract._stage.templates())
+
+
+def _generation_of(wire: Mapping[str, Any]) -> CandidateGeneration:
+    """The candidate generation Rust wrote as ``wire`` (templates and unmatched obligations)."""
+    return CandidateGeneration(
+        templates=tuple(StudyTemplate._from_native(t) for t in wire["templates"]),
+        unmatched=tuple(
+            UnmatchedObligation(u["id"], u["kind"], u["route"], u["reason"])
+            for u in wire["unmatched"]
+        ),
+    )
+
+
+def candidate_templates(contract: FailureContract) -> tuple[StudyTemplate, ...]:
+    """The templates of :func:`generate_candidates`."""
+    return generate_candidates(contract).templates
+
+
+Contract = (
+    TransportContract
+    | BackdoorContract
+    | ZTransportContract
+    | FrontDoorContract
+    | InstrumentContract
+    | HedgeContract
+    | SensitivityContract
+    | FailureContract
+)
+_CONTRACTS = (
+    TransportContract,
+    BackdoorContract,
+    ZTransportContract,
+    FrontDoorContract,
+    InstrumentContract,
+    HedgeContract,
+    SensitivityContract,
+    FailureContract,
+)
 
 
 def _contract_of(
@@ -680,7 +1335,7 @@ def _contract_of(
     population: str | None,
     observed: Sequence[str] | None,
 ) -> Contract:
-    if isinstance(failure, (TransportContract, BackdoorContract, ZTransportContract)):
+    if isinstance(failure, _CONTRACTS):
         return failure
     if hasattr(failure, "graph") and hasattr(failure, "query") and hasattr(failure, "status"):
         if population is None or observed is None:
@@ -692,7 +1347,9 @@ def _contract_of(
             failure, population=population, observed=observed
         )
     raise CausalTypeError(
-        "obligations() requires a TransportContract, a BackdoorContract, a ZTransportContract or a failed identification"
+        "obligations() requires a repair contract (TransportContract, BackdoorContract, "
+        "ZTransportContract, FrontDoorContract, InstrumentContract, HedgeContract or "
+        "SensitivityContract) or a failed identification"
     )
 
 
@@ -740,14 +1397,13 @@ class RepairLimits:
     """Declared bounds of the subset search.
 
     ``max_operations`` bounds the subsets evaluated, ``max_depth`` the largest
-    subset size (at most four) and ``memory_bytes`` the live-state memory. A bound
-    that stops the search is reported as ``exhausted`` with every unevaluated
+    subset size (at most four). The live-state memory limit belongs to the
+    ``Execution`` the search runs under. A bound that stops the search is reported as ``exhausted`` with every unevaluated
     subset listed; subsets beyond ``max_depth`` are never examined and say so.
     """
 
     max_operations: int = 4096
     max_depth: int = 3
-    memory_bytes: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -861,7 +1517,7 @@ class RepairResult:
     an impossibility claim) or ``exhausted`` (a budget stop with nothing
     certified; never a verdict). ``inference_claim`` is always ``none``: a
     repair says the contract would identify if the studies deliver exactly their
-    declared evidence, not that any estimate is licensed.
+    declared evidence, not that any estimate is supported.
     """
 
     __slots__ = ("_report", "_stage", "obligations", "ranked", "receipt", "table")
@@ -940,9 +1596,10 @@ class RepairResult:
                 return row.classification
         raise CausalValueError(f"no outcome for the subset {sorted(wanted)}")
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """A portable ``repair_search_receipt_v1`` artifact; see :func:`consume`."""
-        return bytes(_call(self._stage.export))
+        return artifact_from_receipt(self, bytes(_call(self._stage.export)))
 
     def explain(self) -> str:
         """What the search found, what it did not, and why it is not an estimate."""
@@ -1010,12 +1667,12 @@ class RepairResult:
 
 
 def repair(
-    contract: TransportContract | BackdoorContract,
+    contract: Contract,
     candidates: Sequence[StudyCandidate],
     objective: Literal["minimize_cost", "minimize_sample_budget"] = "minimize_cost",
     limits: RepairLimits | None = None,
     *,
-    cancel: CancelToken | None = None,
+    execution: Execution | None = None,
 ) -> RepairResult:
     """Which candidates, singly or in bounded subsets, repair the failed contract.
 
@@ -1032,9 +1689,16 @@ def repair(
     the budget stops before the search (:class:`RepairBudgetRefusal`). A stop
     during the search is a result with ``outcome == "exhausted"``.
     """
-    if not isinstance(contract, (TransportContract, BackdoorContract, ZTransportContract)):
+    if isinstance(contract, FailureContract):
         raise CausalTypeError(
-            "repair requires a TransportContract, BackdoorContract or ZTransportContract"
+            "a FailureContract spans several theorem routes; plan it with "
+            "antecedent.design.evidence_plan, which verifies every route"
+        )
+    if not isinstance(contract, _CONTRACTS):
+        raise CausalTypeError(
+            "repair requires a repair contract: TransportContract, BackdoorContract, "
+            "ZTransportContract, FrontDoorContract, InstrumentContract, HedgeContract or "
+            "SensitivityContract"
         )
     candidates = tuple(candidates)
     if any(not isinstance(c, StudyCandidate) for c in candidates):
@@ -1042,14 +1706,15 @@ def repair(
     if objective not in _OBJECTIVES:
         raise CausalValueError(f"objective must be one of {', '.join(_OBJECTIVES)}")
     limits = RepairLimits() if limits is None else limits
+    execution = resolve_execution(execution)
     stage = _call(
         contract._stage.repair,
         json.dumps([c._wire() for c in candidates]),
         objective,
         max_operations=_count(limits.max_operations, "max_operations"),
         max_depth=_count(limits.max_depth, "max_depth"),
-        memory_bytes=limits.memory_bytes,
-        cancel=cancel,
+        memory_bytes=execution.limits.memory_bytes,
+        cancel=execution.cancel,
     )
     return RepairResult(stage)
 
@@ -1059,8 +1724,7 @@ def consume(
     *,
     max_operations: int = _CONSUME_MAX_OPERATIONS,
     max_depth: int = _CONSUME_MAX_DEPTH,
-    memory_bytes: int | None = None,
-    cancel: CancelToken | None = None,
+    execution: Execution | None = None,
 ) -> RepairResult:
     """Independently replay an exported repair report and return it.
 
@@ -1076,6 +1740,8 @@ def consume(
     honestly, nor does it check that arriving studies will deliver their declared
     evidence.
     """
+    execution = resolve_execution(execution)
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
     stage = _call(
@@ -1083,18 +1749,23 @@ def consume(
         artifact,
         max_operations=_count(max_operations, "max_operations"),
         max_depth=_count(max_depth, "max_depth"),
-        memory_bytes=memory_bytes,
-        cancel=cancel,
+        memory_bytes=execution.limits.memory_bytes,
+        cancel=execution.cancel,
     )
     return RepairResult(stage)
 
 
 __all__ = [
     "BackdoorContract",
+    "CandidateGeneration",
     "CandidateOutcome",
     "Derivation",
     "EvidenceObligation",
     "ExpectedEvidence",
+    "FailureContract",
+    "FrontDoorContract",
+    "HedgeContract",
+    "InstrumentContract",
     "RepairArtifactRefusal",
     "RepairBudgetRefusal",
     "RepairFamily",
@@ -1104,12 +1775,19 @@ __all__ = [
     "RepairResult",
     "SearchReceipt",
     "SearchStop",
+    "SensitivityContract",
+    "SensitivityFinding",
+    "SensitivityMethod",
     "StudyCandidate",
     "StudyCandidateRefusal",
+    "StudyTemplate",
+    "UnmatchedObligation",
     "TransportContract",
     "ZTransportContract",
     "UnresolvedAssumption",
+    "candidate_templates",
     "consume",
+    "generate_candidates",
     "obligations",
     "repair",
 ]

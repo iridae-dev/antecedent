@@ -56,7 +56,7 @@ class StructuralRanking:
 
 
 def _rank_structural_result(candidates: Sequence[StructuralCandidate]) -> StructuralRanking:
-    """Order candidates when no probabilistic model is licensed.
+    """Order candidates when no probabilistic model is supported.
 
     Verified structural sufficiency first, then fewer cost units, then a smaller sample
     budget, then the semantic id; invariant to input order. This is neither an

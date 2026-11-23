@@ -5,7 +5,7 @@
 //! observational study measures `{X, Z}` and a trial of `do(Z)` measures
 //! `{X, Y}`. Every law is enumerated from one structural model.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "../../antecedent-estimate/tests/common/mod.rs"]
 mod common;
@@ -102,6 +102,8 @@ fn exported_point_is_recomputed_by_an_independent_consumer() {
     let consumed =
         consume_mixed_source_artifact(&bytes, MixedSourceConsumeLimits::default(), &ctx).unwrap();
     assert_eq!(consumed.distribution().probabilities, result.distribution().probabilities);
+    // The consumer's replayed point is the structural truth, not merely the producer's.
+    assert!((risk_of(consumed.distribution()) - truth(1)).abs() < 1e-12);
     // The artifact names the study and regime of every cited leaf, and the proof carries
     // the frozen rule-set version and each step's source distribution.
     let wire = MixedSourceArtifactWire::decode(&bytes).unwrap();
@@ -211,6 +213,14 @@ fn a_mutated_artifact_fails_independent_consumption() {
         original.check_variable_names(&relabelled),
         Err(MixedSourceArtifactError::NamesMismatch)
     );
+    // A resealed premise edit that still replays leaves the evidence digest stale.
+    refuse(
+        mutate(&|w| {
+            w.operation_limit -= 1;
+            w.premises_digest = w.expected_premises_digest().unwrap();
+        }),
+        &|e| matches!(e, MixedSourceArtifactError::EvidenceMismatch),
+    );
     // A consistent rewrite of the premises must still reproduce the decision.
     for edit in [
         (&|w: &mut MixedSourceArtifactWire| w.proof.stages.push(("rule_search".into(), "x".into())))
@@ -260,14 +270,14 @@ fn a_mutated_artifact_fails_independent_consumption() {
     ));
     // Another version is refused before the payload is read.
     let mut versioned = original.clone();
-    versioned.version = 2;
+    versioned.version = 1;
     assert!(matches!(
         consume_mixed_source_artifact(
             &versioned.export().unwrap(),
             MixedSourceConsumeLimits::default(),
             &ctx
         ),
-        Err(IoError::UnsupportedVersion { version: 2 })
+        Err(IoError::UnsupportedVersion { version: 1 })
     ));
 }
 
@@ -289,6 +299,16 @@ fn refresh_keeps_the_proof_and_refuses_changed_evidence_identity() {
     );
     let after = refreshed.estimate(&ctx).unwrap();
     assert_ne!(after.distribution().probabilities, before.distribution().probabilities);
+    // The refreshed point is the exact risk under the shifted structural model, and the
+    // unrefreshed one is still the original truth.
+    let refreshed_point = risk_of(&after.distributions()[0]);
+    let shifted_truth = shifted.risk(&[(X, 1)], Y);
+    assert!(
+        (refreshed_point - shifted_truth).abs() < 1e-12,
+        "{refreshed_point} vs {shifted_truth}"
+    );
+    assert!((shifted_truth - truth(1)).abs() > 1e-3, "the shift must change the truth");
+    assert!((risk_of(&before.distributions()[0]) - truth(1)).abs() < 1e-12);
     // A law under another snapshot is evidence the frozen catalog never bound.
     let relabelled = data
         .laws()
@@ -307,7 +327,13 @@ fn refresh_keeps_the_proof_and_refuses_changed_evidence_identity() {
         })
         .collect::<Vec<_>>();
     let relabelled = ExactTransportData::try_new(relabelled, data.max_support_rows()).unwrap();
-    assert!(prepared.refresh(relabelled, &ctx).is_err());
+    let error = prepared.refresh(relabelled, &ctx).unwrap_err();
+    assert!(
+        matches!(&error, IoError::Refused { code, message }
+            if *code == "transport_missing_provider"
+                && message.contains("does not match catalog binding")),
+        "{error:?}"
+    );
     // A law for another regime is not evidence the frozen catalog bound either.
     let mut foreign = data.laws().to_vec();
     let law = &foreign[0];
@@ -322,7 +348,13 @@ fn refresh_keeps_the_proof_and_refuses_changed_evidence_identity() {
     )
     .unwrap();
     let foreign = ExactTransportData::try_new(foreign, data.max_support_rows()).unwrap();
-    assert!(prepared.refresh(foreign, &ctx).is_err());
+    let error = prepared.refresh(foreign, &ctx).unwrap_err();
+    assert!(
+        matches!(&error, IoError::Refused { code, message }
+            if *code == "transport_missing_provider"
+                && message.contains("names an unknown evidence regime")),
+        "{error:?}"
+    );
 }
 
 #[test]
@@ -350,7 +382,11 @@ fn a_functional_decided_on_another_graph_is_refused() {
     match error {
         IoError::Refused { code, message } => {
             assert_eq!(code, "transport_not_certified");
-            assert!(message.starts_with("mixed_search.invalid_derivation"), "{message}");
+            assert!(
+                message
+                    .starts_with(antecedent_core::reason_details::mixed_search::INVALID_DERIVATION),
+                "{message}"
+            );
         }
         other => panic!("expected a typed refusal, got {other:?}"),
     }
@@ -367,17 +403,19 @@ fn prepare_requires_a_request() {
         panic!("identified");
     };
     let functional = bind_mixed_source_catalog(&graph_x(), &derivation, &catalog).unwrap();
+    let error = StudyBuilder::mixed_source(
+        graph_x(),
+        functional,
+        MIXED_SOURCE_DEFAULT_LIMITS,
+        data,
+        Vec::new(),
+        ExactEvaluationLimits::default(),
+        &ctx,
+    )
+    .unwrap_err();
     assert!(
-        StudyBuilder::mixed_source(
-            graph_x(),
-            functional,
-            MIXED_SOURCE_DEFAULT_LIMITS,
-            data,
-            Vec::new(),
-            ExactEvaluationLimits::default(),
-            &ctx,
-        )
-        .is_err()
+        matches!(&error, IoError::Convert(m) if m == "prepare at least one target request"),
+        "{error:?}"
     );
 }
 

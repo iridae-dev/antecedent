@@ -11,6 +11,9 @@ use antecedent::{RandomizedEffectQuery, Study};
 use antecedent_core::VariableId;
 use antecedent_data::TabularData;
 
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
+
 fn query(n: usize) -> RandomizedEffectQuery {
     RandomizedEffectQuery::bernoulli_itt(
         VariableId::from_raw(0),
@@ -48,13 +51,26 @@ fn supported_ancova_and_fixed_cuped_intervals_round_trip_and_refuse_forgery() {
         let prepared =
             Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
         let result = prepared.estimate(&data, &ctx).unwrap();
+        retained_graphless::assert_retained_graphless_program(
+            "supported_ancova_and_fixed_cuped_interva",
+            &prepared,
+            &result,
+            &ctx,
+        );
         let fit = result.randomized_effect().unwrap();
         let [lower, upper] = fit.interval_95.expect("supported precision interval");
-        assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+        assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
         assert!(lower < fit.effect && fit.effect < upper);
+        // The generated treatment effect is exactly 1.4; the covariates and the sinusoid
+        // average out (observed deviation <= 0.002), and the interval covers it.
+        assert!((fit.effect - 1.4).abs() < 0.03, "{label}: {}", fit.effect);
+        assert!(lower < 1.4 && 1.4 < upper, "{label}: [{lower}, {upper}]");
+        if label == "ancova" {
+            assert!(upper - lower < 0.3, "ancova must exploit the covariates: {}", upper - lower);
+        }
         assert!(fit.standard_error.unwrap() > 0.0);
         assert_eq!(
-            result.interval.as_ref().unwrap().method,
+            result.interval().as_ref().unwrap().method,
             antecedent_core::IntervalMethod::AnalyticSe
         );
         let bytes = prepared.encode_contracted_result(&result, label, &ctx).unwrap();
@@ -62,29 +78,65 @@ fn supported_ancova_and_fixed_cuped_intervals_round_trip_and_refuse_forgery() {
         assert_eq!(artifact.randomized_effect.as_ref().unwrap().interval_95, Some([lower, upper]));
         assert_eq!(
             artifact.randomized_effect.as_ref().unwrap().graphless_support_status.as_deref(),
-            Some("licensed")
+            Some("supported")
         );
         let mut forged = artifact.clone();
         forged.randomized_effect.as_mut().unwrap().interval_95.as_mut().unwrap()[1] += 0.5;
-        assert!(
-            antecedent_io::encode_analysis_result_artifact(
-                &forged,
-                header.variable_names.clone(),
-                "forged-interval"
-            )
-            .is_err()
-        );
+        let refused = antecedent_io::encode_analysis_result_artifact(
+            &forged,
+            header.variable_names.clone(),
+            "forged-interval",
+        )
+        .expect_err("a forged interval must not encode");
+        assert!(refused.to_string().contains("fabricated interval"), "{label}: {refused}");
         let mut forged = artifact;
         forged.randomized_effect.as_mut().unwrap().standard_error = Some(0.01);
-        assert!(
-            antecedent_io::encode_analysis_result_artifact(
-                &forged,
-                header.variable_names,
-                "forged-se"
-            )
-            .is_err()
-        );
+        let refused = antecedent_io::encode_analysis_result_artifact(
+            &forged,
+            header.variable_names,
+            "forged-se",
+        )
+        .expect_err("a forged standard error must not encode");
+        assert!(refused.to_string().contains("fabricated interval"), "{label}: {refused}");
     }
+}
+
+/// More covariates than the normal interval's measured envelope publish the HC2 Student interval
+/// instead of withholding one, and the stored result states it is the uncalibrated construction.
+#[test]
+fn an_ancova_beyond_the_measured_covariates_publishes_the_flagged_student_interval() {
+    let n = 400;
+    let x1 = (0..n).map(|i| (0.17 * i as f64).sin()).collect::<Vec<_>>();
+    let x2 = (0..n).map(|i| (0.11 * i as f64).cos()).collect::<Vec<_>>();
+    let x3 = (0..n).map(|i| (0.23 * i as f64 + 0.4).sin()).collect::<Vec<_>>();
+    let y = (0..n)
+        .map(|i| {
+            2.0 + 1.2 * x1[i] - 0.7 * x2[i]
+                + 0.4 * x3[i]
+                + 0.5 * (0.29 * i as f64).sin()
+                + 1.4 * f64::from(i % 2 == 0)
+        })
+        .collect::<Vec<_>>();
+    let data = TabularData::from_f64_columns([
+        ("outcome", y.as_slice()),
+        ("baseline_a", x1.as_slice()),
+        ("baseline_b", x2.as_slice()),
+        ("baseline_c", x3.as_slice()),
+    ])
+    .unwrap();
+    let ctx = ExecutionContext::for_tests(0xA11C_0A);
+    let query = query(n).with_ancova(vec![
+        VariableId::from_raw(1),
+        VariableId::from_raw(2),
+        VariableId::from_raw(3),
+    ]);
+    let result = Study::tabular(data).query(query).build().unwrap().run(&ctx).unwrap();
+    let fit = result.randomized_effect().unwrap();
+    let [lower, upper] = fit.interval_95.expect("flagged interval beyond two covariates");
+    assert!(lower < fit.effect && fit.effect < upper);
+    assert!((fit.effect - 1.4).abs() < 0.03, "{}", fit.effect);
+    assert_eq!(fit.uncertainty.as_ref(), "bernoulli_ancova_hc2_bell_mccaffrey_student_interval");
+    assert!(result.support_status().is_none());
 }
 
 #[test]
@@ -110,8 +162,11 @@ fn sparse_ancova_and_fixed_cuped_remain_point_only() {
         let fit = result.randomized_effect().unwrap();
         assert!(fit.interval_95.is_none());
         assert!(fit.standard_error.is_none());
-        assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
-        assert!(result.support_status.is_none());
+        assert_eq!(
+            result.interval().as_ref().unwrap().method,
+            antecedent_core::IntervalMethod::None
+        );
+        assert!(result.support_status().is_none());
     }
 }
 
@@ -181,9 +236,11 @@ fn three_hundred_row_trials_publish_intervals_from_their_own_arm_support() {
                 .interval_95
                 .unwrap_or_else(|| panic!("{name} {label}: 300 rows must publish an interval"));
             assert!(lower < fit.effect && fit.effect < upper, "{name} {label}");
+            assert!((fit.effect - 1.4).abs() < 0.03, "{name} {label}: {}", fit.effect);
+            assert!(lower < 1.4 && 1.4 < upper, "{name} {label}: [{lower}, {upper}]");
             assert_eq!(
-                result.support_status,
-                Some(antecedent::support::CellStatus::Licensed),
+                result.support_status(),
+                Some(antecedent::support::CellStatus::Supported),
                 "{name} {label}"
             );
         }
@@ -205,9 +262,9 @@ fn weak_arm_support_withholds_the_interval_and_names_the_arm_rule() {
             let result =
                 Study::tabular(data.clone()).query(query).build().unwrap().run(&ctx).unwrap();
             let fit = result.randomized_effect().unwrap();
-            assert!(result.support_status.is_none(), "{name} {label}");
+            assert!(result.support_status().is_none(), "{name} {label}");
             if label == "ancova" {
-                // The ANCOVA has a small-arm construction of its own, never licensed.
+                // The ANCOVA has a small-arm construction of its own, never supported.
                 assert!(fit.interval_95.is_some(), "{name} {label}");
                 assert_eq!(
                     fit.uncertainty.as_ref(),
@@ -226,4 +283,118 @@ fn weak_arm_support_withholds_the_interval_and_names_the_arm_rule() {
             );
         }
     }
+}
+
+/// Sixty four-row clusters whose outcomes carry a cluster-level baseline shared by their rows.
+/// Thirty are treated; the realized assignment alternates by cluster. Returns the query, the data
+/// and the true per-row effect (every row's effect is exactly `1.4`).
+fn cluster_trial(treated_clusters: usize) -> (RandomizedEffectQuery, TabularData) {
+    const CLUSTERS: usize = 60;
+    const SIZE: usize = 4;
+    let n = CLUSTERS * SIZE;
+    let cluster_of = |i: usize| i / SIZE;
+    // Treated clusters are the first `treated_clusters` of a fixed interleaving.
+    let treated = |c: usize| (c * 7 % CLUSTERS) < treated_clusters;
+    let baseline = (0..n)
+        .map(|i| 2.0 * (0.37 * cluster_of(i) as f64).sin() + 0.1 * (0.9 * i as f64).cos())
+        .collect::<Vec<_>>();
+    let y = (0..n)
+        .map(|i| {
+            3.0 + 1.5 * baseline[i]
+                + 0.2 * (0.29 * i as f64).sin()
+                + 1.4 * f64::from(treated(cluster_of(i)))
+        })
+        .collect::<Vec<_>>();
+    let data = TabularData::from_f64_columns([
+        ("outcome", y.as_slice()),
+        ("baseline", baseline.as_slice()),
+    ])
+    .unwrap();
+    let query = RandomizedEffectQuery::with_design(
+        antecedent_core::RandomizationDesign::Cluster { treated_clusters },
+        VariableId::from_raw(0),
+        (0..n).map(|i| treated(cluster_of(i))).collect::<Vec<_>>(),
+        vec![treated_clusters as f64 / CLUSTERS as f64; n],
+        (0..n).map(|i| Arc::<str>::from(format!("cluster-{}", cluster_of(i)))).collect::<Vec<_>>(),
+        (0..n).map(|i| Arc::<str>::from(format!("row-{i}"))).collect::<Vec<_>>(),
+        ("control", "treated"),
+    );
+    (query, data)
+}
+
+#[test]
+fn cluster_fixed_cuped_keeps_the_cluster_unit_and_its_own_support() {
+    let (query, data) = cluster_trial(30);
+    let ctx = ExecutionContext::for_tests(0xC1_0573);
+    let run = |query: RandomizedEffectQuery| {
+        let prepared =
+            Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
+        let result = prepared.estimate(&data, &ctx).unwrap();
+        (prepared, result)
+    };
+    let (_, plain) = run(query.clone());
+    let (prepared, adjusted) = run(query.clone().with_fixed_cuped(VariableId::from_raw(1), 1.5));
+    retained_graphless::assert_retained_graphless_program(
+        "cluster_fixed_cuped_keeps_the_cluster_un",
+        &prepared,
+        &adjusted,
+        &ctx,
+    );
+    let (plain_fit, fit) =
+        (plain.randomized_effect().unwrap(), adjusted.randomized_effect().unwrap());
+    // Same estimand and unit of analysis: the cluster, 30 clusters per arm, per-row ITT.
+    assert_eq!(fit.assignment_design.as_ref(), "cluster");
+    assert_eq!((fit.control_units, fit.treatment_units), (30, 30));
+    assert_eq!(fit.estimand.as_ref(), "itt");
+    assert_eq!(fit.uncertainty.as_ref(), "cluster_fixed_cuped_neyman_normal_interval");
+    assert_eq!(plain_fit.uncertainty.as_ref(), "cluster_neyman_normal_interval");
+    let [lower, upper] = fit.interval_95.expect("30 clusters per arm publish an interval");
+    let [plain_lower, plain_upper] = plain_fit.interval_95.expect("unadjusted cluster interval");
+    assert!(lower < 1.4 && 1.4 < upper, "[{lower}, {upper}]");
+    assert!((fit.effect - 1.4).abs() < 0.05, "{}", fit.effect);
+    assert!(
+        (upper - lower) < 0.5 * (plain_upper - plain_lower),
+        "the cluster-level covariate must narrow the interval: {} vs {}",
+        upper - lower,
+        plain_upper - plain_lower
+    );
+    // The adjusted route holds its own graphless support, never the unadjusted cluster row.
+    assert_eq!(adjusted.support_status(), Some(antecedent::support::CellStatus::Supported));
+    let bytes = prepared.encode_contracted_result(&adjusted, "cluster-cuped", &ctx).unwrap();
+    let (_, header, artifact) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    let randomized = artifact.randomized_effect.as_ref().unwrap();
+    assert_eq!(randomized.uncertainty, "cluster_fixed_cuped_neyman_normal_interval");
+    assert_eq!(randomized.graphless_support_status.as_deref(), Some("supported"));
+    // Relabelling the adjusted result as the unadjusted one must not keep the support.
+    let mut relabelled = artifact.clone();
+    relabelled.randomized_effect.as_mut().unwrap().uncertainty =
+        "cluster_neyman_normal_interval".into();
+    antecedent_io::encode_analysis_result_artifact(
+        &relabelled,
+        header.variable_names.clone(),
+        "relabelled",
+    )
+    .expect_err("an adjusted cluster result must not carry the unadjusted uncertainty label");
+    let mut forged = artifact;
+    forged.randomized_effect.as_mut().unwrap().interval_95.as_mut().unwrap()[1] += 0.5;
+    antecedent_io::encode_analysis_result_artifact(&forged, header.variable_names, "forged")
+        .expect_err("a forged interval must not encode");
+}
+
+#[test]
+fn cluster_fixed_cuped_with_too_few_clusters_is_point_only_and_a_learned_slope_is_refused() {
+    let ctx = ExecutionContext::for_tests(0xC1_0574);
+    // 20 treated of 60 clusters: below the 30-per-arm independent-cluster support.
+    let (query, data) = cluster_trial(20);
+    let result = Study::tabular(data.clone())
+        .query(query.clone().with_fixed_cuped(VariableId::from_raw(1), 1.5))
+        .build()
+        .unwrap()
+        .run(&ctx)
+        .unwrap();
+    assert!(result.randomized_effect().unwrap().interval_95.is_none());
+    assert!(result.support_status().is_none());
+    // A slope fitted from these rows treats rows as independent; it is not a cluster route.
+    let learned = query.with_ancova(vec![VariableId::from_raw(1)]);
+    assert!(learned.validate().is_err(), "ANCOVA must not run on a cluster design");
 }

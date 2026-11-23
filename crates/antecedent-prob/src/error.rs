@@ -1,13 +1,23 @@
 //! Probability / inference errors.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::diagnostic::RouteNativeDiagnostic;
 use thiserror::Error;
 
 /// Errors from prior construction, posterior storage, or inference backends.
 #[derive(Clone, Debug, Eq, PartialEq, Error)]
 #[non_exhaustive]
 pub enum ProbError {
+    /// Worker admission stopped the operation.
+    #[error(transparent)]
+    Admission(antecedent_core::execution::AdmissionError),
+    /// Cancellation of a named probability operation; no result was published.
+    #[error("{stage}: probability computation cancelled")]
+    Cancelled {
+        /// Stable operation detail, such as `hmc.cancelled`.
+        stage: &'static str,
+    },
     /// Shape / dimension mismatch.
     #[error("shape error: {message}")]
     Shape {
@@ -48,4 +58,43 @@ pub enum ProbError {
         /// Human-readable context, led by the code.
         message: String,
     },
+    /// A route check failed, or the route reported model restriction,
+    /// computational failure, or unsupported inference.
+    ///
+    /// `diagnostics` is the record. `summary` is prose and is not parsed.
+    #[error("{summary}")]
+    Route {
+        /// What the route measured, for a human reader.
+        summary: String,
+        /// Route records, including a failed check when one failed.
+        diagnostics: Vec<RouteNativeDiagnostic>,
+    },
+}
+
+impl ProbError {
+    /// Route records on this error.
+    ///
+    /// Empty when this error is not a route outcome. A failed check in
+    /// [`Self::Route`] is included.
+    #[must_use = "a failed route check is dropped if the records are discarded"]
+    pub fn route_diagnostics(&self) -> &[RouteNativeDiagnostic] {
+        match self {
+            Self::Route { diagnostics, .. } => diagnostics,
+            _ => &[],
+        }
+    }
+}
+
+impl<E> From<antecedent_core::execution::MapExecutionError<E>> for ProbError
+where
+    Self: From<E>,
+{
+    fn from(error: antecedent_core::execution::MapExecutionError<E>) -> Self {
+        match error {
+            antecedent_core::execution::MapExecutionError::Admission(error) => {
+                Self::Admission(error)
+            }
+            antecedent_core::execution::MapExecutionError::Work(error) => Self::from(error),
+        }
+    }
 }

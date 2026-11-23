@@ -12,13 +12,11 @@
 //!
 //! Every reading keeps the posterior claim and the anytime-valid frequentist
 //! claim in separate, labelled fields, and every result is labelled
-//! `derived_unmeasured`.
+//! `derived_not_measured`.
 
-use antecedent::analysis::adaptive_inference::{
-    AdaptiveInferenceRefusal, AdaptiveInferenceSession,
-};
+use antecedent::analysis::adaptive_inference::AdaptiveInferenceSession;
 use antecedent::analysis::adaptive_participant_procedure::ParticipantProcedure;
-use antecedent_stats::adaptive_inference::{
+use antecedent::inference::adaptive_inference::{
     AnytimeSettings, ArmPrior, BetaPrior, BorrowingPlan, CorrelationPrior, DecisionRules,
     FutilityRule, HistoricalPrior, LookDecision, LookReading, ParticipantDeclaration,
     ParticipantHistory, ParticipantSimulationRequest, ResolvedArmPrior,
@@ -32,28 +30,7 @@ use crate::measurement_model_api::{
 };
 use crate::transport_common::execution_context;
 
-type Refused<T> = (Option<T>, Option<String>);
-
-fn refusal_value(refusal: &AdaptiveInferenceRefusal) -> Json {
-    json!({
-        "code": refusal.code,
-        "stage": "adaptive_inference",
-        "detail": refusal.detail,
-        "message": refusal.message,
-        "offending": Json::Null,
-        "remedy": Json::Null,
-    })
-}
-
-fn refused<T>(refusal: &AdaptiveInferenceRefusal) -> Refused<T> {
-    (None, Some(refusal_value(refusal).to_string()))
-}
-
-fn refused_all<T>(refusals: &[AdaptiveInferenceRefusal]) -> Refused<T> {
-    let mut first = refusals.first().map_or_else(|| json!({}), refusal_value);
-    first["refusals"] = Json::Array(refusals.iter().map(refusal_value).collect());
-    (None, Some(first.to_string()))
-}
+use crate::adaptive_inference_api::{Refused, refused, refused_all};
 
 fn optional<T>(
     map: &Map<String, Json>,
@@ -213,7 +190,7 @@ fn decision_json(decision: LookDecision) -> Json {
 fn reading_json(reading: &LookReading) -> Json {
     let posterior = &reading.posterior;
     let frequentist = &reading.frequentist;
-    let comparison = |c: &antecedent_stats::adaptive_inference::ComparisonReading| json!({"arm": c.arm, "lower": c.lower, "upper": c.upper});
+    let comparison = |c: &antecedent::inference::adaptive_inference::ComparisonReading| json!({"arm": c.arm, "lower": c.lower, "upper": c.upper});
     json!({
         "look": reading.look,
         "enrolled": reading.enrolled,
@@ -324,7 +301,7 @@ impl ParticipantProcedureHandle {
                 "alpha_per_arm": spec.alpha_per_arm(),
             },
             "cell": cell.id(),
-            "calibration": antecedent_stats::adaptive_inference::DERIVED_UNMEASURED,
+            "calibration": antecedent::io::contract_section::CalibrationStatus::NotMeasured.as_str(),
         })
         .to_string()
     }
@@ -333,65 +310,68 @@ impl ParticipantProcedureHandle {
     #[pyo3(signature = (truth, request_json, memory_bytes=None, cancel=None))]
     fn simulate(
         &self,
+        py: Python<'_>,
         truth: Vec<f64>,
         request_json: &str,
         memory_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<Refused<String>> {
-        let value = parse(request_json, "participant simulation request")?;
-        let map = object(&value, "participant simulation request")?;
-        let request = ParticipantSimulationRequest {
-            replications: small(map, "replications")?,
-            seed: unsigned(map, "seed")?,
-            true_correlation: present(map, "true_correlation")
-                .map(|_| real(map, "true_correlation"))
-                .transpose()?,
-        };
-        let ctx = execution_context(0, memory_bytes, cancel);
-        Ok(match self.inner.simulate(&truth, &request, &ctx) {
-            Ok(report) => {
-                let summary = &report.summary;
-                let receipt = &report.simulation.receipt;
-                let fractions = &summary.stop_fractions;
-                (
-                    Some(
-                        json!({
-                            "procedure_identity": report.procedure_identity,
-                            "calibration": report.calibration,
-                            "receipt": crate::adaptive_procedure_api::receipt_json(receipt),
-                            "summary": {
-                                "replications": summary.replications,
-                                "mean_enrolled": summary.mean_enrolled,
-                                "mean_completed": summary.mean_completed,
-                                "stop_fractions": {
-                                    "expected_loss": fractions.expected_loss,
-                                    "futility": fractions.futility,
-                                    "recruitment_cap": fractions.recruitment_cap,
-                                    "horizon": fractions.horizon,
+        crate::catch_ffi(|| {
+            let value = parse(request_json, "participant simulation request")?;
+            let map = object(&value, "participant simulation request")?;
+            let request = ParticipantSimulationRequest {
+                replications: small(map, "replications")?,
+                seed: unsigned(map, "seed")?,
+                true_correlation: present(map, "true_correlation")
+                    .map(|_| real(map, "true_correlation"))
+                    .transpose()?,
+            };
+            let ctx = execution_context(0, memory_bytes, cancel);
+            Ok(match py.detach(|| self.inner.simulate(&truth, &request, &ctx)) {
+                Ok(report) => {
+                    let summary = &report.summary;
+                    let receipt = &report.simulation.receipt;
+                    let fractions = &summary.stop_fractions;
+                    (
+                        Some(
+                            json!({
+                                "procedure_identity": report.procedure_identity,
+                                "calibration": report.calibration,
+                                "receipt": crate::adaptive_procedure_api::receipt_json(receipt),
+                                "summary": {
+                                    "replications": summary.replications,
+                                    "mean_enrolled": summary.mean_enrolled,
+                                    "mean_completed": summary.mean_completed,
+                                    "stop_fractions": {
+                                        "expected_loss": fractions.expected_loss,
+                                        "futility": fractions.futility,
+                                        "recruitment_cap": fractions.recruitment_cap,
+                                        "horizon": fractions.horizon,
+                                    },
+                                    "decision_fractions": summary.decision_fractions,
+                                    "covered_every_look": summary.covered_every_look,
+                                    "covered_at_stop": summary.covered_at_stop,
+                                    "contrast_covered_at_stop": summary.contrast_covered_at_stop,
                                 },
-                                "decision_fractions": summary.decision_fractions,
-                                "covered_every_look": summary.covered_every_look,
-                                "covered_at_stop": summary.covered_at_stop,
-                                "contrast_covered_at_stop": summary.contrast_covered_at_stop,
-                            },
-                            "replicates": report.simulation.replicates.iter().map(|r| json!({
-                                "look": r.look,
-                                "reason": r.reason.as_str(),
-                                "decision": r.decision,
-                                "enrolled": r.enrolled,
-                                "completed": r.completed,
-                                "best_treatment": r.best_treatment,
-                                "covered_every_look": r.covered_every_look,
-                                "covered_at_stop": r.covered_at_stop,
-                                "contrast_covered_at_stop": r.contrast_covered_at_stop,
-                            })).collect::<Vec<_>>(),
-                        })
-                        .to_string(),
-                    ),
-                    None,
-                )
-            }
-            Err(refusal) => refused(&refusal),
+                                "replicates": report.simulation.replicates.iter().map(|r| json!({
+                                    "look": r.look,
+                                    "reason": r.reason.as_str(),
+                                    "decision": r.decision,
+                                    "enrolled": r.enrolled,
+                                    "completed": r.completed,
+                                    "best_treatment": r.best_treatment,
+                                    "covered_every_look": r.covered_every_look,
+                                    "covered_at_stop": r.covered_at_stop,
+                                    "contrast_covered_at_stop": r.contrast_covered_at_stop,
+                                })).collect::<Vec<_>>(),
+                            })
+                            .to_string(),
+                        ),
+                        None,
+                    )
+                }
+                Err(refusal) => refused(&refusal),
+            })
         })
     }
 
@@ -400,13 +380,14 @@ impl ParticipantProcedureHandle {
     #[pyo3(signature = (truth, seed, true_correlation=None, cancel=None))]
     fn simulate_history(
         &self,
+        py: Python<'_>,
         truth: Vec<f64>,
         seed: u64,
         true_correlation: Option<f64>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> Refused<String> {
         let ctx = execution_context(0, None, cancel);
-        match self.inner.simulate_history(&truth, true_correlation, seed, &ctx) {
+        match py.detach(|| self.inner.simulate_history(&truth, true_correlation, seed, &ctx)) {
             Ok(history) => (Some(history_json(&history).to_string()), None),
             Err(refusal) => refused(&refusal),
         }
@@ -416,40 +397,53 @@ impl ParticipantProcedureHandle {
     #[pyo3(signature = (history_json, cancel=None))]
     fn read_history(
         &self,
+        py: Python<'_>,
         history_json: &str,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<Refused<String>> {
-        let history = history_of(&parse(history_json, "participant history")?)?;
-        let ctx = execution_context(0, None, cancel);
-        Ok(match self.inner.read_history(&history, &ctx) {
-            Ok(report) => (
-                Some(
-                    json!({
-                        "procedure_identity": report.procedure_identity,
-                        "calibration": report.calibration,
-                        "priors": priors_json(&report.priors),
-                        "readings": readings_json(&report.readings),
-                        "decision": decision_json(report.decision),
-                    })
-                    .to_string(),
+        crate::catch_ffi(|| {
+            let history = history_of(&parse(history_json, "participant history")?)?;
+            let ctx = execution_context(0, None, cancel);
+            Ok(match py.detach(|| self.inner.read_history(&history, &ctx)) {
+                Ok(report) => (
+                    Some(
+                        json!({
+                            "procedure_identity": report.procedure_identity,
+                            "calibration": report.calibration,
+                            "priors": priors_json(&report.priors),
+                            "readings": readings_json(&report.readings),
+                            "decision": decision_json(report.decision),
+                        })
+                        .to_string(),
+                    ),
+                    None,
                 ),
-                None,
-            ),
-            Err(refusal) => refused(&refusal),
+                Err(refusal) => refused(&refusal),
+            })
         })
     }
 
     /// Re-declare the procedure with another borrowing plan while borrowing
     /// is still open (no look performed).
+    #[pyo3(signature = (borrowing_json, looks_performed, history_json=None))]
     fn amend_borrowing(
         &self,
         borrowing_json: &str,
         looks_performed: usize,
+        history_json: Option<&str>,
     ) -> PyResult<Refused<ParticipantProcedureHandle>> {
-        let plan = borrowing_of(&parse(borrowing_json, "borrowing plan")?)?;
-        Ok(match self.inner.amend_borrowing(&plan, looks_performed) {
-            Ok(inner) => (Some(Self { inner }), None),
-            Err(refusal) => refused(&refusal),
+        crate::catch_ffi(|| {
+            let plan = borrowing_of(&parse(borrowing_json, "borrowing plan")?)?;
+            // A retained history is evidence of looks the caller's count cannot understate.
+            let looks_performed = match history_json {
+                Some(text) => looks_performed
+                    .max(history_of(&parse(text, "participant history")?)?.batches.len()),
+                None => looks_performed,
+            };
+            Ok(match self.inner.amend_borrowing(&plan, looks_performed) {
+                Ok(inner) => (Some(Self { inner }), None),
+                Err(refusal) => refused(&refusal),
+            })
         })
     }
 
@@ -457,20 +451,25 @@ impl ParticipantProcedureHandle {
     #[pyo3(signature = (label, arm_labels, history_json, cancel=None))]
     fn prepare_session(
         &self,
+        py: Python<'_>,
         label: &str,
         arm_labels: Vec<String>,
         history_json: &str,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<Refused<AdaptiveInferenceHandle>> {
-        let history = history_of(&parse(history_json, "participant history")?)?;
-        let ctx = execution_context(0, None, cancel);
-        let declaration = match self.inner.retained_declaration(label, arm_labels, &history, &ctx) {
-            Ok(declaration) => declaration,
-            Err(refusal) => return Ok(refused(&refusal)),
-        };
-        Ok(match AdaptiveInferenceSession::prepare(declaration) {
-            Ok(inner) => (Some(AdaptiveInferenceHandle { inner }), None),
-            Err(refusals) => refused_all(&refusals),
+        crate::catch_ffi(|| {
+            let history = history_of(&parse(history_json, "participant history")?)?;
+            let ctx = execution_context(0, None, cancel);
+            let declaration = match py
+                .detach(|| self.inner.retained_declaration(label, arm_labels, &history, &ctx))
+            {
+                Ok(declaration) => declaration,
+                Err(refusal) => return Ok(refused(&refusal)),
+            };
+            Ok(match AdaptiveInferenceSession::prepare(declaration) {
+                Ok(inner) => (Some(AdaptiveInferenceHandle { inner }), None),
+                Err(refusals) => refused_all(&refusals),
+            })
         })
     }
 }
@@ -480,10 +479,12 @@ impl ParticipantProcedureHandle {
 fn participant_procedure_declare(
     declaration_json: &str,
 ) -> PyResult<Refused<ParticipantProcedureHandle>> {
-    let declaration = declaration_of(&parse(declaration_json, "participant declaration")?)?;
-    Ok(match ParticipantProcedure::declare(declaration) {
-        Ok(inner) => (Some(ParticipantProcedureHandle { inner }), None),
-        Err(refusals) => refused_all(&refusals),
+    crate::catch_ffi(|| {
+        let declaration = declaration_of(&parse(declaration_json, "participant declaration")?)?;
+        Ok(match ParticipantProcedure::declare(declaration) {
+            Ok(inner) => (Some(ParticipantProcedureHandle { inner }), None),
+            Err(refusals) => refused_all(&refusals),
+        })
     })
 }
 

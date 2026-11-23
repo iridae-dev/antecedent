@@ -6,7 +6,7 @@
 //! `python/tests/test_intervention_programs.py`. Python builds program text and calls this
 //! same entry point, so a difference would mean a second implementation had crept in.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::gcm::{
     FittedGcm, PreparedPolicy, TemporalPlan, counterfactual_policy, counterfactual_temporal_policy,
@@ -20,6 +20,17 @@ use antecedent_core::{
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_model::{MechanismFamily, NodeFamilyConstraint, SelectionOptions};
+
+/// The refusal of `result` names `needle` (its typed message), rather than failing for any reason.
+fn refused_with<T, E: std::fmt::Debug>(result: Result<T, E>, needle: &str) {
+    match result {
+        Ok(_) => panic!("expected a refusal naming {needle:?}, got a value"),
+        Err(error) => {
+            let text = format!("{error:?}");
+            assert!(text.contains(needle), "refusal {text} does not name {needle:?}");
+        }
+    }
+}
 
 /// Sum (mod 2^64) of the IEEE-754 bits of every draw of the policy run in the Python test.
 const DISCRETE_FLOOR_DRAW_CHECKSUM: u64 = 13_792_273_858_822_143_950;
@@ -73,10 +84,16 @@ fn a_sample_with_its_noise_replays_bit_for_bit_and_accepts_caller_noise() {
     }
 
     // A noise column of the wrong length or with a non-finite value is refused.
-    assert!(noise_table_from_columns(&fitted.model, 256, &noise.values()[1..], &ctx).is_err());
+    refused_with(
+        noise_table_from_columns(&fitted.model, 256, &noise.values()[1..], &ctx),
+        "noise must hold n_rows values for each of the model's nodes",
+    );
     let mut poisoned = noise.values().to_vec();
     poisoned[3] = f64::NAN;
-    assert!(noise_table_from_columns(&fitted.model, 256, &poisoned, &ctx).is_err());
+    refused_with(
+        noise_table_from_columns(&fitted.model, 256, &poisoned, &ctx),
+        "fixed noise must be finite, got NaN",
+    );
 }
 
 #[test]
@@ -121,7 +138,7 @@ fn the_temporal_counterfactual_without_a_lag_read_is_the_static_counterfactual_p
 
     // One table per step is required.
     let short = counterfactual_temporal_policy(fitted.model.clone(), &steps[..1], &plan, &ctx);
-    assert!(short.is_err());
+    refused_with(short, "one exogenous posterior per step is required");
 }
 
 #[test]
@@ -202,7 +219,7 @@ fn a_discrete_parent_policy_has_portable_rust_python_bits() {
 }
 
 #[test]
-fn a_policy_value_is_the_paired_difference_against_the_same_noise_with_its_licence() {
+fn a_policy_value_is_the_paired_difference_against_the_same_noise_with_its_support() {
     let (fitted, _) = fitted_price_model(0.0);
     let ctx = ExecutionContext::for_tests(21);
     let n = 2_000;
@@ -240,20 +257,26 @@ fn a_policy_value_is_the_paired_difference_against_the_same_noise_with_its_licen
     assert!(on_demand.difference_simulation_stderr < unpaired);
 
     // A hard level is identifiable; a transform of the generated value is simulation-only.
-    assert!(on_price.support.identification.is_licensed());
+    assert!(on_price.support.identification.is_supported());
     let floor = policy_value(&fitted.model, &[price_floor()], price, n, &ctx).unwrap();
-    assert!(floor.support.simulation.is_licensed() && floor.support.counterfactual.is_licensed());
+    assert!(floor.support.simulation.is_supported() && floor.support.counterfactual.is_supported());
     match &floor.support.identification {
         antecedent::gcm::RouteDecision::Refused { code, .. } => {
-            assert_eq!(code, "policy_route_not_licensed");
+            assert_eq!(code, "policy_route_not_supported");
         }
         other => panic!("expected a refusal, got {other:?}"),
     }
     assert!(floor.mean_difference < 0.0, "a 15% cut outweighs the units the floor lifts");
 
     // One draw cannot report an error; an unknown outcome is refused.
-    assert!(policy_value(&fitted.model, &[], price, 1, &ctx).is_err());
-    assert!(policy_value(&fitted.model, &[], VariableId::from_raw(9), n, &ctx).is_err());
+    refused_with(
+        policy_value(&fitted.model, &[], price, 1, &ctx),
+        "needs at least two draws to report its simulation error",
+    );
+    refused_with(
+        policy_value(&fitted.model, &[], VariableId::from_raw(9), n, &ctx),
+        "outcome V9 is absent from the fitted model",
+    );
 }
 
 #[test]
@@ -265,8 +288,8 @@ fn a_prepared_policy_reruns_the_one_shot_value_without_compiling_the_program_aga
 
     let prepared = PreparedPolicy::prepare(&fitted.model, vec![floor.clone()]).unwrap();
     assert_eq!((prepared.program_compilations(), prepared.model_bindings()), (1, 1));
-    assert!(prepared.support().simulation.is_licensed());
-    assert!(!prepared.support().identification.is_licensed());
+    assert!(prepared.support().simulation.is_supported());
+    assert!(!prepared.support().identification.is_supported());
 
     // Each rerun, at any seed and outcome, is the one-shot call to the last bit, and compiles
     // nothing.
@@ -282,7 +305,7 @@ fn a_prepared_policy_reruns_the_one_shot_value_without_compiling_the_program_aga
     }
     assert_eq!(prepared.program_compilations(), 1);
 
-    // A refit model rebinds the program: the licence and overlay are resolved against it, the
+    // A refit model rebinds the program: the support and overlay are resolved against it, the
     // program is not compiled again, and the value equals the one-shot value on that model.
     let (refit, _) = fitted_price_model(0.5);
     let rebound = prepared.rebind(&refit.model).unwrap();
@@ -296,7 +319,16 @@ fn a_prepared_policy_reruns_the_one_shot_value_without_compiling_the_program_aga
     // A program the model refuses is refused at preparation; a request that cannot report a
     // simulation error is refused when run.
     let unknown = Intervention::set(VariableId::from_raw(9), Value::f64(1.0));
-    assert!(PreparedPolicy::prepare(&fitted.model, vec![unknown]).is_err());
-    assert!(prepared.value(&fitted.model, price, 1, &ctx).is_err());
-    assert!(prepared.value(&fitted.model, VariableId::from_raw(9), 800, &ctx).is_err());
+    refused_with(
+        PreparedPolicy::prepare(&fitted.model, vec![unknown]),
+        "variable V9 not in compiled model",
+    );
+    refused_with(
+        prepared.value(&fitted.model, price, 1, &ctx),
+        "needs at least two draws to report its simulation error",
+    );
+    refused_with(
+        prepared.value(&fitted.model, VariableId::from_raw(9), 800, &ctx),
+        "outcome V9 is absent from the fitted model",
+    );
 }

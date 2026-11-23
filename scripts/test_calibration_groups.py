@@ -4,15 +4,157 @@ from __future__ import annotations
 
 import sys
 import tempfile
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from _repo import ensure_scripts_on_path
+from _repo import ensure_scripts_on_path, load_toml
 
 ensure_scripts_on_path()
 import calibration_groups as groups  # noqa: E402
+
+
+class SimulationBudgetTest(unittest.TestCase):
+    def test_non_divisible_job_count_does_not_round_workers_up(self):
+        with patch.object(groups, "CORES", 12):
+            self.assertEqual(groups.threads_per_job(5), 2)
+            self.assertEqual(groups.threads_per_job(20), 1)
+
+    def test_widened_job_waits_for_enough_workers_and_returns_them(self):
+        budget = groups.SimulationBudget(4)
+        started, acquired = threading.Event(), threading.Event()
+
+        def other():
+            started.set()
+            with budget.claim(2):
+                acquired.set()
+                self.assertEqual(budget.available, 2)
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            with budget.claim(3):
+                future = pool.submit(other)
+                self.assertTrue(started.wait(5))
+                self.assertFalse(acquired.wait(0.05))
+                self.assertEqual(budget.available, 1)
+            future.result(timeout=5)
+        self.assertEqual(budget.available, 4)
+        with self.assertRaisesRegex(RuntimeError, "failed job"), budget.claim(4):
+            raise RuntimeError("failed job")
+        self.assertEqual(budget.available, 4)
+        with self.assertRaises(ValueError), budget.claim(5):
+            self.fail("over-budget job was admitted")
+
+    def test_tail_widening_never_reduces_base_workers(self):
+        group = groups.Group(1, "suite: long", False, False)
+        with (
+            patch.object(groups, "CORES", 12),
+            patch.object(groups, "last_durations", return_value={group.label: 100}),
+        ):
+            self.assertEqual(groups.tail_threads([(group, None)], 2, 6), {group.label: 6})
+
+
+class OwedSelectionTest(unittest.TestCase):
+    """`--owed` runs exactly the owed list: owed records' groups and the groups named for a route."""
+
+    LABELS = [
+        "facade_current: existing",  # its record is current
+        "facade_stale: old_test",  # its record is owed
+        "facade_new: brand_new_test",  # no record; a route names it
+        "facade_unrelated: extra",  # no record, no route
+        "antecedent-prob: sbc",  # a pass/fail gate
+    ]
+
+    def candidates(self) -> list[groups.Group]:
+        return [groups.Group(i, label, False, True) for i, label in enumerate(self.LABELS, 1)]
+
+    def facets(self, items):
+        records = [
+            {"id": "cur", "test": "crates/antecedent/tests/facade_current.rs::existing"},
+            {"id": "stale", "test": "crates/antecedent/tests/facade_stale.rs::old_test"},
+        ]
+        return SimpleNamespace(
+            current_owed=lambda: (items, {}, {}),
+            load_records=lambda: records,
+            split_group=lambda spec: tuple((spec.partition(": ")[0], spec.partition(": ")[2])),
+        )
+
+    def select(self, items):
+        with patch.dict(sys.modules, {"calibration_status": self.facets(items)}):
+            return groups.select_owed(self.candidates())
+
+    def test_only_the_groups_of_owed_records_and_named_routes_run(self):
+        items = [
+            {"kind": "record", "id": "stale", "reason": "inputs_changed", "groups": []},
+            {
+                "kind": "route",
+                "id": "route:cap/new",
+                "reason": "no_record",
+                "groups": ["facade_new: brand_new_test"],
+            },
+        ]
+        selection = self.select(items)
+        self.assertEqual([g.index for g in selection.groups], [2, 3])
+        self.assertEqual(selection.reasons[2], "1 record(s) owed")
+        self.assertEqual(selection.reasons[3], "1 interval route(s) with no record")
+        self.assertEqual(selection.owed_records, 2)
+
+    def test_nothing_owed_selects_nothing_not_even_the_pass_fail_gates(self):
+        self.assertEqual(self.select([]).groups, [])
+
+    def test_a_current_record_does_not_select_its_group(self):
+        items = [{"kind": "record", "id": "stale", "reason": "probe_mismatch", "groups": []}]
+        self.assertNotIn(1, [g.index for g in self.select(items).groups])
+
+    def test_a_route_spec_matches_by_file_and_filter_substring(self):
+        group = groups.Group(1, "facade_new: brand_new_test_l95", False, True)
+        self.assertTrue(groups.route_group_matches(group, ("facade_new", "brand_new_test")))
+        self.assertTrue(groups.route_group_matches(group, ("facade_new", "")))
+        self.assertFalse(groups.route_group_matches(group, ("facade_other", "")))
+        self.assertFalse(groups.route_group_matches(group, ("facade_new", "different")))
+
+    def test_an_owed_item_no_group_can_run_is_reported_not_silently_dropped(self):
+        items = [
+            {"kind": "record", "id": "ghost", "reason": "inputs_changed", "groups": []},
+            {"kind": "route", "id": "route:cap/lost", "reason": "no_record", "groups": []},
+            {"kind": "route", "id": "route:cap/typo", "reason": "no_record", "groups": ["nobody: x"]},
+        ]
+        import contextlib
+        import io
+
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            selection = self.select(items)
+        self.assertEqual(selection.groups, [])
+        text = err.getvalue()
+        self.assertIn("no gate group measures owed record ghost", text)
+        self.assertIn("route:cap/lost names no gate group", text)
+        self.assertIn("no gate group 'nobody: x' for route:cap/typo", text)
+
+    def test_graphless_claim_keys_resolve_to_published_design_methods(self):
+        support = load_toml(groups.ROOT / "parity/support_graphless.toml")["support"]
+        keys = {" / ".join(row[key] for key in ("family", "design", "method")) for row in support}
+        for group in groups.gate_groups():
+            if group.claim and group.head != "joint_panel_calibration":
+                self.assertIn(group.claim, keys, group.label)
+
+    def test_both_arm_median_records_are_required(self):
+        group = next(group for group in groups.gate_groups()
+                     if group.test_filter == "temporal_design_quantile_arm_median_bootstrap_intervals")
+        records = [{"id": rid, "test": f"crates/antecedent/tests/{group.head}.rs::{group.test_filter}"}
+                   for rid in group.required_records]
+        self.assertEqual(len(records), 2)
+        self.assertEqual(groups.group_items([group], records), [])
+        self.assertIn(records[1]["id"], groups.group_items([group], records[:1])[0]["detail"])
+
+    def test_owed_is_exclusive_with_all_and_missing_only(self):
+        with (
+            patch.object(sys, "argv", ["calibration_groups.py", "plan", "--owed", "--all"]),
+            self.assertRaises(SystemExit),
+        ):
+            groups.main()
 
 
 class WorkspaceSuiteOwnershipTest(unittest.TestCase):
@@ -65,27 +207,26 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
             )
         ]
 
-    def test_missing_io_estimate_and_facade_records_selected_when_all_existing_current(
-        self,
-    ) -> None:
-        records = [{"id": "current", "test": "crates/antecedent/tests/facade_current.rs::existing"}]
-        facets = SimpleNamespace(
-            load_records=lambda records=records: records,
-            load_surface=lambda: {},
-            assess=lambda surface, rows: [SimpleNamespace(stale=[], resolved=True, records=rows)],
-        )
-        with patch.dict(sys.modules, {"calibration_facets": facets}):
-            selection = groups.select(self.candidates(), False)
-        self.assertEqual(selection.owed_records, 0)
-        self.assertEqual([g.index for g in selection.groups], [2, 3, 4, 5, 6, 7])
-        for index in (2, 3, 4, 5):
-            self.assertEqual(selection.reasons[index], "no record in the registry")
-        self.assertEqual(selection.reasons[6], "pass/fail gate, no record")
-        # If the missing cells disappear, current registry rows do not trigger gates.
-        with patch.dict(sys.modules, {"calibration_facets": facets}):
-            self.assertEqual(
-                groups.select([self.candidates()[0], self.candidates()[5]], False).groups, []
-            )
+    def test_coverage_receipt_cannot_replace_measurement_or_a_sibling_study(self):
+        group = groups.Group(1, "suite: effect", False, False,
+                             SimpleNamespace(tests=("effect",)))
+        sibling = {"test": "crates/a/tests/suite.rs::effect_wide"}
+        with patch("gate_carry.gate_rows", return_value={group.safe: {"passed": 1}}):
+            items = groups.group_items([group], [sibling])
+            self.assertEqual([i["groups"] for i in items], [[group.label]])
+            self.assertEqual(groups.group_items([group], [{"test": "crates/a/tests/suite.rs::effect"}]), [])
+
+    def test_stale_gate_is_owed_even_when_all_coverage_is_current(self):
+        group = groups.Group(1, "suite: effect", False, False, evidence="gate")
+        record = {"id": "cov.effect", "test": "crates/a/tests/suite.rs::effect"}
+        ledger = {group.safe: {"group": group.safe, "passed": 1}}
+        with patch("gate_carry.gate_rows", return_value=ledger):
+            items = groups.group_items([group], [record])
+        self.assertEqual([item["reason"] for item in items], ["stale_gate"])
+        facets = SimpleNamespace(current_owed=lambda: (items, {}, {}), load_records=lambda: [record])
+        with patch.dict(sys.modules, {"calibration_status": facets}):
+            self.assertEqual(groups.select([group], False), groups.select_owed([group]))
+            self.assertEqual(groups.select_owed([group]).groups, [group])
 
     def test_missing_only_preserves_stale_records_and_skips_drift_and_recordless_gates(
         self,
@@ -98,10 +239,13 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
             encoding="utf-8",
         )
         with (
-            patch.dict(sys.modules, {"calibration_facets": facets}),
+            patch.dict(sys.modules, {"calibration_status": facets}),
             patch.object(groups, "GATE_REGISTRY", ledger),
         ):
-            selection = groups.select(self.candidates(), False, missing_only=True)
+            candidates = self.candidates()
+            for group in candidates[5:]:
+                group.evidence = "gate"
+            selection = groups.select(candidates, False, missing_only=True)
         self.assertEqual([g.index for g in selection.groups], [2, 3, 4, 5])
         narrowed = groups.filter_selection(selection, ["nested_*: missing"])
         self.assertEqual([g.index for g in narrowed.groups], [3, 4])
@@ -145,7 +289,7 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
         for record, expected in ((legacy, [group]), (current, [])):
             facets = SimpleNamespace(load_records=lambda record=record: [record])
             with (
-                patch.dict(sys.modules, {"calibration_facets": facets}),
+                patch.dict(sys.modules, {"calibration_status": facets}),
                 patch.object(groups, "GATE_REGISTRY", ledger),
             ):
                 self.assertEqual(groups.select([group], False, missing_only=True).groups, expected)
@@ -163,15 +307,19 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
             "functional": "target_interventional_contrast.v1",
             "interval_method": "percentile_bootstrap",
         }
-        marker = "declared_selection_joint_pretreatment_standardization"
+        marker = "declared_selection_joint_pretreatment_standardization_bounded_outcome_confidence_set"
         current = {
             **legacy,
-            "functional": "target_interventional_contrast." + marker,
+            "functional": "target_interventional_contrast.declared_selection_joint_pretreatment_standardization.bounded_outcome_confidence_set",
             "id": "cov.new_" + marker,
+            "interval_method": "percentile_bootstrap_or_logical_support",
         }
         self.assertFalse(groups.measures_current_protocol(group, legacy))
         self.assertTrue(groups.measures_current_protocol(group, current))
         self.assertFalse(groups.measures_current_protocol(group, {**current, "id": legacy["id"]}))
+        self.assertFalse(
+            groups.measures_current_protocol(group, {**current, "interval_method": "percentile_bootstrap"})
+        )
 
     def test_upgraded_weighted_protocols_require_new_records_despite_old_gate_success(self) -> None:
         for name, marker in (
@@ -219,7 +367,7 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
                     patch.dict(
                         sys.modules,
                         {
-                            "calibration_facets": SimpleNamespace(
+                            "calibration_status": SimpleNamespace(
                                 load_records=lambda records=records: records
                             )
                         },
@@ -315,13 +463,13 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
         )
         with (
             patch.dict(
-                sys.modules, {"calibration_facets": SimpleNamespace(load_records=lambda: [old])}
+                sys.modules, {"calibration_status": SimpleNamespace(load_records=lambda: [old])}
             ),
             patch.object(groups, "GATE_REGISTRY", ledger),
         ):
             self.assertEqual(groups.select([group], False, missing_only=True).groups, [group])
         with patch.dict(
-            sys.modules, {"calibration_facets": SimpleNamespace(load_records=lambda: [new])}
+            sys.modules, {"calibration_status": SimpleNamespace(load_records=lambda: [new])}
         ):
             self.assertEqual(groups.select([group], False, missing_only=True).groups, [])
 
@@ -409,7 +557,7 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
 
     def test_recordless_knn_requires_protocol_marker_at_every_grid_point(self) -> None:
         group = groups.Group(
-            1, "knn_matching_calibration: knn_matching_interval_ci_coverage", False, True
+            1, "knn_matching_calibration: knn_matching_interval_ci_coverage", False, True, evidence="gate"
         )
         ledger = self.root / "knn-gates.toml"
         for markers, expected in ((0, [group]), (2, [group]), (3, [])):
@@ -423,60 +571,11 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
             )
             with (
                 patch.dict(
-                    sys.modules, {"calibration_facets": SimpleNamespace(load_records=lambda: [])}
+                    sys.modules, {"calibration_status": SimpleNamespace(load_records=lambda: [])}
                 ),
                 patch.object(groups, "GATE_REGISTRY", ledger),
             ):
                 self.assertEqual(groups.select([group], False, missing_only=True).groups, expected)
-
-    def test_prebuild_groups_actual_package_targets_and_retains_lib_commands(self) -> None:
-        candidates = self.candidates() + [groups.Group(8, "nested_bayesian: another", False, True)]
-        with patch.object(
-            groups.subprocess, "run", return_value=SimpleNamespace(returncode=0)
-        ) as run:
-            self.assertEqual(groups.prebuild(candidates), 0)
-        commands = [call.args[0] for call in run.call_args_list]
-        self.assertEqual(
-            commands,
-            [
-                ["cargo", "test", "--release", "-p", "antecedent-prob", "--lib", "--no-run"],
-                [
-                    "cargo",
-                    "test",
-                    "--release",
-                    "-p",
-                    "antecedent",
-                    "--test",
-                    "facade_current",
-                    "--test",
-                    "facade_new",
-                    "--no-run",
-                ],
-                [
-                    "cargo",
-                    "test",
-                    "--release",
-                    "-p",
-                    "antecedent-estimate",
-                    "--test",
-                    "nested_fisher",
-                    "--test",
-                    "recovery",
-                    "--no-run",
-                ],
-                [
-                    "cargo",
-                    "test",
-                    "--release",
-                    "-p",
-                    "antecedent-io",
-                    "--test",
-                    "nested_bayesian",
-                    "--no-run",
-                ],
-            ],
-        )
-        self.assertTrue(all(call.kwargs == {"cwd": self.root} for call in run.call_args_list))
 
     def test_explicit_test_target_and_ambiguous_owner(self) -> None:
         self.member(
@@ -495,12 +594,12 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "ambiguous calibration test target"):
             groups._suite_owner(self.root, "nested_bayesian")
 
-    def test_prebuild_failure_stops_before_later_packages(self) -> None:
-        with patch.object(
-            groups.subprocess, "run", return_value=SimpleNamespace(returncode=1)
-        ) as run:
-            self.assertEqual(groups.prebuild(self.candidates()), 1)
-        self.assertEqual(run.call_count, 1)
+
+def _spec(index: int, label: str):
+    from calibration_runner import GroupSpec
+
+    return GroupSpec(index, label, "antecedent", label.partition(": ")[0], (),
+                     (label.partition(": ")[2],), True, False)
 
 
 class EvidenceArchiveTest(unittest.TestCase):
@@ -539,7 +638,7 @@ class EvidenceArchiveTest(unittest.TestCase):
                 self.assertFalse(logs.exists())
 
     def test_explicit_replicate_budget_reaches_only_selected_measurement(self) -> None:
-        group = groups.Group(1, "suite: selected", False, False)
+        group = groups.Group(1, "suite: selected", False, False, _spec(1, "suite: selected"))
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             with (
@@ -556,27 +655,22 @@ class EvidenceArchiveTest(unittest.TestCase):
                 patch.object(groups, "RECHECK_NSIM", 20001),
                 patch.object(groups, "last_durations", return_value={}),
                 patch.object(groups, "archive_logs"),
-                patch.object(groups, "prebuild", return_value=0),
-                patch.object(groups.subprocess, "check_output", return_value="a" * 40),
-                patch.object(
-                    groups.subprocess, "run", return_value=SimpleNamespace(returncode=0)
-                ) as run,
+                patch("calibration_runner.execute", return_value={}) as execute,
                 patch.object(groups, "LOG_DIR", root / "records"),
-                patch.object(groups, "CONSOLE_DIR", root / "console"),
                 patch.object(groups, "TIMINGS", root / "times.tsv"),
             ):
                 self.assertEqual(groups.run(groups.Selection([group], 0, {1: "selected"}), 2, 1), 0)
-                self.assertEqual(run.call_count, 1)
-                env = run.call_args.kwargs["env"]
-                self.assertEqual(env["ANTECEDENT_CALIBRATION_NSIM"], "20000")
-                self.assertEqual(env["ANTECEDENT_CALIBRATION_RECHECK_NSIM"], "20001")
-                self.assertEqual(env["ANTECEDENT_CALIBRATION_SHARD"], "0/2")
-                self.assertNotIn("ANTECEDENT_PARENT_PROTOCOL_VERSION", env)
-                self.assertNotIn("ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL", env)
+                self.assertEqual(execute.call_count, 1)
+                tasks = execute.call_args.args[1]
+                self.assertEqual([(t.group.index, t.point) for t in tasks], [(1, None)])
+                kwargs = execute.call_args.kwargs
+                self.assertEqual((kwargs["first_nsim"], kwargs["recheck_nsim"]), (20000, 20001))
+                self.assertNotIn("ANTECEDENT_PARENT_PROTOCOL_VERSION", kwargs["env"])
+                self.assertNotIn("ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL", kwargs["env"])
 
     def test_run_preserves_historical_longest_first_without_current_pilot(self) -> None:
-        short = groups.Group(1, "suite: short", False, False)
-        long = groups.Group(2, "suite: long", False, False)
+        short = groups.Group(1, "suite: short", False, False, _spec(1, "suite: short"))
+        long = groups.Group(2, "suite: long", False, False, _spec(2, "suite: long"))
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             with (
@@ -587,17 +681,13 @@ class EvidenceArchiveTest(unittest.TestCase):
                 ),
                 patch.object(groups, "pilot_timings", return_value={}),
                 patch.object(groups, "archive_logs"),
-                patch.object(groups, "prebuild", return_value=0),
-                patch.object(groups.subprocess, "check_output", return_value="a" * 40),
+                patch("calibration_runner.execute", return_value={}) as execute,
                 patch.object(groups, "LOG_DIR", root / "records"),
-                patch.object(groups, "CONSOLE_DIR", root / "console"),
-                patch.object(groups, "ThreadPoolExecutor") as executor,
             ):
-                executor.return_value.__enter__.return_value.map.return_value = []
                 selection = groups.Selection([short, long], 0, {1: "missing", 2: "missing"})
                 self.assertEqual(groups.run(selection, 2, 2), 0)
-                scheduled = executor.return_value.__enter__.return_value.map.call_args.args[1]
-                self.assertEqual(scheduled, [(long, None), (short, None)])
+                scheduled = [(t.group.index, t.point) for t in execute.call_args.args[1]]
+                self.assertEqual(scheduled, [(2, None), (1, None)])
 
 
 class FormalDecisionEnvironmentTest(unittest.TestCase):
@@ -620,7 +710,7 @@ class FormalDecisionEnvironmentTest(unittest.TestCase):
             patch.object(groups, "measurement_source_sha", return_value="a" * 40),
             patch.object(family, "current_config", return_value=config),
             patch.object(groups, "archive_logs") as archive,
-            patch.object(groups, "prebuild") as build,
+            patch("calibration_runner.execute") as build,
             self.assertRaisesRegex(ValueError, "allocated group"),
         ):
             groups.run(groups.Selection([foreign], 0, {1: "selected"}), len(roster), 1)

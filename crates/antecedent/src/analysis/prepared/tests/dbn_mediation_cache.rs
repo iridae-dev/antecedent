@@ -90,7 +90,7 @@ fn graph_posterior_with_weights(weights: [f64; 2]) -> GraphPosterior {
     GraphPosterior::new(
         3,
         weights.to_vec(),
-        vec![8, 8],
+        vec![8u64, 8],
         vec![0.0; 9],
         vec![0.0; 9],
         SamplingSummary {
@@ -102,7 +102,7 @@ fn graph_posterior_with_weights(weights: [f64; 2]) -> GraphPosterior {
     .unwrap()
     .with_lagged_marginals(1, vec![0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     .unwrap()
-    .with_lag_masks(vec![6, 6])
+    .with_lag_masks(vec![6u64, 6])
     .unwrap()
 }
 
@@ -150,6 +150,10 @@ fn mixed_horizon_certificates_keep_mass_and_prepared_estimates_independent() {
     assert_eq!(first.identify_demotion.identify_failed, 0);
     assert_eq!(second.identify_demotion.identify_failed, 1);
     assert!(cache.mediation_horizon(3).is_err());
+    let again = cache.mediation_horizon(2).unwrap();
+    assert!((again.graphs.unidentified_mass() - second.graphs.unidentified_mass()).abs() < 1e-15);
+    assert_eq!(again.identify_demotion, second.identify_demotion);
+    assert_eq!(again.atoms.len(), second.atoms.len());
 
     // The periodic "noise" of this fixture drives the long-run-variance tempering
     // factor to its n/(p+2) cap; the prior keeps full weight under tempering, so a
@@ -178,8 +182,30 @@ fn mixed_horizon_certificates_keep_mass_and_prepared_estimates_independent() {
     // synthetic certificate failure is exercised through the executor the
     // sealed operation composes over, with the injected cache in force.
     let mut injected = study.clone();
-    injected.dbn_posterior_identification_cache = Some(Arc::new(cache));
+    injected.install_identification(crate::analysis::IdentificationCache::DbnPosterior(Arc::new(
+        cache,
+    )));
     let injected_plan = injected.compile(&ctx).unwrap();
+    let checked = CheckedTemporalClassMediationOperation::checked(
+        &injected,
+        &series,
+        &Arc::new(injected_plan.clone()),
+    )
+    .unwrap();
+    let info = checked.info();
+    assert_eq!(
+        info.scientific_targets.len(),
+        4,
+        "each posterior atom keeps a slot at each horizon"
+    );
+    let failed = info
+        .scientific_targets
+        .iter()
+        .filter(|binding| binding.horizon == 2 && binding.atom_identified == Some(false))
+        .collect::<Vec<_>>();
+    assert_eq!(failed.len(), 1);
+    assert!((failed[0].atom_weight - 0.3).abs() < 1e-12);
+    assert!(failed[0].scientific_target.is_none(), "no fabricated history for a missing proof");
     let mixed = injected.execute(&injected_plan, &ctx).unwrap();
     let repeated = injected.execute(&injected_plan, &ctx).unwrap();
     let grid = mixed.mediation_grid().unwrap();
@@ -233,7 +259,9 @@ fn mixed_horizon_certificates_keep_mass_and_prepared_estimates_independent() {
         },
     )
     .unwrap();
-    injected.dbn_posterior_identification_cache = Some(Arc::new(all_missing));
+    injected.install_identification(crate::analysis::IdentificationCache::DbnPosterior(Arc::new(
+        all_missing,
+    )));
     let partial_grid = injected.execute(&injected_plan, &ctx).unwrap();
     let slices = &partial_grid.mediation_grid().unwrap().slices;
     assert!(
@@ -288,7 +316,9 @@ fn dbn_posterior_mediation_refuses_a_proof_over_other_posterior_weights() {
     )
     .unwrap();
     let mut injected = sealed.clone();
-    injected.dbn_posterior_identification_cache = Some(Arc::new(foreign));
+    injected.install_identification(crate::analysis::IdentificationCache::DbnPosterior(Arc::new(
+        foreign,
+    )));
     let error = CheckedTemporalClassMediationOperation::checked(&injected, &series, plan)
         .expect_err("a proof over other posterior weights must not seal");
     assert!(
@@ -297,4 +327,79 @@ fn dbn_posterior_mediation_refuses_a_proof_over_other_posterior_weights() {
             .contains("DBN posterior mediation proof does not bind the frozen posterior"),
         "{error}"
     );
+}
+
+#[test]
+fn dbn_mediation_refuses_a_retained_proof_for_other_intervention_levels() {
+    let (series, query) = mediation_series(32);
+    let posterior = graph_posterior();
+    let ctx = ExecutionContext::for_tests(812);
+    let study = Study::series(series.clone())
+        .graph_posterior(posterior.clone())
+        .query(CausalQuery::Mediation(query.clone()))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let mut foreign_query = query;
+    foreign_query.active = antecedent_core::Intervention::set(
+        foreign_query.treatment,
+        antecedent_core::Value::f64(2.0),
+    );
+    let variables = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+    let foreign = build_dbn_mediation_cache_with_identifier(
+        &posterior,
+        &variables,
+        &foreign_query,
+        &ctx,
+        |_, _, graph, horizon_query| {
+            identify_temporal_mediation_horizons(
+                graph,
+                horizon_query,
+                crate::strategy_table::EstimatorId::BayesianTemporalMediation,
+            )
+        },
+    )
+    .unwrap();
+    let mut injected = prepared.analysis.clone();
+    injected.install_identification(crate::analysis::IdentificationCache::DbnPosterior(Arc::new(
+        foreign,
+    )));
+    let error = CheckedTemporalClassMediationOperation::checked(&injected, &series, &prepared.plan)
+        .expect_err("a proof with the same graph weights must still match the intervention levels");
+    assert!(error.to_string().contains("another query or horizon"), "{error}");
+}
+
+#[test]
+fn dbn_template_admission_refuses_work_and_cancellation_before_conversion() {
+    let posterior = graph_posterior();
+    let variables = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+    let ctx = ExecutionContext::for_tests(12);
+    let mut limits = ctx.temporal_materialization_limits();
+    limits.max_work = 0;
+    let mut budget = antecedent_core::TemporalBudget::new(limits);
+    assert!(matches!(
+        crate::analysis::identification_cache::admitted_temporal_dag_atom(
+            &posterior,
+            0,
+            &variables,
+            &mut budget,
+            &ctx,
+        ),
+        Err(CausalError::Resource { .. })
+    ));
+    ctx.cancellation.cancel();
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    assert!(matches!(
+        crate::analysis::identification_cache::admitted_temporal_dag_atom(
+            &posterior,
+            0,
+            &variables,
+            &mut budget,
+            &ctx,
+        ),
+        Err(CausalError::Cancelled { .. })
+    ));
 }

@@ -3,12 +3,12 @@ use std::collections::BTreeMap;
 
 use antecedent::analysis::effect_constancy::EffectConstancyIdentity;
 use antecedent::analysis::effect_constancy_consumers::{ConstancyConsumers, PriorPartitionBinding};
-use antecedent_contract::ScientificQuantity;
-use antecedent_design::decision_artifact::{contract_from_json, mean_result_to_json};
-use antecedent_io::prior_bank::{
+use antecedent::design::decision_artifact::{contract_from_json, mean_result_to_json};
+use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::io::{
     EstimandFingerprint, PriorCatalog, PriorSourceMeta, PriorSourceRef, TargetDesign,
 };
-use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent::scientific::ScientificQuantity;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Deserialize;
@@ -50,7 +50,7 @@ enum ReviewWire {
 fn invalid(message: impl std::fmt::Display) -> PyErr {
     with_reason_code(
         value_err(format!("effect_constancy_consumer.invalid_request: {message}")),
-        antecedent_core::reason_code!("invalid_argument"),
+        antecedent::reason::reason_code!("invalid_argument"),
     )
 }
 
@@ -89,14 +89,12 @@ fn review_effect_constancy(
                 serde_json::json!({"evidence": out.evidence, "separate_transport_identification_required": out.separate_transport_identification_required, "contrast": {"left": c.left, "right": c.right, "difference": c.difference, "standard_error": c.standard_error, "z": c.z, "p_value": c.p_value, "p_holm": c.p_holm, "rejected": c.rejected}})
             }
             ReviewWire::Prior { sources, target, target_partition, bindings } => {
-                if sources.len() > 1024
-                    || bindings.len() > 1024
-                    || sources.iter().any(|s| {
-                        s.artifact
-                            .as_ref()
-                            .is_some_and(|a| a.len() > crate::bridge::MAX_DECLARED_ARTIFACT_BYTES)
-                    })
-                {
+                // Catalog and binding counts are bounded by the request byte limit above.
+                if sources.iter().any(|s| {
+                    s.artifact
+                        .as_ref()
+                        .is_some_and(|a| a.len() > crate::bridge::MAX_DECLARED_ARTIFACT_BYTES)
+                }) {
                     return Err(invalid("prior catalog exceeds bounds"));
                 }
                 let catalog = PriorCatalog::from_sources(

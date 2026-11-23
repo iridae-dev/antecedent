@@ -15,7 +15,7 @@ use antecedent_io_core::container_kind;
 use antecedent_io_core::reader::ArtifactReader;
 use antecedent_io_core::selective_discovery_artifact::{
     SELECTIVE_DISCOVERY_ARTIFACT_FEATURE, SELECTIVE_DISCOVERY_INFERENCE,
-    SelectiveDiscoveryArtifact, SelectiveDiscoveryArtifactError,
+    SelectiveDiscoveryArtifact, SelectiveDiscoveryArtifactError, SelectiveDiscoveryIntakeLimits,
 };
 
 fn state() -> PortableDiscoveryState {
@@ -109,7 +109,10 @@ fn an_unsealed_edit_is_refused_and_a_resealed_edit_is_caught_by_a_retained_ident
     let mut edited = meta.clone();
     edited.receipts[1].p_value_bits = 0.6_f64.to_bits();
     let err = SelectiveDiscoveryArtifact::from_meta(&edited, None).unwrap_err();
-    assert_eq!(err.refusal().unwrap().1, "selective_discovery.receipts_identity");
+    assert_eq!(
+        err.refusal().unwrap().1,
+        antecedent_core::reason_details::selective_discovery::RECEIPTS_IDENTITY
+    );
 
     // The receipt identity and the artifact identity are recomputed by an editor: the
     // artifact is internally consistent, so only a retained identity (or a replay against
@@ -150,7 +153,10 @@ fn graph_receipt_and_label_mutations_are_refused() {
         digest_hex(&StatisticStore::receipts_identity(&invalid.receipts));
     SelectiveDiscoveryArtifact::reseal_identity(&mut invalid_meta);
     let err = SelectiveDiscoveryArtifact::from_meta(&invalid_meta, None).unwrap_err();
-    assert_eq!(err.refusal().unwrap().1, "selective_discovery.receipt_invalid");
+    assert_eq!(
+        err.refusal().unwrap().1,
+        antecedent_core::reason_details::selective_discovery::RECEIPT_INVALID
+    );
     assert_eq!(err.refusal().unwrap().0, "discovery_statistics_invalid");
 
     // A stronger inference label than this format states.
@@ -195,12 +201,19 @@ fn incomplete_declarations_and_corruption_are_refused() {
     let mut missing = meta.clone();
     missing.components.pop();
     SelectiveDiscoveryArtifact::reseal_identity(&mut missing);
-    assert!(SelectiveDiscoveryArtifact::from_meta(&missing, None).is_err());
+    assert!(matches!(
+        SelectiveDiscoveryArtifact::from_meta(&missing, None),
+        Err(SelectiveDiscoveryArtifactError::Refused { detail, .. })
+            if detail == antecedent_core::reason_details::selective_discovery::CONTRACT_IDENTITY
+    ));
 
     let mut bytes = bytes_of(&state);
     let last = bytes.len() - 1;
     bytes[last] ^= 0xff;
-    assert!(SelectiveDiscoveryArtifact::from_bytes(&bytes, None).is_err());
+    assert!(matches!(
+        SelectiveDiscoveryArtifact::from_bytes(&bytes, None),
+        Err(SelectiveDiscoveryArtifactError::Container(antecedent_io_core::IoError::ChecksumMismatch { section })) if section == "selective_discovery_meta"
+    ));
     assert!(matches!(
         SelectiveDiscoveryArtifact::to_bytes(&state, "  "),
         Err(SelectiveDiscoveryArtifactError::Encode(_))
@@ -226,4 +239,84 @@ fn stored_metadata_is_plain_cbor_readable_without_library_types() {
     assert_eq!(text("inference").as_deref(), Some("algorithmic_match_only"));
     assert_eq!(text("route").as_deref(), Some("static_pc"));
     assert_eq!(text("identity").map(|t| t.len()), Some(64));
+}
+
+#[test]
+fn caller_intake_limits_refuse_what_the_defaults_admit() {
+    let state = state();
+    let defaults = SelectiveDiscoveryIntakeLimits::default();
+    let bytes =
+        SelectiveDiscoveryArtifact::to_bytes_with_limits(&state, "selective-1", &defaults).unwrap();
+    SelectiveDiscoveryArtifact::from_bytes_with_limits(&bytes, None, &defaults).unwrap();
+
+    let few_receipts = SelectiveDiscoveryIntakeLimits { max_receipts: 2, ..defaults };
+    assert!(matches!(
+        SelectiveDiscoveryArtifact::from_bytes_with_limits(&bytes, None, &few_receipts),
+        Err(SelectiveDiscoveryArtifactError::LimitsExceeded("receipts"))
+    ));
+    assert!(matches!(
+        SelectiveDiscoveryArtifact::to_bytes_with_limits(&state, "selective-1", &few_receipts),
+        Err(SelectiveDiscoveryArtifactError::Refused { detail, .. })
+            if detail == antecedent_core::reason_details::selective_discovery::RECEIPT_LIMIT
+    ));
+    let few_items = SelectiveDiscoveryIntakeLimits { max_structure_items: 1, ..defaults };
+    assert!(matches!(
+        SelectiveDiscoveryArtifact::from_bytes_with_limits(&bytes, None, &few_items),
+        Err(SelectiveDiscoveryArtifactError::LimitsExceeded("structure"))
+    ));
+    let few_bytes = SelectiveDiscoveryIntakeLimits { max_bytes: bytes.len() - 1, ..defaults };
+    assert!(matches!(
+        SelectiveDiscoveryArtifact::from_bytes_with_limits(&bytes, None, &few_bytes),
+        Err(SelectiveDiscoveryArtifactError::LimitsExceeded("artifact bytes"))
+    ));
+    assert!(matches!(
+        SelectiveDiscoveryArtifact::to_bytes_with_limits(&state, "selective-1", &few_bytes),
+        Err(SelectiveDiscoveryArtifactError::LimitsExceeded("artifact bytes"))
+    ));
+}
+
+#[test]
+fn a_state_whose_claims_contradict_each_other_is_refused() {
+    let refused = |edit: &dyn Fn(&mut PortableDiscoveryState)| {
+        let mut edited = state();
+        edit(&mut edited);
+        edited.reseal();
+        SelectiveDiscoveryArtifact::seal(&edited).is_err()
+    };
+    assert!(!refused(&|_| {}));
+    assert!(refused(&|s| s.route = "static_fci".to_owned()));
+    assert!(refused(&|s| s.route = "static_ges".to_owned()));
+    assert!(refused(&|s| s.variables = vec![0, 1]));
+    assert!(refused(&|s| s.variables = vec![0, 1, 1, 2]));
+    assert!(refused(&|s| s.rows = 0));
+    assert!(refused(&|s| s.components.reverse()));
+    assert!(refused(&|s| s.work.ci_tests_completed = 4));
+    assert!(refused(&|s| s.work.score_evaluations = 1));
+    assert!(refused(&|s| s.work.algorithm_executions = 2));
+    assert!(refused(&|s| {
+        let node = |variable: u32| StructureNode { kind: 0, variable, aux: 0 };
+        let edge = StructureEdge {
+            a: node(0),
+            b: node(1),
+            at_a: Mark::Circle,
+            at_b: Mark::Arrow,
+            middle: 4,
+        };
+        let nodes = s.structure.nodes().to_vec();
+        s.structure =
+            DiscoveredStructure::from_parts(StructureClass::Cpdag, nodes, vec![edge]).unwrap();
+    }));
+    assert!(refused(&|s| {
+        let node = |variable: u32| StructureNode { kind: 0, variable, aux: 0 };
+        let edge = StructureEdge {
+            a: node(0),
+            b: node(1),
+            at_a: Mark::Tail,
+            at_b: Mark::Conflict,
+            middle: 4,
+        };
+        let nodes = s.structure.nodes().to_vec();
+        s.structure =
+            DiscoveredStructure::from_parts(StructureClass::Cpdag, nodes, vec![edge]).unwrap();
+    }));
 }

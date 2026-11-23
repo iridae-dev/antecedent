@@ -17,6 +17,10 @@ autotests = false
 [lints]
 workspace = true
 
+[features]
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent-core/development", "antecedent-contract/development", "antecedent-graph/development", "antecedent-identify/development", "antecedent-io-core/development", "antecedent-kernels/development", "antecedent-prob/development", "antecedent-stats/development"]
+
 [dependencies]
 antecedent-core = { workspace = true }
 antecedent-contract = { workspace = true }
@@ -35,6 +39,7 @@ serde_json = { workspace = true }
 ciborium = { workspace = true }
 
 [dev-dependencies]
+antecedent-core = { workspace = true, features = ["test-support"] }
 blake3 = { workspace = true }
 antecedent-test-support = { workspace = true }
 criterion = { workspace = true }
@@ -60,9 +65,113 @@ name = "evsi_precision_calibration"
 path = "tests/evsi_precision_calibration.rs"
 
 [[test]]
+name = "sequential_evaluation_interval_construction"
+path = "tests/sequential_evaluation_interval_construction.rs"
+
+[[test]]
+name = "sequential_off_policy_interval_calibration"
+path = "tests/sequential_off_policy_interval_calibration.rs"
+
+[[test]]
 name = "suite_01"
 path = "tests/suite_01.rs"
 
 [[test]]
 name = "suite_02"
 path = "tests/suite_02.rs"
+
+[[test]]
+name = "evsi_conjugate_reference"
+path = "tests/evsi_conjugate_reference.rs"
+
+[[test]]
+name = "graph_entropy_channel_reference"
+path = "tests/graph_entropy_channel_reference.rs"
+
+[[test]]
+name = "model_distinguish_reference"
+path = "tests/model_distinguish_reference.rs"
+
+[[test]]
+name = "ranking_statement_reference"
+path = "tests/ranking_statement_reference.rs"
+
+[[test]]
+name = "effect_width_reference"
+path = "tests/effect_width_reference.rs"
+
+[[test]]
+name = "winners_curse_reference"
+path = "tests/winners_curse_reference.rs"
+
+[[test]]
+name = "decision_reliability_reference"
+path = "tests/decision_reliability_reference.rs"
+
+[[test]]
+name = "decision_exact_reference"
+path = "tests/decision_exact_reference.rs"
+
+[[test]]
+name = "design_ranking_replay_reference"
+path = "tests/design_ranking_replay_reference.rs"
+
+[[test]]
+name = "certified_program_search_reference"
+path = "tests/certified_program_search_reference.rs"
+
+[[test]]
+name = "cells_01_finite_program_search"
+path = "tests/cells_01_finite_program_search.rs"
+
+[[test]]
+name = "decision_exact"
+path = "tests/decision_exact.rs"
+
+[[test]]
+name = "composition_exact"
+path = "tests/composition_exact.rs"
+
+[[test]]
+name = "obligations_exact"
+path = "tests/obligations_exact.rs"
+
+[[test]]
+name = "design_ranking_exact"
+path = "tests/design_ranking_exact.rs"
+
+[[test]]
+name = "signal_provider_bayes_exact"
+path = "tests/signal_provider_bayes_exact.rs"
+
+[[test]]
+name = "structured_refusals_exact"
+path = "tests/structured_refusals_exact.rs"
+
+[[test]]
+name = "proposal_receipt_exact"
+path = "tests/proposal_receipt_exact.rs"
+
+[[test]]
+name = "composition_bundle_exact"
+path = "tests/composition_bundle_exact.rs"
+
+[[test]]
+name = "study_candidate_exact"
+path = "tests/study_candidate_exact.rs"
+
+[[test]]
+name = "repair_search_exact"
+path = "tests/repair_search_exact.rs"
+
+[[test]]
+name = "native_authority_exact"
+path = "tests/native_authority_exact.rs"
+
+[[test]]
+name = "transported_decision_artifact_exact"
+path = "tests/transported_decision_artifact_exact.rs"
+
+[[test]]
+name = "external_provider_exact"
+path = "tests/external_provider_exact.rs"

@@ -1,40 +1,37 @@
 //! Python bindings for structural transport and randomized interference.
 //!
 //! Transport identification is a stage (`identify_transport`). Estimation of
-//! both licensed cells runs on the prepared study (`PreparedAnalysis.
+//! both supported cells runs on the prepared study (`PreparedAnalysis.
 //! prepare_transport` / `prepare_interference`); this module owns the query
 //! builders those entry points share and the result sections they report.
 
 use std::sync::Arc;
 
 use antecedent::estimate::{
-    NetworkData, NetworkEdge, estimate_interference as facade_estimate_interference,
-    trial_to_target_effect,
-};
-use antecedent::identify::{TransportFormula, TransportIdentification, TransportIdentifier};
-use antecedent_core::{
-    AssignmentDesign, CausalSchema, DerivativeScale, DerivativeWeighting, ExposureLevel,
-    ExposureMapping, InterferenceFunctional, InterferenceQuery, ResponseQuery, TransportQuery,
-    VariableId,
-};
-use antecedent_graph::SelectionDiagram;
-use numpy::PyReadonlyArray1;
-use pyo3::prelude::*;
-
-use antecedent_expr::{
     Assignment, CausalExprArena, DistributionProvider, EvalContext, EvalError, FactorSpec,
-    FunctionalProgram, ProgramError, ProgramLimits, ProgramSchema, ProgramVariable,
+    FunctionalProgram, NetworkData, NetworkEdge, ProgramError, ProgramLimits, ProgramSchema,
+    ProgramVariable,
 };
-use antecedent_identify::lower_transport_formula;
-use antecedent_io::{
+use antecedent::graph::SelectionDiagram;
+use antecedent::identify::{
+    TransportFormula, TransportIdentification, TransportIdentifier, lower_transport_formula,
+};
+use antecedent::io::{
     ExprArenaWire, FunctionalProgramWire, expr_arena_from_wire, expr_arena_to_wire,
     functional_program_from_wire, functional_program_to_wire,
 };
+use antecedent::prelude::{CausalSchema, VariableId};
+use antecedent::query::{
+    AssignmentDesign, DerivativeScale, DerivativeWeighting, ExposureLevel, ExposureMapping,
+    InterferenceFunctional, InterferenceQuery, ResponseQuery, TransportQuery,
+};
+use numpy::PyReadonlyArray1;
+use pyo3::prelude::*;
 
 use crate::graphs::Admg;
 use crate::response_api::build_functional;
 use crate::transport_common::{error, serialization_error};
-use crate::{CausalIdentifyError, columns_to_batch, detach_catch, py_err};
+use crate::{detach_catch, numeric_columns_to_batch, py_err};
 
 #[pyclass(skip_from_py_object)]
 pub(crate) struct TransportIdentificationResult {
@@ -78,7 +75,7 @@ pub(crate) struct TransportIdentificationResult {
     expr_wire_json: Option<String>,
     graph_names: Vec<String>,
     graph: Admg,
-    original_catalog: Option<antecedent_core::EvidenceCatalog>,
+    original_catalog: Option<antecedent::query::EvidenceCatalog>,
     identification_arena: Option<ExprArenaWire>,
     // Deliberately NOT exposed via `#[pyo3(get)]`. `estimate_trial_transport` gates on this
     // field, so it must hold the certificate this class was actually constructed with rather
@@ -92,12 +89,12 @@ pub(crate) struct TransportIdentificationResult {
 struct CheckedTransportProgram {
     program: FunctionalProgram,
     graph: Admg,
-    original_catalog: Option<antecedent_core::EvidenceCatalog>,
+    original_catalog: Option<antecedent::query::EvidenceCatalog>,
     identification: TransportIdentification,
 }
 
 struct FuelProvider<'a> {
-    data: &'a antecedent_expr::ExactTransportData,
+    data: &'a antecedent::estimate::ExactTransportData,
     remaining: std::cell::Cell<usize>,
 }
 
@@ -127,7 +124,7 @@ impl DistributionProvider for FuelProvider<'_> {
         &self,
         variables: &[VariableId],
         ctx: &EvalContext,
-    ) -> Result<std::sync::Arc<[std::sync::Arc<[antecedent_core::Value]>]>, EvalError> {
+    ) -> Result<std::sync::Arc<[std::sync::Arc<[antecedent::prelude::Value]>]>, EvalError> {
         let rows = self.data.support(variables, ctx)?;
         self.charge(rows.len())?;
         Ok(rows)
@@ -168,6 +165,7 @@ impl CheckedTransportProgram {
     #[pyo3(signature=(catalog=None, laws=None, at=None, *, max_support_rows=100_000, max_operations=1_000_000))]
     fn evaluate_exact(
         &self,
+        py: Python<'_>,
         catalog: Option<&Bound<'_, PyAny>>,
         laws: Option<&Bound<'_, PyAny>>,
         at: Option<std::collections::BTreeMap<String, f64>>,
@@ -212,25 +210,29 @@ impl CheckedTransportProgram {
                 .into_iter()
                 .map(|(name, value)| {
                     let variable = crate::transport_common::resolve(&self.graph.names, &name)?;
-                    Ok((variable, antecedent_core::Value::f64(value)))
+                    Ok((variable, antecedent::prelude::Value::f64(value)))
                 })
                 .collect::<PyResult<Vec<_>>>()?,
         );
-        let provider =
-            FuelProvider { data: &data, remaining: std::cell::Cell::new(max_operations) };
-        // An evaluation failure is a coded transport refusal; an exhausted
-        // operation or support budget surfaces as a resource error.
-        let evaluator =
-            self.program.compile().map_err(|e| error(antecedent_estimate::refuse_eval(&e)))?;
-        evaluator
-            .evaluate_with(&provider, &EvalContext::default(), &request)
-            .map_err(|e| error(antecedent_estimate::refuse_eval(&e)))
+        crate::detach_catch(py, || {
+            let provider =
+                FuelProvider { data: &data, remaining: std::cell::Cell::new(max_operations) };
+            // An evaluation failure is a coded transport refusal; an exhausted
+            // operation or support budget surfaces as a resource error.
+            let evaluator = self
+                .program
+                .compile()
+                .map_err(|e| error(antecedent::refusal::evaluation_failure(&e)))?;
+            evaluator
+                .evaluate_with(&provider, &EvalContext::default(), &request)
+                .map_err(|e| error(antecedent::refusal::evaluation_failure(&e)))
+        })
     }
 }
 
 /// A reload of an identification that carries no positive transport proof.
 fn not_certified(message: &str) -> PyErr {
-    crate::refusal(antecedent_core::reason_code!("transport_not_certified"), message)
+    crate::refusal(antecedent::reason::reason_code!("transport_not_certified"), message)
 }
 
 fn checked_program_from_identification(
@@ -267,7 +269,7 @@ fn checked_program_from_wire(
     // A program limit is a resource refusal on this path too, as it is when the
     // program is rebuilt from the proof.
     functional_program_from_wire(&wire, ProgramLimits::default()).map_err(|e| match e {
-        antecedent_io::IoError::Convert(message) if message.ends_with("limit exceeded") => {
+        antecedent::io::IoError::Convert(message) if message.ends_with("limit exceeded") => {
             crate::CausalResourceError::new_err(message)
         }
         other => error(other),
@@ -284,7 +286,7 @@ fn lower_identified_formula(
     };
     let mut arena = CausalExprArena::new();
     let root = lower_transport_formula(&mut arena, formula);
-    antecedent_identify::bind_transport_derivation(
+    antecedent::identify::bind_transport_derivation(
         &mut arena,
         root,
         certificate,
@@ -313,8 +315,8 @@ fn checked_program_from_proof(
     FunctionalProgram::new(
         arena,
         schema,
-        antecedent_expr::ExprId::from_raw(root),
-        antecedent_expr::ExprId::from_raw(root),
+        antecedent::estimate::ExprId::from_raw(root),
+        antecedent::estimate::ExprId::from_raw(root),
         ProgramLimits::default(),
     )
     .map_err(|e| match e {
@@ -493,7 +495,7 @@ pub(crate) struct InterferenceSection {
 impl InterferenceSection {
     pub(crate) fn from_estimate(
         estimate: &antecedent::estimate::InterferenceEstimate,
-        diagnostics: &[antecedent_core::Diagnostic],
+        diagnostics: &[antecedent::schema::Diagnostic],
         inference: Option<&antecedent::result::InterferenceInference>,
     ) -> Self {
         let fields = diagnostics
@@ -656,9 +658,9 @@ pub(crate) fn interference_query(
             propensity_from: args.propensity_from.into(),
             propensity_to: args.propensity_to.into(),
             provenance: match args.propensity_provenance.as_str() {
-                "known" => antecedent_core::ExposurePropensityProvenance::Known,
+                "known" => antecedent::query::ExposurePropensityProvenance::Known,
                 "externally_estimated" => {
-                    antecedent_core::ExposurePropensityProvenance::ExternallyEstimated
+                    antecedent::query::ExposurePropensityProvenance::ExternallyEstimated
                 }
                 _ => {
                     return Err(crate::value_err(
@@ -743,7 +745,7 @@ fn identify_transport(
         .map_err(py_err)?;
     let result = TransportIdentifier::new()
         .identify(&diagram, &query)
-        .map_err(|error| CausalIdentifyError::new_err(error.to_string()))?;
+        .map_err(crate::transport_common::error)?;
     transport_result(
         result,
         &graph,
@@ -752,15 +754,11 @@ fn identify_transport(
     )
 }
 
-pub(crate) fn parse_catalog(
+fn parse_catalog_environments(
     catalog: &Bound<'_, PyAny>,
     graph: &Admg,
-) -> PyResult<antecedent_core::EvidenceCatalog> {
-    use antecedent_core::{
-        DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
-        EvidenceRegime, RegimeBinding, RegimeId, RegimeKind, SamplingDesign, TargetSampling,
-        VariableCoordinate, VariableDomain,
-    };
+) -> PyResult<Vec<antecedent::query::Environment>> {
+    use antecedent::query::{Environment, VariableCoordinate, VariableDomain};
     let names = |object: &Bound<'_, PyAny>, field: &str| -> PyResult<Arc<[VariableId]>> {
         resolve_names(graph, &object.getattr(field)?.extract::<Vec<String>>()?)
     };
@@ -794,6 +792,71 @@ pub(crate) fn parse_catalog(
             .map_err(error)?,
         );
     }
+    Ok(environments)
+}
+
+fn parse_catalog_bindings(
+    catalog: &Bound<'_, PyAny>,
+    ids: &std::collections::HashMap<String, antecedent::schema::RegimeId>,
+) -> PyResult<Vec<antecedent::query::RegimeBinding>> {
+    use antecedent::query::{DependenceGroup, RegimeBinding, SamplingDesign};
+    let mut bindings = Vec::new();
+    for binding in catalog.getattr("bindings")?.try_iter()? {
+        let binding = binding?;
+        let name: String = binding.getattr("regime")?.extract()?;
+        let regime = *ids.get(&name).ok_or_else(|| crate::value_err("unknown bound regime"))?;
+        let sampling = match binding.getattr("sampling")?.extract::<String>()?.as_str() {
+            "independent" => SamplingDesign::Independent,
+            "clustered" => SamplingDesign::Clustered,
+            "unknown" => SamplingDesign::Unknown,
+            _ => return Err(crate::value_err("unknown sampling design")),
+        };
+        let dependence = match binding.getattr("dependence")?.extract::<String>()?.as_str() {
+            "independent_studies" => DependenceGroup::IndependentStudies,
+            "linked_units" => DependenceGroup::LinkedUnits,
+            "unknown_dependence" => DependenceGroup::UnknownDependence,
+            _ => return Err(crate::value_err("unknown dependence group")),
+        };
+        bindings.push(RegimeBinding {
+            dataset_identity: binding
+                .getattr("dataset_identity")?
+                .extract::<Option<String>>()?
+                .map(Arc::from),
+            regime,
+            snapshot_identity: Arc::from(
+                binding.getattr("snapshot_identity")?.extract::<String>()?,
+            ),
+            schema_names: binding
+                .getattr("schema_names")?
+                .extract::<Vec<String>>()?
+                .into_iter()
+                .map(Arc::from)
+                .collect::<Vec<_>>()
+                .into(),
+            sampling,
+            dependence,
+            weights: binding
+                .getattr("weights_snapshot")?
+                .extract::<Option<String>>()?
+                .map(|s| antecedent::query::SupportedWeights { snapshot_identity: Arc::from(s) }),
+        });
+    }
+    Ok(bindings)
+}
+
+pub(crate) fn parse_catalog(
+    catalog: &Bound<'_, PyAny>,
+    graph: &Admg,
+) -> PyResult<antecedent::query::EvidenceCatalog> {
+    use antecedent::query::{
+        DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime, RegimeKind,
+        TargetSampling,
+    };
+    use antecedent::schema::RegimeId;
+    let names = |object: &Bound<'_, PyAny>, field: &str| -> PyResult<Arc<[VariableId]>> {
+        resolve_names(graph, &object.getattr(field)?.extract::<Vec<String>>()?)
+    };
+    let environments = parse_catalog_environments(catalog, graph)?;
     let mut regimes = Vec::new();
     let mut ids = std::collections::HashMap::new();
     let mut entries = catalog
@@ -835,9 +898,9 @@ pub(crate) fn parse_catalog(
         let assignments = values
             .into_iter()
             .map(|(name, value)| {
-                Ok(antecedent_core::InterventionAssignment {
+                Ok(antecedent::query::InterventionAssignment {
                     variable: resolve_names(graph, &[name])?[0],
-                    value: antecedent_core::Value::f64(value),
+                    value: antecedent::prelude::Value::f64(value),
                 })
             })
             .collect::<PyResult<Vec<_>>>()?;
@@ -845,7 +908,17 @@ pub(crate) fn parse_catalog(
         // Descriptor fields are optional so regime-like objects without them
         // keep today's semantics: a measured law of the whole population.
         let optional = |field: &str| -> PyResult<Option<Bound<'_, PyAny>>> {
-            Ok(regime.getattr(field).ok().filter(|value| !value.is_none()))
+            match regime.getattr(field) {
+                Ok(value) => Ok(Some(value).filter(|value| !value.is_none())),
+                // Only a missing attribute is an absent descriptor; a property that raises
+                // is the caller's failure and must surface.
+                Err(error)
+                    if error.is_instance_of::<pyo3::exceptions::PyAttributeError>(regime.py()) =>
+                {
+                    Ok(None)
+                }
+                Err(error) => Err(error),
+            }
         };
         let study = optional("study")?.map(|v| v.extract::<String>()).transpose()?.map(Arc::from);
         let selected = match optional("selected_on")? {
@@ -853,15 +926,15 @@ pub(crate) fn parse_catalog(
             None => Vec::new().into(),
         };
         let selection = if selected.is_empty() {
-            antecedent_core::SamplingSelection::Population
+            antecedent::query::SamplingSelection::Population
         } else {
-            antecedent_core::SamplingSelection::SelectedOn { variables: selected }
+            antecedent::query::SamplingSelection::SelectedOn { variables: selected }
         };
         let origin = match optional("model_artifact")? {
-            Some(value) => antecedent_core::LawOrigin::ModelArtifact {
+            Some(value) => antecedent::query::LawOrigin::ModelArtifact {
                 artifact: Arc::from(value.extract::<String>()?),
             },
-            None => antecedent_core::LawOrigin::Measured,
+            None => antecedent::query::LawOrigin::Measured,
         };
         regimes.push(
             EvidenceRegime::try_new(
@@ -879,58 +952,18 @@ pub(crate) fn parse_catalog(
                 r.study = study;
                 r.selection = selection;
                 r.origin = origin;
-                r.project(antecedent_core::EvidenceProjection::Condition { on: conditioned_on })
+                r.project(antecedent::query::EvidenceProjection::Condition { on: conditioned_on })
             })
             .map_err(error)?,
         );
     }
-    let mut bindings = Vec::new();
-    for binding in catalog.getattr("bindings")?.try_iter()? {
-        let binding = binding?;
-        let name: String = binding.getattr("regime")?.extract()?;
-        let regime = *ids.get(&name).ok_or_else(|| crate::value_err("unknown bound regime"))?;
-        let sampling = match binding.getattr("sampling")?.extract::<String>()?.as_str() {
-            "independent" => SamplingDesign::Independent,
-            "clustered" => SamplingDesign::Clustered,
-            "unknown" => SamplingDesign::Unknown,
-            _ => return Err(crate::value_err("unknown sampling design")),
-        };
-        let dependence = match binding.getattr("dependence")?.extract::<String>()?.as_str() {
-            "independent_studies" => DependenceGroup::IndependentStudies,
-            "linked_units" => DependenceGroup::LinkedUnits,
-            "unknown_dependence" => DependenceGroup::UnknownDependence,
-            _ => return Err(crate::value_err("unknown dependence group")),
-        };
-        bindings.push(RegimeBinding {
-            dataset_identity: binding
-                .getattr("dataset_identity")?
-                .extract::<Option<String>>()?
-                .map(Arc::from),
-            regime,
-            snapshot_identity: Arc::from(
-                binding.getattr("snapshot_identity")?.extract::<String>()?,
-            ),
-            schema_names: binding
-                .getattr("schema_names")?
-                .extract::<Vec<String>>()?
-                .into_iter()
-                .map(Arc::from)
-                .collect::<Vec<_>>()
-                .into(),
-            sampling,
-            dependence,
-            weights: binding
-                .getattr("weights_snapshot")?
-                .extract::<Option<String>>()?
-                .map(|s| antecedent_core::LicensedWeights { snapshot_identity: Arc::from(s) }),
-        });
-    }
+    let bindings = parse_catalog_bindings(catalog, &ids)?;
     let target_sampling =
         match catalog.getattr("target_sampling")?.extract::<Option<String>>()?.as_deref() {
             None => None,
             Some("supplied_population_law") => Some(TargetSampling::SuppliedPopulationLaw),
             Some("representative_sample") => Some(TargetSampling::RepresentativeSample),
-            Some("licensed_weighted_design") => Some(TargetSampling::LicensedWeightedDesign),
+            Some("supported_weighted_design") => Some(TargetSampling::SupportedWeightedDesign),
             Some("convenience_sample") => Some(TargetSampling::ConvenienceSample),
             _ => return Err(crate::value_err("unknown target sampling")),
         };
@@ -980,7 +1013,7 @@ fn variable_names(ids: &[VariableId], names: &[String]) -> PyResult<Vec<String>>
 fn transport_result(
     result: TransportIdentification,
     graph: &Admg,
-    original_catalog: Option<antecedent_core::EvidenceCatalog>,
+    original_catalog: Option<antecedent::query::EvidenceCatalog>,
     original_populations: (String, String),
 ) -> PyResult<TransportIdentificationResult> {
     let names = &graph.names;
@@ -1043,7 +1076,7 @@ fn transport_result(
                 }
             };
             for factor in &factors {
-                out.factor_regimes.push(factor.regime.map(antecedent_core::RegimeId::raw));
+                out.factor_regimes.push(factor.regime.map(antecedent::schema::RegimeId::raw));
                 out.factor_populations.push(factor.population.to_string());
                 out.factor_variables.push(variable_names(&factor.variables, names)?);
                 out.factor_conditioned_on.push(variable_names(&factor.conditioned_on, names)?);
@@ -1051,7 +1084,7 @@ fn transport_result(
             }
             let mut arena = CausalExprArena::new();
             let root = lower_transport_formula(&mut arena, &formula);
-            antecedent_identify::bind_transport_derivation(
+            antecedent::identify::bind_transport_derivation(
                 &mut arena,
                 root,
                 &certificate,
@@ -1061,7 +1094,7 @@ fn transport_result(
             out.expr_latex = Some(arena.latex(root));
             for binding in arena.leaf_bindings(root) {
                 out.leaf_populations.push(binding.population.to_string());
-                out.leaf_regimes.push(binding.regime.map(antecedent_core::RegimeId::raw));
+                out.leaf_regimes.push(binding.regime.map(antecedent::schema::RegimeId::raw));
             }
             out.expr_root = Some(root.raw());
             let wire = expr_arena_to_wire(&arena).map_err(py_err)?;
@@ -1076,26 +1109,26 @@ type ReloadedExpression = (String, String, Vec<String>, Vec<Option<u32>>, Vec<u3
 
 #[pyfunction]
 fn roundtrip_expr_arena(wire_json: &str, root: u32) -> PyResult<ReloadedExpression> {
-    let wire: antecedent_io::ExprArenaWire = serde_json::from_str(wire_json).map_err(error)?;
+    let wire: antecedent::io::ExprArenaWire = serde_json::from_str(wire_json).map_err(error)?;
     let arena = expr_arena_from_wire(&wire).map_err(py_err)?;
     if root as usize >= arena.len() {
         return Err(serialization_error("expression root is out of range"));
     }
-    let root = antecedent_expr::ExprId::from_raw(root);
+    let root = antecedent::estimate::ExprId::from_raw(root);
     let pretty = arena.pretty(root);
     let latex = arena.latex(root);
     let mut populations = Vec::new();
     let mut regimes = Vec::new();
     for binding in arena.leaf_bindings(root) {
         populations.push(binding.population.to_string());
-        regimes.push(binding.regime.map(antecedent_core::RegimeId::raw));
+        regimes.push(binding.regime.map(antecedent::schema::RegimeId::raw));
     }
     let free = arena.free_variables(root).into_iter().map(VariableId::raw).collect();
     Ok((pretty, latex, populations, regimes, free))
 }
 
 #[pyfunction]
-#[pyo3(signature = (identification, *, outcome, trial, selection_probability, grid, observed_regression, target_regression, response_weight))]
+#[pyo3(signature = (identification, *, outcome, trial, selection_probability, grid, observed_regression, target_regression, response_weight, seed=0, cancel=None))]
 #[allow(clippy::too_many_arguments)]
 fn estimate_transport_response_grid(
     py: Python<'_>,
@@ -1107,20 +1140,27 @@ fn estimate_transport_response_grid(
     observed_regression: Vec<f64>,
     target_regression: Vec<f64>,
     response_weight: Vec<f64>,
+    seed: u64,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<String> {
     let certificate = identification.identification.clone();
+    let mut ctx = crate::py_execution_context(seed, 1);
+    if cancel.is_some() {
+        crate::apply_cancel(&mut ctx, cancel);
+    }
     let estimate = detach_catch(py, move || {
-        antecedent_estimate::transport_augmented_response_grid(
+        antecedent::estimate::transport_augmented_response_grid_with_context(
             &certificate,
             &outcome,
             &trial,
             &selection_probability,
-            &antecedent_estimate::ResponseGridInputs {
+            &antecedent::estimate::ResponseGridInputs {
                 grid: &grid,
                 observed_regression: &observed_regression,
                 target_regression: &target_regression,
                 response_weight: &response_weight,
             },
+            &ctx,
         )
         .map_err(py_err)
     })?;
@@ -1140,7 +1180,7 @@ fn estimate_transport_response_grid(
 #[pyfunction]
 #[pyo3(signature = (
     identification, outcome, treatment, trial, selection_probability, treatment_probability, *,
-    mu0=None, mu1=None
+    mu0=None, mu1=None, seed=0, cancel=None
 ))]
 #[allow(clippy::too_many_arguments)]
 fn estimate_trial_transport(
@@ -1153,6 +1193,8 @@ fn estimate_trial_transport(
     treatment_probability: PyReadonlyArray1<'_, f64>,
     mu0: Option<PyReadonlyArray1<'_, f64>>,
     mu1: Option<PyReadonlyArray1<'_, f64>>,
+    seed: u64,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<TrialTransportResult> {
     if mu0.is_some() != mu1.is_some() {
         return Err(crate::value_err("mu0 and mu1 must be supplied together"));
@@ -1184,11 +1226,15 @@ fn estimate_trial_transport(
     let mu0 = mu0.map(|values| values.as_array().iter().copied().collect::<Vec<_>>());
     let mu1 = mu1.map(|values| values.as_array().iter().copied().collect::<Vec<_>>());
     let identification = identification.identification.clone();
+    let mut ctx = crate::py_execution_context(seed, 1);
+    if cancel.is_some() {
+        crate::apply_cancel(&mut ctx, cancel);
+    }
     // Buffers are owned copies now; run the estimator off the GIL like the
     // interference path below.
     let estimate = detach_catch(py, move || {
         let regressions = mu0.as_deref().zip(mu1.as_deref());
-        trial_to_target_effect(
+        antecedent::estimate::trial_to_target_effect_with_context(
             &identification,
             &y,
             &treatment,
@@ -1196,6 +1242,7 @@ fn estimate_trial_transport(
             &selection,
             &propensity,
             regressions,
+            &ctx,
         )
         .map_err(py_err)
     })?;
@@ -1214,18 +1261,113 @@ fn estimate_trial_transport(
     })
 }
 
+/// Transport a trial contrast to a weighted target population: the target is the
+/// non-participant rows reweighted by the declared kernel or row weights over the covariate
+/// columns, behind the facade's overlap gate. The semantics are the facade's.
+#[pyfunction]
+#[pyo3(signature = (
+    identification, outcome, treatment, trial, selection_probability, treatment_probability,
+    covariate_names, covariates, target, *, mu0=None, mu1=None
+))]
+#[allow(clippy::too_many_arguments)]
+fn estimate_trial_weighted_target<'py>(
+    py: Python<'py>,
+    identification: PyRef<'_, TransportIdentificationResult>,
+    outcome: PyReadonlyArray1<'_, f64>,
+    treatment: Vec<bool>,
+    trial: Vec<bool>,
+    selection_probability: PyReadonlyArray1<'_, f64>,
+    treatment_probability: PyReadonlyArray1<'_, f64>,
+    covariate_names: Vec<String>,
+    covariates: Vec<PyReadonlyArray1<'_, f64>>,
+    target: &Bound<'py, pyo3::types::PyDict>,
+    mu0: Option<PyReadonlyArray1<'_, f64>>,
+    mu1: Option<PyReadonlyArray1<'_, f64>>,
+) -> PyResult<Bound<'py, pyo3::types::PyDict>> {
+    use pyo3::types::PyDict;
+    if mu0.is_some() != mu1.is_some() {
+        return Err(crate::value_err("mu0 and mu1 must be supplied together"));
+    }
+    if covariate_names.len() != covariates.len() {
+        return Err(crate::value_err("covariate_names and covariates differ in length"));
+    }
+    let declaration = crate::weighted_target_api::parse(target)?;
+    let to_vec = |values: &PyReadonlyArray1<'_, f64>| values.as_array().iter().copied().collect();
+    let y: Vec<f64> = to_vec(&outcome);
+    let selection: Vec<f64> = to_vec(&selection_probability);
+    let propensity: Vec<f64> = to_vec(&treatment_probability);
+    let mu0: Option<Vec<f64>> = mu0.as_ref().map(to_vec);
+    let mu1: Option<Vec<f64>> = mu1.as_ref().map(to_vec);
+    let columns: Vec<Vec<f64>> = covariates.iter().map(to_vec).collect();
+    let certificate = identification.identification.clone();
+    let rule = match &certificate {
+        TransportIdentification::Transportable { certificate, .. } => certificate.rule.to_string(),
+        _ => String::new(),
+    };
+    let result = detach_catch(py, move || {
+        let pairs: Vec<(&str, &[f64])> = covariate_names
+            .iter()
+            .map(String::as_str)
+            .zip(columns.iter().map(Vec::as_slice))
+            .collect();
+        let table = antecedent::prelude::TabularData::from_f64_columns(pairs)
+            .map_err(crate::value_err_display)?;
+        let regressions = mu0.as_deref().zip(mu1.as_deref());
+        antecedent::transport_trial_to_weighted_target(
+            &declaration,
+            &table,
+            &certificate,
+            &y,
+            &treatment,
+            &trial,
+            &selection,
+            &propensity,
+            regressions,
+        )
+        .map_err(py_err)
+    })?;
+    let estimate = result.estimate;
+    let out = PyDict::new(py);
+    out.set_item("rule", rule)?;
+    out.set_item("ipw", estimate.effect.ipw)?;
+    out.set_item("aipw", estimate.effect.aipw)?;
+    out.set_item("ipw_se", estimate.ipw_se)?;
+    out.set_item("aipw_se", estimate.aipw_se)?;
+    let overlap = &estimate.effect.overlap;
+    for (prefix, diagnostic) in
+        [("selection", &overlap.selection), ("treatment", &overlap.treatment)]
+    {
+        out.set_item(format!("{prefix}_probability_min"), diagnostic.probability_min)?;
+        out.set_item(format!("{prefix}_probability_max"), diagnostic.probability_max)?;
+        out.set_item(format!("{prefix}_effective_sample_size"), diagnostic.effective_sample_size)?;
+        out.set_item(format!("{prefix}_extreme_weight_count"), diagnostic.extreme_weight_count)?;
+    }
+    let report = crate::weighted_target_api::report_to_dict(py, &result.report)?;
+    let trial_overlap = PyDict::new(py);
+    let t = &estimate.trial_overlap;
+    trial_overlap.set_item("n_rows", t.n_rows)?;
+    trial_overlap.set_item("n_support", t.n_support)?;
+    trial_overlap.set_item("support_fraction", t.support_fraction)?;
+    trial_overlap.set_item("kish_ess", t.kish_ess)?;
+    trial_overlap.set_item("ess_fraction", t.ess_fraction)?;
+    trial_overlap.set_item("max_weight_share", t.max_weight_share)?;
+    report.set_item("trial_overlap", trial_overlap)?;
+    out.set_item("report", report)?;
+    Ok(out)
+}
+
 #[pyfunction]
 #[pyo3(signature = (
     outcome, assignment, edges, assignment_kind, assignment_probabilities, treated,
     clusters, treated_clusters, exposure, from_level, to_level, *, probability_draws=10_000,
-    seed=1
+    seed=1, work_limit=None, cancel=None
 ))]
 #[allow(clippy::too_many_arguments)]
 fn estimate_network_interference(
     py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     assignment: Vec<bool>,
-    edges: Vec<(u32, u32, f64)>,
+    edges: Vec<(u64, u64, f64)>,
     assignment_kind: String,
     assignment_probabilities: Vec<f64>,
     treated: usize,
@@ -1236,9 +1378,43 @@ fn estimate_network_interference(
     to_level: (f64, f64),
     probability_draws: u32,
     seed: u64,
+    work_limit: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<InterferenceAnalysisResult> {
+    // PyO3 has already extracted the supplied vectors; admit the new native
+    // batch and declaration storage before converting a possibly strided array.
+    let mut ctx = crate::py_execution_context(seed, 1);
+    if cancel.is_some() {
+        crate::apply_cancel(&mut ctx, cancel);
+    }
+    if let Some(limit) = work_limit {
+        ctx = ctx.with_exposure_probability_work_limit(limit);
+    }
+    let input_bytes = u64::try_from(outcome.as_array().len())
+        .ok()
+        .and_then(|n| n.checked_mul(16))
+        .and_then(|n| u64::try_from(clusters.len()).ok()?.checked_mul(8)?.checked_add(n))
+        .and_then(|n| {
+            u64::try_from(assignment_probabilities.len()).ok()?.checked_mul(16)?.checked_add(n)
+        })
+        .ok_or_else(|| crate::CausalResourceError::new_err("interference input size overflow"))?;
+    let input_lease =
+        antecedent::execution::retain(&ctx, input_bytes).map_err(|error| match error {
+            antecedent::execution::AdmissionRefusal::Cancelled => {
+                crate::CausalCancelledError::new_err("cancelled")
+            }
+            other @ antecedent::execution::AdmissionRefusal::Refused(_) => {
+                crate::CausalResourceError::new_err(other.to_string())
+            }
+        })?;
     let names = vec!["outcome".to_owned()];
-    let batch = columns_to_batch(&names, &[outcome])?;
+    let batch = numeric_columns_to_batch(&names, &[crate::NumericColumn::F64(outcome)])?;
+    if matches!(assignment_kind.as_str(), "saturation" | "observed_exposure") {
+        return Err(crate::value_err(format!(
+            "assignment_kind {assignment_kind:?} needs saturation levels or exposure propensities \
+             that this entry point does not take; use bernoulli, complete or cluster"
+        )));
+    }
     let query = interference_query(
         InterferenceArgs {
             assignment_kind,
@@ -1261,14 +1437,62 @@ fn estimate_network_interference(
         VariableId::from_raw(0),
     )?;
     detach_catch(py, move || {
-        let loaded = antecedent_data::tabular_from_record_batch(&batch).map_err(py_err)?;
+        let edge_count = u64::try_from(edges.len()).unwrap_or(u64::MAX);
+        let units = u64::try_from(assignment.len()).unwrap_or(u64::MAX);
+        let network_bytes = edge_count
+            .checked_mul(96)
+            .and_then(|e| units.checked_add(1)?.checked_mul(8)?.checked_add(e))
+            .ok_or_else(|| {
+                crate::CausalResourceError::new_err("network workspace size overflow")
+            })?;
+        let _network_lease =
+            antecedent::execution::retain(&ctx, network_bytes).map_err(|error| match error {
+                antecedent::execution::AdmissionRefusal::Cancelled => {
+                    crate::CausalCancelledError::new_err("cancelled")
+                }
+                other @ antecedent::execution::AdmissionRefusal::Refused(_) => {
+                    crate::CausalResourceError::new_err(other.to_string())
+                }
+            })?;
+        antecedent::inference::interference::admit_exposure_probability_work_for_shape(
+            &query.assignment,
+            assignment.len(),
+            edge_count,
+            query.probability_draws,
+            2,
+            ctx.exposure_probability_work_limit(),
+        )
+        .map_err(|error| match error {
+            antecedent::inference::StatsError::WorkLimit { .. } => {
+                crate::CausalResourceError::new_err(error.to_string())
+            }
+            other => py_err(antecedent::estimate::EstimationError::from(other)),
+        })?;
+        let loaded = batch.loaded()?;
         let network_edges = edges
             .into_iter()
-            .map(|(from, to, weight)| NetworkEdge { from, to, weight })
+            .map(|(from, to, weight)| NetworkEdge::new(from, to, weight))
             .collect::<Vec<_>>();
         let network = NetworkData::try_new(loaded.data, network_edges).map_err(py_err)?;
-        let result =
-            facade_estimate_interference(&query, &network, &assignment, seed).map_err(py_err)?;
+        let result = antecedent::estimate::estimate_interference_with_context(
+            &query,
+            &network,
+            &assignment,
+            seed,
+            &ctx,
+        )
+        .map_err(|error| match error {
+            antecedent::estimate::EstimationError::Stats(
+                antecedent::inference::StatsError::Cancelled,
+            ) => crate::CausalCancelledError::new_err("cancelled"),
+            antecedent::estimate::EstimationError::Stats(
+                error @ (antecedent::inference::StatsError::ResourceLimit { .. }
+                | antecedent::inference::StatsError::WorkLimit { .. }),
+            ) => crate::CausalResourceError::new_err(error.to_string()),
+            other => py_err(other),
+        })?;
+        // The lease covers the whole computation above.
+        drop(input_lease);
         Ok(InterferenceAnalysisResult {
             horvitz_thompson: result.contrast.horvitz_thompson,
             hajek: result.contrast.hajek,
@@ -1280,14 +1504,14 @@ fn estimate_network_interference(
     })
 }
 
-fn probability_method(method: antecedent_stats::ExposureProbabilityMethod) -> String {
+fn probability_method(method: antecedent::inference::ExposureProbabilityMethod) -> String {
     match method {
-        antecedent_stats::ExposureProbabilityMethod::Exact => "exact".into(),
-        antecedent_stats::ExposureProbabilityMethod::MonteCarlo { draws, seed } => {
+        antecedent::inference::ExposureProbabilityMethod::Exact => "exact".into(),
+        antecedent::inference::ExposureProbabilityMethod::MonteCarlo { draws, seed } => {
             format!("monte_carlo(draws={draws},seed={seed})")
         }
-        antecedent_stats::ExposureProbabilityMethod::SuppliedKnown => "supplied_known".into(),
-        antecedent_stats::ExposureProbabilityMethod::SuppliedExternallyEstimated => {
+        antecedent::inference::ExposureProbabilityMethod::SuppliedKnown => "supplied_known".into(),
+        antecedent::inference::ExposureProbabilityMethod::SuppliedExternallyEstimated => {
             "supplied_externally_estimated".into()
         }
     }
@@ -1303,6 +1527,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(identify_transport, m)?)?;
     m.add_function(wrap_pyfunction!(roundtrip_expr_arena, m)?)?;
     m.add_function(wrap_pyfunction!(estimate_trial_transport, m)?)?;
+    m.add_function(wrap_pyfunction!(estimate_trial_weighted_target, m)?)?;
     m.add_function(wrap_pyfunction!(estimate_transport_response_grid, m)?)?;
     m.add_function(wrap_pyfunction!(estimate_network_interference, m)?)?;
     Ok(())

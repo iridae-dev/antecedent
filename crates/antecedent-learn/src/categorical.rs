@@ -86,11 +86,15 @@ impl FiniteJoint {
                     clippy::cast_possible_truncation,
                     reason = "the fit rejects n > u32::MAX above, so every row index r < n fits u32"
                 )]
-                let rows: Vec<u32> =
-                    (0..n).filter(|r| columns[axis][*r] >= level).map(|r| r as u32).collect();
+                let rows: Vec<u64> = (0..n)
+                    .filter(|r| columns[axis][*r] >= level)
+                    .map(|r| u64::try_from(r).expect("row id"))
+                    .collect();
                 let y: Vec<f64> = columns[axis].iter().map(|v| f64::from(*v == level)).collect();
-                let positives =
-                    rows.iter().filter(|r| columns[axis][**r as usize] == level).count();
+                let positives = rows
+                    .iter()
+                    .filter(|r| columns[axis][usize::try_from(**r).expect("row id")] == level)
+                    .count();
                 hazards.push(if rows.is_empty() || positives == 0 {
                     Conditional::Constant(0.0)
                 } else if positives == rows.len() {
@@ -189,7 +193,7 @@ fn workspace(
         .and_then(|n| n.checked_mul(8))
         .ok_or(LearnError::Shape { message: "categorical workspace overflow" })?;
     if ctx.cancellation.is_cancelled()
-        || ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes as u64 > limit)
+        || ctx.memory_limit_bytes().is_some_and(|limit| bytes as u64 > limit)
     {
         return Err(LearnError::Unsupported {
             message: "categorical workspace budget/cancellation",

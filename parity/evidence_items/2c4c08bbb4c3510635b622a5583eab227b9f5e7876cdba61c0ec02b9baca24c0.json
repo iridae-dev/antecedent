@@ -1,0 +1,1 @@
+["use:super::{Arc,CausalError,CausalQuery,ExecutionContext,InferenceMode,StudyResult,TimeSeriesData,};#0","use:crate::analysis::CheckedBayesianTemporalClassEffectOperation;#0","use:crate::analysis::route_guards::series_input;#0","impl:super::Study#0","impl:super::Study#0/fn:execute_checked_bayesian_temporal_class_effect#0"]

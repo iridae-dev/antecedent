@@ -1084,7 +1084,7 @@ Established: 2026-07-14 (the date this file was first committed; the measurement
 Machine class: not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references
 Commit: 99d25765 (the commit that added this file; the measured commit was not written down)
 
-Sparse and stress criterion benches (run with `--test` in `gate_pag.sh`):
+Sparse and stress criterion benches (run with `--test` in the `benches` section of `gate_release.sh`):
 
 - `antecedent-graph` bench `mseparation`: `msep_admg_sparse_200`, `msep_admg_stress_80`,
   `msep_pag_sparse_100`, `msep_pag_stress_60`
@@ -1423,9 +1423,7 @@ Owner: `antecedent-estimate` / `PropensityWeighting::fit`
 - Bench target: `propensity_weighting_ipw_bootstrap50_n800` — n=800, 1 adjustment covariate,
   50 bootstrap replicates, `PropensityWeighting::fit` end to end (propensity fit + Hajek point
   estimate + bootstrap SE).
-- PR CI: the Rust job runs `bootstrap_reuses_propensity_workspace_buffers` and
-  `scripts/gate_named_tests.sh` fails if it is renamed away; `scripts/gate_estimate_reuse.sh`
-  runs it alone.
+- PR CI: the Rust job runs `bootstrap_reuses_propensity_workspace_buffers` in the engineering lane.
 
 ## Notes
 
@@ -1453,7 +1451,7 @@ Established: 2026-09-07 (the first measurement date the note below states)
 Machine class: macOS arm64 development host, as the measurement note below states; the chip model was not written down
 Commit: d4494901 (the commit that added this file; the measured commit was not written down)
 
-Criterion benches (run with `--test` in `gate_context.sh`):
+Criterion benches (run with `--test` in the `benches` section of `gate_release.sh`):
 
 - `antecedent-discovery` bench `rpcmci`: `rpcmci_sparse_120`, `rpcmci_stress_240`
 - `antecedent-estimate` bench `temporal_mediation`: `mediation_sparse_200`,
@@ -1489,7 +1487,7 @@ Measured locally on macOS 26.5.2 arm64, 2026-09-07, optimized Criterion build,
 | bayesian_mediation_n800_draws512 | 178.4 µs (172.7–184.8 µs) | ≤ **5 ms** |
 
 The short local measurement is a regression reference, not a portable latency
-guarantee. `gate_context.sh` executes this case and its output assertion.
+guarantee. the `benches` section of `gate_release.sh` executes this case and its output assertion.
 `GATE_CRITERION_MEANS=1 bash scripts/gate_hot_path_baselines.sh` additionally
 checks locally available Criterion means against the declared gate.
 '''

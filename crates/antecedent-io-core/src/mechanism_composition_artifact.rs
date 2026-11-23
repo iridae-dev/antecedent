@@ -21,9 +21,9 @@
 //! is given), or a bug shared by producer and consumer (the same model code
 //! recomputes the result; the independent oracles are in the test suites).
 //! No interval is carried: uncertainty is a parameter-covariance variance of a
-//! functional, labelled with how its dependence was licensed.
+//! functional, labelled with how its dependence was supported.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
@@ -48,10 +48,6 @@ use crate::{IoError, MechanismSlotWire};
 pub const MECHANISM_COMPOSITION_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker (and artifact kind) of the accepted format.
 pub const MECHANISM_COMPOSITION_ARTIFACT_FEATURE: &str = "mechanism_composition_v1";
-/// Most arms a stored functional may carry.
-pub const MECHANISM_COMPOSITION_MAX_ARMS: usize = 16;
-/// Most interventions one stored arm may carry.
-pub const MECHANISM_COMPOSITION_MAX_INTERVENTIONS: usize = 64;
 
 /// Why a mechanism-composition artifact was refused.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -416,7 +412,7 @@ pub enum CompositionResultWire {
         point_bits: u64,
         /// Variance bits (parameter covariance only; not an interval).
         variance_bits: u64,
-        /// How the dependence between mechanisms was licensed.
+        /// How the dependence between mechanisms was supported.
         dependence: String,
         /// Method label.
         method: String,
@@ -843,28 +839,16 @@ pub fn mechanism_composition_identity(
 
 // ------------------------------------------------------------------ execution
 
+/// Structural bounds on a query. Arms and interventions carry no count cap: they are data
+/// of the artifact, bounded by its byte budget, and the engine refuses interventions on
+/// names that are not mechanisms of the premises.
 fn check_query_bounds(
     query: &CompositionQueryWire,
 ) -> Result<(), MechanismCompositionArtifactError> {
-    match query {
-        CompositionQueryWire::GaussianInterventionLaw { interventions, .. } => {
-            if interventions.len() > MECHANISM_COMPOSITION_MAX_INTERVENTIONS {
-                return Err(MechanismCompositionArtifactError::LimitsExceeded("interventions"));
-            }
-        }
-        CompositionQueryWire::GaussianMeanContrast { arms, .. } => {
-            if arms.is_empty() || arms.len() > MECHANISM_COMPOSITION_MAX_ARMS {
-                return Err(MechanismCompositionArtifactError::LimitsExceeded("arms"));
-            }
-            if arms.iter().any(|(_, i)| i.len() > MECHANISM_COMPOSITION_MAX_INTERVENTIONS) {
-                return Err(MechanismCompositionArtifactError::LimitsExceeded("interventions"));
-            }
-        }
-        CompositionQueryWire::FiniteInterventionDistribution { interventions, .. } => {
-            if interventions.len() > MECHANISM_COMPOSITION_MAX_INTERVENTIONS {
-                return Err(MechanismCompositionArtifactError::LimitsExceeded("interventions"));
-            }
-        }
+    if let CompositionQueryWire::GaussianMeanContrast { arms, .. } = query
+        && arms.is_empty()
+    {
+        return Err(MechanismCompositionArtifactError::LimitsExceeded("arms"));
     }
     Ok(())
 }
@@ -1039,10 +1023,10 @@ impl MechanismCompositionArtifactWire {
         if recomputed != self.premises_digest {
             return Err(MechanismCompositionArtifactError::PremisesMismatch);
         }
-        if let Some(expected) = expected_identity {
-            if expected != recomputed {
-                return Err(MechanismCompositionArtifactError::PremisesMismatch);
-            }
+        if let Some(expected) = expected_identity
+            && expected != recomputed
+        {
+            return Err(MechanismCompositionArtifactError::PremisesMismatch);
         }
         let spec = self.premises.to_spec()?;
         let (family, result) = evaluate_composition_query(&spec, &self.query, ctx)?;

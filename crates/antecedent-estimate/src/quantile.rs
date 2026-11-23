@@ -6,11 +6,11 @@
 //! outside the estimated CDF range or the span-normalized density is too small
 //! to invert.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::EstimationError;
 
-/// Minimum finite-difference density licensed for inversion, in units of the
+/// Minimum finite-difference density supported for inversion, in units of the
 /// uniform-on-the-grid density.
 ///
 /// The bracket's density `ΔF/Δy` has units `1/[Y]`, so it is compared after
@@ -206,7 +206,8 @@ fn quantile_arm_at(
     support: &crate::scores::ScoreSupport,
 ) -> Result<QuantileArm, EstimationError> {
     if !support.overlap.overlap_ok {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("positivity_violated"),
             "quantile inversion requires supported target overlap",
         ));
     }
@@ -252,6 +253,10 @@ fn quantile_arm_at(
     clippy::cast_sign_loss,
     reason = "rounded index is nonnegative and bounded by len-1"
 )]
+#[allow(
+    clippy::float_cmp,
+    reason = "exact equality preserves discrete support or boundary semantics"
+)]
 pub fn empirical_threshold_grid(y: &[f64], points: usize) -> Result<Vec<f64>, EstimationError> {
     let mut v: Vec<f64> = y.iter().copied().filter(|x| x.is_finite()).collect();
     if v.len() < 16 || points < 4 {
@@ -266,7 +271,7 @@ pub fn empirical_threshold_grid(y: &[f64], points: usize) -> Result<Vec<f64>, Es
         let idx = ((v.len() - 1) as f64 * p).round() as usize;
         out.push(v[idx.min(v.len() - 1)]);
     }
-    out.dedup_by(|a, b| (*a - *b).abs() <= 1e-12);
+    out.dedup_by(|a, b| *a == *b);
     if out.len() < 4 {
         return Err(EstimationError::data_msg(
             "quantile estimation grid collapsed; outcome has too little spread",
@@ -278,6 +283,15 @@ pub fn empirical_threshold_grid(y: &[f64], points: usize) -> Result<Vec<f64>, Es
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn empirical_grid_preserves_distinct_small_scale_values() {
+        let values: Vec<f64> = (0..20).map(|i| f64::from(i) * 1e-15).collect();
+        let grid = empirical_threshold_grid(&values, 8).unwrap();
+        assert_eq!(grid.len(), 8);
+        assert!(grid.windows(2).all(|v| v[0] < v[1]));
+        assert!(empirical_threshold_grid(&[0.0; 20], 8).is_err());
+    }
 
     #[test]
     fn inverts_linear_cdf() {
@@ -367,7 +381,9 @@ mod review_tests {
             propensities: vec![0.5; 2 * n].into(),
             observed_outcome: (0..n).map(|i| if i % 2 == 0 { -1.0 } else { 2.0 }).collect(),
             n_rows: n,
-            row_index: (0..n).map(|i| u32::try_from(i).unwrap()).collect(),
+            row_index: (0..n)
+                .map(|i| antecedent_data::GlobalId::new(u64::try_from(i).unwrap()))
+                .collect(),
             fold_ids: (0..n).map(|i| u32::try_from(i % 2).unwrap()).collect(),
             n_folds: 2,
             scores: scores.into(),
@@ -380,6 +396,7 @@ mod review_tests {
             propensity_clip: None,
             treatment: antecedent_core::VariableId::from_raw(0),
             intervened: Arc::from([]),
+            preparation: None,
         };
         let expected = quantile_arm(&table, None, 0.5, 0).unwrap();
         assert!(expected.influence.iter().any(|v| v.abs() > 0.1));
@@ -424,7 +441,9 @@ mod review_tests {
             propensities: vec![0.5; scores.len()].into(),
             observed_outcome: (0..n).map(|i| if i % 4 < 2 { -2.0 } else { 5.0 }).collect(),
             n_rows: n,
-            row_index: (0..n).map(|i| u32::try_from(i).unwrap()).collect(),
+            row_index: (0..n)
+                .map(|i| antecedent_data::GlobalId::new(u64::try_from(i).unwrap()))
+                .collect(),
             fold_ids: (0..n).map(|i| u32::try_from(i % 5).unwrap()).collect(),
             n_folds: 5,
             scores: scores.into(),
@@ -434,6 +453,7 @@ mod review_tests {
             propensity_clip: None,
             treatment: antecedent_core::VariableId::from_raw(0),
             intervened: [].into(),
+            preparation: None,
         };
         let error = quantile_contrast(&table, None, 0.55).unwrap_err();
         assert!(error.to_string().contains("projection changes"), "{error}");

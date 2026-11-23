@@ -1,4 +1,4 @@
-"""Numeric evidence for licensed Cpdag/Pag ConditionalEffect cells."""
+"""Numeric evidence for supported Cpdag/Pag ConditionalEffect cells."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from typing import Any
 import antecedent
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_json
 
@@ -71,19 +72,27 @@ def test_class_aware_conditional_pins(accepted: bool, class_name: str, refute) -
         return
     query = _query()
     freq = _ATE["conditional"]["frequentist"]
-    fresh = antecedent.analyze(data, graph=graph, query=query, refute=refute, bootstrap=0, seed=1)
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=query,
+            refute=refute,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=1),
+        )
+    )
+    prepared = antecedent.prepare(
         data,
         graph=graph,
         query=query,
         refute=refute,
-        bootstrap=0,
-        seed=1,
-        latency="interactive",
+        inference=antecedent.Frequentist(bootstrap=0, profile="interactive"),
+        execution=antecedent.Execution(seed=1),
     )
-    click = prepared.estimate(data, seed=1)
-    assert prepared.structure_source == ("accepted" if accepted else "explicit")
-    assert fresh.evidence_status == click.evidence_status == "licensed"
+    click = require_success(antecedent.estimate(prepared))
+    assert click.plan.structure_source == ("accepted" if accepted else "explicit")
+    assert fresh.evidence_status == click.evidence_status == "supported"
     assert fresh.plan.identifier == "generalized.adjustment"
     assert fresh.plan.estimator == freq["estimator"]
     assert fresh.identification.status == "GraphDependent"
@@ -107,14 +116,15 @@ def test_class_aware_conditional_bayesian_pins(accepted: bool, class_name: str) 
         n_draws=int(bayes["n_draws"]),
         prior_scale=float(bayes["prior_scale"]),
     )
-    result = antecedent.analyze(
-        data,
-        graph=graph,
-        query=_query(),
-        inference=inference,
-        refute=False,
-        bootstrap=0,
-        seed=int(bayes["seed"]),
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=_query(),
+            inference=inference,
+            refute=False,
+            execution=antecedent.Execution(seed=int(bayes["seed"])),
+        )
     )
     assert result.plan.estimator == bayes["estimator"]
     assert result.ate == pytest.approx(bayes["expected_ate"], abs=bayes["absolute_tolerance"])

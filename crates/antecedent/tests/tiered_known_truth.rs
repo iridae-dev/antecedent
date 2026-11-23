@@ -6,10 +6,11 @@
 //! assert the reported numbers against that truth, not against another run of
 //! the same code.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{CausalError, EstimatorId, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext};
 use antecedent_data::{TableView, TabularData};
@@ -153,14 +154,14 @@ fn caller_graph_and_tiered_background_conflict_in_either_order() {
 fn codetermined_average_effect_known_truth() {
     let data = codetermined_data(4_000, 19);
     let ctx = ExecutionContext::for_tests(19);
-    // The support matrix licenses `AverageEffect x CoDetermined x explicit x Frequentist`
+    // The support matrix supports `AverageEffect x CoDetermined x explicit x Frequentist`
     // with AIPW. `cell.aipw` is reserved for joint InterventionResponse queries;
     // scalar AverageEffect is refused by the builder.
     // `linear.adjustment.ate` was never evidenced for a CoDetermined tier closure, so a
-    // caller-selected `LinearAdjustmentAte` here is refused by the licensed-route/estimator
+    // caller-selected `LinearAdjustmentAte` here is refused by the supported-route/estimator
     // check even though the tier-closure identification itself succeeds
     // (NonparametricallyIdentified). That refusal is unrelated to this fix set; only the
-    // licensed estimator is exercised here.
+    // supported estimator is exercised here.
     for estimator in [EstimatorId::Aipw] {
         let builder = Study::tabular(data.clone())
             .tiered_background(codetermined_background(&data))
@@ -173,9 +174,10 @@ fn codetermined_average_effect_known_truth() {
             .unwrap();
         let fresh = builder.clone().run(&ctx).unwrap();
         let mut prepared = builder.prepare(&ctx).unwrap();
-        let retained_lowering = prepared
-            .checked_aipw_ate()
-            .expect("CoDetermined AIPW must retain its checked closure and row design");
+        let RetainedOperation::CheckedAipw(retained_lowering) = prepared.retained_operation()
+        else {
+            panic!("CoDetermined AIPW must retain its checked closure and row design")
+        };
         let lowering = retained_lowering.lowering();
         assert_eq!(
             lowering.procedure,
@@ -188,9 +190,9 @@ fn codetermined_average_effect_known_truth() {
         drop(builder);
         let click = prepared.estimate(&data, &ctx).unwrap();
         for result in [&fresh, &click] {
-            assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+            assert_eq!(result.support_status().unwrap().as_str(), "supported");
             assert_eq!(result.logical_plan.identifier.as_deref(), Some("generalized.adjustment"));
-            let est = &result.estimate;
+            let est = &result.estimate();
             assert!(
                 est.as_effect().unwrap().se_analytic().is_finite()
                     && est.as_effect().unwrap().se_analytic() > 0.0,
@@ -206,17 +208,17 @@ fn codetermined_average_effect_known_truth() {
             );
         }
         assert!(
-            (fresh.estimate.as_effect().unwrap().ate - click.estimate.as_effect().unwrap().ate)
+            (fresh.estimate().as_effect().unwrap().ate - click.estimate().as_effect().unwrap().ate)
                 .abs()
                 < 1e-12
         );
-        let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
-        assert!((refreshed.estimate.as_effect().unwrap().ate - CODETERMINED_TRUTH).abs() < 0.12);
+        let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
+        assert!((refreshed.estimate().as_effect().unwrap().ate - CODETERMINED_TRUTH).abs() < 0.12);
         let artifact =
             prepared.encode_contracted_result(&refreshed, "codetermined-aipw", &ctx).unwrap();
-        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+        let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
         assert!(
-            consumed.acceptance.accepts_as_verified_program(),
+            consumed.acceptance.accepts_as_replayed_program(),
             "CoDetermined artifact dependencies: {:?}",
             consumed.acceptance.unresolved
         );
@@ -249,14 +251,14 @@ fn unknown_scenarios_known_truth() {
     let fresh = study.clone().run(&ctx).unwrap();
     let click = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
     for result in [&fresh, &click] {
-        assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+        assert_eq!(result.support_status().unwrap().as_str(), "supported");
         assert_eq!(format!("{:?}", result.identification.status), "GraphDependent");
         assert!(
-            result.estimate.as_effect().unwrap().ate.is_nan(),
+            result.estimate().as_effect().unwrap().ate.is_nan(),
             "Unknown scenarios never collapse to one ATE"
         );
         let effects = result
-            .estimate
+            .estimate()
             .as_effect()
             .unwrap()
             .scenarios
@@ -264,15 +266,21 @@ fn unknown_scenarios_known_truth() {
             .as_ref()
             .expect("scenario effects");
         let cov = result
-            .estimate
+            .estimate()
             .as_effect()
             .unwrap()
             .joint
             .covariance
             .as_ref()
             .expect("joint IF covariance");
-        let bands =
-            result.estimate.as_effect().unwrap().scenarios.intervals.as_ref().expect("joint band");
+        let bands = result
+            .estimate()
+            .as_effect()
+            .unwrap()
+            .scenarios
+            .intervals
+            .as_ref()
+            .expect("joint band");
         assert_eq!(effects.len(), 2);
         for (j, truth) in UNKNOWN_TRUTH.iter().enumerate() {
             let se = cov.se(j);
@@ -286,4 +294,17 @@ fn unknown_scenarios_known_truth() {
             assert!(lo <= *truth && *truth <= hi, "scenario {j} joint band [{lo}, {hi}]");
         }
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

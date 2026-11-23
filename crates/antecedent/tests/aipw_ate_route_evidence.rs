@@ -1,18 +1,98 @@
 //! Coordinate-specific closure evidence for checked AIPW ATE execution.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::float_cmp, reason = "fixture values and categorical codes are compared exactly")]
+
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, EstimatorId, RefuteSuite, StructureSource, Study};
 use antecedent_contract::SlotAvailability;
 use antecedent_core::ExecutionContext;
 use antecedent_data::TableView;
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 #[path = "fixtures_common/mod.rs"]
 mod common;
 
 use common::fixtures::confounded_scm;
 
+/// Solve `a x = b` by Gaussian elimination with partial pivoting.
+fn solve(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Vec<f64> {
+    let n = b.len();
+    for p in 0..n {
+        let piv = (p..n).max_by(|&u, &v| a[u][p].abs().total_cmp(&a[v][p].abs())).unwrap();
+        a.swap(p, piv);
+        b.swap(p, piv);
+        for r in p + 1..n {
+            let f = a[r][p] / a[p][p];
+            for c in p..n {
+                let v = a[p][c];
+                a[r][c] -= f * v;
+            }
+            b[r] -= f * b[p];
+        }
+    }
+    let mut x = vec![0.0; n];
+    for r in (0..n).rev() {
+        x[r] = (b[r] - (r + 1..n).map(|c| a[r][c] * x[c]).sum::<f64>()) / a[r][r];
+    }
+    x
+}
+
+/// Independent full-sample AIPW reference for the confounded fixture (columns t, y, z): logistic
+/// propensity of `t` on `[1, z]` by Newton iteration, arm-specific linear outcome models of `y` on
+/// `[1, z]` by the normal equations, and the augmented inverse-probability score averaged over all
+/// rows, with the propensity clipped to `[clip, 1 - clip]`.
+fn aipw_reference(data: &impl TableView, clip: f64) -> f64 {
+    let col =
+        |i: u32| data.float64_slice(antecedent_core::VariableId::from_raw(i)).unwrap().to_vec();
+    let (t, y, z) = (col(0), col(1), col(2));
+    let n = t.len();
+    let logistic = |eta: f64| 1.0 / (1.0 + (-eta).exp());
+    let mut beta = [0.0_f64; 2];
+    for _ in 0..50 {
+        let (mut h, mut g) = (vec![vec![0.0; 2]; 2], vec![0.0; 2]);
+        for i in 0..n {
+            let p = logistic(beta[0] + beta[1] * z[i]);
+            let x = [1.0, z[i]];
+            for r in 0..2 {
+                g[r] += x[r] * (t[i] - p);
+                for c in 0..2 {
+                    h[r][c] += p * (1.0 - p) * x[r] * x[c];
+                }
+            }
+        }
+        let step = solve(h, g);
+        beta[0] += step[0];
+        beta[1] += step[1];
+    }
+    let arm_fit = |arm: f64| {
+        let (mut a, mut b) = (vec![vec![0.0; 2]; 2], vec![0.0; 2]);
+        for i in (0..n).filter(|&i| t[i] == arm) {
+            let x = [1.0, z[i]];
+            for r in 0..2 {
+                b[r] += x[r] * y[i];
+                for c in 0..2 {
+                    a[r][c] += x[r] * x[c];
+                }
+            }
+        }
+        solve(a, b)
+    };
+    let (g0, g1) = (arm_fit(0.0), arm_fit(1.0));
+    let mut total = 0.0;
+    for i in 0..n {
+        let e = logistic(beta[0] + beta[1] * z[i]).clamp(clip, 1.0 - clip);
+        let (m1, m0) = (g1[0] + g1[1] * z[i], g0[0] + g0[1] * z[i]);
+        total += m1 - m0 + t[i] * (y[i] - m1) / e - (1.0 - t[i]) * (y[i] - m0) / (1.0 - e);
+    }
+    total / n as f64
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "the fixture verifies the complete evidence lifecycle for one coordinate"
+)]
 fn verify_aipw_coordinate(coordinate: &str, accepted: bool, validation: &str) {
     let ctx = ExecutionContext::for_tests(73);
     let (data, dag, query) = confounded_scm(512, 73);
@@ -40,14 +120,14 @@ fn verify_aipw_coordinate(coordinate: &str, accepted: bool, validation: &str) {
         if accepted { StructureSource::Accepted } else { StructureSource::Explicit },
         "{coordinate} structure source"
     );
-    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed), "{coordinate}");
+    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Supported), "{coordinate}");
     let contract = prepared.contract().unwrap();
     assert_eq!(contract.query_kind.as_ref(), "AverageEffect", "{coordinate}");
     assert_eq!(contract.estimator.as_deref(), Some("aipw"), "{coordinate}");
     assert_eq!(contract.inference.as_ref(), "frequentist", "{coordinate}");
     match &contract.reasoning.support {
         SlotAvailability::Available(slot) => {
-            assert_eq!(slot.matrix_status.as_ref(), "licensed", "{coordinate}");
+            assert_eq!(slot.matrix_status.as_ref(), "supported", "{coordinate}");
             assert_eq!(
                 slot.matrix_coordinate.as_deref(),
                 coordinate.strip_suffix("::estimator=aipw"),
@@ -69,7 +149,9 @@ fn verify_aipw_coordinate(coordinate: &str, accepted: bool, validation: &str) {
     assert_eq!(prepared.plan().logical.record.estimator.as_deref(), Some("aipw"));
     assert_eq!(prepared.plan().logical.record.identifier.as_deref(), Some("backdoor.adjustment"));
 
-    let lowering = prepared.checked_aipw_ate().expect("retained checked AIPW operation");
+    let RetainedOperation::CheckedAipw(lowering) = prepared.retained_operation() else {
+        panic!("retained checked AIPW operation")
+    };
     assert_eq!(lowering.program().mapping().source, lowering.target().functional, "{coordinate}");
     assert_eq!(
         lowering.lowering().procedure,
@@ -80,7 +162,14 @@ fn verify_aipw_coordinate(coordinate: &str, accepted: bool, validation: &str) {
     assert_eq!(lowering.lowering().rows.len(), data.row_count(), "{coordinate} row binding");
 
     let result = prepared.estimate(&data, &ctx).unwrap();
-    assert!((result.effect() - 2.0).abs() < 0.3, "{coordinate}: AIPW effect {}", result.effect());
+    // The cross-fitted estimate differs from the independent full-sample arm-specific AIPW only
+    // by fold-split variation (observed 0.002).
+    let reference_effect = aipw_reference(&data, 0.0);
+    assert!(
+        (result.effect() - reference_effect).abs() < 0.008,
+        "{coordinate}: AIPW effect {} vs reference {reference_effect}",
+        result.effect()
+    );
     assert!((result.effect() - reference.effect()).abs() < 1e-12, "{coordinate} vs fresh route");
     assert_eq!(
         result.refutations.iter().map(|report| report.refuter.as_ref()).collect::<Vec<_>>(),
@@ -92,18 +181,34 @@ fn verify_aipw_coordinate(coordinate: &str, accepted: bool, validation: &str) {
         reference.refutations.iter().map(|report| report.passed).collect::<Vec<_>>(),
         "{coordinate} refutation decisions"
     );
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert_eq!(refreshed.effect().to_bits(), result.effect().to_bits(), "{coordinate} refresh");
-    assert!(prepared.checked_aipw_ate().is_some(), "{coordinate} retained operation after refresh");
+    assert!(
+        matches!(prepared.retained_operation(), RetainedOperation::CheckedAipw(..)),
+        "{coordinate} retained operation after refresh"
+    );
 
     let artifact =
         prepared.encode_contracted_result(&refreshed, &format!("aipw-{coordinate}"), &ctx).unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
-    assert!(
-        consumed.acceptance.accepts_as_verified_program(),
-        "{coordinate} artifact dependencies: {:?}",
-        consumed.acceptance.unresolved
-    );
+    let consumed = replay_analysis_result(&artifact).unwrap();
+    // A refutation suite adds only the refutation replay obligation, which a compact artifact
+    // cannot discharge; the same coordinate without a suite is a verified program.
+    if validation == "none" {
+        assert!(
+            consumed.acceptance.accepts_as_replayed_program(),
+            "{coordinate} artifact dependencies: {:?}",
+            consumed.acceptance.unresolved
+        );
+        assert!(consumed.body.refutations.is_empty(), "{coordinate}");
+    } else {
+        assert!(!consumed.acceptance.accepts_as_replayed_program(), "{coordinate}");
+        assert_eq!(
+            consumed.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
+            ["dependencies.refutation_replay"],
+            "{coordinate}"
+        );
+        assert!(!consumed.body.refutations.is_empty(), "{coordinate}");
+    }
     assert_eq!(consumed.body.estimate, Some(refreshed.effect()), "{coordinate} artifact result");
 }
 
@@ -132,9 +237,11 @@ fn dag_explicit_frequentist_trimmed_aipw_lifecycle() {
     drop(builder);
     drop(study);
 
-    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed));
+    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Supported));
     assert_eq!(prepared.plan().logical.record.estimator.as_deref(), Some("aipw"));
-    let retained = prepared.checked_aipw_ate().expect("retained checked trimmed AIPW operation");
+    let RetainedOperation::CheckedAipw(retained) = prepared.retained_operation() else {
+        panic!("retained checked trimmed AIPW operation")
+    };
     assert_eq!(retained.program().mapping().source, retained.target().functional);
     let lowering = retained.lowering();
     assert_eq!(lowering.procedure, antecedent_estimate::CheckedAipwProcedure::TrimmedLogisticOls);
@@ -144,7 +251,14 @@ fn dag_explicit_frequentist_trimmed_aipw_lifecycle() {
     assert_eq!(lowering.rows.len(), data.row_count());
 
     let result = prepared.estimate(&data, &ctx).unwrap();
-    assert!((result.effect() - 2.0).abs() < 0.3, "AIPW effect {}", result.effect());
+    // The trimmed procedure is the full-sample arm-specific logistic/OLS AIPW (no row falls
+    // outside the common-support trim here), so it equals the independent reference.
+    let reference_effect = aipw_reference(&data, 0.01);
+    assert!(
+        (result.effect() - reference_effect).abs() < 1e-9,
+        "AIPW effect {} vs reference {reference_effect}",
+        result.effect()
+    );
     assert_eq!(result.effect().to_bits(), one_shot.effect().to_bits(), "one-shot vs click");
     assert_eq!(
         result.refutations.iter().map(|report| report.refuter.as_ref()).collect::<Vec<_>>(),
@@ -156,20 +270,25 @@ fn dag_explicit_frequentist_trimmed_aipw_lifecycle() {
         assert!(codes.contains(&"estimate.overlap.require_diagnostics"), "{codes:?}");
         assert!(codes.contains(&"exec.identify.cached"), "{codes:?}");
     }
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert_eq!(refreshed.effect().to_bits(), result.effect().to_bits(), "refresh");
     assert_eq!(
-        prepared.checked_aipw_ate().map(|checked| checked.lowering().procedure),
+        match prepared.retained_operation() {
+            RetainedOperation::CheckedAipw(checked) => Some(checked.lowering().procedure),
+            _ => None,
+        },
         Some(antecedent_estimate::CheckedAipwProcedure::TrimmedLogisticOls),
         "retained operation after refresh"
     );
 
     let artifact = prepared.encode_contracted_result(&refreshed, "aipw-trimmed", &ctx).unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
-    assert!(
-        consumed.acceptance.accepts_as_verified_program(),
-        "artifact dependencies: {:?}",
-        consumed.acceptance.unresolved
+    let consumed = replay_analysis_result(&artifact).unwrap();
+    // The cheap refutation suite adds only the refutation replay obligation, which a compact
+    // artifact cannot discharge; the checked lowering itself leaves nothing else unresolved.
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
+    assert_eq!(
+        consumed.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
+        ["dependencies.refutation_replay"]
     );
     assert!(
         !consumed.acceptance.unresolved.iter().any(|key| {
@@ -242,4 +361,170 @@ fn dag_explicit_frequentist_aipw_none() {
         false,
         "none",
     );
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
+}
+
+/// The opt-in full-source export carries the complete table, bound to the contract's data
+/// snapshot, while the default export stays compact and a consumer reports exactly the same
+/// unresolved reasons for both. Data other than the snapshotted table is a conflict.
+#[test]
+fn full_source_export_carries_a_bound_witness_and_leaves_acceptance_unchanged() {
+    use antecedent_io_core::{
+        SOURCE_WITNESS_SECTION, SourceWitnessLimits, decode_analysis_result_artifact,
+        decode_analysis_result_contract, decode_source_witness_section, verify_source_witness,
+    };
+
+    let ctx = ExecutionContext::for_tests(73);
+    let (data, dag, query) = confounded_scm(256, 73);
+    let study = Study::tabular(data.clone())
+        .query(query)
+        .estimator(EstimatorId::Aipw)
+        .graph(dag)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let mut prepared = study.prepare(&ctx).unwrap();
+    let result = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
+
+    let compact = prepared.encode_contracted_result(&result, "export", &ctx).unwrap();
+    let sourced =
+        prepared.encode_contracted_result_with_source(&result, &data, "export", &ctx).unwrap();
+    let limits = SourceWitnessLimits::default();
+
+    let (compact_artifact, compact_header, compact_body) =
+        decode_analysis_result_artifact(&compact).unwrap();
+    assert!(compact_artifact.sections.iter().all(|section| section.id != SOURCE_WITNESS_SECTION));
+    assert_eq!(decode_source_witness_section(&compact_artifact, &limits).unwrap(), None);
+
+    let (artifact, header, body) = decode_analysis_result_artifact(&sourced).unwrap();
+    assert_eq!(header, compact_header);
+    assert_eq!(body, compact_body);
+    let contract = decode_analysis_result_contract(&artifact).unwrap().unwrap();
+    let compact_contract = decode_analysis_result_contract(&compact_artifact).unwrap().unwrap();
+    assert_eq!(contract.seal, compact_contract.seal);
+    assert_eq!(contract.data_snapshot, compact_contract.data_snapshot);
+
+    let witness = decode_source_witness_section(&artifact, &limits).unwrap().unwrap();
+    let snapshot = contract.data_snapshot.as_ref().unwrap();
+    verify_source_witness(&witness, &header.variable_names, snapshot, &limits).unwrap();
+
+    // Independent oracle: the partition digest of the same values built with the public
+    // data constructors, and the carried cells equal the table's cells.
+    let table: Vec<Vec<f64>> = (0..3)
+        .map(|id| data.float64_slice(antecedent_core::VariableId::from_raw(id)).unwrap().to_vec())
+        .collect();
+    for (column, values) in witness.columns.iter().zip(&table) {
+        assert_eq!(&column.values, values);
+    }
+    let oracle = antecedent_data::TabularData::from_f64_columns(
+        header
+            .variable_names
+            .iter()
+            .zip(&table)
+            .map(|(name, values)| (name.as_str(), values.as_slice())),
+    )
+    .unwrap();
+    assert_eq!(snapshot.partitions[0].content, oracle.storage().content_digest());
+
+    let compact_consumed = replay_analysis_result(&compact).unwrap();
+    let sourced_consumed = replay_analysis_result(&sourced).unwrap();
+    assert_eq!(sourced_consumed.acceptance.unresolved, compact_consumed.acceptance.unresolved);
+    assert_eq!(
+        sourced_consumed.acceptance.accepts_as_replayed_program(),
+        compact_consumed.acceptance.accepts_as_replayed_program()
+    );
+
+    let mut other = table;
+    other[1][0] += 0.5;
+    let other = antecedent_data::TabularData::from_f64_columns(
+        header
+            .variable_names
+            .iter()
+            .zip(&other)
+            .map(|(name, values)| (name.as_str(), values.as_slice())),
+    )
+    .unwrap();
+    let error =
+        prepared.encode_contracted_result_with_source(&result, &other, "export", &ctx).unwrap_err();
+    assert!(matches!(error, antecedent::CausalError::Conflict { what: "source", .. }), "{error}");
+}
+
+/// A backdoor AIPW result names the provenance records of the route it executed, with their
+/// sources and documented deviations, and its export carries the same section, bound to the
+/// identifier and estimator the contract seals.
+#[test]
+fn aipw_result_and_export_cite_the_executed_route() {
+    use antecedent_io::method_provenance::{
+        CaveatKind, ProvenanceRole, decode_method_provenance_section,
+    };
+    use antecedent_io_core::{decode_analysis_result_artifact, decode_analysis_result_contract};
+
+    let ctx = ExecutionContext::for_tests(74);
+    let (data, dag, query) = confounded_scm(256, 74);
+    let study = Study::tabular(data.clone())
+        .query(query)
+        .estimator(EstimatorId::Aipw)
+        .graph(dag)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let mut prepared = study.prepare(&ctx).unwrap();
+    let result = rebind_estimate(&mut prepared, data, &ctx).unwrap();
+
+    let provenance = result.method_provenance();
+    assert!(provenance.unlinked.is_empty(), "{:?}", provenance.unlinked);
+    let ids: Vec<&str> = provenance.records.iter().map(|record| record.id.as_str()).collect();
+    assert_eq!(ids, ["identify.backdoor", "estimate.aipw"]);
+    let aipw = provenance.record("estimate.aipw").unwrap();
+    assert_eq!(aipw.cited_for[0].role, ProvenanceRole::Estimator);
+    assert_eq!(aipw.cited_for[0].key, "aipw");
+    assert_eq!(aipw.review, "method_review");
+    assert!(aipw.deviations.iter().any(|text| text.starts_with("no cross-fitting on the ATT/ATC")));
+    assert!(
+        aipw.deviations.iter().any(|text| text.starts_with("nuisance families are fixed GLM")),
+        "{:?}",
+        aipw.deviations
+    );
+
+    let citations = result.citations();
+    let dml = citations
+        .iter()
+        .find(|citation| citation.source.doi.as_deref() == Some("10.1111/ectj.12097"))
+        .expect("the DML paper is cited");
+    assert!(dml.source.doi_verified);
+    assert_eq!(dml.source.year, Some(2018));
+    assert!(dml.records.iter().any(|(id, digest)| id == "estimate.aipw" && digest == &aipw.digest));
+    assert!(dml.caveats.iter().any(|caveat| caveat.kind == CaveatKind::Deviation
+        && caveat.text.contains("rate conditions are not inherited")));
+    assert_eq!(antecedent::bibliography([&result, &result]), citations);
+
+    let bytes = prepared.encode_contracted_result(&result, "provenance", &ctx).unwrap();
+    let (artifact, _, _) = decode_analysis_result_artifact(&bytes).unwrap();
+    let contract = decode_analysis_result_contract(&artifact).unwrap().unwrap();
+    let carried = decode_method_provenance_section(
+        &artifact,
+        contract.identifier.as_deref(),
+        contract.estimator.as_deref(),
+    )
+    .unwrap()
+    .expect("the export carries method provenance");
+    assert_eq!(carried, provenance);
+    assert_eq!(replay_analysis_result(&bytes).unwrap().method_provenance, Some(provenance));
+    assert_eq!(contract.estimator.as_deref(), Some("aipw"));
+    assert!(decode_method_provenance_section(&artifact, Some("frontdoor"), Some("aipw")).is_err());
+    assert!(decode_method_provenance_section(&artifact, None, Some("iv.wald")).is_err());
 }

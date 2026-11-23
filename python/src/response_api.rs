@@ -2,11 +2,11 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{
-    DerivativeScale, DerivativeWeighting, GridSpec, IntervalInterpretation, Intervention,
-    InterventionSequence, MechanismOverride, ResponseFunctional, ResponseIdentification,
-    ResponseUncertainty, ResponseValue, SequencedIntervention, StochasticPolicy, SupportStatus,
-    TemporalPolicy, Value, VariableId,
+use antecedent::prelude::{Intervention, Value, VariableId};
+use antecedent::query::{
+    DerivativeScale, DerivativeWeighting, GridSpec, IntervalInterpretation, InterventionSequence,
+    MechanismOverride, ResponseFunctional, ResponseIdentification, ResponseUncertainty,
+    ResponseValue, SequencedIntervention, StochasticPolicy, SupportStatus, TemporalPolicy,
 };
 use pyo3::prelude::*;
 
@@ -98,6 +98,9 @@ pub(crate) struct ResponseAnalysisResult {
     mass_scope: Option<String>,
     #[pyo3(get)]
     weight_basis: Option<String>,
+    /// How identified graph atoms were combined, when the route aggregates across graphs.
+    #[pyo3(get)]
+    aggregation_policy: Option<String>,
     #[pyo3(get)]
     atom_keys: Vec<u64>,
     #[pyo3(get)]
@@ -106,20 +109,22 @@ pub(crate) struct ResponseAnalysisResult {
     atom_statuses: Vec<String>,
     #[pyo3(get)]
     atom_values: Vec<Vec<f64>>,
-    /// Matrix evidence contract (`licensed` / `allowed_unlicensed`). Distinct from
+    /// Matrix evidence contract (`supported` or `not_supported`). Distinct from
     /// empirical dose-range [`Self::support_status`].
     #[pyo3(get)]
     evidence_status: Option<String>,
-    #[pyo3(get)]
-    allowlist_reason: Option<String>,
-    #[pyo3(get)]
-    allowlist_parent: Option<String>,
     /// Study-level diagnostic codes (`code: message`), including class envelopes.
     #[pyo3(get)]
     diagnostics: Vec<String>,
     /// Logical-plan identifier when the result came through Study prepare/estimate.
     #[pyo3(get)]
     identifier: Option<String>,
+    /// The missing-data report of the execution as JSON, when the route reports one.
+    #[pyo3(get)]
+    missing_data_json: Option<String>,
+    /// Every interval this execution reported, primary first, as JSON.
+    #[pyo3(get)]
+    interval_bindings_json: Option<String>,
     /// What the native response fixes about each value coordinate (regime, horizon,
     /// functional), or the typed refusal that says why it has none. Units, population
     /// and scale are declared by the caller of [`Self::response_coordinates`].
@@ -127,11 +132,11 @@ pub(crate) struct ResponseAnalysisResult {
 }
 
 pub(crate) struct NativeResponseAuthority {
-    pub(crate) response: antecedent_core::CausalResponse,
+    pub(crate) response: antecedent::query::CausalResponse,
     pub(crate) prepared: Arc<antecedent::PreparedStudy>,
-    pub(crate) schema: antecedent_core::CausalSchema,
+    pub(crate) schema: antecedent::prelude::CausalSchema,
     pub(crate) result: Arc<antecedent::StudyResult>,
-    pub(crate) context: antecedent_core::ExecutionContext,
+    pub(crate) context: antecedent::prelude::ExecutionContext,
 }
 
 impl ResponseAnalysisResult {
@@ -144,8 +149,8 @@ impl ResponseAnalysisResult {
             "has_envelope": self.identified_mass.is_some(), "support_status": self.support_status,
             "point_status": if self.support_point_status.is_empty() {None} else {Some(&self.support_point_status)},
             "provenance_id": self.provenance_id,
-            "data_snapshot_id": self.authority.as_ref().and_then(|a| a.result.executed_contract.as_ref()).map(|c| c.identities.data_snapshot.to_hex()),
-            "program_id": self.authority.as_ref().and_then(|a| a.result.executed_contract.as_ref()).and_then(|c| c.identities.program).map(|id| id.to_hex()),
+            "data_snapshot_id": self.authority.as_ref().and_then(|a| a.result.executed_contract()).map(|c| c.identities.data_snapshot.to_hex()),
+            "program_id": self.authority.as_ref().and_then(|a| a.result.executed_contract()).and_then(|c| c.identities.program).map(|id| id.to_hex()),
             "uncertainty": {"kind": self.uncertainty_kind, "lower": self.lower, "upper": self.upper,
                 "level": self.level, "standard_error": self.standard_error, "replicates": self.replicates,
                 "artifact_id": self.artifact_id, "interpretation": self.interval_interpretation},
@@ -155,11 +160,11 @@ impl ResponseAnalysisResult {
     pub(crate) fn with_authority(
         mut self,
         prepared: &antecedent::PreparedStudy,
-        schema: &antecedent_core::CausalSchema,
+        schema: &antecedent::prelude::CausalSchema,
         result: &antecedent::StudyResult,
-        context: &antecedent_core::ExecutionContext,
+        context: &antecedent::prelude::ExecutionContext,
     ) -> Self {
-        if let (Some(response), Some(_)) = (result.response(), &result.executed_contract) {
+        if let (Some(response), Some(_)) = (result.response(), result.executed_contract()) {
             self.authority = Some(Arc::new(NativeResponseAuthority {
                 response: response.clone(),
                 prepared: Arc::new(prepared.clone()),
@@ -173,28 +178,53 @@ impl ResponseAnalysisResult {
 }
 
 type CoordinateSkeleton = Result<
-    Vec<antecedent_contract::ResponseCoordinateSkeleton>,
-    antecedent_contract::ExternalRefusal,
+    Vec<antecedent::contract::ResponseCoordinateSkeleton>,
+    antecedent::contract::ExternalRefusal,
 >;
 
 #[pymethods]
 impl ResponseAnalysisResult {
+    /// Refuter reports the study's validation stage produced for this response, one
+    /// `(refuter, passed, informative, original, refuted, failure)` per report; empty
+    /// when no suite ran or the result carries no study authority.
+    fn refutation_reports(&self) -> Vec<(String, bool, bool, f64, f64, Option<String>)> {
+        self.authority.as_ref().map_or_else(Vec::new, |authority| {
+            authority
+                .result
+                .refutations
+                .iter()
+                .map(|report| {
+                    (
+                        report.refuter.to_string(),
+                        report.passed,
+                        report.informative,
+                        report.original_ate,
+                        report.refuted_ate,
+                        report.failure_condition.as_deref().map(str::to_owned),
+                    )
+                })
+                .collect()
+        })
+    }
+
     fn program_basis_json(&self) -> PyResult<Option<String>> {
-        let Some(authority) = &self.authority else {
-            return Ok(None);
-        };
-        let Some(contract) = &authority.result.executed_contract else {
-            return Ok(None);
-        };
-        let antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } =
-            &authority.response.estimand
-        else {
-            return Ok(None);
-        };
-        let grid = treatment.grid.values().map_err(|error| crate::value_err(error.to_string()))?;
-        let named =
-            |id| authority.schema.get(id).map(|v| v.name.to_string()).map_err(crate::py_err);
-        Ok(Some(
+        crate::catch_ffi(|| {
+            let Some(authority) = &self.authority else {
+                return Ok(None);
+            };
+            let Some(contract) = authority.result.executed_contract() else {
+                return Ok(None);
+            };
+            let antecedent::query::ResponseFunctional::MeanCurve { outcome, treatment } =
+                &authority.response.estimand
+            else {
+                return Ok(None);
+            };
+            let grid =
+                treatment.grid.values().map_err(|error| crate::value_err(error.to_string()))?;
+            let named =
+                |id| authority.schema.get(id).map(|v| v.name.to_string()).map_err(crate::py_err);
+            Ok(Some(
             serde_json::json!({
                 "graph_id": format!("graph:{}", contract.identities.identification),
                 "status": authority.response.identification_status.as_str(),
@@ -206,6 +236,108 @@ impl ResponseAnalysisResult {
             })
             .to_string(),
         ))
+        })
+    }
+
+    /// The joint draws of dose number `dose_index` across the horizons of a temporal response
+    /// prepared with joint horizons retained.
+    ///
+    /// Returns `(draws_json, refusal_json)`: exactly one is `None`. The draws carry the
+    /// horizons, the point value of each horizon's cell, one column of replicates per horizon
+    /// and the alignment and evidence identities.
+    fn horizon_draws_json(&self, dose_index: usize) -> PyResult<(Option<String>, Option<String>)> {
+        crate::catch_ffi(|| {
+            let Some(authority) = &self.authority else {
+                return Err(crate::value_err(
+                    "this response carries no native response payload to read horizon draws from",
+                ));
+            };
+            match antecedent::analysis::horizon_composition::horizon_draws(
+                &authority.response,
+                dose_index,
+            ) {
+                Ok(draws) => Ok((
+                    Some(
+                        serde_json::json!({
+                            "horizons": draws.horizons,
+                            "center": draws.center,
+                            "columns": draws.columns,
+                            "alignment_id": draws.alignment_id,
+                            "evidence_id": draws.evidence_id,
+                        })
+                        .to_string(),
+                    ),
+                    None,
+                )),
+                Err(refusal) => {
+                    let json = serde_json::to_string(
+                        &antecedent::io::external_binding_wire::RefusalWire::from(refusal),
+                    )
+                    .map_err(|error| crate::value_err(error.to_string()))?;
+                    Ok((None, Some(json)))
+                }
+            }
+        })
+    }
+
+    /// The 95% interval of a linear combination of the horizons of dose number `dose_index`.
+    ///
+    /// Returns `(interval_json, refusal_json)`: exactly one is `None`. A nonlinear operation,
+    /// a response without retained joint draws or without the dispersion readings behind them,
+    /// and a composition the propagation rule refuses are refusals.
+    fn horizon_interval_json(
+        &self,
+        dose_index: usize,
+        coefficients: Vec<f64>,
+        operation: &str,
+    ) -> PyResult<(Option<String>, Option<String>)> {
+        crate::catch_ffi(|| {
+            let Some(authority) = &self.authority else {
+                return Err(crate::value_err(
+                    "this response carries no native response payload to read horizon draws from",
+                ));
+            };
+            let operation = antecedent::contract::PropagationOperation::from_name(operation)
+                .ok_or_else(|| {
+                    crate::value_err(format!("unknown propagation operation {operation:?}"))
+                })?;
+            match antecedent::analysis::horizon_composition::horizon_composition_interval(
+                &authority.response,
+                dose_index,
+                &coefficients,
+                operation,
+            ) {
+                Ok(interval) => Ok((
+                    Some(
+                        serde_json::json!({
+                            "coordinate": interval.composed.coordinate.id(),
+                            "horizons": interval.composed.coordinate.horizons,
+                            "alignment_id": interval.composed.plan.alignment_id,
+                            "label": interval.composed.label,
+                            "center": interval.center,
+                            "standard_error": interval.standard_error,
+                            "lower": interval.lower,
+                            "upper": interval.upper,
+                            "level": interval.level,
+                            "construction": interval.construction,
+                            "kernel_factor": interval.kernel_factor,
+                            "rows": interval.rows,
+                            "replicates": interval.replicates,
+                            "effective_blocks": interval.effective_blocks,
+                        })
+                        .to_string(),
+                    ),
+                    None,
+                )),
+                Err(refusal) => {
+                    let json = serde_json::to_string(
+                        &antecedent::io::external_binding_wire::RefusalWire::from(refusal),
+                    )
+                    .map_err(|error| crate::value_err(error.to_string()))?;
+                    Ok((None, Some(json)))
+                }
+            }
+        })
     }
 
     /// The scientific coordinates of the response values, derived natively.
@@ -214,37 +346,43 @@ impl ResponseAnalysisResult {
     /// quantities are the `ScientificQuantityWire` objects, one per value in value
     /// order. Units are never inferred: blank units, population or scale refuse.
     #[pyo3(signature = (outcome_units, population="target", transform="identity"))]
+    #[allow(
+        clippy::result_large_err,
+        reason = "the error is the library's refusal type, returned once per call; boxing would change its API"
+    )]
     fn response_coordinates(
         &self,
         outcome_units: &str,
         population: &str,
         transform: &str,
     ) -> PyResult<(Option<String>, Option<String>)> {
-        let labels = antecedent_contract::ResponseCoordinateLabels {
-            outcome_units,
-            population_id: population,
-            transform_id: transform,
-        };
-        let labelled = self
-            .coordinates
-            .clone()
-            .and_then(|cells| antecedent_contract::label_coordinates(&cells, &labels));
-        match labelled {
-            Ok(quantities) => {
-                let wires: Vec<antecedent_io::quantity_wire::ScientificQuantityWire> =
-                    quantities.iter().map(Into::into).collect();
-                let json = serde_json::to_string(&wires)
+        crate::catch_ffi(|| {
+            let labels = antecedent::contract::ResponseCoordinateLabels {
+                outcome_units,
+                population_id: population,
+                transform_id: transform,
+            };
+            let labelled = self
+                .coordinates
+                .clone()
+                .and_then(|cells| antecedent::contract::label_coordinates(&cells, &labels));
+            match labelled {
+                Ok(quantities) => {
+                    let wires: Vec<antecedent::io::quantity_wire::ScientificQuantityWire> =
+                        quantities.iter().map(Into::into).collect();
+                    let json = serde_json::to_string(&wires)
+                        .map_err(|error| crate::value_err(error.to_string()))?;
+                    Ok((Some(json), None))
+                }
+                Err(refusal) => {
+                    let json = serde_json::to_string(
+                        &antecedent::io::external_binding_wire::RefusalWire::from(refusal),
+                    )
                     .map_err(|error| crate::value_err(error.to_string()))?;
-                Ok((Some(json), None))
+                    Ok((None, Some(json)))
+                }
             }
-            Err(refusal) => {
-                let json = serde_json::to_string(
-                    &antecedent_io::external_binding_wire::RefusalWire::from(refusal),
-                )
-                .map_err(|error| crate::value_err(error.to_string()))?;
-                Ok((None, Some(json)))
-            }
-        }
+        })
     }
 }
 
@@ -252,16 +390,16 @@ impl ResponseAnalysisResult {
 // The refusal is the cold path of a once-per-refusal check; boxing would not pay.
 #[allow(clippy::result_large_err)]
 fn coordinate_skeleton(
-    response: &antecedent_core::CausalResponse,
+    response: &antecedent::query::CausalResponse,
     names: &[String],
 ) -> CoordinateSkeleton {
-    antecedent_contract::response_coordinate_skeleton(response, &|id| {
+    antecedent::contract::response_coordinate_skeleton(response, &|id| {
         names.get(id.as_usize()).cloned()
     })
 }
 
 pub(crate) fn resolve_names(
-    schema: &antecedent_core::CausalSchema,
+    schema: &antecedent::prelude::CausalSchema,
     names: &[String],
 ) -> PyResult<Vec<VariableId>> {
     if names.is_empty() {
@@ -297,7 +435,7 @@ pub(crate) fn build_functional(
             let (treatment, outcome) = scalar()?;
             Ok(ResponseFunctional::MeanCurve {
                 outcome,
-                treatment: antecedent_core::ContinuousDomain::new(
+                treatment: antecedent::query::ContinuousDomain::new(
                     treatment,
                     GridSpec::Values(Arc::from(
                         grid.ok_or_else(|| crate::value_err("grid is required"))?,
@@ -311,11 +449,15 @@ pub(crate) fn build_functional(
         }
         "point_derivative" | "elasticity" | "semi_elasticity" => {
             let (treatment, outcome) = scalar()?;
-            let point = at
-                .as_deref()
-                .and_then(|values| values.first())
-                .copied()
-                .ok_or_else(|| crate::value_err("at is required"))?;
+            let point = match at.as_deref() {
+                Some([point]) => *point,
+                Some(_) => {
+                    return Err(crate::value_err(format!(
+                        "{kind} is evaluated at one point; `at` must hold exactly one value"
+                    )));
+                }
+                None => return Err(crate::value_err("at is required")),
+            };
             Ok(ResponseFunctional::PointDerivative { outcome, treatment, at: point, order, scale })
         }
         "directional_derivative" => Ok(ResponseFunctional::DirectionalDerivative {
@@ -390,7 +532,13 @@ pub(crate) fn wrap_temporal_sequence_steps(
     };
     let offsets: Vec<i32> = if same_var {
         let n = i32::try_from(vars.len()).map_err(|_| crate::value_err("Sequence is too long"))?;
-        (0..n).map(|i| origin - (n - 1 - i)).collect()
+        (0..n)
+            .map(|i| {
+                origin.checked_sub(n - 1 - i).ok_or_else(|| {
+                    crate::value_err("treatment_lag plus Sequence length does not fit in i32")
+                })
+            })
+            .collect::<PyResult<Vec<_>>>()?
     } else if unique {
         vec![origin; vars.len()]
     } else {
@@ -504,7 +652,7 @@ pub(crate) fn parse_weighting(value: &str) -> PyResult<DerivativeWeighting> {
 }
 
 pub(crate) fn response_result(
-    response: antecedent_core::CausalResponse,
+    response: antecedent::query::CausalResponse,
     structural: Option<&antecedent::result::StructuralResponseMixture>,
     treatments: Vec<String>,
     outcomes: Vec<String>,
@@ -533,7 +681,7 @@ pub(crate) fn response_result(
             conditional
                 .or_else(|| structural.and_then(structural_weighted_values))
                 .filter(|values| values.len() == envelope.lower.len())
-                .unwrap_or_else(|| envelope.lower.to_vec())
+                .unwrap_or_default()
         };
         let scalar = if legacy_values.len() == 1 { Some(legacy_values[0]) } else { None };
         // A coordinate-free identified set (a scalar functional's bound) has no
@@ -544,7 +692,8 @@ pub(crate) fn response_result(
         } else {
             envelope.grid.chunks(envelope.dimension).map(<[f64]>::to_vec).collect()
         };
-        (points, legacy_values.into_iter().map(|value| vec![value]).collect(), scalar, None)
+        let matrix = vector_point_matrix(&response.estimate, structural);
+        (points, legacy_values.into_iter().map(|value| vec![value]).collect(), scalar, matrix)
     } else {
         match response.estimate {
             ResponseIdentification::PointIdentified(value)
@@ -575,8 +724,7 @@ pub(crate) fn response_result(
         level = None;
     }
     let support_status = support_status_name(response.support.status).to_owned();
-    let (evidence_status, allowlist_reason, allowlist_parent) =
-        crate::evidence_status_parts(evidence);
+    let evidence_status = crate::evidence_status_name(evidence);
     let mut unique_treatments = Vec::new();
     for name in treatments {
         if !unique_treatments.contains(&name) {
@@ -663,6 +811,9 @@ pub(crate) fn response_result(
             if mixture.full_mass_scope { "full_class" } else { "examined_completions" }.into()
         }),
         weight_basis: structural.map(|mixture| mixture.weight_basis.as_str().into()),
+        aggregation_policy: structural
+            .and_then(|mixture| mixture.aggregation_policy)
+            .map(|policy| policy.as_str().to_owned()),
         atom_keys: structural
             .map(|mixture| mixture.atoms.iter().map(|atom| atom.graph_key).collect())
             .unwrap_or_default(),
@@ -678,10 +829,10 @@ pub(crate) fn response_result(
             })
             .unwrap_or_default(),
         evidence_status,
-        allowlist_reason,
-        allowlist_parent,
         diagnostics: Vec::new(),
         identifier: None,
+        missing_data_json: None,
+        interval_bindings_json: None,
         coordinates,
     })
 }
@@ -697,6 +848,28 @@ fn response_value_flat(value: Option<&ResponseValue>) -> Vec<f64> {
             envelope.lower.iter().chain(envelope.upper.iter()).copied().collect()
         }
         None => Vec::new(),
+    }
+}
+
+/// The matrix reading of a vector-valued response that carries a structural mixture (a
+/// Jacobian or a directional derivative on a class), as [`value_parts`] gives it on a supplied
+/// DAG: the published point when the members agree, else the identified-mass summary when the
+/// mixture publishes one. `None` for a scalar or a curve, whose envelope rows carry the reading.
+fn vector_point_matrix(
+    estimate: &ResponseIdentification,
+    structural: Option<&antecedent::result::StructuralResponseMixture>,
+) -> Option<Vec<Vec<f64>>> {
+    let point = match estimate {
+        ResponseIdentification::PointIdentified(value) => value,
+        _ => structural?.conditional_on_identified.as_ref()?,
+    };
+    match point {
+        ResponseValue::Vector(values) => Some(vec![values.to_vec()]),
+        ResponseValue::Jacobian { outcomes, treatments, values } => {
+            validate_jacobian_shape(*outcomes, *treatments, values.len()).ok()?;
+            Some(values.chunks(*treatments).map(<[f64]>::to_vec).collect())
+        }
+        _ => None,
     }
 }
 
@@ -734,7 +907,11 @@ pub(crate) fn attach_study_response_meta(
     certificate_json: Option<String>,
     identifier: Option<String>,
     diagnostics: Vec<String>,
+    missing_data_json: Option<String>,
+    interval_bindings_json: Option<String>,
 ) -> ResponseAnalysisResult {
+    mapped.missing_data_json = missing_data_json;
+    mapped.interval_bindings_json = interval_bindings_json;
     mapped.certificate_json = certificate_json;
     mapped.identifier = identifier;
     mapped.diagnostics = diagnostics;
@@ -742,7 +919,7 @@ pub(crate) fn attach_study_response_meta(
 }
 
 fn named_horizon_adjustments(
-    response: &antecedent_core::CausalResponse,
+    response: &antecedent::query::CausalResponse,
     names: &[String],
 ) -> Vec<Vec<String>> {
     match &response.horizon_identification {
@@ -767,7 +944,7 @@ fn named_horizon_adjustments(
 }
 
 fn first_horizon_template_names(
-    response: &antecedent_core::CausalResponse,
+    response: &antecedent::query::CausalResponse,
     names: &[String],
 ) -> Option<Vec<String>> {
     let first = response.horizon_identification.as_ref()?.first()?;
@@ -791,10 +968,29 @@ fn support_status_name(status: SupportStatus) -> &'static str {
 
 type ValueParts = (Vec<Vec<f64>>, Vec<Vec<f64>>, Option<f64>, Option<Vec<Vec<f64>>>);
 
+fn validate_surface_shape(grid: usize, dimension: usize, means: usize) -> Result<(), &'static str> {
+    if dimension == 0 || !grid.is_multiple_of(dimension) || grid / dimension != means {
+        return Err("invalid surface result shape");
+    }
+    Ok(())
+}
+
+fn validate_jacobian_shape(
+    outcomes: usize,
+    treatments: usize,
+    values: usize,
+) -> Result<(), &'static str> {
+    if treatments == 0 || outcomes.checked_mul(treatments) != Some(values) {
+        return Err("invalid Jacobian result shape");
+    }
+    Ok(())
+}
+
 fn value_parts(value: ResponseValue) -> PyResult<ValueParts> {
     match value {
         ResponseValue::Scalar(value) => Ok((vec![vec![0.0]], vec![vec![value]], Some(value), None)),
         ResponseValue::Surface { grid, dimension, mean } => {
+            validate_surface_shape(grid.len(), dimension, mean.len()).map_err(crate::value_err)?;
             let points = grid.chunks(dimension).map(<[f64]>::to_vec).collect::<Vec<_>>();
             let values = mean.iter().map(|value| vec![*value]).collect();
             Ok((points, values, None, None))
@@ -803,9 +999,8 @@ fn value_parts(value: ResponseValue) -> PyResult<ValueParts> {
             Ok((Vec::new(), Vec::new(), None, Some(vec![values.to_vec()])))
         }
         ResponseValue::Jacobian { outcomes, treatments, values } => {
-            if values.len() != outcomes * treatments {
-                return Err(crate::value_err("invalid Jacobian result shape"));
-            }
+            validate_jacobian_shape(outcomes, treatments, values.len())
+                .map_err(crate::value_err)?;
             Ok((
                 Vec::new(),
                 Vec::new(),
@@ -897,4 +1092,21 @@ fn uncertainty_parts(value: ResponseUncertainty) -> UncertaintyParts {
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ResponseAnalysisResult>()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod response_value_shape_tests {
+    use super::{validate_jacobian_shape, validate_surface_shape};
+
+    #[test]
+    fn malformed_shapes_are_refused_before_chunking() {
+        assert!(validate_surface_shape(0, 0, 0).is_err());
+        assert!(validate_surface_shape(3, 2, 2).is_err());
+        assert!(validate_surface_shape(4, 2, 1).is_err());
+        assert!(validate_surface_shape(4, 2, 2).is_ok());
+        assert!(validate_jacobian_shape(1, 0, 0).is_err());
+        assert!(validate_jacobian_shape(usize::MAX, 2, 0).is_err());
+        assert!(validate_jacobian_shape(2, 3, 5).is_err());
+        assert!(validate_jacobian_shape(2, 3, 6).is_ok());
+    }
 }

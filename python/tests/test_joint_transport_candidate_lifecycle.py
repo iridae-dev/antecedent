@@ -145,14 +145,14 @@ def test_candidate_frozen_four_plus_four_coordinates_full_joint_oracle(learned, 
     assert np.asarray(result.posterior_covariance) == pytest.approx(covariance, abs=2e-10)
     assert result.target_effect_mean == pytest.approx(c @ mean, abs=2e-10)
     assert result.target_effect_variance == pytest.approx(c @ covariance @ c, abs=2e-10)
-    assert result.calibration == "unmeasured" and result.release_status == "candidate_only"
+    assert result.calibration == "not_measured" and result.release_status == "candidate_only"
     with pytest.raises(TypeError, match="unexpected keyword"):
         replace(result, kind="learned_gaussian" if not learned else "gaussian")
     assert result.draws.shape == (256, len(result.draw_names))
     assert not result.draws.flags.writeable
     target_col = result.draw_names.index("effect.target")
     assert result.draws[:, target_col] == pytest.approx(result.draws[:, : len(mean)] @ c, abs=2e-10)
-    artifact = result.export()
+    artifact = bytes(result.export())
     consumed = tr.consume_joint_transport_posterior(
         artifact, kind=result.kind, expected_identity=result.expectation()
     )
@@ -164,7 +164,7 @@ def test_candidate_frozen_four_plus_four_coordinates_full_joint_oracle(learned, 
     report = consumed.to_dict()
     report["result"]["target_effect_mean"] = 999.0
     assert consumed.target_effect_mean == result.target_effect_mean
-    assert consumed.export() == artifact
+    assert bytes(consumed.export()) == artifact
     damaged = bytearray(artifact)
     damaged[len(damaged) // 2] ^= 0xFF
     with pytest.raises((CausalValueError, CausalUnsupportedError, CausalSerializationError)):
@@ -182,7 +182,7 @@ def test_candidate_frozen_four_plus_four_coordinates_full_joint_oracle(learned, 
     assert changed.expectation()["data_digest"] != result.expectation()["data_digest"]
     with pytest.raises((CausalValueError, CausalUnsupportedError, CausalSerializationError)):
         tr.consume_joint_transport_posterior(
-            changed.export(), kind=result.kind, expected_identity=result.expectation()
+            bytes(changed.export()), kind=result.kind, expected_identity=result.expectation()
         )
     with pytest.raises((CausalValueError, CausalUnsupportedError, CausalSerializationError)):
         tr.consume_joint_transport_posterior(
@@ -224,7 +224,7 @@ def test_candidate_source_prior_overlap_population_schema_and_original_proof_ref
 def test_candidate_fresh_process_consumer_retains_joint_law(learned, tmp_path):
     result = call(learned, **fixture(learned))
     path = tmp_path / "posterior.bin"
-    path.write_bytes(result.export())
+    path.write_bytes(bytes(result.export()))
     code = """import json,sys; from pathlib import Path; from antecedent.transport import advanced as t
 r=t.consume_joint_transport_posterior(Path(sys.argv[1]).read_bytes(),kind=sys.argv[2],expected_identity=json.loads(sys.argv[3])); print(json.dumps({'mean':r.target_effect_mean,'variance':r.target_effect_variance,'calibration':r.calibration,'shape':list(r.draws.shape)}))"""
     done = subprocess.run(
@@ -244,7 +244,7 @@ r=t.consume_joint_transport_posterior(Path(sys.argv[1]).read_bytes(),kind=sys.ar
     value = json.loads(done.stdout)
     assert value["mean"] == result.target_effect_mean
     assert value["variance"] == result.target_effect_variance
-    assert value["calibration"] == "unmeasured"
+    assert value["calibration"] == "not_measured"
     assert value["shape"] == list(result.draws.shape)
 
 
@@ -253,7 +253,7 @@ def test_default_joint_transport_still_refuses_real_valid_scope():
         pytest.skip("default-wheel refusal is checked separately from candidate feature proof")
     with pytest.raises(CausalUnsupportedError) as error:
         tr.joint_bayesian_transport(sources=[{"id": "source"}], target={"x": [0.1]}, features=["x"])
-    assert error.value.reason_code == "cell_not_licensed"
+    assert error.value.reason_code == "not_supported"
 
 
 def test_candidate_result_constructor_and_prior_dimension_bound_do_not_accept_fabrication():

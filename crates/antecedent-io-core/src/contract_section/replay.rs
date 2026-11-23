@@ -1,6 +1,6 @@
 //! Estimator-specific contract replay.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::consume::{require_nested_digest, require_payload_digest};
 
@@ -8,10 +8,39 @@ use antecedent_core::IdentityDomain;
 
 use super::AnalysisResultContractWire;
 use crate::contract_reason::ContractReason;
-use crate::contract_wire::{CheckedAipwLoweringWire, checked_aipw_rows_digest};
-use crate::identity::{PayloadDigestWire, digest_wire, score_reuse_digest, target_weights_digest};
+use crate::contract_wire::CheckedAipwLoweringWire;
+use crate::identity::digest_wire;
 use crate::query_wire::TargetPopulationWire;
-use crate::{AnalysisResultWire, CausalQueryWire};
+
+mod aipw;
+mod functional;
+mod identity_links;
+mod lowering;
+mod moments;
+pub(in crate::contract_section) use aipw::{
+    is_aipw_contract, is_set_value, verify_checked_aipw, verify_checked_aipw_rows,
+};
+pub(in crate::contract_section) use identity_links::{
+    verify_score_reuse_link, verify_target_weights_link,
+};
+
+pub(in crate::contract_section) use moments::{
+    apply_moment_inverse, close_replay_value, invert_linear_moments, valid_linear_fit_kind,
+    verify_linear_fit_moments,
+};
+
+pub(in crate::contract_section) use lowering::{
+    intervention_bits, verify_checked_iv, verify_frontdoor_lowering,
+};
+
+pub(in crate::contract_section) use functional::{
+    is_response_functional_effect_contract, is_scalar_functional_effect_contract,
+    replay_functional_response_grid, verify_nested_counterfactual_result,
+    verify_temporal_nested_point,
+};
+
+#[cfg(test)]
+pub(in crate::contract_section) use functional::MAX_RESPONSE_GRID_POINTS;
 
 /// Whether the contract advertises `estimator` or its program resolved to it.
 ///
@@ -40,303 +69,6 @@ pub(in crate::contract_section) fn is_functional_distribution_contract(
     contract_uses_estimator(contract, "functional.distribution")
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
-)]
-pub(in crate::contract_section) fn verify_nested_counterfactual_result(
-    contract: &AnalysisResultContractWire,
-    body: &AnalysisResultWire,
-) -> Result<(), ContractReason> {
-    let crate::CausalQueryWire::NestedCounterfactual {
-        treatment,
-        mediator,
-        outcome,
-        control_bits,
-        active_bits,
-    } = contract.target.query
-    else {
-        return Err(ContractReason::ProgramCheckedNestedCounterfactualTarget);
-    };
-    let operation = contract
-        .program
-        .as_ref()
-        .and_then(|program| program.checked_nested_counterfactual.as_ref())
-        .ok_or(ContractReason::ProgramCheckedNestedCounterfactual)?;
-    if contract.graph_class != "Dag"
-        || contract.structure_source != "explicit"
-        || !matches!(contract.identifier.as_deref(), None | Some("path_specific.natural"))
-        || !matches!(contract.estimator.as_deref(), None | Some("mediation.linear"))
-        || contract
-            .program
-            .as_ref()
-            .and_then(|program| program.commitments.resolved_estimator.as_deref())
-            != Some("mediation.linear")
-        || !matches!(
-            contract.inference_binding.as_ref().map(|binding| binding.inference.as_str()),
-            Some("frequentist" | "bayesian")
-        )
-    {
-        return Err(ContractReason::ProgramCheckedNestedCounterfactualScope);
-    }
-    let bayesian_point =
-        contract.inference_binding.as_ref().is_some_and(|binding| binding.inference == "bayesian");
-    if operation.format != 1
-        || operation.treatment != treatment
-        || operation.mediator != mediator
-        || operation.outcome != outcome
-        || operation.control_bits != control_bits
-        || operation.active_bits != active_bits
-        || operation.model != "linear_gaussian"
-        || operation.procedure != "natural_direct_shared_exogenous"
-        || !f64::from_bits(active_bits).is_finite()
-        || !f64::from_bits(control_bits).is_finite()
-    {
-        return Err(ContractReason::ProgramCheckedNestedCounterfactualBinding);
-    }
-    let graph = contract
-        .identification
-        .as_ref()
-        .map(|identity| &identity.graph)
-        .ok_or(ContractReason::IdentitiesIdentification)?;
-    let crate::GraphIdentityWire::Dag(dag) = graph else {
-        return Err(ContractReason::ProgramCheckedNestedCounterfactualGraph);
-    };
-    let mut edges = dag.edges.clone();
-    edges.sort_unstable();
-    let mut expected_edges = vec![(treatment, mediator), (treatment, outcome), (mediator, outcome)];
-    expected_edges.sort_unstable();
-    if dag.node_count != 3 || edges != expected_edges {
-        return Err(ContractReason::ProgramCheckedNestedCounterfactualGraph);
-    }
-    if !body.identification.estimands.iter().any(|estimand| {
-        estimand.method == "path_specific.natural" && estimand.mediators == [mediator]
-    }) {
-        return Err(ContractReason::ProgramCheckedNestedCounterfactualIdentification);
-    }
-    let snapshot = contract
-        .data_snapshot
-        .as_ref()
-        .ok_or(ContractReason::DependenciesNestedCounterfactualFitMoments)?;
-    let fit = snapshot
-        .nested_counterfactual_fit
-        .as_ref()
-        .ok_or(ContractReason::DependenciesNestedCounterfactualFitMoments)?;
-    if fit.format != 1
-        || fit.complete_case_rows < 4
-        || fit.complete_case_rows > snapshot.row_count
-        || fit.gram.iter().chain(&fit.outcome_cross).any(|value| !value.is_finite())
-        || (fit.gram[0] - fit.complete_case_rows as f64).abs() > 1e-9
-        || (0..3).any(|row| {
-            (0..3).any(|column| {
-                (fit.gram[row * 3 + column] - fit.gram[column * 3 + row]).abs() > 1e-9
-            })
-        })
-    {
-        return Err(ContractReason::DependenciesNestedCounterfactualFitMoments);
-    }
-    let actual = body.estimate.ok_or(ContractReason::BodyNestedCounterfactualEstimate)?;
-    if !actual.is_finite() {
-        return Err(ContractReason::BodyNestedCounterfactualEstimate);
-    }
-    if bayesian_point
-        && (body.standard_error.is_some_and(f64::is_finite)
-            || body.interval_lower.is_some()
-            || body.interval_upper.is_some()
-            || body.posterior_artifact.is_some())
-    {
-        return Err(ContractReason::BodyNestedCounterfactualEstimate);
-    }
-    let expected = natural_direct_from_fit(fit, snapshot.row_count, active_bits, control_bits)?;
-    if (actual - expected).abs() > 1e-8 * expected.abs().max(1.0) {
-        return Err(ContractReason::BodyNestedCounterfactualEstimate);
-    }
-    Ok(())
-}
-
-/// A temporal nested point is the natural direct effect of the published
-/// outcome-regression moments, not an arbitrary finite scalar.
-pub(in crate::contract_section) fn verify_temporal_nested_point(
-    contract: &AnalysisResultContractWire,
-    body: &AnalysisResultWire,
-) -> Result<(), ContractReason> {
-    let shape = body.estimate.is_some_and(f64::is_finite)
-        && body.interval_lower.is_none()
-        && body.interval_upper.is_none()
-        && body.posterior_artifact.is_none()
-        && !body.standard_error.is_some_and(f64::is_finite);
-    if !shape {
-        return Err(ContractReason::BodyTemporalNestedPoint);
-    }
-    let crate::CausalQueryWire::NestedCounterfactual { control_bits, active_bits, .. } =
-        contract.target.query
-    else {
-        return Err(ContractReason::BodyTemporalNestedPoint);
-    };
-    let snapshot = contract
-        .data_snapshot
-        .as_ref()
-        .ok_or(ContractReason::DependenciesNestedCounterfactualFitMoments)?;
-    let fit = snapshot
-        .nested_counterfactual_fit
-        .as_ref()
-        .ok_or(ContractReason::DependenciesNestedCounterfactualFitMoments)?;
-    let expected = natural_direct_from_fit(fit, snapshot.row_count, active_bits, control_bits)
-        .map_err(|reason| match reason {
-            ContractReason::BodyNestedCounterfactualEstimate => {
-                ContractReason::BodyTemporalNestedPoint
-            }
-            other => other,
-        })?;
-    let actual = body.estimate.ok_or(ContractReason::BodyTemporalNestedPoint)?;
-    if (actual - expected).abs() > 1e-8 * expected.abs().max(1.0) {
-        return Err(ContractReason::BodyTemporalNestedPoint);
-    }
-    Ok(())
-}
-
-pub(in crate::contract_section) fn natural_direct_from_fit(
-    fit: &crate::NestedCounterfactualFitWire,
-    snapshot_rows: u64,
-    active_bits: u64,
-    control_bits: u64,
-) -> Result<f64, ContractReason> {
-    if fit.format != 1
-        || fit.complete_case_rows < 4
-        || fit.complete_case_rows > snapshot_rows
-        || fit.gram.iter().chain(&fit.outcome_cross).any(|value| !value.is_finite())
-        || (fit.gram[0] - fit.complete_case_rows as f64).abs() > 1e-9
-        || (0..3).any(|row| {
-            (0..3).any(|column| {
-                (fit.gram[row * 3 + column] - fit.gram[column * 3 + row]).abs() > 1e-9
-            })
-        })
-    {
-        return Err(ContractReason::DependenciesNestedCounterfactualFitMoments);
-    }
-    let beta = invert_linear_moments(&fit.gram, 3)
-        .and_then(|inverse| apply_moment_inverse(&inverse, &fit.outcome_cross, 3))
-        .ok_or(ContractReason::DependenciesNestedCounterfactualFitRank)?;
-    let expected = beta[1] * (f64::from_bits(active_bits) - f64::from_bits(control_bits));
-    if !expected.is_finite() {
-        return Err(ContractReason::BodyNestedCounterfactualEstimate);
-    }
-    Ok(expected)
-}
-
-pub(in crate::contract_section) fn is_scalar_functional_effect_contract(
-    contract: &AnalysisResultContractWire,
-) -> bool {
-    is_functional_effect_estimator_contract(contract)
-        && matches!(
-            contract.target.query,
-            crate::CausalQueryWire::AverageEffect { .. } | crate::CausalQueryWire::PathSpecific(_)
-        )
-}
-
-pub(in crate::contract_section) fn is_response_functional_effect_contract(
-    contract: &AnalysisResultContractWire,
-) -> bool {
-    is_functional_effect_estimator_contract(contract)
-        && matches!(contract.target.query, crate::CausalQueryWire::Response(_))
-}
-
-pub(in crate::contract_section) fn replay_functional_response_grid(
-    target: &CausalQueryWire,
-    family: &crate::CheckedFunctionalResponseGridWire,
-    reported: &crate::ResponseIdentificationWire,
-    laws: &crate::DistributionFactorLawsWire,
-) -> Result<(), ContractReason> {
-    use crate::{GridSpecWire, ResponseFunctionalWire, ResponseValueWire};
-    let CausalQueryWire::Response(target) = target else {
-        return Err(ContractReason::ProgramFunctionalEffectResponseGridTarget);
-    };
-    let ResponseFunctionalWire::MeanCurve { outcome, treatment } = &target.functional else {
-        return Err(ContractReason::ProgramFunctionalEffectResponseGridTargetKind);
-    };
-    if family.format != 1 || family.outcome != *outcome || family.treatment != treatment.variable {
-        return Err(ContractReason::ProgramFunctionalEffectResponseGridTargetBinding);
-    }
-    let expected_grid = match &treatment.grid {
-        GridSpecWire::Values(values) => values.clone(),
-        GridSpecWire::Linspace { start, end, points } => {
-            let points = usize::try_from(*points)
-                .map_err(|_| ContractReason::FunctionalEffectResponseGrid)?;
-            if points == 0 || points > 100_000 {
-                return Err(ContractReason::FunctionalEffectResponseGridResourceLimit);
-            }
-            if points == 1 {
-                vec![*start]
-            } else {
-                (0..points)
-                    .map(|index| start + (end - start) * index as f64 / (points - 1) as f64)
-                    .collect()
-            }
-        }
-    };
-    if expected_grid.len() != family.members.len() || expected_grid.is_empty() {
-        return Err(ContractReason::ProgramFunctionalEffectResponseGridMemberCount);
-    }
-    let crate::ResponseIdentificationWire::PointIdentified(ResponseValueWire::Surface {
-        grid: reported_grid,
-        dimension: 1,
-        mean: means,
-    }) = reported
-    else {
-        return Err(ContractReason::FunctionalEffectResponseResultShape);
-    };
-    if reported_grid.len() != expected_grid.len()
-        || means.len() != expected_grid.len()
-        || reported_grid
-            .iter()
-            .zip(&expected_grid)
-            .any(|(left, right)| left.to_bits() != right.to_bits())
-    {
-        return Err(ContractReason::FunctionalEffectResponseGridResultMismatch);
-    }
-    if laws.format != 1
-        || laws.provider != "empirical_table"
-        || laws.missing_row_policy != "joint_complete_case"
-        || laws.complete_case_rows == 0
-        || laws.source_rows < laws.complete_case_rows
-    {
-        return Err(ContractReason::FunctionalEffectProviderProvenance);
-    }
-    for ((member, expected), reported) in family.members.iter().zip(expected_grid).zip(means) {
-        if member.grid_value_bits != expected.to_bits() {
-            return Err(ContractReason::ProgramFunctionalEffectResponseGridMemberValue);
-        }
-        let CausalQueryWire::Response(query) = &member.query else {
-            return Err(ContractReason::ProgramFunctionalEffectResponseGridMemberQueryKind);
-        };
-        let ResponseFunctionalWire::InterventionResponse { outcome: member_outcome, interventions } =
-            &query.functional
-        else {
-            return Err(ContractReason::ProgramFunctionalEffectResponseGridMemberFunctional);
-        };
-        if member_outcome != outcome
-            || interventions.len() != 1
-            || !matches!(interventions.first(), Some(crate::InterventionWire::Set { variable, value })
-                if *variable == treatment.variable && value.to_value() == antecedent_core::Value::Float64(expected))
-        {
-            return Err(ContractReason::ProgramFunctionalEffectResponseGridMemberIntervention);
-        }
-        if member.identification.estimands.iter().all(|estimand| {
-            estimand.method != "general.id" || estimand.functional != member.program.source
-        }) || member.program.source != member.program.executable
-        {
-            return Err(ContractReason::ProgramFunctionalEffectResponseGridMemberProgram);
-        }
-        crate::distribution_replay::replay_functional_scalar(
-            &member.query,
-            Some(*reported),
-            &member.program,
-            laws,
-        )?;
-    }
-    Ok(())
-}
-
 pub(in crate::contract_section) fn verify_checked_linear_adjustment(
     contract: &AnalysisResultContractWire,
     unresolved: &mut Vec<ContractReason>,
@@ -363,6 +95,374 @@ pub(in crate::contract_section) fn verify_checked_linear_adjustment(
     if !verify_linear_adjustment_lowering(contract, lowering) {
         unresolved.push(ContractReason::ProgramCheckedLinearAdjustmentBinding);
     }
+}
+
+/// Whether the carried adjustment set is a sufficient backdoor set for the carried graph.
+///
+/// A resealed product can repeat any adjustment set, and the lowerings only compare their
+/// adjustment with that product. For a static DAG this re-checks the set against the graph
+/// the identification itself carries (no treatment descendant, treatment and outcome
+/// d-separated once the arrows out of treatment are removed), with the identifier's own
+/// criterion and no search budget. Other graph classes establish adjustment by other
+/// criteria, which this check does not recompute, so they are not refused for it.
+pub(in crate::contract_section) fn carried_adjustment_is_backdoor(
+    contract: &AnalysisResultContractWire,
+    treatment: u32,
+    outcome: u32,
+    adjustment: &[u32],
+) -> bool {
+    let Some(identification) = contract.identification.as_ref() else { return true };
+    let crate::identity::GraphIdentityWire::Dag(graph) = &identification.graph else {
+        return true;
+    };
+    let Ok(dag) = crate::dag_from_wire(graph) else { return false };
+    let adjustment =
+        adjustment.iter().copied().map(antecedent_core::VariableId::from_raw).collect::<Vec<_>>();
+    matches!(
+        antecedent_identify::backdoor::check_joint_adjustment(
+            &dag,
+            &[antecedent_core::VariableId::from_raw(treatment)],
+            antecedent_core::VariableId::from_raw(outcome),
+            &adjustment,
+        ),
+        Ok(Some(_))
+    )
+}
+
+/// Re-derive the graph-criterion estimands of the carried identification product from the
+/// carried DAG and the marginal average-effect target.
+///
+/// The product is a resealable payload, so replay recomputes its estimands: a
+/// back-door estimand must satisfy the joint back-door criterion, an instrument the graph
+/// instrument criterion, and a front-door estimand the front-door criterion. Each check
+/// evaluates the carried set directly, with no candidate search. A set the criterion rejects
+/// is [`ContractReason::IdentificationProductEstimands`]; a check that could not finish
+/// (budget, cancellation, internal error) is the distinct
+/// [`ContractReason::DependenciesIdentificationReplayBudget`], never a statement that the
+/// estimand is wrong. Estimands of other methods are recomputed by
+/// `verify_rederived_functionals`, not here. A back-door, instrument or front-door estimand this check cannot evaluate
+/// (a graph class other than a DAG, a target other than the marginal average effect, effect
+/// modifiers, or a shape outside the criterion check) is not passed: it is the distinct
+/// [`ContractReason::DependenciesIdentificationEstimandCriterion`]: the estimand is not
+/// replayable by this consumer. That limits nothing about the result's use and a producer may
+/// still export it.
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the verdict is consumed once, as the identifier returned it"
+)]
+pub(in crate::contract_section) fn estimand_verdict(
+    verdict: Result<bool, antecedent_identify::IdentificationError>,
+) -> Result<(), ContractReason> {
+    use antecedent_identify::IdentificationError;
+    match verdict {
+        Ok(true) => Ok(()),
+        Ok(false)
+        | Err(
+            IdentificationError::InvalidQuery { .. } | IdentificationError::UnknownVariable { .. },
+        ) => Err(ContractReason::IdentificationProductEstimands),
+        Err(_) => Err(ContractReason::DependenciesIdentificationReplayBudget),
+    }
+}
+
+/// Check every carried estimand the verifier can re-derive from the carried graph.
+///
+/// Graph-criterion estimands (back-door, instrument, front-door) are checked against their
+/// criterion; general-ID and path-specific estimands are re-derived by running the same
+/// identification on the carried graph and comparing the functional structurally. A wrong
+/// estimand is reported in preference to an unresolved one.
+pub(in crate::contract_section) fn verify_carried_estimands(
+    contract: &AnalysisResultContractWire,
+) -> Result<(), ContractReason> {
+    let criterion = verify_graph_criterion_estimands(contract);
+    let rederived = verify_rederived_functionals(contract);
+    match (criterion, rederived) {
+        (Err(ContractReason::IdentificationProductEstimands), _)
+        | (_, Err(ContractReason::IdentificationProductEstimands)) => {
+            Err(ContractReason::IdentificationProductEstimands)
+        }
+        (criterion, rederived) => criterion.and(rederived),
+    }
+}
+
+/// Canonical structural identity of expression roots across arenas: equal ids mean equal
+/// formulas. Variable sets are compared as sets and product factors as multisets, so an
+/// arena built in another insertion order still compares equal; derivation notes are not
+/// identity.
+#[derive(Default)]
+struct FormulaCanon {
+    interned: std::collections::HashMap<String, u32>,
+}
+
+impl FormulaCanon {
+    const MAX_DEPTH: usize = 4096;
+
+    fn intern(&mut self, key: String) -> u32 {
+        let next = u32::try_from(self.interned.len()).unwrap_or(u32::MAX);
+        *self.interned.entry(key).or_insert(next)
+    }
+
+    fn root(&mut self, arena: &crate::ExprArenaWire, root: u32) -> Option<u32> {
+        let mut memo = std::collections::HashMap::new();
+        self.node(arena, &mut memo, root, 0)
+    }
+
+    fn var_set(arena: &crate::ExprArenaWire, id: u32) -> Option<String> {
+        let mut vars = arena.var_sets.get(id as usize)?.clone();
+        vars.sort_unstable();
+        Some(format!("{vars:?}"))
+    }
+
+    fn node(
+        &mut self,
+        arena: &crate::ExprArenaWire,
+        memo: &mut std::collections::HashMap<u32, u32>,
+        id: u32,
+        depth: usize,
+    ) -> Option<u32> {
+        use crate::ExprNodeWire as N;
+        if let Some(done) = memo.get(&id) {
+            return Some(*done);
+        }
+        if depth > Self::MAX_DEPTH {
+            return None;
+        }
+        let key = match arena.nodes.get(id as usize)? {
+            N::Distribution {
+                variables,
+                conditioned_on,
+                intervention,
+                domain,
+                population,
+                regime,
+            } => {
+                format!(
+                    "D|{}|{}|{:?}|{domain}|{population}|{regime:?}",
+                    Self::var_set(arena, *variables)?,
+                    Self::var_set(arena, *conditioned_on)?,
+                    arena.interventions.get(*intervention as usize)?,
+                )
+            }
+            N::Kernel { body, bound, population, regime } => format!(
+                "K|{}|{}|{population}|{regime:?}",
+                self.node(arena, memo, *body, depth + 1)?,
+                Self::var_set(arena, *bound)?,
+            ),
+            N::Product(list) => {
+                let mut factors = Vec::new();
+                for factor in arena.lists.get(*list as usize)? {
+                    factors.push(self.node(arena, memo, *factor, depth + 1)?);
+                }
+                factors.sort_unstable();
+                format!("P|{factors:?}")
+            }
+            N::SumOut { variables, expr } => format!(
+                "S|{}|{}",
+                Self::var_set(arena, *variables)?,
+                self.node(arena, memo, *expr, depth + 1)?,
+            ),
+            N::IntegralOut { variables, expr } => format!(
+                "I|{}|{}",
+                Self::var_set(arena, *variables)?,
+                self.node(arena, memo, *expr, depth + 1)?,
+            ),
+            N::Ratio { numerator, denominator } => format!(
+                "R|{}|{}",
+                self.node(arena, memo, *numerator, depth + 1)?,
+                self.node(arena, memo, *denominator, depth + 1)?,
+            ),
+            N::Expectation { function, distribution } => {
+                format!("E|{function}|{}", self.node(arena, memo, *distribution, depth + 1)?)
+            }
+            N::Contrast { left, right, op } => format!(
+                "C|{op}|{}|{}",
+                self.node(arena, memo, *left, depth + 1)?,
+                self.node(arena, memo, *right, depth + 1)?,
+            ),
+        };
+        let canonical = self.intern(key);
+        memo.insert(id, canonical);
+        Some(canonical)
+    }
+}
+
+/// Re-derive the general-ID and path-specific estimands of the carried product.
+///
+/// The product is a resealable payload, and its functional is bound only to the program that
+/// evaluates it, so a self-consistent wrong functional (the naive conditional, say) would
+/// otherwise verify. The same identification the producer ran is run on the carried graph for
+/// the carried target query, and each carried estimand of that method must equal a re-derived
+/// one structurally. A functional the derivation does not produce, or one it finds
+/// unidentified, is [`ContractReason::IdentificationProductEstimands`]. A graph class or query
+/// the derivation does not handle is the distinct
+/// [`ContractReason::DependenciesIdentificationEstimandCriterion`]; a derivation that hit its
+/// work cap or was cancelled is [`ContractReason::DependenciesIdentificationReplayBudget`]. Neither
+/// is a statement that the estimand is wrong, and neither passes it.
+fn verify_rederived_functionals(
+    contract: &AnalysisResultContractWire,
+) -> Result<(), ContractReason> {
+    use antecedent_identify::{IdIdentifier, IdentificationError, IdentificationWorkspace};
+
+    let Some(product) = contract.identification_product.as_ref() else {
+        return Ok(());
+    };
+    let rederived = |method: &str| matches!(method, "general.id" | "path_specific.natural");
+    if !product.estimands.iter().any(|estimand| rederived(estimand.method.as_str())) {
+        return Ok(());
+    }
+    let unchecked = ContractReason::DependenciesIdentificationEstimandCriterion;
+    let Some(identification) = contract.identification.as_ref() else {
+        return Err(unchecked);
+    };
+    let prepared = match &identification.graph {
+        crate::identity::GraphIdentityWire::Dag(graph) => {
+            let Ok(dag) = crate::dag_from_wire(graph) else {
+                return Err(ContractReason::IdentificationProductEstimands);
+            };
+            IdIdentifier::new().prepare_dag(&dag)
+        }
+        crate::identity::GraphIdentityWire::Admg(graph) => {
+            let Ok(admg) = crate::admg_from_wire(graph) else {
+                return Err(ContractReason::IdentificationProductEstimands);
+            };
+            IdIdentifier::new().prepare(&admg)
+        }
+        _ => return Err(unchecked),
+    };
+    let Ok(prepared) = prepared else { return Err(unchecked) };
+    // Only queries whose identification is a single marginal derivation are re-derived.
+    let method = match &contract.target.query {
+        crate::CausalQueryWire::AverageEffect { effect_modifiers, .. }
+            if effect_modifiers.is_empty() =>
+        {
+            "general.id"
+        }
+        // An unconditional interventional distribution is identified by the same ID run;
+        // a conditioned one belongs to IDC and is not re-derived here.
+        crate::CausalQueryWire::Distribution(distribution)
+            if distribution.conditioning.is_empty() =>
+        {
+            "general.id"
+        }
+        crate::CausalQueryWire::PathSpecific(_) => "path_specific.natural",
+        _ => return Err(unchecked),
+    };
+    let Ok(query) = crate::query_wire::causal_query_from_wire(&contract.target.query) else {
+        return Err(unchecked);
+    };
+    let mut workspace = IdentificationWorkspace::default();
+    let result = if method == "general.id" {
+        IdIdentifier::new().identify(&prepared, &query, &mut workspace)
+    } else {
+        antecedent_identify::PathSpecificIdentifier::new().identify(
+            &prepared,
+            &query,
+            &mut workspace,
+        )
+    };
+    let result = match result {
+        Ok(result) => result,
+        Err(IdentificationError::Budget { .. } | IdentificationError::Cancelled) => {
+            return Err(ContractReason::DependenciesIdentificationReplayBudget);
+        }
+        Err(IdentificationError::UnknownVariable { .. }) => {
+            return Err(ContractReason::IdentificationProductEstimands);
+        }
+        Err(_) => return Err(unchecked),
+    };
+    let Ok(derived_arena) = crate::expr_arena_to_wire(&result.arena) else { return Err(unchecked) };
+    let mut canon = FormulaCanon::default();
+    let derived: Vec<u32> = result
+        .estimands
+        .iter()
+        .filter(|estimand| &*estimand.method == method)
+        .filter_map(|estimand| canon.root(&derived_arena, estimand.functional.raw()))
+        .collect();
+    let mut unresolved = false;
+    for estimand in &product.estimands {
+        let carried_method = estimand.method.as_str();
+        if !rederived(carried_method) {
+            continue;
+        }
+        if carried_method != method {
+            // The target query is of another kind than this estimand's method.
+            unresolved = true;
+            continue;
+        }
+        match canon.root(&product.arena, estimand.functional) {
+            Some(carried) if derived.contains(&carried) => {}
+            _ => return Err(ContractReason::IdentificationProductEstimands),
+        }
+    }
+    if unresolved { Err(unchecked) } else { Ok(()) }
+}
+
+fn verify_graph_criterion_estimands(
+    contract: &AnalysisResultContractWire,
+) -> Result<(), ContractReason> {
+    use antecedent_core::VariableId;
+    use antecedent_identify::{backdoor::check_joint_adjustment, frontdoor, iv};
+
+    let Some(product) = contract.identification_product.as_ref() else {
+        return Ok(());
+    };
+    // A graph-criterion estimand that this check cannot recompute is reported as not
+    // replayable rather than passed as recomputed. Only methods whose criterion is a graph
+    // property are examined here; other methods are recomputed by re-derivation.
+    let graph_criterion = |method: &str| {
+        matches!(method, "backdoor.adjustment" | "backdoor.efficient" | "iv" | "frontdoor")
+    };
+    let carries_graph_criterion =
+        product.estimands.iter().any(|estimand| graph_criterion(estimand.method.as_str()));
+    let unchecked = if carries_graph_criterion {
+        Err(ContractReason::DependenciesIdentificationEstimandCriterion)
+    } else {
+        Ok(())
+    };
+    let Some(identification) = contract.identification.as_ref() else {
+        return unchecked;
+    };
+    let crate::identity::GraphIdentityWire::Dag(graph) = &identification.graph else {
+        return unchecked;
+    };
+    let crate::CausalQueryWire::AverageEffect { treatment, outcome, effect_modifiers, .. } =
+        &contract.target.query
+    else {
+        return unchecked;
+    };
+    if !effect_modifiers.is_empty() {
+        return unchecked;
+    }
+    let Ok(dag) = crate::dag_from_wire(graph) else {
+        return Err(ContractReason::IdentificationProductEstimands);
+    };
+    let (treatment, outcome) = (VariableId::from_raw(*treatment), VariableId::from_raw(*outcome));
+    let ids = |raw: &[u32]| raw.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>();
+    let mut skipped = false;
+    for estimand in &product.estimands {
+        let verdict = match estimand.method.as_str() {
+            "backdoor.adjustment" | "backdoor.efficient"
+                if estimand.instruments.is_empty() && estimand.mediators.is_empty() =>
+            {
+                check_joint_adjustment(&dag, &[treatment], outcome, &ids(&estimand.adjustment_set))
+                    .map(|checked| checked.is_some())
+            }
+            "iv" if estimand.adjustment_set.is_empty() => match ids(&estimand.instruments)[..] {
+                [instrument] => iv::check_instrument(&dag, instrument, treatment, outcome),
+                _ => Ok(false),
+            },
+            "frontdoor" => {
+                frontdoor::check_frontdoor_set(&dag, treatment, outcome, &ids(&estimand.mediators))
+            }
+            method => {
+                // A graph-criterion estimand shaped outside what the criterion check
+                // evaluates is not replayable here.
+                skipped |= graph_criterion(method);
+                continue;
+            }
+        };
+        estimand_verdict(verdict)?;
+    }
+    if skipped { unchecked } else { Ok(()) }
 }
 
 #[allow(
@@ -420,6 +520,14 @@ pub(in crate::contract_section) fn verify_linear_adjustment_lowering(
     }) else {
         return false;
     };
+    if !carried_adjustment_is_backdoor(
+        contract,
+        lowering.treatment,
+        lowering.outcome,
+        &lowering.adjustment,
+    ) {
+        return false;
+    }
     let target_matches = match &contract.target.query {
         crate::CausalQueryWire::AverageEffect {
             treatment,
@@ -443,6 +551,45 @@ pub(in crate::contract_section) fn verify_linear_adjustment_lowering(
     if !product.estimands.iter().any(|candidate| candidate.functional == lowering.functional) {
         return false;
     }
+    let expression_matches = linear_adjustment_expression_matches(lowering);
+    let commitments_match = program.commitments.resolved_estimator.as_deref()
+        == Some("linear.adjustment.ate")
+        && program.commitments.inference == "frequentist"
+        && !program.commitments.prior_required
+        && program.commitments.se_kind.as_deref() == Some(lowering.se_kind.as_str())
+        && program.commitments.interval_method == lowering.interval_method
+        && lowering.interval_method
+            == if lowering.bootstrap_replicates > 0 { "bootstrap_se" } else { "analytic_se" }
+        && binding.inference == "frequentist"
+        && binding.bayesian.is_none()
+        && binding.bootstrap_replicates == lowering.bootstrap_replicates;
+    let binding_matches = match binding.estimator_spec.as_ref() {
+        Some(crate::EstimatorSpecWire::Default(name)) => name == "linear.adjustment.ate",
+        Some(crate::EstimatorSpecWire::LinearAdjustmentAte(config)) => {
+            config.bootstrap_replicates == lowering.bootstrap_replicates
+                && config.se_kind.as_deref().unwrap_or("homoskedastic") == lowering.se_kind
+                && config.backend == lowering.backend
+                && config.fit_kind.as_ref().is_none_or(|(family, parameter)| {
+                    let expected = match lowering.fit_kind.split_once(':') {
+                        Some((kind, bits)) => (kind, u64::from_str_radix(bits, 16).ok()),
+                        None => (lowering.fit_kind.as_str(), None),
+                    };
+                    family == expected.0 && *parameter == expected.1
+                })
+        }
+        None => true,
+        _ => false,
+    };
+    target_matches
+        && estimand.adjustment_set == lowering.adjustment
+        && expression_matches
+        && commitments_match
+        && binding_matches
+}
+
+fn linear_adjustment_expression_matches(
+    lowering: &crate::CheckedLinearAdjustmentLoweringWire,
+) -> bool {
     let Ok(mut arena) = crate::expr_arena_from_wire(&lowering.arena) else {
         return false;
     };
@@ -487,427 +634,9 @@ pub(in crate::contract_section) fn verify_linear_adjustment_lowering(
         distribution: averaged,
     });
     let expected_arena = crate::expr_arena_to_wire(&arena).ok();
-    let commitments_match = program.commitments.resolved_estimator.as_deref()
-        == Some("linear.adjustment.ate")
-        && program.commitments.inference == "frequentist"
-        && !program.commitments.prior_required
-        && program.commitments.se_kind.as_deref() == Some(lowering.se_kind.as_str())
-        && program.commitments.interval_method == lowering.interval_method
-        && lowering.interval_method
-            == if lowering.bootstrap_replicates > 0 { "bootstrap_se" } else { "analytic_se" }
-        && binding.inference == "frequentist"
-        && binding.bayesian.is_none()
-        && binding.bootstrap_replicates == lowering.bootstrap_replicates;
-    let binding_matches = match binding.estimator_spec.as_ref() {
-        Some(crate::EstimatorSpecWire::Default(name)) => name == "linear.adjustment.ate",
-        Some(crate::EstimatorSpecWire::LinearAdjustmentAte(config)) => {
-            config.bootstrap_replicates == lowering.bootstrap_replicates
-                && config.se_kind.as_deref().unwrap_or("homoskedastic") == lowering.se_kind
-                && config.backend == lowering.backend
-                && config.fit_kind.as_ref().is_none_or(|(family, parameter)| {
-                    let expected = match lowering.fit_kind.split_once(':') {
-                        Some((kind, bits)) => (kind, u64::from_str_radix(bits, 16).ok()),
-                        None => (lowering.fit_kind.as_str(), None),
-                    };
-                    family == expected.0 && *parameter == expected.1
-                })
-        }
-        None => true,
-        _ => false,
-    };
-    target_matches
-        && estimand.adjustment_set == lowering.adjustment
-        && expected_source.raw() == lowering.functional
+    expected_source.raw() == lowering.functional
         && expected_executable.raw() == lowering.executable
         && expected_arena.as_ref() == Some(&lowering.arena)
-        && commitments_match
-        && binding_matches
-}
-
-pub(in crate::contract_section) fn valid_linear_fit_kind(fit_kind: &str) -> bool {
-    match fit_kind {
-        "ols" => true,
-        _ => fit_kind.split_once(':').is_some_and(|(kind, bits)| {
-            let Ok(bits) = u64::from_str_radix(bits, 16) else { return false };
-            let value = f64::from_bits(bits);
-            value.is_finite() && value > 0.0 && matches!(kind, "ridge" | "lasso" | "huber")
-        }),
-    }
-}
-
-pub(in crate::contract_section) fn verify_linear_fit_moments(
-    contract: &AnalysisResultContractWire,
-    body: &AnalysisResultWire,
-    lowering: &crate::CheckedLinearAdjustmentLoweringWire,
-) -> Result<(), ContractReason> {
-    if lowering.fit_kind != "ols"
-        || lowering.se_kind != "homoskedastic"
-        || lowering.bootstrap_replicates != 0
-        || lowering.interval_method != "analytic_se"
-        || !matches!(&lowering.population, crate::TargetPopulationWire::AllObserved)
-    {
-        return Err(ContractReason::DependenciesLinearFitSufficientStatistics);
-    }
-    let snapshot = contract
-        .data_snapshot
-        .as_ref()
-        .ok_or(ContractReason::DependenciesLinearFitSufficientStatistics)?;
-    let moments = snapshot
-        .linear_fit_moments
-        .as_ref()
-        .ok_or(ContractReason::DependenciesLinearFitSufficientStatistics)?;
-    let p = lowering.design_columns.len();
-    if moments.format != 1
-        || usize::try_from(moments.columns).ok() != Some(p)
-        || moments.complete_case_rows != lowering.complete_case_rows
-        || moments.complete_case_rows > snapshot.row_count
-        || !(2..=64).contains(&p)
-        || moments.complete_case_rows <= p as u64
-        || moments.gram.len() != p * p
-        || moments.outcome_cross.len() != p
-        || !moments.outcome_square.is_finite()
-        || moments.gram.iter().chain(&moments.outcome_cross).any(|v| !v.is_finite())
-    {
-        return Err(ContractReason::DataSnapshotLinearFitMoments);
-    }
-    let scale = moments.gram.iter().map(|v| v.abs()).fold(0.0_f64, f64::max);
-    if scale == 0.0
-        || !scale.is_finite()
-        || (0..p).any(|row| {
-            (0..p).any(|column| {
-                (moments.gram[row * p + column] - moments.gram[column * p + row]).abs()
-                    > 1e-10 * scale.max(1.0)
-            })
-        })
-    {
-        return Err(ContractReason::DataSnapshotLinearFitMoments);
-    }
-    let inverse = invert_linear_moments(&moments.gram, p)
-        .ok_or(ContractReason::DataSnapshotLinearFitMomentsRank)?;
-    let beta = apply_moment_inverse(&inverse, &moments.outcome_cross, p)
-        .ok_or(ContractReason::DataSnapshotLinearFitMomentsRank)?;
-    let residual_square = moments.outcome_square
-        - beta.iter().zip(&moments.outcome_cross).map(|(b, xy)| b * xy).sum::<f64>();
-    let tolerance = 1e-9 * moments.outcome_square.abs().max(1.0);
-    if !residual_square.is_finite() || residual_square < -tolerance {
-        return Err(ContractReason::DataSnapshotLinearFitMoments);
-    }
-    let dof = (moments.complete_case_rows - p as u64) as f64;
-    let treatment_column = lowering
-        .design_columns
-        .iter()
-        .position(|column| column == "treatment")
-        .ok_or(ContractReason::ProgramCheckedLinearAdjustmentBinding)?;
-    if lowering.design_columns.iter().filter(|column| *column == "treatment").count() != 1
-        || lowering.design_columns.first().map(String::as_str) != Some("intercept")
-    {
-        return Err(ContractReason::ProgramCheckedLinearAdjustmentBinding);
-    }
-    // The residual sum of squares is a difference of two sums of products of the data, so
-    // an exact fit leaves only roundoff of the order of eps * outcome_square. That is a zero
-    // residual, not a standard error of its square root.
-    let residual_square = if residual_square.abs() <= 1e-12 * moments.outcome_square.abs() {
-        0.0
-    } else {
-        residual_square
-    };
-    let variance =
-        (residual_square.max(0.0) / dof) * inverse[treatment_column * p + treatment_column];
-    if !variance.is_finite() || variance < 0.0 {
-        return Err(ContractReason::DataSnapshotLinearFitMoments);
-    }
-    let delta = f64::from_bits(lowering.active_bits) - f64::from_bits(lowering.control_bits);
-    let expected = beta[treatment_column] * delta;
-    let expected_se = delta.abs() * variance.sqrt();
-    let actual = body.estimate.ok_or(ContractReason::BodyEstimate)?;
-    if !close_replay_value(actual, expected) {
-        return Err(ContractReason::BodyEstimate);
-    }
-    let actual_se = body.standard_error.ok_or(ContractReason::BodyStandardError)?;
-    if !close_replay_value(actual_se, expected_se) {
-        return Err(ContractReason::BodyStandardError);
-    }
-    Ok(())
-}
-
-/// Inverse of a row-major `p x p` moment matrix, or `None` when it is singular, non-finite or
-/// overflows. The replay deliberately stays off the estimator's fit path and shares only the
-/// scale-free equilibrated Gauss-Jordan inverse of `antecedent-stats`, so a unit change in a
-/// design column moves neither the refusal nor the verdict.
-pub(in crate::contract_section) fn invert_linear_moments(
-    gram: &[f64],
-    p: usize,
-) -> Option<Vec<f64>> {
-    let inverse = antecedent_stats::invert_square(gram, p)?;
-    inverse.iter().all(|v| v.is_finite()).then_some(inverse)
-}
-
-/// `inverse * cross` for a row-major `p x p` inverse; `None` when the product is not finite.
-pub(in crate::contract_section) fn apply_moment_inverse(
-    inverse: &[f64],
-    cross: &[f64],
-    p: usize,
-) -> Option<Vec<f64>> {
-    let beta: Vec<f64> = (0..p)
-        .map(|row| (0..p).map(|column| inverse[row * p + column] * cross[column]).sum())
-        .collect();
-    beta.iter().all(|v| v.is_finite()).then_some(beta)
-}
-
-pub(in crate::contract_section) fn close_replay_value(actual: f64, expected: f64) -> bool {
-    actual.is_finite()
-        && expected.is_finite()
-        && (actual - expected).abs() <= 1e-8 * expected.abs().max(1.0)
-}
-
-pub(in crate::contract_section) fn verify_checked_iv(
-    contract: &AnalysisResultContractWire,
-    lowering: &crate::CheckedIvLoweringWire,
-) -> bool {
-    let (Some(product), Some(program), Some(snapshot)) = (
-        contract.identification_product.as_ref(),
-        contract.program.as_ref(),
-        contract.data_snapshot.as_ref(),
-    ) else {
-        return false;
-    };
-    let Some(_estimand) = product.estimands.iter().find(|estimand| {
-        estimand.functional == lowering.functional
-            && estimand.method == "iv"
-            && estimand.instruments == [lowering.instrument]
-            && estimand.adjustment_set == lowering.adjustment
-    }) else {
-        return false;
-    };
-    let (query_treatment, query_outcome, active, control, mean_outcome) =
-        match &contract.target.query {
-            crate::CausalQueryWire::AverageEffect {
-                treatment,
-                outcome,
-                active,
-                control,
-                outcome_functional,
-                ..
-            } => (
-                *treatment,
-                *outcome,
-                active,
-                control,
-                matches!(outcome_functional, crate::query_wire::OutcomeFunctionalWire::Mean),
-            ),
-            _ => return false,
-        };
-    // An undeclared estimator defers to the program's resolved choice; the
-    // commitment check below still requires the two to agree.
-    let expected_procedure =
-        match contract.estimator.as_deref().or(program.commitments.resolved_estimator.as_deref()) {
-            Some("iv.wald") => "wald",
-            Some("iv.2sls") => "two_stage_least_squares",
-            _ => return false,
-        };
-    let expected_weak_uncertainty = match lowering.se_kind.as_str() {
-        "homoskedastic" => "anderson_rubin_if_weak",
-        "hc0" | "hc1" | "hc2" | "hc3" | "cluster" | "multiway" | "newey_west"
-        | "panel_cluster_hac" => "withheld_non_homoskedastic",
-        _ => return false,
-    };
-    let Ok(mut arena) = crate::expr_arena_from_wire(&product.arena) else {
-        return false;
-    };
-    let Ok(expected_functional) = arena.iv_wald(
-        antecedent_core::VariableId::from_raw(lowering.treatment),
-        antecedent_core::VariableId::from_raw(lowering.outcome),
-        &[antecedent_core::VariableId::from_raw(lowering.instrument)],
-        &antecedent_core::Value::Float64(f64::from_bits(lowering.active_bits)),
-        &antecedent_core::Value::Float64(f64::from_bits(lowering.control_bits)),
-    ) else {
-        return false;
-    };
-    let expected_arena = crate::expr_arena_to_wire(&arena).ok();
-    lowering.format == 1
-        && lowering.procedure == expected_procedure
-        && lowering.treatment == query_treatment
-        && lowering.outcome == query_outcome
-        && intervention_bits(active, query_treatment) == Some(lowering.active_bits)
-        && intervention_bits(control, query_treatment) == Some(lowering.control_bits)
-        && mean_outcome
-        && lowering.instrument_active_bits == 1.0_f64.to_bits()
-        && lowering.instrument_control_bits == 0.0_f64.to_bits()
-        && lowering.complete_case_rows > 0
-        && lowering.complete_case_rows <= snapshot.row_count
-        && program.commitments.resolved_estimator.as_deref()
-            == Some(expected_procedure_id(expected_procedure))
-        && program.commitments.se_kind.as_deref() == Some(lowering.se_kind.as_str())
-        && lowering.weak_instrument_uncertainty == expected_weak_uncertainty
-        && expected_functional.raw() == lowering.functional
-        && expected_arena.as_ref() == Some(&product.arena)
-}
-
-pub(in crate::contract_section) fn expected_procedure_id(procedure: &str) -> &'static str {
-    match procedure {
-        "wald" => "iv.wald",
-        _ => "iv.2sls",
-    }
-}
-
-#[allow(
-    clippy::too_many_lines,
-    reason = "The lowering verifier checks the complete front-door product and its source bindings."
-)]
-pub(in crate::contract_section) fn verify_frontdoor_lowering(
-    contract: &AnalysisResultContractWire,
-    lowering: &crate::CheckedFrontDoorLoweringWire,
-) -> bool {
-    let Some(product) = contract.identification_product.as_ref() else { return false };
-    let Some(program) = contract.program.as_ref() else { return false };
-    let Some(estimand) = product.estimands.iter().find(|estimand| {
-        estimand.functional == lowering.functional
-            && estimand.mediators == lowering.mediators
-            && estimand.method == "frontdoor"
-    }) else {
-        return false;
-    };
-    let target_matches = match &contract.target.query {
-        crate::CausalQueryWire::AverageEffect {
-            treatment,
-            outcome,
-            active,
-            control,
-            outcome_functional,
-            ..
-        } => {
-            *treatment == lowering.treatment
-                && *outcome == lowering.outcome
-                && intervention_bits(active, *treatment) == Some(lowering.active_bits)
-                && intervention_bits(control, *treatment) == Some(lowering.control_bits)
-                && matches!(outcome_functional, crate::query_wire::OutcomeFunctionalWire::Mean)
-        }
-        _ => false,
-    };
-    let expected_variables: Vec<_> = contract
-        .target
-        .schema
-        .variables
-        .iter()
-        .map(|variable| (variable.id, variable.name.clone()))
-        .collect();
-    let program_valid = crate::functional_program_from_wire(
-        &crate::FunctionalProgramWire {
-            arena: lowering.arena.clone(),
-            source: lowering.functional,
-            executable: lowering.executable,
-            variables: expected_variables,
-        },
-        antecedent_expr::ProgramLimits::default(),
-    )
-    .is_ok();
-    let lowering_matches_frontdoor = (|| {
-        let mut arena = crate::expr_arena_from_wire(&product.arena).ok()?;
-        let treatment = antecedent_core::VariableId::from_raw(lowering.treatment);
-        let outcome = antecedent_core::VariableId::from_raw(lowering.outcome);
-        let mediators = lowering
-            .mediators
-            .iter()
-            .copied()
-            .map(antecedent_core::VariableId::from_raw)
-            .collect::<Vec<_>>();
-        let source = arena.frontdoor_ate(
-            treatment,
-            outcome,
-            &mediators,
-            antecedent_core::Value::Float64(f64::from_bits(lowering.active_bits)),
-            antecedent_core::Value::Float64(f64::from_bits(lowering.control_bits)),
-        );
-        let executable = frontdoor_observational_root(&mut arena, treatment, outcome, &mediators);
-        let expected_arena = crate::expr_arena_to_wire(&arena).ok()?;
-        Some(
-            source.raw() == lowering.functional
-                && executable.raw() == lowering.executable
-                && expected_arena == lowering.arena,
-        )
-    })()
-    .unwrap_or(false);
-    let uncertainty_matches = lowering.uncertainty
-        == format!(
-            "{}:{}",
-            program.commitments.interval_method,
-            program.commitments.se_kind.as_deref().unwrap_or("unspecified")
-        );
-    let overlap_matches = contract.inference_binding.as_ref().is_some_and(|binding| {
-        if let Some(overlap) = binding.overlap_policy.as_deref() {
-            return overlap == lowering.overlap;
-        }
-        match binding.estimator_spec.as_ref() {
-            Some(crate::EstimatorSpecWire::FrontDoorTwoStage(config)) => {
-                overlap_policy_tag(&config.overlap) == lowering.overlap
-            }
-            Some(crate::EstimatorSpecWire::Default(id)) if id == "frontdoor.linear_two_stage" => {
-                lowering.overlap == "explicit_override"
-            }
-            _ => false,
-        }
-    });
-    target_matches
-        && program_valid
-        && lowering_matches_frontdoor
-        && lowering.format == 1
-        && lowering.procedure == "linear_path_product"
-        && matches!(contract.estimator.as_deref(), None | Some("frontdoor.linear_two_stage"))
-        && program.commitments.resolved_estimator.as_deref() == Some("frontdoor.linear_two_stage")
-        && uncertainty_matches
-        && overlap_matches
-        && lowering.complete_case_rows > 0
-        && !lowering.mediators.is_empty()
-        && lowering.treatment != lowering.outcome
-        && lowering.mediators.iter().all(|id| *id != lowering.treatment && *id != lowering.outcome)
-        && estimand.method == "frontdoor"
-}
-
-pub(in crate::contract_section) fn frontdoor_observational_root(
-    arena: &mut antecedent_expr::CausalExprArena,
-    treatment: antecedent_core::VariableId,
-    outcome: antecedent_core::VariableId,
-    mediators: &[antecedent_core::VariableId],
-) -> antecedent_expr::ExprId {
-    use antecedent_expr::{DomainRef, ExprNode, OutcomeExprId};
-
-    let m = arena.intern_var_set(mediators.iter().copied());
-    let y = arena.intern_var_set([outcome]);
-    let t = arena.intern_var_set([treatment]);
-    let m_and_t = arena.intern_var_set(mediators.iter().copied().chain([treatment]));
-    let empty = arena.empty_var_set();
-    let no_bindings = arena.empty_intervention_set();
-    let m_given_t = arena.intern_distribution(m, t, no_bindings, DomainRef::Observational);
-    let y_given_m_t = arena.intern_distribution(y, m_and_t, no_bindings, DomainRef::Observational);
-    let t_marginal = arena.intern_distribution(t, empty, no_bindings, DomainRef::Observational);
-    let inner_factors = arena.intern_list([y_given_m_t, t_marginal]);
-    let inner_product = arena.intern(ExprNode::Product(inner_factors));
-    let inner_sum = arena.intern(ExprNode::SumOut { variables: t, expr: inner_product });
-    let outer_factors = arena.intern_list([m_given_t, inner_sum]);
-    let outer_product = arena.intern(ExprNode::Product(outer_factors));
-    let outer_sum = arena.intern(ExprNode::SumOut { variables: m, expr: outer_product });
-    arena.intern(ExprNode::Expectation {
-        function: OutcomeExprId::identity(outcome),
-        distribution: outer_sum,
-    })
-}
-
-pub(in crate::contract_section) fn intervention_bits(
-    wire: &crate::query_wire::InterventionWire,
-    variable: u32,
-) -> Option<u64> {
-    match wire {
-        crate::query_wire::InterventionWire::Set { variable: target, value }
-            if *target == variable =>
-        {
-            match value {
-                crate::query_wire::ValueWire::Float64(value) => Some(value.to_bits()),
-                crate::query_wire::ValueWire::Int64(value) => Some((*value as f64).to_bits()),
-                _ => None,
-            }
-        }
-        _ => None,
-    }
 }
 
 /// Whether a study-level overlap policy tag (as `inference_binding.overlap_policy`
@@ -976,10 +705,10 @@ pub(in crate::contract_section) fn verify_layer_links(
     }
     verify_score_reuse_link(contract, unresolved);
     verify_target_weights_link(contract, unresolved);
-    if let Some(observation) = &contract.observation {
-        if observation.schema != target.schema {
-            unresolved.push(ContractReason::ObservationSchema);
-        }
+    if let Some(observation) = &contract.observation
+        && observation.schema != target.schema
+    {
+        unresolved.push(ContractReason::ObservationSchema);
     }
     if let Some(program) = &contract.program {
         let commitments = &program.commitments;
@@ -1003,284 +732,5 @@ pub(in crate::contract_section) fn verify_layer_links(
                 unresolved.push(ContractReason::ProgramCommitmentsPriorRequired);
             }
         }
-    }
-}
-
-/// Whether a checked AIPW lowering is internally well formed: a known format
-/// and uncertainty method, a lag exactly for the lagged methods, and a
-/// procedure the trim rule selects (cross-fitted scores run five folds without
-/// a trim, the common-support refit runs no folds with one).
-pub(in crate::contract_section) fn checked_aipw_lowering_well_formed(
-    lowering: &CheckedAipwLoweringWire,
-) -> bool {
-    let valid_method = matches!(
-        lowering.se_kind.as_str(),
-        "homoskedastic"
-            | "hc0"
-            | "hc1"
-            | "hc2"
-            | "hc3"
-            | "cluster"
-            | "multiway"
-            | "newey_west"
-            | "panel_cluster_hac"
-    );
-    let lag_valid = matches!(lowering.se_kind.as_str(), "newey_west" | "panel_cluster_hac")
-        == lowering.se_lag.is_some();
-    let valid_procedure = match lowering.procedure.as_str() {
-        "cross_fitted_logistic_ols" => lowering.folds == 5 && lowering.trim_bits.is_none(),
-        "trimmed_logistic_ols" => lowering.folds == 0 && lowering.trim_bits.is_some(),
-        _ => false,
-    };
-    lowering.format == 1 && valid_method && lag_valid && valid_procedure
-}
-
-pub(in crate::contract_section) fn verify_checked_aipw(
-    contract: &AnalysisResultContractWire,
-    unresolved: &mut Vec<ContractReason>,
-) {
-    let lowering =
-        contract.program.as_ref().and_then(|program| program.checked_aipw_lowering.as_ref());
-    if is_aipw_contract(contract) && lowering.is_none() {
-        unresolved.push(ContractReason::ProgramCheckedAipwLowering);
-        return;
-    }
-    let Some(lowering) = lowering else { return };
-    if !checked_aipw_lowering_well_formed(lowering) {
-        unresolved.push(ContractReason::ProgramCheckedAipwLowering);
-    }
-    if !is_aipw_contract(contract) {
-        unresolved.push(ContractReason::ProgramCheckedAipwBinding);
-    }
-    let commitments = contract.program.as_ref().map(|program| &program.commitments);
-    if commitments.is_none_or(|commitments| {
-        commitments.inference != "frequentist"
-            || commitments.prior_required
-            || commitments.se_kind.as_deref() != Some(lowering.se_kind.as_str())
-            || commitments.interval_method
-                != if lowering.bootstrap_replicates > 0 { "bootstrap_se" } else { "analytic_se" }
-    }) {
-        unresolved.push(ContractReason::ProgramCheckedAipwUncertainty);
-    }
-    if contract.inference_binding.as_ref().is_none_or(|binding| {
-        let choices_match = match binding.estimator_spec.as_ref() {
-            Some(crate::EstimatorSpecWire::Aipw(config)) => {
-                config.bootstrap_replicates == lowering.bootstrap_replicates
-                    && config.se_kind.as_deref() == Some(lowering.se_kind.as_str())
-                    && matches!(
-                        config.overlap,
-                        crate::OverlapPolicyWire::RequireDiagnostics { trim_bits, .. }
-                            if trim_bits == lowering.trim_bits
-                    )
-            }
-            Some(crate::EstimatorSpecWire::Default(estimator)) if estimator == "aipw" => {
-                lowering.se_kind == "homoskedastic"
-                    && binding.bootstrap_replicates == lowering.bootstrap_replicates
-                    && overlap_tag_trim_matches(binding.overlap_policy.as_deref(), lowering)
-            }
-            None => {
-                binding.bootstrap_replicates == lowering.bootstrap_replicates
-                    && overlap_tag_trim_matches(binding.overlap_policy.as_deref(), lowering)
-            }
-            _ => false,
-        };
-        binding.inference != "frequentist" || binding.bayesian.is_some() || !choices_match
-    }) {
-        unresolved.push(ContractReason::ProgramCheckedAipwUncertainty);
-    }
-    let query_matches = match &contract.target.query {
-        crate::CausalQueryWire::AverageEffect {
-            treatment,
-            outcome,
-            control,
-            active,
-            target_population: crate::TargetPopulationWire::AllObserved,
-            outcome_functional: crate::query_wire::OutcomeFunctionalWire::Mean,
-            effect_modifiers,
-        } => {
-            *treatment == lowering.treatment
-                && *outcome == lowering.outcome
-                && effect_modifiers.is_empty()
-                && is_set_value(control, lowering.treatment, 0.0)
-                && is_set_value(active, lowering.treatment, 1.0)
-                && lowering.population == "all_observed"
-        }
-        _ => false,
-    };
-    let estimand_matches = contract.identification_product.as_ref().is_some_and(|product| {
-        product.arena.nodes.get(lowering.functional as usize).is_some()
-            && product.estimands.iter().any(|estimand| {
-                estimand.functional == lowering.functional
-                    && estimand.adjustment_set == lowering.adjustment
-                    && estimand.instruments.is_empty()
-                    && estimand.mediators.is_empty()
-            })
-    });
-    let adjustments_unique =
-        lowering.adjustment.iter().copied().collect::<std::collections::BTreeSet<_>>().len()
-            == lowering.adjustment.len()
-            && !lowering.adjustment.contains(&lowering.treatment)
-            && !lowering.adjustment.contains(&lowering.outcome);
-    if !query_matches
-        || !estimand_matches
-        || !adjustments_unique
-        || !matches!(
-            lowering.procedure.as_str(),
-            "cross_fitted_logistic_ols" | "trimmed_logistic_ols"
-        )
-    {
-        unresolved.push(ContractReason::ProgramCheckedAipwBinding);
-    }
-}
-
-pub(in crate::contract_section) fn is_set_value(
-    intervention: &crate::InterventionWire,
-    variable: u32,
-    value: f64,
-) -> bool {
-    matches!(intervention,
-        crate::InterventionWire::Set { variable: actual, value: crate::ValueWire::Float64(actual_value) }
-            if *actual == variable && actual_value.to_bits() == value.to_bits())
-}
-
-pub(in crate::contract_section) fn verify_checked_aipw_rows(
-    contract: &AnalysisResultContractWire,
-    unresolved: &mut Vec<ContractReason>,
-) {
-    let row_binding = contract.checked_aipw_rows.as_ref();
-    if row_binding.is_some() != contract.identities.checked_aipw_rows.is_some() {
-        unresolved.push(ContractReason::CheckedAipwRowBinding);
-        return;
-    }
-    let Some(row_binding) = row_binding else {
-        if is_aipw_contract(contract)
-            || contract
-                .program
-                .as_ref()
-                .is_some_and(|program| program.checked_aipw_lowering.is_some())
-        {
-            unresolved.push(ContractReason::CheckedAipwRowBinding);
-        }
-        return;
-    };
-    let digest_matches = checked_aipw_rows_digest(row_binding)
-        .is_ok_and(|digest| Some(digest) == contract.identities.checked_aipw_rows);
-    let snapshot_matches = row_binding.data_snapshot == contract.identities.data_snapshot
-        && contract.data_snapshot.as_ref().is_some_and(|snapshot| {
-            row_binding.rows.len() as u64 <= snapshot.row_count
-                && row_binding.rows.iter().all(|row| u64::from(*row) < snapshot.row_count)
-        });
-    let ordered_unique =
-        !row_binding.rows.is_empty() && row_binding.rows.windows(2).all(|pair| pair[0] < pair[1]);
-    if row_binding.format != 1
-        || !digest_matches
-        || !snapshot_matches
-        || !ordered_unique
-        || !is_aipw_contract(contract)
-    {
-        unresolved.push(ContractReason::CheckedAipwRowBinding);
-    }
-}
-
-/// Whether the artifact executed AIPW, whether the caller declared the
-/// estimator or the planner resolved it (a tiered closure resolves to AIPW
-/// without a declaration).
-pub(in crate::contract_section) fn is_aipw_contract(contract: &AnalysisResultContractWire) -> bool {
-    contract_uses_estimator(contract, "aipw")
-}
-
-/// Score-reuse layer: present with its digest, fitted on this snapshot, and
-/// keyed by this identification.
-pub(in crate::contract_section) fn verify_score_reuse_link(
-    contract: &AnalysisResultContractWire,
-    unresolved: &mut Vec<ContractReason>,
-) {
-    if contract.score_reuse.is_some() != contract.identities.score_reuse.is_some() {
-        unresolved.push(ContractReason::IdentitiesScoreReuse);
-        return;
-    }
-    let Some(score) = &contract.score_reuse else {
-        return;
-    };
-    require_payload_digest(
-        unresolved,
-        ContractReason::IdentitiesScoreReuse,
-        Some(score),
-        contract.identities.score_reuse.as_ref(),
-        score_reuse_digest,
-    );
-    require_nested_digest(
-        unresolved,
-        ContractReason::ScoreReuseDataSnapshot,
-        Some(score.data_snapshot),
-        Some(&contract.identities.data_snapshot),
-    );
-    require_nested_digest(
-        unresolved,
-        ContractReason::ScoreReuseIdentification,
-        score.identification,
-        Some(&contract.identities.identification),
-    );
-}
-
-/// Row-weight layer: re-derive the target-weights identity from the weights the
-/// section carries, and check that the target population, the snapshot and the
-/// score table all name it.
-pub(in crate::contract_section) fn verify_target_weights_link(
-    contract: &AnalysisResultContractWire,
-    unresolved: &mut Vec<ContractReason>,
-) {
-    let row_weights = match contract.target.query.target_population() {
-        Some(TargetPopulationWire::RowWeights { weights, depends_on }) => {
-            Some((*weights, depends_on.clone()))
-        }
-        _ => None,
-    };
-    if contract.target_weights.is_some() != contract.identities.target_weights.is_some() {
-        unresolved.push(ContractReason::IdentitiesTargetWeights);
-        return;
-    }
-    let Some(section) = &contract.target_weights else {
-        if row_weights.is_some() {
-            unresolved.push(ContractReason::TargetPopulation);
-        }
-        return;
-    };
-    let identity = &section.identity;
-    require_payload_digest(
-        unresolved,
-        ContractReason::IdentitiesTargetWeights,
-        Some(identity),
-        contract.identities.target_weights.as_ref(),
-        target_weights_digest,
-    );
-    let rows = PayloadDigestWire::f64s("target_weights.rows", &section.values);
-    let values_ok = rows.len == identity.row_count
-        && rows.digest == identity.weights
-        && section.values.iter().all(|weight| weight.is_finite() && *weight >= 0.0);
-    if !values_ok {
-        unresolved.push(ContractReason::TargetWeightsValues);
-    }
-    require_nested_digest(
-        unresolved,
-        ContractReason::TargetWeightsDataSnapshot,
-        Some(identity.data_snapshot),
-        Some(&contract.identities.data_snapshot),
-    );
-    require_nested_digest(
-        unresolved,
-        ContractReason::TargetWeightsScoreReuse,
-        Some(identity.score_reuse),
-        contract.identities.score_reuse.as_ref(),
-    );
-    if contract.score_reuse.as_ref().is_some_and(|score| score.row_index.len != identity.row_count)
-    {
-        unresolved.push(ContractReason::TargetWeightsRowCount);
-    }
-    match row_weights {
-        Some((weights, depends_on))
-            if Some(weights) == contract.identities.target_weights
-                && depends_on == identity.depends_on => {}
-        _ => unresolved.push(ContractReason::TargetPopulation),
     }
 }

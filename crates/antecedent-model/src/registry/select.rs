@@ -5,25 +5,20 @@ use antecedent_data::{TableView, TabularData};
 
 use super::{LOW_CARDINALITY_MAX_LEVELS, LOW_CARDINALITY_MIN_ROWS_PER_LEVEL, MechanismTyping};
 
-/// Number of distinct values (1e-6 quantization, non-finite skipped) when it is
+/// Number of distinct finite values (signed zeroes compare equal) when it is
 /// at most `max_levels`, else `None`; `None` also for an all-non-finite column.
 ///
 /// Early-exiting scan: at most `max_levels` keys are ever retained, and the
 /// (`max_levels` + 1)-th distinct key bails out immediately, so no full-column
 /// sort or copy.
 pub(super) fn distinct_level_count(y: &[f64], max_levels: usize) -> Option<usize> {
-    let mut seen: Vec<i64> = Vec::with_capacity(max_levels.min(64));
-    for v in y.iter().filter(|v| v.is_finite()) {
-        #[allow(
-            clippy::cast_possible_truncation,
-            reason = "the key quantises a rounded finite outcome to 1e-6, and the saturating cast only merges outcomes beyond 9e12 in magnitude"
-        )]
-        let key = (v * 1e6).round() as i64;
-        if !seen.contains(&key) {
+    let mut seen: Vec<f64> = Vec::with_capacity(max_levels.min(64));
+    for &value in y.iter().filter(|v| v.is_finite()) {
+        if !seen.contains(&value) {
             if seen.len() == max_levels {
                 return None;
             }
-            seen.push(key);
+            seen.push(value);
         }
     }
     (!seen.is_empty()).then_some(seen.len())

@@ -1,5 +1,5 @@
 //! Independent point-result artifacts for exact binary observation recovery:
-//! graph-licensed recovery, not MAR/IPCW.
+//! graph-supported recovery, not MAR/IPCW.
 //!
 //! Format version 1. A consumer trusts nothing in the artifact. Under its own
 //! maxima (a stored limit above them refuses before any work) it re-decides the
@@ -401,18 +401,7 @@ impl RecoveryArtifactWire {
 }
 
 fn data_digest(catalog: &EvidenceCatalog, law: &ExactLawWire) -> Result<String, IoError> {
-    let mut bindings = catalog
-        .bindings
-        .iter()
-        .map(|b| {
-            (
-                b.regime.raw(),
-                b.snapshot_identity.to_string(),
-                b.dataset_identity.as_deref().map(str::to_owned),
-            )
-        })
-        .collect::<Vec<_>>();
-    bindings.sort();
+    let bindings = crate::exact_transport_laws::sorted_catalog_bindings(catalog);
     crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &(

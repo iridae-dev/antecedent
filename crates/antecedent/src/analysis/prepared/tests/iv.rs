@@ -1,4 +1,4 @@
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -89,14 +89,16 @@ fn checked_iv_refresh_publishes_the_refreshed_row_count() {
             study(data(0.0), WaldIv::new().with_se_kind(AnalyticSeKind::Homoskedastic))
                 .prepare(&context)
                 .unwrap();
-        let refreshed = prepared.refresh(data_rows(0.4, rows), &context).unwrap();
+        let refreshed = crate::analysis::prepared::rebind_estimate(
+            &mut prepared,
+            data_rows(0.4, rows),
+            &context,
+        )
+        .unwrap();
         let artifact = prepared.encode_contracted_result(&refreshed, "iv", &context).unwrap();
-        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
-        assert!(
-            consumed.acceptance.accepts_as_verified_program(),
-            "unresolved={:?}",
-            consumed.acceptance.unresolved
-        );
+        let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
+        // The lowering binds and the carried cross-product moments replay the estimate.
+        assert!(consumed.acceptance.accepts_as_replayed_program());
         let published = consumed
             .contract
             .as_ref()
@@ -117,7 +119,7 @@ fn checked_iv_survives_builder_drop_and_refresh_with_selected_fitter() {
         let mut prepared = fitter.prepare(&context).unwrap();
         match &prepared.execution {
             PreparedExecution::Iv(CheckedIvOperation::Wald { fitter, preparation }) if is_wald => {
-                assert_eq!(fitter.se_kind, AnalyticSeKind::Hc1);
+                assert_eq!(fitter.inference.se_kind, AnalyticSeKind::Hc1);
                 assert_eq!(
                     preparation.lowering().procedure,
                     antecedent_estimate::CheckedIvProcedure::Wald
@@ -126,7 +128,7 @@ fn checked_iv_survives_builder_drop_and_refresh_with_selected_fitter() {
             PreparedExecution::Iv(CheckedIvOperation::TwoSls { fitter, preparation })
                 if !is_wald =>
             {
-                assert_eq!(fitter.se_kind, AnalyticSeKind::Hc1);
+                assert_eq!(fitter.inference.se_kind, AnalyticSeKind::Hc1);
                 assert_eq!(
                     preparation.lowering().procedure,
                     antecedent_estimate::CheckedIvProcedure::TwoStageLeastSquares
@@ -134,9 +136,11 @@ fn checked_iv_survives_builder_drop_and_refresh_with_selected_fitter() {
             }
             other => panic!("expected retained checked IV operation, got {other:?}"),
         }
-        prepared.analysis.estimator_spec = Some(Arc::new(EstimatorSpec::LinearAdjustmentAte(
-            Box::new(antecedent_estimate::LinearAdjustmentAte::new()),
-        )));
+        let declared_spec = prepared.analysis.declared.estimator_spec.clone();
+        prepared.analysis.declared.estimator_spec =
+            Some(Arc::new(EstimatorSpec::LinearAdjustmentAte(Box::new(
+                antecedent_estimate::LinearAdjustmentAte::new(),
+            ))));
         let result = prepared.estimate(&data(0.0), &context).unwrap();
         assert!(
             (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.15,
@@ -147,10 +151,10 @@ fn checked_iv_survives_builder_drop_and_refresh_with_selected_fitter() {
             result.estimate.as_effect().unwrap().uncertainty.analytic.kind,
             Some(AnalyticSeKind::Hc1)
         );
-        prepared.study_mut().estimator_spec = Some(Arc::new(EstimatorSpec::LinearAdjustmentAte(
-            Box::new(antecedent_estimate::LinearAdjustmentAte::new()),
-        )));
-        let refreshed = prepared.refresh(data(0.4), &context).unwrap();
+        // A rebound branch is derived from the declared study, which names the selected fitter.
+        prepared.analysis.declared.estimator_spec = declared_spec;
+        let refreshed =
+            crate::analysis::prepared::rebind_estimate(&mut prepared, data(0.4), &context).unwrap();
         assert!(
             (refreshed.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.15,
             "estimate={}",
@@ -160,8 +164,18 @@ fn checked_iv_survives_builder_drop_and_refresh_with_selected_fitter() {
             refreshed.estimate.as_effect().unwrap().uncertainty.analytic.kind,
             Some(AnalyticSeKind::Hc1)
         );
-        assert!(matches!(prepared.execution, PreparedExecution::Iv(_)));
-        prepared.study_mut().query =
+        match &prepared.execution {
+            PreparedExecution::Iv(CheckedIvOperation::Wald { fitter, .. }) if is_wald => {
+                assert_eq!(fitter.inference.se_kind, AnalyticSeKind::Hc1);
+            }
+            PreparedExecution::Iv(CheckedIvOperation::TwoSls { fitter, .. }) if !is_wald => {
+                assert_eq!(fitter.inference.se_kind, AnalyticSeKind::Hc1);
+            }
+            other => {
+                panic!("rebound branch must keep the selected checked IV fitter, got {other:?}")
+            }
+        }
+        prepared.study_mut().unwrap().query =
             crate::CausalQuery::AverageEffect(AverageEffectQuery::with_levels(
                 VariableId::from_raw(0),
                 VariableId::from_raw(1),

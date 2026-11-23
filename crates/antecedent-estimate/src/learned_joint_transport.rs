@@ -44,14 +44,15 @@
 //! * Sources are independent with disjoint units; conflicting sources are never pooled
 //!   silently: pairwise posterior disagreement of per-source target effects (each from a
 //!   learn fit of that source alone) is reported.
-//! * Target covariate rows must lie in the axis-aligned box of a source sample (declared
-//!   unsupported-mass tolerance).
+//! * Target covariate rows must lie in the estimated support of a source sample, the union of
+//!   balls of sample-size radius (not its bounding box); the unsupported mass is bounded by the
+//!   declared tolerance.
 //! * The weighted information matrix of the basis design must have full rank: a
 //!   proper prior would otherwise answer a design the data cannot identify.
-//! * Calibration is **unmeasured**; no coverage is claimed and the public interval route
-//!   stays closed ([`route_frozen_refusal`]).
+//! * Calibration is **`not_measured`**; no coverage is claimed and the public interval route
+//!   is reported with its calibration annotation, never refused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::EstimationError;
 use crate::joint_bayesian_transport::{
@@ -59,7 +60,8 @@ use crate::joint_bayesian_transport::{
     JOINT_TRANSPORT_MAX_PARAMETERS, JointDraws, JointPriors, JointTransportCalibration,
     JointTransportOptions, JointTransportRefusal, OverlapDiagnostic, PairDisagreement, SourceData,
     SourceDependence, SourceDisagreement, SourceEffectSummary, SourceSharing, TargetData,
-    TransportGraphClass, VaryingBlock, check_prior_data_overlap,
+    TransportGraphClass, VaryingBlock, check_prior_data_overlap, invalid, prior_identity_bits,
+    support_test_refusal, unsupported_mass,
 };
 use crate::util::dot;
 use antecedent_core::ExecutionContext;
@@ -71,8 +73,6 @@ use antecedent_learn::{
 use antecedent_prob::ProbError;
 use std::collections::BTreeSet;
 
-/// Route name of the closed public interval route.
-pub(crate) const LEARNED_JOINT_ROUTE: &str = "antecedent.transport.learned_joint";
 /// Sampler recorded on fits: iid draws from the learn crate's exact Gaussian posterior.
 pub const LEARNED_JOINT_SAMPLER: &str = "learn_conjugate_gaussian_iid";
 /// The provider crate of the outcome mechanism.
@@ -80,8 +80,6 @@ pub const LEARNED_JOINT_PROVIDER: &str = "antecedent-learn";
 /// The query the row answers.
 pub const LEARNED_JOINT_QUERY: &str = "target_average_effect";
 
-/// Detail of the route-level refusal of the public interval route.
-pub const DETAIL_ROUTE_FROZEN: &str = "learned_joint_transport.route_frozen";
 /// Detail of an unsupported graph class.
 pub const DETAIL_UNSUPPORTED_GRAPH: &str = "learned_joint_transport.unsupported_graph";
 /// Detail of observations used by both a prior bank and the likelihood.
@@ -102,7 +100,7 @@ pub const DETAIL_MISSING_LAW: &str = "learned_joint_transport.missing_law";
 pub const DETAIL_MISSING_SOURCE: &str = "learned_joint_transport.missing_source";
 /// Detail of undeclared, overlapping or unknown source dependence.
 pub const DETAIL_SOURCE_DEPENDENCE: &str = "learned_joint_transport.source_dependence";
-/// Detail of a certificate that does not license the model.
+/// Detail of a certificate that does not support the model.
 pub const DETAIL_IDENTIFICATION: &str = "learned_joint_transport.identification_not_certified";
 /// Detail of covariates that differ from the certified standardizers.
 pub const DETAIL_FEATURE_MISMATCH: &str = "learned_joint_transport.feature_mismatch";
@@ -116,6 +114,9 @@ pub const DETAIL_INVALID_BASIS: &str = "learned_joint_transport.invalid_basis";
 pub const DETAIL_INVALID_INPUT: &str = "learned_joint_transport.invalid_input";
 /// Detail of a cancelled fit.
 pub const DETAIL_CANCELLED: &str = "learned_joint_transport.cancelled";
+/// Detail of a target support test that exceeded its work or memory limit (never a support
+/// verdict).
+pub const DETAIL_SUPPORT_RESOURCE_LIMIT: &str = "learned_joint_transport.support_resource_limit";
 
 /// Declaration of the learned joint source-target model.
 #[derive(Clone, Debug, PartialEq)]
@@ -182,7 +183,7 @@ pub struct LearnedJointDiagnostics {
     pub overlap: OverlapDiagnostic,
     /// Source disagreement.
     pub disagreement: SourceDisagreement,
-    /// Always [`JointTransportCalibration::Unmeasured`].
+    /// Always [`JointTransportCalibration::NotMeasured`].
     pub calibration: JointTransportCalibration,
 }
 
@@ -270,7 +271,8 @@ impl LearnedJointFit {
             None,
             Some(draws),
             0.,
-        ))
+        )
+        .with_validation("not_applicable"))
     }
 
     /// Effect columns (source effects then target effect) of the joint draws, draw-major.
@@ -301,25 +303,6 @@ fn refuse(
         message: message.into(),
         failure: FailedFitDiagnostics { stage, ..FailedFitDiagnostics::default() },
     }
-}
-
-fn invalid(detail: &'static str, message: impl Into<String>) -> JointTransportRefusal {
-    refuse(antecedent_core::reason_code!("invalid_argument"), detail, "validate", message)
-}
-
-/// The route-level refusal of the public interval route: the learned joint posterior
-/// route lacks calibration evidence, so no interval is published.
-#[must_use]
-pub fn route_frozen_refusal() -> JointTransportRefusal {
-    refuse(
-        antecedent_core::reason_code!("cell_not_licensed"),
-        DETAIL_ROUTE_FROZEN,
-        "route",
-        format!(
-            "{LEARNED_JOINT_ROUTE} lacks likelihood, value and calibration evidence; \
-             the learn fit's posterior is not a published interval"
-        ),
-    )
 }
 
 /// The refusal of a graph class other than the fixed DAG.
@@ -679,35 +662,6 @@ fn check_double_use(priors: &JointPriors, sources: &[SourceData]) -> Result<(), 
     })
 }
 
-/// Fraction of target rows outside every source covariate box.
-fn unsupported_mass(sources: &[SourceData], target: &TargetData) -> f64 {
-    let boxes: Vec<Vec<(f64, f64)>> = sources
-        .iter()
-        .map(|source| {
-            source
-                .covariates
-                .iter()
-                .map(|column| {
-                    column.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| {
-                        (lo.min(*v), hi.max(*v))
-                    })
-                })
-                .collect()
-        })
-        .collect();
-    let outside = (0..target.rows)
-        .filter(|&i| {
-            !boxes.iter().any(|bounds| {
-                bounds
-                    .iter()
-                    .zip(&target.covariates)
-                    .all(|((lo, hi), column)| column[i] >= *lo && column[i] <= *hi)
-            })
-        })
-        .count();
-    outside as f64 / target.rows as f64
-}
-
 /// Basis rows of `rows` units, row-major `rows * m`.
 fn expand(basis: PolynomialBasis, covariates: &[Vec<f64>], rows: usize) -> Vec<f64> {
     let mut out = Vec::with_capacity(rows * basis.width(covariates.len()));
@@ -933,11 +887,6 @@ fn model_identity_with_source_labels(
     sources: &[SourceData],
     labels: &[&str],
 ) -> String {
-    let prior = |p: &GaussianPrior| {
-        let bits: Vec<String> =
-            p.mean.iter().chain(&p.covariance).map(|v| format!("{:016x}", v.to_bits())).collect();
-        bits.join(",")
-    };
     format!(
         "learned_joint_transport_v1|provider={LEARNED_JOINT_PROVIDER}|graph=fixed_dag|\
          query={LEARNED_JOINT_QUERY}|features={:?}|basis=polynomial_degree_{}|varying={:?}|\
@@ -949,8 +898,8 @@ fn model_identity_with_source_labels(
         model.sharing,
         labels.join(","),
         sources.iter().map(|s| s.noise_variance.to_bits()).collect::<Vec<_>>(),
-        prior(&model.priors.invariant),
-        prior(&model.priors.varying),
+        prior_identity_bits(&model.priors.invariant),
+        prior_identity_bits(&model.priors.varying),
         layout.dim(),
         JOINT_TRANSPORT_MAX_DRAWS,
         JOINT_TRANSPORT_MAX_PARAMETERS,
@@ -984,6 +933,29 @@ fn draw_joint(
 ) -> Result<JointDraws, Refused> {
     let dim = posterior.n_coefficients();
     let width = dim + effects.vectors.len();
+    if ctx.cancellation.is_cancelled() {
+        return Err(Box::new(refuse(
+            antecedent_core::reason_code!("transport_budget_cancel"),
+            DETAIL_CANCELLED,
+            "draw",
+            "learned joint transport was cancelled",
+        )));
+    }
+    // The retained draws are leased on the pool before they are allocated.
+    let _admitted = options
+        .draws
+        .checked_mul(width)
+        .and_then(|cells| u64::try_from(cells.checked_mul(size_of::<f64>())?).ok())
+        .ok_or("draw buffer size overflow".to_owned())
+        .and_then(|bytes| ctx.acquire_admission(0, bytes).map_err(|error| error.to_string()))
+        .map_err(|detail| {
+            Box::new(refuse(
+                antecedent_core::reason_code!("transport_budget_cancel"),
+                "learned_joint_transport.admission_refused",
+                "draw",
+                format!("the admission pool cannot fund the joint draws: {detail}"),
+            ))
+        })?;
     let mut values = Vec::with_capacity(options.draws * width);
     let mut parameters = vec![0.0; dim];
     for draw in 0..options.draws {
@@ -1069,7 +1041,12 @@ fn fit_inner(
     check_prior(&model.priors.varying, layout.r)?;
     check_unit_ownership(sources, target)?;
     check_double_use(&model.priors, sources)?;
-    let mass = unsupported_mass(sources, target);
+    let mass = unsupported_mass(sources, target, ctx).map_err(|failure| {
+        Box::new(support_test_refusal(
+            failure,
+            (DETAIL_CANCELLED, DETAIL_SUPPORT_RESOURCE_LIMIT, DETAIL_INVALID_INPUT),
+        ))
+    })?;
     if mass > model.max_unsupported_mass {
         let mut refusal = refuse(
             antecedent_core::reason_code!("transport_support_failure"),
@@ -1185,7 +1162,7 @@ fn assemble(parts: FitParts<'_>) -> Result<LearnedJointFit, EstimationError> {
                 tolerance: model.max_unsupported_mass,
             },
             disagreement,
-            calibration: JointTransportCalibration::Unmeasured,
+            calibration: JointTransportCalibration::NotMeasured,
         },
         provider: LearnedProviderRecord {
             provider: LEARNED_JOINT_PROVIDER,

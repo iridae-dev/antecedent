@@ -1,11 +1,22 @@
 //! Generalized additive models — cubic B-splines + backfitting.
 //!
 //! Gaussian identity additive model `Y = β₀ + Σ fⱼ(Xⱼ) + ε`. Each smooth is
-//! fit with a second-difference roughness penalty `P = D₂'D₂` (discrete
-//! curvature), not coefficient ridge. Analytic standard errors are not
+//! fit with a roughness penalty (the second-difference `P = D₂'D₂` by default, or the knot-aware
+//! integrated squared second derivative, see [`RoughnessPenalty`]), not coefficient ridge. Analytic standard errors are not
 //! returned; use resampling / bootstrap for uncertainty.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+mod basis;
+
+use basis::{
+    cubic_bspline_deriv_nonzeros, cubic_bspline_nonzeros, eval_cubic_bspline, quantile_knots,
+    roughness_penalty, validate_knots,
+};
+#[cfg(test)]
+use basis::{
+    integrated_second_derivative_penalty, second_difference_matrix, second_difference_penalty,
+};
 
 use std::sync::Arc;
 
@@ -19,7 +30,7 @@ use crate::design::DesignColumnMap;
 use crate::design::DesignColumnRole;
 use crate::design::{BasisKind, RecordedSmooth};
 use crate::error::StatsError;
-use crate::gram::{form_xtx, invert_square};
+use crate::gram::form_xtx;
 use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresWorkspace};
 
 /// Cubic B-spline degree (order = 4).
@@ -46,6 +57,20 @@ impl<'a> PredictorMatrix<'a> {
     }
 }
 
+/// Which quadratic roughness penalty a smooth carries.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum RoughnessPenalty {
+    /// Second differences of adjacent coefficients, `D₂'D₂`. It ignores the knot spacing, so a
+    /// straight line is penalised whenever the knots are not equally spaced.
+    #[default]
+    CoefficientSecondDifference,
+    /// The integrated squared second derivative `∫ s''(x)² dx` of the fitted smooth, scaled by
+    /// the cube of the mean interior knot spacing so λ keeps the size it has for equally spaced
+    /// knots and is unchanged by rescaling the predictor. It is exactly zero on every straight
+    /// line, whatever the knots, so a linear signal is not shrunk.
+    IntegratedSecondDerivative,
+}
+
 /// One smooth term specification for [`fit_gam`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct SmoothSpec {
@@ -62,19 +87,44 @@ pub struct SmoothSpec {
     pub knots: Option<Arc<[f64]>>,
     /// Optional variable id for design provenance.
     pub variable: Option<VariableId>,
+    /// The roughness penalty the smooth carries.
+    pub penalty: RoughnessPenalty,
 }
 
 impl SmoothSpec {
     /// Smooth on `raw_col` with `n_basis` bases and roughness penalty `lambda`.
     #[must_use]
     pub fn new(raw_col: usize, n_basis: usize, lambda: f64) -> Self {
-        Self { raw_col, n_basis, lambda, auto_lambda: false, knots: None, variable: None }
+        Self {
+            raw_col,
+            n_basis,
+            lambda,
+            auto_lambda: false,
+            knots: None,
+            variable: None,
+            penalty: RoughnessPenalty::default(),
+        }
     }
 
     /// Smooth whose λ is selected by GCV on a log-spaced grid.
     #[must_use]
     pub fn auto(raw_col: usize, n_basis: usize) -> Self {
-        Self { raw_col, n_basis, lambda: 0.0, auto_lambda: true, knots: None, variable: None }
+        Self {
+            raw_col,
+            n_basis,
+            lambda: 0.0,
+            auto_lambda: true,
+            knots: None,
+            variable: None,
+            penalty: RoughnessPenalty::default(),
+        }
+    }
+
+    /// Use `penalty` as the roughness penalty.
+    #[must_use]
+    pub fn with_penalty(mut self, penalty: RoughnessPenalty) -> Self {
+        self.penalty = penalty;
+        self
     }
 
     /// Attach a variable id for [`RecordedSmooth`] provenance.
@@ -457,6 +507,157 @@ impl AdditiveDesign {
     }
 }
 
+/// Solve a small fixed-penalty weighted additive fit without backfitting sweeps.
+///
+/// Dropping the last basis of each smooth removes its shared intercept alias;
+/// the roughness penalty annihilates constant coefficient shifts. The reduced
+/// system therefore minimizes the same objective as converged backfitting.
+/// `None` requests the original fitter for automatic penalties, large designs,
+/// singular systems or a failed numerical residual check. Marginal smoother
+/// degrees of freedom retain the original reporting convention.
+///
+/// # Errors
+/// Invalid response or weights, as for [`fit_gam_weighted_design`].
+#[allow(
+    clippy::too_many_lines,
+    reason = "assemble, certify and unpack one fixed-penalty additive system"
+)]
+pub fn fit_gam_fixed_weighted_design(
+    design: &AdditiveDesign,
+    y: &[f64],
+    weights: Option<&[f64]>,
+    workspace: &mut GamWorkspace,
+) -> Result<Option<GamFit>, StatsError> {
+    let n = design.nrows;
+    validate_response(y, n)?;
+    validate_weights(weights, n)?;
+    let specs = &design.specs;
+    let p = 1 + specs.iter().map(|s| s.n_basis - 1).sum::<usize>();
+    if specs.iter().any(|s| s.auto_lambda) || p > 64 || n.saturating_mul(p) > 262_144 {
+        return Ok(None);
+    }
+    let weights = match weights {
+        Some(w) => {
+            let total: f64 = w.iter().sum();
+            w.iter().map(|w| w * n as f64 / total).collect::<Vec<_>>()
+        }
+        None => vec![1.0; n],
+    };
+    let roots: Vec<_> = weights.iter().map(|w| w.sqrt()).collect();
+    let y_mean = y.iter().zip(&weights).map(|(y, w)| y * w).sum::<f64>() / n as f64;
+    let centered: Vec<_> = y.iter().zip(&roots).map(|(y, root)| (y - y_mean) * root).collect();
+    let mut x = Vec::with_capacity(n * p);
+    x.extend_from_slice(&roots);
+    let mut penalties = Vec::with_capacity(specs.len());
+    for (spec, basis) in specs.iter().zip(&design.bases) {
+        for column in basis.chunks_exact(n).take(spec.n_basis - 1) {
+            x.extend(column.iter().zip(&roots).map(|(v, root)| v * root));
+        }
+        penalties.push(roughness_penalty(spec.penalty, spec.knots.as_deref(), spec.n_basis)?);
+    }
+    let mut gram = vec![0.0; p * p];
+    form_xtx(&x, n, p, &mut gram);
+    let mut off = 1;
+    for (spec, penalty) in specs.iter().zip(&penalties) {
+        for i in 0..spec.n_basis - 1 {
+            for j in 0..spec.n_basis - 1 {
+                gram[(off + i) * p + off + j] += spec.lambda * penalty[i * spec.n_basis + j];
+            }
+        }
+        off += spec.n_basis - 1;
+    }
+    let Some(chol) = crate::gram::cholesky_spd(&gram, p) else { return Ok(None) };
+    let low = (0..p).map(|i| chol[i * p + i].abs()).fold(f64::INFINITY, f64::min);
+    let high = (0..p).map(|i| chol[i * p + i].abs()).fold(0.0_f64, f64::max);
+    if !low.is_finite() || low < 1e-5 * high {
+        return Ok(None);
+    }
+    // Bound conditioning of the actual reduced system, rather than trusting
+    // its pivots alone. Small marginal splines need not imply a well-conditioned
+    // joint design when predictors are nearly duplicates.
+    let mut inverse_rows = vec![0.0_f64; p];
+    for col in 0..p {
+        let mut unit = vec![0.0; p];
+        unit[col] = 1.0;
+        let Some(inverse_col) = crate::gram::chol_solve(&chol, p, &unit) else { return Ok(None) };
+        for (sum, value) in inverse_rows.iter_mut().zip(inverse_col) {
+            *sum += value.abs();
+        }
+    }
+    let norm = gram
+        .chunks_exact(p)
+        .map(|row| row.iter().map(|v| v.abs()).sum::<f64>())
+        .fold(0.0_f64, f64::max);
+    let inverse_norm = inverse_rows.into_iter().fold(0.0_f64, f64::max);
+    if !inverse_norm.is_finite() || norm * inverse_norm > 1e8 {
+        return Ok(None);
+    }
+    let rhs: Vec<_> = x
+        .chunks_exact(n)
+        .map(|col| col.iter().zip(&centered).map(|(a, b)| a * b).sum::<f64>())
+        .collect();
+    let Some(beta) = crate::gram::chol_solve(&chol, p, &rhs) else { return Ok(None) };
+    for i in 0..p {
+        let value: f64 = (0..p).map(|j| gram[i * p + j] * beta[j]).sum();
+        let scale = rhs[i].abs() + (0..p).map(|j| (gram[i * p + j] * beta[j]).abs()).sum::<f64>();
+        if !value.is_finite() || (value - rhs[i]).abs() > 64.0 * p as f64 * f64::EPSILON * scale {
+            return Ok(None);
+        }
+    }
+    workspace.prepare(n, specs.iter().map(|s| s.n_basis).max().unwrap_or(0));
+    let mut coefficients = vec![0.0; design.total_coefs];
+    let mut centers = Vec::with_capacity(specs.len());
+    let mut edf_approx = 1.0;
+    let mut off = 1;
+    for (j, (spec, basis)) in specs.iter().zip(&design.bases).enumerate() {
+        let coefficient = design.coef_offsets[j];
+        coefficients[coefficient..coefficient + spec.n_basis - 1]
+            .copy_from_slice(&beta[off..off + spec.n_basis - 1]);
+        let mut mean = 0.0;
+        for row in 0..n {
+            let value: f64 =
+                (0..spec.n_basis - 1).map(|b| basis[b * n + row] * beta[off + b]).sum();
+            mean += weights[row] * value;
+        }
+        centers.push(mean / n as f64);
+        let weighted: Vec<_> = basis
+            .chunks_exact(n)
+            .flat_map(|col| col.iter().zip(&roots).map(|(v, root)| v * root))
+            .collect();
+        let smoother =
+            PenalizedSmoother::with_penalty(&weighted, n, spec.n_basis, penalties[j].clone());
+        let Ok(factor) = smoother.factor(spec.lambda) else { return Ok(None) };
+        edf_approx += smoother.edf(&factor) - 1.0;
+        off += spec.n_basis - 1;
+    }
+    let intercept = y_mean + beta[0] + centers.iter().sum::<f64>();
+    for row in 0..n {
+        let mut prediction = y_mean + beta[0];
+        let mut off = 1;
+        for (spec, basis) in specs.iter().zip(&design.bases) {
+            for b in 0..spec.n_basis - 1 {
+                prediction += basis[b * n + row] * beta[off + b];
+            }
+            off += spec.n_basis - 1;
+        }
+        workspace.fitted[row] = prediction;
+    }
+    Ok(Some(GamFit {
+        intercept,
+        coefficients,
+        smooths: design.smooths.clone(),
+        fitted: workspace.fitted.clone(),
+        residuals: y.iter().zip(&workspace.fitted).map(|(y, fit)| y - fit).collect(),
+        edf_approx,
+        boundary_lambda_smooths: vec![],
+        iterations: 1,
+        converged: true,
+        diagnostics: FitDiagnostics::new(p, None, "gam", workspace.grow_count),
+        raw_cols: specs.iter().map(|s| s.raw_col).collect(),
+        centers,
+    }))
+}
+
 /// Fit the additive GAM of an expanded [`AdditiveDesign`] to `y` under optional
 /// nonnegative observation weights: [`fit_gam_weighted`] without the expansion.
 ///
@@ -497,21 +698,30 @@ pub fn fit_gam_weighted_design(
     let total_coefs = design.total_coefs;
     let mut chosen_lambda: Vec<f64> = specs.iter().map(|s| s.lambda).collect();
 
+    let sqrt_weights: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
     let weighted_bases: Vec<Vec<f64>> = bases
         .iter()
-        .map(|basis| basis.iter().enumerate().map(|(i, v)| v * weights[i % nrows].sqrt()).collect())
+        .map(|basis| {
+            let mut weighted = Vec::with_capacity(basis.len());
+            for column in basis.chunks_exact(nrows) {
+                weighted.extend(column.iter().zip(&sqrt_weights).map(|(v, root)| v * root));
+            }
+            weighted
+        })
         .collect();
-    let sqrt_weights: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
     // `B'B` and the penalty depend on neither λ nor the response: form them once per
-    // smooth. `(B'B + λP)⁻¹` is cached per smooth and only recomputed when λ changes, so
-    // a backfit sweep costs `O(n K)` per smooth (the right-hand side `B'r`) rather than an
-    // `O(n K²)` Gram plus a dense inverse.
+    // smooth. The Cholesky factor of `B'B + λP` is cached per smooth and only recomputed when
+    // λ changes, so a backfit sweep costs `O(n K)` per smooth (the right-hand side `B'r`)
+    // plus a triangular solve rather than an `O(n K²)` Gram plus a dense inverse.
     let smoothers: Vec<PenalizedSmoother> = weighted_bases
         .iter()
         .zip(specs)
-        .map(|(basis, spec)| PenalizedSmoother::new(basis, nrows, spec.n_basis))
-        .collect::<Result<_, _>>()?;
-    let mut inverses: Vec<Option<Vec<f64>>> = vec![None; specs.len()];
+        .map(|(basis, spec)| {
+            let penalty = roughness_penalty(spec.penalty, spec.knots.as_deref(), spec.n_basis)?;
+            Ok(PenalizedSmoother::with_penalty(basis, nrows, spec.n_basis, penalty))
+        })
+        .collect::<Result<_, StatsError>>()?;
+    let mut factors: Vec<Option<PenalizedFactor>> = (0..specs.len()).map(|_| None).collect();
     let mut boundary_lambda = vec![false; specs.len()];
     // Auto-λ is re-selected against the current partial residuals every sweep until a full
     // sweep leaves every λ unchanged (or the sweep cap freezes it), because the partial
@@ -559,17 +769,17 @@ pub fn fit_gam_weighted_design(
                     &sqrt_weights,
                 )?;
                 boundary_lambda[j] = at_boundary;
-                if inverses[j].is_none() || lambda.to_bits() != chosen_lambda[j].to_bits() {
+                if factors[j].is_none() || lambda.to_bits() != chosen_lambda[j].to_bits() {
                     chosen_lambda[j] = lambda;
                     smooth_meta[j].lambda = lambda;
-                    inverses[j] = None;
+                    factors[j] = None;
                     lambda_changed = true;
                 }
             }
-            if inverses[j].is_none() {
-                inverses[j] = Some(smoothers[j].inverse(chosen_lambda[j])?);
+            if factors[j].is_none() {
+                factors[j] = Some(smoothers[j].factor(chosen_lambda[j])?);
             }
-            let inverse = inverses[j].as_deref().expect("inverse cached above");
+            let inverse = factors[j].as_ref().expect("factor cached above");
             let beta = smoothers[j].coefficients(inverse, solve_basis, nrows, &weighted_partial);
             let off = coef_offsets[j];
             coefficients[off..off + spec.n_basis].copy_from_slice(&beta);
@@ -614,8 +824,13 @@ pub fn fit_gam_weighted_design(
             rss += weights[r] * e * e;
         }
 
-        let fit_scale =
-            workspace.fitted[..nrows].iter().fold(0.0_f64, |acc, &v| acc.max(v.abs())).max(1.0);
+        // The scale of the smooth part alone: the intercept carries the outcome's offset, and a
+        // tolerance scaled by the offset would admit an absolute error in the centred smooths
+        // that grows with it.
+        let fit_scale = (0..nrows)
+            .map(|r| smooth_fits.iter().map(|sf| sf[r]).sum::<f64>().abs())
+            .fold(0.0_f64, f64::max)
+            .max(1.0);
         let rss_delta = (prev_rss - rss).abs();
         prev_rss = rss;
         if lambda_settled
@@ -634,7 +849,7 @@ pub fn fit_gam_weighted_design(
     // here, once in the intercept) and edf_approx runs high by exactly one per smooth term.
     // Evaluated at the final λ, not the first sweep's.
     let mut edf_approx = 1.0; // intercept (unpenalized)
-    for (smoother, inverse) in smoothers.iter().zip(&inverses) {
+    for (smoother, inverse) in smoothers.iter().zip(&factors) {
         if let Some(inverse) = inverse {
             edf_approx += smoother.edf(inverse) - 1.0;
         }
@@ -805,9 +1020,9 @@ impl GamFit {
 
     /// Derivative `f_j'(x)` of one uncentered smooth.
     ///
-    /// The evaluation map clamps `x` outside the open knot interior to a
-    /// constant, so the derivative of that map is exactly zero there — the same
-    /// contract as a collapsed finite difference of [`Self::predict_row`].
+    /// The evaluation map clamps `x` outside the knot domain to a constant,
+    /// so the derivative is zero there. At either endpoint, return the
+    /// one-sided derivative from inside the domain.
     ///
     /// # Errors
     ///
@@ -823,7 +1038,7 @@ impl GamFit {
         }
         let left = knots[CUBIC_DEGREE];
         let right = knots[knots.len() - CUBIC_ORDER];
-        if x < left || x >= right {
+        if x < left || x > right {
             return Ok(0.0);
         }
         let coef_off: usize = self.smooths[..smooth_index].iter().map(|s| s.n_basis).sum();
@@ -844,8 +1059,8 @@ impl GamFit {
     ///
     /// A plug-in derivative is this linear functional of the fitted
     /// coefficients, so a coefficient sandwich gives its variance. The same
-    /// clamping as [`Self::smooth_derivative`] applies: outside the open knot
-    /// interior every entry is zero.
+    /// clamping as [`Self::smooth_derivative`] applies: outside the knot
+    /// domain every entry is zero; endpoints use the interior one-sided derivative.
     ///
     /// # Errors
     ///
@@ -866,7 +1081,7 @@ impl GamFit {
         let mut out = vec![0.0; smooth.n_basis];
         let left = knots[CUBIC_DEGREE];
         let right = knots[knots.len() - CUBIC_ORDER];
-        if x < left || x >= right {
+        if x < left || x > right {
             return Ok(out);
         }
         let (span, ders) = cubic_bspline_deriv_nonzeros(x, knots);
@@ -913,224 +1128,6 @@ fn raw_column(x_colmajor: &[f64], nrows: usize, col: usize) -> &[f64] {
     &x_colmajor[col * nrows..(col + 1) * nrows]
 }
 
-fn validate_knots(knots: &[f64], n_basis: usize) -> Result<(), StatsError> {
-    let need = n_basis + CUBIC_ORDER;
-    if knots.len() != need {
-        return Err(StatsError::Shape {
-            message: "knot vector length must equal n_basis + 4 for cubic B-splines",
-        });
-    }
-    for w in knots.windows(2) {
-        if !(w[0].is_finite() && w[1].is_finite()) || w[1] < w[0] {
-            return Err(StatsError::Shape { message: "knots must be finite and non-decreasing" });
-        }
-    }
-    Ok(())
-}
-
-#[allow(clippy::float_cmp, reason = "Only exactly constant data need an artificial knot domain")]
-fn quantile_knots(x: &[f64], n_basis: usize) -> Result<Vec<f64>, StatsError> {
-    let mut sorted = x.to_vec();
-    sorted.sort_by(f64::total_cmp);
-    let xmin = sorted[0];
-    let xmax = sorted[sorted.len() - 1];
-    if !(xmax - xmin).is_finite() {
-        return Err(StatsError::Shape { message: "non-finite predictor range" });
-    }
-    // Degenerate constant column: spread slightly so basis is defined.
-    let (xmin, xmax) = if xmax == xmin { (xmin - 1.0, xmax + 1.0) } else { (xmin, xmax) };
-    let n_interior = n_basis.saturating_sub(CUBIC_ORDER);
-    let mut knots = Vec::with_capacity(n_basis + CUBIC_ORDER);
-    for _ in 0..CUBIC_ORDER {
-        knots.push(xmin);
-    }
-    if n_interior > 0 {
-        for i in 1..=n_interior {
-            let q = i as f64 / (n_interior + 1) as f64;
-            knots.push(antecedent_kernels::quantile_type7_sorted(&sorted, q));
-        }
-    }
-    for _ in 0..CUBIC_ORDER {
-        knots.push(xmax);
-    }
-    Ok(knots)
-}
-
-/// Span-local Cox–de Boor evaluation: the knot span and the `CUBIC_ORDER`
-/// nonzero cubic basis values at `x` (all other basis functions are exactly 0).
-fn cubic_bspline_nonzeros(x: f64, knots: &[f64]) -> (usize, [f64; CUBIC_ORDER]) {
-    // Evaluate the boundary on the last span, including caller-supplied knot
-    // vectors that are not clamped. An absolute epsilon moves small-unit
-    // inputs outside their knot domain.
-    let left = knots[CUBIC_DEGREE];
-    let right = knots[knots.len() - CUBIC_ORDER];
-    let xx = x.max(left).min(right);
-
-    // Find knot span.
-    let mut span = CUBIC_DEGREE;
-    for i in CUBIC_DEGREE..(knots.len() - CUBIC_ORDER) {
-        if xx >= knots[i] && xx < knots[i + 1] {
-            span = i;
-            break;
-        }
-        if i == knots.len() - CUBIC_ORDER - 1 {
-            span = i;
-        }
-    }
-    if xx >= right {
-        // Quantile knots can repeat the boundary more than degree + 1 times
-        // for discrete covariates. Use the last nonempty interval; evaluating
-        // a zero-width trailing span would divide by zero.
-        span = (CUBIC_DEGREE..(knots.len() - CUBIC_ORDER))
-            .rev()
-            .find(|&i| knots[i] < right)
-            .unwrap_or(CUBIC_DEGREE);
-    }
-
-    // Basis of degree 0..3 on the local span (Piegl/Tiller style).
-    let mut ndu = [[0.0_f64; CUBIC_ORDER]; CUBIC_ORDER];
-    ndu[0][0] = 1.0;
-    let mut left = [0.0_f64; CUBIC_ORDER];
-    let mut right = [0.0_f64; CUBIC_ORDER];
-    for j in 1..CUBIC_ORDER {
-        left[j] = xx - knots[span + 1 - j];
-        right[j] = knots[span + j] - xx;
-        let mut saved = 0.0;
-        for r in 0..j {
-            let temp = ndu[r][j - 1] / (right[r + 1] + left[j - r]);
-            ndu[r][j] = saved + right[r + 1] * temp;
-            saved = left[j - r] * temp;
-        }
-        ndu[j][j] = saved;
-    }
-
-    let mut values = [0.0_f64; CUBIC_ORDER];
-    for (i, v) in values.iter_mut().enumerate() {
-        *v = ndu[i][CUBIC_DEGREE];
-    }
-    (span, values)
-}
-
-/// First derivatives of the span-local cubic bases.
-///
-/// Outside the open knot interior the clamped evaluation is constant, so this
-/// returns zeros. Interior derivatives use the standard degree-drop recurrence
-/// on the same span as [`cubic_bspline_nonzeros`]; coincident end knots contribute
-/// a zero term rather than a division by zero.
-fn cubic_bspline_deriv_nonzeros(x: f64, knots: &[f64]) -> (usize, [f64; CUBIC_ORDER]) {
-    let left = knots[CUBIC_DEGREE];
-    let right = knots[knots.len() - CUBIC_ORDER];
-    let (span, _) = cubic_bspline_nonzeros(x, knots);
-    if x < left || x >= right {
-        return (span, [0.0; CUBIC_ORDER]);
-    }
-    let quadratic = quadratic_nonzeros(x, knots, span);
-    let mut ders = [0.0_f64; CUBIC_ORDER];
-    for k in 0..CUBIC_ORDER {
-        let i = span - CUBIC_DEGREE + k;
-        let dt0 = knots[i + CUBIC_DEGREE] - knots[i];
-        let dt1 = knots[i + CUBIC_ORDER] - knots[i + 1];
-        let n2_i = if k == 0 { 0.0 } else { quadratic[k - 1] };
-        let n2_ip1 = if k == CUBIC_DEGREE { 0.0 } else { quadratic[k] };
-        let t0 = if dt0 == 0.0 { 0.0 } else { n2_i / dt0 };
-        let t1 = if dt1 == 0.0 { 0.0 } else { n2_ip1 / dt1 };
-        ders[k] = (CUBIC_DEGREE as f64) * (t0 - t1);
-    }
-    (span, ders)
-}
-
-/// Degree-2 Cox–de Boor values on the same span as a cubic evaluation.
-///
-/// `values[k] = N_{span-2+k,2}(x)` for `k = 0,1,2`; `values[3]` is unused.
-fn quadratic_nonzeros(x: f64, knots: &[f64], span: usize) -> [f64; CUBIC_ORDER] {
-    const QUAD_DEGREE: usize = 2;
-    const QUAD_ORDER: usize = 3;
-    let mut ndu = [[0.0_f64; QUAD_ORDER]; QUAD_ORDER];
-    ndu[0][0] = 1.0;
-    let mut left = [0.0_f64; QUAD_ORDER];
-    let mut right = [0.0_f64; QUAD_ORDER];
-    for j in 1..QUAD_ORDER {
-        left[j] = x - knots[span + 1 - j];
-        right[j] = knots[span + j] - x;
-        let mut saved = 0.0;
-        for r in 0..j {
-            let denom = right[r + 1] + left[j - r];
-            let temp = if denom == 0.0 { 0.0 } else { ndu[r][j - 1] / denom };
-            ndu[r][j] = saved + right[r + 1] * temp;
-            saved = left[j - r] * temp;
-        }
-        ndu[j][j] = saved;
-    }
-    let mut values = [0.0_f64; CUBIC_ORDER];
-    for i in 0..QUAD_ORDER {
-        values[i] = ndu[i][QUAD_DEGREE];
-    }
-    values
-}
-
-/// Cox–de Boor evaluation of all cubic basis functions at `x` into column-major `out`.
-#[allow(
-    clippy::needless_range_loop,
-    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
-)]
-fn eval_cubic_bspline(
-    x: f64,
-    knots: &[f64],
-    n_basis: usize,
-    out: &mut [f64],
-    row: usize,
-    nrows: usize,
-) {
-    let (span, values) = cubic_bspline_nonzeros(x, knots);
-
-    // Zero all bases for this row then write the order nonzeros.
-    for b in 0..n_basis {
-        out[b * nrows + row] = 0.0;
-    }
-    let first = span.saturating_sub(CUBIC_DEGREE);
-    for i in 0..CUBIC_ORDER {
-        let b = first + i;
-        if b < n_basis {
-            out[b * nrows + row] = values[i];
-        }
-    }
-}
-
-/// Second-difference matrix `D₂` of size `(K-2)×K` with rows `[1, -2, 1]`.
-fn second_difference_matrix(n_basis: usize) -> Result<Vec<f64>, StatsError> {
-    if n_basis < 3 {
-        return Err(StatsError::Shape { message: "second-difference penalty needs n_basis ≥ 3" });
-    }
-    let rows = n_basis - 2;
-    let mut d2 = vec![0.0; rows * n_basis];
-    for i in 0..rows {
-        d2[i * n_basis + i] = 1.0;
-        d2[i * n_basis + i + 1] = -2.0;
-        d2[i * n_basis + i + 2] = 1.0;
-    }
-    Ok(d2)
-}
-
-/// Roughness penalty `P = D₂'D₂` (`K×K` row-major).
-fn second_difference_penalty(n_basis: usize) -> Result<Vec<f64>, StatsError> {
-    let d2 = second_difference_matrix(n_basis)?;
-    let rows = n_basis - 2;
-    let mut p = vec![0.0; n_basis * n_basis];
-    for i in 0..n_basis {
-        for j in i..n_basis {
-            let mut acc = 0.0;
-            for r in 0..rows {
-                acc += d2[r * n_basis + i] * d2[r * n_basis + j];
-            }
-            p[i * n_basis + j] = acc;
-            if i != j {
-                p[j * n_basis + i] = acc;
-            }
-        }
-    }
-    Ok(p)
-}
-
 /// Sweeps after which auto-λ selection is frozen even if λ is still changing.
 const MAX_LAMBDA_RESELECT_SWEEPS: u32 = 20;
 
@@ -1142,52 +1139,170 @@ struct PenalizedSmoother {
     xtx: Vec<f64>,
     /// Roughness penalty `P = D₂'D₂`, `K×K` row-major.
     penalty: Vec<f64>,
+    /// Demmler–Reinsch form of the pencil `(B'B, P)`, built on first use by GCV selection.
+    spectrum: std::cell::OnceCell<Option<PencilSpectrum>>,
+}
+
+/// Lower Cholesky factor of `B'B + λP`.
+struct PenalizedFactor {
+    chol: Vec<f64>,
+}
+
+/// Spectral form of the pencil `(B'B, P)` for scoring many λ from one factorization.
+///
+/// With `A₀ = B'B + P = L₀L₀'` and `M = L₀⁻¹ P L₀⁻ᵀ = U diag(m) U'` (`m ∈ [0, 1]`), the
+/// whitened `B'B + λP` is `U diag((1 − mᵢ) + λ mᵢ) U'`, so every λ-dependent quantity of the
+/// penalized fit is a diagonal operation in the `U` basis.
+struct PencilSpectrum {
+    /// `L₀`, row-major lower.
+    chol0: Vec<f64>,
+    /// Eigenvectors of `M` as columns (row-major `K×K`).
+    vectors: Vec<f64>,
+    /// Eigenvalues `mᵢ` of `M`, clamped to `[0, 1]`.
+    m: Vec<f64>,
 }
 
 impl PenalizedSmoother {
+    #[cfg(test)]
     fn new(basis: &[f64], nrows: usize, n_basis: usize) -> Result<Self, StatsError> {
-        let mut xtx = vec![0.0; n_basis * n_basis];
-        form_xtx(basis, nrows, n_basis, &mut xtx);
-        Ok(Self { n_basis, xtx, penalty: second_difference_penalty(n_basis)? })
+        Ok(Self::with_penalty(basis, nrows, n_basis, second_difference_penalty(n_basis)?))
     }
 
-    /// `(B'B + λP)⁻¹`.
-    fn inverse(&self, lambda: f64) -> Result<Vec<f64>, StatsError> {
+    fn with_penalty(basis: &[f64], nrows: usize, n_basis: usize, penalty: Vec<f64>) -> Self {
+        let mut xtx = vec![0.0; n_basis * n_basis];
+        form_xtx(basis, nrows, n_basis, &mut xtx);
+        Self { n_basis, xtx, penalty, spectrum: std::cell::OnceCell::new() }
+    }
+
+    /// Cholesky factor of `B'B + λP`.
+    fn factor(&self, lambda: f64) -> Result<PenalizedFactor, StatsError> {
         let mut penalized = self.xtx.clone();
         if lambda != 0.0 {
             for (g, p) in penalized.iter_mut().zip(&self.penalty) {
                 *g += lambda * p;
             }
         }
-        invert_square(&penalized, self.n_basis)
+        crate::gram::cholesky_spd(&penalized, self.n_basis)
+            .map(|chol| PenalizedFactor { chol })
             .ok_or_else(|| StatsError::Backend("GAM: singular B'B+λP".into()))
     }
 
-    /// `β = (B'B + λP)⁻¹ B'y` given the cached inverse.
-    fn coefficients(&self, inverse: &[f64], basis: &[f64], nrows: usize, y: &[f64]) -> Vec<f64> {
+    /// `B'y` for a (scaled) basis.
+    fn rhs(&self, basis: &[f64], nrows: usize, y: &[f64]) -> Vec<f64> {
+        (0..self.n_basis)
+            .map(|c| basis[c * nrows..(c + 1) * nrows].iter().zip(y).map(|(b, y)| b * y).sum())
+            .collect()
+    }
+
+    /// `β = (B'B + λP)⁻¹ B'y` by a Cholesky solve against the factor (no explicit inverse).
+    fn coefficients(
+        &self,
+        factor: &PenalizedFactor,
+        basis: &[f64],
+        nrows: usize,
+        y: &[f64],
+    ) -> Vec<f64> {
         let k = self.n_basis;
-        let mut rhs = vec![0.0; k];
-        for c in 0..k {
-            let col = &basis[c * nrows..(c + 1) * nrows];
-            rhs[c] = col.iter().zip(y).map(|(b, y)| b * y).sum();
-        }
+        let rhs = self.rhs(basis, nrows, y);
+        let mut y_scratch = vec![0.0; k];
         let mut beta = vec![0.0; k];
-        for i in 0..k {
-            beta[i] = (0..k).map(|j| inverse[i * k + j] * rhs[j]).sum();
-        }
+        antecedent_kernels::chol_solve_into(&factor.chol, k, &rhs, &mut y_scratch, &mut beta);
         beta
     }
 
-    /// `tr((B'B + λP)⁻¹ B'B)` — the trace of the uncentered smoother.
-    fn edf(&self, inverse: &[f64]) -> f64 {
+    /// `tr((B'B + λP)⁻¹ B'B)` — the trace of the uncentered smoother — from the factor,
+    /// one triangular solve per column of `B'B`.
+    fn edf(&self, factor: &PenalizedFactor) -> f64 {
         let k = self.n_basis;
+        let mut column = vec![0.0; k];
+        let mut y_scratch = vec![0.0; k];
+        let mut solved = vec![0.0; k];
         let mut edf = 0.0;
-        for i in 0..k {
-            for j in 0..k {
-                edf += inverse[i * k + j] * self.xtx[j * k + i];
+        for j in 0..k {
+            for (i, value) in column.iter_mut().enumerate() {
+                *value = self.xtx[i * k + j];
             }
+            antecedent_kernels::chol_solve_into(
+                &factor.chol,
+                k,
+                &column,
+                &mut y_scratch,
+                &mut solved,
+            );
+            edf += solved[j];
         }
         edf
+    }
+
+    /// The spectral form of the pencil, or `None` when `B'B + P` or its eigendecomposition
+    /// is not usable (selection then scores each λ from its own factorization).
+    fn spectrum(&self) -> Option<&PencilSpectrum> {
+        self.spectrum.get_or_init(|| self.build_spectrum()).as_ref()
+    }
+
+    fn build_spectrum(&self) -> Option<PencilSpectrum> {
+        let k = self.n_basis;
+        let mut a0 = self.xtx.clone();
+        for (g, p) in a0.iter_mut().zip(&self.penalty) {
+            *g += p;
+        }
+        let chol0 = crate::gram::cholesky_spd(&a0, k)?;
+        // W = L₀⁻¹ P (column by column), then M = L₀⁻¹ Wᵀ.
+        let mut w = vec![0.0; k * k];
+        let mut column = vec![0.0; k];
+        let mut solved = vec![0.0; k];
+        for j in 0..k {
+            for (i, value) in column.iter_mut().enumerate() {
+                *value = self.penalty[i * k + j];
+            }
+            antecedent_kernels::forward_solve_into(&chol0, k, &column, &mut solved);
+            for i in 0..k {
+                w[i * k + j] = solved[i];
+            }
+        }
+        let mut m = vec![0.0; k * k];
+        for j in 0..k {
+            for i in 0..k {
+                column[i] = w[j * k + i];
+            }
+            antecedent_kernels::forward_solve_into(&chol0, k, &column, &mut solved);
+            for i in 0..k {
+                m[i * k + j] = solved[i];
+            }
+        }
+        for i in 0..k {
+            for j in (i + 1)..k {
+                let mean = 0.5 * (m[i * k + j] + m[j * k + i]);
+                m[i * k + j] = mean;
+                m[j * k + i] = mean;
+            }
+        }
+        let (values, vectors) = crate::covariance::symmetric_eigen(&m, k).ok()?;
+        Some(PencilSpectrum {
+            chol0,
+            vectors,
+            m: values.into_iter().map(|v| v.clamp(0.0, 1.0)).collect(),
+        })
+    }
+}
+
+impl PencilSpectrum {
+    /// `Uᵀ L₀⁻¹ v` for a `K`-vector `v`.
+    fn to_eigenbasis(&self, v: &[f64]) -> Vec<f64> {
+        let k = self.m.len();
+        let mut whitened = vec![0.0; k];
+        antecedent_kernels::forward_solve_into(&self.chol0, k, v, &mut whitened);
+        (0..k).map(|c| (0..k).map(|r| self.vectors[r * k + c] * whitened[r]).sum()).collect()
+    }
+
+    /// `β = L₀⁻ᵀ U t` for eigenbasis coefficients `t`.
+    fn coefficients(&self, t: &[f64]) -> Vec<f64> {
+        let k = self.m.len();
+        let ut: Vec<f64> =
+            (0..k).map(|r| (0..k).map(|c| self.vectors[r * k + c] * t[c]).sum()).collect();
+        let mut beta = vec![0.0; k];
+        antecedent_kernels::back_solve_into(&self.chol0, k, &ut, &mut beta);
+        beta
     }
 }
 
@@ -1196,10 +1311,16 @@ const GCV_LAMBDA_GRID: [f64; 25] = [
     100.0, 300.0, 1e3, 3e3, 1e4, 3e4, 1e5, 3e5, 1e6,
 ];
 
+/// Residual sums of squares below this fraction of `y'y` are recomputed from the residual
+/// vector: the moment form `y'y − 2β'B'y + β'B'Bβ` has cancelled too far to be trusted.
+const GCV_MOMENT_RSS_FLOOR: f64 = 1e-6;
+
 /// Grid λ minimizing the centered-smoother GCV, and whether the winner is an edge of the
 /// grid (the optimum may then lie outside the searched range).
 ///
 /// `basis` and `y` are the `√w`-scaled design and response; `sqrt_w` the `√w` vector.
+/// One factorization of the pencil `(B'B, P)` scores every grid λ in `O(K²)` (`O(K)` for
+/// the fit and trace, `O(K²)` for the back-transform when the residual has to be rebuilt).
 fn select_lambda_gcv(
     smoother: &PenalizedSmoother,
     basis: &[f64],
@@ -1209,35 +1330,90 @@ fn select_lambda_gcv(
 ) -> Result<(f64, bool), StatsError> {
     let mut best_index = 0usize;
     let mut best_gcv = f64::INFINITY;
-    for (index, &lambda) in GCV_LAMBDA_GRID.iter().enumerate() {
-        let inverse = smoother.inverse(lambda)?;
-        let gcv = centered_smooth_gcv(smoother, &inverse, basis, nrows, y, sqrt_w);
-        if gcv < best_gcv {
-            best_gcv = gcv;
-            best_index = index;
+    if let Some(spectrum) = smoother.spectrum() {
+        let scores = spectral_gcv_scores(smoother, spectrum, basis, nrows, y, sqrt_w);
+        for (index, gcv) in scores.into_iter().enumerate() {
+            if gcv < best_gcv {
+                best_gcv = gcv;
+                best_index = index;
+            }
+        }
+    } else {
+        for (index, &lambda) in GCV_LAMBDA_GRID.iter().enumerate() {
+            let factor = smoother.factor(lambda)?;
+            let gcv = centered_smooth_gcv(smoother, &factor, basis, nrows, y, sqrt_w);
+            if gcv < best_gcv {
+                best_gcv = gcv;
+                best_index = index;
+            }
         }
     }
     Ok((GCV_LAMBDA_GRID[best_index], best_index == 0 || best_index == GCV_LAMBDA_GRID.len() - 1))
 }
 
-/// GCV of the smoother actually applied in backfitting: centered `Bβ` with
-/// `edf = tr(S₁) − 1`. Uncentered RSS / `tr(S₁)` scores a different operator.
-///
-/// Inputs are in `√w`-scaled coordinates (`basis = √w B`, `y = √w y₀`), so with
-/// `fᵣ = (Bβ)ᵣ` the weighted-centered residual `√wᵣ (y₀ᵣ − fᵣ + f̄_w)` is
-/// `yᵣ − (√w B β)ᵣ + f̄_w √wᵣ`, where `f̄_w = Σ wᵣ fᵣ / n = Σ √wᵣ (√w B β)ᵣ / n`. The
-/// centering constant multiplies `√w`, it is not subtracted from the scaled prediction —
-/// the two coincide only when every weight is equal.
-fn centered_smooth_gcv(
+/// Centered GCV at every grid λ from the spectral form of the pencil.
+fn spectral_gcv_scores(
     smoother: &PenalizedSmoother,
-    inverse: &[f64],
+    spectrum: &PencilSpectrum,
+    basis: &[f64],
+    nrows: usize,
+    y: &[f64],
+    sqrt_w: &[f64],
+) -> Vec<f64> {
+    let k = smoother.n_basis;
+    let n = nrows as f64;
+    let rhs = smoother.rhs(basis, nrows, y);
+    let centering = smoother.rhs(basis, nrows, sqrt_w);
+    let s = spectrum.to_eigenbasis(&rhs);
+    let g = spectrum.to_eigenbasis(&centering);
+    let yty: f64 = y.iter().map(|v| v * v).sum();
+    let sqrt_w_y: f64 = sqrt_w.iter().zip(y).map(|(w, v)| w * v).sum();
+    let weight_total: f64 = sqrt_w.iter().map(|w| w * w).sum();
+    let mut t = vec![0.0; k];
+    GCV_LAMBDA_GRID
+        .iter()
+        .map(|&lambda| {
+            let mut fit_cross = 0.0; // β'B'y
+            let mut fit_quad = 0.0; // β'B'Bβ
+            let mut centering_dot = 0.0; // (B'√w)'β
+            let mut trace = 0.0; // tr(S₁)
+            for i in 0..k {
+                let gram = 1.0 - spectrum.m[i];
+                let denominator = gram + lambda * spectrum.m[i];
+                let ti = s[i] / denominator;
+                t[i] = ti;
+                fit_cross += ti * s[i];
+                fit_quad += gram * ti * ti;
+                centering_dot += g[i] * ti;
+                trace += gram / denominator;
+            }
+            let mean = centering_dot / n;
+            let moment_rss = yty - 2.0 * fit_cross
+                + fit_quad
+                + 2.0 * mean * (sqrt_w_y - centering_dot)
+                + mean * mean * weight_total;
+            let edf = (trace - 1.0).max(0.0);
+            let denom = (n - edf).max(1e-8);
+            let rss = if moment_rss.is_finite() && moment_rss > GCV_MOMENT_RSS_FLOOR * yty {
+                moment_rss
+            } else {
+                let beta = spectrum.coefficients(&t);
+                centered_rss(&beta, k, basis, nrows, y, sqrt_w)
+            };
+            n * rss / (denom * denom)
+        })
+        .collect()
+}
+
+/// Centered residual sum of squares of `Bβ` against `y` (both `√w`-scaled).
+fn centered_rss(
+    beta: &[f64],
+    n_basis: usize,
     basis: &[f64],
     nrows: usize,
     y: &[f64],
     sqrt_w: &[f64],
 ) -> f64 {
-    let n_basis = smoother.n_basis;
-    let beta = smoother.coefficients(inverse, basis, nrows, y);
     let mut scaled_pred = vec![0.0; nrows];
     for r in 0..nrows {
         let mut pred = 0.0;
@@ -1253,7 +1429,28 @@ fn centered_smooth_gcv(
         let e = y[r] - scaled_pred[r] + weighted_mean * sqrt_w[r];
         rss += e * e;
     }
-    let edf = (smoother.edf(inverse) - 1.0).max(0.0);
+    rss
+}
+
+/// GCV of the smoother actually applied in backfitting: centered `Bβ` with
+/// `edf = tr(S₁) − 1`. Uncentered RSS / `tr(S₁)` scores a different operator.
+///
+/// Inputs are in `√w`-scaled coordinates (`basis = √w B`, `y = √w y₀`), so with
+/// `fᵣ = (Bβ)ᵣ` the weighted-centered residual `√wᵣ (y₀ᵣ − fᵣ + f̄_w)` is
+/// `yᵣ − (√w B β)ᵣ + f̄_w √wᵣ`, where `f̄_w = Σ wᵣ fᵣ / n = Σ √wᵣ (√w B β)ᵣ / n`. The
+/// centering constant multiplies `√w`, it is not subtracted from the scaled prediction —
+/// the two coincide only when every weight is equal.
+fn centered_smooth_gcv(
+    smoother: &PenalizedSmoother,
+    factor: &PenalizedFactor,
+    basis: &[f64],
+    nrows: usize,
+    y: &[f64],
+    sqrt_w: &[f64],
+) -> f64 {
+    let beta = smoother.coefficients(factor, basis, nrows, y);
+    let rss = centered_rss(&beta, smoother.n_basis, basis, nrows, y, sqrt_w);
+    let edf = (smoother.edf(factor) - 1.0).max(0.0);
     let denom = (nrows as f64 - edf).max(1e-8);
     (nrows as f64) * rss / (denom * denom)
 }
@@ -1268,8 +1465,8 @@ fn roughness_basis_solve(
     lambda: f64,
 ) -> Result<Vec<f64>, StatsError> {
     let smoother = PenalizedSmoother::new(basis, nrows, n_basis)?;
-    let inverse = smoother.inverse(lambda)?;
-    Ok(smoother.coefficients(&inverse, basis, nrows, y))
+    let factor = smoother.factor(lambda)?;
+    Ok(smoother.coefficients(&factor, basis, nrows, y))
 }
 
 /// `tr((B'B + λP)⁻¹ B'B)` (test helper over [`PenalizedSmoother`]).
@@ -1281,7 +1478,7 @@ fn roughness_edf(
     lambda: f64,
 ) -> Result<f64, StatsError> {
     let smoother = PenalizedSmoother::new(basis, nrows, n_basis)?;
-    Ok(smoother.edf(&smoother.inverse(lambda)?))
+    Ok(smoother.edf(&smoother.factor(lambda)?))
 }
 
 #[cfg(test)]
@@ -1573,8 +1770,19 @@ mod tests {
         let left = knots[CUBIC_DEGREE];
         let right = knots[knots.len() - CUBIC_ORDER];
         assert_eq!(fit.smooth_derivative(0, left - 1.0).unwrap(), 0.0);
-        assert_eq!(fit.smooth_derivative(0, right).unwrap(), 0.0);
         assert_eq!(fit.smooth_derivative(0, right + 2.0).unwrap(), 0.0);
+        let h = (right - left) * 1e-6;
+        for (endpoint, interior) in [(left, left + h), (right, right - h)] {
+            let difference = (fit.smooth_partial(0, endpoint).unwrap()
+                - fit.smooth_partial(0, interior).unwrap())
+                / (endpoint - interior);
+            let derivative = fit.smooth_derivative(0, endpoint).unwrap();
+            assert!((derivative - difference).abs() < 1e-4);
+            let basis = fit.smooth_basis_derivative(0, endpoint).unwrap();
+            let basis_derivative: f64 =
+                basis.iter().zip(&fit.coefficients).map(|(a, b)| a * b).sum();
+            assert!((basis_derivative - derivative).abs() < 1e-12);
+        }
     }
 
     #[test]
@@ -1713,7 +1921,7 @@ mod tests {
         let n = 120usize;
         let x1 = linspace(n, -1.0, 1.0);
         let y: Vec<f64> = x1.iter().map(|&v| 1.5 + 2.0 * v).collect();
-        let (x, nrows, ncols) = colmajor_from_cols(&[x1.clone()]);
+        let (x, nrows, ncols) = colmajor_from_cols(std::slice::from_ref(&x1));
         let specs = [SmoothSpec::new(0, 8, 1e-4)];
         let mut ws = GamWorkspace::default();
         let fit = fit_gam(
@@ -1789,7 +1997,7 @@ mod tests {
             }
             rhs[c] = s;
         }
-        let inv = invert_square(&gram[..144], 12).unwrap();
+        let inv = crate::gram::invert_square(&gram[..144], 12).unwrap();
         let mut beta_i = [0.0; 12];
         for i in 0..12 {
             let mut s = 0.0;
@@ -1819,6 +2027,100 @@ mod tests {
         }
         assert!(rss_r < rss_i, "roughness RSS={rss_r} should beat identity ridge RSS={rss_i}");
         assert!(curv_err_r < curv_err_i);
+    }
+
+    /// Marsden's identity: the coefficients `c_i = (t_{i+1}+t_{i+2}+t_{i+3})/3` (the Greville
+    /// abscissae) reproduce `x`, and `e2(t_{i+1..i+3})` reproduces `x²`.
+    fn marsden_coefficients(knots: &[f64], n_basis: usize) -> (Vec<f64>, Vec<f64>) {
+        let linear =
+            (0..n_basis).map(|i| (knots[i + 1] + knots[i + 2] + knots[i + 3]) / 3.0).collect();
+        let quadratic = (0..n_basis)
+            .map(|i| {
+                let (a, b, c) = (knots[i + 1], knots[i + 2], knots[i + 3]);
+                (a * b + a * c + b * c) / 3.0
+            })
+            .collect();
+        (linear, quadratic)
+    }
+
+    fn quadratic_form(p: &[f64], c: &[f64]) -> f64 {
+        let k = c.len();
+        (0..k).map(|i| (0..k).map(|j| c[i] * p[i * k + j] * c[j]).sum::<f64>()).sum()
+    }
+
+    /// A straight line has no integrated curvature on knots that are not equally spaced, where
+    /// the coefficient second difference of the same line is not zero.
+    #[test]
+    fn integrated_penalty_is_zero_on_a_line_where_the_second_difference_is_not() {
+        let x: Vec<f64> = (0..60).map(|i| (f64::from(i) / 59.0).powi(2) * 3.0 - 1.0).collect();
+        let k = 6;
+        let (_, knots) = expand_bspline(&x, k, None).unwrap();
+        let (line, _) = marsden_coefficients(&knots, k);
+        let integrated = integrated_second_derivative_penalty(&knots, k).unwrap();
+        let difference = second_difference_penalty(k).unwrap();
+        let scale = line.iter().map(|v| v * v).sum::<f64>();
+        assert!(quadratic_form(&integrated, &line).abs() < 1e-12 * scale);
+        assert!(quadratic_form(&difference, &line) > 1e-4 * scale);
+        // The constant is in the null space too.
+        let ones = vec![1.0; k];
+        assert!(quadratic_form(&integrated, &ones).abs() < 1e-12 * scale);
+    }
+
+    /// `s = x²` has `s'' = 2`, so the roughness is `4 (right - left)` times the spacing cube.
+    #[test]
+    fn integrated_penalty_equals_the_closed_form_curvature_of_a_parabola() {
+        let x: Vec<f64> = (0..80).map(|i| (f64::from(i) / 79.0).powi(3) * 5.0 + 2.0).collect();
+        for k in [5, 6, 9] {
+            let (_, knots) = expand_bspline(&x, k, None).unwrap();
+            let (_, parabola) = marsden_coefficients(&knots, k);
+            let p = integrated_second_derivative_penalty(&knots, k).unwrap();
+            let (left, right) = (knots[CUBIC_DEGREE], knots[k]);
+            let spacing = (right - left) / (k - CUBIC_DEGREE) as f64;
+            let expected = 4.0 * (right - left) * spacing.powi(3);
+            let actual = quadratic_form(&p, &parabola);
+            assert!((actual - expected).abs() < 1e-10 * expected, "{k}: {actual} vs {expected}");
+        }
+    }
+
+    /// Rescaling the predictor leaves the penalty matrix unchanged.
+    #[test]
+    fn integrated_penalty_is_invariant_to_the_predictor_scale() {
+        let x: Vec<f64> = (0..50).map(|i| (f64::from(i) / 49.0).powi(2)).collect();
+        let k = 7;
+        let (_, knots) = expand_bspline(&x, k, None).unwrap();
+        let scaled: Vec<f64> = knots.iter().map(|t| 250.0 * t + 1000.0).collect();
+        let a = integrated_second_derivative_penalty(&knots, k).unwrap();
+        let b = integrated_second_derivative_penalty(&scaled, k).unwrap();
+        for (u, v) in a.iter().zip(&b) {
+            assert!((u - v).abs() < 1e-9 * (1.0 + u.abs()), "{u} vs {v}");
+        }
+    }
+
+    /// A penalised fit of an exactly linear signal on uneven quantile knots keeps its slope under
+    /// the integrated penalty and is shrunk under the coefficient second difference.
+    #[test]
+    fn a_penalised_fit_of_a_line_on_uneven_knots_keeps_its_slope_under_the_integrated_penalty() {
+        let n = 120;
+        let x: Vec<f64> = (0..n).map(|i| (f64::from(i) / f64::from(n - 1)).powi(3) * 4.0).collect();
+        let y: Vec<f64> = x.iter().map(|v| 1.0 + 2.0 * v).collect();
+        let slope = |penalty: RoughnessPenalty| {
+            let spec = [SmoothSpec::new(0, 6, 1.0).with_penalty(penalty)];
+            let fit = fit_gam(
+                &PredictorMatrix::new(&x, usize::try_from(n).expect("positive fixture size"), 1),
+                &y,
+                &spec,
+                &GamOptions { max_iter: 500, tol: 1e-12 },
+                &FaerBackend,
+                &mut GamWorkspace::default(),
+            )
+            .unwrap();
+            let mid = 2.0;
+            fit.smooth_derivative(0, mid).unwrap()
+        };
+        let integrated = slope(RoughnessPenalty::IntegratedSecondDerivative);
+        let difference = slope(RoughnessPenalty::CoefficientSecondDifference);
+        assert!((integrated - 2.0).abs() < 1e-8, "{integrated}");
+        assert!((difference - 2.0).abs() > 1e-3, "{difference}");
     }
 
     #[test]
@@ -1909,7 +2211,7 @@ mod tests {
         let mut uncentered_winner = GCV_LAMBDA_GRID[0];
         let mut best_uncentered_gcv = f64::INFINITY;
         for &lambda in &GCV_LAMBDA_GRID {
-            let inverse = smoother.inverse(lambda).unwrap();
+            let inverse = smoother.factor(lambda).unwrap();
             let centered_gcv =
                 centered_smooth_gcv(&smoother, &inverse, &basis, n, &centered, &ones);
             if centered_gcv < best_gcv {
@@ -1967,7 +2269,7 @@ mod tests {
         let scaled_y: Vec<f64> = y.iter().zip(&sqrt_w).map(|(v, s)| v * s).collect();
         let smoother = PenalizedSmoother::new(&scaled_basis, n, 6).unwrap();
         for lambda in [1e-3, 0.1, 10.0] {
-            let inverse = smoother.inverse(lambda).unwrap();
+            let inverse = smoother.factor(lambda).unwrap();
             let got =
                 centered_smooth_gcv(&smoother, &inverse, &scaled_basis, n, &scaled_y, &sqrt_w);
 
@@ -2022,7 +2324,7 @@ mod tests {
                 expand_bspline(cols[j], 8, Some(fit.smooths[j].knots.as_ref())).unwrap();
             let smoother = PenalizedSmoother::new(&basis, n, 8).unwrap();
             let score = |lambda: f64| {
-                let inverse = smoother.inverse(lambda).unwrap();
+                let inverse = smoother.factor(lambda).unwrap();
                 centered_smooth_gcv(&smoother, &inverse, &basis, n, &partial, &ones)
             };
             let best = GCV_LAMBDA_GRID.iter().map(|&l| score(l)).fold(f64::INFINITY, f64::min);
@@ -2124,7 +2426,7 @@ mod tests {
         let n = 80usize;
         let x1 = linspace(n, 0.0, 1.0);
         let y: Vec<f64> = x1.iter().map(|&v| (2.0 * std::f64::consts::PI * v).sin()).collect();
-        let (x, nrows, ncols) = colmajor_from_cols(&[x1.clone()]);
+        let (x, nrows, ncols) = colmajor_from_cols(std::slice::from_ref(&x1));
         let specs = [SmoothSpec::new(0, 8, 0.01)];
         let backend = FaerBackend;
         let mut ws = GamWorkspace::default();
@@ -2266,5 +2568,100 @@ mod tests {
                     < 1e-7
             );
         }
+    }
+
+    #[test]
+    fn spectral_gcv_scores_match_the_per_lambda_factorization() {
+        let n = 70usize;
+        let x1 = linspace(n, 0.0, 1.0);
+        let w: Vec<f64> = (0..n).map(|i| 0.5 + (i % 4) as f64 * 0.4).collect();
+        let y: Vec<f64> = x1
+            .iter()
+            .enumerate()
+            .map(|(i, &v)| (4.0 * v).sin() + 0.2 * ((i * 5) % 7) as f64)
+            .collect();
+        let (basis, _) = expand_bspline(&x1, 9, None).unwrap();
+        let sqrt_w: Vec<f64> = w.iter().map(|v| v.sqrt()).collect();
+        let scaled_basis: Vec<f64> =
+            basis.iter().enumerate().map(|(i, v)| v * sqrt_w[i % n]).collect();
+        let scaled_y: Vec<f64> = y.iter().zip(&sqrt_w).map(|(v, s)| v * s).collect();
+        let smoother = PenalizedSmoother::new(&scaled_basis, n, 9).unwrap();
+        let spectrum = smoother.spectrum().expect("pencil is factorizable");
+        let scores = spectral_gcv_scores(&smoother, spectrum, &scaled_basis, n, &scaled_y, &sqrt_w);
+        for (&lambda, &got) in GCV_LAMBDA_GRID.iter().zip(&scores) {
+            let factor = smoother.factor(lambda).unwrap();
+            let want =
+                centered_smooth_gcv(&smoother, &factor, &scaled_basis, n, &scaled_y, &sqrt_w);
+            assert!((got - want).abs() <= 1e-6 * want.abs(), "λ={lambda}: {got} vs {want}");
+        }
+    }
+
+    #[test]
+    fn fixed_weighted_joint_fit_matches_converged_backfitting() {
+        let n = 512;
+        let mut state = 17_u64;
+        let mut random = || {
+            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+            (state >> 11) as f64 / (1_u64 << 53) as f64
+        };
+        let x: Vec<_> = (0..n * 4).map(|_| 2.0 * random() - 1.0).collect();
+        let y: Vec<_> = (0..n)
+            .map(|i| {
+                0.3 + x[i] * x[i] + x[n + i].sin() + 0.4 * x[2 * n + i] - x[3 * n + i]
+                    + 0.1 * random()
+            })
+            .collect();
+        let specs: Vec<_> =
+            (0..4).map(|j| SmoothSpec::new(j, 8, if j < 2 { 1e-12 } else { 1.0 })).collect();
+        let design = AdditiveDesign::expand(&x, n, 4, &specs).unwrap();
+        let weights: Vec<_> = (0..n).map(|_| 0.1 + 2.0 * random()).collect();
+        for weights in [None, Some(weights.as_slice())] {
+            let direct =
+                fit_gam_fixed_weighted_design(&design, &y, weights, &mut GamWorkspace::default())
+                    .unwrap()
+                    .expect("independent spline design must use the joint solve");
+            let reference = fit_gam_weighted_design(
+                &design,
+                &y,
+                &GamOptions { max_iter: 1000, tol: 1e-14 },
+                weights,
+                &mut GamWorkspace::default(),
+            )
+            .unwrap();
+            assert!(reference.converged);
+            let delta = direct
+                .fitted
+                .iter()
+                .zip(&reference.fitted)
+                .map(|(a, b)| (a - b).abs())
+                .fold(0.0_f64, f64::max);
+            assert!(delta < 1e-6, "joint fit vs backfitting delta={delta}");
+            assert!((direct.edf_approx - reference.edf_approx).abs() < 1e-10);
+            for j in 0..4 {
+                for at in [-0.5, 0.0, 0.5] {
+                    let a = direct.smooth_derivative(j, at).unwrap();
+                    let b = reference.smooth_derivative(j, at).unwrap();
+                    assert!((a - b).abs() < 1e-5, "smooth {j} at {at}: {a} != {b}");
+                }
+            }
+        }
+        let auto = AdditiveDesign::expand(&x, n, 4, &[SmoothSpec::auto(0, 8)]).unwrap();
+        assert!(
+            fit_gam_fixed_weighted_design(&auto, &y, None, &mut GamWorkspace::default())
+                .unwrap()
+                .is_none()
+        );
+        let duplicate = AdditiveDesign::expand(
+            &x,
+            n,
+            4,
+            &[SmoothSpec::new(0, 8, 0.0), SmoothSpec::new(0, 8, 0.0)],
+        )
+        .unwrap();
+        assert!(
+            fit_gam_fixed_weighted_design(&duplicate, &y, None, &mut GamWorkspace::default())
+                .unwrap()
+                .is_none()
+        );
     }
 }

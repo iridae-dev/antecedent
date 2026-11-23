@@ -55,6 +55,7 @@ fn query_and_intervention_types_keep_their_auto_traits() {
     assert_unwind_safe::<antecedent::StageEvent>();
     assert_unwind_safe::<antecedent::planner::LogicalAnalysisPlan>();
     assert_unwind_safe::<antecedent::planner::PhysicalExecutionPlan>();
+    assert_unwind_safe::<antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>();
 }
 
 #[test]
@@ -89,7 +90,7 @@ fn single_word_masks_round_trip_on_eight_nodes() {
 }
 
 #[test]
-fn graph_posterior_keeps_its_single_word_fields_and_constructor() {
+fn graph_posterior_keeps_its_single_word_constructor_and_words() {
     let mut diagnostics = antecedent_prob::InferenceDiagnostics::analytic("released_surface");
     diagnostics.converged = true;
     let adjacency: Arc<[u64]> = Arc::from(vec![0_u64, set_edge(0, 2, 0, 1, true)]);
@@ -102,14 +103,14 @@ fn graph_posterior_keeps_its_single_word_fields_and_constructor() {
         SamplingSummary { ess: 2.0, diagnostics, rejected_invalid: 0 },
     )
     .expect("a valid posterior");
-    let words: &Arc<[u64]> = &posterior.adjacency;
-    assert_eq!(words.as_ref(), adjacency.as_ref());
-    assert_eq!(posterior.atoms.len(), 2);
+    let words: Option<Vec<u64>> = posterior.adjacency_words();
+    assert_eq!(words.as_deref(), Some(adjacency.as_ref()));
+    assert_eq!(posterior.atoms().len(), 2);
     let posterior = posterior
         .with_atom_kind(GraphPosteriorAtomKind::Pag)
         .with_mark_masks(vec![0_u64, 0])
         .expect("matching length");
-    let marks: &Option<Arc<[u64]>> = &posterior.mark_masks;
+    let marks: Option<Vec<u64>> = posterior.mark_words();
     assert_eq!(marks.as_deref(), Some([0_u64, 0].as_slice()));
 }
 
@@ -130,8 +131,6 @@ fn temporal_mask_builders_keep_their_signatures() {
 
 #[test]
 fn matching_index_keeps_its_context_free_entry_points() {
-    let _ = antecedent_stats::EXACT_MATCHING_ROW_LIMIT;
-    let _ = antecedent_stats::matching::EXACT_MATCHING_ROW_LIMIT;
     let donors = [0.0, 1.0, 5.0];
     let index = MatchingIndex::exact(&donors, 1, &[10, 11, 12], MatchingDistance::Absolute)
         .expect("an index");
@@ -161,37 +160,7 @@ fn matching_index_keeps_its_context_free_entry_points() {
 }
 
 #[test]
-fn retired_ceilings_keep_their_released_values() {
-    assert_eq!(antecedent_identify::sid::temporal_sequence::TEMPORAL_MAX_OBSERVED, 12);
-    assert_eq!(antecedent_identify::sid::scenarios::SCENARIO_MAX_OBSERVED, 12);
-    assert_eq!(antecedent_identify::MZ_TRANSPORT_MAX_OBSERVED, 12);
-    assert_eq!(antecedent_identify::sid::MZ_TRANSPORT_MAX_OBSERVED, 12);
-    assert_eq!(antecedent_identify::sid::cpdag_completion::CPDAG_MAX_NODES, 6);
-    assert_eq!(
-        antecedent_identify::sid::cpdag_completion::CPDAG_BOUNDS_EXCEEDED_DETAIL,
-        "cpdag_scenarios.bounds_exceeded"
-    );
-    assert_eq!(antecedent_io::latent_class_artifact::LATENT_CLASS_ARTIFACT_MAX_ROWS, 10_000);
-    assert_eq!(
-        antecedent_io::nonlinear_mediation_artifact::NONLINEAR_MEDIATION_ARTIFACT_MAX_ROWS,
-        20_000
-    );
-    assert_eq!(antecedent::analysis::latent_class_effects::LATENT_CLASS_ARTIFACT_MAX_ROWS, 10_000);
-    assert_eq!(
-        antecedent::analysis::nonlinear_mediation::NONLINEAR_MEDIATION_ARTIFACT_MAX_ROWS,
-        20_000
-    );
-}
-
-#[test]
-fn refusal_constructor_and_matrix_rows_keep_their_shape() {
-    let refusal = antecedent_identify::discovered_transport::refuse_pag_transport(Vec::new(), 0);
-    let antecedent_identify::discovered_transport::DiscoveredTransportError::Refused(refusal) =
-        refusal
-    else {
-        panic!("the constructor builds a refusal");
-    };
-    assert_eq!(refusal.detail, "discovered_transport.pag_members_not_causal_graphs");
+fn matrix_rows_keep_their_shape() {
     let rows: &[antecedent_counterfactual::selective::MatrixRow; 11] =
         &antecedent_counterfactual::selective::matrix::ROWS;
     assert_eq!(rows.len(), 11);
@@ -200,8 +169,28 @@ fn refusal_constructor_and_matrix_rows_keep_their_shape() {
 
 #[test]
 fn design_record_functional_keeps_the_exact_count_label() {
+    use antecedent_design::decision_reliability::draws::{
+        CandidateCoupling, SourceParadigm, WithinStreamDependence,
+    };
     let _: fn(&antecedent_design::decision_reliability::CalibrationCoordinate) -> String =
         antecedent_design::decision_reliability::calibration::record_functional;
+    let coordinate = antecedent_design::decision_reliability::CalibrationCoordinate {
+        candidate_set_size: 7,
+        mc_budget: 1_000,
+        selection_rule: "argmax".to_owned(),
+        functional: "expected_utility".to_owned(),
+        coupling: CandidateCoupling::SharedSimulation,
+        paradigm: SourceParadigm::Posterior,
+        within_stream: WithinStreamDependence::Independent,
+        importance_weighted: false,
+        adaptively_generated: false,
+    };
+    // The label keys records measured at one exact count: the count, rule and functional
+    // only, so a changed spelling would orphan every such released record.
+    assert_eq!(
+        antecedent_design::decision_reliability::record_functional(&coordinate),
+        "candidates=7;rule=argmax;functional=expected_utility"
+    );
 }
 
 #[test]

@@ -18,3 +18,18 @@ test_sources = [
  "inline unit tests (crates/antecedent-identify/src/envelope.rs)",
  "IdentificationEnvelope unidentified mass (conformance/identify/generalized_adjustment)",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Result-aggregation structure: weighted per-graph identification cases with preserved unidentified mass."
+no_independent_algorithm = "Aggregation of results of generalized adjustment; no identification theory."
+covered_by = ["identify.generalized_adjustment"]
+inline_tests = true
+record_sha256 = "c5729eef2eecfcbd7b9b9f2afa50722420d00598f414b8afa4c31d3ff75e24e8"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/envelope.rs"
+items = ["module"]
+sha256 = "caaee0baf9f7ccb698c588ea735c0fe3615dd01b622a3a91c75666b1f343b96f"

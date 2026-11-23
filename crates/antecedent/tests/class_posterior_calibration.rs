@@ -7,9 +7,9 @@
 //! confounded contrast 2 + 2·(P(Z=1|T=1) − P(Z=1|T=0)), which is not the ATE),
 //! and the scalar mixture carries a joint influence-function SE.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh`.
+//! Ignored tests run via `scripts/measure_calibration.sh`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,
@@ -128,7 +128,7 @@ fn assert_shape(result: &StudyResult) {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn class_posterior_frequentist_ate_joint_if_nominal_90_coverage() {
     let test = "class_posterior_frequentist_ate_joint_if_nominal_90_coverage";
     let key = RecordKey { test, dgp: "draw_data", interval: "analytic_se" };
@@ -146,16 +146,16 @@ fn class_posterior_frequentist_ate_joint_if_nominal_90_coverage() {
         bind_all(&mut [&mut tally, &mut reported], study, result);
         tally.record(
             normal_interval(
-                result.estimate.as_effect().unwrap().ate,
-                Some(result.estimate.as_effect().unwrap().se_analytic()),
+                result.estimate().as_effect().unwrap().ate,
+                Some(result.estimate().as_effect().unwrap().se_analytic()),
                 Z90,
             ),
             TRUTH,
         );
         reported.record(
             normal_interval(
-                result.estimate.as_effect().unwrap().ate,
-                Some(result.estimate.as_effect().unwrap().se_analytic()),
+                result.estimate().as_effect().unwrap().ate,
+                Some(result.estimate().as_effect().unwrap().se_analytic()),
                 Z95,
             ),
             TRUTH,

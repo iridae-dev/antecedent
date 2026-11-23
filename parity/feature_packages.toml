@@ -1,4 +1,4 @@
-# Scientific feature packages. Each names one promotion record.
+# Scientific feature packages. Each names one capability record.
 version = 1
 
 [[feature]]
@@ -139,6 +139,13 @@ id = "design.identification_repair"
 purpose = "theorem-scoped identification repair facade"
 depends_on = ["design.evidence_obligations", "design.study_candidate"]
 record = "design.identification_repair"
+record_state = "frozen"
+
+[[feature]]
+id = "design.evidence_plan"
+purpose = "ranked evidence plan over the theorem routes of a failed identification"
+depends_on = ["design.identification_repair", "design.study_candidate"]
+record = "design.evidence_plan"
 record_state = "frozen"
 
 [[feature]]
@@ -396,7 +403,7 @@ record_state = "frozen"
 
 [[feature]]
 id = "predictive_assessment.calibration_diagnostics"
-purpose = "PIT, reliability, coverage and sharpness labelled as unmeasured diagnostics"
+purpose = "PIT, reliability, coverage and sharpness labelled as not_measured diagnostics"
 depends_on = ["predictive_assessment.proper_scores"]
 record = "predictive_assessment.calibration_diagnostics"
 record_state = "frozen"
@@ -494,14 +501,14 @@ record_state = "frozen"
 
 [[feature]]
 id = "adaptive_inference.analysis_contract"
-purpose = "Is the retained analysis contract of an adaptive experiment complete and consistent enough to license any inference, and which element is missing when it is not"
+purpose = "Is the retained analysis contract of an adaptive experiment complete and consistent enough to support any inference, and which element is missing when it is not"
 depends_on = ["evidence_ledger.repeated_observation_use"]
 record = "adaptive_inference.analysis_contract"
 record_state = "frozen"
 
 [[feature]]
 id = "adaptive_inference.procedure_matrix"
-purpose = "For a given assignment policy, outcome structure, monitoring strategy and stopping rule, does the engine license inference, refuse it, or carry it forward with an owner"
+purpose = "For a given assignment policy, outcome structure, monitoring strategy and stopping rule, does the engine support inference, refuse it, or carry it forward with an owner"
 depends_on = ["adaptive_inference.analysis_contract"]
 record = "adaptive_inference.procedure_matrix"
 record_state = "frozen"
@@ -549,15 +556,15 @@ record = "adaptive_inference.group_sequential"
 record_state = "frozen"
 
 [[feature]]
-id = "adaptive_inference.guarantees_closed"
+id = "adaptive_inference.unsupported_guarantees"
 purpose = "Can an interval, credible interval, error rate or coverage statement be reported for an adaptive procedure's result"
 depends_on = ["adaptive_inference.bayesian_posterior", "adaptive_inference.adaptive_weighting", "adaptive_inference.anytime_valid_sequence", "adaptive_inference.group_sequential"]
-record = "adaptive_inference.guarantees_closed"
+record = "adaptive_inference.unsupported_guarantees"
 record_state = "frozen"
 
 [[feature]]
 id = "composition_verification.claim_revalidation"
-purpose = "Which downstream claims are still valid, must be recomputed or are no longer licensed when an upstream object changes, with a per-claim lineage report"
+purpose = "Which downstream claims are still valid, must be recomputed or are no longer supported when an upstream object changes, with a per-claim lineage report"
 depends_on = ["evidence_ledger.overlap_accounting"]
 record = "composition_verification.claim_revalidation"
 record_state = "frozen"
@@ -689,10 +696,10 @@ record = "provider_callback.portable_result"
 record_state = "frozen"
 
 [[feature]]
-id = "provider_callback.closed_claims"
-purpose = "closed: interval, posterior guarantee, native trust, identification licence or joint law supplied by a callback"
+id = "provider_callback.unsupported_claims"
+purpose = "closed: interval, posterior guarantee, native trust, identification evidence or joint law supplied by a callback"
 depends_on = ["provider_callback.law_posterior_protocol"]
-record = "provider_callback.closed_claims"
+record = "provider_callback.unsupported_claims"
 record_state = "frozen"
 
 [[feature]]
@@ -710,10 +717,10 @@ record = "discovery.selective_reuse"
 record_state = "frozen"
 
 [[feature]]
-id = "discovery.selective_reuse_guarantees_closed"
+id = "discovery.selective_reuse_unsupported_guarantees"
 purpose = "closed: a recovery or error-control claim, a downstream interval, score-search reuse, multi-population discovery or transport of a discovered structure from selective discovery"
 depends_on = ["discovery.selective_reuse"]
-record = "discovery.selective_reuse_guarantees_closed"
+record = "discovery.selective_reuse_unsupported_guarantees"
 record_state = "frozen"
 
 [[feature]]

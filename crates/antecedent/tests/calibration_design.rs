@@ -11,9 +11,9 @@
 //! here — it is read from the runtime by binding every scored replicate's
 //! execution with `common::calibration_bind`.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,
@@ -162,7 +162,7 @@ const TRANSPORT_CELL: Cell = Cell { estimator: "transport.trial_ipw", dgp: "tran
 
 /// Dahabreh trial-to-target IPW with its ratio-of-means delta-method SE.
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn transport_admg_trial_ipw_frequentist_nominal_coverage() {
     let truth = transport_truth();
     let mut tallies =
@@ -215,8 +215,8 @@ fn ring_edges() -> Vec<NetworkEdge> {
     (0..n)
         .flat_map(|i| {
             [
-                NetworkEdge { from: (i + 1) % n, to: i, weight: 1.0 },
-                NetworkEdge { from: (i + n - 1) % n, to: i, weight: 1.0 },
+                NetworkEdge::new(u64::from((i + 1) % n), u64::from(i), 1.0),
+                NetworkEdge::new(u64::from((i + n - 1) % n), u64::from(i), 1.0),
             ]
         })
         .collect()
@@ -275,7 +275,7 @@ const INTERFERENCE_CELL: Cell =
 const INTERFERENCE_MEASURED: [f64; GRID_POINTS] = [1.0; GRID_POINTS];
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn interference_dag_bernoulli_neighbor_count_conservative_bound_boundary() {
     let alpha = alpha();
     let mut tallies = keyed_pair(
@@ -307,11 +307,27 @@ fn design_coordinates_publish_the_scored_interval() {
     let (_, transport) =
         run_transport(transport_data(400, 5), 5).expect("the transport study must run");
     assert!(
-        transport.estimate.as_effect().unwrap().se_analytic().is_finite()
-            && transport.estimate.as_effect().unwrap().se_analytic() > 0.0,
+        transport.estimate().as_effect().unwrap().se_analytic().is_finite()
+            && transport.estimate().as_effect().unwrap().se_analytic() > 0.0,
         "the transported IPW must publish its SE"
     );
+    // The estimate is the target-population ATE within sampling error (observed 0.52 vs 0.764,
+    // se 0.27), with a standard error of the order the ratio-of-means delta method gives.
+    let (ate, se) = {
+        let effect = transport.estimate().as_effect().unwrap();
+        (effect.ate, effect.se_analytic())
+    };
+    assert!((ate - transport_truth()).abs() < 3.5 * se, "ate {ate} se {se}");
+    assert!((0.15..0.45).contains(&se), "se {se}");
     assert!(scalar_normal_pair(&transport)[0].is_some());
     let (_, interference) = run_interference(&alpha(), 5).expect("the interference study must run");
+    // Conservative Young bound: the interval is very wide (observed se 12 for an estimate
+    // 1.59 of a true contrast 2) but must still cover the true direct effect.
+    let (ate, se) = {
+        let effect = interference.estimate().as_effect().unwrap();
+        (effect.ate, effect.se_analytic())
+    };
+    assert!((ate - DIRECT_EFFECT).abs() < 3.5 * se, "ate {ate} se {se}");
+    assert!((5.0..30.0).contains(&se), "se {se}");
     assert!(scalar_normal_pair(&interference)[0].is_some());
 }

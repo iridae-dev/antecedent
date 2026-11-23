@@ -24,7 +24,7 @@
 //! cross-fitted scores: it is meaningful under consistency, positivity (no level has a
 //! generalized propensity near zero) and a small product of nuisance errors.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -49,7 +49,7 @@ use crate::crossfit_plan::{
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::scores::{ScoreColumn, ScoreTable};
-use crate::util::{refuse, stats_err};
+use crate::util::refuse;
 
 /// Provenance tag frozen on the generalized-propensity score table.
 pub const GENERALIZED_PROPENSITY_PROVENANCE: &str = "gps.crossfit.multinomial_logit.ols.v1";
@@ -227,7 +227,8 @@ impl MultiLevelAipw {
             return Err(EstimationError::EffectModifiers);
         }
         if query.outcome_functional != OutcomeFunctional::Mean {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "multi-level treatment estimators support the mean functional only",
             ));
         }
@@ -288,7 +289,8 @@ impl MultiLevelAipw {
         )?;
         self.overlap.validate()?;
         if crate::propensity::trim_of(self.overlap).is_some() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("option_not_applicable"),
                 "generalized-propensity estimators do not trim: trimming one level's propensity would redefine the common-support population of every contrast",
             ));
         }
@@ -323,6 +325,7 @@ impl MultiLevelAipw {
         }
         let effect = EffectEstimate::new(contrast.value, contrast.se, assumptions, self.overlap)
             .with_n_obs(u64::try_from(table.n_rows).unwrap_or(u64::MAX))
+            .with_preparation(Some(crate::prepare::preparation_summary(&prepared.preparation)))
             .with_influence(Some(Arc::from(influence)))
             .with_score_table(Some(table));
         Ok(MultiLevelEstimate {
@@ -382,7 +385,7 @@ impl MultiLevelAipw {
                 if ctx.cancellation.is_cancelled() {
                     return Err(refuse(
                         antecedent_core::reason_code!("cancelled_no_claim"),
-                        "treatment_levels.cancelled",
+                        antecedent_core::reason_details::treatment_levels::CANCELLED,
                         "the cross-fitted generalized-propensity fit was cancelled before every fold was fit; no estimate is reported",
                     ));
                 }
@@ -398,7 +401,7 @@ impl MultiLevelAipw {
                 if let Some(missing) = present.iter().position(|&seen| !seen) {
                     return Err(refuse(
                         antecedent_core::reason_code!("arm_not_populated"),
-                        "treatment_levels.training_fold_missing_level",
+                        antecedent_core::reason_details::treatment_levels::TRAINING_FOLD_MISSING_LEVEL,
                         &format!(
                             "a cross-fit training fold has no row at treatment level {}; use fewer folds or merge the level",
                             prepared.levels[missing]
@@ -442,7 +445,7 @@ impl MultiLevelAipw {
                     if level_train.len() <= ncols {
                         return Err(refuse(
                             antecedent_core::reason_code!("arm_not_populated"),
-                            "treatment_levels.sparse_level",
+                            antecedent_core::reason_details::treatment_levels::SPARSE_LEVEL,
                             &format!(
                                 "a cross-fit training fold has no more rows at treatment level {} than design columns, so its outcome model has no residual degrees of freedom",
                                 prepared.levels[c]
@@ -460,7 +463,7 @@ impl MultiLevelAipw {
                             &y_level,
                             &mut ols_workspace,
                         )
-                        .map_err(stats_err)?;
+                        .map_err(crate::error::EstimationError::from)?;
                     predict_colmajor(
                         &design_valid,
                         nv,
@@ -498,6 +501,7 @@ impl MultiLevelAipw {
             propensity_clip: clip,
             treatment: query.treatment,
             intervened: Arc::from([]),
+            preparation: None,
         })
     }
 }
@@ -540,8 +544,8 @@ pub(crate) fn fit_category_probabilities(
         workspace,
         options,
     )
-    .map_err(stats_err)?;
-    fit.require_ok().map_err(stats_err)?;
+    .map_err(crate::error::EstimationError::from)?;
+    fit.require_ok().map_err(crate::error::EstimationError::from)?;
     Ok(multinomial_probabilities(
         &fit.coefficients,
         design_valid,
@@ -589,9 +593,10 @@ struct PreparedLevels {
     /// Index into `levels` of each row's treatment.
     category: Vec<u32>,
     outcome: Vec<f64>,
-    row_index: Vec<u32>,
+    row_index: Vec<antecedent_data::GlobalId>,
     adjustment_set: Arc<[antecedent_core::VariableId]>,
     rows_by_level: Vec<u64>,
+    preparation: antecedent_data::materialize::PreparationReceipt,
 }
 
 impl PreparedLevels {
@@ -613,7 +618,7 @@ impl PreparedLevels {
         {
             return Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "treatment_levels.invalid_level_set",
+                antecedent_core::reason_details::treatment_levels::INVALID_LEVEL_SET,
                 "the declared treatment levels must be at least two distinct finite values",
             ));
         }
@@ -621,9 +626,13 @@ impl PreparedLevels {
         ids.push(query.treatment);
         ids.push(query.outcome);
         ids.extend_from_slice(&estimand.adjustment_set);
-        let mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
-        let t = data.float64_masked(query.treatment, &mask).map_err(EstimationError::from)?;
-        let outcome = data.float64_masked(query.outcome, &mask).map_err(EstimationError::from)?;
+        let crate::prepare::AdmittedColumns { data, row_mask: mask, receipt: preparation } =
+            crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
+        let t = data.float64_selected(query.treatment, &mask).map_err(EstimationError::from)?;
+        let outcome = data
+            .float64_selected(query.outcome, &mask)
+            .map_err(EstimationError::from)?
+            .into_owned();
         let n = t.len();
         if n == 0 {
             return Err(EstimationError::data_msg(
@@ -634,7 +643,7 @@ impl PreparedLevels {
         let mut rows_by_level = vec![0u64; levels.len()];
         let mut undeclared = 0u64;
         let mut first_undeclared = None;
-        for &value in &t {
+        for &value in t.iter() {
             if let Some(index) = levels.iter().position(|&l| l == value) {
                 category.push(u32::try_from(index).unwrap_or(u32::MAX));
                 rows_by_level[index] += 1;
@@ -646,7 +655,7 @@ impl PreparedLevels {
         if let Some(value) = first_undeclared {
             return Err(refuse(
                 antecedent_core::reason_code!("treatment_level_undeclared"),
-                "treatment_levels.full_population_undeclared_level",
+                antecedent_core::reason_details::treatment_levels::FULL_POPULATION_UNDECLARED_LEVEL,
                 &format!(
                     "{undeclared} complete-case rows have a treatment value outside the declared \
                      level set; first found {value}; {}. The full-population estimate averages \
@@ -660,7 +669,7 @@ impl PreparedLevels {
         if let Some(empty) = rows_by_level.iter().position(|&rows| rows == 0) {
             return Err(refuse(
                 antecedent_core::reason_code!("arm_not_populated"),
-                "treatment_levels.level_not_populated",
+                antecedent_core::reason_details::treatment_levels::LEVEL_NOT_POPULATED,
                 &format!("no complete-case row has the declared treatment level {}", levels[empty]),
             ));
         }
@@ -668,14 +677,16 @@ impl PreparedLevels {
         let mut design = vec![0.0; n * ncols];
         design[..n].fill(1.0);
         for (j, &z) in estimand.adjustment_set.iter().enumerate() {
-            let column = data.float64_masked(z, &mask).map_err(EstimationError::from)?;
-            design[(1 + j) * n..(2 + j) * n].copy_from_slice(&column);
+            data.float64_selected_into(z, &mask, &mut design[(1 + j) * n..(2 + j) * n])
+                .map_err(EstimationError::from)?;
         }
         let mut row_index = Vec::with_capacity(n);
         for (i, _) in mask.iter().enumerate().filter(|&(_, &keep)| keep) {
-            row_index.push(u32::try_from(i).map_err(|_| {
-                EstimationError::data_msg("row index exceeds the u32 row-id capacity")
-            })?);
+            row_index.push(antecedent_data::GlobalId::new(u64::try_from(i).map_err(|_| {
+                        EstimationError::data_msg(
+                            "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                        )
+                    })?));
         }
         Ok(Self {
             n,
@@ -687,6 +698,7 @@ impl PreparedLevels {
             row_index,
             adjustment_set: Arc::clone(&estimand.adjustment_set),
             rows_by_level,
+            preparation,
         })
     }
 
@@ -699,7 +711,7 @@ impl PreparedLevels {
         self.levels.iter().position(|&l| l == level).ok_or_else(|| {
             refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "treatment_levels.contrast_level_not_declared",
+                antecedent_core::reason_details::treatment_levels::CONTRAST_LEVEL_NOT_DECLARED,
                 &format!("the query contrasts treatment level {level}, which is not in the declared level set"),
             )
         })

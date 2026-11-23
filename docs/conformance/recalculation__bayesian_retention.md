@@ -14,4 +14,4 @@ Prior transfer: the source structural effect is two and the independent target s
 
 ## Expected summary
 
-Top-level keys: `gaussian, joint_internal, prior_transfer, quadratic_basis` (4 fields).
+Top-level keys: `gaussian, joint_internal, oracle, prior_transfer, quadratic_basis` (5 fields).

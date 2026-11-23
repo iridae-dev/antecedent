@@ -2,14 +2,13 @@
 use crate::graphs::Admg;
 use crate::transport_exact_api::ClassicalTransportStage;
 use crate::transport_interference_api::parse_catalog;
-use antecedent_core::{ExecutionContext, RegimeId, Value};
-use antecedent_estimate::{
-    EmpiricalTableEstimator, EmpiricalTableOptions, RegimeSample, StatisticalTransportInput,
+use antecedent::estimate::{
+    EmpiricalTableEstimator, EmpiricalTableOptions, ExactDiscreteLaw, ExactEvaluationLimits,
+    ExactTransportData, InterventionAssignment, RegimeSample, StatisticalTransportInput,
 };
-use antecedent_expr::{
-    ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData, InterventionAssignment,
-};
-use antecedent_identify::SidLimits;
+use antecedent::identify::SidLimits;
+use antecedent::prelude::{ExecutionContext, Value};
+use antecedent::schema::RegimeId;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 use std::collections::BTreeMap;
@@ -24,11 +23,54 @@ use crate::transport_common::{
 
 const STATISTICAL_PREFIX: &[u8] = b"ANTECEDENT-STATISTICAL-TRANSPORT\x01";
 
+#[derive(Clone)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "private enum held once per prepared study; boxing would only add an indirection"
+)]
+enum StatisticalPreparation {
+    Deferred(antecedent::analysis::DeferredStatisticalTransport),
+    Ready(antecedent::PreparedStudy<antecedent::StatisticalPreparedState>),
+}
+
+impl StatisticalPreparation {
+    fn materialize(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> PyResult<antecedent::PreparedStudy<antecedent::StatisticalPreparedState>> {
+        match self {
+            Self::Deferred(deferred) => deferred.materialize(ctx).map_err(error),
+            Self::Ready(ready) => Ok(ready.clone()),
+        }
+    }
+    fn query(&self) -> &antecedent::identify::ClassicalTransportQuery {
+        match self {
+            Self::Deferred(deferred) => deferred.functional().derivation().query(),
+            Self::Ready(ready) => ready.query(),
+        }
+    }
+    fn rules(&self) -> Vec<&'static str> {
+        match self {
+            Self::Deferred(deferred) => deferred.functional().derivation().rules(),
+            Self::Ready(ready) => ready.rules(),
+        }
+    }
+    fn formula(&self) -> String {
+        match self {
+            Self::Deferred(deferred) => {
+                deferred.functional().arena().pretty(deferred.functional().root())
+            }
+            Self::Ready(ready) => ready.inspect().formula,
+        }
+    }
+}
+
 #[pyclass(skip_from_py_object)]
 struct PreparedStatisticalStage {
-    inner: antecedent::PreparedStudy<antecedent::StatisticalPreparedState>,
+    inner: StatisticalPreparation,
+    last_prepared: Option<antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>,
     graph: Admg,
-    catalog: antecedent_core::EvidenceCatalog,
+    catalog: antecedent::query::EvidenceCatalog,
     last: Option<antecedent::StatisticalStudyResult>,
     memory_bytes: Option<u64>,
     max_support_rows: usize,
@@ -54,7 +96,7 @@ impl PreparedStatisticalStage {
                 "probabilities": posterior.distributions.iter().map(|d| d.probabilities.to_vec()).collect::<Vec<_>>(),
                 "atom_intervals": posterior.atom_intervals.to_vec(),
                 "mean_intervals": posterior.mean_intervals.iter().map(|(v, lo, hi)| (self.graph.names[v.as_usize()].as_str(), lo, hi)).collect::<Vec<_>>(),
-                "calibration_status": posterior.interval_reason.as_deref().unwrap_or(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED),
+                "calibration_status": posterior.interval_reason.map_or(antecedent::estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED, |reason| reason.as_str()),
             })
         })
     }
@@ -101,7 +143,7 @@ impl PreparedStatisticalStage {
                 })
                 .collect::<PyResult<Vec<_>>>()?,
             result.distribution().probabilities.to_vec(),
-            self.inner.inspect().formula,
+            self.inner.formula(),
             self.inner.rules().into_iter().map(str::to_owned).collect(),
             uncertainty.to_string(),
         ))
@@ -130,13 +172,14 @@ impl PreparedStatisticalStage {
     ) -> PyResult<StatisticalStagePayload> {
         let ctx = self.ctx(cancel);
         let inner = self.inner.clone();
-        let execution = execution.unwrap_or_else(|| inner.inspect().identities.execution);
-        // A failed execution keeps the previous claim: nothing is cleared until
-        // the replacement exists.
-        let result = crate::detach_catch(py, move || {
-            inner.estimate_checked(&execution, &ctx).map_err(error)
+        let (prepared, result) = crate::detach_catch(py, move || {
+            let prepared = inner.materialize(&ctx)?;
+            let execution = execution.unwrap_or_else(|| prepared.inspect().identities.execution);
+            let result = prepared.estimate_checked(&execution, &ctx).map_err(error)?;
+            Ok((prepared, result))
         })?;
         let payload = self.payload(&result)?;
+        self.last_prepared = Some(prepared);
         self.last = Some(result);
         Ok(payload)
     }
@@ -153,12 +196,14 @@ impl PreparedStatisticalStage {
             .collect::<PyResult<Vec<_>>>()?;
         let inner = self.inner.clone();
         let ctx = self.ctx(cancel);
-        let points =
-            crate::detach_catch(py, move || inner.estimate_grid(&requests, &ctx).map_err(error))?;
+        let points = crate::detach_catch(py, move || {
+            inner.materialize(&ctx)?.estimate_grid(&requests, &ctx).map_err(error)
+        })?;
         Ok(points
             .into_iter()
             .map(|(inner, result)| Self {
-                inner,
+                last_prepared: Some(inner.clone()),
+                inner: StatisticalPreparation::Ready(inner),
                 graph: Admg { admg: self.graph.admg.clone(), names: self.graph.names.clone() },
                 catalog: self.catalog.clone(),
                 last: Some(result),
@@ -168,49 +213,88 @@ impl PreparedStatisticalStage {
             })
             .collect())
     }
-    #[pyo3(signature=(payload,cancel=None))]
-    fn refresh(
-        &mut self,
+    #[pyo3(signature=(payload,*,cancel=None))]
+    fn bind_snapshot(
+        &self,
         py: Python<'_>,
         payload: &Bound<'_, PyAny>,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<StatisticalStagePayload> {
+    ) -> PyResult<Self> {
         let input =
             parse_statistical_input(payload, &self.catalog, &self.graph, self.max_support_rows)?;
         let ctx = self.ctx(cancel);
-        let mut candidate = self.inner.clone();
-        let (candidate, result) = crate::detach_catch(py, move || {
-            let result = candidate.refresh(input, &ctx).map_err(error)?;
-            Ok((candidate, result))
+        let inner = self.inner.clone();
+        let deferred = crate::detach_catch(py, move || match inner {
+            StatisticalPreparation::Deferred(deferred) => {
+                deferred.bind_snapshot(input, &ctx).map_err(error)
+            }
+            StatisticalPreparation::Ready(ready) => {
+                ready.defer_snapshot(input, &ctx).map_err(error)
+            }
         })?;
-        self.inner = candidate;
-        self.catalog = self.inner.evidence_catalog().clone();
-        let out = self.payload(&result)?;
-        self.last = Some(result);
-        Ok(out)
+        Ok(Self {
+            catalog: deferred.functional().catalog().clone(),
+            inner: StatisticalPreparation::Deferred(deferred),
+            last_prepared: None,
+            graph: self.graph.clone(),
+            last: None,
+            memory_bytes: self.memory_bytes,
+            max_support_rows: self.max_support_rows,
+            seed: self.seed,
+        })
     }
-    #[pyo3(signature=(payload,cancel=None))]
-    fn replace_snapshot(
-        &mut self,
+
+    #[pyo3(signature=(at,*,cancel=None))]
+    fn rebind(
+        &self,
         py: Python<'_>,
-        payload: &Bound<'_, PyAny>,
+        at: BTreeMap<String, f64>,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<()> {
-        let input =
-            parse_statistical_input(payload, &self.catalog, &self.graph, self.max_support_rows)?;
+    ) -> PyResult<Self> {
+        let request = assignment_from_pairs(&self.graph.names, at)?;
         let ctx = self.ctx(cancel);
-        let mut candidate = self.inner.clone();
-        let candidate = crate::detach_catch(py, move || {
-            candidate.replace_snapshot(input, &ctx).map_err(error)?;
-            Ok(candidate)
+        let inner = self.inner.clone();
+        let inner = crate::detach_catch(py, move || match inner {
+            StatisticalPreparation::Deferred(deferred) => {
+                let options = deferred.options();
+                deferred
+                    .rebind(request, options, &ctx)
+                    .map(StatisticalPreparation::Deferred)
+                    .map_err(error)
+            }
+            StatisticalPreparation::Ready(ready) => ready
+                .rebind_assignment(request, &ctx)
+                .map(StatisticalPreparation::Ready)
+                .map_err(error),
         })?;
-        self.inner = candidate;
-        self.catalog = self.inner.evidence_catalog().clone();
-        self.last = None;
-        Ok(())
+        Ok(Self {
+            inner,
+            last_prepared: None,
+            graph: self.graph.clone(),
+            catalog: self.catalog.clone(),
+            last: None,
+            memory_bytes: self.memory_bytes,
+            max_support_rows: self.max_support_rows,
+            seed: self.seed,
+        })
     }
     fn inspection_json(&self) -> String {
-        let view = self.inner.inspect();
+        let ready = match (&self.inner, &self.last_prepared) {
+            (_, Some(ready)) | (StatisticalPreparation::Ready(ready), None) => ready,
+            (StatisticalPreparation::Deferred(deferred), None) => {
+                return serde_json::json!({
+                "identification": {"available":true,"summary":"nonparametrically_identified",
+                    "payload":{"formula":self.inner.formula(),"rules":self.inner.rules()}},
+                "support":{"available":false,"summary":"execution_specific"},
+                "uncertainty":{"available":false,"reason":"not_executed","summary":"unavailable"},
+                "assumptions":{"available":true,"summary":"declared_selection_diagram_and_empirical_tables"},
+                "preparation_id":deferred.declaration_identity(),"execution_id":null,
+                "provider_preparation":"deferred","supported_operations":["estimate","bind_snapshot","rebind"],
+                "formula":self.inner.formula()
+            }).to_string();
+            }
+        };
+        let view = ready.inspect();
         let factors: Vec<_> = view.factors.iter().map(|f| serde_json::json!({
             "expression": f.expression.raw(),
             "population": f.binding.population.as_ref(),
@@ -228,7 +312,7 @@ impl PreparedStatisticalStage {
             if result.bayesian_estimate().is_some() {
                 let available = result.reasoning().uncertainty.is_available();
                 let reason = match &result.reasoning().uncertainty {
-                    antecedent_contract::SlotAvailability::Unavailable { reason } => {
+                    antecedent::contract::SlotAvailability::Unavailable { reason } => {
                         Some(reason.as_ref())
                     }
                     _ => None,
@@ -251,17 +335,17 @@ impl PreparedStatisticalStage {
                 })
             }
         } else {
-            let licensed = view.reasoning.uncertainty.is_available();
+            let supported = view.reasoning.uncertainty.is_available();
             let reason = match &view.reasoning.uncertainty {
-                antecedent_contract::SlotAvailability::Unavailable { reason } => {
+                antecedent::contract::SlotAvailability::Unavailable { reason } => {
                     Some(reason.as_ref())
                 }
                 _ => None,
             };
             serde_json::json!({
-                "available": licensed,
+                "available": supported,
                 "reason": reason,
-                "summary": if licensed { "percentile_bootstrap" } else { "unavailable" },
+                "summary": if supported { "percentile_bootstrap" } else { "unavailable" },
             })
         };
         let identification_status = view
@@ -289,7 +373,7 @@ impl PreparedStatisticalStage {
             "identification_product_id": view.identities.identification_product,
             "data_snapshot_id": view.identities.snapshot,
             "execution_id": view.identities.execution,
-            "supported_operations": ["estimate", "replace_snapshot", "refresh", "export"],
+            "supported_operations": ["estimate", "bind_snapshot", "rebind", "export"],
             "formula": view.formula,
             "limitations": [
                 "intervals_are_pointwise_not_simultaneous",
@@ -313,15 +397,46 @@ impl PreparedStatisticalStage {
     }
     fn plan_summary(&self) -> std::collections::HashMap<String, String> {
         std::collections::HashMap::from([
-            ("plan_id".into(), self.inner.inspect().identities.execution),
+            (
+                "preparation_id".into(),
+                match &self.inner {
+                    StatisticalPreparation::Deferred(deferred) => {
+                        deferred.declaration_identity().to_owned()
+                    }
+                    StatisticalPreparation::Ready(ready) => ready.inspect().identities.execution,
+                },
+            ),
             ("structure_source".into(), "explicit".into()),
             ("deterministic_reductions".into(), "true".into()),
             ("kernels".into(), "empirical_table_joint_outer_bootstrap".into()),
         ])
     }
+    #[pyo3(signature=(seed=None))]
+    fn fork(&self, seed: Option<u64>) -> PyResult<Self> {
+        let mut branch = self.freeze();
+        let ctx = self.ctx(None);
+        branch.inner = match &self.inner {
+            StatisticalPreparation::Deferred(value) => StatisticalPreparation::Deferred(
+                value.with_seed(seed.unwrap_or(self.seed), &ctx).map_err(error)?,
+            ),
+            StatisticalPreparation::Ready(value)
+                if seed.is_none_or(|seed| seed == value.seed()) =>
+            {
+                StatisticalPreparation::Ready(value.requote_execution(&ctx).map_err(error)?)
+            }
+            StatisticalPreparation::Ready(value) => StatisticalPreparation::Deferred(
+                value.defer_execution(seed.unwrap_or(self.seed), &ctx).map_err(error)?,
+            ),
+        };
+        branch.seed = seed.unwrap_or(self.seed);
+        branch.last = None;
+        branch.last_prepared = None;
+        Ok(branch)
+    }
     fn freeze(&self) -> Self {
         Self {
             inner: self.inner.clone(),
+            last_prepared: self.last_prepared.clone(),
             graph: Admg { admg: self.graph.admg.clone(), names: self.graph.names.clone() },
             catalog: self.catalog.clone(),
             last: self.last.clone(),
@@ -332,7 +447,15 @@ impl PreparedStatisticalStage {
     }
     fn export(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
         let result = self.last.as_ref().ok_or_else(|| error("transport.no_execution_claim"))?;
-        let artifact = self.inner.export(result).map_err(error)?;
+        let ready = self
+            .last_prepared
+            .as_ref()
+            .or(match &self.inner {
+                StatisticalPreparation::Ready(ready) => Some(ready),
+                StatisticalPreparation::Deferred(_) => None,
+            })
+            .ok_or_else(|| error("transport.no_execution_claim"))?;
+        let artifact = ready.export_named(result, &self.graph.names).map_err(error)?;
         let framed = frame_named_artifact(STATISTICAL_PREFIX, &self.graph.names, artifact)?;
         Ok(pyo3::types::PyBytes::new(py, &framed).unbind())
     }
@@ -342,7 +465,20 @@ impl PreparedStatisticalStage {
     ) -> PyResult<std::collections::HashMap<String, String>> {
         let intent = crate::prepared_api::parse_transform_intent(intent)?;
         Ok(crate::prepared_api::transform_report_map(
-            &self.inner.preview_transform(intent).map_err(error)?,
+            &self
+                .last_prepared
+                .as_ref()
+                .or(match &self.inner {
+                    StatisticalPreparation::Ready(ready) => Some(ready),
+                    StatisticalPreparation::Deferred(_) => None,
+                })
+                .ok_or_else(|| {
+                    crate::CausalUnsupportedError::new_err(
+                        "Use rebind or bind_snapshot on a declared transport preparation",
+                    )
+                })?
+                .preview_transform(intent)
+                .map_err(error)?,
         ))
     }
 }
@@ -382,7 +518,7 @@ pub(crate) fn parse_provider(
 }
 
 #[pyfunction]
-#[pyo3(signature = (stage, catalog, payload, assignments, *, max_operations=10_000_000, max_depth=256, max_support_rows=1_000_000, memory_bytes=None, cancel=None, bootstrap=crate::transport_defaults::BOOTSTRAP, posterior_draws=199, coverage_level=crate::transport_defaults::COVERAGE_LEVEL, estimator=None, seed=1))]
+#[pyo3(signature = (stage, catalog, payload, assignments, *, max_operations=10_000_000, max_depth=256, max_support_rows=1_000_000, max_steps=100_000, memory_bytes=None, cancel=None, bootstrap=crate::transport_defaults::BOOTSTRAP, posterior_draws=199, coverage_level=crate::transport_defaults::COVERAGE_LEVEL, estimator=None, seed=1))]
 #[allow(clippy::too_many_arguments)]
 fn prepare_statistical_transport(
     py: Python<'_>,
@@ -393,6 +529,7 @@ fn prepare_statistical_transport(
     max_operations: usize,
     max_depth: usize,
     max_support_rows: usize,
+    max_steps: usize,
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
     bootstrap: u32,
@@ -412,7 +549,7 @@ fn prepare_statistical_transport(
         let ctx = execution_context(seed, memory_bytes, cancel);
         let functional = match proof.bind_catalog_with_context(
             &catalog,
-            antecedent_identify::SidLimits { steps: max_operations, depth: max_depth },
+            antecedent::identify::SidLimits { steps: max_steps, depth: max_depth },
             &ctx,
         ) {
             Ok(bound) => bound,
@@ -420,12 +557,12 @@ fn prepare_statistical_transport(
                 .search_catalog(
                     &diagram,
                     &catalog,
-                    SidLimits { steps: max_operations, depth: max_depth },
+                    SidLimits { steps: max_steps, depth: max_depth },
                     &ctx,
                 )
                 .map_err(error)?
             {
-                antecedent_identify::CatalogTransportResult::Identified(bound) => *bound,
+                antecedent::identify::CatalogTransportResult::Identified(bound) => *bound,
                 other => {
                     return Err(crate::transport_common::catalog_search_refusal(
                         &other,
@@ -434,7 +571,7 @@ fn prepare_statistical_transport(
                 }
             },
         };
-        let inner = antecedent::StudyBuilder::statistical_transport(
+        let inner = antecedent::analysis::DeferredStatisticalTransport::compile(
             diagram,
             functional,
             input,
@@ -451,7 +588,8 @@ fn prepare_statistical_transport(
         )
         .map_err(error)?;
         Ok(PreparedStatisticalStage {
-            inner,
+            inner: StatisticalPreparation::Deferred(inner),
+            last_prepared: None,
             graph,
             catalog,
             last: None,
@@ -467,7 +605,7 @@ fn prepare_statistical_transport(
 #[allow(clippy::too_many_arguments)]
 fn consume_statistical_transport(
     py: Python<'_>,
-    bytes: Vec<u8>,
+    bytes: &[u8],
     max_operations: usize,
     max_depth: usize,
     max_support_rows: usize,
@@ -480,15 +618,18 @@ fn consume_statistical_transport(
             return Err(error("artifact memory budget"));
         }
         let (names, artifact) =
-            unframe_named_artifact(STATISTICAL_PREFIX, &bytes, "statistical transport")?;
+            unframe_named_artifact(STATISTICAL_PREFIX, bytes, "statistical transport")?;
         let ctx = execution_context(seed, memory_bytes, cancel);
-        let (inner, result) =
-            antecedent::PreparedStudy::<antecedent::StatisticalPreparedState>::consume(
+        let (inner, result, bound) =
+            antecedent::PreparedStudy::<antecedent::StatisticalPreparedState>::consume_named(
                 &artifact,
                 ExactEvaluationLimits { operations: max_operations, depth: max_depth },
                 &ctx,
             )
             .map_err(error)?;
+        if bound != names {
+            return Err(error("variable names do not match the artifact's name mapping"));
+        }
         crate::transport_exact_api::validate_artifact_names(
             &names,
             inner.diagram().causal_graph(),
@@ -497,7 +638,8 @@ fn consume_statistical_transport(
         let catalog = inner.evidence_catalog().clone();
         let seed = inner.seed();
         Ok(PreparedStatisticalStage {
-            inner,
+            last_prepared: Some(inner.clone()),
+            inner: StatisticalPreparation::Ready(inner),
             graph,
             catalog,
             last: Some(result),
@@ -521,14 +663,16 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 /// rather than read as an empty sample set.
 pub(crate) fn parse_statistical_input(
     payload: &Bound<'_, PyAny>,
-    catalog: &antecedent_core::EvidenceCatalog,
+    catalog: &antecedent::query::EvidenceCatalog,
     graph: &Admg,
     max_support_rows: usize,
 ) -> PyResult<StatisticalTransportInput> {
-    let laws = if let Ok(laws) = payload.getattr("laws") {
-        parse_optional_laws(&laws, catalog, graph, max_support_rows)?
-    } else {
-        Vec::new()
+    let laws = match payload.getattr("laws") {
+        Ok(laws) => parse_optional_laws(&laws, catalog, graph, max_support_rows)?,
+        Err(error) if error.is_instance_of::<pyo3::exceptions::PyAttributeError>(payload.py()) => {
+            Vec::new()
+        }
+        Err(error) => return Err(error),
     };
     let samples_obj = payload.getattr("samples").map_err(|_| {
         crate::value_err(
@@ -543,20 +687,14 @@ pub(crate) fn parse_statistical_input(
                 "statistical transport samples must be RegimeSample values; exact laws belong in StatisticalTransportData.laws",
             ));
         }
-        let parsed = parse_sample(&sample, catalog, graph)?;
-        if parsed.columns.values().any(|column| column.len() > max_support_rows) {
-            return Err(error(format!(
-                "sample rows exceed the max_support_rows budget ({max_support_rows})"
-            )));
-        }
-        samples.push(parsed);
+        samples.push(parse_sample(&sample, catalog, graph, max_support_rows)?);
     }
     Ok(StatisticalTransportInput { supplied: laws, samples })
 }
 
 fn parse_optional_laws(
     laws: &Bound<'_, PyAny>,
-    catalog: &antecedent_core::EvidenceCatalog,
+    catalog: &antecedent::query::EvidenceCatalog,
     graph: &Admg,
     max_support_rows: usize,
 ) -> PyResult<Vec<ExactDiscreteLaw>> {
@@ -564,7 +702,7 @@ fn parse_optional_laws(
     for table in laws.try_iter()? {
         let table = table?;
         if !table.hasattr("probabilities")? {
-            continue;
+            return Err(crate::value_err("statistical transport laws must be exact law tables"));
         }
         tables.push(parse_law_table(&table, catalog, graph, RegimeCheck::Lenient)?);
     }
@@ -575,8 +713,9 @@ fn parse_optional_laws(
 
 fn parse_sample(
     sample: &Bound<'_, PyAny>,
-    catalog: &antecedent_core::EvidenceCatalog,
+    catalog: &antecedent::query::EvidenceCatalog,
     graph: &Admg,
+    max_support_rows: usize,
 ) -> PyResult<RegimeSample> {
     let population: String = sample.getattr("population")?.extract()?;
     let label: String = sample.getattr("regime")?.extract()?;
@@ -599,7 +738,16 @@ fn parse_sample(
     let mapping = columns_obj
         .call_method0("items")?
         .try_iter()?
-        .map(|item| item?.extract::<(String, Vec<Option<f64>>)>())
+        .map(|item| {
+            let (name, values) = item?.extract::<(String, Bound<'_, PyAny>)>()?;
+            // The budget is checked on the Python length, before the column is materialised.
+            if values.len()? > max_support_rows {
+                return Err(crate::CausalResourceError::new_err(format!(
+                    "sample rows exceed the max_support_rows budget ({max_support_rows})"
+                )));
+            }
+            Ok((name, values.extract::<Vec<Option<f64>>>()?))
+        })
         .collect::<PyResult<Vec<_>>>()?;
     let mut columns = BTreeMap::new();
     let mut n = None;

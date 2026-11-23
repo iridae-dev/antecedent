@@ -37,6 +37,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from typing import Any, Literal, Protocol
 
+from antecedent import _reason_details
+
 from . import _native
 from .errors import StructuredRefusal
 
@@ -414,7 +416,7 @@ def invariance_report(scenario_result: ScenarioStage) -> ScenarioSetInvarianceRe
         raise ScenarioInvarianceRefusal(
             {
                 "code": "invalid_argument",
-                "detail": "scenario_invariance.wrong_result_type",
+                "detail": _reason_details.scenario_invariance.WRONG_RESULT_TYPE,
                 "message": "the native report returned neither a result nor a refusal",
             }
         )

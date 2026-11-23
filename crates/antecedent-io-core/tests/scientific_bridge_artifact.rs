@@ -7,7 +7,7 @@
 //! intercept `0.06`, so a surrogate effect `0.8` bridges to `0.796`; sensitivity
 //! 0.9 and specificity 0.8 turn a recorded prevalence `0.31` into `11/70`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -138,6 +138,10 @@ fn surrogate_contract() -> BridgeContract {
             evidence: Some("meta-analysis:ckd-2024".into()),
         }],
         transport: None,
+
+        mapping_uncertainty: None,
+        source_dependence: None,
+        estimand_bridge: None,
     }
 }
 
@@ -208,6 +212,10 @@ fn correction_contract(model: MeasurementModel) -> BridgeContract {
         assumptions: vec![BridgeAssumption::for_measurement_model("flag-model", &model)],
         mapping: BridgeMapping::MeasurementCorrection(Box::new(model)),
         transport: None,
+
+        mapping_uncertainty: None,
+        source_dependence: None,
+        estimand_bridge: None,
     }
 }
 
@@ -224,7 +232,7 @@ fn seal(contract: BridgeContract, value: f64, units: &str) -> Sealed {
     let quantity = contract.source.quantity.clone();
     let bridged =
         derive_bridged_claim(&contract, &BridgeSource { claim: &source, quantity: &quantity })
-            .expect("licensed bridge");
+            .expect("supported bridge");
     let (artifact, meta) = ScientificBridgeArtifact::seal(
         &bridged,
         &BridgeSource { claim: &source, quantity: &quantity },
@@ -300,7 +308,7 @@ fn a_measurement_correction_is_carried_with_its_model_and_replayed() {
     let error = ScientificBridgeArtifact::from_meta(&reseal(swapped), None).expect_err("refused");
     let (code, detail, _) = error.refusal().expect("registered refusal");
     assert_eq!(code, "bridge_binding_mismatch");
-    assert_eq!(detail, "scientific_bridge.model_identity_mismatch");
+    assert_eq!(detail, antecedent_core::reason_details::scientific_bridge::MODEL_IDENTITY_MISMATCH);
 }
 
 // -- mutation ------------------------------------------------------------------------------
@@ -382,7 +390,7 @@ fn a_resealed_edit_of_the_declaration_changes_the_derivation_or_is_refused() {
     assert!(matches!(error, ScientificBridgeArtifactError::Refused { .. }), "{error}");
     let (code, detail, _) = error.refusal().expect("registered refusal");
     assert_eq!(code, "bridge_assumption_missing");
-    assert_eq!(detail, "scientific_bridge.assumption_missing");
+    assert_eq!(detail, antecedent_core::reason_details::scientific_bridge::ASSUMPTION_MISSING);
 
     // Moving the evidence scope away from the claim's population needs a
     // transportability premise that the stored contract does not carry.
@@ -391,7 +399,10 @@ fn a_resealed_edit_of_the_declaration_changes_the_derivation_or_is_refused() {
     let error = ScientificBridgeArtifact::from_meta(&reseal(scope), None).expect_err("scope");
     let (code, detail, _) = error.refusal().expect("registered refusal");
     assert_eq!(code, "bridge_assumption_missing");
-    assert_eq!(detail, "scientific_bridge.transport_premise_missing");
+    assert_eq!(
+        detail,
+        antecedent_core::reason_details::scientific_bridge::TRANSPORT_PREMISE_MISSING
+    );
 
     // A value kind the bridge does not carry is refused, not replayed.
     let mut law = s.meta.clone();
@@ -399,8 +410,8 @@ fn a_resealed_edit_of_the_declaration_changes_the_derivation_or_is_refused() {
     law.contract.target_value = "predictive_law".into();
     let error = ScientificBridgeArtifact::from_meta(&reseal(law), None).expect_err("law");
     let (code, detail, _) = error.refusal().expect("registered refusal");
-    assert_eq!(code, "cell_not_licensed");
-    assert_eq!(detail, "scientific_bridge.value_kind_not_carried");
+    assert_eq!(code, "bridge_mapping_not_supported");
+    assert_eq!(detail, antecedent_core::reason_details::scientific_bridge::VALUE_KIND_NOT_CARRIED);
 }
 
 #[test]
@@ -429,7 +440,7 @@ fn an_unsealed_edit_is_an_identity_mismatch_and_a_retained_identity_binds_the_hi
         .refusal()
         .expect("registered");
     assert_eq!(code, "route_not_supported");
-    assert_eq!(detail, "scientific_bridge.identity_mismatch");
+    assert_eq!(detail, antecedent_core::reason_details::scientific_bridge::IDENTITY_MISMATCH);
 }
 
 #[test]
@@ -456,9 +467,18 @@ fn versions_markers_layouts_and_corruption_are_refused() {
         .expect("bytes");
     let middle = bytes.len() / 2;
     bytes[middle] ^= 0xff;
-    assert!(ScientificBridgeArtifact::from_bytes(&bytes, None).is_err());
-    assert!(ScientificBridgeArtifact::from_bytes(&bytes[..bytes.len() / 3], None).is_err());
-    assert!(ScientificBridgeArtifact::to_bytes(&s.bridged, &source, "  ").is_err());
+    assert!(matches!(
+        ScientificBridgeArtifact::from_bytes(&bytes, None),
+        Err(ScientificBridgeArtifactError::Container(antecedent_io_core::IoError::ChecksumMismatch { section })) if section == "scientific_bridge_meta"
+    ));
+    assert!(matches!(
+        ScientificBridgeArtifact::from_bytes(&bytes[..bytes.len() / 3], None),
+        Err(ScientificBridgeArtifactError::Decode(m)) if m.contains("failed to fill whole buffer")
+    ));
+    assert!(matches!(
+        ScientificBridgeArtifact::to_bytes(&s.bridged, &source, "  "),
+        Err(ScientificBridgeArtifactError::Encode(m)) if m == "missing artifact id"
+    ));
 
     // A container of another artifact kind is not a bridge.
     let other_kind = antecedent_io_core::encode_container(
@@ -472,7 +492,10 @@ fn versions_markers_layouts_and_corruption_are_refused() {
         &[OutSection { id: "scientific_bridge_meta", content_type: CONTENT_CBOR, bytes: &[0xa0] }],
     )
     .expect("container");
-    assert!(ScientificBridgeArtifact::from_bytes(&other_kind, None).is_err());
+    assert!(matches!(
+        ScientificBridgeArtifact::from_bytes(&other_kind, None),
+        Err(ScientificBridgeArtifactError::Malformed(m)) if m == "unsupported container layout"
+    ));
 }
 
 #[test]
@@ -500,8 +523,11 @@ fn a_stored_value_kind_that_is_not_a_mean_is_refused_on_replay() {
         same.contract.target_value = kind.into();
         let error = ScientificBridgeArtifact::from_meta(&reseal(same), None).expect_err("law");
         let (code, detail, _) = error.refusal().expect("registered refusal");
-        assert_eq!(code, "cell_not_licensed");
-        assert_eq!(detail, "scientific_bridge.value_kind_not_carried");
+        assert_eq!(code, "bridge_mapping_not_supported");
+        assert_eq!(
+            detail,
+            antecedent_core::reason_details::scientific_bridge::VALUE_KIND_NOT_CARRIED
+        );
 
         // A mean held and a different object required is a substitution.
         let mut required = s.meta.clone();
@@ -509,7 +535,10 @@ fn a_stored_value_kind_that_is_not_a_mean_is_refused_on_replay() {
         let error = ScientificBridgeArtifact::from_meta(&reseal(required), None).expect_err("req");
         let (code, detail, _) = error.refusal().expect("registered refusal");
         assert_eq!(code, "bridge_substitution_refused");
-        assert_eq!(detail, "scientific_bridge.value_kind_substitution");
+        assert_eq!(
+            detail,
+            antecedent_core::reason_details::scientific_bridge::VALUE_KIND_SUBSTITUTION
+        );
     }
     // An unknown kind name is unsupported semantics, never a mean.
     let mut unknown = s.meta.clone();
@@ -521,12 +550,15 @@ fn a_stored_value_kind_that_is_not_a_mean_is_refused_on_replay() {
 }
 
 #[test]
-fn a_consumed_bridge_has_no_interval_license() {
+fn a_consumed_bridge_has_no_interval_support() {
     let s = surrogate();
     let artifact = ScientificBridgeArtifact::from_meta(&s.meta, Some(&s.identity)).expect("replay");
     let refusal = artifact.bridged().request_interval().unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(refusal.detail, "scientific_bridge.interval_not_licensed");
+    assert_eq!(refusal.code, "route_not_supported");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::scientific_bridge::INTERVAL_NOT_SUPPORTED
+    );
     // The replayed claim reports no uncertainty and names what it cannot offer.
     assert!(!artifact.bridged().claim.reasoning.uncertainty.is_available());
     assert!(artifact.bridged().receipt.unavailable_operations.iter().any(|op| &**op == "interval"));

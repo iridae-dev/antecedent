@@ -26,11 +26,12 @@
 //! masks. No search continues after the stop to compute an exact remainder.
 //! A stopped enumeration is not a complete class certificate.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
+use antecedent_core::execution::AdmissionLease;
 use antecedent_core::{
     CanonicalWriter, EvidenceCatalog, ExecutionContext, NodeRef, SearchBudget, SearchLimits,
     SearchReceipt, SearchStop, VariableId, reason_code,
@@ -48,27 +49,27 @@ use super::{
     identify_classical_transport_metered,
 };
 
-/// Most nodes of a supplied CPDAG under the earlier fixed ceiling.
-#[deprecated(
-    since = "2.4.1",
-    note = "no longer enforced: the completion enumeration is bounded by the search budget"
-)]
-pub const CPDAG_MAX_NODES: usize = 6;
-
 /// Selection or latent structure was supplied.
-pub const CPDAG_SELECTION_OR_LATENT_DETAIL: &str = "cpdag_scenarios.selection_or_latent";
-/// Refusal detail of the earlier node-count ceiling ([`CPDAG_MAX_NODES`]).
-///
-/// Never emitted now. It is written as two literals so the refusal-detail registry gate does
-/// not read this retained name as a live emission.
-#[deprecated(since = "2.4.1", note = "no longer emitted: the node count is not bounded")]
-pub const CPDAG_BOUNDS_EXCEEDED_DETAIL: &str = concat!("cpdag_scenarios", ".bounds_exceeded");
+pub const CPDAG_SELECTION_OR_LATENT_DETAIL: &str =
+    antecedent_core::reason_details::cpdag_scenarios::SELECTION_OR_LATENT;
+
+/// Dense indexes of a CPDAG whose node count already fits `usize` graph ids.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "node indices are bounded by the graph node limit, far below u32::MAX"
+)]
+fn directed_edge_ids(edges: &[(usize, usize)]) -> Vec<(u32, u32)> {
+    edges.iter().map(|&(from, to)| (from as u32, to as u32)).collect()
+}
 /// The input is not a valid CPDAG.
-pub const CPDAG_NOT_A_CPDAG_DETAIL: &str = "cpdag_scenarios.not_a_cpdag";
+pub const CPDAG_NOT_A_CPDAG_DETAIL: &str =
+    antecedent_core::reason_details::cpdag_scenarios::NOT_A_CPDAG;
 /// An evidence binding names a completion identity that does not match.
-pub const CPDAG_EVIDENCE_MISMATCH_DETAIL: &str = "cpdag_scenarios.evidence_identity_mismatch";
+pub const CPDAG_EVIDENCE_MISMATCH_DETAIL: &str =
+    antecedent_core::reason_details::cpdag_scenarios::EVIDENCE_IDENTITY_MISMATCH;
 /// Detail of a completion with no evidence bound to it.
-pub const CPDAG_NO_EVIDENCE_DETAIL: &str = "cpdag_scenarios.no_evidence_binding";
+pub const CPDAG_NO_EVIDENCE_DETAIL: &str =
+    antecedent_core::reason_details::cpdag_scenarios::NO_EVIDENCE_BINDING;
 
 /// A refusal or failure of the completion route.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
@@ -267,8 +268,11 @@ impl Skeleton {
         if variables.is_empty() {
             return Err(not_a_cpdag("a CPDAG needs a node"));
         }
+        // The shared variable <-> dense-node mapping; a variable's rank in the sorted order
+        // is the skeleton's index.
+        let node_map = crate::node_map::NodeMap::new(cpdag.nodes());
         let index_of = |dense_id: DenseNodeId| {
-            dense.get(dense_id.as_usize()).and_then(|v| variables.binary_search(v).ok())
+            node_map.variable(dense_id).ok().and_then(|v| variables.binary_search(&v).ok())
         };
         let (mut fixed, mut undirected) = (Vec::new(), Vec::new());
         let mut adjacent = vec![BitSet::with_len(variables.len()); variables.len()];
@@ -292,6 +296,15 @@ impl Skeleton {
         fixed.sort_unstable();
         undirected.sort_unstable();
         let skeleton = Self { variables, fixed, undirected, adjacent };
+        let directed = directed_edge_ids(&skeleton.fixed);
+        if let Err(refusal) = antecedent_graph::error::refuse_directed_cycle(
+            antecedent_graph::error::DagOperation::DagProjection,
+            antecedent_graph::error::CyclicNextAttempt::Condensation,
+            skeleton.variables.len(),
+            &directed,
+        ) {
+            return Err(not_a_cpdag(refusal.to_string()));
+        }
         let orienter = Orienter::new(&skeleton);
         if skeleton.fixed.iter().any(|&(a, b)| orienter.reaches(b, a)) {
             return Err(not_a_cpdag("the directed edges contain a cycle"));
@@ -353,11 +366,16 @@ struct Orienter<'a> {
     children: Vec<BitSet>,
     /// One orientation mask per completion found: bit `k` is the direction of `undirected[k]`.
     masks: Vec<BitSet>,
+    /// Storage leases for the retained masks, held while the masks live.
+    leases: Vec<AdmissionLease>,
     bytes: u64,
 }
 
-/// The charge of one orientation attempt: `(depth, live bytes)`.
-type Charge<'c> = dyn FnMut(usize, u64) -> Result<(), SearchStop> + 'c;
+/// The charge of one orientation attempt: `(depth, live bytes, bytes to lease)`. A non-zero
+/// lease is storage the walk is about to allocate for a retained completion; the charge
+/// returns the lease, which the walk holds until the enumeration ends, so the pool has funded
+/// the allocation before it is made.
+type Charge<'c> = dyn FnMut(usize, u64, u64) -> Result<Option<AdmissionLease>, SearchStop> + 'c;
 
 impl<'a> Orienter<'a> {
     fn new(skeleton: &'a Skeleton) -> Self {
@@ -367,6 +385,7 @@ impl<'a> Orienter<'a> {
             parents: vec![BitSet::with_len(n); n],
             children: vec![BitSet::with_len(n); n],
             masks: Vec::new(),
+            leases: Vec::new(),
             bytes: skeleton.completion_bytes(),
         };
         for (from, to) in &skeleton.fixed {
@@ -424,13 +443,15 @@ impl<'a> Orienter<'a> {
         charge: &mut Charge<'_>,
     ) -> Result<(), SearchStop> {
         let Some(&(a, b)) = self.skeleton.undirected.get(k) else {
-            charge(k, self.bytes.saturating_add(self.skeleton.completion_bytes()))?;
+            let held = self.skeleton.completion_bytes();
+            let lease = charge(k, self.bytes.saturating_add(held), held)?;
+            self.leases.extend(lease);
             self.masks.push(mask.clone());
             self.bytes = self.bytes.saturating_add(self.skeleton.completion_bytes());
             return Ok(());
         };
         for (from, to, forward) in [(a, b, true), (b, a, false)] {
-            charge(k + 1, self.bytes)?;
+            charge(k + 1, self.bytes, 0)?;
             if self.admissible(from, to) {
                 self.orient(from, to, true);
                 if forward {
@@ -447,11 +468,18 @@ impl<'a> Orienter<'a> {
 }
 
 /// Run the orientation search, returning the masks found and the stop, if any.
-fn run_walk(skeleton: &Skeleton, charge: &mut Charge<'_>) -> (Vec<BitSet>, Option<SearchStop>) {
+fn run_walk(skeleton: &Skeleton, charge: &mut Charge<'_>) -> Walk {
     let mut orienter = Orienter::new(skeleton);
     let mut mask = BitSet::with_len(skeleton.undirected.len());
     let stop = orienter.walk(0, &mut mask, charge).err();
-    (orienter.masks, stop)
+    Walk { masks: orienter.masks, stop, _leases: orienter.leases }
+}
+
+/// What an orientation walk found, with the storage leases that funded the masks.
+struct Walk {
+    masks: Vec<BitSet>,
+    stop: Option<SearchStop>,
+    _leases: Vec<AdmissionLease>,
 }
 
 /// A started budget, or the receipt of a stop before entry.
@@ -565,8 +593,9 @@ pub fn enumerate_cpdag_completions(
     match start(limits, ctx) {
         Err(receipt) => finish(&skeleton, &[], Some(receipt)),
         Ok(mut search) => {
-            let (masks, stop) =
-                run_walk(&skeleton, &mut |depth, bytes| search.charge(depth, bytes));
+            let Walk { masks, stop, _leases } = run_walk(&skeleton, &mut |depth, bytes, lease| {
+                search.charge_leasing(depth, bytes, lease)
+            });
             let receipt = stop.map(|s| search.receipt(s, Vec::new(), Vec::new()));
             finish(&skeleton, &masks, receipt)
         }
@@ -821,8 +850,9 @@ pub fn decide_cpdag_completions(
             })
         }
         Ok(mut search) => {
-            let (masks, stop) =
-                run_walk(&skeleton, &mut |depth, bytes| search.charge(depth, bytes));
+            let Walk { masks, stop, _leases } = run_walk(&skeleton, &mut |depth, bytes, lease| {
+                search.charge_leasing(depth, bytes, lease)
+            });
             let receipt = stop.map(|s| search.receipt(s, Vec::new(), Vec::new()));
             let enumeration = finish(&skeleton, &masks, receipt)?;
             let retained = u64::try_from(enumeration.completions.len())
@@ -911,7 +941,7 @@ fn decide_enumerated(
         question: question.clone(),
         decisions,
         receipt: receipt.clone(),
-        limits: ScenarioDecisionLimits { budget, memory_limit_bytes: ctx.memory.hard_limit_bytes },
+        limits: ScenarioDecisionLimits { budget, memory_limit_bytes: ctx.memory_limit_bytes() },
     };
     Ok(CpdagCompletionDecision {
         cpdag_identity: enumeration.cpdag_identity,
@@ -973,6 +1003,32 @@ mod tests {
                 "de2984a9bd7e10bb44fe213e7d1b6995e7acd58b56da97fe0c7a8a720fbfe539",
             ]
         );
+    }
+
+    #[test]
+    fn completion_storage_is_leased_before_it_is_kept() {
+        use antecedent_core::execution::AdmissionPool;
+        let limits = SearchLimits { operations: 1_000_000, depth: 64 };
+        let chain = input(3, &[(0, 1), (1, 2)], &[]);
+        // Another holder leaves too little of the pool for even one completion (288 bytes):
+        // the walk is refused at the lease, so nothing was stored.
+        let ctx = ExecutionContext::for_tests(1).with_admission(AdmissionPool::fixed(1, 100_000));
+        let held = ctx.acquire_admission(0, 99_900).unwrap();
+        let none = enumerate_cpdag_completions(&chain, limits, &ctx).unwrap();
+        assert!(none.completions.is_empty());
+        assert_eq!(none.receipt.as_ref().map(|r| r.stop), Some(SearchStop::Memory));
+        assert_eq!(none.not_enumerated, 4);
+        drop(held);
+        // Room for two completions of three: two are kept, the third is refused at its lease,
+        // and the stop is a receipt with a bound on the remainder rather than a refusal.
+        let ctx = ExecutionContext::for_tests(1).with_admission(AdmissionPool::fixed(1, 100_000));
+        let _held = ctx.acquire_admission(0, 99_400).unwrap();
+        let partial = enumerate_cpdag_completions(&chain, limits, &ctx).unwrap();
+        assert_eq!(partial.completions.len(), 2);
+        assert_eq!(partial.receipt.as_ref().map(|r| r.stop), Some(SearchStop::Memory));
+        assert_eq!(partial.not_enumerated, 2);
+        // The same class under an unconstrained pool is complete.
+        assert_eq!(count(&chain), 3);
     }
 
     #[test]

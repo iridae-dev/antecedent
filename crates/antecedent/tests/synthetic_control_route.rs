@@ -11,8 +11,11 @@ use std::sync::Arc;
 
 use antecedent::prelude::ExecutionContext;
 use antecedent::{Study, SyntheticControlQuery};
-use antecedent_core::{IntervalMethod, VariableId};
-use antecedent_data::TabularData;
+use antecedent_core::{IntervalMethod, PanelDesignFault, QueryError, VariableId};
+use antecedent_data::{TableView, TabularData};
+
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
 
 fn fixture() -> (TabularData, SyntheticControlQuery) {
     let donors = [
@@ -48,6 +51,22 @@ fn fixture() -> (TabularData, SyntheticControlQuery) {
     (data, query)
 }
 
+const PAYLOAD: &str = "invalid synthetic-control payload or fabricated interval";
+const DID: &str = "invalid synthetic DiD weights, support, or fabricated interval";
+
+/// A sealed body edited to claim what the route never produced is refused by the encoder.
+fn assert_forgery_refused(
+    forged: &antecedent_io::AnalysisResultWire,
+    variable_names: Vec<String>,
+    reason: &str,
+) {
+    match antecedent_io::encode_analysis_result_artifact(forged, variable_names, "fabricated") {
+        Err(antecedent_io::IoError::Convert(message)) => assert_eq!(message, reason),
+        Err(other) => panic!("expected a conversion refusal, got {other:?}"),
+        Ok(_) => panic!("a forged result body was sealed"),
+    }
+}
+
 #[test]
 fn synthetic_control_retained_route_recovers_truth_and_preserves_point_only_claim() {
     let (data, query) = fixture();
@@ -61,9 +80,9 @@ fn synthetic_control_retained_route_recovers_truth_and_preserves_point_only_clai
     assert_eq!(fit.placebo_effects.len(), 3);
     assert_eq!(fit.n_pre_periods, 4);
     assert_eq!(fit.n_post_periods, 2);
-    assert_eq!(fit.uncertainty.as_ref(), "point_only_with_unlicensed_placebo_rank");
-    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
-    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+    assert_eq!(fit.uncertainty.as_ref(), "point_only_with_unsupported_placebo_rank");
+    assert_eq!(result.interval().as_ref().unwrap().method, IntervalMethod::None);
+    assert!(result.estimate().as_effect().unwrap().se_analytic().is_nan());
     assert!(result.identification.required_assumptions.entries.iter().any(|record| {
         format!("{:?}", record.assumption)
             .contains("convex_donor_combination_is_a_valid_counterfactual")
@@ -71,6 +90,12 @@ fn synthetic_control_retained_route_recovers_truth_and_preserves_point_only_clai
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
     let retained = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "synthetic-control",
+        &prepared,
+        &retained,
+        &ctx,
+    );
     assert_eq!(retained.synthetic_control(), result.synthetic_control());
     let bytes = prepared.encode_contracted_result(&retained, "synthetic-control", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
@@ -83,14 +108,7 @@ fn synthetic_control_retained_route_recovers_truth_and_preserves_point_only_clai
     assert!(body.interval_upper.is_none());
     let mut fabricated = body.clone();
     fabricated.standard_error = Some(0.1);
-    assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &fabricated,
-            header.variable_names,
-            "fabricated"
-        )
-        .is_err()
-    );
+    assert_forgery_refused(&fabricated, header.variable_names, PAYLOAD);
 }
 
 #[test]
@@ -105,12 +123,24 @@ fn synthetic_control_refuses_insufficient_donors_and_unbalanced_panel() {
         5,
     );
     let few_data = TabularData::from_f64_columns([("outcome", [0.0; 18].as_slice())]).unwrap();
-    assert!(Study::tabular(few_data).query(few_donors).build().unwrap().run(&ctx).is_err());
+    let error = Study::tabular(few_data).query(few_donors).build().unwrap().run(&ctx);
+    assert!(
+        matches!(&error, Err(antecedent::CausalError::Compile { message })
+            if message == "synthetic control requires one observed treated unit and at least three donor units"),
+        "{:?}",
+        error.err()
+    );
     let mut missing = query.clone();
     let mut periods = query.periods.to_vec();
     *periods.last_mut().unwrap() = 5;
     missing.periods = periods.into();
-    assert!(Study::tabular(data).query(missing).build().unwrap().run(&ctx).is_err());
+    let error = Study::tabular(data).query(missing).build().unwrap().run(&ctx);
+    assert!(
+        matches!(&error, Err(antecedent::CausalError::Compile { message })
+            if message == "each unit must have exactly one outcome per period"),
+        "{:?}",
+        error.err()
+    );
 }
 
 #[test]
@@ -137,21 +167,14 @@ fn retained_synthetic_did_recovers_additive_truth_and_round_trips_weights() {
     assert_eq!((fit.n_donors, fit.n_pre_periods, fit.n_post_periods), (3, 3, 1));
     assert_eq!(fit.time_weights.len(), 3);
     assert_eq!(fit.uncertainty.as_ref(), "point_only_no_interval");
-    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
+    assert_eq!(result.interval().as_ref().unwrap().method, IntervalMethod::None);
     let bytes = prepared.encode_contracted_result(&result, "synthetic-did", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.synthetic_did.as_ref().unwrap().effect.to_bits(), fit.effect.to_bits());
     assert!(body.standard_error.is_none());
     let mut fabricated = body.clone();
     fabricated.interval_lower = Some(6.0);
-    assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &fabricated,
-            header.variable_names,
-            "fabricated"
-        )
-        .is_err()
-    );
+    assert_forgery_refused(&fabricated, header.variable_names, DID);
 }
 
 #[test]
@@ -173,7 +196,7 @@ fn uniform_unit_randomization_enumerates_sharp_null_and_seals_p_value() {
         fit.uncertainty.as_ref(),
         "point_only_with_exact_unit_randomization_p_value_no_interval"
     );
-    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
+    assert_eq!(result.interval().as_ref().unwrap().method, IntervalMethod::None);
     assert!(result.identification.required_assumptions.entries.iter().any(|record| {
         format!("{:?}", record.assumption).contains("uniform_single_treated_unit_assignment")
     }));
@@ -185,14 +208,7 @@ fn uniform_unit_randomization_enumerates_sharp_null_and_seals_p_value() {
     );
     let mut fabricated = body.clone();
     fabricated.synthetic_control.as_mut().unwrap().randomization_p_value = Some(0.0);
-    assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &fabricated,
-            header.variable_names,
-            "fabricated"
-        )
-        .is_err()
-    );
+    assert_forgery_refused(&fabricated, header.variable_names, PAYLOAD);
     let (_, invalid) = fixture();
     assert!(
         invalid.difference_in_differences().with_uniform_unit_randomization().validate().is_ok()
@@ -202,15 +218,14 @@ fn uniform_unit_randomization_enumerates_sharp_null_and_seals_p_value() {
 #[test]
 fn nonzero_constant_effect_null_round_trips_and_refuses_missing_assignment() {
     let (data, query) = fixture();
-    assert!(query.clone().with_sharp_null_effect(5.0).validate().is_err());
-    assert!(
-        query
-            .clone()
-            .with_uniform_unit_randomization()
-            .with_sharp_null_effect(f64::NAN)
-            .validate()
-            .is_err()
-    );
+    assert!(matches!(
+        query.clone().with_sharp_null_effect(5.0).validate(),
+        Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::SharpNullRandomization))
+    ));
+    assert!(matches!(
+        query.clone().with_uniform_unit_randomization().with_sharp_null_effect(f64::NAN).validate(),
+        Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::SharpNullRandomization))
+    ));
     let query = query.with_uniform_unit_randomization().with_sharp_null_effect(5.0);
     let ctx = ExecutionContext::for_tests(19);
     let prepared =
@@ -221,21 +236,14 @@ fn nonzero_constant_effect_null_round_trips_and_refuses_missing_assignment() {
         fit.randomization_statistics.iter().find(|(unit, _)| unit.as_ref() == "treated").unwrap().1;
     assert!(observed < 1e-5);
     assert_eq!(fit.randomization_p_value, Some(1.0));
-    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
+    assert_eq!(result.interval().as_ref().unwrap().method, IntervalMethod::None);
     let bytes = prepared.encode_contracted_result(&result, "constant-effect-null", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.synthetic_control.as_ref().unwrap().randomization_p_value, Some(1.0));
     assert_eq!(body.synthetic_control.as_ref().unwrap().randomization_null_effect, Some(5.0));
     let mut fabricated = body.clone();
     fabricated.synthetic_control.as_mut().unwrap().randomization_null_effect = Some(1.0);
-    assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &fabricated,
-            header.variable_names,
-            "fabricated"
-        )
-        .is_err()
-    );
+    assert_forgery_refused(&fabricated, header.variable_names, PAYLOAD);
 }
 
 #[test]
@@ -257,7 +265,7 @@ fn augmented_uniform_assignment_tests_the_adjusted_effect_and_seals_artifact() {
     let extreme =
         fit.randomization_statistics.iter().filter(|(_, value)| *value >= observed).count();
     assert_eq!(fit.randomization_p_value, Some(extreme as f64 / 4.0));
-    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
+    assert_eq!(result.interval().as_ref().unwrap().method, IntervalMethod::None);
     let bytes = prepared.encode_contracted_result(&result, "augmented-exact", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(
@@ -266,14 +274,7 @@ fn augmented_uniform_assignment_tests_the_adjusted_effect_and_seals_artifact() {
     );
     let mut fabricated = body.clone();
     fabricated.synthetic_control.as_mut().unwrap().randomization_p_value = Some(0.0);
-    assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &fabricated,
-            header.variable_names,
-            "fabricated"
-        )
-        .is_err()
-    );
+    assert_forgery_refused(&fabricated, header.variable_names, PAYLOAD);
 }
 
 #[test]
@@ -345,8 +346,8 @@ fn augmented_synthetic_control_recovers_outside_hull_truth_and_seals_artifact() 
     assert!((fit.outcome_model_correction.unwrap() - 4.0).abs() < 1e-4);
     assert!((fit.effect - 5.0).abs() < 1e-4);
     assert_eq!(fit.uncertainty.as_ref(), "point_only_augmented_no_interval");
-    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
-    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+    assert_eq!(result.interval().as_ref().unwrap().method, IntervalMethod::None);
+    assert!(result.estimate().as_effect().unwrap().se_analytic().is_nan());
     assert!(result.identification.required_assumptions.entries.iter().any(|record| {
         format!("{:?}", record.assumption).contains("donor_ridge_outcome_model_transports")
     }));
@@ -355,14 +356,110 @@ fn augmented_synthetic_control_recovers_outside_hull_truth_and_seals_artifact() 
     assert_eq!(body.synthetic_control.as_ref().unwrap().effect, fit.effect);
     let mut fabricated = body.clone();
     fabricated.synthetic_control.as_mut().unwrap().outcome_model_correction = Some(0.0);
-    assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &fabricated,
-            header.variable_names,
-            "fabricated"
-        )
-        .is_err()
-    );
+    assert_forgery_refused(&fabricated, header.variable_names, PAYLOAD);
     assert!(query.clone().with_uniform_unit_randomization().validate().is_ok());
-    assert!(query.difference_in_differences().validate().is_err());
+    assert!(matches!(
+        query.difference_in_differences().validate(),
+        Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::AugmentedWithDid))
+    ));
+}
+
+/// The exact-weights panel plus an unrelated donor `d`, without the listed unit-periods.
+fn unbalanced_fixture(gone: &[(&str, i64)]) -> (TabularData, SyntheticControlQuery) {
+    let (_, query) = fixture();
+    let extra = [4.0, 1.0, 3.0, 2.0, 0.0, 5.0];
+    let mut units: Vec<Arc<str>> = query.units.to_vec();
+    let mut periods: Vec<i64> = query.periods.to_vec();
+    let (data, _) = fixture();
+    let antecedent_data::ColumnView::Float64(column) =
+        data.column(VariableId::from_raw(0)).unwrap()
+    else {
+        panic!("continuous outcome");
+    };
+    let mut y: Vec<f64> = column.values.as_slice().to_vec();
+    for (index, value) in extra.into_iter().enumerate() {
+        units.push(Arc::<str>::from("d"));
+        periods.push(index as i64 + 1);
+        y.push(value);
+    }
+    let keep: Vec<usize> = (0..y.len())
+        .filter(|row| {
+            !gone.iter().any(|(unit, period)| *units[*row] == **unit && periods[*row] == *period)
+        })
+        .collect();
+    let y: Vec<f64> = keep.iter().map(|row| y[*row]).collect();
+    let units: Vec<Arc<str>> = keep.iter().map(|row| Arc::clone(&units[*row])).collect();
+    let periods: Vec<i64> = keep.iter().map(|row| periods[*row]).collect();
+    let data = TabularData::from_f64_columns([("outcome", y.as_slice())]).unwrap();
+    let query = SyntheticControlQuery::new(
+        VariableId::from_raw(0),
+        units,
+        periods,
+        Arc::<str>::from("treated"),
+        5,
+    );
+    (data, query)
+}
+
+#[test]
+fn observed_window_support_reads_an_unbalanced_panel_and_refuses_without_support() {
+    let ctx = ExecutionContext::for_tests(11);
+    // The treated unit misses period 2 and donor d misses period 3, so d is excluded.
+    let (data, query) = unbalanced_fixture(&[("treated", 2), ("d", 3), ("a", 2)]);
+    let balanced = Study::tabular(data.clone()).query(query.clone()).build().unwrap().run(&ctx);
+    assert!(
+        matches!(&balanced, Err(antecedent::CausalError::Compile { message })
+            if message == "synthetic control requires a balanced panel with identical periods for every unit"),
+        "an unbalanced panel needs the observed-window declaration: {:?}",
+        balanced.err()
+    );
+    let declared = query.clone().with_observed_window_support();
+    let result =
+        Study::tabular(data.clone()).query(declared.clone()).build().unwrap().run(&ctx).unwrap();
+    let fit = result.synthetic_control().unwrap();
+    assert!((fit.effect - 5.0).abs() < 1e-5, "{}", fit.effect);
+    assert_eq!((fit.n_pre_periods, fit.n_post_periods), (3, 2));
+    let mut donors: Vec<&str> = fit.donor_weights.iter().map(|(unit, _)| unit.as_ref()).collect();
+    donors.sort_unstable();
+    assert_eq!(donors, ["a", "b", "c"]);
+    assert!(result.diagnostics.iter().any(|diagnostic| diagnostic.code.as_ref()
+        == "estimate.quasi.synthetic_control.observed_window_support"));
+    // The support read is a typed part of the payload and of the sealed artifact.
+    let window = fit.observed_window.as_ref().unwrap();
+    assert_eq!(window.pre_periods.as_ref(), [1, 3, 4]);
+    assert_eq!(window.post_periods.as_ref(), [5, 6]);
+    assert_eq!(window.donors_used, 3);
+    assert_eq!(window.donors_dropped.as_ref(), [(Arc::<str>::from("d"), 1)]);
+    let prepared = Study::tabular(data.clone())
+        .query(declared.clone())
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let retained = prepared.estimate(&data, &ctx).unwrap();
+    let bytes = prepared.encode_contracted_result(&retained, "synthetic-control", &ctx).unwrap();
+    let (_, _, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    let wire = body.synthetic_control.as_ref().unwrap().observed_window.as_ref().unwrap();
+    assert_eq!((wire.pre_periods.as_slice(), wire.donors_used), ([1, 3, 4].as_slice(), 3));
+    assert_eq!(wire.donors_dropped, [("d".to_string(), 1)]);
+    assert!(result.identification.required_assumptions.entries.iter().any(|record| {
+        record.status == antecedent_core::AssumptionStatus::Untestable
+            && format!("{:?}", record.assumption)
+                .contains("attrition_unrelated_to_untreated_outcomes")
+    }));
+    let refusal = |data: TabularData, query: SyntheticControlQuery| -> String {
+        Study::tabular(data)
+            .query(query)
+            .build()
+            .map_err(|error| error.to_string())
+            .and_then(|study| study.run(&ctx).map(|_| ()).map_err(|error| error.to_string()))
+            .unwrap_err()
+    };
+    // Too few donors observed through the window.
+    let (few, few_query) = unbalanced_fixture(&[("a", 4), ("d", 6)]);
+    let error = refusal(few, few_query.with_observed_window_support());
+    assert!(error.contains("only 2 donors") && error.contains("Next attempt"), "{error}");
+    // The randomization test reads a balanced panel.
+    let error = refusal(data, declared.with_uniform_unit_randomization());
+    assert!(error.to_lowercase().contains("next attempt"), "{error}");
 }

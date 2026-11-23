@@ -52,7 +52,7 @@ must not agree. Nested `Sequence` and Soft families other than
 At horizon 1, the two-point surface contrast
 `mean(dose=1) - mean(dose=0) = 2` matches the `PulseEffect` value for
 active `1` versus control `0`; both dispatch through `TemporalLinearAdjustment`
-and agree numerically on this fixture. The licensed single-step
+and agree numerically on this fixture. The supported single-step
 `SustainedEffect` window at offset `-1` recovers the same contrast. This is
 observed numerical agreement via shared adjustment machinery, not a
 derivation of one from the other and not a separate response estimand;
@@ -64,7 +64,7 @@ The pre-1.9 fixture pinned an analytic delta-method band (`surface.lower` /
 `surface.upper`, removed in 1.9; see git history at `0b907cb5`). That band
 treated lag-aligned rows as independent and is no longer published: with zero
 bootstrap replicates the surface carries no band and an
-`estimate.temporal_response.band_withheld` warning.
+`estimate.temporal_response.no_band_method` warning.
 
 `block_band` pins what requested replicates publish instead: the joint
 circular-block bootstrap of the dose × horizon surface, produced through the

@@ -1,0 +1,74 @@
+# File-backed table ingestion: acceptance evidence. Registration only: no calibration
+# measurement. Large tables are executable; their intervals stay scope_not_assessed
+# above the measured ranges in docs/user-facing-limits.md.
+schema = 1
+id = "data.file_backed_ingestion"
+capability_ids = []
+status = "implemented"
+calibration = "scope_not_assessed above 100000 rows"
+reference = "docs/guides/large-tables.md"
+limits = "docs/user-facing-limits.md"
+rust_source = "crates/antecedent-data/src/file_source/mod.rs"
+rust_capacity_route = "crates/antecedent/src/analysis/file_table.rs"
+python_entry = "python/antecedent/_table_file.py"
+python_native = "python/src/file_source_api.rs"
+example = "examples/python/parquet_e2e.py"
+polars_decision = "parity/polars_decision/decision.toml"
+
+[[acceptance]]
+id = "schema_fidelity"
+claim = "Float, integer, boolean, timestamp, date, dictionary and string columns are read without lossy casts; nested, decimal and binary columns are refused with the next attempt."
+evidence = [
+  "crates/antecedent-data/tests/file_source.rs::parquet_round_trip_keeps_numeric_boolean_time_and_category_kinds",
+  "crates/antecedent-data/tests/file_source.rs::arrow_ipc_keeps_dictionary_order_unused_levels_order_flag_and_time_zone",
+  "python/tests/test_parquet_ingest.py::test_schema_types_are_kept_and_nulls_are_masks",
+]
+
+[[acceptance]]
+id = "closure_projection"
+claim = "Only the required-column closure is decoded; a projection that drops a required column is refused before reading."
+evidence = [
+  "crates/antecedent-data/tests/file_source.rs::projection_decodes_only_the_closure_and_refuses_what_it_cannot_read",
+  "python/tests/test_parquet_ingest.py::test_only_the_needed_columns_are_read_and_nested_columns_are_refused",
+]
+
+[[acceptance]]
+id = "bounded_admission"
+claim = "Each chunk is charged to the admission pool before decoding and before its columns are built; a refusal names the bytes and the next attempt and leaves the pool unchanged."
+evidence = [
+  "crates/antecedent-data/tests/file_source.rs::chunked_admission_refuses_before_allocating_and_returns_the_pool",
+  "crates/antecedent-data/tests/file_source.rs::cancellation_stops_the_read_and_returns_its_leases",
+]
+
+[[acceptance]]
+id = "content_identity"
+claim = "The streaming identity is issued after a complete first scan, is invariant to chunk size, row-group layout and container, and changes with any value."
+evidence = [
+  "crates/antecedent-data/tests/file_source.rs::content_identity_is_chunk_invariant_and_changes_with_any_value",
+  "python/tests/test_parquet_ingest.py::test_content_identity_follows_values_not_layout",
+]
+
+[[acceptance]]
+id = "global_row_ids"
+claim = "Row positions are checked 64-bit ids; counts above 2^32 are quoted and addressed without allocating rows."
+evidence = ["crates/antecedent-data/tests/file_source.rs::row_ids_past_u32_max_are_checked_without_allocating_rows"]
+
+[[acceptance]]
+id = "capacity_route"
+claim = "A table larger than the pool is refused resident with its quote and streamed through the weighted Gaussian capacity route to the summary a resident run returns."
+evidence = [
+  "crates/antecedent/tests/file_table_capacity.rs::a_table_above_the_pool_is_refused_resident_and_streamed_as_a_summary",
+  "crates/antecedent/tests/file_table_capacity.rs::missing_values_are_refused_or_left_out_as_declared",
+  "python/tests/test_parquet_ingest.py::test_a_small_pool_refuses_a_resident_read_and_streams_the_summary",
+]
+
+[[acceptance]]
+id = "prepared_python_entry"
+claim = "analyze, prepare, estimate and refresh accept a Parquet path, a Parquet dataset directory, an Arrow IPC file or stream, or a lazy handle, and give the analysis of the same in-memory table."
+evidence = [
+  "python/tests/test_parquet_ingest.py::test_analyze_over_parquet_equals_the_same_analysis_in_memory",
+  "python/tests/test_parquet_ingest.py::test_prepare_estimate_and_refresh_accept_files",
+  "python/tests/test_parquet_ingest.py::test_a_directory_of_parquet_files_is_one_table",
+  "python/tests/test_parquet_ingest.py::test_arrow_ipc_files_and_streams",
+  "examples/python/parquet_e2e.py",
+]

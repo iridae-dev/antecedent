@@ -1,11 +1,11 @@
-//! Licensed attribution / transport / interference staged cells.
+//! Supported attribution / transport / interference staged cells.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
 use antecedent::{
-    BayesianConfig, CellStatus, InferenceMode, InterferenceSpec, RefuteSuite, Study,
+    AcceptedGraph, BayesianConfig, CellStatus, InferenceMode, InterferenceSpec, RefuteSuite, Study,
     TransportTrialSpec,
 };
 use antecedent_core::{
@@ -60,10 +60,10 @@ fn anomaly_attribution_known_truth() {
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
-    assert_eq!(study.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(study.support_status(), Some(CellStatus::Supported));
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&data, &ctx()).unwrap();
-    assert_eq!(result.support_status, Some(CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(CellStatus::Supported));
     assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     let scores = result.anomaly().expect("anomaly scores");
     let y = scores.iter().find(|s| s.target == VariableId::from_raw(1)).expect("y target");
@@ -94,20 +94,50 @@ fn change_attribution_known_truth() {
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
-    assert_eq!(study.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(study.support_status(), Some(CellStatus::Supported));
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&data, &ctx()).unwrap();
-    assert_eq!(result.support_status, Some(CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(CellStatus::Supported));
     assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     let change = result.change_attribution().expect("change attribution");
     let expected = pin["change"]["total_change"].as_f64().unwrap();
-    let tol = pin["change"]["tolerance"].as_f64().unwrap();
+    // Mean-difference allocation of an exact planted shift: observed deviation 1.6e-10.
+    let tol = pin["change"]["tolerance"].as_f64().unwrap().min(1e-6);
     assert!(
         (change.total_change - expected).abs() <= tol,
         "total_change={} pin={expected}±{tol}",
         change.total_change
     );
     assert!(change.total_change >= pin["change"]["total_change_min"].as_f64().unwrap());
+    // Exact mechanism Shapley of the planted y-only intercept shift: the whole change
+    // belongs to y and none to the unchanged x (conformance/attribution grid fixture).
+    let grid: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/attribution/distribution_change_grid/expected.json"
+    ))
+    .unwrap();
+    let case = grid["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|case| case["id"] == "y_intercept_plus_five")
+        .unwrap();
+    // Exact Shapley contribution of the planted shift: observed deviation 1.6e-10.
+    let grid_tol = grid["comparison"]["sampled_absolute_tolerance"].as_f64().unwrap().min(1e-6);
+    let contribution = |variable: u32| {
+        change
+            .contributions
+            .iter()
+            .find(|c| c.component.variable() == VariableId::from_raw(variable))
+            .map_or(0.0, |c| c.contribution)
+    };
+    for (name, variable) in [("x", 0), ("y", 1)] {
+        let truth = case["component_contributions"][name].as_f64().unwrap();
+        assert!(
+            (contribution(variable) - truth).abs() <= grid_tol,
+            "{name} contribution {} vs exact Shapley {truth}",
+            contribution(variable)
+        );
+    }
 }
 
 #[test]
@@ -171,11 +201,86 @@ fn bayesian_attribution_shared_row_weight_known_truth() {
     let posterior = change.posterior.as_ref().expect("Bayesian change attribution draws");
     assert_eq!(posterior.draws.n_draws, 24);
     let expected_change = truth["change"]["total_change"].as_f64().unwrap();
-    let tolerance = truth["change"]["tolerance"].as_f64().unwrap();
+    // Observed: total 4.984 (prior shrinkage), carrying component 5.0 + 1e-10, other -0.016.
+    let tolerance = truth["change"]["tolerance"].as_f64().unwrap().min(0.05);
     assert!((posterior.summaries.mean[0] - expected_change).abs() < tolerance);
     let component_means: f64 = posterior.summaries.mean[1..].iter().sum();
     assert!((component_means - posterior.summaries.mean[0]).abs() < 1e-6);
+    // Planted y-only intercept shift: one component carries the whole change, the other none.
+    let mut components = posterior.summaries.mean[1..].to_vec();
+    components.sort_by(f64::total_cmp);
+    let (last, rest) = components.split_last().unwrap();
+    assert!((last - expected_change).abs() < 1e-6, "carrying component {last}");
+    assert!(rest.iter().all(|c| c.abs() < tolerance), "uncarrying components {rest:?}");
     assert!(change.diagnostics.iter().any(|d| d.code.as_ref() == "gcm.attribution.bayesian"));
+}
+
+/// An accepted structure is attributed exactly as a supplied one: the accepted record is the
+/// structure's provenance, not a different graph. Both queries, both inference modes, against the
+/// same independently derived truth the supplied-graph cells are held to.
+#[test]
+fn accepted_dag_attribution_known_truth() {
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/staged_attribution/expected.json"
+    ))
+    .unwrap();
+    let top_row = usize::try_from(truth["anomaly"]["top_row"].as_u64().unwrap()).unwrap();
+    let expected_change = truth["change"]["total_change"].as_f64().unwrap();
+    let anomaly_query = || {
+        CausalQuery::AnomalyAttribution(AnomalyAttributionQuery::new(
+            [VariableId::from_raw(1)],
+            100,
+        ))
+    };
+    let change_query = || {
+        CausalQuery::ChangeAttribution(ChangeAttributionQuery::new(
+            VariableId::from_raw(1),
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+        ))
+    };
+    let bayesian = || InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(24));
+
+    for inference in [InferenceMode::Frequentist, bayesian()] {
+        let (data, dag) = outlier_chain();
+        let study = Study::tabular(data.clone())
+            .graph(AcceptedGraph::from(dag))
+            .query(anomaly_query())
+            .inference(inference.clone())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        assert_eq!(study.support_status(), Some(CellStatus::Supported));
+        let result = study.prepare(&ctx()).unwrap().estimate(&data, &ctx()).unwrap();
+        assert_eq!(result.support_status(), Some(CellStatus::Supported));
+        let scores = result.anomaly().expect("anomaly scores");
+        let y = scores.iter().find(|s| s.target == VariableId::from_raw(1)).expect("y target");
+        let (top_i, top) = y.scores.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)).unwrap();
+        assert_eq!(y.rows[top_i], top_row);
+        assert!(*top >= truth["anomaly"]["score_min"].as_f64().unwrap());
+        assert_eq!(result.posterior.is_some(), matches!(inference, InferenceMode::Bayesian(_)));
+
+        let (data, dag) = two_period_chain();
+        let study = Study::tabular(data.clone())
+            .graph(AcceptedGraph::from(dag))
+            .query(change_query())
+            .inference(inference.clone())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        assert_eq!(study.support_status(), Some(CellStatus::Supported));
+        let result = study.prepare(&ctx()).unwrap().estimate(&data, &ctx()).unwrap();
+        assert_eq!(result.support_status(), Some(CellStatus::Supported));
+        let total = result.change_attribution().expect("change attribution").total_change;
+        // The frequentist mean-difference allocation of the planted shift is exact to 1.6e-10;
+        // the Bayesian row-weight posterior shrinks it by 0.016 (prior), inside the fixture band.
+        let tolerance = if matches!(inference, InferenceMode::Frequentist) {
+            truth["change"]["tolerance"].as_f64().unwrap().min(1e-6)
+        } else {
+            truth["change"]["tolerance"].as_f64().unwrap().min(0.05)
+        };
+        assert!((total - expected_change).abs() <= tolerance, "total_change={total}");
+    }
 }
 
 #[test]
@@ -214,10 +319,10 @@ fn transport_direct_trial_ipw_known_truth() {
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
-    assert_eq!(study.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(study.support_status(), Some(CellStatus::Supported));
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&data, &ctx()).unwrap();
-    assert_eq!(result.support_status, Some(CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(CellStatus::Supported));
     assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     assert_eq!(result.identification.status, IdentificationStatus::NonparametricallyIdentified);
     assert_eq!(result.estimand.method.as_ref(), "transport.sid.direct");
@@ -239,7 +344,7 @@ fn interference_bernoulli_neighbor_count_known_truth() {
     let units = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
     let network = NetworkData::try_new(
         units.clone(),
-        [NetworkEdge { from: 0, to: 1, weight: 1.0 }, NetworkEdge { from: 1, to: 0, weight: 1.0 }],
+        [NetworkEdge::new(0, 1, 1.0), NetworkEdge::new(1, 0, 1.0)],
     )
     .unwrap();
     let query = InterferenceQuery::new(
@@ -259,10 +364,10 @@ fn interference_bernoulli_neighbor_count_known_truth() {
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
-    assert_eq!(study.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(study.support_status(), Some(CellStatus::Supported));
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&units, &ctx()).unwrap();
-    assert_eq!(result.support_status, Some(CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(CellStatus::Supported));
     assert_eq!(result.identification.status, IdentificationStatus::NonparametricallyIdentified);
     assert_eq!(result.estimand.method.as_ref(), "interference.design");
     let estimated = result.interference().expect("interference estimate");
@@ -299,10 +404,12 @@ fn bayesian_interference_fixed_network_posterior_matches_known_truth() {
         .as_array()
         .unwrap()
         .iter()
-        .map(|edge| NetworkEdge {
-            from: u32::try_from(edge[0].as_u64().unwrap()).expect("node id fits u32"),
-            to: u32::try_from(edge[1].as_u64().unwrap()).expect("node id fits u32"),
-            weight: 1.0,
+        .map(|edge| {
+            NetworkEdge::new(
+                edge[0].as_u64().expect("edge endpoint"),
+                edge[1].as_u64().expect("edge endpoint"),
+                1.0,
+            )
         })
         .collect();
     let units = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
@@ -324,10 +431,10 @@ fn bayesian_interference_fixed_network_posterior_matches_known_truth() {
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
-    assert_eq!(study.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(study.support_status(), Some(CellStatus::Supported));
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&units, &ctx()).unwrap();
-    assert_eq!(result.support_status, Some(CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(CellStatus::Supported));
     assert_eq!(
         result.identification.status,
         IdentificationStatus::IdentifiedUnderParametricRestrictions
@@ -338,7 +445,9 @@ fn bayesian_interference_fixed_network_posterior_matches_known_truth() {
     // to-minus-from contrast is beta-gamma=-1.
     let expected = fixture["expected_contrast"].as_f64().unwrap();
     let tolerance = fixture["tolerance"].as_f64().unwrap();
-    assert!((result.estimate.as_effect().unwrap().ate - expected).abs() < tolerance);
+    // The fixture band is a declared 0.08; the observed prior-shrinkage deviation is 0.026.
+    let tolerance = tolerance.min(0.05);
+    assert!((result.estimate().as_effect().unwrap().ate - expected).abs() < tolerance);
     assert!(result.posterior.as_ref().unwrap().assumptions.entries.iter().any(|a| matches!(&a.assumption, antecedent_core::Assumption::ParametricRestriction(p) if p.id.as_ref() == "interference.fixed_network_gaussian_potential_outcomes")));
 }
 
@@ -347,7 +456,7 @@ fn two_unit_interference(y: &[f64]) -> (TabularData, antecedent::PreparedStudy) 
     let units = TabularData::from_f64_columns([("y", y)]).unwrap();
     let network = NetworkData::try_new(
         units.clone(),
-        [NetworkEdge { from: 0, to: 1, weight: 1.0 }, NetworkEdge { from: 1, to: 0, weight: 1.0 }],
+        [NetworkEdge::new(0, 1, 1.0), NetworkEdge::new(1, 0, 1.0)],
     )
     .unwrap();
     let query = InterferenceQuery::new(
@@ -386,7 +495,7 @@ fn interference_click_executes_on_the_clicked_outcomes() {
     assert_eq!(clicked.interference().expect("interference estimate").contrast, expected);
 
     let mut refreshed = prepared.clone();
-    let result = refreshed.refresh(moved, &ctx()).unwrap();
+    let result = rebind_estimate(&mut refreshed, moved, &ctx()).unwrap();
     assert_eq!(result.interference().expect("interference estimate").contrast, expected);
     let again = refreshed.estimate_retained(&ctx()).unwrap();
     assert_eq!(again.interference().expect("interference estimate").contrast, expected);
@@ -406,7 +515,7 @@ fn design_cells_bind_calibration_under_the_harness_key() {
     let (units, prepared) = two_unit_interference(&[1.0, 4.0]);
     let network = NetworkData::try_new(
         units.clone(),
-        [NetworkEdge { from: 0, to: 1, weight: 1.0 }, NetworkEdge { from: 1, to: 0, weight: 1.0 }],
+        [NetworkEdge::new(0, 1, 1.0), NetworkEdge::new(1, 0, 1.0)],
     )
     .unwrap();
     let study = Study::tabular(units)
@@ -419,11 +528,18 @@ fn design_cells_bind_calibration_under_the_harness_key() {
     let keys = |bases: Vec<antecedent_io::calibration::CalibrationBasisWire>| {
         bases.into_iter().map(|basis| basis.key).collect::<Vec<_>>()
     };
-    let harness = study.run(&ctx()).unwrap();
-    let harness = keys(harness.calibration_bases(&study.inspect().unwrap()).unwrap());
-    let executed = prepared.estimate_retained(&ctx()).unwrap();
-    let executed = keys(executed.calibration_bases(&prepared.contract().unwrap()).unwrap());
+    let harness_result = study.run(&ctx()).unwrap();
+    let executed_result = prepared.estimate_retained(&ctx()).unwrap();
+    let one_shot_stamp = harness_result.executed_contract().expect("one-shot execution stamp");
+    let prepared_stamp = executed_result.executed_contract().expect("prepared execution stamp");
+    assert_eq!(one_shot_stamp, prepared_stamp);
+    assert_eq!(one_shot_stamp.refute, RefuteSuite::None);
+    let harness = keys(harness_result.calibration_bases(&study.inspect().unwrap()).unwrap());
+    let executed = keys(executed_result.calibration_bases(&prepared.contract().unwrap()).unwrap());
     assert_eq!(executed, harness);
+    let cancelled = ctx();
+    cancelled.cancellation.cancel();
+    assert!(matches!(study.run(&cancelled), Err(antecedent::CausalError::Cancelled { .. })));
     let primary = &executed[0];
     assert_eq!(
         (
@@ -451,18 +567,16 @@ fn design_cells_bind_calibration_under_the_harness_key() {
     );
 }
 
-/// A support refusal renders as `refused: reason=<code>: <message>`.
+/// A construction refusal carries `reason=<code>: <message>`.
 fn refused_with(error: &antecedent::CausalError) -> Option<String> {
-    let text = error.to_string();
-    let rest = text.strip_prefix("refused: ")?;
-    antecedent_core::reason_code::split_prefix(rest).map(|(code, _)| code.to_string())
+    error.reason_code().map(str::to_string)
 }
 
-/// The licensed interference cell is `NeighborCount` under Bernoulli assignment;
+/// The supported interference cell is `NeighborCount` under Bernoulli assignment;
 /// another design on the same coordinate is refused, not executed under the
-/// cell's license.
+/// cell's support.
 #[test]
-fn interference_outside_the_licensed_construction_is_refused() {
+fn interference_outside_the_supported_construction_is_refused() {
     let units = TabularData::from_f64_columns([("y", &[1.0, 4.0, 2.0, 3.0][..])]).unwrap();
     let network = NetworkData::try_new(units.clone(), []).unwrap();
     let contrast = InterferenceFunctional::ExposureContrast {
@@ -491,15 +605,15 @@ fn interference_outside_the_licensed_construction_is_refused() {
             })
             .refute(RefuteSuite::None)
             .build()
-            .expect_err("an unlicensed interference construction must refuse");
-        assert_eq!(refused_with(&error).as_deref(), Some("construction_not_licensed"), "{error}");
+            .expect_err("an unsupported interference construction must refuse");
+        assert_eq!(refused_with(&error).as_deref(), Some("construction_not_supported"), "{error}");
     }
 }
 
-/// The licensed transport cell transports a mean `ResponseCurve`; a derivative
+/// The supported transport cell transports a mean `ResponseCurve`; a derivative
 /// would be labelled with a binary IPW contrast it is not, so it is refused.
 #[test]
-fn transport_outside_the_licensed_construction_is_refused() {
+fn transport_outside_the_supported_construction_is_refused() {
     let data = TabularData::from_f64_columns([
         ("a", &[1.0, 0.0, 0.0, 0.0][..]),
         ("y", &[3.0, 1.0, 0.0, 0.0][..]),
@@ -533,6 +647,208 @@ fn transport_outside_the_licensed_construction_is_refused() {
         })
         .refute(RefuteSuite::None)
         .build()
-        .expect_err("a transported derivative is not the licensed construction");
-    assert_eq!(refused_with(&error).as_deref(), Some("construction_not_licensed"), "{error}");
+        .expect_err("a transported derivative is not the supported construction");
+    assert_eq!(refused_with(&error).as_deref(), Some("construction_not_supported"), "{error}");
+}
+
+/// The exposure contrast is identified by the known assignment mechanism and the exposure
+/// mapping, not by an edge of the structure: stated under an ADMG, a CPDAG, a PAG or an
+/// accepted structure it is the same contrast with the same sampling interval and posterior,
+/// and the cell executes unsupported (no evidence row names it).
+#[test]
+fn interference_is_stated_under_every_static_structure_class_with_the_design_identification() {
+    use antecedent::AcceptedGraph;
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/response/randomized_interference/expected.json"
+    ))
+    .unwrap();
+    let outcomes: Vec<f64> =
+        pin["outcomes"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    let assignment: Vec<bool> =
+        pin["assignment"].as_array().unwrap().iter().map(|v| v.as_bool().unwrap()).collect();
+    let units = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
+    let query = InterferenceQuery::new(
+        AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) },
+        ExposureMapping::NeighborCount,
+        InterferenceFunctional::ExposureContrast {
+            outcome: VariableId::from_raw(0),
+            from: ExposureLevel { own: 0.0, neighbors: 1.0 },
+            to: ExposureLevel { own: 1.0, neighbors: 0.0 },
+        },
+    );
+    let spec = || InterferenceSpec {
+        network: NetworkData::try_new(
+            units.clone(),
+            [NetworkEdge::new(0, 1, 1.0), NetworkEdge::new(1, 0, 1.0)],
+        )
+        .unwrap(),
+        assignment: Arc::from(assignment.clone()),
+    };
+    let graphs: Vec<(&str, AcceptedGraph)> = vec![
+        ("Dag", AcceptedGraph::from(Dag::with_variables(1))),
+        ("Admg", AcceptedGraph::from(Admg::with_variables(1))),
+        ("Cpdag", AcceptedGraph::from(antecedent_graph::Cpdag::with_variables(1))),
+        ("Pag", AcceptedGraph::from(antecedent_graph::Pag::with_variables(1))),
+    ];
+    let atol = pin["tolerance"]["atol"].as_f64().unwrap();
+    let expected = &pin["expected"];
+    for (class, graph) in graphs {
+        // A supplied `Dag` is the explicit structure the evidence rows name; the other
+        // classes (and an accepted `Dag`) execute unsupported.
+        let builder = Study::tabular(units.clone());
+        let builder = if class == "Dag" {
+            builder.graph(Dag::with_variables(1))
+        } else {
+            builder.graph(graph)
+        };
+        let study = builder
+            .query(CausalQuery::Interference(query.clone()))
+            .interference(spec())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap_or_else(|e| panic!("{class}: {e}"));
+        let result = study.run(&ctx()).unwrap_or_else(|e| panic!("{class}: {e}"));
+        let estimated = result.interference().expect("interference estimate");
+        assert!(
+            (estimated.contrast.horvitz_thompson
+                - expected["horvitz_thompson_contrast"].as_f64().unwrap())
+            .abs()
+                <= atol,
+            "{class}"
+        );
+        assert!(
+            (estimated.contrast.hajek - expected["hajek_contrast"].as_f64().unwrap()).abs() <= atol,
+            "{class}"
+        );
+        assert_eq!(result.estimand.method.as_ref(), "interference.design", "{class}");
+        assert_eq!(result.identification.status, IdentificationStatus::NonparametricallyIdentified);
+        // Every structure class has a supported cell: the structure binds only the unit schema.
+        assert_eq!(study.support_status(), Some(CellStatus::Supported), "{class}");
+        assert_eq!(result.support_status(), Some(CellStatus::Supported), "{class}");
+        // The prepared handle seals the checked operation against the structure.
+        let prepared = study.prepare(&ctx()).unwrap_or_else(|e| panic!("{class}: {e}"));
+        let again = prepared.estimate(&units, &ctx()).unwrap();
+        assert!((again.effect() - result.effect()).abs() < 1e-12, "{class}");
+    }
+    // A structure whose width is not the unit table's is refused, whatever its class.
+    let wide = Study::tabular(units.clone())
+        .graph(AcceptedGraph::from(Admg::with_variables(3)))
+        .query(CausalQuery::Interference(query))
+        .interference(spec())
+        .refute(RefuteSuite::None)
+        .build();
+    let refused = match wide {
+        Err(_) => true,
+        Ok(study) => study.prepare(&ctx()).is_err(),
+    };
+    assert!(refused, "a three-variable structure over a one-column unit table must refuse");
+}
+
+/// Cheap and full validation of an exposure contrast check the realized assignment against the
+/// declared design, report the smallest exposure probability and (full) test that
+/// re-randomized contrasts are unbiased around zero under the sharp null.
+#[test]
+fn interference_validation_checks_the_assignment_the_overlap_and_the_randomization() {
+    let n = 60_usize;
+    let mut state = 0x2545_F491_4F6C_DD1D_u64;
+    let mut uniform = move || {
+        state =
+            state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        ((state >> 11) as f64 + 0.5) / (1_u64 << 53) as f64
+    };
+    let assignment: Vec<bool> = (0..n).map(|_| uniform() < 0.5).collect();
+    let outcomes: Vec<f64> = (0..n).map(|unit| (unit % 7) as f64 + uniform()).collect();
+    let units = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
+    let mut edges = Vec::new();
+    for unit in 0..n as u64 {
+        let next = (unit + 1) % n as u64;
+        edges.push(NetworkEdge::new(unit, next, 1.0));
+        edges.push(NetworkEdge::new(next, unit, 1.0));
+    }
+    let query = InterferenceQuery::new(
+        AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) },
+        ExposureMapping::NeighborCount,
+        InterferenceFunctional::ExposureContrast {
+            outcome: VariableId::from_raw(0),
+            from: ExposureLevel { own: 0.0, neighbors: 1.0 },
+            to: ExposureLevel { own: 1.0, neighbors: 0.0 },
+        },
+    );
+    let treated = assignment.iter().filter(|&&z| z).count() as f64;
+    let z = (treated - n as f64 * 0.5) / (n as f64 * 0.25).sqrt();
+    for (suite, names) in [
+        (RefuteSuite::None, vec![]),
+        (
+            RefuteSuite::Cheap,
+            vec!["interference.assignment_calibration", "interference.exposure_overlap"],
+        ),
+        (
+            RefuteSuite::Full,
+            vec![
+                "interference.assignment_calibration",
+                "interference.exposure_overlap",
+                "interference.randomization_unbiasedness",
+            ],
+        ),
+    ] {
+        for bayesian in [false, true] {
+            if bayesian && suite == RefuteSuite::Full {
+                // The model-based posterior has no design-based contrast to re-randomize.
+            }
+            let mut builder = Study::tabular(units.clone())
+                .graph(Dag::with_variables(1))
+                .query(CausalQuery::Interference(query.clone()))
+                .interference(InterferenceSpec {
+                    network: NetworkData::try_new(units.clone(), edges.clone()).unwrap(),
+                    assignment: Arc::from(assignment.clone()),
+                })
+                .refute(suite);
+            if bayesian {
+                builder = builder
+                    .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(200)));
+            }
+            let result = builder.build().unwrap().run(&ctx()).unwrap();
+            let got: Vec<&str> = result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
+            let expected: Vec<&str> = if bayesian {
+                // Only the design checks apply to the model-based posterior.
+                names
+                    .iter()
+                    .copied()
+                    .filter(|n| *n == "interference.assignment_calibration")
+                    .collect()
+            } else {
+                names.clone()
+            };
+            assert_eq!(got, expected, "bayesian={bayesian} {suite:?}");
+            if let Some(calibration) = result.refutations.first() {
+                assert!((calibration.original_ate - treated).abs() < 1e-12);
+                assert!((calibration.refuted_ate - n as f64 * 0.5).abs() < 1e-12);
+                assert_eq!(calibration.passed, z.abs() < 1.959_964, "z = {z}");
+            }
+            if !bayesian && suite != RefuteSuite::None {
+                // P(own 0, one treated neighbour) = 1/4 and P(own 1, no treated neighbour) = 1/8.
+                let overlap = &result.refutations[1];
+                assert!((overlap.original_ate - 0.125).abs() < 0.02, "{}", overlap.original_ate);
+            }
+            if !bayesian && suite == RefuteSuite::Full {
+                let test = &result.refutations[2];
+                assert!(test.replicates >= 100, "{}", test.replicates);
+                assert!(test.informative);
+                assert!((0.0..=1.0).contains(&test.comparison));
+            }
+        }
+    }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

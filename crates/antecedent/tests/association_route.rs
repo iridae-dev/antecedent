@@ -1,0 +1,513 @@
+//! The associational route: a noncausal description of the observed law, compiled and executed
+//! only from its retained lowered program.
+//!
+//! Known-truth checks compare the reported quantities with their closed forms, the selection
+//! rule is exercised for determinism, and the claim is checked to be associational with
+//! identification not claimed. The temporal counterpart resamples circular blocks under the
+//! declared dependent-series design, and the Bayesian counterparts use the conjugate marginals
+//! for a Gaussian outcome and the Bayesian bootstrap otherwise.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::float_cmp,
+    reason = "fixture indices convert exactly and exact constants are compared"
+)]
+
+use antecedent::analysis::RetainedOperation;
+use antecedent::planner::RouteFamily;
+use antecedent::planner::lowered::FunctionalKind;
+use antecedent::planner::plan_view::IdentificationKind;
+use antecedent::planner::statistical::{PosteriorAlgorithm, ResampleUnit, ResamplingMethod};
+use antecedent::{
+    AssociationFunctional, AssociationMeasure, AssociationQuery, BayesianConfig, CausalQuery,
+    InferenceMode, Study,
+};
+use antecedent_contract::{ClaimKind, DomainStatus, IDENTIFICATION_NOT_CLAIMED, SlotAvailability};
+use antecedent_core::{DeclaredSamplingDesign, ExecutionContext, VariableId};
+use antecedent_data::{TabularData, TimeSeriesData};
+
+fn v(raw: u32) -> VariableId {
+    VariableId::from_raw(raw)
+}
+
+fn ctx(seed: u64) -> ExecutionContext {
+    ExecutionContext::for_tests(seed)
+}
+
+/// Deterministic pseudo-noise in `[-0.5, 0.5)`.
+fn noise(i: usize) -> f64 {
+    ((i as f64 * 12.9898).sin() * 43758.5453).fract().abs() - 0.5
+}
+
+/// Columns x, y with `y = 1 + 2 x + noise` over 120 rows.
+fn line() -> (TabularData, Vec<f64>, Vec<f64>) {
+    let x: Vec<f64> = (0..120).map(|i| (f64::from(i)) / 12.0).collect();
+    let y: Vec<f64> = x.iter().enumerate().map(|(i, x)| 1.0 + 2.0 * x + noise(i)).collect();
+    (TabularData::from_f64_columns([("x", &x[..]), ("y", &y[..])]).unwrap(), x, y)
+}
+
+/// The AR(1) predictor and the outcome that follows it.
+fn series_columns(n: usize) -> (Vec<f64>, Vec<f64>) {
+    let (mut x, mut y) = (vec![0.0; n], vec![0.0; n]);
+    for t in 1..n {
+        x[t] = 0.8 * x[t - 1] + noise(t);
+        y[t] = 0.5 * x[t] + 0.6 * y[t - 1] + noise(t + 1000);
+    }
+    (x, y)
+}
+
+/// Columns x, y over an AR(1) predictor and an outcome that follows it.
+fn series(n: usize) -> TimeSeriesData {
+    let (x, y) = series_columns(n);
+    TimeSeriesData::from_f64_columns([("x", &x[..]), ("y", &y[..])], 1_000_000_000).unwrap()
+}
+
+/// Least-squares slope of `y` on `x`.
+fn ols_slope(x: &[f64], y: &[f64]) -> f64 {
+    let n = x.len() as f64;
+    let (mx, my) = (x.iter().sum::<f64>() / n, y.iter().sum::<f64>() / n);
+    let sxx: f64 = x.iter().map(|a| (a - mx).powi(2)).sum();
+    x.iter().zip(y).map(|(a, b)| (a - mx) * (b - my)).sum::<f64>() / sxx
+}
+
+fn static_study(data: TabularData, query: AssociationQuery) -> Study {
+    Study::tabular(data).query(CausalQuery::Association(query)).build().unwrap()
+}
+
+#[test]
+fn a_static_association_executes_only_from_its_retained_program_and_is_noncausal() {
+    let (data, x, y) = line();
+    let query = AssociationQuery::new(v(1), [v(0)]);
+    let study = static_study(data.clone(), query.clone());
+    let plan = study.compile(&ctx(1)).unwrap();
+    let program = plan.lowered().expect("compile attaches a lowered program");
+    assert_eq!(program.route(), "AssociationStatic");
+    assert!(matches!(
+        program.scientific().target(),
+        antecedent::planner::lowered::ProblemTarget::QueryFunctional {
+            kind: FunctionalKind::Association,
+            outcome: Some(outcome),
+            ..
+        } if *outcome == v(1)
+    ));
+    assert_eq!(program.claim().kind(), Some(ClaimKind::Associational));
+    let view = plan.plan_view().unwrap();
+    assert_eq!(view.family(), RouteFamily::Associational);
+    assert_eq!(view.identification().kind(), IdentificationKind::NotClaimed);
+    assert_eq!(view.identification().refusal(), None);
+    assert_eq!(view.identity(), program.identity());
+    assert_eq!(program.statistical().models().len(), 1);
+    assert_eq!(program.statistical().models()[0].family(), "linear_regression");
+
+    // The description is the least-squares line, with the robust standard error.
+    let prepared = study.prepare(&ctx(1)).unwrap();
+    assert!(matches!(prepared.retained_operation(), RetainedOperation::Association));
+    assert_eq!(prepared.retained_operation().name(), "association");
+    assert_eq!(prepared.plan().lowered_program_identity(), Some(program.identity()));
+    let result = prepared.estimate(&data, &ctx(1)).unwrap();
+    assert_eq!(result.lowered_program_identity(), Some(program.identity()));
+    let payload = result.association().expect("an association payload");
+    let n = x.len() as f64;
+    let (mx, my) = (x.iter().sum::<f64>() / n, y.iter().sum::<f64>() / n);
+    let sxx: f64 = x.iter().map(|a| (a - mx).powi(2)).sum();
+    let slope = x.iter().zip(&y).map(|(a, b)| (a - mx) * (b - my)).sum::<f64>() / sxx;
+    assert_eq!(payload.estimate.terms.len(), 2);
+    assert!((payload.estimate.terms[1].estimate - slope).abs() < 1e-8);
+    assert!(payload.estimate.terms[1].standard_error.unwrap() > 0.0);
+    assert!(payload.refused_after.is_none() && payload.scores.is_none());
+    assert!(result.estimate().as_effect().is_none(), "an association is no effect estimate");
+
+    // The claim is associational, never a point, with identification not claimed.
+    let contract = prepared.contract().unwrap();
+    let claim = result.claim(&contract, &ctx(1)).unwrap();
+    assert_eq!(claim.kind, ClaimKind::Associational);
+    assert_eq!(claim.value, None);
+    assert_eq!(claim.domains.identification, DomainStatus::NotClaimed);
+    assert!(matches!(
+        &claim.reasoning.identification,
+        SlotAvailability::Unavailable { reason, .. } if &**reason == IDENTIFICATION_NOT_CLAIMED
+    ));
+
+    // A lowered dispatch executes its retained program: it compiles no other study.
+    let scoped = ctx(1).enter_lowered_dispatch(program.identity());
+    let refusal = study.compile(&scoped).unwrap_err();
+    assert!(refusal.to_string().contains("public_builder_reentry"), "{refusal}");
+    // A plan lowered for the series cell is not the program of a table study.
+    let temporal = Study::series(series(60))
+        .query(CausalQuery::Association(query))
+        .build()
+        .unwrap()
+        .compile(&ctx(1))
+        .unwrap();
+    let swapped = study.execute(&temporal, &ctx(1)).unwrap_err();
+    assert!(swapped.to_string().contains("route_not_lowered"), "{swapped}");
+    // A one-shot run compiles and executes the same program.
+    let fresh = study.run(&ctx(1)).unwrap();
+    assert_eq!(fresh.lowered_program_identity(), Some(program.identity()));
+    assert_eq!(fresh.association().unwrap().estimate.terms, payload.estimate.terms);
+}
+
+#[test]
+fn conditional_laws_and_the_selection_rule_follow_the_outcome_scale() {
+    // 2x2 table: P(y = 1 | x = 0) = 0.2 and P(y = 1 | x = 1) = 0.6.
+    let (mut x, mut y) = (Vec::new(), Vec::new());
+    for (level, ones) in [(0.0, 20), (1.0, 60)] {
+        for i in 0..100 {
+            x.push(level);
+            y.push(f64::from(i < ones));
+        }
+    }
+    let data = TabularData::from_f64_columns([("x", &x[..]), ("y", &y[..])]).unwrap();
+    let strata =
+        AssociationQuery::new(v(1), [v(0)]).with_functional(AssociationFunctional::Conditional);
+    let study = static_study(data.clone(), strata.clone());
+    let result = study.run(&ctx(2)).unwrap();
+    let association = result.association().unwrap();
+    assert_eq!(association.estimate.selection.analysis.as_str(), "stratified_probability");
+    assert!((association.estimate.terms[0].estimate - 0.2).abs() < 1e-12);
+    assert!((association.estimate.terms[1].estimate - 0.6).abs() < 1e-12);
+    // The selection rule is a deterministic function of the query and the data.
+    let again = static_study(data.clone(), strata).run(&ctx(99)).unwrap();
+    assert_eq!(again.association().unwrap().estimate, association.estimate);
+    // A 0/1 outcome and a numeric predictor pick logistic regression; the log-odds ratio is the
+    // closed form of the table.
+    let auto = static_study(data, AssociationQuery::new(v(1), [v(0)])).run(&ctx(2)).unwrap();
+    let logistic = auto.association().unwrap();
+    assert_eq!(logistic.estimate.selection.analysis.as_str(), "logistic_regression");
+    let log_odds = |p: f64| (p / (1.0 - p)).ln();
+    assert!(
+        (logistic.estimate.terms[1].estimate - (log_odds(0.6) - log_odds(0.2))).abs() < 1e-6,
+        "{}",
+        logistic.estimate.terms[1].estimate
+    );
+}
+
+#[test]
+fn an_association_after_a_refused_causal_query_retains_the_refusal_and_ranks_nothing() {
+    let (data, _, _) = line();
+    let query = AssociationQuery::new(v(1), [v(0)]).following_refusal("effect_not_identified");
+    let study = static_study(data.clone(), query);
+    let plan = study.compile(&ctx(3)).unwrap();
+    let view = plan.plan_view().unwrap();
+    assert_eq!(view.identification().kind(), IdentificationKind::NotClaimed);
+    assert_eq!(view.identification().refusal(), Some("effect_not_identified"));
+    let plain =
+        static_study(data.clone(), AssociationQuery::new(v(1), [v(0)])).compile(&ctx(3)).unwrap();
+    assert_ne!(plain.lowered_program_identity(), plan.lowered_program_identity());
+    let prepared = study.prepare(&ctx(3)).unwrap();
+    let result = prepared.estimate(&data, &ctx(3)).unwrap();
+    assert_eq!(
+        result.association().unwrap().refused_after.as_deref(),
+        Some("effect_not_identified")
+    );
+}
+
+#[test]
+fn a_temporal_association_resamples_blocks_under_the_declared_design() {
+    let data = series(150);
+    let query = AssociationQuery::new(v(1), [v(0)]);
+    let study = Study::series(data.clone())
+        .query(CausalQuery::Association(query.clone()))
+        .bootstrap_replicates(60)
+        .sampling_design(DeclaredSamplingDesign::DependentTimeSeries)
+        .build()
+        .unwrap();
+    let plan = study.compile(&ctx(4)).unwrap();
+    let program = plan.lowered().unwrap();
+    assert_eq!(program.route(), "AssociationTemporal");
+    let resampling = program.statistical().resampling().expect("the study asked for replicates");
+    assert_eq!(resampling.method(), ResamplingMethod::BlockBootstrap);
+    assert_eq!(resampling.unit(), ResampleUnit::CalendarBlock);
+    assert_eq!(resampling.replicates(), 60);
+    let prepared = study.prepare(&ctx(4)).unwrap();
+    let result = prepared.estimate_series(&data, &ctx(4)).unwrap();
+    assert_eq!(result.lowered_program_identity(), Some(program.identity()));
+    let payload = result.association().unwrap();
+    let record = payload.estimate.resampling.unwrap();
+    assert_eq!((record.method, record.unit), ("block_bootstrap", "calendar_block"));
+    assert!(record.block_length.unwrap() > 1, "dependent blocks, not rows");
+    assert_eq!(payload.estimate.terms[1].standard_error_method, Some("bootstrap_circular_block"));
+    // The same seed reproduces the replicates.
+    let again = prepared.estimate_series(&data, &ctx(4)).unwrap();
+    assert_eq!(again.association().unwrap().estimate, payload.estimate);
+
+    // Independent subjects cannot describe one series; the refusal names the next attempt.
+    let refused = Study::series(data)
+        .query(CausalQuery::Association(query))
+        .bootstrap_replicates(60)
+        .sampling_design(DeclaredSamplingDesign::IndependentSubjectTrajectories)
+        .build()
+        .and_then(|study| study.compile(&ctx(4)).map(|_| ()))
+        .unwrap_err();
+    assert!(refused.to_string().contains("Next attempt"), "{refused}");
+}
+
+#[test]
+fn a_bayesian_association_is_conjugate_for_a_gaussian_outcome_and_a_bootstrap_otherwise() {
+    let (data, _, _) = line();
+    let bayesian = |data: TabularData| {
+        Study::tabular(data)
+            .query(CausalQuery::Association(AssociationQuery::new(v(1), [v(0)])))
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(400)))
+            .build()
+            .unwrap()
+    };
+    let study = bayesian(data.clone());
+    let plan = study.compile(&ctx(5)).unwrap();
+    let posterior = plan.lowered().unwrap().statistical().posterior().unwrap();
+    assert_eq!(posterior.algorithm(), PosteriorAlgorithm::Conjugate);
+    let result = study.run(&ctx(5)).unwrap();
+    let payload = result.association().unwrap();
+    assert_eq!(payload.estimate.posterior.unwrap().method, "conjugate_normal_inverse_gamma");
+    let slope = payload.estimate.terms[1].posterior.unwrap();
+    assert!((slope.mean - payload.estimate.terms[1].estimate).abs() < 0.02, "{slope:?}");
+    assert!(slope.lower < slope.mean && slope.mean < slope.upper);
+
+    // A 0/1 outcome has no conjugate form: the Bayesian bootstrap draws the posterior.
+    let (mut x, mut y) = (Vec::new(), Vec::new());
+    for (level, ones) in [(0.0, 25), (1.0, 55)] {
+        for i in 0..100 {
+            x.push(level);
+            y.push(f64::from(i < ones));
+        }
+    }
+    let binary = TabularData::from_f64_columns([("x", &x[..]), ("y", &y[..])]).unwrap();
+    let study = bayesian(binary);
+    let plan = study.compile(&ctx(5)).unwrap();
+    let posterior = plan.lowered().unwrap().statistical().posterior().unwrap();
+    assert_eq!(posterior.algorithm(), PosteriorAlgorithm::BayesianBootstrap);
+    let result = study.run(&ctx(5)).unwrap();
+    let draws = result.association().unwrap();
+    assert_eq!(draws.estimate.posterior.unwrap().method, "bayesian_bootstrap");
+    // Closed form of the table: log odds ratio of 0.55 against 0.25.
+    let truth = (0.55_f64 / 0.45).ln() - (0.25_f64 / 0.75).ln();
+    assert!((draws.estimate.terms[1].estimate - truth).abs() < 1e-6);
+    let log_odds_ratio = draws.estimate.terms[1].posterior.unwrap();
+    assert!(log_odds_ratio.lower < 1.3 && 1.3 < log_odds_ratio.upper, "{log_odds_ratio:?}");
+}
+
+#[test]
+fn a_bayesian_series_association_draws_block_weights() {
+    let data = series(120);
+    let study = Study::series(data.clone())
+        .query(CausalQuery::Association(AssociationQuery::new(v(1), [v(0)])))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(200)))
+        .build()
+        .unwrap();
+    let plan = study.compile(&ctx(6)).unwrap();
+    let posterior = plan.lowered().unwrap().statistical().posterior().unwrap();
+    assert_eq!(posterior.algorithm(), PosteriorAlgorithm::BayesianBootstrap);
+    assert!(plan.lowered().unwrap().statistical().resampling().is_none());
+    let result = study.prepare(&ctx(6)).unwrap().estimate_series(&data, &ctx(6)).unwrap();
+    let payload = result.association().unwrap();
+    assert_eq!(payload.estimate.posterior.unwrap().method, "bayesian_bootstrap");
+    assert_eq!(payload.estimate.selection.modality.as_str(), "series");
+    assert!(payload.estimate.terms.iter().all(|term| term.posterior.is_some()));
+    // The block-weighted posterior centres on the least-squares slope of the same series.
+    let (sx, sy) = series_columns(120);
+    let slope = payload.estimate.terms[1].posterior.unwrap();
+    assert!((slope.mean - ols_slope(&sx, &sy)).abs() < 0.08, "{slope:?}");
+    assert!(slope.lower < ols_slope(&sx, &sy) && ols_slope(&sx, &sy) < slope.upper, "{slope:?}");
+}
+
+#[test]
+fn a_predictive_model_is_scored_on_held_out_folds_beside_its_baseline() {
+    let (data, x, y) = line();
+    let query = AssociationQuery::new(v(1), [v(0)])
+        .with_functional(AssociationFunctional::Predictive { folds: 5 });
+    let result = static_study(data, query).run(&ctx(7)).unwrap();
+    let payload = result.association().unwrap();
+    let scores = payload.scores.as_ref().expect("a predictive model is scored");
+    assert_eq!(scores.cases, 120);
+    assert_eq!(scores.score, "log_score_gaussian");
+    assert!(scores.mean_score < scores.baseline_score, "the slope beats the training mean");
+    // Gaussian log score of a fitted normal is 0.5 ln(2 pi s^2) + 0.5 with s^2 the residual
+    // variance: the baseline is the outcome's own variance, the model the line's residual.
+    let n = x.len() as f64;
+    let slope = ols_slope(&x, &y);
+    let (mx, my) = (x.iter().sum::<f64>() / n, y.iter().sum::<f64>() / n);
+    let sse: f64 = x.iter().zip(&y).map(|(a, b)| (b - my - slope * (a - mx)).powi(2)).sum();
+    let sst: f64 = y.iter().map(|b| (b - my).powi(2)).sum();
+    let gaussian = |s2: f64| 0.5 * (2.0 * std::f64::consts::PI * s2).ln() + 0.5;
+    assert!((scores.baseline_score - gaussian(sst / n)).abs() < 0.05, "{}", scores.baseline_score);
+    assert!((scores.mean_score - gaussian(sse / n)).abs() < 0.05, "{}", scores.mean_score);
+    assert!(scores.mean_crps.is_some());
+}
+
+#[test]
+fn an_association_measure_needs_one_predictor_and_a_regression_declares_its_conditioning() {
+    let (data, x, y) = line();
+    let query = AssociationQuery::new(v(1), [v(0)])
+        .with_functional(AssociationFunctional::Measure(AssociationMeasure::Pearson));
+    let result = static_study(data.clone(), query).run(&ctx(8)).unwrap();
+    let r = result.association().unwrap().estimate.terms[0].estimate;
+    let n = x.len() as f64;
+    let (mx, my) = (x.iter().sum::<f64>() / n, y.iter().sum::<f64>() / n);
+    let sxy: f64 = x.iter().zip(&y).map(|(a, b)| (a - mx) * (b - my)).sum();
+    let sxx: f64 = x.iter().map(|a| (a - mx).powi(2)).sum();
+    let syy: f64 = y.iter().map(|b| (b - my).powi(2)).sum();
+    assert!((r - sxy / (sxx * syy).sqrt()).abs() < 1e-9, "{r}");
+    let invalid = AssociationQuery::new(v(1), [v(0), v(0)]);
+    assert!(Study::tabular(data).query(CausalQuery::Association(invalid)).build().is_err());
+}
+
+#[test]
+fn every_association_counterpart_publishes_an_artifact_a_consumer_reads_the_terms_from() {
+    let query = AssociationQuery::new(v(1), [v(0)]);
+    let bayesian = || InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(200));
+    let (table, _, _) = line();
+    let rows = series(120);
+    // (design, inference) of the four counterparts, each with its own prepared handle.
+    let mut artifacts = Vec::new();
+    for inference in [InferenceMode::Frequentist, bayesian()] {
+        let posterior = matches!(inference, InferenceMode::Bayesian(_));
+        let study = Study::tabular(table.clone())
+            .query(CausalQuery::Association(query.clone()))
+            .inference(inference.clone())
+            .build()
+            .unwrap();
+        let prepared = study.prepare(&ctx(8)).unwrap();
+        let result = prepared.estimate(&table, &ctx(8)).unwrap();
+        let bytes =
+            prepared.encode_contracted_result(&result, "association-static", &ctx(8)).unwrap();
+        // The conjugate prior moves this slope by about 0.005 posterior standard deviations,
+        // inside the hundredth its row allows, so both static counterparts meet a row.
+        let terms = result.association().unwrap().estimate.terms.len();
+        artifacts.push(("static", true, terms, bytes));
+        let study = Study::series(rows.clone())
+            .query(CausalQuery::Association(query.clone()))
+            .inference(inference)
+            .build()
+            .unwrap();
+        let prepared = study.prepare(&ctx(8)).unwrap();
+        let result = prepared.estimate_series(&rows, &ctx(8)).unwrap();
+        let bytes =
+            prepared.encode_contracted_result(&result, "association-temporal", &ctx(8)).unwrap();
+        // The block posterior of a series is measured at 400 draws; 200 are below its row.
+        let terms = result.association().unwrap().estimate.terms.len();
+        artifacts.push(("temporal", !posterior, terms, bytes));
+    }
+    for (modality, supported, terms, bytes) in artifacts {
+        let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
+        let wire =
+            consumed.body.association.as_ref().expect("the artifact carries the association");
+        assert_eq!(wire.terms.len(), terms, "{modality}");
+        // The standard error of a linear-regression slope on 120 rows or steps and the
+        // conjugate posterior of the table meet their graphless rows; the block posterior of
+        // the series at 200 draws does not. The row is stated in a coded diagnostic and the
+        // section's own flag stays false.
+        let stated = consumed.body.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == antecedent_io::graphless_support::ASSOCIATION_SLOPE_ROW_CODE
+        });
+        assert_eq!(stated, supported, "{modality}");
+        assert!(!wire.supported, "{modality}");
+        assert_eq!(wire.calibration, "not_measured", "{modality}");
+        assert!(consumed.contract.is_some(), "{modality}");
+    }
+}
+
+#[test]
+fn every_association_counterpart_retains_its_own_operation_and_executes_its_program() {
+    let query = AssociationQuery::new(v(1), [v(0)]);
+    let (table, x, y) = line();
+    let rows = series(120);
+    let n = x.len() as f64;
+    let (mx, my) = (x.iter().sum::<f64>() / n, y.iter().sum::<f64>() / n);
+    let sxx: f64 = x.iter().map(|a| (a - mx).powi(2)).sum();
+    let slope = x.iter().zip(&y).map(|(a, b)| (a - mx) * (b - my)).sum::<f64>() / sxx;
+    let bayesian = || InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(200));
+
+    for inference in [InferenceMode::Frequentist, bayesian()] {
+        let posterior = matches!(inference, InferenceMode::Bayesian(_));
+
+        let study = Study::tabular(table.clone())
+            .query(CausalQuery::Association(query.clone()))
+            .inference(inference.clone())
+            .build()
+            .unwrap();
+        let program = study.compile(&ctx(9)).unwrap().lowered().unwrap().identity();
+        let prepared = study.prepare(&ctx(9)).unwrap();
+        assert!(matches!(prepared.retained_operation(), RetainedOperation::Association));
+        assert_eq!(prepared.plan().lowered_program_identity(), Some(program));
+        let result = prepared.estimate(&table, &ctx(9)).unwrap();
+        assert_eq!(result.lowered_program_identity(), Some(program));
+        let term = &result.association().unwrap().estimate.terms[1];
+        assert!((term.estimate - slope).abs() < if posterior { 0.02 } else { 1e-8 });
+        assert_eq!(term.posterior.is_some(), posterior);
+
+        let study = Study::series(rows.clone())
+            .query(CausalQuery::Association(query.clone()))
+            .inference(inference)
+            .build()
+            .unwrap();
+        let program = study.compile(&ctx(9)).unwrap().lowered().unwrap().identity();
+        let prepared = study.prepare(&ctx(9)).unwrap();
+        assert!(matches!(prepared.retained_operation(), RetainedOperation::Association));
+        assert_eq!(prepared.plan().lowered_program_identity(), Some(program));
+        let first = prepared.estimate_series(&rows, &ctx(9)).unwrap();
+        assert_eq!(first.lowered_program_identity(), Some(program));
+        let again = prepared.estimate_series(&rows, &ctx(9)).unwrap();
+        let terms = &first.association().unwrap().estimate.terms;
+        let (sx, sy) = series_columns(120);
+        assert!(
+            (terms[1].estimate - ols_slope(&sx, &sy)).abs() < if posterior { 0.02 } else { 1e-8 }
+        );
+        assert_eq!(terms, &again.association().unwrap().estimate.terms, "the seed fixes the draws");
+        assert_eq!(terms.iter().all(|term| term.posterior.is_some()), posterior);
+    }
+}
+
+#[test]
+fn every_association_counterpart_agrees_with_its_view_stamps_its_result_and_refuses_reentry() {
+    let query = AssociationQuery::new(v(1), [v(0)]);
+    let (table, _, _) = line();
+    let rows = series(120);
+    let bayesian = || InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(100));
+    let mut studies = Vec::new();
+    for inference in [InferenceMode::Frequentist, bayesian()] {
+        studies.push((
+            "AssociationStatic",
+            Study::tabular(table.clone())
+                .query(CausalQuery::Association(query.clone()))
+                .inference(inference.clone())
+                .build()
+                .unwrap(),
+        ));
+        studies.push((
+            "AssociationTemporal",
+            Study::series(rows.clone())
+                .query(CausalQuery::Association(query.clone()))
+                .inference(inference)
+                .build()
+                .unwrap(),
+        ));
+    }
+    for (route, study) in &studies {
+        let plan = study.compile(&ctx(4)).unwrap();
+        let program = plan.lowered().expect("a lowered program").clone();
+        assert_eq!(program.route(), *route);
+        // The declared selection rule is inspectable before any execution: the retained program
+        // fixes the analysis, and identification is not claimed.
+        assert_eq!(program.statistical().models()[0].family(), "linear_regression");
+        let view = plan.plan_view().unwrap();
+        assert_eq!(view.family(), RouteFamily::Associational);
+        assert_eq!(view.identification().kind(), IdentificationKind::NotClaimed);
+        assert_eq!(view.identity(), program.identity());
+        // The sealed operation is the association, bound to the same lowered identity.
+        let prepared = study.prepare(&ctx(4)).unwrap();
+        assert!(matches!(prepared.retained_operation(), RetainedOperation::Association));
+        assert_eq!(prepared.plan().lowered_program_identity(), Some(program.identity()));
+        // A lowered dispatch executes its program; it never compiles through the public builder.
+        let refusal = study.compile(&ctx(4).enter_lowered_dispatch(program.identity()));
+        assert!(refusal.unwrap_err().to_string().contains("public_builder_reentry"), "{route}");
+        // The result carries the stamp of the program that produced it.
+        let result = if *route == "AssociationStatic" {
+            prepared.estimate(&table, &ctx(4)).unwrap()
+        } else {
+            prepared.estimate_series(&rows, &ctx(4)).unwrap()
+        };
+        assert_eq!(result.lowered_program_identity(), Some(program.identity()), "{route}");
+    }
+}

@@ -2,7 +2,7 @@
 //!
 //! Each row names one quantity class, model class, conditioning, intervention
 //! kind, population, history and evidence combination, and whether it is
-//! executed here, keeps its own theorem-scoped route, or is closed. A request
+//! executed here, keeps its own theorem-scoped route, or is not supported. A request
 //! outside every executed row is a **scientific** refusal that names the
 //! unmet dimension and the declaration that would open it; it is never a cache
 //! miss. The same rows are checked-in registry data in
@@ -12,7 +12,7 @@
 //! that a coupling is required. The pairing decision is the one joint-law rule
 //! (`antecedent_contract::check_propagation`), applied by the executor.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::transported_gate::TransportedCounterfactualPrerequisites;
 
@@ -208,8 +208,8 @@ pub enum CapabilityStatus {
     /// Executed by its own existing theorem-scoped route; selective execution
     /// does not run it and does not widen its boundary.
     ExistingTheoremRoute,
-    /// Closed with a typed refusal and the prerequisites that would open it.
-    Closed,
+    /// Not supported, with a typed refusal and the prerequisites that would support it.
+    NotSupported,
 }
 
 impl CapabilityStatus {
@@ -219,7 +219,7 @@ impl CapabilityStatus {
         match self {
             Self::Executed => "executed",
             Self::ExistingTheoremRoute => "existing_theorem_route",
-            Self::Closed => "closed",
+            Self::NotSupported => "not_supported",
         }
     }
 }
@@ -245,13 +245,13 @@ pub struct MatrixRow {
     pub coupling: CouplingKind,
     /// Status.
     pub status: CapabilityStatus,
-    /// The route that executes the row, or the refusal's subject for a closed row.
+    /// The route that executes the row, or the refusal's subject for a unsupported row.
     pub route: &'static str,
     /// The theorem or assumption set the row is scoped to.
     pub theorem: &'static str,
-    /// Reason code of the refusal a closed row returns.
+    /// Reason code of the refusal a unsupported row returns.
     pub refusal_code: Option<&'static str>,
-    /// Detail of the refusal a closed row returns.
+    /// Detail of the refusal a unsupported row returns.
     pub refusal_detail: Option<&'static str>,
     /// What would open the row.
     pub remedy: &'static str,
@@ -377,15 +377,15 @@ boundary and does not abduce a target-population factual unit.",
         evidence: &[],
         population: PopulationKind::Transported,
         coupling: CouplingKind::SharedAbducedExogenous,
-        status: CapabilityStatus::Closed,
+        status: CapabilityStatus::NotSupported,
         route: "none",
-        theorem: "No joint theorem composes a transport license with factual abduction in a \
+        theorem: "No joint theorem composes a transport support with factual abduction in a \
 target population: a transport identification supplies no abduction, shared-noise or per-world \
 receipts, and abduction in the source population is not abduction of a target unit.",
-        refusal_code: Some("cell_not_licensed"),
-        refusal_detail: Some("cross_world_execution.transported_row_closed"),
-        remedy: "supply a transport license for the quantity, a fixed-population cross-world \
-license, and the cross-population invariance of the exogenous law with target-population \
+        refusal_code: Some("route_not_supported"),
+        refusal_detail: Some(antecedent_core::reason_details::cross_world_execution::NO_TRANSPORTED_ROW_DERIVATION),
+        remedy: "supply a transport support for the quantity, a fixed-population cross-world \
+support, and the cross-population invariance of the exogenous law with target-population \
 factual evidence; the static additive linear case has its own theorem-scoped route",
     },
     MatrixRow {
@@ -397,13 +397,13 @@ factual evidence; the static additive linear case has its own theorem-scoped rou
         evidence: &[],
         population: PopulationKind::Single,
         coupling: CouplingKind::SharedAbducedExogenous,
-        status: CapabilityStatus::Closed,
+        status: CapabilityStatus::NotSupported,
         route: "none",
         theorem: "Latent confounding whose mechanisms and exogenous law are not declared, or are \
 to be fitted from observational data, does not identify a cross-world joint law; the same \
 shared exogenous term is executed when every mechanism and law is declared.",
         refusal_code: Some("cross_world_not_identified"),
-        refusal_detail: Some("cross_world_execution.latent_confounding_not_identified"),
+        refusal_detail: Some(antecedent_core::reason_details::cross_world_execution::LATENT_CONFOUNDING_NOT_IDENTIFIED),
         remedy: "declare every mechanism and the finite law of every exogenous term (a fully \
 declared finite SCM may share an exogenous term between mechanisms), or use an identification \
 route that accepts the latent structure",
@@ -417,12 +417,12 @@ route that accepts the latent structure",
         evidence: &[],
         population: PopulationKind::Single,
         coupling: CouplingKind::SharedAbducedExogenous,
-        status: CapabilityStatus::Closed,
+        status: CapabilityStatus::NotSupported,
         route: "none",
         theorem: "A cross-world joint law is not identified by a graph alone; mechanisms and \
 a noise law must be declared.",
         refusal_code: Some("cross_world_not_identified"),
-        refusal_detail: Some("cross_world_execution.mechanisms_not_declared"),
+        refusal_detail: Some(antecedent_core::reason_details::cross_world_execution::MECHANISMS_NOT_DECLARED),
         remedy: "declare the mechanisms and the exogenous law (a fully declared finite SCM or the \
 two-slice additive linear model), or ask an interventional rather than a cross-world question",
     },
@@ -435,12 +435,12 @@ two-slice additive linear model), or ask an interventional rather than a cross-w
         evidence: &[],
         population: PopulationKind::Single,
         coupling: CouplingKind::SharedAbducedExogenous,
-        status: CapabilityStatus::Closed,
+        status: CapabilityStatus::NotSupported,
         route: "none",
         theorem: "Mechanisms hold for the history or regime they were declared under; factual \
 evidence from another history needs a new compatibility and identification check.",
         refusal_code: Some("route_not_supported"),
-        refusal_detail: Some("cross_world_execution.incompatible_history"),
+        refusal_detail: Some(antecedent_core::reason_details::cross_world_execution::INCOMPATIBLE_HISTORY),
         remedy: "declare the mechanisms for the history the evidence was gathered under, or \
 establish and supply the invariance of the mechanisms across the two histories",
     },
@@ -453,12 +453,12 @@ establish and supply the invariance of the mechanisms across the two histories",
         evidence: &[],
         population: PopulationKind::Single,
         coupling: CouplingKind::NotRequired,
-        status: CapabilityStatus::Closed,
+        status: CapabilityStatus::NotSupported,
         route: "none",
         theorem: "Worlds are defined by hard interventions; a stochastic or policy intervention \
 adds a randomization law whose coupling across worlds is not declared.",
         refusal_code: Some("route_not_supported"),
-        refusal_detail: Some("cross_world_execution.soft_intervention"),
+        refusal_detail: Some(antecedent_core::reason_details::cross_world_execution::SOFT_INTERVENTION),
         remedy: "express each world as hard interventions, or declare the intervention's own \
 exogenous term as part of the SCM",
     },
@@ -471,12 +471,12 @@ exogenous term as part of the SCM",
         evidence: &[],
         population: PopulationKind::Single,
         coupling: CouplingKind::NotRequired,
-        status: CapabilityStatus::Closed,
+        status: CapabilityStatus::NotSupported,
         route: "none",
         theorem: "A finite SCM's exogenous law is not identified from observational data alone \
 (response-type mass is partially identified); fitting it needs declared constraints.",
         refusal_code: Some("route_not_supported"),
-        refusal_detail: Some("cross_world_execution.finite_fitting_not_executed"),
+        refusal_detail: Some(antecedent_core::reason_details::cross_world_execution::FINITE_FITTING_NOT_EXECUTED),
         remedy: "declare the mechanisms and the exogenous law, or use the partial-identification \
 route that returns bounds on the counterfactual",
     },
@@ -588,14 +588,16 @@ pub struct MatrixRefusal {
     pub missing: Vec<String>,
 }
 
-/// A licensed row or a typed refusal.
+/// A supported row or a typed refusal.
 pub type MatrixDecision = Result<&'static MatrixRow, MatrixRefusal>;
 
 fn closed(id: &'static str) -> MatrixRefusal {
     let row = ALL_ROWS.iter().find(|r| r.id == id).unwrap_or(&ALL_ROWS[5]);
     MatrixRefusal {
-        code: row.refusal_code.unwrap_or(antecedent_core::reason_code!("cell_not_licensed")),
-        detail: row.refusal_detail.unwrap_or("cross_world_execution.cell_not_in_matrix"),
+        code: row.refusal_code.unwrap_or(antecedent_core::reason_code!("route_not_supported")),
+        detail: row
+            .refusal_detail
+            .unwrap_or(antecedent_core::reason_details::cross_world_execution::CELL_NOT_IN_MATRIX),
         subject: row.id,
         remedy: row.remedy,
         missing: Vec::new(),
@@ -604,7 +606,7 @@ fn closed(id: &'static str) -> MatrixRefusal {
 
 fn transported_refusal() -> MatrixRefusal {
     let prerequisites = TransportedCounterfactualPrerequisites {
-        fixed_population_license: true,
+        fixed_population_support: true,
         ..TransportedCounterfactualPrerequisites::default()
     };
     let mut missing: Vec<String> =
@@ -617,7 +619,7 @@ fn transported_refusal() -> MatrixRefusal {
 /// Decide a request against the matrix.
 ///
 /// # Errors
-/// A [`MatrixRefusal`] naming the closed row or the first dimension no
+/// A [`MatrixRefusal`] naming the unsupported row or the first dimension no
 /// executed row admits.
 pub fn decide(request: &MatrixRequest) -> MatrixDecision {
     if request.population == PopulationKind::Transported {
@@ -657,7 +659,7 @@ pub fn decide(request: &MatrixRequest) -> MatrixDecision {
         let subject = candidates().next().map_or("matrix", |r| r.id);
         return Err(MatrixRefusal {
             code: antecedent_core::reason_code!("route_not_supported"),
-            detail: "cross_world_execution.cell_not_in_matrix",
+            detail: antecedent_core::reason_details::cross_world_execution::CELL_NOT_IN_MATRIX,
             subject,
             remedy: "the quantity, model, conditioning, history and evidence source must match \
 an executed row of the capability matrix (parity/cross_world_capability.toml)",
@@ -684,13 +686,13 @@ mod tests {
     }
 
     #[test]
-    fn row_ids_are_unique_and_closed_rows_carry_a_refusal() {
+    fn row_ids_are_unique_and_unsupported_rows_carry_a_refusal() {
         let mut ids: Vec<_> = ALL_ROWS.iter().map(|r| r.id).collect();
         ids.sort_unstable();
         ids.dedup();
         assert_eq!(ids.len(), ALL_ROWS.len());
         for row in &ALL_ROWS {
-            let closed = row.status == CapabilityStatus::Closed;
+            let closed = row.status == CapabilityStatus::NotSupported;
             assert_eq!(row.refusal_code.is_some(), closed, "{}", row.id);
             assert_eq!(row.refusal_detail.is_some(), closed, "{}", row.id);
             assert_eq!(!row.remedy.is_empty(), closed, "{}", row.id);
@@ -698,7 +700,7 @@ mod tests {
     }
 
     #[test]
-    fn executed_cells_resolve_and_every_closed_cell_names_its_row() {
+    fn executed_cells_resolve_and_every_unsupported_cell_names_its_row() {
         let row = decide(&finite(QuantityClass::NaturalPathSpecific)).unwrap();
         assert_eq!(row.id, "natural_path_specific.finite_markovian_scm");
         assert!(row.needs_shared_exogenous());
@@ -717,20 +719,26 @@ mod tests {
         };
         let refused = decide(&semi).unwrap_err();
         assert_eq!(refused.code, "cross_world_not_identified");
-        assert_eq!(refused.detail, "cross_world_execution.latent_confounding_not_identified");
+        assert_eq!(
+            refused.detail,
+            antecedent_core::reason_details::cross_world_execution::LATENT_CONFOUNDING_NOT_IDENTIFIED
+        );
 
         let history =
             MatrixRequest { history: HistoryKind::Incompatible, ..finite(QuantityClass::Temporal) };
         assert_eq!(
             decide(&history).unwrap_err().detail,
-            "cross_world_execution.incompatible_history"
+            antecedent_core::reason_details::cross_world_execution::INCOMPATIBLE_HISTORY
         );
 
         let soft = MatrixRequest {
             interventions: InterventionKind::Soft,
             ..finite(QuantityClass::CounterfactualMarginal)
         };
-        assert_eq!(decide(&soft).unwrap_err().detail, "cross_world_execution.soft_intervention");
+        assert_eq!(
+            decide(&soft).unwrap_err().detail,
+            antecedent_core::reason_details::cross_world_execution::SOFT_INTERVENTION
+        );
 
         let fit = MatrixRequest {
             evidence: EvidenceKind::DataToFit,
@@ -738,12 +746,15 @@ mod tests {
         };
         assert_eq!(
             decide(&fit).unwrap_err().detail,
-            "cross_world_execution.finite_fitting_not_executed"
+            antecedent_core::reason_details::cross_world_execution::FINITE_FITTING_NOT_EXECUTED
         );
 
         // A temporal quantity on a finite SCM is not a row.
         let mismatch = decide(&finite(QuantityClass::Temporal)).unwrap_err();
-        assert_eq!(mismatch.detail, "cross_world_execution.cell_not_in_matrix");
+        assert_eq!(
+            mismatch.detail,
+            antecedent_core::reason_details::cross_world_execution::CELL_NOT_IN_MATRIX
+        );
     }
 
     #[test]
@@ -753,10 +764,13 @@ mod tests {
             ..finite(QuantityClass::TransportedCrossWorld)
         };
         let refused = decide(&request).unwrap_err();
-        assert_eq!(refused.code, "cell_not_licensed");
-        assert_eq!(refused.detail, "cross_world_execution.transported_row_closed");
+        assert_eq!(refused.code, "route_not_supported");
+        assert_eq!(
+            refused.detail,
+            antecedent_core::reason_details::cross_world_execution::NO_TRANSPORTED_ROW_DERIVATION
+        );
         for gate in [
-            "transport_license_missing",
+            "transport_support_missing",
             "cross_population_assumptions_missing",
             "target_population_abduction_receipt",
             "shared_exogenous_invariance_across_populations",

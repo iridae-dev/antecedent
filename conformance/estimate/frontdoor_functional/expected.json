@@ -1,4 +1,56 @@
 {
+  "oracle": {
+    "kind": "closed_form",
+    "method": "enumeration over the latent confounder",
+    "formula": "sum_u P(u) sum_m [P(m|T=1)-P(m|T=0)] E[Y|do(m),u] = 0.7*0.9*0.5 = 0.315",
+    "independence_basis": "Exact enumeration over the latent confounder of the front-door contrast, plus the probability limit of the linear product-of-coefficients shortcut (P(t)Var(M|t)-weighted within-arm slope times the T-M slope) computed from the U-marginalized law; every cell probability is verified to be a multiple of 1/4000. The generator derives both numbers from the structural equations in exact rational arithmetic and imports no Antecedent code. The truth is the SCM's intervention, not an application of the product's front-door functional to data; the shortcut limit is derived from the observed-law moments independently of the product's OLS.",
+    "generator": "conformance/estimate/frontdoor_functional/reference.py",
+    "command": "uv run --frozen --script conformance/estimate/frontdoor_functional/reference.py --check",
+    "environment_lock": "conformance/estimate/frontdoor_functional/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "front-door functional effect 0.315 at 1e-12",
+      "linear path-product limit 0.3631 at 1e-3 (test) and its distance from the truth"
+    ],
+    "context_only_outputs": [
+      "notes and reference-availability text"
+    ],
+    "historical_exposure": "Written during this review from the fixture README and the executing assertion; the product estimator source was not consulted. Authorship of the original enumeration is unrecorded.",
+    "reference_review": {
+      "scope": "One binary latent-confounder SCM with a treatment-mediator-outcome chain and an interaction through the unobserved confounder.",
+      "independence_basis": "The generator derives both numbers from the structural equations in exact rational arithmetic and imports no Antecedent code. The truth is the SCM's intervention, not an application of the product's front-door functional to data; the shortcut limit is derived from the observed-law moments independently of the product's OLS.",
+      "historical_exposure": "Written during this review from the fixture README and the executing assertion; the product estimator source was not consulted. Authorship of the original enumeration is unrecorded.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "Binary single-mediator front-door chain; population (non-sampled) table; no standard error or coverage claim. The shortcut limit is recorded to four decimals and checked at 5e-5.",
+      "sources": [
+        "https://doi.org/10.1093/biomet/82.4.669"
+      ],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/estimate/frontdoor_functional/reference.py",
+          "sha256": "cedd275aec5e4054dad69e75d5223ef77b65e1676de6b488ec87ce372ae00eb5"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/estimate/frontdoor_functional/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/estimate_conformance.rs",
+          "items": [
+            "fn estimate_rd_sharp_analytic_se_matches_reference",
+            "fn fixture_dir",
+            "fn rd_dag",
+            "fn tabular_data"
+          ],
+          "sha256": "501d5f26fdb0fad42458dbf4c33890d8182f77722f05dfad55599a33dae6404f"
+        }
+      ],
+      "fixture_payload_sha256": "3fd3a7d5562ccbe92eed3a71c77a9cdb0b305bc783ad294bdf88a2c79cac48eb"
+    }
+  },
   "true_effect": 0.315,
   "tolerance": 1e-12,
   "identifier": "frontdoor",

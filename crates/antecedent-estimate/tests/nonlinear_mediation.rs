@@ -1,7 +1,7 @@
 //! Nonlinear continuous-mediator mediation: exact-SCM closed-form truth, quadrature error
 //! check, confounding and overlap refusals, the total = direct + indirect identity, and a
 //! labelled regression cross-check against the linear product of coefficients. Calibration is
-//! `unmeasured` and nothing here measures coverage.
+//! `not_measured` and nothing here measures coverage.
 //!
 //! SCM: `M = alpha*A + gamma*X + e_M`, `e_M ~ N(0, sigma2)`;
 //! `Y = b0 + b1*A + c1*M + c2*M^2 + delta*A*M + bx*X` (no outcome noise, so the outcome fit is
@@ -27,6 +27,7 @@
 //! The residual levels are scaled so that the degrees-of-freedom corrected residual variance
 //! `RSS / (n - 3)` equals `sigma2` exactly (`mean(e^2) = sigma2 * (n - 3) / n`).
 
+use antecedent_core::ExecutionContext;
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::nonlinear_mediation::{
     NonlinearMediationConfig, NonlinearMediationEstimand, NonlinearMediationEstimate,
@@ -157,12 +158,12 @@ fn run(
         outcome: &g.y,
         covariates: &covs,
     };
-    estimate_nonlinear_mediation(&input, premises, cfg)
+    estimate_nonlinear_mediation(&input, premises, cfg, &ExecutionContext::for_tests(1))
 }
 
 fn refusal_message(r: Result<NonlinearMediationEstimate, EstimationError>) -> String {
     match r {
-        Err(EstimationError::Refused { message, .. }) => message,
+        Err(EstimationError::Refused { message, .. }) => message.into_string(),
         other => panic!("expected a refusal, got {other:?}"),
     }
 }
@@ -190,10 +191,28 @@ fn mediation_exact_scm_recovers_closed_form_effects() {
     assert!((est.mediator.residual_variance - s.sigma2).abs() < 1e-9);
     assert!((est.mediator.coefficients[1] - s.alpha).abs() < 1e-9);
     assert!(est.integration_error < 1e-10);
-    assert_eq!(est.calibration, "unmeasured");
-    assert_eq!(est.interval_status, "closed_calibration_unmeasured");
+    assert_eq!(est.calibration, "resolved_from_basis");
+    assert_eq!(est.interval_status, "percentile_bootstrap_interval");
     assert!(est.natural_direct_se.is_none(), "no replicates were requested");
+    assert!(est.natural_direct_interval.is_none(), "no replicates were requested");
     assert_eq!(est.n_rows, 40);
+}
+
+#[test]
+fn mediation_refuses_a_degree_or_node_count_above_the_supported_maximum() {
+    let g = grid(&base_scm());
+    let ignorable = NonlinearMediationPremises::sequentially_ignorable();
+    for config in [
+        NonlinearMediationConfig { outcome_degree: 5, ..config(16) },
+        NonlinearMediationConfig { outcome_degree: usize::MAX, ..config(16) },
+        config(65),
+        config(1 << 20),
+    ] {
+        assert!(
+            matches!(run(&g, &ignorable, &config), Err(EstimationError::Refused { .. })),
+            "{config:?}"
+        );
+    }
 }
 
 #[test]
@@ -211,15 +230,33 @@ fn mediation_quadrature_error_check_reports_and_refuses() {
     assert!((fine.natural_direct - nde).abs() < 1e-8);
     assert!((fine.natural_indirect - nie).abs() < 1e-8);
     assert!((fine.total - te).abs() < 1e-8);
-    // 1 node is the plug-in mean (drops the 3*mu*sigma2 term); 2 nodes are exact for a cubic,
-    // so the n versus 2n disagreement is sigma2-sized and is refused at the 1e-6 tolerance.
-    let msg = refusal_message(run(&g, &ignorable, &cubic(1)));
-    assert!(msg.contains("nonlinear_mediation.integration_error"), "{msg}");
-    // With a loose tolerance the estimate is returned at 2 nodes with the error reported,
-    // and it still equals the closed form because 2 nodes are exact for degree 3.
-    let loose = NonlinearMediationConfig { integration_tolerance: 10.0, ..cubic(1) };
-    let est = run(&g, &ignorable, &loose).expect("loose");
-    assert!(est.integration_error > 1e-3, "error {}", est.integration_error);
+    // A declared node count below what the outcome degree needs is raised to the least count
+    // that integrates the degree exactly, so one declared node still returns the closed form
+    // (a single node would be the plug-in mean and drop the 3*mu*sigma2 term).
+    let raised = run(&g, &ignorable, &cubic(1)).expect("raised");
+    assert!(raised.quadrature_nodes > 1, "nodes {}", raised.quadrature_nodes);
+    assert!(raised.integration_error < 1e-10, "error {}", raised.integration_error);
+    assert!((raised.natural_indirect - nie).abs() < 1e-8);
+    assert!((raised.natural_direct - nde).abs() < 1e-8);
+    // The check itself still compares the n and 2n node effects: a tolerance below their
+    // rounding-level disagreement refuses, and one at or above it returns the estimate with
+    // the error reported.
+    let strict = NonlinearMediationConfig { integration_tolerance: f64::MIN_POSITIVE, ..cubic(1) };
+    match run(&g, &ignorable, &strict) {
+        Err(EstimationError::Refused { code, message }) => {
+            assert_eq!(code, "mechanism_fit_not_converged");
+            assert!(
+                message.contains(
+                    antecedent_core::reason_details::nonlinear_mediation::INTEGRATION_ERROR
+                ),
+                "{message}"
+            );
+        }
+        other => panic!("a tolerance below the rounding disagreement must refuse, got {other:?}"),
+    }
+    let loose = NonlinearMediationConfig { integration_tolerance: 1e-6, ..cubic(1) };
+    let est = run(&g, &ignorable, &loose).expect("tolerance above the rounding disagreement");
+    assert!(est.integration_error > 0.0 && est.integration_error < 1e-6);
     assert!((est.natural_indirect - nie).abs() < 1e-8);
 }
 
@@ -243,20 +280,33 @@ fn mediation_confounding_and_cross_world_premises_are_refused() {
     ];
     for premises in &mut flags {
         let msg = refusal_message(run(&g, premises, &cfg));
-        assert!(msg.contains("nonlinear_mediation.confounding"), "{msg}");
+        assert!(
+            msg.contains(antecedent_core::reason_details::nonlinear_mediation::CONFOUNDING),
+            "{msg}"
+        );
     }
     let induced = NonlinearMediationPremises {
         treatment_induced_mediator_outcome_confounders: vec!["L".to_string()],
         ..NonlinearMediationPremises::sequentially_ignorable()
     };
     let msg = refusal_message(run(&g, &induced, &cfg));
-    assert!(msg.contains("nonlinear_mediation.treatment_induced_confounding"), "{msg}");
+    assert!(
+        msg.contains(
+            antecedent_core::reason_details::nonlinear_mediation::TREATMENT_INDUCED_CONFOUNDING
+        ),
+        "{msg}"
+    );
     let no_cross_world = NonlinearMediationPremises {
         cross_world_independence: false,
         ..NonlinearMediationPremises::sequentially_ignorable()
     };
     let msg = refusal_message(run(&g, &no_cross_world, &cfg));
-    assert!(msg.contains("nonlinear_mediation.cross_world_independence_not_declared"), "{msg}");
+    assert!(
+        msg.contains(
+            antecedent_core::reason_details::nonlinear_mediation::CROSS_WORLD_INDEPENDENCE_NOT_DECLARED
+        ),
+        "{msg}"
+    );
     let interventional = NonlinearMediationConfig {
         estimand: NonlinearMediationEstimand::InterventionalEffects,
         ..cfg
@@ -266,7 +316,12 @@ fn mediation_confounding_and_cross_world_premises_are_refused() {
         &NonlinearMediationPremises::sequentially_ignorable(),
         &interventional,
     ));
-    assert!(msg.contains("nonlinear_mediation.interventional_effects_closed"), "{msg}");
+    assert!(
+        msg.contains(
+            antecedent_core::reason_details::nonlinear_mediation::INTERVENTIONAL_EFFECTS_NOT_SUPPORTED
+        ),
+        "{msg}"
+    );
 }
 
 #[test]
@@ -290,7 +345,7 @@ fn mediation_weak_overlap_is_refused() {
     let g = grid(&s);
     let msg =
         refusal_message(run(&g, &NonlinearMediationPremises::sequentially_ignorable(), &config(8)));
-    assert!(msg.contains("nonlinear_mediation.overlap"), "{msg}");
+    assert!(msg.contains(antecedent_core::reason_details::nonlinear_mediation::OVERLAP), "{msg}");
     // An unpopulated treated arm is the same refusal on counts.
     let full = grid(&base_scm());
     let keep: Vec<usize> = {
@@ -317,7 +372,7 @@ fn mediation_weak_overlap_is_refused() {
         &NonlinearMediationPremises::sequentially_ignorable(),
         &config(8),
     ));
-    assert!(msg.contains("nonlinear_mediation.overlap"), "{msg}");
+    assert!(msg.contains(antecedent_core::reason_details::nonlinear_mediation::OVERLAP), "{msg}");
 }
 
 #[test]
@@ -349,7 +404,11 @@ fn mediation_linear_g_matches_product_of_coefficients_cross_check() {
 }
 
 #[test]
-fn mediation_bootstrap_is_deterministic_and_closed_for_intervals() {
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
+fn mediation_bootstrap_is_deterministic_and_has_no_intervals() {
     let g = grid(&base_scm());
     let ignorable = NonlinearMediationPremises::sequentially_ignorable();
     let cfg = NonlinearMediationConfig { bootstrap_replicates: 30, seed: 7, ..config(8) };
@@ -357,8 +416,56 @@ fn mediation_bootstrap_is_deterministic_and_closed_for_intervals() {
     let b = run(&g, &ignorable, &cfg).expect("second");
     assert_eq!(a, b, "same seed must reproduce the whole estimate");
     let se = a.natural_direct_se.expect("direct se");
-    assert!(se > 0.0 && se.is_finite());
     assert!(a.natural_indirect_se.is_some() && a.total_se.is_some());
+    // Independent bootstrap reference. The documented replicate scheme is: replicate `r` seeds a
+    // splitmix64 stream with mix64((seed ^ mix64(r + 1)) + GOLDEN_GAMMA) and draws n row indices
+    // as `next % n`. Each resampled data set is analysed here through the public estimator
+    // (whose point estimates are pinned to the closed-form SCM truth above), and the standard
+    // errors are the sample standard deviations of the replicate effects.
+    let rows = g.a.len();
+    let (mut direct, mut indirect, mut total) = (Vec::new(), Vec::new(), Vec::new());
+    for replicate in 0..30_u64 {
+        let mut state = antecedent_core::mix64(
+            (cfg.seed ^ antecedent_core::mix64(replicate + 1))
+                .wrapping_add(antecedent_core::GOLDEN_GAMMA),
+        );
+        let picks: Vec<usize> = (0..rows)
+            .map(|_| (antecedent_core::splitmix64(&mut state) % rows as u64) as usize)
+            .collect();
+        let resampled = Grid {
+            a: picks.iter().map(|&i| g.a[i]).collect(),
+            m: picks.iter().map(|&i| g.m[i]).collect(),
+            y: picks.iter().map(|&i| g.y[i]).collect(),
+            x: picks.iter().map(|&i| g.x[i]).collect(),
+        };
+        // Replicate refits are not subject to the point-estimate support refusal, so it is
+        // lifted here (resamples can leave the cross-world law outside the treated range).
+        let no_bootstrap =
+            NonlinearMediationConfig { bootstrap_replicates: 0, max_support_violation: 1.0, ..cfg };
+        if let Ok(replicate_fit) = run(&resampled, &ignorable, &no_bootstrap) {
+            direct.push(replicate_fit.natural_direct);
+            indirect.push(replicate_fit.natural_indirect);
+            total.push(replicate_fit.total);
+        }
+    }
+    let sample_sd = |v: &[f64]| {
+        let mean = v.iter().sum::<f64>() / v.len() as f64;
+        (v.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (v.len() as f64 - 1.0)).sqrt()
+    };
+    assert_eq!(direct.len() as u32, a.bootstrap.replicates_succeeded);
+    for (reported, replicates, name) in [
+        (a.natural_direct_se.unwrap(), &direct, "direct"),
+        (a.natural_indirect_se.unwrap(), &indirect, "indirect"),
+        (a.total_se.unwrap(), &total, "total"),
+    ] {
+        let expected = sample_sd(replicates);
+        assert!(expected > 0.0, "{name}");
+        assert!(
+            (reported - expected).abs() < 1e-8 * (1.0 + expected),
+            "{name} bootstrap SE {reported} vs independent replication {expected}"
+        );
+    }
+    assert!(se > 0.0 && se.is_finite());
     assert_eq!(
         u64::from(a.bootstrap.replicates_succeeded) + a.bootstrap.failed_replicate_ids.len() as u64,
         30
@@ -366,8 +473,43 @@ fn mediation_bootstrap_is_deterministic_and_closed_for_intervals() {
     let other = NonlinearMediationConfig { seed: 8, ..cfg };
     let c = run(&g, &ignorable, &other).expect("other seed");
     assert_ne!(a.natural_direct_se, c.natural_direct_se);
-    assert_eq!(a.calibration, "unmeasured");
-    assert_eq!(a.interval_status, "closed_calibration_unmeasured");
+    // The percentile intervals are the type-7 (linear interpolation) quantiles of the same
+    // independently recomputed replicate effects, at the declared level.
+    assert!((a.interval_level - 0.95).abs() < 1e-15);
+    assert!(a.interval_unavailable_reason.is_none());
+    let type7 = |v: &[f64], p: f64| {
+        let mut sorted = v.to_vec();
+        sorted.sort_by(f64::total_cmp);
+        let h = (sorted.len() - 1) as f64 * p;
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "the index is floor of a non-negative position below the replicate count"
+        )]
+        let lo = h.floor() as usize;
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "the index is floor of a non-negative position below the replicate count"
+        )]
+        let hi = h.ceil() as usize;
+        sorted[lo] + (h - lo as f64) * (sorted[hi] - sorted[lo])
+    };
+    for (reported, replicates, name) in [
+        (a.natural_direct_interval.unwrap(), &direct, "direct"),
+        (a.natural_indirect_interval.unwrap(), &indirect, "indirect"),
+        (a.total_interval.unwrap(), &total, "total"),
+    ] {
+        let expected = (type7(replicates, 0.025), type7(replicates, 0.975));
+        assert!(
+            (reported.0 - expected.0).abs() < 1e-8 * (1.0 + expected.0.abs())
+                && (reported.1 - expected.1).abs() < 1e-8 * (1.0 + expected.1.abs()),
+            "{name} interval {reported:?} vs independent type-7 {expected:?}"
+        );
+        assert!(reported.0 < reported.1, "{name}");
+    }
+    assert_eq!(a.calibration, "resolved_from_basis");
+    assert_eq!(a.interval_status, "percentile_bootstrap_interval");
 }
 
 #[test]
@@ -404,7 +546,10 @@ fn mediation_posterior_refuses_a_mapped_prior() {
     let EstimationError::Refused { message, .. } = err else {
         panic!("expected a refusal");
     };
-    assert!(message.contains("mediation_posterior.mapped_prior"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::mediation_posterior::MAPPED_PRIOR),
+        "{message}"
+    );
 }
 
 #[test]
@@ -440,5 +585,30 @@ fn mediation_posterior_consumer_replays_the_design_summary() {
     let EstimationError::Refused { message, .. } = err else {
         panic!("expected a refusal");
     };
-    assert!(message.contains("mediation_posterior.empty_design"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::mediation_posterior::EMPTY_DESIGN),
+        "{message}"
+    );
+}
+
+#[test]
+fn a_cancelled_context_stops_the_estimate_without_a_claim() {
+    let g = grid(&base_scm());
+    let covs = [g.x.as_slice()];
+    let input = NonlinearMediationInput {
+        treatment: &g.a,
+        mediator: &g.m,
+        outcome: &g.y,
+        covariates: &covs,
+    };
+    let ctx = ExecutionContext::for_tests(1);
+    ctx.cancellation.cancel();
+    let cfg = NonlinearMediationConfig { bootstrap_replicates: 50, ..config(8) };
+    let message = refusal_message(estimate_nonlinear_mediation(
+        &input,
+        &NonlinearMediationPremises::sequentially_ignorable(),
+        &cfg,
+        &ctx,
+    ));
+    assert!(message.contains("cancelled"), "{message}");
 }

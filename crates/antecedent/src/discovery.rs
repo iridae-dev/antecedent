@@ -1,9 +1,18 @@
-//! Coarse discovery stage APIs for the facade.
+//! Discovery parameters, result types and the search engines the compiled
+//! structure-discovery route runs.
 //!
-//! Bindings and analysis call these instead of constructing PCMCI-family
-//! algorithms directly when the facade covers the stage.
+//! A structure search is a compiled route: build a [`crate::DiscoverySpec`]
+//! from the parameters here, start the study with
+//! [`crate::StudyBuilder::discovery`], prepare it and estimate. The prepared
+//! handle returns the search engine's own result together with a
+//! [`crate::CausalContract`] and a claim; [`crate::accept_discovered`]
+//! accepts the structure through its review gate and records its provenance.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+//! The `discover_*` functions are the engines that route runs. They are hidden
+//! from the public surface: called directly they return a structure with no
+//! contract, plan, claim or provenance.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -17,18 +26,19 @@ use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::{MultiEnvironmentData, TabularData, TimeSeriesData};
+use antecedent_discovery::DiscoveryConstraints;
 pub use antecedent_discovery::{
     BackgroundKnowledge, CiScreenedPosterior, CiSoftWeight, ContextKind, CpdagDiscoveryResult,
     DagDiscoveryResult, DbnPosterior, DirectLingam, DiscoveryPerformanceRecord,
-    EXACT_ENUM_MAX_NODES, EXACT_MARGINAL_MAX_NODES, ExactDagMarginals, ExactDagPosterior, Fci, Ges,
-    GraphPosterior, GraphPosteriorAtomKind, GraphPosteriorEngine, GraphPrior, JpcmciNodeRole,
-    JpcmciPlus, LaggedParent, Lpcmci, MultiDatasetConstraints, Notears, NotearsDiscoveryResult,
-    OrderMcmc, PagDiscoveryResult, Pc, PcSepsets, RegimeAssignment, RegimeGraphCollection, Rfci,
-    Rpcmci, RpcmciDiscoveryResult, SamplingSummary, ScoredLink, SpaceDummyCiMode,
-    StaticCpdagDiscoveryResult, StaticDagDiscoveryResult, StaticPagDiscoveryResult, StructureMcmc,
+    EXACT_ENUM_MAX_NODES, EXACT_MARGINAL_MAX_NODES, EdgePriors, ExactDagMarginals,
+    ExactDagPosterior, Fci, Ges, GraphPosterior, GraphPosteriorAtomKind, GraphPosteriorEngine,
+    GraphPrior, JpcmciNodeRole, JpcmciPlus, LaggedParent, Lpcmci, MultiDatasetConstraints, Notears,
+    NotearsDiscoveryResult, OrderMcmc, PagDiscoveryResult, Pc, PcSepsets, RegimeAssignment,
+    RegimeGraphCollection, Rfci, Rpcmci, RpcmciDiscoveryResult, SamplingSummary, ScoredLink,
+    ScreenedMarginals, SoftTiers, SpaceDummyCiMode, StaticCpdagDiscoveryResult,
+    StaticDagDiscoveryResult, StaticPagDiscoveryResult, StructureMcmc, StructureStability,
     TimeDummyCiMode, adjacency_mask_from_cpdag, adjacency_masks_from_pag, two_regime_half_split,
 };
-use antecedent_discovery::{DiscoveryConstraints, DiscoveryWorkspace, Pcmci, PcmciPlus};
 use antecedent_graph::{DenseNodeId, Endpoint, TemporalPag};
 pub use antecedent_prob::InferenceDiagnostics;
 use antecedent_state::GraphScoreFamily;
@@ -157,11 +167,23 @@ fn constrained(
     constraints
 }
 
+/// A temporal discoverer configured from `params`: its FDR adjustment, the given
+/// `constraints` and the conditional-independence test.
+macro_rules! temporal_discoverer {
+    ($algorithm:expr, $params:expr, $constraints:expr) => {
+        $algorithm
+            .with_fdr_adjustment($params.fdr)
+            .with_constraints($constraints)
+            .with_ci(Arc::clone(&$params.ci))
+    };
+}
+
 /// Run lagged PCMCI.
 ///
 /// # Errors
 ///
 /// Discovery failures, or background knowledge the search cannot honour.
+#[doc(hidden)]
 pub fn discover_pcmci(
     data: &TimeSeriesData,
     variables: &[VariableId],
@@ -173,13 +195,14 @@ pub fn discover_pcmci(
 }
 
 fn pcmci_for(params: &DiscoverParams) -> Pcmci {
-    Pcmci::new()
-        .with_fdr_adjustment(params.fdr)
-        .with_constraints(constrained(
+    temporal_discoverer!(
+        Pcmci::new(),
+        params,
+        constrained(
             pcmci_constraints(params.max_lag, params.alpha, params.max_cond_size),
             &params.knowledge,
-        ))
-        .with_ci(Arc::clone(&params.ci))
+        )
+    )
 }
 
 /// Run PCMCI over the units of a panel.
@@ -191,6 +214,7 @@ fn pcmci_for(params: &DiscoverParams) -> Pcmci {
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_pcmci_panel(
     units: &[TimeSeriesData],
     variables: &[VariableId],
@@ -206,6 +230,7 @@ pub fn discover_pcmci_panel(
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_pcmci_plus(
     data: &TimeSeriesData,
     variables: &[VariableId],
@@ -217,13 +242,14 @@ pub fn discover_pcmci_plus(
 }
 
 fn pcmci_plus_for(params: &DiscoverParams) -> PcmciPlus {
-    PcmciPlus::new()
-        .with_fdr_adjustment(params.fdr)
-        .with_constraints(constrained(
+    temporal_discoverer!(
+        PcmciPlus::new(),
+        params,
+        constrained(
             contemporaneous_constraints(params.max_lag, params.alpha, params.max_cond_size),
             &params.knowledge,
-        ))
-        .with_ci(Arc::clone(&params.ci))
+        )
+    )
 }
 
 /// Run PCMCI+ over the units of a panel (see [`discover_pcmci_panel`]).
@@ -231,6 +257,7 @@ fn pcmci_plus_for(params: &DiscoverParams) -> PcmciPlus {
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_pcmci_plus_panel(
     units: &[TimeSeriesData],
     variables: &[VariableId],
@@ -246,6 +273,7 @@ pub fn discover_pcmci_plus_panel(
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_lpcmci(
     data: &TimeSeriesData,
     variables: &[VariableId],
@@ -257,14 +285,11 @@ pub fn discover_lpcmci(
 }
 
 fn lpcmci_for(params: &DiscoverParams) -> Lpcmci {
-    Lpcmci::new()
-        .with_fdr_adjustment(params.fdr)
-        .with_constraints(contemporaneous_constraints(
-            params.max_lag,
-            params.alpha,
-            params.max_cond_size,
-        ))
-        .with_ci(Arc::clone(&params.ci))
+    temporal_discoverer!(
+        Lpcmci::new(),
+        params,
+        contemporaneous_constraints(params.max_lag, params.alpha, params.max_cond_size)
+    )
 }
 
 /// Run LPCMCI over the units of a panel (see [`discover_pcmci_panel`]).
@@ -272,6 +297,7 @@ fn lpcmci_for(params: &DiscoverParams) -> Lpcmci {
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_lpcmci_panel(
     units: &[TimeSeriesData],
     variables: &[VariableId],
@@ -287,21 +313,23 @@ pub fn discover_lpcmci_panel(
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_jpcmci_plus(
     data: &MultiEnvironmentData,
     variables: &[VariableId],
     params: &DiscoverParams,
     ctx: &ExecutionContext,
 ) -> Result<CpdagDiscoveryResult, CausalError> {
-    let alg = JpcmciPlus::new()
-        .with_fdr_adjustment(params.fdr)
-        .with_constraints(jpcmci_constraints(
+    let alg = temporal_discoverer!(
+        JpcmciPlus::new(),
+        params,
+        jpcmci_constraints(
             params.max_lag,
             params.alpha,
             params.max_cond_size,
             params.multi_dataset.clone(),
-        ))
-        .with_ci(Arc::clone(&params.ci));
+        )
+    );
     let mut ws = DiscoveryWorkspace::default();
     Ok(alg.run(data, variables, &mut ws, ctx)?)
 }
@@ -311,6 +339,7 @@ pub fn discover_jpcmci_plus(
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_rpcmci(
     data: &TimeSeriesData,
     variables: &[VariableId],
@@ -319,14 +348,11 @@ pub fn discover_rpcmci(
     min_regime_len: Option<usize>,
     ctx: &ExecutionContext,
 ) -> Result<RpcmciDiscoveryResult, CausalError> {
-    let plus = PcmciPlus::new()
-        .with_fdr_adjustment(params.fdr)
-        .with_constraints(contemporaneous_constraints(
-            params.max_lag,
-            params.alpha,
-            params.max_cond_size,
-        ))
-        .with_ci(Arc::clone(&params.ci));
+    let plus = temporal_discoverer!(
+        PcmciPlus::new(),
+        params,
+        contemporaneous_constraints(params.max_lag, params.alpha, params.max_cond_size)
+    );
     let alg = Rpcmci::new()
         .with_min_regime_len(min_regime_len.unwrap_or(DEFAULT_RPCMCI_MIN_REGIME_LEN))
         .with_pcmci_plus(plus);
@@ -349,6 +375,7 @@ fn static_fdr(params: &StaticDiscoverParams) -> Option<FdrAdjustment> {
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_pc(
     data: &TabularData,
     variables: &[VariableId],
@@ -369,6 +396,7 @@ pub fn discover_pc(
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_fci(
     data: &TabularData,
     variables: &[VariableId],
@@ -389,6 +417,7 @@ pub fn discover_fci(
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_rfci(
     data: &TabularData,
     variables: &[VariableId],
@@ -409,6 +438,7 @@ pub fn discover_rfci(
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_ges(
     data: &TabularData,
     variables: &[VariableId],
@@ -431,6 +461,7 @@ pub fn discover_ges(
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_lingam(
     data: &TabularData,
     variables: &[VariableId],
@@ -459,6 +490,7 @@ pub fn discover_lingam(
     clippy::too_many_arguments,
     reason = "public entry point whose parameters mirror the binding-level keyword list"
 )]
+#[doc(hidden)]
 pub fn discover_notears_with(
     data: &TabularData,
     variables: &[VariableId],
@@ -486,6 +518,7 @@ pub fn discover_notears_with(
 /// # Errors
 ///
 /// Discovery / solver failures, and `missing_policy_required` for a missing value.
+#[doc(hidden)]
 pub fn discover_notears(
     data: &TabularData,
     variables: &[VariableId],
@@ -503,6 +536,7 @@ pub fn discover_notears(
 /// # Errors
 ///
 /// Discovery failures (oversized graph, empty support, score/data errors).
+#[doc(hidden)]
 pub fn discover_exact_dag_posterior(
     data: &TabularData,
     variables: &[VariableId],
@@ -511,9 +545,50 @@ pub fn discover_exact_dag_posterior(
 ) -> Result<GraphPosterior, CausalError> {
     let eng = ExactDagPosterior::new();
     let mut ws = DiscoveryWorkspace::default();
-    Ok(eng
-        .run(data, variables, &params.prior, params.score_family, &mut ws, ctx)?
-        .with_algorithm("exact_dag_posterior"))
+    // The engine labels the posterior with the algorithm that produced it: a problem above the
+    // enumeration cap is routed to order MCMC and keeps that label.
+    Ok(eng.run(data, variables, &params.prior, params.score_family, &mut ws, ctx)?)
+}
+
+/// Exact posterior over PAG classes of the Gaussian maximal ancestral graphs of at most four
+/// variables, scored by BIC.
+///
+/// # Errors
+///
+/// More than four variables, missing or non-finite values, or no finite score.
+#[doc(hidden)]
+pub fn discover_exact_pag_posterior(
+    data: &TabularData,
+    variables: &[VariableId],
+    ctx: &ExecutionContext,
+) -> Result<GraphPosterior, CausalError> {
+    Ok(antecedent_discovery::exact_pag_posterior(data, variables, ctx)?)
+}
+
+/// Metropolis posterior over PAG classes of the Gaussian maximal ancestral graphs of two to
+/// eight variables.
+///
+/// # Errors
+///
+/// A bad schedule or variable count, missing or non-finite values, or no scorable graph.
+#[doc(hidden)]
+pub fn discover_pag_mcmc(
+    data: &TabularData,
+    variables: &[VariableId],
+    schedule: &GraphMcmcSchedule,
+    ctx: &ExecutionContext,
+) -> Result<GraphPosterior, CausalError> {
+    Ok(antecedent_discovery::pag_posterior_mcmc(
+        data,
+        variables,
+        antecedent_discovery::PagMcmcSchedule {
+            chains: schedule.n_chains as usize,
+            warmup: schedule.n_warmup as usize,
+            draws: schedule.n_draws as usize,
+            thin: schedule.thin as usize,
+        },
+        ctx,
+    )?)
 }
 
 /// Exact edge marginals of the DAG posterior for `7 ≤ n ≤ 12` variables (Gaussian BIC).
@@ -526,6 +601,7 @@ pub fn discover_exact_dag_posterior(
 /// # Errors
 ///
 /// More than [`EXACT_MARGINAL_MAX_NODES`] variables, invalid constraints, score/data errors.
+#[doc(hidden)]
 pub fn discover_exact_dag_marginals(
     data: &TabularData,
     variables: &[VariableId],
@@ -541,11 +617,182 @@ pub fn discover_exact_dag_marginals(
     )?)
 }
 
+/// Exact DAG posterior pooled across imputations: the exact posterior of every completed table
+/// (structure searched afresh on each), mixed with equal weight.
+///
+/// Every table must hold the same variables in the same order. The pooled mass of a graph is
+/// the mean of its per-imputation masses; the posterior is tagged
+/// `pooled_imputations(exact_dag_posterior)` and its diagnostics state the method.
+///
+/// # Errors
+///
+/// No table, a discovery failure on any table, or posteriors that do not pool.
+#[doc(hidden)]
+pub fn discover_pooled_exact_dag_posterior(
+    tables: &[TabularData],
+    variables: &[VariableId],
+    params: &BayesianDiscoverParams,
+    ctx: &ExecutionContext,
+) -> Result<GraphPosterior, CausalError> {
+    if params.score_family == antecedent_state::GraphScoreFamily::GaussianSignedUniform {
+        return Err(antecedent_discovery::DiscoveryError::unsupported(
+            "GaussianSignedUniform requires complete observations; the model has no observed-data likelihood for pooled imputations",
+        ).into());
+    }
+    let posteriors = tables
+        .iter()
+        .map(|table| discover_exact_dag_posterior(table, variables, params, ctx))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(GraphPosterior::pooled_over_imputations(&posteriors)?)
+}
+
+/// Exact DAG edge marginals pooled across imputations: the means of the per-imputation
+/// marginals, and the log of the mean of the per-imputation normalizers.
+///
+/// # Errors
+///
+/// No table, a discovery failure on any table, or marginals that do not pool.
+#[doc(hidden)]
+pub fn discover_pooled_exact_dag_marginals(
+    tables: &[TabularData],
+    variables: &[VariableId],
+    params: &BayesianDiscoverParams,
+    ctx: &ExecutionContext,
+) -> Result<ExactDagMarginals, CausalError> {
+    if params.score_family == antecedent_state::GraphScoreFamily::GaussianSignedUniform {
+        return Err(antecedent_discovery::DiscoveryError::unsupported(
+            "GaussianSignedUniform requires complete observations; the model has no observed-data likelihood for pooled imputations",
+        ).into());
+    }
+    let parts = tables
+        .iter()
+        .map(|table| discover_exact_dag_marginals(table, variables, params, ctx))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(ExactDagMarginals::pooled_over_imputations(&parts)?)
+}
+
+/// The posterior pooled across imputations: the equal-weight mixture of the per-imputation
+/// posteriors (draw sets, for a sampled search), whichever search produced them.
+///
+/// The pooled posterior states the method in its algorithm tag and diagnostics notes and keeps
+/// each imputation's Monte-Carlo diagnostics; see [`GraphPosterior::pooled_over_imputations`].
+///
+/// # Errors
+///
+/// No posterior, or posteriors that do not pool.
+pub fn pool_posteriors_over_imputations(
+    posteriors: &[GraphPosterior],
+) -> Result<GraphPosterior, CausalError> {
+    Ok(GraphPosterior::pooled_over_imputations(posteriors)?)
+}
+
+/// Order MCMC pooled across imputations: the chains run on every completed table.
+///
+/// # Errors
+///
+/// No table, a discovery failure on any table (including the diagnostics gate), or posteriors
+/// that do not pool.
+#[doc(hidden)]
+pub fn discover_pooled_order_mcmc(
+    tables: &[TabularData],
+    variables: &[VariableId],
+    params: &BayesianDiscoverParams,
+    schedule: &GraphMcmcSchedule,
+    require_diagnostics_gate: bool,
+    ctx: &ExecutionContext,
+) -> Result<GraphPosterior, CausalError> {
+    let posteriors = tables
+        .iter()
+        .map(|table| {
+            discover_order_mcmc(table, variables, params, schedule, require_diagnostics_gate, ctx)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    pool_posteriors_over_imputations(&posteriors)
+}
+
+/// Structure MCMC pooled across imputations.
+///
+/// # Errors
+///
+/// No table, a discovery failure on any table, or posteriors that do not pool.
+#[doc(hidden)]
+pub fn discover_pooled_structure_mcmc(
+    tables: &[TabularData],
+    variables: &[VariableId],
+    params: &BayesianDiscoverParams,
+    schedule: &GraphMcmcSchedule,
+    ctx: &ExecutionContext,
+) -> Result<GraphPosterior, CausalError> {
+    let posteriors = tables
+        .iter()
+        .map(|table| discover_structure_mcmc(table, variables, params, schedule, ctx))
+        .collect::<Result<Vec<_>, _>>()?;
+    pool_posteriors_over_imputations(&posteriors)
+}
+
+/// CI-screened posterior pooled across imputations: the screen and the chains run on every
+/// completed table.
+///
+/// # Errors
+///
+/// No table, a discovery failure on any table, or posteriors that do not pool.
+#[doc(hidden)]
+pub fn discover_pooled_ci_screened_posterior(
+    tables: &[TabularData],
+    variables: &[VariableId],
+    params: &BayesianDiscoverParams,
+    screen: &StaticDiscoverParams,
+    schedule: &GraphMcmcSchedule,
+    soft_weight: CiSoftWeight,
+    ctx: &ExecutionContext,
+) -> Result<GraphPosterior, CausalError> {
+    let posteriors = tables
+        .iter()
+        .map(|table| {
+            discover_ci_screened_posterior(
+                table,
+                variables,
+                params,
+                screen,
+                schedule,
+                soft_weight,
+                ctx,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    pool_posteriors_over_imputations(&posteriors)
+}
+
+/// Bounded-lag DBN template posterior pooled across completed series.
+///
+/// # Errors
+///
+/// No series, a discovery failure on any series, or posteriors that do not pool.
+#[doc(hidden)]
+pub fn discover_pooled_dbn_posterior(
+    series: &[TimeSeriesData],
+    variables: &[VariableId],
+    params: &BayesianDiscoverParams,
+    max_lag: u32,
+    force_mcmc: bool,
+    schedule: &GraphMcmcSchedule,
+    ctx: &ExecutionContext,
+) -> Result<GraphPosterior, CausalError> {
+    let posteriors = series
+        .iter()
+        .map(|one| {
+            discover_dbn_posterior(one, variables, params, max_lag, force_mcmc, schedule, ctx)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    pool_posteriors_over_imputations(&posteriors)
+}
+
 /// Order MCMC DAG posterior (Gaussian BIC).
 ///
 /// # Errors
 ///
 /// Discovery / diagnostics-gate failures.
+#[doc(hidden)]
 pub fn discover_order_mcmc(
     data: &TabularData,
     variables: &[VariableId],
@@ -558,9 +805,12 @@ pub fn discover_order_mcmc(
         .with_schedule(schedule.n_chains, schedule.n_warmup, schedule.n_draws, schedule.thin)
         .with_diagnostics_gate(require_diagnostics_gate);
     let mut ws = DiscoveryWorkspace::default();
-    Ok(eng
-        .run(data, variables, &params.prior, params.score_family, &mut ws, ctx)?
-        .with_algorithm("order_mcmc"))
+    let posterior = eng.run(data, variables, &params.prior, params.score_family, &mut ws, ctx)?;
+    // A problem too large for the order sampler is routed to structure MCMC and tagged so.
+    if posterior.algorithm().is_some_and(|tag| &**tag == "order_mcmc_via_structure_mcmc") {
+        return Ok(posterior);
+    }
+    Ok(posterior.with_algorithm("order_mcmc"))
 }
 
 /// Structure MCMC DAG posterior (Gaussian BIC).
@@ -568,6 +818,7 @@ pub fn discover_order_mcmc(
 /// # Errors
 ///
 /// Discovery / diagnostics-gate failures.
+#[doc(hidden)]
 pub fn discover_structure_mcmc(
     data: &TabularData,
     variables: &[VariableId],
@@ -592,6 +843,7 @@ pub fn discover_structure_mcmc(
 /// # Errors
 ///
 /// Screening, empty skeleton, or MCMC failures.
+#[doc(hidden)]
 pub fn discover_ci_screened_posterior(
     data: &TabularData,
     variables: &[VariableId],
@@ -612,6 +864,10 @@ pub fn discover_ci_screened_posterior(
         .with_constraints(static_pc_constraints(screen.alpha, screen.max_cond_size))
         .with_ci(Arc::clone(&screen.ci))
         .with_soft_weight(soft_weight)
+        // A test that fails to reject a weak edge has shown low power, not independence: keep
+        // the pair proposable unless the marginal likelihood decisively supports its absence,
+        // so the published credible set can reach the true structure at every sample size.
+        .with_retain_undecided(true)
         .with_mcmc(mcmc);
     // Preserve FDR from screen (CiScreenedPosterior::new sets a default).
     let mut eng = eng;
@@ -622,11 +878,55 @@ pub fn discover_ci_screened_posterior(
         .with_algorithm("ci_screened_posterior"))
 }
 
+/// Screen a wide variable set by conditional independence, then compute the exact edge
+/// marginals of at most [`EXACT_MARGINAL_MAX_NODES`] variables around `focus`, with the screen's
+/// edges as per-edge prior probabilities. Every marginal is conditional on the screen.
+///
+/// # Errors
+///
+/// Screening failures, an empty or unknown `focus`, a set size above the exact ceiling,
+/// probabilities outside `(0, 1)`, or the exact computation's refusals.
+#[doc(hidden)]
+#[allow(clippy::too_many_arguments, reason = "one screened question, stated field by field")]
+pub fn discover_screened_exact_marginals(
+    data: &TabularData,
+    variables: &[VariableId],
+    focus: &[VariableId],
+    max_variables: usize,
+    params: &BayesianDiscoverParams,
+    screen: &StaticDiscoverParams,
+    in_probability: f64,
+    out_probability: f64,
+    ctx: &ExecutionContext,
+) -> Result<ExactDagMarginals, CausalError> {
+    let eng = CiScreenedPosterior::new()
+        .with_constraints(static_pc_constraints(screen.alpha, screen.max_cond_size))
+        .with_ci(Arc::clone(&screen.ci))
+        .with_retain_undecided(true);
+    let mut eng = eng;
+    eng.fdr = static_fdr(screen);
+    let mut ws = DiscoveryWorkspace::default();
+    let screened = eng.screen_then_exact_marginals(
+        data,
+        variables,
+        focus,
+        max_variables,
+        &params.prior,
+        in_probability,
+        out_probability,
+        params.score_family,
+        &mut ws,
+        ctx,
+    )?;
+    Ok(screened.marginals)
+}
+
 /// Bounded-lag DBN template posterior from a time series (Gaussian BIC).
 ///
 /// # Errors
 ///
 /// Short series, unsupported size, score, or empty support.
+#[doc(hidden)]
 pub fn discover_dbn_posterior(
     data: &TimeSeriesData,
     variables: &[VariableId],
@@ -654,6 +954,7 @@ fn dbn_posterior_for(max_lag: u32, force_mcmc: bool, schedule: &GraphMcmcSchedul
 /// # Errors
 ///
 /// No usable rows, unsupported size, score, or empty support.
+#[doc(hidden)]
 pub fn discover_dbn_posterior_panel(
     units: &[TimeSeriesData],
     variables: &[VariableId],
@@ -691,4 +992,50 @@ pub fn pag_definite_directed_edge_count(pag: &TemporalPag) -> u64 {
         }
     }
     directed
+}
+
+// --- Further items the language bindings use, re-exported from their defining crates ---
+
+/// Discovery errors.
+pub use antecedent_discovery::DiscoveryError;
+/// Shared PCMCI engine: PC-style parents + MCI.
+pub use antecedent_discovery::DiscoveryWorkspace;
+/// Discovery result types.
+pub use antecedent_discovery::LaggedLink;
+/// Public lagged PCMCI algorithm.
+pub use antecedent_discovery::Pcmci;
+/// PCMCI+ returning a temporal CPDAG.
+pub use antecedent_discovery::PcmciPlus;
+/// Graph prior / posterior types and Bayesian discovery engine trait.
+pub use antecedent_discovery::n_directed_edges;
+/// Packed directed-edge set of one graph-posterior atom.
+pub use antecedent_discovery::{AdjacencyMask, LagMask};
+/// Packed directed-edge set of one graph-posterior atom.
+pub mod adjacency_mask {
+    pub use antecedent_discovery::adjacency_mask::{
+        adjacency_mask_from_admg, adjacency_mask_from_cpdag, adjacency_masks_from_pag, has_edge,
+        mask_is_dag,
+    };
+}
+/// Discovery constraints with compiled masks (§13.4 / §13.8).
+pub mod constraints {
+    pub use antecedent_discovery::constraints::{CiMaskType, DiscoveryConstraints};
+}
+/// Selective discovery: reuse of conditional-independence statistics across discovery requests.
+pub mod selective {
+    pub use antecedent_discovery::selective::{
+        Mark, StructureEdge, StructureNode, request_downstream_interval, request_recovery_claim,
+        request_score_search_reuse,
+    };
+}
+/// Lagged temporal-ADMG posterior atoms.
+pub mod temporal_admg_atoms {
+    pub use antecedent_discovery::temporal_admg_atoms::with_lagged_edge;
+}
+
+/// Signed-uniform structural graph probabilities for a partially observed table.
+pub mod observed_marginals {
+    pub use antecedent_discovery::observed_marginals::{
+        ObservedMarginals, signed_uniform_observed_marginals,
+    };
 }

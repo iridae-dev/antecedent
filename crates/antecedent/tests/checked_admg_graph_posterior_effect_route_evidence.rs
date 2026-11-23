@@ -1,6 +1,7 @@
 //! Builder-independent evidence for ADMG graph-posterior average effects.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
@@ -8,7 +9,7 @@ use antecedent_discovery::{
     GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_admg, set_edge,
 };
 use antecedent_graph::{Admg, DenseNodeId};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use antecedent_prob::InferenceDiagnostics;
 
 fn fixture() -> (TabularData, Admg, AverageEffectQuery, f64) {
@@ -98,20 +99,21 @@ fn admg_graph_posterior_effect_is_sealed_for_both_inference_modes() {
             let context = ExecutionContext::for_tests(84_004);
             let mut prepared = builder.prepare(&context).unwrap();
             drop(builder);
-            let plan = prepared
-                .checked_graph_posterior_effect_info()
-                .expect("prepared ADMG graph-posterior plan");
+            let RetainedOperation::GraphPosteriorEffect(plan) = prepared.retained_operation()
+            else {
+                panic!("prepared ADMG graph-posterior plan")
+            };
             assert_eq!(plan.query, query);
             assert_eq!(plan.estimator.as_str(), "functional.effect");
             assert_eq!(plan.validation, suite);
             assert_eq!(plan.weights.as_ref(), &[0.8, 0.2]);
-            assert_eq!(plan.graph_keys.as_ref(), graphs.graph_keys.as_ref());
+            assert_eq!(plan.graph_keys.as_ref(), graphs.graph_keys().as_ref());
             let result = prepared.estimate(&data, &context).unwrap();
-            let tolerance = if bayesian { 0.05 } else { 1e-9 };
+            let tolerance = if bayesian { 0.003 } else { 1e-9 };
             assert!(
-                (result.estimate.as_effect().unwrap().ate - truth).abs() < tolerance,
+                (result.estimate().as_effect().unwrap().ate - truth).abs() < tolerance,
                 "bayesian={bayesian} suite={suite:?}: {} vs {truth}",
-                result.estimate.as_effect().unwrap().ate
+                result.estimate().as_effect().unwrap().ate
             );
             let mixture = result.structural_response.as_ref().expect("mixture");
             assert!((mixture.identified_mass - 0.8).abs() < 1e-12);
@@ -135,22 +137,25 @@ fn admg_graph_posterior_effect_is_sealed_for_both_inference_modes() {
                 }
                 RefuteSuite::PlaceboAndRcc => unreachable!(),
             }
-            let refreshed = prepared.refresh(data.clone(), &context).unwrap();
+            let refreshed = rebind_estimate(&mut prepared, data.clone(), &context).unwrap();
             assert!(
-                (refreshed.estimate.as_effect().unwrap().ate
-                    - result.estimate.as_effect().unwrap().ate)
+                (refreshed.estimate().as_effect().unwrap().ate
+                    - result.estimate().as_effect().unwrap().ate)
                     .abs()
                     < 1e-9
             );
-            let retained = prepared.checked_graph_posterior_effect_info().unwrap();
+            let RetainedOperation::GraphPosteriorEffect(retained) = prepared.retained_operation()
+            else {
+                panic!("retained ADMG graph-posterior plan")
+            };
             assert_eq!(retained.weights, plan.weights);
             assert_eq!(retained.graph_keys, plan.graph_keys);
             let artifact = prepared
                 .encode_contracted_result(&refreshed, "admg-graph-posterior-effect", &context)
                 .unwrap();
-            let consumed = consume_analysis_result(&artifact).unwrap();
+            let consumed = replay_analysis_result(&artifact).unwrap();
             assert!(
-                consumed.acceptance.accepts_as_verified_program()
+                consumed.acceptance.accepts_as_replayed_program()
                     || !consumed.acceptance.unresolved.is_empty(),
                 "independent consumer must verify the effect or explain its dependency refusal"
             );
@@ -163,4 +168,17 @@ fn admg_graph_posterior_effect_is_sealed_for_both_inference_modes() {
             );
         }
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

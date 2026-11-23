@@ -1,7 +1,8 @@
-//! Staged, licensed Bayesian robust ATE cell.
+//! Staged, supported Bayesian robust ATE cell.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{BayesianConfig, CellStatus, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, CausalQuery as CoreCausalQuery, VariableId};
 use antecedent_data::{TableView, TabularData};
@@ -53,13 +54,13 @@ fn bayesian_robust_ate_all_observed_staged_known_truth() {
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
-    assert_eq!(builder.support_status(), Some(CellStatus::Licensed));
+    assert_eq!(builder.support_status(), Some(CellStatus::Supported));
     let ctx = antecedent_core::ExecutionContext::for_tests(22);
     let one_shot = builder.run(&ctx).unwrap();
     let mut prepared = builder.prepare(&ctx).unwrap();
-    let plan = prepared
-        .checked_bayesian_robust_ate_info()
-        .expect("checked robust ATE plan survives builder disposal");
+    let RetainedOperation::BayesianRobustAte(plan) = prepared.retained_operation() else {
+        panic!("checked robust ATE plan survives builder disposal")
+    };
     assert_eq!(plan.query, query);
     assert_eq!(plan.posterior_draws, 80);
     assert_eq!(plan.adjustment_set.as_ref(), &[VariableId::from_raw(0)]);
@@ -69,14 +70,22 @@ fn bayesian_robust_ate_all_observed_staged_known_truth() {
     drop(builder);
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert!(
-        (one_shot.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate)
+        (one_shot.estimate().as_effect().unwrap().ate - result.estimate().as_effect().unwrap().ate)
             .abs()
             < 1e-12
     );
     assert!(result.posterior.is_some());
     assert!(
-        (result.estimate.as_effect().unwrap().ate - spec["truth"].as_f64().unwrap()).abs()
+        (result.estimate().as_effect().unwrap().ate - spec["truth"].as_f64().unwrap()).abs()
             < spec["tolerance"].as_f64().unwrap()
+    );
+    // The fixture band (0.25) is 25 times the observed error of 0.0099 on this noiseless
+    // design; the robust estimate recovers the effect to a few times that, while the
+    // unadjusted contrast (confounded by x) does not.
+    assert!(
+        (result.estimate().as_effect().unwrap().ate - spec["truth"].as_f64().unwrap()).abs() < 0.05,
+        "{}",
+        result.estimate().as_effect().unwrap().ate
     );
     assert!(
         result.diagnostics.iter().any(
@@ -84,12 +93,15 @@ fn bayesian_robust_ate_all_observed_staged_known_truth() {
         )
     );
     assert!(result.posterior.as_ref().unwrap().assumptions.entries.iter().any(|a| matches!(&a.assumption, antecedent_core::Assumption::ParametricRestriction(p) if p.id.as_ref() == "bayesian.robust_ate.modular_bootstrap_pushforward")));
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert_eq!(
-        refreshed.estimate.as_effect().unwrap().ate.to_bits(),
-        result.estimate.as_effect().unwrap().ate.to_bits()
+        refreshed.estimate().as_effect().unwrap().ate.to_bits(),
+        result.estimate().as_effect().unwrap().ate.to_bits()
     );
-    assert_eq!(prepared.checked_bayesian_robust_ate_info().unwrap(), plan);
+    let RetainedOperation::BayesianRobustAte(retained) = prepared.retained_operation() else {
+        panic!("checked robust ATE plan survives refresh")
+    };
+    assert_eq!(retained, plan);
     let x = data.float64_values(VariableId::from_raw(0)).unwrap();
     let treatment = data.float64_values(VariableId::from_raw(1)).unwrap();
     let outcome = data.float64_values(VariableId::from_raw(2)).unwrap();
@@ -99,10 +111,21 @@ fn bayesian_robust_ate_all_observed_staged_known_truth() {
         ("y", &outcome[..outcome.len() - 1]),
     ])
     .unwrap();
-    assert!(
-        prepared.refresh(shortened, &ctx).is_err(),
-        "refresh cannot replace the fixed row and fold identities"
-    );
+    // A branch on other rows carries the row and fold identities of those rows; the handle it
+    // was bound from keeps its own.
+    let shorter = prepared.rebind_data(shortened, &ctx).unwrap().materialize(&ctx).unwrap();
+    let RetainedOperation::BayesianRobustAte(rebound) = shorter.retained_operation() else {
+        panic!("a rebound branch keeps the checked robust ATE operation")
+    };
+    assert_eq!(rebound.row_ids.len(), data.row_count() - 1);
+    assert_eq!(rebound.fold_ids.len(), data.row_count() - 1);
+    assert_eq!(rebound.query, query);
+    assert_eq!(rebound.posterior_draws, 80);
+    let RetainedOperation::BayesianRobustAte(unchanged) = prepared.retained_operation() else {
+        panic!("the source handle keeps the checked robust ATE operation")
+    };
+    assert_eq!(unchanged.row_ids.len(), data.row_count());
+    assert_eq!(unchanged.fold_ids.len(), data.row_count());
     let encoded = prepared.encode_contracted_result(&refreshed, "robust-stage", &ctx).unwrap();
     let (_, _, artifact) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
     assert!(artifact.estimate.is_some());
@@ -110,11 +133,24 @@ fn bayesian_robust_ate_all_observed_staged_known_truth() {
     let (wire, draws) = antecedent_io::decode_causal_posterior_bytes(&bytes).unwrap();
     assert_eq!(wire.n_draws, 80);
     assert_eq!(draws.as_slice(), refreshed.posterior.as_ref().unwrap().draws.values.as_ref());
-    let consumed = antecedent_io::consume_analysis_result(&encoded).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&encoded).unwrap();
     assert!(
         consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_bayesian_robust_ate_operation"
         })
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

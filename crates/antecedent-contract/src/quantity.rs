@@ -4,6 +4,8 @@
 //! quantity. These types deliberately make no identification or calibration
 //! claim; a producer must bind them to a separately checked causal contract.
 
+use std::fmt::Write as _;
+
 /// The causal role of a variable in a quantity.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum QuantityRole {
@@ -96,12 +98,12 @@ impl ScientificQuantity {
             self.functional_id.as_str(),
             self.transform_id.as_str(),
         ] {
-            result.push_str(&format!("{}:{field}", field.len()));
+            let _ = write!(result, "{}:{field}", field.len());
         }
-        result.push_str(&format!("{}:", self.conditioning.len()));
+        let _ = write!(result, "{}:", self.conditioning.len());
         for condition in &self.conditioning {
             for field in [&condition.variable_id, &condition.value_id] {
-                result.push_str(&format!("{}:{field}", field.len()));
+                let _ = write!(result, "{}:{field}", field.len());
             }
         }
         result
@@ -198,6 +200,25 @@ impl ScientificQuantity {
         }
         Ok(())
     }
+}
+
+/// Positions of the first occurrence of each coordinate, in order.
+///
+/// A later coordinate that [`ScientificQuantity::require_same_coordinate`]
+/// accepts as an earlier one is omitted. The first coordinate is kept.
+#[must_use]
+pub fn deduped_coordinate_positions(coordinates: &[ScientificQuantity]) -> Vec<usize> {
+    let mut kept: Vec<&ScientificQuantity> = Vec::new();
+    let mut positions = Vec::new();
+    for (index, coordinate) in coordinates.iter().enumerate() {
+        let duplicate =
+            kept.iter().any(|earlier| earlier.require_same_coordinate(coordinate).is_ok());
+        if !duplicate {
+            kept.push(coordinate);
+            positions.push(index);
+        }
+    }
+    positions
 }
 
 /// What the randomness in a distribution represents.
@@ -342,5 +363,17 @@ mod tests {
         value = quantity();
         value.conditioning.push(value.conditioning[0].clone());
         assert_eq!(value.validate(), Err(QuantityMismatch::InvalidCoordinate));
+    }
+
+    #[test]
+    fn dedupe_keeps_the_first_coordinate() {
+        let first = quantity();
+        let mut renamed = first.clone();
+        renamed.variable_name = "display name".into();
+        let mut other = first.clone();
+        other.regime_id = "do(a=2)".into();
+        let coordinates = vec![first, other, renamed];
+        assert_eq!(deduped_coordinate_positions(&coordinates), vec![0, 1]);
+        assert_eq!(coordinates[0].variable_name, "outcome");
     }
 }

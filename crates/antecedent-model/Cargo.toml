@@ -13,6 +13,9 @@ categories.workspace = true
 description = "Structural causal models, mechanisms, and interventional sampling for the Antecedent engine; start with the `antecedent` crate"
 readme = "README.md"
 
+[package.metadata.scientific-test-features]
+mechanism_selection = ["ml-forest", "ml-gbdt"]
+
 [lints]
 workspace = true
 
@@ -24,8 +27,11 @@ antecedent-kernels = { workspace = true }
 antecedent-learn = { workspace = true }
 antecedent-stats = { workspace = true }
 thiserror = { workspace = true }
+serde = { workspace = true }
 
 [features]
+# Development build (never default): `not_supported` routes run and results list `would_refuse`.
+development = ["antecedent-core/development", "antecedent-data/development", "antecedent-graph/development", "antecedent-kernels/development", "antecedent-learn/development", "antecedent-stats/development"]
 default = []
 # Gaussian-process mechanism family (registry auto-fit path only — a deserialized
 # `MechanismSlot::GaussianProcess` always evaluates/samples regardless of this feature).
@@ -34,8 +40,8 @@ default = []
 # are multiples of the parents' RMS spread, noise levels multiples of the outcome's SD, the
 # signal variance is the outcome's variance and the prior mean its sample mean, so the fit
 # is equivariant to a change of units. The kernel is a single isotropic RBF (no ARD or
-# kernel selection) and the exact fit is O(n^3) per grid cell with no sparse/inducing-point
-# path, hence the `GP_FAMILY_MAX_ROWS` refusal. Family selection scores it out of fold, like
+# kernel selection) and the exact fit is O(n^3) per grid cell, so above `GP_EXACT_MAX_ROWS`
+# it switches to an inducing-point approximation. Family selection scores it out of fold, like
 # every other family. CI builds and tests this feature (`.github/workflows/ci.yml`).
 gaussian-process = []
 # Tree-ensemble mechanism families (registry auto-fit path only — a deserialized
@@ -47,6 +53,7 @@ ml-forest = ["antecedent-learn/ml-forest"]
 ml-full = ["ml-gbdt", "ml-forest"]
 
 [dev-dependencies]
+antecedent-core = { workspace = true, features = ["test-support"] }
 antecedent-identify = { workspace = true }
 criterion = { workspace = true }
 serde_json = { workspace = true }

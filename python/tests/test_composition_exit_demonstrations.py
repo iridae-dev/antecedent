@@ -1,6 +1,6 @@
 """Scientific demonstrations through released Python producers and independent consumers.
 
-Calibrated scalar examples execute their public routes regardless of promotion bookkeeping.
+Calibrated scalar examples execute their public routes regardless of capability bookkeeping.
 Broader unsupported methods retain explicit refusals; point results retain their stated scope.
 """
 
@@ -13,7 +13,9 @@ from typing import Any
 
 import pytest
 from antecedent import Admg, Cpdag
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalTypeError, CausalUnsupportedError
+from antecedent.execution import Execution
 from antecedent.inference import MeasuredInference
 from antecedent.temporal import (
     ConstancyConclusion,
@@ -49,26 +51,26 @@ ROOT = REPO_ROOT
 
 
 def _registry() -> dict[str, dict[str, Any]]:
-    with (ROOT / "parity" / "promotion.toml").open("rb") as handle:
+    with (ROOT / "parity" / "capability_records.toml").open("rb") as handle:
         records = tomllib.load(handle)["record"]
     return {r["id"]: r for r in records}
 
 
-def _route_is_closed(record_id: str, route: str) -> bool:
+def _route_is_unsupported(record_id: str, route: str) -> bool:
     routes = {r["name"]: r for r in _registry()[record_id]["routes"]}
     return routes[route]["status"] == "closed"
 
 
-def _refused_closed(call: Any, record_id: str, route: str, detail: str) -> None:
-    """Refuse with ``cell_not_licensed`` and the frozen detail while the registry says closed.
+def _refused_unsupported(call: Any, record_id: str, route: str, detail: str) -> None:
+    """Refuse with ``not_supported`` and the frozen detail while the registry says closed.
 
-    A route the registry has since opened is not called: its demonstration is a licence test.
+    A route the registry has since opened is not called: its demonstration is support test.
     """
-    if not _route_is_closed(record_id, route):
+    if not _route_is_unsupported(record_id, route):
         return
     with pytest.raises(CausalUnsupportedError) as caught:
         call()
-    assert caught.value.reason_code == "cell_not_licensed"
+    assert caught.value.reason_code == "not_supported"
     assert detail in str(caught.value)
     assert_registered_refusal(caught.value)
 
@@ -164,8 +166,8 @@ def test_demo_graph_selection_family_has_scenario_evidence_and_honest_mass() -> 
     assert not hasattr(result, "weights") and not hasattr(result, "mass")
     with pytest.raises(transport.CpdagScenarioRefusal) as aggregate:
         result.aggregate_interval()
-    assert aggregate.value.reason_code == "scenario_aggregate_not_licensed"
-    assert aggregate.value.detail == "scenarios.shared_data_aggregate"
+    assert aggregate.value.reason_code == "scenario_aggregate_not_supported"
+    assert aggregate.value.detail == reason_details.scenarios.SHARED_DATA_AGGREGATE
 
     # Scenario-specific evidence: a completion whose own evidence lacks a variable is missing
     # evidence and its mass is not redistributed; the envelope ranges over the others only.
@@ -179,7 +181,7 @@ def test_demo_graph_selection_family_has_scenario_evidence_and_honest_mass() -> 
     assert status == {FORWARD: "identified", FORK: "identified", BACKWARD: "missing_evidence"}
     assert (partial.counts.identified, partial.counts.unidentified) == (2, 1)
     assert partial.envelope.mean_range("c") == pytest.approx((0.8, 0.8), abs=1e-12)
-    consumed = transport.consume_cpdag_scenarios_artifact(partial.export())
+    consumed = transport.consume_cpdag_scenarios_artifact(bytes(partial.export()))
     assert consumed.counts == partial.counts and consumed.completions == partial.completions
 
     # Honest structural mass: a stopped enumeration counts what it never read as unevaluated and
@@ -213,7 +215,7 @@ def test_demo_graph_selection_family_has_scenario_evidence_and_honest_mass() -> 
         with pytest.raises(transport.ScenarioCovarianceRefusal) as unknown:
             _covariance(first, second)
         assert unknown.value.reason_code == "route_not_supported"
-        assert unknown.value.detail == "scenario_covariance.unknown_dependence"
+        assert unknown.value.detail == reason_details.scenario_covariance.UNKNOWN_DEPENDENCE
 
 
 # --------------------------------------------------------------------------------------------
@@ -224,6 +226,7 @@ VERMA_NODES = ["X1", "X2", "X3", "X4"]
 VERMA_DIRECTED = [("X1", "X2"), ("X2", "X3"), ("X3", "X4")]
 
 
+@pytest.mark.requires_calibration
 def test_demo_calibrated_bayesian_scalars_and_independent_replay() -> None:
     """Execute measured Bayesian scalars and independently replay their original evidence."""
     from test_measured_joint_transport import options, produce
@@ -233,10 +236,10 @@ def test_demo_calibrated_bayesian_scalars_and_independent_replay() -> None:
         collected = {record["id"] for record in tomllib.load(handle).get("record", [])}
     for result in (produce(False, options(False, "independent")), nested(True), nested(False)):
         assert isinstance(result, MeasuredInference)
-        assert result.source_report()["calibration"] == "unmeasured"
+        assert result.source_report()["calibration"] == "not_measured"
         assert all(scalar.calibration == "calibrated" for scalar in result.scalars)
         assert all(scalar.record_id in collected for scalar in result.scalars)
-        loaded = MeasuredInference.load(result.export(), expected=result.expected_identity)
+        loaded = MeasuredInference.load(bytes(result.export()), expected=result.expected_identity)
         assert loaded.inspect() == result.inspect()
         assert loaded.source_artifact() == result.source_artifact()
 
@@ -245,7 +248,7 @@ def test_demo_calibrated_bayesian_scalars_and_independent_replay() -> None:
         transport.binary_nested_markov(
             graph=verma, regimes=[{"counts": [250] * 16, "intervened": ["X2"]}]
         )
-    assert "nested_markov.outside_binary_pilot" in str(outside.value)
+    assert reason_details.nested_markov.OUTSIDE_BINARY_SCOPE in str(outside.value)
     assert "nonidentif" not in str(outside.value)
 
 
@@ -325,6 +328,7 @@ def _refusal(call: Any) -> TemporalExtensionRefusal:
     return caught.value
 
 
+@pytest.mark.requires_calibration
 def test_demo_temporal_initial_state_refresh_invalidation_and_constancy() -> None:
     # Initial-state integration. The enumerated two-step SCM gives R(s0=0) = 0.33, R(s0=1) = 0.46
     # for the sequence (0, 0); the target law P(s0=1) = 0.7 marginalizes to 0.3*0.33 + 0.7*0.46 =
@@ -344,7 +348,7 @@ def test_demo_temporal_initial_state_refresh_invalidation_and_constancy() -> Non
     )
     assert (refused.reason_code, refused.detail) == (
         "transport_missing_evidence",
-        "initial_state.target_law_missing",
+        reason_details.initial_state.TARGET_LAW_MISSING,
     )
 
     # New-period refresh. A replacement panel with every cell mean 0.1 higher re-evaluates to
@@ -363,12 +367,14 @@ def test_demo_temporal_initial_state_refresh_invalidation_and_constancy() -> Non
     assert result.value == pytest.approx(0.421, abs=1e-12), "the held result is unchanged"
     # Invalidation reasons: each premise change refuses with its own typed detail.
     changes = {
-        "temporal_refresh.horizon_changed": {"horizon": 3},
-        "temporal_refresh.lag_alignment_changed": {
+        reason_details.temporal_refresh.HORIZON_CHANGED: {"horizon": 3},
+        reason_details.temporal_refresh.LAG_ALIGNMENT_CHANGED: {
             "lag_alignment": {"s0": 1, "a1": 2, "l2": 2, "a2": 2, "y": 2}
         },
-        "temporal_refresh.intervention_history_changed": {"intervention_history": ["a1=0", "a2=1"]},
-        "temporal_refresh.premises_changed": {"proof_id": "proof_2"},
+        reason_details.temporal_refresh.INTERVENTION_HISTORY_CHANGED: {
+            "intervention_history": ["a1=0", "a2=1"]
+        },
+        reason_details.temporal_refresh.PREMISES_CHANGED: {"proof_id": "proof_2"},
     }
     for detail, overrides in changes.items():
         error = _refusal(
@@ -387,7 +393,7 @@ def test_demo_temporal_initial_state_refresh_invalidation_and_constancy() -> Non
             window=_window((1000, 2000)),
         )
     )
-    assert stale.detail == "temporal_refresh.stale_snapshot"
+    assert stale.detail == reason_details.temporal_refresh.STALE_SNAPSHOT
 
     # A measured whole-unit interval must also survive independent source replay.
     from test_temporal_interval_activation import panel as interval_panel
@@ -396,11 +402,11 @@ def test_demo_temporal_initial_state_refresh_invalidation_and_constancy() -> Non
         interval_panel(),
         sequence=SEQUENCE,
         target_law=InitialStateLaw("fixed_target", {0: 0.3, 1: 0.7}),
-        seed=901,
+        execution=Execution(seed=901),
     )
     assert interval.scalar("response").point == pytest.approx(0.49, abs=1e-12)
     assert interval.scalar("response").calibration == "calibrated"
-    restored = MeasuredInference.load(interval.export(), expected=interval.expected_identity)
+    restored = MeasuredInference.load(bytes(interval.export()), expected=interval.expected_identity)
     assert restored.inspect() == interval.inspect()
 
     # Partition constancy at its declared coordinate. Q = (e2 - e1)^2 / (se1^2 + se2^2).
@@ -423,8 +429,8 @@ def test_demo_temporal_initial_state_refresh_invalidation_and_constancy() -> Non
         {"label": p, "coordinate": f"period:{p}", "support": "supported", "effect": e, "se": 0.5}
         for p, e in (("p1", 1.0), ("p2", 2.0))
     ]
-    # Calibration is unmeasured and a non-rejection is not proof of constancy.
-    assert varying.calibration == "unmeasured" and varying.inference_claim == "point_only"
+    # Calibration is not_measured and a non-rejection is not proof of constancy.
+    assert varying.calibration == "not_measured" and varying.inference_claim == "point_only"
     assert any("does not prove" in caveat for caveat in varying.caveats)
     assert (
         varying.identity
@@ -486,7 +492,7 @@ def _counterfactual(**overrides: Any) -> Any:
     return temporal_fixed_population(_histories(), **arguments)
 
 
-def test_demo_temporal_counterfactual_and_closed_cells_stay_visibly_closed() -> None:
+def test_demo_temporal_counterfactual_and_unsupported_cells_stay_visibly_unsupported() -> None:
     # Closed-form SCM L0 = 1 + u0, L1 = 0.5 + 0.8 L0 + 1.5 A0 + u1,
     # Y = -1 + 0.5 L0 + 0.7 A0 + 2 L1 + 1.2 A1 + u2. Abduction recovers each unit's noise exactly
     # and the shared noise cancels: Y(1,1) - Y(0,0) = 0.7 + 1.2 + 2 * 1.5 = 4.9 for every unit.
@@ -504,7 +510,7 @@ def test_demo_temporal_counterfactual_and_closed_cells_stay_visibly_closed() -> 
     # A noise term outside the declared bound refutes the history with its witness.
     with pytest.raises(TemporalRefusal) as refuting:
         _counterfactual(mechanisms=_mechanisms(halfwidth=0.45))
-    assert refuting.value.detail == "temporal_counterfactual.refuting_history"
+    assert refuting.value.detail == reason_details.temporal_counterfactual.REFUTING_HISTORY
     assert refuting.value.witness["unit"] == "unit-0"
     assert refuting.value.witness["residual"] == pytest.approx(0.5, abs=1e-9)
     # Unpaired histories refuse with the offending unit.
@@ -512,23 +518,21 @@ def test_demo_temporal_counterfactual_and_closed_cells_stay_visibly_closed() -> 
         _counterfactual(
             plus=ActionHistory("always_treat", PLUS, units=("unit-0", "unit-1", "unit-2"))
         )
-    assert unpaired.value.detail == "temporal_counterfactual.unpaired_histories"
+    assert unpaired.value.detail == reason_details.temporal_counterfactual.UNPAIRED_HISTORIES
     assert unpaired.value.offending == "unit-3"
 
     # Transported counterfactual: closed, naming exactly the gates still missing.
     gates = (
-        "transport_license_missing",
-        "fixed_population_temporal_license_missing",
+        "transport_support_missing",
+        "fixed_population_temporal_support_missing",
         "cross_population_assumptions_missing",
-    )
-    _refused_closed(
-        lambda: transported_path_specific(required_factors=["source:rct", "target:field"]),
-        "counterfactual.transported_path_specific",
-        "antecedent.cross_world.transported_path_specific",
-        "transported_counterfactual.route_frozen",
     )
     with pytest.raises(TemporalRefusal) as transported:
         transported_path_specific(required_factors=["source:rct", "target:field"])
+    assert transported.value.reason_code == "transport_missing_evidence"
+    assert (
+        transported.value.detail == reason_details.transported_counterfactual.PREREQUISITE_MISSING
+    )
     assert transported.value.missing_gates == gates
     assert transported.value.missing_factors == ("source:rct", "target:field")
     with pytest.raises(TemporalRefusal) as passed:
@@ -539,8 +543,10 @@ def test_demo_temporal_counterfactual_and_closed_cells_stay_visibly_closed() -> 
         )
     # Every gate and factor present still does not open the cell: the joint cross-world theorem
     # is not derived.
-    assert passed.value.reason_code == "cell_not_licensed"
-    assert passed.value.detail == "transported_counterfactual.route_frozen"
+    assert passed.value.reason_code == "route_not_supported"
+    assert (
+        passed.value.detail == reason_details.transported_counterfactual.JOINT_THEOREM_NOT_DERIVED
+    )
     assert passed.value.missing_gates == ()
 
     # A caller-created label cannot impersonate the original checked recovery proof.

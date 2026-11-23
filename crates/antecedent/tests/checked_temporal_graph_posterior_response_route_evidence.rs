@@ -1,13 +1,14 @@
 //! Builder-independent evidence for checked temporal graph-posterior responses
 //! over `TemporalDag`, `TemporalCpdag`, and `TemporalPag` atoms (mean curve and
-//! single-step intervention response, both inferences, all licensed suites).
+//! single-step intervention response, both inferences, all supported suites).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, reason = "one loop covers every licensed coordinate")]
+#![allow(clippy::too_many_lines, reason = "one loop covers every supported coordinate")]
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention, ResponseFunctional,
@@ -311,14 +312,23 @@ fn all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms
                     let one_shot = builder.run(&ctx).unwrap();
                     let mut prepared = builder.prepare(&ctx).unwrap();
                     drop(builder);
-                    let plan = prepared
-                        .checked_temporal_graph_posterior_response_info()
-                        .expect("graph-posterior response must retain its complete execution plan");
+                    let RetainedOperation::TemporalGraphPosteriorResponse(plan) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("graph-posterior response must retain its complete execution plan")
+                    };
                     assert_eq!(plan.query, query);
                     assert_eq!(plan.atom_kind, fixture.kind);
-                    assert_eq!(plan.weights.as_ref(), fixture.posterior.weights.as_ref());
-                    assert_eq!(plan.graph_keys.len(), fixture.posterior.n_graphs);
-                    assert_eq!(plan.validation, suite);
+                    assert_eq!(plan.weights.as_ref(), fixture.posterior.weights().as_ref());
+                    assert_eq!(plan.graph_keys.len(), fixture.posterior.n_graphs());
+                    // A class posterior validates through the envelope over its completions and
+                    // retains no per-atom suite in its plan.
+                    let retained_suite = if fixture.kind == GraphPosteriorAtomKind::Dag {
+                        suite
+                    } else {
+                        RefuteSuite::None
+                    };
+                    assert_eq!(plan.validation, retained_suite, "{label}");
                     assert_eq!(
                         plan.identifier,
                         if fixture.kind == GraphPosteriorAtomKind::Dag {
@@ -348,7 +358,7 @@ fn all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms
                     );
 
                     let result = prepared.estimate_series(&fixture.initial, &ctx).unwrap();
-                    assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{label}");
+                    assert_eq!(result.support_status().unwrap().as_str(), "supported", "{label}");
                     assert!(
                         result
                             .diagnostics
@@ -398,10 +408,40 @@ fn all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms
                         prepared.refresh_series(fixture.widened.clone(), &ctx).is_err(),
                         "{label}: schema-changing refresh must be refused"
                     );
-                    assert_eq!(
-                        prepared.checked_temporal_graph_posterior_response_info().unwrap().query,
-                        query
-                    );
+                    let RetainedOperation::TemporalGraphPosteriorResponse(retained) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("graph-posterior response retains its plan")
+                    };
+                    assert_eq!(retained.query, query);
+                    if !refreshed.refutations.is_empty() {
+                        // These route checks remain descriptive and cannot establish
+                        // a whole-result verdict without independent replay.
+                        let artifact = prepared
+                            .encode_contracted_result(
+                                &refreshed,
+                                "checked-temporal-graph-posterior-response",
+                                &ctx,
+                            )
+                            .unwrap();
+                        let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
+                        assert!(!consumed.body.refutations.is_empty());
+                        assert!(
+                            consumed.body.refutations.iter().all(|report| report.scope.is_some())
+                        );
+                        assert!(
+                            antecedent_io::support_empirical(
+                                &consumed.body.refutations,
+                                &consumed.body.diagnostics
+                            )
+                            .is_none()
+                        );
+                        assert!(consumed.acceptance.unresolved.iter().any(
+                            |reason| reason.as_ref() == "dependencies.scoped_refutation_replay"
+                        ));
+                        assert!(!consumed.acceptance.accepts_as_claim());
+                        continue;
+                    }
                     let artifact = prepared
                         .encode_contracted_result(
                             &refreshed,
@@ -409,7 +449,7 @@ fn all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms
                             &ctx,
                         )
                         .unwrap();
-                    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
                     assert!(
                         consumed.acceptance.unresolved.iter().any(|dependency| {
                             dependency.as_ref()
@@ -418,7 +458,7 @@ fn all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms
                         "{label}: {:?}",
                         consumed.acceptance.unresolved
                     );
-                    assert!(!consumed.acceptance.accepts_as_verified_program());
+                    assert!(!consumed.acceptance.accepts_as_replayed_program());
                 }
             }
         }

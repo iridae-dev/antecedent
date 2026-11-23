@@ -12,9 +12,9 @@
 //! regime keeps a persistent treatment, so it checks that the dependence
 //! correction does not over-widen when the iid likelihood is right.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh`.
+//! Ignored tests run via `scripts/measure_calibration.sh`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 
@@ -323,7 +323,7 @@ fn coverage(test: &'static str, cell: Cell, regime: Regime, measured: [Option<f6
 macro_rules! dag_coverage {
     ($($test:ident => ($cell:expr, $regime:expr $(, $measured:expr)?);)*) => {$(
         #[test]
-        #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+        #[ignore = "calibration: run via scripts/measure_calibration.sh"]
         fn $test() {
             coverage(
                 stringify!($test),
@@ -559,7 +559,7 @@ fn mediation_coverage(test: &'static str, regime: Regime, measured: [[Option<f64
 macro_rules! mediation_coverage {
     ($($test:ident => ($regime:expr $(, $measured:expr)?);)*) => {$(
         #[test]
-        #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+        #[ignore = "calibration: run via scripts/measure_calibration.sh"]
         fn $test() {
             mediation_coverage(
                 stringify!($test),
@@ -647,7 +647,14 @@ fn bayesian_temporal_mediation_tempers_both_mechanisms() {
         })
         .collect();
     assert_eq!(kappas.len(), 2, "one tempering note per mechanism: {:?}", post.diagnostics.notes);
-    assert!(kappas.iter().all(|k| *k > 1.5), "rho 0.9 must temper both mechanisms: {kappas:?}");
+    // AR(1) rho = 0.9 inflates the variance of a regression coefficient by about
+    // (1 + rho^2) / (1 - rho^2) (4.3) to (1 + rho) / (1 - rho) (19) depending on the
+    // regressor's own autocorrelation; the observed 9.9 and 9.5 sit inside, and the
+    // posterior moments are pinned against the reference in the sibling test.
+    assert!(
+        kappas.iter().all(|k| (4.3..19.0).contains(k)),
+        "rho 0.9 must temper both mechanisms: {kappas:?}"
+    );
     assert!(
         post.diagnostics
             .notes
@@ -676,7 +683,13 @@ fn bayesian_temporal_mediation_tempers_both_mechanisms() {
             _ => None,
         })
         .expect("gaussian product assumption");
-    assert!(product.contains("tempered"), "{product}");
+    // The tempered mechanisms are composed as one joint law, not an independent product.
+    assert!(product.contains("one joint Gaussian draw"), "{product}");
+    assert!(
+        post.diagnostics.notes.iter().any(|n| n.starts_with("mediation.joint_mechanisms")),
+        "{:?}",
+        post.diagnostics.notes
+    );
 }
 
 /// `conformance/bayesian/posterior_moments`: the tempered mediation posteriors
@@ -770,6 +783,14 @@ fn posterior_mediation_moments_and_tempering_match_the_reference() {
                 (sd * sd / var - 1.0).abs() < 0.06,
                 "{family} scale {scale}: variance {} vs {var}",
                 sd * sd
+            );
+            // The reference ties the mechanisms with the same Bartlett block the run reports.
+            let pinned_block = fixture["joint_block"][family].as_u64().unwrap();
+            let joint_note = format!("(block length {pinned_block})");
+            assert!(
+                post.diagnostics.notes.iter().any(|n| n.ends_with(&joint_note)),
+                "{family} scale {scale}: {:?}",
+                post.diagnostics.notes
             );
             let mut reported: Vec<f64> = post
                 .diagnostics
@@ -886,7 +907,7 @@ fn tyz_cpdag() -> TemporalCpdag {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_temporal_cpdag_class_prior_ar1_rho05_n160_nominal_90_coverage() {
     let regime = Regime::RHO05_N160.at_grid();
     let prior = ClassPrior::from_ordered([0.5, 0.5]).unwrap();
@@ -933,6 +954,13 @@ fn bayesian_multi_step_bootstrap_refuter_resamples_aligned_rows() {
         .find(|r| r.refuter.as_ref() == "bootstrap.ci_coverage")
         .expect("the composed Bayesian contrast runs bootstrap.ci_coverage");
     assert!(report.replicates > 0 && report.refuted_ate.is_finite(), "{report:?}");
+    // Resampling lag-aligned rows keeps the replicate contrast centred on the fitted one
+    // (observed 0.010 apart) and near the true sustained contrast BETA1 + BETA2 = 1.2
+    // (observed 0.13 away, about 1.2 standard errors at n = 160); pairing outcomes with
+    // regressors from unrelated blocks would shrink it toward zero.
+    assert_eq!(report.replicates, 200, "{report:?}");
+    assert!((report.refuted_ate - report.original_ate).abs() < 0.05, "{report:?}");
+    assert!((report.refuted_ate - (BETA1 + BETA2)).abs() < 0.3, "{report:?}");
     assert!(
         !result.diagnostics.iter().any(|d| d.code.as_ref() == "refute.validator.not_applicable"
             && d.message.contains("bootstrap")),

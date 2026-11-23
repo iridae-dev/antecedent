@@ -5,6 +5,7 @@ from __future__ import annotations
 import antecedent
 import pytest
 from antecedent.errors import CausalValueError
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 
@@ -296,19 +297,23 @@ def test_identify_proof_executes_through_retained_checked_plan_after_builder_dis
     }
     study = antecedent.prepare(data, graph=graph_builder, query=query_builder)
     del graph_builder, query_builder
-    plan = study.plan
-    assert plan.plan_id
-    result = study.estimate()
+    plan = study.plan_view()
+    assert plan.identity
+    outcome = antecedent.estimate(study)
+    result = require_success(outcome)
     assert result.estimate.ate == pytest.approx(2.0, abs=1e-12)
     assert result.identification.method == "transport.sid.direct"
     assert result.estimate.estimator_id == "transport.trial_ipw"
-    refreshed = study.refresh(data)
+    assert outcome.study.plan_view().identity == plan.identity
+    refreshed = require_success(antecedent.estimate(antecedent.rebind(study, data=data)))
     assert refreshed.estimate.ate == pytest.approx(result.estimate.ate, abs=1e-12)
     assert refreshed.program_id == result.program_id
-    # Independent consumption names the retained operation it cannot replay
-    # instead of accepting a program-less replay as verified.
-    loaded = antecedent.load(result.export())
-    assert not loaded.acceptance.verified
+    # A replay names the retained operation it cannot replay instead of reporting a
+    # program-less replay as replayed.
+    loaded = require_success(antecedent.load(bytes(outcome.export())))
+    replayed = loaded.replay()
+    assert not replayed.acceptance.replayed
     assert (
-        "dependencies.checked_transport_trial_operation" in loaded.acceptance.details["unresolved"]
+        "dependencies.checked_transport_trial_operation"
+        in replayed.acceptance.details["not_replayable"]
     )

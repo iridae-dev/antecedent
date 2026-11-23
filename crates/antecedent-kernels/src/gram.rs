@@ -25,7 +25,7 @@
 //! [`invert_square`] and [`gauss_jordan_solve`] on the same equilibrated
 //! entries share this accept/reject predicate.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Pivot floor on a matrix whose diagonal is order 1.
 ///
@@ -90,9 +90,28 @@ fn divide_by_scale_pair(value: f64, left: f64, right: f64) -> f64 {
 /// when the pivot policy declares the matrix singular.
 #[must_use]
 pub fn gauss_jordan_solve(a: &mut [f64], rhs: &mut [f64], n: usize, nrhs: usize) -> bool {
+    gauss_jordan_solve_with_pivot(a, rhs, n, nrhs).is_some()
+}
+
+/// [`gauss_jordan_solve`] that also reports the smallest accepted pivot as a fraction of the
+/// matrix scale (the largest diagonal magnitude). `None` exactly when the solve refuses.
+///
+/// For a unit-diagonal Gram this is an inexpensive conditioning indicator: a small value
+/// means the matrix is close to the refusal floor and the solution has lost digits.
+#[must_use]
+pub fn gauss_jordan_solve_with_pivot(
+    a: &mut [f64],
+    rhs: &mut [f64],
+    n: usize,
+    nrhs: usize,
+) -> Option<f64> {
     let nn = n.saturating_mul(n);
     if n == 0 || a.len() < nn || rhs.len() < nrhs.saturating_mul(n) {
-        return false;
+        return None;
+    }
+    let rhs_cells = n.saturating_mul(nrhs);
+    if a[..nn].iter().chain(&rhs[..rhs_cells]).any(|value| !value.is_finite()) {
+        return None;
     }
     let mut diag_scale = 0.0_f64;
     let mut entry_scale = 0.0_f64;
@@ -104,9 +123,10 @@ pub fn gauss_jordan_solve(a: &mut [f64], rhs: &mut [f64], n: usize, nrhs: usize)
     }
     let scale = if diag_scale > 0.0 { diag_scale } else { entry_scale };
     if !(scale.is_finite() && scale > 0.0) {
-        return false;
+        return None;
     }
     let tol = EQUILIBRATED_PIVOT_FLOOR * scale;
+    let mut smallest = f64::INFINITY;
     for col in 0..n {
         let mut best_row = col;
         let mut best = a[col * n + col].abs();
@@ -118,8 +138,9 @@ pub fn gauss_jordan_solve(a: &mut [f64], rhs: &mut [f64], n: usize, nrhs: usize)
             }
         }
         if !best.is_finite() || best <= tol {
-            return false;
+            return None;
         }
+        smallest = smallest.min(best);
         if best_row != col {
             for j in 0..n {
                 a.swap(col * n + j, best_row * n + j);
@@ -148,7 +169,10 @@ pub fn gauss_jordan_solve(a: &mut [f64], rhs: &mut [f64], n: usize, nrhs: usize)
             }
         }
     }
-    true
+    if a[..nn].iter().chain(&rhs[..rhs_cells]).any(|value| !value.is_finite()) {
+        return None;
+    }
+    Some(smallest / scale)
 }
 
 /// Invert a small dense row-major matrix.
@@ -190,14 +214,51 @@ pub fn invert_square(a_in: &[f64], n: usize) -> Option<Vec<f64>> {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::float_cmp,
+    reason = "These fixtures check exact solutions and power-of-two scales."
+)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn solve_refuses_nonfinite_entries_and_unrepresentable_solutions() {
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            for slot in 0..4 {
+                let mut matrix = [1.0, 0.0, 0.0, 1.0];
+                matrix[slot] = value;
+                assert!(
+                    gauss_jordan_solve_with_pivot(&mut matrix, &mut [1.0, 2.0], 2, 1).is_none()
+                );
+            }
+            assert!(
+                gauss_jordan_solve_with_pivot(&mut [1.0, 0.0, 0.0, 1.0], &mut [value, 1.0], 2, 1)
+                    .is_none()
+            );
+        }
+        assert!(gauss_jordan_solve_with_pivot(&mut [1e-300], &mut [1e300], 1, 1).is_none());
+        let mut rhs = [3.0, 4.0];
+        assert!(gauss_jordan_solve_with_pivot(&mut [1.0, 0.0, 0.0, 1.0], &mut rhs, 2, 1).is_some());
+        assert_eq!(rhs, [3.0, 4.0]);
+    }
 
     #[test]
     fn power_of_two_scales_match_the_conjugate_formula() {
         let a = [100.0, 0.0, 0.0, 9e14];
         assert_eq!(symmetric_scales(&a, 2), [8.0, 2.0_f64.powi(25)]);
         assert_eq!(symmetric_scales(&[0.0, 1.0, 1.0, 4.0], 2), [1.0, 2.0]);
+    }
+
+    #[test]
+    fn solve_with_pivot_reports_the_smallest_relative_pivot() {
+        let mut a = [1.0, 0.0, 0.0, 1e-6];
+        let mut rhs = [1.0, 1.0];
+        let pivot = gauss_jordan_solve_with_pivot(&mut a, &mut rhs, 2, 1).expect("regular");
+        assert_eq!(pivot, 1e-6);
+        assert_eq!(rhs, [1.0, 1e6]);
+        let mut singular = [1.0, 0.0, 0.0, 1e-13];
+        assert!(gauss_jordan_solve_with_pivot(&mut singular, &mut [1.0, 1.0], 2, 1).is_none());
+        assert!(!gauss_jordan_solve(&mut [1.0, 0.0, 0.0, 1e-13], &mut [1.0, 1.0], 2, 1));
     }
 
     #[test]

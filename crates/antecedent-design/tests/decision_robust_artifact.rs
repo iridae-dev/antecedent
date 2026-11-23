@@ -126,7 +126,7 @@ fn rich_rules() -> AdmissibilityRules {
         ],
         declared_exclusions: vec![
             DeclaredExclusion { action_id: "A".into(), reason: "legal".into() },
-            DeclaredExclusion { action_id: "B".into(), reason: "not licensed".into() },
+            DeclaredExclusion { action_id: "B".into(), reason: "not supported".into() },
         ],
         uncertainty: UncertaintyRequirement::StructuralEnvelope,
     }
@@ -304,7 +304,10 @@ fn resealed_rule_edit_is_refused_under_the_retained_identity() {
     let mut corrupt = bytes;
     let last = corrupt.len() - 1;
     corrupt[last] ^= 0x55;
-    assert!(AdmissibleContractArtifact::from_bytes(&corrupt, &retained).is_err());
+    assert!(matches!(
+        AdmissibleContractArtifact::from_bytes(&corrupt, &retained).unwrap_err(),
+        IoError::ChecksumMismatch { .. }
+    ));
 }
 
 #[test]
@@ -330,13 +333,12 @@ fn contract_without_rules_keeps_original_bytes_and_kinds_do_not_cross() {
     let c = AdmissibleDecisionContract { contract: plain, rules: rich_rules() };
     let rules_bytes =
         AdmissibleContractArtifact::new(c.clone()).unwrap().to_bytes("contract").unwrap();
-    assert!(
-        DecisionContractArtifact::from_bytes(&rules_bytes, &c.contract.identity().unwrap())
-            .is_err()
-    );
-    assert!(
-        AdmissibleContractArtifact::from_bytes(&original_bytes, &c.identity().unwrap()).is_err()
-    );
+    let error = DecisionContractArtifact::from_bytes(&rules_bytes, &c.contract.identity().unwrap())
+        .unwrap_err();
+    assert!(message(&error).contains("unsupported decision artifact layout"), "{error:?}");
+    let error = AdmissibleContractArtifact::from_bytes(&original_bytes, &c.identity().unwrap())
+        .unwrap_err();
+    assert!(message(&error).contains("unsupported decision artifact layout"), "{error:?}");
 }
 
 #[test]
@@ -347,33 +349,47 @@ fn invalid_rules_refuse_with_structured_detail() {
     assert!(json.contains(ghost), "{json}");
     let unknown = json.replacen(ghost, "\"action_id\":\"ghost\",\"input\":0", 1);
     let refusal = admissible_contract_from_json_refusal(&unknown).unwrap_err();
-    assert_eq!(refusal.detail, "decision_admissibility.unknown_action");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_admissibility::UNKNOWN_ACTION
+    );
     assert_eq!(refusal.offending.as_deref(), Some("ghost"));
 
     let wrong_input = json.replacen(ghost, "\"action_id\":\"A\",\"input\":7", 1);
     let refusal = admissible_contract_from_json_refusal(&wrong_input).unwrap_err();
-    assert_eq!(refusal.detail, "decision_admissibility.unknown_input");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::decision_admissibility::UNKNOWN_INPUT
+    );
     assert_eq!(refusal.offending.as_deref(), Some("A[7]"));
 
     let malformed = admissible_contract_from_json_refusal("{").unwrap_err();
-    assert_eq!(malformed.detail, "decision_contract.invalid_declaration");
+    assert_eq!(
+        malformed.detail,
+        antecedent_core::reason_details::decision_contract::INVALID_DECLARATION
+    );
     let unknown_field = json.replacen("\"rules\":{", "\"rules\":{\"bonus\":1,", 1);
     assert_eq!(
         admissible_contract_from_json_refusal(&unknown_field).unwrap_err().detail,
-        "decision_contract.invalid_declaration"
+        antecedent_core::reason_details::decision_contract::INVALID_DECLARATION
     );
     let bad_label = json.replace("\"weak_overlap\"", "\"mostly_fine\"");
     assert_eq!(
         admissible_contract_from_json_refusal(&bad_label).unwrap_err().detail,
-        "decision_contract.invalid_declaration"
+        antecedent_core::reason_details::decision_contract::INVALID_DECLARATION
     );
 
     let mut duplicate = c.clone();
     duplicate.rules.support_rules.push(duplicate.rules.support_rules[0].clone());
-    assert!(AdmissibleContractArtifact::new(duplicate).is_err());
+    let error = AdmissibleContractArtifact::new(duplicate).unwrap_err();
+    assert!(
+        message(&error).contains("DuplicateRule") && message(&error).contains("A[0]"),
+        "{error:?}"
+    );
     let mut blank = c;
     blank.rules.declared_exclusions[0].reason = " ".into();
-    assert!(AdmissibleContractArtifact::new(blank).is_err());
+    let error = AdmissibleContractArtifact::new(blank).unwrap_err();
+    assert!(message(&error).contains("an exclusion states its reason"), "{error:?}");
 }
 
 #[test]
@@ -390,9 +406,12 @@ fn decode_is_bounded_before_any_allocation() {
     let declaration = " ".repeat(MAX_DECISION_ARTIFACT_BYTES + 1);
     assert_eq!(
         admissible_contract_from_json_refusal(&declaration).unwrap_err().detail,
-        "decision_contract.invalid_declaration"
+        antecedent_core::reason_details::decision_contract::INVALID_DECLARATION
     );
-    assert!(AdmissibleContractArtifact::from_bytes(b"not an artifact", "x").is_err());
+    assert!(matches!(
+        AdmissibleContractArtifact::from_bytes(b"not an artifact", "x").unwrap_err(),
+        IoError::BadMagic
+    ));
 }
 
 // ---------------------------------------------------------------------------
@@ -435,17 +454,15 @@ fn robust_result_round_trips_and_replays_by_recomputation() {
             ],
         )
         .unwrap();
-    assert!(
-        chain
-            .require_stages(
-                RobustResultArtifact::CLAIM_LINK_ID,
-                &[CompositionStage::ExternalProvider]
-            )
-            .is_err()
-    );
+    let missing = chain
+        .require_stages(RobustResultArtifact::CLAIM_LINK_ID, &[CompositionStage::ExternalProvider])
+        .unwrap_err();
+    assert_eq!(format!("{missing:?}"), "MissingStage(ExternalProvider)");
 }
 
 #[test]
+#[allow(clippy::match_same_arms, reason = "the arms name distinct adversarial artifact cases")]
+#[allow(clippy::too_many_lines, reason = "the fixture keeps its scenario and assertions together")]
 fn every_robust_verdict_state_round_trips() {
     type Case = (StructuralPolicy, AdmissibilityRules, Vec<StructuralAtom>, ClaimProfile);
     let invariant = StructuralPolicy::RequireInvariantBestAction;
@@ -531,6 +548,27 @@ fn every_robust_verdict_state_round_trips() {
             &atom_digests_of(&atoms),
         )
         .unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        // The assessment is checked against the hand-set payoffs before it is round-tripped:
+        // A pays 5/6 (or 5/1) and B pays 3/2 (or 3/4) in the two structures.
+        let expected_kind = match (&result.verdict, name) {
+            (RobustVerdict::StructurallyRobust(a), "structurally_robust") if a == "A" => true,
+            (RobustVerdict::SupportRobust(a), "support_robust") if a == "A" => true,
+            (RobustVerdict::GraphDependentChoice(_), "graph_dependent") => true,
+            (RobustVerdict::UnsupportedExtrapolation, "unsupported") => true,
+            (RobustVerdict::InsufficientClaims(_), "insufficient") => true,
+            (RobustVerdict::NoAdmissibleAction, "none_admissible") => true,
+            // Worst cases: A min(5, 1) = 1 against B min(3, 4) = 3.
+            (RobustVerdict::WorstCaseChoice(b), "worst_case") if b == "B" => true,
+            // Bayes: A 0.5 * 5 + 0.5 * 1 = 3 against B 0.5 * 3 + 0.5 * 4 = 3.5.
+            (RobustVerdict::BayesChoice { action, evaluated_mass }, "bayes")
+                if action == "B" && (evaluated_mass - 1.0).abs() < 1e-12 =>
+            {
+                true
+            }
+            (RobustVerdict::ReportOnly, "report_only") => true,
+            _ => false,
+        };
+        assert!(expected_kind, "{name}: unexpected verdict {:?}", result.verdict);
         assert_eq!(loaded.result().verdict, result.verdict, "{name}");
         assert_eq!(loaded.result().unsupported_atoms, result.unsupported_atoms, "{name}");
         assert_eq!(loaded.result().shortfalls.len(), result.shortfalls.len(), "{name}");
@@ -593,7 +631,7 @@ fn resealed_robust_mutations_are_refused() {
     assert!(message(&load(&stripped).unwrap_err()).contains("lineage"));
 
     // Upgrading the trust label to native.
-    for label in ["native_licensed", "native", "verified"] {
+    for label in ["native_supported", "native", "verified"] {
         let upgraded = reseal(&receipt_bytes, ROBUST_KIND, |body| {
             body["external_receipts"][0]["trust"]["label"] = serde_json::json!(label);
         });
@@ -653,9 +691,9 @@ fn load_and_replay_refuse_other_contracts_structures_and_profiles() {
         .unwrap_err();
     assert!(message(&error).contains("atoms_expected"));
     let renamed = [evaluated("t1", None, 5.0, 3.0), evaluated("s2", None, 6.0, 2.0)];
-    assert!(
-        RobustResultArtifact::from_bytes(&bytes, &identity, &atom_digests_of(&renamed)).is_err()
-    );
+    let error = RobustResultArtifact::from_bytes(&bytes, &identity, &atom_digests_of(&renamed))
+        .unwrap_err();
+    assert!(message(&error).contains("atoms_expected"), "{error:?}");
 
     let loaded = RobustResultArtifact::from_bytes(&bytes, &identity, &digests).unwrap();
     let error = loaded.replay(&other, &atoms, &claims).unwrap_err();
@@ -671,7 +709,8 @@ fn load_and_replay_refuse_other_contracts_structures_and_profiles() {
 
     // Binding a result to another contract's identity is refused at construction.
     let result = assess(&other, &atoms, &claims);
-    assert!(RobustResultArtifact::new(&c, result, &claims, &atoms, vec![]).is_err());
+    let error = RobustResultArtifact::new(&c, result, &claims, &atoms, vec![]).unwrap_err();
+    assert!(message(&error).contains("result_contract"), "{error:?}");
 }
 
 // ---------------------------------------------------------------------------

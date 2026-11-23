@@ -15,7 +15,7 @@ pub struct LearnedTrialState {
     diagram: SelectionDiagram,
     query: TransportQuery,
     identification: TransportIdentification,
-    input: TrialAipwInput,
+    input: Arc<TrialAipwInput>,
     options: TrialAipwOptions,
     seed: u64,
 }
@@ -107,14 +107,15 @@ impl StudyBuilder {
             return Err(err("trial transport cancelled"));
         }
         antecedent_estimate::validate_trial_query(&query).map_err(err)?;
-        let identification = TransportIdentifier::new().identify(&diagram, &query).map_err(err)?;
+        let identification =
+            TransportIdentifier::new().identify_with_context(&diagram, &query, ctx).map_err(err)?;
         antecedent_estimate::validate_trial_aipw(&identification, &input, &options).map_err(err)?;
         Ok(PreparedStudy {
             state: LearnedTrialState {
                 diagram,
                 query,
                 identification,
-                input,
+                input: Arc::new(input),
                 options,
                 seed: ctx.rng.master_seed(),
             },
@@ -122,6 +123,12 @@ impl StudyBuilder {
     }
 }
 impl PreparedStudy<LearnedTrialState> {
+    /// Borrow the exact retained transport proof without identifying or fitting.
+    #[must_use]
+    pub fn identification(&self) -> &TransportIdentification {
+        &self.state.identification
+    }
+
     /// Preview invalidations without fitting or publishing replacement state.
     /// # Errors
     /// Scientific identity encoding failure.
@@ -137,7 +144,7 @@ impl PreparedStudy<LearnedTrialState> {
                 antecedent_io::admg_to_wire(self.state.diagram.causal_graph())?,
                 self.state.diagram.selection_targets().iter().map(|v| v.raw()).collect::<Vec<_>>(),
                 antecedent_io::query_wire::transport_query_to_wire(&self.state.query)?,
-                &self.state.input,
+                self.state.input.as_ref(),
                 &self.state.options,
                 self.state.seed,
             ),
@@ -163,6 +170,71 @@ impl PreparedStudy<LearnedTrialState> {
             },
         )
     }
+    /// Reconfigure the physical policy and stream without fitting or copying rows.
+    /// # Errors
+    /// Workspace refusal or cancelled execution.
+    pub fn with_seed(&self, seed: u64, ctx: &ExecutionContext) -> Result<Self, IoError> {
+        antecedent_estimate::learned_trial::check_trial_aipw_resources(
+            &self.state.input,
+            &self.state.options,
+            ctx,
+        )
+        .map_err(super::transport_common::estimate_err)?;
+        let mut branch = self.clone();
+        branch.state.seed = seed;
+        Ok(branch)
+    }
+    /// Reidentify and validate new declarations against the same owned input.
+    /// No rows are copied and no nuisance model is fitted. Variable coordinates
+    /// must retain their meaning; adapters must validate their display schema.
+    /// # Errors
+    /// Invalid query, certificate, learner, resource admission, or cancellation.
+    pub fn reconfigure(
+        &self,
+        diagram: SelectionDiagram,
+        query: TransportQuery,
+        options: TrialAipwOptions,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(err("trial transport cancelled"));
+        }
+        antecedent_estimate::validate_trial_query(&query).map_err(err)?;
+        let identification =
+            TransportIdentifier::new().identify_with_context(&diagram, &query, ctx).map_err(err)?;
+        antecedent_estimate::validate_trial_aipw(&identification, &self.state.input, &options)
+            .map_err(err)?;
+        antecedent_estimate::learned_trial::check_trial_aipw_resources(
+            &self.state.input,
+            &options,
+            ctx,
+        )
+        .map_err(super::transport_common::estimate_err)?;
+        Ok(Self {
+            state: LearnedTrialState {
+                diagram,
+                query,
+                identification,
+                input: Arc::clone(&self.state.input),
+                options,
+                seed: ctx.rng.master_seed(),
+            },
+        })
+    }
+
+    /// Bind a compatible immutable snapshot without executing an estimate.
+    /// # Errors
+    /// Invalid rows, changed schema/sampling or cancellation.
+    pub fn bind_snapshot(
+        &self,
+        input: TrialAipwInput,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        let mut branch = self.clone();
+        branch.replace_snapshot(input, ctx)?;
+        Ok(branch)
+    }
+
     /// Metadata-only compiler reasoning.
     #[must_use]
     pub fn inspect(&self) -> antecedent_contract::ReasoningView {
@@ -191,7 +263,7 @@ impl PreparedStudy<LearnedTrialState> {
             graph: antecedent_io::admg_to_wire(self.state.diagram.causal_graph())?,
             selections: self.state.diagram.selection_targets().iter().map(|v| v.raw()).collect(),
             query: antecedent_io::query_wire::transport_query_to_wire(&self.state.query)?,
-            input: self.state.input.clone(),
+            input: (*self.state.input).clone(),
             options: self.state.options,
             seed: self.state.seed,
             result,
@@ -221,7 +293,7 @@ impl PreparedStudy<LearnedTrialState> {
             &self.state.options,
         )
         .map_err(err)?;
-        self.state.input = input;
+        self.state.input = Arc::new(input);
         Ok(())
     }
     /// Atomically replace the compatible snapshot and execute it.
@@ -247,7 +319,7 @@ impl PreparedStudy<LearnedTrialState> {
         )
         .map_err(err)?;
         let mut candidate = self.clone();
-        candidate.state.input = input;
+        candidate.state.input = Arc::new(input);
         let result = candidate.estimate(ctx)?;
         *self = candidate;
         Ok(result)
@@ -302,6 +374,49 @@ mod tests {
         };
         (diagram, query, input, options)
     }
+    #[test]
+    fn scientific_reconfiguration_shares_owned_rows_and_keeps_the_source_unchanged() {
+        let (diagram, query, input, options) = fixture();
+        let ctx = ExecutionContext::for_tests(8);
+        let study = StudyBuilder::learned_trial_transport(
+            diagram.clone(),
+            query.clone(),
+            input,
+            options,
+            &ctx,
+        )
+        .unwrap();
+        let baseline = study.estimate(&ctx).unwrap();
+        let branch = study
+            .reconfigure(diagram, query, TrialAipwOptions { bootstrap: 0, ..options }, &ctx)
+            .unwrap();
+        assert!(Arc::ptr_eq(&study.state.input, &branch.state.input));
+        assert_eq!(study.state.options.bootstrap, 5);
+        assert_eq!(branch.state.options.bootstrap, 0);
+        assert_eq!(baseline.estimate().replicates.len(), 5);
+        let changed = branch.estimate(&ctx).unwrap();
+        assert!((changed.estimate().estimate - 2.0).abs() < 1e-10);
+        assert!(changed.estimate().replicates.is_empty());
+        assert_eq!(study.estimate(&ctx).unwrap().identity(), baseline.identity());
+    }
+
+    #[test]
+    fn retained_trial_proof_reads_execute_no_scientific_work() {
+        let (diagram, query, input, options) = fixture();
+        let ctx = ExecutionContext::for_tests(8);
+        let study =
+            StudyBuilder::learned_trial_transport(diagram, query, input, options, &ctx).unwrap();
+        let observed = antecedent_core::execution_attempt::observe_execution(|| {
+            let proof = study.identification();
+            assert!(matches!(proof, TransportIdentification::Transportable { .. }));
+            let _ = proof.outcome();
+            let _ = study.inspect();
+            Ok::<_, IoError>(())
+        });
+        assert!(observed.result.is_ok());
+        assert!(observed.report.is_empty());
+    }
+
     #[test]
     fn trial_result_is_replayed_and_refresh_is_atomic() {
         let (diagram, query, input, options) = fixture();

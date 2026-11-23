@@ -5,7 +5,7 @@
 //! The data are the linear Gaussian SCM `bayesian_linear_scm` (1,000 rows, effect 0.4) at
 //! the seed each acceptance case names.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,
@@ -20,6 +20,7 @@ use antecedent::{
     BayesianConfig, CausalError, InferenceMode, PosteriorDrawControls, RefuteSuite, Study,
     StudyResult,
 };
+use antecedent_core::diagnostic::RouteKind;
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::count_fitted_posterior::MAX_ENDPOINT_MCSE_FRACTION;
@@ -248,10 +249,25 @@ fn a_sampler_that_mixes_poorly_is_refused_naming_the_chain_diagnostics() {
     // sizes it measured rather than publishing an interval the draws, not the posterior, set.
     let hmc =
         build(data.clone(), graph(), controlled(BayesianConfig::hmc().n_draws(3000))).unwrap();
-    let message = hmc.run(&ctx).expect_err("poor mixing is refused").to_string();
-    assert!(message.contains("reason=posterior_draws_not_converged"), "{message}");
+    let error = hmc.run(&ctx).expect_err("poor mixing is refused");
+    let message = error.to_string();
     assert!(message.contains("rhat="), "{message}");
     assert!(message.contains("ess_bulk=") && message.contains("ess_tail="), "{message}");
+    let records = error.route_diagnostics();
+    assert!(
+        records.iter().any(|record| record.failed() && record.route_name() == "r_hat"),
+        "{records:?} {message}"
+    );
+    assert!(
+        records.iter().any(|record| record.failed() && record.route_name() == "posterior_ess"),
+        "{records:?} {message}"
+    );
+    assert!(
+        records.iter().any(|record| record.kind() != Some(RouteKind::Convergence)),
+        "poor mixing is not only a convergence failure: {records:?}"
+    );
+    assert!(records.iter().all(|record| !record.is_model_restriction()), "{records:?}");
+    assert!(records.iter().all(|record| !record.is_unsupported_inference()), "{records:?}");
 
     // The same data are no obstacle to an exact sampler, whose independent draws pass the
     // control: the refusal is about mixing, not the design.
@@ -313,7 +329,7 @@ fn draws_and_seed_are_in_the_replay_identity_and_replay_reproduces_the_draws() {
         let prepared = study(3000, controls).prepare(&ctx).unwrap();
         let result = prepared.estimate(&data, &ctx).unwrap();
         let bytes = prepared.encode_contracted_result(&result, "draws", &ctx).unwrap();
-        let section = antecedent_io::consume_analysis_result(&bytes).unwrap().contract.unwrap();
+        let section = antecedent_io::replay_analysis_result(&bytes).unwrap().contract.unwrap();
         let bayesian = section.inference_binding.unwrap().bayesian.unwrap();
         assert_eq!(bayesian.n_draws, 3000);
         assert_eq!(bayesian.draw_controls.as_deref(), controls.then_some("measured"));

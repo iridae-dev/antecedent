@@ -1,6 +1,6 @@
 """Tier-aware overlap and E-value diagnostics of an executed tiered result.
 
-A tiered study (``analyze(data, query, graph=TieredBackground(...))``) runs one of two licensed
+A tiered study (``analyze(data, query, graph=TieredBackground(...))``) runs one of two supported
 average-effect cells. :func:`tier_diagnostics` reads only what the executed result carries and
 states which diagnostic is available for it; nothing is refit and no within-tier graph is built::
 
@@ -23,9 +23,8 @@ states which diagnostic is available for it; nothing is refit and no within-tier
 The E-value is a sensitivity summary of the stated no-latent-path premise, never a test of it.
 Every number, availability decision and refusal is computed in Rust.
 
-A result that is not a licensed single-treatment tiered average-effect result is refused with
-``cell_not_licensed`` (``tier_diagnostics.result_not_licensed``) or ``invalid_argument``
-(``tier_diagnostics.not_a_tiered_average_result``); a cancelled ``cancel`` token stops the read with
+A result that is not a single-treatment tiered average-effect result is refused with
+``invalid_argument`` (``tier_diagnostics.not_a_tiered_average_result``); a cancelled ``cancel`` token stops the read with
 ``cancelled_no_claim`` (``tier_diagnostics.cancelled``) and no diagnostics.
 """
 
@@ -38,6 +37,7 @@ from typing import Any
 
 from ._scientific import ScientificResult
 from .errors import CausalTypeError
+from .execution import Execution, resolve_execution
 
 __all__ = [
     "Availability",
@@ -90,7 +90,7 @@ class TierDesign(ScientificResult):
 
 @dataclass(frozen=True, slots=True)
 class TierEvalue(ScientificResult):
-    """The point E-value where licensed; the interval value is always unavailable."""
+    """The point E-value where supported; the interval value is always unavailable."""
 
     point: Availability
     interval: Availability
@@ -135,28 +135,29 @@ def _design(wire: Mapping[str, Any]) -> TierDesign:
     )
 
 
-def tier_diagnostics(result: Any, *, cancel: Any = None) -> TierDiagnostics:
+def tier_diagnostics(result: Any, *, execution: Execution | None = None) -> TierDiagnostics:
     """Read the tier diagnostics of the most recent estimate of a tiered study.
 
     Args:
         result: The :class:`~antecedent.results.AnalysisResult` of a tiered study (its retained
-            study is read) or the :class:`~antecedent.estimation.PreparedAnalysis` that ran it.
+            study is read) or the :class:`~antecedent.prepared.PreparedAnalysis` that ran it.
             The diagnostics are those of the study's most recent estimate.
         cancel: An optional cancellation token; observed on entry and before each read.
 
     Raises:
-        CausalUnsupportedError: the result is not a licensed single-treatment tiered
+        CausalUnsupportedError: the result is not a supported single-treatment tiered
             average-effect result, or the read was cancelled (see the module notes).
         CausalTypeError: ``result`` carries no prepared study.
     """
+    execution = resolve_execution(execution)
     study = getattr(result, "study", result)
-    native = getattr(study, "_native", None)
+    native = getattr(getattr(study, "_engine", study), "_native", None)
     reader = getattr(native, "tier_diagnostics_json", None)
     if reader is None:
         raise CausalTypeError(
             "tier_diagnostics needs the AnalysisResult or PreparedAnalysis of an estimated study"
         )
-    wire = json.loads(reader(cancel=cancel))
+    wire = json.loads(reader(cancel=execution.cancel))
     return TierDiagnostics(
         design=_design(wire["design"]),
         overlap=_availability(wire["overlap"]),

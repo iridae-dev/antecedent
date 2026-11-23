@@ -1,21 +1,30 @@
-# Penalized propensity for AIPW
+# Estimate with a penalized propensity (ridge or lasso AIPW)
 
-The tuning grid accepts at most {{bound:estimate.penalized_propensity_aipw.max_grid}} penalty candidates and at most {{bound:estimate.penalized_propensity_aipw.max_inner_folds}} inner folds.
-
+Use a penalized propensity when the plain logistic propensity of a cross-fitted AIPW
+average effect fails or is unstable (separation, near-collinear adjustment covariates, many
+covariates), and you want that choice declared in advance rather than applied as a rescue.
 `Aipw(propensity_penalty=PropensityPenalty(...))` (Rust:
 `AipwAte::with_propensity_nuisance(PropensityNuisance::ridge_logistic(..))` or
-`::lasso_with(..)`) fits the binary propensity of the cross-fitted AIPW with an explicit
-ridge-logistic or lasso-logistic penalty. It is a *declared nuisance choice*, distinct from
+`::lasso_with(..)`) fits the binary propensity with an explicit ridge-logistic or
+lasso-logistic penalty. It is a *declared nuisance choice*, distinct from
 `GlmOptions.ridge_on_separation` (a rescue that estimation paths refuse to keep because a
-rescued fit is not an MLE). The route publishes the cross-fitted point estimate, the score
+rescued fit is not an MLE).
+
+The estimand is unchanged: the average treatment effect `E[Y(1) - Y(0)]` of a binary
+treatment over all observed rows, under the identification assumptions of the AIPW average
+effect for your graph. The route publishes the cross-fitted point estimate, the score
 table, and two interval constructions whose assumptions are stated below: the cross-fitted
 influence-function SE of the out-of-fold scores, and (with `bootstrap > 0`) a refit bootstrap
 that repeats penalty selection and every nuisance fit on each resample. A declared
-GLM-to-penalized fallback runs the same route when the plain GLM propensity fit fails. The
-record is `estimate.penalized_propensity_aipw` in `parity/promotion.toml`; its claim is
-`calibrated` at the four measured ridge/lasso 95% analytic and refit-bootstrap coordinates (see "Calibration").
+GLM-to-penalized fallback runs the same route when the plain GLM propensity fit fails. Each
+interval reports its calibration status: `calibrated` only at a coordinate a ridge or lasso
+coverage record measures (see [Calibration](#calibration)).
+
+The snippet assumes `data`, `graph` and an `ant.AverageEffect` `query` as in
+[your first analysis](../start/first-analysis.md).
 
 ```python
+import antecedent as ant
 from antecedent.estimators import Aipw, PropensityPenalty
 
 # Cross-fitted influence-function SE (bootstrap=0) ...
@@ -32,21 +41,22 @@ result = ant.analyze(
         kind="lasso", lambdas=[2.0, 10.0, 40.0], inner_folds=3,
     )),
 )
-result.estimate.penalized_support      # the covariates the lasso kept on each fold
-result.estimate.penalized_bootstrap    # per-replicate penalties, replicate accounting
+result.value.estimate.penalized_support      # the covariates the lasso kept on each fold
+result.value.estimate.penalized_bootstrap    # per-replicate penalties, replicate accounting
 ```
 
-The shown grids match measured 95% coordinates. The analytic ridge record covers 300–1200
-rows; the lasso refit-bootstrap record covers 600–2400 rows with at least 40 bootstrap
-replicates. The default tuning grids are useful for estimation but do not match these
-coverage records.
+The shown grids are the configurations the 95% calibration design measures (see
+[Calibration](#calibration)). The default tuning grids are useful for estimation but are a
+different configuration, so their intervals report `outside_measured_scope`.
+
+The constructor limits bound what is admitted and do not imply measured coverage for every admitted configuration. The constructor requires a nonempty grid of finite positive penalties and at least {{bound:estimate.penalized_propensity_aipw.runtime_min_inner_folds}} folds. It accepts at most 65,536 input penalties per declaration, counting duplicates before deduplication. This is a conservative 256 MiB configuration policy (4,096 bytes per entry), not a shared reservation or an execution-context admission; it does not charge downstream copies or concurrent declarations. The fold plan separately limits folds by the training-row count and its {{bound:estimate.penalized_propensity_aipw.runtime_fold_index_capacity}}-value index representation. Calibrated intervals remain qualified by the exact recorded configuration.
 
 ## What is fixed
 
 - **Scope.** The untrimmed `AllObserved` mean ATE with a binary treatment (two declared levels). Other
   functionals, other target populations and trimmed fits refit full-sample nuisances and
   are refused: `route_not_supported` (`penalized_propensity.scope`) for ridge, and
-  `selection_inference_not_licensed` (`penalized_propensity.selection_closed`) for a lasso,
+  `selection_inference_not_supported` (`penalized_propensity.selection_not_supported`) for a lasso,
   because a full-sample lasso would select its support on the rows it scores.
 - **Folds.** Five folds from the established seeded, arm-stratified, unit-level plan
   (`fold_seed` is the analysis seed); duplicated rows of one unit share a fold. Fold `k`'s
@@ -157,8 +167,8 @@ interval is conditional on it. Sufficient regimes, stated as assumptions:
 - The fold plan is stratified on the treatment arm, so the rows of one fold are not
   exchangeable with a simple random split; the argument above treats the plan as ancillary
   given the arms (the standard practical reading).
-- Any coverage statement: the calibration suite below measures coverage on designs where
-  (RC) holds; those design-specific records have been measured.
+- Any coverage statement beyond the calibration design: the calibration suite below measures
+  coverage on designs where (RC) holds, and a record speaks only for its exact configuration.
 
 ## The refit bootstrap
 
@@ -199,7 +209,7 @@ adjustment variable ids, and the count) in `penalized_support`, in the table's
 `selected_support=` provenance and in the estimate. The interval is the cross-fitted
 influence-function SE or the refit bootstrap above under (RC). A lasso outside the
 cross-fitted untrimmed `AllObserved` mean ATE is refused with
-`selection_inference_not_licensed`. Where the plain logistic has no maximizer (complete
+`selection_inference_not_supported`. Where the plain logistic has no maximizer (complete
 separation), the L1-penalized objective still has a finite minimizer, so the lasso fits.
 
 ## GLM-to-penalized fallback
@@ -224,11 +234,11 @@ is counted rather than replaced. A fallback is refused beside a declared penalty
 (`invalid_argument`, `penalized_propensity.fallback_with_penalty`): it replaces a failed GLM
 fit, and a penalized primary is not one. On the full-sample routes (trimmed, ATT/ATC,
 predicate) there is no fallback; a failed fit there is recorded in the refusal
-(`nuisance_fallback_not_licensed`).
+(`nuisance_fallback_not_supported`).
 
-`nuisance_fallback="ml"` (a flexible learner) stays closed: its destination has no
-cross-fitted support or uncertainty license, so a failed GLM fit is refused with
-`nuisance_fallback_not_licensed` and the failed fit recorded, and nothing is silently
+`nuisance_fallback="ml"` (a flexible learner) is refused: its destination has no
+cross-fitted or uncertainty evidence, so a failed GLM fit is refused with
+`nuisance_fallback_not_supported` and the failed fit recorded, and nothing is silently
 substituted. The fallback is never chosen after seeing a favorable result: it is declared in
 advance and triggered only by a fit failure.
 
@@ -236,12 +246,19 @@ advance and triggered only by a fit failure.
 
 | code | detail | when |
 | --- | --- | --- |
-| `invalid_argument` | `penalized_propensity.invalid_penalty` | empty or oversized grid, non-positive or non-finite penalty, inner folds outside 2 to {{bound:estimate.penalized_propensity_aipw.max_inner_folds}} |
+| `invalid_argument` | `penalized_propensity.invalid_penalty` | empty grid, non-positive or non-finite penalty, or fewer than two inner folds; the fold plan separately enforces its row-count and index-representation limits |
 | `invalid_argument` | `penalized_propensity.fallback_with_penalty` | a fallback declared beside a penalized primary |
 | `route_not_supported` | `penalized_propensity.scope` | a ridge penalty with a non-mean functional, a population other than `AllObserved`, or trimming |
-| `selection_inference_not_licensed` | `penalized_propensity.selection_closed` | a lasso outside the cross-fitted untrimmed `AllObserved` mean ATE |
-| `nuisance_fallback_not_licensed` | `penalized_propensity.fallback_closed` | a GLM fit fails under an ML fallback, or under any fallback on a full-sample route |
+| `selection_inference_not_supported` | `penalized_propensity.selection_not_supported` | a lasso outside the cross-fitted untrimmed `AllObserved` mean ATE |
+| `nuisance_fallback_not_supported` | `penalized_propensity.fallback_not_supported` | a GLM fit fails under an ML fallback, or under any fallback on a full-sample route |
 | `cancelled_no_claim` | `penalized_propensity.cancelled` | penalty selection was cancelled; no estimate is reported |
+| `execution_resource_limit` | `penalized_propensity.grid_allocation` | the declared penalty grid exceeds the configuration policy or cannot be allocated |
+
+Each refusal carries the fields described in
+[refusal codes and remedies](../reference/refusal-codes.md#structured-refusals-and-their-remedies);
+`selection_inference_not_supported`, `nuisance_fallback_not_supported` and
+`execution_resource_limit` are listed under
+[other registered refusal codes](../reference/refusal-codes.md#other-registered-refusal-codes).
 
 Selection observes cancellation once per penalty of every outer fold, so a cancel is seen
 within one penalty's inner cross-fit; a cancelled call returns no estimate or score table. A
@@ -249,11 +266,13 @@ cancelled bootstrap reports the stop and publishes no SE.
 
 ## Calibration
 
-The four 95% ridge/lasso analytic and refit-bootstrap coverage records are measured and
-licensed at their exact calibration coordinates. The tests in
-`crates/antecedent-estimate/src/calibration_coverage.rs` are registered in
-`scripts/gate_calibration.sh`; `crates/antecedent/tests/calibration_binding.rs`
-checks that each record's nuisance label and interval method match the public facade.
+The calibration design measures the 95% ridge and lasso analytic and refit-bootstrap
+intervals at the coordinates below; an interval reports `calibrated` only when a current
+coverage record covers its exact coordinate (read `result.inspect().calibration`). The
+coverage tests in
+`crates/antecedent-estimate/src/calibration_coverage.rs` and the binding check in
+`crates/antecedent/tests/calibration_binding.rs` confirm that each record's nuisance label
+and interval method match the public facade.
 
 | Propensity grid (3 inner folds) | Analytic interval rows | Refit bootstrap rows |
 | --- | ---: | ---: |
@@ -261,16 +280,16 @@ checks that each record's nuisance label and interval method match the public fa
 | Lasso: 2, 10, 40 | 150–600 | 600–2400; at least 40 replicates |
 
 A different penalty grid, sample-size range, level or bootstrap count is reported as
-`scope_not_assessed`, not covered by these records. The fallback
+`outside_measured_scope`, not covered by these records. The fallback
 route has no coverage test of its own: its destination's interval is the ridge or lasso
 interval, but its calibration key (`propensity=glm_fallback_...`) matches no record, so a
-fallback interval stays unassessed until one is measured. An in-repo, fixed-seed repeated
+fallback interval reports `not_measured`. An in-repo, fixed-seed repeated
 sampling test (`the_influence_interval_covers_the_known_effect_in_repeated_sampling`) is a
 guard, not a record.
 
 ## What these records do not measure
 
-No coverage record licenses the fallback interval. The estimate is a point under the identification assumptions of the
+No coverage record supports the fallback interval. The estimate is a point under the identification assumptions of the
 AIPW average effect plus consistency of the penalized and OLS nuisances; none of that, and not
 (RC), is checked by the library.
 

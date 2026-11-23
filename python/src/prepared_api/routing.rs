@@ -1,15 +1,16 @@
 //! Query construction and graph binding shared by prepare routes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
-use antecedent::{EstimatorId, IdentifierId};
-use antecedent_core::{
-    AverageEffectQuery, CausalQuery, CausalSchema, ConditionalEffectQuery, Intervention,
-    MediationContrast, MediationQuery, ResponseFunctional, ResponseQuery, Value,
+use antecedent::data::TableView;
+use antecedent::prelude::{CausalSchema, Intervention, TabularData, Value};
+use antecedent::query::{
+    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, MediationContrast, MediationQuery,
+    ResponseFunctional, ResponseQuery,
 };
-use antecedent_data::{TableView, TabularData};
+use antecedent::{EstimatorId, IdentifierId};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
@@ -25,7 +26,7 @@ pub(super) fn parse_identifier(identifier: Option<String>) -> PyResult<Option<Id
 pub(super) fn unknown_strategy_err(err: antecedent::strategy_table::UnknownStrategy) -> PyErr {
     crate::with_reason_code(
         crate::value_err(err.to_string()),
-        antecedent_core::reason_code!("unknown_strategy"),
+        antecedent::reason::reason_code!("unknown_strategy"),
     )
 }
 
@@ -72,7 +73,7 @@ pub(super) fn configured_spec(
         || parsed.rd_se_kind.is_some()
     {
         return Err(crate::refusal(
-            antecedent_core::reason_code!("option_not_applicable"),
+            antecedent::reason::reason_code!("option_not_applicable"),
             "the rd.sharp design identifies from a running variable on \
              a supplied Dag; this structure route has no running-variable identifier",
         ));
@@ -117,15 +118,15 @@ pub(super) fn static_ate_query(
 pub(super) fn temporal_effect_query(
     policy: &str,
     window: Option<(i32, i32)>,
-    t_id: antecedent_core::VariableId,
-    y_id: antecedent_core::VariableId,
+    t_id: antecedent::prelude::VariableId,
+    y_id: antecedent::prelude::VariableId,
     treatment_lag: u32,
     horizon_steps: u32,
     control_level: f64,
     active_level: f64,
     max_history_lag: Option<u32>,
     opts: &PrepareOptions,
-) -> PyResult<antecedent_core::TemporalEffectQuery> {
+) -> PyResult<antecedent::query::TemporalEffectQuery> {
     let mut q = crate::temporal_api::temporal_query_from_policy(
         policy,
         t_id,
@@ -138,7 +139,12 @@ pub(super) fn temporal_effect_query(
         if policy != "sustained" {
             return Err(crate::value_err("window requires policy='sustained'"));
         }
-        q = q.with_policy(antecedent_core::TemporalPolicy::sustained(from, until));
+        if treatment_lag != crate::temporal_support::DEFAULT_TREATMENT_LAG {
+            return Err(crate::value_err(
+                "treatment_lag does not apply with a window: the window states the policy's own span",
+            ));
+        }
+        q = q.with_policy(antecedent::query::TemporalPolicy::sustained(from, until));
     }
     q.control = Intervention::set(t_id, Value::f64(control_level));
     q.max_history_lag = max_history_lag;
@@ -187,21 +193,27 @@ pub(super) fn temporal_mediation_query(
     Ok(q)
 }
 
-/// Conditional-effect query with one modifier and the declared population.
+/// Conditional-effect query over a set of effect modifiers and the declared population.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn conditional_query(
     data: &TabularData,
     treatment: &str,
     outcome: &str,
-    modifier: &str,
+    modifiers: &[String],
     control_level: f64,
     active_level: f64,
-    functional: Option<antecedent_core::OutcomeFunctional>,
+    functional: Option<antecedent::query::OutcomeFunctional>,
     opts: &PrepareOptions,
 ) -> PyResult<CausalQuery> {
-    let w_id = data.schema().id_of(modifier).map_err(py_err)?;
+    if modifiers.is_empty() {
+        return Err(crate::value_err("ConditionalEffect requires at least one effect modifier"));
+    }
+    let w_ids = modifiers
+        .iter()
+        .map(|name| data.schema().id_of(name).map_err(py_err))
+        .collect::<PyResult<Vec<_>>>()?;
     let mut inner = static_ate_query(data, treatment, outcome, control_level, active_level, opts)?
-        .with_effect_modifiers([w_id]);
+        .with_effect_modifiers(w_ids);
     if let Some(functional) = functional {
         inner = inner.with_outcome_functional(functional);
     }
@@ -217,7 +229,7 @@ pub(super) fn intervention_response_query(
     treatments: &[String],
     intervention_kinds: Vec<String>,
     intervention_parameters: Vec<Vec<f64>>,
-    outcome_functional: Option<antecedent_core::OutcomeFunctional>,
+    outcome_functional: Option<antecedent::query::OutcomeFunctional>,
     opts: &PrepareOptions,
 ) -> PyResult<CausalQuery> {
     let treatment_ids = crate::response_api::resolve_names(data.schema(), treatments)?;
@@ -232,8 +244,8 @@ pub(super) fn intervention_response_query(
         Some(intervention_kinds),
         Some(intervention_parameters),
         1,
-        antecedent_core::DerivativeScale::Identity,
-        antecedent_core::DerivativeWeighting::Observed,
+        antecedent::query::DerivativeScale::Identity,
+        antecedent::query::DerivativeWeighting::Observed,
     )?;
     let mut query = response_query(functional, opts);
     if let (CausalQuery::Response(response), Some(functional)) = (&mut query, outcome_functional) {
@@ -253,12 +265,12 @@ pub(super) fn response_query(functional: ResponseFunctional, opts: &PrepareOptio
 
 /// Continuous-response estimator options from a `response_options` mapping.
 ///
-/// Every [`antecedent_estimate::ContinuousResponseOptions`] field has a key; an
+/// Every [`antecedent::estimate::ContinuousResponseOptions`] field has a key; an
 /// omitted key keeps the estimator default and an unknown key is refused, so
 /// no option is dropped. `None` leaves the builder without response options.
 pub(super) fn parse_response_options(
     options: Option<&Bound<'_, PyDict>>,
-) -> PyResult<Option<antecedent_estimate::ContinuousResponseOptions>> {
+) -> PyResult<Option<antecedent::estimate::ContinuousResponseOptions>> {
     const KEYS: &[&str] = &[
         "folds",
         "nuisance_basis",
@@ -284,7 +296,7 @@ pub(super) fn parse_response_options(
     let item = |key: &str| -> PyResult<Option<Bound<'_, PyAny>>> {
         Ok(dict.get_item(key)?.filter(|value| !value.is_none()))
     };
-    let mut parsed = antecedent_estimate::ContinuousResponseOptions::default();
+    let mut parsed = antecedent::estimate::ContinuousResponseOptions::default();
     if let Some(value) = item("folds")? {
         parsed.folds = value.extract()?;
     }
@@ -315,7 +327,7 @@ pub(super) fn parse_response_options(
 /// Set parsed response options on the builder, when any were supplied.
 pub(super) fn with_response_options(
     builder: antecedent::StudyBuilder,
-    options: Option<antecedent_estimate::ContinuousResponseOptions>,
+    options: Option<antecedent::estimate::ContinuousResponseOptions>,
 ) -> antecedent::StudyBuilder {
     match options {
         Some(options) => builder.response_options(options),
@@ -323,11 +335,13 @@ pub(super) fn with_response_options(
     }
 }
 
-/// A supplied static class structure (PAG / CPDAG) or bidirected ADMG.
+/// A supplied static class structure (PAG / CPDAG), a bidirected ADMG, or a temporal ADMG
+/// that a static query reads as its contemporaneous projection.
 pub(super) enum StaticClassGraph {
-    Pag(antecedent_graph::Pag),
-    Cpdag(antecedent_graph::Cpdag),
-    Admg(antecedent_graph::Admg),
+    Pag(antecedent::graph::Pag),
+    Cpdag(antecedent::graph::Cpdag),
+    Admg(antecedent::graph::Admg),
+    TemporalAdmg(antecedent::graph::TemporalAdmg),
 }
 
 impl StaticClassGraph {
@@ -341,8 +355,11 @@ impl StaticClassGraph {
         } else if let Ok(g) = graph.extract::<graphs::Admg>() {
             require_named_graph_order(&g.names, names, "Admg")?;
             Ok(Self::Admg(g.aligned_to_names(names)?))
+        } else if let Ok(g) = graph.extract::<graphs::TemporalAdmg>() {
+            require_named_graph_order(&g.names, names, "TemporalAdmg")?;
+            Ok(Self::TemporalAdmg(g.graph))
         } else {
-            Err(crate::value_err("graph must be a Pag, Cpdag, or Admg"))
+            Err(crate::value_err("graph must be a Pag, Cpdag, Admg, or TemporalAdmg"))
         }
     }
 
@@ -356,6 +373,7 @@ impl StaticClassGraph {
             Self::Pag(g) => with_graph(builder, g, accepted, discovery_algorithm),
             Self::Cpdag(g) => with_graph(builder, g, accepted, discovery_algorithm),
             Self::Admg(g) => with_graph(builder, g, accepted, discovery_algorithm),
+            Self::TemporalAdmg(g) => with_graph(builder, g, accepted, discovery_algorithm),
         }
     }
 }
@@ -370,11 +388,12 @@ pub(super) fn bind_temporal_class(
     match graph {
         TemporalClassGraph::Cpdag(g) => with_graph(builder, g, accepted, discovery_algorithm),
         TemporalClassGraph::Pag(g) => with_graph(builder, g, accepted, discovery_algorithm),
+        TemporalClassGraph::Admg(g) => with_graph(builder, g, accepted, discovery_algorithm),
     }
 }
 
 pub(super) fn static_kind_query(
-    schema: &antecedent_core::CausalSchema,
+    schema: &antecedent::prelude::CausalSchema,
     kind: &str,
     treatment: &str,
     outcome: &str,
@@ -402,7 +421,7 @@ pub(super) fn static_kind_query(
             Ok(CausalQuery::Mediation(q))
         }
         "counterfactual" => Ok(CausalQuery::Counterfactual(
-            antecedent_core::CounterfactualQuery::new(
+            antecedent::query::CounterfactualQuery::new(
                 y,
                 Arc::from([Intervention::set(t, Value::f64(active))]),
             )
@@ -415,7 +434,7 @@ pub(super) fn static_kind_query(
                 ));
             }
             let mediator = schema.id_of(&mediators[0]).map_err(py_err)?;
-            let q = antecedent_core::NestedCounterfactualQuery::with_levels(
+            let q = antecedent::query::NestedCounterfactualQuery::with_levels(
                 t, mediator, y, control, active,
             )
             .map_err(|error| crate::value_err(error.to_string()))?;
@@ -438,7 +457,10 @@ pub(super) fn extract_temporal_class(
     } else if let Ok(g) = graph.extract::<graphs::TemporalPag>() {
         require_named_graph_order(&g.names, names, "TemporalPag")?;
         Ok(Some(TemporalClassGraph::Pag(g.pag)))
+    } else if let Ok(g) = graph.extract::<graphs::TemporalAdmg>() {
+        require_named_graph_order(&g.names, names, "TemporalAdmg")?;
+        Ok(Some(TemporalClassGraph::Admg(g.graph)))
     } else {
-        Err(crate::value_err("class_graph requires TemporalCpdag or TemporalPag"))
+        Err(crate::value_err("class_graph requires TemporalCpdag, TemporalPag or TemporalAdmg"))
     }
 }

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
+from .._artifact_protocol import ExportedArtifact, artifact_export, artifact_from_receipt
 from ._execution import Answer, CalibrationInfo, ResultAPI
 from ._report import InspectionReport, ResultModel, SlotModel
 
@@ -12,7 +13,7 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
     """Provider output carried by the shared result API without native claims.
 
     The output remains family-shaped and externally attested. Antecedent does
-    not reinterpret it as a point estimate, interval, or licensed causal claim.
+    not reinterpret it as a point estimate, interval, or supported causal claim.
     """
 
     provider_name: str
@@ -42,7 +43,7 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
             if self.provider_result.trust.value == "verified_extension"
             else "attested_not_reverifiable"
         )
-        return CalibrationInfo(status="unavailable", reason=reason)
+        return CalibrationInfo(status="not_measured", reason=reason)
 
     @property
     def estimate(self) -> Any:
@@ -77,7 +78,7 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
             f"Provider {self.provider_name!r} returned output for family "
             f"{self.query_family!r}. Antecedent preserves the provider's declared "
             "assumptions, uncertainty semantics, provenance, and artifact; it does "
-            "not translate this output into a native licensed causal claim."
+            "not translate this output into a native supported causal claim."
         )
 
     def inspect(self) -> InspectionReport:
@@ -89,6 +90,9 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
         if hasattr(estimate, "tolist"):
             estimate = estimate.tolist()
         return InspectionReport(
+            stage="executed",
+            family="provider",
+            operations=("inspect", "export"),
             identification=SlotModel(
                 available=False,
                 reason="provider_identification_not_independently_verified",
@@ -127,7 +131,24 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
             },
         )
 
-    def export(self, *, artifact_id: str = "analysis-result") -> bytes:
+    @artifact_export
+    def export(
+        self,
+        *,
+        quantity: Literal[
+            "result", "posterior", "record", "query", "provider", "host"
+        ] = "provider",
+        artifact_id: str | None = None,
+    ) -> ExportedArtifact:
+        if quantity == "host":
+            return artifact_from_receipt(self, self._host_bytes())
+        if quantity not in ("provider", "result"):
+            from ..errors import CausalUnsupportedError
+
+            raise CausalUnsupportedError(
+                "provider results export their provider receipt or host envelope",
+                reason_code="option_not_applicable",
+            )
         # A provider result carries a single opaque artifact; artifact_id is
         # accepted for API parity with the analysis result but does not select.
         if self.provider_artifact is None:
@@ -137,9 +158,16 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
                 "provider result has no portable artifact; the provider returned none",
                 reason_code="not_executed",
             )
-        return self.provider_artifact
+        # The provider's artifact is opaque to Antecedent: it is not an Antecedent
+        # container, so no family is inferred and no acceptance is claimed. The host
+        # envelope (quantity="host") is the natively validated container.
+        return ExportedArtifact(
+            bytes(self.provider_artifact),
+            "provider_opaque_receipt",
+            metadata={"provider": self.provider_name, "opaque": True},
+        )
 
-    def export_host(self) -> bytes:
+    def _host_bytes(self) -> bytes:
         """Export the native-validated host envelope and opaque provider receipt."""
         if self.host_artifact is None:
             from ..errors import CausalUnsupportedError

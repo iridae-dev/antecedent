@@ -1,7 +1,7 @@
 //! Sealers of the program routes: interventional distribution, functional
 //! and path-specific effects, and the ADMG response curve.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SealContext, SealOutcome};
 use crate::analysis::builder::RefuteSuite;
@@ -21,11 +21,13 @@ use std::sync::Arc;
 
 pub(super) fn distribution(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.distribution(), analysis.identification_cache.as_ref()) {
+    let sealed = match (cx.distribution(), analysis.static_cache()) {
         (Some((data, query)), Some(cache)) => {
             let (identifier, estimator) = cx.binding.resolve(RouteDefaults::DISTRIBUTION)?;
             let mut fitter = antecedent_estimate::FunctionalDistribution::new();
-            fitter.bootstrap_replicates = analysis.bootstrap_replicates;
+            fitter.bootstrap_replicates = analysis.settings.bootstrap_replicates;
+            (fitter.row_resampling, fitter.sampling_design) =
+                analysis.functional_row_resampling()?;
             let prepared = fitter.prepare(
                 data,
                 query,
@@ -34,6 +36,7 @@ pub(super) fn distribution(cx: &SealContext<'_>) -> SealOutcome {
                 cache.identification.required_assumptions.clone(),
             )?;
             Some(CheckedDistributionOperation {
+                factor_snapshot_digest: data.storage().content_digest(),
                 query: query.clone(),
                 cache: Arc::clone(cache),
                 fitter,
@@ -46,24 +49,47 @@ pub(super) fn distribution(cx: &SealContext<'_>) -> SealOutcome {
     Ok(sealed.map(PreparedExecution::Distribution))
 }
 
+/// The mixed-graph target a retained functional effect answers: the data, the average-effect
+/// query the program is prepared against, and the conditional effect it stands for, if any.
+type FunctionalEffectTarget<'a> = (
+    &'a antecedent_data::TabularData,
+    antecedent_core::AverageEffectQuery,
+    Option<antecedent_core::ConditionalEffectQuery>,
+);
+
 pub(super) fn functional_effect(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.route, analysis.identification_cache.as_ref()) {
-        (Some(RouteInput::StaticAteMixed { data, query }), Some(cache))
+    let target: Option<FunctionalEffectTarget<'_>> = match cx.route {
+        Some(RouteInput::StaticAteMixed { data, query })
+            if matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                && matches!(query.target_population, TargetPopulation::AllObserved) =>
+        {
+            Some((data, query.clone(), None))
+        }
+        Some(RouteInput::ConditionalMixed { data, query })
+            if matches!(query.inner.outcome_functional, OutcomeFunctional::Mean)
+                && matches!(query.inner.target_population, TargetPopulation::AllObserved) =>
+        {
+            Some((data, query.inner.clone(), Some(query.clone())))
+        }
+        _ => None,
+    };
+    let sealed = match (target, analysis.static_cache()) {
+        (Some((data, query, conditional)), Some(cache))
             if analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
+                && analysis.declared.tiered.is_none()
                 && cache.estimand.method_kind().ok()
                     == Some(antecedent_expr::EstimandMethod::GeneralId)
                 && cx.binding.resolves_to(
                     RouteDefaults::ADMG,
                     IdentifierId::GeneralId,
                     EstimatorId::FunctionalEffect,
-                )
-                && matches!(query.outcome_functional, OutcomeFunctional::Mean)
-                && matches!(query.target_population, TargetPopulation::AllObserved) =>
+                ) =>
         {
             let mut fitter = antecedent_estimate::FunctionalEffect::new();
-            fitter.bootstrap_replicates = analysis.bootstrap_replicates;
+            fitter.bootstrap_replicates = analysis.settings.bootstrap_replicates;
+            (fitter.row_resampling, fitter.sampling_design) =
+                analysis.functional_row_resampling()?;
             let prepared = fitter.prepare(
                 data,
                 &cache.estimand,
@@ -72,7 +98,9 @@ pub(super) fn functional_effect(cx: &SealContext<'_>) -> SealOutcome {
                 &[query.treatment, query.outcome],
             )?;
             Some(CheckedFunctionalEffectOperation {
-                query: query.clone(),
+                factor_snapshot_digest: data.storage().content_digest(),
+                query,
+                conditional,
                 cache: Arc::clone(cache),
                 fitter,
                 prepared,
@@ -91,10 +119,10 @@ pub(super) fn functional_effect(cx: &SealContext<'_>) -> SealOutcome {
 
 pub(super) fn path_specific_effect(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.route, analysis.identification_cache.as_ref()) {
+    let sealed = match (cx.route, analysis.static_cache()) {
         (Some(RouteInput::PathSpecificDag { data, query, .. }), Some(cache))
             if analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
+                && analysis.declared.tiered.is_none()
                 && cache.estimand.method_kind().ok()
                     == Some(antecedent_expr::EstimandMethod::PathSpecificNatural)
                 && cx.binding.resolves_to(
@@ -105,7 +133,9 @@ pub(super) fn path_specific_effect(cx: &SealContext<'_>) -> SealOutcome {
                 && matches!(query.target_population, TargetPopulation::AllObserved) =>
         {
             let mut fitter = antecedent_estimate::FunctionalEffect::new();
-            fitter.bootstrap_replicates = analysis.bootstrap_replicates;
+            fitter.bootstrap_replicates = analysis.settings.bootstrap_replicates;
+            (fitter.row_resampling, fitter.sampling_design) =
+                analysis.functional_row_resampling()?;
             let mut extra = vec![query.treatment, query.outcome];
             extra.extend(query.path_nodes.iter().copied());
             let prepared = fitter.prepare(
@@ -116,6 +146,7 @@ pub(super) fn path_specific_effect(cx: &SealContext<'_>) -> SealOutcome {
                 &extra,
             )?;
             Some(CheckedPathSpecificEffectOperation {
+                factor_snapshot_digest: data.storage().content_digest(),
                 query: query.clone(),
                 cache: Arc::clone(cache),
                 fitter,
@@ -220,13 +251,13 @@ pub(super) fn admg_response_curve(cx: &SealContext<'_>) -> SealOutcome {
     let sealed = match cx.route {
         Some(RouteInput::MixedAdmgResponse { data, query })
             if analysis.graph_posterior.is_none()
-                && analysis.tiered.is_none()
+                && analysis.declared.tiered.is_none()
                 && query.temporal.is_none()
                 && query.observation == antecedent_core::ObservationSpec::Complete
                 && query.target_population == TargetPopulation::AllObserved
                 && query.outcome_functional == OutcomeFunctional::Mean
                 && matches!(
-                    (&query.functional, analysis.refute),
+                    (&query.functional, analysis.settings.refute),
                     (_, RefuteSuite::None)
                         | (
                             antecedent_core::ResponseFunctional::InterventionResponse { .. },
@@ -244,7 +275,7 @@ pub(super) fn admg_response_curve(cx: &SealContext<'_>) -> SealOutcome {
                         | antecedent_core::ResponseFunctional::InterventionResponse { .. }
                 )
                 && matches!(
-                    analysis.inference,
+                    analysis.settings.inference,
                     InferenceMode::Frequentist | InferenceMode::Bayesian(_)
                 ) =>
         {
@@ -260,7 +291,9 @@ pub(super) fn admg_response_curve(cx: &SealContext<'_>) -> SealOutcome {
                 }
             })?;
             let mut fitter = antecedent_estimate::FunctionalEffect::new();
-            fitter.bootstrap_replicates = analysis.bootstrap_replicates;
+            fitter.bootstrap_replicates = analysis.settings.bootstrap_replicates;
+            (fitter.row_resampling, fitter.sampling_design) =
+                analysis.functional_row_resampling()?;
             let members =
                 admg_response_members(&fitter, data, query, &admg, &grid, treatment, outcome)?;
             Some(CheckedAdmgResponseCurveOperation {

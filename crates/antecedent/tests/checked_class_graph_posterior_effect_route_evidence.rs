@@ -3,6 +3,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{InferenceMode, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
@@ -136,30 +137,31 @@ fn frequentist_cpdag_graph_posterior_effect_body() {
         let mut prepared = builder.prepare(&ctx).unwrap();
         drop(builder);
 
-        let plan = prepared
-            .checked_class_graph_posterior_effect_info()
-            .expect("prepared class graph-posterior operation retained");
+        let RetainedOperation::ClassGraphPosteriorEffect(plan) = prepared.retained_operation()
+        else {
+            panic!("prepared class graph-posterior operation retained")
+        };
         assert_eq!(plan.query, query);
         assert_eq!(plan.estimator.as_str(), "linear.adjustment.ate");
         assert_eq!(plan.validation, suite);
         assert_eq!(plan.weights.as_ref(), &[0.5, 0.3, 0.2]);
-        assert_eq!(plan.graph_keys.as_ref(), gp.graph_keys.as_ref());
+        assert_eq!(plan.graph_keys.as_ref(), gp.graph_keys().as_ref());
         assert_eq!(plan.identified.len(), 3);
         assert_eq!(plan.class_atom_count, 2);
         assert_eq!(plan.bootstrap_replicates, 199);
 
         let result = prepared.estimate(&base, &ctx).unwrap();
         assert!(
-            result.estimate.as_effect().unwrap().ate.is_nan(),
+            result.estimate().as_effect().unwrap().ate.is_nan(),
             "atom estimands disagree; scalar must be withheld"
         );
         let mixture = result.structural_response.as_ref().expect("structural graph mixture");
         let set = mixture.identified_set.as_ref().expect("identified set retained");
-        assert!((set.lower[0] - 2.0).abs() < 0.06);
-        assert!((set.upper[0] - 3.0).abs() < 0.06);
+        assert!((set.lower[0] - 2.0).abs() < 1e-9);
+        assert!((set.upper[0] - 3.0).abs() < 1e-9);
         assert!((mixture.identified_mass - 0.8).abs() < 1e-12);
         assert!((mixture.unidentified_mass - 0.2).abs() < 1e-12);
-        assert!(one_shot.estimate.as_effect().unwrap().ate.is_nan());
+        assert!(one_shot.estimate().as_effect().unwrap().ate.is_nan());
         assert!(
             one_shot
                 .diagnostics
@@ -168,11 +170,13 @@ fn frequentist_cpdag_graph_posterior_effect_body() {
             "one-shot run must execute its retained prepared plan"
         );
 
-        let shifted = prepared.refresh(data(4.0), &ctx).unwrap();
-        assert!(shifted.estimate.as_effect().unwrap().ate.is_nan());
-        let refreshed_plan = prepared
-            .checked_class_graph_posterior_effect_info()
-            .expect("checked class graph-posterior plan remains after refresh");
+        let shifted = rebind_estimate(&mut prepared, data(4.0), &ctx).unwrap();
+        assert!(shifted.estimate().as_effect().unwrap().ate.is_nan());
+        let RetainedOperation::ClassGraphPosteriorEffect(refreshed_plan) =
+            prepared.retained_operation()
+        else {
+            panic!("checked class graph-posterior plan remains after refresh")
+        };
         assert_eq!(refreshed_plan.graph_keys, plan.graph_keys);
         assert_eq!(refreshed_plan.weights, plan.weights);
         let shifted_mix = shifted.structural_response.as_ref().unwrap();
@@ -185,11 +189,11 @@ fn frequentist_cpdag_graph_posterior_effect_body() {
         let artifact = prepared
             .encode_contracted_result(&shifted, "checked-graph-posterior-effect", &ctx)
             .unwrap();
-        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+        let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
         assert!(consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_class_graph_posterior_effect_operation"
         }));
-        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert!(!consumed.acceptance.accepts_as_replayed_program());
     }
 }
 
@@ -203,13 +207,11 @@ fn frequentist_pag_graph_posterior_effect_body() {
     let gp = visible_pag_posterior();
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let ctx = ExecutionContext::for_tests(1941);
-    let dag = antecedent_discovery::pag_from_adjacency_mask(gp.adjacency[0], 0, 3).unwrap();
-    let truth = antecedent::strategy_table::identify_pag(
-        antecedent::strategy_table::IdentifierId::GeneralizedAdjustment,
-        &dag,
-        &query,
-    )
-    .unwrap();
+    let adjacency = gp.adjacency_words().expect("one-word atoms")[0];
+    let dag = antecedent_discovery::pag_from_adjacency_mask(adjacency, 0, 3).unwrap();
+    let truth = antecedent::identify::GeneralizedAdjustmentIdentifier::new()
+        .identify_pag_envelope(&dag, &query)
+        .unwrap();
     assert!(truth.identified_weight.0 > 0.0, "fixture must satisfy PAG identification");
 
     for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
@@ -223,9 +225,10 @@ fn frequentist_pag_graph_posterior_effect_body() {
         let one_shot = builder.run(&ctx).unwrap();
         let mut prepared = builder.prepare(&ctx).unwrap();
         drop(builder);
-        let plan = prepared
-            .checked_class_graph_posterior_effect_info()
-            .expect("prepared PAG graph-posterior operation retained");
+        let RetainedOperation::ClassGraphPosteriorEffect(plan) = prepared.retained_operation()
+        else {
+            panic!("prepared PAG graph-posterior operation retained")
+        };
         assert_eq!(plan.query, query);
         assert_eq!(plan.validation, suite);
         assert_eq!(plan.weights.as_ref(), &[0.8, 0.2]);
@@ -239,25 +242,28 @@ fn frequentist_pag_graph_posterior_effect_body() {
         assert_eq!(plan.class_atom_count, 1);
 
         let result = prepared.estimate(&base, &ctx).unwrap();
-        assert!((result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.06);
+        assert!((result.estimate().as_effect().unwrap().ate - 2.0).abs() < 1e-9);
         let mixture = result.structural_response.as_ref().unwrap();
         assert!((mixture.identified_mass - 0.8).abs() < 1e-12);
         assert!((mixture.unidentified_mass - 0.2).abs() < 1e-12);
-        assert!((one_shot.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.06);
+        assert!((one_shot.estimate().as_effect().unwrap().ate - 2.0).abs() < 1e-9);
 
-        let shifted = prepared.refresh(pag_data(4.0), &ctx).unwrap();
-        assert!((shifted.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.06);
-        let refreshed = prepared.checked_class_graph_posterior_effect_info().unwrap();
+        let shifted = rebind_estimate(&mut prepared, pag_data(4.0), &ctx).unwrap();
+        assert!((shifted.estimate().as_effect().unwrap().ate - 2.0).abs() < 1e-9);
+        let RetainedOperation::ClassGraphPosteriorEffect(refreshed) = prepared.retained_operation()
+        else {
+            panic!("checked class graph-posterior plan remains after refresh")
+        };
         assert_eq!(refreshed.graph_keys, plan.graph_keys);
         assert_eq!(refreshed.weights, plan.weights);
         let artifact = prepared
             .encode_contracted_result(&shifted, "checked-class-graph-posterior-effect", &ctx)
             .unwrap();
-        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+        let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
         assert!(consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_class_graph_posterior_effect_operation"
         }));
-        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert!(!consumed.acceptance.accepts_as_replayed_program());
     }
 }
 
@@ -269,4 +275,17 @@ fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
         .unwrap()
         .join()
         .unwrap();
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

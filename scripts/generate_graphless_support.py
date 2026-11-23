@@ -1,41 +1,104 @@
-"""Generate exact graphless support licenses for Rust and documentation."""
+"""Generate exact graphless support supports for Rust and documentation."""
 
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import re
-import tomllib
 
+import test_evidence
 from _repo import REPO_ROOT as ROOT
+from _repo import load_toml, source_url
 
 SOURCE = ROOT / "parity/support_graphless.toml"
 RUST = ROOT / "crates/antecedent-io-core/src/support_graphless_data.rs"
 DOC = ROOT / "docs/graphless-support-matrix.md"
 KEYS = ("family", "design", "method", "inference_claim")
 INTEGER_LIMITS = (
-    "min_rows", "min_assignment_units_per_arm", "min_blocks", "min_block_arm",
-    "min_factorial_cell", "min_action_rows", "min_reported_intervals",
-    "min_policy_matches", "min_reference_matches", "min_bin_rows",
-    "min_bin_arm_rows", "min_group_rows", "min_group_arm_rows", "min_local_rows",
+    "min_rows",
+    "min_assignment_units_per_arm",
+    "min_blocks",
+    "min_block_arm",
+    "min_factorial_cell",
+    "min_action_rows",
+    "min_reported_intervals",
+    "min_policy_matches",
+    "min_reference_matches",
+    "min_bin_rows",
+    "min_bin_arm_rows",
+    "min_group_rows",
+    "min_group_arm_rows",
+    "min_local_rows",
+    # Bootstrap replicates or posterior draws that produced the interval.
+    "min_interval_resamples",
 )
-FLOAT_LOWER_LIMITS = ("min_effective_sample_size", "min_dose_density", "min_expected_arm_units")
+FLOAT_LOWER_LIMITS = (
+    "min_effective_sample_size",
+    "min_dose_density",
+    "min_expected_arm_units",
+    # Absolute first-stage estimate over its standard error.
+    "min_first_stage_t",
+)
 FLOAT_UPPER_LIMITS = ("max_normalized_weight",)
 BOOLEAN_REQUIREMENTS = (
-    "requires_uncoupled_constraints", "requires_disjoint_nuisance_training",
-    "requires_rank_ownership", "requires_balanced_sequences", "requires_known_density",
+    "requires_uncoupled_constraints",
+    "requires_disjoint_nuisance_training",
+    "requires_rank_ownership",
+    "requires_balanced_sequences",
+    "requires_known_density",
 )
+
+
+
+def rust_f64(value: object) -> str:
+    """A Rust f64 literal; integral values of five or more digits get `_` separators."""
+    text = repr(float(value))
+    whole, dot, frac = text.partition(".")
+    if dot and frac == "0" and whole.lstrip("-").isdigit() and len(whole.lstrip("-")) >= 5:
+        sign = "-" if whole.startswith("-") else ""
+        return f"{sign}{int(whole.lstrip('-')):_}.0"
+    return text
+
+def citation_source(citation: str) -> tuple[str, str] | None:
+    """(defining file relative to the repository, function) of a `path::function` citation.
+
+    A citation may name a Rust module file whose child module file defines the test; the
+    calibration-simulation exclusion and the cited-test gate key on the defining file
+    (`test_evidence.rust_defining_file`), so the two always agree."""
+    path, sep, function = citation.partition("::")
+    if not sep or not re.fullmatch(r"[a-zA-Z_][a-zA-Z_0-9]*", function):
+        return None
+    source = test_evidence.rust_defining_file(ROOT / path, function)
+    if source is None:
+        return None
+    return source.relative_to(ROOT).as_posix(), function
+
+
+@functools.cache
+def calibration_simulations() -> set[tuple[str, str]]:
+    """Registered repeated-sampling calibration simulations, as (defining file, function)."""
+    return {
+        (row["evidence_test"], row["evidence_assertion"])
+        for row in test_evidence.registered_calibration_simulations(ROOT)
+    }
 
 
 def load_rows() -> list[dict]:
-    rows = tomllib.loads(SOURCE.read_text(encoding="utf-8"))["license"]
+    rows = load_toml(SOURCE)["support"]
     seen: set[tuple[str, ...]] = set()
     for row in rows:
         key = tuple(row[field] for field in KEYS)
         if key in seen:
             raise ValueError(f"duplicate graphless support key: {key}")
         seen.add(key)
-        for field in (*KEYS, "assignment_unit", "known_truth_test", "retained_route_test", "limitations"):
+        for field in (
+            *KEYS,
+            "assignment_unit",
+            "known_truth_test",
+            "retained_route_test",
+            "limitations",
+        ):
             if not isinstance(row.get(field), str) or not row[field].strip():
                 raise ValueError(f"{key}: missing {field}")
         if row["assignment_unit"] not in ("unit", "cluster", "sequence"):
@@ -62,43 +125,21 @@ def load_rows() -> list[dict]:
             if type(row.get(field, False)) is not bool:
                 raise ValueError(f"{key}: {field} must be boolean")
         for evidence in ("known_truth_test", "retained_route_test"):
-            path, sep, function = row[evidence].partition("::")
+            _, sep, function = row[evidence].partition("::")
             if not sep or not re.fullmatch(r"[a-zA-Z_][a-zA-Z_0-9]*", function):
                 raise ValueError(f"{key}: invalid {evidence} citation")
-            source = ROOT / path
-            if not source.is_file() or not re.search(rf"\bfn\s+{function}\s*\(", source.read_text(encoding="utf-8")):
+            source = citation_source(row[evidence])
+            if source is None:
                 raise ValueError(f"{key}: missing {evidence} function")
-            if evidence == "known_truth_test" and (
-                "95_normal_interval" in row["inference_claim"]
-                or "95_student_interval" in row["inference_claim"]
-                or "95_percentile_intervals" in row["inference_claim"]
-            ):
-                body = re.search(
-                    rf"\bfn\s+{function}\s*\(\)\s*\{{(.*?)(?=\n\s*#\[test\]|\Z)",
-                    source.read_text(encoding="utf-8"), re.DOTALL,
+            # Known truth is a deterministic software-lane check. A repeated-sampling coverage
+            # simulation is calibration evidence: it annotates the row's intervals through the
+            # coverage records and never decides whether the row runs. The check keys on the
+            # defining file, so citing the simulation by its parent module file cannot pass.
+            if evidence == "known_truth_test" and source in calibration_simulations():
+                raise ValueError(
+                    f"{key}: known_truth_test {row[evidence]} is a calibration simulation; "
+                    "cite a deterministic known-truth check"
                 )
-                legacy_evidence = body is not None and all(token in body.group(1)
-                    for token in ("REPLICATES: usize = 2_000", "0.93..=0.985", "covered", "interval_95"))
-                policy_evidence = row["family"] == "policy_value" and body is not None and all(
-                    token in body.group(1) for token in ("2_000", "coverage")) and any(
-                    token in body.group(1) for token in ("interval_95", "intervals_95"))
-                did_evidence = row["family"] == "difference_in_differences" and body is not None \
-                    and "const REPLICATIONS: usize = 2_000" in source.read_text(encoding="utf-8") \
-                    and all(token in body.group(1) for token in ("covered", "interval_95", "0.925..=0.975"))
-                switchback_evidence = row["design"] == "switchback" and body is not None \
-                    and all(token in body.group(1) for token in ("2_000", "covered", "assert_eq!(rejected, 0")) \
-                    and all(token in source.read_text(encoding="utf-8") for token in ("const TRUTH", "fit.interval_95", "fn unconditional_coverage"))
-                survival_evidence = row["family"] == "survival" and body is not None \
-                    and all(token in body.group(1) for token in (
-                        "const REPLICATIONS: usize = 2_000", "covered_rmst", "covered_tau",
-                        "1_860..=1_970", "rmst_difference", "difference_at_tau",
-                    ))
-                longitudinal_evidence = row["family"] == "longitudinal_regime" and body is not None \
-                    and all(token in body.group(1) for token in ("simulations = 2_000", "truth", "covered", "coverage", "bounds"))
-                if body is None or not (legacy_evidence or policy_evidence or did_evidence or switchback_evidence or survival_evidence or longitudinal_evidence) or not (
-                    switchback_evidence or any(token in body.group(1)
-                        for token in ("truth", "target", "truths", "TRUTH"))):
-                    raise ValueError(f"{key}: interval evidence must run the 2,000-allocation known-truth coverage gate")
     return sorted(rows, key=lambda row: tuple(row[field] for field in KEYS))
 
 
@@ -107,7 +148,7 @@ def rust(rows: list[dict]) -> str:
     lines = [
         "//! Generated from `parity/support_graphless.toml`; do not edit by hand.",
         "#[allow(clippy::struct_excessive_bools)] // One flat support row; the requires_* flags are independent gates.",
-        "pub(crate) struct GraphlessLicenseRow {",
+        "pub(crate) struct GraphlessSupportRow {",
         *(f"    pub(crate) {field}: &'static str," for field in fields),
         *(f"    pub(crate) {field}: usize," for field in INTEGER_LIMITS),
         *(f"    pub(crate) {field}: f64," for field in (*FLOAT_LOWER_LIMITS, *FLOAT_UPPER_LIMITS)),
@@ -116,17 +157,27 @@ def rust(rows: list[dict]) -> str:
         "    pub(crate) all_reported_intervals: bool,",
         *(f"    pub(crate) {field}: bool," for field in BOOLEAN_REQUIREMENTS),
         "}",
-        "pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[",
+        "pub(crate) const SUPPORTS: &[GraphlessSupportRow] = &[",
     ]
     for row in rows:
-        lines.append("    GraphlessLicenseRow {")
-        lines.extend(f"        {field}: {json.dumps(row[field], ensure_ascii=False)}," for field in fields)
+        lines.append("    GraphlessSupportRow {")
+        lines.extend(
+            f"        {field}: {json.dumps(row[field], ensure_ascii=False)}," for field in fields
+        )
         lines.extend(f"        {field}: {row.get(field, 0)}," for field in INTEGER_LIMITS)
-        lines.extend(f"        {field}: {float(row.get(field, 0.0))}," for field in (*FLOAT_LOWER_LIMITS, *FLOAT_UPPER_LIMITS))
+        lines.extend(
+            f"        {field}: {rust_f64(row.get(field, 0.0))},"
+            for field in (*FLOAT_LOWER_LIMITS, *FLOAT_UPPER_LIMITS)
+        )
         lines.append(f"        max_covariates: {row.get('max_covariates', 0)},")
-        lines.append(f"        min_probability: {float(row.get('min_probability', 0.0))},")
-        lines.append(f"        all_reported_intervals: {str(row.get('all_reported_intervals', False)).lower()},")
-        lines.extend(f"        {field}: {str(row.get(field, False)).lower()}," for field in BOOLEAN_REQUIREMENTS)
+        lines.append(f"        min_probability: {rust_f64(row.get('min_probability', 0.0))},")
+        lines.append(
+            f"        all_reported_intervals: {str(row.get('all_reported_intervals', False)).lower()},"
+        )
+        lines.extend(
+            f"        {field}: {str(row.get(field, False)).lower()},"
+            for field in BOOLEAN_REQUIREMENTS
+        )
         lines.append("    },")
     return "\n".join([*lines, "];", ""])
 
@@ -136,34 +187,70 @@ def docs(rows: list[dict]) -> str:
         "# Graphless design-family support matrix",
         "",
         "This table is separate from the graph/structure support axes in",
-        "[the geometric matrix](support-matrix.md). A query is licensed only when",
+        "[the geometric matrix](support-matrix.md). A query is supported only when",
         "its exact family, design, method, inference claim, and observed",
-        "support thresholds match a row. All other combinations are refused.",
-        "That refusal means no matrix license; off-axis point results may still",
-        "execute. The route must validate its stated design and assumptions.",
+        "support thresholds match a row; each row has a provenance record and an",
+        "executed independent scientific check, and an interval row also has an",
+        "independent check of that interval's construction. Any other combination",
+        "is not supported: a release build refuses it with `not_supported`, and a",
+        "development build runs it and reports `would_refuse`. Calibration status",
+        "annotates each reported interval and never decides whether a row runs.",
+        "See [How Antecedent checks its scientific methods](guides/scientific-verification.md#the-evidence-model).",
         "",
         "| Family | Design | Method | Inference claim | Observed support | Evidence |",
         "| --- | --- | --- | --- | --- | --- |",
     ]
     for row in rows:
         evidence = ", ".join(
-            f"[`{row[field].split('::')[-1]}`](https://github.com/iridae-dev/antecedent/blob/main/{row[field].split('::')[0]})"
+            f"[`{row[field].split('::')[-1]}`]({source_url(row[field].split('::')[0])})"
             for field in ("known_truth_test", "retained_route_test")
         )
         lines.append(
-            "| " + " | ".join(
-                [*(f"`{row[field]}`" for field in KEYS),
-                 ", ".join([
-                     *(f">= {row[field]} {field.removeprefix('min_').replace('_', ' ')}" for field in INTEGER_LIMITS if row.get(field)),
-                     *(f">= {row[field]} {field.removeprefix('min_').replace('_', ' ')}" for field in FLOAT_LOWER_LIMITS if row.get(field)),
-                     *(f"<= {row[field]} {field.removeprefix('max_').replace('_', ' ')}" for field in FLOAT_UPPER_LIMITS if row.get(field)),
-                     *(f"<= {row['max_covariates']} covariates" for _ in [0] if row.get("max_covariates")),
-                     *(f"probability >= {row['min_probability']}" for _ in [0] if row.get("min_probability")),
-                     "all intervals" if row.get("all_reported_intervals") else "interval published",
-                     *(field.removeprefix("requires_").replace("_", " ") for field in BOOLEAN_REQUIREMENTS if row.get(field)),
-                 ]),
-                 evidence]
-            ) + " |"
+            "| "
+            + " | ".join(
+                [
+                    *(f"`{row[field]}`" for field in KEYS),
+                    ", ".join(
+                        [
+                            *(
+                                f">= {row[field]} {field.removeprefix('min_').replace('_', ' ')}"
+                                for field in INTEGER_LIMITS
+                                if row.get(field)
+                            ),
+                            *(
+                                f">= {row[field]} {field.removeprefix('min_').replace('_', ' ')}"
+                                for field in FLOAT_LOWER_LIMITS
+                                if row.get(field)
+                            ),
+                            *(
+                                f"<= {row[field]} {field.removeprefix('max_').replace('_', ' ')}"
+                                for field in FLOAT_UPPER_LIMITS
+                                if row.get(field)
+                            ),
+                            *(
+                                f"<= {row['max_covariates']} covariates"
+                                for _ in [0]
+                                if row.get("max_covariates")
+                            ),
+                            *(
+                                f"probability >= {row['min_probability']}"
+                                for _ in [0]
+                                if row.get("min_probability")
+                            ),
+                            "all intervals"
+                            if row.get("all_reported_intervals")
+                            else "interval published",
+                            *(
+                                field.removeprefix("requires_").replace("_", " ")
+                                for field in BOOLEAN_REQUIREMENTS
+                                if row.get(field)
+                            ),
+                        ]
+                    ),
+                    evidence,
+                ]
+            )
+            + " |"
         )
     lines.append("")
     for row in rows:
@@ -180,7 +267,9 @@ def main() -> None:
     for target, expected in ((RUST, rust(rows)), (DOC, docs(rows))):
         if args.check:
             if not target.exists() or target.read_text(encoding="utf-8") != expected:
-                raise SystemExit(f"{target.relative_to(ROOT)} is stale; regenerate graphless support")
+                raise SystemExit(
+                    f"{target.relative_to(ROOT)} is stale; regenerate graphless support"
+                )
         else:
             target.write_text(expected, encoding="utf-8", newline="\n")
 

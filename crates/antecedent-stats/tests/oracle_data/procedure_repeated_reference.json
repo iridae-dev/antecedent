@@ -1,0 +1,2004 @@
+{
+ "summaries": [
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "0/1"
+   },
+   "measurements": 2,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.875,
+   "design_effect": 1.0
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "0/1"
+   },
+   "measurements": 2,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.875,
+   "design_effect": 1.0
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "1/2"
+   },
+   "measurements": 2,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 1.3125,
+   "design_effect": 1.5
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "1/2"
+   },
+   "measurements": 2,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 1.3125,
+   "design_effect": 1.5
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "-9/10"
+   },
+   "measurements": 2,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.0875,
+   "design_effect": 0.1
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "-9/10"
+   },
+   "measurements": 2,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.0875,
+   "design_effect": 0.1
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "99/100"
+   },
+   "measurements": 2,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 1.74125,
+   "design_effect": 1.99
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "99/100"
+   },
+   "measurements": 2,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 1.74125,
+   "design_effect": 1.99
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "-2/3"
+   },
+   "measurements": 2,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.2916666666666667,
+   "design_effect": 0.3333333333333333
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "-2/3"
+   },
+   "measurements": 2,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.2916666666666667,
+   "design_effect": 0.3333333333333333
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "0/1"
+   },
+   "measurements": 2,
+   "summary": "mean",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.75,
+   "design_effect": 1.0
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "0/1"
+   },
+   "measurements": 2,
+   "summary": "gls",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.75,
+   "design_effect": 1.0
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "1/2"
+   },
+   "measurements": 2,
+   "summary": "mean",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 1.125,
+   "design_effect": 1.5
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "1/2"
+   },
+   "measurements": 2,
+   "summary": "gls",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 1.125,
+   "design_effect": 1.5
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "-9/10"
+   },
+   "measurements": 2,
+   "summary": "mean",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.075,
+   "design_effect": 0.1
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "-9/10"
+   },
+   "measurements": 2,
+   "summary": "gls",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.075,
+   "design_effect": 0.1
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "99/100"
+   },
+   "measurements": 2,
+   "summary": "mean",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 1.4925,
+   "design_effect": 1.99
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "99/100"
+   },
+   "measurements": 2,
+   "summary": "gls",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 1.4925,
+   "design_effect": 1.99
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "0/1",
+    "within": "2/1"
+   },
+   "measurements": 2,
+   "summary": "mean",
+   "marginal_variance": 2.0,
+   "unit_summary_variance": 1.0,
+   "design_effect": 1.0
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "0/1",
+    "within": "2/1"
+   },
+   "measurements": 2,
+   "summary": "gls",
+   "marginal_variance": 2.0,
+   "unit_summary_variance": 1.0,
+   "design_effect": 1.0
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "3/2",
+    "within": "1/2"
+   },
+   "measurements": 2,
+   "summary": "mean",
+   "marginal_variance": 2.0,
+   "unit_summary_variance": 1.75,
+   "design_effect": 1.75
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "3/2",
+    "within": "1/2"
+   },
+   "measurements": 2,
+   "summary": "gls",
+   "marginal_variance": 2.0,
+   "unit_summary_variance": 1.75,
+   "design_effect": 1.75
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "1/100",
+    "within": "5/1"
+   },
+   "measurements": 2,
+   "summary": "mean",
+   "marginal_variance": 5.01,
+   "unit_summary_variance": 2.51,
+   "design_effect": 1.001996007984032
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "1/100",
+    "within": "5/1"
+   },
+   "measurements": 2,
+   "summary": "gls",
+   "marginal_variance": 5.01,
+   "unit_summary_variance": 2.51,
+   "design_effect": 1.001996007984032
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "0/1"
+   },
+   "measurements": 3,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.5833333333333334,
+   "design_effect": 1.0
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "0/1"
+   },
+   "measurements": 3,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.5833333333333334,
+   "design_effect": 1.0
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "1/2"
+   },
+   "measurements": 3,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 1.1666666666666667,
+   "design_effect": 2.0
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "1/2"
+   },
+   "measurements": 3,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 1.1666666666666667,
+   "design_effect": 2.0
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "-9/20"
+   },
+   "measurements": 3,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.058333333333333334,
+   "design_effect": 0.1
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "-9/20"
+   },
+   "measurements": 3,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.058333333333333334,
+   "design_effect": 0.1
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "99/100"
+   },
+   "measurements": 3,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 1.7383333333333333,
+   "design_effect": 2.98
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "99/100"
+   },
+   "measurements": 3,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 1.7383333333333333,
+   "design_effect": 2.98
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "-1/3"
+   },
+   "measurements": 3,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.19444444444444445,
+   "design_effect": 0.3333333333333333
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "-1/3"
+   },
+   "measurements": 3,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.19444444444444445,
+   "design_effect": 0.3333333333333333
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "0/1"
+   },
+   "measurements": 3,
+   "summary": "mean",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.5,
+   "design_effect": 1.0
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "0/1"
+   },
+   "measurements": 3,
+   "summary": "gls",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.5,
+   "design_effect": 1.0
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "1/2"
+   },
+   "measurements": 3,
+   "summary": "mean",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.9166666666666666,
+   "design_effect": 1.8333333333333333
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "1/2"
+   },
+   "measurements": 3,
+   "summary": "gls",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.9,
+   "design_effect": 1.8
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "-9/10"
+   },
+   "measurements": 3,
+   "summary": "mean",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.17,
+   "design_effect": 0.34
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "-9/10"
+   },
+   "measurements": 3,
+   "summary": "gls",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.038461538461538464,
+   "design_effect": 0.07692307692307693
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "99/100"
+   },
+   "measurements": 3,
+   "summary": "mean",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 1.4867,
+   "design_effect": 2.9734
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "99/100"
+   },
+   "measurements": 3,
+   "summary": "gls",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 1.4850746268656716,
+   "design_effect": 2.970149253731343
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "0/1",
+    "within": "2/1"
+   },
+   "measurements": 3,
+   "summary": "mean",
+   "marginal_variance": 2.0,
+   "unit_summary_variance": 0.6666666666666666,
+   "design_effect": 1.0
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "0/1",
+    "within": "2/1"
+   },
+   "measurements": 3,
+   "summary": "gls",
+   "marginal_variance": 2.0,
+   "unit_summary_variance": 0.6666666666666666,
+   "design_effect": 1.0
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "3/2",
+    "within": "1/2"
+   },
+   "measurements": 3,
+   "summary": "mean",
+   "marginal_variance": 2.0,
+   "unit_summary_variance": 1.6666666666666667,
+   "design_effect": 2.5
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "3/2",
+    "within": "1/2"
+   },
+   "measurements": 3,
+   "summary": "gls",
+   "marginal_variance": 2.0,
+   "unit_summary_variance": 1.6666666666666667,
+   "design_effect": 2.5
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "1/100",
+    "within": "5/1"
+   },
+   "measurements": 3,
+   "summary": "mean",
+   "marginal_variance": 5.01,
+   "unit_summary_variance": 1.6766666666666667,
+   "design_effect": 1.003992015968064
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "1/100",
+    "within": "5/1"
+   },
+   "measurements": 3,
+   "summary": "gls",
+   "marginal_variance": 5.01,
+   "unit_summary_variance": 1.6766666666666667,
+   "design_effect": 1.003992015968064
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "0/1"
+   },
+   "measurements": 5,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.35,
+   "design_effect": 1.0
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "0/1"
+   },
+   "measurements": 5,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.35,
+   "design_effect": 1.0
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "1/2"
+   },
+   "measurements": 5,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 1.05,
+   "design_effect": 3.0
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "1/2"
+   },
+   "measurements": 5,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 1.05,
+   "design_effect": 3.0
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "-9/40"
+   },
+   "measurements": 5,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.035,
+   "design_effect": 0.1
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "-9/40"
+   },
+   "measurements": 5,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.035,
+   "design_effect": 0.1
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "99/100"
+   },
+   "measurements": 5,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 1.736,
+   "design_effect": 4.96
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "99/100"
+   },
+   "measurements": 5,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 1.736,
+   "design_effect": 4.96
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "-1/6"
+   },
+   "measurements": 5,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.11666666666666667,
+   "design_effect": 0.3333333333333333
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "-1/6"
+   },
+   "measurements": 5,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.11666666666666667,
+   "design_effect": 0.3333333333333333
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "0/1"
+   },
+   "measurements": 5,
+   "summary": "mean",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.3,
+   "design_effect": 1.0
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "0/1"
+   },
+   "measurements": 5,
+   "summary": "gls",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.3,
+   "design_effect": 1.0
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "1/2"
+   },
+   "measurements": 5,
+   "summary": "mean",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.6675,
+   "design_effect": 2.225
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "1/2"
+   },
+   "measurements": 5,
+   "summary": "gls",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.6428571428571429,
+   "design_effect": 2.142857142857143
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "-9/10"
+   },
+   "measurements": 5,
+   "summary": "mean",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.063372,
+   "design_effect": 0.21124
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "-9/10"
+   },
+   "measurements": 5,
+   "summary": "gls",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.01948051948051948,
+   "design_effect": 0.06493506493506493
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "99/100"
+   },
+   "measurements": 5,
+   "summary": "mean",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 1.4761792812,
+   "design_effect": 4.920597604
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "99/100"
+   },
+   "measurements": 5,
+   "summary": "gls",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 1.4704433497536946,
+   "design_effect": 4.901477832512315
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "0/1",
+    "within": "2/1"
+   },
+   "measurements": 5,
+   "summary": "mean",
+   "marginal_variance": 2.0,
+   "unit_summary_variance": 0.4,
+   "design_effect": 1.0
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "0/1",
+    "within": "2/1"
+   },
+   "measurements": 5,
+   "summary": "gls",
+   "marginal_variance": 2.0,
+   "unit_summary_variance": 0.4,
+   "design_effect": 1.0
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "3/2",
+    "within": "1/2"
+   },
+   "measurements": 5,
+   "summary": "mean",
+   "marginal_variance": 2.0,
+   "unit_summary_variance": 1.6,
+   "design_effect": 4.0
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "3/2",
+    "within": "1/2"
+   },
+   "measurements": 5,
+   "summary": "gls",
+   "marginal_variance": 2.0,
+   "unit_summary_variance": 1.6,
+   "design_effect": 4.0
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "1/100",
+    "within": "5/1"
+   },
+   "measurements": 5,
+   "summary": "mean",
+   "marginal_variance": 5.01,
+   "unit_summary_variance": 1.01,
+   "design_effect": 1.0079840319361277
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "1/100",
+    "within": "5/1"
+   },
+   "measurements": 5,
+   "summary": "gls",
+   "marginal_variance": 5.01,
+   "unit_summary_variance": 1.01,
+   "design_effect": 1.0079840319361277
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "0/1"
+   },
+   "measurements": 12,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.14583333333333334,
+   "design_effect": 1.0
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "0/1"
+   },
+   "measurements": 12,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.14583333333333334,
+   "design_effect": 1.0
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "1/2"
+   },
+   "measurements": 12,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.9479166666666666,
+   "design_effect": 6.5
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "1/2"
+   },
+   "measurements": 12,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.9479166666666666,
+   "design_effect": 6.5
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "-9/110"
+   },
+   "measurements": 12,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.014583333333333334,
+   "design_effect": 0.1
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "-9/110"
+   },
+   "measurements": 12,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.014583333333333334,
+   "design_effect": 0.1
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "99/100"
+   },
+   "measurements": 12,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 1.7339583333333333,
+   "design_effect": 11.89
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "99/100"
+   },
+   "measurements": 12,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 1.7339583333333333,
+   "design_effect": 11.89
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "-2/33"
+   },
+   "measurements": 12,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.04861111111111111,
+   "design_effect": 0.3333333333333333
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "-2/33"
+   },
+   "measurements": 12,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.04861111111111111,
+   "design_effect": 0.3333333333333333
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "0/1"
+   },
+   "measurements": 12,
+   "summary": "mean",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.125,
+   "design_effect": 1.0
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "0/1"
+   },
+   "measurements": 12,
+   "summary": "gls",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.125,
+   "design_effect": 1.0
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "1/2"
+   },
+   "measurements": 12,
+   "summary": "mean",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.333343505859375,
+   "design_effect": 2.666748046875
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "1/2"
+   },
+   "measurements": 12,
+   "summary": "gls",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.32142857142857145,
+   "design_effect": 2.5714285714285716
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "-9/10"
+   },
+   "measurements": 12,
+   "summary": "mean",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.010305940773125,
+   "design_effect": 0.082447526185
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "-9/10"
+   },
+   "measurements": 12,
+   "summary": "gls",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.007142857142857143,
+   "design_effect": 0.05714285714285714
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "99/100"
+   },
+   "measurements": 12,
+   "summary": "mean",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 1.4418797914516641,
+   "design_effect": 11.535038331613313
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "99/100"
+   },
+   "measurements": 12,
+   "summary": "gls",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 1.4214285714285715,
+   "design_effect": 11.371428571428572
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "0/1",
+    "within": "2/1"
+   },
+   "measurements": 12,
+   "summary": "mean",
+   "marginal_variance": 2.0,
+   "unit_summary_variance": 0.16666666666666666,
+   "design_effect": 1.0
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "0/1",
+    "within": "2/1"
+   },
+   "measurements": 12,
+   "summary": "gls",
+   "marginal_variance": 2.0,
+   "unit_summary_variance": 0.16666666666666666,
+   "design_effect": 1.0
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "3/2",
+    "within": "1/2"
+   },
+   "measurements": 12,
+   "summary": "mean",
+   "marginal_variance": 2.0,
+   "unit_summary_variance": 1.5416666666666667,
+   "design_effect": 9.25
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "3/2",
+    "within": "1/2"
+   },
+   "measurements": 12,
+   "summary": "gls",
+   "marginal_variance": 2.0,
+   "unit_summary_variance": 1.5416666666666667,
+   "design_effect": 9.25
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "1/100",
+    "within": "5/1"
+   },
+   "measurements": 12,
+   "summary": "mean",
+   "marginal_variance": 5.01,
+   "unit_summary_variance": 0.4266666666666667,
+   "design_effect": 1.0219560878243512
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "1/100",
+    "within": "5/1"
+   },
+   "measurements": 12,
+   "summary": "gls",
+   "marginal_variance": 5.01,
+   "unit_summary_variance": 0.4266666666666667,
+   "design_effect": 1.0219560878243512
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "0/1"
+   },
+   "measurements": 32,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.0546875,
+   "design_effect": 1.0
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "0/1"
+   },
+   "measurements": 32,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.0546875,
+   "design_effect": 1.0
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "1/2"
+   },
+   "measurements": 32,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.90234375,
+   "design_effect": 16.5
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "1/2"
+   },
+   "measurements": 32,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.90234375,
+   "design_effect": 16.5
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "-9/310"
+   },
+   "measurements": 32,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.00546875,
+   "design_effect": 0.1
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "-9/310"
+   },
+   "measurements": 32,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.00546875,
+   "design_effect": 0.1
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "99/100"
+   },
+   "measurements": 32,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 1.733046875,
+   "design_effect": 31.69
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "99/100"
+   },
+   "measurements": 32,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 1.733046875,
+   "design_effect": 31.69
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "-2/93"
+   },
+   "measurements": 32,
+   "summary": "mean",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.018229166666666668,
+   "design_effect": 0.3333333333333333
+  },
+  {
+   "name": "compound_symmetry",
+   "structure": {
+    "kind": "compound",
+    "variance": "7/4",
+    "rho": "-2/93"
+   },
+   "measurements": 32,
+   "summary": "gls",
+   "marginal_variance": 1.75,
+   "unit_summary_variance": 0.018229166666666668,
+   "design_effect": 0.3333333333333333
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "0/1"
+   },
+   "measurements": 32,
+   "summary": "mean",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.046875,
+   "design_effect": 1.0
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "0/1"
+   },
+   "measurements": 32,
+   "summary": "gls",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.046875,
+   "design_effect": 1.0
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "1/2"
+   },
+   "measurements": 32,
+   "summary": "mean",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.13476562500136424,
+   "design_effect": 2.875000000029104
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "1/2"
+   },
+   "measurements": 32,
+   "summary": "gls",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.1323529411764706,
+   "design_effect": 2.823529411764706
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "-9/10"
+   },
+   "measurements": 32,
+   "summary": "mean",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.00317241888224228,
+   "design_effect": 0.06767826948783531
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "-9/10"
+   },
+   "measurements": 32,
+   "summary": "gls",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 0.002542372881355932,
+   "design_effect": 0.05423728813559322
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "99/100"
+   },
+   "measurements": 32,
+   "summary": "mean",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 1.351480447215091,
+   "design_effect": 28.831582873921942
+  },
+  {
+   "name": "autoregressive",
+   "structure": {
+    "kind": "autoregressive",
+    "variance": "3/2",
+    "rho": "99/100"
+   },
+   "measurements": 32,
+   "summary": "gls",
+   "marginal_variance": 1.5,
+   "unit_summary_variance": 1.2978260869565217,
+   "design_effect": 27.68695652173913
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "0/1",
+    "within": "2/1"
+   },
+   "measurements": 32,
+   "summary": "mean",
+   "marginal_variance": 2.0,
+   "unit_summary_variance": 0.0625,
+   "design_effect": 1.0
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "0/1",
+    "within": "2/1"
+   },
+   "measurements": 32,
+   "summary": "gls",
+   "marginal_variance": 2.0,
+   "unit_summary_variance": 0.0625,
+   "design_effect": 1.0
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "3/2",
+    "within": "1/2"
+   },
+   "measurements": 32,
+   "summary": "mean",
+   "marginal_variance": 2.0,
+   "unit_summary_variance": 1.515625,
+   "design_effect": 24.25
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "3/2",
+    "within": "1/2"
+   },
+   "measurements": 32,
+   "summary": "gls",
+   "marginal_variance": 2.0,
+   "unit_summary_variance": 1.515625,
+   "design_effect": 24.25
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "1/100",
+    "within": "5/1"
+   },
+   "measurements": 32,
+   "summary": "mean",
+   "marginal_variance": 5.01,
+   "unit_summary_variance": 0.16625,
+   "design_effect": 1.06187624750499
+  },
+  {
+   "name": "random_effect",
+   "structure": {
+    "kind": "hierarchical",
+    "between": "1/100",
+    "within": "5/1"
+   },
+   "measurements": 32,
+   "summary": "gls",
+   "marginal_variance": 5.01,
+   "unit_summary_variance": 0.16625,
+   "design_effect": 1.06187624750499
+  }
+ ],
+ "mixtures": [
+  {
+   "n": 5,
+   "plus_probability": "1/2",
+   "summary_variance": 0.75,
+   "delta": 0.4,
+   "undefined_mass": 0.0625,
+   "defined_mass": 0.9375,
+   "variance": 0.7291666666666666,
+   "components": {
+    "1": {
+     "weight": 0.15625,
+     "variance": 0.9375
+    },
+    "2": {
+     "weight": 0.3125,
+     "variance": 0.625
+    },
+    "3": {
+     "weight": 0.3125,
+     "variance": 0.625
+    },
+    "4": {
+     "weight": 0.15625,
+     "variance": 0.9375
+    }
+   },
+   "component_count": 4,
+   "cdf": [
+    {
+     "x": -2.1617376914898996,
+     "cdf": 0.001756410413874452
+    },
+    {
+     "x": 0.4,
+     "cdf": 0.5
+    },
+    {
+     "x": 1.2539125638299664,
+     "cdf": 0.8436673235461568
+    }
+   ]
+  },
+  {
+   "n": 40,
+   "plus_probability": "1/10",
+   "summary_variance": 0.75,
+   "delta": -0.3333333333333333,
+   "undefined_mass": 0.014780882941434592,
+   "defined_mass": 0.9852191170585654,
+   "variance": 0.26378023523825733,
+   "components": {
+    "1": {
+     "weight": 0.06569281307304263,
+     "variance": 0.7692307692307693
+    },
+    "2": {
+     "weight": 0.1423344283249257,
+     "variance": 0.39473684210526316
+    },
+    "3": {
+     "weight": 0.20032252875359913,
+     "variance": 0.2702702702702703
+    },
+    "19": {
+     "weight": 1.4364788417878367e-09,
+     "variance": 0.07518796992481203
+    },
+    "20": {
+     "weight": 1.6758919820858093e-10,
+     "variance": 0.075
+    },
+    "21": {
+     "weight": 1.7734306688738725e-11,
+     "variance": 0.07518796992481203
+    },
+    "22": {
+     "weight": 1.701776904474928e-12,
+     "variance": 0.07575757575757576
+    },
+    "37": {
+     "weight": 7.20252e-34,
+     "variance": 0.2702702702702703
+    },
+    "38": {
+     "weight": 6.318e-36,
+     "variance": 0.39473684210526316
+    },
+    "39": {
+     "weight": 3.6e-38,
+     "variance": 0.7692307692307693
+    }
+   },
+   "component_count": 39,
+   "cdf": [
+    {
+     "x": -1.8741195343178552,
+     "cdf": 0.00406379480863803
+    },
+    {
+     "x": -0.3333333333333333,
+     "cdf": 0.5
+    },
+    {
+     "x": 0.18026206699484065,
+     "cdf": 0.8565266439329305
+    }
+   ]
+  },
+  {
+   "n": 300,
+   "plus_probability": "9/10",
+   "summary_variance": 1.25,
+   "delta": 0.5,
+   "undefined_mass": 1.873927703884794e-14,
+   "defined_mass": 0.9999999999999812,
+   "variance": 0.04763583700559616,
+   "components": {
+    "1": {
+     "weight": 2.7e-297,
+     "variance": 1.254180602006689
+    },
+    "2": {
+     "weight": 3.63285e-294,
+     "variance": 0.6291946308724832
+    },
+    "3": {
+     "weight": 3.2477679e-291,
+     "variance": 0.4208754208754209
+    },
+    "149": {
+     "weight": 1.4166561135392915e-69,
+     "variance": 0.01666740744033068
+    },
+    "150": {
+     "weight": 1.283490438866598e-68,
+     "variance": 0.016666666666666666
+    },
+    "151": {
+     "weight": 1.147491451966826e-67,
+     "variance": 0.01666740744033068
+    },
+    "152": {
+     "weight": 1.0123592349259959e-66,
+     "variance": 0.01666963015647226
+    },
+    "297": {
+     "weight": 1.1452037467184013e-10,
+     "variance": 0.4208754208754209
+    },
+    "298": {
+     "weight": 1.0376007101139879e-11,
+     "variance": 0.6291946308724832
+    },
+    "299": {
+     "weight": 6.24642567961598e-13,
+     "variance": 1.254180602006689
+    }
+   },
+   "component_count": 299,
+   "cdf": [
+    {
+     "x": -0.15476906848931515,
+     "cdf": 0.0016190468823271307
+    },
+    {
+     "x": 0.5,
+     "cdf": 0.5
+    },
+    {
+     "x": 0.718256356163105,
+     "cdf": 0.8429095348089295
+    }
+   ]
+  },
+  {
+   "n": 1100,
+   "plus_probability": "1/2",
+   "summary_variance": 0.75,
+   "delta": 0.2,
+   "undefined_mass": 0.0,
+   "defined_mass": 1.0,
+   "variance": 0.002729758854727066,
+   "components": {
+    "1": {
+     "weight": 0.0,
+     "variance": 0.7506824385805277
+    },
+    "2": {
+     "weight": 0.0,
+     "variance": 0.3756830601092896
+    },
+    "3": {
+     "weight": 1.5e-323,
+     "variance": 0.2506836827711942
+    },
+    "549": {
+     "weight": 0.02400800684669237,
+     "variance": 0.0027272817430801424
+    },
+    "550": {
+     "weight": 0.024051657768231812,
+     "variance": 0.0027272727272727275
+    },
+    "551": {
+     "weight": 0.02400800684669237,
+     "variance": 0.0027272817430801424
+    },
+    "552": {
+     "weight": 0.02387752854861252,
+     "variance": 0.0027273087908600445
+    },
+    "1097": {
+     "weight": 1.5e-323,
+     "variance": 0.2506836827711942
+    },
+    "1098": {
+     "weight": 0.0,
+     "variance": 0.3756830601092896
+    },
+    "1099": {
+     "weight": 0.0,
+     "variance": 0.7506824385805277
+    }
+   },
+   "component_count": 1099,
+   "cdf": [
+    {
+     "x": 0.04325871733157344,
+     "cdf": 0.0013499146597236598
+    },
+    {
+     "x": 0.2,
+     "cdf": 0.5
+    },
+    {
+     "x": 0.2522470942228089,
+     "cdf": 0.8413448466968322
+    }
+   ]
+  },
+  {
+   "n": 2000,
+   "plus_probability": "1/2",
+   "summary_variance": 0.75,
+   "delta": 0.2,
+   "undefined_mass": 0.0,
+   "defined_mass": 1.0,
+   "variance": 0.0015007511274445567,
+   "components": {
+    "1": {
+     "weight": 0.0,
+     "variance": 0.7503751875937968
+    },
+    "2": {
+     "weight": 0.0,
+     "variance": 0.37537537537537535
+    },
+    "3": {
+     "weight": 0.0,
+     "variance": 0.25037556334501754
+    },
+    "999": {
+     "weight": 0.01782118995589842,
+     "variance": 0.0015000015000015
+    },
+    "1000": {
+     "weight": 0.01783901114585432,
+     "variance": 0.0015
+    },
+    "1001": {
+     "weight": 0.01782118995589842,
+     "variance": 0.0015000015000015
+    },
+    "1002": {
+     "weight": 0.017767833099743037,
+     "variance": 0.001500006000024
+    },
+    "1997": {
+     "weight": 0.0,
+     "variance": 0.25037556334501754
+    },
+    "1998": {
+     "weight": 0.0,
+     "variance": 0.37537537537537535
+    },
+    "1999": {
+     "weight": 0.0,
+     "variance": 0.7503751875937968
+    }
+   },
+   "component_count": 1999,
+   "cdf": [
+    {
+     "x": 0.083781412213876,
+     "cdf": 0.001349903041664442
+    },
+    {
+     "x": 0.2,
+     "cdf": 0.5
+    },
+    {
+     "x": 0.23873952926204134,
+     "cdf": 0.8413447764211196
+    }
+   ]
+  },
+  {
+   "n": 2000,
+   "plus_probability": "1/3",
+   "summary_variance": 0.75,
+   "delta": 0.0,
+   "undefined_mass": 0.0,
+   "defined_mass": 1.0,
+   "variance": 0.0016887685887766086,
+   "components": {
+    "1": {
+     "weight": 0.0,
+     "variance": 0.7503751875937968
+    },
+    "2": {
+     "weight": 0.0,
+     "variance": 0.37537537537537535
+    },
+    "3": {
+     "weight": 0.0,
+     "variance": 0.25037556334501754
+    },
+    "999": {
+     "weight": 2.508674108923693e-53,
+     "variance": 0.0015000015000015
+    },
+    "1000": {
+     "weight": 1.255591391516308e-53,
+     "variance": 0.0015
+    },
+    "1001": {
+     "weight": 6.271685272309232e-54,
+     "variance": 0.0015000015000015
+    },
+    "1002": {
+     "weight": 3.126453885746967e-54,
+     "variance": 0.001500006000024
+    },
+    "1997": {
+     "weight": 0.0,
+     "variance": 0.25037556334501754
+    },
+    "1998": {
+     "weight": 0.0,
+     "variance": 0.37537537537537535
+    },
+    "1999": {
+     "weight": 0.0,
+     "variance": 0.7503751875937968
+    }
+   },
+   "component_count": 1999,
+   "cdf": [
+    {
+     "x": -0.12328388904877019,
+     "cdf": 0.0013524144290608935
+    },
+    {
+     "x": 0.0,
+     "cdf": 0.5
+    },
+    {
+     "x": 0.0410946296829234,
+     "cdf": 0.8413599760741872
+    }
+   ]
+  },
+  {
+   "n": 4000,
+   "plus_probability": "1/2",
+   "summary_variance": 1.75,
+   "delta": 0.25,
+   "undefined_mass": 0.0,
+   "defined_mass": 1.0,
+   "variance": 0.0017504378284809825,
+   "components": {
+    "1": {
+     "weight": 0.0,
+     "variance": 1.7504376094023506
+    },
+    "2": {
+     "weight": 0.0,
+     "variance": 0.8754377188594297
+    },
+    "3": {
+     "weight": 0.0,
+     "variance": 0.5837711617046117
+    },
+    "1999": {
+     "weight": 0.012608569870899885,
+     "variance": 0.0017500004375001093
+    },
+    "2000": {
+     "weight": 0.012614874155835334,
+     "variance": 0.00175
+    },
+    "2001": {
+     "weight": 0.012608569870899885,
+     "variance": 0.0017500004375001093
+    },
+    "2002": {
+     "weight": 0.01258967591005438,
+     "variance": 0.00175000175000175
+    },
+    "3997": {
+     "weight": 0.0,
+     "variance": 0.5837711617046117
+    },
+    "3998": {
+     "weight": 0.0,
+     "variance": 0.8754377188594297
+    },
+    "3999": {
+     "weight": 0.0,
+     "variance": 1.7504376094023506
+    }
+   },
+   "component_count": 3999,
+   "cdf": [
+    {
+     "x": 0.12448529784790613,
+     "cdf": 0.0013498992811063891
+    },
+    {
+     "x": 0.25,
+     "cdf": 0.5
+    },
+    {
+     "x": 0.291838234050698,
+     "cdf": 0.8413447536433842
+    }
+   ]
+  }
+ ]
+}

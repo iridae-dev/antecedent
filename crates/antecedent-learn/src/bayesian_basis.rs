@@ -1,6 +1,6 @@
 //! Conjugate Bayesian quadratic-basis g-computation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -67,7 +67,7 @@ pub struct BasisData<'a> {
     /// Number of covariate columns.
     pub n_covariates: usize,
     /// Row ids; default `0..n_rows`.
-    pub row_ids: Option<&'a [u32]>,
+    pub row_ids: Option<&'a [u64]>,
     /// Cross-fitting fold ids copied to the returned prediction.
     pub fold_ids: Option<&'a [u16]>,
 }
@@ -109,6 +109,7 @@ impl BayesianBasisGComputation {
         )?;
 
         let p = 2 + 3 * n_covariates;
+        let _design_admitted = admit_f64_cells(ctx, n, p)?;
         let mut design = vec![0.0; n * p];
         for r in 0..n {
             design[r] = 1.0;
@@ -152,11 +153,11 @@ impl BayesianBasisGComputation {
             ctx,
         )?;
 
-        let row_ids: Vec<u32> = match row_ids {
+        let row_ids: Vec<u64> = match row_ids {
             Some(ids) => ids.to_vec(),
             None => (0..n)
                 .map(|i| {
-                    u32::try_from(i).map_err(|_| LearnError::Shape {
+                    u64::try_from(i).map_err(|_| LearnError::Shape {
                         message: "basis g-computation row count exceeds row id capacity",
                     })
                 })
@@ -164,6 +165,7 @@ impl BayesianBasisGComputation {
         };
         let beta_cols: Vec<&[f64]> =
             (0..p).map(|coefficient| fit.draws.column(coefficient)).collect::<Result<_, _>>()?;
+        let _draws_admitted = admit_f64_cells(ctx, spec.n_draws, 3 * n + 1)?;
         let (values, ate_draws) =
             evaluate_draws(&beta_cols, covariates_colmajor, n, n_covariates, spec.n_draws);
         let provenance = PosteriorPredictionProvenance {
@@ -209,7 +211,7 @@ fn validate_inputs(
     outcome: &[f64],
     covariates: &[f64],
     n_covariates: usize,
-    identities: (Option<&[u32]>, Option<&[u16]>),
+    identities: (Option<&[u64]>, Option<&[u16]>),
     population: BasisTargetPopulation,
     spec: BayesianBasisSpec,
 ) -> Result<usize, LearnError> {
@@ -253,8 +255,23 @@ fn validate_inputs(
 #[allow(clippy::float_cmp, reason = "binary treatment levels are exact 0.0 and 1.0 codes")]
 fn is_binary_with_both_levels(treatment: &[f64]) -> bool {
     treatment.iter().all(|value| *value == 0.0 || *value == 1.0)
-        && treatment.iter().any(|value| *value == 0.0)
-        && treatment.iter().any(|value| *value == 1.0)
+        && treatment.contains(&0.0)
+        && treatment.contains(&1.0)
+}
+
+/// Lease `count * width` `f64` cells on the pool before the buffer is allocated.
+fn admit_f64_cells(
+    ctx: &ExecutionContext,
+    count: usize,
+    width: usize,
+) -> Result<antecedent_core::execution::AdmissionLease, LearnError> {
+    let bytes = count
+        .checked_mul(width)
+        .and_then(|cells| u64::try_from(cells.checked_mul(size_of::<f64>())?).ok())
+        .ok_or_else(|| LearnError::Backend("basis buffer size overflow".to_owned()))?;
+    ctx.acquire_admission(0, bytes).map_err(|error| {
+        LearnError::Backend(format!("admission pool cannot fund the basis buffers: {error}"))
+    })
 }
 
 fn evaluate_draws(

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import math
 from typing import Any, cast
 
 import antecedent
 import numpy as np
 import pytest
 from antecedent import observation
-from antecedent.errors import CausalEstimateError, CausalValueError
+from antecedent.errors import CausalEstimateError, CausalUnsupportedError, CausalValueError
+from antecedent.outcomes import require_success
 from antecedent.query import DirectionalDerivative, ResponseCurve
 
 
@@ -27,11 +29,49 @@ def test_selected_outcome_stage_returns_pseudo_values_and_diagnostic_weights() -
 
     assert len(adjusted.values) == 80
     assert len(adjusted.weights) == 80
-    assert all(np.isfinite(adjusted.values))
+    # The outcome is exactly 2 + 3 a, so a correct pseudo-value reproduces it on every row
+    # (observed or not); an unadjusted or mis-weighted one does not.
+    np.testing.assert_allclose(adjusted.values, 2.0 + 3.0 * treatment, atol=1e-8)
+    # Selected rows carry an inverse selection probability (the true rate is 2/3).
+    selected_weights = [w for w, r in zip(adjusted.weights, selected, strict=True) if r == 1.0]
+    assert all(1.0 <= w <= 3.0 for w in selected_weights)
     assert adjusted.method == "observation.selected.crossfit_logistic_aipw.v1"
     assert all(
         weight == 0.0 for weight, r in zip(adjusted.weights, selected, strict=True) if r == 0.0
     )
+
+
+def _saturated_selection_inputs() -> tuple[dict[str, Any], ResponseCurve]:
+    x = np.asarray([-3.0 + 6.0 * (i + 0.5) / 400.0 for i in range(400)])
+    flips = {190, 193, 196, 198, 201, 203, 206, 209}
+    selected = np.asarray([float((v > 0.0) != (i in flips)) for i, v in enumerate(x)])
+    outcome = np.where(selected == 1.0, 2.0 + 3.0 * x, np.nan)
+    data = {"a": x, "y_observed": outcome, "r": selected, "x": x.copy()}
+    query = ResponseCurve(
+        "a",
+        "y_latent",
+        grid=[0.0, 1.0],
+        observation=observation.Selected("y_latent", "y_observed", "r"),
+        observation_assumptions=[observation.OutcomeIndependentGiven(["x"])],
+    )
+    return data, query
+
+
+def test_saturated_observation_probability_refuses_unless_a_floor_is_declared() -> None:
+    data, query = _saturated_selection_inputs()
+
+    with pytest.raises(CausalUnsupportedError) as excinfo:
+        observation.adjusted_outcome(data, query, correction="ipw")
+    assert getattr(excinfo.value, "reason_code", None) == "positivity_violated"
+
+    adjusted = observation.adjusted_outcome(
+        data, query, correction="ipw", observation_probability_floor=0.01
+    )
+    assert all(np.isfinite(adjusted.weights))
+    assert max(adjusted.weights) <= 1.0 / 0.01 + 1e-9
+    # The floor binds the inverse probability, and the observed maximum is 7.6, far below it.
+    assert 1.0 <= max(adjusted.weights) < 10.0
+    assert min(adjusted.weights) == 0.0
 
 
 def test_gaussian_interval_likelihood_requires_and_honours_structural_opt_in() -> None:
@@ -51,7 +91,10 @@ def test_gaussian_interval_likelihood_requires_and_honours_structural_opt_in() -
     )
 
     value = observation.gaussian_log_likelihood(data, opted_in, means=[0.0, 1.0, 0.5], sigma=0.5)
-    assert np.isfinite(value)
+    # Each row contributes log[Phi((u - mu) / sigma) - Phi((l - mu) / sigma)]; here every
+    # interval is mu +/- 0.2 with sigma 0.5, so the total is 3 log(erf(0.4 / (0.5 sqrt 2))).
+    expected = 3.0 * math.log(math.erf(0.2 / (0.5 * math.sqrt(2.0))))
+    assert value == pytest.approx(expected, abs=1e-9)
 
     not_opted_in = ResponseCurve(
         "a",
@@ -98,14 +141,19 @@ def test_public_analyze_composes_selected_outcome_into_point_only_curve() -> Non
 
     result = cast(
         Any,
-        antecedent.analyze(
-            {"a": treatment, "z": confounder, "observed_y": observed, "r": selected},
-            query=query,
-            graph=[("z", "a"), ("z", "latent_y"), ("a", "latent_y")],
+        require_success(
+            antecedent.analyze(
+                {"a": treatment, "z": confounder, "observed_y": observed, "r": selected},
+                query=query,
+                graph=[("z", "a"), ("z", "latent_y"), ("a", "latent_y")],
+            )
         ),
     )
 
     assert result.response is not None
+    # Truth: E[Y | do(a)] = 1 + 2a + 0.5 E[z] (the confounder is averaged over all rows).
+    truth = 1.0 + 2.0 * np.asarray([0.2, 0.8]) + 0.5 * confounder.mean()
+    np.testing.assert_allclose([v[0] for v in result.response.values], truth, atol=0.02)
     assert result.uncertainty.kind == "none"
     assert result.identification.status == "NonparametricallyIdentified"
     assert result.identification.method == "response.backdoor"
@@ -137,14 +185,20 @@ def test_public_analyze_composes_marginal_censoring_into_point_only_curve(
 
     result = cast(
         Any,
-        antecedent.analyze(
-            {"a": treatment, "observed_y": observed, "c": censoring, "event": event},
-            query=query,
-            graph=[("a", "latent_y")],
+        require_success(
+            antecedent.analyze(
+                {"a": treatment, "observed_y": observed, "c": censoring, "event": event},
+                query=query,
+                graph=[("a", "latent_y")],
+            )
         ),
     )
 
     assert result.response is not None
+    # No censoring binds (every event is observed), so the curve is the line 1 + 2a.
+    np.testing.assert_allclose(
+        [v[0] for v in result.response.values], 1.0 + 2.0 * np.asarray([0.2, 0.8]), atol=1e-6
+    )
     assert result.uncertainty.kind == "none"
     assert any(f"observation.{side}_censored" in warning for warning in result.support.warnings)
 
@@ -159,14 +213,16 @@ def test_public_analyze_keeps_interval_censoring_on_likelihood_only_path() -> No
         observation_assumptions=[observation.Structural("gaussian_observation_likelihood")],
     )
     with pytest.raises(CausalEstimateError, match="opt-in Gaussian likelihood"):
-        antecedent.analyze(
-            {
-                "a": treatment,
-                "lower": treatment,
-                "upper": treatment + 0.2,
-            },
-            query=query,
-            graph=[("a", "latent_y")],
+        require_success(
+            antecedent.analyze(
+                {
+                    "a": treatment,
+                    "lower": treatment,
+                    "upper": treatment + 0.2,
+                },
+                query=query,
+                graph=[("a", "latent_y")],
+            )
         )
 
 
@@ -180,13 +236,15 @@ def test_public_analyze_keeps_truncation_on_likelihood_only_path() -> None:
         observation_assumptions=[observation.Structural("gaussian_observation_likelihood")],
     )
     with pytest.raises(CausalEstimateError, match="opt-in Gaussian likelihood"):
-        antecedent.analyze(
-            {
-                "a": treatment,
-                "observed_y": treatment + 0.1,
-                "lower": np.full(40, -1.0),
-                "upper": np.full(40, 2.0),
-            },
-            query=query,
-            graph=[("a", "latent_y")],
+        require_success(
+            antecedent.analyze(
+                {
+                    "a": treatment,
+                    "observed_y": treatment + 0.1,
+                    "lower": np.full(40, -1.0),
+                    "upper": np.full(40, 2.0),
+                },
+                query=query,
+                graph=[("a", "latent_y")],
+            )
         )

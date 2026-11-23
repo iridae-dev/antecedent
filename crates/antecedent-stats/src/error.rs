@@ -1,7 +1,8 @@
 //! Stats-layer errors.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::diagnostic::RouteNativeDiagnostic;
 use thiserror::Error;
 
 /// Why a GLM fit was refused by an estimation path ([`crate::GlmFit::require_ok`]).
@@ -19,6 +20,9 @@ pub enum GlmRefusalKind {
 #[derive(Clone, Debug, Eq, PartialEq, Error)]
 #[non_exhaustive]
 pub enum StatsError {
+    /// Worker admission stopped the operation.
+    #[error(transparent)]
+    Admission(antecedent_core::execution::AdmissionError),
     /// Shape mismatch.
     #[error("shape error: {message}")]
     Shape {
@@ -56,6 +60,11 @@ pub enum StatsError {
     /// Backend failure.
     #[error("backend error: {0}")]
     Backend(String),
+    /// A foreign callback (a user-supplied conditional-independence test) raised. The
+    /// failure is structured data, so a host binding finds the exception it retained from
+    /// the error chain; the text is the same as the [`Self::Backend`] it replaces.
+    #[error("backend error: {0}")]
+    CallbackFailed(#[source] antecedent_core::CallbackFailure),
     /// The execution context's cancellation token fired before the computation finished.
     #[error("cancelled")]
     Cancelled,
@@ -68,6 +77,20 @@ pub enum StatsError {
         required_bytes: u64,
         /// The hard limit in force.
         limit_bytes: u64,
+    },
+    /// A planned computation needs more work than the caller declared it may do. The
+    /// quote is computed before the computation starts; no numerical draws are run.
+    #[error(
+        "work limit: {message} needs {required_work} operations, limit {limit_work}; next \
+         attempt: raise the work limit or change the requested computation"
+    )]
+    WorkLimit {
+        /// What was being planned.
+        message: &'static str,
+        /// Logical operations the computation needs.
+        required_work: u64,
+        /// The caller's declared ceiling.
+        limit_work: u64,
     },
     /// A GLM fit an estimation path refuses. Renders exactly as the [`Self::Backend`] it
     /// replaces (same text), and also carries what the fit measured, so a caller reads the
@@ -97,6 +120,14 @@ pub enum StatsError {
         /// Full rendered message.
         rendered: &'static str,
     },
+    /// A route check failed. `message` is the refusal text; `diagnostic` is the record.
+    #[error("{message}")]
+    Route {
+        /// Refusal text.
+        message: &'static str,
+        /// The route record. A failed check is not an unsupported option.
+        diagnostic: RouteNativeDiagnostic,
+    },
 }
 
 impl StatsError {
@@ -109,5 +140,64 @@ impl StatsError {
             }
             _ => None,
         }
+    }
+
+    /// Route record on this error, when it is a route outcome.
+    #[must_use = "a failed route check is dropped if the record is discarded"]
+    pub const fn route_diagnostic(&self) -> Option<RouteNativeDiagnostic> {
+        match self {
+            Self::Route { diagnostic, .. } => Some(*diagnostic),
+            // A singular design is a failed solve, not a failed check. The error reports no
+            // mass, so the mass is unreported.
+            Self::RankDeficient { .. } | Self::SingularLocalDesign { .. } => {
+                Some(RouteNativeDiagnostic::computational_failure(
+                    antecedent_core::diagnostic::RouteMass::unreported(),
+                ))
+            }
+            _ => None,
+        }
+    }
+}
+
+impl<E> From<antecedent_core::execution::MapExecutionError<E>> for StatsError
+where
+    Self: From<E>,
+{
+    fn from(error: antecedent_core::execution::MapExecutionError<E>) -> Self {
+        match error {
+            antecedent_core::execution::MapExecutionError::Admission(error) => {
+                if matches!(error, antecedent_core::execution::AdmissionError::Cancelled) {
+                    Self::Cancelled
+                } else {
+                    Self::Admission(error)
+                }
+            }
+            antecedent_core::execution::MapExecutionError::Work(error) => Self::from(error),
+        }
+    }
+}
+
+#[cfg(test)]
+mod singular_route_tests {
+    use super::StatsError;
+
+    #[test]
+    fn a_singular_design_is_a_computational_failure_with_the_same_message() {
+        let error = StatsError::RankDeficient { rank: 1, ncols: 2 };
+        assert_eq!(error.to_string(), "rank deficient: rank=1 ncols=2");
+        let record = error.route_diagnostic().expect("a singular design carries a record");
+        assert!(record.is_computational_failure());
+        assert!(record.unevaluable_mass().is_unreported());
+        assert!(StatsError::Shape { message: "x" }.route_diagnostic().is_none());
+    }
+
+    #[test]
+    fn a_callback_failure_round_trips_through_the_stats_error() {
+        use antecedent_core::CallbackFailure;
+        let failure = CallbackFailure::new(Some(9), "Python CI callback failed: boom", None);
+        let error = StatsError::CallbackFailed(failure.clone());
+        assert_eq!(error.to_string(), "backend error: Python CI callback failed: boom");
+        assert_eq!(CallbackFailure::in_chain(&error), Some(&failure));
+        assert!(CallbackFailure::in_chain(&StatsError::Cancelled).is_none());
     }
 }

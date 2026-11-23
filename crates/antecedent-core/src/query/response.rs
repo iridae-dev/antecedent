@@ -1,40 +1,44 @@
 //! Continuous causal-response queries.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::{InterventionFault, ResponseFault};
 use std::sync::Arc;
 
+use crate::canonical_encode::{
+    CanonicalEncode, count, encode_list, encode_option, encode_set, encode_u32s,
+    encode_variable_set, encode_variables,
+};
+use crate::identity::CanonicalWriter;
 use crate::intervention::TemporalPolicy;
-use crate::{Intervention, TargetPopulation, VariableId};
+use crate::{InitialLaw, Intervention, TargetPopulation, Value, VariableId};
 
 use super::QueryError;
 use super::functional::OutcomeFunctional;
 
-/// Maximum number of discrete horizons a temporal response may request.
-pub const MAX_TEMPORAL_RESPONSE_HORIZONS: usize = 512;
-
-/// Maximum number of materialized dose-by-horizon cells.
+/// Default dose-by-horizon cell count an executor materializes when the caller
+/// supplies no [`crate::ExecutionContext::memory_limit_bytes`].
 ///
-/// Bounding each axis independently is insufficient: one million doses across
-/// 512 horizons would otherwise allocate hundreds of millions of estimates,
-/// intervals, support labels, and two-coordinate grid rows. The one-million
-/// ceiling matches the existing single-grid cardinality ceiling and bounds the
-/// five unavoidable cell-scaled `f64` values (mean, lower, upper, dose, horizon)
-/// to 40 MB before support labels and allocator overhead. It is an absolute
-/// materialization guard, not a mathematical restriction; execution also
-/// honors [`crate::MemoryBudget`] when the caller supplies one.
+/// The query contract does not enforce this value: a temporal response query
+/// is valid for any grid and horizon list whose cell count fits in `usize`,
+/// and the resource bound is the execution memory budget. Executors that
+/// materialize the five cell-scaled `f64` values (mean, lower, upper, dose,
+/// horizon) use this as their fallback ceiling only when no budget is declared.
 pub const MAX_TEMPORAL_RESPONSE_CELLS: usize = 1_000_000;
 
-/// Licensed temporal-response query policy, for language facades.
+/// Supported temporal-response query policy, for language facades.
 ///
 /// [`TemporalResponseSpec::validate`] is the semantic authority. Bindings may
 /// duplicate checks for early errors but must read these values rather than
 /// defining them.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct TemporalResponseLicense {
-    /// Maximum number of discrete horizons a query may request.
+pub struct TemporalResponseSupport {
+    /// Largest horizon count the query contract accepts. The contract has no
+    /// fixed count: the execution memory budget bounds materialization, so this
+    /// is `usize::MAX`.
     pub max_horizons: usize,
-    /// Absolute dose-by-horizon materialization ceiling.
+    /// Largest dose-by-horizon cell count the query contract accepts. The
+    /// contract has no fixed count (see `max_horizons`), so this is `usize::MAX`.
     pub max_cells: usize,
     /// Wire tags this spec accepts (`pulse`, `sustained`).
     pub allowed_policies: &'static [&'static str],
@@ -42,6 +46,84 @@ pub struct TemporalResponseLicense {
     pub default_policy: &'static str,
     /// Default `treatment_lag` (policy origin `-lag`) for Pulse / `ResponseCurve`.
     pub default_treatment_lag: u32,
+}
+
+/// Declared delayed-feedback mechanism of a temporal response.
+///
+/// The dynamics `s <- a s + b u + e` are declared, not fitted: the coefficients,
+/// the innovation variance, and the state at the origin are the caller's
+/// statement about the system. `delay_ticks` is the feedback delay, the ticks
+/// before the action re-enters the state. It is not the action lag, which is the
+/// negative start of the policy. `level` is the dose the pulse or sustained
+/// policy holds. [`TemporalResponseSpec::validate`] checks the numbers are
+/// finite, the delay is at least one tick, and the variance is not negative.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FeedbackDeclaration {
+    /// Ticks before the action re-enters the state (at least 1).
+    pub delay_ticks: u32,
+    /// Dose the policy holds.
+    pub level: f64,
+    /// Autoregressive coefficient `a`.
+    pub autoregression: f64,
+    /// Coefficient `b` on the delayed action.
+    pub input_gain: f64,
+    /// Variance of the transition's innovation (not negative).
+    pub innovation_variance: f64,
+    /// Law whose level at the origin is `initial_state`.
+    pub initial_law: InitialLaw,
+    /// Level of `initial_law` at the origin.
+    pub initial_state: f64,
+}
+
+/// Every field is written; reals as their exact bits.
+impl CanonicalEncode for FeedbackDeclaration {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer
+            .word(u64::from(self.delay_ticks))
+            .real(self.level)
+            .real(self.autoregression)
+            .real(self.input_gain)
+            .real(self.innovation_variance);
+        self.initial_law.encode(writer);
+        writer.real(self.initial_state);
+    }
+}
+
+impl FeedbackDeclaration {
+    /// Validate delay, finiteness, and variance.
+    ///
+    /// # Errors
+    ///
+    /// [`QueryError::InvalidResponse`] for a zero delay, a non-finite number, or
+    /// a negative innovation variance.
+    pub fn validate(&self) -> Result<(), QueryError> {
+        if self.delay_ticks == 0 {
+            return Err(QueryError::InvalidResponse(ResponseFault::FeedbackDelay));
+        }
+        let numbers = [
+            self.level,
+            self.autoregression,
+            self.input_gain,
+            self.innovation_variance,
+            self.initial_state,
+        ];
+        if numbers.iter().any(|value| !value.is_finite()) {
+            return Err(QueryError::InvalidResponse(ResponseFault::FeedbackNotFinite));
+        }
+        if self.innovation_variance < 0.0 {
+            return Err(QueryError::InvalidResponse(ResponseFault::FeedbackNegativeVariance));
+        }
+        Ok(())
+    }
+
+    /// Hard assignment of `variable` to this declaration's dose.
+    ///
+    /// The dose is [`Intervention::Set`]. It is not a shift. Timing stays on the
+    /// response's [`TemporalPolicy`].
+    #[must_use]
+    pub fn dose(&self, variable: VariableId) -> Intervention {
+        Intervention::set(variable, Value::f64(self.level))
+    }
 }
 
 /// Temporal attachment for a continuous-response query (ADR 0021).
@@ -54,16 +136,28 @@ pub struct TemporalResponseSpec {
     /// Outcome evaluation horizons in time steps after the policy origin (each ≥ 1).
     /// Strictly increasing; at least one entry.
     pub horizons: Arc<[u32]>,
-    /// Temporal intervention policy. Licensed 0.7 cells are Pulse and
+    /// Temporal intervention policy. Supported 0.7 cells are Pulse and
     /// single-step Sustained; Dynamic is refused here (use `TemporalEffectQuery`).
     pub policy: TemporalPolicy,
     /// Optional max history lag (steps) when unfolding; `None` = planner default.
     pub max_history_lag: Option<u32>,
+    /// Declared delayed-feedback mechanism. `None` publishes the fitted
+    /// dose-by-horizon surface.
+    pub feedback: Option<FeedbackDeclaration>,
+}
+
+/// Every field is written. `horizons` is the ordered grid the results are
+/// indexed by.
+impl CanonicalEncode for TemporalResponseSpec {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        encode_u32s(writer, &self.horizons);
+        self.policy.encode(writer);
+        writer.opt_word(self.max_history_lag.map(u64::from));
+        encode_option(writer, self.feedback.as_ref());
+    }
 }
 
 impl TemporalResponseSpec {
-    /// Horizon-count cap ([`MAX_TEMPORAL_RESPONSE_HORIZONS`]).
-    pub const MAX_HORIZONS: usize = MAX_TEMPORAL_RESPONSE_HORIZONS;
     /// Wire tag for [`crate::intervention::TemporalPolicy::Pulse`].
     pub const POLICY_PULSE: &'static str = "pulse";
     /// Wire tag for [`crate::intervention::TemporalPolicy::Sustained`].
@@ -76,21 +170,21 @@ impl TemporalResponseSpec {
     /// Default `treatment_lag` (policy origin `-lag`).
     pub const DEFAULT_TREATMENT_LAG: u32 = 1;
 
-    /// Machine-readable license for facades. Python must not hard-code these.
+    /// Machine-readable support for facades. Python must not hard-code these.
     #[must_use]
-    pub const fn license() -> TemporalResponseLicense {
-        TemporalResponseLicense {
-            max_horizons: Self::MAX_HORIZONS,
-            max_cells: MAX_TEMPORAL_RESPONSE_CELLS,
+    pub const fn support() -> TemporalResponseSupport {
+        TemporalResponseSupport {
+            max_horizons: usize::MAX,
+            max_cells: usize::MAX,
             allowed_policies: Self::ALLOWED_POLICIES,
             default_policy: Self::DEFAULT_POLICY,
             default_treatment_lag: Self::DEFAULT_TREATMENT_LAG,
         }
     }
 
-    /// Parse a licensed response-policy wire tag at treatment offset `at`.
+    /// Parse a supported response-policy wire tag at treatment offset `at`.
     ///
-    /// Sustained is the licensed single-step window `[at, at]`.
+    /// Sustained is the supported single-step window `[at, at]`.
     ///
     /// # Errors
     ///
@@ -99,11 +193,9 @@ impl TemporalResponseSpec {
         match tag {
             Self::POLICY_PULSE => Ok(TemporalPolicy::pulse(at)),
             Self::POLICY_SUSTAINED => Ok(TemporalPolicy::sustained(at, at)),
-            other => Err(QueryError::InvalidResponse(format!(
-                "temporal response policy must be {} or {}; got {other}",
-                Self::POLICY_PULSE,
-                Self::POLICY_SUSTAINED
-            ))),
+            other => Err(QueryError::InvalidResponse(ResponseFault::UnsupportedPolicy {
+                got: other.into(),
+            })),
         }
     }
 
@@ -111,16 +203,27 @@ impl TemporalResponseSpec {
     ///
     /// # Errors
     ///
-    /// Empty/non-increasing/oversized horizons, zero horizon, or invalid policy.
+    /// Empty/non-increasing horizons, zero horizon, or invalid policy.
     pub fn new(
         horizons: impl Into<Arc<[u32]>>,
         policy: TemporalPolicy,
         max_history_lag: Option<u32>,
     ) -> Result<Self, QueryError> {
         let horizons = horizons.into();
-        let spec = Self { horizons, policy, max_history_lag };
+        let spec = Self { horizons, policy, max_history_lag, feedback: None };
         spec.validate()?;
         Ok(spec)
+    }
+
+    /// Declare the delayed-feedback mechanism the response is asked under.
+    ///
+    /// # Errors
+    ///
+    /// The declaration's validation errors.
+    pub fn with_feedback(mut self, feedback: FeedbackDeclaration) -> Result<Self, QueryError> {
+        self.feedback = Some(feedback);
+        self.validate()?;
+        Ok(self)
     }
 
     /// Validate horizons and nested policy.
@@ -130,38 +233,28 @@ impl TemporalResponseSpec {
     /// [`QueryError::InvalidResponse`] or temporal-policy errors.
     pub fn validate(&self) -> Result<(), QueryError> {
         if self.horizons.is_empty() {
-            return Err(QueryError::InvalidResponse(
-                "temporal response requires at least one horizon".into(),
-            ));
+            return Err(QueryError::InvalidResponse(ResponseFault::HorizonsEmpty));
         }
-        if self.horizons.len() > Self::MAX_HORIZONS {
-            return Err(QueryError::InvalidResponse(
-                "temporal response horizon count exceeds the materialization cap".into(),
-            ));
-        }
-        if self.horizons.iter().any(|h| *h == 0) {
+        if self.horizons.contains(&0) {
             return Err(QueryError::NonPositiveHorizon);
         }
         if self.horizons.windows(2).any(|w| w[0] >= w[1]) {
-            return Err(QueryError::InvalidResponse(
-                "temporal response horizons must be strictly increasing".into(),
-            ));
+            return Err(QueryError::InvalidResponse(ResponseFault::HorizonsOrder));
         }
         self.policy.validate().map_err(|e| match e {
             crate::intervention::InterventionError::InvalidTemporalWindow { from, until } => {
                 QueryError::InvalidTemporalWindow { from, until }
             }
-            other => QueryError::InvalidIntervention(other.to_string()),
+            other => QueryError::InvalidIntervention(InterventionFault::Rejected(other)),
         })?;
         match &self.policy {
             TemporalPolicy::Pulse { .. } | TemporalPolicy::Sustained { .. } => {}
             TemporalPolicy::Dynamic { .. } => {
-                return Err(QueryError::InvalidResponse(
-                    "temporal response policy must be pulse or sustained; \
-                     Dynamic is a TemporalEffect spelling, not a ResponseCurve cell"
-                        .into(),
-                ));
+                return Err(QueryError::InvalidResponse(ResponseFault::DynamicPolicyNotACell));
             }
+        }
+        if let Some(feedback) = &self.feedback {
+            feedback.validate()?;
         }
         Ok(())
     }
@@ -188,17 +281,14 @@ impl TemporalResponseSpec {
     }
 }
 
-/// Maximum treatment dimension for an explicitly gridded non-parametric surface.
-pub const MAX_NONPARAMETRIC_RESPONSE_DIM: usize = 2;
-
-/// Maximum number of points a [`GridSpec::Linspace`] may materialize.
+/// Treatment dimension up to which an estimator may tabulate an explicit
+/// evaluation grid.
 ///
-/// `GridSpec::values` previously only checked that `points` fit in a `u32`, so e.g.
-/// `Linspace { points: 4_000_000_000 }` passed validation and then tried to allocate a
-/// multi-gigabyte `Vec<f64>` (8 bytes/point). This cap keeps materialization bounded to
-/// something a caller could plausibly intend as an evaluation grid; 1,000,000 points is already
-/// far beyond what any of this crate's response/derivative estimators need per grid.
-pub const MAX_MATERIALIZED_GRID_POINTS: usize = 1_000_000;
+/// The query contract does not enforce this value: a response query may name
+/// any number of treatments, and a gradient of `k` treatments is `k` partial
+/// derivatives of one fit. Estimators that materialize a full tensor grid use
+/// it as their own guard.
+pub const MAX_NONPARAMETRIC_RESPONSE_DIM: usize = 2;
 
 /// Points at which a continuous response is evaluated.
 #[derive(Clone, Debug, PartialEq)]
@@ -216,24 +306,71 @@ pub enum GridSpec {
     },
 }
 
+/// The grid as spelled: explicit values in order, or the linspace triple. A
+/// linspace and the explicit values it would materialize encode differently.
+impl CanonicalEncode for GridSpec {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Values(values) => {
+                writer.word(1).reals(values);
+            }
+            Self::Linspace { start, end, points } => {
+                writer.word(2).real(*start).real(*end).word(count(*points));
+            }
+        }
+    }
+}
+
 impl GridSpec {
+    /// Number of grid points (not validated).
+    #[must_use]
+    pub fn point_count(&self) -> usize {
+        match self {
+            Self::Values(values) => values.len(),
+            Self::Linspace { points, .. } => *points,
+        }
+    }
+
+    /// The `index`-th grid point of a validated grid, computed without
+    /// materializing the grid; `None` past the end. Streaming and tiled
+    /// consumers use this instead of [`Self::values`].
+    #[must_use]
+    pub fn value_at(&self, index: usize) -> Option<f64> {
+        match self {
+            Self::Values(values) => values.get(index).copied(),
+            Self::Linspace { start, end, points } => {
+                if index >= *points || *points < 2 {
+                    return None;
+                }
+                Some(linspace_value(*start, *end, *points, index))
+            }
+        }
+    }
+
     /// Materialize the grid after validation.
+    ///
+    /// The allocation is requested fallibly, so a grid the allocator cannot
+    /// satisfy is a typed refusal rather than an abort; callers with a declared
+    /// memory budget should check [`Self::point_count`] against it first or
+    /// stream through [`Self::value_at`].
     ///
     /// # Errors
     ///
-    /// [`QueryError::InvalidResponse`] when the grid is invalid or too large to materialize.
+    /// [`QueryError::InvalidResponse`] when the grid is invalid or its
+    /// allocation fails.
     pub fn values(&self) -> Result<Vec<f64>, QueryError> {
         self.validate()?;
-        Ok(match self {
-            Self::Values(values) => values.to_vec(),
+        match self {
+            Self::Values(values) => Ok(values.to_vec()),
             Self::Linspace { start, end, points } => {
-                let points = u32::try_from(*points).map_err(|_| {
-                    QueryError::InvalidResponse("linspace point count exceeds u32 capacity".into())
+                let mut out = Vec::new();
+                out.try_reserve_exact(*points).map_err(|_| {
+                    QueryError::InvalidResponse(ResponseFault::LinspaceExceedsMemory)
                 })?;
-                let step = (end - start) / f64::from(points - 1);
-                (0..points).map(|i| start + f64::from(i) * step).collect()
+                out.extend((0..*points).map(|i| linspace_value(*start, *end, *points, i)));
+                Ok(out)
             }
-        })
+        }
     }
 
     /// Validate finiteness, size, and ordering.
@@ -245,31 +382,38 @@ impl GridSpec {
         match self {
             Self::Values(values) => {
                 if values.len() < 2 {
-                    return Err(QueryError::InvalidResponse(
-                        "a response grid requires at least two points".into(),
-                    ));
+                    return Err(QueryError::InvalidResponse(ResponseFault::GridTooShort));
                 }
                 if values.iter().any(|v| !v.is_finite()) || values.windows(2).any(|w| w[0] >= w[1])
                 {
-                    return Err(QueryError::InvalidResponse(
-                        "response-grid values must be finite and strictly increasing".into(),
-                    ));
+                    return Err(QueryError::InvalidResponse(ResponseFault::GridValuesOrder));
                 }
             }
             Self::Linspace { start, end, points } => {
                 if !start.is_finite() || !end.is_finite() || start >= end || *points < 2 {
-                    return Err(QueryError::InvalidResponse(
-                        "linspace requires finite start < end and at least two points".into(),
-                    ));
-                }
-                if *points > MAX_MATERIALIZED_GRID_POINTS {
-                    return Err(QueryError::InvalidResponse(
-                        "linspace point count is too large to materialize".into(),
-                    ));
+                    return Err(QueryError::InvalidResponse(ResponseFault::LinspaceBounds));
                 }
             }
         }
         Ok(())
+    }
+}
+
+/// Interpolate finite endpoints without overflowing their difference. Keep the
+/// established arithmetic for representable spans and return endpoints exactly.
+fn linspace_value(start: f64, end: f64, points: usize, index: usize) -> f64 {
+    if index == 0 {
+        return start;
+    }
+    if index == points - 1 {
+        return end;
+    }
+    let span = end - start;
+    if span.is_finite() {
+        start + index as f64 * (span / (points - 1) as f64)
+    } else {
+        let fraction = index as f64 / (points - 1) as f64;
+        (1.0 - fraction) * start + fraction * end
     }
 }
 
@@ -280,6 +424,13 @@ pub struct ContinuousDomain {
     pub variable: VariableId,
     /// Evaluation grid.
     pub grid: GridSpec,
+}
+
+impl CanonicalEncode for ContinuousDomain {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.variable.encode(writer);
+        self.grid.encode(writer);
+    }
 }
 
 impl ContinuousDomain {
@@ -451,6 +602,144 @@ pub enum ResponseFunctional {
     },
 }
 
+/// Custom weights are row- or grid-aligned and keep their order.
+impl CanonicalEncode for DerivativeWeighting {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Observed => {
+                writer.word(1);
+            }
+            Self::Uniform { lower, upper } => {
+                writer.word(2).real(*lower).real(*upper);
+            }
+            Self::Custom(weights) => {
+                writer.word(3).reals(weights);
+            }
+        }
+    }
+}
+
+impl CanonicalEncode for DerivativeScale {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let tag = match self {
+            Self::Identity => 1,
+            Self::LogTreatment => 2,
+            Self::LogOutcome => 3,
+            Self::LogLog => 4,
+        };
+        writer.word(tag);
+    }
+}
+
+/// Every variable keeps its role; an absent truncation bound is a presence word.
+impl CanonicalEncode for ObservationSpec {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Complete => {
+                writer.word(1);
+            }
+            Self::RightCensored { latent, observed, censoring, event } => {
+                writer.word(2);
+                latent.encode(writer);
+                observed.encode(writer);
+                censoring.encode(writer);
+                event.encode(writer);
+            }
+            Self::LeftCensored { latent, observed, censoring, event } => {
+                writer.word(3);
+                latent.encode(writer);
+                observed.encode(writer);
+                censoring.encode(writer);
+                event.encode(writer);
+            }
+            Self::IntervalCensored { latent, lower, upper } => {
+                writer.word(4);
+                latent.encode(writer);
+                lower.encode(writer);
+                upper.encode(writer);
+            }
+            Self::Truncated { latent, observed, lower, upper } => {
+                writer.word(5);
+                latent.encode(writer);
+                observed.encode(writer);
+                encode_option(writer, lower.as_ref());
+                encode_option(writer, upper.as_ref());
+            }
+            Self::Selected { latent, observed, indicator } => {
+                writer.word(6);
+                latent.encode(writer);
+                observed.encode(writer);
+                indicator.encode(writer);
+            }
+        }
+    }
+}
+
+/// Conditioning variables are a set and are encoded in ascending id order.
+impl CanonicalEncode for ObservationAssumption {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::IndependentGiven(variables) => {
+                writer.word(1);
+                encode_variable_set(writer, variables);
+            }
+            Self::OutcomeIndependentGiven(variables) => {
+                writer.word(2);
+                encode_variable_set(writer, variables);
+            }
+            Self::Structural(claim) => {
+                writer.word(3).text(claim);
+            }
+        }
+    }
+}
+
+/// Multi-coordinate functionals keep every list in order: evaluation points
+/// and directions are aligned with `treatments`, and `outcomes` index the
+/// result. `interventions` keep their declared order.
+impl CanonicalEncode for ResponseFunctional {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::MeanCurve { outcome, treatment } => {
+                writer.word(1);
+                outcome.encode(writer);
+                treatment.encode(writer);
+            }
+            Self::AverageDerivative { outcome, treatment, weighting } => {
+                writer.word(2);
+                outcome.encode(writer);
+                treatment.encode(writer);
+                weighting.encode(writer);
+            }
+            Self::PointDerivative { outcome, treatment, at, order, scale } => {
+                writer.word(3);
+                outcome.encode(writer);
+                treatment.encode(writer);
+                writer.real(*at).word(u64::from(*order));
+                scale.encode(writer);
+            }
+            Self::DirectionalDerivative { outcomes, treatments, at, direction } => {
+                writer.word(4);
+                encode_variables(writer, outcomes);
+                encode_variables(writer, treatments);
+                writer.reals(at).reals(direction);
+            }
+            Self::Jacobian { outcomes, treatments, at, scale } => {
+                writer.word(5);
+                encode_variables(writer, outcomes);
+                encode_variables(writer, treatments);
+                writer.reals(at);
+                scale.encode(writer);
+            }
+            Self::InterventionResponse { outcome, interventions } => {
+                writer.word(6);
+                outcome.encode(writer);
+                encode_list(writer, interventions);
+            }
+        }
+    }
+}
+
 impl ResponseFunctional {
     /// Treatment variable ids in query order.
     #[must_use]
@@ -515,6 +804,20 @@ pub struct ResponseQuery {
     pub temporal: Option<TemporalResponseSpec>,
     /// Outcome functional (mean or exceedance). Identification is unchanged.
     pub outcome_functional: OutcomeFunctional,
+}
+
+/// Every field is written. `observation_assumptions` are a conjunction of
+/// claims (each one is appended to the assumption set) and are encoded as an
+/// unordered collection.
+impl CanonicalEncode for ResponseQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.functional.encode(writer);
+        self.target_population.encode(writer);
+        self.observation.encode(writer);
+        encode_set(writer, &self.observation_assumptions);
+        encode_option(writer, self.temporal.as_ref());
+        self.outcome_functional.encode(writer);
+    }
 }
 
 impl ResponseQuery {
@@ -594,7 +897,7 @@ impl ResponseQuery {
                         if !lower.is_finite() || !upper.is_finite() || lower >= upper =>
                     {
                         return Err(QueryError::InvalidResponse(
-                            "uniform derivative weighting requires finite lower < upper".into(),
+                            ResponseFault::UniformWeightBounds,
                         ));
                     }
                     DerivativeWeighting::Custom(weights)
@@ -602,10 +905,7 @@ impl ResponseQuery {
                             || weights.iter().any(|w| !w.is_finite() || *w < 0.0)
                             || weights.iter().all(|w| *w == 0.0) =>
                     {
-                        return Err(QueryError::InvalidResponse(
-                            "custom derivative weights must be finite, non-negative, and non-zero"
-                                .into(),
-                        ));
+                        return Err(QueryError::InvalidResponse(ResponseFault::CustomWeights));
                     }
                     _ => {}
                 }
@@ -615,16 +915,12 @@ impl ResponseQuery {
                     return Err(QueryError::TreatmentEqualsOutcome { id: *outcome });
                 }
                 if !at.is_finite() || !matches!(order, 1 | 2) {
-                    return Err(QueryError::InvalidResponse(
-                        "point derivative requires a finite point and order one or two".into(),
-                    ));
+                    return Err(QueryError::InvalidResponse(ResponseFault::PointDerivative));
                 }
                 if matches!(scale, DerivativeScale::LogTreatment | DerivativeScale::LogLog)
                     && *at <= 0.0
                 {
-                    return Err(QueryError::InvalidResponse(
-                        "log-treatment derivative scales require a positive treatment point".into(),
-                    ));
+                    return Err(QueryError::InvalidResponse(ResponseFault::LogScalePoint));
                 }
             }
             ResponseFunctional::DirectionalDerivative { outcomes, treatments, at, direction } => {
@@ -634,9 +930,7 @@ impl ResponseQuery {
                     || at.iter().chain(direction.iter()).any(|v| !v.is_finite())
                     || direction.iter().all(|v| *v == 0.0)
                 {
-                    return Err(QueryError::InvalidResponse(
-                        "directional derivative dimensions/values are inconsistent".into(),
-                    ));
+                    return Err(QueryError::InvalidResponse(ResponseFault::DirectionalDimensions));
                 }
             }
             ResponseFunctional::Jacobian { outcomes, treatments, at, scale } => {
@@ -644,28 +938,22 @@ impl ResponseQuery {
                     || at.len() != treatments.len()
                     || at.iter().any(|v| !v.is_finite())
                 {
-                    return Err(QueryError::InvalidResponse(
-                        "Jacobian dimensions/values are inconsistent".into(),
-                    ));
+                    return Err(QueryError::InvalidResponse(ResponseFault::JacobianDimensions));
                 }
                 if matches!(scale, DerivativeScale::LogTreatment | DerivativeScale::LogLog)
                     && at.iter().any(|v| *v <= 0.0)
                 {
-                    return Err(QueryError::InvalidResponse(
-                        "log-treatment Jacobians require positive treatment coordinates".into(),
-                    ));
+                    return Err(QueryError::InvalidResponse(ResponseFault::LogScaleJacobian));
                 }
             }
             ResponseFunctional::InterventionResponse { outcome, interventions } => {
                 if interventions.is_empty() {
-                    return Err(QueryError::InvalidResponse(
-                        "intervention response requires at least one intervention".into(),
-                    ));
+                    return Err(QueryError::InvalidResponse(ResponseFault::NoIntervention));
                 }
                 for intervention in interventions.iter() {
-                    intervention
-                        .validate()
-                        .map_err(|e| QueryError::InvalidIntervention(e.to_string()))?;
+                    intervention.validate().map_err(|e| {
+                        QueryError::InvalidIntervention(InterventionFault::Rejected(e))
+                    })?;
                     if intervention.target_variables().contains(outcome) {
                         return Err(QueryError::TreatmentEqualsOutcome { id: *outcome });
                     }
@@ -682,23 +970,12 @@ impl ResponseQuery {
             temporal.validate()?;
             match &self.functional {
                 ResponseFunctional::MeanCurve { treatment, .. } => {
-                    let dose_count = match &treatment.grid {
-                        GridSpec::Values(values) => values.len(),
-                        GridSpec::Linspace { points, .. } => *points,
-                    };
-                    let cells =
-                        dose_count.checked_mul(temporal.horizons.len()).ok_or_else(|| {
-                            QueryError::InvalidResponse(
-                                "temporal response dose-by-horizon cell count overflow".into(),
-                            )
-                        })?;
-                    if cells > MAX_TEMPORAL_RESPONSE_CELLS {
-                        return Err(QueryError::InvalidResponse(format!(
-                            "temporal response has {cells} dose-by-horizon cells; \
-                                 materialization limit is {MAX_TEMPORAL_RESPONSE_CELLS}; \
-                                 coarsen the dose grid or request fewer horizons"
-                        )));
-                    }
+                    // The contract bounds the cell count only by what `usize`
+                    // can address; the execution memory budget bounds
+                    // materialization.
+                    treatment.grid.point_count().checked_mul(temporal.horizons.len()).ok_or(
+                        QueryError::InvalidResponse(ResponseFault::DoseHorizonCellOverflow),
+                    )?;
                 }
                 ResponseFunctional::InterventionResponse { .. }
                 | ResponseFunctional::AverageDerivative { .. }
@@ -710,13 +987,13 @@ impl ResponseQuery {
         Ok(())
     }
 
-    /// Licensed static pairs that may ride a temporal curve. Anything else
-    /// refuses with [`TEMPORAL_OBSERVATION_UNLICENSED`].
+    /// Supported static pairs that may ride a temporal curve. Anything else
+    /// refuses with [`TEMPORAL_OBSERVATION_UNSUPPORTED`].
     ///
     /// # Errors
     ///
-    /// Unlicensed mechanism/assumption pair on a temporal attachment.
-    pub fn require_licensed_temporal_observation(&self) -> Result<(), QueryError> {
+    /// Unsupported mechanism/assumption pair on a temporal attachment.
+    pub fn require_supported_temporal_observation(&self) -> Result<(), QueryError> {
         if self.temporal.is_none() {
             return Ok(());
         }
@@ -725,12 +1002,14 @@ impl ResponseQuery {
                 if self.observation_assumptions.is_empty() {
                     Ok(())
                 } else {
-                    Err(QueryError::InvalidResponse(TEMPORAL_OBSERVATION_UNLICENSED.into()))
+                    Err(QueryError::InvalidResponse(ResponseFault::TemporalObservationUnsupported))
                 }
             }
             ObservationSpec::Selected { .. } => match single_observation_assumption(self) {
                 Some(ObservationAssumption::OutcomeIndependentGiven(_)) => Ok(()),
-                _ => Err(QueryError::InvalidResponse(TEMPORAL_OBSERVATION_UNLICENSED.into())),
+                _ => {
+                    Err(QueryError::InvalidResponse(ResponseFault::TemporalObservationUnsupported))
+                }
             },
             ObservationSpec::RightCensored { .. } | ObservationSpec::LeftCensored { .. } => {
                 match single_observation_assumption(self) {
@@ -740,19 +1019,21 @@ impl ResponseQuery {
                     {
                         Ok(())
                     }
-                    _ => Err(QueryError::InvalidResponse(TEMPORAL_OBSERVATION_UNLICENSED.into())),
+                    _ => Err(QueryError::InvalidResponse(
+                        ResponseFault::TemporalObservationUnsupported,
+                    )),
                 }
             }
             ObservationSpec::IntervalCensored { .. } | ObservationSpec::Truncated { .. } => {
-                Err(QueryError::InvalidResponse(TEMPORAL_OBSERVATION_UNLICENSED.into()))
+                Err(QueryError::InvalidResponse(ResponseFault::TemporalObservationUnsupported))
             }
         }
     }
 }
 
-/// Stable compile/execute refusal for an unlicensed temporal observation pair.
-pub const TEMPORAL_OBSERVATION_UNLICENSED: &str =
-    "temporal response observation pair is not licensed";
+/// Stable compile/execute refusal for an unsupported temporal observation pair.
+pub const TEMPORAL_OBSERVATION_UNSUPPORTED: &str =
+    "temporal response observation pair is not supported";
 
 fn single_observation_assumption(query: &ResponseQuery) -> Option<&ObservationAssumption> {
     if query.observation_assumptions.len() != 1 {
@@ -772,21 +1053,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn temporal_response_license_is_the_facade_contract() {
-        let license = TemporalResponseSpec::license();
-        assert_eq!(license.max_horizons, MAX_TEMPORAL_RESPONSE_HORIZONS);
-        assert_eq!(license.max_cells, MAX_TEMPORAL_RESPONSE_CELLS);
-        assert_eq!(license.allowed_policies, TemporalResponseSpec::ALLOWED_POLICIES);
-        assert_eq!(license.default_policy, TemporalResponseSpec::POLICY_PULSE);
-        assert!(license.allowed_policies.contains(&license.default_policy));
-        assert_eq!(license.default_treatment_lag, TemporalResponseSpec::DEFAULT_TREATMENT_LAG);
-        let at = -i32::try_from(license.default_treatment_lag).unwrap();
-        assert!(TemporalResponseSpec::parse_policy(license.default_policy, at).is_ok());
+    fn temporal_response_support_is_the_facade_contract() {
+        let support = TemporalResponseSpec::support();
+        assert_eq!(support.max_horizons, usize::MAX);
+        assert_eq!(support.max_cells, usize::MAX);
+        assert_eq!(support.allowed_policies, TemporalResponseSpec::ALLOWED_POLICIES);
+        assert_eq!(support.default_policy, TemporalResponseSpec::POLICY_PULSE);
+        assert!(support.allowed_policies.contains(&support.default_policy));
+        assert_eq!(support.default_treatment_lag, TemporalResponseSpec::DEFAULT_TREATMENT_LAG);
+        let at = -i32::try_from(support.default_treatment_lag).unwrap();
+        assert!(TemporalResponseSpec::parse_policy(support.default_policy, at).is_ok());
         assert!(TemporalResponseSpec::parse_policy("dynamic", at).is_err());
-        let ok: Vec<u32> = (1..=u32::try_from(license.max_horizons).unwrap()).collect();
-        assert!(TemporalResponseSpec::new(ok, TemporalPolicy::pulse(at), None).is_ok());
-        let too_many: Vec<u32> = (1..=u32::try_from(license.max_horizons + 1).unwrap()).collect();
-        assert!(TemporalResponseSpec::new(too_many, TemporalPolicy::pulse(at), None).is_err());
+        let many: Vec<u32> = (1..=100_000).collect();
+        assert!(TemporalResponseSpec::new(many, TemporalPolicy::pulse(at), None).is_ok());
     }
 
     #[test]
@@ -802,25 +1081,27 @@ mod tests {
     }
 
     #[test]
-    fn temporal_surface_caps_the_cross_product_not_only_each_axis() {
-        let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
-            outcome: VariableId::from_raw(1),
-            treatment: ContinuousDomain::new(
-                VariableId::from_raw(0),
-                GridSpec::Linspace { start: 0.0, end: 1.0, points: 2_000 },
-            ),
-        })
-        .with_temporal(
-            TemporalResponseSpec::new(
-                (1..=512).collect::<Vec<_>>(),
-                TemporalPolicy::pulse(-1),
-                None,
+    fn temporal_surface_has_no_fixed_cell_count_but_refuses_overflow() {
+        let surface = |points: usize, horizons: usize| {
+            ResponseQuery::new(ResponseFunctional::MeanCurve {
+                outcome: VariableId::from_raw(1),
+                treatment: ContinuousDomain::new(
+                    VariableId::from_raw(0),
+                    GridSpec::Linspace { start: 0.0, end: 1.0, points },
+                ),
+            })
+            .with_temporal(
+                TemporalResponseSpec::new(
+                    (1..=u32::try_from(horizons).unwrap()).collect::<Vec<_>>(),
+                    TemporalPolicy::pulse(-1),
+                    None,
+                )
+                .unwrap(),
             )
-            .unwrap(),
-        );
-        let error = query.validate().unwrap_err();
-        assert!(error.to_string().contains("1024000 dose-by-horizon cells"));
-        assert!(error.to_string().contains("materialization limit is 1000000"));
+        };
+        assert!(surface(2_000, 1_024).validate().is_ok());
+        let error = surface(usize::MAX, 2).validate().unwrap_err();
+        assert!(error.to_string().contains("cell count overflow"));
     }
 
     #[test]
@@ -831,16 +1112,21 @@ mod tests {
     }
 
     #[test]
-    fn linspace_beyond_materialization_cap_is_rejected() {
-        // Before the fix, only `u32::try_from(points)` was checked, so a huge-but-u32-valid
-        // point count (here, well over MAX_MATERIALIZED_GRID_POINTS but still far under
-        // u32::MAX) would sail through validation and then try to allocate an
-        // unreasonably large `Vec<f64>`.
-        let grid =
-            GridSpec::Linspace { start: 0.0, end: 1.0, points: MAX_MATERIALIZED_GRID_POINTS + 1 };
-        let err = grid.validate().unwrap_err();
-        assert!(matches!(err, QueryError::InvalidResponse(_)));
-        assert!(grid.values().is_err());
+    fn linspace_streams_and_materializes_the_same_points() {
+        let grid = GridSpec::Linspace { start: -1.0, end: 2.0, points: 7 };
+        let values = grid.values().unwrap();
+        assert_eq!(values.len(), grid.point_count());
+        for (i, value) in values.iter().enumerate() {
+            assert_eq!(grid.value_at(i), Some(*value));
+        }
+        assert_eq!(grid.value_at(7), None);
+    }
+
+    #[test]
+    fn linspace_beyond_addressable_memory_is_a_typed_refusal() {
+        let grid = GridSpec::Linspace { start: 0.0, end: 1.0, points: usize::MAX };
+        assert!(grid.validate().is_ok());
+        assert!(matches!(grid.values(), Err(QueryError::InvalidResponse(_))));
     }
 
     #[test]
@@ -858,14 +1144,29 @@ mod tests {
     }
 
     #[test]
-    fn linspace_point_count_far_beyond_u32_capacity_is_still_rejected_by_the_cap() {
-        // Guards the original bug report directly: a `points` value so large the old
-        // `u32::try_from` guard alone would have rejected it, but only after already deciding
-        // the input was otherwise well-formed. The size cap must reject it first and for the
-        // documented "too large to materialize" reason.
+    #[allow(clippy::float_cmp, reason = "The endpoints must be preserved exactly.")]
+    fn linspace_extreme_finite_endpoints_produce_finite_inclusive_values() {
+        for (start, end) in [(-f64::MAX, f64::MAX), (-1e308, 1e308), (1e308, f64::MAX)] {
+            let grid = GridSpec::Linspace { start, end, points: 5 };
+            let values = grid.values().unwrap();
+            assert_eq!(values[0], start);
+            assert_eq!(values[4], end);
+            assert!(values.iter().all(|value| value.is_finite()));
+            assert!(values.windows(2).all(|pair| pair[0] < pair[1]));
+            for (index, &value) in values.iter().enumerate() {
+                assert_eq!(grid.value_at(index), Some(value));
+            }
+        }
+    }
+
+    #[test]
+    fn linspace_point_count_far_beyond_u32_capacity_is_a_budget_matter_not_a_validation_cap() {
+        // A grid is described by its endpoints and a count and is never materialised by
+        // validation, so a very large count is well-formed; materialising it is what the
+        // memory budget governs.
         let grid = GridSpec::Linspace { start: 0.0, end: 1.0, points: 4_000_000_000 };
-        let err = grid.validate().unwrap_err();
-        assert!(matches!(err, QueryError::InvalidResponse(_)));
+        assert!(grid.validate().is_ok());
+        assert_eq!(grid.point_count(), 4_000_000_000);
     }
 
     fn temporal_curve() -> ResponseQuery {
@@ -882,10 +1183,10 @@ mod tests {
     }
 
     #[test]
-    fn temporal_observation_license_matches_static_1_3_pairs() {
+    fn temporal_observation_support_matches_static_1_3_pairs() {
         let query = temporal_curve();
         assert!(query.validate().is_ok());
-        assert!(query.require_licensed_temporal_observation().is_ok());
+        assert!(query.require_supported_temporal_observation().is_ok());
 
         let selected = query.clone().with_observation(
             ObservationSpec::Selected {
@@ -896,7 +1197,7 @@ mod tests {
             [ObservationAssumption::OutcomeIndependentGiven(Arc::from([VariableId::from_raw(0)]))],
         );
         assert!(selected.validate().is_ok());
-        assert!(selected.require_licensed_temporal_observation().is_ok());
+        assert!(selected.require_supported_temporal_observation().is_ok());
 
         let right = query.clone().with_observation(
             ObservationSpec::RightCensored {
@@ -907,7 +1208,7 @@ mod tests {
             },
             [ObservationAssumption::IndependentGiven(Arc::from([]))],
         );
-        assert!(right.require_licensed_temporal_observation().is_ok());
+        assert!(right.require_supported_temporal_observation().is_ok());
 
         let cox = query.clone().with_observation(
             ObservationSpec::LeftCensored {
@@ -918,7 +1219,7 @@ mod tests {
             },
             [ObservationAssumption::IndependentGiven(Arc::from([VariableId::from_raw(0)]))],
         );
-        assert!(cox.require_licensed_temporal_observation().is_ok());
+        assert!(cox.require_supported_temporal_observation().is_ok());
 
         let interval = query.with_observation(
             ObservationSpec::IntervalCensored {
@@ -929,7 +1230,7 @@ mod tests {
             [ObservationAssumption::IndependentGiven(Arc::from([]))],
         );
         assert!(interval.validate().is_ok());
-        let err = interval.require_licensed_temporal_observation().unwrap_err();
-        assert!(err.to_string().contains(TEMPORAL_OBSERVATION_UNLICENSED));
+        let err = interval.require_supported_temporal_observation().unwrap_err();
+        assert!(err.to_string().contains(TEMPORAL_OBSERVATION_UNSUPPORTED));
     }
 }

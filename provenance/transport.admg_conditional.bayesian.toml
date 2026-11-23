@@ -8,8 +8,9 @@ copied_tests = false
 papers = []
 
 implementation_deviations = [
-  "Dirichlet posterior means of the supplied finite laws on the existing selection diagram, pushed through the conditional transport identifier. A tiny concentration stays at the enumerated conditional truth. This is not a TemporalAdmg license. No interval.",
-  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+  "Dirichlet posterior means of the supplied finite laws on the existing selection diagram, pushed through the conditional transport identifier. A tiny concentration stays at the enumerated conditional truth. This is not TemporalAdmg support. No interval.",
+  "Scope, not a withheld interval: the conditional question is answered on supplied exact laws, so the point has no sampling uncertainty to report. Counted laws on the conditional route are refused (not_supported, admg_transport.counted_laws_unsupported) because no conditional-formula sampling construction (delta or bootstrap of the checked conditional formula over counted tables) is implemented; an interval there would need that construction and its own independent check, so the route reports exact-law points only.",
+  "A mapped coefficient prior, an external power prior, and a request for a not-measured band refuse.",
 ]
 
 upstream_implementations_observed = []
@@ -17,3 +18,30 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-estimate/tests/admg_conditional_transport_scm.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "Dirichlet posterior mean of the supplied finite law (AdmgConditional namespace), then the existing conditional transport identifier over the updated laws."
+no_independent_algorithm = "dirichlet_posterior_mean / dirichlet_supported_mean return (w_i + c)/(sum w + k c) and the downstream evaluation is the covered route's existing finite computation. posterior_mean.rs also holds the normal and ridge routes and the Gaussian-kernel local-quadratic route, which belong to other records."
+covered_by = ["estimate.posterior_mean_kernel"]
+derivation = "Dirichlet(c,...,c) prior and weights w on k atoms give posterior mean (w_i + c) / (sum w + k c); structural zeros are held at zero and updated as a (k-1)-atom law; checked against exact rationals in posterior_mean_reference.rs and in the route's own test."
+record_sha256 = "2fe1ef52c2db79b8474d54177e4fbc7daf59734809d203529fe7aa7d6450b704"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/posterior_mean.rs"
+items = ["enum DirichletNamespace", "enum PosteriorRequest", "enum ScalarNamespace", "enum ScoreNamespace", "fn covariance_entry_posterior", "fn details", "fn dirichlet_posterior_mean", "fn dirichlet_supported_mean", "fn known_variance_posterior", "fn normal_mean_posterior", "fn refuse", "fn scale_of", "fn score_contrast_posterior", "fn shrink"]
+sha256 = "4d92ec840144292fc528750bee65061fc89dca05b4e2cb417d05c4db01db6fa1"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
+items = ["fn close", "fn dirichlet_means_equal_the_exact_pseudo_count_update_and_keep_structural_zeros", "fn fixture", "fn floats", "fn known_variance_and_covariance_entries_equal_the_exact_update", "fn normal", "fn normal_mean_and_score_contrast_equal_the_exact_conjugate_update", "fn num", "fn ridge_coefficient_posterior_equals_the_exact_penalized_normal_equations", "fn the_updates_have_the_prior_and_flat_limits_and_refuse_invalid_scales"]
+sha256 = "797f8cafc3029d0e15baeff295478c1e44048060c621667045881e97d823a09f"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/admg_conditional_transport_scm.rs"
+items = ["enum Outcome", "fn a_request_must_bind_exactly_the_treatments_and_conditioned_variables", "fn a_seeded_four_node_sample_matches_the_enumerated_truth", "fn a_zero_mass_conditioning_event_refuses_as_a_support_failure", "fn add", "fn admg_conditional_posterior_consumer_replays_the_dirichlet_weights", "fn admg_conditional_posterior_mean_stays_at_the_enumerated_truth", "fn admg_conditional_posterior_refuses_an_not_measured_band", "fn below", "fn check", "fn complement", "fn counted_laws_are_refused_by_the_estimate_level_preparation", "fn evaluate", "fn every_three_node_conditional_query_matches_the_enumerated_truth", "fn gcd", "fn independently_verified", "fn mass", "fn mul", "fn next", "fn norm", "fn parse", "fn posterior_laws", "fn query_coordinate_order_does_not_change_the_point", "struct Frac", "struct Rng", "struct WitnessScm"]
+sha256 = "6e85643a82a8f4212281f3b266e4bb99911c718d911fe0a7822d7adbcb96399b"

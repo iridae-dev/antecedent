@@ -1,16 +1,26 @@
 //! Portable claim envelope over a compiled contract and one result.
 //!
 //! A program defines an analysis. A claim records what a particular
-//! execution or licensed derivation concludes. Receiving bytes,
+//! execution or supported derivation concludes. Receiving bytes,
 //! understanding semantics, verifying dependencies, and being able to
 //! execute remain separate states.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+mod world_point;
+pub use world_point::{
+    CheckedWorldPoint, CheckedWorldPointError, CheckedWorldPointLimits, WorldPointParent,
+    admit_composition_targets, compose_checked_world_points, composition_claim_premises_identity,
+    quote_claim_premises,
+};
 
 use std::sync::Arc;
 
 use crate::provenance::{ProvenanceGraph, ProvenanceNode};
 use crate::reasoning::ReasoningView;
+use antecedent_core::identity::CanonicalWriter;
+use antecedent_core::named_variants;
+use antecedent_core::scientific_target::{ScientificTarget, TargetForm};
 use antecedent_core::{CalibrationBasis, ContractIdentities, SemanticDigest};
 
 /// Kind of value a claim carries. Refusals and bounds are first-class.
@@ -31,37 +41,32 @@ pub enum ClaimKind {
     Refusal,
     /// Incomplete contract with explicit obligations.
     Incomplete,
+    /// Noncausal association, regression or prediction. Identification is not
+    /// claimed, so the claim never reads as an intervention effect.
+    Associational,
+}
+
+named_variants! {
+    ClaimKind {
+        Point => "point",
+        Bounds => "bounds",
+        Mixture => "mixture",
+        Response => "response",
+        PolicyValue => "policy_value",
+        Refusal => "refusal",
+        Incomplete => "incomplete",
+        Associational => "associational",
+    }
 }
 
 impl ClaimKind {
-    /// Stable `snake_case` name.
+    /// Whether the kind states something about an intervention.
+    ///
+    /// An associational claim describes the observed joint law and nothing
+    /// more; it ranks no action and is never counted as an effect.
     #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Point => "point",
-            Self::Bounds => "bounds",
-            Self::Mixture => "mixture",
-            Self::Response => "response",
-            Self::PolicyValue => "policy_value",
-            Self::Refusal => "refusal",
-            Self::Incomplete => "incomplete",
-        }
-    }
-
-    /// Inverse of [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [
-            Self::Point,
-            Self::Bounds,
-            Self::Mixture,
-            Self::Response,
-            Self::PolicyValue,
-            Self::Refusal,
-            Self::Incomplete,
-        ]
-        .into_iter()
-        .find(|kind| kind.as_str() == name)
+    pub const fn is_causal(self) -> bool {
+        !matches!(self, Self::Associational)
     }
 }
 
@@ -81,37 +86,29 @@ pub enum DomainStatus {
     Contradicted,
     /// Unknown; not a failed support and not an executable guarantee.
     Unknown,
+    /// Supported only under a declared adjustment that changed what the answer covers or how
+    /// it weights the data: an overlap clip that binds, or a trim that excluded rows. The
+    /// claim holds for that adjusted target; a host relays the limit with the answer.
+    Limited,
+    /// Identification is not claimed: the claim is noncausal by construction,
+    /// so there is nothing to identify. Not a failed or missing identification.
+    NotClaimed,
+}
+
+named_variants! {
+    DomainStatus {
+        Identified => "identified",
+        Supported => "supported",
+        Evaluated => "evaluated",
+        OutsideScope => "outside_scope",
+        Contradicted => "contradicted",
+        Unknown => "unknown",
+        Limited => "limited",
+        NotClaimed => "not_claimed",
+    }
 }
 
 impl DomainStatus {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Identified => "identified",
-            Self::Supported => "supported",
-            Self::Evaluated => "evaluated",
-            Self::OutsideScope => "outside_scope",
-            Self::Contradicted => "contradicted",
-            Self::Unknown => "unknown",
-        }
-    }
-
-    /// Inverse of [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [
-            Self::Identified,
-            Self::Supported,
-            Self::Evaluated,
-            Self::OutsideScope,
-            Self::Contradicted,
-            Self::Unknown,
-        ]
-        .into_iter()
-        .find(|status| status.as_str() == name)
-    }
-
     /// Whether the status asserts something (identified, supported, evaluated).
     #[must_use]
     const fn is_positive(self) -> bool {
@@ -171,10 +168,23 @@ pub struct ClaimEnvelope {
     pub attested: Arc<[AttestedEvidence]>,
 }
 
+/// Simulations behind the returned-interval coverage of a matched design.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct IntervalCounts {
+    /// All simulated panels, including refusals.
+    pub attempted: u32,
+    /// Simulations producing a finite interval.
+    pub returned: u32,
+    /// Returned intervals that contain the known effect.
+    pub covered: u32,
+}
+
 /// Calibration slot projected onto a claim.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CalibrationView {
-    /// `calibrated` | `scope_not_assessed` | `unavailable`.
+    /// Counts for the exact design when published by its measurement.
+    pub interval_counts: Option<IntervalCounts>,
+    /// `calibrated` | `outside_measured_scope` | `measured_below_nominal` | `not_measured`.
     pub status: Arc<str>,
     /// Governing coverage record id.
     pub record_id: Option<Arc<str>>,
@@ -201,7 +211,8 @@ pub struct CalibrationView {
 impl Default for CalibrationView {
     fn default() -> Self {
         Self {
-            status: Arc::from("unavailable"),
+            interval_counts: None,
+            status: Arc::from("not_measured"),
             record_id: None,
             reason: Some(Arc::from(antecedent_core::reason_code!("not_executed"))),
             scope_n: None,
@@ -281,16 +292,16 @@ impl ClaimEnvelope {
 pub struct AcceptanceReport {
     /// Whether required semantic features were recognized.
     pub recognized: bool,
-    /// Whether referenced identities / sections verified.
-    pub verified_references: bool,
+    /// Whether the referenced identities and sections were replayed and agree.
+    pub replayed_references: bool,
     /// Unresolved dependencies.
     pub unresolved: Arc<[Arc<str>]>,
     /// Operations the receiver can perform.
     pub supported_operations: Arc<[Arc<str>]>,
     /// Why acceptance is restricted or refused.
     pub restriction: Option<Arc<str>>,
-    /// Whether the verified artifact carries a claim over an execution.
-    /// A verified program without a claim is not an accepted claim.
+    /// Whether the replayed artifact carries a claim over an execution.
+    /// A replayed program without a claim is not an accepted claim.
     pub claim_present: bool,
 }
 
@@ -299,14 +310,14 @@ impl AcceptanceReport {
     #[must_use]
     pub fn new(
         recognized: bool,
-        verified_references: bool,
+        replayed_references: bool,
         unresolved: impl Into<Arc<[Arc<str>]>>,
         supported_operations: impl Into<Arc<[Arc<str>]>>,
         restriction: Option<Arc<str>>,
     ) -> Self {
         Self {
             recognized,
-            verified_references,
+            replayed_references,
             unresolved: unresolved.into(),
             supported_operations: supported_operations.into(),
             restriction,
@@ -326,7 +337,7 @@ impl AcceptanceReport {
     pub fn opaque_storage() -> Self {
         Self {
             recognized: false,
-            verified_references: false,
+            replayed_references: false,
             unresolved: Arc::from([Arc::from("required_semantics")]),
             supported_operations: Arc::from([Arc::from("store"), Arc::from("forward")]),
             restriction: Some(Arc::from("opaque_envelope")),
@@ -334,21 +345,22 @@ impl AcceptanceReport {
         }
     }
 
-    /// Whether this report accepts the claim as a usable causal claim.
+    /// Whether every part of the artifact was replayed and agrees, and it carries a claim.
     ///
-    /// Requires a verified program that carries a claim.
+    /// [`Self::accepts_as_replayed_program`] with a claim present; it reports what replay
+    /// recomputed, not whether the claim may be used.
     #[must_use]
     pub fn accepts_as_claim(&self) -> bool {
-        self.accepts_as_verified_program() && self.claim_present
+        self.accepts_as_replayed_program() && self.claim_present
     }
 
-    /// Whether the artifact is a fully verified program, with or without a claim.
+    /// Whether every part of the artifact was replayed and agrees, with or without a claim.
     ///
-    /// Distinct from storage/forwarding. Old artifacts without a contract
+    /// Distinct from storage/forwarding. Artifacts without a contract
     /// section remain readable but do not pass this check.
     #[must_use]
-    pub fn accepts_as_verified_program(&self) -> bool {
-        self.recognized && self.verified_references && self.unresolved.is_empty()
+    pub fn accepts_as_replayed_program(&self) -> bool {
+        self.recognized && self.replayed_references && self.unresolved.is_empty()
     }
 }
 
@@ -465,31 +477,51 @@ impl HandoffReceipt {
 
     /// Whether the output is the same claim with no required meaning omitted.
     ///
-    /// A derived claim has a new id and is never equivalent to its parent.
+    /// The envelope, identities, reasoning and domains must each be explicitly
+    /// retained. A derived claim has a new id and is never equivalent to its parent.
     #[must_use]
     pub fn equivalent_claim(&self) -> bool {
-        self.omitted.is_empty() && self.unresolved.is_empty() && self.output == Some(self.input)
+        self.omitted.is_empty()
+            && self.unresolved.is_empty()
+            && self.output == Some(self.input)
+            && ["claim.envelope", "identities", "reasoning", "domains"]
+                .iter()
+                .all(|required| self.retained.iter().any(|field| field.as_ref() == *required))
     }
 
     /// Accumulate losses from `self` then `next`.
     ///
     /// Omissions, unresolved obligations and unavailable operations only grow
     /// along a chain; a later hop cannot restore what an earlier one lost, so
-    /// retained fields exclude everything already omitted. Receipts about
+    /// complete forwarding hops preserve the other hop's retained fields. Between
+    /// other hops, only exact field names declared retained by both are established,
+    /// excluding everything omitted. Receipts about
     /// different claims (`self.output != Some(next.input)`) do not describe one
-    /// path, so the chain records `chain_discontinuity` as unresolved and is
-    /// never equivalent to the claim.
+    /// path, so the chain retains no established fields, records
+    /// `chain_discontinuity` as unresolved, and is never equivalent to the claim.
     #[must_use]
     pub fn chain(&self, next: &Self) -> Self {
         let omitted = merge_unique(&self.omitted, &next.omitted);
-        let retained: Arc<[Arc<str>]> = next
-            .retained
+        // A complete forwarding hop preserves the other hop's declared fields,
+        // including granular fields such as `value` within the full envelope.
+        // Otherwise only names explicitly retained at both hops are established.
+        let contiguous = self.output == Some(next.input);
+        let first_complete = self.equivalent_claim();
+        let next_complete = next.equivalent_claim();
+        let candidates = if next_complete { &self.retained } else { &next.retained };
+        let retained: Arc<[Arc<str>]> = candidates
             .iter()
-            .filter(|field| !omitted.iter().any(|lost| lost == *field))
+            .filter(|field| {
+                contiguous
+                    && (first_complete
+                        || next_complete
+                        || self.retained.iter().any(|first| first == *field))
+                    && !omitted.iter().any(|lost| lost == *field)
+            })
             .cloned()
             .collect();
         let mut unresolved = merge_unique(&self.unresolved, &next.unresolved);
-        if self.output != Some(next.input) {
+        if !contiguous {
             unresolved = merge_unique(&unresolved, &[Arc::from("chain_discontinuity")]);
         }
         Self {
@@ -542,19 +574,19 @@ impl ClaimDomainAxis {
     }
 }
 
-/// Licensed composition that may produce a derived claim. Comparison is not synthesis.
+/// Supported composition that may produce a derived claim. Comparison is not synthesis.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum ClaimOperation {
     /// Expose differences without pooling.
     Compare,
-    /// Contrast requiring a licensed joint uncertainty contract.
+    /// Contrast requiring a supported joint uncertainty contract.
     Contrast,
-    /// Aggregate requiring a licensed joint inference contract.
+    /// Aggregate requiring a supported joint inference contract.
     Aggregate,
     /// Retarget within an existing certified derivation.
     Retarget,
-    /// Pool / synthesize. Unlicensed; not transport.
+    /// Pool / synthesize. Unsupported; not transport.
     Pool,
 }
 
@@ -571,7 +603,7 @@ impl ClaimOperation {
         }
     }
 
-    /// Whether this operation synthesizes a new licensed claim.
+    /// Whether this operation synthesizes a new supported claim.
     #[must_use]
     pub const fn synthesizes(self) -> bool {
         matches!(self, Self::Contrast | Self::Aggregate | Self::Pool)
@@ -584,7 +616,8 @@ impl ClaimOperation {
 pub struct ClaimCompatibility {
     /// Requested operation.
     pub operation: ClaimOperation,
-    /// Whether the operation is licensed for these parents.
+    /// Whether the stated parent premises are compatible. Synthesis additionally
+    /// requires checked target and arithmetic verification.
     pub compatible: bool,
     /// Unresolved obligations (alignment, mapping, identity disagreement).
     pub unresolved: Arc<[Arc<str>]>,
@@ -675,7 +708,7 @@ impl SharedEvidenceRef {
     }
 }
 
-/// Freshness as of a receiver's last verified snapshot. Timestamps do not license.
+/// Freshness as of a receiver's last verified snapshot. Timestamps do not support.
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub struct ClaimFreshness {
@@ -851,11 +884,11 @@ pub struct DerivedClaim {
     pub receipt: HandoffReceipt,
 }
 
-/// Outcome of a claimed composition. Unlicensed synthesis keeps parents intact.
+/// Outcome of a claimed composition. Unsupported synthesis keeps parents intact.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum DerivedClaimOutcome {
-    /// Licensed derivation with parent receipts.
+    /// Supported derivation with parent receipts.
     Derived(Box<DerivedClaim>),
     /// Comparison-only: differences without a pooled claim.
     Comparison(ClaimCompatibility),
@@ -963,7 +996,7 @@ pub fn claim_compatibility(
             ClaimCompatibility::new(operation, unresolved.is_empty(), unresolved, restriction)
         }
         ClaimOperation::Contrast | ClaimOperation::Aggregate => {
-            if !alignment_is_licensed(parents, alignment) {
+            if !alignment_is_supported(parents, alignment) {
                 unresolved.push(Arc::from("alignment"));
             }
             let restriction = unresolved
@@ -976,7 +1009,7 @@ pub fn claim_compatibility(
             operation,
             false,
             [Arc::from("transport")],
-            Some(Arc::from("unlicensed_synthesis")),
+            Some(Arc::from("unsupported_synthesis")),
         ),
     }
 }
@@ -1001,10 +1034,10 @@ fn alignment_token(value: &str) -> Option<&str> {
     (ALIGNMENT_KINDS.contains(&kind) && !id.is_empty()).then_some(stripped)
 }
 
-/// Alignment is licensed only when every parent declares the same draw set
+/// Alignment is supported only when every parent declares the same draw set
 /// (`kind:id` equality) and was computed on the same data snapshot: replicates
 /// from different snapshots are unrelated draws however they are labelled.
-fn alignment_is_licensed(parents: &[&ClaimEnvelope], alignment: Option<&str>) -> bool {
+fn alignment_is_supported(parents: &[&ClaimEnvelope], alignment: Option<&str>) -> bool {
     let snapshot = parents.first().map(|parent| parent.identities.data_snapshot);
     if parents.iter().any(|parent| Some(parent.identities.data_snapshot) != snapshot) {
         return false;
@@ -1024,8 +1057,16 @@ fn alignment_is_licensed(parents: &[&ClaimEnvelope], alignment: Option<&str>) ->
     parent_tokens.iter().all(|item| *item == Some(expected))
 }
 
-/// Compose parent claims. Reuses [`ProvenanceGraph`]; does not invent a verifier.
+/// Compare parent claims or relay one parent's verified content with optional domain weakening.
+///
+/// A caller-supplied contrast or aggregate envelope carries no arithmetic proof and
+/// is refused. Use the facade's checked Study claim composer to construct a new
+/// target and point from retained prepared programs and trusted parent envelopes.
 #[must_use]
+#[allow(
+    clippy::too_many_lines,
+    reason = "The bounded composition keeps its dependent validation steps together."
+)]
 pub fn compose_claims(
     parents: &[&ClaimEnvelope],
     operation: ClaimOperation,
@@ -1044,11 +1085,62 @@ pub fn compose_claims(
             Some(compatibility),
         );
     }
-    let Some(derived) = derived else {
+    let Some(mut derived) = derived else {
         return refuse_derived("missing_derived_envelope", parent_ids, Some(compatibility));
     };
+    if matches!(operation, ClaimOperation::Contrast | ClaimOperation::Aggregate) {
+        return refuse_derived(
+            "derived_value_requires_verified_operation",
+            parent_ids,
+            Some(compatibility),
+        );
+    }
     if let Some(restriction) = derived_departs_from_parents(parents, &derived, operation) {
         return refuse_derived(restriction, parent_ids, Some(compatibility));
+    }
+    if operation == ClaimOperation::Retarget {
+        // No verifier accompanies this legacy call. Relay one parent's content,
+        // allowing only explicit weakening of positive domain statuses to unknown.
+        if parents.len() != 1 {
+            return refuse_derived("retarget_requires_one_parent", parent_ids, Some(compatibility));
+        }
+        let parent = parents[0];
+        if derived.identities != parent.identities
+            || derived.kind != parent.kind
+            || derived.value.map(f64::to_bits) != parent.value.map(f64::to_bits)
+            || derived.outcome_units != parent.outcome_units
+            || derived.reasoning != parent.reasoning
+            || derived.execution != parent.execution
+            || derived.evidence != parent.evidence
+            || derived.calibration != parent.calibration
+            || derived.attested != parent.attested
+        {
+            return refuse_derived(
+                "retarget_requires_unchanged_parent",
+                parent_ids,
+                Some(compatibility),
+            );
+        }
+        for axis in
+            [ClaimDomainAxis::Identification, ClaimDomainAxis::Support, ClaimDomainAxis::Evaluated]
+        {
+            let from = parent.domain(axis);
+            let to = derived.domain(axis);
+            if from != to && !(from.is_positive() && to == DomainStatus::Unknown) {
+                return refuse_derived(
+                    "retarget_invalid_domain_change",
+                    parent_ids,
+                    Some(compatibility),
+                );
+            }
+        }
+        let mut identity = CanonicalWriter::new("antecedent.in_process.retarget_relay.v1");
+        identity
+            .bytes(parent.claim_id.as_bytes())
+            .text(derived.domains.identification.as_str())
+            .text(derived.domains.support.as_str())
+            .text(derived.domains.evaluated.as_str());
+        derived.claim_id = SemanticDigest::from_bytes(identity.finish());
     }
     let mut provenance = ProvenanceGraph::new();
     for parent in parents {
@@ -1065,6 +1157,15 @@ pub fn compose_claims(
     {
         return refuse_derived("provenance_cycle_or_duplicate", parent_ids, Some(compatibility));
     }
+    let omitted_domains: Vec<Arc<str>> = if operation == ClaimOperation::Retarget {
+        [ClaimDomainAxis::Identification, ClaimDomainAxis::Support, ClaimDomainAxis::Evaluated]
+            .into_iter()
+            .filter(|axis| parents[0].domain(*axis) != derived.domain(*axis))
+            .map(|axis| Arc::from(format!("domains.{}", axis.as_str())))
+            .collect()
+    } else {
+        Vec::new()
+    };
     DerivedClaimOutcome::Derived(Box::new(DerivedClaim {
         receipt: HandoffReceipt::new(
             parents[0].claim_id,
@@ -1072,11 +1173,15 @@ pub fn compose_claims(
             operation.as_str(),
             "derive",
             [Arc::from("claim.envelope"), Arc::from("parents"), Arc::from("provenance")],
-            [],
+            omitted_domains,
             provenance
                 .validate()
                 .map_or_else(|_| vec![Arc::from("provenance")], |missing| missing.to_vec()),
-            [],
+            if operation == ClaimOperation::Retarget {
+                vec![Arc::from("portable_export")]
+            } else {
+                vec![]
+            },
         ),
         claim: derived,
         parents: parent_ids,
@@ -1093,7 +1198,7 @@ fn refuse_derived(
     DerivedClaimOutcome::Refused { restriction: restriction.into(), parents, compatibility }
 }
 
-/// Why `derived` is not a licensed derivation of `parents`, if it is not.
+/// Why `derived` is not a supported derivation of `parents`, if it is not.
 ///
 /// A retarget stays within its parents' certified derivation: identification
 /// premises and product are unchanged. No derivation may drop an
@@ -1112,6 +1217,16 @@ fn derived_departs_from_parents(
         })
     {
         return Some("retarget_changes_identification");
+    }
+    // A derivation may weaken a causal claim to a noncausal one but never
+    // the reverse: no operation turns an association into a causal statement.
+    if parents.iter().any(|parent| parent.kind == ClaimKind::Associational)
+        && !matches!(
+            derived.kind,
+            ClaimKind::Associational | ClaimKind::Refusal | ClaimKind::Incomplete
+        )
+    {
+        return Some("associational_parent_derives_causal_claim");
     }
     if let Some(restriction) = identification_strengthened(parents, derived) {
         return Some(restriction);
@@ -1150,7 +1265,7 @@ fn identification_strengthened(
         // A non-comparable (NaN) mass is a violation, like a larger one.
         derived_slot
             .identified_mass
-            .partial_cmp(&(slot.identified_mass + 1e-12))
+            .partial_cmp(&(slot.identified_mass + crate::reasoning::IDENTIFICATION_MONOTONE_SLACK))
             .is_none_or(std::cmp::Ordering::is_gt)
     }) {
         return Some("parents_not_retroactively_strengthened");
@@ -1255,12 +1370,12 @@ mod tests {
     }
 
     #[test]
-    fn unlicensed_pool_refuses_with_parents_intact() {
+    fn unsupported_pool_refuses_with_parents_intact() {
         let left = sample_claim(1, 0.4);
         let right = sample_claim(2, 0.4);
         match compose_claims(&[&left, &right], ClaimOperation::Pool, None, None) {
             DerivedClaimOutcome::Refused { restriction, parents, .. } => {
-                assert_eq!(&*restriction, "unlicensed_synthesis");
+                assert_eq!(&*restriction, "unsupported_synthesis");
                 assert_eq!(parents.as_ref(), [left.claim_id, right.claim_id]);
             }
             other => panic!("expected refusal, got {other:?}"),
@@ -1341,6 +1456,137 @@ mod tests {
     }
 
     #[test]
+    fn retarget_weakening_is_recorded_and_domain_bound() {
+        let mut parent = sample_claim(1, 0.4);
+        parent.domains = ClaimDomains::new(
+            DomainStatus::Identified,
+            DomainStatus::Supported,
+            DomainStatus::Evaluated,
+        );
+        let relay = |child: ClaimEnvelope| match compose_claims(
+            &[&parent],
+            ClaimOperation::Retarget,
+            Some(child),
+            None,
+        ) {
+            DerivedClaimOutcome::Derived(record) => record,
+            other => panic!("expected relay, got {other:?}"),
+        };
+        let unchanged = relay(parent.clone());
+        let mut weaker = parent.clone();
+        weaker.domains.evaluated = DomainStatus::Unknown;
+        let weakened = relay(weaker);
+        assert_ne!(unchanged.claim.claim_id, weakened.claim.claim_id);
+        assert!(weakened.receipt.omitted.iter().any(|field| &**field == "domains.evaluated"));
+        assert!(
+            weakened
+                .receipt
+                .unavailable_operations
+                .iter()
+                .any(|field| &**field == "portable_export")
+        );
+        let mut all_weaker = parent.clone();
+        all_weaker.domains =
+            ClaimDomains::new(DomainStatus::Unknown, DomainStatus::Unknown, DomainStatus::Unknown);
+        let all = relay(all_weaker);
+        assert_ne!(all.claim.claim_id, weakened.claim.claim_id);
+        for axis in ["identification", "support", "evaluated"] {
+            assert!(all.receipt.omitted.iter().any(|field| **field == format!("domains.{axis}")));
+        }
+    }
+
+    #[test]
+    fn retarget_never_erases_or_fabricates_negative_and_limited_domains() {
+        for status in [
+            DomainStatus::Contradicted,
+            DomainStatus::OutsideScope,
+            DomainStatus::Limited,
+            DomainStatus::NotClaimed,
+        ] {
+            for axis in 0..3 {
+                let mut parent = sample_claim(1, 0.4);
+                match axis {
+                    0 => parent.domains.identification = status,
+                    1 => parent.domains.support = status,
+                    _ => parent.domains.evaluated = status,
+                }
+                let mut child = parent.clone();
+                match axis {
+                    0 => child.domains.identification = DomainStatus::Unknown,
+                    1 => child.domains.support = DomainStatus::Unknown,
+                    _ => child.domains.evaluated = DomainStatus::Unknown,
+                }
+                assert!(matches!(
+                    compose_claims(&[&parent], ClaimOperation::Retarget, Some(child), None),
+                    DerivedClaimOutcome::Refused { .. }
+                ));
+                let mut child = sample_claim(1, 0.4);
+                let clean = child.clone();
+                match axis {
+                    0 => child.domains.identification = status,
+                    1 => child.domains.support = status,
+                    _ => child.domains.evaluated = status,
+                }
+                assert!(matches!(
+                    compose_claims(&[&clean], ClaimOperation::Retarget, Some(child), None),
+                    DerivedClaimOutcome::Refused { .. }
+                ));
+            }
+        }
+    }
+
+    #[test]
+    fn legacy_retarget_never_accepts_unverified_child_changes() {
+        let parent = sample_claim(1, 0.4);
+        let refuse = |child| {
+            matches!(
+                compose_claims(&[&parent], ClaimOperation::Retarget, Some(child), None),
+                DerivedClaimOutcome::Refused { .. }
+            )
+        };
+        let mut child = parent.clone();
+        child.value = Some(12.0);
+        assert!(refuse(child));
+        let mut child = parent.clone();
+        child.identities.target = digest(99);
+        assert!(refuse(child));
+        let mut child = parent.clone();
+        child.evidence = Arc::from([Arc::from("fabricated")]);
+        assert!(refuse(child));
+        let mut child = parent.clone();
+        child.reasoning.assumptions = crate::reasoning::SlotAvailability::unavailable("changed");
+        assert!(refuse(child));
+        let mut child = parent.clone();
+        child.calibration.status = Arc::from("calibrated");
+        assert!(refuse(child));
+        let mut child = parent.clone();
+        child.kind = ClaimKind::Bounds;
+        assert!(refuse(child));
+        let mut child = parent.clone();
+        child.claim_id = digest(88);
+        let DerivedClaimOutcome::Derived(record) =
+            compose_claims(&[&parent], ClaimOperation::Retarget, Some(child), None)
+        else {
+            panic!("unchanged relay")
+        };
+        assert_ne!(record.claim.claim_id, digest(88));
+    }
+
+    #[test]
+    fn legacy_linear_synthesis_refuses_arbitrary_child_even_if_aligned() {
+        let mut a = sample_claim(1, 0.4);
+        let mut b = sample_claim(2, 0.4);
+        a.evidence = Arc::from([Arc::from("alignment:joint_draws:shared")]);
+        b.evidence = Arc::clone(&a.evidence);
+        for operation in [ClaimOperation::Contrast, ClaimOperation::Aggregate] {
+            assert!(matches!(
+                compose_claims(&[&a, &b], operation, Some(sample_claim(3, 0.4)), None),
+                DerivedClaimOutcome::Refused { .. }
+            ));
+        }
+    }
+
+    #[test]
     fn lossless_receipt_alone_is_equivalent() {
         assert!(HandoffReceipt::lossless(digest(1), "host").equivalent_claim());
         let derived =
@@ -1378,6 +1624,45 @@ mod tests {
             status, masses[0], masses[1], masses[2], masses[3], true, None, false,
         ));
         claim
+    }
+
+    fn associational_claim(byte: u8) -> ClaimEnvelope {
+        use crate::reasoning::SlotAvailability;
+        let mut claim = sample_claim(byte, 1.0);
+        claim.kind = ClaimKind::Associational;
+        claim.value = None;
+        claim.reasoning.identification =
+            SlotAvailability::unavailable(crate::reasoning::IDENTIFICATION_NOT_CLAIMED);
+        claim.domains = ClaimDomains::new(
+            DomainStatus::NotClaimed,
+            DomainStatus::Unknown,
+            DomainStatus::Evaluated,
+        );
+        claim
+    }
+
+    #[test]
+    fn associational_kind_and_domain_have_stable_appended_names() {
+        assert_eq!(ClaimKind::Associational.as_str(), "associational");
+        assert_eq!(ClaimKind::from_name("associational"), Some(ClaimKind::Associational));
+        assert_eq!(ClaimKind::ALL.last(), Some(&ClaimKind::Associational));
+        assert_eq!(DomainStatus::NotClaimed.as_str(), "not_claimed");
+        assert_eq!(DomainStatus::ALL.last(), Some(&DomainStatus::NotClaimed));
+        assert!(!DomainStatus::NotClaimed.is_positive());
+        assert!(!ClaimKind::Associational.is_causal());
+    }
+
+    #[test]
+    fn an_association_cannot_be_retargeted_into_a_causal_claim() {
+        let parent = associational_claim(1);
+        let mut causal = sample_claim(2, 1.0);
+        causal.reasoning.identification = parent.reasoning.identification.clone();
+        assert_eq!(
+            retarget_refusal(&parent, causal).as_deref(),
+            Some("associational_parent_derives_causal_claim")
+        );
+        // Another noncausal claim over the same association is a supported derivation.
+        assert_eq!(retarget_refusal(&parent, associational_claim(3)), None);
     }
 
     fn retarget_refusal(parent: &ClaimEnvelope, child: ClaimEnvelope) -> Option<String> {
@@ -1522,9 +1807,53 @@ mod tests {
                 "{lost} is omitted and cannot also be retained"
             );
         }
-        assert!(chained.retained.iter().any(|f| &**f == "claim.envelope"));
+        assert!(!chained.retained.iter().any(|f| &**f == "claim.envelope"));
         assert!(!chained.equivalent_claim());
         assert!(chained.unresolved.is_empty());
+    }
+
+    #[test]
+    fn incomplete_retention_cannot_be_recovered_by_a_later_hop() {
+        let id = digest(1);
+        let first =
+            HandoffReceipt::new(id, Some(id), "a", "partial", [Arc::from("value")], [], [], []);
+        assert!(!first.equivalent_claim());
+        let next = HandoffReceipt::new(
+            id,
+            Some(id),
+            "b",
+            "forward",
+            [Arc::from("value"), Arc::from("claim.envelope")],
+            [],
+            [],
+            [],
+        );
+        let chained = first.chain(&next);
+        assert_eq!(&*chained.retained, &[Arc::<str>::from("value")]);
+        assert!(!chained.equivalent_claim());
+        assert!(
+            HandoffReceipt::lossless(id, "a")
+                .chain(&HandoffReceipt::lossless(id, "b"))
+                .equivalent_claim()
+        );
+    }
+
+    #[test]
+    fn complete_forwarding_preserves_scalar_retention_in_either_order() {
+        let id = digest(1);
+        let scalar = HandoffReceipt::lossy_scalar(id, "scalar");
+        let complete = HandoffReceipt::lossless(id, "complete");
+        for chained in [complete.chain(&scalar), scalar.chain(&complete)] {
+            assert_eq!(chained.retained, scalar.retained);
+            assert_eq!(chained.omitted, scalar.omitted);
+            assert_eq!(chained.unavailable_operations, scalar.unavailable_operations);
+            assert!(!chained.equivalent_claim());
+        }
+        // Naming the same output without naming the retained semantics is not
+        // evidence that all four required sections survived.
+        let empty = HandoffReceipt::new(id, Some(id), "empty", "unspecified", [], [], [], []);
+        assert!(!empty.equivalent_claim());
+        assert!(empty.chain(&complete).retained.is_empty());
     }
 
     #[test]
@@ -1533,9 +1862,67 @@ mod tests {
         let second = HandoffReceipt::lossless(digest(2), "b");
         let chained = first.chain(&second);
         assert!(chained.unresolved.iter().any(|item| &**item == "chain_discontinuity"));
+        assert!(chained.retained.is_empty());
         assert!(!chained.equivalent_claim());
+        for (a, b) in [
+            (first.clone(), HandoffReceipt::lossy_scalar(digest(2), "b")),
+            (HandoffReceipt::lossy_scalar(digest(1), "a"), second.clone()),
+        ] {
+            let broken = a.chain(&b);
+            assert!(broken.retained.is_empty());
+            assert!(broken.unresolved.iter().any(|item| &**item == "chain_discontinuity"));
+            assert!(!broken.equivalent_claim());
+        }
         // A contiguous chain of lossless hops stays equivalent.
         assert!(first.chain(&HandoffReceipt::lossless(digest(1), "c")).equivalent_claim());
+    }
+
+    #[test]
+    fn claim_quotation_is_single_pass_and_bounds_even_empty_parent_records() {
+        let mut claim = sample_claim(1, 1.0);
+        claim.evidence = Arc::from([]);
+        let mut limits = CheckedWorldPointLimits {
+            max_target_work: 4096,
+            max_target_payload_bytes: 4096,
+            max_target_depth: 64,
+            max_memory_bytes: 0,
+            max_terms: 2,
+            max_comparisons: 4,
+            max_world_actions: 0,
+            max_assumption_records: 0,
+            max_evidence_references: 0,
+            max_evidence_bytes: 0,
+        };
+        let ctx = antecedent_core::ExecutionContext::for_tests(17);
+        // FromFn is one-shot; quotation cannot replay or clone this iterator.
+        let calls = std::cell::Cell::new(0);
+        let single = std::iter::from_fn(|| {
+            calls.set(calls.get() + 1);
+            (calls.get() == 1).then_some(&claim)
+        });
+        let quoted = quote_claim_premises(single, 1, &limits, &ctx).unwrap();
+        assert!(quoted.work >= 64);
+        assert_eq!(calls.get(), 2);
+        calls.set(0);
+        let endless = std::iter::from_fn(|| {
+            calls.set(calls.get() + 1);
+            Some(&claim)
+        });
+        assert_eq!(
+            quote_claim_premises(endless, 1, &limits, &ctx).unwrap_err(),
+            CheckedWorldPointError::TermLimit
+        );
+        assert_eq!(calls.get(), 2);
+        limits.max_target_work = 1;
+        assert_eq!(
+            quote_claim_premises(std::iter::once(&claim), 1, &limits, &ctx).unwrap_err(),
+            CheckedWorldPointError::TermLimit
+        );
+        ctx.cancellation.cancel();
+        assert_eq!(
+            quote_claim_premises(std::iter::empty(), 0, &limits, &ctx).unwrap_err(),
+            CheckedWorldPointError::Cancelled
+        );
     }
 
     fn sample_claim(byte: u8, identified_mass: f64) -> ClaimEnvelope {
@@ -1570,7 +1957,7 @@ mod tests {
                     false,
                 )),
                 SlotAvailability::Available(SupportSlot::new(
-                    "licensed",
+                    "supported",
                     None,
                     SlotAvailability::unavailable("not_evaluated"),
                 )),

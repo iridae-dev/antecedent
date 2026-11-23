@@ -11,6 +11,7 @@ from __future__ import annotations
 import dataclasses
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import provider_callbacks as pc
 from antecedent import transport_handoff as th
 from antecedent.errors import CausalTypeError
@@ -95,7 +96,7 @@ def test_a_sealed_handoff_round_trips_and_a_fresh_consumer_rederives_it() -> Non
     assert handoff.inspect().family == "TransportHandoff"
 
     consumed = th.consume_for_callback(
-        handoff.export(), callback(), expected_identity=handoff.identity
+        bytes(handoff.export()), callback(), expected_identity=handoff.identity
     )
     assert consumed.identity == handoff.identity
     assert consumed.transport == handoff.transport
@@ -104,7 +105,7 @@ def test_a_sealed_handoff_round_trips_and_a_fresh_consumer_rederives_it() -> Non
     # Another declaration (a changed dependency version at unchanged shape).
     other = refusal_of(
         lambda: th.consume_for_callback(
-            handoff.export(), callback("beta=0.6"), expected_identity=handoff.identity
+            bytes(handoff.export()), callback("beta=0.6"), expected_identity=handoff.identity
         )
     )
     assert other.detail.startswith("provider_transport.")
@@ -115,23 +116,27 @@ def test_a_handoff_that_the_library_refuses_does_not_seal() -> None:
     native = refusal_of(
         lambda: th.hand_to_callback(offer(), callback(), "effect", accepts_transported=False)
     )
-    assert native.detail == "provider_transport.native_target_required"
+    assert native.detail == reason_details.provider_transport.NATIVE_TARGET_REQUIRED
 
     # The claim is not in the target population of its own transport identity.
     elsewhere = refusal_of(lambda: th.hand_to_callback(offer("trial_a"), callback(), "effect"))
-    assert elsewhere.detail == "provider_transport.claim_not_in_target"
+    assert elsewhere.detail == reason_details.provider_transport.CLAIM_NOT_IN_TARGET
 
 
 def test_an_edited_handoff_is_refused() -> None:
     handoff = th.hand_to_callback(offer(), callback(), "effect")
-    data = bytearray(handoff.export())
+    data = bytearray(bytes(handoff.export()))
     data[-8] ^= 0x01
     refusal_of(lambda: th.consume_for_callback(bytes(data), callback()))
     # A consumer that retained another identity refuses the bytes.
     refusal_of(
-        lambda: th.consume_for_callback(handoff.export(), callback(), expected_identity=digest(9))
+        lambda: th.consume_for_callback(
+            bytes(handoff.export()), callback(), expected_identity=digest(9)
+        )
     )
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="an artifact is bytes or ExportedArtifact"):
         th.consume_for_callback("bytes", callback())  # type: ignore[arg-type]
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(
+        CausalTypeError, match="callback must be a provider_callbacks.CallbackDeclaration"
+    ):
         th.hand_to_callback(dataclasses.replace(offer(), port="x"), object(), "effect")  # type: ignore[arg-type]

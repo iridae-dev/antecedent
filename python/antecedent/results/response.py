@@ -21,7 +21,7 @@ from ._execution import ResultAPI
 from ._format import fmt_float, fmt_pct
 from ._report import ResultModel
 from ._slots import ReasoningSlots, mass_limitation
-from ._views import IdentificationView
+from ._views import IdentificationView, IntervalBindingView, MissingDataView
 
 #: Empirical support labels, weakest last. ``missing_evidence`` marks a coordinate
 #: whose required evidence (a supplied law, provider or declared domain) is absent; it is
@@ -128,6 +128,14 @@ class ResponseEnvelopeView(ResultModel):
     weight_basis: Literal[
         "posterior_probability", "completion_enumeration", "caller_supplied_class_prior"
     ] = "completion_enumeration"
+    #: How identified graph atoms were combined: ``"same_estimand_weighted_mean"``,
+    #: ``"identified_set_envelope"`` (the set, not a scalar mixture) or
+    #: ``"graph_dependent_atoms"`` (different estimands: no mixture). ``None`` when the route
+    #: does not aggregate across graphs.
+    aggregation_policy: (
+        Literal["same_estimand_weighted_mean", "identified_set_envelope", "graph_dependent_atoms"]
+        | None
+    ) = None
     atom_keys: Sequence[int] = ()
     atom_weights: Sequence[float] = ()
     atom_statuses: Sequence[str] = ()
@@ -200,9 +208,12 @@ class ResponseValidationView(ResultModel):
     """Curve-legal checks, including explicit scalar-refuter skips."""
 
     checks: Sequence[ResponseValidationCheck] = ()
+    whole_target: bool = True
 
     @property
-    def passed(self) -> bool:
+    def passed(self) -> bool | None:
+        if not self.whole_target:
+            return None
         return not any(check.status == "failed" for check in self.checks)
 
     @property
@@ -435,11 +446,13 @@ class CausalResponseView(ResultModel, ResultAPI):
     envelope: ResponseEnvelopeView | None = None
     validation: ResponseValidationView | None = None
     evidence_status: str | None = None
-    allowlist_reason: str | None = None
-    allowlist_parent: str | None = None
     diagnostics: Sequence[str] = ()
     certificate: Mapping[str, Any] | None = None
     reasoning: ReasoningSlots | None = None
+    #: The missing-data policy, its assumption and the row accounting, when the route reports it.
+    missing_data: MissingDataView | None = None
+    #: Every interval this execution reported, primary first.
+    interval_bindings: tuple[IntervalBindingView, ...] = ()
     #: Compiled program identity. Distinct from ``claim_id``.
     program_id: str | None = None
     #: Execution claim identity. Distinct from ``program_id``.
@@ -497,14 +510,105 @@ class CausalResponseView(ResultModel, ResultAPI):
             raise ExternalRefusal(json.loads(refusal))
         return tuple(ScientificQuantity._from_wire(wire) for wire in json.loads(quantities))
 
+    def horizon_draws(self, dose_index: int = 0) -> Any:
+        """Joint draws of dose number ``dose_index`` across the horizons of a temporal response.
+
+        Available when the response was prepared with ``retain_joint_horizons=True``: the
+        draws are the replicates that refit every horizon together (the joint block-bootstrap
+        replicates, or the block-weight posterior draws under Bayesian inference), so a
+        cumulative effect or a contrast between horizons keeps their dependence. Returns a
+        :class:`~antecedent.horizon_composition.JointHorizonDraws`.
+
+        Raises:
+            CausalValueError: ``dose_index`` is negative, or the view carries no native payload.
+            ExternalRefusal: the response retains no joint draws, is not a temporal mean curve
+                or intervention response, or ``dose_index`` is outside the curve's grid.
+        """
+        from ..horizon_composition import JointHorizonDraws
+
+        native = getattr(self._raw, "horizon_draws_json", None)
+        if native is None:
+            raise CausalValueError(
+                "this response view carries no native response payload to read horizon draws from"
+            )
+        if dose_index < 0:
+            raise CausalValueError("dose_index must be non-negative")
+        draws, refusal = native(int(dose_index))
+        if refusal is not None:
+            from ..external import ExternalRefusal
+
+            raise ExternalRefusal(json.loads(refusal))
+        raw = json.loads(draws)
+        return JointHorizonDraws(
+            horizons=tuple(raw["horizons"]),
+            center=tuple(raw["center"]),
+            columns=tuple(tuple(column) for column in raw["columns"]),
+            alignment_id=raw["alignment_id"],
+            evidence_id=raw["evidence_id"],
+        )
+
+    def horizon_interval(
+        self,
+        coefficients: Sequence[float],
+        *,
+        dose_index: int = 0,
+        operation: str = "weighted_sum",
+    ) -> Any:
+        """The 95% interval of a linear combination of the horizons of dose ``dose_index``.
+
+        ``coefficients`` weights the horizons in order (``[1, 1]`` for a cumulative effect,
+        ``[-1, 1]`` for a contrast). The interval is built on the joint replicates of a response
+        prepared with ``retain_joint_horizons=True``, so it keeps the dependence between the
+        horizons and the serial dependence of the series. A nonlinear composition (a peak, a
+        product) has a spread, from :meth:`horizon_draws`, and no interval. Returns a
+        :class:`~antecedent.horizon_composition.HorizonInterval`.
+
+        Raises:
+            CausalValueError: ``dose_index`` is negative, ``operation`` is not a propagation
+                operation, or the view carries no native payload.
+            ExternalRefusal: the response retains no joint draws or dispersion readings, the
+                operation is nonlinear, or the composition is refused.
+        """
+        from ..horizon_composition import HorizonInterval
+
+        native = getattr(self._raw, "horizon_interval_json", None)
+        if native is None:
+            raise CausalValueError(
+                "this response view carries no native response payload to read horizon draws from"
+            )
+        if dose_index < 0:
+            raise CausalValueError("dose_index must be non-negative")
+        interval, refusal = native(int(dose_index), [float(c) for c in coefficients], operation)
+        if refusal is not None:
+            from ..external import ExternalRefusal
+
+            raise ExternalRefusal(json.loads(refusal))
+        raw = json.loads(interval)
+        return HorizonInterval(
+            coordinate=raw["coordinate"],
+            horizons=tuple(raw["horizons"]),
+            alignment_id=raw["alignment_id"],
+            label=raw["label"],
+            center=raw["center"],
+            standard_error=raw["standard_error"],
+            lower=raw["lower"],
+            upper=raw["upper"],
+            level=raw["level"],
+            construction=raw["construction"],
+            kernel_factor=raw["kernel_factor"],
+            rows=raw["rows"],
+            replicates=raw["replicates"],
+            effective_blocks=raw["effective_blocks"],
+        )
+
     @property
     def simultaneous_band(self) -> SimultaneousBand | None:
         """Band over the whole response grid published next to the pointwise band.
 
         ``None`` when no such band was published: a Frequentist temporal surface
-        run with ``bootstrap=0`` (see the ``estimate.temporal_response.band_withheld``
+        run with ``bootstrap=0`` (see the ``estimate.temporal_response.no_band_method``
         warning), too few surviving replicates
-        (``response.simultaneous_band_withheld``), or a response whose
+        (``response.no_simultaneous_band_method``), or a response whose
         ``uncertainty.kind`` is already ``"simultaneous"`` (the static Kennedy-DR
         multiplier band) and so needs no second band.
         """
@@ -524,8 +628,8 @@ class CausalResponseView(ResultModel, ResultAPI):
         else:
             estimate = "structured"
         extra = ""
-        if self.evidence_status == "allowed_unlicensed":
-            extra = " unlicensed"
+        if self.evidence_status == "not_supported":
+            extra = " unsupported"
         if self.support.warnings:
             extra += f" warnings={len(self.support.warnings)}"
         rbc = any(

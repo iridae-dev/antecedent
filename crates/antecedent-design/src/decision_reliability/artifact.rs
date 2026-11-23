@@ -6,10 +6,10 @@
 //! utility, stream coordinate, declaration or claimed value is refused. A consumer that
 //! retained the draws digest, the candidate-set digest or the selecting and validating
 //! stream identities independently also refuses a consistently resealed forgery.
-//! The carried closed-route snapshot may remain more conservative after a new license
-//! is earned; publication always checks the current license independently.
+//! Calibration annotates a published route and never gates it, so the report carries no
+//! route list; publication always checks the current calibration independently.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, blake3_hex};
 use antecedent_io_core::convert::to_cbor;
@@ -17,7 +17,6 @@ use antecedent_io_core::error::IoError;
 use serde::{Deserialize, Serialize};
 
 use super::ReliabilityError;
-use super::calibration::{CalibrationCoordinate, ClosedRoute, PublishedRoute};
 use super::draws::DecisionDraws;
 use super::report::{ReliabilityReport, ReliabilityRequest, assess};
 use super::stream::StreamId;
@@ -72,32 +71,10 @@ fn refused(detail: &str, message: &str) -> IoError {
 }
 
 fn from_reliability(error: &ReliabilityError) -> IoError {
-    IoError::Refused { code: error.reason_code(), message: error.to_string() }
-}
-
-fn conservative_closure_snapshot(
-    carried: &[ClosedRoute],
-    current: &[ClosedRoute],
-    coordinate: &CalibrationCoordinate,
-) -> bool {
-    // Historical refusals can remain closed after a promotion, but cannot omit a
-    // currently closed route or carry arbitrary metadata, duplicates or new ordering.
-    let all_route_refusals = PublishedRoute::ALL.map(|route| ClosedRoute {
-        route,
-        coordinate: coordinate.describe(),
-        code: antecedent_core::reason_code!("cell_not_licensed").to_owned(),
-        remedy: "point diagnostics only: a coverage record at this candidate-set size, \
-                 Monte Carlo budget and selection rule would be needed"
-            .to_owned(),
-    });
-    let mut remaining = carried.iter();
-    let mut next = remaining.next();
-    for expected in &all_route_refusals {
-        if next == Some(expected) {
-            next = remaining.next();
-        }
+    if let ReliabilityError::Admission { error } = error {
+        return IoError::Admission(*error);
     }
-    next.is_none() && current.iter().all(|required| carried.contains(required))
+    IoError::Refused { code: error.reason_code(), message: error.to_string() }
 }
 
 impl DecisionReliabilityArtifact {
@@ -165,27 +142,16 @@ impl DecisionReliabilityArtifact {
             return Err(IoError::UnsupportedVersion { version: self.version });
         }
         if self.digest != self.recomputed_digest()? {
-            return Err(refused("decision_reliability.identity_mismatch", "digest differs"));
-        }
-        let mut recomputed = assess(&self.draws, self.validation.as_ref(), &self.request, ctx)
-            .map_err(|error| from_reliability(&error))?;
-        if conservative_closure_snapshot(
-            &self.report.closed_routes,
-            &recomputed.closed_routes,
-            &recomputed.coordinate,
-        ) {
-            // Preserve the exactly digested historical snapshot, never replace it
-            // with newly granted licenses. Every other report field stays exact.
-            recomputed.closed_routes.clone_from(&self.report.closed_routes);
-        } else {
             return Err(refused(
-                "decision_reliability.report_mismatch",
-                "closed-route snapshot omits a current refusal or is noncanonical",
+                antecedent_core::reason_details::decision_reliability::IDENTITY_MISMATCH,
+                "digest differs",
             ));
         }
+        let recomputed = assess(&self.draws, self.validation.as_ref(), &self.request, ctx)
+            .map_err(|error| from_reliability(&error))?;
         if to_cbor(&recomputed)? != to_cbor(&self.report)? {
             return Err(refused(
-                "decision_reliability.report_mismatch",
+                antecedent_core::reason_details::decision_reliability::REPORT_MISMATCH,
                 "report does not recompute from the draws",
             ));
         }
@@ -195,25 +161,35 @@ impl DecisionReliabilityArtifact {
     fn check_expectation(&self, expected: &DecisionReliabilityExpectation) -> Result<(), IoError> {
         let differs = |detail: &str| Err(refused(detail, "differs from the retained expectation"));
         if expected.draws_digest.as_ref().is_some_and(|d| *d != self.draws.digest_hex()) {
-            return differs("decision_reliability.draws_digest_mismatch");
+            return differs(
+                antecedent_core::reason_details::decision_reliability::DRAWS_DIGEST_MISMATCH,
+            );
         }
         if expected
             .candidate_set_digest
             .as_ref()
             .is_some_and(|d| *d != self.draws.candidate_set_digest())
         {
-            return differs("decision_reliability.candidate_set_mismatch");
+            return differs(
+                antecedent_core::reason_details::decision_reliability::CANDIDATE_SET_MISMATCH,
+            );
         }
         if expected.utility_unit.as_ref().is_some_and(|u| *u != self.draws.utility_unit) {
-            return differs("decision_reliability.utility_unit_mismatch");
+            return differs(
+                antecedent_core::reason_details::decision_reliability::UTILITY_UNIT_MISMATCH,
+            );
         }
         if expected.decided_id.as_ref().is_some_and(|d| *d != self.report.decided_id) {
-            return differs("decision_reliability.decision_mismatch");
+            return differs(
+                antecedent_core::reason_details::decision_reliability::DECISION_MISMATCH,
+            );
         }
-        if let Some(stream) = &expected.selection_stream {
-            if self.draws.candidates.iter().any(|c| c.segment.stream != *stream) {
-                return differs("decision_reliability.selection_stream_mismatch");
-            }
+        if let Some(stream) = &expected.selection_stream
+            && self.draws.candidates.iter().any(|c| c.segment.stream != *stream)
+        {
+            return differs(
+                antecedent_core::reason_details::decision_reliability::SELECTION_STREAM_MISMATCH,
+            );
         }
         if let Some(stream) = &expected.validation_stream {
             let validated = self
@@ -222,7 +198,7 @@ impl DecisionReliabilityArtifact {
                 .and_then(|v| v.candidate(&self.report.decided_id))
                 .is_some_and(|c| c.segment.stream == *stream);
             if !validated {
-                return differs("decision_reliability.validation_stream_mismatch");
+                return differs(antecedent_core::reason_details::decision_reliability::VALIDATION_STREAM_MISMATCH);
             }
         }
         Ok(())
@@ -236,7 +212,7 @@ impl DecisionReliabilityArtifact {
         self.verify(&DecisionReliabilityExpectation::default(), ctx)?;
         if artifact_id.trim().is_empty() {
             return Err(refused(
-                "decision_reliability.artifact_id_missing",
+                antecedent_core::reason_details::decision_reliability::ARTIFACT_ID_MISSING,
                 "artifact id is blank",
             ));
         }
@@ -257,12 +233,13 @@ impl DecisionReliabilityArtifact {
         )
         .map_err(|error| match error {
             antecedent_io_core::CodecError::Layout => refused(
-                "decision_reliability.artifact_kind_mismatch",
+                antecedent_core::reason_details::decision_reliability::ARTIFACT_KIND_MISMATCH,
                 "unsupported container layout",
             ),
-            antecedent_io_core::CodecError::MissingArtifactId => {
-                refused("decision_reliability.artifact_id_missing", "artifact id is blank")
-            }
+            antecedent_io_core::CodecError::MissingArtifactId => refused(
+                antecedent_core::reason_details::decision_reliability::ARTIFACT_ID_MISSING,
+                "artifact id is blank",
+            ),
             other => other.into_io("decision reliability artifact"),
         })
     }
@@ -280,14 +257,14 @@ impl DecisionReliabilityArtifact {
         )
         .map_err(|error| match error {
             antecedent_io_core::CodecError::Layout => refused(
-                "decision_reliability.artifact_kind_mismatch",
+                antecedent_core::reason_details::decision_reliability::ARTIFACT_KIND_MISMATCH,
                 "unsupported container layout",
             ),
             other => other.into_io("decision reliability artifact"),
         })?;
         let Ok([body]) = <[Vec<u8>; 1]>::try_from(parts) else {
             return Err(refused(
-                "decision_reliability.artifact_kind_mismatch",
+                antecedent_core::reason_details::decision_reliability::ARTIFACT_KIND_MISMATCH,
                 "unsupported container layout",
             ));
         };

@@ -1,6 +1,6 @@
 //! Temporal DAG over lagged variable nodes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::TemporalNodeKey;
 use antecedent_core::{Lag, VariableId};
@@ -206,11 +206,7 @@ impl TemporalDag {
     }
 
     fn validate_node(&self, id: DenseNodeId) -> Result<(), GraphError> {
-        if id.as_usize() >= self.node_count() {
-            Err(GraphError::UnknownNode { id: id.raw() })
-        } else {
-            Ok(())
-        }
+        crate::types::validate_node_index(self.node_count(), id)
     }
 }
 

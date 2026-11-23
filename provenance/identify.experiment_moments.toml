@@ -1,0 +1,57 @@
+feature_id = "identify.experiment_moments"
+implementation_crate = "antecedent-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Learning Linear Cyclic Causal Models with Latent Variables", sections = ["JMLR 13(32), hyttinen12a: experimental effects of a fully observed clamp, and the linear constraints those effects place on the direct-effect columns. This module stacks the rows. It does not copy a numbered theorem locator."] },
+]
+
+implementation_deviations = [
+ "Moment and constraint assembly only. The block system is not solved. There is no pseudoinverse, no direct-effect matrix, no disturbance covariance, and no rank test of the constraint matrix. Repeated covering rows are kept.",
+ "A missed pair condition refuses and lists the missing ordered pairs. The paper's procedure still emits a coefficient estimate in that case.",
+ "A dependence premise, a second population, a second retained unit set, or an empty retained set is an inconsistent regime. The input contract can accept a dependence premise; this step refuses it.",
+ "Moments are two-pass centered second moments with divisor equal to the row count, summed with a local Neumaier accumulator. This crate has no shared stable accumulator. Experimental effects are the multiple-regression coefficients of each passive column on the intervened columns.",
+ "A singular intervention covariance is refused as degenerate. The relative pivot floor is 1e-12. That floor is not a rank test of the constraint matrix.",
+ "Declared clamp levels are not the intervention sample. Realized draws come from the columns, and the declared level is not compared with the sample.",
+ "Weak stability, asymptotic stability, and the covariance condition are not checked. A regime with no targets contributes moments and no rows.",
+ "The byte count is eight times the moment floats plus eight times the constraint floats. Index storage is omitted. Overflow is refused before allocation.",
+ "This step does not call the design judge. Coverage is recomputed from the accepted regimes and the mask.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "inline unit tests (crates/antecedent-identify/src/experiment_moments.rs)",
+ "exact rational and known-direct-effect reference for the stacked clamp constraints over cyclic systems with offsets, twelve-decade scales and nearly collinear clamps (crates/antecedent-identify/tests/clamp_experiment_constraints.rs, frozen from crates/antecedent-identify/tests/oracle_data/clamp_experiment_reference.py)",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "assemble_experiment_constraints in crates/antecedent-identify/src/experiment_moments.rs for an accepted set of clamp regimes with one sample per regime: the centered second moments, the experimental effect of each clamped unit on each passive unit (the multiple-regression coefficients of the passive column on the clamped columns), and the stacked constraint rows (coefficient 1 on the probe, 0 on other clamped sources, the probe's experimental effect on every other passive source, right-hand side the effect on the target), with the refusals for a singular or ill-conditioned clamp covariance. Not a review of the block solve or its rank report (not performed by this module), of regime-contract validation beyond its use here, of the byte budget arithmetic, of noisy-sample behaviour (rows then hold only up to estimation error), or of the stability conditions of the cited recipe, which are not checked."
+assumptions = ["The data follow a linear system x = B x + c + e in which the clamped columns of a regime are drawn independently of the disturbances, so that the regression coefficient of a passive column on the clamped columns estimates the experimental effect (I - B_UU)^-1 B_UJ; with no disturbance the equality is exact.", "With that effect, the direct effects of each target satisfy the stacked rows: for a probe j and passive target t, b_tj + sum over passive sources u of T_ju b_tu = T_jt, where T is the experimental-effect matrix of the regime.", "Moments use the row count as divisor and a compensated sum; the clamp solve uses the correlation matrix so that the units of measurement do not matter."]
+historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
+redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed."
+limitations = "The primary source was not re-read in this review (no downloads were made and no copy was read from this environment); the row convention is the one stated in the module and the test, and a mistake in how it is stated would not be detected here, though the rows are checked against known direct effects, which does not depend on that statement. Four-unit and five-unit systems with deterministic passive columns are used, so sampling noise, disturbance covariance and weak-stability conditions are not exercised. A pair of clamped columns that is nearly collinear (condition number about 1e10) returns about six correct digits, the double-precision limit for that conditioning (error about eps times the condition number); the product refuses collinearity near or beyond 1e14, which is a documented design bound and not a defect. Calibration remains deferred."
+sources = ["Hyttinen, Eberhardt and Hoyer (2012), Learning Linear Cyclic Causal Models with Latent Variables, JMLR 13 (title as listed in papers; no identifier is recorded and the text was not read)"]
+findings_resolved = ["On four cyclic and acyclic systems (four and five units; independent and correlated pair clamps), every assembled row is satisfied by the true direct effects to 4e-16 relative (the offset case, where the data themselves are rounded to binary64, to 2e-7), and equals the exact rational computation on the binary64 data to 2e-16, including a response offset of 1e9 on every unit (exact on the data to 1.2e-15) and columns scaled over twelve decades.", "A nearly collinear pair of clamps (condition about 1e10) agrees with the exact computation on the data to 4e-7, the error expected from double-precision conditioning; collinearity at 1e-9 and exact collinearity are refused as ill-conditioned or degenerate.", "No defect was found and no product code changed."]
+record_sha256 = "a9be9cb37731f5bc6fa2ec7c29b4130d85390af58bc09a666bedb6d10147c0ff"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/experiment_moments.rs"
+items = ["const F64_BYTES", "const MAX_INTERVENTION_CONDITION", "enum MomentAssemblyRefusal", "enum RegimeInconsistency", "fn accumulate_moments", "fn accumulate_one", "fn assemble_blocks", "fn assemble_experiment_constraints", "fn compensated_dot", "fn compensated_mean", "fn compensated_sum", "fn constraint_row_count", "fn experiment_constraint_bytes", "fn experimental_effects", "fn inconsistent_regime", "fn length_product", "fn missing_pairs", "fn prepare_one", "fn prepare_samples", "fn regime_effects", "fn retained_units", "fn row_coefficient", "fn u64_len", "fn unclamped_dropped_unit", "struct AssembledExperimentConstraints", "struct ConstraintRow", "struct ExperimentMoments", "struct MissingPair", "struct PreparedColumn", "struct PreparedSample", "struct RegimeEffects", "struct RegimeSample", "struct TargetConstraintBlock", "struct UnitColumn"]
+sha256 = "630741353aa32df4bdf51f7896d4eba1a05df2d146d046c8240f9955a12bb9dd"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-identify/tests/clamp_experiment_constraints.rs"
+items = ["fn every_assembled_row_is_satisfied_by_the_true_direct_effects", "fn unit"]
+sha256 = "0d779b55440df3e038311fb69ce572ea883660e04d74772378ef7586867fedad"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-identify/tests/oracle_data/clamp_experiment_reference.py"
+sha256 = "ab2e2bd40b0fb12473a0d044753378e3bb9a0bc46f4d7e04bec51688b616967e"

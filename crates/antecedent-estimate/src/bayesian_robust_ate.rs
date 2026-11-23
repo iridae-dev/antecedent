@@ -1,6 +1,6 @@
 //! Modular Bayesian-bootstrap cross-fitted orthogonal ATE.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, StreamDomain};
 
@@ -110,6 +110,7 @@ pub fn estimate_bayesian_robust_ate(
     let n = input.row_ids.len();
     let plan = fold_plan(input, options.folds)?;
     let x = make_design(input);
+    let _admitted = crate::util::admit_array::<f64>(ctx, options.draws, 2)?;
     let mut effects = Vec::with_capacity(options.draws);
     let mut refits = Vec::with_capacity(options.draws);
     for draw in 0..options.draws {
@@ -193,7 +194,8 @@ fn validate(
         return Err(EstimationError::data_msg("invalid Bayesian robust ATE input or options"));
     }
     if !input.treatment.iter().any(|t| *t) || !input.treatment.iter().any(|t| !*t) {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("positivity_violated"),
             "Bayesian robust ATE requires both treatment arms",
         ));
     }
@@ -208,12 +210,22 @@ fn fold_plan(
     let n = input.row_ids.len();
     let mut order: Vec<usize> = (0..n).collect();
     order.sort_by_key(|&i| input.row_ids[i]);
-    let mut units = vec![0u32; n];
+    let mut units = Vec::with_capacity(n);
     for (rank, &i) in order.iter().enumerate() {
-        units[i] = u32::try_from(rank).map_err(|_| {
-            EstimationError::data_msg("invalid Bayesian robust ATE input or options")
-        })?;
+        units.push((
+            i,
+            antecedent_data::GlobalId::new(u64::try_from(rank).map_err(|_| {
+                EstimationError::data_msg(
+                    "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                )
+            })?),
+        ));
     }
+    let mut placed = vec![antecedent_data::GlobalId::new(0); n];
+    for (i, id) in units {
+        placed[i] = id;
+    }
+    let units = placed;
     let strata: Vec<u32> = input.treatment.iter().map(|&t| u32::from(t)).collect();
     CrossfitPlan::derive(
         n,
@@ -229,9 +241,20 @@ fn fold_u16(fold: u32) -> Result<u16, EstimationError> {
         .map_err(|_| EstimationError::data_msg("invalid Bayesian robust ATE input or options"))
 }
 
+/// The design `[1, centred covariates]`. The intercept is unpenalised in every nuisance, so
+/// subtracting a column mean only reparametrises the intercept: the fitted values are unchanged
+/// and a covariate far from zero no longer makes the weighted normal equations and the damped
+/// logistic iteration ill conditioned.
 fn make_design(input: &BayesianRobustAteInput) -> Vec<Vec<f64>> {
-    (0..input.row_ids.len())
-        .map(|i| std::iter::once(1.0).chain(input.covariates.iter().map(|c| c[i])).collect())
+    let n = input.row_ids.len();
+    let means: Vec<f64> =
+        input.covariates.iter().map(|c| c.iter().sum::<f64>() / n as f64).collect();
+    (0..n)
+        .map(|i| {
+            std::iter::once(1.0)
+                .chain(input.covariates.iter().zip(&means).map(|(c, m)| c[i] - m))
+                .collect()
+        })
         .collect()
 }
 
@@ -328,39 +351,18 @@ fn fit_logistic(
         ));
     }
     let p = x[0].len();
-    let mut beta = vec![0.0; p];
-    let mut converged = false;
-    for _ in 0..80 {
-        let mut info = vec![0.0; p * p];
-        let mut score = vec![0.0; p];
-        for &i in rows {
-            let prob = antecedent_kernels::sigmoid(dot(&beta, &x[i]));
-            let variance = (prob * (1.0 - prob)).max(1e-8);
-            for j in 0..p {
-                score[j] += weights[i] * x[i][j] * (f64::from(t[i]) - prob);
-                for k in 0..p {
-                    info[j * p + k] += weights[i] * variance * x[i][j] * x[i][k];
-                }
-            }
-        }
-        for j in 1..p {
-            info[j * p + j] += lambda;
-            score[j] -= lambda * beta[j];
-        }
-        let step = solve_spd_system(&info, &score)?;
-        let max_step = step.iter().map(|v| v.abs()).fold(0.0, f64::max);
+    let nrows = rows.len();
+    let mut design = vec![0.0; nrows * p];
+    for (r, &i) in rows.iter().enumerate() {
         for j in 0..p {
-            beta[j] += step[j].clamp(-2.0, 2.0);
-        }
-        if max_step < 1e-8 {
-            converged = true;
-            break;
+            design[j * nrows + r] = x[i][j];
         }
     }
-    if !converged || beta.iter().any(|v| !v.is_finite()) {
-        return Err(EstimationError::stats_msg("weighted logistic nuisance did not converge"));
-    }
-    Ok(beta)
+    let y: Vec<f64> = rows.iter().map(|&i| f64::from(t[i])).collect();
+    let row_weights: Vec<f64> = rows.iter().map(|&i| weights[i]).collect();
+    // The shared GLM engine: damped IRLS with the intercept column unpenalised, the same
+    // weighted-ridge objective the outcome nuisances solve in closed form.
+    crate::util::fit_logistic_ridge(&design, nrows, p, &y, Some(&row_weights), lambda)
 }
 
 /// Ridge-penalise every non-intercept diagonal entry of the weighted Gram and solve.

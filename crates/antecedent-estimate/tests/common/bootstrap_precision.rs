@@ -55,7 +55,7 @@ pub fn assess(test: &str, rows: usize, seed: u64, truth: &[f64], results: &[Opti
     let pass = relative_error <= 0.2 && bias_mcse <= 5.;
     println!(
         "INFERENCE_DIAGNOSTIC_RECORD {}",
-        json!({"kind":"whole_method_bootstrap_standard_error_precision","test":test,"rows":rows,"seed":seed,"attempts":attempts,"failed":failed,"inner_requested_per_fit":300,"inner_succeeded_total":fits.iter().map(|f|f.inner_succeeded).sum::<usize>(),"truth":truth,"mean_estimate":means,"independent_empirical_variance":empirical_variance,"mean_reported_bootstrap_variance":bootstrap_variance,"maximum_relative_variance_error":relative_error,"maximum_bias_mcse":bias_mcse,"relative_variance_error_bound":0.2,"bias_mcse_bound":5.,"pass":pass,"activation":"none; standard errors remain unmeasured diagnostics without intervals"})
+        json!({"kind":"whole_method_bootstrap_standard_error_precision","test":test,"rows":rows,"seed":seed,"attempts":attempts,"failed":failed,"inner_requested_per_fit":300,"inner_succeeded_total":fits.iter().map(|f|f.inner_succeeded).sum::<usize>(),"truth":truth,"mean_estimate":means,"independent_empirical_variance":empirical_variance,"mean_reported_bootstrap_variance":bootstrap_variance,"maximum_relative_variance_error":relative_error,"maximum_bias_mcse":bias_mcse,"relative_variance_error_bound":0.2,"bias_mcse_bound":5.,"pass":pass,"activation":"none; standard errors remain not_measured diagnostics without intervals"})
     );
     assert!(pass, "{test} n{rows}: bootstrap diagnostic rules failed");
 }

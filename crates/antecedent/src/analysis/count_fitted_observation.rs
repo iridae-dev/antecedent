@@ -14,7 +14,7 @@
 //! A declared node (a measured signal with known sensitivity and specificity) is a
 //! table that is fixed and not redrawn.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 pub use antecedent_io::measured_inference::MeasuredInference;
@@ -36,7 +36,10 @@ fn refusal_of(error: &antecedent_io::IoError) -> ObservationQueryRefusal {
     };
     let (detail, text) = match message.split_once(": ") {
         Some((d, t)) if d.contains('.') && !d.contains(' ') => (d.to_owned(), t.to_owned()),
-        _ => ("observation_query.count_fitted_refused".to_owned(), message),
+        _ => (
+            antecedent_core::reason_details::observation_query::COUNT_FITTED_REFUSED.to_owned(),
+            message,
+        ),
     };
     ObservationQueryRefusal {
         refusals: vec![ExternalRefusal::new(code, "observe", detail).with_offending(text)],
@@ -123,7 +126,7 @@ impl CountFittedObservation {
     /// The measured equal-tailed posterior interval at `level`.
     ///
     /// # Errors
-    /// `cell_not_licensed` when the construction (level, prior, a draw count below the
+    /// `not_supported` when the construction (level, prior, a draw count below the
     /// supported minimum, complete rows, sample size) has no currently attesting coverage
     /// record, or when the Monte Carlo error of an endpoint exceeds its declared share of
     /// the interval width (`measured_interval.draws_not_converged`).

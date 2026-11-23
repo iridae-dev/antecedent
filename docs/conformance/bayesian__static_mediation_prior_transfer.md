@@ -14,4 +14,4 @@ mapping is refused.
 
 ## Expected summary
 
-Top-level keys: `compatibility_filter, n_draws, schema_version, seed, source_cell, target_cells` (6 fields).
+Top-level keys: `compatibility_filter, evidence_kind, evidence_proposition, evidence_roles, evidence_source, limitations, n_draws, oracle, schema_version, seed, source_cell, target_cells` (12 fields).

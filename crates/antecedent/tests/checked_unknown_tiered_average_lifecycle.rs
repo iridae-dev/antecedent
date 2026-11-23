@@ -1,9 +1,10 @@
 //! Public lifecycle evidence for explicit Unknown-tier average effects.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::float_cmp, reason = "lifecycle pins compare bitwise-identical replayed estimates")]
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext};
 use antecedent_data::{TableView, TabularData};
@@ -70,7 +71,9 @@ fn unknown_tiered_average_lifecycle_body() {
         .build()
         .unwrap();
     let mut prepared = builder.prepare(&ctx).unwrap();
-    let plan = prepared.checked_unknown_tiered_average_info().expect("sealed two-scenario plan");
+    let RetainedOperation::UnknownTieredAverage(plan) = prepared.retained_operation() else {
+        panic!("sealed two-scenario plan")
+    };
     assert_eq!(plan.query, query(&data));
     assert_eq!(plan.tier_count, 3);
     assert_eq!(plan.scenario_count, 2);
@@ -80,16 +83,16 @@ fn unknown_tiered_average_lifecycle_body() {
     drop(builder);
 
     let first = prepared.estimate(&data, &ctx).unwrap();
-    assert_eq!(first.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(first.support_status().unwrap().as_str(), "supported");
     assert_eq!(format!("{:?}", first.identification.status), "GraphDependent");
     assert!(
-        first.estimate.as_effect().unwrap().ate.is_nan(),
+        first.estimate().as_effect().unwrap().ate.is_nan(),
         "ambiguous scenarios must not be collapsed to a scalar ATE"
     );
     let values =
-        first.estimate.as_effect().unwrap().scenarios.effects.as_ref().expect("scenario values");
+        first.estimate().as_effect().unwrap().scenarios.effects.as_ref().expect("scenario values");
     let covariance = first
-        .estimate
+        .estimate()
         .as_effect()
         .unwrap()
         .joint
@@ -97,7 +100,7 @@ fn unknown_tiered_average_lifecycle_body() {
         .as_ref()
         .expect("shared joint covariance");
     let bands = first
-        .estimate
+        .estimate()
         .as_effect()
         .unwrap()
         .scenarios
@@ -119,20 +122,57 @@ fn unknown_tiered_average_lifecycle_body() {
         assert!(bands[i].0 <= truths[i] && truths[i] <= bands[i].1);
     }
 
-    let refreshed_data = unknown_data(4_000, 23, 0.7);
-    let refreshed = prepared.refresh(refreshed_data, &ctx).unwrap();
-    assert!(refreshed.estimate.as_effect().unwrap().ate.is_nan());
-    assert_eq!(
-        refreshed.estimate.as_effect().unwrap().scenarios.effects.as_ref().unwrap().len(),
-        2
-    );
-    assert!(refreshed.estimate.as_effect().unwrap().joint.covariance.is_some());
+    // A refresh on a different draw (another seed, a shifted outcome level) is recomputed, not
+    // replayed: its scenario values equal a fresh study of the same table and differ from the
+    // first run's, and both still bracket the truth.
+    let refreshed_data = unknown_data(4_000, 24, 0.7);
+    let refreshed = rebind_estimate(&mut prepared, refreshed_data.clone(), &ctx).unwrap();
+    assert!(refreshed.estimate().as_effect().unwrap().ate.is_nan());
+    let refreshed_values =
+        refreshed.estimate().as_effect().unwrap().scenarios.effects.as_ref().unwrap();
+    assert_eq!(refreshed_values.len(), 2);
+    let refreshed_covariance =
+        refreshed.estimate().as_effect().unwrap().joint.covariance.as_ref().unwrap();
+    let fresh = Study::tabular(refreshed_data.clone())
+        .tiered_background(background(&refreshed_data))
+        .unwrap()
+        .query(query(&refreshed_data))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap()
+        .estimate(&refreshed_data, &ctx)
+        .unwrap();
+    let fresh_values = fresh.estimate().as_effect().unwrap().scenarios.effects.as_ref().unwrap();
+    for i in 0..2 {
+        assert_eq!(
+            refreshed_values[i], fresh_values[i],
+            "scenario {i}: refresh equals a fresh run"
+        );
+        assert_ne!(refreshed_values[i], values[i], "scenario {i}: another draw moves the value");
+        assert!((refreshed_values[i] - truths[i]).abs() < 4.0 * refreshed_covariance.se(i));
+    }
 
     let artifact =
         prepared.encode_contracted_result(&refreshed, "unknown-tiered-average", &ctx).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
     assert!(consumed.acceptance.unresolved.iter().any(|reason| {
         reason.as_ref() == "dependencies.checked_unknown_tiered_average_operation"
     }));
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

@@ -5,7 +5,7 @@
 //! fixture enumerate every supplied law and the target's interventional truth
 //! `P*(Y = 1 | do(X = 1))`. Each replicate draws fresh count tables from those
 //! laws and scores the internal estimator the public route withholds
-//! (`cell_not_licensed`) until these records exist:
+//! (`not_supported`) until these records exist:
 //! [`antecedent_estimate::mz_transport_bootstrap_interval`].
 //!
 //! * `multi_source_mz_independent_studies`: every regime is its own declared
@@ -15,9 +15,9 @@
 //!   forwarded dataset; the bootstrap resamples the joint once per replicate and
 //!   projects the margin from it.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 #[path = "../../antecedent-estimate/tests/common/mod.rs"]
@@ -46,7 +46,7 @@ const REPLICATES: u32 = 199;
 /// The independent-study interval showed 0.941 coverage in 8,000 datasets at
 /// 1,600 rows/law with 199 bootstrap draws. Its 2.5% tail quantile has only
 /// about five draws there, so measure the same estimator with a more stable
-/// tail before licensing the independent-study coordinate.
+/// tail before support the independent-study coordinate.
 const INDEPENDENT_REPLICATES: u32 = 999;
 
 fn construction(dependence: &str) -> Construction {
@@ -207,7 +207,7 @@ fn measure(
     for row in rows {
         match row {
             Some((replicates_ok, band)) => {
-                tally.bind(
+                tally.bind_validation(
                     &construction(dependence),
                     ScopeFacts {
                         row_count: n as u64,
@@ -215,6 +215,7 @@ fn measure(
                         posterior_draws: None,
                         unidentified_mass: 0.0,
                     },
+                    "not_applicable",
                 );
                 tally.record(band, truth);
             }

@@ -2,7 +2,7 @@
 //! coordinate index the lookups use.
 //!
 //! `parity/support_*.toml` is the source of truth. `scripts/generate_support_matrix_docs.py`
-//! resolves rules and licensed cells into that snapshot. The public statics stay
+//! resolves rules and supported cells into that snapshot. The public statics stay
 //! [`StaticTable`]s, not slices, so the rows are parsed on first use instead of
 //! compiled as array literals. [`StaticTable::iter`] yields `'static` references
 //! because the parsed rows are leaked.
@@ -64,15 +64,15 @@ pub struct NaRule {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct LicensedCell {
+pub struct SupportedCell {
     pub query: &'static str,
     pub graph_class: &'static str,
     pub structure: &'static str,
     pub inference: &'static str,
     pub validation: &'static str,
-    /// Compiler-plan estimator from `parity/licensed_routes.toml`, when present.
+    /// Compiler-plan estimator from `parity/supported_routes.toml`, when present.
     pub route_estimator: Option<&'static str>,
-    /// Union of route, explicitly licensed, and calibration-token estimators.
+    /// Union of route, explicitly supported, and calibration-token estimators.
     pub estimators: &'static [&'static str],
 }
 
@@ -82,7 +82,7 @@ const fn table<T: 'static>(load: fn() -> &'static [T]) -> StaticTable<T> {
 
 pub static NA_RULES: StaticTable<NaRule> = table(na_rules);
 pub static CLOSED_RULES: StaticTable<NaRule> = table(closed_rules);
-pub static LICENSED: StaticTable<LicensedCell> = table(licensed);
+pub static SUPPORTED: StaticTable<SupportedCell> = table(supported);
 
 fn na_rules() -> &'static [NaRule] {
     matrix().na_rules
@@ -92,8 +92,8 @@ fn closed_rules() -> &'static [NaRule] {
     matrix().closed_rules
 }
 
-fn licensed() -> &'static [LicensedCell] {
-    matrix().licensed
+fn supported() -> &'static [SupportedCell] {
+    matrix().supported
 }
 
 /// One of the five axes of a matrix coordinate, in coordinate order.
@@ -109,21 +109,21 @@ pub(super) enum Axis {
 struct Matrix {
     na_rules: &'static [NaRule],
     closed_rules: &'static [NaRule],
-    licensed: &'static [LicensedCell],
-    /// Licensed rows by full five-axis coordinate (coordinate order), so a
+    supported: &'static [SupportedCell],
+    /// Supported rows by full five-axis coordinate (coordinate order), so a
     /// lookup is one hash instead of a scan of every row.
-    by_coordinate: HashMap<[&'static str; 5], &'static LicensedCell>,
-    /// Distinct licensed values of each axis, for interning a parsed coordinate.
+    by_coordinate: HashMap<[&'static str; 5], &'static SupportedCell>,
+    /// Distinct supported values of each axis, for interning a parsed coordinate.
     axis_values: [HashSet<&'static str>; 5],
 }
 
-/// The licensed row at exactly this `[query, graph_class, structure, inference,
+/// The supported row at exactly this `[query, graph_class, structure, inference,
 /// validation]` coordinate.
-pub(super) fn licensed_cell(coordinate: [&str; 5]) -> Option<&'static LicensedCell> {
+pub(super) fn supported_cell(coordinate: [&str; 5]) -> Option<&'static SupportedCell> {
     matrix().by_coordinate.get(&coordinate).copied()
 }
 
-/// The `'static` axis value equal to `value`, when some licensed row carries it
+/// The `'static` axis value equal to `value`, when some supported row carries it
 /// on `axis`.
 pub(super) fn intern_axis(axis: Axis, value: &str) -> Option<&'static str> {
     matrix().axis_values[axis as usize].get(value).copied()
@@ -131,13 +131,24 @@ pub(super) fn intern_axis(axis: Axis, value: &str) -> Option<&'static str> {
 
 fn matrix() -> &'static Matrix {
     static CELL: OnceLock<Matrix> = OnceLock::new();
-    CELL.get_or_init(|| {
-        let raw: RawMatrix = serde_json::from_str(SNAPSHOT).expect("support matrix snapshot");
-        let licensed: &'static [LicensedCell] =
-            leak_slice(raw.licensed.into_iter().map(LicensedCell::from_raw).collect());
-        let mut by_coordinate = HashMap::with_capacity(licensed.len());
+    CELL.get_or_init(|| build(SNAPSHOT))
+}
+
+fn build(snapshot: &str) -> Matrix {
+    {
+        let raw: RawMatrix = serde_json::from_str(snapshot).expect("support matrix snapshot");
+        let supported: &'static [SupportedCell] = leak_slice(
+            raw.supported
+                .into_iter()
+                // `status` is derived from the scientific-records ledger: a unit whose cited
+                // check has no current passing record is `not_supported` and is not admitted.
+                .filter(|row| row.status.as_deref().is_none_or(|status| status == "supported"))
+                .map(SupportedCell::from_raw)
+                .collect(),
+        );
+        let mut by_coordinate = HashMap::with_capacity(supported.len());
         let mut axis_values: [HashSet<&'static str>; 5] = Default::default();
-        for row in licensed {
+        for row in supported {
             let coordinate =
                 [row.query, row.graph_class, row.structure, row.inference, row.validation];
             // The first row at a coordinate wins, as the linear scan it replaces did.
@@ -149,18 +160,18 @@ fn matrix() -> &'static Matrix {
         Matrix {
             na_rules: leak_slice(raw.na_rules.into_iter().map(NaRule::from_raw).collect()),
             closed_rules: leak_slice(raw.closed_rules.into_iter().map(NaRule::from_raw).collect()),
-            licensed,
+            supported,
             by_coordinate,
             axis_values,
         }
-    })
+    }
 }
 
 #[derive(Deserialize)]
 struct RawMatrix {
     na_rules: Vec<RawRule>,
     closed_rules: Vec<RawRule>,
-    licensed: Vec<RawLicensed>,
+    supported: Vec<RawSupported>,
 }
 
 #[derive(Deserialize)]
@@ -174,7 +185,7 @@ struct RawRule {
 }
 
 #[derive(Deserialize)]
-struct RawLicensed {
+struct RawSupported {
     query: String,
     graph_class: String,
     structure: String,
@@ -182,6 +193,9 @@ struct RawLicensed {
     validation: String,
     route_estimator: Option<String>,
     estimators: Vec<String>,
+    /// Derived: `supported` or `not_supported`. Absent means supported.
+    #[serde(default)]
+    status: Option<String>,
 }
 
 impl NaRule {
@@ -197,8 +211,8 @@ impl NaRule {
     }
 }
 
-impl LicensedCell {
-    fn from_raw(raw: RawLicensed) -> Self {
+impl SupportedCell {
+    fn from_raw(raw: RawSupported) -> Self {
         Self {
             query: leak_str(raw.query),
             graph_class: leak_str(raw.graph_class),
@@ -228,4 +242,35 @@ fn leak_strs(items: Vec<String>) -> &'static [&'static str] {
 
 fn opt_strs(items: Option<Vec<String>>) -> Option<&'static [&'static str]> {
     items.map(leak_strs)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build;
+
+    fn cell(query: &str, status: Option<&str>) -> String {
+        let status = status.map_or(String::new(), |s| {
+            format!(r#","status":"{s}","missing_evidence":["owed: x"]"#)
+        });
+        format!(
+            r#"{{"query":"{query}","graph_class":"Dag","structure":"explicit","inference":"Frequentist","validation":"none","route_estimator":null,"estimators":[]{status}}}"#
+        )
+    }
+
+    /// A unit that release-mode data marks `not_supported` is not admitted; one marked
+    /// `supported`, or carrying no status, is.
+    #[test]
+    fn a_not_supported_unit_in_the_snapshot_is_not_admitted() {
+        let snapshot = format!(
+            r#"{{"na_rules":[],"closed_rules":[],"supported":[{},{},{}]}}"#,
+            cell("A", Some("not_supported")),
+            cell("B", Some("supported")),
+            cell("C", None),
+        );
+        let matrix = build(&snapshot);
+        let key = |q: &'static str| [q, "Dag", "explicit", "Frequentist", "none"];
+        assert!(!matrix.by_coordinate.contains_key(&key("A")));
+        assert!(matrix.by_coordinate.contains_key(&key("B")));
+        assert!(matrix.by_coordinate.contains_key(&key("C")));
+    }
 }

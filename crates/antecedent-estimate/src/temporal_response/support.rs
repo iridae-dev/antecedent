@@ -38,7 +38,7 @@ fn summarize_surface_support(points: &[SupportStatus]) -> SupportStatus {
     if n_supported > 0 {
         return SupportStatus::Extrapolative;
     }
-    if points.iter().any(|status| *status == SupportStatus::OutsideEmpiricalSupport) {
+    if points.contains(&SupportStatus::OutsideEmpiricalSupport) {
         SupportStatus::OutsideEmpiricalSupport
     } else {
         SupportStatus::Extrapolative
@@ -81,8 +81,8 @@ pub(super) fn intervention_support(
             }
         })
         .collect();
-    let shifted_extrapolation = level.is_none()
-        && point_status.iter().any(|status| *status == SupportStatus::Extrapolative);
+    let shifted_extrapolation =
+        level.is_none() && point_status.contains(&SupportStatus::Extrapolative);
     let mut report = assemble_temporal_support(eval_levels, temporal, horizon_ranges, point_status);
     // InterventionResponse has one result cell per horizon. Reusing the mean
     // surface assembler used to claim an H x H dose-by-horizon layout even
@@ -154,7 +154,7 @@ fn assemble_temporal_support(
     point_status: Vec<SupportStatus>,
 ) -> SupportReport {
     let status = summarize_surface_support(&point_status);
-    let mixed = point_status.iter().any(|s| *s == SupportStatus::Supported)
+    let mixed = point_status.contains(&SupportStatus::Supported)
         && point_status.iter().any(|s| *s != SupportStatus::Supported);
     let mut range_values = Vec::with_capacity(horizon_ranges.len().saturating_mul(2));
     for &(lo, hi) in horizon_ranges {

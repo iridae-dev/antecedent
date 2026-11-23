@@ -4,12 +4,12 @@
 //! `i → j` for `ℓ ∈ 1..=max_lag`. Scoring uses Gaussian BIC on the aligned
 //! lagged design (`t = max_lag .. T-1`).
 //!
-//! Exact enumeration is used only when `p ≤ `[`DBN_EXACT_MAX_VARS`],
-//! `max_lag ≤ `[`DBN_EXACT_MAX_LAG`], and the lag-bit space is small; otherwise
-//! the engine falls back to template MCMC automatically (or when
-//! `force_mcmc` is set).
+//! Exact enumeration is used only while the whole template space is small: the number of
+//! contemporaneous DAGs times `2^lag_bits` must stay within [`DBN_EXACT_MAX_TEMPLATES`]. Every
+//! larger template falls back to template MCMC automatically (or when `force_mcmc` is set);
+//! MCMC handles a template of any width, its lag-edge set being a growable [`LagMask`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -21,7 +21,7 @@ use antecedent_graph::{
 use antecedent_prob::kish_ess;
 use antecedent_state::{GraphScoreData, GraphScoreFamily, LocalScoreCache};
 
-use crate::adjacency_mask::{AdjacencyMask, has_edge, mask_is_dag, parents_of, set_edge};
+use crate::adjacency_mask::{AdjacencyMask, LagMask, mask_is_dag, parents_of};
 use crate::error::DiscoveryError;
 use crate::exact_enumeration::enumerate_unique_dags;
 use crate::graph_mcmc::{MaskAccept, MaskCancel, MaskChain, MaskChainPlan, run_mask_chain};
@@ -31,21 +31,38 @@ use crate::graph_posterior::{
     n_directed_edges, normalize_log_weights,
 };
 
-/// Max variables for exact DBN template enumeration (`p ≤ 4`).
-pub(crate) const DBN_EXACT_MAX_VARS: usize = 4;
-/// Max lag for exact DBN enumeration (`max_lag ≤ 2`).
-pub(crate) const DBN_EXACT_MAX_LAG: u32 = 2;
-/// Exact enumeration keeps every template. 2^10 masks stay under a few thousand
-/// contemporaneous DAGs times the lag masks; 2^16 (p=4, lag=1) is tens of millions.
-pub(crate) const DBN_EXACT_MAX_LAG_BITS: usize = 10;
+/// Work budget of exact DBN enumeration: the most templates (labeled contemporaneous DAGs times
+/// `2^lag_bits`) it keeps and scores.
+///
+/// Exact enumeration keeps every template, so its cost is the template count. The budget is the
+/// largest count the earlier shape rule could reach (`p ≤ 4`, `max_lag ≤ 2`, at most ten lag
+/// bits): 25 DAGs on three variables times `2^9` lag sets at lag 1. Larger spaces use template
+/// MCMC.
+pub(crate) const DBN_EXACT_MAX_TEMPLATES: u64 = 25 * (1 << 9);
+
+/// Number of labeled DAGs on `n` nodes, `n = 0..=EXACT_ENUM_MAX_NODES`.
+const LABELED_DAG_COUNTS: [u64; 7] = [1, 1, 3, 25, 543, 29_281, 3_781_503];
+
+/// Whether exact enumeration of a `p`-variable template with `n_lag_bits` lag-edge bits stays
+/// within [`DBN_EXACT_MAX_TEMPLATES`]. Computed without overflow: a lag space of 64 or more
+/// bits is never exact.
+fn exact_fits_budget(p: usize, n_lag_bits: usize) -> bool {
+    if p > EXACT_ENUM_MAX_NODES || p >= LABELED_DAG_COUNTS.len() || n_lag_bits >= 64 {
+        return false;
+    }
+    LABELED_DAG_COUNTS[p]
+        .checked_mul(1u64 << n_lag_bits)
+        .is_some_and(|templates| templates <= DBN_EXACT_MAX_TEMPLATES)
+}
 
 /// Bounded-lag DBN posterior over a stationary template.
 ///
-/// Exact path: `p ≤ DBN_EXACT_MAX_VARS` and `max_lag ≤ DBN_EXACT_MAX_LAG`
-/// (plus a small lag-bit budget). Larger templates use MCMC.
+/// Exact path: only while the template space (contemporaneous DAGs times `2^lag_bits`) is
+/// within [`DBN_EXACT_MAX_TEMPLATES`]. Every other template uses MCMC, which handles a template
+/// of any width (any number of variables and lags).
 #[derive(Clone, Debug)]
 pub struct DbnPosterior {
-    /// Maximum lag (`≥ 1`).
+    /// Maximum template lag (zero selects a contemporaneous-only template).
     pub max_lag: u32,
     /// Force MCMC even when exact would fit.
     pub force_mcmc: bool,
@@ -67,6 +84,10 @@ struct DbnTarget<'a> {
     prior: &'a GraphPrior,
     variables: &'a [VariableId],
     score_family: GraphScoreFamily,
+    /// `(ln p, ln (1 - p))` of every ordered pair when the prior carries a per-edge map or soft
+    /// tiers; it prices the lag edges `from_{t-lag} → to_t` of every lag alike. `None` keeps the
+    /// global Bernoulli arithmetic.
+    pair_logs: Option<&'a [(f64, f64)]>,
 }
 
 impl DbnTarget<'_> {
@@ -86,16 +107,10 @@ impl Default for DbnPosterior {
 }
 
 impl DbnPosterior {
-    /// Construct with `max_lag` (clamped to ≥ 1).
+    /// Construct with the maximum template lag, including zero for a static template.
     #[must_use]
     pub fn new(max_lag: u32) -> Self {
-        Self {
-            max_lag: max_lag.max(1),
-            force_mcmc: false,
-            n_chains: 2,
-            n_warmup: 200,
-            n_draws: 400,
-        }
+        Self { max_lag, force_mcmc: false, n_chains: 2, n_warmup: 200, n_draws: 400 }
     }
 
     /// Force structure-style MCMC on the template.
@@ -157,6 +172,7 @@ impl DbnPosterior {
         score_family: GraphScoreFamily,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
+        prior.validate_for(variables)?;
         prior.constraints.validate()?;
         if !matches!(score_family, GraphScoreFamily::GaussianBic) {
             return Err(DiscoveryError::unsupported(
@@ -171,24 +187,64 @@ impl DbnPosterior {
         }
         crate::graph_posterior::ensure_nodes_fit(
             p,
-            "DBN posterior supports at most 16 variables (MAX_POSTERIOR_NODES)",
+            "DBN posterior: the contemporaneous edge bits of this many variables are not \
+             addressable by a u32 bit index",
         )?;
         let max_lag = self.max_lag;
-        let n_lag_bits = (max_lag as usize).saturating_mul(p.saturating_mul(p));
-        if n_lag_bits > 48 {
+        // The static GraphPrior constructors use (0, 0) as an unqualified prior.
+        // In a DBN it covers the whole constructor template; any other range is explicit
+        // and applies to contemporaneous as well as lagged edges.
+        let temporal = &prior.constraints.temporal;
+        let (min, max) = (temporal.min_lag.raw(), temporal.max_lag.raw());
+        if min > max {
+            return Err(DiscoveryError::unsupported("DBN prior min_lag exceeds max_lag"));
+        }
+        let (min, max) = if (min, max) == (0, 0) { (0, max_lag) } else { (min, max) };
+        let mut knowledge = prior.constraints.clone();
+        knowledge.temporal.min_lag = Lag::from_raw(min);
+        knowledge.temporal.max_lag = Lag::from_raw(max.min(max_lag));
+        knowledge
+            .check_background_knowledge(crate::constraints::KnowledgeScope::Lagged, variables)
+            .map_err(DiscoveryError::Knowledge)?;
+        if prior
+            .constraints
+            .required
+            .iter()
+            .any(|link| link.source_lag.is_contemporaneous() && link.source == link.target)
+        {
             return Err(DiscoveryError::unsupported(
-                "DBN lag-edge space too large for this engine",
+                "DBN cannot require a contemporaneous self edge",
+            ));
+        }
+        let n_lag_bits = (max_lag as usize).saturating_mul(p.saturating_mul(p));
+        if u32::try_from(n_lag_bits).is_err() {
+            return Err(DiscoveryError::unsupported(
+                "DBN posterior: the lag-edge bits of this template are not addressable by a u32 \
+                 bit index",
             ));
         }
 
         let (score_data, _) = build_lagged_score_data(units, variables, max_lag)?;
-        let use_exact = !self.force_mcmc
-            && p <= DBN_EXACT_MAX_VARS
-            && max_lag <= DBN_EXACT_MAX_LAG
-            && p <= EXACT_ENUM_MAX_NODES
-            && n_lag_bits <= DBN_EXACT_MAX_LAG_BITS;
+        let use_exact = !self.force_mcmc && exact_fits_budget(p, n_lag_bits);
 
-        let target = DbnTarget { p, max_lag, data: &score_data, prior, variables, score_family };
+        let pair_logs = (prior.edge_priors.is_some() || prior.soft_tiers.is_some()).then(|| {
+            crate::edge_prior::pair_logs(
+                p,
+                variables,
+                prior.edge_inclusion,
+                prior.edge_priors.as_ref(),
+                prior.soft_tiers.as_ref(),
+            )
+        });
+        let target = DbnTarget {
+            p,
+            max_lag,
+            data: &score_data,
+            prior,
+            variables,
+            score_family,
+            pair_logs: pair_logs.as_deref(),
+        };
         if use_exact { Self::run_exact(&target, ctx) } else { self.run_mcmc(&target, ctx) }
     }
 
@@ -199,16 +255,19 @@ impl DbnPosterior {
         let DbnTarget { p, max_lag, prior, variables, .. } = *target;
         let contemp = enumerate_unique_dags(p);
         let n_lag_bits = (max_lag as usize) * p * p;
+        // Exact enumeration runs only within `DBN_EXACT_MAX_TEMPLATES`, so the lag space is
+        // far below one word and `lag_limit` cannot overflow.
+        debug_assert!(n_lag_bits < 64);
         let lag_limit = 1u64 << n_lag_bits;
         let n_templates = (contemp.len() as u64).saturating_mul(lag_limit);
         // Three stored words per kept template, plus the score workspace.
         let est_bytes = n_templates.saturating_mul(32);
-        if let Some(hard) = ctx.memory.hard_limit_bytes {
-            if est_bytes > hard {
-                return Err(DiscoveryError::Resource(format!(
-                    "exact DBN enumeration needs ~{est_bytes} bytes; hard limit {hard}"
-                )));
-            }
+        if let Some(hard) = ctx.memory_limit_bytes()
+            && est_bytes > hard
+        {
+            return Err(DiscoveryError::Resource(format!(
+                "exact DBN enumeration needs ~{est_bytes} bytes; hard limit {hard}"
+            )));
         }
         let mut kept_masks = Vec::new();
         let mut kept_lag = Vec::new();
@@ -216,18 +275,19 @@ impl DbnPosterior {
         let mut rejected = 0u64;
         let mut cache = target.score_cache();
 
-        for &cmask in &contemp {
+        for cmask in &contemp {
             if log_prior_mask(cmask, p, prior, variables).is_none() {
                 rejected += 1;
                 continue;
             }
-            for lmask in 0..lag_limit {
-                if lmask % 4096 == 0 && ctx.cancellation.is_cancelled() {
+            for lword in 0..lag_limit {
+                if lword % 4096 == 0 && ctx.cancellation.is_cancelled() {
                     return Err(DiscoveryError::Cancelled);
                 }
-                match score_dbn_template(cmask, lmask, target, &mut cache) {
+                let lmask = LagMask::from_word(lword);
+                match score_dbn_template(cmask, &lmask, target, &mut cache) {
                     Some(lw) => {
-                        kept_masks.push(cmask);
+                        kept_masks.push(cmask.clone());
                         kept_lag.push(lmask);
                         kept_log.push(lw);
                     }
@@ -291,7 +351,7 @@ impl DbnPosterior {
         // invalid empty template as a posterior sample until the right bit was proposed.
         let (init_cmask, init_lmask, init_score) = initial_dbn_state(target)?;
 
-        let (traces, samples, rejected, scores) =
+        let (traces, samples, rejected, scores, chains_moved) =
             run_parallel_mask_chains(ctx, n_chains, n_draws, n_params, |chain, inner| {
                 let mut rng = inner.rng.stream_for(StreamDomain::McmcDbn, chain as u64);
                 let mut walker = DbnWalker {
@@ -300,11 +360,11 @@ impl DbnPosterior {
                     p,
                     max_lag,
                     n_lag_bits,
-                    cmask: init_cmask,
-                    lmask: init_lmask,
+                    cmask: init_cmask.clone(),
+                    lmask: init_lmask.clone(),
                     cur: init_score,
-                    pending_c: init_cmask,
-                    pending_l: init_lmask,
+                    pending_c: init_cmask.clone(),
+                    pending_l: init_lmask.clone(),
                 };
                 // `thin` is 1: the historical loop kept every post-warmup step.
                 let run = run_mask_chain(
@@ -313,7 +373,7 @@ impl DbnPosterior {
                     &mut rng,
                     &mut walker,
                 )?;
-                Ok((run.traces, run.samples, run.rejected, run.scores))
+                Ok((run.traces, run.samples, run.rejected, run.scores, run.moved))
             })?;
 
         let (diagnostics, summary) = diagnostics_from_traces(
@@ -321,6 +381,7 @@ impl DbnPosterior {
             &traces,
             &scores,
             n_params,
+            chains_moved,
             true,
             "DBN MCMC diagnostics gate refused posterior",
         )?;
@@ -338,10 +399,10 @@ impl DbnPosterior {
         }
         let lagged_mcse = param_mcse[idx..].to_vec();
 
-        let mut counts: HashMap<(AdjacencyMask, u64), u64> = HashMap::new();
+        let mut counts: HashMap<(AdjacencyMask, LagMask), u64> = HashMap::new();
         for chain in &samples {
-            for &key in chain {
-                *counts.entry(key).or_insert(0) += 1;
+            for key in chain {
+                *counts.entry(key.clone()).or_insert(0) += 1;
             }
         }
         let total: f64 = counts.values().map(|&c| c as f64).sum();
@@ -351,7 +412,9 @@ impl DbnPosterior {
         let mut masks = Vec::new();
         let mut lags = Vec::new();
         let mut weights = Vec::new();
-        for ((cm, lm), c) in counts {
+        let mut ordered: Vec<_> = counts.into_iter().collect();
+        ordered.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+        for ((cm, lm), c) in ordered {
             masks.push(cm);
             lags.push(lm);
             weights.push(c as f64 / total);
@@ -379,24 +442,26 @@ impl DbnPosterior {
 /// # Errors
 ///
 /// The required-edge template is cyclic, violates a constraint, or has no finite score.
-fn initial_dbn_state(target: &DbnTarget<'_>) -> Result<(AdjacencyMask, u64, f64), DiscoveryError> {
+fn initial_dbn_state(
+    target: &DbnTarget<'_>,
+) -> Result<(AdjacencyMask, LagMask, f64), DiscoveryError> {
     let DbnTarget { p, max_lag, prior, variables, .. } = *target;
     let mut cmask = AdjacencyMask::EMPTY;
-    let mut lmask = 0u64;
+    let mut lmask = LagMask::EMPTY;
     for i in 0..p {
         for j in 0..p {
             if i != j && edge_required(&prior.constraints, variables, i, j) {
-                cmask = set_edge(cmask, p, i, j, true);
+                cmask.set_edge(p, i, j, true);
             }
             for lag in 1..=max_lag {
                 if lagged_edge_required(&prior.constraints, variables, i, lag, j) {
-                    lmask |= 1u64 << lag_bit(p, max_lag, lag, i, j);
+                    lmask.set_bit(lag_bit(p, max_lag, lag, i, j), true);
                 }
             }
         }
     }
     let mut cache = target.score_cache();
-    let score = score_dbn_template(cmask, lmask, target, &mut cache)
+    let score = score_dbn_template(&cmask, &lmask, target, &mut cache)
         .filter(|s| s.is_finite())
         .ok_or_else(|| {
             DiscoveryError::unsupported(
@@ -449,9 +514,8 @@ fn lag_bit(p: usize, max_lag: u32, lag: u32, from: usize, to: usize) -> u32 {
     crate::indexing::dense_u32(block + from * p + to)
 }
 
-fn has_lag_edge(lmask: u64, p: usize, max_lag: u32, lag: u32, from: usize, to: usize) -> bool {
-    let b = lag_bit(p, max_lag, lag, from, to);
-    (lmask >> b) & 1 == 1
+fn has_lag_edge(lmask: &LagMask, p: usize, max_lag: u32, lag: u32, from: usize, to: usize) -> bool {
+    lmask.bit(lag_bit(p, max_lag, lag, from, to))
 }
 
 /// Build a [`TemporalDag`](antecedent_graph::TemporalDag) from contemporaneous + lag masks (DBN template atom).
@@ -464,32 +528,60 @@ fn has_lag_edge(lmask: u64, p: usize, max_lag: u32, lag: u32, from: usize, to: u
 /// Invalid contemporaneous DAG or graph mutation failures.
 pub fn temporal_dag_from_dbn_atoms(
     cmask: impl Into<AdjacencyMask>,
-    lmask: u64,
+    lmask: impl Into<LagMask>,
     n_vars: usize,
     max_lag: u32,
     variables: &[VariableId],
 ) -> Result<antecedent_graph::TemporalDag, DiscoveryError> {
+    temporal_dag_from_dbn_atoms_cancellable(cmask, lmask, n_vars, max_lag, variables, || false)
+        .map(|graph| graph.expect("cancellation disabled"))
+}
+
+/// The same conversion, polling cancellation at bounded row boundaries.
+pub fn temporal_dag_from_dbn_atoms_cancellable(
+    cmask: impl Into<AdjacencyMask>,
+    lmask: impl Into<LagMask>,
+    n_vars: usize,
+    max_lag: u32,
+    variables: &[VariableId],
+    mut cancelled: impl FnMut() -> bool,
+) -> Result<Option<antecedent_graph::TemporalDag>, DiscoveryError> {
     use antecedent_core::Lag;
     use antecedent_graph::TemporalDag;
     use antecedent_graph::unfold::ensure_lagged;
 
-    let cmask = cmask.into();
+    if cancelled() {
+        return Ok(None);
+    }
+    let (cmask, lmask) = (cmask.into(), lmask.into());
 
     if variables.len() != n_vars {
         return Err(DiscoveryError::data_msg(
             "temporal_dag_from_dbn_atoms: variables length != n_vars",
         ));
     }
-    if !mask_is_dag(cmask, n_vars) {
-        return Err(DiscoveryError::data_msg(
-            "temporal_dag_from_dbn_atoms: contemporaneous mask is not a DAG",
-        ));
+    if !mask_is_dag(&cmask, n_vars) {
+        let refusal = antecedent_graph::error::CyclicDagRefusal::condensation(
+            antecedent_graph::error::DagOperation::Discovery,
+        );
+        return Err(DiscoveryError::data_msg(format!(
+            "temporal_dag_from_dbn_atoms: contemporaneous mask is not a DAG; {refusal}"
+        )));
+    }
+    if cancelled() {
+        return Ok(None);
     }
     let mut g = TemporalDag::empty();
+    if n_vars == 0 {
+        return Ok(Some(g));
+    }
     // Contemporaneous edges.
     for i in 0..n_vars {
+        if cancelled() {
+            return Ok(None);
+        }
         for j in 0..n_vars {
-            if i != j && has_edge(cmask, n_vars, i, j) {
+            if i != j && cmask.has_edge(n_vars, i, j) {
                 let from = ensure_lagged(&mut g, variables[i], Lag::CONTEMPORANEOUS)?;
                 let to = ensure_lagged(&mut g, variables[j], Lag::CONTEMPORANEOUS)?;
                 g.insert_directed(from, to)?;
@@ -498,9 +590,15 @@ pub fn temporal_dag_from_dbn_atoms(
     }
     // Lagged edges: X_{t-lag} → Y_t.
     for lag in 1..=max_lag {
+        if cancelled() {
+            return Ok(None);
+        }
         for i in 0..n_vars {
+            if cancelled() {
+                return Ok(None);
+            }
             for j in 0..n_vars {
-                if has_lag_edge(lmask, n_vars, max_lag, lag, i, j) {
+                if has_lag_edge(&lmask, n_vars, max_lag, lag, i, j) {
                     let from = ensure_lagged(&mut g, variables[i], Lag::from_raw(lag))?;
                     let to = ensure_lagged(&mut g, variables[j], Lag::CONTEMPORANEOUS)?;
                     g.insert_directed(from, to)?;
@@ -508,15 +606,17 @@ pub fn temporal_dag_from_dbn_atoms(
             }
         }
     }
-    Ok(g)
+    if cancelled() {
+        return Ok(None);
+    }
+    Ok(Some(g))
 }
 
 /// Shared surface over the temporal graph types that accept lagged nodes, so
-/// [`ensure_lagged`] / [`insert_lagged_directed`] can be written once.
+/// [`ensure_lagged`] can be written once.
 trait LaggedGraph {
     fn nodes(&self) -> &[NodeRef];
     fn add_lagged(&mut self, variable: VariableId, lag: Lag) -> Result<DenseNodeId, GraphError>;
-    fn insert_directed(&mut self, from: DenseNodeId, to: DenseNodeId) -> Result<(), GraphError>;
 }
 
 impl LaggedGraph for TemporalCpdag {
@@ -525,9 +625,6 @@ impl LaggedGraph for TemporalCpdag {
     }
     fn add_lagged(&mut self, variable: VariableId, lag: Lag) -> Result<DenseNodeId, GraphError> {
         TemporalCpdag::add_lagged(self, variable, lag)
-    }
-    fn insert_directed(&mut self, from: DenseNodeId, to: DenseNodeId) -> Result<(), GraphError> {
-        TemporalCpdag::insert_directed(self, from, to)
     }
 }
 
@@ -538,9 +635,6 @@ impl LaggedGraph for TemporalPag {
     fn add_lagged(&mut self, variable: VariableId, lag: Lag) -> Result<DenseNodeId, GraphError> {
         TemporalPag::add_lagged(self, variable, lag)
     }
-    fn insert_directed(&mut self, from: DenseNodeId, to: DenseNodeId) -> Result<(), GraphError> {
-        TemporalPag::insert_directed(self, from, to)
-    }
 }
 
 fn ensure_lagged<G: LaggedGraph>(
@@ -549,34 +643,14 @@ fn ensure_lagged<G: LaggedGraph>(
     lag: Lag,
 ) -> Result<DenseNodeId, DiscoveryError> {
     for (i, node) in graph.nodes().iter().enumerate() {
-        if let NodeRef::Lagged { variable: existing, lag: existing_lag } = node {
-            if *existing == variable && *existing_lag == lag {
-                return Ok(DenseNodeId::try_from_usize(i)?);
-            }
+        if let NodeRef::Lagged { variable: existing, lag: existing_lag } = node
+            && *existing == variable
+            && *existing_lag == lag
+        {
+            return Ok(DenseNodeId::try_from_usize(i)?);
         }
     }
     Ok(graph.add_lagged(variable, lag)?)
-}
-
-fn insert_lagged_directed<G: LaggedGraph>(
-    graph: &mut G,
-    lmask: u64,
-    n_vars: usize,
-    max_lag: u32,
-    variables: &[VariableId],
-) -> Result<(), DiscoveryError> {
-    for lag in 1..=max_lag {
-        for i in 0..n_vars {
-            for j in 0..n_vars {
-                if has_lag_edge(lmask, n_vars, max_lag, lag, i, j) {
-                    let from = ensure_lagged(graph, variables[i], Lag::from_raw(lag))?;
-                    let to = ensure_lagged(graph, variables[j], Lag::CONTEMPORANEOUS)?;
-                    graph.insert_directed(from, to)?;
-                }
-            }
-        }
-    }
-    Ok(())
 }
 
 /// Build a [`TemporalCpdag`] from contemporaneous + lag masks.
@@ -590,22 +664,44 @@ fn insert_lagged_directed<G: LaggedGraph>(
 /// Variable-count mismatch or a graph mutation the `TemporalCpdag` rejects.
 pub fn temporal_cpdag_from_dbn_atoms(
     cmask: impl Into<AdjacencyMask>,
-    lmask: u64,
+    lmask: impl Into<LagMask>,
     n_vars: usize,
     max_lag: u32,
     variables: &[VariableId],
 ) -> Result<TemporalCpdag, DiscoveryError> {
-    let cmask = cmask.into();
+    temporal_cpdag_from_dbn_atoms_cancellable(cmask, lmask, n_vars, max_lag, variables, || false)
+        .map(|graph| graph.expect("cancellation disabled"))
+}
+
+/// Convert a temporal CPDAG while polling at each input row.
+pub fn temporal_cpdag_from_dbn_atoms_cancellable(
+    cmask: impl Into<AdjacencyMask>,
+    lmask: impl Into<LagMask>,
+    n_vars: usize,
+    max_lag: u32,
+    variables: &[VariableId],
+    mut cancelled: impl FnMut() -> bool,
+) -> Result<Option<TemporalCpdag>, DiscoveryError> {
+    if cancelled() {
+        return Ok(None);
+    }
+    let (cmask, lmask) = (cmask.into(), lmask.into());
     if variables.len() != n_vars {
         return Err(DiscoveryError::data_msg(
             "temporal_cpdag_from_dbn_atoms: variables length != n_vars",
         ));
     }
     let mut graph = TemporalCpdag::empty();
+    if n_vars == 0 {
+        return Ok(Some(graph));
+    }
     for i in 0..n_vars {
+        if cancelled() {
+            return Ok(None);
+        }
         for j in (i + 1)..n_vars {
-            let ij = has_edge(cmask, n_vars, i, j);
-            let ji = has_edge(cmask, n_vars, j, i);
+            let ij = cmask.has_edge(n_vars, i, j);
+            let ji = cmask.has_edge(n_vars, j, i);
             if !ij && !ji {
                 continue;
             }
@@ -620,8 +716,27 @@ pub fn temporal_cpdag_from_dbn_atoms(
             }
         }
     }
-    insert_lagged_directed(&mut graph, lmask, n_vars, max_lag, variables)?;
-    Ok(graph)
+    for lag in 1..=max_lag {
+        if cancelled() {
+            return Ok(None);
+        }
+        for i in 0..n_vars {
+            if cancelled() {
+                return Ok(None);
+            }
+            for j in 0..n_vars {
+                if has_lag_edge(&lmask, n_vars, max_lag, lag, i, j) {
+                    let from = ensure_lagged(&mut graph, variables[i], Lag::from_raw(lag))?;
+                    let to = ensure_lagged(&mut graph, variables[j], Lag::CONTEMPORANEOUS)?;
+                    graph.insert_directed(from, to)?;
+                }
+            }
+        }
+    }
+    if cancelled() {
+        return Ok(None);
+    }
+    Ok(Some(graph))
 }
 
 /// Build a [`TemporalPag`] from contemporaneous + lag + circle-mark masks.
@@ -634,30 +749,61 @@ pub fn temporal_cpdag_from_dbn_atoms(
 /// Variable-count mismatch or a graph mutation the `TemporalPag` rejects.
 pub fn temporal_pag_from_dbn_atoms(
     cmask: impl Into<AdjacencyMask>,
-    lmask: u64,
+    lmask: impl Into<LagMask>,
     mark_mask: impl Into<AdjacencyMask>,
     n_vars: usize,
     max_lag: u32,
     variables: &[VariableId],
 ) -> Result<TemporalPag, DiscoveryError> {
-    let (cmask, mark_mask) = (cmask.into(), mark_mask.into());
+    temporal_pag_from_dbn_atoms_cancellable(
+        cmask,
+        lmask,
+        mark_mask,
+        n_vars,
+        max_lag,
+        variables,
+        || false,
+    )
+    .map(|graph| graph.expect("cancellation disabled"))
+}
+
+/// Convert a temporal PAG while polling at each input row.
+pub fn temporal_pag_from_dbn_atoms_cancellable(
+    cmask: impl Into<AdjacencyMask>,
+    lmask: impl Into<LagMask>,
+    mark_mask: impl Into<AdjacencyMask>,
+    n_vars: usize,
+    max_lag: u32,
+    variables: &[VariableId],
+    mut cancelled: impl FnMut() -> bool,
+) -> Result<Option<TemporalPag>, DiscoveryError> {
+    if cancelled() {
+        return Ok(None);
+    }
+    let (cmask, lmask, mark_mask) = (cmask.into(), lmask.into(), mark_mask.into());
     if variables.len() != n_vars {
         return Err(DiscoveryError::data_msg(
             "temporal_pag_from_dbn_atoms: variables length != n_vars",
         ));
     }
     let mut graph = TemporalPag::empty();
+    if n_vars == 0 {
+        return Ok(Some(graph));
+    }
     for i in 0..n_vars {
+        if cancelled() {
+            return Ok(None);
+        }
         for j in (i + 1)..n_vars {
-            let ij = has_edge(cmask, n_vars, i, j);
-            let ji = has_edge(cmask, n_vars, j, i);
+            let ij = cmask.has_edge(n_vars, i, j);
+            let ji = cmask.has_edge(n_vars, j, i);
             if !ij && !ji {
                 continue;
             }
             let a = ensure_lagged(&mut graph, variables[i], Lag::CONTEMPORANEOUS)?;
             let b = ensure_lagged(&mut graph, variables[j], Lag::CONTEMPORANEOUS)?;
-            let circle_a = has_edge(mark_mask, n_vars, i, j);
-            let circle_b = has_edge(mark_mask, n_vars, j, i);
+            let circle_a = mark_mask.has_edge(n_vars, i, j);
+            let circle_b = mark_mask.has_edge(n_vars, j, i);
             if ij && ji {
                 if circle_a && circle_b {
                     graph.insert_circle_circle_with_middle(a, b, MiddleMark::Empty)?;
@@ -681,8 +827,27 @@ pub fn temporal_pag_from_dbn_atoms(
             }
         }
     }
-    insert_lagged_directed(&mut graph, lmask, n_vars, max_lag, variables)?;
-    Ok(graph)
+    for lag in 1..=max_lag {
+        if cancelled() {
+            return Ok(None);
+        }
+        for i in 0..n_vars {
+            if cancelled() {
+                return Ok(None);
+            }
+            for j in 0..n_vars {
+                if has_lag_edge(&lmask, n_vars, max_lag, lag, i, j) {
+                    let from = ensure_lagged(&mut graph, variables[i], Lag::from_raw(lag))?;
+                    let to = ensure_lagged(&mut graph, variables[j], Lag::CONTEMPORANEOUS)?;
+                    graph.insert_directed(from, to)?;
+                }
+            }
+        }
+    }
+    if cancelled() {
+        return Ok(None);
+    }
+    Ok(Some(graph))
 }
 
 /// Build a [`TemporalDag`](antecedent_graph::TemporalDag) from a single-word contemporaneous
@@ -735,13 +900,19 @@ pub fn temporal_pag_from_dbn_masks(
 }
 
 fn score_dbn_template(
-    cmask: AdjacencyMask,
-    lmask: u64,
+    cmask: &AdjacencyMask,
+    lmask: &LagMask,
     target: &DbnTarget<'_>,
     cache: &mut LocalScoreCache,
 ) -> Option<f64> {
-    let DbnTarget { p, max_lag, data, prior, variables, .. } = *target;
+    let DbnTarget { p, max_lag, data, prior, variables, pair_logs, .. } = *target;
     if !mask_is_dag(cmask, p) {
+        return None;
+    }
+    let temporal = &prior.constraints.temporal;
+    let (min, max) = (temporal.min_lag.raw(), temporal.max_lag.raw());
+    let (min, max) = if (min, max) == (0, 0) { (0, max_lag) } else { (min, max) };
+    if min > 0 && cmask.count_ones() != 0 {
         return None;
     }
     let lp = log_prior_mask(cmask, p, prior, variables)?;
@@ -759,6 +930,9 @@ fn score_dbn_template(
                 // both endpoints pinned to `Lag::CONTEMPORANEOUS`, so they structurally
                 // cannot see a lag > 0 constraint. Without this, a forbidden `X_{t-1} → Y_t`
                 // was a complete no-op for this engine and could carry posterior mass.
+                if present && (lag < min || lag > max) {
+                    return None;
+                }
                 if present
                     && index.is_forbidden(&prior.constraints, lagged_link(variables, i, lag, j))
                 {
@@ -784,34 +958,44 @@ fn score_dbn_template(
         }
         total += s;
     }
-    // Weak Bernoulli prior on lag edges when edge_inclusion set.
-    if let Some(pr) = prior.edge_inclusion {
+    // Per-edge prior on lag edges: each (from, to) pair is priced alike at every lag.
+    if let Some(pairs) = pair_logs {
+        for lag in 1..=max_lag {
+            for from in 0..p {
+                for to in 0..p {
+                    let (present, absent) = pairs[from * p + to];
+                    total += if has_lag_edge(lmask, p, max_lag, lag, from, to) {
+                        present
+                    } else {
+                        absent
+                    };
+                }
+            }
+        }
+    } else if let Some(pr) = prior.edge_inclusion {
+        // Weak Bernoulli prior on lag edges when edge_inclusion set.
         let lp_e = pr.ln();
         let lq = (1.0 - pr).ln();
         let n_lag_bits = (max_lag as usize) * p * p;
         for b in 0..n_lag_bits {
-            total += if (lmask >> b) & 1 == 1 { lp_e } else { lq };
+            total += if lmask.bit(crate::indexing::dense_u32(b)) { lp_e } else { lq };
         }
     }
     Some(total)
 }
 
-#[allow(
-    clippy::needless_range_loop,
-    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
-)]
 fn accumulate_lagged_marginals(
     p: usize,
     max_lag: u32,
     weights: &[f64],
-    lag_masks: &[u64],
+    lag_masks: &[LagMask],
 ) -> Vec<f64> {
     let cell = (max_lag as usize) * p * p;
     let mut out = vec![0.0; cell];
-    for (&w, &lm) in weights.iter().zip(lag_masks.iter()) {
-        for b in 0..cell {
-            if (lm >> b) & 1 == 1 {
-                out[b] += w;
+    for (&w, lm) in weights.iter().zip(lag_masks.iter()) {
+        for b in lm.set_bits() {
+            if let Some(slot) = out.get_mut(b as usize) {
+                *slot += w;
             }
         }
     }
@@ -825,14 +1009,14 @@ struct DbnWalker<'a> {
     max_lag: u32,
     n_lag_bits: usize,
     cmask: AdjacencyMask,
-    lmask: u64,
+    lmask: LagMask,
     cur: f64,
     pending_c: AdjacencyMask,
-    pending_l: u64,
+    pending_l: LagMask,
 }
 
 impl MaskChain for DbnWalker<'_> {
-    type Sample = (AdjacencyMask, u64);
+    type Sample = (AdjacencyMask, LagMask);
 
     fn current_score(&self) -> f64 {
         self.cur
@@ -848,19 +1032,19 @@ impl MaskChain for DbnWalker<'_> {
 
     fn propose(&mut self, rng: &mut CausalRng) -> u64 {
         let (cmask, lmask, rejected) =
-            propose_dbn(self.cmask, self.lmask, self.p, self.max_lag, rng);
+            propose_dbn(&self.cmask, &self.lmask, self.p, self.max_lag, rng);
         self.pending_c = cmask;
         self.pending_l = lmask;
         rejected
     }
 
     fn proposed_score(&mut self) -> Option<f64> {
-        score_dbn_template(self.pending_c, self.pending_l, self.target, &mut self.cache)
+        score_dbn_template(&self.pending_c, &self.pending_l, self.target, &mut self.cache)
     }
 
     fn commit(&mut self, score: f64) {
-        self.cmask = self.pending_c;
-        self.lmask = self.pending_l;
+        self.cmask.clone_from(&self.pending_c);
+        self.lmask.clone_from(&self.pending_l);
         self.cur = score;
     }
 
@@ -871,54 +1055,78 @@ impl MaskChain for DbnWalker<'_> {
                 if i == j {
                     continue;
                 }
-                row[idx] = if has_edge(self.cmask, self.p, i, j) { 1.0 } else { 0.0 };
+                row[idx] = if self.cmask.has_edge(self.p, i, j) { 1.0 } else { 0.0 };
                 idx += 1;
             }
         }
         for b in 0..self.n_lag_bits {
-            row[idx + b] = if (self.lmask >> b) & 1 == 1 { 1.0 } else { 0.0 };
+            row[idx + b] = if self.lmask.bit(crate::indexing::dense_u32(b)) { 1.0 } else { 0.0 };
         }
     }
 
-    fn sample(&self) -> (AdjacencyMask, u64) {
-        (self.cmask, self.lmask)
+    fn sample(&self) -> (AdjacencyMask, LagMask) {
+        (self.cmask.clone(), self.lmask.clone())
     }
 }
 
 fn propose_dbn(
-    cmask: AdjacencyMask,
-    lmask: u64,
+    cmask: &AdjacencyMask,
+    lmask: &LagMask,
     p: usize,
     max_lag: u32,
     rng: &mut antecedent_core::CausalRng,
-) -> (AdjacencyMask, u64, u64) {
+) -> (AdjacencyMask, LagMask, u64) {
     let mut rejected = 0u64;
-    if rng.next_f64() < 0.5 {
+    if max_lag == 0 || rng.next_f64() < 0.5 {
         // Flip a contemporaneous directed edge.
         let i = crate::indexing::bounded_index(rng.next_u64(), p);
         let j = crate::indexing::bounded_index(rng.next_u64(), p);
         if i == j {
-            return (cmask, lmask, 0);
+            return (cmask.clone(), lmask.clone(), 0);
         }
-        let on = has_edge(cmask, p, i, j);
-        let prop = set_edge(cmask, p, i, j, !on);
-        if mask_is_dag(prop, p) {
-            (prop, lmask, 0)
+        let on = cmask.has_edge(p, i, j);
+        let mut prop = cmask.clone();
+        prop.set_edge(p, i, j, !on);
+        if mask_is_dag(&prop, p) {
+            (prop, lmask.clone(), 0)
         } else {
             rejected += 1;
-            (cmask, lmask, rejected)
+            (cmask.clone(), lmask.clone(), rejected)
         }
     } else {
         // Flip a lag edge.
         let n_lag_bits = (max_lag as usize) * p * p;
         let b = crate::indexing::bounded_index(rng.next_u64(), n_lag_bits.max(1));
-        let prop = lmask ^ (1u64 << b);
-        (cmask, prop, 0)
+        let b = crate::indexing::dense_u32(b);
+        let prop = lmask.clone().with_bit(b, !lmask.bit(b));
+        (cmask.clone(), prop, 0)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn temporal_template_conversion_polls_and_handles_empty_variables() {
+        let vars = [antecedent_core::VariableId::from_raw(0)];
+        let mut checks = 0;
+        let result =
+            super::temporal_dag_from_dbn_atoms_cancellable(0u64, 0u64, 1, 100, &vars, || {
+                checks += 1;
+                checks >= 4
+            })
+            .unwrap();
+        assert!(result.is_none());
+        let empty =
+            super::temporal_dag_from_dbn_atoms_cancellable(0u64, 0u64, 0, u32::MAX, &[], || false)
+                .unwrap();
+        assert!(empty.is_some());
+        assert!(
+            super::temporal_pag_from_dbn_atoms_cancellable(0u64, 0u64, 0u64, 1, 1, &vars, || true)
+                .unwrap()
+                .is_none()
+        );
+    }
+
     use super::*;
     use antecedent_core::{
         CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet,
@@ -973,6 +1181,166 @@ mod tests {
     }
 
     #[test]
+    fn invalid_public_edge_inclusion_is_refused_before_dbn_scoring() {
+        let (data, vars) = lag1_series(30);
+        for value in [f64::NAN, f64::INFINITY, 0.0, 1.0, -0.1, 1.1] {
+            let prior = GraphPrior { edge_inclusion: Some(value), ..GraphPrior::uniform() };
+            let error = DbnPosterior::new(1)
+                .run(
+                    &data,
+                    &vars,
+                    &prior,
+                    GraphScoreFamily::GaussianBic,
+                    &ExecutionContext::for_tests(1),
+                )
+                .unwrap_err();
+            assert!(
+                matches!(error, DiscoveryError::Refused { code: "invalid_argument", message } if message.contains("Bernoulli edge prior"))
+            );
+        }
+        assert!(GraphPrior::bernoulli_edges(0.5).unwrap().validate_edge_inclusion().is_ok());
+        assert!(GraphPrior::uniform().validate_edge_inclusion().is_ok());
+    }
+
+    #[test]
+    fn invalid_public_edge_inclusion_is_refused_by_every_static_entrypoint() {
+        let x = [0.0, 1.0, 2.0, 3.0];
+        let y = [0.0, 1.0, 0.0, 2.0];
+        let data = antecedent_data::TabularData::from_f64_columns([
+            ("x", x.as_slice()),
+            ("y", y.as_slice()),
+        ])
+        .unwrap();
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let prior = GraphPrior { edge_inclusion: Some(f64::NAN), ..GraphPrior::uniform() };
+        let ctx = ExecutionContext::for_tests(1);
+        let mut ws = crate::DiscoveryWorkspace::default();
+        let family = GraphScoreFamily::GaussianBic;
+        let results = [
+            crate::ExactDagPosterior::new().run(&data, &vars, &prior, family, &mut ws, &ctx),
+            crate::OrderMcmc::new().run(&data, &vars, &prior, family, &mut ws, &ctx),
+            crate::StructureMcmc::new().run(&data, &vars, &prior, family, &mut ws, &ctx),
+            crate::CiScreenedPosterior::new().run(&data, &vars, &prior, family, &mut ws, &ctx),
+        ];
+        for result in results {
+            assert!(
+                matches!(result, Err(DiscoveryError::Refused { code: "invalid_argument", message }) if message.contains("Bernoulli edge prior"))
+            );
+        }
+        assert!(matches!(crate::exact_dag_marginals(&data, &vars, &prior, family, &ctx),
+            Err(DiscoveryError::Refused { code: "invalid_argument", message }) if message.contains("Bernoulli edge prior")));
+    }
+
+    #[test]
+    fn dbn_prior_range_and_static_template_are_honored() {
+        let (data, vars) = lag1_series(80);
+        let ctx = ExecutionContext::for_tests(1);
+        let run = |engine: &DbnPosterior, prior: &GraphPrior| {
+            engine.run(&data, &vars, prior, GraphScoreFamily::GaussianBic, &ctx)
+        };
+        let unqualified = run(&DbnPosterior::new(1), &GraphPrior::uniform()).unwrap();
+        assert!(unqualified.lagged_edge_marginals().unwrap()[1] > 0.0);
+        let static_post = run(&DbnPosterior::new(0), &GraphPrior::uniform()).unwrap();
+        assert_eq!(static_post.max_lag(), Some(0));
+        assert!(static_post.lagged_edge_marginals().unwrap().is_empty());
+
+        let mut constraints = crate::constraints::DiscoveryConstraints::default();
+        constraints.temporal.min_lag = Lag::from_raw(1);
+        constraints.temporal.max_lag = Lag::from_raw(1);
+        let prior = GraphPrior::uniform().with_constraints(constraints.clone());
+        let exact = run(&DbnPosterior::new(2), &prior).unwrap();
+        assert!(exact.edge_marginals().iter().all(|&v| v == 0.0));
+        assert!(exact.lagged_edge_marginals().unwrap()[4..].iter().all(|&v| v == 0.0));
+
+        // MCMC and exact share the scoring predicate; test both proposals directly so the
+        // assertion does not depend on MCMC diagnostics or random convergence.
+        let (score_data, _) =
+            build_lagged_score_data(std::slice::from_ref(&data), &vars, 2).unwrap();
+        let target = DbnTarget {
+            p: 2,
+            max_lag: 2,
+            data: &score_data,
+            prior: &prior,
+            variables: &vars,
+            score_family: GraphScoreFamily::GaussianBic,
+            pair_logs: None,
+        };
+        let mut cache = target.score_cache();
+        let mut contemp = AdjacencyMask::EMPTY;
+        contemp.set_edge(2, 0, 1, true);
+        assert!(score_dbn_template(&contemp, &LagMask::EMPTY, &target, &mut cache).is_none());
+        let lag2 = LagMask::EMPTY.with_bit(lag_bit(2, 2, 2, 0, 1), true);
+        assert!(score_dbn_template(&AdjacencyMask::EMPTY, &lag2, &target, &mut cache).is_none());
+        let lag1 = LagMask::EMPTY.with_bit(lag_bit(2, 2, 1, 0, 1), true);
+        assert!(score_dbn_template(&AdjacencyMask::EMPTY, &lag1, &target, &mut cache).is_some());
+
+        let mut rng = antecedent_core::CausalRng::from_seed(4);
+        for _ in 0..100 {
+            let (_, lag, _) = propose_dbn(&AdjacencyMask::EMPTY, &LagMask::EMPTY, 2, 0, &mut rng);
+            assert_eq!(lag.set_bits().count(), 0);
+        }
+        constraints.temporal.min_lag = Lag::from_raw(2);
+        assert!(
+            run(
+                &DbnPosterior::new(2),
+                &GraphPrior::uniform().with_constraints(constraints.clone())
+            )
+            .is_err()
+        );
+        constraints.temporal.max_lag = Lag::from_raw(2);
+        constraints.required = Arc::from([crate::result::LaggedLink {
+            source: vars[0],
+            source_lag: Lag::from_raw(2),
+            target: vars[1],
+            target_lag: Lag::CONTEMPORANEOUS,
+        }]);
+        assert!(
+            run(&DbnPosterior::new(1), &GraphPrior::uniform().with_constraints(constraints))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn dbn_mcmc_emits_atoms_in_deterministic_paired_order() {
+        let (data, vars) = multi_parent_lag_series(260);
+        let engine = DbnPosterior::new(1).with_force_mcmc(true).with_mcmc_schedule(2, 300, 4000);
+        // Reuse a fixture whose required-edge support gives stable diagnostics;
+        // the assertion concerns publication order rather than chain calibration.
+        let prior =
+            GraphPrior::uniform().with_constraints(crate::constraints::DiscoveryConstraints {
+                temporal: crate::constraints::TemporalConstraints {
+                    min_lag: Lag::from_raw(1),
+                    max_lag: Lag::from_raw(1),
+                },
+                required: Arc::from([0usize, 2usize].map(|from| crate::result::LaggedLink {
+                    source: vars[from],
+                    source_lag: Lag::from_raw(1),
+                    target: vars[1],
+                    target_lag: Lag::CONTEMPORANEOUS,
+                })),
+                ..Default::default()
+            });
+        let run = || {
+            engine
+                .run(
+                    &data,
+                    &vars,
+                    &prior,
+                    GraphScoreFamily::GaussianBic,
+                    &ExecutionContext::for_tests(3),
+                )
+                .unwrap()
+        };
+        let a = run();
+        let b = run();
+        assert_eq!(a.atoms(), b.atoms());
+        assert_eq!(a.lag_masks(), b.lag_masks());
+        assert_eq!(a.weights(), b.weights());
+        let keys: Vec<_> = a.atoms().iter().zip(a.lag_masks().unwrap().iter()).collect();
+        assert!(keys.windows(2).all(|w| w[0] < w[1]));
+    }
+
+    #[test]
     fn dbn_recovers_lag1_edge() {
         let (data, vars) = lag1_series(200);
         let eng = DbnPosterior::new(1);
@@ -993,8 +1361,8 @@ mod tests {
                 &ExecutionContext::for_tests(1),
             )
             .unwrap();
-        assert_eq!(post.max_lag, Some(1));
-        let lagged = post.lagged_edge_marginals.as_ref().unwrap();
+        assert_eq!(post.max_lag(), Some(1));
+        let lagged = post.lagged_edge_marginals().unwrap();
         // lag-1 bit for from=0 → to=1 is index 0*4 + 0*2 + 1 = 1
         assert!(lagged[1] > 0.4, "P(x_{{t-1}}→y_t)={}", lagged[1]);
     }
@@ -1069,8 +1437,8 @@ mod tests {
                 &ExecutionContext::for_tests(1),
             )
             .unwrap();
-        assert_eq!(post.max_lag, Some(2));
-        let lagged = post.lagged_edge_marginals.as_ref().unwrap();
+        assert_eq!(post.max_lag(), Some(2));
+        let lagged = post.lagged_edge_marginals().unwrap();
         let p = 2usize;
         let idx_lag1_xy = lag_bit(p, 2, 1, 0, 1) as usize;
         let idx_lag2_xy = lag_bit(p, 2, 2, 0, 1) as usize;
@@ -1163,8 +1531,8 @@ mod tests {
                 &ExecutionContext::for_tests(1),
             )
             .unwrap();
-        assert_eq!(post.max_lag, Some(1));
-        let lagged = post.lagged_edge_marginals.as_ref().unwrap();
+        assert_eq!(post.max_lag(), Some(1));
+        let lagged = post.lagged_edge_marginals().unwrap();
         let p = 3usize;
         // x=0, y=1, z=2.
         let idx_x_to_y = lag_bit(p, 1, 1, 0, 1) as usize;
@@ -1217,7 +1585,7 @@ mod tests {
                 &ExecutionContext::for_tests(1),
             )
             .unwrap();
-        let lagged = post.lagged_edge_marginals.as_ref().unwrap();
+        let lagged = post.lagged_edge_marginals().unwrap();
         let p = 3usize;
         let idx_x_to_y = lag_bit(p, 1, 1, 0, 1) as usize;
         let idx_z_to_y = lag_bit(p, 1, 1, 2, 1) as usize;
@@ -1279,12 +1647,74 @@ mod tests {
             )
             .unwrap();
         let p = 3usize;
-        let lagged = post.lagged_edge_marginals.as_ref().unwrap();
-        let mcse = post.lagged_edge_mcse.as_ref().expect("MCMC posterior reports edge MCSE");
+        let lagged = post.lagged_edge_marginals().unwrap();
+        let mcse = post.lagged_edge_mcse().expect("MCMC posterior reports edge MCSE");
         for from in [0usize, 2] {
             let b = lag_bit(p, 1, 1, from, 1) as usize;
             assert!((lagged[b] - 1.0).abs() < 1e-12, "required edge marginal {}", lagged[b]);
             assert_eq!(mcse[b], 0.0);
         }
+    }
+
+    #[test]
+    fn exact_budget_keeps_the_earlier_exact_cases_and_drops_wide_spaces() {
+        // Every shape the earlier rule (p <= 4, max_lag <= 2, <= 10 lag bits) enumerated.
+        for (p, max_lag) in [(1usize, 1usize), (1, 2), (2, 1), (2, 2), (3, 1)] {
+            assert!(exact_fits_budget(p, max_lag * p * p), "p={p} lag={max_lag}");
+        }
+        // The earlier rule sent these to MCMC and they stay there.
+        assert!(!exact_fits_budget(3, 18));
+        assert!(!exact_fits_budget(4, 16));
+        assert!(!exact_fits_budget(5, 25));
+        assert!(!exact_fits_budget(6, 1));
+        assert!(!exact_fits_budget(1, 64));
+        assert!(!exact_fits_budget(2, usize::MAX));
+        assert!(!exact_fits_budget(7, 1));
+    }
+
+    #[test]
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the fixture uses bounded graph and dataset sizes"
+    )]
+    fn lag_templates_wider_than_a_word_build_graphs_and_marginals() {
+        let n_vars = 3usize;
+        let max_lag = 9u32;
+        let variables: Vec<_> = (0..n_vars as u32).map(VariableId::from_raw).collect();
+        // Lag 9, 2 -> 1 sits at bit 8 * 9 + 2 * 3 + 1 = 79, past the first word.
+        let high = lag_bit(n_vars, max_lag, 9, 2, 1);
+        assert_eq!(high, 79);
+        let lmask =
+            LagMask::EMPTY.with_bit(lag_bit(n_vars, max_lag, 1, 0, 1), true).with_bit(high, true);
+        assert!(has_lag_edge(&lmask, n_vars, max_lag, 9, 2, 1));
+        assert!(!has_lag_edge(&lmask, n_vars, max_lag, 9, 1, 2));
+        temporal_dag_from_dbn_atoms(0u64, lmask.clone(), n_vars, max_lag, &variables).unwrap();
+        let graph =
+            temporal_cpdag_from_dbn_atoms(0u64, &lmask, n_vars, max_lag, &variables).unwrap();
+        // x_{t-1}, y_t and z_{t-9}.
+        assert_eq!(graph.nodes().len(), 3);
+        let marginals = accumulate_lagged_marginals(
+            n_vars,
+            max_lag,
+            &[0.25, 0.75],
+            &[lmask, LagMask::EMPTY.with_bit(high, true)],
+        );
+        assert_eq!(marginals.len(), 81);
+        assert!((marginals[high as usize] - 1.0).abs() < 1e-12);
+        assert!((marginals[1] - 0.25).abs() < 1e-12);
+    }
+
+    #[test]
+    fn a_lag_proposal_can_flip_a_bit_past_the_first_word() {
+        let mut rng = antecedent_core::CausalRng::from_seed(5);
+        let (cmask, lmask) = (AdjacencyMask::EMPTY, LagMask::EMPTY);
+        let mut seen_high = false;
+        for _ in 0..2000 {
+            let (c, l, rejected) = propose_dbn(&cmask, &lmask, 3, 9, &mut rng);
+            assert_eq!(rejected, 0);
+            assert!(mask_is_dag(&c, 3));
+            seen_high |= l.set_bits().any(|b| b >= 64);
+        }
+        assert!(seen_high);
     }
 }

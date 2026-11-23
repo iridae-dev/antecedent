@@ -12,13 +12,16 @@ use antecedent::analysis::composition::{
     ProviderOrData, SuppliedSources, TRUST_ATTESTED, consume, export_bundle, mean_result_to_bytes,
     mean_source_of,
 };
+use antecedent::analysis::composition_decision_terminal::{
+    compile_decision_bundle_recomputation, consume_portable_decision_bundle_recomputation,
+};
 use antecedent_contract::{
     CheckedCausalContract, DistributionMeaning, ExternalCapability, ExternalResponse,
     ExternalResult, ExternalResultHeader, ExternalScientificObject, ExternalTrustState,
     ExternalUncertaintyMeaning, LawProviderContract, ProviderObjectIdentity, QuantityRole,
     ScientificQuantity, bind_external_result,
 };
-use antecedent_core::{IdentificationStatus, SupportStatus};
+use antecedent_core::{ExecutionContext, IdentificationStatus, SupportStatus};
 use antecedent_design::decision_artifact::{DecisionContractArtifact, DecisionResultArtifact};
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, HardConstraint,
@@ -253,6 +256,28 @@ fn native_builder(n: &Native, reverse: bool) -> BundleBuilder {
 }
 
 #[test]
+fn live_decision_terminal_replays_from_an_embedded_bundle() {
+    let native = native();
+    let bundle = native_builder(&native, false).build().unwrap();
+    let ctx = ExecutionContext::for_tests(77);
+    let plan =
+        compile_decision_bundle_recomputation(bundle.clone(), "result", contract(), source())
+            .unwrap();
+    let receipt = plan.execute(&ctx).unwrap();
+    assert_eq!(receipt.dependencies.len(), 3);
+    assert!(!receipt.decision_fingerprint.is_empty());
+    let bytes = plan.export_portable(&receipt, &ctx).unwrap();
+    let replay = consume_portable_decision_bundle_recomputation(
+        &bytes,
+        bundle.identity(),
+        plan.lowered().identity(),
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(replay, receipt);
+}
+
+#[test]
 fn facade_a_built_bundle_is_consumed_independently_and_reports_the_decision() {
     let n = native();
     let bundle = native_builder(&n, false).build().unwrap();
@@ -396,13 +421,22 @@ fn facade_refusals_name_their_stage_and_a_retained_identity_is_required() {
     let wrong = consume(&bytes, &"0".repeat(64), &SuppliedSources::default()).unwrap_err();
     assert_eq!(stage_of(&wrong), BundleStage::ExpectedIdentityMismatch);
     let refusal = wrong.to_refusal().unwrap();
-    assert_eq!(refusal.detail, "composition_bundle.expected_identity_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_bundle::EXPECTED_IDENTITY_MISMATCH
+    );
 
     // A byte flipped in the container is a container refusal, not a verified bundle.
     let mut flipped = bytes.clone();
     let middle = flipped.len() / 2;
     flipped[middle] ^= 0xff;
-    assert!(consume(&flipped, bundle.identity(), &SuppliedSources::default()).is_err());
+    assert_eq!(
+        consume(&flipped, bundle.identity(), &SuppliedSources::default())
+            .err()
+            .unwrap()
+            .to_string(),
+        "composition bundle container: checksum mismatch for section `embedded.distribution`"
+    );
 
     // A reference that must answer one exact request refuses another.
     let mut builder = BundleBuilder::new();
@@ -429,7 +463,10 @@ fn facade_refusals_name_their_stage_and_a_retained_identity_is_required() {
     .unwrap();
     assert_eq!(failed_stage(&changed, "provider"), BundleStage::ProviderRequestChanged);
     let refusal = changed.require_verified().unwrap_err().to_refusal().unwrap();
-    assert_eq!(refusal.detail, "composition_bundle.provider_request_changed");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_bundle::PROVIDER_REQUEST_CHANGED
+    );
 }
 
 #[test]
@@ -441,7 +478,10 @@ fn facade_evidence_relationships_are_checked_against_the_studies_they_name() {
         builder.add_detected_artifact(Some("b"), &second.to_bytes("b").unwrap()).unwrap();
         let id = builder.relate("b", "a", EvidenceRelationship::Independent).unwrap();
         assert_eq!(id, "relation:a:b");
-        assert!(builder.relate("a", "b", EvidenceRelationship::SharedData).is_err());
+        assert_eq!(
+            builder.relate("a", "b", EvidenceRelationship::SharedData).err().unwrap().to_string(),
+            "composition_bundle.edge_digest_mismatch: a node id is repeated (node `relation:a:b`)"
+        );
         let bundle = builder.build().unwrap();
         let bytes = export_bundle(&bundle, "studies").unwrap();
         consume(&bytes, bundle.identity(), &SuppliedSources::default()).unwrap()

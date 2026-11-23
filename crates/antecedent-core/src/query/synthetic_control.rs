@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::QueryError;
+use super::fault::PanelDesignFault;
+use crate::canonical_encode::{CanonicalEncode, encode_i64s, flag, i64_bits};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 use std::sync::Arc;
 
@@ -14,6 +17,71 @@ pub enum SyntheticPanelMethod {
     /// Difference in differences with convex donor and pre-period weights.
     DifferenceInDifferences,
 }
+
+impl CanonicalEncode for SyntheticPanelMethod {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let tag = match self {
+            Self::Control => 1,
+            Self::DifferenceInDifferences => 2,
+        };
+        writer.word(tag);
+    }
+}
+
+/// Interval construction of a synthetic rollout.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum SyntheticInterval {
+    /// Conformal inference by inverting a permutation test over time (one treated unit).
+    #[default]
+    Conformal,
+    /// Placebo variance from reassigning the adoptions to never-treated units.
+    PlaceboVariance,
+}
+
+impl SyntheticInterval {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Conformal => "conformal",
+            Self::PlaceboVariance => "placebo_variance",
+        }
+    }
+}
+
+/// The adopting units and interval construction of a synthetic panel with intervals.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SyntheticRollout {
+    /// Every adopting unit with its first treated period; it lists the query's treated unit at
+    /// its intervention period.
+    pub adoptions: Arc<[(Arc<str>, i64)]>,
+    /// Interval construction.
+    pub interval: SyntheticInterval,
+    /// Placebo replicates; zero for a conformal interval.
+    pub replicates: u32,
+}
+
+/// Every field is written; adoptions keep their declared order.
+impl CanonicalEncode for SyntheticRollout {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer.word(self.adoptions.len() as u64);
+        for (unit, period) in self.adoptions.iter() {
+            writer.text(unit).word(i64_bits(*period));
+        }
+        let interval = match self.interval {
+            SyntheticInterval::Conformal => 1,
+            SyntheticInterval::PlaceboVariance => 2,
+        };
+        writer.word(interval).word(u64::from(self.replicates));
+    }
+}
+
+/// Marker word ahead of the rollout field, written only when it is present so a query without
+/// it keeps its canonical bytes.
+const ROLLOUT_FIELD: u64 = 0x5359_4e52_4f4c_4c00;
+
+/// Marks a declared observed-window donor support in the canonical encoding.
+const OBSERVED_WINDOW_FIELD: u64 = 0x5359_4e4f_5753_5550;
 
 /// A balanced unit-by-period panel with one treated unit and donor units.
 ///
@@ -42,6 +110,37 @@ pub struct SyntheticControlQuery {
     pub sharp_null_effect: Option<f64>,
     /// Optional donor-trained ridge outcome-model correction to the simplex fit.
     pub augmentation_ridge: Option<f64>,
+    /// Adopting units and interval construction of a synthetic panel with intervals.
+    pub rollout: Option<SyntheticRollout>,
+    /// Read an unbalanced panel over the treated unit's observed window: donors are the units
+    /// observed in every period the treated unit is observed, and only those periods fit and
+    /// evaluate the weights. Nothing is imputed.
+    pub observed_window_support: bool,
+}
+
+/// Every field is written; `units` and `periods` are row-aligned and keep
+/// their order.
+impl CanonicalEncode for SyntheticControlQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.outcome.encode(writer);
+        writer.texts(&self.units);
+        encode_i64s(writer, &self.periods);
+        writer.text(&self.treated_unit).word(i64_bits(self.intervention_period));
+        self.method.encode(writer);
+        writer
+            .word(flag(self.uniform_unit_randomization))
+            .opt_real(self.sharp_null_effect)
+            .opt_real(self.augmentation_ridge);
+        if let Some(rollout) = &self.rollout {
+            writer.word(ROLLOUT_FIELD);
+            rollout.encode(writer);
+        }
+        // Absent for the balanced-panel default, so queries that never declared it keep
+        // their identity.
+        if self.observed_window_support {
+            writer.word(OBSERVED_WINDOW_FIELD);
+        }
+    }
 }
 
 impl SyntheticControlQuery {
@@ -64,7 +163,17 @@ impl SyntheticControlQuery {
             uniform_unit_randomization: false,
             sharp_null_effect: None,
             augmentation_ridge: None,
+            rollout: None,
+            observed_window_support: false,
         }
+    }
+
+    /// Read an unbalanced panel over the treated unit's observed window (see
+    /// [`Self::observed_window_support`]).
+    #[must_use]
+    pub fn with_observed_window_support(mut self) -> Self {
+        self.observed_window_support = true;
+        self
     }
 
     /// Use the same frozen panel for a synthetic difference-in-differences contrast.
@@ -96,6 +205,74 @@ impl SyntheticControlQuery {
         self
     }
 
+    /// Report conformal intervals for the single treated unit.
+    #[must_use]
+    pub fn with_conformal_intervals(mut self) -> Self {
+        self.rollout = Some(SyntheticRollout {
+            adoptions: Arc::from([(Arc::clone(&self.treated_unit), self.intervention_period)]),
+            interval: SyntheticInterval::Conformal,
+            replicates: 0,
+        });
+        self
+    }
+
+    /// Placebo replicates a declared clustered design runs when the query named no interval.
+    pub const DECLARED_CLUSTERED_PLACEBO_REPLICATES: u32 = 500;
+
+    /// Honour a declared sampling design on the single treated unit by the interval built for
+    /// it: a `dependent_time_series` declaration reports the conformal interval (it permutes the
+    /// treated unit's residual series over time), a `clustered_panel` declaration reports the
+    /// placebo-variance interval (it reassigns the adoption across whole units). A query that
+    /// already names an interval, or whose other options the interval cannot be combined with
+    /// (a unit-randomization test, a ridge augmentation, and for the conformal interval the
+    /// synthetic difference in differences), is left unchanged for the executor to refuse.
+    pub fn honor_declared_dependence(&mut self, design: Option<crate::DeclaredSamplingDesign>) {
+        use crate::DeclaredSamplingDesign as Design;
+        if self.rollout.is_some()
+            || self.uniform_unit_randomization
+            || self.sharp_null_effect.is_some()
+            || self.augmentation_ridge.is_some()
+        {
+            return;
+        }
+        let adoptions: Arc<[(Arc<str>, i64)]> =
+            Arc::from([(Arc::clone(&self.treated_unit), self.intervention_period)]);
+        match design {
+            Some(Design::DependentTimeSeries) if self.method == SyntheticPanelMethod::Control => {
+                self.rollout = Some(SyntheticRollout {
+                    adoptions,
+                    interval: SyntheticInterval::Conformal,
+                    replicates: 0,
+                });
+            }
+            Some(Design::ClusteredPanel) => {
+                self.rollout = Some(SyntheticRollout {
+                    adoptions,
+                    interval: SyntheticInterval::PlaceboVariance,
+                    replicates: Self::DECLARED_CLUSTERED_PLACEBO_REPLICATES,
+                });
+            }
+            _ => {}
+        }
+    }
+
+    /// Fit every adopting unit of a staggered rollout against the never-treated donors and
+    /// report placebo-variance intervals from `replicates` placebo reassignments.
+    /// `adoptions` must list the query's treated unit at its intervention period.
+    #[must_use]
+    pub fn with_staggered_adoptions(
+        mut self,
+        adoptions: impl Into<Arc<[(Arc<str>, i64)]>>,
+        replicates: u32,
+    ) -> Self {
+        self.rollout = Some(SyntheticRollout {
+            adoptions: adoptions.into(),
+            interval: SyntheticInterval::PlaceboVariance,
+            replicates,
+        });
+        self
+    }
+
     /// Validate frozen metadata before compiling the analysis.
     ///
     /// # Errors
@@ -114,26 +291,66 @@ impl SyntheticControlQuery {
             || self.periods.iter().any(|period| *period <= 0)
         {
             return Err(QueryError::InvalidRandomizedEffect(
-                "synthetic control requires aligned nonempty units, positive periods, and a treated unit with a positive intervention period".into(),
+                PanelDesignFault::SyntheticControlPanel,
             ));
         }
         if let Some(ridge) = self.augmentation_ridge {
             if !ridge.is_finite() || ridge <= 0.0 {
-                return Err(QueryError::InvalidRandomizedEffect(
-                    "augmented synthetic control requires a finite positive ridge penalty".into(),
-                ));
+                return Err(QueryError::InvalidRandomizedEffect(PanelDesignFault::AugmentedRidge));
             }
             if self.method != SyntheticPanelMethod::Control {
                 return Err(QueryError::InvalidRandomizedEffect(
-                    "augmented synthetic control cannot be combined with synthetic DiD".into(),
+                    PanelDesignFault::AugmentedWithDid,
                 ));
             }
         }
-        if let Some(effect) = self.sharp_null_effect {
-            if !effect.is_finite() || !self.uniform_unit_randomization {
+        if let Some(effect) = self.sharp_null_effect
+            && (!effect.is_finite() || !self.uniform_unit_randomization)
+        {
+            return Err(QueryError::InvalidRandomizedEffect(
+                PanelDesignFault::SharpNullRandomization,
+            ));
+        }
+        if let Some(rollout) = &self.rollout {
+            let units = rollout
+                .adoptions
+                .iter()
+                .map(|(unit, _)| unit)
+                .collect::<std::collections::BTreeSet<_>>();
+            if rollout.adoptions.is_empty()
+                || units.len() != rollout.adoptions.len()
+                || rollout
+                    .adoptions
+                    .iter()
+                    .any(|(unit, period)| unit.trim().is_empty() || *period <= 0)
+                || !rollout.adoptions.iter().any(|(unit, period)| {
+                    *unit == self.treated_unit && *period == self.intervention_period
+                })
+            {
                 return Err(QueryError::InvalidRandomizedEffect(
-                    "a finite sharp-null effect requires declared uniform single-unit randomization".into(),
+                    PanelDesignFault::SyntheticAdoptions,
                 ));
+            }
+            if self.uniform_unit_randomization || self.augmentation_ridge.is_some() {
+                return Err(QueryError::InvalidRandomizedEffect(
+                    PanelDesignFault::IntervalWithRandomizationTest,
+                ));
+            }
+            match rollout.interval {
+                SyntheticInterval::Conformal
+                    if rollout.adoptions.len() != 1
+                        || self.method != SyntheticPanelMethod::Control =>
+                {
+                    return Err(QueryError::InvalidRandomizedEffect(
+                        PanelDesignFault::ConformalIntervalDesign,
+                    ));
+                }
+                SyntheticInterval::PlaceboVariance if rollout.replicates < 2 => {
+                    return Err(QueryError::InvalidRandomizedEffect(
+                        PanelDesignFault::PlaceboReplicates,
+                    ));
+                }
+                _ => {}
             }
         }
         Ok(())

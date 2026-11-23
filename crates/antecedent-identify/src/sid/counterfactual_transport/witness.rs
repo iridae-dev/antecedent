@@ -32,26 +32,57 @@
 //! models. The search is a bounded heuristic, never a proof by itself: when no
 //! witness is found the decision stays `not_certified`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_core::SearchStop;
+use antecedent_core::execution::AdmissionLease;
 use serde::{Deserialize, Serialize};
 
 use super::CounterfactualTransportProblem as Problem;
 use super::network::{Built, Input, Network, WorldIdx, build_network};
 
-/// Most response-function tuples of the varied clique.
-const MAX_CLIQUE_STATES: usize = 256;
-/// Most response-function tuples of the independent baseline (uniform kind).
-const MAX_BASELINE_STATES: usize = 4096;
-/// Most parent-configuration rows of one variable's response function.
-const MAX_DOMAIN: usize = 16;
-/// Most regime-law cells (rows of the evidence matrix).
-const MAX_ROWS: usize = 4096;
-/// Most simulations one witness may need (states times regimes times levels).
-pub(super) const MAX_SIMULATIONS: u64 = 1 << 22;
+/// Simulations (one response-function tuple against one regime and level) one operation of
+/// the caller's budget pays for. A witness needs `states * baseline states * regimes`
+/// simulations; the search and the verifier refuse what the operations they are given
+/// cannot pay for, and the tables are charged to the memory budget before they are built.
+pub(super) const SIMULATIONS_PER_OPERATION: u64 = 1 << 8;
+
+/// What the witness search charges its work against: the caller's shared budget.
+pub(super) trait WitnessMeter {
+    /// Charge one operation at `depth` whose live state needs `bytes`; `leaves` is the local
+    /// enumeration position, informational only.
+    fn charge(&mut self, depth: usize, bytes: u64, leaves: Option<u64>) -> Result<(), SearchStop>;
+
+    /// Operations the shared budget still allows.
+    fn operations_remaining(&self) -> u64;
+
+    /// Lease `bytes` of storage from the shared pool before it is allocated; the caller holds
+    /// the lease for as long as the storage lives.
+    fn lease_storage(&mut self, bytes: u64) -> Result<Option<AdmissionLease>, SearchStop>;
+}
+
+/// Charge `simulations` simulations to the shared budget, [`SIMULATIONS_PER_OPERATION`] to the
+/// operation (at least one), polling cancellation as it goes. `Ok(false)` when the remaining
+/// operations cannot pay for them: nothing is charged and the caller skips the work.
+fn charge_simulations(meter: &mut dyn WitnessMeter, simulations: u64) -> Result<bool, SearchStop> {
+    let operations = simulations.div_ceil(SIMULATIONS_PER_OPERATION).max(1);
+    if operations > meter.operations_remaining() {
+        return Ok(false);
+    }
+    for _ in 0..operations {
+        meter.charge(0, 0, None)?;
+    }
+    Ok(true)
+}
+
+const UNAFFORDABLE: &str = "an attempt needs more simulations than the remaining budget pays for";
+
+/// The product of `factors`, or `None` when it does not fit `usize`.
+fn checked_product(factors: impl IntoIterator<Item = usize>) -> Option<usize> {
+    factors.into_iter().try_fold(1usize, usize::checked_mul)
+}
 
 /// What a verified witness established.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -98,6 +129,8 @@ pub(super) struct WitnessProblem<'a> {
     pub(super) numerator: &'a BTreeMap<(usize, usize), usize>,
     /// Conditioning atoms (empty for an unconditional query).
     pub(super) given: &'a BTreeMap<(usize, usize), usize>,
+    /// Simulations the caller's budget allows this search or verification.
+    pub(super) simulations: u64,
 }
 
 /// Result of a witness search.
@@ -287,13 +320,6 @@ impl<'a> Model<'a> {
                 .iter()
                 .try_fold(1usize, |acc, &p| acc.checked_mul(positions[p].len()))
                 .ok_or_else(|| "a response function has too many rows".to_owned())?;
-            if rows > MAX_DOMAIN {
-                return Err(format!(
-                    "variable {} has {rows} parent configurations; the witness model class \
-                     is bounded at {MAX_DOMAIN}",
-                    problem.variables[v].raw()
-                ));
-            }
             let count = pow_usize(positions[v].len(), rows)
                 .ok_or_else(|| "a response-function space overflows".to_owned())?;
             dom.push(rows);
@@ -419,7 +445,6 @@ impl<'a> Model<'a> {
             entries.push(LayoutEntry { population, zvars, fvars, zcount, ccount, offset });
             offset = offset
                 .checked_add(cells)
-                .filter(|&o| o <= MAX_ROWS)
                 .ok_or_else(|| "the declared family has too many regime-law cells".to_owned())?;
             simulations = simulations.saturating_add(zcount as u64);
         }
@@ -511,6 +536,29 @@ struct Counts {
     denominator: Vec<i128>,
 }
 
+/// Simulations one attempt (one clique against one baseline) runs: one per response-function
+/// state of the clique, of the baseline's rest, and of every regime of the family. `None` when
+/// the state spaces are not representable.
+fn attempt_simulations(
+    model: &Model<'_>,
+    layout: &Layout,
+    clique: &[usize],
+    baseline: Baseline,
+) -> Option<u64> {
+    let states = checked_product(clique.iter().map(|&v| model.nfun[v]))?;
+    let rest_states = match baseline {
+        Baseline::Uniform => {
+            checked_product((0..model.n).filter(|v| !clique.contains(v)).map(|v| model.nfun[v]))?
+        }
+        _ => 1,
+    };
+    Some(
+        (states as u64)
+            .saturating_mul(rest_states.max(1) as u64)
+            .saturating_mul(layout.simulations.max(1)),
+    )
+}
+
 fn collect_counts(
     model: &Model<'_>,
     layout: &Layout,
@@ -519,8 +567,8 @@ fn collect_counts(
 ) -> Option<(Counts, usize, usize)> {
     let n = model.n;
     let clique_radices: Vec<usize> = clique.iter().map(|&v| model.nfun[v]).collect();
-    let states: usize = clique_radices.iter().product();
-    if !(2..=MAX_CLIQUE_STATES).contains(&states) {
+    let states = checked_product(clique_radices.iter().copied())?;
+    if states < 2 {
         return None;
     }
     let rest: Vec<usize> = (0..n).filter(|v| !clique.contains(v)).collect();
@@ -528,16 +576,7 @@ fn collect_counts(
         Baseline::Uniform => rest.iter().map(|&v| model.nfun[v]).collect(),
         _ => Vec::new(),
     };
-    let rest_states: usize = rest_radices.iter().product();
-    if rest_states > MAX_BASELINE_STATES {
-        return None;
-    }
-    let work = (states as u64)
-        .saturating_mul(rest_states.max(1) as u64)
-        .saturating_mul(layout.simulations.max(1));
-    if work > MAX_SIMULATIONS {
-        return None;
-    }
+    let rest_states = checked_product(rest_radices.iter().copied())?;
     let mut counts = Counts {
         cells: vec![vec![0i128; states]; layout.rows],
         numerator: vec![0; states],
@@ -642,6 +681,31 @@ fn nullspace(rows: &[Vec<i128>], cols: usize) -> Option<Vec<Vec<i128>>> {
     Some(basis)
 }
 
+/// Append every non-empty bidirected clique extending `current` with variables drawn from
+/// `candidates` (all above the last member and adjacent to every member), ascending, metering
+/// every clique found against the budget (they are not operations of its receipt).
+fn extend_cliques(
+    problem: &Problem,
+    current: &mut Vec<usize>,
+    candidates: u32,
+    out: &mut Vec<Vec<usize>>,
+    charge: &mut dyn WitnessMeter,
+) -> Result<(), SearchStop> {
+    let mut remaining = candidates;
+    while remaining != 0 {
+        let v = remaining.trailing_zeros() as usize;
+        remaining &= remaining - 1;
+        current.push(v);
+        charge.charge(0, (out.len() as u64 + 1).saturating_mul(64), Some(out.len() as u64 + 1))?;
+        out.push(current.clone());
+        let above = u32::MAX.checked_shl(u32::try_from(v + 1).unwrap_or(32)).unwrap_or(0);
+        let next = candidates & problem.bidirected_mask[v] & above;
+        extend_cliques(problem, current, next, out, charge)?;
+        current.pop();
+    }
+    Ok(())
+}
+
 /// Search for a verified witness; see the module documentation.
 #[allow(
     clippy::too_many_lines,
@@ -649,7 +713,7 @@ fn nullspace(rows: &[Vec<i128>], cols: usize) -> Option<Vec<Vec<i128>>> {
 )]
 pub(super) fn search_witness(
     wp: &WitnessProblem<'_>,
-    charge: &mut dyn FnMut(usize, u64) -> Result<(), SearchStop>,
+    charge: &mut dyn WitnessMeter,
 ) -> Result<WitnessOutcome, SearchStop> {
     let model = match Model::new(wp) {
         Ok(model) => model,
@@ -660,23 +724,37 @@ pub(super) fn search_witness(
         Err(reason) => return Ok(WitnessOutcome::NotFound(reason)),
     };
     let n = model.n;
-    // Cliques of the bidirected graph, largest first, then ascending mask.
+    // Cliques of the bidirected graph, largest first, then ascending mask. They are grown
+    // by extension and charged one by one, so the work follows the number of cliques the
+    // budget pays for, not the `2^n` subsets of the variables.
     let mut cliques: Vec<Vec<usize>> = Vec::new();
-    for mask in 1u32..(1u32 << n) {
-        let vars: Vec<usize> = (0..n).filter(|v| (mask >> *v) & 1 == 1).collect();
-        if is_clique(wp.problem, &vars) {
-            cliques.push(vars);
-        }
-    }
+    extend_cliques(wp.problem, &mut Vec::new(), u32::MAX >> (32 - n), &mut cliques, charge)?;
     cliques.sort_by(|a, b| b.len().cmp(&a.len()).then_with(|| a.cmp(b)));
     let mut reasons: Vec<String> = Vec::new();
     for clique in &cliques {
-        let states: usize = clique.iter().map(|&v| model.nfun[v]).product();
-        if !(2..=MAX_CLIQUE_STATES).contains(&states) {
+        let Some(states) = checked_product(clique.iter().map(|&v| model.nfun[v])) else {
+            reasons.push("a varied clique's state space is not representable".to_owned());
+            continue;
+        };
+        if states < 2 {
             continue;
         }
         for baseline in Baseline::ALL {
-            charge(0, (states as u64).saturating_mul(layout.rows as u64).saturating_mul(16))?;
+            charge.charge(
+                0,
+                (states as u64).saturating_mul(layout.rows as u64).saturating_mul(16),
+                None,
+            )?;
+            // The simulations of every attempt are charged to the shared budget as they are
+            // run, so the work of the whole search stays within the operations the caller gave
+            // it. An attempt the budget left cannot pay for is skipped, never run unpaid.
+            let Some(work) = attempt_simulations(&model, &layout, clique, baseline) else {
+                continue;
+            };
+            if !charge_simulations(charge, work)? {
+                reasons.push(UNAFFORDABLE.to_owned());
+                continue;
+            }
             let Some((counts, m, _)) = collect_counts(&model, &layout, clique, baseline) else {
                 continue;
             };
@@ -748,7 +826,12 @@ pub(super) fn search_witness(
                     first_value: String::new(),
                     second_value: String::new(),
                 };
-                // Fill the recorded values from the verifier itself.
+                // Fill the recorded values from the verifier itself: two further passes over the
+                // same simulations (the pair evaluation, then the verification), charged too.
+                if !charge_simulations(charge, work.saturating_mul(2))? {
+                    reasons.push(UNAFFORDABLE.to_owned());
+                    continue;
+                }
                 match evaluate_pair(&model, &layout, &record) {
                     Ok((a, b, _)) if a != b => {
                         let mut record = record;
@@ -781,16 +864,96 @@ pub(super) fn search_witness(
 
 type CellMap = BTreeMap<usize, Rat>;
 
-/// Both models' regime-law cells and query values, by exact enumeration.
-#[allow(
-    clippy::too_many_lines,
-    reason = "a flat sequence of exact enumeration steps over one pair of models, each feeding the next"
-)]
-fn evaluate_pair(
+/// Why a verification did not establish a witness: the witness is wrong, or the budget it ran
+/// under stopped it. A stop says nothing about the witness.
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum VerifyFailure {
+    /// The witness does not verify.
+    Invalid(String),
+    /// The shared budget, memory pool or cancellation stopped the verification.
+    Stopped(SearchStop),
+}
+
+impl From<String> for VerifyFailure {
+    fn from(reason: String) -> Self {
+        Self::Invalid(reason)
+    }
+}
+
+impl From<&str> for VerifyFailure {
+    fn from(reason: &str) -> Self {
+        Self::Invalid(reason.to_owned())
+    }
+}
+
+/// Bytes one regime-law cell of a verification occupies in its ordered map: the row key, an exact
+/// rational and the node overhead.
+const VERIFY_CELL_BYTES: u64 = 96;
+
+/// The state space a recorded witness names, validated against the model class.
+struct PairShape {
+    clique: Vec<usize>,
+    baseline: Baseline,
+    radices: Vec<usize>,
+    states: usize,
+    rest: Vec<usize>,
+    rest_radices: Vec<usize>,
+    rest_states: usize,
+    /// Simulations the exact evaluation runs.
+    work: u64,
+}
+
+impl PairShape {
+    /// Operations the evaluation costs: one per block of simulations, at least one.
+    fn operations(&self) -> u64 {
+        self.work.div_ceil(SIMULATIONS_PER_OPERATION).max(1)
+    }
+
+    /// Peak storage of the evaluation: both parsed laws, both regime-law cell maps and the cells
+    /// one state touches.
+    fn storage_bytes(&self, layout: &Layout) -> u64 {
+        let rational = std::mem::size_of::<Rat>() as u64;
+        let laws = (self.states as u64).saturating_mul(2).saturating_mul(rational);
+        let cells = (layout.rows as u64).saturating_mul(2).saturating_mul(VERIFY_CELL_BYTES);
+        let touched = layout.simulations.saturating_mul(2 * std::mem::size_of::<usize>() as u64);
+        laws.saturating_add(cells).saturating_add(touched)
+    }
+}
+
+/// Pays the simulations of a metered verification as they run, one operation per block, so
+/// cancellation is polled throughout the enumeration and the operations charged are exactly
+/// [`PairShape::operations`].
+struct Payer<'m> {
+    meter: &'m mut dyn WitnessMeter,
+    owed: u64,
+}
+
+impl Payer<'_> {
+    fn simulations(&mut self, count: u64) -> Result<(), SearchStop> {
+        self.owed = self.owed.saturating_add(count);
+        while self.owed >= SIMULATIONS_PER_OPERATION {
+            self.meter.charge(0, 0, None)?;
+            self.owed -= SIMULATIONS_PER_OPERATION;
+        }
+        Ok(())
+    }
+
+    fn settle(&mut self) -> Result<(), SearchStop> {
+        if self.owed > 0 {
+            self.meter.charge(0, 0, None)?;
+            self.owed = 0;
+        }
+        Ok(())
+    }
+}
+
+/// The clique, baseline and state space of a recorded witness, with the simulations they cost,
+/// before anything proportional to them is parsed or allocated.
+fn pair_shape(
     model: &Model<'_>,
     layout: &Layout,
     record: &CounterfactualTransportWitness,
-) -> Result<(Rat, Rat, usize), String> {
+) -> Result<PairShape, String> {
     let wp = model.wp;
     let problem = wp.problem;
     let clique: Vec<usize> = record
@@ -819,10 +982,31 @@ fn evaluate_pair(
         return Err("the recorded supports are not the query's supports".to_owned());
     }
     let radices: Vec<usize> = clique.iter().map(|&v| model.nfun[v]).collect();
-    let states: usize = radices.iter().product();
-    if !(2..=MAX_CLIQUE_STATES).contains(&states) {
-        return Err("the varied clique's state space is outside the bound".to_owned());
+    let states = checked_product(radices.iter().copied())
+        .filter(|states| *states >= 2)
+        .ok_or_else(|| "the varied clique's state space is not representable".to_owned())?;
+    let rest: Vec<usize> = (0..model.n).filter(|v| !clique.contains(v)).collect();
+    let rest_radices: Vec<usize> = match baseline {
+        Baseline::Uniform => rest.iter().map(|&v| model.nfun[v]).collect(),
+        _ => Vec::new(),
+    };
+    let rest_states = checked_product(rest_radices.iter().copied())
+        .ok_or_else(|| "the baseline state space is not representable".to_owned())?;
+    let work = (states as u64)
+        .saturating_mul(rest_states.max(1) as u64)
+        .saturating_mul(layout.simulations.max(1));
+    if work > wp.simulations {
+        return Err("the witness exceeds the simulations the budget allows".to_owned());
     }
+    Ok(PairShape { clique, baseline, radices, states, rest, rest_radices, rest_states, work })
+}
+
+/// The two laws of a recorded witness: strictly positive exact probabilities over the clique's
+/// states summing to one.
+fn pair_laws(
+    record: &CounterfactualTransportWitness,
+    states: usize,
+) -> Result<[Vec<Rat>; 2], String> {
     let law = |texts: &[String]| -> Result<Vec<Rat>, String> {
         if texts.len() != states {
             return Err("a law does not cover the clique's states".to_owned());
@@ -841,45 +1025,65 @@ fn evaluate_pair(
         }
         Ok(law)
     };
-    let first = law(&record.first)?;
-    let second = law(&record.second)?;
+    Ok([law(&record.first)?, law(&record.second)?])
+}
+
+/// Both models' regime-law cells and query values, by exact enumeration, for a witness whose
+/// simulations are already paid (the search charges them before it calls this).
+fn evaluate_pair(
+    model: &Model<'_>,
+    layout: &Layout,
+    record: &CounterfactualTransportWitness,
+) -> Result<(Rat, Rat, usize), String> {
+    let shape = pair_shape(model, layout, record)?;
+    let laws = pair_laws(record, shape.states)?;
+    run_pair(model, layout, &shape, &laws, None).map_err(|failure| match failure {
+        VerifyFailure::Invalid(reason) => reason,
+        VerifyFailure::Stopped(stop) => format!("stopped: {}", stop.code()),
+    })
+}
+
+/// Exact enumeration of both models over every clique and baseline state. With a `payer` the
+/// simulations are charged as they run and a stop surfaces as [`VerifyFailure::Stopped`].
+#[allow(
+    clippy::too_many_lines,
+    reason = "a flat sequence of exact enumeration steps over one pair of models, each feeding the next"
+)]
+fn run_pair(
+    model: &Model<'_>,
+    layout: &Layout,
+    shape: &PairShape,
+    laws: &[Vec<Rat>; 2],
+    mut payer: Option<&mut Payer<'_>>,
+) -> Result<(Rat, Rat, usize), VerifyFailure> {
+    let PairShape { clique, baseline, radices, states, rest, rest_radices, rest_states, .. } =
+        shape;
     let n = model.n;
-    let rest: Vec<usize> = (0..n).filter(|v| !clique.contains(v)).collect();
-    let rest_radices: Vec<usize> = match baseline {
-        Baseline::Uniform => rest.iter().map(|&v| model.nfun[v]).collect(),
-        _ => Vec::new(),
-    };
-    let rest_states: usize = rest_radices.iter().product();
-    if rest_states > MAX_BASELINE_STATES {
-        return Err("the baseline state space is outside the bound".to_owned());
-    }
-    let work = (states as u64)
-        .saturating_mul(rest_states.max(1) as u64)
-        .saturating_mul(layout.simulations.max(1));
-    if work > MAX_SIMULATIONS {
-        return Err("the witness exceeds the simulation bound".to_owned());
-    }
-    let weight = Rat::new(1, i128::try_from(rest_states.max(1)).map_err(|_| "overflow")?)
+    let weight = Rat::new(1, i128::try_from((*rest_states).max(1)).map_err(|_| "overflow")?)
         .ok_or_else(|| "overflow".to_owned())?;
     let overflow = || "arithmetic overflow".to_owned();
+    let per_state = layout.simulations.max(1);
     let mut cells: [CellMap; 2] = [CellMap::new(), CellMap::new()];
     let mut numerator = [Rat::ZERO; 2];
     let mut denominator = [Rat::ZERO; 2];
     let mut funcs = vec![0usize; n];
     let mut scratch = Scratch::new(n);
     let mut values: Vec<usize> = Vec::new();
-    for &v in &rest {
-        funcs[v] = model.rule_function(v, baseline);
+    for &v in rest {
+        funcs[v] = model.rule_function(v, *baseline);
     }
     let mut rest_digits = vec![0usize; rest_radices.len()];
     loop {
-        if baseline == Baseline::Uniform {
+        if *baseline == Baseline::Uniform {
             for (k, &v) in rest.iter().enumerate() {
                 funcs[v] = rest_digits[k];
             }
         }
         let mut digits = vec![0usize; clique.len()];
-        for u in 0..states {
+        for u in 0..*states {
+            if let Some(payer) = payer.as_deref_mut() {
+                payer.simulations(per_state).map_err(VerifyFailure::Stopped)?;
+            }
             for (k, &v) in clique.iter().enumerate() {
                 funcs[v] = digits[k];
             }
@@ -890,7 +1094,7 @@ fn evaluate_pair(
                 Some(net) => model.holds(net, &funcs, &mut values),
                 None => true,
             };
-            for (which, law) in [&first, &second].into_iter().enumerate() {
+            for (which, law) in laws.iter().enumerate() {
                 let w = law[u].mul(weight).ok_or_else(overflow)?;
                 for &row in &touched {
                     let entry = cells[which].entry(row).or_insert(Rat::ZERO);
@@ -903,34 +1107,31 @@ fn evaluate_pair(
                     denominator[which] = denominator[which].add(w).ok_or_else(overflow)?;
                 }
             }
-            advance(&mut digits, &radices);
+            advance(&mut digits, radices);
         }
-        if rest_radices.is_empty() || !advance(&mut rest_digits, &rest_radices) {
+        if rest_radices.is_empty() || !advance(&mut rest_digits, rest_radices) {
             break;
         }
     }
+    if let Some(payer) = payer {
+        payer.settle().map_err(VerifyFailure::Stopped)?;
+    }
     if cells[0] != cells[1] {
-        return Err("the models disagree on a regime law".to_owned());
+        return Err("the models disagree on a regime law".into());
     }
     if denominator[0].is_zero() || denominator[1].is_zero() {
-        return Err("the conditioning event has no mass in a model".to_owned());
+        return Err("the conditioning event has no mass in a model".into());
     }
     let a = numerator[0].div(denominator[0]).ok_or_else(overflow)?;
     let b = numerator[1].div(denominator[1]).ok_or_else(overflow)?;
     Ok((a, b, layout.rows))
 }
 
-/// Verify a witness by exact enumeration: both laws are strictly positive
-/// probability vectors on the clique's response-function tuples, the two models
-/// give identical laws for every regime of the declared family, and the query
-/// values differ and equal the recorded ones.
-pub(super) fn verify_witness(
-    wp: &WitnessProblem<'_>,
+/// What a recomputed pair must show: different query values, equal to the recorded ones.
+fn conclude(
     record: &CounterfactualTransportWitness,
+    (a, b, rows): (Rat, Rat, usize),
 ) -> Result<CounterfactualTransportWitnessCheck, String> {
-    let model = Model::new(wp)?;
-    let layout = model.layout()?;
-    let (a, b, rows) = evaluate_pair(&model, &layout, record)?;
     if a == b {
         return Err("the models agree on the query".to_owned());
     }
@@ -942,4 +1143,148 @@ pub(super) fn verify_witness(
         first_value: record.first_value.clone(),
         second_value: record.second_value.clone(),
     })
+}
+
+/// Verify a witness by exact enumeration: both laws are strictly positive
+/// probability vectors on the clique's response-function tuples, the two models
+/// give identical laws for every regime of the declared family, and the query
+/// values differ and equal the recorded ones. The caller has paid for the
+/// simulations (the witness search charges them before it calls this).
+pub(super) fn verify_witness(
+    wp: &WitnessProblem<'_>,
+    record: &CounterfactualTransportWitness,
+) -> Result<CounterfactualTransportWitnessCheck, String> {
+    let model = Model::new(wp)?;
+    let layout = model.layout()?;
+    conclude(record, evaluate_pair(&model, &layout, record)?)
+}
+
+/// [`verify_witness`] of an untrusted witness, accounted to the shared budget: the simulations
+/// are quoted against the operations still allowed and the storage leased from the pool before
+/// the laws are parsed or any cell is allocated; the enumeration then charges its simulations
+/// as it runs, polling cancellation, and the lease is held until it finishes.
+pub(super) fn verify_witness_metered(
+    wp: &WitnessProblem<'_>,
+    record: &CounterfactualTransportWitness,
+    meter: &mut dyn WitnessMeter,
+) -> Result<CounterfactualTransportWitnessCheck, VerifyFailure> {
+    let model = Model::new(wp)?;
+    let layout = model.layout()?;
+    let shape = pair_shape(&model, &layout, record)?;
+    if shape.operations() > meter.operations_remaining() {
+        return Err(VerifyFailure::Stopped(SearchStop::Operations));
+    }
+    let _lease =
+        meter.lease_storage(shape.storage_bytes(&layout)).map_err(VerifyFailure::Stopped)?;
+    let laws = pair_laws(record, shape.states)?;
+    let mut payer = Payer { meter, owed: 0 };
+    let pair = run_pair(&model, &layout, &shape, &laws, Some(&mut payer))?;
+    Ok(conclude(record, pair)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A meter over a fixed number of operations that records what it was charged.
+    struct Counting {
+        remaining: u64,
+        charged: u64,
+        stop_after: Option<u64>,
+        leased: Vec<u64>,
+    }
+
+    impl WitnessMeter for Counting {
+        fn charge(&mut self, _: usize, _: u64, _: Option<u64>) -> Result<(), SearchStop> {
+            if self.stop_after == Some(self.charged) {
+                return Err(SearchStop::Cancelled);
+            }
+            self.remaining -= 1;
+            self.charged += 1;
+            Ok(())
+        }
+
+        fn operations_remaining(&self) -> u64 {
+            self.remaining
+        }
+
+        fn lease_storage(&mut self, bytes: u64) -> Result<Option<AdmissionLease>, SearchStop> {
+            self.leased.push(bytes);
+            Ok(None)
+        }
+    }
+
+    fn meter(remaining: u64) -> Counting {
+        Counting { remaining, charged: 0, stop_after: None, leased: Vec::new() }
+    }
+
+    #[test]
+    fn simulations_are_charged_cumulatively_one_operation_per_block() {
+        let block = SIMULATIONS_PER_OPERATION;
+        let mut meter = meter(10);
+        // A partial block, and zero simulations, still cost one operation.
+        assert_eq!(charge_simulations(&mut meter, 1), Ok(true));
+        assert_eq!(charge_simulations(&mut meter, 0), Ok(true));
+        assert_eq!(meter.charged, 2);
+        // Two and a bit blocks cost three.
+        assert_eq!(charge_simulations(&mut meter, 2 * block + 1), Ok(true));
+        assert_eq!(meter.charged, 5);
+        // Each attempt may no longer run the whole budget: the shared remainder shrinks, and
+        // an attempt it cannot pay for is refused with nothing charged.
+        assert_eq!(charge_simulations(&mut meter, 6 * block), Ok(false));
+        assert_eq!((meter.charged, meter.remaining), (5, 5));
+        assert_eq!(charge_simulations(&mut meter, 5 * block), Ok(true));
+        assert_eq!(meter.remaining, 0);
+        assert_eq!(charge_simulations(&mut meter, 1), Ok(false));
+    }
+
+    #[test]
+    fn a_stop_while_charging_simulations_is_propagated() {
+        let mut meter =
+            Counting { remaining: 100, charged: 0, stop_after: Some(3), leased: Vec::new() };
+        assert_eq!(
+            charge_simulations(&mut meter, 10 * SIMULATIONS_PER_OPERATION),
+            Err(SearchStop::Cancelled)
+        );
+        assert_eq!(meter.charged, 3);
+    }
+
+    #[test]
+    fn a_payer_charges_exactly_the_quoted_operations_as_the_simulations_run() {
+        let block = SIMULATIONS_PER_OPERATION;
+        let mut meter = meter(100);
+        let mut payer = Payer { meter: &mut meter, owed: 0 };
+        // One simulation at a time: nothing is charged until a block is owed.
+        for _ in 0..block - 1 {
+            payer.simulations(1).unwrap();
+        }
+        assert_eq!(payer.meter.operations_remaining(), 100);
+        payer.simulations(1).unwrap();
+        payer.simulations(2 * block + 1).unwrap();
+        // The partial block is paid when the enumeration settles: ceil(3 blocks + 1) = 4.
+        payer.settle().unwrap();
+        payer.settle().unwrap();
+        assert_eq!(meter.charged, 4);
+    }
+
+    #[test]
+    fn a_stop_while_paying_a_verification_surfaces_as_stopped() {
+        let mut meter =
+            Counting { remaining: 100, charged: 0, stop_after: Some(2), leased: Vec::new() };
+        let mut payer = Payer { meter: &mut meter, owed: 0 };
+        let failure = payer
+            .simulations(5 * SIMULATIONS_PER_OPERATION)
+            .map_err(VerifyFailure::Stopped)
+            .unwrap_err();
+        assert_eq!(failure, VerifyFailure::Stopped(SearchStop::Cancelled));
+        assert_eq!(meter.charged, 2);
+        assert_eq!(VerifyFailure::from("bad"), VerifyFailure::Invalid("bad".to_owned()));
+    }
+
+    #[test]
+    fn a_saturated_simulation_count_is_never_affordable() {
+        let mut meter = meter(1_000);
+        assert_eq!(charge_simulations(&mut meter, u64::MAX), Ok(false));
+        assert_eq!(meter.charged, 0);
+    }
 }

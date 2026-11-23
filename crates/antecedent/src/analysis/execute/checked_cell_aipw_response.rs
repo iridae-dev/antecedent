@@ -1,6 +1,6 @@
 //! Sealed checked execution product for joint-cell AIPW responses on a static
 //! DAG or on a `CoDetermined` tier closure.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::analysis::prepared::Inspect;
 use crate::analysis::proof_support::EstimandClaim;
@@ -63,6 +63,7 @@ pub(crate) struct CheckedCellAipwResponseOperation {
 /// The frozen premises of [`CheckedCellAipwResponseOperation::checked`], carried together.
 #[derive(Clone, Copy)]
 pub(crate) struct CheckedCellAipwResponseOperationPremises<'a> {
+    pub(crate) ctx: &'a ExecutionContext,
     pub(crate) structure: &'a CellAipwStructure,
     pub(crate) query: &'a ResponseQuery,
     pub(crate) cache: &'a Arc<crate::analysis::prepared::CachedStaticIdentification>,
@@ -71,19 +72,24 @@ pub(crate) struct CheckedCellAipwResponseOperationPremises<'a> {
     pub(crate) fold_seed: u64,
     pub(crate) validation: RefuteSuite,
     pub(crate) origin: DagResponseOrigin,
+    /// The plan whose lowered program retained the identification, when there is one. The
+    /// retained identification is verified against its compile-time seal instead of being
+    /// replayed on the structure.
+    pub(crate) plan: Option<&'a crate::planner::PhysicalExecutionPlan>,
 }
 
 impl CheckedCellAipwResponseOperation {
-    /// Validate and seal the licensed joint-cell response route on a static
+    /// Validate and seal the supported joint-cell response route on a static
     /// DAG or a `CoDetermined` tier closure.
     #[allow(
         clippy::too_many_lines,
-        reason = "one sealing pass that refuses each unlicensed premise (query shape, interventions, identification, estimator, fold seed) before the operation is built from the same checked values"
+        reason = "one sealing pass that refuses each unsupported premise (query shape, interventions, identification, estimator, fold seed) before the operation is built from the same checked values"
     )]
     pub(crate) fn checked(
         premises: CheckedCellAipwResponseOperationPremises<'_>,
     ) -> Result<Self, CausalError> {
         let CheckedCellAipwResponseOperationPremises {
+            ctx,
             structure,
             query,
             cache,
@@ -92,6 +98,7 @@ impl CheckedCellAipwResponseOperation {
             fold_seed,
             validation,
             origin,
+            plan,
         } = premises;
         let (identification, estimand) = (&cache.identification, &cache.estimand);
         query.validate()?;
@@ -105,7 +112,7 @@ impl CheckedCellAipwResponseOperation {
             || interventions.len() > antecedent_estimate::cell_aipw::MAX_JOINT_BINARY
         {
             return Err(CausalError::Unsupported {
-                message: "checked cell AIPW requires two or three joint binary interventions",
+                message: "checked cell AIPW requires two or more joint binary interventions within a cell code's coordinates",
             });
         }
         let (treatments, requested_arm) = joint_binary_interventions(interventions)?;
@@ -146,12 +153,57 @@ impl CheckedCellAipwResponseOperation {
                 message: "cell AIPW query, graph, target, identification, procedure, or validation suite do not form one checked route".into(),
             });
         }
+        let sealed = match plan {
+            Some(plan) => {
+                crate::analysis::proof_support::verify_retained_static(
+                    plan,
+                    identification,
+                    estimand,
+                    "cell AIPW identification differs from the identification compile sealed",
+                )? == crate::analysis::proof_support::RetainedProof::Sealed
+            }
+            None => false,
+        };
+        if !sealed {
+            Self::replay_identification(structure, identifier, query, identification, ctx)?;
+        }
+        Ok(Self {
+            structure: structure.clone(),
+            structure_signature: structure_signature(structure),
+            query: query.clone(),
+            outcome: *outcome,
+            treatments: treatments.into(),
+            requested_arm,
+            cache: Arc::clone(cache),
+            identifier,
+            estimator: CellSaturatedAipw::new().with_fold_seed(fold_seed),
+            validation,
+            origin,
+        })
+    }
+
+    /// Identify again on the retained structure and require the supplied identification to
+    /// be that claim. Used only when no compile-time seal exists to verify it against.
+    fn replay_identification(
+        structure: &CellAipwStructure,
+        identifier: IdentifierId,
+        query: &ResponseQuery,
+        identification: &antecedent_identify::IdentificationResult,
+        ctx: &ExecutionContext,
+    ) -> Result<(), CausalError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
+        }
         let graph_replay = match structure {
-            CellAipwStructure::Dag(graph) => crate::strategy_table::identify_static_query(
-                identifier,
-                graph,
-                &CausalQuery::Response(query.clone()),
-            )?,
+            CellAipwStructure::Dag(graph) => {
+                crate::strategy_table::identify_static_query_in_context(
+                    identifier,
+                    graph,
+                    &CausalQuery::Response(query.clone()),
+                    None,
+                    Some(ctx),
+                )?
+            }
             CellAipwStructure::TierClosure { admg, background } => {
                 antecedent_identify::identify_tiered_joint_on(background, admg, query)?
             }
@@ -169,19 +221,7 @@ impl CheckedCellAipwResponseOperation {
                     .into(),
             });
         }
-        Ok(Self {
-            structure: structure.clone(),
-            structure_signature: structure_signature(structure),
-            query: query.clone(),
-            outcome: *outcome,
-            treatments: treatments.into(),
-            requested_arm,
-            cache: Arc::clone(cache),
-            identifier,
-            estimator: CellSaturatedAipw::new().with_fold_seed(fold_seed),
-            validation,
-            origin,
-        })
+        Ok(())
     }
 
     pub(crate) fn query(&self) -> &ResponseQuery {
@@ -282,18 +322,28 @@ impl CheckedCellAipwResponseOperation {
                 stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
             });
         }
-        self.estimator
-            .fit_scores(
-                data,
-                &antecedent_estimate::CellScoreSpec {
-                    treatments: &self.treatments,
-                    outcome: self.outcome,
-                    adjustment: &self.cache.estimand.adjustment_set,
-                    functional: &self.query.outcome_functional,
-                    continuous: None,
-                },
-            )
-            .map_err(CausalError::from)
+        let spec = antecedent_estimate::CellScoreSpec {
+            treatments: &self.treatments,
+            outcome: self.outcome,
+            adjustment: &self.cache.estimand.adjustment_set,
+            functional: &self.query.outcome_functional,
+            continuous: None,
+        };
+        antecedent_core::numerical_admission::with_context(ctx, || {
+            // A table that carries observation weights is fitted for the weighted population.
+            if data.storage().weights().is_some() {
+                return self
+                    .estimator
+                    .fit_scores_sampling_weighted(
+                        data,
+                        &spec,
+                        antecedent_estimate::SharedCellInputs::default(),
+                    )
+                    .map(|(table, _)| table)
+                    .map_err(CausalError::from);
+            }
+            self.estimator.fit_scores(data, &spec).map_err(CausalError::from)
+        })
     }
 }
 
@@ -515,6 +565,7 @@ mod tests {
         let estimand = identification.estimands.first().unwrap().clone();
         let operation =
             CheckedCellAipwResponseOperation::checked(CheckedCellAipwResponseOperationPremises {
+                ctx: &ExecutionContext::for_tests(86),
                 structure: &CellAipwStructure::Dag(graph.clone()),
                 query: &query,
                 cache: &cached(&identification, &estimand),
@@ -523,6 +574,7 @@ mod tests {
                 fold_seed: 817,
                 validation: RefuteSuite::Full,
                 origin: DagResponseOrigin::Accepted,
+                plan: None,
             })
             .unwrap();
         assert_eq!(operation.origin(), DagResponseOrigin::Accepted);
@@ -559,6 +611,7 @@ mod tests {
         let estimand = identification.estimands.first().unwrap().clone();
         let operation =
             CheckedCellAipwResponseOperation::checked(CheckedCellAipwResponseOperationPremises {
+                ctx: &ExecutionContext::for_tests(86),
                 structure: &CellAipwStructure::Dag(graph.clone()),
                 query: &query,
                 cache: &cached(&identification, &estimand),
@@ -567,6 +620,7 @@ mod tests {
                 fold_seed: 1,
                 validation: RefuteSuite::None,
                 origin: DagResponseOrigin::Explicit,
+                plan: None,
             })
             .unwrap();
         let mut wrong_graph = graph.clone();
@@ -601,6 +655,7 @@ mod tests {
         .unwrap();
         let err =
             CheckedCellAipwResponseOperation::checked(CheckedCellAipwResponseOperationPremises {
+                ctx: &ExecutionContext::for_tests(86),
                 structure: &CellAipwStructure::Dag(graph.clone()),
                 query: &bad_query,
                 cache: &cached(&bad_identification, bad_identification.estimands.first().unwrap()),
@@ -609,8 +664,62 @@ mod tests {
                 fold_seed: 1,
                 validation: RefuteSuite::None,
                 origin: DagResponseOrigin::Explicit,
+                plan: None,
             })
             .unwrap_err();
         assert!(err.to_string().contains("Set levels 0 or 1"));
+    }
+    #[test]
+    fn checked_cell_score_execution_uses_caller_admission() {
+        let (graph, query, data, identification) = fixture();
+        let estimand = identification.estimands.first().unwrap().clone();
+        let cache = cached(&identification, &estimand);
+        let operation =
+            CheckedCellAipwResponseOperation::checked(CheckedCellAipwResponseOperationPremises {
+                ctx: &ExecutionContext::for_tests(86),
+                structure: &CellAipwStructure::Dag(graph),
+                query: &query,
+                cache: &cache,
+                identifier: IdentifierId::ResponseBackdoor,
+                estimator: EstimatorId::CellAipw,
+                fold_seed: 817,
+                validation: RefuteSuite::None,
+                origin: DagResponseOrigin::Accepted,
+                plan: None,
+            })
+            .unwrap();
+        let low = ExecutionContext::for_tests(86).with_memory_limit(Some(1));
+        assert!(operation.execute(&data, &low).is_err());
+    }
+
+    #[test]
+    fn unsealed_cell_response_proof_replay_honors_the_actual_compile_context() {
+        let (graph, query, _data, identification) = fixture();
+        let estimand = identification.estimands.first().unwrap().clone();
+        let cache = cached(&identification, &estimand);
+        let structure = CellAipwStructure::Dag(graph);
+        let check = |ctx: &ExecutionContext| {
+            CheckedCellAipwResponseOperation::checked(CheckedCellAipwResponseOperationPremises {
+                ctx,
+                structure: &structure,
+                query: &query,
+                cache: &cache,
+                identifier: IdentifierId::ResponseBackdoor,
+                estimator: EstimatorId::CellAipw,
+                fold_seed: 817,
+                validation: RefuteSuite::None,
+                origin: DagResponseOrigin::Accepted,
+                plan: None,
+            })
+        };
+        check(&ExecutionContext::for_tests(86)).unwrap();
+        let cancelled = ExecutionContext::for_tests(86);
+        cancelled.cancellation.cancel();
+        let error = check(&cancelled).unwrap_err();
+        assert!(matches!(error, CausalError::Cancelled { .. }), "{error:?}");
+        // A pool that cannot fund the exact search is not a refusal: the replay settles on the
+        // certified set, which here is the claim the cache holds, so the premises still seal.
+        let limited = ExecutionContext::for_tests(86).with_memory_limit(Some(1));
+        check(&limited).unwrap();
     }
 }

@@ -1,10 +1,11 @@
 //! Typed refusals of the evidence ledger.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
 
 use super::ids::SourceId;
+use antecedent_core::{Refused, impl_refused};
 
 /// Why a ledger request was refused. Each kind maps to one registered reason
 /// code; the namespaced `detail` names the specific rule.
@@ -19,8 +20,6 @@ pub enum RefusalKind {
     SourceRetired,
     /// The request is malformed or inconsistent with the ledger.
     InvalidArgument,
-    /// The requested statement has no license (an interval, a posterior).
-    NotLicensed,
     /// A ledger bound was exceeded.
     LimitExceeded,
 }
@@ -34,7 +33,7 @@ pub struct LedgerError {
     pub code: &'static str,
     /// Namespaced detail, `evidence_ledger.<rule>`.
     pub detail: &'static str,
-    /// What was refused and what would license it.
+    /// What was refused and what would support it.
     pub message: String,
     /// Sources the refusal names.
     pub sources: Vec<SourceId>,
@@ -44,7 +43,7 @@ impl LedgerError {
     /// The refusal as `(code, detail, explanation)`.
     #[must_use]
     pub fn refusal(&self) -> (&'static str, &'static str, &str) {
-        (self.code, self.detail, &self.message)
+        self.as_refusal().into_parts()
     }
 
     /// Attach the sources the refusal is about.
@@ -62,3 +61,5 @@ impl fmt::Display for LedgerError {
 }
 
 impl std::error::Error for LedgerError {}
+
+impl_refused!(LedgerError);

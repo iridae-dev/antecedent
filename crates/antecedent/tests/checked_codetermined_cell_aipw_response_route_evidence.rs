@@ -9,6 +9,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ExecutionContext, Intervention, ResponseFunctional, ResponseIdentification,
@@ -16,7 +17,7 @@ use antecedent_core::{
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{TieredBackground, WithinTier};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 /// Columns `z, t1, t2, y` on a balanced binary design:
 /// `y = shift + 0.2 + 0.4 t1 + 0.3 t2 + 0.5 t1 t2 + 0.2 z + small noise`.
@@ -116,9 +117,9 @@ fn codetermined_joint_cell_aipw_response_body() {
     let mut prepared = builder.prepare(&context).unwrap();
     drop(builder);
 
-    let plan = prepared
-        .checked_cell_aipw_response_info()
-        .expect("preparation retains the checked CoDetermined joint cell route");
+    let RetainedOperation::CellAipwResponse(plan) = prepared.retained_operation() else {
+        panic!("preparation retains the checked CoDetermined joint cell route")
+    };
     assert_eq!(plan.query, query());
     assert_eq!(plan.identifier, IdentifierId::GeneralizedAdjustment);
     assert_eq!(plan.estimator, EstimatorId::CellAipw);
@@ -130,12 +131,12 @@ fn codetermined_joint_cell_aipw_response_body() {
 
     let click = prepared.estimate(&initial, &context).unwrap();
     for result in [&one_shot, &click] {
-        assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+        assert_eq!(result.support_status().unwrap().as_str(), "supported");
         assert_eq!(result.logical_plan.identifier.as_deref(), Some("generalized.adjustment"));
         assert_eq!(result.logical_plan.estimator.as_deref(), Some("cell.aipw"));
         assert!(result.refutations.is_empty());
         let got = value(result);
-        assert!((got - truth(0.0)).abs() < 0.05, "cell (1, 1) {got} vs truth {}", truth(0.0));
+        assert!((got - truth(0.0)).abs() < 0.002, "cell (1, 1) {got} vs truth {}", truth(0.0));
     }
     assert!((value(&click) - value(&one_shot)).abs() < 1e-12);
     assert!(
@@ -146,9 +147,11 @@ fn codetermined_joint_cell_aipw_response_body() {
         "one-shot run must execute its retained prepared plan"
     );
 
-    let refreshed = prepared.refresh(data(0.4), &context).unwrap();
-    assert!((value(&refreshed) - truth(0.4)).abs() < 0.05, "refreshed {}", value(&refreshed));
-    let retained = prepared.checked_cell_aipw_response_info().unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data(0.4), &context).unwrap();
+    assert!((value(&refreshed) - truth(0.4)).abs() < 0.002, "refreshed {}", value(&refreshed));
+    let RetainedOperation::CellAipwResponse(retained) = prepared.retained_operation() else {
+        panic!("refresh retains the checked CoDetermined joint cell route")
+    };
     assert_eq!(retained.within_tier, Some(WithinTier::CoDetermined));
     assert_eq!(retained.adjustment_set, plan.adjustment_set);
 
@@ -158,7 +161,7 @@ fn codetermined_joint_cell_aipw_response_body() {
         ("y", vec![0.0; 8].as_slice()),
     ])
     .unwrap();
-    let error = prepared.refresh(three_columns, &context).unwrap_err();
+    let error = rebind_estimate(&mut prepared, three_columns, &context).unwrap_err();
     assert!(
         error.to_string().contains("same schema"),
         "schema-changed refresh must be refused: {error}"
@@ -167,7 +170,7 @@ fn codetermined_joint_cell_aipw_response_body() {
     let artifact = prepared
         .encode_contracted_result(&refreshed, "checked-codetermined-cell-aipw", &context)
         .unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     assert!(
         consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_intervention_response_operation"
@@ -175,5 +178,18 @@ fn codetermined_joint_cell_aipw_response_body() {
         "independent consumption must name the checked operation: {:?}",
         consumed.acceptance.unresolved
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

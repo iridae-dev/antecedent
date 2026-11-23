@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12,<3.13"
+# dependencies = ["numpy==2.1.3"]
+# ///
 """Independent reference for the two-path path-specific effect fixture.
 
 Known structural causal model (all variables binary, noises independent U(0,1)):
@@ -66,7 +70,10 @@ import math
 import sys
 from pathlib import Path
 
+# Comparison support only; reference calculations remain independent.
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 import numpy as np
+from reference_compare import values_close as compare_values
 
 HERE = Path(__file__).resolve().parent
 BINS = 10
@@ -343,28 +350,55 @@ def build() -> dict:
 
 
 def values_close(left: object, right: object) -> bool:
-    """Float documents compare with ``np.isclose``, not ``!=``."""
-    if isinstance(left, bool) or isinstance(right, bool):
-        return left == right
-    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
-        return bool(np.isclose(left, right, equal_nan=True))
-    if isinstance(left, dict) and isinstance(right, dict):
-        return left.keys() == right.keys() and all(values_close(left[k], right[k]) for k in left)
-    if isinstance(left, list) and isinstance(right, list):
-        return len(left) == len(right) and all(
-            values_close(a, b) for a, b in zip(left, right, strict=True)
-        )
-    return left == right
+    """Compare with the fixture's explicit tolerance, without NumPy defaults."""
+    return compare_values(left, right, rtol=0.0, atol=1e-9)
+
+
+ORACLE = {'kind': 'enumeration',
+ 'method': 'enumeration of the structural noise cells',
+ 'independence_basis': 'Enumeration of the 10^4 (and 4^6) equally likely noise cells '
+                       'of the declared binary SCMs gives the cross-world '
+                       'counterfactual truth straight from the structural equations; '
+                       'the expanded contingency table is rebuilt from the same cells '
+                       'and the edge g-formula is recomputed from it with numpy and '
+                       'must reproduce the structural truth to 1e-12. Counterfactuals '
+                       'come from evaluating the structural equations under the '
+                       'cross-world assignment on every noise cell, not from any '
+                       'g-formula; the g-formula is then applied to the table as a '
+                       'cross-check, so the truth and the table share only the '
+                       'declared SCM. Imports no Antecedent code; numpy and the '
+                       'comparison helper are tooling.',
+ 'generator': 'conformance/estimate/path_specific_edge_gformula/reference.py',
+ 'command': 'uv run --frozen --script '
+            'conformance/estimate/path_specific_edge_gformula/reference.py --check',
+ 'environment_lock': 'conformance/estimate/path_specific_edge_gformula/reference.py.lock',
+ 'generator_retained': True,
+ 'asserted_outputs': ['path-specific, total and natural direct effects for the '
+                      'two-path case',
+                      'shared-descendant path effect and total effect',
+                      'retained contingency tables, graphs and queries'],
+ 'context_only_outputs': ['bayesian posterior_mean_tolerance and interval note '
+                          '(declared acceptance band)',
+                          'identification status and rule labels'],
+ 'historical_exposure': "The original generator's authorship is unrecorded. Its source "
+                        'was read in full during this review; the product '
+                        'implementation was not consulted. The generator itself was '
+                        'edited here only to carry the reference_review block and its '
+                        'locked environment.'}
 
 
 def main() -> None:
-    expected = build()
+    expected = {"oracle": ORACLE, **build()}
     path = HERE / "expected.json"
-    text = json.dumps(expected, indent=2) + "\n"
+    # The retained reference_review binds this script by digest; it is carried through, never regenerated.
+    retained = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    review = retained.get("oracle", {}).get("reference_review")
     if "--write" in sys.argv:
-        path.write_text(text, encoding="utf-8", newline="\n")
+        written = {**expected, "oracle": {**ORACLE, **({"reference_review": review} if review else {})}}
+        path.write_text(json.dumps(written, indent=2) + "\n", encoding="utf-8", newline="\n")
     if "--check" in sys.argv:
         frozen = json.loads(path.read_text(encoding="utf-8"))
+        frozen["oracle"] = {k: v for k, v in frozen["oracle"].items() if k != "reference_review"}
         if not values_close(frozen, expected):
             raise SystemExit("expected.json is stale; rerun with --write")
     print(json.dumps(expected["truth"], indent=2))

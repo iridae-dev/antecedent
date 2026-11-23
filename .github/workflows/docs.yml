@@ -28,10 +28,10 @@ jobs:
           # Generated coverage docs verify the original calibration Git objects.
           fetch-depth: 0
 
-      - name: Install Rust 1.85
-        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.85
+      - name: Install Rust 1.97
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # pinned action ref; toolchain below
         with:
-          toolchain: "1.85"
+          toolchain: "1.97"
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -67,11 +67,10 @@ jobs:
       - name: Conformance docs
         run: python3 scripts/generate_conformance_docs.py
 
-      - name: Generated documentation is current
-        run: |
-          set -euo pipefail
-          python3 scripts/generate_support_matrix_docs.py
-          git diff --exit-code -- docs/conformance docs/support-matrix.md
+      # The static job of ci.yml fails when these generated files are stale; this job only
+      # needs them to build the site.
+      - name: Support matrix docs
+        run: python3 scripts/generate_support_matrix_docs.py
 
       - name: Build narrative site strictly
         run: |
@@ -80,6 +79,7 @@ jobs:
           python -m pip install -r requirements-docs.txt
           pip install "python/dist/"*.whl
           python scripts/check_docs_experience.py
+          python scripts/example_coverage.py --check
           python scripts/run_doc_examples.py
           python scripts/render_notebooks.py
           python scripts/test_docs_publication.py

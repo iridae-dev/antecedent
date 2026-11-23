@@ -2,7 +2,7 @@
 //! path-specific and functional effects, distributions, front-door, IV, and the
 //! nested counterfactual.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SealedOperation, stamp_tabular};
 use crate::analysis::builder::{DataInput, RefuteSuite};
@@ -33,7 +33,7 @@ fn stamp_functional(
     defer: bool,
 ) -> Result<Option<StudyResult>, CausalError> {
     let input = DataInput::Tabular(data.clone());
-    result.custom_validator_names = custom_validator_names.to_vec();
+    result.extras.custom_validator_names = custom_validator_names.to_vec();
     crate::analysis::execute::push_gaussian_likelihood_disclosure(&mut result, inference, &input);
     if !defer {
         result.executed_contract = Some(handle.executed_contract(&input, refute, None)?);
@@ -42,6 +42,20 @@ fn stamp_functional(
 }
 
 impl SealedOperation for CheckedLinearOperation {
+    fn adjusted_reuse(&self) -> Option<super::AdjustedReuse<'_>> {
+        self.adjusted_reuse_descriptor()
+    }
+    fn adjusted_retarget_ready(&self) -> bool {
+        self.has_adjusted_fit()
+    }
+    fn retarget_adjusted(
+        &self,
+        weights: &[f64],
+        ctx: &ExecutionContext,
+    ) -> Result<Option<super::AdjustedRetargetOutput>, CausalError> {
+        self.retarget_fitted(weights, ctx).map(Some)
+    }
+
     fn program_binding(&self) -> CheckedProgramBinding<'_> {
         CheckedProgramBinding::Linear(self)
     }
@@ -71,14 +85,16 @@ impl SealedOperation for CheckedLinearOperation {
         if !self.sealed_for_direct_execution() {
             return Ok(None);
         }
-        let rebound = self.rebind(data)?;
+        let rebound = self.rebind_with_context(data, ctx)?;
         let result = rebound.execute(data, ctx)?;
         let result = handle.stamp_linear(
             &DataInput::Tabular(data.clone()),
             &rebound,
             result,
             notes.defers_contract(),
+            ctx,
         )?;
+        rebound.publish_adjusted_fit_success(ctx)?;
         notes.record(Rebound::Linear(Box::new(rebound)));
         Ok(Some(result))
     }
@@ -103,7 +119,7 @@ impl SealedOperation for CheckedAdmgResponseCurveOperation {
         }
         let rebound = self.rebind(data)?;
         let result = rebound.execute(data, ctx)?;
-        stamp_functional(
+        let stamped = stamp_functional(
             handle,
             data,
             result,
@@ -111,7 +127,12 @@ impl SealedOperation for CheckedAdmgResponseCurveOperation {
             &rebound.inference,
             rebound.refute,
             notes.defers_contract(),
-        )
+        );
+        if stamped.is_ok() {
+            notes
+                .record(Rebound::Dispatch(Box::new(PreparedExecution::AdmgResponseCurve(rebound))));
+        }
+        stamped
     }
 }
 
@@ -134,7 +155,7 @@ impl SealedOperation for CheckedPathSpecificEffectOperation {
         }
         let rebound = self.rebind(data)?;
         let result = rebound.execute(data, ctx)?;
-        stamp_functional(
+        let stamped = stamp_functional(
             handle,
             data,
             result,
@@ -142,7 +163,13 @@ impl SealedOperation for CheckedPathSpecificEffectOperation {
             &rebound.inference,
             rebound.refute,
             notes.defers_contract(),
-        )
+        );
+        if stamped.is_ok() {
+            notes.record(Rebound::Dispatch(Box::new(PreparedExecution::PathSpecificEffect(
+                rebound,
+            ))));
+        }
+        stamped
     }
 }
 
@@ -165,7 +192,7 @@ impl SealedOperation for CheckedFunctionalEffectOperation {
         }
         let rebound = self.rebind(data)?;
         let result = rebound.execute(data, ctx)?;
-        stamp_functional(
+        let stamped = stamp_functional(
             handle,
             data,
             result,
@@ -173,7 +200,11 @@ impl SealedOperation for CheckedFunctionalEffectOperation {
             &rebound.inference,
             rebound.refute,
             notes.defers_contract(),
-        )
+        );
+        if stamped.is_ok() {
+            notes.record(Rebound::Dispatch(Box::new(PreparedExecution::FunctionalEffect(rebound))));
+        }
+        stamped
     }
 }
 
@@ -202,13 +233,17 @@ impl SealedOperation for CheckedAipwOperation {
             return Ok(None);
         }
         let rebound = self.rebind(data)?;
-        let mut result = rebound.execute(data, ctx)?;
-        result.custom_validator_names = rebound.custom_validator_names.to_vec();
+        let mut result = match handle.study().stage_sink.as_ref() {
+            Some(sink) => rebound.execute_observed(data, ctx, Some(sink))?,
+            None => rebound.execute(data, ctx)?,
+        };
+        result.extras.custom_validator_names = rebound.custom_validator_names.to_vec();
         let result = handle.stamp_aipw(
             &DataInput::Tabular(data.clone()),
             &rebound,
             result,
             notes.defers_contract(),
+            ctx,
         )?;
         notes.record(Rebound::Aipw(Box::new(rebound)));
         Ok(Some(result))
@@ -232,16 +267,29 @@ impl SealedOperation for CheckedDistributionOperation {
         if !self.sealed_for_direct_execution() {
             return Ok(None);
         }
-        let mut result = self.execute(data, ctx)?;
-        result.custom_validator_names = self.custom_validator_names.to_vec();
-        handle
+        let rebound = Self {
+            query: self.query.clone(),
+            cache: Arc::clone(&self.cache),
+            fitter: self.fitter.clone(),
+            factor_snapshot_digest: data.storage().content_digest(),
+            prepared: self.rebind(data)?,
+            common: Arc::clone(&self.common),
+        };
+        let mut result = rebound.execute_bound(data, ctx)?;
+        result.extras.custom_validator_names = rebound.custom_validator_names.to_vec();
+        let stamped = handle
             .stamp_distribution(
                 &DataInput::Tabular(data.clone()),
-                self,
+                &rebound,
                 result,
                 notes.defers_contract(),
+                ctx,
             )
-            .map(Some)
+            .map(Some);
+        if stamped.is_ok() {
+            notes.record(Rebound::Dispatch(Box::new(PreparedExecution::Distribution(rebound))));
+        }
+        stamped
     }
 }
 
@@ -268,7 +316,7 @@ impl SealedOperation for CheckedFrontDoorOperation {
     ) -> Result<Option<StudyResult>, CausalError> {
         let rebound = self.rebind(data)?;
         let result = handle.execute_checked_frontdoor(data, &rebound, ctx)?;
-        let result = stamp_tabular(handle, data, result, notes);
+        let result = stamp_tabular(handle, data, result, notes, ctx);
         notes.record(Rebound::FrontDoor(Box::new(rebound)));
         result
     }
@@ -297,7 +345,7 @@ impl SealedOperation for CheckedIvOperation {
     ) -> Result<Option<StudyResult>, CausalError> {
         let rebound = self.rebind(data)?;
         let result = handle.execute_checked_iv(data, &rebound, ctx)?;
-        let result = stamp_tabular(handle, data, result, notes);
+        let result = stamp_tabular(handle, data, result, notes, ctx);
         notes.record(Rebound::Iv(Box::new(rebound)));
         result
     }

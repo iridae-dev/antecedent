@@ -1,0 +1,1 @@
+[{"digest":"bdae0a68f3a2cd9f290c6f06279fb0bcf799a3eb9dae2b2579f56cb0ea5e4774","file":"59dfa4a17c5c33d95752173e76e0d3b1d63ccdd383192144c1ccf5d2e9867ae0","kind":"rust_items","path":"crates/antecedent/tests/tier_diagnostics_exact.rs","role":"compile","scopes":[[[],true]],"select":{"full":[5,7,8]},"table":"c328c9e55a379b6d64e62856784e541331cddb458788c11af53223554c0631b5"}]

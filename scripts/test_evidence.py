@@ -27,18 +27,26 @@ from __future__ import annotations
 
 import ast
 import functools
+import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tomllib
+import xml.etree.ElementTree as ET
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import _py_closure
 import _rust_source as _rust
 from _repo import REPO_ROOT as ROOT
-from _repo import cargo_target_feature_args, test_target
+from _repo import cargo_target_feature_args, load_toml
+from _repo import test_target as cargo_test_target
+from _source_cache import source_cache
+from detail_constants import resolve_rust
+from evidence_kinds import KNOWN_TRUTH_KINDS, fixture_kind_problems
 
 PARSE_MARKERS = re.compile(
     r"serde_json::from_str|serde_json::from_slice|from_str::<|json\.loads|"
@@ -151,10 +159,23 @@ def _attrs_before(skel: str, code: str, pos: int) -> list[str]:
     return list(reversed(attrs))
 
 
-@functools.cache
+@source_cache
+def source_masked(path: Path) -> Masked:
+    return mask_rust(resolve_rust(path.read_text(errors="ignore", encoding="utf-8")))
+
+
+def module_items(masked: Masked) -> list[RustItem]:
+    """Module traversal does not need to parse every function and constant body."""
+    skel, code = masked.skeleton, masked.code
+    return [RustItem("mod", m.group(1), m.start(),
+                     (m.end() - 1, _match_bracket(skel, m.end() - 1) + 1),
+                     _attrs_before(skel, code, m.start()))
+            for m in _MOD_BLOCK.finditer(skel)]
+
+
+@source_cache
 def rust_items(path: Path) -> tuple[Masked, tuple[RustItem, ...]]:
-    text = path.read_text(errors="ignore", encoding="utf-8")
-    masked = mask_rust(text)
+    masked = source_masked(path)
     skel, code = masked.skeleton, masked.code
     items: list[RustItem] = []
     for m in _FN.finditer(skel):
@@ -194,23 +215,29 @@ def rust_items(path: Path) -> tuple[Masked, tuple[RustItem, ...]]:
     for m in _MACRO.finditer(skel):
         end = _match_bracket(skel, m.end() - 1)
         items.append(RustItem("macro", m.group(1), m.start(), (m.start(), end + 1)))
-    for m in _MOD_BLOCK.finditer(skel):
-        end = _match_bracket(skel, m.end() - 1)
-        items.append(
-            RustItem(
-                "mod",
-                m.group(1),
-                m.start(),
-                (m.end() - 1, end + 1),
-                _attrs_before(skel, code, m.start()),
-            )
-        )
+    items.extend(module_items(masked))
     return masked, tuple(items)
 
 
-def _disabling_cfg(attrs: list[str]) -> str | None:
+_FEATURE_ONLY_CFG = re.compile(
+    r'#\[cfg\((?:feature="[^"]+"|all\(feature="[^"]+"(?:,feature="[^"]+")*\))\)\]'
+)
+
+
+def _cfg_features(attr: str) -> list[str]:
+    return re.findall(r'feature="([^"]+)"', re.sub(r"\s+", "", attr))
+
+
+def _disabling_cfg(attrs: list[str], features: bool = False) -> str | None:
+    """The first attribute that may compile the item out.
+
+    With `features`, a `cfg` that is only a conjunction of `feature = "..."`
+    does not disable: a run that enables those features compiles the item.
+    """
     for attr in attrs:
         inner = re.sub(r"\s+", "", attr)
+        if features and _FEATURE_ONLY_CFG.fullmatch(inner):
+            continue
         if inner.startswith("#[cfg(") and inner != "#[cfg(test)]":
             return attr
         if inner.startswith("#[cfg_attr(") and "ignore" in inner:
@@ -232,14 +259,16 @@ def _is_cfg_test(attrs: list[str]) -> bool:
     return any(re.sub(r"\s+", "", a) == "#[cfg(test)]" for a in attrs)
 
 
-def _declared_modules(path: Path) -> list[tuple[Path, bool]]:
+def _declared_modules(path: Path, boundary: Path | None = None) -> list[tuple[Path, bool]]:
     """(module file, declared test-only) for every enabled `mod name;` in `path`."""
-    masked, items = rust_items(path)
-    blocks = [it for it in items if it.kind == "mod"]
+    masked = source_masked(path)
+    blocks = module_items(masked)
     out = []
     for m in _MOD_DECL.finditer(masked.skeleton):
         attrs = _attrs_before(masked.skeleton, masked.code, m.start())
-        if _disabling_cfg(attrs):
+        # A feature-only cfg compiles the module in the lanes, which enable the workspace's
+        # test features.
+        if _disabling_cfg(attrs, features=True):
             continue
         around = [b for b in blocks if b.body[0] < m.start() < b.body[1]]
         if any(_disabling_cfg(b.attrs) for b in around):
@@ -255,7 +284,7 @@ def _declared_modules(path: Path) -> list[tuple[Path, bool]]:
                 continue
             candidate = (path.parent / declared_path).resolve()
             try:
-                candidate.relative_to(ROOT.resolve())
+                candidate.relative_to((boundary or ROOT).resolve())
             except ValueError:
                 continue
             if candidate.is_file():
@@ -279,7 +308,7 @@ def _rust_path_attribute(attrs: list[str]) -> str | None:
         if not match:
             continue
         literal = match.group(1)
-        if literal.startswith('r'):
+        if literal.startswith("r"):
             raw = re.fullmatch(r'r(#{0,})"(.*?)"\1', literal, re.S)
             if raw:
                 return raw.group(2)
@@ -294,8 +323,8 @@ def _rust_path_attribute(attrs: list[str]) -> str | None:
     return None
 
 
-@functools.cache
-def target_modules(root_file: Path) -> dict[Path, bool]:
+@source_cache
+def target_modules(root_file: Path, boundary: Path | None = None) -> dict[Path, bool]:
     """Every file compiled into the target rooted at `root_file`, mapped to whether it
     is compiled only under `cfg(test)`."""
     seen: dict[Path, bool] = {}
@@ -305,45 +334,57 @@ def target_modules(root_file: Path) -> dict[Path, bool]:
         if p in seen or not p.is_file():
             continue
         seen[p] = test_only
-        todo.extend((child, test_only or flag) for child, flag in _declared_modules(p))
+        todo.extend((child, test_only or flag) for child, flag in _declared_modules(p, boundary))
     return seen
 
 
-def target_files(root_file: Path) -> tuple[Path, ...]:
-    return tuple(target_modules(root_file))
+def target_files(root_file: Path, boundary: Path | None = None) -> tuple[Path, ...]:
+    return tuple(target_modules(root_file, boundary))
 
 
-@functools.cache
+@source_cache
 def target_root(path: Path) -> tuple[Path, str, list[str]] | None:
     """(crate root file, crate name, cargo target args) for a Rust source file."""
     path = path.resolve()
-    rel = path.relative_to(ROOT.resolve()).parts
+    root = ROOT.resolve()
+    try:
+        rel = path.relative_to(root).parts
+    except ValueError:
+        # Gate self-test overlays may link the Python tree to the checkout.
+        # Rebase only that declared tree; unrelated external paths are not targets.
+        python_tree = root / "python"
+        if not python_tree.is_symlink():
+            return None
+        try:
+            rel = ("python", *path.relative_to(python_tree.resolve()).parts)
+        except ValueError:
+            return None
+    if rel[0] == "python" and len(rel) >= 3 and rel[1] == "src":
+        crate_dir = ROOT / "python"
+        manifest = tomllib.loads(_read(crate_dir / "Cargo.toml"))
+        return crate_dir / "src/lib.rs", manifest["package"]["name"], ["--lib"]
     if len(rel) < 4 or rel[0] != "crates":
         return None
     crate_dir = ROOT / "crates" / rel[1]
     crate = rel[1]
-    manifest = (crate_dir / "Cargo.toml").read_text(errors="ignore", encoding="utf-8")
+    manifest = _read(crate_dir / "Cargo.toml")
     m = re.search(r'^name\s*=\s*"([^"]+)"', manifest, re.M)
     crate = m.group(1) if m else crate
     if rel[2] == "tests":
         tests_dir = crate_dir / "tests"
-        if len(rel) == 4:
-            # A file folded into a suite_NN aggregator is compiled as a module of the suite.
-            name, prefix = test_target(rel[1], Path(rel[3]).stem, ROOT)
-            target = ["--test", name]
-            target.extend(cargo_target_feature_args(crate_dir / "Cargo.toml", target))
-            return (tests_dir / f"{name}.rs" if prefix else tests_dir / rel[3]), crate, target
-        main = tests_dir / rel[3] / "main.rs"
-        if main.is_file():
-            target = ["--test", rel[3]]
-            target.extend(cargo_target_feature_args(crate_dir / "Cargo.toml", target))
-            return main, crate, target
-        # A file under tests/<dir>/ is compiled only as a module of some target.
-        for top in sorted(tests_dir.glob("*.rs")):
-            if path in target_files(top.resolve()):
-                target = ["--test", top.stem]
+        cargo = tomllib.loads(manifest)
+        entries = list(cargo.get("test", []))
+        if cargo.get("package", {}).get("autotests", True):
+            explicit = {e.get("path", f"tests/{e['name']}.rs") for e in entries}
+            entries += [{"name": p.stem, "path": f"tests/{p.name}"}
+                        for p in sorted(tests_dir.glob("*.rs"))
+                        if f"tests/{p.name}" not in explicit]
+        for entry in entries:
+            root_file = crate_dir / entry.get("path", f"tests/{entry['name']}.rs")
+            if path in target_files(root_file.resolve()):
+                target = ["--test", entry["name"]]
                 target.extend(cargo_target_feature_args(crate_dir / "Cargo.toml", target))
-                return top, crate, target
+                return root_file, crate, target
         return None
     if rel[2] == "src":
         lib = crate_dir / "src" / "lib.rs"
@@ -354,7 +395,7 @@ def target_root(path: Path) -> tuple[Path, str, list[str]] | None:
     return None
 
 
-@functools.cache
+@source_cache
 def compiled(path: Path) -> bool:
     root = target_root(path)
     return bool(root) and path.resolve() in target_files(root[0].resolve())
@@ -369,16 +410,89 @@ class StaticTest:
     problems: list[str]
 
 
-@functools.cache
-def static_rust_test(path: Path, name: str) -> StaticTest:
-    """Why `name` in `path` is not a compiled, non-ignored `#[test]` (empty = it is)."""
+def rust_defining_file(path: Path, name: str) -> Path | None:
+    """The file that defines fn `name` for a citation of the Rust module file `path`.
+
+    A test may be cited by its module file even when it lives in a child module file that
+    file declares (`mod tests;` in `x.rs` lives in `x/tests.rs`). The defining file is
+    `path` itself when it defines the fn, else the one declared child module file that does;
+    None when neither does or two children do. Every reader that keys a citation (gates,
+    registries, records) resolves it here first, so a citation by module file and one by
+    defining file name the same test."""
+    if not path.is_file():
+        return None
+
+    def defines(file: Path) -> bool:
+        return any(it.kind == "fn" and it.name == name for it in rust_items(file)[1])
+
+    if defines(path):
+        return path
+    found = [child for child, _ in _declared_modules(path) if defines(child)]
+    if len(found) != 1:
+        return None
+    child = found[0]
+    try:
+        return ROOT / child.relative_to(ROOT.resolve())
+    except ValueError:
+        return child
+
+
+@source_cache
+def rust_test_features(path: Path, name: str) -> list[str]:
+    """Cargo features a feature-gated test needs (on the fn or an enclosing module)."""
+    _, items = rust_items(path)
+    fns = [it for it in items if it.kind == "fn" and it.name == name]
+    if not fns:
+        return []
+    found = {f for a in fns[0].attrs for f in _cfg_features(a) if _FEATURE_ONLY_CFG.fullmatch(re.sub(r"\s+", "", a))}
+    for block in (it for it in items if it.kind == "mod"):
+        if block.body[0] < fns[0].start < block.body[1]:
+            found |= {f for a in block.attrs for f in _cfg_features(a)
+                      if _FEATURE_ONLY_CFG.fullmatch(re.sub(r"\s+", "", a))}
+    # Consolidated Cargo test targets include support files with `#[path] mod`.
+    # A cfg on that declaration controls whether the cited test exists, even
+    # though the test function itself lives in the included file. Carry that
+    # feature through so cargo listing and evidence execution compile the test.
+    target = target_root(path)
+    if target and target[0].resolve() != path.resolve():
+        root_file = target[0]
+        source = _rust.lex(_read(root_file)).kept
+        declarations = re.finditer(
+            r"(?P<prefix>(?:\s*#\[[^\]]+\]\s*)*)mod\s+[A-Za-z_]\w*\s*;",
+            source,
+        )
+        for declaration in declarations:
+            prefix = declaration.group("prefix")
+            path_attr = re.search(r'#\[path\s*=\s*"([^"]+)"\]', prefix)
+            if not path_attr:
+                continue
+            included = (root_file.parent / path_attr.group(1)).resolve()
+            if included != path.resolve():
+                continue
+            attrs = re.findall(r"#\[[^\]]+\]", prefix)
+            found |= {
+                feature
+                for attr in attrs
+                for feature in _cfg_features(attr)
+                if _FEATURE_ONLY_CFG.fullmatch(re.sub(r"\s+", "", attr))
+            }
+            break
+    return sorted(found)
+
+
+@source_cache
+def rust_test_declaration_problems(path: Path, name: str, features: bool = False) -> list[str]:
+    """Declaration checks shared by inventories; no execution claim.
+
+    `features=True` accepts a test gated only on Cargo features; the caller
+    must then enable `rust_test_features(path, name)` when it runs the test."""
     problems: list[str] = []
     if not path.is_file():
-        return StaticTest(name, [f"{path} does not exist"])
+        return [f"{path} does not exist"]
     masked, items = rust_items(path)
     fns = [it for it in items if it.kind == "fn" and it.name == name]
     if not fns:
-        return StaticTest(name, [f"no fn {name} outside comments and string literals"])
+        return [f"no fn {name} outside comments and string literals"]
     if len(fns) > 1:
         problems.append(f"fn {name} is defined {len(fns)} times")
     item = fns[0]
@@ -387,13 +501,27 @@ def static_rust_test(path: Path, name: str) -> StaticTest:
         problems.append(f"fn {name} has no #[test] attribute")
     if any(a.startswith("#[ignore") for a in attrs):
         problems.append(f"fn {name} is #[ignore]d")
-    if (cfg := _disabling_cfg(item.attrs)) is not None:
+    if (cfg := _disabling_cfg(item.attrs, features)) is not None:
         problems.append(f"fn {name} is compiled only under {cfg.strip()}")
     for block in (it for it in items if it.kind == "mod"):
-        if block.body[0] < item.start < block.body[1] and (cfg := _disabling_cfg(block.attrs)):
+        if block.body[0] < item.start < block.body[1] and (cfg := _disabling_cfg(block.attrs, features)):
             problems.append(f"fn {name} sits in mod {block.name} under {cfg.strip()}")
     if _file_cfg_disabled(masked):
         problems.append(f"{path} is compiled out by an inner #![cfg(...)]")
+    return problems
+
+
+@source_cache
+def static_rust_test(path: Path, name: str) -> StaticTest:
+    """Why a citation is not a compiled, non-ignored test (empty = it is)."""
+    problems = list(rust_test_declaration_problems(path, name))
+    if not path.is_file():
+        return StaticTest(name, problems)
+    masked, items = rust_items(path)
+    fns = [it for it in items if it.kind == "fn" and it.name == name]
+    if not fns:
+        return StaticTest(name, problems)
+    item = fns[0]
     root = target_root(path)
     file_test_only = bool(root) and target_modules(root[0].resolve()).get(path.resolve(), False)
     if "/src/" in path.as_posix() and not file_test_only:
@@ -410,28 +538,155 @@ def static_rust_test(path: Path, name: str) -> StaticTest:
     return StaticTest(name, problems)
 
 
-_CARGO_LIST_CACHE: dict[tuple[str, tuple[str, ...]], tuple[set[str], set[str], str | None]] = {}
+_CARGO_LIST_CACHE: dict[
+    tuple[str, tuple[str, ...], tuple[str, ...]], tuple[set[str], set[str], str | None]
+] = {}
+
+
+class ReleasePasses:
+    """Exact assertions proved executable by the candidate's successful prerequisite lanes."""
+
+    def __init__(self, directory: Path) -> None:
+        self.scientific = {tuple(row) for row in json.loads((directory / "current.json").read_text(encoding="utf-8"))}
+        self.binaries: dict[str, list[str]] = {}
+        for metadata in sorted(directory.glob("binaries-*.json")):
+            for binary, row in json.loads(metadata.read_text(encoding="utf-8"))["rust-binaries"].items():
+                self.binaries.setdefault(binary, []).append(row["binary-path"])
+        self.listed: dict[str, set[str]] = {}
+        self.engineering = set()
+        for report in sorted(directory.glob("rust-*.xml")):
+            for suite in ET.parse(report).getroot().findall("testsuite"):
+                for case in suite.findall("testcase"):
+                    if all(case.find(tag) is None for tag in ("error", "failure", "skipped")):
+                        self.engineering.add((suite.attrib["name"], case.attrib["name"]))
+        self.python_nodes: set[tuple[str, str]] | None = None
+        self.used: dict[str, set] = {"scientific": set(), "engineering": set(), "engineering binary listings": set()}
+
+    @staticmethod
+    def runnable_names(executable: str) -> set[str]:
+        """List an already-built libtest target once, excluding every ignored case."""
+        names = []
+        for extra in ([], ["--ignored"]):
+            result = subprocess.run([executable, "--list", "--format", "terse", *extra],
+                                    cwd=ROOT, capture_output=True, text=True)
+            if result.returncode:
+                return set()  # A special runtime environment may require the Cargo fallback.
+            names.append({line.removesuffix(": test") for line in result.stdout.splitlines() if line.endswith(": test")})
+        return names[0] - names[1]
+
+    def collect_python(self) -> None:
+        """One pytest session for all Python citations, including marker-deselected suites."""
+        proc = subprocess.run(
+            ["uv", "run", "--quiet", "--no-sync", "pytest", "--collect-only", "-o", "addopts=",
+             "-q", "-p", "no:cacheprovider", "tests"],
+            cwd=ROOT / "python", capture_output=True, text=True,
+        )
+        if proc.returncode:
+            raise RuntimeError(f"pytest collection failed:\n{proc.stdout[-2000:]}{proc.stderr[-2000:]}")
+        nodes = set()
+        for line in proc.stdout.splitlines():
+            if line.startswith("tests/") and "::" in line:
+                parts = line.partition("[")[0].split("::")
+                nodes.add(("python/" + parts[0], parts[-1]))
+        if not nodes:
+            raise RuntimeError("pytest returned no test nodes")
+        self.python_nodes = nodes
+
+    def contains(self, path: Path, name: str) -> bool:
+        relative = path.relative_to(ROOT).as_posix()
+        if (relative, name) in self.scientific:
+            self.used["scientific"].add((relative, name))
+            return True
+        owner = target_root(path) if path.suffix == ".rs" else None
+        if owner:
+            root_file, crate, target = owner
+            binary = crate if target[0] == "--lib" else f"{crate}::{target[1]}"
+            key = binary, libtest_name(path, name, root_file)
+            if key in self.engineering:
+                self.used["engineering"].add(key)
+                return True
+            for executable in self.binaries.get(binary, []):
+                if executable not in self.listed:
+                    self.listed[executable] = self.runnable_names(executable)
+                if key[1] in self.listed[executable]:
+                    self.used["engineering binary listings"].add(key)
+                    return True
+        return False
+
+
+# Set only by the candidate citation command after both prerequisite lanes pass.
+release_passes: ReleasePasses | None = None
+
+
+def prefetch_rust_listings(citations: list[tuple[Path, str]]) -> None:
+    """List all requested targets in one Cargo invocation per package and feature set."""
+    if not shutil.which("cargo-nextest"):
+        return  # cargo_listed also works on hosts with just Cargo and libtest.
+    groups = {}
+    for path, name in sorted(set(citations)):
+        if path.suffix != ".rs" or not path.is_file() or not path.resolve().is_relative_to(ROOT):
+            continue
+        if release_passes and release_passes.contains(path, name):
+            continue
+        owner = target_root(path)
+        if owner is None:
+            continue
+        _, crate, target = owner
+        features = tuple(sorted(set(rust_test_features(path, name))))
+        key = crate, tuple(target), features
+        if key in _CARGO_LIST_CACHE:
+            continue
+        required = target[target.index("--features") + 1].split(",") if "--features" in target else []
+        build = crate, tuple(sorted(set(required).union(features)))
+        selector = tuple(target[:1] if target[0] == "--lib" else target[:2])
+        groups.setdefault(build, {}).setdefault(selector, set()).add(key)
+
+    for (crate, features), targets in groups.items():
+        command = ["cargo", "nextest", "list", "--message-format", "json",
+                   "--ignore-default-filter", "-p", crate]
+        if features:
+            command.extend(["--features", ",".join(features)])
+        for selector in sorted(targets):
+            command.extend(selector)
+        listed = subprocess.run(command, cwd=ROOT, stdout=subprocess.PIPE, text=True, check=True)
+        suites = json.loads(listed.stdout)["rust-suites"]
+        for selector, keys in targets.items():
+            binary = crate if selector == ("--lib",) else f"{crate}::{selector[1]}"
+            cases = suites[binary]["testcases"]
+            ignored = {name for name, case in cases.items() if case["ignored"]}
+            for key in keys:
+                _CARGO_LIST_CACHE[key] = set(cases), ignored, None
 
 
 def cargo_listed(
-    crate: str, target: list[str], cwd: Path = ROOT
+    crate: str, target: list[str], cwd: Path = ROOT, features: list[str] | None = None
 ) -> tuple[set[str], set[str], str | None]:
     """(all listed test names, ignored test names, error) for one cargo target."""
-    key = (crate, tuple(target))
+    features = sorted(set(features or ()))
+    key = (crate, tuple(target), tuple(features))
     if key in _CARGO_LIST_CACHE:
         return _CARGO_LIST_CACHE[key]
 
     def listing(extra: list[str]) -> tuple[set[str], str | None]:
-        command = ["cargo", "test", "-q", "-p", crate, *target, "--", "--list", *extra]
+        command = ["cargo", "test", "-q", "-p", crate, *target]
+        if features:
+            command.extend(["--features", ",".join(features)])
+        command.extend(["--", "--list", *extra])
         proc = subprocess.run(command, cwd=cwd, capture_output=True, text=True)
         if (
             proc.returncode != 0
             and os.environ.get("RUSTC_WRAPPER", "").endswith("sccache")
             and "sccache: error: Timed out waiting for server startup" in proc.stderr
         ):
-            print(f"cargo listing: sccache server unavailable; retrying {crate} without wrapper", flush=True)
+            print(
+                f"cargo listing: sccache server unavailable; retrying {crate} without wrapper",
+                flush=True,
+            )
             proc = subprocess.run(
-                command, cwd=cwd, capture_output=True, text=True,
+                command,
+                cwd=cwd,
+                capture_output=True,
+                text=True,
                 env={**os.environ, "RUSTC_WRAPPER": ""},
             )
         if proc.returncode != 0:
@@ -447,9 +702,40 @@ def cargo_listed(
     return out
 
 
+@source_cache
+def _path_module_aliases(root_file: Path) -> dict[Path, list[tuple[Path, str]]]:
+    """Map enabled, file-scope #[path] modules to their actual declaring names."""
+    aliases: dict[Path, list[tuple[Path, str]]] = {}
+    boundary = root_file.parent.parent
+    for parent in target_modules(root_file, boundary):
+        masked = source_masked(parent)
+        blocks = module_items(masked)
+        enabled = {child for child, _ in _declared_modules(parent, boundary)}
+        for match in _MOD_DECL.finditer(masked.skeleton):
+            attrs = _attrs_before(masked.skeleton, masked.code, match.start())
+            declared = _rust_path_attribute(attrs)
+            if declared is None or _disabling_cfg(attrs):
+                continue
+            if any(b.body[0] < match.start() < b.body[1] for b in blocks):
+                continue
+            child = (parent.parent / declared).resolve()
+            if child in enabled:
+                aliases.setdefault(child, []).append((parent, match.group(1)))
+    return aliases
+
+
 def module_path(path: Path, root_file: Path) -> str:
     """Module prefix (`a::b::`) of a source file inside its target."""
-    rel = path.resolve().relative_to(root_file.resolve().parent).with_suffix("").parts
+    path, root_file = path.resolve(), root_file.resolve()
+    if path == root_file:
+        return ""
+    aliases = _path_module_aliases(root_file).get(path, [])
+    if aliases:
+        if len(aliases) != 1:
+            raise ValueError(f"ambiguous #[path] declarations for {path}")
+        parent, name = aliases[0]
+        return module_path(parent, root_file) + name + "::"
+    rel = path.relative_to(root_file.parent).with_suffix("").parts
     parts = [p for p in rel if p not in ("mod", "lib", "main")]
     if root_file.parent.name == "tests" and parts and parts[0] == root_file.stem:
         parts = parts[1:]
@@ -479,7 +765,11 @@ def resolve_rust_test(path: Path, name: str, cwd: Path = ROOT) -> tuple[str | No
     if root is None:
         return None, problems + [f"{path} is not under a cargo test or library target"]
     root_file, crate, target = root
-    listed, ignored, err = cargo_listed(crate, target, cwd)
+    if cwd == ROOT and release_passes and release_passes.contains(path, name):
+        return libtest_name(path, name, root_file), problems
+    listed, ignored, err = cargo_listed(
+        crate, target, cwd, rust_test_features(path, name)
+    )
     if err:
         return None, problems + [
             f"`cargo test -p {crate} {' '.join(target)} -- --list` failed:\n{err}"
@@ -492,6 +782,163 @@ def resolve_rust_test(path: Path, name: str, cwd: Path = ROOT) -> tuple[str | No
     if full in ignored:
         return None, problems + [f"cargo lists {full} as ignored"]
     return full, problems
+
+
+def registered_calibration_acceptance(root: Path = ROOT) -> list[dict]:
+    """Exact Rust acceptance assertions from the existing source registry.
+
+    Classification does not grant support or verify execution. Ordinary
+    nextest runs exclude these assertions; the explicit calibration-acceptance
+    lane runs them after the required records exist.
+    """
+    return _registered_calibration_assertions(root, "calibration_acceptance_assertions")
+
+
+def registered_calibration_simulations(root: Path = ROOT) -> list[dict]:
+    """Repeated-sampling calibration checks, available via explicit opt-in."""
+    return _registered_calibration_assertions(root, "calibration_simulation_assertions")
+
+
+def _registered_calibration_assertions(root: Path, field: str) -> list[dict]:
+    registry = root / "parity/test_registry.toml"
+    rows = load_toml(registry).get("test", [])
+    found = []
+    seen = set()
+    for row in rows:
+        names = row.get(field, [])
+        if not isinstance(names, list) or any(not isinstance(n, str) for n in names):
+            raise ValueError(f"invalid calibration acceptance assertions: {row['path']}")
+        if not names:
+            continue
+        path = root / row["path"]
+        crate = root / "crates" / row["crate"]
+        manifest = load_toml(crate / "Cargo.toml")
+        target = row["cargo_target"]
+        if target == "lib":
+            source = manifest.get("lib", {}).get("path", "src/lib.rs")
+        else:
+            entries = [t for t in manifest.get("test", []) if t["name"] == target]
+            source = entries[0].get("path", f"tests/{target}.rs") if entries else f"tests/{target}.rs"
+        target_source = crate / source
+        if path.resolve() not in target_files(target_source.resolve(), crate.resolve()):
+            raise ValueError(f"acceptance source is outside its registered target: {row['path']}")
+        for name in names:
+            key = (row["path"], name)
+            problems = rust_test_declaration_problems(path, name)
+            if key in seen or problems:
+                raise ValueError(f"invalid calibration acceptance assertion {key}: {problems or 'duplicate'}")
+            seen.add(key)
+            libtest = libtest_name(path, name, target_source)
+            if field == "calibration_simulation_assertions" and "calibration_simulation_module" in row:
+                libtest = f"{row['calibration_simulation_module']}::{name}"
+            found.append({"evidence_test": row["path"], "evidence_assertion": name,
+                          "crate": row["crate"], "cargo_target": target,
+                          "libtest_name": libtest})
+    return found
+
+
+def _unregistered_target(path_text: str, root: Path) -> dict | None:
+    """Crate and cargo target of a cited file with no registry row, from the manifest."""
+    m = re.fullmatch(r"crates/([^/]+)/(tests|src)/(.+)\.rs", path_text)
+    if not m or not (root / path_text).is_file():
+        return None
+    crate, kind, stem = m.groups()
+    if kind == "src":
+        return {"crate": crate, "cargo_target": "lib"}
+    name, _ = cargo_test_target(crate, stem.split("/")[0], root)
+    return {"crate": crate, "cargo_target": name}
+
+
+@functools.lru_cache(maxsize=4)
+def _registry_rows_at(root: Path, stamp: tuple[int, int]) -> dict[str, dict]:
+    registry = root / "parity/test_registry.toml"
+    return {row["path"]: row for row in load_toml(registry).get("test", [])}
+
+
+def _registry_rows(root: Path) -> dict[str, dict]:
+    registry = root / "parity/test_registry.toml"
+    if not registry.is_file():
+        return {}
+    stat = registry.stat()
+    return _registry_rows_at(root, (stat.st_mtime_ns, stat.st_size))
+
+
+def registered_rust_assertions(cited: list[tuple[str, str]], root: Path = ROOT) -> list[dict]:
+    """Exact libtest identity of each cited Rust assertion.
+
+    The cargo target comes from the test registry row of the file, or from the
+    crate manifest when the file has no row. Each `(path, name)` must lie in the
+    target's compiled files and declare exactly one runnable test `name`
+    (a test gated only on Cargo features is accepted and names them in
+    `features`); anything else raises. The result has the shape
+    `calibration_discovery_problems` and `nextest_selection` consume, so a lane
+    built from these rows is discovered and run the same way as the
+    calibration-acceptance lane.
+    """
+    by_path = _registry_rows(root)
+    manifests: dict[str, dict] = {}
+    found, seen, problems = [], set(), []
+    for path_text, name in cited:
+        if (path_text, name) in seen:
+            continue
+        seen.add((path_text, name))
+        row = by_path.get(path_text) or _unregistered_target(path_text, root)
+        if row is None:
+            problems.append(f"{path_text}::{name}: file is not in parity/test_registry.toml")
+            continue
+        crate = root / "crates" / row["crate"]
+        manifest = manifests.setdefault(
+            row["crate"], load_toml(crate / "Cargo.toml")
+        )
+        target = row["cargo_target"]
+        if target == "lib":
+            source = manifest.get("lib", {}).get("path", "src/lib.rs")
+        else:
+            entries = [t for t in manifest.get("test", []) if t["name"] == target]
+            source = entries[0].get("path", f"tests/{target}.rs") if entries else f"tests/{target}.rs"
+        path = root / path_text
+        target_source = crate / source
+        if path.resolve() not in target_files(target_source.resolve(), crate.resolve()):
+            problems.append(
+                f"{path_text}::{name}: file is not in parity/test_registry.toml for target {target} "
+                f"(outside its registered target)"
+                if path_text not in by_path
+                else f"{path_text}::{name}: outside its registered target {target}"
+            )
+            continue
+        declaration = rust_test_declaration_problems(path, name, True)
+        if declaration:
+            problems.append(f"{path_text}::{name}: {declaration}")
+            continue
+        found.append({"evidence_test": path_text, "evidence_assertion": name,
+                      "crate": row["crate"], "cargo_target": target,
+                      "libtest_name": libtest_name(path, name, target_source),
+                      "features": rust_test_features(path, name)})
+    if problems:
+        raise ValueError("unresolvable cited Rust assertions:\n" + "\n".join(problems))
+    return found
+
+
+def nextest_selection(rows: list[dict]) -> str:
+    """One nextest filter expression selecting exactly the given resolved rows."""
+    expressions = []
+    for row in rows:
+        target = "kind(lib)" if row["cargo_target"] == "lib" else f"binary(={row['cargo_target']})"
+        expressions.append(f"(package(={row['crate']}) and {target} and test(={row['libtest_name']}))")
+    return " or ".join(expressions)
+
+
+def calibration_discovery_problems(rows: list[dict], listing: dict) -> list[str]:
+    """Require each classified assertion in its exact, non-ignored binary."""
+    problems = []
+    for row in rows:
+        target = row["cargo_target"]
+        identity = row["crate"] + ("" if target == "lib" else f"::{target}")
+        suite = listing.get("rust-suites", {}).get(identity, {})
+        case = suite.get("testcases", {}).get(row["libtest_name"])
+        if not case or case.get("ignored") or case.get("filter-match", {}).get("status", "matches") != "matches":
+            problems.append(f"missing, ignored or deselected acceptance assertion: {identity}::{row['libtest_name']}")
+    return problems
 
 
 _SKIP_ATTRS = {"skip", "skipif", "xfail"}
@@ -521,7 +968,103 @@ def _is_pytest_call(node: ast.AST, attr: str) -> bool:
     )
 
 
-@functools.cache
+@source_cache
+def python_test_markers(path: Path) -> dict[str, set[str]]:
+    """Explicit pytest markers on module-level tests, using the shared AST reader."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    module_marks = set()
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == "pytestmark"
+            for target in node.targets
+        ):
+            module_marks.update(_mark_names(node.value))
+    return {
+        node.name: module_marks.union(*(_mark_names(d) for d in node.decorator_list))
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name.startswith("test")
+    }
+
+
+@source_cache
+def python_test_declarations(path: Path) -> list[dict]:
+    """Source declarations for pytest and imported unittest TestCase methods.
+
+    This supports software inventory/dispositions. It does not certify runtime
+    discovery, inherited tests, assertion quality or scientific propositions.
+    """
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    unittest_names = {
+        alias.asname or alias.name
+        for node in tree.body if isinstance(node, ast.Import)
+        for alias in node.names if alias.name == "unittest"
+    }
+    testcase_names = {
+        alias.asname or alias.name
+        for node in tree.body
+        if isinstance(node, ast.ImportFrom) and node.module == "unittest"
+        for alias in node.names if alias.name == "TestCase"
+    }
+    rows = []
+    module_marks = set()
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == "pytestmark" for target in node.targets
+        ):
+            module_marks.update(_mark_names(node.value))
+
+    def add(function, prefix="", runner="pytest", class_marks=None):
+        if not function.name.startswith("test"):
+            return
+        marks = module_marks | (class_marks or set())
+        marks = marks.union(*(_mark_names(d) for d in function.decorator_list))
+        rows.append({
+            "selector": prefix + function.name,
+            "runner": runner,
+            "line": function.lineno,
+            "static_skip_or_xfail": bool(marks & (_SKIP_ATTRS | {"skipIf", "skipUnless"})),
+            "assertion_nodes": sum(
+                isinstance(n, ast.Assert) or (
+                    isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                    and (n.func.attr.startswith("assert") or n.func.attr == "raises")
+                ) for n in ast.walk(function)
+            ),
+            "discovery_verified": False,
+        })
+
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            add(node)
+        elif isinstance(node, ast.ClassDef):
+            bases = {ast.unparse(base) for base in node.bases}
+            unittest_case = bool(bases & testcase_names) or any(
+                f"{alias}.TestCase" in bases for alias in unittest_names
+            )
+            pytest_case = node.name.startswith("Test") and not any(
+                isinstance(member, ast.FunctionDef) and member.name == "__init__"
+                for member in node.body
+            )
+            if unittest_case or pytest_case:
+                marks = set().union(*(_mark_names(d) for d in node.decorator_list))
+                for member in node.body:
+                    if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        add(member, node.name + ".", "unittest" if unittest_case else "pytest", marks)
+    return rows
+
+
+def script_test_declaration_problems(path: Path, selector: str) -> list[str]:
+    if not path.is_file() or not path.name.startswith("test_"):
+        return ["script assertion requires an existing test_*.py source"]
+    matches = [row for row in python_test_declarations(path) if row["selector"] == selector]
+    if len(matches) != 1:
+        return [f"script assertion missing or ambiguous: {selector}"]
+    if matches[0]["static_skip_or_xfail"]:
+        return [f"script assertion is skipped or xfailed: {selector}"]
+    return []
+
+
+@source_cache
 def static_python_test(path: Path, name: str) -> list[str]:
     """Why `name` in `path` is not a collected, runnable pytest function (empty = it is).
 
@@ -581,11 +1124,13 @@ def static_python_test(path: Path, name: str) -> list[str]:
     return problems
 
 
-@functools.cache
+@source_cache
 def _python_collection(path: Path, cwd: Path) -> tuple[int, str]:
     rel = path.resolve().relative_to((cwd / "python").resolve())
     # Evidence collection is read-only. CI and local release gates install the
     # project environment first; resolving one test must not fetch packages.
+    # Override marker filters only while collecting: excluded calibration tests
+    # can be cited as evidence without executing them or creating records.
     proc = subprocess.run(
         [
             "uv",
@@ -596,6 +1141,8 @@ def _python_collection(path: Path, cwd: Path) -> tuple[int, str]:
             ".",
             "pytest",
             "--collect-only",
+            "-o",
+            "addopts=",
             "-q",
             "-p",
             "no:cacheprovider",
@@ -608,16 +1155,23 @@ def _python_collection(path: Path, cwd: Path) -> tuple[int, str]:
     return proc.returncode, proc.stdout + proc.stderr
 
 
-@functools.cache
+@source_cache
 def resolve_python_test(path: Path, name: str, cwd: Path = ROOT) -> list[str]:
     problems = static_python_test(path, name)
     if problems:
         return problems
     rel = path.resolve().relative_to((cwd / "python").resolve())
+    if cwd == ROOT and release_passes and release_passes.contains(path, name):
+        return []
+    if cwd == ROOT and release_passes and release_passes.python_nodes is not None and rel.parts[0] == "tests":
+        if (str(path.relative_to(ROOT)), name) not in release_passes.python_nodes:
+            return [f"pytest does not collect {rel}::{name}"]
+        return []
     code, listing = _python_collection(path, cwd)
     nodes = (line.split()[0] for line in listing.splitlines() if line.startswith(str(rel) + "::"))
-    if code != 0 or not any(node.endswith("::" + name) or
-                            node.split("[")[0].endswith("::" + name) for node in nodes):
+    if code != 0 or not any(
+        node.endswith("::" + name) or node.split("[")[0].endswith("::" + name) for node in nodes
+    ):
         return [f"pytest does not collect {rel}::{name}: {listing[-500:]}"]
     return []
 
@@ -630,7 +1184,7 @@ def _strip_python(text: str) -> str:
     return re.sub(r"(?m)#[^\n]*", "", text)
 
 
-@functools.cache
+@source_cache
 def _rust_index(root_file: Path) -> dict[str, list[tuple[Path, RustItem]]]:
     index: dict[str, list[tuple[Path, RustItem]]] = {}
     for f in target_files(root_file):
@@ -644,13 +1198,15 @@ def _rust_index(root_file: Path) -> dict[str, list[tuple[Path, RustItem]]]:
     # evidence for a test that never calls them.
     root = target_root(root_file)
     if root:
-        manifest = ROOT / "crates" / root_file.relative_to(ROOT).parts[1] / "Cargo.toml"
-        data = tomllib.loads(manifest.read_text(encoding="utf-8"))
+        parts = root[0].relative_to(ROOT).parts
+        manifest = (ROOT / "python/Cargo.toml" if parts[0] == "python"
+                    else ROOT / "crates" / parts[1] / "Cargo.toml")
+        data = tomllib.loads(_read(manifest))
         dependency = data.get("dev-dependencies", {}).get("antecedent-test-support", {})
         base = manifest.parent
         if isinstance(dependency, dict) and dependency.get("workspace"):
             dependency = (
-                tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))
+                tomllib.loads(_read(ROOT / "Cargo.toml"))
                 .get("workspace", {})
                 .get("dependencies", {})
                 .get("antecedent-test-support", {})
@@ -666,9 +1222,7 @@ def _rust_index(root_file: Path) -> dict[str, list[tuple[Path, RustItem]]]:
                     it.name: it
                     for it in items
                     if it.kind == "fn"
-                    and re.search(
-                        r"\bpub\s+(?:\#\[[^\]]+\]\s*)?$", masked.skeleton[: it.start]
-                    )
+                    and re.search(r"\bpub\s+(?:\#\[[^\]]+\]\s*)?$", masked.skeleton[: it.start])
                 }
                 for f in target_files(root_file):
                     for imported in re.findall(
@@ -694,6 +1248,7 @@ _REF = re.compile(
 _QUALIFIED_FN = re.compile(r"(?<![.:\w])([A-Za-z_]\w*)::([A-Za-z_]\w*)\s*\(")
 
 
+@source_cache
 def _declared_module_file(path: Path, name: str) -> Path | None:
     """Resolve one enabled module declared directly in `path` (including `#[path]`)."""
     masked, items = rust_items(path)
@@ -726,7 +1281,7 @@ def _declared_module_file(path: Path, name: str) -> Path | None:
     return None
 
 
-@functools.cache
+@source_cache
 def _item_refs(path: Path, start: int) -> tuple[str, str, frozenset[str]]:
     """(code with comments removed, skeleton, referenced identifiers) of one item."""
     masked, items = rust_items(path)
@@ -741,7 +1296,7 @@ def rust_closure(path: Path, name: str) -> str:
     return _rust_closure_parts(path, name)[0]
 
 
-@functools.cache
+@source_cache
 def _rust_closure_parts(path: Path, name: str) -> tuple[str, str]:
     """(code, skeleton) of the closure; offsets agree, so a match in the code can be
     checked against the skeleton to tell code from string-literal contents."""
@@ -749,7 +1304,8 @@ def _rust_closure_parts(path: Path, name: str) -> tuple[str, str]:
     root = target_root(path)
     root_file = root[0].resolve() if root else path
     index = _rust_index(root_file)
-    if path not in target_files(root_file):
+    live = frozenset(target_files(root_file))
+    if path not in live:
         index = dict(index)
         for it in rust_items(path)[1]:
             if it.kind != "mod":
@@ -775,7 +1331,6 @@ def _rust_closure_parts(path: Path, name: str) -> tuple[str, str]:
         # is not followed by the unqualified identifier index above. Follow it
         # only when its prefix is a real module declaration in this file and
         # the module is part of the current Cargo target.
-        live = set(target_files(root_file))
         for module_name, function_name in _QUALIFIED_FN.findall(skel):
             module_file = _declared_module_file(ff, module_name)
             if module_file is None or module_file not in live:
@@ -787,22 +1342,19 @@ def _rust_closure_parts(path: Path, name: str) -> tuple[str, str]:
             todo.extend(
                 (module_file, child)
                 for child in module_items
-                if child.kind == "fn" and child.name == function_name
+                if child.kind == "fn"
+                and child.name == function_name
                 and not _disabling_cfg(child.attrs)
+                and not any(block.body[0] < child.start < block.body[1] for block in module_blocks)
                 and not any(
-                    block.body[0] < child.start < block.body[1]
-                    for block in module_blocks
-                )
-                and not any(
-                    block.body[0] < child.start < block.body[1]
-                    and _disabling_cfg(block.attrs)
+                    block.body[0] < child.start < block.body[1] and _disabling_cfg(block.attrs)
                     for block in module_blocks
                 )
             )
     return "\n".join(out), "\n".join(skel_out)
 
 
-@functools.cache
+@source_cache
 def python_closure(path: Path, name: str) -> str:
     try:
         return _py_closure.closure_source(path, name)
@@ -860,10 +1412,51 @@ def names_fixture(path: Path, test_name: str, body: str, fixture: str) -> bool:
     return False
 
 
-@functools.cache
+@source_cache
 def _markers(path: Path, name: str) -> tuple[bool, bool]:
     body = closure(path, name)
     return bool(PARSE_MARKERS.search(body)), bool(ASSERT_MARKERS.search(body))
+
+
+def definite_vacuity_problems(body: str) -> list[str]:
+    """Reject only provably trivial Rust assertions, not general semantic claims.
+
+    Parsing a fixture and asserting `true` or `x == x` cannot demonstrate its
+    truth. Other assertions still require scientific review; this is not a
+    general data-flow or independence proof.
+    """
+    masked = mask_rust(body)
+    meaningful = False
+    count = 0
+    for match in re.finditer(r"\b(assert(?:_eq|_ne)?)!\s*\(", masked.skeleton):
+        count += 1
+        start = match.end()
+        end = _match_bracket(masked.skeleton, start - 1)
+        code, skeleton = masked.code[start:end], masked.skeleton[start:end]
+        args = []
+        depth = 0
+        mark = 0
+        for index, char in enumerate(skeleton):
+            if char in "([{":
+                depth += 1
+            elif char in ")]}":
+                depth -= 1
+            elif char == "," and depth == 0:
+                args.append(code[mark:index].strip())
+                mark = index + 1
+        args.append(code[mark:].strip())
+        if match[1] == "assert":
+            trivial = args[0] in {"true", "false"}
+            equality = re.fullmatch(r"\s*([\w.]+)\s*==\s*([\w.]+)\s*", args[0])
+            trivial = trivial or bool(equality and equality[1] == equality[2])
+        else:
+            trivial = len(args) >= 2 and args[0] == args[1] and bool(
+                re.fullmatch(r'[\w.]+|"[^"\\]*"', args[0]))
+        meaningful |= not trivial
+    conditional_panic = re.search(r"\b(?:if|match)\b", masked.skeleton) and re.search(
+        r"\bpanic!", masked.skeleton)
+    return (["fixture is parsed but every assertion is a constant or self-comparison"]
+            if count and not meaningful and not conditional_panic else [])
 
 
 def consumption_problems(path: Path, name: str, fixture: str) -> list[str]:
@@ -876,10 +1469,12 @@ def consumption_problems(path: Path, name: str, fixture: str) -> list[str]:
         problems.append(f"{name} (with the helpers it calls) parses no fixture")
     if not asserts:
         problems.append(f"{name} (with the helpers it calls) asserts nothing")
+    if path.suffix == ".rs":
+        problems.extend(definite_vacuity_problems(body))
     return problems
 
 
-@functools.cache
+@source_cache
 def _read(path: Path) -> str:
     return path.read_text(errors="ignore", encoding="utf-8")
 
@@ -892,20 +1487,20 @@ def _candidate_files() -> tuple[Path, ...]:
     files = [p for p in base.glob("crates/*/tests/**/*.rs")]
     files += [p for p in base.glob("crates/*/src/**/*.rs")]
     files += [p for p in base.glob("python/tests/**/test_*.py")]
+    files += [p for p in base.glob("python/src/**/*.rs")]
     return tuple(p for p in files if "target" not in p.parts)
 
 
-def fixture_consumers(fixture: str) -> list[str]:
+def _fixture_consumers(fixture: str, files: tuple[Path, ...]) -> Iterator[str]:
     """`file::test` for every executing test whose closure consumes `fixture`.
 
     Static: the test must be a compiled, non-ignored, non-cfg-disabled `#[test]`
     (or a collected pytest without a static skip); comments never count."""
     parts = Path(fixture).parts
     if len(parts) < 3:
-        return []
+        return
     name = parts[2]
-    out = []
-    for f in _candidate_files():
+    for f in files:
         raw = _read(f)
         if name not in raw:
             continue
@@ -916,7 +1511,7 @@ def fixture_consumers(fixture: str) -> list[str]:
                 if static_python_test(f, t) or name not in closure(f, t):
                     continue
                 if not consumption_problems(f, t, fixture):
-                    out.append(f"{f.relative_to(ROOT.resolve())}::{t}")
+                    yield f"{f.relative_to(ROOT.resolve())}::{t}"
             continue
         masked, items = rust_items(f)
         if name not in masked.code:
@@ -927,8 +1522,18 @@ def fixture_consumers(fixture: str) -> list[str]:
             if static_rust_test(f, it.name).problems or name not in closure(f, it.name):
                 continue
             if not consumption_problems(f, it.name, fixture):
-                out.append(f"{f.relative_to(ROOT.resolve())}::{it.name}")
-    return out
+                yield f"{f.relative_to(ROOT.resolve())}::{it.name}"
+
+
+def fixture_consumers(fixture: str) -> list[str]:
+    return list(_fixture_consumers(fixture, _candidate_files()))
+
+
+def fixture_has_consumer(fixture: str) -> bool:
+    """Stop at the first verified consumer. Check namesake test files first."""
+    name = Path(fixture).name
+    files = sorted(_candidate_files(), key=lambda path: name not in path.stem)
+    return next(_fixture_consumers(fixture, tuple(files)), None) is not None
 
 
 # ------------------------------------------------------------------- matrix axes
@@ -1063,12 +1668,11 @@ def axis_problems(body: str, row: dict) -> list[str]:
     return problems
 
 
-KNOWN_TRUTH_KINDS = {"internal_known_truth", "frozen_external_oracle"}
 AXIS_KEYS = ("query", "graph_class", "structure", "inference", "validation")
 
 
 def row_evidence_problems(row: dict) -> list[str]:
-    """Why a licensed row's `evidence_test` / `evidence_assertion` is not evidence for it.
+    """Why a supported row's `evidence_test` / `evidence_assertion` is not evidence for it.
 
     The cited test must be an executing test (Rust: listed by `cargo test -- --list`
     and not by `--list --ignored`; Python: collected by pytest with no static skip).
@@ -1093,6 +1697,7 @@ def row_evidence_problems(row: dict) -> list[str]:
     if problems:
         return problems
     fixture = row.get("known_truth_fixture")
+    problems += fixture_kind_problems(ROOT, row)
     if row.get("evidence_kind") in KNOWN_TRUTH_KINDS and isinstance(fixture, str):
         problems += consumption_problems(path.resolve(), str(name), fixture)
     if all(isinstance(row.get(k), str) for k in AXIS_KEYS):
@@ -1109,9 +1714,12 @@ _BUILDER_DISCARDS = (
     re.compile(rf"\bdel\s+{_BUILDER}\b", re.I),
     re.compile(rf"\b{_BUILDER}\s*=\s*None\b", re.I),
 )
-_EXECUTES = re.compile(r"\b(?:execute|estimate(?:_[A-Za-z0-9_]+)?|interval|refresh_series|run|evaluate_exact)\s*\(")
+_EXECUTES = re.compile(
+    r"\b(?:execute|estimate(?:_[A-Za-z0-9_]+)?|interval|refresh_series|run|evaluate_exact)\s*\("
+)
 _INSPECTS_PLAN = re.compile(
     r"\b(?:program|plan|lowering)\b"
+    r"|\.retained_operation\s*\("
     r"|\.logical_plan\b"
     r"|\.checked_(?:temporal_response_info|temporal_mediation_info|bayesian_basis_cate_query)\b",
     re.I,
@@ -1121,13 +1729,15 @@ _INSPECTS_PLAN = re.compile(
 def checked_execution_body_problems(body: str, assertion: str) -> list[str]:
     """Why `body` (a test with the helpers it calls) is not checked-execution evidence.
 
-    Checked execution runs a licensed route from its retained checked operation
+    Checked execution runs a supported route from its retained checked operation
     with no builder alive: the test discards its builder (`drop(builder…)`,
     `del builder`, `builder = None`), executes the prepared plan (`execute`,
     `estimate…`, `interval`, `refresh_series`, `run`, `evaluate_exact`), and inspects the
     retained program or plan."""
     if not any(pattern.search(body) for pattern in _BUILDER_DISCARDS):
-        return [f"evidence assertion {assertion!r} does not explicitly discard its builder before execution"]
+        return [
+            f"evidence assertion {assertion!r} does not explicitly discard its builder before execution"
+        ]
     if not _EXECUTES.search(body):
         return [f"evidence assertion {assertion!r} does not execute the prepared plan"]
     if not _INSPECTS_PLAN.search(body):
@@ -1165,9 +1775,9 @@ def checked_execution_citation_problems(test_rel: str, assertion: str) -> list[s
 
 
 def checked_execution_problems(row: dict) -> list[str]:
-    """Why a licensed row's `checked_execution` does not cover its `estimators`.
+    """Why a supported row's `checked_execution` does not cover its `estimators`.
 
-    One entry per licensed estimator, in the same set as `estimators` with no
+    One entry per supported estimator, in the same set as `estimators` with no
     duplicates; each entry names the executing test that drops its builder,
     executes the retained plan for that estimator, and inspects it."""
     estimators = row.get("estimators")
@@ -1175,14 +1785,18 @@ def checked_execution_problems(row: dict) -> list[str]:
     if not isinstance(estimators, list) or not estimators:
         return ["checked_execution requires a non-empty estimators list"]
     if not isinstance(entries, list) or not entries:
-        return ["checked_execution is required: one entry per licensed estimator"]
+        return ["checked_execution is required: one entry per supported estimator"]
     problems: list[str] = []
     named: list[str] = []
     for i, entry in enumerate(entries, 1):
         if not isinstance(entry, dict):
             problems.append(f"checked_execution entry #{i} must be an inline table")
             continue
-        estimator, test_rel, assertion = entry.get("estimator"), entry.get("test"), entry.get("assertion")
+        estimator, test_rel, assertion = (
+            entry.get("estimator"),
+            entry.get("test"),
+            entry.get("assertion"),
+        )
         if not all(isinstance(v, str) and v.strip() for v in (estimator, test_rel, assertion)):
             problems.append(f"checked_execution entry #{i} needs estimator, test and assertion")
             continue
@@ -1195,7 +1809,7 @@ def checked_execution_problems(row: dict) -> list[str]:
         problems.append("checked_execution names an estimator twice")
     if set(named) != set(estimators):
         problems.append(
-            f"checked_execution estimators {sorted(set(named))} != licensed estimators {sorted(set(estimators))}"
+            f"checked_execution estimators {sorted(set(named))} != supported estimators {sorted(set(estimators))}"
         )
     return problems
 
@@ -1203,7 +1817,9 @@ def checked_execution_problems(row: dict) -> list[str]:
 def main(argv: list[str]) -> int:
     if argv[:1] == ["rows"] and len(argv) == 2:
         failed = 0
-        for i, row in enumerate(tomllib.loads(Path(argv[1]).read_text(encoding="utf-8")).get("cell", []), 1):
+        for i, row in enumerate(
+            load_toml(Path(argv[1])).get("cell", []), 1
+        ):
             problems = row_evidence_problems(row)
             if "checked_execution" in row:
                 problems += checked_execution_problems(row)

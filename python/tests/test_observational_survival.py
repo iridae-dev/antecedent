@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from antecedent import observational_survival
+from antecedent import Execution, observational_survival
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalError
 
 HORIZON = 2.0
@@ -61,7 +62,9 @@ def _effect(data: dict[str, np.ndarray], **options):
 
 def test_survival_and_rmst_differences_recover_the_closed_form_truth() -> None:
     data = _draw()
-    effect = _effect(data, horizon=HORIZON, censoring="at_random_given_covariates", seed=4)
+    effect = _effect(
+        data, horizon=HORIZON, censoring="at_random_given_covariates", execution=Execution(seed=4)
+    )
     s1, r1 = _truth(1.0)
     s0, r0 = _truth(0.0)
     assert abs(effect.survival_difference.estimate - (s1 - s0)) < 4 * effect.survival_difference.se
@@ -70,7 +73,7 @@ def test_survival_and_rmst_differences_recover_the_closed_form_truth() -> None:
     assert abs(effect.control.rmst - r0) < 4 * effect.control.rmst_se
     assert effect.horizon == HORIZON
     assert effect.censoring == "at_random_given_covariates"
-    assert effect.calibration == "unmeasured"
+    assert effect.calibration == "not_measured"
     assert any("coarsening at random" in text for text in effect.assumptions)
     assert effect.n_obs == 5000 and len(effect.row_index) == 5000
     assert (
@@ -83,11 +86,11 @@ def test_the_horizon_and_the_censoring_assumption_have_no_default() -> None:
     with pytest.raises(CausalError) as raised:
         _effect(data, censoring="independent_within_arm")
     assert raised.value.reason_code == "required_option_missing"
-    assert "survival_effect.horizon_missing" in str(raised.value)
+    assert reason_details.survival_effect.HORIZON_MISSING in str(raised.value)
     with pytest.raises(CausalError) as raised:
         _effect(data, horizon=HORIZON)
     assert raised.value.reason_code == "required_option_missing"
-    assert "survival_effect.censoring_assumption_missing" in str(raised.value)
+    assert reason_details.survival_effect.CENSORING_ASSUMPTION_MISSING in str(raised.value)
 
 
 def test_support_violations_are_refused_with_their_own_details() -> None:
@@ -95,7 +98,7 @@ def test_support_violations_are_refused_with_their_own_details() -> None:
     with pytest.raises(CausalError) as raised:
         _effect(data, horizon=500.0, censoring="independent_within_arm")
     assert raised.value.reason_code == "positivity_violated"
-    assert "survival_effect.horizon_beyond_follow_up" in str(raised.value)
+    assert reason_details.survival_effect.HORIZON_BEYOND_FOLLOW_UP in str(raised.value)
     bad = dict(data, treatment=np.where(np.arange(600) == 4, 2.0, data["treatment"]))
     with pytest.raises(CausalError) as raised:
         _effect(bad, horizon=HORIZON, censoring="independent_within_arm")

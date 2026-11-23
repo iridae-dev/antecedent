@@ -1,7 +1,7 @@
 //! Selective adjusted-regression recalculation against independent finite algebra.
 //!
 //! These tests assess values, covariance and actual work, not statistical coverage.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::recalc_adjusted::{
     AdjustedContrast, AdjustedModel, AdjustedRequest, AdjustedSession,
@@ -70,7 +70,7 @@ fn linear() -> AdjustedRequest {
         }
     }
     AdjustedRequest {
-        columns: vec![("t".into(), t), ("y".into(), y), ("z".into(), z)],
+        columns: vec![("t".into(), t), ("y".into(), y), ("z".into(), z)].into(),
         edges: vec![(2, 0), (2, 1), (0, 1)],
         treatments: vec![0],
         outcome: 1,
@@ -99,7 +99,7 @@ fn glm() -> AdjustedRequest {
         }
     }
     AdjustedRequest {
-        columns: vec![("t".into(), t), ("y".into(), y), ("z".into(), z)],
+        columns: vec![("t".into(), t), ("y".into(), y), ("z".into(), z)].into(),
         edges: vec![(2, 0), (2, 1), (0, 1)],
         treatments: vec![0],
         outcome: 1,
@@ -175,7 +175,8 @@ fn vector() -> AdjustedRequest {
         }
     }
     AdjustedRequest {
-        columns: vec![("t1".into(), t1), ("t2".into(), t2), ("y".into(), y), ("z".into(), z)],
+        columns: vec![("t1".into(), t1), ("t2".into(), t2), ("y".into(), y), ("z".into(), z)]
+            .into(),
         edges: vec![(3, 0), (3, 1), (3, 2), (0, 2), (1, 2)],
         treatments: vec![0, 1],
         outcome: 2,
@@ -201,7 +202,7 @@ fn categorical() -> AdjustedRequest {
         }
     }
     AdjustedRequest {
-        columns: vec![("t".into(), codes), ("y".into(), y)],
+        columns: vec![("t".into(), codes), ("y".into(), y)].into(),
         edges: vec![(0, 1)],
         treatments: vec![0],
         outcome: 1,
@@ -315,15 +316,15 @@ fn adjusted_vector_reused_contrasts_preserve_joint_covariance() {
     offset.contrast = numeric(&[0.3, 0.0], &[0.0, 0.0]);
     let direct = fit_vector_treatment(
         &VectorTreatmentInput {
-            outcome: offset.columns[2].1.clone(),
+            outcome: offset.columns[2].1.as_slice().into(),
             row_snapshot: "offset".into(),
-            adjustment: vec![NamedColumn { name: "z".into(), values: offset.columns[3].1.clone() }],
+            adjustment: vec![NamedColumn::new("z", offset.columns[3].1.as_slice())],
             treatments: offset
                 .treatments
                 .iter()
                 .map(|&id| TreatmentColumn {
-                    name: offset.columns[id as usize].0.clone(),
-                    values: offset.columns[id as usize].1.clone(),
+                    name: offset.columns[id as usize].0.as_str().into(),
+                    values: offset.columns[id as usize].1.as_slice().into(),
                     adjustment_set: vec!["z".into()],
                     row_snapshot: "offset".into(),
                 })
@@ -402,7 +403,7 @@ fn adjusted_scalar_paths_match_existing_study_engines_without_bootstrap() {
                 .unwrap()
         };
         let original = study.run(&ctx()).unwrap();
-        let original = original.estimate.as_effect().unwrap();
+        let original = original.estimate().as_effect().unwrap();
         let retained = full(&request);
         close(retained.law.ate, original.ate);
         close(retained.law.std_error, original.se_analytic());
@@ -450,7 +451,12 @@ fn adjusted_causal_and_support_refusals_preserve_live_fit() {
     invalid.adjustment.clear();
     let (result, fits) =
         count_adjusted_model_fits(|| execute_adjusted_with_receipt(&mut session, &invalid, &ctx()));
-    assert!(result.unwrap_err().to_string().contains("recalc.adjustment_not_identified"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains(antecedent_core::reason_details::recalc::ADJUSTMENT_NOT_IDENTIFIED)
+    );
     assert_eq!(fits, 0);
     assert_eq!(run(&mut session, &request).receipt.totals().model_fits, 0);
     // A joint coefficient fit cannot stand in for a shared causal adjustment proof.
@@ -459,7 +465,12 @@ fn adjusted_causal_and_support_refusals_preserve_live_fit() {
     let (result, fits) = count_adjusted_model_fits(|| {
         execute_adjusted_with_receipt(&mut AdjustedSession::new(), &vector, &ctx())
     });
-    assert!(result.unwrap_err().to_string().contains("recalc.adjustment_not_identified"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains(antecedent_core::reason_details::recalc::ADJUSTMENT_NOT_IDENTIFIED)
+    );
     assert_eq!(fits, 0);
     // Dummy regressions must pass that same proof screen.
     let mut cat = categorical();
@@ -468,11 +479,20 @@ fn adjusted_causal_and_support_refusals_preserve_live_fit() {
     let (result, fits) = count_adjusted_model_fits(|| {
         execute_adjusted_with_receipt(&mut AdjustedSession::new(), &cat, &ctx())
     });
-    assert!(result.unwrap_err().to_string().contains("recalc.adjustment_not_identified"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains(antecedent_core::reason_details::recalc::ADJUSTMENT_NOT_IDENTIFIED)
+    );
     assert_eq!(fits, 0);
 }
 
 #[test]
+#[allow(
+    clippy::redundant_closure_for_method_calls,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn adjusted_receipt_artifact_roundtrip_and_fresh_boundary_never_fake_a_fit() {
     use antecedent_core::recalc::{
         RecalcCapabilities, ResumeContext, RetargetSupport, StageIdentities,
@@ -505,7 +525,7 @@ fn adjusted_receipt_artifact_roundtrip_and_fresh_boundary_never_fake_a_fit() {
     let artifact = RecalcReceiptArtifact::seal(
         &StageIdentities::new(),
         session.identities(),
-        &RecalcCapabilities::in_process(RetargetSupport::Licensed),
+        &RecalcCapabilities::in_process(RetargetSupport::Supported),
         &counts,
     )
     .unwrap();
@@ -534,7 +554,10 @@ fn adjusted_receipt_artifact_roundtrip_and_fresh_boundary_never_fake_a_fit() {
     ));
     let (result, fits) =
         count_adjusted_model_fits(|| execute_adjusted_with_receipt(&mut fresh, &request, &ctx()));
-    assert!(result.is_err());
+    assert_eq!(
+        result.as_ref().err().map(|e| e.to_string()).unwrap_or_default(),
+        "recalculation refused at data_snapshot: recalc.unavailable_data"
+    );
     assert_eq!(fits, 0);
     // Explicitly supplying the raw request to a new session does a complete fresh fit.
     let mut raw_resume = AdjustedSession::resume(
@@ -547,6 +570,10 @@ fn adjusted_receipt_artifact_roundtrip_and_fresh_boundary_never_fake_a_fit() {
 }
 
 #[test]
+#[allow(
+    clippy::redundant_closure_for_method_calls,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn adjusted_sparse_categories_and_invalid_predictions_do_no_model_work() {
     let mut request = categorical();
     let mut session = AdjustedSession::new();
@@ -556,17 +583,42 @@ fn adjusted_sparse_categories_and_invalid_predictions_do_no_model_work() {
     }
     let (result, fits) =
         count_adjusted_model_fits(|| execute_adjusted_with_receipt(&mut session, &request, &ctx()));
-    assert!(result.is_err());
+    assert_eq!(
+        result.as_ref().err().map(|e| e.to_string()).unwrap_or_default(),
+        "reason=arm_not_populated: categorical_treatment.sparse_level: declared level `a` has 3 rows, fewer than the declared minimum 4"
+    );
     assert_eq!(fits, 0, "sparse levels refuse before a numerical fit");
     assert_eq!(run(&mut session, &categorical()).receipt.totals().model_fits, 0);
     let (result, fits) = count_adjusted_model_fits(|| session.predict(&[vec![1.0, 1.0]]));
-    assert!(result.is_err(), "two active dummy levels are not a categorical regime");
+    assert_eq!(
+        result.as_ref().err().map(|e| e.to_string()).unwrap_or_default(),
+        antecedent_core::reason_details::recalc::ADJUSTED_PREDICTION_OUT_OF_SUPPORT,
+        "two active dummy levels are not a categorical regime"
+    );
     assert_eq!(fits, 0);
     let mut numeric_session = AdjustedSession::new();
     run(&mut numeric_session, &linear());
-    for row in [vec![0.0], vec![0.0, f64::NAN], vec![0.0, 0.5], vec![0.0, 2.0]] {
+    for (row, code) in [
+        (vec![0.0], antecedent_core::reason_details::recalc::ADJUSTED_PREDICTION_SCHEMA_MISMATCH),
+        (
+            vec![0.0, f64::NAN],
+            antecedent_core::reason_details::recalc::ADJUSTED_PREDICTION_SCHEMA_MISMATCH,
+        ),
+        (
+            vec![0.0, 0.5],
+            antecedent_core::reason_details::recalc::ADJUSTED_PREDICTION_OUT_OF_SUPPORT,
+        ),
+        (
+            vec![0.0, 2.0],
+            antecedent_core::reason_details::recalc::ADJUSTED_PREDICTION_OUT_OF_SUPPORT,
+        ),
+    ] {
         let (result, fits) = count_adjusted_model_fits(|| numeric_session.predict(&[row]));
-        assert!(result.is_err(), "schema, finite and binary treatment support checked");
+        assert_eq!(
+            result.as_ref().err().map(|e| e.to_string()).unwrap_or_default(),
+            code,
+            "schema, finite and binary treatment support checked"
+        );
         assert_eq!(fits, 0);
     }
 }
@@ -589,6 +641,10 @@ fn adjusted_reuse_borrows_covariance_without_refitting_or_copying() {
 }
 
 #[test]
+#[allow(
+    clippy::redundant_closure_for_method_calls,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn adjusted_cancel_memory_and_numerical_refit_failures_are_transactional() {
     let original = linear();
     let mut session = AdjustedSession::new();
@@ -600,16 +656,26 @@ fn adjusted_cancel_memory_and_numerical_refit_failures_are_transactional() {
     let (result, fits) = count_adjusted_model_fits(|| {
         execute_adjusted_with_receipt(&mut session, &original, &cancelled)
     });
-    assert!(result.unwrap_err().to_string().contains("recalc.cancelled"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains(antecedent_core::reason_details::recalc::CANCELLED)
+    );
     assert_eq!(fits, 0);
     let mut changed = original.clone();
     changed.columns[1].1[0] += 0.1;
     let mut constrained = ctx();
-    constrained.memory.hard_limit_bytes = Some(1);
+    constrained.set_memory_limit(Some(1));
     let (result, fits) = count_adjusted_model_fits(|| {
         execute_adjusted_with_receipt(&mut session, &changed, &constrained)
     });
-    assert!(result.unwrap_err().to_string().contains("recalc.memory_budget_exceeded"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains(antecedent_core::reason_details::recalc::MEMORY_BUDGET_EXCEEDED)
+    );
     assert_eq!(fits, 0);
     // Collinear design has no unique retained covariance. The failed numerical refit
     // must leave the previous checked model and its allocation available for reuse.
@@ -617,7 +683,10 @@ fn adjusted_cancel_memory_and_numerical_refit_failures_are_transactional() {
     changed.columns[2].1 = changed.columns[0].1.clone();
     let (result, fits) =
         count_adjusted_model_fits(|| execute_adjusted_with_receipt(&mut session, &changed, &ctx()));
-    assert!(result.is_err());
+    assert_eq!(
+        result.as_ref().err().map(|e| e.to_string()).unwrap_or_default(),
+        "reason=design_rank_deficient: vector_treatment.collinear_treatments: treatment `t` is a linear combination of the intercept, the adjustment columns and the earlier treatments"
+    );
     assert_eq!(fits, 0, "only successful numerical fits are counted");
     assert_eq!(session.identities(), &identities);
     assert_eq!(session.covariance().unwrap().as_ptr(), covariance);

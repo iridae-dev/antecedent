@@ -108,7 +108,7 @@ fn recovery_bca_original_measurement_identity_receipt() {
     let original_row = include_str!("../../../parity/coverage_records.toml")
         .split("[[record]]")
         .find(|row| row.contains(
-            "id = \"cov.recovered_effect.m_graph.frequentist.bootstrap_bca.l95.binary_missingness_whole_row_recovery_bca_l95\""
+            "test = \"crates/antecedent-estimate/tests/recovery_whole_method_calibration.rs::binary_missingness_whole_row_recovery_bca_l95\""
         )).unwrap();
     let functional_literal =
         original_row.lines().find_map(|line| line.strip_prefix("functional = ")).unwrap();
@@ -292,7 +292,10 @@ fn measure(test: &'static str, expected_id: &str) {
             Err(_) => tally.skip(),
         }
     }
-    assert_eq!(tally.record_id().as_deref(), Some(expected_id));
+    assert_eq!(
+        tally.record_id().as_deref(),
+        Some(format!("{expected_id}.v2_validation_not_applicable").as_str())
+    );
     tally.assert();
 }
 // Distinct candidate: the failed B500 percentile evidence remains historical.

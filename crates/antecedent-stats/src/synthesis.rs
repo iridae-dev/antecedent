@@ -24,7 +24,7 @@
 //!
 //! No interval, coverage statement or posterior-calibration claim is made.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use thiserror::Error;
 
@@ -302,46 +302,26 @@ pub fn check_covariance(covariance: &[f64], k: usize) -> Result<CovarianceCheck,
     Ok(CovarianceCheck { min_eigenvalue, max_eigenvalue, has_cross_covariance: cross })
 }
 
-/// Cholesky factor (lower, row-major) of a positive definite matrix.
-fn cholesky(matrix: &[f64], k: usize) -> Option<Vec<f64>> {
-    let mut l = vec![0.0; k * k];
+/// Smallest and largest eigenvalue of the covariance scaled to a unit diagonal, or `None` when
+/// a study has no variance (then the covariance is singular).
+fn scaled_eigenvalue_extremes(
+    symmetric: &[f64],
+    k: usize,
+) -> Result<Option<(f64, f64)>, SynthesisError> {
+    let scale: Vec<f64> = (0..k).map(|i| symmetric[i * k + i].sqrt()).collect();
+    if scale.iter().any(|s| !(s.is_finite() && *s > 0.0)) {
+        return Ok(None);
+    }
+    let mut correlation = vec![0.0; k * k];
     for i in 0..k {
-        for j in 0..=i {
-            let mut sum = matrix[i * k + j];
-            for m in 0..j {
-                sum -= l[i * k + m] * l[j * k + m];
-            }
-            if i == j {
-                if sum <= 0.0 || !sum.is_finite() {
-                    return None;
-                }
-                l[i * k + i] = sum.sqrt();
-            } else {
-                l[i * k + j] = sum / l[j * k + j];
-            }
+        for j in 0..k {
+            correlation[i * k + j] = symmetric[i * k + j] / scale[i] / scale[j];
         }
     }
-    Some(l)
-}
-
-fn cholesky_solve(l: &[f64], k: usize, rhs: &[f64]) -> Vec<f64> {
-    let mut z = vec![0.0; k];
-    for i in 0..k {
-        let mut sum = rhs[i];
-        for m in 0..i {
-            sum -= l[i * k + m] * z[m];
-        }
-        z[i] = sum / l[i * k + i];
-    }
-    let mut x = vec![0.0; k];
-    for i in (0..k).rev() {
-        let mut sum = z[i];
-        for m in (i + 1)..k {
-            sum -= l[m * k + i] * x[m];
-        }
-        x[i] = sum / l[i * k + i];
-    }
-    x
+    let eigenvalues = symmetric_eigenvalues(&correlation, k)?;
+    let low = eigenvalues.iter().copied().fold(f64::INFINITY, f64::min);
+    let high = eigenvalues.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    Ok(Some((low, high)))
 }
 
 /// Pool estimates with a full covariance matrix by generalized least squares.
@@ -365,12 +345,6 @@ pub fn fixed_effect_gls(
         return Err(SynthesisError::NonFinite("estimate"));
     }
     let check = check_covariance(covariance, k)?;
-    if check.min_eigenvalue <= PSD_RELATIVE_TOLERANCE * check.max_eigenvalue {
-        return Err(SynthesisError::Singular {
-            min_eigenvalue: check.min_eigenvalue,
-            max_eigenvalue: check.max_eigenvalue,
-        });
-    }
     let mut symmetric = covariance.to_vec();
     for i in 0..k {
         for j in (i + 1)..k {
@@ -379,17 +353,30 @@ pub fn fixed_effect_gls(
             symmetric[j * k + i] = mean;
         }
     }
-    let l = cholesky(&symmetric, k).ok_or(SynthesisError::Singular {
+    // Singularity is a property of the correlations: studies whose variances differ by more
+    // than ten orders of magnitude are not collinear, so the test runs on the matrix scaled to
+    // a unit diagonal and not on the raw eigenvalues, whose ratio is the variance ratio.
+    let scaled_extremes = scaled_eigenvalue_extremes(&symmetric, k)?;
+    if scaled_extremes.is_none_or(|(low, high)| low <= PSD_RELATIVE_TOLERANCE * high) {
+        let (min_eigenvalue, max_eigenvalue) =
+            scaled_extremes.unwrap_or((check.min_eigenvalue, check.max_eigenvalue));
+        return Err(SynthesisError::Singular { min_eigenvalue, max_eigenvalue });
+    }
+    let l = crate::gram::cholesky_spd(&symmetric, k).ok_or(SynthesisError::Singular {
         min_eigenvalue: check.min_eigenvalue,
         max_eigenvalue: check.max_eigenvalue,
     })?;
     let ones = vec![1.0; k];
-    let x = cholesky_solve(&l, k, &ones);
+    let singular = || SynthesisError::Singular {
+        min_eigenvalue: check.min_eigenvalue,
+        max_eigenvalue: check.max_eigenvalue,
+    };
+    let x = crate::gram::chol_solve(&l, k, &ones).ok_or_else(singular)?;
     let denominator: f64 = x.iter().sum();
     let weights: Vec<f64> = x.iter().map(|v| v / denominator).collect();
     let estimate: f64 = weights.iter().zip(estimates).map(|(w, y)| w * y).sum();
     let residual: Vec<f64> = estimates.iter().map(|y| y - estimate).collect();
-    let z = cholesky_solve(&l, k, &residual);
+    let z = crate::gram::chol_solve(&l, k, &residual).ok_or_else(singular)?;
     let q: f64 = residual.iter().zip(&z).map(|(r, v)| r * v).sum();
     Ok(PooledEstimate {
         estimate,
@@ -688,12 +675,12 @@ pub fn hierarchical_normal_borrowing(
     if k < 2 {
         return Err(SynthesisError::TooFewStudies { needed: 2, got: k });
     }
-    if let MeanPrior::Normal { mean, variance } = mean_prior {
-        if !mean.is_finite() || !variance.is_finite() || variance <= 0.0 {
-            return Err(SynthesisError::InvalidPrior(
-                "mean prior needs a finite mean and positive variance",
-            ));
-        }
+    if let MeanPrior::Normal { mean, variance } = mean_prior
+        && (!mean.is_finite() || !variance.is_finite() || variance <= 0.0)
+    {
+        return Err(SynthesisError::InvalidPrior(
+            "mean prior needs a finite mean and positive variance",
+        ));
     }
     let n = tau_prior.support.len();
     if n == 0 || n > MAX_TAU_SUPPORT || tau_prior.probabilities.len() != n {

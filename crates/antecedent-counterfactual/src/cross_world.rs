@@ -24,7 +24,7 @@
 //! exogenous term reaches the outcome through a parent) shows its per-unit
 //! abduced value in the answer.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -142,6 +142,8 @@ fn evaluate_probed(
             }
         }
     }
+    let cells = n_units.checked_mul(n_nodes).and_then(|c| c.checked_mul(worlds.len()));
+    let _lease = crate::error::admit_cells(ctx, "cross-world values", cells)?;
     let mut values: Vec<Vec<f64>> = vec![vec![0.0; n_units * n_nodes]; worlds.len()];
     let mut parent_buf: Vec<f64> = Vec::new();
     let mut ws = MechanismWorkspace::default();

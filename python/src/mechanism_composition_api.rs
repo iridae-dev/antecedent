@@ -10,31 +10,36 @@
 //! A mechanism the analyst wrote down is labelled declared by the facade from
 //! the source of its numbers; this bridge cannot label it fitted.
 
-use antecedent::analysis::mechanism_composition::CompositionQueryWire;
+use antecedent::analysis::mechanism_composition::{
+    CompositionQueryWire, CompositionResultWire, FirstOrderInterval,
+};
 use antecedent::analysis::transported_mechanism::{
     MechanismRole, MechanismTransportDeclaration, TransportedMechanismComposition,
     TransportedMechanismReceipt, verify_mechanism_transport,
 };
+use antecedent::contract::{
+    AdmissionBasis, AdmissionCoordinate, DependenceDeclaration, ExternalRefusal,
+    LatentCauseDeclaration, MechanismCompositionDeclaration, MechanismDeclaration,
+    MechanismOriginKind, TransportAdmission, check_declared_independence_against_ledger,
+};
+use antecedent::gcm::compose::{
+    ContextCoordinate, ContrastArm, CrossCovarianceBlock, Domain, InvarianceDeclaration,
+    MeanContrast, MechanismFamily, MechanismUncertainty, ParameterId, ParameterTerm,
+    SelectionNodeDeclaration, TabularRow, UncertaintyMeaning,
+};
+use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::scientific::ScientificQuantity;
 use antecedent::{
     ConsumedComposition, DependenceInput, MechanismCompositionRefusal, MechanismCompositionRequest,
     MechanismInput, MechanismRefit, MechanismSource, PreparedMechanismComposition, StudyBuilder,
     consume_mechanism_composition_artifact,
 };
-use antecedent_contract::{
-    AdmissionBasis, AdmissionCoordinate, ExternalRefusal, LatentCauseDeclaration,
-    MechanismDeclaration, MechanismOriginKind, ScientificQuantity, TransportAdmission,
-};
-use antecedent_io::mechanism_composition_artifact::CompositionResultWire;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
-use antecedent_model::compose::{
-    ContextCoordinate, ContrastArm, CrossCovarianceBlock, Domain, InvarianceDeclaration,
-    MeanContrast, MechanismFamily, MechanismUncertainty, ParameterId, ParameterTerm,
-    SelectionNodeDeclaration, TabularRow, UncertaintyMeaning,
-};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
+use std::fmt::Write as _;
 
+use crate::evidence_ledger_api::EvidenceLedgerHandle;
 use crate::measurement_model_api::{
     flag, list, member, object, parse, present, real, reals, text, texts,
 };
@@ -44,16 +49,29 @@ use crate::transport_common::execution_context;
 // Refusals as data: every defect, in checker order.
 // ---------------------------------------------------------------------------
 
+/// A first-order interval with its calibration slot, as the JSON the Python wrappers decode.
+pub(crate) fn interval_json(interval: &FirstOrderInterval) -> String {
+    json!({
+        "point": interval.point,
+        "standard_error": interval.standard_error,
+        "lower": interval.lower,
+        "upper": interval.upper,
+        "level": interval.level,
+        "calibration": interval.calibration,
+    })
+    .to_string()
+}
+
 fn one_refusal(refusal: &ExternalRefusal) -> Json {
     let mut message = String::new();
     if let Some(expected) = &refusal.expected {
-        message.push_str(&format!("expected `{expected}`"));
+        let _ = write!(message, "expected `{expected}`");
     }
     if let Some(supplied) = &refusal.supplied {
         if !message.is_empty() {
             message.push_str("; ");
         }
-        message.push_str(&format!("supplied `{supplied}`"));
+        let _ = write!(message, "supplied `{supplied}`");
     }
     json!({
         "code": refusal.code,
@@ -73,7 +91,27 @@ fn refusal_json(refusal: &MechanismCompositionRefusal) -> String {
         json!({
             "code": refusal.code(),
             "stage": "compose",
-            "detail": "mechanism_composition.request_unsupported",
+            "detail": antecedent::reason::reason_details::mechanism_composition::REQUEST_UNSUPPORTED,
+            "message": "mechanism composition refused",
+            "offending": Json::Null,
+            "expected": Json::Null,
+            "supplied": Json::Null,
+            "remedy": Json::Null,
+        })
+    });
+    first["refusals"] = Json::Array(all);
+    first.to_string()
+}
+
+/// Every refusal of a check that returns only refusals, spelled as the composition's own
+/// structured refusal: the first defect with all of them under `refusals`.
+fn external_refusals_json(refusals: &[ExternalRefusal]) -> String {
+    let all: Vec<Json> = refusals.iter().map(one_refusal).collect();
+    let mut first = all.first().cloned().unwrap_or_else(|| {
+        json!({
+            "code": antecedent::reason::reason_code!("joint_law_required"),
+            "stage": "compose",
+            "detail": antecedent::reason::reason_details::mechanism_composition::REQUEST_UNSUPPORTED,
             "message": "mechanism composition refused",
             "offending": Json::Null,
             "expected": Json::Null,
@@ -226,7 +264,7 @@ fn parse_source(value: &Json) -> PyResult<MechanismSource> {
     }
 }
 
-fn parse_declaration(value: &Json) -> PyResult<MechanismDeclaration> {
+pub(crate) fn parse_declaration(value: &Json) -> PyResult<MechanismDeclaration> {
     let map = object(value, "mechanism declaration")?;
     let mut latent_causes = Vec::new();
     for entry in list(map, "latent_causes")? {
@@ -480,6 +518,11 @@ impl PreparedCompositionHandle {
         self.inner.plan_identity_hex()
     }
 
+    /// Encoding version of the prepared plan identity.
+    fn plan_identity_version(&self) -> u64 {
+        self.inner.plan_identity_version()
+    }
+
     /// The family the composition executes in.
     fn family(&self) -> &'static str {
         family_name(self.inner.family())
@@ -495,13 +538,14 @@ impl PreparedCompositionHandle {
         self.inner.declared_mechanisms().into_iter().map(str::to_owned).collect()
     }
 
-    /// Always the typed refusal: no measured coverage stands behind the
-    /// parameter-covariance variance.
-    fn interval(&self) -> String {
-        match self.inner.interval() {
-            Err(refusal) => refusal_json(&refusal),
-            Ok(never) => match never {},
-        }
+    /// The first-order interval of a contrast at `level` with its calibration slot
+    /// (`not_measured` until a coverage record measures the construction), or the refusal.
+    fn interval(&self, contrast_json: &str, level: f64) -> PyResult<Refused<String>> {
+        let contrast = parse_contrast(&parse(contrast_json, "contrast")?)?;
+        Ok(match self.inner.interval(&contrast, level) {
+            Ok(done) => (Some(interval_json(&done)), None),
+            Err(refusal) => refused(&refusal),
+        })
     }
 
     /// The joint Gaussian law under `do(interventions)`.
@@ -533,7 +577,7 @@ impl PreparedCompositionHandle {
     }
 
     /// The first-order delta-method variance of a contrast, with its
-    /// gradient and how the dependence was licensed.
+    /// gradient and how the dependence was supported.
     fn mean_contrast_uncertainty(&self, contrast_json: &str) -> PyResult<Refused<String>> {
         let contrast = parse_contrast(&parse(contrast_json, "contrast")?)?;
         Ok(match self.inner.mean_contrast_uncertainty(&contrast) {
@@ -775,6 +819,7 @@ fn receipt_json(receipt: &TransportedMechanismReceipt) -> Json {
         "route": receipt.route,
         "identity": receipt.identity,
         "source_plan_identity": receipt.source_plan_identity,
+        "source_plan_identity_version": receipt.source_plan_identity_version,
         "source_population": receipt.source_population,
         "target_population": receipt.target_population,
         "target_regime": receipt.target_regime,
@@ -865,12 +910,14 @@ impl TransportedCompositionHandle {
         })
     }
 
-    /// Always the typed refusal: no coverage includes the transport assumption.
-    fn interval(&self) -> String {
-        match self.inner.interval() {
-            Err(refusal) => refusal_json(&refusal),
-            Ok(never) => match never {},
-        }
+    /// The first-order interval of a transported contrast at `level` with its calibration
+    /// slot, conditional on the declared transport premises, or the refusal.
+    fn interval(&self, contrast_json: &str, level: f64) -> PyResult<Refused<String>> {
+        let contrast = parse_contrast(&parse(contrast_json, "contrast")?)?;
+        Ok(match self.inner.interval(&contrast, level) {
+            Ok(done) => (Some(interval_json(&done)), None),
+            Err(refusal) => refused(&refusal),
+        })
     }
 
     /// Seal the transported premises and one query into the composition artifact.
@@ -925,6 +972,40 @@ fn mechanism_composition_prepare(
     })
 }
 
+/// Decide the evidence independence a composition declares from the evidence ledger's
+/// observation rows rather than from the equality of evidence identity strings.
+///
+/// Applies only to a composition declared independent by design; any other dependence is not
+/// this check's. Returns the refusal JSON (every offending pair under `refusals`) or `None`.
+#[pyfunction]
+fn mechanism_composition_check_ledger_independence(
+    composition_json: &str,
+    ledger: PyRef<'_, EvidenceLedgerHandle>,
+) -> PyResult<Option<String>> {
+    crate::catch_ffi(|| {
+        let request = parse_request(&parse(composition_json, "composition")?)?;
+        let dependence = match &request.dependence {
+            DependenceInput::IndependentByDesign { justification } => {
+                DependenceDeclaration::IndependentByDesign { justification: justification.clone() }
+            }
+            _ => DependenceDeclaration::Unknown,
+        };
+        let declaration = MechanismCompositionDeclaration {
+            target_population_id: request.target_population_id.clone(),
+            target_regime_id: request.target_regime_id.clone(),
+            mechanisms: request.mechanisms.iter().map(|m| m.declaration.clone()).collect(),
+            edges: request.edges.clone(),
+            admissions: request.admissions.clone(),
+            dependence,
+            admit_declared_mechanisms: request.admit_declared_mechanisms,
+        };
+        Ok(match check_declared_independence_against_ledger(&declaration, ledger.ledger()) {
+            Ok(()) => None,
+            Err(refusals) => Some(external_refusals_json(&refusals)),
+        })
+    })
+}
+
 /// Independently consume a composition artifact: recompute the premises
 /// digest, recompile under the coherence checker and replay the query.
 #[pyfunction]
@@ -962,8 +1043,8 @@ fn mechanism_composition_fitted_source(
         .iter()
         .position(|name| name == variable)
         .ok_or_else(|| crate::value_err(format!("unknown variable `{variable}`")))?;
-    let id = |index: usize| -> PyResult<antecedent_core::VariableId> {
-        Ok(antecedent_core::VariableId::from_raw(
+    let id = |index: usize| -> PyResult<antecedent::prelude::VariableId> {
+        Ok(antecedent::prelude::VariableId::from_raw(
             u32::try_from(index).map_err(|_| crate::value_err("variable index does not fit"))?,
         ))
     };
@@ -1023,6 +1104,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PreparedCompositionHandle>()?;
     module.add_class::<TransportedCompositionHandle>()?;
     module.add_function(wrap_pyfunction!(mechanism_composition_prepare, module)?)?;
+    module
+        .add_function(wrap_pyfunction!(mechanism_composition_check_ledger_independence, module)?)?;
     module.add_function(wrap_pyfunction!(mechanism_composition_consume, module)?)?;
     module.add_function(wrap_pyfunction!(mechanism_composition_fitted_source, module)?)?;
     Ok(())

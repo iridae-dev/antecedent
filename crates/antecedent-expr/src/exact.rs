@@ -1,18 +1,49 @@
 //! Validated finite-discrete laws. These inputs are laws, not sample frequencies.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+mod transport;
+
+pub use transport::ExactTransportData;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::fmt::Write as _;
+use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
 
 use antecedent_core::{RegimeId, Value, VariableId};
 
-use crate::{
-    Assignment, DistributionProvider, DomainRef, EvalContext, EvalError, FactorSpec,
-    InterventionAssignment,
-};
+pub(crate) use antecedent_kernels::numeric::CompensatedSum;
 
-/// How a dense joint was obtained. Structural zeros are licensed only for supplied laws.
+/// Preserve `Debug`'s bytes while polling even when a formatter writes a long string at once.
+struct CheckedDescriptor<F> {
+    text: String,
+    check: F,
+}
+
+impl<F: FnMut() -> bool> std::fmt::Write for CheckedDescriptor<F> {
+    fn write_str(&mut self, text: &str) -> std::fmt::Result {
+        let mut start = 0;
+        while start < text.len() {
+            if !(self.check)() {
+                return Err(std::fmt::Error);
+            }
+            let mut end = start.saturating_add(4096).min(text.len());
+            while !text.is_char_boundary(end) {
+                end -= 1;
+            }
+            self.text.push_str(&text[start..end]);
+            start = end;
+        }
+        Ok(())
+    }
+}
+
+use crate::{Assignment, InterventionAssignment};
+#[cfg(test)]
+use crate::{DistributionProvider, DomainRef, EvalContext, EvalError, FactorSpec};
+
+/// How a dense joint was obtained. Structural zeros are supported only for supplied laws.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LawOrigin {
     /// Caller-supplied complete population law. Zero cells may be structural.
@@ -128,6 +159,23 @@ impl ExactLawError {
         }
         true
     }
+    /// Whether provider setup or lookup was cancelled.
+    #[must_use]
+    pub const fn is_cancelled(&self) -> bool {
+        let actual = self.kind.as_bytes();
+        let expected = b"cancelled";
+        if actual.len() != expected.len() {
+            return false;
+        }
+        let mut i = 0;
+        while i < expected.len() {
+            if actual[i] != expected[i] {
+                return false;
+            }
+            i += 1;
+        }
+        true
+    }
     /// Whether this is a conditional on a structurally null event (see
     /// `ZERO_CONDITIONING_MASS`), the only failure an exact evaluation may extend across.
     #[must_use]
@@ -178,10 +226,54 @@ pub struct ExactDiscreteLaw {
 const MAX_MARGINAL_TABLES: usize = 256;
 const MARGINAL_SHARDS: usize = 8;
 
+/// One shard of the marginal-table cache, keyed by the strictly ascending axis list itself so
+/// any number of axes is cacheable and a hit allocates nothing. `order` maps each entry's last
+/// use tick to its key, so the least recently used entry is the first of the map.
+type MarginalCacheEntries = HashMap<Arc<[usize]>, (u64, Arc<[f64]>)>;
+
 #[derive(Debug)]
 struct MarginalShard {
-    entries: HashMap<u128, (u64, Arc<[f64]>)>,
+    entries: MarginalCacheEntries,
+    order: BTreeMap<u64, Arc<[usize]>>,
     clock: u64,
+}
+
+impl MarginalShard {
+    fn new() -> Self {
+        Self { entries: HashMap::new(), order: BTreeMap::new(), clock: 0 }
+    }
+
+    /// The cached table for `axes`, marking it most recently used.
+    fn touch(&mut self, axes: &[usize]) -> Option<Arc<[f64]>> {
+        let next = self.clock.wrapping_add(1);
+        let (previous, table) = {
+            let (tick, table) = self.entries.get_mut(axes)?;
+            let previous = std::mem::replace(tick, next);
+            (previous, Arc::clone(table))
+        };
+        self.clock = next;
+        if let Some(key) = self.order.remove(&previous) {
+            self.order.insert(next, key);
+        }
+        Some(table)
+    }
+
+    /// Retain `table` for `axes`, evicting the least recently used entry at `capacity`.
+    fn insert(&mut self, axes: &[usize], table: &Arc<[f64]>, capacity: usize) {
+        if self.entries.contains_key(axes) {
+            return;
+        }
+        self.clock = self.clock.wrapping_add(1);
+        let tick = self.clock;
+        if self.entries.len() >= capacity
+            && let Some((_, oldest)) = self.order.pop_first()
+        {
+            self.entries.remove(&*oldest);
+        }
+        let key: Arc<[usize]> = Arc::from(axes);
+        self.order.insert(tick, Arc::clone(&key));
+        self.entries.insert(key, (tick, Arc::clone(table)));
+    }
 }
 
 #[derive(Debug)]
@@ -191,11 +283,7 @@ struct MarginalTables {
 
 impl Default for MarginalTables {
     fn default() -> Self {
-        Self {
-            shards: std::array::from_fn(|_| {
-                Mutex::new(MarginalShard { entries: HashMap::new(), clock: 0 })
-            }),
-        }
+        Self { shards: std::array::from_fn(|_| Mutex::new(MarginalShard::new())) }
     }
 }
 
@@ -204,6 +292,10 @@ impl ExactDiscreteLaw {
     ///
     /// # Errors
     /// Invalid identities, domains, shape, interventions, or probability mass.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "Construction validates the whole discrete law before admitting it."
+    )]
     pub fn try_new(
         population: impl Into<Arc<str>>,
         regime: RegimeId,
@@ -216,21 +308,47 @@ impl ExactDiscreteLaw {
         antecedent_core::execution_attempt::run_operation(
             antecedent_core::execution_attempt::Operation::ProviderBinding,
             || {
+                let check = || {
+                    if antecedent_core::numerical_admission::is_cancelled() {
+                        Err(ExactLawError {
+                            kind: "cancelled",
+                            population: Arc::from(""),
+                            regime: None,
+                            variables: Arc::from([]),
+                            conditioning: Arc::from([]),
+                            interventions: Arc::from([]),
+                        })
+                    } else {
+                        Ok(())
+                    }
+                };
+                check()?;
+                let population = population.into();
+                check()?;
+                let interventions = interventions.into();
+                check()?;
+                let axes = axes.into();
+                check()?;
+                let probabilities = probabilities.into();
+                check()?;
+                let snapshot_identity = snapshot_identity.into();
+                check()?;
                 let mut law = Self {
-                    population: population.into(),
+                    population,
                     regime,
-                    interventions: interventions.into(),
-                    axes: axes.into(),
-                    probabilities: probabilities.into(),
+                    interventions,
+                    axes,
+                    probabilities,
                     strides: Arc::from([]),
                     axis_index: Arc::new(BTreeMap::new()),
                     level_index: Arc::from([]),
-                    snapshot_identity: snapshot_identity.into(),
+                    snapshot_identity,
                     tolerance,
                     origin: LawOrigin::SuppliedExact,
                     empirical_counts: None,
                     marginals: Arc::default(),
                 };
+                law.check_cancelled()?;
                 if law.population.is_empty()
                     || law.snapshot_identity.is_empty()
                     || !tolerance.valid()
@@ -239,6 +357,7 @@ impl ExactDiscreteLaw {
                 }
                 let mut intervened = HashSet::new();
                 for assignment in law.interventions.iter() {
+                    law.check_cancelled()?;
                     if !finite(&assignment.value) || !intervened.insert(assignment.variable) {
                         return Err(law.error("invalid_law_intervention"));
                     }
@@ -249,13 +368,18 @@ impl ExactDiscreteLaw {
                 let mut level_index = vec![HashMap::new(); law.axes.len()];
                 for (i, axis) in law.axes.iter().enumerate().rev() {
                     let levels = &mut level_index[i];
-                    if axis.values.is_empty()
-                        || axis_index.insert(axis.variable, i).is_some()
-                        || axis.values.iter().enumerate().any(|(index, v)| {
-                            !finite(v) || levels.insert(value_key(v), index).is_some()
-                        })
-                        || intervened.contains(&axis.variable)
-                    {
+                    if axis.values.is_empty() || axis_index.insert(axis.variable, i).is_some() {
+                        return Err(law.error("invalid_law_axis"));
+                    }
+                    for (index, value) in axis.values.iter().enumerate() {
+                        if index % 1024 == 0 {
+                            law.check_cancelled()?;
+                        }
+                        if !finite(value) || levels.insert(value_key(value), index).is_some() {
+                            return Err(law.error("invalid_law_axis"));
+                        }
+                    }
+                    if intervened.contains(&axis.variable) {
                         return Err(law.error("invalid_law_axis"));
                     }
                     strides[i] = size;
@@ -266,10 +390,20 @@ impl ExactDiscreteLaw {
                 if size != law.probabilities.len() {
                     return Err(law.error("incomplete_law_domain"));
                 }
-                if law.probabilities.iter().any(|p| !p.is_finite() || *p < 0.0 || *p > 1.0) {
-                    return Err(law.error("invalid_law_probability"));
+                for chunk in law.probabilities.chunks(1024) {
+                    law.check_cancelled()?;
+                    if chunk.iter().any(|p| !p.is_finite() || *p < 0.0 || *p > 1.0) {
+                        return Err(law.error("invalid_law_probability"));
+                    }
                 }
-                if !tolerance.unit_mass(sum(law.probabilities.iter().copied())) {
+                let mut mass = CompensatedSum::default();
+                for chunk in law.probabilities.chunks(1024) {
+                    law.check_cancelled()?;
+                    for &probability in chunk {
+                        mass.add(probability);
+                    }
+                }
+                if !tolerance.unit_mass(mass.total()) {
                     return Err(law.error("unnormalized_law"));
                 }
                 law.strides = strides.into();
@@ -340,13 +474,16 @@ impl ExactDiscreteLaw {
     pub fn with_empirical_counts(self, counts: Vec<u64>) -> Result<Self, ExactLawError> {
         let total = self.checked_count_total(&counts)?;
         let tolerance = self.tolerance;
-        let reconciled = self.probabilities.iter().zip(&counts).all(|(p, count)| {
-            let share = *count as f64 / total;
-            (p - share).abs() <= tolerance.absolute + tolerance.relative * p.max(share)
-        });
-        if !reconciled {
-            return Err(self.error("unreconciled_empirical_counts"));
+        for (probabilities, counts) in self.probabilities.chunks(1024).zip(counts.chunks(1024)) {
+            self.check_cancelled()?;
+            if !probabilities.iter().zip(counts).all(|(p, count)| {
+                let share = *count as f64 / total;
+                (p - share).abs() <= tolerance.absolute + tolerance.relative * p.max(share)
+            }) {
+                return Err(self.error("unreconciled_empirical_counts"));
+            }
         }
+        self.check_cancelled()?;
         let origin = match self.origin {
             LawOrigin::SuppliedExact => LawOrigin::EmpiricalPlugin,
             other => other,
@@ -363,7 +500,12 @@ impl ExactDiscreteLaw {
         Ok(self.with_counts(counts, LawOrigin::LearnedPlugin))
     }
     fn checked_count_total(&self, counts: &[u64]) -> Result<f64, ExactLawError> {
-        let total = counts.iter().try_fold(0u64, |n, k| n.checked_add(*k));
+        let mut total = Some(0u64);
+        for chunk in counts.chunks(1024) {
+            self.check_cancelled()?;
+            total = total.and_then(|n| chunk.iter().try_fold(n, |n, k| n.checked_add(*k)));
+        }
+        self.check_cancelled()?;
         match total {
             Some(total) if counts.len() == self.probabilities.len() && total > 0 => {
                 Ok(total as f64)
@@ -413,6 +555,49 @@ impl ExactDiscreteLaw {
             &[descriptor.as_bytes(), &probabilities],
         )
     }
+    /// The fallible constructor path checks cancellation while encoding the same bytes as
+    /// `content_identity`; the public infallible identity method remains unchanged.
+    fn content_identity_checked(
+        &self,
+    ) -> Result<antecedent_core::recalc::StageIdentity, ExactLawError> {
+        self.check_cancelled()?;
+        let mut descriptor = CheckedDescriptor {
+            text: String::new(),
+            check: || !antecedent_core::numerical_admission::is_cancelled(),
+        };
+        write!(
+            descriptor,
+            "{}:{:?}:{:?}:{:?}:{}:{:?}:{:?}:{:?}",
+            self.population,
+            self.regime,
+            self.interventions,
+            self.axes,
+            self.snapshot_identity,
+            self.tolerance,
+            self.origin,
+            self.empirical_counts
+        )
+        .map_err(|_| self.error("cancelled"))?;
+        let mut probabilities = Vec::new();
+        for chunk in self.probabilities.chunks(1024) {
+            self.check_cancelled()?;
+            probabilities.extend(chunk.iter().flat_map(|value| value.to_bits().to_le_bytes()));
+        }
+        self.check_cancelled()?;
+        antecedent_core::recalc::StageIdentity::try_of(
+            "exact.law.content.v1",
+            &[descriptor.text.as_bytes(), &probabilities],
+            || self.check_cancelled(),
+        )
+    }
+
+    fn check_cancelled(&self) -> Result<(), ExactLawError> {
+        if antecedent_core::numerical_admission::is_cancelled() {
+            return Err(self.error("cancelled"));
+        }
+        Ok(())
+    }
+
     /// Physical snapshot identity (not identification authority).
     #[must_use]
     pub fn snapshot_identity(&self) -> &str {
@@ -454,22 +639,6 @@ impl ExactDiscreteLaw {
             interventions: self.interventions.clone(),
         }
     }
-    fn covers(&self, spec: &FactorSpec<'_>) -> bool {
-        self.population.as_ref() == spec.population
-            && spec.regime.is_none_or(|regime| regime == self.regime)
-            && self.interventions.len() == spec.intervention.len()
-            && spec.intervention.iter().all(|a| {
-                self.interventions
-                    .iter()
-                    .any(|b| a.variable == b.variable && same_value_key(&a.value, &b.value))
-            })
-            && (spec.domain == DomainRef::Observational) == self.interventions.is_empty()
-            && spec
-                .variables
-                .iter()
-                .chain(spec.conditioned_on)
-                .all(|v| self.axis_index.contains_key(v))
-    }
     fn positions(
         &self,
         vars: &[VariableId],
@@ -490,162 +659,292 @@ impl ExactDiscreteLaw {
         if let Some(index) = self.full_joint_index(constraints) {
             return self.probabilities[index];
         }
-        let mut by_axis: Vec<(usize, usize)> = constraints.to_vec();
-        by_axis.sort_unstable();
-        if by_axis.windows(2).any(|pair| pair[0].0 == pair[1].0) {
-            // One axis constrained twice (possibly to different levels): scan.
-            return sum(self.probabilities.iter().enumerate().filter_map(|(i, p)| {
-                constraints
-                    .iter()
-                    .all(|(a, level)| (i / self.strides[*a]) % self.axes[*a].values.len() == *level)
-                    .then_some(*p)
-            }));
+        if constraints.len() <= STACK_CONSTRAINTS {
+            let mut buffer = [(0usize, 0usize); STACK_CONSTRAINTS];
+            let by_axis = &mut buffer[..constraints.len()];
+            by_axis.copy_from_slice(constraints);
+            self.mass_by_axis(by_axis)
+        } else {
+            let mut owned = constraints.to_vec();
+            self.mass_by_axis(&mut owned)
         }
-        let axes: Vec<usize> = by_axis.iter().map(|(axis, _)| *axis).collect();
-        let table = self.marginal_table(&axes);
+    }
+
+    /// Mass of the cells matching `(axis, level)` constraints, sorted here by axis.
+    ///
+    /// One axis constrained twice keeps a single constraint when the levels agree and selects
+    /// no cell when they differ.
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "in-place compaction reads ahead of the write cursor"
+    )]
+    fn mass_by_axis(&self, by_axis: &mut [(usize, usize)]) -> f64 {
+        by_axis.sort_unstable();
+        let mut unique = 0;
+        for i in 0..by_axis.len() {
+            if unique > 0 && by_axis[unique - 1].0 == by_axis[i].0 {
+                if by_axis[unique - 1].1 != by_axis[i].1 {
+                    return 0.0;
+                }
+            } else {
+                by_axis[unique] = by_axis[i];
+                unique += 1;
+            }
+        }
+        let by_axis = &by_axis[..unique];
+        let mut stack_axes = [0usize; STACK_CONSTRAINTS];
+        let heap_axes: Vec<usize>;
+        let axes: &[usize] = if unique <= STACK_CONSTRAINTS {
+            for (slot, (axis, _)) in stack_axes.iter_mut().zip(by_axis) {
+                *slot = *axis;
+            }
+            &stack_axes[..unique]
+        } else {
+            heap_axes = by_axis.iter().map(|(axis, _)| *axis).collect();
+            &heap_axes
+        };
+        let table = self.marginal_table(axes);
         let index = by_axis
             .iter()
             .fold(0usize, |index, (axis, level)| index * self.axes[*axis].values.len() + level);
         table[index]
     }
 
-    /// Index of a complete assignment of every axis, without allocating a set.
+    /// Index of a complete assignment of every axis, without allocating for up to 64 axes.
     ///
-    /// `None` when an axis is repeated or missing: the caller then scans, which is what
-    /// a repeated constraint (two levels of one axis) requires.
+    /// `None` when an axis is repeated or missing: the caller then falls back to a marginal
+    /// table, which is what a repeated constraint (two levels of one axis) requires.
     fn full_joint_index(&self, constraints: &[(usize, usize)]) -> Option<usize> {
         let n_axes = self.axes.len();
-        if constraints.len() != n_axes || n_axes > 64 {
+        if constraints.len() != n_axes {
             return None;
         }
-        let mut seen = 0u64;
+        // One bit per axis; a single word covers the common case, wider laws spill to a slice.
+        let mut narrow = 0u64;
+        let mut wide = vec![0u64; if n_axes > 64 { n_axes.div_ceil(64) } else { 0 }];
         let mut index = 0usize;
         for &(axis, level) in constraints {
             if axis >= n_axes {
                 return None;
             }
-            let bit = 1u64 << axis;
-            if seen & bit != 0 {
+            let seen = if n_axes > 64 { &mut wide[axis / 64] } else { &mut narrow };
+            let bit = 1u64 << (axis % 64);
+            if *seen & bit != 0 {
                 return None;
             }
-            seen |= bit;
+            *seen |= bit;
             index += self.strides[axis] * level;
         }
-        let full = if n_axes == 64 { u64::MAX } else { (1u64 << n_axes) - 1 };
-        (seen == full).then_some(index)
+        // `n_axes` constraints, each on a distinct in-range axis, cover every axis.
+        Some(index)
     }
 
     /// Mass of every level combination of the distinct, ascending `axes`, summed in table order
     /// exactly as a filtered scan would, so a lookup equals the scan it replaces.
     fn marginal_table(&self, axes: &[usize]) -> Arc<[f64]> {
-        let Some(key) = ascending_axis_mask(axes) else {
+        if !axes.windows(2).all(|pair| pair[0] < pair[1]) {
             return compute_marginal(self, axes);
-        };
-        let shard = &self.marginals.shards[key as usize % MARGINAL_SHARDS];
+        }
+        let shard_index =
+            axes.iter().fold(0usize, |h, axis| h.wrapping_mul(31).wrapping_add(*axis))
+                % MARGINAL_SHARDS;
+        let shard = &self.marginals.shards[shard_index];
         {
             let mut cache = shard.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-            let hit = cache.entries.get(&key).map(|(_, table)| Arc::clone(table));
-            if let Some(table) = hit {
-                let next = cache.clock.wrapping_add(1);
-                cache.clock = next;
-                if let Some((tick, _)) = cache.entries.get_mut(&key) {
-                    *tick = next;
-                }
+            if let Some(table) = cache.touch(axes) {
                 return table;
             }
         }
         let table = compute_marginal(self, axes);
         let mut cache = shard.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        cache.clock = cache.clock.wrapping_add(1);
-        let tick = cache.clock;
-        let cap = MAX_MARGINAL_TABLES / MARGINAL_SHARDS;
-        if cache.entries.len() >= cap {
-            if let Some(oldest) =
-                cache.entries.iter().min_by_key(|(_, (tick, _))| *tick).map(|(key, _)| *key)
-            {
-                cache.entries.remove(&oldest);
-            }
-        }
-        cache.entries.insert(key, (tick, Arc::clone(&table)));
+        cache.insert(axes, &table, MAX_MARGINAL_TABLES / MARGINAL_SHARDS);
         table
     }
 }
 
+/// Walks the cells of a dense law in table order, tracking the level of one axis without a
+/// division per cell: the level advances every `stride` cells and wraps at `len`.
+struct AxisCursor {
+    stride: usize,
+    len: usize,
+    level: usize,
+    left: usize,
+}
+
+impl AxisCursor {
+    fn new(law: &ExactDiscreteLaw, axis: usize) -> Self {
+        let stride = law.strides[axis];
+        Self { stride, len: law.axes[axis].values.len(), level: 0, left: stride }
+    }
+
+    fn advance(&mut self) {
+        self.left -= 1;
+        if self.left == 0 {
+            self.left = self.stride;
+            self.level += 1;
+            if self.level == self.len {
+                self.level = 0;
+            }
+        }
+    }
+}
+
+/// Most constraints a mass lookup keeps on the stack.
+const STACK_CONSTRAINTS: usize = 16;
+
 fn compute_marginal(law: &ExactDiscreteLaw, axes: &[usize]) -> Arc<[f64]> {
     let cells: usize = axes.iter().map(|a| law.axes[*a].values.len()).product();
     let mut sums = vec![CompensatedSum::default(); cells];
-    for (i, p) in law.probabilities.iter().enumerate() {
-        let cell = axes.iter().fold(0usize, |cell, a| {
-            let len = law.axes[*a].values.len();
-            cell * len + (i / law.strides[*a]) % len
-        });
+    let mut cursors: Vec<AxisCursor> = axes.iter().map(|a| AxisCursor::new(law, *a)).collect();
+    for p in law.probabilities.iter() {
+        let cell = cursors.iter().fold(0usize, |cell, c| cell * c.len + c.level);
         sums[cell].add(*p);
+        for cursor in &mut cursors {
+            cursor.advance();
+        }
     }
     sums.into_iter().map(CompensatedSum::total).collect()
-}
-
-/// Bitmask of a strictly ascending axis list, each index below 128.
-fn ascending_axis_mask(axes: &[usize]) -> Option<u128> {
-    let mut key = 0u128;
-    let mut prev = None;
-    for &axis in axes {
-        if axis >= 128 || prev.is_some_and(|previous| axis <= previous) {
-            return None;
-        }
-        prev = Some(axis);
-        key |= 1u128 << axis;
-    }
-    Some(key)
 }
 
 fn finite(v: &Value) -> bool {
     !matches!(v, Value::Float64(x) if !x.is_finite())
 }
 
-/// Neumaier compensated accumulator: avoids normalization drift on large, valid domains and is
-/// order-stable, so incremental use equals summing the same sequence in one call.
-#[derive(Clone, Copy, Debug, Default)]
-pub(crate) struct CompensatedSum {
-    total: f64,
-    correction: f64,
-}
-
-impl CompensatedSum {
-    pub(crate) fn add(&mut self, value: f64) {
-        let next = self.total + value;
-        self.correction += if self.total.abs() >= value.abs() {
-            (self.total - next) + value
-        } else {
-            (value - next) + self.total
-        };
-        self.total = next;
-    }
-
-    pub(crate) fn total(self) -> f64 {
-        self.total + self.correction
-    }
-}
-
+/// Sum in iteration order with [`CompensatedSum`].
 pub(crate) fn sum(values: impl Iterator<Item = f64>) -> f64 {
-    let mut acc = CompensatedSum::default();
-    for value in values {
-        acc.add(value);
-    }
-    acc.total()
+    CompensatedSum::of(values)
 }
 
-/// One population, regime, and normalized intervention world.
-///
-/// Equal worlds share one intervention slice. Lookup is one map.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+// Hash only fixed-size digests in the map; each bucket is checked for exact
+// equality, so a digest collision cannot identify or merge different worlds.
+#[derive(Clone, Debug)]
 struct WorldBinding {
     population: Arc<str>,
     regime: RegimeId,
-    interventions: Arc<[InterventionAssignment]>,
+    interventions: Vec<InterventionAssignment>,
 }
+type WorldIndex = HashMap<u64, Vec<(WorldBinding, usize)>>;
 
-type WorldIndex = HashMap<WorldBinding, usize>;
-
+fn cancelled_error() -> ExactLawError {
+    ExactLawError {
+        kind: "cancelled",
+        population: Arc::from(""),
+        regime: None,
+        variables: Arc::from([]),
+        conditioning: Arc::from([]),
+        interventions: Arc::from([]),
+    }
+}
+fn poll_world() -> Result<(), ExactLawError> {
+    if antecedent_core::numerical_admission::is_cancelled() {
+        Err(cancelled_error())
+    } else {
+        Ok(())
+    }
+}
+struct PollHasher {
+    inner: std::collections::hash_map::DefaultHasher,
+    cancelled: bool,
+}
+impl Hasher for PollHasher {
+    fn finish(&self) -> u64 {
+        self.inner.finish()
+    }
+    fn write(&mut self, bytes: &[u8]) {
+        for chunk in bytes.chunks(512) {
+            if poll_world().is_err() {
+                self.cancelled = true;
+                return;
+            }
+            self.inner.write(chunk);
+        }
+    }
+}
+fn world_digest(
+    population: &str,
+    regime: RegimeId,
+    assignments: &[InterventionAssignment],
+) -> Result<u64, ExactLawError> {
+    poll_world()?;
+    let mut h = PollHasher {
+        inner: std::collections::hash_map::DefaultHasher::default(),
+        cancelled: false,
+    };
+    population.hash(&mut h);
+    regime.hash(&mut h);
+    for assignment in assignments {
+        poll_world()?;
+        assignment.hash(&mut h);
+    }
+    if h.cancelled {
+        return Err(cancelled_error());
+    }
+    poll_world()?;
+    Ok(h.finish())
+}
+fn checked_world_key(
+    assignments: &[InterventionAssignment],
+) -> Result<Vec<InterventionAssignment>, ExactLawError> {
+    let mut ordered: BTreeMap<VariableId, Vec<InterventionAssignment>> = BTreeMap::new();
+    for a in assignments {
+        poll_world()?;
+        ordered
+            .entry(a.variable)
+            .or_default()
+            .push(InterventionAssignment { variable: a.variable, value: value_key(&a.value) });
+    }
+    let mut key = Vec::with_capacity(assignments.len());
+    for values in ordered.into_values() {
+        for a in values {
+            poll_world()?;
+            key.push(a);
+        }
+    }
+    poll_world()?;
+    Ok(key)
+}
+fn checked_world_eq(
+    binding: &WorldBinding,
+    population: &str,
+    regime: RegimeId,
+    key: &[InterventionAssignment],
+) -> Result<bool, ExactLawError> {
+    poll_world()?;
+    if binding.regime != regime
+        || binding.population.len() != population.len()
+        || binding.interventions.len() != key.len()
+    {
+        return Ok(false);
+    }
+    for (a, b) in binding.population.as_bytes().chunks(512).zip(population.as_bytes().chunks(512)) {
+        poll_world()?;
+        if a != b {
+            return Ok(false);
+        }
+    }
+    for (a, b) in binding.interventions.iter().zip(key) {
+        poll_world()?;
+        if a.variable != b.variable {
+            return Ok(false);
+        }
+        match (&a.value, &b.value) {
+            (Value::Label(a), Value::Label(b)) => {
+                if a.len() != b.len() {
+                    return Ok(false);
+                }
+                for (a, b) in a.as_bytes().chunks(512).zip(b.as_bytes().chunks(512)) {
+                    poll_world()?;
+                    if a != b {
+                        return Ok(false);
+                    }
+                }
+            }
+            (a, b) if !same_value_key(a, b) => return Ok(false),
+            _ => {}
+        }
+    }
+    Ok(true)
+}
 fn integral_level(value: f64) -> Option<i64> {
     if value.is_finite() && value.fract() == 0.0 && value.abs() <= 9_007_199_254_740_992.0 {
         #[allow(
@@ -689,370 +988,11 @@ pub(crate) fn value_key(value: &Value) -> Value {
     }
 }
 
-fn world_binding(
-    population: impl Into<Arc<str>>,
-    regime: RegimeId,
-    interventions: &[InterventionAssignment],
-) -> WorldBinding {
-    WorldBinding {
-        population: population.into(),
-        regime,
-        interventions: Arc::from(world_key(interventions)),
-    }
-}
-
-fn world_key(assignments: &[InterventionAssignment]) -> Vec<InterventionAssignment> {
-    let mut key: Vec<_> = assignments
-        .iter()
-        .map(|a| InterventionAssignment { variable: a.variable, value: value_key(&a.value) })
-        .collect();
-    key.sort_by_key(|a| a.variable);
-    key
-}
-
-type JointQueryKey =
-    (antecedent_core::recalc::StageIdentity, Vec<(usize, usize)>, Vec<(usize, usize)>);
-#[derive(Debug)]
-struct SharedFactorCache {
-    capacity: usize,
-    values: Mutex<HashMap<JointQueryKey, f64>>,
-}
-
-/// Immutable collection of exact laws with bounded support materialization.
-#[derive(Clone, Debug)]
-pub struct ExactTransportData {
-    laws: Arc<[ExactDiscreteLaw]>,
-    law_identities: Arc<[antecedent_core::recalc::StageIdentity]>,
-    index: Arc<WorldIndex>,
-    domains: Arc<BTreeMap<VariableId, Arc<[Value]>>>,
-    max_support_rows: usize,
-    factor_cache: Option<Arc<SharedFactorCache>>,
-    /// The cited regimes among which a leaf that names no regime selects its
-    /// law by intervention world; `None` keeps every leaf regime-bound.
-    world_bound_regimes: Option<Arc<[RegimeId]>>,
-}
-
-impl ExactTransportData {
-    /// Maximum number of support rows retained for factor evaluation.
-    #[must_use]
-    pub const fn max_support_rows(&self) -> usize {
-        self.max_support_rows
-    }
-
-    /// Validate compatible domains and unambiguous population/regime/world bindings.
-    ///
-    /// # Errors
-    /// Duplicate world bindings, incompatible domains, or an empty resource budget.
-    pub fn try_new(
-        laws: impl Into<Arc<[ExactDiscreteLaw]>>,
-        max_support_rows: usize,
-    ) -> Result<Self, ExactLawError> {
-        let laws = laws.into();
-        let error = |kind| ExactLawError {
-            kind,
-            population: Arc::from(""),
-            regime: None,
-            variables: Arc::from([]),
-            conditioning: Arc::from([]),
-            interventions: Arc::from([]),
-        };
-        if max_support_rows == 0 {
-            return Err(error("support_budget"));
-        }
-        let mut index = WorldIndex::new();
-        let mut domains = BTreeMap::<VariableId, Arc<[Value]>>::new();
-        let mut domain_keys = HashMap::<VariableId, HashSet<Value>>::new();
-        for (i, law) in laws.iter().enumerate() {
-            if index
-                .insert(
-                    world_binding(Arc::clone(&law.population), law.regime, &law.interventions),
-                    i,
-                )
-                .is_some()
-            {
-                return Err(law.error("duplicate_law_binding"));
-            }
-            for axis in law.axes.iter() {
-                if let Some(other) = domains.get(&axis.variable) {
-                    if axis.values.len() != other.len()
-                        || !axis
-                            .values
-                            .iter()
-                            .all(|v| domain_keys[&axis.variable].contains(&value_key(v)))
-                    {
-                        return Err(law.error("incompatible_law_domains"));
-                    }
-                } else {
-                    domains.insert(axis.variable, axis.values.clone());
-                    domain_keys.insert(axis.variable, axis.values.iter().map(value_key).collect());
-                }
-            }
-        }
-        let law_identities =
-            laws.iter().map(ExactDiscreteLaw::content_identity).collect::<Vec<_>>().into();
-        crate::execution_counts::note_static_work(
-            crate::execution_counts::StaticWork::ProviderBinding,
-        );
-        Ok(Self {
-            laws,
-            law_identities,
-            index: Arc::new(index),
-            domains: Arc::new(domains),
-            max_support_rows,
-            factor_cache: None,
-            world_bound_regimes: None,
-        })
-    }
-    /// Validate the current laws and reuse only content-bound cached values from a prior
-    /// provider. Changed source laws cannot alias unchanged source values, even if labels,
-    /// row ordering or caller-supplied snapshot names coincide.
-    /// # Errors
-    /// Incompatible laws, domains or support budget, as for [`Self::try_new`].
-    pub fn rebind_reusing_factor_cache(
-        &self,
-        previous: Option<&Self>,
-        capacity: usize,
-    ) -> Result<Self, ExactLawError> {
-        let mut rebound = Self::try_new(self.laws.clone(), self.max_support_rows)?;
-        rebound.world_bound_regimes.clone_from(&self.world_bound_regimes);
-        rebound.factor_cache = previous.and_then(|old| old.factor_cache.clone());
-        if rebound.factor_cache.is_none() {
-            rebound = rebound.with_shared_factor_cache(capacity);
-        }
-        Ok(rebound)
-    }
-    /// Content identities of actual population/regime/world/snapshot laws.
-    #[must_use]
-    pub fn law_identities(&self) -> &[antecedent_core::recalc::StageIdentity] {
-        &self.law_identities
-    }
-
-    /// Let a leaf that names no regime select its law by intervention world.
-    ///
-    /// A z-transport factor whose exchanged coordinate is bound at evaluation
-    /// (`do(x = 0, z)` with `z` the enclosing summation variable) cites one
-    /// regime per world rather than one regime for the whole family, so the
-    /// bound leaf carries no regime and the concrete world selects the law.
-    /// The law is selected among the `cited` regimes only, so laws of regimes
-    /// the binding did not choose never compete; when several cited regimes
-    /// still supply the world, the lowest regime id is used, the binding's own
-    /// rule. Every other provider keeps requiring an explicit regime.
-    #[must_use]
-    pub fn with_world_bound_leaves(mut self, cited: impl Into<Arc<[RegimeId]>>) -> Self {
-        self.world_bound_regimes = Some(cited.into());
-        self
-    }
-    /// Share a bounded factor-value cache across plans bound to this immutable provider.
-    /// Replacing data creates a new cache; cached values never cross snapshots.
-    #[must_use]
-    pub fn with_shared_factor_cache(mut self, capacity: usize) -> Self {
-        if capacity == 0 {
-            self.factor_cache = None;
-            return self;
-        }
-        self.factor_cache =
-            Some(Arc::new(SharedFactorCache { capacity, values: Mutex::new(HashMap::new()) }));
-        self
-    }
-    pub(crate) fn factor_cache_bytes(&self) -> Option<usize> {
-        let width = self.laws.iter().map(|law| law.axes.len()).max().unwrap_or(0);
-        self.factor_cache.as_ref().map_or(Some(0), |cache| {
-            width.checked_mul(64)?.checked_add(256)?.checked_mul(cache.capacity)
-        })
-    }
-    /// Declared finite support of a coordinate, without materializing a Cartesian table.
-    #[must_use]
-    pub fn domain(&self, variable: VariableId) -> Option<&[Value]> {
-        self.domains.get(&variable).map(AsRef::as_ref)
-    }
-
-    /// Validated laws, without callbacks or data access.
-    #[must_use]
-    pub fn laws(&self) -> &[ExactDiscreteLaw] {
-        &self.laws
-    }
-
-    /// Resolve a requested factor before execution. Regime binding must be explicit.
-    ///
-    /// # Errors
-    /// Missing or incompatible population, regime, intervention world, or axes.
-    pub fn require_factor(
-        &self,
-        spec: &FactorSpec<'_>,
-    ) -> Result<&ExactDiscreteLaw, ExactLawError> {
-        let missing = |kind: &'static str| ExactLawError {
-            kind,
-            population: Arc::from(spec.population),
-            regime: spec.regime,
-            variables: Arc::from(spec.variables),
-            conditioning: Arc::from([]),
-            interventions: Arc::from(spec.intervention),
-        };
-        let wanted = world_key(spec.intervention);
-        let index = match spec.regime {
-            Some(regime) => self
-                .index
-                .get(&world_binding(Arc::<str>::from(spec.population), regime, spec.intervention))
-                .copied(),
-            None => self.world_bound_regimes.as_ref().and_then(|cited| {
-                self.index
-                    .iter()
-                    .filter(|(binding, index)| {
-                        binding.population.as_ref() == spec.population
-                            && cited.contains(&binding.regime)
-                            && binding.interventions.as_ref() == wanted.as_slice()
-                            && self.laws[**index].covers(spec)
-                    })
-                    .min_by_key(|(binding, _)| binding.regime.raw())
-                    .map(|(_, index)| *index)
-            }),
-        };
-        index
-            .map(|index| &self.laws[index])
-            .filter(|law| law.covers(spec))
-            .ok_or_else(|| missing("missing_exact_provider"))
-    }
-
-    /// Evaluate a marginal or conditional from the selected joint law.
-    ///
-    /// # Errors
-    /// Missing coverage, an out-of-domain assignment, or a zero denominator.
-    pub fn probability_checked(
-        &self,
-        spec: &FactorSpec<'_>,
-        assignment: &Assignment,
-    ) -> Result<f64, ExactLawError> {
-        antecedent_core::execution_attempt::run_operation(
-            antecedent_core::execution_attempt::Operation::ProviderInvocation,
-            || {
-                crate::execution_counts::note_static_work(
-                    crate::execution_counts::StaticWork::ProviderCall,
-                );
-                let law = self.require_factor(spec)?;
-                let locate = |mut error: ExactLawError| {
-                    error.variables = Arc::from(spec.variables);
-                    error.conditioning = spec
-                        .conditioned_on
-                        .iter()
-                        .filter_map(|v| assignment.get(*v).map(|x| (*v, x.clone())))
-                        .collect();
-                    error
-                };
-                let mut conditions =
-                    law.positions(spec.conditioned_on, assignment).map_err(locate)?;
-                let outputs = law.positions(spec.variables, assignment).map_err(locate)?;
-                let key = self.factor_cache.as_ref().map(|_| {
-                    let index = self.index[&world_binding(
-                        Arc::clone(&law.population),
-                        law.regime,
-                        spec.intervention,
-                    )];
-                    (self.law_identities[index], outputs.clone(), conditions.clone())
-                });
-                if let (Some(cache), Some(key)) = (&self.factor_cache, &key) {
-                    if let Some(value) = cache
-                        .values
-                        .lock()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner)
-                        .get(key)
-                    {
-                        return Ok(*value);
-                    }
-                }
-                let factor_attempt = antecedent_core::execution_attempt::OperationGuard::begin(
-                    antecedent_core::execution_attempt::Operation::FactorEvaluation,
-                );
-                crate::execution_counts::note_static_work(
-                    crate::execution_counts::StaticWork::FactorEvaluation,
-                );
-                if let Some(counts) = &law.empirical_counts {
-                    let observed = counts.iter().enumerate().any(|(i, count)| {
-                        *count > 0
-                            && conditions.iter().all(|(axis, level)| {
-                                (i / law.strides[*axis]) % law.axes[*axis].values.len() == *level
-                            })
-                    });
-                    if !observed {
-                        return Err(locate(law.error("sampling_zero")));
-                    }
-                }
-                let denominator = if conditions.is_empty() { 1.0 } else { law.mass(&conditions) };
-                if denominator == 0.0 {
-                    return Err(locate(law.error(if law.origin == LawOrigin::SuppliedExact {
-                        ZERO_CONDITIONING_MASS
-                    } else {
-                        "sampling_zero"
-                    })));
-                }
-                conditions.extend(outputs);
-                let value = law.mass(&conditions) / denominator;
-                if let (Some(cache), Some(key)) = (&self.factor_cache, key) {
-                    let mut values =
-                        cache.values.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-                    if values.len() < cache.capacity {
-                        values.insert(key, value);
-                    }
-                }
-                factor_attempt.complete();
-                Ok(value)
-            },
-        )
-    }
-}
-
-impl DistributionProvider for ExactTransportData {
-    fn probability(
-        &self,
-        spec: &FactorSpec<'_>,
-        assignment: &Assignment,
-        _: &EvalContext,
-    ) -> Result<f64, EvalError> {
-        self.probability_checked(spec, assignment).map_err(|e| EvalError::ExactLaw(Box::new(e)))
-    }
-    fn support(
-        &self,
-        vars: &[VariableId],
-        _: &EvalContext,
-    ) -> Result<Arc<[Arc<[Value]>]>, EvalError> {
-        let mut domains = Vec::with_capacity(vars.len());
-        let mut size = 1usize;
-        for (i, variable) in vars.iter().enumerate() {
-            if vars[..i].contains(variable) {
-                return Err(EvalError::ProviderKind("duplicate support coordinate"));
-            }
-            let domain = self.domains.get(variable).ok_or(EvalError::EmptySupport(*variable))?;
-            size = size
-                .checked_mul(domain.len())
-                .filter(|n| *n <= self.max_support_rows)
-                .ok_or(EvalError::ProviderKind("exact support budget exceeded"))?;
-            domains.push(domain);
-        }
-        let mut rows = Vec::with_capacity(size);
-        for index in 0..size {
-            let mut remainder = index;
-            let mut row = vec![Value::Bool(false); domains.len()];
-            for (i, domain) in domains.iter().enumerate().rev() {
-                row[i] = domain[remainder % domain.len()].clone();
-                remainder /= domain.len();
-            }
-            rows.push(Arc::from(row));
-        }
-        Ok(rows.into())
-    }
-    fn outcome(
-        &self,
-        var: VariableId,
-        assignment: &Assignment,
-        _: &EvalContext,
-    ) -> Result<f64, EvalError> {
-        assignment.get(var).and_then(Value::as_f64).ok_or(EvalError::MissingBinding(var))
-    }
-    fn n_draws(&self) -> Option<usize> {
-        None
-    }
-}
-
 #[cfg(test)]
+#[allow(
+    clippy::float_cmp,
+    reason = "These fixtures assert exact representable values or bit-preserving round trips."
+)]
 mod tests {
     #[test]
     fn empirical_counts_must_reconcile_with_the_table() {
@@ -1101,6 +1041,72 @@ mod tests {
         )
     }
     #[test]
+    fn inherited_cancellation_interrupts_law_validation_and_identity_encoding() {
+        let table = law("source", &[0.1, 0.2, 0.3, 0.4]).unwrap();
+        assert_eq!(table.content_identity_checked().unwrap(), table.content_identity());
+        for counted in [
+            table.clone().with_empirical_counts(vec![1, 2, 3, 4]).unwrap(),
+            table.clone().with_learned_support(vec![4, 3, 2, 1]).unwrap(),
+        ] {
+            assert_eq!(counted.content_identity_checked().unwrap(), counted.content_identity());
+        }
+        let ctx = antecedent_core::ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        for model in [false, true] {
+            let error = antecedent_core::numerical_admission::with_context(&ctx, || {
+                if model {
+                    table.clone().with_learned_support(vec![1, 2, 3, 4])
+                } else {
+                    table.clone().with_empirical_counts(vec![1, 2, 3, 4])
+                }
+                .unwrap_err()
+            });
+            assert_eq!(error.kind, "cancelled");
+        }
+        let error = antecedent_core::numerical_admission::with_context(&ctx, || {
+            law("source", &[0.1, 0.2, 0.3, 0.4])
+        })
+        .unwrap_err();
+        assert_eq!(error.kind, "cancelled");
+        let ctx = antecedent_core::ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        let error = antecedent_core::numerical_admission::with_context(&ctx, || {
+            table.content_identity_checked()
+        })
+        .unwrap_err();
+        assert_eq!(error.kind, "cancelled");
+    }
+
+    #[test]
+    fn descriptor_formatting_polls_long_utf8_writes_and_preserves_bytes() {
+        use std::fmt::Write as _;
+        let text = format!("{}é{}", "a".repeat(4095), "z".repeat(5000));
+        let mut calls = 0;
+        let mut writer = CheckedDescriptor {
+            text: String::new(),
+            check: || {
+                calls += 1;
+                true
+            },
+        };
+        write!(writer, "{text:?}").unwrap();
+        assert_eq!(writer.text, format!("{text:?}"));
+        drop(writer);
+        assert!(calls >= 3);
+
+        let mut calls = 0;
+        let mut writer = CheckedDescriptor {
+            text: String::new(),
+            check: || {
+                calls += 1;
+                calls < 2
+            },
+        };
+        assert!(std::fmt::Write::write_str(&mut writer, &text).is_err());
+        assert!(!writer.text.is_empty() && writer.text.len() < text.len());
+    }
+
+    #[test]
     fn validates_dense_law_without_repair() {
         for probabilities in [vec![1.0], vec![0.0; 4], vec![f64::NAN; 4], vec![-0.1, 0.3, 0.3, 0.5]]
         {
@@ -1122,6 +1128,51 @@ mod tests {
             .is_err()
         );
     }
+    #[test]
+    fn world_digest_buckets_check_collisions_and_cancellation() {
+        use super::*;
+        let target = law("target", &[0.1, 0.2, 0.3, 0.4]).unwrap();
+        let other = law("other", &[0.1, 0.2, 0.3, 0.4]).unwrap();
+        assert_eq!(
+            ExactTransportData::try_new([target.clone(), target.clone()], 16).unwrap_err().kind,
+            "duplicate_law_binding"
+        );
+        let mut data = ExactTransportData::try_new([target, other], 16).unwrap();
+        let target_digest = world_digest("target", RegimeId::from_raw(0), &[]).unwrap();
+        let other_digest = world_digest("other", RegimeId::from_raw(0), &[]).unwrap();
+        let index = Arc::make_mut(&mut data.index);
+        let other = index.remove(&other_digest).unwrap().pop().unwrap();
+        index.get_mut(&target_digest).unwrap().insert(0, other);
+        let outcomes = [v(1)];
+        let spec = FactorSpec {
+            population: "target",
+            regime: Some(RegimeId::from_raw(0)),
+            ..FactorSpec::new(&outcomes, &[], &[], DomainRef::Observational)
+        };
+        assert_eq!(data.require_factor(&spec).unwrap().population(), "target");
+        let left = [
+            InterventionAssignment::concrete(v(2), Value::Float64(1.0)),
+            InterventionAssignment::concrete(v(1), Value::Bool(true)),
+        ];
+        let right = [
+            InterventionAssignment::concrete(v(1), Value::Bool(true)),
+            InterventionAssignment::concrete(v(2), Value::Int64(1)),
+        ];
+        let left = checked_world_key(&left).unwrap();
+        let right = checked_world_key(&right).unwrap();
+        assert_eq!(left, right);
+        assert_eq!(
+            world_digest("target", RegimeId::from_raw(0), &left).unwrap(),
+            world_digest("target", RegimeId::from_raw(0), &right).unwrap()
+        );
+        let ctx = antecedent_core::ExecutionContext::for_tests(7);
+        ctx.cancellation.cancel();
+        let error =
+            antecedent_core::numerical_admission::with_context(&ctx, || data.require_factor(&spec))
+                .unwrap_err();
+        assert_eq!(error.kind, "cancelled");
+    }
+
     #[test]
     fn conditions_and_marginalizes_by_axis_coordinate() {
         let data = ExactTransportData::try_new([law("target", &[0.1, 0.2, 0.3, 0.4]).unwrap()], 16)
@@ -1395,7 +1446,48 @@ mod tests {
             }
         }
         // One axis pinned to two different levels is the empty event.
-        assert!(table.mass(&[(0, 0), (0, 1)]).abs() == 0.0);
+        assert_eq!(table.mass(&[(0, 0), (0, 1)]).abs(), 0.0);
+    }
+
+    #[test]
+    fn mass_lookups_work_beyond_the_word_width_of_the_axis_masks() {
+        // 140 single-level axes: one cell of mass 1. Both the complete-assignment fast path
+        // (more than 64 axes) and the cached marginal tables (more than 128 axes) must work.
+        let axes: Vec<DiscreteAxis> = (0..140u32)
+            .map(|i| DiscreteAxis { variable: v(i), values: Arc::from([Value::Int64(0)]) })
+            .collect();
+        let law = ExactDiscreteLaw::try_new(
+            "p",
+            RegimeId::from_raw(0),
+            [],
+            axes,
+            [1.0],
+            "s",
+            LawTolerance::default(),
+        )
+        .unwrap();
+        let full: Vec<(usize, usize)> = (0..140).rev().map(|a| (a, 0)).collect();
+        assert_eq!(law.mass(&full), 1.0);
+        let mut repeated = full.clone();
+        repeated[0] = repeated[1];
+        assert_eq!(law.mass(&repeated), 1.0);
+        let high: Vec<(usize, usize)> = (100..140).map(|a| (a, 0)).collect();
+        assert_eq!(law.mass(&high), 1.0);
+        assert_eq!(law.mass(&high), 1.0, "second lookup is served from the cache");
+    }
+
+    #[test]
+    fn marginal_cache_evicts_the_least_recently_used_table() {
+        let mut shard = MarginalShard::new();
+        let table: Arc<[f64]> = Arc::from([1.0]);
+        shard.insert(&[0], &table, 2);
+        shard.insert(&[1], &table, 2);
+        assert!(shard.touch(&[0]).is_some(), "refreshes the older entry");
+        shard.insert(&[2], &table, 2);
+        assert!(shard.touch(&[1]).is_none(), "the untouched entry was evicted");
+        assert!(shard.touch(&[0]).is_some());
+        assert!(shard.touch(&[2]).is_some());
+        assert_eq!(shard.entries.len(), shard.order.len());
     }
 
     #[test]

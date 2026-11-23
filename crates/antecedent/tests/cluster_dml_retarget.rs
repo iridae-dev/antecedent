@@ -7,7 +7,7 @@
 //! mean of the contrast score `phi_r` and `S_g = sum_{r in g} a_r (phi_r - theta)`, the claim's
 //! variance is `G/(G-1) sum_g S_g^2` and two claims' covariance is `G/(G-1) sum_g S_gk S_gl`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
@@ -69,12 +69,9 @@ fn fixture_with_groups(seed: u64, groups: usize) -> Fixture {
 }
 
 fn estimator(fx: &Fixture) -> AipwAte {
-    AipwAte {
-        bootstrap_replicates: 0,
-        cluster_ids: Some(fx.cluster.clone()),
-        cluster_dml: Some(ClusterDml::new(20).unwrap()),
-        ..AipwAte::new()
-    }
+    AipwAte { cluster_dml: Some(ClusterDml::new(20).unwrap()), ..AipwAte::new() }
+        .with_bootstrap_replicates(0)
+        .with_cluster_ids(fx.cluster.clone())
 }
 
 fn query() -> AverageEffectQuery {
@@ -117,6 +114,26 @@ fn close(a: f64, b: f64, what: &str) {
     assert!((a - b).abs() <= 1e-9 * (1.0 + a.abs().max(b.abs())), "{what}: {a} vs {b}");
 }
 
+// A declared schema-2 record and basis exercise construction/scope routing only.
+// They do not claim that the copied historical measurements attest this execution.
+fn routing_record(
+    mut record: antecedent_io::coverage_records_data::CoverageRecord,
+    id: &'static str,
+) -> antecedent_io::coverage_records_data::CoverageRecord {
+    record.id = id;
+    record.validation_schema = 2;
+    record.validation = "none";
+    record
+}
+
+fn routing_basis(
+    mut basis: antecedent_io::calibration::CalibrationBasisWire,
+) -> antecedent_io::calibration::CalibrationBasisWire {
+    assert_eq!(basis.key.structure, "fixed");
+    basis.key.validation = "none".into();
+    basis
+}
+
 /// The published interval of a cluster-DML result is `estimate +- t_{G-1} * se`, not the normal
 /// interval, and a result without a declared reference keeps the normal quantile.
 #[test]
@@ -131,11 +148,13 @@ fn the_published_interval_uses_the_few_cluster_t_reference() {
         .iter()
         .find(|record| record.test.ends_with("::cluster_dml_t_wald_interval"))
         .expect("the unweighted Student construction was measured");
+    let basis = routing_basis(basis);
+    let measured = routing_record(measured, "cov.fixture.student.v2_validation_none");
     assert_eq!(
         antecedent_io::calibration::calibration_slot_in(&basis, &[measured]).record_id.as_deref(),
         Some(measured.id),
     );
-    let estimate = result.estimate.as_effect().unwrap();
+    let estimate = result.estimate().as_effect().unwrap();
     assert_eq!(estimate.uncertainty.analytic.reference_df, Some(39.0));
     let published = PublishedScalarUncertainty::select(estimate);
     let t = student_t_ppf(0.975, 39.0);
@@ -148,13 +167,13 @@ fn the_published_interval_uses_the_few_cluster_t_reference() {
     let plain = Study::tabular(fx.data.clone())
         .graph(fx.graph.clone())
         .query(query())
-        .estimator(AipwAte { bootstrap_replicates: 0, ..AipwAte::new() })
+        .estimator(AipwAte::new().with_bootstrap_replicates(0))
         .refute(RefuteSuite::None)
         .build()
         .unwrap()
         .run(&ExecutionContext::for_tests(5))
         .unwrap();
-    let plain = plain.estimate.as_effect().unwrap();
+    let plain = plain.estimate().as_effect().unwrap();
     assert_eq!(plain.uncertainty.analytic.reference_df, None);
     let published = PublishedScalarUncertainty::select(plain);
     close(published.critical_value(plain), antecedent::result::reported_se_interval_z(), "normal");
@@ -177,6 +196,8 @@ fn unweighted_normal_cluster_never_borrows_student_calibration() {
                 && record.nominal.to_bits() == 0.95_f64.to_bits()
         })
         .unwrap();
+    let student = routing_record(student, "cov.fixture.student.v2_validation_none");
+    let normal = routing_record(normal, "cov.fixture.normal.v2_validation_none");
     assert!(student.n_min <= 800 && student.n_max >= 800);
     for rows in [800, 1000] {
         let fx = fixture_with_groups(5, rows / SIZE);
@@ -193,18 +214,22 @@ fn unweighted_normal_cluster_never_borrows_student_calibration() {
             .build()
             .unwrap();
         let result = study.run(&ExecutionContext::for_tests(5)).unwrap();
-        assert!(result.estimate.as_effect().unwrap().uncertainty.analytic.reference_df.is_none());
+        assert!(result.estimate().as_effect().unwrap().uncertainty.analytic.reference_df.is_none());
         let basis = result.calibration_bases(&study.inspect().unwrap()).unwrap().remove(0);
         assert_eq!(basis.key.interval_method, "analytic_se");
         assert_eq!(basis.key.se_kind, "cluster");
         assert_eq!(basis.key.dependence, "iid", "historical normal key convention");
+        let basis = routing_basis(basis);
         let selected = calibration_slot_in(&basis, &[student, normal]);
         assert_eq!(selected.record_id.as_deref(), Some(normal.id));
-        assert_eq!(selected.status, if rows == 800 { "scope_not_assessed" } else { "calibrated" });
+        assert_eq!(
+            selected.status,
+            if rows == 800 { "outside_measured_scope" } else { "calibrated" }
+        );
     }
 }
 
-/// These are lookup fixtures only: the stored normal row must never license Student endpoints.
+/// These are lookup fixtures only: the stored normal row must never support Student endpoints.
 #[test]
 fn weighted_cluster_student_calibration_matches_its_actual_reference() {
     use antecedent::estimator_spec::EstimatorSpec;
@@ -230,10 +255,10 @@ fn weighted_cluster_student_calibration_matches_its_actual_reference() {
     let template = *RECORDS
         .iter()
         .find(|record| {
-            record.test.ends_with("::weighted_aipw_cluster_dml_interval")
+            record.test.ends_with("::cluster_dml_t_wald_interval")
                 && record.interval_method == "analytic_se"
         })
-        .expect("the historical normal record is retained");
+        .expect("the unweighted normal cluster record is retained");
     for estimator in estimators {
         let study = Study::tabular(fx.data.clone())
             .graph(fx.graph.clone())
@@ -252,25 +277,27 @@ fn weighted_cluster_student_calibration_matches_its_actual_reference() {
             basis.key,
             result.logical_plan.estimator,
             result.primary_interval_binding(false),
-            result.estimate.as_effect().unwrap().uncertainty.analytic,
+            result.estimate().as_effect().unwrap().uncertainty.analytic,
             contract.functional,
         );
         assert_eq!(basis.key.functional, "all_observed.mean+reference=cluster_df+weights=sampling");
         assert_eq!(basis.key.dependence, "cluster");
-        let mut historical = template;
-        historical.id = "cov.fixture.historical_normal_cluster";
+        let basis = routing_basis(basis);
+        let mut historical =
+            routing_record(template, "cov.fixture.historical_normal_cluster.v2_validation_none");
         historical.estimator = match basis.key.estimator.as_str() {
             "aipw" => "aipw",
             "dml" => "dml",
             "dr.learner" => "dr.learner",
             other => panic!("unexpected estimator {other}"),
         };
+        historical.functional = "all_observed.mean+weights=sampling";
         historical.n_min = 1;
         historical.n_max = u64::MAX;
         historical.grid = &[];
         assert!(calibration_slot_in(&basis, &[historical]).record_id.is_none());
         let mut student = historical;
-        student.id = "cov.fixture.student_cluster";
+        student.id = "cov.fixture.student_cluster.v2_validation_none";
         student.interval_method = "student_analytic";
         student.functional = "all_observed.mean+reference=cluster_df+weights=sampling";
         let selected = calibration_slot_in(&basis, &[historical, student]);
@@ -293,10 +320,12 @@ fn weighted_cluster_student_calibration_matches_its_actual_reference() {
     let basis = result.calibration_bases(&ordinary.inspect().unwrap()).unwrap().remove(0);
     assert_eq!(basis.key.interval_method, "analytic_se");
     assert_eq!(basis.key.functional, "all_observed.mean+weights=sampling");
-    assert_eq!(result.estimate.as_effect().unwrap().uncertainty.analytic.reference_df, None);
+    assert_eq!(result.estimate().as_effect().unwrap().uncertainty.analytic.reference_df, None);
     assert_eq!(basis.key.se_kind, "cluster");
     assert_eq!(basis.key.dependence, "cluster");
-    let mut normal = template;
+    let basis = routing_basis(basis);
+    let mut normal = routing_record(template, "cov.fixture.weighted_normal.v2_validation_none");
+    normal.functional = "all_observed.mean+weights=sampling";
     normal.n_min = 1;
     normal.n_max = u64::MAX;
     normal.grid = &[];
@@ -315,15 +344,15 @@ fn a_single_retarget_reports_the_cluster_summed_se_with_its_reference() {
     let n = table.n_rows;
 
     let uniform = prepared.retarget(&vec![1.0; n], &[], &ctx).unwrap();
-    let estimate = uniform.estimate.as_effect().unwrap();
-    close(estimate.ate, fit.estimate.as_effect().unwrap().ate, "uniform point");
-    close(estimate.se_analytic(), fit.estimate.as_effect().unwrap().se_analytic(), "uniform se");
+    let estimate = uniform.estimate().as_effect().unwrap();
+    close(estimate.ate, fit.estimate().as_effect().unwrap().ate, "uniform point");
+    close(estimate.se_analytic(), fit.estimate().as_effect().unwrap().se_analytic(), "uniform se");
     assert_eq!(estimate.uncertainty.analytic.reference_df, Some(39.0));
     assert!(estimate.joint.covariance.is_some() && estimate.scores.inference.is_none());
 
     let weights = tilt(&fx, 1.0);
     let result = prepared.retarget(&weights, &[VariableId::from_raw(Z0)], &ctx).unwrap();
-    let estimate = result.estimate.as_effect().unwrap();
+    let estimate = result.estimate().as_effect().unwrap();
     let (theta, sums) = cluster_sums(&table, &fx.cluster, &weights);
     close(estimate.ate, theta, "tilted point");
     close(estimate.se_analytic(), cov(&sums, &sums).sqrt(), "cluster se");
@@ -354,7 +383,7 @@ fn a_batch_family_reports_the_cluster_summed_joint_covariance() {
         .prepare(&[query()], &ctx)
         .unwrap();
     let (results, scores) = prepared.estimate_scored(&fx.data, &ctx).unwrap();
-    let table = results[0].estimate.as_effect().unwrap().scores.table.as_ref().unwrap().clone();
+    let table = results[0].estimate().as_effect().unwrap().scores.table.as_ref().unwrap().clone();
     assert_eq!(scores.table(0), Some(&table));
     let (plus, minus) = (tilt(&fx, 1.0), tilt(&fx, -1.0));
     let claim = |name: &str, weights: &[f64]| RetargetClaim {

@@ -26,7 +26,7 @@ probability, quantile, nonlinear utility or joint law refuses (``decision_contra
 or ``joint_law_required``). For a linear compact model that retains its coefficient covariance
 the variance of the weighted cohort mean is available as
 :attr:`CohortDecisionSource.uncalibrated_standard_error`, labelled model-based with calibration
-unmeasured; the interval route is closed (``cell_not_licensed``).
+not_measured; the interval route is not supported (``route_not_supported``).
 
 A source built from a verified analysis result is native. A source built from a caller-built
 compact export is a declared model and is never native.
@@ -36,7 +36,7 @@ A cohort of another population can also be carried under a declared selection-di
 modifiers, which are exactly the model's features, and every row lies inside the fitted support.
 The result is a :class:`TransportedCohortEffect` with a typed :class:`CohortTransportReceipt`,
 its identity, a point-only value and the existing :class:`CohortDecisionSource` for the same
-cohort. An interval or a law is refused with the evidence that would license it.
+cohort. An interval or a law is refused with the evidence that would support it.
 """
 
 from __future__ import annotations
@@ -49,16 +49,27 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from antecedent import _reason_details
+
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._freeze import thaw
 from ._measured_inference import MeasuredInference
 from ._native import build_cohort_decision_source as _build
+from ._native import cohort_decision_evaluate as _evaluate
 from ._native import cohort_decision_forward_claim as _forward_claim
 from ._native import cohort_decision_interval as _interval
 from ._native import cohort_decision_law_refusal as _law_refusal
 from ._native import consume_cohort_decision_source as _consume
 from ._native import fit_native_cohort_effect as _fit_native
 from ._native import normalize_cohort_weights as _normalize
+from ._native import transport_cohort_composition_node as _transport_node
 from ._native import transport_cohort_effect as _transport
 from ._native import transport_cohort_effect_verify as _transport_verify
 from ._native import transported_cohort_refusal as _transported_refusal
@@ -71,7 +82,9 @@ from .joint_distribution import ScientificQuantity
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
     from .compact_export import CompactExport
-    from .decision import MeanSource
+    from .composition import SupportedDecision, SupportPolicy
+    from .composition_verification import Node
+    from .decision import Contract, MeanSource
     from .inverse_query import MeanClaim
 
 __all__ = [
@@ -101,8 +114,8 @@ class CohortDecisionRefusal(StructuredRefusal):
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code`` and a
     ``cohort_decision.*`` ``detail`` (for example ``cohort_decision.outside_support``,
     ``cohort_decision.support_contract_absent``, ``cohort_decision.wrong_parent_identity`` or
-    ``cohort_decision.interval_not_licensed``); ``offending`` names the row, feature, region or
-    identity and ``remedy`` the declaration or evidence that would license the request.
+    ``cohort_decision.interval_not_supported``); ``offending`` names the row, feature, region or
+    identity and ``remedy`` the declaration or evidence that would support the request.
     """
 
 
@@ -161,7 +174,7 @@ class UncalibratedStandardError:
     """The model-based standard error of the weighted cohort mean of a linear compact model.
 
     ``sqrt(phibar' V phibar)``. Not an interval, not a coverage claim, never passed to a decision;
-    ``calibration`` is ``"calibration unmeasured"``.
+    ``calibration`` is ``"calibration not_measured"``.
     """
 
     value: float
@@ -216,7 +229,7 @@ class CohortBinding:
                 if not np.isfinite(numbers).all():
                     raise _refusal(
                         "invalid_argument",
-                        "cohort_decision.cohort_invalid",
+                        _reason_details.cohort_decision.COHORT_INVALID,
                         name,
                         "cohort features must be finite",
                     )
@@ -231,7 +244,7 @@ class CohortBinding:
             if any(not math.isfinite(w) for w in raw):
                 raise _refusal(
                     "invalid_argument",
-                    "cohort_decision.weights_invalid",
+                    _reason_details.cohort_decision.WEIGHTS_INVALID,
                     "weights",
                     "weights must be finite",
                 )
@@ -394,17 +407,17 @@ class CohortDecisionSource(ScientificResult):
             calibration=str(raw["calibration"]),
         )
 
-    # -- closed routes ---------------------------------------------------------------------
+    # -- unsupported routes ---------------------------------------------------------------------
     def interval(self, *, level: float = 0.95) -> MeasuredInference:
         """The measured interval of the cohort mean of a natively fitted linear effect.
 
         Available for a source built with :func:`decision_source_from_native_fit`: the fit is
         replayed from its retained rows and the Student-t interval (HC3 covariance, ``n - p``
-        degrees of freedom) is returned only when a currently attesting coverage record governs
-        exactly this construction. A source from a declared compact export, a portable model or
+        degrees of freedom) is returned with its calibration status, which is ``calibrated`` only when a current
+        coverage record governs exactly this construction. A source from a declared compact export, a portable model or
         a shifted cohort raises a typed :class:`CohortDecisionRefusal`
         (``cohort_decision.interval_requires_native_fit`` or
-        ``cohort_decision.interval_not_licensed``).
+        ``cohort_decision.interval_not_supported``).
         """
         if (
             isinstance(level, bool)
@@ -450,9 +463,9 @@ class CohortDecisionSource(ScientificResult):
         if self.support_status != "supported" and not self.extrapolative_accepted:
             raise CohortDecisionRefusal(
                 {
-                    "code": "cell_not_licensed",
+                    "code": "not_supported",
                     "stage": "evaluate",
-                    "detail": "cohort_decision.extrapolative_not_accepted",
+                    "detail": _reason_details.cohort_decision.EXTRAPOLATIVE_NOT_ACCEPTED,
                     "offending": self.population,
                     "message": "a cohort mean transported under a declared covariate shift is "
                     "extrapolative, point-only evidence under an assumption",
@@ -468,7 +481,7 @@ class CohortDecisionSource(ScientificResult):
             causal_contract_id=wire["causal_contract_id"],
             rng_id=wire["rng_id"],
             _original_cohort=self,
-            trust="native_licensed" if self.is_native else "externally_attested",
+            trust="native_supported" if self.is_native else "externally_attested",
             evidence=(self.parent_claim,),
         )
 
@@ -483,11 +496,51 @@ class CohortDecisionSource(ScientificResult):
     def _cohort_mean_source(self) -> MeanSource:
         return self.mean_source
 
+    def decide(self, contract: Contract, policy: SupportPolicy | None = None) -> SupportedDecision:
+        """Decide ``contract`` on this cohort mean under a support policy.
+
+        The artifact is replayed from its retained identity (every number recomputed), then
+        handed to the evaluator as one mean-source input, so an action whose cohort support is
+        weaker than ``policy.weakest_support`` is reported unsupported and left out under
+        ``compare_supported`` or refused under ``require_all``. Like
+        :meth:`~antecedent.decision.Contract.evaluate`, only an affine utility of the cohort
+        coordinate is answered and a source under a declared covariate shift must first be
+        acknowledged with :meth:`accept_extrapolative`.
+
+        Raises:
+            CohortDecisionRefusal: the artifact does not replay, or the source is extrapolative
+                and not accepted.
+            SupportRefusal: an unsupported or unevaluated action (a nonlinear utility, a
+                probability or quantile criterion) under ``require_all``.
+            CompositionRefusal: any other refusal of the evaluator (a hard constraint).
+        """
+        from .composition import SupportPolicy, _refusal_type, _supported_from_wire
+        from .decision import Contract
+
+        if not isinstance(contract, Contract):
+            raise CausalTypeError("contract must be a decision.Contract")
+        policy = SupportPolicy() if policy is None else policy
+        self.mean_source  # noqa: B018 - raises the extrapolative-not-accepted refusal
+        result, refusal = _evaluate(
+            json.dumps(contract._wire()),
+            self._artifact_bytes,
+            self._expectation(),
+            policy.unsupported,
+            policy.weakest_support,
+        )
+        if refusal is not None:
+            wire = json.loads(refusal)
+            if wire.get("stage") == "consume":
+                raise CohortDecisionRefusal(wire)
+            raise _refusal_type(wire)(wire)
+        assert result is not None
+        return _supported_from_wire(json.loads(result))
+
     def forward_claim(self) -> MeanClaim:
         """The cohort mean as a forward claim of :mod:`antecedent.inverse_query`.
 
         A source built under a declared covariate shift is a transported claim and is refused
-        (``cell_not_licensed``, ``inverse_forward_source.transported_not_accepted``); read it
+        (``decision_contract_unsatisfied``, ``inverse_forward_source.transported_not_accepted``); read it
         through :func:`antecedent.inverse_sources.cohort_forward_source` with
         ``accepts_transported=True`` so the result carries the transport identity.
         """
@@ -507,15 +560,10 @@ class CohortDecisionSource(ScientificResult):
             rng_id=wire["rng_id"],
         )
 
-    def artifact(self) -> ExportedArtifact[CohortDecisionSource]:
-        """Typed bytes envelope for shared scientific consumption."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self)
-
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[CohortDecisionSource]:
         """The checksummed ``cohort_decision_source_v1`` artifact."""
-        return self._artifact_bytes
+        return artifact_from_receipt(self, self._artifact_bytes)
 
     @classmethod
     def consume(
@@ -536,6 +584,7 @@ class CohortDecisionSource(ScientificResult):
         coefficient, unit, population or parent (even when the container was resealed) and for
         any retained expectation that differs.
         """
+        artifact = container_bytes(artifact)
         return consume_cohort_decision_source(
             artifact,
             expected_identity=expected_identity,
@@ -551,6 +600,7 @@ class CohortDecisionSource(ScientificResult):
 
 
 def _source_of(summary: str, artifact: bytes) -> CohortDecisionSource:
+    artifact = container_bytes(artifact)
     parsed = json.loads(summary)
     return CohortDecisionSource(
         identity=str(parsed["identity"]), summary=parsed, _artifact_bytes=bytes(artifact)
@@ -567,6 +617,7 @@ def _build_source(
     expected_contrast: str | None,
     artifact_id: str,
 ) -> CohortDecisionSource:
+    model_bytes = container_bytes(model_bytes)
     if not isinstance(cohort, CohortBinding):
         raise CausalTypeError("cohort= must be a CohortBinding")
     if not isinstance(outcome_units, str) or not outcome_units.strip():
@@ -603,7 +654,7 @@ def decision_source_from_model(
     """
     return _build_source(
         "analysis_result",
-        model.export(),
+        bytes(model.export()),
         model.parent_claim,
         cohort,
         outcome_units,
@@ -633,9 +684,10 @@ class NativeEffectFit:
     _export: bytes = field(repr=False)
     _fit_json: str = field(repr=False)
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact:
         """The compact export of the fit."""
-        return self._export
+        return artifact_from_receipt(self, self._export)
 
 
 def fit_native_cohort_effect(
@@ -730,7 +782,7 @@ def decision_source_from_compact_export(
     """
     return _build_source(
         "compact_export",
-        export.export(),
+        bytes(export.export()),
         export.identity,
         cohort,
         outcome_units,
@@ -740,6 +792,10 @@ def decision_source_from_compact_export(
     )
 
 
+@artifact_consumer(
+    proof="cohort_decision.consume_cohort_decision_source: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def consume_cohort_decision_source(
     artifact: bytes,
     *,
@@ -752,6 +808,7 @@ def consume_cohort_decision_source(
 ) -> CohortDecisionSource:
     """Replay an exported cohort decision source under the retained identity (see
     :meth:`CohortDecisionSource.consume`)."""
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     data = bytes(artifact)
@@ -904,7 +961,7 @@ class TransportedCohortEffect(ScientificResult):
         return self.decision_source.accept_extrapolative().mean_source
 
     def interval(self, *, level: float = 0.95) -> None:
-        """Always refuses: no interval, band or posterior is licensed for a transported mean."""
+        """Always refuses: no interval, band or posterior is supported for a transported mean."""
         del level
         raise CohortDecisionRefusal(json.loads(_transported_refusal("interval")))
 
@@ -934,6 +991,38 @@ class TransportedCohortEffect(ScientificResult):
         assert text is not None
         wire = json.loads(text)
         return replace(self, identity=str(wire["identity"]))
+
+    def composition_node(self, key: str) -> Node:
+        """The composition-graph node of this value under ``key``.
+
+        The node is a ``transported_result`` whose identity is bound to the transport route and the
+        transported value's own identity, so a changed model, cohort, weight, declaration or
+        population recomputes it. It states the standing of a point the library carried to another
+        population: supported at the strongest label a carried value states, no provider trust and
+        no calibration record, so a calibration record declared on it later is checked at this
+        target coordinate and an interval, band or posterior is never read off it. Verify a graph
+        containing it with :func:`antecedent.composition_verification.verify_composition`.
+
+        Raises:
+            CohortDecisionRefusal: the retained transport no longer derives (see :meth:`verify`).
+        """
+        from . import composition_verification as cv
+
+        if not isinstance(key, str) or not key.strip():
+            raise CausalTypeError("key must be a non-empty string")
+        model_bytes, claim, source_population, cohort, shift = self._retained
+        text, refusal = _transport_node(
+            model_bytes,
+            claim,
+            source_population,
+            json.dumps(cohort._wire(), allow_nan=False),
+            None if shift is None else json.dumps(shift._wire()),
+            key,
+        )
+        if refusal is not None:
+            raise CohortDecisionRefusal(json.loads(refusal))
+        assert text is not None
+        return cv._node_of(json.loads(text))
 
 
 def transport_cohort_effect(

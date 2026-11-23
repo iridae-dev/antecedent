@@ -1,10 +1,53 @@
-# External prior bank
+# Use earlier posteriors as priors
 
-Transfer previously fit posteriors into a new analysis as power / mixture
-priors — without pretending priors create nonparametric identification.
+Use this page when earlier analyses (previous surveys, an earlier batch, a related product)
+already estimated the coefficients a new Bayesian analysis needs, and you want the new fit to
+start from them. You compose the earlier posteriors into one Gaussian coefficient prior as
+power or mixture priors, and the transfer, its conflict handling and its sensitivity are
+recorded with the result. A prior changes the posterior; it does not make an unidentified
+effect identified.
 
-Surveys are the usual motivating domain (product / context tags), but the
-library speaks in **sources**, **targets**, and **designs**.
+Surveys are the usual motivating domain (product and context tags), but Antecedent speaks in
+**sources** (earlier posteriors), **targets** (the new analysis) and **designs**.
+
+```python
+import antecedent
+from antecedent.priors import ExternalPriorSourceSpec, ExternalPriorWeight, compose_external_priors
+
+# One spec per source: the mean and V0 diagonal of its coefficient prior,
+# in the target design's coefficient order.
+specs = [
+    ExternalPriorSourceSpec("survey_launch", mean=(0.0, 2.0, 0.0), variance=(1.0, 0.25, 1.0),
+                            weight=ExternalPriorWeight(alpha=1.0)),
+    ExternalPriorSourceSpec("survey_retention", mean=(0.0, 1.5, 0.0), variance=(1.0, 0.25, 1.0),
+                            weight=ExternalPriorWeight(alpha=0.5)),
+]
+composed = compose_external_priors(specs)          # power prior: precisions add, scaled by alpha
+composed.alphas_requested, composed.alphas_applied # what you asked for, what was used
+
+outcome = antecedent.analyze(
+    data, graph=edges, query=query,
+    inference=antecedent.Bayesian(backend="conjugate", prior_from=composed),
+    refute="full",                                 # adds the prior predictive check and prior sensitivity
+)
+result = outcome.value
+```
+
+**Notation.** Source `k` contributes a Gaussian coefficient prior with precision `Λ_k`. Its
+power-prior weight `α_k` in `[0, 1]` discounts that precision, so the composed precision on
+the power path is `Λ = Λ_0 + Σ_k α_k Λ_k`, with `Λ_0` the weakly informative baseline. A
+mixture weight `w_k` instead gives source `k` a share of a mixture whose moment-matched
+Gaussian is the composed prior; weight not assigned to a source stays on the baseline.
+
+**Reading the result.** `composed.alphas_applied` can be smaller than
+`composed.alphas_requested`, never larger: a conflict policy or a transport check shrinks a
+source's weight and records why. After the fit, `result.validation.prior_predictive` is the
+check of the data against the prior in force, and `result.validation.prior_sensitivity`
+shows how the reported effect moves as the prior is weakened or strengthened
+(`alphas` and `effect_means` for a composed prior). A posterior that moves materially across
+that grid is driven by the prior, and should be reported as such. The posterior's interval
+is a credible interval under the composed prior and the model; no coverage is claimed for it
+beyond the calibration status the result carries.
 
 ## Workflow
 
@@ -41,8 +84,8 @@ catalog.filter(target) → rank(similarity)
    resolution; multi-step Sustained windows and Bayesian mediation refuse
    transfer, so their isotropic per-mechanism prior is the one checked.
 
-Python example: [`examples/python/prior_bank_surveys.py`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/prior_bank_surveys.py)
-(Rust: [`examples/rust/prior_bank_surveys.rs`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/rust/prior_bank_surveys.rs)).
+Python example: [`examples/python/prior_bank_surveys.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/prior_bank_surveys.py)
+(Rust: [`examples/rust/prior_bank_surveys.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/prior_bank_surveys.rs)).
 
 ## Invariants
 
@@ -70,7 +113,7 @@ scale `V0` per coefficient in `β | σ² ~ N(mean, σ² · V0)`. A prior set may
 `PriorSpec::CoefficientCorrelation` (a positive-definite correlation matrix
 `R`); `V0` is then dense, `V0 = D^{1/2} R D^{1/2}` with `D = diag(variance)`,
 and every backend (conjugate known-σ² and Normal–Inv-Gamma, Laplace, HMC, GLM)
-uses the full prior precision `V0⁻¹`. Without it `V0` is diagonal, as before.
+uses the full prior precision `V0⁻¹`. Without it `V0` is diagonal.
 Absolute prior variance of coefficient `i` is `σ² · V0[i]` — use
 `GaussianCoefficientPrior::absolute_variance` / `from_absolute_variance` at the
 boundary; do not write absolute SD² into `V0`.
@@ -87,17 +130,17 @@ says "dense V0". For a known-σ² conjugate Gaussian source, fitting batch B und
 the prior hydrated from batch A reproduces the pooled A ∪ B posterior up to
 the Monte Carlo error of the draws the moments are estimated from (exactly,
 given the analytic moments). On a confounded two-batch example the dense
-sequential effect SD matches the pooled one to 0.01% at 40 000 draws, while the
-old diagonal hydration was 11% too narrow. With an unknown σ² the coefficient
+sequential effect SD matches the pooled one to 0.01% at 40 000 draws, while a
+diagonal hydration of the same source is 11% too narrow. With an unknown σ² the coefficient
 block is transferred but the residual-variance posterior is not (the target
 keeps its own Inv-Gamma prior), so sequential and pooled agree closely but not
 exactly.
 
-An explicit `NamedParameters` map now also carries the source correlation when
+An explicit `NamedParameters` map also carries the source correlation when
 it is a complete one-to-one map of named coefficient columns. The covariance
 is permuted into target coefficient order; duplicate source or target names
-refuse. This preserves the existing dense hydration path under a changed column
-order, but does not license general posterior transfer or a new interval.
+refuse. This keeps dense hydration under a changed column order; it is not a
+general posterior transfer and adds no interval.
 
 Three cases stay **diagonal** and drop posterior correlation between
 coefficients:
@@ -130,7 +173,7 @@ The `V0` conversion needs the source's σ². A Gaussian posterior with an unknow
 its fixed σ² as a constant `residual_variance` quantity, so
 hydration converts with the source's σ². A source with no residual-variance
 quantity (a GLM, a summary built without one, or a known-σ² artifact written
-without it) keeps the earlier behaviour rather than being refused: the hydrated
+without it) is not refused: the hydrated
 prior keeps the **absolute** SD² and marks it
 (`absolute_coefficient_scale:<indices>` in the prior's restrictions). A Gaussian
 target fit then plugs in its own residual variance, `V0 = SD² / σ̂²` with the
@@ -151,7 +194,7 @@ they produce. On such a target:
   (same lags, same covariates, same order);
 - effect-functional transfer requires the source to carry the target's
   treatment coefficient (same variable at the same lag);
-- a source artifact without coefficient names (written by an older writer) is refused;
+- a source artifact without coefficient names is refused;
 - an explicit `NamedParameters` mapping is the declared bridge between
   different lags and is always honoured (names are validated at hydrate).
 
@@ -163,7 +206,7 @@ The catalog offers an additional, **opt-in** check:
 `EstimandFingerprint.temporal` (`TemporalCoordinates`: treatment lags,
 horizon, optional coefficient names). When the *target* fingerprint carries
 temporal coordinates, `compatible_with` rejects a source whose metadata has
-none (`temporal_coordinates_missing`, the case for older metadata) or
+none (`temporal_coordinates_missing`) or
 different ones (`temporal_coordinates_mismatch`) unless the source declares a
 `NamedParameters` mapping. Nothing in the library populates these
 coordinates: analyses do not attach them to the posteriors they produce, and
@@ -171,7 +214,7 @@ the Python prior-bank API (`PriorSourceMeta` dicts, `compatible_with`) cannot
 set them. Rust callers that bank temporal posteriors must attach them with
 `EstimandFingerprint::with_temporal` on both the source metadata and the
 target; otherwise the catalog applies no lag check. Metadata without the
-field still decodes.
+field decodes.
 
 `compose_external_priors(...)` / `Bayesian(prior_from=<composed prior>)`
 performs **no** lag check: its sources are already-mapped coefficient priors
@@ -229,8 +272,8 @@ interchangeable:**
 
 ## Conjugate moment-matching (Beta / Gamma)
 
-Everything above stays in Gaussian-coefficient terms — `PriorSet` /
-`PriorSpec` speak Gaussian coefficients only, and every inference backend in
+Everything above stays in Gaussian-coefficient terms — the regression priors in
+`PriorSet` are Gaussian coefficients, and every regression backend in
 `antecedent-prob` (conjugate, Laplace, HMC) consumes exactly that shape plus
 a residual-variance model. A Gaussian summary cannot itself express a prior
 over a **bounded proportion** or a **non-negative rate**, so
@@ -258,23 +301,10 @@ reach for the one that matches what you actually know:
   what you actually know is a target mean and how much you want the prior
   to weigh (in sample-size terms), not a variance.
 
-An earlier version of this module offered a single
-`from_moments(mean, variance, target_ess)`: moment-match to `(mean,
-variance)`, then discard that match and rescale to `target_ess` instead.
-`variance` never affected the output under that signature — it was checked
-for validity and then thrown away — which both misnamed the function (it
-built from `(mean, target_ess)`, not from moments) and made the Beta variant
-reject satisfiable requests, since the variance support check ran against a
-value the rescale would immediately discard. The two-constructor split
-above replaces that signature; there is no `target_ess` parameter anywhere
-in the current API.
-
-These are **standalone converters, not `PriorSpec` variants** — no backend
-in this crate can consume a Beta or Gamma prior today (all four take a
-Gaussian coefficient design-matrix prior), so adding a `PriorSpec::Beta` /
-`::Gamma` would create a type the library accepts but nothing can use.
-Callers get plain hyperparameter structs to hand to their own conjugate
-update (Beta-Binomial, Gamma-Poisson) or record as an assumption.
+The hyperparameters are the priors of the conjugate count backends below, carried
+as `PriorSpec::Beta` and `PriorSpec::Gamma`. The Gaussian regression backends
+(conjugate, Laplace, HMC) take a Gaussian coefficient design-matrix prior and
+**refuse** a prior set that carries a Beta or Gamma rather than ignoring it.
 
 Out-of-support input is **rejected, never silently clamped**: `from_moments`
 requires `mean` strictly inside `(0, 1)` for Beta (`mean > 0` for Gamma),
@@ -314,6 +344,120 @@ scenarios covering both constructors (moment round trip, a moment match
 with negative `ess`, `from_mean_and_ess(mean, 0.0)`, and each rejected
 input).
 
+## Beta-Binomial and Gamma-Poisson within a cell
+
+Two closed-form backends answer a query about one cell (`antecedent_prob::conjugate_counts`;
+Python `antecedent.priors.beta_binomial_posterior`, `exceedance_posterior`,
+`gamma_poisson_posterior`):
+
+- **Exceedance probability.** `P(Y > threshold)` within the cell is a binomial
+  proportion: a trial is an outcome in the cell and a success is an outcome
+  *strictly* above the threshold. With a `Beta(a, b)` prior ([`PriorSpec::Beta`]) and
+  `k` successes in `n` trials the posterior is `Beta(a + k, b + n - k)`.
+- **Poisson rate.** With a `Gamma(shape a, rate b)` prior ([`PriorSpec::Gamma`]) and
+  counts `yᵢ` over exposures `tᵢ` (unit exposures by default) the posterior is
+  `Gamma(a + Σyᵢ, b + Σtᵢ)`.
+
+Each posterior reports its mean and variance, CDF, exact quantiles, the equal-tailed
+credible interval, the log marginal likelihood of the data, and the posterior
+predictive (beta-binomial for future trials, negative binomial for a future count).
+The credible interval is a posterior statement under the declared prior, not a
+frequentist confidence interval; its repeated-sampling coverage is measured for
+priors drawn from the stated prior and for a misspecified prior (where it is below
+nominal by an exactly computable amount). A prior is an assumption and never
+upgrades identification: the proportion or rate describes the cell's observed-data
+distribution, nothing causal beyond what the cell's own identification supports.
+
+Appending `Beta` and `Gamma` to `PriorSpec` does not change the identity digest, the
+joint-response artifact encoding or any other serialized form of an existing prior:
+the wire forms are name-keyed, the new variants have new names, and a set built only
+from the original specs serializes exactly as before.
+
+## Choosing the power-prior discount from out-of-sample fit
+
+A power prior discounts a source by `α ∈ [0, 1]`. A hand-set `α` (the
+`ExternalPriorWeight` path above) is unchanged. Instead of setting it, ask the target
+data how well the source predicts them:
+
+- **`empirical_bayes`**: the `α` on a grid that maximizes the marginal likelihood of
+  the target data.
+- **`cross_validated`**: the `α` that maximizes the `K`-fold log predictive density of
+  held-out target rows. For a conjugate model the held-out block density is the ratio of
+  marginal likelihoods of all rows and of the training rows, so no fold is sampled.
+
+Three conjugate targets are supported: a Gaussian linear model whose prior composes
+external Gaussian sources on the power path (known or Inv-Gamma residual variance,
+`select_alpha_linear`), a Beta-Binomial proportion with source counts
+(`select_alpha_beta_binomial`) and a Gamma-Poisson rate with source counts
+(`select_alpha_gamma_poisson`). Every source takes the same `α` from the grid; a source
+with a mixture weight is refused.
+
+The result reports the chosen `α`, the estimate, and a **sensitivity table**: the
+criterion's score, the estimate and the credible interval at every grid `α`.
+
+### Intervals that stay valid under the selection
+
+`α` is chosen from the data, so a posterior interval at the chosen `α` treats it as
+fixed in advance. It is reported as `conditional_interval` and is not the uncertainty of
+the estimate. Two intervals account for the selection:
+
+- **`uniform_interval`** is the target-only interval (exact binomial or Poisson for the
+  count models) widened to contain the estimate. It does not use the source, so it covers
+  at the credible level for **every** source/target discrepancy. It cannot be narrower than
+  the target-only interval: no interval that covers at the nominal level for every
+  discrepancy can be, because the data that would tell a matching source from a discrepant
+  one are the target data themselves.
+- **`interval` with a declared `discrepancy_bound τ`** is a bias-aware interval around the
+  estimate at the selected `α`. The source's prior means are assumed to lie within `τ` of
+  the true coefficients (the rate or proportion, for the count models). It adds the
+  worst-case bias of the pooled estimator under that bound to a critical value taken as the
+  maximum over the whole `α` grid, so it holds whichever `α` the data select, and covers at
+  the credible level for every discrepancy up to `τ` while staying narrower than the
+  target-only interval when `τ` is small. `τ` is an assumption, recorded in the report like
+  a hand-set `α`; beyond it no coverage is claimed. Without `τ`, `interval` is the uniform
+  interval.
+
+For the linear target the coverage is exact for a known residual variance (an Inv-Gamma
+residual variance plugs in the OLS estimate); the count models use the normal
+approximation of the sufficient statistic for the bias-aware width. Coverage of both
+intervals is measured by repeated sampling at source displacements from zero to eight
+target standard errors, and the full-trust and target-only coverage are printed beside it.
+
+## One prior currency: named coordinates, selected discounts, count routes
+
+A composed prior carries the names of its coordinates when its sources declare them
+(`ExternalPriorSourceSpec(coefficient_names=...)`; sources composed together name them alike).
+The names survive the power-prior composition, a kernel- or row-weighted target transport and a
+selected discount, and map by name (`antecedent_prob::select_coordinates_by_name`) onto the
+coefficient columns of the target: the design columns of `Bayesian(prior_from=...)`
+(`intercept`, `coef_<treatment>`, `coef_<covariate>`) and the outcome-regression columns of
+`DML(prior_from=...)` / `Aipw(prior_from=...)`. A column with no coordinate takes the analysis's own declared baseline prior for that column
+(the `prior_scale` prior of a Bayesian fit, the weakly informative prior of the outcome
+regression), a coordinate with no column is dropped, and the mapping, with which coordinates came
+from the source and which from the baseline, is a prior restriction in the identity. A conflict
+policy applies per mapped coordinate: each source and the baseline are mapped onto the design by
+name first; a source with no coordinate for a design column cannot be evaluated over the design and
+is refused with the missing columns. Only a prior none of whose names is a column is refused
+(`quantity_semantics_mismatch`). `ComposedPrior.with_coefficient_mapping(PriorMapping...)`
+renames coordinates; an unnamed prior stays positional.
+
+`select_alpha_prior_linear`, `select_alpha_prior_beta_binomial` and
+`select_alpha_prior_gamma_poisson` return a prior (a `ComposedPrior` or a `ComposedCountPrior`),
+not a report: the composition at the selected discount, with the report as `alpha_selection` and
+the criterion, selected alpha, level and interval semantics (`uniform`, or `bias_aware` under a
+declared discrepancy bound) in the prior's identity. `compose_count_priors` composes Beta or Gamma
+count sources by the power prior.
+
+A Beta or Gamma prior (declared, composed or selected) is the `prior_from` of a conditional or
+exceedance `Association` under `Bayesian`: each cell of `Association(..., functional="exceedance",
+threshold=t)` (the probability `P(Y > t)`), of a 0/1 outcome's conditional probability, or of a
+count outcome's rate gets the closed-form Beta-Binomial or Gamma-Poisson posterior, its
+equal-tailed credible interval and the posterior predictive of one further unit
+(`AssociationTerm.conjugate`). Rows are independent and unweighted; a weighted study, a series, a
+continuous conditional mean or a prior of the wrong family is refused with the next attempt, and
+any route other than an `Association` refuses a count prior (`option_not_applicable`). The result
+remains a description of the observed law with the `not_measured` calibration label.
+
 ## Supported transport policies
 
 Documented in parity `bayes.prior_bank.transport`:
@@ -329,15 +473,56 @@ below `TRANSPORT_MIN_KISH_ESS = 20`, α is forced to 0 and the reason recorded.
 
 Unsupported environment / unidentified shifts are **not claimed**.
 
-## Gates
+## Refusals
 
-```bash
-bash scripts/gate_bayesian.sh
-```
+| Situation | Code |
+| --- | --- |
+| source and target populations differ and no `TransportPolicy` was given | `transport_policy_required` |
+| the number of source populations does not match the number of sources | `transport_source_count_mismatch` |
+| transport weights that are not finite, non-negative and normalisable | `transport_invalid_weights` |
+| a target weighted over the source rows that does not overlap them | `transport_target_overlap_failed` |
+| a banked posterior whose coefficient count does not match the target design's | `prior_dimension_mismatch` |
+| a route that fits under the isotropic prior scale and does not hydrate a transferred prior | `prior_transfer_not_hydrated` |
+| a transferred prior onto a non-Gaussian link the Bayesian route cannot carry it to | `likelihood_not_supported` |
+| a power-prior `α` outside `[0, 1]`, or a negative mixture weight | rejected as an invalid value |
 
-Runs `conformance/bayesian/prior_bank_*` plus `python/tests/test_prior_bank.py`.
+Each code is described under
+[other registered refusal codes](reference/refusal-codes.md#other-registered-refusal-codes).
+A catalog check does not raise: `compatible_with` returns a `CompatibilityReport` per source
+whose `status` is `compatible`, `partial` or `rejected`, with the `reason` for a rejection
+(for example `estimand_mismatch` or `temporal_coordinates_missing`). Two outcomes are
+deliberately not refusals: a source in conflict with the data, or with transport weights of
+Kish ESS below 20, keeps its place in the result with `α` forced toward or to 0 and the
+reason recorded.
 
-## From Bayesian evidence to study ranking
+## Targets defined over the source rows
+
+A target population does not have to be a tag. `compose_external_priors_for_target`
+takes the target as a weighting over the rows that produced `unit_effects`: explicit
+`target_weights` (for example a geometry neighbourhood), or a declared
+`TransportKernel(family, bandwidth)` over `unit_distances`, each row's distance to
+the target. Kernel families are `gaussian` (`exp(-u²/2)`), `epanechnikov`
+(`1 - u²`) and `tricube` (`(1 - u³)³`), with `u = distance / bandwidth` and zero
+weight for `u >= 1` in the compact families.
+
+Compatibility reads the weighting's support and overlap with the source instead of
+tag equality: positivity (some row carries weight), the Kish ESS floor of
+`TRANSPORT_MIN_KISH_ESS = 20`, and a floor on `kish_ess / rows` (default 0.05,
+`min_ess_fraction`; it never lowers the absolute floor). A failing overlap raises
+`ValueError` with a next-attempt message (reason code
+`transport_target_overlap_failed`). The result carries `ComposedPrior.target_overlap`
+(rows, support, Kish ESS, ESS fraction, largest single-row share).
+
+The transported mean and its widening of the source `V0` use the same arithmetic as
+`transport_weights`. A declared kernel is recorded as an assumption whose id carries
+the family and the bandwidth bits, so the kernel is part of the composed prior's
+identity. `transport_bandwidth_sensitivity` reports the weighted mean, its sampling
+variance and the overlap across a set of bandwidths; a bandwidth that fails the overlap
+check is listed with its refusal message instead of dropped. The bandwidth is declared,
+not selected. Tag-defined targets (`target_population` / `source_populations`) keep their
+own path and decisions.
+
+## Rank studies from prior evidence
 
 `design.adapt_prior_to_signal(catalog, ...)` consumes compatible original native
 posterior artifacts and returns a `CheckedPriorSignal` whose `prior` and `signal`
@@ -348,3 +533,11 @@ one scalar state with Gaussian-mean or binomial future-study signals; compatibil
 and convergence are checked before ranking. It does not reconstruct posterior
 draws from a mean and variance or make an unidentified effect identified.
 See [design ranking](design-ranking.md) for the complete source-to-study example.
+
+## Related
+
+- [Uncertainty](concepts/uncertainty.md)
+- [Design ranking](design-ranking.md)
+- [Scientific bridges](scientific-bridges.md)
+
+For a connected example combining historical human behavior, agent sessions and a small human pilot, see [the smallest defensible test](tutorials/synthetic-users-launch.md).

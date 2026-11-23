@@ -1,4 +1,4 @@
-"""Arrow CDI vs NumPy ingest parity for analyze and PreparedAnalysis.
+"""Arrow CDI vs NumPy ingest parity for analyze and prepared studies.
 
 Requires pyarrow. Skipped when unavailable.
 """
@@ -10,6 +10,7 @@ import random
 
 import numpy as np
 import pytest
+from antecedent.outcomes import require_success
 
 from _scm import confounded_scm
 
@@ -27,9 +28,28 @@ def test_analyze_ate_dict_vs_arrow_dense_parity():
     data, edges = confounded_scm(n=500, seed=19)
     table = _as_table(data)
     q = antecedent.AverageEffect(treatment="t", outcome="y")
-    dict_r = antecedent.analyze(data, graph=edges, query=q, latency="interactive", seed=1)
-    arrow_r = antecedent.analyze(table, graph=edges, query=q, latency="interactive", seed=1)
+    dict_r = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=q,
+            inference=antecedent.Frequentist(profile="interactive"),
+            execution=antecedent.Execution(seed=1),
+        )
+    )
+    arrow_r = require_success(
+        antecedent.analyze(
+            table,
+            graph=edges,
+            query=q,
+            inference=antecedent.Frequentist(profile="interactive"),
+            execution=antecedent.Execution(seed=1),
+        )
+    )
     assert abs(dict_r.ate - arrow_r.ate) < 1e-12
+    # Parity alone would pass if both routes were wrong: anchor to the true effect 2.0
+    # (the unadjusted contrast is biased upward by z).
+    assert dict_r.ate == pytest.approx(2.0, abs=0.2)
 
 
 def test_prepared_prepare_arrow_estimate_dict_parity():
@@ -37,25 +57,42 @@ def test_prepared_prepare_arrow_estimate_dict_parity():
     data, edges = confounded_scm(n=500, seed=19)
     table = _as_table(data)
     q = antecedent.AverageEffect(treatment="t", outcome="y")
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
-        table, graph=edges, query=q, latency="interactive", seed=1
+    prepared = antecedent.prepare(
+        table,
+        graph=edges,
+        query=q,
+        inference=antecedent.Frequentist(profile="interactive"),
+        execution=antecedent.Execution(seed=1),
     )
-    from_arrow = prepared.estimate(table, seed=1)
-    from_dict = prepared.estimate(data, seed=1)
-    fresh = antecedent.analyze(data, graph=edges, query=q, latency="interactive", seed=1)
+    from_arrow = require_success(antecedent.estimate(prepared))
+    from_dict = require_success(antecedent.estimate(antecedent.rebind(prepared, data=data)))
+    fresh = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=q,
+            inference=antecedent.Frequentist(profile="interactive"),
+            execution=antecedent.Execution(seed=1),
+        )
+    )
     assert abs(from_arrow.ate - from_dict.ate) < 1e-12
     assert abs(from_dict.ate - fresh.ate) < 1e-12
+    assert from_arrow.ate == pytest.approx(2.0, abs=0.2)
 
 
 def test_prepared_prepare_dict_estimate_arrow_parity():
     data, edges = confounded_scm(n=400, seed=11)
     table = _as_table(data)
     q = antecedent.AverageEffect(treatment="t", outcome="y")
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
-        data, graph=edges, query=q, latency="interactive", seed=1
+    prepared = antecedent.prepare(
+        data,
+        graph=edges,
+        query=q,
+        inference=antecedent.Frequentist(profile="interactive"),
+        execution=antecedent.Execution(seed=1),
     )
-    from_dict = prepared.estimate(data, seed=1)
-    from_arrow = prepared.estimate(table, seed=1)
+    from_dict = require_success(antecedent.estimate(prepared))
+    from_arrow = require_success(antecedent.estimate(antecedent.rebind(prepared, data=table)))
     assert abs(from_dict.ate - from_arrow.ate) < 1e-12
 
 
@@ -81,9 +118,27 @@ def test_conditional_effect_dict_vs_arrow_parity():
     edges = [("z", "t"), ("z", "y"), ("w", "y"), ("t", "y")]
     table = _as_table(data)
     q = antecedent.ConditionalEffect(treatment="t", outcome="y", modifier="w")
-    dict_r = antecedent.analyze(data, graph=edges, query=q, latency="interactive", seed=1)
-    arrow_r = antecedent.analyze(table, graph=edges, query=q, latency="interactive", seed=1)
+    dict_r = require_success(
+        antecedent.analyze(
+            data,
+            graph=edges,
+            query=q,
+            inference=antecedent.Frequentist(profile="interactive"),
+            execution=antecedent.Execution(seed=1),
+        )
+    )
+    arrow_r = require_success(
+        antecedent.analyze(
+            table,
+            graph=edges,
+            query=q,
+            inference=antecedent.Frequentist(profile="interactive"),
+            execution=antecedent.Execution(seed=1),
+        )
+    )
     assert abs(dict_r.ate - arrow_r.ate) < 1e-12
+    # E[effect] = 2 + 0.5 E[w] with E[w] = 0.
+    assert dict_r.ate == pytest.approx(2.0, abs=0.25)
 
 
 def test_arrow_nulls_are_invalid_rows_not_zero():
@@ -105,10 +160,38 @@ def test_arrow_nulls_are_invalid_rows_not_zero():
     y_zero[null_idx] = 0.0
     zero_filled = {"t": data["t"], "y": y_zero, "z": data["z"]}
     q = antecedent.AverageEffect(treatment="t", outcome="y")
-    arrow_r = antecedent.analyze(table, graph=edges, query=q, latency="interactive", seed=1)
-    zero_r = antecedent.analyze(zero_filled, graph=edges, query=q, latency="interactive", seed=1)
+    arrow_r = require_success(
+        antecedent.analyze(
+            table,
+            graph=edges,
+            query=q,
+            inference=antecedent.Frequentist(profile="interactive"),
+            execution=antecedent.Execution(seed=1),
+        )
+    )
+    zero_r = require_success(
+        antecedent.analyze(
+            zero_filled,
+            graph=edges,
+            query=q,
+            inference=antecedent.Frequentist(profile="interactive"),
+            execution=antecedent.Execution(seed=1),
+        )
+    )
     assert math.isfinite(arrow_r.ate)
     assert abs(arrow_r.ate - zero_r.ate) > 1e-3
+    # A null cell is a dropped row: the nullable column equals the same table minus those rows.
+    keep = np.setdiff1d(np.arange(len(y)), null_idx)
+    dropped_r = require_success(
+        antecedent.analyze(
+            {k: v[keep] for k, v in data.items()},
+            graph=edges,
+            query=q,
+            inference=antecedent.Frequentist(profile="interactive"),
+            execution=antecedent.Execution(seed=1),
+        )
+    )
+    assert arrow_r.ate == pytest.approx(dropped_r.ate, rel=1e-9, abs=1e-12)
 
 
 def _response_curve_scm(n: int = 300, seed: int = 29) -> dict[str, np.ndarray]:
@@ -120,11 +203,13 @@ def _response_curve_scm(n: int = 300, seed: int = 29) -> dict[str, np.ndarray]:
 
 
 def _response_curve_values(data) -> list[float]:
-    result = antecedent.analyze(
-        data,
-        query=antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
-        graph=[("x", "a"), ("x", "y"), ("a", "y")],
-        seed=1,
+    result = require_success(
+        antecedent.analyze(
+            data,
+            query=antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
+            graph=[("x", "a"), ("x", "y"), ("a", "y")],
+            execution=antecedent.Execution(seed=1),
+        )
     )
     return [float(v) for row in result.response.values for v in row]
 
@@ -157,9 +242,10 @@ def test_missing_cell_matches_dropped_row_for_response_curve(source, column):
         if source == "pandas_nan":
             pd = pytest.importorskip("pandas")
             holed = pd.DataFrame(holed)
-    assert _response_curve_values(holed) == pytest.approx(
-        _response_curve_values(dropped), rel=1e-9, abs=1e-12
-    )
+    reference = _response_curve_values(dropped)
+    # Anchor: E[y | do(a)] = 2a + E[x], so the curve at -0.5, 0, 0.5 is about -1, 0, 1.
+    assert reference == pytest.approx([-1.0, 0.0, 1.0], abs=0.15)
+    assert _response_curve_values(holed) == pytest.approx(reference, rel=1e-9, abs=1e-12)
 
 
 @pytest.mark.parametrize("column", ["t", "y", "z"])
@@ -172,9 +258,34 @@ def test_arrow_nan_value_matches_dropped_row_for_ate(column):
     holed[column][missing] = np.nan
     table = _as_table(holed)
     q = antecedent.AverageEffect(treatment="t", outcome="y")
-    arrow_r = antecedent.analyze(table, graph=edges, query=q, latency="interactive", seed=1)
-    numpy_r = antecedent.analyze(holed, graph=edges, query=q, latency="interactive", seed=1)
-    dropped_r = antecedent.analyze(dropped, graph=edges, query=q, latency="interactive", seed=1)
+    arrow_r = require_success(
+        antecedent.analyze(
+            table,
+            graph=edges,
+            query=q,
+            inference=antecedent.Frequentist(profile="interactive"),
+            execution=antecedent.Execution(seed=1),
+        )
+    )
+    numpy_r = require_success(
+        antecedent.analyze(
+            holed,
+            graph=edges,
+            query=q,
+            inference=antecedent.Frequentist(profile="interactive"),
+            execution=antecedent.Execution(seed=1),
+        )
+    )
+    dropped_r = require_success(
+        antecedent.analyze(
+            dropped,
+            graph=edges,
+            query=q,
+            inference=antecedent.Frequentist(profile="interactive"),
+            execution=antecedent.Execution(seed=1),
+        )
+    )
     assert math.isfinite(arrow_r.ate)
+    assert dropped_r.ate == pytest.approx(2.0, abs=0.2)
     assert arrow_r.ate == pytest.approx(dropped_r.ate, rel=1e-9, abs=1e-12)
     assert arrow_r.ate == pytest.approx(numpy_r.ate, rel=1e-9, abs=1e-12)

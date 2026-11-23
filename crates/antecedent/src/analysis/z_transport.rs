@@ -21,7 +21,7 @@ use antecedent_io::IoError;
 use antecedent_io::z_transport_artifact::{ZTransportArtifactWire, ZTransportConsumeLimits};
 use std::sync::Arc;
 
-use super::transport_common::{PERCENTILE_FLOOR, err, estimate_err};
+use super::transport_common::{PERCENTILE_FLOOR, err, estimate_err, is_valid_exact_law};
 
 /// Prepared exact or empirical evaluation of a checked z-transport formula.
 #[derive(Clone, Debug)]
@@ -109,14 +109,8 @@ impl ZTransportResult {
         let second = &right.distribution;
         if max_atoms == 0
             || first.outcomes.iter().any(|outcome| second.outcomes.contains(outcome))
-            || first.atoms.len() != first.probabilities.len()
-            || second.atoms.len() != second.probabilities.len()
-            || first.atoms.iter().any(|atom| atom.len() != first.outcomes.len())
-            || second.atoms.iter().any(|atom| atom.len() != second.outcomes.len())
-            || first.probabilities.iter().any(|p| !p.is_finite() || *p < 0.0)
-            || second.probabilities.iter().any(|p| !p.is_finite() || *p < 0.0)
-            || (first.probabilities.iter().sum::<f64>() - 1.0).abs() > 1e-10
-            || (second.probabilities.iter().sum::<f64>() - 1.0).abs() > 1e-10
+            || !is_valid_exact_law(first)
+            || !is_valid_exact_law(second)
         {
             return Err(err("z_transport.invalid_independent_component_law"));
         }
@@ -134,9 +128,10 @@ impl ZTransportResult {
             for (right_atom, right_probability) in
                 second.atoms.iter().zip(second.probabilities.iter())
             {
-                let mut atom = left_atom.to_vec();
-                atom.extend(right_atom.iter().cloned());
-                atoms.push(Arc::from(atom));
+                // Built straight into the shared allocation: the chained slice iterators have an
+                // exact length, so no intermediate vector is grown and copied.
+                atoms
+                    .push(left_atom.iter().chain(right_atom.iter()).cloned().collect::<Arc<[_]>>());
                 probabilities.push(left_probability * right_probability);
             }
         }
@@ -162,6 +157,20 @@ impl ZTransportResult {
     ///
     /// Returns an error if the proof, provider bindings, or artifact cannot be verified.
     pub fn export(&self, prepared: &PreparedZTransport) -> Result<Vec<u8>, IoError> {
+        self.export_named(prepared, &[])
+    }
+
+    /// [`Self::export`] with the variable name of every graph coordinate bound into the
+    /// premises digest, so a consumer can refuse a relabelled frame.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::export`], and a name list that is not one unique non-empty name per node.
+    pub fn export_named(
+        &self,
+        prepared: &PreparedZTransport,
+        variable_names: &[String],
+    ) -> Result<Vec<u8>, IoError> {
         let wire = antecedent_io::z_transport_artifact::ZTransportArtifactWire::checked(
             &prepared.diagram,
             &prepared.functional,
@@ -170,6 +179,7 @@ impl ZTransportResult {
             prepared.limits,
             &self.distribution,
             &prepared.program,
+            variable_names,
         )?;
         wire.export()
     }
@@ -374,14 +384,14 @@ impl PreparedZTransport {
             Ok(interval) => interval,
             Err(reason) => return Ok(point_only(reason)),
         };
-        if provider.is_some() {
-            if let Err(reason) = PERCENTILE_FLOOR.decide(
+        if provider.is_some()
+            && let Err(reason) = PERCENTILE_FLOOR.decide(
                 interval.replicates_requested,
                 interval.replicates_ok,
                 interval.replicates_failed,
-            ) {
-                return Ok(point_only(reason));
-            }
+            )
+        {
+            return Ok(point_only(reason));
         }
         Ok(ZTransportResult {
             distribution,
@@ -526,7 +536,7 @@ fn queries_are_disconnected_components(
 /// requested at the same level in each, and each component's own treatments
 /// include every union treatment that remains an ancestor of its outcomes
 /// after the intervention (so its factor is `P*_x(y_side)`, not a law that
-/// marginalizes a treatment the other side fixes). This licenses combining one
+/// marginalizes a treatment the other side fixes). This supports combining one
 /// connected factor per source without the outcomes being in disconnected
 /// graph components.
 fn queries_factorize_under_intervention(
@@ -669,7 +679,7 @@ impl StudyBuilder {
     /// Prepare a point estimator for a checked z-transport formula.
     ///
     /// This entry point accepts exact laws or empirical plugin tables. It does
-    /// not license a general bounded sIDz search, interval estimates, or a
+    /// not support a general bounded sIDz search, interval estimates, or a
     /// `PreparedStudy` artifact/replay contract.
     ///
     /// # Errors
@@ -1451,6 +1461,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines, reason = "one scenario walked through both routes")]
     fn prepared_exact_and_empirical_z_routes_match_known_truth_point_only() {
         for empirical in [false, true] {
             let (diagram, functional, data, assignment) = fixture(empirical);
@@ -1510,6 +1521,26 @@ mod tests {
             assert!(
                 consume_z_transport_artifact(
                     &forged.export().unwrap(),
+                    &ExecutionContext::for_tests(8),
+                )
+                .is_err()
+            );
+            // The name mapping is bound by the premises digest: relabelling it is refused,
+            // and a caller's frame must equal it.
+            let nodes = usize::try_from(forged.graph.node_count).unwrap();
+            let names: Vec<String> = (0..nodes).map(|i| format!("n{i}")).collect();
+            let named = result.export_named(&prepared, &names).unwrap();
+            let wire: antecedent_io::z_transport_artifact::ZTransportArtifactWire =
+                antecedent_io::from_cbor(&named).unwrap();
+            wire.check_variable_names(&names).unwrap();
+            let mut swapped = names.clone();
+            swapped.swap(0, nodes - 1);
+            assert!(wire.check_variable_names(&swapped).is_err());
+            let mut relabelled = wire.clone();
+            relabelled.variable_names = swapped;
+            assert!(
+                consume_z_transport_artifact(
+                    &relabelled.export().unwrap(),
                     &ExecutionContext::for_tests(8),
                 )
                 .is_err()

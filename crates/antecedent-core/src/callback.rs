@@ -14,12 +14,14 @@
 //! implementation it supplies ([`RecoveryRecord::verify`]). The record never carries
 //! code.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
+use crate::canonical_encode::{CanonicalEncode, count};
+use crate::identity::{CanonicalWriter, digest_from_lower_hex};
 use crate::reason_code;
 use crate::value_expr::ValueExpr;
 
@@ -38,6 +40,23 @@ pub enum CallbackOutput {
     },
     /// Exactly these levels (sorted, unique, finite); a categorical or binary result.
     Levels(Arc<[f64]>),
+}
+
+impl CanonicalEncode for CallbackOutput {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Real => {
+                writer.word(1);
+            }
+            Self::Range { lower, upper } => {
+                writer.word(2).real(*lower).real(*upper);
+            }
+            Self::Levels(levels) => {
+                writer.word(3);
+                writer.reals(levels);
+            }
+        }
+    }
 }
 
 impl CallbackOutput {
@@ -122,6 +141,19 @@ pub enum CallbackImplementation {
     },
 }
 
+impl CanonicalEncode for CallbackImplementation {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Runtime => {
+                writer.word(1);
+            }
+            Self::Recoverable { source_sha256, entry_point } => {
+                writer.word(2).text(source_sha256).text(entry_point);
+            }
+        }
+    }
+}
+
 /// The declaration of a callback: inputs, output and runtime dependencies.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CallbackSpec {
@@ -147,11 +179,8 @@ impl CallbackSpec {
         let implementation = match &self.implementation {
             CallbackImplementation::Runtime => true,
             CallbackImplementation::Recoverable { source_sha256, entry_point } => {
-                source_sha256.len() == 64
-                    && source_sha256
-                        .bytes()
-                        .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-                    && !entry_point.is_empty()
+                // Canonical identity text: lowercase hex only (uppercase is a different spelling).
+                digest_from_lower_hex(source_sha256).is_some() && !entry_point.is_empty()
             }
         };
         !self.name.is_empty() && distinct && self.output.is_well_formed() && implementation
@@ -268,10 +297,75 @@ impl RecoveryRecord {
     }
 }
 
+/// A failure raised by a foreign callback, kept as structured data.
+///
+/// The native error enums that callback traits return carry one of these (`ModelError`,
+/// `StatsError`, `CallbackError`, ...), so a host binding that retained the foreign
+/// exception can find it again from the error chain by its [`Self::id`], without
+/// parsing any message. [`fmt::Display`] is the readable description only.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CallbackFailure {
+    id: Option<u64>,
+    description: String,
+    code: Option<String>,
+}
+
+impl CallbackFailure {
+    /// A failure with its description. `id` names the retained foreign exception, if any;
+    /// `code` is a registered reason code the foreign error itself named, if any.
+    #[must_use]
+    pub fn new(id: Option<u64>, description: impl Into<String>, code: Option<String>) -> Self {
+        Self { id, description: description.into(), code }
+    }
+
+    /// The identity of the retained foreign exception, if one was retained.
+    #[must_use]
+    pub fn id(&self) -> Option<u64> {
+        self.id
+    }
+
+    /// The readable description of the failure.
+    #[must_use]
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    /// The registered reason code the failure names, if any.
+    #[must_use]
+    pub fn code(&self) -> Option<&str> {
+        self.code.as_deref()
+    }
+
+    /// The callback failure carried anywhere in `error`'s source chain (the error itself
+    /// included), if there is one.
+    #[must_use]
+    pub fn in_chain<'a>(error: &'a (dyn std::error::Error + 'static)) -> Option<&'a Self> {
+        let mut current: Option<&'a (dyn std::error::Error + 'static)> = Some(error);
+        while let Some(link) = current {
+            if let Some(found) = link.downcast_ref::<Self>() {
+                return Some(found);
+            }
+            current = link.source();
+        }
+        None
+    }
+}
+
+impl fmt::Display for CallbackFailure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.description)
+    }
+}
+
+impl std::error::Error for CallbackFailure {}
+
 /// Why a callback call failed.
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]
 #[non_exhaustive]
 pub enum CallbackError {
+    /// The callback itself raised, and the failure is kept as structured data.
+    #[error("{0}")]
+    Failed(#[source] CallbackFailure),
     /// The callback itself raised; `message` is its own error text.
     #[error("{message}")]
     Raised {
@@ -316,7 +410,7 @@ impl CallbackError {
     /// Whether the failure is the callback raising, as opposed to a bad output.
     #[must_use]
     pub fn is_raised(&self) -> bool {
-        matches!(self, Self::Raised { .. })
+        matches!(self, Self::Raised { .. } | Self::Failed(_))
     }
 }
 
@@ -350,6 +444,27 @@ pub struct CallbackCall {
 // existed; implementors that mutate shared state own the consistency of that state.
 impl std::panic::UnwindSafe for CallbackCall {}
 impl std::panic::RefUnwindSafe for CallbackCall {}
+
+impl CanonicalEncode for CallbackCall {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let spec = self.spec();
+        if matches!(spec.implementation, CallbackImplementation::Runtime) {
+            writer.note_runtime_callback();
+        }
+        writer.text(&spec.name);
+        writer.texts(spec.inputs.as_ref());
+        spec.output.encode(writer);
+        writer.word(count(spec.dependencies.len()));
+        for dependency in spec.dependencies.as_ref() {
+            writer.text(&dependency.name).text(&dependency.version);
+        }
+        spec.implementation.encode(writer);
+        writer.word(count(self.args().len()));
+        for arg in self.args() {
+            arg.encode(writer);
+        }
+    }
+}
 
 impl CallbackCall {
     /// Bind `callback` to `args`, one per declared input.
@@ -458,6 +573,20 @@ impl Portability {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_callback_failure_round_trips_through_the_error_chain_without_a_message_tag() {
+        let failure = CallbackFailure::new(Some(7), "callback f raised: boom", Some("x".into()));
+        let error = CallbackError::Failed(failure.clone());
+        assert_eq!(error.to_string(), "callback f raised: boom");
+        assert!(error.is_raised());
+        let found = CallbackFailure::in_chain(&error).expect("the failure is in the chain");
+        assert_eq!(found, &failure);
+        assert_eq!((found.id(), found.code()), (Some(7), Some("x")));
+        assert_eq!(found.description(), "callback f raised: boom");
+        let plain = CallbackError::Raised { message: "no id".into() };
+        assert!(CallbackFailure::in_chain(&plain).is_none());
+    }
 
     fn spec(implementation: CallbackImplementation) -> CallbackSpec {
         CallbackSpec {

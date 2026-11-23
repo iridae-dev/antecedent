@@ -4,7 +4,9 @@ import json
 
 import pytest
 from antecedent import Admg, repair
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalSerializationError
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 
@@ -31,6 +33,19 @@ def contract():
         )
     )
     return repair.ZTransportContract.from_identification(stage, catalog=catalog, names=names)
+
+
+def test_z_transport_contract_memory_limit_is_the_executions():
+    from antecedent import Execution, ResourceLimits
+
+    with pytest.raises(TypeError, match="unexpected keyword|got an unexpected"):
+        repair.ZTransportContract(names=("x",), failure_snapshot=b"", memory_bytes=1)  # type: ignore[call-arg]
+    built = contract()
+    bounded = Execution(limits=ResourceLimits(memory_bytes=64 * 1024 * 1024))
+    rebuilt = repair.ZTransportContract(
+        names=built.names, failure_snapshot=built.failure_snapshot, execution=bounded
+    )
+    assert rebuilt.contract_id == built.contract_id
 
 
 def experiment(label, *, population="source", level=0.0, joint=True):
@@ -79,7 +94,9 @@ def test_z_transport_contract_obligations_drive_verified_repair_and_typed_refusa
     assert result.best.derivation.checker == "z_transport.catalog"
     assert all(o.proof_step in result.best.derivation.steps for o in obligations)
     assert all(o.classification == "insufficient" for o in result.table if o.labels != ("correct",))
-    with pytest.raises(repair.RepairRefusal, match="identification_repair.invalid_request"):
+    with pytest.raises(
+        repair.RepairRefusal, match=reason_details.identification_repair.INVALID_REQUEST
+    ):
         edited = json.loads(failed.failure_snapshot)
         edited["catalog_digest"] = "changed"
         repair.ZTransportContract(names=failed.names, failure_snapshot=json.dumps(edited).encode())
@@ -92,8 +109,8 @@ def test_z_transport_repair_artifact_replays_and_preserves_budget_stop():
         result = repair.repair(
             failed, studies, limits=repair.RepairLimits(max_operations=operations, max_depth=1)
         )
-        exported = result.export()
-        replay = repair.consume(exported)
+        exported = bytes(result.export())
+        replay = require_success(repair.consume(exported))
         assert replay.contract_id == result.contract_id
         assert replay.obligations == result.obligations
         assert replay.table == result.table
@@ -105,4 +122,4 @@ def test_z_transport_repair_artifact_replays_and_preserves_budget_stop():
         else:
             assert replay.best.labels == ("correct",)
         with pytest.raises((repair.RepairArtifactRefusal, CausalSerializationError)):
-            repair.consume(exported[:-1])
+            require_success(repair.consume(exported[:-1]))

@@ -7,6 +7,7 @@ and loaded results, readable report targets, and a calibration row with no ``Non
 
 from __future__ import annotations
 
+import html as html_text
 import math
 import re
 import warnings
@@ -15,10 +16,11 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent._verdict import describe_status
+from antecedent.outcomes import require_success
 from antecedent.results import Answer, CalibrationInfo
 from antecedent.results._execution import ANSWER_KINDS, CLAIM_KIND_ANSWERS
 
-from _sealed_loads import assert_answer_kept
+from _loaded_results import assert_answer_kept
 
 GRAPH = [("z", "t"), ("z", "y"), ("t", "y")]
 # z - t undirected: both completions identify the effect with different adjustment sets.
@@ -40,16 +42,19 @@ def _continuous(n: int = 400, seed: int = 0) -> dict[str, np.ndarray]:
 
 
 def _run(graph, *, bayesian: bool):
-    inference = ant.Bayesian(n_draws=64, backend="conjugate") if bayesian else ant.Frequentist()
+    inference = (
+        ant.Bayesian(n_draws=64, backend="conjugate") if bayesian else ant.Frequentist(bootstrap=20)
+    )
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        return ant.analyze(
-            _continuous(),
-            graph=graph,
-            query=ant.AverageEffect("t", "y"),
-            inference=inference,
-            refute="none",
-            bootstrap=0 if bayesian else 20,
+        return require_success(
+            ant.analyze(
+                _continuous(),
+                graph=graph,
+                query=ant.AverageEffect("t", "y"),
+                inference=inference,
+                refute="none",
+            )
         )
 
 
@@ -78,12 +83,14 @@ def graph_dependent():
 def identified():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        return ant.analyze(
-            _continuous(),
-            graph=GRAPH,
-            query=ant.AverageEffect("t", "y"),
-            refute="none",
-            bootstrap=0,
+        return require_success(
+            ant.analyze(
+                _continuous(),
+                graph=GRAPH,
+                query=ant.AverageEffect("t", "y"),
+                refute="none",
+                inference=ant.Frequentist(bootstrap=0),
+            )
         )
 
 
@@ -111,6 +118,36 @@ def test_identified_banner_and_repr(identified):
     assert repr(identified).startswith("<AnalysisResult identified effect=")
 
 
+def test_a_noncausal_status_is_neither_identified_nor_a_failed_identification():
+    from antecedent._claim import identification_statement, result_claim
+    from antecedent._verdict import verdict_for, verdict_tone
+
+    assert verdict_for("NotClaimed") == "not claimed"
+    assert describe_status("NotClaimed") == "not claimed"
+    assert verdict_tone("NotClaimed") == "noncausal"
+    statement = identification_statement("effect", "NotClaimed", "regression", ["z"])
+    assert "noncausal association" in statement
+    assert "identification is not claimed" in statement
+    assert "adjusting" not in statement
+    sentence = result_claim(
+        query="effect",
+        status="NotClaimed",
+        method=None,
+        adjustment_set=(),
+        answer=Answer("associational", detail="noncausal_association"),
+        calibration=None,
+    )
+    assert "not an effect of any intervention" in sentence
+
+
+def test_an_associational_claim_has_its_own_answer_kind_and_no_value():
+    assert CLAIM_KIND_ANSWERS["associational"] == "associational"
+    assert "associational" in ANSWER_KINDS
+    answer = Answer("associational", detail="noncausal_association")
+    assert answer.value is None
+    assert answer.bounds is None
+
+
 def test_parametric_identification_keeps_its_qualifier():
     rng = np.random.default_rng(1)
     z = rng.normal(size=300)
@@ -118,12 +155,14 @@ def test_parametric_identification_keeps_its_qualifier():
     y = t + z + rng.normal(scale=0.2, size=300)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        result = ant.analyze(
-            {"t": t, "y": y, "z": z},
-            graph=GRAPH,
-            query=ant.Counterfactual("t", "y"),
-            refute="none",
-            bootstrap=0,
+        result = require_success(
+            ant.analyze(
+                {"t": t, "y": y, "z": z},
+                graph=GRAPH,
+                query=ant.Counterfactual("t", "y"),
+                refute="none",
+                inference=ant.Frequentist(bootstrap=0),
+            )
         )
     assert result.identification.status == "IdentifiedUnderParametricRestrictions"
     assert repr(result).startswith("<AnalysisResult identified under parametric restrictions ")
@@ -135,7 +174,7 @@ def test_parametric_identification_keeps_its_qualifier():
     assert staged.verdict == "identified"
 
 
-def test_licensed_design_routes_are_nonparametric():
+def test_supported_design_routes_are_nonparametric():
     from test_transport_interference_lifecycle import (
         _interference_design,
         _interference_query,
@@ -144,11 +183,13 @@ def test_licensed_design_routes_are_nonparametric():
         _transport_query,
     )
 
-    transport_result = ant.analyze(
-        _transport_data(80, 1), graph=_transport_graph(), query=_transport_query()
+    transport_result = require_success(
+        ant.analyze(_transport_data(80, 1), graph=_transport_graph(), query=_transport_query())
     )
     assignment, data = _interference_design()
-    interference_result = ant.analyze(data, graph=[], query=_interference_query(assignment))
+    interference_result = require_success(
+        ant.analyze(data, graph=[], query=_interference_query(assignment))
+    )
     for result, method_prefix in (
         (transport_result, "transport.sid"),
         (interference_result, "interference.design"),
@@ -217,7 +258,7 @@ def test_answer_kind_is_closed():
 )
 def test_live_and_loaded_answers_agree(fixture, kind, detail, request):
     result = request.getfixturevalue(fixture)
-    loaded = ant.load(result.export())
+    loaded = require_success(ant.load(bytes(result.export())))
     assert_answer_kept(loaded)
     assert result.answer.kind == kind
     assert loaded.answer.kind == kind
@@ -232,16 +273,17 @@ def test_bounds_answer_carries_the_identified_set_live_and_loaded():
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        result = ant.analyze(
-            _series(_PIN),
-            graph=_cpdag(),
-            query=_pulse(_PIN),
-            inference=ant.Bayesian(n_draws=64, backend="conjugate"),
-            refute=False,
-            bootstrap=0,
-            seed=7,
+        result = require_success(
+            ant.analyze(
+                _series(_PIN),
+                graph=_cpdag(),
+                query=_pulse(_PIN),
+                inference=ant.Bayesian(n_draws=64, backend="conjugate"),
+                refute=False,
+                execution=ant.Execution(seed=7),
+            )
         )
-    loaded = ant.load(result.export())
+    loaded = require_success(ant.load(bytes(result.export())))
     assert result.answer.kind == loaded.answer.kind == "bounds"
     assert result.answer.bounds is not None
     assert loaded.answer.bounds == result.answer.bounds
@@ -256,29 +298,33 @@ def test_function_valued_answers_agree_live_and_loaded():
     y = t + z + rng.normal(scale=0.2, size=200)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        result = ant.analyze(
-            {"t": t, "y": y, "z": z},
-            graph=GRAPH,
-            query=ant.ResponseJacobian(["t"], ["y"], at={"t": 0.5}),
-            estimator_config={"bandwidth": 0.45},
-            refute="none",
-            bootstrap=0,
+        result = require_success(
+            ant.analyze(
+                {"t": t, "y": y, "z": z},
+                graph=GRAPH,
+                query=ant.ResponseJacobian(["t"], ["y"], at={"t": 0.5}),
+                estimator_config={"bandwidth": 0.45},
+                refute="none",
+                inference=ant.Frequentist(bootstrap=0),
+            )
         )
     assert result.answer.kind == "response"
-    assert ant.load(result.export()).answer.kind == "response"
+    assert require_success(ant.load(bytes(result.export()))).answer.kind == "response"
 
 
 def test_limited_function_valued_answer_is_partial_live_and_loaded():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        result = ant.analyze(
-            _continuous(n=300),
-            graph=PARTIAL,
-            query=ant.ResponseCurve("t", "y", grid=[0.0, 0.5, 1.0]),
-            bootstrap=0,
-            refute="none",
+        result = require_success(
+            ant.analyze(
+                _continuous(n=300),
+                graph=PARTIAL,
+                query=ant.ResponseCurve("t", "y", grid=[0.0, 0.5, 1.0]),
+                inference=ant.Frequentist(bootstrap=0),
+                refute="none",
+            )
         )
-    loaded = ant.load(result.export())
+    loaded = require_success(ant.load(bytes(result.export())))
     assert result.answer.kind == loaded.answer.kind == "partial"
     assert result.answer.detail == loaded.answer.detail
     assert result.answer.detail is not None
@@ -293,7 +339,7 @@ def test_limited_function_valued_answer_is_partial_live_and_loaded():
 def test_report_target_query_uses_variable_names_live_and_loaded(identified):
     for report in (
         identified.inspect().to_dict(),
-        ant.load(identified.export()).inspect().to_dict(),
+        require_success(ant.load(bytes(identified.export()))).inspect().to_dict(),
     ):
         query = report["target"]["query"]
         assert query["kind"] == "average_effect"
@@ -313,28 +359,28 @@ def test_report_target_query_uses_variable_names_live_and_loaded(identified):
             "calibrated · record cov.a",
         ),
         (
-            {"status": "scope_not_assessed", "record_id": "cov.b"},
-            "scope_not_assessed · record cov.b",
+            {"status": "outside_measured_scope", "record_id": "cov.b"},
+            "outside_measured_scope · record cov.b",
         ),
         (
-            {"status": "unavailable", "reason": "estimator_grid_not_measured"},
-            "unavailable · reason estimator_grid_not_measured",
+            {"status": "not_measured", "reason": "estimator_grid_not_measured"},
+            "not_measured · reason estimator_grid_not_measured",
         ),
         (
             {
-                "status": "boundary",
+                "status": "measured_below_nominal",
                 "record_id": "cov.c",
                 "reason": "boundary_record",
                 "level": 0.95,
                 "observed_coverage": 0.912,
                 "replicates": 400,
             },
-            "boundary · reason boundary_record · record cov.c · level 0.95"
+            "measured_below_nominal · reason boundary_record · record cov.c · level 0.95"
             " · observed coverage 0.912 · 400 replicates",
         ),
         (
-            {"status": "some_future_status", "record_id": "cov.d", "new_field": "x"},
-            "some_future_status · record cov.d · new_field x",
+            {"status": "calibrated", "record_id": "cov.d", "new_field": "x"},
+            "calibrated · record cov.d · new_field x",
         ),
     ],
 )
@@ -345,11 +391,52 @@ def test_calibration_describe_renders_every_status(slot, expected):
     assert "None" not in info.describe()
 
 
+def test_synthetic_control_inspection_agrees_for_live_and_saved_panel_evidence():
+    functional = "synthetic_control/posterior_average+donors=40+post_periods=5"
+    slot = {
+        "status": "measured_below_nominal",
+        "nominal": 0.95,
+        "observed": 1828 / 1993,
+        "basis": {"key": {"functional": functional}, "scope": {"row_count": 40}},
+        "interval_counts": {"attempted": 2000, "returned": 1993, "covered": 1828},
+    }
+    live = {
+        "calibration_status": "measured_below_nominal",
+        "calibration_level": "0.95",
+        "calibration_observed_coverage": str(1828 / 1993),
+        "calibration_panel_functional": functional,
+        "calibration_pre_treatment_periods": "40",
+        "calibration_attempted_panels": "2000",
+        "calibration_returned_intervals": "1993",
+        "calibration_covered_intervals": "1828",
+    }
+    for contract in ({"claim": {"calibration": slot}}, live):
+        view = CalibrationInfo.from_contract(contract)
+        assert (view.donor_count, view.pre_treatment_periods, view.post_treatment_periods) == (
+            40,
+            40,
+            5,
+        )
+        assert view.level == 0.95
+        assert view.observed_coverage == 1828 / 1993
+        assert (
+            "1828/1993 returned intervals covered across 2000 simulated panels" in view.describe()
+        )
+
+
+def test_calibration_status_outside_the_four_codes_is_refused():
+    for old in ("scope_not_assessed", "unavailable", "boundary"):
+        with pytest.raises(ValueError, match="unknown calibration status"):
+            CalibrationInfo.from_contract({"claim": {"calibration": {"status": old}}})
+
+
 def test_calibration_row_in_notebook_card_has_no_none(partial_bayesian, identified):
     for result in (partial_bayesian, identified):
         html = result._repr_html_()
         row = re.search(r"Calibration</span><span>([^<]*)</span>", html)
         assert row is not None
         assert "None" not in row.group(1)
-        assert row.group(1) == result.calibration.describe()
-        assert row.group(1).startswith(result.calibration.status)
+        # The card is HTML: its text is the described line after entity escaping.
+        shown = html_text.unescape(row.group(1))
+        assert shown == result.calibration.describe()
+        assert shown.startswith(result.calibration.status)

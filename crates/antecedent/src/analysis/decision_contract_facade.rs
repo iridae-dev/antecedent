@@ -31,7 +31,7 @@
 //! refused by the coordinate check, never reinterpreted. The decision is not
 //! refreshed in place.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ExternalRefusal;
 use antecedent_core::{CanonicalWriter, SupportStatus};
@@ -229,10 +229,10 @@ impl BoundDecisionContract {
         }
         for action in &contract.actions {
             for input in 0..action.inputs.len() {
-                if let Some(required) = rules.weakest_allowed(&action.id, input) {
-                    if supplied.severity() > required.severity() {
-                        return Err(support_rule_refusal(&action.id, supplied, required));
-                    }
+                if let Some(required) = rules.weakest_allowed(&action.id, input)
+                    && supplied.severity() > required.severity()
+                {
+                    return Err(support_rule_refusal(&action.id, supplied, required));
                 }
             }
         }
@@ -252,11 +252,14 @@ impl BoundDecisionContract {
 
 const TAG_BOUND_TRANSPORTED: &str = "antecedent.decision_contract.bound_transported";
 /// Detail: the contract requires an uncertainty representation a point cannot supply.
-pub const DETAIL_UNCERTAINTY_REQUIREMENT: &str = "transported_decision.uncertainty_requirement";
+pub const DETAIL_UNCERTAINTY_REQUIREMENT: &str =
+    antecedent_core::reason_details::transported_decision::UNCERTAINTY_REQUIREMENT;
 /// Detail: declared exclusions leave fewer than two actions to compare.
-pub const DETAIL_EXCLUSIONS: &str = "transported_decision.exclusions_leave_no_comparison";
+pub const DETAIL_EXCLUSIONS: &str =
+    antecedent_core::reason_details::transported_decision::EXCLUSIONS_LEAVE_NO_COMPARISON;
 /// Detail: a support rule of the contract is stronger than the transported label.
-pub const DETAIL_SUPPORT_RULE: &str = "transported_decision.support_rule_unmet";
+pub const DETAIL_SUPPORT_RULE: &str =
+    antecedent_core::reason_details::transported_decision::SUPPORT_RULE_UNMET;
 
 fn support_rule_refusal(
     action: &str,

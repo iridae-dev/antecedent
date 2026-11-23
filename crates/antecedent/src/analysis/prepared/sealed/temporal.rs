@@ -5,7 +5,7 @@
 //! what preparation retained; the refusal reads the same on estimate and on
 //! refresh up to the entry point it names.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SealedOperation, SeriesCall, SeriesRefusal};
 use crate::analysis::execute::{
@@ -200,12 +200,7 @@ impl SealedOperation for CheckedBayesianTemporalClassEffectOperation {
         if !self.matches_query(&call.study.query) {
             return Err(call.refusal(QUERY_CHANGED));
         }
-        if !call
-            .study
-            .temporal_class_identification_cache
-            .as_deref()
-            .is_some_and(|proof| self.matches_class_proof(proof))
-        {
+        if !call.study.temporal_class_cache().is_some_and(|proof| self.matches_class_proof(proof)) {
             return Err(call.refusal(ENVELOPE_DIFFERS));
         }
         call.study
@@ -228,5 +223,33 @@ impl SealedOperation for CheckedTemporalGraphPosteriorEffect {
         call.study
             .execute_checked_temporal_graph_posterior_effect(call.series, self, call.ctx)
             .map(Some)
+    }
+}
+
+impl SealedOperation for crate::analysis::execute::CheckedTemporalAdmgOperation {
+    series_operation_hooks!();
+
+    fn require_retained_program(
+        &self,
+        plan: &crate::planner::PhysicalExecutionPlan,
+    ) -> Result<(), CausalError> {
+        self.require_program(plan)
+    }
+
+    fn estimate_series(&self, call: &SeriesCall<'_>) -> Result<Option<StudyResult>, CausalError> {
+        let mut result = self.execute_checked_temporal_admg(
+            call.study,
+            call.series,
+            &call.handle.plan,
+            call.ctx,
+        )?;
+        crate::analysis::execute::finish_family_result(
+            call.study,
+            call.input,
+            &call.handle.plan,
+            &mut result,
+            call.ctx,
+        )?;
+        Ok(Some(result))
     }
 }

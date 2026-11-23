@@ -5,12 +5,10 @@ from __future__ import annotations
 import json
 
 import pytest
-from antecedent import artifacts
-from antecedent._native import (
-    CausalSerializationError,
-    decode_causal_artifact,
-    encode_causal_artifact,
-)
+from antecedent import artifacts, model
+from antecedent._native import decode_causal_artifact, encode_causal_artifact
+from antecedent.errors import CausalSerializationError
+from antecedent.outcomes import require_success
 
 
 def _response_query(functional: object) -> dict[str, object]:
@@ -209,7 +207,7 @@ def test_every_grid_weighting_and_derivative_scale_wire_variant(functional: obje
         {"sustained": {"from": -2, "until": -1}},
     ],
 )
-def test_every_licensed_temporal_response_policy_crosses_rust_and_python(
+def test_every_supported_temporal_response_policy_crosses_rust_and_python(
     policy: object,
 ) -> None:
     payload = _response_query(
@@ -717,9 +715,9 @@ def test_temporal_response_result_rejects_horizon_id_outside_name_table() -> Non
                         }
                     },
                     "certificate": {
-                        "rule": "standardize",
+                        "rule": "transport.sid.standardize",
                         "selection_targets": [2],
-                        "premises": [],
+                        "premises": ["selection is blocked by the standardized variables"],
                     },
                 }
             },
@@ -734,24 +732,24 @@ def test_temporal_response_result_rejects_horizon_id_outside_name_table() -> Non
                             "sum_out": [2],
                             "factors": [
                                 {
-                                    "population": "trial",
-                                    "variables": [1],
-                                    "conditioned_on": [2],
-                                    "interventions": [0],
-                                },
-                                {
                                     "population": "target",
                                     "variables": [2],
                                     "conditioned_on": [],
+                                    "interventions": [],
+                                },
+                                {
+                                    "population": "trial",
+                                    "variables": [1],
+                                    "conditioned_on": [2],
                                     "interventions": [],
                                 },
                             ],
                         }
                     },
                     "certificate": {
-                        "rule": "recursive",
+                        "rule": "transport.sid.target_g_formula",
                         "selection_targets": [2],
-                        "premises": [],
+                        "premises": ["the target factorization identifies the response"],
                     },
                 }
             },
@@ -770,7 +768,7 @@ def test_temporal_response_result_rejects_horizon_id_outside_name_table() -> Non
                         }
                     },
                     "certificate": {
-                        "rule": "direct",
+                        "rule": "transport.sid.direct",
                         "selection_targets": [],
                         "premises": ["same mechanism"],
                     },
@@ -880,21 +878,21 @@ def test_identified_set_interval_survives_export_and_reencode() -> None:
     graph = antecedent.graph.TemporalCpdag.from_lagged_edges(
         ["t", "y", "z"], [("z", 1, "y", 0), ("t", 1, "y", 0)], [("z", 1, "t", 1)]
     )
-    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         data,
         graph=graph,
         query=antecedent.PulseEffect("t", "y", treatment_lag=1, horizon_steps=1, active_level=1.0),
-        inference=antecedent.Frequentist(),
+        inference=antecedent.Frequentist(bootstrap=60),
         refute=False,
-        bootstrap=60,
-        seed=5,
+        execution=antecedent.Execution(seed=5),
     )
-    result = prepared.estimate(data, seed=5)
+    outcome = antecedent.estimate(prepared)
+    result = require_success(outcome)
     assert result.structural_identified_set_interval is not None
     assert result.structural_identified_set_interval_method == "imbens_manski_shared_block"
     assert result.structural_identified_set_interval_truncated is False
 
-    decoded = artifacts.loads(prepared.export_artifact())
+    decoded = artifacts.loads(bytes(outcome.export()))
     assert decoded.format_version == (0, 5)
     interval = decoded.to_dict()["payload"]["structural_response"]["identified_set_interval"]
     assert interval["method"] == "imbens_manski_shared_block"
@@ -927,3 +925,38 @@ def test_identified_set_interval_survives_export_and_reencode() -> None:
             variable_names=decoded.variable_names,
             artifact_id="corrupt",
         )
+
+
+def test_a_model_bundle_round_trips_its_names_edges_and_mechanism_slots() -> None:
+    mechanisms = [
+        ("constant", 1.5, None, None),
+        ("linear_gaussian", 0.5, [2.0], 0.3),
+    ]
+    encoded = bytes(model.encode_model_bundle(["x", "y"], [(0, 1)], mechanisms))
+    assert len(encoded) > 0
+    names, edges, slots = model.decode_model_bundle(encoded)
+    assert list(names) == ["x", "y"]
+    assert [tuple(edge) for edge in edges] == [(0, 1)]
+    assert slots == len(mechanisms)
+    # The same declaration encodes to the same bytes; another edge set is another artifact.
+    assert bytes(model.encode_model_bundle(["x", "y"], [(0, 1)], mechanisms)) == encoded
+    edgeless = [("constant", 1.5, None, None), ("linear_gaussian", 0.5, [], 0.3)]
+    other = bytes(model.encode_model_bundle(["x", "y"], [], edgeless))
+    assert other != encoded
+    assert [tuple(edge) for edge in model.decode_model_bundle(other)[1]] == []
+
+
+def test_a_model_bundle_refuses_a_bad_edge_and_bytes_that_are_not_a_bundle() -> None:
+    with pytest.raises(CausalSerializationError, match="unknown dense node 5"):
+        model.encode_model_bundle(["x", "y"], [(0, 5)], [("constant", 0.0, None, None)] * 2)
+    encoded = bytes(
+        model.encode_model_bundle(["x", "y"], [(0, 1)], [("constant", 0.0, None, None)] * 2)
+    )
+    with pytest.raises(CausalSerializationError, match="bad artifact magic"):
+        model.decode_model_bundle(b"not a model bundle")
+    damaged = bytearray(encoded)
+    damaged[len(damaged) // 2] ^= 0x55
+    with pytest.raises(CausalSerializationError):
+        model.decode_model_bundle(bytes(damaged))
+    with pytest.raises(CausalSerializationError, match="failed to fill whole buffer"):
+        model.decode_model_bundle(encoded[:20])

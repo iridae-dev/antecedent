@@ -25,7 +25,7 @@ contracts alone, before any component runs::
     connection = ic.check_connection(estimator, "effect", decision, "effect")
 
 A connection never raises a calibration label: a point-only producer stays point-only, and a
-consumer that relies on measured calibration is refused rather than served an unmeasured interval.
+consumer that relies on measured calibration is refused rather than served a not_measured interval.
 A set of components is checked with :func:`check_composition`, which refuses feedback cycles with
 their path named. :func:`export_interface_contract` writes ``interface_contract_v1`` (specified in
 ``spec/``); :func:`consume_interface_contract_artifact` rebuilds and re-validates it against an
@@ -48,10 +48,19 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from . import _native
-from ._artifact_protocol import bytes_export
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
+from ._float_bits import float_bits as _bits
 from ._freeze import thaw
 from ._refusal import StructuredRefusal
 from ._scientific import ScientificResult
+from ._validate import name as _name
+from ._validate import named_choice as _choice
 from .errors import CausalTypeError, CausalValueError
 from .joint_distribution import DistributionMeaning, QuantityCondition, ScientificQuantity
 from .scientific_bridge import _quantity_wire
@@ -72,15 +81,20 @@ __all__ = [
     "InterfaceContract",
     "InterfaceContractExport",
     "InterfaceContractRefusal",
+    "PortFacts",
     "ProducedPort",
     "SupportDomain",
+    "bridge_contract",
     "check_composition",
+    "check_composition_with_cyclic",
     "check_composition_with_ledger",
     "check_connection",
     "consume_interface_contract_artifact",
     "contract_identity",
     "export_interface_contract",
     "inspect_interface_contract_artifact",
+    "measurement_contract",
+    "mechanism_contract",
 ]
 
 #: The operations a port offers or requires. None implies another.
@@ -110,7 +124,7 @@ UNCERTAINTY_MEANINGS: dict[str, str] = {
 CALIBRATION_STATUSES: tuple[str, ...] = (
     "none",
     "point_only",
-    "unmeasured",
+    "not_measured",
     "measured",
     "inherited",
 )
@@ -140,7 +154,7 @@ _STAGES = (
 OperationsName = Literal[
     "point", "mean", "law", "draws", "joint_draws", "covariance", "interval", "posterior"
 ]
-CalibrationStatusesName = Literal["none", "point_only", "unmeasured", "measured", "inherited"]
+CalibrationStatusesName = Literal["none", "point_only", "not_measured", "measured", "inherited"]
 DependenceRequirementsName = Literal["unconstrained", "declared_evidence", "disjoint_evidence"]
 CalibrationRequirementsName = Literal["not_required", "measured"]
 StagesName = Literal[
@@ -184,24 +198,6 @@ def _raise(payload: str | None) -> None:
     first = built[0]
     first.refusals = built
     raise first
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
-
-
-def _choice(value: object, what: str, allowed: Iterable[str]) -> str:
-    text = _name(value, what)
-    options = tuple(allowed)
-    if text not in options:
-        raise CausalValueError(f"{what} must be one of {options}, got {text!r}")
-    return text
-
-
-def _bits(value: float) -> int:
-    return int(struct.unpack("<Q", struct.pack("<d", float(value)))[0])
 
 
 def _float(bits: int) -> float:
@@ -308,8 +304,8 @@ class Calibration:
         return cls("point_only")
 
     @classmethod
-    def unmeasured(cls) -> Calibration:
-        return cls("unmeasured")
+    def not_measured(cls) -> Calibration:
+        return cls("not_measured")
 
     @classmethod
     def measured(cls, record_id: str) -> Calibration:
@@ -417,22 +413,11 @@ class InterfaceContract:
     produces: Sequence[ProducedPort] = ()
     consumes: Sequence[ConsumedPort] = ()
 
-    def export(self, artifact_id: str = "interface-contract") -> bytes:
-        return export_interface_contract(self, artifact_id=artifact_id)
-
-    def artifact(
+    @artifact_export
+    def export(
         self, artifact_id: str = "interface-contract"
     ) -> ExportedArtifact[ConsumedInterfaceContract]:
-        from ._artifact_protocol import ArtifactExpectation, ExportedArtifact
-
-        original_export = getattr(export_interface_contract, "__wrapped__")  # noqa: B009
-        receipt = original_export(self, artifact_id=artifact_id)
-        return ExportedArtifact(
-            receipt.artifact,
-            "interface_contract_v1",
-            ArtifactExpectation("interface_contract_v1", receipt.identity),
-            {"identity": receipt.identity, "contract_identity": receipt.contract_identity},
-        )
+        return artifact_from_receipt(self, export_interface_contract(self, artifact_id=artifact_id))
 
     def _wire(self) -> dict[str, Any]:
         produced = sorted((p._wire() for p in self.produces), key=lambda w: w["name"])
@@ -573,7 +558,7 @@ def check_connection(
 
 @dataclass(repr=False, frozen=True, slots=True)
 class ComposedInterfaces(ScientificResult):
-    """A composition every connection of which is licensed and which has no cycle."""
+    """A composition every connection of which is supported and which has no cycle."""
 
     order: tuple[str, ...]
     connections: tuple[Connection, ...]
@@ -637,6 +622,246 @@ def check_composition_with_ledger(
     return _composed(wire, refusal)
 
 
+def check_composition_with_cyclic(
+    components: Sequence[InterfaceContract],
+    connections: Iterable[tuple[str, str, str, str]],
+    cyclic: Mapping[str, Any],
+    *,
+    ledger: Any = None,
+) -> ComposedInterfaces:
+    """Check a composition in which each prepared cyclic product is one declared component.
+
+    ``cyclic`` maps a component name of ``components`` to a prepared cyclic product
+    (:class:`~antecedent.cyclic.PreparedCyclicFamily` or
+    :class:`~antecedent.cyclic.PreparedCyclicSystem`). Rust derives each product's contract
+    without fitting and declares it as that component, so the composition identity binds the
+    product's program identity and ``cyclic.solution.v1`` tag. The feedback inside a product is
+    solved within its own component; feedback among components is refused with its path. With
+    ``ledger`` (an :class:`~antecedent.evidence_ledger.EvidenceLedger`) disjoint-evidence
+    requirements are decided as in :func:`check_composition_with_ledger`. Admission does not
+    solve, sample, calibrate or identify the cyclic product.
+
+    Raises:
+        InterfaceContractRefusal: a cycle among components
+            (``interface_contract_cyclic_composition``), a declaration naming no component, or
+            any defect of the groups of checks that failed, as for :func:`check_composition`.
+    """
+    handles = []
+    for component, product in cyclic.items():
+        native = getattr(product, "_native_handle", None)
+        handle = native() if callable(native) else getattr(product, "_handle", None)
+        if handle is None:
+            raise CausalTypeError(
+                f"cyclic component {component!r} must be a PreparedCyclicFamily or "
+                "PreparedCyclicSystem"
+            )
+        handles.append((_name(component, "cyclic component"), handle))
+    ledger_handle = None
+    if ledger is not None:
+        ledger_handle = getattr(ledger, "_handle", None)
+        if ledger_handle is None:
+            raise CausalTypeError("ledger must be an EvidenceLedger")
+    wire, refusal = _native.interface_contract_check_composition_with_cyclic(
+        _dumps([c._wire() for c in components]),
+        _dumps([list(c) for c in connections]),
+        handles,
+        ledger_handle,
+    )
+    return _composed(wire, refusal)
+
+
+# --------------------------------------------------------------------------- component adapters
+
+
+@dataclass(frozen=True, slots=True)
+class PortFacts:
+    """What a component's own declaration does not state but its port needs.
+
+    The adapters (:func:`mechanism_contract`, :func:`bridge_contract`,
+    :func:`measurement_contract`) take these explicitly and infer nothing: an omitted ``support``
+    is the real line, an omitted ``uncertainty`` states no meaning and an omitted
+    ``measurement_models`` claims none. ``semantic_identity`` names the estimand the value answers
+    (the variable, when omitted); ``measurement_models`` are the hex identities of the
+    measurement models the value is established under (produced) or must be established under
+    (consumed).
+    """
+
+    support: SupportDomain = field(default_factory=SupportDomain.real)
+    semantic_identity: str | None = None
+    uncertainty: DistributionMeaning | None = None
+    measurement_models: tuple[str, ...] = ()
+
+    def _wire(self) -> dict[str, Any]:
+        support = self.support
+        return {
+            "support": {
+                "kind": support.kind,
+                "lower": support.lower,
+                "upper": support.upper,
+                "levels": list(support.levels) if support.kind == "categorical" else None,
+            },
+            "semantic_identity": None
+            if self.semantic_identity is None
+            else _name(self.semantic_identity, "semantic_identity"),
+            "uncertainty": None
+            if self.uncertainty is None
+            else _choice(self.uncertainty, "uncertainty", UNCERTAINTY_MEANINGS),
+            "measurement_models": list(_set(self.measurement_models, "measurement model")),
+        }
+
+
+def _calibration_wire(calibration: Calibration | None) -> dict[str, Any] | None:
+    return None if calibration is None else calibration._wire()
+
+
+def _evidence_wire(evidence: Iterable[str] | None) -> dict[str, Any] | None:
+    if evidence is None:
+        return None
+    return {"declared": True, "sources": list(_set(evidence, "evidence source"))}
+
+
+def _adapted(wire: str | None) -> InterfaceContract:
+    assert wire is not None
+    return InterfaceContract._from_wire(json.loads(wire))
+
+
+def mechanism_contract(
+    declaration: Any,
+    *,
+    origin: Literal["fitted", "declared", "external_binding"],
+    output: PortFacts | None = None,
+    offered: Iterable[OperationsName] = ("mean",),
+    parents: Mapping[str, PortFacts] | None = None,
+    parent_operation: OperationsName = "mean",
+    calibration: Calibration | None = None,
+    evidence: Iterable[str] | None = None,
+    disjoint_parent_evidence: bool = False,
+) -> InterfaceContract:
+    """A declared mechanism as one component of the interface-contract check.
+
+    ``declaration`` is a :class:`~antecedent.mechanism_composition.MechanismDeclaration`. Its
+    output becomes the produced port ``mechanism_output`` and each parent a consumed port named by
+    the parent's variable; ``origin`` says how the numbers came about (a fitted mechanism supplies
+    the ``evidence`` stage, an external binding the ``external_provider`` stage, a declared one
+    none). The mechanism-composition rules about populations, regimes and admission stay that
+    module's; the same connection check that decides a callback's connection decides this one's.
+
+    ``output`` and ``parents`` (by parent variable) state the port facts the declaration does not;
+    ``offered`` the operations the output supports; ``parent_operation`` what is required of every
+    parent (the mean by default, which demands no meaning of a parent's uncertainty).
+    ``evidence`` is the ledger sources (64-hex) the output rests on; omitted, the declaration's
+    ``evidence_id`` is read as a ledger source identity. ``calibration`` defaults to
+    ``not_measured`` for an offering that carries uncertainty and ``point_only`` otherwise, never
+    measured. With ``disjoint_parent_evidence`` the parents must rest on disjoint evidence (the
+    composition declares the mechanism estimates independent).
+
+    Raises:
+        CausalValueError: an unknown operation, origin or meaning.
+    """
+    from .mechanism_composition import MechanismDeclaration
+
+    if not isinstance(declaration, MechanismDeclaration):
+        raise CausalTypeError("declaration must be a mechanism_composition.MechanismDeclaration")
+    basis = {
+        "origin": _choice(origin, "origin", ("fitted", "declared", "external_binding")),
+        "output": (output or PortFacts())._wire(),
+        "offered": list(_operations(tuple(offered), "offered")),
+        "parents": [[name, facts._wire()] for name, facts in (parents or {}).items()],
+        "parent_operation": _choice(parent_operation, "parent_operation", OPERATIONS),
+        "calibration": _calibration_wire(calibration),
+        "evidence": _evidence_wire(evidence),
+        "disjoint_parent_evidence": bool(disjoint_parent_evidence),
+    }
+    wire, _ = _native.mechanism_interface_contract(_dumps(declaration.to_wire()), _dumps(basis))
+    return _adapted(wire)
+
+
+def bridge_contract(
+    contract: Any,
+    component: str,
+    *,
+    source: PortFacts | None = None,
+    target: PortFacts | None = None,
+    calibration: Calibration | None = None,
+    evidence: Iterable[str] | None = None,
+) -> InterfaceContract:
+    """A scientific bridge as one component of the interface-contract check.
+
+    The bridge's source quantity is the consumed port ``bridge_source`` and its target quantity
+    the produced port ``bridge_target`` (supplying the ``transformation`` stage), the operations
+    following the bridge's declared value kinds, so the one connection check decides what feeds
+    and what is fed by a bridge. Support stays the bridge's own (its principal assumption, mapping
+    and transportability premise); the projection states only the two ports. ``calibration`` is
+    the label the target holds; a bridge never raises a calibration its source did not hold.
+
+    Raises:
+        CausalTypeError: ``contract`` is not a :class:`~antecedent.scientific_bridge.BridgeContract`.
+    """
+    from .scientific_bridge import BridgeContract
+
+    if not isinstance(contract, BridgeContract):
+        raise CausalTypeError("contract must be a scientific_bridge.BridgeContract")
+    basis = {
+        "source": (source or PortFacts())._wire(),
+        "target": (target or PortFacts())._wire(),
+        "calibration": _calibration_wire(calibration),
+        "evidence": _evidence_wire(evidence),
+    }
+    wire, _ = _native.bridge_interface_contract(
+        _dumps(contract.to_wire()), _name(component, "component"), _dumps(basis)
+    )
+    return _adapted(wire)
+
+
+def measurement_contract(
+    component: str,
+    model: Any,
+    indicator: ScientificQuantity,
+    construct: ScientificQuantity,
+    *,
+    operations: Iterable[OperationsName] = ("mean",),
+    indicator_facts: PortFacts | None = None,
+    construct_facts: PortFacts | None = None,
+    calibration: Calibration | None = None,
+    evidence: Iterable[str] | None = None,
+) -> InterfaceContract:
+    """A measurement model as one component of the interface-contract check.
+
+    The recorded ``indicator`` is the consumed port ``indicator`` and the corrected ``construct``
+    the produced port ``construct``, established under the model's identity, so a consumer that
+    relies on a corrected value states the model it relies on and the one connection check
+    compares them. The model must bind both quantities (its indicator and construct identities,
+    and its population and regime for both ends).
+
+    Raises:
+        InterfaceContractRefusal: a model that is malformed or that does not bind the quantities
+            (``measurement_model.indicator_mismatch``, ``.construct_mismatch``,
+            ``.population_mismatch``, ``.regime_mismatch``) or an interval offered by a route
+            that does not support one (``measurement_model.operation_not_supported``), each with
+            its registered reason code.
+    """
+    from .measurement_models import MeasurementModel
+
+    if not isinstance(model, MeasurementModel):
+        raise CausalTypeError("model must be a measurement_models.MeasurementModel")
+    basis = {
+        "indicator": (indicator_facts or PortFacts())._wire(),
+        "construct": (construct_facts or PortFacts())._wire(),
+        "operations": list(_operations(tuple(operations), "operations")),
+        "calibration": _calibration_wire(calibration),
+        "evidence": _evidence_wire(evidence),
+    }
+    wire, refusal = _native.measurement_interface_contract_of(
+        _name(component, "component"),
+        _dumps(model.to_wire()),
+        _dumps(_quantity_wire(indicator, "indicator")),
+        _dumps(_quantity_wire(construct, "construct")),
+        _dumps(basis),
+    )
+    _raise(refusal)
+    return _adapted(wire)
+
+
 # --------------------------------------------------------------------------- artifact
 
 
@@ -649,7 +874,7 @@ class InterfaceContractExport:
     contract_identity: str
 
 
-@bytes_export
+@artifact_export
 def export_interface_contract(
     contract: InterfaceContract, artifact_id: str
 ) -> InterfaceContractExport:
@@ -672,6 +897,10 @@ class ConsumedInterfaceContract(ScientificResult):
     identity: str
 
 
+@artifact_consumer(
+    proof="interface_contract.consume_interface_contract_artifact: independent semantic consumer checks declarations, identities and stored result",
+    replayable=False,
+)
 def consume_interface_contract_artifact(
     artifact: bytes, expected_identity: str | None = None
 ) -> ConsumedInterfaceContract:
@@ -679,6 +908,7 @@ def consume_interface_contract_artifact(
 
     ``expected_identity`` is an artifact identity retained independently of the bytes.
     """
+    artifact = container_bytes(artifact)
     wire, refusal = _native.interface_contract_consume(bytes(artifact), expected_identity)
     _raise(refusal)
     assert wire is not None
@@ -692,6 +922,7 @@ def consume_interface_contract_artifact(
 
 def inspect_interface_contract_artifact(artifact: bytes) -> dict[str, Any]:
     """The stored metadata of an artifact, without replaying or checking identities."""
+    artifact = container_bytes(artifact)
     wire, refusal = _native.interface_contract_inspect(bytes(artifact))
     _raise(refusal)
     assert wire is not None

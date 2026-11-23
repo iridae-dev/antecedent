@@ -1,10 +1,10 @@
 //! The learned joint transport artifact (model
 //! with its polynomial basis, priors with provenance, data identities, exact posterior fitted
 //! through `antecedent-learn`, aligned joint draws, diagnostics, graph/provider/query record,
-//! identification, calibration `unmeasured`) replays independently.
+//! identification, calibration `not_measured`) replays independently.
 //!
 //! The oracle is closed-form Gauss-Jordan algebra on the posterior precision and never calls
-//! the code under test. The public interval route stays closed; nothing here asserts coverage.
+//! the code under test. The public interval route is not supported; nothing here asserts coverage.
 #![allow(
     clippy::cast_precision_loss,
     clippy::needless_range_loop,
@@ -63,27 +63,29 @@ fn source(id: &str, offset: usize, effect: f64) -> SourceData {
     }
 }
 
-fn factor() -> PopulationFactor {
-    PopulationFactor {
-        population: Arc::from("source"),
-        regime: None,
-        variables: Arc::from([]),
-        conditioned_on: Arc::from([]),
-        interventions: Arc::from([]),
-    }
-}
-
 fn identified() -> TransportIdentification {
     TransportIdentification::Transportable {
         formula: TransportFormula::Standardize {
             over: Arc::from([VariableId::from_raw(FEATURE)]),
-            source_response: factor(),
-            target_law: factor(),
+            source_response: PopulationFactor {
+                population: Arc::from("source"),
+                regime: None,
+                variables: Arc::from([VariableId::from_raw(100)]),
+                conditioned_on: Arc::from([VariableId::from_raw(FEATURE)]),
+                interventions: Arc::from([VariableId::from_raw(101)]),
+            },
+            target_law: PopulationFactor {
+                population: Arc::from("target"),
+                regime: None,
+                variables: Arc::from([VariableId::from_raw(FEATURE)]),
+                conditioned_on: Arc::from([]),
+                interventions: Arc::from([]),
+            },
         },
         certificate: TransportCertificate {
-            rule: Arc::from("standardization"),
-            selection_targets: Arc::from([]),
-            premises: Arc::from([]),
+            rule: Arc::from("transport.sid.standardize"),
+            selection_targets: Arc::from([VariableId::from_raw(FEATURE)]),
+            premises: Arc::from([Arc::from("standardizers are pre-treatment")]),
         },
     }
 }
@@ -251,8 +253,8 @@ fn learned_joint_artifact_replays_value_for_value_against_the_exact_oracle() {
     assert_eq!(loaded.result.draws.values, fit.draws.values);
     assert_eq!(loaded.result.draws.n_draws, DRAWS);
     assert_eq!(loaded.result.draws.alignment, "joint");
-    assert_eq!(loaded.calibration, "unmeasured");
-    assert_eq!(loaded.result.diagnostics.calibration, "unmeasured");
+    assert_eq!(loaded.calibration, "not_measured");
+    assert_eq!(loaded.result.diagnostics.calibration, "not_measured");
     assert_eq!(loaded.result.identification_status, "identified");
     assert_eq!(loaded.result.identification_formula, "standardize");
     assert_ne!(loaded.premises_digest, loaded.data_digest);
@@ -366,18 +368,36 @@ fn learned_joint_artifact_refuses_resealed_semantic_mutations() {
     // A changed basis degree no longer matches the stored prior dimensions: refused by the
     // engine itself before any replay comparison.
     let message = refusal(&resealed(&wire, |w| w.model.basis_degree = 3));
-    assert!(message.contains("learned_joint_transport.prior_dimension"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::learned_joint_transport::PRIOR_DIMENSION),
+        "{message}"
+    );
     let message = refusal(&resealed(&wire, |w| w.model.basis_degree = 0));
-    assert!(message.contains("learned_joint_transport.invalid_basis"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::learned_joint_transport::INVALID_BASIS),
+        "{message}"
+    );
     // A changed covariate declaration is refused by the engine itself.
     let message = refusal(&resealed(&wire, |w| w.model.features = vec![8]));
-    assert!(message.contains("learned_joint_transport.feature_mismatch"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::learned_joint_transport::FEATURE_MISMATCH),
+        "{message}"
+    );
     // A changed graph class is refused as unsupported before any fit.
     let message = refusal(&resealed(&wire, |w| w.model.graph = GraphClassCode::Admg));
-    assert!(message.contains("learned_joint_transport.unsupported_graph"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::learned_joint_transport::UNSUPPORTED_GRAPH),
+        "{message}"
+    );
     // Undeclared source dependence is refused.
     let message = refusal(&resealed(&wire, |w| w.model.dependence = SourceDependenceCode::Unknown));
-    assert!(message.contains("learned_joint_transport.source_dependence"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::learned_joint_transport::SOURCE_DEPENDENCE),
+        "{message}"
+    );
     // Without resealing, an edited observation breaks the data identity digest.
     let mut edited = wire.clone();
     edited.sources[0].outcome[0] += 1.0;
@@ -413,7 +433,11 @@ fn learned_joint_artifact_refuses_prior_bank_and_likelihood_double_use() {
     )
     .expect_err("the producer refuses double use");
     assert_eq!(produced.reason_code(), Some("invalid_argument"));
-    assert!(produced.to_string().contains("learned_joint_transport.prior_data_overlap"));
+    assert!(
+        produced
+            .to_string()
+            .contains(antecedent_core::reason_details::learned_joint_transport::PRIOR_DATA_OVERLAP)
+    );
     // A consumer given a resealed artifact whose prior bank consumed a source refuses too.
     let (wire, _) = built();
     let message = refusal(&resealed(&wire, |w| {
@@ -425,7 +449,11 @@ fn learned_joint_artifact_refuses_prior_bank_and_likelihood_double_use() {
             }],
         };
     }));
-    assert!(message.contains("learned_joint_transport.prior_data_overlap"), "{message}");
+    assert!(
+        message
+            .contains(antecedent_core::reason_details::learned_joint_transport::PRIOR_DATA_OVERLAP),
+        "{message}"
+    );
     // A bank built from other observations is accepted and stays recorded.
     let mut disjoint = model();
     disjoint.priors.varying.provenance = PriorProvenance::Bank {
@@ -460,13 +488,22 @@ fn learned_joint_artifact_refuses_an_unknown_version_foreign_feature_and_claim()
     ));
     let mut foreign = wire.clone();
     foreign.required_features = vec!["joint_bayesian_transport_conjugate_v1".into()];
-    assert!(LearnedJointArtifactWire::decode(&foreign.export().expect("export")).is_err());
+    let error = LearnedJointArtifactWire::decode(&foreign.export().expect("export"))
+        .expect_err("a declaration outside the supported semantics is refused")
+        .to_string();
+    assert!(error.contains("unsupported semantics: required features"), "{error}");
     let mut calibrated = wire.clone();
     calibrated.calibration = "calibrated".into();
-    assert!(LearnedJointArtifactWire::decode(&calibrated.export().expect("export")).is_err());
+    let error = LearnedJointArtifactWire::decode(&calibrated.export().expect("export"))
+        .expect_err("a declaration outside the supported semantics is refused")
+        .to_string();
+    assert!(error.contains("unsupported semantics: calibration is not_measured"), "{error}");
     let mut marginals = wire;
     marginals.result.draws.alignment = "independent_marginals".into();
-    assert!(LearnedJointArtifactWire::decode(&marginals.export().expect("export")).is_err());
+    let error = LearnedJointArtifactWire::decode(&marginals.export().expect("export"))
+        .expect_err("a declaration outside the supported semantics is refused")
+        .to_string();
+    assert!(error.contains("unsupported semantics: draws must be aligned joint draws"), "{error}");
 }
 
 #[test]

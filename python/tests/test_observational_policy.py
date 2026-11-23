@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from antecedent import observational_policy
+from antecedent import Execution, observational_policy
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalError
 
 PHI_0 = 1.0 / np.sqrt(2.0 * np.pi)
@@ -36,10 +37,11 @@ def test_a_prespecified_policy_recovers_its_value() -> None:
         policy_origin="prespecified",
         reference=0.0,
         adjust={"z": data["z"]},
+        execution=Execution(seed=0),
     )
     assert abs(result.value - TRUTH) < 4 * result.se
     assert result.reference is not None and result.reference.level == 0.0
-    assert result.calibration == "unmeasured"
+    assert result.calibration == "not_measured"
     assert result.evaluation == "prespecified"
     assert result.support == (0.0, 1.0)
     assert [a.level for a in result.action_values] == [0.0, 1.0]
@@ -73,7 +75,7 @@ def test_known_propensity_replaces_the_fitted_model() -> None:
             known_propensity=[0.5, 0.6],
             adjust={"z": z},
         )
-    assert "policy_value.invalid_known_propensity" in str(raised.value)
+    assert reason_details.policy_value.INVALID_KNOWN_PROPENSITY in str(raised.value)
 
 
 def test_held_out_and_cross_fitted_learning_beat_never_treating() -> None:
@@ -82,7 +84,7 @@ def test_held_out_and_cross_fitted_learning_beat_never_treating() -> None:
         "support": [0.0, 1.0],
         "objective": "maximize",
         "adjust": {"z": data["z"]},
-        "seed": 3,
+        "execution": Execution(seed=3),
     }
     held_out = observational_policy.policy_value(
         data["y"], data["a"], evaluation="held_out", evaluation_fraction=0.4, **common
@@ -135,4 +137,4 @@ def test_declarations_have_no_default_and_policy_reuse_is_refused() -> None:
             **kwargs,
         )
     assert raised.value.reason_code == "positivity_violated"
-    assert "policy_value.action_outside_support" in str(raised.value)
+    assert reason_details.policy_value.ACTION_OUTSIDE_SUPPORT in str(raised.value)

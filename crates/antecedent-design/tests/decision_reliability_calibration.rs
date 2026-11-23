@@ -18,7 +18,7 @@
 //! (the maximum is barely biased), 64 candidates at the smallest budget (the widest
 //! selection), shared noise at 0.9 (the union bound must still hold).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,
@@ -68,7 +68,9 @@ fn winners_curse_bound_holds_on_average_and_held_out_value_is_unbiased() {
                 };
                 let run_seed = grid_seed(0x3d00_0000 + cell);
                 let outcomes = map_replicates(replicates, |replicate| {
-                    let ctx = ExecutionContext::for_tests(run_seed ^ replicate);
+                    let ctx = ExecutionContext::for_tests(antecedent_core::derive_stream(
+                        run_seed, replicate,
+                    ));
                     let outcome = simulate_replicate(&design, run_seed, replicate, &ctx)
                         .expect("known-optimum replicate");
                     (outcome.in_sample_bias, outcome.held_out_bias, outcome.winners_curse_bound)

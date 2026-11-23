@@ -17,6 +17,11 @@
 //!
 //! # Abduction, action, prediction (exact)
 //!
+//! Up to [`MAX_JOINT_STATES`] joint exogenous states the posterior is enumerated
+//! (below). Past that bound the same quantity is computed exactly by variable
+//! elimination over the factor graph of the exogenous terms and the per-world
+//! variables ([`super::factorized`]), which never forms the joint space.
+//!
 //! For a unit with factual evidence `e`, the exogenous posterior is
 //! `P(u | e) = P(u) 1[f(u) is consistent with e] / P(e)` over the product of
 //! the exogenous supports (Pearl 2009 ch. 7; Balke and Pearl 1994). Each named
@@ -24,7 +29,7 @@
 //! its cross-world routes, reading every exogenous term from the same
 //! posterior state, so the worlds are coupled by construction.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 
@@ -32,20 +37,61 @@ use antecedent_core::{CanonicalWriter, ExecutionContext};
 
 use super::refusal::{CrossWorldExecutionError, invalid, poll, refuse};
 
-/// Most endogenous variables.
-pub const MAX_VARIABLES: usize = 12;
-/// Most levels of a variable.
-pub const MAX_LEVELS: usize = 4;
-/// Most states of one exogenous term.
-pub const MAX_EXOGENOUS_STATES: usize = 8;
-/// Most joint exogenous states enumerated per unit.
+/// Most endogenous variables: a declaration sanity bound, since the cost of a request is
+/// bounded by [`MAX_JOINT_STATES`], [`MAX_ABDUCTION_WORK`] and [`MAX_TABLE_ENTRIES`], not by
+/// the variable count.
+pub const MAX_VARIABLES: usize = 4096;
+/// Most levels of a variable: the range of the `u8` level code.
+pub const MAX_LEVELS: usize = 256;
+/// Most states of one exogenous term: its own joint space must fit [`MAX_JOINT_STATES`].
+pub const MAX_EXOGENOUS_STATES: usize = MAX_JOINT_STATES;
+/// Most joint exogenous states enumerated per unit. A declaration with more joint states is
+/// executed by exact variable elimination instead ([`super::factorized`]).
 pub const MAX_JOINT_STATES: usize = 1 << 16;
-/// Most units per request.
-pub const MAX_UNITS: usize = 1024;
-/// Most worlds per request.
-pub const MAX_WORLDS: usize = 8;
 /// Most `units x joint states` of abduction work per request.
 pub const MAX_ABDUCTION_WORK: usize = 4_000_000;
+/// Most units per request: every unit enumerates at least one joint state, so the abduction
+/// work budget is the binding bound.
+pub const MAX_UNITS: usize = MAX_ABDUCTION_WORK;
+/// Most worlds per request: a sanity bound; world evaluation cost is bounded jointly by
+/// [`MAX_EVALUATION_WORK`].
+pub const MAX_WORLDS: usize = 256;
+/// Most `joint states x variables x worlds` of world-evaluation work per unit.
+pub const MAX_EVALUATION_WORK: usize = 1 << 28;
+/// Most entries of one mechanism table (`exogenous states x parent configurations`).
+pub const MAX_TABLE_ENTRIES: usize = 1 << 24;
+
+/// Neumaier-compensated accumulator for the masses and values summed over joint exogenous
+/// states.
+///
+/// A long enumeration adds many terms of one sign whose naive sum carries a rounding error that
+/// grows with the term count; the compensated total is accurate to a few ulps whatever the count.
+/// For at most two terms the total is the correctly rounded direct sum, so short enumerations
+/// keep their historical IEEE-754 bits. The declared pmfs are *not* summed this way: their
+/// `sum == 1.0` test decides whether the declared bits are retained (see `normalized_pmf`).
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct CompensatedSum {
+    total: f64,
+    correction: f64,
+}
+
+impl CompensatedSum {
+    /// Add one term.
+    pub(crate) fn add(&mut self, value: f64) {
+        let next = self.total + value;
+        self.correction += if self.total.abs() >= value.abs() {
+            (self.total - next) + value
+        } else {
+            (value - next) + self.total
+        };
+        self.total = next;
+    }
+
+    /// The sum of the terms added so far.
+    pub(crate) fn total(self) -> f64 {
+        self.total + self.correction
+    }
+}
 
 const PMF_TOLERANCE: f64 = 1e-9;
 const POLL_EVERY: usize = 1024;
@@ -64,7 +110,7 @@ pub struct ExogenousVariable {
 pub struct FiniteVariable {
     /// Name.
     pub name: String,
-    /// Number of levels, `2..=MAX_LEVELS`.
+    /// Number of levels, `2..=MAX_LEVELS` (the `u8` level code).
     pub levels: usize,
     /// Parent variable indices (all smaller than this variable's index).
     pub parents: Vec<usize>,
@@ -156,8 +202,9 @@ pub struct CompiledScm<'a> {
     /// Validated probability laws, normalized only when the declaration used
     /// the accepted simplex tolerance. The source declaration remains the
     /// input to `FiniteScm::digest`.
-    pmfs: Vec<Vec<f64>>,
-    /// Joint exogenous states.
+    pub(crate) pmfs: Vec<Vec<f64>>,
+    /// Joint exogenous states (saturating: meaningful as a count only when
+    /// [`Self::enumerable`]).
     pub joint_states: usize,
     /// Whether an exogenous term feeds more than one variable.
     pub shared_exogenous: bool,
@@ -166,22 +213,24 @@ pub struct CompiledScm<'a> {
 fn bounds(what: &str) -> CrossWorldExecutionError {
     refuse(
         antecedent_core::reason_code!("invalid_argument"),
-        "cross_world_execution.bounds_exceeded",
+        antecedent_core::reason_details::cross_world_execution::BOUNDS_EXCEEDED,
         Some(what.to_owned()),
         "reduce the declaration below the documented bound",
     )
 }
 
 /// The joint exogenous enumeration is too large to run exactly: the model is
-/// declared, but this route does not execute it.
+/// declared, but the enumerating route does not execute it (exact variable elimination
+/// does, see [`super::factorized`]).
 fn joint_state_bound() -> CrossWorldExecutionError {
     refuse(
         antecedent_core::reason_code!("route_not_supported"),
-        "cross_world_execution.joint_state_bound_exceeded",
+        antecedent_core::reason_details::cross_world_execution::JOINT_STATE_BOUND_EXCEEDED,
         Some("joint_exogenous_states".to_owned()),
         "reduce the number of exogenous states or terms so their product is within the \
          documented bound; the model is declared, so the counterfactual is computable but not \
-         by this bounded enumeration",
+         by this bounded enumeration (the finite SCM executor runs such a model by exact \
+         variable elimination)",
     )
 }
 
@@ -200,29 +249,54 @@ fn unique_nonempty<'a>(
     let mut seen = BTreeSet::new();
     for name in names {
         if name.trim().is_empty() || !seen.insert(name) {
-            return Err(invalid("cross_world_execution.invalid_scm", what));
+            return Err(invalid(
+                antecedent_core::reason_details::cross_world_execution::INVALID_SCM,
+                what,
+            ));
         }
     }
     Ok(())
 }
 
 impl FiniteScm {
-    /// Validate the declaration and fix its enumeration layout.
+    /// Validate the declaration and fix its enumeration layout, for a route that enumerates
+    /// the joint exogenous states.
     ///
     /// # Errors
     /// `invalid_argument` for a malformed declaration or a declaration bound;
     /// `route_not_supported` (`cross_world_execution.joint_state_bound_exceeded`)
     /// when the joint exogenous enumeration exceeds [`MAX_JOINT_STATES`].
     pub fn compile(&self) -> Result<CompiledScm<'_>, CrossWorldExecutionError> {
+        let compiled = self.compile_layout()?;
+        Some(compiled.joint_states)
+            .filter(|joint| *joint <= MAX_JOINT_STATES)
+            .ok_or_else(joint_state_bound)?;
+        Ok(compiled)
+    }
+
+    /// Validate the declaration without bounding the joint exogenous space.
+    ///
+    /// The result enumerates only when [`CompiledScm::enumerable`]; a larger declaration is
+    /// executed by exact variable elimination ([`super::factorized`]).
+    ///
+    /// # Errors
+    /// `invalid_argument` for a malformed declaration or a declaration bound.
+    pub fn compile_layout(&self) -> Result<CompiledScm<'_>, CrossWorldExecutionError> {
         let n = self.variables.len();
         if n > MAX_VARIABLES || self.exogenous.len() > MAX_VARIABLES {
             return Err(bounds("variables"));
         }
         if n == 0 || self.exogenous.is_empty() {
-            return Err(invalid("cross_world_execution.invalid_scm", "variables"));
+            return Err(invalid(
+                antecedent_core::reason_details::cross_world_execution::INVALID_SCM,
+                "variables",
+            ));
         }
         if self.population.trim().is_empty() || self.history.trim().is_empty() {
-            return Err(invalid("cross_world_execution.invalid_scm", "population_or_history"));
+            return Err(invalid(
+                antecedent_core::reason_details::cross_world_execution::INVALID_SCM,
+                "population_or_history",
+            ));
         }
         unique_nonempty(self.variables.iter().map(|v| v.name.as_str()), "variable_names")?;
         unique_nonempty(self.exogenous.iter().map(|e| e.name.as_str()), "exogenous_names")?;
@@ -234,7 +308,10 @@ impl FiniteScm {
                 && exo.pmf.iter().all(|p| p.is_finite() && *p >= 0.0)
                 && (sum - 1.0).abs() <= PMF_TOLERANCE;
             if !ok {
-                return Err(invalid("cross_world_execution.invalid_scm", exo.name.clone()));
+                return Err(invalid(
+                    antecedent_core::reason_details::cross_world_execution::INVALID_SCM,
+                    exo.name.clone(),
+                ));
             }
             // Tolerated simplex slack is corrected; exact PMFs retain their bits.
             pmfs.push(normalized_pmf(&exo.pmf, sum));
@@ -248,35 +325,40 @@ impl FiniteScm {
                 && var.parents.iter().all(|p| *p < index)
                 && var.exogenous < self.exogenous.len();
             if !well_formed {
-                return Err(invalid("cross_world_execution.invalid_scm", var.name.clone()));
+                return Err(invalid(
+                    antecedent_core::reason_details::cross_world_execution::INVALID_SCM,
+                    var.name.clone(),
+                ));
             }
-            let cfg: usize =
-                var.parents.iter().map(|p| self.variables[*p].levels).product::<usize>();
             let size = self.exogenous[var.exogenous].pmf.len();
+            let cfg = var
+                .parents
+                .iter()
+                .try_fold(1usize, |acc, p| acc.checked_mul(self.variables[*p].levels))
+                .filter(|cfg| cfg.checked_mul(size).is_some_and(|t| t <= MAX_TABLE_ENTRIES))
+                .ok_or_else(|| bounds("mechanism_table"))?;
             let table_ok = var.table.len() == size * cfg
                 && var.table.iter().all(|l| usize::from(*l) < var.levels);
             if !table_ok {
-                return Err(invalid("cross_world_execution.invalid_scm", var.name.clone()));
+                return Err(invalid(
+                    antecedent_core::reason_details::cross_world_execution::INVALID_SCM,
+                    var.name.clone(),
+                ));
             }
             users[var.exogenous] += 1;
             n_cfg.push(cfg);
         }
         if let Some(unused) = users.iter().position(|u| *u == 0) {
             return Err(invalid(
-                "cross_world_execution.invalid_scm",
+                antecedent_core::reason_details::cross_world_execution::INVALID_SCM,
                 self.exogenous[unused].name.clone(),
             ));
         }
-        let mut joint = 1usize;
-        for exo in &self.exogenous {
-            joint = joint
-                .checked_mul(exo.pmf.len())
-                .filter(|j| *j <= MAX_JOINT_STATES)
-                .ok_or_else(joint_state_bound)?;
-        }
+        let joint =
+            self.exogenous.iter().fold(1usize, |joint, exo| joint.saturating_mul(exo.pmf.len()));
         let mut radix = vec![1usize; self.exogenous.len()];
         for k in (0..self.exogenous.len().saturating_sub(1)).rev() {
-            radix[k] = radix[k + 1] * self.exogenous[k + 1].pmf.len();
+            radix[k] = radix[k + 1].saturating_mul(self.exogenous[k + 1].pmf.len());
         }
         let shared_exogenous = users.iter().any(|u| *u > 1);
         Ok(CompiledScm { scm: self, n_cfg, radix, pmfs, joint_states: joint, shared_exogenous })
@@ -308,6 +390,13 @@ impl FiniteScm {
 const MIN_LEVELS: usize = 2;
 
 impl CompiledScm<'_> {
+    /// Whether the joint exogenous space is within [`MAX_JOINT_STATES`], i.e. whether the
+    /// enumerating route can run this declaration.
+    #[must_use]
+    pub fn enumerable(&self) -> bool {
+        self.joint_states <= MAX_JOINT_STATES
+    }
+
     fn exogenous_state(&self, joint: usize, exogenous: usize) -> usize {
         (joint / self.radix[exogenous]) % self.scm.exogenous[exogenous].pmf.len()
     }
@@ -318,11 +407,11 @@ impl CompiledScm<'_> {
         (0..self.scm.exogenous.len()).map(|k| self.exogenous_state(joint, k)).collect()
     }
 
-    fn mechanism(&self, variable: usize, u_state: usize, cfg: usize) -> u8 {
+    pub(crate) fn mechanism(&self, variable: usize, u_state: usize, cfg: usize) -> u8 {
         self.scm.variables[variable].table[u_state * self.n_cfg[variable] + cfg]
     }
 
-    fn mass(&self, exogenous: usize, state: usize) -> f64 {
+    pub(crate) fn mass(&self, exogenous: usize, state: usize) -> f64 {
         self.pmfs[exogenous][state]
     }
 }
@@ -349,7 +438,10 @@ pub fn validate_units(
             let known =
                 scm.variables.get(*variable).is_some_and(|v| usize::from(*level) < v.levels);
             if !known || previous == Some(*variable) {
-                return Err(invalid("cross_world_execution.invalid_evidence", unit.unit.clone()));
+                return Err(invalid(
+                    antecedent_core::reason_details::cross_world_execution::INVALID_EVIDENCE,
+                    unit.unit.clone(),
+                ));
             }
             previous = Some(*variable);
         }
@@ -362,7 +454,7 @@ pub fn validate_units(
 /// # Errors
 /// No world, too many, a blank or repeated name, an intervention or route on an
 /// unknown variable or level, a route that is not a parent edge, a route into
-/// an intervened variable, or a route to a nonexistent or the same world.
+/// an intervened variable, a repeated parent-child route, or a route to a nonexistent or the same world.
 pub fn validate_worlds(
     scm: &FiniteScm,
     worlds: &[FiniteWorld],
@@ -373,7 +465,10 @@ pub fn validate_worlds(
     unique_nonempty(worlds.iter().map(|w| w.name.as_str()), "world_names")?;
     for (index, world) in worlds.iter().enumerate() {
         let bad = |what: &str| {
-            invalid("cross_world_execution.invalid_world", format!("{}:{what}", world.name))
+            invalid(
+                antecedent_core::reason_details::cross_world_execution::INVALID_WORLD,
+                format!("{}:{what}", world.name),
+            )
         };
         let mut set = BTreeSet::new();
         for (variable, level) in &world.interventions {
@@ -383,6 +478,7 @@ pub fn validate_worlds(
                 return Err(bad("intervention"));
             }
         }
+        world.validate_unique_routes()?;
         for route in &world.routes {
             let edge =
                 scm.variables.get(route.child).is_some_and(|c| c.parents.contains(&route.parent));
@@ -399,9 +495,26 @@ pub fn validate_worlds(
 }
 
 impl FiniteWorld {
+    fn validate_unique_routes(&self) -> Result<(), CrossWorldExecutionError> {
+        let mut edges = BTreeSet::new();
+        for route in &self.routes {
+            if !edges.insert((route.parent, route.child)) {
+                return Err(invalid(
+                    antecedent_core::reason_details::cross_world_execution::INVALID_WORLD,
+                    format!("{}:duplicate_route({},{})", self.name, route.parent, route.child),
+                ));
+            }
+        }
+        Ok(())
+    }
+
     /// Canonical digest of the world's definition.
-    #[must_use]
-    pub fn digest(&self) -> String {
+    ///
+    /// # Errors
+    /// Repeated parent-child routes are ambiguous. This check does not validate
+    /// graph edges, interventions or source-world indices; use `validate_worlds`.
+    pub fn digest(&self) -> Result<String, CrossWorldExecutionError> {
+        self.validate_unique_routes()?;
         let mut w = CanonicalWriter::new("antecedent.counterfactual.selective.world.v1");
         w.text(&self.name);
         let mut interventions = self.interventions.clone();
@@ -417,7 +530,7 @@ impl FiniteWorld {
         for (p, c, s) in routes {
             w.word(p as u64).word(c as u64).word(s as u64);
         }
-        w.finish_hex()
+        Ok(w.finish_hex())
     }
 }
 
@@ -437,7 +550,7 @@ impl FactualUnit {
 }
 
 impl FiniteQuantity {
-    fn atoms(&self) -> Vec<(usize, usize)> {
+    pub(crate) fn atoms(&self) -> Vec<(usize, usize)> {
         match self {
             Self::Probability(a) => vec![(a.world, a.variable)],
             Self::MeanContrast { plus, minus } => vec![*plus, *minus],
@@ -454,7 +567,12 @@ impl FiniteQuantity {
         scm: &FiniteScm,
         n_worlds: usize,
     ) -> Result<(), CrossWorldExecutionError> {
-        let bad = || invalid("cross_world_execution.invalid_quantity", "quantity");
+        let bad = || {
+            invalid(
+                antecedent_core::reason_details::cross_world_execution::INVALID_QUANTITY,
+                "quantity",
+            )
+        };
         if matches!(self, Self::JointProbability(atoms) if atoms.is_empty()) {
             return Err(bad());
         }
@@ -540,7 +658,7 @@ pub fn abduct_unit(
     let n = scm.variables.len();
     let mut values = vec![0u8; n];
     let mut states: Vec<(u32, f64)> = Vec::new();
-    let mut total = 0.0;
+    let mut evidence = CompensatedSum::default();
     let mut matched_underflow = false;
     for joint in 0..compiled.joint_states {
         if joint % POLL_EVERY == 0 {
@@ -576,14 +694,14 @@ pub fn abduct_unit(
                     u32::try_from(joint).map_err(|_| bounds("joint_exogenous_states"))?,
                     weight,
                 ));
-                total += weight;
+                evidence.add(weight);
             }
         }
     }
     if states.is_empty() && matched_underflow {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "cross_world_execution.evidence_probability_underflow",
+            antecedent_core::reason_details::cross_world_execution::EVIDENCE_PROBABILITY_UNDERFLOW,
             Some(unit.unit.clone()),
             "use an executor with probability arithmetic that can retain this positive evidence mass; this f64 route cannot represent it",
         ));
@@ -591,32 +709,33 @@ pub fn abduct_unit(
     if states.is_empty() {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "cross_world_execution.evidence_outside_model_support",
+            antecedent_core::reason_details::cross_world_execution::EVIDENCE_OUTSIDE_MODEL_SUPPORT,
             Some(unit.unit.clone()),
             "the factual evidence has probability zero under the declared mechanisms; revise \
              the mechanisms or the evidence (a refuted model is not repaired by conditioning)",
         ));
     }
-    // Keep direct-product and direct-sum arithmetic for representable masses
-    // so ordinary stored results retain their historical IEEE-754 bits.
+    // Weights are direct products and the evidence mass is their compensated sum (equal to the
+    // direct sum for at most two states, so short enumerations keep their IEEE-754 bits).
     // Fail closed if a matching positive state was lost to underflow: without
     // its mass, neither its evidence probability nor its posterior weight is
     // an honest result.
     if matched_underflow {
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
-            "cross_world_execution.posterior_weight_underflow",
+            antecedent_core::reason_details::cross_world_execution::POSTERIOR_WEIGHT_UNDERFLOW,
             Some(unit.unit.clone()),
             "use an executor with probability arithmetic that can retain this positive posterior state mass; this f64 route cannot represent it",
         ));
     }
+    let total = evidence.total();
     for state in &mut states {
         state.1 /= total;
         let weight = state.1;
         if weight == 0.0 {
             return Err(refuse(
                 antecedent_core::reason_code!("route_not_supported"),
-                "cross_world_execution.posterior_weight_underflow",
+                antecedent_core::reason_details::cross_world_execution::POSTERIOR_WEIGHT_UNDERFLOW,
                 Some(unit.unit.clone()),
                 "rescale the declared model or use a posterior representation that can retain this positive state mass",
             ));
@@ -629,14 +748,32 @@ pub fn abduct_unit(
 /// from.
 #[derive(Clone, Debug)]
 pub struct WorldPlan {
-    fixed: Vec<Option<u8>>,
-    parent_source: Vec<Vec<usize>>,
+    pub(crate) fixed: Vec<Option<u8>>,
+    pub(crate) parent_source: Vec<Vec<usize>>,
 }
 
 impl WorldPlan {
-    /// Build the plan of world `index`.
-    #[must_use]
-    pub fn new(scm: &FiniteScm, worlds: &[FiniteWorld], index: usize) -> Self {
+    /// Build the plan of world `index` after validating all world declarations.
+    ///
+    /// # Errors
+    /// An invalid world declaration or an index outside `worlds`.
+    pub fn new(
+        scm: &FiniteScm,
+        worlds: &[FiniteWorld],
+        index: usize,
+    ) -> Result<Self, CrossWorldExecutionError> {
+        validate_worlds(scm, worlds)?;
+        if index >= worlds.len() {
+            return Err(invalid(
+                antecedent_core::reason_details::cross_world_execution::INVALID_WORLD,
+                format!("world index {index}"),
+            ));
+        }
+        Ok(Self::from_validated(scm, worlds, index))
+    }
+
+    // Call only after `validate_worlds` and with an in-range index.
+    pub(crate) fn from_validated(scm: &FiniteScm, worlds: &[FiniteWorld], index: usize) -> Self {
         let world = &worlds[index];
         let mut fixed = vec![None; scm.variables.len()];
         for (variable, level) in &world.interventions {
@@ -694,12 +831,19 @@ impl FiniteQuantity {
     /// event, the contrast of level values for a mean contrast).
     #[must_use]
     pub fn at_state(&self, values: &[Vec<u8>]) -> f64 {
-        let hit = |a: &WorldAtom| values[a.world][a.variable] == a.level;
+        self.at_lookup(|world, variable| values[world][variable])
+    }
+
+    /// The quantity's value when `level_of(world, variable)` gives the level of every atom's
+    /// variable; only the atoms' variables are read.
+    #[must_use]
+    pub fn at_lookup(&self, level_of: impl Fn(usize, usize) -> u8) -> f64 {
+        let hit = |a: &WorldAtom| level_of(a.world, a.variable) == a.level;
         match self {
             Self::Probability(a) => f64::from(u8::from(hit(a))),
             Self::JointProbability(atoms) => f64::from(u8::from(atoms.iter().all(hit))),
             Self::MeanContrast { plus, minus } => {
-                f64::from(values[plus.0][plus.1]) - f64::from(values[minus.0][minus.1])
+                f64::from(level_of(plus.0, plus.1)) - f64::from(level_of(minus.0, minus.1))
             }
         }
     }

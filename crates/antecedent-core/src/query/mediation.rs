@@ -1,9 +1,12 @@
 //! Query submodule.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::ResponseFault;
 use std::sync::Arc;
 
+use crate::canonical_encode::{CanonicalEncode, encode_u32s, encode_variable_set};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 use crate::intervention::Intervention;
 use crate::value::Value;
@@ -11,7 +14,6 @@ use crate::value::Value;
 use super::AverageEffectQuery;
 use super::TargetPopulation;
 use super::error::QueryError;
-use super::response::MAX_TEMPORAL_RESPONSE_HORIZONS;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 /// Which mediation contrast to identify / estimate (linear SEM path).
@@ -30,6 +32,19 @@ pub enum MediationContrast {
     NaturalDirect,
     /// Natural indirect effect (linear SEM: coincides with mediated under linearity).
     NaturalIndirect,
+}
+
+impl CanonicalEncode for MediationContrast {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let tag = match self {
+            Self::Total => 1,
+            Self::Direct => 2,
+            Self::Mediated => 3,
+            Self::NaturalDirect => 4,
+            Self::NaturalIndirect => 5,
+        };
+        writer.word(tag);
+    }
 }
 
 /// Mediation query: treatment → mediators → outcome.
@@ -58,6 +73,21 @@ pub struct MediationQuery {
     pub horizons: Arc<[u32]>,
 }
 
+/// Every field is written. `mediators` is a set and is encoded in ascending id
+/// order; `horizons` is an ordered grid the results are indexed by.
+impl CanonicalEncode for MediationQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.treatment.encode(writer);
+        self.outcome.encode(writer);
+        encode_variable_set(writer, &self.mediators);
+        self.contrast.encode(writer);
+        self.control.encode(writer);
+        self.active.encode(writer);
+        self.target_population.encode(writer);
+        encode_u32s(writer, &self.horizons);
+    }
+}
+
 impl MediationQuery {
     /// Linear mediation with binary 0/1 treatment levels.
     #[must_use]
@@ -81,11 +111,11 @@ impl MediationQuery {
 
     /// Replace requested horizons after validating the same rules as
     /// [`super::TemporalResponseSpec`] (nonempty, each ≥ 1, strictly
-    /// increasing, count ≤ [`MAX_TEMPORAL_RESPONSE_HORIZONS`]).
+    /// increasing).
     ///
     /// # Errors
     ///
-    /// Empty, zero, non-increasing, or oversized horizon lists.
+    /// Empty, zero, or non-increasing horizon lists.
     pub fn with_horizons(mut self, horizons: impl Into<Arc<[u32]>>) -> Result<Self, QueryError> {
         self.horizons = horizons.into();
         self.validate_horizons()?;
@@ -94,22 +124,13 @@ impl MediationQuery {
 
     fn validate_horizons(&self) -> Result<(), QueryError> {
         if self.horizons.is_empty() {
-            return Err(QueryError::InvalidResponse(
-                "temporal mediation requires at least one horizon".into(),
-            ));
+            return Err(QueryError::InvalidResponse(ResponseFault::MediationHorizonsEmpty));
         }
-        if self.horizons.len() > MAX_TEMPORAL_RESPONSE_HORIZONS {
-            return Err(QueryError::InvalidResponse(
-                "temporal mediation horizon count exceeds the materialization cap".into(),
-            ));
-        }
-        if self.horizons.iter().any(|h| *h == 0) {
+        if self.horizons.contains(&0) {
             return Err(QueryError::NonPositiveHorizon);
         }
         if self.horizons.windows(2).any(|w| w[0] >= w[1]) {
-            return Err(QueryError::InvalidResponse(
-                "temporal mediation horizons must be strictly increasing".into(),
-            ));
+            return Err(QueryError::InvalidResponse(ResponseFault::MediationHorizonsOrder));
         }
         Ok(())
     }
@@ -128,6 +149,11 @@ impl MediationQuery {
         }
         if self.mediators.iter().any(|&m| m == self.treatment || m == self.outcome) {
             return Err(QueryError::MediatorOverlapsTreatmentOrOutcome);
+        }
+        for intervention in [&self.control, &self.active] {
+            intervention.validate().map_err(|error| {
+                QueryError::InvalidIntervention(super::fault::InterventionFault::Rejected(error))
+            })?;
         }
         let control_var =
             self.control.primary_variable().ok_or(QueryError::AmbiguousInterventionTarget)?;
@@ -156,6 +182,14 @@ impl MediationQuery {
 pub struct ConditionalEffectQuery {
     /// Inner ATE-style query; `effect_modifiers` must be non-empty.
     pub inner: AverageEffectQuery,
+}
+
+/// The wrapped average-effect query; the variant tag of
+/// [`super::CausalQuery`] separates it from a plain average effect.
+impl CanonicalEncode for ConditionalEffectQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.inner.encode(writer);
+    }
 }
 
 impl ConditionalEffectQuery {

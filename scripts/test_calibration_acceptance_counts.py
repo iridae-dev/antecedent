@@ -3,20 +3,14 @@
 from __future__ import annotations
 
 import copy
-import os
-import subprocess
+import tempfile
 import tomllib
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+
+import calibration_runner as runner
 
 ROOT = Path(__file__).resolve().parents[1]
-GATE = (ROOT / "scripts/gate_calibration.sh").read_text(encoding="utf-8")
-SETUP = GATE[
-    GATE.index("# Replicate count of the precision recheck") : GATE.index(
-        'if [ "$RECHECK_NSIM" -le'
-    )
-]
 PARENT = (
     "sample_split_parent_set_effect_calibration: "
     "parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage"
@@ -25,31 +19,24 @@ WEIGHTED = "sample_split_weighted_effect_calibration: weighted_split_effect_inte
 
 
 class AcceptanceReplicateCounts(unittest.TestCase):
-    def counts(self, group: str, **overrides: str) -> list[int]:
-        env = {
-            key: value
-            for key, value in os.environ.items()
-            if not key.startswith("ANTECEDENT_CALIBRATION_")
-            and key != "ANTECEDENT_PARENT_PROTOCOL_VERSION"
-        }
-        env.update(overrides)
-        return [
-            int(
-                subprocess.check_output(
-                    [
-                        "bash",
-                        "-c",
-                        SETUP + '\nfirst_pass_nsim "$1"',
-                        "acceptance-count-test",
-                        f"{group} [grid point {point}]",
-                    ],
-                    cwd=ROOT,
-                    env=env,
-                    text=True,
-                )
-            )
-            for point in range(3)
+    def counts(self, label: str, *, parent: str = "2", first: int = 400, smoke: bool = False) -> list[int]:
+        group = next(g for g in runner.load_groups(ROOT) if g.label == label)
+        acceptance = runner.Acceptance.load(ROOT)
+        return [runner.first_pass_nsim(group, point, acceptance, first=first, acceptance_nsim=2000,
+                                       smoke=smoke, parent_protocol=parent) for point in range(3)]
+
+    def test_malformed_acceptance_bindings_stop_setup(self) -> None:
+        cases = [
+            '[[case]]\n[case.expected]\nkind = "replicated_interval"\n[case.evidence]\nstatus = "bound"\n',
+            '[[case]]\n[case.expected]\nkind = "replicated_interval"\n[case.evidence]\nstatus = "bound"\ntest = "x::y"\n[case.configuration]\ncalibration_grid_point = 8\n',
         ]
+        for case in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                parity = Path(directory) / "parity"
+                parity.mkdir()
+                (parity / "acceptance_manifest.toml").write_text(case, encoding="utf-8")
+                with self.assertRaises((KeyError, ValueError)):
+                    runner.Acceptance.load(Path(directory))
 
     def test_separately_frozen_sizes_each_get_the_acceptance_minimum(self) -> None:
         self.assertEqual(self.counts(PARENT), [2000, 2000, 2000])
@@ -63,16 +50,6 @@ class AcceptanceReplicateCounts(unittest.TestCase):
             "static_calibration: mediation_contrasts_frequentist_nominal_95_coverage",
         ):
             self.assertEqual(self.counts(group), [400, 2000, 2000])
-            historical = subprocess.check_output(
-                ["git", "show", "70a71dd33:scripts/gate_calibration.sh"], cwd=ROOT, text=True
-            )
-            setup = historical[
-                historical.index("# Replicate count of the precision recheck") : historical.index(
-                    'if [ "$RECHECK_NSIM" -le'
-                )
-            ]
-            with patch.dict(globals(), SETUP=setup):
-                self.assertEqual(self.counts(group), [400, 2000, 400])
 
     def test_ranking_configured_budgets_receive_the_minimum_at_their_actual_point(self) -> None:
         for test in (
@@ -111,19 +88,15 @@ class AcceptanceReplicateCounts(unittest.TestCase):
 
     def test_legacy_parent_replay_preserves_original_400_2000_400_plan(self) -> None:
         self.assertEqual(
-            self.counts(PARENT, ANTECEDENT_PARENT_PROTOCOL_VERSION="1"), [400, 2000, 400]
+            self.counts(PARENT, parent="1"), [400, 2000, 400]
         )
 
     def test_larger_explicit_counts_are_preserved(self) -> None:
-        self.assertEqual(self.counts(PARENT, ANTECEDENT_CALIBRATION_NSIM="20000"), [20000] * 3)
+        self.assertEqual(self.counts(PARENT, first=20000), [20000] * 3)
 
     def test_smoke_runs_keep_the_reduced_count(self) -> None:
         self.assertEqual(
-            self.counts(
-                PARENT,
-                ANTECEDENT_CALIBRATION_NSIM="8",
-                ANTECEDENT_CALIBRATION_SMOKE="1",
-            ),
+            self.counts(PARENT, first=8, smoke=True),
             [8] * 3,
         )
 

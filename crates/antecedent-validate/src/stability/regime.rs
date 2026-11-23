@@ -1,6 +1,6 @@
 //! Regime stability via RPCMCI block bootstrap.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 
@@ -78,9 +78,9 @@ impl RegimeStability {
                 message: "regime assignment length must match series length",
             });
         }
-        if self.block_size > data.row_count() {
+        if self.block_size >= data.row_count() {
             return Err(ValidationError::NotApplicable {
-                message: "block_size exceeds series length",
+                message: "block-bootstrap stability requires block_size smaller than series length",
             });
         }
         let regimes = self.assignment.unique_regimes();

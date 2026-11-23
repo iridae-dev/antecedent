@@ -11,18 +11,14 @@ from dataclasses import FrozenInstanceError, replace
 
 import numpy as np
 import pytest
-from antecedent import _native
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.graph import Admg
-from antecedent.transport._closed_pilots import _nested_posterior_candidate as binary_nested_markov
+from antecedent.transport._advanced_producers import (
+    _nested_posterior_candidate as binary_nested_markov,
+)
 from antecedent.transport.advanced import (
     NestedMarkovPosteriorCandidate,
     NestedMarkovPrior,
-)
-
-_INTERNAL = hasattr(_native, "nested_markov_posterior_candidate")
-_CANDIDATE = pytest.mark.skipif(
-    not _INTERNAL, reason="requires calibration-internal acceptance wheel"
 )
 
 
@@ -80,17 +76,6 @@ def test_nested_bayesian_named_prior_is_immutable_and_has_domain_errors():
         assert caught.value.reason_code == "invalid_argument"
 
 
-@pytest.mark.skipif(_INTERNAL, reason="normal released wheel refusal boundary")
-def test_nested_bayesian_default_producer_and_consumer_remain_frozen():
-    with pytest.raises(CausalUnsupportedError) as caught:
-        produce()
-    assert caught.value.reason_code == "cell_not_licensed"
-    with pytest.raises(CausalUnsupportedError) as caught:
-        NestedMarkovPosteriorCandidate.load(b"unlicensed", expected_identity="absent")
-    assert caught.value.reason_code == "cell_not_licensed"
-
-
-@_CANDIDATE
 def test_nested_bayesian_public_original_posterior_matches_conjugate_reference_and_fresh_consumer(
     tmp_path,
 ):
@@ -107,8 +92,8 @@ def test_nested_bayesian_public_original_posterior_matches_conjugate_reference_a
     for array in (result.samples, result.covariance):
         with pytest.raises(ValueError, match="WRITEABLE"):
             array.setflags(write=True)
-    assert result.calibration == "unmeasured"
-    assert result.inference == "posterior_candidate_withheld_calibration_unmeasured"
+    assert result.calibration == "not_measured"
+    assert result.inference == "posterior_candidate_withheld_calibration_not_measured"
     assert result.identification == "nonparametrically_identified"
     assert result.coordinate_order[:11] == result.prior.coordinates
     assert result.samples.shape == (4, 4096, 14)
@@ -141,7 +126,7 @@ def test_nested_bayesian_public_original_posterior_matches_conjugate_reference_a
         "credible_mass": 0.95,
     }
     artifact = tmp_path / "continuous-verma.cbor"
-    artifact.write_bytes(result.export())
+    artifact.write_bytes(bytes(result.export()))
     code = """
 import json,sys
 from pathlib import Path
@@ -158,7 +143,6 @@ print(json.dumps(r.to_dict()))
     assert json.loads(fresh.stdout) == payload
 
 
-@_CANDIDATE
 def test_nested_bayesian_prior_changes_actual_posterior_and_bound_identity():
     baseline = produce()
     changed = produce(NestedMarkovPrior(q40=(4, 1), q41=(4, 1)))
@@ -166,7 +150,9 @@ def test_nested_bayesian_prior_changes_actual_posterior_and_bound_identity():
     assert baseline.values[0] - changed.values[0] > 0.04
     assert baseline.identity != changed.identity
     with pytest.raises(CausalValueError) as caught:
-        NestedMarkovPosteriorCandidate.load(changed.export(), expected_identity=baseline.identity)
+        NestedMarkovPosteriorCandidate.load(
+            bytes(changed.export()), expected_identity=baseline.identity
+        )
     assert caught.value.reason_code == "invalid_argument"
     assert "bayesian_identity_mismatch" in str(caught.value)
     fractional = [1.0] * 16
@@ -196,5 +182,5 @@ def test_nested_pilot_declines_oversized_sequences_before_materializing():
         with pytest.raises(CausalUnsupportedError) as caught:
             binary_nested_markov(graph=graph(), regimes=regimes)
         assert caught.value.reason_code == "route_not_supported"
-        assert "outside_binary_pilot" in str(caught.value)
+        assert "outside_binary_scope" in str(caught.value)
     assert reads == []

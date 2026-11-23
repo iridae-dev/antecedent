@@ -6,19 +6,59 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Parameterising the effect of a continuous treatment using average derivative effects", doi = "10.1093/biomet/asag012", sections = ["Sections 3.1-3.2, Example 1: unweighted ADE and negative conditional-density-score Riesz representer", "Section 3.3, equation (6): influence curve for a weighted ADE", "Section 4.1, Theorem 4: sample-splitting conditions; Antecedent uses deterministic row folds with a homoskedastic Gaussian treatment-score restriction"] },
+  { title = "Parameterizing the effect of a continuous treatment using average derivative effects", citation_note = "Previously recorded title and bibliographic detail: Parameterising the effect of a continuous treatment using average derivative effects", doi = "10.1093/biomet/asag012", sections = ["Sections 3.1-3.2, Example 1: unweighted ADE and negative conditional-density-score Riesz representer", "Section 3.3, equation (6): influence curve for a weighted ADE", "Section 4.1, Theorem 4: sample-splitting conditions; Antecedent uses deterministic row folds with a homoskedastic Gaussian treatment-score restriction"] },
 ]
 
 implementation_deviations = [
   "Only the unweighted average derivative effect under the observed treatment law is implemented; general weighted derivative functionals and alternative Riesz representers are outside scope.",
   "The Riesz score is specialized to a homoskedastic Gaussian treatment model, using (A - E[A|X]) / sigma_squared with pooled residual variance. It equals the conditional-density score only under that restriction.",
-  "Outcome and treatment nuisances are fixed additive penalized GAMs without interactions, fitted using deterministic folds; the generic learner and rate conditions in the cited theory are not implemented.",
+  "Outcome and treatment nuisances are fixed additive penalized GAMs without interactions, fitted using deterministic folds; the generic learner and rate conditions in the cited theory are not implemented. Each smooth is penalised by the integrated squared second derivative (scaled by the cube of the mean interior knot spacing, so lambda is unchanged by rescaling the predictor), which is zero on every straight line whatever the sample-quantile knots; a held-out treatment at or beyond its fold's training maximum or below its minimum has derivative zero.",
   "Uncertainty is an iid empirical influence-score standard error. It does not account for clustered or serial dependence, nuisance tuning, model selection, or representer misspecification.",
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
- "conformance/response/staged_derivatives",
+  "crates/antecedent-estimate/tests/estimate_response_riesz_ade_reference.rs (exact rational cross-fitted scores, estimate, standard error, interval, Kish size, weak-overlap warning and centered influence; refusal of other weightings and of excess folds)",
+  "conformance/response/staged_derivatives",
   "crates/antecedent-estimate/src/response/tests.rs",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The observed-law average-derivative route of ContinuousResponseEstimator in crates/antecedent-estimate/src/response (derivative.rs average_derivative and cross_fitted_ade_scores, crossfit.rs treatment_sigma and the shared nuisance backfit budget, and derivative_influence.rs for the exported influence): the index-modulo folds, the penalized additive-GAM outcome nuisance on (treatment, adjusters) and treatment nuisance on the adjusters over each fold's training rows (or the training mean without adjusters), the derivative of the outcome's treatment smooth at the held-out treatment (zero beyond the training knot interior), the treatment residual scale with the effective-degrees-of-freedom divisor (n - 1 without adjusters), the Gaussian-score Riesz weight (a - m) / sigma^2, the score derivative + weight * residual, its mean, the (n - 1)-divisor variance, the standard error, the normal interval at the stated confidence level, the Kish effective size of the Riesz weights with the weak-overlap warning and status, and the centered-score influence. Relies on the review of stats.gam (the penalized additive fit, its knots, centering and spline derivative) and on estimate.response.kennedy_dr for the shared nuisance and residual-scale machinery; this review checks only the route arithmetic that sits on them. Not the Bayesian row-weighted draw path (weighted_cross_fitted_ade), the outcome tail diagnostic, or the other derivative routes."
+assumptions = ["Conditional exchangeability, consistency and positivity given the adjustment set are identification assumptions taken as given.", "The outcome mean is additive in the treatment and the adjusters (so the derivative does not depend on the covariates) and the treatment is Gaussian around an additive function of the adjusters with a constant scale; the estimator does not test either, and the Riesz weight equals the negative conditional-density score only under that restriction.", "The data are dyadic in the reference so that the product reads exactly the numbers it uses; the nuisances are the product's backfit, so agreement is to the backfit resolution, not to rounding."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by an executing reference written for this review; no upstream implementation or test source was consulted or copied. The cited publication was not retrieved in this review: the correspondence is between the product code and the standard definitions the work states (score = derivative + Riesz weight times residual, influence-function standard error), verified numerically, not a page-level reading of the paper."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script imports the exact additive-spline solver of the Kennedy reference script in the same directory and uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. It is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Six frozen designs of 48 to 60 rows: an ordinary confounded design at 3 folds, an outcome offset of 1e6 with a treatment offset of 1e3 and an adjuster on scale 250 at 5 folds and 90 percent level, a design with one treatment value far outside the rest (held-out derivative zero beyond the training knots, Riesz weight concentrated on one row), a strongly determined treatment at 99 percent level, a design without adjusters, and an ordinary design with a size threshold above its Kish size so the weak-overlap warning must fire. The penalty is the integrated squared second derivative, computed in the reference by exact piecewise-cubic interpolation of the basis and exact quadrature, and a noise-free linear law on a skewed treatment without adjusters is checked against a per-fold closed form (training range, mean and n - 1 variance) rather than the product; a line is therefore not shrunk by the penalty, and the remaining shortfall from the slope is the zero-derivative boundary rows of the cross-fit. The exact references are solved at fixed lambda 0.5 to 1; nothing here checks that those are good nuisance choices. Scores are held to 1e-6 of the outcome spread plus 2e-9 of the largest outcome, each scaled by one plus the row's absolute Riesz weight (observed worst miss is about a third of that), because the backfit stops relative to the largest fitted value including the intercept; the standard error and interval are held to the corresponding tolerance on the mean. The cited paper (average derivative effects of a continuous treatment) was not retrieved in this review: the reference is the score and variance as the module states them, evaluated exactly, so section-level correspondence with the paper, the sample-splitting rate conditions and the consistency of the Gaussian-score representer outside the homoskedastic Gaussian restriction are not established. The standard error is the iid empirical influence standard error and nothing here checks its coverage; no test misspecifies the outcome or the treatment nuisance, so the double robustness of the score is not demonstrated. The fold rule is index modulo, not random. The reference script is not run in a locked, isolated environment and is not wired into any gate."
+sources = ["https://doi.org/10.1093/biomet/asag012", "https://mpmath.org/"]
+findings_resolved = ["No defect found: the cross-fit folds, the treatment-smooth derivative including its zero beyond the training knot interval, the effective-degrees-of-freedom and n - 1 residual scales, the Riesz weight, the score, the mean, the (n - 1)-divisor variance, the standard error, the interval at the stated level, the Kish size with the weak-overlap warning and status, and the centered-score influence equal the exact rational pipeline on all six designs.", "Declared options checked as live: folds, nuisance basis, nuisance lambda, confidence level and the minimum effective size each change the result as the reference predicts; a weighting other than the observed law is refused (and yields no influence column) rather than ignored, and more folds than rows is refused."]
+record_sha256 = "0381c993afcaac8e15e2b0ba3a2cd0b7adc9038af87d86a846a3e2694c3092fb"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/response/derivative.rs"
+items = ["fn average_derivative", "fn cross_fitted_ade_scores", "fn weighted_cross_fitted_ade"]
+sha256 = "bbdb306be0b5b00723a052252613a01f44cf2b59a786878de30d0998757d78fc"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/response/crossfit.rs"
+items = ["fn treatment_sigma"]
+sha256 = "68435c5cceb79625ee5acad8974c89ab7d5093d8c213b298f04a47a314fa246f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/estimate_response_riesz_ade_reference.rs"
+items = ["const SLOPE", "fn estimate_response_riesz_ade_of_a_linear_law_on_a_skewed_treatment_equals_the_closed_form", "fn estimate_response_riesz_ade_refuses_other_weightings_and_excess_folds", "fn estimate_response_riesz_ade_scores_estimate_interval_and_overlap_match_exact_pipeline", "fn estimator_for", "fn fixture", "fn floats", "fn num"]
+sha256 = "e66581ef4cdfae00b2c04bb70d1172a4ade2d8dcd14ad4625715d95a46e8f407"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/estimate_response_riesz_ade_reference.py"
+sha256 = "c04ff4cc9fd2baf2db424d6003c40a8228a0b1fd03d88d5206c38f2e32f27def"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/estimate_response_riesz_ade_reference.json"
+sha256 = "cfa9083ebc56aaa37098515c3f81f495ee50c9baab651190315e5dc3ad0ef545"

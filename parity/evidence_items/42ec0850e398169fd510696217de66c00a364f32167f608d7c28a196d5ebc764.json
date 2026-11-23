@@ -1,0 +1,1 @@
+["use:super::{ESTIMATE_FORMAT,EstimateWire,ExactEvaluationLimits,ExecutionContext,IoError,MemberEstimate,MemberOutcome,PreparedStudy,TransportAnswer,TransportGridState,VariableId,contrast_of,identity_of,summarise,};#0","struct:VerifiedEstimate#0","fn:verify_discovered_transport_estimate#0","fn:verify_trial_member_estimate#0","fn:verify_estimate_with_member_count#0"]

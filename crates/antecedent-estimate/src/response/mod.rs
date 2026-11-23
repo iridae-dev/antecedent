@@ -4,12 +4,12 @@
 //! nuisance regressions, the Kennedy-style doubly robust pseudo-outcome, and a
 //! Gaussian local-polynomial smoother. Least-squares nuisances require finite
 //! outcome moments; a heavy-tailed outcome is reported on the support diagnostic
-//! axis rather than by demoting overlap or matrix-cell licensing. Average
+//! axis rather than by demoting overlap or matrix-cell support. Average
 //! derivatives use the corresponding Gaussian treatment-score Riesz representer.
 //! Multivariate derivatives are deliberately low-dimensional, model-dependent
 //! plug-in functionals.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -33,11 +33,19 @@ use antecedent_stats::StatsError;
 
 use crate::EstimationError;
 
+mod joint_linear;
+pub use joint_linear::{
+    JointLinearError, JointLinearEvaluation, JointLinearInference, PreparedJointLinear,
+};
+
 mod band;
 mod bayes;
 mod crossfit;
 mod curve;
 mod derivative;
+mod derivative_influence;
+mod frontdoor_derivative;
+pub use frontdoor_derivative::FrontDoorDerivativeInference;
 mod nuisance;
 mod plugin;
 mod policy;
@@ -48,8 +56,8 @@ mod tests;
 mod transform;
 use band::{simultaneous_multiplier_band, simultaneous_posterior_band};
 use crossfit::{
-    CrossFitFold, ensure_crossfit_size, fit_additive, fit_additive_design, require_converged_gam,
-    treatment_sigma, treatment_sigma_train_weighted,
+    ADE_NUISANCE_PENALTY, CrossFitFold, NUISANCE_BACKFIT, ensure_crossfit_size, fit_additive,
+    fit_additive_design, require_converged_gam, treatment_sigma, treatment_sigma_train_weighted,
 };
 use policy::{
     DiscreteAtom, additive_policy_rows, exact_discrete_intervention_rows,
@@ -102,7 +110,9 @@ fn local_design_refusal(
     )
 }
 
-/// Lower clamp on the fitted conditional treatment density in the Kennedy weight.
+/// Lower clamp on `sigma * conditional_density` in the Kennedy weight, where
+/// sigma is the fitted treatment model's residual standard deviation. This is
+/// dimensionless, so changing treatment units does not change the clamp.
 ///
 /// A clamped row has an unbounded inverse weight, so every clamp is counted and
 /// surfaced as a positivity diagnostic rather than absorbed silently.
@@ -156,18 +166,6 @@ struct AverageDerivativeScores {
 /// Refusal of an unfinished plug-in target (unpenalized treatment smooths) backfit.
 const GAM_TARGET_NOT_CONVERGED: &str =
     "additive GAM target did not converge; refuse rather than publish an unfinished fit";
-
-/// What a caller can do when a plug-in response Jacobian names more than
-/// [`MAX_NONPARAMETRIC_RESPONSE_DIM`] treatments.
-const JACOBIAN_TREATMENT_LIMIT_REMEDY: &str = "query the Jacobian over at most two treatments \
-     at a time (one ResponseJacobian per pair, with the remaining treatments in the adjustment \
-     set where the graph licenses it), or query an AverageDerivative per treatment";
-
-/// What a caller can do when a plug-in directional derivative names more than
-/// [`MAX_NONPARAMETRIC_RESPONSE_DIM`] treatments.
-const DIRECTIONAL_TREATMENT_LIMIT_REMEDY: &str = "restrict the direction to at most two \
-     treatments, or query a ResponseJacobian per pair of at most two treatments and take the \
-     inner product of the gradient with the direction yourself";
 
 /// Configuration for [`ContinuousResponseEstimator`].
 #[derive(Clone, Debug, PartialEq)]
@@ -250,13 +248,13 @@ pub struct ResponseInfluence {
     /// Influence of each retained row on each reported coordinate.
     pub columns: Vec<Vec<f64>>,
     /// Original data-frame row index of each complete-case row.
-    pub row_index: Arc<[u32]>,
+    pub row_index: Arc<[antecedent_data::GlobalId]>,
 }
 
 /// Continuous-response estimator with a caller-supplied valid adjustment set.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContinuousResponseEstimator {
-    /// Adjustment variables licensed by identification.
+    /// Adjustment variables supported by identification.
     pub adjustment_set: Arc<[VariableId]>,
     /// Numerical and diagnostic options.
     pub options: ContinuousResponseOptions,
@@ -272,7 +270,7 @@ impl ContinuousResponseEstimator {
         }
     }
 
-    /// Estimate a response already licensed by the identification layer.
+    /// Estimate a response already supported by the identification layer.
     ///
     /// Only complete observations and the all-observed target are supported here.
     /// Missing rows in any used column are dropped jointly. The estimator never
@@ -375,12 +373,14 @@ impl ContinuousResponseEstimator {
     ) -> Result<(), EstimationError> {
         query.validate()?;
         if query.temporal.is_some() {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "static continuous-response estimator does not execute temporal response queries; use TemporalResponseEstimator",
             ));
         }
         if query.observation != ObservationSpec::Complete {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "continuous-response estimator currently requires complete observations",
             ));
         }
@@ -403,7 +403,8 @@ impl ContinuousResponseEstimator {
             // Silverman's rule is a level/KDE rate. Using it for m'/m'' oversmooths the
             // derivative toward zero while still publishing Identity-scale sandwich SEs —
             // the same silent-undersmoothing hole simultaneous bands already refuse.
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("required_option_missing"),
                 "point derivatives require an explicit bandwidth; Silverman's rule is not an undersmoothing rule for m' or m''",
             ));
         }

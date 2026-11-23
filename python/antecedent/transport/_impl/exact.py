@@ -6,13 +6,23 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
+from ..._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ..._columns import coerce_fields
+from ..._scientific import ScientificResult
 from ...errors import CausalValueError
+from ...execution import Execution
 from ...graph import Admg
+from .._evaluation import TransportEvaluation, require_evaluation
 from .._status import identification_status as _canonical_status
 
 if TYPE_CHECKING:
-    from ...estimation import PreparedAnalysis
+    from ...estimation import _PreparedEngine
 
 
 from .authority import _no_native_authority
@@ -63,7 +73,7 @@ class ExactTransportData:
 
 
 @dataclass(frozen=True, slots=True)
-class ExactTransportDistribution:
+class ExactTransportDistribution(ScientificResult):
     """Complete target distribution with no sampling uncertainty claim."""
 
     acceptance: Any = field(default=None, init=False, repr=False, compare=False)
@@ -103,11 +113,12 @@ class ExactTransportDistribution:
             "reasoning": self.inspect().to_dict(),
         }
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
         """Export the immutable native execution, independent of edited display fields."""
         if self._execution is None:
             raise _no_native_authority()
-        return bytes(self._execution.export())
+        return artifact_from_receipt(self, bytes(self._execution.export()))
 
     def contrast(self, reference: ExactTransportDistribution, outcome: str) -> float:
         """Difference of means from two complete target laws; no sampling interval."""
@@ -124,7 +135,7 @@ class ExactTransportDistribution:
 
 
 @dataclass(frozen=True, slots=True)
-class ClassicalTransportIdentification:
+class ClassicalTransportIdentification(ScientificResult):
     """Theorem-stage result under all source experiments and target observation.
 
     Display fields cannot authorize execution. The retained native derivation
@@ -146,9 +157,10 @@ class ClassicalTransportIdentification:
         its earlier spelling."""
         return _canonical_status(self.outcome)
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[Any]:
         """Export the retained checked proof or conservative/negative certificate."""
-        return bytes(self._native.export())
+        return artifact_from_receipt(self, bytes(self._native.export()))
 
     def inspect(self) -> Any:
         """Structural certificate and all four reasoning slots; no provider access."""
@@ -184,13 +196,39 @@ class ClassicalTransportIdentification:
         )
 
 
-def consume_identification(artifact: bytes, **limits: Any) -> ClassicalTransportIdentification:
-    """Independently verify a structural certificate, without rerunning identification."""
+@artifact_consumer(
+    proof="TransportCertificateWire checked consumer: proof or conservative negative certificate",
+    identity=(),
+)
+def consume_identification(
+    artifact: bytes,
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    execution: Execution | None = None,
+) -> ClassicalTransportIdentification:
+    """Independently verify a structural certificate, without rerunning identification.
+
+    ``max_steps`` and ``max_depth`` bound the proof replay; memory and
+    cancellation belong to ``execution``.
+    """
+    artifact = container_bytes(artifact)
     from ..._native import consume_transport_certificate
 
-    native = consume_transport_certificate(artifact, **limits)
+    native = _under(
+        execution, consume_transport_certificate, artifact, max_steps=max_steps, max_depth=max_depth
+    )
     return ClassicalTransportIdentification(
         native.outcome, native.formula, tuple(native.rules), tuple(native.outcomes), native
+    )
+
+
+def _under(execution: Execution | None, operation: Any, /, *args: Any, **kwargs: Any) -> Any:
+    """Run one native operation under the caller's physical policy, if any."""
+    return (
+        operation(*args, **kwargs)
+        if execution is None
+        else execution._call(operation, *args, **kwargs)
     )
 
 
@@ -203,17 +241,20 @@ def identify_meta(
     treatments: Sequence[str],
     max_steps: int = 100_000,
     max_depth: int = 256,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ClassicalTransportIdentification:
     """Identify with classical μsID and source-specific catalog selections.
 
     Completeness concerns full source experimental families; finite catalog
     binding remains a separate bounded search. No provider data are inspected.
+    ``max_steps`` and ``max_depth`` bound the proof search; memory and
+    cancellation belong to ``execution``.
     """
     from ..._native import identify_meta_transport_stage
 
-    native = identify_meta_transport_stage(
+    native = _under(
+        execution,
+        identify_meta_transport_stage,
         graph,
         catalog,
         target,
@@ -221,8 +262,6 @@ def identify_meta(
         list(treatments),
         max_steps=max_steps,
         max_depth=max_depth,
-        memory_bytes=memory_bytes,
-        cancel=cancel,
     )
     return ClassicalTransportIdentification(
         native.outcome,
@@ -241,18 +280,20 @@ def identify_classical(
     treatments: Sequence[str],
     max_steps: int = 100_000,
     max_depth: int = 256,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ClassicalTransportIdentification:
     """Identify under the classical *complete source experimental family*.
 
     The source experiments here are a theorem assumption, not a claim that a
     user's finite catalog supplies every experiment. Actual tables are bound
-    separately by :func:`evaluate_exact`.
+    separately by :func:`evaluate_exact`. ``max_steps`` and ``max_depth`` bound
+    the proof search; memory and cancellation belong to ``execution``.
     """
     from ..._native import identify_classical_transport_stage
 
-    native = identify_classical_transport_stage(
+    native = _under(
+        execution,
+        identify_classical_transport_stage,
         graph,
         list(selection.selections),
         selection.source,
@@ -261,8 +302,6 @@ def identify_classical(
         list(treatments),
         max_steps=max_steps,
         max_depth=max_depth,
-        memory_bytes=memory_bytes,
-        cancel=cancel,
     )
     return ClassicalTransportIdentification(
         native.outcome, native.formula, tuple(native.rules), tuple(native.outcomes), native
@@ -275,28 +314,27 @@ def evaluate_exact(
     data: ExactTransportData,
     *,
     at: Mapping[str, float],
-    max_operations: int = 10_000_000,
-    max_depth: int = 256,
-    max_support_rows: int = 1_000_000,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    evaluation: TransportEvaluation | None = None,
+    execution: Execution | None = None,
 ) -> ExactTransportDistribution:
     """Bind one checked derivation and evaluate its full target law.
 
-    Missing catalog factors describe this derivation, not an impossibility
-    proof. This stage does not fit models or estimate sampling uncertainty.
+    This one-shot verb is ``estimate(prepare(data, query=ExactTransportQuery(...)))``
+    and raises a scientific refusal instead of returning it. Missing catalog
+    factors describe this derivation, not an impossibility proof. It fits no
+    model and estimates no sampling uncertainty. ``evaluation`` bounds formula
+    evaluation; memory and cancellation belong to ``execution``.
     """
-    return prepare_exact(
+    from ...outcomes import require_success
+    from ...prepared import estimate, prepare
+
+    query = ExactTransportQuery(
         identification,
         catalog,
-        data,
-        at=at,
-        max_operations=max_operations,
-        max_depth=max_depth,
-        max_support_rows=max_support_rows,
-        memory_bytes=memory_bytes,
-        cancel=cancel,
-    ).estimate()
+        at,
+        evaluation=TransportEvaluation() if evaluation is None else evaluation,
+    )
+    return require_success(estimate(prepare(data, query=query, execution=execution)))
 
 
 def _exact_distribution(native: Any, payload: Any) -> Any:
@@ -311,7 +349,7 @@ def _exact_distribution(native: Any, payload: Any) -> Any:
     )
 
 
-def prepare_exact(
+def _prepare_exact(
     identification: ClassicalTransportIdentification,
     catalog: EvidenceCatalog,
     data: ExactTransportData,
@@ -322,9 +360,9 @@ def prepare_exact(
     max_support_rows: int = 1_000_000,
     memory_bytes: int | None = None,
     cancel: Any = None,
-) -> PreparedAnalysis[ExactTransportDistribution]:
-    """Prepare the exact-law modality of the common PreparedAnalysis lifecycle."""
-    from ...estimation import PreparedAnalysis, _Controls
+) -> _PreparedEngine[ExactTransportDistribution]:
+    """Prepare the exact-law modality of the common _PreparedEngine lifecycle."""
+    from ...estimation import _Controls, _PreparedEngine
 
     native = identification._native.prepare_exact(
         catalog,
@@ -336,32 +374,74 @@ def prepare_exact(
         memory_bytes=memory_bytes,
         cancel=cancel,
     )
-    return PreparedAnalysis(native, kind="exact_transport", controls=_Controls(cancel=cancel))
+    return _PreparedEngine(native, kind="exact_transport", controls=_Controls(cancel=cancel))
 
 
-def consume_exact(
+@artifact_consumer(
+    proof="PreparedStudy<ExactPreparedState>::consume verifies proof, identities and exact-law target replay",
+    replayable=True,
+    resumable=True,
+    identity=(),
+)
+def _consume_exact(
     artifact: bytes,
     *,
     max_operations: int = 10_000_000,
     max_depth: int = 256,
+    max_support_rows: int = 1_000_000,
     memory_bytes: int | None = None,
     cancel: Any = None,
-) -> PreparedAnalysis[ExactTransportDistribution]:
+) -> _PreparedEngine[ExactTransportDistribution]:
     """Verify portable proof, bindings, exact claims and all four reasoning slots.
 
     Uses embedded immutable laws; never fits models or fetches providers.
     """
+    artifact = container_bytes(artifact)
     from ... import _native
-    from ...estimation import PreparedAnalysis, _Controls
+    from ...estimation import _Controls, _PreparedEngine
 
     native = _native.consume_exact_transport(
         artifact,
         max_operations=max_operations,
         max_depth=max_depth,
+        max_support_rows=max_support_rows,
         memory_bytes=memory_bytes,
         cancel=cancel,
     )
-    return PreparedAnalysis(native, kind="exact_transport", controls=_Controls(cancel=cancel))
+    return _PreparedEngine(native, kind="exact_transport", controls=_Controls(cancel=cancel))
+
+
+def consume_exact(
+    artifact: bytes,
+    *,
+    evaluation: TransportEvaluation | None = None,
+    execution: Execution | None = None,
+) -> ExactTransportDistribution:
+    """Independently verify an exact-transport artifact and read its checked answer.
+
+    The portable proof, bindings, claims and four reasoning slots are verified
+    against the embedded immutable laws; nothing is fitted or fetched. The result
+    is a read model, not a resumable study: ``rebind`` needs the original data.
+    ``evaluation`` may only bound the consumer's replay; memory and cancellation
+    belong to ``execution``. ``antecedent.load`` consumes the same artifact.
+    """
+    from ..._workflow import _consumed_transport_view
+
+    limits = TransportEvaluation() if evaluation is None else evaluation
+    require_evaluation(limits)
+
+    def consume() -> Any:
+        return _consume_exact(
+            artifact,
+            max_operations=limits.max_operations,
+            max_depth=limits.max_depth,
+            max_support_rows=limits.max_support_rows,
+        )
+
+    prepared = consume() if execution is None else execution._call(consume)
+    return _consumed_transport_view(
+        prepared, _exact_distribution(prepared._native, prepared._native.last_result())
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -372,7 +452,10 @@ class ExactTransportQuery:
     catalog: EvidenceCatalog
     at: Mapping[str, float]
 
+    evaluation: TransportEvaluation = field(default_factory=TransportEvaluation)
+
     def __post_init__(self) -> None:
+        require_evaluation(self.evaluation)
         coerce_fields(self, at=MappingProxyType(dict(self.at)))
 
 
@@ -382,13 +465,13 @@ def inspect_catalog(
     *,
     max_steps: int = 100_000,
     max_depth: int = 256,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> dict[str, Any]:
     """Inspect bounded alternatives and unmet evidence without fetching providers.
 
     ``exhausted`` concerns configured alternatives, never arbitrary finite-catalog
     completeness. Proposed future experiments cannot satisfy missing factors.
+    Memory and cancellation belong to ``execution``.
     """
     import json
 
@@ -396,12 +479,12 @@ def inspect_catalog(
 
     return dict(
         json.loads(
-            identification._native.catalog_search(
+            _under(
+                execution,
+                identification._native.catalog_search,
                 replay_declaration(catalog),
                 max_steps=max_steps,
                 max_depth=max_depth,
-                memory_bytes=memory_bytes,
-                cancel=cancel,
             )
         )
     )

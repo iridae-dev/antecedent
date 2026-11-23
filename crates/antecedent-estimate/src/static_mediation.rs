@@ -42,6 +42,10 @@ use std::sync::Arc;
     clippy::cast_possible_truncation,
     reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
 )]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one estimation: the row selection, the point fit, the shared bootstrap and the effect assembly"
+)]
 pub fn estimate_static_mediation(
     data: &TabularData,
     graph: &Dag,
@@ -82,10 +86,10 @@ pub fn estimate_static_mediation(
             }
             let y: Vec<_> = rows.iter().map(|&r| columns[i][r]).collect();
             let fitted = crate::util::ls_fit(FaerBackend, &matrix, rows.len(), p, &y, ls_ws)?;
-            if fitted.rank < p {
+            if fitted.rank() < p {
                 return Err(EstimationError::unsupported("singular static mediation regression"));
             }
-            Ok(fitted.coefficients[1..=parents.len()].to_vec())
+            Ok(fitted.coefficients()[1..=parents.len()].to_vec())
         })
     };
     let contrast = |(total, direct): (f64, f64)| match query.contrast {
@@ -97,6 +101,13 @@ pub fn estimate_static_mediation(
     // Shared tolerant bootstrap: a singular or under-determined replicate is a
     // soft failure (counted, the loop continues), cancellation aborts, and more
     // than half failed withholds the SE. Replicate accounting is the real count.
+    // Each worker holds one resampled copy of the rows.
+    let _gather = crate::util::admit_gather_scratch(
+        ctx,
+        1,
+        std::mem::size_of_val(rows.as_slice()).div_ceil(size_of::<f64>()),
+        replicates,
+    )?;
     let boot = crate::util::bootstrap_se_with_scratch(
         replicates,
         ctx,
@@ -260,7 +271,7 @@ pub fn estimate_static_mediation_bayesian(
 /// Bayesian static mediation with any mapped coefficient prior restricted to
 /// the outcome mechanism. Checked high-level mediation routes use this entry
 /// point because only the outcome treatment slope defines the natural-direct
-/// functional used by the licensed transfer contract.
+/// functional used by the supported transfer contract.
 ///
 /// # Errors
 ///
@@ -284,179 +295,116 @@ pub fn estimate_static_mediation_bayesian_outcome_prior(
     )
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "hydrate every mechanism prior, then draw and assemble the effect, total, direct and mediated posteriors from the same mechanism fits"
-)]
-fn estimate_static_mediation_bayesian_impl(
-    problem: &StaticMediationProblem<'_>,
-    assumptions: AssumptionSet,
-    estimator: &crate::BayesianGComputationAte,
-    identification: antecedent_core::IdentificationStatus,
-    bridge: Option<MediationPriorBridge<'_>>,
-    scope: BridgeScope,
-    ctx: &ExecutionContext,
-) -> Result<(TemporalMediationEstimate, crate::CausalPosterior), EstimationError> {
-    let StaticMediationProblem { data, graph, query, extra } = *problem;
-    let outcome_prior_only = scope == BridgeScope::OutcomeMechanism;
-    crate::bayesian_mediation::require_gaussian_mediation(estimator)?;
-    let draws_n = crate::require_bayesian_n_draws(estimator.n_draws)?;
-    if estimator.prior.is_some() {
-        return Err(EstimationError::unsupported(
-            "Bayesian mediation currently supports isotropic mechanism priors; a shared coefficient prior cannot be assigned to both mechanisms",
-        ));
+fn mediation_mechanism_design(
+    node: usize,
+    parents: &[DenseNodeId],
+    columns: &[Vec<f64>],
+    extras: &[Vec<f64>],
+    rows: &[usize],
+    extra: &[VariableId],
+) -> Result<antecedent_stats::CompiledDesign, EstimationError> {
+    let i = node;
+    let first = parents[0].as_usize();
+    let treatment: Vec<f64> = rows.iter().map(|&r| columns[first][r]).collect();
+    let mut covs: Vec<(VariableId, Vec<f64>)> = parents
+        .iter()
+        .skip(1)
+        .map(|parent| {
+            let id = VariableId::from_raw(parent.raw());
+            let col: Vec<f64> = rows.iter().map(|&r| columns[parent.as_usize()][r]).collect();
+            (id, col)
+        })
+        .collect();
+    for (k, column) in extras.iter().enumerate() {
+        covs.push((extra[k], rows.iter().map(|&r| column[r]).collect()));
     }
-    if bridge.is_some() && !outcome_prior_only {
-        return Err(EstimationError::unsupported(
-            "mapped Bayesian mediation priors require outcome-mechanism scope; use the outcome-prior entry point so shared coefficient names cannot hydrate multiple mechanisms",
-        ));
-    }
-    let point = estimate_static_mediation(data, graph, query, assumptions, 0, extra, ctx)?;
-    query.validate()?;
-    let MediationRows { delta, order, columns, extras, rows } =
-        MediationRows::new(data, graph, query, extra)?;
-    let n = rows.len();
-    let mut mechanisms = vec![None; graph.node_count()];
-    let mut ws = crate::BayesianGCompWorkspace::default();
-    let mechanism_ctx = ExecutionContext {
-        parallelism: ctx.parallelism,
-        determinism: ctx.determinism,
-        rng: ctx.rng.clone(),
-        memory: ctx.memory,
-        cancellation: ctx.cancellation.clone(),
-        progress: ctx.progress.clone(),
-        kernel_policy: ctx.kernel_policy,
-        cache_policy: ctx.cache_policy,
-        adaptive_bootstrap: ctx.adaptive_bootstrap,
-        adaptive_draws: antecedent_core::AdaptiveDrawBudget::disabled(),
-    };
-    let mut hydrated = Vec::new();
-    let mut mechanism_assumptions = AssumptionSet::new();
-    let mut bound_targets = std::collections::HashSet::new();
-    for &node in &order {
-        if ctx.cancellation.is_cancelled() {
-            return Err(EstimationError::unsupported("static mediation cancelled"));
-        }
-        let i = node.as_usize();
-        let raw_node = u32::try_from(i)
-            .map_err(|_| EstimationError::unsupported("mediation graph node id exceeds u32"))?;
-        if i == query.treatment.as_usize() {
-            continue;
-        }
-        let parents = graph.parents(DenseNodeId::from_raw(raw_node));
-        if parents.is_empty() {
-            continue;
-        }
-        if n <= 1 + parents.len() + extras.len() {
-            return Err(EstimationError::unsupported("insufficient complete mediation rows"));
-        }
-        let first = parents[0].as_usize();
-        let treatment: Vec<f64> = rows.iter().map(|&r| columns[first][r]).collect();
-        let mut covs: Vec<(VariableId, Vec<f64>)> = parents
-            .iter()
-            .skip(1)
-            .map(|parent| {
-                let id = VariableId::from_raw(parent.raw());
-                let col: Vec<f64> = rows.iter().map(|&r| columns[parent.as_usize()][r]).collect();
-                (id, col)
-            })
-            .collect();
-        for (k, column) in extras.iter().enumerate() {
-            covs.push((extra[k], rows.iter().map(|&r| column[r]).collect()));
-        }
-        let cov_refs: Vec<(VariableId, &[f64])> =
-            covs.iter().map(|(id, col)| (*id, col.as_slice())).collect();
-        let y: Vec<f64> = rows.iter().map(|&r| columns[i][r]).collect();
-        let design =
-            antecedent_stats::CompiledDesign::linear_adjustment(&treatment, &cov_refs, &y, &[])?;
-        let schema = data.schema();
-        let name_of = |id: VariableId| -> Arc<str> {
-            schema
-                .get(id)
-                .ok()
-                .map_or_else(|| Arc::from(format!("var_{}", id.raw())), |v| Arc::clone(&v.name))
-        };
-        let mut coef_names = vec![Arc::from("intercept")];
-        for parent in parents {
-            coef_names
-                .push(Arc::from(format!("coef_{}", name_of(VariableId::from_raw(parent.raw())))));
-        }
-        for &id in extra {
-            coef_names.push(Arc::from(format!("coef_{}", name_of(id))));
-        }
-        let treatment_col =
-            parents.iter().position(|p| p.raw() == query.treatment.raw()).map(|j| j + 1);
-        let prep = crate::PreparedBayesianProblem {
-            design,
-            method: Arc::from("mediation.linear"),
-            adjustment_set: Arc::from([]),
-            active: 1.0,
-            control: 0.0,
-            overlap: OverlapPolicy::ExplicitOverride,
-            coef_names: Some(Arc::from(coef_names.clone())),
-            unit_ids: None,
-            serial_dependence: crate::SerialDependence::Iid,
-        };
-        let mut node_est = estimator.clone();
-        node_est.seed = estimator.seed.wrapping_add(i as u64 + 1);
-        node_est.n_draws = draws_n;
-        // Independent mechanisms must all supply every composed draw.
+    let cov_refs: Vec<(VariableId, &[f64])> =
+        covs.iter().map(|(id, col)| (*id, col.as_slice())).collect();
+    let y: Vec<f64> = rows.iter().map(|&r| columns[i][r]).collect();
+    let design =
+        antecedent_stats::CompiledDesign::linear_adjustment(&treatment, &cov_refs, &y, &[])?;
+    Ok(design)
+}
 
-        if let Some(bridge) = bridge {
-            let is_outcome = i == query.outcome.as_usize();
-            if outcome_prior_only && !is_outcome {
-                continue;
-            }
-            if let Some(prior) = hydrate_mechanism_prior(
-                bridge,
-                &coef_names,
-                treatment_col,
-                estimator.prior_scale,
-                is_outcome,
-            )? {
-                node_est.prior = Some(prior);
-                hydrated.push(name_of(VariableId::from_raw(raw_node)));
-                bound_targets.extend(coef_names.iter().map(std::string::ToString::to_string));
-            }
-        }
-        let posterior = node_est.fit(
-            &prep,
-            antecedent_core::IdentificationStatus::IdentifiedUnderParametricRestrictions,
-            &mut ws,
-            &mechanism_ctx,
-        )?;
-        // Retain the actual coefficient and residual priors, scoped to the
-        // mechanism whose likelihood consumed them (as in temporal composition).
-        mechanism_assumptions.entries.extend(posterior.assumptions.entries.iter().cloned().map(
-            |mut record| {
-                record.scope = AssumptionScope::Variables {
-                    variables: Arc::from([VariableId::from_raw(raw_node)]),
-                };
-                record
-            },
-        ));
-        let mut parent_draws = Vec::with_capacity(parents.len());
-        for j in 0..parents.len() {
-            parent_draws.push(coefficient_draws(&posterior, j + 1)?);
-        }
-        mechanisms[i] = Some(parent_draws);
-    }
-    if let Some(MediationPriorBridge {
-        mapping: HydrateMapping::NamedParameters { pairs }, ..
-    }) = bridge
+fn validate_mediation_prior_bindings(
+    bridge: Option<MediationPriorBridge<'_>>,
+    bound_targets: &std::collections::HashSet<String>,
+    hydrated: &[Arc<str>],
+) -> Result<(), EstimationError> {
+    if let Some(MediationPriorBridge { mapping: HydrateMapping::NamedParameters { pairs }, .. }) =
+        bridge
+        && let Some((_, target)) = pairs.iter().find(|(_, target)| !bound_targets.contains(target))
     {
-        if let Some((_, target)) = pairs.iter().find(|(_, target)| !bound_targets.contains(target))
-        {
-            return Err(EstimationError::stats_msg(format!(
-                "mapped prior target `{target}` did not bind any mediation mechanism"
-            )));
-        }
+        return Err(EstimationError::stats_msg(format!(
+            "mapped prior target `{target}` did not bind any mediation mechanism"
+        )));
     }
     if bridge.is_some() && hydrated.is_empty() {
         return Err(EstimationError::unsupported(
             "mapped prior did not bind any mediation mechanism",
         ));
     }
+    Ok(())
+}
+
+fn mediation_product_assumption(
+    bridge: Option<MediationPriorBridge<'_>>,
+    hydrated: &[Arc<str>],
+) -> AssumptionRecord {
+    AssumptionRecord {
+        assumption: Assumption::ParametricRestriction(ParametricAssumption {
+            id: Arc::from("mediation.gaussian_product"),
+            description: Arc::from(if hydrated.is_empty() {
+                "Independent Gaussian linear mechanism posteriors composed into natural effects; no treatment-mediator interaction; empirical complete rows fixed".to_string()
+            } else if !matches!(
+                bridge,
+                Some(MediationPriorBridge { mapping: HydrateMapping::EffectFunctional { .. }, .. })
+            ) {
+                format!(
+                    "Independent Gaussian linear mechanism posteriors composed into natural effects; declared coefficient mapping hydrated onto mechanisms [{}]; unbound coefficients and mechanisms keep isotropic prior_scale",
+                    hydrated.iter().map(std::convert::AsRef::as_ref).collect::<Vec<_>>().join(", "),
+                )
+            } else {
+                let implied = match bridge {
+                    Some(MediationPriorBridge {
+                        mapping: HydrateMapping::EffectFunctional { source_quantity },
+                        quantities,
+                        mean,
+                        ..
+                    }) => quantities.iter().zip(mean.iter()).find_map(|(q, m)| match q {
+                        PosteriorQuantityKind::Effect { name }
+                            if name.as_ref() == source_quantity.as_str() =>
+                        {
+                            Some(*m)
+                        }
+                        _ => None,
+                    }),
+                    _ => None,
+                };
+                format!(
+                    "Independent Gaussian linear mechanism posteriors composed into natural effects; mapped ATE/Δ prior hydrated onto outcome-mechanism [{}]{}; unbound mechanisms keep isotropic prior_scale",
+                    hydrated.iter().map(std::convert::AsRef::as_ref).collect::<Vec<_>>().join(", "),
+                    implied.map(|m| format!("; implied NDE/ATE mean {m}")).unwrap_or_default(),
+                )
+            }),
+        }),
+        source: AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("estimate.mediation.linear.bayesian"),
+        },
+        scope: AssumptionScope::Estimation,
+        status: AssumptionStatus::Declared,
+    }
+}
+
+fn compose_mediation_draws(
+    graph: &Dag,
+    query: &MediationQuery,
+    delta: f64,
+    order: &[DenseNodeId],
+    mechanisms: &[Option<Vec<Vec<f64>>>],
+    draws_n: usize,
+    ctx: &ExecutionContext,
+) -> Result<antecedent_prob::PosteriorDraws, EstimationError> {
     let mut effect = Vec::with_capacity(draws_n);
     let mut totals = Vec::with_capacity(draws_n);
     let mut directs = Vec::with_capacity(draws_n);
@@ -465,7 +413,7 @@ fn estimate_static_mediation_bayesian_impl(
         if ctx.cancellation.is_cancelled() {
             return Err(EstimationError::unsupported("static mediation cancelled"));
         }
-        let (total, direct) = propagate(graph, query, delta, &order, |i| {
+        let (total, direct) = propagate(graph, query, delta, order, |i| {
             mechanisms[i]
                 .iter()
                 .flatten()
@@ -503,51 +451,150 @@ fn estimate_static_mediation_bayesian_impl(
         schema,
         n_keep,
         Arc::<[f64]>::from(values),
-    )
-    .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
+    )?;
+    Ok(draws)
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "hydrate every mechanism prior, then draw and assemble the effect, total, direct and mediated posteriors from the same mechanism fits"
+)]
+fn estimate_static_mediation_bayesian_impl(
+    problem: &StaticMediationProblem<'_>,
+    assumptions: AssumptionSet,
+    estimator: &crate::BayesianGComputationAte,
+    identification: antecedent_core::IdentificationStatus,
+    bridge: Option<MediationPriorBridge<'_>>,
+    scope: BridgeScope,
+    ctx: &ExecutionContext,
+) -> Result<(TemporalMediationEstimate, crate::CausalPosterior), EstimationError> {
+    let StaticMediationProblem { data, graph, query, extra } = *problem;
+    let outcome_prior_only = scope == BridgeScope::OutcomeMechanism;
+    crate::bayesian_mediation::require_gaussian_mediation(estimator)?;
+    let draws_n = crate::require_bayesian_n_draws(estimator.n_draws)?;
+    if estimator.prior.is_some() {
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
+            "Bayesian mediation currently supports isotropic mechanism priors; a shared coefficient prior cannot be assigned to both mechanisms",
+        ));
+    }
+    if bridge.is_some() && !outcome_prior_only {
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
+            "mapped Bayesian mediation priors require outcome-mechanism scope; use the outcome-prior entry point so shared coefficient names cannot hydrate multiple mechanisms",
+        ));
+    }
+    let point = estimate_static_mediation(data, graph, query, assumptions, 0, extra, ctx)?;
+    query.validate()?;
+    let MediationRows { delta, order, columns, extras, rows } =
+        MediationRows::new(data, graph, query, extra)?;
+    let n = rows.len();
+    let mut mechanisms = vec![None; graph.node_count()];
+    let mut ws = crate::BayesianGCompWorkspace::default();
+    // Clone, then override: a context rebuilt field by field would drop the
+    // fields it does not name.
+    let mut mechanism_ctx = ctx.clone();
+    mechanism_ctx.admission = ctx.admission();
+    mechanism_ctx.adaptive_draws = antecedent_core::AdaptiveDrawBudget::disabled();
+    let mut hydrated = Vec::new();
+    let mut mechanism_assumptions = AssumptionSet::new();
+    let mut bound_targets = std::collections::HashSet::new();
+    for &node in &order {
+        if ctx.cancellation.is_cancelled() {
+            return Err(EstimationError::unsupported("static mediation cancelled"));
+        }
+        let i = node.as_usize();
+        let raw_node = u32::try_from(i)
+            .map_err(|_| EstimationError::unsupported("mediation graph node id exceeds u32"))?;
+        if i == query.treatment.as_usize() {
+            continue;
+        }
+        let parents = graph.parents(DenseNodeId::from_raw(raw_node));
+        if parents.is_empty() {
+            continue;
+        }
+        if n <= 1 + parents.len() + extras.len() {
+            return Err(EstimationError::unsupported("insufficient complete mediation rows"));
+        }
+        let design = mediation_mechanism_design(i, parents, &columns, &extras, &rows, extra)?;
+        let schema = data.schema();
+        let name_of = |id: VariableId| -> Arc<str> {
+            schema
+                .get(id)
+                .ok()
+                .map_or_else(|| Arc::from(format!("var_{}", id.raw())), |v| Arc::clone(&v.name))
+        };
+        let mut coef_names = vec![Arc::from("intercept")];
+        for parent in parents {
+            coef_names
+                .push(Arc::from(format!("coef_{}", name_of(VariableId::from_raw(parent.raw())))));
+        }
+        for &id in extra {
+            coef_names.push(Arc::from(format!("coef_{}", name_of(id))));
+        }
+        let treatment_col =
+            parents.iter().position(|p| p.raw() == query.treatment.raw()).map(|j| j + 1);
+        let prep = crate::PreparedBayesianProblem {
+            target_moments: None,
+            design,
+            method: Arc::from("mediation.linear"),
+            adjustment_set: Arc::from([]),
+            active: 1.0,
+            control: 0.0,
+            overlap: OverlapPolicy::ExplicitOverride,
+            coef_names: Some(Arc::from(coef_names.clone())),
+            unit_ids: None,
+            serial_dependence: crate::SerialDependence::Iid,
+            preparation: None,
+        };
+        let mut node_est = estimator.clone();
+        node_est.seed = estimator.seed.wrapping_add(i as u64 + 1);
+        node_est.n_draws = draws_n;
+        // Independent mechanisms must all supply every composed draw.
+
+        // An outcome-scoped bridge hydrates only the outcome prior; every mechanism is still fit.
+        let is_outcome = i == query.outcome.as_usize();
+        if let Some(bridge) = bridge.filter(|_| !outcome_prior_only || is_outcome)
+            && let Some(prior) = hydrate_mechanism_prior(
+                bridge,
+                &coef_names,
+                treatment_col,
+                estimator.prior_scale,
+                is_outcome,
+            )?
+        {
+            node_est.prior = Some(prior);
+            hydrated.push(name_of(VariableId::from_raw(raw_node)));
+            bound_targets.extend(coef_names.iter().map(std::string::ToString::to_string));
+        }
+        let posterior = node_est.fit(
+            &prep,
+            antecedent_core::IdentificationStatus::IdentifiedUnderParametricRestrictions,
+            &mut ws,
+            &mechanism_ctx,
+        )?;
+        // Retain the actual coefficient and residual priors, scoped to the
+        // mechanism whose likelihood consumed them (as in temporal composition).
+        mechanism_assumptions.entries.extend(posterior.assumptions.entries.iter().cloned().map(
+            |mut record| {
+                record.scope = AssumptionScope::Variables {
+                    variables: Arc::from([VariableId::from_raw(raw_node)]),
+                };
+                record
+            },
+        ));
+        let mut parent_draws = Vec::with_capacity(parents.len());
+        for j in 0..parents.len() {
+            parent_draws.push(coefficient_draws(&posterior, j + 1)?);
+        }
+        mechanisms[i] = Some(parent_draws);
+    }
+    validate_mediation_prior_bindings(bridge, &bound_targets, &hydrated)?;
+    let draws = compose_mediation_draws(graph, query, delta, &order, &mechanisms, draws_n, ctx)?;
     let summaries = draws.summarize();
     let mut posterior_assumptions = point.effect.provenance.assumptions.clone();
     posterior_assumptions.entries.extend(mechanism_assumptions.entries);
-    posterior_assumptions.push(AssumptionRecord {
-        assumption: Assumption::ParametricRestriction(ParametricAssumption {
-            id: Arc::from("mediation.gaussian_product"),
-            description: Arc::from(if hydrated.is_empty() {
-                "Independent Gaussian linear mechanism posteriors composed into natural effects; no treatment-mediator interaction; empirical complete rows fixed".to_string()
-            } else if !matches!(bridge, Some(MediationPriorBridge { mapping: HydrateMapping::EffectFunctional { .. }, .. })) {
-                format!(
-                    "Independent Gaussian linear mechanism posteriors composed into natural effects; declared coefficient mapping hydrated onto mechanisms [{}]; unbound coefficients and mechanisms keep isotropic prior_scale",
-                    hydrated.iter().map(std::convert::AsRef::as_ref).collect::<Vec<_>>().join(", "),
-                )
-            } else {
-                let implied = match bridge {
-                    Some(MediationPriorBridge {
-                        mapping: HydrateMapping::EffectFunctional { source_quantity },
-                        quantities,
-                        mean,
-                        ..
-                    }) => quantities.iter().zip(mean.iter()).find_map(|(q, m)| {
-                        match q {
-                            PosteriorQuantityKind::Effect { name } if name.as_ref() == source_quantity.as_str() => {
-                                Some(*m)
-                            }
-                            _ => None,
-                        }
-                    }),
-                    _ => None,
-                };
-                format!(
-                    "Independent Gaussian linear mechanism posteriors composed into natural effects; mapped ATE/Δ prior hydrated onto outcome-mechanism [{}]{}; unbound mechanisms keep isotropic prior_scale",
-                    hydrated.iter().map(std::convert::AsRef::as_ref).collect::<Vec<_>>().join(", "),
-                    implied.map(|m| format!("; implied NDE/ATE mean {m}")).unwrap_or_default(),
-                )
-            }),
-        }),
-        source: AssumptionSource::AlgorithmDefault {
-            algorithm: Arc::from("estimate.mediation.linear.bayesian"),
-        },
-        scope: AssumptionScope::Estimation,
-        status: AssumptionStatus::Declared,
-    });
+    posterior_assumptions.push(mediation_product_assumption(bridge, &hydrated));
     let posterior = crate::CausalPosterior {
         subsampled_out_mass: 0.0,
         unevaluable_mass: 0.0,
@@ -564,6 +611,7 @@ fn estimate_static_mediation_bayesian_impl(
         },
         early_stopped: false,
         treatment_contrast: Some(delta),
+        preparation: None,
     };
     let eq = posterior
         .effect_column()
@@ -679,8 +727,9 @@ impl MediationRows {
         query: &MediationQuery,
         extra: &[VariableId],
     ) -> Result<Self, EstimationError> {
-        let delta = crate::adjustment::intervention_f64(&query.active)?
-            - crate::adjustment::intervention_f64(&query.control)?;
+        let active = crate::adjustment::intervention_f64(&query.active)?;
+        let control = crate::adjustment::intervention_f64(&query.control)?;
+        let delta = active - control;
         let order = graph
             .topological_order()
             .ok_or_else(|| EstimationError::unsupported("mediation requires a DAG"))?;
@@ -702,6 +751,34 @@ impl MediationRows {
                     && columns.iter().chain(&extras).all(|c| c[r].is_finite())
             })
             .collect();
+        // A treatment that took only two values is a binary indicator: a contrast to a third
+        // level is a regime the data never visited, and the linear mechanisms would extrapolate
+        // it silently. A treatment with more values is a dose on which the linear mechanisms
+        // define the effect per unit of treatment.
+        let treatment = &columns[query.treatment.raw() as usize];
+        let mut observed: Vec<f64> = Vec::with_capacity(3);
+        for &r in &rows {
+            if !observed.contains(&treatment[r]) {
+                observed.push(treatment[r]);
+                if observed.len() > 2 {
+                    break;
+                }
+            }
+        }
+        let unvisited = [control, active].into_iter().find(|level| !observed.contains(level));
+        if let (2, Some(level)) = (observed.len(), unvisited) {
+            observed.sort_by(f64::total_cmp);
+            return Err(EstimationError::refused(
+                antecedent_core::reason_code!("arm_not_populated"),
+                format!(
+                    "the treatment contrast level {level} is not one of the two levels the \
+                     binary treatment took ({} and {}), so the mediation mechanisms would \
+                     extrapolate a regime the data never visited. Next attempt: contrast the \
+                     two observed levels, or collect data that visits the requested level",
+                    observed[0], observed[1]
+                ),
+            ));
+        }
         Ok(Self { delta, order, columns, extras, rows })
     }
 }
@@ -752,6 +829,114 @@ mod tests {
 
     use super::*;
     use antecedent_core::{Intervention, Value};
+
+    #[test]
+    fn mediation_draw_composition_keeps_joint_draw_alignment() {
+        let graph = graph(false);
+        let query = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::Mediated,
+        );
+        let order = [0, 1, 2, 3].map(DenseNodeId::from_raw);
+        let mechanisms = vec![
+            None,
+            Some(vec![vec![2.0, 3.0]]),
+            Some(vec![vec![4.0, 5.0], vec![3.0, 2.0]]),
+            None,
+        ];
+        let draws = compose_mediation_draws(
+            &graph,
+            &query,
+            1.0,
+            &order,
+            &mechanisms,
+            2,
+            &ExecutionContext::for_tests(0),
+        )
+        .unwrap();
+        let bits =
+            |index| draws.column(index).unwrap().iter().map(|x| x.to_bits()).collect::<Vec<_>>();
+        assert_eq!(bits(0), [6.0_f64, 6.0].map(f64::to_bits));
+        assert_eq!(bits(1), [10.0_f64, 11.0].map(f64::to_bits));
+        assert_eq!(bits(2), [4.0_f64, 5.0].map(f64::to_bits));
+        assert_eq!(bits(3), [6.0_f64, 6.0].map(f64::to_bits));
+    }
+
+    #[test]
+    fn mechanism_design_keeps_parent_extra_and_selected_row_order() {
+        let columns = vec![
+            vec![1.0, 2.0, 3.0, 4.0, 5.0],
+            vec![6.0, 7.0, 8.0, 9.0, 10.0],
+            vec![11.0, 12.0, 13.0, 14.0, 15.0],
+        ];
+        let extras = vec![vec![16.0, 17.0, 18.0, 19.0, 20.0]];
+        let parents = [0, 1].map(DenseNodeId::from_raw);
+        let design = mediation_mechanism_design(
+            2,
+            &parents,
+            &columns,
+            &extras,
+            &[1, 3, 4],
+            &[VariableId::from_raw(3)],
+        )
+        .unwrap();
+        assert_eq!(design.ncols, 4);
+        assert_eq!(design.matrix[3].to_bits(), 2.0_f64.to_bits());
+        assert_eq!(design.matrix[6].to_bits(), 7.0_f64.to_bits());
+        assert_eq!(design.matrix[9].to_bits(), 17.0_f64.to_bits());
+        assert_eq!(design.matrix[11].to_bits(), 20.0_f64.to_bits());
+    }
+
+    #[test]
+    fn mediation_prior_bindings_require_each_target_and_a_hydrated_mechanism() {
+        let mapping =
+            HydrateMapping::NamedParameters { pairs: vec![("source".into(), "target".into())] };
+        let bridge = MediationPriorBridge {
+            mapping: &mapping,
+            quantities: &[],
+            mean: &[],
+            sd: &[],
+            source_contrast: None,
+        };
+        let mut targets = std::collections::HashSet::new();
+        assert!(
+            validate_mediation_prior_bindings(Some(bridge), &targets, &[Arc::from("outcome")])
+                .is_err()
+        );
+        targets.insert("target".to_owned());
+        assert!(validate_mediation_prior_bindings(Some(bridge), &targets, &[]).is_err());
+        assert!(
+            validate_mediation_prior_bindings(Some(bridge), &targets, &[Arc::from("outcome")])
+                .is_ok()
+        );
+        assert!(validate_mediation_prior_bindings(None, &targets, &[]).is_ok());
+    }
+
+    #[test]
+    fn mediation_product_assumption_reports_hydration_scope() {
+        let text = |record: AssumptionRecord| match record.assumption {
+            Assumption::ParametricRestriction(value) => value.description,
+            _ => panic!("expected a parametric restriction"),
+        };
+        assert!(
+            text(mediation_product_assumption(None, &[]))
+                .contains("no treatment-mediator interaction")
+        );
+        let mapping = HydrateMapping::EffectFunctional { source_quantity: "ate".into() };
+        let quantities = [PosteriorQuantityKind::Effect { name: Arc::from("ate") }];
+        let bridge = MediationPriorBridge {
+            mapping: &mapping,
+            quantities: &quantities,
+            mean: &[2.5],
+            sd: &[0.2],
+            source_contrast: None,
+        };
+        let description = text(mediation_product_assumption(Some(bridge), &[Arc::from("outcome")]));
+        assert!(description.contains("outcome-mechanism [outcome]"));
+        assert!(description.contains("implied NDE/ATE mean 2.5"));
+    }
 
     fn coefficient_summary(n: usize) -> (Vec<PosteriorQuantityKind>, Vec<f64>, Vec<f64>) {
         let mut kinds: Vec<_> =
@@ -1088,3 +1273,7 @@ mod tests {
         assert!(out.effect.se_bootstrap().is_some_and(f64::is_finite));
     }
 }
+
+#[cfg(test)]
+#[path = "static_mediation_oracle_tests.rs"]
+mod oracle_tests;

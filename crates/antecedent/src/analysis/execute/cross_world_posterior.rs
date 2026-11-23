@@ -1,0 +1,1455 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//! Mediation, path-restricted natural effects and natural direct effects over a supplied graph
+//! posterior on tabular data.
+//!
+//! Every atom of the posterior is a structure: a DAG, an ADMG (or the contemporaneous projection
+//! of a temporal ADMG), a CPDAG or a PAG. Each atom is answered by the executor the same query
+//! has on a supplied structure of that kind, so an atom's value, identification and uncertainty
+//! are exactly those of the explicit cell: the Dag route's own plug-in on a DAG, the
+//! path-specific identifier and finite-discrete plug-in on a mixed graph, and the class
+//! envelope (every DAG completion of a CPDAG, every ADMG sharing the m-separation model of a MAG
+//! completion of a PAG) on a class. The posterior moves only which structure answers.
+//!
+//! The atoms are then mixed by posterior probability, one mixture per component of the answer:
+//!
+//! * a mediation has three components (total, natural direct and natural indirect effects), each
+//!   mixed over the atoms that identify it; a component no atom identifies is reported absent and
+//!   an atom whose identifier refuses a component other than the requested one keeps that
+//!   component's mass as unidentified mass of that component only;
+//! * a path-restricted or natural direct effect has one component.
+//!
+//! An atom the identifier refuses (a recanting district, a hedge, a class whose members all
+//! refuse) is unidentified posterior mass, and an atom whose plug-in cannot be evaluated is
+//! unevaluable mass. Neither is redistributed: the published value is conditional on the atoms
+//! that identify and evaluate, the result states the mass it does not cover, and the status
+//! resolves to graph-dependent when either exceeds the tolerance. An atom that is a class whose
+//! completions disagree keeps its identified set, and the mixture publishes the union of the
+//! atoms' sets beside the point.
+//!
+//! Uncertainty of the mixture. One contributing atom carries the whole conditional mixture, so its
+//! own interval and posterior are the mixture's. Several atoms, Frequentist: every atom is re-run
+//! on the same resampled tables and the standard error is the spread of the draw-wise
+//! posterior-weighted mixture. Several atoms, Bayesian: the atoms ran in one context, so draw `d`
+//! of every atom is the same draw of the row weights and the pooled posterior is the draw-wise
+//! posterior-weighted mixture. An interval that cannot be formed is withheld and the result says
+//! why. Cheap and full validation run each atom's own suite and mix the reports by posterior
+//! weight.
+
+use std::collections::{HashMap, HashSet};
+
+use antecedent_core::{
+    InterventionalDistributionQuery, MediationQuery, NestedCounterfactualQuery,
+    PathSpecificEffectQuery, VariableId,
+};
+use antecedent_data::TableView;
+use antecedent_discovery::adjacency_mask::{
+    admg_from_adjacency_mask, cpdag_from_adjacency_mask, dag_from_adjacency_mask,
+    pag_from_adjacency_mask,
+};
+use antecedent_discovery::{AdjacencyMask, GraphPosteriorAtomKind, LagMask};
+use antecedent_estimate::{
+    DistributionAtom, InterventionalDistributionEstimate, TemporalMediationEstimate,
+};
+use antecedent_graph::Admg;
+
+use super::atom_mix::{AtomBoundRule, AtomEvalView, AtomMixInput, MixedAtomEvals, mix_atom_evals};
+use super::class_distribution::{DistributionClass, envelope_of_members};
+use super::mediation_mixed::{ClassStructure, component_slot};
+use super::static_path::DistributionGraph;
+use super::{
+    AcceptedGraph, Arc, BootstrapAccounting, CausalError, CausalPosterior, CausalQuery, Diagnostic,
+    DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext,
+    GraphIdentFlag, GraphPosterior, IdentificationStatus, IdentifiedEstimand,
+    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, Instant, OverlapPolicy,
+    PathSpecificMixedSource, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite, Strategy,
+    StudyResult, TabularData, TimeSeriesData, WeightedGraphSamples, effect_from_posterior,
+    elapsed_ns, mass_fields, mix_atom_refutation_reports, overlap_diagnostic,
+    overlap_limit_diagnostic, provenance_ids, resolve_posterior_status,
+};
+use crate::analysis::identification_cache::CachedGraphPosteriorAtomIdentification;
+use crate::analysis::proof_support::graph_posterior_withheld_diagnostic;
+use crate::planner::RouteDefaults;
+
+mod uncertainty;
+
+/// Stable code of the disclosure every cross-world graph-posterior result carries.
+pub(crate) const CROSS_WORLD_POSTERIOR_CODE: &str = "estimate.graph_posterior.cross_world";
+
+/// Stream base of the shared resampled tables of a mixture's replicates.
+const SHARED_REPLICATE_STREAM: u64 = 0x6A7B_0C10_5E00_0002;
+
+/// Stable code of the disclosure of how the uncertainty of a mixture of several atoms was formed.
+const UNCERTAINTY_CODE: &str = "estimate.graph_posterior.cross_world_uncertainty";
+
+/// Method tag every posterior atom's estimand carries: the atoms answer one target by
+/// structure-specific identifications, so the estimand identity is the target's.
+const ATOM_ESTIMAND_METHOD: &str = "graph_posterior.cross_world";
+
+/// Names of the components of a mediation, in publication order.
+const MEDIATION_COMPONENTS: [&str; 3] = ["total", "direct", "indirect"];
+
+/// The query a cross-world graph posterior answers.
+#[derive(Clone, Copy)]
+enum CrossWorldKind<'a> {
+    Mediation(&'a MediationQuery),
+    PathSpecific(&'a PathSpecificEffectQuery),
+    Nested(&'a NestedCounterfactualQuery),
+    Distribution(&'a InterventionalDistributionQuery),
+}
+
+impl<'a> CrossWorldKind<'a> {
+    fn of(query: &'a antecedent_core::CausalQuery) -> Result<Self, CausalError> {
+        match query {
+            CausalQuery::Mediation(q) => {
+                q.validate()?;
+                Ok(Self::Mediation(q))
+            }
+            CausalQuery::PathSpecific(q) => {
+                q.validate()?;
+                Ok(Self::PathSpecific(q))
+            }
+            CausalQuery::NestedCounterfactual(q) => {
+                q.validate()?;
+                Ok(Self::Nested(q))
+            }
+            CausalQuery::Distribution(q) => {
+                q.validate()?;
+                Ok(Self::Distribution(q))
+            }
+            _ => Err(CausalError::Compile {
+                message: "a cross-world graph posterior answers a mediation, a path-restricted \
+                          natural effect, a natural direct effect or an interventional \
+                          distribution"
+                    .into(),
+            }),
+        }
+    }
+
+    fn treatment_outcome(self) -> Result<(VariableId, VariableId), CausalError> {
+        Ok(match self {
+            Self::Mediation(q) => (q.treatment, q.outcome),
+            Self::PathSpecific(q) => (q.treatment, q.outcome),
+            Self::Nested(q) => (q.treatment, q.outcome),
+            Self::Distribution(q) => {
+                let treatment = q
+                    .interventions
+                    .first()
+                    .and_then(antecedent_core::Intervention::primary_variable)
+                    .ok_or_else(|| CausalError::Compile {
+                        message: "distribution query missing intervention target".into(),
+                    })?;
+                let outcome = *q.outcomes.first().ok_or_else(|| CausalError::Compile {
+                    message: "distribution query missing outcome".into(),
+                })?;
+                (treatment, outcome)
+            }
+        })
+    }
+
+    /// Components of the answer.
+    const fn components(self) -> usize {
+        match self {
+            Self::Mediation(_) => MEDIATION_COMPONENTS.len(),
+            Self::PathSpecific(_) | Self::Nested(_) | Self::Distribution(_) => 1,
+        }
+    }
+
+    /// The component the query asks for.
+    fn requested(self) -> usize {
+        match self {
+            Self::Mediation(q) => component_slot(q.contrast),
+            Self::PathSpecific(_) | Self::Nested(_) | Self::Distribution(_) => 0,
+        }
+    }
+
+    /// The estimator the query's explicit cell on a DAG uses.
+    fn dag_estimator(self) -> EstimatorId {
+        match self {
+            Self::Mediation(_) => EstimatorId::StaticMediationLinear,
+            Self::PathSpecific(_) | Self::Nested(_) => EstimatorId::FunctionalEffect,
+            Self::Distribution(_) => EstimatorId::FunctionalDistribution,
+        }
+    }
+
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Mediation(_) => "mediation",
+            Self::PathSpecific(_) => "path-restricted natural effect",
+            Self::Nested(_) => "natural direct effect",
+            Self::Distribution(_) => "interventional distribution",
+        }
+    }
+
+    /// One component's published value on an atom that answered, `None` where the atom's
+    /// identifier refused that component.
+    fn component_value(self, result: &StudyResult, slot: usize) -> Option<f64> {
+        match self {
+            Self::Mediation(_) => {
+                if slot == self.requested() {
+                    return Some(result.effect());
+                }
+                let decomposition = result.mediation()?;
+                match slot {
+                    0 => decomposition.total,
+                    1 => decomposition.direct,
+                    _ => decomposition.mediated,
+                }
+            }
+            Self::PathSpecific(_) | Self::Nested(_) | Self::Distribution(_) => {
+                Some(result.effect())
+            }
+        }
+    }
+}
+
+/// What one posterior atom produced.
+enum AtomRun {
+    /// The explicit executor of the atom's structure answered.
+    Fit(Box<StudyResult>),
+    /// The atom is not a member of the posterior's class, or its identifier refuses the effect.
+    Unidentified,
+    /// The identifier accepted the atom but its plug-in could not be evaluated.
+    Unevaluable,
+}
+
+/// One atom's contribution to one component's mixture.
+struct ComponentEval {
+    key: u64,
+    status: IdentificationStatus,
+    estimand: Option<IdentifiedEstimand>,
+    value: Option<f64>,
+    posterior: Option<CausalPosterior>,
+    assumptions: Option<antecedent_core::AssumptionSet>,
+    bounds: Option<(f64, f64)>,
+    uncertainty: Option<antecedent_estimate::EstimateUncertainty>,
+}
+
+impl AtomEvalView for ComponentEval {
+    fn key(&self) -> u64 {
+        self.key
+    }
+
+    fn status(&self) -> IdentificationStatus {
+        self.status
+    }
+
+    fn estimand(&self) -> Option<&IdentifiedEstimand> {
+        self.estimand.as_ref()
+    }
+
+    fn scalar(&self) -> Option<f64> {
+        self.value.filter(|value| value.is_finite())
+    }
+
+    fn posterior(&self) -> Option<&CausalPosterior> {
+        self.posterior.as_ref()
+    }
+
+    fn assumptions(&self) -> Option<&antecedent_core::AssumptionSet> {
+        self.assumptions.as_ref()
+    }
+
+    fn identified_bounds(&self) -> Option<(f64, f64)> {
+        self.bounds
+    }
+
+    fn partial(&self) -> bool {
+        false
+    }
+
+    fn analytic_se(&self) -> Option<f64> {
+        None
+    }
+
+    fn influence(&self) -> Option<&[f64]> {
+        None
+    }
+
+    fn reported_uncertainty(&self) -> Option<antecedent_estimate::EstimateUncertainty> {
+        self.uncertainty
+    }
+}
+
+/// The spread of the draw-wise mixture of the atoms' values on shared resampled tables.
+struct ReplicateSe {
+    se: Option<f64>,
+    ok: u32,
+    failed: u32,
+    note: String,
+}
+
+/// Re-runs the contributing atoms (key and posterior mass) on shared resampled tables.
+type Replicate<'a> = &'a dyn Fn(&[(u64, f64)]) -> Result<ReplicateSe, CausalError>;
+
+/// The runs of every distinct atom of a posterior, with the samples they stand for.
+struct CrossWorldRuns<'a> {
+    kind: CrossWorldKind<'a>,
+    /// Posterior weight and atom key of every sample.
+    samples: (&'a [f64], &'a [u64]),
+    /// Keys of the distinct atoms, aligned with `runs`.
+    keys: Vec<u64>,
+    runs: Vec<AtomRun>,
+    /// What the atoms are, for the disclosure.
+    structure: &'a str,
+    /// Identifier and estimator the result records.
+    strategy: (IdentifierId, EstimatorId),
+    started: Instant,
+    /// How a frequentist mixture of several atoms forms its standard error, when it can.
+    replicates: Option<Replicate<'a>>,
+}
+
+/// Whether the answer of an atom has no scalar mean to mix: the interventional distribution of
+/// an outcome without a finite mean.
+fn scalar_free(kind: CrossWorldKind<'_>, value: f64) -> bool {
+    matches!(kind, CrossWorldKind::Distribution(_)) && !value.is_finite()
+}
+
+/// One component's mixture over the atoms.
+struct ComponentMix {
+    mixed: MixedAtomEvals,
+    unidentified_mass: f64,
+    atoms: usize,
+}
+
+/// The requested mixture and the component disclosures needed to publish it.
+struct CrossWorldComponents {
+    requested: ComponentMix,
+    mediation: [Option<f64>; 3],
+    report: Vec<String>,
+}
+
+/// The estimand an atom contributes: the target, whatever structure-specific identification
+/// (adjustment set, district formula, class completion) produced the atom's value, so atoms
+/// that identify one target differently still agree on what they answer.
+fn target_estimand(estimand: &IdentifiedEstimand) -> IdentifiedEstimand {
+    let mut target = estimand.clone();
+    target.method = Arc::from(ATOM_ESTIMAND_METHOD);
+    target.adjustment_set = Arc::from([]);
+    target.instruments = Arc::from([]);
+    target.mediators = Arc::from([]);
+    target
+}
+
+/// The scalar identified set an atom's own class envelope published, when it published one.
+fn atom_identified_bounds(result: &StudyResult) -> Option<(f64, f64)> {
+    let set = result.structural_response.as_ref()?.identified_set.as_ref()?;
+    let lower = *set.lower.first()?;
+    let upper = *set.upper.first()?;
+    (lower.is_finite() && upper.is_finite() && lower <= upper).then_some((lower, upper))
+}
+
+/// What an atom's failed executor means for the mixture: a cancellation or a resource refusal
+/// ends the run, the identifier's refusal is the atom's unidentified mass, and any other failure
+/// is its unevaluable mass. The first failure that is the query's own refusal is kept in
+/// `refusal`, and is the answer when no atom fits at all.
+fn atom_outcome_of(
+    error: CausalError,
+    refusal: &mut Option<CausalError>,
+) -> Result<AtomRun, CausalError> {
+    if matches!(error, CausalError::Cancelled { .. } | CausalError::Resource { .. }) {
+        return Err(error);
+    }
+    if error.is_identification_refusal() {
+        return Ok(AtomRun::Unidentified);
+    }
+    if refusal.is_none() && super::atom_route_posterior::is_query_refusal(&error) {
+        *refusal = Some(error);
+    }
+    Ok(AtomRun::Unevaluable)
+}
+
+/// The refusal of the query itself when no atom was fitted, else the runs.
+fn require_a_fit(
+    runs: Vec<AtomRun>,
+    refusal: Option<CausalError>,
+) -> Result<Vec<AtomRun>, CausalError> {
+    if !runs.iter().any(|run| matches!(run, AtomRun::Fit(_)))
+        && let Some(error) = refusal
+    {
+        return Err(error);
+    }
+    Ok(runs)
+}
+
+impl super::Study {
+    /// Refusals every execution of a cross-world graph posterior shares.
+    fn ensure_cross_world_posterior_supported(
+        &self,
+        gp: &GraphPosterior,
+    ) -> Result<(), CausalError> {
+        if gp.lag_masks().is_some() || gp.max_lag().is_some() {
+            return Err(CausalError::Unsupported {
+                message: "a static cross-world query over a graph posterior requires static \
+                          atoms; this posterior carries DBN lag structure",
+            });
+        }
+        if let (CausalQuery::Distribution(query), false) =
+            (&self.query, gp.atom_kind() == GraphPosteriorAtomKind::Dag)
+        {
+            // A mixed graph or a class reads an unconditional finite-discrete table.
+            super::static_path::ensure_admg_distribution_supported(query, self.settings.refute)?;
+        }
+        Ok(())
+    }
+
+    /// Answer the query on the structure of one posterior atom with the explicit executor of
+    /// that structure.
+    fn cross_world_on_atom(
+        &self,
+        data: &TabularData,
+        gp: &GraphPosterior,
+        index: usize,
+        kind: CrossWorldKind<'_>,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let mask = gp.atoms()[index].clone();
+        let n_vars = gp.n_vars();
+        let not_member = || {
+            CausalError::not_identified(
+                IdentificationStatus::NotIdentified,
+                false,
+                "the posterior atom is not a member of the posterior's graph class",
+            )
+        };
+        match gp.atom_kind() {
+            GraphPosteriorAtomKind::Dag => {
+                let dag = dag_from_adjacency_mask(mask, n_vars).map_err(|_| not_member())?;
+                self.cross_world_on_dag(data, &dag, kind, physical, ctx)
+            }
+            GraphPosteriorAtomKind::Admg | GraphPosteriorAtomKind::TemporalAdmg => {
+                let admg = admg_from_adjacency_mask(mask, n_vars).map_err(|_| not_member())?;
+                self.cross_world_on_admg(data, &admg, kind, physical, ctx)
+            }
+            GraphPosteriorAtomKind::Cpdag => {
+                let cpdag = cpdag_from_adjacency_mask(mask, n_vars).map_err(|_| not_member())?;
+                match kind {
+                    CrossWorldKind::Mediation(q) => self.execute_mediation_class(
+                        data,
+                        ClassStructure::Cpdag(&cpdag),
+                        q,
+                        physical,
+                        ctx,
+                    ),
+                    CrossWorldKind::PathSpecific(q) => self.execute_class_path_specific(
+                        data,
+                        &cpdag,
+                        PathSpecificMixedSource::PathSpecific(q),
+                        physical,
+                        ctx,
+                    ),
+                    CrossWorldKind::Nested(q) => self.execute_class_path_specific(
+                        data,
+                        &cpdag,
+                        PathSpecificMixedSource::Nested(q),
+                        physical,
+                        ctx,
+                    ),
+                    CrossWorldKind::Distribution(q) => self.execute_class_distribution(
+                        data,
+                        DistributionClass::Cpdag(&cpdag),
+                        q,
+                        physical,
+                        ctx,
+                    ),
+                }
+            }
+            GraphPosteriorAtomKind::Pag => {
+                let mark = gp.mark_atom(index);
+                let pag = pag_from_adjacency_mask(mask, mark, n_vars).map_err(|_| not_member())?;
+                match kind {
+                    CrossWorldKind::Mediation(q) => self.execute_mediation_class(
+                        data,
+                        ClassStructure::Pag(&pag),
+                        q,
+                        physical,
+                        ctx,
+                    ),
+                    CrossWorldKind::PathSpecific(q) => self.execute_pag_path_specific(
+                        data,
+                        &pag,
+                        PathSpecificMixedSource::PathSpecific(q),
+                        physical,
+                        ctx,
+                    ),
+                    CrossWorldKind::Nested(q) => self.execute_pag_path_specific(
+                        data,
+                        &pag,
+                        PathSpecificMixedSource::Nested(q),
+                        physical,
+                        ctx,
+                    ),
+                    CrossWorldKind::Distribution(q) => self.execute_class_distribution(
+                        data,
+                        DistributionClass::Pag(&pag),
+                        q,
+                        physical,
+                        ctx,
+                    ),
+                }
+            }
+            _ => Err(CausalError::Unsupported {
+                message: "a cross-world query over a graph posterior reads Dag, Admg, \
+                          TemporalAdmg, Cpdag or Pag atoms",
+            }),
+        }
+    }
+
+    /// Run the explicit executor on every distinct atom of the posterior, in order of first
+    /// appearance. An atom's refusal or failure is its outcome; only a cancellation ends the
+    /// run.
+    fn run_cross_world_atoms(
+        &self,
+        data: &TabularData,
+        gp: &GraphPosterior,
+        kind: CrossWorldKind<'_>,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<(Vec<u64>, Vec<AtomRun>), CausalError> {
+        let mut keys: Vec<u64> = Vec::new();
+        let mut firsts: Vec<usize> = Vec::new();
+        let mut seen = HashSet::new();
+        for index in 0..gp.n_graphs() {
+            if seen.insert(gp.graph_keys()[index]) {
+                keys.push(gp.graph_keys()[index]);
+                firsts.push(index);
+            }
+        }
+        let mut runs = Vec::with_capacity(firsts.len());
+        let mut refusal = None;
+        for index in firsts {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled {
+                    stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
+                });
+            }
+            runs.push(match self.cross_world_on_atom(data, gp, index, kind, physical, ctx) {
+                Ok(result) => AtomRun::Fit(Box::new(result)),
+                Err(error) => atom_outcome_of(error, &mut refusal)?,
+            });
+        }
+        Ok((keys, require_a_fit(runs, refusal)?))
+    }
+
+    fn cross_world_on_dag(
+        &self,
+        data: &TabularData,
+        dag: &antecedent_graph::Dag,
+        kind: CrossWorldKind<'_>,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        match kind {
+            CrossWorldKind::Mediation(q) => {
+                self.execute_static_mediation_total(data, dag, q, physical, ctx)
+            }
+            CrossWorldKind::PathSpecific(q) => {
+                self.execute_path_specific(data, dag, q, physical, ctx)
+            }
+            CrossWorldKind::Nested(q) => {
+                let admg = Admg::from_dag(dag).map_err(CausalError::rejected)?;
+                self.execute_path_specific_mixed(
+                    data,
+                    &admg,
+                    PathSpecificMixedSource::Nested(q),
+                    physical,
+                    ctx,
+                )
+            }
+            CrossWorldKind::Distribution(q) => {
+                self.execute_distribution(data, DistributionGraph::Dag(dag), q, physical, None, ctx)
+            }
+        }
+    }
+
+    fn cross_world_on_admg(
+        &self,
+        data: &TabularData,
+        admg: &Admg,
+        kind: CrossWorldKind<'_>,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        match kind {
+            CrossWorldKind::Mediation(q) => {
+                self.execute_mediation_mixed(data, admg, q, physical, ctx)
+            }
+            CrossWorldKind::PathSpecific(q) => self.execute_path_specific_mixed(
+                data,
+                admg,
+                PathSpecificMixedSource::PathSpecific(q),
+                physical,
+                ctx,
+            ),
+            CrossWorldKind::Nested(q) => self.execute_path_specific_mixed(
+                data,
+                admg,
+                PathSpecificMixedSource::Nested(q),
+                physical,
+                ctx,
+            ),
+            CrossWorldKind::Distribution(q) => self.execute_distribution(
+                data,
+                DistributionGraph::Admg(admg),
+                q,
+                physical,
+                None,
+                ctx,
+            ),
+        }
+    }
+
+    /// Mix one component over the atoms. `None` when no atom identifies it.
+    fn mix_cross_world_component(
+        samples: (&[f64], &[u64]),
+        kind: CrossWorldKind<'_>,
+        slot: usize,
+        by_key: &HashMap<u64, &AtomRun>,
+    ) -> Result<Option<ComponentMix>, CausalError> {
+        let (weights, sample_keys) = samples;
+        let requested = slot == kind.requested();
+        let mut flags = Vec::with_capacity(sample_keys.len());
+        let mut evals: Vec<ComponentEval> = Vec::new();
+        let mut proofs: Vec<CachedGraphPosteriorAtomIdentification> = Vec::new();
+        let mut seen = HashSet::new();
+        for &key in sample_keys {
+            let Some(run) = by_key.get(&key) else {
+                flags.push(GraphIdentFlag::Unidentified);
+                continue;
+            };
+            let first = seen.insert(key);
+            match run {
+                AtomRun::Unidentified => flags.push(GraphIdentFlag::Unidentified),
+                AtomRun::Unevaluable => {
+                    flags.push(GraphIdentFlag::Identified);
+                    if first {
+                        evals.push(ComponentEval {
+                            key,
+                            status: IdentificationStatus::NotIdentified,
+                            estimand: None,
+                            value: None,
+                            posterior: None,
+                            assumptions: None,
+                            bounds: None,
+                            uncertainty: None,
+                        });
+                    }
+                }
+                AtomRun::Fit(result) => match kind.component_value(result, slot) {
+                    None => flags.push(GraphIdentFlag::Unidentified),
+                    Some(value) => {
+                        flags.push(GraphIdentFlag::Identified);
+                        if first {
+                            let estimand = target_estimand(&result.estimand);
+                            let effect = result.estimate.as_effect();
+                            evals.push(ComponentEval {
+                                key,
+                                status: result.identification.status,
+                                estimand: Some(estimand.clone()),
+                                // A distribution over levels without a mean (a categorical
+                                // outcome) is evaluable: it carries a placeholder scalar
+                                // that the publication removes, so its mass is the atom's
+                                // identified mass, not unevaluable mass.
+                                value: Some(if scalar_free(kind, value) { 0.0 } else { value }),
+                                posterior: requested.then(|| result.posterior.clone()).flatten(),
+                                assumptions: effect
+                                    .map(|effect| effect.provenance.assumptions.clone()),
+                                bounds: atom_identified_bounds(result),
+                                uncertainty: requested
+                                    .then(|| effect.map(|effect| effect.uncertainty))
+                                    .flatten(),
+                            });
+                            proofs.push(CachedGraphPosteriorAtomIdentification {
+                                key,
+                                estimand,
+                                identification: result.identification.clone(),
+                                transport: None,
+                            });
+                        }
+                    }
+                },
+            }
+        }
+        if proofs.is_empty() {
+            return Ok(None);
+        }
+        let graphs = WeightedGraphSamples::new(weights.to_vec(), flags, sample_keys.to_vec())?;
+        let unidentified_mass = graphs.unidentified_mass();
+        let atoms = proofs.len();
+        let label = kind.label();
+        let mut mixed = mix_atom_evals(
+            &evals,
+            AtomMixInput {
+                graphs: &graphs,
+                proofs: &proofs,
+                unidentified_mass,
+                full_mass_scope: true,
+                truncated_atoms: 0,
+                bounds: AtomBoundRule::SetOrPoint,
+                estimand_fallback: true,
+            },
+            |n, mixable| {
+                format!(
+                    "{label} graph-posterior mix: no evaluable atom value (evals={n}, \
+                     mixable={mixable})"
+                )
+            },
+            || format!("{label} graph-posterior mix: missing estimand"),
+        )?;
+        mixed.identification.status = resolve_posterior_status(
+            mixed.identification.status,
+            mixed.policy,
+            PosteriorMassSummary {
+                unidentified: unidentified_mass,
+                unevaluable: mixed.mixture.unevaluable_mass,
+                ..PosteriorMassSummary::default()
+            },
+        );
+        Ok(Some(ComponentMix { mixed, unidentified_mass, atoms }))
+    }
+
+    /// Mix a mediation, path-restricted natural effect or natural direct effect over the atoms
+    /// of a tabular graph posterior.
+    ///
+    /// # Errors
+    ///
+    /// A posterior with DBN lag structure, a validation suite other than `none`, no atom that
+    /// identifies the requested effect, or a cancelled run.
+    pub(super) fn execute_cross_world_graph_posterior(
+        &self,
+        data: &TabularData,
+        gp: &GraphPosterior,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        self.ensure_cross_world_posterior_supported(gp)?;
+        let kind = CrossWorldKind::of(&self.query)?;
+        let (keys, runs) = self.run_cross_world_atoms(data, gp, kind, physical, ctx)?;
+        let rerun = |atoms: &[(u64, f64)]| {
+            self.cross_world_shared_replicates(data, gp, kind, physical, ctx, atoms)
+        };
+        self.publish_cross_world(
+            CrossWorldRuns {
+                kind,
+                samples: (&gp.weights()[..], &gp.graph_keys()[..]),
+                keys,
+                runs,
+                structure: gp.atom_kind().as_str(),
+                strategy: (
+                    Self::cross_world_identifier(kind),
+                    Self::cross_world_estimator(gp, kind),
+                ),
+                started,
+                replicates: Some(&rerun),
+            },
+            physical,
+        )
+    }
+
+    /// Mix and select the requested component while retaining the other mediation values.
+    fn cross_world_components(
+        samples: (&[f64], &[u64]),
+        kind: CrossWorldKind<'_>,
+        by_key: &HashMap<u64, &AtomRun>,
+    ) -> Result<CrossWorldComponents, CausalError> {
+        let requested = kind.requested();
+        let mut mixes: Vec<Option<ComponentMix>> = Vec::with_capacity(kind.components());
+        for slot in 0..kind.components() {
+            mixes.push(Self::mix_cross_world_component(samples, kind, slot, by_key)?);
+        }
+        let value = |slot: usize| {
+            mixes[slot]
+                .as_ref()
+                .filter(|mix| mix.mixed.mixable_scalar)
+                .map(|mix| mix.mixed.estimate.ate)
+        };
+        let (total, direct, mediated) = match kind {
+            CrossWorldKind::Mediation(_) => (value(0), value(1), value(2)),
+            _ => (None, None, None),
+        };
+        let component_report: Vec<String> = mixes
+            .iter()
+            .enumerate()
+            .map(|(slot, mix)| {
+                let name = match kind {
+                    CrossWorldKind::Mediation(_) => MEDIATION_COMPONENTS[slot],
+                    _ => "effect",
+                };
+                match mix {
+                    Some(mix) => format!(
+                        "{name}: {} atom(s), unidentified_mass={}, unevaluable_mass={}",
+                        mix.atoms, mix.unidentified_mass, mix.mixed.mixture.unevaluable_mass
+                    ),
+                    None => format!("{name}: absent (no atom identifies it)"),
+                }
+            })
+            .collect();
+        let requested = mixes.swap_remove(requested).ok_or_else(|| {
+            CausalError::not_identified(
+                IdentificationStatus::NotIdentified,
+                false,
+                &format!(
+                    "no atom of the graph posterior identifies the requested {}",
+                    kind.label()
+                ),
+            )
+        })?;
+
+        Ok(CrossWorldComponents {
+            requested,
+            mediation: [total, direct, mediated],
+            report: component_report,
+        })
+    }
+
+    fn cross_world_publication_diagnostics(
+        &self,
+        kind: CrossWorldKind<'_>,
+        class: &str,
+        mixed: &MixedAtomEvals,
+        accounting: (usize, f64, &[String]),
+        notes: (Vec<Diagnostic>, Vec<Diagnostic>),
+    ) -> Vec<Diagnostic> {
+        let (atoms, unidentified_mass, component_report) = accounting;
+        let (refute_notes, uncertainty_notes) = notes;
+        let mut diagnostics = mixed.identification.diagnostics.clone();
+        if self.settings.inference.is_bayesian() && mixed.posterior.is_none() {
+            diagnostics.push(graph_posterior_withheld_diagnostic());
+        }
+        diagnostics.extend(refute_notes);
+        diagnostics.extend(uncertainty_notes);
+        diagnostics.push(
+            Diagnostic::new(
+                CROSS_WORLD_POSTERIOR_CODE,
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "each {class} posterior atom answered the {} with the executor of its own \
+                     structure (a Dag's plug-in, a mixed graph's path-specific identifier, a \
+                     class's completion envelope), and the atoms are mixed by posterior \
+                     probability per component over the atoms that identify it; components: [{}]; \
+                     an atom the identifier refuses is unidentified mass and an atom whose \
+                     plug-in cannot be evaluated is unevaluable mass, neither redistributed",
+                    kind.label(),
+                    component_report.join("; ")
+                ),
+            )
+            .with_fields([
+                ("atoms", atoms.to_string()),
+                ("unidentified_mass", unidentified_mass.to_string()),
+                ("unevaluable_mass", mixed.mixture.unevaluable_mass.to_string()),
+            ]),
+        );
+        diagnostics.push(
+            Diagnostic::new(
+                "estimate.graph_posterior.structural_aggregation",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "policy={}; weight_basis=posterior_probability; completion enumeration is \
+                     not posterior probability; identified_mass={}; unidentified_mass={}",
+                    mixed.policy.as_str(),
+                    mixed.mixture.identified_mass,
+                    mixed.mixture.unidentified_mass
+                ),
+            )
+            .with_fields(mass_fields(
+                Some(mixed.mixture.identified_mass),
+                mixed.mixture.unidentified_mass,
+            )),
+        );
+        diagnostics.push(overlap_diagnostic(mixed.estimate.provenance.overlap));
+        diagnostics
+            .extend(overlap_limit_diagnostic(mixed.estimate.diagnostics.overlap_report.as_ref()));
+
+        diagnostics
+    }
+
+    /// Mix each atom's own refuter verdicts using the same contributing posterior mass.
+    fn cross_world_refutations(
+        &self,
+        mixed: &MixedAtomEvals,
+        by_key: &HashMap<u64, &AtomRun>,
+    ) -> (Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>) {
+        // Each atom ran the suite its own structure has, against its own estimate; the
+        // reports of one refuter mix by the posterior weight of the atoms that produced them,
+        // and a mixed verdict passes only if every contributing atom passes.
+        if self.settings.refute == RefuteSuite::None {
+            (Vec::new(), Vec::new())
+        } else {
+            let per_atom: Vec<(f64, Vec<antecedent_validate::RefutationReport>)> = mixed
+                .mixture
+                .atoms
+                .iter()
+                .filter(|atom| atom.value.is_some())
+                .filter_map(|atom| match by_key.get(&atom.graph_key).copied() {
+                    Some(AtomRun::Fit(result)) => Some((atom.weight, result.refutations.clone())),
+                    _ => None,
+                })
+                .collect();
+            mix_atom_refutation_reports(&per_atom)
+        }
+    }
+
+    /// Mix the runs of every distinct atom, one mixture per component, and publish the
+    /// component the query asks for with the others beside it.
+    ///
+    /// # Errors
+    ///
+    /// No atom identifies the requested component, or a mixture has no evaluable atom.
+    fn publish_cross_world(
+        &self,
+        input: CrossWorldRuns<'_>,
+        physical: &PhysicalExecutionPlan,
+    ) -> Result<StudyResult, CausalError> {
+        let CrossWorldRuns {
+            kind,
+            samples,
+            keys,
+            runs,
+            structure: class,
+            strategy,
+            started,
+            replicates,
+        } = input;
+        let by_key: HashMap<u64, &AtomRun> = keys.iter().copied().zip(runs.iter()).collect();
+
+        let CrossWorldComponents { requested: component, mediation, report: component_report } =
+            Self::cross_world_components(samples, kind, &by_key)?;
+        let [total, direct, mediated] = mediation;
+        let ComponentMix { mut mixed, unidentified_mass, atoms } = component;
+
+        let (treatment, outcome) = kind.treatment_outcome()?;
+        let no_mean = matches!(kind, CrossWorldKind::Distribution(_))
+            && by_key.values().any(
+                |run| matches!(run, AtomRun::Fit(result) if scalar_free(kind, result.effect())),
+            );
+        let uncertainty_notes = if no_mean {
+            Vec::new()
+        } else {
+            self.mixture_uncertainty(&mut mixed, &by_key, replicates)?
+        };
+        let distribution = match kind {
+            CrossWorldKind::Distribution(_) => Self::mixed_distribution(&by_key, &mixed),
+            _ => None,
+        };
+        let (refutations, refute_notes) = self.cross_world_refutations(&mixed, &by_key);
+        let diagnostics = self.cross_world_publication_diagnostics(
+            kind,
+            class,
+            &mixed,
+            (atoms, unidentified_mass, &component_report),
+            (refute_notes, uncertainty_notes),
+        );
+
+        let algo =
+            physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
+        let MixedAtomEvals {
+            policy,
+            identification,
+            estimand,
+            mut estimate,
+            posterior,
+            mut mixture,
+            ..
+        } = mixed;
+        if no_mean {
+            strip_scalar_free_response(&mut estimate, &mut mixture, &by_key);
+        }
+        let mut finish = IdentifiedExecuteFinish::new(
+            physical,
+            identification,
+            estimand,
+            estimate.clone(),
+            Strategy::new(strategy.0, strategy.1),
+            treatment,
+            outcome,
+        )
+        .identify_cached(false)
+        .wall_time_ns(elapsed_ns(started));
+        if distribution.is_some() {
+            finish = finish.distribution(distribution);
+        }
+        if !refutations.is_empty() {
+            finish = finish.refutations(refutations);
+        }
+        if matches!(kind, CrossWorldKind::Mediation(_)) {
+            finish = finish.mediation(Some(TemporalMediationEstimate {
+                effect: estimate,
+                total,
+                direct,
+                mediated,
+            }));
+        }
+        Ok(self.finish_identified_execute(finish.extras(IdentifiedExecuteExtras {
+            identify_provenance: Some(provenance_ids("discover.graph_posterior", algo)),
+            estimate_provenance: Some(provenance_ids(
+                "estimate.cross_world_graph_posterior",
+                policy.as_str(),
+            )),
+            n_draws: posterior.as_ref().map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX)),
+            posterior,
+            diagnostics: Some(diagnostics),
+            structural_response: Some(mixture),
+            ..Default::default()
+        })))
+    }
+
+    /// Mix the natural mediation decomposition over the atoms of a graph posterior of temporal
+    /// PAGs.
+    ///
+    /// Each atom is a stationary template read as a supplied `TemporalPag` is: unfolded over
+    /// the window of the pulse and its outcome horizon, every stationary MAG completion
+    /// marginalized onto it and read through the ADMGs that share its MAG, the decomposition
+    /// identified only when every candidate identifies the requested contrast and evaluated by
+    /// the plug-in on the lag-aligned window table. An atom whose window leaves the requested
+    /// contrast unidentified keeps its mass as unidentified mass; an atom whose completions
+    /// identify different functionals publishes its identified set, and the mixture publishes
+    /// the union of the atoms' sets beside the posterior-weighted point.
+    ///
+    /// # Errors
+    ///
+    /// A posterior that is not a temporal PAG posterior, a validation suite other than `none`,
+    /// no atom that identifies the requested contrast, or a cancelled run.
+    pub(super) fn execute_temporal_pag_graph_posterior_mediation(
+        &self,
+        series: &TimeSeriesData,
+        gp: &GraphPosterior,
+        query: &MediationQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        super::series_weights::refuse_unread_series_weights(
+            series,
+            "temporal PAG graph-posterior mediation",
+        )?;
+        let started = Instant::now();
+        query.validate()?;
+        let (GraphPosteriorAtomKind::Pag, Some(lag_masks), Some(max_lag)) =
+            (gp.atom_kind(), gp.lag_masks(), gp.max_lag())
+        else {
+            return Err(CausalError::Unsupported {
+                message: "a temporal PAG graph posterior needs Pag atoms with per-atom lag masks \
+                          and max_lag",
+            });
+        };
+        let variables: Vec<VariableId> =
+            series.schema().variables().iter().map(|variable| variable.id).collect();
+        let mark_of = |index: usize| gp.mark_atom(index);
+        // One run per distinct template; a sample is keyed by the first sample that holds it.
+        let mut first_of: HashMap<(AdjacencyMask, LagMask, AdjacencyMask), usize> = HashMap::new();
+        let mut firsts: Vec<usize> = Vec::new();
+        let mut sample_keys: Vec<u64> = Vec::with_capacity(gp.n_graphs());
+        for index in 0..gp.n_graphs() {
+            let first = *first_of
+                .entry((gp.atoms()[index].clone(), lag_masks[index].clone(), mark_of(index)))
+                .or_insert_with(|| {
+                    firsts.push(index);
+                    index
+                });
+            sample_keys.push(u64::try_from(first).unwrap_or(u64::MAX));
+        }
+        let mut keys = Vec::with_capacity(firsts.len());
+        let mut runs = Vec::with_capacity(firsts.len());
+        let mut refusal = None;
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        for index in firsts {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled {
+                    stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
+                });
+            }
+            keys.push(u64::try_from(index).unwrap_or(u64::MAX));
+            let Some(crate::analysis::identification_cache::AdmittedTemporalClassAtom::Pag(
+                template,
+                _lease,
+            )) = crate::analysis::identification_cache::admitted_temporal_class_atom(
+                gp,
+                index,
+                &variables,
+                &mut budget,
+                ctx,
+            )?
+            else {
+                runs.push(AtomRun::Unidentified);
+                continue;
+            };
+            let mut member = self.clone();
+            member.graph = Arc::new(AcceptedGraph::temporal_pag(template));
+            runs.push(
+                match member.execute_temporal_pag_mediation_within(
+                    series,
+                    query,
+                    physical,
+                    &mut budget,
+                    ctx,
+                ) {
+                    Ok(result) => AtomRun::Fit(Box::new(result)),
+                    Err(error) => atom_outcome_of(error, &mut refusal)?,
+                },
+            );
+        }
+        let rerun = |atoms: &[(u64, f64)]| {
+            self.temporal_pag_shared_replicates(
+                series,
+                (gp, &lag_masks[..], max_lag),
+                query,
+                physical,
+                ctx,
+                atoms,
+                &mut budget.clone(),
+            )
+        };
+        self.publish_cross_world(
+            CrossWorldRuns {
+                kind: CrossWorldKind::Mediation(query),
+                samples: (&gp.weights()[..], &sample_keys),
+                keys,
+                runs: require_a_fit(runs, refusal)?,
+                structure: "temporal_pag",
+                strategy: (IdentifierId::PathSpecificNatural, EstimatorId::FunctionalEffect),
+                started,
+                replicates: Some(&rerun),
+            },
+            physical,
+        )
+    }
+
+    /// The estimator the result records: the Dag cell's own for a DAG posterior, the functional
+    /// plug-in for every other structure.
+    fn cross_world_estimator(gp: &GraphPosterior, kind: CrossWorldKind<'_>) -> EstimatorId {
+        match (gp.atom_kind(), kind) {
+            (GraphPosteriorAtomKind::Dag, _) => kind.dag_estimator(),
+            (_, CrossWorldKind::Distribution(_)) => EstimatorId::FunctionalDistribution,
+            _ => EstimatorId::FunctionalEffect,
+        }
+    }
+
+    /// The interventional distribution a mixture of atoms publishes: the posterior-weighted mean
+    /// probability of every outcome level over the atoms that identify and evaluate it, with
+    /// the mean the mixture published. An atom a member lacks has probability zero there. The
+    /// sampling intervals of the levels are those of a fit to one structure, so a mixture of
+    /// several atoms publishes none; a mixture of one atom keeps that atom's own.
+    fn mixed_distribution(
+        by_key: &HashMap<u64, &AtomRun>,
+        mixed: &MixedAtomEvals,
+    ) -> Option<InterventionalDistributionEstimate> {
+        let mut members: Vec<&[DistributionAtom]> = Vec::new();
+        let mut weights: Vec<f64> = Vec::new();
+        let mut template: Option<&InterventionalDistributionEstimate> = None;
+        for atom in &mixed.mixture.atoms {
+            if atom.value.is_none() {
+                continue;
+            }
+            let Some(AtomRun::Fit(result)) = by_key.get(&atom.graph_key).copied() else {
+                continue;
+            };
+            let Some(distribution) = result.distribution() else { continue };
+            members.push(&distribution.atoms[..]);
+            weights.push(atom.weight);
+            template.get_or_insert(distribution);
+        }
+        let template = template?;
+        if members.len() == 1 {
+            return Some(template.clone());
+        }
+        let envelope = envelope_of_members(&members, &weights);
+        let mut distribution = template.clone();
+        distribution.atoms = envelope
+            .iter()
+            .map(|level| DistributionAtom {
+                outcomes: Arc::clone(&level.outcomes),
+                conditioning: Arc::clone(&level.conditioning),
+                probability: level.mean,
+            })
+            .collect();
+        distribution.mean = if template.mean.is_finite() { mixed.estimate.ate } else { f64::NAN };
+        distribution.se_analytic = f64::NAN;
+        distribution.se_bootstrap = None;
+        distribution.bootstrap_replicates_ok = None;
+        distribution.bootstrap_replicates_failed = None;
+        distribution.atom_uncertainty = Arc::from([]);
+        distribution.mean_interval = None;
+        Some(distribution)
+    }
+
+    /// The identifier the query's explicit cell uses.
+    fn cross_world_identifier(kind: CrossWorldKind<'_>) -> IdentifierId {
+        match kind {
+            CrossWorldKind::Distribution(_) => RouteDefaults::DISTRIBUTION.identifier,
+            _ => IdentifierId::PathSpecificNatural,
+        }
+    }
+
+    /// The estimator and identifier a cross-world graph posterior compiles to.
+    pub(super) fn cross_world_posterior_strategy(
+        &self,
+        gp: &GraphPosterior,
+    ) -> Result<(IdentifierId, EstimatorId), CausalError> {
+        let kind = CrossWorldKind::of(&self.query)?;
+        Ok((Self::cross_world_identifier(kind), Self::cross_world_estimator(gp, kind)))
+    }
+}
+
+/// What the explicit class cell of one CPDAG or PAG posterior atom identifies, for the contract
+/// that binds the atom to the mixture.
+pub(crate) struct ClassAtomIdentification {
+    /// The class envelope read as one identification product.
+    pub(crate) result: antecedent_identify::IdentificationResult,
+    /// Completions examined.
+    pub(crate) cases: usize,
+    /// Enumeration weight of the identified completions.
+    pub(crate) identified_weight: f64,
+    /// Enumeration weight of the unidentified completions.
+    pub(crate) unidentified_weight: f64,
+    /// Completions whose search was capped.
+    pub(crate) truncated_completions: usize,
+}
+
+impl ClassAtomIdentification {
+    fn from_envelope<G>(
+        envelope: &antecedent_identify::IdentificationEnvelope<G>,
+        query: CausalQuery,
+    ) -> Self {
+        Self {
+            result: super::envelope_to_identification_result_for(envelope, query),
+            cases: envelope.cases.len(),
+            identified_weight: envelope.identified_weight.0,
+            unidentified_weight: envelope.unidentified_weight.0,
+            truncated_completions: envelope.truncated_completions,
+        }
+    }
+}
+
+impl super::Study {
+    /// Identify a path-restricted effect, a natural direct effect or an interventional
+    /// distribution over the class of posterior sample `index`, exactly as the explicit class
+    /// executor does. `None` when the sample is no member of the posterior's class or the class
+    /// does not identify (its mass is then unidentified).
+    ///
+    /// # Errors
+    ///
+    /// A failure other than an identification refusal.
+    pub(crate) fn class_atom_identification(
+        &self,
+        gp: &GraphPosterior,
+        index: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<ClassAtomIdentification>, CausalError> {
+        let kind = CrossWorldKind::of(&self.query)?;
+        let identifier = Self::cross_world_identifier(kind);
+        let query = match kind {
+            CrossWorldKind::Distribution(q) => CausalQuery::Distribution(q.clone()),
+            CrossWorldKind::PathSpecific(q) => {
+                super::static_path::path_specific_source_parts(
+                    PathSpecificMixedSource::PathSpecific(q),
+                )
+                .0
+            }
+            CrossWorldKind::Nested(q) => {
+                super::static_path::path_specific_source_parts(PathSpecificMixedSource::Nested(q)).0
+            }
+            CrossWorldKind::Mediation(_) => return Ok(None),
+        };
+        let distribution = matches!(kind, CrossWorldKind::Distribution(_));
+        let mask = gp.atoms()[index].clone();
+        let refusal = |error: CausalError| {
+            if error.is_identification_refusal() { Ok(None) } else { Err(error) }
+        };
+        match gp.atom_kind() {
+            GraphPosteriorAtomKind::Cpdag => {
+                let Ok(cpdag) = cpdag_from_adjacency_mask(mask, gp.n_vars()) else {
+                    return Ok(None);
+                };
+                let envelope = if distribution {
+                    crate::strategy_table::identify_cpdag_distribution_in_context(
+                        identifier,
+                        &cpdag,
+                        &query,
+                        Some(ctx),
+                    )
+                } else {
+                    crate::strategy_table::identify_cpdag_path_specific_in_context(
+                        identifier,
+                        &cpdag,
+                        &query,
+                        Some(ctx),
+                    )
+                };
+                let envelope = match envelope {
+                    Ok(envelope) => envelope,
+                    Err(error) => return refusal(error),
+                };
+                if matches!(envelope.status, IdentificationStatus::NotIdentified)
+                    || envelope.identified_weight.0 <= 0.0
+                {
+                    return Ok(None);
+                }
+                Ok(Some(ClassAtomIdentification::from_envelope(&envelope, self.query.clone())))
+            }
+            GraphPosteriorAtomKind::Pag => {
+                let mark = gp.mark_atom(index);
+                let Ok(pag) = pag_from_adjacency_mask(mask, mark, gp.n_vars()) else {
+                    return Ok(None);
+                };
+                let envelope = if distribution {
+                    crate::strategy_table::identify_pag_distribution_in_context(
+                        identifier,
+                        &pag,
+                        &query,
+                        Some(ctx),
+                    )
+                } else {
+                    crate::strategy_table::identify_pag_path_specific_in_context(
+                        identifier,
+                        &pag,
+                        &query,
+                        Some(ctx),
+                    )
+                };
+                let envelope = match envelope {
+                    Ok(envelope) => envelope,
+                    Err(error) => return refusal(error),
+                };
+                // A candidate ADMG the identifier refuses refuses the whole class.
+                if envelope.unidentified_weight.0 > 0.0
+                    || envelope.identified_weight.0 <= 0.0
+                    || matches!(envelope.status, IdentificationStatus::NotIdentified)
+                {
+                    return Ok(None);
+                }
+                Ok(Some(ClassAtomIdentification::from_envelope(&envelope, self.query.clone())))
+            }
+            _ => Ok(None),
+        }
+    }
+}
+
+/// Publish outcome levels without exposing the placeholder scalar or a scalar identified set.
+fn strip_scalar_free_response(
+    estimate: &mut EffectEstimate,
+    mixture: &mut crate::result::StructuralResponseMixture,
+    by_key: &HashMap<u64, &AtomRun>,
+) {
+    // The levels are the answer; the placeholder scalar and the set and conditional
+    // value read from it are not published, and the masses stay as mixed.
+    *estimate = EffectEstimate::new(
+        f64::NAN,
+        f64::NAN,
+        estimate.provenance.assumptions.clone(),
+        OverlapPolicy::ExplicitOverride,
+    );
+    mixture.identified_set = None;
+    mixture.identified_set_interval = None;
+    mixture.conditional_on_identified = None;
+    for atom in &mut mixture.atoms {
+        if matches!(by_key.get(&atom.graph_key).copied(), Some(AtomRun::Fit(_))) {
+            atom.value = None;
+        }
+    }
+}
+
+#[cfg(test)]
+mod pag_replicate_admission_tests {
+    use super::*;
+    use crate::Study;
+    use antecedent_core::{
+        CausalSchemaBuilder, MeasurementSpec, MediationContrast, RoleHint, SmallRoleSet,
+        TemporalBudget, ValueType,
+    };
+    use antecedent_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
+        ValidityBitmap,
+    };
+    use antecedent_discovery::{GraphPosteriorAtomKind, SamplingSummary};
+    use antecedent_prob::InferenceDiagnostics;
+
+    fn fixture() -> (Study, GraphPosterior, Vec<VariableId>) {
+        let mut builder = CausalSchemaBuilder::new();
+        for name in ["t", "m", "y"] {
+            builder
+                .add_variable(
+                    name,
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(RoleHint::Context),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        let schema = builder.build().unwrap();
+        let vars: Vec<_> = (0..3).map(VariableId::from_raw).collect();
+        let columns = vars
+            .iter()
+            .map(|&id| {
+                OwnedColumn::Float64(
+                    Float64Column::new(id, Arc::from(vec![0.0; 8]), ValidityBitmap::all_valid(8))
+                        .unwrap(),
+                )
+            })
+            .collect();
+        let storage = OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap();
+        let series = TimeSeriesData::try_new(
+            storage,
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: 8 },
+        )
+        .unwrap();
+        let posterior = GraphPosterior::new(
+            3,
+            vec![0.5, 0.5],
+            vec![0_u64, 0],
+            vec![0.0; 9],
+            vec![0.0; 9],
+            SamplingSummary {
+                ess: 2.0,
+                diagnostics: InferenceDiagnostics::analytic("pag-replicate-admission"),
+                rejected_invalid: 0,
+            },
+        )
+        .unwrap()
+        .with_atom_kind(GraphPosteriorAtomKind::Pag)
+        .with_lagged_marginals(1, vec![0.0; 9])
+        .unwrap()
+        .with_lag_masks(vec![0_u64, 0])
+        .unwrap();
+        let query =
+            MediationQuery::binary(vars[0], vars[2], [vars[1]], MediationContrast::Mediated);
+        let study = Study::series(series)
+            .graph_posterior(posterior.clone())
+            .query(CausalQuery::Mediation(query))
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        (study, posterior, vars)
+    }
+
+    #[test]
+    fn pag_replicate_member_conversion_propagates_shared_budget_and_cancellation() {
+        let (study, posterior, vars) = fixture();
+        let atoms = [(0_u64, 0.5), (1_u64, 0.5)];
+        let ctx = ExecutionContext::for_tests(1);
+        let mut limits = ctx.temporal_materialization_limits();
+        limits.max_work = 35; // One 3-by-3, two-slice scan fits; two cannot.
+        let mut budget = TemporalBudget::new(limits);
+        assert!(matches!(
+            study.temporal_pag_replicate_members(&posterior, &vars, &atoms, &mut budget, &ctx),
+            Err(CausalError::Resource { .. })
+        ));
+        let cancelled = ExecutionContext::for_tests(2);
+        cancelled.cancellation.cancel();
+        let mut budget = TemporalBudget::new(cancelled.temporal_materialization_limits());
+        assert!(matches!(
+            study.temporal_pag_replicate_members(
+                &posterior,
+                &vars,
+                &atoms,
+                &mut budget,
+                &cancelled
+            ),
+            Err(CausalError::Cancelled { .. })
+        ));
+    }
+}

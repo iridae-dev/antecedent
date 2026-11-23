@@ -13,7 +13,11 @@ from typing import Any, cast
 
 from ._native import AnalysisResult as TemporalAnalysisResult
 from ._native import AteAnalysisResult
-from ._unset_license import unset_dose_license, unset_panel_license, unset_policy_license
+from ._posterior_row import PosteriorRowEstimate
+from ._quasi_rollout import quasi_rollout_from_raw as _quasi_rollout_from_raw
+from ._temporal_design import temporal_design_from_raw as _temporal_design_from_raw
+from ._unset_support import unset_dose_support, unset_panel_support, unset_policy_support
+from .descriptive import association_from_raw as _association_from_raw
 from .errors import CausalValueError
 from .experiment import RandomizedExperimentEstimate
 from .interference import (
@@ -31,9 +35,14 @@ from .policy import (
 from .quasi import (
     AugmentedPanelDiD,
     AugmentedPanelDiDEstimate,
+    IvBoundsEstimate,
+    IvBoundsInterval,
+    IvBoundsPosterior,
     LocalPolynomialRatioEstimate,
+    ObservedWindowSupport,
     PanelDifferenceInDifferences,
     PanelDifferenceInDifferencesEstimate,
+    PeriodHistoryMatchEstimate,
     RegressionKink,
     StaggeredAdoption,
     StaggeredEventStudyEstimate,
@@ -41,7 +50,7 @@ from .quasi import (
     SyntheticControlEstimate,
     SyntheticDifferenceInDifferencesEstimate,
 )
-from .regimes import LongitudinalRegimeEstimate
+from .regimes import LongitudinalRegimeEstimate, SequentialContrastEstimate
 from .results import (
     AnalysisResult,
     ConflictSummaryView,
@@ -49,6 +58,11 @@ from .results import (
     EffectEnvelope,
     EstimateView,
     IdentificationView,
+    ImputationExtraView,
+    ImputationVectorView,
+    ImputationView,
+    ImputationWaldView,
+    IntervalBindingView,
     MediationView,
     MissingDataView,
     PerformanceView,
@@ -64,6 +78,7 @@ from .results import (
     ValidationView,
 )
 from .results._views import (
+    CounterfactualContrastView,
     DropReasonView,
     GroupAccountingView,
     MissingVariableView,
@@ -79,6 +94,7 @@ from .survival import (
     CumulativeIncidenceEstimate,
     SurvivalDifferenceBand,
     SurvivalEstimate,
+    difference_at_tau,
 )
 from .transport._impl import (
     OverlapDiagnostic,
@@ -98,9 +114,24 @@ def _refutation_reports_from_raw(validation: Any) -> list[RefutationReport]:
             passed=r.passed,
             failure_condition=r.failure_condition,
             replicates=r.replicates,
+            scope_kind=getattr(r, "scope_kind", None),
+            scope_target_identity=getattr(r, "scope_target_identity", None),
+            scope_outer_atom=getattr(r, "scope_outer_atom", None),
+            scope_completion_digest=getattr(r, "scope_completion_digest", None),
+            scope_horizon_index=getattr(r, "scope_horizon_index", None),
+            scope_horizon=getattr(r, "scope_horizon", None),
         )
         for r in getattr(validation, "reports", None) or ()
     ]
+
+
+def _predictive_replicates_from_raw(raw: Any) -> Any:
+    native = getattr(raw, "predictive_replicates", None)
+    if native is None:
+        return None
+    from .predictive_assessment import PosteriorReplicates  # noqa: PLC0415
+
+    return PosteriorReplicates.from_native(native)
 
 
 def _plan_from_raw(raw: Any) -> PlanView:
@@ -195,6 +226,27 @@ def _unit_effect_intervals_from_raw(raw: Any) -> list[tuple[float, float]] | Non
     return [(float(lower), float(upper)) for lower, upper in pairs]
 
 
+def _counterfactual_contrasts_from_raw(raw: Any) -> tuple[CounterfactualContrastView, ...] | None:
+    """Native per-outcome contrast rows → views (``None`` for a single-outcome query)."""
+    rows = getattr(raw, "counterfactual_contrasts", None)
+    if rows is None:
+        return None
+    return tuple(
+        CounterfactualContrastView(
+            outcome=str(outcome),
+            mean_effect=float(mean),
+            standard_error=None if se is None else float(se),
+            unit_effects=[float(v) for v in effects],
+            unit_effect_intervals=None
+            if intervals is None
+            else [(float(lo), float(hi)) for lo, hi in intervals],
+            unit_extrapolative=None if flags is None else [bool(f) for f in flags],
+            unit_effects_homogeneous=bool(homogeneous),
+        )
+        for outcome, mean, se, effects, intervals, flags, homogeneous in rows
+    )
+
+
 def _distribution_atoms_from_raw(sec_estimate: Any) -> tuple[DistributionAtomView, ...] | None:
     """Native distribution atoms with their bounded probability intervals."""
     atoms = getattr(sec_estimate, "distribution_atoms", None)
@@ -275,7 +327,7 @@ def _interference_from_raw(raw: Any) -> InterferenceEstimate | None:
     else:
         uncertainty = (
             "Conservative Young variance bound under the declared randomization; "
-            "see the support matrix for interval licensing."
+            "see the support matrix for interval support."
         )
     return InterferenceEstimate(
         RandomizationContrast(
@@ -311,9 +363,9 @@ def _interference_from_raw(raw: Any) -> InterferenceEstimate | None:
         pointwise_interval=pointwise_interval,
         interval_unavailable_reason=section.interval_unavailable_reason,
         support_status=(
-            "licensed"
-            if section.graphless_support_status == "licensed"
-            else "unlicensed_point_utility"
+            "supported"
+            if section.graphless_support_status == "supported"
+            else "unsupported_point_utility"
         ),
     )
 
@@ -366,6 +418,14 @@ def row_accounting_from_dict(
     )
 
 
+def _interval_bindings_from_raw(raw: Any) -> tuple[IntervalBindingView, ...]:
+    """The intervals a native result reported, primary first."""
+    payload = getattr(raw, "interval_bindings_json", None)
+    if not payload:
+        return ()
+    return tuple(IntervalBindingView(**entry) for entry in json.loads(payload))
+
+
 def _missing_data_from_raw(raw: Any, prepared: Any | None) -> MissingDataView | None:
     """The missing-data view of a native result, with participant labels when bound."""
     payload = getattr(raw, "missing_data_json", None)
@@ -373,11 +433,63 @@ def _missing_data_from_raw(raw: Any, prepared: Any | None) -> MissingDataView | 
         return None
     parsed = json.loads(payload)
     labels = None if prepared is None else getattr(prepared, "participants", None)
+    imputation = parsed.get("imputation")
     return MissingDataView(
         declared=parsed["declared"],
         assumption=parsed["assumption"],
         covariates=tuple(parsed["covariates"]),
         accounting=row_accounting_from_dict(parsed["accounting"], labels),
+        imputation=None
+        if imputation is None
+        else ImputationView(
+            **{
+                **imputation,
+                "imputed_cells": {
+                    entry["variable"]: entry["cells"] for entry in imputation["imputed_cells"]
+                },
+                "points": tuple(imputation["points"]),
+                "vector": _imputation_vector(imputation.get("vector")),
+            }
+        ),
+    )
+
+
+def _imputation_vector(raw: Mapping[str, Any] | None) -> ImputationVectorView | None:
+    """The joint pooling of a multi-coordinate multiple-imputation answer."""
+    if raw is None:
+        return None
+    wald = raw.get("wald")
+    return ImputationVectorView(
+        labels=tuple(raw["labels"]),
+        covariance_basis=raw["covariance_basis"],
+        points=tuple(tuple(point) for point in raw["points"]),
+        point=tuple(raw["point"]),
+        within=tuple(raw["within"]),
+        between=tuple(raw["between"]),
+        total=tuple(raw["total"]),
+        coordinate_df=tuple(raw["coordinate_df"]),
+        coordinate_fraction_missing_information=tuple(
+            raw["coordinate_fraction_missing_information"]
+        ),
+        average_relative_increase=raw.get("average_relative_increase"),
+        wald=None
+        if wald is None
+        else ImputationWaldView(
+            null=tuple(wald["null"]),
+            statistic=wald["statistic"],
+            # A reference with no denominator degrees of freedom to spare is the chi-square law.
+            df_numerator=wald["df_numerator"],
+            df_denominator=math.inf if wald["df_denominator"] is None else wald["df_denominator"],
+        ),
+        extras=tuple(
+            ImputationExtraView(
+                label=extra["label"],
+                points=tuple(extra["points"]),
+                point=extra["point"],
+                between=extra["between"],
+            )
+            for extra in raw.get("extras", ())
+        ),
     )
 
 
@@ -421,7 +533,7 @@ def _randomized_effect_from_raw(raw: Any) -> RandomizedExperimentEstimate | None
             or (
                 "off_axis_interval_evidence"
                 if section.interval_95 is not None
-                else "unlicensed_off_matrix"
+                else "unsupported_off_matrix"
             )
         ),
     )
@@ -452,6 +564,8 @@ def _panel_did_from_raw(
             nuisance_predictions_cross_fitted=declared,
             clusters=section.clusters,
             uncertainty=section.uncertainty,
+            interval_95=section.interval_95,
+            standard_error=section.standard_error if section.interval_95 is not None else None,
         )
     if isinstance(query, StaggeredAdoption) and query.event_study:
         intervals = section.event_time_intervals_95
@@ -486,14 +600,14 @@ def _panel_did_from_raw(
             uncertainty=(
                 "event_time_pointwise_normal_intervals_independent_clusters"
                 if supported
-                else "cluster_robust_se_only_pointwise_cr1_unlicensed"
+                else "cluster_robust_se_only_pointwise_cr1_unsupported"
             ),
             support_status=(
-                "licensed"
-                if section.graphless_support_status == "licensed"
+                "supported"
+                if section.graphless_support_status == "supported"
                 else "off_axis_pointwise_95"
                 if supported
-                else "unlicensed_point_utility"
+                else "unsupported_point_utility"
             ),
         )
     repeated = (
@@ -540,10 +654,23 @@ def _panel_did_from_raw(
         ),
         support_status=(
             section.graphless_support_status
-            or unset_panel_license(has_interval=section.interval_95 is not None)
+            or unset_panel_support(has_interval=section.interval_95 is not None)
         ),
         cohort=query.target_cohort if staggered else None,
         period=query.target_period if staggered else None,
+    )
+
+
+def _observed_window_from_raw(raw: Any) -> ObservedWindowSupport | None:
+    if raw is None:
+        return None
+    pre, post, used, dropped, unread = raw
+    return ObservedWindowSupport(
+        pre_periods=tuple(int(period) for period in pre),
+        post_periods=tuple(int(period) for period in post),
+        donors_used=int(used),
+        donors_dropped=tuple((str(unit), int(missed)) for unit, missed in dropped),
+        unread_rows=int(unread),
     )
 
 
@@ -569,6 +696,7 @@ def _synthetic_control_from_raw(raw: Any) -> SyntheticControlEstimate | None:
         unadjusted_effect=section.unadjusted_effect,
         outcome_model_correction=section.outcome_model_correction,
         augmentation_ridge=section.augmentation_ridge,
+        observed_window=_observed_window_from_raw(section.observed_window),
         uncertainty=section.uncertainty,
         assumptions=(
             "no_anticipation",
@@ -618,6 +746,7 @@ def _synthetic_did_from_raw(raw: Any) -> SyntheticDifferenceInDifferencesEstimat
         randomization_statistics=tuple(
             (str(unit), float(statistic)) for unit, statistic in section.randomization_statistics
         ),
+        randomization_ranking_tolerance=section.randomization_ranking_tolerance,
         uncertainty=(
             section.uncertainty if section.randomization_p_value is not None else "point_only"
         ),
@@ -678,8 +807,8 @@ def _local_polynomial_ratio_from_raw(raw: Any, query: Any) -> LocalPolynomialRat
             "independent_local_observations",
         ),
         support_status=(
-            "licensed"
-            if getattr(section, "graphless_support_status", None) == "licensed"
+            "supported"
+            if getattr(section, "graphless_support_status", None) == "supported"
             else "off_axis_interval_evidence"
         ),
         diagnostics=(
@@ -694,6 +823,11 @@ def _local_polynomial_ratio_from_raw(raw: Any, query: Any) -> LocalPolynomialRat
     )
 
 
+def _posterior_row_from_raw(raw: Any) -> PosteriorRowEstimate | None:
+    section = getattr(raw, "posterior_row", None)
+    return None if section is None else PosteriorRowEstimate._from_raw(section)
+
+
 def _survival_from_raw(
     raw: Any, query: Any = None
 ) -> SurvivalEstimate | CumulativeIncidenceEstimate | None:
@@ -706,7 +840,7 @@ def _survival_from_raw(
     fixed_g = getattr(query, "known_censoring", None) is not None
     has_interval = section.difference_at_tau_interval is not None
     native_band = section.difference_band
-    # The band license is the sixth tuple element on builds that carry it; older
+    # The band support is the sixth tuple element on builds that carry it; older
     # builds return a five-element tuple, so read it defensively.
     band_status = native_band[5] if native_band is not None and len(native_band) > 5 else None
     difference_band = (
@@ -716,7 +850,7 @@ def _survival_from_raw(
             lower=tuple(native_band[2]),
             upper=tuple(native_band[3]),
             replicates_ok=native_band[4],
-            support_status=band_status or "unlicensed_simultaneous_band",
+            support_status=band_status or "unsupported_simultaneous_band",
         )
         if native_band is not None
         else None
@@ -737,23 +871,23 @@ def _survival_from_raw(
             else "independent_delayed_entry_within_arm",
         )
     provenance = section.censoring_survival_provenance
-    scalar_licensed = getattr(raw, "evidence_status", None) == "licensed"
-    band_licensed = band_status == "licensed"
-    # The paired RMST + horizon survival scalar license and the simultaneous
-    # band license are distinct graphless claims. The scalar license takes the
-    # top-level slot when present; a licensed band that stands alone (for example
+    scalar_supported = getattr(raw, "evidence_status", None) == "supported"
+    band_supported = band_status == "supported"
+    # The paired RMST + horizon survival scalar support and the simultaneous
+    # band support are distinct graphless claims. The scalar support takes the
+    # top-level slot when present; a supported band that stands alone (for example
     # an off-axis competing-incidence scalar) is reported as such; the band's own
-    # license is always carried on ``difference_band.support_status``.
+    # support is always carried on ``difference_band.support_status``.
     support_status = (
-        "licensed"
-        if scalar_licensed
-        else "licensed_simultaneous_band"
-        if band_licensed
-        else "unlicensed_simultaneous_band"
+        "supported"
+        if scalar_supported
+        else "supported_simultaneous_band"
+        if band_supported
+        else "unsupported_simultaneous_band"
         if difference_band is not None
-        else "unlicensed_pointwise_interval"
+        else "unsupported_pointwise_interval"
         if has_interval
-        else "unlicensed_point_utility"
+        else "unsupported_point_utility"
     )
     if isinstance(query, CompetingRisksOutcome) or section.target_cause is not None:
         return CumulativeIncidenceEstimate(
@@ -761,7 +895,7 @@ def _survival_from_raw(
             times=times,
             control_incidence=control,
             treated_incidence=treated,
-            incidence_difference=treated[-1] - control[-1],
+            incidence_difference=difference_at_tau(times, treated, control, section.tau),
             tau=section.tau,
             uncertainty=section.uncertainty,
             incidence_difference_interval=(
@@ -817,6 +951,102 @@ def _survival_from_raw(
     )
 
 
+def _sequential_contrast_from_raw(raw: Any) -> SequentialContrastEstimate | None:
+    section = getattr(raw, "sequential_contrast", None)
+    if section is None:
+        return None
+    return SequentialContrastEstimate(
+        posterior_symmetric_interval=getattr(section, "posterior_symmetric_interval", None),
+        active_regime=tuple(section.active_regime),
+        control_regime=tuple(section.control_regime),
+        contrast=section.contrast,
+        active_mean=section.active_mean,
+        control_mean=section.control_mean,
+        evaluated_rows=section.evaluated_rows,
+        minimum_action_probability=section.minimum_action_probability,
+        min_probability=section.min_probability,
+        coverage=section.coverage,
+        active_scores=tuple(section.active_scores),
+        control_scores=tuple(section.control_scores),
+        contrast_scores=tuple(section.contrast_scores),
+        uncertainty=section.uncertainty,
+        standard_error=section.standard_error,
+        interval=None if section.interval is None else tuple(section.interval),
+        fits_computed=section.fits_computed,
+        fits_reused=section.fits_reused,
+        supported=bool(section.supported),
+        support_status="supported" if section.supported else "unsupported_uncalibrated",
+    )
+
+
+def _history_match_from_raw(raw: Any) -> PeriodHistoryMatchEstimate | None:
+    section = getattr(raw, "history_match", None)
+    if section is None:
+        return None
+    return PeriodHistoryMatchEstimate(
+        contrast=section.contrast,
+        weight_total=section.weight_total,
+        matched_queries=tuple(section.matched_queries),
+        matched_donors=tuple(section.matched_donors),
+        differences=tuple(section.differences),
+        pair_weights=tuple(section.pair_weights),
+        unmatched_treated=tuple(section.unmatched_treated),
+        periods_matched=section.periods_matched,
+        uncertainty=section.uncertainty,
+        standard_error=section.standard_error,
+        caliper=section.caliper,
+        serial_standard_error=section.serial_standard_error,
+        interval_lower=section.interval_lower,
+        interval_upper=section.interval_upper,
+        supported=bool(section.supported),
+        support_status="supported" if section.supported else "unsupported_uncalibrated",
+    )
+
+
+def _iv_bounds_from_raw(raw: Any) -> IvBoundsEstimate | None:
+    section = getattr(raw, "iv_bounds", None)
+    if section is None:
+        return None
+    interval = section.interval
+    posterior = section.posterior
+    return IvBoundsEstimate(
+        lower=section.lower,
+        upper=section.upper,
+        cells=tuple(section.cells),
+        arm_weights=tuple(section.arm_weights),
+        rows=section.rows,
+        rows_dropped=section.rows_dropped,
+        uncertainty=interval.method
+        if interval is not None
+        else "identified_set_without_sampling_interval",
+        interval=None
+        if interval is None
+        else IvBoundsInterval(
+            level=interval.level,
+            lower=interval.lower,
+            upper=interval.upper,
+            lower_se=interval.lower_se,
+            upper_se=interval.upper_se,
+            critical_value=interval.critical_value,
+            width_retained=interval.width_retained,
+            replicates=interval.replicates,
+            infeasible=interval.infeasible,
+            method=interval.method,
+        ),
+        posterior=None
+        if posterior is None
+        else IvBoundsPosterior(
+            n_draws=posterior.n_draws,
+            infeasible_draws=posterior.infeasible_draws,
+            lower_mean=posterior.lower_mean,
+            upper_mean=posterior.upper_mean,
+            lower_sd=posterior.lower_sd,
+            upper_sd=posterior.upper_sd,
+        ),
+        supported=bool(getattr(section, "supported", False)),
+    )
+
+
 def _longitudinal_regime_from_raw(raw: Any) -> LongitudinalRegimeEstimate | None:
     section = getattr(raw, "longitudinal_regime", None)
     if section is None:
@@ -832,11 +1062,11 @@ def _longitudinal_regime_from_raw(raw: Any) -> LongitudinalRegimeEstimate | None
         ),
         interval_reason=section.interval_reason,
         support_status=(
-            "licensed"
-            if section.graphless_support_status == "licensed"
+            "supported"
+            if section.graphless_support_status == "supported"
             else "off_axis_pointwise_95"
             if section.value_interval_95 is not None
-            else "unlicensed_point_utility"
+            else "unsupported_point_utility"
         ),
         effective_sample_size=section.effective_sample_size,
         matched_observed_fraction=section.matched_observed_fraction,
@@ -917,7 +1147,7 @@ def _continuous_dose_from_raw(raw: Any) -> ConditionalDoseResponseEstimate | Non
         fixed_policy=fixed_policy,
         support_status=(
             section.graphless_support_status
-            or unset_dose_license(
+            or unset_dose_support(
                 has_incremental_interval=fixed_policy is not None
                 and fixed_policy.incremental_interval_95 is not None
             )
@@ -952,7 +1182,7 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
         incremental_value_interval_95=section.incremental_interval_95,
         support_status=(
             section.graphless_support_status
-            or unset_policy_license(
+            or unset_policy_support(
                 has_regret=section.regret is not None,
                 has_interval=section.policy_interval_95 is not None
                 or any(interval is not None for _, _, _, _, interval in section.uplift_bins)
@@ -1083,6 +1313,25 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
     )
 
 
+def _execution_slots(execution: Any | None) -> ReasoningSlots | None:
+    """The reasoning slots of a frozen execution, or ``None`` when it has no contract.
+
+    A functional-validation result (a vector refitted on perturbed data) is not described by
+    the handle's contract, which names a run with no validation, so it carries no slots.
+    """
+    if execution is None or not execution.has_execution_contract():
+        return None
+    # Completion-level response checks are inspectable but cannot be sealed as
+    # whole-result evidence. Keep the native result without inventing a claim.
+    if getattr(execution, "response_checks_are_scoped", lambda: False)():
+        return None
+    # Capture the native contract and scientific evidence once, at execution.
+    # Inspection reads these immutable presentation records; it never exports an
+    # artifact or reaches back into the native execution to materialize a payload.
+    record = json.loads(execution.execution_record_json())
+    return ReasoningSlots.from_result_section(record["contract"], record["evidence"])
+
+
 def _wrap_ate(
     raw: AteAnalysisResult | TemporalAnalysisResult,
     prepared: Any | None = None,
@@ -1108,9 +1357,7 @@ def _wrap_ate(
     `_wrap_temporal` left them.
     """
     execution = None if prepared is None else prepared._native.snapshot()
-    slots = (
-        None if execution is None else ReasoningSlots.from_contract(execution.execution_contract())
-    )
+    slots = _execution_slots(execution)
 
     def _conflict_from_raw(r: Any) -> ConflictSummaryView | None:
         ids = getattr(r, "conflict_source_ids", None)
@@ -1175,6 +1422,7 @@ def _wrap_ate(
             envelope=envelope,
             conflict=_conflict_from_raw(raw),
             subsampled_out_mass=skipped,
+            predictive_replicates=_predictive_replicates_from_raw(raw),
         )
 
     # The predictive-check fields are static-DTO only; the temporal DTO does not
@@ -1199,6 +1447,8 @@ def _wrap_ate(
             predictive_sd=float(predictive_sd),
             p_value=float(p_value),
             n_sims=int(n_sims),
+            dispersion_p_value=getattr(raw, f"{prefix}_dispersion_p_value", None),
+            noise=getattr(raw, f"{prefix}_noise", None),
         )
 
     prior_predictive = _ppc("prior_ppc", "prior_predictive")
@@ -1241,9 +1491,9 @@ def _wrap_ate(
             TemporalMediationSliceView(
                 horizon=int(values[0]),
                 effect=float(values[1]),
-                total=float(values[2]),
-                direct=float(values[3]),
-                mediated=float(values[4]),
+                total=None if values[2] is None else float(values[2]),
+                direct=None if values[3] is None else float(values[3]),
+                mediated=None if values[4] is None else float(values[4]),
                 identification_status=str(values[5]),
                 method=str(values[6]),
                 adjustment=tuple((int(variable), int(offset)) for variable, offset in values[7]),
@@ -1276,6 +1526,25 @@ def _wrap_ate(
             slices=slices,
             joint_posterior=bool(getattr(raw, "mediation_joint_posterior", False)),
         )
+    # A declared weighted target population adds its declaration and overlap diagnostics to the
+    # result; a result without one carries exactly the assumptions and provenance it always did.
+    weighted_target = None
+    target_names = getattr(prepared, "_weighted_target_names", None)
+    if target_names is not None and prepared is not None:
+        from .population import WeightedTargetReport
+
+        weighted_target = WeightedTargetReport._from_native(
+            prepared._native.weighted_target_report(), target_names
+        )
+    assumptions = getattr(raw, "assumptions", None)
+    provenance: dict[str, Any] = {
+        "node_count": raw.provenance_node_count,
+        "worker_threads": getattr(raw, "worker_threads", None),
+        "expected_python_crossings": getattr(raw, "expected_python_crossings", None),
+    }
+    if weighted_target is not None:
+        assumptions = [*(assumptions or ()), *weighted_target.assumptions()]
+        provenance["weighted_target"] = weighted_target.to_dict()
     # ResultModel accepts private retained handles outside its public Pydantic fields.
     return AnalysisResult(  # type: ignore[call-arg]
         certificate=json.loads(certificate_json) if certificate_json else None,
@@ -1295,6 +1564,7 @@ def _wrap_ate(
             method=sec_estimate.method,
             overlap_ess=sec_estimate.overlap_ess,
             overlap_propensity_min=sec_estimate.overlap_propensity_min,
+            overlap_excluded_fraction=getattr(sec_estimate, "overlap_excluded_fraction", None),
             mediation=mediation,
             functional_means=tuple(functional_means)
             if (functional_means := getattr(sec_estimate, "functional_means", None)) is not None
@@ -1319,6 +1589,7 @@ def _wrap_ate(
             adjusted_p_values=getattr(sec_estimate, "adjusted_p_values", None),
             family_contrast=getattr(sec_estimate, "family_contrast", None),
             family_contrast_interval=getattr(sec_estimate, "family_contrast_interval", None),
+            family_contrast_posterior=getattr(sec_estimate, "family_contrast_posterior", None),
             candidate_selection=getattr(sec_estimate, "candidate_selection", None),
             evalue=getattr(sec_estimate, "evalue", None),
             evalue_threshold=getattr(sec_estimate, "evalue_threshold", None),
@@ -1356,7 +1627,9 @@ def _wrap_ate(
         unit_effect_intervals_level=getattr(raw, "unit_effect_intervals_level", None),
         unit_effect_intervals_method=getattr(raw, "unit_effect_intervals_method", None),
         unit_extrapolative=getattr(raw, "unit_extrapolative", None),
-        assumptions=getattr(raw, "assumptions", None),
+        counterfactual_contrasts=_counterfactual_contrasts_from_raw(raw),
+        assumptions=assumptions,
+        weighted_target=weighted_target,
         support=getattr(raw, "support_diagnostics", None),
         mediation=mediation,
         mediation_grid=mediation_grid,
@@ -1384,21 +1657,25 @@ def _wrap_ate(
             stage_timings={str(k): int(v) for k, v in (sec_performance.stage_timings or [])}
             or None,
             bytes_borrowed=getattr(sec_performance, "bytes_borrowed", None),
+            resampling=_resampling_from_raw(getattr(sec_performance, "resampling", None)),
         ),
         diagnostics=list(raw.diagnostics),
-        provenance={
-            "node_count": raw.provenance_node_count,
-            "worker_threads": getattr(raw, "worker_threads", None),
-            "expected_python_crossings": getattr(raw, "expected_python_crossings", None),
-        },
+        route_diagnostics=tuple(
+            {"route": route, "outcome": outcome, "failed": failed, "unevaluable_mass": mass}
+            for route, outcome, failed, mass in getattr(raw, "route_diagnostics", ())
+        ),
+        provenance=provenance,
         plan=_plan_from_raw(raw),
         evidence_status=getattr(raw, "evidence_status", None),
-        allowlist_reason=getattr(raw, "allowlist_reason", None),
-        allowlist_parent=getattr(raw, "allowlist_parent", None),
+        would_refuse=tuple(
+            {"code": code, "detail": detail, "missing": tuple(missing)}
+            for code, detail, missing in getattr(raw, "would_refuse", ())
+        ),
         structural_weight_basis=getattr(raw, "structural_weight_basis", None),
         structural_identified_mass=getattr(raw, "structural_identified_mass", None),
         structural_unidentified_mass=getattr(raw, "structural_unidentified_mass", None),
         structural_unevaluable_mass=getattr(raw, "structural_unevaluable_mass", None),
+        structural_aggregation_policy=getattr(raw, "structural_aggregation_policy", None),
         structural_identified_set=getattr(raw, "structural_identified_set", None),
         structural_identified_set_interval=getattr(raw, "structural_identified_set_interval", None),
         structural_identified_set_interval_level=getattr(
@@ -1411,6 +1688,7 @@ def _wrap_ate(
             raw, "structural_identified_set_interval_truncated", None
         ),
         missing_data=_missing_data_from_raw(raw, prepared),
+        interval_bindings=_interval_bindings_from_raw(raw),
         transport_overlap=_transport_overlap_from_raw(raw),
         interference=_interference_from_raw(raw),
         randomized_effect=_randomized_effect_from_raw(raw),
@@ -1421,7 +1699,14 @@ def _wrap_ate(
         policy_value=_policy_value_from_raw(raw),
         continuous_dose_response=_continuous_dose_from_raw(raw),
         survival=_survival_from_raw(raw, query),
+        posterior_row=_posterior_row_from_raw(raw),
         longitudinal_regime=_longitudinal_regime_from_raw(raw),
+        sequential_contrast=_sequential_contrast_from_raw(raw),
+        history_match=_history_match_from_raw(raw),
+        iv_bounds=_iv_bounds_from_raw(raw),
+        association=_association_from_raw(raw),
+        quasi_rollout=_quasi_rollout_from_raw(raw),
+        temporal_design=_temporal_design_from_raw(raw),
         anomaly=getattr(raw, "anomaly", None),
         change_attribution=getattr(raw, "change_attribution", None),
         _raw=raw,
@@ -1432,3 +1717,34 @@ def _wrap_ate(
         claim_id=None if slots is None else slots.claim_id,
         data_snapshot_id=None if slots is None else slots.data_snapshot_id,
     )
+
+
+_WAVE_FIELDS = (
+    "wave",
+    "first_replicate",
+    "attempted",
+    "ok",
+    "estimator_errors",
+    "non_finite",
+    "declined",
+)
+
+
+def _resampling_from_raw(section: Any) -> dict[str, Any] | None:
+    """The resampling section of a requested bootstrap interval as plain data."""
+    if section is None:
+        return None
+    return {
+        "level": section.level,
+        "wave_size": section.wave_size,
+        "min_replicates": section.min_replicates,
+        "max_replicates": section.max_replicates,
+        "se_rel_tol": section.se_rel_tol,
+        "half_width_rel_tol": section.half_width_rel_tol,
+        "interval": None if section.interval is None else tuple(section.interval),
+        "stop": section.stop,
+        "attempted": section.attempted,
+        "waves": tuple(dict(zip(_WAVE_FIELDS, wave, strict=True)) for wave in section.waves),
+        "se_rel_mc_error": section.se_rel_mc_error,
+        "half_width_rel_mc_error": section.half_width_rel_mc_error,
+    }

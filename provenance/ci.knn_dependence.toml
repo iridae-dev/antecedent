@@ -15,7 +15,7 @@ papers = []
 implementation_deviations = [
  "The statistic is −mean k-th NN Euclidean distance in the concatenated (X, Y, Z) features, not a mutual-information estimator.",
  "Conditional permutation shuffles Y within exact strata when Z has few distinct joint levels and otherwise, for a single continuous Z, within size-2 windows of rows sorted by Z, not a full within-neighborhood conditional permutation scheme. A continuous conditioning set of two or more variables is refused: no row grouping keeps near-Z rows close enough for the permutation null to hold Type I error.",
- "Block-preserving permutation is licensed only when Z is empty; with a conditioning set a requested block size is refused.",
+ "Block-preserving permutation is supported only when Z is empty; with a conditioning set a requested block size is refused.",
  "Without an explicit replicate count the permutation null uses 49 draws, so the smallest attainable p-value is 0.02; discovery refuses an alpha the test cannot resolve.",
  "mixed_knn_dependence rank-transforms columns that look discrete, then runs the same test. That preprocessing is not a published mixed-data CI procedure.",
 ]
@@ -25,3 +25,42 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-stats/src/ci/advanced.rs (KnnDependence, MixedKnnDependence)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "KnnDependence in crates/antecedent-stats/src/ci/advanced/knn.rs: the statistic minus the mean distance from each row to its k-th nearest other row in the joint (X, Y, Z) space, the permutation of Y, the rule for counting a permuted statistic that equals the observed one (null_reaches_observed in ci/block_shuffle.rs), and the add-one p-value. Reviewed with an empty conditioning set. Not the Z-stratified null, the mixed-data rank transform, the nearest-neighbour index, or block permutation."
+assumptions = ["Rows are exchangeable under the null (the permutation argument).", "The statistic is a generic dependence proxy, not a mutual-information estimator; its power is not examined here."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), itertools and collections from the Python standard library, imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Four tie-rich series of 8 to 9 rows on a decimal grid (k = 1 and 2), with every distinct arrangement of Y enumerated (at most 1680). The Monte Carlo p-value is compared with its exact expectation at 20000 replicates within five binomial standard errors, so a bias smaller than about 0.01 would not be detected. The statistic is asserted to 1e-12. Conditioning sets and the stratified null are not enumerated. The tie slack was applied to this test because it shares the defect class found in the distance-correlation and discrete tests; none of the four series failed before the slack was added, so no wrong p-value from this test was observed. The reference script is not run in a locked, isolated environment and is not wired into any gate."
+sources = ["https://mpmath.org/"]
+findings_resolved = ["The statistic equals the 60-digit value on all four series and the p-value equals the exactly enumerated null.", "The permuted statistic is now compared with the relative slack used by the discrete tests (null_reaches_observed), because the mean of k-th neighbour distances is summed in row order and a permutation that relabels the grid reorders the sum; the strict comparison was a latent hazard, not an observed failure."]
+record_sha256 = "e3bfe0970469c1cdc7ed43f5ef4cd1645e8f9354f8549b9dcc044d7317827854"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/ci/advanced/knn.rs"
+items = ["fn default", "fn new", "struct KnnDependence"]
+sha256 = "9ccfd594c20cdc812e0999b09f63c622bf2433fe9cfa15d65c9d34d7d7b46f4e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/ci/block_shuffle.rs"
+items = ["fn default", "fn null_reaches_observed"]
+sha256 = "4aff21e81bb2a67a4961ba405391368ab5b4b615eca77e8f268dca07e5e444de"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/continuous_null_reference.rs"
+items = ["const REPLICATES", "fn check", "fn distance_correlation_permutation_p_value_counts_tied_arrangements_like_the_enumerated_null", "fn floats", "fn knn_distance_permutation_p_value_counts_tied_arrangements_like_the_enumerated_null"]
+sha256 = "43b33db33b730741256bfa4c26d1e286d60a9b9df933401f0af2840b3f50297d"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/continuous_null_reference.py"
+sha256 = "2d711de5cfcca9600819b43e2d53c0ff7be0f26486074eb7f1313405324cfd5a"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/continuous_null_reference.json"
+sha256 = "7b8146587817b86073833fb2b7fce66285de2babd4a1efd6b423be1856d97789"

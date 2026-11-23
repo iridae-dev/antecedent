@@ -10,6 +10,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention, ResponseFunctional,
@@ -18,7 +19,7 @@ use antecedent_core::{
 use antecedent_data::TabularData;
 use antecedent_discovery::adjacency_mask::set_edge;
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use antecedent_prob::{GraphIdentFlag, InferenceDiagnostics};
 
 /// Columns `t, y, z`: `z` and the treatment noise are deterministic waves,
@@ -164,7 +165,7 @@ fn assert_identified_atoms_match_truth(
 }
 
 /// `InterventionResponse`/`ResponseCurve` × `Dag`/`Cpdag`/`Pag` ×
-/// `graph_posterior` × Frequentist/Bayesian × the licensed suites: the retained
+/// `graph_posterior` × Frequentist/Bayesian × the supported suites: the retained
 /// plan freezes the atoms, weights, identification flags, procedure and
 /// inference; the prepared click reproduces the one-shot run; every identified
 /// atom matches the linear truth; unidentified mass survives prepare, click and
@@ -231,17 +232,18 @@ fn graph_posterior_responses_body() {
                     let one_shot = builder.run(&context).unwrap();
                     let mut prepared = builder.prepare(&context).unwrap();
                     drop(builder);
-                    let plan =
-                        prepared.checked_graph_posterior_response_info().unwrap_or_else(|| {
-                            panic!("{label}: retained checked posterior response plan")
-                        });
+                    let RetainedOperation::GraphPosteriorResponse(plan) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("{label}: retained checked posterior response plan")
+                    };
                     assert_eq!(plan.query, query, "{label}");
                     assert_eq!(plan.atom_kind, kind, "{label}");
                     assert_eq!(plan.identifier, expected_identifier, "{label}");
                     assert_eq!(plan.estimator, expected_estimator, "{label}");
                     assert_eq!(plan.inference.starts_with("bayesian:"), bayesian, "{label}");
                     assert_eq!(plan.validation, suite, "{label}");
-                    assert_eq!(plan.graph_keys.as_ref(), gp.graph_keys.as_ref(), "{label}");
+                    assert_eq!(plan.graph_keys.as_ref(), gp.graph_keys().as_ref(), "{label}");
                     assert_eq!(plan.weights.as_ref(), &[0.6, 0.4], "{label}");
                     assert_eq!(
                         plan.identified.as_ref(),
@@ -251,7 +253,11 @@ fn graph_posterior_responses_body() {
 
                     let click = prepared.estimate(&initial, &context).unwrap();
                     for result in [&one_shot, &click] {
-                        assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{label}");
+                        assert_eq!(
+                            result.support_status().unwrap().as_str(),
+                            "supported",
+                            "{label}"
+                        );
                         assert_eq!(
                             result.logical_plan.estimator.as_deref(),
                             Some(expected_estimator.as_str()),
@@ -281,9 +287,14 @@ fn graph_posterior_responses_body() {
                         "{label}: click must reproduce one-shot"
                     );
 
-                    let refreshed = prepared.refresh(shifted.clone(), &context).unwrap();
+                    let refreshed =
+                        rebind_estimate(&mut prepared, shifted.clone(), &context).unwrap();
                     assert_identified_atoms_match_truth(&refreshed, 0.5, curve, tolerance, &label);
-                    let retained = prepared.checked_graph_posterior_response_info().unwrap();
+                    let RetainedOperation::GraphPosteriorResponse(retained) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("{label}: retained checked posterior response plan after refresh")
+                    };
                     assert_eq!(retained.graph_keys, plan.graph_keys, "{label}");
                     assert_eq!(retained.weights, plan.weights, "{label}");
 
@@ -292,7 +303,7 @@ fn graph_posterior_responses_body() {
                         ("y", vec![0.0; 8].as_slice()),
                     ])
                     .unwrap();
-                    let error = prepared.refresh(two_columns, &context).unwrap_err();
+                    let error = rebind_estimate(&mut prepared, two_columns, &context).unwrap_err();
                     assert!(
                         error.to_string().contains("same schema"),
                         "{label}: schema-changed refresh must be refused: {error}"
@@ -305,7 +316,7 @@ fn graph_posterior_responses_body() {
                             &context,
                         )
                         .unwrap();
-                    let consumed = consume_analysis_result(&artifact).unwrap();
+                    let consumed = replay_analysis_result(&artifact).unwrap();
                     for expected in ["dependencies.checked_graph_posterior_response_operation", key]
                     {
                         assert!(
@@ -318,7 +329,7 @@ fn graph_posterior_responses_body() {
                             consumed.acceptance.unresolved
                         );
                     }
-                    assert!(!consumed.acceptance.accepts_as_verified_program(), "{label}");
+                    assert!(!consumed.acceptance.accepts_as_replayed_program(), "{label}");
 
                     // Posterior with a reverse-causal atom: its mass is retained, not
                     // renormalized away, through prepare, click and refresh.
@@ -336,7 +347,11 @@ fn graph_posterior_responses_body() {
                     );
                     let mut prepared = builder.prepare(&context).unwrap();
                     drop(builder);
-                    let plan = prepared.checked_graph_posterior_response_info().unwrap();
+                    let RetainedOperation::GraphPosteriorResponse(plan) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("{mixed_label}: retained checked posterior response plan")
+                    };
                     assert_eq!(plan.weights.as_ref(), &[0.8, 0.2], "{mixed_label}");
                     assert_eq!(
                         plan.identified.as_ref(),
@@ -344,7 +359,8 @@ fn graph_posterior_responses_body() {
                         "{mixed_label}"
                     );
                     let click = prepared.estimate(&initial, &context).unwrap();
-                    let refreshed = prepared.refresh(shifted.clone(), &context).unwrap();
+                    let refreshed =
+                        rebind_estimate(&mut prepared, shifted.clone(), &context).unwrap();
                     for (result, shift) in [(&click, 0.0), (&refreshed, 0.5)] {
                         let mixture = result.structural_response.as_ref().unwrap();
                         assert!((mixture.identified_mass - 0.8).abs() < 1e-12, "{mixed_label}");
@@ -374,4 +390,17 @@ fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
         .unwrap()
         .join()
         .unwrap();
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

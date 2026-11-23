@@ -6,7 +6,8 @@ import sys
 from dataclasses import replace
 
 import pytest
-from antecedent import Admg, proposals, repair
+from antecedent import Admg, Execution, proposals, repair
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalSerializationError, CausalValueError
 from antecedent.proposal_arrival import ArrivedStudy, consume_arrival
 from antecedent.transport import advanced as tr
@@ -41,7 +42,9 @@ def fixture(family="transport"):
     candidate = experiment()
     repaired = repair.repair(contract, [candidate])
     ranked = rank(repaired, [candidate], {candidate.label: 0.75})
-    bundle = proposals.ProposalBundle.build(repaired.export(), ranked.export(), contract=contract)
+    bundle = proposals.ProposalBundle.build(
+        bytes(repaired.export()), bytes(ranked.export()), contract=contract
+    )
     identifier = semantic_ids(repaired)[candidate.label]
     catalog = tr.EvidenceCatalog(
         environments=base.catalog.environments,
@@ -86,10 +89,12 @@ def test_arrival_public_actual_count_truth_and_original_artifact_replay(family):
     assert result.to_dict()["point"]["probabilities"] == pytest.approx([0.2, 0.8])
     assert result.to_dict()["sample_size"] == EXPECTED["python_sample_size"]
     assert result.to_dict()["inference"] == "empirical_point_only"
-    assert result.to_dict()["calibration"] == "unmeasured"
+    assert result.to_dict()["calibration"] == "not_measured"
     assert result.to_dict()["work"]["program_compilations"] > 0
     assert result.to_dict()["work"]["provider_calls"] > 0
-    replay = consume_arrival(result.export(), expected_proposal=bundle.identity, seed=77)
+    replay = consume_arrival(
+        bytes(result.export()), expected_proposal=bundle.identity, execution=Execution(seed=77)
+    )
     assert replay.to_dict() == result.to_dict()
     control = bundle.estimate_arrival(identifier, replace(study, assignment={"x": 0.0}))
     assert control.mean == pytest.approx(EXPECTED["control_mean"])
@@ -100,12 +105,13 @@ def test_arrival_fresh_process_replays_original_artifacts_and_complete_raw_provi
     bundle, identifier, study = fixture()
     result = bundle.estimate_arrival(identifier, study)
     artifact = tmp_path / "arrival.bin"
-    artifact.write_bytes(result.export())
+    artifact.write_bytes(bytes(result.export()))
     script = """
 import json, sys
 from pathlib import Path
+from antecedent import Execution
 from antecedent.proposal_arrival import consume_arrival
-value=consume_arrival(Path(sys.argv[1]).read_bytes(), expected_proposal=sys.argv[2], seed=19)
+value=consume_arrival(Path(sys.argv[1]).read_bytes(), expected_proposal=sys.argv[2], execution=Execution(seed=19))
 print(json.dumps(value.to_dict(), sort_keys=True))
 """
     child = subprocess.run(
@@ -138,12 +144,12 @@ def test_arrival_public_counts_identity_scope_and_sample_refusals(change):
     else:
         study = replace(study, operations=0)
     detail = {
-        "counts": "proposal_arrival.sample_size_mismatch",
-        "snapshot": "proposal_arrival.provider_binding_mismatch",
+        "counts": reason_details.proposal_arrival.SAMPLE_SIZE_MISMATCH,
+        "snapshot": reason_details.proposal_arrival.PROVIDER_BINDING_MISMATCH,
         "population": "exact law names an unknown population/regime",
-        "assignment": "proposal_arrival.assignment_mismatch",
-        "exact": "proposal_arrival.raw_counts_required",
-        "budget": "proposal_arrival.bounds_exceeded",
+        "assignment": reason_details.proposal_arrival.ASSIGNMENT_MISMATCH,
+        "exact": reason_details.proposal_arrival.RAW_COUNTS_REQUIRED,
+        "budget": reason_details.proposal_arrival.BOUNDS_EXCEEDED,
         "schema": "repair coordinate names differ from the supplied graph",
     }[change]
     with pytest.raises(CausalValueError, match=detail) as refused:
@@ -160,8 +166,8 @@ def test_arrival_loaded_bundle_requires_original_artifacts_and_expected_identity
         loaded.estimate_arrival(identifier, study)
     result = bundle.estimate_arrival(identifier, study)
     with pytest.raises(CausalValueError, match="expected_proposal_mismatch"):
-        consume_arrival(result.export(), expected_proposal="other-proposal")
+        consume_arrival(bytes(result.export()), expected_proposal="other-proposal")
     with pytest.raises(CausalSerializationError):
-        consume_arrival(result.export()[:-1], expected_proposal=bundle.identity)
+        consume_arrival(bytes(result.export())[:-1], expected_proposal=bundle.identity)
     with pytest.raises(CausalValueError, match="bounds_exceeded"):
         consume_arrival(b"x" * (32 * 1024 * 1024 + 1), expected_proposal=bundle.identity)

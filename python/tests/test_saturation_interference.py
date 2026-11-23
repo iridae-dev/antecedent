@@ -4,6 +4,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent import interference
+from antecedent.outcomes import require_success
 
 
 def _fixture():
@@ -92,7 +93,7 @@ def test_saturation_analyze_matches_native_utility_and_reports_point_only(
         realized_assignment=assignment,
         partial_interference=partial,
     )
-    result = ant.analyze(data, graph=[], query=query)
+    result = require_success(ant.analyze(data, graph=[], query=query))
     utility = getattr(_estimate(), utility_field)
     assert result.interference.contrast.hajek == pytest.approx(truth)
     assert result.interference.contrast.hajek == pytest.approx(utility.hajek)
@@ -119,7 +120,7 @@ def test_saturation_analyze_refuses_cross_cluster_edge() -> None:
         partial_interference=partial,
     )
     with pytest.raises(ValueError, match="crosses cluster boundary"):
-        ant.analyze(data, graph=[], query=query)
+        require_success(ant.analyze(data, graph=[], query=query))
 
 
 def test_saturation_refuses_cross_cluster_interference_edges() -> None:

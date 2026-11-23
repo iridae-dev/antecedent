@@ -7,4 +7,4 @@ d-separation on the observed query.
 
 ## Expected summary
 
-Top-level keys: `preserve_msep, tolerance_class` (2 fields).
+Top-level keys: `evidence_kind, evidence_proposition, evidence_roles, evidence_source, limitations, oracle, preserve_msep, tolerance_class` (8 fields).

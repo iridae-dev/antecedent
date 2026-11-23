@@ -1,6 +1,6 @@
 //! Contract-section tests.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::ContractReason;
 use super::consume::contract_seal_of;
@@ -8,7 +8,6 @@ use super::replay::{
     apply_moment_inverse, invert_linear_moments, replay_functional_response_grid,
     verify_nested_counterfactual_result,
 };
-use super::verify::verify_claim_calibration;
 use crate::identity::{
     ClaimIdentityWire, claim_digest, digest_wire, payload_digest, program_digest,
 };
@@ -130,33 +129,84 @@ fn checked_response_grid_rejects_reordered_member_values() {
         factors: Vec::new(),
     };
     assert_eq!(
-        replay_functional_response_grid(&target, &family, &reported, &laws),
+        replay_functional_response_grid(
+            &target,
+            &family,
+            &reported,
+            &laws,
+            &crate::distribution_replay::ReplayLimits::default()
+        ),
         Err(ContractReason::ProgramFunctionalEffectResponseGridMemberValue)
     );
 }
 
-fn schema_and_query() -> (antecedent_core::CausalSchema, CausalQuery) {
+#[test]
+fn an_explicit_response_grid_past_the_point_bound_is_refused_before_any_member_replays() {
+    use crate::{CheckedFunctionalResponseGridWire, ResponseIdentificationWire, ResponseValueWire};
+    use antecedent_core::{ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery};
+
+    let bound = super::replay::MAX_RESPONSE_GRID_POINTS;
+    let target_for = |points: usize| {
+        let grid: Vec<f64> = (0..points).map(|index| index as f64).collect();
+        let query = CausalQuery::Response(ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(1),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(0),
+                GridSpec::Values(grid.into()),
+            ),
+        }));
+        causal_query_to_wire(&query).unwrap()
+    };
+    let family = CheckedFunctionalResponseGridWire {
+        format: 1,
+        treatment: 0,
+        outcome: 1,
+        members: Vec::new(),
+    };
+    let reported = ResponseIdentificationWire::PointIdentified(ResponseValueWire::Surface {
+        grid: Vec::new(),
+        dimension: 1,
+        mean: Vec::new(),
+    });
+    let laws = crate::DistributionFactorLawsWire {
+        format: 1,
+        provider: "empirical_table".into(),
+        source_rows: 2,
+        complete_case_rows: 2,
+        missing_row_policy: "joint_complete_case".into(),
+        domains: Vec::new(),
+        requirements: Vec::new(),
+        factors: Vec::new(),
+    };
+    let limits = crate::distribution_replay::ReplayLimits::default();
+    let replay = |points| {
+        replay_functional_response_grid(&target_for(points), &family, &reported, &laws, &limits)
+    };
+    // One past the bound is a resource refusal; the bound itself reaches the member count.
+    assert_eq!(replay(bound + 1), Err(ContractReason::FunctionalEffectResponseGridResourceLimit));
+    assert_eq!(replay(bound), Err(ContractReason::ProgramFunctionalEffectResponseGridMemberCount));
+}
+
+/// Treatment and outcome candidates first, then any further continuous variables.
+fn schema_and_query_for(names: &[&str]) -> (antecedent_core::CausalSchema, CausalQuery) {
     let mut builder = CausalSchemaBuilder::new();
-    builder
-        .add_variable(
-            "t",
-            ValueType::Continuous,
-            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
-            None,
-            None,
-            MeasurementSpec::default(),
-        )
-        .unwrap();
-    builder
-        .add_variable(
-            "y",
-            ValueType::Continuous,
-            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
-            None,
-            None,
-            MeasurementSpec::default(),
-        )
-        .unwrap();
+    for (index, name) in names.iter().enumerate() {
+        let role = match index {
+            0 => SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            1 => SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            _ => SmallRoleSet::empty(),
+        };
+        builder
+            .add_variable(
+                *name,
+                ValueType::Continuous,
+                role,
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+    }
     let schema = builder.build().unwrap();
     let query = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
         VariableId::from_raw(0),
@@ -166,9 +216,14 @@ fn schema_and_query() -> (antecedent_core::CausalSchema, CausalQuery) {
 }
 
 fn fixture_body() -> (AnalysisResultWire, TargetIdentityWire, Vec<String>) {
-    let (schema, query) = schema_and_query();
+    fixture_body_for(&["t", "y"])
+}
+
+fn fixture_body_for(names: &[&str]) -> (AnalysisResultWire, TargetIdentityWire, Vec<String>) {
+    let (schema, query) = schema_and_query_for(names);
     let query_wire = causal_query_to_wire(&query).unwrap();
     let body = AnalysisResultWire {
+        native_execution: None,
         query: query_wire.clone(),
         identification: IdentificationResultWire {
             status: "nonparametrically_identified".into(),
@@ -199,10 +254,22 @@ fn fixture_body() -> (AnalysisResultWire, TargetIdentityWire, Vec<String>) {
         local_polynomial_ratio: None,
         randomized_effect: None,
         survival: None,
+        posterior_row: None,
         longitudinal_regime: None,
+        sequential_contrast: None,
+        history_match: None,
+        iv_bounds: None,
+        association: None,
+        quasi_rollout: None,
+        temporal_design: None,
         interference_inference: None,
         interventional_distribution: None,
         standard_error: Some(0.1),
+        joint_covariance: None,
+        simultaneous_interval: None,
+        adjusted_p_values: None,
+        family_contrast: None,
+        family_contrast_interval: None,
         interval_lower: None,
         interval_upper: None,
         assumptions: Vec::new(),
@@ -213,6 +280,7 @@ fn fixture_body() -> (AnalysisResultWire, TargetIdentityWire, Vec<String>) {
         mediation_grid: None,
         structural_response: None,
         unit_effects: None,
+        counterfactual_contrasts: None,
         cate: None,
         fitted_effect: None,
         cate_se: None,
@@ -257,7 +325,21 @@ fn contract_for(
     body: &AnalysisResultWire,
 ) -> AnalysisResultContractWire {
     use antecedent_graph::{Dag, DenseNodeId};
+    let mut dag = Dag::with_variables(2);
+    dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    contract_for_dag(target, body, &dag)
+}
 
+/// [`contract_for`] with the carried identification graph chosen by the caller.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one fixture exercised end to end; later assertions read locals built above them"
+)]
+fn contract_for_dag(
+    target: TargetIdentityWire,
+    body: &AnalysisResultWire,
+    dag: &antecedent_graph::Dag,
+) -> AnalysisResultContractWire {
     use crate::identity::{
         InferentialCommitmentsWire, ObservationIdentityWire, ObservationOptionsWire, dag_identity,
         data_snapshot_digest, execution_digest, identification_digest,
@@ -272,8 +354,6 @@ fn contract_for(
         observation: Vec::new(),
     };
     let observation_digest = digest_wire(IdentityDomain::Observation, &observation).unwrap();
-    let mut dag = Dag::with_variables(2);
-    dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     let identification = IdentificationIdentityWire {
         format: IDENTITY_FORMAT,
         target_question: *question_digest.as_bytes(),
@@ -286,7 +366,7 @@ fn contract_for(
         accepted_version: 0,
         algorithm_id: None,
         schema_names: Some(target.schema.variable_names()),
-        graph: dag_identity(&dag).unwrap(),
+        graph: dag_identity(dag).unwrap(),
         observation: *observation_digest.as_bytes(),
     };
     let identification_digest = identification_digest(&identification).unwrap();
@@ -325,6 +405,7 @@ fn contract_for(
         identification_product: Some(*product_digest.as_bytes()),
         completion_budget: None,
         commitments,
+        temporal_attribution_rows: None,
         functional_program: None,
         checked_aipw_lowering: None,
         checked_frontdoor_lowering: None,
@@ -332,7 +413,27 @@ fn contract_for(
         checked_linear_adjustment_lowering: None,
         checked_functional_response_grid: None,
         checked_nested_counterfactual: None,
+        checked_dr_lowering: None,
+        graph_posterior_programs: None,
+        structure_provenance: None,
     };
+    let legacy_bytes = to_cbor(&program).unwrap();
+    assert!(
+        !legacy_bytes
+            .windows(b"temporal_attribution_rows".len())
+            .any(|w| w == b"temporal_attribution_rows")
+    );
+    let decoded: ProgramIdentityWire = crate::from_cbor(&legacy_bytes).unwrap();
+    assert_eq!(decoded.temporal_attribution_rows, None);
+    let mut complete = program.clone();
+    complete.temporal_attribution_rows =
+        Some(crate::identity::TemporalAttributionRowsWire::CompleteObservedDerivedRunBlocksV2);
+    assert_ne!(program_digest(&program).unwrap(), program_digest(&complete).unwrap());
+    let mut future = to_cbor(&complete).unwrap();
+    let name = b"complete_observed_derived_run_blocks_v2";
+    let offset = future.windows(name.len()).position(|w| w == name).unwrap();
+    future[offset] = b'x';
+    assert!(crate::from_cbor::<ProgramIdentityWire>(&future).is_err());
     let program_digest = program_digest(&program).unwrap();
     let inference_binding = InferenceBindingWire {
         format: IDENTITY_FORMAT,
@@ -350,6 +451,7 @@ fn contract_for(
             crossfit_folds: 5,
         },
         split: None,
+        joint_horizons: false,
     };
     let inference_digest = inference_binding_digest(&inference_binding).unwrap();
     let data_snapshot = DataSnapshotIdentityWire {
@@ -364,8 +466,10 @@ fn contract_for(
         distribution_factor_laws: None,
         participants: None,
         missing: None,
+        sampling_design: None,
         nested_counterfactual_fit: None,
         linear_fit_moments: None,
+        cross_product_moments: None,
     };
     let snapshot_digest = data_snapshot_digest(&data_snapshot).unwrap();
     let execution =
@@ -405,7 +509,7 @@ fn contract_for(
             },
             support: SlotSectionWire {
                 value: Some(SupportSlotWire {
-                    matrix_status: "licensed".into(),
+                    matrix_status: "supported".into(),
                     matrix_coordinate: Some("AverageEffect:Dag:explicit:Frequentist:none".into()),
                     empirical: "unavailable:not_evaluated".into(),
                 }),
@@ -433,6 +537,7 @@ fn contract_for(
         data_snapshot: Some(data_snapshot),
         execution: Some(execution),
         score_reuse: None,
+        adjusted_fit_reuse: None,
         target_weights: None,
         checked_aipw_rows: None,
     };
@@ -447,6 +552,7 @@ fn contract_for(
         calibration: crate::calibration::calibration_slots(&[
             crate::calibration::CalibrationBasisWire {
                 key: crate::calibration::CalibrationKeyWire {
+                    validation: "none".into(),
                     query: "AverageEffect".into(),
                     graph_class: "Dag".into(),
                     structure: "fixed".into(),
@@ -529,21 +635,72 @@ fn old_artifact_remains_readable_but_is_not_verified() {
     artifact.write_to(&mut bytes).unwrap();
     let (_, _, decoded) = crate::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(decoded, body);
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     assert!(consumed.contract.is_none());
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert_eq!(consumed.acceptance.restriction.as_deref(), Some("missing_contract_section"));
     assert!(consumed.acceptance.supported_operations.iter().any(|op| &**op == "read_body"));
 }
 
 #[test]
-fn contracted_artifact_is_accepted_from_bytes_alone() {
+fn contracted_artifact_without_checked_estimator_is_readable_from_bytes_alone() {
     let (body, target, names) = fixture_body();
     let contract = contract_for(target, &body);
-    let consumed = consume_analysis_result(&to_bytes(&body, names, Some(&contract))).unwrap();
-    assert!(consumed.acceptance.accepts_as_verified_program());
+    let consumed = replay_analysis_result(&to_bytes(&body, names, Some(&contract))).unwrap();
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert_eq!(consumed.contract.as_ref().map(|c| c.graph_class.as_str()), Some("Dag"));
     assert_eq!(consumed.body.estimate, Some(2.0));
+}
+
+/// Every finding of the legacy one-pass consumption, as one set.
+fn legacy_findings(bytes: &[u8]) -> std::collections::BTreeSet<String> {
+    replay_analysis_result(bytes)
+        .unwrap()
+        .acceptance
+        .unresolved
+        .iter()
+        .map(ToString::to_string)
+        .collect()
+}
+
+fn replay_findings(report: &crate::ReplayReport) -> std::collections::BTreeSet<String> {
+    [&report.integrity, &report.not_replayable, &report.mismatches]
+        .into_iter()
+        .flatten()
+        .map(ToString::to_string)
+        .collect()
+}
+
+#[test]
+fn loading_checks_integrity_and_replay_adds_the_rest() {
+    let options = crate::ReplayOptions::default();
+    // No contract section: nothing to replay, and the load says why.
+    let (body, target, names) = fixture_body();
+    let artifact = encode_analysis_result_artifact(&body, names.clone(), "legacy").unwrap();
+    let mut legacy = Vec::new();
+    artifact.write_to(&mut legacy).unwrap();
+    let load = crate::load_analysis_result(&legacy).unwrap();
+    assert!(load.contract.is_none() && !load.is_intact());
+    assert_eq!(load.replay(&options).integrity, load.integrity);
+    assert!(load.replay(&options).not_replayable.is_empty());
+    // An intact contract loads clean; replay finds what the legacy pass finds, split in kinds.
+    let contract = contract_for(target.clone(), &body);
+    let bytes = to_bytes(&body, names.clone(), Some(&contract));
+    let load = crate::load_analysis_result(&bytes).unwrap();
+    assert!(load.is_intact(), "{:?}", load.integrity);
+    let report = load.replay(&options);
+    assert!(!report.replayed());
+    assert!(report.integrity.is_empty());
+    assert_eq!(replay_findings(&report), legacy_findings(&bytes));
+    assert!(report.not_replayable.iter().all(|reason| reason.starts_with("dependencies.")));
+    assert!(report.mismatches.iter().all(|reason| !reason.starts_with("dependencies.")));
+    // A stored payload that disagrees with its digest is an integrity finding at load time.
+    let mut tampered = contract_for(target, &body);
+    tampered.identification.as_mut().expect("identification").target_question = [0u8; 32];
+    let bytes = replace_contract_section(&body, names, &tampered);
+    let load = crate::load_analysis_result(&bytes).unwrap();
+    assert!(load.integrity.iter().any(|item| &**item == "identities.identification"));
+    assert_eq!(replay_findings(&load.replay(&options)), legacy_findings(&bytes));
 }
 
 #[test]
@@ -553,8 +710,8 @@ fn nested_identification_target_must_match_advertised_target() {
     let identification = contract.identification.as_mut().expect("identification");
     identification.target_question = [0u8; 32];
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert!(
         consumed.acceptance.unresolved.iter().any(|item| &**item == "identities.identification"),
         "{:?}",
@@ -570,8 +727,8 @@ fn invented_reasoning_masses_are_not_verified() {
     slot.identified_mass = 1.0;
     slot.unidentified_mass = 0.3;
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert!(
         consumed
             .acceptance
@@ -589,8 +746,8 @@ fn tampered_target_identity_is_not_promoted() {
     let mut contract = contract_for(target, &body);
     contract.identities.target[0] ^= 0xff;
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert!(consumed.acceptance.unresolved.iter().any(|item| &**item == "identities.target"));
 }
 
@@ -598,15 +755,18 @@ fn tampered_target_identity_is_not_promoted() {
 fn body_query_must_match_contract_target() {
     let (mut body, target, names) = fixture_body();
     let contract = contract_for(target, &body);
-    if let CausalQueryWire::AverageEffect { outcome, .. } = &mut body.query {
-        *outcome = 0;
-    }
-    if let CausalQueryWire::AverageEffect { outcome, .. } = &mut body.identification.query {
-        *outcome = 0;
-    }
+    // Keep the changed query valid so the contract-target check runs after decoding.
+    let changed = CausalQuery::AverageEffect(AverageEffectQuery::with_levels(
+        VariableId::from_raw(0),
+        VariableId::from_raw(1),
+        0.0,
+        2.0,
+    ));
+    body.query = causal_query_to_wire(&changed).unwrap();
+    body.identification.query = body.query.clone();
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert!(consumed.acceptance.unresolved.iter().any(|item| &**item == "body.query"));
 }
 
@@ -622,8 +782,8 @@ fn attested_digests_without_payloads_are_not_verified() {
     contract.data_snapshot = None;
     contract.execution = None;
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert!(consumed.acceptance.unresolved.iter().any(|item| item.starts_with("identities.")));
 }
 
@@ -635,8 +795,8 @@ fn tampered_identification_product_is_not_promoted() {
         digest[0] ^= 0xff;
     }
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert!(
         consumed
             .acceptance
@@ -651,9 +811,10 @@ fn unknown_contract_format_needs_a_newer_reader() {
     let (body, target, names) = fixture_body();
     let mut contract = contract_for(target, &body);
     contract.format = 99;
-    assert!(validate_contract_section(&contract).is_err());
+    let refused = validate_contract_section(&contract).unwrap_err().to_string();
+    assert_eq!(refused, "convert error: unsupported `analysis_result.contract` format 99");
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
     assert!(!consumed.acceptance.recognized);
     assert_eq!(consumed.acceptance.restriction.as_deref(), Some("unknown_contract_format"));
 }
@@ -668,7 +829,7 @@ fn claim_host_projection_keeps_null_zero_unknown_distinct() {
     }
     seal_claim(&mut zero, &body);
     let consumed_zero =
-        consume_analysis_result(&to_bytes(&body, names.clone(), Some(&zero))).unwrap();
+        replay_analysis_result(&to_bytes(&body, names.clone(), Some(&zero))).unwrap();
     let proj_zero = project_claim_host(&consumed_zero);
     assert_eq!(proj_zero.value, serde_json::Value::from(0.0));
     assert_ne!(proj_zero.value, serde_json::Value::Null);
@@ -682,11 +843,11 @@ fn claim_host_projection_keeps_null_zero_unknown_distinct() {
     }
     seal_claim(&mut absent, &body);
     let consumed_absent =
-        consume_analysis_result(&to_bytes(&body, names.clone(), Some(&absent))).unwrap();
+        replay_analysis_result(&to_bytes(&body, names.clone(), Some(&absent))).unwrap();
     let proj_absent = project_claim_host(&consumed_absent);
     assert_eq!(proj_absent.value, serde_json::Value::Null);
 
-    let consumed_old = consume_analysis_result(&{
+    let consumed_old = replay_analysis_result(&{
         let artifact = encode_analysis_result_artifact(&body, names, "legacy").unwrap();
         let mut bytes = Vec::new();
         artifact.write_to(&mut bytes).unwrap();
@@ -700,7 +861,7 @@ fn claim_host_projection_keeps_null_zero_unknown_distinct() {
 }
 
 #[test]
-fn verified_program_without_claim_is_not_an_accepted_claim() {
+fn unchecked_program_without_claim_is_not_an_accepted_claim() {
     let (body, target, names) = fixture_body();
     let mut contract = contract_for(target, &body);
     contract.claim = None;
@@ -708,8 +869,8 @@ fn verified_program_without_claim_is_not_an_accepted_claim() {
     contract.identities.execution = None;
     seal_claim(&mut contract, &body);
     let bytes = to_bytes(&body, names, Some(&contract));
-    let consumed = consume_analysis_result(&bytes).unwrap();
-    assert!(consumed.acceptance.accepts_as_verified_program());
+    let consumed = replay_analysis_result(&bytes).unwrap();
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert!(!consumed.acceptance.accepts_as_claim());
     assert!(!consumed.acceptance.supported_operations.iter().any(|op| &**op == "inspect_claim"));
     let (accepted, receipt) =
@@ -741,8 +902,8 @@ fn accept_claim_unknown_feature_is_storage_not_acceptance() {
     let bytes = to_bytes(&body, names, Some(&contract));
     let (full, lossless) =
         accept_claim(&bytes, &antecedent_contract::ConsumerProfile::full()).unwrap();
-    assert!(full.acceptance.accepts_as_claim());
-    assert!(lossless.equivalent_claim());
+    assert!(!full.acceptance.accepts_as_claim());
+    assert!(!lossless.equivalent_claim());
     let (restricted, receipt) =
         accept_claim(&bytes, &antecedent_contract::ConsumerProfile::restricted()).unwrap();
     assert!(!restricted.acceptance.accepts_as_claim());
@@ -762,7 +923,7 @@ fn unresolved_after(
     contract: &AnalysisResultContractWire,
 ) -> Vec<String> {
     let consumed =
-        consume_analysis_result(&replace_contract_section(body, names.to_vec(), contract)).unwrap();
+        replay_analysis_result(&replace_contract_section(body, names.to_vec(), contract)).unwrap();
     assert!(!consumed.acceptance.accepts_as_claim(), "tampered artifact was accepted");
     consumed.acceptance.unresolved.iter().map(ToString::to_string).collect()
 }
@@ -777,16 +938,55 @@ fn refutation(refuter: &str, passed: bool) -> RefutationReportWire {
         passed,
         failure_condition: None,
         replicates: 0,
+        scope: None,
     }
 }
 
 #[test]
-fn untouched_fixture_verifies() {
+fn fixture_without_checked_estimator_is_not_verified() {
     let (body, target, names) = fixture_body();
     let contract = contract_for(target, &body);
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
-    assert!(consumed.acceptance.accepts_as_claim(), "{:?}", consumed.acceptance.unresolved);
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+    assert!(!consumed.acceptance.accepts_as_claim());
+    assert!(
+        consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| { reason.as_ref() == "dependencies.checked_estimator_operation" })
+    );
+}
+
+#[test]
+fn resealed_missing_unknown_and_conflicting_estimators_are_unverified() {
+    let (mut body, target, names) = fixture_body();
+    body.estimate = Some(9.0);
+    for (requested, resolved) in
+        [(None, None), (Some("zzz"), Some("zzz")), (Some("zzz"), Some("linear.adjustment.ate"))]
+    {
+        let mut contract = contract_for(target.clone(), &body);
+        contract.estimator = requested.map(str::to_owned);
+        let program = contract.program.as_mut().unwrap();
+        program.commitments.estimator = requested.map(str::to_owned);
+        program.commitments.resolved_estimator = resolved.map(str::to_owned);
+        contract.identities.program = *program_digest(program).unwrap().as_bytes();
+        seal_claim(&mut contract, &body);
+        let bytes = replace_contract_section(&body, names.clone(), &contract);
+        let consumed = replay_analysis_result(&bytes).unwrap();
+        assert_eq!(consumed.body.estimate, Some(9.0));
+        assert!(!consumed.acceptance.accepts_as_claim());
+        assert!(
+            consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .any(|reason| { reason.as_ref() == "dependencies.checked_estimator_operation" })
+        );
+        let (accepted, _) =
+            accept_claim(&bytes, &antecedent_contract::ConsumerProfile::full()).unwrap();
+        assert!(!accepted.acceptance.accepts_as_claim());
+    }
 }
 
 #[test]
@@ -815,7 +1015,7 @@ fn rehashed_contract_with_two_checked_execution_products_is_refused() {
     seal_claim(&mut contract, &body);
 
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
     assert!(
         consumed
             .acceptance
@@ -845,7 +1045,7 @@ fn rehashed_contract_with_one_checked_product_for_wrong_target_is_refused() {
     seal_claim(&mut contract, &body);
 
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
     assert!(
         consumed
             .acceptance
@@ -871,7 +1071,7 @@ fn legacy_aipw_contract_is_readable_with_executable_dependency_refusal() {
     seal_claim(&mut contract, &body);
 
     let bytes = to_bytes(&body, names, Some(&contract));
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     assert_eq!(consumed.body, body);
     assert!(
         consumed
@@ -905,8 +1105,8 @@ fn resolved_only_aipw_contract_requires_checked_lowering_and_rows() {
     seal_claim(&mut contract, &body);
 
     let bytes = to_bytes(&body, names, Some(&contract));
-    let consumed = consume_analysis_result(&bytes).unwrap();
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    let consumed = replay_analysis_result(&bytes).unwrap();
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     for key in ["program.checked_aipw_lowering", "checked_aipw.row_binding"] {
         assert!(
             consumed.acceptance.unresolved.iter().any(|reason| reason.as_ref() == key),
@@ -931,7 +1131,7 @@ fn legacy_iv_contract_is_readable_with_precise_checked_lowering_refusal() {
         *program_digest(contract.program.as_ref().unwrap()).unwrap().as_bytes();
     seal_claim(&mut contract, &body);
 
-    let consumed = consume_analysis_result(&to_bytes(&body, names, Some(&contract))).unwrap();
+    let consumed = replay_analysis_result(&to_bytes(&body, names, Some(&contract))).unwrap();
     assert!(
         consumed
             .acceptance
@@ -939,7 +1139,7 @@ fn legacy_iv_contract_is_readable_with_precise_checked_lowering_refusal() {
             .iter()
             .any(|key| { key.as_ref() == "program.checked_iv_lowering" })
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 }
 
 #[test]
@@ -968,17 +1168,20 @@ fn rehashed_checked_aipw_with_invalid_fold_count_is_refused() {
         *program_digest(contract.program.as_ref().unwrap()).unwrap().as_bytes();
     seal_claim(&mut contract, &body);
 
-    assert!(
+    assert_eq!(
         encode_analysis_result_artifact_with_contract(
             &body,
             names.clone(),
             "tampered-aipw-lowering",
             Some(&contract),
         )
-        .is_err()
+        .unwrap_err()
+        .to_string()
+        .as_str(),
+        "convert error: contract payloads do not rehash: program.checked_aipw_lowering,program.checked_aipw_binding"
     );
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
     assert!(
         consumed
             .acceptance
@@ -1026,7 +1229,7 @@ fn checked_aipw_lowering_procedure_must_agree_with_its_folds_and_trim() {
             *program_digest(contract.program.as_ref().unwrap()).unwrap().as_bytes();
         seal_claim(&mut contract, &body);
         let consumed =
-            consume_analysis_result(&replace_contract_section(&body, names.clone(), &contract))
+            replay_analysis_result(&replace_contract_section(&body, names.clone(), &contract))
                 .unwrap();
         assert_eq!(
             consumed
@@ -1074,17 +1277,20 @@ fn checked_aipw_rows_require_the_sealed_snapshot_digest() {
     contract.identities.checked_aipw_rows = Some([0; 32]);
     seal_claim(&mut contract, &body);
 
-    assert!(
+    assert_eq!(
         encode_analysis_result_artifact_with_contract(
             &body,
             names.clone(),
             "tampered-aipw-rows",
             Some(&contract),
         )
-        .is_err()
+        .unwrap_err()
+        .to_string()
+        .as_str(),
+        "convert error: contract payloads do not rehash: program.checked_aipw_binding,checked_aipw.row_binding"
     );
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
     assert!(
         consumed
             .acceptance
@@ -1145,7 +1351,7 @@ fn tampered_claim_fields_fail_the_claim_id() {
     let edits: [fn(&mut ClaimSectionWire); 5] = [
         |claim| claim.support_domain = "supported".into(),
         |claim| claim.identification_domain = "unknown".into(),
-        |claim| claim.calibration = CalibrationSlotWire::unavailable("forged"),
+        |claim| claim.calibration = CalibrationSlotWire::not_measured("forged"),
         |claim| claim.value_bits = Some(3.0f64.to_bits()),
         |claim| claim.execution = Some([5; 32]),
     ];
@@ -1158,16 +1364,32 @@ fn tampered_claim_fields_fail_the_claim_id() {
 }
 
 #[test]
-fn off_axis_claim_cannot_self_license_calibration() {
+fn calibration_basis_validation_must_match_the_support_coordinate() {
+    let (body, target, _) = fixture_body();
+    let contract = contract_for(target, &body);
+    let basis = contract.claim.as_ref().unwrap().calibration.basis.as_ref().unwrap();
+    assert!(super::verify::calibration_basis_matches_contract(&contract, basis));
+    let mut mismatched = basis.clone();
+    mismatched.key.validation = "cheap".into();
+    assert!(!super::verify::calibration_basis_matches_contract(&contract, &mismatched));
+    // Legacy metadata stays readable and never claims a validation coordinate.
+    mismatched.key.validation.clear();
+    assert!(super::verify::calibration_basis_matches_contract(&contract, &mismatched));
+}
+
+#[test]
+fn calibration_basis_distinguishes_accepted_from_explicit_structure() {
     let (body, target, _) = fixture_body();
     let mut contract = contract_for(target, &body);
-    let support = contract.reasoning.support.value.as_mut().unwrap();
-    support.matrix_status = "off_axis".into();
-    support.matrix_coordinate = None;
-    contract.claim.as_mut().unwrap().calibration.status = "calibrated".into();
-    let mut unresolved = Vec::new();
-    verify_claim_calibration(&contract, contract.claim.as_ref().unwrap(), &mut unresolved);
-    assert!(unresolved.iter().any(|reason| reason.as_ref() == "claim.calibration.off_axis"));
+    contract.reasoning.support.value.as_mut().unwrap().matrix_coordinate =
+        Some("AverageEffect:Dag:accepted:Frequentist:none".into());
+    let mut basis = contract.claim.as_ref().unwrap().calibration.basis.clone().unwrap();
+    basis.key.structure = "accepted".into();
+    assert!(super::verify::calibration_basis_matches_contract(&contract, &basis));
+    basis.key.structure = "fixed".into();
+    assert!(!super::verify::calibration_basis_matches_contract(&contract, &basis));
+    basis.key.validation.clear();
+    assert!(super::verify::calibration_basis_matches_contract(&contract, &basis));
 }
 
 #[test]
@@ -1282,21 +1504,173 @@ fn resealed_domains_kind_and_support_are_rederived() {
 }
 
 #[test]
-fn support_empirical_distinguishes_pass_failure_and_absence() {
-    assert_eq!(support_empirical(&[refutation("placebo.treatment.permute", false)]), None);
+fn legacy_refutation_cbor_and_digest_remain_unchanged() {
+    // Independent historical shape and original field order, without the new scope field.
+    #[derive(serde::Serialize)]
+    struct LegacyReport {
+        refuter: String,
+        original_ate: f64,
+        refuted_ate: f64,
+        comparison: f64,
+        informative: bool,
+        passed: bool,
+        failure_condition: Option<String>,
+        replicates: u32,
+    }
+    let legacy = LegacyReport {
+        refuter: "overlap.assessment".into(),
+        original_ate: 2.0,
+        refuted_ate: 2.0,
+        comparison: 0.0,
+        informative: true,
+        passed: true,
+        failure_condition: None,
+        replicates: 0,
+    };
+    let old = crate::to_cbor(&legacy).unwrap();
+    let current = refutation("overlap.assessment", true);
+    let new = crate::to_cbor(&current).unwrap();
+    assert_eq!(old, new);
+    assert_eq!(blake3::hash(&old), blake3::hash(&new));
+    let decoded: RefutationReportWire = crate::from_cbor(&old).unwrap();
+    assert_eq!(decoded, current);
+    assert!(decoded.scope.is_none());
+}
+
+#[test]
+fn scoped_report_requires_independent_replay_even_without_empirical_support() {
+    use crate::analysis_wire::{RefutationScopeWire, RefutationTargetWire};
+    let (mut body, target, names) = fixture_body();
+    let labels = vec!["value".to_owned()];
+    let source = [1; 32];
+    let mut writer =
+        antecedent_core::identity::CanonicalWriter::new("antecedent.refutation_target");
+    writer.text("temporal_effect").text("temporal.frequentist").texts(&labels).bytes(&source);
+    let mut report = refutation("overlap.assessment", true);
+    report.scope = Some(RefutationScopeWire::WholeTarget {
+        target: RefutationTargetWire {
+            version: 1,
+            family: "temporal_effect".into(),
+            temporal: true,
+            bayesian: false,
+            labels,
+            source,
+            identity: writer.finish(),
+        },
+    });
+    body.refutations.push(report);
+    assert_eq!(support_empirical(&body.refutations, &[]), None);
+    let contract = contract_for(target, &body);
+    let unresolved = unresolved_after(&body, &names, &contract);
+    assert!(
+        unresolved.iter().any(|reason| reason == "dependencies.scoped_refutation_replay"),
+        "{unresolved:?}"
+    );
+}
+
+#[test]
+fn support_empirical_distinguishes_pass_failure_limit_and_absence() {
+    // A serialized scope is descriptive; it does not assert whole-result support.
+    let mut scoped = refutation("overlap.assessment", true);
+    scoped.scope = Some(crate::analysis_wire::RefutationScopeWire::WholeTarget {
+        target: crate::analysis_wire::RefutationTargetWire {
+            version: 1,
+            family: "temporal_effect".into(),
+            temporal: true,
+            bayesian: false,
+            labels: vec!["value".into()],
+            source: [1; 32],
+            identity: [2; 32],
+        },
+    });
+    assert_eq!(support_empirical(&[scoped.clone()], &[]), None);
+    assert_eq!(support_empirical(&[refutation("overlap.assessment", true), scoped], &[]), None);
+    assert_eq!(support_empirical(&[refutation("placebo.treatment.permute", true)], &[]), None);
     assert_eq!(
-        support_empirical(&[refutation("overlap.assessment", true)]).as_deref(),
+        support_empirical(&[refutation("overlap.assessment", true)], &[]).as_deref(),
         Some("supported")
     );
     let failed = [refutation("overlap.assessment", true), refutation("overlap.rule", false)];
-    assert_eq!(support_empirical(&failed).as_deref(), Some("failed:overlap.rule"));
+    assert_eq!(support_empirical(&failed, &[]).as_deref(), Some("failed:overlap.rule"));
+    let limited = [crate::DiagnosticWire {
+        code: crate::OVERLAP_LIMITED_DIAGNOSTIC.into(),
+        kind: "support".into(),
+        severity: "warning".into(),
+        message: "the overlap policy changed the answer".into(),
+        artifact_id: None,
+        fields: Vec::new(),
+    }];
+    // A binding overlap policy limits support with or without a passing check, and a failed
+    // check still wins.
+    assert_eq!(support_empirical(&[], &limited).as_deref(), Some("limited:overlap"));
+    assert_eq!(
+        support_empirical(&[refutation("overlap.assessment", true)], &limited).as_deref(),
+        Some("limited:overlap")
+    );
+    assert_eq!(support_empirical(&failed, &limited).as_deref(), Some("failed:overlap.rule"));
+    // Any body diagnostic whose code ends in `.limited` limits support; the label is the code
+    // without the suffix and without a leading `estimate.`.
+    let limited_code = |code: &str| {
+        [crate::DiagnosticWire {
+            code: code.into(),
+            kind: "scientific".into(),
+            severity: "warning".into(),
+            message: "weakly supported".into(),
+            artifact_id: None,
+            fields: Vec::new(),
+        }]
+    };
+    for (code, label) in [
+        (crate::BOOTSTRAP_LIMITED_DIAGNOSTIC, "limited:bootstrap"),
+        (crate::MCMC_LIMITED_DIAGNOSTIC, "limited:mcmc"),
+        ("cyclic.fit.limited", "limited:cyclic.fit"),
+    ] {
+        assert_eq!(support_empirical(&[], &limited_code(code)).as_deref(), Some(label));
+    }
+    // A code that merely mentions `limited`, or is only the suffix, does not limit support.
+    assert_eq!(support_empirical(&[], &limited_code("estimate.overlap.limited_note")), None);
+    assert_eq!(support_empirical(&[], &limited_code(".limited")), None);
+    // A failed non-support refuter limits support under its own id, never contradicts it.
+    let placebo_failed = [refutation("placebo.treatment.permute", false)];
+    assert_eq!(
+        support_empirical(&placebo_failed, &[]).as_deref(),
+        Some("limited:refuter.placebo.treatment.permute")
+    );
+    let rcc_failed =
+        [refutation("placebo.treatment.permute", true), refutation("random_common_cause", false)];
+    assert_eq!(
+        support_empirical(&rcc_failed, &[]).as_deref(),
+        Some("limited:refuter.random_common_cause")
+    );
+    // Precedence: failed support check > limited diagnostic > failed other refuter > supported.
+    let mixed = [refutation("overlap.rule", false), refutation("placebo.treatment.permute", false)];
+    assert_eq!(
+        support_empirical(&mixed, &limited_code(crate::BOOTSTRAP_LIMITED_DIAGNOSTIC)).as_deref(),
+        Some("failed:overlap.rule")
+    );
+    assert_eq!(
+        support_empirical(&placebo_failed, &limited_code(crate::BOOTSTRAP_LIMITED_DIAGNOSTIC))
+            .as_deref(),
+        Some("limited:bootstrap")
+    );
+    let passing_support_failed_other =
+        [refutation("overlap.assessment", true), refutation("placebo.treatment.permute", false)];
+    assert_eq!(
+        support_empirical(&passing_support_failed_other, &[]).as_deref(),
+        Some("limited:refuter.placebo.treatment.permute")
+    );
     let support = |empirical: &str| SupportSlotWire {
-        matrix_status: "licensed".into(),
+        matrix_status: "supported".into(),
         matrix_coordinate: None,
         empirical: empirical.into(),
     };
     assert_eq!(claim_domains(Some(&support("supported")), None).support, "supported");
     assert_eq!(claim_domains(Some(&support("failed:overlap.rule")), None).support, "contradicted");
+    for label in
+        ["limited:overlap", "limited:bootstrap", "limited:refuter.placebo.treatment.permute"]
+    {
+        assert_eq!(claim_domains(Some(&support(label)), None).support, "limited", "{label}");
+    }
     assert_eq!(claim_domains(Some(&support("unavailable:not_evaluated")), None).support, "unknown");
 }
 
@@ -1337,6 +1711,109 @@ fn claim_kind_is_never_point_short_of_full_identified_mass_or_for_unknown_status
     for status in ["not_certified", "proven_non_transportable", "surprise"] {
         assert_eq!(claim_kind_name(&body, Some(&slot(status, 1.0, 0.0, 0.0))), "incomplete");
     }
+}
+
+fn not_claimed_section() -> SlotSectionWire<IdentificationSlotWire> {
+    SlotSectionWire { value: None, unavailable: Some("not_claimed".into()) }
+}
+
+#[test]
+fn identification_not_claimed_implies_an_associational_claim_with_its_own_domains() {
+    let (body, _, _) = fixture_body();
+    let section = not_claimed_section();
+    assert!(identification_not_claimed(&section));
+    assert_eq!(claim_kind_name_of_section(&body, &section), "associational");
+    let domains = claim_domains_of_section(None, &section);
+    assert_eq!(domains.identification, "not_claimed");
+    assert_eq!(domains.evaluated, "evaluated");
+    assert_eq!(domains.support, "unknown");
+
+    // Another unavailable reason is an ordinary claim whose identification is unknown.
+    let other = SlotSectionWire { value: None, unavailable: Some("not_prepared".into()) };
+    assert!(!identification_not_claimed(&other));
+    assert_eq!(claim_kind_name_of_section(&body, &other), "point");
+    assert_eq!(claim_domains_of_section(None, &other).identification, "unknown");
+
+    // A present slot reads exactly as before.
+    let slot = IdentificationSlotWire {
+        status: "nonparametrically_identified".into(),
+        identified_mass: 1.0,
+        unidentified_mass: 0.0,
+        unevaluable_mass: 0.0,
+        incomplete_search_mass: 0.0,
+        full_mass_scope: true,
+        search_capped: false,
+        weight_basis: None,
+    };
+    let present = SlotSectionWire { value: Some(slot.clone()), unavailable: None };
+    assert!(!identification_not_claimed(&present));
+    assert_eq!(claim_kind_name_of_section(&body, &present), claim_kind_name(&body, Some(&slot)));
+    assert_eq!(claim_domains_of_section(None, &present), claim_domains(None, Some(&slot)));
+}
+
+#[test]
+fn the_consumer_rederives_an_associational_claim_and_refuses_a_forged_one() {
+    let (body, target, names) = fixture_body();
+    let associational = |mutate: &dyn Fn(&mut AnalysisResultContractWire)| {
+        let mut contract = contract_for(target.clone(), &body);
+        contract.reasoning.identification = not_claimed_section();
+        let claim = contract.claim.as_mut().unwrap();
+        claim.kind = "associational".into();
+        claim.value_bits = None;
+        claim.identification_domain = "not_claimed".into();
+        claim.evaluated_domain = "evaluated".into();
+        mutate(&mut contract);
+        seal_claim(&mut contract, &body);
+        replay_analysis_result(&replace_contract_section(&body, names.clone(), &contract))
+            .unwrap()
+            .acceptance
+            .unresolved
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+    };
+
+    // The claim identity, kind, value and domains all re-derive from the body and the slot.
+    let honest = associational(&|_| {});
+    for reason in ["claim.id", "claim.kind", "claim.value", "claim.domains"] {
+        assert!(!honest.iter().any(|entry| entry == reason), "{reason}: {honest:?}");
+    }
+
+    // A point claim cannot sit over a slot that says identification is not claimed.
+    let forged_kind = associational(&|contract| {
+        let claim = contract.claim.as_mut().unwrap();
+        claim.kind = "point".into();
+        claim.value_bits = body.estimate.map(f64::to_bits);
+    });
+    assert!(forged_kind.iter().any(|entry| entry == "claim.kind"), "{forged_kind:?}");
+
+    // Nor can an associational claim assert an identified domain.
+    let forged_domain = associational(&|contract| {
+        contract.claim.as_mut().unwrap().identification_domain = "identified".into();
+    });
+    assert!(forged_domain.iter().any(|entry| entry == "claim.domains"), "{forged_domain:?}");
+
+    // An associational claim carries no scalar value.
+    let forged_value = associational(&|contract| {
+        contract.claim.as_mut().unwrap().value_bits = body.estimate.map(f64::to_bits);
+    });
+    assert!(forged_value.iter().any(|entry| entry == "claim.value"), "{forged_value:?}");
+}
+
+#[test]
+fn an_associational_claim_changes_no_identity_of_an_existing_kind() {
+    let (body, target, _) = fixture_body();
+    let point = contract_for(target.clone(), &body);
+    let mut associational = point.clone();
+    associational.claim.as_mut().unwrap().kind = "associational".into();
+    seal_claim(&mut associational, &body);
+    let point_id = point.claim.as_ref().unwrap().claim_id;
+    let associational_id = associational.claim.as_ref().unwrap().claim_id;
+    assert_ne!(point_id, associational_id, "the kind is part of the claim identity");
+    // A point claim sealed again is the claim it was: the new kind adds no tag to old ones.
+    let mut again = point.clone();
+    seal_claim(&mut again, &body);
+    assert_eq!(again.claim.as_ref().unwrap().claim_id, point_id);
 }
 
 fn orthogonal_direct_fit() -> crate::NestedCounterfactualFitWire {
@@ -1432,6 +1909,10 @@ fn temporal_nested_point_must_match_the_solved_natural_direct_effect() {
     let mut contract = contract_for(target, &body);
     contract.graph_class = "TemporalDag".into();
     contract.target.query = query;
+    contract.estimator = Some("temporal.linear.adjustment".into());
+    let program = contract.program.as_mut().unwrap();
+    program.commitments.estimator = contract.estimator.clone();
+    program.commitments.resolved_estimator = contract.estimator.clone();
     contract.data_snapshot.as_mut().unwrap().nested_counterfactual_fit =
         Some(orthogonal_direct_fit());
     let header = AnalysisResultHeader { variable_names: names };
@@ -1443,11 +1924,18 @@ fn temporal_nested_point_must_match_the_solved_natural_direct_effect() {
     body.estimate = Some(2.0);
     let matched = verify_contract_against_body(&header, &body, &contract);
     assert!(
+        !matched.iter().any(|reason| reason.as_ref() == "dependencies.checked_estimator_operation"),
+        "{matched:?}"
+    );
+    assert!(
         !matched.iter().any(|reason| reason.as_ref() == "body.temporal_nested_point"),
         "{matched:?}"
     );
     contract.data_snapshot.as_mut().unwrap().nested_counterfactual_fit = None;
     let unbound = verify_contract_against_body(&header, &body, &contract);
+    assert!(
+        unbound.iter().any(|reason| reason.as_ref() == "dependencies.checked_estimator_operation")
+    );
     assert!(
         unbound
             .iter()
@@ -1457,11 +1945,95 @@ fn temporal_nested_point_must_match_the_solved_natural_direct_effect() {
 }
 
 #[test]
+fn temporal_nested_result_carries_the_uncertainty_of_its_inference_mode() {
+    let (mut body, target, names) = fixture_body();
+    let query = nested_query_wire();
+    body.query = query.clone();
+    // The plug-in natural direct effect of `orthogonal_direct_fit` is 2.0.
+    body.estimate = Some(2.0);
+    body.posterior_artifact = None;
+    let mut contract = contract_for(target, &body);
+    contract.graph_class = "TemporalDag".into();
+    contract.target.query = query;
+    contract.data_snapshot.as_mut().unwrap().nested_counterfactual_fit =
+        Some(orthogonal_direct_fit());
+    let header = AnalysisResultHeader { variable_names: names };
+    let flagged = |body: &AnalysisResultWire, contract: &AnalysisResultContractWire| {
+        verify_contract_against_body(&header, body, contract)
+            .iter()
+            .any(|reason| reason.as_ref() == "body.temporal_nested_point")
+    };
+    let set_inference = |contract: &mut AnalysisResultContractWire, inference: &str| {
+        contract.inference_binding.as_mut().unwrap().inference = inference.into();
+    };
+
+    // Frequentist: the shared-block SE and its interval around the plug-in.
+    set_inference(&mut contract, "frequentist");
+    body.standard_error = Some(0.1);
+    body.interval_lower = Some(1.8);
+    body.interval_upper = Some(2.2);
+    assert!(!flagged(&body, &contract), "accepted frequentist interval");
+    // Forged: the estimate moved off the solved moments.
+    body.estimate = Some(2.5);
+    body.interval_upper = Some(2.7);
+    assert!(flagged(&body, &contract), "estimate off the moments");
+    body.estimate = Some(2.0);
+    body.interval_upper = Some(2.2);
+    // Forged: an inverted interval.
+    body.interval_lower = Some(2.2);
+    body.interval_upper = Some(1.8);
+    assert!(flagged(&body, &contract), "inverted interval");
+    // Forged: one endpoint only, or an interval that leaves out the estimate.
+    body.interval_lower = Some(1.8);
+    body.interval_upper = None;
+    assert!(flagged(&body, &contract), "one endpoint");
+    body.interval_lower = Some(2.1);
+    body.interval_upper = Some(2.3);
+    assert!(flagged(&body, &contract), "interval excludes the estimate");
+    // Forged: a posterior artifact under frequentist inference.
+    body.interval_lower = Some(1.8);
+    body.interval_upper = Some(2.2);
+    body.posterior_artifact = Some(vec![1u8]);
+    assert!(flagged(&body, &contract), "posterior under frequentist inference");
+
+    // Bayesian: the slope-posterior summary and its artifact beside the plug-in.
+    set_inference(&mut contract, "bayesian");
+    body.standard_error = Some(0.1);
+    body.interval_lower = Some(1.85);
+    body.interval_upper = Some(2.25);
+    assert!(!flagged(&body, &contract), "accepted Bayesian posterior summary");
+    body.interval_lower = Some(2.25);
+    body.interval_upper = Some(1.85);
+    assert!(flagged(&body, &contract), "inverted credible interval");
+    body.interval_lower = Some(1.85);
+    body.interval_upper = Some(2.25);
+    body.estimate = Some(3.0);
+    assert!(flagged(&body, &contract), "Bayesian estimate off the moments");
+    body.estimate = Some(2.0);
+    body.standard_error = Some(-0.1);
+    assert!(flagged(&body, &contract), "negative posterior standard deviation");
+
+    // The bare point stays accepted under either mode.
+    body.standard_error = None;
+    body.interval_lower = None;
+    body.interval_upper = None;
+    body.posterior_artifact = None;
+    assert!(!flagged(&body, &contract));
+    set_inference(&mut contract, "frequentist");
+    assert!(!flagged(&body, &contract));
+}
+
+#[test]
 fn mixture_masses_must_sum_to_one() {
     validate_mixture_masses(0.5, 0.3, 0.2, 0.0).unwrap();
-    assert!(validate_mixture_masses(0.5, 0.3, 0.1, 0.0).is_err());
-    assert!(validate_mixture_masses(1.2, 0.0, 0.0, 0.0).is_err());
-    assert!(validate_mixture_masses(f64::NAN, 0.0, 0.0, 0.0).is_err());
+    let message = |result: Result<(), crate::IoError>| result.unwrap_err().to_string();
+    assert!(message(validate_mixture_masses(0.5, 0.3, 0.1, 0.0)).contains("must sum to 1"));
+    assert!(message(validate_mixture_masses(1.2, 0.0, 0.0, 0.0)).contains("inside [0, 1]"));
+    assert!(message(validate_mixture_masses(f64::NAN, 0.0, 0.0, 0.0)).contains("inside [0, 1]"));
+    assert!(message(validate_mixture_masses(-0.1, 1.1, 0.0, 0.0)).contains("inside [0, 1]"));
+    // The sum tolerance is 1e-12: a sum off by 5e-13 passes, one off by 5e-12 does not.
+    validate_mixture_masses(0.5, 0.3, 0.2 + 5e-13, 0.0).unwrap();
+    assert!(message(validate_mixture_masses(0.5, 0.3, 0.2 + 5e-12, 0.0)).contains("must sum to 1"));
 }
 
 #[test]
@@ -1481,4 +2053,1550 @@ fn moment_replay_inverse_is_scale_free_and_refuses_collinear_moments() {
     let mut non_finite = gram;
     non_finite[0] = f64::NAN;
     assert!(invert_linear_moments(&non_finite, 3).is_none());
+}
+
+#[test]
+fn an_estimators_own_summary_covariance_is_not_family_evidence() {
+    let (mut body, target, names) = fixture_body();
+    body.joint_covariance = Some(crate::JointCovarianceWire { dim: 1, values: vec![0.04] });
+    let contract = contract_for(target, &body);
+    let encoded = to_bytes(&body, names, Some(&contract));
+    let consumed = replay_analysis_result(&encoded).unwrap();
+    assert_eq!(consumed.body.joint_covariance, body.joint_covariance);
+    assert!(
+        !consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| reason.as_ref() == "dependencies.checked_batch_family_operation")
+    );
+}
+
+#[test]
+fn portable_family_evidence_is_sealed_without_claiming_scalar_replay_verifies_it() {
+    let (mut body, target, names) = fixture_body();
+    body.joint_covariance = Some(crate::JointCovarianceWire { dim: 1, values: vec![0.04] });
+    body.simultaneous_interval = Some((1.6, 2.4, 0.95));
+    let contract = contract_for(target, &body);
+    let encoded = to_bytes(&body, names.clone(), Some(&contract));
+    let consumed = replay_analysis_result(&encoded).unwrap();
+    assert_eq!(consumed.body.joint_covariance, body.joint_covariance);
+    assert_eq!(consumed.body.simultaneous_interval, body.simultaneous_interval);
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
+    assert_eq!(
+        consumed.acceptance.unresolved.as_ref(),
+        &[std::sync::Arc::<str>::from("dependencies.checked_batch_family_operation")]
+    );
+    let before = result_digest(&body).unwrap();
+    body.joint_covariance.as_mut().unwrap().values[0] = 0.09;
+    assert_ne!(result_digest(&body).unwrap(), before);
+    assert_eq!(
+        encode_analysis_result_artifact_with_contract(
+            &body,
+            names,
+            "tampered-family",
+            Some(&contract)
+        )
+        .unwrap_err()
+        .to_string()
+        .as_str(),
+        "convert error: contract does not verify against analysis_result body: claim.id"
+    );
+}
+
+#[test]
+fn graphless_calibration_validation_is_bound_to_checked_route_and_no_suite() {
+    use antecedent_core::{PanelDidQuery, RandomizedEffectQuery};
+    use std::sync::Arc;
+    let (body, target, _) = fixture_body();
+    let panel = PanelDidQuery::new(
+        VariableId::from_raw(1),
+        [true, true, false, false],
+        [false, true, false, true],
+        ["a", "a", "b", "b"].map(Arc::<str>::from),
+        ["x", "x", "y", "y"].map(Arc::<str>::from),
+    );
+    let trial = RandomizedEffectQuery::bernoulli_itt(
+        VariableId::from_raw(1),
+        vec![false, true],
+        vec![0.5, 0.5],
+        ["a", "b"].map(Arc::<str>::from),
+        ["a", "b"].map(Arc::<str>::from),
+        ("control", "treated"),
+    );
+    let cases = [
+        (
+            CausalQuery::PanelDid(panel),
+            "graphless:difference_in_differences/two_period_panel/cluster/normal",
+            "frequentist",
+            "analytic_se",
+            "cluster",
+        ),
+        (
+            CausalQuery::RandomizedEffect(trial),
+            "graphless:randomized_effect/bernoulli/gaussian_ipow_modular_posterior/conditional_pseudo_posterior_pointwise_95_quantiles",
+            "bayesian",
+            "posterior_quantile",
+            "iid",
+        ),
+    ];
+    for (query, coordinate, inference, interval, dependence) in cases {
+        let mut contract = contract_for(target.clone(), &body);
+        contract.target.query = causal_query_to_wire(&query).unwrap();
+        contract.graph_class = "RandomizedTrial".into();
+        contract.structure_source = "randomized_trial".into();
+        let support = contract.reasoning.support.value.as_mut().unwrap();
+        support.matrix_status = "supported".into();
+        support.matrix_coordinate = Some(coordinate.into());
+        contract.program.as_mut().unwrap().commitments.inference = inference.into();
+        contract.program.as_mut().unwrap().commitments.validation_suite = None;
+        contract.inference_binding.as_mut().unwrap().validation_suite = None;
+        contract.inference_binding.as_mut().unwrap().inference = inference.into();
+        let mut basis = contract.claim.as_ref().unwrap().calibration.basis.clone().unwrap();
+        basis.key.query =
+            if interval == "analytic_se" { "PanelDid" } else { "RandomizedEffect" }.into();
+        basis.key.graph_class = "RandomizedTrial".into();
+        basis.key.structure = "design".into();
+        basis.key.inference = inference.into();
+        basis.key.interval_method = interval.into();
+        basis.key.dependence = dependence.into();
+        basis.key.validation = "not_applicable".into();
+        assert!(super::verify::calibration_basis_matches_contract(&contract, &basis));
+        for forged in ["none", "cheap", "full", "unrecognized"] {
+            basis.key.validation = forged.into();
+            assert!(
+                !super::verify::calibration_basis_matches_contract(&contract, &basis),
+                "{forged}"
+            );
+        }
+        basis.key.validation = "not_applicable".into();
+        let mut forged_axis = basis.clone();
+        forged_axis.key.query = "Unknown".into();
+        forged_axis.key.structure = "fixed".into();
+        assert!(!super::verify::calibration_basis_matches_contract(&contract, &forged_axis));
+        contract.program.as_mut().unwrap().commitments.validation_suite =
+            Some("validation.full".into());
+        assert!(!super::verify::calibration_basis_matches_contract(&contract, &basis));
+        contract.program.as_mut().unwrap().commitments.validation_suite = None;
+        contract.inference_binding.as_mut().unwrap().validation_suite =
+            Some("validation.full".into());
+        assert!(!super::verify::calibration_basis_matches_contract(&contract, &basis));
+        contract.inference_binding = None;
+        assert!(!super::verify::calibration_basis_matches_contract(&contract, &basis));
+        // Old artifacts remain readable but the calibration matcher rejects
+        // an empty validation key for any positive record match.
+        basis.key.validation.clear();
+        basis.key.query = "Unknown".into();
+        basis.key.structure = "fixed".into();
+        assert!(super::verify::calibration_basis_matches_contract(&contract, &basis));
+    }
+}
+
+/// Replay of a declared cross-fitted doubly-robust fit from a full-source witness.
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::float_cmp,
+    reason = "the tables are small synthetic columns built from small indices; copies are compared exactly"
+)]
+mod dr_replay {
+    use std::collections::BTreeSet;
+    use std::sync::Arc;
+
+    use antecedent_core::{CancellationToken, ExecutionContext};
+    use antecedent_learn::dr_replay::{DrOverlap, DrReplayInput, DrReplaySpec, replay_dr_ate};
+    use antecedent_learn::{
+        ElasticNetSpec, LearnerSpec, LinearSpec, LogisticSpec, PredictionMap, RidgeSpec,
+    };
+
+    use super::super::dr_replay::{DrReplayRefusal, SourceReplayBounds, verify_checked_dr_replay};
+    use super::super::verify::{
+        verify_contract_against_body_with_source, verify_contract_for_encoding_with_source,
+    };
+    use super::*;
+    use crate::contract_wire::{
+        CHECKED_DR_LOWERING_FORMAT, CHECKED_DR_PROCEDURE, CheckedDrLoweringWire, CheckedLearnerWire,
+    };
+    use crate::identity::{DataPartitionIdentityWire, data_snapshot_digest};
+    use crate::source_witness::{
+        SOURCE_WITNESS_FORMAT, SourceColumnWire, SourceWitnessError, SourceWitnessLimits,
+        SourceWitnessWire,
+    };
+
+    const SEED: u64 = 11;
+    const ROWS: usize = 60;
+    const MISMATCH: &str = "dependencies.checked_dr_replay_mismatch";
+    const SOURCE: &str = "dependencies.checked_dr_replay_source";
+    const UNSUPPORTED: &str = "dependencies.checked_dr_replay_unsupported";
+    const RESOURCE: &str = "dependencies.checked_dr_replay_resource";
+    const OPERATION: &str = "dependencies.checked_estimator_operation";
+
+    const LINEAR: LearnerSpec = LearnerSpec::Linear(LinearSpec {});
+    const LOGISTIC: LearnerSpec = LearnerSpec::Logistic(LogisticSpec { ridge_lambda: 0.0 });
+
+    /// What a case is built from: columns in dense id order (treatment 0, outcome 1, then
+    /// the rest), and the adjustment ids among them.
+    struct CaseSpec {
+        names: Vec<&'static str>,
+        columns: Vec<Vec<f64>>,
+        adjustment: Vec<u32>,
+        outcome: LearnerSpec,
+        folds: usize,
+    }
+
+    /// A consistent doubly-robust contract, its body and its witness.
+    #[derive(Clone)]
+    struct Case {
+        header: AnalysisResultHeader,
+        body: AnalysisResultWire,
+        contract: AnalysisResultContractWire,
+        witness: SourceWitnessWire,
+    }
+
+    fn arm(i: usize) -> f64 {
+        f64::from(u8::from(i.is_multiple_of(2)))
+    }
+
+    fn covariate(i: usize) -> f64 {
+        ((i * 7) % 13) as f64 / 13.0
+    }
+
+    /// `y = 1.5 + 2 t - 0.75 z`, exactly linear with a constant propensity design, so the
+    /// average effect is exactly 2 whatever the folds. With `scatter` a deterministic
+    /// residual is added, so the fit depends on the folds.
+    fn linear_table(scatter: bool) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+        let t: Vec<f64> = (0..ROWS).map(arm).collect();
+        let z: Vec<f64> = (0..ROWS).map(covariate).collect();
+        let y: Vec<f64> = (0..ROWS)
+            .map(|i| {
+                let residual = if scatter { ((i * i) % 7) as f64 * 0.1 } else { 0.0 };
+                1.5 + 2.0 * t[i] - 0.75 * z[i] + residual
+            })
+            .collect();
+        (t, y, z)
+    }
+
+    fn witness_of(columns: &[Vec<f64>]) -> SourceWitnessWire {
+        SourceWitnessWire {
+            format: SOURCE_WITNESS_FORMAT,
+            row_count: columns[0].len() as u64,
+            columns: columns
+                .iter()
+                .enumerate()
+                .map(|(index, values)| SourceColumnWire {
+                    variable: u32::try_from(index).unwrap(),
+                    values: values.clone(),
+                })
+                .collect(),
+        }
+    }
+
+    fn names_of(spec: &[&str]) -> Vec<String> {
+        spec.iter().map(|name| (*name).to_owned()).collect()
+    }
+
+    fn content_of(witness: &SourceWitnessWire, names: &[String]) -> [u8; 32] {
+        witness.to_storage(names, &SourceWitnessLimits::default()).unwrap().content_digest()
+    }
+
+    fn lowering_of(spec: &CaseSpec) -> CheckedDrLoweringWire {
+        CheckedDrLoweringWire {
+            format: CHECKED_DR_LOWERING_FORMAT,
+            treatment: 0,
+            outcome: 1,
+            adjustment: spec.adjustment.clone(),
+            population: "all_observed".into(),
+            procedure: CHECKED_DR_PROCEDURE.into(),
+            folds: spec.folds as u64,
+            outcome_learner: CheckedLearnerWire::from_spec(spec.outcome).unwrap(),
+            treatment_learner: CheckedLearnerWire::from_spec(LOGISTIC).unwrap(),
+            final_learner: CheckedLearnerWire::from_spec(LINEAR).unwrap(),
+            overlap_clip_bits: Some(0.01_f64.to_bits()),
+            overlap_trim_bits: None,
+            overlap_declared: false,
+            active_level_above_control: true,
+            intercept: true,
+        }
+    }
+
+    /// Recompute every digest a forger can compute: the program and the snapshot identity, the
+    /// seal and the claim.
+    fn reseal(contract: &mut AnalysisResultContractWire, body: &AnalysisResultWire) {
+        contract.identities.program =
+            *program_digest(contract.program.as_ref().unwrap()).unwrap().as_bytes();
+        contract.identities.data_snapshot =
+            *data_snapshot_digest(contract.data_snapshot.as_ref().unwrap()).unwrap().as_bytes();
+        if let Some(claim) = contract.claim.as_mut() {
+            claim.value_bits = body.estimate.map(f64::to_bits);
+        }
+        seal_claim(contract, body);
+    }
+
+    /// Bind `witness` as the snapshot's table and reseal.
+    fn bind_snapshot(case: &mut Case, witness: &SourceWitnessWire) {
+        let content = content_of(witness, &case.header.variable_names);
+        let snapshot = case.contract.data_snapshot.as_mut().unwrap();
+        snapshot.row_count = witness.row_count;
+        snapshot.partitions = vec![DataPartitionIdentityWire {
+            content,
+            row_count: witness.row_count,
+            unit_id: None,
+            regularity: None,
+        }];
+        reseal(&mut case.contract, &case.body);
+    }
+
+    fn build(spec: &CaseSpec) -> Case {
+        let names = names_of(&spec.names);
+        let witness = witness_of(&spec.columns);
+        let lowering = lowering_of(spec);
+        let covariates: Vec<&[f64]> =
+            spec.adjustment.iter().map(|&id| spec.columns[id as usize].as_slice()).collect();
+        let row_ids: Vec<u64> = (0..ROWS as u64).collect();
+        // The producer stand-in: the same replay, run once, publishes what a body reports.
+        let replay = replay_dr_ate(
+            DrReplayInput {
+                treatment: &spec.columns[0],
+                outcome: &spec.columns[1],
+                covariates: &covariates,
+                row_ids: &row_ids,
+                intercept: true,
+            },
+            DrReplaySpec {
+                folds: spec.folds,
+                seed: SEED,
+                outcome: spec.outcome,
+                treatment: LOGISTIC,
+                final_learner: LINEAR,
+                overlap: DrOverlap { clip: Some(0.01), trim: None, declared: false },
+                active_level_above_control: true,
+            },
+            &ExecutionContext::for_tests(SEED),
+        )
+        .unwrap();
+        let (mut body, target, _) = fixture_body_for(&spec.names);
+        body.estimate = Some(replay.ate);
+        body.outcome_oof_r2 = replay.outcome_oof_r2;
+        body.treatment_oof_logloss = replay.treatment_oof_logloss;
+        body.standard_error = Some(replay.standard_error).filter(|se| se.is_finite() && *se > 0.0);
+        body.cate_se = replay.cate_se.clone().map(Arc::from);
+        body.cate = Some(Arc::from(replay.cate.clone()));
+        body.fitted_effect = replay.fitted_effect(spec.adjustment.clone()).unwrap().map(Arc::new);
+        body.crossfit_folds = Some(spec.folds);
+        body.crossfit_seed = Some(SEED);
+        body.identification.estimands.push(crate::IdentifiedEstimandWire {
+            method: "backdoor.adjustment".into(),
+            adjustment_set: spec.adjustment.clone(),
+            instruments: Vec::new(),
+            mediators: Vec::new(),
+            functional: 0,
+            rd_design: None,
+        });
+        let mut contract = contract_for_dag(
+            target,
+            &body,
+            &adjustment_dag(&spec.adjustment, 0, 1, spec.names.len()),
+        );
+        contract.estimator = Some("dr.learner".into());
+        let program = contract.program.as_mut().unwrap();
+        program.commitments.estimator = Some("dr.learner".into());
+        program.commitments.resolved_estimator = Some("dr.learner".into());
+        program.checked_dr_lowering = Some(lowering);
+        let mut case = Case {
+            header: AnalysisResultHeader { variable_names: names },
+            body,
+            contract,
+            witness: witness.clone(),
+        };
+        bind_snapshot(&mut case, &witness);
+        case
+    }
+
+    /// `treatment -> outcome`, with every adjustment variable a common cause of both.
+    fn adjustment_dag(
+        adjustment: &[u32],
+        treatment: u32,
+        outcome: u32,
+        nodes: usize,
+    ) -> antecedent_graph::Dag {
+        use antecedent_graph::{Dag, DenseNodeId};
+        let node = DenseNodeId::from_raw;
+        let mut dag = Dag::with_variables(u32::try_from(nodes).unwrap());
+        dag.insert_directed(node(treatment), node(outcome)).unwrap();
+        for &z in adjustment {
+            dag.insert_directed(node(z), node(treatment)).unwrap();
+            dag.insert_directed(node(z), node(outcome)).unwrap();
+        }
+        dag
+    }
+
+    fn standard() -> Case {
+        let (t, y, z) = linear_table(true);
+        build(&CaseSpec {
+            names: vec!["t", "y", "z"],
+            columns: vec![t, y, z],
+            adjustment: vec![2],
+            outcome: LINEAR,
+            folds: 4,
+        })
+    }
+
+    fn lowering(case: &mut Case) -> &mut CheckedDrLoweringWire {
+        case.contract.program.as_mut().unwrap().checked_dr_lowering.as_mut().unwrap()
+    }
+
+    fn replay(case: &Case) -> Result<(), DrReplayRefusal> {
+        verify_checked_dr_replay(
+            &case.header,
+            &case.body,
+            &case.contract,
+            &case.witness,
+            &SourceReplayBounds::default(),
+        )
+    }
+
+    #[allow(
+        clippy::redundant_closure_for_method_calls,
+        reason = "the fixture converts the reported reasons"
+    )]
+    fn reasons(case: &Case, source: Option<&SourceWitnessWire>) -> BTreeSet<String> {
+        verify_contract_against_body_with_source(
+            &case.header,
+            &case.body,
+            &case.contract,
+            source,
+            &SourceReplayBounds::default(),
+        )
+        .iter()
+        .map(|reason| reason.to_string())
+        .collect()
+    }
+
+    fn set(items: &[&str]) -> BTreeSet<String> {
+        items.iter().map(|item| (*item).to_owned()).collect()
+    }
+
+    /// Reasons a tampered case adds over the untouched one, with its own witness.
+    fn added(baseline: &Case, tampered: &Case) -> BTreeSet<String> {
+        let before = reasons(baseline, Some(&baseline.witness));
+        reasons(tampered, Some(&tampered.witness)).difference(&before).cloned().collect()
+    }
+
+    fn bump(value: f64) -> f64 {
+        f64::from_bits(value.to_bits() + 1)
+    }
+
+    #[test]
+    fn carried_estimands_are_rederived_from_the_carried_graph() {
+        const ESTIMANDS: &str = "identification_product.estimands";
+        let case = standard();
+        assert!(!reasons(&case, Some(&case.witness)).contains(ESTIMANDS));
+        assert_eq!(
+            case.contract.identification_product.as_ref().unwrap().estimands[0].method,
+            "backdoor.adjustment"
+        );
+        // A resealed product that names a confounder-free empty set for a confounded graph.
+        let mut empty = case.clone();
+        empty.contract.identification_product.as_mut().unwrap().estimands[0].adjustment_set =
+            Vec::new();
+        assert!(reasons(&empty, Some(&empty.witness)).contains(ESTIMANDS));
+        // The confounder is not an instrument (it reaches the outcome) nor a front-door mediator.
+        for (method, instruments, mediators) in
+            [("iv", vec![2], Vec::new()), ("frontdoor", Vec::new(), vec![2])]
+        {
+            let mut forged = case.clone();
+            let slot = &mut forged.contract.identification_product.as_mut().unwrap().estimands[0];
+            slot.method = method.into();
+            slot.adjustment_set = Vec::new();
+            slot.instruments = instruments;
+            slot.mediators = mediators;
+            assert!(reasons(&forged, Some(&forged.witness)).contains(ESTIMANDS), "{method}");
+        }
+    }
+
+    #[test]
+    fn an_estimand_the_criterion_check_cannot_evaluate_is_unresolved_not_passed() {
+        const UNCHECKED: &str = "dependencies.identification_estimand_criterion";
+        let case = standard();
+        let verify = crate::contract_section::replay::verify_carried_estimands;
+        assert_eq!(verify(&case.contract), Ok(()));
+        assert!(!reasons(&case, Some(&case.witness)).contains(UNCHECKED));
+        let unchecked = Err(crate::ContractReason::DependenciesIdentificationEstimandCriterion);
+        // Effect modifiers make the target conditional, which the criterion check does not cover.
+        let mut modified = case.clone();
+        let crate::CausalQueryWire::AverageEffect { effect_modifiers, .. } =
+            &mut modified.contract.target.query
+        else {
+            panic!("the fixture targets an average effect");
+        };
+        effect_modifiers.push(2);
+        assert_eq!(verify(&modified.contract), unchecked);
+        assert!(reasons(&modified, Some(&modified.witness)).contains(UNCHECKED));
+        // A graph other than a DAG, or no carried graph, is not evaluated either.
+        let mut ungrounded = case.clone();
+        ungrounded.contract.identification = None;
+        assert_eq!(verify(&ungrounded.contract), unchecked);
+        // An estimand of a method with another criterion is not a graph-criterion estimand, but
+        // a general-ID estimand is re-derived from the carried graph, so without one it is
+        // not replayable rather than passed as recomputed.
+        let mut other = ungrounded;
+        for estimand in &mut other.contract.identification_product.as_mut().unwrap().estimands {
+            estimand.method = "other.method".into();
+        }
+        assert_eq!(verify(&other.contract), Ok(()));
+        for estimand in &mut other.contract.identification_product.as_mut().unwrap().estimands {
+            estimand.method = "general.id".into();
+        }
+        assert_eq!(verify(&other.contract), unchecked);
+        // The unresolved reason is exported by a producer and refused by acceptance.
+        assert!(
+            crate::ContractReason::DependenciesIdentificationEstimandCriterion
+                .omitted_when_encoding()
+        );
+    }
+
+    /// The standard case with its identification product replaced by the general-ID product
+    /// of the carried graph for the carried target query.
+    fn general_id_case() -> Case {
+        use antecedent_identify::{IdIdentifier, IdentificationWorkspace};
+        let mut case = standard();
+        let crate::identity::GraphIdentityWire::Dag(graph) =
+            &case.contract.identification.as_ref().unwrap().graph
+        else {
+            panic!("the fixture carries a DAG");
+        };
+        let dag = crate::dag_from_wire(graph).unwrap();
+        let query = crate::causal_query_from_wire(&case.contract.target.query).unwrap();
+        let id = IdIdentifier::new();
+        let prepared = id.prepare_dag(&dag).unwrap();
+        let result = id.identify(&prepared, &query, &mut IdentificationWorkspace::default());
+        let derived = crate::identity::identification_product_wire(&result.unwrap(), false);
+        let derived = derived.unwrap();
+        assert_eq!(derived.estimands[0].method, "general.id");
+        let product = case.contract.identification_product.as_mut().unwrap();
+        product.estimands = derived.estimands;
+        product.arena = derived.arena;
+        case
+    }
+
+    #[test]
+    fn a_carried_general_id_functional_is_rederived_from_the_carried_graph() {
+        const ESTIMANDS: &str = "identification_product.estimands";
+        let verify = crate::contract_section::replay::verify_carried_estimands;
+        let genuine = general_id_case();
+        assert_eq!(verify(&genuine.contract), Ok(()));
+        assert!(!reasons(&genuine, Some(&genuine.witness)).contains(ESTIMANDS));
+        // A resealed product carrying the naive conditional E[Y | T] as its general-ID
+        // functional: self-consistent, but not what the identification derives.
+        let mut naive = genuine.clone();
+        let mut arena = antecedent_expr::CausalExprArena::new();
+        let outcome = antecedent_core::VariableId::from_raw(1);
+        let y = arena.intern_var_set([outcome]);
+        let t = arena.intern_var_set([antecedent_core::VariableId::from_raw(0)]);
+        let no_intervention = arena.empty_intervention_set();
+        let law = arena.intern_distribution(
+            y,
+            t,
+            no_intervention,
+            antecedent_expr::DomainRef::Observational,
+        );
+        let mean = arena.intern(antecedent_expr::ExprNode::Expectation {
+            function: antecedent_expr::OutcomeExprId::identity(outcome),
+            distribution: law,
+        });
+        let product = naive.contract.identification_product.as_mut().unwrap();
+        product.arena = crate::expr_arena_to_wire(&arena).unwrap();
+        product.estimands[0].functional = mean.raw();
+        assert_eq!(
+            verify(&naive.contract),
+            Err(crate::ContractReason::IdentificationProductEstimands)
+        );
+        assert!(reasons(&naive, Some(&naive.witness)).contains(ESTIMANDS));
+    }
+
+    #[test]
+    fn a_general_id_estimand_the_rederivation_cannot_handle_is_unresolved_not_passed() {
+        let verify = crate::contract_section::replay::verify_carried_estimands;
+        let unchecked = Err(crate::ContractReason::DependenciesIdentificationEstimandCriterion);
+        // A conditional target is not one marginal derivation.
+        let mut modified = general_id_case();
+        let crate::CausalQueryWire::AverageEffect { effect_modifiers, .. } =
+            &mut modified.contract.target.query
+        else {
+            panic!("the fixture targets an average effect");
+        };
+        effect_modifiers.push(2);
+        assert_eq!(verify(&modified.contract), unchecked);
+        // A graph class the derivation does not read.
+        let mut ungrounded = general_id_case();
+        ungrounded.contract.identification.as_mut().unwrap().graph =
+            crate::identity::GraphIdentityWire::RandomizedTrial;
+        assert_eq!(verify(&ungrounded.contract), unchecked);
+        // No carried graph at all.
+        let mut bare = general_id_case();
+        bare.contract.identification = None;
+        assert_eq!(verify(&bare.contract), unchecked);
+    }
+
+    #[test]
+    fn a_budget_failure_is_not_a_wrong_estimand() {
+        use antecedent_core::VariableId;
+        use antecedent_identify::{IdentificationBudget, IdentificationError};
+        let wrong = Err(crate::ContractReason::IdentificationProductEstimands);
+        let unfinished = Err(crate::ContractReason::DependenciesIdentificationReplayBudget);
+        assert_eq!(crate::contract_section::replay::estimand_verdict(Ok(true)), Ok(()));
+        assert_eq!(crate::contract_section::replay::estimand_verdict(Ok(false)), wrong);
+        let unknown = IdentificationError::UnknownVariable { id: VariableId::from_raw(9) };
+        assert_eq!(crate::contract_section::replay::estimand_verdict(Err(unknown)), wrong);
+        let invalid = IdentificationError::InvalidQuery { message: String::new() };
+        assert_eq!(crate::contract_section::replay::estimand_verdict(Err(invalid)), wrong);
+        let budget = IdentificationError::Budget { budget: IdentificationBudget::Steps };
+        assert_eq!(crate::contract_section::replay::estimand_verdict(Err(budget)), unfinished);
+        assert_eq!(
+            crate::contract_section::replay::estimand_verdict(Err(IdentificationError::Cancelled)),
+            unfinished
+        );
+    }
+
+    #[test]
+    fn a_carried_adjustment_set_must_be_a_backdoor_set_of_the_carried_graph() {
+        use antecedent_graph::{Dag, DenseNodeId};
+        let case = standard();
+        assert_eq!(replay(&case), Ok(()));
+        // The declared adjustment variable is caused by the treatment: adjusting for it blocks
+        // part of the effect, and a resealed product could still repeat the set.
+        let node = DenseNodeId::from_raw;
+        let mut dag = Dag::with_variables(3);
+        dag.insert_directed(node(0), node(1)).unwrap();
+        dag.insert_directed(node(0), node(2)).unwrap();
+        dag.insert_directed(node(2), node(1)).unwrap();
+        let mut descendant = case.clone();
+        descendant.contract.identification.as_mut().unwrap().graph =
+            crate::identity::dag_identity(&dag).unwrap();
+        assert!(matches!(replay(&descendant), Err(DrReplayRefusal::Binding(_))));
+        // The same variable as a collider of treatment and outcome opens a backdoor path.
+        let mut collider = Dag::with_variables(3);
+        collider.insert_directed(node(0), node(1)).unwrap();
+        collider.insert_directed(node(0), node(2)).unwrap();
+        collider.insert_directed(node(1), node(2)).unwrap();
+        let mut collided = case;
+        collided.contract.identification.as_mut().unwrap().graph =
+            crate::identity::dag_identity(&collider).unwrap();
+        assert!(matches!(replay(&collided), Err(DrReplayRefusal::Binding(_))));
+    }
+
+    #[test]
+    fn the_published_nuisance_diagnostics_are_replayed_with_the_fit() {
+        let case = standard();
+        assert!(case.body.outcome_oof_r2.is_some() && case.body.treatment_oof_logloss.is_some());
+        assert_eq!(replay(&case), Ok(()));
+        let mut r2 = case.clone();
+        r2.body.outcome_oof_r2 = r2.body.outcome_oof_r2.map(bump);
+        assert_eq!(
+            replay(&r2),
+            Err(DrReplayRefusal::Mismatch("the outcome out-of-fold R-squared"))
+        );
+        let mut logloss = case.clone();
+        logloss.body.treatment_oof_logloss = logloss.body.treatment_oof_logloss.map(bump);
+        assert_eq!(
+            replay(&logloss),
+            Err(DrReplayRefusal::Mismatch("the treatment out-of-fold log loss"))
+        );
+        let mut withheld = case;
+        withheld.body.outcome_oof_r2 = None;
+        assert_eq!(
+            replay(&withheld),
+            Err(DrReplayRefusal::Mismatch("the outcome out-of-fold R-squared"))
+        );
+    }
+
+    #[test]
+    fn the_witness_is_bound_to_the_observation_schema_the_contract_declares() {
+        let case = standard();
+        let mut renamed = case.clone();
+        renamed.contract.observation.as_mut().unwrap().schema.variables[2].name = "w".into();
+        assert_eq!(
+            replay(&renamed),
+            Err(DrReplayRefusal::Source(SourceWitnessError::Mismatch(
+                "observation schema variable name"
+            )))
+        );
+        let mut dropped = case.clone();
+        dropped.contract.observation.as_mut().unwrap().schema.variables.pop();
+        assert_eq!(
+            replay(&dropped),
+            Err(DrReplayRefusal::Source(SourceWitnessError::Mismatch(
+                "observation schema column count"
+            )))
+        );
+        let mut unbound = case;
+        unbound.contract.observation = None;
+        assert!(matches!(replay(&unbound), Err(DrReplayRefusal::Binding(_))));
+    }
+
+    #[test]
+    fn a_replay_that_reproduces_the_body_clears_the_estimator_operation_and_nothing_else() {
+        let case = standard();
+        assert_eq!(replay(&case), Ok(()));
+        let compact = reasons(&case, None);
+        assert!(compact.contains(OPERATION), "{compact:?}");
+        let replayed = reasons(&case, Some(&case.witness));
+        assert!(!replayed.contains(OPERATION), "{replayed:?}");
+        let cleared: BTreeSet<String> = compact.difference(&replayed).cloned().collect();
+        assert_eq!(cleared, set(&[OPERATION]));
+        assert!(replayed.is_subset(&compact), "{replayed:?}");
+        for reason in [MISMATCH, SOURCE, UNSUPPORTED, RESOURCE] {
+            assert!(!replayed.contains(reason), "{reason}");
+        }
+    }
+
+    #[test]
+    #[allow(
+        clippy::redundant_closure_for_method_calls,
+        reason = "the fixture converts the reported reasons"
+    )]
+    fn without_a_source_a_declared_lowering_changes_nothing() {
+        let case = standard();
+        let mut undeclared = case.clone();
+        undeclared.contract.program.as_mut().unwrap().checked_dr_lowering = None;
+        reseal(&mut undeclared.contract, &undeclared.body);
+        assert!(reasons(&undeclared, None).contains(OPERATION));
+        // Same reasons from the legacy entry point, whatever the lowering says.
+        let header = &case.header;
+        let legacy: BTreeSet<String> =
+            verify_contract_against_body(header, &case.body, &case.contract)
+                .iter()
+                .map(|reason| reason.to_string())
+                .collect();
+        assert_eq!(legacy, reasons(&case, None));
+        // A source is ignored when the contract declares nothing to replay with it.
+        assert_eq!(reasons(&undeclared, Some(&undeclared.witness)), reasons(&undeclared, None));
+    }
+
+    #[test]
+    fn an_exactly_linear_table_gives_the_effect_the_reference_computes_and_a_wrong_value_is_refused()
+     {
+        let case = build(&CaseSpec {
+            names: vec!["t", "y", "z"],
+            columns: {
+                let (t, y, z) = linear_table(false);
+                vec![t, y, z]
+            },
+            adjustment: vec![2],
+            outcome: LINEAR,
+            folds: 4,
+        });
+        // Independent reference: the outcome is exactly linear in (t, z), so every
+        // doubly-robust score equals 2, and the final-stage least-squares line through
+        // identical scores is the constant 2 whatever the folds and the propensity are.
+        let published = case.body.estimate.unwrap();
+        assert!((published - 2.0).abs() <= 1e-9, "{published}");
+        let (t, y, z) = linear_table(false);
+        let sum_z: f64 = z.iter().sum();
+        let sum_zz: f64 = z.iter().map(|v| v * v).sum();
+        let n = ROWS as f64;
+        assert_eq!((y.len(), t.len()), (ROWS, ROWS));
+        let scores = vec![2.0; ROWS];
+        let sum_s: f64 = scores.iter().sum();
+        let sum_zs: f64 = z.iter().zip(&scores).map(|(a, b)| a * b).sum();
+        let slope = (n * sum_zs - sum_z * sum_s) / (n * sum_zz - sum_z * sum_z);
+        let intercept = (sum_s - slope * sum_z) / n;
+        for (index, value) in case.body.cate.as_ref().unwrap().iter().enumerate() {
+            let line = intercept + slope * z[index];
+            assert!((value - line).abs() <= 1e-9, "row {index}: {value} vs {line}");
+        }
+        assert_eq!(replay(&case), Ok(()));
+        // A verifier that always agreed would accept these.
+        let mut wrong = case.clone();
+        wrong.body.estimate = Some(published + 1e-7);
+        assert_eq!(replay(&wrong), Err(DrReplayRefusal::Mismatch("the point estimate")));
+        let mut wrong = case;
+        wrong.body.estimate = Some(2.0 + 1e-3);
+        assert_eq!(replay(&wrong), Err(DrReplayRefusal::Mismatch("the point estimate")));
+    }
+
+    #[test]
+    fn an_intercept_only_design_matches_the_fold_means_computed_by_hand() {
+        let n = 60;
+        let t: Vec<f64> = (0..n).map(|i| f64::from(u8::from(i % 5 < 2))).collect();
+        let y: Vec<f64> =
+            (0..n).map(|i| ((i * i) % 7) as f64 + 2.0 * t[i] + 0.25 * (i % 3) as f64).collect();
+        let case = build(&CaseSpec {
+            names: vec!["t", "y"],
+            columns: vec![t.clone(), y.clone()],
+            adjustment: Vec::new(),
+            outcome: LINEAR,
+            folds: 3,
+        });
+        assert_eq!(replay(&case), Ok(()));
+        // The fold assignment is the planner's; everything after it is computed here from
+        // the witnessed columns with plain means.
+        let row_ids: Vec<u64> = (0..n as u64).collect();
+        let none: [&[f64]; 0] = [];
+        let folds = replay_dr_ate(
+            DrReplayInput {
+                treatment: &t,
+                outcome: &y,
+                covariates: &none,
+                row_ids: &row_ids,
+                intercept: true,
+            },
+            DrReplaySpec {
+                folds: 3,
+                seed: SEED,
+                outcome: LINEAR,
+                treatment: LOGISTIC,
+                final_learner: LINEAR,
+                overlap: DrOverlap { clip: Some(0.01), trim: None, declared: false },
+                active_level_above_control: true,
+            },
+            &ExecutionContext::for_tests(SEED),
+        )
+        .unwrap()
+        .fold_ids;
+        let mean = |keep: &dyn Fn(usize) -> bool, values: &[f64]| {
+            let picked: Vec<f64> = (0..n).filter(|&j| keep(j)).map(|j| values[j]).collect();
+            picked.iter().sum::<f64>() / picked.len() as f64
+        };
+        let mut scores = Vec::new();
+        for i in 0..n {
+            let train = |j: usize| folds[j] != folds[i];
+            let m0 = mean(&|j| train(j) && t[j] < 0.5, &y);
+            let m1 = mean(&|j| train(j) && t[j] > 0.5, &y);
+            let e = mean(&train, &t);
+            scores
+                .push((m1 - m0) + t[i] * (y[i] - m1) / e - (1.0 - t[i]) * (y[i] - m0) / (1.0 - e));
+        }
+        let reference = scores.iter().sum::<f64>() / n as f64;
+        // Independent standard error: the influence of the mean is `(phi - mean) n / n`, and its
+        // iid standard error is the sample standard deviation over the square root of n.
+        let influence: Vec<f64> =
+            scores.iter().map(|s| (s - reference) * n as f64 / n as f64).collect();
+        let centre = influence.iter().sum::<f64>() / n as f64;
+        let variance =
+            influence.iter().map(|v| (v - centre) * (v - centre)).sum::<f64>() / (n as f64 - 1.0);
+        let reference_error = (variance / n as f64).sqrt();
+        let reported_error = case.body.standard_error.unwrap();
+        assert!(
+            (reported_error - reference_error).abs() <= 1e-6 * reference_error,
+            "{reported_error} vs {reference_error}"
+        );
+        let published = case.body.estimate.unwrap();
+        // The unpenalized logistic MLE of an intercept is the treated fraction to ~1e-8.
+        assert!((published - reference).abs() <= 1e-6, "{published} vs {reference}");
+        let mut wrong = case;
+        wrong.body.estimate = Some(reference + 1e-3);
+        assert_eq!(replay(&wrong), Err(DrReplayRefusal::Mismatch("the point estimate")));
+    }
+
+    /// Edit the witnessed columns three ways: left unsealed, the snapshot no longer binds the
+    /// table; with the snapshot digest recomputed, the table binds but the body no longer
+    /// follows from it.
+    fn edited_source(edit: impl Fn(&mut Vec<Vec<f64>>)) -> (Case, Case) {
+        let base = standard();
+        let mut columns: Vec<Vec<f64>> =
+            base.witness.columns.iter().map(|column| column.values.clone()).collect();
+        edit(&mut columns);
+        let edited = witness_of(&columns);
+        let mut unsealed = base.clone();
+        unsealed.witness = edited.clone();
+        let mut sealed = base;
+        bind_snapshot(&mut sealed, &edited);
+        sealed.witness = edited;
+        (unsealed, sealed)
+    }
+
+    fn assert_edit_is_refused(edit: impl Fn(&mut Vec<Vec<f64>>)) {
+        let baseline = standard();
+        let (unsealed, sealed) = edited_source(edit);
+        assert_eq!(
+            replay(&unsealed),
+            Err(DrReplayRefusal::Source(SourceWitnessError::Mismatch("content digest")))
+        );
+        assert_eq!(added(&baseline, &unsealed), set(&[SOURCE, OPERATION]));
+        assert!(
+            matches!(replay(&sealed), Err(DrReplayRefusal::Mismatch(_))),
+            "{:?}",
+            replay(&sealed)
+        );
+        assert_eq!(added(&baseline, &sealed), set(&[MISMATCH, OPERATION]));
+    }
+
+    #[test]
+    fn the_published_standard_error_is_the_iid_error_of_the_score_influence() {
+        let case = standard();
+        // Independent formula, written out: scores from the replay, influence
+        // `(phi - mean) n / kept` with every row kept, sample standard deviation / sqrt(n).
+        let (t, y, z) = linear_table(true);
+        let row_ids: Vec<u64> = (0..ROWS as u64).collect();
+        let phi = replay_dr_ate(
+            DrReplayInput {
+                treatment: &t,
+                outcome: &y,
+                covariates: &[z.as_slice()],
+                row_ids: &row_ids,
+                intercept: true,
+            },
+            DrReplaySpec {
+                folds: 4,
+                seed: SEED,
+                outcome: LINEAR,
+                treatment: LOGISTIC,
+                final_learner: LINEAR,
+                overlap: DrOverlap { clip: Some(0.01), trim: None, declared: false },
+                active_level_above_control: true,
+            },
+            &ExecutionContext::for_tests(SEED),
+        )
+        .unwrap()
+        .phi;
+        let n = ROWS as f64;
+        let mean = phi.iter().sum::<f64>() / n;
+        let influence: Vec<f64> = phi.iter().map(|p| (p - mean) * n / n).collect();
+        let centre = influence.iter().sum::<f64>() / n;
+        let variance =
+            influence.iter().map(|v| (v - centre) * (v - centre)).sum::<f64>() / (n - 1.0);
+        let reference = (variance / n).sqrt();
+        let published = case.body.standard_error.unwrap();
+        assert!(reference > 0.0 && (published - reference).abs() <= 1e-9 * reference);
+        assert_eq!(replay(&case), Ok(()));
+    }
+
+    #[test]
+    fn a_tampered_or_missing_standard_error_is_refused_after_the_claim_is_resealed() {
+        let baseline = standard();
+        let published = baseline.body.standard_error.unwrap();
+        let mut tampered = baseline.clone();
+        tampered.body.standard_error = Some(bump(published));
+        reseal(&mut tampered.contract, &tampered.body);
+        assert_eq!(replay(&tampered), Err(DrReplayRefusal::Mismatch("the standard error")));
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+        let mut missing = baseline.clone();
+        missing.body.standard_error = None;
+        reseal(&mut missing.contract, &missing.body);
+        assert_eq!(replay(&missing), Err(DrReplayRefusal::Mismatch("the standard error")));
+        // Pointwise errors the replay produces must be published unchanged.
+        let mut stripped = baseline;
+        stripped.body.cate_se = None;
+        reseal(&mut stripped.contract, &stripped.body);
+        assert_eq!(
+            replay(&stripped),
+            Err(DrReplayRefusal::Mismatch("the pointwise CATE standard errors"))
+        );
+    }
+
+    #[test]
+    fn a_tampered_pointwise_cate_standard_error_is_refused() {
+        let baseline = standard();
+        let mut tampered = baseline.clone();
+        let mut errors = baseline.body.cate_se.as_ref().unwrap().to_vec();
+        errors[2] = bump(errors[2]);
+        tampered.body.cate_se = Some(Arc::from(errors));
+        reseal(&mut tampered.contract, &tampered.body);
+        assert_eq!(
+            replay(&tampered),
+            Err(DrReplayRefusal::Mismatch("the pointwise CATE standard errors"))
+        );
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+    }
+
+    #[test]
+    fn a_body_publishing_an_interval_or_covariance_is_not_cleared() {
+        let baseline = standard();
+        // The route publishes a standard error only; an interval has no replay here.
+        let mut interval = baseline.clone();
+        interval.body.interval_lower = Some(1.0);
+        interval.body.interval_upper = Some(3.0);
+        reseal(&mut interval.contract, &interval.body);
+        assert!(matches!(replay(&interval), Err(DrReplayRefusal::Unsupported(_))));
+        let published = reasons(&interval, Some(&interval.witness));
+        assert!(published.contains(UNSUPPORTED) && published.contains(OPERATION), "{published:?}");
+        let mut covariance = baseline;
+        covariance.body.joint_covariance =
+            Some(crate::JointCovarianceWire { dim: 1, values: vec![0.5] });
+        reseal(&mut covariance.contract, &covariance.body);
+        assert!(matches!(replay(&covariance), Err(DrReplayRefusal::Unsupported(_))));
+    }
+
+    #[test]
+    fn one_changed_outcome_value_is_refused() {
+        assert_edit_is_refused(|columns| columns[1][17] += 0.5);
+    }
+
+    #[test]
+    fn one_changed_treatment_value_is_refused() {
+        assert_edit_is_refused(|columns| columns[0][4] = 1.0 - columns[0][4]);
+    }
+
+    #[test]
+    fn one_changed_covariate_value_is_refused() {
+        assert_edit_is_refused(|columns| columns[2][9] += 0.25);
+    }
+
+    #[test]
+    fn swapped_rows_are_refused() {
+        assert_edit_is_refused(|columns| {
+            for column in columns.iter_mut() {
+                column.swap(3, 40);
+            }
+        });
+    }
+
+    #[test]
+    fn a_non_binary_treatment_value_is_unsupported_not_a_mismatch() {
+        let baseline = standard();
+        let (_, mut sealed) = edited_source(|columns| columns[0][4] = 2.0);
+        assert_eq!(
+            replay(&sealed),
+            Err(DrReplayRefusal::Unsupported("the witnessed treatment is not exactly 0 or 1"))
+        );
+        assert_eq!(added(&baseline, &sealed), set(&[UNSUPPORTED, OPERATION]));
+        sealed.witness.columns[0].values[4] = 0.5;
+        assert!(matches!(replay(&sealed), Err(DrReplayRefusal::Source(_))));
+    }
+
+    #[test]
+    fn an_unused_extra_column_is_carried_and_a_dropped_column_is_refused() {
+        let (t, y, z) = linear_table(true);
+        let spare: Vec<f64> = (0..ROWS).map(|i| (i % 5) as f64).collect();
+        let case = build(&CaseSpec {
+            names: vec!["t", "y", "z", "spare"],
+            columns: vec![t, y, z, spare],
+            adjustment: vec![2],
+            outcome: LINEAR,
+            folds: 4,
+        });
+        assert_eq!(replay(&case), Ok(()));
+        let replayed = reasons(&case, Some(&case.witness));
+        assert!(!replayed.contains(OPERATION), "{replayed:?}");
+        // The same table without its last column: fewer columns than variable names.
+        let mut dropped = case.clone();
+        dropped.witness.columns.pop();
+        assert!(matches!(
+            replay(&dropped),
+            Err(DrReplayRefusal::Source(SourceWitnessError::Mismatch(
+                "observation schema column count"
+            )))
+        ));
+        // Even renamed to fit, the narrower table is not the observation's schema.
+        dropped.header.variable_names.pop();
+        assert_eq!(
+            replay(&dropped),
+            Err(DrReplayRefusal::Source(SourceWitnessError::Mismatch(
+                "observation schema column count"
+            )))
+        );
+        // The header was edited to fit, so it now also disagrees with the observation.
+        assert_eq!(added(&case, &dropped), set(&[SOURCE, OPERATION, "header.variable_names"]));
+    }
+
+    #[test]
+    fn a_tampered_point_estimate_is_refused_after_every_digest_is_recomputed() {
+        let baseline = standard();
+        let mut tampered = baseline.clone();
+        tampered.body.estimate = Some(bump(baseline.body.estimate.unwrap()));
+        reseal(&mut tampered.contract, &tampered.body);
+        assert_eq!(replay(&tampered), Err(DrReplayRefusal::Mismatch("the point estimate")));
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+    }
+
+    #[test]
+    fn a_tampered_cate_vector_is_refused_after_every_digest_is_recomputed() {
+        let baseline = standard();
+        let mut tampered = baseline.clone();
+        let mut cate = baseline.body.cate.as_ref().unwrap().to_vec();
+        cate[7] = bump(cate[7]);
+        tampered.body.cate = Some(Arc::from(cate));
+        reseal(&mut tampered.contract, &tampered.body);
+        assert_eq!(replay(&tampered), Err(DrReplayRefusal::Mismatch("the CATE vector")));
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+    }
+
+    fn edited_model(edit: impl Fn(&mut antecedent_learn::FittedEffect)) -> (Case, Case) {
+        let baseline = standard();
+        let mut tampered = baseline.clone();
+        edit(Arc::make_mut(tampered.body.fitted_effect.as_mut().unwrap()));
+        reseal(&mut tampered.contract, &tampered.body);
+        (baseline, tampered)
+    }
+
+    #[test]
+    fn a_tampered_predictor_coefficient_is_refused() {
+        let (baseline, tampered) = edited_model(|model| {
+            let PredictionMap::Linear { coefficients, .. } = &mut model.predictor.model else {
+                panic!("the final stage is linear");
+            };
+            coefficients[1] = bump(coefficients[1]);
+        });
+        assert_eq!(replay(&tampered), Err(DrReplayRefusal::Mismatch("the fitted effect model")));
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+    }
+
+    #[test]
+    fn a_tampered_intercept_coefficient_is_refused() {
+        let (baseline, tampered) = edited_model(|model| {
+            let PredictionMap::Linear { coefficients, .. } = &mut model.predictor.model else {
+                panic!("the final stage is linear");
+            };
+            coefficients[0] += 1e-6;
+        });
+        assert_eq!(replay(&tampered), Err(DrReplayRefusal::Mismatch("the fitted effect model")));
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+    }
+
+    #[test]
+    fn a_tampered_feature_schema_is_refused() {
+        let (baseline, tampered) = edited_model(|model| model.features = vec![0]);
+        assert_eq!(replay(&tampered), Err(DrReplayRefusal::Mismatch("the fitted effect model")));
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+        // The same model with no intercept column, kept internally consistent.
+        let (baseline, tampered) = edited_model(|model| {
+            model.intercept = false;
+            model.predictor.columns -= 1;
+            if let PredictionMap::Linear { coefficients, .. } = &mut model.predictor.model {
+                coefficients.remove(0);
+            }
+        });
+        assert_eq!(replay(&tampered), Err(DrReplayRefusal::Mismatch("the fitted effect model")));
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+    }
+
+    #[test]
+    fn a_tampered_support_box_is_refused() {
+        let (baseline, tampered) = edited_model(|model| {
+            model.support.as_mut().unwrap().ranges[0].lo -= 1.0;
+        });
+        assert_eq!(replay(&tampered), Err(DrReplayRefusal::Mismatch("the fitted effect model")));
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+        let (baseline, tampered) = edited_model(|model| {
+            model.support.as_mut().unwrap().rows -= 1;
+        });
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+    }
+
+    #[test]
+    fn a_tampered_recorded_seed_is_refused() {
+        let baseline = standard();
+        let mut tampered = baseline.clone();
+        tampered.body.crossfit_seed = Some(SEED + 1);
+        reseal(&mut tampered.contract, &tampered.body);
+        assert!(matches!(replay(&tampered), Err(DrReplayRefusal::Mismatch(_))));
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+    }
+
+    #[test]
+    fn a_tampered_declared_fold_count_is_refused_even_when_the_record_agrees() {
+        let baseline = standard();
+        let mut tampered = baseline.clone();
+        lowering(&mut tampered).folds = 3;
+        reseal(&mut tampered.contract, &tampered.body);
+        assert_eq!(
+            replay(&tampered),
+            Err(DrReplayRefusal::Mismatch(
+                "the body's cross-fit record differs from the declared fold count"
+            ))
+        );
+        // A forger who also rewrites the record still faces the replay.
+        tampered.body.crossfit_folds = Some(3);
+        reseal(&mut tampered.contract, &tampered.body);
+        assert_eq!(replay(&tampered), Err(DrReplayRefusal::Mismatch("the point estimate")));
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+    }
+
+    #[test]
+    fn a_wrong_learner_in_the_declaration_is_refused() {
+        let baseline = standard();
+        for wrong in [
+            LearnerSpec::Ridge(RidgeSpec { lambda: 3.0 }),
+            LearnerSpec::ElasticNet(ElasticNetSpec { l1_ratio: 0.5, lambda: 0.25 }),
+        ] {
+            let mut tampered = baseline.clone();
+            lowering(&mut tampered).outcome_learner = CheckedLearnerWire::from_spec(wrong).unwrap();
+            reseal(&mut tampered.contract, &tampered.body);
+            assert!(matches!(replay(&tampered), Err(DrReplayRefusal::Mismatch(_))), "{wrong:?}");
+            assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+        }
+        let mut tampered = baseline.clone();
+        lowering(&mut tampered).final_learner = CheckedLearnerWire::from_spec(LOGISTIC).unwrap();
+        reseal(&mut tampered.contract, &tampered.body);
+        assert!(replay(&tampered).is_err());
+    }
+
+    #[test]
+    fn a_changed_overlap_or_role_in_the_declaration_is_refused() {
+        let baseline = standard();
+        let mut tampered = baseline.clone();
+        // The standard fixture's propensities all lie inside any admissible trim band, so a
+        // declared trim changes no number: the replay is numerical and reproduces the claim.
+        lowering(&mut tampered).overlap_trim_bits = Some(0.2_f64.to_bits());
+        reseal(&mut tampered.contract, &tampered.body);
+        assert!(replay(&tampered).is_ok());
+        // A clip outside (0, 0.5) is a malformed declaration.
+        let mut tampered = baseline.clone();
+        lowering(&mut tampered).overlap_clip_bits = Some(0.75_f64.to_bits());
+        reseal(&mut tampered.contract, &tampered.body);
+        assert!(matches!(replay(&tampered), Err(DrReplayRefusal::Lowering(_))));
+        assert_eq!(added(&baseline, &tampered), set(&["program.checked_dr_lowering", OPERATION]));
+        // A role that is not the contract's query is a binding fault.
+        let mut tampered = baseline.clone();
+        lowering(&mut tampered).outcome = 5;
+        reseal(&mut tampered.contract, &tampered.body);
+        assert!(matches!(replay(&tampered), Err(DrReplayRefusal::Binding(_))));
+        assert_eq!(added(&baseline, &tampered), set(&["program.checked_dr_binding", OPERATION]));
+    }
+
+    #[test]
+    #[allow(clippy::type_complexity, reason = "the fixture enumerates typed contract mutations")]
+    fn a_declaration_outside_the_supported_operation_is_not_replayed() {
+        let baseline = standard();
+        let mut tampered = baseline.clone();
+        lowering(&mut tampered).intercept = false;
+        reseal(&mut tampered.contract, &tampered.body);
+        assert!(matches!(replay(&tampered), Err(DrReplayRefusal::Unsupported(_))));
+        assert_eq!(added(&baseline, &tampered), set(&[UNSUPPORTED, OPERATION]));
+        // A snapshot that is not a plain table is outside the operation as well.
+        let mut tampered = baseline.clone();
+        tampered.contract.data_snapshot.as_mut().unwrap().sampling_design =
+            Some("stratified".into());
+        reseal(&mut tampered.contract, &tampered.body);
+        assert!(matches!(replay(&tampered), Err(DrReplayRefusal::Unsupported(_))));
+        let faults: Vec<Box<dyn Fn(&mut CheckedDrLoweringWire)>> = vec![
+            Box::new(|declared: &mut CheckedDrLoweringWire| declared.folds = 1),
+            Box::new(|declared: &mut CheckedDrLoweringWire| declared.procedure = "other".into()),
+            Box::new(|declared: &mut CheckedDrLoweringWire| {
+                declared.outcome_learner.kind = "forest".into();
+            }),
+            Box::new(|declared: &mut CheckedDrLoweringWire| declared.adjustment = vec![2, 2]),
+        ];
+        for fault in &faults {
+            let mut tampered = baseline.clone();
+            fault(lowering(&mut tampered));
+            reseal(&mut tampered.contract, &tampered.body);
+            assert!(matches!(replay(&tampered), Err(DrReplayRefusal::Lowering(_))));
+        }
+    }
+
+    #[test]
+    fn an_oversize_witness_is_refused_before_any_fit() {
+        let case = standard();
+        let bounds = SourceReplayBounds {
+            witness: SourceWitnessLimits { max_bytes: 64, ..SourceWitnessLimits::default() },
+            ..SourceReplayBounds::default()
+        };
+        let outcome = verify_checked_dr_replay(
+            &case.header,
+            &case.body,
+            &case.contract,
+            &case.witness,
+            &bounds,
+        );
+        assert_eq!(outcome, Err(DrReplayRefusal::Source(SourceWitnessError::TooLarge)));
+        let (_, fits) = antecedent_learn::fit_counts::count_resolved_fits(|| {
+            verify_checked_dr_replay(
+                &case.header,
+                &case.body,
+                &case.contract,
+                &case.witness,
+                &bounds,
+            )
+        });
+        assert_eq!(fits, 0);
+        let published = verify_contract_against_body_with_source(
+            &case.header,
+            &case.body,
+            &case.contract,
+            Some(&case.witness),
+            &bounds,
+        );
+        assert!(published.iter().any(|reason| reason.as_ref() == SOURCE));
+        assert!(published.iter().any(|reason| reason.as_ref() == OPERATION));
+    }
+
+    #[test]
+    fn a_cancelled_replay_is_cancelled_and_never_success_or_mismatch() {
+        let case = standard();
+        let token = CancellationToken::new();
+        token.cancel();
+        let bounds = SourceReplayBounds { cancellation: token, ..SourceReplayBounds::default() };
+        let run = |bounds: &SourceReplayBounds| {
+            verify_checked_dr_replay(
+                &case.header,
+                &case.body,
+                &case.contract,
+                &case.witness,
+                bounds,
+            )
+        };
+        assert_eq!(run(&bounds), Err(DrReplayRefusal::Cancelled));
+        let published = verify_contract_against_body_with_source(
+            &case.header,
+            &case.body,
+            &case.contract,
+            Some(&case.witness),
+            &bounds,
+        );
+        assert!(published.iter().any(|reason| reason.as_ref() == RESOURCE));
+        assert!(published.iter().any(|reason| reason.as_ref() == OPERATION));
+        assert!(!published.iter().any(|reason| reason.as_ref() == MISMATCH));
+        // Cancelled while the fits run: the replay's own cancellation is not a mismatch.
+        let mid_run = SourceReplayBounds {
+            cancellation: CancellationToken::cancel_after_checks(1),
+            ..SourceReplayBounds::default()
+        };
+        assert_eq!(run(&mid_run), Err(DrReplayRefusal::Cancelled));
+    }
+
+    #[test]
+    fn a_refused_working_memory_bound_is_a_resource_refusal() {
+        let case = standard();
+        let bounds = SourceReplayBounds { memory_bytes: 1024, ..SourceReplayBounds::default() };
+        let outcome = verify_checked_dr_replay(
+            &case.header,
+            &case.body,
+            &case.contract,
+            &case.witness,
+            &bounds,
+        );
+        assert!(matches!(outcome, Err(DrReplayRefusal::Resource(_))), "{outcome:?}");
+        let published = verify_contract_against_body_with_source(
+            &case.header,
+            &case.body,
+            &case.contract,
+            Some(&case.witness),
+            &bounds,
+        );
+        assert!(published.iter().any(|reason| reason.as_ref() == RESOURCE));
+        assert!(!published.iter().any(|reason| reason.as_ref() == MISMATCH));
+    }
+
+    #[test]
+    #[allow(
+        clippy::redundant_closure_for_method_calls,
+        reason = "the fixture converts the reported reasons"
+    )]
+    fn the_encoder_applies_the_same_replay_to_the_source_it_embeds() {
+        let case = standard();
+        let encoded = |case: &Case, source: Option<&SourceWitnessWire>| -> Vec<String> {
+            verify_contract_for_encoding_with_source(
+                &case.header,
+                &case.body,
+                &case.contract,
+                source,
+            )
+            .iter()
+            .map(|reason| reason.to_string())
+            .collect()
+        };
+        assert!(!encoded(&case, Some(&case.witness)).iter().any(|r| r == MISMATCH || r == SOURCE));
+        // A producer-side export of a body its source does not produce is refused.
+        let mut tampered = case.clone();
+        tampered.body.estimate = Some(bump(case.body.estimate.unwrap()));
+        reseal(&mut tampered.contract, &tampered.body);
+        assert!(encoded(&tampered, Some(&tampered.witness)).iter().any(|r| r == MISMATCH));
+        // Without a source the producer encodes exactly as it always did: the same verdict as
+        // the untouched case.
+        assert_eq!(encoded(&tampered, None), encoded(&case, None));
+    }
+
+    #[test]
+    fn the_learner_wire_form_round_trips_and_covers_only_deterministic_learners() {
+        for spec in [
+            LINEAR,
+            LOGISTIC,
+            LearnerSpec::Logistic(LogisticSpec { ridge_lambda: 0.125 }),
+            LearnerSpec::Ridge(RidgeSpec { lambda: 1.0 }),
+            LearnerSpec::ElasticNet(ElasticNetSpec { l1_ratio: 0.25, lambda: 2.0 }),
+        ] {
+            let wire = CheckedLearnerWire::from_spec(spec).unwrap();
+            assert_eq!(wire.to_spec(), Some(spec));
+            assert_eq!(to_cbor(&wire).unwrap(), to_cbor(&wire.clone()).unwrap());
+        }
+        assert_eq!(CheckedLearnerWire::from_spec(LearnerSpec::Auto), None);
+        let ridge =
+            CheckedLearnerWire::from_spec(LearnerSpec::Ridge(RidgeSpec::default())).unwrap();
+        for malformed in [
+            CheckedLearnerWire { kind: "ridge".into(), parameters: Vec::new() },
+            CheckedLearnerWire { kind: "linear".into(), parameters: vec![1] },
+            CheckedLearnerWire { kind: "forest".into(), parameters: ridge.parameters.clone() },
+        ] {
+            assert_eq!(malformed.to_spec(), None);
+        }
+    }
+
+    #[test]
+    #[allow(
+        clippy::items_after_statements,
+        reason = "the local helper is scoped to the validation"
+    )]
+    fn every_declared_setting_is_part_of_the_program_identity() {
+        let case = standard();
+        let program = case.contract.program.as_ref().unwrap();
+        let original = program_digest(program).unwrap();
+        type Edit = Box<dyn Fn(&mut CheckedDrLoweringWire)>;
+        let edits: Vec<Edit> = vec![
+            Box::new(|l: &mut CheckedDrLoweringWire| l.treatment += 5),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.outcome += 5),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.adjustment.push(9)),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.population = "treated".into()),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.procedure = "other".into()),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.folds += 1),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.outcome_learner.parameters.push(1)),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.treatment_learner.kind = "ridge".into()),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.final_learner.kind = "ridge".into()),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.overlap_clip_bits = None),
+            Box::new(|l: &mut CheckedDrLoweringWire| {
+                l.overlap_trim_bits = Some(0.1_f64.to_bits());
+            }),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.overlap_declared = true),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.active_level_above_control = false),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.intercept = false),
+        ];
+        for (index, edit) in edits.iter().enumerate() {
+            let mut changed = program.clone();
+            edit(changed.checked_dr_lowering.as_mut().unwrap());
+            assert_ne!(program_digest(&changed).unwrap(), original, "edit {index}");
+        }
+        // A program without a declaration serializes exactly as it always did.
+        let mut legacy = program.clone();
+        legacy.checked_dr_lowering = None;
+        let bytes = to_cbor(&legacy).unwrap();
+        assert!(!bytes.windows(b"checked_dr_lowering".len()).any(|w| w == b"checked_dr_lowering"));
+        let decoded: ProgramIdentityWire = crate::from_cbor(&bytes).unwrap();
+        assert_eq!(decoded.checked_dr_lowering, None);
+        let declared = to_cbor(program).unwrap();
+        let round: ProgramIdentityWire = crate::from_cbor(&declared).unwrap();
+        assert_eq!(round.checked_dr_lowering, program.checked_dr_lowering);
+        // Unknown fields of the declaration are refused.
+        let mut text = to_cbor(program.checked_dr_lowering.as_ref().unwrap()).unwrap();
+        let at = text.windows(b"intercept".len()).position(|w| w == b"intercept").unwrap();
+        text[at] = b'x';
+        assert!(crate::from_cbor::<CheckedDrLoweringWire>(&text).is_err());
+    }
+
+    #[test]
+    fn the_new_reason_spellings_are_registered() {
+        for (reason, spelling) in [
+            (ContractReason::DependenciesCheckedDrReplayMismatch, MISMATCH),
+            (ContractReason::DependenciesCheckedDrReplaySource, SOURCE),
+            (ContractReason::DependenciesCheckedDrReplayUnsupported, UNSUPPORTED),
+            (ContractReason::DependenciesCheckedDrReplayResource, RESOURCE),
+            (ContractReason::ProgramCheckedDrLowering, "program.checked_dr_lowering"),
+            (ContractReason::ProgramCheckedDrBinding, "program.checked_dr_binding"),
+        ] {
+            assert_eq!(reason.as_str(), spelling);
+            assert!(!reason.omitted_when_encoding(), "{spelling}");
+        }
+        assert_eq!(
+            DrReplayRefusal::Cancelled.reason(),
+            ContractReason::DependenciesCheckedDrReplayResource
+        );
+    }
+}
+
+#[test]
+fn descriptive_route_summary_is_bound_but_requires_scoped_replay() {
+    use crate::analysis_wire::RefutationScopeWire;
+    let (mut body, target, names) = fixture_body();
+    let mut report = refutation("overlap.assessment", true);
+    report.scope = Some(RefutationScopeWire::RouteSummary { produced_by: [3; 32] });
+    body.refutations.push(report);
+    assert_eq!(support_empirical(&body.refutations, &[]), None);
+    let contract = contract_for(target, &body);
+    let unresolved = unresolved_after(&body, &names, &contract);
+    assert!(unresolved.iter().any(|reason| reason == "dependencies.scoped_refutation_replay"));
+}
+
+#[test]
+fn old_scope_decoder_rejects_descriptive_route_summary() {
+    #[allow(dead_code)]
+    #[derive(serde::Deserialize)]
+    #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+    enum OldScope {
+        WholeTarget { target: crate::analysis_wire::RefutationTargetWire },
+        TemporalClassCompletion { outer_atom: u64 },
+        StaticClassCompletion { outer_atom: u64 },
+    }
+    let scope = crate::analysis_wire::RefutationScopeWire::RouteSummary { produced_by: [3; 32] };
+    let encoded = crate::to_cbor(&scope).unwrap();
+    assert!(crate::from_cbor::<OldScope>(&encoded).is_err());
+    let decoded = crate::from_cbor::<crate::analysis_wire::RefutationScopeWire>(&encoded).unwrap();
+    assert_eq!(scope, decoded);
+}
+
+#[test]
+fn descriptive_scope_rejects_nested_wrappers() {
+    let nested = serde_json::json!({"kind":"scoped_report", "produced_by":vec![0u8; 32], "scope":{"kind":"route_summary", "produced_by":vec![0u8; 32]}});
+    assert!(serde_json::from_value::<crate::analysis_wire::RefutationScopeWire>(nested).is_err());
+}
+
+#[test]
+fn whole_target_diagnostic_preserves_vectors_and_requires_replay() {
+    use crate::analysis_wire::{
+        RefutationScopeWire, RefutationTargetWire, WholeTargetDiagnosticWire,
+    };
+    let (mut body, target, names) = fixture_body();
+    let labels = vec!["x".to_owned(), "y".to_owned()];
+    let source = [7; 32];
+    let mut writer =
+        antecedent_core::identity::CanonicalWriter::new("antecedent.refutation_target");
+    writer.text("response_derivative").text("static.frequentist").texts(&labels).bytes(&source);
+    let diagnostic = WholeTargetDiagnosticWire {
+        target: RefutationTargetWire {
+            version: 1,
+            family: "response_derivative".into(),
+            temporal: false,
+            bayesian: false,
+            labels,
+            source,
+            identity: writer.finish(),
+        },
+        refuter: "placebo".into(),
+        original: vec![1f64.to_bits(), 2f64.to_bits()],
+        refuted: vec![3f64.to_bits(), 4f64.to_bits()],
+        statistic_kind: "posterior_shift".into(),
+        statistic_value: 5f64.to_bits(),
+        statistic_df: 2,
+        statistic_p_value: None,
+        standardised_bias: vec![],
+        standardised_bias_norm: None,
+        passed: false,
+        informative: true,
+        replicates: 3,
+        failure: Some("difference".into()),
+    };
+    let scope = RefutationScopeWire::WholeTargetDiagnostic {
+        produced_by: source,
+        report: Box::new(diagnostic),
+    };
+    crate::analysis_wire::validate_refutation_scope(&scope).unwrap();
+    let mut contrast = scope.clone();
+    if let RefutationScopeWire::WholeTargetDiagnostic { report, .. } = &mut contrast {
+        report.target.family = "world_valued".into();
+        let mut writer =
+            antecedent_core::identity::CanonicalWriter::new("antecedent.refutation_target");
+        writer
+            .text("world_valued")
+            .text("static.frequentist")
+            .texts(&report.target.labels)
+            .bytes(&report.target.source);
+        report.target.identity = writer.finish();
+        report.standardised_bias = vec![f64::INFINITY.to_bits()];
+    }
+    crate::analysis_wire::validate_refutation_scope(&contrast).unwrap();
+    if let RefutationScopeWire::WholeTargetDiagnostic { report, .. } = &mut contrast {
+        report.standardised_bias[0] = f64::NAN.to_bits();
+    }
+    assert!(crate::analysis_wire::validate_refutation_scope(&contrast).is_err());
+    let encoded = crate::to_cbor(&scope).unwrap();
+    assert_eq!(crate::from_cbor::<RefutationScopeWire>(&encoded).unwrap(), scope);
+    let mut report = refutation("placebo", false);
+    report.scope = Some(scope);
+    body.refutations.push(report);
+    assert_eq!(support_empirical(&body.refutations, &[]), None);
+    let contract = contract_for(target, &body);
+    assert!(
+        unresolved_after(&body, &names, &contract)
+            .iter()
+            .any(|reason| reason == "dependencies.scoped_refutation_replay")
+    );
 }

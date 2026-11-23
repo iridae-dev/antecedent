@@ -1,6 +1,12 @@
-"""Write scientific bytes and a separately retainable expected identity.
+"""Save a result as bytes plus an expected identity that can be retained apart from them.
 
-With no arguments, runs in a temporary directory. Use --output to retain files.
+A simulated randomized treatment has effect 2. The script writes analysis.bin and
+expected.json and asserts that the bytes load bound to that identity. Saving binds the bytes
+to a scientific identity; it does not establish that the declared graph or the effect holds in
+the real world.
+
+Run: python examples/python/artifact_producer.py [--output DIRECTORY]
+With no arguments the files go to a temporary directory.
 """
 
 import argparse
@@ -21,10 +27,10 @@ def produce(directory):
         {"t": t, "y": 2 * t + rng.normal(scale=0.2, size=len(t))},
         graph=[("t", "y")],
         query=ant.AverageEffect("t", "y"),
-        bootstrap=0,
+        inference=ant.Frequentist(bootstrap=0),
         refute=False,
     )
-    envelope = result.artifact()
+    envelope = result.export()
     assert envelope.expectation is not None
     (directory / "analysis.bin").write_bytes(envelope.data)
     (directory / "expected.json").write_text(

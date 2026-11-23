@@ -1,9 +1,12 @@
 //! Query submodule.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::fault::InterventionFault;
 use std::sync::Arc;
 
+use crate::canonical_encode::{CanonicalEncode, encode_variable_set};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 use crate::intervention::{Intervention, TemporalPolicy};
 use crate::value::Value;
@@ -33,6 +36,21 @@ pub struct TemporalEffectQuery {
     /// Effect modifiers. Empty for an unconditional pulse or sustained effect.
     /// A non-empty set is a temporal conditional effect on the same policy.
     pub effect_modifiers: Arc<[VariableId]>,
+}
+
+/// Every field is written. `effect_modifiers` is a conditioning set and is
+/// encoded in ascending id order.
+impl CanonicalEncode for TemporalEffectQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.treatment.encode(writer);
+        self.outcome.encode(writer);
+        self.policy.encode(writer);
+        self.control.encode(writer);
+        self.active.encode(writer);
+        writer.word(u64::from(self.horizon_steps)).opt_word(self.max_history_lag.map(u64::from));
+        self.target_population.encode(writer);
+        encode_variable_set(writer, &self.effect_modifiers);
+    }
 }
 
 impl TemporalEffectQuery {
@@ -94,7 +112,7 @@ impl TemporalEffectQuery {
         self
     }
 
-    /// Licensed single-step Sustained is `[from, from]`. A wider window is sequential.
+    /// Supported single-step Sustained is `[from, from]`. A wider window is sequential.
     #[must_use]
     pub const fn is_multi_step_sustained(&self) -> bool {
         matches!(self.policy, TemporalPolicy::Sustained { from, until } if from != until)
@@ -129,7 +147,7 @@ impl TemporalEffectQuery {
             .any(|modifier| *modifier == self.treatment || *modifier == self.outcome)
         {
             return Err(QueryError::InvalidIntervention(
-                "a temporal conditional modifier cannot be the treatment or the outcome".into(),
+                InterventionFault::ModifierIsTreatmentOrOutcome,
             ));
         }
         if self.horizon_steps == 0 {
@@ -139,9 +157,14 @@ impl TemporalEffectQuery {
             crate::intervention::InterventionError::InvalidTemporalWindow { from, until } => {
                 QueryError::InvalidTemporalWindow { from, until }
             }
-            other => QueryError::InvalidIntervention(other.to_string()),
+            other => QueryError::InvalidIntervention(InterventionFault::Rejected(other)),
         })?;
         self.target_population.validate()?;
+        for intervention in [&self.control, &self.active] {
+            intervention.validate().map_err(|error| {
+                QueryError::InvalidIntervention(super::fault::InterventionFault::Rejected(error))
+            })?;
+        }
         let control_var =
             self.control.primary_variable().ok_or(QueryError::AmbiguousInterventionTarget)?;
         if control_var != self.treatment {
@@ -183,8 +206,30 @@ impl TemporalEffectQuery {
     }
 
     /// Outcome evaluation offset: `horizon_steps - 1` (absolute from window origin).
-    #[must_use]
-    pub fn outcome_offset(&self) -> i32 {
-        i32::try_from(self.horizon_steps.saturating_sub(1)).unwrap_or(i32::MAX)
+    /// # Errors
+    /// Zero horizon or a horizon whose offset cannot be represented by `i32`.
+    pub fn outcome_offset(&self) -> Result<i32, QueryError> {
+        let offset = self.horizon_steps.checked_sub(1).ok_or(QueryError::NonPositiveHorizon)?;
+        i32::try_from(offset).map_err(|_| QueryError::TemporalOutcomeOffsetOverflow {
+            horizon_steps: self.horizon_steps,
+        })
+    }
+}
+
+#[cfg(test)]
+mod checked_horizon_tests {
+    use super::*;
+    #[test]
+    fn outcome_offset_refuses_unrepresentable_horizons() {
+        let query =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0);
+        assert_eq!(
+            query.clone().with_horizon_steps((i32::MAX as u32) + 1).outcome_offset(),
+            Ok(i32::MAX)
+        );
+        assert!(matches!(
+            query.with_horizon_steps(u32::MAX).outcome_offset(),
+            Err(QueryError::TemporalOutcomeOffsetOverflow { .. })
+        ));
     }
 }

@@ -38,8 +38,9 @@ from antecedent.intervention_programs import (
     sample_policy,
     transform,
 )
+from antecedent.outcomes import require_success
 
-from _repo_text import REPO_ROOT, load_toml, read_text
+from _repo_text import REPO_ROOT, load_toml
 
 PIN = load_toml(REPO_ROOT / "parity" / "baselines" / "dowhy.toml")
 
@@ -109,7 +110,7 @@ def test_interventional_mean_under_a_hard_set_matches_dowhy():
     a, b, c = _chain(9766501)
     draws = 20_000
     ours = antecedent.model.fit_gcm(["a", "b", "c"], [a, b, c], [("a", "b"), ("b", "c")])
-    ours_c = ours.sample_do({"a": 1.0}, draws, seed=11).draws[2]
+    ours_c = ours.sample_do({"a": 1.0}, draws, execution=antecedent.Execution(seed=11)).draws[2]
 
     graph = nx.DiGraph([("a", "b"), ("b", "c")])
     scm = _linear_dowhy_model(graph, pd.DataFrame({"a": a, "b": b, "c": c}))
@@ -122,9 +123,8 @@ def test_interventional_mean_under_a_hard_set_matches_dowhy():
     assert abs(ours_c.mean() - theirs_c.mean()) <= 6 * combined
     # Both recover the structural value: the fitted slopes carry about 0.03 of error at n = 5000.
     assert abs(ours_c.mean() - 1.2) <= 0.1 and abs(theirs_c.mean() - 1.2) <= 0.1
-    # The pinned version is recorded in the page that states where the libraries differ.
-    page = read_text(REPO_ROOT / "docs" / "guides" / "intervention-programs.md")
-    assert f"DoWhy {PIN['version']}" in page and "Differences from DoWhy" in page
+    # Documentation/version claims are checked by test_dowhy_comparison_pages;
+    # this assertion establishes the numerical proposition independently of prose.
 
 
 def test_unit_counterfactuals_match_dowhy_for_additive_noise():
@@ -136,7 +136,9 @@ def test_unit_counterfactuals_match_dowhy_for_additive_noise():
     """
     a, b, c = _chain(6804289)
     ours = antecedent.model.fit_gcm(["a", "b", "c"], [a, b, c], [("a", "b"), ("b", "c")])
-    ours_cf = counterfactual_policy(ours, [assign("a", const(1.0))], ["a", "b", "c"], seed=1)
+    ours_cf = counterfactual_policy(
+        ours, [assign("a", const(1.0))], ["a", "b", "c"], execution=antecedent.Execution(seed=1)
+    )
 
     graph = nx.DiGraph([("a", "b"), ("b", "c")])
     frame = pd.DataFrame({"a": a, "b": b, "c": c})
@@ -169,7 +171,10 @@ def test_a_functional_intervention_matches_a_transform_program():
     demand = 50.0 - 0.8 * price + rng.normal(size=n)
     ours = antecedent.model.fit_gcm(["price", "demand"], [price, demand], [("price", "demand")])
     policy = sample_policy(
-        ours, [transform("price", maximum(10, 0.85 * generated()))], draws, seed=5
+        ours,
+        [transform("price", maximum(10, 0.85 * generated()))],
+        draws,
+        execution=antecedent.Execution(seed=5),
     )
 
     graph = nx.DiGraph([("price", "demand")])
@@ -210,7 +215,7 @@ def test_intrinsic_influence_matches_dowhy_on_a_linear_gaussian_chain():
         independent_noise=True,
         outer_draws=800,
         inner_draws=20,
-        seed=2,
+        execution=antecedent.Execution(seed=2),
     )
     ours_share = {s.source: s.contribution for s in ours.sources}
 
@@ -420,11 +425,15 @@ def test_mechanism_selection_recovers_the_same_conditional_means_as_dowhy():
 
     def dowhy_mean(node, parent_value):
         model = scm.causal_mechanism(node).prediction_model
-        return float(np.ravel(model.predict(np.array([[parent_value]])))[0])
+        return float(np.ravel(require_success(model.predict(np.array([[parent_value]]))))[0])
 
     def our_mean(parent, child, value):
         column = {"x": 0, "y": 1, "z": 2}[child]
-        return float(ours.sample_do({parent: value}, 8000, seed=9).draws[column].mean())
+        return float(
+            ours.sample_do({parent: value}, 8000, execution=antecedent.Execution(seed=9))
+            .draws[column]
+            .mean()
+        )
 
     for value in (-1.5, -0.5, 0.5, 1.5):
         assert abs(our_mean("x", "y", value) - value**2) <= 0.15, value

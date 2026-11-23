@@ -13,9 +13,11 @@ cells' own values. After ``M`` is refit as ``1 + 3 X``, ``E[Y | do(X = v)] = 2 +
 from __future__ import annotations
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import discretized_composition as dc
 from antecedent import mechanism_composition as mc
 from antecedent.errors import CausalTypeError
+from antecedent.outcomes import require_success
 
 from _refusal import assert_registered_refusal
 from _transport_fixtures import compose, declaration, gaussian_chain, linear
@@ -43,7 +45,7 @@ def test_a_discretized_contrast_carries_its_closed_form_and_a_computed_bound() -
     # its conditional mean, so the discretized marginal reproduces the mean.
     assert sum(values) / 4 == pytest.approx(1.0, abs=TOL)
 
-    result = bridged.mean_contrast(top_minus_bottom())
+    result = require_success(bridged.mean_contrast(top_minus_bottom()))
     assert result.closed_form == pytest.approx(6.5 * (values[3] - values[0]), abs=TOL)
     assert result.error_bound >= 0.0
     assert result.absolute_error <= result.error_bound + TOL
@@ -55,8 +57,8 @@ def test_a_discretized_contrast_carries_its_closed_form_and_a_computed_bound() -
     # An interval, posterior or law reading of a point is refused for both paradigms.
     for paradigm in ("frequentist", "bayesian"):
         refusal = refusal_of(lambda paradigm=paradigm: bridged.uncertainty(paradigm))
-        assert refusal.reason_code == "cell_not_licensed"
-        assert refusal.detail == "discretized_scm.point_only"
+        assert refusal.reason_code == "uncertainty_representation_insufficient"
+        assert refusal.detail == reason_details.discretized_scm.POINT_ONLY
         assert refusal.remedy
     refusal_of(bridged.interval)
     refusal_of(bridged.posterior)
@@ -65,6 +67,7 @@ def test_a_discretized_contrast_carries_its_closed_form_and_a_computed_bound() -
     assert len(bridged.variables) == 3
     assert all(v.levels == 4 for v in bridged.variables)
     assert bridged.source_plan_identity == composition.plan_identity
+    assert bridged.source_plan_identity_version == composition.plan_identity_version == 2
     # The same plan can be declared per variable.
     named = dc.discretize(composition, {"X": 4, "M": 4, "Y": 4})
     assert named.identity == bridged.identity
@@ -75,7 +78,7 @@ def test_a_refresh_keeps_the_plan_and_recomputes_the_grid_the_bound_and_the_iden
     bridged = base.discretize(4)
     refit = compose(gaussian_chain(1.0, 3.0))
 
-    refreshed = bridged.refresh(refit)
+    refreshed = require_success(bridged.refresh(refit))
     # Kept: the declared method and level counts. Recomputed: identity, the grid of the refit
     # variable and the closed-form value (E[Y | do(X = v)] = 2 + 9.5 v).
     assert refreshed.method == bridged.method
@@ -83,14 +86,15 @@ def test_a_refresh_keeps_the_plan_and_recomputes_the_grid_the_bound_and_the_iden
     assert refreshed.identity != bridged.identity
     # The plan identity covers declarations (coordinates, provenance ids), not numbers.
     assert refreshed.source_plan_identity == bridged.source_plan_identity
+    assert refreshed.source_plan_identity_version == bridged.source_plan_identity_version
     assert refreshed.variable("M").level_values != bridged.variable("M").level_values
     values = refreshed.variable("X").level_values
-    result = refreshed.mean_contrast(top_minus_bottom())
+    result = require_success(refreshed.mean_contrast(top_minus_bottom()))
     assert result.closed_form == pytest.approx(9.5 * (values[3] - values[0]), abs=TOL)
     assert result.absolute_error <= result.error_bound + TOL
 
     # The earlier bridge is untouched.
-    before = bridged.mean_contrast(top_minus_bottom())
+    before = require_success(bridged.mean_contrast(top_minus_bottom()))
     old = bridged.variable("X").level_values
     assert before.closed_form == pytest.approx(6.5 * (old[3] - old[0]), abs=TOL)
 
@@ -98,18 +102,18 @@ def test_a_refresh_keeps_the_plan_and_recomputes_the_grid_the_bound_and_the_iden
     extra = compose(
         [*gaussian_chain(), linear("W", 0.0, 1.0, [("X", 1.0)])],
     )
-    refusal = refusal_of(lambda: bridged.refresh(extra))
-    assert refusal.detail == "discretized_scm.levels_undeclared"
+    refusal = refusal_of(lambda: require_success(bridged.refresh(extra)))
+    assert refusal.detail == reason_details.discretized_scm.LEVELS_UNDECLARED
 
 
 def test_the_plan_and_the_composition_are_refused_with_their_own_reasons() -> None:
     composition = compose(gaussian_chain())
     # A level count is never defaulted.
     partial = refusal_of(lambda: composition.discretize({"X": 4, "Y": 4}))
-    assert partial.detail == "discretized_scm.levels_undeclared"
+    assert partial.detail == reason_details.discretized_scm.LEVELS_UNDECLARED
     # One level is no grid.
     one = refusal_of(lambda: composition.discretize(1))
-    assert one.detail == "discretized_scm.levels_out_of_range"
+    assert one.detail == reason_details.discretized_scm.LEVELS_OUT_OF_RANGE
     assert one.remedy
 
     # A finite-table composition has no Gaussian executable to discretize.
@@ -122,31 +126,37 @@ def test_the_plan_and_the_composition_are_refused_with_their_own_reasons() -> No
     refusal = refusal_of(lambda: finite.discretize(4))
     assert refusal.reason_code == "route_not_supported"
 
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="composition must be a PreparedMechanismComposition"):
         dc.discretize(object(), 4)  # type: ignore[arg-type]
 
 
 def test_an_export_is_re_derived_by_a_consumer_from_the_carried_premises() -> None:
     bridged = compose(gaussian_chain()).discretize(4)
-    data = bridged.export()
-    consumed = dc.consume_discretized_composition(data, bridged.identity)
+    data = bytes(bridged.export())
+    consumed = require_success(dc.consume_discretized_composition(data, bridged.identity))
     assert consumed.identity == bridged.identity
     assert consumed.variable("M").level_values == bridged.variable("M").level_values
     assert consumed.source_plan_identity is None
+    assert consumed.source_plan_identity_version is None
     # A consumed model contrasts and refreshes like the prepared one.
-    again = consumed.mean_contrast(top_minus_bottom())
-    assert again.value == bridged.mean_contrast(top_minus_bottom()).value
-    assert consumed.refresh(compose(gaussian_chain(1.0, 3.0))).identity != bridged.identity
+    again = require_success(consumed.mean_contrast(top_minus_bottom()))
+    assert again.value == require_success(bridged.mean_contrast(top_minus_bottom())).value
+    assert (
+        require_success(consumed.refresh(compose(gaussian_chain(1.0, 3.0)))).identity
+        != bridged.identity
+    )
 
     # A self-consistent artifact of another composition is refused by a consumer that retained
     # the identity it expects.
     other = compose(gaussian_chain(1.0, 3.0)).discretize(4)
     mismatch = refusal_of(
-        lambda: dc.consume_discretized_composition(other.export(), bridged.identity)
+        lambda: require_success(
+            dc.consume_discretized_composition(bytes(other.export()), bridged.identity)
+        )
     )
-    assert mismatch.detail == "discretized_scm_artifact.identity_mismatch"
+    assert mismatch.detail == reason_details.discretized_scm_artifact.IDENTITY_MISMATCH
 
     # A damaged artifact is refused.
-    refusal_of(lambda: dc.consume_discretized_composition(data[:-3]))
-    with pytest.raises(CausalTypeError):
-        dc.consume_discretized_composition("not bytes")  # type: ignore[arg-type]
+    refusal_of(lambda: require_success(dc.consume_discretized_composition(data[:-3])))
+    with pytest.raises(CausalTypeError, match="an artifact is bytes or ExportedArtifact"):
+        require_success(dc.consume_discretized_composition("not bytes"))  # type: ignore[arg-type]

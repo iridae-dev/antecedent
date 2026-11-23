@@ -1,20 +1,36 @@
-"""First-class randomized experiment designs and intention-to-treat queries."""
+"""Randomized experiment designs, intention-to-treat queries and direct estimator utilities.
+
+Declare how treatment was randomized (:class:`ExperimentDesign` with Bernoulli, complete,
+cluster, :class:`StratifiedRandomization` or :class:`FactorialRandomization` assignment;
+:class:`MultiArmExperimentDesign`; :class:`SwitchbackDesign`) and ask a query:
+:class:`RandomizedEffect` (the intention-to-treat effect), :class:`ComplierEffect` (the
+complier average causal effect from encouragement and receipt), :class:`TreatmentOnTreated`
+or :class:`SwitchbackEffect`. Pass the query to :func:`antecedent.analyze` or
+:func:`antecedent.prepare`; the declared randomization is what identifies the effect.
+
+The ``estimate`` methods and the functions :func:`estimate_cuped_effect`,
+:func:`estimate_ancova_effect` and :func:`exact_randomization_test` are direct estimator
+utilities: each result's ``support_status`` says it is not a supported ``analyze`` route, and
+its ``uncertainty`` field says what the reported standard error or bound covers.
+"""
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import KW_ONLY, dataclass, field
+from numbers import Integral, Real
 from typing import Literal
 
 import numpy as np
 
-from ._columns import coerce_fields, first_seen_codes, hold_unresolved, resolved
+from ._columns import coerce_fields, first_seen_codes, hold_unresolved, resolved, scalar_or_values
 from ._native import estimate_ancova_effect as _estimate_ancova_effect
 from ._native import estimate_cuped_effect as _estimate_cuped_effect
 from ._native import estimate_stratified_effect as _estimate_stratified_effect
 from ._native import estimate_switchback_effect as _estimate_switchback_effect
 from ._native import exact_randomization_test as _exact_randomization_test
 from .errors import CausalUnsupportedError, CausalValueError
+from .execution import Execution
 from .interference import (
     BernoulliAssignment,
     ClusterRandomization,
@@ -40,13 +56,13 @@ class StratifiedRandomization:
         if not counts or any(not isinstance(key, str) or not key.strip() for key in counts):
             raise CausalValueError("treated_per_block must map non-empty block names to counts")
         if any(
-            isinstance(value, bool) or not isinstance(value, int) or value < 2
+            isinstance(value, (bool, np.bool_)) or not isinstance(value, Integral) or value < 2
             for value in counts.values()
         ):
             raise CausalValueError(
                 "each block needs at least two treated units for variance estimation"
             )
-        coerce_fields(self, treated_per_block=counts)
+        coerce_fields(self, treated_per_block={key: int(value) for key, value in counts.items()})
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,12 +88,17 @@ class FactorialRandomization:
         coerce_fields(self, second_factor_assignment=tuple(self.second_factor_assignment))
         coerce_fields(self, cell_counts=tuple(self.cell_counts))
         coerce_fields(self, second_factor_arms=tuple(self.second_factor_arms))
-        if any(type(value) is not bool for value in self.second_factor_assignment):
+        if any(not isinstance(value, (bool, np.bool_)) for value in self.second_factor_assignment):
             raise CausalValueError("second_factor_assignment entries must be bool")
         if len(self.cell_counts) != 4 or any(
-            type(count) is not int or count < 2 for count in self.cell_counts
+            isinstance(count, (bool, np.bool_)) or not isinstance(count, Integral) or count < 2
+            for count in self.cell_counts
         ):
             raise CausalValueError("factorial cell_counts must have four counts of at least two")
+        coerce_fields(
+            self, second_factor_assignment=tuple(map(bool, self.second_factor_assignment))
+        )
+        coerce_fields(self, cell_counts=tuple(map(int, self.cell_counts)))
         if (
             len(self.second_factor_arms) != 2
             or any(not isinstance(arm, str) or not arm.strip() for arm in self.second_factor_arms)
@@ -204,8 +225,9 @@ class SwitchbackDesign:
             raise CausalValueError(
                 "switchback assignment, sequence, period, and probability rows must align"
             )
-        if any(type(value) is not bool for value in self.realized_assignment):
+        if any(not isinstance(value, (bool, np.bool_)) for value in self.realized_assignment):
             raise CausalValueError("switchback realized_assignment entries must be bool")
+        coerce_fields(self, realized_assignment=tuple(map(bool, self.realized_assignment)))
         if any(
             not isinstance(value, str) or not value.strip()
             for value in (*self.sequence_ids, *self.period_ids)
@@ -285,6 +307,27 @@ class SwitchbackEffect:
 
 @dataclass(frozen=True, slots=True)
 class SwitchbackEstimate:
+    """The unit-period intention-to-treat effect of a switchback experiment.
+
+    Returned by :meth:`SwitchbackEffect.estimate`. A point estimate with a standard error; no
+    interval is reported.
+
+    Fields:
+
+    * ``effect`` -- the Horvitz-Thompson ITT estimate: mean unit-period outcome under treatment
+      minus under control, weighting by the declared marginal assignment probabilities.
+    * ``standard_error`` -- sandwich standard error treating each sequence as an independent
+      cluster, with arbitrary dependence among periods within a sequence.
+    * ``minimum_assignment_probability`` -- the smallest declared assignment probability, a
+      positivity check.
+    * ``sequence_count`` / ``period_count`` -- the independent sequences and the unit-period rows
+      used.
+    * ``treatment_arms`` -- the ``(control, treated)`` labels of the design.
+    * ``estimand``, ``uncertainty``, ``support_status`` and ``assumptions`` -- fixed labels: what
+      is estimated, what the standard error covers, that this is an unsupported direct estimator
+      utility, and the premises it rests on (notably no carryover between periods).
+    """
+
     effect: float
     standard_error: float
     minimum_assignment_probability: float
@@ -293,7 +336,7 @@ class SwitchbackEstimate:
     treatment_arms: tuple[str, str]
     estimand: str = "unit_period_itt"
     uncertainty: str = "independent_sequence_cluster_sandwich_standard_error_no_interval"
-    support_status: str = "unlicensed_direct_estimator_utility"
+    support_status: str = "unsupported_direct_estimator_utility"
     assumptions: tuple[str, ...] = (
         "known marginal randomization probability for every unit-period",
         "independent assignment sequences with arbitrary within-sequence dependence",
@@ -360,8 +403,8 @@ class ExperimentDesign:
             coerce_fields(self, blocks=tuple(self.blocks))
         if isinstance(self.assignment, BernoulliAssignment):
             probability = self.assignment.probabilities
-            if not isinstance(probability, (int, float)):
-                probability = tuple(probability)
+            if not isinstance(probability, Real):
+                probability = tuple(scalar_or_values(probability))
             coerce_fields(self, assignment=BernoulliAssignment(probability))
         elif isinstance(self.assignment, ClusterRandomization):
             coerce_fields(
@@ -409,8 +452,9 @@ class ExperimentDesign:
             or self.treatment_arms[0] == self.treatment_arms[1]
         ):
             raise CausalValueError("treatment_arms must be two distinct non-empty labels")
-        if any(type(assigned) is not bool for assigned in self.realized_assignment):
+        if any(not isinstance(assigned, (bool, np.bool_)) for assigned in self.realized_assignment):
             raise CausalValueError("realized_assignment entries must be bool")
+        coerce_fields(self, realized_assignment=tuple(map(bool, self.realized_assignment)))
         if len(set(self.outcome_units)) != n:
             raise CausalValueError("outcome_units must identify one outcome row each")
         if (
@@ -422,10 +466,12 @@ class ExperimentDesign:
             )
         if isinstance(self.assignment, BernoulliAssignment):
             probabilities = self.assignment.probabilities
-            if not isinstance(probabilities, (int, float)) and len(probabilities) not in (1, n):
-                raise CausalValueError(
-                    "Bernoulli probabilities must be scalar or have one value per outcome row"
-                )
+            if not isinstance(probabilities, Real):
+                probability_count = 1 if isinstance(probabilities, float) else len(probabilities)
+                if probability_count not in (1, n):
+                    raise CausalValueError(
+                        "Bernoulli probabilities must be scalar or have one value per outcome row"
+                    )
         if isinstance(self.assignment, CompleteRandomization) and self.assignment.treated >= n:
             raise CausalValueError("complete randomization treated count must be less than n")
         if isinstance(self.assignment, CompleteRandomization) and sum(realized) != (
@@ -539,6 +585,13 @@ class RandomizedEffect:
     design-based point estimates and variance contracts. Other design families
     are explicitly refused by the retained analysis route.
 
+    ``cuped=FixedCUPED(...)`` adjusts by a pre-assignment covariate with a coefficient fixed
+    outside the trial. It composes with Bernoulli rows and with cluster randomization; under a
+    cluster design the adjustment is applied to cluster totals, so the cluster stays the unit of
+    analysis and the estimand stays the unadjusted per-row ITT. A coefficient learned from the
+    rows (``ancova_covariates``) is Bernoulli-only. Each adjusted route has its own graphless
+    support row; neither inherits the unadjusted design's support.
+
     ``weights="w"`` names a column of sampling weights (or gives one weight per row) for an
     unadjusted Bernoulli or completely randomized design. The estimate is then the
     intention-to-treat effect in the weighted population: the difference of the arms' Hajek
@@ -547,7 +600,7 @@ class RandomizedEffect:
     scale). The variance linearizes the two ratio means treating units as independent draws
     (Neyman's conservative bound for equal weights); rows of weight zero are excluded and
     counted, and the Kish effective sample size is reported with the result. No interval is
-    published: its coverage is a separate, unmeasured claim.
+    published: its coverage is a separate, not_measured claim.
     """
 
     outcome: str
@@ -579,9 +632,10 @@ class RandomizedEffect:
         if self.cuped is not None:
             if not isinstance(self.cuped, FixedCUPED) or self.cuped.covariate == self.outcome:
                 raise CausalValueError("CUPED requires a distinct pre-assignment covariate")
-            if not isinstance(self.design.assignment, BernoulliAssignment):
+            if not isinstance(self.design.assignment, (BernoulliAssignment, ClusterRandomization)):
                 raise CausalValueError(
-                    "retained fixed CUPED currently requires Bernoulli assignment"
+                    "retained fixed CUPED requires Bernoulli or cluster assignment; a coefficient "
+                    "fixed outside the trial keeps the design's own unit of analysis"
                 )
         if self.ancova_covariates:
             if (
@@ -618,10 +672,9 @@ class RandomizedEffect:
             or self.cuped is not None
             or self.ancova_covariates
             or not isinstance(self.design.assignment, CompleteRandomization)
-            or (not deferred and len(self.design.realized_assignment) > 20)
         ):
             raise CausalValueError(
-                "exact randomization inference requires an unadjusted complete two-arm design with at most 20 units"
+                "randomization inference requires an unadjusted complete two-arm design"
             )
 
     def to_interference_query(self) -> InterferenceQuery:
@@ -646,13 +699,15 @@ class RandomizedEffect:
             realized_assignment=self.design.realized_assignment,
         )
 
-    def estimate(self, data: object, *, seed: int = 1) -> RandomizedExperimentEstimate:
+    def estimate(
+        self, data: object, *, execution: Execution | None = None
+    ) -> RandomizedExperimentEstimate:
         """Run the native randomization estimator and retain the design record.
 
         This direct estimator utility supports the underlying Bernoulli,
         complete, and cluster assignment kernels. Its variance is a
         conservative design-based variance bound, not a calibrated interval
-        or a support-matrix license. Exact randomization inference is available
+        or a support-matrix support. Exact randomization inference is available
         through the retained ``analyze`` or ``prepare`` route.
         """
         if isinstance(self.design, MultiArmExperimentDesign):
@@ -704,7 +759,7 @@ class RandomizedEffect:
                 assignment=realized,
                 edges=(),
                 query=self.to_interference_query(),
-                seed=seed,
+                execution=execution,
             )
             effect = estimated.contrast.horvitz_thompson
             variance_bound = estimated.contrast.conservative_variance
@@ -731,7 +786,7 @@ class RandomizedEffect:
                 if isinstance(self.design.assignment, ClusterRandomization)
                 else "bernoulli_ht_design_variance_no_interval"
             ),
-            support_status="unlicensed_direct_estimator_utility",
+            support_status="unsupported_direct_estimator_utility",
         )
 
 
@@ -833,10 +888,10 @@ class ComplierEffect:
             raise CausalValueError("retained CACE/LATE requires Bernoulli randomization")
         receipt = tuple(self.received_treatment)
         if len(receipt) != len(self.design.realized_assignment) or any(
-            type(value) is not bool for value in receipt
+            not isinstance(value, (bool, np.bool_)) for value in receipt
         ):
             raise CausalValueError("treatment receipt must be row-aligned booleans")
-        coerce_fields(self, received_treatment=receipt)
+        coerce_fields(self, received_treatment=tuple(map(bool, receipt)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -880,7 +935,7 @@ class ComplierEffectEstimate:
     interval_95: tuple[float, float] | None = None
     estimand: str = "cace_late"
     uncertainty: str = "asymptotic_influence_function_standard_error"
-    support_status: str = "unlicensed_direct_estimator_utility"
+    support_status: str = "unsupported_direct_estimator_utility"
     assumptions: tuple[str, ...] = (
         "random assignment of the encouragement with known positive probabilities",
         "exclusion restriction: assignment affects outcome only through treatment receipt",
@@ -892,11 +947,27 @@ class ComplierEffectEstimate:
 
 @dataclass(frozen=True, slots=True)
 class CUPEDEstimate:
+    """A Bernoulli intention-to-treat effect adjusted by one pre-treatment covariate (CUPED).
+
+    Returned by :func:`estimate_cuped_effect`. A point estimate with a standard error; no interval
+    is reported.
+
+    Fields:
+
+    * ``effect`` -- the Horvitz-Thompson ITT contrast of the covariate-residualized outcomes,
+      with the declared assignment probabilities.
+    * ``adjustment_coefficient`` -- the pooled outcome-on-covariate slope used to residualize.
+    * ``standard_error`` -- asymptotic standard error under independent assignment units.
+    * ``uncertainty``, ``support_status`` and ``assumptions`` -- fixed labels: what the standard
+      error covers, that this is an unsupported direct estimator utility, and its premises (the
+      covariate was measured before assignment).
+    """
+
     effect: float
     adjustment_coefficient: float
     standard_error: float
     uncertainty: str = "asymptotic_independent_unit_standard_error"
-    support_status: str = "unlicensed_direct_estimator_utility"
+    support_status: str = "unsupported_direct_estimator_utility"
     assumptions: tuple[str, ...] = (
         "known independent Bernoulli assignment probabilities",
         "the pre-treatment covariate is measured before assignment",
@@ -940,7 +1011,7 @@ class ANCOVAEstimate:
     treated_support: int
     control_support: int
     uncertainty: str = "hc0_independent_unit_standard_error_no_interval"
-    support_status: str = "unlicensed_direct_estimator_utility"
+    support_status: str = "unsupported_direct_estimator_utility"
     assumptions: tuple[str, ...] = (
         "independent Bernoulli assignment with a common known probability",
         "all adjustment covariates were measured before assignment",
@@ -961,7 +1032,7 @@ def estimate_ancova_effect(
     Returns the treatment coefficient, adjustment coefficients, and HC0
     independent-row sandwich standard error. The API requires a common
     Bernoulli propensity and does not produce a confidence interval or a
-    support-matrix license.
+    support-matrix support.
     """
     from ._data import as_columns
 
@@ -971,7 +1042,7 @@ def estimate_ancova_effect(
         raise CausalValueError("ANCOVA requires a Bernoulli ExperimentDesign")
     probabilities = design.assignment.probabilities
     probs = np.asarray(
-        probabilities if not isinstance(probabilities, (int, float)) else [probabilities],
+        probabilities if not isinstance(probabilities, Real) else [probabilities],
         dtype=np.float64,
     )
     if probs.size > 1 and not np.allclose(probs, probs[0], rtol=0.0, atol=1e-12):
@@ -1012,12 +1083,28 @@ def estimate_ancova_effect(
 
 @dataclass(frozen=True, slots=True)
 class RandomizationTest:
+    """An exact two-sided randomization test of the sharp null of no effect for any unit.
+
+    Returned by :func:`exact_randomization_test`. A test, not an interval: it does not address the
+    weak null of zero average effect.
+
+    Fields:
+
+    * ``observed_effect`` -- the Horvitz-Thompson contrast under the realized assignment
+      (outcomes weighted by the inverse of the declared assignment probabilities).
+    * ``exact_two_sided_p_value`` -- the probability, over every assignment the declared Bernoulli
+      design can produce (each weighted by its assignment probability), of a statistic at least
+      as extreme as the observed one.
+    * ``assignments_enumerated`` -- the assignments enumerated (at most ``2**20``).
+    * ``null``, ``uncertainty`` and ``support_status`` -- fixed labels.
+    """
+
     observed_effect: float
     exact_two_sided_p_value: float
     assignments_enumerated: int
     null: str = "sharp_no_effect"
     uncertainty: str = "exact_randomization_test_under_declared_bernoulli_design"
-    support_status: str = "unlicensed_direct_inference_utility"
+    support_status: str = "unsupported_direct_inference_utility"
 
 
 def exact_randomization_test(
@@ -1027,7 +1114,7 @@ def exact_randomization_test(
 
     Exact enumeration is limited to 20 independent assignment units. This is a
     test of the sharp no-effect null, not a confidence interval or a weak-null
-    test, and it does not create a licensed support coordinate.
+    test, and it does not create a supported support coordinate.
     """
     y = np.asarray(outcomes, dtype=np.float64)
     if y.ndim != 1 or y.size == 0 or y.size > 20 or not np.isfinite(y).all():
@@ -1047,26 +1134,27 @@ def exact_randomization_test(
 
 @dataclass(frozen=True, slots=True)
 class MultiArmContrast:
+    """One arm of a multi-arm randomized experiment, compared with the control arm.
+
+    Read from :attr:`RandomizedExperimentEstimate.multi_arm_contrasts`.
+
+    Fields:
+
+    * ``action`` -- the arm label.
+    * ``value`` -- the estimated mean outcome under this arm.
+    * ``effect_vs_control`` -- ``value`` minus the control arm's mean.
+    * ``variance_bound_vs_control`` -- a covariance-free upper bound on the variance of
+      ``effect_vs_control`` (twice the sum of the two arm variances).
+    * ``observed_support`` -- the units observed under this arm.
+    * ``interval_95`` -- a supported pointwise 95% interval, or ``None`` when none is reported.
+    """
+
     action: str
     value: float
     effect_vs_control: float
     variance_bound_vs_control: float
     observed_support: int
     interval_95: tuple[float, float] | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class MultiArmExperimentEstimate:
-    control: str
-    arm_values: tuple[tuple[str, float], ...]
-    contrasts: tuple[MultiArmContrast, ...]
-    uncertainty: str = "covariance_free_variance_bound_no_interval"
-    support_status: str = "unlicensed_direct_estimator_utility"
-    assumptions: tuple[str, ...] = (
-        "known randomized probabilities for every action and unit",
-        "consistency, no interference, and independent assignment units",
-        "each action has positive probability and observed support",
-    )
 
 
 def _binary_assignment(values: Sequence[bool], n: int, name: str) -> list[bool]:
@@ -1089,7 +1177,6 @@ __all__ = [
     "ExperimentDesign",
     "MultiArmContrast",
     "MultiArmExperimentDesign",
-    "MultiArmExperimentEstimate",
     "RandomizedEffect",
     "RandomizedExperimentEstimate",
     "RandomizationTest",

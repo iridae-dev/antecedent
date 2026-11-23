@@ -3,13 +3,27 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, cast, overload
 
-from ._api import describe_refusal
+from ._api import attach_refusal_report, describe_refusal
+from ._temporal_design import TemporalDesignQuery
+from .descriptive import Association
+from .errors import CausalError
 from .experiment import ComplierEffect, RandomizedEffect, SwitchbackEffect, TreatmentOnTreated
 from .extensibility import ProviderQuery
 from .extensibility import providers as _providers
-from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
+from .fallback import AnalysisWithFallback
+from .graph import (
+    Admg,
+    Cpdag,
+    Dag,
+    Pag,
+    TemporalAdmg,
+    TemporalCpdag,
+    TemporalDag,
+    TemporalPag,
+    TieredBackground,
+)
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .interference import InterferenceQuery
@@ -18,11 +32,15 @@ from .missing import MissingPolicy
 from .policy import ConditionalDoseResponse, MultiActionPolicyValue, PolicyValue
 from .quasi import (
     AugmentedPanelDiD,
+    CovariateAdjustedDiD,
     FuzzyRegressionDiscontinuity,
+    IvBounds,
     PanelDifferenceInDifferences,
+    PeriodHistoryMatch,
     RegressionKink,
     SharpRegressionDiscontinuity,
     StaggeredAdoption,
+    StaggeredRollout,
     SyntheticControl,
     SyntheticDifferenceInDifferences,
 )
@@ -46,12 +64,16 @@ from .query import (
     ResponseJacobian,
     SemiElasticity,
     SustainedEffect,
+    TemporalConditionalPulse,
+    TemporalConditionalSustained,
     TemporalMediationEffect,
 )
-from .regimes import LongitudinalRegime
+from .regimes import LongitudinalRegime, SequentialContrast
+from .repair import StudyCandidate
 from .results import Analysis, ProviderAnalysisResult
 from .survival import CompetingRisksOutcome, SurvivalOutcome
-from .transport import Transport, TransportControls, TransportInference
+from .transport import Transport, TransportInference
+from .transport._impl.trial import _TransportLimits
 from .transport.advanced import TransportQuery
 
 
@@ -62,6 +84,224 @@ class EstimatorConfigLike(Protocol):
     def estimator_id(self) -> str: ...
 
     def _wire(self) -> dict[str, Any] | None: ...
+
+
+@overload
+def analyze(
+    data: Mapping[str, Any] | Any | Sequence[Mapping[str, Any] | Any],
+    *,
+    query: (
+        AverageEffect
+        | ProviderQuery
+        | RandomizedEffect
+        | ComplierEffect
+        | TreatmentOnTreated
+        | SwitchbackEffect
+        | PolicyValue
+        | ConditionalDoseResponse
+        | MultiActionPolicyValue
+        | PanelDifferenceInDifferences
+        | AugmentedPanelDiD
+        | StaggeredAdoption
+        | SyntheticControl
+        | SyntheticDifferenceInDifferences
+        | StaggeredRollout
+        | CovariateAdjustedDiD
+        | FuzzyRegressionDiscontinuity
+        | RegressionKink
+        | SharpRegressionDiscontinuity
+        | SurvivalOutcome
+        | CompetingRisksOutcome
+        | PulseEffect
+        | SustainedEffect
+        | TemporalConditionalPulse
+        | TemporalConditionalSustained
+        | InterventionalDistribution
+        | PathSpecificEffect
+        | ConditionalEffect
+        | MediationEffect
+        | NestedCounterfactual
+        | Counterfactual
+        | TemporalMediationEffect
+        | ResponseCurve
+        | AverageDerivative
+        | PointDerivative
+        | Elasticity
+        | SemiElasticity
+        | DirectionalDerivative
+        | ResponseJacobian
+        | InterventionResponse
+        | TransportQuery
+        | Transport
+        | InterferenceQuery
+        | LongitudinalRegime
+        | SequentialContrast
+        | PeriodHistoryMatch
+        | IvBounds
+        | Association
+        | AnomalyAttribution
+        | ChangeAttribution
+        | TemporalDesignQuery
+    ),
+    graph: (
+        Dag
+        | Cpdag
+        | Pag
+        | Admg
+        | TemporalDag
+        | TemporalCpdag
+        | TemporalPag
+        | TemporalAdmg
+        | TieredBackground
+        | Sequence[tuple[str, str]]
+        | Sequence[tuple[str, int, str, int]]
+        | None
+    ) = None,
+    discovery: Any | None = None,
+    imputations: Sequence[Any] | None = None,
+    inference: Frequentist | Bayesian | TransportInference | None = None,
+    identifier: str | Identifier | None = None,
+    estimator: str | Estimator | EstimatorConfigLike | None = None,
+    refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = None,
+    validators: Sequence[Any] | None = None,
+    accept_discovered: bool = True,
+    seed: int = 1,
+    bootstrap: int | None = None,
+    threads: int | None = None,
+    regimes: Sequence[int] | None = None,
+    population_registry: Any | None = None,
+    estimator_config: Mapping[str, Any] | None = None,
+    latency: Latency | Literal["interactive", "standard", "report"] | None = None,
+    cancel: Any | None = None,
+    on_progress: Any | None = None,
+    on_stage: Any | None = None,
+    provider: Any | None = None,
+    controls: _TransportLimits | None = None,
+    return_posterior_artifact: bool = False,
+    class_prior: ClassPrior | None = None,
+    max_completions: int | None = None,
+    participant: str | None = None,
+    missing: str | MissingPolicy | None = None,
+    outcome_units: str | None = None,
+    dose_units: str | None = None,
+    quantity_population: str = "target",
+    quantity_transform: str = "identity",
+    sampling_design: Literal[
+        "independent_subject_trajectories", "clustered_panel", "dependent_time_series"
+    ]
+    | None = None,
+    on_refusal: Literal["raise"] = "raise",
+    evidence_candidates: None = None,
+) -> Analysis: ...
+
+
+@overload
+def analyze(
+    data: Mapping[str, Any] | Any | Sequence[Mapping[str, Any] | Any],
+    *,
+    query: (
+        AverageEffect
+        | ProviderQuery
+        | RandomizedEffect
+        | ComplierEffect
+        | TreatmentOnTreated
+        | SwitchbackEffect
+        | PolicyValue
+        | ConditionalDoseResponse
+        | MultiActionPolicyValue
+        | PanelDifferenceInDifferences
+        | AugmentedPanelDiD
+        | StaggeredAdoption
+        | SyntheticControl
+        | SyntheticDifferenceInDifferences
+        | StaggeredRollout
+        | CovariateAdjustedDiD
+        | FuzzyRegressionDiscontinuity
+        | RegressionKink
+        | SharpRegressionDiscontinuity
+        | SurvivalOutcome
+        | CompetingRisksOutcome
+        | PulseEffect
+        | SustainedEffect
+        | TemporalConditionalPulse
+        | TemporalConditionalSustained
+        | InterventionalDistribution
+        | PathSpecificEffect
+        | ConditionalEffect
+        | MediationEffect
+        | NestedCounterfactual
+        | Counterfactual
+        | TemporalMediationEffect
+        | ResponseCurve
+        | AverageDerivative
+        | PointDerivative
+        | Elasticity
+        | SemiElasticity
+        | DirectionalDerivative
+        | ResponseJacobian
+        | InterventionResponse
+        | TransportQuery
+        | Transport
+        | InterferenceQuery
+        | LongitudinalRegime
+        | SequentialContrast
+        | PeriodHistoryMatch
+        | IvBounds
+        | Association
+        | AnomalyAttribution
+        | ChangeAttribution
+        | TemporalDesignQuery
+    ),
+    graph: (
+        Dag
+        | Cpdag
+        | Pag
+        | Admg
+        | TemporalDag
+        | TemporalCpdag
+        | TemporalPag
+        | TemporalAdmg
+        | TieredBackground
+        | Sequence[tuple[str, str]]
+        | Sequence[tuple[str, int, str, int]]
+        | None
+    ) = None,
+    discovery: Any | None = None,
+    imputations: Sequence[Any] | None = None,
+    inference: Frequentist | Bayesian | TransportInference | None = None,
+    identifier: str | Identifier | None = None,
+    estimator: str | Estimator | EstimatorConfigLike | None = None,
+    refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = None,
+    validators: Sequence[Any] | None = None,
+    accept_discovered: bool = True,
+    seed: int = 1,
+    bootstrap: int | None = None,
+    threads: int | None = None,
+    regimes: Sequence[int] | None = None,
+    population_registry: Any | None = None,
+    estimator_config: Mapping[str, Any] | None = None,
+    latency: Latency | Literal["interactive", "standard", "report"] | None = None,
+    cancel: Any | None = None,
+    on_progress: Any | None = None,
+    on_stage: Any | None = None,
+    provider: Any | None = None,
+    controls: _TransportLimits | None = None,
+    return_posterior_artifact: bool = False,
+    class_prior: ClassPrior | None = None,
+    max_completions: int | None = None,
+    participant: str | None = None,
+    missing: str | MissingPolicy | None = None,
+    outcome_units: str | None = None,
+    dose_units: str | None = None,
+    quantity_population: str = "target",
+    quantity_transform: str = "identity",
+    sampling_design: Literal[
+        "independent_subject_trajectories", "clustered_panel", "dependent_time_series"
+    ]
+    | None = None,
+    on_refusal: Literal["describe"],
+    evidence_candidates: Sequence[StudyCandidate] | None = None,
+) -> Analysis | AnalysisWithFallback: ...
 
 
 @describe_refusal
@@ -83,6 +323,8 @@ def analyze(
         | StaggeredAdoption
         | SyntheticControl
         | SyntheticDifferenceInDifferences
+        | StaggeredRollout
+        | CovariateAdjustedDiD
         | FuzzyRegressionDiscontinuity
         | RegressionKink
         | SharpRegressionDiscontinuity
@@ -90,6 +332,8 @@ def analyze(
         | CompetingRisksOutcome
         | PulseEffect
         | SustainedEffect
+        | TemporalConditionalPulse
+        | TemporalConditionalSustained
         | InterventionalDistribution
         | PathSpecificEffect
         | ConditionalEffect
@@ -109,8 +353,13 @@ def analyze(
         | Transport
         | InterferenceQuery
         | LongitudinalRegime
+        | SequentialContrast
+        | PeriodHistoryMatch
+        | IvBounds
+        | Association
         | AnomalyAttribution
         | ChangeAttribution
+        | TemporalDesignQuery
     ),
     graph: (
         Dag
@@ -120,12 +369,14 @@ def analyze(
         | TemporalDag
         | TemporalCpdag
         | TemporalPag
+        | TemporalAdmg
         | TieredBackground
         | Sequence[tuple[str, str]]
         | Sequence[tuple[str, int, str, int]]
         | None
     ) = None,
     discovery: Any | None = None,
+    imputations: Sequence[Any] | None = None,
     inference: Frequentist | Bayesian | TransportInference | None = None,
     identifier: str | Identifier | None = None,
     estimator: str | Estimator | EstimatorConfigLike | None = None,
@@ -143,7 +394,7 @@ def analyze(
     on_progress: Any | None = None,
     on_stage: Any | None = None,
     provider: Any | None = None,
-    controls: TransportControls | None = None,
+    controls: _TransportLimits | None = None,
     return_posterior_artifact: bool = False,
     class_prior: ClassPrior | None = None,
     max_completions: int | None = None,
@@ -153,11 +404,17 @@ def analyze(
     dose_units: str | None = None,
     quantity_population: str = "target",
     quantity_transform: str = "identity",
-) -> Analysis:
+    sampling_design: Literal[
+        "independent_subject_trajectories", "clustered_panel", "dependent_time_series"
+    ]
+    | None = None,
+    on_refusal: Literal["raise", "describe"] = "raise",
+    evidence_candidates: Sequence[StudyCandidate] | None = None,
+) -> Analysis | AnalysisWithFallback:
     """Identify then estimate a causal effect.
 
     Runs the published interval once. The five-line second click reuses
-    identification: ``result = analyze(...); result.refresh(new_data)``.
+    identification: ``result = analyze(...); estimate(rebind(result.study, data=new_data))``.
     A second ``analyze()`` still re-prepares.
 
     Parameters
@@ -166,13 +423,20 @@ def analyze(
         Mapping of column name → 1-d float array, a pandas ``DataFrame``,
         an Arrow CDI / ``__arrow_c_stream__`` table (PyArrow, Polars, DuckDB),
         or an ``antecedent.data`` frame (``EventFrame`` / ``PanelFrame`` /
-        ``MultiEnvFrame``). The library does not take a Polars or pandas
+        ``MultiEnvFrame``). A path to a ``.parquet`` file, a directory of
+        Parquet files, an Arrow IPC ``.arrow`` / ``.feather`` file or ``.arrows``
+        stream, or a lazy handle from ``antecedent.data.from_parquet`` /
+        ``from_arrow_ipc`` is read in bounded chunks, decoding only the columns
+        the analysis needs. The library does not take a Polars or pandas
         dependency on the way out; tabular results speak Arrow.
         Arrow CDI / stream inputs may be borrowed without copying. Keep their
         exported buffers unchanged while a data or prepared handle retains them,
         including any writable NumPy aliases backing an Arrow array. Supply new
-        buffers and call ``result.refresh(new_data)`` to replace observations;
-        ordinary mappings of NumPy columns are copied during ingest.
+        buffers and call ``rebind(result.study, data=new_data)`` to bind other observations;
+        ordinary mappings of NumPy columns are copied during ingest. Every retained copy is
+        admitted against ``Execution(limits=ResourceLimits(memory_bytes=...))`` before it is made
+        (``CausalResourceError`` when it cannot be funded) and stays charged until the retained
+        table is dropped.
         For ``discovery=JPCMCIPlus(...)``, pass a sequence of environment frames
         or a ``MultiEnvFrame``.
     query:
@@ -196,10 +460,21 @@ def analyze(
           ``AugmentedPanelDiD`` / ``FuzzyRegressionDiscontinuity`` /
           ``SharpRegressionDiscontinuity`` / ``RegressionKink``,
         - ``survival.SurvivalOutcome`` / ``CompetingRisksOutcome``,
+        - ``temporal_designs.TwoArmExcursion`` / ``MultiArmExcursion`` /
+          ``FactorialExcursion`` / ``InterferenceExcursion`` / ``DoseExcursion`` /
+          ``RegimeSurvivalContrast`` / ``ObservationalExcursion`` /
+          ``ObservationalRegimeContrast`` (sequentially randomized unit-period designs, regime
+          survival, the observational excursion and whole static regimes under time-varying
+          confounding; ``result.temporal_design``),
         - ``regimes.LongitudinalRegime``.
+        - ``regimes.SequentialContrast``, ``quasi.PeriodHistoryMatch`` and ``quasi.IvBounds``
+          (an identified set; ``result.iv_bounds``).
+        - ``descriptive.Association`` (a noncausal description of the observed law, picked by the
+          declared selection rule; ``result.association``, ``result.answer.kind ==
+          "associational"``; identification is not claimed and it ranks no action).
 
         Transport: ``transport.Transport`` (the compiler on an ``Admg``, with
-        ``provider=`` / ``TransportInference`` / ``controls=``) and the licensed
+        ``provider=`` / ``TransportInference`` / ``controls=``) and the supported
         ``transport.advanced.TransportQuery`` trial-IPW cell.
         ``extensibility.ProviderQuery`` dispatches ``data`` and its request mapping
         to a registered Python provider; its family-shaped output stays externally
@@ -210,17 +485,29 @@ def analyze(
         narrow when the kind must be exact.
     graph:
         ``Dag`` / ``Cpdag`` / ``Pag`` / ``Admg`` / ``TemporalDag`` /
-        ``TemporalCpdag`` / ``TemporalPag``, or an edge list. Lagged edges
+        ``TemporalCpdag`` / ``TemporalPag`` / ``TemporalAdmg``, or an edge list. Lagged edges
         ``(from, from_lag, to, to_lag)`` are required for temporal queries
         without ``discovery``. Incomplete ``Cpdag`` / ``TemporalCpdag`` /
         ``TemporalPag`` keep their class. Completing those graphs yourself is
         still the ``Dag`` / ``TemporalDag`` cell. ADMGs without bidirected
         edges coerce to DAGs; ADMGs with latents use general ID + functional
-        effect.
+        effect. A ``TemporalAdmg`` serves ``PulseEffect`` / ``SustainedEffect`` /
+        ``TemporalConditionalPulse`` / ``TemporalConditionalSustained`` over one series: the
+        contrast is identified on the unrolled window of the template and evaluated on its
+        lag-aligned window table, resampled in blocks of consecutive windows; it runs
+        unsupported (``support_status`` ``"not_supported"``) and a window that holds a hedge is
+        refused with the variables and periods that carry it.
     discovery:
         Static: ``PC`` / ``GES`` / ``LiNGAM`` / ``NOTEARS`` / ``FCI`` / ``RFCI``.
         Temporal: ``PCMCI`` / ``PCMCIPlus`` / ``LPCMCI`` / ``JPCMCIPlus`` / ``RPCMCI``.
         Graph-posterior cells also accept a constructed ``GraphPosterior``.
+    imputations:
+        Completed tables (completed series for ``DbnPosterior``), one per imputation of a
+        measurement or missing-data model. With ``discovery=`` a posterior search
+        (``ExactDagPosterior``, ``OrderMcmc``, ``StructureMcmc``, ``CiScreenedPosterior`` or
+        ``DbnPosterior``), the search runs on every table, the equal-weight mixture of the
+        posteriors is pooled in the engine, and the effect is mixed over it, so the data's
+        uncertainty widens the structure uncertainty. Cannot be combined with ``graph=``.
         One-shot script convenience — discovery runs at compile time. For
         interactive / spreadsheet estimate clicks, discover once into
         :class:`antecedent.AcceptedGraph` (or hold a reviewed graph) and pass
@@ -234,16 +521,23 @@ def analyze(
     participant:
         Optional name of a data column of participant (row-owner) labels, strings or whole
         numbers. The labels are read from the raw table, kept with their original rows and
-        frozen in the prepared study: ``refresh`` refuses a table that holds other labels or
+        frozen in the prepared study: ``rebind`` refuses a table that holds other labels or
         other rows, and ``reprepare`` rebuilds them.
     missing:
         How rows with missing values are handled: a policy name (``"error"``,
         ``"complete_case"``, ``"inverse_probability"``, ``"balanced_panel"``,
-        ``"available_case"``) or an :class:`antecedent.missing.MissingPolicy`. Average-effect
-        routes keep their complete-case selection by default and report the rows it dropped;
-        randomized, panel, temporal and NOTEARS routes refuse a missing value until a policy
-        is declared, naming the first missing cell. Every result carries ``missing_data``:
-        the policy, the assumption it needs and the row accounting.
+        ``"available_case"``, ``"multiple_imputation"``) or an
+        :class:`antecedent.missing.MissingPolicy`. Static adjustment routes (average,
+        conditional, response, distribution and mediation) keep their complete-case selection
+        by default and report the rows it dropped; they, the randomized routes and the
+        single-series temporal routes execute multiple imputation with Rubin's-rules pooling
+        (or a stacked posterior under Bayesian inference) when it is declared, pooling an
+        answer with several coordinates jointly. Randomized, panel, temporal and NOTEARS
+        routes refuse a missing value until a policy is declared, naming the first missing
+        cell. A policy the route cell does not support is refused when the study is built.
+        Every result carries ``missing_data``: the policy, the assumption it needs, the row
+        accounting and, for multiple imputation, the pooled variance components, the joint
+        pooling of the coordinates and the digest of the imputation's assumptions.
     latency:
         Optional compute tier (``interactive`` / ``standard`` / ``report``).
         The study builder maps it onto the omitted bootstrap / refute / draw
@@ -253,11 +547,11 @@ def analyze(
         ``False`` or a suite name (``"full"`` / ``"placebo"`` / ``"cheap"`` /
         ``"none"``) / :class:`antecedent.Refute` member. Leave unset (``None``)
         for the omitted-default suite the study builder applies (and downgrades
-        on a cell that does not license it) — passing the literal ``True``
+        on a cell that does not support it) — passing the literal ``True``
         raises ``TypeError`` (it carried no information beyond "unset" and was
         easy to confuse with an explicit choice). An omitted ``refute``
         resolves from the same omitted-default table for :func:`analyze`,
-        :func:`antecedent.prepare` and ``PreparedAnalysis.prepare``
+        :func:`antecedent.prepare` and the prepared-analysis constructor
         (``antecedent._native.omitted_defaults()``).
     cancel:
         Optional ``CancellationToken`` from ``antecedent.state``. Checked at the
@@ -283,13 +577,44 @@ def analyze(
         Retains a checked ``result.program_binding`` for later ``Contract.evaluate``.
         Without it, direct decision evaluation uses the original numeric intervention
         scale and makes no claim about physical dose units.
+    on_refusal:
+        What happens when the causal query is refused for want of identification
+        (:class:`~antecedent.errors.EffectNotIdentified`). ``"raise"`` (default) raises the
+        refusal, exactly as without the option. ``"describe"`` returns an
+        :class:`antecedent.fallback.AnalysisWithFallback` instead: the unchanged refusal
+        object beside a compiled associational result over the same outcome, treatment and
+        adjustment variables (labelled noncausal, ``answer.kind == "associational"``, not an
+        answer to the causal question, ranking no action) and the evidence that would resolve
+        the refusal (obligations, next actions and, with ``evidence_candidates=``, a ranked
+        plan). Each part is present or a typed :class:`~antecedent.fallback.FallbackUnavailable`.
+        A query that succeeds returns the ordinary result. A search a budget stopped, a
+        cancellation, a resource limit, an invalid argument and every data or estimation error
+        are raised as they are.
+    evidence_candidates:
+        Studies the caller declares (``repair.StudyCandidate``; cost, timing, recruitment and
+        sample size are the caller's) for ``on_refusal="describe"``: the evidence plan then
+        ranks the options that would close the gap. Without ``on_refusal="describe"`` it is
+        refused.
     return_posterior_artifact:
         When ``True`` and inference is Bayesian, attach full posterior draw
         bytes on ``result.posterior.artifact`` (for download / sequential-prior
         hydrate). Default ``False``: UI summaries only. A mixture over several
         identified completions has no single estimand to hydrate and refuses.
     """
-    from .estimation import PreparedAnalysis
+    from .estimation import _PreparedEngine
+
+    if on_refusal not in ("raise", "describe"):
+        from .errors import CausalValueError
+
+        raise CausalValueError("on_refusal must be 'raise' or 'describe'")
+    if evidence_candidates is not None and on_refusal != "describe":
+        from .errors import CausalUnsupportedError
+
+        raise CausalUnsupportedError(
+            "evidence_candidates rank the evidence plan of a descriptive fallback and apply "
+            "only with on_refusal='describe'",
+            reason_code="option_not_applicable",
+        )
 
     if isinstance(query, ProviderQuery):
         if (
@@ -320,6 +645,7 @@ def analyze(
             )
             or participant is not None
             or missing is not None
+            or on_refusal != "raise"
             or seed != 1
             or not accept_discovered
             or return_posterior_artifact
@@ -407,41 +733,76 @@ def analyze(
             if not value.strip():
                 raise CausalValueError(f"{name} must be non-empty")
 
-    prepared = PreparedAnalysis.prepare(
-        data,
-        query=query,
-        graph=graph,
-        discovery=discovery,
-        inference=inference,
-        identifier=identifier,
-        estimator=estimator,
-        estimator_config=estimator_config,
-        refute=refute,
-        seed=seed,
-        bootstrap=bootstrap,
-        threads=threads,
-        latency=latency,
-        class_prior=class_prior,
-        max_completions=max_completions,
-        participant=participant,
-        missing=missing,
-        population_registry=population_registry,
-        cancel=cancel,
-        on_progress=on_progress,
-        on_stage=on_stage,
-        validators=validators,
-        accept_discovered=accept_discovered,
-        regimes=regimes,
-        provider=provider,
-        controls=controls,
-    )
-    result = prepared.estimate()
+    try:
+        prepared = _PreparedEngine.prepare(
+            data,
+            query=query,
+            graph=graph,
+            discovery=discovery,
+            imputations=imputations,
+            inference=inference,
+            identifier=identifier,
+            estimator=estimator,
+            estimator_config=estimator_config,
+            refute=refute,
+            seed=seed,
+            bootstrap=bootstrap,
+            threads=threads,
+            latency=latency,
+            class_prior=class_prior,
+            max_completions=max_completions,
+            participant=participant,
+            missing=missing,
+            population_registry=population_registry,
+            cancel=cancel,
+            on_progress=on_progress,
+            on_stage=on_stage,
+            validators=validators,
+            accept_discovered=accept_discovered,
+            regimes=regimes,
+            provider=provider,
+            controls=controls,
+            sampling_design=sampling_design,
+            on_refusal="describe" if on_refusal == "describe" else "refuse",
+            evidence_candidates=evidence_candidates,
+        )
+        result = prepared.estimate()
+    except (CausalError, ValueError, TypeError) as error:
+        if on_refusal != "describe":
+            raise
+        from . import fallback
+
+        if not (isinstance(error, CausalError) and fallback.is_identification_refusal(error)):
+            raise
+        # The refusal is kept as it would have been raised: the report analyze attaches.
+        call_kwargs: dict[str, Any] = {"query": query}
+        if graph is not None:
+            call_kwargs["graph"] = graph
+        attach_refusal_report(analyze, (data,), call_kwargs, error)
+        stage = getattr(error, "fallback", None)
+        if stage is None:
+            raise
+        from ._names import table_names
+        from .execution import Execution
+
+        return fallback.from_native(
+            error,
+            stage,
+            query=query,
+            graph=graph,
+            columns=table_names(data),
+            execution=Execution(seed=seed, threads=threads),
+        )
     if return_posterior_artifact:
         from .errors import CausalUnsupportedError as _Unsupported
         from .results import AnalysisResult
         from .results._report import copy_model
 
-        if not isinstance(result, AnalysisResult) or result.posterior is None:
+        if (
+            not isinstance(result, AnalysisResult)
+            or result.posterior is None
+            or not isinstance(prepared, _PreparedEngine)
+        ):
             raise _Unsupported(
                 "return_posterior_artifact requires a scalar posterior",
                 reason_code="option_not_applicable",
@@ -507,6 +868,4 @@ def analyze(
             ),
         )
     # This facade accepts only the legacy analysis query family.
-    from typing import cast
-
     return cast(Analysis, result)

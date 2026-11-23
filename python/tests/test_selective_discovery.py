@@ -23,8 +23,11 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from antecedent import Execution
+from antecedent import _reason_details as reason_details
 from antecedent import selective_discovery as sd
-from antecedent.errors import CausalDiscoveryError, CausalError, CausalTypeError, CausalValueError
+from antecedent.errors import CausalDiscoveryError, CausalTypeError, CausalValueError
+from antecedent.outcomes import require_success
 from antecedent.state import CancellationToken
 
 from _refusal import assert_registered_refusal
@@ -288,11 +291,11 @@ def test_failed_or_cancelled_update_leaves_the_retained_state_untouched() -> Non
     retained = adapter.retained_statistics
     token = CancellationToken()
     token.cancel()
-    with pytest.raises(CausalError):
-        adapter.run(contract(alpha=0.001), DATA, cancel=token)
+    with pytest.raises(CausalDiscoveryError, match="cancelled"):
+        adapter.run(contract(alpha=0.001), DATA, execution=Execution(cancel=token))
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
         adapter.run(contract(additional_populations=("elsewhere",)), DATA)
-    assert refused.value.detail == "selective_discovery.multi_population"
+    assert refused.value.detail == reason_details.selective_discovery.MULTI_POPULATION
     assert refused.value.reason_code == "route_not_supported"
     assert_registered_refusal(refused.value)
     assert refused.value.remedy
@@ -303,37 +306,42 @@ def test_failed_or_cancelled_update_leaves_the_retained_state_untouched() -> Non
 
 def test_a_second_population_and_a_kind_mismatch_are_refused() -> None:
     adapter = sd.SelectiveDiscovery("temporal")
-    with pytest.raises(Exception, match="temporal"):
+    with pytest.raises(CausalTypeError, match="a temporal adapter needs a temporal contract"):
         adapter.run(contract(), DATA)
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
         sd.SelectiveDiscovery("temporal").run(
             sd.TemporalContract(("a",), algorithm="pcmci", min_lag=0, max_lag=1),
             {"a": np.arange(30.0)},
         )
-    assert refused.value.detail == "selective_discovery.contemporaneous_links"
+    assert refused.value.detail == reason_details.selective_discovery.CONTEMPORANEOUS_LINKS
 
 
 # -- closed claims, graph uncertainty -----------------------------------------------------------
 
 
-def test_closed_claims_and_score_search_are_refused() -> None:
+def test_unsupported_claims_and_score_search_are_refused() -> None:
     adapter, _, _ = run_full(contract(), DATA)
-    for request, detail in (
-        (adapter.request_recovery_claim, "selective_discovery.recovery_claim_not_licensed"),
+    for request, code, detail in (
+        (
+            adapter.request_recovery_claim,
+            "discovered_structure_unresolved",
+            reason_details.selective_discovery.RECOVERY_CLAIM_NOT_SUPPORTED,
+        ),
         (
             adapter.request_downstream_interval,
-            "selective_discovery.downstream_interval_not_licensed",
+            "selection_inference_not_supported",
+            reason_details.selective_discovery.DOWNSTREAM_INTERVAL_NOT_SUPPORTED,
         ),
     ):
         with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
             request()
-        assert refused.value.reason_code == "cell_not_licensed"
+        assert refused.value.reason_code == code
         assert refused.value.detail == detail
         assert_registered_refusal(refused.value)
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
         sd.request_score_search_reuse()
     assert refused.value.reason_code == "route_not_supported"
-    assert refused.value.detail == "selective_discovery.score_search_closed"
+    assert refused.value.detail == reason_details.selective_discovery.SCORE_SEARCH_NOT_SUPPORTED
 
 
 def test_a_discovered_structure_never_supplies_a_selection_diagram() -> None:
@@ -349,7 +357,7 @@ def test_a_discovered_structure_never_supplies_a_selection_diagram() -> None:
         adapter.request_selection_diagram(["b"])
     err = refused.value
     assert err.reason_code == "discovered_structure_unresolved"
-    assert err.detail == "selective_discovery.unresolved_structure"
+    assert err.detail == reason_details.selective_discovery.UNRESOLVED_STRUCTURE
     assert len(err.unresolved_edges) == 2  # type: ignore[attr-defined]
     assert err.offending is not None and err.offending.count(";") == 1
     assert_registered_refusal(err)
@@ -357,7 +365,47 @@ def test_a_discovered_structure_never_supplies_a_selection_diagram() -> None:
     resolved, _, _ = run_full(contract(), DATA)
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
         resolved.request_selection_diagram(["c"])
-    assert refused.value.detail == "selective_discovery.unaccepted_discovery"
+    assert refused.value.detail == reason_details.selective_discovery.UNACCEPTED_DISCOVERY
+
+
+def test_graph_acceptance_needs_a_declared_completion_for_an_equivalence_class() -> None:
+    chain = sd.StaticContract(("a", "b", "c"), algorithm="pc", alpha=0.01, seed=0)
+    adapter, _, outcome = run_full(chain, chain_sample(4000, 5))
+    assert len(outcome.unresolved_edges) == 2
+    with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
+        adapter.accepted_graph_stage_identity("reviewer")
+    err = refused.value
+    assert err.reason_code == "discovered_structure_unresolved"
+    assert err.detail == reason_details.selective_discovery.UNRESOLVED_STRUCTURE
+    assert len(err.unresolved_edges) == 2  # type: ignore[attr-defined]
+    assert err.offending is not None and err.offending.count(";") == 1
+    assert_registered_refusal(err)
+
+    first = adapter.accepted_graph_stage_identity("reviewer", completion=("a->b->c", "01" * 32))
+    assert len(first) == 64 and int(first, 16) >= 0
+    assert first == adapter.accepted_graph_stage_identity(
+        "reviewer", completion=("a->b->c", "01" * 32)
+    )
+    # The declaring party, the completion label and the completion identity are each identity.
+    assert first != adapter.accepted_graph_stage_identity(
+        "someone else", completion=("a->b->c", "01" * 32)
+    )
+    assert first != adapter.accepted_graph_stage_identity(
+        "reviewer", completion=("c->b->a", "01" * 32)
+    )
+    assert first != adapter.accepted_graph_stage_identity(
+        "reviewer", completion=("a->b->c", "02" * 32)
+    )
+    with pytest.raises(CausalValueError):
+        adapter.accepted_graph_stage_identity("reviewer", completion=("a->b->c", "xyz"))
+
+    resolved, _, resolved_outcome = run_full(contract(), DATA)
+    assert resolved_outcome.fully_directed and not resolved_outcome.unresolved_edges
+    accepted = resolved.accepted_graph_stage_identity("reviewer")
+    assert len(accepted) == 64
+    assert accepted != first
+    with pytest.raises(CausalValueError):
+        sd.SelectiveDiscovery("static").accepted_graph_stage_identity("reviewer")
 
 
 # -- portable state, fresh process ------------------------------------------------------------------
@@ -373,8 +421,8 @@ def test_export_consume_inspect_and_resume() -> None:
     assert meta["result_identity"] == outcome.result_identity
     assert len(meta["receipts"]) == adapter.retained_statistics
 
-    resumed, report = sd.SelectiveDiscovery.resume(
-        contract(), DATA, exported.artifact, exported.identity
+    resumed, report = require_success(
+        sd.SelectiveDiscovery.resume(contract(), DATA, exported.artifact, exported.identity)
     )
     assert report.work.ci_tests_attempted == 0 and report.work.ci_tests_reused > 0
     assert (
@@ -387,28 +435,35 @@ def test_resume_refusals_and_artifact_tampering() -> None:
     adapter, _, _ = run_full(contract(), DATA)
     exported = adapter.export_state()
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
-        sd.SelectiveDiscovery.resume(contract(), None, exported.artifact)
-    assert refused.value.detail == "selective_discovery.raw_data_missing"
+        require_success(sd.SelectiveDiscovery.resume(contract(), None, exported.artifact))
+    assert refused.value.detail == reason_details.selective_discovery.RAW_DATA_MISSING
     assert refused.value.reason_code == "discovery_statistics_invalid"
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
-        sd.SelectiveDiscovery.resume(contract(), sample(6000, 12), exported.artifact)
-    assert refused.value.detail == "selective_discovery.data_mismatch"
+        require_success(
+            sd.SelectiveDiscovery.resume(contract(), sample(6000, 12), exported.artifact)
+        )
+    assert refused.value.detail == reason_details.selective_discovery.DATA_MISMATCH
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
-        sd.SelectiveDiscovery.resume(contract(alpha=0.2), DATA, exported.artifact)
-    assert refused.value.detail == "selective_discovery.contract_mismatch"
-    with pytest.raises(sd.SelectiveDiscoveryRefusal):
+        require_success(sd.SelectiveDiscovery.resume(contract(alpha=0.2), DATA, exported.artifact))
+    assert refused.value.detail == reason_details.selective_discovery.CONTRACT_MISMATCH
+    with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
         sd.consume_selective_discovery_artifact(exported.artifact, "0" * 64)
+    assert refused.value.detail == reason_details.selective_discovery.IDENTITY_MISMATCH
+    assert refused.value.reason_code == "discovery_statistics_invalid"
     flipped = bytearray(exported.artifact)
     flipped[-1] ^= 0xFF
-    with pytest.raises(sd.SelectiveDiscoveryRefusal):
+    with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
         sd.consume_selective_discovery_artifact(bytes(flipped))
-    with pytest.raises(sd.SelectiveDiscoveryRefusal):
-        sd.SelectiveDiscovery.resume(contract(), DATA, bytes(flipped))
+    assert refused.value.detail == reason_details.selective_discovery.ARTIFACT_INVALID
+    with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
+        require_success(sd.SelectiveDiscovery.resume(contract(), DATA, bytes(flipped)))
+    assert refused.value.detail == reason_details.selective_discovery.ARTIFACT_INVALID
 
 
 _CHILD = """
 import json, sys
 import numpy as np
+from antecedent import Execution
 from antecedent import selective_discovery as sd
 
 mode, folder = sys.argv[1], sys.argv[2]
@@ -457,7 +512,7 @@ def test_a_fresh_process_resumes_only_with_the_raw_data(tmp_path: Path) -> None:
     assert with_data["result"] == outcome.result_identity
     without = child("without_data")
     assert without == {
-        "refused": "selective_discovery.raw_data_missing",
+        "refused": reason_details.selective_discovery.RAW_DATA_MISSING,
         "code": "discovery_statistics_invalid",
     }
 
@@ -510,16 +565,18 @@ def test_temporal_resume_and_new_data() -> None:
     data = series(300, 31)
     adapter, _, outcome = run_full(temporal(), data, "temporal")
     exported = adapter.export_state()
-    resumed, report = sd.SelectiveDiscovery.resume(
-        temporal(), data, exported.artifact, exported.identity
+    resumed, report = require_success(
+        sd.SelectiveDiscovery.resume(temporal(), data, exported.artifact, exported.identity)
     )
     assert report.work.ci_tests_attempted == 0
     assert (
         resumed.outcome is not None and resumed.outcome.result_identity == outcome.result_identity
     )
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
-        sd.SelectiveDiscovery.resume(temporal(), series(300, 32), exported.artifact)
-    assert refused.value.detail == "selective_discovery.data_mismatch"
+        require_success(
+            sd.SelectiveDiscovery.resume(temporal(), series(300, 32), exported.artifact)
+        )
+    assert refused.value.detail == reason_details.selective_discovery.DATA_MISMATCH
     other = series(300, 32)
     step = adapter.run(temporal(), other)
     _, fresh_report, fresh = run_full(temporal(), other, "temporal")
@@ -608,7 +665,7 @@ def test_claims_refuse_before_a_run_and_on_a_key_that_already_exists() -> None:
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
         discovery.add_claims(first.graph, "disc")
     assert_registered_refusal(info.value)
-    assert info.value.detail == "composition_verification.graph_invalid"
+    assert info.value.detail == reason_details.composition_verification.GRAPH_INVALID
 
 
 def test_discovery_rows_and_the_discovered_graph_are_declared_as_ledger_sources() -> None:
@@ -635,3 +692,96 @@ def test_discovery_rows_and_the_discovered_graph_are_declared_as_ledger_sources(
         sd.discovery_data_source("rows", snapshot, range(0, 10, 2))
     with pytest.raises(CausalValueError):
         sd.discovered_graph_source("graph", ["not-an-id"])
+
+
+def test_discovery_rows_source_declares_a_row_set_and_refuses_negative_or_fractional_rows() -> None:
+    from antecedent import evidence_ledger as el
+
+    snapshot = b"table-v2"
+    ledger = el.EvidenceLedger()
+    scattered = ledger.add_source(sd.discovery_rows_source("scattered", snapshot, [0, 5, 90]))
+    overlapping = ledger.add_source(sd.discovery_rows_source("overlapping", snapshot, [5, 90, 91]))
+    disjoint = ledger.add_source(sd.discovery_rows_source("disjoint", snapshot, [200, 300]))
+    pair = ledger.account_observations([scattered, overlapping]).pairs[0]
+    assert (pair.overlap, pair.shared) == ("shared_observations", 2)
+    assert ledger.account_observations([scattered, disjoint]).pairs[0].overlap == "independent"
+    other_snapshot = ledger.add_source(sd.discovery_rows_source("other", b"another", [0, 5, 90]))
+    assert (
+        ledger.account_observations([scattered, other_snapshot]).pairs[0].overlap == "independent"
+    )
+    with pytest.raises((CausalValueError, CausalTypeError)):
+        sd.discovery_rows_source("negative", snapshot, [-1])
+    with pytest.raises((CausalValueError, CausalTypeError)):
+        sd.discovery_rows_source("fractional", snapshot, [1.5])  # type: ignore[list-item]
+
+
+def _discovered_on(seed: int) -> sd.SelectiveDiscovery:
+    rng = np.random.default_rng(seed)
+    n = 2000
+    a, b = rng.normal(size=n), rng.normal(size=n)
+    c = 0.8 * a + 0.8 * b + 0.6 * rng.normal(size=n)
+    contract = sd.StaticContract(variables=("a", "b", "c"), alpha=0.001, fdr=None, seed=4)
+    discovery = sd.SelectiveDiscovery("static")
+    discovery.run(contract, {"a": a, "b": b, "c": c})
+    return discovery
+
+
+def test_revalidating_after_discovery_recomputes_what_rests_on_the_moved_nodes() -> None:
+    from antecedent import composition_verification as cv
+
+    def with_claims(discovery: sd.SelectiveDiscovery) -> cv.CompositionGraph:
+        claims = discovery.add_claims(None, "disc")
+        effect = cv.Node("effect", "claim", identity=cv.digest("effect"))
+        other = cv.Node("unrelated", "claim", identity=cv.digest("unrelated"))
+        return cv.CompositionGraph(
+            nodes=(*claims.graph.nodes, effect, other),
+            edges=(
+                *claims.graph.edges,
+                cv.Edge("effect", claims.keys.downstream_anchor, "evidence"),
+            ),
+        )
+
+    previous = with_claims(_discovered_on(3))
+    unchanged = sd.revalidate_after_discovery(previous, with_claims(_discovered_on(3)))
+    assert unchanged.keys_of("recompute") == () and unchanged.keys_of("withdrawn") == ()
+    assert unchanged.keys_of("still_valid") == tuple(sorted(n.key for n in previous.nodes))
+    assert unchanged.previous_identity == unchanged.current_identity
+
+    # new data: the data node moves, so the statistics, the discovered structure and the claim
+    # derived from it recompute; the claim that rests on none of them stays valid
+    moved = sd.revalidate_after_discovery(previous, with_claims(_discovered_on(5)))
+    assert moved.classify("disc.data").klass == "recompute"
+    for key in ("disc.statistics", "disc.graph", "effect"):
+        assert moved.classify(key).klass == "recompute", key
+    assert moved.classify("unrelated").klass == "still_valid"
+    assert moved.classify("effect").authority_retained is False
+    assert moved.previous_identity != moved.current_identity
+    assert moved.identity != unchanged.identity
+
+    # a claim that left the graph is reported removed
+    smaller = cv.CompositionGraph(
+        nodes=tuple(n for n in previous.nodes if n.key != "unrelated"), edges=previous.edges
+    )
+    dropped = sd.revalidate_after_discovery(previous, smaller)
+    assert dropped.removed == ("unrelated",)
+    with pytest.raises(CausalValueError):
+        moved.classify("no such claim")
+
+
+def test_revalidating_after_discovery_refuses_an_invalid_graph_and_a_foreign_object() -> None:
+    from antecedent import composition_verification as cv
+
+    graph = cv.CompositionGraph(nodes=(cv.Node("a", "claim", identity=cv.digest("a")),))
+    duplicate = cv.CompositionGraph(
+        nodes=(
+            cv.Node("a", "claim", identity=cv.digest("a")),
+            cv.Node("a", "claim", identity=cv.digest("b")),
+        )
+    )
+    for previous, current in ((graph, duplicate), (duplicate, graph)):
+        with pytest.raises(cv.CompositionVerificationRefusal) as info:
+            sd.revalidate_after_discovery(previous, current)
+        assert_registered_refusal(info.value)
+        assert info.value.detail == reason_details.composition_verification.GRAPH_INVALID
+    with pytest.raises(CausalTypeError):
+        sd.revalidate_after_discovery(graph, {"nodes": []})  # type: ignore[arg-type]

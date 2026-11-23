@@ -13,18 +13,33 @@ use crate::analysis::missing_data::{self, MissingRoute};
 use antecedent_data::{MissingDeclaration, MissingPolicy};
 use std::collections::{BTreeMap, BTreeSet};
 
+mod bayesian;
+mod rollout;
 mod weighted;
 
+use super::BayesianConfig;
+pub(super) use bayesian::bayesian_panel_did_plan_ids;
+
 /// Why `design` cannot execute `policy`, if it cannot.
+fn pick<T: Clone>(values: &[T], keep: &[bool]) -> Vec<T> {
+    values.iter().zip(keep).filter(|(_, kept)| **kept).map(|(v, _)| v.clone()).collect()
+}
+
 fn design_refusal(
     design: antecedent_core::DidSamplingDesign,
     policy: MissingPolicy,
 ) -> Option<&'static str> {
     use antecedent_core::DidSamplingDesign;
     match (policy, design) {
-        (MissingPolicy::ErrorOnMissing, _) => None,
+        // One row per subject: a subject missing an outcome or a supplied prediction is dropped
+        // whole, and the row-aligned nuisance columns are restricted with it.
+        (
+            MissingPolicy::AvailableCase | MissingPolicy::BalancedPanel,
+            DidSamplingDesign::AugmentedPanel,
+        )
+        | (MissingPolicy::ErrorOnMissing, _) => None,
         (_, DidSamplingDesign::AugmentedPanel) => Some(
-            "the augmented panel's supplied nuisance predictions are row-aligned columns and cannot be restricted",
+            "the augmented panel reads complete subject rows (available_case or balanced_panel); it has no estimator for this policy",
         ),
         (MissingPolicy::BalancedPanel, DidSamplingDesign::RepeatedCrossSection) => {
             Some("a repeated cross-section has no panel to balance; each row is its own subject")
@@ -51,6 +66,11 @@ pub(crate) struct PanelMissing {
     restricted: bool,
     /// Each contrast uses the units observed in its own periods (unbalanced panel).
     available_case: bool,
+    /// The study's Bayesian configuration: the retained operation reports a posterior, not a
+    /// sampling interval.
+    bayesian: Option<BayesianConfig>,
+    /// The declared sampling design, which fixes the units a whole-procedure resample draws.
+    sampling: Option<antecedent_core::DeclaredSamplingDesign>,
 }
 
 pub(crate) type CheckedPanelDidOperation =
@@ -171,19 +191,44 @@ impl CheckedPanelDidOperation {
         query.validate()?;
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
-            || !matches!(study.inference, InferenceMode::Frequentist)
-            || study.refute != RefuteSuite::None
-            || study.bootstrap_replicates != 0
-            || !study.custom_validators.is_empty()
+            || study.settings.refute != RefuteSuite::None
+            || study.settings.bootstrap_replicates != 0
+            || !study.declared.custom_validators.is_empty()
             || study.graph_posterior.is_some()
-            || study.tiered.is_some()
+            || study.declared.tiered.is_some()
             || query.treated.len() != data.row_count()
         {
             return Err(CausalError::Unsupported {
-                message: "panel DiD currently accepts only the graphless two-period panel query with point estimate and cluster standard error",
+                message: "panel DiD currently accepts only the graphless two-period panel query with point estimate and cluster standard error, or its Bayesian posterior",
             });
         }
+        let bayesian = match &study.settings.inference {
+            InferenceMode::Frequentist => None,
+            InferenceMode::Bayesian(config) => {
+                super::bayesian_quasi_common::require_built_in_model(config, "Bayesian panel DiD")?;
+                Some(config.clone())
+            }
+        };
+        if bayesian.is_some() && query.resampling.is_some() {
+            return Err(super::bayesian_quasi_common::unread_option(
+                "the Bayesian panel DiD",
+                "a whole-procedure frequentist resample; the Bayesian rollout draws its own \
+                 Bayesian-bootstrap posterior with n_draws",
+                "the Bayesian study without the resample declaration (n_draws sets the posterior \
+                 draws), or the frequentist route with the resample",
+            ));
+        }
         data.schema().get(query.outcome).map_err(CausalError::rejected)?;
+        if let Some(robust) = &query.robust {
+            for variable in robust.covariates.iter() {
+                data.schema().get(*variable).map_err(CausalError::rejected)?;
+            }
+            rollout::resampling_units(
+                study.declared.sampling_design,
+                &query.subjects,
+                &query.clusters,
+            )?;
+        }
         if let Some(nuisance) = &query.augmented {
             for variable in
                 [nuisance.outcome_pre, nuisance.propensity, nuisance.untreated_change_prediction]
@@ -191,7 +236,11 @@ impl CheckedPanelDidOperation {
                 data.schema().get(variable).map_err(CausalError::rejected)?;
             }
         }
-        let (plan_id, identifier, estimator) = panel_did_plan_ids(query.design);
+        let (plan_id, identifier, estimator) = if bayesian.is_some() {
+            bayesian_panel_did_plan_ids(query.design)
+        } else {
+            panel_did_plan_ids(query.design)
+        };
         if physical.logical.query != study.query
             || physical.logical.record.plan_id.as_ref() != plan_id
             || !physical.binding().names_wire(identifier, estimator)
@@ -200,13 +249,19 @@ impl CheckedPanelDidOperation {
                 message: "panel DiD design differs from its compiled plan".into(),
             });
         }
-        let (identification, estimand) = panel_did_identification(query);
-        if let Some(declaration) = &study.missing {
-            if let Some(reason) = design_refusal(query.design, declaration.policy) {
-                return Err(panel_policy_refusal(declaration.policy, reason));
-            }
+        let (identification, estimand) =
+            study.design_identification_or(physical, || panel_did_identification(query));
+        if let Some(declaration) = &study.declared.missing
+            && let Some(reason) = design_refusal(query.design, declaration.policy)
+        {
+            return Err(panel_policy_refusal(declaration.policy, reason));
         }
-        let extra = PanelMissing { declaration: study.missing.clone(), ..PanelMissing::default() };
+        let extra = PanelMissing {
+            declaration: study.declared.missing.clone(),
+            bayesian,
+            sampling: study.declared.sampling_design,
+            ..PanelMissing::default()
+        };
         Ok(Self::freeze(study, query, data, physical, identification, estimand, extra))
     }
 
@@ -225,10 +280,22 @@ impl CheckedPanelDidOperation {
         };
         let y = column.values.as_slice();
         let observed: Vec<bool> = (0..y.len()).map(|i| column.validity.is_valid(i)).collect();
+        if self.query.robust.is_some() {
+            return self.execute_rollout(data, y, &observed, ctx);
+        }
+        if self.query.design == antecedent_core::DidSamplingDesign::AugmentedPanel {
+            // The augmented panel restricts its own row-aligned columns to complete subjects.
+            let mut result = self.execute_rows(data, y, ctx)?;
+            if result.extras.missing_data.is_none() {
+                let keep = vec![true; y.len()];
+                result.extras.missing_data = Some(self.missing_report(data, &observed, &keep)?);
+            }
+            return Ok(result);
+        }
         if observed.iter().all(|seen| *seen) {
-            let mut result = self.execute_rows(data, y)?;
+            let mut result = self.execute_rows(data, y, ctx)?;
             let keep = vec![true; y.len()];
-            result.missing_data = Some(self.missing_report(data, &observed, &keep)?);
+            result.extras.missing_data = Some(self.missing_report(data, &observed, &keep)?);
             return Ok(result);
         }
         let (keep, available_case) = self.restriction(data, &observed)?;
@@ -247,8 +314,8 @@ impl CheckedPanelDidOperation {
             extra: PanelMissing { restricted: true, available_case, ..self.extra.clone() },
             ..self.clone()
         };
-        let mut result = restricted.execute_rows(data, &restricted_y)?;
-        result.missing_data = Some(self.missing_report(data, &observed, &keep)?);
+        let mut result = restricted.execute_rows(data, &restricted_y, ctx)?;
+        result.extras.missing_data = Some(self.missing_report(data, &observed, &keep)?);
         Ok(result)
     }
 
@@ -323,7 +390,7 @@ impl CheckedPanelDidOperation {
             data.storage().analysis_mask(),
             policy,
             &[self.query.outcome],
-            keep,
+            &antecedent_data::ValidityBitmap::from_bools(keep),
         )?;
         let labels: Vec<Arc<str>> = self
             .query
@@ -342,7 +409,19 @@ impl CheckedPanelDidOperation {
         Ok(missing_data::report(MissingRoute::Panel, declared, Arc::from([]), accounting))
     }
 
-    fn execute_rows(&self, data: &TabularData, y: &[f64]) -> Result<StudyResult, CausalError> {
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the panel fit and its published section are built in one pass"
+    )]
+    fn execute_rows(
+        &self,
+        data: &TabularData,
+        y: &[f64],
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        if self.extra.bayesian.is_some() {
+            return self.execute_bayesian(data, y, ctx);
+        }
         if data.storage().weights().is_some()
             && self.query.design != antecedent_core::DidSamplingDesign::BalancedPanel
         {
@@ -355,7 +434,7 @@ impl CheckedPanelDidOperation {
             ));
         }
         if self.query.design == antecedent_core::DidSamplingDesign::AugmentedPanel {
-            return self.execute_augmented_panel(data, y);
+            return self.execute_augmented_panel(data, y, ctx);
         }
         if self.query.design == antecedent_core::DidSamplingDesign::StaggeredEventStudy {
             return self.execute_staggered_event_study(data, y);
@@ -391,7 +470,7 @@ impl CheckedPanelDidOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish::new(&self.physical, identification, self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.outcome, self.query.outcome).extra_diagnostics(vec![
+            IdentifiedExecuteFinish::new(&self.physical, identification, self.estimand.clone(), estimate, Strategy::new(IdentifierId::ParallelTrends, EstimatorId::PanelDid), self.query.outcome, self.query.outcome).extra_diagnostics(vec![
                     Diagnostic::new(
                         "estimate.quasi.panel_did.cluster_se",
                         DiagnosticKind::Scientific,
@@ -420,9 +499,10 @@ impl CheckedPanelDidOperation {
             }),
             event_time_effects: Arc::from([]),
             event_time_intervals_95: Arc::from([]),
+            replicates_ok: None,
             augmented: None,
         });
-        if crate::support::license_if_graphless(
+        if crate::support::support_if_graphless(
             panel_did_graphless_key(antecedent_core::DidSamplingDesign::BalancedPanel),
             crate::support::GraphlessAssignmentSupport {
                 assignment_unit: "cluster",
@@ -435,7 +515,7 @@ impl CheckedPanelDidOperation {
         )
         .is_some()
         {
-            result.support_status = Some(crate::support::CellStatus::Licensed);
+            result.support_status = Some(crate::support::CellStatus::Supported);
         }
         result.treatment = None;
         result.rebind_interval(false);
@@ -517,7 +597,7 @@ impl CheckedPanelDidOperation {
     }
 
     /// Pointwise 95% intervals of post-adoption event-time effects, with the cluster counts that
-    /// license them.
+    /// support them.
     fn event_time_intervals(
         &self,
         effects: &[antecedent_estimate::staggered_event_study::EventTimeEffect],
@@ -651,37 +731,134 @@ impl CheckedPanelDidOperation {
         Ok((sums, counts, cell_clusters))
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one augmented-panel execution: the outcome-change model, its interval and the identified finish share the same fit"
+    )]
     fn execute_augmented_panel(
         &self,
         data: &TabularData,
         post: &[f64],
+        ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let Some(nuisance) = self.query.augmented.as_ref() else {
             return Err(CausalError::Compile {
                 message: "augmented panel DiD requires the augmented nuisance block".into(),
             });
         };
-        let numeric_column = |variable| -> Result<Vec<f64>, CausalError> {
+        let numeric_column = |variable| -> Result<(Vec<f64>, Vec<bool>), CausalError> {
             match data.column(variable).map_err(CausalError::from)? {
-                antecedent_data::ColumnView::Float64(column) => {
-                    Ok(column.values.as_slice().to_vec())
-                }
+                antecedent_data::ColumnView::Float64(column) => Ok((
+                    column.values.as_slice().to_vec(),
+                    (0..column.values.as_slice().len())
+                        .map(|i| column.validity.is_valid(i))
+                        .collect(),
+                )),
                 _ => Err(CausalError::Unsupported {
                     message: "augmented panel DiD requires continuous outcome and nuisance columns",
                 }),
             }
         };
-        let pre = numeric_column(nuisance.outcome_pre)?;
-        let propensity = numeric_column(nuisance.propensity)?;
-        let prediction = numeric_column(nuisance.untreated_change_prediction)?;
+        let (pre, pre_ok) = numeric_column(nuisance.outcome_pre)?;
+        let (propensity, propensity_ok) = numeric_column(nuisance.propensity)?;
+        let (prediction, prediction_ok) = numeric_column(nuisance.untreated_change_prediction)?;
+        let (_, post_ok) = numeric_column(self.query.outcome)?;
+        let keep: Vec<bool> = (0..post.len())
+            .map(|i| post_ok[i] && pre_ok[i] && propensity_ok[i] && prediction_ok[i])
+            .collect();
+        // A subject missing an outcome or a supplied prediction is dropped whole under a
+        // declared policy; the row-aligned columns are restricted with it, nothing is imputed.
+        let incomplete = keep.iter().any(|kept| !*kept);
+        if incomplete {
+            let declared = self.extra.declaration.as_ref().is_some_and(|declaration| {
+                matches!(
+                    declaration.policy,
+                    MissingPolicy::AvailableCase | MissingPolicy::BalancedPanel
+                )
+            });
+            if !declared {
+                let supported = MissingRoute::Panel.supported();
+                let cell = antecedent_data::first_missing_cell(
+                    data,
+                    &[
+                        self.query.outcome,
+                        nuisance.outcome_pre,
+                        nuisance.propensity,
+                        nuisance.untreated_change_prediction,
+                    ],
+                )?
+                .ok_or(CausalError::Unsupported {
+                    message: "augmented panel validity changed during execution",
+                })?;
+                return Err(CausalError::Estimate(
+                    antecedent_estimate::missing_policy::policy_required(
+                        &cell,
+                        MissingRoute::Panel.label(),
+                        &supported[1..],
+                    ),
+                ));
+            }
+        }
+        let (pre, post, propensity, prediction, treated) = (
+            pick(&pre, &keep),
+            pick(post, &keep),
+            pick(&propensity, &keep),
+            pick(&prediction, &keep),
+            pick(&self.query.treated, &keep),
+        );
+        let post = post.as_slice();
         let fit = antecedent_estimate::augmented_panel_did::estimate(
             &pre,
             post,
-            &self.query.treated,
+            &treated,
             &propensity,
             &prediction,
         )
         .map_err(|message| CausalError::Compile { message: message.into() })?;
+        // The whole-cluster resample holds the supplied predictions at their values and
+        // recomputes the estimator on every replicate.
+        let resampled = self
+            .query
+            .resampling
+            .map(|resampling| {
+                let clusters = rollout::resampling_units(
+                    self.extra.sampling,
+                    &self.query.subjects,
+                    &self.query.clusters,
+                )?;
+                let clusters = pick(&clusters, &keep);
+                antecedent_estimate::augmented_panel_did::resample_augmented_panel(
+                    &pre,
+                    post,
+                    &treated,
+                    &propensity,
+                    &prediction,
+                    &clusters,
+                    rollout::weighting(resampling.scheme),
+                    resampling.replicates,
+                    ctx,
+                )
+                .map(|(_, summary)| summary)
+                .map_err(CausalError::Estimate)
+            })
+            .transpose()?;
+        let resampled_quantity = resampled
+            .as_ref()
+            .and_then(|summary| summary.quantities.first().copied())
+            .filter(|quantity| quantity.interval.is_some());
+        // The interval is the point with the resample standard error and a Student reference
+        // on the completed refit count, which accounts for the standard error being estimated
+        // from finitely many refits.
+        let resampled_interval = resampled_quantity
+            .zip(resampled.as_ref())
+            .and_then(|(quantity, summary)| {
+                antecedent_estimate::augmented_panel_did::resample_interval_95(
+                    fit.effect,
+                    quantity.standard_error?,
+                    summary.replicates_ok,
+                )
+            })
+            .or(resampled_quantity.and_then(|quantity| quantity.interval));
         let estimate = EffectEstimate::new(
             fit.effect,
             f64::NAN,
@@ -691,24 +868,37 @@ impl CheckedPanelDidOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::ParallelTrends, EstimatorId::PanelDid), self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
                     "estimate.quasi.augmented_panel_did.supplied_nuisance",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    "supplied propensity and untreated-change predictions; cross-fitting is caller-declared, not verified; no calibrated interval",
+                    match &resampled {
+                        Some(summary) => format!(
+                            "supplied propensity and untreated-change predictions held fixed; cross-fitting is caller-declared, not verified; whole-cluster resample interval from {} of {} replicates is unsupported and its calibration is not_measured; it does not propagate the predictions' own estimation error",
+                            summary.replicates_ok, summary.requested
+                        ),
+                        None => "supplied propensity and untreated-change predictions; cross-fitting is caller-declared, not verified; no calibrated interval".to_string(),
+                    },
                 )]),
         );
         result.payload = crate::result::ResultPayload::PanelDid(crate::PanelDidEstimate {
             effect: fit.effect,
-            // The field is a wire-compatible placeholder, not a standard error.
-            standard_error: 0.0,
-            interval_95: None,
+            // Without a resample the field is a wire-compatible placeholder, not a standard error.
+            standard_error: resampled_quantity
+                .and_then(|quantity| quantity.standard_error)
+                .unwrap_or(0.0),
+            interval_95: resampled_interval,
             treated_subjects: fit.treated_subjects,
             comparison_subjects: fit.control_subjects,
-            clusters: self.query.clusters.iter().collect::<BTreeSet<_>>().len(),
-            uncertainty: Arc::from("point_only_no_standard_error"),
+            clusters: pick(&self.query.clusters, &keep).iter().collect::<BTreeSet<_>>().len(),
+            uncertainty: Arc::from(if resampled_quantity.is_some() {
+                "whole_cluster_resample_supplied_nuisance_held_fixed_calibration_not_measured"
+            } else {
+                "point_only_no_standard_error"
+            }),
             event_time_effects: Arc::from([]),
             event_time_intervals_95: Arc::from([]),
+            replicates_ok: resampled.as_ref().map(|summary| summary.replicates_ok),
             augmented: Some((
                 fit.propensity_min,
                 fit.propensity_max,
@@ -717,6 +907,59 @@ impl CheckedPanelDidOperation {
             )),
         });
         result.treatment = None;
+        // The whole-cluster bootstrap interval states its support row when every subject is
+        // read, each is its own cluster, every refit completed, and the supplied propensity
+        // stays inside the row's range. The predictions are held fixed, so the statement is
+        // for supplied predictions, with or without the declaration that they were not fitted
+        // on these rows: the row was measured under both.
+        let subjects = fit.treated_subjects + fit.control_subjects;
+        let bootstrap = self.query.resampling.is_some_and(|resampling| {
+            resampling.scheme == antecedent_core::DidResamplingScheme::ClusterBootstrap
+        });
+        if let Some(summary) = resampled.as_ref().filter(|summary| {
+            bootstrap
+                && !incomplete
+                && resampled_quantity.is_some()
+                && summary.replicates_ok == summary.requested
+        }) && pick(&self.query.clusters, &keep).iter().collect::<BTreeSet<_>>().len() == subjects
+            && antecedent_io::graphless_support::graphless_admits_resampled(
+                crate::support::GraphlessSupportKey {
+                    family: "difference_in_differences",
+                    design: "augmented_panel",
+                    method: "whole_cluster_bootstrap_supplied_nuisance_held_fixed",
+                    inference_claim: "pointwise_95_normal_interval",
+                },
+                crate::support::GraphlessAssignmentSupport {
+                    assignment_unit: "cluster",
+                    treated: fit.treated_subjects,
+                    control: fit.control_subjects,
+                    interval_95_published: true,
+                    rows: subjects,
+                    blocks: subjects,
+                    min_probability: fit.propensity_min.min(1.0 - fit.propensity_max),
+                    reported_intervals: 1,
+                    ..Default::default()
+                },
+                antecedent_io::graphless_support::GraphlessResampleSupport {
+                    interval_resamples: summary.requested as usize,
+                    ..Default::default()
+                },
+            )
+        {
+            // The row is stated in a coded diagnostic the artifact check recomputes; the
+            // section's own support status stays absent, as on every augmented panel.
+            result.diagnostics.push(Diagnostic::new(
+                antecedent_io::graphless_support::AUGMENTED_DID_ROW_CODE,
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "supported graphless row difference_in_differences/augmented_panel/\
+                 whole_cluster_bootstrap_supplied_nuisance_held_fixed: the whole-cluster \
+                 bootstrap interval, for supplied predictions held fixed",
+            ));
+        }
+        if incomplete {
+            result.extras.missing_data = Some(self.missing_report(data, &post_ok, &keep)?);
+        }
         Ok(result)
     }
 
@@ -748,16 +991,16 @@ impl CheckedPanelDidOperation {
         let representative = &effects[representative_index];
         let representative_interval = event_time_intervals_95[representative_index];
         let any_interval = event_time_intervals_95.iter().any(Option::is_some);
-        // License the post-adoption event-time intervals only when the interval
+        // Support the post-adoption event-time intervals only when the interval
         // is actually published and each side clears the independent-cluster
         // support gate. Capture the support before `effects` moves into the
         // result. Pre-adoption leads and event time -1 stay point-only.
         let representative_treated_clusters = treated_cluster_count(representative.cohort);
         let published_intervals =
             event_time_intervals_95.iter().filter(|interval| interval.is_some()).count();
-        let graphless_licensed = representative_interval.is_some()
+        let graphless_supported = representative_interval.is_some()
             && !self.extra.restricted
-            && crate::support::license_if_graphless(
+            && crate::support::support_if_graphless(
                 panel_did_graphless_key(antecedent_core::DidSamplingDesign::StaggeredEventStudy),
                 crate::support::GraphlessAssignmentSupport {
                     assignment_unit: "cluster",
@@ -784,7 +1027,7 @@ impl CheckedPanelDidOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.outcome, self.query.outcome).extra_diagnostics(vec![
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::ParallelTrends, EstimatorId::PanelDid), self.query.outcome, self.query.outcome).extra_diagnostics(vec![
                     Diagnostic::new(
                         if any_interval {
                             "estimate.quasi.staggered_event_study.pointwise_95"
@@ -812,10 +1055,11 @@ impl CheckedPanelDidOperation {
             }),
             event_time_effects: effects.into(),
             event_time_intervals_95: event_time_intervals_95.into(),
+            replicates_ok: None,
             augmented: None,
         });
-        if graphless_licensed {
-            result.support_status = Some(crate::support::CellStatus::Licensed);
+        if graphless_supported {
+            result.support_status = Some(crate::support::CellStatus::Supported);
         }
         result.treatment = None;
         result.rebind_interval(false);
@@ -880,7 +1124,7 @@ impl CheckedPanelDidOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::ParallelTrends, EstimatorId::PanelDid), self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
                     "estimate.quasi.staggered_group_time.cluster_se",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
@@ -899,6 +1143,7 @@ impl CheckedPanelDidOperation {
             uncertainty: Arc::from("cluster_robust_standard_error_no_interval"),
             event_time_effects: Arc::from([]),
             event_time_intervals_95: Arc::from([]),
+            replicates_ok: None,
             augmented: None,
         });
         result.treatment = None;
@@ -954,7 +1199,7 @@ impl CheckedPanelDidOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish::new(&self.physical, identification, self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.outcome, self.query.outcome).extra_diagnostics(vec![
+            IdentifiedExecuteFinish::new(&self.physical, identification, self.estimand.clone(), estimate, Strategy::new(IdentifierId::ParallelTrends, EstimatorId::PanelDid), self.query.outcome, self.query.outcome).extra_diagnostics(vec![
                     Diagnostic::new(
                         "estimate.quasi.repeated_cross_section_did.cluster_se",
                         DiagnosticKind::Scientific,
@@ -983,9 +1228,10 @@ impl CheckedPanelDidOperation {
             }),
             event_time_effects: Arc::from([]),
             event_time_intervals_95: Arc::from([]),
+            replicates_ok: None,
             augmented: None,
         });
-        if crate::support::license_if_graphless(
+        if crate::support::support_if_graphless(
             panel_did_graphless_key(antecedent_core::DidSamplingDesign::RepeatedCrossSection),
             crate::support::GraphlessAssignmentSupport {
                 assignment_unit: "cluster",
@@ -1000,7 +1246,7 @@ impl CheckedPanelDidOperation {
         )
         .is_some()
         {
-            result.support_status = Some(crate::support::CellStatus::Licensed);
+            result.support_status = Some(crate::support::CellStatus::Supported);
         }
         result.treatment = None;
         result.rebind_interval(false);
@@ -1019,15 +1265,17 @@ pub(super) fn panel_did_plan_ids(
         DidSamplingDesign::StaggeredGroupTime => "quasi.staggered_group_time_never_treated",
         DidSamplingDesign::StaggeredEventStudy => "quasi.staggered_event_study_never_treated",
         DidSamplingDesign::AugmentedPanel => "quasi.augmented_panel_supplied_nuisance",
+        DidSamplingDesign::StaggeredHeterogeneityRobust => "quasi.staggered_heterogeneity_robust",
+        DidSamplingDesign::CovariateAdjustedTwoPeriod => "quasi.covariate_adjusted_two_period",
     };
-    ("quasi.panel_did", "quasi.parallel_trends", estimator)
+    ("quasi.panel_did", IdentifierId::ParallelTrends.as_str(), estimator)
 }
 
-/// Graphless licence key for a `DiD` sampling design.
+/// Graphless support key for a `DiD` sampling design.
 ///
-/// Execution licenses against this key and the contract publishes it as the
+/// Execution supports against this key and the contract publishes it as the
 /// matrix coordinate, so the two cannot drift. Staggered group-time and
-/// augmented panels have no licensed method; their key matches no licence row.
+/// augmented panels have no supported method; their key matches no support row.
 pub(crate) fn panel_did_graphless_key(
     design: antecedent_core::DidSamplingDesign,
 ) -> crate::support::GraphlessSupportKey<'static> {
@@ -1046,8 +1294,14 @@ pub(crate) fn panel_did_graphless_key(
             "never_treated_event_study_cluster_cr1",
             "post_adoption_event_time_pointwise_95_normal_intervals",
         ),
-        DidSamplingDesign::StaggeredGroupTime => ("staggered_group_time", "unlicensed", "none"),
-        DidSamplingDesign::AugmentedPanel => ("augmented_panel", "unlicensed", "none"),
+        DidSamplingDesign::StaggeredGroupTime => ("staggered_group_time", "unsupported", "none"),
+        DidSamplingDesign::AugmentedPanel => ("augmented_panel", "unsupported", "none"),
+        DidSamplingDesign::StaggeredHeterogeneityRobust => {
+            ("staggered_heterogeneity_robust", "unsupported", "none")
+        }
+        DidSamplingDesign::CovariateAdjustedTwoPeriod => {
+            ("covariate_adjusted_two_period", "unsupported", "none")
+        }
     };
     crate::support::GraphlessSupportKey {
         family: "difference_in_differences",
@@ -1094,6 +1348,110 @@ fn push_augmented_did_assumptions(assumptions: &mut antecedent_core::AssumptionS
             status: antecedent_core::AssumptionStatus::Declared,
         });
     }
+    // Subjects missing an outcome or a supplied prediction are dropped under a declared
+    // policy; that dropping is ignorable is not testable from the retained rows.
+    assumptions.push(antecedent_core::AssumptionRecord {
+        assumption: antecedent_core::Assumption::Custom {
+            id: Arc::from("attrition_ignorable_given_treatment_group_and_predictors"),
+            description: Arc::from(
+                "whether a subject has both outcomes and the supplied predictions is unrelated to its untreated outcome change within treatment group given the supplied predictors; not testable from the retained rows",
+            ),
+        },
+        source: antecedent_core::AssumptionSource::UserDeclared,
+        scope: antecedent_core::AssumptionScope::Identification,
+        status: antecedent_core::AssumptionStatus::Untestable,
+    });
+}
+
+/// Assumptions a heterogeneity-robust or covariate-adjusted rollout adds for its comparison
+/// group, target population and estimator.
+fn push_rollout_assumptions(
+    assumptions: &mut antecedent_core::AssumptionSet,
+    robust: &antecedent_core::HeterogeneityRobustDid,
+    not_yet_treated: bool,
+) {
+    use antecedent_core::{DidNuisanceMethod, RolloutDidEstimator};
+    let mut declared: Vec<(&str, &str)> = vec![(
+        "target_population_adopted_cohorts",
+        "the target is the average effect on the treated cohorts at their observed post-adoption periods, weighted by cohort size as the declared aggregation states",
+    )];
+    if not_yet_treated {
+        declared.push((
+            "not_yet_treated_units_share_untreated_trends",
+            "units adopting after both compared periods (and never-treated units) follow the treated cohort's untreated trend over those periods",
+        ));
+    }
+    declared.push((
+        "observation_pattern_unrelated_to_untreated_trends",
+        "whether a unit is observed in a period does not depend on its untreated outcome trend",
+    ));
+    match robust.estimator {
+        RolloutDidEstimator::CallawaySantAnna => {}
+        RolloutDidEstimator::SunAbraham => declared.push((
+            "single_control_cohort_valid",
+            "the never-treated cohort (or the last-treated cohort before its adoption) is a valid control for every cohort; on an unbalanced panel the comparison units used at a period are those actually observed at it",
+        )),
+        RolloutDidEstimator::Imputation => declared.push((
+            "additive_unit_and_period_untreated_outcomes",
+            "untreated outcomes are a unit effect plus a period effect plus noise with mean zero given adoption timing",
+        )),
+    }
+    if !robust.covariates.is_empty() {
+        match robust.nuisance {
+            DidNuisanceMethod::OutcomeRegression => declared.push((
+                "linear_untreated_change_in_covariates",
+                "the untreated outcome change is linear in the baseline covariates",
+            )),
+            DidNuisanceMethod::InverseProbabilityWeighting => declared.push((
+                "logistic_cohort_propensity_and_overlap",
+                "cohort membership given the baseline covariates is logistic and every comparison unit has a propensity bounded away from one",
+            )),
+            DidNuisanceMethod::DoublyRobust => declared.push((
+                "linear_untreated_change_or_logistic_propensity_with_overlap",
+                "at least one of the linear untreated-change model and the logistic cohort propensity is correct, and propensities are bounded away from one",
+            )),
+        }
+    }
+    for (id, description) in declared {
+        assumptions.push(antecedent_core::AssumptionRecord {
+            assumption: antecedent_core::Assumption::Custom {
+                id: Arc::from(id),
+                description: Arc::from(description),
+            },
+            source: antecedent_core::AssumptionSource::UserDeclared,
+            scope: antecedent_core::AssumptionScope::Identification,
+            status: antecedent_core::AssumptionStatus::Declared,
+        });
+    }
+    if let antecedent_core::PanelObservationProcess::InformativeBounded(bound) = robust.observation
+    {
+        assumptions.push(antecedent_core::AssumptionRecord {
+            assumption: antecedent_core::Assumption::Custom {
+                id: Arc::from("attrition_shift_within_declared_bound"),
+                description: Arc::from(format!(
+                    "the treated units a cohort does not observe change by at most {} outcome units more or less than those it observes, and comparison units are missing at random; the result is an assumption-dependent range over that bound, not testable from the observed rows",
+                    bound.get()
+                )),
+            },
+            source: antecedent_core::AssumptionSource::UserDeclared,
+            scope: antecedent_core::AssumptionScope::Identification,
+            status: antecedent_core::AssumptionStatus::Untestable,
+        });
+    }
+    // Which unit-periods are observed cannot be tested from the observed rows themselves.
+    if robust.observation == antecedent_core::PanelObservationProcess::IgnorableGivenCohort {
+        assumptions.push(antecedent_core::AssumptionRecord {
+            assumption: antecedent_core::Assumption::Custom {
+                id: Arc::from("attrition_ignorable_given_cohort"),
+                description: Arc::from(
+                    "whether a unit is observed in a period is unrelated to its untreated outcome trend within its adoption cohort, so the observed unit-periods represent each cohort; not testable from the observed rows",
+                ),
+            },
+            source: antecedent_core::AssumptionSource::UserDeclared,
+            scope: antecedent_core::AssumptionScope::Identification,
+            status: antecedent_core::AssumptionStatus::Untestable,
+        });
+    }
 }
 
 /// Design id and description of the sampling assumption a `DiD` design declares.
@@ -1121,10 +1479,22 @@ fn did_sampling_assumption(
             "augmented_two_period_panel",
             "each subject contributes one row with pre and post outcomes and supplied nuisance predictions",
         ),
+        antecedent_core::DidSamplingDesign::StaggeredHeterogeneityRobust => (
+            "staggered_rollout_balanced_or_unbalanced",
+            "each unit has a stable adoption cohort and cluster; units may be missing from some periods, and every comparison uses the units observed at both of its periods",
+        ),
+        antecedent_core::DidSamplingDesign::CovariateAdjustedTwoPeriod => (
+            "covariate_adjusted_two_period_panel",
+            "each subject contributes a pre and a post outcome and baseline covariates measured before treatment",
+        ),
     }
 }
 
 /// Assumptions a `DiD` design declares: the common ones plus its staggered or augmented additions.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the declared assumption ledger of one DiD design is a single ordered list"
+)]
 fn panel_did_assumptions(query: &antecedent_core::PanelDidQuery) -> antecedent_core::AssumptionSet {
     let mut assumptions = antecedent_core::AssumptionSet::default();
     for assumption in
@@ -1141,10 +1511,15 @@ fn panel_did_assumptions(query: &antecedent_core::PanelDidQuery) -> antecedent_c
         query.design,
         antecedent_core::DidSamplingDesign::StaggeredGroupTime
             | antecedent_core::DidSamplingDesign::StaggeredEventStudy
+            | antecedent_core::DidSamplingDesign::StaggeredHeterogeneityRobust
     );
+    let conditional = query.robust.as_ref().is_some_and(|robust| !robust.covariates.is_empty());
+    let anticipation = query.robust.as_ref().map_or(0, |robust| robust.anticipation);
     for (id, description) in [
         (
-            if staggered {
+            if conditional {
+                "conditional_parallel_untreated_trends_given_baseline_covariates"
+            } else if staggered {
                 "cohort_specific_parallel_untreated_trends"
             } else if query.design == antecedent_core::DidSamplingDesign::AugmentedPanel {
                 "conditional_parallel_untreated_trends_or_correct_untreated_change_model"
@@ -1153,7 +1528,14 @@ fn panel_did_assumptions(query: &antecedent_core::PanelDidQuery) -> antecedent_c
             },
             "the untreated outcome change is identified under the declared design and nuisance-model assumptions",
         ),
-        ("no_anticipation", "treatment does not affect pre-period outcomes"),
+        if anticipation > 0 {
+            (
+                "limited_anticipation",
+                "treatment affects outcomes at most the declared number of periods before adoption",
+            )
+        } else {
+            ("no_anticipation", "treatment does not affect pre-period outcomes")
+        },
         (
             if staggered { "absorbing_treatment_after_adoption" } else { "stable_group" },
             "the treatment group and adoption history are stable across periods",
@@ -1169,7 +1551,11 @@ fn panel_did_assumptions(query: &antecedent_core::PanelDidQuery) -> antecedent_c
             status: antecedent_core::AssumptionStatus::Declared,
         });
     }
-    if staggered {
+    let not_yet_treated = query.robust.as_ref().is_some_and(|robust| {
+        robust.comparison == antecedent_core::DidComparisonGroup::NotYetTreated
+            && robust.estimator != antecedent_core::RolloutDidEstimator::SunAbraham
+    });
+    if staggered && !not_yet_treated {
         assumptions.push(antecedent_core::AssumptionRecord {
             assumption: antecedent_core::Assumption::Custom {
                 id: Arc::from("never_treated_controls_are_valid"),
@@ -1179,6 +1565,22 @@ fn panel_did_assumptions(query: &antecedent_core::PanelDidQuery) -> antecedent_c
             },
             source: antecedent_core::AssumptionSource::UserDeclared,
             scope: antecedent_core::AssumptionScope::Identification,
+            status: antecedent_core::AssumptionStatus::Declared,
+        });
+    }
+    if let Some(robust) = &query.robust {
+        push_rollout_assumptions(&mut assumptions, robust, not_yet_treated);
+    }
+    if query.resampling.is_some() {
+        assumptions.push(antecedent_core::AssumptionRecord {
+            assumption: antecedent_core::Assumption::Custom {
+                id: Arc::from("independent_resampling_units"),
+                description: Arc::from(
+                    "the inference clusters (or subjects) are independent draws, so whole-unit resampling reproduces the sampling distribution",
+                ),
+            },
+            source: antecedent_core::AssumptionSource::UserDeclared,
+            scope: antecedent_core::AssumptionScope::Estimation,
             status: antecedent_core::AssumptionStatus::Declared,
         });
     }
@@ -1229,6 +1631,12 @@ pub(crate) fn panel_did_identification(
         }
         antecedent_core::DidSamplingDesign::AugmentedPanel => {
             "did.augmented_panel_supplied_nuisance"
+        }
+        antecedent_core::DidSamplingDesign::StaggeredHeterogeneityRobust => {
+            "did.staggered_heterogeneity_robust_group_time"
+        }
+        antecedent_core::DidSamplingDesign::CovariateAdjustedTwoPeriod => {
+            "did.covariate_adjusted_two_period"
         }
     };
     arena.set_derivation(

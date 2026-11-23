@@ -32,7 +32,7 @@ What this is, and is not:
   always ``False``. A consumer that accepts only native target data refuses the response.
 * **A point answers an affine expected utility and nothing else.** A law, a probability, a
   quantile, a hard constraint or an interval of a transported point is refused with its own
-  reason; an interval is never licensed for a transported value.
+  reason; an interval is never supported for a transported value.
 * **The support label is at most ``extrapolative``.** The default support policy (``supported``)
   refuses it; a policy that accepts ``extrapolative`` states that the decision rests on a
   declared transport.
@@ -54,22 +54,34 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, cast
+
+from antecedent import _reason_details
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._refusal import raise_refusal
 from ._scientific import ScientificResult
 from ._validate import choice, real, text
 from .errors import CausalTypeError, StructuredRefusal
 from .joint_distribution import JointDistributionArtifact, ScientificQuantity
+from .outcomes import outcome_operation, require_success
 
 __all__ = [
+    "ConsumedTransportedDecision",
     "TransportDeclaration",
     "TransportReceipt",
     "TransportedDecision",
     "TransportedResponse",
     "TransportedResponseRefusal",
+    "consume_transported_decision",
     "evaluate_transported",
 ]
 
@@ -317,6 +329,7 @@ class TransportedResponse(ScientificResult):
         A law labelled native, exact or measured is refused: a transport never raises a
         calibration or trust label.
         """
+        law = require_success(law)
         if not isinstance(law, JointDistributionArtifact):
             raise CausalTypeError("law must be a JointDistributionArtifact")
         _declaration(declaration)
@@ -335,21 +348,24 @@ class TransportedResponse(ScientificResult):
         """
         from .cohort_decision import CohortDecisionSource
 
+        source = require_success(source)
         if not isinstance(source, CohortDecisionSource):
             raise CausalTypeError("source must be a cohort_decision.CohortDecisionSource")
         handle = _unwrap(
-            _native.transported_response_from_shifted_cohort(source.export(), source.identity),
+            _native.transported_response_from_shifted_cohort(
+                bytes(source.export()), source.identity
+            ),
             TransportedResponseRefusal,
         )
         return cls._of(handle)
 
     def interval(self) -> None:
-        """Always refuses: no interval is licensed for a transported value."""
+        """Always refuses: no interval is supported for a transported value."""
         raise TransportedResponseRefusal(
             {
-                "code": "cell_not_licensed",
+                "code": "not_supported",
                 "stage": "transported_decision",
-                "detail": "transported_decision.interval_not_licensed",
+                "detail": _reason_details.transported_decision.INTERVAL_NOT_SUPPORTED,
                 "message": "a transported value is a point under a declared transport",
                 "offending": None,
                 "remedy": "decide on native target evidence of the required representation",
@@ -392,6 +408,34 @@ class TransportedDecision(ScientificResult):
     bound_identity: str
     causal_target: str
     causal_identification: str
+    _handle: Any = field(repr=False, compare=False, default=None)
+
+    @artifact_export
+    def export(self, artifact_id: str = "transported-decision") -> ExportedArtifact[Any]:
+        """Seal this decision as a ``transported_decision_v1`` artifact.
+
+        The artifact carries the contract it was made under, the transported point with its
+        receipt, the support policy that accepted it and the values the decision produced; a
+        consumer (:func:`consume_transported_decision`) never trusts those values, it
+        re-evaluates the decision. Only a transported point is exported: a law is exported as its
+        distribution artifact.
+
+        Raises:
+            ~antecedent.decision.DecisionRefusal: a law (``transported_decision_artifact.
+                law_not_exportable``) or any refusal of the decision itself.
+        """
+        from .decision import DecisionRefusal
+
+        if self._handle is None:
+            raise CausalTypeError("this transported decision retains no contract to export")
+        declaration, response, unsupported, weakest = self._handle
+        data = _unwrap(
+            _native.transported_decision_export(
+                declaration, response, unsupported, weakest, text(artifact_id, "artifact_id")
+            ),
+            DecisionRefusal,
+        )
+        return artifact_from_receipt(self, _DecisionExport(bytes(data), self.decision_identity))
 
     @property
     def verdict(self) -> Any:
@@ -415,8 +459,8 @@ class TransportedDecision(ScientificResult):
 
 
 def _prepared_native(analysis: Any) -> Any:
-    study = analysis if hasattr(analysis, "_native") else getattr(analysis, "study", None)
-    native = getattr(study, "_native", None)
+    study = analysis if hasattr(analysis, "_engine") else getattr(analysis, "study", None)
+    native = getattr(getattr(study, "_engine", study), "_native", None)
     if native is None:
         raise CausalTypeError(
             "analysis must be a prepared analysis or an analysis result that retains one"
@@ -424,6 +468,7 @@ def _prepared_native(analysis: Any) -> Any:
     return native
 
 
+@outcome_operation
 def evaluate_transported(
     contract: Any,
     response: TransportedResponse,
@@ -445,7 +490,7 @@ def evaluate_transported(
 
     Raises:
         ~antecedent.decision.DecisionRefusal: an interval or a law the value cannot supply
-            (``transported_decision.interval_not_licensed``, ``.law_not_supplied``), a support
+            (``transported_decision.interval_not_supported``, ``.law_not_supplied``), a support
             label below the policy (``.transported_not_accepted``) or below a rule
             (``.support_rule_unmet``), an uncertainty requirement a point cannot meet
             (``.uncertainty_requirement``), exclusions that leave no comparison, and any
@@ -455,6 +500,8 @@ def evaluate_transported(
     from .composition import SupportPolicy
     from .decision import Contract, DecisionRefusal
 
+    contract = require_success(contract)
+    response = require_success(response)
     if isinstance(contract, Contract):
         admissible = decision_robust.admissible_contract(contract)
     elif isinstance(contract, decision_robust.AdmissibleContract):
@@ -492,4 +539,95 @@ def evaluate_transported(
         bound_identity=str(wire["bound_identity"]),
         causal_target=str(wire["causal_target"]),
         causal_identification=str(wire["causal_identification"]),
+        _handle=(
+            admissible._declaration(),
+            response._handle,
+            policy.unsupported,
+            policy.weakest_support,
+        ),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class _DecisionExport:
+    artifact: bytes
+    identity: str
+
+
+@dataclass(repr=False, frozen=True, slots=True)
+class ConsumedTransportedDecision(ScientificResult):
+    """A transported decision re-derived by a consumer from an artifact.
+
+    ``decision`` is the support-aware decision the consumer recomputed (never the stored
+    numbers); ``response`` is the transported point rebuilt from the artifact and
+    ``receipt`` the transport it travelled with. The decision is point-only and the value is
+    never native target data.
+    """
+
+    decision: Any
+    receipt: TransportReceipt
+    assumptions: tuple[str, ...]
+    inference: str
+    native_target_data: bool
+    decision_identity: str
+    _handle: Any = field(repr=False, compare=False, default=None)
+
+    @property
+    def response(self) -> TransportedResponse:
+        """The transported point rebuilt from the artifact."""
+        return cast(TransportedResponse, self._handle)
+
+    @property
+    def verdict(self) -> Any:
+        """The verdict over the evaluated actions."""
+        return self.decision.verdict
+
+    @property
+    def outcomes(self) -> Any:
+        """The outcomes of the evaluated actions, in declaration order."""
+        return self.decision.outcomes
+
+
+@outcome_operation
+@artifact_consumer(
+    proof="transported_response.consume_transported_decision: rebuilds the contract, validates the receipt, re-evaluates the decision and requires its identity and every action value to match bit for bit",
+    replayable=True,
+)
+def consume_transported_decision(
+    artifact: bytes, expected_identity: str | None = None
+) -> ConsumedTransportedDecision:
+    """Consume a ``transported_decision_v1`` artifact by re-evaluating its decision.
+
+    The contract is rebuilt from its declaration, the carried point and receipt are validated as
+    at construction, the decision is evaluated again and its identity and every action value must
+    equal the stored ones bit for bit; a resealed edit of the receipt, the means, the contract or
+    the support policy changes what the re-evaluation produces and is refused.
+    ``expected_identity`` is the decision identity the consumer retained independently of the
+    bytes.
+
+    Raises:
+        ~antecedent.decision.DecisionRefusal: damaged or foreign bytes, an invalid contract or
+            receipt, a stored value the re-evaluation does not reproduce
+            (``transported_decision_artifact.replay_mismatch``) or an identity that differs from
+            the expected one (``transported_decision_artifact.identity_expected``).
+    """
+    from .composition import _supported_from_wire
+    from .decision import DecisionRefusal
+
+    data = container_bytes(artifact)
+    if not isinstance(data, (bytes, bytearray, memoryview)):
+        raise CausalTypeError("artifact must be bytes")
+    payload, handle, refusal = _native.transported_decision_consume(bytes(data), expected_identity)
+    raise_refusal(refusal, DecisionRefusal)
+    if payload is None:
+        raise CausalTypeError("transported decision artifact carried no payload")
+    wire = json.loads(payload)
+    return ConsumedTransportedDecision(
+        decision=_supported_from_wire(wire["decision"]),
+        receipt=TransportReceipt._from_wire(wire["receipt"]),
+        assumptions=tuple(wire["assumptions"]),
+        inference=str(wire["inference"]),
+        native_target_data=False,
+        decision_identity=str(wire["decision_identity"]),
+        _handle=TransportedResponse._of(handle),
     )

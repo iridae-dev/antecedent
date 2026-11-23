@@ -1,12 +1,12 @@
 //! Typed refusals of the interface contract: a registered reason code, an
-//! `interface_contract.*` detail and the declaration that would license the
+//! `interface_contract.*` detail and the declaration that would support the
 //! request.
 //!
 //! Every detail literal is written here, beside the reason code it is emitted
 //! under, as one named constructor per refusal. The rest of the module tree
 //! calls the constructors and never spells a detail.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::ExternalRefusal;
 
@@ -79,7 +79,7 @@ fn uncertainty_mismatch(
 
 pub(super) fn blank_field(field: &str) -> InterfaceRefusal {
     invalid(
-        "interface_contract.blank_field",
+        antecedent_core::reason_details::interface_contract::BLANK_FIELD,
         "name every identity, in at most the declared number of bytes",
     )
     .with_offending(field)
@@ -87,7 +87,7 @@ pub(super) fn blank_field(field: &str) -> InterfaceRefusal {
 
 pub(super) fn invalid_quantity(port: &str) -> InterfaceRefusal {
     invalid(
-        "interface_contract.invalid_quantity",
+        antecedent_core::reason_details::interface_contract::INVALID_QUANTITY,
         "name the variable, units, population, regime, functional and transform of each quantity, with canonical conditioning",
     )
     .with_offending(port)
@@ -95,23 +95,15 @@ pub(super) fn invalid_quantity(port: &str) -> InterfaceRefusal {
 
 pub(super) fn duplicate_port(port: &str) -> InterfaceRefusal {
     invalid(
-        "interface_contract.duplicate_port",
+        antecedent_core::reason_details::interface_contract::DUPLICATE_PORT,
         "give every produced port, and every consumed port, its own name",
     )
     .with_offending(port)
 }
 
-pub(super) fn too_many_items(what: &str) -> InterfaceRefusal {
-    invalid(
-        "interface_contract.too_many_items",
-        "declare at most the bounded number of ports, identities and stages",
-    )
-    .with_offending(what)
-}
-
 pub(super) fn invalid_support(port: &str) -> InterfaceRefusal {
     invalid(
-        "interface_contract.invalid_support",
+        antecedent_core::reason_details::interface_contract::INVALID_SUPPORT,
         "declare a support domain with finite ordered bounds or sorted, distinct, non-blank levels",
     )
     .with_offending(port)
@@ -119,7 +111,7 @@ pub(super) fn invalid_support(port: &str) -> InterfaceRefusal {
 
 pub(super) fn missing_operations(port: &str) -> InterfaceRefusal {
     invalid(
-        "interface_contract.missing_operations",
+        antecedent_core::reason_details::interface_contract::MISSING_OPERATIONS,
         "declare at least one operation the port offers or requires",
     )
     .with_offending(port)
@@ -127,7 +119,7 @@ pub(super) fn missing_operations(port: &str) -> InterfaceRefusal {
 
 pub(super) fn uncertainty_meaning_required(port: &str) -> InterfaceRefusal {
     invalid(
-        "interface_contract.uncertainty_meaning_required",
+        antecedent_core::reason_details::interface_contract::UNCERTAINTY_MEANING_REQUIRED,
         "state what the covariance, law, draws, interval or posterior means (posterior of a causal functional, estimator sampling, bootstrap, ...)",
     )
     .with_offending(port)
@@ -135,7 +127,7 @@ pub(super) fn uncertainty_meaning_required(port: &str) -> InterfaceRefusal {
 
 pub(super) fn uncertainty_meaning_unused(port: &str) -> InterfaceRefusal {
     invalid(
-        "interface_contract.uncertainty_meaning_unused",
+        antecedent_core::reason_details::interface_contract::UNCERTAINTY_MEANING_UNUSED,
         "state an uncertainty meaning only for a port that offers or requires a covariance, law, draws, interval or posterior",
     )
     .with_offending(port)
@@ -143,7 +135,7 @@ pub(super) fn uncertainty_meaning_unused(port: &str) -> InterfaceRefusal {
 
 pub(super) fn posterior_without_posterior_meaning(port: &str) -> InterfaceRefusal {
     invalid(
-        "interface_contract.posterior_without_posterior_meaning",
+        antecedent_core::reason_details::interface_contract::POSTERIOR_WITHOUT_POSTERIOR_MEANING,
         "a posterior operation carries a posterior meaning; declare the sampling or resampling distribution as draws or an interval",
     )
     .with_offending(port)
@@ -151,15 +143,15 @@ pub(super) fn posterior_without_posterior_meaning(port: &str) -> InterfaceRefusa
 
 pub(super) fn point_only_with_uncertainty(port: &str) -> InterfaceRefusal {
     invalid(
-        "interface_contract.point_only_with_uncertainty",
-        "a point-only label cannot accompany a covariance, law, draws, interval or posterior; use none or unmeasured, or drop the operation",
+        antecedent_core::reason_details::interface_contract::POINT_ONLY_WITH_UNCERTAINTY,
+        "a point-only label cannot accompany a covariance, law, draws, interval or posterior; use none or not_measured, or drop the operation",
     )
     .with_offending(port)
 }
 
 pub(super) fn calibration_record_blank(port: &str) -> InterfaceRefusal {
     invalid(
-        "interface_contract.calibration_record_blank",
+        antecedent_core::reason_details::interface_contract::CALIBRATION_RECORD_BLANK,
         "a measured calibration label names the identity of its measured record",
     )
     .with_offending(port)
@@ -167,7 +159,7 @@ pub(super) fn calibration_record_blank(port: &str) -> InterfaceRefusal {
 
 pub(super) fn calibration_without_interval(port: &str) -> InterfaceRefusal {
     invalid(
-        "interface_contract.calibration_without_interval",
+        antecedent_core::reason_details::interface_contract::CALIBRATION_WITHOUT_INTERVAL,
         "calibration is measured for an interval or a posterior; declare that operation or use another calibration label",
     )
     .with_offending(port)
@@ -175,7 +167,7 @@ pub(super) fn calibration_without_interval(port: &str) -> InterfaceRefusal {
 
 pub(super) fn inherited_input_unknown(port: &str, input: &str) -> InterfaceRefusal {
     invalid(
-        "interface_contract.inherited_input_unknown",
+        antecedent_core::reason_details::interface_contract::INHERITED_INPUT_UNKNOWN,
         "inherit calibration from a consumed port the contract declares",
     )
     .with_offending(port)
@@ -184,7 +176,7 @@ pub(super) fn inherited_input_unknown(port: &str, input: &str) -> InterfaceRefus
 
 pub(super) fn invalid_digest(field: &str) -> InterfaceRefusal {
     invalid(
-        "interface_contract.invalid_digest",
+        antecedent_core::reason_details::interface_contract::INVALID_DIGEST,
         "name a measurement model or evidence source by its 64-character lowercase hex identity",
     )
     .with_offending(field)
@@ -192,7 +184,7 @@ pub(super) fn invalid_digest(field: &str) -> InterfaceRefusal {
 
 pub(super) fn unknown_provenance_stage(stage: &str) -> InterfaceRefusal {
     invalid(
-        "interface_contract.unknown_provenance_stage",
+        antecedent_core::reason_details::interface_contract::UNKNOWN_PROVENANCE_STAGE,
         "name provenance stages by the composition stage vocabulary",
     )
     .with_offending(stage)
@@ -200,7 +192,7 @@ pub(super) fn unknown_provenance_stage(stage: &str) -> InterfaceRefusal {
 
 pub(super) fn unknown_component(component: &str) -> InterfaceRefusal {
     invalid(
-        "interface_contract.unknown_component",
+        antecedent_core::reason_details::interface_contract::UNKNOWN_COMPONENT,
         "connect components that are part of the declared composition",
     )
     .with_offending(component)
@@ -208,7 +200,7 @@ pub(super) fn unknown_component(component: &str) -> InterfaceRefusal {
 
 pub(super) fn unknown_port(component: &str, port: &str) -> InterfaceRefusal {
     invalid(
-        "interface_contract.unknown_port",
+        antecedent_core::reason_details::interface_contract::UNKNOWN_PORT,
         "connect a port the component's contract declares, produced at the upstream end and consumed at the downstream end",
     )
     .with_offending(format!("{component}.{port}"))
@@ -216,7 +208,7 @@ pub(super) fn unknown_port(component: &str, port: &str) -> InterfaceRefusal {
 
 pub(super) fn duplicate_component(component: &str) -> InterfaceRefusal {
     invalid(
-        "interface_contract.duplicate_component",
+        antecedent_core::reason_details::interface_contract::DUPLICATE_COMPONENT,
         "give every component in a composition its own identity",
     )
     .with_offending(component)
@@ -224,25 +216,17 @@ pub(super) fn duplicate_component(component: &str) -> InterfaceRefusal {
 
 pub(super) fn port_multiply_fed(component: &str, port: &str) -> InterfaceRefusal {
     invalid(
-        "interface_contract.port_multiply_fed",
+        antecedent_core::reason_details::interface_contract::PORT_MULTIPLY_FED,
         "feed a consumed port from one produced port; combine evidence in a component that declares the combination",
     )
     .with_offending(format!("{component}.{port}"))
-}
-
-pub(super) fn composition_too_large(what: &str) -> InterfaceRefusal {
-    invalid(
-        "interface_contract.composition_too_large",
-        "check a composition of at most the bounded number of components and connections",
-    )
-    .with_offending(what)
 }
 
 // -- quantity and support mismatch (interface_contract_quantity_mismatch) -------------------------------
 
 pub(super) fn variable_mismatch(expected: &str, supplied: &str) -> InterfaceRefusal {
     quantity_mismatch(
-        "interface_contract.variable_mismatch",
+        antecedent_core::reason_details::interface_contract::VARIABLE_MISMATCH,
         expected,
         supplied,
         "connect a producer of the variable (and role) the consumer names, or declare a typed bridge between the two quantities",
@@ -251,7 +235,7 @@ pub(super) fn variable_mismatch(expected: &str, supplied: &str) -> InterfaceRefu
 
 pub(super) fn units_mismatch(expected: &str, supplied: &str) -> InterfaceRefusal {
     quantity_mismatch(
-        "interface_contract.units_mismatch",
+        antecedent_core::reason_details::interface_contract::UNITS_MISMATCH,
         expected,
         supplied,
         "produce the quantity in the consumer's units through a declared, checked unit conversion; units are never converted implicitly",
@@ -260,7 +244,7 @@ pub(super) fn units_mismatch(expected: &str, supplied: &str) -> InterfaceRefusal
 
 pub(super) fn population_mismatch(expected: &str, supplied: &str) -> InterfaceRefusal {
     quantity_mismatch(
-        "interface_contract.population_mismatch",
+        antecedent_core::reason_details::interface_contract::POPULATION_MISMATCH,
         expected,
         supplied,
         "produce the quantity for the consumer's population, or carry it with a declared transport of evidence between the two populations",
@@ -269,7 +253,7 @@ pub(super) fn population_mismatch(expected: &str, supplied: &str) -> InterfaceRe
 
 pub(super) fn regime_mismatch(expected: &str, supplied: &str) -> InterfaceRefusal {
     quantity_mismatch(
-        "interface_contract.regime_mismatch",
+        antecedent_core::reason_details::interface_contract::REGIME_MISMATCH,
         expected,
         supplied,
         "produce the quantity under the consumer's intervention or regime; an observational quantity is not an interventional one",
@@ -278,7 +262,7 @@ pub(super) fn regime_mismatch(expected: &str, supplied: &str) -> InterfaceRefusa
 
 pub(super) fn horizon_mismatch(expected: u32, supplied: u32) -> InterfaceRefusal {
     quantity_mismatch(
-        "interface_contract.horizon_mismatch",
+        antecedent_core::reason_details::interface_contract::HORIZON_MISMATCH,
         expected.to_string(),
         supplied.to_string(),
         "produce the quantity at the consumer's causal horizon",
@@ -287,7 +271,7 @@ pub(super) fn horizon_mismatch(expected: u32, supplied: u32) -> InterfaceRefusal
 
 pub(super) fn functional_mismatch(expected: &str, supplied: &str) -> InterfaceRefusal {
     quantity_mismatch(
-        "interface_contract.functional_mismatch",
+        antecedent_core::reason_details::interface_contract::FUNCTIONAL_MISMATCH,
         expected,
         supplied,
         "produce the functional the consumer names (a mean is not a risk, a risk is not a quantile)",
@@ -296,7 +280,7 @@ pub(super) fn functional_mismatch(expected: &str, supplied: &str) -> InterfaceRe
 
 pub(super) fn conditioning_mismatch(expected: String, supplied: String) -> InterfaceRefusal {
     quantity_mismatch(
-        "interface_contract.conditioning_mismatch",
+        antecedent_core::reason_details::interface_contract::CONDITIONING_MISMATCH,
         expected,
         supplied,
         "produce the quantity under exactly the consumer's conditioning events",
@@ -305,7 +289,7 @@ pub(super) fn conditioning_mismatch(expected: String, supplied: String) -> Inter
 
 pub(super) fn transform_mismatch(expected: &str, supplied: &str) -> InterfaceRefusal {
     quantity_mismatch(
-        "interface_contract.transform_mismatch",
+        antecedent_core::reason_details::interface_contract::TRANSFORM_MISMATCH,
         expected,
         supplied,
         "produce the quantity on the consumer's scale, or declare the transform between the scales",
@@ -314,7 +298,7 @@ pub(super) fn transform_mismatch(expected: &str, supplied: &str) -> InterfaceRef
 
 pub(super) fn semantic_identity_mismatch(expected: &str, supplied: &str) -> InterfaceRefusal {
     quantity_mismatch(
-        "interface_contract.semantic_identity_mismatch",
+        antecedent_core::reason_details::interface_contract::SEMANTIC_IDENTITY_MISMATCH,
         expected,
         supplied,
         "connect a producer of the same estimand or semantic identity; matching names, units or shapes do not establish it",
@@ -323,7 +307,7 @@ pub(super) fn semantic_identity_mismatch(expected: &str, supplied: &str) -> Inte
 
 pub(super) fn support_mismatch(expected: String, supplied: String) -> InterfaceRefusal {
     quantity_mismatch(
-        "interface_contract.support_mismatch",
+        antecedent_core::reason_details::interface_contract::SUPPORT_MISMATCH,
         expected,
         supplied,
         "produce values whose declared support lies inside the support the consumer accepts, or widen the consumer's declared domain with evidence that it handles the wider one",
@@ -337,7 +321,7 @@ pub(super) fn measurement_assumption_mismatch(
     supplied: String,
 ) -> InterfaceRefusal {
     assumption_mismatch(
-        "interface_contract.measurement_assumption_mismatch",
+        antecedent_core::reason_details::interface_contract::MEASUREMENT_ASSUMPTION_MISMATCH,
         expected,
         supplied,
         "produce the quantity under the measurement models the consumer names (by model identity), or declare the consumer under the producer's models",
@@ -346,7 +330,7 @@ pub(super) fn measurement_assumption_mismatch(
 
 pub(super) fn dependence_unknown(port: &str) -> InterfaceRefusal {
     assumption_mismatch(
-        "interface_contract.dependence_unknown",
+        antecedent_core::reason_details::interface_contract::DEPENDENCE_UNKNOWN,
         "declared evidence sources",
         "undeclared",
         "declare the evidence sources the produced quantity rests on (their evidence-ledger identities), so overlap with other inputs is computable",
@@ -354,9 +338,19 @@ pub(super) fn dependence_unknown(port: &str) -> InterfaceRefusal {
     .with_offending(port)
 }
 
+pub(super) fn evidence_overlap_unknown(first: &str, second: &str) -> InterfaceRefusal {
+    assumption_mismatch(
+        antecedent_core::reason_details::interface_contract::DEPENDENCE_UNKNOWN,
+        "known disjoint observations for the declared evidence sources",
+        "overlap unknown",
+        "supply an evidence ledger with known observation sets for both inputs, or declare the dependence the combination uses",
+    )
+    .with_offending(format!("{first}, {second}"))
+}
+
 pub(super) fn shared_evidence(first: &str, second: &str, shared: usize) -> InterfaceRefusal {
     assumption_mismatch(
-        "interface_contract.shared_evidence",
+        antecedent_core::reason_details::interface_contract::SHARED_EVIDENCE,
         "disjoint evidence among the inputs the consumer requires disjoint",
         format!("{shared} shared source(s)"),
         "feed the consumer from inputs with disjoint evidence, or remove the disjointness requirement and declare the dependence the combination uses",
@@ -366,7 +360,7 @@ pub(super) fn shared_evidence(first: &str, second: &str, shared: usize) -> Inter
 
 pub(super) fn provenance_missing(stage: &str) -> InterfaceRefusal {
     assumption_mismatch(
-        "interface_contract.provenance_missing",
+        antecedent_core::reason_details::interface_contract::PROVENANCE_MISSING,
         stage,
         "not supplied",
         "supply the provenance stage the consumer requires with the produced quantity, or remove the requirement",
@@ -384,7 +378,7 @@ pub(super) fn operation_unavailable(
     ExternalRefusal::new(
         antecedent_core::reason_code!("interface_contract_operation_unavailable"),
         STAGE_BIND,
-        "interface_contract.operation_unavailable",
+        antecedent_core::reason_details::interface_contract::OPERATION_UNAVAILABLE,
     )
     .with_offending(operation)
     .with_expected(operation)
@@ -394,7 +388,7 @@ pub(super) fn operation_unavailable(
 
 pub(super) fn uncertainty_meaning_missing(expected: &str) -> InterfaceRefusal {
     uncertainty_mismatch(
-        "interface_contract.uncertainty_meaning_missing",
+        antecedent_core::reason_details::interface_contract::UNCERTAINTY_MEANING_MISSING,
         expected,
         "no uncertainty meaning",
         "state what the producer's covariance, law, draws, interval or posterior means, or produce one with the meaning the consumer requires",
@@ -403,7 +397,7 @@ pub(super) fn uncertainty_meaning_missing(expected: &str) -> InterfaceRefusal {
 
 pub(super) fn uncertainty_paradigm_mismatch(expected: &str, supplied: &str) -> InterfaceRefusal {
     uncertainty_mismatch(
-        "interface_contract.uncertainty_paradigm_mismatch",
+        antecedent_core::reason_details::interface_contract::UNCERTAINTY_PARADIGM_MISMATCH,
         expected,
         supplied,
         "produce uncertainty of the paradigm the consumer requires; a posterior is not a sampling distribution and neither is a bootstrap",
@@ -412,70 +406,11 @@ pub(super) fn uncertainty_paradigm_mismatch(expected: &str, supplied: &str) -> I
 
 pub(super) fn uncertainty_meaning_mismatch(expected: &str, supplied: &str) -> InterfaceRefusal {
     uncertainty_mismatch(
-        "interface_contract.uncertainty_meaning_mismatch",
+        antecedent_core::reason_details::interface_contract::UNCERTAINTY_MEANING_MISMATCH,
         expected,
         supplied,
         "produce the object the consumer requires; a posterior over parameters is not a posterior over a causal functional or an outcome",
     )
-}
-
-fn calibration_not_held(
-    detail: &str,
-    expected: &str,
-    supplied: String,
-    remedy: &'static str,
-) -> InterfaceRefusal {
-    ExternalRefusal::new(
-        antecedent_core::reason_code!("interface_contract_calibration_not_held"),
-        STAGE_BIND,
-        detail,
-    )
-    .with_expected(expected)
-    .with_supplied(supplied)
-    .with_remedy(remedy)
-}
-
-pub(super) fn calibration_not_measured(supplied: String) -> InterfaceRefusal {
-    calibration_not_held(
-        "interface_contract.calibration_not_held",
-        "measured",
-        supplied,
-        "connect a producer that holds a measured calibration record for the composed quantity, or drop the consumer's calibration requirement; calibration of a component is not calibration of a composition",
-    )
-}
-
-pub(super) fn calibration_inherited_unresolved(port: &str) -> InterfaceRefusal {
-    calibration_not_held(
-        "interface_contract.calibration_inherited_unresolved",
-        "measured",
-        "inherited".to_owned(),
-        "check the whole composition so the inherited calibration resolves to the upstream record that holds it",
-    )
-    .with_offending(port)
-}
-
-pub(super) fn calibration_inherited_not_held(
-    port: &str,
-    input: &str,
-    upstream: String,
-) -> InterfaceRefusal {
-    calibration_not_held(
-        "interface_contract.calibration_inherited_not_held",
-        "measured",
-        upstream,
-        "inherit calibration only from an input whose producer holds a measured record; otherwise declare the output unmeasured or point-only",
-    )
-    .with_offending(format!("{port} <- {input}"))
-}
-
-pub(super) fn calibration_inherited_unfed(port: &str, input: &str) -> InterfaceRefusal {
-    calibration_not_held(
-        "interface_contract.calibration_inherited_unfed",
-        "measured",
-        "input not connected".to_owned(),
-        "connect the input the output inherits its calibration from, or declare the output unmeasured",
-    )
-    .with_offending(format!("{port} <- {input}"))
 }
 
 // -- cycles ------------------------------------------------------------------------------------------
@@ -484,7 +419,7 @@ pub(super) fn cyclic_composition(path: String) -> InterfaceRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("interface_contract_cyclic_composition"),
         STAGE_BIND,
-        "interface_contract.cyclic_composition",
+        antecedent_core::reason_details::interface_contract::CYCLIC_COMPOSITION,
     )
     .with_offending(path)
     .with_remedy(

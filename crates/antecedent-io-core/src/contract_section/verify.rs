@@ -1,32 +1,57 @@
 //! Contract verification against an analysis-result body.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::consume::{
-    claim_domains, claim_id_matches, claim_kind_name, claim_value_matches_body, contract_seal_of,
-    identification_product_matches_body, require_nested_digest, require_payload_digest,
-    require_present, require_slot, support_empirical, validate_mixture_masses, weight_basis_name,
+    claim_domains_of_section, claim_id_matches, claim_kind_name_of_section,
+    claim_value_matches_body, contract_seal_of, identification_product_matches_body,
+    require_nested_digest, require_payload_digest, require_present, require_slot,
+    support_empirical, validate_mixture_masses, weight_basis_name,
 };
 use super::replay::{
-    contract_uses_estimator, is_aipw_contract, is_functional_distribution_contract,
-    is_response_functional_effect_contract, is_scalar_functional_effect_contract,
-    replay_functional_response_grid, verify_checked_aipw, verify_checked_aipw_rows,
-    verify_checked_iv, verify_checked_linear_adjustment, verify_frontdoor_lowering,
-    verify_layer_links, verify_linear_fit_moments, verify_nested_counterfactual_result,
-    verify_temporal_nested_point,
+    close_replay_value, contract_uses_estimator, is_aipw_contract,
+    is_functional_distribution_contract, is_response_functional_effect_contract,
+    is_scalar_functional_effect_contract, replay_functional_response_grid, verify_checked_aipw,
+    verify_checked_aipw_rows, verify_checked_iv, verify_checked_linear_adjustment,
+    verify_frontdoor_lowering, verify_layer_links, verify_linear_fit_moments,
+    verify_nested_counterfactual_result, verify_temporal_nested_point,
 };
 
 use std::sync::Arc;
 
 use antecedent_core::IdentityDomain;
 
+use super::dr_replay::{SourceReplay, SourceReplayBounds, SourceWitnessState, replay_if_declared};
 use super::{AnalysisResultContractWire, ClaimSectionWire};
 use crate::contract_reason::{ContractReason, publish_reasons};
+use crate::distribution_replay::ReplayLimits;
 use crate::identity::{
     data_snapshot_digest, digest_wire, execution_digest, identification_digest,
     identification_product_digest_wire, inference_binding_digest, program_digest,
 };
 use crate::{AnalysisResultHeader, AnalysisResultWire, CausalQueryWire};
+
+/// Largest absolute difference between one probability mass stored in two places that were
+/// written from the same computation (a reasoning slot and the structural response it
+/// restates). They agree to rounding, so this is a few ulps of a unit mass.
+const RESTATED_MASS_TOLERANCE: f64 = 1e-12;
+/// Largest absolute difference between a mass or weight and the sum of the parts it
+/// summarizes. The parts are accumulated in a different order than the whole, so the
+/// bound is looser than for a restated mass.
+const SUMMED_MASS_TOLERANCE: f64 = 1e-9;
+/// Largest relative difference between an atom's reported weight and the sum of the sample
+/// weights bound to it (relative, because atom weights are not normalized to one).
+const ATOM_WEIGHT_RELATIVE_TOLERANCE: f64 = 1e-12;
+
+/// Whether two restated masses agree to [`RESTATED_MASS_TOLERANCE`].
+fn restated_masses_agree(left: f64, right: f64) -> bool {
+    (left - right).abs() <= RESTATED_MASS_TOLERANCE
+}
+
+/// Whether a stored mass or weight matches the sum of its parts to [`SUMMED_MASS_TOLERANCE`].
+fn summed_masses_agree(stored: f64, summed: f64) -> bool {
+    (stored - summed).abs() <= SUMMED_MASS_TOLERANCE
+}
 
 /// Shared producer/consumer check: stored payloads, body query, and claim.
 ///
@@ -37,24 +62,309 @@ pub fn verify_contract_against_body(
     body: &AnalysisResultWire,
     contract: &AnalysisResultContractWire,
 ) -> Vec<Arc<str>> {
-    publish_reasons(contract_unresolved(header, body, contract))
+    verify_contract_against_body_within(header, body, contract, &ReplayLimits::default())
+}
+
+/// [`verify_contract_against_body`] under the caller's replay bounds instead of the
+/// [`ReplayLimits`] defaults.
+#[must_use]
+pub fn verify_contract_against_body_within(
+    header: &AnalysisResultHeader,
+    body: &AnalysisResultWire,
+    contract: &AnalysisResultContractWire,
+    limits: &ReplayLimits,
+) -> Vec<Arc<str>> {
+    publish_reasons(contract_unresolved(header, body, contract, limits))
+}
+
+/// [`verify_contract_against_body`] with the full-source witness the artifact carries, or
+/// `None` for a compact artifact.
+///
+/// With no source the result is exactly that of [`verify_contract_against_body`]. A contract
+/// that declares a checked doubly-robust lowering clears the missing-estimator-operation
+/// reason only when the source replays the fit and reproduces the body; a source that cannot
+/// be used, a replay that differs from the body and a replay stopped by `bounds` each publish
+/// their own reason beside it. A source is ignored for a contract that declares no such
+/// lowering.
+#[must_use]
+pub fn verify_contract_against_body_with_source(
+    header: &AnalysisResultHeader,
+    body: &AnalysisResultWire,
+    contract: &AnalysisResultContractWire,
+    source: Option<&crate::SourceWitnessWire>,
+    bounds: &SourceReplayBounds,
+) -> Vec<Arc<str>> {
+    let source =
+        source.map(|witness| SourceReplay { state: SourceWitnessState::Present(witness), bounds });
+    publish_reasons(contract_unresolved_with_source(
+        header,
+        body,
+        contract,
+        &ReplayLimits::default(),
+        source.as_ref(),
+    ))
 }
 
 pub(in crate::contract_section) fn contract_unresolved(
     header: &AnalysisResultHeader,
     body: &AnalysisResultWire,
     contract: &AnalysisResultContractWire,
+    limits: &ReplayLimits,
 ) -> Vec<ContractReason> {
-    let mut unresolved = verify_stored_payloads(contract);
+    contract_unresolved_with_source(header, body, contract, limits, None)
+}
+
+pub(in crate::contract_section) fn contract_unresolved_with_source(
+    header: &AnalysisResultHeader,
+    body: &AnalysisResultWire,
+    contract: &AnalysisResultContractWire,
+    limits: &ReplayLimits,
+    source: Option<&SourceReplay<'_>>,
+) -> Vec<ContractReason> {
+    unresolved_after(verify_stored_payloads(contract), header, body, contract, limits, source)
+}
+
+/// The reasons split at the line between load and replay: the integrity reasons (the stored
+/// payloads against their digests, which a load checks) and everything a replay adds.
+pub(in crate::contract_section) fn contract_unresolved_split(
+    header: &AnalysisResultHeader,
+    body: &AnalysisResultWire,
+    contract: &AnalysisResultContractWire,
+    limits: &ReplayLimits,
+    source: Option<&SourceReplay<'_>>,
+) -> (Vec<ContractReason>, Vec<ContractReason>) {
+    let integrity = verify_stored_payloads(contract);
+    // `unresolved_after` may drop integrity reasons that are absent by design, so the two
+    // lists are separated by origin, not by position.
+    let stored = integrity.clone();
+    unresolved_after(integrity, header, body, contract, limits, source)
+        .into_iter()
+        .partition(|reason| stored.contains(reason))
+}
+
+fn unresolved_after(
+    integrity: Vec<ContractReason>,
+    header: &AnalysisResultHeader,
+    body: &AnalysisResultWire,
+    contract: &AnalysisResultContractWire,
+    limits: &ReplayLimits,
+    source: Option<&SourceReplay<'_>>,
+) -> Vec<ContractReason> {
+    let mut unresolved = integrity;
+    // An unscoped historical report and a scoped report with its scope removed
+    // are indistinguishable. Neither is proof that the refuter ran.
+    if body.refutations.iter().any(|report| report.scope.is_none()) {
+        unresolved.push(ContractReason::DependenciesRefutationReplay);
+    }
+    // Serialized scope metadata does not independently replay the scoped check.
+    if body.refutations.iter().any(|report| report.scope.is_some()) {
+        unresolved.push(ContractReason::DependenciesScopedRefutationReplay);
+    }
     note_linear_fit_replay(contract, body, &mut unresolved);
+    note_cross_product_replay(contract, body, &mut unresolved);
+    // This artifact seals one member's recorded family evidence, but does not carry
+    // every other query and aligned score table needed to replay family inference.
+    // A covariance alone is the estimator's own summary covariance (an ordinary AIPW
+    // result carries one); only the family-level quantities depend on other queries.
+    if body.simultaneous_interval.is_some()
+        || body.adjusted_p_values.is_some()
+        || body.family_contrast.is_some()
+        || body.family_contrast_interval.is_some()
+    {
+        unresolved.push(ContractReason::DependenciesCheckedBatchFamilyOperation);
+    }
     note_checked_program_targets(contract, &mut unresolved);
     if contract.target.query != body.query {
         unresolved.push(ContractReason::BodyQuery);
     }
+    if let Some(source) = body.posterior_row.as_ref().and_then(|row| row.randomized_ipow.as_ref()) {
+        let key = source.key();
+        let coordinate = format!(
+            "graphless:{}/{}/{}/{}",
+            key.family, key.design, key.method, key.inference_claim
+        );
+        if contract.reasoning.support.value.as_ref().is_none_or(|slot| {
+            slot.matrix_status != "supported"
+                || slot.matrix_coordinate.as_deref() != Some(coordinate.as_str())
+        }) || !contract_uses_estimator(contract, crate::randomized_ipow_wire::ESTIMATOR)
+        {
+            unresolved.push(ContractReason::ReasoningSupport);
+        }
+        let names: Option<Vec<String>> = source
+            .covariate_ids
+            .iter()
+            .map(|id| header.variable_names.get(*id as usize).cloned())
+            .collect();
+        if contract
+            .data_snapshot
+            .as_ref()
+            .and_then(|snapshot| snapshot.missing.as_ref())
+            .is_none_or(|missing| {
+                missing.policy != "inverse_probability"
+                    || names.as_ref() != Some(&missing.covariates)
+            })
+            || contract
+                .inference_binding
+                .as_ref()
+                .and_then(|binding| binding.bayesian.as_ref())
+                .is_none_or(|config| {
+                    config.design_model.as_deref() != Some(source.prior_identity().as_str())
+                        || usize::try_from(config.n_draws).ok()
+                            != Some(body.posterior_row.as_ref().map_or(0, |row| row.draws))
+                })
+        {
+            unresolved.push(ContractReason::ReasoningSupport);
+        }
+    }
     note_replay_dependencies(contract, body, &mut unresolved);
-    note_functional_and_nested_replay(contract, body, &mut unresolved);
+    note_functional_and_nested_replay(contract, body, &mut unresolved, limits);
+    verify_graph_posterior_mixture(contract, body, &mut unresolved);
     note_published_claim(header, body, contract, &mut unresolved);
+    let replayed = match replay_if_declared(header, body, contract, source) {
+        Ok(replayed) => replayed,
+        Err(refusal) => {
+            unresolved.push(refusal.reason());
+            false
+        }
+    };
+    note_checked_estimator_operation(contract, body, &mut unresolved, replayed);
     unresolved
+}
+
+// Names in the wire are assertions, not proof of an executable operation. Only
+// routes with a corresponding portable replay path can clear this obligation;
+// their existing verifiers below still have to validate every carried input.
+fn note_checked_estimator_operation(
+    contract: &AnalysisResultContractWire,
+    body: &AnalysisResultWire,
+    unresolved: &mut Vec<ContractReason>,
+    dr_replayed: bool,
+) {
+    let supported = contract.program.as_ref().is_some_and(|program| {
+        let resolved = program.commitments.resolved_estimator.as_deref();
+        if program.commitments.estimator != contract.estimator
+            || contract.estimator.as_deref().is_some_and(|name| Some(name) != resolved)
+        {
+            return false;
+        }
+        // These contracts carry an atom-wise program family and a published
+        // mixture, rather than one functional program. Their existing checks
+        // bind the family to the posterior graph and to the mixture below.
+        if graph_posterior_cross_world(contract)
+            && matches!(resolved, Some("functional.effect" | "functional.distribution"))
+            && program.graph_posterior_programs.is_some()
+            && posterior_identification_atoms(contract).is_some()
+            && body.structural_response.is_some()
+        {
+            return true;
+        }
+        match (resolved, &contract.target.query) {
+            (Some("linear.adjustment.ate"), CausalQueryWire::AverageEffect { .. }) => {
+                program.checked_linear_adjustment_lowering.is_some()
+                    && contract
+                        .data_snapshot
+                        .as_ref()
+                        .is_some_and(|snapshot| snapshot.linear_fit_moments.is_some())
+            }
+            (Some("iv.wald" | "iv.2sls"), CausalQueryWire::AverageEffect { .. }) => {
+                program.checked_iv_lowering.is_some()
+                    && contract
+                        .data_snapshot
+                        .as_ref()
+                        .is_some_and(|snapshot| snapshot.cross_product_moments.is_some())
+            }
+            (Some("frontdoor.linear_two_stage"), CausalQueryWire::AverageEffect { .. }) => {
+                program.checked_frontdoor_lowering.is_some()
+                    && contract
+                        .data_snapshot
+                        .as_ref()
+                        .is_some_and(|snapshot| snapshot.cross_product_moments.is_some())
+            }
+            (Some("aipw"), CausalQueryWire::AverageEffect { .. }) => {
+                program.checked_aipw_lowering.is_some() && contract.checked_aipw_rows.is_some()
+            }
+            // The declared cross-fitted fit is a portable operation only once the source
+            // witness has replayed it and reproduced the body.
+            (Some("dr.learner"), CausalQueryWire::AverageEffect { .. }) => {
+                program.checked_dr_lowering.is_some() && dr_replayed
+            }
+            (Some("functional.effect"), CausalQueryWire::Response(_)) => {
+                program.checked_functional_response_grid.is_some()
+                    && contract
+                        .data_snapshot
+                        .as_ref()
+                        .is_some_and(|snapshot| snapshot.distribution_factor_laws.is_some())
+            }
+            (
+                Some("functional.effect"),
+                CausalQueryWire::AverageEffect { .. }
+                | CausalQueryWire::ConditionalEffect { .. }
+                | CausalQueryWire::PathSpecific(_)
+                | CausalQueryWire::NestedCounterfactual { .. },
+            )
+            | (Some("functional.distribution"), CausalQueryWire::Distribution(_)) => {
+                program.functional_program.is_some()
+                    && contract
+                        .data_snapshot
+                        .as_ref()
+                        .is_some_and(|snapshot| snapshot.distribution_factor_laws.is_some())
+            }
+            (Some("mediation.linear"), CausalQueryWire::NestedCounterfactual { .. }) => {
+                program.checked_nested_counterfactual.is_some()
+            }
+            (Some("temporal.linear.adjustment"), CausalQueryWire::NestedCounterfactual { .. }) => {
+                matches!(
+                    contract.graph_class.as_str(),
+                    "TemporalDag" | "TemporalCpdag" | "TemporalPag"
+                ) && contract
+                    .data_snapshot
+                    .as_ref()
+                    .is_some_and(|snapshot| snapshot.nested_counterfactual_fit.is_some())
+            }
+            (
+                Some(crate::randomized_ipow_wire::ESTIMATOR),
+                CausalQueryWire::RandomizedEffect(_),
+            ) => body.posterior_row.as_ref().is_some_and(|row| row.randomized_ipow.is_some()),
+            _ => false,
+        }
+    });
+    // A family-specific missing-operation obligation already refuses acceptance.
+    // Keep that more precise diagnostic instead of duplicating it with this fallback.
+    // These are typed verifier outputs, not reason strings supplied by the artifact.
+    let operation_already_missing = unresolved.iter().any(|reason| {
+        let name = reason.as_str();
+        name.starts_with("dependencies.checked_") && name.ends_with("_operation")
+    });
+    if !supported && !operation_already_missing {
+        unresolved.push(ContractReason::DependenciesCheckedEstimatorOperation);
+    }
+}
+
+/// Replay the point estimate of a checked IV or linear front-door lowering from the carried
+/// cross-product moments. Absent moments are not a replay failure here: the route then
+/// stays under the missing-estimator-operation obligation.
+pub(in crate::contract_section) fn note_cross_product_replay(
+    contract: &AnalysisResultContractWire,
+    body: &AnalysisResultWire,
+    unresolved: &mut Vec<ContractReason>,
+) {
+    let Some(program) = contract.program.as_ref() else { return };
+    let Some(snapshot) = super::cross_moments::Snapshot::of(contract) else { return };
+    if snapshot.moments.is_none() {
+        return;
+    }
+    let verdict = match (&program.checked_iv_lowering, &program.checked_frontdoor_lowering) {
+        (Some(lowering), None) => {
+            super::cross_moments::verify_iv_moments(&snapshot, body.estimate, lowering)
+        }
+        (None, Some(lowering)) => {
+            super::cross_moments::verify_frontdoor_moments(&snapshot, body.estimate, lowering)
+        }
+        _ => return,
+    };
+    if let Err(reason) = verdict {
+        unresolved.push(reason);
+    }
 }
 
 pub(in crate::contract_section) fn note_linear_fit_replay(
@@ -75,6 +385,42 @@ pub(in crate::contract_section) fn note_linear_fit_replay(
     }
 }
 
+fn functional_effect_over_class(contract: &AnalysisResultContractWire) -> bool {
+    is_scalar_functional_effect_contract(contract)
+        && matches!(contract.graph_class.as_str(), "Cpdag" | "Pag")
+}
+
+/// A path-restricted or natural direct effect, or an interventional distribution, answered
+/// over a static graph posterior.
+///
+/// Such a result is answered per atom and mixed, so no single program reproduces it. The
+/// contract instead carries the per-atom programs, their weights and the mixing rule, which
+/// [`verify_graph_posterior_programs`] and [`verify_graph_posterior_mixture`] check.
+fn graph_posterior_cross_world(contract: &AnalysisResultContractWire) -> bool {
+    contract.structure_source == "graph_posterior"
+        && ((matches!(contract.graph_class.as_str(), "Dag" | "Admg" | "Cpdag" | "Pag")
+            && is_scalar_functional_effect_contract(contract)
+            && matches!(
+                contract.target.query,
+                CausalQueryWire::PathSpecific(_) | CausalQueryWire::NestedCounterfactual { .. }
+            ))
+            // A distribution over the atoms of a temporal-ADMG posterior is answered per atom on
+            // the contemporaneous projection, as the static classes are.
+            || (matches!(
+                contract.graph_class.as_str(),
+                "Dag" | "Admg" | "TemporalAdmg" | "Cpdag" | "Pag"
+            ) && is_functional_distribution_contract(contract)
+                && matches!(contract.target.query, CausalQueryWire::Distribution(_))))
+}
+
+/// An interventional distribution over an equivalence class is published per completion: no
+/// single program and provider law reproduces the class-level atoms, so the replay is that of
+/// the class's own identification, not of one functional.
+fn functional_distribution_over_class(contract: &AnalysisResultContractWire) -> bool {
+    is_functional_distribution_contract(contract)
+        && matches!(contract.graph_class.as_str(), "Cpdag" | "Pag")
+}
+
 pub(in crate::contract_section) fn note_checked_program_targets(
     contract: &AnalysisResultContractWire,
     unresolved: &mut Vec<ContractReason>,
@@ -83,6 +429,7 @@ pub(in crate::contract_section) fn note_checked_program_targets(
         [
             program.functional_program.is_some(),
             program.checked_aipw_lowering.is_some(),
+            program.checked_dr_lowering.is_some(),
             program.checked_frontdoor_lowering.is_some(),
             program.checked_iv_lowering.is_some(),
             program.checked_linear_adjustment_lowering.is_some(),
@@ -112,7 +459,10 @@ pub(in crate::contract_section) fn note_checked_program_targets(
             && !((estimator_matches(&["functional.effect"])
                 && matches!(
                     contract.target.query,
-                    CausalQueryWire::AverageEffect { .. } | CausalQueryWire::PathSpecific(_)
+                    CausalQueryWire::AverageEffect { .. }
+                        | CausalQueryWire::ConditionalEffect { .. }
+                        | CausalQueryWire::PathSpecific(_)
+                        | CausalQueryWire::NestedCounterfactual { .. }
                 ))
                 || (estimator_matches(&["functional.distribution"])
                     && matches!(contract.target.query, CausalQueryWire::Distribution(_))))
@@ -243,7 +593,8 @@ pub(in crate::contract_section) fn note_replay_dependencies(
         Some(
             "interference.ht_hajek"
             | "interference.cluster_neyman"
-            | "interference.bayesian_gaussian",
+            | "interference.bayesian_gaussian"
+            | "interference.cluster_bayesian_bootstrap",
         ) if matches!(contract.target.query, CausalQueryWire::Interference { .. }) => {
             unresolved.push(ContractReason::DependenciesCheckedInterferenceOperation);
         }
@@ -256,6 +607,44 @@ pub(in crate::contract_section) fn note_replay_dependencies(
             if matches!(contract.target.query, CausalQueryWire::AverageEffect { .. }) =>
         {
             unresolved.push(ContractReason::DependenciesCheckedBayesianRdOperation);
+        }
+        Some("bayesian.panel_did")
+            if matches!(contract.target.query, CausalQueryWire::PanelDid(_)) =>
+        {
+            unresolved.push(ContractReason::DependenciesCheckedBayesianPanelDidOperation);
+        }
+        Some("bayesian.synthetic_control")
+            if matches!(contract.target.query, CausalQueryWire::SyntheticControl(_)) =>
+        {
+            unresolved.push(ContractReason::DependenciesCheckedBayesianSyntheticControlOperation);
+        }
+        Some("bayesian.randomized_quantile")
+            if matches!(contract.target.query, CausalQueryWire::AverageEffect { .. }) =>
+        {
+            unresolved.push(ContractReason::DependenciesCheckedBayesianQuantileOperation);
+        }
+        Some("bayesian.piecewise_survival")
+            if matches!(contract.target.query, CausalQueryWire::Survival(_)) =>
+        {
+            unresolved.push(ContractReason::DependenciesCheckedBayesianSurvivalOperation);
+        }
+        Some("bayesian.continuous_dose_policy")
+            if matches!(contract.target.query, CausalQueryWire::ContinuousDoseResponse(_)) =>
+        {
+            unresolved.push(ContractReason::DependenciesCheckedBayesianDosePolicyOperation);
+        }
+        Some("bayesian.local_ratio")
+            if matches!(contract.target.query, CausalQueryWire::LocalPolynomialRatio(_)) =>
+        {
+            unresolved.push(ContractReason::DependenciesCheckedBayesianLocalRatioOperation);
+        }
+        Some(
+            "bayesian.randomized_finite_population"
+            | "bayesian.randomized_superpopulation"
+            | "bayesian.complier_effect"
+            | "bayesian.switchback_effect",
+        ) if matches!(contract.target.query, CausalQueryWire::RandomizedEffect(_)) => {
+            unresolved.push(ContractReason::DependenciesCheckedBayesianRandomizedOperation);
         }
         Some("transport.trial_ipw" | "transport.trial_bayesian_bootstrap")
             if matches!(contract.target.query, CausalQueryWire::Transport(_)) =>
@@ -605,14 +994,11 @@ pub(in crate::contract_section) fn note_replay_dependencies(
     }
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
-)]
 pub(in crate::contract_section) fn note_functional_and_nested_replay(
     contract: &AnalysisResultContractWire,
     body: &AnalysisResultWire,
     unresolved: &mut Vec<ContractReason>,
+    limits: &ReplayLimits,
 ) {
     if is_functional_distribution_contract(contract) && body.interventional_distribution.is_none() {
         // Pre-atom artifacts remain decodable, but cannot independently verify
@@ -627,15 +1013,16 @@ pub(in crate::contract_section) fn note_functional_and_nested_replay(
         .data_snapshot
         .as_ref()
         .and_then(|snapshot| snapshot.distribution_factor_laws.as_ref());
-    let posterior_distribution = is_functional_distribution_contract(contract)
-        && (contract.program.as_ref().is_some_and(|program| {
-            program.commitments.inference == "bayesian" || program.commitments.prior_required
-        }) || contract
-            .inference_binding
-            .as_ref()
-            .is_some_and(|binding| binding.inference == "bayesian" || binding.bayesian.is_some()));
+    let posterior_inference = contract.program.as_ref().is_some_and(|program| {
+        program.commitments.inference == "bayesian" || program.commitments.prior_required
+    }) || contract
+        .inference_binding
+        .as_ref()
+        .is_some_and(|binding| binding.inference == "bayesian" || binding.bayesian.is_some());
+    let posterior_distribution =
+        is_functional_distribution_contract(contract) && posterior_inference;
     let functional_effect = is_scalar_functional_effect_contract(contract);
-    let graph_posterior_functional_effect = contract.structure_source == "graph_posterior"
+    let graph_posterior_effect = contract.structure_source == "graph_posterior"
         && matches!(contract.graph_class.as_str(), "Admg" | "TemporalAdmg")
         && contract
             .program
@@ -643,13 +1030,12 @@ pub(in crate::contract_section) fn note_functional_and_nested_replay(
             .and_then(|program| program.commitments.resolved_estimator.as_deref())
             .or(contract.estimator.as_deref())
             == Some("functional.effect");
-    let posterior_functional_effect = functional_effect
-        && (contract.program.as_ref().is_some_and(|program| {
-            program.commitments.inference == "bayesian" || program.commitments.prior_required
-        }) || contract
-            .inference_binding
-            .as_ref()
-            .is_some_and(|binding| binding.inference == "bayesian" || binding.bayesian.is_some()));
+    // Equivalence-class and posterior-atom effects have per-member programs instead of a
+    // single functional that can replay the class-level result.
+    let graph_posterior_functional_effect = graph_posterior_effect
+        || functional_effect_over_class(contract)
+        || graph_posterior_cross_world(contract);
+    let posterior_functional_effect = functional_effect && posterior_inference;
     if posterior_distribution {
         // Posterior atoms require joint per-draw factor tables and draw
         // identity. Empirical marginal laws cannot replay their weights.
@@ -673,25 +1059,144 @@ pub(in crate::contract_section) fn note_functional_and_nested_replay(
         // results require the shared row weights for every posterior draw.
         unresolved.push(ContractReason::DependenciesFunctionalEffectPosteriorDraws);
     }
-    if is_response_functional_effect_contract(contract) {
-        let graph_posterior = contract.structure_source == "graph_posterior"
-            && matches!(contract.graph_class.as_str(), "Admg" | "TemporalAdmg")
-            && contract
-                .program
+    note_functional_response_replay(
+        contract,
+        body,
+        unresolved,
+        limits,
+        graph_posterior_effect,
+        posterior_inference,
+    );
+    if body.identification.query != body.query {
+        unresolved.push(ContractReason::BodyIdentificationQuery);
+    }
+    note_distribution_atom_replay(contract, body, unresolved, limits, posterior_distribution);
+    note_scalar_effect_replay(
+        contract,
+        body,
+        unresolved,
+        limits,
+        functional_effect,
+        posterior_functional_effect,
+        graph_posterior_functional_effect,
+    );
+    note_nested_point_replay(contract, body, unresolved, functional_effect);
+}
+
+/// Replay a point distribution when its executable program and factor laws are present.
+fn note_distribution_atom_replay(
+    contract: &AnalysisResultContractWire,
+    body: &AnalysisResultWire,
+    unresolved: &mut Vec<ContractReason>,
+    limits: &ReplayLimits,
+    posterior_distribution: bool,
+) {
+    if is_functional_distribution_contract(contract)
+        && !posterior_distribution
+        && !functional_distribution_over_class(contract)
+        && !graph_posterior_cross_world(contract)
+    {
+        match (
+            body.interventional_distribution.as_ref(),
+            contract.program.as_ref().and_then(|program| program.functional_program.as_ref()),
+            contract
+                .data_snapshot
                 .as_ref()
-                .and_then(|program| program.commitments.resolved_estimator.as_deref())
-                .or(contract.estimator.as_deref())
-                == Some("functional.effect");
-        let posterior = contract.program.as_ref().is_some_and(|program| {
-            program.commitments.inference == "bayesian" || program.commitments.prior_required
-        }) || contract
-            .inference_binding
-            .as_ref()
-            .is_some_and(|binding| binding.inference == "bayesian" || binding.bayesian.is_some());
-        if graph_posterior {
+                .and_then(|snapshot| snapshot.distribution_factor_laws.as_ref()),
+        ) {
+            (Some(result), Some(program), Some(laws)) => {
+                if let Err(reason) = crate::distribution_replay::replay_distribution_atoms(
+                    &body.query,
+                    result,
+                    program,
+                    laws,
+                    limits,
+                ) {
+                    unresolved.push(reason);
+                }
+            }
+            _ => {
+                if !unresolved.contains(&ContractReason::DependenciesDistributionFactorLaws) {
+                    unresolved.push(ContractReason::DependenciesDistributionFactorLaws);
+                }
+            }
+        }
+    }
+}
+
+/// Replay a scalar functional effect or record its missing inputs.
+fn note_scalar_effect_replay(
+    contract: &AnalysisResultContractWire,
+    body: &AnalysisResultWire,
+    unresolved: &mut Vec<ContractReason>,
+    limits: &ReplayLimits,
+    functional_effect: bool,
+    posterior_functional_effect: bool,
+    graph_posterior_functional_effect: bool,
+) {
+    if functional_effect && !posterior_functional_effect && !graph_posterior_functional_effect {
+        match (
+            contract.program.as_ref().and_then(|program| program.functional_program.as_ref()),
+            contract
+                .data_snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.distribution_factor_laws.as_ref()),
+        ) {
+            (Some(program), Some(laws)) => {
+                if let Err(reason) = crate::distribution_replay::replay_functional_scalar(
+                    &body.query,
+                    body.estimate,
+                    program,
+                    laws,
+                    limits,
+                ) {
+                    unresolved.push(reason);
+                }
+            }
+            (_, None) => {
+                if !unresolved.contains(&ContractReason::DependenciesFunctionalEffectFactorLaws) {
+                    unresolved.push(ContractReason::DependenciesFunctionalEffectFactorLaws);
+                }
+            }
+            (None, Some(_)) => unresolved.push(ContractReason::ProgramFunctionalProgram),
+        }
+    }
+}
+
+/// Replay nested points that do not use the functional-effect route.
+fn note_nested_point_replay(
+    contract: &AnalysisResultContractWire,
+    body: &AnalysisResultWire,
+    unresolved: &mut Vec<ContractReason>,
+    functional_effect: bool,
+) {
+    if matches!(contract.target.query, crate::CausalQueryWire::NestedCounterfactual { .. })
+        && !functional_effect
+    {
+        if matches!(contract.graph_class.as_str(), "TemporalDag" | "TemporalCpdag" | "TemporalPag")
+        {
+            if let Err(reason) = verify_temporal_nested_point(contract, body) {
+                unresolved.push(reason);
+            }
+        } else if let Err(reason) = verify_nested_counterfactual_result(contract, body) {
+            unresolved.push(reason);
+        }
+    }
+}
+
+fn note_functional_response_replay(
+    contract: &AnalysisResultContractWire,
+    body: &AnalysisResultWire,
+    unresolved: &mut Vec<ContractReason>,
+    limits: &ReplayLimits,
+    graph_posterior_effect: bool,
+    posterior_inference: bool,
+) {
+    if is_response_functional_effect_contract(contract) {
+        if graph_posterior_effect {
             // The atom-wise checked execution and frozen graph mass are the
             // replay dependency; one scalar program cannot represent the family.
-        } else if posterior {
+        } else if posterior_inference {
             unresolved.push(ContractReason::DependenciesFunctionalEffectResponsePosteriorDraws);
         } else {
             match (
@@ -711,6 +1216,7 @@ pub(in crate::contract_section) fn note_functional_and_nested_replay(
                         grid,
                         &response.estimate,
                         laws,
+                        limits,
                     ) {
                         unresolved.push(reason);
                     }
@@ -723,77 +1229,6 @@ pub(in crate::contract_section) fn note_functional_and_nested_replay(
                 }
                 (_, _, None) => unresolved.push(ContractReason::BodyResponse),
             }
-        }
-    }
-    if body.identification.query != body.query {
-        unresolved.push(ContractReason::BodyIdentificationQuery);
-    }
-    if is_functional_distribution_contract(contract) && !posterior_distribution {
-        match (
-            body.interventional_distribution.as_ref(),
-            contract.program.as_ref().and_then(|program| program.functional_program.as_ref()),
-            contract
-                .data_snapshot
-                .as_ref()
-                .and_then(|snapshot| snapshot.distribution_factor_laws.as_ref()),
-        ) {
-            (Some(result), Some(program), Some(laws)) => {
-                if let Err(reason) = crate::distribution_replay::replay_distribution_atoms(
-                    &body.query,
-                    result,
-                    program,
-                    laws,
-                ) {
-                    unresolved.push(reason);
-                }
-            }
-            _ => {
-                if !unresolved
-                    .iter()
-                    .any(|reason| *reason == ContractReason::DependenciesDistributionFactorLaws)
-                {
-                    unresolved.push(ContractReason::DependenciesDistributionFactorLaws);
-                }
-            }
-        }
-    }
-    if functional_effect && !posterior_functional_effect && !graph_posterior_functional_effect {
-        match (
-            contract.program.as_ref().and_then(|program| program.functional_program.as_ref()),
-            contract
-                .data_snapshot
-                .as_ref()
-                .and_then(|snapshot| snapshot.distribution_factor_laws.as_ref()),
-        ) {
-            (Some(program), Some(laws)) => {
-                if let Err(reason) = crate::distribution_replay::replay_functional_scalar(
-                    &body.query,
-                    body.estimate,
-                    program,
-                    laws,
-                ) {
-                    unresolved.push(reason);
-                }
-            }
-            (_, None) => {
-                if !unresolved
-                    .iter()
-                    .any(|reason| *reason == ContractReason::DependenciesFunctionalEffectFactorLaws)
-                {
-                    unresolved.push(ContractReason::DependenciesFunctionalEffectFactorLaws);
-                }
-            }
-            (None, Some(_)) => unresolved.push(ContractReason::ProgramFunctionalProgram),
-        }
-    }
-    if matches!(contract.target.query, crate::CausalQueryWire::NestedCounterfactual { .. }) {
-        if matches!(contract.graph_class.as_str(), "TemporalDag" | "TemporalCpdag" | "TemporalPag")
-        {
-            if let Err(reason) = verify_temporal_nested_point(contract, body) {
-                unresolved.push(reason);
-            }
-        } else if let Err(reason) = verify_nested_counterfactual_result(contract, body) {
-            unresolved.push(reason);
         }
     }
 }
@@ -826,10 +1261,14 @@ pub(in crate::contract_section) fn note_published_claim(
             unresolved.push(ContractReason::ReasoningIdentificationMasses);
         }
         if let Some(structural) = &body.structural_response {
-            let masses_match = (slot.identified_mass - structural.identified_mass).abs() <= 1e-12
-                && (slot.unidentified_mass - structural.unidentified_mass).abs() <= 1e-12
-                && (slot.unevaluable_mass - structural.unevaluable_mass).abs() <= 1e-12
-                && (slot.incomplete_search_mass - structural.subsampled_out_mass).abs() <= 1e-12;
+            let masses_match =
+                restated_masses_agree(slot.identified_mass, structural.identified_mass)
+                    && restated_masses_agree(slot.unidentified_mass, structural.unidentified_mass)
+                    && restated_masses_agree(slot.unevaluable_mass, structural.unevaluable_mass)
+                    && restated_masses_agree(
+                        slot.incomplete_search_mass,
+                        structural.subsampled_out_mass,
+                    );
             if !masses_match {
                 unresolved.push(ContractReason::ReasoningIdentificationMasses);
             }
@@ -841,6 +1280,9 @@ pub(in crate::contract_section) fn note_published_claim(
     if let Some(product) = &contract.identification_product {
         if !identification_product_matches_body(product, body) {
             unresolved.push(ContractReason::BodyIdentificationProduct);
+        }
+        if let Err(reason) = super::replay::verify_carried_estimands(contract) {
+            unresolved.push(reason);
         }
     } else if contract.identities.identification_product.is_some() {
         unresolved.push(ContractReason::IdentitiesIdentificationProduct);
@@ -885,19 +1327,18 @@ pub(in crate::contract_section) fn note_published_claim(
         if claim.kind != "point" && claim.value_bits.is_some() {
             unresolved.push(ContractReason::ClaimValue);
         }
-        let identification = contract.reasoning.identification.value.as_ref();
-        if claim.kind != claim_kind_name(body, identification) {
+        if claim.kind != claim_kind_name_of_section(body, &contract.reasoning.identification) {
             unresolved.push(ContractReason::ClaimKind);
         }
         let support = contract.reasoning.support.value.as_ref();
         if let Some(slot) = support {
-            let empirical = support_empirical(&body.refutations)
+            let empirical = support_empirical(&body.refutations, &body.diagnostics)
                 .unwrap_or_else(|| "unavailable:not_evaluated".into());
             if slot.empirical != empirical {
                 unresolved.push(ContractReason::ReasoningSupportEmpirical);
             }
         }
-        let domains = claim_domains(support, identification);
+        let domains = claim_domains_of_section(support, &contract.reasoning.identification);
         if claim.identification_domain != domains.identification
             || claim.support_domain != domains.support
             || claim.evaluated_domain != domains.evaluated
@@ -915,14 +1356,30 @@ pub(in crate::contract_section) fn note_published_claim(
 /// replay dependencies. Independent consumption receives the unfiltered
 /// refusals from [`verify_contract_against_body`]. A malformed present payload
 /// remains fatal.
-pub(crate) fn verify_contract_for_encoding(
+///
+/// An encoder that is also given the source witness it will embed passes it as `source`: the
+/// same replay a consumer runs decides whether the body is reproduced, under the default
+/// bounds. With `None` the verification is that of a compact artifact.
+pub(crate) fn verify_contract_for_encoding_with_source(
     header: &AnalysisResultHeader,
     body: &AnalysisResultWire,
     contract: &AnalysisResultContractWire,
+    source: Option<&crate::SourceWitnessWire>,
 ) -> Vec<Arc<str>> {
+    let bounds = SourceReplayBounds::default();
+    let source = source.map(|witness| SourceReplay {
+        state: SourceWitnessState::Present(witness),
+        bounds: &bounds,
+    });
     publish_reasons(producer_encoding_unresolved(
         contract,
-        contract_unresolved(header, body, contract),
+        contract_unresolved_with_source(
+            header,
+            body,
+            contract,
+            &ReplayLimits::default(),
+            source.as_ref(),
+        ),
     ))
 }
 
@@ -966,6 +1423,21 @@ pub(in crate::contract_section) fn producer_encoding_unresolved(
             unresolved.retain(|key| *key != ContractReason::CheckedAipwRowBinding);
         }
     }
+    // A linear adjustment executed through ordinary dispatch (caller validators are attested
+    // evidence the checked linear route does not run) carries no lowering. Encoding preserves
+    // that artifact; an independent consumer keeps the lowering unresolved.
+    let is_linear = contract.estimator.as_deref() == Some("linear.adjustment.ate")
+        || contract.program.as_ref().is_some_and(|program| {
+            program.commitments.resolved_estimator.as_deref() == Some("linear.adjustment.ate")
+        });
+    if is_linear
+        && contract
+            .program
+            .as_ref()
+            .is_some_and(|program| program.checked_linear_adjustment_lowering.is_none())
+    {
+        unresolved.retain(|key| *key != ContractReason::ProgramCheckedLinearAdjustmentLowering);
+    }
     let is_iv = matches!(contract.estimator.as_deref(), Some("iv.wald" | "iv.2sls"))
         || contract.program.as_ref().is_some_and(|program| {
             matches!(program.commitments.resolved_estimator.as_deref(), Some("iv.wald" | "iv.2sls"))
@@ -987,22 +1459,13 @@ pub(in crate::contract_section) fn verify_claim_calibration(
 ) {
     let slot = &claim.calibration;
     let statuses_ok = std::iter::once(slot).chain(slot.secondary.iter()).all(|slot| {
-        matches!(slot.status.as_str(), "calibrated" | "scope_not_assessed" | "unavailable")
+        matches!(
+            slot.status.as_str(),
+            "calibrated" | "outside_measured_scope" | "measured_below_nominal" | "not_measured"
+        )
     });
     if !statuses_ok || crate::calibration::rederive_calibration(slot) != *slot {
         unresolved.push(ContractReason::ClaimCalibration);
-    }
-    if contract
-        .reasoning
-        .support
-        .value
-        .as_ref()
-        .is_some_and(|support| support.matrix_status == "off_axis")
-        && std::iter::once(slot)
-            .chain(slot.secondary.iter())
-            .any(|entry| entry.status == "calibrated")
-    {
-        unresolved.push(ContractReason::ClaimCalibrationOffAxis);
     }
     let consistent = std::iter::once(slot)
         .chain(slot.secondary.iter())
@@ -1017,11 +1480,29 @@ pub(in crate::contract_section) fn verify_claim_calibration(
 /// support coordinate (query, graph axis, structure, inference), the resolved
 /// estimator, the snapshot row count and modality, and the identification
 /// masses.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the validation keeps its related contract checks together"
+)]
 pub(in crate::contract_section) fn calibration_basis_matches_contract(
     contract: &AnalysisResultContractWire,
     basis: &crate::calibration::CalibrationBasisWire,
 ) -> bool {
     let key = &basis.key;
+    // Legacy unknown validation stays readable but can never match a coverage
+    // record. A positive graphless validation assertion also needs both
+    // rehashed program and inference-binding payloads to attest no suite.
+    let graphless_validation_ok = key.validation.is_empty()
+        || (key.validation == "not_applicable"
+            && contract.program.as_ref().is_some_and(|program| {
+                program.commitments.validation_suite.is_none()
+                    && program.commitments.resolved_estimator.as_deref()
+                        == Some(key.estimator.as_str())
+            })
+            && contract.inference_binding.as_ref().is_some_and(|binding| {
+                binding.validation_suite.is_none()
+                    && binding.inference.eq_ignore_ascii_case(&key.inference)
+            }));
     let coordinate_ok = contract
         .reasoning
         .support
@@ -1035,35 +1516,92 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
             else {
                 return false;
             };
-            let structure =
-                if structure == "graph_posterior" { "graph_posterior" } else { "fixed" };
+            let structure = match structure {
+                "graph_posterior" => "graph_posterior",
+                "accepted" if !key.validation.is_empty() => "accepted",
+                _ => "fixed",
+            };
+            let validation = parts.next();
             query == key.query
                 && graph == key.graph_class
                 && structure == key.structure
                 && inference == key.inference
+                && (key.validation.is_empty()
+                    || (validation == Some(key.validation.as_str())
+                        && matches!(key.validation.as_str(), "none" | "cheap" | "full")))
+        })
+        || (graphless_validation_ok
+            && key.validation == "not_applicable"
+            && key.query == "SyntheticControl"
+            && key.estimator == "bayesian.synthetic_control"
+            && key.interval_method == "posterior_quantile"
+            && key.structure == "design"
+            && key.graph_class == "RandomizedTrial"
+            && contract.graph_class == key.graph_class
+            && contract.structure_source == "randomized_trial"
+            && key.inference.eq_ignore_ascii_case("bayesian")
+            && matches!(&contract.target.query, crate::CausalQueryWire::SyntheticControl(q)
+                if q.average_calibration_design().is_some_and(|(functional, pre)|
+                    functional == key.functional && pre == basis.scope.row_count)))
+        || contract.reasoning.support.value.as_ref().is_some_and(|_| {
+            matches!(&contract.target.query, crate::CausalQueryWire::SequentialContrast(q) if q.matches_wide_overlap_study())
+                && graphless_validation_ok && key.validation == "not_applicable"
+                && key.query == "SequentialContrast" && key.structure == "design"
+                && key.graph_class == "RandomizedTrial" && contract.graph_class == key.graph_class
+                && contract.structure_source == "randomized_trial"
+                && ((key.interval_method == "analytic_se" && key.inference == "Frequentist" && key.se_kind == "crossfit_score" && key.estimator == "sequential.crossfit_contrast.wald")
+                    || (matches!(key.interval_method.as_str(), "posterior_quantile" | "posterior_absolute_deviation") && key.inference == "Bayesian" && key.estimator == "bayesian.sequential_crossfit_contrast"))
+                && key.functional.is_empty()
         })
         || contract.reasoning.support.value.as_ref().is_some_and(|slot| {
-            // Exact graphless DiD licenses are bound to the executed result.
-            // The calibration key still names the compiled query because the
-            // geometric support registry does not contain graphless rows.
-            slot.matrix_status == "licensed"
+            // Exact graphless DiD supports are bound to the executed result.
+            // New bases name the measured graphless design; historical
+            // unknown-validation bases retain their original compiled axes.
+            graphless_validation_ok
+                && contract.graph_class == "RandomizedTrial"
+                && contract.structure_source == "randomized_trial"
+                && slot.matrix_status == "supported"
                 && slot.matrix_coordinate.as_deref().is_some_and(|coordinate| {
                     coordinate.starts_with("graphless:difference_in_differences/")
                 })
                 && matches!(contract.target.query, crate::CausalQueryWire::PanelDid(_))
-                && key.query == "Unknown"
                 && key.graph_class == contract.graph_class
-                && key.structure == "fixed"
+                && ((key.validation.is_empty() && key.query == "Unknown" && key.structure == "fixed")
+                    || (key.validation == "not_applicable" && key.query == "PanelDid" && key.structure == "design"))
+        })
+        || contract.reasoning.support.value.as_ref().is_some_and(|slot| {
+            graphless_validation_ok
+                && contract.graph_class == "RandomizedTrial"
+                && contract.structure_source == "randomized_trial"
+                && slot.matrix_status == "supported"
+                && slot.matrix_coordinate.as_deref().is_some_and(|coordinate| {
+                    coordinate.starts_with("graphless:randomized_effect/")
+                        && coordinate.ends_with("/gaussian_ipow_modular_posterior/conditional_pseudo_posterior_pointwise_95_quantiles")
+                })
+                && matches!(contract.target.query, crate::CausalQueryWire::RandomizedEffect(_))
+                && key.graph_class == contract.graph_class
+                && ((key.validation.is_empty() && key.query == "Unknown" && key.structure == "fixed")
+                    || (key.validation == "not_applicable" && key.query == "RandomizedEffect" && key.structure == "design"))
+                && key.inference.eq_ignore_ascii_case("bayesian")
+                && key.interval_method == "posterior_quantile"
         })
         || contract.reasoning.support.value.as_ref().is_some_and(|slot| {
             // Off-axis design results retain their interval construction in
-            // the claim even though the support matrix has no licensed cell.
+            // the claim even though the support matrix has no supported cell.
             // The query-specific payload validator verifies its support and
-            // endpoints; calibration remains unavailable on this axis.
-            slot.matrix_status == "off_axis"
+            // endpoints; the claim's calibration slot is re-derived from its basis like any other.
+            key.validation.is_empty()
+                && slot.matrix_status == "off_axis"
                 && slot.matrix_coordinate.is_none()
-                && key.query == "Unknown"
+                && (key.query == "Unknown"
+                    || (key.query == "Discover"
+                        && matches!(contract.target.query, crate::CausalQueryWire::Discover(_))))
                 && (key.interval_method == "none"
+                    || (key.inference.eq_ignore_ascii_case("bayesian")
+                        && key.interval_method == "posterior_quantile")
+                    || (matches!(contract.target.query, crate::CausalQueryWire::SequentialContrast(_))
+                        && ((key.inference == "Bayesian" && key.interval_method == "posterior_absolute_deviation")
+                            || (key.inference == "Frequentist" && key.interval_method == "analytic_se")))
                     || (matches!(contract.target.query, crate::CausalQueryWire::PanelDid(_))
                         && key.interval_method == "analytic_se"
                         && key.dependence == "cluster"))
@@ -1087,6 +1625,11 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
                     key.dependence == "iid"
                         || (matches!(contract.target.query, crate::CausalQueryWire::PanelDid(_))
                             && key.dependence == "cluster")
+                        // A trial-to-target transport reads its trial table as one series
+                        // when the rows are serially dependent; its Newey-West or
+                        // equal-weighted cosine SE keys the record `serial_hac`.
+                        || (matches!(contract.target.query, crate::CausalQueryWire::Transport(_))
+                            && key.dependence == "serial_hac")
                 }
                 _ => key.dependence != "panel_cluster",
             }
@@ -1094,7 +1637,7 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
     let identification_ok = contract.reasoning.identification.value.as_ref().is_none_or(|slot| {
         let unidentified =
             slot.unidentified_mass + slot.unevaluable_mass + slot.incomplete_search_mass;
-        (unidentified - basis.scope.unidentified_mass).abs() <= 1e-9
+        summed_masses_agree(unidentified, basis.scope.unidentified_mass)
     });
     coordinate_ok && program_ok && snapshot_ok && identification_ok
 }
@@ -1107,56 +1650,170 @@ pub(in crate::contract_section) fn verify_stored_payloads(
     contract: &AnalysisResultContractWire,
 ) -> Vec<ContractReason> {
     let mut unresolved = Vec::new();
+    note_stored_payload_identities(contract, &mut unresolved);
+    note_functional_program_payload(contract, &mut unresolved);
+    let frontdoor =
+        contract.program.as_ref().and_then(|item| item.checked_frontdoor_lowering.as_ref());
+    if contract_uses_estimator(contract, "frontdoor.linear_two_stage") && frontdoor.is_none() {
+        unresolved.push(ContractReason::ProgramCheckedFrontdoorLowering);
+    }
+    if let Some(frontdoor) = frontdoor
+        && !verify_frontdoor_lowering(contract, frontdoor)
+    {
+        unresolved.push(ContractReason::ProgramFrontdoorBinding);
+    }
+    let checked_iv = contract.program.as_ref().and_then(|item| item.checked_iv_lowering.as_ref());
+    let is_checked_iv = matches!(contract.estimator.as_deref(), Some("iv.wald" | "iv.2sls"))
+        || contract.program.as_ref().is_some_and(|item| {
+            matches!(item.commitments.resolved_estimator.as_deref(), Some("iv.wald" | "iv.2sls"))
+        });
+    if is_checked_iv && checked_iv.is_none() {
+        unresolved.push(ContractReason::ProgramCheckedIvLowering);
+    }
+    if let Some(iv) = checked_iv
+        && !verify_checked_iv(contract, iv)
+    {
+        unresolved.push(ContractReason::ProgramCheckedIvBinding);
+    }
+    verify_checked_linear_adjustment(contract, &mut unresolved);
+    verify_checked_aipw(contract, &mut unresolved);
+    note_stored_payload_links(contract, &mut unresolved);
+    verify_checked_aipw_rows(contract, &mut unresolved);
+    verify_graph_posterior_programs(contract, &mut unresolved);
+    verify_layer_links(contract, &mut unresolved);
+    match contract_seal_of(contract) {
+        Ok(seal) if seal == contract.seal => {}
+        _ => unresolved.push(ContractReason::ContractSeal),
+    }
+    unresolved
+}
+
+/// Verify the reasoning slots and top-level payload identities.
+fn note_stored_payload_identities(
+    contract: &AnalysisResultContractWire,
+    unresolved: &mut Vec<ContractReason>,
+) {
     require_slot(
-        &mut unresolved,
+        unresolved,
         ContractReason::ReasoningIdentification,
         &contract.reasoning.identification,
     );
-    require_slot(&mut unresolved, ContractReason::ReasoningSupport, &contract.reasoning.support);
-    require_slot(
-        &mut unresolved,
-        ContractReason::ReasoningUncertainty,
-        &contract.reasoning.uncertainty,
-    );
-    require_slot(
-        &mut unresolved,
-        ContractReason::ReasoningAssumptions,
-        &contract.reasoning.assumptions,
-    );
+    require_slot(unresolved, ContractReason::ReasoningSupport, &contract.reasoning.support);
+    require_slot(unresolved, ContractReason::ReasoningUncertainty, &contract.reasoning.uncertainty);
+    require_slot(unresolved, ContractReason::ReasoningAssumptions, &contract.reasoning.assumptions);
     match digest_wire(IdentityDomain::Target, &contract.target) {
         Ok(target) if target.as_bytes() == &contract.identities.target => {}
         Ok(_) => unresolved.push(ContractReason::IdentitiesTarget),
         Err(_) => unresolved.push(ContractReason::TargetPayload),
     }
     require_payload_digest(
-        &mut unresolved,
+        unresolved,
         ContractReason::IdentitiesIdentification,
         contract.identification.as_ref(),
         Some(&contract.identities.identification),
         identification_digest,
     );
     require_payload_digest(
-        &mut unresolved,
+        unresolved,
         ContractReason::IdentitiesIdentificationProduct,
         contract.identification_product.as_ref(),
         contract.identities.identification_product.as_ref(),
         identification_product_digest_wire,
     );
     require_payload_digest(
-        &mut unresolved,
+        unresolved,
         ContractReason::IdentitiesProgram,
         contract.program.as_ref(),
         Some(&contract.identities.program),
         program_digest,
     );
-    let graph_posterior_functional_effect = contract.structure_source == "graph_posterior"
+}
+
+/// Verify the inference, observation, execution, and nested identity links.
+fn note_stored_payload_links(
+    contract: &AnalysisResultContractWire,
+    unresolved: &mut Vec<ContractReason>,
+) {
+    require_payload_digest(
+        unresolved,
+        ContractReason::IdentitiesInferenceBinding,
+        contract.inference_binding.as_ref(),
+        Some(&contract.identities.inference_binding),
+        inference_binding_digest,
+    );
+    require_payload_digest(
+        unresolved,
+        ContractReason::IdentitiesObservation,
+        contract.observation.as_ref(),
+        Some(&contract.identities.observation),
+        |observation| digest_wire(IdentityDomain::Observation, observation),
+    );
+    require_payload_digest(
+        unresolved,
+        ContractReason::IdentitiesDataSnapshot,
+        contract.data_snapshot.as_ref(),
+        Some(&contract.identities.data_snapshot),
+        data_snapshot_digest,
+    );
+    require_payload_digest(
+        unresolved,
+        ContractReason::IdentitiesExecution,
+        contract.execution.as_ref(),
+        contract.identities.execution.as_ref(),
+        execution_digest,
+    );
+    require_nested_digest(
+        unresolved,
+        ContractReason::IdentitiesExecution,
+        contract.identities.execution,
+        contract.claim.as_ref().and_then(|claim| claim.execution.as_ref()),
+    );
+    require_nested_digest(
+        unresolved,
+        ContractReason::ProgramTarget,
+        contract.program.as_ref().map(|item| item.target),
+        Some(&contract.identities.target),
+    );
+    require_nested_digest(
+        unresolved,
+        ContractReason::ProgramIdentification,
+        contract.program.as_ref().map(|item| item.identification),
+        Some(&contract.identities.identification),
+    );
+    require_nested_digest(
+        unresolved,
+        ContractReason::ProgramIdentificationProduct,
+        contract.program.as_ref().and_then(|item| item.identification_product),
+        contract.identities.identification_product.as_ref(),
+    );
+    require_nested_digest(
+        unresolved,
+        ContractReason::DataSnapshotObservation,
+        contract.data_snapshot.as_ref().map(|item| item.observation),
+        Some(&contract.identities.observation),
+    );
+}
+
+/// Verify the executable functional program and its identification binding.
+fn note_functional_program_payload(
+    contract: &AnalysisResultContractWire,
+    unresolved: &mut Vec<ContractReason>,
+) {
+    let graph_posterior_functional_effect = (contract.structure_source == "graph_posterior"
         && matches!(contract.graph_class.as_str(), "Admg" | "TemporalAdmg")
         && contract
             .program
             .as_ref()
             .and_then(|program| program.commitments.resolved_estimator.as_deref())
             .or(contract.estimator.as_deref())
-            == Some("functional.effect");
+            == Some("functional.effect"))
+        // An effect over an equivalence class is published per completion: no single
+        // program and provider law reproduces the class-level result, so the replay is
+        // that of the class's own identification, not of one functional.
+        || (functional_effect_over_class(contract))
+        // A graph-posterior effect is answered per atom: the per-atom programs replace the
+        // single program.
+        || graph_posterior_cross_world(contract);
     let functional = contract
         .program
         .as_ref()
@@ -1172,6 +1829,8 @@ pub(in crate::contract_section) fn verify_stored_payloads(
     if is_functional_distribution_contract(contract)
         && functional.is_none()
         && !posterior_distribution
+        && !functional_distribution_over_class(contract)
+        && !graph_posterior_cross_world(contract)
     {
         // Older artifacts stay readable but cannot advertise a verified
         // executable distribution without the program that was evaluated.
@@ -1213,7 +1872,8 @@ pub(in crate::contract_section) fn verify_stored_payloads(
             && matches!(contract.target.query, crate::CausalQueryWire::Distribution(_));
         let effect_method = match &contract.target.query {
             crate::CausalQueryWire::AverageEffect { .. } => Some("general.id"),
-            crate::CausalQueryWire::PathSpecific(_) => Some("path_specific.natural"),
+            crate::CausalQueryWire::PathSpecific(_)
+            | crate::CausalQueryWire::NestedCounterfactual { .. } => Some("path_specific.natural"),
             _ => None,
         };
         let effect_binding = is_scalar_functional_effect_contract(contract)
@@ -1231,94 +1891,38 @@ pub(in crate::contract_section) fn verify_stored_payloads(
             unresolved.push(ContractReason::ProgramFunctionalBinding);
         }
     }
-    let frontdoor =
-        contract.program.as_ref().and_then(|item| item.checked_frontdoor_lowering.as_ref());
-    if contract_uses_estimator(contract, "frontdoor.linear_two_stage") && frontdoor.is_none() {
-        unresolved.push(ContractReason::ProgramCheckedFrontdoorLowering);
-    }
-    if let Some(frontdoor) = frontdoor {
-        if !verify_frontdoor_lowering(contract, frontdoor) {
-            unresolved.push(ContractReason::ProgramFrontdoorBinding);
+}
+
+#[path = "verify/graph_posterior.rs"]
+mod graph_posterior;
+#[cfg(test)]
+use graph_posterior::first_published_atoms;
+use graph_posterior::{
+    posterior_identification_atoms, verify_graph_posterior_mixture, verify_graph_posterior_programs,
+};
+
+#[cfg(test)]
+mod posterior_index_tests {
+    use super::first_published_atoms;
+    use crate::{IdentificationStatusWire, StructuralResponseAtomWire};
+
+    fn atom(graph_key: u64, weight: f64) -> StructuralResponseAtomWire {
+        StructuralResponseAtomWire {
+            graph_key,
+            weight,
+            identification_status: IdentificationStatusWire::NotIdentified,
+            value: None,
+            posterior_artifact: None,
+            response: None,
         }
     }
-    let checked_iv = contract.program.as_ref().and_then(|item| item.checked_iv_lowering.as_ref());
-    let is_checked_iv = matches!(contract.estimator.as_deref(), Some("iv.wald" | "iv.2sls"))
-        || contract.program.as_ref().is_some_and(|item| {
-            matches!(item.commitments.resolved_estimator.as_deref(), Some("iv.wald" | "iv.2sls"))
-        });
-    if is_checked_iv && checked_iv.is_none() {
-        unresolved.push(ContractReason::ProgramCheckedIvLowering);
+
+    #[test]
+    fn duplicate_graph_keys_keep_the_first_published_atom() {
+        let atoms = [atom(7, 0.2), atom(4, 0.3), atom(7, 0.5)];
+        let index = first_published_atoms(&atoms);
+        assert!(std::ptr::eq(index[&7], &raw const atoms[0]));
+        assert!(std::ptr::eq(index[&4], &raw const atoms[1]));
+        assert!(!index.contains_key(&8));
     }
-    if let Some(iv) = checked_iv {
-        if !verify_checked_iv(contract, iv) {
-            unresolved.push(ContractReason::ProgramCheckedIvBinding);
-        }
-    }
-    verify_checked_linear_adjustment(contract, &mut unresolved);
-    verify_checked_aipw(contract, &mut unresolved);
-    require_payload_digest(
-        &mut unresolved,
-        ContractReason::IdentitiesInferenceBinding,
-        contract.inference_binding.as_ref(),
-        Some(&contract.identities.inference_binding),
-        inference_binding_digest,
-    );
-    require_payload_digest(
-        &mut unresolved,
-        ContractReason::IdentitiesObservation,
-        contract.observation.as_ref(),
-        Some(&contract.identities.observation),
-        |observation| digest_wire(IdentityDomain::Observation, observation),
-    );
-    require_payload_digest(
-        &mut unresolved,
-        ContractReason::IdentitiesDataSnapshot,
-        contract.data_snapshot.as_ref(),
-        Some(&contract.identities.data_snapshot),
-        data_snapshot_digest,
-    );
-    require_payload_digest(
-        &mut unresolved,
-        ContractReason::IdentitiesExecution,
-        contract.execution.as_ref(),
-        contract.identities.execution.as_ref(),
-        execution_digest,
-    );
-    require_nested_digest(
-        &mut unresolved,
-        ContractReason::IdentitiesExecution,
-        contract.identities.execution,
-        contract.claim.as_ref().and_then(|claim| claim.execution.as_ref()),
-    );
-    require_nested_digest(
-        &mut unresolved,
-        ContractReason::ProgramTarget,
-        contract.program.as_ref().map(|item| item.target),
-        Some(&contract.identities.target),
-    );
-    require_nested_digest(
-        &mut unresolved,
-        ContractReason::ProgramIdentification,
-        contract.program.as_ref().map(|item| item.identification),
-        Some(&contract.identities.identification),
-    );
-    require_nested_digest(
-        &mut unresolved,
-        ContractReason::ProgramIdentificationProduct,
-        contract.program.as_ref().and_then(|item| item.identification_product),
-        contract.identities.identification_product.as_ref(),
-    );
-    require_nested_digest(
-        &mut unresolved,
-        ContractReason::DataSnapshotObservation,
-        contract.data_snapshot.as_ref().map(|item| item.observation),
-        Some(&contract.identities.observation),
-    );
-    verify_checked_aipw_rows(contract, &mut unresolved);
-    verify_layer_links(contract, &mut unresolved);
-    match contract_seal_of(contract) {
-        Ok(seal) if seal == contract.seal => {}
-        _ => unresolved.push(ContractReason::ContractSeal),
-    }
-    unresolved
 }

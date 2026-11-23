@@ -7,18 +7,17 @@
 //! raise as a typed exception. Nothing here pairs draws.
 
 use antecedent::analysis::cross_world_execution::{
-    CrossWorldExecution, CrossWorldExecutionArtifactError, CrossWorldExecutionError,
-    CrossWorldExecutionIdentity, FiniteExecutionResult, FiniteScmExecutor, SourceTreatment,
-    UnitSampling, WholePathAccount, capability_matrix,
+    CrossWorldExecution, CrossWorldExecutionArtifact, CrossWorldExecutionArtifactError,
+    CrossWorldExecutionError, CrossWorldExecutionIdentity, FiniteExecutionResult,
+    FiniteScmExecutor, SourceTreatment, UnitSampling, WholePathAccount, capability_matrix,
 };
-use antecedent_io::cross_world_execution_artifact::{
-    CrossWorldExecutionArtifact, CrossWorldRequestWire, request_of,
-};
+use antecedent::io::cross_world_execution_artifact::{CrossWorldRequestWire, request_of};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Value as Json, json};
 
 use crate::PyCancellationToken;
+use crate::errors::detach_catch;
 use crate::transport_common::execution_context;
 
 type Refused<T> = (Option<T>, Option<String>);
@@ -27,7 +26,7 @@ const STAGE: &str = "execute";
 
 fn invalid_json(detail: &str, message: String) -> String {
     json!({
-        "code": antecedent_core::reason_code!("invalid_argument"),
+        "code": antecedent::reason::reason_code!("invalid_argument"),
         "stage": STAGE,
         "detail": detail,
         "message": message,
@@ -51,9 +50,9 @@ fn core_refusal(error: &CrossWorldExecutionError) -> String {
         })
         .to_string(),
         _ => json!({
-            "code": antecedent_core::reason_code!("transport_budget_cancel"),
+            "code": antecedent::reason::reason_code!("transport_budget_cancel"),
             "stage": STAGE,
-            "detail": "cross_world_execution.cancelled",
+            "detail": antecedent::reason::reason_details::cross_world_execution::CANCELLED,
             "message": error.to_string(),
             "offending": Json::Null,
             "remedy": Json::Null,
@@ -72,18 +71,20 @@ fn artifact_refusal(error: &CrossWorldExecutionArtifactError) -> String {
         .to_string()
     } else {
         let detail = match error {
-            CrossWorldExecutionArtifactError::Cancelled => "cross_world_execution.cancelled",
-            CrossWorldExecutionArtifactError::ResultMismatch(_) => {
-                "cross_world_execution.artifact_changed"
+            CrossWorldExecutionArtifactError::Cancelled => {
+                antecedent::reason::reason_details::cross_world_execution::CANCELLED
             }
-            _ => "cross_world_execution.invalid_artifact",
+            CrossWorldExecutionArtifactError::ResultMismatch(_) => {
+                antecedent::reason::reason_details::cross_world_execution::ARTIFACT_CHANGED
+            }
+            _ => antecedent::reason::reason_details::cross_world_execution::INVALID_ARTIFACT,
         };
         let code = if matches!(error, CrossWorldExecutionArtifactError::Cancelled) {
-            antecedent_core::reason_code!("transport_budget_cancel")
+            antecedent::reason::reason_code!("transport_budget_cancel")
         } else if matches!(error, CrossWorldExecutionArtifactError::ResultMismatch(_)) {
-            antecedent_core::reason_code!("route_not_supported")
+            antecedent::reason::reason_code!("route_not_supported")
         } else {
-            antecedent_core::reason_code!("invalid_argument")
+            antecedent::reason::reason_code!("invalid_argument")
         };
         json!({
             "code": code, "stage": "consume", "detail": detail, "message": error.to_string(),
@@ -96,8 +97,12 @@ fn artifact_refusal(error: &CrossWorldExecutionArtifactError) -> String {
 fn parse_request(
     request_json: &str,
 ) -> Result<antecedent::analysis::cross_world_execution::FiniteExecutionRequest, String> {
-    let wire: CrossWorldRequestWire = serde_json::from_str(request_json)
-        .map_err(|e| invalid_json("cross_world_execution.invalid_request", e.to_string()))?;
+    let wire: CrossWorldRequestWire = serde_json::from_str(request_json).map_err(|e| {
+        invalid_json(
+            antecedent::reason::reason_details::cross_world_execution::INVALID_REQUEST,
+            e.to_string(),
+        )
+    })?;
     request_of(&wire).map_err(|e| artifact_refusal(&e))
 }
 
@@ -128,8 +133,16 @@ fn result_json(result: &FiniteExecutionResult) -> Json {
             "world_predictions": w.world_predictions,
             "posterior_states_predicted": w.posterior_states_predicted,
             "summaries": w.summaries,
+            "elimination_units": result.elimination.as_ref().map_or(0, |e| e.units),
+            "elimination_multiplications":
+                result.elimination.as_ref().map_or(0, |e| e.multiplications),
+            "elimination_peak_table_entries":
+                result.elimination.as_ref().map_or(0, |e| e.peak_table_entries),
         },
         "receipt": {
+            "exogenous_method": result.method.name(),
+            "elimination_plan_digest":
+                result.elimination.as_ref().map_or("", |e| e.plan_digest.as_str()),
             "mechanism_digest": result.receipt.mechanism_digest,
             "abduction_digest": result.receipt.abduction_digest,
             "exogenous_digest": result.receipt.exogenous_digest,
@@ -175,11 +188,14 @@ fn cross_world_capability_matrix() -> String {
 
 fn pick<T: Copy>(name: &str, all: &[(&str, T)], what: &str) -> Result<T, String> {
     all.iter().find(|(n, _)| *n == name).map(|(_, v)| *v).ok_or_else(|| {
-        invalid_json("cross_world_execution.invalid_request", format!("unknown {what} `{name}`"))
+        invalid_json(
+            antecedent::reason::reason_details::cross_world_execution::INVALID_REQUEST,
+            format!("unknown {what} `{name}`"),
+        )
     })
 }
 
-/// Decide a matrix cell. Returns the licensed row's JSON or the refusal JSON.
+/// Decide a matrix cell. Returns the supported row's JSON or the refusal JSON.
 #[pyfunction]
 #[allow(clippy::too_many_arguments, reason = "one argument per matrix dimension")]
 #[allow(
@@ -307,18 +323,21 @@ impl PyCrossWorldExecutor {
     #[pyo3(signature = (request_json, cancel=None))]
     fn execute(
         &mut self,
+        py: Python<'_>,
         request_json: &str,
         cancel: Option<PyCancellationToken>,
-    ) -> Refused<String> {
+    ) -> PyResult<Refused<String>> {
         let request = match parse_request(request_json) {
             Ok(r) => r,
-            Err(e) => return (None, Some(e)),
+            Err(e) => return Ok((None, Some(e))),
         };
         let ctx = execution_context(0, None, cancel);
-        match self.inner.execute(&request, &ctx) {
-            Ok(result) => (Some(result_json(&result).to_string()), None),
-            Err(error) => (None, Some(core_refusal(&error))),
-        }
+        detach_catch(py, || {
+            Ok(match self.inner.execute(&request, &ctx) {
+                Ok(result) => (Some(result_json(&result).to_string()), None),
+                Err(error) => (None, Some(core_refusal(&error))),
+            })
+        })
     }
 
     fn retained_len(&self) -> usize {
@@ -353,21 +372,24 @@ impl PyCrossWorldExecutor {
         data: &[u8],
         expected_identity_json: Option<&str>,
         cancel: Option<PyCancellationToken>,
-    ) -> Refused<(Py<PyCrossWorldExecutor>, String)> {
+    ) -> PyResult<Refused<(Py<PyCrossWorldExecutor>, String)>> {
         let expected = match expected_identity_json {
             Some(text) => match serde_json::from_str::<CrossWorldExecutionIdentity>(text) {
                 Ok(v) => Some(v),
                 Err(e) => {
-                    return (
+                    return Ok((
                         None,
-                        Some(invalid_json("cross_world_execution.invalid_identity", e.to_string())),
-                    );
+                        Some(invalid_json(antecedent::reason::reason_details::cross_world_execution::INVALID_IDENTITY, e.to_string())),
+                    ));
                 }
             },
             None => None,
         };
         let ctx = execution_context(0, None, cancel);
-        match CrossWorldExecutionArtifact::from_bytes(data, expected.as_ref(), &ctx) {
+        let consumed = detach_catch(py, || {
+            Ok(CrossWorldExecutionArtifact::from_bytes(data, expected.as_ref(), &ctx))
+        })?;
+        Ok(match consumed {
             Ok(artifact) => {
                 let summary = summary_json(&artifact);
                 let executor = PyCrossWorldExecutor { inner: artifact.into_executor() };
@@ -375,12 +397,12 @@ impl PyCrossWorldExecutor {
                     Ok(obj) => (Some((obj, summary)), None),
                     Err(e) => (
                         None,
-                        Some(invalid_json("cross_world_execution.invalid_artifact", e.to_string())),
+                        Some(invalid_json(antecedent::reason::reason_details::cross_world_execution::INVALID_ARTIFACT, e.to_string())),
                     ),
                 }
             }
             Err(error) => (None, Some(artifact_refusal(&error))),
-        }
+        })
     }
 }
 
@@ -406,47 +428,54 @@ fn cross_world_seal(
     request_json: &str,
     artifact_id: &str,
     cancel: Option<PyCancellationToken>,
-) -> Refused<(Py<PyBytes>, String)> {
+) -> PyResult<Refused<(Py<PyBytes>, String)>> {
     let request = match parse_request(request_json) {
         Ok(r) => r,
-        Err(e) => return (None, Some(e)),
+        Err(e) => return Ok((None, Some(e))),
     };
     let ctx = execution_context(0, None, cancel);
-    let artifact = match CrossWorldExecutionArtifact::seal(&request, &ctx) {
+    let sealed = detach_catch(py, || Ok(CrossWorldExecutionArtifact::seal(&request, &ctx)))?;
+    let artifact = match sealed {
         Ok(a) => a,
-        Err(e) => return (None, Some(artifact_refusal(&e))),
+        Err(e) => return Ok((None, Some(artifact_refusal(&e)))),
     };
-    match artifact.to_bytes(artifact_id) {
+    Ok(match artifact.to_bytes(artifact_id) {
         Ok(bytes) => (Some((PyBytes::new(py, &bytes).unbind(), summary_json(&artifact))), None),
         Err(e) => (None, Some(artifact_refusal(&e))),
-    }
+    })
 }
 
 /// Consume artifact bytes by replay; returns the summary JSON.
 #[pyfunction]
 #[pyo3(signature = (data, expected_identity_json=None, cancel=None))]
 fn cross_world_consume(
+    py: Python<'_>,
     data: &[u8],
     expected_identity_json: Option<&str>,
     cancel: Option<PyCancellationToken>,
-) -> Refused<String> {
+) -> PyResult<Refused<String>> {
     let expected = match expected_identity_json {
-        Some(text) => match serde_json::from_str::<CrossWorldExecutionIdentity>(text) {
-            Ok(v) => Some(v),
-            Err(e) => {
-                return (
+        Some(text) => {
+            match serde_json::from_str::<CrossWorldExecutionIdentity>(text) {
+                Ok(v) => Some(v),
+                Err(e) => {
+                    return Ok((
                     None,
-                    Some(invalid_json("cross_world_execution.invalid_identity", e.to_string())),
-                );
+                    Some(invalid_json(antecedent::reason::reason_details::cross_world_execution::INVALID_IDENTITY, e.to_string())),
+                ));
+                }
             }
-        },
+        }
         None => None,
     };
     let ctx = execution_context(0, None, cancel);
-    match CrossWorldExecutionArtifact::from_bytes(data, expected.as_ref(), &ctx) {
+    let consumed = detach_catch(py, || {
+        Ok(CrossWorldExecutionArtifact::from_bytes(data, expected.as_ref(), &ctx))
+    })?;
+    Ok(match consumed {
         Ok(artifact) => (Some(summary_json(&artifact)), None),
         Err(error) => (None, Some(artifact_refusal(&error))),
-    }
+    })
 }
 
 fn parse_unit_sampling(name: &str) -> Result<UnitSampling, String> {
@@ -455,7 +484,7 @@ fn parse_unit_sampling(name: &str) -> Result<UnitSampling, String> {
         "fixed_units" => Ok(UnitSampling::FixedUnits),
         "independent_sample" => Ok(UnitSampling::IndependentSample),
         other => Err(invalid_json(
-            "cross_world_execution.invalid_request",
+            antecedent::reason::reason_details::cross_world_execution::INVALID_REQUEST,
             format!("unknown unit sampling `{other}`"),
         )),
     }
@@ -505,23 +534,29 @@ fn account_json(account: &WholePathAccount) -> String {
 }
 
 fn consume_for_account(
+    py: Python<'_>,
     data: &[u8],
     expected_identity_json: Option<&str>,
     cancel: Option<PyCancellationToken>,
-) -> Result<(CrossWorldExecution, antecedent_core::ExecutionContext), String> {
+) -> PyResult<Result<(CrossWorldExecution, antecedent::prelude::ExecutionContext), String>> {
     let expected = match expected_identity_json {
         Some(text) => match serde_json::from_str::<CrossWorldExecutionIdentity>(text) {
             Ok(v) => Some(v),
             Err(e) => {
-                return Err(invalid_json("cross_world_execution.invalid_identity", e.to_string()));
+                return Ok(Err(invalid_json(
+                    antecedent::reason::reason_details::cross_world_execution::INVALID_IDENTITY,
+                    e.to_string(),
+                )));
             }
         },
         None => None,
     };
     let ctx = execution_context(0, None, cancel);
-    CrossWorldExecution::consume(data, expected.as_ref(), &ctx)
-        .map(|execution| (execution, ctx))
-        .map_err(|error| artifact_refusal(&error))
+    detach_catch(py, || {
+        Ok(CrossWorldExecution::consume(data, expected.as_ref(), &ctx)
+            .map(|execution| (execution, ctx))
+            .map_err(|error| artifact_refusal(&error)))
+    })
 }
 
 /// The whole-path uncertainty account of a sealed execution, derived again from its bytes
@@ -529,23 +564,25 @@ fn consume_for_account(
 #[pyfunction]
 #[pyo3(signature = (data, unit_sampling, expected_identity_json=None, cancel=None))]
 fn cross_world_whole_path(
+    py: Python<'_>,
     data: &[u8],
     unit_sampling: &str,
     expected_identity_json: Option<&str>,
     cancel: Option<PyCancellationToken>,
-) -> Refused<String> {
+) -> PyResult<Refused<String>> {
     let sampling = match parse_unit_sampling(unit_sampling) {
         Ok(s) => s,
-        Err(e) => return (None, Some(e)),
+        Err(e) => return Ok((None, Some(e))),
     };
-    let (execution, ctx) = match consume_for_account(data, expected_identity_json, cancel) {
+    let (execution, ctx) = match consume_for_account(py, data, expected_identity_json, cancel)? {
         Ok(pair) => pair,
-        Err(e) => return (None, Some(e)),
+        Err(e) => return Ok((None, Some(e))),
     };
-    match execution.whole_path_uncertainty(sampling, &ctx) {
+    let account = detach_catch(py, || Ok(execution.whole_path_uncertainty(sampling, &ctx)))?;
+    Ok(match account {
         Ok(account) => (Some(account_json(&account)), None),
         Err(error) => (None, Some(core_refusal(&error))),
-    }
+    })
 }
 
 /// Derive the account again from the bytes and require it to equal a stored one: `None` when
@@ -553,22 +590,24 @@ fn cross_world_whole_path(
 #[pyfunction]
 #[pyo3(signature = (data, unit_sampling, account_identity, receipt_digest, expected_identity_json=None, cancel=None))]
 fn cross_world_whole_path_verify(
+    py: Python<'_>,
     data: &[u8],
     unit_sampling: &str,
     account_identity: &str,
     receipt_digest: &str,
     expected_identity_json: Option<&str>,
     cancel: Option<PyCancellationToken>,
-) -> Option<String> {
+) -> PyResult<Option<String>> {
     let sampling = match parse_unit_sampling(unit_sampling) {
         Ok(s) => s,
-        Err(e) => return Some(e),
+        Err(e) => return Ok(Some(e)),
     };
-    let (execution, ctx) = match consume_for_account(data, expected_identity_json, cancel) {
+    let (execution, ctx) = match consume_for_account(py, data, expected_identity_json, cancel)? {
         Ok(pair) => pair,
-        Err(e) => return Some(e),
+        Err(e) => return Ok(Some(e)),
     };
-    match execution.whole_path_uncertainty(sampling, &ctx) {
+    let account = detach_catch(py, || Ok(execution.whole_path_uncertainty(sampling, &ctx)))?;
+    Ok(match account {
         Ok(account) => {
             if account.uncertainty().identity == account_identity
                 && account.execution_receipt_digest() == receipt_digest
@@ -577,9 +616,9 @@ fn cross_world_whole_path_verify(
             } else {
                 Some(
                     json!({
-                        "code": antecedent_core::reason_code!("invalid_argument"),
+                        "code": antecedent::reason::reason_code!("invalid_argument"),
                         "stage": "cross_world_uncertainty",
-                        "detail": "cross_world_uncertainty.account_mismatch",
+                        "detail": antecedent::reason::reason_details::cross_world_uncertainty::ACCOUNT_MISMATCH,
                         "message": "the stored account differs from the derivation",
                         "offending": Json::Null,
                         "remedy": "derive the account from the consumed execution; a stored account is never trusted",
@@ -590,38 +629,41 @@ fn cross_world_whole_path_verify(
             }
         }
         Err(error) => Some(core_refusal(&error)),
-    }
+    })
 }
 
-/// The interval of a sealed execution under a declared unit sampling, licensed only by a
-/// currently attesting whole-path coverage record. The artifact is consumed (replayed) first.
+/// The interval of a sealed execution under a declared unit sampling, with the
+/// calibration slot of the whole-path coverage records. The artifact is consumed (replayed) first.
 #[pyfunction]
 #[pyo3(signature = (data, unit_sampling, expected_identity_json=None, cancel=None))]
 fn cross_world_measured_interval(
+    py: Python<'_>,
     data: &[u8],
     unit_sampling: &str,
     expected_identity_json: Option<&str>,
     cancel: Option<PyCancellationToken>,
-) -> Refused<String> {
+) -> PyResult<Refused<String>> {
     let sampling = match parse_unit_sampling(unit_sampling) {
         Ok(s) => s,
-        Err(e) => return (None, Some(e)),
+        Err(e) => return Ok((None, Some(e))),
     };
-    let (execution, ctx) = match consume_for_account(data, expected_identity_json, cancel) {
+    let (execution, ctx) = match consume_for_account(py, data, expected_identity_json, cancel)? {
         Ok(pair) => pair,
-        Err(e) => return (None, Some(e)),
+        Err(e) => return Ok((None, Some(e))),
     };
-    match execution.measured_interval(sampling, &ctx) {
+    let interval = detach_catch(py, || Ok(execution.measured_interval(sampling, &ctx)))?;
+    Ok(match interval {
         Ok(interval) => (
             Some(
                 json!({
-                    "scalar": interval.scalar,
+                    "scalar": interval.scalar.as_str(),
                     "point": interval.point,
                     "lower": interval.lower,
                     "upper": interval.upper,
                     "level": interval.level,
                     "unit_sampling": interval.unit_sampling,
                     "record_id": interval.record_id,
+                    "calibration": interval.calibration,
                     "label": interval.label,
                 })
                 .to_string(),
@@ -643,31 +685,44 @@ fn cross_world_measured_interval(
                 .to_string(),
             ),
         ),
-    }
+    })
 }
 
-/// The refusal of an interval or posterior reading (always `cell_not_licensed`).
+/// The refusal of an unqualified interval, a posterior or a sampled abduction, with the
+/// scientific code that names why: an interval needs a declared unit sampling
+/// (`sampling_dependence_unknown`), a posterior has no representation here
+/// (`uncertainty_representation_insufficient`) and a sampled abduction only adds Monte Carlo
+/// error to an exactly computable quantity (`estimator_inference_mismatch`).
 #[pyfunction]
-fn cross_world_closed_reading(reading: &str) -> String {
-    let detail = match reading {
-        "interval" => "cross_world_execution.interval_route_closed",
-        "posterior" => "cross_world_execution.posterior_route_closed",
-        "sampled_abduction" => "cross_world_execution.sampled_abduction_not_licensed",
+fn cross_world_unsupported_reading(reading: &str) -> String {
+    let (code, detail) = match reading {
+        "interval" => (
+            antecedent::reason::reason_code!("sampling_dependence_unknown"),
+            antecedent::reason::reason_details::cross_world_execution::NO_INTERVAL_METHOD,
+        ),
+        "posterior" => (
+            antecedent::reason::reason_code!("uncertainty_representation_insufficient"),
+            antecedent::reason::reason_details::cross_world_execution::NO_POSTERIOR_METHOD,
+        ),
+        "sampled_abduction" => (
+            antecedent::reason::reason_code!("estimator_inference_mismatch"),
+            antecedent::reason::reason_details::cross_world_execution::SAMPLED_ABDUCTION_NOT_SUPPORTED,
+        ),
         _ => {
             return invalid_json(
-                "cross_world_execution.invalid_request",
+                antecedent::reason::reason_details::cross_world_execution::INVALID_REQUEST,
                 format!("unknown reading `{reading}`"),
             );
         }
     };
     json!({
-        "code": antecedent_core::reason_code!("cell_not_licensed"),
+        "code": code,
         "stage": STAGE,
         "detail": detail,
         "message": format!("cross-world reading refused: {detail}"),
         "offending": reading,
-        "remedy": "the whole abduction-action-prediction path has no measured coverage record; the point value from exact enumeration is the result, and the calibration design that would open this reading is recorded in docs/cross-world-execution.md",
-        "missing": ["whole_path_calibration_record"],
+        "remedy": "name a unit sampling and read measured_interval; the posterior and a sampled abduction are not supported readings of an exactly enumerable quantity",
+        "missing": [],
     })
     .to_string()
 }
@@ -681,6 +736,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(cross_world_whole_path, module)?)?;
     module.add_function(wrap_pyfunction!(cross_world_whole_path_verify, module)?)?;
     module.add_function(wrap_pyfunction!(cross_world_measured_interval, module)?)?;
-    module.add_function(wrap_pyfunction!(cross_world_closed_reading, module)?)?;
+    module.add_function(wrap_pyfunction!(cross_world_unsupported_reading, module)?)?;
     Ok(())
 }

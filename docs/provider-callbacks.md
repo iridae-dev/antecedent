@@ -3,13 +3,52 @@
 A callback is a function Antecedent does not own: a law, a posterior or a
 composition of them that the library can ask questions of but cannot inspect.
 This page states what such an object may claim, when a stored answer of it may
-be reused, and what stays closed. The declaration is an instance of the one
+be reused, and what it cannot claim. The declaration is an instance of the one
 interface-contract schema and bridges to the one provider contract
 (`CausalProviderSpec` / `ProviderRegistry` rules in
-[external-science.md](external-science.md)); there is no second format and no
-second registry. The earlier bounded mean callback (`recalc_external`) is
-unchanged and remains the route for a foreign mean that must follow a changing
-dependency under the shared recalculation planner.
+[connect scientific components](guides/build/scientific-interfaces.md)); there is no second format and no
+second registry. The bounded mean callback (`recalc_external`) is the route
+for a foreign mean that must follow a changing dependency under the shared
+recalculation planner.
+
+## Minimal call (Python)
+
+`antecedent.provider_callbacks` declares a callback, executes requests against a
+provider you pass in code, and exports and resumes its results:
+
+```python
+from antecedent import provider_callbacks as pc
+from antecedent.joint_distribution import ScientificQuantity
+from antecedent.outcomes import require_success
+
+identity = pc.ProviderIdentity("lab", "gaussian", "1.0", "snap-1", "req-1")
+outcome = ScientificQuantity.of(
+    "outcome", "systolic", units="mmHg", population="trial", regime="do(a=1)"
+)
+declaration = pc.CallbackDeclaration(
+    "gaussian_law", "law", identity, outcome,
+    "estimand:outcome_law", "interventional_predictive", pc.Support.real(),
+    operations=("mean",),
+    dependencies=pc.Dependencies.complete([pc.Dependency("model", "parameters", "mu=2")]),
+    replay=pc.Replay.deterministic_pure(),
+    trust=pc.Trust.externally_attested("lab"),
+    evidence=(),
+)
+provider = pc.FunctionProvider(identity, lambda query, context: pc.Output.mean(2.0))
+
+session = pc.CallbackSession()
+result = require_success(session.execute(provider, declaration, pc.Request(pc.Query.mean())))
+result.output.values, result.standing, result.invocations   # (2.0,), "supported_external", 1
+again = require_success(session.execute(provider, declaration, pc.Request(pc.Query.mean())))
+again.reused, again.invocations                              # True, 0
+```
+
+`execute` returns an `Outcome`; a refusal carries a `callback_protocol.*` detail
+and, through `require_success`, raises `CallbackExecutionRefusal` with the
+invocation counts. Planning (`session.plan`), `consume_callback_result` and
+`inspect_callback_result` never call a provider. The rest of this page states
+the contract in terms of the Rust types; the Python classes carry the same
+names and fields.
 
 ## The protocol
 
@@ -29,7 +68,7 @@ dependency under the shared recalculation planner.
 
 `CallbackDeclaration::interface_contract()` projects it to one produced port
 `output` and one consumed port per input; the port is point-only when only a
-mean is offered and *unmeasured* otherwise, never measured.
+mean is offered and *not_measured* otherwise, never measured.
 `provider_object()` and `update_object()` bridge it to `LawProviderContract`,
 `PosteriorProviderContract` and `SignalProviderContract`, so `negotiate` and
 `verify_external_object` apply to a callback unchanged. A declared
@@ -92,34 +131,36 @@ it observes cancellation, the wall-clock bound and the checked output.
 
 ## Standing
 
-A result is **diagnostic** or a **licensed external** claim
-(`standing_of`). Licensed external needs a replayable contract
+A result is **diagnostic** or a **supported external** claim
+(`standing_of`). Supported external needs a replayable contract
 (deterministic or seeded), complete dependencies and an attested provider, or a
 verified one confirmed against its receipt. A stateful or side-effecting result,
 an opaque one or an unverified one stays diagnostic: it is inspectable and no
 claim is built on it. Neither is native. Metadata cannot mint native trust, a
-joint law or an identification licence; those refuse (`cell_not_licensed`,
+joint law or an identification evidence; those refuse (`not_supported`,
 `joint_law_required`) through `refuse_native_trust`,
-`refuse_identification_licence` and `refuse_joint_law`. Independently produced
+`refuse_identification_evidence` and `refuse_joint_law`. Independently produced
 callback draws are never paired by index.
 
 Attestation is rechecked where a result is used. A loaded artifact's trust is
 the producer's claim: the standing a consumer sees is recomputed from the
 declaration it holds now, a declared verification counts only against the
 receipt supplied at that call (`verification_holds`), and a reused stored result
-takes the standing of the current declaration, not the stored one. An old
+takes the standing of the current declaration, not the stored one. A stored
 result is preserved and inspectable; it is not revived by a cache or by
 restamping its identities.
 
-## Interval and posterior guarantees stay closed
+## No interval or posterior guarantee from a callback
 
-A callback supplies values, not coverage. An interval from a callback law and a
-posterior or probability guarantee refuse with `cell_not_licensed`
-(`refuse_interval`, `refuse_posterior_guarantee`). Calibration is a recorded
-design only: the whole method (the callback and everything composed with it),
-a data-generating process that includes the provider's own estimation, a
-nominal level, a support range and probes for coverage at the composed
-coordinate. No coverage was measured.
+A callback supplies values, not a sampling or posterior representation of them,
+so there is nothing to build an interval from. An interval from a callback law
+and a posterior or probability guarantee refuse with
+`uncertainty_representation_insufficient`
+(`callback_protocol.interval_not_supported`,
+`callback_protocol.posterior_guarantee_not_supported`; `refuse_interval`,
+`refuse_posterior_guarantee`). This is a scientific refusal, not a missing
+measurement: bind the callback output to a native method that reports an
+interval, or keep the result an external claim.
 
 ## Nested callbacks and evidence
 
@@ -143,7 +184,7 @@ rebuilds and re-validates every part and recomputes the declaration, request,
 output and artifact identities; a retained identity binds it. A stored native
 trust level is refused, not downgraded.
 
-`CallbackSession::resume` imports the historical result (always inspectable)
+`CallbackSession::resume` imports the stored result (always inspectable)
 and then, with a supplied provider that is the declared object, answers the
 request by reuse or recomputation under the replay contract. With no provider
 the stage is recorded `unavailable` with `callback_provider_unavailable`; with a
@@ -177,8 +218,8 @@ input use check that owner and the stored declaration, request and output identi
 a foreign execution or a tampered object is refused. Integer history indices are local
 to the receiving session, even when another session has the same index.
 
-`execution.export()` returns bytes from its owning session. `execution.artifact()`
-returns the bytes plus an independently retainable identity expectation and immutable
-metadata. `ant.load(bytes, expected=...)` consumes without running any provider. Transfer
+`execution.export()` returns a typed artifact from its owning session: the bytes plus an
+independently retainable identity expectation and immutable metadata.
+`ant.load(bytes(artifact), expected=artifact.expectation)` consumes without running any provider. Transfer
 to another live session uses explicit `session.resume(...)` with that expectation;
-provider replacement still follows the existing declaration and replay contract.
+provider replacement follows the declaration and replay contract.

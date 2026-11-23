@@ -9,7 +9,7 @@
 //! 0.2 (equal numbers of each sign), so units are strongly dependent and the
 //! population mean is exactly the SCM's.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::cast_precision_loss,
     clippy::cast_possible_wrap,
@@ -23,7 +23,7 @@ use antecedent_estimate::EstimationError;
 use antecedent_estimate::temporal_dependent_interval::{
     DependentIntervalConfig, INTERVAL_CALIBRATION_STATUS, INTERVAL_CLAIM, IntervalMethod,
     ObservedStateSequence, SequenceHistory, TemporalUnitPanel, UnitHistories,
-    dependent_unit_interval, route_frozen_refusal,
+    dependent_unit_interval,
 };
 use antecedent_estimate::temporal_initial_state::{
     FixedStateQuery, InitialStateLaw, InitialStatePopulation, InitialStateSpec, MarginalizedQuery,
@@ -44,7 +44,7 @@ fn ctx() -> ExecutionContext {
 
 fn refused(error: EstimationError) -> (&'static str, String) {
     match error {
-        EstimationError::Refused { code, message } => (code, message),
+        EstimationError::Refused { code, message } => (code, message.into_string()),
         other => panic!("expected a registered refusal, got {other:?}"),
     }
 }
@@ -63,7 +63,7 @@ fn truth_given_state(sequence: [u32; 2], s0: usize) -> f64 {
 
 /// All histories of unit `unit` (sign of the unit effect from its parity).
 fn unit_rows(unit: usize) -> Vec<(u32, u32, u32, u32, f64)> {
-    let shift: i64 = if unit % 2 == 0 { 2 } else { -2 };
+    let shift: i64 = if unit.is_multiple_of(2) { 2 } else { -2 };
     let mut rows = Vec::new();
     for s0 in 0..2_usize {
         for a1 in 0..2_usize {
@@ -85,7 +85,7 @@ fn unit_rows(unit: usize) -> Vec<(u32, u32, u32, u32, f64)> {
 }
 
 fn history(time_id: u64, row: (u32, u32, u32, u32, f64)) -> SequenceHistory {
-    SequenceHistory { time_id, s0: row.0, a1: row.1, l2: row.2, a2: row.3, y: row.4 }
+    SequenceHistory::two_step(time_id, row.0, row.1, row.2, row.3, row.4)
 }
 
 /// Complete repeated-unit histories for the studentized SCM fixture.
@@ -123,7 +123,7 @@ fn dynamic_scm_interval_point_equals_enumerated_truth() {
     assert_eq!(p.unit_count(), 30);
     assert_eq!(p.history_count(), 30 * 800);
     for (s0, hand) in [(0_u32, 0.33), (1, 0.46)] {
-        let fixed = FixedStateQuery { sequence: SEQUENCE, s0 }.effect(&p).unwrap().value;
+        let fixed = FixedStateQuery { sequence: SEQUENCE.to_vec(), s0 }.effect(&p).unwrap().value;
         assert!((fixed - truth_given_state(SEQUENCE, s0 as usize)).abs() < 1e-12);
         assert!((fixed - hand).abs() < 1e-12, "{fixed} vs hand-enumerated {hand}");
     }
@@ -161,11 +161,11 @@ fn dynamic_scm_studentized_interval_covers_independent_truth() {
     // Analytic direction: the unit effect moves the whole value by +-0.2, so the
     // replicate sd across 30 whole units is about 0.2 * 2 * sqrt(0.25 / 30) = 0.037
     // (95% width about 0.14).
-    assert!(by_unit.width() > 0.08 && by_unit.width() < 0.25, "width {}", by_unit.width());
+    assert!(by_unit.width() > 0.12 && by_unit.width() < 0.16, "width {}", by_unit.width());
     assert!(by_unit.contains(truth), "[{}, {}] misses {truth}", by_unit.lower, by_unit.upper);
     assert_eq!(by_unit.claim, INTERVAL_CLAIM);
     assert_eq!(by_unit.calibration, INTERVAL_CALIBRATION_STATUS);
-    assert_eq!(by_unit.calibration, "unmeasured");
+    assert_eq!(by_unit.calibration, "not_measured");
     assert!((by_unit.level - 0.95).abs() < 1e-12);
 }
 
@@ -238,7 +238,7 @@ fn dynamic_scm_interval_observed_state_estimand_is_labelled_distinctly() {
     let observed = dependent_unit_interval(
         &p,
         &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Observed(
-            ObservedStateSequence { sequence: SEQUENCE },
+            ObservedStateSequence { sequence: SEQUENCE.to_vec() },
         ),
         &config(5),
         &ctx(),
@@ -250,7 +250,7 @@ fn dynamic_scm_interval_observed_state_estimand_is_labelled_distinctly() {
     let fixed = dependent_unit_interval(
         &p,
         &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Fixed(
-            FixedStateQuery { sequence: SEQUENCE, s0: 1 },
+            FixedStateQuery { sequence: SEQUENCE.to_vec(), s0: 1 },
         ),
         &config(5),
         &ctx(),
@@ -263,17 +263,32 @@ fn dynamic_scm_interval_observed_state_estimand_is_labelled_distinctly() {
 #[test]
 fn dynamic_scm_interval_refuses_bounds_unsupported_histories_and_cancellation() {
     let p = panel(30);
-    let too_many = DependentIntervalConfig { replicates: 2001, ..config(1) };
+    // Replicates above the cap are refused with the documented detail; the cap itself is admitted.
+    let estimator =
+        antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(
+            target_query(),
+        );
+    let many = DependentIntervalConfig {
+        replicates: antecedent_estimate::temporal_dependent_interval::INTERVAL_MAX_REPLICATES + 1,
+        ..config(1)
+    };
     let (code, message) =
-        refused(dependent_unit_interval(&p, &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(target_query()), &too_many, &ctx()).unwrap_err());
+        refused(dependent_unit_interval(&p, &estimator, &many, &ctx()).unwrap_err());
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("temporal_interval.too_many_replicates"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_interval::TOO_MANY_REPLICATES),
+        "{message}"
+    );
+    assert!(message.contains("2001 replicates exceed the cap of 2000"), "{message}");
 
     let few = panel(5);
     let (code, message) =
         refused(dependent_unit_interval(&few, &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(target_query()), &config(1), &ctx()).unwrap_err());
     assert_eq!(code, "too_few_clusters");
-    assert!(message.contains("temporal_interval.too_few_units"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_interval::TOO_FEW_UNITS),
+        "{message}"
+    );
 
     // Every history takes a1 = 1, so the sequence (0, 0) has no support at all.
     let units = (0..30_u64)
@@ -283,11 +298,14 @@ fn dynamic_scm_interval_refuses_bounds_unsupported_histories_and_cancellation() 
         })
         .collect();
     let unsupported = TemporalUnitPanel::new("no-support", Some(units)).unwrap();
-    let query = FixedStateQuery { sequence: SEQUENCE, s0: 0 };
+    let query = FixedStateQuery { sequence: SEQUENCE.to_vec(), s0: 0 };
     let (code, message) =
         refused(dependent_unit_interval(&unsupported, &query, &config(1), &ctx()).unwrap_err());
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("temporal_interval.unsupported_history"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_interval::UNSUPPORTED_HISTORY),
+        "{message}"
+    );
 
     let stopped = ctx();
     stopped.cancellation.cancel();
@@ -300,7 +318,10 @@ fn dynamic_scm_interval_refuses_bounds_unsupported_histories_and_cancellation() 
 fn unknown_unit_dependence_refuses_an_absent_map_and_incompatible_units() {
     let (code, message) = refused(TemporalUnitPanel::new("rows-only", None).unwrap_err());
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("temporal_interval.unknown_units"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_interval::UNKNOWN_UNITS),
+        "{message}"
+    );
 
     let one = |id: u64, times: &[u64]| UnitHistories {
         unit_id: id,
@@ -315,20 +336,21 @@ fn unknown_unit_dependence_refuses_an_absent_map_and_incompatible_units() {
     for (name, units) in cases {
         let (code, message) = refused(TemporalUnitPanel::new("s", Some(units)).unwrap_err());
         assert_eq!(code, "route_not_supported", "{name}");
-        assert!(message.contains("temporal_interval.unknown_units"), "{name}: {message}");
+        assert!(
+            message.contains(antecedent_core::reason_details::temporal_interval::UNKNOWN_UNITS),
+            "{name}: {message}"
+        );
     }
     let (_, message) = refused(TemporalUnitPanel::new("", Some(vec![one(1, &[0])])).unwrap_err());
-    assert!(message.contains("temporal_interval.unknown_units"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::temporal_interval::UNKNOWN_UNITS),
+        "{message}"
+    );
 
     let nan = UnitHistories { unit_id: 1, histories: vec![history(0, (0, 0, 0, 0, f64::NAN))] };
-    assert!(TemporalUnitPanel::new("s", Some(vec![nan])).is_err());
-}
-
-#[test]
-fn unknown_unit_dependence_public_route_stays_closed() {
-    let (code, message) = refused(route_frozen_refusal());
-    assert_eq!(code, "cell_not_licensed");
-    assert!(message.contains("temporal_interval.route_frozen"), "{message}");
+    let (code, message) = refused(TemporalUnitPanel::new("s", Some(vec![nan])).unwrap_err());
+    assert_eq!(code, "route_not_supported");
+    assert!(message.contains("unit 1 has a non-finite outcome"), "{message}");
 }
 
 #[test]
@@ -437,6 +459,10 @@ fn direct_intervals_reject_retired_methods_before_estimation() {
             &ctx(),
         )
         .unwrap_err();
-        assert!(error.to_string().contains("temporal_interval.retired_method"));
+        assert!(
+            error
+                .to_string()
+                .contains(antecedent_core::reason_details::temporal_interval::RETIRED_METHOD)
+        );
     }
 }

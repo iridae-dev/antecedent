@@ -1,6 +1,6 @@
 //! Design-crate errors.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use thiserror::Error;
 
@@ -8,6 +8,9 @@ use thiserror::Error;
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DesignError {
+    /// Worker admission could not fund this design evaluation.
+    #[error("design resource refusal: {0}")]
+    Resource(String),
     /// Empty candidate list.
     #[error("no candidate designs to rank")]
     EmptyCandidates,
@@ -38,7 +41,56 @@ pub enum DesignError {
         /// Failure detail.
         message: String,
     },
+    /// A foreign utility / constraint callback raised. The failure is structured data, so a
+    /// host binding finds the exception it retained from the error chain; the text is the
+    /// same as the [`Self::Callback`] it replaces.
+    #[error("callback {name}: {failure}")]
+    CallbackFailed {
+        /// Callback name (`utility` or a constraint name).
+        name: String,
+        /// The structured failure.
+        #[source]
+        failure: antecedent_core::CallbackFailure,
+    },
     /// The caller cancelled the evaluation. A partial ranking is not a result.
     #[error("design evaluation cancelled")]
     Cancelled,
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::items_after_test_module,
+    reason = "the conversion implementation remains beside the error definition"
+)]
+mod tests {
+    use super::DesignError;
+    use antecedent_core::CallbackFailure;
+
+    #[test]
+    fn a_callback_failure_round_trips_through_the_design_error() {
+        let failure = CallbackFailure::new(Some(5), "utility failed: boom", None);
+        let error =
+            DesignError::CallbackFailed { name: "utility".into(), failure: failure.clone() };
+        assert_eq!(error.to_string(), "callback utility: utility failed: boom");
+        assert_eq!(CallbackFailure::in_chain(&error), Some(&failure));
+        assert!(CallbackFailure::in_chain(&DesignError::Cancelled).is_none());
+    }
+}
+
+impl<E> From<antecedent_core::execution::MapExecutionError<E>> for DesignError
+where
+    Self: From<E>,
+{
+    fn from(error: antecedent_core::execution::MapExecutionError<E>) -> Self {
+        match error {
+            antecedent_core::execution::MapExecutionError::Admission(error) => {
+                if matches!(error, antecedent_core::execution::AdmissionError::Cancelled) {
+                    Self::Cancelled
+                } else {
+                    Self::Resource(error.to_string())
+                }
+            }
+            antecedent_core::execution::MapExecutionError::Work(error) => Self::from(error),
+        }
+    }
 }

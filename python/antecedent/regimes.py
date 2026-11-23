@@ -4,7 +4,7 @@ This low-level utility evaluates static or history-adaptive binary regimes using
 user-supplied sequential treatment and censoring probabilities. The regime
 value and sequential g-formula paths are point-only; the binary MSM path
 returns pointwise subject-clustered standard errors. No path fits the nuisance
-probabilities or adds a support-matrix license.
+probabilities or adds a support-matrix support.
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ from numpy.typing import ArrayLike
 from . import _native
 from ._columns import coerce_fields, hold_unresolved, resolved
 from .errors import CausalValueError
+from .execution import Execution, resolve_execution
 
 HistoryPolicy: TypeAlias = Callable[[int, tuple[bool, ...], tuple[tuple[float, ...], ...]], bool]
 Regime: TypeAlias = Sequence[bool] | HistoryPolicy
@@ -267,6 +268,7 @@ class LongitudinalRegime:
 
     @property
     def periods(self) -> int:
+        """The number of periods in each subject's treatment history."""
         return len(self.treatment_history[0])
 
     @classmethod
@@ -434,7 +436,7 @@ class LongitudinalRegimeEstimate:
     method: str = "ipw"
     uncertainty: str = "point_only_no_interval"
     probability_ownership: str = "known_sequential_randomization"
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     period_effects: tuple[float, ...] | None = None
     standard_errors: tuple[float, ...] | None = None
     stabilizing_numerator_probabilities: tuple[float, ...] | None = None
@@ -442,6 +444,106 @@ class LongitudinalRegimeEstimate:
     rule_id: str | None = None
     rule_version: str | None = None
     rule_provenance: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SequentialContrast:
+    """Observational contrast of two static two-decision regimes, one row per subject.
+
+    The first binary action, the covariates measured after it, the second binary action and the
+    terminal outcome are data columns. ``active`` and ``control`` are the actions ``(first,
+    second)`` of each regime and have no default. ``folds`` is a fold count (row ``i`` goes to fold
+    ``i % folds``) or one fold index per row for the cross-fitting. Sequential conditional
+    exchangeability given the measured history, positivity, consistency and no interference are
+    declared, not derived. Frequentist inference reports the normal interval of the cross-fit
+    contrast; ``Bayesian`` inference reports the modular Bayesian-bootstrap posterior of the same
+    scores. Either is supported only for the always-treat against never-treat contrast with at
+    least five folds (none above a fifth of the rows), at least 200 subjects and fitted action
+    probabilities at least 0.05 (and at least 2,000 draws for the posterior): the interval's
+    support is ``SequentialContrastEstimate.supported`` and the posterior's is the
+    ``estimate.design_posterior.graphless_support`` diagnostic. Every other fit is unsupported.
+    """
+
+    outcome: str
+    first_treatment: str
+    second_treatment: str
+    active: tuple[int, int]
+    control: tuple[int, int]
+    baseline: Sequence[str] = ()
+    intermediate: Sequence[str] = ()
+    folds: int | Sequence[int] = 2
+    min_probability: float = 0.05
+    kind: Literal["sequential_contrast"] = field(
+        default="sequential_contrast", init=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        names = [self.outcome, self.first_treatment, self.second_treatment]
+        names.extend(self.baseline)
+        names.extend(self.intermediate)
+        if any(not isinstance(name, str) or not name.strip() for name in names):
+            raise CausalValueError("every column name must be a non-empty string")
+        if len(set(names)) != len(names):
+            raise CausalValueError(
+                "outcome, both actions and every covariate must be distinct columns"
+            )
+        for label, regime in (("active", self.active), ("control", self.control)):
+            if len(regime) != 2 or any(action not in (0, 1) for action in regime):
+                raise CausalValueError(f"{label} must be two actions, each 0 or 1")
+        if isinstance(self.folds, bool):
+            raise CausalValueError("folds must be a count or one fold per row")
+        if isinstance(self.folds, int):
+            if self.folds < 2:
+                raise CausalValueError("folds must be at least 2")
+        elif len(self.folds) < 2 or any(int(fold) < 0 for fold in self.folds):
+            raise CausalValueError("folds must be a count or one non-negative fold per row")
+        if not (isfinite(self.min_probability) and 0.0 < self.min_probability <= 0.5):
+            raise CausalValueError("min_probability must be in (0, 0.5]")
+        coerce_fields(self, baseline=tuple(self.baseline), intermediate=tuple(self.intermediate))
+
+
+@dataclass(frozen=True, slots=True)
+class SequentialContrastEstimate:
+    """Cross-fit contrast of two regimes with its scores.
+
+    ``supported`` is ``True`` only when the normal interval meets the sequential-contrast support
+    row: the always-treat against never-treat contrast, at least five folds with none above a
+    fifth of the rows, at least 200 subjects and every fitted regime-action probability at least
+    0.05. A posterior states its row in the result's diagnostics instead. Every other fit is
+    unsupported.
+    """
+
+    active_regime: tuple[int, int]
+    control_regime: tuple[int, int]
+    contrast: float
+    active_mean: float
+    control_mean: float
+    evaluated_rows: int
+    minimum_action_probability: float
+    min_probability: float
+    coverage: float
+    active_scores: tuple[float, ...]
+    control_scores: tuple[float, ...]
+    contrast_scores: tuple[float, ...]
+    uncertainty: str
+    #: Normal-interval report: standard error and interval of the mean contrast score.
+    standard_error: float | None = None
+    interval: tuple[float, float] | None = None
+    fits_computed: int = 0
+    fits_reused: int = 0
+    supported: bool = False
+    calibration_measured: bool = False
+    support_status: str = "unsupported_uncalibrated"
+    assumptions: tuple[str, ...] = (
+        "sequential_conditional_exchangeability_given_measured_history",
+        "positivity_at_each_decision",
+        "consistency_and_no_interference",
+        "no_unmeasured_second_decision_confounder",
+        "nuisance_product_rate_o_n_minus_half",
+    )
+
+    #: Symmetric credible interval around the contrast from the Bayesian-bootstrap draws.
+    posterior_symmetric_interval: tuple[float, float] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -522,7 +624,7 @@ class MarginalStructuralModelResult:
     crossfit_status: str = (
         "caller_supplied propensity data dependence is not independently verified"
     )
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     assumptions: tuple[str, ...] = (
         "consistency for the observed longitudinal treatment histories",
         "sequential exchangeability conditional on the histories used for treatment probabilities",
@@ -943,7 +1045,166 @@ def evaluate_sequential_doubly_robust(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class TrajectorySurvivalIntervals:
+    """Subject-bootstrap intervals of the weighted product-limit contrast of two regimes.
+
+    The resampling conditions on the supplied treatment probabilities and censoring weights:
+    the nuisance models that produced them are not refitted, so their estimation error is not
+    included, and the interval is not a posterior.
+    """
+
+    survival_difference: tuple[float, float]
+    restricted_mean_difference: tuple[float, float]
+    replicates_requested: int
+    replicates_ok: int
+
+
+@dataclass(frozen=True, slots=True)
+class _Trajectories:
+    subjects: int
+    periods: int
+    treatment: list[bool]
+    event: list[bool]
+    at_risk: list[bool]
+    treatment_probability: list[float]
+    censoring_weight: list[float]
+    minimum_probability: float
+
+    def args(
+        self,
+    ) -> tuple[int, int, list[bool], list[bool], list[bool], list[float], list[float], float]:
+        return (
+            self.subjects,
+            self.periods,
+            self.treatment,
+            self.event,
+            self.at_risk,
+            self.treatment_probability,
+            self.censoring_weight,
+            self.minimum_probability,
+        )
+
+
+def _trajectories(
+    treatment: ArrayLike,
+    event: ArrayLike,
+    at_risk: ArrayLike,
+    treatment_probability: ArrayLike,
+    censoring_weight: ArrayLike,
+    minimum_probability: float,
+) -> _Trajectories:
+    flags = [np.asarray(value, dtype=bool) for value in (treatment, event, at_risk)]
+    numbers = [
+        np.asarray(value, dtype=float) for value in (treatment_probability, censoring_weight)
+    ]
+    shapes = {array.shape for array in (*flags, *numbers)}
+    if len(shapes) != 1 or len(next(iter(shapes))) != 2:
+        raise CausalValueError(
+            "treatment, event, at_risk, treatment_probability and censoring_weight must share one "
+            "(subjects, periods) shape"
+        )
+    subjects, periods = flags[0].shape
+    return _Trajectories(
+        subjects,
+        periods,
+        flags[0].ravel().tolist(),
+        flags[1].ravel().tolist(),
+        flags[2].ravel().tolist(),
+        numbers[0].ravel().tolist(),
+        numbers[1].ravel().tolist(),
+        float(minimum_probability),
+    )
+
+
+def trajectory_survival_bootstrap(
+    treatment: ArrayLike,
+    event: ArrayLike,
+    at_risk: ArrayLike,
+    treatment_probability: ArrayLike,
+    censoring_weight: ArrayLike,
+    *,
+    active: Sequence[bool],
+    control: Sequence[bool],
+    minimum_probability: float = 0.05,
+    replicates: int = 999,
+    execution: Execution | None = None,
+) -> TrajectorySurvivalIntervals:
+    """Percentile subject-bootstrap intervals of the weighted product-limit contrast.
+
+    Arrays are ``(subjects, periods)``; ``active`` and ``control`` are the two prescribed
+    treatment trajectories, one action per period. The intervals condition on the supplied
+    treatment probabilities and censoring weights. For a credible interval see
+    :func:`trajectory_hazard_credible_interval`, which refuses.
+    """
+    execution = resolve_execution(execution)
+    data = _trajectories(
+        treatment, event, at_risk, treatment_probability, censoring_weight, minimum_probability
+    )
+    low, high, rmst_low, rmst_high, requested, ok = _native.trajectory_bootstrap_native(
+        *data.args(),
+        [bool(a) for a in active],
+        [bool(c) for c in control],
+        int(replicates),
+        int(execution.seed),
+    )
+    return TrajectorySurvivalIntervals((low, high), (rmst_low, rmst_high), requested, ok)
+
+
+def trajectory_survival_contrast(
+    treatment: ArrayLike,
+    event: ArrayLike,
+    at_risk: ArrayLike,
+    treatment_probability: ArrayLike,
+    censoring_weight: ArrayLike,
+    *,
+    active: Sequence[bool],
+    control: Sequence[bool],
+    minimum_probability: float = 0.05,
+) -> tuple[float, float]:
+    """The weighted product-limit ``(survival difference, restricted-mean difference)``."""
+    data = _trajectories(
+        treatment, event, at_risk, treatment_probability, censoring_weight, minimum_probability
+    )
+    return _native.trajectory_contrast_native(
+        *data.args(), [bool(a) for a in active], [bool(c) for c in control]
+    )
+
+
+def trajectory_hazard_credible_interval(
+    treatment: ArrayLike,
+    event: ArrayLike,
+    at_risk: ArrayLike,
+    treatment_probability: ArrayLike,
+    censoring_weight: ArrayLike,
+    *,
+    active: Sequence[bool],
+    control: Sequence[bool],
+    minimum_probability: float = 0.05,
+) -> tuple[float, float]:
+    """A credible interval for the trajectory survival contrast: always refused.
+
+    Raises a ``route_not_supported`` refusal (``trajectory_survival.credible_interval_not_supported``)
+    naming the missing premise, a joint likelihood for the confounders, treatment, censoring and
+    event hazard (a parametric g-formula posterior), and the next attempt: supply a longitudinal
+    confounder, treatment, censoring and event model with priors, or report the conditional
+    bootstrap interval of :func:`trajectory_survival_bootstrap`.
+    """
+    data = _trajectories(
+        treatment, event, at_risk, treatment_probability, censoring_weight, minimum_probability
+    )
+    return _native.trajectory_credible_interval_native(
+        *data.args(), [bool(a) for a in active], [bool(c) for c in control]
+    )
+
+
 __all__ = [
+    "TrajectorySurvivalIntervals",
+    "trajectory_hazard_credible_interval",
+    "trajectory_survival_bootstrap",
+    "trajectory_survival_contrast",
+    "SequentialContrast",
+    "SequentialContrastEstimate",
     "LongitudinalRegime",
     "LongitudinalRegimeEstimate",
     "GFormulaValue",

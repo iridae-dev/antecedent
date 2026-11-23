@@ -1,53 +1,63 @@
 # Artifact format
 
+An artifact is the portable, versioned byte record of a result, query, posterior or other
+scientific product: `outcome.export()` writes one and `ant.load(...)` consumes it. This page
+is the reference for how to persist and load artifacts from Python, the container layout, the
+artifact kinds and their sections, and migration between format versions. In the kind tables,
+each row is one artifact kind and the named sections its container holds.
+
+For a task-led introduction, read [artifacts and handoff](guides/build/artifacts-and-handoff.md);
+*loaded*, *replayed* and *identity-bound* are defined in the [glossary](concepts/glossary.md).
+
+## Format version
+
 Library package version is tracked independently from the durable artifact format.
 The durable format is **`FormatVersion { major: 0, minor: 5 }`**
 (`antecedent_io::STABLE_FORMAT`). Format 0.5 includes the identified-set interval
 on structural-mixture analysis results (below); format 0.4 added temporal
 response-query fields and dose × horizon response surfaces.
 
-Format 0.4 was the durable-artifact wire freeze for package 1.0.0. A wire
-change advances the format and provides migration from prior stable versions;
-the package-version bump itself does not change artifact bytes.
+A wire change advances the format and provides migration from prior stable
+versions; a package-version change alone does not change artifact bytes.
 
-## Python persistence in 2.4
+## Python persistence
 
-Scientific `export(...)` returns container bytes. Write them with `Path.write_bytes`
-and read them with `Path.read_bytes`; persistence does not take file paths implicitly.
-`artifact(...)` returns an immutable `ant.artifacts.ExportedArtifact[T]`: the same
-bytes in `.data`, a `.kind`, a typed `.expectation` when available, and family-specific
-`.metadata`. Ledger carried/not-carried receipts remain in this metadata. Operations
-that select a query or record retain their explicit selection arguments.
+`outcome.export(...)` returns an immutable `ant.artifacts.ExportedArtifact[T]`: the container
+bytes (`bytes(artifact)` or `.data`), a `.kind`, a typed `.expectation` when available, and
+family-specific `.metadata`. Write them with `Path.write_bytes` and read them with
+`Path.read_bytes`; persistence does not take file paths implicitly. Ledger carried/not-carried
+receipts remain in this metadata. Operations that select a query or record retain their explicit
+selection arguments (`quantity=`).
 
 ```python
 import antecedent as ant
 
-envelope = result.artifact()
-path.write_bytes(envelope.data)
+artifact = result.export()
+path.write_bytes(bytes(artifact))
 # Store this expectation in an independent trusted record, separate from the bytes.
-expected = envelope.expectation
+expected = artifact.expectation
 metadata = ant.artifacts.inspect(path.read_bytes())
 loaded = ant.load(path.read_bytes(), expected=expected)
 ```
 
 `ant.load` dispatches registered scientific families to their existing native consumers
-and returns the family-specific consumed result. Required expectations remain required:
-container metadata never supplies an independent identity binding. For bundle consumption,
+and returns the family-specific consumed result in an `Outcome`. Required expectations
+remain required: container metadata never supplies an independent identity binding.
+For bundle consumption,
 `ant.artifacts.LoadContext(supplied_sources=..., actual_claims=...)` passes existing source
 declarations and actual native claims to the consumer. Loading never invokes a callback or
 reconstructs a live study.
 
-Acceptance reports identity binding, native replayability and explicit resumability
-separately. `ant.artifacts.inspect(...)` is metadata inspection, not acceptance of a
-scientific claim. Unknown recognized families can be inspected and forwarded with
-`export()` while scientific consumption remains unavailable; malformed containers are
+Acceptance reports its status (`loaded`, `replayed` or `unavailable`), identity binding
+and explicit resumability separately. `ant.artifacts.inspect(...)` is metadata
+inspection, not acceptance of a scientific claim. Unknown recognized families can be
+inspected and forwarded with `export()` while scientific consumption remains
+unavailable; malformed containers are
 errors. Consumed read models are recursively immutable, and `to_dict()` produces an
 independent JSON-safe editable copy.
 
 See [the notebook-to-system journey](guides/notebook-to-system.md) and
-[the 2.4 migration guide](migrations/2.4-python-ux.md).
-
-<a id="package-15-payloads"></a>
+[the migration guide](migration.md).
 
 ## Score tables and distribution payloads
 
@@ -62,17 +72,17 @@ separate meanings:
   coordinates. To complement exceedance bands, use `[1-upper, 1-lower]`.
   Projection does not turn raw-score bands into uncertainty for the projected curve.
 - Unsupported coordinates carry false support flags. Bounds can be NaN or
-  finite placeholders; neither licenses an interval when the flag is false.
+  finite placeholders; neither supports an interval when the flag is false.
   CBOR preserves NaN bounds. Do not convert them into zero-width intervals or
   assume a generic JSON round trip preserves non-finite floats.
 - Multi-threshold estimates have no scalar ATE. Candidate-selection records
   describe screening and sample splits; their presence does not establish
   selection-adjusted inference.
 
-Search-budget diagnostics retain the existing `IdentificationStatus` encoding;
-no status enum variant was added for a cap. That compatibility statement does
-not establish forward compatibility for new outcome functionals or all optional
-1.5 payloads. Do not assume a 1.4 reader can interpret or preserve them. Use a
+Search-budget diagnostics use the `IdentificationStatus` encoding; a cap has no
+status variant of its own. That compatibility statement does not establish
+forward compatibility for new outcome functionals or all optional payloads. Do
+not assume an older reader can interpret or preserve them. Use a
 reader that supports the requested functional and retain support/uncertainty
 fields when handing estimates to downstream applications.
 
@@ -131,6 +141,7 @@ use `load_section` to decompress into owned bytes.
 
 | Kind | Sections |
 |------|----------|
+| `analysis_result` | `analysis_result.header`, `analysis_result.body`, `analysis_result.contract` (the sealed execution contract), `analysis_result.method_provenance` (below); optional `analysis_result.source_witness` |
 | `schema_graph` | `schema` (CBOR SchemaWire v2), `dag` (CBOR `DagWire`) |
 | `analysis_trace` | `analysis.trace` (CBOR) |
 | `causal_posterior` | `posterior.meta` (CBOR), `posterior.draws` (f64 LE col-major) |
@@ -146,7 +157,7 @@ assumptions, empirical support diagnostics and native refutation reports.
 Mediation stores total/direct/indirect values; counterfactuals store unit ITEs,
 their mean and both intervention levels. Counterfactual sampling errors remain
 absent. Family/payload mismatches and invalid numerical values refuse on load.
-`PreparedAnalysis.export_artifact()` produces this payload after estimation;
+`outcome.export(quantity="record")` produces this payload after estimation;
 `artifacts.loads` / `artifacts.dumps` round-trip it. Derivatives and observation
 curves continue using `response_result` with their existing four-axis wire.
 
@@ -160,6 +171,14 @@ static response query. When present, `TemporalResponseSpecWire` contains:
   queries (`Dynamic` remains a `TemporalEffect` spelling and is refused on
   `TemporalResponseSpec`);
 - `max_history_lag: Option<u32>` — optional finite-unfolding history cap.
+- `feedback: Option<FeedbackDeclarationWire>` — optional declared delayed
+  feedback, omitted when absent so queries without it keep their bytes and
+  digests. Its fields are `delay_ticks` (at least 1), `level_bits`,
+  `autoregression_bits`, `input_gain_bits`, `innovation_variance_bits`, and
+  `initial_state_bits` (IEEE-754 bit patterns), and `initial_law` (a law name;
+  omitted for the contemporaneous observed law). The dynamics are declared, not
+  fitted; a declaration changes the target digest and publishes the
+  finite-horizon rollout instead of the fitted surface.
 
 A temporal `MeanCurve` result uses `ResponseValueWire::Surface` with
 `dimension = 2`. Values are dose-major:
@@ -219,59 +238,102 @@ import antecedent as ant
 result = ant.analyze(data, graph=graph, query=query)
 encoded = result.export()
 loaded = ant.load(encoded)
-assert loaded.acceptance.verified or loaded.acceptance.sealed
+assert loaded.acceptance.recognized
 assert loaded.answer == result.answer
 report = loaded.inspect().to_dict()
-assert loaded.export() == encoded
+assert bytes(loaded.export()) == bytes(encoded)
 
-# Refreshing the study does not change this execution or its archive.
-# The five-line second click is result.refresh; a second analyze() re-prepares.
-updated = result.refresh(new_data)
+# Rebinding the study does not change this execution or its archive.
+# To run on new data, estimate(rebind(study, data=...)); a second analyze() re-prepares.
+updated = ant.estimate(ant.rebind(result.study, data=new_data))
 assert result.export() == encoded
 ```
 
 The export retains the compiled execution contract and applicable numerical
 payloads, including posterior draws, response functions and structural mixtures.
-Loading verifies semantic consistency; it does not verify causal assumptions or
+Loading checks that the artifact is intact; it does not verify causal assumptions or
 reconstruct a live study. Every reported interval states its calibration on the
-claim. See the [workflow guide](python-workflow.md) for retention boundaries.
+claim. See the [workflow guide](start/first-analysis.md) for retention boundaries.
 
-`loaded.acceptance` reports one of three outcomes:
+Loading is cheap. It checks that the artifact is an intact Antecedent result, with its
+contract section present, understood, and agreeing with its digests, and keeps the recorded
+answer. It recomputes nothing: a result you just produced needs no replay.
 
-- `verified`: the consumer replayed a verified program from the bytes alone.
-  The recorded answer is available and `acceptance.replayable` is `True`.
-- `sealed`: every licensed route executes through a sealed checked operation
-  whose proof stays with the live study. Loading its export recognizes the
-  artifact, verifies its contract and identities, keeps the recorded answer,
-  and names the operation it cannot replay in `acceptance.unresolved` (for
-  example `dependencies.checked_conditional_effect_operation`).
-  `acceptance.verified` and `acceptance.replayable` are `False`.
-- `unavailable`: the contract is missing, unrecognized, or unresolved for any
-  other reason. `loaded.answer` is explicitly unavailable and the bytes can
-  still be forwarded unchanged.
+For a result that came from outside your own authoring, ask for a replay. It recomputes the
+published numbers from the evidence the artifact carries and never changes the recorded
+answer. Because a replay is always asked for, it runs under larger work limits than the
+implicit paths:
 
-`acceptance.status` names the outcome and `repr(loaded)` shows it.
+```python
+loaded = ant.load(encoded, expected=encoded.expectation, replay=True)
+# or, on an existing load:
+replayed = loaded.replay()
+replayed.acceptance.status  # "replayed" when every published part agrees
+```
+
+`ant.load` returns an `Outcome` whose `value` is the `LoadedResult`.
+`loaded.acceptance.status` is one of three outcomes, and `repr(loaded.value)` shows it:
+
+- `loaded`: the artifact is intact and the recorded answer is available.
+  Nothing was recomputed.
+- `replayed`: a replay recomputed every published part from the bytes and each
+  agreed. `acceptance.replayed` is `True`.
+- `unavailable`: the contract is missing, unrecognized, or fails its digests
+  (`acceptance.integrity` names why). `loaded.answer` is explicitly unavailable
+  and the bytes can still be forwarded unchanged.
+
+A replay that does not reach `replayed` says why, in two separate lists. `acceptance.not_replayable`
+names parts whose evidence the artifact does not carry (for example
+`dependencies.checked_conditional_effect_operation`); that is a limit of the artifact, not a
+finding against it, and it does not restrict using the loaded answer.
+`acceptance.mismatches` names parts that were recomputed and differ.
+
+In Rust, `antecedent::io::load_analysis_result(&bytes)` returns an `AnalysisResultLoad` that
+checks integrity (`is_intact()`, `integrity`) and replays nothing.
+`AnalysisResultLoad::replay(&ReplayOptions::default())` returns a `ReplayReport` with the same
+`integrity`, `not_replayable` and `mismatches` lists and `replayed()`;
+`antecedent::io::replay_loaded_result` does the same and also replays the randomized-arm IPW
+procedure. `antecedent::io::replay_analysis_result` replays straight from bytes and returns an
+`AnalysisResultConsumption` with its acceptance report.
+
+### Method provenance section
+
+An `analysis_result` exported with its contract also carries an
+`analysis_result.method_provenance` section (`MethodProvenanceWire`, format 1). For the
+identifier and estimator the result executed, it lists the provenance records the producer's
+table cited at export, each with its id and digest, published sources, documented deviations
+from the published method and review scope limits; a route component with no record is listed
+as unlinked. The section is descriptive and additive: it takes no part in acceptance or replay,
+and readers that do not know it ignore it.
+
+Python reads it on load: `ant.load(...).method_provenance` and `.citations()` return the
+carried records, empty when the section is absent or not bound to the contract. Rust consumers
+decode it with `antecedent_io::method_provenance::decode_method_provenance_section`, which returns
+an error when the section names a different identifier or estimator than the contract declares.
+`replay_analysis_result` returns it as `AnalysisResultConsumption::method_provenance`, `None`
+when it is absent or not bound to the contract. A live result gives the same records
+(`outcome.method_provenance`, `StudyResult::method_provenance()`); see
+[cite the methods behind a study](guides/citing-a-study.md).
 
 ### Posterior and query payloads for stage consumers
 
 `Bayesian(prior_from=...)` and the prior catalog consume a posterior payload,
-not a full `analysis_result` archive. Export it from the retained study immediately
-after the source fit, before any subsequent estimate or refresh:
+not a full `analysis_result` archive. Select it from the completed outcome with
+`quantity="posterior"`; no refit happens, and the source outcome is unchanged:
 
 ```python
 source = ant.analyze(data, graph=graph, query=query, inference=ant.Bayesian())
-posterior_bytes = source.study.export_artifact()
+posterior = source.export(quantity="posterior")
 next_result = ant.analyze(
     independent_data, graph=graph, query=query,
-    inference=ant.Bayesian(prior_from=posterior_bytes),
+    inference=ant.Bayesian(prior_from=posterior),
 )
-query_bytes = source.study.export_artifact(payload="query")
+query_artifact = source.export(quantity="query")
 ```
 
-The lower-level `PreparedAnalysis.export_artifact()` exports the last fitted scalar Bayesian
-posterior, response result, or static result (mediation contrast or unit
-ITE) without refitting. Use
-`export_artifact(payload="query")` for the frozen original query, including its
+`export(quantity="posterior")` selects the fitted scalar Bayesian posterior, response
+result, or static result (mediation contrast or unit ITE) without refitting.
+`export(quantity="query")` selects the frozen original query, including its
 query kind and original schema variable IDs rather than an identification-time
 rewrite. Conditional queries and temporal pulse/sustained policies therefore
 retain their original meaning across the language boundary.
@@ -291,6 +353,9 @@ format `0.1` skinny `SchemaWireV01 { variable_names }` is rewritten to full
 Format `0.3` response queries have no temporal field and therefore retain static
 response semantics. Format `0.4` sections pass through unchanged; their
 structural-mixture results carry no identified-set interval.
+An analysis result whose mediation grid withholds a point is written at the scoped
+format `0.6`, which no other kind uses; it reads without migration, and any other
+`0.6` artifact is refused.
 Unknown format
 versions fail with `IoError::UnsupportedFormat`. Breaking changes require
 migration from at least the previous two stable versions.
@@ -307,29 +372,29 @@ NetworkX `undirected=true`. ADMG bidirected edges use DOT `dir=both` / GML
 `bidirected 1` / NetworkX `bidirected=true`. PAG circle/conflict marks use
 `mark_a` / `mark_b` attributes.
 
-### Interactive / artifact-first (discovery off the estimate click)
+### Interactive / artifact-first (discovery off the estimate path)
 
-Discovery is evidence and is **not** on the interactive estimate path. Preferred
-spreadsheet / dashboard spine:
+Discovery is evidence and is **not** on the interactive estimate path. For an
+interactive host such as a spreadsheet or dashboard, run discovery once and
+estimate from the accepted graph:
 
 ```text
-discover_* once  →  AcceptedGraph (versioned) / JSON hold
-  →  analyze(graph=..., latency="interactive") once → result.study
-  →  study.estimate() or study.refresh(new_data)
-  →  rediscover only on an explicit AcceptedGraph.rediscover call
+ant.discovery.discover(data, method=..., accept_discovered=True)  once  →  AcceptedGraph
+  →  ant.prepare(data, graph=accepted, query=..., inference=ant.Frequentist(profile="interactive"))
+  →  outcome = ant.estimate(study)
+  →  ant.estimate(ant.rebind(study, data=new_data))
+  →  rediscover only by calling ant.discovery.discover again
 ```
 
 Static graphs: Dag / Cpdag / Pag / Admg. Temporal completions: `TemporalDag`
 (and reviewed `TemporalCpdag` / `TemporalPag`) from PCMCI / PCMCI+ / LPCMCI —
-estimate-only pulse clicks never re-run discovery.
+estimating a pulse on the accepted graph never re-runs discovery.
 
-One-shot `analyze(..., discovery=...)` remains a **script** convenience
-(Standard/Report or no latency tier). Combining `discovery=` with
-`latency="interactive"` raises `CausalUnsupportedError`. The guard lives in
-Python (`antecedent/_analyze.py`, gated by `test_discovery_interactive_guard`);
-the Rust builder cannot express the combination at all — an accepted graph is
-just a static graph by build time. See `examples/python/discover_then_estimate.py`
-and `parity/discovery.toml` capability `discovery.ux.artifact_first`.
+Discovery is always an explicit, executed step. `ant.prepare` and `ant.analyze` refuse an
+unexecuted discovery configuration and name `ant.discovery.discover` as the remedy; with
+`accept_discovered=False` pending review raises `ReviewRequired`. See
+`examples/python/discover_then_estimate.py` and `parity/discovery.toml` capability
+`discovery.ux.artifact_first`.
 
 ## Source-bound workflow artifacts
 
@@ -342,8 +407,37 @@ identities rather than granting authority from a digest alone. See
 The distinct `inference.MeasuredInference` envelope binds each named scalar to
 its original method and current attesting coverage record. Its independent
 consumer replays the original source calculation under caller-retained identity
-and bounds. An original source artifact can retain unmeasured diagnostics or
+and bounds. An original source artifact can retain not_measured diagnostics or
 parameter summaries inside a measured envelope: only the named endpoints in
 the [measured scope](population-time-uncertainty.md) receive that standing.
 A general `antecedent.load` call is not a substitute for this method-specific
 consumer.
+
+### Summary-only period refresh
+
+A period-refresh fit that stopped retaining its rows has its own artifact, a different kind
+(`period_refresh_summary_v1`) from the full ledger (`period_refresh_ledger_v1`), so full-retention
+bytes and their reader are unchanged. The sealed content is the retained least-squares summary
+(Gram, cross-product, squared responses, observation count, coefficients, residual variance),
+the source digest, the row counts and the stated retention (`summary-only`). It holds no row and
+no block.
+
+An independent consumer (`SummaryOnlyFit::consume` in Rust,
+`PeriodRefreshSummary.consume` in Python) checks the seal and the retention, then checks that the
+stored coefficients and residual variance are what the stored summary gives. It serves the
+observation count, coefficients, residual variance, source digest and row counts. A refit from
+rows, the eviction of a row, a mask or weight change and the replay of rows are refused with the
+retention mode and the operation named (`summary-only cannot serve ...`); there are no rows to
+rebuild from. The two forms are never read as each other: the full-ledger reader refuses a
+summary artifact (`period_refresh.summary_only`), and the summary reader refuses a full ledger.
+Export it from a fit already reduced with `into_summary_only` (`SummaryOnlyFit::from_fit`), or
+from a live period refresh with `refresh.export(retention="summary-only")`, which leaves that fit's
+rows in place. `refresh.export()` retains the full ledger. Both return typed artifacts;
+`bytes(artifact)` exposes the unchanged encoding for file storage. Load either form with
+`antecedent.load(artifact, expected=artifact.expectation)` to invoke its independent native
+consumer. The full ledger is replayable; the summary checks its retained least-squares
+statistics and cannot replay rows. Its `row_counts` property returns an immutable
+`PeriodRowCounts(rows, live_rows, effective_n)` read model from the native summary ledger.
+A singular design retains `beta=None`; a fit without residual degrees of freedom retains
+`residual_variance=None`. Neither load restores a live session or dataset. The summary form
+carries no posterior and no period ledger; those need the rows.

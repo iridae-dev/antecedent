@@ -26,12 +26,24 @@ What the answer is **not**:
 
 * Every p-value (per-level and pairwise Wald values, their Holm adjustment over the family of
   :attr:`CategoricalEffects.family_size` contrasts, the omnibus chi-square and the monotonicity
-  bound) is asymptotic and its calibration is **unmeasured** (``calibration == "unmeasured"``):
+  bound) is asymptotic and its calibration is **not_measured** (``calibration == "not_measured"``):
   no coverage, Type I error or power claim is made.
 * The monotonicity null is ``every adjacent step is >= 0`` (non-decreasing) or ``<= 0``
   (non-increasing); the p-value is a conservative one-sided union-intersection (Bonferroni)
   bound. Rejection is evidence *against* monotonicity in that direction; failing to reject does
   not prove it.
+* Rows are independent and equally weighted unless declared otherwise.
+  ``sampling_weights=`` (one finite non-negative weight per row; rows of weight zero are deleted
+  and counted, the rest normalized to mean one) fit the weighted regression and need a sandwich
+  covariance (``hc0`` to ``hc3``, ``cluster_robust`` or ``newey_west``): a model-based variance
+  would treat the weights as precision weights and is refused. ``cluster=`` (one label per row)
+  with ``covariance="cluster_robust"`` gives the one-way cluster-robust variance
+  (``G / (G - 1) (n - 1) / (n - p)`` times the sum of outer products of the cluster score sums);
+  ``serial_lag=`` with ``covariance="newey_west"`` gives the Bartlett-weighted long-run variance of
+  the score series in row order at unit spacing. Each declaration needs its covariance kind and
+  each kind its declaration; a mismatch is refused, never dropped. The declared accounting is
+  :attr:`CategoricalEffects.declared_rows`; the Gaussian ``posterior`` is refused for declared
+  rows (its likelihood is independent homoskedastic errors).
 * Unordered levels are canonicalised (sorted) before any arithmetic, so permuting their declared
   order changes nothing. For ordered levels the declared order is the scale and part of the
   estimand.
@@ -55,17 +67,32 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._native import consume_categorical_treatment_artifact as _consume
 from ._native import evaluate_categorical_treatment as _evaluate
 from ._refusal import StructuredRefusal
 from ._scientific import ScientificResult
+from ._validate import nonempty_name as _name
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, native_controls, resolve_execution
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
+    from ._measured_inference import MeasuredInference
 
 __all__ = [
     "CategoricalEffects",
+    "CategoricalDeclaredRows",
+    "CategoricalPosterior",
+    "CategoricalPosteriorPrior",
+    "PosteriorContrast",
+    "PosteriorMonotonicity",
     "CategoricalTreatmentIdentity",
     "CategoricalTreatmentRefusal",
     "Direction",
@@ -78,7 +105,7 @@ __all__ = [
     "categorical_effects",
 ]
 
-_COVARIANCES = ("model_based", "hc0", "hc1", "hc2", "hc3")
+_COVARIANCES = ("model_based", "hc0", "hc1", "hc2", "hc3", "cluster_robust", "newey_west")
 _DEFAULT_ARTIFACT_ID = "categorical_treatment"
 
 
@@ -99,10 +126,24 @@ class Direction(StrEnum):
     NON_INCREASING = "non_increasing"
 
 
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value:
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
+def _cluster_ids(cluster: object, rows: int) -> list[int]:
+    """Dense integer ids (first-appearance order) of one hashable cluster label per row."""
+    try:
+        labels = list(cluster)  # type: ignore[call-overload]
+    except TypeError as error:
+        raise CausalTypeError("cluster must hold one label per row") from error
+    if len(labels) != rows:
+        raise CausalValueError(f"{len(labels)} cluster labels were declared for {rows} rows")
+    ids: dict[Any, int] = {}
+    out: list[int] = []
+    for label in labels:
+        if label is None or (isinstance(label, float) and label != label):
+            raise CausalValueError("a cluster label is missing")
+        try:
+            out.append(ids.setdefault(label, len(ids)))
+        except TypeError as error:
+            raise CausalTypeError("cluster labels must be hashable scalars") from error
+    return out
 
 
 def _column(values: object, what: str) -> np.ndarray:
@@ -155,6 +196,102 @@ class PairEffect:
 
 
 @dataclass(frozen=True, slots=True)
+class CategoricalPosteriorPrior:
+    """Declared prior and credible level of the optional Bayesian counterpart.
+
+    ``level_precision`` and ``nuisance_precision`` are prior precisions, relative to the error
+    variance, of the level coefficients and of the intercept and adjustment coefficients;
+    ``variance_shape`` and ``variance_scale`` are the Inverse-Gamma prior of the error variance.
+    There is no default: a prior alone never identifies a level contrast.
+    """
+
+    level_precision: float
+    nuisance_precision: float
+    variance_shape: float
+    variance_scale: float
+    credible_level: float = 0.95
+
+    def _wire(self) -> dict[str, float]:
+        return {
+            "level_precision": float(self.level_precision),
+            "nuisance_precision": float(self.nuisance_precision),
+            "variance_shape": float(self.variance_shape),
+            "variance_scale": float(self.variance_scale),
+            "credible_level": float(self.credible_level),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class PosteriorContrast:
+    """Student-t posterior of ``effect(to) - effect(from)`` under the stated linear model."""
+
+    from_level: str
+    to_level: str
+    mean: float
+    #: ``None`` when the degrees of freedom are at most two.
+    standard_deviation: float | None
+    probability_positive: float
+    location: float
+    scale: float
+    degrees_of_freedom: float
+    #: Equal-tailed credible interval at the declared level; its calibration status is the
+    #: posterior's ``calibration``.
+    interval: tuple[float, float]
+
+
+@dataclass(frozen=True, slots=True)
+class PosteriorMonotonicity:
+    """Posterior probability that every adjacent step moves in the declared direction.
+
+    The joint probability lies in ``[lower_bound, upper_bound]`` (Bonferroni and Frechet bounds,
+    valid under any dependence of the steps); they coincide for a single step.
+    """
+
+    direction: Direction
+    step_probabilities: tuple[float, ...]
+    lower_bound: float
+    upper_bound: float
+
+
+@dataclass(frozen=True, slots=True)
+class CategoricalPosterior:
+    """The Bayesian counterpart of the fit under the declared prior.
+
+    The estimand is the superpopulation dummy-coefficient contrast of the stated linear model
+    (Gaussian homoskedastic errors), not the finite-population average of the rows' effects.
+    It is unsupported (``supported`` is ``False``) and its calibration is ``"not_measured"``; the
+    covariance kind of the frequentist fit is not read. The artifact recomputes it from the stored
+    design when it is consumed.
+    """
+
+    prior: CategoricalPosteriorPrior
+    likelihood: str
+    estimand: str
+    calibration: str
+    supported: bool
+    variance_shape: float
+    variance_scale: float
+    coefficient_means: tuple[float, ...]
+    effects: tuple[PosteriorContrast, ...]
+    pairs: tuple[PosteriorContrast, ...]
+    monotonicity: PosteriorMonotonicity | None
+
+    def effect(self, level: str) -> PosteriorContrast:
+        """The posterior of ``level`` against the reference."""
+        for item in self.effects:
+            if item.to_level == level:
+                return item
+        raise KeyError(level)
+
+    def pair(self, from_level: str, to_level: str) -> PosteriorContrast:
+        """The posterior of a requested pairwise contrast."""
+        for item in self.pairs:
+            if (item.from_level, item.to_level) == (from_level, to_level):
+                return item
+        raise KeyError((from_level, to_level))
+
+
+@dataclass(frozen=True, slots=True)
 class OmnibusTest:
     """Wald chi-square of ``H0: every level has the reference level's effect``."""
 
@@ -182,7 +319,7 @@ class MonotonicityTest:
     ``statistic`` is the oriented minimum step z-score and ``p_value`` the conservative
     one-sided union-intersection (Bonferroni) bound ``min(1, m * Phi(statistic))``. Rejection is
     evidence against monotonicity in :attr:`direction`; failing to reject does not prove it.
-    ``calibration`` is ``"unmeasured"``.
+    ``calibration`` is ``"not_measured"``.
     """
 
     direction: Direction
@@ -211,9 +348,46 @@ class CategoricalTreatmentIdentity:
     monotonicity_null: str
     result_id: str
     digest: str
+    posterior_declaration_id: str | None = None
 
     def _wire(self) -> dict[str, str]:
-        return {name: getattr(self, name) for name in self.__slots__}
+        return {
+            name: getattr(self, name) for name in self.__slots__ if getattr(self, name) is not None
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class CategoricalDeclaredRows:
+    """What declared sampling weights, clusters or a serial lag did to the fit.
+
+    ``rows_used`` counts the rows after those of weight zero were deleted.
+    """
+
+    weights_declared: bool
+    rows_used: int
+    zero_weight_rows: int
+    weight_effective_sample_size: float | None
+    weight_sum: float | None
+    clusters: int | None
+    serial_lag: int | None
+
+
+def _declared_rows(raw: Mapping[str, Any] | None) -> CategoricalDeclaredRows | None:
+    if raw is None:
+        return None
+    ess = raw.get("weight_effective_sample_size")
+    total = raw.get("weight_sum")
+    clusters = raw.get("clusters")
+    lag = raw.get("serial_lag")
+    return CategoricalDeclaredRows(
+        weights_declared=bool(raw["weights_declared"]),
+        rows_used=int(raw["rows_used"]),
+        zero_weight_rows=int(raw["zero_weight_rows"]),
+        weight_effective_sample_size=None if ess is None else float(ess),
+        weight_sum=None if total is None else float(total),
+        clusters=None if clusters is None else int(clusters),
+        serial_lag=None if lag is None else int(lag),
+    )
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -224,7 +398,7 @@ class CategoricalEffects(ScientificResult):
     otherwise); ``counts`` the rows per level. ``coefficients`` are the dummy coefficients
     (``level:<name>``, non-reference levels) with the read-only ``covariance`` between them.
     ``family_size`` is the size of the Holm family (levels against the reference plus the
-    requested pairs). ``calibration`` is ``"unmeasured"``.
+    requested pairs). ``calibration`` is ``"not_measured"``.
     """
 
     reference: str
@@ -250,14 +424,13 @@ class CategoricalEffects(ScientificResult):
     #: ``None`` when the artifact would exceed its export byte budget; the fit above stands.
     _artifact_bytes: bytes | None = field(repr=False)
     _export_refusal: str | None = field(default=None, repr=False)
+    #: The Bayesian counterpart, when ``posterior=`` declared a prior.
+    posterior: CategoricalPosterior | None = None
+    #: What declared sampling weights, clusters or a serial lag did; ``None`` for plain rows.
+    declared_rows: CategoricalDeclaredRows | None = None
 
-    def artifact(self) -> ExportedArtifact[CategoricalEffects]:
-        """Typed bytes envelope for shared scientific consumption."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self)
-
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[CategoricalEffects]:
         """The checksummed ``categorical_treatment_v1`` artifact.
 
         Raises :class:`CategoricalTreatmentRefusal` (``route_not_supported``,
@@ -267,7 +440,7 @@ class CategoricalEffects(ScientificResult):
         if self._artifact_bytes is None:
             assert self._export_refusal is not None
             raise CategoricalTreatmentRefusal(json.loads(self._export_refusal))
-        return self._artifact_bytes
+        return artifact_from_receipt(self, self._artifact_bytes)
 
     def effect(self, level: str) -> LevelEffect:
         """The contrast of ``level`` against the reference (the reference itself is zero)."""
@@ -364,17 +537,81 @@ class CategoricalEffects(ScientificResult):
             "monotonicity": monotonicity,
             "covariance": self.covariance.tolist(),
             "covariance_kind": self.covariance_kind,
+            "declared_rows": None
+            if self.declared_rows is None
+            else {
+                "weights_declared": self.declared_rows.weights_declared,
+                "rows_used": self.declared_rows.rows_used,
+                "zero_weight_rows": self.declared_rows.zero_weight_rows,
+                "weight_effective_sample_size": self.declared_rows.weight_effective_sample_size,
+                "weight_sum": self.declared_rows.weight_sum,
+                "clusters": self.declared_rows.clusters,
+                "serial_lag": self.declared_rows.serial_lag,
+            },
             "replay": self.replay,
             "calibration": self.calibration,
             "inference_claim": self.inference_claim,
             "caveats": list(self.caveats),
             "identity": self.identity._wire(),
+            "posterior": None
+            if self.posterior is None
+            else {
+                "estimand": self.posterior.estimand,
+                "calibration": self.posterior.calibration,
+                "effects": [
+                    {"level": e.to_level, "mean": e.mean, "interval": list(e.interval)}
+                    for e in self.posterior.effects
+                ],
+            },
         }
+
+
+def _contrast(raw: Mapping[str, Any]) -> PosteriorContrast:
+    sd = raw.get("standard_deviation")
+    return PosteriorContrast(
+        from_level=raw["from"],
+        to_level=raw["to"],
+        mean=float(raw["mean"]),
+        standard_deviation=None if sd is None else float(sd),
+        probability_positive=float(raw["probability_positive"]),
+        location=float(raw["location"]),
+        scale=float(raw["scale"]),
+        degrees_of_freedom=float(raw["degrees_of_freedom"]),
+        interval=(float(raw["interval"][0]), float(raw["interval"][1])),
+    )
+
+
+def _posterior(raw: Mapping[str, Any] | None) -> CategoricalPosterior | None:
+    if raw is None:
+        return None
+    declaration = raw["declaration"]
+    mono = raw.get("monotonicity")
+    return CategoricalPosterior(
+        prior=CategoricalPosteriorPrior(**declaration),
+        likelihood=raw["likelihood"],
+        estimand=raw["estimand"],
+        calibration=raw["calibration"],
+        supported=bool(raw["supported"]),
+        variance_shape=float(raw["variance_shape"]),
+        variance_scale=float(raw["variance_scale"]),
+        coefficient_means=tuple(float(v) for v in raw["coefficient_means"]),
+        effects=tuple(_contrast(c) for c in raw["level_contrasts"]),
+        pairs=tuple(_contrast(c) for c in raw["pairwise"]),
+        monotonicity=None
+        if mono is None
+        else PosteriorMonotonicity(
+            direction=Direction(mono["direction"]),
+            step_probabilities=tuple(float(v) for v in mono["step_probabilities"]),
+            lower_bound=float(mono["lower_bound"]),
+            upper_bound=float(mono["upper_bound"]),
+        ),
+    )
 
 
 def _result(
     report_json: str, artifact: bytes | None, export_refusal: str | None = None
 ) -> CategoricalEffects:
+    artifact = container_bytes(artifact) if artifact is not None else None
     report = json.loads(report_json)
     result = report["result"]
     spec = report["spec"]
@@ -453,11 +690,16 @@ def _result(
         identity=CategoricalTreatmentIdentity(**report["identity"]),
         _artifact_bytes=artifact,
         _export_refusal=export_refusal,
+        posterior=_posterior(report.get("posterior")),
+        declared_rows=_declared_rows(report.get("declared_rows")),
     )
 
 
 def _content_snapshot(
-    outcome: np.ndarray, labels: Sequence[str], adjustment: Mapping[str, np.ndarray]
+    outcome: np.ndarray,
+    labels: Sequence[str],
+    adjustment: Mapping[str, np.ndarray],
+    declared: Mapping[str, Any] | None = None,
 ) -> str:
     digest = hashlib.sha256()
     digest.update(np.ascontiguousarray(outcome, dtype="<f8").tobytes())
@@ -468,6 +710,11 @@ def _content_snapshot(
         digest.update(name.encode())
         digest.update(b"\0")
         digest.update(np.ascontiguousarray(values, dtype="<f8").tobytes())
+    # Declarations extend the snapshot only when made, so plain rows keep their snapshot ids.
+    for key, value in (declared or {}).items():
+        digest.update(key.encode())
+        digest.update(b"\0")
+        digest.update(np.ascontiguousarray(value, dtype="<f8").tobytes())
     return "sha256:" + digest.hexdigest()
 
 
@@ -483,10 +730,20 @@ def categorical_effects(
     min_level_rows: int = 2,
     adjust: Mapping[str, Any] | None = None,
     covariance: str = "model_based",
+    sampling_weights: Any | None = None,
+    cluster: Sequence[Any] | None = None,
+    serial_lag: int | None = None,
     snapshot: str | None = None,
     artifact_id: str = _DEFAULT_ARTIFACT_ID,
+    posterior: CategoricalPosteriorPrior | None = None,
+    execution: Execution | None = None,
 ) -> CategoricalEffects:
     """Estimate the adjusted effect of every level of a categorical treatment.
+
+    This is a specialized checked path outside the central compiler: it checks the declared
+    levels, level support, covariance declarations and the sealed artifact, and runs under
+    ``execution`` (its memory limit and cancellation). ``adjust`` is the caller's declared
+    adjustment; no graph is checked, so the effects are not graph-identified.
 
     ``levels`` holds one label per row (labels are compared as strings). ``categories`` is the
     declared level set (at least two); omitted (unordered only), it is the sorted observed
@@ -499,8 +756,22 @@ def categorical_effects(
     one Holm family. ``monotonicity`` (``"non_decreasing"`` or ``"non_increasing"``) declares a
     monotonicity test and requires ``ordered=True``. ``min_level_rows`` is the fewest rows a
     declared level may have. ``adjust`` maps shared adjustment column names to their columns.
-    ``covariance`` is ``"model_based"`` or a robust sandwich ``"hc0"`` to ``"hc3"`` (the meat of
-    the sandwich is embedded beside ``X'X``, not the rows, so there is no row ceiling).
+    ``covariance`` is ``"model_based"``, a robust sandwich ``"hc0"`` to ``"hc3"``, the one-way
+    ``"cluster_robust"`` (needs ``cluster=``) or the Bartlett ``"newey_west"`` (needs
+    ``serial_lag=``, rows in time order at unit spacing); the meat of the sandwich is embedded
+    beside ``X'X``, not the rows, so there is no row ceiling. ``sampling_weights`` (one finite
+    non-negative weight per row) fit the weighted regression under a sandwich covariance;
+    ``cluster`` (one hashable label per row) and ``serial_lag`` are read only by their covariance
+    kind. A declaration the covariance does not read, or a kind whose declaration is missing, is
+    refused (:class:`CategoricalTreatmentRefusal`, ``vector_treatment.*`` details), as are weights
+    under the model-based covariance. See :attr:`CategoricalEffects.declared_rows`.
+
+    ``posterior`` declares a prior and attaches the Bayesian counterpart
+    (:attr:`CategoricalEffects.posterior`): a Student-t posterior of every level and requested
+    pair under Gaussian homoskedastic errors, sealed in the artifact and recomputed on
+    consumption. It is unsupported with not_measured calibration; its estimand is the
+    superpopulation coefficient contrast of the stated linear model, not the finite-population
+    average of the rows' effects, and the covariance kind of the frequentist fit is not read.
 
     Raises :class:`CategoricalTreatmentRefusal` (a
     :class:`~antecedent.errors.CausalUnsupportedError`) for an absent or sparse declared level
@@ -540,7 +811,34 @@ def categorical_effects(
         raise CausalValueError(
             f"monotonicity must be one of {[d.value for d in Direction]} or None"
         ) from error
-    shared = snapshot if snapshot is not None else _content_snapshot(y, labels, adjustment)
+    if posterior is not None and not isinstance(posterior, CategoricalPosteriorPrior):
+        raise CausalTypeError("posterior must be a CategoricalPosteriorPrior")
+    native_rows: dict[str, Any] = {}
+    snapshot_rows: dict[str, Any] = {}
+    if sampling_weights is not None:
+        weights = _column(sampling_weights, "sampling_weights")
+        if len(weights) != len(y):
+            raise CausalValueError(
+                f"{len(weights)} sampling weights were declared for {len(y)} rows"
+            )
+        native_rows["sampling_weights"] = weights
+        snapshot_rows["sampling_weights"] = weights
+    if cluster is not None:
+        ids = _cluster_ids(cluster, len(y))
+        native_rows["cluster"] = ids
+        snapshot_rows["cluster"] = np.asarray(ids, dtype=np.float64)
+    if serial_lag is not None:
+        if isinstance(serial_lag, bool) or not isinstance(serial_lag, int):
+            raise CausalTypeError("serial_lag must be an integer")
+        if serial_lag < 1:
+            raise CausalValueError("serial_lag must be at least one")
+        native_rows["serial_lag"] = serial_lag
+        snapshot_rows["serial_lag"] = np.asarray([serial_lag], dtype=np.float64)
+    shared = (
+        snapshot
+        if snapshot is not None
+        else _content_snapshot(y, labels, adjustment, snapshot_rows)
+    )
     declaration = {
         "row_snapshot": _name(shared, "snapshot"),
         "adjustment": list(adjustment),
@@ -553,6 +851,7 @@ def categorical_effects(
             "monotonicity": direction,
             "covariance": covariance,
         },
+        "posterior": None if posterior is None else posterior._wire(),
     }
     report, artifact, refusal = _evaluate(
         y,
@@ -560,6 +859,8 @@ def categorical_effects(
         labels,
         json.dumps(declaration, allow_nan=False),
         _name(artifact_id, "artifact_id"),
+        **native_rows,
+        **native_controls(execution, memory="memory_bytes", cancel="cancel"),
     )
     if report is not None and artifact is None and refusal is not None:
         return _result(report, None, refusal)  # the export was refused; the fit stands
@@ -570,11 +871,15 @@ def categorical_effects(
     return _result(report, bytes(artifact))
 
 
+@artifact_consumer(
+    proof="categorical_treatment.consume_categorical_effects: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def consume_categorical_effects(
     artifact: bytes,
     *,
     expected_identity: CategoricalTreatmentIdentity | Mapping[str, str] | None = None,
-    memory_limit_bytes: int | None = None,
+    execution: Execution | None = None,
 ) -> CategoricalEffects:
     """Recompute an exported categorical artifact and accept only an identical one.
 
@@ -586,8 +891,10 @@ def consume_categorical_effects(
     ``route_not_supported``, ``categorical_treatment.wrong_contract``). Corruption and unknown
     major versions raise :class:`~antecedent.errors.CausalSerializationError`.
 
-    ``memory_limit_bytes`` bounds the replay's planned working set (``*.memory_budget_exceeded``).
+    ``execution.limits.memory_bytes`` bounds the replay's planned working set (``*.memory_budget_exceeded``).
     """
+    execution = resolve_execution(execution)
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     if expected_identity is None:
@@ -601,9 +908,141 @@ def consume_categorical_effects(
             "expected_identity must be a CategoricalTreatmentIdentity or a mapping"
         )
     data = bytes(artifact)
-    report, refusal = _consume(data, expected_json, memory_limit_bytes=memory_limit_bytes)
+    report, refusal = _consume(
+        data, expected_json, memory_limit_bytes=execution.limits.memory_bytes
+    )
     if refusal is not None:
         raise CategoricalTreatmentRefusal(json.loads(refusal))
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")
     return _result(report, data)
+
+
+@dataclass(frozen=True, slots=True)
+class CategoricalPosteriorCandidateSource:
+    """Original source bytes and a separately retained compiler expectation.
+
+    The source contains the supplied outcomes and subject identities. Neither value
+    is a scientific claim, a calibration record, or measured-inference authority.
+    """
+
+    source: bytes
+    expectation: bytes
+
+
+class PreparedCategoricalPosteriorCandidate:
+    """A retained compiler candidate for the conjugate categorical model.
+
+    The treatment has at least two declared levels, the first of which is the reference
+    of every reported contrast, and at least two rows of each level. Sizes are limited
+    only by the execution's resource limits.
+    The sampling design is a caller declaration. The compiler requires one distinct
+    subject per row; it does not infer independence from the observed data. Compiling
+    grants no authority: ``measured_interval`` returns a credible interval of
+    every level against the reference with its calibration status, which is ``calibrated``
+    only when a current coverage record covers the construction, level count and row count.
+    """
+
+    def __init__(
+        self,
+        outcome: Any,
+        levels: Sequence[str],
+        *,
+        declared_levels: Sequence[str],
+        subject_ids: Sequence[str],
+        snapshot: str,
+        sampling_design: str,
+        execution: Execution | None = None,
+    ) -> None:
+        from ._native import CompiledCategoricalPosteriorCandidateHandle
+
+        if sampling_design != "independent_subject_trajectories":
+            raise CausalValueError("declare independent_subject_trajectories explicitly")
+        if not isinstance(snapshot, str) or not snapshot:
+            raise CausalValueError("snapshot must be a nonempty source identity")
+        if (
+            isinstance(levels, str | bytes)
+            or isinstance(subject_ids, str | bytes)
+            or isinstance(declared_levels, str | bytes)
+        ):
+            raise CausalTypeError(
+                "levels and subject_ids must be row-aligned sequences and declared_levels a sequence"
+            )
+        if (
+            any(not isinstance(value, str) for value in levels)
+            or any(not isinstance(value, str) for value in subject_ids)
+            or any(not isinstance(value, str) for value in declared_levels)
+        ):
+            raise CausalTypeError("levels, declared levels and subject identities must be strings")
+        self._execution = resolve_execution(execution)
+        self._handle = self._execution._call(
+            CompiledCategoricalPosteriorCandidateHandle,
+            _column(outcome, "outcome").tolist(),
+            list(levels),
+            list(declared_levels),
+            list(subject_ids),
+            snapshot,
+            sampling_design,
+            self._execution.seed,
+        )
+
+    def inspect(self) -> dict[str, Any]:
+        """Inspect the actual retained program and source identities."""
+        route, supported, source, program = self._execution._call(self._handle.inspect)
+        return {
+            "route": route,
+            "supported": supported,
+            "source": bytes(source),
+            "program": bytes(program),
+        }
+
+    def export_source(self) -> CategoricalPosteriorCandidateSource:
+        """Export original source and retain its expected compiler identity separately."""
+        source, expectation = self._execution._call(self._handle.export)
+        return CategoricalPosteriorCandidateSource(bytes(source), bytes(expectation))
+
+    @classmethod
+    def consume_source(
+        cls,
+        source: bytes,
+        *,
+        expected: bytes,
+        execution: Execution | None = None,
+    ) -> PreparedCategoricalPosteriorCandidate:
+        """Recompile original source against an independently held expectation."""
+        from ._native import CompiledCategoricalPosteriorCandidateHandle
+
+        if not isinstance(source, bytes) or not isinstance(expected, bytes):
+            raise CausalTypeError("source and expected must be bytes")
+        if len(expected) != 65:
+            raise CausalValueError("invalid candidate source or expectation size")
+        result = cls.__new__(cls)
+        result._execution = resolve_execution(execution)
+        result._handle = result._execution._call(
+            CompiledCategoricalPosteriorCandidateHandle.consume,
+            list(source),
+            list(expected),
+            result._execution.seed,
+        )
+        return result
+
+    def measured_interval(self) -> MeasuredInference:
+        """Replay the retained source for a calibrated credible interval per level.
+
+        The calibration status is ``calibrated`` only when a current coverage record
+        covers this construction, the declared level count and the row count.
+        """
+        from ._measured_inference import MeasuredInference
+
+        native = self._execution._call(self._handle.measured_interval, self._execution.seed)
+        return MeasuredInference._from_native(native)
+
+    def interval(self) -> MeasuredInference:
+        """The calibrated interval; the same supported route as ``measured_interval``."""
+        from ._measured_inference import MeasuredInference
+
+        native = self._execution._call(self._handle.interval, self._execution.seed)
+        return MeasuredInference._from_native(native)
+
+
+__all__ += ["CategoricalPosteriorCandidateSource", "PreparedCategoricalPosteriorCandidate"]

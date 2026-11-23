@@ -26,15 +26,19 @@ average it over different populations.
 
 What the answer is **not**:
 
-* No graph is checked: the caller owns that ``adjust`` is a valid adjustment set.
+* No graph is checked: the caller owns that ``adjust`` is a valid adjustment set, and the
+  result says so with ``adjustment_basis == "declared"``. This is a specialized
+  checked path outside the central compiler (it checks columns, levels and overlap); it
+  does not identify the effect.
 * The standard error is the plug-in influence-function variance of cross-fitted scores. The
-  95% interval ``effect ± z · se_analytic`` is published (``interval`` set,
-  ``interval_status == "calibrated"``) only when a current coverage record measured this
-  construction (the full-population target, its number of levels, folds and row count).
-  Otherwise ``interval`` is ``None``, ``interval_status == "scope_not_assessed"``,
-  ``interval_reason`` names why, and the standard error is labelled ``calibration ==
-  "unmeasured"``. The pairwise-subpopulation target has no coverage measurement and always
-  withholds its interval.
+  95% interval ``effect ± z · se_analytic`` is reported whenever the standard error is
+  positive and finite (``interval`` is ``None`` only when it is not), annotated by
+  ``interval_status``: ``"calibrated"`` when a current coverage record measured this
+  construction (the full-population target, its number of levels, folds and row count),
+  otherwise ``"outside_measured_scope"``, ``"measured_below_nominal"`` or
+  ``"not_measured"``, with ``interval_reason`` naming why and the standard error labelled
+  ``calibration == "not_measured"``. The pairwise-subpopulation target has no coverage
+  measurement and always reports ``interval_status == "not_measured"``.
 * With ``target="full_population"`` every row must be at a declared level; a row at an
   undeclared level refuses ``treatment_level_undeclared`` instead of being dropped.
 
@@ -48,12 +52,16 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
 from ._native import evaluate_multi_level_treatment as _evaluate
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, native_controls, resolve_execution
+
+if TYPE_CHECKING:
+    from ._native import CalibrationStatus
 
 __all__ = ["LevelMean", "LevelRows", "MultiLevelEffect", "MultiLevelInterval", "multi_level_effect"]
 
@@ -110,14 +118,19 @@ class MultiLevelEffect:
     excluded_rows: int
     #: Standardized mean per declared level (full-population target only).
     level_means: tuple[LevelMean, ...]
-    #: ``"calibrated"`` when a coverage record governs the interval, else ``"unmeasured"``.
+    #: ``"calibrated"`` when a coverage record governs the interval, else ``"not_measured"``.
     calibration: str
-    #: The 95% interval, present only when a current coverage record covers this construction.
+    #: The 95% interval, present whenever the standard error is positive and finite.
     interval: MultiLevelInterval | None
-    #: ``"calibrated"`` when the interval is published, ``"scope_not_assessed"`` when withheld.
-    interval_status: str
-    #: Why the interval is withheld, when it is.
+    #: The calibration status of the interval: ``"calibrated"`` when a current coverage record
+    #: measured this construction, otherwise ``"outside_measured_scope"``,
+    #: ``"measured_below_nominal"`` or ``"not_measured"``.
+    interval_status: CalibrationStatus
+    #: Why the interval is not calibrated, or ``"no_positive_standard_error"`` when it is absent.
     interval_reason: str | None
+    #: ``"declared"``: the ``adjust`` columns are the caller's declaration and no graph
+    #: was checked, so the contrast is not a graph-identified effect.
+    adjustment_basis: str = "declared"
 
     def to_dict(self) -> dict[str, Any]:
         """A plain, JSON-serializable view."""
@@ -152,6 +165,7 @@ class MultiLevelEffect:
             },
             "interval_status": self.interval_status,
             "interval_reason": self.interval_reason,
+            "adjustment_basis": self.adjustment_basis,
         }
 
 
@@ -175,7 +189,7 @@ def multi_level_effect(
     levels: Sequence[float] | None = None,
     adjust: Mapping[str, Sequence[float]] | None = None,
     folds: int | None = None,
-    seed: int = 0,
+    execution: Execution | None = None,
 ) -> MultiLevelEffect:
     """Estimate ``E[Y(active)] - E[Y(control)]`` for a multi-level observational treatment.
 
@@ -183,14 +197,15 @@ def multi_level_effect(
     covariates the caller declares sufficient for adjustment. ``target`` chooses the population
     (see the module docstring) and has no default. ``levels`` is the declared level set,
     required for ``"full_population"`` and containing ``active`` and ``control``. ``folds`` is
-    the cross-fit fold count of the full-population fit (default 5) and ``seed`` seeds the fold
-    plan. A ``NaN`` is a missing cell: its row is dropped from the complete cases.
+    the cross-fit fold count of the full-population fit (default 5) and the
+    seed of ``execution`` seeds the fold plan. A ``NaN`` is a missing cell: its row is dropped from the complete cases.
 
     Raises:
         CausalValueError: A malformed argument.
         CausalUnsupportedError: A refusal with a registered ``reason_code`` such as
             ``treatment_level_undeclared`` or ``arm_not_populated``.
     """
+    execution = resolve_execution(execution)
     if target not in _TARGETS:
         raise CausalValueError(f"target must be one of {_TARGETS}, got {target!r}")
     if target == "full_population" and levels is None:
@@ -199,7 +214,7 @@ def multi_level_effect(
         "target": target,
         "active": float(active),
         "control": float(control),
-        "seed": int(seed),
+        "seed": execution.seed,
     }
     if levels is not None:
         declaration["levels"] = _column(levels, "levels")
@@ -213,6 +228,7 @@ def multi_level_effect(
             list(adjustment),
             [_column(values, f"adjust[{name!r}]") for name, values in adjustment.items()],
             json.dumps(declaration),
+            **native_controls(execution, memory="memory_bytes", cancel="cancel"),
         )
     )
     return MultiLevelEffect(
@@ -233,4 +249,5 @@ def multi_level_effect(
         interval=None if report["interval"] is None else MultiLevelInterval(**report["interval"]),
         interval_status=report["interval_status"],
         interval_reason=report["interval_reason"],
+        adjustment_basis=report["adjustment_basis"],
     )

@@ -6,7 +6,7 @@
 //! including the unidentified, failed and subsampled-out mass, without
 //! re-identifying or re-reading the procedure from the builder.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::response_path::{graph_posterior_response_supported, response_witness_ate};
 use super::{
@@ -54,7 +54,7 @@ impl CheckedGraphPosteriorResponse {
     ///
     /// Refuses ADMG atoms (they have their own sealed family), a query outside
     /// the complete-observation mean response family, a validation suite the
-    /// family does not license, a procedure that does not match the inference
+    /// family does not support, a procedure that does not match the inference
     /// mode, or a cache that does not describe the frozen posterior.
     pub(crate) fn prepare(
         premises: CheckedGraphPosteriorResponsePremises,
@@ -70,7 +70,7 @@ impl CheckedGraphPosteriorResponse {
             validation,
             latency_mode,
         } = premises;
-        let class_atoms = match posterior.atom_kind {
+        let class_atoms = match posterior.atom_kind() {
             antecedent_discovery::GraphPosteriorAtomKind::Dag => false,
             antecedent_discovery::GraphPosteriorAtomKind::Cpdag
             | antecedent_discovery::GraphPosteriorAtomKind::Pag => true,
@@ -187,14 +187,16 @@ impl super::Study {
         bound.data = DataInput::Tabular(data.clone());
         bound.query = CausalQuery::Response(operation.query().clone());
         bound.graph_posterior = Some(operation.posterior().clone());
-        bound.graph_posterior_identification_cache = Some(Arc::clone(operation.identification()));
-        bound.inference = operation.inference().clone();
-        bound.refute = operation.validation();
+        bound.install_identification(crate::analysis::IdentificationCache::GraphPosterior(
+            Arc::clone(operation.identification()),
+        ));
+        bound.settings.inference = operation.inference().clone();
+        bound.settings.refute = operation.validation();
         bound.latency_mode = operation.latency_mode();
-        bound.estimator = Some(operation.procedure().1);
-        bound.identifier = Some(operation.procedure().0);
-        bound.custom_validators = Vec::new();
-        match operation.posterior().atom_kind {
+        bound.declared.estimator = Some(operation.procedure().1);
+        bound.declared.identifier = Some(operation.procedure().0);
+        bound.declared.custom_validators = Vec::new();
+        match operation.posterior().atom_kind() {
             antecedent_discovery::GraphPosteriorAtomKind::Dag => bound
                 .execute_graph_posterior_response(
                     data,
@@ -251,7 +253,7 @@ impl Inspect for CheckedGraphPosteriorResponse {
         let (identifier, estimator) = self.procedure();
         CheckedGraphPosteriorResponseInfo {
             query: self.query().clone(),
-            atom_kind: self.posterior().atom_kind,
+            atom_kind: self.posterior().atom_kind(),
             identifier,
             estimator,
             inference: inference_label(self.inference()),

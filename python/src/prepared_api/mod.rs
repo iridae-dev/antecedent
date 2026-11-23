@@ -3,13 +3,13 @@
 //! The Python class is [`PyPreparedAnalysis`] (`PreparedAnalysis`). Method names
 //! registered with PyO3 are the Rust function names in the sibling modules.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
 use antecedent::PreparedStudy;
-use antecedent_core::{CausalQuery, ExecutionContext};
-use antecedent_data::TabularData;
+use antecedent::prelude::{ExecutionContext, TabularData};
+use antecedent::query::CausalQuery;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
@@ -22,14 +22,21 @@ mod contract;
 mod controls;
 mod execute;
 mod frame;
+mod identification;
 mod inspect;
+mod operation_detail;
 mod posterior;
 mod prepare_design;
 mod prepare_effect;
 mod prepare_posterior;
 mod prepare_query;
 mod prepare_response;
+mod prepare_temporal_design;
+mod prepare_unsupported_design;
 mod routing;
+#[path = "../temporal_query_api.rs"]
+mod temporal_query_api;
+mod treatment_score;
 
 #[path = "../prepare_request.rs"]
 mod prepare_request;
@@ -39,10 +46,11 @@ pub(crate) use contract::{
 };
 use controls::{ClickControls, map_ate, unstaged};
 use frame::{FrameData, FrameInput};
+pub(crate) use posterior::contract_to_map;
 use posterior::{
-    SeriesGraphQuery, contract_to_map, dbn_posterior, exact_dag_posterior,
-    finish_series_graph_posterior, finish_static_graph_posterior, insert_reuse_identities,
-    require_prepared_names, take_supplied_posterior,
+    SeriesGraphQuery, dbn_posterior, exact_dag_posterior, finish_series_graph_posterior,
+    finish_static_graph_posterior, insert_reuse_identities, require_prepared_names,
+    take_supplied_posterior,
 };
 use prepare_request::{PrepareRequest, one_series};
 use routing::{
@@ -56,7 +64,7 @@ use routing::{
 #[pyclass(name = "PreparedAnalysis")]
 pub struct PyPreparedAnalysis {
     /// Arc so per-click estimate/refute detach with a refcount bump, not a
-    /// deep `PreparedStudy` clone; `refresh` clones-on-write to swap data.
+    /// deep `PreparedStudy` clone.
     pub(crate) inner: Arc<PreparedStudy>,
     pub(in crate::prepared_api) names: Vec<String>,
     /// Last estimate result retained for second-click refute.
@@ -64,12 +72,36 @@ pub struct PyPreparedAnalysis {
     pub(in crate::prepared_api) last_study: Option<Arc<PreparedStudy>>,
     pub(in crate::prepared_api) last_seed: u64,
     pub(in crate::prepared_api) last_threads: u32,
-    pub(in crate::prepared_api) borrowed_bytes: Option<u64>,
-    /// When true, estimate/refresh clicks use series data (`estimate_series`).
+    /// When true, estimate clicks use series data (`estimate_series`).
     pub(in crate::prepared_api) series: bool,
 }
 
 impl PyPreparedAnalysis {
+    /// Immutable producer state for a domain operation; no execution or header mutation.
+    pub(crate) fn target_refutation_source(
+        &self,
+    ) -> (Arc<PreparedStudy>, Option<Arc<antecedent::StudyResult>>) {
+        (self.last_study.clone().unwrap_or_else(|| Arc::clone(&self.inner)), self.last.clone())
+    }
+
+    pub(crate) fn from_completed(
+        study: Arc<PreparedStudy>,
+        result: Arc<antecedent::StudyResult>,
+        names: Vec<String>,
+        seed: u64,
+        threads: u32,
+    ) -> Self {
+        Self {
+            inner: Arc::clone(&study),
+            names,
+            last: Some(result),
+            last_study: Some(study),
+            last_seed: seed,
+            last_threads: threads,
+            series: false,
+        }
+    }
+
     pub(crate) fn from_study(prepared: PreparedStudy, names: Vec<String>) -> Self {
         Self {
             inner: Arc::new(prepared),
@@ -78,21 +110,18 @@ impl PyPreparedAnalysis {
             last_study: None,
             last_seed: 1,
             last_threads: 1,
-            borrowed_bytes: None,
             series: false,
         }
     }
 
-    /// Execute one click on new data, optionally replacing the retained data.
+    /// Execute one click on new data without replacing the retained data.
     ///
     /// The executed study (with the click's data bound) becomes the snapshot
-    /// source for exports and second-click refutes; a refresh also replaces the
-    /// handle's retained study. A click-only stage sink is stripped first.
+    /// source for exports and second-click refutes. A click-only stage sink is stripped first.
     pub(in crate::prepared_api) fn click<T: Send>(
         &mut self,
         py: Python<'_>,
         data: FrameInput,
-        refresh: bool,
         seed: u64,
         threads: Option<u32>,
         controls: ClickControls,
@@ -103,24 +132,42 @@ impl PyPreparedAnalysis {
             &ExecutionContext,
         ) -> PyResult<T>,
     ) -> PyResult<T> {
-        let mut study = controls.owned_study(&self.inner)?;
+        let source = Arc::clone(&self.inner);
         let out_names = self.names.clone();
         let series = self.series;
         let (mapped, result, bound) = detach_catch(py, move || {
             let ctx = controls.ctx(seed, threads);
-            let result = match data {
-                // Both estimate and refresh bind the click's data to the executed
-                // copy, so its snapshot re-executes on exactly that data.
-                FrameInput::Series(data) if !series => study.refresh(data, &ctx).map_err(py_err)?,
-                frame => frame.materialize()?.bind_and_run(&mut study, &ctx)?,
+            let mut study = controls.owned_study(&source)?;
+            // Bind before materializing: a deferred handle has no row-bound
+            // statistical operation to refresh. The retained snapshot must be
+            // the ready operation that actually produces the result, not the
+            // deferred declaration whose temporary materialization executed it.
+            let mut frame_retention = None;
+            study = match data {
+                FrameInput::Series(data) if !series => {
+                    study.rebind_data(data, &ctx).map_err(py_err)?
+                }
+                frame => match frame.materialize()? {
+                    FrameData::Series(data) => study.rebind_series(data, &ctx).map_err(py_err)?,
+                    FrameData::Panel(data) => study.rebind_panel(data, &ctx).map_err(py_err)?,
+                    FrameData::MultiEnv(data) => {
+                        study.rebind_multi_env(data, &ctx).map_err(py_err)?
+                    }
+                    FrameData::Events(data, align, retention) => {
+                        frame_retention = retention;
+                        let aligned = data.align_to_grid_in(align, &ctx).map_err(py_err)?;
+                        study.rebind_series(aligned, &ctx).map_err(py_err)?
+                    }
+                },
             };
+            study = study.materialize(&ctx).map_err(py_err)?;
+            let result = crate::interrupt::bind_study_validators(&study)?
+                .estimate_retained(&ctx)
+                .map_err(py_err)?;
             let mapped = map(&out_names, &result, &study, &ctx)?;
+            drop(frame_retention);
             Ok((mapped, result, Arc::new(unstaged(study))))
         })?;
-        if refresh {
-            self.inner = Arc::clone(&bound);
-            self.borrowed_bytes = None;
-        }
         self.last_study = Some(bound);
         self.last = Some(Arc::new(result));
         self.last_seed = seed;
@@ -142,17 +189,30 @@ impl PyPreparedAnalysis {
             &ExecutionContext,
         ) -> PyResult<T>,
     ) -> PyResult<T> {
-        let borrowed_bytes = self.borrowed_bytes;
-        let study = controls.study(&self.inner)?;
+        let source = Arc::clone(&self.inner);
         let names = self.names.clone();
-        let (mapped, result) = detach_catch(py, move || {
+        let (mapped, result, bound) = detach_catch(py, move || {
             let ctx = controls.ctx(seed, threads);
-            let mut result = study.estimate_retained(&ctx).map_err(py_err)?;
-            result.performance.bytes_borrowed = borrowed_bytes;
+            let study = controls.study(&source)?;
+            let cache = ctx.cache_policy.enabled.then(|| {
+                antecedent::estimate::CrossfitNuisanceCache::bounded(
+                    Some(&ctx),
+                    usize::MAX,
+                    ctx.cache_policy.max_bytes.unwrap_or(u64::MAX),
+                )
+            });
+            let (study, result) =
+                antecedent::estimate::CrossfitNuisanceCache::run_in(cache.as_ref(), || {
+                    let study = study.materialize(&ctx).map_err(py_err)?;
+                    let result = crate::interrupt::bind_study_validators(&study)?
+                        .estimate_retained(&ctx)
+                        .map_err(py_err)?;
+                    Ok::<_, PyErr>((study, result))
+                })?;
             let mapped = map(&names, &result, &study, &ctx)?;
-            Ok((mapped, result))
+            Ok((mapped, result, Arc::new(unstaged(study))))
         })?;
-        self.last_study = Some(Arc::clone(&self.inner));
+        self.last_study = Some(bound);
         self.last = Some(Arc::new(result));
         self.last_seed = seed;
         self.last_threads = crate::resolve_user_threads(threads);
@@ -174,7 +234,7 @@ impl PyPreparedAnalysis {
             _ => return Ok(()),
         };
         Err(crate::refusal(
-            antecedent_core::reason_code!("population_not_estimable"),
+            antecedent::reason::reason_code!("population_not_estimable"),
             format!(
                 "{route} estimates the population its design defines; a row-weight retarget has \
                  no score table to reweight and would redeclare the design's own target"
@@ -191,10 +251,8 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<AteAnalysisResult> {
-        let prior = self
-            .last
-            .clone()
-            .ok_or_else(|| crate::value_err("call estimate/refresh before refute"))?;
+        let prior =
+            self.last.clone().ok_or_else(|| crate::value_err("call estimate before refute"))?;
         let refute_suite = suite_from_refute(Some(&suite))?;
         let cancel_token = cancel.map(|c| c.inner);
         let bound = self.last_study.clone().unwrap_or_else(|| Arc::clone(&self.inner));
@@ -208,8 +266,10 @@ impl PyPreparedAnalysis {
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
-            let result = inner.refute(&prior, &data, refute_suite, &ctx).map_err(py_err)?;
-            let mapped = ate_result_from_analysis(&out_names, result.clone(), false)?;
+            let result = crate::interrupt::bind_study_validators(&inner)?
+                .refute(&prior, &data, refute_suite, &ctx)
+                .map_err(py_err)?;
+            let mapped = ate_result_from_analysis(&out_names, &result, false, &ctx)?;
             Ok((mapped, result))
         })?;
         self.last_study = Some(bound);
@@ -225,19 +285,30 @@ fn finished_prepared(
     names: Vec<String>,
     series: bool,
 ) -> PyPreparedAnalysis {
+    finished_prepared_under(prepared, names, series, 1, 1)
+}
+
+/// A handle whose execution header names the controls its preparation ran under.
+fn finished_prepared_under(
+    prepared: PreparedStudy,
+    names: Vec<String>,
+    series: bool,
+    seed: u64,
+    threads: u32,
+) -> PyPreparedAnalysis {
     PyPreparedAnalysis {
         inner: Arc::new(prepared),
         names,
         last: None,
         last_study: None,
-        last_seed: 1,
-        last_threads: 1,
-        borrowed_bytes: None,
+        last_seed: seed,
+        last_threads: threads,
         series,
     }
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPreparedAnalysis>()?;
+    identification::register(m)?;
     Ok(())
 }

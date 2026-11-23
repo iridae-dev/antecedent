@@ -12,6 +12,19 @@ use antecedent::{PanelDidQuery, Study};
 use antecedent_core::{Assumption, VariableId};
 use antecedent_data::TabularData;
 
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
+
+const FABRICATION: &str = "invalid panel DiD payload or fabricated interval";
+
+/// A refusal carrying `expected` in its message; an accepted result is the failure.
+fn assert_refused<T, E: std::fmt::Debug>(result: Result<T, E>, expected: &str) {
+    match result {
+        Err(error) => assert!(format!("{error:?}").contains(expected), "{expected}: {error:?}"),
+        Ok(_) => panic!("expected a refusal containing {expected:?}"),
+    }
+}
+
 fn fixture() -> (TabularData, PanelDidQuery) {
     let mut ids = Vec::new();
     let mut treated = Vec::new();
@@ -52,8 +65,8 @@ fn panel_did_runs_identically_through_study_and_prepared_routes() {
     assert_eq!(estimate.comparison_subjects, 4);
     assert_eq!(estimate.clusters, 8);
     assert_eq!(estimate.uncertainty.as_ref(), "cluster_robust_standard_error_no_interval");
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
-    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert!(result.estimate().as_effect().unwrap().se_analytic().is_nan());
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, Assumption::Custom { id, .. } if id.as_ref() == "parallel_trends"
     )));
@@ -65,17 +78,17 @@ fn panel_did_runs_identically_through_study_and_prepared_routes() {
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
     let refreshed = prepared.estimate(&data, &context).unwrap();
     assert_eq!(refreshed.panel_did(), result.panel_did());
-    assert_eq!(refreshed.support_status, None);
+    assert_eq!(refreshed.support_status(), None);
     let bytes = prepared.encode_contracted_result(&refreshed, "thin-panel-did", &context).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
-    body.panel_did.as_mut().unwrap().graphless_support_status = Some("licensed".into());
-    assert!(
+    body.panel_did.as_mut().unwrap().graphless_support_status = Some("supported".into());
+    assert_refused(
         antecedent_io::encode_analysis_result_artifact(
             &body,
             header.variable_names,
-            "forged-thin-did-license"
-        )
-        .is_err()
+            "forged-thin-did-support",
+        ),
+        FABRICATION,
     );
 }
 
@@ -107,34 +120,56 @@ fn supported_panel_did_interval_round_trips_and_rejects_fabrication() {
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
     let result = prepared.estimate(&data, &context).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "supported_panel_did_interval_round_trips",
+        &prepared,
+        &result,
+        &context,
+    );
     let did = result.panel_did().unwrap();
     assert!((did.effect - 2.0).abs() < 1e-12);
     assert_eq!(did.uncertainty.as_ref(), "cluster_robust_normal_interval_independent_clusters");
     let bounds = did.interval_95.unwrap();
     assert!(bounds[0] <= did.effect && did.effect <= bounds[1]);
     assert_eq!(
-        result.interval.as_ref().unwrap().method,
+        result.interval().as_ref().unwrap().method,
         antecedent_core::IntervalMethod::AnalyticSe
     );
-    assert_eq!(result.interval.as_ref().unwrap().dependence, "cluster");
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.interval().as_ref().unwrap().dependence, "cluster");
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
+    let (contract, claim) = prepared.execution_contract(&result, &context).unwrap();
+    let bases = result.calibration_bases(&contract).unwrap();
+    assert!(!bases.is_empty());
+    assert!(bases.iter().all(|basis| basis.key.validation == "not_applicable"
+        && basis.key.query == "PanelDid"
+        && basis.key.graph_class == "RandomizedTrial"
+        && basis.key.structure == "design"));
+    assert_eq!(claim.calibration.basis.as_ref().unwrap().validation.as_ref(), "not_applicable");
     let bytes =
         prepared.encode_contracted_result(&result, "supported-panel-did", &context).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
+    assert!(
+        !consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| reason.as_ref() == "claim.calibration.basis")
+    );
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.panel_did.as_ref().unwrap().interval_95, Some(bounds));
     assert_eq!(
         body.panel_did.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
     let mut fabricated = body.clone();
     fabricated.panel_did.as_mut().unwrap().interval_95 = Some([bounds[0] - 1.0, bounds[1]]);
-    assert!(
+    assert_refused(
         antecedent_io::encode_analysis_result_artifact(
             &fabricated,
             header.variable_names,
-            "fabricated"
-        )
-        .is_err()
+            "fabricated",
+        ),
+        FABRICATION,
     );
 }
 
@@ -173,25 +208,31 @@ fn supported_repeated_cross_section_interval_round_trips_and_rejects_fabrication
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
     let result = prepared.estimate(&data, &context).unwrap();
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    retained_graphless::assert_retained_graphless_program(
+        "supported_repeated_cross_section_interva",
+        &prepared,
+        &result,
+        &context,
+    );
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
     let did = result.panel_did().unwrap();
     assert!((did.effect - 2.0).abs() < 1e-12);
     let interval = did.interval_95.expect("30 independent clusters in every cell");
     let bytes =
-        prepared.encode_contracted_result(&result, "repeated-did-license", &context).unwrap();
+        prepared.encode_contracted_result(&result, "repeated-did-support", &context).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(
         body.panel_did.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
     body.panel_did.as_mut().unwrap().interval_95 = Some([interval[0] - 1.0, interval[1]]);
-    assert!(
+    assert_refused(
         antecedent_io::encode_analysis_result_artifact(
             &body,
             header.variable_names,
-            "forged-repeated-did"
-        )
-        .is_err()
+            "forged-repeated-did",
+        ),
+        FABRICATION,
     );
 }
 
@@ -206,7 +247,28 @@ fn panel_did_refuses_missing_wave_and_insufficient_group_clusters() {
         query.subjects[..15].to_vec(),
         query.clusters[..15].to_vec(),
     );
-    assert!(Study::tabular(data.clone()).query(missing).build().unwrap().run(&context).is_err());
+    assert_refused(
+        Study::tabular(data.clone()).query(missing).build().unwrap().run(&context),
+        "panel DiD metadata must align with table rows",
+    );
+
+    // A subject observed in one wave only (its post row dropped from table and metadata alike).
+    let changes = [2.0, 4.0, 6.0, 8.0, 0.0, 2.0, 4.0, 6.0];
+    let outcome: Vec<f64> = (0..15)
+        .map(|row| (row / 2) as f64 * 10.0 + if row % 2 == 1 { changes[row / 2] } else { 0.0 })
+        .collect();
+    let one_wave = PanelDidQuery::new(
+        query.outcome,
+        query.treated[..15].to_vec(),
+        query.post[..15].to_vec(),
+        query.subjects[..15].to_vec(),
+        query.clusters[..15].to_vec(),
+    );
+    let thin = TabularData::from_f64_columns([("outcome", outcome.as_slice())]).unwrap();
+    assert_refused(
+        Study::tabular(thin).query(one_wave).build().unwrap().run(&context),
+        "panel DiD requires a balanced two-period panel",
+    );
 
     let collapsed = PanelDidQuery::new(
         query.outcome,
@@ -217,7 +279,10 @@ fn panel_did_refuses_missing_wave_and_insufficient_group_clusters() {
     );
     let prepared =
         Study::tabular(data.clone()).query(collapsed).build().unwrap().prepare(&context).unwrap();
-    assert!(prepared.estimate(&data, &context).is_err());
+    assert_refused(
+        prepared.estimate(&data, &context),
+        "cluster SE requires at least two clusters in each group",
+    );
 }
 
 #[test]
@@ -257,8 +322,8 @@ fn repeated_cross_section_did_runs_through_study_and_prepared_routes() {
     assert_eq!(estimate.comparison_subjects, 4);
     assert_eq!(estimate.clusters, 8);
     assert_eq!(estimate.uncertainty.as_ref(), "cluster_robust_standard_error_no_interval");
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
-    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert!(result.estimate().as_effect().unwrap().se_analytic().is_nan());
     for required in ["parallel_trends", "repeated_cross_section"] {
         assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
             &record.assumption, Assumption::Custom { id, .. } if id.as_ref() == required
@@ -290,23 +355,19 @@ fn repeated_cross_section_refuses_duplicate_subject_or_sparse_cell_clusters() {
     let context = ExecutionContext::for_tests(17);
     let mut repeated_ids = ids.clone();
     repeated_ids[1] = repeated_ids[0].clone();
-    assert!(
+    assert_refused(
         Study::tabular(data.clone())
             .query(make(repeated_ids, clusters.clone()))
             .build()
             .unwrap()
-            .run(&context)
-            .is_err()
+            .run(&context),
+        "repeated-cross-section DiD requires one row per subject",
     );
     let mut sparse_clusters = clusters;
     sparse_clusters[1] = sparse_clusters[0].clone();
-    assert!(
-        Study::tabular(data)
-            .query(make(ids, sparse_clusters))
-            .build()
-            .unwrap()
-            .run(&context)
-            .is_err()
+    assert_refused(
+        Study::tabular(data).query(make(ids, sparse_clusters)).build().unwrap().run(&context),
+        "requires at least two clusters in each group-period cell",
     );
 }
 
@@ -372,8 +433,8 @@ fn staggered_group_time_runs_as_retained_native_study() {
     assert_eq!(estimate.treated_subjects, 4);
     assert_eq!(estimate.comparison_subjects, 4);
     assert_eq!(estimate.uncertainty.as_ref(), "cluster_robust_standard_error_no_interval");
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
-    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert!(result.estimate().as_effect().unwrap().se_analytic().is_nan());
     for required in
         ["cohort_specific_parallel_untreated_trends", "never_treated_controls_are_valid"]
     {
@@ -398,7 +459,10 @@ fn staggered_group_time_runs_as_retained_native_study() {
         3,
         4,
     );
-    assert!(Study::tabular(data).query(no_controls).build().unwrap().run(&context).is_err());
+    assert_refused(
+        Study::tabular(data).query(no_controls).build().unwrap().run(&context),
+        "staggered DiD requires never-treated controls",
+    );
 }
 
 #[test]
@@ -444,8 +508,8 @@ fn staggered_event_study_retains_full_curve_and_refuses_missing_controls() {
         vec![0.0, 4.0, 4.0]
     );
     assert_eq!(panel.event_time_effects[1].standard_error, 0.0);
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
-    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+    assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert!(result.estimate().as_effect().unwrap().se_analytic().is_nan());
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, Assumption::Custom { id, .. } if id.as_ref() == "cohort_specific_parallel_untreated_trends"
     )));
@@ -467,13 +531,13 @@ fn staggered_event_study_retains_full_curve_and_refuses_missing_controls() {
     assert!(body.interval_lower.is_none() && body.interval_upper.is_none());
     let mut fabricated = body.clone();
     fabricated.panel_did.as_mut().unwrap().event_time_effects[1].6 = f64::INFINITY;
-    assert!(
+    assert_refused(
         antecedent_io::encode_analysis_result_artifact(
             &fabricated,
             header.variable_names,
-            "fabricated"
-        )
-        .is_err()
+            "fabricated",
+        ),
+        FABRICATION,
     );
     let no_controls = PanelDidQuery::staggered_event_study(
         query.outcome,
@@ -482,7 +546,10 @@ fn staggered_event_study_retains_full_curve_and_refuses_missing_controls() {
         query.periods.to_vec(),
         vec![3; query.cohorts.len()],
     );
-    assert!(Study::tabular(data).query(no_controls).build().unwrap().run(&context).is_err());
+    assert_refused(
+        Study::tabular(data).query(no_controls).build().unwrap().run(&context),
+        "event study requires never-treated controls (cohort 0)",
+    );
 }
 
 #[test]
@@ -575,30 +642,36 @@ fn staggered_interval_fixture(clusters_per_group: usize) -> (TabularData, PanelD
 }
 
 #[test]
-fn supported_staggered_event_study_interval_round_trips_and_rejects_forged_license() {
+fn supported_staggered_event_study_interval_round_trips_and_rejects_forged_support() {
     // Supported cohort: 24 independent clusters per group publish the
-    // post-adoption interval and license the row.
+    // post-adoption interval and support the row.
     let (data, query) = staggered_interval_fixture(24);
     let context = ExecutionContext::for_tests(112);
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
     let result = prepared.estimate(&data, &context).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "supported_staggered_event_study_interval",
+        &prepared,
+        &result,
+        &context,
+    );
     let did = result.panel_did().unwrap();
     assert_eq!(
         did.uncertainty.as_ref(),
         "event_time_pointwise_normal_intervals_independent_clusters"
     );
     let bounds = did.interval_95.expect("published representative post-adoption interval");
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
     let bytes =
         prepared.encode_contracted_result(&result, "supported-staggered-event", &context).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(
         body.panel_did.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
     assert_eq!(body.panel_did.as_ref().unwrap().interval_95, Some(bounds));
-    // Fabricating the licensed representative interval is rejected.
+    // Fabricating the supported representative interval is rejected.
     let mut fabricated = body.clone();
     let index = fabricated
         .panel_did
@@ -610,17 +683,17 @@ fn supported_staggered_event_study_interval_round_trips_and_rejects_forged_licen
         .unwrap();
     fabricated.panel_did.as_mut().unwrap().event_time_intervals_95[index] =
         Some([bounds[0] - 1.0, bounds[1]]);
-    assert!(
+    assert_refused(
         antecedent_io::encode_analysis_result_artifact(
             &fabricated,
             header.variable_names.clone(),
-            "fabricated-staggered-interval"
-        )
-        .is_err()
+            "fabricated-staggered-interval",
+        ),
+        FABRICATION,
     );
 
-    // Thin cohort: 8 clusters per group withholds the interval and the license;
-    // stamping "licensed" onto that unsupported result is refused.
+    // Thin cohort: 8 clusters per group withholds the interval and the support;
+    // stamping "supported" onto that unsupported result is refused.
     let (thin_data, thin_query) = staggered_interval_fixture(8);
     let thin_prepared = Study::tabular(thin_data.clone())
         .query(thin_query)
@@ -629,7 +702,7 @@ fn supported_staggered_event_study_interval_round_trips_and_rejects_forged_licen
         .prepare(&context)
         .unwrap();
     let thin_result = thin_prepared.estimate(&thin_data, &context).unwrap();
-    assert_eq!(thin_result.support_status, None);
+    assert_eq!(thin_result.support_status(), None);
     assert_eq!(thin_result.panel_did().unwrap().interval_95, None);
     let thin_bytes = thin_prepared
         .encode_contracted_result(&thin_result, "thin-staggered-event", &context)
@@ -637,14 +710,14 @@ fn supported_staggered_event_study_interval_round_trips_and_rejects_forged_licen
     let (_, thin_header, mut thin_body) =
         antecedent_io::decode_analysis_result_artifact(&thin_bytes).unwrap();
     assert_eq!(thin_body.panel_did.as_ref().unwrap().graphless_support_status, None);
-    thin_body.panel_did.as_mut().unwrap().graphless_support_status = Some("licensed".into());
-    assert!(
+    thin_body.panel_did.as_mut().unwrap().graphless_support_status = Some("supported".into());
+    assert_refused(
         antecedent_io::encode_analysis_result_artifact(
             &thin_body,
             thin_header.variable_names,
-            "forged-thin-staggered-license"
-        )
-        .is_err()
+            "forged-thin-staggered-support",
+        ),
+        FABRICATION,
     );
 }
 
@@ -677,16 +750,16 @@ fn staggered_event_known_truth_fixture_spans_thin_and_supported_clusters() {
                 panel.uncertainty.as_ref(),
                 "event_time_pointwise_normal_intervals_independent_clusters"
             );
-            assert!(result.estimate.as_effect().unwrap().se_analytic() > 0.0);
+            assert!(result.estimate().as_effect().unwrap().se_analytic() > 0.0);
             assert_ne!(
-                result.interval.as_ref().unwrap().method,
+                result.interval().as_ref().unwrap().method,
                 antecedent_core::IntervalMethod::None
             );
         } else {
             assert!(panel.event_time_intervals_95.iter().all(Option::is_none));
             assert_eq!(panel.interval_95, None);
             assert_eq!(panel.uncertainty.as_ref(), "cluster_robust_standard_error_no_interval");
-            assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+            assert!(result.estimate().as_effect().unwrap().se_analytic().is_nan());
         }
         let bytes = prepared
             .encode_contracted_result(&result, "staggered-event-interval", &context)
@@ -695,26 +768,26 @@ fn staggered_event_known_truth_fixture_spans_thin_and_supported_clusters() {
         assert_eq!(body.panel_did.as_ref().unwrap().event_time_intervals_95.len(), 3);
         if clusters_per_group == 24 {
             body.panel_did.as_mut().unwrap().event_time_intervals_95[1] = Some([0.0, 0.0]);
-            assert!(
+            assert_refused(
                 antecedent_io::encode_analysis_result_artifact(
                     &body,
                     header.variable_names,
-                    "forged-staggered-interval"
-                )
-                .is_err()
+                    "forged-staggered-interval",
+                ),
+                FABRICATION,
             );
         }
     }
 }
 
 #[test]
-fn licensed_staggered_event_study_publishes_its_own_matrix_coordinate() {
+fn supported_staggered_event_study_publishes_its_own_matrix_coordinate() {
     let (data, query) = staggered_interval_fixture(24);
     let context = ExecutionContext::for_tests(112);
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
     let result = prepared.estimate(&data, &context).unwrap();
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
     let contract = prepared.contract_for_result(&result).unwrap();
     match &contract.reasoning.support {
         antecedent_contract::SlotAvailability::Available(slot) => assert_eq!(

@@ -23,9 +23,10 @@
 //!
 //! Each simulation also returns a [`ResourceReceipt`] of the work it did.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
+use antecedent_core::execution::{AdmissionError, AdmissionLease};
 
 /// Most simulation work one request may do: replications times units times
 /// measurements per unit.
@@ -119,16 +120,16 @@ impl CapacityError {
     #[must_use]
     pub const fn detail(self) -> &'static str {
         match self {
-            Self::DeclaredUnits { .. } => "adaptive_inference.declared_units_exceeded",
-            Self::DeclaredLooks { .. } => "adaptive_inference.declared_looks_exceeded",
-            Self::LawStates { .. } => "adaptive_inference.exact_law_states_exceeded",
-            Self::LawWork { .. } => "adaptive_inference.exact_law_work_exceeded",
+            Self::DeclaredUnits { .. } => antecedent_core::reason_details::adaptive_inference::DECLARED_UNITS_EXCEEDED,
+            Self::DeclaredLooks { .. } => antecedent_core::reason_details::adaptive_inference::DECLARED_LOOKS_EXCEEDED,
+            Self::LawStates { .. } => antecedent_core::reason_details::adaptive_inference::EXACT_LAW_STATES_EXCEEDED,
+            Self::LawWork { .. } => antecedent_core::reason_details::adaptive_inference::EXACT_LAW_WORK_EXCEEDED,
             Self::SimulationReplications { .. } => {
-                "adaptive_inference.simulation_replications_exceeded"
+                antecedent_core::reason_details::adaptive_inference::SIMULATION_REPLICATIONS_EXCEEDED
             }
-            Self::SimulationWork { .. } => "adaptive_inference.simulation_work_exceeded",
-            Self::SimulationMemory { .. } => "adaptive_inference.simulation_memory_exceeded",
-            Self::RetainedRecord { .. } => "adaptive_inference.retained_record_exceeded",
+            Self::SimulationWork { .. } => antecedent_core::reason_details::adaptive_inference::SIMULATION_WORK_EXCEEDED,
+            Self::SimulationMemory { .. } => antecedent_core::reason_details::adaptive_inference::SIMULATION_MEMORY_EXCEEDED,
+            Self::RetainedRecord { .. } => antecedent_core::reason_details::adaptive_inference::RETAINED_RECORD_EXCEEDED,
         }
     }
 
@@ -233,8 +234,7 @@ impl ResourceBudget {
     /// context sets none).
     #[must_use]
     pub fn from_context(ctx: &ExecutionContext) -> Self {
-        let configured =
-            [ctx.memory.soft_limit_bytes, ctx.memory.hard_limit_bytes].into_iter().flatten().min();
+        let configured = ctx.memory_limit_bytes();
         Self {
             max_work: MAX_SIMULATION_WORK,
             max_memory_bytes: configured.unwrap_or(MAX_SIMULATION_MEMORY_BYTES),
@@ -315,10 +315,14 @@ pub(crate) struct SimulationShape {
 }
 
 /// A simulation the budget admitted.
-#[derive(Clone, Copy, Debug)]
+///
+/// Holds the bytes on the workflow's admission pool, when a workflow account is bound, until
+/// the simulation drops it.
+#[derive(Debug)]
 pub(crate) struct Admitted {
     pub work_planned: u64,
     pub estimated_peak_bytes: u64,
+    _lease: Option<AdmissionLease>,
 }
 
 impl ResourceBudget {
@@ -346,7 +350,19 @@ impl ResourceBudget {
                 requested: bytes.unwrap_or(u64::MAX),
             });
         };
-        Ok(Admitted { work_planned: work, estimated_peak_bytes: bytes })
+        // The planned peak is also charged to the workflow account bound by
+        // `numerical_admission`; a direct call outside any workflow has no pool to charge.
+        let lease =
+            antecedent_core::numerical_admission::acquire(bytes).transpose().map_err(|error| {
+                CapacityError::SimulationMemory {
+                    limit: match error {
+                        AdmissionError::ExceedsRemainder { remaining_bytes, .. } => remaining_bytes,
+                        _ => 0,
+                    },
+                    requested: bytes,
+                }
+            })?;
+        Ok(Admitted { work_planned: work, estimated_peak_bytes: bytes, _lease: lease })
     }
 }
 

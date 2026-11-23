@@ -6,16 +6,17 @@
 
 use antecedent_core::{
     DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime, ExecutionContext,
-    Intervention, MemoryBudget, RegimeId, RegimeKind, SearchLimits, SearchStop, Value, VariableId,
+    Intervention, RegimeId, RegimeKind, SearchLimits, SearchStop, Value, VariableId,
 };
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
 use antecedent_identify::{
     ADMG_CONDITIONAL_DEFAULT_LIMITS, ClassicalTransportQuery, ClassicalTransportResult,
     ConditionalNonTransportabilityProof, ConditionalObstructionCandidate,
     ConditionalTransportDecision, ConditionalTransportDerivation, ConditionalTransportQuery,
-    ConditionalWitnessRecord, IdcIdentifier, IdentificationError, IdentificationWorkspace,
-    SidLimits, admg_conditional_refusal, decide_admg_conditional_transport,
-    identify_classical_transport, verify_conditional_witness,
+    ConditionalWitnessRecord, IdcIdentifier, IdentificationBudget, IdentificationError,
+    IdentificationWorkspace, SidLimits, WITNESS_VERIFY_DEFAULT_OPERATIONS,
+    admg_conditional_refusal, decide_admg_conditional_transport, identify_classical_transport,
+    verify_conditional_witness, verify_conditional_witness_within,
 };
 use std::sync::Arc;
 
@@ -165,7 +166,10 @@ fn a_reduced_joint_s_hedge_is_proven_by_a_verified_witness() {
     let q = query(&[1], &[0], &[2]);
     let decision = decide(&diagram, &q, &full_catalog(3, &[]));
     assert_eq!(decision.reason_code(), Some("transport_proven_non_transportable"));
-    assert_eq!(decision.detail_code(), Some("admg_transport.proven_non_transportable"));
+    assert_eq!(
+        decision.detail_code(),
+        Some(antecedent_core::reason_details::admg_transport::PROVEN_NON_TRANSPORTABLE)
+    );
     assert_eq!(
         decision.identification_status(),
         antecedent_core::TransportOutcomeKind::ProvenNonTransportable
@@ -215,7 +219,10 @@ fn a_reduced_joint_s_hedge_without_a_witness_is_not_certified_never_proven() {
     let q = query(&[1], &[0], &[2]);
     let decision = decide(&diagram, &q, &full_catalog(6, &[]));
     assert_eq!(decision.reason_code(), Some("transport_not_certified"));
-    assert_eq!(decision.detail_code(), Some("admg_transport.not_certified"));
+    assert_eq!(
+        decision.detail_code(),
+        Some(antecedent_core::reason_details::admg_transport::NOT_CERTIFIED)
+    );
     let ConditionalTransportDecision::NotCertified(inspection) = decision else {
         panic!("not certified");
     };
@@ -258,7 +265,10 @@ fn witness_mutations_fail_verification() {
             let error = verify_conditional_witness(d, q, w, &ctx).expect_err("mutated witness");
             assert_eq!(
                 admg_conditional_refusal(&error),
-                Some(("transport_not_certified", "admg_transport.invalid_derivation")),
+                Some((
+                    "transport_not_certified",
+                    antecedent_core::reason_details::admg_transport::INVALID_DERIVATION
+                )),
                 "{error:?}"
             );
         };
@@ -353,7 +363,10 @@ fn candidate_mutations_fail_verification() {
     let invalid = |error: IdentificationError| {
         assert_eq!(
             admg_conditional_refusal(&error),
-            Some(("transport_not_certified", "admg_transport.invalid_derivation")),
+            Some((
+                "transport_not_certified",
+                antecedent_core::reason_details::admg_transport::INVALID_DERIVATION
+            )),
             "{error:?}"
         );
     };
@@ -410,7 +423,10 @@ fn a_missing_source_experiment_is_missing_evidence_naming_the_leaf() {
     let catalog = full_catalog(3, &[1, 3, 5, 7]);
     let decision = decide(&diagram, &q, &catalog);
     assert_eq!(decision.reason_code(), Some("transport_missing_evidence"));
-    assert_eq!(decision.detail_code(), Some("admg_transport.missing_evidence"));
+    assert_eq!(
+        decision.detail_code(),
+        Some(antecedent_core::reason_details::admg_transport::MISSING_EVIDENCE)
+    );
     let ConditionalTransportDecision::MissingEvidence { derivation, obligations } = decision else {
         panic!("missing evidence");
     };
@@ -422,9 +438,12 @@ fn a_missing_source_experiment_is_missing_evidence_naming_the_leaf() {
 }
 
 #[test]
-fn graph_treatment_conditioned_and_limit_bounds_refuse_as_bounds_exceeded() {
+fn only_limit_bounds_refuse_as_bounds_exceeded() {
     let ctx = ExecutionContext::for_tests(1);
-    let bounds = Some(("route_not_supported", "admg_transport.bounds_exceeded"));
+    let bounds = Some((
+        "route_not_supported",
+        antecedent_core::reason_details::admg_transport::BOUNDS_EXCEEDED,
+    ));
     let chain = |n: u32| {
         let edges: Vec<_> = (0..n - 1).map(|i| (i, i + 1)).collect();
         SelectionDiagram::try_new(graph(n, &edges, &[]), []).unwrap()
@@ -433,17 +452,13 @@ fn graph_treatment_conditioned_and_limit_bounds_refuse_as_bounds_exceeded() {
         decide_admg_conditional_transport(diagram, q, &full_catalog(3, &[]), limits, &ctx)
     };
     let limits = ADMG_CONDITIONAL_DEFAULT_LIMITS;
-    // Six observed variables are admitted; seven refuse.
+    // The graph size and the numbers of treatments and conditioned variables have no
+    // ceiling: the work is charged to the decision's budget.
     let q = query(&[5], &[0], &[4]);
     assert!(run(&chain(6), &q, limits).is_ok());
-    assert_eq!(admg_conditional_refusal(&run(&chain(7), &q, limits).unwrap_err()), bounds);
-    // Three treatments and three conditioned variables are admitted; four refuse.
-    assert!(run(&chain(6), &query(&[5], &[0, 1, 2], &[3]), limits).is_ok());
-    let error = run(&chain(6), &query(&[5], &[0, 1, 2, 3], &[4]), limits).unwrap_err();
-    assert_eq!(admg_conditional_refusal(&error), bounds);
-    assert!(run(&chain(6), &query(&[5], &[0], &[1, 2, 3]), limits).is_ok());
-    let error = run(&chain(6), &query(&[5], &[], &[0, 1, 2, 3]), limits).unwrap_err();
-    assert_eq!(admg_conditional_refusal(&error), bounds);
+    assert!(run(&chain(7), &q, limits).is_ok());
+    assert!(run(&chain(6), &query(&[5], &[0, 1, 2, 3], &[4]), limits).is_ok());
+    assert!(run(&chain(6), &query(&[5], &[0], &[1, 2, 3, 4]), limits).is_ok());
     // Limits at the maxima run; one more operation or depth level refuses.
     let small = chain(3);
     let q = query(&[2], &[0], &[1]);
@@ -461,7 +476,8 @@ fn invalid_queries_and_catalogs_refuse_by_name() {
     let ctx = ExecutionContext::for_tests(1);
     let diagram = SelectionDiagram::try_new(graph(3, &[(0, 1), (1, 2)], &[]), [v(2)]).unwrap();
     let catalog = full_catalog(3, &[]);
-    let invalid = Some(("invalid_argument", "admg_transport.invalid_query"));
+    let invalid =
+        Some(("invalid_argument", antecedent_core::reason_details::admg_transport::INVALID_QUERY));
     let mut same_population = query(&[2], &[0], &[1]);
     same_population.base.source = Arc::from("target");
     for bad in [
@@ -514,7 +530,10 @@ fn invalid_queries_and_catalogs_refuse_by_name() {
     .unwrap_err();
     assert_eq!(
         admg_conditional_refusal(&error),
-        Some(("invalid_argument", "admg_transport.invalid_catalog"))
+        Some((
+            "invalid_argument",
+            antecedent_core::reason_details::admg_transport::INVALID_CATALOG
+        ))
     );
 }
 
@@ -522,7 +541,10 @@ fn invalid_queries_and_catalogs_refuse_by_name() {
 fn a_tampered_record_fails_the_independent_checker() {
     let ctx = ExecutionContext::for_tests(1);
     let limits = ADMG_CONDITIONAL_DEFAULT_LIMITS;
-    let invalid = Some(("transport_not_certified", "admg_transport.invalid_derivation"));
+    let invalid = Some((
+        "transport_not_certified",
+        antecedent_core::reason_details::admg_transport::INVALID_DERIVATION,
+    ));
     // Movable case: W(2) -> Y(1) <- X(0), X <-> Y, selection on W.
     let diagram =
         SelectionDiagram::try_new(graph(3, &[(0, 1), (2, 1)], &[(0, 1)]), [v(2)]).unwrap();
@@ -987,7 +1009,7 @@ fn depth_and_memory_stops_are_receipts_and_memory_is_checked_on_every_charge() {
     assert_eq!(receipt.explored, ["stage:rule_two_reduction"]);
     // Memory: a hard limit below one live state stops at the first charge.
     let mut tight = ExecutionContext::for_tests(1);
-    tight.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(600) };
+    tight.set_memory_limit(Some(600));
     let ConditionalTransportDecision::Exhausted(receipt) = decide_admg_conditional_transport(
         &diagram,
         &q,
@@ -1004,7 +1026,7 @@ fn depth_and_memory_stops_are_receipts_and_memory_is_checked_on_every_charge() {
     // A limit the reduction fits but the cumulative stages do not: the stop lands
     // in a later stage, so memory was charged after the first stage too.
     let mut later = ExecutionContext::for_tests(1);
-    later.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(4_000) };
+    later.set_memory_limit(Some(4_000));
     let ConditionalTransportDecision::Exhausted(receipt) = decide_admg_conditional_transport(
         &diagram,
         &q,
@@ -1039,7 +1061,10 @@ fn depth_and_memory_stops_are_receipts_and_memory_is_checked_on_every_charge() {
 fn forged_reductions_with_valid_joints_fail_the_independent_checker() {
     use antecedent_identify::ConditionalTransportRecord;
     let ctx = ExecutionContext::for_tests(1);
-    let invalid = Some(("transport_not_certified", "admg_transport.invalid_derivation"));
+    let invalid = Some((
+        "transport_not_certified",
+        antecedent_core::reason_details::admg_transport::INVALID_DERIVATION,
+    ));
     let q = query(&[1], &[0], &[2]);
     let forge =
         |diagram: &SelectionDiagram, outcomes: &[u32], treatments: &[u32], moves, remaining| {
@@ -1121,4 +1146,52 @@ fn a_cancellation_in_the_middle_of_the_decision_is_a_receipt_never_a_verdict() {
         assert!(checks < 1_999, "the decision never finished");
     }
     assert!(mid_search > 0);
+}
+
+/// The witness enumeration is quoted from the caller's budget and its tables are leased from
+/// the pool before they exist: too few operations or too small a pool refuses with a budget
+/// error and leaves the pool untouched, while a budget that covers the quote verifies.
+#[test]
+fn witness_enumeration_is_quoted_from_the_budget_and_leased_before_allocation() {
+    use antecedent_core::execution::AdmissionPool;
+    let diagram =
+        SelectionDiagram::try_new(graph(3, &[(0, 1), (1, 2)], &[(0, 1)]), [v(1)]).unwrap();
+    let q = query(&[1], &[0], &[2]);
+    let ConditionalTransportDecision::ProvenNonTransportable(proof) =
+        decide(&diagram, &q, &full_catalog(3, &[]))
+    else {
+        panic!("proven");
+    };
+    let witness = proof.witness();
+    let ctx = ExecutionContext::for_tests(1);
+    // One operation covers far fewer cells than this witness enumerates.
+    let few = verify_conditional_witness_within(&diagram, &q, witness, 1, &ctx).unwrap_err();
+    assert!(matches!(few, IdentificationError::Budget { budget: IdentificationBudget::Steps }));
+    // A pool that cannot fund the tables refuses before any is built and keeps every byte.
+    let pool = AdmissionPool::fixed(1, 16);
+    let small = ExecutionContext::for_tests(1).with_admission(pool.clone());
+    let memory = verify_conditional_witness_within(
+        &diagram,
+        &q,
+        witness,
+        WITNESS_VERIFY_DEFAULT_OPERATIONS,
+        &small,
+    )
+    .unwrap_err();
+    assert!(matches!(memory, IdentificationError::Budget { budget: IdentificationBudget::Memory }));
+    assert_eq!(pool.available().bytes(), 16);
+    // The quote grows with the work: the declared budget that covers it verifies, and the lease
+    // is returned afterwards.
+    let ample = AdmissionPool::fixed(1, 1 << 30);
+    let funded = ExecutionContext::for_tests(1).with_admission(ample.clone());
+    let check = verify_conditional_witness_within(
+        &diagram,
+        &q,
+        witness,
+        WITNESS_VERIFY_DEFAULT_OPERATIONS,
+        &funded,
+    )
+    .unwrap();
+    assert_eq!(check.cells_compared, 72);
+    assert_eq!(ample.available().bytes(), 1 << 30);
 }

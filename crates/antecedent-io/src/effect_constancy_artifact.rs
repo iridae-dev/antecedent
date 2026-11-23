@@ -3,7 +3,7 @@
 //! A bounded, checksummed, sectioned container holding one global effect-constancy test:
 //!
 //! * `effect_constancy.meta` (CBOR): version, feature marker, the frozen null, the point-only
-//!   claim, the **unmeasured** calibration coordinate, the level, the declared partitions
+//!   claim, the **`not_measured`** calibration coordinate, the level, the declared partitions
 //!   (label, coordinate, support, estimand), the dependence kind, the multiplicity family,
 //!   the identity digests, the stored test result and the standing caveats;
 //! * `effect_constancy.numbers` (little-endian `f64`): the per-partition effects, their
@@ -19,10 +19,10 @@
 //! even when the artifact was resealed consistently.
 //!
 //! What this does **not** say: non-rejection does not prove constancy, the test's Type I error
-//! and power are unmeasured (`calibration = "unmeasured"`), and the artifact grants no causal
-//! or interval license (`inference_claim = "point_only"`). Unknown major versions refuse.
+//! and power are `not_measured` (`calibration = "not_measured"`), and the artifact grants no causal
+//! or interval support (`inference_claim = "point_only"`). Unknown major versions refuse.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CanonicalWriter;
 use antecedent_estimate::effect_constancy::{
@@ -33,14 +33,12 @@ use antecedent_estimate::effect_constancy::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
-
 /// The artifact major version this reader writes and accepts.
 pub const EFFECT_CONSTANCY_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
 pub const EFFECT_CONSTANCY_ARTIFACT_FEATURE: &str = "effect_constancy_v1";
 /// Calibration coordinate of this test: Type I error and power were not measured.
-pub const EFFECT_CONSTANCY_CALIBRATION: &str = "unmeasured";
+pub const EFFECT_CONSTANCY_CALIBRATION: &str = "not_measured";
 /// Most bytes an artifact may occupy, enforced on export and on consumption.
 pub const MAX_EFFECT_CONSTANCY_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 
@@ -62,10 +60,11 @@ crate::sectioned_artifact_error!(
 );
 
 fn invalid_request(message: &str) -> EffectConstancyArtifactError {
-    EffectConstancyArtifactError::Refused {
-        code: antecedent_core::reason_code!("invalid_argument"),
-        message: format!("effect_constancy.invalid_request: {message}"),
-    }
+    EffectConstancyArtifactError::refused(
+        antecedent_core::reason_code!("invalid_argument"),
+        antecedent_core::reason_details::effect_constancy::INVALID_REQUEST,
+        message,
+    )
 }
 
 /// The shared effect estimand on the wire.
@@ -281,7 +280,7 @@ pub struct EffectConstancyMeta {
     pub null: String,
     /// Always `point_only`.
     pub inference_claim: String,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Level of the decisions.
     pub alpha: f64,
@@ -295,7 +294,7 @@ pub struct EffectConstancyMeta {
     pub identity: EffectConstancyIdentity,
     /// The stored result.
     pub result: ResultWire,
-    /// Standing caveats: non-rejection is not proof, error rates unmeasured.
+    /// Standing caveats: non-rejection is not proof, error rates `not_measured`.
     pub caveats: Vec<String>,
 }
 
@@ -327,7 +326,7 @@ pub struct EffectConstancyReportWire {
     pub null: String,
     /// Always `point_only`.
     pub inference_claim: String,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Level of the decisions.
     pub alpha: f64,
@@ -497,23 +496,15 @@ fn identity_diff(
     stored: &EffectConstancyIdentity,
     other: &EffectConstancyIdentity,
 ) -> Option<&'static str> {
-    if stored.partition_id != other.partition_id {
-        Some("partition_identity")
-    } else if stored.estimand_id != other.estimand_id {
-        Some("estimand")
-    } else if stored.covariance_id != other.covariance_id {
-        Some("covariance")
-    } else if stored.null != other.null {
-        Some("null")
-    } else if stored.family_id != other.family_id {
-        Some("multiplicity_family")
-    } else if stored.evidence_id != other.evidence_id {
-        Some("evidence")
-    } else if stored.digest != other.digest {
-        Some("identity")
-    } else {
-        None
-    }
+    crate::first_identity_difference!(stored, other, {
+        partition_id => "partition_identity",
+        estimand_id => "estimand",
+        covariance_id => "covariance",
+        null => "null",
+        family_id => "multiplicity_family",
+        evidence_id => "evidence",
+        digest => "identity",
+    })
 }
 
 fn numbers_of(request: &EffectConstancyRequestWire) -> Vec<u8> {
@@ -612,33 +603,22 @@ fn encode_parts_impl(
     numbers: &[u8],
     artifact_id: &str,
 ) -> Result<Vec<u8>, EffectConstancyArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(EffectConstancyArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes =
-        to_cbor(meta).map_err(|error| EffectConstancyArtifactError::Encode(error.to_string()))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
-            note: "effect_constancy_point_only_unmeasured",
+            note: "effect_constancy_point_only_not_measured",
             max_bytes: MAX_EFFECT_CONSTANCY_ARTIFACT_BYTES,
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[
-            crate::OutSection {
-                id: META_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &meta_bytes,
-            },
-            crate::OutSection {
-                id: NUMBERS_SECTION,
-                content_type: crate::CONTENT_BYTES,
-                bytes: numbers,
-            },
-        ],
+        META_SECTION,
+        meta,
+        &[crate::OutSection {
+            id: NUMBERS_SECTION,
+            content_type: crate::CONTENT_BYTES,
+            bytes: numbers,
+        }],
     )
-    .map_err(|error| crate::map_artifact_check!(error, EffectConstancyArtifactError))
 }
 
 /// Decode the two sections of a container, refusing another version before the metadata is
@@ -659,23 +639,20 @@ pub fn decode_parts(
 fn decode_parts_impl(
     bytes: &[u8],
 ) -> Result<(EffectConstancyMeta, Vec<u8>), EffectConstancyArtifactError> {
-    let parts = crate::decode_container(
+    let (meta, parts) = crate::artifact_codec::decode_sectioned::<
+        EffectConstancyArtifactError,
+        EffectConstancyMeta,
+    >(
         ARTIFACT_KIND,
         MAX_EFFECT_CONSTANCY_ARTIFACT_BYTES,
-        &[META_SECTION, NUMBERS_SECTION],
+        META_SECTION,
+        &[NUMBERS_SECTION],
+        EFFECT_CONSTANCY_ARTIFACT_VERSION,
         bytes,
-    )
-    .map_err(|error| crate::map_artifact_check!(error, EffectConstancyArtifactError))?;
-    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
+    )?;
+    let Ok([payload]) = <[Vec<u8>; 1]>::try_from(parts) else {
         return Err(EffectConstancyArtifactError::Malformed("unsupported container layout".into()));
     };
-    let meta = crate::decode_with_version(&meta_bytes, |version| {
-        if version == EFFECT_CONSTANCY_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(EffectConstancyArtifactError::UnsupportedVersion { version })
-        }
-    })?;
     Ok((meta, payload))
 }
 
@@ -802,21 +779,18 @@ impl EffectConstancyArtifact {
         expected: Option<&EffectConstancyIdentity>,
     ) -> Result<Self, EffectConstancyArtifactError> {
         let (meta, numbers) = decode_parts_impl(bytes)?;
-        if meta.feature != EFFECT_CONSTANCY_ARTIFACT_FEATURE {
-            return Err(EffectConstancyArtifactError::UnsupportedSemantics("feature marker"));
-        }
+        crate::artifact_codec::require_semantics::<EffectConstancyArtifactError>(
+            meta.feature == EFFECT_CONSTANCY_ARTIFACT_FEATURE,
+            "feature marker",
+        )?;
         if meta.null != EFFECT_CONSTANCY_NULL {
             return Err(EffectConstancyArtifactError::IdentityMismatch { field: "null" });
         }
-        if meta.inference_claim != EFFECT_CONSTANCY_INFERENCE_CLAIM {
-            return Err(EffectConstancyArtifactError::UnsupportedSemantics("inference claim"));
-        }
-        if meta.calibration != EFFECT_CONSTANCY_CALIBRATION {
-            return Err(EffectConstancyArtifactError::UnsupportedSemantics("calibration"));
-        }
-        if meta.caveats != [NON_REJECTION_CAVEAT, POWER_CAVEAT] {
-            return Err(EffectConstancyArtifactError::UnsupportedSemantics("caveats"));
-        }
+        crate::artifact_codec::require_markers::<EffectConstancyArtifactError>(&[
+            (meta.inference_claim == EFFECT_CONSTANCY_INFERENCE_CLAIM, "inference claim"),
+            (meta.calibration == EFFECT_CONSTANCY_CALIBRATION, "calibration"),
+            (meta.caveats == [NON_REJECTION_CAVEAT, POWER_CAVEAT], "caveats"),
+        ])?;
         let request = request_of(&meta, &numbers)?;
         let computed = compute(&request)?;
         if let Some(field) = identity_diff(&meta.identity, &computed.identity) {
@@ -827,10 +801,10 @@ impl EffectConstancyArtifact {
                 "statistic, p-value or contrasts",
             ));
         }
-        if let Some(expected) = expected {
-            if let Some(field) = identity_diff(expected, &computed.identity) {
-                return Err(EffectConstancyArtifactError::IdentityMismatch { field });
-            }
+        if let Some(expected) = expected
+            && let Some(field) = identity_diff(expected, &computed.identity)
+        {
+            return Err(EffectConstancyArtifactError::IdentityMismatch { field });
         }
         Ok(Self { meta, request, result: computed.result })
     }

@@ -1,6 +1,6 @@
 //! Engine unit tests.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -41,10 +41,12 @@ fn var_series() -> (TimeSeriesData, Vec<VariableId>) {
     )
     .unwrap();
     let schema = b.build().unwrap();
-    let mut x = vec![0.0; n];
+    // X is white noise: a smooth sinusoid makes the lagged columns collinear, which the CI
+    // test (correctly) reports as untestable, so every link would score statistic 0, p = 1.
+    let mut state = 0x2545_F491_4F6C_DD1D_u64;
+    let x = uniform_draws(&mut state, n);
     let mut y = vec![0.0; n];
     for t in 1..n {
-        x[t] = ((t as f64) * 0.01).sin();
         y[t] = 0.8 * x[t - 1] + 0.01 * ((t as f64) * 0.03).cos();
     }
     let cols = vec![
@@ -75,6 +77,10 @@ fn constraints() -> DiscoveryConstraints {
     }
 }
 
+fn alpha_of(c: &DiscoveryConstraints) -> f64 {
+    c.alpha
+}
+
 #[test]
 fn recovers_lagged_parent() {
     let (data, vars) = var_series();
@@ -82,12 +88,28 @@ fn recovers_lagged_parent() {
     let mut ws = DiscoveryWorkspace::default();
     let ctx = ExecutionContext::for_tests(9);
     let result = engine.run_pc_mci(&data, &vars, &mut ws, &ctx).unwrap();
-    let has = result.evidence.links.iter().any(|s| {
-        s.link.source == VariableId::from_raw(0)
-            && s.link.target == VariableId::from_raw(1)
-            && s.link.source_lag.raw() == 1
-    });
-    assert!(has, "links={:?}", result.evidence.links);
+    // The full constrained family is scored, so mere presence proves nothing: the true link
+    // must be the strong one (y = 0.8 x_{t-1} + 0.01 cos, partial correlation 0.9996) and
+    // white-noise x must have no significant lagged parent.
+    let scored = |source: u32, lag: u32, target: u32| {
+        result
+            .evidence
+            .links
+            .iter()
+            .find(|s| {
+                s.link.source == VariableId::from_raw(source)
+                    && s.link.target == VariableId::from_raw(target)
+                    && s.link.source_lag.raw() == lag
+            })
+            .unwrap_or_else(|| panic!("link {source}@{lag}->{target} unscored"))
+    };
+    let true_link = scored(0, 1, 1);
+    assert!(true_link.statistic > 0.999 && true_link.p_value < 1e-12, "{true_link:?}");
+    for (source, lag) in [(0, 1), (0, 2), (1, 1), (1, 2)] {
+        let spurious = scored(source, lag, 0);
+        assert!(spurious.p_value > alpha_of(&constraints()), "x has no parent: {spurious:?}");
+        assert!(spurious.statistic.abs() < 0.1, "{spurious:?}");
+    }
     assert_eq!(result.review.pending_edges.len(), result.evidence.links.len());
     assert_eq!(result.review.algorithm.as_ref(), "pcmci.engine.pc_mci");
 }
@@ -118,12 +140,19 @@ fn recovers_lagged_parent_with_analysis_mask() {
     let mut ws = DiscoveryWorkspace::default();
     let ctx = ExecutionContext::for_tests(9);
     let result = engine.run_pc_mci(&data, &vars, &mut ws, &ctx).unwrap();
-    let has = result.evidence.links.iter().any(|s| {
-        s.link.source == VariableId::from_raw(0)
-            && s.link.target == VariableId::from_raw(1)
-            && s.link.source_lag.raw() == 1
-    });
-    assert!(has, "masked links={:?}", result.evidence.links);
+    let true_link = result
+        .evidence
+        .links
+        .iter()
+        .find(|s| {
+            s.link.source == VariableId::from_raw(0)
+                && s.link.target == VariableId::from_raw(1)
+                && s.link.source_lag.raw() == 1
+        })
+        .expect("the true link is scored");
+    // Presence is guaranteed by the full-family scoring; the masked test must still find the
+    // dependence (partial correlation 0.9996 on the 6/7 of the rows that are kept).
+    assert!(true_link.statistic > 0.999 && true_link.p_value < 1e-12, "{true_link:?}");
     assert!(!ws.keep_cache.is_empty(), "keep-mask cache should be populated");
 }
 
@@ -138,9 +167,17 @@ fn pcmci_alpha_filters_unthresholded_engine() {
     let filtered = pcmci.run(&data, &vars, &mut ws, &ctx).unwrap();
     assert!(raw.evidence.links.len() >= filtered.evidence.links.len());
     assert!(filtered.evidence.links.iter().all(|s| s.p_value <= 0.05));
+    // The alpha keep is exactly the definition: the raw links with p <= alpha, no more, no less.
+    let by_definition: std::collections::BTreeSet<_> =
+        raw.evidence.links.iter().filter(|s| s.p_value <= 0.05).map(|s| s.link).collect();
+    let kept: std::collections::BTreeSet<_> =
+        filtered.evidence.links.iter().map(|s| s.link).collect();
+    assert_eq!(kept, by_definition);
+    assert!(!kept.is_empty() && kept.len() < raw.evidence.links.len());
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the fixture checks exact boundary values")]
 fn fdr_adjusts_full_mci_family() {
     let (data, vars) = var_series();
     let mut ws = DiscoveryWorkspace::default();
@@ -161,13 +198,75 @@ fn fdr_adjusts_full_mci_family() {
     );
 
     let with_fdr = Pcmci::new().with_fdr(true).with_constraints(cons.clone());
-    let without = Pcmci::new().with_fdr(false).with_constraints(cons);
+    let without = Pcmci::new().with_fdr(false).with_constraints(cons.clone());
     let a = with_fdr.run(&data, &vars, &mut ws, &ctx).unwrap();
     let b = without.run(&data, &vars, &mut ws, &ctx).unwrap();
     // FDR is more conservative; retained set is a subset (or equal) of alpha-only.
     let set_a: std::collections::BTreeSet<_> = a.evidence.links.iter().map(|s| s.link).collect();
     let set_b: std::collections::BTreeSet<_> = b.evidence.links.iter().map(|s| s.link).collect();
     assert!(set_a.is_subset(&set_b));
+    // Benjamini-Hochberg over the full family of m scored links, recomputed from the raw
+    // p-values: adjusted_(i) = min over j >= i of p_(j) m / j, kept when adjusted <= alpha.
+    let mut sorted: Vec<f64> = raw.evidence.links.iter().map(|s| s.p_value).collect();
+    sorted.sort_by(f64::total_cmp);
+    let m = sorted.len() as f64;
+    let mut adjusted = vec![0.0; sorted.len()];
+    let mut running = f64::INFINITY;
+    for i in (0..sorted.len()).rev() {
+        running = running.min(sorted[i] * m / (i as f64 + 1.0)).min(1.0);
+        adjusted[i] = running;
+    }
+    let bh = |p: f64| adjusted[sorted.iter().position(|q| *q == p).unwrap()];
+    for link in a.evidence.links.iter() {
+        let expected = bh(link.p_value);
+        let got = link.adjusted_p_value.expect("adjusted");
+        assert!((got - expected).abs() < 1e-12, "{:?}: {got} vs {expected}", link.link);
+    }
+    let expected_kept: std::collections::BTreeSet<_> =
+        raw.evidence.links.iter().filter(|s| bh(s.p_value) <= 0.05).map(|s| s.link).collect();
+    assert_eq!(set_a, expected_kept);
+    // The kept set is pinned at levels straddling the corrected value of the spurious
+    // x_{t-2} -> y link (raw 0.034, BH 0.034 * 8 / 4 = 0.068): kept at 0.07, dropped at 0.065.
+    for (alpha, spurious_kept) in [(0.05, false), (0.065, false), (0.07, true)] {
+        let c = DiscoveryConstraints { alpha, ..cons.clone() };
+        let family = PcmciEngine::new()
+            .with_constraints(c.clone())
+            .run_pc_mci(&data, &vars, &mut ws, &ctx)
+            .unwrap();
+        let mut sorted: Vec<f64> = family.evidence.links.iter().map(|s| s.p_value).collect();
+        sorted.sort_by(f64::total_cmp);
+        let m = sorted.len();
+        let mut adjusted = vec![0.0; m];
+        let mut running = f64::INFINITY;
+        for i in (0..m).rev() {
+            running = running.min(sorted[i] * m as f64 / (i as f64 + 1.0)).min(1.0);
+            adjusted[i] = running;
+        }
+        let expected: std::collections::BTreeSet<_> = family
+            .evidence
+            .links
+            .iter()
+            .filter(|s| adjusted[sorted.iter().position(|q| *q == s.p_value).unwrap()] <= alpha)
+            .map(|s| s.link)
+            .collect();
+        let got = Pcmci::new()
+            .with_fdr(true)
+            .with_constraints(c)
+            .run(&data, &vars, &mut ws, &ctx)
+            .unwrap();
+        let got: std::collections::BTreeSet<_> =
+            got.evidence.links.iter().map(|s| s.link).collect();
+        assert_eq!(got, expected, "alpha {alpha}");
+        let spurious = LaggedLink {
+            source: VariableId::from_raw(0),
+            source_lag: Lag::from_raw(2),
+            target: VariableId::from_raw(1),
+            target_lag: Lag::CONTEMPORANEOUS,
+        };
+        assert_eq!(got.contains(&spurious), spurious_kept, "alpha {alpha}");
+    }
+    // The spurious x_{t-2} -> y link (raw p = 0.034) is exactly what the correction removes.
+    assert!(set_b.len() > set_a.len(), "alpha-only {} vs FDR {}", set_b.len(), set_a.len());
     assert!(a.evidence.links.iter().all(|s| s.adjusted_p_value.is_some()));
     assert!(b.evidence.links.iter().all(|s| s.adjusted_p_value.is_none()));
     assert!(a.evidence.edge_evidence.iter().all(|e| e.adjusted_p_value.is_some()));
@@ -192,12 +291,12 @@ fn mci_recovers_pc_false_negative() {
         .unwrap();
     }
     let schema = b.build().unwrap();
-    let mut x = vec![0.0; n];
+    // White-noise x and z: smooth sinusoids would make the lagged columns collinear.
+    let mut state = 0x9E37_79B9_7F4A_7C15_u64;
+    let x = uniform_draws(&mut state, n);
+    let z = uniform_draws(&mut state, n);
     let mut y = vec![0.0; n];
-    let mut z = vec![0.0; n];
     for t in 1..n {
-        x[t] = ((t as f64) * 0.017).sin();
-        z[t] = ((t as f64) * 0.113).cos();
         y[t] = 0.9 * x[t - 1] + 0.01 * ((t as f64) * 0.03).cos();
     }
     let cols = vec![
@@ -248,11 +347,17 @@ fn mci_recovers_pc_false_negative() {
         target: y_id,
         target_lag: Lag::CONTEMPORANEOUS,
     };
-    assert!(
-        raw.evidence.links.iter().any(|s| s.link == true_link),
-        "MCI must still score PC-dropped X→Y; links={:?}",
-        raw.evidence.links
-    );
+    let scored = raw
+        .evidence
+        .links
+        .iter()
+        .find(|s| s.link == true_link)
+        .unwrap_or_else(|| panic!("X→Y unscored; links={:?}", raw.evidence.links));
+    // Scored is not recovered: the dependence itself must be found (partial correlation
+    // ~0.9996) while the forced decoy z_{t-1} -> y is not significant.
+    assert!(scored.statistic > 0.999 && scored.p_value < 1e-12, "{scored:?}");
+    let decoy = raw.evidence.links.iter().find(|s| s.link.source == z_id).expect("decoy scored");
+    assert!(decoy.p_value > 0.05, "{decoy:?}");
     let pcmci = Pcmci::new().with_fdr(false).with_constraints(constraints);
     let kept = pcmci.run(&data, &vars, &mut ws, &ctx).unwrap();
     assert!(
@@ -270,6 +375,8 @@ fn parallel_matches_serial_link_set() {
     let serial = ExecutionContext::for_tests(3);
     let mut parallel = ExecutionContext::for_tests(3);
     parallel.parallelism = Parallelism::bounded(NonZeroThreadCount::new(4).expect("threads"));
+    parallel =
+        parallel.with_admission(antecedent_core::execution::AdmissionPool::fixed(4, u64::MAX));
     let a = pcmci.run(&data, &vars, &mut ws, &serial).unwrap();
     let b = pcmci.run(&data, &vars, &mut ws, &parallel).unwrap();
     let set_a: std::collections::BTreeSet<_> = a
@@ -564,7 +671,10 @@ fn a_forty_column_conditioning_set_matches_an_independent_partial_correlation() 
     let cond: Vec<(VariableId, Lag)> = (0..conditioning)
         .map(|j| (VariableId::from_raw(u32::try_from(2 + j).unwrap()), Lag::CONTEMPORANEOUS))
         .collect();
-    let (statistic, p_value) = engine.ci_statistic(&frame, link, &cond, &mut ws, &ctx).unwrap();
+    let (statistic, p_value) = engine
+        .ci_statistic(&frame, link, &cond, &mut ws, &ctx)
+        .unwrap()
+        .expect("the 40-column conditioning set is testable");
 
     let column = |v: VariableId| frame.column(frame.column_index(v, Lag::CONTEMPORANEOUS).unwrap());
     let given: Vec<&[f64]> = cond.iter().map(|&(v, _)| column(v)).collect();
@@ -599,14 +709,14 @@ fn a_conditioning_set_over_the_memory_limit_is_refused_not_truncated() {
     let cond: Vec<(VariableId, Lag)> =
         (2..42u32).map(|raw| (VariableId::from_raw(raw), Lag::CONTEMPORANEOUS)).collect();
     let mut tight = ExecutionContext::for_tests(1);
-    tight.memory.hard_limit_bytes = Some(10_000);
+    tight.set_memory_limit(Some(10_000));
     let error = engine.ci_statistic(&frame, link, &cond, &mut ws, &tight).unwrap_err();
     assert!(matches!(error, DiscoveryError::Resource(_)), "{error:?}");
 
     // The capacity is the largest conditioning set the limit admits.
     let rows = frame.column(0).len();
     let limit = 400_000;
-    tight.memory.hard_limit_bytes = Some(limit);
+    tight.set_memory_limit(Some(limit));
     let capacity = ci_conditioning_capacity(&frame, &tight);
     assert!(ci_query_bytes(rows, capacity) <= limit);
     assert!(ci_query_bytes(rows, capacity + 1) > limit);

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Release closure: the notes describe every registry cell with its real claim.
 
-The claim vocabulary is the one in the header of parity/promotion.toml (`inference_claim`):
+The claim vocabulary is the one in the header of parity/capability_records.toml (`inference_claim`):
 
   point_only           exact or plug-in point, no interval
   calibrated           interval with a coverage record at its own coordinate
@@ -9,9 +9,8 @@ The claim vocabulary is the one in the header of parity/promotion.toml (`inferen
   assumption_range     range over a declared sensitivity set; not a CI
   none                 no numerical claim (identification/inspection only)
 
-plus the two release-notes phrases `nominal` (an interval with no coverage record at its own
-coordinate, `estimator_grid_not_measured`; a release ships none) and `statistical interval` (the
-reader-facing name of a `calibrated` interval).
+plus the release-notes phrase `statistical interval` (the reader-facing name of a `calibrated`
+interval).
 
 Cells and Refusals are generated marker blocks. The checker compares those blocks to
 the renderer. It does not read claim lines, glossary headings, or `## Explicit refusals` out of
@@ -20,20 +19,19 @@ hand-written prose, so rewording a heading in shipped notes does not fail the ch
   <!-- generated:release-claims:cells:begin --> ... <!-- generated:release-claims:cells:end -->
   <!-- generated:release-claims:refusals:begin --> ... <!-- generated:release-claims:refusals:end -->
 
-The current draft (no snapshot yet) renders from the live registry: records not already frozen
-in an earlier snapshot. At freeze, `--snapshot` writes `parity/release_snapshots/vX.Y.Z.toml`.
+The current release's notes (no snapshot yet) render from the live registry: records not
+already frozen in an earlier snapshot. At freeze, `--snapshot` writes `parity/release_snapshots/vX.Y.Z.toml`.
 Once that file exists, the blocks render from it and the live registry is not consulted.
 Shipped notes with no generated blocks are not validated at all — not against the snapshot, and
 not against live data. Hand prose outside the markers is ignored.
 
-`--final` fails on any DRAFT or TODO marker in the notes being released. `--write-draft` inserts
-or replaces only the two marker blocks; it refuses to touch a notes file that is no longer
-marked draft unless `--force`.
+`--write-draft` inserts or replaces only the two marker blocks. It renders the current release
+from the live registry and a frozen release from its snapshot, and refuses shipped notes that have
+no snapshot. Notes carry no draft or status marker: they are written as release-time text.
 
     python3 scripts/check_release_claims.py                 # check generated blocks
-    python3 scripts/check_release_claims.py --final         # release candidate: no draft, no TODO
     python3 scripts/check_release_claims.py --write-draft   # insert or replace the marker blocks
-    python3 scripts/check_release_claims.py --snapshot      # freeze the current draft's registry projection
+    python3 scripts/check_release_claims.py --snapshot      # freeze the current release's registry projection
     python3 scripts/check_release_claims.py --self-test
 
 Environment: RELEASE_CLAIMS_ROOT (tree to read, default the repo).
@@ -45,13 +43,13 @@ import os
 import re
 import sys
 import tempfile
-import tomllib
 from pathlib import Path
 
+import _repo
 from _repo import REPO_ROOT as REPO
 
 ROOT = Path(os.environ.get("RELEASE_CLAIMS_ROOT", REPO))
-RECORDS = "parity/promotion.toml"
+RECORDS = "parity/capability_records.toml"
 COVERAGE = "parity/coverage_records.toml"
 SNAPSHOT_DIR = "parity/release_snapshots"
 CELLS_BEGIN = "<!-- generated:release-claims:cells:begin -->"
@@ -61,7 +59,6 @@ REFUSALS_END = "<!-- generated:release-claims:refusals:end -->"
 NOTES_VERSION = re.compile(r"v(\d+\.\d+\.\d+)\.md$")
 
 CLAIMS = ("point_only", "calibrated", "structural_envelope", "assumption_range", "none")
-DRAFT_MARK_RE = re.compile(r"<!-- draft:v[0-9][^ ]* -->")
 
 
 def workspace_version(root: Path) -> str:
@@ -87,10 +84,6 @@ def documentation_version(root: Path) -> str:
 
 def notes_for(root: Path) -> str:
     return f"docs/release-notes/v{documentation_version(root)}.md"
-
-
-def draft_mark(version: str) -> str:
-    return f"<!-- draft:v{version} -->"
 
 
 def notes_version(rel: str) -> str | None:
@@ -131,11 +124,18 @@ def project_record(rec: dict) -> dict:
         "consumer_question": str(rec.get("consumer_question") or ""),
         "graph_class": str(rec.get("graph_class") or ""),
         "guarantee": str(rec.get("guarantee") or ""),
-        "inference_claim": rec.get("inference_claim"),
+        # An interval claim reads "calibrated" to release readers once a coverage record
+        # backs it; the registry itself only says `interval`.
+        "inference_claim": reader_claim(rec.get("inference_claim")),
         "coverage_records": list(rec.get("coverage_records") or []),
         "bounds": bounds,
         "routes": routes,
     }
+
+
+def reader_claim(claim: str | None) -> str | None:
+    """The claim as release readers see it: the registry's `interval` reads `calibrated`."""
+    return "calibrated" if claim == "interval" else claim
 
 
 def dump_snapshot(version: str, records: list[dict], present: set[str], queries: list[str]) -> str:
@@ -186,7 +186,7 @@ def load_snapshot(root: Path, version: str) -> dict | None:
     path = root / snapshot_rel(version)
     if not path.is_file():
         return None
-    return tomllib.loads(path.read_text(encoding="utf-8"))
+    return _repo.load_toml(path)
 
 
 def snapshot_ids(root: Path, skip: str | None = None) -> set[str]:
@@ -198,26 +198,37 @@ def snapshot_ids(root: Path, skip: str | None = None) -> set[str]:
         version = path.name[1:-5]
         if skip is not None and version == skip:
             continue
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
+        data = _repo.load_toml(path)
         ids.update(rec["id"] for rec in data.get("record", []) if rec.get("id"))
     return ids
 
 
 def live_projection(root: Path) -> tuple[list[dict], set[str]]:
-    records = [project_record(rec) for rec in load(root, RECORDS).get("record", [])]
-    present = {rec.get("id") for rec in load(root, COVERAGE).get("record", []) if rec.get("id")}
+    records = [project_record(rec) for rec in load_required(root, RECORDS).get("record", [])]
+    # A coverage record in the registry is current at release: the calibration status check
+    # fails any owed record first. Whether one request falls inside a record's construction,
+    # scope and boundary is decided per request by the native matcher, so a calibrated cell's
+    # entry states that per-request status rather than a blanket guarantee. Frozen snapshots
+    # retain their recorded projection.
+    present = {
+        str(rec["id"])
+        for rec in load_required(root, COVERAGE).get("record", [])
+        if rec.get("id")
+    }
     return records, present
 
 
 def zero_cell_queries(root: Path) -> list[str]:
-    axes = load(root, "parity/support_axes.toml").get("queries") or []
-    licensed = {
-        cell.get("query") for cell in load(root, "parity/support_licensed.toml").get("cell", [])
+    axes = load_required(root, "parity/support_axes.toml").get("queries") or []
+    supported = {
+        cell.get("query") for cell in load_required(root, "parity/support_cells.toml").get("cell", [])
     }
-    return [query for query in axes if query not in licensed]
+    return [query for query in axes if query not in supported]
 
 
-def source_for(root: Path, version: str, current: str) -> tuple[list[dict], set[str], list[str]] | None:
+def source_for(
+    root: Path, version: str, current: str
+) -> tuple[list[dict], set[str], list[str]] | None:
     """(records, coverage ids, zero-cell queries) to render.
 
     A snapshot wins over the live registry. The unfrozen current release renders the live
@@ -225,8 +236,14 @@ def source_for(root: Path, version: str, current: str) -> tuple[list[dict], set[
     rendered from live data."""
     snap = load_snapshot(root, version)
     if snap is not None:
+        # A frozen snapshot is read in the same reader-facing vocabulary as live records,
+        # whichever spelling of the interval claim it was frozen with.
+        records = [
+            {**rec, "inference_claim": reader_claim(rec.get("inference_claim"))}
+            for rec in snap.get("record") or []
+        ]
         return (
-            list(snap.get("record") or []),
+            records,
             set(snap.get("coverage_present") or []),
             list(snap.get("zero_cell_queries") or []),
         )
@@ -245,8 +262,8 @@ def cells_body(records: list[dict], present: set[str]) -> str:
 
 def refusals_body(queries: list[str]) -> str:
     if not queries:
-        return "No root query is without a licensed cell.\n"
-    lines = ["Root queries with no licensed cell:", ""]
+        return "No root query is without a supported cell.\n"
+    lines = ["Root queries with no supported cell:", ""]
     lines += [f"- `{query}`" for query in queries]
     return "\n".join(lines) + "\n"
 
@@ -294,14 +311,10 @@ GLOSSARY = (
         "An exact or plug-in point estimate. No interval of any kind is claimed.",
     ),
     (
-        "`nominal`",
-        "An interval whose coverage was never measured at its own coordinate "
-        "(`estimator_grid_not_measured`). Cells publish none.",
-    ),
-    (
         "`calibrated`",
         "An interval with a coverage record measured at its own coordinate; shown to readers "
-        "as a *statistical interval*. A cell is described this way only once its records exist.",
+        "as a *statistical interval*. A cell is described this way only once its records exist, "
+        "and each result still reports its own calibration status from the native matcher.",
     ),
     (
         "`structural_envelope`",
@@ -320,20 +333,17 @@ GLOSSARY = (
     ),
 )
 
-TOKEN = re.compile(r"`(point_only|calibrated|structural_envelope|assumption_range|none)`")
-BARE = re.compile(r"\b(point_only|structural[_ ]envelope|assumption[_ ]range)\b", re.I)
-# a plain `none` counts as a claim word only right after the word claim ("Claim: none")
-PLAIN_NONE = re.compile(r"\bclaims?\b[`:]?\s*(?:is |of )?\*{0,2}`?none\b", re.I)
-BARE_CALIBRATED = re.compile(
-    r"(?<![\w-])(?<!un)(?<!not )(?<!not yet )(?<!until )(?<!pending )calibrated\b", re.I
-)
-STAT = re.compile(r"(?<!not a )(?<!no )statistical interval", re.I)
-NOMINAL = re.compile(r"(?<!no )(?<!not )(?<!never )(?<!any )\bnominal\b", re.I)
-
 
 def load(root: Path, rel: str) -> dict:
     p = root / rel
-    return tomllib.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+    return _repo.load_toml(p) if p.is_file() else {}
+
+
+def load_required(root: Path, rel: str) -> dict:
+    path = root / rel
+    if not path.is_file():
+        raise ValueError(f"required current-release registry is missing: {rel}")
+    return _repo.load_toml(path)
 
 
 def effective_claim(rec: dict, present: set[str]) -> tuple[str, bool]:
@@ -341,7 +351,7 @@ def effective_claim(rec: dict, present: set[str]) -> tuple[str, bool]:
     claim = rec["inference_claim"]
     if claim == "calibrated":
         owed = list(rec.get("coverage_records") or [])
-        if not owed or not all(c in present for c in owed) or not licensed_uncertainty(rec):
+        if not owed or not all(c in present for c in owed) or not supported_uncertainty(rec):
             return "point_only", True
     return claim, False
 
@@ -363,9 +373,9 @@ def closed_uncertainty(rec: dict) -> list[dict]:
     ]
 
 
-def licensed_uncertainty(rec: dict) -> bool:
+def supported_uncertainty(rec: dict) -> bool:
     return any(
-        r.get("stage") == "uncertainty" and r.get("status") == "licensed"
+        r.get("stage") == "uncertainty" and r.get("status") == "supported"
         for r in rec.get("routes") or []
     )
 
@@ -392,7 +402,7 @@ def guarantee_text(rec: dict) -> str:
     note = ""
     if q is not None:
         note = f" (complete only {q}" if q else " (complete as inherited from the cited theorem"
-        if not licensed_uncertainty(rec):
+        if not supported_uncertainty(rec):
             note += "; sampling interval not offered"
         note += ")"
     return f"`{g}`{note}"
@@ -412,10 +422,23 @@ def entry_text(rec: dict, present: set[str]) -> str:
         f"- Guarantee: {guarantee_text(rec)}.",
         f"- Bounds: {numeric_bounds(rec)}.",
     ]
-    if pending:
+    if pending and supported_uncertainty(rec):
         lines.append(
-            "- Interval: withheld. The interval route is closed (`cell_not_licensed`) until its "
-            "coverage records are measured; the result is the point only."
+            "- Interval: returned without a coverage claim. No measured coverage record backs "
+            "it, so its calibration status is `not_measured`; the claim is the point."
+        )
+    elif pending and not closed_uncertainty(rec):
+        lines.append(
+            "- Interval: no measured coverage record backs an interval here, so no coverage "
+            "claim is made; the claim is the point."
+        )
+    elif claim == "calibrated":
+        count = len(rec.get("coverage_records") or [])
+        lines.append(
+            f"- Interval: a statistical interval backed by {count} measured coverage "
+            f"record{'' if count == 1 else 's'}. Each result reports its calibration status "
+            "from the native matcher (`calibrated`, `outside_measured_scope`, "
+            "`measured_below_nominal` or `not_measured`); the interval is never withheld."
         )
     elif closed_uncertainty(rec):
         codes = ", ".join(
@@ -434,21 +457,13 @@ def entry_text(rec: dict, present: set[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def draft(records: list[dict], present: set[str], version: str, queries: list[str] | None = None) -> str:
+def draft(
+    records: list[dict], present: set[str], version: str, queries: list[str] | None = None
+) -> str:
     cells = wrap_block(CELLS_BEGIN, cells_body(records, present), CELLS_END).rstrip("\n")
     refusals = wrap_block(REFUSALS_BEGIN, refusals_body(queries or []), REFUSALS_END).rstrip("\n")
     out = [
         f"# Antecedent {version}",
-        "",
-        draft_mark(version),
-        " ".join(
-            (
-                "> **DRAFT.** The Cells and Refusals blocks are generated by",
-                "`scripts/check_release_claims.py --write-draft`. Hand prose outside those",
-                "markers is not claim data. Regenerate the blocks, then run",
-                "`check_release_claims.py --final` at the release candidate.",
-            )
-        ),
         "",
         "## How to read the claims",
         "",
@@ -456,21 +471,18 @@ def draft(records: list[dict], present: set[str], version: str, queries: list[st
         "| --- | --- |",
     ]
     out += [f"| {t} | {m} |" for t, m in GLOSSARY]
-    out += ["", cells, "", "## Explicit refusals", "", refusals, "", "See the [support matrix](../support-matrix.md).", ""]
+    out += [
+        "",
+        cells,
+        "",
+        "## Explicit refusals",
+        "",
+        refusals,
+        "",
+        "See the [support matrix](../support-matrix.md).",
+        "",
+    ]
     return "\n".join(out)
-
-
-def claim_words(body: str) -> set[str]:
-    body = re.sub(r"<!--.*?-->", "", body, flags=re.S)
-    found: set[str] = set(TOKEN.findall(body))
-    found |= {w.lower().replace(" ", "_") for w in BARE.findall(body)}
-    if PLAIN_NONE.search(body):
-        found.add("none")
-    if BARE_CALIBRATED.search(body) or STAT.search(body):
-        found.add("calibrated")
-    if NOMINAL.search(body):
-        found.add("nominal")
-    return found
 
 
 def _block_errors(
@@ -497,7 +509,7 @@ def _block_errors(
     return errors
 
 
-def check_notes(root: Path, notes_rel: str, final: bool = False) -> list[str]:
+def check_notes(root: Path, notes_rel: str) -> list[str]:
     """Errors for one notes file.
 
     Shipped notes that have no generated blocks are not read as claim data and are not
@@ -513,11 +525,6 @@ def check_notes(root: Path, notes_rel: str, final: bool = False) -> list[str]:
         return [f"{notes_rel}: file name is not vX.Y.Z.md"]
     current = documentation_version(root)
     errors: list[str] = []
-    if final and version == current:
-        if DRAFT_MARK_RE.search(text) or re.search(r"\bDRAFT\b", text):
-            errors.append("the notes are still marked DRAFT")
-        if re.search(r"\bTODO\b", text):
-            errors.append("TODO markers remain in the notes")
     cells = extract_block(text, CELLS_BEGIN, CELLS_END)
     refusals = extract_block(text, REFUSALS_BEGIN, REFUSALS_END)
     if version != current and cells is None and refusals is None:
@@ -534,30 +541,50 @@ def check_notes(root: Path, notes_rel: str, final: bool = False) -> list[str]:
     return errors + _block_errors(text, records, present, queries, frozen)
 
 
-def check(root: Path, notes_rel: str | None = None, final: bool = False) -> list[str]:
+def check(root: Path, notes_rel: str | None = None) -> list[str]:
     """Errors for the documented notes, and for any other notes that carry generated blocks."""
     if notes_rel is not None:
-        return check_notes(root, notes_rel, final)
+        return check_notes(root, notes_rel)
     current = notes_for(root)
     directory = root / "docs/release-notes"
-    files = sorted(str(path.relative_to(root)) for path in directory.glob("v*.md")) if directory.is_dir() else []
+    files = (
+        sorted(str(path.relative_to(root)) for path in directory.glob("v*.md"))
+        if directory.is_dir()
+        else []
+    )
     errors: list[str] = []
     if current not in files:
         errors.append(f"{current} is missing (generate with --write-draft)")
     for rel in files:
-        errors += [f"{rel}: {err}" for err in check_notes(root, rel, final and rel == current)]
+        errors += [f"{rel}: {err}" for err in check_notes(root, rel)]
     return errors
 
 
-def write_blocks(path: Path, records: list[dict], present: set[str], queries: list[str], version: str) -> None:
+def write_blocks(
+    path: Path, records: list[dict], present: set[str], queries: list[str], version: str
+) -> None:
     """Insert or replace the Cells and Refusals blocks, leaving the surrounding prose."""
     if not path.is_file():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(draft(records, present, version, queries), encoding="utf-8", newline="\n")
         return
     text = path.read_text(encoding="utf-8")
-    text = insert_block(text, CELLS_BEGIN, CELLS_END, cells_body(records, present), "## Explicit refusals", after=False)
-    text = insert_block(text, REFUSALS_BEGIN, REFUSALS_END, refusals_body(queries), "## Explicit refusals", after=True)
+    text = insert_block(
+        text,
+        CELLS_BEGIN,
+        CELLS_END,
+        cells_body(records, present),
+        "## Explicit refusals",
+        after=False,
+    )
+    text = insert_block(
+        text,
+        REFUSALS_BEGIN,
+        REFUSALS_END,
+        refusals_body(queries),
+        "## Explicit refusals",
+        after=True,
+    )
     path.write_text(text, encoding="utf-8", newline="\n")
 
 
@@ -571,23 +598,24 @@ def main(argv: list[str]) -> int:
         records, present, queries = source_for(ROOT, version, version) or ([], set(), [])
         path = ROOT / snapshot_rel(version)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(dump_snapshot(version, records, present, queries), encoding="utf-8", newline="\n")
+        path.write_text(
+            dump_snapshot(version, records, present, queries), encoding="utf-8", newline="\n"
+        )
         print(f"wrote {snapshot_rel(version)} ({len(records)} records)")
         return 0
     if "--write-draft" in argv:
         source = source_for(ROOT, notes_version(notes) or version, version)
         if source is None:
-            print(f"{notes} is a shipped file with no snapshot; refusing to render it from live data")
+            print(
+                f"{notes} is a shipped file with no snapshot; refusing to render it from live data"
+            )
             return 1
         records, present, queries = source
         path = ROOT / notes
-        if path.is_file() and not DRAFT_MARK_RE.search(path.read_text(encoding="utf-8")) and "--force" not in argv:
-            print(f"{notes} is no longer marked DRAFT; refusing to overwrite (use --force)")
-            return 1
         write_blocks(path, records, present, queries, notes_version(notes) or version)
         print(f"wrote generated blocks in {notes} ({len(records)} record entries)")
         return 0
-    errors = check(ROOT, explicit, final="--final" in argv)
+    errors = check(ROOT, explicit)
     if errors:
         print("release claims FAILED:")
         for err in errors:
@@ -604,7 +632,7 @@ def _rec(
     cov: list[str] | None = None,
     guarantee: str = "sound_incomplete",
     closed: bool = False,
-    status: str = "promoted",
+    status: str = "supported",
 ) -> dict:
     rec = {
         "id": f"synth.cell_{i.lower()}",
@@ -622,11 +650,11 @@ def _rec(
                 "name": "r",
                 "stage": "uncertainty",
                 "status": "closed",
-                "reason_code": "cell_not_licensed",
+                "reason_code": "not_supported",
             }
         ]
     elif claim == "calibrated":
-        rec["routes"] = [{"name": "r", "stage": "uncertainty", "status": "licensed"}]
+        rec["routes"] = [{"name": "r", "stage": "uncertainty", "status": "supported"}]
     return rec
 
 
@@ -659,24 +687,54 @@ def self_test() -> int:
         if not ok:
             failures.append(f"{name}: {detail}" if detail else name)
 
-    withheld = _rec("a1", "calibrated", ["cov.a1"])
-    body = entry_text(withheld, set())
-    need("coverage absent is point_only", "Claim: `point_only`" in body and "withheld" in body, body)
-    need("coverage absent does not say calibrated", "calibrated" not in body.lower() or "Claim: `point_only`" in body)
-    covered = entry_text(withheld, {"cov.a1"})
-    need("coverage present is calibrated", "Claim: `calibrated`" in covered, covered)
+    unmeasured = _rec("a1", "calibrated", ["cov.a1"])
+    body = entry_text(unmeasured, set())
+    need(
+        "coverage absent is point_only and not_measured",
+        "Claim: `point_only`" in body and "`not_measured`" in body and "withheld" not in body,
+        body,
+    )
+    need(
+        "coverage absent does not say calibrated",
+        "Claim: `calibrated`" not in body,
+    )
+    covered = entry_text(unmeasured, {"cov.a1"})
+    need(
+        "coverage present is calibrated per request",
+        "Claim: `calibrated`" in covered and "never withheld" in covered,
+        covered,
+    )
     closed = entry_text(_rec("a1", "calibrated", ["cov.a1"], closed=True), {"cov.a1"})
-    need("closed interval stays point_only", "Claim: `point_only`" in closed and "withheld" in closed, closed)
+    need(
+        "closed interval stays point_only",
+        "Claim: `point_only`" in closed and "withheld" in closed,
+        closed,
+    )
     envelope = entry_text(_rec("a2", "structural_envelope"), set())
     need("envelope is never a CI", "never a confidence interval" in envelope, envelope)
-    ranged = _rec("a3", "assumption_range", None, "exact_range_complete_within_declared_contamination_class", closed=True)
+    ranged = _rec(
+        "a3",
+        "assumption_range",
+        None,
+        "exact_range_complete_within_declared_contamination_class",
+        closed=True,
+    )
     ranged_body = entry_text(ranged, set())
-    need("complete qualifier is rendered", "within the declared contamination class" in ranged_body, ranged_body)
-    need("sampling interval not offered is rendered", "sampling interval not offered" in ranged_body, ranged_body)
-    need("assumption range is never a CI", "never a confidence interval" in ranged_body, ranged_body)
+    need(
+        "complete qualifier is rendered",
+        "within the declared contamination class" in ranged_body,
+        ranged_body,
+    )
+    need(
+        "sampling interval not offered is rendered",
+        "sampling interval not offered" in ranged_body,
+        ranged_body,
+    )
+    need(
+        "assumption range is never a CI", "never a confidence interval" in ranged_body, ranged_body
+    )
     bounds = entry_text(_rec("a5", "point_only"), set())
     need("bounds line is rendered", "Bounds: max_observed = 12." in bounds, bounds)
-    need("bare none is not a claim word", not claim_words("Bounds: none declared.") and not claim_words("publishes none."))
 
     recs = [
         _rec("a1", "calibrated", ["cov.a1"]),
@@ -690,7 +748,11 @@ def self_test() -> int:
         (root / "docs/release-notes").mkdir(parents=True)
         (root / RECORDS).write_text(_toml(recs), encoding="utf-8", newline="\n")
         (root / COVERAGE).write_text("", encoding="utf-8", newline="\n")
-        (root / "Cargo.toml").write_text('[workspace.package]\nversion = "9.9.9"\n', encoding="utf-8", newline="\n")
+        (root / "parity/support_axes.toml").write_text('queries = []\n', encoding="utf-8")
+        (root / "parity/support_cells.toml").write_text('', encoding="utf-8")
+        (root / "Cargo.toml").write_text(
+            '[workspace.package]\nversion = "9.9.9"\n', encoding="utf-8", newline="\n"
+        )
         notes = root / notes_for(root)
         projected, present = live_projection(root)
         notes.write_text(draft(projected, present, "9.9.9"), encoding="utf-8", newline="\n")
@@ -703,11 +765,18 @@ def self_test() -> int:
                 failures.append(f"{name}: expected {needle!r}, got {errs[:3]}")
 
         expect("clean draft", None, check(root))
-        expect("final rejects draft", "DRAFT", check(root, final=True))
         text = notes.read_text(encoding="utf-8")
-        notes.write_text(text.replace("Claim: `structural_envelope`", "Claim: `point_only`", 1), encoding="utf-8", newline="\n")
+        notes.write_text(
+            text.replace("Claim: `structural_envelope`", "Claim: `point_only`", 1),
+            encoding="utf-8",
+            newline="\n",
+        )
         expect("edited cells block", "generated cells block", check(root))
-        notes.write_text(text.replace("## How to read the claims", "## Reading the words"), encoding="utf-8", newline="\n")
+        notes.write_text(
+            text.replace("## How to read the claims", "## Reading the words"),
+            encoding="utf-8",
+            newline="\n",
+        )
         outside = notes.read_text(encoding="utf-8").replace(
             "See the [support matrix](../support-matrix.md).",
             "A bootstrap interval is reported. Claim: `calibrated`. The nominal interval covers.\n\n"
@@ -721,31 +790,49 @@ def self_test() -> int:
         # registry is not applied to them.
         shipped = root / "docs/release-notes/v1.0.0.md"
         shipped.write_text(
-            "# Old\n\n## Claims glossary\n\n<!-- cell: synth.cell_a2 -->\nClaim: `point_only`\n"
-        , encoding="utf-8", newline="\n")
-        (root / RECORDS).write_text(_toml([_rec("a2", "calibrated", ["cov.a2"]), *recs[2:]]), encoding="utf-8", newline="\n")
+            "# Old\n\n## Claims glossary\n\n<!-- cell: synth.cell_a2 -->\nClaim: `point_only`\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        (root / RECORDS).write_text(
+            _toml([_rec("a2", "calibrated", ["cov.a2"]), *recs[2:]]), encoding="utf-8", newline="\n"
+        )
         (root / "parity/release_snapshots").mkdir()
         (root / snapshot_rel("1.0.0")).write_text(
-            dump_snapshot("1.0.0", [project_record(_rec("a2", "structural_envelope"))], set(), [])
-        , encoding="utf-8", newline="\n")
-        # Current notes must follow the live delta (a2 is not in the 1.0.0 snapshot id... 
+            dump_snapshot("1.0.0", [project_record(_rec("a2", "structural_envelope"))], set(), []),
+            encoding="utf-8",
+            newline="\n",
+        )
+        # Current notes must follow the live delta (a2 is not in the 1.0.0 snapshot id...
         # project id is synth.cell_a2, which IS in the live registry). Freeze that id in the
         # snapshot and regenerate the current blocks from the remaining live records.
         snap_recs = [project_record(_rec("a2", "structural_envelope"))]
-        (root / snapshot_rel("1.0.0")).write_text(dump_snapshot("1.0.0", snap_recs, set(), []), encoding="utf-8", newline="\n")
+        (root / snapshot_rel("1.0.0")).write_text(
+            dump_snapshot("1.0.0", snap_recs, set(), []), encoding="utf-8", newline="\n"
+        )
         current_records, current_present, queries = source_for(root, "9.9.9", "9.9.9")
-        notes.write_text(draft(current_records, current_present, "9.9.9", queries), encoding="utf-8", newline="\n")
+        notes.write_text(
+            draft(current_records, current_present, "9.9.9", queries),
+            encoding="utf-8",
+            newline="\n",
+        )
         expect("shipped hand prose is not checked against live data", None, check(root))
         # A generated block on a shipped file matches the snapshot, even when live data differs.
         shipped.write_text(
             "# Old\n\n## Whatever the heading says\n\n"
             + wrap_block(CELLS_BEGIN, cells_body(snap_recs, set()), CELLS_END)
-            + wrap_block(REFUSALS_BEGIN, refusals_body([]), REFUSALS_END)
-        , encoding="utf-8", newline="\n")
+            + wrap_block(REFUSALS_BEGIN, refusals_body([]), REFUSALS_END),
+            encoding="utf-8",
+            newline="\n",
+        )
         expect("shipped blocks match the snapshot, not the live registry", None, check(root))
         shipped.write_text(
-            shipped.read_text(encoding="utf-8").replace("Claim: `structural_envelope`", "Claim: `calibrated`", 1)
-        , encoding="utf-8", newline="\n")
+            shipped.read_text(encoding="utf-8").replace(
+                "Claim: `structural_envelope`", "Claim: `calibrated`", 1
+            ),
+            encoding="utf-8",
+            newline="\n",
+        )
         expect("shipped block edited away from the snapshot", "frozen snapshot", check(root))
         shipped.write_text("# Old\n\nClaim: `calibrated`\n", encoding="utf-8", newline="\n")
         expect("shipped notes without blocks stay unchecked", None, check(root))
@@ -759,6 +846,7 @@ def self_test() -> int:
         return 1
     print("check_release_claims self-test: ok")
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))

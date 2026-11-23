@@ -1,7 +1,8 @@
 //! Coordinate-specific closure evidence for DAG path-specific execution.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite,
     StructureSource, Study,
@@ -10,8 +11,11 @@ use antecedent_contract::SlotAvailability;
 use antecedent_core::{CausalQuery, ExecutionContext, PathSpecificEffectQuery, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use serde_json::Value;
+
+/// Posterior-mean tolerance around the enumerated path-specific truth (observed deviation 7.3e-4).
+const BAYESIAN_TOLERANCE: f64 = 2.5e-3;
 
 fn pin() -> Value {
     serde_json::from_str(include_str!(
@@ -75,6 +79,10 @@ fn query(pin: &Value) -> PathSpecificEffectQuery {
 }
 
 #[allow(clippy::too_many_lines, reason = "one function walks a coordinate's full lifecycle")]
+#[allow(
+    clippy::redundant_closure_for_method_calls,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn verify_path_specific_coordinate(
     coordinate: &str,
     accepted: bool,
@@ -115,8 +123,11 @@ fn verify_path_specific_coordinate(
         if accepted { StructureSource::Accepted } else { StructureSource::Explicit },
         "{coordinate} structure source"
     );
-    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed));
-    let contract = prepared.contract().unwrap();
+    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Supported));
+    let (contract, inspection_work) =
+        antecedent_expr::execution_counts::count_static_work(|| prepared.contract().unwrap());
+    assert_eq!(inspection_work.factor_builds, 0, "{coordinate}: contract scanned factors");
+    assert_eq!(inspection_work.provider_bindings, 0, "{coordinate}: contract rebound providers");
     assert_eq!(contract.query_kind.as_ref(), "PathSpecificEffect", "{coordinate}");
     assert_eq!(contract.identifier.as_deref(), Some("path_specific.natural"), "{coordinate}");
     assert_eq!(contract.estimator.as_deref(), Some("functional.effect"), "{coordinate}");
@@ -141,16 +152,23 @@ fn verify_path_specific_coordinate(
         },
         "{coordinate} validation choice"
     );
-    let program = prepared
-        .checked_functional_effect_program()
-        .unwrap_or_else(|| panic!("{coordinate} omitted its retained checked effect program"));
+    let (RetainedOperation::FunctionalEffect(program)
+    | RetainedOperation::PathSpecificEffect(program)) = prepared.retained_operation()
+    else {
+        panic!("{coordinate} omitted its retained checked effect program")
+    };
     assert_eq!(program.mapping().source, program.mapping().executable, "{coordinate}");
 
     let result =
         prepared.estimate(&data, &ctx).unwrap_or_else(|error| panic!("{coordinate}: {error}"));
     let truth = fixture["truth"]["path_specific_effect"].as_f64().unwrap();
     let tolerance = if bayesian {
-        fixture["bayesian"]["posterior_mean_tolerance"].as_f64().unwrap()
+        // The pin's 0.02 is a declared acceptance band; the conjugate posterior mean of this
+        // fixture sits 7.3e-4 from the enumerated truth, so a few times that is the tolerance.
+        assert!(
+            BAYESIAN_TOLERANCE <= fixture["bayesian"]["posterior_mean_tolerance"].as_f64().unwrap()
+        );
+        BAYESIAN_TOLERANCE
     } else {
         fixture["frequentist"]["absolute_tolerance"].as_f64().unwrap()
     };
@@ -164,18 +182,36 @@ fn verify_path_specific_coordinate(
     } else {
         assert!(result.posterior.is_none(), "{coordinate} unexpected posterior");
     }
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert_eq!(refreshed.effect().to_bits(), result.effect().to_bits(), "{coordinate} refresh");
     assert!(
-        prepared.checked_functional_effect_program().is_some(),
+        matches!(
+            prepared.retained_operation(),
+            RetainedOperation::FunctionalEffect(..) | RetainedOperation::PathSpecificEffect(..)
+        ),
         "{coordinate} lost program on refresh"
     );
 
     let artifact = prepared
         .encode_contracted_result(&refreshed, &format!("path-specific-{coordinate}"), &ctx)
         .unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
-    if bayesian {
+    let consumed = replay_analysis_result(&artifact).unwrap();
+    let refuted = validation != "none";
+    let replay = "dependencies.refutation_replay";
+    if refuted {
+        // The refutation suite adds only the replay obligation, which a compact artifact cannot
+        // discharge; the verifier lists it first.
+        let reasons: Vec<&str> =
+            consumed.acceptance.unresolved.iter().map(|reason| reason.as_ref()).collect();
+        let expected: Vec<&str> = if bayesian {
+            vec![replay, "dependencies.functional_effect_posterior_draws"]
+        } else {
+            vec![replay]
+        };
+        assert_eq!(reasons, expected, "{coordinate}");
+        assert!(!consumed.acceptance.accepts_as_replayed_program(), "{coordinate}");
+        assert!(!consumed.body.refutations.is_empty(), "{coordinate}");
+    } else if bayesian {
         assert_eq!(consumed.acceptance.unresolved.len(), 1, "{coordinate} precise refusal");
         assert!(
             consumed.acceptance.unresolved.iter().any(|reason| {
@@ -184,10 +220,10 @@ fn verify_path_specific_coordinate(
             "{coordinate}: {:?}",
             consumed.acceptance.unresolved
         );
-        assert!(!consumed.acceptance.accepts_as_verified_program(), "{coordinate}");
+        assert!(!consumed.acceptance.accepts_as_replayed_program(), "{coordinate}");
     } else {
         assert!(
-            consumed.acceptance.accepts_as_verified_program(),
+            consumed.acceptance.accepts_as_replayed_program(),
             "{coordinate}: {:?}",
             consumed.acceptance.unresolved
         );
@@ -313,4 +349,17 @@ fn path_specific_dag_explicit_frequentist_none() {
         false,
         "none",
     );
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

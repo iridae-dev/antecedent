@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from antecedent import _native
+from antecedent import Execution, _native
 from antecedent.discovery import (
     GraphPosterior,
     OrderMcmc,
@@ -65,6 +65,12 @@ def test_wide_adjacency_round_trips_as_python_integers():
     assert len(keys) == 2 and keys[0] != keys[1]
 
 
+def test_atom_posterior_refuses_a_variable_count_before_sizing_by_it():
+    names = [f"v{i}" for i in range(4097)]
+    with pytest.raises(ValueError, match="at most 4096 variables"):
+        GraphPosterior.from_atoms(names, [1.0], [0])
+
+
 def test_wide_adjacency_is_validated():
     names = [f"v{i}" for i in range(12)]
     cycle = _mask([("v0", "v1"), ("v1", "v2"), ("v2", "v0")], names)
@@ -73,16 +79,21 @@ def test_wide_adjacency_is_validated():
     # Bit 132 is the first past the 132 edge bits of twelve variables.
     with pytest.raises(ValueError, match="beyond 12 variables"):
         GraphPosterior.from_atoms(names, [1.0], [1 << 132])
-    with pytest.raises(ValueError, match="below 2\\*\\*256"):
+    with pytest.raises(ValueError, match="beyond 12 variables"):
         GraphPosterior.from_atoms(names, [1.0], [1 << 256])
-    with pytest.raises(ValueError, match="below 2\\*\\*256"):
+    with pytest.raises(ValueError, match="non-negative"):
         GraphPosterior.from_atoms(names, [1.0], [-1])
-    with pytest.raises(ValueError, match="at most 16 variables"):
-        GraphPosterior.from_atoms([f"v{i}" for i in range(17)], [1.0], [0])
     sixteen = [f"v{i}" for i in range(16)]
     top_edge = _mask([("v15", "v14")], sixteen)
     assert top_edge == 1 << 239
     assert GraphPosterior.from_atoms(sixteen, [1.0], [top_edge]).adjacency == [top_edge]
+    # An edge set has no word limit: seventeen variables need 272 bits.
+    seventeen = [f"v{i}" for i in range(17)]
+    wider_edge = _mask([("v16", "v15")], seventeen)
+    assert wider_edge == 1 << 271
+    assert GraphPosterior.from_atoms(seventeen, [1.0], [wider_edge]).adjacency == [wider_edge]
+    with pytest.raises(ValueError, match="beyond 17 variables"):
+        GraphPosterior.from_atoms(seventeen, [1.0], [1 << 272])
 
 
 def test_ten_variable_posteriors_recover_the_colliders():
@@ -92,9 +103,9 @@ def test_ten_variable_posteriors_recover_the_colliders():
     runs = {
         "structure": StructureMcmc(
             n_chains=4, n_warmup=3000, n_draws=12_000, thin=2, max_parents=3
-        ).run(data, seed=5),
+        ).run(data, execution=Execution(seed=5)),
         "order": OrderMcmc(n_chains=4, n_warmup=3000, n_draws=12_000, thin=2, max_parents=3).run(
-            data, seed=6
+            data, execution=Execution(seed=6)
         ),
     }
     for label, post in runs.items():
@@ -107,6 +118,17 @@ def test_ten_variable_posteriors_recover_the_colliders():
         for src, dst in _TRUE_EDGES:
             forward, backward = matrix[index[src]][index[dst]], matrix[index[dst]][index[src]]
             assert forward + backward >= 0.95, (label, src, dst)
+        true_pairs = {frozenset(edge) for edge in _TRUE_EDGES}
+        # The 35 non-edges must stay (nearly) absent: a dense graph also contains every true edge.
+        absent = [
+            matrix[index[a]][index[b]] + matrix[index[b]][index[a]]
+            for a in _NAMES
+            for b in _NAMES
+            if a < b and frozenset((a, b)) not in true_pairs
+        ]
+        assert len(absent) == 35
+        assert sum(absent) / len(absent) <= 0.25, (label, sum(absent) / len(absent))
+        assert max(absent) <= 0.6, (label, max(absent))
         assert all(0 <= mask < 2 ** (n * (n - 1)) for mask in post.adjacency), label
         # Chain diagnostics per edge indicator, aligned with ``edge_marginals``.
         assert post.edge_rhat is not None and len(post.edge_rhat) == n * n, label
@@ -153,11 +175,11 @@ def test_short_schedule_is_refused_by_the_gate_on_ten_variables():
         _native.discover_order_mcmc(_NAMES, columns, n_chains=2, n_warmup=20, n_draws=40)
 
 
-def test_more_than_sixteen_variables_are_refused():
+def test_more_than_sixteen_variables_reach_the_diagnostics_gate_not_a_size_ceiling():
     rng = np.random.default_rng(1)
     names = [f"v{i}" for i in range(17)]
     columns = [rng.normal(size=60) for _ in names]
-    with pytest.raises(Exception, match="at most 16 variables"):
+    with pytest.raises(Exception, match="diagnostics gate"):
         _native.discover_structure_mcmc(names, columns, n_chains=2, n_warmup=10, n_draws=20)
-    with pytest.raises(Exception, match="at most 16 variables"):
+    with pytest.raises(Exception, match="diagnostics gate"):
         _native.discover_order_mcmc(names, columns, n_chains=2, n_warmup=10, n_draws=20)

@@ -1,25 +1,31 @@
 # Calibration runtime and evidence reuse
 
-The full calibration run at `c30e10304f4bd85a01ad81dd133a360ddc95c2f1`
-spent 6 h 34 min in its parallel measurement phase, excluding the release build.
-Its 2,137 grid jobs consumed about 38.8 summed job-hours. There were 282
-precision rechecks, accounting for approximately 35% of measured simulation
-time. These are execution costs, not 2,137 independent statistical tests: jobs
-can emit multiple levels or share the same simulated outcomes.
+For calibration's role in the wider evidence system, read [How Antecedent checks its scientific methods](guides/scientific-verification.md#measure-uncertainty-as-a-complete-procedure). This page explains how measurements and their supporting artifacts are retained and reused.
 
-The longest job was the largest practitioner linear-adjustment bootstrap grid
-point: 3 h 24 min at one simulation worker. It eventually passed. A scheduling
-bug discarded the historical longest-first ordering when the measured commit
-had no smoke pilot, so this job started more than three hours into the run.
-The runner now retains historical longest-first ordering without requiring a
-pilot at HEAD, and its tail policy can allocate additional workers to unusually
-long jobs within the global worker budget. Earlier smoke timings are scheduling
-estimates only; they never count as calibration evidence.
+A full calibration run spends hours in its parallel measurement phase, and
+precision rechecks can take a large share of the simulation time. Grid jobs are
+units of execution cost, not independent statistical tests: a job can emit
+several levels or share the same simulated outcomes.
+
+A few long grid jobs, such as the largest practitioner linear-adjustment
+bootstrap grid points, set the wall time of a run. The runner therefore starts
+the longest jobs first, ordered by their most recent recorded wall times and
+falling back to smoke-pilot timings, so no pilot at HEAD is required, and its
+tail policy can allocate additional workers to unusually long jobs within the
+global worker budget. Pilot and earlier smoke timings are scheduling estimates
+only; they never count as calibration evidence.
+
+When a bounded probe batch and a full measurement batch share one clean commit, set
+`ANTECEDENT_CALIBRATION_BUILD_GROUPS` to the same JSON array of registered group
+labels for both invocations. Include one label per binary needed across the two batches.
+The runner builds that set once and reuses it through Nix. Each invocation verifies its
+requested tests are covered before compiling. The canonical dependency targets,
+features, test selections and evidence checks still apply.
 
 ## Preserve completed work
 
 Use `scripts/measure_calibration.sh --missing-only` to fill missing current-method
-evidence while unchanged historical records await valid attestation waivers.
+evidence while unchanged historical records await a probe or a re-measurement.
 Explicit `--group` filters and declared `--replicates` budgets support targeted
 work. Selection distinguishes current method identities from older records with
 the same test name. A numerical method change requires its own measurement;
@@ -30,8 +36,8 @@ complete passing groups even if another group fails. A failed or incomplete
 grid, failed recheck, malformed payload, or source mismatch excludes the whole
 group. Fresh evidence may replace an existing ID only through an explicit
 replacement allowlist. Original logs and consoles remain in durable source-SHA
-archives. A saved passing result is useful evidence even if the final attestation
-gate still reports pending waivers.
+archives. A saved passing result is useful evidence even if the calibration
+status still reports records that owe a probe or a measurement.
 
 The tally sidecars also support genuine prefix extension: retain the original
 source, seed domain, grid point and raw tally state, then compute only the new
@@ -49,10 +55,42 @@ the new suffix only. For an upper-median width limit, independently passing that
 same limit in both the original and suffix blocks proves the combined sample
 also meets it; this does not reconstruct an exact combined median.
 
+## Keep records current with probes
+
+A record stands while the numbers it measured are unchanged, and a short re-run
+can show that. Each measurement stores, per grid point, the chained digests of its
+first 10 / 32 / 100 / 320 / 1000 replicates. The harness folds every replicate's
+interval endpoints, truth and bound scope facts, as raw bits in a fixed order, into
+a fingerprint; the `calibration-record` line and the tally sidecar carry the
+prefix digests, and the collector stores them as the record's `probe` table.
+Replicate `k` is a deterministic function of `k`, so
+`scripts/calibration_probe.py` re-runs a record's group at
+`ANTECEDENT_CALIBRATION_NSIM=k` (smoke mode, the measurement's frozen decision
+environment, a clean commit) and compares the prefix digests bit for bit.
+
+- `quick` probes `k = 10` at every grid point: seconds of simulation per group,
+  a detector for a change that moved a number.
+- `bounded` probes the smallest stored prefix `k >= 3/margin`, where the margin is
+  the observed coverage minus the acceptance floor at the record's worst grid
+  point. A match for `k` replicates bounds the per-replicate rate of an undetected
+  change at `3/k`, which the margin covers. A record whose margin needs more than
+  1000 replicates, or that stores no digests, is `measurement_owed` and takes a
+  measurement.
+
+A probe costs `k` of the 400 first-pass replicates (up to 2000 with the recheck)
+plus the group's build and startup, so a change confined to non-numerical code
+clears its records in minutes. A mismatch leaves the record owed and
+`scripts/measure_calibration.sh --owed` measures exactly the records that remain.
+The rows live in `parity/calibration_probe_attestations.toml`. Each row stores the
+dependency fingerprint of the record's test at the probed commit
+(`scripts/evidence_fingerprint.py`); `scripts/calibration_status.py` counts the
+record as current while a passing row covers it and that fingerprint equals the
+tree's. Calibration status never changes support or refuses a route, but CI fails while a record is owed (`scripts/calibration_status.py --check`), so owed records are measured here and committed; see [Earning and checking the records](guides/scientific-verification.md#earning-and-checking-the-records).
+
 ## Budget compilation, simulation and collection separately
 
 Batch source changes before a coalesced release prebuild. The embedded coverage
-snapshot is about 2.5 MB; changing it invalidates `antecedent-io-core` and
+snapshot is several megabytes; changing it invalidates `antecedent-io-core` and
 downstream compilation. That dependency explains invalidation, but does not by
 itself measure how much compilation time the snapshot causes. Compile time must
 be reported separately from numerical wall time. Use a necessary build's Cargo
@@ -61,19 +99,17 @@ timings rather than trigger another build solely to time it.
 A managed immutable measurement checkout prevents continuing branch work from
 changing an active experiment. Give different source checkouts separate build
 caches, or reserve a shared cache for the frozen source until its numerical
-queue finishes. Limit the *sum* of simulation workers, independent replay and
+queue finishes. Limit the *sum* of simulation workers, independent probe and
 extension workers, and competing compiler or test workers. A per-process limit
 alone does not prevent oversubscription.
 
 When two same-version checkouts share a Cargo target directory, a successful
 `--no-run` alone does not prove that the executable matches the second checkout.
-An observed C30/e15 switch reused the C30 binary in 0.14 seconds even though the
-ranking test source differed: the second checkout's older file timestamps made
-Cargo call every local artifact fresh. This was caught before any e15 simulation.
-The rejected binary and source receipts were retained; only source-file timestamps
-were invalidated, leaving source bytes and Git identities unchanged.
+If the second checkout's source files carry older timestamps, Cargo can call every
+local artifact fresh and reuse the first checkout's binary even though a test
+source differs.
 
-The calibration prebuild now serializes cooperating builds and fingerprints Cargo
+The calibration prebuild serializes cooperating builds and fingerprints Cargo
 metadata plus crate sources and assets. It advances timestamps only for changed
 inputs before invoking Cargo, so older copied timestamps cannot hide different
 source bytes. A cache with no source receipt is invalidated once; an unchanged
@@ -84,7 +120,7 @@ artifacts, changes numerical methods, or alters measurement provenance.
 
 Keep the number of build caches bounded. Reuse one target directory for ordinary
 branch checks and retain a separate cache only when an active frozen measurement
-or attestation checkout needs it. Repeated target directories, feature sets and
+or probe checkout needs it. Repeated target directories, feature sets and
 test profiles can retain many generations of binaries and incremental compiler
 state. Share the same profile and feature set where the checks permit it.
 
@@ -92,25 +128,57 @@ Before deleting a cache, check which builds and test executables are using it.
 Remove only inactive compiler output; keep raw calibration logs, tally sidecars,
 archived measurement binaries and provenance receipts. Do not run `cargo clean`
 against an active measurement target. Once an isolated checkout has finished its
-measurements and replay obligations, retire its compiler cache. Compare available
+measurements and probe obligations, retire its compiler cache. Compare available
 disk space before and after cleanup: APFS clones and shared blocks can make the
-recovered space much smaller than the sum of directory sizes. For future
+recovered space much smaller than the sum of directory sizes. For
 one-shot debug builds, `CARGO_INCREMENTAL=0` avoids accumulating incremental
 state at the cost of slower subsequent compilation; set it before building,
 rather than changing the configuration of a running build.
 
-Collection can also become the bottleneck: repeated dependency-graph scans for
-individual completed groups delayed reporting and harvesting in an earlier
-targeted run. The frozen targeted controller therefore dispatches numerical work
-independently from a single asynchronous collector, publishing batches of whole
-passing groups approximately every minute or three completed groups. Raw logs
-are durable immediately. This batching policy belongs to that targeted
-controller; the ordinary wrapper still collects after its numerical run.
+Collection can also become the bottleneck when dependency-graph scans repeat for
+each completed group. The wrapper collects once, after its numerical run; raw
+logs are durable as soon as each job writes them.
 
-The runtime changes preserve nominal coverage targets, reporting floors,
+Scheduling and reuse preserve nominal coverage targets, reporting floors,
 usefulness limits and minimum scored replicate requirements. The separately
 versioned suite-wide coverage decision protocol controls Monte Carlo false
 rejections over a source-fixed family and registered looks. It neither turns a
 failed legacy gate into a prospective pass nor excuses a scientific floor miss.
 A fresh seed domain and frozen source are required for new prospective evidence;
 old accepted evidence retains its original source and decision semantics.
+
+## 3.0.0 gate contract for Bayesian synthetic-control average effects
+
+The donor-weight posterior interval and the predictive path-average interval have separate claims. Their definitions and the primary run's observed coverage appear in the [panel design guide](guides/designs/panel-designs.md#what-95-means-for-the-bayesian-average-effect). The four original failures remain evidence against nominal repeated-sampling coverage at their respective designs.
+
+- **Scientific verification.** Check the public posterior endpoints against an independent reference for the average-effect distribution. For the predictive average, use a reference with dependent effects across periods and check the public endpoints against quantiles of within-path averages. Also check the effect scale and the post-treatment horizon. A posterior mean or a check of marginal period intervals alone cannot verify the average interval.
+- **Calibration measurement.** Score the actual returned endpoints against the known average effect on independent panels. Key each measurement by interval construction, candidate donor count, pre-treatment periods, post-treatment horizon and simulation design. Preserve the model settings, attempted panels, returned intervals, covered intervals, reasons for skips where available, and Monte Carlo uncertainty. Coverage uses returned intervals as its denominator. Track return rate separately. An unexpected execution error fails the study.
+- **Calibration decision.** A claim of nominal repeated-panel coverage must pass the existing nominal decision at each design where it is made. For a claim reporting an empirical frequency, freeze the reference, acceptable error, precision requirement and simulation budget before independent validation. State the uncertainty in both measurements and control the risk of certifying an inaccurate prediction across the prespecified validation claims. A missing measurement, inadequate precision or an incompatible validation result blocks release. The primary-run measurements can inform a reference, but cannot also serve as its independent validation.
+- **Result binding.** Check that the inspected and serialized result shows its nominal level alongside the matching empirical counts, observed coverage, simulation uncertainty and design. Exercise both constructions on the same panel. Exercise panels with the same total periods but different splits, equal history-to-donor ratios at different sizes, and an unmeasured donor count. For an unmeasured combination, label the user's design unmeasured and identify any comparison design explicitly. Evidence for an average cannot attest a single-period interval.
+
+For the four failures at 40 donors and 30 or 40 pre-treatment periods, the prediction is the historical covered count divided by the returned count in the panel guide. The validation uses a separate seed stream and 2,000 fixed attempted panels per cell. Only the final look can earn the record. The first 400 attempts are retained in that total. The ordinary convergence-refusal limit applies before conditioning on a returned interval.
+
+The acceptable prediction error is 2.5 percentage points, half the distance between a reported frequency of 90% and one of 95%. The holdout must place its underlying coverage within that margin on both sides of the frozen prediction. Both exact one-sided binomial tests must pass at 0.05/4 for each of the four predictions. This bounds the probability of certifying any inaccurate prediction in this four-claim family by 5%. The held-out Monte Carlo standard error must also be at most one percentage point. The historical counts and their simulation uncertainty remain visible. They define the prediction and contribute zero validation trials. The test estimates agreement with that published prediction. The earlier selection of the four cells prevents treating their historical frequencies as four unbiased, fixed-sample estimates.
+
+At 80 pre-treatment periods the nominal gate still applies. A record for a shorter history carries the actual held-out frequency and its below-nominal status. The historical table alone cannot earn a record.
+
+The independent validation at `7fd32b4b69` used 40 donors, five post-treatment periods and 2,000 attempted panels per cell. Coverage counts only the intervals returned. Each refusal is included in the attempted count.
+
+| Interval | Pre-treatment periods | Frozen prediction | Held-out covered / returned | Refused | Equivalence gate |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Posterior average effect | 30 | 1821/1994 (91.32%) | 1797/1999 (89.89%) | 1 | Failed |
+| Posterior average effect | 40 | 1828/1993 (91.72%) | 1832/1995 (91.83%) | 5 | Passed |
+| Predictive path average | 30 | 1807/1993 (90.67%) | 1811/1995 (90.78%) | 5 | Passed |
+| Predictive path average | 40 | 1806/1993 (90.62%) | 1840/1999 (92.05%) | 1 | Failed |
+
+All four observed frequencies fell within 2.5 percentage points of their predictions. At 30 periods the posterior interval's lower equivalence test gave (p = 0.06733). At 40 periods the predictive interval's upper equivalence test gave (p = 0.03445). Both exceed the registered cutoff of 0.0125. Each three-point study therefore still owes its calibration record.
+
+The interval correction for single-unit Bayesian panels caps total Dirichlet prior concentration at ten, the concentration of the original ten-donor design. With forty donors the old prior contributed four times that concentration and pulled the synthetic outcome toward the donor pool average. The revised prior gives each donor concentration 0.25. The data still determine the fit through the pre-treatment likelihood. Both average-effect routes use the same prior and report it with their draws.
+
+The corrected constructions require fresh nominal coverage on an independent stream. At thirty and forty pre-periods, both forty-donor averages also require 2,000 attempts, the existing refusal limit, and simultaneous equivalence to 95% within 2.5 percentage points. The previous measurements above describe the original intervals.
+
+## Discovery graph weights and edge probabilities
+
+Gaussian BIC reports normalized graph weights. Its scientific conformance test compares those weights with independent BIC enumeration.
+
+For the signed-uniform structural model, the five active calibration gates test directed-edge probabilities against generating frequencies under their declared priors and data designs. The two missing-data gates evaluate the observed-data score.

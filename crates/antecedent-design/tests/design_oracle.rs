@@ -294,3 +294,57 @@ fn candidate_ranking_replays_and_calibrates_across_seed_grid() {
         assert_eq!(candidate_names()[first.ranked[0].candidate_index], expected_top, "seed {seed}");
     }
 }
+
+/// The adaptive route must rank by the independent exact information gain (the `dit` mutual
+/// information of the fixture), not only replay itself: on every seed each score is within the
+/// fixture tolerance of its exact target, and the top candidate is the argmax of those targets.
+#[test]
+fn adaptive_ranking_scores_agree_with_independent_exact_gain_claims_06() {
+    let eig: Value = serde_json::from_str(EIG_FIXTURE).expect("EIG fixture JSON");
+    let fixture: Value = serde_json::from_str(RANKING_FIXTURE).expect("ranking fixture JSON");
+    let acceptance = &fixture["acceptance"];
+    let atol = acceptance["score_atol"].as_f64().expect("score_atol");
+    let cases = eig["cases"].as_array().expect("cases");
+    let target = |name: &str| {
+        cases
+            .iter()
+            .find(|case| case["name"].as_str() == Some(name))
+            .and_then(|case| case["expected_information_gain"].as_f64())
+            .expect("exact target")
+    };
+    let argmax = candidate_names()
+        .into_iter()
+        .max_by(|a, b| target(a).total_cmp(&target(b)))
+        .expect("candidates");
+    let graphs = fixture_graphs();
+    let candidates = fixture_candidates();
+    let eval = evaluation_context(&graphs);
+    let config = DesignRankConfig {
+        min_batches: u32::try_from(acceptance["adaptive_min_batches"].as_u64().unwrap()).unwrap(),
+        max_batches: u32::try_from(acceptance["adaptive_max_batches"].as_u64().unwrap()).unwrap(),
+        batch_size: u32::try_from(acceptance["adaptive_batch_size"].as_u64().unwrap()).unwrap(),
+        rank_uncertainty_threshold: acceptance["adaptive_rank_threshold"].as_f64().unwrap(),
+    };
+    for seed in acceptance["seeds"].as_array().expect("seeds") {
+        let seed = seed.as_u64().expect("seed");
+        let ranking = DesignRanker::new()
+            .with_config(config.clone())
+            .rank(
+                &DesignObjective::ReduceGraphEntropy,
+                &candidates,
+                &eval,
+                &ExecutionContext::for_tests(seed),
+            )
+            .expect("adaptive rank");
+        assert_eq!(candidate_names()[ranking.ranked[0].candidate_index], argmax, "seed {seed}");
+        for ranked in ranking.ranked.iter() {
+            let name = candidate_names()[ranked.candidate_index];
+            assert!(
+                (ranked.score - target(name)).abs() <= atol,
+                "seed {seed} {name}: {} vs exact {}",
+                ranked.score,
+                target(name)
+            );
+        }
+    }
+}

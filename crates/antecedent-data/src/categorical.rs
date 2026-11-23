@@ -1,6 +1,6 @@
 //! Dictionary categoricals and explicit contrasts (ADR 0003).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -82,24 +82,28 @@ impl CategoryDomain {
         unknown_policy: UnknownCategoryPolicy,
     ) -> Result<Self, DataError> {
         let levels = levels.into();
-        if levels.is_empty() {
-            return Err(DataError::InvalidValidity {
-                message: "category domain requires at least one level",
-            });
+        let domain = Self { id, levels, ordered, reference, unknown_policy };
+        domain.validate()?;
+        Ok(domain)
+    }
+
+    fn validate(&self) -> Result<(), DataError> {
+        if self.levels.is_empty() {
+            return Err(DataError::empty("category domain levels"));
         }
-        let n = u32::try_from(levels.len())
-            .map_err(|_| DataError::InvalidValidity { message: "too many category levels" })?;
-        if let Some(r) = reference {
-            if r.raw() >= n {
-                return Err(DataError::InvalidValidity { message: "reference code out of range" });
-            }
+        let n = u32::try_from(self.levels.len())
+            .map_err(|_| DataError::overflow("category level count"))?;
+        if let Some(r) = self.reference
+            && r.raw() >= n
+        {
+            return Err(DataError::invalid_value("reference code", "is out of range"));
         }
-        if let UnknownCategoryPolicy::MapToOther { other } = unknown_policy {
-            if other.raw() >= n {
-                return Err(DataError::InvalidValidity { message: "Other code out of range" });
-            }
+        if let UnknownCategoryPolicy::MapToOther { other } = self.unknown_policy
+            && other.raw() >= n
+        {
+            return Err(DataError::invalid_value("Other code", "is out of range"));
         }
-        Ok(Self { id, levels, ordered, reference, unknown_policy })
+        Ok(())
     }
 
     /// Number of levels.
@@ -147,6 +151,7 @@ impl CategoricalColumn {
         validity: ValidityBitmap,
         domain: Arc<CategoryDomain>,
     ) -> Result<Self, DataError> {
+        domain.validate()?;
         let codes = codes.into();
         if validity.len() != codes.len() {
             return Err(DataError::LengthMismatch {
@@ -155,9 +160,8 @@ impl CategoricalColumn {
                 context: "categorical validity",
             });
         }
-        let n_levels = u32::try_from(domain.len()).map_err(|_| DataError::InvalidArgument {
-            message: "category domain too large for u32 codes".into(),
-        })?;
+        let n_levels = u32::try_from(domain.len())
+            .map_err(|_| DataError::overflow("category domain size as u32 codes"))?;
         let mut remapped: Option<Vec<CategoryCode>> = None;
         let mut n_remapped_unknown = 0usize;
         for (i, code) in codes.iter().enumerate() {
@@ -167,9 +171,10 @@ impl CategoricalColumn {
             if code.raw() >= n_levels {
                 match domain.unknown_policy {
                     UnknownCategoryPolicy::Fail => {
-                        return Err(DataError::InvalidValidity {
-                            message: "unknown category code under Fail policy",
-                        });
+                        return Err(DataError::invalid_value(
+                            "category code",
+                            "is unknown under the Fail policy",
+                        ));
                     }
                     UnknownCategoryPolicy::MapToOther { other } => {
                         // `other` is validated in-range at domain construction.
@@ -257,9 +262,7 @@ impl ContrastMatrix {
     ) -> Result<Self, DataError> {
         let values = values.into();
         if values.len()
-            != n_levels
-                .checked_mul(n_columns)
-                .ok_or(DataError::InvalidValidity { message: "contrast shape overflow" })?
+            != n_levels.checked_mul(n_columns).ok_or(DataError::overflow("contrast shape"))?
         {
             return Err(DataError::LengthMismatch {
                 expected: n_levels * n_columns,
@@ -269,6 +272,87 @@ impl ContrastMatrix {
         }
         Ok(Self { n_levels, n_columns, values })
     }
+}
+
+/// Recorded category conversion: domain, coding, and how many float columns it yields.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CategoryConversion {
+    /// Variable the domain belongs to.
+    pub variable: antecedent_core::VariableId,
+    /// Domain id.
+    pub domain: antecedent_core::CategoryDomainId,
+    /// Whether the domain is ordered.
+    pub ordered: bool,
+    /// Contrast coding name.
+    pub coding: &'static str,
+    /// Float columns the contrast yields.
+    pub n_columns: usize,
+    /// Codes rewritten to the domain's other level.
+    pub n_remapped_unknown: usize,
+}
+
+/// Float columns produced by applying a contrast to one categorical column.
+///
+/// Each inner vector has one entry per source row. An invalid row is `NaN` in
+/// every contrast column.
+#[derive(Clone, Debug)]
+pub struct ExpandedContrast {
+    /// Source variable.
+    pub variable: antecedent_core::VariableId,
+    /// Contrast columns, each the length of the source column.
+    pub columns: Vec<Vec<f64>>,
+    /// Conversion record, without the float entries.
+    pub conversion: CategoryConversion,
+}
+
+impl CategoryConversion {
+    /// Stable coding name for `contrast`.
+    #[must_use]
+    pub const fn coding_name(contrast: &Contrast) -> &'static str {
+        match contrast {
+            Contrast::Treatment { .. } => "treatment",
+            Contrast::SumToZero => "sum_to_zero",
+            Contrast::Helmert => "helmert",
+            Contrast::Polynomial => "polynomial",
+            Contrast::FullRankIndicator => "full_rank_indicator",
+            Contrast::Custom(_) => "custom",
+        }
+    }
+}
+
+/// Expand `column` through `contrast`.
+///
+/// # Errors
+///
+/// The contrast does not apply to the domain, or a code does not index it.
+pub fn expand_contrast(
+    column: &CategoricalColumn,
+    contrast: &Contrast,
+) -> Result<ExpandedContrast, DataError> {
+    let matrix = compile_contrast_matrix(&column.domain, contrast)?;
+    let n_rows = column.len();
+    let mut columns = vec![vec![f64::NAN; n_rows]; matrix.n_columns];
+    for row in 0..n_rows {
+        if !column.validity.is_valid(row) {
+            continue;
+        }
+        let level = column.codes[row].as_usize();
+        if level >= matrix.n_levels {
+            return Err(DataError::invalid_value("category code", "does not index the contrast"));
+        }
+        for (col, column) in columns.iter_mut().enumerate() {
+            column[row] = matrix.values[level + col * matrix.n_levels];
+        }
+    }
+    let conversion = CategoryConversion {
+        variable: column.id,
+        domain: column.domain.id,
+        ordered: column.domain.ordered,
+        coding: CategoryConversion::coding_name(contrast),
+        n_columns: matrix.n_columns,
+        n_remapped_unknown: column.n_remapped_unknown,
+    };
+    Ok(ExpandedContrast { variable: column.id, columns, conversion })
 }
 
 /// Compile a contrast into a design matrix for valid rows.
@@ -285,9 +369,12 @@ pub fn compile_contrast_matrix(
     contrast: &Contrast,
 ) -> Result<ContrastMatrix, DataError> {
     let k = domain.len();
+    if k == 0 {
+        return Err(DataError::empty("category domain levels"));
+    }
     match contrast {
         Contrast::FullRankIndicator => {
-            let mut values = vec![0.0; k * k];
+            let mut values = crate::column::checked_f64_buffer(k, k, "contrast matrix")?;
             for i in 0..k {
                 values[i + i * k] = 1.0;
             }
@@ -295,12 +382,10 @@ pub fn compile_contrast_matrix(
         }
         Contrast::Treatment { reference } => {
             if reference.raw() as usize >= k {
-                return Err(DataError::InvalidValidity {
-                    message: "treatment reference out of range",
-                });
+                return Err(DataError::invalid_value("treatment reference", "is out of range"));
             }
             let cols = k - 1;
-            let mut values = vec![0.0; k * cols];
+            let mut values = crate::column::checked_f64_buffer(k, cols, "contrast matrix")?;
             let mut col = 0usize;
             for level in 0..k {
                 if level == reference.raw() as usize {
@@ -324,7 +409,7 @@ pub fn compile_contrast_matrix(
         Contrast::SumToZero => {
             // k levels → k-1 columns; last level is -1 on every column.
             let cols = k - 1;
-            let mut values = vec![0.0; k * cols];
+            let mut values = crate::column::checked_f64_buffer(k, cols, "contrast matrix")?;
             for c in 0..cols {
                 values[c + c * k] = 1.0;
                 values[(k - 1) + c * k] = -1.0;
@@ -334,7 +419,7 @@ pub fn compile_contrast_matrix(
         Contrast::Helmert => {
             // Forward Helmert: each column contrasts a level with the mean of subsequent levels.
             let cols = k - 1;
-            let mut values = vec![0.0; k * cols];
+            let mut values = crate::column::checked_f64_buffer(k, cols, "contrast matrix")?;
             for c in 0..cols {
                 let remaining = k - c;
                 let weight = 1.0 / remaining as f64;
@@ -347,9 +432,7 @@ pub fn compile_contrast_matrix(
         }
         Contrast::Polynomial => {
             if !domain.ordered {
-                return Err(DataError::InvalidValidity {
-                    message: "polynomial contrasts require an ordered domain",
-                });
+                return Err(DataError::precondition("polynomial contrasts", "an ordered domain"));
             }
             // Orthogonal polynomial contrasts on equally spaced scores 1..=k
             // (R's `contr.poly`), from the Stieltjes recurrence on centred
@@ -373,14 +456,18 @@ pub fn compile_contrast_matrix(
 fn orthonormal_polynomial_basis(k: usize) -> Result<Vec<f64>, DataError> {
     const ORTHOGONALITY_TOL: f64 = 1e-10;
     let kf = k as f64;
-    let mean = (kf + 1.0) / 2.0;
+    let mean = f64::midpoint(kf, 1.0);
+    let mut basis = crate::column::checked_f64_buffer(k, k, "polynomial contrast basis")?;
     let x: Vec<f64> = (0..k).map(|r| (r + 1) as f64 - mean).collect();
-    let mut basis = vec![0.0; k * k];
     let inv_sqrt_k = 1.0 / kf.sqrt();
     basis[..k].fill(inv_sqrt_k);
     let mut beta_prev = 0.0;
+    // One scratch vector for every degree; each degree overwrites it completely.
+    let mut v = vec![0.0; k];
     for d in 0..k.saturating_sub(1) {
-        let mut v: Vec<f64> = (0..k).map(|r| x[r] * basis[r + d * k]).collect();
+        for (r, slot) in v.iter_mut().enumerate() {
+            *slot = x[r] * basis[r + d * k];
+        }
         let alpha: f64 = (0..k).map(|r| v[r] * basis[r + d * k]).sum();
         for r in 0..k {
             v[r] -= alpha * basis[r + d * k];
@@ -398,9 +485,10 @@ fn orthonormal_polynomial_basis(k: usize) -> Result<Vec<f64>, DataError> {
         }
         let beta = v.iter().map(|e| e * e).sum::<f64>().sqrt();
         if !beta.is_finite() || beta <= 0.0 {
-            return Err(DataError::InvalidArgument {
-                message: format!("polynomial contrasts are degenerate at degree {}", d + 1),
-            });
+            return Err(DataError::invalid_value(
+                "polynomial contrasts",
+                "are degenerate at the requested degree",
+            ));
         }
         for r in 0..k {
             basis[r + (d + 1) * k] = v[r] / beta;
@@ -416,11 +504,7 @@ fn orthonormal_polynomial_basis(k: usize) -> Result<Vec<f64>, DataError> {
         }
     }
     if worst >= ORTHOGONALITY_TOL {
-        return Err(DataError::InvalidArgument {
-            message: format!(
-                "polynomial contrasts for {k} levels are not orthonormal (max deviation {worst:.2e})"
-            ),
-        });
+        return Err(DataError::invalid_value("polynomial contrasts", "are not orthonormal"));
     }
     Ok(basis)
 }
@@ -448,6 +532,98 @@ mod tests {
     }
 
     #[test]
+    fn empty_public_domain_does_not_underflow_contrast_dimensions() {
+        let domain = CategoryDomain {
+            id: CategoryDomainId::from_raw(0),
+            levels: Arc::from([]),
+            ordered: true,
+            reference: None,
+            unknown_policy: UnknownCategoryPolicy::Fail,
+        };
+        for contrast in [
+            Contrast::FullRankIndicator,
+            Contrast::SumToZero,
+            Contrast::Helmert,
+            Contrast::Polynomial,
+        ] {
+            assert!(matches!(
+                compile_contrast_matrix(&domain, &contrast),
+                Err(DataError::EmptyInput { .. })
+            ));
+        }
+    }
+
+    #[test]
+    fn categorical_column_rechecks_public_domain_declarations() {
+        let invalid = CategoryDomain {
+            id: CategoryDomainId::from_raw(0),
+            levels: Arc::from([CategoryLevel { label: Arc::from("only") }]),
+            ordered: false,
+            reference: None,
+            unknown_policy: UnknownCategoryPolicy::MapToOther { other: CategoryCode::from_raw(9) },
+        };
+        let id = antecedent_core::VariableId::from_raw(0);
+        assert!(
+            CategoricalColumn::try_new(
+                id,
+                vec![CategoryCode::from_raw(2)],
+                ValidityBitmap::all_valid(1),
+                Arc::new(invalid.clone()),
+            )
+            .is_err()
+        );
+        let empty = CategoryDomain { levels: Arc::from([]), ..invalid.clone() };
+        assert!(
+            CategoricalColumn::try_new(
+                id,
+                Vec::<CategoryCode>::new(),
+                ValidityBitmap::all_valid(0),
+                Arc::new(empty),
+            )
+            .is_err()
+        );
+        let bad_reference = CategoryDomain {
+            reference: Some(CategoryCode::from_raw(9)),
+            unknown_policy: UnknownCategoryPolicy::Fail,
+            ..invalid
+        };
+        assert!(
+            CategoricalColumn::try_new(
+                id,
+                vec![CategoryCode::from_raw(0)],
+                ValidityBitmap::all_valid(1),
+                Arc::new(bad_reference),
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn expand_contrast_writes_indicators_and_nan_for_a_missing_row() {
+        let column = CategoricalColumn::try_new(
+            VariableId::from_raw(1),
+            Arc::<[CategoryCode]>::from(vec![
+                CategoryCode::from_raw(0),
+                CategoryCode::from_raw(1),
+                CategoryCode::from_raw(2),
+            ]),
+            ValidityBitmap::from_bytes(vec![0b101], 3).unwrap(),
+            domain(),
+        )
+        .unwrap();
+        let expanded =
+            expand_contrast(&column, &Contrast::Treatment { reference: CategoryCode::from_raw(0) })
+                .unwrap();
+        assert_eq!(expanded.conversion.coding, "treatment");
+        assert_eq!(expanded.conversion.n_columns, 2);
+        assert!(expanded.columns[0][1].is_nan() && expanded.columns[1][1].is_nan());
+        assert!((expanded.columns[0][0]).abs() < 1e-12);
+        assert!((expanded.columns[1][0]).abs() < 1e-12);
+        assert!((expanded.columns[0][2]).abs() < 1e-12);
+        assert!((expanded.columns[1][2] - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
     fn treatment_contrast_drops_reference() {
         let d = domain();
         let m = compile_contrast_matrix(
@@ -472,7 +648,7 @@ mod tests {
     fn polynomial_requires_ordered_domain() {
         let d = domain();
         let err = compile_contrast_matrix(&d, &Contrast::Polynomial).unwrap_err();
-        assert!(matches!(err, DataError::InvalidValidity { .. }));
+        assert!(matches!(err, DataError::Precondition { .. }));
         let ordered = Arc::new(
             CategoryDomain::try_new(
                 CategoryDomainId::from_raw(0),
@@ -582,7 +758,7 @@ mod tests {
                 }
             }
             // Column 0 is the linear contrast: proportional to the centred scores.
-            let mean = (k as f64 + 1.0) / 2.0;
+            let mean = f64::midpoint(k as f64, 1.0);
             let ss: f64 = (1..=k).map(|r| (r as f64 - mean).powi(2)).sum::<f64>().sqrt();
             for r in 0..k {
                 let want = ((r + 1) as f64 - mean) / ss;
@@ -636,7 +812,7 @@ mod tests {
             d,
         )
         .unwrap_err();
-        assert!(matches!(err, DataError::InvalidValidity { .. }));
+        assert!(matches!(err, DataError::InvalidValue { .. }));
     }
 
     #[test]

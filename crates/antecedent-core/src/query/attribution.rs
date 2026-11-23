@@ -1,9 +1,11 @@
 //! Query submodule.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
+use crate::canonical_encode::{CanonicalEncode, count, encode_usizes, encode_variables, flag};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 
 use super::error::QueryError;
@@ -33,6 +35,19 @@ pub enum AnomalyReference {
     },
 }
 
+impl CanonicalEncode for AnomalyReference {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Empirical => {
+                writer.word(1);
+            }
+            Self::Fixed { center, scale } => {
+                writer.word(2).real(center.to_f64()).real(scale.to_f64());
+            }
+        }
+    }
+}
+
 impl AnomalyReference {
     /// A fixed reference at `(center, scale)`.
     #[must_use]
@@ -55,6 +70,30 @@ pub struct AnomalyAttributionQuery {
     pub max_units: usize,
     /// Reference location/scale for the IT anomaly score (default `Empirical`).
     pub reference: AnomalyReference,
+}
+
+/// Every field is written. `targets` index the per-target scores and keep their
+/// order; `unit_rows` index the scored units and keep their order.
+impl CanonicalEncode for AnomalyAttributionQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        encode_variables(writer, &self.targets);
+        encode_unit_rows(writer, self.unit_rows.as_deref());
+        writer.word(count(self.max_units));
+        self.reference.encode(writer);
+    }
+}
+
+/// Optional explicit row indices: a presence word, then the rows in the order given.
+fn encode_unit_rows(writer: &mut CanonicalWriter, rows: Option<&[usize]>) {
+    match rows {
+        Some(rows) => {
+            writer.word(1);
+            encode_usizes(writer, rows);
+        }
+        None => {
+            writer.word(0);
+        }
+    }
 }
 
 impl AnomalyAttributionQuery {
@@ -127,6 +166,26 @@ pub enum PopulationSelector {
     },
 }
 
+impl CanonicalEncode for PopulationSelector {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::All => {
+                writer.word(1);
+            }
+            Self::Rows(rows) => {
+                writer.word(2);
+                encode_usizes(writer, rows);
+            }
+            Self::Environment { env_index } => {
+                writer.word(3).word(count(*env_index));
+            }
+            Self::TimeRange { start, end } => {
+                writer.word(4).word(count(*start)).word(count(*end));
+            }
+        }
+    }
+}
+
 impl PopulationSelector {
     /// Validate selector geometry.
     ///
@@ -170,6 +229,19 @@ pub enum AttributionComponents {
     All,
 }
 
+impl CanonicalEncode for AttributionComponents {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let tag = match self {
+            Self::Inputs => 1,
+            Self::Mechanisms => 2,
+            Self::Structure => 3,
+            Self::InputsAndMechanisms => 4,
+            Self::All => 5,
+        };
+        writer.word(tag);
+    }
+}
+
 /// Shapley estimation mode.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
@@ -188,6 +260,22 @@ pub enum ShapleyMode {
     },
 }
 
+impl CanonicalEncode for ShapleyMode {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Exact => {
+                writer.word(1);
+            }
+            Self::MonteCarlo { n_samples } => {
+                writer.word(2).word(count(*n_samples));
+            }
+            Self::Permutation { n_permutations } => {
+                writer.word(3).word(count(*n_permutations));
+            }
+        }
+    }
+}
+
 /// Configuration for Shapley allocation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct ShapleyConfig {
@@ -199,6 +287,24 @@ pub struct ShapleyConfig {
     pub allow_exact_override: bool,
     /// RNG seed for approximate modes.
     pub seed: u64,
+    /// Ceiling on planned coalition evaluations times per-coalition sample draws for the
+    /// sampled change-attribution payoffs; `None` keeps the default ceiling.
+    pub sample_budget: Option<u64>,
+}
+
+impl CanonicalEncode for ShapleyConfig {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.mode.encode(writer);
+        writer
+            .word(count(self.max_exact_components))
+            .word(flag(self.allow_exact_override))
+            .word(self.seed);
+        // Appended only when set, so every configuration that keeps the default ceiling
+        // encodes exactly as it always has.
+        if let Some(budget) = self.sample_budget {
+            writer.word(budget);
+        }
+    }
 }
 
 impl ShapleyConfig {
@@ -210,6 +316,7 @@ impl ShapleyConfig {
             max_exact_components: 12,
             allow_exact_override: false,
             seed: 0,
+            sample_budget: None,
         }
     }
 
@@ -221,6 +328,7 @@ impl ShapleyConfig {
             max_exact_components: 12,
             allow_exact_override: false,
             seed: 0,
+            sample_budget: None,
         }
     }
 
@@ -232,6 +340,7 @@ impl ShapleyConfig {
             max_exact_components: 12,
             allow_exact_override: false,
             seed: 0,
+            sample_budget: None,
         }
     }
 
@@ -246,6 +355,13 @@ impl ShapleyConfig {
     #[must_use]
     pub const fn with_exact_override(mut self, allow: bool) -> Self {
         self.allow_exact_override = allow;
+        self
+    }
+
+    /// Override the ceiling on planned coalition evaluations times per-coalition sample draws.
+    #[must_use]
+    pub const fn with_sample_budget(mut self, budget: u64) -> Self {
+        self.sample_budget = Some(budget);
         self
     }
 
@@ -303,6 +419,27 @@ pub enum AllocationMethod {
     PathBased,
 }
 
+/// A sequential `order` is the evaluation order and is kept as given.
+impl CanonicalEncode for AllocationMethod {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Sequential { order } => {
+                writer.word(1).word(count(order.len()));
+                for component in order.iter() {
+                    writer.word(u64::from(component.raw()));
+                }
+            }
+            Self::Shapley { approximation } => {
+                writer.word(2);
+                approximation.encode(writer);
+            }
+            Self::PathBased => {
+                writer.word(3);
+            }
+        }
+    }
+}
+
 impl AllocationMethod {
     /// Validate allocation settings.
     ///
@@ -341,6 +478,18 @@ pub struct ChangeAttributionQuery {
     pub allocation: AllocationMethod,
     /// Maximum number of attribution components (hard size guard for Exact).
     pub max_components: usize,
+}
+
+/// Every field is written; baseline and comparison keep their roles.
+impl CanonicalEncode for ChangeAttributionQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.outcome.encode(writer);
+        self.baseline.encode(writer);
+        self.comparison.encode(writer);
+        self.components.encode(writer);
+        self.allocation.encode(writer);
+        writer.word(count(self.max_components));
+    }
 }
 
 impl ChangeAttributionQuery {
@@ -413,6 +562,10 @@ pub struct MechanismChangeQuery {
     pub significance_level: OrderedFloatBits,
     /// Maximum targets to test.
     pub max_targets: usize,
+    /// Declared prior probability that a tested mechanism changed, for the posterior
+    /// probability of a change under Bayesian inference. `None` declares none, and a Bayesian
+    /// study then refuses: a prior over the change indicator is never assumed.
+    pub change_prior: Option<OrderedFloatBits>,
 }
 
 /// Bit-pattern wrapper so [`MechanismChangeQuery`] stays `Eq`/`Hash` with an f64 level.
@@ -420,16 +573,31 @@ pub struct MechanismChangeQuery {
 pub struct OrderedFloatBits(u64);
 
 impl OrderedFloatBits {
-    /// From f64 (NaN → 0 payload).
+    /// From f64, canonicalizing NaN payloads while retaining NaN for validation.
     #[must_use]
     pub fn from_f64(v: f64) -> Self {
-        Self(if v.is_nan() { 0 } else { v.to_bits() })
+        Self(if v.is_nan() { f64::NAN.to_bits() } else { v.to_bits() })
     }
 
     /// To f64.
     #[must_use]
     pub const fn to_f64(self) -> f64 {
         f64::from_bits(self.0)
+    }
+}
+
+/// Every field is written. `targets` index the per-target tests and keep their
+/// order.
+impl CanonicalEncode for MechanismChangeQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        encode_variables(writer, &self.targets);
+        self.baseline.encode(writer);
+        self.comparison.encode(writer);
+        writer.real(self.significance_level.to_f64()).word(count(self.max_targets));
+        // Appended only when declared, so a query without a prior keeps the identity it had.
+        if let Some(prior) = self.change_prior {
+            writer.word(1).real(prior.to_f64());
+        }
     }
 }
 
@@ -449,14 +617,23 @@ impl MechanismChangeQuery {
             comparison,
             significance_level: OrderedFloatBits::from_f64(significance_level),
             max_targets,
+            change_prior: None,
         }
+    }
+
+    /// Declare the prior probability that a tested mechanism changed (the prior over the change
+    /// indicator), which the posterior probability of a change under Bayesian inference needs.
+    #[must_use]
+    pub fn with_change_prior(mut self, prior: f64) -> Self {
+        self.change_prior = Some(OrderedFloatBits::from_f64(prior));
+        self
     }
 
     /// Validate.
     ///
     /// # Errors
     ///
-    /// Empty targets, invalid α, or bad populations.
+    /// Empty targets, invalid α, a change prior outside (0, 1), or bad populations.
     pub fn validate(&self) -> Result<(), QueryError> {
         if self.targets.is_empty() {
             return Err(QueryError::EmptyMechanismChangeTargets);
@@ -466,6 +643,9 @@ impl MechanismChangeQuery {
         }
         let alpha = self.significance_level.to_f64();
         if !(alpha > 0.0 && alpha < 1.0) {
+            return Err(QueryError::InvalidSignificanceLevel);
+        }
+        if self.change_prior.is_some_and(|p| !(p.to_f64() > 0.0 && p.to_f64() < 1.0)) {
             return Err(QueryError::InvalidSignificanceLevel);
         }
         self.baseline.validate()?;
@@ -487,6 +667,18 @@ pub struct UnitChangeQuery {
     pub allocation: AllocationMethod,
     /// Hard unit count limit.
     pub max_units: usize,
+}
+
+/// Every field is written. `unit_rows` index the attributed units and keep
+/// their order.
+impl CanonicalEncode for UnitChangeQuery {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.outcome.encode(writer);
+        encode_unit_rows(writer, self.unit_rows.as_deref());
+        self.components.encode(writer);
+        self.allocation.encode(writer);
+        writer.word(count(self.max_units));
+    }
 }
 
 impl UnitChangeQuery {
@@ -543,6 +735,24 @@ impl UnitChangeQuery {
 mod tests {
     use super::*;
     use crate::ComponentId;
+
+    #[test]
+    fn nonfinite_declarations_remain_invalid_after_bit_encoding() {
+        let nan = OrderedFloatBits::from_f64(f64::NAN);
+        assert!(nan.to_f64().is_nan());
+        assert_eq!(nan, OrderedFloatBits::from_f64(f64::from_bits(0x7ff0_0000_0000_0001)));
+        assert_ne!(nan, OrderedFloatBits::from_f64(0.0));
+        assert!(crate::OutcomeFunctional::exceedance(f64::NAN).validate().is_err());
+        assert!(crate::OutcomeFunctional::exceedance_grid([f64::NAN, 1.0]).validate().is_err());
+        assert!(
+            crate::TargetPopulation::local_at_cutoff(crate::VariableId::from_raw(0), f64::NAN)
+                .validate()
+                .is_err()
+        );
+        let query = AnomalyAttributionQuery::new([crate::VariableId::from_raw(0)], 10)
+            .with_reference(AnomalyReference::fixed(f64::NAN, 1.0));
+        assert!(query.validate().is_err());
+    }
 
     #[test]
     fn sequential_allocation_rejects_duplicate_components() {

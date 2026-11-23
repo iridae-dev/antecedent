@@ -14,7 +14,7 @@
 //! * an **identified bound** is a separate, optional bound from partial identification;
 //! * a **sampling interval** is a separate, optional interval for estimation noise.
 //!   Composition of a sampling interval with the assumption range is refused unless the
-//!   method appears in [`LICENSED_SAMPLING_COMPOSITIONS`] (empty: none is licensed).
+//!   method appears in [`SUPPORTED_SAMPLING_COMPOSITIONS`] (empty: none is supported).
 //!
 //! Layout of the bounded sectioned container:
 //!
@@ -34,7 +34,18 @@
 //!
 //! Refusal details use the frozen record's namespace `sensitivity_decision_composition`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+mod classification;
+mod utility;
+
+pub use utility::UtilityTerm;
+use utility::merge_units;
+
+pub use classification::{
+    DecisionSwitch, NoRobustReason, PointInput, PointLeaders, SensitivityOutcome,
+    classify_decision_points,
+};
 
 use std::cmp::Ordering;
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -64,14 +75,64 @@ pub const MAX_SENSITIVITY_GRID_POINTS: usize = 1024;
 pub const MAX_SENSITIVITY_QUANTITIES: usize = 64;
 /// Most actions.
 pub const MAX_SENSITIVITY_ACTIONS: usize = 64;
-/// Most surface quantities whose assumption range is not a single point. Every grid point
-/// is evaluated at the `2^r` vertices of the box these quantities span.
-pub const MAX_SENSITIVITY_RANGED_QUANTITIES: usize = 3;
+/// Most utility evaluations a surface may need: grid points times the `2^r` range vertices of
+/// the `r` quantities whose assumption range is not a single point, times actions. Every grid
+/// point is evaluated at every vertex of the box the ranged quantities span, for every action,
+/// by the producer and again by every consumer.
+pub const MAX_SENSITIVITY_SCENARIO_EVALUATIONS: usize = 1 << 24;
 /// Deepest utility expression.
 pub const MAX_SENSITIVITY_UTILITY_DEPTH: usize = 32;
-/// Sampling-composition methods licensed for an assumption range. None is licensed, so a
+/// Most nodes in one utility expression. Depth alone does not bound a tree: a binary tree of
+/// depth `d` may hold `2^d` nodes, and every node is evaluated at every grid point, range
+/// vertex and action.
+pub const MAX_SENSITIVITY_UTILITY_NODES: usize = 1024;
+/// Most utility node evaluations a surface may need: the scenario evaluations of
+/// [`MAX_SENSITIVITY_SCENARIO_EVALUATIONS`] weighted by the node count of each action's
+/// utility, that is grid points times range vertices times the nodes of every action.
+pub const MAX_SENSITIVITY_SCENARIO_NODE_EVALUATIONS: usize = 1 << 28;
+
+/// Intake bounds for a sensitivity artifact. The defaults are the `MAX_SENSITIVITY_*`
+/// constants; a consumer with a larger budget passes its own to
+/// [`SensitivityArtifact::new_within`] and [`SensitivityArtifact::from_bytes_within`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SensitivityLimits {
+    /// Most container bytes.
+    pub max_bytes: usize,
+    /// Most grid points of the assumption coordinate.
+    pub max_grid_points: usize,
+    /// Most surface quantities.
+    pub max_quantities: usize,
+    /// Most actions.
+    pub max_actions: usize,
+    /// Most utility evaluations the range vertices of the surface may need.
+    pub max_scenario_evaluations: usize,
+    /// Deepest utility expression.
+    pub max_utility_depth: usize,
+    /// Most nodes in one utility expression.
+    pub max_utility_nodes: usize,
+    /// Most utility node evaluations the range vertices of the surface may need, counting
+    /// every node of every action's utility at every grid point and vertex.
+    pub max_scenario_node_evaluations: usize,
+}
+
+impl Default for SensitivityLimits {
+    fn default() -> Self {
+        Self {
+            max_bytes: MAX_SENSITIVITY_ARTIFACT_BYTES,
+            max_grid_points: MAX_SENSITIVITY_GRID_POINTS,
+            max_quantities: MAX_SENSITIVITY_QUANTITIES,
+            max_actions: MAX_SENSITIVITY_ACTIONS,
+            max_scenario_evaluations: MAX_SENSITIVITY_SCENARIO_EVALUATIONS,
+            max_utility_depth: MAX_SENSITIVITY_UTILITY_DEPTH,
+            max_utility_nodes: MAX_SENSITIVITY_UTILITY_NODES,
+            max_scenario_node_evaluations: MAX_SENSITIVITY_SCENARIO_NODE_EVALUATIONS,
+        }
+    }
+}
+
+/// Sampling-composition methods supported for an assumption range. None is supported, so a
 /// sampling interval is always reported next to the range and never inside it.
-pub const LICENSED_SAMPLING_COMPOSITIONS: &[&str] = &[];
+pub const SUPPORTED_SAMPLING_COMPOSITIONS: &[&str] = &[];
 /// What the surface range means.
 pub const ASSUMPTION_RANGE_STATEMENT: &str = "assumption range over the declared coordinate set; not a probability, not a confidence interval and not a sampling interval";
 
@@ -101,10 +162,10 @@ fn unsupported_coordinate(text: &str) -> IoError {
     }
 }
 
-fn composition_not_licensed(text: &str) -> IoError {
+fn composition_not_supported(text: &str) -> IoError {
     IoError::Refused {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
-        message: format!("sensitivity_decision_composition.composition_not_licensed: {text}"),
+        code: antecedent_core::reason_code!("route_not_supported"),
+        message: format!("sensitivity_decision_composition.composition_not_supported: {text}"),
     }
 }
 
@@ -165,182 +226,6 @@ impl PointSupport {
             Self::Unsupported => "unsupported",
             Self::Unevaluated => "unevaluated",
         }
-    }
-}
-
-/// A closed utility expression over named surface quantities.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum UtilityTerm {
-    /// A constant.
-    Const(f64),
-    /// The surface quantity with this `variable_id`.
-    Quantity(String),
-    /// Negation.
-    Neg(Box<UtilityTerm>),
-    /// Sum.
-    Add(Box<UtilityTerm>, Box<UtilityTerm>),
-    /// Difference.
-    Sub(Box<UtilityTerm>, Box<UtilityTerm>),
-    /// Product.
-    Mul(Box<UtilityTerm>, Box<UtilityTerm>),
-    /// Pointwise minimum.
-    Min(Box<UtilityTerm>, Box<UtilityTerm>),
-    /// Pointwise maximum.
-    Max(Box<UtilityTerm>, Box<UtilityTerm>),
-}
-
-impl UtilityTerm {
-    /// The surface quantity `variable_id`.
-    #[must_use]
-    pub fn quantity(variable_id: &str) -> Self {
-        Self::Quantity(variable_id.to_owned())
-    }
-
-    /// Build `left + right`.
-    #[must_use]
-    pub fn sum(left: Self, right: Self) -> Self {
-        Self::Add(Box::new(left), Box::new(right))
-    }
-
-    /// Build `left - right`.
-    #[must_use]
-    pub fn difference(left: Self, right: Self) -> Self {
-        Self::Sub(Box::new(left), Box::new(right))
-    }
-
-    /// Build `left * right`.
-    #[must_use]
-    pub fn product(left: Self, right: Self) -> Self {
-        Self::Mul(Box::new(left), Box::new(right))
-    }
-
-    fn depth(&self) -> usize {
-        match self {
-            Self::Const(_) | Self::Quantity(_) => 1,
-            Self::Neg(a) => 1 + a.depth(),
-            Self::Add(a, b)
-            | Self::Sub(a, b)
-            | Self::Mul(a, b)
-            | Self::Min(a, b)
-            | Self::Max(a, b) => 1 + a.depth().max(b.depth()),
-        }
-    }
-
-    fn all_finite(&self) -> bool {
-        match self {
-            Self::Const(value) => value.is_finite(),
-            Self::Quantity(_) => true,
-            Self::Neg(a) => a.all_finite(),
-            Self::Add(a, b)
-            | Self::Sub(a, b)
-            | Self::Mul(a, b)
-            | Self::Min(a, b)
-            | Self::Max(a, b) => a.all_finite() && b.all_finite(),
-        }
-    }
-
-    fn collect(&self, into: &mut Vec<String>) {
-        match self {
-            Self::Const(_) => {}
-            Self::Quantity(id) => into.push(id.clone()),
-            Self::Neg(a) => a.collect(into),
-            Self::Add(a, b)
-            | Self::Sub(a, b)
-            | Self::Mul(a, b)
-            | Self::Min(a, b)
-            | Self::Max(a, b) => {
-                a.collect(into);
-                b.collect(into);
-            }
-        }
-    }
-
-    /// Variable ids the expression reads, ascending and distinct.
-    #[must_use]
-    pub fn references(&self) -> Vec<String> {
-        let mut found = Vec::new();
-        self.collect(&mut found);
-        found.sort();
-        found.dedup();
-        found
-    }
-
-    /// Whether the expression is multilinear in its quantities (no minimum or maximum,
-    /// no quantity multiplied by itself). The difference of two multilinear utilities
-    /// attains its extremes at the vertices of a box, so the vertex scenarios then
-    /// certify the whole assumption range at a grid point.
-    #[must_use]
-    pub fn is_multilinear(&self) -> bool {
-        self.multilinear_quantities().is_some()
-    }
-
-    /// Quantity ids when `self` is multilinear, in one walk. `None` when a minimum,
-    /// a maximum, or a product of overlapping quantities is present.
-    fn multilinear_quantities(&self) -> Option<BTreeSet<&str>> {
-        match self {
-            Self::Const(_) => Some(BTreeSet::new()),
-            Self::Quantity(id) => Some(BTreeSet::from([id.as_str()])),
-            Self::Neg(a) => a.multilinear_quantities(),
-            Self::Add(a, b) | Self::Sub(a, b) => {
-                let mut left = a.multilinear_quantities()?;
-                left.append(&mut b.multilinear_quantities()?);
-                Some(left)
-            }
-            Self::Mul(a, b) => {
-                let mut left = a.multilinear_quantities()?;
-                let mut right = b.multilinear_quantities()?;
-                if left.intersection(&right).next().is_some() {
-                    return None;
-                }
-                left.append(&mut right);
-                Some(left)
-            }
-            Self::Min(..) | Self::Max(..) => None,
-        }
-    }
-
-    /// Evaluate with each quantity's value in `values`; `None` for an unknown quantity.
-    #[must_use]
-    pub fn evaluate(&self, values: &HashMap<&str, f64>) -> Option<f64> {
-        Some(match self {
-            Self::Const(value) => *value,
-            Self::Quantity(id) => *values.get(id.as_str())?,
-            Self::Neg(a) => -a.evaluate(values)?,
-            Self::Add(a, b) => a.evaluate(values)? + b.evaluate(values)?,
-            Self::Sub(a, b) => a.evaluate(values)? - b.evaluate(values)?,
-            Self::Mul(a, b) => a.evaluate(values)? * b.evaluate(values)?,
-            Self::Min(a, b) => a.evaluate(values)?.min(b.evaluate(values)?),
-            Self::Max(a, b) => a.evaluate(values)?.max(b.evaluate(values)?),
-        })
-    }
-
-    /// Units of the expression: `None` for a pure constant, which adopts any units.
-    fn units(&self, by_id: &HashMap<&str, &str>) -> Result<Option<String>, String> {
-        match self {
-            Self::Const(_) => Ok(None),
-            Self::Quantity(id) => by_id
-                .get(id.as_str())
-                .map(|units| Some((*units).to_owned()))
-                .ok_or_else(|| format!("unknown quantity `{id}`")),
-            Self::Neg(a) => a.units(by_id),
-            Self::Add(a, b) | Self::Sub(a, b) | Self::Min(a, b) | Self::Max(a, b) => {
-                merge_units(a.units(by_id)?, b.units(by_id)?)
-            }
-            Self::Mul(a, b) => Ok(match (a.units(by_id)?, b.units(by_id)?) {
-                (Some(x), Some(y)) => Some(format!("{x}*{y}")),
-                (Some(x), None) | (None, Some(x)) => Some(x),
-                (None, None) => None,
-            }),
-        }
-    }
-}
-
-fn merge_units(left: Option<String>, right: Option<String>) -> Result<Option<String>, String> {
-    match (left, right) {
-        (Some(x), Some(y)) if x != y => Err(format!("`{x}` and `{y}`")),
-        (Some(x), _) | (None, Some(x)) => Ok(Some(x)),
-        (None, None) => Ok(None),
     }
 }
 
@@ -408,9 +293,13 @@ pub struct SamplingInterval {
     pub level: f64,
     /// Interval method.
     pub method: String,
-    /// Licensed composition method with the assumption range; refused unless listed in
-    /// [`LICENSED_SAMPLING_COMPOSITIONS`].
+    /// Supported composition method with the assumption range; refused unless listed in
+    /// [`SUPPORTED_SAMPLING_COMPOSITIONS`].
     pub composed: Option<String>,
+    /// Calibration annotation of this interval, resolved from its construction basis.
+    /// It annotates the interval and never withholds it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub calibration: Option<crate::contract_section::CalibrationSlotWire>,
     /// Lower endpoint at each grid point (stored in the numbers section).
     #[serde(skip)]
     pub lower: Vec<f64>,
@@ -431,7 +320,7 @@ pub enum SamplingStatus {
         detail: String,
     },
     /// A sampling interval is reported next to, never inside, the assumption range.
-    Reported(SamplingInterval),
+    Reported(Box<SamplingInterval>),
 }
 
 /// The three uncertainty kinds, kept distinct.
@@ -499,285 +388,6 @@ pub struct SensitivityIdentity {
     pub digest: String,
 }
 
-/// A change of leader between grid points.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct DecisionSwitch {
-    /// Leading actions before the switch.
-    pub from: Vec<String>,
-    /// Leading actions after the switch.
-    pub to: Vec<String>,
-    /// Lower end of the coordinate bracket containing the switch.
-    pub lower: f64,
-    /// Upper end of the coordinate bracket containing the switch.
-    pub upper: f64,
-    /// Whether the switch is an exact tie at a grid coordinate (`lower` equals `upper`).
-    pub exact: bool,
-    /// Linear interpolation of the crossing between the two bracketing grid points. It
-    /// is exact only if the utility difference is linear in the coordinate between them;
-    /// present only for a point surface.
-    pub interpolated: Option<f64>,
-}
-
-/// Why no action is robust.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum NoRobustReason {
-    /// At these coordinates the best action depends on where in the assumption range
-    /// the surface lies.
-    MixedWithinRange {
-        /// The coordinates.
-        coordinates: Vec<f64>,
-    },
-    /// The leader changes more than once along the coordinate.
-    MultipleSwitches,
-    /// Actions tie at these coordinates without a change of leader.
-    TieWithoutSwitch {
-        /// The coordinates.
-        coordinates: Vec<f64>,
-    },
-}
-
-/// What the decision over the assumption range can claim.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum SensitivityOutcome {
-    /// One action is uniquely best at every grid point under every range vertex.
-    InvariantAction {
-        /// The action.
-        action: String,
-    },
-    /// The unique leader changes exactly once along the coordinate.
-    AssumptionDependent {
-        /// The switch and its tipping coordinate.
-        switch: DecisionSwitch,
-    },
-    /// No action is robust over the range.
-    NoRobustAction {
-        /// Why.
-        reason: NoRobustReason,
-        /// Switches found, when the leader moves along the coordinate.
-        switches: Vec<DecisionSwitch>,
-    },
-    /// A grid point was not evaluated; invariance is not checked there.
-    Unresolved {
-        /// The first unevaluated coordinate.
-        coordinate: f64,
-    },
-}
-
-/// What is known at one grid point for classification.
-#[derive(Clone, Debug, PartialEq)]
-pub enum PointInput {
-    /// The point was not evaluated.
-    Unevaluated,
-    /// The leading actions under each range-vertex scenario at this point.
-    Scenarios {
-        /// Leading actions (ids) of each scenario; one id is a unique leader.
-        leaders: Vec<Vec<String>>,
-        /// Utility of each action; present when the point has a single scenario.
-        values: Option<Vec<(String, f64)>>,
-    },
-}
-
-/// One grid point handed to [`classify_decision_points`].
-#[derive(Clone, Debug, PartialEq)]
-pub struct PointLeaders {
-    /// Coordinate value.
-    pub coordinate: f64,
-    /// Evidence at the point.
-    pub input: PointInput,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-enum PointState {
-    Unique(String),
-    Tie(Vec<String>),
-    Mixed,
-}
-
-struct Run {
-    state: PointState,
-    first: usize,
-    last: usize,
-}
-
-fn state_of(leaders: &[Vec<String>]) -> PointState {
-    let normalized: Vec<Vec<String>> = leaders
-        .iter()
-        .map(|ids| {
-            let mut sorted = ids.clone();
-            sorted.sort();
-            sorted
-        })
-        .collect();
-    let Some(first) = normalized.first() else {
-        return PointState::Mixed;
-    };
-    if normalized.iter().any(|ids| ids != first) {
-        return PointState::Mixed;
-    }
-    match first.len() {
-        0 => PointState::Mixed,
-        1 => PointState::Unique(first[0].clone()),
-        _ => PointState::Tie(first.clone()),
-    }
-}
-
-fn runs_of(states: Vec<PointState>) -> Vec<Run> {
-    let mut runs: Vec<Run> = Vec::new();
-    for (index, state) in states.into_iter().enumerate() {
-        if runs.last().is_some_and(|run| run.state == state) {
-            if let Some(run) = runs.last_mut() {
-                run.last = index;
-            }
-        } else {
-            runs.push(Run { state, first: index, last: index });
-        }
-    }
-    runs
-}
-
-fn leaders_of_state(state: &PointState) -> Vec<String> {
-    match state {
-        PointState::Unique(id) => vec![id.clone()],
-        PointState::Tie(ids) => ids.clone(),
-        PointState::Mixed => Vec::new(),
-    }
-}
-
-fn interpolate(points: &[PointLeaders], i: usize, j: usize, a: &str, b: &str) -> Option<f64> {
-    let value = |point: &PointLeaders, id: &str| -> Option<f64> {
-        match &point.input {
-            PointInput::Scenarios { values: Some(values), .. } => {
-                values.iter().find(|(name, _)| name == id).map(|(_, x)| *x)
-            }
-            _ => None,
-        }
-    };
-    let (left, right) = (&points[i], &points[j]);
-    let before = value(left, a)? - value(left, b)?;
-    let after = value(right, a)? - value(right, b)?;
-    if before <= 0.0 || after >= 0.0 {
-        return None;
-    }
-    Some(left.coordinate + before / (before - after) * (right.coordinate - left.coordinate))
-}
-
-fn switch_between(current: &Run, next: &Run, points: &[PointLeaders]) -> DecisionSwitch {
-    let at = |index: usize| points[index].coordinate;
-    let (lower, upper, exact) = match (&current.state, &next.state) {
-        (_, PointState::Tie(_)) => (at(next.first), at(next.last), next.first == next.last),
-        (PointState::Tie(_), _) => {
-            (at(current.first), at(current.last), current.first == current.last)
-        }
-        _ => (at(current.last), at(next.first), false),
-    };
-    let interpolated = match (&current.state, &next.state) {
-        (PointState::Unique(a), PointState::Unique(b)) => {
-            interpolate(points, current.last, next.first, a, b)
-        }
-        _ => None,
-    };
-    DecisionSwitch {
-        from: leaders_of_state(&current.state),
-        to: leaders_of_state(&next.state),
-        lower,
-        upper,
-        exact,
-        interpolated,
-    }
-}
-
-/// Switches along the coordinate and the coordinates where a tie is touched and left
-/// again without a change of leader.
-fn switches_of(runs: &[Run], points: &[PointLeaders]) -> (Vec<DecisionSwitch>, Vec<f64>) {
-    let mut switches = Vec::new();
-    let mut touched = Vec::new();
-    let mut index = 0;
-    while index + 1 < runs.len() {
-        if let (PointState::Unique(before), PointState::Tie(_), Some(after)) =
-            (&runs[index].state, &runs[index + 1].state, runs.get(index + 2))
-        {
-            if let PointState::Unique(beyond) = &after.state {
-                let tie = &runs[index + 1];
-                if before == beyond {
-                    touched.extend((tie.first..=tie.last).map(|k| points[k].coordinate));
-                } else {
-                    switches.push(DecisionSwitch {
-                        from: vec![before.clone()],
-                        to: vec![beyond.clone()],
-                        lower: points[tie.first].coordinate,
-                        upper: points[tie.last].coordinate,
-                        exact: tie.first == tie.last,
-                        interpolated: None,
-                    });
-                }
-                index += 2;
-                continue;
-            }
-        }
-        switches.push(switch_between(&runs[index], &runs[index + 1], points));
-        index += 1;
-    }
-    (switches, touched)
-}
-
-/// Classify the decision over an ordered grid of coordinates.
-///
-/// `points` must be in ascending coordinate order. A point is `Unique` when every range
-/// scenario has the same single leader, `Tie` when every scenario has the same set of
-/// tied leaders and `Mixed` otherwise. All points `Unique` with one action is an
-/// invariant action; no `Mixed` point and exactly one change of leader (an exact tie
-/// bridging two leaders counts as the change) is an assumption-dependent switch with its
-/// tipping coordinate; everything else has no robust action.
-#[must_use]
-pub fn classify_decision_points(points: &[PointLeaders]) -> SensitivityOutcome {
-    if let Some(point) = points.iter().find(|p| matches!(p.input, PointInput::Unevaluated)) {
-        return SensitivityOutcome::Unresolved { coordinate: point.coordinate };
-    }
-    let states: Vec<PointState> = points
-        .iter()
-        .map(|point| match &point.input {
-            PointInput::Scenarios { leaders, .. } => state_of(leaders),
-            PointInput::Unevaluated => PointState::Mixed,
-        })
-        .collect();
-    if let Some(PointState::Unique(first)) = states.first() {
-        if states.iter().all(|state| matches!(state, PointState::Unique(id) if id == first)) {
-            return SensitivityOutcome::InvariantAction { action: first.clone() };
-        }
-    }
-    let coordinates_where = |wanted: fn(&PointState) -> bool| -> Vec<f64> {
-        points.iter().zip(&states).filter(|(_, s)| wanted(s)).map(|(p, _)| p.coordinate).collect()
-    };
-    let mixed = coordinates_where(|s| matches!(s, PointState::Mixed));
-    if !mixed.is_empty() {
-        return SensitivityOutcome::NoRobustAction {
-            reason: NoRobustReason::MixedWithinRange { coordinates: mixed },
-            switches: Vec::new(),
-        };
-    }
-    let tied = coordinates_where(|s| matches!(s, PointState::Tie(_)));
-    let runs = runs_of(states);
-    let (mut switches, touched) = switches_of(&runs, points);
-    if !touched.is_empty() {
-        let reason = NoRobustReason::TieWithoutSwitch { coordinates: touched };
-        return SensitivityOutcome::NoRobustAction { reason, switches };
-    }
-    match switches.len() {
-        0 => SensitivityOutcome::NoRobustAction {
-            reason: NoRobustReason::TieWithoutSwitch { coordinates: tied },
-            switches,
-        },
-        1 => SensitivityOutcome::AssumptionDependent { switch: switches.remove(0) },
-        _ => SensitivityOutcome::NoRobustAction {
-            reason: NoRobustReason::MultipleSwitches,
-            switches,
-        },
-    }
-}
-
 /// The declarations and numbers an artifact is built from. Grid points, quantities and
 /// actions may be given in any order; [`SensitivityArtifact::new`] canonicalizes them, so
 /// the identity does not depend on declaration order.
@@ -835,13 +445,16 @@ pub struct SensitivityArtifact {
     outcome: Option<SensitivityOutcome>,
 }
 
-fn canonicalize(mut parts: SensitivityParts) -> Result<SensitivityParts, IoError> {
+fn canonicalize(
+    mut parts: SensitivityParts,
+    limits: &SensitivityLimits,
+) -> Result<SensitivityParts, IoError> {
     let n = parts.grid.len();
     if n == 0
-        || n > MAX_SENSITIVITY_GRID_POINTS
+        || n > limits.max_grid_points
         || parts.quantities.is_empty()
-        || parts.quantities.len() > MAX_SENSITIVITY_QUANTITIES
-        || parts.actions.len() > MAX_SENSITIVITY_ACTIONS
+        || parts.quantities.len() > limits.max_quantities
+        || parts.actions.len() > limits.max_actions
     {
         return Err(bounds_exceeded("grid points, quantities or actions are outside the bounds"));
     }
@@ -918,14 +531,41 @@ fn validate_quantities(parts: &SensitivityParts) -> Result<(), IoError> {
     }) {
         return Err(wrong_contract("surface quantities mix populations or horizons"));
     }
-    if parts.quantities.iter().filter(|q| q.is_ranged()).count() > MAX_SENSITIVITY_RANGED_QUANTITIES
-    {
-        return Err(bounds_exceeded("too many surface quantities carry an assumption range"));
+    Ok(())
+}
+
+/// Refuse a surface whose vertex enumeration exceeds the limits' scenario evaluations
+/// ([`MAX_SENSITIVITY_SCENARIO_EVALUATIONS`] by default) or, weighted by the nodes of each
+/// action's utility, its node evaluations ([`MAX_SENSITIVITY_SCENARIO_NODE_EVALUATIONS`]).
+fn validate_scenario_work(
+    parts: &SensitivityParts,
+    limits: &SensitivityLimits,
+) -> Result<(), IoError> {
+    let ranged = parts.quantities.iter().filter(|q| q.is_ranged()).count();
+    let scenarios = u32::try_from(ranged).ok().and_then(|r| 1_usize.checked_shl(r));
+    let points = scenarios.and_then(|vertices| vertices.checked_mul(parts.grid.len()));
+    let evaluations = points.and_then(|points| points.checked_mul(parts.actions.len()));
+    if evaluations.is_none_or(|work| work > limits.max_scenario_evaluations) {
+        return Err(bounds_exceeded(
+            "the range vertices of the surface need more utility evaluations than the bound",
+        ));
+    }
+    // Each evaluation walks the action's whole expression, so the work is weighted by the
+    // nodes of every action's utility, not by the action count alone.
+    let nodes = parts
+        .actions
+        .iter()
+        .try_fold(0_usize, |total, action| total.checked_add(action.utility.node_count()));
+    let node_evaluations = points.zip(nodes).and_then(|(points, nodes)| points.checked_mul(nodes));
+    if node_evaluations.is_none_or(|work| work > limits.max_scenario_node_evaluations) {
+        return Err(bounds_exceeded(
+            "the utility expressions of the surface need more node evaluations than the bound",
+        ));
     }
     Ok(())
 }
 
-fn validate_actions(parts: &SensitivityParts) -> Result<(), IoError> {
+fn validate_actions(parts: &SensitivityParts, limits: &SensitivityLimits) -> Result<(), IoError> {
     if parts.actions.len() < 2 {
         return Err(wrong_contract("a decision compares at least two actions"));
     }
@@ -942,8 +582,11 @@ fn validate_actions(parts: &SensitivityParts) -> Result<(), IoError> {
         if is_blank(&action.id) || !ids.insert(action.id.as_str()) {
             return Err(wrong_contract("action ids must be nonblank and unique"));
         }
-        if action.utility.depth() > MAX_SENSITIVITY_UTILITY_DEPTH || !action.utility.all_finite() {
+        if action.utility.depth() > limits.max_utility_depth || !action.utility.all_finite() {
             return Err(invalid_surface("utility expression is too deep or not finite"));
+        }
+        if action.utility.node_count() > limits.max_utility_nodes {
+            return Err(bounds_exceeded("a utility expression has more nodes than the bound"));
         }
         if action.utility.references().iter().any(|id| !known.contains(id.as_str())) {
             return Err(wrong_contract("an action reads a quantity the surface does not carry"));
@@ -967,15 +610,14 @@ fn validate_uncertainty(parts: &SensitivityParts) -> Result<(), IoError> {
     {
         return Err(wrong_contract("the surface range must be declared an assumption range"));
     }
-    if let Some(bound) = &u.identified_bound {
-        if !known.contains(bound.quantity.as_str())
+    if let Some(bound) = &u.identified_bound
+        && (!known.contains(bound.quantity.as_str())
             || !bound.lower.is_finite()
             || !bound.upper.is_finite()
             || bound.lower > bound.upper
-            || is_blank(&bound.source)
-        {
-            return Err(invalid_surface("identified bound is malformed"));
-        }
+            || is_blank(&bound.source))
+    {
+        return Err(invalid_surface("identified bound is malformed"));
     }
     match &u.sampling {
         SamplingStatus::Withheld { reason_code, detail } => {
@@ -1000,22 +642,23 @@ fn validate_uncertainty(parts: &SensitivityParts) -> Result<(), IoError> {
             {
                 return Err(invalid_surface("sampling interval is malformed"));
             }
-            if let Some(method) = &interval.composed {
-                if !LICENSED_SAMPLING_COMPOSITIONS.contains(&method.as_str()) {
-                    return Err(composition_not_licensed(&format!(
-                        "composing a sampling interval with an assumption range by `{method}` is not licensed"
-                    )));
-                }
+            if let Some(method) = &interval.composed
+                && !SUPPORTED_SAMPLING_COMPOSITIONS.contains(&method.as_str())
+            {
+                return Err(composition_not_supported(&format!(
+                    "composing a sampling interval with an assumption range by `{method}` is not supported"
+                )));
             }
         }
     }
     Ok(())
 }
 
-fn validate(parts: &SensitivityParts) -> Result<(), IoError> {
+fn validate(parts: &SensitivityParts, limits: &SensitivityLimits) -> Result<(), IoError> {
     validate_coordinate(parts)?;
     validate_quantities(parts)?;
-    validate_actions(parts)?;
+    validate_actions(parts, limits)?;
+    validate_scenario_work(parts, limits)?;
     validate_uncertainty(parts)?;
     let p = &parts.provenance;
     if is_blank(&p.source_kind)
@@ -1104,40 +747,32 @@ pub fn encode_parts(
     numbers: &[u8],
     artifact_id: &str,
 ) -> Result<Vec<u8>, IoError> {
-    encode_parts_impl(meta, numbers, artifact_id)
+    encode_parts_impl(meta, numbers, artifact_id, MAX_SENSITIVITY_ARTIFACT_BYTES)
 }
 
 fn encode_parts_impl(
     meta: &SensitivityMeta,
     numbers: &[u8],
     artifact_id: &str,
+    max_bytes: usize,
 ) -> Result<Vec<u8>, IoError> {
-    if artifact_id.trim().is_empty() {
-        return Err(IoError::Convert("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta)?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned_io(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "sensitivity_decision_assumption_range",
-            max_bytes: MAX_SENSITIVITY_ARTIFACT_BYTES,
+            max_bytes,
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[
-            crate::OutSection {
-                id: META_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &meta_bytes,
-            },
-            crate::OutSection {
-                id: NUMBERS_SECTION,
-                content_type: crate::CONTENT_BYTES,
-                bytes: numbers,
-            },
-        ],
+        META_SECTION,
+        meta,
+        &[crate::OutSection {
+            id: NUMBERS_SECTION,
+            content_type: crate::CONTENT_BYTES,
+            bytes: numbers,
+        }],
+        "unsupported sensitivity artifact layout",
     )
-    .map_err(|error| error.into_io("unsupported sensitivity artifact layout"))
 }
 
 /// Decode the two sections of a container, refusing another version before the metadata
@@ -1150,34 +785,33 @@ fn encode_parts_impl(
 #[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn decode_parts(bytes: &[u8]) -> Result<(SensitivityMeta, Vec<u8>), IoError> {
-    decode_parts_impl(bytes)
+    decode_parts_impl(bytes, MAX_SENSITIVITY_ARTIFACT_BYTES)
 }
 
-fn decode_parts_impl(bytes: &[u8]) -> Result<(SensitivityMeta, Vec<u8>), IoError> {
-    let parts = crate::decode_container(
+fn decode_parts_impl(
+    bytes: &[u8],
+    max_bytes: usize,
+) -> Result<(SensitivityMeta, Vec<u8>), IoError> {
+    let (meta, [payload]) = crate::artifact_codec::decode_sectioned_io_versioned(
         ARTIFACT_KIND,
-        MAX_SENSITIVITY_ARTIFACT_BYTES,
-        &[META_SECTION, NUMBERS_SECTION],
+        max_bytes,
+        META_SECTION,
+        &[NUMBERS_SECTION],
+        "unsupported sensitivity artifact layout",
+        SENSITIVITY_ARTIFACT_VERSION,
         bytes,
-    )
-    .map_err(|error| error.into_io("unsupported sensitivity artifact layout"))?;
-    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
-        return Err(IoError::Convert("unsupported sensitivity artifact layout".into()));
-    };
-    let meta = crate::decode_with_version(&meta_bytes, |version: u16| {
-        if version == SENSITIVITY_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(IoError::UnsupportedVersion { version: u32::from(version) })
-        }
-    })?;
+    )?;
     Ok((meta, payload))
 }
 
-fn parts_from(meta: &SensitivityMeta, numbers: &[u8]) -> Result<SensitivityParts, IoError> {
+fn parts_from(
+    meta: &SensitivityMeta,
+    numbers: &[u8],
+    limits: &SensitivityLimits,
+) -> Result<SensitivityParts, IoError> {
     let n = meta.support.len();
     let q = meta.quantities.len();
-    if n == 0 || n > MAX_SENSITIVITY_GRID_POINTS || q == 0 || q > MAX_SENSITIVITY_QUANTITIES {
+    if n == 0 || n > limits.max_grid_points || q == 0 || q > limits.max_quantities {
         return Err(bounds_exceeded("grid points or quantities are outside the bounds"));
     }
     let reported = matches!(meta.uncertainty.sampling, SamplingStatus::Reported(_));
@@ -1223,6 +857,72 @@ pub struct JointFactorView {
     pub max_fraction: f64,
 }
 
+/// The endpoint-bootstrap replicates of a joint mechanism sensitivity result: for each
+/// resampled table, the range's baseline (zero deviation), minimum and maximum over the declared
+/// box. The sampling interval at every grid point is derived from them.
+#[derive(Clone, Debug, PartialEq)]
+pub struct JointSamplingView {
+    /// Nominal level in `(0, 1)`.
+    pub level: f64,
+    /// Interval method name.
+    pub method: String,
+    /// Calibration annotation resolved from the construction basis; it never withholds.
+    pub calibration: Option<crate::contract_section::CalibrationSlotWire>,
+    /// Range baseline of each replicate.
+    pub baselines: Vec<f64>,
+    /// Range minimum over the full box of each replicate.
+    pub minima: Vec<f64>,
+    /// Range maximum over the full box of each replicate.
+    pub maxima: Vec<f64>,
+}
+
+/// Linear-interpolation (type-7) quantile of an ascending slice.
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the position is within the slice length"
+)]
+fn type7_quantile(sorted: &[f64], probability: f64) -> f64 {
+    let position = probability.clamp(0.0, 1.0) * (sorted.len() - 1) as f64;
+    let lower = position.floor() as usize;
+    let upper = position.ceil() as usize;
+    sorted[lower] + (position - lower as f64) * (sorted[upper] - sorted[lower])
+}
+
+impl JointSamplingView {
+    /// The equal-tailed percentile interval of the replicate range scaled to `scale` of the
+    /// declared box: `[q(zero + scale (min - zero)), q(zero + scale (max - zero))]`. At scale 0
+    /// it is the ordinary percentile interval of the baseline; at scale 1 the conservative
+    /// endpoint interval. The range is exactly linear in the scale, so this is exact for a
+    /// one-factor box at every grid point and at the two endpoints of a two-factor box.
+    fn interval_at(&self, scale: f64) -> Option<(f64, f64)> {
+        let n = self.baselines.len();
+        if n < 2 || self.minima.len() != n || self.maxima.len() != n {
+            return None;
+        }
+        let at = |zero: f64, end: f64| -> f64 {
+            if scale == 0.0 {
+                zero
+            } else if scale.to_bits() == 1.0_f64.to_bits() {
+                end
+            } else {
+                zero + scale * (end - zero)
+            }
+        };
+        let lows: Vec<f64> = (0..n).map(|i| at(self.baselines[i], self.minima[i])).collect();
+        let highs: Vec<f64> = (0..n).map(|i| at(self.baselines[i], self.maxima[i])).collect();
+        if lows.iter().chain(&highs).any(|v| !v.is_finite()) {
+            return None;
+        }
+        let (mut lows, mut highs) = (lows, highs);
+        lows.sort_by(f64::total_cmp);
+        highs.sort_by(f64::total_cmp);
+        let tail = (1.0 - self.level) / 2.0;
+        Some((type7_quantile(&lows, tail), type7_quantile(&highs, 1.0 - tail)))
+    }
+}
+
 /// A joint mechanism sensitivity result reduced to what the surface adapter
 /// reads.
 ///
@@ -1234,9 +934,12 @@ pub struct JointSensitivityView {
     pub inference_claim: String,
     /// Interpretation statement carried into the artifact.
     pub interpretation: String,
-    /// Registered reason code of the withheld sampling interval.
+    /// The endpoint-bootstrap replicates, when the result carries its sampling interval.
+    pub sampling: Option<JointSamplingView>,
+    /// Registered reason code reported when the result carries no sampling interval (none was
+    /// requested for this result).
     pub withheld_reason_code: String,
-    /// Detail of the withheld sampling interval.
+    /// Detail reported when the result carries no sampling interval.
     pub withheld_detail: String,
     /// Stable identity of the checked derivation's inputs.
     pub query_binding: String,
@@ -1272,11 +975,23 @@ impl SensitivityArtifact {
     /// # Errors
     /// Bounds, malformed surfaces (`invalid_surface`), mixed estimands or unlike units
     /// (`wrong_contract`), a grid point outside the declared range
-    /// (`unsupported_coordinate`) and a sampling composition that is not licensed
-    /// (`composition_not_licensed`).
+    /// (`unsupported_coordinate`) and a sampling composition that is not supported
+    /// (`composition_not_supported`).
     pub fn new(parts: SensitivityParts) -> Result<Self, IoError> {
-        let parts = canonicalize(parts)?;
-        validate(&parts)?;
+        Self::new_within(parts, &SensitivityLimits::default())
+    }
+
+    /// [`Self::new`] under the caller's intake bounds instead of the `MAX_SENSITIVITY_*`
+    /// defaults.
+    ///
+    /// # Errors
+    /// As [`Self::new`]; a bound of `limits` exceeded is `bounds_exceeded`.
+    pub fn new_within(
+        parts: SensitivityParts,
+        limits: &SensitivityLimits,
+    ) -> Result<Self, IoError> {
+        let parts = canonicalize(parts, limits)?;
+        validate(&parts, limits)?;
         let identity = identity_of(&parts)?;
         let mut artifact = Self { parts, identity, outcome: None };
         artifact.outcome = if artifact.parts.support.contains(&PointSupport::Unsupported) {
@@ -1296,8 +1011,10 @@ impl SensitivityArtifact {
     /// surface is filled on `grid_points` equally spaced fractions in `[0, bound]` with
     /// the exact endpoints. With two factors only the unperturbed point and the declared
     /// box are exact, so the surface is the two points `0` and `1` of the box scale and
-    /// `grid_points` must be 2. The withheld sampling status is carried unchanged:
-    /// the range stays an assumption range.
+    /// `grid_points` must be 2. When the result carries its endpoint-bootstrap replicates, the
+    /// separate sampling interval is reported at every grid point next to, never inside, the
+    /// range, with its calibration annotation; otherwise the not-requested status is carried.
+    /// The range stays an assumption range.
     ///
     /// # Errors
     /// A result that is not an assumption range, a degenerate or unsupported factor
@@ -1320,15 +1037,48 @@ impl SensitivityArtifact {
         effect.validate().map_err(|_| invalid_surface("effect quantity coordinate is invalid"))?;
         let (coordinate, grid, lower, upper) = surface_of(&result, grid_points)?;
         let n = grid.len();
+        let effect_wire = ScientificQuantityWire::from(effect);
+        let sampling = match &result.sampling {
+            Some(view) => {
+                if !(view.level > 0.0 && view.level < 1.0) || coordinate.maximum <= 0.0 {
+                    return Err(invalid_surface("sampling interval level is malformed"));
+                }
+                let mut sampling_lower = Vec::with_capacity(n);
+                let mut sampling_upper = Vec::with_capacity(n);
+                for (j, g) in grid.iter().enumerate() {
+                    let scale = if j == 0 {
+                        0.0
+                    } else if j + 1 == n {
+                        1.0
+                    } else {
+                        g / coordinate.maximum
+                    };
+                    let (low, high) = view.interval_at(scale).ok_or_else(|| {
+                        invalid_surface("the endpoint bootstrap replicates give no interval")
+                    })?;
+                    sampling_lower.push(low);
+                    sampling_upper.push(high);
+                }
+                SamplingStatus::Reported(Box::new(SamplingInterval {
+                    quantity: effect_wire.variable_id.clone(),
+                    level: view.level,
+                    method: view.method.clone(),
+                    composed: None,
+                    calibration: view.calibration.clone(),
+                    lower: sampling_lower,
+                    upper: sampling_upper,
+                }))
+            }
+            None => SamplingStatus::Withheld {
+                reason_code: result.withheld_reason_code.clone(),
+                detail: result.withheld_detail.clone(),
+            },
+        };
         Self::new(SensitivityParts {
             coordinate,
             grid,
             support: vec![PointSupport::Supported; n],
-            quantities: vec![SurfaceQuantity {
-                quantity: ScientificQuantityWire::from(effect),
-                lower,
-                upper,
-            }],
+            quantities: vec![SurfaceQuantity { quantity: effect_wire, lower, upper }],
             actions,
             uncertainty: UncertaintyRelationship {
                 assumption_range: AssumptionRangeStatement {
@@ -1336,10 +1086,7 @@ impl SensitivityArtifact {
                     interpretation: result.interpretation,
                 },
                 identified_bound: None,
-                sampling: SamplingStatus::Withheld {
-                    reason_code: result.withheld_reason_code,
-                    detail: result.withheld_detail,
-                },
+                sampling,
             },
             provenance: SensitivityProvenance {
                 source_kind: JOINT_SOURCE_KIND.into(),
@@ -1577,6 +1324,21 @@ impl SensitivityArtifact {
         let scenarios = self.scenario_count();
         let mut inputs = Vec::new();
         for point in self.considered_points(range)? {
+            let active: BTreeSet<&str> = self
+                .parts
+                .quantities
+                .iter()
+                .filter(|q| !same(q.lower[point], q.upper[point]))
+                .map(|q| q.quantity.variable_id.as_str())
+                .collect();
+            if self
+                .parts
+                .actions
+                .iter()
+                .any(|action| action.utility.multilinear_over(&active).is_none())
+            {
+                return Err(invalid_surface("utility must be multilinear in ranged quantities"));
+            }
             inputs.push(PointLeaders {
                 coordinate: self.parts.grid[point],
                 input: self.point_input(point, scenarios)?,
@@ -1606,7 +1368,16 @@ impl SensitivityArtifact {
     /// # Errors
     /// An empty id, an encoding failure or an oversized payload.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, IoError> {
-        encode_parts_impl(&self.meta(), &numbers_of(&self.parts), artifact_id)
+        self.to_bytes_within(artifact_id, MAX_SENSITIVITY_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::to_bytes`] under the caller's byte bound instead of
+    /// [`MAX_SENSITIVITY_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::to_bytes`]; a payload over `max_bytes` is refused.
+    pub fn to_bytes_within(&self, artifact_id: &str, max_bytes: usize) -> Result<Vec<u8>, IoError> {
+        encode_parts_impl(&self.meta(), &numbers_of(&self.parts), artifact_id, max_bytes)
     }
 
     /// Consume an artifact by recomputation.
@@ -1624,25 +1395,38 @@ impl SensitivityArtifact {
         bytes: &[u8],
         expected: Option<&SensitivityIdentity>,
     ) -> Result<Self, IoError> {
-        let (meta, numbers) = decode_parts_impl(bytes)?;
+        Self::from_bytes_within(bytes, expected, &SensitivityLimits::default())
+    }
+
+    /// [`Self::from_bytes`] under the caller's intake bounds instead of the
+    /// `MAX_SENSITIVITY_*` defaults.
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a bound of `limits` exceeded is refused.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected: Option<&SensitivityIdentity>,
+        limits: &SensitivityLimits,
+    ) -> Result<Self, IoError> {
+        let (meta, numbers) = decode_parts_impl(bytes, limits.max_bytes)?;
         if meta.feature != SENSITIVITY_ARTIFACT_FEATURE
             || meta.inference_claim != SENSITIVITY_INFERENCE_CLAIM
         {
             return Err(wrong_contract("feature marker or inference claim is not this format's"));
         }
-        let artifact = Self::new(parts_from(&meta, &numbers)?)?;
+        let artifact = Self::new_within(parts_from(&meta, &numbers, limits)?, limits)?;
         if let Some(field) = identity_diff(&meta.identity, &artifact.identity) {
             return Err(wrong_contract(&format!("stored {field} differs from the recomputed one")));
         }
         if meta.outcome != artifact.outcome {
             return Err(wrong_contract("stored decision outcome does not replay from the surface"));
         }
-        if let Some(retained) = expected {
-            if let Some(field) = identity_diff(retained, &artifact.identity) {
-                return Err(wrong_contract(&format!(
-                    "{field} differs from the consumer's retained identity"
-                )));
-            }
+        if let Some(retained) = expected
+            && let Some(field) = identity_diff(retained, &artifact.identity)
+        {
+            return Err(wrong_contract(&format!(
+                "{field} differs from the consumer's retained identity"
+            )));
         }
         Ok(artifact)
     }

@@ -2,7 +2,7 @@
 //! joint-regime rule, order-independent identity, and the rule that a study
 //! never establishes an assumption.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -247,7 +247,7 @@ fn establish_assumption_is_never_addressed_by_a_study() {
     named.variables = Arc::from([]);
     assert_eq!(
         EvidenceObligation::try_new(named).unwrap_err().detail,
-        "evidence_obligations.invalid_obligation"
+        antecedent_core::reason_details::evidence_obligations::INVALID_OBLIGATION
     );
 }
 
@@ -298,7 +298,10 @@ fn malformed_obligations_are_refused_with_registered_codes() {
     let error = EvidenceObligation::try_new(one_variable).unwrap_err();
     assert_eq!(
         (error.code, error.detail),
-        ("invalid_argument", "evidence_obligations.invalid_obligation")
+        (
+            "invalid_argument",
+            antecedent_core::reason_details::evidence_obligations::INVALID_OBLIGATION
+        )
     );
 
     let mut not_joint = spec(EvidenceObligationKind::ProvideJointLaw);
@@ -306,23 +309,38 @@ fn malformed_obligations_are_refused_with_registered_codes() {
     let error = EvidenceObligation::try_new(not_joint).unwrap_err();
     assert_eq!(
         (error.code, error.detail),
-        ("transport_missing_evidence", "evidence_obligations.wrong_contract")
+        (
+            "transport_missing_evidence",
+            antecedent_core::reason_details::evidence_obligations::WRONG_CONTRACT
+        )
     );
 
     let mut blank = spec(EvidenceObligationKind::Measure);
     blank.reason = Arc::from("  ");
-    assert!(EvidenceObligation::try_new(blank).is_err());
+    assert_eq!(
+        EvidenceObligation::try_new(blank).err().unwrap().to_string(),
+        "evidence_obligations.invalid_obligation: an obligation needs a reason and a provenance family and source"
+    );
 
     let mut duplicate = spec(EvidenceObligationKind::Measure);
     duplicate.variables = vars(&[Y, Y]).into();
-    assert!(EvidenceObligation::try_new(duplicate).is_err());
+    assert_eq!(
+        EvidenceObligation::try_new(duplicate).err().unwrap().to_string(),
+        "evidence_obligations.invalid_obligation: obligation variables must be distinct"
+    );
 
     let no_rows = spec(EvidenceObligationKind::IncreaseSample);
-    assert!(EvidenceObligation::try_new(no_rows).is_err());
+    assert_eq!(
+        EvidenceObligation::try_new(no_rows).err().unwrap().to_string(),
+        "evidence_obligations.invalid_obligation: an increase-sample obligation names a positive row count"
+    );
 
     let mut no_population = spec(EvidenceObligationKind::Measure);
     no_population.population = None;
-    assert!(EvidenceObligation::try_new(no_population).is_err());
+    assert_eq!(
+        EvidenceObligation::try_new(no_population).err().unwrap().to_string(),
+        "evidence_obligations.invalid_obligation: a study obligation names the population it needs evidence in"
+    );
 }
 
 #[test]
@@ -401,10 +419,16 @@ fn scientific_obligations_bind_every_semantic_dimension_and_ignore_display_label
     }
     let mut wrong_population = scientific_coordinates();
     wrong_population.get_mut(&VariableId::from_raw(Y)).unwrap().population_id = "target".into();
-    assert!(base.clone().with_quantities(wrong_population).is_err());
+    assert_eq!(
+        base.clone().with_quantities(wrong_population).err().unwrap().to_string(),
+        "evidence_obligations.invalid_obligation: scientific coordinates must be valid and match obligation variables, population and horizon"
+    );
     let mut incomplete = scientific_coordinates();
     incomplete.remove(&VariableId::from_raw(Y));
-    assert!(base.with_quantities(incomplete).is_err());
+    assert_eq!(
+        base.with_quantities(incomplete).err().unwrap().to_string(),
+        "evidence_obligations.invalid_obligation: declared scientific coordinates must cover every requested variable"
+    );
 }
 
 #[test]

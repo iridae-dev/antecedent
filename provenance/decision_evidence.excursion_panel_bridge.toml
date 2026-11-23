@@ -1,0 +1,17 @@
+feature_id = "decision_evidence.excursion_panel_bridge"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+implementation_deviations = [
+  "The adapter binds a native compiled excursion's exact population, outcome, units, assignment law, lag and intervention contrast to the existing panel experimental translation and current evidence ledger.",
+  "The existing panel update is a declared model-conditional Gaussian likelihood with known variance. An additional explicit likelihood assumption is required; the estimated excursion covariance is not substituted for that known variance.",
+  "The existing bridge owns the source-to-target mapping and retained uncertainty. An excursion is not silently treated as a sustained or adaptive regime, and the resulting model-conditional source is not promoted to identified causal authority or calibrated uncertainty.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent/tests/joint_panel_experiment_chain.rs (verify_compiled_excursion_update)",
+  "python/tests/test_panel_future_study.py (test_compiled_excursion_conditions_panel_only_under_explicit_bridge)",
+]

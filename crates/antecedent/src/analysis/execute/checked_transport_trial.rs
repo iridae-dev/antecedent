@@ -77,28 +77,30 @@ impl CheckedTransportTrialOperation {
             return Ok(None);
         };
         let (Some(trial), Some(transport)) =
-            (study.transport_trial.as_ref(), study.transport_identification_cache.as_deref())
+            (study.transport_trial.as_ref(), study.transport_cache().map(|cache| &**cache))
         else {
             return Ok(None);
         };
-        if !matches!(study.graph.class(), GraphClass::Admg | GraphClass::TemporalAdmg)
-            || study.selection_diagram.is_none()
+        if !matches!(
+            study.graph.class(),
+            GraphClass::Dag | GraphClass::Admg | GraphClass::TemporalAdmg
+        ) || study.selection_diagram.is_none()
             || study.graph_posterior.is_some()
-            || study.tiered.is_some()
-            || study.split.is_some()
+            || study.declared.tiered.is_some()
+            || study.declared.split.is_some()
             || !matches!(
                 study.structure_source,
                 crate::support::StructureSource::Explicit
                     | crate::support::StructureSource::Accepted
             )
-            || study.refute != RefuteSuite::None
-            || !study.custom_validators.is_empty()
+            || study.settings.refute != RefuteSuite::None
+            || !study.declared.custom_validators.is_empty()
         {
             return Ok(None);
         }
         query.validate()?;
         refuse_unestimable_transport(transport)?;
-        let (procedure, estimator) = match &study.inference {
+        let (procedure, estimator) = match &study.settings.inference {
             InferenceMode::Frequentist => {
                 (TransportTrialProcedure::KnownProbabilityIpw, EstimatorId::TransportTrialIpw)
             }
@@ -146,7 +148,7 @@ impl CheckedTransportTrialOperation {
             estimand,
             procedure,
             estimator,
-            inference: study.inference.clone(),
+            inference: study.settings.inference.clone(),
             physical: plan.clone(),
         })))
     }

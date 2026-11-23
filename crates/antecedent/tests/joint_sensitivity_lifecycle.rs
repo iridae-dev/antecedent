@@ -4,7 +4,7 @@
 //! the measured endpoint bootstrap; the range artifact still refuses a
 //! forged sampling interval.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::too_many_lines,
@@ -21,9 +21,8 @@ use antecedent::{
 };
 use antecedent_core::{
     DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
-    EvidenceRegime, ExecutionContext, InterventionAssignment, MemoryBudget, ProgressSink,
-    RegimeBinding, RegimeId, RegimeKind, SamplingDesign, Value, VariableCoordinate, VariableDomain,
-    VariableId,
+    EvidenceRegime, ExecutionContext, InterventionAssignment, ProgressSink, RegimeBinding,
+    RegimeId, RegimeKind, SamplingDesign, Value, VariableCoordinate, VariableDomain, VariableId,
 };
 use antecedent_estimate::{percentile_interval, z_transport_bootstrap_law_draws};
 use antecedent_expr::{
@@ -35,6 +34,7 @@ use antecedent_identify::{
     SidLimits, ZTransportQuery, ZTransportResult, bind_z_transport_catalog, identify_z_transport,
 };
 use antecedent_io::IoError;
+use antecedent_validate::joint_mechanism_sensitivity::JOINT_SENSITIVITY_MAX_FRONTIER_POINTS;
 use antecedent_validate::{
     JointDeviationSpec, JointFactor, JointFactorBound, z_transport_joint_mechanism_sensitivity,
 };
@@ -295,7 +295,10 @@ fn prepared_z_stage_evaluates_joint_sensitivity_without_reidentifying() {
     let error = prepared.joint_mechanism_sensitivity(&coupled, &ctx).unwrap_err();
     assert_eq!(
         refused(&error),
-        ("route_not_supported", "joint_sensitivity.budget_coupling".into())
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::joint_sensitivity::BUDGET_COUPLING.into()
+        )
     );
 }
 
@@ -325,7 +328,7 @@ fn the_exported_joint_artifact_is_replayed_by_an_independent_consumer() {
     assert_eq!(consumed.body.outcome.range[1].to_bits(), direct.range.maximum.to_bits());
     assert_eq!(consumed.body.outcome.frontier.len(), 9);
     assert_eq!(consumed.body.perturbation.factors[0].factor, "outcome_kernel");
-    assert_eq!(consumed.body.sampling.status, "withheld");
+    assert_eq!(consumed.body.sampling.status, "no_interval_method");
     assert_eq!(consumed.body.sampling.interval, None);
     assert_eq!(consumed.body.receipt.operations_consumed, direct.receipt.operations_consumed);
     // A budget-truncated (operations) analysis exports and replays identically.
@@ -344,7 +347,7 @@ fn the_exported_joint_artifact_is_replayed_by_an_independent_consumer() {
     // under that smaller effective cap; the consumer replays under the stored
     // effective cap (not the declared one) and reproduces the receipt.
     let mut ctx = ExecutionContext::for_tests(1);
-    ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(32 << 20) };
+    ctx.set_memory_limit(Some(32 << 20));
     let memory_bound =
         JointSensitivityArtifactWire::checked(baseline_bytes(&prepared), &spec(), &ctx).unwrap();
     assert_eq!(memory_bound.body.receipt.memory_limit_bytes, 32 << 20);
@@ -355,10 +358,18 @@ fn the_exported_joint_artifact_is_replayed_by_an_independent_consumer() {
 #[test]
 fn a_mutated_joint_artifact_fails_consumption_for_the_right_reason() {
     let wire = artifact();
-    let premises = ("transport_not_certified", "joint_sensitivity.premises_mismatch".to_owned());
-    let data_identity =
-        ("transport_not_certified", "joint_sensitivity.data_identity_mismatch".to_owned());
-    let replay = ("transport_not_certified", "joint_sensitivity.replay_mismatch".to_owned());
+    let premises = (
+        "transport_not_certified",
+        antecedent_core::reason_details::joint_sensitivity::PREMISES_MISMATCH.to_owned(),
+    );
+    let data_identity = (
+        "transport_not_certified",
+        antecedent_core::reason_details::joint_sensitivity::DATA_IDENTITY_MISMATCH.to_owned(),
+    );
+    let replay = (
+        "transport_not_certified",
+        antecedent_core::reason_details::joint_sensitivity::REPLAY_MISMATCH.to_owned(),
+    );
     let cases: Vec<(&str, Box<dyn Fn(&mut JointSensitivityArtifactWire)>, _)> = vec![
         (
             "fraction",
@@ -372,7 +383,7 @@ fn a_mutated_joint_artifact_fails_consumption_for_the_right_reason() {
         ),
         ("limits", Box::new(|w| w.body.perturbation.operations = 50_000), premises.clone()),
         ("method", Box::new(|w| w.body.receipt.method.push('!')), premises.clone()),
-        ("claim", Box::new(|w| w.body.inference_claim = "calibrated".into()), premises.clone()),
+        ("claim", Box::new(|w| w.body.inference_claim = "interval".into()), premises.clone()),
         (
             "sampling",
             Box::new(|w| w.body.sampling.method = "percentile_bootstrap".into()),
@@ -418,7 +429,10 @@ fn a_mutated_joint_artifact_fails_consumption_for_the_right_reason() {
 #[test]
 fn resealed_semantic_mutations_fail_replay_for_the_right_reason() {
     let wire = artifact();
-    let replay = ("transport_not_certified", "joint_sensitivity.replay_mismatch".to_owned());
+    let replay = (
+        "transport_not_certified",
+        antecedent_core::reason_details::joint_sensitivity::REPLAY_MISMATCH.to_owned(),
+    );
     let cases: Vec<(&str, Box<dyn Fn(&mut JointSensitivityArtifactWire)>, (&str, String))> = vec![
         (
             "kernel fraction",
@@ -500,22 +514,34 @@ fn resealed_semantic_mutations_fail_replay_for_the_right_reason() {
         (
             "interval",
             Box::new(|w| w.body.sampling.interval = Some([0.1, 0.9])),
-            ("cell_not_licensed", "joint_sensitivity.interval_withheld".to_owned()),
+            (
+                "route_not_supported",
+                antecedent_core::reason_details::joint_sensitivity::NO_INTERVAL_METHOD.to_owned(),
+            ),
         ),
         (
             "claim",
             Box::new(|w| w.body.inference_claim = "confidence_interval".into()),
-            ("estimator_inference_mismatch", "joint_sensitivity.union_labelled_ci".to_owned()),
+            (
+                "estimator_inference_mismatch",
+                antecedent_core::reason_details::joint_sensitivity::UNION_LABELLED_CI.to_owned(),
+            ),
         ),
         (
             "factor name",
             Box::new(|w| w.body.perturbation.factors[0].factor = "latent_mechanism".into()),
-            ("invalid_argument", "joint_sensitivity.unknown_factor".to_owned()),
+            (
+                "invalid_argument",
+                antecedent_core::reason_details::joint_sensitivity::UNKNOWN_FACTOR.to_owned(),
+            ),
         ),
         (
             "out-of-scope factor",
             Box::new(|w| w.body.perturbation.factors[0].factor = "fixed_graph_parent".into()),
-            ("route_not_supported", "joint_sensitivity.fixed_graph_parent".to_owned()),
+            (
+                "route_not_supported",
+                antecedent_core::reason_details::joint_sensitivity::FIXED_GRAPH_PARENT.to_owned(),
+            ),
         ),
     ];
     for (name, mutate, expected) in &cases {
@@ -548,11 +574,14 @@ fn resealed_semantic_mutations_fail_replay_for_the_right_reason() {
 fn stored_limits_above_the_consumer_maxima_refuse_before_any_work() {
     let wire = artifact();
     let bytes = wire.export().unwrap();
-    let limited = ("route_not_supported", "joint_sensitivity.consumer_limits".to_owned());
+    let limited = (
+        "route_not_supported",
+        antecedent_core::reason_details::joint_sensitivity::CONSUMER_LIMITS.to_owned(),
+    );
     let consumer =
         |max_operations: usize, max_depth: usize, max_memory_bytes: u64, hard: Option<u64>| {
             let mut ctx = ExecutionContext::for_tests(1);
-            ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: hard };
+            ctx.set_memory_limit(hard);
             JointSensitivityArtifactWire::consume_with_limits(
                 &bytes,
                 JointSensitivityConsumeLimits {
@@ -599,7 +628,10 @@ fn a_resealed_declared_memory_cap_is_bound_by_the_premises_digest_not_by_replay(
     let effective = wire.body.receipt.memory_limit_bytes;
     assert_eq!(wire.body.perturbation.memory_bytes, 64 << 20);
     assert_eq!(effective, 64 << 20, "a producer context without a hard limit");
-    let limited = ("route_not_supported", "joint_sensitivity.consumer_limits".to_owned());
+    let limited = (
+        "route_not_supported",
+        antecedent_core::reason_details::joint_sensitivity::CONSUMER_LIMITS.to_owned(),
+    );
     let consume_under = |mutated: &JointSensitivityArtifactWire, max_memory_bytes: u64| {
         JointSensitivityArtifactWire::consume_with_limits(
             &mutated.export().unwrap(),
@@ -618,7 +650,10 @@ fn a_resealed_declared_memory_cap_is_bound_by_the_premises_digest_not_by_replay(
     // Not re-sealed: the declared cap is a premise.
     assert_eq!(
         refused(&consume_under(&declared(128 << 20, false), 128 << 20).unwrap_err()),
-        ("transport_not_certified", "joint_sensitivity.premises_mismatch".to_owned())
+        (
+            "transport_not_certified",
+            antecedent_core::reason_details::joint_sensitivity::PREMISES_MISMATCH.to_owned()
+        )
     );
     // Re-sealed and at or above the effective cap: accepted. This is the
     // documented gap (what replay does not protect against): the numbers depend
@@ -716,9 +751,9 @@ fn the_producer_binds_premises_and_data_and_refuses_a_cancelled_frontier() {
     )
     .unwrap();
     assert_ne!(rebased.data_digest, wire.data_digest);
-    // Producer-side bounds are the evaluator's hard caps.
+    // Producer-side bounds are the evaluator's resolution cap.
     let mut over = spec();
-    over.frontier_points = 34;
+    over.frontier_points = JOINT_SENSITIVITY_MAX_FRONTIER_POINTS + 1;
     let error = JointSensitivityArtifactWire::checked(
         baseline.clone(),
         &over,
@@ -727,13 +762,22 @@ fn the_producer_binds_premises_and_data_and_refuses_a_cancelled_frontier() {
     .unwrap_err();
     assert_eq!(
         refused(&error),
-        ("route_not_supported", "joint_sensitivity.bounds_exceeded".into())
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::joint_sensitivity::BOUNDS_EXCEEDED.into()
+        )
     );
     // A cancelled frontier cannot replay and is not exported.
     let mut ctx = ExecutionContext::for_tests(1);
     ctx.progress = Some(Arc::new(CancelAfterFirstLine(ctx.cancellation.clone())));
     let error = JointSensitivityArtifactWire::checked(baseline, &spec(), &ctx).unwrap_err();
-    assert_eq!(refused(&error), ("transport_budget_cancel", "joint_sensitivity.budget".into()));
+    assert_eq!(
+        refused(&error),
+        (
+            "transport_budget_cancel",
+            antecedent_core::reason_details::joint_sensitivity::BUDGET.into()
+        )
+    );
 }
 
 #[test]
@@ -783,13 +827,28 @@ fn the_endpoint_bootstrap_interval_replays() {
     let (_, upper) = percentile_interval(&highs, 0.95).unwrap();
     assert_eq!(published.lower.to_bits(), lower.to_bits());
     assert_eq!(published.upper.to_bits(), upper.to_bits());
-    for (replicates, level) in [(198, 0.95), (1, 0.95), (2001, 0.95), (199, 0.9), (199, 1.0)] {
+    // Another level or a replicate count below the measured floor is reported, annotated as
+    // outside the measured scope; only counts the estimator cannot evaluate refuse.
+    for (replicates, level) in [(198, 0.95), (199, 0.9)] {
+        let reported = prepared
+            .joint_mechanism_sensitivity_interval(&deviation, replicates, level, &ctx)
+            .unwrap();
+        assert_ne!(
+            reported.calibration.status,
+            antecedent_io_core::contract_section::CalibrationStatus::Calibrated,
+            "replicates={replicates} level={level}"
+        );
+    }
+    for (replicates, level) in [(1, 0.95), (2001, 0.95), (199, 1.0)] {
         let error = prepared
             .joint_mechanism_sensitivity_interval(&deviation, replicates, level, &ctx)
             .unwrap_err();
         assert_eq!(
             refused(&error),
-            ("route_not_supported", "joint_sensitivity.bounds_exceeded".into()),
+            (
+                "route_not_supported",
+                antecedent_core::reason_details::joint_sensitivity::BOUNDS_EXCEEDED.into()
+            ),
             "replicates={replicates} level={level}"
         );
     }
@@ -820,15 +879,21 @@ fn the_range_artifact_refuses_a_forged_sampling_interval() {
     drop(built);
     let ctx = ExecutionContext::for_tests(1);
     let result = prepared.joint_mechanism_sensitivity(&spec(), &ctx).unwrap();
-    assert_eq!(result.uncertainty.reason_code, "cell_not_licensed");
-    assert_eq!(result.uncertainty.detail, "joint_sensitivity.interval_withheld");
+    assert_eq!(result.uncertainty.reason_code, "uncertainty_representation_insufficient");
+    assert_eq!(
+        result.uncertainty.detail,
+        antecedent_core::reason_details::joint_sensitivity::NO_INTERVAL_METHOD
+    );
     let mut wire = artifact();
     wire.body.sampling.interval = Some([0.0, 1.0]);
     reseal(&mut wire);
     let error = consume(&wire).unwrap_err();
     assert_eq!(
         refused(&error),
-        ("cell_not_licensed", "joint_sensitivity.interval_withheld".into())
+        (
+            "route_not_supported",
+            antecedent_core::reason_details::joint_sensitivity::NO_INTERVAL_METHOD.into()
+        )
     );
 }
 
@@ -868,8 +933,8 @@ fn the_one_factor_sensitivity_artifact_is_unchanged_and_refuses_the_joint_format
     );
 }
 
-/// Cross-format: a z-transport point artifact (version 2) is refused by the
-/// mz-transport consumer (version 1) by version, before its payload is read.
+/// Cross-format: a z-transport point artifact (version 4) is refused by the
+/// mz-transport consumer (version 2) by version, before its payload is read.
 #[test]
 fn a_z_transport_artifact_is_refused_by_the_mz_consumer() {
     let built = builder();
@@ -881,7 +946,7 @@ fn a_z_transport_artifact_is_refused_by_the_mz_consumer() {
             antecedent_io::mz_transport_artifact::MzTransportConsumeLimits::default(),
             &ctx
         ),
-        Err(IoError::UnsupportedVersion { version: 2 })
+        Err(IoError::UnsupportedVersion { version: 4 })
     ));
 }
 
@@ -929,5 +994,222 @@ fn source_backed_sensitivity_replays_full_original_source_and_rejects_changed_su
         .unwrap_err();
     let (code, detail) = refused(&error);
     assert_eq!(code, "invalid_argument");
-    assert_eq!(detail, "sensitivity_source.surface_mismatch");
+    assert_eq!(detail, antecedent_core::reason_details::sensitivity_source::SURFACE_MISMATCH);
+}
+
+/// The source-backed envelope byte bound refuses one byte past it and admits the bound itself.
+///
+/// Reference: `SourceLimits::max_bytes` is compared against the exact byte length of the
+/// original source (checked), of the sealed envelope (export) and of the envelope on intake
+/// (consume). The oracle is that integer comparison: length `n` under `max_bytes = n` succeeds
+/// and under `max_bytes = n - 1` refuses with `sensitivity_source.limits_exceeded`. Tolerance
+/// is zero; no floating point is involved. The default bound is the 16 MiB public constant.
+#[test]
+fn source_backed_sensitivity_byte_bound_refuses_one_past_and_admits_the_bound() {
+    use antecedent::analysis::sensitivity_source::{
+        MAX_BYTES, SourceBackedSensitivity, SourceLimits,
+    };
+    use antecedent_contract::{QuantityRole, ScientificQuantity};
+    use antecedent_io::sensitivity_artifact::{ActionUtility, SensitivityArtifact, UtilityTerm};
+    assert_eq!(MAX_BYTES, 16 * 1024 * 1024);
+    assert_eq!(SourceLimits::default().max_bytes, MAX_BYTES);
+    let original = artifact();
+    let prepared = prepare(&builder());
+    let context = ExecutionContext::for_tests(91);
+    let result = prepared.joint_mechanism_sensitivity(&spec(), &context).unwrap();
+    let effect = ScientificQuantity {
+        variable_id: "effect".into(),
+        variable_name: "Y".into(),
+        role: QuantityRole::Outcome,
+        units: "outcome_units".into(),
+        population_id: "target".into(),
+        regime_id: "do(x=1)".into(),
+        horizon: 0,
+        functional_id: "sensitivity_surface".into(),
+        conditioning: vec![],
+        transform_id: "identity".into(),
+    };
+    let surface = SensitivityArtifact::from_joint_result(
+        &result,
+        &effect,
+        2,
+        vec![
+            ActionUtility { id: "adopt".into(), utility: UtilityTerm::quantity("effect") },
+            ActionUtility { id: "wait".into(), utility: UtilityTerm::Const(0.) },
+        ],
+        "checked-contract",
+    )
+    .unwrap();
+    let source = original.export().unwrap();
+    let limits_exceeded = antecedent_core::reason_details::sensitivity_source::LIMITS_EXCEEDED;
+    let expect_refused = |error: &IoError| {
+        let (code, detail) = refused(error);
+        assert_eq!(code, "invalid_argument");
+        assert_eq!(detail, limits_exceeded);
+    };
+
+    // Source bound: exactly the source length passes, one byte less refuses.
+    let at = SourceLimits { max_bytes: source.len() };
+    let checked =
+        SourceBackedSensitivity::checked_with_limits(&source, &surface, &context, at).unwrap();
+    let below = SourceLimits { max_bytes: source.len() - 1 };
+    expect_refused(
+        &SourceBackedSensitivity::checked_with_limits(&source, &surface, &context, below)
+            .unwrap_err(),
+    );
+
+    // Envelope bound on export and on intake.
+    let envelope = checked.export().unwrap();
+    let at = SourceLimits { max_bytes: envelope.len() };
+    let below = SourceLimits { max_bytes: envelope.len() - 1 };
+    assert_eq!(checked.export_with_limits(at).unwrap(), envelope);
+    expect_refused(&checked.export_with_limits(below).unwrap_err());
+    SourceBackedSensitivity::consume_with_limits(&envelope, &context, at).unwrap();
+    expect_refused(
+        &SourceBackedSensitivity::consume_with_limits(&envelope, &context, below).unwrap_err(),
+    );
+}
+
+/// Synthetic two-draw serialization checks; no coverage measurement or scientific lane.
+#[test]
+fn interval_artifact_roundtrip_retains_seed_and_rejects_resealed_numeric_edits() {
+    use antecedent::{JointIntervalConsumeLimits, JointSensitivityIntervalArtifact};
+    let mut built = builder();
+    built.data = empirical_counts();
+    let prepared = prepare(&built);
+    let ctx = ExecutionContext::for_tests(91);
+    let wire = JointSensitivityIntervalArtifact::checked(
+        baseline_bytes(&prepared),
+        &spec(),
+        7,
+        2,
+        0.9,
+        &ctx,
+    )
+    .unwrap();
+    let encoded = wire.export().unwrap();
+    let other = ExecutionContext::for_tests(123_456);
+    let consumed = JointSensitivityIntervalArtifact::consume(&encoded, &other).unwrap();
+    assert_eq!(consumed.artifact, wire);
+    assert_eq!(consumed.artifact.seed, 7);
+    assert_eq!(consumed.artifact.numerical.counts[0], 2);
+    assert_ne!(
+        consumed.calibration.status,
+        antecedent_io_core::contract_section::CalibrationStatus::Calibrated
+    );
+    assert!(JointSensitivityArtifactWire::consume(&encoded, &ctx).is_err());
+    assert!(
+        JointSensitivityIntervalArtifact::consume(&wire.range.export().unwrap(), &ctx).is_err()
+    );
+    for field in 0..6 {
+        let mut altered = wire.clone();
+        match field {
+            0 => altered.numerical.endpoints[0] -= 0.01,
+            1 => altered.numerical.counts[1] += 1,
+            2 => altered.numerical.minima[0] += 0.01,
+            3 => altered.procedure = "unsupported".into(),
+            4 => altered.seed += 1,
+            _ => altered.version += 1,
+        }
+        altered.digest = altered.computed_digest().unwrap();
+        assert!(
+            JointSensitivityIntervalArtifact::consume(&altered.export().unwrap(), &ctx).is_err(),
+            "field {field}"
+        );
+    }
+    let mut historical = wire.clone();
+    historical.recorded_calibration.status =
+        antecedent_io_core::contract_section::CalibrationStatus::Calibrated;
+    historical.digest = historical.computed_digest().unwrap();
+    let read =
+        JointSensitivityIntervalArtifact::consume(&historical.export().unwrap(), &ctx).unwrap();
+    assert_ne!(
+        read.calibration.status,
+        antecedent_io_core::contract_section::CalibrationStatus::Calibrated,
+        "stored historical annotation is never current coverage authority"
+    );
+    for limits in [
+        JointIntervalConsumeLimits { max_replicates: 1, ..Default::default() },
+        JointIntervalConsumeLimits { max_bytes: 8, ..Default::default() },
+    ] {
+        assert!(
+            JointSensitivityIntervalArtifact::consume_with_limits(&encoded, limits, &ctx).is_err()
+        );
+    }
+    let tiny = ExecutionContext::for_tests(0).with_memory_limit(Some(1));
+    assert!(JointSensitivityIntervalArtifact::consume(&encoded, &tiny).is_err());
+    let cancelled = ExecutionContext::for_tests(0);
+    cancelled.cancellation.cancel();
+    assert!(JointSensitivityIntervalArtifact::consume(&encoded, &cancelled).is_err());
+}
+
+/// Scientific reference: the saved exhaustive rational vertex enumeration, not a second
+/// invocation of the endpoint procedure. Registered and owed; never run in this implementation.
+#[test]
+fn interval_artifact_matches_frozen_independent_vertex_reference() {
+    let reference: serde_json::Value = serde_json::from_str(include_str!(
+        "../../antecedent-validate/tests/oracle_data/joint_uncertainty_reference.json"
+    ))
+    .unwrap();
+    let case = &reference["cases"][0];
+    let counts: Vec<u64> =
+        case["counts"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap()).collect();
+    let total = counts.iter().sum::<u64>() as f64;
+    let binary = |variable| DiscreteAxis {
+        variable,
+        values: Arc::from([Value::Bool(false), Value::Bool(true)]),
+    };
+    let law = ExactDiscreteLaw::try_empirical(
+        "source",
+        RegimeId::from_raw(0),
+        [antecedent_expr::InterventionAssignment::concrete(Z, Value::Bool(false))],
+        [binary(W), binary(X), binary(Y)],
+        counts.iter().map(|n| *n as f64 / total).collect::<Vec<_>>(),
+        "snapshot-0",
+        LawTolerance::default(),
+    )
+    .unwrap()
+    .with_empirical_counts(counts)
+    .unwrap();
+    let mut built = builder();
+    built.data = ExactTransportData::try_new([law], 64).unwrap();
+    let prepared = prepare(&built);
+    let deviation = JointDeviationSpec::new(vec![
+        JointFactorBound {
+            factor: JointFactor::OutcomeKernel,
+            max_fraction: case["kernel_fraction"].as_f64().unwrap(),
+        },
+        JointFactorBound {
+            factor: JointFactor::SharedParentMarginal,
+            max_fraction: case["parent_fraction"].as_f64().unwrap(),
+        },
+    ]);
+    let ctx = ExecutionContext::for_tests(17);
+    let wire = antecedent::JointSensitivityIntervalArtifact::checked(
+        baseline_bytes(&prepared),
+        &deviation,
+        17,
+        u32::try_from(case["replicates"].as_u64().unwrap()).unwrap(),
+        case["level"].as_f64().unwrap(),
+        &ctx,
+    )
+    .unwrap();
+    let consumed =
+        antecedent::JointSensitivityIntervalArtifact::consume(&wire.export().unwrap(), &ctx)
+            .unwrap();
+    let numerical = &consumed.artifact.numerical;
+    for (actual, expected) in numerical
+        .endpoints
+        .iter()
+        .zip([case["lower"].as_f64().unwrap(), case["upper"].as_f64().unwrap()])
+    {
+        assert!((actual - expected).abs() < 1e-9);
+    }
+    for (actual, expected) in
+        numerical.pointwise_at_zero.iter().zip(case["pointwise_at_zero"].as_array().unwrap())
+    {
+        assert!((actual - expected.as_f64().unwrap()).abs() < 1e-9);
+    }
+    assert_eq!(u64::from(numerical.counts[1]), case["replicates_ok"].as_u64().unwrap());
+    assert_eq!(u64::from(numerical.counts[2]), case["replicates_failed"].as_u64().unwrap());
 }

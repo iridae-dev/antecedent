@@ -1,7 +1,7 @@
 //! Bounded source-data envelope for independent native Bayesian prior replay.
 //! This envelope alone grants no posterior authority: the facade re-executes the
 //! checked source Study and compares its original posterior artifact.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::IoError;
 use serde::{Deserialize, Serialize};
 /// Checked source envelope format marker.

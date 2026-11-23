@@ -1,6 +1,6 @@
 //! Exact-law modality of the retained common prepared-study lifecycle.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{PreparedStudy, StudyBuilder};
 use antecedent_contract::{
     AssumptionSlot, IdentificationSlot, ObligationKind, ObligationRecord, ObligationScope,
@@ -52,15 +52,18 @@ pub struct ExactStudyIdentities {
 /// Native retained exact-law state. No mutable display object is execution authority.
 #[derive(Clone, Debug)]
 pub struct ExactPreparedState {
-    diagram: SelectionDiagram,
-    functional: BoundTransportFunctional,
+    // The checked proof inputs and compiled plan are immutable and shared by every
+    // handle derived from one grid or branch, so they are held behind `Arc`.
+    diagram: Arc<SelectionDiagram>,
+    functional: Arc<BoundTransportFunctional>,
     data: ExactTransportData,
     request: Assignment,
     limits: ExactEvaluationLimits,
-    plan: ExactEvaluationPlan,
+    plan: Arc<ExactEvaluationPlan>,
     identities: ExactStudyIdentities,
     shape: String,
     legacy_law_identity: bool,
+    pub(super) provider_retention: Vec<std::sync::Arc<antecedent_core::execution::AdmissionLease>>,
 }
 
 /// Exact execution result, without a sampled-data estimate or fabricated uncertainty.
@@ -215,12 +218,20 @@ impl PreparedStudy<ExactPreparedState> {
         limits: ExactEvaluationLimits,
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
-        Self::build_with_identity(diagram, functional, data, request, limits, ctx, false)
+        Self::build_with_identity(
+            Arc::new(diagram),
+            Arc::new(functional),
+            data,
+            request,
+            limits,
+            ctx,
+            false,
+        )
     }
     // Identity encoding is retained independently of numerical execution settings.
     fn build_with_identity(
-        diagram: SelectionDiagram,
-        functional: BoundTransportFunctional,
+        diagram: Arc<SelectionDiagram>,
+        functional: Arc<BoundTransportFunctional>,
         data: ExactTransportData,
         request: Assignment,
         limits: ExactEvaluationLimits,
@@ -238,8 +249,7 @@ impl PreparedStudy<ExactPreparedState> {
             })
             .ok_or_else(|| err("exact identity memory overflow"))?;
         if ctx
-            .memory
-            .hard_limit_bytes
+            .memory_limit_bytes()
             .is_some_and(|limit| u64::try_from(identity_bytes).map_or(true, |bytes| bytes > limit))
         {
             return Err(err("exact identity memory budget exceeded"));
@@ -258,19 +268,19 @@ impl PreparedStudy<ExactPreparedState> {
             data,
             request,
             limits,
-            plan,
+            Arc::new(plan),
             legacy_law_identity,
         )
     }
 
     // Only the facade calls this after graph verification and compilation against these inputs.
     pub(super) fn from_checked_plan(
-        diagram: SelectionDiagram,
-        functional: BoundTransportFunctional,
+        diagram: Arc<SelectionDiagram>,
+        functional: Arc<BoundTransportFunctional>,
         data: ExactTransportData,
         request: Assignment,
         limits: ExactEvaluationLimits,
-        plan: ExactEvaluationPlan,
+        plan: Arc<ExactEvaluationPlan>,
         legacy_law_identity: bool,
     ) -> Result<Self, IoError> {
         let proof = TransportProofWire::from_checked(functional.derivation())?;
@@ -344,6 +354,7 @@ impl PreparedStudy<ExactPreparedState> {
                 },
                 shape,
                 legacy_law_identity,
+                provider_retention: Vec::new(),
             },
         })
     }
@@ -540,6 +551,9 @@ impl PreparedStudy<ExactPreparedState> {
     /// # Errors
     /// Support failure, cancellation, or resource exhaustion. No partial result escapes.
     pub fn estimate_retained(&self, ctx: &ExecutionContext) -> Result<ExactStudyResult, IoError> {
+        for retention in &self.state.provider_retention {
+            retention.observe_current();
+        }
         Ok(self.result_from_evaluation(self.state.plan.evaluate(ctx).map_err(err)?))
     }
     /// Wrap a distribution already produced by this handle's own plan, so a caller that
@@ -589,8 +603,8 @@ impl PreparedStudy<ExactPreparedState> {
         })?;
         let functional = self.state.functional.derivation().bind_catalog(&catalog).map_err(err)?;
         Self::build_with_identity(
-            self.state.diagram.clone(),
-            functional,
+            Arc::clone(&self.state.diagram),
+            Arc::new(functional),
             data,
             self.state.request.clone(),
             self.state.limits,
@@ -598,6 +612,49 @@ impl PreparedStudy<ExactPreparedState> {
             self.state.legacy_law_identity,
         )
     }
+    /// Branch onto a compatible supplied-law snapshot without executing the target.
+    ///
+    /// # Errors
+    /// Changed provider shape, invalid bindings, cancellation or resource refusal.
+    pub fn bind_snapshot(
+        &self,
+        data: ExactTransportData,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        self.replacement(data, ctx)
+    }
+
+    /// Recompile physical evaluation under the current caller, without identifying or evaluating.
+    /// Exact supplied laws do not use a random stream.
+    /// # Errors
+    /// Cancellation, admission or exact-plan compilation refusal.
+    pub fn requote_execution(&self, ctx: &ExecutionContext) -> Result<Self, IoError> {
+        self.rebind_assignment(self.state.request.clone(), ctx)
+    }
+
+    /// Rebind target assignment over the retained checked proof and immutable exact laws.
+    /// This compiles the evaluator but performs no target evaluation.
+    ///
+    /// # Errors
+    /// Invalid target, provider support, cancellation or numerical-resource refusal.
+    pub fn rebind_assignment(
+        &self,
+        request: Assignment,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        let mut branch = Self::build_with_identity(
+            self.state.diagram.clone(),
+            self.state.functional.clone(),
+            self.state.data.clone(),
+            request,
+            self.state.limits,
+            ctx,
+            self.state.legacy_law_identity,
+        )?;
+        branch.state.provider_retention.clone_from(&self.state.provider_retention);
+        Ok(branch)
+    }
+
     /// Replace compatible snapshots, invalidating all earlier execution claims.
     /// Reuses the checked derivation. Failure preserves the current handle.
     ///
@@ -713,6 +770,8 @@ struct ExactExecutionWire {
     directed: Vec<(u32, u32)>,
     bidirected: Vec<(u32, u32)>,
     selections: Vec<u32>,
+    /// Variable name of every graph coordinate, or empty.
+    variable_names: Vec<String>,
     proof: TransportProofWire,
     catalog: EvidenceCatalogWire,
     laws: Vec<ExactLawWire>,
@@ -732,6 +791,20 @@ impl PreparedStudy<ExactPreparedState> {
     /// # Errors
     /// Stale/substituted result, unsupported coordinates, or encoding failure.
     pub fn export(&self, result: &ExactStudyResult) -> Result<Vec<u8>, IoError> {
+        self.export_named(result, &[])
+    }
+
+    /// [`Self::export`] carrying the variable name of every graph coordinate, so a consumer
+    /// can refuse a relabelled outer frame.
+    ///
+    /// # Errors
+    /// As [`Self::export`], and a name list that is not one unique non-empty name per node.
+    pub fn export_named(
+        &self,
+        result: &ExactStudyResult,
+        variable_names: &[String],
+    ) -> Result<Vec<u8>, IoError> {
+        check_variable_names_shape(variable_names, self.state.diagram.causal_graph().node_count())?;
         if result.identities != self.state.identities {
             return Err(err("transport.stale_result"));
         }
@@ -746,11 +819,12 @@ impl PreparedStudy<ExactPreparedState> {
             })
             .collect::<Result<Vec<_>, _>>()?;
         antecedent_io::to_cbor(&ExactExecutionWire {
-            format: "antecedent.exact_transport.v1".into(),
+            format: "antecedent.exact_transport.v2".into(),
             nodes,
             directed: edges.directed,
             bidirected: edges.bidirected,
             selections: self.state.diagram.selection_targets().iter().map(|v| v.raw()).collect(),
+            variable_names: variable_names.to_vec(),
             proof: TransportProofWire::from_checked(self.state.functional.derivation())?,
             catalog: EvidenceCatalogWire::from_catalog(self.state.functional.catalog()),
             laws: {
@@ -788,17 +862,39 @@ impl PreparedStudy<ExactPreparedState> {
         limits: ExactEvaluationLimits,
         ctx: &ExecutionContext,
     ) -> Result<(Self, ExactStudyResult), IoError> {
-        if ctx.cancellation.is_cancelled()
-            || ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes.len() as u64 > limit)
-        {
-            return Err(err("transport artifact budget/cancellation"));
+        Self::consume_named(bytes, limits, ctx).map(|(prepared, result, _)| (prepared, result))
+    }
+
+    /// [`Self::consume`], also returning the variable names the artifact was exported with
+    /// (empty when it carries none) for the caller to check against its own frame.
+    ///
+    /// # Errors
+    /// As [`Self::consume`].
+    pub fn consume_named(
+        bytes: &[u8],
+        limits: ExactEvaluationLimits,
+        ctx: &ExecutionContext,
+    ) -> Result<(Self, ExactStudyResult, Vec<String>), IoError> {
+        let budget = |message: &str| IoError::Refused {
+            code: antecedent_core::reason_code!("transport_budget_cancel"),
+            message: message.to_owned(),
+        };
+        if ctx.cancellation.is_cancelled() {
+            return Err(budget("transport artifact consumption cancelled"));
+        }
+        if ctx.memory_limit_bytes().is_some_and(|limit| bytes.len() as u64 > limit) {
+            return Err(budget("transport artifact memory budget exceeded"));
         }
         let wire: ExactExecutionWire = antecedent_io::from_cbor(bytes)?;
-        if wire.format != "antecedent.exact_transport.v1"
-            || wire.operations > limits.operations
-            || wire.depth > limits.depth
-        {
-            return Err(err("transport artifact format/limits"));
+        if wire.format != "antecedent.exact_transport.v2" {
+            return Err(err("transport artifact format"));
+        }
+        check_variable_names_shape(&wire.variable_names, wire.nodes.len())?;
+        if wire.operations > limits.operations {
+            return Err(budget("transport artifact operation limit exceeded"));
+        }
+        if wire.depth > limits.depth {
+            return Err(budget("transport artifact depth limit exceeded"));
         }
         let (diagram, proof) = rebuild_checked_proof(
             &GraphFields {
@@ -824,8 +920,8 @@ impl PreparedStudy<ExactPreparedState> {
             return Err(err("duplicate request coordinate"));
         }
         let prepared = Self::build_with_identity(
-            diagram,
-            functional,
+            Arc::new(diagram),
+            Arc::new(functional),
             data,
             request,
             ExactEvaluationLimits { operations: wire.operations, depth: wire.depth },
@@ -849,7 +945,20 @@ impl PreparedStudy<ExactPreparedState> {
         {
             return Err(err("transport artifact execution claim mismatch"));
         }
-        Ok((prepared, result))
+        Ok((prepared, result, wire.variable_names))
+    }
+}
+
+/// Names are all or nothing: one unique non-empty name per graph node, or none.
+pub(super) fn check_variable_names_shape(names: &[String], nodes: usize) -> Result<(), IoError> {
+    if names.is_empty()
+        || (names.len() == nodes
+            && names.iter().all(|name| !name.trim().is_empty())
+            && names.iter().collect::<std::collections::BTreeSet<_>>().len() == names.len())
+    {
+        Ok(())
+    } else {
+        Err(err("invalid transport artifact variable names"))
     }
 }
 
@@ -983,8 +1092,8 @@ mod tests {
         let state = prepared.state;
         assert!(
             StudyBuilder::exact_transport(
-                state.diagram,
-                state.functional,
+                (*state.diagram).clone(),
+                (*state.functional).clone(),
                 empirical,
                 state.request,
                 state.limits,
@@ -1033,6 +1142,59 @@ mod tests {
         let result = prepared.refresh(data("three", [0.2, 0.3, 0.3, 0.2]), &ctx).unwrap();
         assert!((result.distribution().mean(v(1)).unwrap() - 0.4).abs() < 1e-12);
     }
+    #[test]
+    fn exact_consumer_distinguishes_resource_limits_cancellation_and_invalid_format() {
+        let ctx = ExecutionContext::for_tests(0);
+        let producer = prepared();
+        let result = producer.estimate_retained(&ctx).unwrap();
+        let bytes = producer.export(&result).unwrap();
+        let limits = ExactEvaluationLimits::default();
+        let assert_budget = |limits, context: &ExecutionContext, expected: &str| {
+            let Err(error) = PreparedStudy::<ExactPreparedState>::consume(&bytes, limits, context)
+            else {
+                panic!("the exact consumer must enforce the caller's resource controls");
+            };
+            let IoError::Refused { code, message } = error else {
+                panic!("resource controls must retain their typed operational refusal");
+            };
+            assert_eq!(code, antecedent_core::reason_code!("transport_budget_cancel"));
+            assert_eq!(message, expected);
+            assert!(!message.contains("cancel"));
+        };
+        assert_budget(
+            ExactEvaluationLimits { operations: 1, ..limits },
+            &ctx,
+            "transport artifact operation limit exceeded",
+        );
+        assert_budget(
+            ExactEvaluationLimits { depth: 1, ..limits },
+            &ctx,
+            "transport artifact depth limit exceeded",
+        );
+        let memory_limited = ExecutionContext::for_tests(0).with_memory_limit(Some(1));
+        assert_budget(limits, &memory_limited, "transport artifact memory budget exceeded");
+        let cancelled = ExecutionContext::for_tests(0);
+        cancelled.cancellation.cancel();
+        assert!(matches!(
+            PreparedStudy::<ExactPreparedState>::consume(&bytes, limits, &cancelled),
+            Err(IoError::Refused { code, message })
+                if code == antecedent_core::reason_code!("transport_budget_cancel")
+                    && message == "transport artifact consumption cancelled"
+        ));
+        let mut wire: ExactExecutionWire = antecedent_io::from_cbor(&bytes).unwrap();
+        wire.format = "substituted".into();
+        assert!(matches!(
+            PreparedStudy::<ExactPreparedState>::consume(
+                &antecedent_io::to_cbor(&wire).unwrap(), limits, &ctx,
+            ),
+            Err(IoError::Convert(message)) if message == "transport artifact format"
+        ));
+        let (_, consumed) =
+            PreparedStudy::<ExactPreparedState>::consume(&bytes, limits, &ctx).unwrap();
+        assert_eq!(result.identities(), consumed.identities());
+        assert_eq!(result.distribution().probabilities, consumed.distribution().probabilities);
+    }
+
     #[test]
     fn portable_execution_rejects_premise_query_evidence_and_claim_mutations() {
         let ctx = ExecutionContext::for_tests(0);

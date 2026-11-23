@@ -8,8 +8,8 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent.errors import CausalUnsupportedError, CausalValueError
-from antecedent.estimation import PreparedAnalysis
 from antecedent.intervention import Sequence, Set, Soft
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_json
 
@@ -48,15 +48,39 @@ def test_temporal_response_curve_matches_fixture_and_prepared_reuse():
         policy="pulse",
         treatment_lag=1,
     )
-    direct = antecedent.analyze(data, graph=_EDGES, query=query, refute=False, bootstrap=0, seed=21)
+    direct = require_success(
+        antecedent.analyze(
+            data,
+            graph=_EDGES,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=21),
+        )
+    )
     np.testing.assert_allclose(_response_means(direct), _MEAN, atol=_ATOL)
     assert direct.support.status == "supported"
     assert list(direct.support.point_status) == ["supported"] * 4
 
-    prepared = PreparedAnalysis.prepare(data, graph=_EDGES, query=query, refute=False, seed=21)
-    click = prepared.estimate(data, seed=21)
+    prepared = antecedent.prepare(
+        data,
+        graph=_EDGES,
+        query=query,
+        refute=False,
+        execution=antecedent.Execution(seed=21),
+    )
+    click = require_success(antecedent.estimate(prepared))
     np.testing.assert_allclose(_response_means(click), _MEAN, atol=_ATOL)
     assert prepared.structure_source == "explicit"
+    # Reuse: a rebound branch on the same data reproduces the surface, and the
+    # original preparation is unchanged and still estimable.
+    rebound = antecedent.rebind(prepared, data=data)
+    np.testing.assert_allclose(
+        _response_means(require_success(antecedent.estimate(rebound))), _MEAN, atol=_ATOL
+    )
+    np.testing.assert_allclose(
+        _response_means(require_success(antecedent.estimate(prepared))), _MEAN, atol=_ATOL
+    )
 
 
 def test_temporal_intervention_set_and_single_step_sequence_match_fixture():
@@ -82,21 +106,48 @@ def test_temporal_intervention_set_and_single_step_sequence_match_fixture():
         policy="pulse",
         treatment_lag=1,
     )
-    set_result = antecedent.analyze(
-        data, graph=_EDGES, query=set_query, refute=False, bootstrap=0, seed=22
+    set_result = require_success(
+        antecedent.analyze(
+            data,
+            graph=_EDGES,
+            query=set_query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=22),
+        )
     )
-    seq_result = antecedent.analyze(
-        data, graph=_EDGES, query=seq_query, refute=False, bootstrap=0, seed=22
+    seq_result = require_success(
+        antecedent.analyze(
+            data,
+            graph=_EDGES,
+            query=seq_query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=22),
+        )
     )
-    soft_result = antecedent.analyze(
-        data, graph=_EDGES, query=soft_query, refute=False, bootstrap=0, seed=22
+    soft_result = require_success(
+        antecedent.analyze(
+            data,
+            graph=_EDGES,
+            query=soft_query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=22),
+        )
     )
     np.testing.assert_allclose(_response_means(set_result), _SET_PATH, atol=_ATOL)
     np.testing.assert_allclose(_response_means(seq_result), _SET_PATH, atol=_ATOL)
     np.testing.assert_allclose(_response_means(soft_result), _SOFT_CONST, atol=_ATOL)
 
-    prepared = PreparedAnalysis.prepare(data, graph=_EDGES, query=seq_query, refute=False, seed=22)
-    click = prepared.estimate(data, seed=22)
+    prepared = antecedent.prepare(
+        data,
+        graph=_EDGES,
+        query=seq_query,
+        refute=False,
+        execution=antecedent.Execution(seed=22),
+    )
+    click = require_success(antecedent.estimate(prepared))
     np.testing.assert_allclose(_response_means(click), _SET_PATH, atol=_ATOL)
 
 
@@ -114,13 +165,28 @@ def test_multi_step_sequence_matches_two_step_truth_and_does_not_collapse():
         policy="pulse",
         treatment_lag=1,
     )
-    result = antecedent.analyze(data, graph=_EDGES, query=query, refute=False, bootstrap=0, seed=22)
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=_EDGES,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=22),
+        )
+    )
     np.testing.assert_allclose(_response_means(result), two_step, atol=_ATOL)
     np.testing.assert_raises(
         AssertionError, np.testing.assert_allclose, _response_means(result), last_step
     )
-    prepared = PreparedAnalysis.prepare(data, graph=_EDGES, query=query, refute=False, seed=22)
-    click = prepared.estimate(data, seed=22)
+    prepared = antecedent.prepare(
+        data,
+        graph=_EDGES,
+        query=query,
+        refute=False,
+        execution=antecedent.Execution(seed=22),
+    )
+    click = require_success(antecedent.estimate(prepared))
     np.testing.assert_allclose(_response_means(click), two_step, atol=_ATOL)
 
 
@@ -134,33 +200,45 @@ def test_nested_sequence_refuses():
         treatment_lag=1,
     )
     with pytest.raises(CausalUnsupportedError, match="nested Sequence"):
-        antecedent.analyze(data, graph=_EDGES, query=query, refute=False, bootstrap=0)
+        require_success(
+            antecedent.analyze(
+                data,
+                graph=_EDGES,
+                query=query,
+                refute=False,
+                inference=antecedent.Frequentist(bootstrap=0),
+            )
+        )
 
 
 def test_pulse_projection_matches_surface_contrast():
     data = _fixture_data()
-    surface = antecedent.analyze(
-        data,
-        graph=_EDGES,
-        query=antecedent.ResponseCurve(
-            "t",
-            "y",
-            grid=[0.0, 1.0],
-            horizons=[1, 2],
-            policy="pulse",
-            treatment_lag=1,
-        ),
-        refute=False,
-        bootstrap=0,
-        seed=23,
+    surface = require_success(
+        antecedent.analyze(
+            data,
+            graph=_EDGES,
+            query=antecedent.ResponseCurve(
+                "t",
+                "y",
+                grid=[0.0, 1.0],
+                horizons=[1, 2],
+                policy="pulse",
+                treatment_lag=1,
+            ),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=23),
+        )
     )
-    pulse = antecedent.analyze(
-        data,
-        graph=_EDGES,
-        query=antecedent.PulseEffect("t", "y", treatment_lag=1, horizon_steps=1),
-        refute=False,
-        bootstrap=0,
-        seed=23,
+    pulse = require_success(
+        antecedent.analyze(
+            data,
+            graph=_EDGES,
+            query=antecedent.PulseEffect("t", "y", treatment_lag=1, horizon_steps=1),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=23),
+        )
     )
     means = _response_means(surface)
     # dose-major: mean[dose=1,h=1] - mean[dose=0,h=1] == index 2 - index 0
@@ -178,7 +256,7 @@ _SURFACE_QUERY = antecedent.ResponseCurve(
     policy="pulse",
     treatment_lag=1,
 )
-_BAND_WITHHELD = "estimate.temporal_response.band_withheld"
+_NO_BAND_METHOD = "estimate.temporal_response.no_band_method"
 
 
 def _column(rows: Any) -> np.ndarray:
@@ -192,7 +270,7 @@ def _assert_band_withheld(result: Any) -> None:
     assert result.uncertainty.lower is None and result.uncertainty.upper is None
     assert result.simultaneous_band is None
     assert any("no pointwise or simultaneous band" in w for w in result.support.warnings)
-    assert any(d.startswith(f"{_BAND_WITHHELD}: ") for d in result.diagnostics)
+    assert any(d.startswith(f"{_NO_BAND_METHOD}: ") for d in result.diagnostics)
 
 
 def _assert_block_bands(result: Any, replicates: int) -> None:
@@ -219,7 +297,7 @@ def _assert_block_bands(result: Any, replicates: int) -> None:
     sim_lower = _column(band.lower)
     sim_upper = _column(band.upper)
     assert np.all(sim_lower <= lower) and np.all(upper <= sim_upper)
-    assert not any(d.startswith(f"{_BAND_WITHHELD}: ") for d in result.diagnostics)
+    assert not any(d.startswith(f"{_NO_BAND_METHOD}: ") for d in result.diagnostics)
 
 
 def _diagnostic_values(result: Any, diagnostic_id: str) -> np.ndarray:
@@ -274,25 +352,27 @@ def test_temporal_dose_horizon_point_and_block_bands_match_fixture():
     """Point surface at ``atol`` and every seeded block-band value at ``band_rtol``."""
     pin = _FIXTURE["contract"]["block_band"]
     data = _fixture_data()
-    result = antecedent.analyze(
-        data,
-        graph=_EDGES,
-        query=_SURFACE_QUERY,
-        refute=False,
-        bootstrap=int(pin["replicates"]),
-        seed=int(pin["seed"]),
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=_EDGES,
+            query=_SURFACE_QUERY,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=int(pin["replicates"])),
+            execution=antecedent.Execution(seed=int(pin["seed"])),
+        )
     )
     _assert_block_bands(result, int(pin["replicates"]))
     _assert_pinned_block_bands(result)
-    prepared = PreparedAnalysis.prepare(
+    prepared = antecedent.prepare(
         data,
         graph=_EDGES,
         query=_SURFACE_QUERY,
         refute=False,
-        seed=int(pin["seed"]),
-        bootstrap=int(pin["replicates"]),
+        inference=antecedent.Frequentist(bootstrap=int(pin["replicates"])),
+        execution=antecedent.Execution(seed=int(pin["seed"])),
     )
-    _assert_pinned_block_bands(prepared.estimate(data, seed=int(pin["seed"])))
+    _assert_pinned_block_bands(require_success(antecedent.estimate(prepared)))
 
 
 def test_temporal_response_zero_bootstrap_withholds_band():
@@ -302,8 +382,15 @@ def test_temporal_response_zero_bootstrap_withholds_band():
     point values and publishes no band.
     """
     data = _fixture_data()
-    result = antecedent.analyze(
-        data, graph=_EDGES, query=_SURFACE_QUERY, refute=False, bootstrap=0, seed=21
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=_EDGES,
+            query=_SURFACE_QUERY,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=21),
+        )
     )
     _assert_band_withheld(result)
     assert result.identification.method == "temporal.backdoor.unfolded"
@@ -311,10 +398,15 @@ def test_temporal_response_zero_bootstrap_withholds_band():
     assert result.validation is not None
     assert any(check.id == "refute.temporal_response.skipped" for check in result.validation.checks)
 
-    prepared = PreparedAnalysis.prepare(
-        data, graph=_EDGES, query=_SURFACE_QUERY, refute=False, seed=21, bootstrap=0
+    prepared = antecedent.prepare(
+        data,
+        graph=_EDGES,
+        query=_SURFACE_QUERY,
+        refute=False,
+        inference=antecedent.Frequentist(bootstrap=0),
+        execution=antecedent.Execution(seed=21),
     )
-    _assert_band_withheld(prepared.estimate(data, seed=21))
+    _assert_band_withheld(require_success(antecedent.estimate(prepared)))
 
 
 @pytest.mark.parametrize("bootstrap", [None, 60])
@@ -322,12 +414,27 @@ def test_temporal_response_bootstrap_publishes_block_bands(bootstrap: int | None
     data = _fixture_data()
     replicates = 199 if bootstrap is None else bootstrap
     kwargs: dict[str, Any] = {} if bootstrap is None else {"bootstrap": bootstrap}
-    direct = antecedent.analyze(
-        data, graph=_EDGES, query=_SURFACE_QUERY, refute=False, seed=21, **kwargs
+    inference = antecedent.Frequentist(**kwargs)
+    direct = require_success(
+        antecedent.analyze(
+            data,
+            graph=_EDGES,
+            query=_SURFACE_QUERY,
+            refute=False,
+            inference=inference,
+            execution=antecedent.Execution(seed=21),
+        )
     )
     _assert_block_bands(direct, replicates)
-    again = antecedent.analyze(
-        data, graph=_EDGES, query=_SURFACE_QUERY, refute=False, seed=21, **kwargs
+    again = require_success(
+        antecedent.analyze(
+            data,
+            graph=_EDGES,
+            query=_SURFACE_QUERY,
+            refute=False,
+            inference=inference,
+            execution=antecedent.Execution(seed=21),
+        )
     )
     assert again.uncertainty.lower == direct.uncertainty.lower
     assert again.uncertainty.upper == direct.uncertainty.upper
@@ -336,20 +443,25 @@ def test_temporal_response_bootstrap_publishes_block_bands(bootstrap: int | None
         # Prepared temporal responses follow the latency tier like Pulse /
         # Sustained: interactive publishes no band, standard runs the omitted
         # replicate count (199), which an omitted tier also uses.
-        interactive = PreparedAnalysis.prepare(
+        interactive = antecedent.prepare(
             data,
             graph=_EDGES,
             query=_SURFACE_QUERY,
             refute=False,
-            seed=21,
-            latency="interactive",
+            inference=antecedent.Frequentist(profile="interactive"),
+            execution=antecedent.Execution(seed=21),
         )
-        _assert_band_withheld(interactive.estimate(data, seed=21))
-        kwargs = {"latency": "standard"}
-    prepared = PreparedAnalysis.prepare(
-        data, graph=_EDGES, query=_SURFACE_QUERY, refute=False, seed=21, **kwargs
+        _assert_band_withheld(require_success(antecedent.estimate(interactive)))
+        inference = antecedent.Frequentist(profile="standard")
+    prepared = antecedent.prepare(
+        data,
+        graph=_EDGES,
+        query=_SURFACE_QUERY,
+        refute=False,
+        inference=inference,
+        execution=antecedent.Execution(seed=21),
     )
-    click = prepared.estimate(data, seed=21)
+    click = require_success(antecedent.estimate(prepared))
     _assert_block_bands(click, replicates)
 
 
@@ -358,10 +470,26 @@ def test_temporal_intervention_path_bootstrap_publishes_block_bands():
     query = antecedent.InterventionResponse(
         "y", intervention=Set("t", 1.0), horizons=[1, 2], policy="pulse", treatment_lag=1
     )
-    withheld = antecedent.analyze(data, graph=_EDGES, query=query, refute=False, bootstrap=0)
+    withheld = require_success(
+        antecedent.analyze(
+            data,
+            graph=_EDGES,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
+    )
     assert withheld.uncertainty.kind == "none"
-    assert any(d.startswith(f"{_BAND_WITHHELD}: ") for d in withheld.diagnostics)
-    banded = antecedent.analyze(data, graph=_EDGES, query=query, refute=False, bootstrap=60)
+    assert any(d.startswith(f"{_NO_BAND_METHOD}: ") for d in withheld.diagnostics)
+    banded = require_success(
+        antecedent.analyze(
+            data,
+            graph=_EDGES,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=60),
+        )
+    )
     np.testing.assert_allclose(_response_means(banded), _SET_PATH, atol=_ATOL)
     assert banded.uncertainty.kind == "pointwise"
     assert banded.simultaneous_band is not None
@@ -387,7 +515,99 @@ def test_prepared_temporal_rejects_wrong_identifier_and_refute_click():
     data = _fixture_data()
     query = antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1], policy="pulse")
     with pytest.raises(CausalValueError, match="temporal.backdoor.unfolded"):
-        PreparedAnalysis.prepare(data, graph=_EDGES, query=query, identifier="response.backdoor")
-    prepared = PreparedAnalysis.prepare(data, graph=_EDGES, query=query, refute=False)
+        antecedent.prepare(data, graph=_EDGES, query=query, identifier="response.backdoor")
+    prepared = antecedent.prepare(data, graph=_EDGES, query=query, refute=False)
+    completed = antecedent.estimate(prepared)
+    require_success(completed)
+    assert completed.study is not None
     with pytest.raises(CausalUnsupportedError, match="ResponseCurve cheap/full/placebo"):
-        prepared.refute(data)
+        require_success(completed.study.refute())
+
+
+def _feedback(**changes: Any) -> antecedent.FeedbackMechanism:
+    fields: dict[str, Any] = {
+        "delay": 1,
+        "level": 1.0,
+        "autoregression": 0.5,
+        "input_gain": 2.0,
+        "innovation_variance": 1.0,
+    }
+    fields.update(changes)
+    return antecedent.FeedbackMechanism(**fields)
+
+
+@pytest.mark.parametrize("policy", ["pulse", "sustained"])
+def test_declared_feedback_reaches_the_response(policy: str):
+    query = antecedent.ResponseCurve(
+        "t",
+        "y",
+        grid=[0.0, 1.0],
+        horizons=[1],
+        policy=policy,
+        treatment_lag=1,
+        feedback=_feedback(initial_law="origin", initial_state=0.25),
+    )
+    assert query.feedback is not None
+    assert query.feedback.initial_law == "origin"
+    result = require_success(
+        antecedent.analyze(
+            _fixture_data(),
+            graph=_EDGES,
+            query=query,
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
+            execution=antecedent.Execution(seed=21),
+        )
+    )
+    assert result.response is not None
+    # One step of the declared transition x1 = autoregression * x0 + input_gain * level, with
+    # x0 = 0.25, autoregression 0.5, gain 2.0 and the held level 1.0: 0.5 * 0.25 + 2 * 1 = 2.125.
+    np.testing.assert_allclose(_response_means(result), [0.5 * 0.25 + 2.0 * 1.0], atol=1e-12)
+    # Each declared coefficient reaches the response (a gain of zero leaves only the carried state).
+    for changes, expected in (
+        ({"initial_state": 0.0}, 2.0),
+        ({"input_gain": 0.0}, 0.5 * 0.25),
+        ({"autoregression": 0.0}, 2.0),
+        ({"input_gain": 3.0, "autoregression": 0.2}, 0.2 * 0.25 + 3.0),
+    ):
+        varied = require_success(
+            antecedent.analyze(
+                _fixture_data(),
+                graph=_EDGES,
+                query=antecedent.ResponseCurve(
+                    "t",
+                    "y",
+                    grid=[0.0, 1.0],
+                    horizons=[1],
+                    policy=policy,
+                    treatment_lag=1,
+                    feedback=_feedback(
+                        **{"initial_law": "origin", "initial_state": 0.25, **changes}
+                    ),
+                ),
+                refute=False,
+                inference=antecedent.Frequentist(bootstrap=0),
+                execution=antecedent.Execution(seed=21),
+            )
+        )
+        np.testing.assert_allclose(
+            _response_means(varied), [expected], atol=1e-12, err_msg=str(changes)
+        )
+
+
+def test_feedback_is_keyword_only_and_validated():
+    with pytest.raises(TypeError, match="positional"):
+        antecedent.FeedbackMechanism(1, 1.0, 0.5, 2.0, 1.0)  # type: ignore[misc]
+    for changes in (
+        {"delay": 0},
+        {"level": float("nan")},
+        {"autoregression": float("inf")},
+        {"innovation_variance": -1.0},
+        {"initial_law": " "},
+    ):
+        with pytest.raises(CausalValueError):
+            _feedback(**changes)
+    with pytest.raises(CausalValueError, match="feedback requires horizons"):
+        antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], feedback=_feedback())
+    with pytest.raises(CausalValueError, match="feedback requires horizons"):
+        antecedent.InterventionResponse("y", intervention=Set("t", 1.0), feedback=_feedback())

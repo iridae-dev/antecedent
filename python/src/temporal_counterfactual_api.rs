@@ -9,12 +9,16 @@
 use std::collections::BTreeMap;
 
 use crate::bridge::check_declared_size;
+use antecedent::analysis::cross_world_execution::{StageStatus, TemporalExecutor, WorkCounters};
 use antecedent::analysis::temporal_counterfactual::{
-    PopulationRole, RegimeFactorKey, TemporalCounterfactual, TemporalCounterfactualArtifactError,
-    TemporalCounterfactualIdentity, TemporalCounterfactualRequestWire,
-    TransportedCounterfactualPrerequisites, transported_path_specific,
+    GeneralTemporalCounterfactual, GeneralTemporalCounterfactualArtifactError,
+    GeneralTemporalIdentity, GeneralTemporalRequestWire, PopulationRole, RegimeFactorKey,
+    TemporalCounterfactual, TemporalCounterfactualArtifactError, TemporalCounterfactualIdentity,
+    TemporalCounterfactualRequestWire, TransportedCounterfactualPrerequisites, execute_selective,
+    transported_path_specific,
 };
 use pyo3::prelude::*;
+use serde_json::json;
 
 use crate::{
     CausalCancelledError, detach_catch, py_execution_context, value_err, with_reason_code,
@@ -44,7 +48,7 @@ fn failure(error: &TemporalCounterfactualArtifactError) -> PyErr {
         }
         TemporalCounterfactualArtifactError::LimitsExceeded(what) => with_reason_code(
             value_err(format!("temporal_counterfactual.limits_exceeded: {what}")),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ),
         other => crate::serialization_err(other.to_string()),
     }
@@ -69,7 +73,7 @@ fn evaluate_temporal_counterfactual(
         serde_json::from_str(request_json).map_err(|e| {
             with_reason_code(
                 value_err(format!("temporal_counterfactual.invalid_request: {e}")),
-                antecedent_core::reason_code!("invalid_argument"),
+                antecedent::reason::reason_code!("invalid_argument"),
             )
         })?;
     let artifact_id = artifact_id.to_owned();
@@ -97,7 +101,7 @@ fn evaluate_temporal_counterfactual(
 #[pyo3(signature = (artifact, expected_identity_json=None, *, seed=0))]
 fn consume_temporal_counterfactual_artifact(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expected_identity_json: Option<String>,
     seed: u64,
 ) -> PyResult<ConsumePayload> {
@@ -107,7 +111,7 @@ fn consume_temporal_counterfactual_artifact(
             Some(serde_json::from_str(&text).map_err(|e| {
                 with_reason_code(
                     value_err(format!("temporal_counterfactual.invalid_identity: {e}")),
-                    antecedent_core::reason_code!("invalid_argument"),
+                    antecedent::reason::reason_code!("invalid_argument"),
                 )
             })?)
         }
@@ -115,7 +119,7 @@ fn consume_temporal_counterfactual_artifact(
     };
     detach_catch(py, move || {
         let ctx = py_execution_context(seed, 1);
-        match TemporalCounterfactual::consume(&artifact, expected.as_ref(), &ctx) {
+        match TemporalCounterfactual::consume(artifact, expected.as_ref(), &ctx) {
             Ok(done) => {
                 let report = serde_json::to_string(&done.report())
                     .map_err(|e| crate::serialization_err(e.to_string()))?;
@@ -124,6 +128,102 @@ fn consume_temporal_counterfactual_artifact(
             Err(error) => match refusal_json(&error)? {
                 Some(json) => Ok((None, Some(json))),
                 None => Err(failure(&error)),
+            },
+        }
+    })
+}
+
+fn general_refusal_json(
+    error: &GeneralTemporalCounterfactualArtifactError,
+) -> PyResult<Option<String>> {
+    let Some(refusal) = error.refusal() else {
+        return Ok(None);
+    };
+    Ok(Some(
+        serde_json::to_string(&refusal)
+            .map_err(|cause| crate::serialization_err(cause.to_string()))?,
+    ))
+}
+
+fn general_failure(error: &GeneralTemporalCounterfactualArtifactError) -> PyErr {
+    match error {
+        GeneralTemporalCounterfactualArtifactError::Cancelled => {
+            CausalCancelledError::new_err("cancelled during temporal_counterfactual")
+        }
+        GeneralTemporalCounterfactualArtifactError::LimitsExceeded(what) => with_reason_code(
+            value_err(format!("temporal_counterfactual.limits_exceeded: {what}")),
+            antecedent::reason::reason_code!("invalid_argument"),
+        ),
+        other => crate::serialization_err(other.to_string()),
+    }
+}
+
+/// Evaluate every named action history of any horizon against one abduced history per unit:
+/// `(report json, artifact bytes, refusal json)`.
+#[pyfunction]
+#[pyo3(signature = (request_json, artifact_id, *, seed=0))]
+fn evaluate_general_temporal_counterfactual(
+    py: Python<'_>,
+    request_json: &str,
+    artifact_id: &str,
+    seed: u64,
+) -> PyResult<EvaluatePayload> {
+    check_size(request_json)?;
+    let request: GeneralTemporalRequestWire = serde_json::from_str(request_json).map_err(|e| {
+        with_reason_code(
+            value_err(format!("temporal_counterfactual.invalid_request: {e}")),
+            antecedent::reason::reason_code!("invalid_argument"),
+        )
+    })?;
+    let artifact_id = artifact_id.to_owned();
+    detach_catch(py, move || {
+        match GeneralTemporalCounterfactual::evaluate(&request, &py_execution_context(seed, 1)) {
+            Ok(done) => {
+                let bytes = done.export(&artifact_id).map_err(|e| general_failure(&e))?;
+                let report = serde_json::to_string(&done.report())
+                    .map_err(|e| crate::serialization_err(e.to_string()))?;
+                Ok((Some(report), Some(bytes), None))
+            }
+            Err(error) => match general_refusal_json(&error)? {
+                Some(json) => Ok((None, None, Some(json))),
+                None => Err(general_failure(&error)),
+            },
+        }
+    })
+}
+
+/// Consume a general artifact by replaying every world: `(report json, refusal json)`.
+#[pyfunction]
+#[pyo3(signature = (artifact, expected_identity_json=None, *, seed=0))]
+fn consume_general_temporal_counterfactual_artifact(
+    py: Python<'_>,
+    artifact: &[u8],
+    expected_identity_json: Option<String>,
+    seed: u64,
+) -> PyResult<ConsumePayload> {
+    let expected: Option<GeneralTemporalIdentity> = match expected_identity_json {
+        Some(text) => {
+            check_size(&text)?;
+            Some(serde_json::from_str(&text).map_err(|e| {
+                with_reason_code(
+                    value_err(format!("temporal_counterfactual.invalid_identity: {e}")),
+                    antecedent::reason::reason_code!("invalid_argument"),
+                )
+            })?)
+        }
+        None => None,
+    };
+    detach_catch(py, move || {
+        let ctx = py_execution_context(seed, 1);
+        match GeneralTemporalCounterfactual::consume(artifact, expected.as_ref(), &ctx) {
+            Ok(done) => {
+                let report = serde_json::to_string(&done.report())
+                    .map_err(|e| crate::serialization_err(e.to_string()))?;
+                Ok((Some(report), None))
+            }
+            Err(error) => match general_refusal_json(&error)? {
+                Some(json) => Ok((None, Some(json))),
+                None => Err(general_failure(&error)),
             },
         }
     })
@@ -140,14 +240,14 @@ fn role_of(tag: &str) -> PyResult<PopulationRole> {
     }
 }
 
-/// The closed transported path-specific route: always the live refusal, as JSON.
+/// The unsupported transported path-specific route: always the live refusal, as JSON.
 ///
 /// Reports every missing prerequisite gate and every required regime factor absent from the
 /// supplied evidence map. Nothing is evaluated whatever is supplied.
 #[pyfunction]
 fn transported_path_specific_refusal(
-    transport_license: bool,
-    fixed_population_license: bool,
+    transport_support: bool,
+    fixed_population_support: bool,
     cross_population_assumptions: bool,
     required_factors: Vec<(String, String)>,
     supplied_factors: Vec<(String, String, String)>,
@@ -161,8 +261,8 @@ fn transported_path_specific_refusal(
         supplied.insert(key(&(role.clone(), regime.clone()))?, evidence.clone());
     }
     let prerequisites = TransportedCounterfactualPrerequisites {
-        transport_license,
-        fixed_population_license,
+        transport_support,
+        fixed_population_support,
         cross_population_assumptions,
     };
     let refusal = match transported_path_specific(&prerequisites, &required, &supplied) {
@@ -183,8 +283,108 @@ fn transported_path_specific_refusal(
     .to_string())
 }
 
+fn work_json(work: &WorkCounters) -> serde_json::Value {
+    json!({
+        "mechanism_fits": work.mechanism_fits,
+        "abductions": work.abductions,
+        "abduction_states_enumerated": work.abduction_states_enumerated,
+        "abductions_reused": work.abductions_reused,
+        "shared_draws": work.shared_draws,
+        "world_predictions": work.world_predictions,
+        "posterior_states_predicted": work.posterior_states_predicted,
+        "summaries": work.summaries,
+    })
+}
+
+/// A selective executor of the fixed-population temporal row that keeps its abductions between
+/// requests, so a request that changes only the named action histories replays the retained
+/// exogenous history instead of abducing again.
+#[pyclass(name = "TemporalExecutorHandle")]
+pub(crate) struct PyTemporalExecutor {
+    inner: TemporalExecutor,
+}
+
+#[pymethods]
+impl PyTemporalExecutor {
+    #[new]
+    fn new() -> Self {
+        Self { inner: TemporalExecutor::new() }
+    }
+
+    /// Execute a request: `(json with the report, the stage receipts and the work of this
+    /// execution, refusal json)`.
+    #[pyo3(signature = (request_json, *, seed=0))]
+    fn execute(
+        &mut self,
+        py: Python<'_>,
+        request_json: &str,
+        seed: u64,
+    ) -> PyResult<(Option<String>, Option<String>)> {
+        check_size(request_json)?;
+        let request: TemporalCounterfactualRequestWire = serde_json::from_str(request_json)
+            .map_err(|e| {
+                with_reason_code(
+                    value_err(format!("temporal_counterfactual.invalid_request: {e}")),
+                    antecedent::reason::reason_code!("invalid_argument"),
+                )
+            })?;
+        detach_catch(py, || {
+            match execute_selective(&mut self.inner, &request, &py_execution_context(seed, 1)) {
+                Ok(done) => {
+                    let report = serde_json::to_value(&done.report)
+                        .map_err(|e| crate::serialization_err(e.to_string()))?;
+                    let stages: Vec<serde_json::Value> = done
+                        .execution
+                        .stages
+                        .iter()
+                        .map(|s| {
+                            json!({
+                                "stage": s.stage.name(),
+                                "identity": s.identity,
+                                "status": match s.status {
+                                    StageStatus::Declared => "declared",
+                                    StageStatus::Computed => "computed",
+                                    StageStatus::Reused => "reused",
+                                },
+                            })
+                        })
+                        .collect();
+                    Ok((
+                        Some(
+                            json!({
+                                "report": report,
+                                "stages": stages,
+                                "work": work_json(&done.execution.work),
+                            })
+                            .to_string(),
+                        ),
+                        None,
+                    ))
+                }
+                Err(error) => match refusal_json(&error)? {
+                    Some(json) => Ok((None, Some(json))),
+                    None => Err(failure(&error)),
+                },
+            }
+        })
+    }
+
+    /// Number of abductions retained between requests.
+    fn retained_len(&self) -> usize {
+        self.inner.retained_len()
+    }
+
+    /// Cumulative observed work of successful executions, as JSON.
+    fn counters(&self) -> String {
+        work_json(&self.inner.counters()).to_string()
+    }
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<PyTemporalExecutor>()?;
     m.add_function(wrap_pyfunction!(evaluate_temporal_counterfactual, m)?)?;
     m.add_function(wrap_pyfunction!(consume_temporal_counterfactual_artifact, m)?)?;
+    m.add_function(wrap_pyfunction!(evaluate_general_temporal_counterfactual, m)?)?;
+    m.add_function(wrap_pyfunction!(consume_general_temporal_counterfactual_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(transported_path_specific_refusal, m)?)
 }

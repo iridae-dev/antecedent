@@ -1,0 +1,15 @@
+# Calibration measurements still owed.
+#
+# A procedure that already executes, whose point and interval are tested against known truth, but
+# for which no coverage or error-rate record exists yet. Each entry names the row, a label for the
+# records that will close it, and what is owed. Nothing here is an attestation, waiver or support:
+# calibration stays pending until a frozen candidate is measured, and a record that carries the
+# facet then closes the entry (the entry is removed).
+#
+# `groups` lists the gate groups (`<test file>: <test filter>`, as parity/calibration_groups.toml
+# labels them) whose coverage records close the entry. While any of them has produced no record the
+# entry is an owed item of `scripts/calibration_status.py status --owed`, so the owed calibration run
+# executes exactly those groups; an entry that names none is owed and unwired.
+
+schema = 1
+

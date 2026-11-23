@@ -1,20 +1,23 @@
 //! Slow-path Python callback bridges.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::{Arc, OnceLock};
 
+use antecedent::data::TableView;
 use antecedent::design::{DesignError, Utility};
-use antecedent::gcm::{CompiledCausalModel, DynamicMechanism, MechanismSlot};
-use antecedent_core::{CausalRng, ExecutionContext};
-use antecedent_data::TableView;
-use antecedent_graph::DenseNodeId;
-use antecedent_model::{MechanismWorkspace, ModelError, ParentBatch};
-use antecedent_stats::{
+use antecedent::execution::CausalRng;
+use antecedent::gcm::{
+    CompiledCausalModel, DynamicMechanism, MechanismSlot, MechanismWorkspace, ModelError,
+    ParentBatch,
+};
+use antecedent::graph::DenseNodeId;
+use antecedent::inference::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependence,
     ConditionalIndependenceTest, PreparedCiTest, StatsError,
 };
-use antecedent_validate::{
+use antecedent::prelude::ExecutionContext;
+use antecedent::validate::{
     CustomEffectValidator, RefutationProblem, RefutationReport, ValidationError,
 };
 use numpy::{PyArray1, PyReadonlyArray1};
@@ -57,13 +60,52 @@ fn check_len(what: &str, got: usize, expected: usize) -> Result<(), ModelError> 
     }
 }
 
+/// The parent columns as a list of float64 arrays, one per parent.
+fn parent_list<'py>(
+    py: Python<'py>,
+    parents: ParentBatch<'_>,
+) -> Result<Bound<'py, PyList>, ModelError> {
+    let list = PyList::empty(py);
+    for p in 0..parents.n_parents {
+        let col = parents.column(p).map_err(|e| ModelError::Shape { message: e.to_string() })?;
+        list.append(PyArray1::from_slice(py, col)).map_err(|e| ModelError::Unsupported {
+            message: format!("failed to build parent columns: {e}"),
+        })?;
+    }
+    Ok(list)
+}
+
+/// The typed error of a user method `name` that raised.
+fn method_failure(name: &str, err: PyErr) -> ModelError {
+    ModelError::CallbackFailed(callback_failure(&format!("Python {name} failed"), err))
+}
+
+/// Copy the float64 ndarray `out` returned by the user's `name` into `output[..n]`, requiring
+/// a contiguous array of exactly `n` values.
+fn copy_column_result(
+    out: &Bound<'_, PyAny>,
+    name: &str,
+    n: usize,
+    output: &mut [f64],
+) -> Result<(), ModelError> {
+    let arr: PyReadonlyArray1<'_, f64> = out.extract().map_err(|e| ModelError::Shape {
+        message: format!("{name} must return float64 ndarray: {e}"),
+    })?;
+    let slice = arr
+        .as_slice()
+        .map_err(|_| ModelError::Shape { message: format!("{name} ndarray must be contiguous") })?;
+    check_len(name, slice.len(), n)?;
+    output[..n].copy_from_slice(slice);
+    Ok(())
+}
+
 /// Whether the user's `sample_noise` takes an `rng` keyword (a NumPy `Generator` seeded from the
 /// run's stream). Without it the draws come from the user's own source and `seed=` does not
 /// govern them.
 fn accepts_rng(obj: &Bound<'_, PyAny>) -> Result<bool, ModelError> {
     let py = obj.py();
-    let unsupported = |e: PyErr| ModelError::Unsupported {
-        message: callback_failure("could not inspect sample_noise", e),
+    let unsupported = |e: PyErr| {
+        ModelError::CallbackFailed(callback_failure("could not inspect sample_noise", e))
     };
     let method = obj.getattr("sample_noise").map_err(unsupported)?;
     let Ok(signature_of) = inspect_signature(py) else {
@@ -105,11 +147,12 @@ impl ConditionalIndependenceTest for PyConditionalIndependence {
             }
             let queries = PyList::empty(py);
             for q in bound.queries {
-                let z: Vec<usize> = bound.z_flat[q.z_start..q.z_start + q.z_len].to_vec();
+                // The conditioning set converts straight from the request's flat buffer.
+                let z: &[usize] = &bound.z_flat[q.z_start..q.z_start + q.z_len];
                 queries.append((q.x, q.y, z)).map_err(|e| StatsError::Backend(e.to_string()))?;
             }
             let out = self.callback.bind(py).call1((cols, queries)).map_err(|e| {
-                StatsError::Backend(callback_failure("Python CI callback failed", e))
+                StatsError::CallbackFailed(callback_failure("Python CI callback failed", e))
             })?;
             let seq = out.cast::<PyList>().map_err(|_| StatsError::Shape {
                 message: "Python CI callback must return a list of (statistic, p_value)",
@@ -126,11 +169,23 @@ impl ConditionalIndependenceTest for PyConditionalIndependence {
                 let (stat, p): (f64, f64) = item.extract().map_err(|_| StatsError::Shape {
                     message: "each CI result must be (statistic: float, p_value: float)",
                 })?;
-                results.push(CiResult { statistic: stat, p_value: p, df: f64::NAN, ci: None });
+                results.push(callback_ci_result(stat, p)?);
             }
             Ok(CiBatchResult { results })
         })
     }
+}
+
+/// Callback evidence is consumed directly by graph search; NaN or out-of-range
+/// probabilities must not silently choose the dependent/independent branch.
+fn callback_ci_result(statistic: f64, p_value: f64) -> Result<CiResult, StatsError> {
+    if !statistic.is_finite() || !p_value.is_finite() || !(0.0..=1.0).contains(&p_value) {
+        return Err(StatsError::Backend(
+            "Python CI callback must return a finite statistic and a finite p_value in [0, 1]"
+                .to_owned(),
+        ));
+    }
+    Ok(CiResult { statistic, p_value, df: f64::NAN, ci: None })
 }
 
 /// Python mechanism wrapper: `sample_noise(n) -> array`, `evaluate(parents, noise) -> array`.
@@ -166,10 +221,12 @@ impl DynamicMechanism for PyDynamicMechanism {
             let bound = self.obj.bind(py);
             let out = (if self.accepts_rng(py)? {
                 // The run's seeded stream governs the user's draws through a NumPy generator.
-                let generator =
-                    numpy_default_rng(py, rng.next_u64()).map_err(|e| ModelError::Unsupported {
-                        message: callback_failure("failed to seed sample_noise rng", e),
-                    })?;
+                let generator = numpy_default_rng(py, rng.next_u64()).map_err(|e| {
+                    ModelError::CallbackFailed(callback_failure(
+                        "failed to seed sample_noise rng",
+                        e,
+                    ))
+                })?;
                 let kwargs = PyDict::new(py);
                 kwargs
                     .set_item("rng", generator)
@@ -177,18 +234,10 @@ impl DynamicMechanism for PyDynamicMechanism {
             } else {
                 bound.call_method1("sample_noise", (n_rows,))
             })
-            .map_err(|e| ModelError::Unsupported {
-                message: callback_failure("Python sample_noise failed", e),
+            .map_err(|e| {
+                ModelError::CallbackFailed(callback_failure("Python sample_noise failed", e))
             })?;
-            let arr: PyReadonlyArray1<'_, f64> = out.extract().map_err(|e| ModelError::Shape {
-                message: format!("sample_noise must return float64 ndarray: {e}"),
-            })?;
-            let slice = arr.as_slice().map_err(|_| ModelError::Shape {
-                message: "sample_noise ndarray must be contiguous".into(),
-            })?;
-            check_len("sample_noise", slice.len(), n_rows)?;
-            output[..n_rows].copy_from_slice(slice);
-            Ok(())
+            copy_column_result(&out, "sample_noise", n_rows, output)
         })
     }
 
@@ -201,32 +250,14 @@ impl DynamicMechanism for PyDynamicMechanism {
     ) -> Result<(), ModelError> {
         let n = parents.n_rows;
         Python::attach(|py| -> Result<(), ModelError> {
-            let parent_cols = PyList::empty(py);
-            for p in 0..parents.n_parents {
-                let col =
-                    parents.column(p).map_err(|e| ModelError::Shape { message: e.to_string() })?;
-                parent_cols.append(PyArray1::from_slice(py, col)).map_err(|e| {
-                    ModelError::Unsupported {
-                        message: format!("failed to build parent columns: {e}"),
-                    }
-                })?;
-            }
+            let parent_cols = parent_list(py, parents)?;
             let noise_arr = PyArray1::from_slice(py, &noise[..n]);
-            let out =
-                self.obj.bind(py).call_method1("evaluate", (parent_cols, noise_arr)).map_err(
-                    |e| ModelError::Unsupported {
-                        message: callback_failure("Python evaluate failed", e),
-                    },
-                )?;
-            let arr: PyReadonlyArray1<'_, f64> = out.extract().map_err(|e| ModelError::Shape {
-                message: format!("evaluate must return float64 ndarray: {e}"),
-            })?;
-            let slice = arr.as_slice().map_err(|_| ModelError::Shape {
-                message: "evaluate ndarray must be contiguous".into(),
-            })?;
-            check_len("evaluate", slice.len(), n)?;
-            output[..n].copy_from_slice(slice);
-            Ok(())
+            let out = self
+                .obj
+                .bind(py)
+                .call_method1("evaluate", (parent_cols, noise_arr))
+                .map_err(|e| method_failure("evaluate", e))?;
+            copy_column_result(&out, "evaluate", n, output)
         })
     }
 
@@ -255,40 +286,19 @@ impl DynamicMechanism for PyDynamicMechanism {
                 Ok(true) => {}
                 Ok(false) => return None,
                 Err(e) => {
-                    return Some(Err(ModelError::Unsupported {
-                        message: callback_failure("Python infer_noise lookup failed", e),
-                    }));
+                    return Some(Err(ModelError::CallbackFailed(callback_failure(
+                        "Python infer_noise lookup failed",
+                        e,
+                    ))));
                 }
             }
             Some((|| {
-                let parent_cols = PyList::empty(py);
-                for p in 0..parents.n_parents {
-                    let col = parents
-                        .column(p)
-                        .map_err(|e| ModelError::Shape { message: e.to_string() })?;
-                    parent_cols.append(PyArray1::from_slice(py, col)).map_err(|e| {
-                        ModelError::Unsupported {
-                            message: format!("failed to build parent columns: {e}"),
-                        }
-                    })?;
-                }
+                let parent_cols = parent_list(py, parents)?;
                 let value_arr = PyArray1::from_slice(py, &value[..n]);
-                let out =
-                    bound.call_method1("infer_noise", (value_arr, parent_cols)).map_err(|e| {
-                        ModelError::Unsupported {
-                            message: callback_failure("Python infer_noise failed", e),
-                        }
-                    })?;
-                let arr: PyReadonlyArray1<'_, f64> =
-                    out.extract().map_err(|e| ModelError::Shape {
-                        message: format!("infer_noise must return float64 ndarray: {e}"),
-                    })?;
-                let slice = arr.as_slice().map_err(|_| ModelError::Shape {
-                    message: "infer_noise ndarray must be contiguous".into(),
-                })?;
-                check_len("infer_noise", slice.len(), n)?;
-                output[..n].copy_from_slice(slice);
-                Ok(())
+                let out = bound
+                    .call_method1("infer_noise", (value_arr, parent_cols))
+                    .map_err(|e| method_failure("infer_noise", e))?;
+                copy_column_result(&out, "infer_noise", n, output)
             })())
         });
         if let Some(r) = py_result {
@@ -296,11 +306,10 @@ impl DynamicMechanism for PyDynamicMechanism {
         } else {
             // Additive default: noise = y − f(pa, 0).
             let zeros = vec![0.0; n];
-            let mut mean = vec![0.0; n];
             let mut ws = MechanismWorkspace::default();
-            self.evaluate_column(parents, &zeros, &mut mean, &mut ws)?;
-            for i in 0..n {
-                output[i] = value[i] - mean[i];
+            self.evaluate_column(parents, &zeros, &mut output[..n], &mut ws)?;
+            for (slot, &observed) in output[..n].iter_mut().zip(value) {
+                *slot = observed - *slot;
             }
             Ok(())
         }
@@ -319,52 +328,29 @@ impl DynamicMechanism for PyDynamicMechanism {
                 Ok(true) => {}
                 Ok(false) => return None,
                 Err(e) => {
-                    return Some(Err(ModelError::Unsupported {
-                        message: callback_failure("Python log_prob lookup failed", e),
-                    }));
+                    return Some(Err(ModelError::CallbackFailed(callback_failure(
+                        "Python log_prob lookup failed",
+                        e,
+                    ))));
                 }
             }
             Some((|| {
-                let parent_cols = PyList::empty(py);
-                for p in 0..parents.n_parents {
-                    let col = parents
-                        .column(p)
-                        .map_err(|e| ModelError::Shape { message: e.to_string() })?;
-                    parent_cols.append(PyArray1::from_slice(py, col)).map_err(|e| {
-                        ModelError::Unsupported {
-                            message: format!("failed to build parent columns: {e}"),
-                        }
-                    })?;
-                }
+                let parent_cols = parent_list(py, parents)?;
                 let value_arr = PyArray1::from_slice(py, &values[..n]);
-                let out =
-                    bound.call_method1("log_prob", (value_arr, parent_cols)).map_err(|e| {
-                        ModelError::Unsupported {
-                            message: callback_failure("Python log_prob failed", e),
-                        }
-                    })?;
-                let arr: PyReadonlyArray1<'_, f64> =
-                    out.extract().map_err(|e| ModelError::Shape {
-                        message: format!("log_prob must return float64 ndarray: {e}"),
-                    })?;
-                let slice = arr.as_slice().map_err(|_| ModelError::Shape {
-                    message: "log_prob ndarray must be contiguous".into(),
-                })?;
-                check_len("log_prob", slice.len(), n)?;
-                output[..n].copy_from_slice(slice);
-                Ok(())
+                let out = bound
+                    .call_method1("log_prob", (value_arr, parent_cols))
+                    .map_err(|e| method_failure("log_prob", e))?;
+                copy_column_result(&out, "log_prob", n, output)
             })())
         });
         if let Some(r) = py_result {
             r
         } else {
+            // Convention: the inferred additive noise is scored as a standard normal draw.
+            // A mechanism whose noise is not N(0, 1) should define `log_prob` itself.
             let mut resid = vec![0.0; n];
             self.infer_noise_column(values, parents, &mut resid)?;
-            let log_norm = -0.5 * (2.0 * std::f64::consts::PI).ln();
-            for i in 0..n {
-                output[i] = log_norm - 0.5 * resid[i] * resid[i];
-            }
-            Ok(())
+            antecedent::gcm::standard_normal_log_density(&resid, &mut output[..n])
         }
     }
 }
@@ -397,11 +383,12 @@ impl Utility<f64, f64> for PyUtility {
         Python::attach(|py| -> Result<(), DesignError> {
             let a = PyArray1::from_slice(py, actions);
             let o = PyArray1::from_slice(py, outcomes);
-            let got =
-                self.callback.bind(py).call1((a, o)).map_err(|err| DesignError::Callback {
+            let got = self.callback.bind(py).call1((a, o)).map_err(|err| {
+                DesignError::CallbackFailed {
                     name: "utility".into(),
-                    message: callback_failure("utility failed", err),
-                })?;
+                    failure: callback_failure("utility failed", err),
+                }
+            })?;
             let arr = match got.extract::<PyReadonlyArray1<'_, f64>>() {
                 Ok(arr) => arr,
                 Err(err) => {
@@ -457,10 +444,12 @@ impl CustomEffectValidator for PyCustomValidator {
     ) -> Result<RefutationReport, ValidationError> {
         Python::attach(|py| -> Result<RefutationReport, ValidationError> {
             let py_err = |e: PyErr| {
-                ValidationError::data_msg(callback_failure(
-                    &format!("Python validator `{}` failed", self.name),
-                    e,
-                ))
+                // Native validation may record a computation diagnostic and still
+                // return success. Retain the exact Python error at the execution
+                // boundary so that diagnostic conversion cannot swallow it.
+                let message = format!("Python validator `{}` raised an exception", self.name);
+                let _unowned = crate::interrupt::observer_failure(e);
+                ValidationError::data_msg(message)
             };
             let kwargs = PyDict::new(py);
             kwargs.set_item("ate", problem.original.ate).map_err(py_err)?;
@@ -541,8 +530,8 @@ pub fn resolve_ci_arg(
         let impl_ =
             antecedent::discovery_defaults::resolve_ci("parcorr", weights).map_err(|e| {
                 crate::with_reason_code(
-                    crate::CausalCompileError::new_err(e.to_string()),
-                    antecedent_core::reason_code!("invalid_argument"),
+                    crate::py_err(e),
+                    antecedent::reason::reason_code!("invalid_argument"),
                 )
             })?;
         return Ok((impl_, "parcorr".into(), false));
@@ -550,8 +539,8 @@ pub fn resolve_ci_arg(
     if let Ok(name) = ci.extract::<&str>() {
         let impl_ = antecedent::discovery_defaults::resolve_ci(name, weights).map_err(|e| {
             crate::with_reason_code(
-                crate::CausalCompileError::new_err(e.to_string()),
-                antecedent_core::reason_code!("invalid_argument"),
+                crate::py_err(e),
+                antecedent::reason::reason_code!("invalid_argument"),
             )
         })?;
         return Ok((impl_, name.to_string(), false));
@@ -564,7 +553,7 @@ pub fn resolve_ci_arg(
         crate::CausalCompileError::new_err(
             "ci must be a str CI name (e.g. 'parcorr') or a callable batch test",
         ),
-        antecedent_core::reason_code!("invalid_argument"),
+        antecedent::reason::reason_code!("invalid_argument"),
     ))
 }
 
@@ -664,19 +653,15 @@ impl PyProgressSink {
     }
 }
 
-impl antecedent_core::ProgressSink for PyProgressSink {
+impl antecedent::execution::ProgressSink for PyProgressSink {
     fn report(&self, fraction: f64, stage: &str) {
         Python::attach(|py| {
-            // `ProgressSink::report` returns `()` and is invoked from hot per-replicate
-            // / per-sample loops (bootstrap, Shapley, discovery search) across several
-            // crates, so propagating a `Result` here would mean threading a fallible
-            // signature through every call site outside the files this change owns.
-            // Surface the failure the same way an uncaught Python exception normally
-            // would instead of silently discarding it: print the traceback to stderr
-            // (this also sets `sys.last_*`), so a broken `on_progress` callback is
-            // diagnosable rather than appearing to just stop firing.
-            if let Err(err) = self.callback.bind(py).call1((fraction, stage)) {
-                err.print(py);
+            if let Err(err) = self.callback.bind(py).call1((fraction, stage))
+                && let Err(unscoped) = crate::interrupt::observer_failure(err)
+            {
+                // Outside an executing run no Result boundary owns this observer.
+                // Keep the historical diagnostic without leaking it into another run.
+                unscoped.print(py);
             }
         });
     }
@@ -685,7 +670,7 @@ impl antecedent_core::ProgressSink for PyProgressSink {
 /// Build an optional [`ProgressSink`] from a Python callable.
 pub fn progress_sink_from_py(
     on_progress: Option<&Bound<'_, PyAny>>,
-) -> PyResult<Option<std::sync::Arc<dyn antecedent_core::ProgressSink>>> {
+) -> PyResult<Option<std::sync::Arc<dyn antecedent::execution::ProgressSink>>> {
     match on_progress {
         None => Ok(None),
         Some(cb) => {
@@ -693,7 +678,7 @@ pub fn progress_sink_from_py(
                 return Err(crate::value_err("on_progress must be callable"));
             }
             Ok(Some(std::sync::Arc::new(PyProgressSink::new(cb.clone().unbind()))
-                as std::sync::Arc<dyn antecedent_core::ProgressSink>))
+                as std::sync::Arc<dyn antecedent::execution::ProgressSink>))
         }
     }
 }
@@ -734,11 +719,10 @@ impl antecedent::StageResultSink for PyStageResultSink {
                     d
                 }
             };
-            // See `PyProgressSink::report` above: `StageResultSink::on_stage` also
-            // returns `()`, so surface a failing `on_stage` callback via PyO3's
-            // traceback-to-stderr path rather than discarding it silently.
-            if let Err(err) = self.callback.bind(py).call1((event.stage_id(), payload)) {
-                err.print(py);
+            if let Err(err) = self.callback.bind(py).call1((event.stage_id(), payload))
+                && let Err(unscoped) = crate::interrupt::observer_failure(err)
+            {
+                unscoped.print(py);
             }
         });
     }
@@ -756,6 +740,30 @@ pub fn stage_sink_from_py(
             }
             Ok(Some(std::sync::Arc::new(PyStageResultSink::new(cb.clone().unbind()))
                 as std::sync::Arc<dyn antecedent::StageResultSink>))
+        }
+    }
+}
+
+#[cfg(test)]
+mod ci_callback_tests {
+    use super::callback_ci_result;
+
+    #[test]
+    fn callback_evidence_rejects_invalid_numbers_before_graph_search() {
+        for (statistic, probability) in [
+            (f64::NAN, 0.5),
+            (f64::INFINITY, 0.5),
+            (0.0, f64::NAN),
+            (0.0, f64::INFINITY),
+            (0.0, -0.01),
+            (0.0, 1.01),
+        ] {
+            assert!(callback_ci_result(statistic, probability).is_err());
+        }
+        for probability in [0.0, 0.5, 1.0] {
+            let result = callback_ci_result(-2.0, probability).expect("valid evidence");
+            assert_eq!(result.statistic.to_bits(), (-2.0_f64).to_bits());
+            assert_eq!(result.p_value.to_bits(), probability.to_bits());
         }
     }
 }

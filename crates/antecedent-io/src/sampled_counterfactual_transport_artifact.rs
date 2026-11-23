@@ -6,7 +6,7 @@
 //! from), the unseen-cell rule and limits, the declared overlap of the units
 //! behind the tables, the uncertainty method, and the estimate with its four
 //! claim labels. It carries no interval: statistical inference is withheld with
-//! `cell_not_licensed`, and a standard error is present only as
+//! `not_supported`, and a standard error is present only as
 //! `uncalibrated_standard_error`.
 //!
 //! A consumer holding only the bytes and an expected identity
@@ -30,7 +30,7 @@
 //! produce. It does not protect against a producer that seals a wrong model or
 //! false counts on purpose; the digests bind what was sealed, not what is true.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -39,9 +39,10 @@ use antecedent_core::{ExecutionContext, IdentityDomain, RegimeId, SearchLimits, 
 use antecedent_estimate::counterfactual_transport_sampled::{
     DatasetOverlap, OverlapDeclaration, SAMPLED_TRANSPORT_INTERVAL_LEVEL,
     SAMPLED_TRANSPORT_MAX_TABLE_CELLS, SAMPLED_TRANSPORT_MAX_TABLES, SampledAxis,
-    SampledCounterfactualTransportEstimate, SampledRegimeCounts, SampledRegimeCountsParts,
-    SampledTableKey, SampledTransportLimits, SampledTransportRequest, SamplingDesign,
-    UnseenCellRule, estimate_sampled_counterfactual_transport, sampled_transport_interval,
+    SampledCounterfactualTransportEstimate, SampledIntervalOutcome, SampledRegimeCounts,
+    SampledRegimeCountsParts, SampledTableKey, SampledTransportLimits, SampledTransportRequest,
+    SamplingDesign, UnseenCellRule, estimate_sampled_counterfactual_transport,
+    sampled_transport_interval,
 };
 use antecedent_expr::ExactEvaluationLimits;
 use antecedent_identify::{
@@ -51,7 +52,8 @@ use antecedent_identify::{
 };
 use antecedent_io_core::counterfactual_transport_wire::{
     CounterfactualTransportDerivationWire, CounterfactualTransportProblemWire,
-    CounterfactualTransportQueryWire, CounterfactualTransportSearchLimitsWire,
+    CounterfactualTransportQueryWire, CounterfactualTransportSearchLimitsWire, DecisionInputFault,
+    check_decision_inputs,
 };
 use antecedent_io_core::transport_catalog_wire::EvidenceCatalogWire;
 use serde::{Deserialize, Serialize};
@@ -64,9 +66,12 @@ pub const SAMPLED_COUNTERFACTUAL_TRANSPORT_ARTIFACT_VERSION: u32 = 1;
 pub const SAMPLED_COUNTERFACTUAL_TRANSPORT_ARTIFACT_FEATURE: &str =
     crate::artifact_kinds::SAMPLED_COUNTERFACTUAL_TRANSPORT;
 
-const DETAIL_INVALID_ARTIFACT: &str = "counterfactual_transport_sampled.invalid_artifact";
-const DETAIL_BOUNDS: &str = "counterfactual_transport_sampled.bounds_exceeded";
-const DETAIL_DERIVATION: &str = "counterfactual_transport.invalid_derivation";
+const DETAIL_INVALID_ARTIFACT: &str =
+    antecedent_core::reason_details::counterfactual_transport_sampled::INVALID_ARTIFACT;
+const DETAIL_BOUNDS: &str =
+    antecedent_core::reason_details::counterfactual_transport_sampled::BOUNDS_EXCEEDED;
+const DETAIL_DERIVATION: &str =
+    antecedent_core::reason_details::counterfactual_transport::INVALID_DERIVATION;
 
 /// Why a sampled counterfactual transport artifact was refused.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -200,7 +205,9 @@ pub struct SampledTableKeyWire {
 }
 
 impl SampledTableKeyWire {
-    fn from_key(key: &SampledTableKey) -> Self {
+    /// Encode a validated sampled table key.
+    #[must_use]
+    pub fn from_key(key: &SampledTableKey) -> Self {
         Self {
             population: key.population.to_string(),
             regime: key.regime.raw(),
@@ -208,7 +215,9 @@ impl SampledTableKeyWire {
         }
     }
 
-    fn to_key(&self) -> SampledTableKey {
+    /// Decode a sampled table key.
+    #[must_use]
+    pub fn to_key(&self) -> SampledTableKey {
         SampledTableKey {
             population: Arc::from(self.population.as_str()),
             regime: RegimeId::from_raw(self.regime),
@@ -328,7 +337,9 @@ pub struct SampledOverlapWire {
 }
 
 impl SampledOverlapWire {
-    fn from_declaration(declaration: &OverlapDeclaration) -> Self {
+    /// Encode a declared sampled-table overlap schedule.
+    #[must_use]
+    pub fn from_declaration(declaration: &OverlapDeclaration) -> Self {
         Self {
             default: declaration.default_relation().name().to_owned(),
             pairs: declaration
@@ -345,7 +356,11 @@ impl SampledOverlapWire {
         }
     }
 
-    fn to_declaration(&self) -> Result<OverlapDeclaration, Error> {
+    /// Decode and validate the overlap declaration.
+    ///
+    /// # Errors
+    /// Unknown relations or a noncanonical pair schedule.
+    pub fn to_declaration(&self) -> Result<OverlapDeclaration, Error> {
         let parse = |name: &str| {
             DatasetOverlap::parse(name)
                 .ok_or_else(|| malformed("overlap", format!("unknown relation `{name}`")))
@@ -374,11 +389,17 @@ pub struct SampledUnseenRuleWire {
 }
 
 impl SampledUnseenRuleWire {
-    fn from_rule(rule: UnseenCellRule) -> Self {
+    /// Encode an unseen-cell rule.
+    #[must_use]
+    pub fn from_rule(rule: UnseenCellRule) -> Self {
         Self { name: rule.name().to_owned(), parameter: rule.parameter().map(f64::to_bits) }
     }
 
-    fn to_rule(&self) -> Result<UnseenCellRule, Error> {
+    /// Decode an unseen-cell rule.
+    ///
+    /// # Errors
+    /// Unknown rule or invalid parameter placement.
+    pub fn to_rule(&self) -> Result<UnseenCellRule, Error> {
         let parameter = self.parameter.map(f64::from_bits);
         let rule = match (self.name.as_str(), parameter) {
             ("refuse", None) => UnseenCellRule::Refuse,
@@ -411,7 +432,9 @@ pub struct SampledLimitsWire {
 }
 
 impl SampledLimitsWire {
-    fn from_limits(limits: &SampledTransportLimits) -> Self {
+    /// Encode sampled estimation limits.
+    #[must_use]
+    pub fn from_limits(limits: &SampledTransportLimits) -> Self {
         Self {
             min_table_total: limits.min_table_total,
             max_unseen_fraction: limits.max_unseen_fraction.to_bits(),
@@ -421,7 +444,9 @@ impl SampledLimitsWire {
         }
     }
 
-    fn to_limits(&self) -> SampledTransportLimits {
+    /// Decode sampled estimation limits; the estimator validates their range.
+    #[must_use]
+    pub fn to_limits(&self) -> SampledTransportLimits {
         SampledTransportLimits {
             min_table_total: self.min_table_total,
             max_unseen_fraction: f64::from_bits(self.max_unseen_fraction),
@@ -555,12 +580,21 @@ pub struct SampledEstimateWire {
     pub standard_error: Option<SampledStandardErrorWire>,
     /// Why no standard error is reported.
     pub standard_error_withheld_reason: Option<String>,
-    /// Interval route reason code (`cell_not_licensed`).
-    pub interval_code: String,
-    /// Interval route detail.
-    pub interval_detail: String,
-    /// Calibration reason.
-    pub interval_reason: String,
+    /// Why no interval exists for this estimate; absent when the interval is computable
+    /// (the artifact stores no interval value either way).
+    pub interval_absence: Option<SampledIntervalAbsenceWire>,
+}
+
+/// A stored scientific reason an interval cannot be computed.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SampledIntervalAbsenceWire {
+    /// Registered reason code.
+    pub code: String,
+    /// Namespaced detail.
+    pub detail: String,
+    /// The stable reason the point or the standard error is absent.
+    pub reason: String,
 }
 
 impl SampledEstimateWire {
@@ -634,9 +668,16 @@ impl SampledEstimateWire {
                 .inference
                 .standard_error_withheld_reason
                 .map(str::to_owned),
-            interval_code: estimate.inference.interval.code.to_owned(),
-            interval_detail: estimate.inference.interval.detail.to_owned(),
-            interval_reason: estimate.inference.interval.reason.to_owned(),
+            interval_absence: match &estimate.inference.interval {
+                SampledIntervalOutcome::Reported => None,
+                SampledIntervalOutcome::NotComputable { code, detail, reason } => {
+                    Some(SampledIntervalAbsenceWire {
+                        code: (*code).to_owned(),
+                        detail: (*detail).to_owned(),
+                        reason: (*reason).to_owned(),
+                    })
+                }
+            },
         }
     }
 
@@ -666,9 +707,7 @@ impl SampledEstimateWire {
             uncertainty_method,
             standard_error,
             standard_error_withheld_reason,
-            interval_code,
-            interval_detail,
-            interval_reason,
+            interval_absence,
         );
         None
     }
@@ -790,16 +829,32 @@ impl SampledCounterfactualTransportArtifactWire {
         if self.derivation.contract != antecedent_identify::COUNTERFACTUAL_TRANSPORT_CONTRACT {
             return Err(Error::UnsupportedSemantics("contract"));
         }
+        check_decision_inputs(
+            &self.problem,
+            &self.query,
+            &self.variable_names,
+            &self.search,
+            &self.catalog,
+        )
+        .map_err(|fault| match fault {
+            DecisionInputFault::Limit(what) => Error::LimitsExceeded(what),
+            DecisionInputFault::VariableNames => malformed(
+                "variable_names",
+                "names must be empty or one distinct, non-blank name per variable",
+            ),
+        })?;
         if self.tables.is_empty() {
             return Err(malformed("tables", "a sampled artifact carries count tables"));
         }
-        if self.estimate.statistical_inference
-            != antecedent_estimate::counterfactual_transport_sampled::LABEL_INFERENCE_WITHHELD
-            || self.estimate.interval_code != "cell_not_licensed"
-        {
+        let expected_label = if self.estimate.interval_absence.is_none() {
+            antecedent_estimate::counterfactual_transport_sampled::LABEL_INFERENCE_INTERVAL
+        } else {
+            antecedent_estimate::counterfactual_transport_sampled::LABEL_INFERENCE_NOT_COMPUTABLE
+        };
+        if self.estimate.statistical_inference != expected_label {
             return Err(malformed(
                 "estimate",
-                "a sampled artifact carries no interval: statistical inference is withheld",
+                "the statistical-inference label must match whether the interval is computable",
             ));
         }
         Ok(())
@@ -885,7 +940,7 @@ fn estimation_refusal(error: &antecedent_estimate::EstimationError) -> Error {
     use antecedent_estimate::EstimationError as E;
     match error {
         E::Refused { code, message } | E::RefusedWithFields { code, message, .. } => {
-            Error::Replay { code, message: message.clone() }
+            Error::Replay { code, message: message.to_string() }
         }
         other => Error::Malformed { slot: "tables", message: other.to_string() },
     }
@@ -994,8 +1049,7 @@ fn check_limits(
         return Err(Error::LimitsExceeded(what));
     }
     let memory_cap = ctx
-        .memory
-        .hard_limit_bytes
+        .memory_limit_bytes()
         .map_or(limits.search_memory_bytes, |hard| hard.min(limits.search_memory_bytes));
     if wire.search.memory_limit_bytes > memory_cap {
         return Err(Error::LimitsExceeded("search memory limit"));
@@ -1103,25 +1157,23 @@ pub fn consume_sampled_counterfactual_transport(
 // Measured interval.
 // ---------------------------------------------------------------------------
 
-fn interval_not_measured(message: &str) -> IoError {
+fn variance_assumption_not_met(message: &str) -> IoError {
     IoError::Refused {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
-        message: format!("measured_interval.protocol_not_measured: {message}"),
+        code: antecedent_core::reason_code!("route_not_supported"),
+        message: format!("measured_interval.variance_assumption_not_met: {message}"),
     }
 }
 
 impl SampledCounterfactualTransportArtifactWire {
     /// Replay the original sampled artifact (re-deciding the derivation and
-    /// recomputing the estimate from its counts), build the delta Wald interval
-    /// and bind it to the currently attesting coverage record of exactly this
-    /// construction. The original artifact is unchanged and never carries an
-    /// interval.
+    /// recomputing the estimate from its counts) and build the delta Wald interval,
+    /// annotated with the calibration status of exactly this construction. The original
+    /// artifact is unchanged and never carries an interval.
     ///
     /// # Errors
-    /// Any replay refusal of the original artifact, an estimate outside the
-    /// measured design (level, smoothing, unseen cells, conditioning mass,
-    /// sampling design, shared datasets, unequal table totals), or absent,
-    /// stale or boundary evidence for the stored query and sample size.
+    /// Any replay refusal of the original artifact, or a design whose variance the delta
+    /// method does not give (`route_not_supported`): a stratified table, tables sharing one
+    /// dataset, or an estimate the interval construction cannot form.
     pub fn measure(
         bytes: &[u8],
         expected: &SampledCounterfactualTransportExpectedIdentity,
@@ -1135,13 +1187,13 @@ impl SampledCounterfactualTransportArtifactWire {
             .iter()
             .any(|table| !matches!(table.design(), SamplingDesign::IndependentUnits))
         {
-            return Err(interval_not_measured(
-                "only independently drawn units were measured; stratified designs are not",
+            return Err(variance_assumption_not_met(
+                "the delta-method variance assumes independently drawn units; a stratified design needs its own variance",
             ));
         }
         if consumed.estimate.datasets.len() != consumed.request.tables.len() {
-            return Err(interval_not_measured(
-                "tables sharing one dataset were not part of the measured construction",
+            return Err(variance_assumption_not_met(
+                "the delta-method variance assumes independent tables; tables sharing one dataset are correlated",
             ));
         }
         let interval = sampled_transport_interval(
@@ -1149,10 +1201,10 @@ impl SampledCounterfactualTransportArtifactWire {
             &consumed.estimate,
             SAMPLED_TRANSPORT_INTERVAL_LEVEL,
         )
-        .map_err(interval_not_measured)?;
+        .map_err(variance_assumption_not_met)?;
         let scope = serde_json::json!({
             "validation_design": "finite_scm_discrete_counterfactual_transport",
-            "evidence_interpretation": "finite validation grid for the checked query and sample sizes; other queries, smoothed tables, unseen cells and sparse conditioning are not licensed",
+            "evidence_interpretation": "finite validation grid for the checked query and sample sizes; other queries, smoothed tables, unseen cells and sparse conditioning are not supported",
             "declared_model_assumptions": ["independent units within each table", "tables of distinct independent datasets", "stored derivation identifies the query"],
             "sampling_assumptions_authenticated_from_rows": false,
             "units_per_table": interval.basis.row_count,

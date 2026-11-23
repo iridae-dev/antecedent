@@ -2,7 +2,7 @@
 
 One cell: a randomized continuous dose from a trial, transported to a covariate-shifted
 target population, reported on a grid of at most 16 doses at one declared bandwidth.
-Record `transport.smoothed_dose_response` in `parity/promotion.toml`;
+Record `transport.smoothed_dose_response` in `parity/capability_records.toml`;
 refusal details live in the `dose_response` namespace. The scope summary is in
 [the transport scope guide](../guides/transport-scope.md#smoothed-dose-response-transport).
 
@@ -205,7 +205,7 @@ the misspecification test). It says how much the *fitted* curve bends, not the t
 
 The analytic influence-function standard error is
 `sqrt(sum_T (nu_hat - psi_hat)^2 + sum_S (omega w (Y - mu_hat))^2) / n_0`. It is a
-diagnostic only and never a licensed claim.
+diagnostic only and never a supported claim.
 
 ## Numerical verification (executed)
 
@@ -269,9 +269,9 @@ All in `crates/antecedent/tests/smoothed_dose_lifecycle.rs`, on the structural m
 ## Bounds
 
 At most 16 grid doses, 20 cross-fitting folds, 200,000 rows, 256 covariates, basis degree 1 to 3,
-at most 8 knots, and an interval bootstrap request of 199 to 2000 replicates (or none). A
-request above a cap refuses as `dose_response.bounds_exceeded`; a request of 1 to 198
-replicates is below the floor, which is not a bounds refusal: the point is kept and the
+at most 8 knots, and an interval bootstrap request of 2 to 2000 replicates (or none). A
+request above a cap refuses as `dose_response.bounds_exceeded`; a request of 1
+replicate is below the floor, which is not a bounds refusal: the point is kept and the
 interval status is withheld (`estimator_inference_mismatch`,
 `dose_response.bootstrap_below_floor`). Each cap is tested at its value and one above (the
 covariate cap on a certificate that standardizes over 256 covariates).
@@ -283,8 +283,8 @@ actually allocates (membership and outcome designs, one training-design copy and
 matrix per concurrently fitted fold, the per-fold evaluation designs) and one quadrature
 chunk (at most 8 MiB of design) per concurrently integrated grid dose. Learner internals
 beyond that copy (tree storage, boosting state) are not modelled. A request at every cap
-at once (width 3084) is far above the cap and is refused. The calibration-internal
-bootstrap multiplies the estimate by the number of concurrent replicates.
+at once (width 3084) is far above the cap and is refused. The bootstrap interval
+multiplies the estimate by the number of concurrent replicates.
 
 **Stored bounds.** The bounds are stored in the artifact and bound into its premises
 digest. A consumer compares them with its own field by field and refuses only a looser
@@ -296,15 +296,14 @@ artifact stays readable when a later build raises a cap.
 
 The one interval method is the pointwise joint outer refit percentile bootstrap of the
 whole cross-fitted composed estimator. It is grouped per design and has a replicate floor
-of 199 and a cap of 2000. It is an interval for `psi_h` at each grid dose: smoothing bias
+of 2 and a cap of 2000. It is an interval for `psi_h` at each grid dose: smoothing bias
 is excluded and there is no simultaneous band.
 
-The estimator is `antecedent_estimate::smoothed_dose_interval_internal`. It is compiled
-only under the `calibration-internal` feature, which only dev-dependencies enable, and
-the calibration harness `crates/antecedent/tests/smoothed_dose_calibration.rs` measures
-it. The two design-specific coverage records have been measured. The public
-route remains closed (`cell_not_licensed`, `dose_response.interval_withheld`)
-despite the measured interval coordinate.
+The estimator is `antecedent_estimate::smoothed_dose_interval_internal`, reached through
+`PreparedSmoothedDose::interval`. The calibration harness
+`crates/antecedent/tests/smoothed_dose_calibration.rs` measures it, and the interval is
+reported with the calibration slot of the two design-specific coverage records. The slot
+annotates the interval and never gates it.
 
 A replicate:
 
@@ -326,7 +325,7 @@ Any failed replicate withholds every interval.
 - the grid with its quadrature, bias and support records;
 - the interval status.
 
-It has no interval field.
+The interval is formed from the prepared handle, not stored in the artifact.
 
 ### What a consumer does
 
@@ -366,6 +365,36 @@ consumes (a test asserts each):
 
 The premises digest binds all of them against unsealed edits only. The replayed
 smoothing-bias diagnostic is only as good as the fitted curve (see above).
+
+## Declared sampling weights, clusters and serial dependence
+
+`SmoothedDoseInput` may declare `sampling_weights` (one per row of either sample), a `cluster`
+id per row and a `serial_lag`; each is optional and absent from the serialized input when not
+declared, so an input without them, its artifact and its digests are unchanged. A declaration is
+read or refused, never dropped.
+
+- **Weights** `s_i` (finite and positive; rows of weight zero stand for no population and are
+  deleted by `SmoothedDoseInput::without_zero_weight_rows`, which the facade calls at preparation)
+  are normalized to mean one over all rows and enter both nuisance fits, the plug-in mean
+  `sum_T s_i nu_i / sum_T s_i`, the augmentation `sum_S s_i odds_i K_h / pi_i (Y_i - mu_i) / sum_T s_i`
+  and the support (the Kish size of `s_i K_h / pi_i`). The estimand is the smoothed dose response of
+  the weighted populations.
+- **Clusters** are dealt to the cross-fit folds whole (stratified by whether a cluster holds source
+  rows, target rows or both), so no cluster sits on both sides of a split, and the influence-function
+  standard error is `G / (G - 1)` times the sum of squared cluster sums of the row scores. The internal
+  bootstrap resamples whole clusters.
+- **A lag** (rows in time order at unit spacing) assigns the folds as contiguous blocks
+  `floor(i * folds / n)`, makes the diagnostic the Newey-West variance of the row-score series, and
+  resamples blocks of `lag + 1` consecutive rows in the internal bootstrap. Clusters and a lag are
+  not offered together.
+- A declaration that leaves some fold without a source or a target row is refused
+  (`dose_response.declared_folds_unbalanced`); so are wrong lengths, non-finite weights and a lag
+  outside `[1, n)` (`dose_response.invalid_declared_rows`, `sampling_weights.invalid`).
+- The declarations change the point, the folds and the diagnostics. The Gaussian outcome posterior assumes independent homoskedastic source rows
+  and is refused for declared rows (`dose_response.posterior_declared_rows`).
+- The weights, cluster ids and lag are bound by the artifact's data and premises digests and replay
+  with it. The reference is `crates/antecedent-estimate/tests/smoothed_dose_declared_reference.rs`
+  against 50-digit values.
 
 ## Not in this cell
 

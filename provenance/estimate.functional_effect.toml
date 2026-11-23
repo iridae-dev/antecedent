@@ -8,6 +8,8 @@ copied_tests = false
 # Scalar sibling of estimate.functional_distribution: plug-in evaluation of
 # an already identified scalar functional (ATE / path-specific NE) on
 # empirical discrete tables. Identification is identify.id / path_specific.
+modules = ["crates/antecedent-estimate/src/functional_distribution.rs"]
+
 papers = [
  { title = "Identification of Joint Interventional Distributions in Recursive Semi-Markovian Causal Models", url = "https://escholarship.org/uc/item/9598x714", sections = ["Algorithm ID: lineage of the already identified expression, not the empirical plug-in evaluator"] },
  { title = "Identification of Conditional Interventional Distributions", doi = "10.48550/arXiv.1206.6876", sections = ["IDC algorithm"] },
@@ -26,4 +28,61 @@ upstream_implementations_observed = [
 test_sources = [
  "crates/antecedent-estimate/src/functional_distribution.rs (FunctionalEffect)",
  "conformance/estimate/admg_frontdoor_functional",
+ "crates/antecedent-estimate/tests/functional_distribution_reference.rs (exact-rational back-door, front-door and path-specific effects from contingency counts, and refusal of a contrast that needs an empty cell)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "FunctionalEffect::prepare and ::estimate in crates/antecedent-estimate/src/functional_distribution.rs for a point (non-resampled) evaluation of a scalar identified functional (a general.id average-effect contrast and a path_specific.natural functional) on empirical discrete tables. Not the ID algorithm or path-specific identification (the papers listed are lineage of the evaluated expression), the row bootstrap, the Bayesian-bootstrap path or the shared replicate draws. Probability interval declarations and logit interval calculation moved to functional_distribution/probability_interval.rs; every named bound definition and other bound artifacts were compared unchanged apart from formatting. The two factor inventories now share one traversal; the node push order, each inventory’s distinct deduplication key and its output order were compared with the previously bound source. Empirical factor encoding, provider construction and cache moved to functional_distribution/empirical_provider.rs; all named bound definitions and other bound artifacts were compared unchanged apart from visibility and formatting. Scalar functional-effect preparation and evaluation moved to functional_distribution/effect.rs; all named bound definitions and other bound artifacts were compared unchanged apart from visibility and formatting. The empirical conditional tables are now counted in dense arrays keyed by packed level codes, with each sample’s row keys and each column’s observed codes computed once and shared across factors; construct_cpt_entries, EncodedColumn and EncodedColumns were re-read and the resulting tables, their entry order and every downstream estimate compared bit-identical to the previously bound source on the functional calibration grid."
+assumptions = ["The functional handed to the evaluator is the identified expression (identify.id / path_specific); this review does not examine identification, which is reviewed with those records.", "Discrete variables with finite observed support; the empirical conditional tables are unsmoothed.", "Rows are independent, complete cases."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library. It is not run in a locked, isolated environment and is not wired into any gate; its output is frozen and compared by the test."
+limitations = "Five contingency tables of 40 to 150 rows evaluated exactly with fractions.Fraction: a ternary adjustment variable with ternary outcome and unbalanced or singleton cells, a front-door ternary mediator, a binary napkin with a free variable and a path-specific mediation functional on four binary variables; atoms and means are asserted to 1e-12 absolute. A table that lacks a required cell is refused, for the contrast that reads it only. The evaluator relies on the expression arena, the empirical-table provider and the program evaluator of antecedent-expr, whose arithmetic is exercised here only through these queries and is not reviewed on its own. Not examined: the row bootstrap and Bayesian-bootstrap standard errors and posteriors, the bounded logit atom intervals, the row-weight paths, the stratified or block resampling, the IDC conditioning values, cluster-dependent rows, and the free-variable average beyond the one napkin case. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+sources = ["https://escholarship.org/uc/item/9598x714", "https://doi.org/10.48550/arXiv.1206.6876"]
+findings_resolved = ["No defect: the back-door effect on a ternary adjustment variable, the front-door effect and the path-specific mediation functional equal the exact rational identities.", "A contrast that needs a cell absent from the table is refused, not zero-filled."]
+record_sha256 = "458d72d798ecdedd2c1b74e46a35f2623641ab23cb88268b977d6d7236a6520e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/functional_distribution.rs"
+items = ["const MAX_DISCRETE_LEVELS", "enum RowResampling", "fn align_replicate_atoms", "fn average_over_free_variables", "fn binary_mean_interval", "fn block_length", "fn build_empirical_provider", "fn clear", "fn collect_factor_signatures", "fn collect_observational_factors", "fn conditioning_points", "fn default", "fn estimate", "fn estimate_point", "fn estimate_point_with", "fn eval_err", "fn functional_cell_unevaluable", "fn functional_free_variables", "fn functional_program", "fn new", "fn prepare", "fn program", "fn resample", "fn set_assignments", "fn visit_distribution_nodes", "struct DistributionAtom", "struct FunctionalDistribution", "struct FunctionalDistributionWorkspace", "struct InterventionalDistributionEstimate", "struct PreparedFunctionalDistribution", "type AtomKey", "type FactorKey", "type FactorSignature", "type RetainedFactorFit"]
+sha256 = "f8f7c782b35419e69f2849128e238c2ee17f989247db0543ca3674b63b48bde5"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/functional_distribution/effect.rs"
+items = ["fn default", "fn estimate", "fn new", "fn prepare", "fn program", "fn push_free_variable_law", "fn resample", "struct FunctionalEffect"]
+sha256 = "42a69939233546f3b008b7cb58be7111fff657febc7c6f63b6eca22147538276"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/functional_distribution/empirical_provider.rs"
+items = ["const ACTIVE_FACTOR_CACHE", "const MAX_RETAINED_FITS", "const MAX_RETAINED_VALUES", "fn cartesian_codes", "fn column", "fn complete_rows", "fn construct_cpt_entries", "fn cpt_entries", "fn cpt_entries_uncached", "fn factor_identity", "fn gather", "fn insert_cpt", "fn n", "fn new", "fn observed_codes", "fn ordered_domains", "fn pack_codes", "fn provider_from_columns", "fn push_debug_list", "fn read", "fn resample_rows", "struct EmpiricalFactorCache", "struct EncodedColumn", "struct EncodedColumns", "struct RetainedFactorFits", "type FactorEntries"]
+sha256 = "2ea6b4b09635ffbb02eb9aa7d99dde6cc5c561122294447bb2a42d3d714b882a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/functional_distribution/probability_interval.rs"
+items = ["enum ProbabilityInterval", "enum ProbabilityIntervalUnavailable", "fn logit_probability_interval", "struct AtomUncertainty"]
+sha256 = "ab90941ec75112c30b92b43b3079f92ac4de1f5a646403b68a0a320f1e877060"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/functional_distribution_reference.rs"
+items = ["fn a_cell_missing_under_one_arm_is_refused_for_that_contrast_only", "fn backdoor_dag", "fn backdoor_distribution_atoms_mean_and_effect_match_the_exact_identity", "fn case", "fn cases", "fn close", "fn distribution", "fn do_t", "fn expand", "fn frontdoor_effect_matches_the_exact_formula", "fn napkin_free_variable_is_averaged_by_its_empirical_law", "fn path_specific_mediation_functional_matches_the_exact_identity", "fn v"]
+sha256 = "366d843a4e3becf972b37bcb3928dd6bf78b83fd98c9be6c4bf30194ed0471fa"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-estimate/tests/oracle_data/functional_distribution_reference.py"
+sha256 = "4880acab38c437fdcaade4ea54a87c24ede36b9ea8668f06542f540a87ec7f04"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/functional_distribution_reference.json"
+sha256 = "2d8910b4cb26e41a06f345c395e87165187b584407212248bc3950d7bf570e1b"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-estimate/tests/oracle_data/table_support.rs"
+sha256 = "7cf317d09c3d445a967d230aa5f07970663297a461534e0909c6fa59edb001e7"

@@ -16,7 +16,7 @@
 //! a calibration claim is made for it ([`ObservationClaim::interval`],
 //! [`ObservationClaim::calibrated_probability`] refuse).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::InferenceBasis;
 use antecedent_core::ExecutionContext;

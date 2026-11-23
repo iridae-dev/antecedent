@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import selective_discovery as sd
 from antecedent.errors import CausalValueError
 
@@ -89,19 +90,19 @@ def test_a_changed_population_recomputes_itself_and_the_other_is_served_from_its
             {"north": chain(1), "south": chain(1)},
             CONTRACT,
             "invalid_argument",
-            "selective_discovery.pooled_population_data",
+            reason_details.selective_discovery.POOLED_POPULATION_DATA,
         ),
         (
             {"north": chain(1), "south": collider(2)},
             sd.replace(CONTRACT, additional_populations=("south",)),
             "route_not_supported",
-            "selective_discovery.pooled_population_search",
+            reason_details.selective_discovery.POOLED_POPULATION_SEARCH,
         ),
         (
             {"north": chain(1)},
             CONTRACT,
             "invalid_argument",
-            "selective_discovery.populations_missing",
+            reason_details.selective_discovery.POPULATIONS_MISSING,
         ),
     ],
 )
@@ -128,7 +129,10 @@ def test_differences_between_populations_are_not_selection_targets() -> None:
         driver.request_selection_targets(["y"])
     assert_registered_refusal(info.value)
     assert info.value.reason_code == "discovered_structure_unresolved"
-    assert info.value.detail == "selective_discovery.differences_are_not_selection_targets"
+    assert (
+        info.value.detail
+        == reason_details.selective_discovery.DIFFERENCES_ARE_NOT_SELECTION_TARGETS
+    )
     assert "2 edge(s) differ" in str(info.value.remedy)
     with pytest.raises(CausalValueError):
         driver.request_selection_targets(["nope"])
@@ -161,4 +165,4 @@ def test_every_population_adds_its_own_discovery_stages_to_a_composition_graph()
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
         driver.add_claims(claims.graph, "pp")
     assert_registered_refusal(info.value)
-    assert info.value.detail == "composition_verification.graph_invalid"
+    assert info.value.detail == reason_details.composition_verification.GRAPH_INVALID

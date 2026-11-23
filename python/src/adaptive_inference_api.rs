@@ -9,41 +9,42 @@
 //! the Python layer to raise as a typed exception.
 //!
 //! Every result is point-only. No interval, credible interval or coverage
-//! statement is made: the guarantee route refuses with `cell_not_licensed`.
+//! statement is made: the guarantee route refuses with `not_supported`.
 
 use antecedent::analysis::adaptive_inference::{
     AdaptiveInferenceRefusal, AdaptiveInferenceSession, AdaptiveRequest, CellStatus,
     InferenceParadigm, consume_adaptive_inference_result_artifact,
     consume_adaptive_monitoring_contract_artifact, procedure_cells, procedure_status,
 };
-use antecedent_io::adaptive_monitoring_contract_artifact::{
-    DeclarationWire, contract_boundaries, declaration_from_wire, declaration_to_wire,
+use antecedent::io::adaptive_monitoring_contract_artifact::{
+    AdaptiveMonitoringContractArtifact, DeclarationWire, contract_boundaries,
+    declaration_from_wire, declaration_to_wire,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Value as Json, json};
 
-use crate::measurement_model_api::{object, parse, present, real, small, text};
+use crate::measurement_model_api::{object, opt_flag, parse, present, real, small, text};
 use crate::transport_common::execution_context;
 
-type Refused<T> = (Option<T>, Option<String>);
+pub(crate) type Refused<T> = (Option<T>, Option<String>);
 
 fn refusal_value(refusal: &AdaptiveInferenceRefusal) -> Json {
-    json!({
-        "code": refusal.code,
-        "stage": "adaptive_inference",
-        "detail": refusal.detail,
-        "message": refusal.message,
-        "offending": Json::Null,
-        "remedy": Json::Null,
-    })
+    crate::bridge::compact_refusal_value(
+        refusal.code,
+        "adaptive_inference",
+        &refusal.detail,
+        &refusal.message,
+        None,
+        None,
+    )
 }
 
-fn refused<T>(refusal: &AdaptiveInferenceRefusal) -> Refused<T> {
+pub(crate) fn refused<T>(refusal: &AdaptiveInferenceRefusal) -> Refused<T> {
     (None, Some(refusal_value(refusal).to_string()))
 }
 
-fn refused_all<T>(refusals: &[AdaptiveInferenceRefusal]) -> Refused<T> {
+pub(crate) fn refused_all<T>(refusals: &[AdaptiveInferenceRefusal]) -> Refused<T> {
     let mut first = refusals.first().map_or_else(|| json!({}), refusal_value);
     first["refusals"] = Json::Array(refusals.iter().map(refusal_value).collect());
     (None, Some(first.to_string()))
@@ -75,7 +76,7 @@ fn parse_request(value: &Json) -> PyResult<AdaptiveRequest> {
             scheme: text(map, "scheme")?,
             prior_mean: real(map, "prior_mean")?,
             prior_strength: real(map, "prior_strength")?,
-            size_weighted: present(map, "size_weighted").and_then(Json::as_bool).unwrap_or(false),
+            size_weighted: opt_flag(map, "size_weighted")?.unwrap_or(false),
         },
         "confidence_sequence" => AdaptiveRequest::ConfidenceSequence {
             look,
@@ -114,7 +115,7 @@ fn rule_json(
 
 fn declaration_for_rule(
     rule: antecedent::analysis::adaptive_inference::StoppingRuleDeclaration,
-) -> Option<antecedent_io::adaptive_monitoring_contract_artifact::RuleWire> {
+) -> Option<antecedent::io::adaptive_monitoring_contract_artifact::RuleWire> {
     use antecedent::analysis::adaptive_inference::{
         AdaptiveDesignDeclaration, AssignmentFamily, MonitoringStrategy, OutcomeStructure,
         ProcedureCell, StoppingRuleKind,
@@ -141,20 +142,20 @@ fn declaration_for_rule(
     declaration_to_wire(&shell).stopping_rule
 }
 
-fn status_json(status: &CellStatus) -> Json {
+pub(crate) fn status_json(status: &CellStatus) -> Json {
     match status {
-        CellStatus::Licensed { paradigms } => json!({
-            "class": "licensed",
+        CellStatus::Supported { paradigms } => json!({
+            "class": "supported",
             "paradigms": paradigms.iter().map(|p| p.as_str()).collect::<Vec<_>>(),
         }),
-        CellStatus::ClosedIncoherent { reason } => {
-            json!({"class": "closed_incoherent", "reason": reason})
+        CellStatus::Incoherent { reason } => {
+            json!({"class": "incoherent", "reason": reason})
         }
-        CellStatus::ClosedPairing { reason } => {
-            json!({"class": "closed_pairing", "reason": reason})
+        CellStatus::PairingNotSupported { reason } => {
+            json!({"class": "pairing_not_supported", "reason": reason})
         }
-        CellStatus::CarriedForward { owner, reason } => {
-            json!({"class": "carried_forward", "owner": owner, "reason": reason})
+        CellStatus::NotDelivered { owner, reason } => {
+            json!({"class": "not_delivered", "owner": owner, "reason": reason})
         }
         _ => json!({"class": "unrecognized"}),
     }
@@ -205,29 +206,32 @@ impl AdaptiveInferenceHandle {
     #[pyo3(signature = (request_json, cancel=None))]
     fn analyse(
         &self,
+        py: Python<'_>,
         request_json: &str,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<Refused<String>> {
-        let request = parse_request(&parse(request_json, "adaptive inference request")?)?;
-        let ctx = execution_context(0, None, cancel);
-        Ok(match self.inner.analyse(&request, &ctx) {
-            Ok(outcome) => (
-                Some(
-                    json!({
-                        "paradigm": outcome.paradigm.as_str(),
-                        "procedure": outcome.procedure.identifier(),
-                        "method": outcome.result.method,
-                        "values": outcome.result.values,
-                        "closed_guarantee": outcome.result.closed_guarantee,
-                        "contract_identity": outcome.contract_identity,
-                        "look": outcome.request.look(),
-                        "stopping_rule": rule_json(outcome.stopping_rule),
-                    })
-                    .to_string(),
+        crate::catch_ffi(|| {
+            let request = parse_request(&parse(request_json, "adaptive inference request")?)?;
+            let ctx = execution_context(0, None, cancel);
+            Ok(match py.detach(|| self.inner.analyse(&request, &ctx)) {
+                Ok(outcome) => (
+                    Some(
+                        json!({
+                            "paradigm": outcome.paradigm.as_str(),
+                            "procedure": outcome.procedure.identifier(),
+                            "method": outcome.result.method,
+                            "values": outcome.result.values,
+                            "unsupported_claim": outcome.result.unsupported_claim,
+                            "contract_identity": outcome.contract_identity,
+                            "look": outcome.request.look(),
+                            "stopping_rule": rule_json(outcome.stopping_rule),
+                        })
+                        .to_string(),
+                    ),
+                    None,
                 ),
-                None,
-            ),
-            Err(refusal) => refused(&refusal),
+                Err(refusal) => refused(&refusal),
+            })
         })
     }
 
@@ -246,28 +250,52 @@ impl AdaptiveInferenceHandle {
     #[pyo3(signature = (request_json, cancel=None))]
     fn measured_interval(
         &self,
+        py: Python<'_>,
         request_json: &str,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<(Option<crate::measured_inference_api::NativeMeasuredInference>, Option<String>)>
     {
-        let request = parse_request(&parse(request_json, "adaptive inference request")?)?;
-        let ctx = execution_context(0, None, cancel);
-        Ok(match self.inner.measured_interval(&request, "measured-adaptive-interval", &ctx) {
-            Ok(measured) => (
-                Some(crate::measured_inference_api::NativeMeasuredInference::from_io(measured)?),
-                None,
-            ),
-            Err(refusal) => (None, Some(refusal_value(&refusal).to_string())),
+        crate::catch_ffi(|| {
+            let request = parse_request(&parse(request_json, "adaptive inference request")?)?;
+            let ctx = execution_context(0, None, cancel);
+            Ok(
+                match py.detach(|| {
+                    self.inner.measured_interval(&request, "measured-adaptive-interval", &ctx)
+                }) {
+                    Ok(measured) => (
+                        Some(crate::measured_inference_api::NativeMeasuredInference::from_io(
+                            measured,
+                        )?),
+                        None,
+                    ),
+                    Err(refusal) => (None, Some(refusal_value(&refusal).to_string())),
+                },
+            )
         })
     }
 
     /// The observations behind each look, counted once, as JSON.
+    #[allow(
+        clippy::result_large_err,
+        reason = "the error is the library's refusal type, returned once per call; boxing would change its API"
+    )]
     fn interim_evidence(&self) -> Refused<String> {
         match self.inner.interim_evidence() {
             Ok(evidence) => {
                 let contract = self.inner.contract();
-                let sizes: Vec<usize> =
-                    (0..contract.looks()).map(|l| contract.analysis_units(l).len()).collect();
+                let sizes: Vec<usize> = match (0..contract.looks())
+                    .map(|l| contract.analysis_units(l).map(|units| units.len()))
+                    .collect::<Result<Vec<_>, _>>()
+                {
+                    Ok(sizes) => sizes,
+                    Err(error) => {
+                        return refused(&AdaptiveInferenceRefusal {
+                            code: error.code,
+                            detail: error.detail,
+                            message: error.remedy.unwrap_or("").to_owned(),
+                        });
+                    }
+                };
                 let pooling = contract
                     .refuse_independent_pooling_of_looks(&evidence)
                     .err()
@@ -298,11 +326,20 @@ impl AdaptiveInferenceHandle {
         py: Python<'_>,
         paradigm: &str,
         artifact_id: &str,
-    ) -> PyResult<Refused<Py<PyBytes>>> {
-        let paradigm = paradigm_of(paradigm)?;
-        Ok(match self.inner.export_contract(paradigm, artifact_id) {
-            Ok(bytes) => (Some(PyBytes::new(py, &bytes).unbind()), None),
-            Err(refusal) => refused(&refusal),
+    ) -> PyResult<Refused<(Py<PyBytes>, String)>> {
+        crate::catch_ffi(|| {
+            let paradigm = paradigm_of(paradigm)?;
+            Ok(match self.inner.export_contract(paradigm, artifact_id) {
+                Ok(bytes) => {
+                    // These are freshly produced bytes, not an untrusted consumer input.
+                    // Return the artifact's identity, which also binds the selected paradigm.
+                    let identity = AdaptiveMonitoringContractArtifact::decode_unchecked(&bytes)
+                        .map_err(|error| crate::serialization_err(error.to_string()))?
+                        .identity;
+                    (Some((PyBytes::new(py, &bytes).unbind(), identity)), None)
+                }
+                Err(refusal) => refused(&refusal),
+            })
         })
     }
 
@@ -315,15 +352,27 @@ impl AdaptiveInferenceHandle {
         paradigm: &str,
         procedure: PyRef<'_, crate::adaptive_participant_api::ParticipantProcedureHandle>,
         artifact_id: &str,
-    ) -> PyResult<Refused<Py<PyBytes>>> {
-        let paradigm = paradigm_of(paradigm)?;
-        Ok(
-            match self.inner.export_contract_with_procedure(paradigm, &procedure.inner, artifact_id)
-            {
-                Ok(bytes) => (Some(PyBytes::new(py, &bytes).unbind()), None),
-                Err(refusal) => refused(&refusal),
-            },
-        )
+    ) -> PyResult<Refused<(Py<PyBytes>, String)>> {
+        crate::catch_ffi(|| {
+            let paradigm = paradigm_of(paradigm)?;
+            Ok(
+                match self.inner.export_contract_with_procedure(
+                    paradigm,
+                    &procedure.inner,
+                    artifact_id,
+                ) {
+                    Ok(bytes) => {
+                        // These are freshly produced bytes, not an untrusted consumer input.
+                        // Return the artifact's identity, which also binds the selected paradigm.
+                        let identity = AdaptiveMonitoringContractArtifact::decode_unchecked(&bytes)
+                            .map_err(|error| crate::serialization_err(error.to_string()))?
+                            .identity;
+                        (Some((PyBytes::new(py, &bytes).unbind(), identity)), None)
+                    }
+                    Err(refusal) => refused(&refusal),
+                },
+            )
+        })
     }
 
     /// Export a result bound to its monitoring contract.
@@ -334,12 +383,20 @@ impl AdaptiveInferenceHandle {
         request_json: &str,
         artifact_id: &str,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<Refused<Py<PyBytes>>> {
-        let request = parse_request(&parse(request_json, "adaptive inference request")?)?;
-        let ctx = execution_context(0, None, cancel);
-        Ok(match self.inner.export_result(&request, artifact_id, &ctx) {
-            Ok(bytes) => (Some(PyBytes::new(py, &bytes).unbind()), None),
-            Err(refusal) => refused(&refusal),
+    ) -> PyResult<Refused<(Py<PyBytes>, String)>> {
+        crate::catch_ffi(|| {
+            let request = parse_request(&parse(request_json, "adaptive inference request")?)?;
+            let ctx = execution_context(0, None, cancel);
+            Ok(match py.detach(|| self.inner.export_result(&request, artifact_id, &ctx)) {
+                Ok(bytes) => {
+                    // The result identity also binds the request and recomputed values;
+                    // the session's contract identity is not a substitute for it.
+                    let identity = antecedent::io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact::decode_unchecked(&bytes)
+                    .map_err(|error| crate::serialization_err(error.to_string()))?.identity;
+                    (Some((PyBytes::new(py, &bytes).unbind(), identity)), None)
+                }
+                Err(refusal) => refused(&refusal),
+            })
         })
     }
 }
@@ -365,17 +422,19 @@ impl ConsumedAdaptiveResultHandle {
 fn adaptive_inference_prepare(
     declaration_json: &str,
 ) -> PyResult<Refused<AdaptiveInferenceHandle>> {
-    let value = parse(declaration_json, "adaptive design")?;
-    let wire: DeclarationWire = serde_json::from_value(value).map_err(|error| {
-        crate::value_err(format!("invalid adaptive design declaration: {error}"))
-    })?;
-    let declaration = match declaration_from_wire(&wire) {
-        Ok(declaration) => declaration,
-        Err(error) => return Err(crate::value_err(error.to_string())),
-    };
-    Ok(match AdaptiveInferenceSession::prepare(declaration) {
-        Ok(inner) => (Some(AdaptiveInferenceHandle { inner }), None),
-        Err(refusals) => refused_all(&refusals),
+    crate::catch_ffi(|| {
+        let value = parse(declaration_json, "adaptive design")?;
+        let wire: DeclarationWire = serde_json::from_value(value).map_err(|error| {
+            crate::value_err(format!("invalid adaptive design declaration: {error}"))
+        })?;
+        let declaration = match declaration_from_wire(&wire) {
+            Ok(declaration) => declaration,
+            Err(error) => return Err(crate::value_err(error.to_string())),
+        };
+        Ok(match AdaptiveInferenceSession::prepare(declaration) {
+            Ok(inner) => (Some(AdaptiveInferenceHandle { inner }), None),
+            Err(refusals) => refused_all(&refusals),
+        })
     })
 }
 
@@ -425,12 +484,15 @@ fn adaptive_monitoring_contract_consume(
 #[pyfunction]
 #[pyo3(signature = (artifact, expected_identity=None, cancel=None))]
 fn adaptive_inference_result_consume(
+    py: Python<'_>,
     artifact: &[u8],
     expected_identity: Option<&str>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> Refused<ConsumedAdaptiveResultHandle> {
     let ctx = execution_context(0, None, cancel);
-    match consume_adaptive_inference_result_artifact(artifact, expected_identity, &ctx) {
+    match py
+        .detach(|| consume_adaptive_inference_result_artifact(artifact, expected_identity, &ctx))
+    {
         Ok(consumed) => {
             let result = consumed.result();
             let summary = json!({
@@ -440,7 +502,7 @@ fn adaptive_inference_result_consume(
                 "stopping_rule": rule_json(consumed.stopping_rule()),
                 "method": result.method,
                 "values": result.values,
-                "closed_guarantee": result.closed_guarantee,
+                "unsupported_claim": result.unsupported_claim,
             });
             (Some(ConsumedAdaptiveResultHandle { summary: summary.to_string() }), None)
         }
@@ -478,4 +540,29 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(adaptive_inference_result_consume, module)?)?;
     module.add_function(wrap_pyfunction!(adaptive_procedure_matrix, module)?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod compact_refusal_caller_tests {
+    use super::{AdaptiveInferenceRefusal, refusal_value, refused_all};
+
+    #[test]
+    fn adaptive_refusal_values_and_aggregation_keep_their_shape() {
+        let first = AdaptiveInferenceRefusal {
+            code: "invalid_argument",
+            detail: "adaptive.first".into(),
+            message: "first".into(),
+        };
+        let second = AdaptiveInferenceRefusal {
+            code: "route_not_supported",
+            detail: "adaptive.second".into(),
+            message: "second".into(),
+        };
+        let expected_first = serde_json::json!({"code":"invalid_argument", "stage":"adaptive_inference", "detail":"adaptive.first", "message":"first", "offending":null, "remedy":null});
+        assert_eq!(refusal_value(&first), expected_first);
+        let (_, wire): (Option<()>, _) = refused_all(&[first, second]);
+        let parsed: serde_json::Value = serde_json::from_str(&wire.unwrap()).unwrap();
+        assert_eq!(parsed["code"], "invalid_argument");
+        assert_eq!(parsed["refusals"].as_array().unwrap().len(), 2);
+    }
 }

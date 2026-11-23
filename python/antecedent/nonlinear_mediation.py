@@ -25,13 +25,14 @@ nodes; the estimate is computed with ``n`` and ``2n`` nodes and the disagreement
 Identification is **declared**, never inferred: pass a :class:`MediationPremises`. A declared
 unmeasured treatment-outcome, treatment-mediator or mediator-outcome confounder, a
 treatment-induced mediator-outcome confounder, or an undeclared cross-world independence
-refuses. The interventional (randomized-draw) estimand is closed and refuses with
-``nonlinear_mediation.interventional_effects_closed``.
+refuses. The interventional (randomized-draw) estimand is unsupported and refuses with
+``nonlinear_mediation.interventional_effects_not_supported``.
 
-Bootstrap standard errors (fixed seed, replicate ids ``0 .. replicates``) have calibration
-``"unmeasured"``: no coverage claim is made and no public interval is produced
-(``interval_status == "closed_calibration_unmeasured"``). The point estimates and the
-diagnostics are the claim.
+Bootstrap standard errors and percentile bootstrap intervals (fixed seed, replicate ids
+``0 .. replicates``; ``interval_status == "percentile_bootstrap_interval"``) are reported for the
+three effects. Calibration is an annotation: each :class:`MediationInterval` carries the slot
+resolved from its basis (``calibrated`` only inside a measured record), and ``calibration`` is
+``"resolved_from_basis"``.
 
 :func:`consume_mediation_artifact` re-estimates from the artifact's embedded dataset under the
 stored seed and refuses unless every stored value reproduces bit for bit; with ``expected_identity`` (the
@@ -50,6 +51,15 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
+from antecedent import _reason_details
+
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._columns import coerce_fields
 from ._native import consume_nonlinear_mediation_artifact as _consume
 from ._native import evaluate_nonlinear_mediation as _evaluate
@@ -57,6 +67,7 @@ from ._refusal import raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count, non_finite_refusal, real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+from .execution import Execution, resolve_execution
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
@@ -67,6 +78,7 @@ __all__ = [
     "MediationEffects",
     "MediationEstimand",
     "MediationIdentity",
+    "MediationInterval",
     "MediationOverlap",
     "MediationPremise",
     "MediationPremises",
@@ -85,7 +97,7 @@ class MediationRefusal(StructuredRefusal):
 
     ``reason_code`` is the registered code; ``detail`` is the namespaced ``family.slot`` slot
     (for example ``nonlinear_mediation.confounding``,
-    ``nonlinear_mediation.interventional_effects_closed``, ``nonlinear_mediation.overlap`` or
+    ``nonlinear_mediation.interventional_effects_not_supported``, ``nonlinear_mediation.overlap`` or
     ``nonlinear_mediation.integration_error``). ``stage`` is ``estimate`` or ``consume`` and
     ``offending`` names a changed identity field when a consumer refused one.
     """
@@ -187,8 +199,24 @@ class MediationOverlap:
 
 
 @dataclass(frozen=True, slots=True)
+class MediationInterval:
+    """A percentile bootstrap interval of one effect with its calibration slot."""
+
+    effect: str
+    lower: float
+    upper: float
+    #: The calibration slot: ``status`` is ``calibrated``, ``outside_measured_scope``,
+    #: ``measured_below_nominal`` or ``not_measured``.
+    calibration: Mapping[str, Any]
+
+    @property
+    def status(self) -> str:
+        return str(self.calibration["status"])
+
+
+@dataclass(frozen=True, slots=True)
 class MediationBootstrap:
-    """The bootstrap record: seed, replicate ids and the closed interval status."""
+    """The bootstrap record: seed, replicate ids and the interval method."""
 
     seed: int
     replicates_requested: int
@@ -196,7 +224,7 @@ class MediationBootstrap:
     replicate_ids: tuple[int, ...]
     failed_replicate_ids: tuple[int, ...]
     id_scheme: str
-    #: ``"closed_calibration_unmeasured"``: no public interval is produced.
+    #: ``"percentile_bootstrap_interval"``.
     interval_status: str
 
 
@@ -228,7 +256,7 @@ class MediationEffects(ScientificResult):
     """Natural effects, their diagnostics and the portable artifact.
 
     ``natural_direct``, ``natural_indirect`` and ``total`` are the claim; ``*_se`` are bootstrap
-    standard errors with ``calibration == "unmeasured"`` and no interval. ``integration_error``
+    standard errors; ``intervals`` are the percentile bootstrap intervals with their calibration slots. ``integration_error``
     is the ``coarse_nodes`` versus ``fine_nodes`` (``2n``) disagreement as a fraction of the
     outcome standard deviation; the point estimates use ``fine_nodes``.
     """
@@ -240,6 +268,9 @@ class MediationEffects(ScientificResult):
     natural_direct_se: float | None
     natural_indirect_se: float | None
     total_se: float | None
+    interval_level: float
+    intervals: tuple[MediationInterval, ...]
+    interval_unavailable_reason: str | None
     identity_residual: float
     integration_error: float
     coarse_nodes: int
@@ -265,13 +296,8 @@ class MediationEffects(ScientificResult):
     _artifact_bytes: bytes | None
     _export_refusal: str | None = field(default=None, repr=False)
 
-    def artifact(self) -> ExportedArtifact[MediationEffects]:
-        """Typed bytes envelope for shared scientific consumption."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self)
-
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[MediationEffects]:
         """The checksummed ``nonlinear_mediation_v1`` artifact.
 
         Raises :class:`MediationRefusal` (``route_not_supported``,
@@ -281,7 +307,7 @@ class MediationEffects(ScientificResult):
         if self._artifact_bytes is None:
             raise_refusal(self._export_refusal, MediationRefusal)
         assert self._artifact_bytes is not None
-        return self._artifact_bytes
+        return artifact_from_receipt(self, self._artifact_bytes)
 
     def to_dict(self) -> dict[str, Any]:
         """A plain, JSON-serializable summary (no artifact bytes)."""
@@ -293,6 +319,17 @@ class MediationEffects(ScientificResult):
             "natural_direct_se": self.natural_direct_se,
             "natural_indirect_se": self.natural_indirect_se,
             "total_se": self.total_se,
+            "interval_level": self.interval_level,
+            "intervals": [
+                {
+                    "effect": i.effect,
+                    "lower": i.lower,
+                    "upper": i.upper,
+                    "calibration": dict(i.calibration),
+                }
+                for i in self.intervals
+            ],
+            "interval_unavailable_reason": self.interval_unavailable_reason,
             "identity_residual": self.identity_residual,
             "integration_error": self.integration_error,
             "coarse_nodes": self.coarse_nodes,
@@ -326,6 +363,7 @@ class MediationEffects(ScientificResult):
 def _result(
     report_json: str, artifact: bytes | None, export_refusal: str | None = None
 ) -> MediationEffects:
+    artifact = container_bytes(artifact) if artifact is not None else None
     meta = json.loads(report_json)
     r = meta["result"]
     overlap = r["overlap"]
@@ -343,6 +381,17 @@ def _result(
         natural_direct_se=optional(r["natural_direct_se"]),
         natural_indirect_se=optional(r["natural_indirect_se"]),
         total_se=optional(r["total_se"]),
+        interval_level=float(r["interval_level"]),
+        intervals=tuple(
+            MediationInterval(
+                effect=str(i["effect"]),
+                lower=float(i["lower"]),
+                upper=float(i["upper"]),
+                calibration=dict(i["calibration"]),
+            )
+            for i in r["intervals"]
+        ),
+        interval_unavailable_reason=r["interval_unavailable_reason"],
         identity_residual=float(r["identity_residual"]),
         integration_error=float(r["integration_error"]),
         coarse_nodes=int(r["coarse_nodes"]),
@@ -431,7 +480,9 @@ _real = partial(
     real,
     finite=True,
     non_finite=non_finite_refusal(
-        MediationRefusal, stage="estimate", detail="nonlinear_mediation.non_finite_option"
+        MediationRefusal,
+        stage="estimate",
+        detail=_reason_details.nonlinear_mediation.NON_FINITE_OPTION,
     ),
 )
 
@@ -486,7 +537,7 @@ def mediation_effects(
     declared confounding (``effect_not_identified``, ``nonlinear_mediation.confounding``), a
     treatment-induced confounder or undeclared cross-world independence
     (``cross_world_not_identified``), the interventional estimand
-    (``route_not_supported``, ``nonlinear_mediation.interventional_effects_closed``), weak
+    (``route_not_supported``, ``nonlinear_mediation.interventional_effects_not_supported``), weak
     overlap (``nonlinear_mediation.overlap``), an integration error above tolerance
     (``nonlinear_mediation.integration_error``) and degenerate or rank-deficient models.
     """
@@ -539,15 +590,19 @@ def mediation_effects(
     return _result(report, bytes(artifact))
 
 
+@artifact_consumer(
+    proof="nonlinear_mediation.consume_mediation_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+)
 def consume_mediation_artifact(
     artifact: bytes,
     *,
     expected_identity: MediationIdentity | Mapping[str, str] | None = None,
-    memory_limit_bytes: int | None = None,
     treatment: Any = None,
     mediator: Any = None,
     outcome: Any = None,
     covariates: Any = None,
+    execution: Execution | None = None,
 ) -> MediationEffects:
     """Re-estimate an exported mediation artifact and accept only an identical one.
 
@@ -559,13 +614,15 @@ def consume_mediation_artifact(
     Corruption and unknown major versions raise
     :class:`~antecedent.errors.CausalSerializationError`.
 
-    ``memory_limit_bytes`` bounds the re-estimation's planned working set
+    ``execution.limits.memory_bytes`` bounds the re-estimation's planned working set
     (``nonlinear_mediation.memory_budget_exceeded``). An artifact exported with
     ``data_binding="digest"`` holds no rows: pass ``treatment``, ``mediator``, ``outcome`` and
     ``covariates`` (the dataset it was estimated on); any other dataset is refused
     (``IdentityMismatch``, ``data``) and omitting it refuses with
     ``nonlinear_mediation.data_required``.
     """
+    execution = resolve_execution(execution)
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     if expected_identity is None:
@@ -598,7 +655,7 @@ def consume_mediation_artifact(
             "covariates need treatment, mediator and outcome", reason_code="invalid_argument"
         )
     report, refusal = _consume(
-        data, expected_json, memory_limit_bytes=memory_limit_bytes, data=supplied
+        data, expected_json, memory_limit_bytes=execution.limits.memory_bytes, data=supplied
     )
     raise_refusal(refusal, MediationRefusal)
     if report is None:  # pragma: no cover - the native contract

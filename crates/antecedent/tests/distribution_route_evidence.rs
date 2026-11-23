@@ -1,7 +1,8 @@
 //! Coordinate-specific closure evidence for prepared finite-discrete distributions.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite,
     StructureSource, Study,
@@ -12,7 +13,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Admg, Dag, DenseNodeId};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 fn distribution_fixture() -> (TabularData, Dag, Admg, InterventionalDistributionQuery) {
     let mut treatment = Vec::new();
@@ -101,8 +102,11 @@ fn verify_distribution_coordinate(
         if accepted { StructureSource::Accepted } else { StructureSource::Explicit },
         "{coordinate} source"
     );
-    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed), "{coordinate}");
-    let contract = prepared.contract().unwrap();
+    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Supported), "{coordinate}");
+    let (contract, inspection_work) =
+        antecedent_expr::execution_counts::count_static_work(|| prepared.contract().unwrap());
+    assert_eq!(inspection_work.factor_builds, 0, "{coordinate}: contract scanned factors");
+    assert_eq!(inspection_work.provider_bindings, 0, "{coordinate}: contract rebound providers");
     assert_eq!(contract.query_kind.as_ref(), "InterventionalDistribution", "{coordinate}");
     assert_eq!(contract.identifier.as_deref(), Some("general.id"), "{coordinate}");
     assert_eq!(contract.estimator.as_deref(), Some("functional.distribution"), "{coordinate}");
@@ -111,11 +115,13 @@ fn verify_distribution_coordinate(
         SlotAvailability::Available(slot) => assert_eq!(
             slot.matrix_coordinate.as_deref(),
             Some(coordinate),
-            "prepared handle must bind the exact licensed coordinate"
+            "prepared handle must bind the exact supported coordinate"
         ),
         other => panic!("{coordinate} support slot unavailable: {other:?}"),
     }
-    let program = prepared.checked_distribution_program().expect("retained checked program");
+    let RetainedOperation::Distribution(program) = prepared.retained_operation() else {
+        panic!("retained checked program")
+    };
     assert_eq!(program.mapping().source, program.mapping().executable, "{coordinate}");
     assert!(!program.factor_requirements().is_empty(), "{coordinate}");
     assert_eq!(prepared.plan().logical.record.identifier.as_deref(), Some("general.id"));
@@ -167,38 +173,63 @@ fn verify_distribution_coordinate(
         result.refutations.iter().map(|report| report.refuter.as_ref()).collect::<Vec<_>>()
     );
 
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     let refreshed_distribution = refreshed.distribution().expect("refreshed distribution");
     assert!(
         (refreshed_distribution.mean - 0.7).abs() < if bayesian { 0.08 } else { 1e-12 },
         "{coordinate}: refreshed mean {}",
         refreshed_distribution.mean
     );
-    assert!(prepared.checked_distribution_program().is_some(), "{coordinate} retained program");
+    assert!(
+        matches!(prepared.retained_operation(), RetainedOperation::Distribution(..)),
+        "{coordinate} retained program"
+    );
 
     let artifact = prepared
         .encode_contracted_result(&refreshed, &format!("distribution-{coordinate}"), &ctx)
         .unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
+    let is_replay = |reason: &std::sync::Arc<str>| {
+        matches!(
+            reason.as_ref(),
+            "dependencies.refutation_replay" | "dependencies.scoped_refutation_replay"
+        )
+    };
+    let unresolved = consumed.acceptance.unresolved.to_vec();
+    let replay: Vec<_> = unresolved.iter().filter(|reason| is_replay(reason)).cloned().collect();
+    let others: Vec<_> = unresolved.iter().filter(|reason| !is_replay(reason)).cloned().collect();
+    if suite_name == "none" {
+        assert!(consumed.body.refutations.is_empty(), "{coordinate}");
+        assert!(replay.is_empty(), "{coordinate}: {unresolved:?}");
+    } else {
+        // A compact artifact cannot replay a refuter without the data, so the
+        // refutation replay obligation is the only addition over the unvalidated twin.
+        assert!(!consumed.body.refutations.is_empty(), "{coordinate}");
+        assert!(!replay.is_empty(), "{coordinate}: {unresolved:?}");
+        assert_eq!(
+            &unresolved[..replay.len()],
+            replay.as_slice(),
+            "{coordinate}: replay reasons come first: {unresolved:?}"
+        );
+        assert!(!consumed.acceptance.accepts_as_replayed_program(), "{coordinate}");
+    }
     if bayesian {
         assert!(
-            consumed
-                .acceptance
-                .unresolved
+            others
                 .iter()
                 .any(|reason| reason.as_ref() == "dependencies.distribution_posterior_factor_draws"),
-            "{coordinate}: expected precise posterior-factor-draw replay dependency, got {:?}",
-            consumed.acceptance.unresolved
+            "{coordinate}: expected precise posterior-factor-draw replay dependency, got {unresolved:?}"
         );
         assert!(
-            !consumed.acceptance.accepts_as_verified_program(),
+            !consumed.acceptance.accepts_as_replayed_program(),
             "{coordinate}: posterior factor draws cannot yet be independently replayed"
         );
     } else {
-        assert!(
-            consumed.acceptance.accepts_as_verified_program(),
-            "{coordinate}: {:?}",
-            consumed.acceptance.unresolved
+        assert!(others.is_empty(), "{coordinate}: {unresolved:?}");
+        assert_eq!(
+            consumed.acceptance.accepts_as_replayed_program(),
+            suite_name == "none",
+            "{coordinate}: {unresolved:?}"
         );
         assert_eq!(consumed.body.estimate, Some(0.7), "{coordinate}");
     }
@@ -383,13 +414,14 @@ fn resolved_only_distribution_artifact(bayesian: bool) -> antecedent_io::Analysi
         } else {
             InferenceMode::Frequentist
         })
+        .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
         .build()
         .unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let artifact = prepared.encode_contracted_result(&result, "resolved-only", &ctx).unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     let contract = consumed.contract.as_ref().expect("contracted artifact");
     assert_eq!(contract.estimator, None, "the study never declared an estimator");
     assert_eq!(
@@ -425,7 +457,7 @@ fn rebind_claim(
 fn resolved_only_frequentist_distribution_replays_atoms() {
     let consumed = resolved_only_distribution_artifact(false);
     assert!(
-        consumed.acceptance.accepts_as_verified_program(),
+        consumed.acceptance.accepts_as_replayed_program(),
         "{:?}",
         consumed.acceptance.unresolved
     );
@@ -449,7 +481,7 @@ fn resolved_only_frequentist_distribution_replays_atoms() {
 #[test]
 fn resolved_only_bayesian_distribution_names_posterior_dependency() {
     let consumed = resolved_only_distribution_artifact(true);
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert!(
         consumed
             .acceptance
@@ -477,7 +509,7 @@ fn conditioned_distribution_refuses_a_forged_scalar_estimate() {
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let artifact = prepared.encode_contracted_result(&result, "conditioned", &ctx).unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     assert_eq!(consumed.body.estimate, None, "two conditioning strata define no single mean");
 
     let mut body = consumed.body.clone();
@@ -500,4 +532,162 @@ fn conditioned_distribution_refuses_a_forged_scalar_estimate() {
         unresolved.iter().any(|reason| reason.as_ref() == "body.interventional_distribution"),
         "verification must refuse a scalar the atoms do not define: {unresolved:?}"
     );
+}
+
+#[test]
+fn retained_distribution_factor_reuse_checks_contents_masks_weights_validity_and_schema() {
+    use antecedent_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, ValidityBitmap,
+    };
+    use std::sync::Arc;
+
+    let (data, dag, _, query) = distribution_fixture();
+    let ctx = ExecutionContext::for_tests(2_102);
+    let study = |rows: TabularData| {
+        Study::tabular(rows)
+            .graph(dag.clone())
+            .query(CausalQuery::Distribution(query.clone()))
+            .identifier(IdentifierId::GeneralId)
+            .estimator(EstimatorId::FunctionalDistribution)
+            .bootstrap_replicates(0)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+    };
+    let original = study(data.clone()).prepare(&ctx).unwrap();
+    let before = original.contract().unwrap().identities;
+    let n = data.row_count();
+    let mut mask = vec![0xff; n.div_ceil(8)];
+    mask[0] &= !1;
+    let mask = ValidityBitmap::from_bytes(mask, n).unwrap();
+    let columns = data.storage().columns().to_vec();
+    let make = |columns, mask, weights| {
+        TabularData::new(
+            OwnedColumnarStorage::try_new(data.schema().clone(), columns, mask, weights).unwrap(),
+        )
+    };
+    let masked = make(columns.clone(), Some(mask.clone()), None);
+    let mut weights = vec![1.0; n];
+    weights[0] = 2.0;
+    let weighted = make(columns.clone(), None, Some(Arc::from(weights)));
+    let mut incomplete_columns = columns.clone();
+    incomplete_columns[1] = OwnedColumn::Float64(
+        Float64Column::new(
+            VariableId::from_raw(1),
+            Arc::from(data.float64_values(VariableId::from_raw(1)).unwrap()),
+            mask,
+        )
+        .unwrap(),
+    );
+    let incomplete = make(incomplete_columns, None, None);
+    let mut changed_columns = columns;
+    let mut outcomes = data.float64_values(VariableId::from_raw(1)).unwrap();
+    outcomes[0] = 1.0;
+    changed_columns[1] = OwnedColumn::Float64(
+        Float64Column::new(
+            VariableId::from_raw(1),
+            Arc::from(outcomes),
+            ValidityBitmap::all_valid(n),
+        )
+        .unwrap(),
+    );
+    let changed = make(changed_columns, None, None);
+    // Observation weights are not read by a distribution route, so rebinding to a weighted
+    // table is refused rather than answering for the unweighted rows.
+    let refused = rebind_estimate(&mut original.clone(), weighted.clone(), &ctx)
+        .err()
+        .expect("weights on a distribution route must be refused");
+    assert!(
+        format!("{refused:?}")
+            .contains(antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED),
+        "{refused:?}"
+    );
+    assert!(study(weighted).prepare(&ctx).is_err());
+    for (label, rows) in [("mask", masked), ("validity", incomplete), ("values", changed)] {
+        let mut prepared = original.clone();
+        let refreshed = rebind_estimate(&mut prepared, rows.clone(), &ctx).unwrap();
+        let cold = study(rows.clone()).prepare(&ctx).unwrap();
+        let fresh = cold.estimate(&rows, &ctx).unwrap();
+        let actual = refreshed.distribution().unwrap();
+        let expected = fresh.distribution().unwrap();
+        assert_eq!(actual.mean.to_bits(), expected.mean.to_bits(), "{label}: stale mean");
+        assert_eq!(actual.atoms, expected.atoms, "{label}: stale factor laws");
+        let (contract, work) =
+            antecedent_expr::execution_counts::count_static_work(|| prepared.contract().unwrap());
+        assert_eq!(work.factor_builds, 0, "{label}: refreshed provider was discarded");
+        assert_eq!(work.provider_bindings, 0, "{label}: refreshed provider was discarded");
+        assert_eq!(contract.identities, cold.contract().unwrap().identities, "{label}");
+        assert_eq!(
+            before.program, contract.identities.program,
+            "{label}: frozen scientific program"
+        );
+        assert_ne!(
+            before.data_snapshot, contract.identities.data_snapshot,
+            "{label}: changed snapshot"
+        );
+    }
+    let renamed = TabularData::from_f64_columns([
+        ("renamed_t", data.float64_slice(VariableId::from_raw(0)).unwrap()),
+        ("y", data.float64_slice(VariableId::from_raw(1)).unwrap()),
+        ("z", data.float64_slice(VariableId::from_raw(2)).unwrap()),
+    ])
+    .unwrap();
+    assert_eq!(renamed.storage().content_digest(), data.storage().content_digest());
+    let mut prepared = original.clone();
+    assert!(
+        rebind_estimate(&mut prepared, renamed, &ctx).is_err(),
+        "matching storage bytes cannot bypass schema"
+    );
+    assert_eq!(before, prepared.contract().unwrap().identities);
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
+}
+
+#[test]
+fn a_distribution_sequence_cannot_intervene_on_its_outcome_or_conditioning() {
+    use antecedent_core::{
+        InterventionSequence, QueryError, SequencedIntervention, TemporalPolicy,
+    };
+    let v = VariableId::from_raw;
+    let sequence = Intervention::sequence(InterventionSequence::new(vec![
+        SequencedIntervention::new(
+            Intervention::set(v(0), Value::f64(1.0)),
+            TemporalPolicy::pulse(0),
+        ),
+        SequencedIntervention::new(
+            Intervention::set(v(1), Value::f64(1.0)),
+            TemporalPolicy::pulse(1),
+        ),
+    ]));
+    for (query, expected) in [
+        (
+            InterventionalDistributionQuery::new(v(1), [sequence.clone()]),
+            QueryError::OutcomeIsInterventionTarget { id: v(1) },
+        ),
+        (
+            InterventionalDistributionQuery::new(v(2), [sequence]).with_conditioning([v(1)]),
+            QueryError::ConditioningOverlapsOutcomeOrIntervention,
+        ),
+    ] {
+        let (data, dag, _, _) = distribution_fixture();
+        let result = Study::tabular(data)
+            .graph(dag)
+            .query(CausalQuery::Distribution(query))
+            .identifier(IdentifierId::GeneralId)
+            .estimator(EstimatorId::FunctionalDistribution)
+            .build()
+            .and_then(|study| study.prepare(&ExecutionContext::for_tests(2_102)).map(|_| ()));
+        assert_eq!(result.unwrap_err(), antecedent::CausalError::from(expected));
+    }
 }

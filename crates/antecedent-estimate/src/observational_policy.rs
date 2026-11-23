@@ -33,11 +33,12 @@
 //!   `(K - 1) / K` of a large sample. When the learned rule varies materially between folds
 //!   the pooled standard error is only approximate and carries no correction here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalRng, ExecutionContext};
+use antecedent_core::identity::{CanonicalWriter, ReusableProduct};
+use antecedent_core::{CausalRng, ExecutionContext, SemanticDigest};
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, GlmOptions, LeastSquaresWorkspace};
 
 use crate::aipw::predict_colmajor;
@@ -45,8 +46,12 @@ use crate::crossfit_plan::{
     CrossfitPlan, FoldRows, FoldSource, SHARED_FOLD_ID_ERRORS, rows_colmajor,
 };
 use crate::error::EstimationError;
+use crate::nuisance_cache::{
+    FoldIdentity, NuisanceCacheKey, NuisanceKeyBuilder, NuisanceOptions, ProviderDependency,
+};
+use crate::nuisance_keys::{PROVIDER_VERSION, glm_numerical};
 use crate::propensity::{CategoryTrainingRows, fit_category_probabilities};
-use crate::util::{refuse, stats_err};
+use crate::util::refuse;
 
 /// Smallest number of rows the value is scored on.
 pub const MIN_EVALUATION_ROWS: usize = 50;
@@ -154,7 +159,7 @@ pub struct PolicyValueEstimate {
     pub objective: PolicyObjective,
     /// Doubly robust policy value.
     pub value: f64,
-    /// Influence-function standard error (calibration unmeasured).
+    /// Influence-function standard error (calibration `not_measured`).
     pub se: f64,
     /// The value of each declared action given to everyone, in declaration order.
     pub action_values: Vec<ActionValue>,
@@ -168,7 +173,7 @@ pub struct PolicyValueEstimate {
     /// Rows dropped for a missing or non-finite cell.
     pub rows_dropped_missing: u64,
     /// Original row index of each scored row.
-    pub row_index: Vec<u32>,
+    pub row_index: Vec<antecedent_data::GlobalId>,
     /// The action the policy takes at each scored row.
     pub policy_actions: Vec<f64>,
     /// The doubly robust score of each scored row.
@@ -216,6 +221,10 @@ pub struct ObservationalPolicyValue {
     /// Known assignment probabilities that replace the fitted propensity model; `None`
     /// estimates them by a multinomial logit on the declared covariates.
     pub known_propensity: Option<KnownPropensity>,
+    /// Adjustment-column indices the learned policy may read. `None` preserves
+    /// the original learner, which reads every adjustment column. Propensity
+    /// and outcome nuisance fits always read every adjustment column.
+    pub policy_features: Option<Vec<usize>>,
     /// GLM options of the propensity model.
     pub glm_options: GlmOptions,
 }
@@ -236,6 +245,7 @@ impl ObservationalPolicyValue {
             folds: DEFAULT_POLICY_FOLDS,
             min_propensity: DEFAULT_MIN_PROPENSITY,
             known_propensity: None,
+            policy_features: None,
             glm_options: GlmOptions::default(),
         }
     }
@@ -257,6 +267,20 @@ impl ObservationalPolicyValue {
     ) -> Result<PolicyValueEstimate, EstimationError> {
         self.validate()?;
         let prepared = Prepared::new(self, data)?;
+        if let Some(features) = &self.policy_features {
+            let mut distinct = features.clone();
+            distinct.sort_unstable();
+            distinct.dedup();
+            if distinct.len() != features.len()
+                || distinct.iter().any(|&index| index >= data.covariates.len())
+            {
+                return Err(refuse(
+                    antecedent_core::reason_code!("invalid_argument"),
+                    antecedent_core::reason_details::policy_value::INVALID_DATA,
+                    "policy feature indices must be distinct adjustment columns",
+                ));
+            }
+        }
         let k = self.support.len();
         let n = prepared.n;
         let plan = match &self.evaluation {
@@ -267,23 +291,103 @@ impl ObservationalPolicyValue {
                 Splits::folds(&prepared, self.folds, ctx.rng.master_seed())?
             }
         };
+        // The split nuisances do not depend on the policy being scored, so a batch of policies
+        // over the same rows, support and splits fits them once.
+        let fits = crate::crossfit_cache::reuse_in_active_scope(
+            || self.nuisance_key(&prepared, &plan, ctx.rng.master_seed()),
+            (16 * k as u64).saturating_mul(n as u64).saturating_add(1024),
+            &|| if ctx.cancellation.is_cancelled() { Err(policy_cancelled()) } else { Ok(()) },
+            || self.fit_splits(&prepared, &plan, ctx),
+        )?;
         let mut scored = Scored::new(n, k);
-        let mut learning_rows = usize::MAX;
-        let mut workspace = FitWorkspace::default();
-        for split in plan.splits() {
-            if ctx.cancellation.is_cancelled() {
-                return Err(refuse(
-                    antecedent_core::reason_code!("cancelled_no_claim"),
-                    "policy_value.cancelled",
-                    "the cross-fitted policy-value fit was cancelled before every split was fit; no estimate is reported",
-                ));
-            }
-            learning_rows = learning_rows.min(split.train.len());
-            let nuisance = self.fit_split(&prepared, split.train, split.valid, &mut workspace)?;
-            scored.add_split(self, &prepared, split.valid, &nuisance);
+        for (split, nuisance) in plan.splits().zip(fits.nuisances.iter()) {
+            scored.add_split(self, &prepared, split.valid, nuisance);
         }
         scored.flatten_action_scores();
-        self.finish(&prepared, scored, learning_rows)
+        self.finish(&prepared, scored, fits.learning_rows)
+    }
+
+    /// Fit the propensity and outcome models of every split.
+    fn fit_splits(
+        &self,
+        prepared: &Prepared,
+        plan: &Splits,
+        ctx: &ExecutionContext,
+    ) -> Result<PolicyFits, EstimationError> {
+        let mut learning_rows = usize::MAX;
+        let mut workspace = FitWorkspace::default();
+        let mut nuisances = Vec::with_capacity(plan.parts.len());
+        for split in plan.splits() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(policy_cancelled());
+            }
+            learning_rows = learning_rows.min(split.train.len());
+            nuisances.push(self.fit_split(prepared, split.train, split.valid, &mut workspace)?);
+        }
+        Ok(PolicyFits { nuisances, learning_rows })
+    }
+
+    /// Key of the split nuisances, from the actual design, observed actions, outcome, declared
+    /// support, realized splits, propensity inputs and seed. `None` when a part does not hash
+    /// (then the fit is not shared).
+    fn nuisance_key(
+        &self,
+        prepared: &Prepared,
+        plan: &Splits,
+        seed: u64,
+    ) -> Option<NuisanceCacheKey> {
+        let parts = plan.parts.len();
+        let mut validated_in = vec![u32::try_from(parts).ok()?; prepared.n];
+        let mut splits = CanonicalWriter::new("antecedent.policy.splits");
+        splits.word(parts as u64);
+        for (index, (train, valid)) in plan.parts.iter().enumerate() {
+            for &row in valid {
+                *validated_in.get_mut(row)? = u32::try_from(index).ok()?;
+            }
+            splits.word(train.len() as u64);
+            for &row in train {
+                splits.word(row as u64);
+            }
+            splits.word(valid.len() as u64);
+            for &row in valid {
+                splits.word(row as u64);
+            }
+        }
+        let actions: Vec<f64> = prepared.category.iter().map(|&c| f64::from(c)).collect();
+        let options = NuisanceOptions::new("policy_nuisance")
+            .text("glm", &format!("{:?}", self.glm_options))
+            .text("evaluation", self.evaluation.as_str())
+            .text("policy_features", &format!("{:?}", self.policy_features))
+            .digest(
+                "support",
+                Some(SemanticDigest::of_reals("antecedent.policy.support", &self.support)),
+            )
+            .digest(
+                "known_propensity",
+                prepared.known_propensity.as_deref().map(|known| {
+                    SemanticDigest::of_reals("antecedent.policy.known_propensity", known)
+                }),
+            )
+            .digest("splits", Some(SemanticDigest::from_bytes(splits.finish())));
+        NuisanceKeyBuilder::new(ReusableProduct::PolicyNuisance)
+            .design_matrix(prepared.n, prepared.ncols, &prepared.design)
+            .rows_by_id(prepared.row_index.iter().map(|row| row.get()))
+            .folds(
+                FoldIdentity::of_fold_ids(
+                    u32::try_from(parts).ok()?.checked_add(1)?,
+                    &validated_in,
+                )
+                .ok()?,
+            )
+            .treatment_values("observed_action", &[&actions])
+            .outcome(&prepared.outcome)
+            .weights(None)
+            .provider(ProviderDependency::named("policy_value", PROVIDER_VERSION))
+            .options(&options)
+            .seed(seed)
+            .numerical(glm_numerical(&self.glm_options)?)
+            .build()
+            .ok()
     }
 
     fn validate(&self) -> Result<(), EstimationError> {
@@ -300,21 +404,21 @@ impl ObservationalPolicyValue {
         let repeated = sorted.windows(2).any(|pair| pair[0] == pair[1]);
         if levels.len() < 2 || levels.iter().any(|l| !l.is_finite()) || repeated {
             return Err(invalid(
-                "policy_value.invalid_support",
+                antecedent_core::reason_details::policy_value::INVALID_SUPPORT,
                 "the declared treatment support must be at least two distinct finite values",
             ));
         }
-        if let Some(reference) = self.reference {
-            if self.index_of(reference).is_none() {
-                return Err(invalid(
-                    "policy_value.reference_outside_support",
-                    "the reference action is not a level of the declared treatment support",
-                ));
-            }
+        if let Some(reference) = self.reference
+            && self.index_of(reference).is_none()
+        {
+            return Err(invalid(
+                antecedent_core::reason_details::policy_value::REFERENCE_OUTSIDE_SUPPORT,
+                "the reference action is not a level of the declared treatment support",
+            ));
         }
         if !self.min_propensity.is_finite() || !(0.0..0.5).contains(&self.min_propensity) {
             return Err(invalid(
-                "policy_value.invalid_propensity_floor",
+                antecedent_core::reason_details::policy_value::INVALID_PROPENSITY_FLOOR,
                 "the positivity floor must be finite and in [0, 0.5)",
             ));
         }
@@ -324,13 +428,13 @@ impl ObservationalPolicyValue {
                 || *evaluation_fraction == 0.0
             {
                 return Err(invalid(
-                    "policy_value.invalid_evaluation_fraction",
+                    antecedent_core::reason_details::policy_value::INVALID_EVALUATION_FRACTION,
                     "the held-out evaluation fraction must be strictly between 0 and 1",
                 ));
             }
         } else if self.folds < 2 {
             return Err(invalid(
-                "policy_value.invalid_folds",
+                antecedent_core::reason_details::policy_value::INVALID_FOLDS,
                 "cross-fitting requires at least two folds",
             ));
         }
@@ -341,7 +445,7 @@ impl ObservationalPolicyValue {
         {
             return Err(refuse(
                 antecedent_core::reason_code!("policy_learned_on_evaluation_rows"),
-                "policy_value.policy_learned_on_evaluation_rows",
+                antecedent_core::reason_details::policy_value::POLICY_LEARNED_ON_EVALUATION_ROWS,
                 "a policy learned on the rows that score it has a value estimated too high; evaluate it on independent held-out rows (held_out) or learn and score it by cross-fitting (cross_fitted_learning)",
             ));
         }
@@ -357,6 +461,10 @@ impl ObservationalPolicyValue {
     }
 
     /// Fit the propensity and per-action outcome models on `train` and predict `valid`.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear sequence of steps that reads top to bottom"
+    )]
     fn fit_split(
         &self,
         prepared: &Prepared,
@@ -374,7 +482,7 @@ impl ObservationalPolicyValue {
         if let Some(missing) = counts.iter().position(|&seen| seen == 0) {
             return Err(refuse(
                 antecedent_core::reason_code!("arm_not_populated"),
-                "policy_value.training_split_missing_action",
+                antecedent_core::reason_details::policy_value::TRAINING_SPLIT_MISSING_ACTION,
                 &format!(
                     "a training split has no row at action {}; use fewer folds or a smaller held-out fraction",
                     self.support[missing]
@@ -383,6 +491,18 @@ impl ObservationalPolicyValue {
         }
         let design_train = rows_colmajor(&prepared.design, n, ncols, train);
         let design_valid = rows_colmajor(&prepared.design, n, ncols, valid);
+        let policy_design = self.policy_features.as_ref().map(|features| {
+            let mut selected = Vec::with_capacity(n * (features.len() + 1));
+            selected.extend_from_slice(&prepared.design[..n]);
+            for &index in features {
+                selected.extend_from_slice(&prepared.design[(index + 1) * n..(index + 2) * n]);
+            }
+            selected
+        });
+        let policy_ncols =
+            self.policy_features.as_ref().map_or(ncols, |features| features.len() + 1);
+        let policy_valid =
+            policy_design.as_ref().map(|design| rows_colmajor(design, n, policy_ncols, valid));
         let nv = valid.len();
         let propensity = if let Some(known) = &prepared.known_propensity {
             let mut out = vec![0.0; k * nv];
@@ -407,6 +527,7 @@ impl ObservationalPolicyValue {
             )?
         };
         let mut mean = vec![0.0; k * nv];
+        let mut policy_mean = policy_design.as_ref().map(|_| vec![0.0; k * nv]);
         let mut prediction = Vec::new();
         for c in 0..k {
             let level_train: Vec<usize> =
@@ -416,7 +537,7 @@ impl ObservationalPolicyValue {
             if level_train.len() <= ncols {
                 return Err(refuse(
                     antecedent_core::reason_code!("arm_not_populated"),
-                    "policy_value.sparse_action",
+                    antecedent_core::reason_details::policy_value::SPARSE_ACTION,
                     &format!(
                         "a training split has no more rows at action {} than design columns, so its outcome model has no residual degrees of freedom",
                         self.support[c]
@@ -433,11 +554,33 @@ impl ObservationalPolicyValue {
                     &y_level,
                     &mut workspace.ols,
                 )
-                .map_err(stats_err)?;
+                .map_err(crate::error::EstimationError::from)?;
             predict_colmajor(&design_valid, nv, ncols, &fit.coefficients, &mut prediction);
             mean[c * nv..(c + 1) * nv].copy_from_slice(&prediction);
+            if let (Some(policy_design), Some(policy_valid), Some(policy_mean)) =
+                (&policy_design, &policy_valid, &mut policy_mean)
+            {
+                let policy_level = rows_colmajor(policy_design, n, policy_ncols, &level_train);
+                let policy_fit = FaerBackend
+                    .least_squares(
+                        &policy_level,
+                        level_train.len(),
+                        policy_ncols,
+                        &y_level,
+                        &mut workspace.ols,
+                    )
+                    .map_err(crate::error::EstimationError::from)?;
+                predict_colmajor(
+                    policy_valid,
+                    nv,
+                    policy_ncols,
+                    &policy_fit.coefficients,
+                    &mut prediction,
+                );
+                policy_mean[c * nv..(c + 1) * nv].copy_from_slice(&prediction);
+            }
         }
-        Ok(SplitNuisance { propensity, mean, rows: nv })
+        Ok(SplitNuisance { propensity, mean, policy_mean, rows: nv })
     }
 
     fn finish(
@@ -451,7 +594,7 @@ impl ObservationalPolicyValue {
         if m < MIN_EVALUATION_ROWS {
             return Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "policy_value.too_few_evaluation_rows",
+                antecedent_core::reason_details::policy_value::TOO_FEW_EVALUATION_ROWS,
                 &format!(
                     "the value is scored on {m} rows; at least {MIN_EVALUATION_ROWS} are required"
                 ),
@@ -465,7 +608,7 @@ impl ObservationalPolicyValue {
         {
             return Err(refuse(
                 antecedent_core::reason_code!("positivity_violated"),
-                "policy_value.action_propensity_below_floor",
+                antecedent_core::reason_details::policy_value::ACTION_PROPENSITY_BELOW_FLOOR,
                 &format!(
                     "the propensity of action {} falls to {lowest:.6} on a scored row, below the declared floor {}; the doubly robust score weights by its inverse. Drop the action from the declared support, restrict the population, or lower the floor knowingly",
                     self.support[c], self.min_propensity
@@ -521,11 +664,26 @@ struct FitWorkspace {
     ols: LeastSquaresWorkspace,
 }
 
+/// The split nuisances of one policy-value request, and the fewest rows any split trained on.
+struct PolicyFits {
+    nuisances: Vec<SplitNuisance>,
+    learning_rows: usize,
+}
+
+fn policy_cancelled() -> EstimationError {
+    refuse(
+        antecedent_core::reason_code!("cancelled_no_claim"),
+        antecedent_core::reason_details::policy_value::CANCELLED,
+        "the cross-fitted policy-value fit was cancelled before every split was fit; no estimate is reported",
+    )
+}
+
 /// Out-of-sample propensities and outcome regressions of one split's scored rows, action `c`
 /// of row `r` at `c * rows + r`.
 struct SplitNuisance {
     propensity: Vec<f64>,
     mean: Vec<f64>,
+    policy_mean: Option<Vec<f64>>,
     rows: usize,
 }
 
@@ -582,7 +740,8 @@ impl Scored {
             let choice = match &request.evaluation {
                 PolicyEvaluation::Prespecified { .. } => prepared.declared_action[i] as usize,
                 PolicyEvaluation::HeldOut { .. } | PolicyEvaluation::CrossFitted => {
-                    best_action(request.objective, (0..k).map(|c| nuisance.mean[c * nv + r]))
+                    let predicted = nuisance.policy_mean.as_ref().unwrap_or(&nuisance.mean);
+                    best_action(request.objective, (0..k).map(|c| predicted[c * nv + r]))
                 }
             };
             self.rows.push(i);
@@ -647,7 +806,7 @@ impl Splits {
         if folds > prepared.n {
             return Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "policy_value.invalid_folds",
+                antecedent_core::reason_details::policy_value::INVALID_FOLDS,
                 "cross-fitting folds cannot exceed the complete-case rows",
             ));
         }
@@ -698,7 +857,7 @@ impl Splits {
         if train.is_empty() || valid.is_empty() {
             return Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "policy_value.invalid_evaluation_fraction",
+                antecedent_core::reason_details::policy_value::INVALID_EVALUATION_FRACTION,
                 "the held-out split leaves no learning or no evaluation rows",
             ));
         }
@@ -722,7 +881,7 @@ struct Prepared {
     known_propensity: Option<Vec<f64>>,
     outcome: Vec<f64>,
     /// Original row index of each complete-case row.
-    row_index: Vec<u32>,
+    row_index: Vec<antecedent_data::GlobalId>,
     rows_by_level: Vec<u64>,
     dropped: u64,
 }
@@ -754,7 +913,7 @@ impl Prepared {
             || declared.is_some_and(|actions| actions.len() != rows)
         {
             return Err(invalid(
-                "policy_value.invalid_data",
+                antecedent_core::reason_details::policy_value::INVALID_DATA,
                 "outcome, treatment, covariates and the declared policy must be non-empty and of equal length",
             ));
         }
@@ -764,20 +923,28 @@ impl Prepared {
             || data.covariates.iter().any(|c| infinite(c))
             || declared.is_some_and(infinite)
         {
-            return Err(invalid("policy_value.invalid_data", "no value may be infinite"));
+            return Err(invalid(
+                antecedent_core::reason_details::policy_value::INVALID_DATA,
+                "no value may be infinite",
+            ));
         }
         let k = request.support.len();
         let per_row: &[Arc<[f64]>] = match &request.known_propensity {
             Some(KnownPropensity::PerRow(columns)) => columns,
             _ => &[],
         };
-        if !per_row.is_empty()
-            && (per_row.len() != k || per_row.iter().any(|column| column.len() != rows))
-        {
+        let known_shape_ok = match &request.known_propensity {
+            None => true,
+            Some(KnownPropensity::Constant(values)) => values.len() == k,
+            Some(KnownPropensity::PerRow(columns)) => {
+                columns.len() == k && columns.iter().all(|column| column.len() == rows)
+            }
+        };
+        if !known_shape_ok {
             return Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "policy_value.invalid_known_propensity",
-                "per-row known propensities need one column per declared action, each with one value per row",
+                antecedent_core::reason_details::policy_value::INVALID_KNOWN_PROPENSITY,
+                "known propensities need one value (constant) or one column of one value per row (per-row) per declared action",
             ));
         }
         let complete = |i: usize| {
@@ -793,7 +960,7 @@ impl Prepared {
         let ncols = 1 + data.covariates.len();
         if n <= ncols * k {
             return Err(invalid(
-                "policy_value.too_few_rows",
+                antecedent_core::reason_details::policy_value::TOO_FEW_ROWS,
                 "the complete-case rows cannot support an outcome model per action",
             ));
         }
@@ -804,7 +971,7 @@ impl Prepared {
             let Some(c) = request.index_of(data.treatment[i]) else {
                 return Err(refuse(
                     antecedent_core::reason_code!("treatment_level_undeclared"),
-                    "policy_value.undeclared_level",
+                    antecedent_core::reason_details::policy_value::UNDECLARED_LEVEL,
                     &format!(
                         "row {i} has treatment {}, which is not a level of the declared treatment support; declare the level or remove the row",
                         data.treatment[i]
@@ -817,7 +984,7 @@ impl Prepared {
                 let Some(a) = request.index_of(actions[i]) else {
                     return Err(refuse(
                         antecedent_core::reason_code!("positivity_violated"),
-                        "policy_value.action_outside_support",
+                        antecedent_core::reason_details::policy_value::ACTION_OUTSIDE_SUPPORT,
                         &format!(
                             "the policy takes action {} at row {i}, which is outside the declared treatment support, so its value is not identified from these data",
                             actions[i]
@@ -832,7 +999,7 @@ impl Prepared {
         if let Some(empty) = rows_by_level.iter().position(|&r| r == 0) {
             return Err(refuse(
                 antecedent_core::reason_code!("arm_not_populated"),
-                "policy_value.action_not_populated",
+                antecedent_core::reason_details::policy_value::ACTION_NOT_POPULATED,
                 &format!("no complete-case row has the declared action {}", request.support[empty]),
             ));
         }
@@ -846,8 +1013,10 @@ impl Prepared {
         let row_index = keep
             .iter()
             .map(|&i| {
-                u32::try_from(i).map_err(|_| {
-                    EstimationError::data_msg("row index exceeds the u32 row-id capacity")
+                u64::try_from(i).map(antecedent_data::GlobalId::new).map_err(|_| {
+                    EstimationError::data_msg(
+                        "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                    )
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -875,7 +1044,7 @@ impl Prepared {
                 {
                     return Err(refuse(
                         antecedent_core::reason_code!("invalid_argument"),
-                        "policy_value.invalid_known_propensity",
+                        antecedent_core::reason_details::policy_value::INVALID_KNOWN_PROPENSITY,
                         "known propensities must be one probability in (0, 1] per declared action and row, summing to one over the actions",
                     ));
                 }

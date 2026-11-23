@@ -122,6 +122,23 @@ def test_contradictory_constraint_is_refused_with_its_reason_code():
         antecedent.model.fit_gcm(names, cols, edges, candidates=["not_a_family"])
 
 
+def test_an_unknown_or_empty_candidate_is_refused_with_its_reason_code():
+    names, cols, edges = _threshold_chain(n=300)
+    # Every constraint field resolves its tokens through the same candidate vocabulary.
+    for constraint in (
+        {"allowed": ["not_a_family"]},
+        {"excluded": ["not_a_family"]},
+        {"required": "not_a_family"},
+    ):
+        with pytest.raises(Exception, match="mechanism_candidates_invalid"):
+            antecedent.model.fit_gcm(names, cols, edges, constraints={"y": constraint})
+    with pytest.raises(Exception, match="mechanism_candidates_invalid"):
+        antecedent.model.fit_gcm(names, cols, edges, candidates=[])
+    # A required alias that names two families is not one family.
+    with pytest.raises(Exception, match="one family"):
+        antecedent.model.fit_gcm(names, cols, edges, constraints={"y": {"required": "linear"}})
+
+
 def test_unknown_constraint_node_or_key_is_rejected():
     names, cols, edges = _threshold_chain(n=300)
     with pytest.raises(Exception, match="nope"):

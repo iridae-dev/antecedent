@@ -9,13 +9,13 @@
 //! heteroskedastic noise. The fit retains its row count `n` and design width `p`, so
 //! the cohort-mean interval is `phibar' b_hat +/- t_{n-p} sqrt(phibar' V phibar)`.
 //!
-//! What licenses this fit. Treatment assignment that is randomized or ignorable given
+//! What supports this fit. Treatment assignment that is randomized or ignorable given
 //! exactly the declared features, an outcome mean linear in those features under each
 //! treatment arm, and independent rows. A misspecified effect or arm mean, and a cohort
 //! whose rows lie in high-leverage regions of the fitted design, are named boundaries of
 //! the measured coverage, not claims.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,
@@ -72,47 +72,7 @@ pub struct CohortLinearFit {
 
 /// Cholesky inverse of a symmetric positive definite row-major matrix.
 fn spd_inverse(a: &[f64], p: usize) -> Option<Vec<f64>> {
-    let mut l = vec![0.0; p * p];
-    let scale = (0..p).map(|i| a[i * p + i]).fold(0.0_f64, f64::max);
-    for i in 0..p {
-        for j in 0..=i {
-            let mut sum = a[i * p + j];
-            for k in 0..j {
-                sum -= l[i * p + k] * l[j * p + k];
-            }
-            if i == j {
-                if !(sum > 1e-12 * scale.max(1.0)) {
-                    return None;
-                }
-                l[i * p + i] = sum.sqrt();
-            } else {
-                l[i * p + j] = sum / l[j * p + j];
-            }
-        }
-    }
-    // Invert L, then A^-1 = L^-T L^-1.
-    let mut linv = vec![0.0; p * p];
-    for i in 0..p {
-        linv[i * p + i] = 1.0 / l[i * p + i];
-        for j in 0..i {
-            let mut sum = 0.0;
-            for k in j..i {
-                sum -= l[i * p + k] * linv[k * p + j];
-            }
-            linv[i * p + j] = sum / l[i * p + i];
-        }
-    }
-    let mut inv = vec![0.0; p * p];
-    for i in 0..p {
-        for j in 0..p {
-            let mut sum = 0.0;
-            for k in i.max(j)..p {
-                sum += linv[k * p + i] * linv[k * p + j];
-            }
-            inv[i * p + j] = sum;
-        }
-    }
-    Some(inv)
+    crate::linalg::SpdFactor::new(a, p).map(|factor| factor.inverse())
 }
 
 /// Fit the linear conditional effect by OLS with an HC3 sandwich covariance.
@@ -292,7 +252,7 @@ impl CohortLinearFit {
         if feature_quantities.len() != self.feature_ranges.len() {
             return Err(ExportRefusal {
                 code: antecedent_core::reason_code!("invalid_argument"),
-                detail: "compact_export.dimension_mismatch",
+                detail: antecedent_core::reason_details::compact_export::DIMENSION_MISMATCH,
                 subject: "feature_quantities".to_owned(),
             });
         }
@@ -361,6 +321,7 @@ fn basis_with_structure(structure: &str, rows: u64, level: f64) -> CalibrationBa
         None,
         0.0,
     )
+    .with_validation("not_applicable")
 }
 
 // ---------------------------------------------------------------------------
@@ -378,16 +339,20 @@ pub const FIT_WIDTH_VARIABLE: &str = "fit.p";
 /// The only fitting procedure whose covariance supports an interval.
 pub const FIT_PROCEDURE_ID: &str = "ols_hc3_treatment_by_basis";
 /// Refusal detail of a declared (caller-built) export asked for an interval.
-pub const DETAIL_REQUIRES_NATIVE_FIT: &str = "cohort_decision.interval_requires_native_fit";
+pub const DETAIL_REQUIRES_NATIVE_FIT: &str =
+    antecedent_core::reason_details::cohort_decision::INTERVAL_REQUIRES_NATIVE_FIT;
 /// Refusal detail of a shifted or otherwise point-only source asked for an interval.
-pub const DETAIL_NOT_LICENSED: &str = "cohort_decision.interval_not_licensed";
+pub const DETAIL_NOT_SUPPORTED: &str =
+    antecedent_core::reason_details::cohort_decision::INTERVAL_NOT_SUPPORTED;
 /// Refusal detail of an invalid nominal level.
-pub const DETAIL_LEVEL_INVALID: &str = "cohort_decision.interval_level_invalid";
+pub const DETAIL_LEVEL_INVALID: &str =
+    antecedent_core::reason_details::cohort_decision::INTERVAL_LEVEL_INVALID;
 /// Scope of the issued interval.
 pub const INTERVAL_SCOPE: &str = "interval for the declared-cohort mean of the true conditional effect under a correctly specified linear effect basis, ignorable or randomized treatment and independent rows, for a cohort of the fitted population; excludes support selection and a shifted target population";
-/// Largest number of fitted rows a replay accepts.
+/// Reference size of a replayed fit's rows. Not enforced: the normal-equation sizes follow the
+/// rows and modifiers given.
 pub const MAX_FIT_ROWS: usize = 1_000_000;
-/// Largest number of modifiers a replay accepts.
+/// Reference size of a replayed fit's modifier count. Not enforced.
 pub const MAX_FIT_FEATURES: usize = 32;
 
 /// The retained size of a native fit.
@@ -450,9 +415,6 @@ impl NativeCohortFit {
         response: &ScientificQuantityWire,
         feature_quantities: &[ScientificQuantityWire],
     ) -> Result<Self, EstimationError> {
-        if outcome.len() > MAX_FIT_ROWS || features.len() > MAX_FIT_FEATURES {
-            return Err(unsupported("cohort linear effect: the fit exceeds the replay bounds"));
-        }
         let fit = fit_cohort_linear_effect(outcome, treatment, features)?;
         let export = fit
             .to_compact_export(response, feature_quantities)
@@ -531,6 +493,7 @@ impl NativeCohortFit {
 #[must_use]
 pub fn declared_export_refusal() -> CohortIntervalRefusal {
     refusal(
+        antecedent_core::reason_code!("route_not_supported"),
         DETAIL_REQUIRES_NATIVE_FIT,
         "compact_export",
         "the coefficients and covariance were declared by the caller; fit the effect \
@@ -548,7 +511,7 @@ pub struct CohortIntervalRefusal {
     pub detail: &'static str,
     /// What the refusal is about.
     pub subject: String,
-    /// The declaration or evidence that would license the request.
+    /// The declaration or evidence that would support the request.
     pub remedy: &'static str,
 }
 
@@ -583,13 +546,13 @@ pub struct CohortMeanInterval {
     pub cohort_rows: u64,
 }
 
-fn refusal(detail: &'static str, subject: &str, remedy: &'static str) -> CohortIntervalRefusal {
-    CohortIntervalRefusal {
-        code: antecedent_core::reason_code!("cell_not_licensed"),
-        detail,
-        subject: subject.to_owned(),
-        remedy,
-    }
+fn refusal(
+    code: &'static str,
+    detail: &'static str,
+    subject: &str,
+    remedy: &'static str,
+) -> CohortIntervalRefusal {
+    CohortIntervalRefusal { code, detail, subject: subject.to_owned(), remedy }
 }
 
 /// The interval of `source`, which must be the unshifted decision source built from
@@ -609,6 +572,7 @@ pub fn native_cohort_interval(
 ) -> Result<CohortMeanInterval, CohortIntervalRefusal> {
     if !(level.is_finite() && level > 0.0 && level < 1.0) {
         return Err(refusal(
+            antecedent_core::reason_code!("invalid_argument"),
             DETAIL_LEVEL_INVALID,
             "level",
             "request a two-sided level strictly between 0 and 1",
@@ -618,7 +582,8 @@ pub fn native_cohort_interval(
     let fit = native.size();
     if source.shift().is_some() {
         return Err(refusal(
-            DETAIL_NOT_LICENSED,
+            antecedent_core::reason_code!("route_not_supported"),
+            DETAIL_NOT_SUPPORTED,
             "declared_covariate_shift",
             "a shifted cohort is point-only; evaluate a cohort of the model's own \
              population to receive an interval",
@@ -628,14 +593,16 @@ pub fn native_cohort_interval(
         .is_ok_and(|model| model.identity() == source.model().identity());
     let Some(diagnostic) = source.uncalibrated_standard_error() else {
         return Err(refusal(
-            DETAIL_NOT_LICENSED,
+            antecedent_core::reason_code!("route_not_supported"),
+            DETAIL_NOT_SUPPORTED,
             "model",
             "the source retains no coefficient covariance",
         ));
     };
     if !bound || !source.model().is_linear_compact() {
         return Err(refusal(
-            DETAIL_NOT_LICENSED,
+            antecedent_core::reason_code!("invalid_argument"),
+            DETAIL_NOT_SUPPORTED,
             "source",
             "build the decision source from exactly the exported native fit",
         ));
@@ -646,7 +613,8 @@ pub fn native_cohort_interval(
     let point = source.mean_contrast();
     if !half.is_finite() {
         return Err(refusal(
-            DETAIL_NOT_LICENSED,
+            antecedent_core::reason_code!("route_not_supported"),
+            DETAIL_NOT_SUPPORTED,
             "interval",
             "the interval is not finite; refit with more rows",
         ));

@@ -21,13 +21,20 @@
 //!   vectors are dropped jointly, their probability mass reported, and the surviving
 //!   mass renormalized.
 //!
-//! The output is a covariance matrix, a point-only claim: no interval is derived from
-//! it. Unknown or incompatible dependence (different snapshots, different unit lists,
+//! The output is a joint sampling covariance of the scenario estimates. No aggregate interval
+//! is provided over the scenarios. The aggregate is set-identified (the envelope of the
+//! scenarios' values), so a confidence construction for it exists in principle; it is not built
+//! here. It needs per-scenario sampling intervals (the empirical scenario route reports points
+//! only) combined by a union or an Imbens-Manski construction. This is an open capability gap,
+//! refused as `scenario_aggregate_not_supported`; the covariance below is the input such a
+//! construction would use, and is not itself an interval.
+//!
+//! Unknown or incompatible dependence (different snapshots, different unit lists,
 //! declared-independent samples, duplicate unit identities) is refused with
 //! `route_not_supported` (`scenario_covariance.unknown_dependence`); a diagonal-only or
 //! zero off-diagonal matrix is never a fallback.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashSet;
 use std::fmt;
@@ -39,9 +46,11 @@ use crate::error::EstimationError;
 use crate::splitmix::{GOLDEN_GAMMA, mix64, seed_mix, splitmix64};
 use crate::util::refuse;
 
-/// Most scenarios one covariance may span.
+/// Reference scenario count of a family. Not enforced: the covariance is `k × k`, and the
+/// execution context's memory admission bounds it.
 pub const MAX_SCENARIOS: usize = 64;
-/// Most bootstrap replicates one covariance may use.
+/// Reference bootstrap replicate count. Not enforced: the replicate draws are admitted against
+/// the execution context's memory budget and the run is cancellable.
 pub const MAX_REPLICATES: usize = 2000;
 /// Fewest bootstrap replicates (a covariance needs two).
 pub(crate) const MIN_REPLICATES: usize = 2;
@@ -174,7 +183,7 @@ impl ScenarioRowEstimator {
 /// Options of the seeded shared-row bootstrap.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SharedRowBootstrapOptions {
-    /// Replicates drawn (`2..=MAX_REPLICATES`).
+    /// Replicates drawn (at least two; bounded by the memory admission of the context).
     pub replicates: usize,
     /// Seed of the replicate-id stream.
     pub seed: u64,
@@ -263,7 +272,7 @@ impl ScenarioCovariance {
 fn unknown_dependence(message: &str) -> EstimationError {
     refuse(
         antecedent_core::reason_code!("route_not_supported"),
-        "scenario_covariance.unknown_dependence",
+        antecedent_core::reason_details::scenario_covariance::UNKNOWN_DEPENDENCE,
         message,
     )
 }
@@ -273,7 +282,7 @@ fn invalid(detail: &str, message: &str) -> EstimationError {
 }
 
 fn over_bound(detail: &str, message: &str) -> EstimationError {
-    refuse(antecedent_core::reason_code!("cell_not_licensed"), detail, message)
+    refuse(antecedent_core::reason_code!("execution_resource_limit"), detail, message)
 }
 
 fn numerical(detail: &str, message: &str) -> EstimationError {
@@ -284,7 +293,7 @@ fn check_cancel(ctx: &ExecutionContext) -> Result<(), EstimationError> {
     if ctx.cancellation.is_cancelled() {
         return Err(refuse(
             antecedent_core::reason_code!("cancelled_no_claim"),
-            "scenario_covariance.cancelled",
+            antecedent_core::reason_details::scenario_covariance::CANCELLED,
             "cancellation was observed; no covariance is claimed",
         ));
     }
@@ -300,11 +309,6 @@ const ROW_DIGEST_TAG: &str = "antecedent.estimate.scenario_covariance.rows";
 /// Domain tag of the replicate digest (family identity, method, seed and every replicate).
 const REPLICATE_DIGEST_TAG: &str = "antecedent.estimate.scenario_covariance.replicates";
 
-/// Lowercase hex of a finished canonical digest.
-fn hex_digest(digest: &CanonicalWriter) -> String {
-    digest.finish_hex()
-}
-
 struct FamilyIdentity {
     n: usize,
     row_digest: String,
@@ -316,25 +320,21 @@ struct FamilyIdentity {
 ///
 /// # Errors
 /// `invalid_argument` for no scenarios, duplicate scenario ids or too few rows;
-/// `cell_not_licensed` (`scenario_covariance.too_many_scenarios`) above
-/// [`MAX_SCENARIOS`]; `route_not_supported` (`scenario_covariance.unknown_dependence`)
+/// `route_not_supported` (`scenario_covariance.unknown_dependence`)
 /// for a different snapshot, a different unit list, duplicate unit ids or a scenario not
 /// declared [`RowDependence::SharedRows`].
 fn validate_family(scenarios: &[ScenarioRowEstimator]) -> Result<FamilyIdentity, EstimationError> {
     let Some(first) = scenarios.first() else {
-        return Err(invalid("scenario_covariance.no_scenarios", "no scenario estimators"));
-    };
-    if scenarios.len() > MAX_SCENARIOS {
-        return Err(over_bound(
-            "scenario_covariance.too_many_scenarios",
-            &format!("{} scenarios exceed the limit of {MAX_SCENARIOS}", scenarios.len()),
+        return Err(invalid(
+            antecedent_core::reason_details::scenario_covariance::NO_SCENARIOS,
+            "no scenario estimators",
         ));
-    }
+    };
     let mut seen = HashSet::new();
     for s in scenarios {
         if !seen.insert(s.id()) {
             return Err(invalid(
-                "scenario_covariance.duplicate_scenario_id",
+                antecedent_core::reason_details::scenario_covariance::DUPLICATE_SCENARIO_ID,
                 &format!("scenario id '{}' appears more than once", s.id()),
             ));
         }
@@ -376,13 +376,13 @@ fn validate_family(scenarios: &[ScenarioRowEstimator]) -> Result<FamilyIdentity,
     let n = first.unit_ids.len();
     if n < MIN_ROWS {
         return Err(invalid(
-            "scenario_covariance.too_few_rows",
+            antecedent_core::reason_details::scenario_covariance::TOO_FEW_ROWS,
             &format!("{n} rows; at least {MIN_ROWS} are needed to resample"),
         ));
     }
     Ok(FamilyIdentity {
         n,
-        row_digest: hex_digest(&row_digest),
+        row_digest: row_digest.finish_hex(),
         snapshot: first.snapshot_digest.clone(),
     })
 }
@@ -569,7 +569,7 @@ fn finish(
     let kept_mass: f64 = tally.weights.iter().sum();
     if tally.weights.len() < 2 || kept_mass.is_nan() || kept_mass <= 0.0 {
         return Err(numerical(
-            "scenario_covariance.too_many_failed_replicates",
+            antecedent_core::reason_details::scenario_covariance::TOO_MANY_FAILED_REPLICATES,
             "fewer than two replicates survived joint dropping",
         ));
     }
@@ -589,7 +589,7 @@ fn finish(
         || !is_psd(&covariance, k)
     {
         return Err(numerical(
-            "scenario_covariance.not_positive_semidefinite",
+            antecedent_core::reason_details::scenario_covariance::NOT_POSITIVE_SEMIDEFINITE,
             "the estimated covariance is not finite and positive semidefinite within tolerance",
         ));
     }
@@ -599,7 +599,7 @@ fn finish(
         covariance,
         replicate_ids: Vec::new(),
         failed_replicate_ids: Vec::new(),
-        replicate_digest: hex_digest(digest),
+        replicate_digest: digest.finish_hex(),
         row_identity_digest: identity.row_digest.clone(),
         snapshot_digest: identity.snapshot.clone(),
         method,
@@ -638,9 +638,8 @@ fn seed_digest(
 /// for all scenarios and counted.
 ///
 /// # Errors
-/// The [`validate_family`] refusals; `cell_not_licensed`
-/// (`scenario_covariance.too_many_replicates`) above [`MAX_REPLICATES`];
-/// `invalid_argument` (`scenario_covariance.too_few_replicates`, `...invalid_failure_bound`);
+/// The [`validate_family`] refusals; an admission refusal when the draws or the covariance do
+/// not fit the context's memory; `invalid_argument` (`scenario_covariance.too_few_replicates`, `...invalid_failure_bound`);
 /// `transport_numerical_failure` (`scenario_covariance.too_many_failed_replicates`,
 /// `scenario_covariance.not_positive_semidefinite`); `cancelled_no_claim`
 /// (`scenario_covariance.cancelled`).
@@ -649,21 +648,15 @@ pub fn shared_row_bootstrap_covariance(
     options: &SharedRowBootstrapOptions,
     ctx: &ExecutionContext,
 ) -> Result<ScenarioCovariance, EstimationError> {
-    if options.replicates > MAX_REPLICATES {
-        return Err(over_bound(
-            "scenario_covariance.too_many_replicates",
-            &format!("{} replicates exceed the limit of {MAX_REPLICATES}", options.replicates),
-        ));
-    }
     if options.replicates < MIN_REPLICATES {
         return Err(invalid(
-            "scenario_covariance.too_few_replicates",
+            antecedent_core::reason_details::scenario_covariance::TOO_FEW_REPLICATES,
             &format!("{} replicates; at least {MIN_REPLICATES} are needed", options.replicates),
         ));
     }
     if !(0.0..=1.0).contains(&options.max_failure_fraction) {
         return Err(invalid(
-            "scenario_covariance.invalid_failure_bound",
+            antecedent_core::reason_details::scenario_covariance::INVALID_FAILURE_BOUND,
             "max_failure_fraction must lie in [0, 1]",
         ));
     }
@@ -672,6 +665,9 @@ pub fn shared_row_bootstrap_covariance(
     let mut digest = seed_digest(scenarios, &identity, "shared_row_bootstrap");
     digest.word(options.seed);
     digest.word(widen(options.replicates));
+    check_cancel(ctx)?;
+    let _admitted = crate::util::admit_array::<f64>(ctx, options.replicates, k + 1)?;
+    let _covariance = crate::util::admit_array::<f64>(ctx, k, k)?;
     let mut counts = vec![0_u32; identity.n];
     let mut tally = Tally {
         values: Vec::with_capacity(options.replicates * k),
@@ -698,7 +694,7 @@ pub fn shared_row_bootstrap_covariance(
     }
     if tally.failed_mass / tally.total_mass > options.max_failure_fraction {
         return Err(numerical(
-            "scenario_covariance.too_many_failed_replicates",
+            antecedent_core::reason_details::scenario_covariance::TOO_MANY_FAILED_REPLICATES,
             &format!(
                 "{} of {} replicates failed in at least one scenario estimator, above the \
                  declared fraction {}",
@@ -776,6 +772,30 @@ impl Enumerator<'_> {
     }
 }
 
+/// Covariance by exact enumeration when the multinomial count vectors fit the declared cap,
+/// otherwise by the seeded shared-row bootstrap (the enumeration's Monte Carlo counterpart).
+///
+/// The returned [`ScenarioCovariance::method`] says which route ran.
+///
+/// # Errors
+/// The refusals of whichever route runs.
+pub fn exact_or_bootstrap_covariance(
+    scenarios: &[ScenarioRowEstimator],
+    exact: &ExactEnumerationOptions,
+    bootstrap: &SharedRowBootstrapOptions,
+    ctx: &ExecutionContext,
+) -> Result<ScenarioCovariance, EstimationError> {
+    let identity = validate_family(scenarios)?;
+    let cap = exact.max_compositions.min(EXACT_ENUMERATION_HARD_CAP);
+    let fits = identity.n <= MAX_EXACT_ROWS
+        && composition_count(identity.n).is_some_and(|total| total <= u128::from(cap));
+    if fits {
+        exact_enumeration_covariance(scenarios, exact, ctx)
+    } else {
+        shared_row_bootstrap_covariance(scenarios, bootstrap, ctx)
+    }
+}
+
 /// Exact covariance of the scenario estimates under the multinomial whole-row
 /// resampling distribution (the bootstrap's expectation, with no Monte Carlo error).
 ///
@@ -785,7 +805,7 @@ impl Enumerator<'_> {
 /// resampling distribution).
 ///
 /// # Errors
-/// The [`validate_family`] refusals; `cell_not_licensed`
+/// The [`validate_family`] refusals; `execution_resource_limit`
 /// (`scenario_covariance.exact_enumeration_cap`) when `n` exceeds [`MAX_EXACT_ROWS`] or the
 /// number of count vectors exceeds the declared cap or [`EXACT_ENUMERATION_HARD_CAP`];
 /// `invalid_argument` (`scenario_covariance.invalid_failure_bound`);
@@ -799,7 +819,7 @@ pub fn exact_enumeration_covariance(
 ) -> Result<ScenarioCovariance, EstimationError> {
     if !(0.0..=1.0).contains(&options.max_failure_mass) {
         return Err(invalid(
-            "scenario_covariance.invalid_failure_bound",
+            antecedent_core::reason_details::scenario_covariance::INVALID_FAILURE_BOUND,
             "max_failure_mass must lie in [0, 1]",
         ));
     }
@@ -809,7 +829,7 @@ pub fn exact_enumeration_covariance(
     let total = if n <= MAX_EXACT_ROWS { composition_count(n) } else { None };
     let Some(total) = total.filter(|t| *t <= u128::from(cap)) else {
         return Err(over_bound(
-            "scenario_covariance.exact_enumeration_cap",
+            antecedent_core::reason_details::scenario_covariance::EXACT_ENUMERATION_CAP,
             &format!(
                 "{n} rows have more multinomial count vectors than the cap {cap} (rows at most \
                  {MAX_EXACT_ROWS}); use the shared-row bootstrap"
@@ -843,7 +863,7 @@ pub fn exact_enumeration_covariance(
     let Enumerator { tally, digest, .. } = walker;
     if tally.failed_mass / tally.total_mass > options.max_failure_mass {
         return Err(numerical(
-            "scenario_covariance.too_many_failed_replicates",
+            antecedent_core::reason_details::scenario_covariance::TOO_MANY_FAILED_REPLICATES,
             &format!(
                 "estimator failures cover {} of the resampling mass, above the declared {}",
                 tally.failed_mass / tally.total_mass,
@@ -855,4 +875,24 @@ pub fn exact_enumeration_covariance(
         finish(scenarios, &identity, &tally, CovarianceMethod::ExactEnumeration, &digest)?;
     out.replicates_total = u64::try_from(total).unwrap_or(u64::MAX);
     Ok(out)
+}
+
+#[cfg(test)]
+mod digest_tests {
+    use std::sync::Arc;
+
+    use super::{ScenarioRowEstimator, validate_family};
+
+    #[test]
+    fn ordered_row_identity_matches_golden_without_running_estimators() {
+        let units = (0..6).map(|i| Arc::<str>::from(format!("u{i}"))).collect();
+        let scenario = ScenarioRowEstimator::new("a", "snapshot", units, |_| {
+            panic!("identity validation must not run the estimator")
+        });
+        let identity = validate_family(&[scenario]).unwrap();
+        assert_eq!(
+            identity.row_digest,
+            "07a1c08b91f9778a2a42e520e0097ebb20e9e438bd7da562f1e21c41d74f7b7a"
+        );
+    }
 }

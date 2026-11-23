@@ -14,11 +14,13 @@ use antecedent::analysis::inverse_query::{
     InverseQueryWire, MAX_INVERSE_QUERY_ARTIFACT_BYTES, MeanSource, StructuralAtom,
     finite_enumeration_baseline,
 };
-use antecedent_contract::{ExternalRefusal, ScientificQuantity};
-use antecedent_core::reason_code;
-use antecedent_design::decision_artifact::{contract_from_json_refusal, contract_to_json};
-use antecedent_io::IoError;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent::contract::ExternalRefusal;
+use antecedent::design::decision_artifact::{contract_from_json_refusal, contract_to_json};
+use antecedent::design::decision_eval::MeanEstimate;
+use antecedent::io::IoError;
+use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::reason::reason_code;
+use antecedent::scientific::ScientificQuantity;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Deserialize;
@@ -60,14 +62,15 @@ fn query_refusal(error: &InverseQueryError) -> String {
 fn io_refusal(error: &IoError) -> String {
     match error {
         IoError::Refused { code, message } => {
-            let (detail, text) = message
-                .split_once(": ")
-                .unwrap_or(("functional_inverse_query.wrong_contract", message.as_str()));
+            let (detail, text) = message.split_once(": ").unwrap_or((
+                antecedent::reason::reason_details::functional_inverse_query::WRONG_CONTRACT,
+                message.as_str(),
+            ));
             plain_refusal(*code, detail, Some(text.to_owned()))
         }
         other => plain_refusal(
             reason_code!("invalid_argument"),
-            "functional_inverse_query.invalid_artifact",
+            antecedent::reason::reason_details::functional_inverse_query::INVALID_ARTIFACT,
             Some(other.to_string()),
         ),
     }
@@ -82,6 +85,12 @@ struct MeansIn {
     snapshot_id: String,
     causal_contract_id: String,
     rng_id: String,
+    #[serde(default = "frequentist_estimate")]
+    estimate: MeanEstimate,
+}
+
+fn frequentist_estimate() -> MeanEstimate {
+    MeanEstimate::Frequentist
 }
 
 /// A native law, or a JSON mean grid.
@@ -92,7 +101,7 @@ fn claim_from(object: &Bound<'_, PyAny>) -> PyResult<ForwardClaim> {
         return Ok(ForwardClaim::Means(mean.means.clone()));
     }
     if let Ok(claim) = object.extract::<PyRef<'_, crate::external_api::PyExternalClaimArtifact>>() {
-        return antecedent_design::composition_verifiers::mean_source_of(&claim.artifact)
+        return antecedent::analysis::composition::mean_source_of(&claim.artifact)
             .map(ForwardClaim::Means)
             .map_err(serialization);
     }
@@ -100,7 +109,7 @@ fn claim_from(object: &Bound<'_, PyAny>) -> PyResult<ForwardClaim> {
         object.extract::<PyRef<'_, crate::program_claims_api::PyNativeResponseClaim>>()
     {
         use antecedent::analysis::native_claims::NativeDecisionSource;
-        use antecedent_design::decision_contract::{SourceRepresentation, SourceRequirement};
+        use antecedent::design::decision_contract::{SourceRepresentation, SourceRequirement};
         let mode = if claim.claim.has_joint_law() {
             SourceRepresentation::JointDraws
         } else {
@@ -139,6 +148,7 @@ fn claim_from(object: &Bound<'_, PyAny>) -> PyResult<ForwardClaim> {
             snapshot_id: means.snapshot_id,
             causal_contract_id: means.causal_contract_id,
             rng_id: means.rng_id,
+            estimate: means.estimate,
         }));
     }
     Err(crate::value_err("a forward claim is a native law artifact or a mean grid"))
@@ -153,6 +163,11 @@ fn atom_from(object: &Bound<'_, PyAny>) -> PyResult<StructuralAtom> {
     let evidence = match (kind.as_str(), payload) {
         ("evaluated", Some(law)) => match claim_from(&law)? {
             ForwardClaim::Law(artifact) => AtomEvidence::Evaluated(artifact),
+            ForwardClaim::Gaussian(_) => {
+                return Err(crate::value_err(
+                    "an analytic univariate Gaussian is not an explicitly joint scenario law",
+                ));
+            }
             ForwardClaim::Means(_) => {
                 return Err(crate::value_err("a scenario or set member needs a law"));
             }
@@ -172,11 +187,11 @@ fn atoms_from(objects: &[Bound<'_, PyAny>]) -> PyResult<Vec<StructuralAtom>> {
 pub(crate) struct PyInverseQueryArtifact {
     artifact: InverseQueryArtifact,
     source_claims: Vec<crate::program_claims_api::PyNativeResponseClaim>,
-    external_sources: Vec<antecedent_design::source_evidence::SourceEvidence>,
+    external_sources: Vec<antecedent::analysis::source_evidence::SourceEvidence>,
 }
 
 impl PyInverseQueryArtifact {
-    /// An artifact sealed on a licensed forward source; its origin is bound in.
+    /// An artifact sealed on a supported forward source; its origin is bound in.
     pub(crate) fn from_sealed(artifact: InverseQueryArtifact) -> Self {
         Self { artifact, source_claims: Vec::new(), external_sources: Vec::new() }
     }
@@ -190,7 +205,7 @@ impl PyInverseQueryArtifact {
                 crate::value_err(
                     "functional_inverse_query.bounds_exceeded: too many original source artifacts",
                 ),
-                antecedent_core::reason_code!("inverse_functional_unsupported"),
+                antecedent::reason::reason_code!("inverse_functional_unsupported"),
             ));
         }
         let contract = contract_to_json(&self.artifact.query().contract).map_err(serialization)?;
@@ -233,6 +248,7 @@ impl PyInverseQueryArtifact {
     #[staticmethod]
     #[pyo3(signature = (contract_json, query_json, point=None, interval_region=None, identified_set=None, scenarios=None))]
     fn build(
+        py: Python<'_>,
         contract_json: &str,
         query_json: &str,
         point: Option<Bound<'_, PyAny>>,
@@ -240,128 +256,147 @@ impl PyInverseQueryArtifact {
         identified_set: Option<(Vec<Bound<'_, PyAny>>, bool)>,
         scenarios: Option<Vec<Bound<'_, PyAny>>>,
     ) -> PyResult<Built> {
-        check_size(contract_json)?;
-        check_size(query_json)?;
-        let contract = match contract_from_json_refusal(contract_json) {
-            Ok(contract) => contract,
-            Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
-        };
-        let wire: InverseQueryWire = match serde_json::from_str(query_json) {
-            Ok(wire) => wire,
-            Err(error) => return Ok((None, Some(declaration_refusal(&error.to_string())))),
-        };
-        let mut source_claims = Vec::new();
-        let mut external_sources = Vec::new();
-        let mut retain = |value: &Bound<'_, PyAny>| -> PyResult<()> {
-            if let Ok(claim) =
-                value.extract::<PyRef<'_, crate::external_api::PyExternalClaimArtifact>>()
-            {
-                let evidence =
-                    crate::source_evidence_api::PySourceEvidence::from_external(&claim)?.inner;
-                if !external_sources.iter().any(
-                    |held: &antecedent_design::source_evidence::SourceEvidence| {
-                        held.original_bytes() == evidence.original_bytes()
-                    },
-                ) {
-                    external_sources.push(evidence);
+        crate::catch_ffi(|| {
+            check_size(contract_json)?;
+            check_size(query_json)?;
+            let contract = match contract_from_json_refusal(contract_json) {
+                Ok(contract) => contract,
+                Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
+            };
+            let wire: InverseQueryWire = match serde_json::from_str(query_json) {
+                Ok(wire) => wire,
+                Err(error) => return Ok((None, Some(declaration_refusal(&error.to_string())))),
+            };
+            let mut source_claims = Vec::new();
+            let mut external_sources = Vec::new();
+            let mut retain = |value: &Bound<'_, PyAny>| -> PyResult<()> {
+                if let Ok(claim) =
+                    value.extract::<PyRef<'_, crate::external_api::PyExternalClaimArtifact>>()
+                {
+                    let evidence =
+                        crate::source_evidence_api::PySourceEvidence::from_external(&claim)?.inner;
+                    if !external_sources.iter().any(
+                        |held: &antecedent::analysis::source_evidence::SourceEvidence| {
+                            held.original_bytes() == evidence.original_bytes()
+                        },
+                    ) {
+                        external_sources.push(evidence);
+                    }
                 }
-            }
-            let claim = value
-                .extract::<PyRef<'_, crate::program_claims_api::PyNativeResponseClaim>>()
-                .ok()
-                .map(|claim| (*claim).clone())
-                .or_else(|| {
-                    value
+                let claim = value
+                    .extract::<PyRef<'_, crate::program_claims_api::PyNativeResponseClaim>>()
+                    .ok()
+                    .map(|claim| (*claim).clone())
+                    .or_else(|| {
+                        value
                         .extract::<PyRef<'_, crate::source_evidence_api::PySourceBackedMeanClaim>>()
                         .ok()
                         .map(|mean| mean.original.clone())
-                })
-                .or_else(|| {
-                    value
-                        .extract::<PyRef<'_, PyJointDistributionArtifact>>()
-                        .ok()
-                        .and_then(|law| law.source_claim.clone())
-                });
-            if let Some(claim) = claim {
-                if !source_claims.iter().any(
-                    |held: &crate::program_claims_api::PyNativeResponseClaim| {
-                        std::sync::Arc::ptr_eq(&held.authority, &claim.authority)
-                    },
-                ) {
+                    })
+                    .or_else(|| {
+                        value
+                            .extract::<PyRef<'_, PyJointDistributionArtifact>>()
+                            .ok()
+                            .and_then(|law| law.source_claim.clone())
+                    });
+                if let Some(claim) = claim
+                    && !source_claims.iter().any(
+                        |held: &crate::program_claims_api::PyNativeResponseClaim| {
+                            std::sync::Arc::ptr_eq(&held.authority, &claim.authority)
+                        },
+                    )
+                {
                     source_claims.push(claim);
                 }
+                Ok(())
+            };
+            if let Some(point) = &point {
+                retain(point)?;
             }
-            Ok(())
-        };
-        if let Some(point) = &point {
-            retain(point)?;
-        }
-        if let Some((lower, upper, _)) = &interval_region {
-            retain(lower)?;
-            retain(upper)?;
-        }
-        for atom in identified_set
-            .as_ref()
-            .into_iter()
-            .flat_map(|(atoms, _)| atoms)
-            .chain(scenarios.as_ref().into_iter().flatten())
-        {
-            let (_, _, kind, payload): (String, Option<f64>, String, Option<Bound<'_, PyAny>>) =
-                atom.extract()?;
-            if kind == "evaluated" {
-                if let Some(payload) = payload {
+            if let Some((lower, upper, _)) = &interval_region {
+                retain(lower)?;
+                retain(upper)?;
+            }
+            for atom in identified_set
+                .as_ref()
+                .into_iter()
+                .flat_map(|(atoms, _)| atoms)
+                .chain(scenarios.as_ref().into_iter().flatten())
+            {
+                let (_, _, kind, payload): (String, Option<f64>, String, Option<Bound<'_, PyAny>>) =
+                    atom.extract()?;
+                if kind == "evaluated"
+                    && let Some(payload) = payload
+                {
                     retain(&payload)?;
                 }
             }
-        }
-        let evidence = ForwardEvidence {
-            point: point.as_ref().map(claim_from).transpose()?,
-            interval_region: interval_region
-                .map(|(lower, upper, bound)| {
-                    Ok::<_, PyErr>(IntervalRegion {
-                        lower: claim_from(&lower)?,
-                        upper: claim_from(&upper)?,
-                        endpoints_bound_functional: bound,
+            let evidence = ForwardEvidence {
+                point: point.as_ref().map(claim_from).transpose()?,
+                interval_region: interval_region
+                    .map(|(lower, upper, bound)| {
+                        Ok::<_, PyErr>(IntervalRegion {
+                            lower: claim_from(&lower)?,
+                            upper: claim_from(&upper)?,
+                            endpoints_bound_functional: bound,
+                        })
                     })
-                })
-                .transpose()?,
-            identified_set: identified_set
-                .map(|(members, exhaustive)| {
-                    Ok::<_, PyErr>(IdentifiedSet { members: atoms_from(&members)?, exhaustive })
-                })
-                .transpose()?,
-            scenarios: scenarios.map(|atoms| atoms_from(&atoms)).transpose()?,
-        };
-        match InverseQueryArtifact::new(wire.into_query(contract), evidence) {
-            Ok(artifact) => Ok((Some(Self { artifact, source_claims, external_sources }), None)),
-            Err(error) => Ok((None, Some(query_refusal(&error)))),
-        }
+                    .transpose()?,
+                identified_set: identified_set
+                    .map(|(members, exhaustive)| {
+                        Ok::<_, PyErr>(IdentifiedSet { members: atoms_from(&members)?, exhaustive })
+                    })
+                    .transpose()?,
+                scenarios: scenarios.map(|atoms| atoms_from(&atoms)).transpose()?,
+            };
+            let sealed = py.detach(|| {
+                antecedent::analysis::inverse_query::seal(wire.into_query(contract), evidence)
+            });
+            match sealed {
+                Ok(artifact) => {
+                    Ok((Some(Self { artifact, source_claims, external_sources }), None))
+                }
+                Err(error) => Ok((None, Some(query_refusal(&error)))),
+            }
+        })
     }
 
     /// Consume an artifact by re-evaluation; `expected_identity_json` is an identity
     /// the consumer retained independently of the bytes.
     #[staticmethod]
     #[pyo3(signature = (data, expected_identity_json=None))]
-    fn consume(data: &[u8], expected_identity_json: Option<&str>) -> PyResult<Built> {
-        let expected: Option<InverseQueryIdentity> = match expected_identity_json {
-            Some(text) => {
-                check_size(text)?;
-                match serde_json::from_str(text) {
-                    Ok(identity) => Some(identity),
-                    Err(error) => {
-                        return Ok((None, Some(declaration_refusal(&error.to_string()))));
+    fn consume(
+        py: Python<'_>,
+        data: &[u8],
+        expected_identity_json: Option<&str>,
+    ) -> PyResult<Built> {
+        crate::catch_ffi(|| {
+            let expected: Option<InverseQueryIdentity> = match expected_identity_json {
+                Some(text) => {
+                    check_size(text)?;
+                    match serde_json::from_str(text) {
+                        Ok(identity) => Some(identity),
+                        Err(error) => {
+                            return Ok((None, Some(declaration_refusal(&error.to_string()))));
+                        }
                     }
                 }
+                None => None,
+            };
+            let consumed =
+                py.detach(|| antecedent::analysis::inverse_query::consume(data, expected.as_ref()));
+            match consumed {
+                Ok(artifact) => Ok((
+                    Some(Self {
+                        artifact,
+                        source_claims: Vec::new(),
+                        external_sources: Vec::new(),
+                    }),
+                    None,
+                )),
+                Err(error) => Ok((None, Some(io_refusal(&error)))),
             }
-            None => None,
-        };
-        match InverseQueryArtifact::from_bytes(data, expected.as_ref()) {
-            Ok(artifact) => Ok((
-                Some(Self { artifact, source_claims: Vec::new(), external_sources: Vec::new() }),
-                None,
-            )),
-            Err(error) => Ok((None, Some(io_refusal(&error)))),
-        }
+        })
     }
 
     /// The per-action status table with the distinct feasibility fields, the
@@ -401,8 +436,13 @@ impl PyInverseQueryArtifact {
 
     /// Serialize through the bounded sectioned container.
     fn export<'py>(&self, py: Python<'py>, artifact_id: &str) -> PyResult<Bound<'py, PyBytes>> {
-        let bytes = self.with_sources()?.to_bytes(artifact_id).map_err(serialization)?;
-        Ok(PyBytes::new(py, &bytes))
+        crate::catch_ffi(|| {
+            let artifact = self.with_sources()?;
+            let bytes = py
+                .detach(|| antecedent::analysis::inverse_query::export(&artifact, artifact_id))
+                .map_err(serialization)?;
+            Ok(PyBytes::new(py, &bytes))
+        })
     }
 }
 
@@ -423,28 +463,30 @@ fn inverse_query_baseline(
     comparison: &str,
     tolerance: f64,
 ) -> PyResult<(Option<String>, Option<String>)> {
-    check_size(points_json)?;
-    let comparison = match comparison {
-        "at_least" => Comparison::AtLeast,
-        "at_most" => Comparison::AtMost,
-        other => return Err(crate::value_err(format!("unknown comparison `{other}`"))),
-    };
-    let points: Vec<BaselinePointIn> = match serde_json::from_str(points_json) {
-        Ok(points) => points,
-        Err(error) => return Ok((None, Some(declaration_refusal(&error.to_string())))),
-    };
-    let points: Vec<EnumeratedForwardValue> = points
-        .into_iter()
-        .map(|p| EnumeratedForwardValue { id: p.id, value: p.value, supported: p.supported })
-        .collect();
-    match finite_enumeration_baseline(&points, target, comparison, tolerance) {
-        Ok(classes) => {
-            let rows: Vec<_> =
-                classes.into_iter().map(|(id, status)| json!([id, status.as_str()])).collect();
-            Ok((Some(serde_json::Value::Array(rows).to_string()), None))
+    crate::catch_ffi(|| {
+        check_size(points_json)?;
+        let comparison = match comparison {
+            "at_least" => Comparison::AtLeast,
+            "at_most" => Comparison::AtMost,
+            other => return Err(crate::value_err(format!("unknown comparison `{other}`"))),
+        };
+        let points: Vec<BaselinePointIn> = match serde_json::from_str(points_json) {
+            Ok(points) => points,
+            Err(error) => return Ok((None, Some(declaration_refusal(&error.to_string())))),
+        };
+        let points: Vec<EnumeratedForwardValue> = points
+            .into_iter()
+            .map(|p| EnumeratedForwardValue { id: p.id, value: p.value, supported: p.supported })
+            .collect();
+        match finite_enumeration_baseline(&points, target, comparison, tolerance) {
+            Ok(classes) => {
+                let rows: Vec<_> =
+                    classes.into_iter().map(|(id, status)| json!([id, status.as_str()])).collect();
+                Ok((Some(serde_json::Value::Array(rows).to_string()), None))
+            }
+            Err(error) => Ok((None, Some(query_refusal(&error)))),
         }
-        Err(error) => Ok((None, Some(query_refusal(&error)))),
-    }
+    })
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

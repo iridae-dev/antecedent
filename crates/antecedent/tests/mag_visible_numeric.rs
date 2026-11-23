@@ -1,6 +1,6 @@
 //! Visibility-certified MAG estimation against y = 1 + 2t.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ContinuousDomain, ExecutionContext,
@@ -137,7 +137,7 @@ fn visible_mag_scalar_and_response_cells_reuse_certified_envelopes() {
                                 other => panic!("unexpected {other:?}"),
                             }
                         } else {
-                            vec![result.estimate.as_effect().unwrap().ate]
+                            vec![result.estimate().as_effect().unwrap().ate]
                         };
                         assert_eq!(values.len(), expected.len());
                         for (value, target) in values.iter().zip(expected) {

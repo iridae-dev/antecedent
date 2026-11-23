@@ -16,9 +16,9 @@ copied_tests = false
 # constraint-based algorithm and test, reimplemented in this repository; the delta-method standard
 # error and the exponential image of the log-scale interval are textbook.
 papers = [
-  { title = "A note on data-splitting for the evaluation of significance levels (Cox, Biometrika 62, 1975)", doi = "10.1093/biomet/62.2.441", sections = ["selection on one part of the data and evaluation on the other"] },
-  { title = "Causation, Prediction, and Search (Spirtes, Glymour, Scheines, 2nd ed., MIT Press, 2000)", doi = "10.7551/mitpress/1754.001.0001", sections = ["the PC algorithm and collider orientation"] },
-  { title = "Estimating high-dimensional intervention effects from observational data (Maathuis, Kalisch, Buhlmann, Annals of Statistics 37, 2009)", doi = "10.1214/09-AOS685", sections = ["effects identified by the parents of the treatment when its edges are oriented in the CPDAG"] },
+  { title = "A note on data-splitting for the evaluation of significance levels", citation_note = "Previously recorded title and bibliographic detail: A note on data-splitting for the evaluation of significance levels (Cox, Biometrika 62, 1975)", doi = "10.1093/biomet/62.2.441", sections = ["selection on one part of the data and evaluation on the other"] },
+  { title = "Causation, Prediction, and Search", citation_note = "Previously recorded title and bibliographic detail: Causation, Prediction, and Search (Spirtes, Glymour, Scheines, 2nd ed., MIT Press, 2000)", doi = "10.7551/mitpress/1754.001.0001", sections = ["the PC algorithm and collider orientation"] },
+  { title = "Estimating high-dimensional intervention effects from observational data", citation_note = "Previously recorded title and bibliographic detail: Estimating high-dimensional intervention effects from observational data (Maathuis, Kalisch, Buhlmann, Annals of Statistics 37, 2009)", doi = "10.1214/09-AOS685", sections = ["effects identified by the parents of the treatment when its edges are oriented in the CPDAG"] },
 ]
 implementation_deviations = [
   "The interval's coverage is a measured property of the whole method over the declared family (linear Gaussian on the analysis scale, causally sufficient, strongly faithful, maximum degree four, ten to twenty variables, an oriented treatment neighbourhood). It is not a statement about the graph discovered on one dataset: faithfulness and causal sufficiency are not testable from that dataset.",
@@ -30,7 +30,70 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = [
-  "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs",
-  "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs",
-  "python/tests/test_sample_split_parent_set_effect.py",
+ "crates/antecedent-io/tests/sample_split_parent_set_effect_reference.rs (acceptance over every marked four-node graph; the route for both versions and scales against exact least squares)",
+ "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs unit tests (reported effect, conflict resolution)",
+ "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs",
+ "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs",
+ "python/tests/test_sample_split_parent_set_effect.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The parent-set route in crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs: treatment_parent_set (accepted only when every edge incident to the treatment is directed; undirected edges elsewhere listed and never completed; ambiguity checked before an outcome oriented into the treatment), the regression it reuses (adjusted_effect, reviewed under discovery.sample_split_effect), reported_effect (the identity scale, or for a log-linear study the mean ratio exp(shift b), the ordered exponential image of the interval and the delta-method standard error ratio |shift| se), the log transform of every searched column before the split, and version 1 (half) and version 2 (three-quarter) discovery fractions through the split by definition. The conflict-resolution orientation (treatment_parent_set_under_conflicts, resolve_incident_orientation), the PC search and the calibration are not reviewed here."
+assumptions = ["Linear Gaussian on the analysis scale, causal sufficiency, strong faithfulness, bounded degree and an oriented treatment neighbourhood are the measured family's premises, not checked by the review.", "The frozen ten-variable data are built so that the treatment is a collider of two independent parents, so the class orients every treatment edge and the true parents are the expected parent set; discovery is not reproduced in the reference.", "The intervention mean ratio is a monotone image of the log-scale coefficient, so the ordered image of the interval is the interval of the ratio under the same Student argument."]
+historical_exposure = "Historical author exposure cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated by an executing reference written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review (no paper was downloaded or read here): the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+redistribution = "The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library and mpmath (BSD-3-Clause, imported at run time and not redistributed). It declares inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Acceptance: every acyclic marked graph on four nodes with two treatment/outcome choices (7,212 cases) agrees with the definition. Route: one 1,000-row ten-variable dataset, one split seed, both protocol versions, the linear and the log-linear scale, and shifts of 0.5 and -0.75 (which reverses the interval before ordering), agreeing with exact least squares on the definition-level split rows to 1e-8 relative; a unit test also covers shifts 1.0 and 0.001. Not covered: conflicting-orientation resolution, a parent limit that binds, background knowledge, graphs above ten variables, the collider budget, heteroskedastic errors, and any coverage claim (the measured calibration is the evidence). The data have a version that was first drafted with a near-cancelling path and was discarded because PC then failed to orient the treatment, which is a property of the draft, not of the product. The Maathuis, Kalisch and Buhlmann identifiability argument that the treatment's parents are the same in every member of the class was not retrieved or re-derived in this review; the executed check is that the code accepts exactly the patterns with every treatment edge directed."
+sources = ["crates/antecedent-io/tests/sample_split_parent_set_effect_reference.rs", "crates/antecedent-io/tests/oracle_data/sample_split_pipeline_reference.py", "crates/antecedent-io/tests/oracle_data/sample_split_parent_set_effect_reference.py", "https://mpmath.org/"]
+findings_resolved = ["The regression this route shares with discovery.sample_split_effect refused designs with large offsets as singular; it is repaired there (centring and Householder QR) and this route inherits the repair; the facade suite of this route (35 tests) passes.", "No defect found in the acceptance rule, the reported effect (including a negative shift) or the split fractions: all agree with the definition-level references.", "Added a unit test of reported_effect for shifts 0.5, 1, -2 and 0.001 and the linear passthrough."]
+record_sha256 = "4f7c028dfb82207ac1d8a2b26e303cded70540ead0fcb750ca4bc8ca7f873cda"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs"
+items = ["const DISCOVERY_FRACTION", "const FORMAT_VERSION", "const MAX_CONFLICTING_COLLIDERS", "const MAX_ROWS", "const MEAN_RATIO", "const PARENT_LIMIT_DIAGNOSTIC", "const TOTAL_EFFECT", "enum Transformation", "fn discovery_fraction", "fn frame", "fn label", "fn name", "fn neighbourhood", "fn new", "fn parse", "fn reported_effect", "fn run", "fn run_with_collider_bound", "fn treatment_parent_set", "fn treatment_parent_set_under_conflicts", "fn unresolved_reason", "fn validate", "struct ConflictEvidence", "struct Knowledge", "struct ParentSetEffectRun", "struct ParentSetEffectSource", "struct ReportedEffect", "struct TreatmentNeighbourhood", "struct UnresolvedPair"]
+sha256 = "c4eae6c49f8a5b168523f6bc6bb88fec7d3917f387ab245dfcf483ab1695b3dd"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io/src/measured_inference/split_effect.rs"
+items = ["const ALPHA", "const CI_TEST", "const DISCOVERY_FRACTION", "const FORMAT_VERSION", "const LEVEL", "const MAX_ROWS", "fn adjusted_effect", "fn centred_least_squares", "fn directed_parents", "fn discovery_refusal", "fn effect_on_structure", "fn frame", "fn new", "fn run", "fn validate", "struct AdjustedEffect", "struct SplitEffectRun", "struct SplitEffectSource"]
+sha256 = "5bb317201789f99fb16b868d9ffc3ff4be1936ede103f375d87d0345b1c4321a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io/src/refusal.rs"
+items = ["fn refused"]
+sha256 = "335f5a2aeb43a22d26a7c166c3fd33b8b065c18da65756ed822afca9af6c04c7"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io/src/measured_inference.rs"
+items = ["fn invalid", "fn validate_split_columns", "fn validate_split_header"]
+sha256 = "44ac3273efb2810b54707c9b275e8a864554afe943bb5d3e1882499ac312b364"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-io/tests/sample_split_parent_set_effect_reference.rs"
+items = ["const PAIRS", "fn frame", "fn ids", "fn pairs", "fn parent_set_and_fixed_graph_acceptance_agree_with_the_definition_on_every_pattern", "fn structure", "fn the_parent_set_route_equals_exact_least_squares_for_both_versions_and_scales"]
+sha256 = "6fee99f94172ff71636af8860c67402233564334d754f5742dedd58820a32ca9"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-io/tests/oracle_data/sample_split_parent_set_effect_reference.py"
+sha256 = "0d74d3b2c9428918c660093daec8a768f821ebcae358adc18bac8602f72a6743"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-io/tests/oracle_data/sample_split_parent_set_effect_reference.json"
+sha256 = "ea308435f9602512b40a191c96e10bfd6f436176b57ca359d767494ee14b1ff6"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-io/tests/oracle_data/sample_split_pipeline_reference.py"
+sha256 = "813acb401fbe7b2c051772f04310721a01faf7e559958f529bcc3e3ac7a3f81e"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-io/tests/oracle_data/sample_split_pipeline_reference.json"
+sha256 = "b1cb6d946d5d055ba680f8a2e9b4c6a7b46bee8d61ee592ce16bd4a3edb80c36"

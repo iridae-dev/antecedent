@@ -1,29 +1,29 @@
 # Cross-language naming dictionary
 
-Rust and Python expose the **same capabilities** with idiomatic shapes on each side
-(architecture invariant 9: capability parity ≠ API cloning).
+Rust and Python expose the **same capabilities** with idiomatic shapes on each side;
+neither API is a transliteration of the other. This page says where each Python name lives
+(root, stage module or narrower module) and maps each capability to its Rust and Python
+spelling. In the capability and identity tables, each row is one capability: read across for
+the Rust entry point and the Python entry point that reach it.
 
 ## The shape
 
-The day-1 workflow has five verbs:
+The day-1 lifecycle is one immutable chain: prepare, estimate, branch, export.
 
-- `analyze(data, graph=..., query=...)` — identify, then estimate, retaining a reusable study on ordinary prepared routes.
-- `prepare(data, graph=..., query=...)` — stop after preparation; call `.estimate()` on retained data.
-- `load(result.export())` — consume a portable execution through semantic verification.
-- `identify(graph=..., query=...)` — identify only; returns a staged
-  `Identification` that can continue into `.estimate(data)`; then call `result.refute(...)`
-  while retaining the resolved strategy and query. The one-shot execution
-  pipeline deterministically rechecks identification before estimation.
-- `estimate(identification, data, ...)` — the module-level mirror of
-  `Identification.estimate`, for callers that already hold a staged
-  `Identification`.
+- `prepare(data, graph=..., query=..., inference=..., execution=...)` — validate, identify and own the inputs; nothing is fitted. Returns an immutable prepared study (`study.inspect()`, `study.report()`).
+- `estimate(study)` — execute once and return a typed `Outcome` (`.value`, `.answer`, `.inspect()`, `.export()`, `.refusal`). The study is unchanged, so executing it again gives an independent outcome.
+- `rebind(study, data=...)` / `reconfigure(study, ...)` — branch a new immutable study on new observations or new declarations; `branch.reuse` names what was retained or invalidated.
+- `analyze(data, ...)` — the one-shot `estimate(prepare(...))`; the outcome retains its study as `outcome.study`.
+- `load(artifact, expected=...)` — check that a portable execution is intact and return its recorded outcome; nothing is recomputed unless you pass `replay=True` or call `.replay()`.
+- `identify(graph=..., query=...)` — identify only; the staged `Identification` continues with `.prepare(data, ...)` or the one-shot `.estimate(data, ...)`.
+
+Scientific declarations go in `inference=Frequentist(...)` / `Bayesian(...)` (bootstrap or draws, `profile=`); seed, threads, cancellation, resource limits and observers go in one reusable `execution=Execution(...)`. A valid question that the declared structure cannot answer returns an `Outcome` with a typed `refusal` (or, with `on_refusal="describe"`, the same refusal beside a labelled `associational` outcome and an `evidence_plan`); invalid arguments and operational failures raise.
+
+## Where a name lives
 
 The root namespace (`import antecedent`) has an explicit `__all__` contract. Specialized families live on their stage modules; the namespace tests check the exported names directly.
-Version 1.7 added `ClassPrior` to the 49-name 1.0 contract; 1.9 added
-`AnomalyAttribution` and `ChangeAttribution` so the query axis and root
-`__all__` stay aligned. Both types exist for the axis; `analyze()` refuses
-them — the licensed cells are Rust `Study` only. Version 1.10 added `prepare` and `load`,
-and the design query `InterferenceQuery`. The `experiment`, `factorial`, `policy`, `quasi`, and `survival` stage
+
+The `experiment`, `factorial`, `policy`, `quasi`, and `survival` stage
 modules add point-only randomized experiment, factorial, held-out policy,
 DiD, staggered event-study, switchback, and survival utilities. `SwitchbackDesign` and
 `SwitchbackEffect` describe unit-period assignments with known marginal
@@ -33,19 +33,19 @@ error; it requires at least two sequences and both arms observed across the
 full schedule, and assumes no carryover from earlier assignments.
 `SwitchbackEffect` also uses retained `analyze`, preserving sequence and
 period identity. Its supported sequence-level Student interval has an exact
-graphless license; sparse schedules remain point-only.
+graphless support; sparse schedules remain point-only.
 `experiment.ComplierEffect` adds the retained Bernoulli encouragement
 CACE/LATE query with observed receipt, a positive first stage, and no interval;
-its result is also off the support-matrix axis.
+its result is also outside the support matrix.
 `FactorialRandomization` carries fixed four-cell 2×2 assignment through the
 retained `RandomizedEffect` analysis. The result reports both marginal main
 effects and their interaction with separate conservative cellwise variances;
-it remains off the support-matrix axis and reports no interval.
+it remains outside the support matrix and reports no interval.
 `MultiArmExperimentDesign` carries three or more actions and their known
 row-level assignment probabilities through retained `RandomizedEffect`
 analysis. The result reports all action contrasts to the reference arm with
 covariance-free variance bounds, observed arm support, and no interval or
-support-matrix license.
+support-matrix support.
 `estimate_ancova_effect` complements
 one-covariate CUPED with multiple pre-treatment covariates for independent
 Bernoulli assignment, reporting the OLS treatment coefficient, adjustment
@@ -53,27 +53,31 @@ coefficients, support counts, and an HC0 standard error without an interval.
 The same native fit is available through retained `prepare` / `analyze` via
 `RandomizedEffect(..., ancova_covariates=("x1", "x2"))`; its query and
 artifact retain the covariate identities and report point-only HC0 uncertainty.
-The licensed trial-IPW cell is
+The supported trial-IPW cell is
 `antecedent.transport.advanced.TransportQuery`; the structural transport compiler is
 `antecedent.transport.Transport` and is not a root export.
-See [the Python workflow](python-workflow.md) for lifetime and report semantics.
-The set is: the five verbs
-above; the accepted-structure and result types (`AcceptedGraph`, `Identification`,
-`AnalysisResult`); the ten typed queries (`AverageEffect`, `PulseEffect`,
+See [the Python workflow](start/first-analysis.md) for lifetime and report semantics.
+
+The root set is: the seven verbs
+above plus `diagnose_data` and `staleness`; the study, outcome and result types
+(`PreparedAnalysis`, `Outcome`, `Refusal`, `AcceptedGraph`, `Identification`,
+`AnalysisResult` and the `Analysis` union); the ten typed queries (`AverageEffect`, `PulseEffect`,
 `SustainedEffect`, `InterventionalDistribution`, `PathSpecificEffect`,
 `ConditionalEffect`, `MediationEffect`, `Counterfactual`,
 `NestedCounterfactual`, `TemporalMediationEffect`) plus the eight
 response-family queries
 (`ResponseCurve`, `AverageDerivative`, `PointDerivative`, `Elasticity`,
 `SemiElasticity`, `DirectionalDerivative`, `ResponseJacobian`,
-`InterventionResponse`) plus the two attribution queries
+`InterventionResponse`) plus the temporal targets (`TemporalQuery`,
+`TemporalConditionalPulse`, `TemporalConditionalSustained`, with the
+`FeedbackMechanism` declaration) plus the two attribution queries
 (`AnomalyAttribution` with its `AnomalyReference`, `ChangeAttribution`) plus the
 design query (`InterferenceQuery`); the five graph classes (`Dag`, `Cpdag`, `Pag`, `Admg`,
 `TemporalDag`); the inference / identifier / estimator / latency / refute selectors
-(`Frequentist`, `Bayesian`, `Identifier`, `Estimator`, `Latency`, `Refute`);
-the structural mass type `ClassPrior`; the two
+(`Frequentist`, `Bayesian`, `Identifier`, `Estimator`, `Latency`, `Refute`, with `Execution`, `ResourceLimits`, `CachePolicy`, `CancellationToken`, `RandomizationTestLimits` and `TemporalMaterializationLimits` for the execution policy);
+the `DataDiagnostics` declaration; the structural mass type `ClassPrior`; the two
 error names most callers catch (`CausalError`, `ReviewRequired`); the root-exported stage
-modules themselves; and `__version__`.
+modules themselves; `build_flavor()`; and `__version__`.
 
 **The rule for where a name lives**: if it's part of the day-1 workflow — run an
 analysis, describe a query, hold a graph, catch an error — it's at the root. Anything
@@ -135,7 +139,7 @@ directly:
   `.stages_behind()`, or refuses as `ExternalRefusal` (a `CausalUnsupportedError`
   with registered `reason_code`, `remedy`, `stage`, `offending`, `expected`,
   `supplied`). Trust uses the shared `ProviderTrust` vocabulary and never
-  `native_licensed`; the claim is never native estimation.
+  `native_supported`; the claim is never native estimation.
 - ``antecedent.handoff`` — adjustment-set export for a caller-owned learner.
   ``handoff.adjustment`` returns an ``AdjustmentHandoff``; ``handoff.econml``,
   ``EconMLSpec``, and ``EconMLProviderAdapter`` are aliases. Antecedent identifies;
@@ -146,7 +150,7 @@ directly:
 - ``antecedent.extensibility.ProviderQuery`` — execute a previously registered
   Python provider through ``analyze(data, query=ProviderQuery(...))``. Its
   family-shaped output remains externally attested and is not translated into
-  a native point or interval claim. ``providers.load_entry_point(name)``
+  a native point or interval claim. ``ProviderRegistry.load_entry_point(name)``
   explicitly loads a separately installed ``antecedent.providers`` factory;
   package import does not scan or execute plugins.
 - ``antecedent.learners`` — typed nuisance learners shared by estimators and
@@ -187,21 +191,20 @@ directly:
   ``antecedent.transport.discovered`` — transport revalidation, sensitivity and
   discovered-graph routes; import them as submodules of ``antecedent.transport``.
 
-Discovery algorithms follow the same rule: what used to be sixteen free
-`discover_*()` functions are now config dataclasses on ``antecedent.discovery``
+Discovery algorithms follow the same rule: they are config dataclasses on
+``antecedent.discovery``, not free `discover_*()` functions
 (`PC`, `GES`, `LiNGAM`, `NOTEARS`, `FCI`, `RFCI`, `PCMCI`, `PCMCIPlus`, `LPCMCI`,
 `JPCMCIPlus`, `RPCMCI`, and the graph-posterior family). Each one owns its own
 `run()` (and, where a holdable graph artifact makes sense, `.accept()`):
 
 ```python
-result = antecedent.discovery.PC(alpha=0.05).run(data, seed=1)
-accepted = antecedent.discovery.PC(alpha=0.05).accept(data, seed=1)  # -> AcceptedGraph
+result = antecedent.discovery.PC(alpha=0.05).run(data, execution=antecedent.Execution(seed=1))
+accepted = antecedent.discovery.PC(alpha=0.05).accept(data, execution=antecedent.Execution(seed=1))  # -> AcceptedGraph
 ```
 
 Graph interchange is on the classes: ``Dag.from_dot`` / ``Dag.to_dot`` and the
 JSON / GML / NetworkX peers, likewise on ``Cpdag`` / ``Pag`` / ``Admg`` — not free
-`dag_from_*` / `dag_to_*` functions. These constructors round-trip variable names
-(earlier versions discarded them).
+`dag_from_*` / `dag_to_*` functions. These constructors round-trip variable names.
 
 Public analysis results are nested ``AnalysisResult`` views. The native DTOs
 live on ``antecedent._native`` only, which is an advanced FFI surface.
@@ -212,13 +215,13 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 |---|---|---|
 | Day-1 import | `use antecedent::prelude::*` (`cargo add antecedent`) | `import antecedent` |
 | Run analysis | `Study::tabular(data)…build()?.run(&ctx)` (or `::series` / `::series_multi` / `::panel` / `::events` for other modalities) | `antecedent.analyze(data, graph=…, query=…)` |
-| Identify only (staged) | `identify(&AcceptedGraph::from(graph), &query)` or `Study::…identify_only()` (DAG/ADMG) | `antecedent.identify(graph=…, query=…)` → `Identification.estimate()`; then `result.refute()` — `Cpdag` / `Pag` / temporal classes use the typed-graph identifier |
+| Identify only (staged) | `Study::…identify_only()` (DAG/ADMG), or `Study::run` / `Study::prepare` for a `Cpdag` / `Pag` / temporal class, which retain the identification beside the estimate | `antecedent.identify(graph=…, query=…)` → `Identification.estimate(data)` or `.prepare(data)`; then `outcome.study.refute(suite=…)` — `Cpdag` / `Pag` / temporal classes use the typed-graph identifier |
 | Named CPDAG | `Cpdag::from_named_edges` + `insert_undirected` | `Cpdag.from_directed_undirected(names, directed, undirected)` |
 | Adjustment handoff | — | `antecedent.handoff.adjustment(result, modifiers=…, target_weights=…, outcome_functional=…, tool=…)` — point-identified backdoor / generalized adjustment; temporal specs carry offsets. `columns(layout="econml"\|"named")` defaults to EconML `Y`/`T`/`W`/`X`. `spec.attach(learner=…, learner_config=…, effect=…)` returns an `ExternalEstimate` receipt (attested, not re-verifiable); with `label="ate"` the scalar is bound through `external.bind` and `.claim` carries provider version, support labels and lineage (`learner_version=`, `outcome_units=`, `support=`). `handoff.econml` is an alias |
 | Outcome functional | `OutcomeFunctional::{Mean, Exceedance, ExceedanceGrid}` | `antecedent.query.Mean` / `Exceedance` / `ExceedanceGrid` on `AverageEffect`, `ConditionalEffect`, `InterventionResponse` |
-| Re-execute a carried retarget | `PreparedStudy::reexecute_retarget(section, ctx)` — the weights an exported contract carries; refuses `row_weights_bound_to_snapshot` on another snapshot or score table | `PreparedAnalysis.reexecute_retarget(artifact)` — same, from the exported bytes |
-| Retarget prepared plan | `PreparedStudy::retarget(weights, depends_on, ctx)` — requires a frozen AllObserved iid AIPW or cell-AIPW score table; nonempty `depends_on` needs a directed graph (DAG or ADMG); nonconstant weights require nonempty `depends_on` | `PreparedAnalysis.retarget(weights, depends_on)` — same; `analyze(...).study` retains the prepared handle on supported routes; scores require a licensed score-table estimator |
-| Retarget a batch family | `PreparedBatch::retarget(&scores, &request, ctx)` with `estimate_scored` / `prepared_scores` — points, joint plug-in score covariance and named contrasts over one row snapshot; `BatchRetargetReport::simultaneous_interval(level, seed, draws, ctx)` is the family max-t band of a complete family | `PreparedBatch.retarget(claims, contrasts)` → `BatchRetarget` (`RetargetClaim`, `RetargetContrast`; `to_rows()` tidy export; `BatchRetarget.simultaneous_interval()`) |
+| Re-execute a carried retarget | `PreparedStudy::reexecute_retarget(section, ctx)` — the weights an exported contract carries; refuses `row_weights_bound_to_snapshot` on another snapshot or score table | `population.replay_retarget(completed, artifact)` — typed outcome using the completed immutable study and independently consumed artifact |
+| Retarget prepared plan | `PreparedStudy::retarget(weights, depends_on, ctx)` — requires a frozen AllObserved iid AIPW or cell-AIPW score table; nonempty `depends_on` needs a directed graph (DAG or ADMG); nonconstant weights require nonempty `depends_on` | `PreparedAnalysis.retarget(weights, depends_on=names)` — same; `analyze(...).study` retains the prepared handle on supported routes; scores require a supported score-table estimator |
+| Retarget a batch family | `PreparedBatch::retarget(&scores, &request, ctx)` with `estimate_scored` / `prepared_scores` — points, joint plug-in score covariance and named contrasts over one row snapshot; `BatchRetargetReport::simultaneous_interval(level, seed, draws, ctx)` is the family max-t band of a complete family | `estimation.prepare_many(...)` → immutable `PreparedBatch`; `ant.estimate(study)` → `Outcome[BatchResult]`; joint-cell `family=estimation.CellFamily(...)`; completed `batch.retarget(claims, contrasts)` → `Outcome[BatchRetarget]` (`RetargetClaim`, `RetargetContrast`; `to_rows()` tidy export; `BatchRetarget.simultaneous_interval()`) |
 | Tiered background | `StudyBuilder::tiered_background(TieredBackground)` | `antecedent.graph.TieredBackground` / `WithinTier` as `analyze(..., graph=…)` |
 | Cell-saturated joint AIPW | `EstimatorId::CellAipw` (`cell.aipw`) | `Estimator.CELL_AIPW` / `"cell.aipw"` |
 | Average effect | `AverageEffectQuery` | `AverageEffect` |
@@ -229,7 +232,7 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Decision contract | `DecisionContract` / `DecisionAction` / `UtilityExpr` / `HardConstraint` / `DecisionCriterion` (`antecedent-design`); `evaluate_contract`, `evaluate_structural`; `DecisionContractArtifact` / `DecisionResultArtifact` | `antecedent.decision.Contract` / `Action` / `Expr` (`decision.x(i)`) / `Constraint` / `Criterion`; `Contract.evaluate(joint_distribution)` or a supported static ATE/response result → `Decision` (means permit affine expectation only); `Contract.load` / `.export()`; `decision.replay(...)`; refusals raise `DecisionRefusal` |
 | Transported response | `TransportedResponse::{declared_point, declared_law, from_shifted_cohort}` with a `TransportReceipt` (`antecedent-design`) | `transported_response.TransportedResponse.declared_point` / `declared_law` / `from_shifted_cohort(cohort_source)` with a `TransportDeclaration`; `.receipt`, `.identity`, `.inspect()`; never native target data |
 | Decide on a transported response | `BoundDecisionContract::evaluate_transported(&response, TransportedDemand, &SupportPolicy)` | `Contract.evaluate_transported(response, analysis=prepared, demand=, support_policy=)` (or `decision_robust.AdmissibleContract.evaluate_transported`) → `TransportedDecision` (`.decision`, `.receipt`, `.identity`); a law or interval refuses, the default policy refuses the extrapolative label |
-| Forward source of an inverse query | `inverse_sources::{composed_source, cohort_source, transported_source, evaluate, seal, seal_per_action}`, `PreparedMechanismComposition::inverse_forward_source` | `inverse_sources.composed_forward_source` / `PreparedMechanismComposition.inverse_forward_source`, `cohort_forward_source`, `transported_forward_source` → `ForwardSource.evaluate` / `.seal` / `.seal_per_action`; `InverseResult.origin` |
+| Forward source of an inverse query | `inverse_sources::{composed_source, cohort_source, transported_source, evaluate, seal, seal_per_action}`, `PreparedMechanismComposition::inverse_forward_source` | `inverse_sources.derive_composed_source` / `PreparedMechanismComposition.derive_inverse_source`, `cohort_forward_source`, `transported_forward_source` → `ForwardSource.evaluate` / `.seal` / `.seal_per_action`; `InverseResult.origin` |
 | Observational scenarios (associational) | `inverse_sources::{evaluate_observational, verify_observational, inspect_observational}` | `inverse_sources.observational_scenarios(law, outcome, scenarios, threshold=)` → `ObservationalScenarioResult` (`ranks_actions=False`, `.verify(law)`) |
 | Transport sensitivity (assumption range) | `transport_sensitivity::{transport_range, transport_sensitivity_artifact}` | `transport.sensitivity.transport_sensitivity(response, family=, bound=, grid_points=, reference=, reference_value=)` → `TransportSensitivity` (`.artifact` is a `SensitivityArtifact`) |
 | Transport revalidation | `transport_revalidation::{TransportSceneBuilder, revalidate, TransportClaimState}` | `transport.revalidation.TransportScene.builder(...).source(...).transported(...).decision(...).build()`, `revalidate(previous, current, effects)`, `TransportClaimState.observe(scene)` → `TransportRevalidation` (`.claim(key)`, `.require_valid(key)`, `.export()`) |
@@ -239,37 +242,44 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Value objects and refusals of the transported routes | `ComposedActionQuery`, `ScenarioCondition`, `ObservationalScenarioQuery`, `ForwardOrigin`, `TransportIdentity`, `TransportedClaimOffer`, `DiscreteContrast`; refusals `TransportedRefusal`, `TransportRevalidationRefusal` | `inverse_sources.ComposedAction`, `ScenarioCondition`, `ObservationalScenario`, `ForwardOrigin`, `SourcedInverseResult`; `transport_handoff.TransportIdentity`, `TransportedClaimOffer`; `transport.revalidation.Calibration`, `ObservedEffect`; `discretized_composition.DiscreteContrast.ate` / `.mean_at`; refusals `transported_response.TransportedResponseRefusal`, `discretized_composition.DiscretizedCompositionRefusal` (both `StructuredRefusal`) |
 | Study ranking | `antecedent-design` decision-value and native model objectives; checked prior-to-signal adapter | `design.rank_designs` returns one `DesignRankingResult` with an explicit basis: identification, EVSI/net value, structural sufficiency/cost, graph entropy, effect width, model distinction or callable-utility regret. `design.adapt_prior_to_signal` preserves native posterior lineage and overlap checks. See [design ranking](design-ranking.md). |
 | Measured scalar adapters | Source-bound `MeasuredInference` / checked method-specific producers and independent consumers (`antecedent-io`) | `transport.advanced` joint Bayesian, learned joint, binary nested-Markov Bayesian/Fisher, dependent temporal and sampled-recovery methods return `inference.MeasuredInference` at their [exact measured scopes](population-time-uncertainty.md); `MeasuredInference.load` requires the retained source identity. |
-| Provider trust (shared) | `ExternalTrustState` (`NativeLicensed` / `ExternallyAttested` / `ExactRequestVerified`) | `ProviderTrust` (`native_licensed` / `externally_attested` / `verified_extension`); a bound external claim is never `native_licensed` |
+| Provider trust (shared) | `ExternalTrustState` (`NativeSupported` / `ExternallyAttested` / `ExactRequestVerified`) | `ProviderTrust` (`native_supported` / `externally_attested` / `verified_extension`); a bound external claim is never `native_supported` |
 | Observation mechanism | `ObservationSpec` + explicit `ObservationAssumption` | `antecedent.observation` specs attached to a response query |
-| Structural transport (compiler) | μsID catalogs + exact/empirical/learned joints | `antecedent.transport.Transport(ResponseCurve\|AverageEffect, target=, evidence=)` on `analyze` / `identify` / `Identification.estimate`; `provider=` / `TransportInference` / `controls=` are opt-in. Evidence constructor is `transport.Evidence` / `transport.Source`. Theorem-stage types live in `antecedent.transport.advanced`. |
-| Structural transport (trial-IPW cell) | `TransportQuery` + `SelectionDiagram` + `StudyBuilder::{selection_targets, transport_trial}` | `transport.advanced.TransportQuery(response, SelectionDiagram(...), source_experiments, trial=, selection_probability=, treatment_probability=)` on `analyze(data, graph=Admg, query=...)` — licensed cell, not the compiler |
+| Structural transport (compiler) | μsID catalogs + exact/empirical/learned joints | `antecedent.transport.Transport(ResponseCurve\|AverageEffect, target=, evidence=)` on `analyze` / `identify` / `Identification.estimate`; `provider=` and `inference=TransportInference(...)` are opt-in; physical controls go in `execution=`. Evidence constructor is `transport.Evidence` / `transport.Source`. Theorem-stage types live in `antecedent.transport.advanced`. |
+| Structural transport (trial-IPW cell) | `TransportQuery` + `SelectionDiagram` + `StudyBuilder::{selection_targets, transport_trial}` | `transport.advanced.TransportQuery(response, SelectionDiagram(...), source_experiments, trial=, selection_probability=, treatment_probability=)` on `analyze(data, graph=Admg, query=...)` — supported cell, not the compiler |
 | Randomized interference | `InterferenceQuery` + `AssignmentDesign` + `ExposureMapping` + `StudyBuilder::interference` | `InterferenceQuery(design, exposure, contrast, network=, realized_assignment=)` on `analyze(data, graph=Dag or edges, query=...)`; designs and mappings in `antecedent.interference` |
-| Longitudinal regime value | `LongitudinalRegime` + known sequential randomization on one outcome row per subject | `regimes.LongitudinalRegime(outcome, treatment_history, actions, treatment_probabilities, subject_ids, ...)` on graphless `analyze` / `prepare`; point-only and off the support-matrix axis |
+| Longitudinal regime value | `LongitudinalRegime` + known sequential randomization on one outcome row per subject | `regimes.LongitudinalRegime(outcome, treatment_history, actions, treatment_probabilities, subject_ids, ...)` on graphless `analyze` / `prepare`; point-only and outside the support matrix |
 | Temporal pulse / sustained | `TemporalEffectQuery` | `PulseEffect` / `SustainedEffect` |
-| Temporal dose × horizon response | `ResponseQuery` + `TemporalResponseSpec` on `ResponseFunctional::MeanCurve` / `::InterventionResponse` | `ResponseCurve(..., horizons=…, policy=…, treatment_lag=…, max_history_lag=…)` / matching `InterventionResponse(..., horizons=…, …)` — keyword-only after treatment/outcome names; absent `horizons` = static Dag cell. `treatment_lag`, allowed policies, and the horizon cap are `query.temporal_response_spec`, supplied by Rust `TemporalResponseSpec::license`. Python does not spell `policy="dynamic"`; that remains a Rust `TemporalEffectQuery` policy. |
+| Temporal dose × horizon response | `ResponseQuery` + `TemporalResponseSpec` on `ResponseFunctional::MeanCurve` / `::InterventionResponse` | `ResponseCurve(..., horizons=…, policy=…, treatment_lag=…, max_history_lag=…)` / matching `InterventionResponse(..., horizons=…, …)` — keyword-only after treatment/outcome names; absent `horizons` = static Dag cell. `treatment_lag`, allowed policies, and the horizon cap are `query.temporal_response_spec`, supplied by Rust `TemporalResponseSpec::support`. Python does not spell `policy="dynamic"`; that remains a Rust `TemporalEffectQuery` policy. |
 | Mediation (static) | `MediationQuery` | `MediationEffect` |
 | Mediation (temporal) | `MediationQuery` + temporal data | `TemporalMediationEffect` |
 | Counterfactual ITE | `CausalQuery::Counterfactual` / `gcm::counterfactual_ite` | `Counterfactual` on `analyze` / `FittedGcm.counterfactual_ite` |
 | Anomaly / change attribution | `CausalQuery::AnomalyAttribution` / `ChangeAttribution` | `AnomalyAttribution` / `ChangeAttribution` on `analyze(data, graph=Dag or edges, query=...)`; identification `gcm.parametric`, estimator `gcm.fit` |
-| Identifier strategy | `IdentifierId::BackdoorAdjustment` (16 wire ids) | `Identifier.BACKDOOR_ADJUSTMENT` / `"backdoor.adjustment"`; the enum mirrors every `IdentifierId` wire id one-for-one (`tests/test_enum_parity.py` fails on drift) |
-| Estimator strategy | `EstimatorId::LinearAdjustmentAte` (63 wire ids) | `Estimator.LINEAR_ADJUSTMENT_ATE` / `"linear.adjustment.ate"`; the enum mirrors every `EstimatorId` wire id one-for-one, so `Estimator(result.estimate.estimator_id)` always resolves (`tests/test_enum_parity.py` fails on drift) |
+| Identifier strategy | `IdentifierId::BackdoorAdjustment` (`IdentifierId::ALL` lists every wire id) | `Identifier.BACKDOOR_ADJUSTMENT` / `"backdoor.adjustment"`; the enum mirrors every `IdentifierId` wire id one-for-one (`python/tests/test_enum_parity.py` fails on drift) |
+| Estimator strategy | `EstimatorId::LinearAdjustmentAte` (`EstimatorId::ALL` lists every wire id) | `Estimator.LINEAR_ADJUSTMENT_ATE` / `"linear.adjustment.ate"`; the enum mirrors every `EstimatorId` wire id one-for-one, so `Estimator(result.estimate.estimator_id)` always resolves (`python/tests/test_enum_parity.py` fails on drift) |
 | Per-estimator tuning | `EstimatorSpec::LinearAdjustmentAte { .. }` (builder setters) | `analyze(..., estimator_config={...})` — one table-driven dict kwarg; see `python/src/estimator_config.rs` for the estimator-id → valid-keys table |
-| Discovery algorithm | `discover_pc` / `discover_ges` / … (still free functions) | `antecedent.discovery.PC(...).run(...)` / `.accept(...)` (config dataclass, not a free `discover_*` function) |
+| Discovery algorithm | `StudyBuilder::discovery(DiscoverySpec::pc(..), vars)` → `CausalQuery::Discover`; `CompiledExecution::run`, `accept_discovered` (the `discover_*` functions are hidden engines) | `antecedent.discovery.PC(...).run(...)` / `.accept(...)` (config dataclass, not a free `discover_*` function) |
 | Accepted-graph session | `DiscoveryArtifact` / re-run identify+estimate | `AcceptedGraph.from_discovery(...)` / `.from_graph(...)`; `.review({edge: mark})`; `.pending`; `len()` / `iter()` / `in` |
-| Target population | Rust `TargetPopulation` enum | `antecedent.population.AllRows` / `Treated` / `Untreated` / `Named` / `Rows` / `CustomDistribution` dataclasses (module not at root; `target_all()`-style constructors still work and return these types) |
+| Target population | Rust `TargetPopulation` enum | `antecedent.population.AllRows` / `Treated` / `Untreated` / `Named` / `Rows` / `CustomDistribution` dataclasses (module not at root; `target_all()`-style constructors return these types) |
 | Inference | `InferenceMode::Bayesian(BayesianConfig::…)` | `Bayesian(...)` / `Frequentist()` |
-| Refutation suite | `RefuteSuite::…` | `Refute.FULL` / `"placebo"` / `"cheap"` / `"full"` — `refute=True` is rejected (`TypeError`); leave `refute` unset for the query's licensed default. Function-valued `ResponseCurve` and temporal / class-aware `InterventionResponse` license validation `none`. Scalar Dag `InterventionResponse` licenses cheap/full: `cell.aipw` on the cell-versus-control contrast; plugin g-comp cheap is overlap only and full omits E-value. |
+| Refutation suite | `RefuteSuite::…` | `Refute.FULL` / `"placebo"` / `"cheap"` / `"full"` — `refute=True` is rejected (`TypeError`); leave `refute` unset for the query's supported default. Function-valued `ResponseCurve` and temporal / class-aware `InterventionResponse` support validation `none`. Scalar Dag `InterventionResponse` supports cheap/full: `cell.aipw` on the cell-versus-control contrast; plugin g-comp cheap is overlap only and full omits E-value. |
 | Tabular data | `TabularData::from_f64_columns` | `dict[str, array]` / pandas / Arrow |
 | Named DAG | `Dag::from_named_edges(&schema, &[…])` | `Dag.from_edges(names, edges)` or edge list |
 | d-separation | `Dag::is_d_separated` | `Dag.d_separated(x, y, z=…)` |
 | Latent projection | `latent_project` | `Dag.latent_project(observed)` |
-| External prior bank | `antecedent-prob::conjugate_moment_match` / `compose_external_priors` | `antecedent.priors.beta_from_moments` / `compose_external_priors` / `PriorCatalog` (module renamed from `prior_bank` to `priors`) |
-| Safe consumption shape | withheld leftover / partial ID | `result.answer` (`point` / `bounds` / `partial` / `unavailable`); historical `.effect` / `.posterior` / `.response` remain accessible and are not misuse-proof |
+| External prior bank | `antecedent-prob::conjugate_moment_match` / `compose_external_priors` | `antecedent.priors.beta_from_moments` / `compose_external_priors` / `PriorCatalog` |
+| Conjugate count posteriors | `antecedent-prob::conjugate_counts` (`PriorSpec::Beta` / `PriorSpec::Gamma`) | `antecedent.priors.beta_binomial_posterior` / `exceedance_posterior` / `gamma_poisson_posterior` |
+| Power-prior discount from out-of-sample fit | `antecedent-prob::power_prior_alpha` | `antecedent.priors.select_alpha_linear` / `select_alpha_beta_binomial` / `select_alpha_gamma_poisson` |
+| Safe consumption shape | withheld leftover / partial ID | `outcome.answer` (`kind` such as `point` / `bounds` / `partial` / `unavailable` / `refused`); the specialized `outcome.value.effect` / `.posterior` / `.response` are also readable and are not misuse-proof |
 | Primary scalar effect | `result.effect()` | `result.effect` (`.ate` alias) |
 | Rich result display | `Debug` / `Display` impls | `AnalysisResult.__repr__` / `_repr_html_` (amber callout when `unidentified_mass > 0`); HTML also on `Identification`, graphs, `CausalResponseView`, `ReviewRequired`; `ValidationView` supports `len()` / iteration / indexing / `.failed` / `.to_columns()`; `PosteriorView` supports `__array__` / `.interval()` |
 | Errors | `CausalError` | `CausalError` (+ typed subclasses); `ReviewRequired` carries structured `pending_edges` |
 | Latency tier | `LatencyMode::Interactive` | `Latency.INTERACTIVE` / `"interactive"` |
-| Plan inspection | `result.logical_plan()` / `PreparedAnalysis::plan()` | `result.plan` / `PreparedAnalysis.plan` |
+| Plan inspection | `result.logical_plan()` / `PreparedStudy::plan()` / `PreparedStudy::plan_view()` | `prepared.plan_view()` ([guide](guides/plan-view.md)) |
+| Cyclic equilibrium and dynamic systems | `Study::prepare_cyclic(request, ctx)` / `Study::prepare_cyclic_family(&request, ctx)` on the common `PreparedStudy` handle | `antecedent.cyclic`: `LinearCyclicModel`, `EquilibriumModel`, `OdeSystem`, `OrnsteinUhlenbeck`, typed `World` of `Set` / `Shift` / `Soft`; `.worlds(...)` / `.prepare(...)` then `.interventions()` / `.execute()`; `consume_artifact(bytes, expected_identity=)` ([guide](guides/cyclic-systems.md)) |
+| Joint intervention responses | `Study::prepare_joint_panel(data, request, ctx)` then `estimate(ctx)` | `antecedent.joint_panel.prepare(...)`, `.consume(artifact)`; experiment designs through `prepare_native_joint_design(recipe, ...)` ([guide](guides/joint-intervention-responses.md)) |
+| Staleness and drift | `PreparedStudy::{staleness, staleness_baseline, staleness_plan}` with `StalenessPolicy` | `antecedent.drift.staleness(artifact, new_data, policy=StalenessPolicy(...))` → `StalenessReport` with a `reuse` / `refresh` / `reidentify` / `refuse` recommendation ([guide](guides/staleness.md)) |
+| Readable report | `PreparedStudy::report(result, ctx, ReportFormat)` | `prepared.report("markdown")` or `"html"` ([guide](guides/plan-view.md#read-a-report)) |
+| Host integration | `examples/rust/reference_host.rs`; versioned JSON Schema and stable refusal codes | `antecedent.host`: `schema()`, `refusal_codes()`, `claim_status`, `claim_response`, `error_response` ([embedding](guides/build/embedding.md)) |
 | Stage modules | `antecedent::discovery`, `antecedent::gcm`, `antecedent::io` | `antecedent.discovery`, `antecedent.gcm`, `antecedent.graph` |
 
 ## Identity dictionary
@@ -293,14 +303,16 @@ One row per identity domain, including `target_weights`. Rendered from
 | Target-weight identity | target-weights digest | `inspect().target_weights_id` |
 | Learned-trial artifact identity | `manifest.artifact_id` on `LearnedTrialWire` | n/a (artifact_id in the learned-trial artifact manifest) |
 | Transport-certificate artifact identity | `manifest.artifact_id` on `TransportCertificateWire` | n/a (artifact_id in the transport-certificate artifact manifest) |
+| Cyclic-solution identity | `CyclicContractWire.cyclic_solution`, bound as `CyclicSolution::Tag` on the program slot; comparing it does not solve the system | n/a (cyclic_solution in the cyclic family contract section) |
+| Cyclic recovery identity | `CyclicContractWire.recovery` digest; the data-snapshot and identification-product layers of an experimental recovery bind it | n/a (recovery in the cyclic family contract section) |
 <!-- generated:identity-dictionary:end -->
 
 Prefer package / module paths for stage depth; keep day-1 at the crate / package root.
 Rust stage APIs are **not** re-exported at the crate root — use `antecedent::io::…`, `antecedent::discovery::…`, `antecedent::gcm::…`, etc.
 
-## A sharp edge worth knowing
+## Sharp edges worth knowing
 
-**Pulse / Sustained vs temporal `ResponseCurve`.** On licensed `TemporalDag`
+**Pulse / Sustained vs temporal `ResponseCurve`.** On supported `TemporalDag`
 cells, `PulseEffect` and single-step `SustainedEffect` agree numerically with
 the dose × horizon surface on the shared known-truth fixture, but standard
 errors can differ: the surface uses analytic delta-method bands while the
@@ -313,12 +325,13 @@ worst-over-points.
 
 **Temporal response refuters.** Scalar ATE refuters are not applicable to a
 function-valued temporal surface; explicitly requesting one is not applicable.
-Licensed no-refutation runs surface the informational skip on
+Supported no-refutation runs surface the informational skip on
 `CausalResponseView.validation` as check id
 `refute.temporal_response.skipped`. Rust `Study` diagnostics carry the same
-code. `PreparedAnalysis.refute` remains AverageEffect-only.
+code. `PreparedAnalysis.refute` applies to `AverageEffect` and scalar Dag `InterventionResponse` only.
 
-`__init__.py` does `from .identify import Identification, estimate, identify`, which
+**`import antecedent.identify as m` binds the function, not the module.**
+`__init__.py` does `from .identify import Identification, identify`, which
 rebinds the `identify` attribute on the `antecedent` package to the **function**.
 `import a.b as m` is spec'd as "import `a.b`, then `m = a.b`" — an attribute lookup
 on the already-imported parent, not a `sys.modules` lookup — so
@@ -327,8 +340,8 @@ on the already-imported parent, not a `sys.modules` lookup — so
 as expected, because `from X import Y` extracts `Y` directly off the
 freshly-imported module object rather than walking `X`'s (possibly rebound)
 attributes. In practice this rarely matters: everything `identify.py` exports
-(`Identification`, `IdentifyResult`, `estimate`, `identify`) is
+(`Identification`, `IdentifyResult`, `identify`, …) is
 reachable without naming the module at all — `Identification` and
-`identify`/`estimate` are already at the root, and `IdentifyResult` is
+`identify` are already at the root, and `IdentifyResult` is
 one `from antecedent.identify import ...` away. Staged validation uses
-`Identification.estimate(..., refute=...)` or deferred `result.refute(...)`.
+`Identification.estimate(..., refute=...)` or deferred `outcome.study.refute(suite=...)`.

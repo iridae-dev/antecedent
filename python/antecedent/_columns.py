@@ -23,11 +23,13 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, fields, is_dataclass, replace
+from numbers import Real
 from typing import Any, TypeVar, cast, overload
 
 import numpy as np
 
 from ._data import read_columns, table_column_names, table_row_count
+from ._table_file import TableFile
 from ._validate import count as _count
 from .errors import CausalUnsupportedError, CausalValueError
 
@@ -106,6 +108,14 @@ def resolved_scalar(value: float | Sequence[float] | str) -> float | Sequence[fl
     return cast(float | Sequence[float], value)
 
 
+def scalar_or_values(value: float | Sequence[float]) -> list[float]:
+    """Keep a real scalar as one value; copy a sequence without changing its elements."""
+    # Name float explicitly because static typing does not model its Real registration.
+    if isinstance(value, (Real, float)):
+        return [float(value)]
+    return list(value)
+
+
 def _shown(value: Any) -> Any:
     """The value as ``tolist`` would have shown it in a refusal."""
     return value.item() if isinstance(value, np.generic) else value
@@ -178,9 +188,33 @@ def _cast_int(arr: np.ndarray, field: str, name: str) -> tuple[int, ...]:
     return tuple(out)
 
 
+def _is_missing_scalar(value: Any) -> bool:
+    """None, NaN, ``NaT`` or ``NA``: whatever a table uses for an absent value."""
+    if value is None:
+        return True
+    try:
+        return bool(value != value)
+    except (TypeError, ValueError):
+        # ``NA`` compares to itself as ``NA``, which has no truth value.
+        return True
+
+
+def identifier_strings(values: Iterable[Any], what: str) -> tuple[str, ...]:
+    """Identifiers as text; an absent value is refused, never spelled ``nan`` or ``None``."""
+    out: list[str] = []
+    for index, value in enumerate(values):
+        if _is_missing_scalar(value):
+            raise CausalValueError(
+                f"{what} has a missing identifier at row {index}; every row needs one",
+                reason_code="invalid_argument",
+            )
+        out.append(str(value))
+    return tuple(out)
+
+
 _KIND_CAST = {
     "bool": _cast_bool,
-    "str": lambda arr, field, name: tuple(str(v) for v in arr),
+    "str": lambda arr, field, name: identifier_strings(arr, f"{field}={name!r}"),
     "float": lambda arr, field, name: tuple(float(v) for v in arr),
     "int": _cast_int,
 }
@@ -245,6 +279,8 @@ def drop_columns(data: Any, names: set[str] | frozenset[str]) -> Any:
     """Return ``data`` without the design columns, so the numeric ingest never sees them."""
     if not names:
         return data
+    if isinstance(data, TableFile):
+        return data.without(names)
     if isinstance(data, Mapping):
         return {key: value for key, value in data.items() if key not in names}
     if hasattr(data, "column_names") and hasattr(data, "drop_columns"):
@@ -620,7 +656,7 @@ class IdentifierRefreshReceipt:
     ``changes`` lists every row whose label differs from the frozen one, in row order.
     ``duplicated`` lists the labels the supplied column repeats although every frozen label was
     unique. ``standing`` is ``recompute``: a claim computed under the frozen identifiers does
-    not describe the supplied table, and only ``reprepare`` binds the new ones; the prepared
+    not describe the supplied table, and only a new ``ant.prepare`` binds the new ones; the prepared
     study and its last result are untouched.
     """
 
@@ -674,12 +710,12 @@ def _refresh_refusal(receipt: IdentifierRefreshReceipt) -> CausalValueError:
     refusal = CausalValueError(
         f"frozen identifier column {receipt.column!r} changed labels or row order"
         f"{': ' + detail if receipt.changes else ''}; claims computed under the frozen identifiers "
-        "are marked recompute, use study.reprepare(data) to declare new identifiers",
+        "are marked recompute, prepare the new identifiers with ant.prepare(data, ...)",
         reason_code="invalid_argument",
     )
     setattr(refusal, "offending", receipt.column)  # noqa: B010 — structured optional error field
     setattr(refusal, "receipt", receipt)  # noqa: B010 — structured optional error field
-    refusal.remedy = "use study.reprepare(data) to bind the new identifiers"
+    refusal.remedy = "prepare the new identifiers with ant.prepare(data, ...)"
     return refusal
 
 
@@ -698,11 +734,11 @@ def guard_identifiers(study: Any, data: Any) -> None:
         if rows is not None and rows != frozen.rows:
             refusal = CausalValueError(
                 f"frozen identifier column {column!r} labels {frozen.rows} rows; the supplied "
-                f"table has {rows}; use study.reprepare(data) to declare new identifiers",
+                f"table has {rows}; prepare the new identifiers with ant.prepare(data, ...)",
                 reason_code="invalid_argument",
             )
             setattr(refusal, "offending", column)  # noqa: B010 — structured optional error field
-            refusal.remedy = "use study.reprepare(data) to bind the new identifiers"
+            refusal.remedy = "prepare the new identifiers with ant.prepare(data, ...)"
             raise refusal
         if available is None or column not in available:
             continue  # the frozen labels stay; the native side checks the row count
@@ -712,11 +748,11 @@ def guard_identifiers(study: Any, data: Any) -> None:
             if digest != frozen.digest:
                 refusal = CausalValueError(
                     f"frozen weights column {column!r} changed values; "
-                    "use study.reprepare(data) to declare new identifiers",
+                    "prepare the new identifiers with ant.prepare(data, ...)",
                     reason_code="invalid_argument",
                 )
                 setattr(refusal, "offending", column)  # noqa: B010 — structured optional error field
-                refusal.remedy = "use study.reprepare(data) to bind the new identifiers"
+                refusal.remedy = "prepare the new identifiers with ant.prepare(data, ...)"
                 raise refusal
             continue
         supplied_binding, _ = encode_identifier(data, column, what="cluster", keep_rows=True)
@@ -751,7 +787,7 @@ def _declared_strings(value: Any, into: set[str]) -> None:
 
 
 def analysis_columns(
-    query: Any, graph: Any, estimator_config: Mapping[str, Any] | None
+    query: Any, graph: Any, estimator_config: Mapping[str, Any] | None, *, missing: Any = None
 ) -> AnalysisColumns | None:
     """The columns a typed-graph analysis reads, or ``None`` when every column is read.
 
@@ -775,6 +811,12 @@ def analysis_columns(
         return None
     _declared_strings(query, declared)
     _declared_strings(estimator_config, declared)
+    # Auxiliary imputation variables are inputs even when they are not graph nodes.
+    from .missing import coerce_missing
+
+    policy = coerce_missing(missing)
+    if policy is not None:
+        declared.update(policy.covariates)
     return AnalysisColumns(tuple(sorted(declared)), ordered=False)
 
 

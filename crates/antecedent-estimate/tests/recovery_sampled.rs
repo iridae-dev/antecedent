@@ -1,6 +1,6 @@
 //! Sampled observation recovery against an enumerated binary
 //! missingness SCM, its refusals and its replayable receipt. Interval calibration
-//! is unmeasured here: nothing below asserts a coverage claim.
+//! is `not_measured` here: nothing below asserts a coverage claim.
 #![allow(
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
@@ -18,7 +18,7 @@ use antecedent_core::{EvidenceCatalog, ExecutionContext, RegimeBinding};
 use antecedent_estimate::{
     ObservationPattern, ObservationRow, SampledObservationInput, SampledRecoveryConfig,
     SampledRecoveryDetail, derive_sampled_recovery, estimate_sampled_recovery,
-    refuse_component_variance_only, replay_sampled_recovery, sampled_recovery_route_frozen,
+    refuse_component_variance_only, replay_sampled_recovery,
 };
 use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use antecedent_identify::{
@@ -185,9 +185,15 @@ fn sampled_recovery_truth_seeded_interval_is_centered_reproducible_and_keeps_cov
         "58453e2da4390ad27502dd354d3052ecbc58d48073a9dc77911b0a80e556e5de"
     );
     // The point is near the truth and the interval center near the point.
-    assert!((first.effect - TRUE_EFFECT).abs() < 0.15, "{}", first.effect);
+    assert!(
+        (first.effect - independent_effect(&data.rows)).abs() < 1e-12,
+        "{} vs the closed-form inverse-response standardisation {}",
+        first.effect,
+        independent_effect(&data.rows)
+    );
+    assert!((first.effect - TRUE_EFFECT).abs() < 0.08, "{}", first.effect);
     let center = 0.5 * (first.interval.lower + first.interval.upper);
-    assert!((center - first.effect).abs() < 0.03, "center {center} vs point {}", first.effect);
+    assert!((center - first.effect).abs() < 0.01, "center {center} vs point {}", first.effect);
     assert!(first.interval.lower < first.interval.upper);
     assert!(first.effect_standard_error > 0.0);
     assert_eq!(first.replicate_effects.len() + first.failed_replicates, 2000);
@@ -234,7 +240,10 @@ fn unrecoverable_pattern_zero_complete_case_cell_refuses_with_the_pattern() {
     let error =
         estimate_sampled_recovery(&derivation, &input(rows), &loose(1), &ctx()).unwrap_err();
     assert_eq!(error.detail, SampledRecoveryDetail::UnrecoverablePattern);
-    assert_eq!(error.detail.detail(), "sampled_recovery.unrecoverable_pattern");
+    assert_eq!(
+        error.detail.detail(),
+        antecedent_core::reason_details::sampled_recovery::UNRECOVERABLE_PATTERN
+    );
     assert_eq!(error.reason_code(), "route_not_supported");
     assert_eq!(error.patterns, vec![missing]);
 }
@@ -281,7 +290,7 @@ fn unrecoverable_pattern_adjacent_and_nonrecoverable_mgraphs_refuse() {
     assert_eq!(error.reason_code(), "route_not_supported");
     assert_eq!(error.recovery, Some(RecoveryDetail::NonrecoverableWitness));
     assert!(error.patterns.is_empty());
-    // Adjacent class: a colluder R0 -> R1 is outside the licensed m-graph.
+    // Adjacent class: a colluder R0 -> R1 is outside the supported m-graph.
     let mut colluder = MModel::new(2, 0, &[(0, 1)], &[vec![], vec![0]], 13).unwrap();
     colluder.graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(3)).unwrap();
     let error = derive_sampled_recovery(
@@ -307,10 +316,7 @@ fn unrecoverable_pattern_bounds_and_malformed_inputs_refuse() {
         estimate_sampled_recovery(&derivation, data, config, &ctx()).unwrap_err()
     };
     let good = input(rows.clone());
-    let error = run(&good, &SampledRecoveryConfig::new(2001, 1));
-    assert_eq!(error.detail, SampledRecoveryDetail::BoundsExceeded);
-    assert_eq!(error.reason_code(), "route_not_supported");
-    let error = run(&good, &SampledRecoveryConfig::new(5, 1));
+    let error = run(&good, &SampledRecoveryConfig::new(1, 1));
     assert_eq!(error.detail, SampledRecoveryDetail::InvalidInput);
     assert_eq!(error.reason_code(), "invalid_argument");
     let mut duplicated = rows.clone();
@@ -384,16 +390,15 @@ fn sampled_recovery_replay_digests_recompute_and_change_with_pattern_snapshot_an
 }
 
 #[test]
-fn sampled_recovery_replay_component_variance_only_and_route_frozen_refuse() {
+fn sampled_recovery_component_variance_only_refuses() {
     let error = refuse_component_variance_only(&[0.01, 0.02, 0.03]);
     assert_eq!(error.detail, SampledRecoveryDetail::ComponentVarianceOnly);
-    assert_eq!(error.detail.detail(), "sampled_recovery.component_variance_only");
-    assert_eq!(error.reason_code(), "cell_not_licensed");
+    assert_eq!(
+        error.detail.detail(),
+        antecedent_core::reason_details::sampled_recovery::COMPONENT_VARIANCE_ONLY
+    );
+    assert_eq!(error.reason_code(), "estimator_inference_mismatch");
     assert!(error.message.contains('3'), "{error}");
-    let frozen = sampled_recovery_route_frozen();
-    assert_eq!(frozen.detail, SampledRecoveryDetail::RouteFrozen);
-    assert_eq!(frozen.detail.detail(), "sampled_recovery.route_frozen");
-    assert_eq!(frozen.reason_code(), "cell_not_licensed");
 }
 
 // Independent inverse-response/standardization formula for this fixture only.
@@ -457,14 +462,14 @@ fn reference_normal_cdf(x: f64) -> f64 {
 fn reference_normal_inverse(p: f64) -> f64 {
     let (mut lo, mut hi) = (-8.0, 8.0);
     for _ in 0..60 {
-        let mid = (lo + hi) / 2.0;
+        let mid = f64::midpoint(lo, hi);
         if reference_normal_cdf(mid) < p {
             lo = mid;
         } else {
             hi = mid;
         }
     }
-    (lo + hi) / 2.0
+    f64::midpoint(lo, hi)
 }
 
 #[test]
@@ -519,7 +524,7 @@ fn sampled_bca_refuses_protocol_changes_and_delete_one_support_boundary() {
     let model = model();
     let derivation = derive(&model);
     let mut config = SampledRecoveryConfig::bca(1);
-    config.replicates = 500;
+    config.replicates = 1;
     assert_eq!(
         estimate_sampled_recovery(&derivation, &input(seeded_rows(2000, 8123)), &config, &ctx())
             .unwrap_err()
@@ -631,7 +636,7 @@ fn scientific_basis_ignores_source_aliases_but_retains_checked_construction() {
     assert_ne!(first.calibration_basis(), changed_result.calibration_basis());
 
     let changed_roles = MModel::new(2, 1, &EDGES, &[vec![0], vec![2]], 5).unwrap();
-    // Self censoring is refused, never normalized into the original license.
+    // Self censoring is refused, never normalized into the original support.
     assert!(
         derive_sampled_recovery(
             &changed_roles.graph,

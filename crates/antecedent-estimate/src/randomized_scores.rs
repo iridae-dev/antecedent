@@ -16,6 +16,7 @@ pub(crate) const MIN_ACTION_ROWS_FOR_INTERVAL: usize = 30;
 pub const MIN_EXPECTED_ARM_ROWS_FOR_INTERVAL: f64 = 40.0;
 /// Minimum declared probability for either contrasted action at every row.
 pub(crate) const MIN_ACTION_PROBABILITY_FOR_INTERVAL: f64 = 0.2;
+use antecedent_core::ProbabilityTable;
 use antecedent_stats::NORMAL_Q975 as NORMAL_95;
 
 /// Horvitz–Thompson effect and its conservative independent-row score variance.
@@ -46,15 +47,15 @@ pub struct IndependentActionContrast {
 pub fn independent_action_contrast(
     outcomes: &[f64],
     assignments: &[usize],
-    probabilities: &[Vec<f64>],
+    probabilities: &(impl ProbabilityTable + ?Sized),
     reference: usize,
     action: usize,
 ) -> Option<IndependentActionContrast> {
     let n = outcomes.len();
-    if n < 2 || assignments.len() != n || probabilities.len() != n || reference == action {
+    if n < 2 || assignments.len() != n || probabilities.row_count() != n || reference == action {
         return None;
     }
-    let arms = probabilities.first()?.len();
+    let arms = probabilities.first_row()?.len();
     if arms < 2 || reference >= arms || action >= arms {
         return None;
     }
@@ -65,7 +66,7 @@ pub fn independent_action_contrast(
     let mut action_expected = 0.0;
     let mut probability_supported = true;
     for i in 0..n {
-        let row = &probabilities[i];
+        let row = probabilities.row_at(i);
         if !outcomes[i].is_finite()
             || row.len() != arms
             || assignments[i] >= arms
@@ -158,7 +159,7 @@ pub struct ComplierWaldEffect {
 /// normal ratio interval into a weak-instrument-robust confidence set. The
 /// interval matches the retained
 /// analyze route's published interval exactly;
-/// the support license itself is granted only on that route.
+/// the support itself is granted only on that route.
 #[must_use]
 pub fn complier_wald_effect(
     outcomes: &[f64],
@@ -193,7 +194,7 @@ pub fn complier_wald_effect(
     }
     let intention_to_treat_effect = outcome_scores.iter().sum::<f64>() / n as f64;
     let first_stage = receipt_scores.iter().sum::<f64>() / n as f64;
-    if !first_stage.is_finite() || first_stage <= f64::EPSILON {
+    if !first_stage.is_finite() || first_stage <= 0.0 {
         return None;
     }
     let first_stage_variance =
@@ -263,22 +264,48 @@ pub fn cuped_ht_effect(
     if outcome.iter().chain(covariate).any(|value| !value.is_finite()) {
         return Err("outcomes and covariates must be finite");
     }
-    let y_mean = outcome.iter().sum::<f64>() / n as f64;
-    let x_mean = covariate.iter().sum::<f64>() / n as f64;
-    let covariance =
-        outcome.iter().zip(covariate).map(|(a, b)| (a - y_mean) * (b - x_mean)).sum::<f64>();
-    let x_variance = covariate.iter().map(|value| (value - x_mean).powi(2)).sum::<f64>();
-    if x_variance <= f64::EPSILON {
+    // Center relative to one observed value. Half-scaling protects a subtraction of
+    // opposite extreme finite values; the usual path preserves subnormal differences.
+    let anchor = covariate[0];
+    let peak = covariate.iter().map(|x| x.abs()).fold(0.0_f64, f64::max);
+    let half = peak > f64::MAX / 2.0;
+    let difference = |x: f64| if half { x * 0.5 - anchor * 0.5 } else { x - anchor };
+    let diff_scale = covariate.iter().map(|&x| difference(x).abs()).fold(0.0_f64, f64::max);
+    if !diff_scale.is_finite() || diff_scale == 0.0 {
         return Err("CUPED covariate must have non-zero variance");
     }
-    let beta = covariance / x_variance;
+    let mean_diff = antecedent_kernels::numeric::CompensatedSum::of(
+        covariate.iter().map(|&x| difference(x) / diff_scale),
+    ) / n as f64;
+    let centered = |x: f64| difference(x) / diff_scale - mean_diff;
+    let centered_scale = covariate.iter().map(|&x| centered(x).abs()).fold(0.0_f64, f64::max);
+    if !centered_scale.is_finite() || centered_scale == 0.0 {
+        return Err("CUPED covariate must have non-zero variance");
+    }
+    let normalized = |x: f64| centered(x) / centered_scale;
+    let y_scale = outcome.iter().map(|y| y.abs()).fold(0.0_f64, f64::max).max(f64::MIN_POSITIVE);
+    let y_mean =
+        antecedent_kernels::numeric::CompensatedSum::of(outcome.iter().map(|y| y / y_scale))
+            / n as f64;
+    let covariance = antecedent_kernels::numeric::CompensatedSum::of(
+        outcome.iter().zip(covariate).map(|(&y, &x)| (y / y_scale - y_mean) * normalized(x)),
+    );
+    let x_variance = antecedent_kernels::numeric::CompensatedSum::of(
+        covariate.iter().map(|&x| normalized(x).powi(2)),
+    );
+    let normalized_beta = (covariance / x_variance) * y_scale;
+    let beta = if diff_scale >= 1.0 {
+        (normalized_beta / diff_scale) / centered_scale
+    } else {
+        (normalized_beta / centered_scale) / diff_scale
+    } / if half { 2.0 } else { 1.0 };
     let mut scores = Vec::with_capacity(n);
     for i in 0..n {
         let pi = propensity[if propensity.len() == 1 { 0 } else { i }];
         if !pi.is_finite() || pi <= 0.0 || pi >= 1.0 {
             return Err("assignment propensities must be strictly between zero and one");
         }
-        let adjusted = outcome[i] - beta * (covariate[i] - x_mean);
+        let adjusted = outcome[i] - normalized_beta * normalized(covariate[i]);
         let sign = if assignment[i] { 1.0 / pi } else { -1.0 / (1.0 - pi) };
         scores.push(sign * adjusted);
     }
@@ -453,6 +480,28 @@ mod tests {
         assert!(
             independent_action_contrast(&outcomes, &assignments, &probabilities, 1, 1).is_none()
         );
+    }
+
+    #[test]
+    fn cuped_residualization_is_invariant_to_covariate_units() {
+        let x = [-3.0, -2.0, -1.0, 1.0, 2.0, 3.0];
+        let y = [1.2, 0.3, 1.7, 2.4, 3.8, 3.1];
+        let assignment = [false, true, false, true, false, true];
+        let reference = cuped_ht_effect(&y, &x, &assignment, &[0.5]).unwrap();
+        for factor in [1e-9, 1e9, -1e-9, -1e9, 1e307] {
+            let scaled: Vec<_> = x.iter().map(|value| value * factor).collect();
+            let fit = cuped_ht_effect(&y, &scaled, &assignment, &[0.5]).unwrap();
+            assert!((fit.effect - reference.effect).abs() < 1e-12);
+            assert!((fit.standard_error - reference.standard_error).abs() < 1e-12);
+            assert!((fit.beta * factor - reference.beta).abs() < 1e-12);
+        }
+        let small = [-1.0, -0.5, 0.0, 0.0, 0.5, 1.0];
+        let extreme: Vec<_> = small.iter().map(|value| value * 1e308).collect();
+        let ordinary = cuped_ht_effect(&y, &small, &assignment, &[0.5]).unwrap();
+        let wide = cuped_ht_effect(&y, &extreme, &assignment, &[0.5]).unwrap();
+        assert!((ordinary.effect - wide.effect).abs() < 1e-12);
+        assert!((ordinary.standard_error - wide.standard_error).abs() < 1e-12);
+        assert!(cuped_ht_effect(&y, &[1.0; 6], &assignment, &[0.5]).is_err());
     }
 
     #[test]
@@ -718,6 +767,25 @@ mod tests {
                 .interval_95
                 .is_none()
         );
+    }
+
+    #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
+    fn complier_point_keeps_finite_positive_sub_epsilon_first_stage() {
+        let p = [0.5, 0.5 - f64::EPSILON / 2.0, 0.5, 0.5];
+        let result = complier_wald_effect(
+            &[2.0, 2.0, 0.0, 0.0],
+            &[true, false, true, false],
+            &[true, true, false, false],
+            &p,
+        )
+        .unwrap();
+        assert!(result.first_stage > 0.0 && result.first_stage <= f64::EPSILON);
+        assert_eq!(result.effect, 2.0);
+        assert!(result.interval_95.is_none());
     }
 
     #[test]

@@ -1,6 +1,6 @@
 //! G-squared and regression CI tests.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -14,9 +14,10 @@
 use std::collections::HashMap;
 
 use antecedent_core::{ExecutionContext, KernelPolicy, StreamDomain};
-use antecedent_kernels::unbiased_index;
 
-use super::block_shuffle::{block_permute_contiguous, query_stream_salt};
+use super::block_shuffle::{
+    add_one_pvalue, null_reaches_observed, permutation_null_exceedances, query_stream_salt,
+};
 use super::parcorr::PartialCorrelation;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
@@ -78,45 +79,28 @@ impl ConditionalIndependenceTest for GSquared {
                     }
                     let n_perm = replicates.max(1) as usize;
                     let strata = discrete_strata(request.columns, z, n)?;
-                    // X codes and Z strata are invariant under a Y-only
-                    // permutation; only the Y codes change per replicate. The Y codes are
-                    // permuted as exact f64 images so the block permutation can move them.
+                    // X codes and Z strata are invariant under a Y-only permutation; only the
+                    // Y codes change per replicate, and they are permuted as the integer
+                    // codes they are.
                     let xi = encode_categories(request.columns[q.x])?;
-                    let mut y_perm: Vec<f64> = encode_categories(request.columns[q.y])?
-                        .into_iter()
-                        .map(f64::from)
-                        .collect();
+                    let mut yi_perm = encode_categories(request.columns[q.y])?;
                     let mut rng = ctx.rng.stream_for(
                         StreamDomain::StatsCi,
                         0x65C0_u64 ^ query_stream_salt(&[q.x], &[q.y], z),
                     );
-                    let mut null_ge = 0u32;
-                    let mut yi_perm: Vec<i32> = vec![0; n];
-                    for _ in 0..n_perm {
-                        if block_size > 1 {
-                            block_permute_contiguous(&mut y_perm, block_size, &mut rng);
-                        } else {
-                            for rows in &strata {
-                                for i in (1..rows.len()).rev() {
-                                    let j = unbiased_index(&mut rng, i + 1);
-                                    y_perm.swap(rows[i], rows[j]);
-                                }
-                            }
-                        }
-                        #[allow(
-                            clippy::cast_possible_truncation,
-                            reason = "y_perm holds exact f64 images of i32 codes"
-                        )]
-                        for (code, value) in yi_perm.iter_mut().zip(&y_perm) {
-                            *code = *value as i32;
-                        }
-                        let (g_null, _) =
-                            g_squared_from_parts(&xi, &yi_perm, &strata, workspace, policy)?;
-                        if g_null >= g {
-                            null_ge = null_ge.saturating_add(1);
-                        }
-                    }
-                    (1.0 + f64::from(null_ge)) / (1.0 + n_perm as f64)
+                    let null_ge = permutation_null_exceedances(
+                        n_perm,
+                        &mut yi_perm,
+                        &strata,
+                        block_size,
+                        &mut rng,
+                        |permuted| {
+                            let (g_null, _) =
+                                g_squared_from_parts(&xi, permuted, &strata, workspace, policy)?;
+                            Ok::<_, StatsError>(null_reaches_observed(g_null, g))
+                        },
+                    )?;
+                    add_one_pvalue(null_ge, n_perm)
                 }
             };
             results.push(CiResult { statistic: g, p_value: p, df, ci: None });
@@ -203,8 +187,14 @@ pub(super) fn ensure_finite_categories(
 
 const SPARSE_EXPECTED_MIN: f64 = 5.0;
 
-/// Rows grouped by exact integer-coded Z symbol key, in sorted-key order so seeded permutation
-/// nulls are reproducible. Shared by every test that stratifies on discrete Z.
+/// Rows grouped by their exact integer-coded Z symbol, in a reproducible order.
+///
+/// Groups are keyed by the code vector itself, so two distinct symbols can never share a
+/// stratum. They are ordered by the FNV-1a hash of the code vector (ties by the vector), which
+/// is the order the seeded permutation nulls and the last bits of G² were established with.
+/// An earlier version keyed the map by that 64-bit hash alone, so a hash collision between two
+/// symbols would have silently merged their strata. Shared by every test that stratifies on
+/// discrete Z.
 pub(super) fn discrete_strata(
     columns: &[&[f64]],
     z: &[usize],
@@ -212,23 +202,34 @@ pub(super) fn discrete_strata(
 ) -> Result<Vec<Vec<usize>>, StatsError> {
     let codes =
         z.iter().map(|&zc| encode_categories(columns[zc])).collect::<Result<Vec<_>, _>>()?;
-    let mut strata: HashMap<u64, Vec<usize>> = HashMap::new();
+    let mut strata: HashMap<Vec<i32>, Vec<usize>> = HashMap::new();
+    let mut key: Vec<i32> = Vec::with_capacity(codes.len());
     for r in 0..n {
-        let key = if z.is_empty() {
-            0u64
+        key.clear();
+        key.extend(codes.iter().map(|zc| zc[r]));
+        if let Some(rows) = strata.get_mut(key.as_slice()) {
+            rows.push(r);
         } else {
-            let mut h = antecedent_core::Fnv1a64::new();
-            for zc in &codes {
-                let v = zc[r];
-                h.fold(u64::from(u32::from_ne_bytes(v.to_ne_bytes())));
-            }
-            h.finish()
-        };
-        strata.entry(key).or_default().push(r);
+            strata.insert(key.clone(), vec![r]);
+        }
     }
-    let mut keys: Vec<u64> = strata.keys().copied().collect();
-    keys.sort_unstable();
-    Ok(keys.into_iter().filter_map(|k| strata.remove(&k)).collect())
+    let mut groups: Vec<(u64, Vec<i32>, Vec<usize>)> = strata
+        .into_iter()
+        .map(|(symbol, rows)| {
+            let hash = if symbol.is_empty() {
+                0u64
+            } else {
+                let mut h = antecedent_core::Fnv1a64::new();
+                for v in &symbol {
+                    h.fold(u64::from(u32::from_ne_bytes(v.to_ne_bytes())));
+                }
+                h.finish()
+            };
+            (hash, symbol, rows)
+        })
+        .collect();
+    groups.sort_unstable_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
+    Ok(groups.into_iter().map(|(_, _, rows)| rows).collect())
 }
 
 #[allow(

@@ -23,18 +23,24 @@
 //! They are not frequentist statements: no coverage or error-rate claim is
 //! made about intervals or decisions built from them.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::{AdaptiveInferenceError as Error, composite_rule, panel_rule};
+use super::{AdaptiveInferenceError as Error, graded_rule, panel_rule};
 use crate::special::ln_gamma;
 
-/// Most total prior-plus-observed trials one arm's posterior may carry.
-pub const MAX_ARM_TRIALS: u64 = 16_000_000;
+/// Total prior-plus-observed trials up to which an arm's posterior is evaluated with the exact
+/// Beta functions. Above it the log-gamma cancellation in the Beta density and incomplete beta
+/// function exceeds the quadrature accuracy, and the posterior is evaluated with the normal law
+/// of the same mean and variance, which differs from the Beta by `O(1 / sqrt(trials))` in
+/// distribution at that size (skewness `~ 2 (b - a) / (a + b) / sqrt(a + b)`).
+pub const EXACT_BETA_TRIALS: u64 = 16_000_000;
 /// Most arms one posterior comparison accepts.
 pub const MAX_BANDIT_ARMS: usize = 64;
 
 const MAX_PANELS: usize = 8192;
 const TAIL_STANDARD_DEVIATIONS: f64 = 14.0;
+/// Probability left outside the quadrature window of one posterior, in each tail.
+const TAIL_MASS: f64 = 1e-18;
 const MAX_FRACTION_ITERATIONS: usize = 200_000;
 const FRACTION_EPSILON: f64 = 1e-15;
 const TINY: f64 = 1e-300;
@@ -51,16 +57,35 @@ impl BetaPosterior {
     /// A posterior with the given shapes.
     ///
     /// # Errors
-    /// A shape that is not finite or is below one, or a total above
-    /// [`MAX_ARM_TRIALS`].
+    /// A shape that is not finite or is below one, or whose total is not finite. Totals above
+    /// [`EXACT_BETA_TRIALS`] are accepted and evaluated through the normal approximation
+    /// ([`Self::is_normal_approximated`]).
     pub fn new(alpha: f64, beta: f64) -> Result<Self, Error> {
         if !(alpha.is_finite() && beta.is_finite() && alpha >= 1.0 && beta >= 1.0) {
             return Err(Error::InvalidParameter("a Beta shape must be finite and at least one"));
         }
-        if alpha + beta > MAX_ARM_TRIALS as f64 {
-            return Err(Error::Limit("a Beta posterior carries at most 16 million trials"));
+        if !(alpha + beta).is_finite() {
+            return Err(Error::InvalidParameter("a Beta posterior's total shape must be finite"));
         }
         Ok(Self { alpha, beta })
+    }
+
+    /// Whether this posterior carries more than [`EXACT_BETA_TRIALS`] trials, so that its
+    /// density and distribution function are those of the normal law with the same mean and
+    /// variance instead of the exact Beta functions.
+    #[must_use]
+    pub fn is_normal_approximated(self) -> bool {
+        self.alpha + self.beta > EXACT_BETA_TRIALS as f64
+    }
+
+    /// Distribution function at `x`: the exact incomplete beta function, or the matching
+    /// normal law above [`EXACT_BETA_TRIALS`].
+    fn cdf(self, x: f64) -> Result<f64, Error> {
+        if self.is_normal_approximated() {
+            Ok(antecedent_kernels::norm_cdf((x - self.mean()) / self.standard_deviation()))
+        } else {
+            regularized_incomplete_beta(x, self.alpha, self.beta)
+        }
     }
 
     /// The posterior of a `Beta(prior_alpha, prior_beta)` prior after
@@ -107,17 +132,41 @@ impl BetaPosterior {
     }
 
     fn ln_density(self, x: f64) -> f64 {
+        if self.is_normal_approximated() {
+            let sd = self.standard_deviation();
+            let z = (x - self.mean()) / sd;
+            return -0.5 * z * z - sd.ln() - 0.5 * std::f64::consts::TAU.ln();
+        }
         let ln_beta = ln_gamma(self.alpha) + ln_gamma(self.beta) - ln_gamma(self.alpha + self.beta);
         (self.alpha - 1.0) * x.ln() + (self.beta - 1.0) * (-x).ln_1p() - ln_beta
     }
 
-    /// Mean plus or minus the tail window, clipped to the unit interval.
-    fn window(self) -> (f64, f64) {
+    /// Mean plus or minus the tail window, clipped to the unit interval and widened until each
+    /// tail holds at most [`TAIL_MASS`].
+    ///
+    /// A window of fourteen standard deviations leaves a Gaussian tail of `1e-44` but a Beta
+    /// with a shape of one has an exponential tail, which still holds `e^-14 ~ 1e-6` of its mass
+    /// at that distance; the window is extended by doubling steps until the exact tail mass (the
+    /// incomplete beta function, or its reflection for the upper tail) is negligible.
+    fn window(self) -> Result<(f64, f64), Error> {
         let sd = self.standard_deviation();
-        (
-            (self.mean() - TAIL_STANDARD_DEVIATIONS * sd).max(0.0),
-            (self.mean() + TAIL_STANDARD_DEVIATIONS * sd).min(1.0),
-        )
+        let mut lo = (self.mean() - TAIL_STANDARD_DEVIATIONS * sd).max(0.0);
+        let mut hi = (self.mean() + TAIL_STANDARD_DEVIATIONS * sd).min(1.0);
+        if self.is_normal_approximated() {
+            return Ok((lo, hi));
+        }
+        let mut step = TAIL_STANDARD_DEVIATIONS * sd;
+        while lo > 0.0 && regularized_incomplete_beta(lo, self.alpha, self.beta)? > TAIL_MASS {
+            lo = (lo - step).max(0.0);
+            step *= 2.0;
+        }
+        let mut step = TAIL_STANDARD_DEVIATIONS * sd;
+        while hi < 1.0 && regularized_incomplete_beta(1.0 - hi, self.beta, self.alpha)? > TAIL_MASS
+        {
+            hi = (hi + step).min(1.0);
+            step *= 2.0;
+        }
+        Ok((lo, hi))
     }
 }
 
@@ -168,7 +217,8 @@ fn beta_fraction(x: f64, a: f64, b: f64) -> Result<f64, Error> {
 /// `Beta(a, b)` at `x`.
 ///
 /// Accurate to roughly `1e-10` for shapes up to about `1e5` and to roughly
-/// `1e-8` near sixteen million (the log-gamma cancellation limits it).
+/// `1e-8` near sixteen million (the log-gamma cancellation limits it); [`BetaPosterior`] switches
+/// to the normal law beyond that.
 ///
 /// # Errors
 /// `x` outside `[0, 1]`, a shape that is not finite and positive, or a
@@ -236,10 +286,11 @@ pub fn best_arm_probabilities(
     cancelled: &dyn Fn() -> bool,
 ) -> Result<Vec<f64>, Error> {
     check_arms(arms)?;
-    let lo = arms.iter().map(|arm| arm.window().0).fold(f64::INFINITY, f64::min);
-    let hi = arms.iter().map(|arm| arm.window().1).fold(f64::NEG_INFINITY, f64::max);
+    let windows = arms.iter().map(|arm| arm.window()).collect::<Result<Vec<_>, _>>()?;
+    let lo = windows.iter().map(|w| w.0).fold(f64::INFINITY, f64::min);
+    let hi = windows.iter().map(|w| w.1).fold(f64::NEG_INFINITY, f64::max);
     let panels = panel_count(lo, hi, narrowest(arms))?;
-    let (nodes, weights) = composite_rule(&panel_rule(), lo, hi, panels);
+    let (nodes, weights) = graded_rule(&panel_rule(), lo, hi, panels, lo <= 0.0, hi >= 1.0);
     let count = arms.len();
     let mut result = vec![0.0; count];
     let mut cdf = vec![0.0; count];
@@ -249,7 +300,7 @@ pub fn best_arm_probabilities(
             return Err(Error::Cancelled);
         }
         for (slot, arm) in cdf.iter_mut().zip(arms) {
-            *slot = regularized_incomplete_beta(x, arm.alpha, arm.beta)?;
+            *slot = arm.cdf(x)?;
         }
         for position in (0..count).rev() {
             suffix[position] = suffix[position + 1] * cdf[position];
@@ -295,19 +346,20 @@ pub fn probability_exceeds(
     }
     // Below the margin the integrand is zero and its first kink is at the margin, so the
     // quadrature starts there and the integrand is smooth over every panel.
-    let (window_lo, hi) = a.window();
+    let (window_lo, hi) = a.window()?;
     let lo = window_lo.max(margin);
     if lo >= hi {
         return Ok(0.0);
     }
     let panels = panel_count(lo, hi, a.standard_deviation().min(b.standard_deviation()))?;
-    let (nodes, weights) = composite_rule(&panel_rule(), lo, hi, panels);
+    // The integrand starts at the margin with the non-analytic distribution function of `b`.
+    let (nodes, weights) = graded_rule(&panel_rule(), lo, hi, panels, true, hi >= 1.0);
     let mut total = 0.0;
     for (index, (&x, &weight)) in nodes.iter().zip(&weights).enumerate() {
         if index % CANCEL_STRIDE == 0 && cancelled() {
             return Err(Error::Cancelled);
         }
-        let cdf = regularized_incomplete_beta(x - margin, b.alpha, b.beta)?;
+        let cdf = b.cdf(x - margin)?;
         total += weight * a.ln_density(x).exp() * cdf;
     }
     Ok(total.clamp(0.0, 1.0))
@@ -325,19 +377,21 @@ pub fn expected_losses(
     check_arms(arms)?;
     // Below the largest lower window edge some cdf is zero, so the integrand
     // is one; above the largest upper edge every cdf is one, so it is zero.
-    let lower = arms.iter().map(|arm| arm.window().0).fold(f64::NEG_INFINITY, f64::max);
-    let upper = arms.iter().map(|arm| arm.window().1).fold(f64::NEG_INFINITY, f64::max);
+    let windows = arms.iter().map(|arm| arm.window()).collect::<Result<Vec<_>, _>>()?;
+    let lower = windows.iter().map(|w| w.0).fold(f64::NEG_INFINITY, f64::max);
+    let upper = windows.iter().map(|w| w.1).fold(f64::NEG_INFINITY, f64::max);
     let mut expected_max = lower;
     if upper > lower {
         let panels = panel_count(lower, upper, narrowest(arms))?;
-        let (nodes, weights) = composite_rule(&panel_rule(), lower, upper, panels);
+        let (nodes, weights) =
+            graded_rule(&panel_rule(), lower, upper, panels, lower <= 0.0, upper >= 1.0);
         for (index, (&t, &weight)) in nodes.iter().zip(&weights).enumerate() {
             if index % CANCEL_STRIDE == 0 && cancelled() {
                 return Err(Error::Cancelled);
             }
             let mut product = 1.0;
             for arm in arms {
-                product *= regularized_incomplete_beta(t, arm.alpha, arm.beta)?;
+                product *= arm.cdf(t)?;
             }
             expected_max += weight * (1.0 - product);
         }
@@ -364,6 +418,18 @@ mod tests {
         // Symmetry: I_{1/2}(a, a) = 1/2.
         let half = regularized_incomplete_beta(0.5, 7.5, 7.5).unwrap();
         assert!((half - 0.5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn posteriors_beyond_the_exact_limit_use_the_normal_law() {
+        let big = EXACT_BETA_TRIALS as f64;
+        let a = BetaPosterior::new(0.5 * big + 1.0e6, 0.5 * big - 1.0e6 + 10.0).unwrap();
+        assert!(a.is_normal_approximated());
+        let b = BetaPosterior::new(0.5 * big - 1.0e6 + 10.0, 0.5 * big + 1.0e6).unwrap();
+        let p = probability_superior(a, b, &never).unwrap();
+        assert!(p > 0.9999, "{p}");
+        let exact = BetaPosterior::new(100.0, 100.0).unwrap();
+        assert!(!exact.is_normal_approximated());
     }
 
     #[test]

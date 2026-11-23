@@ -14,7 +14,7 @@
 //! but no class-wide property may be concluded from them
 //! ([`CompletionSampler::class_audit_incomplete`]).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, SearchBudget, SearchLimits, SearchReceipt, SearchStop};
 
@@ -31,7 +31,7 @@ use crate::workspace::{BitSet, GraphWorkspace};
 /// The audit may use half of them, two million queries: enough to certify every member of a
 /// class over twelve nodes with sixteen circle assignments, the largest audit the search
 /// performed before it was budgeted. A smaller default abandons that audit and withdraws
-/// the class-wide claims the audit licenses.
+/// the class-wide claims the audit supports.
 pub const DEFAULT_COMPLETION_OPERATIONS: usize = 4_000_000;
 
 /// Limits and context of the searches whose constructors take no explicit budget.
@@ -209,6 +209,7 @@ impl CompletionSampler {
             represented_completions: 0,
             reference_signature: None,
             audit_allowance: limits.operations / 2,
+            leases: Vec::new(),
         };
         let stop = walk.run(&mut budget)?;
         let Walk { mut report, mut completions, represented_completions, .. } = walk;
@@ -316,9 +317,9 @@ fn signature_queries(n: usize) -> Option<u128> {
     pairs.checked_mul(subsets)
 }
 
-/// Bytes of one stored signature (one bool per query).
+/// Bytes of one stored signature (one bit per query).
 fn signature_bytes(n: usize) -> u64 {
-    signature_queries(n).and_then(|q| u64::try_from(q).ok()).unwrap_or(u64::MAX)
+    signature_queries(n).and_then(|q| u64::try_from(q.div_ceil(8)).ok()).unwrap_or(u64::MAX)
 }
 
 /// Whether two signatures (the reference and the candidate) can be built within the
@@ -341,9 +342,12 @@ struct Walk<'a, F: Fn(&Pag) -> Option<Pag>> {
     report: CompletionValidationReport,
     completions: Vec<Pag>,
     represented_completions: usize,
-    reference_signature: Option<Vec<bool>>,
+    reference_signature: Option<SeparationSignature>,
     /// Queries the audit may still charge before it is abandoned for the rest of the walk.
     audit_allowance: usize,
+    /// Storage leases for the retained completions, taken from the context's admission pool
+    /// before each completion is kept and held until the walk ends.
+    leases: Vec<antecedent_core::execution::AdmissionLease>,
 }
 
 /// Complete assignments below a node with `remaining` unassigned sites, saturating.
@@ -455,25 +459,31 @@ impl<F: Fn(&Pag) -> Option<Pag>> Walk<'_, F> {
                 self.audit_allowance -= cost;
             }
         }
-        if self.audit_class {
-            let signature = if self.sites.is_empty() {
-                Vec::new()
-            } else {
-                let depth = self.sites.len();
-                let bytes = self.live_bytes();
-                m_separation_signature(&audited, || budget.charge(depth, bytes))?
-            };
+        if self.audit_class && !self.sites.is_empty() {
+            let depth = self.sites.len();
+            let bytes = self.live_bytes();
+            // The first candidate's signature is the reference. Every later candidate is
+            // compared against it as its answers are produced, so only one signature is ever
+            // stored and a differing class stops at the first differing answer.
             if let Some(reference) = &self.reference_signature {
-                if reference != &signature {
+                if !m_separation_model_matches(&audited, reference, || budget.charge(depth, bytes))?
+                {
                     self.report.ambiguous_global_class = true;
                     return Ok(());
                 }
             } else {
+                let signature = m_separation_signature(&audited, || budget.charge(depth, bytes))?;
                 self.reference_signature = Some(signature);
             }
         }
+        let retain = self.completions.len() < self.max_completions;
+        if retain {
+            // The pool funds the completion before it is allocated; a refusal is a memory stop
+            // with the completions already kept intact.
+            self.leases.push(budget.lease_storage(self.graph_bytes)?);
+        }
         self.represented_completions += 1;
-        if self.completions.len() < self.max_completions {
+        if retain {
             self.completions.push(candidate.clone());
         }
         Ok(())
@@ -586,9 +596,21 @@ pub(crate) fn is_maximal_ancestral_graph(g: &Pag) -> bool {
 
 fn preserves_unshielded_colliders(pag: &Pag, mag: &Pag) -> bool {
     let n = pag.node_count();
+    // The mark each MAG neighbour carries at `middle`, indexed once per node instead of found
+    // by a scan for every unshielded pair.
+    let mut mag_marks: Vec<(DenseNodeId, Endpoint)> = Vec::new();
     for middle_i in 0..n {
         let middle = DenseNodeId::from_index(middle_i);
         let neighbors: Vec<_> = pag.neighbors(middle).map(|(node, mark, _)| (node, mark)).collect();
+        mag_marks.clear();
+        mag_marks.extend(mag.neighbors(middle).map(|(node, mark, _)| (node, mark)));
+        mag_marks.sort_unstable_by_key(|(node, _)| *node);
+        let mag_mark = |node: DenseNodeId| -> Endpoint {
+            let at = mag_marks
+                .binary_search_by_key(&node, |(neighbor, _)| *neighbor)
+                .expect("same skeleton");
+            mag_marks[at].1
+        };
         for i in 0..neighbors.len() {
             for j in (i + 1)..neighbors.len() {
                 let (left, pag_left_mark) = neighbors[i];
@@ -596,20 +618,10 @@ fn preserves_unshielded_colliders(pag: &Pag, mag: &Pag) -> bool {
                 if pag.has_edge(left, right) {
                     continue;
                 }
-                let mag_left_mark = mag
-                    .neighbors(middle)
-                    .find(|(node, _, _)| *node == left)
-                    .map(|(_, mark, _)| mark)
-                    .expect("same skeleton");
-                let mag_right_mark = mag
-                    .neighbors(middle)
-                    .find(|(node, _, _)| *node == right)
-                    .map(|(_, mark, _)| mark)
-                    .expect("same skeleton");
                 let pag_collider = matches!(pag_left_mark, Endpoint::Arrow)
                     && matches!(pag_right_mark, Endpoint::Arrow);
-                let mag_collider = matches!(mag_left_mark, Endpoint::Arrow)
-                    && matches!(mag_right_mark, Endpoint::Arrow);
+                let mag_collider = matches!(mag_mark(left), Endpoint::Arrow)
+                    && matches!(mag_mark(right), Endpoint::Arrow);
                 if pag_collider != mag_collider {
                     return false;
                 }
@@ -620,7 +632,15 @@ fn preserves_unshielded_colliders(pag: &Pag, mag: &Pag) -> bool {
 }
 
 pub(crate) fn as_admg(g: &Pag) -> Admg {
-    let mut admg = Admg::with_variables(u32::try_from(g.node_count()).expect("node count fits"));
+    mag_to_admg(g).expect("validated directed MAG marks")
+}
+
+/// A circle-free PAG (a maximal ancestral graph without selection) as an ADMG over the same
+/// node positions: a tail-to-arrow edge is directed and an arrow-to-arrow edge is bidirected.
+/// `None` when a mark is neither a tail nor an arrowhead, or the directed edges form a cycle.
+#[must_use]
+pub fn mag_to_admg(g: &Pag) -> Option<Admg> {
+    let mut admg = Admg::with_variables(u32::try_from(g.node_count()).ok()?);
     for i in 0..g.node_count() {
         let a = DenseNodeId::from_index(i);
         for (b, at_a, at_b) in g.neighbors(a) {
@@ -628,61 +648,121 @@ pub(crate) fn as_admg(g: &Pag) -> Admg {
                 continue;
             }
             match (at_a, at_b) {
-                (Endpoint::Tail, Endpoint::Arrow) => {
-                    admg.insert_directed(a, b).expect("validated MAG");
-                }
-                (Endpoint::Arrow, Endpoint::Tail) => {
-                    admg.insert_directed(b, a).expect("validated MAG");
-                }
-                (Endpoint::Arrow, Endpoint::Arrow) => {
-                    admg.insert_bidirected(a, b).expect("validated MAG");
-                }
-                _ => unreachable!("validated directed MAG marks"),
+                (Endpoint::Tail, Endpoint::Arrow) => admg.insert_directed(a, b).ok()?,
+                (Endpoint::Arrow, Endpoint::Tail) => admg.insert_directed(b, a).ok()?,
+                (Endpoint::Arrow, Endpoint::Arrow) => admg.insert_bidirected(a, b).ok()?,
+                _ => return None,
             }
         }
     }
-    admg
+    Some(admg)
 }
 
-/// The m-separation model of `g`: one answer per node pair and conditioning subset.
+/// The m-separation model of a graph: one answer per node pair and conditioning subset, one
+/// bit per query in canonical order.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) struct SeparationSignature {
+    words: Vec<u64>,
+    len: usize,
+}
+
+impl SeparationSignature {
+    fn push(&mut self, answer: bool) {
+        if self.len.is_multiple_of(64) {
+            self.words.push(0);
+        }
+        if answer && let Some(word) = self.words.last_mut() {
+            *word |= 1u64 << (self.len % 64);
+        }
+        self.len += 1;
+    }
+
+    fn get(&self, index: usize) -> bool {
+        (self.words[index / 64] >> (index % 64)) & 1 == 1
+    }
+}
+
+/// Answer every m-separation query of `g` in canonical order, handing each answer to `visit`.
 ///
-/// `charge` is called before each query; an `Err` abandons the signature.
-pub(crate) fn m_separation_signature(
+/// `charge` is called before each query; an `Err` abandons the walk. `visit` returns `false` to
+/// stop early. Returns whether the walk ran to the end. The conditioning buffers are reused
+/// across queries.
+fn visit_m_separation_model(
     g: &Pag,
     mut charge: impl FnMut() -> Result<(), SearchStop>,
-) -> Result<Vec<bool>, SearchStop> {
+    mut visit: impl FnMut(bool) -> bool,
+) -> Result<bool, SearchStop> {
     let admg = as_admg(g);
     let n = g.node_count();
-    let mut signature = Vec::new();
     let mut ws = DSeparationWorkspace::default();
+    let mut others: Vec<usize> = Vec::with_capacity(n);
+    let mut z: Vec<DenseNodeId> = Vec::with_capacity(n);
     for i in 0..n {
         for j in (i + 1)..n {
-            let others: Vec<_> = (0..n).filter(|&k| k != i && k != j).collect();
+            others.clear();
+            others.extend((0..n).filter(|&k| k != i && k != j));
             // Each subset is an iteration of a bitset counter over `others`, not a machine
             // word, so the node count is bounded by the caller's budget alone.
             let mut subset = BitSet::with_len(others.len());
             loop {
                 charge()?;
-                let z: Vec<_> = subset
-                    .iter()
-                    .map(|bit| DenseNodeId::from_index(others[bit.as_usize()]))
-                    .collect();
-                signature.push(
-                    admg.is_m_separated(
+                z.clear();
+                z.extend(subset.iter().map(|bit| DenseNodeId::from_index(others[bit.as_usize()])));
+                let separated = admg
+                    .is_m_separated(
                         DenseNodeId::from_index(i),
                         DenseNodeId::from_index(j),
                         &z,
                         &mut ws,
                     )
-                    .expect("known nodes"),
-                );
+                    .expect("known nodes");
+                if !visit(separated) {
+                    return Ok(false);
+                }
                 if !increment(&mut subset) {
                     break;
                 }
             }
         }
     }
+    Ok(true)
+}
+
+/// The m-separation signature of `g`.
+///
+/// `charge` is called before each query; an `Err` abandons the signature.
+pub(crate) fn m_separation_signature(
+    g: &Pag,
+    charge: impl FnMut() -> Result<(), SearchStop>,
+) -> Result<SeparationSignature, SearchStop> {
+    let mut signature = SeparationSignature::default();
+    // The caller's budget has already admitted this many queries; the hint is capped so a
+    // budget that would stop the walk early never pre-allocates what it will not use.
+    if let Some(queries) = signature_queries(g.node_count()) {
+        let words = usize::try_from(queries.div_ceil(64)).unwrap_or(usize::MAX);
+        let _ = signature.words.try_reserve(words.min(1 << 16));
+    }
+    visit_m_separation_model(g, charge, |answer| {
+        signature.push(answer);
+        true
+    })?;
     Ok(signature)
+}
+
+/// Whether the m-separation model of `g` equals `reference`, compared as the answers are
+/// produced: the first differing answer ends the walk, and no second signature is stored.
+fn m_separation_model_matches(
+    g: &Pag,
+    reference: &SeparationSignature,
+    charge: impl FnMut() -> Result<(), SearchStop>,
+) -> Result<bool, SearchStop> {
+    let mut index = 0usize;
+    let completed = visit_m_separation_model(g, charge, |answer| {
+        let same = index < reference.len && reference.get(index) == answer;
+        index += 1;
+        same
+    })?;
+    Ok(completed && index == reference.len)
 }
 
 /// Advance `subset` to the next subset in binary counting order (bit 0 least significant).
@@ -721,25 +801,76 @@ impl Iterator for CompletionSampler {
 /// This certifies only the supplied finite graphs, not an infinite temporal model.
 #[must_use]
 pub fn audit_finite_mag_equivalence(graphs: &[Pag]) -> Option<bool> {
-    let reference = graphs.first()?;
+    let refs: Vec<&Pag> = graphs.iter().collect();
+    audit_finite_mag_equivalence_refs(&refs)
+}
+
+/// Audit finite MAG references without cloning their admitted graph owners.
+pub fn audit_finite_mag_equivalence_refs(graphs: &[&Pag]) -> Option<bool> {
+    let (_, ctx) = default_completion_search();
+    audit_finite_mag_equivalence_refs_within(graphs, &ctx).ok().flatten()
+}
+
+/// Audit finite graphs under the caller's cancellation and search admission.
+pub fn audit_finite_mag_equivalence_refs_within(
+    graphs: &[&Pag],
+    ctx: &ExecutionContext,
+) -> Result<Option<bool>, GraphError> {
+    use antecedent_core::TemporalMaterializationError as T;
+    if ctx.cancellation.is_cancelled() {
+        return Err(T::Cancelled.into());
+    }
+    let Some(reference) = graphs.first().copied() else {
+        return Ok(None);
+    };
     let n = reference.node_count();
-    if graphs.iter().any(|g| g.node_count() != n || !is_mag_completion(g)) {
-        return Some(false);
-    }
-    if graphs.len() == 1 {
-        return Some(true);
-    }
-    let (limits, ctx) = default_completion_search();
-    let mut budget = SearchBudget::new(limits, &ctx).ok()?;
-    let bytes = signature_bytes(n).saturating_mul(2);
-    let mut signature_of = |g: &Pag| m_separation_signature(g, || budget.charge(n, bytes)).ok();
-    let signature = signature_of(reference)?;
-    for g in &graphs[1..] {
-        if signature_of(g)? != signature {
-            return Some(false);
+    for graph in graphs {
+        if ctx.cancellation.is_cancelled() {
+            return Err(T::Cancelled.into());
+        }
+        if graph.node_count() != n || !is_mag_completion(graph) {
+            return Ok(Some(false));
         }
     }
-    Some(true)
+    if graphs.len() == 1 {
+        return Ok(Some(true));
+    }
+    let (limits, _) = default_completion_search();
+    // The fixed search policy can rule the exponential audit out before it starts.
+    // Report that as an incomplete audit, as the completion sampler does, rather
+    // than treating the policy ceiling as a physical admission failure. A lower
+    // caller memory limit or a refused admission still remains an error below.
+    if !signature_fits_budget(n, limits.operations, antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES) {
+        return Ok(None);
+    }
+    let stop = |stop| -> Result<Option<bool>, GraphError> {
+        match stop {
+            SearchStop::Cancelled => Err(T::Cancelled.into()),
+            SearchStop::Memory => Err(T::Limit { dimension: "bytes" }.into()),
+            _ => Ok(None),
+        }
+    };
+    let mut budget = match SearchBudget::new(limits, ctx) {
+        Ok(budget) => budget,
+        Err(receipt) => return stop(receipt.stop),
+    };
+    let bytes = signature_bytes(n).saturating_mul(2);
+    let _signature_lease = match budget.lease_storage(bytes) {
+        Ok(lease) => lease,
+        Err(error) => return stop(error),
+    };
+    let signature = match m_separation_signature(reference, || budget.charge(n, bytes)) {
+        Ok(value) => value,
+        Err(error) => return stop(error),
+    };
+    for graph in &graphs[1..] {
+        match m_separation_model_matches(graph, &signature, || budget.charge(n, bytes)) {
+            Ok(true) => {}
+            Ok(false) => return Ok(Some(false)),
+            Err(error) => return stop(error),
+        }
+    }
+    Ok(Some(true))
 }
 
 #[cfg(test)]
@@ -785,6 +916,55 @@ mod tests {
             }
         }
         true
+    }
+
+    #[test]
+    fn finite_temporal_audit_reports_cancellation_and_memory_refusal() {
+        let first = Pag::with_variables(2);
+        let second = Pag::with_variables(2);
+        let refs = [&first, &second];
+        let cancelled = ExecutionContext::for_tests(1);
+        cancelled.cancellation.cancel();
+        assert!(matches!(
+            audit_finite_mag_equivalence_refs_within(&refs, &cancelled),
+            Err(GraphError::TemporalMaterialization(
+                antecedent_core::TemporalMaterializationError::Cancelled
+            ))
+        ));
+        let mut during = ExecutionContext::for_tests(2);
+        during.cancellation = antecedent_core::CancellationToken::cancel_after_checks(3);
+        assert!(matches!(
+            audit_finite_mag_equivalence_refs_within(&refs, &during),
+            Err(GraphError::TemporalMaterialization(
+                antecedent_core::TemporalMaterializationError::Cancelled
+            ))
+        ));
+        let pool = antecedent_core::execution::AdmissionPool::fixed(1, 1);
+        let pool_limited = ExecutionContext::for_tests(4).with_admission(pool);
+        assert!(matches!(
+            audit_finite_mag_equivalence_refs_within(&refs, &pool_limited),
+            Err(GraphError::TemporalMaterialization(
+                antecedent_core::TemporalMaterializationError::Limit { dimension: "bytes" }
+            ))
+        ));
+        let limited = ExecutionContext::for_tests(3).with_memory_limit(Some(0));
+        assert!(matches!(
+            audit_finite_mag_equivalence_refs_within(&refs, &limited),
+            Err(GraphError::TemporalMaterialization(
+                antecedent_core::TemporalMaterializationError::Limit { dimension: "bytes" }
+            ))
+        ));
+    }
+
+    #[test]
+    fn finite_audit_skips_a_signature_above_its_declared_search_policy() {
+        let first = Pag::with_variables(40);
+        let second = Pag::with_variables(40);
+        let ctx = ExecutionContext::for_tests(1);
+        assert_eq!(
+            audit_finite_mag_equivalence_refs_within(&[&first, &second], &ctx).unwrap(),
+            None
+        );
     }
 
     #[test]
@@ -956,6 +1136,30 @@ mod tests {
 
     fn search(operations: usize) -> (SearchLimits, ExecutionContext) {
         (SearchLimits { operations, depth: usize::MAX }, ExecutionContext::for_tests(0))
+    }
+
+    #[test]
+    fn retained_completion_storage_is_leased_before_it_is_kept() {
+        use antecedent_core::execution::AdmissionPool;
+        let mut pag = Pag::with_variables(6);
+        pag.insert_circle_circle(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let limits = SearchLimits { operations: 30, depth: usize::MAX };
+        let capacity = 100_000_u64;
+        let run = |free: u64| {
+            let pool = AdmissionPool::fixed(1, capacity);
+            let ctx = ExecutionContext::for_tests(0).with_admission(pool.clone());
+            let held = ctx.acquire_admission(0, capacity - free).unwrap();
+            let sampler = CompletionSampler::with_budget(&pag, 8, limits, &ctx).unwrap();
+            let stop = sampler.search_stop();
+            let kept = sampler.count();
+            drop(held);
+            assert_eq!(pool.available().bytes(), capacity, "every lease returns");
+            (stop, kept)
+        };
+        // One byte free funds no completion: the walk stops on memory with none kept.
+        assert_eq!(run(1), (Some(SearchStop::Memory), 0));
+        // The o-o edge has three completions, and a pool that funds all of them keeps them.
+        assert_eq!(run(capacity), (None, 3));
     }
 
     #[test]
@@ -1188,7 +1392,7 @@ mod tests {
         assert!(sampler.validation_report().operations_consumed > 0);
 
         let (limits, mut ctx) = search(10_000_000);
-        ctx.memory.hard_limit_bytes = Some(1);
+        ctx.set_memory_limit(Some(1));
         let sampler = CompletionSampler::with_budget(&pag, usize::MAX, limits, &ctx).unwrap();
         assert_eq!(sampler.search_stop(), Some(SearchStop::Memory));
         assert!(sampler.class_audit_incomplete());
@@ -1214,7 +1418,7 @@ mod tests {
             }
         }
         let mut out = Vec::new();
-        let mut reference: Option<Vec<bool>> = None;
+        let mut reference: Option<SeparationSignature> = None;
         for mask in 0..(1u64 << sites.len()) {
             let mut graph = pag.clone();
             let mut ok = true;
@@ -1298,7 +1502,7 @@ mod tests {
         let n_usize = usize::try_from(n).unwrap_or(0);
         for i in 0..n_usize {
             for j in (i + 1)..n_usize {
-                if rng.next_u64() % 3 != 0 {
+                if !rng.next_u64().is_multiple_of(3) {
                     continue;
                 }
                 let a = DenseNodeId::from_raw(order[i]);
@@ -1394,5 +1598,22 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn a_mag_becomes_the_admg_of_its_directed_and_bidirected_edges() {
+        let node = DenseNodeId::from_index;
+        let mut mag = Pag::with_variables(3);
+        mag.insert_directed(node(0), node(1)).unwrap();
+        mag.insert_bidirected(node(1), node(2)).unwrap();
+        let admg = mag_to_admg(&mag).expect("tails and arrowheads only");
+        assert_eq!(admg.parents(node(1)), [node(0)]);
+        assert_eq!(admg.bidirected_neighbors(node(1)), [node(2)]);
+        assert!(admg.parents(node(2)).is_empty());
+        assert_eq!(as_admg(&mag).directed_edge_pairs_sorted(), admg.directed_edge_pairs_sorted());
+        // A circle mark is not a MAG mark: there is no ADMG to return.
+        let mut open = Pag::with_variables(2);
+        open.insert_circle_arrow(node(0), node(1)).unwrap();
+        assert!(mag_to_admg(&open).is_none());
     }
 }

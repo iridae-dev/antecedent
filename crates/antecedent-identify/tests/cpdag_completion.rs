@@ -5,15 +5,14 @@
 //! ones that keep the CPDAG's directed edges. Nothing here reuses the library's
 //! enumeration.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use antecedent_core::{
     CancellationToken, DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime,
-    ExecutionContext, MemoryBudget, RegimeId, RegimeKind, SearchLimits, SearchStop, VariableDomain,
-    VariableId,
+    ExecutionContext, RegimeId, RegimeKind, SearchLimits, SearchStop, VariableDomain, VariableId,
 };
 use antecedent_graph::{Cpdag, DenseNodeId, NodeRef};
 use antecedent_identify::ClassicalTransportQuery;
@@ -324,7 +323,10 @@ fn cpdag_missing_evidence_refusals() {
             ("route_not_supported", CPDAG_SELECTION_OR_LATENT_DETAIL)
         );
     }
-    assert_eq!(CPDAG_SELECTION_OR_LATENT_DETAIL, "cpdag_scenarios.selection_or_latent");
+    assert_eq!(
+        CPDAG_SELECTION_OR_LATENT_DETAIL,
+        antecedent_core::reason_details::cpdag_scenarios::SELECTION_OR_LATENT
+    );
     // a -> b - c is not maximally oriented (b -> c is compelled), and a conflict edge is no CPDAG.
     let compelled = Case {
         name: "compelled",
@@ -388,7 +390,7 @@ fn cpdag_missing_evidence_refusals() {
         .collect::<Vec<_>>();
     assert_eq!(unbound.len(), 2);
     assert!(unbound.iter().all(|text| text.contains(CPDAG_NO_EVIDENCE_DETAIL)));
-    assert!(decision.completions.iter().filter(|r| r.evidence_identity.is_none()).count() == 2);
+    assert_eq!(decision.completions.iter().filter(|r| r.evidence_identity.is_none()).count(), 2);
     assert_evidence_mismatch_refusals(&a, &b);
 }
 
@@ -406,7 +408,10 @@ fn assert_evidence_mismatch_refusals(a: &Arc<str>, b: &Arc<str>) {
         binding(a, a, "ev-2", &[0, 1, 2]),
     ]));
     assert_eq!(refusal(twice.unwrap_err()).1, CPDAG_EVIDENCE_MISMATCH_DETAIL);
-    assert_eq!(CPDAG_EVIDENCE_MISMATCH_DETAIL, "cpdag_scenarios.evidence_identity_mismatch");
+    assert_eq!(
+        CPDAG_EVIDENCE_MISMATCH_DETAIL,
+        antecedent_core::reason_details::cpdag_scenarios::EVIDENCE_IDENTITY_MISMATCH
+    );
 }
 
 #[test]
@@ -530,7 +535,7 @@ fn cpdag_budget_stop_enumeration() {
 
     // Memory: live completion bytes are charged against the hard limit.
     let mut small = ExecutionContext::for_tests(1);
-    small.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(800) };
+    small.set_memory_limit(Some(800));
     let limited = run(&case, BIG, &small);
     assert_eq!(limited.receipt.as_ref().unwrap().stop, SearchStop::Memory);
     assert_eq!(limited.completions.len(), 1);

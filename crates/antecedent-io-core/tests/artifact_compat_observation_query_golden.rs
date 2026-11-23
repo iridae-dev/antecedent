@@ -12,7 +12,7 @@
 //! keyed (S=0,Z=0), (0,1), (1,0), (1,1); then P(Y=1 | S=1) = 0.78 and
 //! P(Y=1 | do(S=1)) = 0.6.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::path::PathBuf;
 

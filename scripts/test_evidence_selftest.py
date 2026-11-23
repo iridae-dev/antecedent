@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Broken-evidence self-test for scripts/test_evidence.py (gate_support_matrix.sh --self-test).
+"""Broken-evidence self-test for scripts/test_evidence.py (python3 scripts/test_evidence_selftest.py).
 
 Builds a throwaway cargo workspace with one conformance fixture and test files
 that hide a cited test in every way a text scan fails open on: `#[ignore]`
@@ -8,7 +8,7 @@ string, a file no `mod` declares, a Python helper that is not a collected test,
 a skipped pytest, a test that never consumes the fixture another test consumes,
 a test that never builds the row's axis values, and checked_execution rows whose
 cited test keeps its builder alive, is not a test, or does not cover every
-licensed estimator. Each broken row, alone, must
+supported estimator. Each broken row, alone, must
 be rejected with its expected reason; the positive control must pass, so a
 checker that rejects everything cannot satisfy the self-test.
 """
@@ -26,6 +26,12 @@ HERE = Path(__file__).resolve().parent
 
 IT_RS = r"""
 use antecedent_test_support::{conformance_dir as fixture_root, load_expected_json};
+
+#[test]
+fn fixture_with_only_a_tautology() {
+    let _expected = load_expected_json(&fixture_root("demo/truth"));
+    assert_eq!(1, 1, "{}", axes());
+}
 
 #[test]
 fn shared_helpers_consume_fixture() {
@@ -236,9 +242,14 @@ def build(tmp: Path) -> None:
     (tmp / "scripts").mkdir()
     for helper in (
         "test_evidence.py",
+        "evidence_kinds.py",
+        "detail_constants.py",
+        "review_items.py",
+        "route_behaviour.py",
         "run_evidence_rows.py",
         "_py_closure.py",
         "_rust_source.py",
+        "_source_cache.py",
         "_repo.py",
     ):
         shutil.copy(HERE / helper, tmp / "scripts" / helper)
@@ -265,10 +276,12 @@ def build(tmp: Path) -> None:
     (crate / "tests" / "sub").mkdir(parents=True)
     (crate / "Cargo.toml").write_text(
         '[package]\nname = "selftest"\nversion = "0.0.0"\nedition = "2021"\npublish = false\n'
-        '[features]\ntarget-evidence = []\nunrelated-evidence = []\n'
+        "[features]\ntarget-evidence = []\nunrelated-evidence = []\n"
         '[[test]]\nname = "required_feature"\nrequired-features = ["target-evidence"]\n'
-        '[dev-dependencies]\nantecedent-test-support = { path = "../antecedent-test-support" }\n'
-    , encoding="utf-8", newline="\n")
+        '[dev-dependencies]\nantecedent-test-support = { path = "../antecedent-test-support" }\n',
+        encoding="utf-8",
+        newline="\n",
+    )
     (crate / "src" / "lib.rs").write_text("pub fn noop() {}\n", encoding="utf-8", newline="\n")
     (crate / "tests" / "it.rs").write_text(IT_RS, encoding="utf-8", newline="\n")
     (crate / "tests" / "required_feature.rs").write_text(
@@ -336,7 +349,7 @@ def build(tmp: Path) -> None:
     )
     for target, declaration in (
         ("commented_path.rs", '// #[path = "sub/commented.rs"] mod orphan;\n'),
-        ("string_path.rs", 'const DECOY: &str = "#[path = \\\"sub/string.rs\\\"] mod orphan;";\n'),
+        ("string_path.rs", 'const DECOY: &str = "#[path = \\"sub/string.rs\\"] mod orphan;";\n'),
         ("disabled_path.rs", '#[cfg(any())]\n#[path = "sub/disabled.rs"] mod orphan;\n'),
     ):
         (crate / "tests" / target).write_text(
@@ -353,8 +366,8 @@ def build(tmp: Path) -> None:
     (crate / "tests" / "nested_scope.rs").write_text(
         "#[allow(non_camel_case_types)] struct checks;\n"
         "impl checks { fn close_abs_1e9(_: f64, _: f64, _: &str) {} }\n"
-        "mod unrelated { #[path = \"nested_checks.rs\"] mod checks; }\n"
-        "fn close() { checks::close_abs_1e9(1.0, 1.0, \"\"); }\n"
+        'mod unrelated { #[path = "nested_checks.rs"] mod checks; }\n'
+        'fn close() { checks::close_abs_1e9(1.0, 1.0, ""); }\n'
         "#[test]\nfn a_nested_module_cannot_attest_the_same_qualified_name() { close(); }\n",
         encoding="utf-8",
         newline="\n",
@@ -384,7 +397,13 @@ def build(tmp: Path) -> None:
         )
     fixture = tmp / "conformance" / "demo" / "truth"
     fixture.mkdir(parents=True)
-    (fixture / "expected.json").write_text('{"true_effect": 2.0}\n', encoding="utf-8", newline="\n")
+    # A synthetic origin declaration for reader controls, never scientific evidence.
+    # The behavioral-parity controls require an external origin; known-truth rows
+    # can also consume it. Origin/field falsification has separate fault controls.
+    (fixture / "expected.json").write_text(
+        '{"true_effect": 2.0, "oracle": {"kind": "external_package", "project": "selftest_stub"}}\n',
+        encoding="utf-8", newline="\n"
+    )
     (tmp / "python" / "tests").mkdir(parents=True)
     (tmp / "python" / "tests" / "test_demo.py").write_text(PY, encoding="utf-8", newline="\n")
 
@@ -445,7 +464,7 @@ def check_required_feature_execution(tmp: Path) -> bool:
 
     rows = tmp / "required_feature_rows.toml"
     rows.write_text(
-        '[[capabilities]]\n'
+        "[[capabilities]]\n"
         'id = "required_feature_target"\n'
         'evidence_test = "crates/selftest/tests/required_feature.rs"\n'
         'evidence_assertion = "required_feature_target_control"\n',
@@ -468,7 +487,10 @@ def check_required_feature_execution(tmp: Path) -> bool:
         text=True,
     )
     output = runner.stdout + runner.stderr
-    if runner.returncode != 0 or "ok: required_feature_target (cited Rust test executed)" not in output:
+    if (
+        runner.returncode != 0
+        or "ok: required_feature_target (cited Rust test executed)" not in output
+    ):
         print(f"SELF-TEST FAIL: required-feature target did not resolve and execute:\n{output}")
         return False
     print("self-test ok: target required feature is listed and exactly executed")
@@ -487,7 +509,11 @@ def main() -> int:
         }
 
         def checked_entry(estimator: str, assertion: str) -> dict:
-            return {"estimator": estimator, "test": "crates/selftest/tests/it.rs", "assertion": assertion}
+            return {
+                "estimator": estimator,
+                "test": "crates/selftest/tests/it.rs",
+                "assertion": assertion,
+            }
 
         def checked(assertions: list[str]) -> dict:
             estimators = [f"e{i}" for i in range(len(assertions))]
@@ -500,6 +526,12 @@ def main() -> int:
 
         cases = [
             ("control", rs("good_consumes_fixture"), None),
+            ("behavioral_fixture_control", rs("good_consumes_fixture", evidence_kind="behavioral_parity"), None),
+            ("behavioral_reference_in_another_test_is_not_evidence",
+             rs("shared_helpers_are_not_called", evidence_kind="behavioral_parity"),
+             "never names conformance/demo/truth"),
+            ("fixture_with_only_a_tautology", rs("fixture_with_only_a_tautology"),
+             "every assertion is a constant or self-comparison"),
             (
                 "path_module_helper_control",
                 rs("path_module_fixture_helper", evidence_test="crates/selftest/tests/path.rs"),
@@ -588,7 +620,11 @@ def main() -> int:
                 py("test_skipped_multiline_decorator"),
                 "carries a skip/xfail marker",
             ),
-            ("python_skipped_in_body", py("test_skipped_in_body"), "calls pytest.skip() unconditionally"),
+            (
+                "python_skipped_in_body",
+                py("test_skipped_in_body"),
+                "calls pytest.skip() unconditionally",
+            ),
             (
                 "python_empty_parametrisation",
                 py("test_empty_parametrisation"),
@@ -610,7 +646,7 @@ def main() -> int:
                 "never exercises inference 'Bayesian'",
             ),
             ("missing_test", rs("no_such_test"), "no fn no_such_test"),
-            # checked_execution: one entry per licensed estimator, each citing an
+            # checked_execution: one entry per supported estimator, each citing an
             # executing test that discards its builder, executes, and inspects the plan.
             (
                 "checked_execution_control",
@@ -662,7 +698,7 @@ def main() -> int:
                     estimators=["a", "b"],
                     checked_execution=[checked_entry("a", "checked_execution_drops_builder")],
                 ),
-                "!= licensed estimators",
+                "!= supported estimators",
             ),
             (
                 "checked_execution_duplicate_estimator",

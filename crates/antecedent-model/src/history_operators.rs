@@ -1,0 +1,2935 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+//! History, timing, policy, transition, regression, weight, and reduction operators.
+//!
+//! Each operator is a value over a declared cadence, horizon, and initial law.
+//! The cadence is [`TimeIndex`]: a regular interval in nanoseconds and the
+//! number of ticks that interval declares. [`Horizon`] is the exclusive end of
+//! the operator in those same nanoseconds. A step count such as
+//! [`TimeFrame::horizon_steps`](antecedent_core::TimeFrame::horizon_steps)
+//! cannot state an end that falls between ticks, so the check lives here.
+//!
+//! The initial law is [`InitialLaw`]. Absence is refused. A time column is not
+//! a law.
+//!
+//! A horizon that does not end on a tick, or that runs past the last tick the
+//! cadence declares, is refused. A censoring or assignment weight that is not
+//! finite is refused.
+//!
+//! Delayed feedback binds that same frame to a history window, an initial law,
+//! and one transition step. A finite-horizon response of that binding is a
+//! different target from a static equilibrium, a stationary law, and a
+//! continuous-time dynamic. A pulse is a different action from a sustained
+//! window, including a window of one step. A history shorter than the delay is
+//! refused unless a truncation certificate names that same short history; the
+//! history is not extended. A search cap that does not cover the ancestry is
+//! refused, and the cap is not raised.
+//!
+//! The operators are values until they run: [`HistoryProgram`] binds them over one frame
+//! and executes them on a [`TickSeries`], with one scan, one weighted fit, one rolled
+//! transition under the policy and its reference, and one reduction. Every consumer of a
+//! temporal program reads those operators instead of its own scan.
+
+#![forbid(unsafe_code)]
+#![deny(missing_docs)]
+
+mod feedback;
+mod program;
+mod runtime;
+mod scan;
+
+pub use program::{HistoryOperatorKind, HistoryProgram};
+pub use runtime::{
+    ColumnFit, HistoryExecutionError, HistoryWindows, InitialState, PolicyRule,
+    ReductionFunctional, TickSeries, TrajectoryExecution, TransitionFit, WindowWeights,
+};
+pub use scan::HistoryScan;
+
+use std::sync::Arc;
+
+use antecedent_core::execution::AdmissionError;
+use antecedent_core::intervention::{AdmitError, ExecutionSurface, InterventionOperation};
+use antecedent_core::{
+    ExecutionContext, HistoryWindow, InitialLaw, Intervention, InterventionError, TemporalPolicy,
+    Value, is_blank,
+};
+use antecedent_data::{SamplingRegularity, TimeIndex};
+use thiserror::Error;
+
+use crate::information_time::{
+    AvailableOutcome, CadenceTick, ForwardOnly, InformationRefusal, InformationUse,
+    ObservedCadence, RetrospectivePermission, admit_delayed_outcome,
+};
+
+/// Exclusive end of an operator, in the cadence's nanoseconds.
+///
+/// The origin is the cadence's first tick. [`Self::ending_at`] does not check
+/// the cadence; [`OperatorFrame::try_new`] does.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct Horizon {
+    end_ns: u64,
+}
+
+impl Horizon {
+    /// Horizon ending at `end_ns`, exclusive, measured from the cadence origin.
+    #[must_use]
+    pub const fn ending_at(end_ns: u64) -> Self {
+        Self { end_ns }
+    }
+
+    /// Exclusive end, in nanoseconds from the cadence origin.
+    #[must_use]
+    pub const fn end_ns(self) -> u64 {
+        self.end_ns
+    }
+}
+
+/// Cadence, horizon, and initial law shared by every history operator.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OperatorFrame {
+    cadence: TimeIndex,
+    horizon: Horizon,
+    initial_law: InitialLaw,
+    interval_ns: u64,
+}
+
+impl OperatorFrame {
+    /// Bind `cadence`, `horizon`, and `initial_law`.
+    ///
+    /// # Errors
+    ///
+    /// [`HistoryOperatorError::HorizonCrossesCadence`] when the horizon does
+    /// not end on a tick of `cadence` or runs past the ticks `cadence` declares.
+    /// [`HistoryOperatorError::CadenceSpanOverflow`] when the declared tick count
+    /// times the interval does not fit in `u64`.
+    /// [`HistoryOperatorError::CadenceUncountable`] when the tick count does not
+    /// fit in `u32`, the same grid [`crate::information_time::ObservedCadence`]
+    /// reads from [`TimeIndex`].
+    #[must_use = "a refused frame is not a cadence, horizon, and initial law"]
+    pub fn try_new(
+        cadence: TimeIndex,
+        horizon: Horizon,
+        initial_law: InitialLaw,
+    ) -> Result<Self, HistoryOperatorError> {
+        let interval_ns = admit_horizon(&cadence, horizon)?;
+        Ok(Self { cadence, horizon, initial_law, interval_ns })
+    }
+
+    /// Declared observation cadence.
+    #[must_use]
+    pub const fn cadence(&self) -> &TimeIndex {
+        &self.cadence
+    }
+
+    /// Horizon bound to this cadence.
+    #[must_use]
+    pub const fn horizon(&self) -> Horizon {
+        self.horizon
+    }
+
+    /// Initial-state law. Construction refuses a missing law.
+    #[must_use]
+    pub const fn initial_law(&self) -> &InitialLaw {
+        &self.initial_law
+    }
+
+    /// Positive regular interval of [`Self::cadence`], in nanoseconds.
+    #[must_use]
+    pub const fn interval_ns(&self) -> u64 {
+        self.interval_ns
+    }
+}
+
+/// Which weight was refused.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum WeightRole {
+    /// Censoring weight.
+    Censoring,
+    /// Treatment-assignment weight.
+    Assignment,
+}
+
+impl WeightRole {
+    /// Stable name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Censoring => "censoring",
+            Self::Assignment => "assignment",
+        }
+    }
+}
+
+impl std::fmt::Display for WeightRole {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+/// Refusal while compiling a history operator.
+#[derive(Clone, Debug, PartialEq, Error)]
+#[non_exhaustive]
+pub enum HistoryOperatorError {
+    /// The horizon misses a tick or runs past the cadence.
+    #[error("horizon {end_ns} ns crosses the cadence; next attempt: end on a tick inside it")]
+    HorizonCrossesCadence {
+        /// Exclusive horizon end, in nanoseconds.
+        end_ns: u64,
+        /// Regular interval, or [`None`] when the cadence is irregular.
+        interval_ns: Option<u64>,
+        /// Declared tick count, when it fits in `u64`.
+        declared_ticks: Option<u64>,
+    },
+    /// Tick count times the interval does not fit in `u64`.
+    #[error("cadence of {ticks} ticks at {interval_ns} ns overflows; next attempt: shorten it")]
+    CadenceSpanOverflow {
+        /// Regular interval, in nanoseconds.
+        interval_ns: u64,
+        /// Declared tick count.
+        ticks: u64,
+    },
+    /// The tick count does not fit in `u32`.
+    ///
+    /// This is the same limit as [`crate::information_time::ObservedCadence`].
+    #[error("cadence tick count does not fit in u32; next attempt: shorten the cadence")]
+    CadenceUncountable,
+    /// A censoring or assignment weight was `NaN` or infinite.
+    #[error("{role} weight {value} is not finite; next attempt: supply a finite weight")]
+    NonFiniteWeight {
+        /// Which weight.
+        role: WeightRole,
+        /// The refused value.
+        value: f64,
+    },
+    /// A censoring or assignment weight was finite but zero or negative.
+    ///
+    /// These are inverse-probability weights. A zero weight is a probability of
+    /// infinity, which is a positivity violation, and a negative weight is not a
+    /// reciprocal of a probability.
+    #[error(
+        "{role} weight {value} is not positive; next attempt: supply a finite weight above zero, \
+         or declare the positivity violation"
+    )]
+    NonPositiveWeight {
+        /// Which weight.
+        role: WeightRole,
+        /// The refused value.
+        value: f64,
+    },
+    /// An action time is off the cadence or outside the horizon.
+    #[error(
+        "action at {at_ns} ns misses the cadence; next attempt: use a tick before the horizon end"
+    )]
+    ActionMissesCadence {
+        /// Requested action time, in nanoseconds from the origin.
+        at_ns: u64,
+        /// Cadence interval, in nanoseconds.
+        interval_ns: u64,
+    },
+    /// A policy, outcome, or functional name is blank.
+    #[error("{field} name is empty; next attempt: name the {field}")]
+    EmptyName {
+        /// `policy`, `outcome`, or `functional`.
+        field: &'static str,
+    },
+    /// A delay of zero is contemporaneous transmission, not delayed feedback.
+    #[error(
+        "feedback delay is 0 ticks; next attempt: use a positive delay, or a finite horizon \
+         without delay"
+    )]
+    ContemporaneousFeedback,
+    /// An action step lies outside the half-open horizon.
+    #[error(
+        "action step {step} is outside a horizon of {horizon_steps} steps; next attempt: place \
+         it before the horizon end"
+    )]
+    ActionOutsideHorizon {
+        /// Offending step, relative to the origin.
+        step: i32,
+        /// Exclusive horizon length, in cadence steps.
+        horizon_steps: u32,
+    },
+    /// A dynamic schedule is neither a pulse nor a sustained window.
+    #[error("action is a dynamic schedule; next attempt: declare a pulse or a sustained window")]
+    ActionNotDelayable,
+    /// A level or a dynamic coefficient was `NaN` or infinite.
+    #[error("level {value} is not finite; next attempt: supply a finite level")]
+    NonFiniteLevel {
+        /// The refused value.
+        value: f64,
+    },
+    /// A sustained window ends before it starts.
+    #[error(
+        "sustained window {from_step}..={until_step} is inverted; next attempt: order the window"
+    )]
+    InvertedWindow {
+        /// First step.
+        from_step: i32,
+        /// Last step.
+        until_step: i32,
+    },
+    /// History is shorter than the delay and no certificate names that history.
+    ///
+    /// The retained depth is the one that was declared. It is not rewritten to
+    /// the required depth.
+    #[error(
+        "history retains {retained_ticks} ticks but delayed feedback needs {required_ticks}; \
+         next attempt: certify that truncation, or declare a history that covers the delay"
+    )]
+    UncertifiedTruncation {
+        /// Explicit history cap, in ticks. Not increased.
+        retained_ticks: u32,
+        /// Delay or action lag that the history does not cover.
+        required_ticks: u32,
+    },
+    /// Ancestry does not fit in the declared search cap.
+    ///
+    /// `cap` is the cap that was given. It is not replaced by `ancestry_steps`.
+    #[error(
+        "search cap {cap} does not cover ancestry of {ancestry_steps} steps; next attempt: \
+         report it uncertified without raising the cap"
+    )]
+    SearchNotIdentified {
+        /// Declared cap, unchanged.
+        cap: u32,
+        /// Ancestry depth that was asked about.
+        ancestry_steps: u32,
+    },
+    /// The delayed outcome is not yet available at the decision.
+    #[error("delayed feedback is not available: {refusal}")]
+    InformationRefused {
+        /// Information-time refusal. The row is not dropped.
+        refusal: InformationRefusal,
+    },
+    /// The exclusive horizon length does not fit in `u32` steps.
+    #[error("horizon length does not fit in u32 steps; next attempt: shorten the horizon")]
+    HorizonStepsUncountable,
+    /// `steps` times the interval does not fit in `u64`.
+    #[error(
+        "horizon of {steps} steps at {interval_ns} ns overflows; next attempt: shorten the horizon"
+    )]
+    HorizonEndOverflow {
+        /// Regular interval, in nanoseconds.
+        interval_ns: u64,
+        /// Requested step count.
+        steps: u32,
+    },
+    /// `a` is one, so the map has no finite fixed point.
+    #[error(
+        "autoregression has no finite fixed point; next attempt: ask for the finite-horizon \
+         response"
+    )]
+    NoFixedPoint,
+    /// `|a| >= 1` and not one, so the map has no stable fixed point or stationary law.
+    #[error(
+        "autoregression {autoregression} is not stable (|a| >= 1); next attempt: ask for the \
+         finite-horizon response"
+    )]
+    UnstableAutoregression {
+        /// The refused coefficient.
+        autoregression: f64,
+    },
+    /// The innovation variance is negative.
+    #[error(
+        "innovation variance {value} is negative; next attempt: supply a variance of zero or more"
+    )]
+    NegativeInnovationVariance {
+        /// The refused value.
+        value: f64,
+    },
+    /// The coefficients were declared for a different initial law than the frame's.
+    #[error(
+        "dynamics declare initial law {dynamics:?} but the frame binds {frame:?}; next attempt: \
+         declare the state of the frame's law"
+    )]
+    InitialLawMismatch {
+        /// Initial law bound to the delayed frame.
+        frame: InitialLaw,
+        /// Initial law the dynamics were declared for.
+        dynamics: InitialLaw,
+    },
+    /// The intervention is not a pulse or a sustained set, and was not rewritten.
+    #[error("{operation} is not a delayed-feedback action: {reason}")]
+    UnsupportedOperation {
+        /// Operation that was asked for.
+        operation: &'static str,
+        /// Why it was not executed as a different action.
+        reason: &'static str,
+    },
+    /// The cadence has no regular positive interval to convert steps into nanoseconds.
+    #[error(
+        "a horizon of {steps} steps has no end on a cadence with interval {interval_ns:?} ns; \
+         next attempt: declare a regular positive cadence"
+    )]
+    CadenceWithoutInterval {
+        /// Regular interval, or [`None`] when the cadence is irregular.
+        interval_ns: Option<u64>,
+        /// Requested step count.
+        steps: u32,
+    },
+}
+
+/// History retained on the frame. This does not read rows or fill lags.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HistoryConstruction {
+    frame: OperatorFrame,
+    history: HistoryWindow,
+}
+
+impl HistoryConstruction {
+    /// Compile history construction.
+    ///
+    /// # Errors
+    ///
+    /// The frame errors of [`OperatorFrame::try_new`].
+    #[must_use = "a refused history construction is not an operator"]
+    pub fn try_new(
+        cadence: TimeIndex,
+        horizon: Horizon,
+        initial_law: InitialLaw,
+        history: HistoryWindow,
+    ) -> Result<Self, HistoryOperatorError> {
+        let frame = OperatorFrame::try_new(cadence, horizon, initial_law)?;
+        Ok(Self { frame, history })
+    }
+
+    /// Cadence, horizon, and initial law.
+    #[must_use]
+    pub const fn frame(&self) -> &OperatorFrame {
+        &self.frame
+    }
+
+    /// History window the operator retains. It is not inferred from a column.
+    #[must_use]
+    pub const fn history(&self) -> HistoryWindow {
+        self.history
+    }
+}
+
+/// Time at which an action is applied. This does not apply the action.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ActionTiming {
+    frame: OperatorFrame,
+    at_ns: u64,
+}
+
+impl ActionTiming {
+    /// Compile action timing at `at_ns`.
+    ///
+    /// `at_ns` is nanoseconds from the cadence origin. It must be a tick and
+    /// must lie in the half-open horizon.
+    ///
+    /// # Errors
+    ///
+    /// The frame errors of [`OperatorFrame::try_new`], or
+    /// [`HistoryOperatorError::ActionMissesCadence`].
+    #[must_use = "a refused action time is not an operator"]
+    pub fn try_new(
+        cadence: TimeIndex,
+        horizon: Horizon,
+        initial_law: InitialLaw,
+        at_ns: u64,
+    ) -> Result<Self, HistoryOperatorError> {
+        let frame = OperatorFrame::try_new(cadence, horizon, initial_law)?;
+        admit_action(&frame, at_ns)?;
+        Ok(Self { frame, at_ns })
+    }
+
+    /// Cadence, horizon, and initial law.
+    #[must_use]
+    pub const fn frame(&self) -> &OperatorFrame {
+        &self.frame
+    }
+
+    /// Action time, in nanoseconds from the cadence origin.
+    #[must_use]
+    pub const fn at_ns(&self) -> u64 {
+        self.at_ns
+    }
+}
+
+/// A named policy evaluated on the frame. This does not evaluate the policy.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PolicyEvaluation {
+    frame: OperatorFrame,
+    policy: Arc<str>,
+}
+
+impl PolicyEvaluation {
+    /// Compile policy evaluation of `policy`.
+    ///
+    /// # Errors
+    ///
+    /// The frame errors of [`OperatorFrame::try_new`], or
+    /// [`HistoryOperatorError::EmptyName`] when `policy` is blank.
+    #[must_use = "a refused policy evaluation is not an operator"]
+    pub fn try_new(
+        cadence: TimeIndex,
+        horizon: Horizon,
+        initial_law: InitialLaw,
+        policy: impl Into<Arc<str>>,
+    ) -> Result<Self, HistoryOperatorError> {
+        let frame = OperatorFrame::try_new(cadence, horizon, initial_law)?;
+        let policy = admit_name("policy", policy.into())?;
+        Ok(Self { frame, policy })
+    }
+
+    /// Cadence, horizon, and initial law.
+    #[must_use]
+    pub const fn frame(&self) -> &OperatorFrame {
+        &self.frame
+    }
+
+    /// Policy name. The name is not a fitted policy.
+    #[must_use]
+    pub fn policy(&self) -> &str {
+        &self.policy
+    }
+}
+
+/// One transition of the cadence interval. This does not fit a transition.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Transition {
+    frame: OperatorFrame,
+}
+
+impl Transition {
+    /// Compile the transition across one cadence interval.
+    ///
+    /// # Errors
+    ///
+    /// The frame errors of [`OperatorFrame::try_new`].
+    #[must_use = "a refused transition is not an operator"]
+    pub fn try_new(
+        cadence: TimeIndex,
+        horizon: Horizon,
+        initial_law: InitialLaw,
+    ) -> Result<Self, HistoryOperatorError> {
+        Ok(Self { frame: OperatorFrame::try_new(cadence, horizon, initial_law)? })
+    }
+
+    /// Cadence, horizon, and initial law.
+    #[must_use]
+    pub const fn frame(&self) -> &OperatorFrame {
+        &self.frame
+    }
+
+    /// Transition step, which is the cadence interval in nanoseconds.
+    #[must_use]
+    pub const fn step_ns(&self) -> u64 {
+        self.frame.interval_ns()
+    }
+}
+
+/// Sequential regression and integration over the horizon.
+///
+/// Regression and integration are this one operator. It does not fit the
+/// regression and it does not integrate a column.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SequentialRegression {
+    frame: OperatorFrame,
+    outcome: Arc<str>,
+}
+
+impl SequentialRegression {
+    /// Compile sequential regression and integration of `outcome`.
+    ///
+    /// # Errors
+    ///
+    /// The frame errors of [`OperatorFrame::try_new`], or
+    /// [`HistoryOperatorError::EmptyName`] when `outcome` is blank.
+    #[must_use = "a refused sequential regression is not an operator"]
+    pub fn try_new(
+        cadence: TimeIndex,
+        horizon: Horizon,
+        initial_law: InitialLaw,
+        outcome: impl Into<Arc<str>>,
+    ) -> Result<Self, HistoryOperatorError> {
+        let frame = OperatorFrame::try_new(cadence, horizon, initial_law)?;
+        let outcome = admit_name("outcome", outcome.into())?;
+        Ok(Self { frame, outcome })
+    }
+
+    /// Cadence, horizon, and initial law.
+    #[must_use]
+    pub const fn frame(&self) -> &OperatorFrame {
+        &self.frame
+    }
+
+    /// Outcome the regression and the integration name.
+    #[must_use]
+    pub fn outcome(&self) -> &str {
+        &self.outcome
+    }
+}
+
+/// Censoring and assignment weights on the frame. This does not weight rows.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CensoringAssignmentWeight {
+    frame: OperatorFrame,
+    censoring: f64,
+    assignment: f64,
+}
+
+impl CensoringAssignmentWeight {
+    /// Compile `censoring` and `assignment` weights.
+    ///
+    /// Both values are inverse-probability weights and must be finite and above
+    /// zero. A zero weight is a positivity violation, and a negative weight is
+    /// not the reciprocal of a probability.
+    ///
+    /// # Errors
+    ///
+    /// The frame errors of [`OperatorFrame::try_new`],
+    /// [`HistoryOperatorError::NonFiniteWeight`], or
+    /// [`HistoryOperatorError::NonPositiveWeight`].
+    #[must_use = "a refused weight is not an operator"]
+    pub fn try_new(
+        cadence: TimeIndex,
+        horizon: Horizon,
+        initial_law: InitialLaw,
+        censoring: f64,
+        assignment: f64,
+    ) -> Result<Self, HistoryOperatorError> {
+        let frame = OperatorFrame::try_new(cadence, horizon, initial_law)?;
+        admit_weight(WeightRole::Censoring, censoring)?;
+        admit_weight(WeightRole::Assignment, assignment)?;
+        Ok(Self { frame, censoring, assignment })
+    }
+
+    /// Cadence, horizon, and initial law.
+    #[must_use]
+    pub const fn frame(&self) -> &OperatorFrame {
+        &self.frame
+    }
+
+    /// Censoring weight as declared.
+    #[must_use]
+    pub const fn censoring(&self) -> f64 {
+        self.censoring
+    }
+
+    /// Assignment weight as declared.
+    #[must_use]
+    pub const fn assignment(&self) -> f64 {
+        self.assignment
+    }
+}
+
+/// Reduction of a trajectory to a named functional. This does not reduce rows.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TrajectoryReduction {
+    frame: OperatorFrame,
+    functional: Arc<str>,
+}
+
+impl TrajectoryReduction {
+    /// Compile trajectory reduction to `functional`.
+    ///
+    /// # Errors
+    ///
+    /// The frame errors of [`OperatorFrame::try_new`], or
+    /// [`HistoryOperatorError::EmptyName`] when `functional` is blank.
+    #[must_use = "a refused trajectory reduction is not an operator"]
+    pub fn try_new(
+        cadence: TimeIndex,
+        horizon: Horizon,
+        initial_law: InitialLaw,
+        functional: impl Into<Arc<str>>,
+    ) -> Result<Self, HistoryOperatorError> {
+        let frame = OperatorFrame::try_new(cadence, horizon, initial_law)?;
+        let functional = admit_name("functional", functional.into())?;
+        Ok(Self { frame, functional })
+    }
+
+    /// Cadence, horizon, and initial law.
+    #[must_use]
+    pub const fn frame(&self) -> &OperatorFrame {
+        &self.frame
+    }
+
+    /// Functional name. The name is not an evaluated reduction.
+    #[must_use]
+    pub fn functional(&self) -> &str {
+        &self.functional
+    }
+}
+
+/// Ticks before a feedback edge re-enters the state.
+///
+/// Zero is contemporaneous transmission and is refused here. A finite horizon
+/// with no delay uses [`Option::None`] on [`DelayedFeedbackRequest::delay`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct FeedbackDelay {
+    ticks: u32,
+}
+
+impl FeedbackDelay {
+    /// Delay of `ticks` cadence steps.
+    ///
+    /// # Errors
+    ///
+    /// [`HistoryOperatorError::ContemporaneousFeedback`] when `ticks` is zero.
+    #[must_use = "a zero delay is not delayed feedback"]
+    pub const fn delayed(ticks: u32) -> Result<Self, HistoryOperatorError> {
+        if ticks == 0 {
+            Err(HistoryOperatorError::ContemporaneousFeedback)
+        } else {
+            Ok(Self { ticks })
+        }
+    }
+
+    /// Delay in cadence steps. At least one.
+    #[must_use = "the delay is the lag the history must cover"]
+    pub const fn ticks(self) -> u32 {
+        self.ticks
+    }
+}
+
+/// Caller-supplied replacement of an initial-state law.
+///
+/// Construction of [`DelayedFeedback`] refuses this. It does not clamp a
+/// variable and it does not change the declared dynamics.
+#[derive(Clone, Debug, PartialEq)]
+pub struct InitialStateChange {
+    /// Name of the law being replaced.
+    pub law_name: String,
+    /// Replacement level.
+    pub level: f64,
+}
+
+/// Cap on a feedback-ancestry search, in steps.
+///
+/// The stored count is the cap that was declared. Certifying a deeper ancestry
+/// does not replace it with that depth.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct FeedbackSearchCap {
+    steps: u32,
+}
+
+impl FeedbackSearchCap {
+    /// Cap of `steps`.
+    #[must_use = "the cap is the bound the search was given"]
+    pub const fn declared(steps: u32) -> Self {
+        Self { steps }
+    }
+
+    /// Declared step count. Not a wider bound discovered during search.
+    #[must_use = "the cap is the bound the search was given"]
+    pub const fn steps(self) -> u32 {
+        self.steps
+    }
+}
+
+/// Named permission to use a history shorter than the delay.
+///
+/// The certificate names the retained depth. It does not lengthen the history
+/// window to the delay.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct TruncationCertificate {
+    retained_ticks: u32,
+}
+
+impl TruncationCertificate {
+    /// Certify truncation at exactly `retained_ticks`.
+    #[must_use = "a certificate names the history it truncates"]
+    pub const fn retaining(retained_ticks: u32) -> Self {
+        Self { retained_ticks }
+    }
+
+    /// Retained depth this certificate names.
+    #[must_use = "the retained depth is the history the certificate allows"]
+    pub const fn retained_ticks(self) -> u32 {
+        self.retained_ticks
+    }
+}
+
+/// Build the delayed action the caller declared.
+///
+/// A pulse of a set stays a pulse. A sustained set stays sustained, including a
+/// window of one step. A shift, a soft replacement, and an untimed set are
+/// refused and are not rewritten as a hard assignment.
+///
+/// # Errors
+///
+/// [`HistoryOperatorError::ActionNotDelayable`] for a dynamic schedule.
+/// [`HistoryOperatorError::UnsupportedOperation`] when the intervention is not
+/// a pulse or a sustained set. [`HistoryOperatorError::NonFiniteLevel`] when
+/// the set level is not finite. [`HistoryOperatorError::InvertedWindow`] when
+/// the sustained window ends before it starts.
+#[must_use = "a refused action is not the caller's intervention"]
+pub fn delayed_action_of(
+    intervention: &Intervention,
+    temporal: &TemporalPolicy,
+) -> Result<DelayedAction, HistoryOperatorError> {
+    if matches!(temporal, TemporalPolicy::Dynamic { .. }) {
+        return Err(HistoryOperatorError::ActionNotDelayable);
+    }
+    let operation = ExecutionSurface::Temporal
+        .admit(intervention, Some(temporal))
+        .map_err(|error| history_refusal(&error))?;
+    match operation {
+        InterventionOperation::Pulse { at, action } => {
+            DelayedAction::pulse(at, finite_set_level(action.as_ref())?)
+        }
+        InterventionOperation::Sustained { from, until, action } => {
+            DelayedAction::sustained(from, until, finite_set_level(action.as_ref())?)
+        }
+        other => Err(HistoryOperatorError::UnsupportedOperation {
+            operation: other.name(),
+            reason: "a delayed-feedback action is a pulse or a sustained set",
+        }),
+    }
+}
+
+/// Refuse a replacement of the initial-state law.
+///
+/// The rollout keeps the law the dynamics declared. The change is not applied
+/// as a clamp and is not applied as the action level.
+///
+/// # Errors
+///
+/// [`HistoryOperatorError::UnsupportedOperation`] naming `initial_state_change`,
+/// or a malformed law name or level.
+#[must_use = "a refused initial-state change is not a rollout"]
+pub fn refuse_initial_state_change(law_name: &str, level: f64) -> Result<(), HistoryOperatorError> {
+    let operation =
+        InterventionOperation::initial_state(law_name, Value::f64(level)).map_err(|error| {
+            match error {
+                InterventionError::EmptyInitialLaw => {
+                    HistoryOperatorError::EmptyName { field: "initial law" }
+                }
+                InterventionError::NonFiniteLevel => {
+                    HistoryOperatorError::NonFiniteLevel { value: level }
+                }
+                _ => HistoryOperatorError::UnsupportedOperation {
+                    operation: "initial_state_change",
+                    reason: "an initial-state change replaces the initial-state law and is not a \
+                             hard clamp",
+                },
+            }
+        })?;
+    match ExecutionSurface::Temporal.admit_operation(&operation) {
+        Err(refusal) => Err(history_operation(refusal)),
+        Ok(()) => Err(HistoryOperatorError::UnsupportedOperation {
+            operation: "initial_state_change",
+            reason: "an initial-state change replaces the initial-state law and is not a \
+                     hard clamp",
+        }),
+    }
+}
+
+fn history_refusal(error: &AdmitError) -> HistoryOperatorError {
+    match error {
+        AdmitError::Refused(refusal) => history_operation(*refusal),
+        AdmitError::Invalid(InterventionError::InvalidTemporalWindow { from, until }) => {
+            HistoryOperatorError::InvertedWindow { from_step: *from, until_step: *until }
+        }
+        AdmitError::Invalid(InterventionError::NonFiniteLevel) => {
+            HistoryOperatorError::NonFiniteLevel { value: f64::NAN }
+        }
+        AdmitError::Invalid(_) => HistoryOperatorError::UnsupportedOperation {
+            operation: "intervention",
+            reason: "the intervention is malformed",
+        },
+        _ => HistoryOperatorError::UnsupportedOperation {
+            operation: "intervention",
+            reason: "the intervention was not admitted",
+        },
+    }
+}
+
+fn history_operation(
+    refusal: antecedent_core::intervention::CapabilityRefusal,
+) -> HistoryOperatorError {
+    HistoryOperatorError::UnsupportedOperation {
+        operation: refusal.operation(),
+        reason: refusal.reason(),
+    }
+}
+
+fn finite_set_level(action: &InterventionOperation) -> Result<f64, HistoryOperatorError> {
+    match action {
+        InterventionOperation::Set { value: Value::Float64(level), .. } if level.is_finite() => {
+            Ok(*level)
+        }
+        InterventionOperation::Set { value: Value::Float64(level), .. } => {
+            Err(HistoryOperatorError::NonFiniteLevel { value: *level })
+        }
+        InterventionOperation::Set { .. } => Err(HistoryOperatorError::UnsupportedOperation {
+            operation: "set",
+            reason: "a delayed-feedback set holds one finite float and is not coerced",
+        }),
+        other => Err(HistoryOperatorError::UnsupportedOperation {
+            operation: other.name(),
+            reason: "a delayed-feedback action holds a set and does not rewrite it",
+        }),
+    }
+}
+
+/// Pulse or sustained action on the delayed frame.
+///
+/// A sustained window with `from_step == until_step` is still sustained. It is
+/// not a pulse.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum DelayedAction {
+    /// One step.
+    Pulse {
+        /// Step relative to the origin. Negative steps sit in the history.
+        at_step: i32,
+        /// Bit pattern of the level. `-0.0` is stored as `+0.0`.
+        level_bits: u64,
+    },
+    /// Inclusive step window.
+    Sustained {
+        /// First intervened step.
+        from_step: i32,
+        /// Last intervened step, inclusive.
+        until_step: i32,
+        /// Bit pattern of the held level. `-0.0` is stored as `+0.0`.
+        level_bits: u64,
+    },
+}
+
+impl DelayedAction {
+    /// Pulse at `at_step` with finite `level`.
+    ///
+    /// # Errors
+    ///
+    /// [`HistoryOperatorError::NonFiniteLevel`] when `level` is not finite.
+    #[must_use = "a non-finite pulse level is not an action"]
+    pub fn pulse(at_step: i32, level: f64) -> Result<Self, HistoryOperatorError> {
+        Ok(Self::Pulse { at_step, level_bits: finite_bits(level)? })
+    }
+
+    /// Sustained action on `from_step..=until_step` with finite `level`.
+    ///
+    /// # Errors
+    ///
+    /// [`HistoryOperatorError::InvertedWindow`] when `until_step < from_step`.
+    /// [`HistoryOperatorError::NonFiniteLevel`] when `level` is not finite.
+    #[must_use = "a refused sustained window is not an action"]
+    pub fn sustained(
+        from_step: i32,
+        until_step: i32,
+        level: f64,
+    ) -> Result<Self, HistoryOperatorError> {
+        if until_step < from_step {
+            return Err(HistoryOperatorError::InvertedWindow { from_step, until_step });
+        }
+        Ok(Self::Sustained { from_step, until_step, level_bits: finite_bits(level)? })
+    }
+
+    /// Level at `step`, or zero when the action is inactive there.
+    #[must_use = "an inactive step contributes no action level"]
+    pub const fn level_at(self, step: i32) -> f64 {
+        let bits = match self {
+            Self::Pulse { at_step, level_bits } if step == at_step => level_bits,
+            Self::Sustained { from_step, until_step, level_bits }
+                if step >= from_step && step <= until_step =>
+            {
+                level_bits
+            }
+            Self::Pulse { .. } | Self::Sustained { .. } => 0.0f64.to_bits(),
+        };
+        f64::from_bits(bits)
+    }
+
+    /// Level held forever by an equilibrium or stationary question.
+    ///
+    /// A pulse returns to zero. A sustained action keeps its level.
+    #[must_use = "the permanent level is the constant input of an equilibrium"]
+    pub const fn permanent_level(self) -> f64 {
+        match self {
+            Self::Pulse { .. } => 0.0,
+            Self::Sustained { level_bits, .. } => f64::from_bits(level_bits),
+        }
+    }
+}
+
+/// Which response a delayed system was asked for.
+///
+/// These are different targets. A finite-horizon rollout is not a static
+/// equilibrium, not a stationary law, and not a continuous-time dynamic.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum ResponseTarget {
+    /// State after the admitted number of transition steps.
+    FiniteHorizon,
+    /// Fixed point of the one-step map under the action's permanent level.
+    StaticEquilibrium,
+    /// Invariant mean and innovation-driven variance of that map.
+    Stationary,
+    /// Continuous-time convolution over the same horizon.
+    ContinuousTime,
+}
+
+impl ResponseTarget {
+    /// Stable name.
+    #[must_use = "the name distinguishes this target from the other three"]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::FiniteHorizon => "finite_horizon",
+            Self::StaticEquilibrium => "static_equilibrium",
+            Self::Stationary => "stationary",
+            Self::ContinuousTime => "continuous_time",
+        }
+    }
+}
+
+impl std::fmt::Display for ResponseTarget {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+/// Coefficients of `s <- a s + b u + e`, the innovation variance of `e`, and
+/// the state at the origin.
+///
+/// The initial state is the level of one [`InitialLaw`]. The dynamics carry
+/// that law, and [`DelayedFeedback::response`] refuses dynamics declared for a
+/// different law than the frame binds.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct DelayedDynamics {
+    autoregression_bits: u64,
+    input_gain_bits: u64,
+    innovation_variance_bits: u64,
+    initial_law: InitialLaw,
+    initial_state_bits: u64,
+}
+
+impl DelayedDynamics {
+    /// Finite autoregression `a`, input gain `b`, innovation variance, and the
+    /// level of `initial_law` at the origin.
+    ///
+    /// # Errors
+    ///
+    /// [`HistoryOperatorError::NonFiniteLevel`] when any number is not finite.
+    /// [`HistoryOperatorError::NegativeInnovationVariance`] when the variance
+    /// is below zero.
+    #[must_use = "a non-finite coefficient is not a delayed system"]
+    pub fn try_new(
+        autoregression: f64,
+        input_gain: f64,
+        innovation_variance: f64,
+        initial_law: InitialLaw,
+        initial_state: f64,
+    ) -> Result<Self, HistoryOperatorError> {
+        let innovation_variance_bits = finite_bits(innovation_variance)?;
+        if innovation_variance < 0.0 {
+            return Err(HistoryOperatorError::NegativeInnovationVariance {
+                value: innovation_variance,
+            });
+        }
+        Ok(Self {
+            autoregression_bits: finite_bits(autoregression)?,
+            input_gain_bits: finite_bits(input_gain)?,
+            innovation_variance_bits,
+            initial_law,
+            initial_state_bits: finite_bits(initial_state)?,
+        })
+    }
+
+    /// Autoregressive coefficient.
+    #[must_use = "the autoregression is the transition's state coefficient"]
+    pub const fn autoregression(&self) -> f64 {
+        f64::from_bits(self.autoregression_bits)
+    }
+
+    /// Coefficient on the delayed action.
+    #[must_use = "the input gain scales the delayed action"]
+    pub const fn input_gain(&self) -> f64 {
+        f64::from_bits(self.input_gain_bits)
+    }
+
+    /// Variance of the transition's innovation.
+    #[must_use = "the innovation variance sets the stationary spread"]
+    pub const fn innovation_variance(&self) -> f64 {
+        f64::from_bits(self.innovation_variance_bits)
+    }
+
+    /// Law whose level at the origin is [`Self::initial_state`].
+    #[must_use = "the law names the state the rollout starts from"]
+    pub const fn initial_law(&self) -> &InitialLaw {
+        &self.initial_law
+    }
+
+    /// Level of [`Self::initial_law`] at the origin.
+    #[must_use = "the initial state is the law's level at the origin"]
+    pub const fn initial_state(&self) -> f64 {
+        f64::from_bits(self.initial_state_bits)
+    }
+}
+
+/// Level of one requested target.
+///
+/// `target` is the question that was asked. Two responses with different
+/// targets are not interchangeable, even when a coefficient choice makes a
+/// level coincide.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct TargetResponse {
+    target: ResponseTarget,
+    level_bits: u64,
+    spread_bits: u64,
+    action: DelayedAction,
+}
+
+impl TargetResponse {
+    /// Target that was evaluated.
+    #[must_use = "the target distinguishes a finite horizon from the other laws"]
+    pub const fn target(self) -> ResponseTarget {
+        self.target
+    }
+
+    /// Bit pattern of the response level.
+    #[must_use = "the level is the response of this target"]
+    pub const fn level_bits(self) -> u64 {
+        self.level_bits
+    }
+
+    /// Response level.
+    #[must_use = "the level is the response of this target"]
+    pub const fn level(self) -> f64 {
+        f64::from_bits(self.level_bits)
+    }
+
+    /// Bit pattern of the second-moment spread.
+    ///
+    /// Zero for a finite horizon, a static equilibrium, and a continuous-time
+    /// path. The stationary target carries the variance implied by the
+    /// dynamics' innovation variance.
+    #[must_use = "the spread separates a stationary law from a fixed point"]
+    pub const fn spread_bits(self) -> u64 {
+        self.spread_bits
+    }
+
+    /// Action the response was evaluated under.
+    #[must_use = "the action separates a pulse from a sustained window"]
+    pub const fn action(self) -> DelayedAction {
+        self.action
+    }
+}
+
+/// How the ancestry search was bounded.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum FeedbackSearch {
+    /// Ancestry fit in the declared cap. The cap is that declaration.
+    Identified {
+        /// Cap that was given.
+        cap: FeedbackSearchCap,
+    },
+    /// No caller cap was declared. Nothing was widened to a larger cap.
+    PlannerDefault,
+}
+
+/// History, initial law, and one transition, bound to a delayed action.
+///
+/// Construction admits only a finite-horizon frame. [`Self::response`] can
+/// evaluate another target of the same coefficients; that result names its
+/// own target and is not this frame.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DelayedFeedback {
+    history: HistoryConstruction,
+    transition: Transition,
+    delay: Option<FeedbackDelay>,
+    action: DelayedAction,
+    search: FeedbackSearch,
+    information: Option<AvailableOutcome>,
+    steps: u32,
+}
+
+/// Inputs of [`DelayedFeedback::try_new`].
+///
+/// `search_cap` and `ancestry_steps` are the declared bound and the depth the
+/// caller walked. When the depth exceeds the cap, construction refuses and
+/// leaves the cap unchanged.
+#[derive(Clone, Debug)]
+pub struct DelayedFeedbackRequest {
+    /// Observation cadence.
+    pub cadence: TimeIndex,
+    /// Exclusive horizon end.
+    pub horizon: Horizon,
+    /// Initial-state law bound to the frame.
+    pub initial_law: InitialLaw,
+    /// History window. An explicit cap shorter than the delay needs a certificate.
+    pub history: HistoryWindow,
+    /// Delay. [`None`] is a finite horizon with contemporaneous transmission.
+    pub delay: Option<FeedbackDelay>,
+    /// Intervention applied on [`Self::temporal`]. A set is not a shift.
+    pub intervention: Intervention,
+    /// Pulse or sustained timing of [`Self::intervention`].
+    pub temporal: TemporalPolicy,
+    /// Replacement of the initial-state law. Absence does not add one.
+    /// Presence is refused and is not executed as the action.
+    pub initial_state_change: Option<InitialStateChange>,
+    /// Certificate for a history shorter than the delay. Absence refuses that history.
+    pub truncation: Option<TruncationCertificate>,
+    /// Declared ancestry cap. [`None`] is the planner default, not a raised cap.
+    pub search_cap: Option<FeedbackSearchCap>,
+    /// Ancestry depth the search walked. Compared with [`Self::search_cap`].
+    pub ancestry_steps: u32,
+}
+
+/// Horizon end, in cadence steps, for a response whose step count is `steps`.
+///
+/// An irregular cadence and a zero interval have no step length, so they are
+/// refused here rather than extended onto a tick.
+///
+/// # Errors
+///
+/// [`HistoryOperatorError::CadenceWithoutInterval`] when the cadence is
+/// irregular or its interval is zero.
+/// [`HistoryOperatorError::HorizonEndOverflow`] when `steps` times the regular
+/// interval does not fit in `u64`.
+#[must_use = "an overflowing horizon is not a tick the frame can admit"]
+pub fn horizon_ending_after(
+    cadence: &TimeIndex,
+    steps: u32,
+) -> Result<Horizon, HistoryOperatorError> {
+    let SamplingRegularity::Regular { interval_ns } = cadence.regularity else {
+        return Err(HistoryOperatorError::CadenceWithoutInterval { interval_ns: None, steps });
+    };
+    if interval_ns == 0 {
+        return Err(HistoryOperatorError::CadenceWithoutInterval { interval_ns: Some(0), steps });
+    }
+    let Some(end_ns) = u64::from(steps).checked_mul(interval_ns) else {
+        return Err(HistoryOperatorError::HorizonEndOverflow { interval_ns, steps });
+    };
+    Ok(Horizon::ending_at(end_ns))
+}
+
+fn admit_horizon(cadence: &TimeIndex, horizon: Horizon) -> Result<u64, HistoryOperatorError> {
+    let end_ns = horizon.end_ns();
+    let grid = match ObservedCadence::from_observed(cadence) {
+        Ok(grid) => grid,
+        Err(InformationRefusal::IrregularCadence) => return Err(crosses(end_ns, None, None)),
+        Err(InformationRefusal::ZeroInterval) => {
+            return Err(crosses(end_ns, Some(0), u64::try_from(cadence.length).ok()));
+        }
+        Err(InformationRefusal::EmptyCadence) => {
+            let interval_ns = match cadence.regularity {
+                SamplingRegularity::Regular { interval_ns } => Some(interval_ns),
+                SamplingRegularity::Irregular => None,
+            };
+            return Err(crosses(end_ns, interval_ns, Some(0)));
+        }
+        Err(InformationRefusal::CadenceUncountable) => {
+            return Err(HistoryOperatorError::CadenceUncountable);
+        }
+        Err(InformationRefusal::CadenceSpanOverflow { interval_ns, tick_count }) => {
+            return Err(HistoryOperatorError::CadenceSpanOverflow {
+                interval_ns,
+                ticks: u64::from(tick_count),
+            });
+        }
+        Err(
+            InformationRefusal::DecisionOffCadence { .. }
+            | InformationRefusal::OutcomeOffCadence { .. }
+            | InformationRefusal::ProspectiveFuture { .. }
+            | InformationRefusal::HeldOutFuture { .. }
+            | InformationRefusal::RetrospectiveDenied { .. }
+            | InformationRefusal::ForwardOnlyDeployment { .. }
+            | InformationRefusal::DelayOverflow { .. },
+        ) => return Err(HistoryOperatorError::CadenceUncountable),
+    };
+    let interval_ns = grid.interval_ns();
+    let ticks = u64::from(grid.tick_count());
+    let Some(covered) = ticks.checked_mul(interval_ns) else {
+        return Err(HistoryOperatorError::CadenceSpanOverflow { interval_ns, ticks });
+    };
+    if end_ns == 0 || !end_ns.is_multiple_of(interval_ns) || end_ns > covered {
+        return Err(crosses(end_ns, Some(interval_ns), Some(ticks)));
+    }
+    Ok(interval_ns)
+}
+
+fn crosses(
+    end_ns: u64,
+    interval_ns: Option<u64>,
+    declared_ticks: Option<u64>,
+) -> HistoryOperatorError {
+    HistoryOperatorError::HorizonCrossesCadence { end_ns, interval_ns, declared_ticks }
+}
+
+fn admit_action(frame: &OperatorFrame, at_ns: u64) -> Result<(), HistoryOperatorError> {
+    let interval_ns = frame.interval_ns();
+    if !at_ns.is_multiple_of(interval_ns) || at_ns >= frame.horizon().end_ns() {
+        return Err(HistoryOperatorError::ActionMissesCadence { at_ns, interval_ns });
+    }
+    Ok(())
+}
+
+fn admit_weight(role: WeightRole, value: f64) -> Result<(), HistoryOperatorError> {
+    if !value.is_finite() {
+        return Err(HistoryOperatorError::NonFiniteWeight { role, value });
+    }
+    if value <= 0.0 {
+        return Err(HistoryOperatorError::NonPositiveWeight { role, value });
+    }
+    Ok(())
+}
+
+fn admit_name(field: &'static str, name: Arc<str>) -> Result<Arc<str>, HistoryOperatorError> {
+    if is_blank(&name) { Err(HistoryOperatorError::EmptyName { field }) } else { Ok(name) }
+}
+
+const fn finite_bits(value: f64) -> Result<u64, HistoryOperatorError> {
+    if !value.is_finite() {
+        return Err(HistoryOperatorError::NonFiniteLevel { value });
+    }
+    let bits = value.to_bits();
+    if bits == (-0.0f64).to_bits() { Ok(0.0f64.to_bits()) } else { Ok(bits) }
+}
+
+fn horizon_steps(history: &HistoryConstruction) -> Result<u32, HistoryOperatorError> {
+    let steps = history.frame().horizon().end_ns() / history.frame().interval_ns();
+    u32::try_from(steps)
+        .ok()
+        .filter(|&steps| steps <= MAX_HORIZON_STEPS)
+        .ok_or(HistoryOperatorError::HorizonStepsUncountable)
+}
+
+/// Most ticks a history program rolls out; each rollout keeps one outcome per step.
+const MAX_HORIZON_STEPS: u32 = 10_000_000;
+
+/// Most work units one execution charges across both rollouts. A unit is one rolled tick
+/// over one retained state value (`2 * depth` lags of outcome and action, plus the tick).
+pub(crate) const MAX_ROLLOUT_WORK: u64 = 2_000_000_000;
+
+/// Rolled ticks between cancellation polls and work charges.
+const ROLLOUT_POLL_STEPS: u32 = 4_096;
+
+/// Worlds one execution rolls: the policy and the reference.
+const ROLLOUT_WORLDS: u64 = 2;
+
+/// Work units of both rollouts, or `u64::MAX` when the product does not fit.
+fn rollout_work(steps: u32, state_len: usize) -> u64 {
+    u64::from(steps)
+        .checked_mul(u64::try_from(state_len).unwrap_or(u64::MAX))
+        .and_then(|per_world| per_world.checked_mul(ROLLOUT_WORLDS))
+        .unwrap_or(u64::MAX)
+}
+
+/// Bytes both rollouts hold at once: the two retained paths, and one world's growing
+/// outcome and action state, each of `steps` values beyond the `depth` lags.
+fn rollout_bytes(steps: u32, depth: usize) -> Option<u64> {
+    let steps = u64::from(steps);
+    let depth = u64::try_from(depth).ok()?;
+    let values = steps.checked_mul(4)?.checked_add(depth.checked_mul(2)?)?;
+    values.checked_mul(8)
+}
+
+/// Refuse a rollout whose total work is past `cap`.
+fn admit_rollout_work(work: u64, cap: u64) -> Result<(), HistoryExecutionError> {
+    if work > cap {
+        return Err(HistoryExecutionError::RolloutWorkCapExceeded { work, cap });
+    }
+    Ok(())
+}
+
+/// Work still unspent, shared by both rollouts of one execution.
+struct RolloutBudget {
+    cap: u64,
+    spent: u64,
+}
+
+impl RolloutBudget {
+    fn charge(&mut self, units: u64) -> Result<(), HistoryExecutionError> {
+        let work = self.spent.saturating_add(units);
+        admit_rollout_work(work, self.cap)?;
+        self.spent = work;
+        Ok(())
+    }
+}
+
+const fn action_bounds(action: DelayedAction) -> (i32, i32) {
+    match action {
+        DelayedAction::Pulse { at_step, .. } => (at_step, at_step),
+        DelayedAction::Sustained { from_step, until_step, .. } => (from_step, until_step),
+    }
+}
+
+fn admit_action_window(action: DelayedAction, steps: u32) -> Result<(), HistoryOperatorError> {
+    let Ok(horizon_steps) = i32::try_from(steps) else {
+        return Err(HistoryOperatorError::HorizonStepsUncountable);
+    };
+    let (from_step, until_step) = action_bounds(action);
+    if until_step >= horizon_steps || from_step > until_step {
+        return Err(HistoryOperatorError::ActionOutsideHorizon {
+            step: until_step,
+            horizon_steps: steps,
+        });
+    }
+    Ok(())
+}
+
+const fn required_history_ticks(delay: Option<FeedbackDelay>, action: DelayedAction) -> u32 {
+    let delay_ticks = match delay {
+        Some(delay) => delay.ticks(),
+        None => 0,
+    };
+    let (from_step, _) = action_bounds(action);
+    let action_lag = if from_step < 0 { from_step.unsigned_abs() } else { 0 };
+    if delay_ticks > action_lag { delay_ticks } else { action_lag }
+}
+
+fn admit_truncation(
+    history: HistoryWindow,
+    delay: Option<FeedbackDelay>,
+    action: DelayedAction,
+    truncation: Option<TruncationCertificate>,
+) -> Result<(), HistoryOperatorError> {
+    let Some(retained_ticks) = history.max_lag_steps() else {
+        return Ok(());
+    };
+    let required_ticks = required_history_ticks(delay, action);
+    if retained_ticks >= required_ticks {
+        return Ok(());
+    }
+    let certified =
+        truncation.is_some_and(|certificate| certificate.retained_ticks() == retained_ticks);
+    if certified {
+        return Ok(());
+    }
+    Err(HistoryOperatorError::UncertifiedTruncation { retained_ticks, required_ticks })
+}
+
+fn admit_search(
+    search_cap: Option<FeedbackSearchCap>,
+    ancestry_steps: u32,
+) -> Result<FeedbackSearch, HistoryOperatorError> {
+    let Some(cap) = search_cap else {
+        return Ok(FeedbackSearch::PlannerDefault);
+    };
+    if ancestry_steps > cap.steps() {
+        return Err(HistoryOperatorError::SearchNotIdentified { cap: cap.steps(), ancestry_steps });
+    }
+    Ok(FeedbackSearch::Identified { cap })
+}
+
+fn admit_feedback_information(
+    cadence: &TimeIndex,
+    steps: u32,
+    delay_ticks: u32,
+    action: DelayedAction,
+) -> Result<Option<AvailableOutcome>, HistoryOperatorError> {
+    if delay_ticks == 0 {
+        return Ok(None);
+    }
+    let (_, until_step) = action_bounds(action);
+    // The last intervened step arrives last, so it binds the admission. An
+    // arrival before the origin is already in the history and is judged at the
+    // origin tick.
+    let arrival = (i64::from(until_step) + i64::from(delay_ticks)).max(0);
+    let arrival =
+        u32::try_from(arrival).map_err(|_| HistoryOperatorError::HorizonStepsUncountable)?;
+    let decision = steps.checked_sub(1).ok_or(HistoryOperatorError::HorizonStepsUncountable)?;
+    match admit_delayed_outcome(
+        cadence,
+        CadenceTick::new(decision),
+        CadenceTick::new(arrival),
+        0,
+        InformationUse::Prospective,
+        RetrospectivePermission::Denied,
+        ForwardOnly::Enforced,
+    ) {
+        Ok(available) => Ok(Some(available)),
+        Err(refusal) => Err(HistoryOperatorError::InformationRefused { refusal }),
+    }
+}
+
+/// Level and second-moment spread of one evaluated target.
+struct LevelSpread {
+    level: f64,
+    spread: f64,
+}
+
+fn finite_horizon_level(
+    feedback: &DelayedFeedback,
+    dynamics: &DelayedDynamics,
+) -> Result<f64, HistoryOperatorError> {
+    let delay = feedback.delay.map_or(0, FeedbackDelay::ticks);
+    let mut state = dynamics.initial_state();
+    let autoregression = dynamics.autoregression();
+    let input_gain = dynamics.input_gain();
+    for step in 0..feedback.steps {
+        let source = i64::from(step) - i64::from(delay);
+        let Ok(source) = i32::try_from(source) else {
+            return Err(HistoryOperatorError::HorizonStepsUncountable);
+        };
+        let level = feedback.action.level_at(source);
+        state = autoregression * state + input_gain * level;
+        if !state.is_finite() {
+            return Err(HistoryOperatorError::NonFiniteLevel { value: state });
+        }
+    }
+    Ok(state)
+}
+
+fn admit_stable(dynamics: &DelayedDynamics) -> Result<(), HistoryOperatorError> {
+    let autoregression = dynamics.autoregression();
+    if autoregression.abs() < 1.0 {
+        return Ok(());
+    }
+    if autoregression.to_bits() == 1.0f64.to_bits() {
+        return Err(HistoryOperatorError::NoFixedPoint);
+    }
+    Err(HistoryOperatorError::UnstableAutoregression { autoregression })
+}
+
+fn fixed_point(dynamics: &DelayedDynamics, permanent: f64) -> Result<f64, HistoryOperatorError> {
+    admit_stable(dynamics)?;
+    let level = dynamics.input_gain() * permanent / (1.0 - dynamics.autoregression());
+    if !level.is_finite() {
+        return Err(HistoryOperatorError::NonFiniteLevel { value: level });
+    }
+    Ok(level)
+}
+
+fn stationary_law(
+    dynamics: &DelayedDynamics,
+    permanent: f64,
+) -> Result<LevelSpread, HistoryOperatorError> {
+    let level = fixed_point(dynamics, permanent)?;
+    let autoregression = dynamics.autoregression();
+    let spread = dynamics.innovation_variance() / (1.0 - autoregression * autoregression);
+    if !spread.is_finite() {
+        return Err(HistoryOperatorError::NonFiniteLevel { value: spread });
+    }
+    Ok(LevelSpread { level, spread })
+}
+
+fn continuous_level(
+    feedback: &DelayedFeedback,
+    dynamics: &DelayedDynamics,
+) -> Result<f64, HistoryOperatorError> {
+    let delay_ticks = feedback.delay.map_or(0, FeedbackDelay::ticks);
+    let decay = continuous_decay(dynamics, f64::from(feedback.steps));
+    let driven = match feedback.action {
+        DelayedAction::Pulse { at_step, level_bits } => continuous_pulse(
+            dynamics,
+            f64::from_bits(level_bits),
+            at_step,
+            delay_ticks,
+            feedback.steps,
+        ),
+        DelayedAction::Sustained { from_step, until_step, level_bits } => continuous_sustained(
+            dynamics,
+            f64::from_bits(level_bits),
+            (from_step, until_step),
+            delay_ticks,
+            feedback.steps,
+        ),
+    };
+    let level = dynamics.initial_state() * decay + driven;
+    if !level.is_finite() {
+        return Err(HistoryOperatorError::NonFiniteLevel { value: level });
+    }
+    Ok(level)
+}
+
+/// Decay of the initial state over `duration` steps, `exp((a - 1) duration)`.
+fn continuous_decay(dynamics: &DelayedDynamics, duration: f64) -> f64 {
+    ((dynamics.autoregression() - 1.0) * duration).exp()
+}
+
+/// Convolution of the held action with the continuous kernel.
+///
+/// Only the sustained window, shifted by the delay and cut to the horizon,
+/// drives the state. A window that arrives at or after the horizon, or ends
+/// before the origin, contributes nothing.
+fn continuous_sustained(
+    dynamics: &DelayedDynamics,
+    level: f64,
+    (from_step, until_step): (i32, i32),
+    delay_ticks: u32,
+    steps: u32,
+) -> f64 {
+    let horizon = f64::from(steps);
+    let shift = f64::from(delay_ticks);
+    let start = (f64::from(from_step) + shift).max(0.0);
+    let end = (f64::from(until_step) + 1.0 + shift).min(horizon);
+    if end <= start {
+        return 0.0;
+    }
+    let gain = dynamics.input_gain() * level;
+    let drift = dynamics.autoregression() - 1.0;
+    if drift.to_bits() == 0.0f64.to_bits() {
+        return gain * (end - start);
+    }
+    gain * ((drift * (horizon - start)).exp() - (drift * (horizon - end)).exp()) / drift
+}
+
+fn continuous_pulse(
+    dynamics: &DelayedDynamics,
+    level: f64,
+    at_step: i32,
+    delay_ticks: u32,
+    steps: u32,
+) -> f64 {
+    let arrival = i64::from(at_step) + i64::from(delay_ticks);
+    let Ok(arrival) = i32::try_from(arrival) else {
+        return 0.0;
+    };
+    let Ok(steps_i) = i32::try_from(steps) else {
+        return 0.0;
+    };
+    if arrival < 0 || arrival >= steps_i {
+        return 0.0;
+    }
+    let elapsed = f64::from(steps) - f64::from(arrival);
+    dynamics.input_gain() * level * continuous_decay(dynamics, elapsed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn regular(interval_ns: u64, ticks: usize) -> TimeIndex {
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns }, length: ticks }
+    }
+
+    fn origin() -> InitialLaw {
+        InitialLaw::named("origin").unwrap()
+    }
+
+    fn frame_inputs() -> (TimeIndex, Horizon, InitialLaw) {
+        (regular(10, 4), Horizon::ending_at(40), origin())
+    }
+
+    fn assert_crosses(error: HistoryOperatorError, end_ns: u64) {
+        match error {
+            HistoryOperatorError::HorizonCrossesCadence { end_ns: got, .. } => {
+                assert_eq!(got, end_ns);
+            }
+            other => panic!("expected a horizon that crosses the cadence, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn each_operator_records_the_declared_frame() {
+        let (cadence, horizon, law) = frame_inputs();
+        let history = HistoryConstruction::try_new(
+            cadence.clone(),
+            horizon,
+            law.clone(),
+            HistoryWindow::max_lag(2),
+        )
+        .unwrap();
+        let action = ActionTiming::try_new(cadence.clone(), horizon, law.clone(), 20).unwrap();
+        let policy =
+            PolicyEvaluation::try_new(cadence.clone(), horizon, law.clone(), "treat").unwrap();
+        let transition = Transition::try_new(cadence.clone(), horizon, law.clone()).unwrap();
+        let regression =
+            SequentialRegression::try_new(cadence.clone(), horizon, law.clone(), "y").unwrap();
+        let weights =
+            CensoringAssignmentWeight::try_new(cadence.clone(), horizon, law.clone(), 1.0, 0.5)
+                .unwrap();
+        let reduction = TrajectoryReduction::try_new(cadence, horizon, law, "mean").unwrap();
+
+        assert_eq!(history.history(), HistoryWindow::max_lag(2));
+        assert_eq!(history.frame().horizon(), horizon);
+        assert_eq!(history.frame().initial_law().name(), Some("origin"));
+        assert_eq!(history.frame().cadence().length, 4);
+        assert_eq!(action.at_ns(), 20);
+        assert_eq!(policy.policy(), "treat");
+        assert_eq!(transition.step_ns(), 10);
+        assert_eq!(regression.outcome(), "y");
+        assert_eq!(weights.censoring().to_bits(), 1.0f64.to_bits());
+        assert_eq!(weights.assignment().to_bits(), 0.5f64.to_bits());
+        assert_eq!(reduction.functional(), "mean");
+        assert_eq!(reduction.frame().interval_ns(), 10);
+    }
+
+    #[test]
+    fn a_contemporaneous_initial_law_is_present() {
+        let (cadence, horizon, _) = frame_inputs();
+        let transition =
+            Transition::try_new(cadence, horizon, InitialLaw::contemporaneous_observed()).unwrap();
+        assert!(transition.frame().initial_law().name().is_none());
+    }
+
+    #[test]
+    fn a_horizon_between_ticks_is_refused() {
+        let cadence = regular(10, 4);
+        let horizon = Horizon::ending_at(25);
+        let law = origin();
+        assert_crosses(
+            HistoryConstruction::try_new(
+                cadence.clone(),
+                horizon,
+                law.clone(),
+                HistoryWindow::planner_default(),
+            )
+            .unwrap_err(),
+            25,
+        );
+        assert_crosses(
+            ActionTiming::try_new(cadence.clone(), horizon, law.clone(), 0).unwrap_err(),
+            25,
+        );
+        assert_crosses(
+            PolicyEvaluation::try_new(cadence.clone(), horizon, law.clone(), "treat").unwrap_err(),
+            25,
+        );
+        assert_crosses(Transition::try_new(cadence.clone(), horizon, law.clone()).unwrap_err(), 25);
+        assert_crosses(
+            SequentialRegression::try_new(cadence.clone(), horizon, law.clone(), "y").unwrap_err(),
+            25,
+        );
+        assert_crosses(
+            CensoringAssignmentWeight::try_new(cadence.clone(), horizon, law.clone(), 1.0, 1.0)
+                .unwrap_err(),
+            25,
+        );
+        assert_crosses(
+            TrajectoryReduction::try_new(cadence, horizon, law, "mean").unwrap_err(),
+            25,
+        );
+    }
+
+    #[test]
+    fn a_horizon_past_the_cadence_is_refused() {
+        let error =
+            Transition::try_new(regular(10, 4), Horizon::ending_at(50), origin()).unwrap_err();
+        match error {
+            HistoryOperatorError::HorizonCrossesCadence { end_ns, interval_ns, declared_ticks } => {
+                assert_eq!(end_ns, 50);
+                assert_eq!(interval_ns, Some(10));
+                assert_eq!(declared_ticks, Some(4));
+            }
+            other => panic!("expected a horizon past the cadence, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn an_irregular_or_zero_cadence_is_refused() {
+        let irregular = TimeIndex { regularity: SamplingRegularity::Irregular, length: 4 };
+        let irregular_error =
+            Transition::try_new(irregular, Horizon::ending_at(10), origin()).unwrap_err();
+        match irregular_error {
+            HistoryOperatorError::HorizonCrossesCadence {
+                interval_ns: None, end_ns: 10, ..
+            } => {}
+            other => panic!("expected an irregular cadence to be crossed, got {other:?}"),
+        }
+        let zero =
+            Transition::try_new(regular(0, 4), Horizon::ending_at(10), origin()).unwrap_err();
+        match zero {
+            HistoryOperatorError::HorizonCrossesCadence { interval_ns: Some(0), .. } => {}
+            other => panic!("expected a zero interval to be crossed, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn an_empty_horizon_is_refused() {
+        assert_crosses(
+            Transition::try_new(regular(10, 4), Horizon::ending_at(0), origin()).unwrap_err(),
+            0,
+        );
+    }
+
+    #[test]
+    fn a_non_finite_weight_is_refused() {
+        let (cadence, horizon, law) = frame_inputs();
+        let cases = [
+            (WeightRole::Censoring, f64::NAN, 1.0),
+            (WeightRole::Censoring, f64::INFINITY, 1.0),
+            (WeightRole::Assignment, 1.0, f64::NEG_INFINITY),
+        ];
+        for (role, censoring, assignment) in cases {
+            let error = CensoringAssignmentWeight::try_new(
+                cadence.clone(),
+                horizon,
+                law.clone(),
+                censoring,
+                assignment,
+            )
+            .unwrap_err();
+            match error {
+                HistoryOperatorError::NonFiniteWeight { role: got, value } => {
+                    assert_eq!(got, role);
+                    assert!(!value.is_finite());
+                }
+                other => panic!("expected a non-finite {role} weight, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn a_zero_or_negative_inverse_probability_weight_is_refused() {
+        let (cadence, horizon, law) = frame_inputs();
+        let cases = [
+            (WeightRole::Censoring, 0.0, 1.0),
+            (WeightRole::Censoring, -2.0, 1.0),
+            (WeightRole::Assignment, 1.0, 0.0),
+            (WeightRole::Assignment, 1.0, -0.5),
+        ];
+        for (role, censoring, assignment) in cases {
+            let error = CensoringAssignmentWeight::try_new(
+                cadence.clone(),
+                horizon,
+                law.clone(),
+                censoring,
+                assignment,
+            )
+            .unwrap_err();
+            match error {
+                HistoryOperatorError::NonPositiveWeight { role: got, value } => {
+                    assert_eq!(got, role);
+                    assert!(value <= 0.0);
+                }
+                other => panic!("expected a non-positive {role} weight, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn an_action_off_the_cadence_or_past_the_horizon_is_refused() {
+        let (cadence, horizon, law) = frame_inputs();
+        let off_tick =
+            ActionTiming::try_new(cadence.clone(), horizon, law.clone(), 15).unwrap_err();
+        assert_eq!(
+            off_tick,
+            HistoryOperatorError::ActionMissesCadence { at_ns: 15, interval_ns: 10 }
+        );
+        let at_end = ActionTiming::try_new(cadence, horizon, law, 40).unwrap_err();
+        assert_eq!(
+            at_end,
+            HistoryOperatorError::ActionMissesCadence { at_ns: 40, interval_ns: 10 }
+        );
+    }
+
+    #[test]
+    fn a_blank_name_is_refused() {
+        let (cadence, horizon, law) = frame_inputs();
+        let policy =
+            PolicyEvaluation::try_new(cadence.clone(), horizon, law.clone(), " ").unwrap_err();
+        assert_eq!(policy, HistoryOperatorError::EmptyName { field: "policy" });
+        let outcome =
+            SequentialRegression::try_new(cadence.clone(), horizon, law.clone(), "").unwrap_err();
+        assert_eq!(outcome, HistoryOperatorError::EmptyName { field: "outcome" });
+        let functional = TrajectoryReduction::try_new(cadence, horizon, law, "\t").unwrap_err();
+        assert_eq!(functional, HistoryOperatorError::EmptyName { field: "functional" });
+    }
+
+    #[test]
+    fn a_cadence_uses_the_observed_tick_grid() {
+        let past_u32 = u64::from(u32::MAX) + 1;
+        let Ok(length) = usize::try_from(past_u32) else {
+            return;
+        };
+        let uncountable =
+            Transition::try_new(regular(2, length), Horizon::ending_at(2), origin()).unwrap_err();
+        assert_eq!(uncountable, HistoryOperatorError::CadenceUncountable);
+        let tick_count = u32::MAX;
+        let ticks = u64::from(tick_count);
+        let interval_ns = (1_u64 << 32) + 2;
+        let overflow = Transition::try_new(
+            regular(interval_ns, usize::try_from(tick_count).unwrap()),
+            Horizon::ending_at(interval_ns),
+            origin(),
+        )
+        .unwrap_err();
+        assert_eq!(overflow, HistoryOperatorError::CadenceSpanOverflow { interval_ns, ticks });
+    }
+
+    fn unit_dynamics() -> DelayedDynamics {
+        dynamics(0.5, 1.0, 1.0)
+    }
+
+    fn dynamics(autoregression: f64, input_gain: f64, innovation_variance: f64) -> DelayedDynamics {
+        DelayedDynamics::try_new(autoregression, input_gain, innovation_variance, origin(), 0.0)
+            .unwrap()
+    }
+
+    fn delayed_request(action: DelayedAction) -> DelayedFeedbackRequest {
+        let variable = antecedent_core::VariableId::from_raw(0);
+        let (intervention, temporal) = match action {
+            DelayedAction::Pulse { at_step, level_bits } => (
+                Intervention::set(variable, Value::f64(f64::from_bits(level_bits))),
+                TemporalPolicy::pulse(at_step),
+            ),
+            DelayedAction::Sustained { from_step, until_step, level_bits } => (
+                Intervention::set(variable, Value::f64(f64::from_bits(level_bits))),
+                TemporalPolicy::sustained(from_step, until_step),
+            ),
+        };
+        DelayedFeedbackRequest {
+            cadence: regular(1, 8),
+            horizon: Horizon::ending_at(3),
+            initial_law: origin(),
+            history: HistoryWindow::planner_default(),
+            delay: Some(FeedbackDelay::delayed(1).unwrap()),
+            intervention,
+            temporal,
+            initial_state_change: None,
+            truncation: None,
+            search_cap: Some(FeedbackSearchCap::declared(2)),
+            ancestry_steps: 2,
+        }
+    }
+
+    #[test]
+    fn a_shift_or_initial_state_change_is_not_executed_as_the_supplied_set() {
+        let variable = antecedent_core::VariableId::from_raw(0);
+        let shift = Intervention::shift(variable, Value::f64(1.0));
+        let pulse = TemporalPolicy::pulse(0);
+        let refused = delayed_action_of(&shift, &pulse).unwrap_err();
+        assert_eq!(
+            refused,
+            HistoryOperatorError::UnsupportedOperation {
+                operation: "shift",
+                reason: "a shift is an additive change on the factual scale and is not executed \
+                         as a set",
+            }
+        );
+        let soft = Intervention::soft(variable, antecedent_core::MechanismOverride::constant(1.0));
+        let soft_refused = delayed_action_of(&soft, &pulse).unwrap_err();
+        assert!(matches!(
+            soft_refused,
+            HistoryOperatorError::UnsupportedOperation { operation: "soft", .. }
+        ));
+        let set = Intervention::set(variable, Value::f64(1.0));
+        let from_pulse = delayed_action_of(&set, &pulse).unwrap();
+        let from_sustained = delayed_action_of(&set, &TemporalPolicy::sustained(0, 0)).unwrap();
+        assert_ne!(from_pulse, from_sustained);
+        assert!(matches!(from_pulse, DelayedAction::Pulse { at_step: 0, .. }));
+        assert!(matches!(
+            from_sustained,
+            DelayedAction::Sustained { from_step: 0, until_step: 0, .. }
+        ));
+
+        let mut request = delayed_request(DelayedAction::pulse(0, 1.0).unwrap());
+        request.intervention = shift;
+        request.temporal = pulse;
+        let as_request = DelayedFeedback::try_new(request).unwrap_err();
+        assert!(matches!(
+            as_request,
+            HistoryOperatorError::UnsupportedOperation { operation: "shift", .. }
+        ));
+        let initial = refuse_initial_state_change("x0", 2.0).unwrap_err();
+        assert!(matches!(
+            initial,
+            HistoryOperatorError::UnsupportedOperation { operation: "initial_state_change", .. }
+        ));
+        let mut change = delayed_request(DelayedAction::pulse(0, 1.0).unwrap());
+        change.initial_state_change =
+            Some(InitialStateChange { law_name: "x0".to_owned(), level: 2.0 });
+        assert!(matches!(
+            DelayedFeedback::try_new(change).unwrap_err(),
+            HistoryOperatorError::UnsupportedOperation { operation: "initial_state_change", .. }
+        ));
+    }
+
+    #[test]
+    fn finite_horizon_is_not_equilibrium_stationary_or_continuous() {
+        let action = DelayedAction::sustained(0, 1, 1.0).unwrap();
+        let feedback = DelayedFeedback::try_new(delayed_request(action)).unwrap();
+        let dynamics = unit_dynamics();
+        assert_eq!(feedback.target(), ResponseTarget::FiniteHorizon);
+        assert_eq!(feedback.initial_law().name(), Some("origin"));
+        assert_eq!(feedback.transition().step_ns(), 1);
+        assert_eq!(feedback.history().history(), HistoryWindow::planner_default());
+
+        let targets = [
+            ResponseTarget::FiniteHorizon,
+            ResponseTarget::StaticEquilibrium,
+            ResponseTarget::Stationary,
+            ResponseTarget::ContinuousTime,
+        ];
+        let responses = targets.map(|target| feedback.response(target, &dynamics).unwrap());
+        for (response, target) in responses.iter().zip(targets) {
+            assert_eq!(response.target(), target);
+        }
+        for (index, response) in responses.iter().enumerate() {
+            for other in responses.iter().skip(index + 1) {
+                assert_ne!(response, other);
+            }
+        }
+        assert_eq!(responses[0].level_bits(), 1.5f64.to_bits());
+        assert_eq!(responses[1].level_bits(), 2.0f64.to_bits());
+        assert_eq!(responses[1].spread_bits(), 0.0f64.to_bits());
+        assert_eq!(responses[2].level_bits(), 2.0f64.to_bits());
+        assert_eq!(responses[2].spread_bits(), (1.0_f64 / 0.75).to_bits());
+        assert_ne!(responses[3].level_bits(), responses[0].level_bits());
+        assert_ne!(responses[3].level_bits(), responses[1].level_bits());
+    }
+
+    #[test]
+    fn pulse_and_sustained_differ_on_the_same_delayed_system() {
+        let dynamics = unit_dynamics();
+        let pulse =
+            DelayedFeedback::try_new(delayed_request(DelayedAction::pulse(0, 1.0).unwrap()))
+                .unwrap();
+        let sustained =
+            DelayedFeedback::try_new(delayed_request(DelayedAction::sustained(0, 1, 1.0).unwrap()))
+                .unwrap();
+        let one_step =
+            DelayedFeedback::try_new(delayed_request(DelayedAction::sustained(0, 0, 1.0).unwrap()))
+                .unwrap();
+        let pulse_response = pulse.response(ResponseTarget::FiniteHorizon, &dynamics).unwrap();
+        let sustained_response =
+            sustained.response(ResponseTarget::FiniteHorizon, &dynamics).unwrap();
+        let one_step_response =
+            one_step.response(ResponseTarget::FiniteHorizon, &dynamics).unwrap();
+        assert_eq!(pulse_response.level_bits(), 0.5f64.to_bits());
+        assert_eq!(sustained_response.level_bits(), 1.5f64.to_bits());
+        assert_ne!(pulse_response, sustained_response);
+        assert_ne!(pulse_response.action(), one_step_response.action());
+        assert_ne!(pulse_response, one_step_response);
+        assert_eq!(pulse.information().unwrap().decision().get(), 2);
+        assert_eq!(pulse.information().unwrap().outcome().get(), 1);
+    }
+
+    #[test]
+    fn an_off_cadence_delayed_horizon_is_refused() {
+        let mut request = delayed_request(DelayedAction::pulse(0, 1.0).unwrap());
+        request.cadence = regular(10, 4);
+        request.horizon = Horizon::ending_at(25);
+        let error = DelayedFeedback::try_new(request).unwrap_err();
+        assert_crosses(error, 25);
+    }
+
+    #[test]
+    fn an_uncertified_truncation_is_refused_and_not_extended() {
+        let mut request = delayed_request(DelayedAction::pulse(0, 1.0).unwrap());
+        request.delay = Some(FeedbackDelay::delayed(2).unwrap());
+        request.history = HistoryWindow::max_lag(0);
+        let error = DelayedFeedback::try_new(request.clone()).unwrap_err();
+        assert_eq!(
+            error,
+            HistoryOperatorError::UncertifiedTruncation { retained_ticks: 0, required_ticks: 2 }
+        );
+        request.truncation = Some(TruncationCertificate::retaining(0));
+        let admitted = DelayedFeedback::try_new(request).unwrap();
+        assert_eq!(admitted.history().history().max_lag_steps(), Some(0));
+        assert_eq!(admitted.delay().unwrap().ticks(), 2);
+    }
+
+    #[test]
+    fn raising_the_search_cap_is_not_identification() {
+        let mut request = delayed_request(DelayedAction::pulse(-1, 1.0).unwrap());
+        request.search_cap = Some(FeedbackSearchCap::declared(2));
+        request.ancestry_steps = 5;
+        let error = DelayedFeedback::try_new(request.clone()).unwrap_err();
+        assert_eq!(error, HistoryOperatorError::SearchNotIdentified { cap: 2, ancestry_steps: 5 });
+        request.ancestry_steps = 2;
+        let admitted = DelayedFeedback::try_new(request).unwrap();
+        assert_eq!(
+            admitted.search(),
+            FeedbackSearch::Identified { cap: FeedbackSearchCap::declared(2) }
+        );
+    }
+
+    #[test]
+    fn feedback_after_the_decision_is_refused() {
+        let mut request = delayed_request(DelayedAction::pulse(0, 1.0).unwrap());
+        request.delay = Some(FeedbackDelay::delayed(5).unwrap());
+        let error = DelayedFeedback::try_new(request).unwrap_err();
+        assert_eq!(
+            error,
+            HistoryOperatorError::InformationRefused {
+                refusal: crate::information_time::InformationRefusal::ProspectiveFuture {
+                    decision: 2,
+                    outcome: 5,
+                }
+            }
+        );
+    }
+
+    fn long_request(action: DelayedAction) -> DelayedFeedbackRequest {
+        let mut request = delayed_request(action);
+        request.horizon = Horizon::ending_at(8);
+        request
+    }
+
+    #[test]
+    fn a_window_shorter_than_the_horizon_drives_only_its_own_steps() {
+        let held = dynamics(1.0, 2.0, 1.0);
+        let short =
+            DelayedFeedback::try_new(long_request(DelayedAction::sustained(1, 3, 1.0).unwrap()))
+                .unwrap();
+        let long =
+            DelayedFeedback::try_new(long_request(DelayedAction::sustained(1, 5, 1.0).unwrap()))
+                .unwrap();
+        let pulse =
+            DelayedFeedback::try_new(long_request(DelayedAction::pulse(1, 1.0).unwrap())).unwrap();
+        let finite = |feedback: &DelayedFeedback| {
+            feedback.response(ResponseTarget::FiniteHorizon, &held).unwrap().level()
+        };
+        let continuous = |feedback: &DelayedFeedback| {
+            feedback.response(ResponseTarget::ContinuousTime, &held).unwrap().level()
+        };
+        // Three held steps of gain two, whichever way they are integrated.
+        assert_eq!(finite(&short).to_bits(), 6.0f64.to_bits());
+        assert_eq!(continuous(&short).to_bits(), 6.0f64.to_bits());
+        assert_eq!(finite(&long).to_bits(), 10.0f64.to_bits());
+        assert_eq!(continuous(&long).to_bits(), 10.0f64.to_bits());
+        assert_eq!(finite(&pulse).to_bits(), 2.0f64.to_bits());
+        assert_ne!(finite(&pulse).to_bits(), finite(&short).to_bits());
+    }
+
+    #[test]
+    fn a_decaying_window_agrees_with_the_rollout_as_the_step_shrinks() {
+        // With a near one the continuous kernel is the held sum.
+        let near = dynamics(1.0 - 1e-9, 1.0, 1.0);
+        let window =
+            DelayedFeedback::try_new(long_request(DelayedAction::sustained(2, 4, 1.0).unwrap()))
+                .unwrap();
+        let finite = window.response(ResponseTarget::FiniteHorizon, &near).unwrap().level();
+        let continuous = window.response(ResponseTarget::ContinuousTime, &near).unwrap().level();
+        assert!((finite - continuous).abs() < 1e-6);
+    }
+
+    #[test]
+    fn feedback_arriving_after_the_last_included_tick_is_refused() {
+        // The last intervened step arrives at 2 + 1 = 3, past the decision at 2.
+        let error =
+            DelayedFeedback::try_new(delayed_request(DelayedAction::sustained(0, 2, 1.0).unwrap()))
+                .unwrap_err();
+        assert_eq!(
+            error,
+            HistoryOperatorError::InformationRefused {
+                refusal: crate::information_time::InformationRefusal::ProspectiveFuture {
+                    decision: 2,
+                    outcome: 3,
+                }
+            }
+        );
+        // A window that starts in the history is still judged on its last step.
+        let mut late = delayed_request(DelayedAction::sustained(-2, 1, 1.0).unwrap());
+        late.delay = Some(FeedbackDelay::delayed(5).unwrap());
+        assert!(matches!(
+            DelayedFeedback::try_new(late).unwrap_err(),
+            HistoryOperatorError::InformationRefused { .. }
+        ));
+        let pulse = delayed_request(DelayedAction::pulse(-3, 1.0).unwrap());
+        let admitted = DelayedFeedback::try_new(pulse).unwrap();
+        // The arrival at -2 is already in the history and is judged at the origin.
+        assert_eq!(admitted.information().unwrap().outcome().get(), 0);
+        let inside = delayed_request(DelayedAction::sustained(-2, 1, 1.0).unwrap());
+        let admitted = DelayedFeedback::try_new(inside).unwrap();
+        assert_eq!(admitted.information().unwrap().outcome().get(), 2);
+    }
+
+    #[test]
+    fn an_unstable_autoregression_has_no_equilibrium_or_stationary_law() {
+        let action = DelayedAction::sustained(0, 1, 1.0).unwrap();
+        let feedback = DelayedFeedback::try_new(delayed_request(action)).unwrap();
+        for autoregression in [1.5, -1.0, -2.0] {
+            let unstable = dynamics(autoregression, 1.0, 1.0);
+            for target in [ResponseTarget::StaticEquilibrium, ResponseTarget::Stationary] {
+                assert_eq!(
+                    feedback.response(target, &unstable).unwrap_err(),
+                    HistoryOperatorError::UnstableAutoregression { autoregression }
+                );
+            }
+            // The finite rollout never needed the map to be stable.
+            assert!(feedback.response(ResponseTarget::FiniteHorizon, &unstable).is_ok());
+        }
+        assert_eq!(
+            feedback
+                .response(ResponseTarget::StaticEquilibrium, &dynamics(1.0, 1.0, 1.0))
+                .unwrap_err(),
+            HistoryOperatorError::NoFixedPoint
+        );
+    }
+
+    #[test]
+    fn the_stationary_spread_comes_from_the_innovation_variance() {
+        let action = DelayedAction::sustained(0, 1, 1.0).unwrap();
+        let feedback = DelayedFeedback::try_new(delayed_request(action)).unwrap();
+        let wide = feedback.response(ResponseTarget::Stationary, &dynamics(0.5, 1.0, 3.0)).unwrap();
+        assert_eq!(wide.spread_bits(), (3.0_f64 / 0.75).to_bits());
+        let still =
+            feedback.response(ResponseTarget::Stationary, &dynamics(0.5, 1.0, 0.0)).unwrap();
+        assert_eq!(still.spread_bits(), 0.0f64.to_bits());
+        let negative = DelayedDynamics::try_new(0.5, 1.0, -1.0, origin(), 0.0).unwrap_err();
+        assert_eq!(negative, HistoryOperatorError::NegativeInnovationVariance { value: -1.0 });
+    }
+
+    #[test]
+    fn dynamics_for_another_initial_law_are_refused() {
+        let action = DelayedAction::sustained(0, 1, 1.0).unwrap();
+        let feedback = DelayedFeedback::try_new(delayed_request(action)).unwrap();
+        let other = InitialLaw::named("other").unwrap();
+        for law in [other, InitialLaw::contemporaneous_observed()] {
+            let declared = DelayedDynamics::try_new(0.5, 1.0, 1.0, law.clone(), 0.0).unwrap();
+            for target in [
+                ResponseTarget::FiniteHorizon,
+                ResponseTarget::StaticEquilibrium,
+                ResponseTarget::Stationary,
+                ResponseTarget::ContinuousTime,
+            ] {
+                assert_eq!(
+                    feedback.response(target, &declared).unwrap_err(),
+                    HistoryOperatorError::InitialLawMismatch {
+                        frame: origin(),
+                        dynamics: law.clone()
+                    }
+                );
+            }
+        }
+        let matching = DelayedDynamics::try_new(0.5, 1.0, 1.0, origin(), 2.0).unwrap();
+        let response = feedback.response(ResponseTarget::FiniteHorizon, &matching).unwrap();
+        // The state rolls 2 -> 1 -> 1.5 -> 1.75 with the delayed input from the second step.
+        assert_eq!(matching.initial_law(), feedback.initial_law());
+        assert_eq!(response.level_bits(), 1.75f64.to_bits());
+    }
+
+    #[test]
+    fn an_irregular_or_zero_cadence_has_no_horizon_end() {
+        let irregular = TimeIndex { regularity: SamplingRegularity::Irregular, length: 4 };
+        assert_eq!(
+            horizon_ending_after(&irregular, 2).unwrap_err(),
+            HistoryOperatorError::CadenceWithoutInterval { interval_ns: None, steps: 2 }
+        );
+        assert_eq!(
+            horizon_ending_after(&regular(0, 4), 2).unwrap_err(),
+            HistoryOperatorError::CadenceWithoutInterval { interval_ns: Some(0), steps: 2 }
+        );
+        assert_eq!(horizon_ending_after(&regular(10, 4), 2).unwrap(), Horizon::ending_at(20));
+        assert_eq!(
+            horizon_ending_after(&regular(u64::MAX, 4), 2).unwrap_err(),
+            HistoryOperatorError::HorizonEndOverflow { interval_ns: u64::MAX, steps: 2 }
+        );
+    }
+}
+
+#[cfg(test)]
+mod execution_tests {
+    use super::*;
+
+    const C: f64 = 0.5;
+    const PHI: f64 = 0.6;
+    const B0: f64 = 0.9;
+    const B1: f64 = 0.4;
+
+    fn regular(interval_ns: u64, ticks: usize) -> TimeIndex {
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns }, length: ticks }
+    }
+
+    fn frame_parts(law: InitialLaw) -> (TimeIndex, Horizon, InitialLaw) {
+        (regular(10, 400), Horizon::ending_at(40), law)
+    }
+
+    fn program_with(
+        law: InitialLaw,
+        history: HistoryWindow,
+        weights: Option<(f64, f64)>,
+        functional: &str,
+    ) -> Result<HistoryProgram, HistoryExecutionError> {
+        let (cadence, horizon, law) = frame_parts(law);
+        let h =
+            HistoryConstruction::try_new(cadence.clone(), horizon, law.clone(), history).unwrap();
+        let timing = ActionTiming::try_new(cadence.clone(), horizon, law.clone(), 0).unwrap();
+        let policy =
+            PolicyEvaluation::try_new(cadence.clone(), horizon, law.clone(), "pulse").unwrap();
+        let transition = Transition::try_new(cadence.clone(), horizon, law.clone()).unwrap();
+        let regression =
+            SequentialRegression::try_new(cadence.clone(), horizon, law.clone(), "y").unwrap();
+        let weights = weights.map(|(c, a)| {
+            CensoringAssignmentWeight::try_new(cadence.clone(), horizon, law.clone(), c, a).unwrap()
+        });
+        let reduction = TrajectoryReduction::try_new(cadence, horizon, law, functional).unwrap();
+        HistoryProgram::try_new(h, timing, policy, transition, regression, weights, reduction)
+    }
+
+    fn ctx() -> ExecutionContext {
+        ExecutionContext::for_tests(1)
+    }
+
+    fn program(functional: &str) -> HistoryProgram {
+        program_with(
+            InitialLaw::contemporaneous_observed(),
+            HistoryWindow::max_lag(1),
+            None,
+            functional,
+        )
+        .unwrap()
+    }
+
+    fn actions(n: usize) -> Vec<f64> {
+        (0..n).map(|t| ((t * 7919 + 13) % 11) as f64 / 5.0 - 1.0).collect()
+    }
+
+    fn noise(state: &mut u64) -> f64 {
+        let mut uniform = || {
+            *state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            ((*state >> 11) as f64) / ((1_u64 << 53) as f64)
+        };
+        (0..12).map(|_| uniform()).sum::<f64>() - 6.0
+    }
+
+    /// `y_t = C + PHI y_{t-1} + B0 a_t + B1 a_{t-1} + sd * e_t`.
+    fn simulate(n: usize, sd: f64, seed: u64) -> (Vec<f64>, Vec<f64>) {
+        let a = actions(n);
+        let mut state = seed;
+        let mut y = vec![0.0; n];
+        for t in 1..n {
+            y[t] = C + PHI * y[t - 1] + B0 * a[t] + B1 * a[t - 1] + sd * noise(&mut state);
+        }
+        (y, a)
+    }
+
+    fn close(actual: f64, expected: f64, tolerance: f64, label: &str) {
+        assert!((actual - expected).abs() <= tolerance, "{label}: {actual} vs {expected}");
+    }
+
+    #[test]
+    fn program_requires_weights_exactly_when_declared_and_uses_them() {
+        let (mut y, a) = simulate(300, 0.3, 77);
+        y[75] += 15.0;
+        let series = TickSeries::try_new(&y, &a).unwrap();
+        let unweighted = program("final");
+        let weighted = program_with(
+            InitialLaw::contemporaneous_observed(),
+            HistoryWindow::max_lag(1),
+            Some((1.0, 1.0)),
+            "final",
+        )
+        .unwrap();
+        let mut weights = vec![1.0; y.len() - 1];
+        weights[74] = 30.0;
+        let invalid_policy = PolicyRule::Hold(f64::NAN);
+        assert_eq!(
+            weighted.execute(&series, None, invalid_policy, PolicyRule::Hold(0.0), None, &ctx()),
+            Err(HistoryExecutionError::WeightDeclarationMismatch {
+                declared: true,
+                supplied: false
+            })
+        );
+        assert_eq!(
+            unweighted.execute(
+                &series,
+                Some(&weights),
+                invalid_policy,
+                PolicyRule::Hold(0.0),
+                None,
+                &ctx()
+            ),
+            Err(HistoryExecutionError::WeightDeclarationMismatch {
+                declared: false,
+                supplied: true
+            })
+        );
+        let plain = unweighted
+            .execute(&series, None, PolicyRule::Hold(0.0), PolicyRule::Hold(0.0), None, &ctx())
+            .unwrap();
+        let fit = weighted
+            .execute(
+                &series,
+                Some(&weights),
+                PolicyRule::Hold(0.0),
+                PolicyRule::Hold(0.0),
+                None,
+                &ctx(),
+            )
+            .unwrap();
+        assert!(
+            fit.fit
+                .coefficients()
+                .iter()
+                .zip(plain.fit.coefficients())
+                .any(|(a, b)| (a - b).abs() > 1e-6)
+        );
+        // Independent weighted normal-equation oracle on the original series:
+        // every column must be orthogonal to the weighted residuals.
+        let mut score = [0.0; 4];
+        for t in 1..y.len() {
+            let row = [1.0, y[t - 1], a[t], a[t - 1]];
+            let prediction: f64 = row.iter().zip(fit.fit.coefficients()).map(|(x, b)| x * b).sum();
+            for j in 0..4 {
+                score[j] += weights[t - 1] * row[j] * (y[t] - prediction);
+            }
+        }
+        for residual_score in score {
+            close(residual_score, 0.0, 1e-7, "weighted normal equation");
+        }
+        assert!(matches!(
+            weighted.execute(
+                &series,
+                Some(&weights[..weights.len() - 1]),
+                PolicyRule::Hold(0.0),
+                PolicyRule::Hold(0.0),
+                None,
+                &ctx()
+            ),
+            Err(HistoryExecutionError::WeightShape { .. })
+        ));
+    }
+
+    #[test]
+    fn a_pulse_and_a_sustained_action_follow_the_analytic_recursion_exactly() {
+        let (y, a) = simulate(300, 0.0, 1);
+        let series = TickSeries::try_new(&y, &a).unwrap();
+        let final_program = program("final");
+        let pulse = final_program
+            .execute(
+                &series,
+                None,
+                PolicyRule::Pulse { level: 1.0, otherwise: 0.0 },
+                PolicyRule::Hold(0.0),
+                None,
+                &ctx(),
+            )
+            .unwrap();
+        // The scan produced one window per tick after the first lag and the fit recovers the
+        // data-generating mechanism.
+        assert_eq!(pulse.windows, 299);
+        for (got, want) in pulse.fit.coefficients().iter().zip([C, PHI, B0, B1]) {
+            close(*got, want, 1e-8, "coefficient");
+        }
+        // Effect of a unit pulse at the first horizon tick: 0.9, then phi * 0.9 + 0.4,
+        // then geometric decay at phi.
+        let d0 = B0;
+        let d1 = PHI * d0 + B1;
+        let d2 = PHI * d1;
+        let d3 = PHI * d2;
+        for (step, want) in [d0, d1, d2, d3].into_iter().enumerate() {
+            close(pulse.policy[step] - pulse.reference[step], want, 1e-8, "pulse path");
+        }
+        close(pulse.contrast(), d3, 1e-8, "final");
+
+        let sustained = program("mean")
+            .execute(
+                &series,
+                None,
+                PolicyRule::Sustained { level: 1.0, otherwise: 0.0 },
+                PolicyRule::Hold(0.0),
+                None,
+                &ctx(),
+            )
+            .unwrap();
+        let s0 = B0;
+        let s1 = PHI * s0 + B0 + B1;
+        let s2 = PHI * s1 + B0 + B1;
+        let s3 = PHI * s2 + B0 + B1;
+        close(sustained.contrast(), (s0 + s1 + s2 + s3) / 4.0, 1e-8, "mean");
+        let total = program("sum")
+            .execute(
+                &series,
+                None,
+                PolicyRule::Sustained { level: 1.0, otherwise: 0.0 },
+                PolicyRule::Hold(0.0),
+                None,
+                &ctx(),
+            )
+            .unwrap();
+        close(total.contrast(), s0 + s1 + s2 + s3, 1e-7, "sum");
+    }
+
+    #[test]
+    fn a_reactive_policy_reads_the_rolled_history_not_the_observed_one() {
+        let (y, a) = simulate(300, 0.0, 1);
+        let series = TickSeries::try_new(&y, &a).unwrap();
+        let (low, high, cutoff) = (-1.0, 1.0, 1.5);
+        let run = program("sum")
+            .execute(
+                &series,
+                None,
+                PolicyRule::Reactive { cutoff, below: high, at_or_above: low, otherwise: 0.0 },
+                PolicyRule::Hold(0.0),
+                None,
+                &ctx(),
+            )
+            .unwrap();
+        // Independent recursion with the true mechanism from the last observed tick.
+        let (mut prev_y, mut prev_a) = (y[299], a[299]);
+        let mut expected = Vec::new();
+        for _ in 0..4 {
+            let action = if prev_y >= cutoff { low } else { high };
+            let next = C + PHI * prev_y + B0 * action + B1 * prev_a;
+            expected.push(next);
+            prev_y = next;
+            prev_a = action;
+        }
+        for (got, want) in run.policy.iter().zip(&expected) {
+            close(*got, *want, 1e-7, "reactive path");
+        }
+    }
+
+    #[test]
+    fn a_noisy_series_estimates_the_pulse_effect_within_sampling_error() {
+        let (y, a) = simulate(20_000, 0.3, 77);
+        let series = TickSeries::try_new(&y, &a).unwrap();
+        let run = program("final")
+            .execute(
+                &series,
+                None,
+                PolicyRule::Pulse { level: 1.0, otherwise: 0.0 },
+                PolicyRule::Hold(0.0),
+                None,
+                &ctx(),
+            )
+            .unwrap();
+        close(run.contrast(), PHI * PHI * (PHI * B0 + B1), 0.02, "noisy final effect");
+        close(run.fit.residual_variance().sqrt(), 0.3, 0.02, "residual sd");
+    }
+
+    #[test]
+    fn row_weights_are_the_weighted_least_squares_of_the_duplicated_rows() {
+        let (y, a) = simulate(2_000, 0.5, 5);
+        let series = TickSeries::try_new(&y, &a).unwrap();
+        let program = program_with(
+            InitialLaw::contemporaneous_observed(),
+            HistoryWindow::max_lag(1),
+            Some((1.0, 1.0)),
+            "final",
+        )
+        .unwrap();
+        let windows = program.history.scan(&series).unwrap();
+        let censoring: Vec<f64> =
+            (0..windows.rows()).map(|r| if r % 3 == 0 { 0.5 } else { 1.0 }).collect();
+        let assignment = vec![1.0; windows.rows()];
+        let weight_operator = program.weights.as_ref().unwrap();
+        let weights = weight_operator.row_weights(&censoring, &assignment).unwrap();
+        assert!(weights.iter().zip(&censoring).all(|(w, p)| (w - 1.0 / p).abs() < 1e-12));
+        let weighted = program.regression.fit(&windows, Some(&weights)).unwrap();
+        // Reference: a plain fit on a table where every half-probability row appears twice.
+        let p = windows.columns();
+        let mut design = Vec::new();
+        let mut target = Vec::new();
+        for r in 0..windows.rows() {
+            let copies = if r % 3 == 0 { 2 } else { 1 };
+            for _ in 0..copies {
+                design.extend_from_slice(&windows.design()[r * p..(r + 1) * p]);
+                target.push(windows.target()[r]);
+            }
+        }
+        let duplicated = HistoryWindows {
+            depth: windows.depth(),
+            first_tick: windows.first_tick(),
+            columns: p,
+            design,
+            target,
+        };
+        let plain = program.regression.fit(&duplicated, None).unwrap();
+        for (got, want) in weighted.coefficients().iter().zip(plain.coefficients()) {
+            close(*got, *want, 1e-9, "weighted vs duplicated");
+        }
+        // And the weights moved the fit away from the unweighted one.
+        let unweighted = program.regression.fit(&windows, None).unwrap();
+        assert!(
+            weighted
+                .coefficients()
+                .iter()
+                .zip(unweighted.coefficients())
+                .any(|(a, b)| (a - b).abs() > 1e-6)
+        );
+    }
+
+    #[test]
+    fn a_cancelled_context_refuses_before_any_rollout() {
+        let (y, a) = simulate(300, 0.3, 5);
+        let series = TickSeries::try_new(&y, &a).unwrap();
+        let ctx = ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        let hold = PolicyRule::Hold(0.0);
+        assert_eq!(
+            program("final").execute(&series, None, hold, hold, None, &ctx),
+            Err(HistoryExecutionError::Cancelled)
+        );
+    }
+
+    #[test]
+    fn rollout_memory_is_admitted_before_allocation_and_returned() {
+        let (y, a) = simulate(300, 0.3, 5);
+        let series = TickSeries::try_new(&y, &a).unwrap();
+        let hold = PolicyRule::Hold(0.0);
+        let needed = rollout_bytes(4, 1).unwrap();
+        let tight = antecedent_core::execution::AdmissionPool::fixed(1, needed - 1);
+        let refused = program("final")
+            .execute(
+                &series,
+                None,
+                hold,
+                hold,
+                None,
+                &ExecutionContext::for_tests(1).with_admission(tight.clone()),
+            )
+            .unwrap_err();
+        assert_eq!(
+            refused,
+            HistoryExecutionError::RolloutMemoryRefused {
+                required_bytes: needed,
+                available_bytes: needed - 1
+            }
+        );
+        assert_eq!(tight.available().bytes(), needed - 1);
+        let exact = antecedent_core::execution::AdmissionPool::fixed(1, needed);
+        program("final")
+            .execute(
+                &series,
+                None,
+                hold,
+                hold,
+                None,
+                &ExecutionContext::for_tests(1).with_admission(exact.clone()),
+            )
+            .unwrap();
+        assert_eq!(exact.available().bytes(), needed, "the lease is returned");
+    }
+
+    #[test]
+    fn rollout_work_cap_refuses_one_past_and_admits_the_bound() {
+        assert_eq!(admit_rollout_work(MAX_ROLLOUT_WORK, MAX_ROLLOUT_WORK), Ok(()));
+        assert_eq!(
+            admit_rollout_work(MAX_ROLLOUT_WORK + 1, MAX_ROLLOUT_WORK),
+            Err(HistoryExecutionError::RolloutWorkCapExceeded {
+                work: MAX_ROLLOUT_WORK + 1,
+                cap: MAX_ROLLOUT_WORK
+            })
+        );
+        // Two worlds of `steps` ticks over `state_len` values each.
+        assert_eq!(rollout_work(4, 3), 24);
+        assert_eq!(rollout_work(u32::MAX, usize::MAX), u64::MAX);
+        // One budget is shared by the two passes: the second pass finds what the first left.
+        let mut budget = RolloutBudget { cap: 10, spent: 0 };
+        assert_eq!(budget.charge(5), Ok(()));
+        assert_eq!(budget.charge(5), Ok(()));
+        assert_eq!(
+            budget.charge(1),
+            Err(HistoryExecutionError::RolloutWorkCapExceeded { work: 11, cap: 10 })
+        );
+    }
+
+    #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the scientific fixture keeps its setup and assertions together"
+    )]
+    fn refusals_name_their_next_attempt() {
+        let (y, a) = simulate(300, 0.0, 1);
+        let series = TickSeries::try_new(&y, &a).unwrap();
+        let hold = PolicyRule::Hold(0.0);
+
+        // A named initial law needs the state it names; a supplied state is used.
+        let named = program_with(
+            InitialLaw::named("clinic_start").unwrap(),
+            HistoryWindow::max_lag(1),
+            None,
+            "final",
+        )
+        .unwrap();
+        let error = named.execute(&series, None, hold, hold, None, &ctx()).unwrap_err();
+        assert!(matches!(error, HistoryExecutionError::InitialStateRequired { .. }), "{error}");
+        let state = InitialState { outcomes: vec![2.0], actions: vec![0.0] };
+        let run = named.execute(&series, None, hold, hold, Some(&state), &ctx()).unwrap();
+        let mut prev = 2.0;
+        let mut prev_a = 0.0;
+        for value in &run.policy {
+            let want = C + PHI * prev + B0 * 0.0 + B1 * prev_a;
+            close(*value, want, 1e-7, "named-law start");
+            prev = *value;
+            prev_a = 0.0;
+        }
+        let wrong = InitialState { outcomes: vec![2.0, 1.0], actions: vec![0.0] };
+        assert!(matches!(
+            named.execute(&series, None, hold, hold, Some(&wrong), &ctx()),
+            Err(HistoryExecutionError::InitialStateShape { .. })
+        ));
+
+        // An unresolved planner default, a zero history and a short series.
+        let unresolved = program_with(
+            InitialLaw::contemporaneous_observed(),
+            HistoryWindow::planner_default(),
+            None,
+            "final",
+        )
+        .unwrap();
+        assert_eq!(
+            unresolved.execute(&series, None, hold, hold, None, &ctx()).unwrap_err(),
+            HistoryExecutionError::HistoryCapUnresolved
+        );
+        let zero = program_with(
+            InitialLaw::contemporaneous_observed(),
+            HistoryWindow::max_lag(0),
+            None,
+            "final",
+        )
+        .unwrap();
+        assert_eq!(
+            zero.execute(&series, None, hold, hold, None, &ctx()).unwrap_err(),
+            HistoryExecutionError::HistoryDepthZero
+        );
+        let short = TickSeries::try_new(&y[..4], &a[..4]).unwrap();
+        assert!(matches!(
+            program("final").execute(&short, None, hold, hold, None, &ctx()),
+            Err(HistoryExecutionError::SeriesTooShort { .. })
+        ));
+
+        // A functional the reduction cannot evaluate is refused when the program is bound.
+        let (cadence, horizon, law) = frame_parts(InitialLaw::contemporaneous_observed());
+        let history = HistoryConstruction::try_new(
+            cadence.clone(),
+            horizon,
+            law.clone(),
+            HistoryWindow::max_lag(1),
+        )
+        .unwrap();
+        let reduction =
+            TrajectoryReduction::try_new(cadence.clone(), horizon, law.clone(), "median").unwrap();
+        let rest = (
+            ActionTiming::try_new(cadence.clone(), horizon, law.clone(), 0).unwrap(),
+            PolicyEvaluation::try_new(cadence.clone(), horizon, law.clone(), "p").unwrap(),
+            Transition::try_new(cadence.clone(), horizon, law.clone()).unwrap(),
+            SequentialRegression::try_new(cadence.clone(), horizon, law.clone(), "y").unwrap(),
+        );
+        let error = HistoryProgram::try_new(
+            history.clone(),
+            rest.0.clone(),
+            rest.1.clone(),
+            rest.2.clone(),
+            rest.3.clone(),
+            None,
+            reduction,
+        )
+        .unwrap_err();
+        assert!(matches!(error, HistoryExecutionError::UnknownFunctional { .. }), "{error}");
+
+        // An operator over another horizon is not part of the program.
+        let other = ActionTiming::try_new(cadence, Horizon::ending_at(30), law, 0).unwrap();
+        let reduction = TrajectoryReduction::try_new(
+            regular(10, 400),
+            Horizon::ending_at(40),
+            InitialLaw::contemporaneous_observed(),
+            "final",
+        )
+        .unwrap();
+        let error =
+            HistoryProgram::try_new(history, other, rest.1, rest.2, rest.3, None, reduction)
+                .unwrap_err();
+        assert_eq!(error, HistoryExecutionError::FrameMismatch { operator: "action_timing" });
+
+        // A probability outside (0, 1] is a positivity violation, not a weight.
+        let weights = CensoringAssignmentWeight::try_new(
+            regular(10, 400),
+            Horizon::ending_at(40),
+            InitialLaw::contemporaneous_observed(),
+            1.0,
+            1.0,
+        )
+        .unwrap();
+        assert!(matches!(
+            weights.row_weights(&[1.0, 0.0], &[1.0, 1.0]),
+            Err(HistoryExecutionError::ProbabilityOutOfRange {
+                role: WeightRole::Censoring,
+                tick: 1,
+                ..
+            })
+        ));
+        assert!(matches!(
+            TickSeries::try_new(&[1.0], &[1.0, 2.0]),
+            Err(HistoryExecutionError::SeriesLengthMismatch { .. })
+        ));
+        assert!(matches!(
+            TickSeries::try_new(&[f64::NAN], &[1.0]),
+            Err(HistoryExecutionError::NonFiniteValue { tick: 0 })
+        ));
+    }
+
+    #[test]
+    fn the_shared_scan_aligns_several_columns_and_refuses_a_history_shorter_than_its_columns() {
+        use antecedent_core::{ExecutionContext, Lag, VariableId};
+        use antecedent_data::{LaggedColumn, TimeSeriesData};
+        let x: Vec<f64> = (0..10).map(f64::from).collect();
+        let y: Vec<f64> = (0..10).map(|t| 10.0 * f64::from(t)).collect();
+        let data = TimeSeriesData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())], 1)
+            .unwrap();
+        let columns = vec![
+            LaggedColumn { variable: VariableId::from_raw(1), lag: Lag::CONTEMPORANEOUS },
+            LaggedColumn { variable: VariableId::from_raw(0), lag: Lag::from_raw(2) },
+        ];
+        let history = |lags| {
+            HistoryConstruction::try_new(
+                regular(10, 400),
+                Horizon::ending_at(40),
+                InitialLaw::contemporaneous_observed(),
+                HistoryWindow::max_lag(lags),
+            )
+            .unwrap()
+        };
+        let ctx = ExecutionContext::for_tests(1);
+        let mut scan = history(2).scan_columns(&data, columns.clone()).unwrap();
+        let sample = scan.complete(&data, &ctx.kernel_policy).unwrap();
+        // Window t reads y_t and x_{t-2}, for t = 2..10.
+        assert_eq!(sample.n, 8);
+        assert_eq!(sample.column(0), &y[2..]);
+        assert_eq!(sample.column(1), &x[..8]);
+        // The history is not extended to the column's depth.
+        let error = history(1).scan_columns(&data, columns).unwrap_err();
+        assert_eq!(error, HistoryExecutionError::HistoryShorterThanColumns { cap: 1, needed: 2 });
+    }
+
+    #[test]
+    fn the_sequential_regression_fits_any_number_of_scanned_columns() {
+        let program = program("final");
+        let x: Vec<f64> = (0..50).map(|t| f64::from((t * 7) % 13)).collect();
+        let z: Vec<f64> = (0..50).map(|t| f64::from((t * 5) % 11) - 4.0).collect();
+        let ones = vec![1.0; 50];
+        let y: Vec<f64> = x.iter().zip(&z).map(|(a, b)| 1.0 + 2.0 * a + 3.0 * b).collect();
+        let fit = program
+            .regression
+            .fit_columns(&[ones.as_slice(), x.as_slice(), z.as_slice()], &y, None)
+            .unwrap();
+        for (got, want) in fit.coefficients.iter().zip([1.0, 2.0, 3.0]) {
+            close(*got, want, 1e-9, "multi-variable coefficient");
+        }
+        assert!(fit.residual_variance < 1e-12);
+        assert!(matches!(
+            program.regression.fit_columns(&[x.as_slice()], &y[..10], None),
+            Err(HistoryExecutionError::WeightShape { .. })
+        ));
+    }
+
+    #[test]
+    fn every_kind_lowers_to_a_legal_operator_edge() {
+        let program = program("final");
+        let kinds = program.kinds();
+        assert_eq!(kinds.len(), 6);
+        for kind in kinds.into_iter().chain([HistoryOperatorKind::Weights]) {
+            let operator = kind.operator().unwrap_or_else(|e| panic!("{}: {e}", kind.as_str()));
+            assert!(!operator.outputs().is_empty(), "{}", kind.as_str());
+        }
+        assert_eq!(
+            HistoryOperatorKind::Transition.operator().unwrap().effect(),
+            antecedent_core::OperatorEffect::Scan
+        );
+        assert_eq!(program.policy_name(), "pulse");
+        assert_eq!(program.step_ns(), 10);
+    }
+
+    fn design_fixture(rows: usize) -> (Vec<f64>, Vec<f64>) {
+        let x: Vec<f64> = (0..rows).map(|t| ((t * 7) % 13) as f64).collect();
+        let z: Vec<f64> = (0..rows).map(|t| ((t * 5) % 11) as f64 - 4.0).collect();
+        let y: Vec<f64> = (0..rows)
+            .map(|t| 1.0 + 2.0 * x[t] - 0.5 * z[t] + (((t * 31) % 17) as f64 - 8.0) * 0.05)
+            .collect();
+        let mut design = vec![1.0; rows];
+        design.extend_from_slice(&x);
+        design.extend_from_slice(&z);
+        (design, y)
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp, reason = "the test checks exact values and boundary behavior")]
+    fn the_shared_solve_is_the_backend_fit_unweighted_and_the_root_scaled_fit_weighted() {
+        use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
+        let rows = 60;
+        let (design, y) = design_fixture(rows);
+        let mut ws = LeastSquaresWorkspace::default();
+        let shared =
+            SequentialRegression::solve_design(&design, rows, 3, &y, None, &mut ws).unwrap();
+        let direct = FaerBackend.least_squares(&design, rows, 3, &y, &mut ws).unwrap();
+        assert_eq!(shared.coefficients, direct.coefficients);
+        assert_eq!(shared.rss, direct.rss);
+        let only = SequentialRegression::solve_coefficients(&design, rows, 3, &y).unwrap();
+        assert_eq!(only, direct.coefficients);
+
+        // Weighted: identical to rescaling every row and the target by the root weight.
+        let weights: Vec<f64> =
+            (0..rows).map(|r| if r % 4 == 0 { 0.0 } else { 0.5 + (r % 3) as f64 }).collect();
+        let weighted =
+            SequentialRegression::solve_design(&design, rows, 3, &y, Some(&weights), &mut ws)
+                .unwrap();
+        let root: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
+        let mut scaled_design = design.clone();
+        for column in scaled_design.chunks_exact_mut(rows) {
+            for (v, r) in column.iter_mut().zip(&root) {
+                *v *= r;
+            }
+        }
+        let scaled_y: Vec<f64> = y.iter().zip(&root).map(|(v, r)| v * r).collect();
+        let reference =
+            FaerBackend.least_squares(&scaled_design, rows, 3, &scaled_y, &mut ws).unwrap();
+        for (got, want) in weighted.coefficients.iter().zip(&reference.coefficients) {
+            close(*got, *want, 1e-10, "weighted vs root-scaled");
+        }
+        close(weighted.rss, reference.rss, 1e-9, "weighted rss");
+        // The weights moved the fit.
+        assert!(
+            weighted
+                .coefficients
+                .iter()
+                .zip(&direct.coefficients)
+                .any(|(a, b)| (a - b).abs() > 1e-4)
+        );
+    }
+
+    #[test]
+    fn fit_columns_reports_the_weighted_residual_variance_of_the_shared_solve() {
+        let program = program("final");
+        let rows = 40;
+        let (design, y) = design_fixture(rows);
+        let columns: Vec<&[f64]> = design.chunks_exact(rows).collect();
+        let weights: Vec<f64> = (0..rows).map(|r| 1.0 + (r % 5) as f64).collect();
+        let fit = program.regression.fit_columns(&columns, &y, Some(&weights)).unwrap();
+        let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
+        let solved =
+            SequentialRegression::solve_design(&design, rows, 3, &y, Some(&weights), &mut ws)
+                .unwrap();
+        assert_eq!(fit.coefficients, solved.coefficients);
+        let total: f64 = weights.iter().sum();
+        close(
+            fit.residual_variance,
+            solved.rss / (total * (1.0 - 3.0 / rows as f64)),
+            1e-12,
+            "variance",
+        );
+        // A duplicated column is not identified.
+        let twice = [columns[0], columns[1], columns[1]];
+        assert_eq!(
+            program.regression.fit_columns(&twice, &y, None),
+            Err(HistoryExecutionError::SingularHistory)
+        );
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp, reason = "the test checks exact values and boundary behavior")]
+    fn window_weights_normalize_over_positive_windows_and_keep_zero_windows_in_place() {
+        let program = program_with(
+            InitialLaw::contemporaneous_observed(),
+            HistoryWindow::max_lag(1),
+            Some((2.0, 3.0)),
+            "final",
+        )
+        .unwrap();
+        let operator = program.weights.as_ref().unwrap();
+        let sampling = [2.0, 0.0, 6.0, 4.0, 0.0];
+        let windowed = operator.window_weights(&sampling).unwrap();
+        assert_eq!(windowed.rows_used, 3);
+        assert_eq!(windowed.zero_weight_windows, 2);
+        close(windowed.weight_sum, 12.0, 1e-12, "weight sum");
+        // Mean one over the positive windows; zero windows keep a zero weight in place.
+        close(windowed.weights.iter().sum::<f64>(), 3.0, 1e-12, "mean one");
+        assert_eq!(windowed.weights[1], 0.0);
+        assert_eq!(windowed.weights[4], 0.0);
+        close(windowed.weights[2] / windowed.weights[0], 3.0, 1e-12, "ratio kept");
+        // Kish: (sum w)^2 / sum w^2 = 144 / 56.
+        close(windowed.effective_sample_size, 144.0 / 56.0, 1e-12, "ess");
+        // The declared multipliers are a common factor and cancel.
+        let unit = program_with(
+            InitialLaw::contemporaneous_observed(),
+            HistoryWindow::max_lag(1),
+            Some((1.0, 1.0)),
+            "final",
+        )
+        .unwrap();
+        assert_eq!(unit.weights.as_ref().unwrap().window_weights(&sampling).unwrap(), windowed);
+        assert_eq!(
+            operator.window_weights(&[0.0, 0.0]),
+            Err(HistoryExecutionError::NoPositiveSamplingWeight)
+        );
+        assert!(matches!(
+            operator.window_weights(&[1.0, -1.0]),
+            Err(HistoryExecutionError::SamplingWeightInvalid { window: 1, .. })
+        ));
+        assert!(matches!(
+            operator.window_weights(&[1.0, f64::NAN]),
+            Err(HistoryExecutionError::SamplingWeightInvalid { window: 1, .. })
+        ));
+    }
+}

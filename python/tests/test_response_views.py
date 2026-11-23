@@ -161,11 +161,11 @@ def test_validation_and_causal_response_repr_branches():
         uncertainty=none,
         support=support,
         identification=_ident(),
-        evidence_status="allowed_unlicensed",
+        evidence_status="not_supported",
     )
     text = repr(scalar)
     assert "estimate=2.000" in text
-    assert "unlicensed" in text
+    assert "unsupported" in text
     assert "warnings=1" in text
 
     structured = CausalResponseView(

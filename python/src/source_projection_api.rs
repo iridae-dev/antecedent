@@ -1,31 +1,34 @@
 //! Original-source semantic projections and actual checked native operation resolution.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::{detach_catch, value_err, value_err_code, with_reason_code};
 use antecedent::analysis::composition::BundleLimits;
 use antecedent::analysis::source_evidence::SourceResolution;
 use antecedent::analysis::source_projection::source_resolved_consumer;
-use antecedent_design::source_projection_artifact::{
+use antecedent::design::source_projection_artifact::{
     MAX_SOURCE_PROJECTION_BYTES, ProjectionSource, SourceProjection, SourceProjectionArtifact,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-fn error(error: antecedent_io::IoError) -> PyErr {
+fn error(error: antecedent::io::IoError) -> PyErr {
     match error {
-        antecedent_io::IoError::Refused { code, message } => value_err_code(code, message),
-        other => invalid("source_projection.original_consumer_refused", other.to_string()),
+        antecedent::io::IoError::Refused { code, message } => value_err_code(code, message),
+        other => invalid(
+            antecedent::reason::reason_details::source_projection::ORIGINAL_CONSUMER_REFUSED,
+            other.to_string(),
+        ),
     }
 }
 fn invalid(detail: &'static str, message: impl std::fmt::Display) -> PyErr {
     with_reason_code(
         value_err(format!("{detail}: {message}")),
-        antecedent_core::reason_code!("invalid_argument"),
+        antecedent::reason::reason_code!("invalid_argument"),
     )
 }
 fn bounded(bytes: &[u8]) -> PyResult<()> {
     if bytes.len() > MAX_SOURCE_PROJECTION_BYTES {
         return Err(invalid(
-            "source_projection.limits_exceeded",
+            antecedent::reason::reason_details::source_projection::LIMITS_EXCEEDED,
             "source projection exceeds byte bound",
         ));
     }
@@ -44,12 +47,13 @@ fn produce_source_projection(
     bounded(source)?;
     if projection_json.len() > crate::bridge::MAX_CONFIG_DECLARATION_BYTES {
         return Err(invalid(
-            "source_projection.limits_exceeded",
+            antecedent::reason::reason_details::source_projection::LIMITS_EXCEEDED,
             "projection declaration exceeds byte bound",
         ));
     }
-    let projection: SourceProjection = serde_json::from_str(projection_json)
-        .map_err(|e| invalid("source_projection.invalid_request", e))?;
+    let projection: SourceProjection = serde_json::from_str(projection_json).map_err(|e| {
+        invalid(antecedent::reason::reason_details::source_projection::INVALID_REQUEST, e)
+    })?;
     let source = if native {
         ProjectionSource::NativeResponse(source.to_vec())
     } else {
@@ -76,7 +80,7 @@ fn consume_source_projection_bundle(
     let limits = BundleLimits::default();
     if data.len() > limits.max_bundle_bytes || actual_claims.len() > 64 {
         return Err(invalid(
-            "source_projection.limits_exceeded",
+            antecedent::reason::reason_details::source_projection::LIMITS_EXCEEDED,
             "bundle or source resolver count exceeds bound",
         ));
     }
@@ -89,7 +93,7 @@ fn consume_source_projection_bundle(
         let evidence = crate::source_evidence_api::PySourceEvidence::from_claim(&actual)?;
         if evidence.inner.summary()["source_artifact_digest"].as_str() != Some(digest.as_str()) {
             return Err(invalid(
-                "source_projection.source_binding_mismatch",
+                antecedent::reason::reason_details::source_projection::SOURCE_BINDING_MISMATCH,
                 "issued native execution differs from the expected original source",
             ));
         }
@@ -105,11 +109,15 @@ fn consume_source_projection_bundle(
         let receipts = sources
             .iter()
             .map(|(evidence, prepared, context)| {
-                SourceResolution::execute(evidence, prepared, context)
-                    .map_err(|e| invalid("source_projection.source_binding_mismatch", e))
+                SourceResolution::execute(evidence, prepared, context).map_err(|e| {
+                    invalid(
+                        antecedent::reason::reason_details::source_projection::SOURCE_BINDING_MISMATCH,
+                        e,
+                    )
+                })
             })
             .collect::<PyResult<Vec<_>>>()?;
-        let consumer = source_resolved_consumer(receipts).map_err(error)?;
+        let consumer = source_resolved_consumer(receipts);
         Ok(match consumer.consume(&data, &limits, &expected_identity, &supplied) {
             Ok(result) => (Some(crate::composition_bundle_api::consumed_json(&result)), None),
             Err(error) => (None, Some(crate::composition_bundle_api::error_refusal(&error))),

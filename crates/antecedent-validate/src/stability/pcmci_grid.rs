@@ -1,6 +1,6 @@
 //! PCMCI link-frequency stability and parameter grids.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -90,9 +90,9 @@ impl BlockBootstrapStability {
                 message: "stability requires positive replicates and block_size",
             });
         }
-        if self.block_size > data.row_count() {
+        if self.block_size >= data.row_count() {
             return Err(ValidationError::NotApplicable {
-                message: "block_size exceeds series length",
+                message: "block-bootstrap stability requires block_size smaller than series length",
             });
         }
         let mut counts: BTreeMap<LaggedLink, u32> = BTreeMap::new();

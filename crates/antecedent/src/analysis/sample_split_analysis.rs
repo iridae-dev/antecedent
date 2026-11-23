@@ -31,20 +31,20 @@
 //! cluster sandwich over declared analysis-part clusters); rows of weight zero are excluded and
 //! counted; and the Kish effective sample size is reported beside the row count. The interval
 //! it supports ([`SplitAnalysisEffect::interval`]) is a Student interval at the effective sample
-//! size, a computed value whose whole-method coverage is a separate claim that stays unmeasured
+//! size, a computed value whose whole-method coverage is a separate claim that stays `not_measured`
 //! until `tests/sample_split_weighted_effect_calibration.rs` has been measured.
 //!
-//! # What the binding licenses
+//! # What the binding supports
 //!
 //! Because discovery saw none of the analysis rows, an analysis of those rows that treats the
 //! discovered (or declared) graph as given is calibrated for the analysis procedure's own
 //! sampling error *given that graph*. The binding says exactly that and no more
-//! ([`AnalysisBinding::conditional_on_selected_graph`]). It does not by itself license "the
+//! ([`AnalysisBinding::conditional_on_selected_graph`]). It does not by itself support "the
 //! interval covers the true effect": that is a property of the whole method (split,
-//! discovery, graph acceptance, estimation), and it is licensed only for the one construction
+//! discovery, graph acceptance, estimation), and it is supported only for the one construction
 //! that was measured, through [`super::sample_split_effect`], whose interval is attested from
 //! a coverage record keyed `discovered_sample_split`. For any other analysis of the analysis
-//! rows the whole-method calibration stays `unmeasured`
+//! rows the whole-method calibration stays `not_measured`
 //! ([`AnalysisBinding::whole_method_calibration`]).
 //!
 //! No per-dataset statement is made either way: whether a discovered graph recovers the true
@@ -62,7 +62,7 @@
 //! every downstream claim are recomputed against it. Nothing is patched in place, and a
 //! refresh never converts reuse into a split.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -89,7 +89,7 @@ use super::selective_discovery::discovery_rows_source;
 const BINDING_TAG: &str = "antecedent.sample_split_analysis.binding.v1";
 
 /// The standing of whole-method calibration for a split analysis: recorded, not measured.
-pub const WHOLE_METHOD_CALIBRATION: &str = "unmeasured";
+pub const WHOLE_METHOD_CALIBRATION: &str = "not_measured";
 
 /// A split, the discovery run on its discovery part, and the receipt tying them together.
 #[derive(Debug)]
@@ -116,7 +116,7 @@ pub struct AnalysisBinding {
 }
 
 impl AnalysisBinding {
-    /// Whether the licensed statement is conditional on the selected graph. Always true: the
+    /// Whether the supported statement is conditional on the selected graph. Always true: the
     /// route removes the dependence between selection and analysis, it does not state that the
     /// selected graph is right.
     #[must_use]
@@ -167,12 +167,12 @@ fn contract_on_part(
             Ok(weighted)
         }
         (Some(_), false) => Err(refuse(
-            "selective_discovery.weights_not_read_by_test",
+            antecedent_core::reason_details::selective_discovery::WEIGHTS_NOT_READ_BY_TEST,
             "the table carries observation weights but the declared test ignores them; declare \
              `weighted_parcorr`, or split an unweighted table",
         )),
         (None, true) => Err(refuse(
-            "selective_discovery.weighted_test_without_weights",
+            antecedent_core::reason_details::selective_discovery::WEIGHTED_TEST_WITHOUT_WEIGHTS,
             "`weighted_parcorr` needs observation weights and the table carries none",
         )),
     }
@@ -205,7 +205,7 @@ pub fn discover_on_split(
     let outcome = adapter.outcome().cloned().ok_or_else(|| {
         SelectiveDiscoveryError::refused(
             antecedent_core::reason_code!("invalid_argument"),
-            "selective_discovery.nothing_retained",
+            antecedent_core::reason_details::selective_discovery::NOTHING_RETAINED,
             "the discovery run retained no outcome",
         )
     })?;
@@ -322,8 +322,8 @@ impl SplitDiscovery {
     ///
     /// # Errors
     ///
-    /// Always `cell_not_licensed`
-    /// (`selective_discovery.downstream_interval_not_licensed`): split the rows.
+    /// Always `not_supported`
+    /// (`selective_discovery.downstream_interval_not_supported`): split the rows.
     pub fn request_unsplit_interval(
         &self,
     ) -> Result<std::convert::Infallible, SelectiveDiscoveryError> {
@@ -386,7 +386,7 @@ pub struct AnalysisEffectRequest {
 /// **Uncertainty.** The standard error is the sampling-weighted sandwich recorded by
 /// [`Self::se_kind`] (HC3 by default, or explicit historical HC1), or the cluster sandwich
 /// when clusters are declared; [`Self::interval`] turns it into a Student interval
-/// at the effective sample size, labelled with its unmeasured whole-method calibration.
+/// at the effective sample size, labelled with its `not_measured` whole-method calibration.
 ///
 /// **Effective sample size.** The Kish size of the weights of the rows used is in
 /// [`Self::sampling_weights`]; `None` for an unweighted source.
@@ -412,7 +412,7 @@ pub struct SplitAnalysisEffect {
 }
 
 /// A Student interval around a [`SplitAnalysisEffect`]: a computed value whose coverage is
-/// unmeasured, never an attested claim.
+/// `not_measured`, never an attested claim.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SplitEffectInterval {
     /// Nominal level.
@@ -437,7 +437,7 @@ impl SplitAnalysisEffect {
     /// The `level` interval of the effect: `effect ± t · standard_error`, with the Student
     /// quantile at the effective sample size of the rows used less the regression's
     /// coefficients, because unequal weights carry less information than the row count says.
-    /// Its coverage over discovery, acceptance and estimation together is unmeasured
+    /// Its coverage over discovery, acceptance and estimation together is `not_measured`
     /// ([`SplitEffectInterval::calibration`]).
     ///
     /// # Errors
@@ -464,8 +464,9 @@ impl SplitAnalysisEffect {
                 "the effective sample size does not exceed the regression's coefficients",
             ));
         }
-        let quantile =
-            antecedent_stats::student_t_ppf(1.0 - (1.0 - level) / 2.0, degrees_of_freedom);
+        // By symmetry the upper quantile is minus the lower one at `(1 - level) / 2`; evaluating
+        // the small tail directly avoids `1 - tiny` rounding to exactly one.
+        let quantile = -antecedent_stats::student_t_ppf((1.0 - level) / 2.0, degrees_of_freedom);
         Ok(SplitEffectInterval {
             level,
             lower: self.effect - quantile * self.standard_error,
@@ -521,7 +522,7 @@ impl SplitDiscovery {
         let binding =
             self.check_analysis_table(self.analysis_rows()).map_err(|error| match error {
                 SelectiveDiscoveryError::Refused { code, detail, remedy } => {
-                    EstimationError::refused(code, format!("{detail}: {remedy}"))
+                    EstimationError::refused_detail(code, detail, remedy)
                 }
                 other => EstimationError::data_msg(other.to_string()),
             })?;

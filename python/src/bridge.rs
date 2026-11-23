@@ -33,7 +33,7 @@ pub(crate) fn check_declared_len(len: usize, limit: usize, what: &str) -> PyResu
     if len > limit {
         return Err(crate::with_reason_code(
             crate::value_err(format!("{what} is too large")),
-            antecedent_core::reason_code!("invalid_argument"),
+            antecedent::reason::reason_code!("invalid_argument"),
         ));
     }
     Ok(())
@@ -43,6 +43,52 @@ pub(crate) fn check_declared_len(len: usize, limit: usize, what: &str) -> PyResu
 /// (`"{what} declaration is too large"`).
 pub(crate) fn check_declared_size(text: &str, limit: usize, what: &str) -> PyResult<()> {
     check_declared_len(text.len(), limit, &format!("{what} declaration"))
+}
+
+/// Chains one MCMC search may run.
+pub(crate) const MAX_MCMC_CHAINS: u64 = 1024;
+/// Steps one MCMC chain may take (warm-up, or retained draws times thinning).
+pub(crate) const MAX_MCMC_STEPS: u64 = 100_000_000;
+/// Replicates, resamples or Monte-Carlo draws one call may request.
+pub(crate) const MAX_RESAMPLES: u64 = 10_000_000;
+/// Paths one enumeration may return.
+pub(crate) const MAX_PATHS: u64 = 10_000_000;
+/// Edges on one enumerated path.
+pub(crate) const MAX_PATH_LEN: u64 = 65_536;
+/// Time steps a forecast or effect horizon may span.
+pub(crate) const MAX_HORIZON_STEPS: u64 = 1_000_000;
+/// Variables in one conditioning set, or one node's parents.
+pub(crate) const MAX_CONDITIONING: u64 = 4096;
+
+/// Refuse a caller-chosen count above `limit`, as an invalid argument.
+///
+/// The limits refuse the absurd; execution memory and cancellation bound the rest.
+pub(crate) fn check_count(what: &str, value: u64, limit: u64) -> PyResult<()> {
+    if value > limit {
+        return Err(crate::with_reason_code(
+            crate::value_err(format!("{what} is {value}; at most {limit} is accepted")),
+            antecedent::reason::reason_code!("invalid_argument"),
+        ));
+    }
+    Ok(())
+}
+
+/// Bound a path enumeration: how many paths, and how long each may be.
+pub(crate) fn check_paths(max_paths: usize, max_len: usize) -> PyResult<()> {
+    check_count("max_paths", max_paths as u64, MAX_PATHS)?;
+    check_count("max_len", max_len as u64, MAX_PATH_LEN)
+}
+
+/// Bound a graph-MCMC schedule: the chains, and the steps each chain takes.
+pub(crate) fn check_mcmc_schedule(
+    n_chains: u32,
+    n_warmup: u32,
+    n_draws: u32,
+    thin: u32,
+) -> PyResult<()> {
+    check_count("n_chains", u64::from(n_chains), MAX_MCMC_CHAINS)?;
+    check_count("n_warmup", u64::from(n_warmup), MAX_MCMC_STEPS)?;
+    check_count("n_draws times thin", u64::from(n_draws) * u64::from(thin), MAX_MCMC_STEPS)
 }
 
 /// A failure that can only mean the bytes do not describe what they claim.
@@ -116,6 +162,33 @@ impl RefusalJson {
     }
 }
 
+/// Six-field refusal shape used by decision-facing routes.
+pub(crate) fn compact_refusal_json(
+    code: &str,
+    stage: &str,
+    detail: &str,
+    message: &str,
+    remedy: Option<&str>,
+) -> String {
+    compact_refusal_value(code, stage, detail, message, None, remedy).to_string()
+}
+
+/// Six-field refusal value, including an optional offending field.
+pub(crate) fn compact_refusal_value(
+    code: &str,
+    stage: &str,
+    detail: &str,
+    message: &str,
+    offending: Option<&str>,
+    remedy: Option<&str>,
+) -> serde_json::Value {
+    let mut refusal =
+        RefusalJson::new(code, stage, detail, message).offending(offending).remedy(remedy);
+    refusal.0.remove("expected");
+    refusal.0.remove("supplied");
+    refusal.value()
+}
+
 /// Split `"{detail}: {text}"` where `detail` is a dotted identifier such as
 /// `recalc.refused`; any other message has an empty detail.
 pub(crate) fn split_detail(message: &str) -> (&str, &str) {
@@ -174,7 +247,7 @@ impl RefusalField for Option<&str> {
     }
 }
 
-impl RefusalField for Option<antecedent_io::recalc_receipt_artifact::PlanWire> {
+impl RefusalField for Option<antecedent::io::recalc_receipt_artifact::PlanWire> {
     fn into_refusal_value(self) -> serde_json::Value {
         match self {
             None => serde_json::Value::Null,
@@ -183,7 +256,7 @@ impl RefusalField for Option<antecedent_io::recalc_receipt_artifact::PlanWire> {
     }
 }
 
-fn plan_wire_value(plan: &antecedent_io::recalc_receipt_artifact::PlanWire) -> serde_json::Value {
+fn plan_wire_value(plan: &antecedent::io::recalc_receipt_artifact::PlanWire) -> serde_json::Value {
     let entries = plan
         .entries
         .iter()
@@ -210,8 +283,8 @@ fn plan_wire_value(plan: &antecedent_io::recalc_receipt_artifact::PlanWire) -> s
 /// through the same `RefusalWire` the external-binding bridge uses, so the
 /// missing operation of a capability refusal (`capability`) reaches Python.
 /// Key order matches `serde_json::to_string` on that wire.
-pub(crate) fn external_refusal_json(value: &antecedent_contract::ExternalRefusal) -> String {
-    wire_json(&antecedent_io::external_binding_wire::RefusalWire::from(value.clone()))
+pub(crate) fn external_refusal_json(value: &antecedent::contract::ExternalRefusal) -> String {
+    wire_json(&antecedent::io::external_binding_wire::RefusalWire::from(value.clone()))
 }
 
 fn json_string(text: &str) -> String {
@@ -225,7 +298,7 @@ fn json_opt(text: Option<&String>) -> String {
     }
 }
 
-fn wire_json(wire: &antecedent_io::external_binding_wire::RefusalWire) -> String {
+fn wire_json(wire: &antecedent::io::external_binding_wire::RefusalWire) -> String {
     format!(
         "{{\"code\":{},\"stage\":{},\"detail\":{},\"offending\":{},\"expected\":{},\"supplied\":{},\"capability\":{},\"remedy\":{}}}",
         json_string(&wire.code),
@@ -239,16 +312,46 @@ fn wire_json(wire: &antecedent_io::external_binding_wire::RefusalWire) -> String
     )
 }
 
+pub(crate) fn invalid_joint_data_identity(
+    identity: &antecedent::io::joint_bayesian_transport_artifact::DataIdentityWire,
+    rows: usize,
+) -> bool {
+    let ids: std::collections::HashSet<_> = identity.datum_ids.iter().collect();
+    identity.snapshot_digest.trim().is_empty()
+        || identity.datum_ids.len() != rows
+        || ids.len() != rows
+        || identity.datum_ids.iter().any(|id| id.trim().is_empty())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::external_refusal_json;
-    use antecedent_contract::{ExternalCapability, ExternalRefusal};
+    #[test]
+    fn joint_data_identity_preserves_empty_unique_and_blank_rules() {
+        use antecedent::io::joint_bayesian_transport_artifact::DataIdentityWire;
+        let identity = |digest: &str, ids: &[&str]| DataIdentityWire {
+            snapshot_digest: digest.into(),
+            datum_ids: ids.iter().map(|id| (*id).into()).collect(),
+        };
+        assert!(!super::invalid_joint_data_identity(&identity("d", &[]), 0));
+        assert!(!super::invalid_joint_data_identity(&identity("d", &["a", "b"]), 2));
+        assert!(super::invalid_joint_data_identity(&identity(" ", &["a"]), 1));
+        assert!(super::invalid_joint_data_identity(&identity("d", &["a"]), 2));
+        assert!(super::invalid_joint_data_identity(&identity("d", &["a", "a"]), 2));
+        assert!(super::invalid_joint_data_identity(&identity("d", &[" "]), 1));
+    }
+
+    use super::{
+        MAX_RESAMPLES, check_count, check_mcmc_schedule, check_paths, external_refusal_json,
+    };
+    use antecedent::contract::{ExternalCapability, ExternalRefusal};
 
     fn refusal(capability: Option<ExternalCapability>) -> ExternalRefusal {
         ExternalRefusal {
-            code: antecedent_core::reason_code!("external_capability_missing"),
+            code: antecedent::reason::reason_code!("external_capability_missing"),
             stage: "negotiate",
-            detail: "provider_capability_negotiation.capability_missing".to_owned(),
+            detail:
+                antecedent::reason::reason_details::provider_capability_negotiation::CAPABILITY_MISSING
+                    .to_owned(),
             offending: None,
             expected: None,
             supplied: None,
@@ -274,7 +377,7 @@ mod tests {
 
     #[test]
     fn external_refusal_json_matches_the_wire_serializer() {
-        use antecedent_io::external_binding_wire::RefusalWire;
+        use antecedent::io::external_binding_wire::RefusalWire;
         for capability in [Some(ExternalCapability::Cdf), None] {
             let value = refusal(capability);
             let json = external_refusal_json(&value);
@@ -292,9 +395,39 @@ mod tests {
     }
 
     #[test]
+    fn compact_refusal_preserves_the_six_field_wire_shape() {
+        for remedy in [None, Some("retry \"quoted\"")] {
+            let actual =
+                super::compact_refusal_json("code", "stage", "detail", "line\nbreak", remedy);
+            let expected = serde_json::json!({
+                "code": "code", "stage": "stage", "detail": "detail",
+                "message": "line\nbreak", "offending": null, "remedy": remedy,
+            })
+            .to_string();
+            assert_eq!(actual, expected);
+        }
+    }
+
+    #[test]
+    fn compact_refusal_value_preserves_optional_fields_and_escaping() {
+        for offending in [None, Some("field\"quoted")] {
+            for remedy in [None, Some(""), Some("try\nagain")] {
+                let actual = super::compact_refusal_value(
+                    "code", "stage", "detail", "message", offending, remedy,
+                );
+                let expected = serde_json::json!({
+                    "code":"code", "stage":"stage", "detail":"detail", "message":"message",
+                    "offending":offending, "remedy":remedy,
+                });
+                assert_eq!(actual, expected);
+            }
+        }
+    }
+
+    #[test]
     fn a_plan_field_matches_serde_of_the_wire() {
         use super::RefusalJson;
-        use antecedent_io::recalc_receipt_artifact::{PlanEntryWire, PlanWire};
+        use antecedent::io::recalc_receipt_artifact::{PlanEntryWire, PlanWire};
         let plan = PlanWire {
             entries: vec![PlanEntryWire {
                 stage: "estimate".to_owned(),
@@ -312,5 +445,17 @@ mod tests {
         assert_eq!(value["plan"], via_serde);
         assert_eq!(value["message"], "m");
         assert!(value["offending"].is_null());
+    }
+
+    #[test]
+    fn caller_sized_counts_are_refused_past_their_limit() {
+        pyo3::Python::initialize();
+        assert!(check_count("replicates", MAX_RESAMPLES, MAX_RESAMPLES).is_ok());
+        assert!(check_count("replicates", MAX_RESAMPLES + 1, MAX_RESAMPLES).is_err());
+        assert!(check_mcmc_schedule(4, 500, 1000, 1).is_ok());
+        assert!(check_mcmc_schedule(100_000, 500, 1000, 1).is_err());
+        assert!(check_mcmc_schedule(4, 500, u32::MAX, u32::MAX).is_err());
+        assert!(check_paths(64, 16).is_ok());
+        assert!(check_paths(usize::MAX, 16).is_err());
     }
 }

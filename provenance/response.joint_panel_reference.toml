@@ -1,0 +1,41 @@
+feature_id = "response.joint_panel_reference"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+implementation_deviations = [
+  "Independent synthetic fixture equations, not a new estimator or a reproduced paper procedure.",
+  "Finite L=2 weighted carryover precedes shared Michaelis-Menten saturation. Hierarchical group intercept truth, seasonal dummies and an additive observable confounder are declared explicitly.",
+  "Known parameter functionals condition on the retained four-group population, covariates and pre-period histories; future mean-zero outcome noise is integrated out. No uncertainty or coverage claim is attached.",
+  "Covariate-dependent randomized per-time joint assignment and a latent-confounded, off-diagonal-unsupported design are separate fixtures; production identification and refusal are separately exercised by the retained public workflow tests, not granted by this generator.",
+  "Additive and interaction variants share all random draws; the zero-interaction reference isolates the declared main effects.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "conformance/response/joint_panel/reference.py (standard-library independent generator, seed 20261021)",
+  "conformance/response/joint_panel/expected.json (retained group, initial-history, innovation, per-world and whole-contrast truth)",
+  "scripts/test_joint_panel_reference.py (independent steady-state Delta_AB=2/3 and finite-history transient formulas; data/dependence equations and negative support design)",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "derivation"
+rationale = "An independent standard-library generator of the truth for the finite-lag two-channel panel fixtures: weighted carryover precedes a shared saturation, with group intercepts, seasons and AR(1) errors declared explicitly; it is a reference, not a fitted route. Re-review of the bound generator and assertions against their pre-rename versions found only the calibration-status metadata label change and corresponding test assertion; the six retained artifacts were verified without rewriting them."
+no_independent_algorithm = "reference.py evaluates the declared structural equations (lag-weighted exposure, Michaelis-Menten saturation, AR(1) recursion) and averages the contrast over the retained groups and histories; it imports no production estimator and estimates nothing from data."
+covered_by = ["response.joint_panel"]
+derivation = "Carryover exposure E_t = sum_k w_k x_{t-k} over the declared lag weights, saturation s(E) = E / (E + K) with K = 2, mean outcome 2 + group + season + 0.7 z + 3 s(A) + 2 s(B) + beta_AB s(A) s(B) with AR(1) errors; after the lag window a sustained dose of 4 saturates both channels at 4/6, so the interaction contrast is beta_AB (4/6)^2 = 2/3 for beta_AB = 1.5, and the additive variant has contrast 0. scripts/test_joint_panel_reference.py asserts the closed form and the finite-history transient averages to 13 places."
+record_sha256 = "c8729dd743a2155b7361b2cb917247e8195d1339af672404b1a08e7000bc3486"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "conformance/response/joint_panel/reference.py"
+items = ["fn artifacts", "fn carryover", "fn csv_text", "fn interaction_identity_problems", "fn main", "fn matches_artifact", "fn mean_outcome", "fn panel", "fn reference", "fn regime_paths", "fn same_truth", "fn saturation", "fn whole_program_panel"]
+sha256 = "b1435313317ae40f1f26f18439809378527732fb63e1191d4b1191cf8f49a3b5"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "scripts/test_joint_panel_reference.py"
+items = ["const HERE", "const ROOT", "const SPEC", "const reference", "fn test_confounded_design_has_no_off_diagonal_support_and_requires_withholding", "fn test_generator_has_no_production_or_external_numerical_imports", "fn test_heldout_joint_program_is_not_an_observed_training_trajectory", "fn test_observed_outcomes_keep_declared_ar_errors_and_finite_lags", "fn test_seed_and_all_retained_artifacts_reproduce", "fn test_steady_state_interaction_has_an_independent_closed_form", "fn test_transient_contrast_respects_shared_initial_history", "fn test_truth_comparison_preserves_metadata_shapes_and_rejects_numeric_drift", "fn test_whole_program_experiment_retains_its_actual_independent_assignment"]
+sha256 = "9022c5bfaaec23a1c638052481526adee2d1a969196d79772eab535fb75c8a7b"

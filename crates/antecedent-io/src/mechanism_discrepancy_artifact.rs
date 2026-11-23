@@ -4,7 +4,7 @@
 //! diagnostic:
 //!
 //! * `mechanism_discrepancy_meta` (CBOR): version, feature marker, the frozen null, the
-//!   asymptotic-Wald claim, the **unmeasured** calibration coordinate, the level and power, the
+//!   asymptotic-Wald claim, the **`not_measured`** calibration coordinate, the level and power, the
 //!   compared-intercept declaration, the declared dependence, the population / selection
 //!   alignment text, each population's label, measurement contract (node, units, parents,
 //!   protocol id) and row count, the identity digests, the stored result and the standing
@@ -24,10 +24,10 @@
 //! What this does **not** say: non-rejection never certifies invariance
 //! (`non_rejection_certifies_invariance` is `false` and a stored `true` is refused), the
 //! diagnostic informs only a selection node on the compared node, Type I error and power are
-//! unmeasured (`calibration = "unmeasured"`), and no causal or interval license is granted.
+//! `not_measured` (`calibration = "not_measured"`), and no causal or interval support is granted.
 //! Unknown major versions refuse.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CanonicalWriter;
 use antecedent_estimate::mechanism_discrepancy::{
@@ -40,14 +40,12 @@ use antecedent_estimate::mechanism_discrepancy::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
-
 /// The artifact major version this reader writes and accepts.
 pub const MECHANISM_DISCREPANCY_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
 pub const MECHANISM_DISCREPANCY_ARTIFACT_FEATURE: &str = "mechanism_discrepancy_v1";
 /// Calibration coordinate of this test: Type I error and power were not measured.
-pub const MECHANISM_DISCREPANCY_CALIBRATION: &str = "unmeasured";
+pub const MECHANISM_DISCREPANCY_CALIBRATION: &str = "not_measured";
 /// Most bytes an artifact may occupy, enforced on export and on consumption.
 pub const MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 
@@ -68,10 +66,11 @@ crate::sectioned_artifact_error!(
 );
 
 fn invalid_request(message: &str) -> MechanismDiscrepancyArtifactError {
-    MechanismDiscrepancyArtifactError::Refused {
-        code: antecedent_core::reason_code!("invalid_argument"),
-        message: format!("mechanism_discrepancy.invalid_request: {message}"),
-    }
+    MechanismDiscrepancyArtifactError::refused(
+        antecedent_core::reason_code!("invalid_argument"),
+        antecedent_core::reason_details::mechanism_discrepancy::INVALID_REQUEST,
+        message,
+    )
 }
 
 /// One parent on the wire.
@@ -333,9 +332,9 @@ pub struct MechanismDiscrepancyMeta {
     pub feature: String,
     /// The frozen null.
     pub null: String,
-    /// Always the asymptotic-Wald claim with unmeasured calibration.
+    /// Always the asymptotic-Wald claim with `not_measured` calibration.
     pub inference_claim: String,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Level of the decisions.
     pub alpha: f64,
@@ -357,7 +356,7 @@ pub struct MechanismDiscrepancyMeta {
     pub identity: MechanismDiscrepancyIdentity,
     /// The stored result.
     pub result: ResultWire,
-    /// Standing caveats: non-rejection is not invariance, error rates unmeasured.
+    /// Standing caveats: non-rejection is not invariance, error rates `not_measured`.
     pub caveats: Vec<String>,
 }
 
@@ -373,7 +372,7 @@ pub struct MechanismDiscrepancyReportWire {
     pub null: String,
     /// Inference claim.
     pub inference_claim: String,
-    /// Always `unmeasured`.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Level of the decisions.
     pub alpha: f64,
@@ -496,21 +495,14 @@ fn identity_diff(
     stored: &MechanismDiscrepancyIdentity,
     other: &MechanismDiscrepancyIdentity,
 ) -> Option<&'static str> {
-    if stored.measurement_id != other.measurement_id {
-        Some("measurement")
-    } else if stored.source_evidence_id != other.source_evidence_id {
-        Some("source_evidence")
-    } else if stored.target_evidence_id != other.target_evidence_id {
-        Some("target_evidence")
-    } else if stored.null != other.null {
-        Some("null")
-    } else if stored.design_id != other.design_id {
-        Some("design")
-    } else if stored.digest != other.digest {
-        Some("identity")
-    } else {
-        None
-    }
+    crate::first_identity_difference!(stored, other, {
+        measurement_id => "measurement",
+        source_evidence_id => "source_evidence",
+        target_evidence_id => "target_evidence",
+        null => "null",
+        design_id => "design",
+        digest => "identity",
+    })
 }
 
 fn numbers_of(request: &MechanismDiscrepancyRequestWire) -> Vec<u8> {
@@ -616,33 +608,22 @@ fn encode_parts_impl(
     numbers: &[u8],
     artifact_id: &str,
 ) -> Result<Vec<u8>, MechanismDiscrepancyArtifactError> {
-    if artifact_id.trim().is_empty() {
-        return Err(MechanismDiscrepancyArtifactError::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta)
-        .map_err(|error| MechanismDiscrepancyArtifactError::Encode(error.to_string()))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
-            note: "mechanism_discrepancy_wald_unmeasured_never_certifies_invariance",
+            note: "mechanism_discrepancy_wald_not_measured_never_certifies_invariance",
             max_bytes: MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES,
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[
-            crate::OutSection {
-                id: META_SECTION,
-                content_type: crate::CONTENT_CBOR,
-                bytes: &meta_bytes,
-            },
-            crate::OutSection {
-                id: NUMBERS_SECTION,
-                content_type: crate::CONTENT_BYTES,
-                bytes: numbers,
-            },
-        ],
+        META_SECTION,
+        meta,
+        &[crate::OutSection {
+            id: NUMBERS_SECTION,
+            content_type: crate::CONTENT_BYTES,
+            bytes: numbers,
+        }],
     )
-    .map_err(|error| crate::map_artifact_check!(error, MechanismDiscrepancyArtifactError))
 }
 
 /// Decode the two sections of a container, refusing another version before the metadata is
@@ -663,25 +644,22 @@ pub fn decode_parts(
 fn decode_parts_impl(
     bytes: &[u8],
 ) -> Result<(MechanismDiscrepancyMeta, Vec<u8>), MechanismDiscrepancyArtifactError> {
-    let parts = crate::decode_container(
+    let (meta, parts) = crate::artifact_codec::decode_sectioned::<
+        MechanismDiscrepancyArtifactError,
+        MechanismDiscrepancyMeta,
+    >(
         ARTIFACT_KIND,
         MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES,
-        &[META_SECTION, NUMBERS_SECTION],
+        META_SECTION,
+        &[NUMBERS_SECTION],
+        MECHANISM_DISCREPANCY_ARTIFACT_VERSION,
         bytes,
-    )
-    .map_err(|error| crate::map_artifact_check!(error, MechanismDiscrepancyArtifactError))?;
-    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
+    )?;
+    let Ok([payload]) = <[Vec<u8>; 1]>::try_from(parts) else {
         return Err(MechanismDiscrepancyArtifactError::Malformed(
             "unsupported container layout".into(),
         ));
     };
-    let meta = crate::decode_with_version(&meta_bytes, |version| {
-        if version == MECHANISM_DISCREPANCY_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(MechanismDiscrepancyArtifactError::UnsupportedVersion { version })
-        }
-    })?;
     Ok((meta, payload))
 }
 
@@ -689,31 +667,24 @@ fn check_semantics(
     meta: &MechanismDiscrepancyMeta,
 ) -> Result<(), MechanismDiscrepancyArtifactError> {
     use MechanismDiscrepancyArtifactError as E;
-    if meta.feature != MECHANISM_DISCREPANCY_ARTIFACT_FEATURE {
-        return Err(E::UnsupportedSemantics("feature marker"));
-    }
+    crate::artifact_codec::require_semantics::<E>(
+        meta.feature == MECHANISM_DISCREPANCY_ARTIFACT_FEATURE,
+        "feature marker",
+    )?;
     if meta.null != MECHANISM_DISCREPANCY_NULL {
         return Err(E::IdentityMismatch { field: "null" });
     }
-    if meta.inference_claim != MECHANISM_DISCREPANCY_INFERENCE_CLAIM {
-        return Err(E::UnsupportedSemantics("inference claim"));
-    }
-    if meta.calibration != MECHANISM_DISCREPANCY_CALIBRATION {
-        return Err(E::UnsupportedSemantics("calibration"));
-    }
-    if meta.caveats != [MECHANISM_DISCREPANCY_CAVEAT, MECHANISM_DISCREPANCY_POWER_CAVEAT] {
-        return Err(E::UnsupportedSemantics("caveats"));
-    }
-    if meta.alignment != MECHANISM_DISCREPANCY_ALIGNMENT {
-        return Err(E::UnsupportedSemantics("alignment"));
-    }
-    if meta.dependence_assumption != MECHANISM_DISCREPANCY_DEPENDENCE {
-        return Err(E::UnsupportedSemantics("dependence assumption"));
-    }
-    if meta.result.non_rejection_certifies_invariance {
-        return Err(E::UnsupportedSemantics("non-rejection certifies invariance"));
-    }
-    Ok(())
+    crate::artifact_codec::require_markers::<E>(&[
+        (meta.inference_claim == MECHANISM_DISCREPANCY_INFERENCE_CLAIM, "inference claim"),
+        (meta.calibration == MECHANISM_DISCREPANCY_CALIBRATION, "calibration"),
+        (
+            meta.caveats == [MECHANISM_DISCREPANCY_CAVEAT, MECHANISM_DISCREPANCY_POWER_CAVEAT],
+            "caveats",
+        ),
+        (meta.alignment == MECHANISM_DISCREPANCY_ALIGNMENT, "alignment"),
+        (meta.dependence_assumption == MECHANISM_DISCREPANCY_DEPENDENCE, "dependence assumption"),
+        (!meta.result.non_rejection_certifies_invariance, "non-rejection certifies invariance"),
+    ])
 }
 
 /// A produced or consumed discrepancy artifact: the declared request, the recomputed result and
@@ -851,10 +822,10 @@ impl MechanismDiscrepancyArtifact {
                 "statistic, p-value, coefficients or detectability",
             ));
         }
-        if let Some(expected) = expected {
-            if let Some(field) = identity_diff(expected, &computed.identity) {
-                return Err(MechanismDiscrepancyArtifactError::IdentityMismatch { field });
-            }
+        if let Some(expected) = expected
+            && let Some(field) = identity_diff(expected, &computed.identity)
+        {
+            return Err(MechanismDiscrepancyArtifactError::IdentityMismatch { field });
         }
         Ok(Self { meta, request, result: computed.result })
     }

@@ -1,6 +1,7 @@
-//! Checked propensity lifecycle across licensed DAG estimator choices.
+//! Checked propensity lifecycle across supported DAG estimator choices.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, EstimatorId, IdentifierId, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, ExecutionContext, PopulationRegistry, PredicateExpr, TargetPopulation,
@@ -41,6 +42,7 @@ fn dag() -> Dag {
 }
 
 #[test]
+#[allow(clippy::too_many_lines, reason = "a linear test script over every propensity estimator")]
 fn propensity_estimators_retain_procedure_through_public_lifecycle() {
     let base_data = make_data(0.0);
     let graph = dag();
@@ -85,8 +87,10 @@ fn propensity_estimators_retain_procedure_through_public_lifecycle() {
                 let one_shot = builder.run(&ctx).unwrap();
                 let mut prepared = builder.prepare(&ctx).unwrap();
                 drop(builder);
-                let plan =
-                    prepared.checked_propensity_info().expect("retained checked propensity plan");
+                let RetainedOperation::CheckedPropensity(plan) = prepared.retained_operation()
+                else {
+                    panic!("retained checked propensity plan")
+                };
                 let bound_source_rows = plan.source_rows.clone();
                 assert_eq!(plan.estimator, estimator);
                 assert_eq!(plan.adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
@@ -108,8 +112,10 @@ fn propensity_estimators_retain_procedure_through_public_lifecycle() {
                 }
 
                 let result = prepared.estimate(&base_data, &ctx).unwrap();
+                // The generating effect is 2.0 with deterministic residuals of at most 0.23; the
+                // observed estimates are within 0.03 of it.
                 assert!(
-                    (result.effect() - 2.0).abs() < 0.45,
+                    (result.effect() - 2.0).abs() < 0.06,
                     "{estimator:?} effect={}",
                     result.effect()
                 );
@@ -118,28 +124,52 @@ fn propensity_estimators_retain_procedure_through_public_lifecycle() {
                     assert!(!result.refutations.is_empty());
                 }
                 if estimator == EstimatorId::PropensityWeighting {
-                    assert!(result.estimate.as_effect().unwrap().se_bootstrap().is_some());
+                    assert!(result.estimate().as_effect().unwrap().se_bootstrap().is_some());
                 } else {
-                    assert!(result.estimate.as_effect().unwrap().se_analytic().is_finite());
-                    assert!(result.estimate.as_effect().unwrap().se_bootstrap().is_none());
+                    assert!(result.estimate().as_effect().unwrap().se_analytic().is_finite());
+                    assert!(result.estimate().as_effect().unwrap().se_bootstrap().is_none());
                 }
 
                 let refreshed_data = make_data(4.0);
-                let refreshed = prepared.refresh(refreshed_data, &ctx).unwrap();
-                assert!((refreshed.effect() - 2.0).abs() < 0.45);
-                assert!((refreshed.effect() - result.effect()).abs() < 0.2);
-                let rebound_plan =
-                    prepared.checked_propensity_info().expect("checked plan remains after refresh");
+                let refreshed = rebind_estimate(&mut prepared, refreshed_data, &ctx).unwrap();
+                assert!((refreshed.effect() - 2.0).abs() < 0.06);
+                // Both estimators are exactly invariant to a constant shift of the outcome (the
+                // refreshed data add 4.0 to every y): the Hajek contrast of weighted means and the
+                // matched-pair difference cancel it. Observed difference 4e-16.
+                assert!(
+                    (refreshed.effect() - result.effect()).abs() < 1e-9,
+                    "{estimator:?}: a constant outcome shift moved the effect from {} to {}",
+                    result.effect(),
+                    refreshed.effect()
+                );
+                let RetainedOperation::CheckedPropensity(rebound_plan) =
+                    prepared.retained_operation()
+                else {
+                    panic!("checked plan remains after refresh")
+                };
                 assert_eq!(rebound_plan.source_rows, bound_source_rows);
                 let bytes = prepared
                     .encode_contracted_result(&refreshed, "checked-propensity", &ctx)
                     .unwrap();
-                let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+                let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
                 assert!(consumed.acceptance.unresolved.iter().any(|reason| {
                     reason.as_ref() == "dependencies.checked_propensity_operation"
                 }));
-                assert!(!consumed.acceptance.accepts_as_verified_program());
+                assert!(!consumed.acceptance.accepts_as_replayed_program());
             }
         }
     }
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

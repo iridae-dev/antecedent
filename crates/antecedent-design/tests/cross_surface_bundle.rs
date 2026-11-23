@@ -4,8 +4,8 @@
 //! Fixtures live in `conformance/cross_surface/`. A missing `py_*` fixture fails the
 //! test: run `python python/tests/generate_cross_surface_bundle_fixtures.py` from the
 //! repo root. To refresh the Rust-built bundle:
-//! `ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-design --test
-//! cross_surface_bundle -- --ignored regenerate_rust_fixtures`.
+//! `ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-design --test suite_01
+//! cross_surface_bundle::regenerate_rust_fixtures -- --ignored`.
 //!
 //! The bundle holds two hand-derived decisions:
 //!
@@ -66,7 +66,7 @@ fn read_fixture(name: &str) -> Vec<u8> {
         &format!(
             "run `{PY_COMMAND}` from the repo root \
             (Rust-built fixtures: ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-design \
-            --test cross_surface_bundle -- --ignored regenerate_rust_fixtures)"
+            --test suite_01 cross_surface_bundle::regenerate_rust_fixtures -- --ignored)"
         ),
     )
 }
@@ -368,7 +368,10 @@ fn xsurface_python_built_bundle_refuses_another_identity_and_changed_bytes() {
         &SuppliedSources::default(),
     );
     let refusal = wrong.unwrap_err().to_refusal().unwrap();
-    assert_eq!(refusal.detail, "composition_bundle.expected_identity_mismatch");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::composition_bundle::EXPECTED_IDENTITY_MISMATCH
+    );
 
     let mut flipped = bytes;
     let middle = flipped.len() / 2;
@@ -379,7 +382,8 @@ fn xsurface_python_built_bundle_refuses_another_identity_and_changed_bytes() {
         &identity,
         &SuppliedSources::default(),
     );
-    assert!(changed.is_err());
+    let e = changed.unwrap_err().to_string();
+    assert!(e.contains("checksum mismatch for section `embedded.contract`"), "{e}");
 }
 
 /// The Rust-assembled bundle round-trips through its own bytes, so the Python
@@ -400,6 +404,7 @@ fn regenerate_rust_fixtures() {
         Ok("1"),
         "set ANTECEDENT_WRITE_FIXTURES=1 to write fixtures"
     );
+    antecedent_core::support_gate::forbid_fixture_write();
     let dir = fixture_dir();
     std::fs::create_dir_all(&dir).unwrap();
     let bundle = rust_bundle();

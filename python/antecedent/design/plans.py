@@ -223,6 +223,50 @@ class StructurePrior:
         n = len(identified)
         return cls((1.0,) * n, tuple(identified), tuple(range(n)))
 
+    @classmethod
+    def from_graphs(
+        cls,
+        graphs: Sequence[Any],
+        *,
+        treatment: str,
+        outcome: str,
+        weights: Sequence[float] | None = None,
+        keys: Sequence[int] | None = None,
+        interventions: Sequence[str] | None = None,
+    ) -> StructurePrior:
+        """The posterior over structures with its identification flags derived, not declared.
+
+        ``graphs`` are the :class:`~antecedent.Admg` structures of a graph posterior (equal
+        weight unless ``weights`` says otherwise). Each structure's ``identified`` flag is
+        whether the complete ID algorithm identifies ``P(outcome | do(treatment))`` in it.
+        With ``interventions`` (the variables an experiment would set),
+        ``identified_under_intervention`` is the same question on each structure's mutilated
+        graph, the structure with every edge into those variables removed. One flag vector
+        applies to every intervention plan, so rank experiments on different target sets
+        separately.
+        """
+        from ..graph import Admg
+
+        structures = list(graphs)
+        if not structures or any(not isinstance(g, Admg) for g in structures):
+            raise CausalTypeError("graphs must be a non-empty sequence of Admg structures")
+        n = len(structures)
+        w = [1.0] * n if weights is None else [float(x) for x in weights]
+        k = list(range(n)) if keys is None else [_count(x, "keys entry") for x in keys]
+        if len(w) != n or len(k) != n:
+            raise CausalValueError("weights and keys must have one entry per structure")
+        from .. import _native
+
+        identified, under = _native.identify_structure_posterior(
+            structures,
+            w,
+            k,
+            treatment,
+            outcome,
+            None if interventions is None else list(interventions),
+        )
+        return cls(tuple(w), tuple(identified), tuple(k), None if under is None else tuple(under))
+
 
 __all__ = [
     "PLAN_TYPES",

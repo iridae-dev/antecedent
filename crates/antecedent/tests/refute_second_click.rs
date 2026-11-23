@@ -1,6 +1,6 @@
 //! Second-click refute after prepared estimate (BACKLOG E).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{BayesianConfig, InferenceMode, LatencyMode, RefuteSuite, Study};
 use antecedent_core::{
@@ -31,10 +31,10 @@ fn prepared_refute_second_click_preserves_ate() {
 
     let first = prepared.estimate(&data, &ctx).unwrap();
     assert!(first.refutations.is_empty());
-    let ate = first.estimate.as_effect().unwrap().ate;
+    let ate = first.estimate().as_effect().unwrap().ate;
 
     let second = prepared.refute(&first, &data, RefuteSuite::PlaceboAndRcc, &ctx).unwrap();
-    assert!((second.estimate.as_effect().unwrap().ate - ate).abs() < 1e-15);
+    assert!((second.estimate().as_effect().unwrap().ate - ate).abs() < 1e-15);
     assert!(!second.refutations.is_empty());
     assert!(second.diagnostics.iter().any(|d| d.code.as_ref() == "exec.refute.second_click"));
 
@@ -91,15 +91,13 @@ fn prepared_bayesian_refute_includes_predictive_checks() {
     assert_eq!(second_ids, one_shot_ids);
 }
 
-/// A caller who never touches `.refute(..)` and lands on a query where the
-/// default suite (`RefuteSuite::PlaceboAndRcc`) is not supported must be
-/// told validation was silently turned off, not left to infer it from an
-/// empty `refutations` list. `ResponseCurve` on an explicit `Dag` is
-/// licensed at `RefuteSuite::None` (the surface itself) but has no licensed
-/// or allowlisted cell at `RefuteSuite::PlaceboAndRcc` — exactly the
-/// requested-vs-none-suite gap `StudyBuilder::build` downgrades silently.
+/// A caller who never touches `.refute(..)` and lands on a `ResponseCurve` on an explicit `Dag`
+/// keeps the default suite (`RefuteSuite::PlaceboAndRcc`): the cell is supported with validation,
+/// so the curve refuters run and nothing is downgraded. (A family whose default suite is not
+/// supported is still told that validation was dropped; see
+/// `latency_tiers::omitted_refute_suite_is_dropped_for_a_quantile_but_an_explicit_one_is_refused`.)
 #[test]
-fn implicit_default_refute_downgrade_is_diagnosed() {
+fn implicit_default_refute_runs_the_curve_suite_without_a_downgrade() {
     let n = 120;
     let z: Vec<f64> = (0..n).map(|i| (i as f64 / 17.0).sin()).collect();
     let treatment: Vec<f64> =
@@ -150,30 +148,26 @@ fn implicit_default_refute_downgrade_is_diagnosed() {
         .unwrap();
     let result = study.run(&ExecutionContext::for_tests(11)).unwrap();
 
-    assert!(result.refutations.is_empty());
-    let downgrade = result
-        .diagnostics
-        .iter()
-        .find(|d| d.code.as_ref() == "exec.refute.default_suite_unsupported")
-        .expect("silent refute downgrade must be diagnosed, not silent");
+    for name in ["curve.support", "curve.placebo_treatment", "curve.random_common_cause"] {
+        assert!(
+            result.refutations.iter().any(|report| report.refuter.as_ref() == name),
+            "the default suite must run `{name}`: {:?}",
+            result.refutations.iter().map(|r| r.refuter.as_ref()).collect::<Vec<_>>()
+        );
+    }
     assert!(
-        downgrade
-            .fields
+        !result
+            .diagnostics
             .iter()
-            .any(|(k, v)| k.as_ref() == "requested_suite" && v.as_ref() == "placebo+rcc"),
+            .any(|d| d.code.as_ref() == "exec.refute.default_suite_unsupported"),
         "{:?}",
-        downgrade.fields
-    );
-    assert!(
-        downgrade.fields.iter().any(|(k, v)| k.as_ref() == "applied_suite" && v.as_ref() == "none"),
-        "{:?}",
-        downgrade.fields
+        result.diagnostics
     );
 }
 
 /// Same shape as above, but on a family whose default suite IS supported
 /// (`AverageEffect` on a confounded `Dag`, `RefuteSuite::PlaceboAndRcc` is
-/// licensed) — no downgrade happens, so the diagnostic must not appear.
+/// supported) — no downgrade happens, so the diagnostic must not appear.
 #[test]
 fn implicit_default_refute_no_downgrade_is_not_diagnosed() {
     let (data, dag, query) = confounded_scm(200, 23);

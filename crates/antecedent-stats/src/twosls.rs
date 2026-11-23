@@ -1,6 +1,6 @@
 //! Weighted least squares and two-stage least squares.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::StatsError;
 use crate::linalg::{DenseLinearAlgebra, LeastSquaresFit, LeastSquaresWorkspace};
@@ -30,7 +30,7 @@ pub fn fit_wls(
     if x_colmajor.len() < nrows.saturating_mul(ncols) {
         return Err(StatsError::Shape { message: "X buffer too short" });
     }
-    let mut x_w = vec![0.0; nrows * ncols];
+    let mut root = vec![0.0; nrows];
     let mut y_w = vec![0.0; nrows];
     for r in 0..nrows {
         let wr = weights[r];
@@ -39,20 +39,17 @@ pub fn fit_wls(
                 message: "WLS weights must be finite and non-negative",
             });
         }
-        let w = wr.sqrt();
-        y_w[r] = y[r] * w;
-        for c in 0..ncols {
-            x_w[c * nrows + r] = x_colmajor[c * nrows + r] * w;
-        }
+        root[r] = wr.sqrt();
+        y_w[r] = y[r] * root[r];
     }
-    backend.least_squares(&x_w, nrows, ncols, &y_w, workspace)
+    backend.row_scaled_least_squares(x_colmajor, nrows, ncols, &root, &y_w, workspace)
 }
 
 /// Weak-instrument diagnostic: joint significance of the excluded instruments in the
 /// first-stage regression of the endogenous variable on `[instruments | exogenous]`.
 ///
 /// [`fit_2sls`] never hard-fails on a weak instrument (only on an exactly
-/// degenerate first stage). Licensed IV uncertainty is the Anderson–Rubin set in
+/// degenerate first stage). Supported IV uncertainty is the Anderson–Rubin set in
 /// [`Self::anderson_rubin`], not a Wald / pretest SE.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FirstStageDiagnostics {
@@ -73,7 +70,7 @@ pub struct FirstStageDiagnostics {
     /// is an unbounded ray or the whole line. `None` when the set is empty, a union of
     /// disjoint components, or when AR was withheld (see [`Self::uncertainty_withheld`]).
     pub anderson_rubin: Option<(f64, f64, f64)>,
-    /// Why a licensed IV uncertainty product was withheld (AR union / empty set /
+    /// Why a supported IV uncertainty product was withheld (AR union / empty set /
     /// non-homoskedastic SE kind / numerical failure).
     pub uncertainty_withheld: Option<&'static str>,
 }
@@ -126,6 +123,9 @@ pub fn fit_2sls(
     }
     if exogenous_colmajor.len() < z_nrows.saturating_mul(x_ncols) {
         return Err(StatsError::Shape { message: "exogenous buffer too short" });
+    }
+    if instruments_colmajor.len() < z_nrows.saturating_mul(z_ncols) {
+        return Err(StatsError::Shape { message: "instrument buffer too short" });
     }
     // Full instrument set: excluded instruments plus included exogenous regressors.
     let stage1_ncols = z_ncols + x_ncols;
@@ -189,6 +189,164 @@ pub struct IvBlocks<'a> {
     pub exogenous_colmajor: &'a [f64],
     /// Included exogenous columns.
     pub x_ncols: usize,
+}
+
+/// Joint structural-feature IV fit. Every endogenous feature is projected on
+/// the complete instrument space; interactions must be actual feature columns,
+/// never products of separately projected treatment columns.
+#[derive(Clone, Debug)]
+pub struct JointTwoSlsFit {
+    /// One first-stage fit per actual endogenous structural feature.
+    pub first_stages: Vec<LeastSquaresFit>,
+    /// Joint coefficient fit, endogenous features first, included exogenous last.
+    pub second_stage: LeastSquaresFit,
+    /// Column-major projected endogenous structural features.
+    pub fitted_endogenous: Vec<f64>,
+    /// Residuals at actual structural features, rather than first-stage predictions.
+    pub structural_residuals: Vec<f64>,
+    /// Sum of squared structural residuals.
+    pub structural_rss: f64,
+    /// Per-feature excluded-instrument first-stage diagnostics. These marginal
+    /// diagnostics do not replace the joint projected-design rank requirement.
+    pub first_stage_diagnostics: Vec<FirstStageDiagnostics>,
+}
+
+/// Estimate a joint linear structural response from explicit instrument moments.
+/// Requires full rank of both the complete instrument design and the projected
+/// joint structural design. The identified target is the coefficient vector of
+/// the declared structural moment model. This routine makes no generic LATE or
+/// population-ATE claim under heterogeneous effects.
+///
+/// # Errors
+/// Invalid/nonfinite shapes, insufficient instrument rank, insufficient joint
+/// structural rank, or numerical backend failure.
+pub fn fit_joint_2sls(
+    blocks: &IvBlocks<'_>,
+    endogenous_colmajor: &[f64],
+    endogenous_columns: usize,
+    y: &[f64],
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut LeastSquaresWorkspace,
+) -> Result<JointTwoSlsFit, StatsError> {
+    let n = blocks.nrows;
+    let q = blocks
+        .z_ncols
+        .checked_add(blocks.x_ncols)
+        .ok_or(StatsError::Shape { message: "joint IV dimension overflow" })?;
+    let p = endogenous_columns
+        .checked_add(blocks.x_ncols)
+        .ok_or(StatsError::Shape { message: "joint IV dimension overflow" })?;
+    if n == 0
+        || endogenous_columns == 0
+        || q < p
+        || n <= q
+        || endogenous_colmajor.len() != n.saturating_mul(endogenous_columns)
+        || y.len() != n
+        || blocks.instruments_colmajor.len() != n.saturating_mul(blocks.z_ncols)
+        || blocks.exogenous_colmajor.len() != n.saturating_mul(blocks.x_ncols)
+        || endogenous_colmajor
+            .iter()
+            .chain(y)
+            .chain(blocks.instruments_colmajor)
+            .chain(blocks.exogenous_colmajor)
+            .any(|v| !v.is_finite())
+    {
+        return Err(StatsError::Shape {
+            message: "invalid joint IV dimensions, finite data or instrument count",
+        });
+    }
+    let mut instruments = Vec::with_capacity(n * q);
+    instruments.extend_from_slice(blocks.instruments_colmajor);
+    instruments.extend_from_slice(blocks.exogenous_colmajor);
+    let mut projected = Vec::with_capacity(n * endogenous_columns);
+    let mut first_stages = Vec::with_capacity(endogenous_columns);
+    let mut diagnostics = Vec::with_capacity(endogenous_columns);
+    for feature in endogenous_colmajor.chunks_exact(n) {
+        let fit = backend.least_squares(&instruments, n, q, feature, workspace)?;
+        if fit.rank != q {
+            return Err(StatsError::RankDeficient { rank: fit.rank, ncols: q });
+        }
+        diagnostics.push(first_stage_f_test(blocks, feature, fit.rss, backend, workspace)?);
+        for row in 0..n {
+            projected.push((0..q).map(|c| instruments[c * n + row] * fit.coefficients[c]).sum());
+        }
+        first_stages.push(fit);
+    }
+    let mut structural_projection = projected.clone();
+    structural_projection.extend_from_slice(blocks.exogenous_colmajor);
+    let second_stage = backend.least_squares(&structural_projection, n, p, y, workspace)?;
+    if second_stage.rank != p {
+        return Err(StatsError::RankDeficient { rank: second_stage.rank, ncols: p });
+    }
+    let mut actual = Vec::with_capacity(n * p);
+    actual.extend_from_slice(endogenous_colmajor);
+    actual.extend_from_slice(blocks.exogenous_colmajor);
+    let structural_residuals = (0..n)
+        .map(|row| {
+            y[row] - (0..p).map(|c| actual[c * n + row] * second_stage.coefficients[c]).sum::<f64>()
+        })
+        .collect::<Vec<_>>();
+    let structural_rss = structural_residuals.iter().map(|e| e * e).sum();
+    Ok(JointTwoSlsFit {
+        first_stages,
+        second_stage,
+        fitted_endogenous: projected,
+        structural_residuals,
+        structural_rss,
+        first_stage_diagnostics: diagnostics,
+    })
+}
+
+#[cfg(test)]
+mod joint_iv_tests {
+    use super::*;
+    use crate::FaerBackend;
+    #[test]
+    fn endogenous_joint_features_require_their_own_instrument_rank() {
+        let mut features = vec![Vec::new(); 3];
+        let mut instruments = vec![Vec::new(); 3];
+        let mut y = Vec::new();
+        for a in [-1.0, 1.0] {
+            for b in [-1.0, 1.0] {
+                for u in [-1.0, 1.0] {
+                    let d1 = a + u;
+                    let d2 = b + 0.5 * u;
+                    for (column, v) in features.iter_mut().zip([d1, d2, d1 * d2]) {
+                        column.push(v);
+                    }
+                    for (column, v) in instruments.iter_mut().zip([a, b, a * b]) {
+                        column.push(v);
+                    }
+                    y.push(1.0 + 2.0 * d1 + 3.0 * d2 + 4.0 * d1 * d2 + u);
+                }
+            }
+        }
+        let features = features.concat();
+        let z = instruments.concat();
+        let exogenous = vec![1.0; 8];
+        let blocks = IvBlocks {
+            nrows: 8,
+            instruments_colmajor: &z,
+            z_ncols: 3,
+            exogenous_colmajor: &exogenous,
+            x_ncols: 1,
+        };
+        let mut workspace = LeastSquaresWorkspace::default();
+        let fit = fit_joint_2sls(&blocks, &features, 3, &y, &FaerBackend, &mut workspace).unwrap();
+        for (actual, truth) in fit.second_stage.coefficients.iter().zip([2.0, 3.0, 4.0, 1.0]) {
+            assert!((actual - truth).abs() < 1e-11);
+        }
+        // The independent reference is the population moment equation E[Zu]=0
+        // on this complete balanced enumeration. OLS is confounded by u.
+        assert!((fit.structural_rss - 8.0).abs() < 1e-10);
+        let weaker = IvBlocks { instruments_colmajor: &z[..16], z_ncols: 2, ..blocks };
+        assert!(fit_joint_2sls(&weaker, &features, 3, &y, &FaerBackend, &mut workspace).is_err());
+        // Full instrument rank alone is insufficient: these actual structural
+        // feature columns have the same instrument projection.
+        let mut duplicate = features.clone();
+        duplicate[8..16].copy_from_slice(&features[..8]);
+        assert!(fit_joint_2sls(&blocks, &duplicate, 3, &y, &FaerBackend, &mut workspace).is_err());
+    }
 }
 
 /// Partial F-test for the excluded-instrument block of a first-stage regression:
@@ -355,14 +513,41 @@ fn residualize_on_exogenous(
     Ok(fit.residuals)
 }
 
+/// The magnitudes of the terms that make up each coefficient of the Anderson–Rubin quadratic
+/// `A β² + B β + C`, used as the scale of every degeneracy test.
+///
+/// `A`, `B` and `C` carry the units of `t²`, `t·y` and `y²`, so no single absolute threshold can
+/// separate "zero" from "small" for all data: a treatment measured in units of `1e-9` has an `A`
+/// far below any fixed constant yet is not degenerate. Each coefficient is therefore compared with
+/// the sum of the absolute values of the two terms it is the difference of.
+#[derive(Clone, Copy, Debug)]
+struct QuadraticScales {
+    a: f64,
+    b: f64,
+    c: f64,
+}
+
+/// Relative size below which a difference of like terms is treated as rounding noise.
+const QUADRATIC_REL_EPS: f64 = 1e-12;
+/// Relative size of the discriminant below which the roots are treated as a double root: the
+/// rounding of the two products it is the difference of, not a statistical tolerance, so a
+/// genuinely narrow acceptance interval (relative width down to about `1e-7`) keeps its width.
+const DISCRIMINANT_REL_EPS: f64 = 4.0 * f64::EPSILON;
+
 /// Invert `A β² + B β + C ≤ 0` into an Anderson–Rubin acceptance set.
-fn classify_quadratic_le_zero(a: f64, b: f64, c: f64) -> QuadraticAcceptance {
-    let scale = a.abs().max(b.abs()).max(c.abs()).max(1.0);
-    let eps = 1e-12 * scale;
-    if a.abs() <= eps {
+///
+/// The roots use the cancellation-free pairing `q = -(B + sign(B) √Δ) / 2`, `β = q / A` and
+/// `β = C / q`, which keeps both roots accurate when `A` is small against `B`.
+fn classify_quadratic_le_zero(
+    a: f64,
+    b: f64,
+    c: f64,
+    scales: QuadraticScales,
+) -> QuadraticAcceptance {
+    if a.abs() <= QUADRATIC_REL_EPS * scales.a {
         // Linear (or constant): B β + C ≤ 0.
-        if b.abs() <= eps {
-            return if c <= eps {
+        if b.abs() <= QUADRATIC_REL_EPS * scales.b {
+            return if c <= QUADRATIC_REL_EPS * scales.c {
                 QuadraticAcceptance::WholeLine
             } else {
                 QuadraticAcceptance::Empty
@@ -376,22 +561,24 @@ fn classify_quadratic_le_zero(a: f64, b: f64, c: f64) -> QuadraticAcceptance {
         };
     }
     let disc = b * b - 4.0 * a * c;
-    if disc < -eps * eps {
+    let tolerance = DISCRIMINANT_REL_EPS * (b * b + 4.0 * (a * c).abs());
+    if disc < -tolerance {
         // No real roots: sign follows A.
         return if a < 0.0 { QuadraticAcceptance::WholeLine } else { QuadraticAcceptance::Empty };
     }
-    let sqrt_disc = disc.max(0.0).sqrt();
-    let r1 = (-b - sqrt_disc) / (2.0 * a);
-    let r2 = (-b + sqrt_disc) / (2.0 * a);
-    let (lo, hi) = if r1 <= r2 { (r1, r2) } else { (r2, r1) };
-    if disc <= eps * eps {
-        // Tangent: a single point when A > 0; whole line when A < 0.
+    if disc <= tolerance {
+        // Double root: a single point when A > 0; whole line when A < 0.
+        let root = -b / (2.0 * a);
         return if a > 0.0 {
-            QuadraticAcceptance::Interval { lo, hi: lo }
+            QuadraticAcceptance::Interval { lo: root, hi: root }
         } else {
             QuadraticAcceptance::WholeLine
         };
     }
+    let sqrt_disc = disc.sqrt();
+    let q = -0.5 * (b + if b < 0.0 { -sqrt_disc } else { sqrt_disc });
+    let (r1, r2) = (q / a, c / q);
+    let (lo, hi) = if r1 <= r2 { (r1, r2) } else { (r2, r1) };
     if a > 0.0 { QuadraticAcceptance::Interval { lo, hi } } else { QuadraticAcceptance::Union }
 }
 
@@ -496,7 +683,16 @@ pub fn anderson_rubin_confidence_set(
     let b = -2.0 * df_f * n_yt + 2.0 * c * m_yt;
     let c0 = df_f * n_yy - c * m_yy;
 
-    match classify_quadratic_le_zero(a, b, c0) {
+    match classify_quadratic_le_zero(
+        a,
+        b,
+        c0,
+        QuadraticScales {
+            a: df_f * n_tt.abs() + c * m_tt.abs(),
+            b: 2.0 * df_f * n_yt.abs() + 2.0 * c * m_yt.abs(),
+            c: df_f * n_yy.abs() + c * m_yy.abs(),
+        },
+    ) {
         QuadraticAcceptance::Empty => Ok((None, Some("anderson_rubin_set_empty"))),
         QuadraticAcceptance::WholeLine => {
             Ok((Some((f64::NEG_INFINITY, f64::INFINITY, level)), None))
@@ -506,6 +702,316 @@ pub fn anderson_rubin_confidence_set(
         }
         QuadraticAcceptance::Union => Ok((None, Some("anderson_rubin_set_is_union"))),
     }
+}
+
+/// The sufficient statistics of one instrumental-variable problem: the Gram matrix of the
+/// columns `[exogenous | excluded instruments | endogenous]` (in that order, row-major), their
+/// cross-products with the outcome, and the outcome's sum of squares.
+///
+/// Two-stage least squares, its first-stage test and the Anderson–Rubin set are all functions
+/// of these moments, so one streamed pass over the rows reduces a problem of any length to a
+/// `p × p` matrix. The moments are normal-equation quantities and square the design's
+/// condition number: the results agree with the column-pivoted-QR fits to a tolerance set by
+/// that condition number, not bit for bit.
+#[derive(Clone, Copy, Debug)]
+pub struct IvMoments<'a> {
+    /// Gram matrix, `p × p` row-major with `p = x_ncols + z_ncols + 1`.
+    pub gram: &'a [f64],
+    /// Cross-products of each of the `p` columns with the outcome.
+    pub cross_outcome: &'a [f64],
+    /// Outcome sum of squares.
+    pub outcome_sum_squares: f64,
+    /// Included exogenous columns (the intercept counts).
+    pub x_ncols: usize,
+    /// Excluded instrument columns.
+    pub z_ncols: usize,
+    /// Rows the moments were accumulated over.
+    pub nrows: usize,
+}
+
+/// Two-stage least squares from [`IvMoments`].
+#[derive(Clone, Debug)]
+pub struct TwoSlsMomentFit {
+    /// Second-stage coefficients: the endogenous coefficient first, then the exogenous block.
+    pub coefficients: Vec<f64>,
+    /// Structural residual sum of squares at the actual endogenous values, clamped at zero.
+    pub structural_rss: f64,
+    /// Whether the residual sums of squares are resolved above the rounding noise of the raw
+    /// moments they are formed from (`yy − 2b'xy + b'Gb` and `tt − π'G`). `false` means a
+    /// residual sum of squares is within `64 ε` of the magnitude of its terms: the clamped
+    /// value is not informative and the first-stage `F` is reported as `NaN`, not `+∞`.
+    pub rss_resolved: bool,
+    /// Weak-instrument diagnostic for the excluded instruments.
+    pub first_stage_diagnostics: FirstStageDiagnostics,
+}
+
+impl IvMoments<'_> {
+    fn width(&self) -> usize {
+        self.x_ncols + self.z_ncols + 1
+    }
+
+    fn check(&self) -> Result<(), StatsError> {
+        let p = self.width();
+        if self.gram.len() != p * p || self.cross_outcome.len() != p {
+            return Err(StatsError::Shape {
+                message: "IV moments do not match their column counts",
+            });
+        }
+        if self.z_ncols == 0 {
+            return Err(StatsError::Shape { message: "IV moments need an excluded instrument" });
+        }
+        Ok(())
+    }
+
+    fn entry(&self, row: usize, column: usize) -> f64 {
+        self.gram[row * self.width() + column]
+    }
+
+    /// The Gram submatrix over `rows` x `columns`, row-major.
+    fn submatrix(&self, rows: &[usize], columns: &[usize]) -> Vec<f64> {
+        let mut out = Vec::with_capacity(rows.len() * columns.len());
+        for &row in rows {
+            for &column in columns {
+                out.push(self.entry(row, column));
+            }
+        }
+        out
+    }
+}
+
+fn rank_deficient(ncols: usize) -> StatsError {
+    StatsError::RankDeficient { rank: ncols.saturating_sub(1), ncols }
+}
+
+/// `A⁻¹ b` for a small symmetric positive-definite `A` (`n × n`, row-major).
+fn solve_small(a: &[f64], b: &[f64], n: usize) -> Result<Vec<f64>, StatsError> {
+    if n == 0 {
+        return Ok(Vec::new());
+    }
+    let inverse = crate::gram::invert_square(a, n).ok_or_else(|| rank_deficient(n))?;
+    Ok((0..n).map(|row| (0..n).map(|col| inverse[row * n + col] * b[col]).sum()).collect())
+}
+
+/// Two-stage least squares, its structural residual sum of squares and the first-stage
+/// excluded-instrument test, from the moments of one pass over the rows.
+///
+/// Matches [`fit_2sls`] with the same blocks: stage one regresses the endogenous column on
+/// `[excluded instruments | exogenous]`, stage two regresses the outcome on
+/// `[fitted endogenous | exogenous]`.
+///
+/// # Errors
+///
+/// Moments that do not match their column counts, or a singular instrument or exogenous block.
+pub fn fit_2sls_from_moments(moments: &IvMoments<'_>) -> Result<TwoSlsMomentFit, StatsError> {
+    moments.check()?;
+    let (x, z) = (moments.x_ncols, moments.z_ncols);
+    let t = x + z;
+    let all_instruments: Vec<usize> = (0..t).collect();
+    let exogenous: Vec<usize> = (0..x).collect();
+    let g_instruments = moments.submatrix(&all_instruments, &all_instruments);
+    let g_instruments_t: Vec<f64> =
+        all_instruments.iter().map(|&row| moments.entry(row, t)).collect();
+    let pi = solve_small(&g_instruments, &g_instruments_t, t)?;
+    let g_tt = moments.entry(t, t);
+    let rss_full = g_tt - pi.iter().zip(&g_instruments_t).map(|(a, b)| a * b).sum::<f64>();
+    let rss_restricted = if x == 0 {
+        g_tt
+    } else {
+        let g_x = moments.submatrix(&exogenous, &exogenous);
+        let g_xt: Vec<f64> = exogenous.iter().map(|&row| moments.entry(row, t)).collect();
+        let beta = solve_small(&g_x, &g_xt, x)?;
+        g_tt - beta.iter().zip(&g_xt).map(|(a, b)| a * b).sum::<f64>()
+    };
+    let df1 = z;
+    let df2 = moments.nrows.saturating_sub(z + x);
+    // `tt − π'G` cancels catastrophically when the instruments explain the endogenous column
+    // almost exactly: below rounding of its own terms the residual is noise, and dividing by
+    // it would report an "infinitely strong" instrument.
+    let first_stage_resolved = rss_full > 64.0 * f64::EPSILON * g_tt.abs();
+    let f_statistic = if df1 == 0 || df2 == 0 || !first_stage_resolved {
+        f64::NAN
+    } else {
+        ((rss_restricted - rss_full) / df1 as f64) / (rss_full / df2 as f64)
+    };
+    let partial_r2 = if rss_restricted > 0.0 {
+        ((rss_restricted - rss_full) / rss_restricted).max(0.0)
+    } else {
+        0.0
+    };
+    // Second stage: regress the outcome on [fitted endogenous | exogenous].
+    let width = 1 + x;
+    let mut normal = vec![0.0; width * width];
+    let mut rhs = vec![0.0; width];
+    let g_pi: Vec<f64> =
+        (0..t).map(|col| (0..t).map(|row| pi[row] * g_instruments[row * t + col]).sum()).collect();
+    normal[0] = pi.iter().zip(&g_pi).map(|(a, b)| a * b).sum();
+    rhs[0] = pi.iter().enumerate().map(|(row, weight)| weight * moments.cross_outcome[row]).sum();
+    for c in 0..x {
+        // fitted endogenous with exogenous column c: π' G[instruments, c]
+        let cross = g_pi[c];
+        normal[1 + c] = cross;
+        normal[(1 + c) * width] = cross;
+        rhs[1 + c] = moments.cross_outcome[c];
+        for d in 0..x {
+            normal[(1 + c) * width + 1 + d] = moments.entry(c, d);
+        }
+    }
+    let coefficients = solve_small(&normal, &rhs, width)?;
+    // Structural residuals use the actual endogenous column.
+    let structural_columns: Vec<usize> = std::iter::once(t).chain(0..x).collect();
+    let mut quadratic = 0.0;
+    let mut linear = 0.0;
+    for (i, &row) in structural_columns.iter().enumerate() {
+        linear += coefficients[i] * moments.cross_outcome[row];
+        for (j, &col) in structural_columns.iter().enumerate() {
+            quadratic += coefficients[i] * coefficients[j] * moments.entry(row, col);
+        }
+    }
+    let structural_raw = moments.outcome_sum_squares - 2.0 * linear + quadratic;
+    let structural_magnitude =
+        moments.outcome_sum_squares.abs() + 2.0 * linear.abs() + quadratic.abs();
+    let structural_resolved = structural_raw > 64.0 * f64::EPSILON * structural_magnitude;
+    let structural_rss = structural_raw.max(0.0);
+    Ok(TwoSlsMomentFit {
+        coefficients,
+        structural_rss,
+        rss_resolved: first_stage_resolved && structural_resolved,
+        first_stage_diagnostics: FirstStageDiagnostics {
+            f_statistic,
+            df1,
+            df2,
+            partial_r2,
+            anderson_rubin: None,
+            uncertainty_withheld: None,
+        },
+    })
+}
+
+/// Homoskedastic Anderson–Rubin confidence set from [`IvMoments`].
+///
+/// The same exact quadratic inversion as [`anderson_rubin_confidence_set`]; the residualized
+/// cross-products it needs are Schur complements of the moments.
+///
+/// # Errors
+///
+/// Moments that do not match their column counts, or a singular exogenous or instrument block.
+#[allow(clippy::too_many_lines, reason = "the confidence set keeps its analytic cases together")]
+pub fn anderson_rubin_confidence_set_from_moments(
+    moments: &IvMoments<'_>,
+    level: f64,
+) -> Result<ArConfidenceSet, StatsError> {
+    moments.check()?;
+    let (x, z) = (moments.x_ncols, moments.z_ncols);
+    if !(level.is_finite() && (0.0..1.0).contains(&level)) {
+        return Ok((None, Some("anderson_rubin_invalid_level")));
+    }
+    let df = moments.nrows.saturating_sub(z + x);
+    if df == 0 {
+        return Ok((None, Some("anderson_rubin_critical_value_failed")));
+    }
+    let f_crit = f_critical(level, z, df);
+    if !f_crit.is_finite() {
+        return Ok((None, Some("anderson_rubin_critical_value_failed")));
+    }
+    let c = z as f64 * f_crit;
+    // Variables: the z instruments, the endogenous column, the outcome, each residualized on
+    // the exogenous block: S = G_vv − G_vx G_xx⁻¹ G_xv.
+    let t = x + z;
+    let exogenous: Vec<usize> = (0..x).collect();
+    let variables: Vec<usize> = (x..=t).collect(); // instruments then endogenous
+    let v = variables.len();
+    let outcome_entry = |row: usize| moments.cross_outcome[row];
+    // Moments of [instruments, endogenous, outcome] (v + 1 variables).
+    let total = v + 1;
+    let mut raw = vec![0.0; total * total];
+    for (i, &row) in variables.iter().enumerate() {
+        for (j, &col) in variables.iter().enumerate() {
+            raw[i * total + j] = moments.entry(row, col);
+        }
+        raw[i * total + v] = outcome_entry(row);
+        raw[v * total + i] = outcome_entry(row);
+    }
+    raw[v * total + v] = moments.outcome_sum_squares;
+    if x > 0 {
+        let g_x = moments.submatrix(&exogenous, &exogenous);
+        let inverse = crate::gram::invert_square(&g_x, x).ok_or_else(|| rank_deficient(x))?;
+        // G_x,var for each of the v + 1 variables.
+        let cross: Vec<Vec<f64>> =
+            (0..total)
+                .map(|k| {
+                    exogenous
+                        .iter()
+                        .map(|&row| {
+                            if k < v {
+                                moments.entry(row, variables[k])
+                            } else {
+                                outcome_entry(row)
+                            }
+                        })
+                        .collect()
+                })
+                .collect();
+        for i in 0..total {
+            for j in 0..total {
+                let mut correction = 0.0;
+                for a in 0..x {
+                    for b in 0..x {
+                        correction += cross[i][a] * inverse[a * x + b] * cross[j][b];
+                    }
+                }
+                raw[i * total + j] -= correction;
+            }
+        }
+    }
+    let at = |i: usize, j: usize| raw[i * total + j];
+    let z_idx: Vec<usize> = (0..z).collect();
+    let (t_idx, y_idx) = (z, z + 1);
+    let mut s_zz = Vec::with_capacity(z * z);
+    for &i in &z_idx {
+        for &j in &z_idx {
+            s_zz.push(at(i, j));
+        }
+    }
+    let s_zt: Vec<f64> = z_idx.iter().map(|&i| at(i, t_idx)).collect();
+    let s_zy: Vec<f64> = z_idx.iter().map(|&i| at(i, y_idx)).collect();
+    let alpha_t = solve_small(&s_zz, &s_zt, z)?;
+    let alpha_y = solve_small(&s_zz, &s_zy, z)?;
+    let dot = |a: &[f64], b: &[f64]| a.iter().zip(b).map(|(p, q)| p * q).sum::<f64>();
+    let yy = at(y_idx, y_idx);
+    let tt = at(t_idx, t_idx);
+    let yt = at(t_idx, y_idx);
+    let n_yy = dot(&alpha_y, &s_zy);
+    let n_tt = dot(&alpha_t, &s_zt);
+    let n_yt = dot(&alpha_t, &s_zy);
+    let m_yy = yy - n_yy;
+    let m_tt = tt - n_tt;
+    let m_yt = yt - n_yt;
+    let (n_yy, n_tt) = (n_yy.max(0.0), n_tt.max(0.0));
+    let df_f = df as f64;
+    let a = df_f * n_tt - c * m_tt;
+    let b = -2.0 * df_f * n_yt + 2.0 * c * m_yt;
+    let c0 = df_f * n_yy - c * m_yy;
+    Ok(
+        match classify_quadratic_le_zero(
+            a,
+            b,
+            c0,
+            QuadraticScales {
+                a: df_f * n_tt.abs() + c * m_tt.abs(),
+                b: 2.0 * df_f * n_yt.abs() + 2.0 * c * m_yt.abs(),
+                c: df_f * n_yy.abs() + c * m_yy.abs(),
+            },
+        ) {
+            QuadraticAcceptance::Empty => (None, Some("anderson_rubin_set_empty")),
+            QuadraticAcceptance::WholeLine => {
+                (Some((f64::NEG_INFINITY, f64::INFINITY, level)), None)
+            }
+            QuadraticAcceptance::Interval { lo, hi } | QuadraticAcceptance::Ray { lo, hi } => {
+                (Some((lo, hi, level)), None)
+            }
+            QuadraticAcceptance::Union => (None, Some("anderson_rubin_set_is_union")),
+        },
+    )
 }
 
 #[cfg(test)]
@@ -842,5 +1348,141 @@ mod tests {
             fit.second_stage.coefficients[0]
         );
         assert!((fit.second_stage.coefficients[2] - 1.5).abs() < 0.05);
+    }
+
+    /// Gram of `[exogenous | instruments | endogenous]` and its cross-products with `y`.
+    fn moments_of(
+        x: &[f64],
+        x_ncols: usize,
+        z: &[f64],
+        z_ncols: usize,
+        t: &[f64],
+        y: &[f64],
+    ) -> (Vec<f64>, Vec<f64>, f64) {
+        let n = y.len();
+        let mut columns: Vec<&[f64]> = Vec::new();
+        for c in 0..x_ncols {
+            columns.push(&x[c * n..(c + 1) * n]);
+        }
+        for c in 0..z_ncols {
+            columns.push(&z[c * n..(c + 1) * n]);
+        }
+        columns.push(t);
+        let p = columns.len();
+        let mut gram = vec![0.0; p * p];
+        for i in 0..p {
+            for j in 0..p {
+                gram[i * p + j] = columns[i].iter().zip(columns[j]).map(|(a, b)| a * b).sum();
+            }
+        }
+        let cross = columns.iter().map(|c| c.iter().zip(y).map(|(a, b)| a * b).sum()).collect();
+        (gram, cross, y.iter().map(|v| v * v).sum())
+    }
+
+    fn iv_fixture(
+        n: usize,
+        instruments: usize,
+        covariates: usize,
+    ) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) {
+        let noise = |i: usize, k: usize| {
+            (((i * 31 + k * 977) as f64 * 12.9898).sin() * 43758.5453).fract() - 0.5
+        };
+        let x_ncols = 1 + covariates;
+        let mut x = vec![1.0; n * x_ncols];
+        for c in 1..x_ncols {
+            for i in 0..n {
+                x[c * n + i] = noise(i, c) * 2.0;
+            }
+        }
+        let mut z = vec![0.0; n * instruments];
+        for c in 0..instruments {
+            for i in 0..n {
+                z[c * n + i] = noise(i, 10 + c) * 3.0;
+            }
+        }
+        let mut t = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let u = noise(i, 50);
+            t[i] = 0.4 * x[n + i] + (0..instruments).map(|c| 0.8 * z[c * n + i]).sum::<f64>() + u;
+            y[i] = 1.0 + 2.0 * t[i] + 0.3 * x[n + i] + 1.5 * u + 0.2 * noise(i, 77);
+        }
+        (x, z, t, y)
+    }
+
+    #[test]
+    fn the_moment_fit_equals_the_column_pivoted_fit_coefficients_diagnostics_and_ar_set() {
+        for (instruments, covariates) in [(1, 1), (2, 2), (3, 1)] {
+            let n = 500;
+            let (x, z, t, y) = iv_fixture(n, instruments, covariates);
+            let x_ncols = 1 + covariates;
+            let blocks = iv_blocks(&z, n, instruments, &x, x_ncols);
+            let mut ws = LeastSquaresWorkspace::default();
+            let resident = fit_2sls(&blocks, &t, &y, &FaerBackend, &mut ws).unwrap();
+            let (gram, cross, yy) = moments_of(&x, x_ncols, &z, instruments, &t, &y);
+            let moments = IvMoments {
+                gram: &gram,
+                cross_outcome: &cross,
+                outcome_sum_squares: yy,
+                x_ncols,
+                z_ncols: instruments,
+                nrows: n,
+            };
+            let streamed = fit_2sls_from_moments(&moments).unwrap();
+            let close = |a: f64, b: f64, what: &str| {
+                assert!(
+                    (a - b).abs() <= 1e-7 * a.abs().max(b.abs()).max(1.0),
+                    "{what}: {a} vs {b}"
+                );
+            };
+            for (got, want) in streamed.coefficients.iter().zip(&resident.second_stage.coefficients)
+            {
+                close(*got, *want, "coefficient");
+            }
+            close(streamed.structural_rss, resident.structural_rss, "structural rss");
+            let (got, want) =
+                (&streamed.first_stage_diagnostics, &resident.first_stage_diagnostics);
+            close(got.f_statistic, want.f_statistic, "first-stage F");
+            close(got.partial_r2, want.partial_r2, "partial r2");
+            assert_eq!((got.df1, got.df2), (want.df1, want.df2));
+            let (set, reason) = anderson_rubin_confidence_set_from_moments(&moments, 0.95).unwrap();
+            let (want_set, want_reason) =
+                anderson_rubin_confidence_set(&blocks, &y, &t, 0.95, &FaerBackend, &mut ws)
+                    .unwrap();
+            assert_eq!(reason, want_reason);
+            match (set, want_set) {
+                (Some((lo, hi, level)), Some((want_lo, want_hi, want_level))) => {
+                    close(lo, want_lo, "AR lower");
+                    close(hi, want_hi, "AR upper");
+                    assert_eq!(level.to_bits(), want_level.to_bits());
+                }
+                (None, None) => {}
+                other => panic!("AR sets disagree: {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn moments_without_an_excluded_instrument_or_with_a_singular_block_are_refused() {
+        let gram = vec![1.0, 0.0, 0.0, 1.0];
+        let moments = IvMoments {
+            gram: &gram,
+            cross_outcome: &[0.0, 0.0],
+            outcome_sum_squares: 1.0,
+            x_ncols: 1,
+            z_ncols: 0,
+            nrows: 10,
+        };
+        assert!(fit_2sls_from_moments(&moments).is_err());
+        let singular = vec![1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
+        let moments = IvMoments {
+            gram: &singular,
+            cross_outcome: &[0.0, 0.0, 0.0],
+            outcome_sum_squares: 1.0,
+            x_ncols: 1,
+            z_ncols: 1,
+            nrows: 10,
+        };
+        assert!(fit_2sls_from_moments(&moments).is_err());
     }
 }

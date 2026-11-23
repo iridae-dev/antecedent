@@ -6,7 +6,7 @@
 //! factors over the DAGs, `P(G) ∝ Π_v f_v(Pa_v(G))`, and for such a product the sum over all
 //! DAGs, and the sum over the DAGs that contain a given edge, are computed without enumerating
 //! them. The result is the exact `P(i → j)` of every ordered pair, the quantity the samplers
-//! estimate, for up to [`EXACT_MARGINAL_MAX_NODES`] variables.
+//! estimate, for as many variables as fit the work budget ([`EXACT_MARGINAL_MAX_NODES`]).
 //!
 //! # The recursion
 //!
@@ -34,7 +34,7 @@
 //! loses at most `log2(2^n)` bits to cancellation however concentrated the posterior is, and
 //! each marginal is accurate to about `1e-12`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -42,13 +42,25 @@ use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_state::GraphScoreFamily;
 
+use crate::adjacency_mask::AdjacencyMask;
 use crate::error::DiscoveryError;
 use crate::graph_posterior::{GraphPrior, GraphPriorTable};
 use crate::graph_score::{ChainTarget, ScoredTarget, tabular_score_data};
 
-/// Most variables the exact marginals are computed for: `3^12` subset pairs per pass and
-/// `12 * 11 + 1` passes.
-pub const EXACT_MARGINAL_MAX_NODES: usize = 12;
+/// Work, in subset-pair visits, one exact-marginal computation may cost: `3^n` pairs per pass,
+/// `n` factors per pair, and `n (n - 1) + 1` passes.
+const EXACT_MARGINAL_WORK_BUDGET: u128 = 1 << 36;
+
+/// The subset-pair visits an exact-marginal run on `n` variables costs.
+#[allow(clippy::cast_possible_truncation, reason = "callers bound n below the machine word width")]
+const fn exact_marginal_work(n: usize) -> u128 {
+    3u128.pow(n as u32) * n as u128 * (n * n.saturating_sub(1) + 1) as u128
+}
+
+/// Most variables the exact marginals are computed for: the largest `n` whose work
+/// ([`exact_marginal_work`]) fits the budget, `3^15 * 15 * 211` visits at fifteen. The budget,
+/// not the representation of a parent set, is the limit.
+pub const EXACT_MARGINAL_MAX_NODES: usize = 15;
 
 /// The exact edge marginals of a DAG posterior.
 #[derive(Clone, Debug, PartialEq)]
@@ -57,12 +69,55 @@ pub struct ExactDagMarginals {
     pub n_vars: usize,
     /// `P(i → j)`, row-major `from * n_vars + to`, zero on the diagonal.
     pub edge_marginals: Arc<[f64]>,
-    /// Natural logarithm of the normalizing constant `Σ_G exp(BIC(G) + log prior(G))` over the
-    /// constraint-valid DAGs with a finite score.
+    /// Natural logarithm of the pseudo-posterior normalizer
+    /// `Σ_G exp(score(G) + log prior(G))` over constraint-valid DAGs with a finite score.
+    /// The Gaussian score is -BIC/2 and counts each fitted residual variance. This is
+    /// not an exact marginal likelihood.
     pub log_evidence: f64,
+    /// The variables the marginals index, in order, when they are a selection of a larger
+    /// screened set; `None` when they cover every variable of the call.
+    pub variables: Option<Arc<[VariableId]>>,
+    /// Statement that the marginals are conditional on a CI screen, when they are.
+    pub conditional_on_screen: Option<Arc<str>>,
 }
 
-/// Exact `P(i → j)` of the Gaussian-BIC DAG posterior of `variables`.
+impl ExactDagMarginals {
+    /// The marginals pooled across imputations: the means of the per-imputation edge
+    /// marginals (the marginals of the equal-weight mixture of the per-imputation posteriors)
+    /// and the log of the mean of the per-imputation normalizers.
+    ///
+    /// # Errors
+    ///
+    /// No marginals, or marginals over different variable counts or selections.
+    pub fn pooled_over_imputations(parts: &[Self]) -> Result<Self, DiscoveryError> {
+        let first = parts.first().ok_or_else(|| {
+            DiscoveryError::unsupported("pooling over imputations needs at least one marginal set")
+        })?;
+        if parts.iter().any(|p| p.n_vars != first.n_vars || p.variables != first.variables) {
+            return Err(DiscoveryError::unsupported(
+                "the imputations' marginals are over different variables",
+            ));
+        }
+        let share = 1.0 / parts.len() as f64;
+        let mut edge = vec![0.0; first.edge_marginals.len()];
+        for part in parts {
+            for (cell, value) in edge.iter_mut().zip(part.edge_marginals.iter()) {
+                *cell += share * value;
+            }
+        }
+        let top = parts.iter().map(|p| p.log_evidence).fold(f64::NEG_INFINITY, f64::max);
+        let mean: f64 = parts.iter().map(|p| share * (p.log_evidence - top).exp()).sum();
+        Ok(Self {
+            n_vars: first.n_vars,
+            edge_marginals: Arc::from(edge),
+            log_evidence: top + mean.ln(),
+            variables: first.variables.clone(),
+            conditional_on_screen: first.conditional_on_screen.clone(),
+        })
+    }
+}
+
+/// Exact `P(i → j)` of the specified DAG posterior of `variables`.
 ///
 /// The prior, its edge probabilities and every constraint (forbidden and required edges,
 /// tiers, the parent cap) are those of [`crate::ExactDagPosterior`] and the samplers: the
@@ -71,8 +126,7 @@ pub struct ExactDagMarginals {
 ///
 /// # Errors
 ///
-/// Invalid constraints, more than [`EXACT_MARGINAL_MAX_NODES`] variables, a score family other
-/// than Gaussian BIC, data that cannot be scored, no constraint-valid DAG with a finite score,
+/// Invalid constraints, more than [`EXACT_MARGINAL_MAX_NODES`] variables, a score family outside the supported Gaussian families, data that cannot be scored, no constraint-valid DAG with a finite score,
 /// or cancellation.
 pub fn exact_dag_marginals(
     data: &TabularData,
@@ -81,6 +135,7 @@ pub fn exact_dag_marginals(
     score_family: GraphScoreFamily,
     ctx: &ExecutionContext,
 ) -> Result<ExactDagMarginals, DiscoveryError> {
+    prior.validate_for(variables)?;
     prior.constraints.validate()?;
     let n = variables.len();
     if n == 0 {
@@ -88,15 +143,29 @@ pub fn exact_dag_marginals(
             "exact DAG marginals require at least one variable",
         ));
     }
-    if n > EXACT_MARGINAL_MAX_NODES {
+    // The subset tables are indexed by `1 << n`, and `3^n` pairs in `u128` stay in range below
+    // `usize::BITS` nodes; the work budget is far tighter.
+    if n >= usize::BITS as usize || exact_marginal_work(n) > EXACT_MARGINAL_WORK_BUDGET {
         return Err(DiscoveryError::unsupported(
-            "exact DAG marginals require at most 12 variables (EXACT_MARGINAL_MAX_NODES); use \
-             order_mcmc or structure_mcmc",
+            "exact DAG marginals exceed their work budget beyond 15 variables \
+             (EXACT_MARGINAL_MAX_NODES); use order_mcmc or structure_mcmc",
         ));
+    }
+    if score_family == GraphScoreFamily::GaussianSignedUniform {
+        let data = tabular_score_data(data, variables)?;
+        let (prior_table, mut factors) =
+            crate::graph_score::signed_uniform_local_table(&data, prior, variables, ctx)?;
+        for (node, row) in factors.iter_mut().enumerate() {
+            for (subset, score) in row.iter_mut().enumerate().filter(|(_, s)| s.is_finite()) {
+                let parents = AdjacencyMask::from_word(subset as u64);
+                *score += prior_table.node_log_prior(node, &parents).expect("admissible family");
+            }
+        }
+        return marginals_from_factors(n, &factors, ctx);
     }
     if !matches!(score_family, GraphScoreFamily::GaussianBic) {
         return Err(DiscoveryError::unsupported(
-            "exact DAG marginals currently support GaussianBic only",
+            "exact DAG marginals support GaussianBic or GaussianSignedUniform",
         ));
     }
     let score_data = tabular_score_data(data, variables)?;
@@ -114,10 +183,8 @@ pub fn exact_dag_marginals(
             if parents & (1 << node) != 0 {
                 continue;
             }
-            let bits = u16::try_from(parents).map_err(|_| {
-                DiscoveryError::unsupported("a parent set does not fit the 16-variable packing")
-            })?;
-            if let Some(score) = target.node_score(node, bits) {
+            let set = AdjacencyMask::from_word(u64::try_from(parents).unwrap_or(u64::MAX));
+            if let Some(score) = target.node_score(node, &set) {
                 *slot = score;
             }
         }
@@ -228,6 +295,8 @@ fn marginals_from_factors(
         n_vars: n,
         edge_marginals: Arc::from(marginals),
         log_evidence: total.ln() + best[sets - 1],
+        variables: None,
+        conditional_on_screen: None,
     })
 }
 
@@ -276,6 +345,12 @@ mod tests {
     const NEG: f64 = f64::NEG_INFINITY;
 
     /// Two nodes: the DAGs are the empty graph and the two single edges.
+    #[test]
+    fn the_advertised_size_is_the_largest_within_the_work_budget() {
+        assert!(exact_marginal_work(EXACT_MARGINAL_MAX_NODES) <= EXACT_MARGINAL_WORK_BUDGET);
+        assert!(exact_marginal_work(EXACT_MARGINAL_MAX_NODES + 1) > EXACT_MARGINAL_WORK_BUDGET);
+    }
+
     #[test]
     fn two_nodes_have_the_three_dags_of_the_closed_form() {
         // Parent sets are node bitsets: node 0 has {} (0) and {1} (2); node 1 has {} (0) and

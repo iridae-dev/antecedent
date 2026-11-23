@@ -1,6 +1,6 @@
 //! conformance pins: load every `conformance/context/*/expected.json`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,
@@ -205,6 +205,19 @@ fn jpcmci_plus_space_dummy_mv_pin() {
             result.diagnostics
         );
     }
+    let observed_pairs: std::collections::BTreeSet<(u32, u32, u32)> = result
+        .evidence
+        .links
+        .iter()
+        .filter(|s| s.link.source.raw() < 2 && s.link.target.raw() < 2)
+        .map(|s| (s.link.source.raw(), s.link.source_lag.raw(), s.link.target.raw()))
+        .collect();
+    // Truth of toy_env: y_t = 0.7 x_t + ..., a contemporaneous x -> y link (either orientation
+    // of the contemporaneous pair counts).
+    assert!(
+        observed_pairs.contains(&(0, 0, 1)) || observed_pairs.contains(&(1, 0, 0)),
+        "the true contemporaneous x-y link is missing: {observed_pairs:?}"
+    );
     let max_space = expected["max_logical_space_dummy_ids"].as_u64().unwrap_or(1) as usize;
     let space_ids: std::collections::BTreeSet<u32> = result
         .evidence
@@ -250,6 +263,21 @@ fn rpcmci_two_regime_pin() {
     let min_nodes = expected["min_nodes_per_regime"].as_u64().unwrap_or(2) as usize;
     for (i, (_regime, g)) in result.graphs.graphs.iter().enumerate() {
         assert!(g.node_count() >= min_nodes, "regime {i} node_count too small");
+    }
+    for (i, regime) in result.per_regime.iter().enumerate() {
+        let links: Vec<_> = regime
+            .evidence
+            .links
+            .iter()
+            .map(|s| (s.link.source.raw(), s.link.source_lag.raw(), s.link.target.raw()))
+            .collect();
+        // The generator links x to y contemporaneously in both halves (coefficient +0.5 and
+        // -0.4), so each regime's graph must retain exactly that link and no lagged one.
+        assert!(
+            links.contains(&(0, 0, 1)) || links.contains(&(1, 0, 0)),
+            "regime {i} lost the contemporaneous x-y link: {links:?}"
+        );
+        assert!(links.iter().all(|&(_, lag, _)| lag == 0), "regime {i} spurious lag: {links:?}");
     }
 }
 
@@ -375,6 +403,10 @@ fn conditional_effect_pin() {
         .estimate(&data, &estimand, &cq, &ExecutionContext::for_tests(4))
         .unwrap();
     assert!((est.ate - ate_target).abs() < ate_tol);
+    // Noise-free interaction law with modifier mean exactly 2: the marginal contrast is
+    // 2 + 0.5 * 2 = 3 up to round-off, so the 0.3 band is not what separates a correct
+    // modifier-averaged effect from the main-effect-only answer (2) or an unweighted one.
+    assert!((est.ate - (2.0 + 0.5 * 2.0)).abs() < 1e-8, "conditional ATE {}", est.ate);
 }
 
 #[test]
@@ -427,6 +459,11 @@ fn prediction_smoke_pin() {
     )
     .unwrap();
     let yhat = pred.predict_conditional(&data, VariableId::from_raw(0), 1.0, &policy).unwrap();
-    let mean: f64 = yhat.iter().sum::<f64>() / yhat.len() as f64;
-    assert!((mean - target).abs() < tol);
+    // The data are noise free, so the least-squares lag-1 line is Y = 0.01 + 2 X exactly and
+    // every conditional prediction at X = 1 equals the closed-form 2.01 up to round-off.
+    assert!(!yhat.is_empty());
+    assert!((target - (0.01 + 2.0 * 1.0)).abs() < 1e-12, "fixture target is the closed form");
+    for (row, value) in yhat.iter().enumerate() {
+        assert!((value - target).abs() < tol, "row {row}: {value} vs {target}");
+    }
 }

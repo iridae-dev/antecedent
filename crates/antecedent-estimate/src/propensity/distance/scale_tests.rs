@@ -5,11 +5,11 @@
 //! workload runs under a hard memory limit, retains memory linear in the donor rows and
 //! refuses (rather than allocating) when the limit is below what the index needs.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::time::{Duration, Instant};
 
-use antecedent_core::{AssumptionSet, ExecutionContext, MemoryBudget};
+use antecedent_core::{AssumptionSet, ExecutionContext};
 use antecedent_stats::{StatsError, nearest_euclidean_scalar};
 
 use super::*;
@@ -18,7 +18,7 @@ use crate::propensity::prepare::{gather_rowmajor, split_by_treatment};
 use crate::propensity::scale_fixture::{Design, att_query};
 
 const COVARIATES: usize = 8;
-const RUNTIME_LIMIT: Duration = Duration::from_secs(900);
+const RUNTIME_LIMIT: Duration = Duration::from_mins(15);
 const MEMORY_LIMIT_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 /// Retained bytes allowed per donor feature value: the index keeps the features, the tree
 /// and per-query buffers, a small constant multiple of the raw features and nothing
@@ -27,7 +27,7 @@ const RETAINED_BYTES_PER_FEATURE_VALUE: u64 = 64 * 8;
 
 fn bounded(seed: u64, hard_limit_bytes: u64) -> ExecutionContext {
     let mut ctx = ExecutionContext::for_tests(seed);
-    ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(hard_limit_bytes) };
+    ctx.set_memory_limit(Some(hard_limit_bytes));
     ctx
 }
 
@@ -67,7 +67,7 @@ fn exercise(rows: usize, seed: u64, stride: usize) {
     let treated_y: Vec<f64> = treated_idx.iter().map(|&i| prep.outcome[i]).collect();
     let control_y: Vec<f64> = control_idx.iter().map(|&i| prep.outcome[i]).collect();
     let mut match_workspace = PropensityEstimationWorkspace::default();
-    let MatchedDiffs { diffs, donors, queries } = match_diffs(
+    let matched = match_diffs(
         MatchSide { features: &control_feat, outcome: &control_y },
         MatchSide { features: &treated_feat, outcome: &treated_y },
         COVARIATES,
@@ -78,6 +78,8 @@ fn exercise(rows: usize, seed: u64, stride: usize) {
         &ctx,
     )
     .expect("the bounded match runs");
+    let donors: Vec<usize> = matched.donor_sets().iter().map(|set| set[0]).collect();
+    let MatchedDiffs { diffs, queries, .. } = matched;
     assert_eq!(queries.len(), treated_idx.len(), "every treated unit finds a donor");
     for q in (0..treated_idx.len()).step_by(stride) {
         let query = &treated_feat[q * COVARIATES..(q + 1) * COVARIATES];

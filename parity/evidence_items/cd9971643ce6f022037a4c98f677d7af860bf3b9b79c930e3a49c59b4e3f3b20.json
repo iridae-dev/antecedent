@@ -1,0 +1,1 @@
+["use:antecedent_core::ExecutionContext;#0","use:antecedent_estimate::observational_survival::{CensoringAssumption,ObservationalSurvival,SurvivalData,};#0","mod:dgp#0","use:dgp::{Censoring,HORIZON,survival_study,survival_truth};#0","const:REPLICATES#0","const:UNITS#0","fn:replicate_average_survival_effects_match_the_closed_form_truth_within_a_stated_bound#0"]

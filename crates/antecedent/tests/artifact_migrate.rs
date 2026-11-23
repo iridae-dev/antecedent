@@ -1,6 +1,6 @@
 //! artifact migration conformance.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fs;
 use std::path::PathBuf;
@@ -150,8 +150,6 @@ fn analysis_trace_artifact() -> EncodedArtifact {
         method: "backdoor.adjustment".into(),
         adjustment_set: vec![2],
         support_status: None,
-        allowlist_reason: None,
-        allowlist_parent: None,
     };
     let bytes = to_cbor(&trace).unwrap();
     EncodedArtifact {
@@ -186,11 +184,18 @@ fn posterior_artifact() -> EncodedArtifact {
         hessian_condition: 1.0,
         draws_encoding: "f64_le_colmajor".into(),
         treatment_contrast: None,
+        preparation: None,
     };
     encode_posterior_artifact(&meta, &[0.9, 1.0, 1.1], "p12-post", VERSION).unwrap()
 }
 
 fn model_bundle_artifact() -> EncodedArtifact {
+    model_bundle_with_estimate(None)
+}
+
+fn model_bundle_with_estimate(
+    estimate: Option<&antecedent_io::EffectEstimateWire>,
+) -> EncodedArtifact {
     let mut b = CausalSchemaBuilder::new();
     b.add_variable(
         "x",
@@ -237,7 +242,7 @@ fn model_bundle_artifact() -> EncodedArtifact {
         query: None,
         analysis_trace: None,
         identification: None,
-        estimate: None,
+        estimate,
         refutations: None,
         logical_plan: None,
         physical_plan: None,
@@ -248,6 +253,36 @@ fn model_bundle_artifact() -> EncodedArtifact {
         discovery: None,
     })
     .unwrap()
+}
+
+#[test]
+fn model_bundle_preserves_facade_student_t_interval_and_block_metadata() {
+    use antecedent::result::PublishedScalarUncertainty;
+    use antecedent_estimate::{
+        BlockResampling, CircularBlockFamily, EffectEstimate, OverlapPolicy,
+    };
+    let mut original =
+        EffectEstimate::new(2.0, 0.1, AssumptionSet::new(), OverlapPolicy::ExplicitOverride);
+    original.uncertainty.analytic.reference_df = Some(7.0);
+    original.uncertainty.block.resampling =
+        Some(BlockResampling { block_length: 4, rows: 40, kernel_bias: 1.2 });
+    original.uncertainty.block.family = Some(CircularBlockFamily::Mediation);
+    original.provenance.n_obs = Some(40);
+    let before = PublishedScalarUncertainty::select(&original).interval(&original).unwrap();
+    assert!((before.0 - 1.763_537_5).abs() < 1e-6);
+    assert!((before.1 - 2.236_462_5).abs() < 1e-6);
+    let estimate = antecedent_io::effect_estimate_to_wire(&original);
+    let artifact = model_bundle_with_estimate(Some(&estimate));
+    let mut bytes = Vec::new();
+    artifact.write_to(&mut bytes).unwrap();
+    let restored_bundle =
+        decode_model_bundle(&read_and_migrate(bytes.as_slice()).unwrap()).unwrap();
+    let restored =
+        antecedent_io::effect_estimate_from_wire(restored_bundle.estimate.as_ref().unwrap())
+            .unwrap();
+    assert_eq!(PublishedScalarUncertainty::select(&restored).interval(&restored), Some(before));
+    assert_eq!(restored.uncertainty.block, original.uncertainty.block);
+    assert_eq!(restored.provenance.n_obs, Some(40));
 }
 
 #[test]
@@ -271,7 +306,8 @@ fn wire_round_trip_still_decodes() {
     let mut buf = Vec::new();
     art.write_to(&mut buf).unwrap();
     let migrated = read_and_migrate(buf.as_slice()).unwrap();
-    let _: SchemaWire = from_cbor(&migrated.sections[0].data).unwrap();
+    let schema: SchemaWire = from_cbor(&migrated.sections[0].data).unwrap();
+    assert_eq!(schema.variable_names(), vec!["x".to_string(), "y".to_string()]);
 }
 
 /// The format-0.5 identified-set interval of a class-aware temporal Pulse
@@ -332,6 +368,11 @@ fn class_aware_identified_set_interval_survives_the_result_artifact() {
         .as_ref()
         .and_then(|mixture| mixture.identified_set_interval)
         .expect("a two-completion class publishes an identified-set interval");
+    // The completions bound the effect of t_{t-1} on y_t by the adjusted coefficient 0.8 and
+    // the unadjusted one 0.8 + 0.6 * Cov(z, t) / Var(t) = 0.8 + 0.6 * (1/6) / (5/12) = 1.04.
+    assert!((interval.bound_lower - 0.8).abs() < 0.2, "{interval:?}");
+    assert!((interval.bound_upper - 1.04).abs() < 0.2, "{interval:?}");
+    assert!(interval.lower < interval.bound_lower && interval.bound_upper < interval.upper);
 
     let query_wire = serde_json::json!({"response": {
         "functional": {"average_derivative": {"outcome": 1, "treatment": 0, "weighting": "observed"}},

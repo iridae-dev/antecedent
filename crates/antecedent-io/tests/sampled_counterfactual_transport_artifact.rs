@@ -3,7 +3,7 @@
 //! every semantic mutation (counts edited, overlap flipped, derivation swapped,
 //! stored estimate edited), even resealed, is refused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "../../antecedent-identify/tests/support/counterfactual_transport_adapter.rs"]
 mod counterfactual_transport_adapter;
@@ -184,11 +184,11 @@ fn fresh_consumer_recomputes_the_plug_in_from_the_counts_bit_for_bit() {
     assert_eq!(produced, consumed.estimate);
     assert_eq!(consumed.wire, wire);
 
-    // Four distinct claims and no interval anywhere in the artifact.
+    // Four distinct claims; the interval is computable, and the artifact stores no interval value.
     assert_eq!(wire.estimate.structural_identification, "identified_by_stored_derivation");
     assert_eq!(wire.estimate.point_estimate, "plug_in_point_estimate");
-    assert_eq!(wire.estimate.statistical_inference, "withheld_cell_not_licensed");
-    assert_eq!(wire.estimate.interval_code, "cell_not_licensed");
+    assert_eq!(wire.estimate.statistical_inference, "delta_wald_interval_calibration_annotated");
+    assert_eq!(wire.estimate.interval_absence, None);
     assert_eq!(wire.estimate.standard_error.as_ref().unwrap().label, "uncalibrated_standard_error");
     assert_eq!(wire.overlap.default, "independent");
     assert_eq!(wire.unseen_rule.name, "refuse");
@@ -196,7 +196,7 @@ fn fresh_consumer_recomputes_the_plug_in_from_the_counts_bit_for_bit() {
     // The number is the enumerated truth within sampling error at 5,000 units.
     let truth = case.targets[0].expected_value.unwrap();
     assert!(
-        (replayed_point.probability - truth).abs() <= 0.06,
+        (replayed_point.probability - truth).abs() <= 0.02,
         "{} vs {truth}",
         replayed_point.probability
     );
@@ -303,9 +303,9 @@ fn resealed_semantic_mutations_are_refused() {
         "{error:?}"
     );
 
-    // An interval smuggled in as an inference claim never seals.
+    // An inference label that contradicts the stored interval status never seals.
     let mut smuggled = wire.clone();
-    smuggled.estimate.interval_code = "nominal_interval".into();
+    smuggled.estimate.statistical_inference = "interval_not_computable".into();
     assert!(smuggled.sealed().is_err());
 
     // The unseen-cell rule changed and resealed: the labels and tables differ.
@@ -338,6 +338,17 @@ fn resealed_semantic_mutations_are_refused() {
     )
     .unwrap_err();
     assert!(matches!(error, ArtifactError::LimitsExceeded("count tables")), "{error:?}");
+
+    // Stored decision inputs outside the contract's maxima are refused at decode, as the
+    // exact artifact refuses them, before any digest check or replay.
+    let mut over = wire.clone();
+    over.search.memory_limit_bytes = u64::MAX;
+    let error = consume(&to_bytes_unchecked(&over)).unwrap_err();
+    assert!(matches!(error, ArtifactError::LimitsExceeded("search limits")), "{error:?}");
+    let mut named = wire.clone();
+    named.variable_names = vec![" ".to_owned()];
+    let error = consume(&to_bytes_unchecked(&named)).unwrap_err();
+    assert!(matches!(error, ArtifactError::Malformed { slot: "variable_names", .. }), "{error:?}");
 }
 
 /// Encode a wire without sealing or shape checks, as a tampered file would be.
@@ -494,15 +505,20 @@ fn a_measured_construction_reports_an_interval_bound_to_its_coverage_record() {
 }
 
 #[test]
-fn an_unmeasured_sample_size_or_unseen_rule_refuses_cell_not_licensed() {
-    for outcome in [
-        measure_at(20_000, UnseenCellRule::Refuse),
-        measure_at(1_000, UnseenCellRule::AdditiveSmoothing { pseudo_count: 0.5 }),
-    ] {
-        let error = outcome.unwrap_err();
-        assert!(
-            format!("{error:?}").contains("cell_not_licensed"),
-            "an interval outside the measured scope is cell_not_licensed: {error:?}"
-        );
+fn an_not_measured_sample_size_or_unseen_rule_is_reported_as_not_calibrated() {
+    // Calibration annotates and never withholds, so the interval is reported and its slot says
+    // it is not calibrated.
+    let above = measure_at(20_000, UnseenCellRule::Refuse)
+        .expect("an interval above the measured sample sizes is reported");
+    assert_eq!(above.report().calibration, "outside_measured_scope");
+    let smoothed = measure_at(1_000, UnseenCellRule::AdditiveSmoothing { pseudo_count: 0.5 })
+        .expect("an interval under a not_measured unseen-cell rule is reported");
+    assert_ne!(smoothed.report().calibration, "calibrated");
+    for measured in [&above, &smoothed] {
+        let scalar = &measured.report().scalars[0];
+        assert_eq!(scalar.name, "target_probability");
+        assert!(scalar.lower <= scalar.point && scalar.point <= scalar.upper);
+        assert_ne!(scalar.calibration.status, "calibrated");
+        assert!(scalar.calibration.reason.is_some());
     }
 }

@@ -4,4 +4,4 @@
 
 ## Expected summary
 
-Top-level keys: `cases, disagreement_note, disagreements, oracle, schema_version` (5 fields).
+Top-level keys: `cases, disagreement_note, disagreements, historical_oracle, oracle, schema_version` (6 fields).

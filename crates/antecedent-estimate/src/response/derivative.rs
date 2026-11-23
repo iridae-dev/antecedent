@@ -14,14 +14,37 @@ use crate::EstimationError;
 use crate::util::range;
 
 use super::{
-    AverageDerivativeScores, ContinuousResponseEstimator, CrossFitFold, PseudoOutcome,
-    bias_corrected_interval_note, delta_method_interval_note, delta_method_standard_error,
-    ensure_crossfit_size, fieller_elasticity_interval, fieller_interval_note, local_design_refusal,
-    multivariate_support, plugin::PluginGradientKind, plugin::plugin_gradient_interval_withheld,
-    plugin::predict_one, push_outcome_tail_diagnostic, sample::CompleteSample, support_report,
-    transform_derivative, transform_point_derivative, transform_point_derivative_gradient,
-    treatment_sigma,
+    ADE_NUISANCE_PENALTY, AverageDerivativeScores, ContinuousResponseEstimator, CrossFitFold,
+    PseudoOutcome, bias_corrected_interval_note, delta_method_interval_note,
+    delta_method_standard_error, ensure_crossfit_size, fieller_elasticity_interval,
+    fieller_interval_note, local_design_refusal, multivariate_support,
+    plugin::{self, plugin_gradient_interval_withheld, predict_one},
+    push_outcome_tail_diagnostic,
+    sample::CompleteSample,
+    support_report, transform_derivative, transform_point_derivative,
+    transform_point_derivative_gradient, treatment_sigma,
 };
+
+/// Covariance of the corrected `(level, slope, curvature)` from their row influences, with the
+/// covariate-marginalization term `(c_i - mean c) / n` of the Kennedy pseudo-outcome added to the
+/// level's influence (see `mean_curve`): the sum of the outer products of the rows.
+pub(super) fn coordinate_covariance(
+    rows: &[[f64; 3]],
+    covariate_centered: &[f64],
+) -> [[f64; 3]; 3] {
+    let n = rows.len() as f64;
+    let centre = covariate_centered.iter().sum::<f64>() / n;
+    let mut covariance = [[0.0; 3]; 3];
+    for (row, covariate) in rows.iter().zip(covariate_centered) {
+        let psi = [row[0] + (covariate - centre) / n, row[1], row[2]];
+        for a in 0..3 {
+            for b in 0..3 {
+                covariance[a][b] += psi[a] * psi[b];
+            }
+        }
+    }
+    covariance
+}
 
 impl ContinuousResponseEstimator {
     #[allow(
@@ -38,7 +61,7 @@ impl ContinuousResponseEstimator {
         scale: DerivativeScale,
     ) -> Result<(ResponseValue, ResponseUncertainty, SupportReport), EstimationError> {
         let sample = CompleteSample::read(data, outcome, &[treatment], &self.adjustment_set)?;
-        let PseudoOutcome { values: pseudo, density_floor_rows, .. } =
+        let PseudoOutcome { values: pseudo, density_floor_rows, covariate_centered } =
             self.cross_fitted_pseudo_outcome(&sample)?;
         let bandwidth = self.options.bandwidth.unwrap_or(silverman_bandwidth(&sample.treatments)?);
         let local = antecedent_stats::gaussian_local_quadratic_influence(
@@ -64,14 +87,19 @@ impl ContinuousResponseEstimator {
         // O(h²·m''') smoothing bias of m̂' (and the O(h²·m'''') bias of m̂'')
         // and under-covers the true derivative at an MSE-sized bandwidth
         // (tests/derivative_calibration.rs).
-        let corrected = antecedent_stats::gaussian_local_quadratic_bias_corrected(
-            &sample.treatments,
-            &pseudo,
-            at,
-            bandwidth,
-            None,
-        )
-        .map_err(|err| local_design_refusal(err, &sample.treatments, at, bandwidth))?;
+        let (corrected, corrected_rows) =
+            antecedent_stats::gaussian_local_quadratic_bias_corrected_influence(
+                &sample.treatments,
+                &pseudo,
+                at,
+                bandwidth,
+                None,
+            )
+            .map_err(|err| local_design_refusal(err, &sample.treatments, at, bandwidth))?;
+        // The slope and curvature do not move with the covariate marginalization of the
+        // pseudo-outcome (its offset is constant in the treatment), but the level does, and every
+        // transform that divides by the level reads it: the joint covariance carries the term.
+        let coordinate_covariance = coordinate_covariance(&corrected_rows, &covariate_centered);
         let corrected_estimate = transform_point_derivative(
             corrected.value,
             corrected.first_derivative,
@@ -110,7 +138,7 @@ impl ContinuousResponseEstimator {
                     order,
                     scale,
                 );
-                delta_method_standard_error(&corrected.coefficient_covariance, &gradient)
+                delta_method_standard_error(&coordinate_covariance, &gradient)
             }
         };
         // A ratio of estimated coordinates needs denominator uncertainty in
@@ -123,7 +151,7 @@ impl ContinuousResponseEstimator {
                 corrected.value,
                 corrected.first_derivative,
                 at,
-                &corrected.coefficient_covariance,
+                &coordinate_covariance,
                 normal_ppf(0.5 + self.options.confidence_level / 2.0),
             )
         });
@@ -145,7 +173,7 @@ impl ContinuousResponseEstimator {
             // rank-deficient covariance or a transform singularity), not a
             // deliberate withholding. Say why the one interval is absent.
             support.warnings.push(Diagnostic::new(
-                "response.derivative_interval_withheld",
+                "response.no_derivative_interval_method",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
                 "no interval is reported: the delta-method variance of this transformed derivative is not finite at this coordinate (a degenerate local covariance or a transform singularity)",
@@ -200,7 +228,8 @@ impl ContinuousResponseEstimator {
         weighting: &DerivativeWeighting,
     ) -> Result<(ResponseValue, ResponseUncertainty, SupportReport), EstimationError> {
         if !matches!(weighting, DerivativeWeighting::Observed) {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "Gaussian-score Riesz ADE currently supports observed-law weighting only",
             ));
         }
@@ -270,14 +299,20 @@ impl ContinuousResponseEstimator {
         at: &[f64],
         scale: DerivativeScale,
     ) -> Result<(ResponseValue, ResponseUncertainty, SupportReport), EstimationError> {
-        let run = self.plugin_gradient_run(
-            data,
-            outcomes,
-            treatments,
-            at,
-            PluginGradientKind::Jacobian,
-            false,
-        )?;
+        if scale == DerivativeScale::Identity {
+            let (value, uncertainty, withheld) =
+                self.banded_or_point_gradient(data, outcomes, treatments, at, None)?;
+            let run = self.plugin_gradient_run(data, outcomes, treatments, at, false)?;
+            let mut support = multivariate_support(
+                at,
+                &run.all_treatments,
+                treatments.len(),
+                outcomes.len() * treatments.len(),
+            );
+            support.warnings.extend(withheld);
+            return Ok((value, uncertainty, support));
+        }
+        let run = self.plugin_gradient_run(data, outcomes, treatments, at, false)?;
         let mut values = Vec::with_capacity(outcomes.len() * treatments.len());
         for (level, gradient) in run.levels.iter().zip(&run.gradients) {
             for (j, &raw) in gradient.iter().enumerate() {
@@ -306,23 +341,55 @@ impl ContinuousResponseEstimator {
         at: &[f64],
         direction: &[f64],
     ) -> Result<(ResponseValue, ResponseUncertainty, SupportReport), EstimationError> {
-        let run = self.plugin_gradient_run(
-            data,
-            outcomes,
-            treatments,
-            at,
-            PluginGradientKind::Directional,
-            false,
-        )?;
-        let values: Vec<f64> = run
-            .gradients
-            .iter()
-            .map(|gradient| gradient.iter().zip(direction).map(|(a, b)| a * b).sum())
-            .collect();
+        let (value, uncertainty, withheld) =
+            self.banded_or_point_gradient(data, outcomes, treatments, at, Some(direction))?;
+        let run = self.plugin_gradient_run(data, outcomes, treatments, at, false)?;
         let mut support =
-            multivariate_support(at, &run.all_treatments, treatments.len(), values.len());
-        support.warnings.push(plugin_gradient_interval_withheld());
-        Ok((ResponseValue::Vector(Arc::from(values)), ResponseUncertainty::None, support))
+            multivariate_support(at, &run.all_treatments, treatments.len(), outcomes.len());
+        support.warnings.extend(withheld);
+        Ok((value, uncertainty, support))
+    }
+
+    /// The plug-in gradient with its sandwich band. A design whose penalized Gram is not
+    /// invertible (collinear treatment columns) has a point but no sandwich: the point is
+    /// published alone with a warning that says why, never refused for lack of a band.
+    fn banded_or_point_gradient(
+        &self,
+        data: &TabularData,
+        outcomes: &[VariableId],
+        treatments: &[VariableId],
+        at: &[f64],
+        direction: Option<&[f64]>,
+    ) -> Result<(ResponseValue, ResponseUncertainty, Option<Diagnostic>), EstimationError> {
+        match self.plugin_gradient_band(data, outcomes, treatments, at, direction) {
+            Ok((value, uncertainty)) => Ok((value, uncertainty, None)),
+            Err(EstimationError::Unsupported { message })
+                if message == plugin::NOT_INVERTIBLE_PENALIZED_DESIGN =>
+            {
+                let run = self.plugin_gradient_run(data, outcomes, treatments, at, false)?;
+                let value = match direction {
+                    None => ResponseValue::Jacobian {
+                        outcomes: outcomes.len(),
+                        treatments: treatments.len(),
+                        values: Arc::from(run.gradients.concat()),
+                    },
+                    Some(direction) => ResponseValue::Vector(Arc::from(
+                        run.gradients
+                            .iter()
+                            .map(|gradient| {
+                                gradient.iter().zip(direction).map(|(a, b)| a * b).sum::<f64>()
+                            })
+                            .collect::<Vec<f64>>(),
+                    )),
+                };
+                Ok((
+                    value,
+                    ResponseUncertainty::None,
+                    Some(plugin::plugin_gradient_band_unavailable()),
+                ))
+            }
+            Err(error) => Err(error),
+        }
     }
 
     pub(super) fn cross_fitted_ade_scores(
@@ -338,8 +405,10 @@ impl ContinuousResponseEstimator {
         let mut adj_row = vec![0.0; sample.adjustment_cols];
         for fold in 0..self.options.folds {
             let train: Vec<usize> = (0..n).filter(|i| i % self.options.folds != fold).collect();
-            let outcome_fit = self.fit_outcome(sample, &train, &mut gam_ws)?;
-            let treatment_fit = self.fit_treatment(sample, &train, &mut gam_ws)?;
+            let outcome_fit =
+                self.fit_outcome_with(sample, &train, ADE_NUISANCE_PENALTY, &mut gam_ws)?;
+            let treatment_fit =
+                self.fit_treatment_with(sample, &train, ADE_NUISANCE_PENALTY, &mut gam_ws)?;
             let sigma = treatment_sigma(sample, &train, treatment_fit.as_ref())?;
             let treatment_mean_constant = sample.train_treatment_mean(&train);
             let treat_smooth = outcome_fit.smooth_for_raw_col(0).ok_or_else(|| {

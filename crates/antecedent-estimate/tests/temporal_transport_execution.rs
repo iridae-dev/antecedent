@@ -7,7 +7,7 @@
 //! two latent confounders. Every expected value is enumerated from the
 //! structural model, never from the formula under test.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 
@@ -81,7 +81,7 @@ fn prepare(
 
 fn refusal(result: Result<PreparedTemporalSequence, EstimationError>) -> (&'static str, String) {
     match result {
-        Err(EstimationError::Refused { code, message }) => (code, message),
+        Err(EstimationError::Refused { code, message }) => (code, message.into_string()),
         other => panic!("expected a coded refusal, got {:?}", other.map(|_| ())),
     }
 }
@@ -125,7 +125,10 @@ fn two_step_posterior_refuses_an_external_power_prior() {
     )
     .unwrap_err();
     let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
-    assert!(message.contains("two_step_posterior.external_power_prior"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::two_step_posterior::EXTERNAL_POWER_PRIOR),
+        "{message}"
+    );
 }
 
 #[test]
@@ -286,7 +289,12 @@ fn a_reached_history_without_source_support_refuses() {
     // The source supplies no outcome experiment for (b = 1, l1 = 0, l2 = 1).
     let (code, message) = refusal(prepare(&sequence(1.0, 1.0), &[(1, 0, 1)]));
     assert_eq!(code, "transport_support_failure");
-    assert!(message.starts_with("temporal_transport.history_outside_support"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::temporal_transport::HISTORY_OUTSIDE_SUPPORT
+        ),
+        "{message}"
+    );
     assert!(message.contains("b=1") && message.contains("l2=1"), "{message}");
 }
 
@@ -312,7 +320,12 @@ fn a_history_the_target_never_reaches_still_needs_source_support() {
         &ctx(),
     ));
     assert_eq!(code, "transport_support_failure");
-    assert!(message.starts_with("temporal_transport.history_outside_support"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::temporal_transport::HISTORY_OUTSIDE_SUPPORT
+        ),
+        "{message}"
+    );
     // Served, the unreached histories are reported as such and the answer is the truth.
     let served = laws(&source_scm(), &target, &[]);
     let prepared =
@@ -496,7 +509,7 @@ fn depth_memory_and_cancellation_stop_the_shared_budget_too() {
     let depth = decide(&seq, SearchLimits { operations: 100_000, depth: 1 });
     assert!(matches!(depth.outcome, TemporalOutcome::Stopped { stop: SearchStop::Depth }));
     let mut small = ExecutionContext::for_tests(1);
-    small.memory = antecedent_core::MemoryBudget { hard_limit_bytes: Some(64), ..small.memory };
+    small.set_memory_limit(Some(64));
     let memory = decide_temporal_transport_sequence(
         &spec(),
         &seq,
@@ -591,7 +604,10 @@ fn a_structural_obstruction_and_missing_evidence_refuse_with_their_own_reasons()
         &ctx(),
     ));
     assert_eq!(code, "transport_missing_evidence");
-    assert!(message.starts_with("temporal_transport.missing_evidence"), "{message}");
+    assert!(
+        message.starts_with(antecedent_core::reason_details::temporal_transport::MISSING_EVIDENCE),
+        "{message}"
+    );
 }
 
 /// Whether the exact evaluator itself accepts `data` for the decided sequence,
@@ -644,7 +660,12 @@ fn a_source_law_without_interventions_supports_no_history() {
         &ctx(),
     ));
     assert_eq!(code, "transport_support_failure");
-    assert!(message.starts_with("temporal_transport.history_outside_support"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::temporal_transport::HISTORY_OUTSIDE_SUPPORT
+        ),
+        "{message}"
+    );
     assert!(message.contains("8 of 12 histories") && message.contains("step 2 (b="), "{message}");
 }
 
@@ -665,7 +686,12 @@ fn a_source_law_intervening_only_on_the_actions_supports_no_complete_history() {
         &ctx(),
     ));
     assert_eq!(code, "transport_support_failure");
-    assert!(message.starts_with("temporal_transport.history_outside_support"), "{message}");
+    assert!(
+        message.starts_with(
+            antecedent_core::reason_details::temporal_transport::HISTORY_OUTSIDE_SUPPORT
+        ),
+        "{message}"
+    );
 }
 
 #[test]
@@ -843,7 +869,7 @@ fn operations_stop_inside_each_history_step_with_a_receipt_of_what_finished() {
 fn wide_decision(memory: Option<u64>) -> TemporalSequenceDecision {
     let (spec, catalog) = common::temporal_fixture::wide(5);
     let mut ctx = ExecutionContext::for_tests(1);
-    ctx.memory = antecedent_core::MemoryBudget { hard_limit_bytes: memory, ..ctx.memory };
+    ctx.set_memory_limit(memory);
     decide_temporal_transport_sequence(
         &spec,
         &sequence(1.0, 0.0),
@@ -1013,7 +1039,7 @@ fn a_three_level_action_alphabet_executes_through_the_whole_route() {
 
 #[test]
 fn a_decision_the_rules_could_not_certify_refuses_as_search_incomplete_never_as_an_obstruction() {
-    // The licensed rules are sound and incomplete: a diagram no rule certifies and
+    // The supported rules are sound and incomplete: a diagram no rule certifies and
     // no s-hedge refutes is reported as such. No diagram of this fixture reaches
     // that outcome (the rules certify or find a hedge for every unrolling tried),
     // so the refusal surface is exercised on a decision whose outcome is set to it.

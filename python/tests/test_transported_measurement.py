@@ -13,10 +13,12 @@ from __future__ import annotations
 import dataclasses
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import measurement_models as mm
 from antecedent._freeze import thaw
 from antecedent.errors import CausalTypeError
 from antecedent.measurement_models import MeasurementModelRefusal
+from antecedent.outcomes import require_success
 
 SCALAR = mm.RepresentationVersion("scalar", 1)
 REGIME = "observational"
@@ -75,8 +77,10 @@ def refused(call, code: str, detail: str) -> MeasurementModelRefusal:
 
 
 def test_carried_rates_correct_the_target_prevalence_with_a_typed_receipt() -> None:
-    result = mm.transport_measurement_model(
-        [model("clinic_a")], analysis(), DATA, structure=invariance()
+    result = require_success(
+        mm.transport_measurement_model(
+            [model("clinic_a")], analysis(), DATA, structure=invariance()
+        )
     )
     pi, variance = oracle(SE, SP)
     assert pi == pytest.approx(0.32 / 0.7, abs=1e-15)
@@ -101,16 +105,22 @@ def test_carried_rates_correct_the_target_prevalence_with_a_typed_receipt() -> N
     # The source model's own identity is bound, and differs from the re-bound model's.
     assert receipt.source_model != estimate.model_identity
 
-    # There is no interval, whoever asks.
-    refused(result.interval, "cell_not_licensed", "measurement_model.interval_closed")
+    # The interval is reported with its calibration status.
+    interval = result.interval(0.95)
+    assert interval.lower < result.point < interval.upper
+    assert interval.calibration["status"] == "not_measured"
 
 
 def test_the_transported_artifact_is_the_existing_one_and_replays() -> None:
-    result = mm.transport_measurement_model(
-        [model("clinic_a")], analysis(), DATA, structure=invariance()
+    result = require_success(
+        mm.transport_measurement_model(
+            [model("clinic_a")], analysis(), DATA, structure=invariance()
+        )
     )
-    consumed = mm.consume_measurement_model_artifact(
-        result.export("transported"), result.estimate.model_identity
+    consumed = require_success(
+        mm.consume_measurement_model_artifact(
+            bytes(result.export("transported")), result.estimate.model_identity
+        )
     )
     assert consumed.point == pytest.approx(result.estimate.point, abs=1e-12)
     assert consumed.model.population_id == "clinic_b"
@@ -130,26 +140,32 @@ def test_the_transported_artifact_is_the_existing_one_and_replays() -> None:
             expected_identity="0" * 64,
         ),
         "measurement_binding_mismatch",
-        "measurement_model.transport_receipt_mismatch",
+        reason_details.measurement_model.TRANSPORT_RECEIPT_MISMATCH,
     )
 
 
 def test_changed_numbers_and_declarations_move_the_identity() -> None:
-    base = mm.transport_measurement_model(
-        [model("clinic_a")], analysis(), DATA, structure=invariance()
+    base = require_success(
+        mm.transport_measurement_model(
+            [model("clinic_a")], analysis(), DATA, structure=invariance()
+        )
     )
-    shifted = mm.transport_measurement_model(
-        [model("clinic_a", se=0.85, sp=0.8)], analysis(), DATA, structure=invariance()
+    shifted = require_success(
+        mm.transport_measurement_model(
+            [model("clinic_a", se=0.85, sp=0.8)], analysis(), DATA, structure=invariance()
+        )
     )
     pi, _ = oracle(0.85, 0.8)
     assert shifted.estimate.point == pytest.approx(pi, abs=1e-12)
     assert shifted.identity != base.identity
     # Declaring a parameter the route does not use changes the declaration, not the value.
-    wider = mm.transport_measurement_model(
-        [model("clinic_a")],
-        analysis(),
-        DATA,
-        structure=invariance(BOTH + ("error_variance",)),
+    wider = require_success(
+        mm.transport_measurement_model(
+            [model("clinic_a")],
+            analysis(),
+            DATA,
+            structure=invariance(BOTH + ("error_variance",)),
+        )
     )
     assert wider.estimate.point == pytest.approx(base.estimate.point, abs=1e-15)
     assert wider.identity != base.identity
@@ -161,11 +177,13 @@ def test_changed_numbers_and_declarations_move_the_identity() -> None:
 
 def test_a_model_established_for_the_target_borrows_nothing() -> None:
     models = [model("clinic_a"), model("clinic_b", se=0.7, sp=0.95)]
-    result = mm.transport_measurement_model(
-        models,
-        analysis(),
-        DATA,
-        structure=mm.DifferentialErrorDeclaration("analyst"),
+    result = require_success(
+        mm.transport_measurement_model(
+            models,
+            analysis(),
+            DATA,
+            structure=mm.DifferentialErrorDeclaration("analyst"),
+        )
     )
     pi, _ = oracle(0.7, 0.95)
     assert pi == pytest.approx(0.47 / 0.65, abs=1e-15)
@@ -174,7 +192,7 @@ def test_a_model_established_for_the_target_borrows_nothing() -> None:
     assert result.receipt.support == "supported"
     assert result.receipt.basis["kind"] == "differential_established"
     # Without a declaration the same target model is simply its own.
-    own = mm.transport_measurement_model(models, analysis(), DATA)
+    own = require_success(mm.transport_measurement_model(models, analysis(), DATA))
     assert own.receipt.basis["kind"] == "established"
     assert own.estimate.point == pytest.approx(pi, abs=1e-12)
 
@@ -185,49 +203,59 @@ def test_a_model_established_for_the_target_borrows_nothing() -> None:
 def test_every_unmet_premise_is_named() -> None:
     source = [model("clinic_a")]
     missing = refused(
-        lambda: mm.transport_measurement_model(source, analysis(), DATA),
+        lambda: require_success(mm.transport_measurement_model(source, analysis(), DATA)),
         "transport_missing_evidence",
-        "measurement_model.invariance_premise_required",
+        reason_details.measurement_model.INVARIANCE_PREMISE_REQUIRED,
     )
     assert missing.remedy
-    # A premise about specificity alone does not license a sensitivity-and-specificity correction.
+    # A premise about specificity alone does not support a sensitivity-and-specificity correction.
     refused(
-        lambda: mm.transport_measurement_model(
-            source, analysis(), DATA, structure=invariance(("specificity",))
+        lambda: require_success(
+            mm.transport_measurement_model(
+                source, analysis(), DATA, structure=invariance(("specificity",))
+            )
         ),
         "transport_not_certified",
-        "measurement_model.invariance_not_declared",
+        reason_details.measurement_model.INVARIANCE_NOT_DECLARED,
     )
     # A declared population-differential error never falls back to another population's rates.
     refused(
-        lambda: mm.transport_measurement_model(
-            source, analysis(), DATA, structure=mm.DifferentialErrorDeclaration("analyst")
+        lambda: require_success(
+            mm.transport_measurement_model(
+                source, analysis(), DATA, structure=mm.DifferentialErrorDeclaration("analyst")
+            )
         ),
         "differential_error_not_pooled",
-        "measurement_model.differential_population_unestablished",
+        reason_details.measurement_model.DIFFERENTIAL_POPULATION_UNESTABLISHED,
     )
     # A premise for another target or an unknown source.
     refused(
-        lambda: mm.transport_measurement_model(
-            source, analysis(), DATA, structure=invariance(target="clinic_c")
+        lambda: require_success(
+            mm.transport_measurement_model(
+                source, analysis(), DATA, structure=invariance(target="clinic_c")
+            )
         ),
         "transport_not_certified",
-        "measurement_model.invariance_target_mismatch",
+        reason_details.measurement_model.INVARIANCE_TARGET_MISMATCH,
     )
     refused(
-        lambda: mm.transport_measurement_model(
-            source, analysis(), DATA, structure=invariance(source="clinic_z")
+        lambda: require_success(
+            mm.transport_measurement_model(
+                source, analysis(), DATA, structure=invariance(source="clinic_z")
+            )
         ),
         "transport_not_certified",
-        "measurement_model.invariance_source_unknown",
+        reason_details.measurement_model.INVARIANCE_SOURCE_UNKNOWN,
     )
     # The premise covers the population only: a model of another regime is not carried.
     refused(
-        lambda: mm.transport_measurement_model(
-            source, analysis(regime="do(a=1)"), DATA, structure=invariance()
+        lambda: require_success(
+            mm.transport_measurement_model(
+                source, analysis(regime="do(a=1)"), DATA, structure=invariance()
+            )
         ),
         "measurement_binding_mismatch",
-        "measurement_model.regime_mismatch",
+        reason_details.measurement_model.REGIME_MISMATCH,
     )
 
 
@@ -235,11 +263,13 @@ def test_a_route_with_nothing_to_carry_is_refused() -> None:
     repeated = dataclasses.replace(model("clinic_a"), parameters=mm.RepeatedParameters(20, 0.1))
     data = mm.RepeatedLinearData([1.0, 2.0, 3.0], [1.0, 1.0, 2.0, 2.0, 3.0, 3.0], [2, 2, 2])
     refused(
-        lambda: mm.transport_measurement_model(
-            [repeated], analysis(), data, structure=invariance(("error_variance",))
+        lambda: require_success(
+            mm.transport_measurement_model(
+                [repeated], analysis(), data, structure=invariance(("error_variance",))
+            )
         ),
         "route_not_supported",
-        "measurement_model.nothing_to_transport",
+        reason_details.measurement_model.NOTHING_TO_TRANSPORT,
     )
 
 
@@ -247,11 +277,15 @@ def test_declaration_types_are_checked() -> None:
     with pytest.raises(CausalTypeError):
         mm.InvarianceDeclaration("clinic_a", "clinic_b", "analyst", "sensitivity")
     with pytest.raises(CausalTypeError):
-        mm.transport_measurement_model(
-            [model("clinic_a")],
-            analysis(),
-            DATA,
-            structure={"kind": "invariant"},  # type: ignore[arg-type]
+        require_success(
+            mm.transport_measurement_model(
+                [model("clinic_a")],
+                analysis(),
+                DATA,
+                structure={"kind": "invariant"},  # type: ignore[arg-type]
+            )
         )
     with pytest.raises(CausalTypeError):
-        mm.transport_measurement_model([], analysis(), DATA, structure=invariance())
+        require_success(
+            mm.transport_measurement_model([], analysis(), DATA, structure=invariance())
+        )

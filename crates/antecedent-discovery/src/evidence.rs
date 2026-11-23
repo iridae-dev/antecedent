@@ -1,6 +1,6 @@
 //! Build temporal graph evidence from scored links.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -39,22 +39,22 @@ pub fn threshold_scored_links(
     fdr: Option<FdrAdjustment>,
     alpha: f64,
 ) -> Vec<ScoredLink> {
-    if let Some(cfg) = fdr {
-        if !scored.is_empty() {
-            let mut family_idx = Vec::new();
-            let mut family_p = Vec::new();
-            for (i, link) in scored.iter().enumerate() {
-                if !in_fdr_family(link, cfg) {
-                    continue;
-                }
-                family_idx.push(i);
-                family_p.push(link.p_value);
+    if let Some(cfg) = fdr
+        && !scored.is_empty()
+    {
+        let mut family_idx = Vec::new();
+        let mut family_p = Vec::new();
+        for (i, link) in scored.iter().enumerate() {
+            if !in_fdr_family(link, cfg) {
+                continue;
             }
-            if !family_p.is_empty() {
-                let adj = adjust_pvalues(&family_p, cfg.method);
-                for (slot, &i) in family_idx.iter().enumerate() {
-                    scored[i].adjusted_p_value = Some(adj[slot]);
-                }
+            family_idx.push(i);
+            family_p.push(link.p_value);
+        }
+        if !family_p.is_empty() {
+            let adj = adjust_pvalues(&family_p, cfg.method);
+            for (slot, &i) in family_idx.iter().enumerate() {
+                scored[i].adjusted_p_value = Some(adj[slot]);
             }
         }
     }
@@ -161,7 +161,10 @@ pub(crate) fn symmetrize_contemporaneous_links(links: Vec<ScoredLink>) -> Vec<Sc
         }
     }
     let mut out = lagged;
-    for ((lo, hi), (fwd, rev)) in contemp {
+    // Pairs in ascending id order: the output order fixes the order edges enter the graph.
+    let mut pairs: Vec<_> = contemp.into_iter().collect();
+    pairs.sort_unstable_by_key(|(key, _)| *key);
+    for ((lo, hi), (fwd, rev)) in pairs {
         let (Some(mut a), Some(b)) = (fwd, rev) else {
             continue;
         };

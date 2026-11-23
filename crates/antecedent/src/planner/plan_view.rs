@@ -1,0 +1,2388 @@
+//! One plan view for every compiled route.
+//!
+//! A [`PlanView`] reads the lowered program `Study::compile` attached to a plan and
+//! states each compiler layer: the scientific problem, the identification product,
+//! the statistical program, the evidence and decision program, the physical plan,
+//! and the uncertainty and claim the execution must publish, together with the
+//! program identity and the support cell. On a prepared handle it also reads the
+//! identification preparation installed and names the sealed operation preparation
+//! retained.
+//!
+//! The view states the scientific target, the assumptions, the realization, the
+//! evidence transformations, the uncertainty demand, what is reused, how buffers
+//! are materialized, the route-memory quote by component and the physical backend
+//! chosen with the alternatives it rejected. [`PlanView::operations`] lists the
+//! statistical, evidence and decision, and physical operations of the route, each
+//! derived from the program it describes.
+//!
+//! Building a view reads retained values only. It does not identify, fit, scan
+//! rows, enumerate graphs, simulate or lease from an admission pool. The work that
+//! produced those values happened at compile (identification retained with the
+//! program, a quoted design width) or at prepare, and is reported there.
+//!
+//! Every route a view describes is a [`PlanRoute`]. The route table that registers
+//! each `RouteInput` cell to its family lowering also generates [`PlanRoute`] and
+//! the cell's [`RouteFamily`], and the view matches every family exhaustively, so a
+//! route cell or a family added without a view does not compile.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use antecedent_contract::{
+    BufferMaterialization, ClaimKind, DecisionRequest, PhysicalExecutionPlanRecord,
+};
+use antecedent_core::physical_choice::{
+    AlternativeQuote, PhysicalAlternative, PhysicalChoice, RejectedAlternative, RouteChoice,
+};
+use antecedent_core::route_memory::RouteMemoryEstimate;
+use antecedent_core::{
+    AssumptionSet, AssumptionStatus, ExecutionContext, KernelPolicy, POSTERIOR_MASS_TOLERANCE,
+    PhysicalOperator, SemanticDigest, VariableId,
+};
+use antecedent_expr::IdentifiedEstimand;
+use antecedent_identify::{
+    CompiledIdentificationProduct, IdentificationClaimClass, IdentificationOutcome,
+    IdentificationResult, IdentificationStatus, TransportIdentification,
+};
+use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
+use serde_json::Value as Json;
+
+pub use crate::analysis::lowering::{GraphPosteriorCell, PlanRoute};
+
+use crate::analysis::IdentificationCache;
+use crate::error::CausalError;
+use crate::planner::PhysicalExecutionPlan;
+use crate::planner::fact::{Fact, fact};
+use crate::planner::lowered::{
+    ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, IdentificationLayer,
+    LoweredProgram, LoweringDepth, NonGraphicalIdentification, ProblemTarget, ProgramCell,
+    ScientificProblem, UncertaintyReading, WidthSource,
+};
+use crate::planner::statistical::{PosteriorPlan, Realization, ResamplingPlan, StatisticalProgram};
+use crate::support::CellStatus;
+
+/// The family a route is lowered by.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
+pub enum RouteFamily {
+    /// Static average, conditional, distribution and path-specific effects.
+    StaticEffect,
+    /// Static response curves, intervention responses and joint responses.
+    StaticResponse,
+    /// Static mediation and the fitted-mechanism routes: queries, attribution
+    /// and simulation.
+    Structural,
+    /// Temporal effects, responses, mediation and cross-world queries.
+    Temporal,
+    /// Design-based routes: transport, interference, randomized trials, policy
+    /// value, panel, dose, discontinuity, survival and sequential designs.
+    DesignBased,
+    /// Structure discovery.
+    Discovery,
+    /// A mixture over the atoms of a supplied graph posterior.
+    GraphPosterior,
+    /// A cyclic family, prepared through its own entry.
+    Cyclic,
+    /// A standalone experiment plan.
+    Planning,
+    /// A chain of transformations carrying uncertainty from declared sources to a
+    /// reading.
+    PropagationChain,
+    /// Graph selection repeated on each completed imputation table.
+    GraphImputation,
+    /// Scientifically closed categorical posterior candidate.
+    CategoricalPosteriorCandidate,
+    /// A noncausal association of the observed data: a conditional law, regression
+    /// coefficients, an association measure or a scored predictive model.
+    Associational,
+    /// Joint multi-channel panel models: fitted responses, imputation, program search and
+    /// selection, experiment updates and design-native joint functionals.
+    JointPanel,
+}
+
+impl RouteFamily {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::StaticEffect => "static_effect",
+            Self::StaticResponse => "static_response",
+            Self::Structural => "structural",
+            Self::Temporal => "temporal",
+            Self::DesignBased => "design_based",
+            Self::Discovery => "discovery",
+            Self::GraphPosterior => "graph_posterior",
+            Self::Cyclic => "cyclic",
+            Self::Planning => "planning",
+            Self::PropagationChain => "propagation_chain",
+            Self::GraphImputation => "graph_imputation",
+            Self::CategoricalPosteriorCandidate => "categorical_posterior_candidate",
+            Self::Associational => "associational",
+            Self::JointPanel => "joint_panel",
+        }
+    }
+}
+
+/// Where a view was taken.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum PlanStage {
+    /// From a compiled plan, before preparation.
+    Compiled,
+    /// From a prepared handle: the identification preparation installed and the
+    /// sealed operation it retained are read as well.
+    Prepared,
+}
+
+impl PlanStage {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Compiled => "compiled",
+            Self::Prepared => "prepared",
+        }
+    }
+}
+
+/// One identified estimand.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EstimandView {
+    method: Arc<str>,
+    adjustment_set: Arc<[VariableId]>,
+    instruments: Arc<[VariableId]>,
+    mediators: Arc<[VariableId]>,
+}
+
+impl EstimandView {
+    fn of(estimand: &IdentifiedEstimand) -> Self {
+        Self {
+            method: Arc::clone(&estimand.method),
+            adjustment_set: Arc::clone(&estimand.adjustment_set),
+            instruments: Arc::clone(&estimand.instruments),
+            mediators: Arc::clone(&estimand.mediators),
+        }
+    }
+
+    /// Estimand method tag.
+    #[must_use]
+    pub fn method(&self) -> &str {
+        &self.method
+    }
+
+    /// Adjustment set; empty when the estimand is not an adjustment.
+    #[must_use]
+    pub fn adjustment_set(&self) -> &[VariableId] {
+        &self.adjustment_set
+    }
+
+    /// Instruments; empty unless an instrumental-variable estimand.
+    #[must_use]
+    pub fn instruments(&self) -> &[VariableId] {
+        &self.instruments
+    }
+
+    /// Mediators; empty unless a front-door or two-stage estimand.
+    #[must_use]
+    pub fn mediators(&self) -> &[VariableId] {
+        &self.mediators
+    }
+
+    fn facts(&self) -> Fact {
+        fact!({
+            "method": &*self.method,
+            "adjustment_set": Fact::variables(&self.adjustment_set),
+            "instruments": Fact::variables(&self.instruments),
+            "mediators": Fact::variables(&self.mediators),
+        })
+    }
+}
+
+/// One assumption an identification relies on.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AssumptionView {
+    label: String,
+    status: AssumptionStatus,
+}
+
+impl AssumptionView {
+    /// Stable label of the assumption.
+    #[must_use]
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+
+    /// Whether the assumption is declared, supported, contradicted or untestable.
+    #[must_use]
+    pub const fn status(&self) -> AssumptionStatus {
+        self.status
+    }
+
+    fn facts(&self) -> Fact {
+        fact!({"label": self.label, "status": self.status.as_str()})
+    }
+}
+
+fn assumption_views(set: &AssumptionSet) -> Vec<AssumptionView> {
+    let mut views: Vec<AssumptionView> = Vec::with_capacity(set.entries.len());
+    for record in &set.entries {
+        let view = AssumptionView {
+            label: crate::analysis::assumption_label(&record.assumption),
+            status: record.status,
+        };
+        if !views.contains(&view) {
+            views.push(view);
+        }
+    }
+    views
+}
+
+/// An obligation identification left unresolved.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ObligationView {
+    code: Arc<str>,
+    detail: Arc<str>,
+}
+
+impl ObligationView {
+    /// Stable obligation code.
+    #[must_use]
+    pub fn code(&self) -> &str {
+        &self.code
+    }
+
+    /// What the obligation asks for.
+    #[must_use]
+    pub fn detail(&self) -> &str {
+        &self.detail
+    }
+}
+
+/// The checked identification product bound to the scientific target.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProductView {
+    identity: SemanticDigest,
+    outcome: IdentificationOutcome,
+    claim_class: IdentificationClaimClass,
+    estimands: Vec<EstimandView>,
+    assumptions: Vec<AssumptionView>,
+    required_factors: Vec<(Arc<str>, Arc<[VariableId]>)>,
+    unresolved: Vec<ObligationView>,
+}
+
+impl ProductView {
+    fn of(product: &CompiledIdentificationProduct) -> Self {
+        Self {
+            identity: product.identity(),
+            outcome: product.outcome(),
+            claim_class: product.claim_class(),
+            estimands: product.identified().iter().map(EstimandView::of).collect(),
+            assumptions: assumption_views(product.assumptions()),
+            required_factors: product
+                .required_factors()
+                .iter()
+                .map(|factor| (Arc::from(factor.name()), Arc::from(factor.variables())))
+                .collect(),
+            unresolved: product
+                .unresolved_obligations()
+                .iter()
+                .map(|obligation| ObligationView {
+                    code: Arc::from(obligation.code()),
+                    detail: Arc::from(obligation.detail()),
+                })
+                .collect(),
+        }
+    }
+
+    /// Identity of the product.
+    #[must_use]
+    pub const fn identity(&self) -> SemanticDigest {
+        self.identity
+    }
+
+    /// Identification outcome.
+    #[must_use]
+    pub const fn outcome(&self) -> IdentificationOutcome {
+        self.outcome
+    }
+
+    /// What kind of statement the outcome may make.
+    #[must_use]
+    pub const fn claim_class(&self) -> IdentificationClaimClass {
+        self.claim_class
+    }
+
+    /// Identified estimands.
+    #[must_use]
+    pub fn estimands(&self) -> &[EstimandView] {
+        &self.estimands
+    }
+
+    /// Assumptions the product relies on.
+    #[must_use]
+    pub fn assumptions(&self) -> &[AssumptionView] {
+        &self.assumptions
+    }
+
+    /// Factors the identified functional reads, by name and variables.
+    #[must_use]
+    pub fn required_factors(&self) -> &[(Arc<str>, Arc<[VariableId]>)] {
+        &self.required_factors
+    }
+
+    /// Obligations left unresolved.
+    #[must_use]
+    pub fn unresolved_obligations(&self) -> &[ObligationView] {
+        &self.unresolved
+    }
+
+    fn facts(&self) -> Fact {
+        fact!({
+            "identity": self.identity.to_hex(),
+            "outcome": outcome_name(self.outcome),
+            "claim_class": claim_class_name(self.claim_class),
+            "estimands": self.estimands.iter().map(EstimandView::facts).collect::<Vec<_>>(),
+            "assumptions": self.assumptions.iter().map(AssumptionView::facts).collect::<Vec<_>>(),
+            "required_factors": self
+                .required_factors
+                .iter()
+                .map(|(name, variables)| fact!({"name": &**name, "variables": Fact::variables(variables)}))
+                .collect::<Vec<_>>(),
+            "unresolved_obligations": self
+                .unresolved
+                .iter()
+                .map(|obligation| fact!({"code": &*obligation.code, "detail": &*obligation.detail}))
+                .collect::<Vec<_>>(),
+        })
+    }
+}
+
+/// One identification product retained with the program or installed by preparation.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RetainedProductView {
+    kind: &'static str,
+    status: Option<IdentificationStatus>,
+    estimands: Vec<EstimandView>,
+    assumptions: Vec<AssumptionView>,
+    horizons: Vec<u32>,
+    completions: usize,
+    truncated_completions: usize,
+    atoms: usize,
+    identified_mass: Option<f64>,
+    unidentified_mass: Option<f64>,
+    transport: Option<&'static str>,
+}
+
+impl RetainedProductView {
+    fn empty(kind: &'static str) -> Self {
+        Self {
+            kind,
+            status: None,
+            estimands: Vec::new(),
+            assumptions: Vec::new(),
+            horizons: Vec::new(),
+            completions: 0,
+            truncated_completions: 0,
+            atoms: 0,
+            identified_mass: None,
+            unidentified_mass: None,
+            transport: None,
+        }
+    }
+
+    fn of_result(kind: &'static str, result: &IdentificationResult) -> Self {
+        Self {
+            status: Some(result.status),
+            assumptions: assumption_views(&result.required_assumptions),
+            ..Self::empty(kind)
+        }
+    }
+
+    fn of_samples(kind: &'static str, graphs: &WeightedGraphSamples, atoms: usize) -> Self {
+        let identified = graphs.identified_mass();
+        let unidentified = graphs.unidentified_mass();
+        Self {
+            status: Some(mixture_status(identified, unidentified)),
+            atoms,
+            identified_mass: Some(identified),
+            unidentified_mass: Some(unidentified),
+            ..Self::empty(kind)
+        }
+    }
+
+    fn of_cache(cache: &IdentificationCache) -> Self {
+        match cache {
+            IdentificationCache::Static(fixed) => Self {
+                estimands: vec![EstimandView::of(&fixed.estimand)],
+                ..Self::of_result(cache.kind(), &fixed.identification)
+            },
+            IdentificationCache::Pag(pag) => Self {
+                status: Some(pag.envelope.status),
+                estimands: pag.envelope.invariant.iter().map(EstimandView::of).collect(),
+                completions: pag.envelope.cases.len(),
+                truncated_completions: pag.envelope.truncated_completions,
+                identified_mass: Some(pag.envelope.identified_weight.0),
+                unidentified_mass: Some(pag.envelope.unidentified_weight.0),
+                ..Self::of_result(cache.kind(), &pag.identification)
+            },
+            IdentificationCache::Cpdag(cpdag) => Self {
+                status: Some(cpdag.envelope.status),
+                estimands: cpdag.envelope.invariant.iter().map(EstimandView::of).collect(),
+                completions: cpdag.envelope.cases.len(),
+                truncated_completions: cpdag.envelope.truncated_completions,
+                identified_mass: Some(cpdag.envelope.identified_weight.0),
+                unidentified_mass: Some(cpdag.envelope.unidentified_weight.0),
+                ..Self::of_result(cache.kind(), &cpdag.identification)
+            },
+            IdentificationCache::Temporal(temporal) => {
+                let mut view = Self::empty(cache.kind());
+                for horizon in temporal.by_horizon.iter() {
+                    view.horizons.push(horizon.horizon);
+                    view.status = Some(weakest(view.status, horizon.identification.status));
+                    view.estimands.push(EstimandView::of(&horizon.estimand));
+                    for assumption in assumption_views(&horizon.identification.required_assumptions)
+                    {
+                        if !view.assumptions.contains(&assumption) {
+                            view.assumptions.push(assumption);
+                        }
+                    }
+                }
+                view
+            }
+            IdentificationCache::TemporalClass(class) => {
+                let envelope = &class.envelope.envelope;
+                Self {
+                    status: Some(envelope.status),
+                    estimands: envelope.invariant.iter().map(EstimandView::of).collect(),
+                    horizons: class.by_horizon.iter().map(|(horizon, _)| *horizon).collect(),
+                    completions: envelope.cases.len(),
+                    truncated_completions: envelope.truncated_completions,
+                    identified_mass: Some(envelope.identified_weight.0),
+                    unidentified_mass: Some(envelope.unidentified_weight.0),
+                    ..Self::empty(cache.kind())
+                }
+            }
+            IdentificationCache::Transport(transport) => {
+                let (status, outcome) = match &**transport {
+                    TransportIdentification::Transportable { .. } => {
+                        (IdentificationStatus::NonparametricallyIdentified, "transportable")
+                    }
+                    TransportIdentification::NotCertified(_) => {
+                        (IdentificationStatus::NotIdentified, "not_certified")
+                    }
+                    TransportIdentification::MissingEvidence(_) => {
+                        (IdentificationStatus::NotIdentified, "missing_evidence")
+                    }
+                };
+                Self { status: Some(status), transport: Some(outcome), ..Self::empty(cache.kind()) }
+            }
+            IdentificationCache::GraphPosterior(posterior) => Self::of_samples(
+                cache.kind(),
+                &posterior.graphs,
+                posterior.atoms.len() + posterior.class_atoms.len(),
+            ),
+            IdentificationCache::DbnPosterior(posterior) => {
+                Self::of_samples(cache.kind(), &posterior.graphs, posterior.atoms.len())
+            }
+            IdentificationCache::TemporalClassPosterior(posterior) => {
+                Self::of_samples(cache.kind(), &posterior.graphs, posterior.class_atoms.len())
+            }
+        }
+    }
+
+    /// Slot the product fills (`static`, `pag`, `cpdag`, `temporal`,
+    /// `temporal_class`, `transport`, `graph_posterior`, `dbn_posterior`,
+    /// `temporal_class_posterior`).
+    #[must_use]
+    pub const fn kind(&self) -> &'static str {
+        self.kind
+    }
+
+    /// Identification status, when the product states one.
+    #[must_use]
+    pub const fn status(&self) -> Option<IdentificationStatus> {
+        self.status
+    }
+
+    /// Selected estimands: the static estimand, one per temporal horizon, or the
+    /// estimand every identified completion of a class shares.
+    #[must_use]
+    pub fn estimands(&self) -> &[EstimandView] {
+        &self.estimands
+    }
+
+    /// Assumptions the product relies on.
+    #[must_use]
+    pub fn assumptions(&self) -> &[AssumptionView] {
+        &self.assumptions
+    }
+
+    /// Horizons a temporal product was identified for.
+    #[must_use]
+    pub fn horizons(&self) -> &[u32] {
+        &self.horizons
+    }
+
+    /// Completions an equivalence-class envelope enumerated at compile.
+    #[must_use]
+    pub const fn completions(&self) -> usize {
+        self.completions
+    }
+
+    /// Completions whose search was capped.
+    #[must_use]
+    pub const fn truncated_completions(&self) -> usize {
+        self.truncated_completions
+    }
+
+    /// Identified posterior atoms a graph-posterior product retained.
+    #[must_use]
+    pub const fn atoms(&self) -> usize {
+        self.atoms
+    }
+
+    /// Identified mass of an envelope or a posterior.
+    #[must_use]
+    pub const fn identified_mass(&self) -> Option<f64> {
+        self.identified_mass
+    }
+
+    /// Unidentified mass of an envelope or a posterior; it is never dropped.
+    #[must_use]
+    pub const fn unidentified_mass(&self) -> Option<f64> {
+        self.unidentified_mass
+    }
+
+    /// Transport certificate outcome (`transportable`, `not_certified`,
+    /// `missing_evidence`), for a transport product.
+    #[must_use]
+    pub const fn transport(&self) -> Option<&'static str> {
+        self.transport
+    }
+
+    fn facts(&self) -> Fact {
+        fact!({
+            "kind": self.kind,
+            "status": self.status.map(IdentificationStatus::as_str),
+            "estimands": self.estimands.iter().map(EstimandView::facts).collect::<Vec<_>>(),
+            "assumptions": self.assumptions.iter().map(AssumptionView::facts).collect::<Vec<_>>(),
+            "horizons": self.horizons,
+            "completions": self.completions,
+            "truncated_completions": self.truncated_completions,
+            "atoms": self.atoms,
+            "identified_mass": self.identified_mass,
+            "unidentified_mass": self.unidentified_mass,
+            "transport": self.transport,
+        })
+    }
+}
+
+/// Why a program that claims no identification carries a refusal.
+const REFUSED_CAUSAL_QUERY: &str = "follows a refused causal query";
+
+/// How layer two carries identification.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum IdentificationKind {
+    /// Identified at compile and retained with the program.
+    Retained,
+    /// Refused at compile; preparation identifies and reports the same refusal.
+    Deferred,
+    /// The route identifies on each execution.
+    PerExecution,
+    /// A feedback model's identification, which is not a graphical product.
+    NonGraphical,
+    /// The program claims no identification: it describes the observed law.
+    NotClaimed,
+}
+
+impl IdentificationKind {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Retained => "retained",
+            Self::Deferred => "deferred",
+            Self::PerExecution => "per_execution",
+            Self::NonGraphical => "non_graphical",
+            Self::NotClaimed => "not_claimed",
+        }
+    }
+}
+
+/// Layer two: the identification product.
+#[derive(Clone, Debug, PartialEq)]
+pub struct IdentificationView {
+    kind: IdentificationKind,
+    reason: Option<&'static str>,
+    non_graphical: Option<&'static str>,
+    unresolved_directions: usize,
+    product: Option<ProductView>,
+    retained: Vec<RetainedProductView>,
+    installed_at_prepare: bool,
+    retention_key: Option<[u8; 32]>,
+    refusal: Option<Arc<str>>,
+}
+
+impl IdentificationView {
+    fn of(layer: &IdentificationLayer, installed: &[IdentificationCache]) -> Self {
+        let mut view = Self {
+            kind: IdentificationKind::Retained,
+            reason: None,
+            non_graphical: None,
+            unresolved_directions: 0,
+            product: None,
+            retained: Vec::new(),
+            installed_at_prepare: false,
+            retention_key: None,
+            refusal: None,
+        };
+        match layer {
+            IdentificationLayer::Retained(retained) => {
+                view.product = retained.product.as_ref().map(ProductView::of);
+                view.retained =
+                    retained.caches().iter().map(RetainedProductView::of_cache).collect();
+                view.retention_key = retained.key;
+            }
+            IdentificationLayer::Deferred { reason, .. } => {
+                view.kind = IdentificationKind::Deferred;
+                view.reason = Some(*reason);
+            }
+            IdentificationLayer::PerExecution { reason } => {
+                view.kind = IdentificationKind::PerExecution;
+                view.reason = Some(*reason);
+            }
+            IdentificationLayer::NotClaimed { refusal } => {
+                view.kind = IdentificationKind::NotClaimed;
+                view.reason = refusal.as_deref().map(|_| REFUSED_CAUSAL_QUERY);
+                view.refusal.clone_from(refusal);
+            }
+            IdentificationLayer::NonGraphical(identification) => {
+                view.kind = IdentificationKind::NonGraphical;
+                view.non_graphical = Some(identification.as_str());
+                if let NonGraphicalIdentification::ExperimentalRecovery { unresolved, .. } =
+                    &**identification
+                {
+                    view.unresolved_directions = unresolved.len();
+                }
+            }
+        }
+        // What preparation installed replaces what compile retained: it is the
+        // product the prepared handle executes, and it is the only product a
+        // deferred program has.
+        if !installed.is_empty() {
+            view.retained = installed.iter().map(RetainedProductView::of_cache).collect();
+            view.installed_at_prepare = true;
+        }
+        view
+    }
+
+    /// How the layer carries identification.
+    #[must_use]
+    pub const fn kind(&self) -> IdentificationKind {
+        self.kind
+    }
+
+    /// Why compile retained no identification, for a deferred or per-execution layer.
+    #[must_use]
+    pub const fn reason(&self) -> Option<&'static str> {
+        self.reason
+    }
+
+    /// Reason code of the refused causal query a program that claims no identification
+    /// follows.
+    #[must_use]
+    pub fn refusal(&self) -> Option<&str> {
+        self.refusal.as_deref()
+    }
+
+    /// The non-graphical identification a feedback program carries
+    /// (`specified_model_conditional`, `experimental_recovery`, `cyclic_ioscm`).
+    #[must_use]
+    pub const fn non_graphical(&self) -> Option<&'static str> {
+        self.non_graphical
+    }
+
+    /// Directions an experimental recovery leaves unresolved.
+    #[must_use]
+    pub const fn unresolved_directions(&self) -> usize {
+        self.unresolved_directions
+    }
+
+    /// The checked product bound to the scientific target, when the route builds one.
+    #[must_use]
+    pub const fn product(&self) -> Option<&ProductView> {
+        self.product.as_ref()
+    }
+
+    /// Products compile retained, or preparation installed, in install order.
+    #[must_use]
+    pub fn retained(&self) -> &[RetainedProductView] {
+        &self.retained
+    }
+
+    /// Whether [`Self::retained`] lists what preparation installed.
+    #[must_use]
+    pub const fn installed_at_prepare(&self) -> bool {
+        self.installed_at_prepare
+    }
+
+    /// Digest of the study inputs a retained product was identified from.
+    #[must_use]
+    pub const fn retention_key(&self) -> Option<[u8; 32]> {
+        self.retention_key
+    }
+
+    /// The weakest status the retained products state, when any states one.
+    #[must_use]
+    pub fn status(&self) -> Option<IdentificationStatus> {
+        self.retained
+            .iter()
+            .filter_map(RetainedProductView::status)
+            .fold(None, |weakest_so_far, status| Some(weakest(weakest_so_far, status)))
+    }
+
+    /// Assumptions the product and the retained products rely on, without repeats.
+    #[must_use]
+    pub fn assumptions(&self) -> Vec<AssumptionView> {
+        let mut all: Vec<AssumptionView> = Vec::new();
+        let from_product = self.product.iter().flat_map(|product| product.assumptions.iter());
+        let from_retained = self.retained.iter().flat_map(|retained| retained.assumptions.iter());
+        for assumption in from_product.chain(from_retained) {
+            if !all.contains(assumption) {
+                all.push(assumption.clone());
+            }
+        }
+        all
+    }
+
+    /// Obligations the checked product left unresolved.
+    #[must_use]
+    pub fn unresolved_obligations(&self) -> &[ObligationView] {
+        self.product.as_ref().map_or(&[][..], |product| product.unresolved.as_slice())
+    }
+
+    fn facts(&self) -> Fact {
+        fact!({
+            "kind": self.kind.as_str(),
+            "status": self.status().map(IdentificationStatus::as_str),
+            "reason": self.reason,
+            "refusal": self.refusal.as_deref(),
+            "non_graphical": self.non_graphical,
+            "unresolved_directions": self.unresolved_directions,
+            "product": self.product.as_ref().map(ProductView::facts),
+            "retained": self.retained.iter().map(RetainedProductView::facts).collect::<Vec<_>>(),
+            "installed_at_prepare": self.installed_at_prepare,
+            "retention_key": self.retention_key.map(|key| SemanticDigest::from_bytes(key).to_hex()),
+        })
+    }
+}
+
+/// Layer five: the physical plan.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PhysicalView {
+    operators: Arc<[PhysicalOperator]>,
+    design: DesignShape,
+    record: Option<PhysicalExecutionPlanRecord>,
+    kernel_policy: Option<KernelPolicy>,
+    backend: Option<BackendView>,
+    memory: Option<RouteMemoryEstimate>,
+}
+
+/// The physical backend chosen for the route, with every alternative it rejected
+/// and the work and resident bytes each was costed at.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BackendView {
+    selected: PhysicalAlternative,
+    selected_cost: u64,
+    rejected: Vec<RejectedAlternative>,
+    quotes: Vec<AlternativeQuote>,
+    budget_bytes: Option<u64>,
+}
+
+impl BackendView {
+    fn of(choice: &PhysicalChoice, routed: Option<&RouteChoice>) -> Self {
+        Self {
+            selected: choice.selected(),
+            selected_cost: choice.selected_cost().raw(),
+            rejected: choice.rejected().to_vec(),
+            quotes: routed.map_or_else(Vec::new, |routed| routed.quotes().to_vec()),
+            budget_bytes: routed
+                .map(RouteChoice::budget_bytes)
+                .filter(|budget| *budget != u64::MAX),
+        }
+    }
+
+    /// Alternative that was selected.
+    #[must_use]
+    pub const fn selected(&self) -> PhysicalAlternative {
+        self.selected
+    }
+
+    /// Declared cost of the selected alternative.
+    #[must_use]
+    pub const fn selected_cost(&self) -> u64 {
+        self.selected_cost
+    }
+
+    /// Alternatives that were not selected, each with the reason: a missing
+    /// operator or resource capability, or a cost that was not lower.
+    #[must_use]
+    pub fn rejected(&self) -> &[RejectedAlternative] {
+        &self.rejected
+    }
+
+    /// Work cells and resident bytes every alternative was costed at. Empty when
+    /// the choice was declared rather than costed from the route's shape.
+    #[must_use]
+    pub fn quotes(&self) -> &[AlternativeQuote] {
+        &self.quotes
+    }
+
+    /// Byte budget the resident bytes were compared with; `None` when unlimited.
+    #[must_use]
+    pub const fn budget_bytes(&self) -> Option<u64> {
+        self.budget_bytes
+    }
+
+    fn facts(&self) -> Fact {
+        fact!({
+            "selected": self.selected.as_str(),
+            "selected_cost": self.selected_cost,
+            "rejected": self
+                .rejected
+                .iter()
+                .map(|rejected| fact!({
+                    "alternative": rejected.alternative().as_str(),
+                    "reason": rejected.reason().to_string(),
+                }))
+                .collect::<Vec<_>>(),
+            "quotes": self
+                .quotes
+                .iter()
+                .map(|quote| fact!({
+                    "alternative": quote.alternative().as_str(),
+                    "work_cells": quote.work_cells(),
+                    "resident_bytes": quote.resident_bytes(),
+                    "cost": quote.cost().raw(),
+                }))
+                .collect::<Vec<_>>(),
+            "budget_bytes": self.budget_bytes,
+        })
+    }
+}
+
+impl PhysicalView {
+    /// Physical operator contracts of the program.
+    #[must_use]
+    pub fn operators(&self) -> &[PhysicalOperator] {
+        &self.operators
+    }
+
+    /// The design the program fits.
+    #[must_use]
+    pub const fn design(&self) -> DesignShape {
+        self.design
+    }
+
+    /// Encoded columns of a quoted design, including the intercept.
+    #[must_use]
+    pub const fn quoted_width(&self) -> Option<u64> {
+        self.design.columns()
+    }
+
+    /// Why the route quotes no single design, when it is not design based.
+    #[must_use]
+    pub const fn not_design_based(&self) -> Option<&'static str> {
+        match self.design.source() {
+            WidthSource::Quoted => None,
+            WidthSource::NotDesignBased(reason) => Some(reason),
+        }
+    }
+
+    /// The physical record the plan was sized to, when the view was taken from a plan.
+    #[must_use]
+    pub const fn record(&self) -> Option<&PhysicalExecutionPlanRecord> {
+        self.record.as_ref()
+    }
+
+    /// How each buffer is materialized (borrowed, copied contiguous, chunked),
+    /// when the view was taken from a plan.
+    #[must_use]
+    pub fn materializations(&self) -> &[(Arc<str>, BufferMaterialization)] {
+        self.record.as_ref().map_or(&[][..], |record| &record.materializations[..])
+    }
+
+    /// The backend chosen and the alternatives rejected, when the view was taken
+    /// from a plan.
+    #[must_use]
+    pub const fn backend(&self) -> Option<&BackendView> {
+        self.backend.as_ref()
+    }
+
+    /// The route-memory quote the record's peak and workspace came from, by
+    /// component, when the view was taken from a plan.
+    #[must_use]
+    pub const fn memory_quote(&self) -> Option<RouteMemoryEstimate> {
+        self.memory
+    }
+
+    /// Kernel policy of the compile context, when the view was taken under one.
+    #[must_use]
+    pub const fn kernel_policy(&self) -> Option<KernelPolicy> {
+        self.kernel_policy
+    }
+
+    fn operator_bytes(&self, read: impl Fn(&PhysicalOperator) -> Option<u64>) -> Option<u64> {
+        if self.operators.is_empty() {
+            return None;
+        }
+        self.operators.iter().try_fold(0_u64, |total, operator| total.checked_add(read(operator)?))
+    }
+
+    /// Scratch bytes the operators declare. `None` when an operator declares none
+    /// (an absent estimate is not zero) or the program has no operators.
+    #[must_use]
+    pub fn scratch_bytes(&self) -> Option<u64> {
+        self.operator_bytes(|operator| operator.estimates().scratch())
+    }
+
+    /// Retained bytes the operators declare, read as [`Self::scratch_bytes`].
+    #[must_use]
+    pub fn retained_bytes(&self) -> Option<u64> {
+        self.operator_bytes(|operator| operator.estimates().retained())
+    }
+
+    /// Output bytes the operators declare, read as [`Self::scratch_bytes`].
+    #[must_use]
+    pub fn output_bytes(&self) -> Option<u64> {
+        self.operator_bytes(|operator| operator.estimates().output())
+    }
+
+    fn facts(&self) -> Fact {
+        let operators: Vec<Fact> = self
+            .operators
+            .iter()
+            .map(|operator| {
+                let estimates = operator.estimates();
+                fact!({
+                    "effect": operator.effect().as_str(),
+                    "sources": operator.sources().len(),
+                    "designs": operator.designs().len(),
+                    "scratch_bytes": estimates.scratch(),
+                    "retained_bytes": estimates.retained(),
+                    "output_bytes": estimates.output(),
+                    "capability": operator.capability().to_string(),
+                    "device_work": operator.device_work(),
+                })
+            })
+            .collect();
+        let record = self.record.as_ref().map(|record| {
+            fact!({
+                "plan_id": &*record.plan_id,
+                "materializations": record
+                    .materializations
+                    .iter()
+                    .map(|(buffer, materialization)| {
+                        fact!({"buffer": &**buffer, "materialization": format!("{materialization:?}")})
+                    })
+                    .collect::<Vec<_>>(),
+                "kernels": record
+                    .kernels
+                    .iter()
+                    .map(|(kernel, selection)| {
+                        fact!({"kernel": &**kernel, "selection": format!("{selection:?}")})
+                    })
+                    .collect::<Vec<_>>(),
+                "batch_size": record.batch_size,
+                "workspace_bytes": record.workspace_bytes,
+                "estimated_peak_memory_bytes": record.estimated_peak_memory_bytes,
+                "estimated_copy_bytes": record.estimated_copy_bytes,
+                "task_schedule": record
+                    .task_schedule
+                    .iter()
+                    .map(|task| fact!({"dimension": &*task.dimension, "units": task.units}))
+                    .collect::<Vec<_>>(),
+                "worker_threads": record.worker_threads,
+                "deterministic_reductions": record.deterministic_reductions,
+                "expected_python_crossings": record.expected_python_crossings,
+            })
+        });
+        let memory = self.memory.map(|memory| {
+            fact!({
+                "components": memory
+                    .components()
+                    .iter()
+                    .map(|(component, bytes)| fact!({
+                        "component": component.as_str(),
+                        "bytes": bytes,
+                    }))
+                    .collect::<Vec<_>>(),
+                "total": memory.total(),
+                "learner_fold_copies": memory.copy_count(),
+                "workers": memory.worker_count(),
+            })
+        });
+        fact!({
+            "operators": operators,
+            "design": design_json(self.design),
+            "backend": self.backend.as_ref().map(BackendView::facts),
+            "memory": memory,
+            "scratch_bytes": self.scratch_bytes(),
+            "retained_bytes": self.retained_bytes(),
+            "output_bytes": self.output_bytes(),
+            "record": record,
+            "kernel_policy": self.kernel_policy.map(|policy| fact!({
+                "allow_portable_optimized": policy.allow_portable_optimized,
+                "allow_arch_simd": policy.allow_arch_simd,
+                "force_scalar": policy.force_scalar,
+                "arch_simd_effective": policy.arch_simd_effective(),
+            })),
+        })
+    }
+}
+
+/// The uncertainty and claim an execution of the program must publish.
+#[derive(Clone, Debug, PartialEq)]
+pub struct UncertaintyDemand {
+    reading: UncertaintyReading,
+    claim_kind: Option<ClaimKind>,
+    realization: &'static str,
+    resampling: Option<ResamplingPlan>,
+    posterior: Option<PosteriorPlan>,
+    decision_request: Option<DecisionRequest>,
+}
+
+impl UncertaintyDemand {
+    fn of(program: &LoweredProgram) -> Self {
+        let statistical = program.statistical();
+        Self {
+            reading: program.claim().uncertainty(),
+            claim_kind: program.claim().kind(),
+            realization: realization_name(statistical.realization()),
+            resampling: statistical.resampling(),
+            posterior: statistical.posterior().cloned(),
+            decision_request: program
+                .evidence()
+                .decision()
+                .and_then(|decision| decision.carrier().evidence_request()),
+        }
+    }
+
+    /// How the published uncertainty must be read.
+    #[must_use]
+    pub const fn reading(&self) -> UncertaintyReading {
+        self.reading
+    }
+
+    /// Claim kind the route publishes, when its lowering states one.
+    #[must_use]
+    pub const fn claim_kind(&self) -> Option<ClaimKind> {
+        self.claim_kind
+    }
+
+    /// Realization the uncertainty comes from (`frequentist`, `bayesian`,
+    /// `generalized_bayes`, `envelope`, `exact_point`).
+    #[must_use]
+    pub const fn realization(&self) -> &'static str {
+        self.realization
+    }
+
+    /// Resampling the program performs, when requested.
+    #[must_use]
+    pub const fn resampling(&self) -> Option<ResamplingPlan> {
+        self.resampling
+    }
+
+    /// Posterior computation, when the realization is a posterior.
+    #[must_use]
+    pub const fn posterior(&self) -> Option<&PosteriorPlan> {
+        self.posterior.as_ref()
+    }
+
+    /// The evidence-port request a decision puts to the statistical program.
+    #[must_use]
+    pub const fn decision_request(&self) -> Option<DecisionRequest> {
+        self.decision_request
+    }
+
+    fn facts(&self) -> Fact {
+        fact!({
+            "reading": self.reading.as_str(),
+            "claim_kind": self.claim_kind.map(ClaimKind::as_str),
+            "realization": self.realization,
+            "resampling": self.resampling.map(resampling_json),
+            "posterior": self.posterior.as_ref().map(posterior_json),
+            "decision_request": self.decision_request.map(DecisionRequest::as_str),
+        })
+    }
+}
+
+/// The support-matrix cell of the study and its support status.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SupportView {
+    coordinate: Option<Arc<str>>,
+    supported: bool,
+    status: Option<CellStatus>,
+}
+
+impl SupportView {
+    /// Support-matrix coordinate, when the query is on the matrix axis.
+    #[must_use]
+    pub fn coordinate(&self) -> Option<&str> {
+        self.coordinate.as_deref()
+    }
+
+    /// Whether the coordinate is a supported cell.
+    #[must_use]
+    pub const fn supported(&self) -> bool {
+        self.supported
+    }
+
+    /// Evidence status of the cell, read from the lowered program so the view and
+    /// `Study::inspect` state the same status.
+    #[must_use]
+    pub const fn status(&self) -> Option<CellStatus> {
+        self.status
+    }
+
+    fn facts(&self) -> Fact {
+        fact!({
+            "coordinate": self.coordinate.as_deref(),
+            "supported": self.supported,
+            "status": self.status.map(CellStatus::as_str),
+        })
+    }
+}
+
+/// One structure of a graph-posterior mixture.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MixtureAtomView {
+    key: u64,
+    weight: f64,
+    samples: usize,
+    identified: Option<bool>,
+    status: Option<IdentificationStatus>,
+    estimand: Option<EstimandView>,
+    completions: usize,
+    envelope_identified_weight: Option<f64>,
+}
+
+impl MixtureAtomView {
+    /// Opaque graph key of the atom.
+    #[must_use]
+    pub const fn key(&self) -> u64 {
+        self.key
+    }
+
+    /// Posterior weight of the atom, summed over its samples.
+    #[must_use]
+    pub const fn weight(&self) -> f64 {
+        self.weight
+    }
+
+    /// Posterior samples that carry this structure.
+    #[must_use]
+    pub const fn samples(&self) -> usize {
+        self.samples
+    }
+
+    /// Whether the atom identifies the target; `None` when the program
+    /// identifies on each execution and retained no per-atom product.
+    #[must_use]
+    pub const fn identified(&self) -> Option<bool> {
+        self.identified
+    }
+
+    /// Identification status of the atom, when retained.
+    #[must_use]
+    pub const fn status(&self) -> Option<IdentificationStatus> {
+        self.status
+    }
+
+    /// The atom's estimand, or the estimand every completion of a class atom shares.
+    #[must_use]
+    pub const fn estimand(&self) -> Option<&EstimandView> {
+        self.estimand.as_ref()
+    }
+
+    /// Completions of a class atom's envelope; zero for a single-graph atom.
+    #[must_use]
+    pub const fn completions(&self) -> usize {
+        self.completions
+    }
+
+    /// Identified weight inside a class atom's envelope, before posterior mixing.
+    #[must_use]
+    pub const fn envelope_identified_weight(&self) -> Option<f64> {
+        self.envelope_identified_weight
+    }
+
+    fn facts(&self) -> Fact {
+        fact!({
+            "key": self.key,
+            "weight": self.weight,
+            "samples": self.samples,
+            "identified": self.identified,
+            "status": self.status.map(IdentificationStatus::as_str),
+            "estimand": self.estimand.as_ref().map(EstimandView::facts),
+            "completions": self.completions,
+            "envelope_identified_weight": self.envelope_identified_weight,
+        })
+    }
+}
+
+/// The single logical plan of a graph-posterior analysis: its atoms, their
+/// weights and per-atom identification, and how they mix.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MixtureView {
+    atom_kind: Option<&'static str>,
+    atoms: Vec<MixtureAtomView>,
+    total_weight: f64,
+    identified_mass: Option<f64>,
+    unidentified_mass: Option<f64>,
+    composition: Composition,
+    identification_retained: bool,
+}
+
+/// Per-key identification a graph-posterior product retained for one atom.
+struct AtomIdentification {
+    status: IdentificationStatus,
+    estimand: Option<EstimandView>,
+    completions: usize,
+    envelope_identified_weight: Option<f64>,
+}
+
+impl MixtureView {
+    #[allow(
+        clippy::too_many_lines,
+        reason = "indexes the retained atoms of every cache kind, then folds the sampled graphs into one view"
+    )]
+    fn of(
+        program: &LoweredProgram,
+        caches: &[IdentificationCache],
+        posterior: Option<&antecedent_discovery::GraphPosterior>,
+    ) -> Self {
+        let mut by_key: HashMap<u64, AtomIdentification> = HashMap::new();
+        let mut samples: Option<&WeightedGraphSamples> = None;
+        for cache in caches {
+            match cache {
+                IdentificationCache::GraphPosterior(retained) => {
+                    samples = Some(&retained.graphs);
+                    for atom in retained.atoms.iter() {
+                        by_key.insert(
+                            atom.key,
+                            AtomIdentification {
+                                status: atom.identification.status,
+                                estimand: Some(EstimandView::of(&atom.estimand)),
+                                completions: 0,
+                                envelope_identified_weight: None,
+                            },
+                        );
+                    }
+                    for atom in retained.class_atoms.iter() {
+                        by_key.insert(
+                            atom.key,
+                            AtomIdentification {
+                                status: atom.identification.status,
+                                estimand: atom.invariant.as_ref().map(EstimandView::of),
+                                completions: atom.cases.len(),
+                                envelope_identified_weight: Some(atom.identified_weight),
+                            },
+                        );
+                    }
+                }
+                IdentificationCache::DbnPosterior(retained) => {
+                    samples = Some(&retained.graphs);
+                    for atom in retained.atoms.iter() {
+                        by_key.insert(
+                            atom.key,
+                            AtomIdentification {
+                                status: atom.identification.status,
+                                estimand: Some(EstimandView::of(&atom.estimand)),
+                                completions: 0,
+                                envelope_identified_weight: None,
+                            },
+                        );
+                    }
+                }
+                IdentificationCache::TemporalClassPosterior(retained) => {
+                    samples = Some(&retained.graphs);
+                    for atom in retained.class_atoms.iter() {
+                        by_key.insert(
+                            atom.key,
+                            AtomIdentification {
+                                status: atom.identification.status,
+                                estimand: atom.invariant.as_ref().map(EstimandView::of),
+                                completions: atom.envelope.envelope.cases.len(),
+                                envelope_identified_weight: Some(atom.identified_weight),
+                            },
+                        );
+                    }
+                }
+                IdentificationCache::Static(_)
+                | IdentificationCache::Pag(_)
+                | IdentificationCache::Cpdag(_)
+                | IdentificationCache::Temporal(_)
+                | IdentificationCache::TemporalClass(_)
+                | IdentificationCache::Transport(_) => {}
+            }
+        }
+        let mut atoms: Vec<MixtureAtomView> = Vec::new();
+        let mut index: HashMap<u64, usize> = HashMap::new();
+        let mut push = |key: u64, weight: f64, flag: Option<bool>| {
+            if let Some(&slot) = index.get(&key) {
+                let atom: &mut MixtureAtomView = &mut atoms[slot];
+                atom.weight += weight;
+                atom.samples += 1;
+                atom.identified = match (atom.identified, flag) {
+                    (Some(left), Some(right)) => Some(left || right),
+                    (left, right) => left.or(right),
+                };
+                return;
+            }
+            index.insert(key, atoms.len());
+            let retained = by_key.get(&key);
+            atoms.push(MixtureAtomView {
+                key,
+                weight,
+                samples: 1,
+                identified: flag,
+                status: retained.map(|atom| atom.status),
+                estimand: retained.and_then(|atom| atom.estimand.clone()),
+                completions: retained.map_or(0, |atom| atom.completions),
+                envelope_identified_weight: retained
+                    .and_then(|atom| atom.envelope_identified_weight),
+            });
+        };
+        let (identified_mass, unidentified_mass) = if let Some(graphs) = samples {
+            for (sample, weight) in graphs.weights.iter().enumerate() {
+                let key = graphs.graph_keys.get(sample).copied().unwrap_or(sample as u64);
+                let flag =
+                    graphs.identified.get(sample).map(|flag| *flag == GraphIdentFlag::Identified);
+                push(key, *weight, flag);
+            }
+            (Some(graphs.identified_mass()), Some(graphs.unidentified_mass()))
+        } else {
+            if let Some(posterior) = posterior {
+                for (sample, weight) in posterior.weights().iter().enumerate() {
+                    let key = posterior.graph_keys().get(sample).copied().unwrap_or(sample as u64);
+                    push(key, *weight, None);
+                }
+            }
+            (None, None)
+        };
+        let total_weight = atoms.iter().map(|atom| atom.weight).sum();
+        Self {
+            atom_kind: posterior.map(|posterior| posterior.atom_kind().as_str()),
+            atoms,
+            total_weight,
+            identified_mass,
+            unidentified_mass,
+            composition: program.evidence().composition(),
+            identification_retained: samples.is_some(),
+        }
+    }
+
+    /// Atom kind of the posterior (`dag`, `cpdag`, `pag`, `admg`, ...), when the
+    /// view was taken with the study.
+    #[must_use]
+    pub const fn atom_kind(&self) -> Option<&'static str> {
+        self.atom_kind
+    }
+
+    /// Distinct structures in order of first appearance.
+    #[must_use]
+    pub fn atoms(&self) -> &[MixtureAtomView] {
+        &self.atoms
+    }
+
+    /// Total posterior weight.
+    #[must_use]
+    pub const fn total_weight(&self) -> f64 {
+        self.total_weight
+    }
+
+    /// Weight on atoms that identify the target, when identification was retained.
+    #[must_use]
+    pub const fn identified_mass(&self) -> Option<f64> {
+        self.identified_mass
+    }
+
+    /// Weight on atoms that do not identify the target; it is reported, never dropped.
+    #[must_use]
+    pub const fn unidentified_mass(&self) -> Option<f64> {
+        self.unidentified_mass
+    }
+
+    /// How the atoms combine into one answer.
+    #[must_use]
+    pub const fn composition(&self) -> Composition {
+        self.composition
+    }
+
+    /// Whether every atom was identified at compile and retained with the program.
+    #[must_use]
+    pub const fn identification_retained(&self) -> bool {
+        self.identification_retained
+    }
+
+    fn facts(&self) -> Fact {
+        fact!({
+            "atom_kind": self.atom_kind,
+            "atoms": self.atoms.iter().map(MixtureAtomView::facts).collect::<Vec<_>>(),
+            "total_weight": self.total_weight,
+            "identified_mass": self.identified_mass,
+            "unidentified_mass": self.unidentified_mass,
+            "composition": composition_json(self.composition),
+            "identification_retained": self.identification_retained,
+        })
+    }
+}
+
+/// What the route reuses instead of recomputing, and what a later execution may reuse.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReuseView {
+    identification_retained: bool,
+    installed_at_prepare: bool,
+    retention_key: Option<[u8; 32]>,
+    frozen_fit_reuse: Vec<(&'static str, &'static str)>,
+    source_dependencies: Vec<u64>,
+    design_dependencies: Vec<u64>,
+    retained_operation: Option<&'static str>,
+}
+
+impl ReuseView {
+    fn of(
+        program: &LoweredProgram,
+        identification: &IdentificationView,
+        operation: Option<&'static str>,
+    ) -> Self {
+        let mut sources: Vec<u64> = Vec::new();
+        let mut designs: Vec<u64> = Vec::new();
+        for operator in program.physical().operators() {
+            for source in operator.sources() {
+                if !sources.contains(&source.raw()) {
+                    sources.push(source.raw());
+                }
+            }
+            for design in operator.designs() {
+                if !designs.contains(&design.raw()) {
+                    designs.push(design.raw());
+                }
+            }
+        }
+        Self {
+            identification_retained: program.identification_retained(),
+            installed_at_prepare: identification.installed_at_prepare(),
+            retention_key: identification.retention_key(),
+            frozen_fit_reuse: program
+                .statistical()
+                .operators()
+                .iter()
+                .map(|operator| (operator.effect().as_str(), operator.frozen_fit_reuse().as_str()))
+                .collect(),
+            source_dependencies: sources,
+            design_dependencies: designs,
+            retained_operation: operation,
+        }
+    }
+
+    /// Whether compile identified once and retained the product with the program.
+    #[must_use]
+    pub const fn identification_retained(&self) -> bool {
+        self.identification_retained
+    }
+
+    /// Whether preparation installed that product instead of identifying again.
+    #[must_use]
+    pub const fn installed_at_prepare(&self) -> bool {
+        self.installed_at_prepare
+    }
+
+    /// Digest of the study inputs a retained product is valid for; it is taken only
+    /// when the study's key matches.
+    #[must_use]
+    pub const fn retention_key(&self) -> Option<[u8; 32]> {
+        self.retention_key
+    }
+
+    /// Each statistical operator's effect and whether a frozen fit may be reused.
+    #[must_use]
+    pub fn frozen_fit_reuse(&self) -> &[(&'static str, &'static str)] {
+        &self.frozen_fit_reuse
+    }
+
+    /// Source dependencies the physical operators read, which a cached result is
+    /// legal to reuse only while unchanged.
+    #[must_use]
+    pub fn source_dependencies(&self) -> &[u64] {
+        &self.source_dependencies
+    }
+
+    /// Design dependencies the physical operators read.
+    #[must_use]
+    pub fn design_dependencies(&self) -> &[u64] {
+        &self.design_dependencies
+    }
+
+    /// Name of the sealed operation a prepared handle retained.
+    #[must_use]
+    pub const fn retained_operation(&self) -> Option<&'static str> {
+        self.retained_operation
+    }
+
+    fn facts(&self) -> Fact {
+        fact!({
+            "identification_retained": self.identification_retained,
+            "installed_at_prepare": self.installed_at_prepare,
+            "retention_key": self.retention_key.as_ref().map(hex),
+            "frozen_fit_reuse": self
+                .frozen_fit_reuse
+                .iter()
+                .map(|(effect, reuse)| fact!({"effect": effect, "reuse": reuse}))
+                .collect::<Vec<_>>(),
+            "source_dependencies": self.source_dependencies,
+            "design_dependencies": self.design_dependencies,
+            "retained_operation": self.retained_operation,
+        })
+    }
+}
+
+/// The layer an operation belongs to.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum OperationLayer {
+    /// Layer three: models, folds, resampling, posterior computation.
+    Statistical,
+    /// Layer four: evidence sources, composition, decision, value of information.
+    Evidence,
+    /// Layer five: reads, fits, buffers, backend.
+    Physical,
+}
+
+impl OperationLayer {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Statistical => "statistical",
+            Self::Evidence => "evidence",
+            Self::Physical => "physical",
+        }
+    }
+}
+
+/// One operation of the route, derived from the program it belongs to.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OperationView {
+    layer: OperationLayer,
+    name: &'static str,
+    subject: String,
+    inputs: Vec<&'static str>,
+    outputs: Vec<&'static str>,
+}
+
+impl OperationView {
+    fn new(layer: OperationLayer, name: &'static str, subject: impl Into<String>) -> Self {
+        Self { layer, name, subject: subject.into(), inputs: Vec::new(), outputs: Vec::new() }
+    }
+
+    /// The layer the operation belongs to.
+    #[must_use]
+    pub const fn layer(&self) -> OperationLayer {
+        self.layer
+    }
+
+    /// Stable name of the operation (`fit`, `read_source`, `decide`, `materialize`, ...).
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
+        self.name
+    }
+
+    /// What the operation acts on.
+    #[must_use]
+    pub fn subject(&self) -> &str {
+        &self.subject
+    }
+
+    /// Roles the operation consumes.
+    #[must_use]
+    pub fn inputs(&self) -> &[&'static str] {
+        &self.inputs
+    }
+
+    /// Roles the operation produces.
+    #[must_use]
+    pub fn outputs(&self) -> &[&'static str] {
+        &self.outputs
+    }
+
+    fn facts(&self) -> Fact {
+        fact!({
+            "layer": self.layer.as_str(),
+            "name": self.name,
+            "subject": self.subject,
+            "inputs": self.inputs,
+            "outputs": self.outputs,
+        })
+    }
+}
+
+/// One view over every layer of a compiled route.
+///
+/// Built from the lowered program before execution: no identification, fit, row
+/// scan, graph enumeration, simulation or pool lease happens while it is built.
+#[derive(Clone, Debug)]
+pub struct PlanView {
+    route: PlanRoute,
+    stage: PlanStage,
+    program: Arc<LoweredProgram>,
+    identification: IdentificationView,
+    physical: PhysicalView,
+    uncertainty: UncertaintyDemand,
+    support: SupportView,
+    mixture: Option<MixtureView>,
+    reuse: ReuseView,
+    operation: Option<&'static str>,
+}
+
+/// What a view is built from.
+pub(crate) struct ViewSource<'a> {
+    /// The lowered program.
+    pub(crate) program: Arc<LoweredProgram>,
+    /// Where the view is taken.
+    pub(crate) stage: PlanStage,
+    /// The physical record the plan was sized to.
+    pub(crate) record: Option<&'a PhysicalExecutionPlanRecord>,
+    /// The study the program was compiled for, when the caller holds it.
+    pub(crate) study: Option<&'a crate::Study>,
+    /// Kernel policy of the compile context.
+    pub(crate) kernel_policy: Option<KernelPolicy>,
+    /// Stable name of the sealed operation a prepared handle retained.
+    pub(crate) operation: Option<&'static str>,
+    /// The backend chosen and rejected, and the memory quote behind the record.
+    pub(crate) backend: Option<BackendView>,
+    pub(crate) memory: Option<RouteMemoryEstimate>,
+}
+
+impl PlanView {
+    /// Build a view from what compile and, for a prepared handle, preparation retained.
+    pub(crate) fn build(source: ViewSource<'_>) -> Self {
+        let ViewSource { program, stage, record, study, kernel_policy, operation, backend, memory } =
+            source;
+        let route = plan_route(program.cell());
+        let installed = match (stage, study) {
+            (PlanStage::Prepared, Some(study)) => installed_caches(study),
+            _ => Vec::new(),
+        };
+        let identification = IdentificationView::of(program.identification_layer(), &installed);
+        let caches: &[IdentificationCache] = if installed.is_empty() {
+            program.retained_identification().map_or(&[][..], |retained| retained.caches())
+        } else {
+            &installed
+        };
+        // One arm per family: a family added to the route table without a view
+        // of its own family-specific layer does not compile.
+        let mixture = match route.family() {
+            RouteFamily::GraphPosterior => Some(MixtureView::of(
+                &program,
+                caches,
+                study.and_then(|study| study.graph_posterior.as_ref()),
+            )),
+            RouteFamily::StaticEffect
+            | RouteFamily::StaticResponse
+            | RouteFamily::Structural
+            | RouteFamily::Temporal
+            | RouteFamily::DesignBased
+            | RouteFamily::Discovery
+            | RouteFamily::Cyclic
+            | RouteFamily::Planning
+            | RouteFamily::PropagationChain
+            | RouteFamily::GraphImputation
+            | RouteFamily::CategoricalPosteriorCandidate
+            | RouteFamily::Associational
+            | RouteFamily::JointPanel => None,
+        };
+        let scientific = program.scientific();
+        let support = SupportView {
+            coordinate: scientific.support_coordinate.clone(),
+            supported: scientific.supported(),
+            status: scientific.support_status(),
+        };
+        let physical = PhysicalView {
+            operators: Arc::clone(&program.physical().operators),
+            design: program.physical().design(),
+            record: record.cloned(),
+            kernel_policy,
+            backend,
+            memory,
+        };
+        let uncertainty = UncertaintyDemand::of(&program);
+        let reuse = ReuseView::of(&program, &identification, operation);
+        Self {
+            route,
+            stage,
+            program,
+            identification,
+            physical,
+            uncertainty,
+            support,
+            mixture,
+            reuse,
+            operation,
+        }
+    }
+
+    /// The view of a lowered program held without a physical plan record: a
+    /// cyclic family handle or a standalone experiment plan.
+    pub(crate) fn of_program(program: Arc<LoweredProgram>, stage: PlanStage) -> Self {
+        Self::build(ViewSource {
+            program,
+            stage,
+            record: None,
+            study: None,
+            kernel_policy: None,
+            operation: None,
+            backend: None,
+            memory: None,
+        })
+    }
+
+    /// The view of `plan`'s lowered program.
+    ///
+    /// # Errors
+    ///
+    /// `route_not_lowered` when the plan carries no lowered program.
+    pub(crate) fn of_plan(
+        plan: &PhysicalExecutionPlan,
+        stage: PlanStage,
+        study: Option<&crate::Study>,
+        kernel_policy: Option<KernelPolicy>,
+        operation: Option<&'static str>,
+    ) -> Result<Self, CausalError> {
+        let program = plan.lowered.as_ref().map(Arc::clone).ok_or_else(|| {
+            crate::compile_reason!(
+                "route_not_lowered",
+                "the physical plan carries no lowered program; compile it with Study::compile"
+            )
+        })?;
+        Ok(Self::build(ViewSource {
+            program,
+            stage,
+            record: Some(&plan.record),
+            study,
+            kernel_policy,
+            operation,
+            backend: Some(BackendView::of(&plan.choice, plan.route_choice.as_ref())),
+            memory: plan.memory_quote,
+        }))
+    }
+
+    /// The route the program was lowered for.
+    #[must_use]
+    pub const fn route(&self) -> PlanRoute {
+        self.route
+    }
+
+    /// The family that lowered the route.
+    #[must_use]
+    pub const fn family(&self) -> RouteFamily {
+        self.route.family()
+    }
+
+    /// Where the view was taken.
+    #[must_use]
+    pub const fn stage(&self) -> PlanStage {
+        self.stage
+    }
+
+    /// Scope of the program fingerprint. Runtime callback declarations do not
+    /// identify the live implementation or authorize reuse.
+    #[must_use]
+    pub fn identity_scope(&self) -> super::lowered::ProgramIdentityScope {
+        self.program.identity_scope()
+    }
+
+    /// Authoritative semantic identity, absent for runtime callback declarations.
+    #[must_use]
+    pub fn semantic_identity(&self) -> Option<antecedent_core::SemanticDigest> {
+        self.program.semantic_identity()
+    }
+
+    /// Fingerprint of the lowered program; see [`Self::identity_scope`].
+    #[must_use]
+    pub fn identity(&self) -> SemanticDigest {
+        self.program.identity()
+    }
+
+    /// How far the route's lowering was carried.
+    #[must_use]
+    pub fn depth(&self) -> LoweringDepth {
+        self.program.depth()
+    }
+
+    /// The lowered program the view reads.
+    #[must_use]
+    pub fn program(&self) -> &LoweredProgram {
+        &self.program
+    }
+
+    /// Layer one: the scientific problem.
+    #[must_use]
+    pub fn scientific(&self) -> &ScientificProblem {
+        self.program.scientific()
+    }
+
+    /// Layer two: the identification product.
+    #[must_use]
+    pub const fn identification(&self) -> &IdentificationView {
+        &self.identification
+    }
+
+    /// Layer three: the statistical program.
+    #[must_use]
+    pub fn statistical(&self) -> &StatisticalProgram {
+        self.program.statistical()
+    }
+
+    /// Layer four: the evidence and decision program.
+    #[must_use]
+    pub fn evidence(&self) -> &EvidenceDecisionProgram {
+        self.program.evidence()
+    }
+
+    /// Layer five: the physical plan.
+    #[must_use]
+    pub const fn physical(&self) -> &PhysicalView {
+        &self.physical
+    }
+
+    /// Layer six: the claim the execution must publish.
+    #[must_use]
+    pub fn claim(&self) -> &ClaimDemand {
+        self.program.claim()
+    }
+
+    /// The uncertainty and claim demand.
+    #[must_use]
+    pub const fn uncertainty(&self) -> &UncertaintyDemand {
+        &self.uncertainty
+    }
+
+    /// Support cell and support status.
+    #[must_use]
+    pub const fn support(&self) -> &SupportView {
+        &self.support
+    }
+
+    /// The mixture of a graph-posterior analysis; `None` for every other family.
+    #[must_use]
+    pub const fn mixture(&self) -> Option<&MixtureView> {
+        self.mixture.as_ref()
+    }
+
+    /// What the route reuses and what a later execution may reuse.
+    #[must_use]
+    pub const fn reuse(&self) -> &ReuseView {
+        &self.reuse
+    }
+
+    /// The assumptions the identification and the retained products rely on, without repeats.
+    #[must_use]
+    pub fn assumptions(&self) -> Vec<AssumptionView> {
+        self.identification.assumptions()
+    }
+
+    /// The statistical, evidence and decision, and physical operations of the route,
+    /// in layer order. Each is derived from the program: its operators, models,
+    /// folds, resampling and posterior, its evidence sources, composition, decision,
+    /// value of information, simulation and chain stages, its physical operators,
+    /// materializations and backend.
+    #[must_use]
+    pub fn operations(&self) -> Vec<OperationView> {
+        let mut operations = statistical_operations(self.statistical());
+        operations.extend(evidence_operations(self.evidence()));
+        operations.extend(physical_operations(&self.physical));
+        operations
+    }
+
+    /// Stable name of the sealed operation a prepared handle retained
+    /// (`lowered_dispatch` when no specialised operation admitted it); `None` for a compiled view.
+    #[must_use]
+    pub const fn operation(&self) -> Option<&'static str> {
+        self.operation
+    }
+
+    /// The whole view as JSON. Variables are written as their dense ids, digests
+    /// as lowercase hex.
+    #[must_use]
+    pub fn to_json(&self) -> Json {
+        Json::from(&self.facts())
+    }
+
+    /// The whole view as a typed fact tree: the one statement [`Self::to_json`] and the report
+    /// are both derived from.
+    pub(crate) fn facts(&self) -> Fact {
+        fact!({
+            "route": self.route.as_str(),
+            "family": self.family().as_str(),
+            "cyclic_family": self.program.cyclic_family(),
+            "planned_design": self.program.planned_design(),
+            "stage": self.stage.as_str(),
+            "identity": self.identity().to_hex(),
+            "identity_scope": self.identity_scope().as_str(),
+            "semantic_identity": self.semantic_identity().map(|id| id.to_hex()),
+            "depth": self.depth().as_str(),
+            "deferred_atom_operations": self.depth().deferred_operations(),
+            "scientific": scientific_json(self.scientific()),
+            "identification": self.identification.facts(),
+            "statistical": statistical_json(self.statistical()),
+            "evidence": evidence_json(self.evidence()),
+            "physical": self.physical.facts(),
+            "uncertainty": self.uncertainty.facts(),
+            "support": self.support.facts(),
+            "mixture": self.mixture.as_ref().map(MixtureView::facts),
+            "assumptions": self
+                .assumptions()
+                .iter()
+                .map(AssumptionView::facts)
+                .collect::<Vec<_>>(),
+            "reuse": self.reuse.facts(),
+            "operations": self.operations().iter().map(OperationView::facts).collect::<Vec<_>>(),
+            "operation": self.operation,
+        })
+    }
+}
+
+impl PhysicalExecutionPlan {
+    /// The plan view of this plan's lowered program. It reads what compile
+    /// retained and does no identification, fitting, scanning or simulation.
+    ///
+    /// # Errors
+    ///
+    /// `route_not_lowered` when the plan was not built by `Study::compile`.
+    pub fn plan_view(&self) -> Result<PlanView, CausalError> {
+        PlanView::of_plan(self, PlanStage::Compiled, None, None, None)
+    }
+}
+
+impl crate::Study {
+    /// Compile the study and view every layer of its lowered program.
+    ///
+    /// This is compile: a route whose program retains identification identifies
+    /// once (as `Study::compile` does), and a linear adjustment quotes its design
+    /// width from the schema and the categorical levels. Nothing is fitted,
+    /// sampled, simulated or enumerated beyond what compile does, and no execution
+    /// runs. [`Self::inspect`] stays the non-identifying preflight.
+    ///
+    /// # Errors
+    ///
+    /// Every refusal of `Study::compile`.
+    pub fn plan_view(&self, ctx: &ExecutionContext) -> Result<PlanView, CausalError> {
+        let plan = self.compile(ctx)?;
+        PlanView::of_plan(&plan, PlanStage::Compiled, Some(self), Some(ctx.kernel_policy), None)
+    }
+}
+
+/// The plan route of a program cell.
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
+const fn plan_route(cell: ProgramCell) -> PlanRoute {
+    match cell {
+        ProgramCell::Route(cell) => cell.plan_route(),
+        ProgramCell::CyclicFamily(family) => PlanRoute::CyclicFamily(family),
+        ProgramCell::Planning(design) => PlanRoute::Planning(design),
+        ProgramCell::PropagationChain(reading) => PlanRoute::PropagationChain(reading),
+        ProgramCell::ObservationalPolicy => PlanRoute::ObservationalPolicy,
+        ProgramCell::JointMeasuredObservation => PlanRoute::JointMeasuredObservation,
+        ProgramCell::DependentMeasuredObservation => PlanRoute::DependentMeasuredObservation,
+        ProgramCell::FittedDependentMeasuredObservation => {
+            PlanRoute::FittedDependentMeasuredObservation
+        }
+        ProgramCell::CyclicActionWorldDecision => PlanRoute::CyclicActionWorldDecision,
+        ProgramCell::CyclicPosteriorActionDecision => PlanRoute::CyclicPosteriorActionDecision,
+        ProgramCell::CyclicTargetFeedbackDecision => PlanRoute::CyclicTargetFeedbackDecision,
+        ProgramCell::BridgeTransportDecision => PlanRoute::BridgeTransportDecision,
+        ProgramCell::BridgeTransportPremiseAssessment => {
+            PlanRoute::BridgeTransportPremiseAssessment
+        }
+        ProgramCell::AssessedBridgeTransportDecision => PlanRoute::AssessedBridgeTransportDecision,
+        ProgramCell::JointTransportEffectDecision => PlanRoute::JointTransportEffectDecision,
+        ProgramCell::TrialIpwTransportDecision => PlanRoute::TrialIpwTransportDecision,
+        ProgramCell::TrialIpwPredictiveDecision => PlanRoute::TrialIpwPredictiveDecision,
+        ProgramCell::JointTransportPredictiveDecision => {
+            PlanRoute::JointTransportPredictiveDecision
+        }
+        ProgramCell::TemporalPathTransport => PlanRoute::TemporalPathTransport,
+        ProgramCell::SamplingAssumptionUnion => PlanRoute::SamplingAssumptionUnion,
+        ProgramCell::IidSamplingAssumptionUnion => PlanRoute::IidSamplingAssumptionUnion,
+        ProgramCell::ClusterSamplingAssumptionUnion => PlanRoute::ClusterSamplingAssumptionUnion,
+        ProgramCell::MovingBlockSamplingAssumptionUnion => {
+            PlanRoute::MovingBlockSamplingAssumptionUnion
+        }
+        ProgramCell::PolicySubsampling => PlanRoute::PolicySubsampling,
+        ProgramCell::SequentialPolicyReliability => PlanRoute::SequentialPolicyReliability,
+        ProgramCell::BundleRecomputation => PlanRoute::BundleRecomputation,
+        ProgramCell::BridgeBundleRecomputation => PlanRoute::BridgeBundleRecomputation,
+        ProgramCell::CyclicPosteriorBundleRecomputation => {
+            PlanRoute::CyclicPosteriorBundleRecomputation
+        }
+        ProgramCell::CyclicPosteriorNodeBundleRecomputation => {
+            PlanRoute::CyclicPosteriorNodeBundleRecomputation
+        }
+        ProgramCell::TrialIpwNodeBundleRecomputation => PlanRoute::TrialIpwNodeBundleRecomputation,
+        ProgramCell::GraphImputationTransportNodeBundleRecomputation => {
+            PlanRoute::GraphImputationTransportNodeBundleRecomputation
+        }
+        ProgramCell::JointTransportEffectNodeBundleRecomputation => {
+            PlanRoute::JointTransportEffectNodeBundleRecomputation
+        }
+        ProgramCell::JointTransportPredictiveNodeDecisionBundleRecomputation => {
+            PlanRoute::JointTransportPredictiveNodeDecisionBundleRecomputation
+        }
+        ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation => {
+            PlanRoute::TrialIpwPredictiveNodeDecisionBundleRecomputation
+        }
+        ProgramCell::CyclicTargetFeedbackNodeDecisionBundleRecomputation => {
+            PlanRoute::CyclicTargetFeedbackNodeDecisionBundleRecomputation
+        }
+        ProgramCell::GraphImputationPredictiveNodeDecisionBundleRecomputation => {
+            PlanRoute::GraphImputationPredictiveNodeDecisionBundleRecomputation
+        }
+        ProgramCell::AssessedBridgePosteriorNodeDecisionBundleRecomputation => {
+            PlanRoute::AssessedBridgePosteriorNodeDecisionBundleRecomputation
+        }
+        ProgramCell::SequentialPolicyReliabilityNodeBundleRecomputation => {
+            PlanRoute::SequentialPolicyReliabilityNodeBundleRecomputation
+        }
+        ProgramCell::JointComponentPosteriorDecision => PlanRoute::JointComponentPosteriorDecision,
+        ProgramCell::BoundedComponentPosteriorDecision => {
+            PlanRoute::BoundedComponentPosteriorDecision
+        }
+        ProgramCell::PosteriorDecisionBundleRecomputation => {
+            PlanRoute::PosteriorDecisionBundleRecomputation
+        }
+        ProgramCell::GraphImputation => PlanRoute::GraphImputation,
+        ProgramCell::GraphImputationEffectDecision => PlanRoute::GraphImputationEffectDecision,
+        ProgramCell::GraphImputationBernoulliPredictiveWorldDecision => {
+            PlanRoute::GraphImputationBernoulliPredictiveWorldDecision
+        }
+        ProgramCell::GraphImputationGaussianTargetPredictiveWorldDecision => {
+            PlanRoute::GraphImputationGaussianTargetPredictiveWorldDecision
+        }
+        ProgramCell::GraphImputationBernoulliPredictiveClusterBootstrapDecision => {
+            PlanRoute::GraphImputationBernoulliPredictiveClusterBootstrapDecision
+        }
+        ProgramCell::GraphImputationGaussianPredictiveClusterBootstrapDecision => {
+            PlanRoute::GraphImputationGaussianPredictiveClusterBootstrapDecision
+        }
+        ProgramCell::GraphImputationTransportDecision => {
+            PlanRoute::GraphImputationTransportDecision
+        }
+        ProgramCell::GraphImputationTransportClusterBootstrapDecision => {
+            PlanRoute::GraphImputationTransportClusterBootstrapDecision
+        }
+        ProgramCell::GraphImputationConfoundedTransportDecision => {
+            PlanRoute::GraphImputationConfoundedTransportDecision
+        }
+        ProgramCell::GraphImputationConfoundedTransportClusterBootstrapDecision => {
+            PlanRoute::GraphImputationConfoundedTransportClusterBootstrapDecision
+        }
+        ProgramCell::GraphImputationKernelTransportDecision => {
+            PlanRoute::GraphImputationKernelTransportDecision
+        }
+        ProgramCell::GraphImputationKernelTransportClusterBootstrapDecision => {
+            PlanRoute::GraphImputationKernelTransportClusterBootstrapDecision
+        }
+        ProgramCell::GraphImputationConfoundedKernelTransportClusterBootstrapDecision => {
+            PlanRoute::GraphImputationConfoundedKernelTransportClusterBootstrapDecision
+        }
+        ProgramCell::GraphImputationMarTransportDecision => {
+            PlanRoute::GraphImputationMarTransportDecision
+        }
+        ProgramCell::CategoricalPosteriorCandidate => PlanRoute::CategoricalPosteriorCandidate,
+        ProgramCell::MnarFixedShift => PlanRoute::MnarFixedShift,
+        ProgramCell::LatentSoftIntervention => PlanRoute::LatentSoftIntervention,
+        ProgramCell::EventProcess => PlanRoute::EventProcess,
+        ProgramCell::JointPanelResponse => PlanRoute::JointPanelResponse,
+        ProgramCell::JointPanelTimeVarying => PlanRoute::JointPanelTimeVarying,
+        ProgramCell::JointPanelImputation => PlanRoute::JointPanelImputation,
+        ProgramCell::JointPanelProgramSearch => PlanRoute::JointPanelProgramSearch,
+        ProgramCell::JointPanelProgramSelection => PlanRoute::JointPanelProgramSelection,
+        ProgramCell::JointPanelExperiment => PlanRoute::JointPanelExperiment,
+        ProgramCell::JointDesign => PlanRoute::JointDesign,
+    }
+}
+
+/// The identification product preparation installed into `study`.
+fn installed_caches(study: &crate::Study) -> Vec<IdentificationCache> {
+    study.identification.iter().cloned().collect()
+}
+
+/// The weaker of an optional status and `status`, by evidential strength.
+fn weakest(
+    current: Option<IdentificationStatus>,
+    status: IdentificationStatus,
+) -> IdentificationStatus {
+    match current {
+        Some(current) if current.strength_rank() <= status.strength_rank() => current,
+        _ => status,
+    }
+}
+
+/// Status of a mixture with the given identified and unidentified mass.
+fn mixture_status(identified: f64, unidentified: f64) -> IdentificationStatus {
+    if unidentified <= POSTERIOR_MASS_TOLERANCE {
+        IdentificationStatus::NonparametricallyIdentified
+    } else if identified <= POSTERIOR_MASS_TOLERANCE {
+        IdentificationStatus::NotIdentified
+    } else {
+        IdentificationStatus::GraphDependent
+    }
+}
+
+const fn outcome_name(outcome: IdentificationOutcome) -> &'static str {
+    match outcome {
+        IdentificationOutcome::Identified => "identified",
+        IdentificationOutcome::Unidentified => "unidentified",
+        IdentificationOutcome::Unsupported => "unsupported",
+        IdentificationOutcome::TimedOut => "timed_out",
+        IdentificationOutcome::NumericallyInfeasible => "numerically_infeasible",
+        IdentificationOutcome::Uncalibrated => "uncalibrated",
+    }
+}
+
+const fn claim_class_name(class: IdentificationClaimClass) -> &'static str {
+    match class {
+        IdentificationClaimClass::IdentifiedClaim => "identified_claim",
+        IdentificationClaimClass::ModelConditional => "model_conditional",
+        IdentificationClaimClass::UnsupportedExtrapolation => "unsupported_extrapolation",
+    }
+}
+
+const fn realization_name(realization: &Realization) -> &'static str {
+    match realization {
+        Realization::Frequentist(_) => "frequentist",
+        Realization::Bayesian(_) => "bayesian",
+        Realization::GeneralizedBayes(_) => "generalized_bayes",
+        Realization::Envelope(_) => "envelope",
+        Realization::GraphImputationV1 => "graph_imputation_v1",
+        Realization::CategoricalPosteriorCandidateV1 => "categorical_posterior_candidate_v1",
+        Realization::SequentialKnownLawMonteCarlo => "sequential_known_law_monte_carlo_v1",
+        Realization::SequentialTrajectoryBootstrap => "sequential_trajectory_bootstrap_v1",
+        Realization::ExactPoint { .. } => "exact_point",
+        Realization::DeclaredPredictive { .. } => "declared_predictive",
+        Realization::DeclaredPosterior { .. } => "declared_posterior",
+        Realization::NestedFit { .. } => "nested_fit",
+        Realization::DeclaredAssumptionEnvelope { .. } => "declared_assumption_envelope",
+    }
+}
+
+fn hex(digest: &[u8; 32]) -> String {
+    SemanticDigest::from_bytes(*digest).to_hex()
+}
+
+#[path = "plan_view_operations.rs"]
+mod operations;
+use operations::{evidence_operations, physical_operations, statistical_operations};
+
+#[path = "plan_view_facts.rs"]
+mod facts;
+use facts::{
+    composition_json, design_json, evidence_json, posterior_json, resampling_json, scientific_json,
+    statistical_json,
+};
+
+/// Shared assertions of the in-crate route coverage tests.
+#[cfg(test)]
+pub(crate) mod checks {
+    use antecedent_core::execution_attempt::{PhysicalEvent, observe_execution};
+
+    use super::{IdentificationKind, PlanView, RouteFamily};
+    use crate::planner::PhysicalExecutionPlan;
+    use crate::planner::lowered::IdentificationLayer;
+
+    /// The operations a view lists are exactly those its program carries, per layer, and
+    /// the JSON lists every one. Holds for a view taken without a physical record too.
+    pub(crate) fn assert_operations_derive(name: &str, view: &PlanView) {
+        use super::OperationLayer;
+        let operations = view.operations();
+        let count = |layer: OperationLayer| {
+            operations.iter().filter(|operation| operation.layer() == layer).count()
+        };
+        let statistical = view.statistical();
+        assert_eq!(
+            count(OperationLayer::Statistical),
+            statistical.operators().len()
+                + statistical.models().len()
+                + usize::from(statistical.folds().is_some())
+                + usize::from(statistical.resampling().is_some())
+                + usize::from(statistical.posterior().is_some()),
+            "{name}: statistical operations"
+        );
+        let evidence = view.evidence();
+        assert_eq!(
+            count(OperationLayer::Evidence),
+            evidence.sources().len()
+                + 1
+                + evidence
+                    .decision()
+                    .map_or(0, |decision| 1 + usize::from(decision.information_value().is_some()))
+                + usize::from(
+                    evidence
+                        .planning()
+                        .and_then(crate::planner::lowered::PlanningProgram::simulation)
+                        .is_some()
+                )
+                + evidence.chain().map_or(0, |chain| chain.plan().stages.len()),
+            "{name}: evidence operations"
+        );
+        let physical = view.physical();
+        assert_eq!(
+            count(OperationLayer::Physical),
+            physical.operators().len()
+                + physical.materializations().len()
+                + usize::from(physical.backend().is_some()),
+            "{name}: physical operations"
+        );
+        assert_eq!(
+            view.to_json()["operations"].as_array().map(Vec::len),
+            Some(operations.len()),
+            "{name}: JSON operations"
+        );
+    }
+
+    /// The view of `plan` agrees with its lowered program layer by layer, and
+    /// building it identifies, fits, scans and samples nothing.
+    pub(crate) fn assert_view_agrees(name: &str, plan: &PhysicalExecutionPlan) -> PlanView {
+        let program = plan.lowered().unwrap_or_else(|| panic!("{name}: no lowered program"));
+        let ((attempt, solves), bayes) = antecedent_prob::fit_counts::count_bayesian_work(|| {
+            antecedent_stats::fit_counts::count_least_squares_solves(|| {
+                observe_execution(|| plan.plan_view())
+            })
+        });
+        let view = attempt.result.unwrap_or_else(|error| panic!("{name}: {error}"));
+        assert!(
+            attempt.report.operations().all(|(_, counts)| counts.attempted == 0),
+            "{name}: building the view ran an instrumented operation"
+        );
+        for event in [PhysicalEvent::Scan, PhysicalEvent::ModelFit, PhysicalEvent::Copy] {
+            assert_eq!(attempt.report.physical(event).unwrap_or(0), 0, "{name}: {event:?}");
+        }
+        assert_eq!(solves, 0, "{name}: building the view solved a design");
+        assert_eq!(bayes.model_fits + bayes.posterior_draws, 0, "{name}: posterior work");
+        assert_eq!(view.identity(), program.identity(), "{name}: identity");
+        assert_eq!(view.route().as_str(), program.route(), "{name}: route");
+        assert_eq!(view.depth(), program.depth(), "{name}: depth");
+        assert_eq!(
+            view.statistical().identity(),
+            program.statistical().identity(),
+            "{name}: statistical program"
+        );
+        assert_eq!(view.evidence(), program.evidence(), "{name}: evidence program");
+        assert_eq!(view.claim(), program.claim(), "{name}: claim demand");
+        assert_eq!(view.uncertainty().reading(), program.claim().uncertainty(), "{name}");
+        assert_eq!(view.physical().design(), program.physical().design(), "{name}: design");
+        assert_eq!(view.physical().operators(), program.physical().operators(), "{name}");
+        assert_eq!(view.physical().record(), Some(&plan.record), "{name}: physical record");
+        assert_eq!(
+            view.physical().backend().map(super::BackendView::selected),
+            Some(plan.choice.selected()),
+            "{name}: backend"
+        );
+        assert_eq!(view.physical().memory_quote(), plan.memory_quote, "{name}: memory quote");
+        assert_eq!(
+            view.physical().backend().map(|backend| backend.rejected().len()),
+            Some(plan.choice.rejected().len()),
+            "{name}: every rejected alternative is shown"
+        );
+        let operations = view.operations();
+        for layer in [super::OperationLayer::Evidence, super::OperationLayer::Physical] {
+            assert!(
+                operations.iter().any(|operation| operation.layer() == layer),
+                "{name}: no {} operation",
+                layer.as_str()
+            );
+        }
+        assert_eq!(view.reuse().identification_retained(), program.identification_retained());
+        assert_eq!(view.support().supported(), program.scientific().supported(), "{name}");
+        assert_eq!(
+            view.support().coordinate(),
+            program.scientific().support_coordinate(),
+            "{name}: support coordinate"
+        );
+        let expected = match program.identification_layer() {
+            IdentificationLayer::Retained(retained) => {
+                assert_eq!(
+                    view.identification().retained().len(),
+                    retained.caches().len(),
+                    "{name}"
+                );
+                assert_eq!(
+                    view.identification().product().map(super::ProductView::identity),
+                    retained
+                        .product
+                        .as_ref()
+                        .map(antecedent_identify::CompiledIdentificationProduct::identity),
+                    "{name}: product identity"
+                );
+                IdentificationKind::Retained
+            }
+            IdentificationLayer::Deferred { .. } => IdentificationKind::Deferred,
+            IdentificationLayer::PerExecution { .. } => IdentificationKind::PerExecution,
+            IdentificationLayer::NonGraphical(_) => IdentificationKind::NonGraphical,
+            IdentificationLayer::NotClaimed { .. } => IdentificationKind::NotClaimed,
+        };
+        assert_eq!(view.identification().kind(), expected, "{name}: identification kind");
+        assert_eq!(
+            view.mixture().is_some(),
+            view.family() == RouteFamily::GraphPosterior,
+            "{name}: only a graph posterior carries a mixture"
+        );
+        let json = view.to_json();
+        assert_eq!(json["identity"], program.identity().to_hex(), "{name}: JSON identity");
+        assert_eq!(json["route"], program.route(), "{name}: JSON route");
+        view
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use super::{PlanRoute, RouteFamily};
+    use crate::analysis::lowering::{GraphPosteriorCell, REGISTERED, RouteCell};
+
+    #[test]
+    fn every_route_cell_has_a_plan_route_of_its_registered_family() {
+        let mut names = BTreeSet::new();
+        for (cell, family) in REGISTERED {
+            let route = cell.plan_route();
+            assert_eq!(route.as_str(), cell.as_str(), "the view names the cell it lowers");
+            assert_eq!(route.family().as_str(), *family, "{} family", cell.as_str());
+            assert_eq!(route.family(), cell.family(), "{}", cell.as_str());
+            assert!(names.insert(route.as_str()), "{} has one plan route", cell.as_str());
+        }
+        for cell in GraphPosteriorCell::ALL {
+            let route = RouteCell::GraphPosterior(cell).plan_route();
+            assert_eq!(route, PlanRoute::GraphPosterior(cell));
+            assert_eq!(route.family(), RouteFamily::GraphPosterior);
+            assert!(names.insert(route.as_str()), "{} has one plan route", cell.as_str());
+        }
+        assert_eq!(PlanRoute::CyclicFamily("system").family(), RouteFamily::Cyclic);
+        assert_eq!(PlanRoute::CyclicFamily("system").as_str(), "CyclicFamily");
+        assert_eq!(PlanRoute::Planning("bernoulli").family(), RouteFamily::Planning);
+        assert_eq!(PlanRoute::Planning("bernoulli").as_str(), "ExperimentPlanning");
+    }
+
+    #[test]
+    fn every_joint_panel_route_names_its_cell_in_the_joint_panel_family() {
+        let mut names = BTreeSet::new();
+        for route in crate::planner::lowered::JointPanelRoute::ALL {
+            let cell = route.cell();
+            let plan = super::plan_route(cell);
+            assert_eq!(plan.as_str(), cell.as_str(), "the view names the cell it lowers");
+            assert_eq!(plan.family(), RouteFamily::JointPanel, "{}", cell.as_str());
+            assert!(names.insert(plan.as_str()), "{} has one plan route", cell.as_str());
+        }
+    }
+}

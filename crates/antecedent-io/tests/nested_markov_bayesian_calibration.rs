@@ -439,7 +439,7 @@ fn nested_bayesian_full11d_beta2_l95() {
 #[test]
 fn auxiliary_checkpoint_extends_exact_prefix_and_rejects_incompatible_state() {
     fn feed(state: &mut Auxiliary, rep: u32) {
-        if rep % 7 == 0 {
+        if rep.is_multiple_of(7) {
             state.failure("synthetic:numerical");
         } else {
             let x = f64::from(rep) / 2048.0;

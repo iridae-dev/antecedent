@@ -34,9 +34,9 @@
 //! informs only a selection node on `V` itself (the `informs_selection_on` field): a rejection says the mechanism of `V` is not invariant, so such a node
 //! cannot be excluded; non-rejection leaves it open. It is a linear-Gaussian-mean diagnostic: a
 //! shift in a nonlinear or higher-moment feature of the mechanism may go undetected. Type I error
-//! and power are *unmeasured* ([`CalibrationStatus::Unmeasured`]); no calibration claim is made.
+//! and power are *`not_measured`* ([`CalibrationStatus::NotMeasured`]); no calibration claim is made.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 
@@ -56,7 +56,7 @@ pub const MECHANISM_DISCREPANCY_NULL: &str = "the conditional mechanism of the n
                                               is the same in the source and the target population";
 
 /// Inference claim of the route.
-pub const MECHANISM_DISCREPANCY_INFERENCE_CLAIM: &str = "asymptotic_wald_calibration_unmeasured";
+pub const MECHANISM_DISCREPANCY_INFERENCE_CLAIM: &str = "asymptotic_wald_calibration_not_measured";
 
 /// Population and selection alignment the diagnostic assumes and informs.
 pub const MECHANISM_DISCREPANCY_ALIGNMENT: &str = "assumes two independent samples measured on \
@@ -69,9 +69,9 @@ pub const MECHANISM_DISCREPANCY_CAVEAT: &str = "failing to reject the null does 
     the mechanism is invariant between source and target; only differences larger than the \
     minimal detectable differences could have been detected";
 
-/// Statement attached to every result about the unmeasured error rates.
+/// Statement attached to every result about the `not_measured` error rates.
 pub const MECHANISM_DISCREPANCY_POWER_CAVEAT: &str = "Type I error and power of this test are \
-    unmeasured; the minimal detectable differences are closed-form normal-theory values at the \
+    not_measured; the minimal detectable differences are closed-form normal-theory values at the \
     observed standard errors, not a measured calibration";
 
 /// Dependence assumption of the statistic.
@@ -81,7 +81,8 @@ pub const MECHANISM_DISCREPANCY_DEPENDENCE: &str = "source and target samples ar
 /// Name of the intercept coefficient; no parent may use it.
 pub const MECHANISM_DISCREPANCY_INTERCEPT: &str = "(intercept)";
 
-/// Most parents one diagnostic accepts.
+/// Reference parent count of a diagnostic. Not enforced: the `(k + 1)^2` normal equations are
+/// admitted against the workflow account.
 pub const MECHANISM_DISCREPANCY_MAX_PARENTS: usize = 64;
 
 /// Smallest residual degrees of freedom `n - p` of either population.
@@ -284,7 +285,7 @@ pub struct MechanismDiscrepancyResult {
     pub dependence_assumption: &'static str,
     /// The variables whose selection node this diagnostic informs: the node itself.
     pub informs_selection_on: Vec<String>,
-    /// Calibration state: unmeasured.
+    /// Calibration state: `not_measured`.
     pub calibration: CalibrationStatus,
     /// [`MECHANISM_DISCREPANCY_INFERENCE_CLAIM`].
     pub inference_claim: &'static str,
@@ -309,21 +310,21 @@ fn validate_options(options: &DiscrepancyOptions) -> Result<(), EstimationError>
     if !(options.alpha >= LEVEL_FLOOR && options.alpha < 1.0) {
         return Err(refuse(
             invalid,
-            "mechanism_discrepancy.invalid_alpha",
+            antecedent_core::reason_details::mechanism_discrepancy::INVALID_ALPHA,
             "alpha must lie in [1e-12, 1)",
         ));
     }
     if !(options.power >= 0.5 && options.power <= 1.0 - LEVEL_FLOOR) {
         return Err(refuse(
             invalid,
-            "mechanism_discrepancy.invalid_power",
+            antecedent_core::reason_details::mechanism_discrepancy::INVALID_POWER,
             "power must lie in [0.5, 1 - 1e-12]",
         ));
     }
     if options.dependence != SampleDependence::Independent {
         return Err(refuse(
             reason_code!("route_not_supported"),
-            "mechanism_discrepancy.dependence_unknown",
+            antecedent_core::reason_details::mechanism_discrepancy::DEPENDENCE_UNKNOWN,
             "the covariance of the coefficient difference is the sum of the two OLS covariances \
              only for independent samples; shared units or unknown dependence are refused",
         ));
@@ -343,15 +344,22 @@ pub fn summarize_population(
     let invalid = reason_code!("invalid_argument");
     let n = sample.outcome.len();
     let k = sample.measurement.parents.len();
-    if k > MECHANISM_DISCREPANCY_MAX_PARENTS {
+    let _gram_lease =
+        crate::util::admit_bound_array::<f64>(k.saturating_add(1), k.saturating_add(1)).map_err(
+            |_| {
+                refuse(
+                    invalid,
+                    antecedent_core::reason_details::mechanism_discrepancy::TOO_MANY_PARENTS,
+                    "the parents' normal equations exceed the admitted memory",
+                )
+            },
+        )?;
+    if n == 0 {
         return Err(refuse(
             invalid,
-            "mechanism_discrepancy.too_many_parents",
-            "more parents than the diagnostic accepts",
+            antecedent_core::reason_details::mechanism_discrepancy::SAMPLE_TOO_SMALL,
+            "no rows",
         ));
-    }
-    if n == 0 {
-        return Err(refuse(invalid, "mechanism_discrepancy.sample_too_small", "no rows"));
     }
     if sample.parent_values.len() != k
         || sample.parent_values.iter().any(|c| c.len() != n)
@@ -359,7 +367,7 @@ pub fn summarize_population(
     {
         return Err(refuse(
             invalid,
-            "mechanism_discrepancy.row_count_mismatch",
+            antecedent_core::reason_details::mechanism_discrepancy::ROW_COUNT_MISMATCH,
             "every parent column and the unit ids must have one value per outcome row",
         ));
     }
@@ -367,7 +375,7 @@ pub fn summarize_population(
     if !(finite(&sample.outcome) && sample.parent_values.iter().all(|c| finite(c))) {
         return Err(refuse(
             invalid,
-            "mechanism_discrepancy.non_finite_value",
+            antecedent_core::reason_details::mechanism_discrepancy::NON_FINITE_VALUE,
             "outcome and parent values must be finite",
         ));
     }
@@ -386,7 +394,7 @@ pub fn summarize_population(
     if !(xtx.iter().chain(&xty).all(|v| v.is_finite()) && yty.is_finite()) {
         return Err(refuse(
             invalid,
-            "mechanism_discrepancy.non_finite_value",
+            antecedent_core::reason_details::mechanism_discrepancy::NON_FINITE_VALUE,
             "the summary statistics overflow at the supplied scale",
         ));
     }
@@ -415,18 +423,21 @@ fn validate_summary_shape(s: &MechanismSummary) -> Result<(), EstimationError> {
     let bad = |detail: &str, message: &str| refuse(invalid, detail, message);
     let k = s.measurement.parents.len();
     let p = k + 1;
-    if k > MECHANISM_DISCREPANCY_MAX_PARENTS {
-        return Err(bad("mechanism_discrepancy.too_many_parents", "too many parents"));
+    if k.checked_add(1).and_then(|p| p.checked_mul(p)).is_none() {
+        return Err(bad(
+            antecedent_core::reason_details::mechanism_discrepancy::TOO_MANY_PARENTS,
+            "too many parents",
+        ));
     }
     if s.xtx.len() != p * p || s.xty.len() != p {
         return Err(bad(
-            "mechanism_discrepancy.inconsistent_summary",
+            antecedent_core::reason_details::mechanism_discrepancy::INCONSISTENT_SUMMARY,
             "the summary statistics do not match the declared parents",
         ));
     }
     if !(s.xtx.iter().chain(&s.xty).all(|v| v.is_finite()) && s.yty.is_finite() && s.yty >= 0.0) {
         return Err(bad(
-            "mechanism_discrepancy.non_finite_value",
+            antecedent_core::reason_details::mechanism_discrepancy::NON_FINITE_VALUE,
             "a summary statistic is not finite, or y'y is negative",
         ));
     }
@@ -435,7 +446,7 @@ fn validate_summary_shape(s: &MechanismSummary) -> Result<(), EstimationError> {
             let (a, b) = (s.xtx[i * p + j], s.xtx[j * p + i]);
             if (a - b).abs() > SUMMARY_TOLERANCE * a.abs().max(b.abs()) {
                 return Err(bad(
-                    "mechanism_discrepancy.inconsistent_summary",
+                    antecedent_core::reason_details::mechanism_discrepancy::INCONSISTENT_SUMMARY,
                     "X'X is not symmetric",
                 ));
             }
@@ -444,13 +455,13 @@ fn validate_summary_shape(s: &MechanismSummary) -> Result<(), EstimationError> {
     let n = count(s.n);
     if s.n < p + MECHANISM_DISCREPANCY_MIN_RESIDUAL_DF {
         return Err(bad(
-            "mechanism_discrepancy.sample_too_small",
+            antecedent_core::reason_details::mechanism_discrepancy::SAMPLE_TOO_SMALL,
             "the sample leaves fewer than two residual degrees of freedom",
         ));
     }
     if (s.xtx[0] - n).abs() > SUMMARY_TOLERANCE * n {
         return Err(bad(
-            "mechanism_discrepancy.inconsistent_summary",
+            antecedent_core::reason_details::mechanism_discrepancy::INCONSISTENT_SUMMARY,
             "the intercept sum of squares does not equal the row count",
         ));
     }
@@ -461,7 +472,7 @@ fn validate_summary_shape(s: &MechanismSummary) -> Result<(), EstimationError> {
             || !names.insert(parent.name.as_str())
         {
             return Err(bad(
-                "mechanism_discrepancy.duplicate_name",
+                antecedent_core::reason_details::mechanism_discrepancy::DUPLICATE_NAME,
                 "parent names must be non-blank, unique and not the reserved intercept name",
             ));
         }
@@ -510,7 +521,7 @@ fn check_comparable(
     mb: &MechanismMeasurement,
 ) -> Result<(), EstimationError> {
     let incomparable = reason_code!("route_not_supported");
-    let detail = "mechanism_discrepancy.incomparable_measurements";
+    let detail = antecedent_core::reason_details::mechanism_discrepancy::INCOMPARABLE_MEASUREMENTS;
     let blank = |m: &MechanismMeasurement| {
         m.node.trim().is_empty()
             || m.node_unit.trim().is_empty()
@@ -574,7 +585,7 @@ fn ols(c: &Canonical) -> Result<Ols, EstimationError> {
     let lower = antecedent_stats::cholesky_spd(&c.xtx, p).ok_or_else(|| {
         refuse(
             reason_code!("invalid_argument"),
-            "mechanism_discrepancy.rank_deficient_design",
+            antecedent_core::reason_details::mechanism_discrepancy::RANK_DEFICIENT_DESIGN,
             "the design (intercept and parents) is rank deficient in a population",
         )
     })?;
@@ -585,7 +596,7 @@ fn ols(c: &Canonical) -> Result<Ols, EstimationError> {
     if rss <= EXACT_FIT_TOLERANCE * c.yty {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "mechanism_discrepancy.degenerate_covariance",
+            antecedent_core::reason_details::mechanism_discrepancy::DEGENERATE_COVARIANCE,
             "a population fits its mechanism exactly, so its sampling variance is not estimable",
         ));
     }
@@ -594,7 +605,7 @@ fn ols(c: &Canonical) -> Result<Ols, EstimationError> {
     if !(beta.iter().chain(&covariance).all(|v| v.is_finite()) && sigma2.is_finite()) {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "mechanism_discrepancy.non_finite_value",
+            antecedent_core::reason_details::mechanism_discrepancy::NON_FINITE_VALUE,
             "the fit overflows at the supplied scale",
         ));
     }
@@ -645,7 +656,7 @@ fn joint_wald(compared: &[usize], p: usize, s: &Ols, t: &Ols) -> Result<f64, Est
     let lower = antecedent_stats::cholesky_spd(&v, m).ok_or_else(|| {
         refuse(
             reason_code!("invalid_argument"),
-            "mechanism_discrepancy.degenerate_covariance",
+            antecedent_core::reason_details::mechanism_discrepancy::DEGENERATE_COVARIANCE,
             "the summed covariance of the coefficient difference is singular (for example, \
              both populations fit exactly)",
         )
@@ -654,7 +665,7 @@ fn joint_wald(compared: &[usize], p: usize, s: &Ols, t: &Ols) -> Result<f64, Est
     if !statistic.is_finite() {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "mechanism_discrepancy.non_finite_value",
+            antecedent_core::reason_details::mechanism_discrepancy::NON_FINITE_VALUE,
             "the statistic overflows at the supplied scale",
         ));
     }
@@ -739,7 +750,7 @@ pub fn test_mechanism_discrepancy(
         if target.unit_ids.iter().any(|id| ids.contains(id.as_str())) {
             return Err(refuse(
                 reason_code!("route_not_supported"),
-                "mechanism_discrepancy.dependence_unknown",
+                antecedent_core::reason_details::mechanism_discrepancy::DEPENDENCE_UNKNOWN,
                 "source and target share units, so their estimates are not independent",
             ));
         }
@@ -780,7 +791,7 @@ pub fn test_mechanism_discrepancy_from_summaries(
     if compared.is_empty() {
         return Err(refuse(
             reason_code!("invalid_argument"),
-            "mechanism_discrepancy.no_compared_coefficients",
+            antecedent_core::reason_details::mechanism_discrepancy::NO_COMPARED_COEFFICIENTS,
             "the node has no parents and the intercept is not compared",
         ));
     }
@@ -812,7 +823,7 @@ pub fn test_mechanism_discrepancy_from_summaries(
         power_caveat: MECHANISM_DISCREPANCY_POWER_CAVEAT,
         alignment: MECHANISM_DISCREPANCY_ALIGNMENT,
         dependence_assumption: MECHANISM_DISCREPANCY_DEPENDENCE,
-        calibration: CalibrationStatus::Unmeasured,
+        calibration: CalibrationStatus::NotMeasured,
         inference_claim: MECHANISM_DISCREPANCY_INFERENCE_CLAIM,
         coefficients: rows,
         measurement: s.measurement.clone(),

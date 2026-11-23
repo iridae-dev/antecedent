@@ -1,0 +1,62 @@
+{
+  "scope": "A Y-intercept shift of +5 and a null change under Y = a + bX with the X mechanism unchanged. The generator enumerates both player orders to compute the exact two-player Shapley allocation of the hybrid-payoff change.",
+  "independence_basis": "The generator defines the hybrid payoff E[Y] = (a_cmp if y in the coalition else a_base) + b E[X] with a common arbitrary E[X], and computes Shapley values by averaging marginal contributions over all player orders; it imports no Antecedent code and no statistics package. The shared object is the fixture statement that the payoff depends on the Y mechanism only.",
+  "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+  "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+  "limitations": "Linear model with only an intercept change and an unchanged X distribution; no slope, variance or X-mechanism change, no sampling variability (the sampled tolerance is not exercised here). The executing assertion reads only the y_intercept_plus_five case; the null case is derived but not read. No calibration.",
+  "sources": [],
+  "artifacts": [
+    {
+      "role": "generator",
+      "path": "conformance/attribution/distribution_change_grid/reference.py",
+      "sha256": "92fca3217e5d11502d58fbdfcdad1bb5735b024d1b52223cf9100e9306b24abf"
+    },
+    {
+      "role": "environment_lock",
+      "path": "conformance/attribution/distribution_change_grid/reference.py.lock",
+      "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+    },
+    {
+      "role": "assertion_source",
+      "path": "crates/antecedent-attribution/src/distribution_change.rs",
+      "items": [
+        "enum PlayerKind",
+        "fn attributes_mechanism_shift_to_y",
+        "fn baseline",
+        "fn baseline_law",
+        "fn comparison",
+        "fn default",
+        "fn distribution_change",
+        "fn distribution_change_on_populations",
+        "fn distribution_change_with_fit_uncertainty",
+        "fn distribution_change_with_mechanisms",
+        "fn distribution_change_with_row_weights",
+        "fn exact_shapley_efficiency_sum_phi_equals_total_change",
+        "fn fit_uncertainty_is_a_row_bootstrap_of_the_refit_attribution",
+        "fn gaussian_kl_efficiency_holds_end_to_end",
+        "fn inputs_and_mechanisms_runs",
+        "fn joint_players",
+        "fn law_memo",
+        "fn measure",
+        "fn measure_value_gaussian_kl_matches_closed_form",
+        "fn mechanism_swap_attribution_does_not_depend_on_thread_count",
+        "fn parts",
+        "fn path_based_allocation_fills_breakdown",
+        "fn path_based_attributes_only_the_mechanism_that_changed",
+        "fn sampled_distribution_counts_follow_the_measure",
+        "fn two_period_chain",
+        "fn two_period_chain_with_noise",
+        "fn validate_distribution_change_query",
+        "fn value",
+        "fn weighted_refit_attribution_matches_independent_change_and_efficiency",
+        "struct Case",
+        "struct Comparison",
+        "struct DistributionChangeOptions",
+        "struct Fixture",
+        "struct MechanismSwapPayoff"
+      ],
+      "sha256": "cece6df1ffffd13727d57c47215fa6cf829e45a39fc00ced9f67ce20068e55ce"
+    }
+  ],
+  "fixture_payload_sha256": "10b998ea5771234ea936341a5624e7ec2c7cf265429bde382d4da63091c08ef3"
+}

@@ -1,7 +1,7 @@
 //! Interactive envelope prior must anchor to the first identified atom in
 //! original order — before stratified subsample can drop that atom.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -186,7 +186,12 @@ fn composed_cfg(data: &TabularData) -> BayesianConfig {
     // genuinely atom-specific, which is what this test needs to observe
     // order-dependent anchoring at all.
     let policy = ConflictPolicy::try_new(0.0, 1.0).unwrap();
-    BayesianConfig::conjugate().n_draws(48).prior_from_composed(sources, composed, Some(policy))
+    BayesianConfig::conjugate().n_draws(48).prior_from_composed_with_baseline(
+        sources,
+        composed,
+        Some(policy),
+        baseline,
+    )
 }
 
 fn run_envelope(
@@ -211,7 +216,7 @@ fn run_envelope(
         .diagnostics
         .iter()
         .any(|d| d.code.as_ref() == "estimate.envelope.interactive_subsample");
-    let post = result.posterior.expect("posterior");
+    let post = result.posterior.as_ref().expect("posterior");
     let mean = post.summaries.mean[post.effect_column().unwrap()];
     (mean, subsampled)
 }
@@ -291,4 +296,14 @@ fn interactive_envelope_public_estimand_anchors_to_first_contributing_atom() {
             "the public estimand must describe the retained W-adjusted atom, not the dropped Z-adjusted atom"
         );
     }
+}
+
+#[test]
+fn invalid_public_conflict_policy_is_refused_at_study_build() {
+    let data = toy_table(100);
+    let mut cfg = composed_cfg(&data);
+    cfg.external_compose.as_mut().unwrap().conflict_policy =
+        Some(ConflictPolicy { p_min: f64::NAN, kl_scale: 1.0 });
+    let error = Study::tabular(data).inference(InferenceMode::Bayesian(cfg)).build().unwrap_err();
+    assert!(error.to_string().contains("ConflictPolicy p_min"), "{error}");
 }

@@ -79,6 +79,8 @@ impl<T: 'static> IntoIterator for &StaticTable<T> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CoverageRecord {
     pub id: &'static str,
+    pub validation_schema: u8,
+    pub validation: &'static str,
     pub query: &'static str,
     pub graph_class: &'static str,
     pub structure: &'static str,
@@ -117,10 +119,26 @@ pub struct CoverageRecord {
     pub calibration_sha: &'static str,
 }
 
+/// Empirical calibration of the intervals returned by a simulation study.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct IntervalCounts {
+    /// Simulations attempted, including runs which returned no interval.
+    pub attempted: u32,
+    /// Finite ordered intervals returned.
+    pub returned: u32,
+    /// Returned intervals containing the known truth.
+    pub covered: u32,
+}
+
 /// One sample-size grid point of a coverage record: the rows it measured and
 /// the coverage it measured there.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CoverageGridPoint {
+    /// Conditional coverage counts for an exactly matched panel design.
+    pub interval_counts: Option<IntervalCounts>,
+    /// Additional panels refused by the fitted overlap check when coverage conditions on returned intervals.
+    pub overlap_refusals: Option<u64>,
     pub point: u8,
     pub n_min: u64,
     pub n_max: u64,
@@ -150,8 +168,8 @@ pub(crate) static FUNCTIONAL_IDENTITY_ALIASES: StaticTable<FunctionalIdentityAli
     table(functional_identity_aliases);
 
 /// Ids of the records in [`RECORDS`] that attest the tree this snapshot was
-/// generated from (`scripts/calibration_facets.py`: no facet drifted since the
-/// record's `calibration_sha`, or a valid replay waiver covers it). Regenerated
+/// generated from (`scripts/calibration_status.py`: the record's dependency
+/// fingerprint is unchanged since it was measured or last passed a probe). Regenerated
 /// with the registry; a `calibrated` slot requires its governing record to be
 /// listed.
 pub static ATTESTING_RECORD_IDS: StaticTable<&str> = table(attesting_record_ids);
@@ -213,6 +231,8 @@ struct RawRegistry {
 #[derive(Deserialize)]
 struct RawRecord {
     id: String,
+    validation_schema: u8,
+    validation: String,
     query: String,
     graph_class: String,
     structure: String,
@@ -247,6 +267,8 @@ struct RawRecord {
 
 #[derive(Deserialize)]
 struct RawGrid {
+    interval_counts: Option<IntervalCounts>,
+    overlap_refusals: Option<u64>,
     point: u8,
     n_min: u64,
     n_max: u64,
@@ -275,6 +297,8 @@ impl CoverageRecord {
         let id = leak_str(raw.id);
         Self {
             id,
+            validation_schema: raw.validation_schema,
+            validation: leak_str(raw.validation),
             query: leak_str(raw.query),
             graph_class: leak_str(raw.graph_class),
             structure: leak_str(raw.structure),
@@ -336,6 +360,8 @@ fn leak_grid(points: Vec<RawGrid>, id: &str) -> &'static [CoverageGridPoint] {
         points
             .into_iter()
             .map(|point| CoverageGridPoint {
+                interval_counts: point.interval_counts,
+                overlap_refusals: point.overlap_refusals,
                 point: point.point,
                 n_min: point.n_min,
                 n_max: point.n_max,
@@ -353,6 +379,7 @@ fn interval_method(name: &str) -> IntervalMethod {
         "AnalyticSe" => IntervalMethod::AnalyticSe,
         "BootstrapSe" => IntervalMethod::BootstrapSe,
         "PosteriorQuantile" => IntervalMethod::PosteriorQuantile,
+        "PosteriorAbsoluteDeviation" => IntervalMethod::PosteriorAbsoluteDeviation,
         "UnitPosteriorQuantile" => IntervalMethod::UnitPosteriorQuantile,
         "IdentifiedSet" => IntervalMethod::IdentifiedSet,
         "CircularBlockSe" => IntervalMethod::CircularBlockSe,

@@ -1,7 +1,7 @@
 //! Retained completion proofs and execution settings for an incomplete temporal
 //! graph response (mean curve or single-step intervention response).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::analysis::prepared::Inspect;
 use crate::analysis::route_guards::{complete_mean_response, inference_label};
@@ -14,6 +14,7 @@ use crate::strategy_table::{EstimatorId, IdentifierId};
 use crate::{AcceptedGraph, ClassPrior, GraphClass, InferenceMode};
 
 use super::builder::RefuteSuite;
+use super::checked_sealed_procedure::{PlanBindingScope, SealedProcedure};
 use super::checked_temporal_response::temporal_response_is_direct;
 use super::prepared::CachedTemporalClassIdentification;
 use super::proof_support::{Procedure, require_primary_pair};
@@ -27,19 +28,13 @@ use super::route_guards::same_accepted_graph;
 #[derive(Clone)]
 pub(crate) struct CheckedTemporalClassResponseOperation {
     source_graph: AcceptedGraph,
-    max_completions: Option<usize>,
     query: ResponseQuery,
     bundle: Arc<CachedTemporalClassIdentification>,
-    identifier: IdentifierId,
-    estimator: EstimatorId,
-    inference: InferenceMode,
-    bootstrap_replicates: u32,
     class_prior: Option<ClassPrior>,
-    validation: RefuteSuite,
-    physical: std::sync::Arc<PhysicalExecutionPlan>,
+    sealed: SealedProcedure,
 }
 
-/// The frozen premises of [`CheckedTemporalClassResponseOperation::checked`], carried together.
+/// The sealed premises of [`CheckedTemporalClassResponseOperation::checked`], carried together.
 pub(crate) struct CheckedTemporalClassResponseOperationPremises<'a> {
     pub(crate) source_graph: AcceptedGraph,
     pub(crate) query: &'a ResponseQuery,
@@ -54,17 +49,14 @@ pub(crate) struct CheckedTemporalClassResponseOperationPremises<'a> {
 
 impl std::fmt::Debug for CheckedTemporalClassResponseOperation {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("CheckedTemporalClassResponseOperation")
+        let mut debug = formatter.debug_struct("CheckedTemporalClassResponseOperation");
+        debug
             .field("graph_class", &self.source_graph.class())
             .field("structure_version", &self.source_graph.version())
             .field("query", &self.query)
-            .field("horizon_count", &self.bundle.by_horizon.len())
-            .field("identifier", &self.identifier)
-            .field("estimator", &self.estimator)
-            .field("bootstrap_replicates", &self.bootstrap_replicates)
-            .field("validation", &self.validation)
-            .finish_non_exhaustive()
+            .field("horizon_count", &self.bundle.by_horizon.len());
+        self.sealed.debug_procedure(&mut debug);
+        debug.finish_non_exhaustive()
     }
 }
 
@@ -111,7 +103,7 @@ fn check_class_response_horizon(
         .with_target_population(query.target_population.clone());
     let treatment_key =
         TemporalNodeKey { variable: treatment, offset: witness.try_treatment_offset()? };
-    let outcome_key = TemporalNodeKey { variable: outcome, offset: witness.outcome_offset() };
+    let outcome_key = TemporalNodeKey { variable: outcome, offset: witness.outcome_offset()? };
     let witness_binds =
         envelope.envelope.cases.iter().zip(&envelope.indexers).all(|(case, indexer)| {
             case.result.average_effect().is_none_or(|proof| {
@@ -176,31 +168,35 @@ impl CheckedTemporalClassResponseOperation {
         let (treatment, outcome) = require_primary_pair(&query.functional)?;
         let identifier = IdentifierId::GeneralizedAdjustment;
         let estimator = EstimatorId::temporal_response_for(inference);
-        if physical.logical.query != CausalQuery::Response(query.clone())
-            || !physical.binding().names(identifier, estimator)
-        {
-            return Err(CausalError::Compile {
-                message:
-                    "temporal class response plan disagrees with its retained query or procedure"
-                        .into(),
-            });
-        }
+        let sealed = SealedProcedure::new(
+            identifier,
+            estimator,
+            inference.clone(),
+            bootstrap_replicates,
+            validation,
+            physical,
+            max_completions,
+        );
+        sealed.validate_plan_binding(
+            &CausalQuery::Response(query.clone()),
+            PlanBindingScope::Procedure,
+            "temporal class response plan disagrees with its retained query or procedure",
+        )?;
         for &horizon in spec.horizons.iter() {
             check_class_response_horizon(bundle, spec, query, (treatment, outcome), horizon)?;
         }
         Ok(Self {
             source_graph,
-            max_completions,
             query: query.clone(),
             bundle: Arc::clone(bundle),
-            identifier,
-            estimator,
-            inference: inference.clone(),
-            bootstrap_replicates,
             class_prior,
-            validation,
-            physical,
+            sealed,
         })
+    }
+
+    /// The procedure settings sealed with the proof.
+    pub(crate) fn sealed(&self) -> &SealedProcedure {
+        &self.sealed
     }
 
     #[must_use]
@@ -227,7 +223,7 @@ impl CheckedTemporalClassResponseOperation {
 
     #[must_use]
     pub(crate) fn max_completions(&self) -> Option<usize> {
-        self.max_completions
+        self.sealed.max_completions()
     }
 
     #[must_use]
@@ -242,16 +238,16 @@ impl CheckedTemporalClassResponseOperation {
 
     #[must_use]
     pub(crate) const fn inference(&self) -> &InferenceMode {
-        &self.inference
+        self.sealed.inference()
     }
 
     #[must_use]
     pub(crate) fn procedure(&self) -> Procedure {
         Procedure {
-            identifier: self.identifier,
-            estimator: self.estimator,
-            bootstrap_replicates: self.bootstrap_replicates,
-            validation: self.validation,
+            identifier: self.sealed.identifier(),
+            estimator: self.sealed.estimator(),
+            bootstrap_replicates: self.sealed.bootstrap_replicates(),
+            validation: self.sealed.validation(),
         }
     }
 
@@ -262,7 +258,7 @@ impl CheckedTemporalClassResponseOperation {
 
     #[must_use]
     pub(crate) fn physical(&self) -> &PhysicalExecutionPlan {
-        &self.physical
+        self.sealed.physical()
     }
 
     /// Ordered requested horizons.

@@ -17,13 +17,15 @@ every observation enters a Bayes belief update through a typed measurement model
         ),
         terminal_utility=(0.0, 0.0),
     )
+    # A history is a tuple of (action index, observation symbol) pairs; with ``model=`` the
+    # actions taken may be named by label. Action 0 is "inspect".
     policy = se.Policy.deterministic("inspect_then_act_v1", {
         (): "inspect",
-        (("inspect", 1),): "repair",
-        (("inspect", 0),): "ship",
-    })
+        ((0, 1),): "repair",                   # inspected, alarm symbol 1
+        ((0, 0),): "ship",                     # inspected, no alarm
+    }, model=model)
     evaluation = se.evaluate(model, policy)
-    evaluation.value                      # 1.5, exact given the declared model
+    evaluation.value                      # the policy value, exact given the declared model
 
 What is supplied and what is refused:
 
@@ -33,7 +35,8 @@ What is supplied and what is refused:
   gives no support is refused (``history_support_violated``), as is a reachable history without a
   decision.
 * :func:`evaluate_off_policy` weights logged finite trajectories by their logged assignment
-  probabilities. It is a point estimate; its standard error is an uncalibrated diagnostic.
+  probabilities. Its interval is a Wald interval from the importance-weighted standard error,
+  reported with its calibration status.
 * :func:`rollout` simulates on common random streams keyed by ``(seed, rollout, time, role)``;
   :func:`stream_uniform` exposes one stream identity.
 * :func:`compare` evaluates named act-now, wait, collect-evidence and choose-after-observation
@@ -47,10 +50,11 @@ A reweighted static score table (:class:`ReweightedStaticScores`) and a policy l
 data under evaluation (:class:`LearnedFromEvaluationData`) are refused by name
 (``route_not_supported``), a value for another population or period is refused naming the missing
 selection-diagram and invariance contract (``transport_missing_evidence``), and
-:func:`request_interval` always raises ``cell_not_licensed``. Rust owns every number and
-refusal; this module builds declarations and raises :class:`SequentialEvaluationRefusal`
-(a :class:`~antecedent.errors.CausalUnsupportedError`) with the registered ``reason_code`` and
-the ``detail`` slot.
+:func:`request_interval` always raises ``uncertainty_representation_insufficient``: an exact
+value has no sampling uncertainty and the rollout error is an uncalibrated diagnostic. Rust owns
+every number and refusal; this module builds declarations and raises
+:class:`SequentialEvaluationRefusal` (a :class:`~antecedent.errors.CausalUnsupportedError`) with
+the registered ``reason_code`` and the ``detail`` slot.
 """
 
 from __future__ import annotations
@@ -62,9 +66,18 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 from ._refusal import raise_refusal
 from ._scientific import ScientificResult
+from ._validate import name as _name
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+from .execution import Execution, resolve_execution
 from .measurement_models import MeasurementModel
 
 if TYPE_CHECKING:
@@ -86,6 +99,7 @@ __all__ = [
     "LoggedTrajectory",
     "ObservationReceipt",
     "OffPolicyEstimate",
+    "OffPolicyInterval",
     "Policy",
     "PolicyEvaluation",
     "ReweightedStaticScores",
@@ -121,17 +135,11 @@ class SequentialEvaluationRefusal(StructuredRefusal):
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code`` and a
     namespaced ``detail`` (the module's own slot for a policy or model refusal, the measurement
     layer's for an observation channel); ``remedy`` names the declaration, contract or evidence
-    that would license the request.
+    that would support the request.
     """
 
 
 # --------------------------------------------------------------------------- validation
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
 
 
 def _number(value: object, what: str) -> float:
@@ -640,8 +648,22 @@ class PolicyEvaluation:
 
 
 @dataclass(frozen=True, slots=True)
+class OffPolicyInterval:
+    """A Wald interval of an off-policy estimate with its calibration slot.
+
+    ``calibration`` is the calibration slot mapping; its ``status`` is ``not_measured`` unless a
+    coverage record measures the importance-weighted construction at this coordinate.
+    """
+
+    level: float
+    lower: float
+    upper: float
+    calibration: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
 class OffPolicyEstimate:
-    """A point estimate from logged trajectories; the standard error is uncalibrated."""
+    """An importance-weighted policy value from logged trajectories with its Wald interval."""
 
     ordinary: float
     self_normalized: float
@@ -649,6 +671,7 @@ class OffPolicyEstimate:
     max_weight: float
     trajectories: int
     uncalibrated_standard_error: float | None
+    interval: OffPolicyInterval | None
     policy_version: str
     policy_identity: str
     behaviour_version: str
@@ -772,7 +795,7 @@ def evaluate(
     policy: Policy | ReweightedStaticScores | LearnedFromEvaluationData,
     *,
     max_nodes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PolicyEvaluation:
     """Evaluate a fixed policy by exact enumeration (the sequential g-formula).
 
@@ -780,10 +803,11 @@ def evaluate(
     reachable history without a decision, an unsupported action, a resource budget exceeded or an
     outcome due after the horizon under the ``refuse`` rule.
     """
+    execution = resolve_execution(execution)
     fixed = resolve_policy(policy) if not isinstance(policy, Policy) else policy
     wire = _result(
         _native.sequential_evaluate(
-            _dumps(model.to_wire()), _dumps(fixed.to_wire()), max_nodes, cancel=cancel
+            _dumps(model.to_wire()), _dumps(fixed.to_wire()), max_nodes, cancel=execution.cancel
         )
     )
     return PolicyEvaluation._from_wire(wire)
@@ -824,13 +848,14 @@ def evaluate_off_policy(
     trajectories: Sequence[LoggedTrajectory],
     *,
     max_nodes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> OffPolicyEstimate:
-    """Sequential importance weighting of logged trajectories (point-only).
+    """Sequential importance weighting of logged trajectories with a Wald interval.
 
     Positivity is checked on every history the target policy reaches; a trajectory identity
     repeated in the log, or inconsistent with the model or logging policy, is refused.
     """
+    execution = resolve_execution(execution)
     wire = _result(
         _native.sequential_off_policy(
             _dumps(model.to_wire()),
@@ -838,23 +863,32 @@ def evaluate_off_policy(
             _dumps(behaviour.to_wire()),
             _dumps([t._wire() for t in trajectories]),
             max_nodes,
-            cancel=cancel,
+            cancel=execution.cancel,
         )
     )
-    return OffPolicyEstimate(**wire)
+    interval = wire.pop("interval")
+    return OffPolicyEstimate(
+        interval=None if interval is None else OffPolicyInterval(**interval), **wire
+    )
 
 
 def rollout(
-    model: FiniteModel, policy: Policy, *, seed: int, rollouts: int, cancel: Any = None
+    model: FiniteModel,
+    policy: Policy,
+    *,
+    seed: int,
+    rollouts: int,
+    execution: Execution | None = None,
 ) -> RolloutEstimate:
     """Simulate the policy on common random streams; the error is an uncalibrated diagnostic."""
+    execution = resolve_execution(execution)
     wire = _result(
         _native.sequential_rollout(
             _dumps(model.to_wire()),
             _dumps(policy.to_wire()),
             _count(seed, "seed"),
             _count(rollouts, "rollouts"),
-            cancel=cancel,
+            cancel=execution.cancel,
         )
     )
     return RolloutEstimate(**wire)
@@ -880,7 +914,7 @@ def compare(
     target_population: str | None = None,
     target_period: str | None = None,
     max_nodes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ComparisonReport:
     """Evaluate named comparisons; with ``collect_action``, score the observation's value.
 
@@ -888,6 +922,7 @@ def compare(
     enumeration. A request for another population or period is refused naming the missing
     transport contract.
     """
+    execution = resolve_execution(execution)
     wire_comparisons = [
         {"label": c.label, "kind": c.kind, "policy": _spec_wire(c.policy)} for c in comparisons
     ]
@@ -913,7 +948,7 @@ def compare(
             voi,
             request,
             max_nodes,
-            cancel=cancel,
+            cancel=execution.cancel,
         )
     )
     return ComparisonReport(
@@ -946,9 +981,10 @@ def value_of_collecting_evidence(
     commit_actions: Sequence[int],
     *,
     max_nodes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> ValueOfEvidence:
     """Score one observation by the design ranker (value of sample information)."""
+    execution = resolve_execution(execution)
     wire = _result(
         _native.sequential_value_of_evidence(
             _dumps(model.to_wire()),
@@ -959,7 +995,7 @@ def value_of_collecting_evidence(
                 }
             ),
             max_nodes,
-            cancel=cancel,
+            cancel=execution.cancel,
         )
     )
     return ValueOfEvidence._from_wire(wire)
@@ -977,7 +1013,13 @@ def check_request(
 
 
 def request_interval() -> None:
-    """Always raises ``cell_not_licensed``: no interval is licensed for a policy value."""
+    """Always raises ``uncertainty_representation_insufficient``.
+
+    No interval, posterior or coverage statement is supported for an exact or rollout policy
+    value: the exact value has no sampling uncertainty and the rollout error stays an
+    uncalibrated diagnostic. The interval of a logged-trajectory estimate is reported on the
+    result of :func:`evaluate_off_policy`.
+    """
     raise_refusal(_native.sequential_request_interval(), SequentialEvaluationRefusal)
 
 
@@ -1088,17 +1130,12 @@ class EvaluationArtifact(ScientificResult):
         """The policy (with its version) the artifact replays."""
         return _policy_from_wire(json.loads(self._handle.policy_json))
 
-    def artifact(
+    @artifact_export
+    def export(
         self, artifact_id: str = "sequential_evaluation"
     ) -> ExportedArtifact[EvaluationArtifact]:
-        """Typed bytes envelope for shared scientific consumption."""
-        from ._artifact_protocol import exported_artifact
-
-        return exported_artifact(self, artifact_id)
-
-    def export(self, artifact_id: str = "sequential_evaluation") -> bytes:
         """The bounded checksummed container bytes."""
-        return bytes(self._handle.export(artifact_id))
+        return artifact_from_receipt(self, bytes(self._handle.export(artifact_id)))
 
 
 def seal(
@@ -1108,12 +1145,13 @@ def seal(
     behaviour: Policy | None = None,
     trajectories: Sequence[LoggedTrajectory] = (),
     rollouts: tuple[int, int] | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> EvaluationArtifact:
     """Evaluate and seal a policy, optionally with its off-policy estimate and a rollout.
 
     ``rollouts`` is ``(seed, count)``.
     """
+    execution = resolve_execution(execution)
     off = None
     if behaviour is not None:
         off = _dumps(
@@ -1124,31 +1162,39 @@ def seal(
     roll = None if rollouts is None else _dumps({"seed": rollouts[0], "rollouts": rollouts[1]})
     handle = _unwrap(
         _native.SequentialEvaluationArtifact.seal(
-            _dumps(model.to_wire()), _dumps(policy.to_wire()), off, roll, cancel=cancel
+            _dumps(model.to_wire()), _dumps(policy.to_wire()), off, roll, cancel=execution.cancel
         )
     )
     return EvaluationArtifact(handle)
 
 
+@artifact_consumer(
+    proof="sequential_evaluation.consume_artifact: independent semantic consumer checks declarations, identities and stored result; recomputes the scientific result",
+    replayable=True,
+    input="data",
+    identity=("model", "policy", "evaluation"),
+)
 def consume_artifact(
     data: bytes,
     *,
     model: str | None = None,
     policy: str | None = None,
     evaluation: str | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> EvaluationArtifact:
     """Re-evaluate an artifact and require every stored number to replay bit for bit.
 
     ``model``, ``policy`` and ``evaluation`` are identities the consumer retained independently
     of the bytes; one that differs is refused.
     """
+    execution = resolve_execution(execution)
+    data = container_bytes(data)
     if not isinstance(data, (bytes, bytearray)):
         raise CausalTypeError("an artifact is bytes")
     expected = None
     if model is not None or policy is not None or evaluation is not None:
         expected = _dumps({"model": model, "policy": policy, "evaluation": evaluation})
     handle = _unwrap(
-        _native.SequentialEvaluationArtifact.consume(bytes(data), expected, cancel=cancel)
+        _native.SequentialEvaluationArtifact.consume(bytes(data), expected, cancel=execution.cancel)
     )
     return EvaluationArtifact(handle)

@@ -7,7 +7,7 @@
 //! separated). This test runs the real algorithm on synthetic data and asserts the invariant
 //! holds end-to-end, not just at the unit level.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

@@ -1,10 +1,36 @@
-# Composition-aware uncertainty
+# Combine uncertain quantities with dependence kept
 
 Unrelated posterior or bootstrap draws are never paired by index. A row pairing
 is the statement that the rows are realizations of one joint law, and one rule
-decides whether that statement is licensed:
+decides whether that statement is supported:
 `antecedent_contract::check_propagation`. Everything that composes uncertain
-inputs goes through it.
+inputs goes through it. In Python the rule and its routes are
+`antecedent.joint_law_propagation`.
+
+Use this page when you combine two or more uncertain estimates (a sum, a
+contrast, a product, a ratio) and need to know what the combination's
+uncertainty may claim. For example, two estimates computed from the same rows
+share evidence, so their weighted sum needs the covariance between them:
+
+```python
+from antecedent import joint_law_propagation as jl
+from antecedent.outcomes import require_success
+
+shared = [
+    jl.MomentInput("study_a", "rows-1-500", 0.10),   # id, evidence identity, mean
+    jl.MomentInput("study_c", "rows-1-500", 0.20),
+]
+claim = require_success(jl.linear_moments(
+    "weighted_sum", shared, [0.5, 0.5], [[0.004, 0.001], [0.001, 0.006]],
+    dependence="covariance", covariance_id="shared-rows",
+))
+claim.value("mean"), claim.value("variance")   # 0.15 and a' Sigma a
+claim.label                                     # "point_only": no interval is claimed
+```
+
+Declaring the two inputs independent instead (`dependence="declared_independent"`)
+is refused with `evidence_double_counted`, because they carry one evidence
+identity; `dependence="unknown"` is refused with `sampling_dependence_unknown`.
 
 ## The rule
 
@@ -14,13 +40,13 @@ inputs goes through it.
 | product, nonlinear functional, chained Monte Carlo transformation | an **aligned joint law**: draws that all carry one alignment identity. A covariance is not enough | `joint_law_required` (`nonlinear_needs_aligned_joint_law`, `covariance_insufficient_for_nonlinear`, `index_pairing_refused`, `alignment_mismatch`) |
 | mixture | known weights; the components need no joint law | `invalid_argument` (`mixture_weights_unknown`) |
 | transported interval, or its source-sampling, target-sampling and transport-functional pieces, composed with another claim | an aligned joint law or a supplied covariance; independence is never assumed for these pieces | `joint_law_required` (`transported_dependence_required`) |
-| functional of unpaired marginals | nothing, but the result is a labelled envelope | `cell_not_licensed` if read as a point (`envelope_is_not_a_point`) |
-| interval of a composed quantity | a currently attesting coverage record in the registry for the composed coordinate, construction and declared evidence size; the caller supplies none | `cell_not_licensed` (`interval_route_closed`, `coverage_record_unmeasured`) |
-| posterior of any composed quantity | a measured calibration; none exists | `cell_not_licensed` (`posterior_route_closed`) |
+| functional of unpaired marginals | nothing, but the result is a labelled envelope | `uncertainty_representation_insufficient` if read as a point (`envelope_is_not_a_point`) |
+| interval of a composed quantity | a named construction and the declared evidence size, read through `check_composed_interval`; the interval is reported with its calibration status | `uncertainty_representation_insufficient` (`no_interval_construction`) when no construction is named |
+| posterior of any composed quantity | no construction supplies one | `uncertainty_representation_insufficient` (`no_posterior_for_fixed_law_inputs`) |
 
 Each refusal carries a registered reason code, a namespaced
 `joint_law_propagation.*` detail, the offending input and a remedy that names
-the dependence information that would license the request.
+the dependence information that would support the request.
 
 ### Alignment identity
 
@@ -34,16 +60,16 @@ independent marginals has no alignment identity at all.
 
 Each route is a separate support row with its own refusal.
 
-* **Linear moments.** `Var(sum a_i X_i) = a' Sigma a`, exact. The covariance is
+* **Linear moments** (`linear_moments`, `aligned_linear`). `Var(sum a_i X_i) = a' Sigma a`, exact. The covariance is
   supplied, computed from aligned draws, or diagonal for distinct evidence.
   A covariance that is not symmetric positive semidefinite is refused, not
   repaired.
-* **Aligned joint law.** The row mean of a closed functional (product, ratio,
+* **Aligned joint law** (`aligned_functional`). The row mean of a closed functional (product, ratio,
   minimum, maximum, squared difference) of two aligned columns. For a
   correlated pair `E[XY] = rho s_x s_y + mu_x mu_y`. The result is a labelled
   point value of the draws; Monte Carlo error is not reported as an interval.
-* **Known-weight mixture.** Law of total variance: `within + between`.
-* **Dependence envelope.** The extremes over every coupling of two marginals:
+* **Known-weight mixture** (`mixture`). Law of total variance: `within + between`.
+* **Dependence envelope** (`dependence_envelope`, `correlation_range`). The extremes over every coupling of two marginals:
   * `P(X + Y <= t)` is between `sup_x max(F(x) + G(t - x) - 1, 0)` and
     `inf_x min(F(x) + G(t - x), 1)` (Makarov 1982; Rueschendorf 1982);
     differences by negation of one marginal.
@@ -87,23 +113,23 @@ quantity is read through `check_composed_interval(construction, evidence_rows)`,
 which derives the key from the sealed claim (operation, route, input roles,
 dependence declaration, construction and the declared number of observations
 behind the least-supported input) and resolves it against the shipped coverage
-records. The caller supplies no record; without a currently attesting one the
-reading is closed.
+records. The caller supplies no record. The interval is reported with the
+resulting calibration status: `calibrated` when a current record matches,
+otherwise `outside_measured_scope`, `measured_below_nominal` or `not_measured`.
 
 The measured design (`joint_law_composed_interval_calibration.rs`): the whole
-method is the component estimators, their sampling covariance and the licensed
+method is the component estimators, their sampling covariance and the supported
 route, and the normal-approximation interval built on the composed value at
 0.95. DGPs are correlated and independent Gaussian pairs and a skewed pair with
 shared evidence; the covariance is estimated from the same rows or draws.
 Linear operations on the linear-moments and aligned-joint-law routes only. A
 declaration of independence that is violated is undetectable and under-covers;
 it is a premise, not a check, and is not a record. Nonlinear operations,
-mixtures, envelopes and transported pieces have no record and stay closed.
+mixtures, envelopes and transported pieces are outside that design: no record matches them, so any such interval is `not_measured`.
 
 ## References
 
 Makarov, G. D. (1982), Theory of Probability and its Applications 26(4),
 803-806, doi:10.1137/1126086. Rueschendorf, L. (1982), Advances in Applied
 Probability 14(3), 623-632, doi:10.2307/1426677. Frechet (1951), Hoeffding
-(1940), Lorentz (1953) and Tchen (1980) are cited by name; no DOI was verified
-for them.
+(1940), Lorentz (1953) and Tchen (1980) are cited by name, without a DOI.

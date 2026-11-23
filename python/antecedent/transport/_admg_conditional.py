@@ -22,6 +22,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from .._artifact_protocol import artifact_consumer, container_bytes
 from .._columns import coerce_fields
 from .._native import (
     consume_admg_conditional_obstruction_artifact as _consume_admg_conditional_obstruction,
@@ -33,7 +34,10 @@ from .._native import (
     identify_admg_conditional_transport_stage as _identify_admg_conditional_stage,
 )
 from ..errors import CausalTypeError, CausalValueError
+from ..execution import Execution
 from ..graph import Admg
+from ._consumption import TransportConsumption
+from ._controls import call_native
 from ._impl import EvidenceCatalog, SelectionDiagram, _non_negative, _optional_non_negative
 from ._multi_source import _names
 
@@ -77,8 +81,7 @@ def identify_admg_conditional_transport(
     max_operations: int = 4096,
     max_depth: int = 24,
     max_support_rows: int = 1_000_000,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> Any:
     """Decide a bounded ADMG conditional transport query once.
 
@@ -95,7 +98,7 @@ def identify_admg_conditional_transport(
     level). A proven stage offers ``export_obstruction()``, re-verified by
     :func:`consume_admg_conditional_obstruction_artifact`. An identified stage
     offers ``prepare_exact``;
-    counted laws (``prepare_empirical``) are refused as ``cell_not_licensed``.
+    counted laws (``prepare_empirical``) are refused as ``not_supported``.
     Limits above 4096 operations / depth 24, more than 6 observed variables, 3
     treatments or 3 conditioned variables refuse as ``route_not_supported``.
     """
@@ -105,7 +108,9 @@ def identify_admg_conditional_transport(
         raise CausalTypeError("query must be a ConditionalTransportQuery")
     if not isinstance(catalog, EvidenceCatalog):
         raise CausalTypeError("catalog must be an EvidenceCatalog")
-    return _identify_admg_conditional_stage(
+    return call_native(
+        execution,
+        _identify_admg_conditional_stage,
         graph,
         query.diagram.source,
         query.diagram.target,
@@ -117,11 +122,16 @@ def identify_admg_conditional_transport(
         max_operations=_non_negative("max_operations", max_operations),
         max_depth=_non_negative("max_depth", max_depth),
         max_support_rows=_non_negative("max_support_rows", max_support_rows),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+        cancel="cancel",
+        memory="memory_bytes",
     )
 
 
+@artifact_consumer(
+    proof="AdmgConditionalArtifactWire::consume_with_limits: conditional moves, proof, identities and point replay",
+    replayable=True,
+    identity=(),
+)
 def consume_admg_conditional_transport_artifact(
     artifact: bytes,
     *,
@@ -132,9 +142,8 @@ def consume_admg_conditional_transport_artifact(
     max_support_rows: int | None = None,
     max_laws: int | None = None,
     max_law_cells: int | None = None,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
-) -> str:
+    execution: Execution | None = None,
+) -> TransportConsumption:
     """Verify an exported conditional result and recompute its points.
 
     Stored limits above the consumer's, or a graph or query above the route's
@@ -147,23 +156,39 @@ def consume_admg_conditional_transport_artifact(
     search and evaluator as the producer, so it is independent of the artifact,
     not of the implementation: a bug they share replays identically.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
-    return _consume_admg_conditional_artifact(
-        artifact,
-        max_search_operations=_non_negative("max_search_operations", max_search_operations),
-        max_search_depth=_non_negative("max_search_depth", max_search_depth),
-        max_operations=_non_negative("max_operations", max_operations),
-        max_depth=_non_negative("max_depth", max_depth),
-        max_support_rows=_optional_non_negative("max_support_rows", max_support_rows),
-        max_laws=_optional_non_negative("max_laws", max_laws),
-        max_law_cells=_optional_non_negative("max_law_cells", max_law_cells),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
+    return TransportConsumption.from_checked_json(
+        "consume_admg_conditional_transport_artifact",
+        call_native(
+            execution,
+            _consume_admg_conditional_artifact,
+            artifact,
+            max_search_operations=_non_negative("max_search_operations", max_search_operations),
+            max_search_depth=_non_negative("max_search_depth", max_search_depth),
+            max_operations=_non_negative("max_operations", max_operations),
+            max_depth=_non_negative("max_depth", max_depth),
+            max_support_rows=_optional_non_negative("max_support_rows", max_support_rows),
+            max_laws=_optional_non_negative("max_laws", max_laws),
+            max_law_cells=_optional_non_negative("max_law_cells", max_law_cells),
+            cancel="cancel",
+            memory="memory_bytes",
+        ),
     )
 
 
-def consume_admg_conditional_obstruction_artifact(artifact: bytes, *, cancel: Any = None) -> str:
+@artifact_consumer(
+    proof="native conditional obstruction consumer verifies both witness models by exact enumeration and checks rule-2 moves and the reduced s-hedge",
+    replayable=False,
+    resumable=False,
+    identity=(),
+)
+def consume_admg_conditional_obstruction_artifact(
+    artifact: bytes,
+    *,
+    execution: Execution | None = None,
+) -> TransportConsumption:
     """Re-verify an exported proven obstruction and return it as JSON.
 
     The consumer trusts nothing stored: it checks the premises digest, then
@@ -172,9 +197,15 @@ def consume_admg_conditional_obstruction_artifact(artifact: bytes, *, cancel: An
     on the query) and re-checks the rule-2 moves and the reduced joint's
     s-hedge. Any edit is refused with a typed ``reason_code``.
     """
+    artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
-    return _consume_admg_conditional_obstruction(artifact, cancel=cancel)
+    return TransportConsumption.from_checked_json(
+        "admg_conditional_obstruction",
+        call_native(
+            execution, _consume_admg_conditional_obstruction, artifact, cancel="cancel", memory=None
+        ),
+    )
 
 
 __all__ = [

@@ -8,7 +8,11 @@ use libfuzzer_sys::fuzz_target;
 fuzz_target!(|data: &[u8]| {
     if let Ok(s) = std::str::from_utf8(data) {
         // Cap length so pathological DOT inputs stay bounded.
-        let slice = if s.len() > 4096 { &s[..4096] } else { s };
+        let mut end = s.len().min(4096);
+        while !s.is_char_boundary(end) {
+            end -= 1;
+        }
+        let slice = &s[..end];
         let _ = dag_from_dot(slice);
     }
     let mut b = CausalSchemaBuilder::new();

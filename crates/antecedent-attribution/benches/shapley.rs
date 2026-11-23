@@ -1,6 +1,6 @@
 //! Shapley attribution coalition-cache / MC bench .
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     missing_docs,
@@ -13,19 +13,25 @@
 
 use std::time::{Duration, Instant};
 
-use antecedent_attribution::{CoalitionPayoff, estimate_shapley};
+use antecedent_attribution::{Coalition, CoalitionPayoff, estimate_shapley};
 use antecedent_core::{CachePolicy, ComponentId, ExecutionContext, Parallelism, ShapleyConfig};
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
+
+#[path = "../../../benches/soft_budget.rs"]
+mod soft_budget;
 
 struct AdditivePayoff {
     weights: Vec<f64>,
 }
 
 impl CoalitionPayoff for AdditivePayoff {
-    fn value(&mut self, mask: u64) -> Result<f64, antecedent_attribution::AttributionError> {
+    fn value(
+        &mut self,
+        coalition: &Coalition,
+    ) -> Result<f64, antecedent_attribution::AttributionError> {
         let mut s = 0.0;
         for (i, &w) in self.weights.iter().enumerate() {
-            if mask & (1u64 << i) != 0 {
+            if coalition.contains(i) {
                 s += w;
             }
         }
@@ -64,11 +70,15 @@ fn shapley_benches(c: &mut Criterion) {
     let t0 = Instant::now();
     run_mc(8, 200, true);
     let elapsed = t0.elapsed();
-    assert!(elapsed < Duration::from_millis(500), "shapley_mc_8p_200_cached took {elapsed:?}");
+    soft_budget::check(elapsed < Duration::from_millis(500), || {
+        format!("shapley_mc_8p_200_cached took {elapsed:?}")
+    });
     let t0 = Instant::now();
     run_exact_10p();
     let elapsed = t0.elapsed();
-    assert!(elapsed < Duration::from_millis(200), "shapley_exact_10p_cached took {elapsed:?}");
+    soft_budget::check(elapsed < Duration::from_millis(200), || {
+        format!("shapley_exact_10p_cached took {elapsed:?}")
+    });
 }
 
 fn run_exact_10p() {

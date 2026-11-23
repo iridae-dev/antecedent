@@ -97,5 +97,8 @@ fn a_stochastic_policy_is_labelled_but_refuses_to_name_a_regime() {
     };
     let refusal = response_coordinates(&response, &name_of, &labels).unwrap_err();
     assert_eq!(refusal.code, "route_not_supported");
-    assert_eq!(refusal.detail, "coordinate_support.regime_not_describable");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::coordinate_support::REGIME_NOT_DESCRIBABLE
+    );
 }

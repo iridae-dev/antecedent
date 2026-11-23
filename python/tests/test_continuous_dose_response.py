@@ -4,6 +4,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent.errors import CausalCompileError, CausalValueError
+from antecedent.outcomes import require_success
 from antecedent.policy import ConditionalDoseResponse
 
 
@@ -24,17 +25,19 @@ def _dose_data():
 
 
 def test_stratified_continuous_dose_response_recovers_known_linear_truth():
-    result = antecedent.analyze(
-        _dose_data(),
-        query=ConditionalDoseResponse(
-            outcome="y",
-            dose="dose",
-            baseline_group="group",
-            dose_density="density",
-            target_doses=(0.0, 0.5),
-            bandwidth=0.6,
-            density_provenance="known",
-        ),
+    result = require_success(
+        antecedent.analyze(
+            _dose_data(),
+            query=ConditionalDoseResponse(
+                outcome="y",
+                dose="dose",
+                baseline_group="group",
+                dose_density="density",
+                target_doses=(0.0, 0.5),
+                bandwidth=0.6,
+                density_provenance="known",
+            ),
+        )
     ).continuous_dose_response
     expected = {
         ("control", 0.0): 1.0,
@@ -50,37 +53,41 @@ def test_stratified_continuous_dose_response_recovers_known_linear_truth():
     assert all(point.minimum_dose_density == pytest.approx(0.5) for point in result.points)
     assert result.policy_value_estimated is False
     assert result.uncertainty == "point_only_no_interval"
-    assert result.support_status == "unlicensed_point_utility"
+    assert result.support_status == "unsupported_point_utility"
     assert "no interference" in " ".join(result.assumptions).lower()
 
 
 def test_continuous_dose_response_refuses_zero_density_and_unsupported_targets():
     data = _dose_data()
     with pytest.raises(CausalCompileError, match="densit.*positive"):
-        antecedent.analyze(
-            {**data, "density": [0.0] * 10},
-            query=ConditionalDoseResponse(
-                outcome="y",
-                dose="dose",
-                baseline_group="group",
-                dose_density="density",
-                target_doses=(0.0,),
-                bandwidth=0.6,
-                density_provenance="known",
-            ),
+        require_success(
+            antecedent.analyze(
+                {**data, "density": [0.0] * 10},
+                query=ConditionalDoseResponse(
+                    outcome="y",
+                    dose="dose",
+                    baseline_group="group",
+                    dose_density="density",
+                    target_doses=(0.0,),
+                    bandwidth=0.6,
+                    density_provenance="known",
+                ),
+            )
         )
     with pytest.raises(CausalCompileError, match="support failure"):
-        antecedent.analyze(
-            data,
-            query=ConditionalDoseResponse(
-                outcome="y",
-                dose="dose",
-                baseline_group="group",
-                dose_density="density",
-                target_doses=(4.0,),
-                bandwidth=0.1,
-                density_provenance="known",
-            ),
+        require_success(
+            antecedent.analyze(
+                data,
+                query=ConditionalDoseResponse(
+                    outcome="y",
+                    dose="dose",
+                    baseline_group="group",
+                    dose_density="density",
+                    target_doses=(4.0,),
+                    bandwidth=0.1,
+                    density_provenance="known",
+                ),
+            )
         )
 
 
@@ -118,19 +125,24 @@ def test_retained_continuous_dose_matches_direct_kernel_and_artifact():
         bandwidth=0.6,
         density_provenance="known",
     )
-    direct = antecedent.analyze(data, query=query).continuous_dose_response
+    direct = require_success(antecedent.analyze(data, query=query)).continuous_dose_response
     prepared = antecedent.prepare(data, query=query)
-    result = prepared.estimate()
+    outcome = antecedent.estimate(prepared)
+    result = require_success(outcome)
     grid = result.continuous_dose_response
     assert grid is not None
     assert grid.points == direct.points
     assert grid.uncertainty == "point_only_no_interval"
     assert result.estimate.ate is None
-    assert prepared.refresh(data).continuous_dose_response == grid
-    assert antecedent.analyze(data, query=query).continuous_dose_response == grid
-    loaded = antecedent.load(prepared.export(artifact_id="continuous-dose-study"))
+    rebound = antecedent.rebind(prepared, data=data)
+    assert require_success(antecedent.estimate(rebound)).continuous_dose_response == grid
+    assert result.continuous_dose_response == grid
+    assert require_success(antecedent.analyze(data, query=query)).continuous_dose_response == grid
+    loaded = require_success(
+        antecedent.load(bytes(outcome.export(artifact_id="continuous-dose-study")))
+    )
     assert loaded.answer == result.answer
-    assert loaded.answer.structured["graphless_support_status"] == "unlicensed_point_utility"
+    assert loaded.answer.structured["graphless_support_status"] == "unsupported_point_utility"
     assert loaded.answer.kind == "structured"
     assert loaded.answer.structured["points"][3]["response"] == pytest.approx(11.0)
 
@@ -147,7 +159,7 @@ def test_retained_continuous_dose_refuses_support_and_row_rebinding():
         "known",
     )
     with pytest.raises(Exception, match="support failure"):
-        antecedent.analyze(data, query=query)
+        require_success(antecedent.analyze(data, query=query))
     query = antecedent.policy.ConditionalDoseResponse(
         "y",
         "dose",
@@ -159,4 +171,4 @@ def test_retained_continuous_dose_refuses_support_and_row_rebinding():
     )
     prepared = antecedent.prepare(data, query=query)
     with pytest.raises(Exception, match="baseline-group row order"):
-        prepared.refresh({**data, "group": list(reversed(data["group"]))})
+        antecedent.rebind(prepared, data={**data, "group": list(reversed(data["group"]))})

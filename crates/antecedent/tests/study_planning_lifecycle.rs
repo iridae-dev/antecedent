@@ -6,7 +6,7 @@
 //! Fixtures: R-443 Figure 1(c,d) (shared with the estimate-crate tests) and
 //! the front-door surrogate-trial model.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "../../antecedent-estimate/tests/common/mod.rs"]
 mod common;
@@ -273,7 +273,8 @@ fn arriving_data_of_another_shape_or_without_support_are_refused() {
         let error = top.receive(actual, snapshot, &ctx).unwrap_err();
         (error.code, error.detail)
     };
-    let mismatch = ("invalid_argument", "study_plan.arrival_mismatch");
+    let mismatch =
+        ("invalid_argument", antecedent_core::reason_details::study_plan::ARRIVAL_MISMATCH);
     // Another margin than proposed.
     let mut narrow = regimes.clone();
     narrow[2].measured = Arc::from([vid(X), vid(Y)]);
@@ -369,7 +370,8 @@ fn detail(result: Result<StudyPlanResult, StudyPlanError>) -> (&'static str, &'s
 #[test]
 fn a_mutated_plan_artifact_fails_consumption_for_the_right_reason() {
     let original = mz_plan().to_artifact().unwrap();
-    let invalid = ("transport_not_certified", "study_plan.invalid_artifact");
+    let invalid =
+        ("transport_not_certified", antecedent_core::reason_details::study_plan::INVALID_ARTIFACT);
     // Unsealed edits: the digests catch them.
     let mut edited = original.clone();
     edited.plan.minimal = false;
@@ -399,7 +401,10 @@ fn a_mutated_plan_artifact_fails_consumption_for_the_right_reason() {
     replay_differs(&|w| {
         w.plan.proposals[0].repairs[0].required_margin.pop();
     });
-    replay_differs(&|w| w.plan.failure.detail = "mz_transport.search_incomplete".into());
+    replay_differs(&|w| {
+        w.plan.failure.detail =
+            antecedent_core::reason_details::mz_transport::SEARCH_INCOMPLETE.into()
+    });
     replay_differs(&|w| w.plan.subsets[0].status = "sufficient".into());
     replay_differs(&|w| w.plan.subsets.swap(0, 1));
     replay_differs(&|w| w.plan.operations_consumed += 1);
@@ -436,7 +441,10 @@ fn a_mutated_plan_artifact_fails_consumption_for_the_right_reason() {
         ..StudyPlanConsumeLimits::default()
     };
     let error = original.consume_with_limits(small, &cancelled).unwrap_err();
-    assert_eq!((error.code, error.detail), ("route_not_supported", "study_plan.bounds_exceeded"));
+    assert_eq!(
+        (error.code, error.detail),
+        ("route_not_supported", antecedent_core::reason_details::study_plan::BOUNDS_EXCEEDED)
+    );
     // Lineage: re-sealed with every base binding (snapshot) cleared, or with a
     // base regime bound only to a planning placeholder, the plan no longer
     // replays (a plan needs provider lineage for every available base regime).
@@ -476,7 +484,8 @@ fn surrogate_plan() -> StudyPlanResult {
 #[test]
 fn a_sealed_plan_is_replayed_and_a_tampered_one_refused() {
     use antecedent_identify::{MIXED_SOURCE_RULE_SET, STUDY_PLAN_RANKING};
-    let invalid = ("transport_not_certified", "study_plan.invalid_artifact");
+    let invalid =
+        ("transport_not_certified", antecedent_core::reason_details::study_plan::INVALID_ARTIFACT);
     // The mz-transport plan carries the ranking key only.
     let mz = mz_plan().to_artifact().unwrap();
     assert_eq!(mz.premises.ranking, STUDY_PLAN_RANKING);
@@ -533,7 +542,10 @@ fn a_changed_base_catalog_forces_a_re_plan() {
     regimes[0].study = Some(Arc::from("relabelled"));
     actual.regimes = regimes.into();
     let error = top.receive(&actual, "arrival-1", &ctx).unwrap_err();
-    assert_eq!((error.code, error.detail), ("invalid_argument", "study_plan.arrival_mismatch"));
+    assert_eq!(
+        (error.code, error.detail),
+        ("invalid_argument", antecedent_core::reason_details::study_plan::ARRIVAL_MISMATCH)
+    );
     // An artifact whose base now already holds b's trial (re-sealed): the
     // replayed plan differs (b's trial alone is no longer a candidate gap), so
     // the stored plan is refused and a new plan is needed.
@@ -563,7 +575,7 @@ fn a_changed_base_catalog_forces_a_re_plan() {
     let error = consume(&changed).unwrap_err();
     assert_eq!(
         (error.code, error.detail),
-        ("transport_not_certified", "study_plan.invalid_artifact")
+        ("transport_not_certified", antecedent_core::reason_details::study_plan::INVALID_ARTIFACT)
     );
     // Planning afresh on the changed base gives a different, cheaper plan.
     let fresh = plan_studies(
@@ -581,7 +593,8 @@ fn a_changed_base_catalog_forces_a_re_plan() {
 #[test]
 fn impossible_designs_do_not_compile() {
     let ctx = ExecutionContext::for_tests(3);
-    let invalid = ("invalid_argument", "study_plan.invalid_candidate");
+    let invalid =
+        ("invalid_argument", antecedent_core::reason_details::study_plan::INVALID_CANDIDATE);
     let refuse = |candidate: StudyCandidate| {
         let error = plan_studies(
             &graph(),
@@ -668,7 +681,10 @@ fn a_declared_margin_repairs_the_named_missing_joint() {
     let failure = &plan.plan().failure;
     assert_eq!(
         (failure.code, failure.detail),
-        ("transport_missing_evidence", "mixed_search.missing_joint")
+        (
+            "transport_missing_evidence",
+            antecedent_core::reason_details::mixed_search::MISSING_JOINT
+        )
     );
     assert!(failure.facts[0].starts_with("missing_joint:regime=2"));
     // The sub-margin trial (only Y measured) is cheapest and sufficient; the
@@ -738,7 +754,10 @@ fn a_value_restricted_study_is_refused_on_the_mixed_route() {
     let error =
         plan_studies(&g, &route, &base, &[restricted], StudyPlanLimits::for_route(&route), &ctx)
             .unwrap_err();
-    assert_eq!((error.code, error.detail), ("invalid_argument", "study_plan.invalid_candidate"));
+    assert_eq!(
+        (error.code, error.detail),
+        ("invalid_argument", antecedent_core::reason_details::study_plan::INVALID_CANDIDATE)
+    );
     assert!(error.message.contains("restricts its levels"), "{}", error.message);
 }
 
@@ -770,7 +789,8 @@ fn cancelling_after(reports: usize) -> ExecutionContext {
     ctx
 }
 
-const BUDGET: (&str, &str) = ("transport_budget_cancel", "study_plan.budget");
+const BUDGET: (&str, &str) =
+    ("transport_budget_cancel", antecedent_core::reason_details::study_plan::BUDGET);
 
 #[test]
 fn a_cancelled_replay_is_a_budget_stop_never_a_verdict_on_the_artifact() {
@@ -819,8 +839,7 @@ fn an_arrival_the_public_route_cannot_finish_is_a_budget_stop() {
     assert_eq!(error.receipt.map(|r| r.stop), Some(antecedent_core::SearchStop::Cancelled));
     // Exhaustion: the context's hard memory limit stops the public route.
     let mut tight = ExecutionContext::for_tests(3);
-    tight.memory =
-        antecedent_core::MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(64) };
+    tight.set_memory_limit(Some(64));
     let error = top.receive(&actual, "arrival-1", &tight).unwrap_err();
     assert_eq!((error.code, error.detail), BUDGET, "{}", error.message);
     assert_eq!(error.receipt.map(|r| r.stop), Some(antecedent_core::SearchStop::Memory));
@@ -861,7 +880,10 @@ fn a_placeholder_snapshot_never_poses_as_delivered_data() {
     // Every arriving regime bound to a placeholder-namespace snapshot.
     let (actual, _) = arrive(&mz_base(), None, &regimes, "hypothetical:1", &scm_for, &|_, p| p);
     let error = top.receive(&actual, "hypothetical:1", &ctx).unwrap_err();
-    assert_eq!((error.code, error.detail), ("invalid_argument", "study_plan.arrival_mismatch"));
+    assert_eq!(
+        (error.code, error.detail),
+        ("invalid_argument", antecedent_core::reason_details::study_plan::ARRIVAL_MISMATCH)
+    );
     assert!(error.message.contains("planning preview"), "{}", error.message);
     // The planner's own placeholder bindings are in that namespace.
     let preview = top.delta().preview_catalog(&mz_base()).unwrap();
@@ -873,7 +895,7 @@ fn a_placeholder_snapshot_never_poses_as_delivered_data() {
         .map(|b| b.snapshot_identity.clone())
         .unwrap();
     let error = top.receive(&placeholders, placeholder, &ctx).unwrap_err();
-    assert_eq!(error.detail, "study_plan.arrival_mismatch");
+    assert_eq!(error.detail, antecedent_core::reason_details::study_plan::ARRIVAL_MISMATCH);
     assert!(error.message.contains("planning preview"), "{}", error.message);
     // A real provider snapshot is accepted.
     let (actual, _) = arrive(&mz_base(), None, &regimes, "arrival-1", &scm_for, &|_, p| p);
@@ -888,22 +910,22 @@ fn bounds_are_checked_before_any_candidate_compiles() {
             plan_studies(&graph(), &mz_route(), &mz_base(), candidates, limits, &ctx).unwrap_err();
         (error.code, error.detail)
     };
-    let bound = ("route_not_supported", "study_plan.bounds_exceeded");
+    let bound =
+        ("route_not_supported", antecedent_core::reason_details::study_plan::BOUNDS_EXCEEDED);
+    let invalid =
+        ("invalid_argument", antecedent_core::reason_details::study_plan::INVALID_CANDIDATE);
     // A candidate that cannot compile (no recruitment declaration), sorted first.
     let mut broken = study("a_broken", "b", &[], None, &[X], 1);
     broken.recruitment = Arc::from(" ");
-    assert_eq!(
-        refuse(&[broken.clone()], StudyPlanLimits::default()),
-        ("invalid_argument", "study_plan.invalid_candidate")
-    );
-    // Seventeen candidates: the count refuses before the broken one compiles.
+    assert_eq!(refuse(&[broken.clone()], StudyPlanLimits::default()), invalid);
+    // The number of candidates and of level combinations is charged to the plan's budget, not
+    // capped: seventeen candidates and nine combinations in one reach the broken candidate.
     let mut many = vec![broken.clone()];
     many.extend((0..16).map(|i| study(&format!("obs{i:02}"), "b", &[], None, &[X], 1)));
-    assert_eq!(refuse(&many, StudyPlanLimits::default()), bound);
-    // Nine level combinations in one candidate, likewise.
+    assert_eq!(refuse(&many, StudyPlanLimits::default()), invalid);
     let wide = study("z_wide", "a", &[Z2], Some(vec![vec![(Z2, false)]; 9]), &[Z1, X, Y], 1);
-    assert_eq!(refuse(&[broken.clone(), wide], StudyPlanLimits::default()), bound);
-    // Plan limits above the caps, likewise.
+    assert_eq!(refuse(&[broken.clone(), wide], StudyPlanLimits::default()), invalid);
+    // Plan limits above the route maxima refuse before the broken candidate compiles.
     let over = StudyPlanLimits {
         search: SearchLimits { operations: 200_001, depth: 24 },
         ..StudyPlanLimits::default()
@@ -933,7 +955,10 @@ fn a_candidate_label_that_a_base_regime_already_uses_is_refused() {
         &ctx,
     )
     .unwrap_err();
-    assert_eq!((error.code, error.detail), ("invalid_argument", "study_plan.invalid_candidate"));
+    assert_eq!(
+        (error.code, error.detail),
+        ("invalid_argument", antecedent_core::reason_details::study_plan::INVALID_CANDIDATE)
+    );
     assert!(error.message.contains("b_do_z1#0"), "{}", error.message);
 }
 
@@ -942,7 +967,8 @@ fn a_consumer_refuses_a_stored_memory_cap_above_its_own_or_the_context_s_before_
     use antecedent_identify::STUDY_PLAN_MEMORY_BYTES;
     let wire = mz_plan().to_artifact().unwrap();
     assert_eq!(wire.premises.limits.memory_limit_bytes, STUDY_PLAN_MEMORY_BYTES);
-    let bound = ("route_not_supported", "study_plan.bounds_exceeded");
+    let bound =
+        ("route_not_supported", antecedent_core::reason_details::study_plan::BOUNDS_EXCEEDED);
     // A cancelled consumer: a refusal here is taken before any replay work.
     let cancelled = || {
         let ctx = ExecutionContext::for_tests(9);
@@ -956,10 +982,7 @@ fn a_consumer_refuses_a_stored_memory_cap_above_its_own_or_the_context_s_before_
     let error = wire.consume_with_limits(lower, &cancelled()).unwrap_err();
     assert_eq!((error.code, error.detail), bound);
     let mut hard = cancelled();
-    hard.memory = antecedent_core::MemoryBudget {
-        soft_limit_bytes: None,
-        hard_limit_bytes: Some(STUDY_PLAN_MEMORY_BYTES - 1),
-    };
+    hard.set_memory_limit(Some(STUDY_PLAN_MEMORY_BYTES - 1));
     let error = wire.consume_with_limits(StudyPlanConsumeLimits::default(), &hard).unwrap_err();
     assert_eq!((error.code, error.detail), bound);
     // At exactly the stored cap the replay proceeds (here to the cancellation).
@@ -973,7 +996,8 @@ fn a_consumer_refuses_a_stored_memory_cap_above_its_own_or_the_context_s_before_
 #[test]
 fn another_artifact_kind_or_version_is_refused_even_when_resealed() {
     let original = mz_plan().to_artifact().unwrap();
-    let invalid = ("transport_not_certified", "study_plan.invalid_artifact");
+    let invalid =
+        ("transport_not_certified", antecedent_core::reason_details::study_plan::INVALID_ARTIFACT);
     let mut kind = original.clone();
     kind.kind = "study_plan_v2".into();
     assert_eq!(detail(consume(&kind)), invalid);

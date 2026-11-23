@@ -6,6 +6,12 @@ import json
 from typing import Any
 
 from . import _native
+from ._artifact_protocol import (
+    ExportedArtifact,
+    artifact_export,
+    artifact_from_receipt,
+    container_bytes,
+)
 
 
 class LawFunctionalArtifact:
@@ -14,6 +20,7 @@ class LawFunctionalArtifact:
     __slots__ = ("_bytes", "_report")
 
     def __init__(self, data: bytes, report: str):
+        data = container_bytes(data)
         self._bytes = bytes(data)
         self._report: dict[str, Any] = json.loads(report)
 
@@ -31,6 +38,7 @@ class LawFunctionalArtifact:
 
     @classmethod
     def consume(cls, data: bytes, *, expected_identity: str | None = None) -> LawFunctionalArtifact:
+        data = container_bytes(data)
         return cls(data, _native.consume_law_functional_source(data, expected_identity))
 
     @property
@@ -51,8 +59,9 @@ class LawFunctionalArtifact:
     def report(self) -> dict[str, Any]:
         return json.loads(json.dumps(self._report))
 
-    def export(self) -> bytes:
-        return self._bytes
+    @artifact_export
+    def export(self) -> ExportedArtifact:
+        return artifact_from_receipt(self, self._bytes)
 
 
 __all__ = ["LawFunctionalArtifact"]

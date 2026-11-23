@@ -102,17 +102,16 @@ fn emit_test_only_rpath(dir: &str) {
 
 #[cfg(unix)]
 fn linker_path() -> Option<String> {
-    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
-        if let Some(path) = command_stdout("xcrun", &["--find", "ld"]) {
-            if !path.is_empty() {
-                return Some(path);
-            }
-        }
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos")
+        && let Some(path) = command_stdout("xcrun", &["--find", "ld"])
+        && !path.is_empty()
+    {
+        return Some(path);
     }
-    if let Some(path) = command_stdout("cc", &["-print-prog-name=ld"]) {
-        if path.contains('/') {
-            return Some(path);
-        }
+    if let Some(path) = command_stdout("cc", &["-print-prog-name=ld"])
+        && path.contains('/')
+    {
+        return Some(path);
     }
     command_stdout("which", &["ld"]).filter(|path| !path.is_empty())
 }

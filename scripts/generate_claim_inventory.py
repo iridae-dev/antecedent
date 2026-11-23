@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Render the claim registry and the per-query license inventory.
+"""Render the claim registry and the per-query support inventory.
 
-Facts live in parity/claims.toml and parity/support_{axes,licensed,n_a}.toml.
+Facts live in parity/claims.toml and parity/support_{axes,supported,n_a}.toml.
 This script writes the text between generated markers. `--check` fails when a
 marker disagrees with those files. Hand-written prose outside the markers is
 not read.
@@ -17,11 +17,11 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-import tomllib
 from collections import defaultdict
 from itertools import product
 
 from _repo import REPO_ROOT as ROOT
+from _repo import load_toml as load_toml_file
 
 CLAIM_FILES = ("README.md", "docs/capabilities.md", "docs/comparison.md")
 CATALOG_FILE = "docs/capabilities.md"
@@ -36,11 +36,11 @@ CATALOG_END = "<!-- generated:claims:end -->"
 INVENTORY_BEGIN = "<!-- generated:query-inventory:begin -->"
 INVENTORY_END = "<!-- generated:query-inventory:end -->"
 
-CLAIM_FIELDS = ("id", "text", "licensed_by")
+CLAIM_FIELDS = ("id", "text", "supported_by")
 
 
 def load_toml(rel: str) -> dict:
-    return tomllib.loads((ROOT / rel).read_text(encoding="utf-8"))
+    return load_toml_file(ROOT / rel)
 
 
 def load_claims() -> list[dict]:
@@ -60,11 +60,9 @@ def load_claims() -> list[dict]:
         seen.add(row["id"])
         if not re.fullmatch(r"[a-z][a-z0-9_]*", row["id"]):
             raise SystemExit(f"parity/claims.toml: claim id {row['id']} is not snake_case")
-        licensed = ROOT / row["licensed_by"]
-        if not licensed.is_file():
-            raise SystemExit(
-                f"claims.toml {row['id']}: licensed_by {row['licensed_by']} missing"
-            )
+        supported = ROOT / row["supported_by"]
+        if not supported.is_file():
+            raise SystemExit(f"claims.toml {row['id']}: supported_by {row['supported_by']} missing")
     return rows
 
 
@@ -92,7 +90,7 @@ def render_catalog(claims: list[dict]) -> str:
             [
                 f"### `{row['id']}`",
                 "",
-                f"Licensed by `{row['licensed_by']}`.",
+                f"Supported by `{row['supported_by']}`.",
                 "",
                 "```text",
                 row["text"],
@@ -129,7 +127,7 @@ def cover(triples: list[tuple[str, str, str]], axes: dict) -> list[tuple[str, st
     validations = ordered({v for _, _, v in triples}, axes["validations"])
     have = set(triples)
     if len(triples) != len(have):
-        raise SystemExit("duplicate licensed coordinate")
+        raise SystemExit("duplicate supported coordinate")
     full = {(s, i, v) for s in structures for i in inferences for v in validations}
     if have == full:
         return [(", ".join(structures), ", ".join(inferences), ", ".join(validations), len(have))]
@@ -143,7 +141,9 @@ def cover(triples: list[tuple[str, str, str]], axes: dict) -> list[tuple[str, st
         if have_sub == full_sub:
             rows.append((structure, ", ".join(inf), ", ".join(val), len(have_sub)))
             continue
-        for inference, validation in sorted(have_sub, key=lambda pair: (inf.index(pair[0]), val.index(pair[1]))):
+        for inference, validation in sorted(
+            have_sub, key=lambda pair: (inf.index(pair[0]), val.index(pair[1]))
+        ):
             rows.append((structure, inference, validation, 1))
     return rows
 
@@ -151,31 +151,40 @@ def cover(triples: list[tuple[str, str, str]], axes: dict) -> list[tuple[str, st
 def render_inventory() -> str:
     axes = load_toml("parity/support_axes.toml")
     na_rules = load_toml("parity/support_n_a.toml").get("n_a") or []
-    cells = load_toml("parity/support_licensed.toml").get("cell") or []
+    import gate_support
+
+    # One support count: the cells counted below are the matrix units that pass the one
+    # support rule (scripts/gate_support.py); a listed cell that fails it is not supported.
+    units = gate_support.summarize(gate_support.evaluate())
+    cells = [
+        c
+        for c in load_toml("parity/support_cells.toml").get("cell") or []
+        if gate_support.cell_ident(c) in units["matrix_ok"]
+    ]
     queries = list(axes["queries"])
     graphs = list(axes["graph_classes"])
     structures = list(axes["structures"])
     inferences = list(axes["inferences"])
     validations = list(axes["validations"])
 
-    licensed: dict[str, list[tuple[str, str, str, str]]] = defaultdict(list)
+    supported: dict[str, list[tuple[str, str, str, str]]] = defaultdict(list)
     for cell in cells:
         key = (cell["graph_class"], cell["structure"], cell["inference"], cell["validation"])
-        licensed[cell["query"]].append(key)
+        supported[cell["query"]].append(key)
         if cell["query"] not in queries:
-            raise SystemExit(f"support_licensed.toml: query {cell['query']} is not on the axes")
+            raise SystemExit(f"support_cells.toml: query {cell['query']} is not on the axes")
 
     lines = [
-        "Generated from `parity/support_axes.toml`, `parity/support_licensed.toml`,",
+        "Generated from `parity/support_axes.toml`, `parity/support_cells.toml`,",
         "and `parity/support_n_a.toml` by `scripts/generate_claim_inventory.py`.",
-        "Licensed coordinates are grouped only where the cell lists the full product",
+        "Supported coordinates are grouped only where the cell lists the full product",
         "of the structures, inferences, and validations shown. A coordinate that is",
         "not listed is n/a or refused. Refusal is the default;",
-        "`parity/support_closed.toml` names reasons and does not create a fourth state.",
-        "The [support matrix](support-matrix.md) is the license.",
+        "`parity/support_refusal_reasons.toml` names reasons and does not create a fourth state.",
+        "The [support matrix](support-matrix.md) is the support.",
         "Do not edit this block by hand.",
         "",
-        "| Query | Licensed | n/a | Refused |",
+        "| Query | Supported | n/a | Refused |",
         "|---|---:|---:|---:|",
     ]
     detail = [
@@ -183,14 +192,16 @@ def render_inventory() -> str:
         "| Query | Graph class | Structures | Inferences | Validations | Cells |",
         "|---|---|---|---|---|---:|",
     ]
-    licensed_total = 0
+    supported_total = 0
     for query in queries:
-        coordinates = licensed[query]
+        coordinates = supported[query]
         if len(set(coordinates)) != len(coordinates):
-            raise SystemExit(f"{query}: duplicate licensed coordinate")
+            raise SystemExit(f"{query}: duplicate supported coordinate")
         coordinate_set = set(coordinates)
-        n_licensed = n_na = n_refused = 0
-        for graph, structure, inference, validation in product(graphs, structures, inferences, validations):
+        n_supported = n_na = n_refused = 0
+        for graph, structure, inference, validation in product(
+            graphs, structures, inferences, validations
+        ):
             cell = {
                 "query": query,
                 "graph_class": graph,
@@ -200,35 +211,43 @@ def render_inventory() -> str:
             }
             if any(matches(rule, cell) for rule in na_rules):
                 if (graph, structure, inference, validation) in coordinate_set:
-                    raise SystemExit(f"{query}: licensed cell is also n/a ({graph})")
+                    raise SystemExit(f"{query}: supported cell is also n/a ({graph})")
                 n_na += 1
             elif (graph, structure, inference, validation) in coordinate_set:
-                n_licensed += 1
+                n_supported += 1
             else:
                 n_refused += 1
-        if n_licensed != len(coordinates):
+        if n_supported != len(coordinates):
             raise SystemExit(
-                f"{query}: {len(coordinates)} licensed rows but {n_licensed} sit on the axes"
+                f"{query}: {len(coordinates)} supported rows but {n_supported} sit on the axes"
             )
-        licensed_total += n_licensed
-        lines.append(f"| {query} | {n_licensed} | {n_na} | {n_refused} |")
+        supported_total += n_supported
+        lines.append(f"| {query} | {n_supported} | {n_na} | {n_refused} |")
         by_graph: dict[str, list[tuple[str, str, str]]] = defaultdict(list)
         for graph, structure, inference, validation in coordinates:
             by_graph[graph].append((structure, inference, validation))
         for graph in graphs:
             if graph not in by_graph:
                 continue
-            for structures_cell, inferences_cell, validations_cell, count in cover(by_graph[graph], axes):
+            for structures_cell, inferences_cell, validations_cell, count in cover(
+                by_graph[graph], axes
+            ):
                 detail.append(
                     f"| {query} | {graph} | {structures_cell} | {inferences_cell} | "
                     f"{validations_cell} | {count} |"
                 )
-    if licensed_total != len(cells):
+    if supported_total != len(cells):
         raise SystemExit(
-            f"inventory covers {licensed_total} licensed cells; support_licensed.toml has {len(cells)}"
+            f"inventory covers {supported_total} supported cells; support_cells.toml has {len(cells)}"
         )
     lines.append("")
-    lines.append(f"{licensed_total} licensed cells.")
+    lines.append(f"**{gate_support.headline(units)}.**")
+    lines.append("")
+    lines.append(
+        f"The {supported_total} matrix cells below are the matrix part of that count; "
+        "graphless rows (`parity/support_graphless.toml`) and capabilities outside the matrix "
+        "(`parity/capability_records.toml`) make up the rest. Entry-point routes are not counted."
+    )
     lines.extend(detail)
     return "\n".join(lines)
 
@@ -275,9 +294,7 @@ def sync_claims(text: str, claims: list[dict], *, write: bool) -> str:
     for match in CLAIM_MARK.finditer(text):
         claim_id, body = match.group(1), match.group(2)
         if body != by_id[claim_id]:
-            raise SystemExit(
-                f"generated claim {claim_id} does not match parity/claims.toml"
-            )
+            raise SystemExit(f"generated claim {claim_id} does not match parity/claims.toml")
     return text
 
 
@@ -334,9 +351,7 @@ def main() -> int:
 
     missing = [row["id"] for row in claims if row["id"] not in rendered]
     if missing:
-        raise SystemExit(
-            "parity/claims.toml claims are not rendered: " + ", ".join(missing)
-        )
+        raise SystemExit("parity/claims.toml claims are not rendered: " + ", ".join(missing))
     if args.check:
         print("claim inventory OK")
     return 0

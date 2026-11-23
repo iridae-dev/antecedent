@@ -1,7 +1,7 @@
 """Tier overlap and E-value diagnostics through the Python surface.
 
 The diagnostics are a view over an executed tiered result: nothing is refit, the interval E-value
-is never reported, and a result that is not a licensed single-treatment tiered average-effect
+is never reported, and a result that is not a supported single-treatment tiered average-effect
 result is refused with its registered code.
 """
 
@@ -10,9 +10,11 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import tier_diagnostics as td
 from antecedent.errors import CausalTypeError, CausalUnsupportedError
 from antecedent.graph import TieredBackground, WithinTier
+from antecedent.outcomes import require_success
 
 
 def _siblings(n: int = 800, seed: int = 214):
@@ -25,8 +27,14 @@ def _siblings(n: int = 800, seed: int = 214):
 
 
 def _analyze(graph, data):
-    return antecedent.analyze(
-        data, graph=graph, query=antecedent.AverageEffect("t", "y"), refute="none", bootstrap=0
+    return require_success(
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=antecedent.AverageEffect("t", "y"),
+            refute="none",
+            inference=antecedent.Frequentist(bootstrap=0),
+        )
     )
 
 
@@ -45,8 +53,10 @@ def test_a_codetermined_result_reports_its_closure_overlap_and_point_evalue() ->
     assert report.evalue.point.value["value"] >= 1.0
     # The interval E-value is a typed unavailable field on every result.
     assert report.evalue.interval.available is False
-    assert report.evalue.interval.code == "cell_not_licensed"
-    assert report.evalue.interval.detail == "tier_diagnostics.evalue_interval_withheld"
+    assert report.evalue.interval.code == "diagnostic_not_available"
+    assert (
+        report.evalue.interval.detail == reason_details.tier_diagnostics.NO_EVALUE_INTERVAL_METHOD
+    )
 
 
 def test_the_prepared_study_and_its_result_give_the_same_diagnostics() -> None:
@@ -66,9 +76,9 @@ def test_a_non_tiered_result_is_refused_and_nothing_is_recomputed() -> None:
     with pytest.raises(CausalUnsupportedError) as raised:
         td.tier_diagnostics(_analyze(graph, data))
     assert raised.value.reason_code == "invalid_argument"
-    assert "tier_diagnostics.not_a_tiered_average_result" in str(raised.value)
+    assert reason_details.tier_diagnostics.NOT_A_TIERED_AVERAGE_RESULT in str(raised.value)
 
 
 def test_an_object_without_a_study_is_a_type_error() -> None:
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="needs the AnalysisResult or PreparedAnalysis"):
         td.tier_diagnostics(object())

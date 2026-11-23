@@ -4,3 +4,4 @@
 /spec/conformance/*.artifact binary
 /spec/conformance/*.json text eol=lf
 /spec/consumer/validate.py text eol=lf
+/crates/antecedent/schemas/host_contract.schema.json text eol=lf

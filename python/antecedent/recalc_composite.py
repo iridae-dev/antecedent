@@ -8,14 +8,32 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from . import _native
+from ._artifact_protocol import (
+    ArtifactAcceptance,
+    ArtifactExpectation,
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    container_bytes,
+)
 from ._recalc_bounds import _columns
 from ._refusal import raise_refusal
+from ._scientific import ScientificResult
 from .composition import SupportedDecision, _supported_from_wire
 from .decision import Contract
 from .design import StructuralCandidate, StructuralEntry
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+from .execution import Execution
+from .outcomes import Answer, outcome_operation, require_success
 from .program_claims import ProgramBinding
-from .recalc import RecalcPlan, RecalcReceipt, _seed
+from .recalc import (
+    RecalcPlan,
+    RecalcReceipt,
+    SessionStanding,
+    _execution,
+    _native_controls,
+    session_standing,
+)
 from .recalc_external import CallbackProvider, ExternalCallbackRefusal, ExternalCallbackRequest
 from .recalc_static import StaticResponseRequest, StaticResponseSession, _response_spec
 
@@ -97,25 +115,14 @@ class ConditionalStudyPolicy:
     def _wire(self):
         if not isinstance(self.policy_id, str) or len(self.policy_id.encode()) > 256:
             raise CausalValueError("bounded policy_id required", reason_code="invalid_argument")
-        if not isinstance(self.branches, Mapping) or not 1 <= len(self.branches) <= 64:
-            raise CausalValueError(
-                "one to 64 action tables required", reason_code="invalid_argument"
-            )
+        if not isinstance(self.branches, Mapping) or not self.branches:
+            raise CausalValueError("an action table is required", reason_code="invalid_argument")
         tables = []
-        total = 0
         for action, candidates in self.branches.items():
-            if (
-                not isinstance(action, str)
-                or len(action.encode()) > 256
-                or not 1 <= len(candidates) <= 128
-            ):
+            if not isinstance(action, str) or len(action.encode()) > 256 or not candidates:
                 raise CausalValueError(
-                    "bounded action/candidate table required", reason_code="invalid_argument"
-                )
-            total += len(candidates)
-            if total > 512:
-                raise CausalValueError(
-                    "at most 512 candidates required", reason_code="invalid_argument"
+                    "a named action with at least one candidate is required",
+                    reason_code="invalid_argument",
                 )
             rows = []
             for candidate in candidates:
@@ -137,8 +144,42 @@ class ConditionalStudyPolicy:
         return {"policy_id": self.policy_id, "branches": tables}
 
 
+def _conditional_acceptance(result: Any, bound: bool) -> ArtifactAcceptance:
+    return ArtifactAcceptance(
+        "replayed" if result.source_verified else "loaded",
+        bound,
+        result.source_verified,
+        False,
+        proof=(
+            "ConditionalStudyRanking::consume: compare actual issued combined sources and rerank"
+            if result.source_verified
+            else "ConditionalStudyRanking::inspect_retained: validate identity, historical receipt and retained structural ranking"
+        ),
+        unresolved=() if result.source_verified else ("actual_executed_composite_sources",),
+    )
+
+
+def _conditional_bytes(data: Any) -> bytes:
+    raw = container_bytes(data)
+    # Keep the owning native consumer's typed artifact/limit refusals for
+    # malformed historical bytes and malformed additive envelopes alike.
+    if len(raw) > 8 * 1024 * 1024 + 1024:
+        return raw
+    try:
+        body = json.loads(raw)
+    except (ValueError, UnicodeError):
+        return raw
+    if not isinstance(body, dict) or body.get("format") != "conditional_study_ranking_v1":
+        return raw
+    if body.get("version") != 1 or not isinstance(body.get("payload"), str):
+        return raw
+    # The native owner applies the original 4 MiB limit before parsing this
+    # historical payload, including when the additive wrapper is well formed.
+    return body["payload"].encode("utf-8")
+
+
 @dataclass(frozen=True, slots=True)
-class ConditionalStudyRanking:
+class ConditionalStudyRanking(ScientificResult):
     """Source-backed conditional point ranking, with no EVSI or joint-state inference."""
 
     identity: str
@@ -147,15 +188,50 @@ class ConditionalStudyRanking:
     source: Mapping[str, object]
     policy: Mapping[str, object]
     _bytes: bytes
+    source_verified: bool = False
 
-    def export(self) -> bytes:
-        return self._bytes
+    @property
+    def answer(self) -> Answer:
+        return Answer(
+            "structured",
+            detail="conditional_structural_ranking",
+            structured={
+                "selected_action": self.selected_action,
+                "study_ids": tuple(entry.id for entry in self.entries),
+            },
+        )
+
+    @artifact_export
+    def export(self) -> ExportedArtifact[ConditionalStudyRanking]:
+        kind = "conditional_study_ranking_v1"
+        data = json.dumps(
+            {"format": kind, "version": 1, "payload": self._bytes.decode("utf-8")},
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+        return ExportedArtifact(data, kind, ArtifactExpectation(kind, self.identity))
 
     @classmethod
+    @outcome_operation
+    @artifact_consumer(
+        proof="ConditionalStudyRanking owning consumer",
+        input="data",
+        acceptance=_conditional_acceptance,
+    )
     def consume(
-        cls, data: bytes, session: CompositeSession, *, expected_identity: str | None = None
-    ):
+        cls,
+        data: bytes,
+        session: CompositeSession | None = None,
+        *,
+        expected_identity: str | None = None,
+    ) -> ConditionalStudyRanking:
         """Match a historical projection against explicitly replayed actual combined state."""
+        data = _conditional_bytes(data)
+        if session is None:
+            return _conditional_result(
+                _native.conditional_study_ranking_inspect(data, expected_identity)
+            )
+        session = require_success(session)
         if not isinstance(session, CompositeSession):
             raise CausalTypeError("consume requires an actually executed CompositeSession")
         return _conditional_result(
@@ -164,7 +240,7 @@ class ConditionalStudyRanking:
 
 
 def _conditional_result(result):
-    report, data, error = result
+    report, data, error, source_verified = result
     raise_refusal(error, ConditionalStudyRankingRefusal)
     assert report is not None and data is not None
     wire = json.loads(report)
@@ -184,6 +260,7 @@ def _conditional_result(result):
         wire["source"],
         wire["policy"],
         bytes(data),
+        bool(source_verified),
     )
 
 
@@ -206,39 +283,39 @@ class CompositeSession:
         self,
         request: CompositeRequest,
         *,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> RecalcPlan:
-        wire, error = self._handle.plan(
-            _payload(request, memory_limit_bytes=memory_limit_bytes, cancel=cancel),
-            memory_limit_bytes=memory_limit_bytes,
+        run = _execution(execution)
+        limit, cancel = run.limits.memory_bytes, run.cancel
+        wire, error = run._call(
+            self._handle.plan,
+            _payload(request, memory_limit_bytes=limit, cancel=cancel),
+            memory_limit_bytes=limit,
             cancel=cancel,
         )
         raise_refusal(error, ExternalCallbackRefusal)
         assert wire is not None
         return RecalcPlan.from_wire(json.loads(wire))
 
+    @outcome_operation
     def execute(
         self,
         request: CompositeRequest,
         *,
         providers: Mapping[int, CallbackProvider],
-        seed: int = 1,
-        threads: int | None = None,
-        memory_limit_bytes: int | None = None,
-        cancel: _native.CancellationToken | None = None,
+        execution: Execution | None = None,
     ) -> CompositeResult:
         if len(providers) > 2 or any(
             not isinstance(value, CallbackProvider) for value in providers.values()
         ):
             raise CausalTypeError("providers must map at most two branches to CallbackProvider")
-        wire, receipt, error = self._handle.execute(
-            _payload(request, memory_limit_bytes=memory_limit_bytes, cancel=cancel),
+        run = _execution(execution)
+        ctl = _native_controls(run)
+        wire, receipt, error = run._call(
+            self._handle.execute,
+            _payload(request, memory_limit_bytes=ctl["memory_limit_bytes"], cancel=ctl["cancel"]),
             {branch: provider._handle for branch, provider in providers.items()},
-            seed=_seed(seed),
-            threads=threads,
-            memory_limit_bytes=memory_limit_bytes,
-            cancel=cancel,
+            **ctl,
         )
         raise_refusal(error, ExternalCallbackRefusal)
         assert wire is not None and receipt is not None
@@ -249,6 +326,7 @@ class CompositeSession:
             _supported_from_wire(body["decision"]),
         )
 
+    @outcome_operation
     def rank_studies(self, policy: ConditionalStudyPolicy) -> ConditionalStudyRanking:
         """Run original structural ranking for the actual unique selected terminal action.
 
@@ -260,6 +338,11 @@ class CompositeSession:
         return _conditional_result(
             self._handle.rank_conditional_studies(json.dumps(policy._wire()))
         )
+
+    @property
+    def standing(self) -> SessionStanding:
+        """The standing inputs this session family's stage identities declare."""
+        return session_standing("composite")
 
     @property
     def native_response(self):

@@ -11,6 +11,9 @@ use antecedent_core::{CausalQuery, LongitudinalRegimeQuery, VariableId};
 use antecedent_data::TabularData;
 use std::sync::Arc;
 
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
+
 fn query() -> LongitudinalRegimeQuery {
     LongitudinalRegimeQuery {
         outcome: VariableId::from_raw(0),
@@ -38,9 +41,52 @@ fn query() -> LongitudinalRegimeQuery {
     }
 }
 
+/// Two-sided 95% normal quantile.
+const Z95: f64 = 1.959_963_984_540_054;
+
+fn assert_close(got: f64, want: f64, relative: f64, what: &str) {
+    assert!(
+        (got - want).abs() <= relative * want.abs().max(1e-12),
+        "{what}: got {got}, want {want}"
+    );
+}
+
+/// Ordinary least squares of `y` on `(1, t1, t2)` for a design whose four `(t1, t2)` cells have
+/// equal counts (so the regressors are orthogonal once centred), written from the normal
+/// equations: returns the coefficients and their HC1 standard errors
+/// `sqrt(n / (n - 3) * sum_i psi_i^2 e_i^2)`, where `psi` is the coefficient's row of
+/// `(X'X)^-1 X'`.
+fn orthogonal_two_period_ols(y: &[f64], t1: &[f64], t2: &[f64]) -> ([f64; 3], [f64; 3]) {
+    let n = y.len() as f64;
+    let quarter = n / 4.0;
+    let group_mean = |t: &[f64], on: bool| {
+        let (sum, count) = y
+            .iter()
+            .zip(t)
+            .filter(|(_, v)| (**v == 1.0) == on)
+            .fold((0.0, 0.0), |(s, c), (value, _)| (s + value, c + 1.0));
+        sum / count
+    };
+    let b1 = group_mean(t1, true) - group_mean(t1, false);
+    let b2 = group_mean(t2, true) - group_mean(t2, false);
+    let b0 = y.iter().sum::<f64>() / n - 0.5 * b1 - 0.5 * b2;
+    let mut sums = [0.0; 3];
+    for i in 0..y.len() {
+        let e = y[i] - b0 - b1 * t1[i] - b2 * t2[i];
+        let psi1 = (t1[i] - 0.5) / quarter;
+        let psi2 = (t2[i] - 0.5) / quarter;
+        let psi0 = 1.0 / n - 0.5 * psi1 - 0.5 * psi2;
+        for (sum, psi) in sums.iter_mut().zip([psi0, psi1, psi2]) {
+            *sum += (psi * e).powi(2);
+        }
+    }
+    let scale = n / (n - 3.0);
+    ([b0, b1, b2], sums.map(|sum| (scale * sum).sqrt()))
+}
+
 /// The graphless row floors the per-period action probability. A forged
-/// `minimum_action_probability` below the licensed row's floor, still above the
-/// query's own declared floor, must void a verified license.
+/// `minimum_action_probability` below the supported row's floor, still above the
+/// query's own declared floor, must void a verified support.
 fn assert_low_action_probability_refuses(
     body: &antecedent_io::AnalysisResultWire,
     variable_names: &[String],
@@ -52,7 +98,7 @@ fn assert_low_action_probability_refuses(
     assert!(
         antecedent_io::encode_analysis_result_artifact(&forged, variable_names.to_vec(), name)
             .is_err(),
-        "{name}: license survived a minimum action probability below its row floor"
+        "{name}: support survived a minimum action probability below its row floor"
     );
 }
 
@@ -130,6 +176,8 @@ fn retained_additive_msm_intervals_include_intercept_and_period_effects() {
     let data = TabularData::from_f64_columns([("outcome", y.as_slice())]).unwrap();
     let mut q = query();
     q.method = antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel;
+    let (t1, t2): (Vec<f64>, Vec<f64>) =
+        (0..n).map(|i| (f64::from(treatment[2 * i]), f64::from(treatment[2 * i + 1]))).unzip();
     q.treatment_history = treatment.into();
     q.regime_actions = vec![false; n * 2].into();
     q.treatment_probabilities = vec![0.5; n * 2].into();
@@ -144,13 +192,29 @@ fn retained_additive_msm_intervals_include_intercept_and_period_effects() {
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let fit = result.longitudinal_regime().unwrap();
-    assert!(fit.value_standard_error.unwrap() > 0.0);
     let intercept = fit.value_interval_95.unwrap();
     assert!(intercept[0] < fit.value && fit.value < intercept[1]);
     let periods = fit.period_intervals_95.as_ref().unwrap();
     assert_eq!(periods.len(), 2);
     for (interval, coefficient) in periods.iter().zip(fit.period_effects.as_ref().unwrap().iter()) {
         assert!(interval[0] < *coefficient && *coefficient < interval[1]);
+    }
+    // The additive MSM with unit stabilized weights is ordinary least squares on (1, t1, t2); its
+    // coefficients and subject-clustered CR1 errors (one subject per cluster, so HC1) are
+    // recomputed here from the normal equations.
+    let ([b0, b1, b2], [se0, se1, se2]) = orthogonal_two_period_ols(&y, &t1, &t2);
+    assert_close(fit.value, b0, 1e-9, "intercept");
+    let effects = fit.period_effects.as_ref().unwrap();
+    assert_close(effects[0], b1, 1e-9, "period 1 effect");
+    assert_close(effects[1], b2, 1e-9, "period 2 effect");
+    assert_close(fit.value_standard_error.unwrap(), se0, 1e-6, "intercept se");
+    let errors = fit.standard_errors.as_ref().unwrap();
+    assert_close(errors[0], se1, 1e-6, "period 1 se");
+    assert_close(errors[1], se2, 1e-6, "period 2 se");
+    assert_close(intercept[1] - intercept[0], 2.0 * Z95 * se0, 1e-6, "intercept width");
+    for ((interval, effect), se) in periods.iter().zip([b1, b2]).zip([se1, se2]) {
+        assert_close(interval[0], effect - Z95 * se, 1e-6, "period lower");
+        assert_close(interval[1], effect + Z95 * se, 1e-6, "period upper");
     }
     let bytes =
         prepared.encode_contracted_result(&result, "longitudinal-msm-interval", &ctx).unwrap();
@@ -181,7 +245,7 @@ fn known_truth_value_is_retained_and_point_only_artifact_round_trips() {
     assert_eq!(regime.effective_sample_size, 1.0);
     assert_eq!(regime.matched_observed_fraction, 0.25);
     assert_eq!(&*regime.uncertainty, "point_only_no_interval");
-    assert!(matches!(first.estimate, PrimaryEstimate::NotAnEffect));
+    assert!(matches!(first.estimate(), PrimaryEstimate::NotAnEffect));
     assert!(first.identification.required_assumptions.entries.iter().any(|record| {
         matches!(&record.assumption, antecedent_core::Assumption::Custom { id, .. }
             if id.as_ref() == "sequential_censoring_exchangeability")
@@ -202,7 +266,7 @@ fn known_truth_value_is_retained_and_point_only_artifact_round_trips() {
         )
         .is_err()
     );
-    let refreshed = prepared.refresh(data, &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data, &ctx).unwrap();
     assert_eq!(first.longitudinal_regime(), refreshed.longitudinal_regime());
 }
 
@@ -240,9 +304,14 @@ fn retained_subject_ipw_interval_round_trips_with_dynamic_rule_identity() {
     let result = prepared.estimate(&data, &ctx).unwrap();
     let regime = result.longitudinal_regime().unwrap();
     assert!((regime.value - 4.0).abs() < 1e-12);
-    assert!(regime.value_standard_error.unwrap() > 0.0);
     let interval = regime.value_interval_95.unwrap();
-    assert!(interval[0] < 4.0 && interval[1] > 4.0);
+    // Subject score psi_i = y_i / (0.5 * 0.5) = 16 for the 125 subjects who follow the regime and
+    // 0 for the other 375 (mean 4); the standard error of the mean is
+    // sqrt(sum (psi - 4)^2 / (n - 1) / n), here sqrt(24000 / 499 / 500).
+    let want_se = (24_000.0_f64 / 499.0 / 500.0).sqrt();
+    assert_close(regime.value_standard_error.unwrap(), want_se, 1e-9, "ipw se");
+    assert_close(interval[0], 4.0 - Z95 * want_se, 1e-9, "ipw lower");
+    assert_close(interval[1], 4.0 + Z95 * want_se, 1e-9, "ipw upper");
     assert_eq!(regime.rule_id.as_deref(), Some("static-all-treated-materialized"));
     assert_eq!(regime.interval_reason, None);
     assert_eq!(regime.uncertainty.as_ref(), "pointwise_subject_score_95");
@@ -396,9 +465,13 @@ fn fixed_known_q_g_formula_interval_round_trips_and_refuses_forged_provenance() 
     let result = prepared.estimate(&data, &ctx).unwrap();
     let value = result.longitudinal_regime().unwrap();
     assert_eq!(value.value, 3.0);
-    assert!(value.value_standard_error.unwrap() > 0.0);
     let interval = value.value_interval_95.unwrap();
-    assert!(interval[0] < 3.0 && 3.0 < interval[1]);
+    // Each subject's plug-in score is 3 + 0.5 x with x = -1 or +1 in equal halves: sample
+    // standard deviation 0.5 * sqrt(400 / 399), so the mean has standard error that over 20.
+    let want_se = 0.5 * (400.0_f64 / 399.0).sqrt() / 20.0;
+    assert_close(value.value_standard_error.unwrap(), want_se, 1e-9, "g-formula se");
+    assert_close(interval[0], 3.0 - Z95 * want_se, 1e-9, "g-formula lower");
+    assert_close(interval[1], 3.0 + Z95 * want_se, 1e-9, "g-formula upper");
     assert_eq!(value.uncertainty.as_ref(), "pointwise_subject_score_conditional_fixed_known_q_95");
     let encoded = prepared.encode_contracted_result(&result, "fixed-known-q", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
@@ -541,7 +614,7 @@ fn sequential_dr_refuses_interval_below_fitted_q_subject_floor_and_binds_subject
 }
 
 #[test]
-fn two_period_sequential_dr_graphless_license_round_trips_and_refuses_forgery() {
+fn two_period_sequential_dr_graphless_support_round_trips_and_refuses_forgery() {
     let n = 500;
     let treatment = (0..n).flat_map(|i| [i % 5 < 2, (i / 5) % 5 < 2]).collect::<Vec<_>>();
     let outcomes = (0..n)
@@ -570,15 +643,21 @@ fn two_period_sequential_dr_graphless_license_round_trips_and_refuses_forgery() 
         Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q)).build().unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "two_period_sequential_dr_graphless_licen",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let fit = result.longitudinal_regime().unwrap();
     assert!(fit.value_interval_95.is_some());
-    assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Licensed));
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
-    let bytes = prepared.encode_contracted_result(&result, "two-period-dr-license", &ctx).unwrap();
+    assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Supported));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
+    let bytes = prepared.encode_contracted_result(&result, "two-period-dr-support", &ctx).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(
         body.longitudinal_regime.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
     assert_low_action_probability_refuses(&body, &header.variable_names, 0.3, "low-prob-two-dr");
     body.longitudinal_regime.as_mut().unwrap().value_interval_95 = Some([0.0, 0.0]);
@@ -593,7 +672,7 @@ fn two_period_sequential_dr_graphless_license_round_trips_and_refuses_forgery() 
 }
 
 #[test]
-fn fixed_known_q_g_formula_graphless_license_round_trips_and_refuses_forgery() {
+fn fixed_known_q_g_formula_graphless_support_round_trips_and_refuses_forgery() {
     let subjects = 400;
     let predictions = (0..subjects)
         .flat_map(|subject| {
@@ -625,19 +704,25 @@ fn fixed_known_q_g_formula_graphless_license_round_trips_and_refuses_forgery() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "fixed_known_q_g_formula_graphless_licens",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let fit = result.longitudinal_regime().unwrap();
     assert_eq!(&*fit.method, "g_formula");
     assert!(fit.value_interval_95.is_some());
     assert_eq!(fit.uncertainty.as_ref(), "pointwise_subject_score_conditional_fixed_known_q_95");
-    assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Licensed));
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
-    let bytes = prepared.encode_contracted_result(&result, "g-formula-license", &ctx).unwrap();
+    assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Supported));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
+    let bytes = prepared.encode_contracted_result(&result, "g-formula-support", &ctx).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(
         body.longitudinal_regime.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
-    // Stripping the earned license from a still-published interval is rejected.
+    // Stripping the earned support from a still-published interval is rejected.
     let mut cleared = body.clone();
     cleared.longitudinal_regime.as_mut().unwrap().graphless_support_status = None;
     assert!(
@@ -661,7 +746,7 @@ fn fixed_known_q_g_formula_graphless_license_round_trips_and_refuses_forgery() {
 }
 
 #[test]
-fn additive_msm_graphless_license_round_trips_and_refuses_forgery() {
+fn additive_msm_graphless_support_round_trips_and_refuses_forgery() {
     let n = 300;
     let treatment = (0..n)
         .flat_map(|i| match i % 4 {
@@ -697,19 +782,25 @@ fn additive_msm_graphless_license_round_trips_and_refuses_forgery() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "additive_msm_graphless_support_round_tri",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let fit = result.longitudinal_regime().unwrap();
     assert!(fit.value_interval_95.is_some());
     assert_eq!(fit.period_intervals_95.as_ref().unwrap().len(), 2);
     assert_eq!(fit.uncertainty.as_ref(), "pointwise_subject_clustered_cr1_95");
-    assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Licensed));
-    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
-    let bytes = prepared.encode_contracted_result(&result, "msm-license", &ctx).unwrap();
+    assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Supported));
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
+    let bytes = prepared.encode_contracted_result(&result, "msm-support", &ctx).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(
         body.longitudinal_regime.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
-    // The license cannot survive without every published coefficient interval.
+    // The support cannot survive without every published coefficient interval.
     let mut cleared = body.clone();
     cleared.longitudinal_regime.as_mut().unwrap().graphless_support_status = None;
     assert!(
@@ -726,7 +817,7 @@ fn additive_msm_graphless_license_round_trips_and_refuses_forgery() {
         antecedent_io::encode_analysis_result_artifact(
             &body,
             header.variable_names,
-            "forged-msm-license"
+            "forged-msm-support"
         )
         .is_err()
     );
@@ -765,9 +856,15 @@ fn three_period_sequential_dr_interval_round_trips_and_refuses_uncalibrated_hori
         .unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "three_period_sequential_dr_interval_roun",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let fit = result.longitudinal_regime().unwrap();
     assert!(fit.value_interval_95.is_some());
-    assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Supported));
     assert_eq!(fit.uncertainty.as_ref(), "pointwise_subject_score_conditional_excluded_fold_q_95");
     assert!(result.identification.required_assumptions.entries.iter().any(|record| {
         matches!(&record.assumption, antecedent_core::Assumption::Custom { id, .. }
@@ -817,4 +914,17 @@ fn sequential_dr_refuses_split_q_fold_and_reappearing_subject() {
     q.prediction_fold_ids = Some(q.fold_ids.clone());
     q.observation_history = Some(Arc::from([false, true, true, true, true, true, true, true]));
     assert!(q.validate().is_err());
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

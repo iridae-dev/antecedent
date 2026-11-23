@@ -57,6 +57,8 @@ pub enum DecisionEvalError {
     },
     /// The criterion needs structure or identified-set inputs this source lacks.
     StructureInputsRequired(&'static str),
+    /// An analytic law cannot evaluate this expression or functional.
+    AnalyticLawUnsupported(&'static str),
     /// A utility expression produced a non-finite value.
     NonFiniteUtility {
         /// Action whose utility failed.
@@ -87,8 +89,45 @@ impl DecisionEvalError {
             Self::MeaningMismatch { .. } => {
                 antecedent_core::reason_code!("distribution_meaning_mismatch")
             }
-            Self::StructureInputsRequired(_) => {
+            Self::AnalyticLawUnsupported(_) | Self::StructureInputsRequired(_) => {
                 antecedent_core::reason_code!("route_not_supported")
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for DecisionEvalError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Contract(error) => write!(formatter, "{error}"),
+            Self::JointLawRequired { action, supplied_alignment } => match action {
+                Some(action) => write!(
+                    formatter,
+                    "action {action} needs a joint law; source alignment is {supplied_alignment}"
+                ),
+                None => write!(
+                    formatter,
+                    "a joint law is required; source alignment is {supplied_alignment}"
+                ),
+            },
+            Self::QuantityNotFound { action, input } => {
+                write!(formatter, "action {action} input {input} has no source coordinate")
+            }
+            Self::UnsupportedCoordinate { action, input } => {
+                write!(formatter, "action {action} input {input} is unsupported")
+            }
+            Self::MeaningMismatch { action, input } => {
+                write!(formatter, "action {action} input {input} does not match the source meaning")
+            }
+            Self::AnalyticLawUnsupported(why) | Self::StructureInputsRequired(why) => {
+                write!(formatter, "{why}")
+            }
+            Self::NonFiniteUtility { action } => {
+                write!(formatter, "action {action} has a non-finite utility")
+            }
+            Self::MeanSourceInsufficient { needed } => {
+                let names = needed.iter().map(|source| source.label()).collect::<Vec<_>>();
+                write!(formatter, "a mean source is not sufficient; needed {}", names.join(", "))
             }
         }
     }
@@ -160,6 +199,12 @@ pub struct DecisionResult {
     pub contract_identity: String,
     /// Criterion that ranked the actions.
     pub criterion: DecisionCriterion,
+    /// Label of that criterion.
+    ///
+    /// A mean source names a posterior mean or a frequentist point estimate, and
+    /// that name is part of the label. The same numbers under the other
+    /// declaration do not share it.
+    pub criterion_label: String,
     /// Per-action outcomes in declaration order.
     pub actions: Vec<ActionOutcome>,
     /// The verdict.
@@ -177,11 +222,11 @@ pub struct DecisionResult {
     pub assumptions: Vec<String>,
 }
 
-struct Table {
+pub(crate) struct Table {
     /// `utilities[a][i]` for action `a`, draw `i`.
-    utilities: Vec<Vec<f64>>,
+    pub(crate) utilities: Vec<Vec<f64>>,
     /// Normalized weights.
-    weights: Vec<f64>,
+    pub(crate) weights: Vec<f64>,
 }
 
 /// Each source coordinate, parsed once. A wire that does not convert is skipped,
@@ -280,6 +325,7 @@ fn build_table_with(
             columns.push(column);
         }
         let mut row_values = vec![0.0; columns.len()];
+        // One scalar per draw of a source the caller already holds.
         let mut per_draw = Vec::with_capacity(n_draws);
         for draw in 0..n_draws {
             for (slot, column) in columns.iter().enumerate() {
@@ -316,6 +362,20 @@ fn weighted_mean(values: &[f64], weights: &[f64]) -> Result<f64, DecisionEvalErr
     })
 }
 
+/// Whether a hard constraint excludes an action: `held` is the weighted probability that
+/// the constraint held, and `positive_violation` whether a draw of positive weight broke it.
+/// A constraint that must hold with probability one fails on any positive-weight violation;
+/// any other fails when the held mass falls short of the requirement by more than rounding.
+pub(crate) fn constraint_fails(min_probability: f64, held: f64, positive_violation: bool) -> bool {
+    #[allow(clippy::float_cmp, reason = "probability one is the declared sure-hold case")]
+    let sure = min_probability == 1.0;
+    if sure {
+        positive_violation
+    } else {
+        held + MASS_TOLERANCE * held.max(min_probability) < min_probability
+    }
+}
+
 fn positive_mass_max(values: &[f64], weights: &[f64]) -> f64 {
     values.iter().zip(weights).filter(|(_, w)| **w > 0.0).map(|(v, _)| *v).fold(0.0, f64::max)
 }
@@ -326,16 +386,32 @@ fn positive_mass_max(values: &[f64], weights: &[f64]) -> f64 {
 /// Refuses an invalid contract, non-joint draws, a missing or masked
 /// coordinate, a source meaning that cannot answer an outcome-law input, and
 /// criteria that need structure inputs.
-#[allow(clippy::float_cmp, reason = "Ties of the finite-law criterion values")]
-#[allow(
-    clippy::too_many_lines,
-    reason = "one contract evaluated in order: bind, score each action, aggregate, assemble the record"
-)]
 pub fn evaluate_contract(
     contract: &DecisionContract,
     source: &DistributionArtifact,
 ) -> Result<DecisionResult, DecisionEvalError> {
     let identity = contract.identity().map_err(DecisionEvalError::Contract)?;
+    evaluate_contract_validated(contract, source, identity)
+}
+
+pub(crate) fn evaluate_contract_for_program_search(
+    contract: &DecisionContract,
+    source: &DistributionArtifact,
+) -> Result<DecisionResult, DecisionEvalError> {
+    let identity = contract.identity_for_program_search().map_err(DecisionEvalError::Contract)?;
+    evaluate_contract_validated(contract, source, identity)
+}
+
+#[allow(clippy::float_cmp, reason = "Ties of the finite-law criterion values")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one contract evaluated in order: bind, score each action, aggregate, assemble the record"
+)]
+fn evaluate_contract_validated(
+    contract: &DecisionContract,
+    source: &DistributionArtifact,
+    identity: String,
+) -> Result<DecisionResult, DecisionEvalError> {
     if matches!(
         contract.criterion,
         DecisionCriterion::MinimaxOverIdentifiedSet | DecisionCriterion::MaximinOverStructures
@@ -346,7 +422,6 @@ pub fn evaluate_contract(
     }
     let parsed = parsed_quantities(source);
     let table = build_table_with(contract, source, None, &parsed)?;
-    let n = source.n_draws();
     // An exact finite law has no sampling error: its draws are the distribution.
     let exact = source.metadata().calibration == DistributionCalibration::Exact;
     let weights = &table.weights;
@@ -382,12 +457,7 @@ pub fn evaluate_contract(
                     positive_violation = true;
                 }
             }
-            let fails = if constraint.min_probability == 1.0 {
-                positive_violation
-            } else {
-                held + MASS_TOLERANCE * held.max(constraint.min_probability)
-                    < constraint.min_probability
-            };
+            let fails = constraint_fails(constraint.min_probability, held, positive_violation);
             if fails {
                 exclusions[index].push(ConstraintExclusion {
                     constraint_id: constraint.id.clone(),
@@ -397,6 +467,39 @@ pub fn evaluate_contract(
             }
         }
     }
+    let receipt = {
+        let identity_meta = &source.metadata().identity;
+        SourceReceipt {
+            provider_id: identity_meta.provider_id.clone(),
+            snapshot_id: identity_meta.snapshot_id.clone(),
+            rng_id: identity_meta.rng_id.clone(),
+            causal_contract_id: identity_meta.causal_contract_id.clone(),
+        }
+    };
+    rank_table(contract, identity, &table, exclusions, exact, receipt)
+}
+
+/// Fold per-draw action utilities and constraint exclusions into a ranked result.
+///
+/// `table` holds one utility per action and draw with normalized weights;
+/// `exclusions[a]` lists the hard constraints action `a` failed. Both the
+/// joint-law evaluation and the batched executor end here, so the criteria,
+/// regret, value of perfect information and ties are decided once.
+#[allow(clippy::float_cmp, reason = "Ties of the finite-law criterion values")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one table ranked in order: admit, score each action, aggregate, assemble the record"
+)]
+pub(crate) fn rank_table(
+    contract: &DecisionContract,
+    identity: String,
+    table: &Table,
+    mut exclusions: Vec<Vec<ConstraintExclusion>>,
+    exact: bool,
+    receipt: SourceReceipt,
+) -> Result<DecisionResult, DecisionEvalError> {
+    let n = table.weights.len();
+    let weights = &table.weights;
     let admissible: Vec<usize> =
         (0..contract.actions.len()).filter(|i| exclusions[*i].is_empty()).collect();
 
@@ -514,7 +617,6 @@ pub fn evaluate_contract(
             action: contract.actions[admissible[0]].id.clone(),
         });
     }
-    let identity_meta = &source.metadata().identity;
     Ok(DecisionResult {
         contract_identity: identity,
         criterion: contract.criterion,
@@ -523,19 +625,15 @@ pub fn evaluate_contract(
         evpi,
         n_draws: n,
         effective_draws: antecedent_kernels::kish_ess(weights),
-        source: SourceReceipt {
-            provider_id: identity_meta.provider_id.clone(),
-            snapshot_id: identity_meta.snapshot_id.clone(),
-            rng_id: identity_meta.rng_id.clone(),
-            causal_contract_id: identity_meta.causal_contract_id.clone(),
-        },
+        source: receipt,
+        criterion_label: law_criterion_label(contract.criterion),
         assumptions: vec![
             "draws are aligned joint realizations of every input quantity".into(),
             "hard constraints exclude actions and never enter the utility".into(),
             if exact {
                 "the source is an exact finite law, so values carry no sampling error".to_owned()
             } else {
-                "point ranking of the supplied empirical law only; Monte Carlo error and ranking guarantees are not licensed".to_owned()
+                "point ranking of the supplied empirical law only; Monte Carlo error and ranking guarantees are not supported".to_owned()
             },
         ],
     })
@@ -705,6 +803,27 @@ impl ActionLaw {
         Ok(Self::from_table(index, build_table(contract, source, Some(index))?, source))
     }
 
+    pub(crate) fn of_program_search_action(
+        contract: &DecisionContract,
+        action_id: &str,
+        source: &DistributionArtifact,
+    ) -> Result<Self, DecisionEvalError> {
+        contract.validate_for_program_search().map_err(DecisionEvalError::Contract)?;
+        let index =
+            contract.actions.iter().position(|action| action.id == action_id).ok_or_else(|| {
+                DecisionEvalError::Contract(DecisionContractError::UnknownAction(action_id.into()))
+            })?;
+        Ok(Self::from_table(index, build_table(contract, source, Some(index))?, source))
+    }
+
+    /// The per-draw utilities, and the normalized draw weights when they are not uniform.
+    pub(crate) fn draws(&self) -> (Vec<f64>, Option<Vec<f64>>) {
+        let uniform = self.weights.first().is_none_or(|first| {
+            self.weights.iter().all(|w| (w - first).abs() <= 1e-12 * first.abs())
+        });
+        (self.utility.clone(), (!uniform).then(|| self.weights.clone()))
+    }
+
     /// `functional` of this law, as [`evaluate_functional`] defines it.
     ///
     /// # Errors
@@ -765,6 +884,16 @@ impl ActionLaw {
     }
 }
 
+/// Whether a supplied mean is a posterior mean or a frequentist point estimate.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MeanEstimate {
+    /// Posterior mean of the coordinate.
+    Posterior,
+    /// Frequentist point estimate of the coordinate.
+    Frequentist,
+}
+
 /// A source that supplies only one mean per coordinate, such as an external
 /// response grid. A mean carries no distribution and no pairing, so it can answer
 /// only an expectation of an affine utility.
@@ -774,6 +903,8 @@ pub struct MeanSource {
     pub coordinates: Vec<ScientificQuantity>,
     /// Mean of each coordinate.
     pub means: Vec<f64>,
+    /// Whether `means` are posterior means or frequentist point estimates.
+    pub estimate: MeanEstimate,
     /// Provider object that supplied the means.
     pub provider_id: String,
     /// Data snapshot or exact-request identity the means were computed from.
@@ -788,58 +919,110 @@ fn mean_insufficient(needed: Vec<SourceRepresentation>) -> DecisionEvalError {
     DecisionEvalError::MeanSourceInsufficient { needed }
 }
 
+/// Criterion label restored from a stored result.
+///
+/// A mean evaluation records `criterion: <label>` in its assumptions. A joint
+/// law keeps the criterion's own name.
+pub(crate) fn criterion_label_of(criterion: DecisionCriterion, assumptions: &[String]) -> String {
+    for note in assumptions {
+        if let Some(label) = note.strip_prefix("criterion: ") {
+            return label.to_owned();
+        }
+    }
+    law_criterion_label(criterion)
+}
+
+fn law_criterion_label(criterion: DecisionCriterion) -> String {
+    let label = match criterion {
+        DecisionCriterion::PosteriorExpectedUtility => "posterior expected utility",
+        DecisionCriterion::PosteriorExpectedLoss => "posterior expected loss",
+        DecisionCriterion::ThresholdProbability { .. } => "threshold probability",
+        DecisionCriterion::Quantile { .. } => "quantile",
+        DecisionCriterion::MinimaxOverIdentifiedSet => "minimax over an identified set",
+        DecisionCriterion::MaximinOverStructures => "maximin over structures",
+        DecisionCriterion::Regret => "regret",
+        DecisionCriterion::ExpectedRegret => "expected regret",
+    };
+    label.to_owned()
+}
+
+fn mean_criterion_label(estimate: MeanEstimate, loss: bool) -> &'static str {
+    match (estimate, loss) {
+        (MeanEstimate::Posterior, false) => "posterior expected utility",
+        (MeanEstimate::Posterior, true) => "posterior expected loss",
+        (MeanEstimate::Frequentist, false) => "expected utility of a frequentist point estimate",
+        (MeanEstimate::Frequentist, true) => "expected loss of a frequentist point estimate",
+    }
+}
+
 /// Evaluate `contract` on a [`MeanSource`].
 ///
 /// Exact only for affine utilities, whose expectation is the utility of the
-/// means. No sampling error is claimed (`standard_error` is `None`), regret and
-/// the value of perfect information are unavailable, and the verdict is
-/// indistinguishable only on exactly equal values.
+/// means. [`DecisionContract::source_requirement`] is the classification of that
+/// demand. The result's criterion label names the source's posterior mean or
+/// frequentist point estimate, so the same numbers do not share a label. No
+/// sampling error is claimed (`standard_error` is `None`), regret and the value
+/// of perfect information are unavailable, and the verdict is indistinguishable
+/// only on exactly equal values.
 ///
 /// # Errors
-/// Refuses an invalid contract, a criterion other than expected utility or
-/// expected loss, any hard constraint, a nonlinear utility, an unknown
-/// coordinate, an input whose functional is `outcome` (a mean grid is not an
-/// outcome law), and a non-finite utility.
-#[allow(
-    clippy::too_many_lines,
-    reason = "one contract evaluated in order: bind, score each action, aggregate, assemble the record"
-)]
+/// Refuses an invalid contract, a demand a mean cannot answer, an unknown
+/// coordinate, a coordinate named twice (the first would silently win), an input
+/// whose functional is `outcome` (a mean grid is not an outcome law), and a
+/// non-finite utility.
 pub fn evaluate_contract_on_means(
     contract: &DecisionContract,
     source: &MeanSource,
 ) -> Result<DecisionResult, DecisionEvalError> {
     let identity = contract.identity().map_err(DecisionEvalError::Contract)?;
+    evaluate_contract_on_means_validated(contract, source, identity)
+}
+
+pub(crate) fn evaluate_contract_on_means_for_program_search(
+    contract: &DecisionContract,
+    source: &MeanSource,
+) -> Result<DecisionResult, DecisionEvalError> {
+    let identity = contract.identity_for_program_search().map_err(DecisionEvalError::Contract)?;
+    evaluate_contract_on_means_validated(contract, source, identity)
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "one contract evaluated in order: bind, score each action, aggregate, assemble the record"
+)]
+fn evaluate_contract_on_means_validated(
+    contract: &DecisionContract,
+    source: &MeanSource,
+    identity: String,
+) -> Result<DecisionResult, DecisionEvalError> {
+    let requirement = contract
+        .validated_source_requirement()
+        .map_err(DecisionEvalError::Contract)?
+        .ok_or(DecisionEvalError::Contract(DecisionContractError::InvalidDeclaration(
+            "a decision compares at least two actions",
+        )))?;
+    if requirement.is_identified_set() {
+        return Err(mean_insufficient(Vec::new()));
+    }
+    requirement.check(&[SourceRepresentation::Mean]).map_err(|error| match error {
+        DecisionContractError::MissingSource { needed } => mean_insufficient(needed),
+        other => DecisionEvalError::Contract(other),
+    })?;
     if source.coordinates.len() != source.means.len() || source.means.iter().any(|m| !m.is_finite())
     {
         return Err(DecisionEvalError::Contract(DecisionContractError::InvalidDeclaration(
             "a mean source has one finite mean per coordinate",
         )));
     }
-    if !matches!(
-        contract.criterion,
-        DecisionCriterion::PosteriorExpectedUtility | DecisionCriterion::PosteriorExpectedLoss
-    ) {
-        return Err(mean_insufficient(vec![SourceRepresentation::JointDraws]));
-    }
-    if !contract.constraints.is_empty() {
-        // A mean cannot answer a probability constraint.
-        return Err(mean_insufficient(vec![
-            SourceRepresentation::JointDraws,
-            SourceRepresentation::MarginalDraws,
-        ]));
+    let positions =
+        antecedent_contract::quantity::deduped_coordinate_positions(&source.coordinates);
+    if positions.len() != source.coordinates.len() {
+        return Err(DecisionEvalError::Contract(DecisionContractError::InvalidDeclaration(
+            "a mean source names each coordinate once",
+        )));
     }
     let mut outcomes = Vec::with_capacity(contract.actions.len());
     for action in &contract.actions {
-        DecisionFunctional::ExpectedUtility
-            .requirement(&action.utility)
-            .check(&[SourceRepresentation::Mean])
-            .map_err(|error| match error {
-                DecisionContractError::MissingSource { needed } => mean_insufficient(needed),
-                other => DecisionEvalError::Contract(other),
-            })?;
-        if !action.utility.is_affine() {
-            return Err(mean_insufficient(vec![SourceRepresentation::JointDraws]));
-        }
         let mut inputs = Vec::with_capacity(action.inputs.len());
         for (position, wanted) in action.inputs.iter().enumerate() {
             let column = source
@@ -875,13 +1058,17 @@ pub fn evaluate_contract_on_means(
         });
     }
     let loss = contract.criterion == DecisionCriterion::PosteriorExpectedLoss;
+    let criterion_label = mean_criterion_label(source.estimate, loss);
     let key = |outcome: &ActionOutcome| if loss { -outcome.value } else { outcome.value };
     let best = (0..outcomes.len())
         .max_by(|a, b| key(&outcomes[*a]).total_cmp(&key(&outcomes[*b])).then(b.cmp(a)))
         .unwrap_or(0);
     let mut tied = vec![outcomes[best].id.clone()];
     for (other, outcome) in outcomes.iter().enumerate() {
-        if other != best && outcome.value.to_bits() == outcomes[best].value.to_bits() {
+        // Total equality of the values: `-0.0` and `0.0` are the same utility.
+        #[allow(clippy::float_cmp, reason = "exact equality is the declared tie rule")]
+        let equal = outcome.value == outcomes[best].value;
+        if other != best && equal {
             tied.push(outcome.id.clone());
         }
     }
@@ -904,11 +1091,13 @@ pub fn evaluate_contract_on_means(
             rng_id: source.rng_id.clone(),
             causal_contract_id: source.causal_contract_id.clone(),
         },
+        criterion_label: criterion_label.to_owned(),
         assumptions: vec![
             "the source supplies means only; regret, value of perfect information and hard \
              constraints are unavailable"
                 .into(),
             "the result is exact only because every utility is affine in its inputs".into(),
+            format!("criterion: {criterion_label}"),
             "no sampling error is claimed; indistinguishable means exactly equal values".into(),
         ],
     })
@@ -967,7 +1156,7 @@ mod tests {
                 shape: [5, 2],
                 weights: Some(vec![1.0, 2.0, 0.0, 3.0, 4.0]),
                 supported: None,
-                calibration: DistributionCalibration::Unmeasured,
+                calibration: DistributionCalibration::NotMeasured,
                 trust: DistributionTrust::Unverified,
                 legacy_posterior: None,
                 legacy_bindings: None,
@@ -1017,5 +1206,36 @@ mod tests {
                 assert_eq!(hoisted.source_mode, once.source_mode);
             }
         }
+    }
+
+    #[test]
+    fn the_admitted_evaluator_agrees_with_the_whole_artifact_evaluation() {
+        use antecedent_core::ExecutionContext;
+        use antecedent_core::execution::AdmissionPool;
+        let (mut contract, artifact) = fixture();
+        let ctx = ExecutionContext::for_tests(1);
+        for criterion in [
+            DecisionCriterion::PosteriorExpectedUtility,
+            DecisionCriterion::ExpectedRegret,
+            DecisionCriterion::ThresholdProbability { threshold: 2.0 },
+            DecisionCriterion::Quantile { p: 0.5 },
+        ] {
+            contract.criterion = criterion;
+            let whole = evaluate_contract(&contract, &artifact).unwrap();
+            let admitted =
+                crate::decision_evaluation::evaluate_artifact_admitted(&contract, &artifact, &ctx)
+                    .unwrap();
+            assert_eq!(admitted, whole, "{criterion:?}");
+        }
+        contract.criterion = DecisionCriterion::PosteriorExpectedUtility;
+        let starved = ExecutionContext::for_tests(1).with_admission(AdmissionPool::fixed(1, 8));
+        let refused =
+            crate::decision_evaluation::evaluate_artifact_admitted(&contract, &artifact, &starved);
+        assert!(matches!(refused, Err(DecisionEvalError::Contract(_))), "{refused:?}");
+        contract.criterion = DecisionCriterion::MinimaxOverIdentifiedSet;
+        assert!(matches!(
+            crate::decision_evaluation::evaluate_artifact_admitted(&contract, &artifact, &ctx),
+            Err(DecisionEvalError::StructureInputsRequired(_))
+        ));
     }
 }

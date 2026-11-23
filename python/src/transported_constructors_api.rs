@@ -15,6 +15,7 @@
 use antecedent::analysis::adaptive_inference::{
     AdaptiveInferenceRefusal, AdaptiveInferenceSession,
 };
+use antecedent::analysis::evidence_ledger::SourceId;
 use antecedent::analysis::sequential_evaluation as seq;
 use antecedent::analysis::transported_constructors::{
     ActionAlphabet, ActionUtility, AdaptiveTransportRequest, AdaptiveTransportedValue,
@@ -27,14 +28,13 @@ use antecedent::analysis::transported_constructors::{
     transported_synthesis_response, verify_adaptive_transport, verify_temporal_policy,
     verify_transported_policy,
 };
-use antecedent_contract::bridge::{BridgeScope, TrialEffectPair, TrialLevelValidation};
-use antecedent_contract::evidence_ledger::SourceId;
-use antecedent_core::SemanticDigest;
-use antecedent_io::adaptive_monitoring_contract_artifact::{
+use antecedent::contract::bridge::{BridgeScope, TrialEffectPair, TrialLevelValidation};
+use antecedent::inference::synthesis::{MeanPrior, TauPrior};
+use antecedent::io::adaptive_monitoring_contract_artifact::{
     DeclarationWire, declaration_from_wire,
 };
-use antecedent_io::quantity_wire::ScientificQuantityWire;
-use antecedent_stats::synthesis::{MeanPrior, TauPrior};
+use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::scientific::SemanticDigest;
 use pyo3::prelude::*;
 use serde::Deserialize;
 use serde_json::{Value as Json, json};
@@ -49,7 +49,7 @@ const MAX_JSON_BYTES: usize = crate::bridge::MAX_DECLARED_ARTIFACT_BYTES;
 /// `(response, evaluation json, refusal json)`.
 type Built = (Option<TransportedResponseHandle>, Option<String>, Option<String>);
 
-fn refused(refusal: &antecedent_contract::ExternalRefusal) -> Built {
+fn refused(refusal: &antecedent::contract::ExternalRefusal) -> Built {
     (None, None, Some(external_refusal_json(refusal)))
 }
 
@@ -532,14 +532,14 @@ fn temporal_policy_construct(
 
 fn adaptive_refusal(refusals: &[AdaptiveInferenceRefusal]) -> Built {
     let row = |r: &AdaptiveInferenceRefusal| {
-        json!({
-            "code": r.code,
-            "stage": "adaptive_transport",
-            "detail": r.detail,
-            "message": r.message,
-            "offending": Json::Null,
-            "remedy": Json::Null,
-        })
+        crate::bridge::compact_refusal_value(
+            r.code,
+            "adaptive_transport",
+            &r.detail,
+            &r.message,
+            None,
+            None,
+        )
     };
     let mut first = refusals.first().map_or_else(|| json!({}), row);
     first["refusals"] = Json::Array(refusals.iter().map(row).collect());
@@ -551,6 +551,7 @@ fn adaptive_refusal(refusals: &[AdaptiveInferenceRefusal]) -> Built {
 #[pyo3(signature = (design_json, trial_population, unit_strata, stratum_labels, target_stratum_law, diagram_json, treatment_arm, control_arm, value, coordinate_json, provider_id))]
 #[allow(clippy::too_many_arguments)] // Mirrors the Python signature.
 fn adaptive_trial_construct(
+    py: Python<'_>,
     design_json: Option<&str>,
     trial_population: &str,
     unit_strata: Vec<usize>,
@@ -563,6 +564,7 @@ fn adaptive_trial_construct(
     coordinate_json: &str,
     provider_id: &str,
 ) -> PyResult<Built> {
+    check_trial_units(&unit_strata, &stratum_labels)?;
     let value = match value {
         "treatment_mean" => AdaptiveTransportedValue::TreatmentMean,
         "control_mean" => AdaptiveTransportedValue::ControlMean,
@@ -613,7 +615,10 @@ fn adaptive_trial_construct(
         treatment_arm,
         control_arm,
     };
-    Ok(match adaptive_trial_response(&request, value, coordinate, provider_id) {
+    let outcome = crate::detach_catch(py, || {
+        Ok(adaptive_trial_response(&request, value, coordinate, provider_id))
+    })?;
+    Ok(match outcome {
         Ok(built) => {
             let e = &built.evaluation;
             let evaluation = json!({
@@ -643,6 +648,18 @@ fn adaptive_trial_construct(
         }
         Err(refusal) => refused(&refusal),
     })
+}
+
+/// The trial's unit and stratum lists are caller-sized: bound them by the adaptive-unit limit
+/// every other adaptive path enforces.
+fn check_trial_units(unit_strata: &[usize], stratum_labels: &[String]) -> PyResult<()> {
+    let limit = antecedent::inference::adaptive_inference::MAX_ADAPTIVE_UNITS;
+    if unit_strata.len() > limit || stratum_labels.len() > limit {
+        return Err(crate::value_err(format!(
+            "an adaptive trial transport takes at most {limit} units and strata"
+        )));
+    }
+    Ok(())
 }
 
 fn method_of(wire: MethodIn) -> PyResult<TransportedSynthesisMethod> {
@@ -764,7 +781,7 @@ fn surrogate_bridge_construct(
 ) -> PyResult<Built> {
     let wire: BridgeIn = declaration(bridge_json, "surrogate bridge")?;
     let quantity = |wire: ScientificQuantityWire| {
-        antecedent_contract::ScientificQuantity::try_from(wire).map_err(crate::value_err)
+        antecedent::scientific::ScientificQuantity::try_from(wire).map_err(crate::value_err)
     };
     let bridge = TransportedSurrogateBridge {
         surrogate: quantity(wire.surrogate)?,
@@ -991,6 +1008,7 @@ fn temporal_policy_verify(
 #[pyo3(signature = (design_json, trial_population, unit_strata, stratum_labels, target_stratum_law, diagram_json, treatment_arm, control_arm, stored_json))]
 #[allow(clippy::too_many_arguments)] // Mirrors the Python signature.
 fn adaptive_trial_verify(
+    py: Python<'_>,
     design_json: Option<&str>,
     trial_population: &str,
     unit_strata: Vec<usize>,
@@ -1001,6 +1019,7 @@ fn adaptive_trial_verify(
     control_arm: usize,
     stored_json: &str,
 ) -> PyResult<Option<String>> {
+    check_trial_units(&unit_strata, &stratum_labels)?;
     let session = match design_json {
         None => None,
         Some(text) => {
@@ -1041,17 +1060,25 @@ fn adaptive_trial_verify(
         treatment_arm,
         control_arm,
     };
-    let mut claimed = match transport_adaptive_trial(&request) {
-        Ok(fresh) => fresh,
-        Err(error) => return Ok(Some(external_refusal_json(&error.to_refusal()))),
-    };
-    claimed.identity = stored_text(&stored, "identity")?;
-    claimed.treatment_mean = stored_f64(&stored, "treatment_mean")?;
-    claimed.control_mean = stored_f64(&stored, "control_mean")?;
-    claimed.contrast = stored_f64(&stored, "contrast")?;
-    Ok(verify_adaptive_transport(&claimed, &request)
-        .err()
-        .map(|error| external_refusal_json(&error.to_refusal())))
+    let (identity, treatment_mean, control_mean, contrast) = (
+        stored_text(&stored, "identity")?,
+        stored_f64(&stored, "treatment_mean")?,
+        stored_f64(&stored, "control_mean")?,
+        stored_f64(&stored, "contrast")?,
+    );
+    crate::detach_catch(py, || {
+        let mut claimed = match transport_adaptive_trial(&request) {
+            Ok(fresh) => fresh,
+            Err(error) => return Ok(Some(external_refusal_json(&error.to_refusal()))),
+        };
+        claimed.identity = identity;
+        claimed.treatment_mean = treatment_mean;
+        claimed.control_mean = control_mean;
+        claimed.contrast = contrast;
+        Ok(verify_adaptive_transport(&claimed, &request)
+            .err()
+            .map(|error| external_refusal_json(&error.to_refusal())))
+    })
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

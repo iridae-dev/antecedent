@@ -11,7 +11,7 @@ The static fixture uses `Y = 2T + 2Z + epsilon` with a balanced deterministic
 factorial design.  The unadjusted DAG therefore has effect 3, while the DAG that
 adjusts for `Z` has effect 2.  Their posterior weights are 0.5 and 0.3.  A valid
 reverse-causal `Y -> T` atom has weight 0.2, has no admissible backdoor adjustment
-under the licensed identifier, and cannot be upgraded to identified by a prior.
+under the supported identifier, and cannot be upgraded to identified by a prior.
 The reported effect envelope is `E[tau | identified] = 2.625`; the separate
 `unidentified_mass` remains 0.2.
 

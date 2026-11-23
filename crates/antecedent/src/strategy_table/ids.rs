@@ -1,13 +1,14 @@
 //! Identifier / estimator ids, defaults, and pair allowlists.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::OnceLock;
 
 use antecedent_core::{AssumptionRecord, IdentificationStatus};
 use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
-use antecedent_identify::IdentificationResult;
+use antecedent_identify::{EstimandSelectionError, IdentificationResult};
 
 use crate::error::CausalError;
 
@@ -23,20 +24,27 @@ fn estimator_names() -> &'static [&'static str] {
     NAMES.get_or_init(|| EstimatorId::ALL.iter().map(EstimatorId::as_str).collect()).as_slice()
 }
 
-/// Parse a closed-set id by walking [`ALL`] / [`as_str`] so a new variant cannot
-/// compile into `estimator_data` / `identifier_data` and still miss `FromStr`.
-fn parse_closed<T: Copy + PartialEq>(
+/// Parse a closed-set id through a name index built once from [`ALL`] / [`as_str`], so a new
+/// variant cannot compile into `estimator_data` / `identifier_data` and still miss `FromStr`.
+fn parse_closed<T: Copy>(
     s: &str,
-    all: &'static [T],
-    as_str: fn(&T) -> &'static str,
+    index: &'static HashMap<&'static str, T>,
     kind: &'static str,
     expected: &'static [&'static str],
 ) -> Result<T, UnknownStrategy> {
-    all.iter().copied().find(|id| as_str(id) == s).ok_or_else(|| UnknownStrategy {
-        kind,
-        got: s.to_string(),
-        expected,
-    })
+    index.get(s).copied().ok_or_else(|| UnknownStrategy { kind, got: s.to_string(), expected })
+}
+
+/// Name -> id for every identifier, built once.
+fn identifier_index() -> &'static HashMap<&'static str, IdentifierId> {
+    static INDEX: OnceLock<HashMap<&'static str, IdentifierId>> = OnceLock::new();
+    INDEX.get_or_init(|| IdentifierId::ALL.iter().map(|id| (id.as_str(), *id)).collect())
+}
+
+/// Name -> id for every estimator, built once.
+fn estimator_index() -> &'static HashMap<&'static str, EstimatorId> {
+    static INDEX: OnceLock<HashMap<&'static str, EstimatorId>> = OnceLock::new();
+    INDEX.get_or_init(|| EstimatorId::ALL.iter().map(|id| (id.as_str(), *id)).collect())
 }
 
 /// Declare a closed-set id enum together with its `ALL` catalog, both
@@ -82,6 +90,8 @@ pub enum IdentifierId {
     RdSharp,
     /// Temporal unfolded backdoor.
     TemporalBackdoorUnfolded,
+    /// Lagged instrument on the unfolded window graph.
+    TemporalIvUnfolded,
     /// Class-aware / generalized adjustment (PAG-safe).
     GeneralizedAdjustment,
     /// Shpitser–Pearl general ID (semi-Markovian).
@@ -98,6 +108,19 @@ pub enum IdentifierId {
     InterferenceDesign,
     /// Randomized trial assignment directly identifies the ITT.
     RandomizedDesign,
+    /// Difference-in-differences: parallel untreated trends identify the treated-group effect.
+    ParallelTrends,
+    /// Synthetic control: a convex combination of donor outcomes is the untreated counterfactual.
+    ConvexDonorCounterfactual,
+    /// Synthetic difference-in-differences: convex unit and time weights reproduce the
+    /// untreated trend.
+    ConvexUnitTimeTrends,
+    /// Fuzzy regression discontinuity: the jump in outcome over the jump in treatment receipt
+    /// at the cutoff.
+    FuzzyRdLocalRatio,
+    /// Regression kink: the slope change in outcome over the slope change in treatment dose at
+    /// the cutoff.
+    RegressionKinkLocalRatio,
     /// Conditional dose response under supplied density and group exchangeability.
     ContinuousDoseExchangeability,
     /// `AutoIdentifier` — all applicable estimands, no silent estimator choice.
@@ -107,7 +130,7 @@ all_doc = "Every closed-set identifier, in declaration order (powers [`UnknownSt
 }
 
 /// Per-identifier data-only facts backing [`IdentifierId::as_str`],
-/// [`IdentifierId::is_dag_only`], and [`identify_provenance_step`].
+/// [`IdentifierId::is_dag_only`], and `identify_provenance_step`.
 ///
 /// Purely descriptive — the real behavioral dispatch lives in
 /// [`identify_static_query_with_rd`] / [`identify_pag`] / [`identify_admg`], which stay
@@ -123,6 +146,7 @@ const fn same_step(name: &'static str) -> (&'static str, &'static str) {
     (name, name)
 }
 
+#[allow(clippy::too_many_lines, reason = "the identifier table: one arm per identifier")]
 pub(super) const fn identifier_data(id: IdentifierId) -> IdentifierData {
     match id {
         IdentifierId::BackdoorAdjustment => IdentifierData {
@@ -152,6 +176,11 @@ pub(super) const fn identifier_data(id: IdentifierId) -> IdentifierData {
             name: "temporal.backdoor.unfolded",
             is_dag_only: true,
             provenance: ("identify.temporal_backdoor", "identify.temporal_backdoor_unfolded"),
+        },
+        IdentifierId::TemporalIvUnfolded => IdentifierData {
+            name: "temporal.iv.unfolded",
+            is_dag_only: true,
+            provenance: ("identify.temporal_iv", "identify.temporal_iv_unfolded"),
         },
         IdentifierId::GeneralizedAdjustment => IdentifierData {
             name: "generalized.adjustment",
@@ -188,6 +217,31 @@ pub(super) const fn identifier_data(id: IdentifierId) -> IdentifierData {
             is_dag_only: false,
             provenance: same_step("identify.randomized.design"),
         },
+        IdentifierId::ParallelTrends => IdentifierData {
+            name: "quasi.parallel_trends",
+            is_dag_only: false,
+            provenance: same_step("identify.parallel_trends"),
+        },
+        IdentifierId::ConvexDonorCounterfactual => IdentifierData {
+            name: "quasi.convex_donor_counterfactual",
+            is_dag_only: false,
+            provenance: same_step("identify.convex_donor_counterfactual"),
+        },
+        IdentifierId::ConvexUnitTimeTrends => IdentifierData {
+            name: "quasi.convex_unit_time_trends",
+            is_dag_only: false,
+            provenance: same_step("identify.convex_unit_time_trends"),
+        },
+        IdentifierId::FuzzyRdLocalRatio => IdentifierData {
+            name: "quasi.fuzzy_rd.local_ratio",
+            is_dag_only: false,
+            provenance: ("identify.rd_design", "identify.rd_fuzzy_local_ratio"),
+        },
+        IdentifierId::RegressionKinkLocalRatio => IdentifierData {
+            name: "quasi.regression_kink.local_ratio",
+            is_dag_only: false,
+            provenance: ("identify.rd_design", "identify.regression_kink_local_ratio"),
+        },
         IdentifierId::ContinuousDoseExchangeability => IdentifierData {
             name: "policy.continuous_dose_exchangeability",
             is_dag_only: false,
@@ -218,6 +272,45 @@ impl IdentifierId {
     pub const fn is_dag_only(&self) -> bool {
         identifier_data(*self).is_dag_only
     }
+
+    /// The estimator a static average effect runs when this identifier is declared and the
+    /// caller selected none: the complete ID algorithm yields a functional, not an adjustment
+    /// set, so only the functional plug-in evaluates it.
+    pub(crate) const fn static_native_estimator(self) -> Option<EstimatorId> {
+        match self {
+            Self::GeneralId => Some(EstimatorId::FunctionalEffect),
+            _ => None,
+        }
+    }
+
+    /// The identification strategy a synthetic panel `method` rests on.
+    pub(crate) const fn for_synthetic_panel(method: antecedent_core::SyntheticPanelMethod) -> Self {
+        match method {
+            antecedent_core::SyntheticPanelMethod::Control => Self::ConvexDonorCounterfactual,
+            antecedent_core::SyntheticPanelMethod::DifferenceInDifferences => {
+                Self::ConvexUnitTimeTrends
+            }
+        }
+    }
+
+    /// The identification strategy of a local polynomial ratio: the slope ratio of a
+    /// regression kink, or the jump ratio of a fuzzy discontinuity.
+    pub(crate) const fn for_local_ratio(kink: bool) -> Self {
+        if kink { Self::RegressionKinkLocalRatio } else { Self::FuzzyRdLocalRatio }
+    }
+
+    /// The identification strategy a graphless design-based `query` declares: the quasi-
+    /// experimental designs name their own, every other design identifies by its randomized
+    /// assignment.
+    pub(crate) fn for_design_query(query: &antecedent_core::CausalQuery) -> Self {
+        use antecedent_core::CausalQuery;
+        match query {
+            CausalQuery::PanelDid(_) => Self::ParallelTrends,
+            CausalQuery::SyntheticControl(query) => Self::for_synthetic_panel(query.method),
+            CausalQuery::LocalPolynomialRatio(query) => Self::for_local_ratio(query.kink),
+            _ => Self::RandomizedDesign,
+        }
+    }
 }
 
 impl FromStr for IdentifierId {
@@ -229,7 +322,7 @@ impl FromStr for IdentifierId {
     ///
     /// [`UnknownStrategy`] when `s` does not match any closed-set identifier name.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        parse_closed(s, Self::ALL, Self::as_str, "identifier", identifier_names())
+        parse_closed(s, identifier_index(), "identifier", identifier_names())
     }
 }
 
@@ -284,6 +377,22 @@ pub enum EstimatorId {
     TemporalLinearAdjustment,
     /// Bayesian g-computation on the lag-aligned temporal adjustment design.
     BayesianTemporalGcomp,
+    /// Untempered Gaussian-likelihood posterior of a single-step temporal linear effect, under a
+    /// declared serially independent innovation. Unsupported; calibration `not_measured`.
+    BayesianTemporalWhiteInnovation,
+    /// Mean-scale contrast of a Bernoulli logit temporal model over independent panel subjects:
+    /// the unpenalized maximum-likelihood fit with a delta-method standard error. Unsupported;
+    /// calibration `not_measured`.
+    TemporalGlmLinkContrast,
+    /// Laplace posterior of the same mean-scale contrast under a Gaussian coefficient prior.
+    /// Unsupported; calibration `not_measured`.
+    BayesianTemporalGlmLinkContrast,
+    /// Wald contrast of a lagged instrument on the unfolded window graph: the effect of treatment
+    /// under the declared exclusion and exogeneity of the lag. Unsupported; calibration `not_measured`.
+    TemporalLaggedInstrument,
+    /// Reduced-form ratio posterior of the same lagged-instrument effect. Unsupported; calibration
+    /// `not_measured`.
+    BayesianTemporalLaggedInstrument,
     /// Sequential g-computation of a sustained treatment window.
     TemporalSequentialGcomp,
     /// Discrete plug-in evaluation of an identified interventional distribution.
@@ -334,12 +443,17 @@ pub enum EstimatorId {
     InterferenceObservationalIpw,
     /// Bayesian finite-network Gaussian potential-outcome exposure contrast.
     InterferenceBayesianGaussian,
+    /// Cluster-level Bayesian-bootstrap posterior of the cluster total exposure contrast
+    /// (unsupported, uncalibrated).
+    InterferenceClusterBayesianBootstrap,
     /// Horvitz--Thompson design-based Bernoulli ITT.
     RandomizedHt,
     /// Local Epanechnikov-kernel response with supplied inverse dose density.
     ContinuousDoseKernel,
     /// Bernoulli ITT adjusted by a declared pre-assignment covariate with fixed coefficient.
     RandomizedFixedCupedHt,
+    /// Complete cluster-randomized ITT over cluster totals adjusted by a fixed pre-assignment covariate.
+    RandomizedClusterFixedCuped,
     /// Fitted multi-covariate ANCOVA under independent Bernoulli assignment.
     RandomizedAncova,
     /// Wald CACE/LATE under independent Bernoulli encouragement.
@@ -366,10 +480,81 @@ pub enum EstimatorId {
     LongitudinalMarginalStructuralModel,
     /// Cross-fitted DML / AIPW average treatment effect.
     Dml,
-    /// Doubly robust CATE learner (DRLearner).
+    /// Doubly robust CATE learner (`DRLearner`).
     DrLearner,
     /// Native honest causal forest CATE.
     CausalForest,
+    /// Bayesian panel difference-in-differences posterior (unsupported, uncalibrated).
+    BayesianPanelDid,
+    /// Bayesian simplex synthetic-control posterior (unsupported, uncalibrated).
+    BayesianSyntheticControl,
+    /// Bayesian fuzzy-jump and kink local-ratio posterior (unsupported, uncalibrated).
+    BayesianLocalRatio,
+    /// Frequentist difference-in-differences of a declared panel design (unsupported unless a
+    /// coverage record names the design).
+    PanelDid,
+    /// Frequentist convex-donor synthetic control and synthetic difference-in-differences.
+    SyntheticControl,
+    /// Frequentist fuzzy-jump and kink local ratio with bias-corrected local polynomials.
+    LocalRatio,
+    /// Piecewise-exponential posterior of the randomized survival and restricted-mean
+    /// contrast (unsupported, uncalibrated).
+    BayesianPiecewiseSurvival,
+    /// Frequentist empirical-distribution-function quantiles of a randomized trial's potential
+    /// outcomes and their difference, with the delta-method influence interval.
+    RandomizedQuantile,
+    /// Dirichlet-multinomial grid-distribution posterior of the randomized potential-outcome
+    /// quantiles and their difference (unsupported, uncalibrated).
+    BayesianRandomizedQuantile,
+    /// Per-group polynomial dose-curve posterior of a fixed group-to-dose policy value
+    /// (unsupported, uncalibrated).
+    BayesianDosePolicy,
+    /// Posterior of the arm contrasts of a randomized trial over the trial's own units, the same
+    /// target as the design-based row (unsupported, uncalibrated).
+    BayesianRandomizedFinitePopulation,
+    /// Posterior of the arm contrasts of a randomized trial in the population the units are
+    /// sampled from (unsupported, uncalibrated).
+    BayesianRandomizedSuperpopulation,
+    /// Bayesian-bootstrap posterior of the complier effect under known Bernoulli encouragement
+    /// (unsupported, uncalibrated).
+    BayesianComplierEffect,
+    /// Posterior of the switchback direct effect under a declared carryover and within-sequence
+    /// dependence (unsupported, uncalibrated).
+    BayesianSwitchback,
+    /// Posterior of a fixed binary policy's value under known randomization (unsupported,
+    /// uncalibrated).
+    BayesianBinaryPolicyValue,
+    /// Posterior of a prespecified sequential regime's value under known sequential
+    /// randomization (unsupported, uncalibrated).
+    BayesianSequentialRegimeValue,
+    /// Normal interval of the observational cross-fit sequential contrast (unsupported,
+    /// uncalibrated).
+    SequentialCrossfitContrastWald,
+    /// Modular posterior of the observational cross-fit sequential contrast (unsupported,
+    /// uncalibrated).
+    BayesianSequentialCrossfitContrast,
+    /// Frequentist within-period history-matched contrast (unsupported, uncalibrated).
+    PeriodHistoryMatching,
+    /// Bayesian outcome-model effect on the treated of a period-and-history design
+    /// (unsupported, uncalibrated). A model-based estimand, not a matching posterior.
+    BayesianPeriodHistoryOutcomeModel,
+    /// Cluster-robust Horvitz-Thompson excursion contrasts of a sequentially randomized
+    /// unit-period design (unsupported, uncalibrated).
+    TemporalDesignExcursion,
+    /// Cluster Bayesian-bootstrap posterior of the same excursion contrasts (unsupported,
+    /// uncalibrated).
+    BayesianTemporalDesignExcursion,
+    /// Inverse-probability weighted regime survival with a whole-procedure subject bootstrap
+    /// (unsupported, uncalibrated).
+    TemporalRegimeSurvival,
+    /// Joint-likelihood parametric g-formula posterior of regime survival (unsupported,
+    /// uncalibrated).
+    BayesianTemporalRegimeSurvival,
+    /// Sharp Balke-Pearl bounds on the average effect of a binary treatment under a binary
+    /// instrument, with an Imbens-Manski row-bootstrap interval (unsupported, uncalibrated).
+    IvBoundsSharp,
+    /// Bayesian-bootstrap posterior of the same bounds' endpoints (unsupported, uncalibrated).
+    BayesianIvBounds,
 }
 all_doc = "Every closed-set estimator, in declaration order (powers [`UnknownStrategy::expected`]).";
 }
@@ -435,9 +620,18 @@ impl EstimatorId {
         functional: &antecedent_core::ResponseFunctional,
         inference: &crate::InferenceMode,
     ) -> Self {
+        use antecedent_core::ResponseFunctional;
         match inference {
             crate::InferenceMode::Frequentist => Self::default_for_response(functional),
-            crate::InferenceMode::Bayesian(_) => Self::ResponseBayesian,
+            // A Bayesian derivative keeps the derivative estimator's id, as on a Dag: the
+            // posterior is read from the same local fit, not from the Bayesian level curve.
+            crate::InferenceMode::Bayesian(_) => match functional {
+                ResponseFunctional::AverageDerivative { .. }
+                | ResponseFunctional::PointDerivative { .. }
+                | ResponseFunctional::DirectionalDerivative { .. }
+                | ResponseFunctional::Jacobian { .. } => Self::default_for_response(functional),
+                _ => Self::ResponseBayesian,
+            },
         }
     }
 
@@ -453,7 +647,10 @@ impl EstimatorId {
 
 /// Per-estimator data-only facts backing [`EstimatorId::as_str`],
 /// [`EstimatorId::parallel_task_dimension`], [`EstimatorId::kernel_label`], and
-/// [`estimate_provenance_step`].
+/// `estimate_provenance_step`.
+///
+/// What each estimator estimates (query kinds, inference mode, design variants) is its
+/// [`super::EstimatorTarget`], the sibling exhaustive table `estimator_target` in `targets.rs`.
 ///
 /// The static-ATE identifier allow-list is [`Self::compatible`]. Fit dispatch in
 /// [`estimate_static_effect`] / [`estimate_static_effect_default`] and
@@ -639,6 +836,56 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             parallel_task_dimension: "analysis",
             kernel_label: "ols.faer.temporal",
             provenance: ("estimate.bayesian_temporal_gcomp", "estimate.bayesian.temporal.gcomp"),
+        },
+        EstimatorId::TemporalGlmLinkContrast => EstimatorData {
+            compatible: NONE,
+            name: "temporal.glm_link_contrast",
+            parallel_task_dimension: "analysis",
+            kernel_label: "glm.faer.temporal.link_contrast",
+            provenance: (
+                "estimate.temporal_glm_link_contrast",
+                "estimate.temporal.glm_link_contrast",
+            ),
+        },
+        EstimatorId::TemporalLaggedInstrument => EstimatorData {
+            compatible: NONE,
+            name: "temporal.lagged_instrument",
+            parallel_task_dimension: "analysis",
+            kernel_label: "iv.wald.temporal",
+            provenance: (
+                "estimate.temporal_lagged_instrument",
+                "estimate.temporal.lagged_instrument",
+            ),
+        },
+        EstimatorId::BayesianTemporalLaggedInstrument => EstimatorData {
+            compatible: NONE,
+            name: "bayesian.temporal.lagged_instrument",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian.iv.reduced_form_ratio.temporal",
+            provenance: (
+                "estimate.bayesian_temporal_lagged_instrument",
+                "estimate.bayesian.temporal.lagged_instrument",
+            ),
+        },
+        EstimatorId::BayesianTemporalGlmLinkContrast => EstimatorData {
+            compatible: NONE,
+            name: "bayesian.temporal.glm_link_contrast",
+            parallel_task_dimension: "analysis",
+            kernel_label: "laplace.temporal.link_contrast",
+            provenance: (
+                "estimate.bayesian_temporal_glm_link_contrast",
+                "estimate.bayesian.temporal.glm_link_contrast",
+            ),
+        },
+        EstimatorId::BayesianTemporalWhiteInnovation => EstimatorData {
+            compatible: NONE,
+            name: "bayesian.temporal.white_innovation_linear",
+            parallel_task_dimension: "analysis",
+            kernel_label: "ols.faer.temporal.white_innovation",
+            provenance: (
+                "estimate.bayesian_temporal_white_innovation",
+                "estimate.bayesian.temporal.white_innovation_linear",
+            ),
         },
         EstimatorId::FunctionalDistribution => EstimatorData {
             compatible: NONE,
@@ -832,6 +1079,23 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
                 "estimate.interference.bayesian_gaussian",
             ),
         },
+        EstimatorId::InterferenceClusterBayesianBootstrap => EstimatorData {
+            compatible: INTERFERENCE,
+            name: "interference.cluster_bayesian_bootstrap",
+            parallel_task_dimension: "analysis",
+            kernel_label: "interference.cluster_bayesian_bootstrap",
+            provenance: (
+                "estimate.interference.cluster_bayesian_bootstrap",
+                "estimate.interference.cluster_bayesian_bootstrap",
+            ),
+        },
+        EstimatorId::BayesianComplierEffect => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.complier_effect",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian.complier_effect",
+            provenance: same_step("estimate.bayesian_complier_effect"),
+        },
         EstimatorId::RandomizedHt => EstimatorData {
             compatible: RANDOMIZED,
             name: "randomized.ht_itt",
@@ -855,6 +1119,13 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
                 "estimate.randomized.fixed_cuped_ht_itt",
                 "estimate.randomized.fixed_cuped_ht_itt",
             ),
+        },
+        EstimatorId::RandomizedClusterFixedCuped => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "randomized.cluster_fixed_cuped_itt",
+            parallel_task_dimension: "analysis",
+            kernel_label: "randomized.cluster_fixed_cuped_itt",
+            provenance: same_step("estimate.randomized.cluster_fixed_cuped_itt"),
         },
         EstimatorId::RandomizedAncova => EstimatorData {
             compatible: RANDOMIZED,
@@ -982,6 +1253,181 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "causal.forest",
             provenance: same_step("estimate.causal.forest"),
         },
+        EstimatorId::BayesianPanelDid => EstimatorData {
+            compatible: NONE,
+            name: "bayesian.panel_did",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian_did.normal_inverse_gamma",
+            provenance: same_step("estimate.bayesian_panel_did"),
+        },
+        EstimatorId::BayesianSyntheticControl => EstimatorData {
+            compatible: NONE,
+            name: "bayesian.synthetic_control",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian_synthetic_control.pairwise_metropolis",
+            provenance: same_step("estimate.bayesian_synthetic_control"),
+        },
+        EstimatorId::BayesianBinaryPolicyValue => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.binary_policy_value",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian.binary_policy_value",
+            provenance: same_step("estimate.bayesian_binary_policy_value"),
+        },
+        EstimatorId::BayesianSequentialRegimeValue => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.sequential_regime_value",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian.sequential_regime_value",
+            provenance: same_step("estimate.bayesian_sequential_regime_value"),
+        },
+        EstimatorId::BayesianPiecewiseSurvival => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.piecewise_survival",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian_survival.piecewise_exponential_gamma",
+            provenance: same_step("estimate.bayesian_piecewise_survival"),
+        },
+        EstimatorId::RandomizedQuantile => EstimatorData {
+            compatible: BACKDOOR_AND_AUTO,
+            name: "randomized.quantile",
+            parallel_task_dimension: "analysis",
+            kernel_label: "randomized_quantile.empirical_cdf_inversion",
+            provenance: same_step("estimate.randomized_quantile"),
+        },
+        EstimatorId::BayesianRandomizedQuantile => EstimatorData {
+            compatible: BACKDOOR_AND_AUTO,
+            name: "bayesian.randomized_quantile",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian_quantile.dirichlet_grid_inversion",
+            provenance: same_step("estimate.bayesian_randomized_quantile"),
+        },
+        EstimatorId::BayesianDosePolicy => EstimatorData {
+            compatible: DOSE,
+            name: "bayesian.continuous_dose_policy",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian_dose_policy.group_polynomial_conjugate",
+            provenance: same_step("estimate.bayesian_continuous_dose_policy"),
+        },
+        EstimatorId::PeriodHistoryMatching => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "matching.period_history_contrast",
+            parallel_task_dimension: "analysis",
+            kernel_label: "matching.period_history_contrast",
+            provenance: same_step("estimate.period_history_matching"),
+        },
+        EstimatorId::BayesianPeriodHistoryOutcomeModel => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.period_history_outcome_model",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian_gaussian.period_history_outcome_model",
+            provenance: same_step("estimate.bayesian_period_history_outcome_model"),
+        },
+        EstimatorId::TemporalDesignExcursion => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "temporal_design.excursion",
+            parallel_task_dimension: "analysis",
+            kernel_label: "temporal_design.cluster_ratio_ht",
+            provenance: same_step("estimate.temporal_design_excursion"),
+        },
+        EstimatorId::BayesianTemporalDesignExcursion => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.temporal_design.excursion",
+            parallel_task_dimension: "analysis",
+            kernel_label: "temporal_design.cluster_bayesian_bootstrap",
+            provenance: same_step("estimate.bayesian_temporal_design_excursion"),
+        },
+        EstimatorId::TemporalRegimeSurvival => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "temporal_design.regime_survival",
+            parallel_task_dimension: "analysis",
+            kernel_label: "temporal_design.ipw_hazard_subject_bootstrap",
+            provenance: same_step("estimate.temporal_regime_survival"),
+        },
+        EstimatorId::BayesianTemporalRegimeSurvival => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.temporal_design.regime_survival",
+            parallel_task_dimension: "analysis",
+            kernel_label: "temporal_design.joint_likelihood_g_formula",
+            provenance: same_step("estimate.bayesian_temporal_regime_survival"),
+        },
+        EstimatorId::IvBoundsSharp => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "iv_bounds.balke_pearl",
+            parallel_task_dimension: "analysis",
+            kernel_label: "iv_bounds.balke_pearl_row_bootstrap",
+            provenance: same_step("estimate.iv_bounds_sharp"),
+        },
+        EstimatorId::BayesianIvBounds => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.iv_bounds.endpoint_bootstrap",
+            parallel_task_dimension: "analysis",
+            kernel_label: "iv_bounds.bayesian_bootstrap_endpoints",
+            provenance: same_step("estimate.bayesian_iv_bounds"),
+        },
+        EstimatorId::SequentialCrossfitContrastWald => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "sequential.crossfit_contrast.wald",
+            parallel_task_dimension: "crossfit.fold",
+            kernel_label: "sequential.crossfit_contrast",
+            provenance: same_step("estimate.sequential_crossfit_contrast_wald"),
+        },
+        EstimatorId::BayesianSequentialCrossfitContrast => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.sequential_crossfit_contrast",
+            parallel_task_dimension: "crossfit.fold",
+            kernel_label: "sequential.crossfit_contrast",
+            provenance: same_step("estimate.bayesian_sequential_crossfit_contrast"),
+        },
+        EstimatorId::BayesianLocalRatio => EstimatorData {
+            compatible: NONE,
+            name: "bayesian.local_ratio",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian_local_ratio.joint_local_linear",
+            provenance: same_step("estimate.bayesian_local_ratio"),
+        },
+        EstimatorId::PanelDid => EstimatorData {
+            compatible: NONE,
+            name: "panel_did",
+            parallel_task_dimension: "analysis",
+            kernel_label: "panel_did.design_based",
+            provenance: same_step("estimate.panel_did"),
+        },
+        EstimatorId::SyntheticControl => EstimatorData {
+            compatible: NONE,
+            name: "synthetic_control",
+            parallel_task_dimension: "analysis",
+            kernel_label: "synthetic_control.convex_donor",
+            provenance: same_step("estimate.synthetic_control"),
+        },
+        EstimatorId::LocalRatio => EstimatorData {
+            compatible: NONE,
+            name: "local_ratio",
+            parallel_task_dimension: "analysis",
+            kernel_label: "local_ratio.bias_corrected_local_polynomial",
+            provenance: same_step("estimate.local_ratio"),
+        },
+        EstimatorId::BayesianRandomizedFinitePopulation => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.randomized_finite_population",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian.randomized_arm_contrast",
+            provenance: same_step("estimate.bayesian_randomized_arm_contrast"),
+        },
+        EstimatorId::BayesianSwitchback => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.switchback_effect",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian.switchback_effect",
+            provenance: same_step("estimate.bayesian_switchback_effect"),
+        },
+        EstimatorId::BayesianRandomizedSuperpopulation => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.randomized_superpopulation",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian.randomized_arm_contrast",
+            provenance: same_step("estimate.bayesian_randomized_arm_contrast"),
+        },
     }
 }
 
@@ -1003,6 +1449,27 @@ impl EstimatorId {
     pub const fn kernel_label(&self) -> &'static str {
         estimator_data(*self).kernel_label
     }
+
+    /// Whether the estimator's posterior is a Dirichlet-weighted (Bayesian) bootstrap whatever
+    /// `BayesianConfig::backend` says: the backend selects a parametric posterior algorithm and
+    /// these estimators run none.
+    #[must_use]
+    pub(crate) const fn posterior_is_bayesian_bootstrap(self) -> bool {
+        matches!(
+            self,
+            Self::BayesianRobustAte
+                | Self::TransportTrialBayesianBootstrap
+                | Self::InterferenceClusterBayesianBootstrap
+                | Self::BayesianLocalRatio
+                | Self::BayesianRandomizedQuantile
+                | Self::BayesianComplierEffect
+                | Self::BayesianBinaryPolicyValue
+                | Self::BayesianSequentialRegimeValue
+                | Self::BayesianSequentialCrossfitContrast
+                | Self::BayesianTemporalDesignExcursion
+                | Self::BayesianIvBounds
+        )
+    }
 }
 
 impl FromStr for EstimatorId {
@@ -1014,7 +1481,7 @@ impl FromStr for EstimatorId {
     ///
     /// [`UnknownStrategy`] when `s` does not match any closed-set estimator name.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        parse_closed(s, Self::ALL, Self::as_str, "estimator", estimator_names())
+        parse_closed(s, estimator_index(), "estimator", estimator_names())
     }
 }
 
@@ -1102,6 +1569,8 @@ pub fn validate_class_response_pair(
         || !matches!(
             estimator,
             EstimatorId::ResponseKennedyDr
+                | EstimatorId::ResponseRieszAde
+                | EstimatorId::ResponseGamDerivative
                 | EstimatorId::ResponseInterventionGcomp
                 | EstimatorId::CellAipw
                 | EstimatorId::ResponseBayesian
@@ -1109,9 +1578,9 @@ pub fn validate_class_response_pair(
     {
         return Err(CausalError::Compile {
             message: format!(
-                "Cpdag/Pag response requires identifier generalized.adjustment and \
-                 response.kennedy_dr, response.intervention_gcomp, or response.bayesian \
-                 (got {:?} / {:?})",
+                "Cpdag/Pag/Admg response requires identifier generalized.adjustment and a \
+                 response.* estimator (kennedy_dr, riesz_ade, gam_derivative, \
+                 intervention_gcomp or bayesian) (got {:?} / {:?})",
                 identifier.as_str(),
                 estimator.as_str()
             ),
@@ -1198,6 +1667,7 @@ pub fn require_identified(result: &IdentificationResult) -> Result<(), CausalErr
 
 /// Whether an estimand method is compatible with an estimator.
 #[must_use]
+#[allow(clippy::too_many_lines, reason = "one exhaustive match over every estimator id")]
 pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &EstimatorId) -> bool {
     match estimator {
         EstimatorId::LinearAdjustmentAte
@@ -1220,6 +1690,8 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::DrLearner
         | EstimatorId::CausalForest
         | EstimatorId::ResponseBayesian
+        | EstimatorId::RandomizedQuantile
+        | EstimatorId::BayesianRandomizedQuantile
         | EstimatorId::BayesianRobustAte => method.is_backdoor_family(),
         EstimatorId::FrontDoorTwoStage | EstimatorId::FrontDoorFunctional => {
             matches!(method, EstimandMethod::FrontDoor)
@@ -1232,8 +1704,14 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         }
         EstimatorId::TemporalLinearAdjustment
         | EstimatorId::BayesianTemporalGcomp
+        | EstimatorId::BayesianTemporalWhiteInnovation
+        | EstimatorId::TemporalGlmLinkContrast
+        | EstimatorId::BayesianTemporalGlmLinkContrast
         | EstimatorId::TemporalSequentialGcomp => {
             matches!(method, EstimandMethod::TemporalBackdoorUnfolded)
+        }
+        EstimatorId::TemporalLaggedInstrument | EstimatorId::BayesianTemporalLaggedInstrument => {
+            matches!(method, EstimandMethod::TemporalIvUnfolded)
         }
         EstimatorId::TemporalResponseGcomp | EstimatorId::TemporalResponseBayesian => {
             matches!(
@@ -1259,21 +1737,47 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::InterferenceSaturationExact
         | EstimatorId::InterferenceObservationalIpw
         | EstimatorId::InterferenceBayesianGaussian
+        | EstimatorId::InterferenceClusterBayesianBootstrap
         | EstimatorId::ContinuousDoseKernel
         | EstimatorId::RandomizedSurvivalProductLimit
         | EstimatorId::LongitudinalIpwRegime
         | EstimatorId::LongitudinalGFormulaRegime
         | EstimatorId::LongitudinalSequentialDrRegime
-        | EstimatorId::LongitudinalMarginalStructuralModel => false,
+        | EstimatorId::LongitudinalMarginalStructuralModel
+        | EstimatorId::BayesianPanelDid
+        | EstimatorId::BayesianSyntheticControl
+        | EstimatorId::BayesianSequentialRegimeValue
+        | EstimatorId::SequentialCrossfitContrastWald
+        | EstimatorId::BayesianSequentialCrossfitContrast
+        | EstimatorId::PeriodHistoryMatching
+        | EstimatorId::BayesianPeriodHistoryOutcomeModel
+        | EstimatorId::TemporalDesignExcursion
+        | EstimatorId::BayesianTemporalDesignExcursion
+        | EstimatorId::TemporalRegimeSurvival
+        | EstimatorId::BayesianTemporalRegimeSurvival
+        | EstimatorId::IvBoundsSharp
+        | EstimatorId::BayesianIvBounds
+        | EstimatorId::BayesianPiecewiseSurvival
+        | EstimatorId::BayesianDosePolicy
+        | EstimatorId::BayesianLocalRatio
+        | EstimatorId::PanelDid
+        | EstimatorId::SyntheticControl
+        | EstimatorId::LocalRatio => false,
         EstimatorId::RandomizedHt
         | EstimatorId::RandomizedFixedCupedHt
+        | EstimatorId::RandomizedClusterFixedCuped
         | EstimatorId::RandomizedAncova
         | EstimatorId::RandomizedWaldCace
         | EstimatorId::RandomizedSwitchbackHt
+        | EstimatorId::BayesianRandomizedFinitePopulation
+        | EstimatorId::BayesianRandomizedSuperpopulation
+        | EstimatorId::BayesianComplierEffect
+        | EstimatorId::BayesianSwitchback
         | EstimatorId::RandomizedNeyman => {
             matches!(method, EstimandMethod::RandomizedItt)
         }
         EstimatorId::RandomizedDrPolicy
+        | EstimatorId::BayesianBinaryPolicyValue
         | EstimatorId::RandomizedIpwPolicy
         | EstimatorId::RandomizedMultiActionIpwPolicy => {
             matches!(method, EstimandMethod::RandomizedPolicyValue)
@@ -1313,111 +1817,79 @@ pub fn select_claim(
     } else {
         identification.narrowed_to(index).unwrap_or(identification)
     };
-    if let Some(restriction) = estimator_claim_restriction(estimator) {
-        restrict_claim(&mut claim, &restriction);
+    if let Some(restriction) = estimator.claim_restriction() {
+        claim.restrict_claim(&restriction);
     }
     Ok((claim, estimand))
 }
 
-/// Restriction under which `estimator`'s target equals the identified functional.
-///
-/// An estimator that evaluates the identified functional keeps the identifier's claim; how
-/// it models a regression inside that functional is an estimation-scope record, because the
-/// regression is a feature of the observed law that a richer model can fit without changing
-/// the target. An estimator that computes a *different* functional of the observed law is
-/// the queried effect only under a restriction on the structural model, and that
-/// restriction is part of the identification claim: the constant-effect (or monotonicity)
-/// restriction of a Wald ratio, recorded by the IV identifier, the restriction under
-/// which a product of regression coefficients is the front-door effect, and the restriction
-/// under which `total − direct` is the pure natural indirect effect the path-specific
-/// identifier certifies, recorded here because those identifiers cannot know which estimator
-/// will run.
-fn estimator_claim_restriction(estimator: EstimatorId) -> Option<AssumptionRecord> {
-    match estimator {
-        EstimatorId::FrontDoorTwoStage => {
-            Some(antecedent_estimate::linear_path_product_restriction())
+impl EstimatorId {
+    /// Restriction under which this estimator's target equals the identified functional, when
+    /// it needs one.
+    ///
+    /// An estimator that evaluates the identified functional keeps the identifier's claim; how
+    /// it models a regression inside that functional is an estimation-scope record, because the
+    /// regression is a feature of the observed law that a richer model can fit without changing
+    /// the target. An estimator that computes a *different* functional of the observed law is
+    /// the queried effect only under a restriction on the structural model, and that
+    /// restriction is part of the identification claim: the constant-effect (or monotonicity)
+    /// restriction of a Wald ratio, recorded by the IV identifier, the restriction under
+    /// which a product of regression coefficients is the front-door effect, and the restriction
+    /// under which `total − direct` is the pure natural indirect effect the path-specific
+    /// identifier certifies, recorded here because those identifiers cannot know which
+    /// estimator will run.
+    #[must_use]
+    pub fn claim_restriction(self) -> Option<AssumptionRecord> {
+        match self {
+            Self::FrontDoorTwoStage => Some(antecedent_estimate::linear_path_product_restriction()),
+            Self::StaticMediationLinear => {
+                Some(antecedent_estimate::linear_no_interaction_restriction())
+            }
+            _ => None,
         }
-        EstimatorId::StaticMediationLinear => {
-            Some(antecedent_estimate::linear_no_interaction_restriction())
-        }
-        _ => None,
     }
 }
 
-/// Add `restriction` to a claim and weaken a nonparametric status to a parametric one.
-/// Statuses that are already weaker are kept.
-fn restrict_claim(claim: &mut IdentificationResult, restriction: &AssumptionRecord) {
-    let weaken = |status: &mut IdentificationStatus| {
-        if *status == IdentificationStatus::NonparametricallyIdentified {
-            *status = IdentificationStatus::IdentifiedUnderParametricRestrictions;
-        }
-    };
-    weaken(&mut claim.status);
-    claim.required_assumptions.extend_unique([restriction]);
-    for own in &mut claim.estimand_claims {
-        weaken(&mut own.status);
-        own.required_assumptions.extend_unique([restriction]);
-    }
-}
-
+/// Index of the estimand the estimator consumes: the identification result's own selection
+/// rule, with the estimator-to-method compatibility table as the predicate.
 fn select_estimand_index(
     identification: &IdentificationResult,
     estimator: EstimatorId,
 ) -> Result<usize, CausalError> {
-    let estimands = &identification.estimands;
-    if estimands.is_empty() {
-        return Err(CausalError::Compile { message: "no estimand returned".into() });
-    }
-    if estimands.len() == 1 {
-        return Ok(0);
-    }
-    let matches: Vec<usize> = estimands
-        .iter()
-        .enumerate()
-        .filter(|(_, e)| {
-            if e.is_adjustment_shaped() {
+    identification
+        .select_estimand_index(|estimand| {
+            if estimand.is_adjustment_shaped() {
                 return estimand_compatible_with_estimator(
                     EstimandMethod::BackdoorAdjustment,
                     &estimator,
                 );
             }
-            e.method_kind()
-                .map(|m| estimand_compatible_with_estimator(m, &estimator))
-                .unwrap_or(false)
+            estimand
+                .method_kind()
+                .is_ok_and(|method| estimand_compatible_with_estimator(method, &estimator))
         })
-        .map(|(i, _)| i)
-        .collect();
-    if matches.len() == 1 {
-        return Ok(matches[0]);
-    }
-    // Auto (and the response identifiers) can list a criterion estimand (backdoor adjustment,
-    // front-door, path-specific, ...) beside the general-ID functional for the same query: ID
-    // is the general fallback, so when exactly one estimator-compatible match is criterion-
-    // shaped and the rest are general.id, the criterion match is the more specific claim and
-    // wins. This does not fire when every match is general.id (for example a MeanCurve's one
-    // general-ID estimand per grid level): that is a genuine ambiguity between distinct
-    // functionals, not a criterion-vs-fallback tiebreak, and still errors below.
-    let non_general: Vec<usize> = matches
-        .iter()
-        .copied()
-        .filter(|&i| estimands[i].method_kind() != Ok(EstimandMethod::GeneralId))
-        .collect();
-    if non_general.len() == 1 {
-        return Ok(non_general[0]);
-    }
-    // Auto lists every strategy that identified the query (criterion estimands and the general
-    // ID functional); name them so a caller sees which methods the estimator matched.
-    let methods: Vec<&str> = estimands.iter().map(|e| e.method.as_ref()).collect();
-    Err(CausalError::Compile {
-        message: format!(
-            "identifier returned {} estimands ({}); select an explicit identifier or an estimator \
-             that uniquely matches one method (got estimator {:?}, matching {})",
-            estimands.len(),
-            methods.join(", "),
-            estimator.as_str(),
-            matches.len()
-        ),
-    })
+        .map_err(|error| match error {
+            EstimandSelectionError::NoEstimand => {
+                CausalError::Compile { message: "no estimand returned".into() }
+            }
+            // Auto lists every strategy that identified the query (criterion estimands and the
+            // general ID functional); name them so a caller sees which methods the estimator
+            // matched.
+            EstimandSelectionError::Ambiguous { methods, matched } => CausalError::Compile {
+                message: format!(
+                    "identifier returned {} estimands ({}); select an explicit identifier or an \
+                     estimator that uniquely matches one method (got estimator {:?}, matching {})",
+                    methods.len(),
+                    methods.iter().map(|method| &**method).collect::<Vec<&str>>().join(", "),
+                    estimator.as_str(),
+                    matched
+                ),
+            },
+            // `EstimandSelectionError` is non-exhaustive; a later reason is still a refusal.
+            other => {
+                CausalError::Compile { message: format!("estimand selection failed: {other:?}") }
+            }
+        })
 }
 
 /// Allowlist for interventional-distribution identify+estimate.
@@ -1502,5 +1974,64 @@ mod names {
         let estimators: std::collections::HashSet<_> =
             EstimatorId::ALL.iter().map(EstimatorId::as_str).collect();
         assert_eq!(estimators.len(), EstimatorId::ALL.len());
+    }
+
+    #[test]
+    fn quasi_experimental_designs_declare_their_own_identifier() {
+        use antecedent_core::{
+            CausalQuery, LocalPolynomialRatioQuery, PanelDidQuery, SyntheticControlQuery,
+            SyntheticPanelMethod, VariableId,
+        };
+        use std::sync::Arc;
+
+        let variable = VariableId::from_raw(0);
+        let did = PanelDidQuery::new(
+            variable,
+            Vec::<bool>::new(),
+            Vec::<bool>::new(),
+            Vec::<Arc<str>>::new(),
+            Vec::<Arc<str>>::new(),
+        );
+        assert_eq!(
+            IdentifierId::for_design_query(&CausalQuery::PanelDid(did)).as_str(),
+            "quasi.parallel_trends"
+        );
+        let mut synthetic = SyntheticControlQuery::new(
+            variable,
+            Vec::<Arc<str>>::new(),
+            Vec::<i64>::new(),
+            "unit",
+            1,
+        );
+        for (method, wire) in [
+            (SyntheticPanelMethod::Control, "quasi.convex_donor_counterfactual"),
+            (SyntheticPanelMethod::DifferenceInDifferences, "quasi.convex_unit_time_trends"),
+        ] {
+            synthetic.method = method;
+            assert_eq!(IdentifierId::for_synthetic_panel(method).as_str(), wire);
+            assert_eq!(
+                IdentifierId::for_design_query(&CausalQuery::SyntheticControl(synthetic.clone()))
+                    .as_str(),
+                wire
+            );
+        }
+        for (kink, wire) in
+            [(false, "quasi.fuzzy_rd.local_ratio"), (true, "quasi.regression_kink.local_ratio")]
+        {
+            let ratio = LocalPolynomialRatioQuery {
+                outcome: variable,
+                treatment: variable,
+                running: variable,
+                cutoff: 0.0,
+                bandwidth: 1.0,
+                kink,
+                options: None,
+            };
+            assert_eq!(IdentifierId::for_local_ratio(kink).as_str(), wire);
+            assert_eq!(
+                IdentifierId::for_design_query(&CausalQuery::LocalPolynomialRatio(ratio)).as_str(),
+                wire
+            );
+        }
     }
 }

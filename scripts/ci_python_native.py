@@ -13,8 +13,9 @@ import subprocess
 import sys
 import sysconfig
 import tempfile
-import tomllib
 from pathlib import Path
+
+from _repo import load_toml_binary
 
 MANIFEST = "native-build.json"
 
@@ -35,8 +36,7 @@ def digest(path: Path) -> str:
 
 
 def package_version(root: Path) -> str:
-    with (root / "python" / "pyproject.toml").open("rb") as handle:
-        return tomllib.load(handle)["project"]["version"]
+    return load_toml_binary(root / "python" / "pyproject.toml")["project"]["version"]
 
 
 def verify_import(root: Path, extension: Path, version: str) -> None:

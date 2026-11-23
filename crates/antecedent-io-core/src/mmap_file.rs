@@ -4,7 +4,7 @@
 //! [`crate::reader::MappedArtifactReader::from_mmap`] are the other `unsafe`
 //! entry points; they call this wrapper and keep the same immutability contract.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fs::File;
 
@@ -25,5 +25,5 @@ use crate::error::IoError;
 /// OS mmap failures.
 pub(crate) unsafe fn map_file_readonly(file: &File) -> Result<Mmap, IoError> {
     // SAFETY: caller upholds the file-immutability contract of `Mmap::map`.
-    unsafe { Mmap::map(file) }.map_err(|e| IoError::Io(e.to_string()))
+    unsafe { Mmap::map(file) }.map_err(IoError::from)
 }

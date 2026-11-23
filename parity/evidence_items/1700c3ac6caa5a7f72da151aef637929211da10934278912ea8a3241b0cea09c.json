@@ -1,0 +1,1 @@
+["use:antecedent_estimate::randomized_scores::{complier_wald_effect,independent_action_contrast};#0","const:Y#0","fn:close#0","fn:two_action_contrast_is_unbiased_and_its_sandwich_slack_is_the_effect_variation#0","fn:three_action_contrast_selects_the_right_columns_and_stays_unbiased#0","fn:wald_ratio_components_are_unbiased_and_the_variance_is_the_delta_method#0"]

@@ -26,7 +26,7 @@
 //! [`StudyPlanProposal::receive`](crate::StudyPlanProposal::receive) requires
 //! the arriving catalog to keep every stored base binding exactly.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -45,6 +45,7 @@ use antecedent_io_core::transport_catalog_wire::EvidenceCatalogWire;
 use antecedent_io_core::transport_query_wire::{MixedSourceQueryWire, MzSourceWire};
 use serde::{Deserialize, Serialize};
 
+use crate::plan_common::variable_ids as ids;
 use crate::study_planner::{
     StudyCandidate, StudyCost, StudyPlanError, StudyPlanResult, plan_studies,
 };
@@ -60,7 +61,7 @@ impl StudyPlanError {
     fn invalid_artifact(message: impl Into<String>) -> Self {
         Self {
             code: reason_code!("transport_not_certified"),
-            detail: "study_plan.invalid_artifact",
+            detail: antecedent_core::reason_details::study_plan::INVALID_ARTIFACT,
             message: message.into(),
             receipt: None,
         }
@@ -69,7 +70,7 @@ impl StudyPlanError {
     fn consumer_limits(message: impl Into<String>) -> Self {
         Self {
             code: reason_code!("route_not_supported"),
-            detail: "study_plan.bounds_exceeded",
+            detail: antecedent_core::reason_details::study_plan::BOUNDS_EXCEEDED,
             message: message.into(),
             receipt: None,
         }
@@ -319,10 +320,6 @@ impl Default for StudyPlanConsumeLimits {
 
 fn raw(variables: &[VariableId]) -> Vec<u32> {
     variables.iter().map(|v| v.raw()).collect()
-}
-
-fn ids(raw: &[u32]) -> Arc<[VariableId]> {
-    raw.iter().copied().map(VariableId::from_raw).collect()
 }
 
 fn strings(values: &[Arc<str>]) -> Vec<String> {
@@ -595,8 +592,7 @@ impl StudyPlanArtifactWire {
         }
         let stored = self.premises.limits;
         let memory_cap = ctx
-            .memory
-            .hard_limit_bytes
+            .memory_limit_bytes()
             .map_or(limits.memory_limit_bytes, |h| h.min(limits.memory_limit_bytes));
         if stored.operations > limits.search.operations
             || stored.depth > limits.search.depth

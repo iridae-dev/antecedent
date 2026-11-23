@@ -198,7 +198,7 @@ where
   interval 7, posterior 8).
 * **uncertainty** is: word `0` for none, or word `1`, text meaning, text
   paradigm.
-* **calibration label** is: word tag (none 1, point_only 2, unmeasured 3,
+* **calibration label** is: word tag (none 1, point_only 2, not_measured 3,
   measured 4, inherited 5), followed for `measured` by text `record_id` and for
   `inherited` by text `input`.
 * **evidence** is: word `0` when undeclared, or word `1`, word count, then
@@ -294,6 +294,19 @@ Node kind to stage (the stage written into the link digest):
 | --- | --- |
 | `causal_contract` | `causal_contract` |
 | `execution_or_fit` | `distribution_artifact` |
+| `cyclic_posterior_fit` | `distribution_artifact` |
+| `trial_ipw_transport_fit` | `distribution_artifact` |
+| `graph_imputation_transport_fit` | `distribution_artifact` |
+| `joint_transport_effect_fit` | `distribution_artifact` |
+| `joint_transport_predictive_fit` | `distribution_artifact` |
+| `trial_ipw_predictive_fit` | `distribution_artifact` |
+| `cyclic_target_feedback_fit` | `distribution_artifact` |
+| `graph_imputation_predictive_fit` | `distribution_artifact` |
+| `assessed_bridge_posterior_fit` | `distribution_artifact` |
+| `sequential_policy_reliability_fit` | `distribution_artifact` |
+| `sequential_decision_draws` | `distribution_artifact` |
+| `sequential_reliability_diagnostic` | `claim` |
+| `predictive_chain_decision` | `claim` |
 | `external_claim` | `external_provider` |
 | `attestation` | `external_provider` |
 | `evidence_relationship` | `evidence` |
@@ -310,6 +323,9 @@ Node kind to stage (the stage written into the link digest):
 | `repair_report` | `evidence` |
 | `recalculation_receipt` | `evidence` |
 | `frozen_scores` | `distribution_artifact` |
+| `observation_query` | `claim` |
+| `scientific_bridge` | `claim` |
+| `propagation_chain` | `claim` |
 
 The bundle format does not interpret embedded bytes. A bundle consumer that
 verifies embedded nodes does so with the verifier registered for the node's

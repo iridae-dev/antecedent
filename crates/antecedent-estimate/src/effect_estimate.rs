@@ -7,7 +7,7 @@
 //! Every group other than the point is `None`/empty/false for an estimator that does not
 //! produce it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -68,9 +68,9 @@ pub struct CandidateSelectionRecord {
     /// Family size.
     pub family_size: usize,
     /// Row indexes used to screen candidates.
-    pub screen_rows: Arc<[u32]>,
+    pub screen_rows: Arc<[antecedent_data::GlobalId]>,
     /// Row indexes used to estimate the surfaced family.
-    pub estimate_rows: Arc<[u32]>,
+    pub estimate_rows: Arc<[antecedent_data::GlobalId]>,
     /// Whether the two halves are disjoint.
     pub disjoint: bool,
 }
@@ -130,6 +130,100 @@ pub struct EstimateProvenance {
     pub n_obs: Option<u64>,
     /// Estimated retained-memory cost of fitted scratch (bytes), when known.
     pub retained_memory_bytes: Option<u64>,
+    /// How the columns the estimator read were prepared, when it admitted them through the
+    /// preparation path. A physical fact about the run, so it is not part of any identity.
+    pub preparation: Option<Arc<PreparationSummary>>,
+}
+
+/// Plain summary of the preparation receipt behind an estimate.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub struct PreparationSummary {
+    /// Stable name of the preparation backend.
+    pub backend: String,
+    /// Stable name of the end-to-end route bound.
+    pub route_bound: String,
+    /// Rows the estimator read. `None` when it was handed a scan.
+    pub rows_admitted: Option<u64>,
+    /// Lower-case hex digest of the preparation plan.
+    pub receipt_digest: String,
+    /// Payload bytes the preparation admitted (a finite table's payload, or a scan's
+    /// scratch). `None` when the summary was read back from a wire that recorded none.
+    pub admitted_bytes: Option<u64>,
+    /// Byte budget the payload was compared with. `None` when no budget was compared.
+    pub budget_bytes: Option<u64>,
+    /// Stable name of what the estimator was given: `finite`, `materialized_from_scan`
+    /// or `scan`. `None` when the summary was read back from a wire that recorded none.
+    pub delivery: Option<String>,
+}
+
+impl PreparationSummary {
+    /// Summarize `receipt`.
+    #[must_use]
+    pub fn from_receipt(receipt: &antecedent_data::materialize::PreparationReceipt) -> Self {
+        use antecedent_data::materialize::{AdmissionRecord, DeliveryRecord};
+        let route_bound = match receipt.route_bound() {
+            antecedent_data::materialize::RouteBound::Proved { .. } => "proved",
+            antecedent_data::materialize::RouteBound::RowsOnly { .. } => "rows_only",
+            antecedent_data::materialize::RouteBound::NotAnEndToEndRoute => {
+                "not_an_end_to_end_route"
+            }
+        };
+        let (admitted_bytes, budget_bytes) = match receipt.admission() {
+            AdmissionRecord::Materialized { bytes, budget } => (bytes, Some(budget)),
+            AdmissionRecord::Unmetered { bytes } => (bytes, None),
+            AdmissionRecord::Streaming { scratch_bytes, budget } => (scratch_bytes, Some(budget)),
+        };
+        let delivery = match receipt.delivery() {
+            DeliveryRecord::Finite { .. } => "finite",
+            DeliveryRecord::MaterializedFromScan { .. } => "materialized_from_scan",
+            DeliveryRecord::Scan => "scan",
+        };
+        Self {
+            backend: receipt.path().as_str().to_owned(),
+            route_bound: route_bound.to_owned(),
+            rows_admitted: receipt.proved_rows(),
+            receipt_digest: receipt.digest().to_owned(),
+            admitted_bytes: Some(admitted_bytes),
+            budget_bytes,
+            delivery: Some(delivery.to_owned()),
+        }
+    }
+
+    /// Plain summary from its parts (required outside this crate because the type is
+    /// `#[non_exhaustive]`).
+    #[must_use]
+    pub fn from_parts(
+        backend: String,
+        route_bound: String,
+        rows_admitted: Option<u64>,
+        receipt_digest: String,
+    ) -> Self {
+        Self {
+            backend,
+            route_bound,
+            rows_admitted,
+            receipt_digest,
+            admitted_bytes: None,
+            budget_bytes: None,
+            delivery: None,
+        }
+    }
+
+    /// The same summary with the resource facts of its receipt (required outside this
+    /// crate because the type is `#[non_exhaustive]`).
+    #[must_use]
+    pub fn with_resources(
+        mut self,
+        admitted_bytes: Option<u64>,
+        budget_bytes: Option<u64>,
+        delivery: Option<String>,
+    ) -> Self {
+        self.admitted_bytes = admitted_bytes;
+        self.budget_bytes = budget_bytes;
+        self.delivery = delivery;
+        self
+    }
 }
 
 /// Estimator-side diagnostics and sensitivity summaries recorded beside the point.
@@ -160,6 +254,10 @@ pub struct EstimateDiagnostics {
     /// excluded, the Kish effective sample size and the unnormalized weight sum. `None` when
     /// no weights were declared, so unweighted results are unchanged.
     pub sampling_weights: Option<crate::sampling_weights::SamplingWeightRecord>,
+    /// The complete resampling procedure behind a requested bootstrap interval: its waves,
+    /// the Monte Carlo error at the stop and why it stopped. `None` when no interval was
+    /// requested, so a fixed-count bootstrap is reported exactly as before.
+    pub resampling: Option<crate::util::ResamplingReport>,
 }
 
 /// Nuisance cross-fitting record.
@@ -170,6 +268,8 @@ pub struct CrossfitRecord {
     pub folds: Option<usize>,
     /// Master seed used for nuisance cross-fitting.
     pub seed: Option<u64>,
+    /// Fold id per retained row, when the executing route records it.
+    pub fold_assignment: Option<Arc<[u32]>>,
     /// Actual fitted learner identities, in fold order (control, treated, propensity
     /// for AIPW; outcome folds then treatment folds for PLR; final CATE fit last).
     pub learner_provenance: Vec<antecedent_learn::LearnerProvenance>,
@@ -191,10 +291,50 @@ pub struct EstimateScores {
     pub influence: Option<Arc<[f64]>>,
 }
 
+/// Scientific target and identification retained by an executed batch-family contrast.
+///
+/// This binds the contrast to the actual source identification and observed world support.
+/// It does not grant calibration or an additional interval/decision support.
+#[derive(Clone, Debug)]
+pub struct CompiledFamilyContrast {
+    target: antecedent_core::ScientificTarget,
+    identification: antecedent_identify::CompiledIdentificationProduct,
+}
+
+impl CompiledFamilyContrast {
+    /// Retain a product already bound by the compiler to this exact target.
+    ///
+    /// # Errors
+    /// Refuses an unbound, mismatched or incompletely supported scientific target.
+    pub fn new(
+        target: antecedent_core::ScientificTarget,
+        identification: antecedent_identify::CompiledIdentificationProduct,
+    ) -> Result<Self, antecedent_identify::ProductRefusal> {
+        identification.validate_target(&target)?;
+        Ok(Self { target, identification })
+    }
+
+    /// Full inference-independent contrast target, including its explicit reference world.
+    #[must_use]
+    pub fn target(&self) -> &antecedent_core::ScientificTarget {
+        &self.target
+    }
+
+    /// Actual derivation and complete world/assembled support obligations.
+    #[must_use = "the retained proof determines which contrast claims are permitted"]
+    pub fn identification(&self) -> &antecedent_identify::CompiledIdentificationProduct {
+        &self.identification
+    }
+}
+
 /// Batch-family inference over a fixed family of cells or contrasts.
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct FamilyInference {
+    /// Checked scientific binding required before a joint-cell family contrast is exposed.
+    /// Native retention only: older numerical artifact formats omit this binding and do not
+    /// gain current scientific authority when decoded.
+    pub compiled_contrast: Option<Arc<CompiledFamilyContrast>>,
     /// Simultaneous batch interval (lower, upper, level).
     ///
     /// Joint-cell batches keep this on cell **levels**. Contrast-family bands
@@ -212,6 +352,11 @@ pub struct FamilyInference {
     /// by [`Self::simultaneous_interval`]. `None` when no contrast was declared
     /// or contrast max-t could not form.
     pub contrast_interval: Option<(f64, f64, f64)>,
+    /// Bayesian-bootstrap posterior of [`Self::contrast`]'s functional, requested by the
+    /// batch. Every member of the family shares each draw's row weights, so draw `d` of
+    /// every member is one joint posterior realization of the whole family. Conditional on
+    /// the frozen cross-fit nuisances; native retention only.
+    pub contrast_posterior: Option<crate::score_posterior::ScorePosterior>,
     /// Candidate-selection screen recorded on a batch family (artifact payload).
     pub candidate_selection: Option<CandidateSelectionRecord>,
 }
@@ -249,7 +394,7 @@ pub struct EstimateHeterogeneity {
     pub cate: Option<Arc<[f64]>>,
     /// Retained portable CATE model, separate from the marginal estimate.
     pub fitted_effect: Option<Arc<crate::FittedEffect>>,
-    /// Per-row CATE standard errors, when a licensed pointwise formula produced them.
+    /// Per-row CATE standard errors, when a supported pointwise formula produced them.
     ///
     /// Linear DR-Learner finals use the HC0 sandwich of the orthogonal scores.
     /// Nonlinear or penalized CATE regressions, and forests (see
@@ -344,6 +489,7 @@ impl EffectEstimate {
                 overlap,
                 n_obs: None,
                 retained_memory_bytes,
+                preparation: None,
             },
             diagnostics: EstimateDiagnostics { overlap_report, ..EstimateDiagnostics::default() },
             crossfit: CrossfitRecord::default(),
@@ -466,7 +612,7 @@ impl EffectEstimate {
         self
     }
 
-    /// Attach licensed per-row CATE standard errors, or withhold them.
+    /// Attach supported per-row CATE standard errors, or withhold them.
     #[must_use]
     pub fn with_cate_se(mut self, cate_se: Option<Arc<[f64]>>) -> Self {
         self.heterogeneity.cate_se = cate_se;
@@ -492,6 +638,21 @@ impl EffectEstimate {
     pub fn with_retained_memory_bytes(mut self, retained_memory_bytes: Option<u64>) -> Self {
         self.provenance.retained_memory_bytes = retained_memory_bytes;
         self
+    }
+
+    /// Record the preparation receipt the estimator's columns were admitted under.
+    #[must_use]
+    pub fn with_preparation(mut self, preparation: Option<Arc<PreparationSummary>>) -> Self {
+        self.provenance.preparation = preparation;
+        self
+    }
+
+    /// Attach a bootstrap outcome: its standard-error accounting and, when an interval was
+    /// requested, the resampling record that produced it.
+    #[must_use]
+    pub(crate) fn with_bootstrap_outcome(mut self, outcome: crate::util::BootstrapOutcome) -> Self {
+        self.diagnostics.resampling = outcome.resampling;
+        self.with_bootstrap(Some(outcome.se))
     }
 
     /// Attach bootstrap SE accounting (or clear when bootstrap was skipped).

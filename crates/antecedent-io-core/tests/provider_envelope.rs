@@ -45,8 +45,10 @@ fn verified_external_result_requires_host_receipt_and_preserves_provenance() {
     assert_eq!(decoded.header.trust, ExternalProviderTrust::VerifiedExtension);
     assert_eq!(decoded.header.provenance["entry_point"], "external_pkg:create_provider");
     assert_eq!(decoded.external_artifact.unwrap(), b"opaque-provider-artifact");
-    assert!(
+    assert_eq!(
         open_verified_provider_envelope(&bytes, &"a".repeat(64), &"d".repeat(64), &"c".repeat(64))
-            .is_err()
+            .err()
+            .expect("a different verification digest must be refused"),
+        "provider envelope trust requires matching host verification"
     );
 }

@@ -1,6 +1,6 @@
 //! Shared graph-structure MCMC schedule, parallel driver, and posterior assembly.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -8,7 +8,7 @@ use std::sync::Arc;
 use antecedent_core::{CausalRng, ExecutionContext};
 use antecedent_prob::{InferenceDiagnostics, kish_ess};
 
-use crate::adjacency_mask::{AdjacencyMask, parent_bits, set_edge};
+use crate::adjacency_mask::{AdjacencyMask, parent_bits};
 use crate::error::DiscoveryError;
 use crate::graph_posterior::{
     ChainAgreement, GraphChainSummary, GraphMcmcRun, GraphPosterior, MAX_EDGE_MCSE,
@@ -17,14 +17,15 @@ use crate::graph_posterior::{
 };
 
 /// One chain: flat edge-indicator trace, sampled states, constraint-invalid proposals, and the
-/// log target at each kept draw.
+/// log target at each kept draw, and whether the chain's cold state changed at any step of the
+/// run (start walk and warmup included).
 ///
 /// `S` is an [`AdjacencyMask`] for structure and order MCMC, and a contemporaneous/lag
-/// pair for the DBN posterior. The three samplers used to each spell this quadruple.
-type ChainOutput<S> = (Vec<f64>, Vec<S>, u64, Vec<f64>);
+/// pair for the DBN posterior. The three samplers used to each spell this tuple.
+type ChainOutput<S> = (Vec<f64>, Vec<S>, u64, Vec<f64>, bool);
 
-/// Merged `(traces, per-chain samples, rejected proposals, log targets)`.
-type MaskChainMerge<S> = (Vec<f64>, Vec<Vec<S>>, u64, Vec<f64>);
+/// Merged `(traces, per-chain samples, rejected proposals, log targets, every chain moved)`.
+type MaskChainMerge<S> = (Vec<f64>, Vec<Vec<S>>, u64, Vec<f64>, bool);
 
 /// Shared MCMC schedule knobs for mask-based graph samplers.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -76,7 +77,9 @@ pub(crate) fn merge_chain_outputs<S>(
     let mut sample_masks = Vec::new();
     let mut scores = Vec::new();
     let mut rejected = 0u64;
-    for (local_traces, local_samples, local_rej, local_scores) in chains {
+    let mut all_moved = true;
+    for (local_traces, local_samples, local_rej, local_scores, local_moved) in chains {
+        all_moved &= local_moved;
         debug_assert_eq!(local_traces.len(), n_draws * n_params);
         debug_assert_eq!(local_scores.len(), n_draws);
         rejected += local_rej;
@@ -84,7 +87,7 @@ pub(crate) fn merge_chain_outputs<S>(
         scores.extend_from_slice(&local_scores);
         sample_masks.push(local_samples);
     }
-    (traces, sample_masks, rejected, scores)
+    (traces, sample_masks, rejected, scores, all_moved)
 }
 
 /// Run one worker per chain and merge their outputs.
@@ -102,6 +105,20 @@ where
     S: Send,
     F: Fn(usize, &ExecutionContext) -> Result<ChainOutput<S>, DiscoveryError> + Sync,
 {
+    // Every chain keeps a trace and a score per draw, and the merge copies them once more;
+    // both are leased before any chain starts.
+    let bytes = n_chains
+        .checked_mul(n_draws)
+        .and_then(|cells| cells.checked_mul(n_params.saturating_add(1)))
+        .and_then(|cells| cells.checked_mul(2 * size_of::<f64>()))
+        .and_then(|bytes| u64::try_from(bytes).ok())
+        .ok_or_else(|| DiscoveryError::Resource("chain trace size overflow".to_owned()))?;
+    let _traces = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => DiscoveryError::Cancelled,
+        other => DiscoveryError::Resource(format!(
+            "admission pool cannot fund the chain traces: {other}"
+        )),
+    })?;
     // One call per chain index. `map_indexed` assigns chain `i` the stream the worker
     // opens for `i`, and a panic in `worker` propagates with its payload.
     let outputs = ctx.map_indexed(n_chains, |chain, inner| worker(chain, inner))?;
@@ -204,6 +221,10 @@ pub(crate) struct MaskChainOutput<S> {
     pub rejected: u64,
     /// Log target (before tempering) of the state recorded at each kept draw.
     pub scores: Vec<f64>,
+    /// Whether the cold state changed at any step of the run, warmup included. A chain on a
+    /// posterior the data decide settles into one graph during warmup and records it for every
+    /// kept draw; it still moved, which a chain that never left its start did not.
+    pub moved: bool,
 }
 
 /// Inverse temperature of the random walk that scatters a later chain's starting state.
@@ -249,12 +270,14 @@ pub(crate) const EQUIVALENCE_WALK_PROBABILITY: f64 = 0.25;
 /// the same Gaussian-BIC score, and every two members of a class are joined by a sequence of such
 /// reversals. Single-edge moves that propose an arbitrary reversal rarely hit one of the few
 /// covered edges, which is why the orientation of an edge inside a class mixes slowly.
-pub(crate) fn covered_edges(mask: AdjacencyMask, n: usize) -> Vec<(usize, usize)> {
-    let parents: Vec<u16> = (0..n).map(|node| parent_bits(mask, n, node)).collect();
+pub(crate) fn covered_edges(mask: &AdjacencyMask, n: usize) -> Vec<(usize, usize)> {
+    let parents: Vec<AdjacencyMask> = (0..n).map(|node| parent_bits(mask, n, node)).collect();
     let mut covered = Vec::new();
-    for (y, &pa_y) in parents.iter().enumerate() {
-        for x in (0..n).filter(|&x| (pa_y >> x) & 1 == 1) {
-            if pa_y == parents[x] | (1 << x) {
+    for (y, pa_y) in parents.iter().enumerate() {
+        for x in pa_y.set_bits().map(|x| x as usize) {
+            // `Pa(y) = Pa(x) ∪ {x}`: `x` is a parent of `y` and never of itself, so it is
+            // enough that `Pa(x)` lies inside `Pa(y)` and `Pa(y)` has exactly one more member.
+            if pa_y.count_ones() == parents[x].count_ones() + 1 && pa_y.contains_all(&parents[x]) {
                 covered.push((x, y));
             }
         }
@@ -268,7 +291,7 @@ pub(crate) fn covered_edges(mask: AdjacencyMask, n: usize) -> Vec<(usize, usize)
 /// Completing the move is [`accept_covered_reversal`], which supplies the Hastings factor
 /// `|covered(G)| / |covered(G')|` of the uniform choice.
 pub(crate) fn propose_covered_reversal(
-    mask: AdjacencyMask,
+    mask: &AdjacencyMask,
     n: usize,
     rng: &mut CausalRng,
 ) -> Option<(usize, usize, usize)> {
@@ -281,8 +304,11 @@ pub(crate) fn propose_covered_reversal(
 }
 
 /// `mask` with the edge `x -> y` replaced by `y -> x`.
-pub(crate) fn reversed_edge(mask: AdjacencyMask, n: usize, x: usize, y: usize) -> AdjacencyMask {
-    set_edge(set_edge(mask, n, x, y, false), n, y, x, true)
+pub(crate) fn reversed_edge(mask: &AdjacencyMask, n: usize, x: usize, y: usize) -> AdjacencyMask {
+    let mut reversed = mask.clone();
+    reversed.set_edge(n, x, y, false);
+    reversed.set_edge(n, y, x, true);
+    reversed
 }
 
 /// Metropolis–Hastings decision of a covered-edge reversal at inverse temperature `beta`, from a
@@ -291,7 +317,7 @@ pub(crate) fn reversed_edge(mask: AdjacencyMask, n: usize, x: usize, y: usize) -
 pub(crate) fn accept_covered_reversal(
     (beta, current, proposed): (f64, f64, f64),
     covered_before: usize,
-    after: AdjacencyMask,
+    after: &AdjacencyMask,
     n: usize,
     rng: &mut CausalRng,
 ) -> bool {
@@ -356,6 +382,7 @@ pub(crate) fn run_tempered_mask_chain<C: MaskChain>(
     if matches!(cancel, MaskCancel::AbortEvery64) && ctx.cancellation.is_cancelled() {
         return Err(DiscoveryError::Cancelled);
     }
+    let mut moved = false;
     if plan.chain_index > 0 {
         for chain in replicas.iter_mut() {
             for _ in 0..(4 * plan.n_params).min(400) {
@@ -369,6 +396,7 @@ pub(crate) fn run_tempered_mask_chain<C: MaskChain>(
                 );
                 if let Some(score) = adopt {
                     chain.commit(score);
+                    moved = true;
                 }
             }
         }
@@ -396,7 +424,9 @@ pub(crate) fn run_tempered_mask_chain<C: MaskChain>(
         }
         for (slot, &beta) in ladder.iter().enumerate() {
             let chain = &mut replicas[holder[slot]];
+            let before = chain.current_score();
             if chain.exact_move(rng, beta) {
+                moved |= slot == 0 && chain.current_score().to_bits() != before.to_bits();
                 continue;
             }
             let invalid = chain.propose(rng);
@@ -412,6 +442,7 @@ pub(crate) fn run_tempered_mask_chain<C: MaskChain>(
             }
             if let Some(score) = adopt {
                 chain.commit(score);
+                moved |= slot == 0;
             }
         }
         if replicas.len() > 1 && step % SWAP_EVERY == 0 {
@@ -420,11 +451,16 @@ pub(crate) fn run_tempered_mask_chain<C: MaskChain>(
                 let log_r = (ladder[slot] - ladder[slot + 1])
                     * (hot.current_score() - cold.current_score());
                 if log_r >= 0.0 || rng.next_f64() < log_r.exp() {
+                    let differs = hot.current_score().to_bits() != cold.current_score().to_bits();
                     holder.swap(slot, slot + 1);
+                    moved |= slot == 0 && differs;
                 }
             }
         }
-        if step >= plan.n_warmup && (step - plan.n_warmup) % plan.thin == 0 && kept < plan.n_draws {
+        if step >= plan.n_warmup
+            && (step - plan.n_warmup).is_multiple_of(plan.thin)
+            && kept < plan.n_draws
+        {
             let cold = &replicas[holder[0]];
             cold.record(&mut traces[kept * plan.n_params..(kept + 1) * plan.n_params]);
             scores[kept] = cold.current_score();
@@ -432,7 +468,7 @@ pub(crate) fn run_tempered_mask_chain<C: MaskChain>(
             kept += 1;
         }
     }
-    Ok(MaskChainOutput { traces, samples, rejected, scores })
+    Ok(MaskChainOutput { traces, samples, rejected, scores, moved })
 }
 
 /// Diagnostics from edge-indicator traces, then optional publish gate.
@@ -448,11 +484,15 @@ pub(crate) fn diagnostics_from_traces(
     traces: &[f64],
     scores: &[f64],
     n_params: usize,
+    chains_moved: bool,
     require_gate: bool,
     refuse_msg: &'static str,
 ) -> Result<(InferenceDiagnostics, GraphChainSummary), DiscoveryError> {
     let (n_chains, _, n_draws, _) = schedule.as_usize();
-    let summary = graph_chain_summary(traces, n_chains, n_draws, n_params);
+    let mut summary = graph_chain_summary(traces, n_chains, n_draws, n_params);
+    // The kept draws of a chain on a posterior the data decide never change, so movement is
+    // judged over the whole run: every chain's state changed at some step, warmup included.
+    summary.all_chains_moved |= chains_moved;
     let diagnostics = mcmc_graph_diagnostics(&GraphMcmcRun {
         n_chains: schedule.n_chains,
         n_warmup: schedule.n_warmup,
@@ -500,9 +540,10 @@ fn push_gate_notes(
         format!("gate_moved={}", verdict(summary.all_chains_moved)),
         format!("gate_mcse={}", verdict(mcse_ok)),
         format!(
-            "gate_chain_deviation={} z={:.2} at_param={}",
+            "gate_chain_deviation={} z={:.2} limit={:.2} at_param={}",
             verdict(agreement.deviation_ok()),
             agreement.max_deviation_z,
+            agreement.deviation_limit,
             agreement.worst_param.map_or_else(|| "none".to_string(), |p| p.to_string())
         ),
         format!(
@@ -529,8 +570,12 @@ pub(crate) fn aggregate_mask_posterior(
 ) -> Result<GraphPosterior, DiscoveryError> {
     let mut counts: HashMap<AdjacencyMask, u64> = HashMap::new();
     for chain_samples in sample_masks {
-        for &m in chain_samples {
-            *counts.entry(m).or_insert(0) += 1;
+        for m in chain_samples {
+            if let Some(count) = counts.get_mut(m) {
+                *count += 1;
+            } else {
+                counts.insert(m.clone(), 1);
+            }
         }
     }
     let total: f64 = counts.values().map(|&c| c as f64).sum();
@@ -540,7 +585,7 @@ pub(crate) fn aggregate_mask_posterior(
     // Atoms in mask order, so one seed gives one posterior object (a hash map's order differs
     // from run to run).
     let mut counted: Vec<(AdjacencyMask, u64)> = counts.into_iter().collect();
-    counted.sort_unstable_by_key(|&(mask, _)| mask);
+    counted.sort_unstable_by(|a, b| a.0.cmp(&b.0));
     let mut masks = Vec::with_capacity(counted.len());
     let mut weights = Vec::with_capacity(counted.len());
     for (m, c) in counted {
@@ -569,6 +614,8 @@ pub(crate) struct FinishMaskPosterior<'a> {
     pub sample_masks: &'a [Vec<AdjacencyMask>],
     pub rejected: u64,
     pub n_params: usize,
+    /// Whether every chain's state changed at some step of the run ([`MaskChainOutput::moved`]).
+    pub chains_moved: bool,
     /// `(from, to)` of each trace parameter, in trace order (for placing per-edge MCSE).
     pub param_edges: &'a [(usize, usize)],
     pub require_gate: bool,
@@ -583,6 +630,7 @@ impl FinishMaskPosterior<'_> {
             self.traces,
             self.scores,
             self.n_params,
+            self.chains_moved,
             self.require_gate,
             self.refuse_msg,
         )?;
@@ -627,9 +675,9 @@ mod tests {
     fn worker_partition_respects_nondivisible_thread_limit() {
         let workers = AtomicUsize::new(0);
         let ctx = ExecutionContext::production(0, 2);
-        let (traces, samples, _, _) = run_parallel_mask_chains(&ctx, 5, 4, 1, |chain, _| {
+        let (traces, samples, _, _, _) = run_parallel_mask_chains(&ctx, 5, 4, 1, |chain, _| {
             workers.fetch_add(1, Ordering::Relaxed);
-            Ok((vec![chain as f64; 4], vec![chain as u64; 4], 0, vec![0.0; 4]))
+            Ok((vec![chain as f64; 4], vec![chain as u64; 4], 0, vec![0.0; 4], true))
         })
         .unwrap();
         assert_eq!(workers.load(Ordering::Relaxed), 5);
@@ -657,11 +705,32 @@ mod tests {
 
         let schedule = GraphMcmcSchedule { n_chains: 2, n_warmup: 0, n_draws: 50, thin: 1 };
         let scores = vec![0.0; n_chains * n_draws];
-        assert!(diagnostics_from_traces(&schedule, &traces, &scores, 1, true, "refused").is_err());
+        assert!(
+            diagnostics_from_traces(&schedule, &traces, &scores, 1, false, true, "refused")
+                .is_err()
+        );
         let (d, _) =
-            diagnostics_from_traces(&schedule, &traces, &scores, 1, false, "refused").unwrap();
+            diagnostics_from_traces(&schedule, &traces, &scores, 1, false, false, "refused")
+                .unwrap();
         assert!(!d.converged);
         assert!(d.notes.iter().any(|n| n.starts_with("edge_mcse_max=")));
+    }
+
+    /// A posterior the data decide leaves every kept draw at one graph. Chains that moved during
+    /// warmup and agree on it are converged; chains that never moved at all are not.
+    #[test]
+    fn decided_posterior_passes_only_when_the_chains_moved_during_the_run() {
+        let (n_chains, n_draws) = (4usize, 200usize);
+        let traces = vec![1.0; n_chains * n_draws];
+        let scores = vec![-3.5; n_chains * n_draws];
+        let schedule = GraphMcmcSchedule { n_chains: 4, n_warmup: 100, n_draws: 200, thin: 1 };
+        let (d, _) =
+            diagnostics_from_traces(&schedule, &traces, &scores, 1, true, true, "refused").unwrap();
+        assert!(d.converged);
+        assert!(
+            diagnostics_from_traces(&schedule, &traces, &scores, 1, false, true, "refused")
+                .is_err()
+        );
     }
 
     /// Covered edges against hand-checked graphs: a fork's edges are all covered, a chain's last
@@ -670,15 +739,17 @@ mod tests {
     fn covered_edges_match_hand_checked_graphs() {
         let n = 3;
         let build = |edges: &[(usize, usize)]| {
-            edges.iter().fold(AdjacencyMask::EMPTY, |m, &(a, b)| set_edge(m, n, a, b, true))
+            edges.iter().fold(AdjacencyMask::EMPTY, |m, &(a, b)| {
+                crate::adjacency_mask::set_edge(m, n, a, b, true)
+            })
         };
-        assert_eq!(covered_edges(build(&[(0, 1), (0, 2)]), n), [(0, 1), (0, 2)]);
-        assert_eq!(covered_edges(build(&[(0, 1), (1, 2)]), n), [(0, 1)]);
-        assert!(covered_edges(build(&[(0, 2), (1, 2)]), n).is_empty());
+        assert_eq!(covered_edges(&build(&[(0, 1), (0, 2)]), n), [(0, 1), (0, 2)]);
+        assert_eq!(covered_edges(&build(&[(0, 1), (1, 2)]), n), [(0, 1)]);
+        assert!(covered_edges(&build(&[(0, 2), (1, 2)]), n).is_empty());
         // Reversing a covered edge keeps the covered edge covered, in the other direction.
         let fork = build(&[(0, 1), (0, 2)]);
-        let flipped = reversed_edge(fork, n, 0, 1);
-        assert_eq!(covered_edges(flipped, n), [(1, 0)]);
+        let flipped = reversed_edge(&fork, n, 0, 1);
+        assert_eq!(covered_edges(&flipped, n), [(1, 0)]);
     }
 
     /// The ladder must start at the target and cool strictly.

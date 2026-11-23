@@ -19,10 +19,10 @@ use antecedent_identify::BoundTransportFunctional;
 
 use crate::error::EstimationError;
 
-/// Licensed default estimator id.
+/// Supported default estimator id.
 pub const EMPIRICAL_TABLE_PLUGIN: &str = "transport.empirical_table_plugin";
 
-/// Named but unlicensed smoothing choice.
+/// Named but unsupported smoothing choice.
 pub(crate) const EMPIRICAL_TABLE_DIRICHLET: &str = "transport.empirical_table_dirichlet";
 
 /// Bayesian-bootstrap draw from the empirical support of a finite joint.
@@ -161,7 +161,7 @@ impl BayesianLawDrawer {
                 sample.snapshot_identity.clone(),
                 LawTolerance::default(),
             )
-            .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+            .map_err(EstimationError::from)?;
             result.insert(key.clone(), law);
         }
         Ok((self.supplied.clone(), result))
@@ -245,7 +245,7 @@ pub(crate) fn draw_empirical_support_transport_law(
 ///
 /// The full Cartesian state space is explicit in `axes`. Every cell receives one unit
 /// of prior mass, including cells never observed in the sample. This is a distinct
-/// posterior law from the empirical-support bootstrap and must not inherit its license.
+/// posterior law from the empirical-support bootstrap and must not inherit its support.
 /// # Errors
 /// Invalid domains or rows, missing observations, empty samples, or excessive size.
 #[cfg(test)]
@@ -278,7 +278,7 @@ fn draw_transport_law(
         sample.snapshot_identity.clone(),
         LawTolerance::default(),
     )
-    .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+    .map_err(EstimationError::from)?;
     Ok(BayesianTransportLawDraw {
         estimator: Arc::from(if prior > 0.0 {
             STATE_SPACE_DIRICHLET
@@ -294,11 +294,11 @@ fn draw_transport_law(
 pub enum EmpiricalTableEstimator {
     /// Frequencies from fully observed samples, no pseudocounts.
     Plugin,
-    /// Named Dirichlet / pseudocount smoother. Not licensed in T6.1.
+    /// Named Dirichlet / pseudocount smoother.
     Dirichlet,
-    /// Bayesian bootstrap law on the empirical row support. Not yet support licensed.
+    /// Bayesian bootstrap law on the empirical row support.
     EmpiricalSupportBayesianBootstrap,
-    /// Full declared-state-space Dirichlet posterior. Not yet support licensed.
+    /// Full declared-state-space Dirichlet posterior.
     StateSpaceDirichlet,
     /// Model-based finite categorical joint; independently uncalibrated.
     Learned(crate::LearnerSpec),
@@ -330,7 +330,7 @@ impl EmpiricalTableEstimator {
 /// Inference settings for the empirical-table path.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EmpiricalTableOptions {
-    /// Estimator. Plugin and learned categorical are licensed; Dirichlet is not.
+    /// Estimator. Plugin and learned categorical are supported; Dirichlet is not.
     pub estimator: EmpiricalTableEstimator,
     /// Outer bootstrap replicates. Zero withholds the interval.
     pub bootstrap_replicates: u32,
@@ -500,26 +500,29 @@ pub struct StatisticalTransportInput {
 ///
 /// # Errors
 /// Empty or missing observations, values outside the catalog domain, cardinality overflow,
-/// or an unlicensed smoother.
+/// or an unsupported smoother.
 pub fn fit_empirical_joint(
     sample: &RegimeSample,
     axes: &[DiscreteAxis],
     options: &EmpiricalTableOptions,
-    rows: Option<&[u32]>,
+    rows: Option<&[antecedent_data::GlobalId]>,
 ) -> Result<ExactDiscreteLaw, EstimationError> {
     if options.estimator != EmpiricalTableEstimator::Plugin {
-        return Err(EstimationError::Refused {
-            code: antecedent_core::reason_code!("transport_unsupported_evaluator"),
-            message: format!(
-                "{} is not a licensed transport provider; use {}",
+        return Err(EstimationError::refused(
+            antecedent_core::reason_code!("transport_unsupported_evaluator"),
+            format!(
+                "{} is not a supported transport provider; use {}",
                 options.estimator.as_str(),
                 EMPIRICAL_TABLE_PLUGIN
             ),
-        });
+        ));
     }
     validate_options(options)?;
     let n = sample.n();
-    if n == 0 || n > u32::MAX as usize || sample.columns.values().any(|column| column.len() != n) {
+    if n == 0
+        || u64::try_from(n).is_err()
+        || sample.columns.values().any(|column| column.len() != n)
+    {
         return Err(EstimationError::data_msg(
             "empirical columns must have equal, nonzero representable lengths",
         ));
@@ -533,7 +536,19 @@ pub fn fit_empirical_joint(
     let mut complete = 0.0;
     let n = sample.n();
     let take: Box<dyn Iterator<Item = usize>> = match rows {
-        Some(index) => Box::new(index.iter().map(|i| *i as usize)),
+        Some(index) => {
+            let positions = index
+                .iter()
+                .map(|id| {
+                    usize::try_from(id.get()).map_err(|_| {
+                        EstimationError::data_msg(
+                            "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                        )
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            Box::new(positions.into_iter())
+        }
         None => Box::new(0..n),
     };
     for row in take {
@@ -561,7 +576,7 @@ pub fn fit_empirical_joint(
         sample.snapshot_identity.clone(),
         LawTolerance::default(),
     )
-    .map_err(|e| EstimationError::data_msg(e.to_string()))
+    .map_err(EstimationError::from)
 }
 
 /// First index of each finite level under `f64` equality, including signed zero.
@@ -596,7 +611,7 @@ fn fit_statistical_joint(
     sample: &RegimeSample,
     axes: &[DiscreteAxis],
     options: &EmpiricalTableOptions,
-    rows: Option<&[u32]>,
+    rows: Option<&[antecedent_data::GlobalId]>,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<ExactDiscreteLaw, EstimationError> {
     let EmpiricalTableEstimator::Learned(learner) = options.estimator else {
@@ -608,8 +623,19 @@ fn fit_statistical_joint(
         &EmpiricalTableOptions { estimator: EmpiricalTableEstimator::Plugin, ..*options },
         rows,
     )?;
-    let indexes: Vec<usize> =
-        rows.map_or_else(|| (0..sample.n()).collect(), |r| r.iter().map(|v| *v as usize).collect());
+    let indexes: Vec<usize> = match rows {
+        Some(index) => index
+            .iter()
+            .map(|id| {
+                usize::try_from(id.get()).map_err(|_| {
+                    EstimationError::data_msg(
+                        "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                    )
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+        None => (0..sample.n()).collect(),
+    };
     let level_index: Vec<HashMap<u64, usize>> =
         axes.iter().map(|axis| categorical_level_index(&axis.values)).collect();
     let columns = axes
@@ -650,18 +676,18 @@ fn fit_statistical_joint(
         LawTolerance::default(),
     )
     .and_then(|law| law.with_learned_support(model.counts().to_vec()))
-    .map_err(|e| EstimationError::data_msg(e.to_string()))
+    .map_err(EstimationError::from)
 }
 
 /// Assemble supplied + fitted joints after checking provider coverage.
 ///
 /// # Errors
-/// Missing providers, convenience target samples, unlicensed smoothers, or domain errors.
+/// Missing providers, convenience target samples, unsupported smoothers, or domain errors.
 pub(crate) fn assemble_statistical_laws(
     input: &StatisticalTransportInput,
     functional: &BoundTransportFunctional,
     options: &EmpiricalTableOptions,
-    row_indexes: &BTreeMap<SampleKey, Vec<u32>>,
+    row_indexes: &BTreeMap<SampleKey, Vec<antecedent_data::GlobalId>>,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<ExactTransportData, EstimationError> {
     assemble_laws(input, functional, options, row_indexes, true, ctx)
@@ -670,15 +696,15 @@ fn assemble_laws(
     input: &StatisticalTransportInput,
     functional: &BoundTransportFunctional,
     options: &EmpiricalTableOptions,
-    row_indexes: &BTreeMap<SampleKey, Vec<u32>>,
+    row_indexes: &BTreeMap<SampleKey, Vec<antecedent_data::GlobalId>>,
     require_coverage: bool,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<ExactTransportData, EstimationError> {
     if options.estimator == EmpiricalTableEstimator::Dirichlet {
-        return Err(EstimationError::Refused {
-            code: antecedent_core::reason_code!("transport_unsupported_evaluator"),
-            message: format!("{} is not licensed", options.estimator.as_str()),
-        });
+        return Err(EstimationError::refused(
+            antecedent_core::reason_code!("transport_unsupported_evaluator"),
+            format!("{} is not supported", options.estimator.as_str()),
+        ));
     }
     validate_options(options)?;
     let catalog = functional.catalog();
@@ -739,11 +765,9 @@ fn assemble_laws(
                 sample.snapshot_identity.clone(),
                 joint.tolerance(),
             )
-            .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+            .map_err(EstimationError::from)?;
             if let Some(counts) = joint.empirical_counts() {
-                alias
-                    .with_empirical_counts(counts.to_vec())
-                    .map_err(|e| EstimationError::data_msg(e.to_string()))?
+                alias.with_empirical_counts(counts.to_vec()).map_err(EstimationError::from)?
             } else {
                 alias
             }
@@ -763,8 +787,7 @@ fn assemble_laws(
     if require_coverage {
         require_leaf_providers(functional, &laws, input)?;
     }
-    ExactTransportData::try_new(laws, options.max_joint_cells.max(1))
-        .map_err(|e| EstimationError::data_msg(e.to_string()))
+    ExactTransportData::try_new(laws, options.max_joint_cells.max(1)).map_err(EstimationError::from)
 }
 
 /// Point-estimate assembly (no resampling).
@@ -877,15 +900,15 @@ fn catalog_axes_bounded(
 
 /// Whether every estimated binding is IID independent studies.
 #[must_use]
-pub fn licensed_iid_dependence(catalog: &EvidenceCatalog, samples: &[RegimeSample]) -> bool {
-    licensed_iid_regimes(catalog, samples.iter().map(|sample| sample.regime))
+pub fn supported_iid_dependence(catalog: &EvidenceCatalog, samples: &[RegimeSample]) -> bool {
+    supported_iid_regimes(catalog, samples.iter().map(|sample| sample.regime))
 }
 
-/// [`licensed_iid_dependence`] over bare regime ids, for callers that hold a sample
+/// [`supported_iid_dependence`] over bare regime ids, for callers that hold a sample
 /// summary rather than the samples. A catalog binds one dataset per regime, so the
 /// regime's binding is unique.
 #[must_use]
-pub fn licensed_iid_regimes(
+pub fn supported_iid_regimes(
     catalog: &EvidenceCatalog,
     regimes: impl IntoIterator<Item = RegimeId>,
 ) -> bool {
@@ -899,7 +922,7 @@ pub fn licensed_iid_regimes(
     })
 }
 
-/// Stable reason when a licensed interval cannot be claimed.
+/// Stable reason when a supported interval cannot be claimed.
 #[must_use]
 pub fn dependence_refusal(
     catalog: &EvidenceCatalog,
@@ -908,7 +931,7 @@ pub fn dependence_refusal(
     if samples.is_empty() {
         return Some("no_estimated_regime");
     }
-    if licensed_iid_dependence(catalog, samples) {
+    if supported_iid_dependence(catalog, samples) {
         None
     } else {
         Some("transport.unsupported_dependence")
@@ -939,10 +962,10 @@ fn require_leaf_providers(
     for (_, leaf) in functional.leaf_factors() {
         let population = leaf.binding.population.as_ref();
         let Some(regime) = leaf.binding.regime else {
-            return Err(EstimationError::Refused {
-                code: antecedent_core::reason_code!("transport_missing_provider"),
-                message: "certified leaf is missing a catalog regime binding".into(),
-            });
+            return Err(EstimationError::refused(
+                antecedent_core::reason_code!("transport_missing_provider"),
+                "certified leaf is missing a catalog regime binding",
+            ));
         };
         let covered =
             laws.iter().any(|law| law.population() == population && law.regime() == regime)
@@ -950,12 +973,12 @@ fn require_leaf_providers(
                     sample.population.as_ref() == population && sample.regime == regime
                 });
         if !covered {
-            return Err(EstimationError::Refused {
-                code: antecedent_core::reason_code!("transport_missing_provider"),
-                message: format!(
+            return Err(EstimationError::refused(
+                antecedent_core::reason_code!("transport_missing_provider"),
+                format!(
                     "available regime {regime:?} in {population} has neither a supplied law nor a bound sample"
                 ),
-            });
+            ));
         }
     }
     Ok(())
@@ -1095,7 +1118,7 @@ fn law_error(sample: &RegimeSample, kind: &'static str) -> ExactLawError {
 }
 
 fn law_err(sample: &RegimeSample, kind: &'static str) -> EstimationError {
-    EstimationError::data_msg(law_error(sample, kind).to_string())
+    EstimationError::ExactLaw(law_error(sample, kind))
 }
 
 #[cfg(test)]
@@ -1282,14 +1305,14 @@ mod tests {
             &sample(2, 1, 1, 2),
             &axes,
             &EmpiricalTableOptions::default(),
-            Some(&[u32::MAX]),
+            Some(&[antecedent_data::GlobalId::new(u64::from(u32::MAX))]),
         )
         .unwrap_err();
         assert!(!matches!(other, EstimationError::EmptyEmpiricalSample { .. }));
     }
 
     #[test]
-    fn dirichlet_is_an_unlicensed_evaluator() {
+    fn dirichlet_is_an_unsupported_evaluator() {
         let err = fit_empirical_joint(
             &sample(1, 0, 0, 0),
             &[DiscreteAxis {

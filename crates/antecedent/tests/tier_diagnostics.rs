@@ -4,7 +4,7 @@
 //! truth). The E-value oracle is written here from the raw outcome column and the reported
 //! effect, not by calling the code that attaches it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::float_cmp, reason = "scenario effects are copied, not recomputed")]
 
@@ -105,8 +105,11 @@ fn oracle_point_evalue(data: &TabularData, effect: f64) -> f64 {
 
 fn assert_interval_withheld(diagnostics: &TierDiagnostics) {
     let interval = &diagnostics.evalue.interval;
-    assert_eq!(interval.code, "cell_not_licensed");
-    assert_eq!(interval.detail, "tier_diagnostics.evalue_interval_withheld");
+    assert_eq!(interval.code, "diagnostic_not_available");
+    assert_eq!(
+        interval.detail,
+        antecedent_core::reason_details::tier_diagnostics::NO_EVALUE_INTERVAL_METHOD
+    );
 }
 
 #[test]
@@ -123,7 +126,14 @@ fn codetermined_diagnostics_consume_the_executed_design_overlap_and_point_evalue
         panic!("a CoDetermined study reports the closure design, got {:?}", diagnostics.design);
     };
     assert_eq!(adjustment, &[schema.id_of("z").unwrap(), schema.id_of("u").unwrap()]);
-    assert_eq!(*rows, result.estimate.as_effect().unwrap().provenance.n_obs);
+    // Every one of the 3 000 generated rows is complete, so the fit used all of them.
+    assert_eq!(*rows, Some(3_000));
+    // Known truth: y = 2 t + z - 0.5 u + e with z, u adjusted.
+    assert!(
+        (result.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.12,
+        "AIPW effect {}",
+        result.estimate().as_effect().unwrap().ate
+    );
     assert!(*propensity_scored);
 
     // Overlap is the estimator's own report on that design, never a refit.
@@ -132,7 +142,7 @@ fn codetermined_diagnostics_consume_the_executed_design_overlap_and_point_evalue
     };
     assert_eq!(
         Some(report),
-        result.estimate.as_effect().unwrap().diagnostics.overlap_report.as_ref()
+        result.estimate().as_effect().unwrap().diagnostics.overlap_report.as_ref()
     );
     assert!(0.0 < report.propensity_min && report.propensity_min < report.propensity_max);
     assert!(report.propensity_max < 1.0);
@@ -144,7 +154,7 @@ fn codetermined_diagnostics_consume_the_executed_design_overlap_and_point_evalue
     let Availability::Available(point) = &diagnostics.evalue.point else {
         panic!("the tier cell attaches a point E-value");
     };
-    let expected = oracle_point_evalue(&data, result.estimate.as_effect().unwrap().ate);
+    let expected = oracle_point_evalue(&data, result.estimate().as_effect().unwrap().ate);
     assert!((point.value - expected).abs() <= 1e-9 * expected, "{} vs {expected}", point.value);
     assert!(point.value > 1.0);
     assert_eq!(point.method.as_ref(), "vanderweele_outcome_sd");
@@ -155,20 +165,27 @@ fn codetermined_diagnostics_consume_the_executed_design_overlap_and_point_evalue
 fn an_evalue_refuter_value_embeds_an_interval_endpoint_and_is_not_a_point_value() {
     let data = codetermined_data(3_000, 41);
     let ctx = ExecutionContext::for_tests(41);
-    // A tiered study refuses the Cheap refuter suite (no licensed scalar-refuter state), so a
+    // A tiered study refuses the Cheap refuter suite (no supported scalar-refuter state), so a
     // refuter-mirrored E-value is constructed on an executed result the way the mirror sets it.
+    let refusal = codetermined_study(&data, RefuteSuite::Cheap)
+        .build()
+        .expect_err("the Cheap suite is not supported on a tiered study");
     assert!(
-        codetermined_study(&data, RefuteSuite::Cheap).build().is_err(),
-        "the Cheap suite is not licensed on a tiered study"
+        refusal.to_string().starts_with("not_applicable:")
+            && refusal.to_string().contains("no supported scalar-refuter state"),
+        "{refusal}"
     );
     let mut result =
         codetermined_study(&data, RefuteSuite::None).build().unwrap().run(&ctx).unwrap();
-    let effect = result.estimate.as_effect_mut().expect("an effect estimate");
+    let effect = result.estimate_mut().as_effect_mut().expect("an effect estimate");
     effect.diagnostics.evalue_threshold = Some(1.5);
     let diagnostics = tier_diagnostics(&result, &ctx).unwrap();
     let reason = diagnostics.evalue.point.unavailable().expect("a limit-minimum is not a point");
     assert_eq!(reason.code, "diagnostic_not_available");
-    assert_eq!(reason.detail, "tier_diagnostics.evalue_embeds_interval_limit");
+    assert_eq!(
+        reason.detail,
+        antecedent_core::reason_details::tier_diagnostics::EVALUE_EMBEDS_INTERVAL_LIMIT
+    );
     assert_interval_withheld(&diagnostics);
     // The overlap report of the same design is still carried.
     assert!(diagnostics.overlap.available().is_some());
@@ -204,17 +221,27 @@ fn unknown_scenarios_state_the_declared_orientations_and_no_fabricated_diagnosti
     assert_eq!(scenarios[0].adjustment, vec![era]);
     assert_eq!(scenarios[1].method.as_ref(), "tiered.unknown.closure");
     assert_eq!(scenarios[1].adjustment, vec![era, m]);
-    let effects = result.estimate.as_effect().unwrap().scenarios.effects.as_ref().unwrap();
+    let effects = result.estimate().as_effect().unwrap().scenarios.effects.as_ref().unwrap();
     assert_eq!(scenarios[0].effect, effects[0]);
     assert_eq!(scenarios[1].effect, effects[1]);
+    // Known truths of the generator: the pretreatment scenario (adjust era) recovers the
+    // total effect -1 + 2 = 1, the closure scenario (adjust era and m) the direct effect -1.
+    assert!((effects[0] - 1.0).abs() < 0.15, "pretreatment scenario effect {}", effects[0]);
+    assert!((effects[1] + 1.0).abs() < 0.15, "closure scenario effect {}", effects[1]);
 
     // No propensity, no single effect: each is a typed absence with its own detail.
     let overlap = diagnostics.overlap.unavailable().expect("no overlap on the Unknown cell");
     assert_eq!(overlap.code, "diagnostic_not_available");
-    assert_eq!(overlap.detail, "tier_diagnostics.unknown_scenarios_no_overlap");
+    assert_eq!(
+        overlap.detail,
+        antecedent_core::reason_details::tier_diagnostics::UNKNOWN_SCENARIOS_NO_OVERLAP
+    );
     let point = diagnostics.evalue.point.unavailable().expect("no E-value across scenarios");
     assert_eq!(point.code, "diagnostic_not_available");
-    assert_eq!(point.detail, "tier_diagnostics.unknown_scenarios_no_evalue");
+    assert_eq!(
+        point.detail,
+        antecedent_core::reason_details::tier_diagnostics::UNKNOWN_SCENARIOS_NO_EVALUE
+    );
     assert_interval_withheld(&diagnostics);
 }
 
@@ -226,14 +253,14 @@ fn diagnostics_are_the_same_off_the_fresh_click_and_refreshed_results_and_the_ar
     let fresh = builder.clone().build().unwrap().run(&ctx).unwrap();
     let mut prepared = builder.build().unwrap().prepare(&ctx).unwrap();
     let click = prepared.estimate(&data, &ctx).unwrap();
-    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     let reference = tier_diagnostics(&fresh, &ctx).unwrap();
     let (ref_report, ref_point) = (
         reference.overlap.available().expect("overlap report"),
         reference.evalue.point.available().expect("point E-value"),
     );
     for result in [&click, &refreshed] {
-        assert_eq!(result.support_status, Some(CellStatus::Licensed));
+        assert_eq!(result.support_status(), Some(CellStatus::Supported));
         let again = tier_diagnostics(result, &ctx).unwrap();
         // The fresh run and the prepared lifecycle agree to the estimator's own tolerance.
         assert_eq!(again.design, reference.design);
@@ -250,9 +277,9 @@ fn diagnostics_are_the_same_off_the_fresh_click_and_refreshed_results_and_the_ar
     // The diagnostics are a view over the result: the result's own artifact is consumed by
     // the independent verifier before the view is trusted.
     let artifact = prepared.encode_contracted_result(&refreshed, "tier-diagnostics", &ctx).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
     assert!(
-        consumed.acceptance.accepts_as_verified_program(),
+        consumed.acceptance.accepts_as_replayed_program(),
         "{:?}",
         consumed.acceptance.unresolved
     );
@@ -274,5 +301,21 @@ fn a_result_that_is_not_a_tiered_average_effect_is_refused() {
         .unwrap();
     let error = tier_diagnostics(&result, &ctx).unwrap_err();
     assert_eq!(error.code, "invalid_argument");
-    assert_eq!(error.detail, "tier_diagnostics.not_a_tiered_average_result");
+    assert_eq!(
+        error.detail,
+        antecedent_core::reason_details::tier_diagnostics::NOT_A_TIERED_AVERAGE_RESULT
+    );
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

@@ -1,12 +1,31 @@
-# Causal responses
+# Estimate responses, derivatives and outcome distributions
 
-For retargeting, outcome distributions, and joint interventions, see [local targets, outcome distributions, and joint
-interventions](local-distributional-joint.md): prepare/retarget, raw CDF bands,
-unsupported tails, and non-additive joint-cell estimation.
+Use this page when the question is a function or a distribution, not one binary contrast: how
+the mean outcome changes along a continuous dose, how steep that curve is at a point, what the
+outcome distribution is under each arm, or what the outcome level is under a stated intervention
+law. You need a table, a graph (or an accepted discovery artifact) and
+[a first analysis](start/first-analysis.md) behind you.
 
-Antecedent treats a continuous causal response as more than a collection of
-binary contrasts. The scalar Python constructors retain the established
-positional convention:
+| You want | Query | Section |
+|---|---|---|
+| The mean outcome at each dose on a grid | `ResponseCurve` | [Read the result](#read-the-result-on-separate-axes) |
+| The slope, elasticity or average derivative of that curve | `PointDerivative`, `Elasticity`, `SemiElasticity`, `AverageDerivative`, `DirectionalDerivative`, `ResponseJacobian` | [Curves, derivatives, and elasticities](#curves-derivatives-and-elasticities) |
+| The mean outcome under a set, shifted or random intervention | `InterventionResponse` | [Intervention responses](#intervention-responses) |
+| The outcome distribution or a quantile under each arm | `AverageEffect(..., outcome_functional=ExceedanceGrid(...))` or `outcome_functional=Quantile(tau)` | [Read a CDF and its supported bands](#read-a-cdf-and-its-supported-bands) |
+| The effect in a reweighted population without refitting | `study.retarget(weights, depends_on=...)` | [Prepare once, change the target population](#prepare-once-change-the-target-population) |
+| A response over dose and horizon in a time series | `ResponseCurve(..., horizons=...)`, `TemporalQuery` | [Temporal simultaneous bands](#temporal-simultaneous-bands) |
+| The response of a censored or selected outcome | `ResponseCurve(..., observation=..., observation_assumptions=...)` | [Observation is not outcome](#observation-is-not-outcome) |
+
+Throughout, `A` is the treatment (dose), `Y` the outcome, `Z` the adjustment set the graph
+certifies, and `m(a) = E[Y | do(A=a)]` the mean response: the mean outcome if every unit's dose
+were set to `a`. A response curve estimates `m` on a grid you supply; the derivative queries
+estimate functionals of `m`. Identification of `m` from observational data assumes the graph is
+correct (so that `Z` blocks confounding), consistency, no interference, and positivity: units
+with covariates `Z` are observed near every requested dose.
+
+## Estimate a response curve
+
+The scalar Python constructors take the treatment first and the outcome second:
 
 ```python
 query = antecedent.ResponseCurve(
@@ -15,10 +34,22 @@ query = antecedent.ResponseCurve(
     grid=[0.5, 1.0, 1.5, 2.0],
 )
 result = antecedent.analyze(data, graph=dag, query=query)
+view = result.value
+print(view.estimate)                                   # m(a) at each grid point
+print(view.uncertainty.lower, view.uncertainty.upper)  # pointwise interval at each grid point
+print(view.support.status, view.support.warnings)
 ```
 
-The same complete-observation curve can use the established staged workflow
-when identification should be inspected before data are estimated:
+The grid must be explicit and increasing. Each returned value estimates `m(a)` at one grid point,
+and the interval beside it is pointwise: it covers that one point, not the whole curve. The
+runnable script
+[`continuous_causal_response.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/continuous_causal_response.py)
+walks through supported doses, response values and derivatives, and
+[`temporal_response_curve.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/temporal_response_curve.py)
+does the same over dose and horizon.
+
+The same complete-observation curve can use the staged workflow
+when identification should be inspected before the data are estimated:
 
 ```python
 identified = antecedent.identify(graph=dag, query=query)
@@ -26,9 +57,8 @@ print(identified.status, identified.adjustment_set)
 result = identified.estimate(data)
 ```
 
-The first positional name is the treatment and the second is the outcome.
-Scientific and numerical options are keyword-only. The same convention applies
-to `PointDerivative`, `Elasticity`, `SemiElasticity`, and
+Scientific and numerical options are keyword-only. The treatment-then-outcome
+order also applies to `PointDerivative`, `Elasticity`, `SemiElasticity`, and
 `AverageDerivative`. `DirectionalDerivative` and `ResponseJacobian` accept
 treatment and outcome sequences in that order.
 
@@ -52,11 +82,19 @@ A response result deliberately keeps four judgments separate:
    long-horizon window. Estimator-regime failures (heavy-tailed outcomes,
    floored conditional densities) are warnings and diagnostics on this
    object; they do not change `evidence_status`, which is the support-matrix
-   cell.
+   cell. For the multivariate derivatives (`DirectionalDerivative`,
+   `ResponseJacobian`) the joint label is a declared diagnostic, the
+   `nearest_row_leave_one_out_p95` criterion: `response.joint_nearest_row_distance`
+   gives the distance to the nearest observed treatment row and the threshold
+   (the 95th percentile of the rows' own leave-one-out distances), and a
+   `Supported` label reads "within observed joint support by this criterion".
+   It screens for gaps inside the marginal ranges; it is not a guarantee that
+   the response is identified or well estimated at that point.
 3. `uncertainty.kind` says what the interval means. Pointwise intervals cover
-   one grid point at a time. The Frequentist Kennedy-DR estimator can instead request a fixed-grid
-   simultaneous band with `response_options(...)`; Python uses
-   `estimator_config={"bandwidth": ..., "simultaneous_replicates": ...}`.
+   one grid point at a time. The Frequentist Kennedy-DR estimator can instead publish a fixed-grid
+   simultaneous band: in Python pass
+   `estimator_config={"bandwidth": ..., "simultaneous_replicates": ...}`; in Rust set the same
+   fields through the builder's `response_options(...)`.
    The explicit bandwidth is required: Antecedent does not silently invent an
    undersmoothing rule. The band uses a deterministic Rademacher multiplier
    construction conditional on the cross-fitted pseudo-outcome. It does not
@@ -72,28 +110,31 @@ A response result deliberately keeps four judgments separate:
    standard deviation, and it makes no frequentist coverage claim). Bayesian
    inference publishes credible intervals; an interval built from influence
    scores or a bootstrap is a confidence interval even inside a Bayesian
-   study. Coverage records in `parity/coverage_records.toml` key on
-   `inference`, so a `Bayesian` record measures a credible interval's
-   frequentist coverage and a `Frequentist` record a confidence interval's.
+   study. Coverage measurements are keyed on `inference`, so a `Bayesian`
+   record measures a credible interval's frequentist coverage and a
+   `Frequentist` record a confidence interval's.
 4. `assumptions` and `provenance` record the claims and algorithm used. Do not
    infer an observation assumption merely from an observation-mechanism column.
+   To cite the published methods behind the route, read `result.method_provenance`
+   and `result.citations()` (see [citing a study](guides/citing-a-study.md)).
 
 Inspect warnings and diagnostics even when a numerical estimate is present:
 
 ```python
-print(result.identification)
-print(result.identification.horizon_adjustment_sets)
-print(result.support.status)
-print(result.support.point_status)
-print(result.support.warnings)
-print(result.uncertainty.kind)
-print(result.provenance)
-print(result.evidence_status)
+view = result.value                    # the specialized response view of the Outcome
+print(view.identification)
+print(view.identification.horizon_adjustment_sets)
+print(view.support.status)
+print(view.support.point_status)
+print(view.support.warnings)
+print(view.uncertainty.kind)
+print(view.provenance)
+print(view.evidence_status)
 ```
 
-Every successful analysis has `evidence_status == "licensed"`.
-`allowed_unlicensed` remains a legacy wire value, but the active allowlist is
-empty and the release gate rejects new entries. A licensed cell can still carry
+In a release build every successful analysis has `evidence_status == "supported"`;
+a development build can also return `"not_supported"`, with the reasons in
+`would_refuse`. A supported cell can still carry
 a scientifically untrustworthy number; read `support.warnings` before treating
 the curve as a claim.
 
@@ -139,11 +180,11 @@ result = accepted.analyze(data, query)
 ```
 
 When the accepted graph is a DAG, this is the same response identification and
-estimation path as a hand-authored DAG. The artifact version does not change on
-an estimate click.
+estimation path as a hand-authored DAG. Estimating does not change the accepted
+artifact's version.
 
-`Cpdag` and `Pag` response queries are licensed through the same completion
-envelope as ATE: `analyze()` and `PreparedAnalysis` mass-weight identified
+`Cpdag` and `Pag` response queries are supported through the same completion
+envelope as ATE: `analyze()` and prepared studies mass-weight identified
 completions and keep the runtime class. Each completion is identified by
 (generalized) adjustment first. A single-treatment response on a completion
 with no adjustment set then falls back to Shpitser–Pearl ID: on a `Cpdag`
@@ -157,13 +198,13 @@ is mixed only when every completion is identified and every contributing
 atom supplies an aligned IF; unidentified mass NaNs the envelope SE
 rather than publishing a primary-atom interval. That is not
 PAG-native response identification. `Admg` response, `TemporalCpdag`/`TemporalPag` response, and mixtures over
-graph posteriors are licensed on the cells the
+graph posteriors are supported on the cells the
 [support matrix](support-matrix.md) lists, each with its own evidence row;
 everything not listed there is refused.
 
 ## Validation on a function-valued response
 
-Response queries license validation `none` only. Leave the query's default
+Response queries support validation `none` only. Leave the query's default
 unchanged or pass `refute="none"`. Requesting `cheap`, `full`, or another scalar
 refuter suite raises `CausalUnsupportedError`; these suite names do not denote
 function-valued validation. The returned support diagnostics still describe
@@ -185,13 +226,13 @@ result = antecedent.analyze(
 study = result.study
 report = result.inspect().to_dict()
 response_bytes = result.export()
-loaded = antecedent.load(response_bytes)
-assert loaded.acceptance.verified or loaded.acceptance.sealed
+loaded = antecedent.load(bytes(response_bytes), expected=response_bytes.expectation)
+assert loaded.acceptance.recognized
 assert loaded.answer == result.answer
-repeated = study.estimate()
+repeated = antecedent.estimate(study)
 ```
 
-Explicit and accepted DAGs, TemporalDAGs, CPDAGs, and PAGs are licensed for
+Explicit and accepted DAGs, TemporalDAGs, CPDAGs, and PAGs are supported for
 `ResponseCurve` and `InterventionResponse` under the documented Gaussian
 additive forms. Static responses use `response.bayesian`; temporal responses
 use `response.temporal.bayesian` and retain identification and support per
@@ -210,6 +251,64 @@ MA(h−1) whenever the outcome or treatment is persistent, and serially dependen
 at every horizon under autocorrelated innovations. Kennedy-DR regularity and row-influence
 diagnostics below describe the Frequentist estimator, not these Bayesian
 posteriors.
+
+## Ask a derivative or cross-world question over time
+
+`TemporalQuery` attaches temporal geometry (the horizons, a treatment lag, the history length and the policy) to a derivative or an unfolded cross-world query, so the same typed question can be asked of a `TemporalDag`. It wraps `AverageDerivative`, `PointDerivative`, `Elasticity`, `SemiElasticity`, `DirectionalDerivative`, `ResponseJacobian`, `Counterfactual`, `NestedCounterfactual`, `InterventionalDistribution` or `PathSpecificEffect`; anything else is refused. The wrapped query keeps its meaning: the derivative retains the horizon and policy on its response query, and the cross-world families keep their existing one-lag unfolded mechanism.
+
+The fixture below is simulated: `y` at one period is `3 + 2x + 0.5b` of the previous period, so the average derivative of `y` in `x` at lag 1 is 2.
+
+```python
+import antecedent as ant
+import numpy as np
+from antecedent.graph import TemporalDag
+from antecedent.outcomes import require_success
+from antecedent.query import TemporalQuery
+
+n = 80
+x = 1 + np.sin(np.arange(n) * 0.37)
+b = np.arange(n) % 2
+y, v = np.zeros(n), np.zeros(n)
+y[1:] = 3 + 2 * x[:-1] + 0.5 * b[:-1]
+v[1:] = 1 + x[:-1] - b[:-1]
+data = ant.data.table({"x": x, "b": b, "y": y, "v": v})
+edges = [(a, 1, outcome, 0) for a in ("x", "b") for outcome in ("y", "v")]
+graph = TemporalDag.from_lagged_edges(list(data), edges)
+
+study = ant.prepare(
+    data,
+    graph=graph,
+    query=TemporalQuery(ant.AverageDerivative("x", "y"), max_history_lag=1),
+    inference=ant.Frequentist(bootstrap=0),
+    refute="none",
+    execution=ant.Execution(seed=11),
+)
+result = require_success(study.estimate())
+np.asarray(result.estimate).reshape(-1)   # close to [2.0]
+```
+
+Preparation retains the request and fits nothing; `study.estimate()` runs it, and `load(result.export())` reads back an equal answer. The diagnostics name the temporal geometry. Under `Bayesian(backend="conjugate", ...)` the same query returns a posterior; under `Frequentist(bootstrap=0)` it reports no uncertainty. Geometry that the unfolded cross-world mechanism cannot honour (more than one lag or one horizon) is refused with a message that says so, rather than silently changing the target. `TemporalQuery` does not denote the separately supplied two-slice model of [temporal counterfactuals](cross-world-execution.md).
+
+## Compose several horizons of one temporal claim
+
+A cumulative effect, a contrast between horizons or a peak built from a temporal response has the uncertainty of the realizations that refit all its horizons together. Horizons fit one by one are independent marginals and are never paired by draw index. `antecedent.horizon_composition.compose_horizons` takes joint draws (one column per horizon, row `r` of every column one realization, all under one `alignment_id`) and composes them at a horizon-indexed coordinate. A `JointHorizonDraws` read from a temporal response carries those columns and has a `compose` method with the same arguments.
+
+The columns below are a hand-checkable fixture: horizon 2 is `2x + 1` and horizon 1 is `x` on every realization.
+
+```python
+import numpy as np
+from antecedent.horizon_composition import compose_horizons
+
+x = np.linspace(-8.0, 8.0, 200)
+columns = [x, 2.0 * x + 1.0]
+composed = compose_horizons(
+    [1, 2], columns, evidence_id="series", alignment_id="replicates:200",
+    operation="contrast", coefficients=[-1.0, 1.0],
+)
+composed.variance, composed.label, composed.route
+```
+
+The contrast `h2 - h1` is `x + 1` on every row, so its variance equals the variance of `x`, not the sum of the two marginal variances. `composed.label` is `"uncalibrated_spread"` and `composed.route` is `"aligned_joint_law"`: the result is a labelled spread of the realizations, and no interval or posterior statement is made without a coverage record at the coordinate. `operation` is `sum`, `contrast`, `weighted_sum`, `product`, `nonlinear_functional` or `chained_sampling`. Give `coefficients` (one per horizon) for a linear composition, or `map=` for a nonlinear one such as `lambda values: max(values)`. A map over a linear operation, a map that returns a non-finite value, a coefficient count that differs from the horizon count and repeated horizons are refused, and no composed quantity is returned.
 
 ## Temporal simultaneous bands
 
@@ -230,7 +329,7 @@ above. With cell scales `s_j` (the SD of the replicates of cell `j`) and
 `max_j |θ*_j − θ̂_j| / s_j`, and the band is `θ̂_j ± c·s_j` (the static
 multiplier band and the Gaussian max-t critical value read the same rank). At
 least 40 joint replicates are required; otherwise
-`response.simultaneous_band_withheld` explains why no band was published. The
+`response.no_simultaneous_band_method` explains why no band was published. The
 pointwise band needs only two surviving replicates, but below 40 it carries
 `response.temporal.pointwise_band_few_replicates`: its SD is then itself noisy.
 
@@ -283,14 +382,14 @@ The block length is chosen for interval coverage, not for the mean-squared error
 of the variance. The circular-block variance behaves like a Bartlett-kernel
 long-run variance with bandwidth `ℓ`, and the testing-optimal Bartlett bandwidth
 grows like `n^{1/2}` (Sun, Phillips & Jin 2008). With the `n^{1/3}` rule of the
-scalar temporal effect resamplers, the kernel truncation bias left
-observation-adjusted bands under AR(1) `ρ = 0.5` residuals under the band for
-nominal 95% (that run was not retained), and neither a `t_ν/z` batch-means
-factor nor longer blocks under that factor repaired it. The fixed-b factor carries the extra estimation noise of the longer
+scalar temporal effect resamplers, the kernel truncation bias leaves
+observation-adjusted bands under AR(1) `ρ = 0.5` residuals below nominal 95%
+coverage, and neither a `t_ν/z` batch-means factor nor longer blocks under that
+factor repairs it. The fixed-b factor carries the extra estimation noise of the longer
 block, so independent rows are not over-covered.
 
 The kernel-bias factor is what the block length cannot buy. The Bartlett kernel
-misses `O(1/ℓ)` of a persistent influence's long-run variance at any licensed
+misses `O(1/ℓ)` of a persistent influence's long-run variance at any supported
 length (46% kept at `ℓ = 13`, 82% at `ℓ = n/3` for an AR(1) ρ = 0.9 influence at
 n = 160), and the fixed-b ratio corrects the estimation noise of the block
 variance, not its truncation. Lengthening alone does not close the gap: on the
@@ -314,7 +413,7 @@ when any cell reads fewer than 15 effective rows.
   root-node means. Both target the population level `E[Y_h | do(A)]`. With zero
   replicates no band is published: the analytic OLS band would treat lag-aligned
   rows as independent, which temporal rows are not, so the surface keeps its
-  point values and warns `estimate.temporal_response.band_withheld`.
+  point values and warns `estimate.temporal_response.no_band_method`.
 - **Frequentist observation-adjusted.** Each outer replicate additionally refits
   the observation nuisance on exactly the resampled tuples and replaces the
   outcome-time column with the replicate pseudo-outcome. Sequence overlays whose
@@ -323,8 +422,7 @@ when any cell reads fewer than 15 effective rows.
   Set / Shift designs; there a lagged outcome in the adjustment set would need
   outcome ancestry that repeats at every earlier slice, which temporal backdoor
   identification does not certify, so it refuses first. No replicate row pairs values
-  across a block junction. The raw-series replicate that an earlier release used for Sequence
-  overlays measured 31–81% coverage for a nominal 95% band and is gone.
+  across a block junction.
 - **Bayesian.** The simultaneous credible band uses posterior draws of the
   grid around the posterior mean: joint Gibbs draws for
   `estimate.temporal_observed_bayes`, and index-paired independent per-horizon
@@ -334,59 +432,58 @@ when any cell reads fewer than 15 effective rows.
   identified set (no class band; each completion atom keeps its own pointwise and
   simultaneous band, calibrated against that atom's own probability limit).
 
-In Python, `bootstrap=` on `analyze(...)` and `prepare(...)` is
+In Python, `Frequentist(bootstrap=...)` on `analyze(...)` and `prepare(...)` is
 the replicate count for Frequentist temporal `ResponseCurve` /
 `InterventionResponse` (TemporalDag surfaces and TemporalCpdag/Pag completion
-atoms). An explicit count always wins. Omitted, it follows the `latency` tier
-as prepared Pulse / Sustained do: `interactive` 0, `standard` 199, `report` 200.
-`analyze()` without a `latency` uses 199, so a band is published; the prepared
-API's default `interactive` tier publishes the point surface only. `bootstrap=0`
-returns the point surface with `uncertainty.kind == "none"`, the withheld-band
-message in `support.warnings`, and `estimate.temporal_response.band_withheld: …`
-in `diagnostics`. The seed drives the replicates, so a fixed `seed=` reproduces
-the band. The simultaneous band is `result.simultaneous_band` (`None` when none
+atoms). An explicit count always wins. Omitted, it follows
+`Frequentist(profile=...)` as prepared Pulse / Sustained do: `interactive` 0,
+`standard` 199, `report` 200. Declare the count explicitly when you need a band.
+`bootstrap=0` returns the point surface with `uncertainty.kind == "none"`, the
+withheld-band message in `support.warnings`, and
+`estimate.temporal_response.no_band_method: …` in `diagnostics`. The seed on
+`Execution(seed=...)` drives the replicates, so a fixed seed reproduces the band.
+The simultaneous band is `result.value.simultaneous_band` (`None` when none
 was published), rebuilt from the support diagnostics above. Its `lower` / `upper`
 rows match `uncertainty.lower` / `uncertainty.upper`; `critical` and `replicates`
 come from `response.simultaneous_band.critical`:
 
 ```python
-result = antecedent.analyze(data, graph=lagged_edges, query=surface, bootstrap=200, seed=7)
-result.uncertainty.lower, result.uncertainty.upper   # pointwise 95% band
-band = result.simultaneous_band                     # whole-grid 95% band
+result = antecedent.analyze(
+    data, graph=lagged_edges, query=surface,
+    inference=antecedent.Frequentist(bootstrap=200),
+    execution=antecedent.Execution(seed=7),
+)
+result.value.uncertainty.lower, result.value.uncertainty.upper   # pointwise 95% band
+band = result.value.simultaneous_band               # whole-grid 95% band
 band.lower, band.upper, band.critical, band.replicates
 ```
 
 Bayesian responses (posterior intervals), static responses, and `cell.aipw`
-refuse a positive `bootstrap=` rather than ignoring it.
+refuse a positive `Frequentist(bootstrap=...)` rather than ignoring it.
 
-Coverage of these bands on linear-Gaussian DGPs with iid and AR(1) residuals
-is measured by `crates/antecedent/tests/temporal_response_calibration.rs`
-(run via `scripts/gate_calibration.sh`, 400 replicates, `n = 160`). Gated: iid and
-AR(1) `ρ = 0.5` residuals on every Frequentist cell, and both the dose curve
-(0.945–0.948 pointwise, 0.948 simultaneous) and the shift response (0.943
-pointwise, 0.948 simultaneous; 0.910 / 0.912 before the kernel-bias factor) under
-an AR(1) `φ = 0.9` treatment. The shift level is essentially the sample mean of a
-series with about ten effective rows, so its band also carries the short-series
-warning on most replicates; at `n = 100` (about 7 effective rows) it covers
-0.885 / 0.890 and warns on every replicate, at `n = 400` 0.938 / 0.940, at
-`n = 1000` 0.965 / 0.968.
+Each published band reports its calibration status. The calibration design for
+these bands is linear-Gaussian simulations with iid and AR(1) residuals
+(`crates/antecedent/tests/temporal_response_calibration.rs`, 400 replicates,
+`n = 160`). With iid and AR(1) `rho = 0.5` residuals on every
+Frequentist cell, and with an AR(1) `phi = 0.9` treatment, the dose curve covers
+at 0.945-0.948 pointwise and 0.948 simultaneous, and the shift response at 0.943
+pointwise and 0.948 simultaneous. The shift level is essentially the sample mean
+of a series with about ten effective rows, so its band also carries the
+short-series warning on most replicates; at `n = 100` it covers 0.885 / 0.890
+and warns on every replicate, at `n = 400` 0.938 / 0.940, and at `n = 1000`
+0.965 / 0.968.
 
-Recorded, not gated, and disclosed on every band as
-`response.temporal.block.persistence_boundary`: AR(1) `ρ = 0.9` residuals on the
-dose × horizon curve, 0.887–0.943 pointwise and 0.877 simultaneous at `n = 160`
-(0.868–0.922 / 0.853 at `n = 100`, 0.900–0.922 / 0.895 at `n = 400`,
-0.902–0.943 / 0.905 at `n = 1000`). The residual's persistent part is 15% of its
-variance (the omitted iid treatment lag dominates), yet it carries most of the
-level's long-run variance (3.7 times the variance). Nothing in the sample reads
-it at these sizes: the lag-by-lag autocorrelations (0.13 at lag 1) stay under the
-Politis–White threshold, the fitted autoregression sees a lag-1 coefficient near
-0.14 (factor within 2% of 1), the influence reads about 90 effective rows (no
-short-series warning), and an AR(1)-plus-noise fit of the influence's long-run
-ratio spans 1.2–5.9 at `n = 160` (1.7–6.0 at `n = 400`) around the truth of 3.7.
-Lengthening the blocks to `n/3` regardless did not bring the design into the
-band either (that experiment's run was not retained), so it does not gate it.
-The block-length rule catches this component only once `n` is large enough for
-its autocorrelations to clear the threshold (about `n = 2000`).
+Strong residual persistence is outside the measured range and is disclosed on
+every band as `response.temporal.block.persistence_boundary`. With AR(1)
+`rho = 0.9` residuals the dose-by-horizon curve covers at 0.887-0.943 pointwise
+and 0.877 simultaneous at `n = 160` (0.902-0.943 / 0.905 at `n = 1000`). The
+persistent part of the residual is a small share of its variance yet carries
+most of the level's long-run variance, and nothing in the sample reads it at
+these sizes: the lag-by-lag autocorrelations stay under the block-length
+threshold and no short-series warning is raised. The block-length rule catches
+this component only once `n` is large enough for its autocorrelations to clear
+the threshold (about `n = 2000`). Read a band under strongly persistent
+residuals as under-covering.
 
 Prepared responses require complete observations and the AllObserved empirical
 population. Unsupported observation mechanisms, observation assumptions, or
@@ -395,13 +492,13 @@ Frequentist curves use the separate path described under
 [Observation is not outcome](#observation-is-not-outcome). Bayesian derivative
 responses are described under
 [Curves, derivatives, and elasticities](#curves-derivatives-and-elasticities).
-Graph-posterior response mixtures are licensed only on the cells listed in the
+Graph-posterior response mixtures are supported only on the cells listed in the
 [support matrix](support-matrix.md); multi-step temporal response policies are
 refused here.
 
 ## Row-diagnostic export contract
 
-`response_options={"export_row_diagnostics": True}` (Rust:
+`estimator_config={"export_row_diagnostics": True}` on a `ResponseCurve` (Rust:
 `ContinuousResponseOptions::export_row_diagnostics`) adds three channels to
 `support.diagnostics`. Off by default; the estimate is identical either way.
 Once exported, these are scientific objects users will compute on, so their
@@ -437,9 +534,7 @@ row's covariates, `∫ mu(a, x) dP_n(x)`, so each row also moves the level throu
 its covariates. With the additive outcome nuisance this is the per-row
 constant `c_i = mu(a_i, x_i) - ∫ mu(a_i, x) dP_n(x) = h(x_i) - mean h(x)` from
 the row's own cross-fit fold, identical at every grid point. Without it the
-pointwise band under-covered at nominal 0.90 on a confounded linear law
-(`crates/antecedent/tests/static_calibration.rs`; that pre-fix run was not
-retained). The values
+pointwise band under-covers at nominal 0.90 on a confounded linear law. The values
 still condition on the fitted nuisances and bandwidth: second-order nuisance
 error and bandwidth selection are not inside them.
 
@@ -486,15 +581,28 @@ at export rather than published.
 
 ## Curves, derivatives, and elasticities
 
-The six derivative query types are licensed on explicit or accepted DAGs at
-validation `none`, under Frequentist and Bayesian inference; see the
-[support matrix](support-matrix.md), which carries each cell's evidence.
-PAG/ADMG/CPDAG derivative, graph-posterior, observation-adjusted, and
-cheap/full coordinates remain refused. Mean curves on `Cpdag` / `Pag` are a
-separate class-aware cell, not a derivative license. The definitions below are the
-licensed forms, not a license to run every constructor argument. Repeated-
-sampling coverage of every published derivative interval is gated in
-`crates/antecedent/tests/derivative_calibration.rs`.
+The six derivative query types take an explicit or accepted `Dag`, `Cpdag`, `Pag`,
+latent-confounded `Admg` or `TemporalAdmg` (the contemporaneous projection over rows, or the
+unrolled window of its template over a series), or a graph posterior of such atoms, under
+Frequentist and Bayesian inference. Which of these coordinates are supported, with the
+evidence for each, is listed in the [support matrix](support-matrix.md), which is generated
+from the support model. On a class or a latent-confounded graph each identified completion,
+or the ADMG itself, is identified by one adjustment set valid for every treatment/outcome
+pair; where no adjustment set exists the front-door criterion is searched and the derivative
+is estimated with the outcome additive in the treatment, the mediators and the covariates (an
+interval that refits both stages on each replicate); a pair with a hedge is refused with its
+certificate, and a target that general ID identifies through neither an adjustment nor a front
+door is refused. Completions of a class that disagree publish their identified set with an
+Imbens-Manski band formed from their joint row influence. Over a graph posterior every atom is
+answered by the executor of its own structure and the atoms are mixed by posterior
+probability. A TemporalAdmg derivative over a series is identified per horizon on the unrolled
+window of its template and may be prepared as a handle. A derivative reads complete
+observations; an observation mechanism on a derivative is refused.
+Mean curves on `Cpdag` / `Pag` are a separate class-aware cell. The definitions below are the
+supported forms, not support to run every constructor argument. The coverage
+design for the published derivative intervals is
+`crates/antecedent/tests/derivative_calibration.rs`; each interval reports its
+calibration status.
 
 - `ResponseCurve(treatment, outcome, grid=...)` evaluates
   `a -> E[Y | do(A=a)]` on an explicit, increasing grid.
@@ -518,12 +626,12 @@ sampling coverage of every published derivative interval is gated in
   Frequentist interval treats the cross-fitted pseudo-outcome as data and
   conditions on the caller bandwidth.
 - `AverageDerivative(...)` averages a derivative over an explicit weighting
-  law; only observed-law weighting is licensed, via the Gaussian-score Riesz
+  law; only observed-law weighting is supported, via the Gaussian-score Riesz
   representer. The representer assumes the treatment is homoskedastic Gaussian
   given the adjustment set (additive mean). That assumption is load-bearing:
   on a skewed, heteroskedastic treatment law with a nonlinear outcome the
-  interval's measured coverage collapses (recorded, not gated, by
-  `ade_skewed_heteroskedastic_treatment_probe`).
+  interval's measured coverage collapses (shown by
+  `ade_skewed_heteroskedastic_treatment_probe`, which is not a supported coordinate).
 - `Elasticity(..., at=a)` is `a m'(a) / μ(a)`. The treatment point must be
   positive, and the fitted response at that point must be positive.
   Like `PointDerivative`, it requires an explicit bandwidth. The Frequentist
@@ -532,15 +640,16 @@ sampling coverage of every published derivative interval is gated in
   the corresponding delta-method approximation. A finite scalar interval is
   unavailable when the level is not statistically separated from zero, which
   is reported as `response.derivative_interval_unbounded`. The interval
-  conditions on the caller bandwidth and fitted nuisances; its nominal 90% coverage was measured
-  on the curved additive, Gaussian-treatment calibration design at sample sizes
-  500, 1000, and 1500 for explicit and accepted DAGs.
+  conditions on the caller bandwidth and fitted nuisances; its nominal 90% calibration design
+  is the curved additive, Gaussian-treatment law at sample sizes 500, 1000, and
+  1500 for explicit and accepted DAGs.
 - `SemiElasticity(..., at=a, log_scale=...)` is either `a m'`
   (`log_scale="treatment"`, the default) or `m'/μ` (`log_scale="outcome"`).
   Both ride the same matrix cell. Frequentist `log_scale="treatment"` publishes
   `|a|` times the bias-corrected slope interval. `log_scale="outcome"` and
   transformed second derivatives publish joint-covariance delta-method
-  intervals, whose coverage is not calibrated for those scales.
+  intervals, which the derivative calibration design does not cover on those
+  scales.
 - `ResponseJacobian(...)` and `DirectionalDerivative(...)` are additive-GAM
   plug-in gradients with at most two treatments, a common adjustment set, and
   a shared complete-case row set. The target surface is an unpenalized cubic
@@ -551,24 +660,17 @@ sampling coverage of every published derivative interval is gated in
   query is the unnormalized inner product `∇m · d`. Differential missingness
   across outcomes is refused.
 
-  The Frequentist result is point-only: `uncertainty` is empty and the warning
-  `response.derivative_interval_withheld` says why. Each gradient coordinate
-  is a linear functional of the target fit's coefficients, so a
-  coefficient-sandwich confidence band exists. Its analytic variance uses an
-  HC2 correction based on each complete row's leverage in the penalized spline
+  Each gradient coordinate is a linear functional of the target fit's
+  coefficients, so the Frequentist result publishes a pointwise
+  coefficient-sandwich confidence band. Its analytic variance uses an HC2
+  correction based on each complete row's leverage in the penalized spline
   fit; the Bayesian band below uses a separate average-leverage correction.
-  Its 90% coverage is measured over the gate's three sample-size points as
-  `response_jacobian_dag_frequentist_nominal_90_coverage` and
-  `directional_derivative_dag_frequentist_nominal_90_coverage` in
-  `derivative_calibration.rs`. The public route remains point-only while
-  those records and the interval route are reviewed for promotion; one
-  directional coordinate narrowly missed an exploratory 8,000-repetition
-  threshold, although the prescribed gate passed. For an interval today, run the query with Bayesian
-  inference. A Rust `Jacobian` on a transformed
-  `DerivativeScale` (for example an elasticity Jacobian) has no interval
-  construction at all, wired or published. The scalar `Elasticity` query is a
-  different route (a Kennedy-DR point derivative) and does publish a calibrated
-  Fieller interval.
+  The band is built on the identity scale only: a Rust `Jacobian` on a
+  transformed `DerivativeScale` (for example an elasticity Jacobian), and a
+  design whose treatment columns are collinear, publish the point alone, and
+  the warning `response.no_derivative_interval_method` says why. The scalar
+  `Elasticity` query is a different route (a Kennedy-DR point derivative) and
+  publishes a Fieller interval.
 
 Bayesian derivatives keep the Frequentist estimator identities and replace
 the analytic interval with a Rubin Dirichlet(1,…,1) row-weight posterior in
@@ -599,6 +701,223 @@ These are distinct estimands. A curve estimate does not automatically justify a
 derivative estimate, and a pointwise curve interval is not automatically valid
 for an elasticity transformation.
 
+## Retarget, outcome distributions and joint interventions
+
+The blocks in this section run in order in one interpreter with NumPy and Antecedent; see [Install](start/installation.md). They ask three things of one simulated table: the effect in a different population, the outcome distribution under each arm, and the response to a coordinated pair of interventions.
+
+### Prepare once, change the target population
+
+The synthetic effect is `2 + 0.5*z`. Weighting toward larger `z` therefore changes
+which population's average effect we estimate. The DAG asserts that `z` suffices
+for adjustment; data alone do not establish that assumption.
+
+```python
+import numpy as np
+import antecedent
+from antecedent.intervention import Set
+from antecedent.query import ExceedanceGrid, InterventionResponse, Quantile
+
+rng = np.random.default_rng(150)
+n = 2000
+z = rng.normal(size=n)
+probability = 1.0 / (1.0 + np.exp(-0.5 * z))
+t = (rng.uniform(size=n) < probability).astype(float)
+y = (2.0 + 0.5 * z) * t + z + rng.normal(size=n)
+data = {"z": z, "t": t, "y": y}
+graph = antecedent.Dag.from_edges(
+    ["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")]
+)
+study = antecedent.prepare(
+    data,
+    graph=graph,
+    query=antecedent.AverageEffect("t", "y"),
+    estimator="aipw",
+    refute="none",
+    inference=antecedent.Frequentist(bootstrap=0),
+)
+weights = np.exp(-0.5 * ((z - 0.5) / 0.8) ** 2)
+executed = antecedent.estimate(study)  # fits the nuisances once and freezes the scores
+completed = executed.study
+all_observed = completed.retarget(np.ones(n), depends_on=[])
+local = completed.retarget(weights, depends_on=["z"])
+print("AllObserved ATE:", all_observed.value.estimate.ate)
+print("Weighted ATE:", local.value.estimate.ate)
+print("Weighted analytic SE:", local.value.estimate.se_analytic)
+assert np.isfinite(local.value.estimate.ate)
+```
+
+`retarget` averages frozen cross-fitted scores with the supplied weights. It does
+not refit nuisances. Nonconstant weights require declared parents in the certified
+adjustment set; treatment and directed descendants are not allowed. This is
+standardization within one population, not cross-environment transport or an
+individual treatment-effect model. Inference assumes positivity and appropriate
+nuisance convergence rates. `refute="none"` keeps this example focused on the
+estimator; it does not establish that the causal assumptions hold.
+
+Weights must align with the retained score rows. Here all rows are complete. If
+rows were dropped, inspect `executed.value.estimate.score_table.row_index`
+and align weights to those original row indices. `antecedent.estimate(antecedent.rebind(study, data=new_data))`
+refits on new data under the prepared identification contract and leaves `study` and its
+scores unchanged. A one-call `antecedent.analyze(...)` outcome offers the same handle as
+`outcome.study`.
+
+A nonconstant-weight retarget exports under a `RowWeights` target whose
+`target_weights` identity binds the weight bits, row count, data snapshot, score
+table and `depends_on`; the weights travel in the artifact and consume re-derives
+the identity. Re-executing those weights on a different snapshot raises
+`row_weights_bound_to_snapshot` (`study.reexecute_retarget`, Rust
+`PreparedStudy::reexecute_retarget`); the prepared plan itself keeps
+re-estimating, since the binding belongs to the retargeted result.
+Calibration availability is explicit in that report.
+
+### Read a CDF and its supported bands
+
+An exceedance grid estimates the outcome distribution under each treatment arm.
+It does not reduce several thresholds to one scalar ATE. The last threshold below
+is deliberately beyond all observed outcomes to demonstrate unsupported tails.
+
+```python
+cdf_study = antecedent.prepare(
+    data,
+    graph=graph,
+    query=antecedent.AverageEffect(
+        "t", "y", outcome_functional=ExceedanceGrid([0.0, 2.0, 1_000_000.0])
+    ),
+    estimator="aipw",
+    refute="none",
+    inference=antecedent.Frequentist(bootstrap=0),
+)
+cdf_result = antecedent.estimate(cdf_study).study.retarget(weights, depends_on=["z"])
+estimate = cdf_result.value.estimate
+assert cdf_result.answer.value is None  # a CDF grid is not one scalar effect
+assert estimate.score_table is not None
+assert estimate.score_inference is not None
+assert estimate.exceedance_cdf is not None
+bands = estimate.score_inference
+for (arm, threshold), projected, raw, lower, upper, supported in zip(
+    estimate.score_table.columns,
+    estimate.exceedance_cdf,
+    bands.raw_means,
+    bands.lower,
+    bands.upper,
+    bands.threshold_supported,
+    strict=True,
+):
+    print(arm, threshold, "CDF:", projected, "raw CDF:", 1.0 - raw)
+    if supported:
+        print("raw-CDF simultaneous band:", 1.0 - upper, 1.0 - lower)
+    else:
+        print("band unavailable: insufficient tail or overlap support")
+        # Do not present the numerical bounds when support is false.
+assert not all(bands.threshold_supported)
+```
+
+For this binary query, arm 0 is control and arm 1 is active. Use the column metadata
+rather than assuming an array order. `exceedance_cdf` reports `F_a(c)=P(Y(a)≤c)`;
+`monotone_rearranged` indicates whether projection changed the raw estimates.
+For this AIPW score-table path, `score_inference.raw_means` and its bounds are
+**exceedance** coordinates, `P(Y(a)>c)`. Convert a raw mean with `1-mean` and an
+interval with `[1-upper, 1-lower]`, as above, to obtain CDF coordinates. Complementing
+all coordinates leaves their joint covariance unchanged. The conditional-grid
+path already publishes CDF-coordinate bands and must not be complemented again.
+Neither path supplies uncertainty for the projected CDF. Always honor
+`threshold_supported`: unsupported bounds may be NaN or finite placeholders, and
+must not be displayed as confidence intervals.
+
+For a single `Exceedance(c)` AverageEffect query, the scalar effect is the active
+minus control exceedance probability. For a quantile effect, use `Quantile(tau)`
+with explicit Frequentist AIPW on a DAG or CoDetermined closure. Its uncertainty
+conditions on the finite CDF grid and excludes interpolation bias and grid
+selection. Inversion refuses unsupported, flat, or projection-altered crossings;
+the request must use `refute="none"` because mean-effect refuters do not validate
+quantiles. The supported query families are:
+
+| Query | Quantile meaning | Estimation contract |
+| --- | --- | --- |
+| `AverageEffect` | Active minus control quantile | Explicit Frequentist `aipw`, DAG or CoDetermined |
+| Binary `ConditionalEffect` with one modifier or a modifier set | Difference of quantiles of arm CDFs standardized over the retained modifier distribution | Frequentist DAG, CPDAG, or PAG; aligned atom influences and zero unidentified mass |
+| Discrete joint `InterventionResponse` | Quantile level in the requested joint cell | Explicit Frequentist `cell.aipw`, DAG or CoDetermined |
+
+These start from AllObserved. Average and joint score-table plans also support
+prepared retargeting; conditional plans do not export retargetable score tables.
+The conditional `estimate.functional.quantile_grid` diagnostic lists the actual
+thresholds; CDF coordinates are threshold-major, control then active.
+Conditional quantiles are not a pointwise modifier surface or an average of
+individual conditional quantiles. Graph mixtures combine CDFs before inversion.
+Other estimator families remain refused: reusing a mean regression, matching
+estimate, IV estimate, or Bayesian mean posterior would not supply the required
+CDF influence function and density. Supporting those would require a separate
+validated distributional estimator contract.
+
+```python
+conditional_median = antecedent.analyze(
+    data,
+    graph=graph,
+    query=antecedent.ConditionalEffect("t", "y", "z", outcome_functional=Quantile(0.5)),
+    refute="none",
+    inference=antecedent.Frequentist(bootstrap=0),
+)
+print("Modifier-standardized median effect:", conditional_median.value.estimate.ate)
+```
+
+### Estimate a non-additive joint response
+
+A joint intervention requests a response level, not an ATE. This model contains
+an interaction, so an additive response model would miss part of its structure.
+The two treatments below are binary and all four joint cells have observations.
+This Python example uses a DAG with a common observed adjustment variable.
+
+```python
+t2 = (rng.uniform(size=n) < probability).astype(float)
+y_joint = 1.2 * t + 0.8 * t2 + 1.5 * t * t2 + 0.5 * z + rng.normal(size=n)
+joint_data = {"z": z, "t1": t, "t2": t2, "y": y_joint}
+joint_graph = antecedent.Dag.from_edges(
+    ["z", "t1", "t2", "y"],
+    [("z", "t1"), ("z", "t2"), ("z", "y"), ("t1", "y"), ("t2", "y")],
+)
+joint = antecedent.analyze(
+    joint_data,
+    graph=joint_graph,
+    query=InterventionResponse("y", intervention=[Set("t1", 1.0), Set("t2", 1.0)]),
+    estimator="cell.aipw",
+    refute="none",
+    inference=antecedent.Frequentist(bootstrap=0),
+)
+print("E[Y | do(t1=1, t2=1)]:", joint.value.estimate)
+print("Analytic SE:", joint.value.uncertainty.standard_error)
+assert np.isfinite(joint.value.estimate)
+assert joint.value.uncertainty.standard_error is not None
+```
+
+For a joint quantile level, pass the functional on the response query:
+
+```python
+joint_median = antecedent.analyze(
+    joint_data,
+    graph=joint_graph,
+    query=InterventionResponse(
+        "y", intervention=[Set("t1", 1.0), Set("t2", 1.0)],
+        outcome_functional=Quantile(0.5),
+    ),
+    estimator="cell.aipw",
+    refute="none",
+    inference=antecedent.Frequentist(bootstrap=0),
+)
+print("Median under the joint intervention:", joint_median.value.estimate)
+```
+
+This is a response level in the requested cell, including cells containing a
+zero treatment level; it is not an active-minus-control quantile contrast.
+
+The population response in this simulation is 3.5 because `E[z]=0`; a finite
+sample estimate need not equal it. `cell.aipw` fits joint-cell propensities and
+per-cell outcome models. Empty training cells and inadequate support refuse.
+CoDetermined tier backgrounds also support joint cells when their closure is
+certified; Unknown tiers do not. `continuous_cell` does not support a point
+intervention on a continuous mediator.
+
+See the [support matrix](support-matrix.md) for the current scope and per-cell evidence, and the [artifact guide](artifacts.md#score-tables-and-distribution-payloads) for saved payload semantics.
+
 ## Intervention responses
 
 Typed intervention laws live in the `antecedent.intervention` stage namespace:
@@ -615,13 +934,18 @@ Under Frequentist inference, `Set`, `Shift`, `Bernoulli`, `Gaussian`, and
 `Categorical` evaluate plug-in mean responses. A sequence of specifications requests a joint intervention. The
 estimator fits an additive outcome model and averages predictions under the
 requested policy. `Bernoulli` and `Categorical` laws are summed exactly over
-their support; a `Gaussian` law is integrated by 48-node Gauss-Hermite
-quadrature per policy (deterministic, exact for polynomial dose effects of
-degree up to 95), which is valid because the outcome model is additive, so each
+their support. A `Gaussian` law is integrated by a deterministic composite rule
+per policy: the fitted spline is constant beyond its boundary knots, so the two
+tails carry their exact normal mass there, and each knot interval within ten
+standard deviations of the mean is cut into pieces no wider than one standard
+deviation, each integrated by an eight-point Gauss-Legendre rule. Integrating
+each policy separately is valid because the outcome model is additive, so each
 policy enters only through its own marginal law. Its canonical strategy is
 `response.intervention_gcomp`, distinct from the Kennedy curve estimator. The result is deliberately
 marked extrapolative: observed marginal bounds are reported, but joint policy
-support and statistical uncertainty are not certified. Soft mechanism
+support is not certified, and the interval is the conditional fitted-basis
+sandwich described under
+[Static intervention-level uncertainty](#static-intervention-level-uncertainty). Soft mechanism
 replacements and temporally sequenced policies require a structural model and
 fail closed in this estimator.
 
@@ -652,24 +976,24 @@ query = antecedent.ResponseCurve(
 contestable identifying claim. Antecedent does not derive the second from the
 first. This example declares censoring independent of residual demand given
 price and season. A nonempty `IndependentGiven(Z)` that contains treatment and
-every causal adjustment variable is the licensed Cox IPCW pair; marginal
-Kaplan–Meier IPCW remains the licensed pair for `IndependentGiven([])`. See
+every causal adjustment variable is the supported Cox IPCW pair; marginal
+Kaplan–Meier IPCW remains the supported pair for `IndependentGiven([])`. See
 the [observation pair contract](observation-contract.md). Selected-outcome AIPW
 and both censoring IPCW estimators can be composed into a `ResponseCurve` when
 their explicit assumption contract is satisfied. Selected-outcome AIPW
 cross-fits both its nuisance models, and refuses a fold whose training rows
 cannot support them rather than falling back to an in-sample fit. These paths
 return a point curve with `uncertainty.kind == "none"`
-and a `joint_uncertainty_unavailable` warning: correcting observation and then
+and a `response.observation_joint_uncertainty_unavailable` warning: correcting observation and then
 smoothing a curve does not make the component standard errors a valid joint
-band. Observation-aware subset validation likewise fails closed until both
-stages can be refit jointly. Observation-adjusted derivatives, interval
+band. Observation-aware subset validation likewise fails closed, because the
+two stages are not refit jointly. Observation-adjusted derivatives, interval
 censoring, and other unsupported mechanism/assumption/estimator combinations
 fail closed rather than returning the response of the observed proxy.
 
 See the runnable, deterministic notebooks for a
-[complete-observation response](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/notebooks/continuous_causal_response.ipynb)
-and the [pricing/availability distinction](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/notebooks/pricing_availability_latent_demand.ipynb).
+[complete-observation response](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/continuous_causal_response.ipynb)
+and the [pricing/availability distinction](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/pricing_availability_latent_demand.ipynb).
 
 ### Static intervention-level uncertainty
 
@@ -681,4 +1005,31 @@ nonparametric efficient-influence interval. A Set response can therefore have
 sampling uncertainty even when all counterfactual fitted row means are equal.
 Class-aware static responses combine these scores using frozen graph weights
 and original row IDs. Curve joint-covariance scores are `N` times the local-WLS
-contributions documented above; the diagnostic export itself is unchanged.
+contributions documented above; the diagnostic export itself is not rescaled.
+
+## Refusals you can meet
+
+A response request that the route cannot honour raises `CausalUnsupportedError` instead of
+returning the nearest answer it could compute. The ones a first-time user meets most often:
+
+| Request | Why it refuses | What to change |
+|---|---|---|
+| `refute="cheap"`, `"full"` or a scalar refuter suite on a response query | Those suites refute one scalar average effect; a function-valued response has no such check. | Pass `refute="none"`. |
+| `discovery=` together with a response query | Discovery is reviewed and accepted before estimation, not run inside it. | [Accept the graph first](#compose-discovery-artifacts-and-response-curves) and pass it as `graph=`. |
+| `PointDerivative`, `Elasticity` or `SemiElasticity` without a bandwidth | No default bandwidth targets a slope. | Pass `estimator_config={"bandwidth": ...}`. |
+| A positive `Frequentist(bootstrap=...)` on a static or Bayesian response, or on `cell.aipw` | The replicate count applies to Frequentist temporal surfaces only. | Omit `bootstrap`, or pass `bootstrap=0`. |
+| A coordinate the support model does not support, in a release build | The cell has no supporting evidence (`not_supported`). | Look the coordinate up in the [support matrix](support-matrix.md) and choose a supported one. |
+| A coefficient prior or prior transfer on a derivative | No mapping onto the derivative's parameterization exists. | Fit without the prior. |
+| A retarget whose weights depend on the treatment or its descendants, or re-executed on another snapshot (`row_weights_bound_to_snapshot`) | The weights would no longer define a population of the prepared study. | Declare weights that depend only on adjustment variables, on the snapshot they were built for. |
+| An observation mechanism, assumption and estimator combination outside the [observation contract](observation-contract.md) | The response of the recorded proxy is not the response of the scientific outcome. | Declare a supported pair, or analyse complete observations. |
+
+Read `reason_code`, `detail` and `remedy` on the raised error; the codes are listed in
+[refusal codes and remedies](reference/refusal-codes.md#other-registered-refusal-codes), and
+[recover from refusals](guides/refusal-recipes.md) shows the handling pattern.
+
+## Next steps
+
+- [Answer and retarget a family of effects](guides/batch-retarget.md) and [reuse DML scores to retarget](guides/dml-scores.md) build on the retargeting shown above; [`retarget_adjusted_fit.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/retarget_adjusted_fit.py) is the matching script.
+- [Heterogeneous effects and policies](guides/heterogeneous-effects-and-policies.md) covers a dose response within baseline groups.
+- [Several treatment levels](guides/treatment-levels.md) covers a discrete treatment with more than two levels.
+- [Read a result](start/reading-a-result.md) explains calibration statuses and the uncertainty kinds named here.

@@ -6,13 +6,23 @@
 //! uncertainty requirements, claim adapters, robustness verdicts and the durable
 //! artifacts with external-callback receipts.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+pub use super::alpha_selection::{OutcomePriorSelection, ResolvedOutcomePrior};
+pub use super::structure_route::{
+    AcceptedPosterior, AttributionOutcome, AttributionPayload, CompiledExecution,
+    DiscoveredStructure, DiscoveryPayload, DiscoverySpec, MechanismProgram, SimulationOutcome,
+    SimulationPayload, accept_discovered, accept_discovered_posterior, panel_of_units,
+};
+pub use super::weighted_target::{
+    ResolvedWeightedTarget, WeightedTargetDeclaration, WeightedTargetReport, WeightedTargetSpec,
+    WeightedTrialTransport, transport_trial_to_weighted_target,
+};
 pub use super::{
-    ActionConstraint, ActionOutcome, ActionSpec, ActionStatus, EnumeratedStatus, ForwardEvaluation,
-    ForwardInterval, INVERSE_SCOPE_NOTE, IntervalMeta, IntervalScope, InverseOutcomeError,
-    InverseOutcomeReport, InverseQuery, MAX_INVERSE_ACTIONS, MAX_INVERSE_FORWARD_POINTS,
-    SupportBasis, TargetDirection, classify_inverse_outcome,
+    ActionConstraint, ActionOutcome, ActionReason, ActionSpec, ActionStatus, EnumeratedStatus,
+    ForwardEvaluation, ForwardInterval, INVERSE_SCOPE_NOTE, IntervalMeta, IntervalScope,
+    InverseOutcomeError, InverseOutcomeReport, InverseQuery, SupportBasis, TargetDirection,
+    classify_inverse_outcome,
 };
 pub use super::{
     ActionRobustness, AdaptedClaims, AdaptedDecision, AdapterError, AdmissibilityError,
@@ -38,33 +48,35 @@ pub use super::{
 };
 pub use super::{
     ArmCount, ArmSpec, ArmWeightEss, BatchCostEstimate, BatchPreflightReport, ColumnMissingness,
-    ColumnPriority, ColumnWeight, CostEstimate, DependentColumn, DroppedColumn, DuplicateGroup,
-    FindingSeverity, FittedPropensity, InferenceDefault, JointCellCostEstimate,
-    NuisanceFitDiagnostics, PreflightFinding, PreflightInput, PreflightReport, PropensityOutcome,
-    RankDropEstimate, RankDropPlan, RankDropPolicy, RankReport, RetargetCostEstimate,
-    ScoreQuantile, SpanCheck, estimate_joint_cell_cost, estimate_with_rank_drop,
-    fit_diagnostics_design, plan_rank_drop, preflight_design,
+    ColumnPriority, ColumnWeight, CostEstimate, CostModel, CostModelError, DependentColumn,
+    DroppedColumn, DuplicateGroup, FindingSeverity, FittedPropensity, InferenceDefault,
+    JointCellCostEstimate, NuisanceFitDiagnostics, PreflightFinding, PreflightInput,
+    PreflightReport, PropensityOutcome, RankDropEstimate, RankDropPlan, RankDropPolicy, RankReport,
+    RetargetCostEstimate, ScoreQuantile, SpanCheck, estimate_joint_cell_cost,
+    estimate_with_rank_drop, fit_diagnostics_design, plan_rank_drop, preflight_design,
 };
 pub use super::{
     BATCH_RETARGET_SCOPE_NOTE, BandMember, BatchRetargetError, BatchRetargetReport,
     BatchRetargetRequest, BatchScores, ClaimPoint, ClaimReport, ContrastPoint, ContrastReport,
-    FamilyCovariance, MAX_T_MAX_DRAWS, MAX_T_MIN_DRAWS, MemberFailure, RetargetClaim,
-    RetargetContrast, ScoreSource, SimultaneousBand, TidyKind, TidyRow, UncertaintyKind,
+    FamilyCovariance, MemberFailure, RetargetClaim, RetargetContrast, ScoreSource,
+    SimultaneousBand, TidyKind, TidyRow, UncertaintyKind,
 };
 pub use super::{
     BatchQuery, BatchStudy, BlockedOperation, CandidateProcedure, CandidateScreen,
     CandidateSelection, CausalContract, CellFamilyContrast, CheckedAdmgGraphPosteriorResponseInfo,
     CheckedBayesianSpecialistInfo, CheckedGraphPosteriorResponseInfo, CheckedInterferenceInfo,
     CheckedStaticClassResponseInfo, CheckedTemporalClassMediationInfo,
-    CheckedTemporalMediationInfo, CheckedTransportTrialInfo, CheckedUnknownTieredAverageInfo,
-    ComputeBudget, ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities,
-    ExactStudyInspection, ExactStudyResult, InterferenceSpec, LatencyMode, LearnedTrialResult,
-    LearnedTrialState, LicensedNeighbor, NextAction, OperationKind, OperationReadiness,
+    CheckedTemporalMediationInfo, CheckedTemporalMediationProofMass,
+    CheckedTemporalMediationTargetInfo, CheckedTransportTrialInfo, CheckedUnknownTieredAverageInfo,
+    CompletedBatch, ComputeBudget, ExactFactorRequirement, ExactPreparedState,
+    ExactStudyIdentities, ExactStudyInspection, ExactStudyResult, InterferenceSpec, LatencyMode,
+    LearnedTrialResult, LearnedTrialState, NextAction, OperationKind, OperationReadiness,
     OperationReport, PremiseChange, PreparedBatch, PreparedStudy, PreparedZTransport, RdConfig,
     RefuteSuite, SemanticApplicability, SharedBatchDesign, SharedCovariateDesign, StageEvent,
     StageResultSink, StatisticalBindingView, StatisticalContrast, StatisticalPreparedState,
-    StatisticalStudyInspection, StatisticalStudyResult, Study, StudyBuilder, TransportTrialSpec,
-    ZTransportResult, ZTransportSensitivityArtifactWire, consume_z_transport_artifact,
+    StatisticalStudyInspection, StatisticalStudyResult, Study, StudyBuilder, SupportedNeighbor,
+    TemporalMediationProofMassBasis, TransportTrialSpec, ZTransportResult,
+    ZTransportSensitivityArtifactWire, consume_z_transport_artifact,
 };
 pub use super::{
     BetweenStudy, BorrowingRequest, ConsumedEvidenceLedger, DependenceRangeRequest,
@@ -74,13 +86,20 @@ pub use super::{
     consume_evidence_ledger_artifact,
 };
 pub use super::{
-    BridgeInspection, ConsumedScientificBridge, PreparedScientificBridge, ScientificBridgeExport,
-    ScientificBridgeRefusal, ScientificBridgeResult, consume_scientific_bridge_artifact,
+    BridgeInspection, ConsumedScientificBridge, ConsumedScientificBridgeDistribution,
+    DistributionBridgeInspection, PreparedScientificBridge, PreparedScientificBridgeDistribution,
+    ScientificBridgeDistributionResult, ScientificBridgeExport, ScientificBridgeRefusal,
+    ScientificBridgeResult, consume_scientific_bridge_artifact,
+    consume_scientific_bridge_distribution_artifact, scientific_bridge_artifact_shape,
 };
 pub use super::{
     CategoricalTarget, ConsumedMeasurement, MeasurementAnalysisBinding, MeasurementDetail,
     MeasurementEstimate, MeasurementInput, MeasurementModelRefusal, MeasurementRefresh,
     PreparedMeasurementModel, consume_measurement_model_artifact,
+};
+pub use super::{
+    ChoiceInferenceOutcome, ChoiceInferenceRefusal, ChoiceInferenceSession, ConsumedChoiceResult,
+    consume_choice_inference_result_artifact, retained_source_from_artifact,
 };
 pub use super::{
     ConstituentRole, DeclaredExclusion, DerivedTreatmentDeclaration, DerivedTreatmentPlan,
@@ -92,6 +111,7 @@ pub use super::{
     MechanismCompositionRequest, MechanismInput, MechanismRefit, MechanismSource,
     PreparedMechanismComposition, consume_mechanism_composition_artifact,
 };
+pub use super::{ContinuousErrorInput, ContinuousMeasurementEstimate};
 pub use super::{
     CounterfactualTransportConsumption, CounterfactualTransportObstructionReport,
     CounterfactualTransportOptions, CounterfactualTransportPreparation,
@@ -99,8 +119,9 @@ pub use super::{
     consume_counterfactual_transport_artifact, prepare_counterfactual_transport,
 };
 pub use super::{CpdagEvaluation, EmpiricalScenarioInput, EvidenceSearch, SequenceEndpoints};
+pub use super::{GraphSelectionPerImputation, estimate_with_graph_selection_per_imputation};
 pub use super::{
-    IntervalEstimand, TemporalInitialState, TemporalWindow,
+    IntervalEstimand, TemporalInitialState, TemporalWindow, consume_period_refresh_artifact,
     consume_temporal_initial_state_artifact, consume_temporal_refresh_artifact,
     temporal_dependent_interval,
 };
@@ -110,7 +131,12 @@ pub use super::{
     JointSensitivityBodyWire, JointSensitivityConsumeLimits, JointTippingWire,
 };
 pub use super::{
-    LearnedContinuousResult, PreparedLearnedContinuous, consume_learned_continuous_artifact,
+    LearnedContinuousBootstrapInterval, LearnedContinuousResult, PreparedLearnedContinuous,
+    consume_learned_continuous_artifact,
+};
+pub use super::{
+    MissingInference, MissingModality, MissingRouteCell, MissingRouteSupport,
+    missing_support_table, route_missing_support,
 };
 pub use super::{MixedSourceResult, PreparedMixedSource, consume_mixed_source_artifact};
 pub use super::{MzTransportResult, PreparedMzTransport, consume_mz_transport_artifact};
@@ -119,7 +145,7 @@ pub use super::{
     consume_observation_recovery_artifact,
 };
 pub use super::{
-    PredictiveAssessmentRefusal, PreparedPredictiveAssessment,
+    PredictiveAssessmentRefusal, PreparedPredictiveAssessment, RetainedPredictiveReplicates,
     consume_predictive_assessment_artifact, fit_declaration_from_ledger,
     observation_keys_from_ledger, posterior_predictive_predictor,
 };
@@ -135,3 +161,30 @@ pub use super::{
     TierDesign, TierDiagnostics, TierDiagnosticsError, TierEvalue, TierPointEvalue, TierScenario,
     tier_diagnostics,
 };
+
+pub use super::fallback::{
+    AnalysisWithFallback, AssociationalFallback, EvidenceNeeds, FallbackOutcome, FallbackPart,
+    FallbackRequest, FallbackRoles, FallbackUnavailable, RankedPlan,
+};
+pub use super::{JointResponseResult, PreparedJointResponse};
+
+pub use super::{
+    DataDiagnosticCheck, DataDiagnosticColumn, DataDiagnosticContext, DataDiagnosticFinding,
+    DataDiagnostics, DataDiagnosticsError, DataDiagnosticsReport, diagnose_data,
+};
+
+pub use super::checked_claim_composition::{
+    CheckedStudyClaim, PreparedClaimParent, compose_checked_study_claims,
+};
+
+pub use super::{
+    JOINT_INTERVAL_ARTIFACT_VERSION, JointIntervalConsumeLimits, JointIntervalConsumption,
+    JointIntervalNumerics, JointSensitivityIntervalArtifact,
+};
+
+pub use super::robust_decision::{
+    CompiledRobustDecision, JointScenarioCarrier, MAX_COMPILED_ROBUST_ITEMS,
+    MAX_SCENARIO_CARRIER_BYTES,
+};
+
+pub use super::robust_decision::CompiledRobustResult;

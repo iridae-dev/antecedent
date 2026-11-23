@@ -5,10 +5,16 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-papers = [
-  { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: the declared premise that the selection node enters only the covariates"] },
-  { title = "The use of propensity scores to assess the generalizability of results from randomized trials (Stuart, Cole, Bradshaw and Leaf, 2011)", doi = "10.1111/j.1467-985X.2010.00673.x", sections = ["conditions for generalizing a conditional treatment effect to a target population"] },
-]
+# papers = [] is an explicit judgment, read against crates/antecedent-io-core/src/cohort_decision.rs:
+# the module compares declared population identities, the declared invariant modifiers and the
+# declared assumption label with the retained model and the cohort, then checks the rows against
+# the model's own support box. It computes no density ratio, weight, propensity or transported
+# estimate, so there is no procedure to cite. The covariate-shift identification of Pearl and
+# Bareinboim (selection diagrams) and of Stuart et al. (generalizability) is the premise the
+# declaration states, not something executed; the numerics of the cohort mean are carried by
+# cohort_decision.mean_contrast.
+papers = []
+
 implementation_deviations = [
   "Original bounded route under a declared invariance premise; the premise is a declaration and is not tested. The cited literature is the statement of the covariate-shift identification, not an implemented algorithm.",
   "Only the support box is checked as a positivity necessary condition; no density ratio, overlap weight or transported variance is computed, and the result is labelled extrapolative and point-only.",
@@ -18,3 +24,53 @@ test_sources = [
   "crates/antecedent-io-core/src/cohort_decision/tests.rs",
   "crates/antecedent-design/tests/cohort_decision_input.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "A declaration and refusal contract: a cohort from another population is accepted only with a covariate-shift declaration whose source population, target population, sorted invariant modifiers and assumption label equal the model's and the cohort's, and only when every cohort row lies in the model's support contract; the result is labelled extrapolative and point-only. Retained-model items were compared across both paths; only parent-visible privacy changed, leaving validation and model identity unchanged. Prediction, support and shift items were compared across both paths; only parent-visible privacy changed, leaving numerical operations and refusal behavior unchanged. Artifact serialization and replay items were also compared across both paths; only test-visible privacy changed, with wire fields and replay behavior unchanged. Scoped re-review of the cohort-binding move compared every named item across both paths; only parent-only visibility changed, with validation, weights and canonical digest unchanged."
+no_independent_algorithm = "resolve_shift compares four declared strings and the sorted feature list and returns a bool; the support check is the model's own box or mask evaluated inclusively by the compact-export check; the prediction and weighted mean that follow are carried by cohort_decision.mean_contrast and nothing is reweighted, estimated or transported here. The tests assert the required, unneeded and mismatched declarations (a changed population, a changed modifier set, a changed assumption label), the inclusive support edge against the next representable value outside it, and the hand-computed mean 2.225 of the shifted cohort."
+covered_by = ["cohort_decision.mean_contrast"]
+record_sha256 = "447132ecc32e506e8c2ab8132055010dce687ec91261f9120bb2b4d47343876e"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/cohort_decision.rs"
+items = ["const CATE_FUNCTIONAL_ID", "const COHORT_CONDITIONING_VARIABLE", "const COHORT_DECISION_ARTIFACT_KIND", "const COHORT_DECISION_SECTION", "const COHORT_DECISION_VERSION", "const COHORT_FUNCTIONAL_ID", "const COHORT_TAG", "const COVARIATE_SHIFT_ASSUMPTION", "const IDENTITY_TAG", "const MAX_COHORT_DECISION_ARTIFACT_BYTES", "const MAX_COHORT_ROWS", "const MODEL_TAG", "const NEGATIVE_VARIANCE_TOLERANCE", "const POINT_SCOPE", "const STANDARD_ERROR_BASIS", "const STANDARD_ERROR_CALIBRATION", "const STANDARD_ERROR_SCOPE", "const SUPPORT_BASIS_DECLARED", "const SUPPORT_BASIS_FITTED_BOX", "const WEIGHT_SUM_TOLERANCE", "enum LawRequest", "fn assumptions", "fn build", "fn build_within", "fn cohort", "fn default", "fn for_identity", "fn identity", "fn interval_refusal", "fn invalid", "fn invalid_input", "fn io_refusal", "fn is_native", "fn law_refusal", "fn mean_contrast", "fn model", "fn new", "fn outcome_units", "fn provider_id", "fn quantity", "fn quantity_of", "fn recomputed_identity", "fn refusal", "fn regime_of", "fn row_contrasts", "fn schema_mismatch", "fn semantics_mismatch", "fn shift", "fn support", "fn support_status", "fn to_refusal", "fn uncalibrated_standard_error", "struct CohortDecisionSource", "struct CohortExpectation", "struct CohortIntakeLimits", "struct CohortOptions", "struct CohortRefusal", "struct ContrastDeclaration", "struct CovariateShiftDeclaration", "struct ParentIdentity", "struct SupportReceipt", "struct UncalibratedStandardError"]
+sha256 = "83ef103e12ac5d34c70179e3202411e8128b39f75ad614d0a3924f17ae1dfde8"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/cohort_decision/retained_model.rs"
+items = ["enum ModelKind", "fn contrast", "fn feature_names", "fn finish", "fn from_compact_export", "fn from_portable_parts", "fn has_support_contract", "fn identity", "fn is_linear_compact", "fn is_native", "fn model_identity", "fn parent", "fn population_id", "struct RetainedEffectModel"]
+sha256 = "c07a2e5cd4a8044e02da66a0cd6d14f1e4ed452e3c4dd2a05cd46ffa686e9a4c"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/cohort_decision/prediction.rs"
+items = ["fn basis_row", "fn compact_predictions", "fn map_export_refusal", "fn outside_refusal", "fn portable_predictions", "fn require_exact_schema", "fn resolve_shift", "struct Predictions"]
+sha256 = "6e62c1f314c08abc35e7e5250401d6a16143d60f4e16b6b2f586d63d708dec58"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/cohort_decision/artifact.rs"
+items = ["enum ModelWire", "fn check_expectation", "fn consume", "fn consume_with", "fn consume_with_limits", "fn consume_within", "fn decode_body", "fn rebuild_model", "fn to_body", "fn to_bytes", "fn to_bytes_within", "struct SourceBody"]
+sha256 = "5c094b9262586729a517cd99c3ad28c1f22d5585ee8c93c92f938b2a0a95ee42"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/cohort_decision/cohort_binding.rs"
+items = ["enum CohortColumn", "fn columns", "fn compensated_sum", "fn digest", "fn features", "fn len", "fn level", "fn new", "fn new_within", "fn normalize_weights", "fn numeric", "fn population_id", "fn row_ids", "fn rows", "fn snapshot_id", "fn uniform_weights", "fn validate", "fn validate_within", "fn weights", "struct CohortBinding"]
+sha256 = "7c759de9a743e8a3f4ca7678c71b5140dcdd5468d4d2b7b11ec0d3150d5c0f22"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-io-core/src/cohort_decision/tests.rs"
+items = ["fn a_cohort_from_another_population_needs_a_declared_shift_and_support_overlap", "fn a_declared_shift_round_trips_and_is_bound_into_the_identity", "fn a_different_parent_claim_is_a_different_source", "fn a_masked_region_of_a_compact_model_is_refused", "fn a_model_without_a_support_contract_is_refused_not_assumed_supported", "fn a_shifted_cohort_outside_the_support_is_a_transport_support_failure", "fn a_tampered_compact_payload_is_refused", "fn an_exported_source_carries_one_mean_and_no_law", "fn approx", "fn box_support", "fn build", "fn caller_intake_limits_refuse_what_the_defaults_admit", "fn cohort", "fn cohort_with", "fn compact_model", "fn compact_model_with", "fn compact_variance_matches_the_hand_calculation_and_a_double_sum_oracle", "fn contrast", "fn ctx", "fn every_retained_expectation_is_a_typed_gate", "fn fitted", "fn ids", "fn invalid_cohorts_are_refused_at_binding", "fn law_valued_requests_are_refused_with_a_remedy", "fn parent", "fn portable", "fn quantity_wire", "fn read_body", "fn row_order_changes_the_cohort_identity_but_not_the_mean", "fn rows_outside_the_fitted_support_are_refused_and_named", "fn schema_unit_and_contrast_mismatches_are_typed_refusals", "fn semantic_mutations_are_refused_even_when_the_container_is_resealed", "fn the_artifact_round_trips_under_the_retained_identity", "fn the_interval_route_is_not_supported_with_a_remedy", "fn the_shift_gate_is_exact_on_the_assumption_label_and_the_support_edge", "fn weighted_cohort_mean_matches_the_hand_calculation", "fn write_body"]
+sha256 = "0d287481f87fe86cab58c70ae006709260ea87572ffbe3020d54aa4c94d3c764"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/tests/cohort_decision_input.rs"
+items = ["fn a_contract_must_name_the_exact_cohort_contrast_and_units", "fn a_declared_model_is_attested_and_never_native", "fn a_declared_shift_is_extrapolative_and_needs_an_explicit_weaker_policy", "fn affine", "fn cohort", "fn contract", "fn law_valued_requests_stay_refused_on_the_mean", "fn model", "fn source", "fn the_affine_expected_utility_is_the_utility_of_the_cohort_mean", "fn the_cohort_mean_is_a_supported_forward_source_of_an_inverse_query", "fn the_mean_source_names_the_cohort_and_the_parent", "fn wire"]
+sha256 = "82db80b6f955405808d243d92b653fa3d1961dd6a38d002e49dc718afc1ef677"

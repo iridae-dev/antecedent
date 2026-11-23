@@ -3,8 +3,8 @@
 
 CLI: python3 scripts/set_version.py X.Y.Z 0|1
 
-The second argument is 1 for --check (write nothing). Supported lines and the
-reviewed package version live in parity/release.toml. Markdown and notebook
+The second argument is 1 for --check (write nothing). Supported lines live in
+parity/release.toml. Markdown and notebook
 pins are generated blocks, not facts read back out of prose.
 """
 
@@ -14,12 +14,12 @@ import sys
 import tomllib
 from pathlib import Path
 
+from _repo import load_toml
+
 ROOT = Path(".")
 
 SUPPORTED_BEGIN = "<!-- generated:release:supported-lines:begin -->"
 SUPPORTED_END = "<!-- generated:release:supported-lines:end -->"
-REVIEWED_BEGIN = "<!-- generated:release:reviewed-version:begin -->"
-REVIEWED_END = "<!-- generated:release:reviewed-version:end -->"
 CRATE_BEGIN = "<!-- generated:release:crate-dep:begin -->"
 CRATE_END = "<!-- generated:release:crate-dep:end -->"
 PIN_BEGIN = "<!-- generated:release:python-pin:begin -->"
@@ -49,12 +49,8 @@ def supported_table(lines: list[str]) -> str:
     rows = ["| Version | Supported |", "|---------|-----------|"]
     for line in lines:
         rows.append(f"| {line}.x   | Yes |")
-    rows.append("| < 2.0   | No — upgrade to the latest release |")
+    rows.append(f"| < {lines[-1]}   | No — upgrade to the latest release |")
     return "\n".join(rows)
-
-
-def reviewed_scope(version: str) -> str:
-    return f"Scope: workspace crates + `python` extension (package version **{version}**)"
 
 
 def crate_dep(version: str) -> str:
@@ -95,7 +91,7 @@ def rewrite_assignment(text: str, key: str, literal: str) -> str:
     return new
 
 
-def load_release(root: Path) -> tuple[str, list[str], str | None]:
+def load_release(root: Path) -> tuple[str, list[str]]:
     path = root / "parity" / "release.toml"
     text = path.read_text(encoding="utf-8")
     data = tomllib.loads(text)
@@ -105,32 +101,28 @@ def load_release(root: Path) -> tuple[str, list[str], str | None]:
     for line in lines:
         if major_minor(f"{line}.0") != line:
             raise SnippetError(f"parity/release.toml: supported line {line!r} is not major.minor")
-    reviewed = data.get("reviewed_version")
-    if reviewed is not None and not isinstance(reviewed, str):
-        raise SnippetError("parity/release.toml: reviewed_version must be a string")
-    return text, lines, reviewed
+    return text, lines
 
 
 def release_lines_for(version: str, lines: list[str]) -> list[str]:
     minor = major_minor(version)
     if minor in lines:
         return list(lines)
-    return [minor, *lines]
+    # Fixes are not backported, so a new minor line replaces the earlier ones.
+    return [minor]
 
 
 def apply_release_snippets(root: Path, version: str, edits: dict[Path, str]) -> None:
     """Fill `edits` with generated release snippets for `version`.
 
-    `supported_lines` gains the new minor when it is absent. `reviewed_version`
-    becomes `version`. Callers compare or write `edits`; this function does not
-    touch the tree.
+    `supported_lines` becomes the new minor alone when it is absent, since fixes are not backported.
+    Callers compare or write `edits`; this function does not touch the tree.
     """
     release_path = root / "parity" / "release.toml"
-    text, lines, _reviewed = load_release(root)
+    text, lines = load_release(root)
     new_lines = release_lines_for(version, lines)
     literal = "[" + ", ".join(f'"{line}"' for line in new_lines) + "]"
     text = rewrite_assignment(text, "supported_lines", literal)
-    text = rewrite_assignment(text, "reviewed_version", f'"{version}"')
     edits[release_path] = text
 
     security = root / "SECURITY.md"
@@ -140,15 +132,6 @@ def apply_release_snippets(root: Path, version: str, edits: dict[Path, str]) -> 
         SUPPORTED_END,
         supported_table(new_lines),
         "SECURITY.md",
-    )
-
-    review = root / "docs" / "security_review.md"
-    edits[review] = replace_generated(
-        review.read_text(encoding="utf-8"),
-        REVIEWED_BEGIN,
-        REVIEWED_END,
-        reviewed_scope(version),
-        "docs/security_review.md",
     )
 
     crate = root / "crates" / "antecedent" / "README.md"
@@ -170,8 +153,10 @@ def apply_release_snippets(root: Path, version: str, edits: dict[Path, str]) -> 
     )
 
     notebooks = sorted((root / "examples" / "notebooks").glob("*.ipynb"))
-    if len(notebooks) != 6:
-        raise SnippetError(f"expected 6 notebooks, found {len(notebooks)}")
+    catalog = load_toml(root / "examples" / "catalog.toml")
+    declared = sum("notebook" in row for row in catalog["example"])
+    if len(notebooks) != declared:
+        raise SnippetError(f"expected {declared} catalog notebooks, found {len(notebooks)}")
     pin = python_pin(version)
     major, minor = major_minor(version).split(".")
     minor_check = f"!= ({int(major)}, {int(minor)})"
@@ -242,10 +227,10 @@ def main(argv: list[str]) -> None:
     edits[pyproject] = py_new
 
     # Path-dep version pins must match for crates.io packaging.
-    path_pat = re.compile(
-        r'(antecedent(?:-[a-z0-9-]+)?\s*=\s*\{\s*version\s*=\s*")[^"]+(")'
-    )
-    for path in [cargo] + sorted(root.glob("crates/*/Cargo.toml")) + [root / "python" / "Cargo.toml"]:
+    path_pat = re.compile(r'(antecedent(?:-[a-z0-9-]+)?\s*=\s*\{\s*version\s*=\s*")[^"]+(")')
+    for path in (
+        [cargo] + sorted(root.glob("crates/*/Cargo.toml")) + [root / "python" / "Cargo.toml"]
+    ):
         if not path.is_file():
             continue
         current = edits.get(path, path.read_text(encoding="utf-8"))
@@ -259,9 +244,7 @@ def main(argv: list[str]) -> None:
     # extension or installed metadata; "unknown" is the sentinel when neither is
     # available, not a version pin.
     literal = re.search(r'__version__\s*=\s*"([^"]+)"', init_text)
-    if literal and re.fullmatch(
-        r"[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?", literal.group(1)
-    ):
+    if literal and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?", literal.group(1)):
         init_new, n = re.subn(
             r'(__version__\s*=\s*")[^"]+(")',
             rf"\g<1>{version}\2",
@@ -307,7 +290,8 @@ def main(argv: list[str]) -> None:
     if check:
         lock = root / "Cargo.lock"
         lock_ok = lock.is_file() and re.search(
-            rf'name = "antecedent"\nversion = "{re.escape(version)}"', lock.read_text(encoding="utf-8")
+            rf'name = "antecedent"\nversion = "{re.escape(version)}"',
+            lock.read_text(encoding="utf-8"),
         )
         stale = [str(path) for path in changed] + ([] if lock_ok else ["Cargo.lock"])
         if stale:

@@ -1,0 +1,629 @@
+//! Target-native validation through the compiler: a derivative target refuted by refits of
+//! the prepared program, and a claim that refuses a scalar average-effect refutation for it.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::sync::Arc;
+
+use antecedent::analysis::target_validation::{
+    PreparedTargetData, RefutationTarget, TargetCertificationError, TargetFamily,
+    TargetRefitOptions, TargetRefutationConfig, TargetRefuterKind, TargetSuite,
+    certify_result_refutations, refute_prepared_target, result_refutation_target,
+    result_target_family, result_target_values,
+};
+use antecedent::{RefuteSuite, Study};
+use antecedent_core::{
+    CausalQuery, DerivativeScale, ExecutionContext, Intervention, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseValue, Value, VariableId,
+};
+use antecedent_data::TabularData;
+use antecedent_estimate::ContinuousResponseOptions;
+use antecedent_graph::{Cpdag, Dag, DenseNodeId};
+use antecedent_validate::RefutationReport;
+
+/// `y = 5 + 2a − 0.5b + e`, `a` confounded by `b`; the derivative of `E[y | do(a)]` is 2.
+fn fixture(n: u32) -> (TabularData, Dag) {
+    let b: Vec<f64> = (0..n).map(|i| (f64::from(i) * 1.13).cos()).collect();
+    let a: Vec<f64> = (0..n)
+        .zip(&b)
+        .map(|(i, b)| {
+            2.0 + 0.5 * b + (f64::from(i) * 0.71).sin() + 0.2 * (f64::from(i) * 0.13).cos()
+        })
+        .collect();
+    let y: Vec<f64> = (0..n)
+        .zip(a.iter().zip(&b))
+        .map(|(i, (a, b))| 5.0 + 2.0 * a - 0.5 * b + 0.3 * (f64::from(i) * 2.39).sin())
+        .collect();
+    let data = TabularData::from_f64_columns([
+        ("a", a.as_slice()),
+        ("b", b.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap();
+    let mut graph = Dag::with_variables(3);
+    for (source, target) in [(1, 0), (0, 2), (1, 2)] {
+        graph
+            .insert_directed(DenseNodeId::from_raw(source), DenseNodeId::from_raw(target))
+            .unwrap();
+    }
+    (data, graph)
+}
+
+fn query() -> ResponseQuery {
+    ResponseQuery::new(ResponseFunctional::PointDerivative {
+        outcome: VariableId::from_raw(2),
+        treatment: VariableId::from_raw(0),
+        at: 2.0,
+        order: 1,
+        scale: DerivativeScale::Identity,
+    })
+}
+
+fn prepared(data: &TabularData, graph: &Dag, ctx: &ExecutionContext) -> antecedent::PreparedStudy {
+    Study::tabular(data.clone())
+        .graph(graph.clone())
+        .query(CausalQuery::Response(query()))
+        .response_options(ContinuousResponseOptions { bandwidth: Some(0.35), ..Default::default() })
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(ctx)
+        .unwrap()
+}
+
+fn checked_outcome(
+    prepared: &antecedent::PreparedStudy,
+    result: &antecedent::StudyResult,
+    data: &TabularData,
+    ctx: &ExecutionContext,
+) -> antecedent::analysis::target_validation::TargetRefutationOutcome {
+    refute_prepared_target(
+        prepared,
+        result,
+        PreparedTargetData::Tabular(data),
+        TargetSuite::Placebo,
+        &TargetRefutationConfig { replicates: 8, ..TargetRefutationConfig::default() },
+        &TargetRefitOptions::default(),
+        ctx,
+    )
+    .unwrap()
+}
+
+#[test]
+fn compiled_intervention_level_is_a_world_value_not_an_average_effect() {
+    let n = 240_u32;
+    let b: Vec<f64> = (0..n).map(|i| (f64::from(i) * 1.13).cos()).collect();
+    let a: Vec<f64> =
+        (0..n).zip(&b).map(|(i, b)| 2.0 + 0.5 * b + (f64::from(i) * 0.71).sin()).collect();
+    let y: Vec<f64> = a.iter().zip(&b).map(|(a, b)| 5.0 + 2.0 * a - 0.5 * b).collect();
+    let expected = 9.0 - 0.5 * b.iter().sum::<f64>() / f64::from(n);
+    let data = TabularData::from_f64_columns([
+        ("a", a.as_slice()),
+        ("b", b.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap();
+    let mut graph = Dag::with_variables(3);
+    for (source, target) in [(1, 0), (0, 2), (1, 2)] {
+        graph
+            .insert_directed(DenseNodeId::from_raw(source), DenseNodeId::from_raw(target))
+            .unwrap();
+    }
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(2),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(2.0))]),
+    });
+    let ctx = ExecutionContext::for_tests(63);
+    let prepared = Study::tabular(data.clone())
+        .graph(graph)
+        .query(CausalQuery::Response(query))
+        .response_options(ContinuousResponseOptions { bandwidth: Some(0.35), ..Default::default() })
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let ResponseIdentification::PointIdentified(ResponseValue::Scalar(level)) =
+        &result.response().unwrap().estimate
+    else {
+        panic!("expected the compiled scalar intervention level")
+    };
+    // The penalized nuisance fit is approximate even for this linear law.
+    assert!((level - expected).abs() < 1e-3, "{level} vs {expected}");
+    let (family, labels, values) = result_target_values(&result).unwrap();
+    assert_eq!(family, TargetFamily::WorldValued);
+    assert_eq!(labels.iter().map(AsRef::as_ref).collect::<Vec<&str>>(), ["value"]);
+    assert_eq!(values[0].to_bits(), level.to_bits());
+    let target = result_refutation_target(&result).unwrap();
+    assert_eq!(target.family(), TargetFamily::WorldValued);
+    assert_eq!(target.source(), result.lowered_program_identity().unwrap().as_bytes());
+    let scalar_report = RefutationReport::new("scalar_ate", 1.0, 0.0, 0.5, true, true, None, 8);
+    assert!(matches!(
+        antecedent_validate::target_native::refuse_scalar_reports_for_target(
+            &target,
+            &[scalar_report]
+        ),
+        Err(TargetCertificationError::ScalarRefuterForOtherTarget {
+            claim_family: TargetFamily::WorldValued,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn a_point_identified_class_derivative_accepts_a_separate_whole_target_refutation() {
+    let (data, _) = fixture(240);
+    let mut graph = Cpdag::with_variables(3);
+    for (source, target) in [(1, 0), (0, 2), (1, 2)] {
+        graph
+            .insert_directed(DenseNodeId::from_raw(source), DenseNodeId::from_raw(target))
+            .unwrap();
+    }
+    let ctx = ExecutionContext::for_tests(61);
+    let prepared = Study::tabular(data.clone())
+        .graph(graph)
+        .query(CausalQuery::Response(query()))
+        .response_options(ContinuousResponseOptions { bandwidth: Some(0.35), ..Default::default() })
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    assert!(result.structural_response.is_some());
+    let target = result_refutation_target(&result).unwrap();
+    let outcome = refute_prepared_target(
+        &prepared,
+        &result,
+        PreparedTargetData::Tabular(&data),
+        TargetSuite::Cheap,
+        &TargetRefutationConfig { replicates: 8, ..TargetRefutationConfig::default() },
+        &TargetRefitOptions::default(),
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(outcome.plan.target(), &target);
+    assert!(!outcome.run.reports.is_empty(), "{:?}", outcome.run.refused);
+    certify_result_refutations(&result, &outcome).unwrap();
+}
+
+#[test]
+fn completion_refutations_do_not_certify_the_whole_class_response() {
+    let (data, _) = fixture(240);
+    let mut graph = Cpdag::with_variables(3);
+    for (source, target) in [(1, 0), (0, 2), (1, 2)] {
+        graph
+            .insert_directed(DenseNodeId::from_raw(source), DenseNodeId::from_raw(target))
+            .unwrap();
+    }
+    let ctx = ExecutionContext::for_tests(61);
+    let prepared = Study::tabular(data.clone())
+        .graph(graph)
+        .query(CausalQuery::Response(query()))
+        .response_options(ContinuousResponseOptions { bandwidth: Some(0.35), ..Default::default() })
+        .refute(RefuteSuite::Cheap)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    assert!(result.structural_response.is_some());
+    assert!(!result.refutations.is_empty());
+    let artifact = prepared.encode_contracted_result(&result, "class-response", &ctx).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
+    assert!(!consumed.body.refutations.is_empty());
+    assert!(consumed.body.refutations.iter().all(|report| report.scope.is_some()));
+    assert!(
+        antecedent_io::support_empirical(&consumed.body.refutations, &consumed.body.diagnostics)
+            .is_none()
+    );
+    assert!(
+        consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| reason.as_ref() == "dependencies.scoped_refutation_replay")
+    );
+    assert!(!consumed.acceptance.accepts_as_claim());
+}
+
+#[test]
+fn a_derivative_target_is_refuted_by_refits_of_its_own_program() {
+    let (data, graph) = fixture(500);
+    let ctx = ExecutionContext::for_tests(61);
+    let prepared = prepared(&data, &graph, &ctx);
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(result_target_family(&result), TargetFamily::ResponseDerivative);
+    let (_, labels, values) = result_target_values(&result).unwrap();
+    assert_eq!(labels.len(), 1);
+    // The true derivative is the coefficient 2 of `a`; the local fit lands within 0.007 of it.
+    assert!((values[0] - 2.0).abs() < 0.03, "derivative {values:?}");
+    let target = result_refutation_target(&result).unwrap();
+    assert_eq!(
+        target.source(),
+        result.lowered_program_identity().unwrap().as_bytes(),
+        "the target is defined by the lowered program"
+    );
+
+    let config = TargetRefutationConfig { replicates: 12, ..TargetRefutationConfig::default() };
+    let outcome = refute_prepared_target(
+        &prepared,
+        &result,
+        PreparedTargetData::Tabular(&data),
+        TargetSuite::Cheap,
+        &config,
+        &TargetRefitOptions::default(),
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(outcome.plan.target(), &target);
+    let placebo = outcome
+        .run
+        .reports
+        .iter()
+        .find(|r| r.kind == TargetRefuterKind::PlaceboTreatment)
+        .expect("placebo report");
+    assert!(placebo.passed, "{:?}", placebo.failure);
+    // A permuted treatment has no effect on the outcome: the placebo derivative is near 0
+    // (observed -0.06), far from the real derivative 2.
+    assert!(placebo.refuted[0].abs() < 0.25, "placebo derivative {:?}", placebo.refuted);
+    // The derivative diagnostics read the study's own fitted response curve.
+    let refused: Vec<_> = outcome.run.refused.iter().map(|r| r.kind).collect();
+    assert!(
+        outcome
+            .run
+            .reports
+            .iter()
+            .any(|r| r.kind == TargetRefuterKind::FiniteDifferenceConsistency),
+        "{:?}",
+        outcome.run.refused
+    );
+    assert!(outcome.run.refused.iter().all(|r| !r.next_attempt.is_empty()));
+    // Subset stability either ran on the whole vector or was refused with its reason.
+    assert!(
+        outcome.run.reports.iter().any(|r| r.kind == TargetRefuterKind::SubsetStability)
+            || refused.contains(&TargetRefuterKind::SubsetStability)
+    );
+    assert!(outcome.run.refused.iter().all(|r| !r.next_attempt.is_empty()));
+    assert_eq!(outcome.certificate.target, target);
+    // Deterministic under the same seed.
+    let again = refute_prepared_target(
+        &prepared,
+        &result,
+        PreparedTargetData::Tabular(&data),
+        TargetSuite::Cheap,
+        &config,
+        &TargetRefitOptions::default(),
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(again.run, outcome.run);
+}
+
+#[test]
+fn the_claim_refuses_a_scalar_average_effect_refutation_of_a_derivative() {
+    let (data, graph) = fixture(300);
+    let ctx = ExecutionContext::for_tests(62);
+    let prepared = prepared(&data, &graph, &ctx);
+    let clean = prepared.estimate(&data, &ctx).unwrap();
+    let outcome = checked_outcome(&prepared, &clean, &data, &ctx);
+    let contract = prepared.contract().unwrap();
+    if let Err(error) = clean.claim(&contract, &ctx) {
+        assert!(!error.to_string().contains("cannot certify"), "{error}");
+    }
+    let mut certified_by_ate = clean.clone();
+    certified_by_ate.refutations.push(RefutationReport::new(
+        "placebo_treatment",
+        2.0,
+        0.0,
+        0.9,
+        true,
+        true,
+        None,
+        50,
+    ));
+    let error = certified_by_ate.claim(&contract, &ctx).unwrap_err();
+    let message = error.to_string();
+    assert!(message.contains("modified") || message.contains("refutation"), "{message}");
+    assert!(matches!(
+        certify_result_refutations(&certified_by_ate, &outcome),
+        Err(TargetCertificationError::TargetMismatch { .. })
+    ));
+}
+
+#[test]
+fn modifying_the_published_target_invalidates_the_runtime_report_binding() {
+    let (data, graph) = fixture(300);
+    let ctx = ExecutionContext::for_tests(66);
+    let prepared = prepared(&data, &graph, &ctx);
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let outcome = checked_outcome(&prepared, &result, &data, &ctx);
+    assert!(certify_result_refutations(&result, &outcome).is_ok());
+    let mut accounted = result.clone();
+    accounted.set_borrowed_input_bytes(Some(4096));
+    assert_eq!(accounted.performance.bytes_borrowed, Some(4096));
+    assert!(certify_result_refutations(&accounted, &outcome).is_ok());
+    let mut changed_effect = result.clone();
+    changed_effect.estimate_mut().as_effect_mut().unwrap().ate += 1.0;
+    changed_effect.set_borrowed_input_bytes(Some(4096));
+    assert!(certify_result_refutations(&changed_effect, &outcome).is_err());
+    let mut changed_query = result.clone();
+    let mut query = query();
+    query.functional = ResponseFunctional::PointDerivative {
+        outcome: VariableId::from_raw(2),
+        treatment: VariableId::from_raw(0),
+        at: 3.0,
+        order: 1,
+        scale: DerivativeScale::Identity,
+    };
+    changed_query.identification.query = CausalQuery::Response(query);
+    assert!(certify_result_refutations(&changed_query, &outcome).is_err());
+}
+
+#[test]
+fn a_caller_forged_same_program_stamp_is_not_a_route_report() {
+    let (data, graph) = fixture(300);
+    let ctx = ExecutionContext::for_tests(64);
+    let prepared = prepared(&data, &graph, &ctx);
+    let clean = prepared.estimate(&data, &ctx).unwrap();
+    let outcome = checked_outcome(&prepared, &clean, &data, &ctx);
+    let contract = prepared.contract().unwrap();
+    let program = *clean.lowered_program_identity().unwrap().as_bytes();
+    let report = || RefutationReport::new("sensitivity.evalue", 2.0, 2.0, 3.1, true, true, None, 0);
+
+    // Public stamps are descriptive: appending a forged report invalidates the
+    // result's engine-issued binding even when its program bytes match.
+    let mut native = clean.clone();
+    let mut own = report();
+    own.stamp_producer(program);
+    native.refutations.push(own);
+    assert!(native.claim(&contract, &ctx).is_err());
+    assert!(matches!(
+        certify_result_refutations(&native, &outcome),
+        Err(TargetCertificationError::TargetMismatch { .. })
+    ));
+
+    // Stamped by another program: refused, like an unstamped scalar report.
+    let mut foreign = clean.clone();
+    let mut theirs = report();
+    theirs.stamp_producer([7; 32]);
+    foreign.refutations.push(theirs);
+    assert!(matches!(
+        certify_result_refutations(&foreign, &outcome),
+        Err(TargetCertificationError::TargetMismatch { .. })
+    ));
+}
+
+#[test]
+fn descriptive_scope_cannot_certify_even_when_program_and_target_match() {
+    let (data, graph) = fixture(300);
+    let ctx = ExecutionContext::for_tests(65);
+    let prepared = prepared(&data, &graph, &ctx);
+    let mut result = prepared.estimate(&data, &ctx).unwrap();
+    let outcome = checked_outcome(&prepared, &result, &data, &ctx);
+    let contract = prepared.contract().unwrap();
+    let target = result_refutation_target(&result).unwrap();
+    let program = *result.lowered_program_identity().unwrap().as_bytes();
+    let mut report =
+        RefutationReport::new("target.subset_stability", 2.0, 2.0, 0.9, true, true, None, 8);
+    report.scope = Some(antecedent_validate::RefutationScope::WholeTarget { target });
+    report.stamp_producer(program);
+    result.refutations.push(report);
+    assert!(matches!(
+        certify_result_refutations(&result, &outcome),
+        Err(TargetCertificationError::TargetMismatch { .. })
+    ));
+    let error = result.claim(&contract, &ctx).unwrap_err();
+    assert!(
+        error.to_string().contains("modified") || error.to_string().contains("refutation"),
+        "{error}"
+    );
+}
+
+#[test]
+fn a_report_on_another_program_does_not_certify_the_result() {
+    let (data, graph) = fixture(300);
+    let ctx = ExecutionContext::for_tests(63);
+    let prepared = prepared(&data, &graph, &ctx);
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let config = TargetRefutationConfig { replicates: 8, ..TargetRefutationConfig::default() };
+    let outcome = refute_prepared_target(
+        &prepared,
+        &result,
+        PreparedTargetData::Tabular(&data),
+        TargetSuite::Placebo,
+        &config,
+        &TargetRefitOptions::default(),
+        &ctx,
+    )
+    .unwrap();
+    assert!(certify_result_refutations(&result, &outcome).is_ok());
+    // The same reports relabelled to a target defined by another program.
+    let elsewhere = RefutationTarget::new(
+        TargetFamily::ResponseDerivative,
+        result_refutation_target(&result).unwrap().quadrant(),
+        [Arc::<str>::from("value")],
+        [9; 32],
+    )
+    .unwrap();
+    let mut moved = outcome.clone();
+    for report in &mut moved.run.reports {
+        report.target = elsewhere.clone();
+    }
+    assert!(matches!(
+        certify_result_refutations(&result, &moved),
+        Err(TargetCertificationError::TargetMismatch { .. })
+    ));
+}
+
+#[test]
+fn checked_outcome_binds_actual_data_and_rejects_mutation() {
+    let (data, graph) = fixture(300);
+    let ctx = ExecutionContext::for_tests(67);
+    let prepared = prepared(&data, &graph, &ctx);
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let (equivalent, _) = fixture(300); // independently allocated, byte-identical
+    let outcome = checked_outcome(&prepared, &result, &equivalent, &ctx);
+    assert!(certify_result_refutations(&result, &outcome).is_ok());
+    let mut modified = outcome.clone();
+    modified.run.reports.clear();
+    assert!(certify_result_refutations(&result, &modified).is_err());
+    assert!(certify_result_refutations(&result, &outcome).is_ok());
+    let (different, _) = fixture(301);
+    let refused = refute_prepared_target(
+        &prepared,
+        &result,
+        PreparedTargetData::Tabular(&different),
+        TargetSuite::Placebo,
+        &TargetRefutationConfig { replicates: 8, ..TargetRefutationConfig::default() },
+        &TargetRefitOptions::default(),
+        &ctx,
+    );
+    assert!(matches!(refused, Err(antecedent::CausalError::Conflict { what: "data", .. })));
+    let cancelled = ExecutionContext::for_tests(67);
+    cancelled.cancellation.cancel();
+    let refused = refute_prepared_target(
+        &prepared,
+        &result,
+        PreparedTargetData::Tabular(&equivalent),
+        TargetSuite::Placebo,
+        &TargetRefutationConfig::default(),
+        &TargetRefitOptions::default(),
+        &cancelled,
+    );
+    assert!(matches!(refused, Err(antecedent::CausalError::Cancelled { .. })));
+}
+
+/// `z -> t -> y`, `z -> y` over `(z, t, y)` with a deterministic, well-conditioned table.
+fn attribution_fixture(n: u32) -> (TabularData, Dag) {
+    let z: Vec<f64> = (0..n).map(|i| (f64::from(i) * 1.37).sin()).collect();
+    let t: Vec<f64> = (0..n).zip(&z).map(|(i, z)| 0.6 * z + (f64::from(i) * 0.91).cos()).collect();
+    let y: Vec<f64> = (0..n)
+        .zip(t.iter().zip(&z))
+        .map(|(i, (t, z))| 1.0 + 2.0 * t + z + 0.4 * (f64::from(i) * 2.17).sin())
+        .collect();
+    let data = TabularData::from_f64_columns([
+        ("z", z.as_slice()),
+        ("t", t.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap();
+    let mut graph = Dag::with_variables(3);
+    for (source, target) in [(0, 1), (0, 2), (1, 2)] {
+        graph
+            .insert_directed(DenseNodeId::from_raw(source), DenseNodeId::from_raw(target))
+            .unwrap();
+    }
+    (data, graph)
+}
+
+#[test]
+fn an_attribution_vector_is_refuted_by_refits_of_its_own_attribution_program() {
+    let (data, graph) = attribution_fixture(96);
+    let ctx = ExecutionContext::for_tests(67);
+    let prepared = Study::tabular(data.clone())
+        .graph(graph)
+        .query(CausalQuery::AnomalyAttribution(antecedent_core::AnomalyAttributionQuery::new(
+            [VariableId::from_raw(2)],
+            100,
+        )))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(result_target_family(&result), TargetFamily::Attribution);
+    let (_, labels, values) = result_target_values(&result).unwrap();
+    // The mean score and one mean Shapley contribution per ancestor noise component.
+    assert!(labels.len() >= 2 && labels.len() == values.len(), "{labels:?}");
+    let config = TargetRefutationConfig { replicates: 8, ..TargetRefutationConfig::default() };
+    let outcome = refute_prepared_target(
+        &prepared,
+        &result,
+        PreparedTargetData::Tabular(&data),
+        TargetSuite::Full,
+        &config,
+        &TargetRefitOptions::default(),
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(outcome.plan.target().family(), TargetFamily::Attribution);
+    // No treatment-keyed refuter denotes for an attribution; only stability refuters run, on
+    // the whole vector.
+    let kinds: Vec<_> = outcome.run.reports.iter().map(|report| report.kind).collect();
+    assert!(
+        kinds.iter().all(|kind| matches!(
+            kind,
+            TargetRefuterKind::SubsetStability | TargetRefuterKind::BootstrapStability
+        )),
+        "{kinds:?} {:?}",
+        outcome.run.refused
+    );
+    assert!(!kinds.is_empty(), "{:?}", outcome.run.refused);
+    assert!(outcome.run.reports.iter().all(|report| report.original.len() == values.len()));
+}
+
+#[test]
+fn retained_dag_posterior_refits_preserve_structural_contributors() {
+    use antecedent_discovery::{GraphPosterior, SamplingSummary};
+    use antecedent_prob::InferenceDiagnostics;
+
+    let (data, _) = fixture(120);
+    let mut mask = antecedent_discovery::adjacency_mask::AdjacencyMask::EMPTY;
+    for (source, target) in [(1, 0), (0, 2), (1, 2)] {
+        mask = antecedent_discovery::adjacency_mask::set_edge(mask, 3, source, target, true);
+    }
+    let posterior = GraphPosterior::from_atoms(
+        3,
+        vec![1.0],
+        vec![mask],
+        vec![0.0; 9],
+        vec![0.0; 9],
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("static_contributor_refit"),
+            rejected_invalid: 0,
+        },
+    )
+    .unwrap();
+    let ctx = ExecutionContext::for_tests(71);
+    let prepared = Study::tabular(data.clone())
+        .graph_posterior(posterior)
+        .query(CausalQuery::Response(ResponseQuery::new(
+            ResponseFunctional::InterventionResponse {
+                outcome: VariableId::from_raw(2),
+                interventions: Arc::from([Intervention::set(
+                    VariableId::from_raw(0),
+                    Value::f64(2.0),
+                )]),
+            },
+        )))
+        .response_options(ContinuousResponseOptions { bandwidth: Some(0.35), ..Default::default() })
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    assert!(result.structural_response.is_some());
+    let outcome = refute_prepared_target(
+        &prepared,
+        &result,
+        PreparedTargetData::Tabular(&data),
+        TargetSuite::Cheap,
+        &TargetRefutationConfig { replicates: 4, ..Default::default() },
+        &TargetRefitOptions::default(),
+        &ctx,
+    )
+    .unwrap();
+    assert!(
+        outcome.run.reports.iter().any(|report| report.kind == TargetRefuterKind::SubsetStability),
+        "{:?}",
+        outcome.run.refused
+    );
+}

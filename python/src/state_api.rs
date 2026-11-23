@@ -1,24 +1,102 @@
 //! Incremental [`CausalState`] OO surface with retained column batches.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::NumericColumn;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use antecedent::analysis::composition_verification::ObservedEffect;
+use antecedent::execution::CacheBudget;
+use antecedent::identity::ContractIdentities;
+use antecedent::prelude::VariableId;
+use antecedent::query::{AverageEffectQuery, CausalQuery};
+use antecedent::schema::{
+    Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus, ModelId,
+    QueryId, StateVersion,
+};
+use antecedent::scientific::SemanticDigest;
 use antecedent::state::{
     CausalState, ConstraintId, DataBatchRef, GraphConstraintRecord, GraphEvidenceRecord,
-    InterventionRecord, LgssmParams, LinearOlsSuffStats, ParticleFilterState, StateEvent,
-    StreamingCovariance, apply_state_event, new_antecedent_state,
+    InterventionRecord, InvalidationTarget, LgssmParams, LinearOlsSuffStats, ParticleFilterState,
+    StateEvent, StreamingCovariance, apply_state_event, new_antecedent_state,
+    publish_recomputed_results, result_lineage_fingerprint,
 };
-use antecedent_core::{
-    Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
-    AverageEffectQuery, CacheBudget, CausalQuery, QueryId, VariableId,
-};
-use numpy::{PyArray1, PyReadonlyArray1};
+use numpy::PyArray1;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
 
-use crate::{catch_ffi, columns_to_batch, py_err};
+use crate::{catch_ffi, numeric_columns_to_batch, py_err};
+
+type IdentityMap = HashMap<String, Option<String>>;
+
+/// The seven identity layers of a contract from their hex spellings (`None` for the two
+/// layers a cheap inspection leaves absent).
+fn identities_of(map: &IdentityMap) -> PyResult<ContractIdentities> {
+    const LAYERS: [&str; 7] = [
+        "target",
+        "identification",
+        "identification_product",
+        "program",
+        "inference_binding",
+        "observation",
+        "data_snapshot",
+    ];
+    if let Some(unknown) = map.keys().find(|k| !LAYERS.contains(&k.as_str())) {
+        return Err(crate::value_err(format!("unknown identity layer `{unknown}`")));
+    }
+    let layer = |name: &str, required: bool| -> PyResult<Option<SemanticDigest>> {
+        match map.get(name).and_then(Option::as_deref) {
+            Some(hex) => antecedent::identity::parse_digest(hex).map(Some).ok_or_else(|| {
+                crate::value_err(format!("identity `{name}` must be 64 hexadecimal characters"))
+            }),
+            None if required => Err(crate::value_err(format!("identity `{name}` is required"))),
+            None => Ok(None),
+        }
+    };
+    let required = |name: &str| -> PyResult<SemanticDigest> {
+        layer(name, true).map(|digest| digest.expect("required layer present"))
+    };
+    Ok(ContractIdentities::new(
+        required("target")?,
+        required("identification")?,
+        layer("identification_product", false)?,
+        layer("program", false)?,
+        required("inference_binding")?,
+        required("observation")?,
+        required("data_snapshot")?,
+    ))
+}
+
+fn query_id_of(raw: u64) -> PyResult<QueryId> {
+    u32::try_from(raw)
+        .map(QueryId::from_raw)
+        .map_err(|_| crate::value_err(format!("query id {raw} does not fit in 32 bits")))
+}
+
+/// A state target a claim rests on: `(kind, id)` with `id` a query id, model id or
+/// sufficient-statistic key as the kind needs.
+fn target_of(kind: &str, id: Option<&str>) -> PyResult<InvalidationTarget> {
+    let need = |what: &str| {
+        id.ok_or_else(|| crate::value_err(format!("target `{kind}` needs a {what} id")))
+    };
+    let number = |what: &str| -> PyResult<u32> {
+        need(what)?
+            .parse::<u32>()
+            .map_err(|_| crate::value_err(format!("{what} id must be a non-negative integer")))
+    };
+    Ok(match kind {
+        "query" => InvalidationTarget::QueryResult(QueryId::from_raw(number("query")?)),
+        "model" => InvalidationTarget::Model(ModelId::from_raw(number("model")?)),
+        "suff_stat" => InvalidationTarget::SuffStat(Arc::from(need("sufficient-statistic")?)),
+        "all_results" => InvalidationTarget::AllResults,
+        "lag_indexes" => InvalidationTarget::LagIndexes,
+        "graph_scores" => InvalidationTarget::GraphScores,
+        "particle_filters" => InvalidationTarget::ParticleFilters,
+        "mechanism_diagnostics" => InvalidationTarget::MechanismDiagnostics,
+        other => return Err(crate::value_err(format!("unknown invalidation target `{other}`"))),
+    })
+}
 
 type BatchColumnsPy<'py> = (Vec<String>, Vec<Bound<'py, PyArray1<f64>>>);
 
@@ -28,6 +106,18 @@ const DEFAULT_CACHE_BYTES: u64 = 1_048_576;
 struct RetainedBatch {
     names: Vec<String>,
     columns: Vec<Vec<f64>>,
+}
+
+/// Largest dimension of a sufficient-statistics slot; the slot holds a dense square matrix.
+const MAX_STATE_DIMENSION: usize = 4096;
+
+fn require_state_dimension(dimension: usize, name: &str) -> PyResult<()> {
+    if dimension > MAX_STATE_DIMENSION {
+        return Err(crate::value_err(format!(
+            "{name} {dimension} exceeds the bound of {MAX_STATE_DIMENSION}"
+        )));
+    }
+    Ok(())
 }
 
 /// Incremental causal analysis state (versioned events, no auto-rerun).
@@ -48,18 +138,18 @@ impl PyCausalState {
     fn store_batch(
         &mut self,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
     ) -> PyResult<(Arc<str>, u64, u64)> {
         if names.len() != columns.len() {
             return Err(crate::value_err("names/columns length mismatch"));
         }
-        let batch = columns_to_batch(&names, &columns)?;
+        let batch = numeric_columns_to_batch(&names, &columns)?;
         let nrows = u64::try_from(batch.num_rows()).unwrap_or(u64::MAX);
         let bytes = u64::try_from(batch.get_array_memory_size()).unwrap_or(u64::MAX);
         let id_str = format!("b{}", self.next_batch);
         let mut owned = Vec::with_capacity(columns.len());
-        for col in &columns {
-            owned.push(col.as_slice()?.to_vec());
+        for (name, col) in names.iter().zip(&columns) {
+            owned.push(col.to_vec(name)?);
         }
         // Advance the public batch-id sequence only after every fallible
         // conversion has succeeded. Rejected appends/replacements must not
@@ -116,7 +206,7 @@ impl PyCausalState {
     fn append_data(
         &mut self,
         names: Vec<String>,
-        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        columns: Vec<NumericColumn<'_>>,
     ) -> PyResult<u64> {
         let (id, nrows, bytes) = self.store_batch(names, columns)?;
         self.apply(StateEvent::AppendData(DataBatchRef { id, nrows, bytes }))
@@ -129,7 +219,7 @@ impl PyCausalState {
     fn replace_data(
         &mut self,
         names: Option<Vec<String>>,
-        columns: Option<Vec<PyReadonlyArray1<'_, f64>>>,
+        columns: Option<Vec<NumericColumn<'_>>>,
     ) -> PyResult<u64> {
         let replacement = match (names, columns) {
             (Some(names), Some(columns)) => Some(self.store_batch(names, columns)?),
@@ -270,8 +360,8 @@ impl PyCausalState {
     /// match `PulseEffect` (`treatment_lag=1` → `pulse(-1)`).
     #[pyo3(signature = (
         treatment, outcome, *, grid, horizons=None,
-        policy=crate::temporal_license::DEFAULT_POLICY,
-        treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG, max_history_lag=None
+        policy=crate::temporal_support::DEFAULT_POLICY,
+        treatment_lag=crate::temporal_support::DEFAULT_TREATMENT_LAG, max_history_lag=None
     ))]
     fn register_response_curve(
         &mut self,
@@ -283,7 +373,7 @@ impl PyCausalState {
         treatment_lag: u32,
         max_history_lag: Option<u32>,
     ) -> PyResult<(u64, u64)> {
-        use antecedent_core::{
+        use antecedent::query::{
             ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TemporalResponseSpec,
         };
         let functional = ResponseFunctional::MeanCurve {
@@ -295,7 +385,7 @@ impl PyCausalState {
         };
         let mut query = ResponseQuery::new(functional);
         if let Some(horizons) = horizons {
-            let temporal_policy = crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
+            let temporal_policy = crate::temporal_support::policy_at_lag(policy, treatment_lag)?;
             let temporal = TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
                 .map_err(|e| crate::value_err(e.to_string()))?;
             query = query.with_temporal(temporal);
@@ -337,13 +427,100 @@ impl PyCausalState {
         Ok(())
     }
 
-    /// Ensure an OLS sufficient-stat slot exists with `ncols` predictors.
-    fn ols_ensure(&mut self, key: String, ncols: usize) {
+    /// Publish bare fingerprints at the version captured before recomputation.
+    /// Stale versions, unknown queries and lineage-bound refreshes are refused atomically.
+    fn refresh_results_at(
+        &mut self,
+        expected_version: u64,
+        entries: Vec<(u64, u64, u64)>,
+    ) -> PyResult<()> {
+        let mapped = entries
+            .into_iter()
+            .map(|(query, fingerprint, bytes)| Ok((query_id_of(query)?, fingerprint, bytes)))
+            .collect::<PyResult<Vec<_>>>()?;
         self.inner
-            .suff_stats
-            .ols
-            .entry(Arc::from(key))
-            .or_insert_with(|| LinearOlsSuffStats::new(ncols));
+            .refresh_results_at(StateVersion::from_raw(expected_version), &mapped)
+            .map_err(py_err)
+    }
+
+    /// Ensure an OLS sufficient-stat slot exists with `ncols` predictors.
+    /// Publish recomputed results at `expected_version`, binding each query to the
+    /// identity layers it was recomputed under: `(query_id, identities, bytes)`.
+    ///
+    /// Refuses (raising) a stale expected version, a data snapshot recorded before the latest
+    /// data event, an identity layer that predates a changed stage input, an unknown query and
+    /// a cache budget overrun; nothing is published then. A query published here is
+    /// lineage-bound and `refresh_results` refuses it.
+    fn publish_recomputed(
+        &mut self,
+        expected_version: u64,
+        updates: Vec<(u64, IdentityMap, u64)>,
+    ) -> PyResult<()> {
+        let bound = updates
+            .into_iter()
+            .map(|(q, map, bytes)| Ok((query_id_of(q)?, identities_of(&map)?, bytes)))
+            .collect::<PyResult<Vec<_>>>()?;
+        let refs: Vec<_> = bound.iter().map(|(q, ids, bytes)| (*q, ids, *bytes)).collect();
+        publish_recomputed_results(&mut self.inner, StateVersion::from_raw(expected_version), &refs)
+            .map_err(py_err)
+    }
+
+    /// The effects of the invalidation log after version `since` on the claims bound to
+    /// state targets: `(claim_key, target_kind, target_id)` per claim. Returns JSON
+    /// `[{"key": "claim:<key>", "kind": "recomputed"|"withdrawn", "text": cause}]`, the
+    /// observed effects a transport revalidation takes.
+    #[pyo3(signature = (since, bindings))]
+    fn claim_invalidation_effects(
+        &self,
+        since: u64,
+        bindings: Vec<(String, String, Option<String>)>,
+    ) -> PyResult<String> {
+        if since > self.inner.version.raw() {
+            return Err(crate::value_err(format!(
+                "since {since} is after the state version {}",
+                self.inner.version.raw()
+            )));
+        }
+        let targets = bindings
+            .iter()
+            .map(|(key, kind, id)| Ok((key.as_str(), target_of(kind, id.as_deref())?)))
+            .collect::<PyResult<Vec<_>>>()?;
+        let effects = antecedent::analysis::transport_revalidation::invalidation_effects_for_claims(
+            &self.inner.invalidations,
+            StateVersion::from_raw(since),
+            &targets,
+        );
+        let items = effects
+            .into_iter()
+            .map(|(key, effect)| {
+                let (kind, text) = match effect {
+                    ObservedEffect::Recomputed { cause } => ("recomputed", cause),
+                    ObservedEffect::Withdrawn { cause } => ("withdrawn", cause),
+                    ObservedEffect::Refused { detail } => ("refused", detail),
+                    other => {
+                        return Err(crate::value_err(format!("unsupported effect {other:?}")));
+                    }
+                };
+                Ok(serde_json::json!({"key": key, "kind": kind, "text": text}))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(serde_json::Value::Array(items).to_string())
+    }
+
+    fn ols_ensure(&mut self, key: String, ncols: usize) -> PyResult<()> {
+        require_state_dimension(ncols, "ncols")?;
+        if let Some(existing) = self.inner.suff_stats.ols.get(key.as_str()) {
+            if existing.ncols() != ncols {
+                return Err(crate::value_err(format!(
+                    "ols key `{key}` already holds {} columns, not {ncols}",
+                    existing.ncols()
+                )));
+            }
+            return Ok(());
+        }
+        let stats = LinearOlsSuffStats::new(ncols).map_err(py_err)?;
+        self.inner.suff_stats.ols.insert(Arc::from(key), stats);
+        Ok(())
     }
 
     /// Append one OLS design row / response under `key`.
@@ -367,21 +544,29 @@ impl PyCausalState {
             .get(key)
             .ok_or_else(|| crate::value_err(format!("unknown ols key `{key}`")))?;
         let d = PyDict::new(py);
-        d.set_item("n", stats.n)?;
-        d.set_item("ncols", stats.ncols)?;
-        d.set_item("xtx", stats.xtx.clone())?;
-        d.set_item("xty", stats.xty.clone())?;
-        d.set_item("yty", stats.yty)?;
+        d.set_item("n", stats.n())?;
+        d.set_item("ncols", stats.ncols())?;
+        d.set_item("xtx", stats.xtx().to_vec())?;
+        d.set_item("xty", stats.xty().to_vec())?;
+        d.set_item("yty", stats.yty())?;
         Ok(d)
     }
 
     /// Ensure a streaming-covariance slot of dimension `dim`.
-    fn cov_ensure(&mut self, key: String, dim: usize) {
-        self.inner
-            .suff_stats
-            .cov
-            .entry(Arc::from(key))
-            .or_insert_with(|| StreamingCovariance::new(dim));
+    fn cov_ensure(&mut self, key: String, dim: usize) -> PyResult<()> {
+        require_state_dimension(dim, "dim")?;
+        if let Some(existing) = self.inner.suff_stats.cov.get(key.as_str()) {
+            if existing.dim() != dim {
+                return Err(crate::value_err(format!(
+                    "cov key `{key}` already holds dimension {}, not {dim}",
+                    existing.dim()
+                )));
+            }
+            return Ok(());
+        }
+        let cov = StreamingCovariance::new(dim).map_err(py_err)?;
+        self.inner.suff_stats.cov.insert(Arc::from(key), cov);
+        Ok(())
     }
 
     /// Observe one row into streaming covariance `key`.
@@ -416,6 +601,7 @@ impl PyCausalState {
     #[pyo3(signature = (key, n_particles, *, a=0.9, process_std=0.3, obs_std=0.5, seed=1))]
     fn particle_filter_init(
         &mut self,
+        py: Python<'_>,
         key: String,
         n_particles: usize,
         a: f64,
@@ -423,26 +609,35 @@ impl PyCausalState {
         obs_std: f64,
         seed: u64,
     ) -> PyResult<()> {
-        let pf = ParticleFilterState::init(
-            n_particles,
-            LgssmParams { a, process_std, obs_std },
-            self.inner.data_catalog.version.raw(),
-            seed,
-        )
-        .map_err(py_err)?;
+        if self.inner.suff_stats.particle_filters.contains_key(key.as_str()) {
+            return Err(crate::value_err(format!(
+                "particle filter `{key}` already exists; refusing to discard its state"
+            )));
+        }
+        let version = self.inner.data_catalog.version.raw();
+        let pf = py
+            .detach(|| {
+                ParticleFilterState::init(
+                    n_particles,
+                    LgssmParams { a, process_std, obs_std },
+                    version,
+                    seed,
+                )
+            })
+            .map_err(py_err)?;
         self.inner.suff_stats.particle_filters.insert(Arc::from(key), pf);
         Ok(())
     }
 
     /// Step particle filter `key` with observation `y`.
-    fn particle_filter_step(&mut self, key: String, y: f64) -> PyResult<()> {
+    fn particle_filter_step(&mut self, py: Python<'_>, key: String, y: f64) -> PyResult<()> {
         let pf = self
             .inner
             .suff_stats
             .particle_filters
             .get_mut(key.as_str())
             .ok_or_else(|| crate::value_err(format!("unknown particle filter `{key}`")))?;
-        pf.step(y).map_err(py_err)?;
+        py.detach(|| pf.step(y)).map_err(py_err)?;
         Ok(())
     }
 
@@ -456,9 +651,9 @@ impl PyCausalState {
             .ok_or_else(|| crate::value_err(format!("unknown particle filter `{key}`")))?;
         let d = PyDict::new(py);
         d.set_item("n_obs", pf.n_obs)?;
-        d.set_item("n_particles", pf.n_particles)?;
-        d.set_item("particles", pf.particles.clone())?;
-        d.set_item("log_weights", pf.log_weights.clone())?;
+        d.set_item("n_particles", pf.n_particles())?;
+        d.set_item("particles", pf.particles().to_vec())?;
+        d.set_item("log_weights", pf.log_weights().to_vec())?;
         Ok(d)
     }
 
@@ -482,7 +677,8 @@ pub(crate) fn antecedent_state_append(n_appends: u64, cache_bytes: u64) -> PyRes
         let q = state.inner.queries.register(CausalQuery::AverageEffect(
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)),
         ));
-        let _ = state.inner.refresh_results(&[(q, 1, 16)]);
+        let computed_at = state.inner.version;
+        state.inner.refresh_results_at(computed_at, &[(q, 1, 16)]).map_err(py_err)?;
         for i in 0..n_appends {
             let id: Arc<str> = Arc::from(format!("synth{i}"));
             state.retained.insert(
@@ -499,8 +695,16 @@ pub(crate) fn antecedent_state_append(n_appends: u64, cache_bytes: u64) -> PyRes
     })
 }
 
+/// The lineage digest (hex) of a contract's identity layers: every layer, so two estimands,
+/// two priors or two bootstrap budgets never share a lineage key.
+#[pyfunction(name = "state_result_lineage_fingerprint")]
+fn state_result_lineage_fingerprint(identities: IdentityMap) -> PyResult<String> {
+    Ok(result_lineage_fingerprint(&identities_of(&identities)?).to_hex())
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCausalState>()?;
     m.add_function(wrap_pyfunction!(antecedent_state_append, m)?)?;
+    m.add_function(wrap_pyfunction!(state_result_lineage_fingerprint, m)?)?;
     Ok(())
 }

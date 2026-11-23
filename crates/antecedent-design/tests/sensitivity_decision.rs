@@ -16,8 +16,8 @@ use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_design::decision_contract::{DecisionCriterion, StructuralPolicy};
 use antecedent_design::decision_structural::StructuralVerdict;
 use antecedent_design::sensitivity_decision::{
-    ActionUtility, AssumptionCoordinate, AssumptionRangeStatement, DecisionSwitch,
-    LICENSED_SAMPLING_COMPOSITIONS, NoRobustReason, PointSupport, SamplingInterval, SamplingReport,
+    ActionUtility, AssumptionCoordinate, AssumptionRangeStatement, DecisionSwitch, NoRobustReason,
+    PointSupport, SUPPORTED_SAMPLING_COMPOSITIONS, SamplingInterval, SamplingReport,
     SamplingStatus, ScenarioCoverage, SensitivityArtifact, SensitivityDecisionSpec,
     SensitivityOutcome, SensitivityParts, SensitivityProvenance, SurfaceQuantity,
     UncertaintyRelationship, UtilityTerm, contract_from_artifact, evaluate_sensitivity_decision,
@@ -67,8 +67,8 @@ fn withheld() -> UncertaintyRelationship {
         },
         identified_bound: None,
         sampling: SamplingStatus::Withheld {
-            reason_code: "cell_not_licensed".into(),
-            detail: "joint_sensitivity.interval_withheld".into(),
+            reason_code: "uncertainty_representation_insufficient".into(),
+            detail: antecedent_core::reason_details::joint_sensitivity::NO_INTERVAL_METHOD.into(),
         },
     }
 }
@@ -275,14 +275,15 @@ fn assumption_range_is_not_a_sampling_interval() {
         SensitivityArtifact::new(p).unwrap()
     };
     let mut with_interval = withheld();
-    with_interval.sampling = SamplingStatus::Reported(SamplingInterval {
+    with_interval.sampling = SamplingStatus::Reported(Box::new(SamplingInterval {
         quantity: "effect".into(),
         level: 0.95,
         method: "percentile_bootstrap".into(),
         composed: None,
+        calibration: None,
         lower: vec![-2.0; 3],
         upper: vec![3.0; 3],
-    });
+    }));
     let plain = ranged(withheld());
     let reported = ranged(with_interval.clone());
     let (without, with) = (evaluate(&plain), evaluate(&reported));
@@ -303,16 +304,19 @@ fn assumption_range_is_not_a_sampling_interval() {
         }
     );
 
-    // Asking for the composition is refused; the licensed list is empty.
-    assert!(LICENSED_SAMPLING_COMPOSITIONS.is_empty());
+    // Asking for the composition is refused; the supported list is empty.
+    assert!(SUPPORTED_SAMPLING_COMPOSITIONS.is_empty());
     let contract = contract_from_artifact(&reported, invariant_policy()).unwrap();
     let spec = SensitivityDecisionSpec {
         sampling_composition: Some("conservative_endpoint_percentile_bootstrap".into()),
         ..SensitivityDecisionSpec::default()
     };
     let error = evaluate_sensitivity_decision(&contract, &reported, &spec).unwrap_err();
-    assert_eq!(error.reason_code(), "cell_not_licensed");
-    assert_eq!(error.detail(), "sensitivity_decision_composition.composition_not_licensed");
+    assert_eq!(error.reason_code(), "route_not_supported");
+    assert_eq!(
+        error.detail(),
+        antecedent_core::reason_details::sensitivity_decision_composition::COMPOSITION_NOT_SUPPORTED
+    );
 
     // An artifact that claims a composition is refused at construction.
     let mut claimed = with_interval;
@@ -323,14 +327,19 @@ fn assumption_range_is_not_a_sampling_interval() {
     p.uncertainty = claimed;
     p.uncertainty.sampling = match p.uncertainty.sampling {
         SamplingStatus::Reported(interval) => {
-            SamplingStatus::Reported(SamplingInterval { quantity: "ua".into(), ..interval })
+            SamplingStatus::Reported(Box::new(SamplingInterval {
+                quantity: "ua".into(),
+                ..*interval
+            }))
         }
         other @ SamplingStatus::Withheld { .. } => other,
     };
     let error = SensitivityArtifact::new(p).unwrap_err();
     let (code, message) = refusal(&error);
-    assert_eq!(code, "cell_not_licensed");
-    assert!(message.starts_with("sensitivity_decision_composition.composition_not_licensed"));
+    assert_eq!(code, "route_not_supported");
+    assert!(message.starts_with(
+        antecedent_core::reason_details::sensitivity_decision_composition::COMPOSITION_NOT_SUPPORTED
+    ));
 }
 
 #[test]
@@ -345,9 +354,17 @@ fn unsupported_coordinate_refuses_and_a_subrange_avoids_it() {
         evaluate_sensitivity_decision(&contract, &artifact, &SensitivityDecisionSpec::default())
             .unwrap_err();
     assert_eq!(error.reason_code(), "quantity_semantics_mismatch");
-    assert_eq!(error.detail(), "sensitivity_decision_composition.unsupported_coordinate");
+    assert_eq!(
+        error.detail(),
+        antecedent_core::reason_details::sensitivity_decision_composition::UNSUPPORTED_COORDINATE
+    );
     let spec = SensitivityDecisionSpec { range: Some((0.0, 2.0)), ..Default::default() };
-    assert!(evaluate_sensitivity_decision(&contract, &artifact, &spec).is_err());
+    let error = evaluate_sensitivity_decision(&contract, &artifact, &spec).unwrap_err();
+    assert_eq!(error.reason_code(), "quantity_semantics_mismatch");
+    assert_eq!(
+        error.detail(),
+        antecedent_core::reason_details::sensitivity_decision_composition::UNSUPPORTED_COORDINATE
+    );
 
     // Evaluating only gamma = 0, where A = 2 beats B = 1, never touches the bad point.
     let spec = SensitivityDecisionSpec { range: Some((0.0, 0.0)), ..Default::default() };
@@ -383,7 +400,9 @@ fn mixed_estimands_and_foreign_inputs_refuse() {
     let error = SensitivityArtifact::new(unlike).unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "decision_contract_unsatisfied");
-    assert!(message.starts_with("sensitivity_decision_composition.wrong_contract"));
+    assert!(message.starts_with(
+        antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT
+    ));
     assert!(message.contains("unlike units"));
 
     // One utility mixing the two is refused as mixed estimands.
@@ -418,7 +437,10 @@ fn mixed_estimands_and_foreign_inputs_refuse() {
     for contract in [units, foreign, criterion] {
         let error = evaluate_sensitivity_decision(&contract, &artifact, &spec).unwrap_err();
         assert_eq!(error.reason_code(), "decision_contract_unsatisfied");
-        assert_eq!(error.detail(), "sensitivity_decision_composition.wrong_contract");
+        assert_eq!(
+            error.detail(),
+            antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT
+        );
     }
 }
 
@@ -447,7 +469,12 @@ fn weights_are_declared_for_point_surfaces_and_never_inferred_from_ranges() {
 
     // A weight count that does not match the grid refuses.
     let short = SensitivityDecisionSpec { weights: Some(vec![0.5, 0.5]), ..Default::default() };
-    assert!(evaluate_sensitivity_decision(&bayes, &artifact, &short).is_err());
+    let error = evaluate_sensitivity_decision(&bayes, &artifact, &short).unwrap_err();
+    assert_eq!(error.reason_code(), "decision_contract_unsatisfied");
+    assert_eq!(
+        error.detail(),
+        antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT
+    );
 
     // An assumption range with weights would turn the range into a probability law.
     let ranged = SensitivityArtifact::new(parts(
@@ -458,7 +485,10 @@ fn weights_are_declared_for_point_surfaces_and_never_inferred_from_ranges() {
     .unwrap();
     let contract = contract_from_artifact(&ranged, StructuralPolicy::BayesOverStructures).unwrap();
     let error = evaluate_sensitivity_decision(&contract, &ranged, &weighted).unwrap_err();
-    assert_eq!(error.detail(), "sensitivity_decision_composition.wrong_contract");
+    assert_eq!(
+        error.detail(),
+        antecedent_core::reason_details::sensitivity_decision_composition::WRONG_CONTRACT
+    );
 
     // The worst case over the assumption points needs no weights: A's worst is 0, B's is 1.
     let maximin = contract_from_artifact(&artifact, StructuralPolicy::Maximin).unwrap();
@@ -494,8 +524,9 @@ fn joint_result(
     JointSensitivityView {
         inference_claim: "assumption_range".into(),
         interpretation: "assumption range over the declared joint contamination box; not a confidence interval and not a sampling interval".into(),
-        withheld_reason_code: "cell_not_licensed".into(),
-        withheld_detail: "joint_sensitivity.interval_withheld".into(),
+        sampling: None,
+        withheld_reason_code: "uncertainty_representation_insufficient".into(),
+        withheld_detail: antecedent_core::reason_details::joint_sensitivity::NO_INTERVAL_METHOD.into(),
         query_binding: "binding-1".into(),
         provider_snapshot: "snapshot-1".into(),
         source_regime: 1,
@@ -555,7 +586,7 @@ fn a_joint_sensitivity_result_feeds_a_decision_contract() {
     assert_eq!(decided.coverage, ScenarioCoverage::VertexCertified);
     assert!(matches!(
         decided.sampling,
-        SamplingReport::Withheld { ref reason_code, .. } if reason_code.as_str() == "cell_not_licensed"
+        SamplingReport::Withheld { ref reason_code, .. } if reason_code.as_str() == "uncertainty_representation_insufficient"
     ));
 
     // A status quo of 0.25 sits inside the range once the lower end falls below it,
@@ -593,7 +624,7 @@ fn a_joint_sensitivity_result_feeds_a_decision_contract() {
     let error =
         SensitivityArtifact::from_joint_result(&joint, &effect, 5, adopt_against(0.0), "checked")
             .unwrap_err();
-    assert!(
-        refusal(&error).1.starts_with("sensitivity_decision_composition.unsupported_adaptation")
-    );
+    assert!(refusal(&error).1.starts_with(
+        antecedent_core::reason_details::sensitivity_decision_composition::UNSUPPORTED_ADAPTATION
+    ));
 }

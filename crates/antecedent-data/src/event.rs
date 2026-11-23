@@ -1,6 +1,6 @@
 //! Irregular event-indexed datasets.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -12,7 +12,8 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalSchema, VariableId};
+use antecedent_core::execution::AdmissionError;
+use antecedent_core::{CausalSchema, ExecutionContext, VariableId};
 
 use crate::column::{
     BooleanColumn, ColumnView, FixedVectorColumn, Float64Column, Int64Column, OwnedColumn,
@@ -55,15 +56,11 @@ impl EventData {
             });
         }
         if n == 0 {
-            return Err(DataError::InvalidArgument {
-                message: "event data requires ≥1 event".into(),
-            });
+            return Err(DataError::empty("event data events"));
         }
         for w in event_times_ns.windows(2) {
             if w[1] < w[0] {
-                return Err(DataError::InvalidArgument {
-                    message: "event times must be non-decreasing".into(),
-                });
+                return Err(DataError::not_ordered("event times"));
             }
         }
         Ok(Self { storage, event_times_ns })
@@ -81,6 +78,35 @@ impl EventData {
         &self.storage
     }
 
+    /// These events as a unified source snapshot. The event timestamps are bound into the
+    /// contract, since the storage digest does not carry them.
+    #[must_use]
+    pub fn source(&self) -> crate::source::OwnedSource {
+        crate::source::OwnedSource::from_event_series(self)
+    }
+
+    /// The same marks at other event times.
+    ///
+    /// # Errors
+    ///
+    /// The refusals of [`Self::try_new`].
+    pub fn with_event_times(
+        &self,
+        event_times_ns: impl Into<Arc<[i64]>>,
+    ) -> Result<Self, DataError> {
+        Self::try_new(self.storage.clone(), event_times_ns)
+    }
+
+    /// The same events under another storage (other marks, weights, mask or schema), keeping
+    /// the event times.
+    ///
+    /// # Errors
+    ///
+    /// The refusals of [`Self::try_new`].
+    pub fn with_storage(&self, storage: OwnedColumnarStorage) -> Result<Self, DataError> {
+        Self::try_new(storage, Arc::clone(&self.event_times_ns))
+    }
+
     /// Sampling regularity is always irregular for event data.
     #[must_use]
     pub const fn regularity(&self) -> SamplingRegularity {
@@ -91,13 +117,12 @@ impl EventData {
     ///
     /// # Errors
     ///
-    /// Always returns [`DataError::InvalidArgument`].
+    /// Always returns [`DataError::Unsupported`].
     pub fn reject_integer_lag_planning(&self) -> Result<(), DataError> {
-        Err(DataError::InvalidArgument {
-            message:
-                "integer lags are not valid on EventData; use duration windows or event models"
-                    .into(),
-        })
+        Err(DataError::unsupported(
+            "integer lags on EventData",
+            "use duration windows or event models",
+        ))
     }
 
     /// Align irregular events onto a regular grid via duration bins.
@@ -112,48 +137,108 @@ impl EventData {
     ///
     /// # Errors
     ///
-    /// Zero interval, empty events, or column construction failures.
+    /// Zero interval, empty events, a grid too large to allocate, or column construction
+    /// failures. The number of bins is limited by memory alone; use
+    /// [`Self::align_to_grid_in`] to bound it by an execution's memory budget.
+    pub fn align_to_grid(&self, interval_ns: u64) -> Result<TimeSeriesData, DataError> {
+        self.align_with(interval_ns, |_, _| Ok(()))
+    }
+
+    /// [`Self::align_to_grid`] admitted against `ctx`'s memory budget.
+    ///
+    /// The bytes the grid needs (the bin index, every aligned column and its validity, the
+    /// mask and the weights, with the transient copy each column makes) are acquired from the
+    /// context's admission pool before anything is allocated and released when the result is
+    /// built, so the grid's size is bounded by the memory the execution has, not by a
+    /// constant.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::align_to_grid`], [`DataError::Cancelled`] when the context is cancelled, or an
+    /// [`DataError::BudgetRefused`] naming the bytes needed when the pool cannot admit them.
+    pub fn align_to_grid_in(
+        &self,
+        interval_ns: u64,
+        ctx: &ExecutionContext,
+    ) -> Result<TimeSeriesData, DataError> {
+        let mut lease = None;
+        let aligned = self.align_with(interval_ns, |_n_bins, bytes| {
+            lease = Some(ctx.acquire_admission(0, bytes).map_err(|error| match error {
+                AdmissionError::Cancelled => DataError::Cancelled,
+                _ => DataError::budget_refused("align_to_grid", bytes, None),
+            })?);
+            Ok(())
+        });
+        drop(lease);
+        aligned
+    }
+
+    /// Bytes one grid bin costs across the bin index, the aligned columns, their validity
+    /// bytes, the mask and the weights, doubled for the copy each column makes while it is
+    /// frozen into shared storage.
+    fn bytes_per_bin(&self) -> u64 {
+        let columns: u64 = self
+            .storage
+            .columns()
+            .iter()
+            .map(|column| {
+                let width = match column {
+                    OwnedColumn::Float64(_) | OwnedColumn::Int64(_) | OwnedColumn::Timestamp(_) => {
+                        8
+                    }
+                    OwnedColumn::Boolean(_) | OwnedColumn::Categorical(_) => 1,
+                    OwnedColumn::FixedVector(c) => {
+                        8u64.saturating_mul(u64::try_from(c.dim).unwrap_or(u64::MAX))
+                    }
+                };
+                width.saturating_add(1)
+            })
+            .fold(0, u64::saturating_add);
+        let weights = if self.storage.weights().is_some() { 8 } else { 0 };
+        let index = u64::try_from(std::mem::size_of::<Option<usize>>()).unwrap_or(u64::MAX);
+        columns.saturating_add(weights).saturating_add(1).saturating_mul(2).saturating_add(index)
+    }
+
+    /// The one alignment behind [`Self::align_to_grid`] and [`Self::align_to_grid_in`].
+    /// `admit` is called once with the bin count and the bytes the grid needs, before any
+    /// grid allocation.
     #[allow(
         clippy::cast_possible_truncation,
-        reason = "n_bins is at most MAX_ALIGN_BINS, checked before the cast, so it fits usize on every target"
+        reason = "the bin count is converted with try_from; the per-event bin index is clamped to it"
     )]
-    pub fn align_to_grid(&self, interval_ns: u64) -> Result<TimeSeriesData, DataError> {
-        /// Most bins one alignment may allocate.
-        const MAX_ALIGN_BINS: u64 = 10_000_000;
+    fn align_with(
+        &self,
+        interval_ns: u64,
+        admit: impl FnOnce(u64, u64) -> Result<(), DataError>,
+    ) -> Result<TimeSeriesData, DataError> {
         if interval_ns == 0 {
-            return Err(DataError::InvalidArgument {
-                message: "align_to_grid requires interval_ns > 0".into(),
-            });
+            return Err(DataError::invalid_value(
+                "align_to_grid interval_ns",
+                "must be greater than zero",
+            ));
         }
         let times = self.event_times_ns.as_ref();
         let t0 = times[0];
         let t_last = times[times.len() - 1];
-        let span = t_last.checked_sub(t0).ok_or_else(|| DataError::InvalidArgument {
-            message: "event time span overflows i64".into(),
-        })?;
+        let span =
+            t_last.checked_sub(t0).ok_or_else(|| DataError::overflow("event time span as i64"))?;
         if span < 0 {
-            return Err(DataError::InvalidArgument {
-                message: "event times must be non-decreasing".into(),
-            });
+            return Err(DataError::not_ordered("event times"));
         }
-        let span = u64::try_from(span).map_err(|_| DataError::InvalidArgument {
-            message: "event time span does not fit u64".into(),
-        })?;
-        let n_bins =
-            span.checked_div(interval_ns).and_then(|q| q.checked_add(1)).ok_or_else(|| {
-                DataError::InvalidArgument { message: "align_to_grid bin count overflowed".into() }
-            })?;
-        if n_bins > MAX_ALIGN_BINS {
-            return Err(DataError::InvalidArgument {
-                message: format!(
-                    "align_to_grid would allocate {n_bins} bins, over the limit of {MAX_ALIGN_BINS}"
-                ),
-            });
-        }
-        let n_bins = n_bins as usize;
+        let span =
+            u64::try_from(span).map_err(|_| DataError::overflow("event time span as u64"))?;
+        let n_bins = span
+            .checked_div(interval_ns)
+            .and_then(|q| q.checked_add(1))
+            .ok_or_else(|| DataError::overflow("align_to_grid bin count"))?;
+        admit(n_bins, n_bins.saturating_mul(self.bytes_per_bin()))?;
+        let too_large = || DataError::overflow("align_to_grid bin count as usize");
+        let n_bins = usize::try_from(n_bins).map_err(|_| too_large())?;
 
         // Last event index per bin (None = empty).
-        let mut last_in_bin: Vec<Option<usize>> = vec![None; n_bins];
+        let mut last_in_bin: Vec<Option<usize>> = Vec::new();
+        last_in_bin.try_reserve_exact(n_bins).map_err(|_| too_large())?;
+        last_in_bin.resize(n_bins, None);
         for (i, &t) in times.iter().enumerate() {
             #[allow(
                 clippy::cast_possible_truncation,
@@ -174,10 +259,10 @@ impl EventData {
         if let Some(mask) = self.storage.analysis_mask() {
             let mut bytes = vec![0u8; n_bins.div_ceil(8)];
             for (b, &src) in last_in_bin.iter().enumerate() {
-                if let Some(i) = src {
-                    if mask.is_valid(i) {
-                        bytes[b / 8] |= 1 << (b % 8);
-                    }
+                if let Some(i) = src
+                    && mask.is_valid(i)
+                {
+                    bytes[b / 8] |= 1 << (b % 8);
                 }
             }
             analysis_mask = Some(ValidityBitmap::from_bytes(bytes, n_bins)?);
@@ -216,11 +301,11 @@ fn align_column(
         OwnedColumn::Float64(c) => {
             let mut values = vec![0.0_f64; n_bins];
             for (b, &src) in last_in_bin.iter().enumerate() {
-                if let Some(i) = src {
-                    if c.validity.is_valid(i) {
-                        values[b] = c.values.as_slice()[i];
-                        valid_bytes[b / 8] |= 1 << (b % 8);
-                    }
+                if let Some(i) = src
+                    && c.validity.is_valid(i)
+                {
+                    values[b] = c.values.as_slice()[i];
+                    valid_bytes[b / 8] |= 1 << (b % 8);
                 }
             }
             Ok(OwnedColumn::Float64(Float64Column::new(
@@ -232,11 +317,11 @@ fn align_column(
         OwnedColumn::Int64(c) => {
             let mut values = vec![0_i64; n_bins];
             for (b, &src) in last_in_bin.iter().enumerate() {
-                if let Some(i) = src {
-                    if c.validity.is_valid(i) {
-                        values[b] = c.values[i];
-                        valid_bytes[b / 8] |= 1 << (b % 8);
-                    }
+                if let Some(i) = src
+                    && c.validity.is_valid(i)
+                {
+                    values[b] = c.values[i];
+                    valid_bytes[b / 8] |= 1 << (b % 8);
                 }
             }
             Ok(OwnedColumn::Int64(Int64Column::new(
@@ -248,11 +333,11 @@ fn align_column(
         OwnedColumn::Boolean(c) => {
             let mut values = vec![0u8; n_bins];
             for (b, &src) in last_in_bin.iter().enumerate() {
-                if let Some(i) = src {
-                    if c.validity.is_valid(i) {
-                        values[b] = c.values[i];
-                        valid_bytes[b / 8] |= 1 << (b % 8);
-                    }
+                if let Some(i) = src
+                    && c.validity.is_valid(i)
+                {
+                    values[b] = c.values[i];
+                    valid_bytes[b / 8] |= 1 << (b % 8);
                 }
             }
             Ok(OwnedColumn::Boolean(BooleanColumn::new(
@@ -264,11 +349,11 @@ fn align_column(
         OwnedColumn::Timestamp(c) => {
             let mut values = vec![0_i64; n_bins];
             for (b, &src) in last_in_bin.iter().enumerate() {
-                if let Some(i) = src {
-                    if c.validity.is_valid(i) {
-                        values[b] = c.values_ns[i];
-                        valid_bytes[b / 8] |= 1 << (b % 8);
-                    }
+                if let Some(i) = src
+                    && c.validity.is_valid(i)
+                {
+                    values[b] = c.values_ns[i];
+                    valid_bytes[b / 8] |= 1 << (b % 8);
                 }
             }
             Ok(OwnedColumn::Timestamp(TimestampColumn::new(
@@ -279,16 +364,17 @@ fn align_column(
         }
         OwnedColumn::FixedVector(c) => {
             let dim = c.dim;
-            let mut values = vec![0.0_f64; n_bins * dim];
+            let mut values =
+                crate::column::checked_f64_buffer(n_bins, dim, "event grid vector values")?;
             for (b, &src) in last_in_bin.iter().enumerate() {
-                if let Some(i) = src {
-                    if c.validity.is_valid(i) {
-                        let src_off = i * dim;
-                        let dst_off = b * dim;
-                        values[dst_off..dst_off + dim]
-                            .copy_from_slice(&c.values[src_off..src_off + dim]);
-                        valid_bytes[b / 8] |= 1 << (b % 8);
-                    }
+                if let Some(i) = src
+                    && c.validity.is_valid(i)
+                {
+                    let src_off = i * dim;
+                    let dst_off = b * dim;
+                    values[dst_off..dst_off + dim]
+                        .copy_from_slice(&c.values[src_off..src_off + dim]);
+                    valid_bytes[b / 8] |= 1 << (b % 8);
                 }
             }
             Ok(OwnedColumn::FixedVector(FixedVectorColumn::new(
@@ -298,9 +384,10 @@ fn align_column(
                 ValidityBitmap::from_bytes(valid_bytes, n_bins)?,
             )?))
         }
-        OwnedColumn::Categorical(_) => Err(DataError::InvalidArgument {
-            message: "align_to_grid does not support categorical mark columns".into(),
-        }),
+        OwnedColumn::Categorical(_) => Err(DataError::unsupported(
+            "align_to_grid",
+            "categorical mark columns are not supported",
+        )),
     }
 }
 
@@ -436,6 +523,24 @@ mod tests {
         assert!(!c.validity.is_valid(1));
         assert!(c.validity.is_valid(2));
         assert!((c.values.as_slice()[2] - 9.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn grid_size_is_bounded_by_the_execution_memory_budget_not_a_constant() {
+        use antecedent_core::execution::AdmissionPool;
+
+        // 2 000 001 bins of 10 ns need tens of megabytes.
+        let data = EventData::try_new(one_col(2), Arc::<[i64]>::from(vec![0, 20_000_000])).unwrap();
+        let tight = ExecutionContext::for_tests(1).with_admission(AdmissionPool::fixed(1, 1_000));
+        let refused = data.align_to_grid_in(10, &tight).unwrap_err();
+        assert!(refused.to_string().contains("memory budget"), "{refused}");
+        assert_eq!(tight.admission().available().bytes(), 1_000, "a refusal holds nothing");
+
+        let roomy =
+            ExecutionContext::for_tests(1).with_admission(AdmissionPool::fixed(1, 1_000_000_000));
+        let series = data.align_to_grid_in(10, &roomy).unwrap();
+        assert_eq!(series.row_count(), 2_000_001);
+        assert_eq!(roomy.admission().available().bytes(), 1_000_000_000, "the lease is released");
     }
 
     #[test]

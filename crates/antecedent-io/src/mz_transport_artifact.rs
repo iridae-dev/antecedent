@@ -1,6 +1,6 @@
 //! Independent point-result artifacts for multi-source limited-experiment transport.
 //!
-//! Format version 1. A consumer trusts nothing in the artifact. It re-runs the
+//! Format version 2. A consumer trusts nothing in the artifact. It re-runs the
 //! bounded `TR^mz` decision on the stored graph, query and catalog under the
 //! search limits the proof stores (which must lie within its own maxima) and
 //! accepts only the identical derivation, including the search receipt: limits
@@ -15,18 +15,15 @@
 //! design, weight and dependence declaration and the snapshot and dataset ids,
 //! and every law's snapshot, which a refresh may replace).
 //!
-//! The multi-source interval route is closed (`cell_not_licensed`) until its
-//! coverage records exist. No public constructor yields an interval and no
-//! public consumer accepts one: [`MzTransportArtifactWire::checked`] and
-//! [`MzTransportArtifactWire::consume_with_limits`] refuse an artifact carrying
-//! an internal estimator run with `cell_not_licensed` and detail
-//! `mz_transport.interval_withheld`. Interval-bearing construction
-//! (`MzUncertaintyWire::from_bootstrap`, `checked_with_interval`) and its
-//! bit-for-bit recompute (`consume_with_interval`) exist only under the
-//! `calibration-internal` feature (which also compiles the estimator itself in
-//! `antecedent-estimate`), which only dev-dependencies enable, and in this crate's unit tests. Limits an artifact records are
-//! provenance; a stored limit larger than the consumer's refuses.
+//! The multi-source interval is a nominal pointwise percentile-bootstrap
+//! interval. [`MzUncertaintyWire::from_bootstrap`] builds its bookkeeping,
+//! [`MzTransportArtifactWire::checked`] stores it and
+//! [`MzTransportArtifactWire::consume_with_limits`] recomputes it bit for bit from
+//! the stored seed. Calibration is an annotation resolved by the facade, never a
+//! gate on the interval. Limits an artifact records are provenance; a stored limit
+//! larger than the consumer's refuses.
 
+use crate::exact_transport_laws::canonical_laws;
 use crate::{
     IoError, admg_from_wire, admg_to_wire,
     exact_law_wire::ExactLawWire,
@@ -46,23 +43,17 @@ use antecedent_identify::{
 use serde::{Deserialize, Serialize};
 
 /// The artifact format this reader writes and accepts.
-pub const MZ_TRANSPORT_ARTIFACT_VERSION: u32 = 1;
+pub const MZ_TRANSPORT_ARTIFACT_VERSION: u32 = 2;
 /// The feature marker of the accepted format.
-pub const MZ_TRANSPORT_ARTIFACT_FEATURE: &str = "checked_mz_transport_point_v1";
+pub const MZ_TRANSPORT_ARTIFACT_FEATURE: &str = "checked_mz_transport_point_v2";
 /// Uncertainty status: exact laws, no sampling uncertainty.
 pub const MZ_POINT_ONLY: &str = "point_only";
 /// Uncertainty status: no interval, for the stated reason.
-pub const MZ_WITHHELD: &str = "withheld";
-/// Uncertainty status: a nominal pointwise percentile-bootstrap interval of the
-/// internal estimator. Public routes never publish one while the route is closed.
+pub const MZ_NO_INTERVAL_METHOD: &str = "no_interval_method";
+/// Uncertainty status: a nominal pointwise percentile-bootstrap interval.
 pub const MZ_NOMINAL_INTERVAL: &str = "nominal_interval";
-/// Why the public multi-source interval route publishes no interval: the joint
-/// bootstrap is registered closed until its coverage records are measured.
-pub const MZ_INTERVAL_NOT_LICENSED: &str = "cell_not_licensed";
-/// Detail of the closed interval route: a public consumer refuses an artifact
-/// that carries an interval with `cell_not_licensed` and this detail.
-pub const MZ_INTERVAL_NOT_LICENSED_DETAIL: &str = "mz_transport.interval_withheld";
-
+/// Reason of bookkeeping that records no estimator run for counted laws.
+pub const MZ_INTERVAL_NOT_SUPPORTED: &str = "not_supported";
 pub use antecedent_io_core::transport_errors::MzTransportArtifactError;
 pub use antecedent_io_core::transport_query_wire::{MzSourceWire, MzTransportQueryWire};
 /// An mz-route identification error as the io error a caller sees: the record's
@@ -178,9 +169,9 @@ pub fn mz_point_contrasts(
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct MzUncertaintyWire {
-    /// [`MZ_POINT_ONLY`], [`MZ_WITHHELD`] or [`MZ_NOMINAL_INTERVAL`].
+    /// [`MZ_POINT_ONLY`], [`MZ_NO_INTERVAL_METHOD`] or [`MZ_NOMINAL_INTERVAL`].
     pub status: String,
-    /// `no_interval_reported`, [`MZ_INTERVAL_NOT_LICENSED`], the internal
+    /// `no_interval_reported`, [`MZ_INTERVAL_NOT_SUPPORTED`], the internal
     /// estimator's withheld reason, or `estimator_grid_not_measured` for its
     /// nominal interval.
     pub reason: String,
@@ -225,24 +216,21 @@ impl MzUncertaintyWire {
         }
     }
 
-    /// Counted laws on the closed public route: no interval, reason
-    /// [`MZ_INTERVAL_NOT_LICENSED`], with the declared-sampling reason the
+    /// Counted laws on the unsupported public route: no interval, reason
+    /// [`MZ_INTERVAL_NOT_SUPPORTED`], with the declared-sampling reason the
     /// internal estimator would also withhold for, if any.
     #[must_use]
-    pub fn not_licensed(dependence_reason: Option<&str>) -> Self {
+    pub fn not_supported(dependence_reason: Option<&str>) -> Self {
         Self {
-            status: MZ_WITHHELD.into(),
-            reason: MZ_INTERVAL_NOT_LICENSED.into(),
+            status: MZ_NO_INTERVAL_METHOD.into(),
+            reason: MZ_INTERVAL_NOT_SUPPORTED.into(),
             dependence_reason: dependence_reason.map(Into::into),
             ..Self::point_only()
         }
     }
 
-    /// Bookkeeping of one internal joint-bootstrap run under `seed`. Internal:
-    /// no public route yields an interval while the route is closed.
-    #[cfg(any(test, feature = "calibration-internal"))]
+    /// Bookkeeping of one joint-bootstrap run under `seed`.
     #[must_use]
-    #[doc(hidden)]
     pub fn from_bootstrap(
         run: &Result<antecedent_estimate::MzTransportIntervals, &'static str>,
         replicates: u32,
@@ -282,7 +270,9 @@ impl MzUncertaintyWire {
                     .collect(),
                 ..base
             },
-            Err(reason) => Self { status: MZ_WITHHELD.into(), reason: (*reason).into(), ..base },
+            Err(reason) => {
+                Self { status: MZ_NO_INTERVAL_METHOD.into(), reason: (*reason).into(), ..base }
+            }
         }
     }
 
@@ -342,6 +332,10 @@ pub struct MzTransportArtifactWire {
     /// Digest of the data identity: catalog snapshot and dataset ids and every
     /// law's snapshot (refresh-replaceable).
     pub data_digest: String,
+    /// Digest of the whole stored artifact but this field: the laws' probabilities, the
+    /// requests, the limits, the reported points, contrasts and interval bookkeeping that the
+    /// other two digests leave out.
+    pub evidence_digest: String,
 }
 
 /// Everything a replay reconstructed and recomputed.
@@ -412,29 +406,11 @@ fn data_digest(catalog: &EvidenceCatalog, laws: &[ExactLawWire]) -> Result<Strin
         sorted_cbor(&wire.bindings)?,
         wire.target_sampling,
     );
-    let mut snapshots = laws
-        .iter()
-        .map(|law| (law.population.clone(), law.regime, law.snapshot.clone()))
-        .collect::<Vec<_>>();
-    snapshots.sort();
+    let snapshots = crate::exact_transport_laws::sorted_law_snapshots(laws);
     crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("mz_transport_data_v2", bindings, snapshots),
     )
-}
-
-fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoError> {
-    let mut laws = data
-        .laws()
-        .iter()
-        .map(|law| {
-            let wire = ExactLawWire::from_law(law);
-            crate::to_cbor(&(&wire.population, wire.regime, &wire.interventions))
-                .map(|key| (key, wire))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    laws.sort_by(|a, b| a.0.cmp(&b.0));
-    Ok(laws.into_iter().map(|(_, law)| law).collect())
 }
 
 fn bindings_of(functional: &BoundMzTransportFunctional) -> Vec<(u32, String)> {
@@ -480,36 +456,15 @@ impl MzTransportArtifactWire {
     /// Build an artifact from checked premises, points and bookkeeping.
     ///
     /// # Errors
-    /// The premises do not encode, or the results or bookkeeping are inconsistent;
-    /// bookkeeping that carries an interval is refused with `cell_not_licensed`
-    /// (`mz_transport.interval_withheld`) while the interval route is closed.
+    /// The premises do not encode, or the results or bookkeeping are inconsistent.
     pub fn checked(
         input: MzTransportArtifactInput<'_>,
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
-        Self::build(input, ctx, false)
+        Self::build(input, ctx)
     }
 
-    /// [`Self::checked`] that also accepts bookkeeping carrying an internal
-    /// estimator run, which it recomputes bit for bit. Calibration harness and
-    /// test use only; no released build carries it.
-    ///
-    /// # Errors
-    /// As [`Self::checked`], except a carried interval that recomputes.
-    #[cfg(any(test, feature = "calibration-internal"))]
-    #[doc(hidden)]
-    pub fn checked_with_interval(
-        input: MzTransportArtifactInput<'_>,
-        ctx: &ExecutionContext,
-    ) -> Result<Self, IoError> {
-        Self::build(input, ctx, true)
-    }
-
-    fn build(
-        input: MzTransportArtifactInput<'_>,
-        ctx: &ExecutionContext,
-        allow_interval: bool,
-    ) -> Result<Self, IoError> {
+    fn build(input: MzTransportArtifactInput<'_>, ctx: &ExecutionContext) -> Result<Self, IoError> {
         if input.search != derivation_limits(input.functional.derivation()) {
             return Err(MzTransportArtifactError::UnsupportedSemantics(
                 "search limits differ from the derivation's search receipt",
@@ -541,8 +496,10 @@ impl MzTransportArtifactWire {
             contrasts: mz_point_contrasts(input.results)?,
             uncertainty: input.uncertainty,
             premises_digest: String::new(),
+            evidence_digest: String::new(),
         };
         wire.premises_digest = wire.expected_premises_digest()?;
+        wire.evidence_digest = wire.expected_evidence_digest()?;
         wire.validate_shape()?;
         let problem = IntervalProblem {
             functional: input.functional,
@@ -550,7 +507,7 @@ impl MzTransportArtifactWire {
             requests: input.requests,
             limits: input.limits,
         };
-        check_uncertainty(&problem, &wire.uncertainty, &wire.results, allow_interval, ctx)?;
+        check_uncertainty(&problem, &wire.uncertainty, &wire.results, ctx)?;
         Ok(wire)
     }
 
@@ -561,6 +518,16 @@ impl MzTransportArtifactWire {
     /// The premises do not encode.
     pub fn expected_premises_digest(&self) -> Result<String, IoError> {
         crate::digest_hex(IdentityDomain::TransportCertificate, &self.premises_view())
+    }
+
+    /// The evidence digest the stored artifact should carry.
+    ///
+    /// # Errors
+    /// The artifact does not encode.
+    pub fn expected_evidence_digest(&self) -> Result<String, IoError> {
+        crate::evidence_digest::evidence_digest("mz_transport_evidence_v2", self, |wire| {
+            wire.evidence_digest = String::new();
+        })
     }
 
     /// The data-identity digest the stored snapshot ids should carry.
@@ -650,8 +617,7 @@ impl MzTransportArtifactWire {
         // Refusing here, before any work, is a limits refusal the caller can retry
         // with a larger budget, not a claim that the proof is invalid.
         let memory_cap = ctx
-            .memory
-            .hard_limit_bytes
+            .memory_limit_bytes()
             .map_or(limits.search_memory_bytes, |hard| hard.min(limits.search_memory_bytes));
         if self.proof.search.memory_limit_bytes > memory_cap {
             return Err(exceeded("search memory limit"));
@@ -682,37 +648,19 @@ impl MzTransportArtifactWire {
     ///
     /// # Errors
     /// Any reconstruction failure, an evaluation refusal, a point or contrast that
-    /// does not replay, bookkeeping that contradicts the licensing decision, or
-    /// an artifact carrying an interval, which is refused with `cell_not_licensed`
-    /// (`mz_transport.interval_withheld`) while the interval route is closed.
+    /// does not replay, or bookkeeping that contradicts the support decision.
     pub fn consume_with_limits(
         bytes: &[u8],
         limits: MzTransportConsumeLimits,
         ctx: &ExecutionContext,
     ) -> Result<ConsumedMzTransport, IoError> {
-        Self::consume_checked(bytes, limits, ctx, false)
-    }
-
-    /// [`Self::consume_with_limits`] that also accepts and recomputes a stored
-    /// internal estimator run. Calibration harness and test use only.
-    ///
-    /// # Errors
-    /// As [`Self::consume_with_limits`], except a carried interval that recomputes.
-    #[cfg(any(test, feature = "calibration-internal"))]
-    #[doc(hidden)]
-    pub fn consume_with_interval(
-        bytes: &[u8],
-        limits: MzTransportConsumeLimits,
-        ctx: &ExecutionContext,
-    ) -> Result<ConsumedMzTransport, IoError> {
-        Self::consume_checked(bytes, limits, ctx, true)
+        Self::consume_checked(bytes, limits, ctx)
     }
 
     fn consume_checked(
         bytes: &[u8],
         limits: MzTransportConsumeLimits,
         ctx: &ExecutionContext,
-        allow_interval: bool,
     ) -> Result<ConsumedMzTransport, IoError> {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits, ctx)?;
@@ -792,7 +740,13 @@ impl MzTransportArtifactWire {
             requests: &requests,
             limits: producer_limits,
         };
-        check_uncertainty(&problem, &wire.uncertainty, &wire.results, allow_interval, ctx)?;
+        check_uncertainty(&problem, &wire.uncertainty, &wire.results, ctx)?;
+        crate::require_digest(
+            &wire.evidence_digest,
+            wire.expected_evidence_digest(),
+            std::convert::identity,
+            || MzTransportArtifactError::EvidenceMismatch.into(),
+        )?;
         Ok(ConsumedMzTransport { functional, data, requests, distributions, contrasts, wire })
     }
 
@@ -807,28 +761,6 @@ impl MzTransportArtifactWire {
     }
 }
 
-/// The public-route policy on consumed bookkeeping: the multi-source interval
-/// route is closed until its coverage records exist, so a public consumer
-/// refuses any artifact carrying an internal estimator run, even one that
-/// recomputes bit for bit.
-///
-/// # Errors
-/// [`IoError::Refused`] with `cell_not_licensed` and detail
-/// [`MZ_INTERVAL_NOT_LICENSED_DETAIL`].
-// doc(hidden): the facade and the python bindings apply it after consuming.
-#[doc(hidden)]
-pub fn refuse_unlicensed_interval(uncertainty: &MzUncertaintyWire) -> Result<(), IoError> {
-    if uncertainty.seed.is_some() || uncertainty.available() {
-        return Err(IoError::Refused {
-            code: antecedent_core::reason_code!("cell_not_licensed"),
-            message: format!(
-                "{MZ_INTERVAL_NOT_LICENSED_DETAIL}: the multi-source interval route is closed until its coverage records are measured"
-            ),
-        });
-    }
-    Ok(())
-}
-
 /// The search limits a derivation's own receipt records.
 fn derivation_limits(derivation: &MzTransportDerivation) -> SearchLimits {
     let receipt = derivation.search_record();
@@ -840,32 +772,24 @@ fn derivation_limits(derivation: &MzTransportDerivation) -> SearchLimits {
 struct IntervalProblem<'a> {
     functional: &'a BoundMzTransportFunctional,
     data: &'a ExactTransportData,
-    // Read by the calibration-internal recompute. The public path refuses before that.
-    #[cfg_attr(not(feature = "calibration-internal"), allow(dead_code))]
     requests: &'a [Assignment],
-    #[cfg_attr(not(feature = "calibration-internal"), allow(dead_code))]
     limits: ExactEvaluationLimits,
 }
 
 /// Re-derive the interval bookkeeping and check the stored one against it.
 ///
 /// Exact laws are point-only. Counted laws without an estimator run carry the
-/// closed-route bookkeeping ([`MzUncertaintyWire::not_licensed`]) with the
+/// closed-route bookkeeping ([`MzUncertaintyWire::not_supported`]) with the
 /// declared-sampling reason recomputed from the catalog and laws. An internal
 /// estimator run carries its seed and replicate spec and must recompute bit
-/// for bit, but only when `allow_interval` (calibration and tests): otherwise
-/// any carried interval is refused before anything else is decided.
+/// for bit.
 fn check_uncertainty(
     problem: &IntervalProblem<'_>,
     stored: &MzUncertaintyWire,
     results: &[MzTransportPointWire],
-    allow_interval: bool,
     ctx: &ExecutionContext,
 ) -> Result<(), IoError> {
     let IntervalProblem { functional, data, .. } = *problem;
-    if !allow_interval {
-        refuse_unlicensed_interval(stored)?;
-    }
     let bad = |what| Err(MzTransportArtifactError::UncertaintyMismatch(what).into());
     if data.laws().iter().any(|law| law.empirical_counts().is_none()) {
         return if *stored == MzUncertaintyWire::point_only() {
@@ -876,7 +800,7 @@ fn check_uncertainty(
     }
     let Some(seed) = stored.seed else {
         let reason = antecedent_estimate::mz_interval_withheld_reason(functional, data)?;
-        return if same_bits(stored, &MzUncertaintyWire::not_licensed(reason)) {
+        return if same_bits(stored, &MzUncertaintyWire::not_supported(reason)) {
             Ok(())
         } else {
             bad("closed interval route bookkeeping")
@@ -885,21 +809,7 @@ fn check_uncertainty(
     recompute_interval(problem, stored, seed, results, ctx)
 }
 
-/// Recompute a stored internal estimator run bit for bit. Without the
-/// `calibration-internal` feature the estimator is not linked and the interval
-/// route stays refused.
-#[cfg(not(any(test, feature = "calibration-internal")))]
-fn recompute_interval(
-    _: &IntervalProblem<'_>,
-    stored: &MzUncertaintyWire,
-    _: u64,
-    _: &[MzTransportPointWire],
-    _: &ExecutionContext,
-) -> Result<(), IoError> {
-    refuse_unlicensed_interval(stored)
-}
-
-#[cfg(any(test, feature = "calibration-internal"))]
+/// Recompute a stored estimator run bit for bit.
 fn recompute_interval(
     problem: &IntervalProblem<'_>,
     stored: &MzUncertaintyWire,

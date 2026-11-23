@@ -1,6 +1,6 @@
 //! Per-unit change attribution via shared exogenous noise.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -11,6 +11,7 @@ use antecedent_graph::DenseNodeId;
 use antecedent_model::{CompiledCausalModel, MechanismWorkspace, ParentBatch, evaluate_column};
 
 use crate::change_common::{UNIT_STREAM, stream_tag};
+use crate::coalition::Coalition;
 use crate::error::AttributionError;
 use crate::prep::{require_input_components, require_shapley_config, resolve_outcome_dense};
 use crate::result::{ComputeBudget, UnitChangeResult};
@@ -54,7 +55,11 @@ pub fn unit_change(
     let parents: Vec<VariableId> =
         gather.parents.iter().map(|&p| model.output_layout.variables[p.as_usize()]).collect();
     if parents.is_empty() {
-        return Err(AttributionError::unsupported("unit_change requires parents of the outcome"));
+        return Err(AttributionError::refused(
+            antecedent_core::reason_code!("route_not_supported"),
+            antecedent_core::reason_details::unit_change::OUTCOME_WITHOUT_PARENTS,
+            "unit_change requires parents of the outcome",
+        ));
     }
     let players: Vec<ComponentId> =
         parents.iter().copied().map(ComponentId::from_variable).collect();
@@ -174,11 +179,27 @@ struct UnitPayoff<'a> {
 }
 
 impl CoalitionPayoff for UnitPayoff<'_> {
-    fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
+    fn fork<'a>(&'a self) -> Option<Box<dyn CoalitionPayoff + Send + 'a>> {
+        // The value is a pure function of the coalition: the parents are overwritten from
+        // it on every call and the noise draw is fixed.
+        Some(Box::new(UnitPayoff {
+            model: self.model,
+            outcome: self.outcome,
+            factual: self.factual.clone(),
+            reference: self.reference.clone(),
+            noise: self.noise,
+            parent_buf: self.parent_buf.clone(),
+            out_buf: self.out_buf.clone(),
+            noise_buf: self.noise_buf.clone(),
+            ws: MechanismWorkspace::default(),
+        }))
+    }
+
+    fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
         let n_par = self.factual.len();
         for i in 0..n_par {
             self.parent_buf[i] =
-                if mask & (1u64 << i) != 0 { self.factual[i] } else { self.reference[i] };
+                if coalition.contains(i) { self.factual[i] } else { self.reference[i] };
         }
         self.noise_buf[0] = self.noise;
         let parents =

@@ -14,7 +14,7 @@
 //! exactly this graph, exactly these four binary variables) with directed edges
 //! `X1 -> X2 -> X3 -> X4` and the bidirected edge `X2 <-> X4` (the Verma graph).
 //! Districts: `{X1}`, `{X3}`, `{X2, X4}`. Every other ADMG, regime or non-binary
-//! domain is refused (`route_not_supported`, `nested_markov.outside_binary_pilot`).
+//! domain is refused (`route_not_supported`, `nested_markov.outside_binary_scope`).
 //!
 //! # Parameterization
 //!
@@ -82,16 +82,18 @@
 //! # Status
 //!
 //! Nonparametric identification, likelihood fit and inferential status are
-//! separate fields ([`PilotStatus`]). Calibration is unmeasured: no posterior
-//! draws are produced and the interval route stays closed
-//! ([`refuse_public_interval_route`]).
+//! separate fields ([`PilotStatus`]). Wald interval candidates from the delta covariance are
+//! reported with a calibration annotation; no posterior draws are produced
+//! (a posterior request is not part of this route).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::{EstimationError, ExactF64, RefusalFields};
 use antecedent_core::ExecutionContext;
+use antecedent_core::diagnostic::{RouteCheck, RouteKind, RouteMass, RouteNativeDiagnostic};
 
-/// Observed-variable limit of the pilot.
+/// Observed-variable count the pilot's input checks assume. Not enforced: only the selected
+/// four-variable graph passes `is_selected`.
 pub const MAX_OBSERVED: usize = 6;
 /// Observed variables of the selected graph.
 pub(crate) const PILOT_OBSERVED: usize = 4;
@@ -108,53 +110,42 @@ pub(crate) const DEFAULT_TOLERANCE: f64 = 1e-11;
 /// Cell probabilities must sum to one within this.
 pub(crate) const NORMALIZATION_TOLERANCE: f64 = 1e-12;
 /// Detail of the refusal for anything outside the one selected pilot.
-pub(crate) const OUTSIDE_PILOT: &str = "nested_markov.outside_binary_pilot";
-/// Detail of the refusal of the public interval route.
-pub(crate) const ROUTE_FROZEN: &str = "nested_markov.route_frozen";
-
+pub(crate) const OUTSIDE_BINARY_SCOPE: &str =
+    antecedent_core::reason_details::nested_markov::OUTSIDE_BINARY_SCOPE;
 const FEASIBLE_TOLERANCE: f64 = 1e-12;
 const CONSTRAINT_TOLERANCE: f64 = 1e-9;
 const BISECTION_STEPS: usize = 100;
 
 fn outside(message: &str) -> EstimationError {
-    EstimationError::refused(
+    EstimationError::refused_detail(
         antecedent_core::reason_code!("route_not_supported"),
-        format!("{OUTSIDE_PILOT}: {message}"),
+        OUTSIDE_BINARY_SCOPE,
+        message,
     )
 }
 
 fn invalid(detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(
+    EstimationError::refused_detail(
         antecedent_core::reason_code!("invalid_argument"),
-        format!("nested_markov.{detail}: {message}"),
+        format!("nested_markov.{detail}"),
+        message,
     )
 }
 
 fn positivity(message: &str) -> EstimationError {
-    EstimationError::refused(
+    EstimationError::refused_detail(
         antecedent_core::reason_code!("transport_support_failure"),
-        format!("nested_markov.positivity: {message}"),
+        antecedent_core::reason_details::nested_markov::POSITIVITY,
+        message,
     )
 }
 
 fn numerical(detail: &str, message: &str, fields: RefusalFields) -> EstimationError {
-    EstimationError::refused_with_fields(
+    EstimationError::refused_detail_with_fields(
         antecedent_core::reason_code!("transport_numerical_failure"),
-        format!("nested_markov.{detail}: {message}"),
+        format!("nested_markov.{detail}"),
+        message,
         fields,
-    )
-}
-
-/// The refusal of a numerical or posterior request on the public pilot route:
-/// the exact functional, likelihood and calibration gates have not all passed.
-#[must_use]
-pub fn refuse_public_interval_route() -> EstimationError {
-    EstimationError::refused(
-        antecedent_core::reason_code!("cell_not_licensed"),
-        format!(
-            "{ROUTE_FROZEN}: the binary nested-Markov pilot is a closed research route; \
-             calibration is unmeasured and no interval or posterior is published"
-        ),
     )
 }
 
@@ -294,14 +285,11 @@ impl BinaryCells {
 /// Check that a request is exactly the selected pilot and return its counts.
 ///
 /// # Errors
-/// `route_not_supported` / `nested_markov.outside_binary_pilot` for another
-/// graph, more than six observed variables, a regime other than the observational
+/// `route_not_supported` / `nested_markov.outside_binary_scope` for another
+/// graph, a regime other than the observational
 /// one, a non-binary domain or a table that is not 2x2x2x2; a count error as in
 /// [`BinaryCells::new`]. Never a nonidentification claim.
 pub fn binary_cells(input: &NestedMarkovInput) -> Result<BinaryCells, EstimationError> {
-    if input.graph.variables.len() > MAX_OBSERVED {
-        return Err(outside("more than 6 observed variables"));
-    }
     if !input.graph.is_selected() {
         return Err(outside("the declared ADMG is not the selected pilot graph"));
     }
@@ -593,6 +581,9 @@ pub struct FitDiagnostics {
     pub boundary_margin: Option<f64>,
     /// Fitted probabilities within [`BOUNDARY_TOLERANCE`] of 0 or 1.
     pub boundary_count: Option<usize>,
+    /// The regime-cell positivity check, passed: every count was strictly positive, so the
+    /// measured non-positive share of cells is zero.
+    pub positivity: RouteNativeDiagnostic,
 }
 
 /// A refusal with the diagnostics the failing step produced.
@@ -602,16 +593,31 @@ pub struct NestedMarkovRefusal {
     pub error: EstimationError,
     /// Diagnostics retained from the failing fit, when any were measured.
     pub diagnostics: Option<FitDiagnostics>,
+    /// Route record for the check this refusal is, when it is one.
+    ///
+    /// A zero cell is positivity. A constraint residual above the caller limit
+    /// is constrained draws. Non-convergence is convergence. A boundary fit is
+    /// a model restriction. A law that is not normalized is a computational
+    /// failure. These are not substitutes for one another.
+    pub route: Option<RouteNativeDiagnostic>,
 }
 
 type Refusal = Box<NestedMarkovRefusal>;
 
 fn plain(error: EstimationError) -> Refusal {
-    Box::new(NestedMarkovRefusal { error, diagnostics: None })
+    Box::new(NestedMarkovRefusal { error, diagnostics: None, route: None })
 }
 
 fn with(error: EstimationError, diagnostics: &FitDiagnostics) -> Refusal {
-    Box::new(NestedMarkovRefusal { error, diagnostics: Some(diagnostics.clone()) })
+    Box::new(NestedMarkovRefusal { error, diagnostics: Some(diagnostics.clone()), route: None })
+}
+
+fn routed(
+    error: EstimationError,
+    diagnostics: Option<&FitDiagnostics>,
+    route: RouteNativeDiagnostic,
+) -> Refusal {
+    Box::new(NestedMarkovRefusal { error, diagnostics: diagnostics.cloned(), route: Some(route) })
 }
 
 /// A fitted nested-Markov model.
@@ -760,9 +766,10 @@ fn boundary_stats(params: &NestedParameters, cells: &[f64; CELL_COUNT]) -> (f64,
 
 fn cancelled(diagnostics: &FitDiagnostics) -> Refusal {
     with(
-        EstimationError::refused(
+        EstimationError::refused_detail(
             antecedent_core::reason_code!("transport_budget_cancel"),
-            "nested_markov.cancelled: the fit was cancelled; no estimate is reported",
+            antecedent_core::reason_details::nested_markov::CANCELLED,
+            "the fit was cancelled; no estimate is reported",
         ),
         diagnostics,
     )
@@ -798,14 +805,22 @@ pub fn fit_nested_markov(
 ) -> Result<NestedMarkovFit, Refusal> {
     validate_options(options).map_err(plain)?;
     if ctx.cancellation.is_cancelled() {
-        return Err(plain(EstimationError::refused(
+        return Err(plain(EstimationError::refused_detail(
             antecedent_core::reason_code!("transport_budget_cancel"),
-            "nested_markov.cancelled: the fit was cancelled; no estimate is reported",
+            antecedent_core::reason_details::nested_markov::CANCELLED,
+            "the fit was cancelled; no estimate is reported",
         )));
     }
     let n = counts.counts();
     if n.iter().any(|v| *v <= 0.0) {
-        return Err(plain(positivity("every regime cell count must be strictly positive")));
+        let nonpositive = n.iter().filter(|value| **value <= 0.0).count();
+        let fraction = nonpositive as f64 / n.len() as f64;
+        let mass = RouteMass::new(fraction).unwrap_or_else(|_| RouteMass::unreported());
+        return Err(routed(
+            positivity("every regime cell count must be strictly positive"),
+            None,
+            RouteNativeDiagnostic::check(RouteKind::Positivity, RouteCheck::new(true, mass)),
+        ));
     }
     let law = counts.empirical_law();
     let residuals = constraint_residuals(&law).map_err(plain)?;
@@ -828,22 +843,30 @@ pub fn fit_nested_markov(
         normalization: None,
         boundary_margin: None,
         boundary_count: None,
+        positivity: RouteNativeDiagnostic::check(
+            RouteKind::Positivity,
+            RouteCheck::new(false, RouteMass::zero()),
+        ),
     };
-    if let Some(limit) = options.refuse_constraint_residual_above {
-        if residuals.max_abs > limit {
-            return Err(with(
-                numerical(
-                    "constraint_violated",
-                    "the empirical law violates the nested-Markov equality constraints",
-                    RefusalFields {
-                        stage: Some("nested_markov.fit".to_owned()),
-                        reason: Some("equality constraint violated by the data".to_owned()),
-                        ..RefusalFields::default()
-                    },
-                ),
-                &diag,
-            ));
-        }
+    if let Some(limit) = options.refuse_constraint_residual_above
+        && residuals.max_abs > limit
+    {
+        return Err(routed(
+            numerical(
+                "constraint_violated",
+                "the empirical law violates the nested-Markov equality constraints",
+                RefusalFields {
+                    stage: Some("nested_markov.fit".to_owned()),
+                    reason: Some("equality constraint violated by the data".to_owned()),
+                    ..RefusalFields::default()
+                },
+            ),
+            Some(&diag),
+            RouteNativeDiagnostic::check(
+                RouteKind::ConstrainedDraws,
+                RouteCheck::new(true, RouteMass::unreported()),
+            ),
+        ));
     }
     let direct = parameters_from_law(&law).map_err(plain)?;
     let rebuilt = direct.cell_probabilities();
@@ -891,7 +914,7 @@ fn ascend(
         }
     }
     if !diag.converged {
-        return Err(with(
+        return Err(routed(
             numerical(
                 "fit_not_converged",
                 "the constrained fit did not converge within the iteration bound",
@@ -901,7 +924,11 @@ fn ascend(
                     ..RefusalFields::default()
                 },
             ),
-            diag,
+            Some(diag),
+            RouteNativeDiagnostic::check(
+                RouteKind::Convergence,
+                RouteCheck::new(true, RouteMass::unreported()),
+            ),
         ));
     }
     let (a, c) = closed_form_blocks(counts.counts(), counts.total());
@@ -926,7 +953,7 @@ fn finish(
     diag.model_log_likelihood = Some(ll);
     diag.deviance = Some(2.0 * (diag.saturated_log_likelihood - ll));
     if !check.normalized || !check.positive || !ll.is_finite() {
-        return Err(with(
+        return Err(routed(
             numerical(
                 "not_normalized",
                 "the fitted likelihood is not a normalized positive law",
@@ -936,14 +963,15 @@ fn finish(
                     ..RefusalFields::default()
                 },
             ),
-            &diag,
+            Some(&diag),
+            RouteNativeDiagnostic::computational_failure(RouteMass::unreported()),
         ));
     }
     let (margin, count) = boundary_stats(&parameters, &cells);
     diag.boundary_margin = Some(margin);
     diag.boundary_count = Some(count);
     if count > 0 {
-        return Err(with(
+        return Err(routed(
             numerical(
                 "fitted_boundary",
                 "a fitted probability is within 1e-9 of 0 or 1",
@@ -955,7 +983,8 @@ fn finish(
                     ..RefusalFields::default()
                 },
             ),
-            &diag,
+            Some(&diag),
+            RouteNativeDiagnostic::model_restriction(RouteMass::unreported()),
         ));
     }
     Ok(NestedMarkovFit { parameters, cells, log_likelihood: ll, diagnostics: diag })
@@ -1048,8 +1077,9 @@ pub enum LikelihoodFitStanding {
 /// Inferential standing.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum InferenceStanding {
-    /// Calibration unmeasured: no interval or posterior is published.
-    IntervalWithheldCalibrationUnmeasured,
+    /// Wald interval candidates are reported; their calibration status is an annotation
+    /// resolved from the coverage records and never withholds them.
+    IntervalCandidatesCalibrationAnnotated,
 }
 
 /// The three statuses, kept as separate fields.
@@ -1081,9 +1111,10 @@ fn checked_pilot_identification(input: &NestedMarkovInput) -> Result<(), Estimat
     use antecedent_graph::{Admg, DenseNodeId};
     use antecedent_identify::{IdIdentifier, IdentificationWorkspace};
     let unavailable = || {
-        EstimationError::refused(
+        EstimationError::refused_detail(
             antecedent_core::reason_code!("effect_not_identified"),
-            "nested_markov.identification_unavailable: the checked general-ID engine did not identify the selected pilot contrast",
+            antecedent_core::reason_details::nested_markov::IDENTIFICATION_UNAVAILABLE,
+            "the checked general-ID engine did not identify the selected pilot contrast",
         )
     };
     let (_, directed, bidirected) = input.graph.canonical();
@@ -1135,7 +1166,7 @@ pub fn evaluate_nested_markov_pilot(
         status: PilotStatus {
             identification: IdentificationStanding::NonparametricallyIdentified,
             likelihood_fit,
-            inference: InferenceStanding::IntervalWithheldCalibrationUnmeasured,
+            inference: InferenceStanding::IntervalCandidatesCalibrationAnnotated,
         },
     })
 }

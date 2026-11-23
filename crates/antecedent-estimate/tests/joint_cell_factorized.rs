@@ -2,10 +2,10 @@
 //! checked against a known joint law enumerated by hand, the family keeps its supported cells
 //! when one is empty or rare, ordering sensitivity is reported, a declared `antecedent-learn`
 //! learner supplies the nuisances out of fold (point only), the factorization reproduces the
-//! empirical joint frequencies of a hand-counted law, and every closed route (undeclared
+//! empirical joint frequencies of a hand-counted law, and every unsupported route (undeclared
 //! learner, lasso, interval, covariance) refuses with its reason code.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,
@@ -159,14 +159,16 @@ fn factorized_propensities_and_means_match_the_enumerated_law() {
             let oracle = law[usize::from(sample.z[i] > 0.5)][arm];
             worst = worst.max((propensities[j * n + i] - oracle).abs());
         }
-        assert!(worst < 0.05, "cell {arm}: worst propensity error {worst}");
+        // Observed worst error is 0.014 at n = 12 000.
+        assert!(worst < 0.03, "cell {arm}: worst propensity error {worst}");
     }
 
     // Oracle 2: the true cell means 0.4 c + 1{t0 = t1 = 1} + 0.25.
     for cell in 0..8 {
         let truth = 0.4 * cell as f64 + f64::from(u8::from(cell & 3 == 3)) + 0.25;
         let estimate = estimate_of(&fit, cell);
-        assert!((estimate - truth).abs() < 0.05, "cell {cell}: {estimate} vs {truth}");
+        // Observed worst cell-mean error is 0.007.
+        assert!((estimate - truth).abs() < 0.02, "cell {cell}: {estimate} vs {truth}");
         let CellStatus::Supported(report) = &fit.cells[cell].status else { unreachable!() };
         assert!(report.ess > 100.0 && report.propensity_min > 0.0);
     }
@@ -190,10 +192,13 @@ fn factorized_propensities_and_means_match_the_enumerated_law() {
     // family has no 2x2 interaction.
     let contrast = fit.contrast_point(JointContrast::CellMinusControl(7)).unwrap();
     assert!((contrast - (estimate_of(&fit, 7) - estimate_of(&fit, 0))).abs() < 1e-9);
-    assert!((contrast - 3.8).abs() < 0.1, "{contrast}");
+    assert!((contrast - 3.8).abs() < 0.03, "{contrast}");
     let (code, message) = refused(fit.contrast_point(JointContrast::Interaction).unwrap_err());
     assert_eq!(code, "joint_cell_unsupported");
-    assert!(message.contains("joint_cells.contrast_cell_unsupported"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::joint_cells::CONTRAST_CELL_UNSUPPORTED),
+        "{message}"
+    );
 }
 
 /// Two components with a genuine interaction: the 2x2 interaction contrast recovers 1.
@@ -206,7 +211,7 @@ fn the_two_by_two_interaction_recovers_the_known_value() {
     let by_hand =
         estimate_of(&fit, 0) - estimate_of(&fit, 1) - estimate_of(&fit, 2) + estimate_of(&fit, 3);
     assert!((interaction - by_hand).abs() < 1e-9);
-    assert!((interaction - 1.0).abs() < 0.1, "{interaction}");
+    assert!((interaction - 1.0).abs() < 0.03, "{interaction}");
 }
 
 /// The score table is the artifact: its provenance marks the penalized propensity (so no
@@ -234,8 +239,11 @@ fn the_score_table_is_a_point_and_score_artifact_that_round_trips() {
         assert!((mean - estimate_of(&fit, column.arm as usize)).abs() < 1e-12);
     }
     let (code, message) = refused(refuse_joint_inference());
-    assert_eq!(code, "penalized_interval_not_licensed");
-    assert!(message.contains("joint_cells.interval_withheld"), "{message}");
+    assert_eq!(code, "penalized_interval_not_supported");
+    assert!(
+        message.contains(antecedent_core::reason_details::joint_cells::NO_INTERVAL_METHOD),
+        "{message}"
+    );
 }
 
 /// A family with one empty cell keeps the other cells: the empty cell is refused alone with
@@ -248,17 +256,17 @@ fn a_family_with_one_empty_cell_keeps_the_rest() {
     let fit = run(&data, 2, &["z"], &orderings_for(2, &[0, 1], true).unwrap(), &config()).unwrap();
     for cell in 0..3 {
         let truth = 0.4 * cell as f64 + 0.25;
-        assert!((estimate_of(&fit, cell) - truth).abs() < 0.06, "cell {cell}");
+        assert!((estimate_of(&fit, cell) - truth).abs() < 0.02, "cell {cell}");
     }
     assert_eq!(fit.cells[3].rows, 0);
     let CellStatus::Unsupported(refusal) = &fit.cells[3].status else {
         panic!("the empty cell must be refused")
     };
     assert_eq!(refusal.code, "arm_not_populated");
-    assert_eq!(refusal.detail, "joint_cells.cell_empty");
+    assert_eq!(refusal.detail, antecedent_core::reason_details::joint_cells::CELL_EMPTY);
     assert!(fit.degenerate_conditionals > 0);
     assert_eq!(fit.scores.n_columns(), 3);
-    assert!((fit.contrast_point(JointContrast::CellMinusControl(1)).unwrap() - 0.4).abs() < 0.06);
+    assert!((fit.contrast_point(JointContrast::CellMinusControl(1)).unwrap() - 0.4).abs() < 0.02);
     for contrast in [JointContrast::CellMinusControl(3), JointContrast::Interaction] {
         let (code, _) = refused(fit.contrast_point(contrast).unwrap_err());
         assert_eq!(code, "joint_cell_unsupported");
@@ -286,7 +294,10 @@ fn a_rare_joint_cell_is_refused_individually() {
         panic!("the rare cell must be refused")
     };
     assert_eq!(refusal.code, "joint_cell_unsupported");
-    assert_eq!(refusal.detail, "joint_cells.outcome_model_unsupported");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::joint_cells::OUTCOME_MODEL_UNSUPPORTED
+    );
     for cell in [0, 2] {
         assert!(matches!(fit.cells[cell].status, CellStatus::Supported(_)), "cell {cell}");
     }
@@ -313,8 +324,8 @@ fn exact_duplicate_treatments_leave_two_cells() {
     let sample = Sample { z, t: vec![t.clone(), t], y };
     let data = frame(&sample, &[]);
     let fit = run(&data, 2, &["z"], &orderings_for(2, &[0, 1], true).unwrap(), &config()).unwrap();
-    assert!((estimate_of(&fit, 0) - 0.25).abs() < 0.05);
-    assert!((estimate_of(&fit, 3) - 1.25).abs() < 0.05);
+    assert!((estimate_of(&fit, 0) - 0.25).abs() < 0.02);
+    assert!((estimate_of(&fit, 3) - 1.25).abs() < 0.02);
     for cell in [1, 2] {
         let CellStatus::Unsupported(refusal) = &fit.cells[cell].status else {
             panic!("cell {cell} cannot occur and must be refused")
@@ -334,7 +345,10 @@ fn a_rank_deficient_design_is_refused_without_dropping_a_column() {
             .unwrap_err();
     let (code, message) = refused(error);
     assert_eq!(code, "joint_cell_unsupported");
-    assert!(message.contains("joint_cells.no_supported_cell"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::joint_cells::NO_SUPPORTED_CELL),
+        "{message}"
+    );
 }
 
 /// Zero ordering tolerance flags any cell whose estimates differ at all across orderings, and
@@ -370,11 +384,33 @@ fn orderings_are_validated_and_enumerated() {
     for bad in [vec![0, 0], vec![0], vec![0, 2], vec![0, 1, 2]] {
         let (code, message) = refused(orderings_for(2, &bad, false).unwrap_err());
         assert_eq!(code, "invalid_argument");
-        assert!(message.contains("joint_cells.ordering"), "{message}");
+        assert!(
+            message.contains(antecedent_core::reason_details::joint_cells::ORDERING),
+            "{message}"
+        );
     }
 }
 
-/// Declarations outside the bounded cell are refused before any fit: more than three
+/// More components than can be enumerated exhaustively keep the declared ordering first and add
+/// a deterministic sample of distinct permutations, never a refusal.
+#[test]
+fn orderings_beyond_the_enumeration_budget_are_sampled() {
+    let first = orderings_for(4, &[3, 1, 0, 2], true).unwrap();
+    assert_eq!(first[0], vec![3, 1, 0, 2]);
+    assert_eq!(first.len(), antecedent_estimate::MAX_ORDERINGS);
+    let mut sorted = first.clone();
+    sorted.sort();
+    sorted.dedup();
+    assert_eq!(sorted.len(), first.len());
+    assert!(first.iter().all(|p| {
+        let mut q = p.clone();
+        q.sort_unstable();
+        q == vec![0, 1, 2, 3]
+    }));
+    assert_eq!(first, orderings_for(4, &[3, 1, 0, 2], true).unwrap());
+}
+
+/// Declarations outside the bounded cell are refused before any fit: no
 /// components, a repeated or oversized ordering list, an invalid tuning, a non-binary
 /// treatment, and a cancelled context.
 #[test]
@@ -392,12 +428,15 @@ fn declarations_outside_the_bounded_cell_are_refused() {
             fit_factorized_joint_cells(&data, treatments, y, &[z], orderings, config, &ctx)
         };
 
-    let (_, message) = refused(fit(&[t0, t1, t0, t1], &ok, &config()).unwrap_err());
-    assert!(message.contains("joint_cells.component_count"), "{message}");
+    let (_, message) = refused(fit(&[], &ok, &config()).unwrap_err());
+    assert!(
+        message.contains(antecedent_core::reason_details::joint_cells::COMPONENT_COUNT),
+        "{message}"
+    );
     let (_, message) = refused(fit(&[t0, t1], &[vec![0, 1], vec![0, 1]], &config()).unwrap_err());
-    assert!(message.contains("joint_cells.ordering"), "{message}");
+    assert!(message.contains(antecedent_core::reason_details::joint_cells::ORDERING), "{message}");
     let (_, message) = refused(fit(&[t0, t0], &ok, &config()).unwrap_err());
-    assert!(message.contains("joint_cells.columns"), "{message}");
+    assert!(message.contains(antecedent_core::reason_details::joint_cells::COLUMNS), "{message}");
     for edit in [
         FactorizedJointConfig { folds: 1, ..config() },
         FactorizedJointConfig { clip: 0.0, ..config() },
@@ -408,7 +447,10 @@ fn declarations_outside_the_bounded_cell_are_refused() {
     ] {
         let (code, message) = refused(fit(&[t0, t1], &ok, &edit).unwrap_err());
         assert_eq!(code, "invalid_argument");
-        assert!(message.contains("joint_cells.config"), "{message}");
+        assert!(
+            message.contains(antecedent_core::reason_details::joint_cells::CONFIG),
+            "{message}"
+        );
     }
 
     let mut bad = sample;
@@ -426,7 +468,10 @@ fn declarations_outside_the_bounded_cell_are_refused() {
         )
         .unwrap_err(),
     );
-    assert!(message.contains("joint_cells.not_binary"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::joint_cells::NOT_BINARY),
+        "{message}"
+    );
 
     let cancelled = ExecutionContext::for_tests(3);
     cancelled.cancellation.cancel();
@@ -435,14 +480,14 @@ fn declarations_outside_the_bounded_cell_are_refused() {
             .unwrap_err(),
     );
     assert_eq!(code, "cancelled_no_claim");
-    assert!(message.contains("joint_cells.cancelled"), "{message}");
+    assert!(message.contains(antecedent_core::reason_details::joint_cells::CANCELLED), "{message}");
 }
 
 /// Ridge-logistic is the default route, `random_forest` and `gradient_boosted_trees` declare a
 /// learner, and lasso, an undeclared machine-learning name, an unknown name and an interval or
-/// covariance request over either route are closed with their registered reason codes.
+/// covariance request over either route is not supported with their registered reason codes.
 #[test]
-fn undeclared_learners_lasso_and_intervals_are_closed() {
+fn undeclared_learners_lasso_and_intervals_are_not_supported() {
     assert_eq!(declared_joint_nuisance("ridge_logistic").unwrap(), None);
     assert!(matches!(
         declared_joint_nuisance("random_forest").unwrap(),
@@ -453,21 +498,30 @@ fn undeclared_learners_lasso_and_intervals_are_closed() {
         Some(LearnerSpec::GradientBoostedTrees(_))
     ));
     let (code, _) = refused(declared_joint_nuisance("lasso").unwrap_err());
-    assert_eq!(code, "selection_inference_not_licensed");
+    assert_eq!(code, "selection_inference_not_supported");
     for provider in ["ml", "gradient_boosting", "neural_network", "forest", "boosting"] {
         let (code, message) = refused(declared_joint_nuisance(provider).unwrap_err());
-        assert_eq!(code, "ml_nuisance_not_licensed");
-        assert!(message.contains("joint_cells.ml_learner_not_declared"), "{message}");
+        assert_eq!(code, "ml_nuisance_not_supported");
+        assert!(
+            message.contains(antecedent_core::reason_details::joint_cells::ML_LEARNER_NOT_DECLARED),
+            "{message}"
+        );
     }
     let (code, message) = refused(declared_joint_nuisance("typo").unwrap_err());
     assert_eq!(code, "invalid_argument");
-    assert!(message.contains("joint_cells.nuisance_provider"), "{message}");
+    assert!(
+        message.contains(antecedent_core::reason_details::joint_cells::NUISANCE_PROVIDER),
+        "{message}"
+    );
     let (code, _) = refused(refuse_joint_inference());
-    assert_eq!(code, "penalized_interval_not_licensed");
+    assert_eq!(code, "penalized_interval_not_supported");
     let (code, message) = refused(refuse_joint_learner_inference());
-    assert_eq!(code, "ml_nuisance_not_licensed");
-    assert!(message.contains("joint_cells.ml_interval_withheld"), "{message}");
-    assert!(message.contains("remainder and coverage license"), "{message}");
+    assert_eq!(code, "ml_nuisance_not_supported");
+    assert!(
+        message.contains(antecedent_core::reason_details::joint_cells::NO_ML_INTERVAL_METHOD),
+        "{message}"
+    );
+    assert!(message.contains("remainder and coverage support"), "{message}");
 }
 
 fn learner_config() -> FactorizedJointConfig {
@@ -478,9 +532,8 @@ fn learner_config() -> FactorizedJointConfig {
 /// `antecedent-learn` contract) recovers the known cell means, interaction and propensities.
 /// Both nuisance models are correctly specified here (`z` is binary, so a logistic in `z` is
 /// saturated and the outcome is linear in `z`), so the AIPW cell mean has standard error near
-/// `0.17 / sqrt(n p_cell)`, about 0.004 at n = 12 000 with `p_cell >= 0.15`; the 0.05 and 0.1
-/// tolerances are an order of magnitude wider and exist to keep the test from being flaky,
-/// not to claim a rate. The table is marked so no interval is published.
+/// `0.17 / sqrt(n p_cell)`, about 0.004 at n = 12 000 with `p_cell >= 0.15`; the 0.02 and 0.03
+/// tolerances are a few times the observed deviation (at most 0.0073) and claim no rate. The table is marked so no interval is published.
 #[test]
 fn a_declared_learner_recovers_the_known_effect_point_only() {
     let law = law_two();
@@ -491,10 +544,10 @@ fn a_declared_learner_recovers_the_known_effect_point_only() {
     let fit = run(&data, 2, &["z"], &orderings, &learner_config()).unwrap();
     for cell in 0..4 {
         let truth = 0.4 * cell as f64 + f64::from(u8::from(cell == 3)) + 0.25;
-        assert!((estimate_of(&fit, cell) - truth).abs() < 0.05, "cell {cell}");
+        assert!((estimate_of(&fit, cell) - truth).abs() < 0.02, "cell {cell}");
     }
     let interaction = fit.contrast_point(JointContrast::Interaction).unwrap();
-    assert!((interaction - 1.0).abs() < 0.1, "{interaction}");
+    assert!((interaction - 1.0).abs() < 0.03, "{interaction}");
     let propensities = &fit.scores.propensities;
     for (j, column) in fit.scores.columns.iter().enumerate() {
         let worst = (0..n)
@@ -503,7 +556,7 @@ fn a_declared_learner_recovers_the_known_effect_point_only() {
                 (propensities[j * n + i] - oracle).abs()
             })
             .fold(0.0_f64, f64::max);
-        assert!(worst < 0.05, "cell {}: worst propensity error {worst}", column.arm);
+        assert!(worst < 0.02, "cell {}: worst propensity error {worst}", column.arm);
     }
     for check in &fit.normalization {
         assert!(check.max_abs_error.unwrap() < 1e-9, "{check:?}");
@@ -581,7 +634,7 @@ fn an_auto_or_unavailable_learner_is_refused_before_any_fit() {
     let auto = FactorizedJointConfig { learner: Some(LearnerSpec::Auto), ..config() };
     let (code, message) = refused(run(&data, 2, &["z"], &orderings, &auto).unwrap_err());
     assert_eq!(code, "invalid_argument");
-    assert!(message.contains("joint_cells.learner"), "{message}");
+    assert!(message.contains(antecedent_core::reason_details::joint_cells::LEARNER), "{message}");
     #[cfg(not(feature = "ml-forest"))]
     {
         let forest = FactorizedJointConfig {
@@ -590,7 +643,10 @@ fn an_auto_or_unavailable_learner_is_refused_before_any_fit() {
         };
         let (code, message) = refused(run(&data, 2, &["z"], &orderings, &forest).unwrap_err());
         assert_eq!(code, "route_not_supported");
-        assert!(message.contains("joint_cells.learner_unavailable"), "{message}");
+        assert!(
+            message.contains(antecedent_core::reason_details::joint_cells::LEARNER_UNAVAILABLE),
+            "{message}"
+        );
     }
 }
 

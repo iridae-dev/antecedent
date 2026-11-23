@@ -10,7 +10,7 @@
 //! Absence is a value: "not measured" and "no provider" digest differently from every held
 //! record, so a record appearing, moving or being withdrawn is always a visible change.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{Branch, StageIdentity};
 
@@ -32,7 +32,7 @@ fn tag_word(version_label: &str, variant: &str) -> Vec<u8> {
 pub enum CalibrationInput {
     /// No calibration record exists or has been measured. Interval or posterior claims have no
     /// backing; point values are unaffected.
-    Unmeasured,
+    NotMeasured,
     /// The claim states a point value only.
     PointOnly,
     /// A calibration record established at exactly this coordinate (method, target population,
@@ -56,7 +56,7 @@ impl CalibrationInput {
     pub fn identity(&self) -> StageIdentity {
         const LABEL: &str = "recalc.calibration_input.v1";
         match self {
-            Self::Unmeasured => StageIdentity::of(LABEL, &[&tag_word(LABEL, "unmeasured")]),
+            Self::NotMeasured => StageIdentity::of(LABEL, &[&tag_word(LABEL, "not_measured")]),
             Self::PointOnly => StageIdentity::of(LABEL, &[&tag_word(LABEL, "point_only")]),
             Self::Held { record, coordinate } => StageIdentity::of(
                 LABEL,
@@ -114,7 +114,7 @@ pub enum CouplingInput {
         /// Identity of the alignment (source, stream and draw count).
         alignment: StageIdentity,
     },
-    /// The coupling is not known. A joint statement under it is not licensed.
+    /// The coupling is not known. A joint statement under it is not supported.
     Unknown,
 }
 

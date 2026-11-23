@@ -15,8 +15,8 @@
 //! (exact-request verified), so a reader of the artifact alone can tell them apart
 //! without the evidence ledger. The label is part of the artifact identity. It is a
 //! declaration: the receipt that would confirm a verified label does not travel in
-//! the artifact, so the label is never read as native licence and never raises the
-//! claim's standing. `native_licensed` and `unverified` are not accepted.
+//! the artifact, so the label is never read as native support and never raises the
+//! claim's standing. `native_supported` and `unverified` are not accepted.
 //!
 //! # Refresh
 //!
@@ -44,7 +44,7 @@
 //! statement of its own. A consumer that holds the callback declaration can
 //! additionally call [`TransportHandoffArtifact::verify_against_callback`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::callback_protocol::CallbackDeclaration;
 use antecedent_contract::evidence_ledger::{TransportIdentity, parse_digest_hex};
@@ -54,10 +54,10 @@ use antecedent_contract::provider_transport::{
     hand_to_consumer,
 };
 use antecedent_contract::{ExternalRefusal, ProviderTrust};
+use antecedent_core::refusal::changed_identity;
 use antecedent_core::{CanonicalWriter, SemanticDigest};
 use serde::{Deserialize, Serialize};
 
-use crate::convert::to_cbor;
 use crate::interface_contract_artifact::{
     ContractWire, InterfaceContractArtifactError, contract_from_wire, contract_to_wire,
 };
@@ -109,11 +109,9 @@ impl TransportHandoffArtifactError {
             Self::Refused { code, detail, message } => {
                 Some((*code, detail.clone(), message.clone()))
             }
-            Self::IdentityMismatch { field } => Some((
-                antecedent_core::reason_code!("route_not_supported"),
-                "provider_transport.identity_mismatch".to_owned(),
-                format!("{field} changed"),
-            )),
+            Self::IdentityMismatch { field } => {
+                Some(changed_identity("provider_transport.identity_mismatch", field))
+            }
             _ => None,
         }
     }
@@ -126,11 +124,11 @@ fn malformed(text: impl Into<String>) -> Failure {
 }
 
 fn refused(refusal: ExternalRefusal) -> Failure {
-    Failure::Refused {
-        code: refusal.code,
-        detail: refusal.detail,
-        message: refusal.remedy.unwrap_or("the transport handoff is not well formed").to_owned(),
-    }
+    let (code, detail, message) = crate::artifact_codec::external_refusal_parts(
+        refusal,
+        "the transport handoff is not well formed",
+    );
+    Failure::Refused { code, detail, message }
 }
 
 fn first_refusal(refusals: Vec<ExternalRefusal>) -> Failure {
@@ -218,15 +216,16 @@ fn transport_to_wire(transport: &TransportIdentity) -> TransportIdentityWire {
 }
 
 fn strictly_increasing(values: &[String], what: &'static str) -> Result<(), Failure> {
-    if values.windows(2).any(|pair| pair[0] >= pair[1]) {
-        Err(malformed(format!("{what} are not sorted and distinct")))
-    } else {
+    if crate::interface_contract_artifact::is_strictly_increasing(values) {
         Ok(())
+    } else {
+        Err(malformed(format!("{what} are not sorted and distinct")))
     }
 }
 
+/// Whether `text` is a 64-digit lowercase hex digest (checked on bytes, no allocation).
 fn is_hex_digest(text: &str) -> bool {
-    parse_digest_hex(text).is_some_and(|digest| digest.to_hex() == text)
+    text.len() == 64 && text.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
 fn transport_from_wire(wire: &TransportIdentityWire) -> Result<TransportIdentity, Failure> {
@@ -312,9 +311,10 @@ fn check(
     if meta.version != TRANSPORT_HANDOFF_ARTIFACT_VERSION {
         return Err(Failure::UnsupportedVersion { version: meta.version });
     }
-    if meta.feature != TRANSPORT_HANDOFF_ARTIFACT_FEATURE {
-        return Err(Failure::UnsupportedSemantics("feature marker"));
-    }
+    crate::artifact_codec::require_semantics::<Failure>(
+        meta.feature == TRANSPORT_HANDOFF_ARTIFACT_FEATURE,
+        "feature marker",
+    )?;
     if !meta.required_features.is_empty() {
         return Err(Failure::UnsupportedSemantics("required feature"));
     }
@@ -347,11 +347,7 @@ fn check(
 }
 
 fn encode_meta(meta: &TransportHandoffMeta, artifact_id: &str) -> Result<Vec<u8>, Failure> {
-    if artifact_id.trim().is_empty() {
-        return Err(Failure::Encode("missing artifact id".into()));
-    }
-    let meta_bytes = to_cbor(meta).map_err(|error| Failure::Encode(error.to_string()))?;
-    crate::encode_container(
+    crate::artifact_codec::encode_sectioned(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "transport_handoff",
@@ -359,33 +355,22 @@ fn encode_meta(meta: &TransportHandoffMeta, artifact_id: &str) -> Result<Vec<u8>
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection {
-            id: META_SECTION,
-            content_type: crate::CONTENT_CBOR,
-            bytes: &meta_bytes,
-        }],
+        META_SECTION,
+        meta,
+        &[],
     )
-    .map_err(|error| crate::map_artifact_check!(error, TransportHandoffArtifactError))
 }
 
-fn decode_meta(bytes: &[u8]) -> Result<TransportHandoffMeta, Failure> {
-    let parts = crate::decode_container(
+fn decode_meta(bytes: &[u8], max_bytes: usize) -> Result<TransportHandoffMeta, Failure> {
+    crate::artifact_codec::decode_sectioned(
         ARTIFACT_KIND,
-        MAX_TRANSPORT_HANDOFF_ARTIFACT_BYTES,
-        &[META_SECTION],
+        max_bytes,
+        META_SECTION,
+        &[],
+        TRANSPORT_HANDOFF_ARTIFACT_VERSION,
         bytes,
     )
-    .map_err(|error| crate::map_artifact_check!(error, TransportHandoffArtifactError))?;
-    let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(Failure::Malformed("unsupported container layout".into()));
-    };
-    crate::decode_with_version(&meta_bytes, |version: u16| {
-        if version == TRANSPORT_HANDOFF_ARTIFACT_VERSION {
-            Ok(())
-        } else {
-            Err(Failure::UnsupportedVersion { version })
-        }
-    })
+    .map(|(meta, _)| meta)
 }
 
 // -- public type ----------------------------------------------------------------------------------
@@ -553,7 +538,19 @@ impl TransportHandoffArtifact {
     /// bound exceeded, a declaration the library refuses, a policy that needs
     /// native target data, or a stored identity that does not match.
     pub fn from_bytes(bytes: &[u8], expected_identity: Option<&str>) -> Result<Self, Failure> {
-        check(&decode_meta(bytes)?, expected_identity)
+        Self::from_bytes_within(bytes, expected_identity, MAX_TRANSPORT_HANDOFF_ARTIFACT_BYTES)
+    }
+
+    /// [`Self::from_bytes`] under the caller's byte bound instead of [`MAX_TRANSPORT_HANDOFF_ARTIFACT_BYTES`].
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`]; a file over `max_bytes` is `LimitsExceeded`.
+    pub fn from_bytes_within(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        max_bytes: usize,
+    ) -> Result<Self, Failure> {
+        check(&decode_meta(bytes, max_bytes)?, expected_identity)
     }
 
     /// Read the stored metadata without replaying it.
@@ -561,7 +558,7 @@ impl TransportHandoffArtifact {
     /// # Errors
     /// Corruption, another major version or a malformed container.
     pub fn inspect(bytes: &[u8]) -> Result<TransportHandoffMeta, Failure> {
-        decode_meta(bytes)
+        decode_meta(bytes, MAX_TRANSPORT_HANDOFF_ARTIFACT_BYTES)
     }
 
     /// Check the handoff against a callback declaration the consumer holds:

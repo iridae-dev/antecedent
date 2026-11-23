@@ -1,0 +1,1234 @@
+//! Adjustment identification of a response functional on a latent-confounded ADMG.
+//!
+//! A bidirected edge records a latent common cause, so an observed covariate set is a valid
+//! adjustment for a treatment/outcome pair only when it m-separates the pair in the proper
+//! back-door graph (Shpitser, `VanderWeele` and Robins 2010, adjustment criterion; Perkovic et
+//! al. 2018 for the constructive set) and contains no forbidden node. The proper back-door
+//! graph deletes the first edge of every proper causal path from the treatment, and the
+//! forbidden set is the descendants of the treatment's causal-path children. A valid set
+//! exists exactly when the ancestral candidate set `An({T, Y})` restricted to the allowed
+//! nodes separates the pair there (van der Zander, Liskiewicz and Textor 2014), so one
+//! m-separation test per pair decides existence.
+//!
+//! A response that names several pairs (a Jacobian or a directional derivative) needs one
+//! adjustment set that is valid for every pair, because the estimator regresses the
+//! outcomes once on the treatments and that set. The candidates are each pair's own
+//! constructive set and the union of them restricted to the nodes every pair allows; the
+//! first that is valid for all pairs is returned. When none is, the response is not
+//! identified by adjustment on this ADMG. That is not a statement about identifiability
+//! in general: the general ID algorithm may identify it through a functional that is not
+//! an adjustment (front-door), and the caller decides what to do with that case.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::sync::Arc;
+
+use antecedent_core::{
+    AssumptionSet, CausalQuery, DerivativeScale, ResponseFunctional, ResponseQuery, SearchLimits,
+    TemporalEffectQuery, Value, VariableId,
+};
+use antecedent_expr::{CausalExprArena, IdentifiedEstimand};
+use antecedent_graph::{
+    Admg, CopyLabels, Cpdag, DSeparationWorkspace, DenseNodeId, Pag, TemporalAdmg,
+    UnrolledTemporalAdmg,
+};
+
+use antecedent_expr::EstimandMethod;
+
+use crate::envelope::IdentificationEnvelope;
+use crate::error::IdentificationError;
+use crate::generalized::{
+    GeneralizedAdjustmentIdentifier, directed_closure, mag_dense_to_var, mag_to_admg,
+    mag_to_confounded_admg, not_identified, pag_var_to_dense,
+};
+use crate::response::{append_observation_assumptions, response_pairs};
+use crate::result::{DerivationTrace, IdentificationPerformanceRecord, IdentificationResult};
+use crate::temporal_admg::{AdmittedTemporalAdmgWindowPlan, plan_temporal_admg_window_within};
+
+/// One treatment/outcome pair's graph facts.
+struct PairGeometry {
+    treatment: VariableId,
+    outcome: VariableId,
+    t: DenseNodeId,
+    y: DenseNodeId,
+    /// The ADMG with the first edge of every proper causal path from `t` removed.
+    proper_backdoor: Admg,
+    /// Nodes no adjustment set may contain: descendants of the causal-path children of `t`.
+    forbidden: Vec<bool>,
+    /// The ancestral candidate set: `An({t, y})` minus the forbidden nodes, `t` and `y`.
+    constructive: Vec<DenseNodeId>,
+}
+
+/// How an ADMG's dense nodes map to the query's variables.
+struct NodeMap<'a> {
+    dense: &'a dyn Fn(VariableId) -> Result<DenseNodeId, IdentificationError>,
+    variable: &'a dyn Fn(DenseNodeId) -> Result<VariableId, IdentificationError>,
+}
+
+fn geometry(
+    admg: &Admg,
+    nodes: &NodeMap<'_>,
+    treatment: VariableId,
+    outcome: VariableId,
+) -> Result<PairGeometry, IdentificationError> {
+    let t = (nodes.dense)(treatment)?;
+    let y = (nodes.dense)(outcome)?;
+    let n = admg.node_count();
+    let descendants_of_t = directed_closure(admg, &[t], false);
+    let ancestors_of_y = directed_closure(admg, &[y], true);
+    let ancestors_of_pair = directed_closure(admg, &[t, y], true);
+    // Children of the treatment on a proper causal path to the outcome, and everything
+    // downstream of them: conditioning there would block or bias the causal effect.
+    let causal_children: Vec<DenseNodeId> =
+        admg.children(t).iter().copied().filter(|child| ancestors_of_y.contains(*child)).collect();
+    let mediator_roots: Vec<DenseNodeId> = DenseNodeId::all(n)
+        .filter(|&node| {
+            node != t && descendants_of_t.contains(node) && ancestors_of_y.contains(node)
+        })
+        .collect();
+    let forbidden_closure = directed_closure(admg, &mediator_roots, false);
+    let forbidden: Vec<bool> =
+        DenseNodeId::all(n).map(|node| forbidden_closure.contains(node)).collect();
+
+    let mut proper_backdoor = Admg::with_variables(u32::try_from(n).map_err(|_| {
+        IdentificationError::InvariantViolated { message: "graph node count exceeds u32" }
+    })?);
+    for source in DenseNodeId::all(n) {
+        for &child in admg.children(source) {
+            if source == t && causal_children.contains(&child) {
+                continue;
+            }
+            proper_backdoor.insert_directed(source, child)?;
+        }
+        for &other in admg.bidirected_neighbors(source) {
+            if other.raw() > source.raw() {
+                proper_backdoor.insert_bidirected(source, other)?;
+            }
+        }
+    }
+    let constructive = DenseNodeId::all(n)
+        .filter(|&node| {
+            node != t
+                && node != y
+                && ancestors_of_pair.contains(node)
+                && !forbidden[node.as_usize()]
+        })
+        .collect();
+    Ok(PairGeometry { treatment, outcome, t, y, proper_backdoor, forbidden, constructive })
+}
+
+/// Whether `z` is a valid adjustment set for the pair.
+fn valid_for(
+    pair: &PairGeometry,
+    z: &[DenseNodeId],
+    workspace: &mut DSeparationWorkspace,
+) -> Result<bool, IdentificationError> {
+    if z.iter().any(|&node| node == pair.t || node == pair.y || pair.forbidden[node.as_usize()]) {
+        return Ok(false);
+    }
+    Ok(pair.proper_backdoor.is_m_separated(pair.t, pair.y, z, workspace)?)
+}
+
+/// Identify a response functional on `admg` by one common adjustment set.
+///
+/// The returned result carries one back-door estimand per treatment/outcome pair, all with
+/// the same adjustment set, so a regression on the treatments and that set estimates every
+/// pair. A result with no estimands and status `NotIdentified` means no adjustment set
+/// exists on this ADMG for at least one pair; general ID may still identify the response.
+///
+/// # Errors
+///
+/// A variable missing from the graph, an invalid response query, or a graph error.
+pub fn identify_admg_response_adjustment(
+    admg: &Admg,
+    query: &ResponseQuery,
+) -> Result<IdentificationResult, IdentificationError> {
+    let dense = |variable: VariableId| {
+        admg.dense_of_static(variable).ok_or(IdentificationError::UnknownVariable { id: variable })
+    };
+    let variable = |node: DenseNodeId| {
+        admg.static_variable(node)
+            .ok_or(IdentificationError::UnknownVariable { id: VariableId::from_raw(node.raw()) })
+    };
+    if let ResponseFunctional::InterventionResponse { outcome, interventions } = &query.functional {
+        query
+            .validate()
+            .map_err(|error| IdentificationError::InvalidQuery { message: error.to_string() })?;
+        let assignments = interventions
+            .iter()
+            .map(|intervention| match intervention {
+                antecedent_core::Intervention::Set { variable, value } => {
+                    Ok(antecedent_expr::InterventionAssignment {
+                        variable: *variable,
+                        value: value.clone(),
+                    })
+                }
+                _ => Err(IdentificationError::unsupported(
+                    "ADMG intervention response requires hard Set interventions",
+                )),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        if assignments.len() >= 2 {
+            let mut result =
+                GeneralizedAdjustmentIdentifier::new().identify_joint_admg_response(admg, query)?;
+            for estimand in &mut result.estimands {
+                let arena = &mut result.arena;
+                let z = arena.intern_var_set(estimand.adjustment_set.iter().copied());
+                let y = arena.intern_var_set([*outcome]);
+                let xz = arena.intern_var_set(
+                    assignments
+                        .iter()
+                        .map(|a| a.variable)
+                        .chain(estimand.adjustment_set.iter().copied()),
+                );
+                let empty = arena.empty_var_set();
+                let observational = arena.empty_intervention_set();
+                let assigned = arena.intern_intervention_assignments(assignments.iter().cloned());
+                let conditional = arena.intern_distribution(
+                    y,
+                    xz,
+                    assigned,
+                    antecedent_expr::DomainRef::Observational,
+                );
+                let marginal = arena.intern_distribution(
+                    z,
+                    empty,
+                    observational,
+                    antecedent_expr::DomainRef::Observational,
+                );
+                let factors = arena.intern_list([conditional, marginal]);
+                let product = arena.intern(antecedent_expr::ExprNode::Product(factors));
+                let distribution =
+                    arena.intern(antecedent_expr::ExprNode::SumOut { variables: z, expr: product });
+                estimand.functional = arena.intern(antecedent_expr::ExprNode::Expectation {
+                    function: antecedent_expr::OutcomeExprId::identity(*outcome),
+                    distribution,
+                });
+            }
+            return Ok(result);
+        }
+        if let [assignment] = assignments.as_slice() {
+            let mut result =
+                adjustment_on(admg, query, &NodeMap { dense: &dense, variable: &variable })?;
+            for estimand in &mut result.estimands {
+                estimand.functional = result.arena.backdoor_mean(
+                    assignment.variable,
+                    *outcome,
+                    &estimand.adjustment_set,
+                    assignment.value.clone(),
+                );
+            }
+            return Ok(result);
+        }
+        return Err(IdentificationError::unsupported(
+            "ADMG intervention response requires at least one hard Set intervention",
+        ));
+    }
+    if let Some(joint) = joint_multi_treatment(query, |surface| {
+        GeneralizedAdjustmentIdentifier::new().identify_joint_admg_response(admg, surface)
+    })? {
+        return Ok(joint);
+    }
+    adjustment_on(admg, query, &NodeMap { dense: &dense, variable: &variable })
+}
+
+/// A Jacobian or directional derivative over two or more treatments holds the other treatments
+/// fixed, so per-pair adjustment sets (which identify each treatment's marginal effect,
+/// including paths through the other treatments) cannot answer it. It is decided by the joint
+/// back-door search over all treatments for each outcome, or reported not identified.
+fn joint_multi_treatment(
+    query: &ResponseQuery,
+    identify_surface: impl FnMut(&ResponseQuery) -> Result<IdentificationResult, IdentificationError>,
+) -> Result<Option<IdentificationResult>, IdentificationError> {
+    query
+        .validate()
+        .map_err(|error| IdentificationError::InvalidQuery { message: error.to_string() })?;
+    crate::response::multi_treatment_joint_route(
+        &CausalQuery::Response(query.clone()),
+        query,
+        AssumptionSet::default(),
+        identify_surface,
+    )
+}
+
+/// Identify a derivative or Jacobian over every DAG completion of a CPDAG.
+///
+/// Each completion is identified by one adjustment set valid for every treatment/outcome
+/// pair the functional names, so a completion whose pairs need different sets is reported
+/// as not identified by adjustment rather than estimated with a set that is invalid for one
+/// of them.
+///
+/// # Errors
+///
+/// Invalid query, unknown variable or graph errors.
+pub fn identify_cpdag_derivative_pairs(
+    cpdag: &Cpdag,
+    query: &ResponseQuery,
+) -> Result<IdentificationEnvelope<antecedent_graph::Dag>, IdentificationError> {
+    GeneralizedAdjustmentIdentifier::new().identify_cpdag_derivative_pairs(cpdag, query)
+}
+
+/// Identify a derivative or Jacobian over every MAG completion of a PAG.
+///
+/// Each completion is read through the generalized adjustment criterion of Perkovic et al.
+/// (2018): the MAG is amenable to adjustment for a pair only when every causal path from the
+/// treatment starts with a visible edge, and a set is then valid when it m-separates the pair
+/// in the proper back-door graph of the MAG and holds no forbidden node. One set valid for
+/// every pair the functional names is searched exactly as on an ADMG. A completion with an
+/// invisible first edge of a causal path, or with no common set, is reported as not
+/// identified by adjustment; that is a refusal of this route, not a proof that general ID
+/// cannot identify it.
+///
+/// # Errors
+///
+/// Invalid query, unknown variable or graph errors.
+pub fn identify_pag_derivative_pairs(
+    pag: &Pag,
+    query: &ResponseQuery,
+) -> Result<IdentificationEnvelope<Pag>, IdentificationError> {
+    GeneralizedAdjustmentIdentifier::new().identify_pag_derivative_pairs(pag, query)
+}
+
+/// A derivative response identified by adjustment on the unrolled window of a temporal ADMG.
+#[derive(Clone, Debug)]
+pub struct TemporalAdmgAdjustment {
+    /// Identification over the window's coordinates; its adjustment set holds window
+    /// coordinates (`period * variable_count + variable`).
+    pub result: IdentificationResult,
+    /// Where the policy, the outcome and the history sit in the window.
+    pub plan: AdmittedTemporalAdmgWindowPlan,
+    /// The unrolled window the result is stated on.
+    pub window: UnrolledTemporalAdmg,
+}
+
+/// Identify a derivative or Jacobian at one horizon of a temporal ADMG by adjustment on its
+/// unrolled window.
+///
+/// `probe` is the unit pulse contrast at that horizon under the response's temporal policy
+/// (the query the temporal routes identify a horizon with); it fixes the window, the treated
+/// period and the outcome period. Every treatment of `query` is read at the treated period and
+/// every outcome at the outcome period, and the window ADMG, in which a cause that precedes the
+/// window is a latent common cause of its in-window effects, is searched for one adjustment
+/// set valid for every pair. A result with status `NotIdentified` means no such set exists on
+/// the window; the general ID algorithm may still identify the contrast.
+///
+/// # Errors
+///
+/// A treatment, outcome or probe the template does not hold, a window the graph crate cannot
+/// number, or an invalid query.
+pub fn identify_temporal_admg_response_adjustment(
+    template: &TemporalAdmg,
+    probe: &TemporalEffectQuery,
+    query: &ResponseQuery,
+    variable_count: u32,
+) -> Result<TemporalAdmgAdjustment, IdentificationError> {
+    let ctx = antecedent_core::ExecutionContext::production_default(0);
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    identify_temporal_admg_response_adjustment_within(
+        template,
+        probe,
+        query,
+        variable_count,
+        &mut budget,
+        &ctx,
+    )
+}
+
+/// Context-aware variant using one cumulative temporal materialization budget.
+/// # Errors
+/// Invalid input, identification, cancellation or resource refusal.
+pub fn identify_temporal_admg_response_adjustment_within(
+    template: &TemporalAdmg,
+    probe: &TemporalEffectQuery,
+    query: &ResponseQuery,
+    variable_count: u32,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<TemporalAdmgAdjustment, IdentificationError> {
+    let plan = plan_temporal_admg_window_within(template, probe, budget, ctx)?;
+    let window = template
+        .unroll_window_over_within(plan.periods, variable_count, budget, ctx)
+        .map_err(|error| match error {
+            antecedent_graph::GraphError::TemporalMaterialization(error) => {
+                crate::error::temporal_materialization_error(error)
+            }
+            other => IdentificationError::construction(other),
+        })?;
+    let treated_period = plan.treated.first().copied().ok_or(IdentificationError::unsupported(
+        "a temporal derivative needs a treated period in its policy",
+    ))?;
+    let at = |variable: VariableId, period: u32| {
+        window
+            .coordinate(variable, period)
+            .ok_or(IdentificationError::UnknownVariable { id: variable })
+    };
+    let mut treatments: Vec<VariableId> = Vec::new();
+    for variable in query.functional.treatment_ids() {
+        let coordinate = at(variable, treated_period)?;
+        if !treatments.contains(&coordinate) {
+            treatments.push(coordinate);
+        }
+    }
+    let mut outcomes: Vec<VariableId> = Vec::new();
+    for variable in query.functional.outcome_ids() {
+        let coordinate = at(variable, plan.outcome_period)?;
+        if !outcomes.contains(&coordinate) {
+            outcomes.push(coordinate);
+        }
+    }
+    let window_query = ResponseQuery::new(ResponseFunctional::Jacobian {
+        at: vec![0.0; treatments.len()].into(),
+        treatments: treatments.into(),
+        outcomes: outcomes.into(),
+        scale: DerivativeScale::Identity,
+    });
+    let mut result = identify_admg_response_adjustment(window.admg(), &window_query)?;
+    result.query = CausalQuery::Response(query.clone());
+    Ok(TemporalAdmgAdjustment { result, plan, window })
+}
+
+/// Separation tests the front-door set search may run before it reports the search as not
+/// certified, when the caller supplies no limits.
+const DEFAULT_FRONT_DOOR_TESTS: usize = 1 << 20;
+
+/// Diagnostic code of a front-door mediator search that spent its test budget before deciding.
+pub(crate) const FRONT_DOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str =
+    "identify.frontdoor_admg.search_bounded";
+
+/// How a bounded front-door mediator-set search ended.
+#[derive(Clone, Debug, PartialEq)]
+pub enum FrontDoorSearch<T> {
+    /// A front-door set was found; the smallest one in lexicographic order.
+    Found(T),
+    /// The search finished and no front-door set exists.
+    Absent,
+    /// The test budget ran out first: whether a front-door set exists is undecided, which is
+    /// not a statement about the graph.
+    NotCertified {
+        /// Candidate sets tested before the budget stopped the search.
+        examined: u64,
+    },
+}
+
+impl<T> FrontDoorSearch<T> {
+    /// The found value, mapping `Absent` and `NotCertified` to `None`.
+    #[must_use]
+    pub fn found(self) -> Option<T> {
+        match self {
+            Self::Found(value) => Some(value),
+            Self::Absent | Self::NotCertified { .. } => None,
+        }
+    }
+
+    fn map<U>(self, f: impl FnOnce(T) -> U) -> FrontDoorSearch<U> {
+        match self {
+            Self::Found(value) => FrontDoorSearch::Found(f(value)),
+            Self::Absent => FrontDoorSearch::Absent,
+            Self::NotCertified { examined } => FrontDoorSearch::NotCertified { examined },
+        }
+    }
+}
+
+/// The default budget of the front-door set search.
+#[must_use]
+pub const fn default_front_door_limits() -> SearchLimits {
+    SearchLimits { operations: DEFAULT_FRONT_DOOR_TESTS, depth: usize::MAX }
+}
+
+/// Whether `m` satisfies the front-door criterion on `admg`: it intercepts every directed path
+/// from `t` to `y`, no back-door path leaves `t` into `m`, and every back-door path from `m` to
+/// `y` is blocked by `t`. Bidirected edges (latent common causes) stay in every mutilated graph.
+fn is_front_door_set(
+    admg: &Admg,
+    t: DenseNodeId,
+    y: DenseNodeId,
+    m: &[DenseNodeId],
+    workspace: &mut DSeparationWorkspace,
+) -> Result<bool, IdentificationError> {
+    let without_m = admg.copy_filtered(
+        CopyLabels::StaticIndex { extra: 0 },
+        |from, to| !m.contains(&from) && !m.contains(&to),
+        |_, _| true,
+    )?;
+    if without_m.reaches(t, y) {
+        return Ok(false);
+    }
+    let t_mutilated =
+        admg.copy_filtered(CopyLabels::StaticIndex { extra: 0 }, |from, _| from != t, |_, _| true)?;
+    for &mediator in m {
+        if !t_mutilated.is_m_separated(t, mediator, &[], workspace)? {
+            return Ok(false);
+        }
+    }
+    let m_mutilated = admg.copy_filtered(
+        CopyLabels::StaticIndex { extra: 0 },
+        |from, _| !m.contains(&from),
+        |_, _| true,
+    )?;
+    for &mediator in m {
+        if !m_mutilated.is_m_separated(mediator, y, &[t], workspace)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+/// The smallest front-door mediator set of `treatment -> outcome` on the ADMG.
+///
+/// Mediators are drawn from the nodes on a proper causal path from the treatment to the outcome
+/// (a front-door set restricted to those nodes still intercepts every directed path, and the
+/// two back-door conditions are per mediator). A node that has an open back-door path from the
+/// treatment can be in no front-door set, so those are dropped first; the remaining pool is
+/// searched by increasing set size with no cap on the size or on the pool, and `remaining`
+/// bounds the number of candidate sets tested: the caller's shared budget, decremented per
+/// candidate so several searches of one call draw on the same cap. Cancellation of the active
+/// workflow is polled per pool node and per candidate. A pool that does not intercept every
+/// directed path proves no set exists without any enumeration.
+fn front_door_set_on(
+    admg: &Admg,
+    nodes: &NodeMap<'_>,
+    treatment: VariableId,
+    outcome: VariableId,
+    remaining: &mut u64,
+) -> Result<FrontDoorSearch<Vec<VariableId>>, IdentificationError> {
+    let t = (nodes.dense)(treatment)?;
+    let y = (nodes.dense)(outcome)?;
+    let descendants = directed_closure(admg, &[t], false);
+    let ancestors = directed_closure(admg, &[y], true);
+    let mut workspace = DSeparationWorkspace::default();
+    let t_mutilated =
+        admg.copy_filtered(CopyLabels::StaticIndex { extra: 0 }, |from, _| from != t, |_, _| true)?;
+    let mut pool: Vec<DenseNodeId> = Vec::new();
+    for node in DenseNodeId::all(admg.node_count()) {
+        poll_front_door_cancellation()?;
+        if node != t
+            && node != y
+            && descendants.contains(node)
+            && ancestors.contains(node)
+            && t_mutilated.is_m_separated(t, node, &[], &mut workspace)?
+        {
+            pool.push(node);
+        }
+    }
+    let mut examined = 0u64;
+    // Intercepting every directed path is monotone in the mediator set, so the whole pool is
+    // the best case: when it fails, nothing smaller can pass.
+    if pool.is_empty() || admg_without(admg, &pool)?.reaches(t, y) {
+        return Ok(FrontDoorSearch::Absent);
+    }
+    for size in 1..=pool.len() {
+        let mut chosen: Vec<usize> = (0..size).collect();
+        loop {
+            poll_front_door_cancellation()?;
+            if *remaining == 0 {
+                return Ok(FrontDoorSearch::NotCertified { examined });
+            }
+            *remaining -= 1;
+            examined += 1;
+            let candidate: Vec<DenseNodeId> = chosen.iter().map(|&i| pool[i]).collect();
+            if is_front_door_set(admg, t, y, &candidate, &mut workspace)? {
+                return candidate
+                    .iter()
+                    .map(|&node| (nodes.variable)(node))
+                    .collect::<Result<Vec<_>, _>>()
+                    .map(FrontDoorSearch::Found);
+            }
+            // Next combination in lexicographic order.
+            let mut position = size;
+            while position > 0 && chosen[position - 1] == pool.len() - size + position - 1 {
+                position -= 1;
+            }
+            if position == 0 {
+                break;
+            }
+            chosen[position - 1] += 1;
+            for later in position..size {
+                chosen[later] = chosen[later - 1] + 1;
+            }
+        }
+    }
+    Ok(FrontDoorSearch::Absent)
+}
+
+/// Refuse with `Cancelled` once the active workflow's token is cancelled.
+fn poll_front_door_cancellation() -> Result<(), IdentificationError> {
+    if antecedent_core::numerical_admission::is_cancelled() {
+        return Err(IdentificationError::Cancelled);
+    }
+    Ok(())
+}
+
+/// The candidate-set budget of one front-door call: the caller's request, never above
+/// [`default_front_door_limits`]. A request cannot remove the cap.
+fn front_door_test_budget(requested: usize) -> u64 {
+    u64::try_from(requested.min(DEFAULT_FRONT_DOOR_TESTS)).unwrap_or(u64::MAX)
+}
+
+/// `admg` with every node of `removed` deleted (ids preserved).
+fn admg_without(admg: &Admg, removed: &[DenseNodeId]) -> Result<Admg, IdentificationError> {
+    Ok(admg.copy_filtered(
+        CopyLabels::StaticIndex { extra: 0 },
+        |from, to| !removed.contains(&from) && !removed.contains(&to),
+        |_, _| true,
+    )?)
+}
+
+/// The identified result of a front-door mediator set for the pair of a single-pair
+/// derivative: a `frontdoor` estimand over the mediators.
+fn front_door_result(
+    query: &ResponseQuery,
+    treatment: VariableId,
+    outcome: VariableId,
+    mediators: Vec<VariableId>,
+) -> IdentificationResult {
+    let mut assumptions = AssumptionSet::default();
+    assumptions.push(crate::assumptions::causal_markov("frontdoor.admg"));
+    append_observation_assumptions(query, &mut assumptions);
+    let vars: Arc<[VariableId]> = mediators.into();
+    let mut arena = CausalExprArena::new();
+    let functional =
+        arena.frontdoor_ate(treatment, outcome, &vars, Value::f64(1.0), Value::f64(0.0));
+    let mut derivation = DerivationTrace::default();
+    derivation.push(
+        "frontdoor.criterion",
+        format!(
+            "the {} mediator(s) intercept every directed path, no back-door path leaves the \
+             treatment into them, and the treatment blocks every back-door path from them to the \
+             outcome (latent common causes kept as bidirected edges)",
+            vars.len()
+        ),
+    );
+    IdentificationResult::identified(
+        CausalQuery::Response(query.clone()),
+        vec![IdentifiedEstimand::frontdoor("frontdoor", vars, functional)],
+        arena,
+        derivation,
+        assumptions,
+        IdentificationPerformanceRecord { candidates_examined: 1, sets_returned: 1 },
+    )
+}
+
+/// Front-door identification of a single-pair derivative on an ADMG, for the case that no
+/// adjustment set exists: `Ok(None)` when no front-door set was found, whether because none
+/// exists or because the default test budget ran out first.
+///
+/// A caller that must tell those apart uses [`search_admg_front_door_derivative`].
+///
+/// # Errors
+///
+/// A query that is not a single-pair derivative, a missing variable or a graph error.
+pub fn identify_admg_front_door_derivative(
+    admg: &Admg,
+    query: &ResponseQuery,
+) -> Result<Option<IdentificationResult>, IdentificationError> {
+    Ok(search_admg_front_door_derivative(admg, query, default_front_door_limits())?.found())
+}
+
+/// Front-door identification of a single-pair derivative on an ADMG under an explicit test
+/// budget (`limits.operations` candidate sets), with a distinct status when the budget ends the
+/// search before it decides.
+///
+/// A query that is not a single-pair derivative has no front-door estimand, which is
+/// [`FrontDoorSearch::Absent`].
+///
+/// # Errors
+///
+/// A missing variable or a graph error.
+pub fn search_admg_front_door_derivative(
+    admg: &Admg,
+    query: &ResponseQuery,
+    limits: SearchLimits,
+) -> Result<FrontDoorSearch<IdentificationResult>, IdentificationError> {
+    let pairs = response_pairs(&query.functional)?;
+    let &[(treatment, outcome)] = pairs.as_slice() else {
+        return Ok(FrontDoorSearch::Absent);
+    };
+    let dense = |variable: VariableId| {
+        admg.dense_of_static(variable).ok_or(IdentificationError::UnknownVariable { id: variable })
+    };
+    let variable = |node: DenseNodeId| {
+        admg.static_variable(node)
+            .ok_or(IdentificationError::UnknownVariable { id: VariableId::from_raw(node.raw()) })
+    };
+    let nodes = NodeMap { dense: &dense, variable: &variable };
+    let mut remaining = front_door_test_budget(limits.operations);
+    Ok(front_door_set_on(admg, &nodes, treatment, outcome, &mut remaining)?
+        .map(|mediators| front_door_result(query, treatment, outcome, mediators)))
+}
+
+/// Replace every completion of a PAG response envelope that general ID identifies but no
+/// adjustment reaches, by its front-door identification when one exists. A completion with no
+/// front-door set keeps its general-ID result.
+///
+/// # Errors
+///
+/// A graph error while testing a completion.
+pub fn upgrade_id_only_derivative_cases(
+    envelope: &mut IdentificationEnvelope<Pag>,
+    query: &ResponseQuery,
+) -> Result<(), IdentificationError> {
+    let pairs = response_pairs(&query.functional)?;
+    let &[(treatment, outcome)] = pairs.as_slice() else {
+        return Ok(());
+    };
+    // One candidate-set budget for every completion of this call.
+    let mut remaining = front_door_test_budget(DEFAULT_FRONT_DOOR_TESTS);
+    for case in &mut envelope.cases {
+        let id_only =
+            case.result.estimands.first().is_some_and(|estimand| {
+                estimand.method_kind().ok() == Some(EstimandMethod::GeneralId)
+            });
+        if !id_only {
+            continue;
+        }
+        let Some(admg) = mag_to_confounded_admg(&case.graph) else { continue };
+        let mag = &case.graph;
+        let dense = |variable: VariableId| pag_var_to_dense(mag, variable);
+        let variable = |node: DenseNodeId| mag_dense_to_var(mag, node);
+        let nodes = NodeMap { dense: &dense, variable: &variable };
+        match front_door_set_on(&admg, &nodes, treatment, outcome, &mut remaining)? {
+            FrontDoorSearch::Found(mediators) => {
+                case.result = front_door_result(query, treatment, outcome, mediators);
+            }
+            FrontDoorSearch::Absent => {}
+            FrontDoorSearch::NotCertified { examined } => {
+                // The general-ID result stands, and says the front-door search was undecided.
+                case.result.diagnostics.push(crate::result::search_bounded_diagnostic(
+                    FRONT_DOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
+                    format!(
+                        "front-door mediator search stopped after {examined} candidate sets \
+                         at its test budget; a front-door set may exist"
+                    ),
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Front-door identification of a single-pair derivative at one horizon of a temporal ADMG, on
+/// its unrolled window, for the case that no adjustment set exists: `Ok(None)` when no
+/// front-door set was found on the window. The mediators are window
+/// coordinates.
+///
+/// # Errors
+///
+/// As [`identify_temporal_admg_response_adjustment`].
+pub fn identify_temporal_admg_front_door_derivative(
+    template: &TemporalAdmg,
+    probe: &TemporalEffectQuery,
+    query: &ResponseQuery,
+    variable_count: u32,
+) -> Result<Option<TemporalAdmgAdjustment>, IdentificationError> {
+    let ctx = antecedent_core::ExecutionContext::production_default(0);
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    identify_temporal_admg_front_door_derivative_within(
+        template,
+        probe,
+        query,
+        variable_count,
+        &mut budget,
+        &ctx,
+    )
+}
+
+/// Context-aware variant using one cumulative temporal materialization budget.
+/// # Errors
+/// Invalid input, identification, cancellation or resource refusal.
+pub fn identify_temporal_admg_front_door_derivative_within(
+    template: &TemporalAdmg,
+    probe: &TemporalEffectQuery,
+    query: &ResponseQuery,
+    variable_count: u32,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<Option<TemporalAdmgAdjustment>, IdentificationError> {
+    let pairs = response_pairs(&query.functional)?;
+    let &[(treatment, outcome)] = pairs.as_slice() else {
+        return Ok(None);
+    };
+    let plan = plan_temporal_admg_window_within(template, probe, budget, ctx)?;
+    let window = template
+        .unroll_window_over_within(plan.periods, variable_count, budget, ctx)
+        .map_err(|error| match error {
+            antecedent_graph::GraphError::TemporalMaterialization(error) => {
+                crate::error::temporal_materialization_error(error)
+            }
+            other => IdentificationError::construction(other),
+        })?;
+    let treated_period = plan.treated.first().copied().ok_or(IdentificationError::unsupported(
+        "a temporal derivative needs a treated period in its policy",
+    ))?;
+    let t = window
+        .coordinate(treatment, treated_period)
+        .ok_or(IdentificationError::UnknownVariable { id: treatment })?;
+    let y = window
+        .coordinate(outcome, plan.outcome_period)
+        .ok_or(IdentificationError::UnknownVariable { id: outcome })?;
+    let window_query = ResponseQuery::new(ResponseFunctional::PointDerivative {
+        outcome: y,
+        treatment: t,
+        at: 0.0,
+        order: 1,
+        scale: DerivativeScale::Identity,
+    });
+    let Some(mut result) = identify_admg_front_door_derivative(window.admg(), &window_query)?
+    else {
+        return Ok(None);
+    };
+    result.query = CausalQuery::Response(query.clone());
+    Ok(Some(TemporalAdmgAdjustment { result, plan, window }))
+}
+
+fn adjustment_on(
+    admg: &Admg,
+    query: &ResponseQuery,
+    nodes: &NodeMap<'_>,
+) -> Result<IdentificationResult, IdentificationError> {
+    query
+        .validate()
+        .map_err(|error| IdentificationError::InvalidQuery { message: error.to_string() })?;
+    let causal_query = CausalQuery::Response(query.clone());
+    let pairs = response_pairs(&query.functional)?;
+    let geometries = pairs
+        .iter()
+        .map(|&(treatment, outcome)| geometry(admg, nodes, treatment, outcome))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let mut assumptions = AssumptionSet::default();
+    assumptions.push(crate::assumptions::causal_markov("generalized.adjustment.admg"));
+    append_observation_assumptions(query, &mut assumptions);
+
+    // Candidate sets: each pair's own constructive set, then the union of those restricted
+    // to the nodes every pair allows.
+    let mut candidates: Vec<Vec<DenseNodeId>> =
+        geometries.iter().map(|pair| pair.constructive.clone()).collect();
+    let mut union: Vec<DenseNodeId> = geometries
+        .iter()
+        .flat_map(|pair| pair.constructive.iter().copied())
+        .filter(|node| {
+            geometries
+                .iter()
+                .all(|pair| *node != pair.t && *node != pair.y && !pair.forbidden[node.as_usize()])
+        })
+        .collect();
+    union.sort_unstable();
+    union.dedup();
+    candidates.push(union);
+
+    let mut workspace = DSeparationWorkspace::default();
+    let mut examined = 0_u64;
+    let mut chosen: Option<Vec<DenseNodeId>> = None;
+    for mut candidate in candidates {
+        candidate.sort_unstable();
+        candidate.dedup();
+        examined += 1;
+        let mut all_valid = true;
+        for pair in &geometries {
+            if !valid_for(pair, &candidate, &mut workspace)? {
+                all_valid = false;
+                break;
+            }
+        }
+        if all_valid {
+            chosen = Some(candidate);
+            break;
+        }
+    }
+
+    let performance = IdentificationPerformanceRecord {
+        candidates_examined: examined,
+        sets_returned: u64::from(chosen.is_some()),
+    };
+    let Some(chosen) = chosen else {
+        let mut derivation = DerivationTrace::default();
+        derivation.push(
+            "generalized.adjustment.admg",
+            "no common adjustment set m-separates every treatment/outcome pair in its proper \
+             back-door graph: the ancestral candidate set leaves an open non-causal path through \
+             a latent common cause",
+        );
+        return Ok(IdentificationResult::not_identified(
+            causal_query,
+            derivation,
+            assumptions,
+            performance,
+        ));
+    };
+
+    let z_vars: Arc<[VariableId]> =
+        chosen.iter().map(|&node| (nodes.variable)(node)).collect::<Result<Vec<_>, _>>()?.into();
+    let label =
+        if z_vars.is_empty() { "generalized.adjustment.empty" } else { "generalized.adjustment" };
+    let mut arena = CausalExprArena::new();
+    let estimands = geometries
+        .iter()
+        .map(|pair| {
+            let functional = arena.backdoor_ate(
+                pair.treatment,
+                pair.outcome,
+                &z_vars,
+                Value::f64(1.0),
+                Value::f64(0.0),
+            );
+            IdentifiedEstimand::backdoor(label, Arc::clone(&z_vars), functional)
+        })
+        .collect();
+    let mut derivation = DerivationTrace::default();
+    derivation.push(
+        "generalized.adjustment.admg",
+        format!(
+            "Z (size {}) m-separates every treatment/outcome pair in its proper back-door graph \
+             and contains no node downstream of a causal-path child of the treatment",
+            z_vars.len()
+        ),
+    );
+    Ok(IdentificationResult::identified(
+        causal_query,
+        estimands,
+        arena,
+        derivation,
+        assumptions,
+        performance,
+    ))
+}
+
+impl GeneralizedAdjustmentIdentifier {
+    /// Identify under this identifier's configured completion and adjustment context.
+    ///
+    /// # Errors
+    /// Invalid graph/query, caller cancellation or resource exhaustion.
+    pub fn identify_cpdag_derivative_pairs(
+        &self,
+        cpdag: &Cpdag,
+        query: &ResponseQuery,
+    ) -> Result<IdentificationEnvelope<antecedent_graph::Dag>, IdentificationError> {
+        self.cpdag_envelope_with(cpdag, |dag| {
+            if let Some(joint) = joint_multi_treatment(query, |surface| {
+                self.identify_joint_dag_response(dag, surface)
+            })? {
+                return Ok(joint);
+            }
+            let admg = crate::prepared::dag_to_admg(dag)?;
+            identify_admg_response_adjustment(&admg, query)
+        })
+    }
+
+    /// Identify under this identifier's configured completion and adjustment context.
+    ///
+    /// # Errors
+    /// Invalid graph/query, caller cancellation or resource exhaustion.
+    pub fn identify_pag_derivative_pairs(
+        &self,
+        pag: &Pag,
+        query: &ResponseQuery,
+    ) -> Result<IdentificationEnvelope<Pag>, IdentificationError> {
+        self.pag_envelope_with(pag, |mag| {
+            let Some(admg) = mag_to_admg(mag) else {
+                return Ok(not_identified(
+                    CausalQuery::Response(query.clone()),
+                    "completion is not a directed/bidirected MAG; adjustment was not attempted",
+                ));
+            };
+            if let Some(joint) = joint_multi_treatment(query, |surface| {
+                crate::joint_response::identify_joint_within(
+                    &admg,
+                    mag.nodes(),
+                    surface,
+                    (self.config.max_candidates, self.config.max_examinations),
+                    self.config.context.as_ref(),
+                    |from, to| crate::joint_response::visible(mag, from, to),
+                )
+            })? {
+                return Ok(joint);
+            }
+            let dense = |variable: VariableId| pag_var_to_dense(mag, variable);
+            let variable = |node: DenseNodeId| mag_dense_to_var(mag, node);
+            for (treatment, outcome) in response_pairs(&query.functional)? {
+                let t = dense(treatment)?;
+                let ancestors_of_y = directed_closure(&admg, &[dense(outcome)?], true);
+                if admg.children(t).iter().any(|&child| {
+                    ancestors_of_y.contains(child) && !crate::joint_response::visible(mag, t, child)
+                }) {
+                    return Ok(not_identified(
+                        CausalQuery::Response(query.clone()),
+                        "MAG is not adjustment amenable: a causal path starts with an invisible \
+                         edge; no adjustment set identifies this effect",
+                    ));
+                }
+            }
+            adjustment_on(&admg, query, &NodeMap { dense: &dense, variable: &variable })
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use antecedent_core::{
+        DerivativeScale, IdentificationStatus, ResponseFunctional, ResponseQuery,
+    };
+
+    use super::*;
+
+    fn point_derivative(treatment: u32, outcome: u32) -> ResponseQuery {
+        ResponseQuery::new(ResponseFunctional::PointDerivative {
+            outcome: VariableId::from_raw(outcome),
+            treatment: VariableId::from_raw(treatment),
+            at: 0.0,
+            order: 1,
+            scale: DerivativeScale::Identity,
+        })
+    }
+
+    fn node(i: u32) -> DenseNodeId {
+        DenseNodeId::from_raw(i)
+    }
+
+    /// X=0, Y=1, W=2, V=3. W -> X, W -> Y, X -> Y and a latent cause between V and W.
+    fn observed_confounder_with_latent_elsewhere() -> Admg {
+        let mut g = Admg::with_variables(4);
+        g.insert_directed(node(2), node(0)).unwrap();
+        g.insert_directed(node(2), node(1)).unwrap();
+        g.insert_directed(node(0), node(1)).unwrap();
+        g.insert_bidirected(node(3), node(2)).unwrap();
+        g
+    }
+
+    #[test]
+    fn intervention_response_binds_joint_and_single_arm_levels() {
+        use antecedent_core::Intervention;
+        use antecedent_expr::{DomainRef, ExprNode, InterventionAssignment, OutcomeExprId};
+        let mut graph = Admg::with_variables(3);
+        graph.insert_directed(node(0), node(2)).unwrap();
+        graph.insert_directed(node(1), node(2)).unwrap();
+        let (x1, x2, y) =
+            (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: y,
+            interventions: Arc::from([
+                Intervention::set(x1, Value::f64(3.0)),
+                Intervention::set(x2, Value::f64(1.0)),
+            ]),
+        });
+        let result = identify_admg_response_adjustment(&graph, &query).unwrap();
+        assert_eq!(result.estimands.len(), 1);
+        let mut expected = CausalExprArena::new();
+        let ys = expected.intern_var_set([y]);
+        let empty = expected.empty_var_set();
+        let xs = expected.intern_var_set([x1, x2]);
+        let none = expected.empty_intervention_set();
+        let levels = expected.intern_intervention_assignments([
+            InterventionAssignment { variable: x1, value: Value::f64(3.0) },
+            InterventionAssignment { variable: x2, value: Value::f64(1.0) },
+        ]);
+        let conditional = expected.intern_distribution(ys, xs, levels, DomainRef::Observational);
+        let marginal = expected.intern_distribution(empty, empty, none, DomainRef::Observational);
+        let factors = expected.intern_list([conditional, marginal]);
+        let product = expected.intern(ExprNode::Product(factors));
+        let distribution = expected.intern(ExprNode::SumOut { variables: empty, expr: product });
+        let mean = expected
+            .intern(ExprNode::Expectation { function: OutcomeExprId::identity(y), distribution });
+        assert_eq!(result.arena.pretty(result.estimands[0].functional), expected.pretty(mean));
+        let single = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: y,
+            interventions: Arc::from([Intervention::set(x1, Value::f64(3.0))]),
+        });
+        let result = identify_admg_response_adjustment(&graph, &single).unwrap();
+        let mut expected = CausalExprArena::new();
+        let mean =
+            expected.backdoor_mean(x1, y, &result.estimands[0].adjustment_set, Value::f64(3.0));
+        assert_eq!(result.arena.pretty(result.estimands[0].functional), expected.pretty(mean));
+    }
+
+    #[test]
+    fn observed_confounder_is_the_adjustment_set_when_a_latent_cause_sits_elsewhere() {
+        let g = observed_confounder_with_latent_elsewhere();
+        let result = identify_admg_response_adjustment(&g, &point_derivative(0, 1)).unwrap();
+        assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
+        let set: Vec<_> = result.estimands[0].adjustment_set.iter().map(|v| v.raw()).collect();
+        assert!(set.contains(&2), "the observed confounder must be adjusted: {set:?}");
+    }
+
+    #[test]
+    fn direct_latent_confounding_of_treatment_and_outcome_has_no_adjustment_set() {
+        let mut g = Admg::with_variables(3);
+        g.insert_directed(node(0), node(1)).unwrap();
+        g.insert_bidirected(node(0), node(1)).unwrap();
+        g.insert_directed(node(2), node(0)).unwrap();
+        let result = identify_admg_response_adjustment(&g, &point_derivative(0, 1)).unwrap();
+        assert_eq!(result.status, IdentificationStatus::NotIdentified);
+        assert!(result.estimands.is_empty());
+    }
+
+    #[test]
+    fn a_mediator_is_never_adjusted() {
+        // X=0 -> M=1 -> Y=2, with W=3 -> X and W -> Y.
+        let mut g = Admg::with_variables(4);
+        g.insert_directed(node(0), node(1)).unwrap();
+        g.insert_directed(node(1), node(2)).unwrap();
+        g.insert_directed(node(3), node(0)).unwrap();
+        g.insert_directed(node(3), node(2)).unwrap();
+        g.insert_bidirected(node(1), node(3)).unwrap();
+        let result = identify_admg_response_adjustment(&g, &point_derivative(0, 2)).unwrap();
+        assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
+        let set: Vec<_> = result.estimands[0].adjustment_set.iter().map(|v| v.raw()).collect();
+        assert!(!set.contains(&1), "the mediator is forbidden: {set:?}");
+        assert!(set.contains(&3), "the confounder is required: {set:?}");
+    }
+
+    #[test]
+    fn front_door_search_shares_one_budget_and_polls_cancellation() {
+        // X=0 -> M=1 -> Y=2 with X <-> Y: the front-door set is {M}.
+        let mut g = Admg::with_variables(3);
+        g.insert_directed(node(0), node(1)).unwrap();
+        g.insert_directed(node(1), node(2)).unwrap();
+        g.insert_bidirected(node(0), node(2)).unwrap();
+        let query = point_derivative(0, 2);
+        let found =
+            search_admg_front_door_derivative(&g, &query, default_front_door_limits()).unwrap();
+        assert!(matches!(found, FrontDoorSearch::Found(_)));
+        // A request above the default is clamped; zero tests leaves the search undecided.
+        let none = SearchLimits { operations: 0, depth: usize::MAX };
+        assert!(matches!(
+            search_admg_front_door_derivative(&g, &query, none).unwrap(),
+            FrontDoorSearch::NotCertified { examined: 0 }
+        ));
+        assert_eq!(front_door_test_budget(usize::MAX), DEFAULT_FRONT_DOOR_TESTS as u64);
+        let ctx = antecedent_core::ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        let cancelled = antecedent_core::numerical_admission::with_context(&ctx, || {
+            search_admg_front_door_derivative(&g, &query, default_front_door_limits())
+        });
+        assert_eq!(cancelled.unwrap_err(), IdentificationError::Cancelled);
+    }
+
+    #[test]
+    fn a_jacobian_over_two_outcomes_shares_one_set() {
+        // X=0 -> Y1=1, X -> Y2=2, W=3 -> X, W -> Y1, W -> Y2, latent cause between W and Y1 is
+        // absent; the common set is {W}.
+        let mut g = Admg::with_variables(4);
+        for (a, b) in [(0, 1), (0, 2), (3, 0), (3, 1), (3, 2)] {
+            g.insert_directed(node(a), node(b)).unwrap();
+        }
+        g.insert_bidirected(node(1), node(2)).unwrap();
+        let query = ResponseQuery::new(ResponseFunctional::Jacobian {
+            outcomes: Arc::from([VariableId::from_raw(1), VariableId::from_raw(2)]),
+            treatments: Arc::from([VariableId::from_raw(0)]),
+            at: Arc::from([0.0]),
+            scale: DerivativeScale::Identity,
+        });
+        let result = identify_admg_response_adjustment(&g, &query).unwrap();
+        assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(result.estimands.len(), 2);
+        assert_eq!(result.estimands[0].adjustment_set, result.estimands[1].adjustment_set);
+        assert_eq!(result.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(3)]);
+    }
+
+    #[test]
+    fn the_classic_front_door_graph_has_no_adjustment_set_but_a_front_door_set() {
+        // X=0 -> M=1 -> Y=2 with a latent common cause of X and Y.
+        let mut g = Admg::with_variables(3);
+        g.insert_directed(node(0), node(1)).unwrap();
+        g.insert_directed(node(1), node(2)).unwrap();
+        g.insert_bidirected(node(0), node(2)).unwrap();
+        let query = point_derivative(0, 2);
+        let adjusted = identify_admg_response_adjustment(&g, &query).unwrap();
+        assert_eq!(adjusted.status, IdentificationStatus::NotIdentified);
+        let front_door = identify_admg_front_door_derivative(&g, &query).unwrap().unwrap();
+        assert_eq!(front_door.estimands[0].mediators.as_ref(), &[VariableId::from_raw(1)]);
+        assert_eq!(front_door.estimands[0].method.as_ref(), "frontdoor");
+    }
+
+    #[test]
+    fn a_mediator_confounded_with_the_outcome_is_not_a_front_door_set() {
+        // As above, plus a latent cause of M and Y: the back-door path M <-> Y is open given X.
+        let mut g = Admg::with_variables(3);
+        g.insert_directed(node(0), node(1)).unwrap();
+        g.insert_directed(node(1), node(2)).unwrap();
+        g.insert_bidirected(node(0), node(2)).unwrap();
+        g.insert_bidirected(node(1), node(2)).unwrap();
+        assert!(
+            identify_admg_front_door_derivative(&g, &point_derivative(0, 2)).unwrap().is_none()
+        );
+    }
+
+    fn multi_treatment(treatments: &[u32], outcomes: &[u32], directional: bool) -> ResponseQuery {
+        let tr: Arc<[VariableId]> = treatments.iter().map(|&t| VariableId::from_raw(t)).collect();
+        let out: Arc<[VariableId]> = outcomes.iter().map(|&y| VariableId::from_raw(y)).collect();
+        let at: Arc<[f64]> = treatments.iter().map(|_| 0.0).collect();
+        ResponseQuery::new(if directional {
+            ResponseFunctional::DirectionalDerivative {
+                outcomes: out,
+                treatments: tr,
+                at,
+                direction: treatments.iter().map(|_| 1.0).collect(),
+            }
+        } else {
+            ResponseFunctional::Jacobian {
+                outcomes: out,
+                treatments: tr,
+                at,
+                scale: DerivativeScale::Identity,
+            }
+        })
+    }
+
+    /// `T1 -> T2 -> Y`: per-pair sets would both be empty and describe T1's total effect, but
+    /// the partial derivative holds T2 fixed. The joint route answers with one joint-response
+    /// estimand for the outcome and never the per-pair back-door contrasts.
+    #[test]
+    fn chain_derivative_is_the_joint_response_not_per_pair_total_effects() {
+        let mut g = Admg::with_variables(3);
+        g.insert_directed(node(0), node(1)).unwrap();
+        g.insert_directed(node(1), node(2)).unwrap();
+        for directional in [false, true] {
+            let result =
+                identify_admg_response_adjustment(&g, &multi_treatment(&[0, 1], &[2], directional))
+                    .unwrap();
+            assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
+            assert_eq!(result.estimands.len(), 1, "one joint estimand per outcome, not per pair");
+            assert!(
+                result.derivation.steps.iter().any(|s| &*s.rule == "response.joint_adjustment")
+            );
+            assert!(
+                !result.derivation.steps.iter().any(|s| &*s.rule == "generalized.adjustment.admg")
+            );
+        }
+    }
+
+    /// `T1 -> U -> T2`, `U -> Y`, `T2 -> Y`: each treatment has a pairwise set ({} and {U}) but
+    /// no common set is valid jointly (U descends from T1), so the derivative is not identified
+    /// and the single-treatment derivative of T2 still is.
+    #[test]
+    fn shared_confounder_downstream_of_a_treatment_refuses_the_joint_derivative() {
+        let mut g = Admg::with_variables(4);
+        // 0 = T1, 1 = T2, 2 = U, 3 = Y
+        for (a, b) in [(0, 2), (2, 1), (2, 3), (1, 3)] {
+            g.insert_directed(node(a), node(b)).unwrap();
+        }
+        for directional in [false, true] {
+            let result =
+                identify_admg_response_adjustment(&g, &multi_treatment(&[0, 1], &[3], directional))
+                    .unwrap();
+            assert_eq!(result.status, IdentificationStatus::NotIdentified);
+            assert!(result.estimands.is_empty());
+        }
+        let single =
+            identify_admg_response_adjustment(&g, &multi_treatment(&[1], &[3], false)).unwrap();
+        assert_eq!(single.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(single.estimands[0].adjustment_set.contains(&VariableId::from_raw(2)));
+    }
+
+    /// A latent common cause of the two treatments' outcome path stays an open back-door in the
+    /// joint route: `T1 <-> Y` is refused even though `T2` alone is adjustable.
+    #[test]
+    fn latent_confounding_of_one_treatment_refuses_the_joint_derivative() {
+        let mut g = Admg::with_variables(3);
+        g.insert_directed(node(0), node(2)).unwrap();
+        g.insert_directed(node(1), node(2)).unwrap();
+        g.insert_bidirected(node(0), node(2)).unwrap();
+        let result =
+            identify_admg_response_adjustment(&g, &multi_treatment(&[0, 1], &[2], false)).unwrap();
+        assert_eq!(result.status, IdentificationStatus::NotIdentified);
+    }
+}

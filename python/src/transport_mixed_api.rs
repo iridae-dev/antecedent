@@ -5,15 +5,16 @@ use crate::transport_common::{
 };
 use crate::transport_z_api::{intervention_assignments, to_py_json};
 use crate::{graphs::Admg, transport_interference_api::parse_catalog};
-use antecedent_core::{
-    EvidenceCatalog, ExecutionContext, RegimeId, SearchLimits, SearchReceipt, Value, VariableId,
-};
-use antecedent_expr::{Assignment, ExactEvaluationLimits};
-use antecedent_identify::{
+use antecedent::estimate::{Assignment, ExactEvaluationLimits};
+use antecedent::execution::{SearchLimits, SearchReceipt};
+use antecedent::identify::{
     MixedQuantity, MixedSourceDecision, MixedSourceDerivation, MixedSourceQuery,
     ZTransportSourceSpec, bind_mixed_source_catalog, decide_mixed_source, render_quantity,
 };
-use antecedent_io::mixed_source_artifact::{MixedSourceArtifactWire, MixedSourceConsumeLimits};
+use antecedent::io::mixed_source_artifact::{MixedSourceArtifactWire, MixedSourceConsumeLimits};
+use antecedent::prelude::{ExecutionContext, Value, VariableId};
+use antecedent::query::EvidenceCatalog;
+use antecedent::schema::RegimeId;
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -53,7 +54,7 @@ fn quantity_json(quantity: &MixedQuantity, names: &[String]) -> serde_json::Valu
     })
 }
 
-fn stages_json(stages: &[antecedent_identify::MixedStageRecord]) -> Vec<serde_json::Value> {
+fn stages_json(stages: &[antecedent::identify::MixedStageRecord]) -> Vec<serde_json::Value> {
     stages.iter().map(|s| serde_json::json!({"stage": s.stage, "outcome": s.outcome})).collect()
 }
 
@@ -182,7 +183,7 @@ fn decision_json(
 }
 
 fn point_json(
-    distribution: &antecedent_expr::ExactDistribution,
+    distribution: &antecedent::estimate::ExactDistribution,
     names: &[String],
 ) -> serde_json::Value {
     serde_json::json!({
@@ -196,7 +197,7 @@ fn point_json(
 /// under `requests`.
 fn points_json(
     requests: &[Assignment],
-    distributions: &[antecedent_expr::ExactDistribution],
+    distributions: &[antecedent::estimate::ExactDistribution],
     names: &[String],
 ) -> serde_json::Value {
     let mut payload = point_json(&distributions[0], names);
@@ -247,8 +248,9 @@ fn parse_requests(names: &[String], assignments: &Bound<'_, PyAny>) -> PyResult<
 /// The typed refusal of preparing a decision that did not identify: the
 /// decision's own frozen (reason code, `mixed_search.*` detail) pair.
 fn not_identified(decision: &MixedSourceDecision) -> PyErr {
-    let code =
-        decision.reason_code().unwrap_or(antecedent_core::reason_code!("transport_not_certified"));
+    let code = decision
+        .reason_code()
+        .unwrap_or(antecedent::reason::reason_code!("transport_not_certified"));
     let detail = decision.detail_code().unwrap_or_default();
     let route = match decision {
         MixedSourceDecision::NamedRoute { route, .. } => format!(" (use the {route} route)"),
@@ -263,10 +265,10 @@ fn not_identified(decision: &MixedSourceDecision) -> PyErr {
 /// A decision error: a declared bound the query exceeds, or a model artifact
 /// offered as an experimental law, is `route_not_supported` naming the detail;
 /// anything else keeps its identification mapping.
-fn decision_error(e: antecedent_identify::IdentificationError) -> PyErr {
+fn decision_error(e: antecedent::identify::IdentificationError) -> PyErr {
     match e {
-        antecedent_identify::IdentificationError::UnsupportedInput { code } => {
-            crate::refusal(antecedent_core::reason_code!("route_not_supported"), code)
+        antecedent::identify::IdentificationError::UnsupportedInput { code } => {
+            crate::refusal(antecedent::reason::reason_code!("route_not_supported"), code)
         }
         other => error(other),
     }
@@ -277,7 +279,7 @@ fn decision_error(e: antecedent_identify::IdentificationError) -> PyErr {
 struct MixedSourceStage {
     decision: MixedSourceDecision,
     graph: Admg,
-    shared: antecedent_graph::Admg,
+    shared: antecedent::graph::Admg,
     catalog: EvidenceCatalog,
     search: SearchLimits,
     max_support_rows: usize,
@@ -369,12 +371,13 @@ impl MixedSourceStage {
         })
     }
 
-    /// Counted laws are not licensed on this route: no sampling theory backs an
-    /// empirical plug-in of a searched formula, so preparation refuses.
+    /// Prepare with counted laws. No sampling theory backs an empirical plug-in of a searched
+    /// formula, so preparation passes through the support gate.
     #[pyo3(signature=(laws, assignments, *, max_operations=10_000_000, max_depth=256, seed=0, cancel=None))]
-    #[allow(clippy::too_many_arguments, clippy::unused_self, unused_variables)]
+    #[allow(clippy::too_many_arguments)]
     fn prepare_empirical(
         &self,
+        py: Python<'_>,
         laws: &Bound<'_, PyAny>,
         assignments: &Bound<'_, PyAny>,
         max_operations: usize,
@@ -382,15 +385,18 @@ impl MixedSourceStage {
         seed: u64,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<PreparedMixedSourceStage> {
-        Err(crate::refusal(
-            antecedent_core::reason_code!("cell_not_licensed"),
-            "counted laws are not licensed on the mixed-source route: it publishes exact-law points only",
-        ))
+        antecedent::execution::support_gate::require_supported_unscoped(
+            "mixed_source.counted_laws_unsupported",
+            &["mixed_source.counted_law_plugin_check"],
+        )
+        .map_err(|e| crate::not_supported_err(&e))?;
+        self.prepare_exact(py, laws, assignments, max_operations, max_depth, seed, cancel)
     }
 }
 
 /// A prepared mixed-source formula; estimation evaluates the frozen plan without searching.
 #[pyclass(skip_from_py_object)]
+#[derive(Clone)]
 struct PreparedMixedSourceStage {
     inner: antecedent::PreparedMixedSource,
     graph: Admg,
@@ -403,6 +409,14 @@ struct PreparedMixedSourceStage {
 
 #[pymethods]
 impl PreparedMixedSourceStage {
+    #[pyo3(signature=(seed=None))]
+    fn fork(&self, seed: Option<u64>) -> PyResult<Self> {
+        let mut branch = Self { seed: seed.unwrap_or(self.seed), last: None, ..self.clone() };
+        let ctx = execution_context(branch.seed, branch.memory_bytes, None);
+        branch.inner = self.inner.refresh(self.inner.data().clone(), &ctx).map_err(error)?;
+        Ok(branch)
+    }
+
     /// Evaluate the frozen formula for every prepared request. Exact laws are
     /// point-only: `interval["available"]` is always false.
     #[pyo3(signature=(*, memory_bytes=None, cancel=None, seed=None))]
@@ -413,17 +427,16 @@ impl PreparedMixedSourceStage {
         cancel: Option<crate::PyCancellationToken>,
         seed: Option<u64>,
     ) -> PyResult<String> {
-        if let Some(seed) = seed {
-            self.seed = seed;
-        }
-        let ctx = execution_context(self.seed, memory_bytes.or(self.memory_bytes), cancel);
+        let next_seed = seed.unwrap_or(self.seed);
+        let ctx = execution_context(next_seed, memory_bytes.or(self.memory_bytes), cancel);
         let inner = self.inner.clone();
         let result = crate::detach_catch(py, move || inner.estimate(&ctx).map_err(error))?;
         let mut payload =
             points_json(self.inner.requests(), result.distributions(), &self.graph.names);
         payload["status"] = "available".into();
         payload["scope"] = SCOPE.into();
-        payload["seed"] = self.seed.into();
+        payload["seed"] = next_seed.into();
+        self.seed = next_seed;
         self.last = Some(result);
         Ok(payload.to_string())
     }
@@ -431,13 +444,13 @@ impl PreparedMixedSourceStage {
     /// Replace laws for the snapshots the frozen catalog binds; the proof is
     /// unchanged and the last claim is cleared. Other evidence identity refuses.
     #[pyo3(signature=(laws, *, memory_bytes=None, cancel=None))]
-    fn refresh(
-        &mut self,
+    fn bind_snapshot(
+        &self,
         py: Python<'_>,
         laws: &Bound<'_, PyAny>,
         memory_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<()> {
+    ) -> PyResult<Self> {
         let data = parse_laws(
             laws,
             &self.catalog,
@@ -447,16 +460,15 @@ impl PreparedMixedSourceStage {
         )?;
         let ctx = execution_context(self.seed, memory_bytes.or(self.memory_bytes), cancel);
         let inner = self.inner.clone();
-        self.inner = crate::detach_catch(py, move || inner.refresh(data, &ctx).map_err(error))?;
-        self.last = None;
-        Ok(())
+        let inner = crate::detach_catch(py, move || inner.refresh(data, &ctx).map_err(error))?;
+        Ok(Self { inner, last: None, ..self.clone() })
     }
 
     /// The last execution as a framed, independently consumable artifact.
     fn export(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
         let result = self.last.as_ref().ok_or_else(|| {
             crate::refusal(
-                antecedent_core::reason_code!("not_executed"),
+                antecedent::reason::reason_code!("not_executed"),
                 "transport.no_execution_claim: estimate before exporting a mixed-source artifact",
             )
         })?;
@@ -612,7 +624,7 @@ fn consume_mixed_source_artifact(
         let ctx: ExecutionContext = execution_context(0, memory_bytes, cancel);
         let consumed =
             MixedSourceArtifactWire::consume_with_limits(&bytes, limits, &ctx).map_err(error)?;
-        let graph = antecedent_io::admg_from_wire(&consumed.wire.graph).map_err(error)?;
+        let graph = antecedent::io::admg_from_wire(&consumed.wire.graph).map_err(error)?;
         crate::transport_exact_api::validate_artifact_names(&names, &graph)?;
         // The frame's names must be the mapping the verified identity binds.
         consumed.wire.check_variable_names(&names).map_err(error)?;

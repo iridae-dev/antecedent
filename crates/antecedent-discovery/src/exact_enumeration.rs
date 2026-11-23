@@ -1,8 +1,9 @@
 //! Exact DAG posterior enumeration for very small graphs.
 //!
-//! Hard product limit: labeled DAGs on **`n ≤ `[`EXACT_ENUM_MAX_NODES`]** nodes
-//! (Gaussian BIC). Larger graphs must use order / structure / CI-screened MCMC
-//! (`OrderMcmc`, `StructureMcmc`, `CiScreenedPosterior`).
+//! Enumeration lists every labeled DAG, so it reaches **`n ≤ `[`EXACT_ENUM_MAX_NODES`]**
+//! nodes (Gaussian BIC). Larger problems are routed to order MCMC, and the exact edge
+//! marginals of up to [`crate::EXACT_MARGINAL_MAX_NODES`] variables come from the subset
+//! recursion of [`crate::exact_dag_marginals`], which does not list graphs.
 //!
 //! "Exact" means every DAG is enumerated, not that the weights are exact posterior
 //! probabilities: each graph's weight is `exp(BIC + log prior)`, the BIC approximation to the
@@ -11,7 +12,7 @@
 //! excluded from the support; their count is `rejected_invalid` and is stated in the
 //! diagnostics notes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::TabularData;
@@ -29,19 +30,36 @@ use crate::graph_score::{DagScorer, tabular_score_data};
 
 /// Exact enumeration engine for labeled DAGs on `n ≤ `[`EXACT_ENUM_MAX_NODES`] nodes.
 ///
-/// This is a hard combinatorial cap (not a soft heuristic). Prefer MCMC engines
-/// when `variables.len() > EXACT_ENUM_MAX_NODES`.
-#[derive(Clone, Debug, Default)]
+/// Enumeration cannot list the graphs of a larger problem (seven nodes have 1.1 billion), so
+/// above the cap the run is routed to [`crate::OrderMcmc`] when [`Self::route_larger`] is set
+/// (the default), and the posterior says so in its diagnostics notes and algorithm tag.
+/// Without routing the run is refused.
+#[derive(Clone, Debug)]
 pub struct ExactDagPosterior {
-    /// Optional hard node cap (defaults to [`EXACT_ENUM_MAX_NODES`]).
+    /// Node cap for enumeration (defaults to [`EXACT_ENUM_MAX_NODES`]).
     pub max_nodes: usize,
+    /// Sample larger problems with order MCMC instead of refusing them.
+    pub route_larger: bool,
+}
+
+impl Default for ExactDagPosterior {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ExactDagPosterior {
     /// Default exact engine.
     #[must_use]
     pub fn new() -> Self {
-        Self { max_nodes: EXACT_ENUM_MAX_NODES }
+        Self { max_nodes: EXACT_ENUM_MAX_NODES, route_larger: true }
+    }
+
+    /// Refuse, rather than sample, a problem above the enumeration cap.
+    #[must_use]
+    pub fn with_route_larger(mut self, route_larger: bool) -> Self {
+        self.route_larger = route_larger;
+        self
     }
 
     /// Override max nodes (still capped at [`EXACT_ENUM_MAX_NODES`]).
@@ -66,9 +84,10 @@ impl ExactDagPosterior {
         variables: &[VariableId],
         prior: &GraphPrior,
         score_family: GraphScoreFamily,
-        _workspace: &mut DiscoveryWorkspace,
+        workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
+        prior.validate_for(variables)?;
         prior.constraints.validate()?;
         let n = variables.len();
         if n == 0 {
@@ -76,17 +95,24 @@ impl ExactDagPosterior {
                 "exact DAG posterior requires at least one variable",
             ));
         }
-        if n > self.max_nodes.min(EXACT_ENUM_MAX_NODES) {
-            return Err(DiscoveryError::unsupported(
-                "exact DAG posterior requires n ≤ 6 variables (EXACT_ENUM_MAX_NODES); \
-                 use order_mcmc, structure_mcmc, or ci_screened_posterior",
-            ));
+        let cap = self.max_nodes.min(EXACT_ENUM_MAX_NODES);
+        if n > cap {
+            if !self.route_larger {
+                return Err(DiscoveryError::unsupported(
+                    "exact DAG posterior requires n ≤ 6 variables (EXACT_ENUM_MAX_NODES); \
+                     use order_mcmc, structure_mcmc, or ci_screened_posterior",
+                ));
+            }
+            return Self::sample_instead(data, variables, prior, score_family, workspace, ctx, cap);
         }
 
         let score_data = tabular_score_data(data, variables)?;
-        if !matches!(score_family, GraphScoreFamily::GaussianBic) {
+        if !matches!(
+            score_family,
+            GraphScoreFamily::GaussianBic | GraphScoreFamily::GaussianSignedUniform
+        ) {
             return Err(DiscoveryError::unsupported(
-                "exact DAG posterior currently supports GaussianBic only",
+                "exact DAG posterior supports GaussianBic or GaussianSignedUniform",
             ));
         }
 
@@ -94,21 +120,25 @@ impl ExactDagPosterior {
         // exact labeled DAG counts for the supported sizes 0..=6.
         let dag_counts: [u64; 7] = [1, 1, 3, 25, 543, 29_281, 3_781_503];
         let est_bytes = dag_counts[n].saturating_mul(32);
-        if let Some(hard) = ctx.memory.hard_limit_bytes {
-            if est_bytes > hard {
-                return Err(DiscoveryError::Resource(format!(
-                    "exact DAG enumeration needs ~{est_bytes} bytes; hard limit {hard}"
-                )));
-            }
+        if let Some(hard) = ctx.memory_limit_bytes()
+            && est_bytes > hard
+        {
+            return Err(DiscoveryError::Resource(format!(
+                "exact DAG enumeration needs ~{est_bytes} bytes; hard limit {hard}"
+            )));
         }
 
+        let scorer = if score_family == GraphScoreFamily::GaussianSignedUniform {
+            DagScorer::signed_uniform(&score_data, prior, variables, ctx)?
+        } else {
+            DagScorer::new(n, &score_data, score_family, prior, variables)
+        };
         let masks = enumerate_unique_dags(n);
-        let scorer = DagScorer::new(n, &score_data, score_family, prior, variables);
         let scored = ctx.map_indexed(masks.len(), |index, inner| {
             if inner.cancellation.is_cancelled() {
                 return Err(DiscoveryError::Cancelled);
             }
-            Ok(match scorer.score(masks[index]) {
+            Ok(match scorer.score(&masks[index]) {
                 Some(lw) => (lw, 0u64),
                 None => (f64::NEG_INFINITY, 1u64),
             })
@@ -125,7 +155,7 @@ impl ExactDagPosterior {
         // Keep only finite-weight graphs.
         let mut kept_masks = Vec::new();
         let mut kept_log = Vec::new();
-        for (mask, lw) in masks.into_iter().zip(log_w.into_iter()) {
+        for (mask, lw) in masks.into_iter().zip(log_w) {
             if lw.is_finite() {
                 kept_masks.push(mask);
                 kept_log.push(lw);
@@ -139,7 +169,11 @@ impl ExactDagPosterior {
         let ess = kish_ess(&weights);
         let (edge, orient) = accumulate_marginals(n, &weights, &kept_masks);
         let mut diagnostics = analytic_graph_diagnostics(kept_masks.len(), ess);
-        if rejected > 0 {
+        if rejected > 0 && score_family == GraphScoreFamily::GaussianSignedUniform {
+            diagnostics
+                .notes
+                .push(format!("{rejected} graph(s) excluded by the declared prior").into());
+        } else if rejected > 0 {
             diagnostics.notes.push(std::sync::Arc::from(format!(
                 "{rejected} graph(s) excluded: constraint-violating or no finite BIC score \
                  (e.g. a deterministic relation)"
@@ -153,6 +187,36 @@ impl ExactDagPosterior {
             orient,
             SamplingSummary { ess, diagnostics, rejected_invalid: rejected },
         )
+        .map(|posterior| {
+            posterior.with_algorithm(if score_family == GraphScoreFamily::GaussianSignedUniform {
+                "exact_dag_posterior.gaussian_signed_uniform"
+            } else {
+                "exact_dag_posterior"
+            })
+        })
+    }
+}
+
+impl ExactDagPosterior {
+    /// A problem above the enumeration cap, sampled by order MCMC and labelled as such.
+    fn sample_instead(
+        data: &TabularData,
+        variables: &[VariableId],
+        prior: &GraphPrior,
+        score_family: GraphScoreFamily,
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+        cap: usize,
+    ) -> Result<GraphPosterior, DiscoveryError> {
+        let mut posterior = crate::OrderMcmc::new()
+            .run(data, variables, prior, score_family, workspace, ctx)?
+            .with_algorithm("order_mcmc");
+        posterior.push_note(format!(
+            "{} variables exceed the enumeration limit of {cap}: the posterior was sampled by \
+             order MCMC, not enumerated; its marginals carry Monte-Carlo error",
+            variables.len()
+        ));
+        Ok(posterior)
     }
 }
 
@@ -313,9 +377,15 @@ mod tests {
             ));
         for word in 0..(1u64 << (n * (n - 1))) {
             let mask = AdjacencyMask::from_word(word);
-            let direct =
-                crate::graph_score::score_dag_mask(mask, n, &score_data, &mut cache, &prior, &vars);
-            assert_eq!(scorer.score(mask).map(f64::to_bits), direct.map(f64::to_bits));
+            let direct = crate::graph_score::score_dag_mask(
+                &mask,
+                n,
+                &score_data,
+                &mut cache,
+                &prior,
+                &vars,
+            );
+            assert_eq!(scorer.score(&mask).map(f64::to_bits), direct.map(f64::to_bits));
         }
     }
 
@@ -328,13 +398,14 @@ mod tests {
         let mut ws = DiscoveryWorkspace::default();
         let post =
             eng.run(&data, &vars, &prior, GraphScoreFamily::GaussianBic, &mut ws, &ctx).unwrap();
-        assert!(post.diagnostics.converged);
+        assert!(post.diagnostics().converged);
+        assert_eq!(post.algorithm().map(|a| &**a), Some("exact_dag_posterior"));
         let n = 3;
         // Chain A→B→C is Markov-equivalent to A←B←C and A←B→C; assert skeleton
         // mass, not a single orientation.
-        let sk01 = post.edge_marginals[1] + post.edge_marginals[n];
-        let sk12 = post.edge_marginals[n + 2] + post.edge_marginals[2 * n + 1];
-        let sk02 = post.edge_marginals[2] + post.edge_marginals[2 * n];
+        let sk01 = post.edge_marginals()[1] + post.edge_marginals()[n];
+        let sk12 = post.edge_marginals()[n + 2] + post.edge_marginals()[2 * n + 1];
+        let sk02 = post.edge_marginals()[2] + post.edge_marginals()[2 * n];
         assert!(sk01 > 0.5, "P(A—B)={sk01}");
         assert!(sk12 > 0.5, "P(B—C)={sk12}");
         assert!(sk02 < 0.3, "P(A—C)={sk02}");
@@ -374,6 +445,7 @@ mod tests {
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
         let data = TabularData::new(storage);
         let err = ExactDagPosterior::new()
+            .with_route_larger(false)
             .infer_graphs(
                 &data,
                 &vars,
@@ -393,14 +465,14 @@ mod tests {
         cyc = set_edge(cyc, n, 1, 2, true);
         cyc = set_edge(cyc, n, 2, 0, true);
         assert!(!enumerate_unique_dags(n).contains(&cyc));
-        assert!(!has_edge(0, n, 0, 1));
+        assert!(!has_edge(AdjacencyMask::EMPTY, n, 0, 1));
         let _ = edge_bit(n, 0, 1);
     }
     #[test]
     fn exact_enumeration_honors_memory_budget_and_hard_node_cap() {
         let (data, variables) = chain_tabular(20, 5);
         let mut context = ExecutionContext::for_tests(1);
-        context.memory.hard_limit_bytes = Some(1);
+        context.set_memory_limit(Some(1));
         let result = ExactDagPosterior::new().run(
             &data,
             &variables,
@@ -411,7 +483,7 @@ mod tests {
         );
         assert!(matches!(result, Err(DiscoveryError::Resource(_))));
         // Public field mutation must not bypass the documented hard cap.
-        let engine = ExactDagPosterior { max_nodes: 100 };
+        let engine = ExactDagPosterior { max_nodes: 100, route_larger: false };
         let variables: Vec<_> = (0..7).map(VariableId::from_raw).collect();
         let error = engine
             .run(
@@ -450,7 +522,7 @@ mod tests {
             let t = Instant::now();
             let mut acc = 0.0;
             let mut dags = 0usize;
-            for &m in &masks {
+            for m in &masks {
                 if let Some(lp) = crate::graph_posterior::log_prior_mask(m, n, &prior, &vars) {
                     acc += lp;
                     dags += 1;
@@ -515,15 +587,15 @@ mod tests {
                     &ctx,
                 )
                 .unwrap();
-            let dig = post.weights.iter().fold(0xcbf2_9ce4_8422_2325_u64, |h, w| {
+            let dig = post.weights().iter().fold(0xcbf2_9ce4_8422_2325_u64, |h, w| {
                 (h ^ w.to_bits()).wrapping_mul(0x0100_0000_01b3)
             });
-            let edig = post.edge_marginals.iter().fold(0xcbf2_9ce4_8422_2325_u64, |h, w| {
+            let edig = post.edge_marginals().iter().fold(0xcbf2_9ce4_8422_2325_u64, |h, w| {
                 (h ^ w.to_bits()).wrapping_mul(0x0100_0000_01b3)
             });
             println!(
                 "n={n} run: {} graphs, weights {dig:016x}, edges {edig:016x}, {:?}",
-                post.weights.len(),
+                post.weights().len(),
                 t.elapsed()
             );
         }

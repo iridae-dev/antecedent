@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import KW_ONLY, dataclass, field
-from typing import Any, Literal
+from numbers import Real
+from typing import Any, Literal, Protocol, cast
 
 import numpy as np
 
-from ._columns import hold_unresolved
+from ._columns import hold_unresolved, scalar_or_values
 from ._data import as_columns
 from ._native import estimate_network_interference as _estimate_network_interference
 from ._native import (
@@ -16,6 +17,14 @@ from ._native import (
 )
 from ._native import estimate_saturation_interference as _estimate_saturation_interference
 from .errors import CausalEstimateError, CausalTypeError, CausalValueError
+from .execution import Execution, native_controls
+
+
+class _ComparableReal(Protocol):
+    """Ordering used on an already checked Real before its float conversion."""
+
+    def __gt__(self, other: float, /) -> bool: ...
+    def __lt__(self, other: float, /) -> bool: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,17 +34,25 @@ class BernoulliAssignment:
     probabilities: float | Sequence[float]
 
     def __post_init__(self) -> None:
-        values = (
-            [self.probabilities]
-            if isinstance(self.probabilities, (int, float))
-            else self.probabilities
-        )
-        if not values or any(not 0.0 < value < 1.0 for value in values):
+        probabilities = self.probabilities
+        if isinstance(probabilities, (Real, float)):
+            # Real supplies ordering; the cast narrows only this checked branch
+            # and retains the original value for the comparison (e.g. Fraction).
+            comparable = cast(_ComparableReal, probabilities)
+            if not 0.0 < comparable < 1.0:
+                raise CausalValueError("probabilities must be strictly between 0 and 1")
+            object.__setattr__(self, "probabilities", float(probabilities))
+            return
+        if len(probabilities) == 0 or any(not 0.0 < value < 1.0 for value in probabilities):
             raise CausalValueError("probabilities must be strictly between 0 and 1")
 
 
 @dataclass(frozen=True, slots=True)
 class CompleteRandomization:
+    """Complete randomization: exactly ``treated`` units (a positive count) are assigned to
+    treatment, uniformly at random.
+    """
+
     treated: int
 
     def __post_init__(self) -> None:
@@ -45,6 +62,12 @@ class CompleteRandomization:
 
 @dataclass(frozen=True, slots=True)
 class ClusterRandomization:
+    """Cluster randomization: ``treated_clusters`` of the clusters are treated as wholes.
+
+    ``clusters`` gives each unit's cluster label (nonempty); ``treated_clusters`` is the
+    positive number of clusters assigned to treatment.
+    """
+
     clusters: Sequence[int]
     treated_clusters: int
 
@@ -135,6 +158,14 @@ class ObservedExposureDesign:
 
 @dataclass(frozen=True, slots=True)
 class SaturationEffectEstimate:
+    """One effect of a two-stage saturation design.
+
+    ``horvitz_thompson`` and ``hajek`` are the two point estimates; ``conservative_variance``
+    is a covariance-free variance bound, not an interval. The unit and cluster counts give the
+    exposed support at each level, and ``minimum_exposure_probability`` the smallest exposure
+    probability used in weighting.
+    """
+
     horvitz_thompson: float
     hajek: float
     conservative_variance: float
@@ -147,10 +178,17 @@ class SaturationEffectEstimate:
 
 @dataclass(frozen=True, slots=True)
 class SaturationEffects:
+    """Direct, spillover and total effects under a two-stage saturation design.
+
+    Each is a :class:`SaturationEffectEstimate`. ``uncertainty_semantics`` and ``assumptions``
+    state what the variance bounds cover and the assumptions the effects rest on; no
+    confidence interval or calibration claim is made.
+    """
+
     direct: SaturationEffectEstimate
     spillover: SaturationEffectEstimate
     total: SaturationEffectEstimate
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
     uncertainty_semantics: str = "Covariance-free variance bounds cover both randomization stages; no confidence interval or calibration claim is made."
     assumptions: tuple[str, ...] = (
         "Clusters are completely randomized to the declared low/high saturation counts.",
@@ -161,6 +199,14 @@ class SaturationEffects:
 
 @dataclass(frozen=True, slots=True)
 class ObservationalNetworkExposureEstimate:
+    """An observational network-exposure contrast weighted by supplied exposure propensities.
+
+    ``horvitz_thompson`` and ``hajek`` are the point estimates and ``cluster_robust_variance``
+    a cluster sandwich variance treating the supplied propensities as fixed; no interval is
+    reported. The counts give the exposed support; ``assumptions`` lists the identifying
+    assumptions, including no unmeasured network confounding.
+    """
+
     horvitz_thompson: float
     hajek: float
     cluster_robust_variance: float
@@ -182,7 +228,7 @@ class ObservationalNetworkExposureEstimate:
         "Partial interference across the explicitly supplied cluster partition.",
         "Supplied exposure probabilities are correctly specified or known.",
     )
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,12 +253,18 @@ class WeightedNeighborExposure:
 
 @dataclass(frozen=True, slots=True)
 class ExposureLevel:
+    """An exposure value: the unit's ``own`` treatment and its ``neighbors`` exposure (default
+    ``0.0``), on the scale of the query's exposure mapping.
+    """
+
     own: float
     neighbors: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
 class ExposureContrast:
+    """The contrast of ``outcome`` between two distinct exposure levels, ``from_`` and ``to``."""
+
     outcome: str
     from_: ExposureLevel
     to: ExposureLevel
@@ -231,18 +283,19 @@ class InterferenceQuery:
     ``assignment`` is the declared assignment or observation design, ``exposure`` the exposure
     mapping and ``functional`` the contrast between two exposure levels.
 
-    :func:`antecedent.analyze` estimates the licensed cell (explicit ``Dag``,
+    :func:`antecedent.analyze` estimates the supported cell (explicit ``Dag``,
     Frequentist, validation ``none``): NeighborCount exposure under Bernoulli
     assignment, Horvitz–Thompson / Hájek with the conservative Young variance
-    bound. A separate unlicensed construction accepts cluster randomization,
+    bound. A separate unsupported construction accepts cluster randomization,
     NeighborFraction, an explicit partial-interference partition, and the
     total contrast from ``(0, 0)`` to ``(1, 1)``; its cluster-level variance
-    has no interval claim. ``SaturationDesign`` also supports exact two-stage
-    direct, spillover, and total exposure contrasts as separate point queries;
-    its covariance-free variance proxy is not a confidence interval.
-    ``ObservedExposureDesign`` uses supplied exposure probabilities and an
-    explicit network-exchangeability declaration. It reports a point contrast
-    and descriptive cluster variance without an interval.
+    has no interval claim. ``SaturationDesign`` estimates exact two-stage
+    direct, spillover, and total exposure contrasts; the graphless support
+    matrix row ``two_stage_saturation`` states when its pointwise interval is
+    supported. ``ObservedExposureDesign`` uses supplied exposure probabilities
+    and an explicit network-exchangeability declaration; row
+    ``observational_known_exposure`` states when its interval is supported,
+    and otherwise it reports a point contrast and descriptive cluster variance.
     These paths need the keyword-only design facts: ``network``, the fixed
     directed exposure edges between unit rows (``NetworkEdge`` or
     ``(from, to[, weight])``; an empty sequence is a network without edges),
@@ -296,6 +349,10 @@ class NetworkEdge:
 
 @dataclass(frozen=True, slots=True)
 class RandomizationContrast:
+    """A design-based exposure contrast: Horvitz-Thompson and Hajek estimates and a
+    conservative (covariance-free) variance bound.
+    """
+
     horvitz_thompson: float
     hajek: float
     conservative_variance: float
@@ -321,6 +378,13 @@ class InterferencePointwiseInterval:
 
 @dataclass(frozen=True, slots=True)
 class InterferenceEstimate:
+    """The result of :func:`estimate`: a randomized exposure contrast on a fixed network.
+
+    Read ``contrast`` (:class:`RandomizationContrast`), then ``pointwise_interval`` (or
+    ``interval_unavailable_reason``) and ``support``. ``uncertainty_semantics`` states what the
+    variance covers; ``support_status`` marks the result as an unsupported point utility.
+    """
+
     contrast: RandomizationContrast
     from_probability_method: str
     to_probability_method: str
@@ -335,7 +399,7 @@ class InterferenceEstimate:
     )
     pointwise_interval: InterferencePointwiseInterval | None = None
     interval_unavailable_reason: str | None = None
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "unsupported_point_utility"
 
 
 @dataclass(frozen=True, slots=True)
@@ -377,11 +441,7 @@ def _assignment_args(design: object) -> dict[str, Any]:
             "realized_saturation": list(design.realized_saturation),
         }
     if isinstance(design, BernoulliAssignment):
-        probabilities = (
-            [float(design.probabilities)]
-            if isinstance(design.probabilities, (int, float))
-            else list(design.probabilities)
-        )
+        probabilities = scalar_or_values(design.probabilities)
         return {
             "assignment_kind": "bernoulli",
             "assignment_probabilities": probabilities,
@@ -440,17 +500,24 @@ def estimate(
     assignment: Sequence[bool],
     edges: Sequence[NetworkEdge | tuple[int, int] | tuple[int, int, float]],
     query: InterferenceQuery,
-    seed: int = 1,
+    execution: Execution | None = None,
+    work_limit: int | None = None,
 ) -> InterferenceEstimate:
     """Estimate a known randomized exposure contrast on a fixed unit network.
 
-    This is an unlicensed utility: every assignment
-    design and exposure mapping, and ``seed`` as the exposure-probability Monte
-    Carlo seed. It calls the interference estimator directly and returns bare
-    numbers, with no study, contract, export or calibration slot.
-    ``antecedent.analyze(data, graph=[], query=InterferenceQuery(..., network=,
-    realized_assignment=))`` retains a study for the licensed Bernoulli cell
-    and the separately checked, unlicensed cluster total-effect construction.
+    Specialized interference operation outside the central compiler, kept as a documented
+    low-level exception: it accepts every assignment design and exposure mapping, which the
+    compiled path does not. It returns bare numbers (the Horvitz-Thompson and Hajek
+    contrasts, a conservative variance and the exposure-probability diagnostics) and carries
+    no study, contract, export, interval or calibration slot; the only things it checks are
+    the input shapes, the design and the work limit. ``execution`` supplies the
+    exposure-probability Monte Carlo seed and the cancellation and memory policy.
+    ``work_limit`` sets the total logical-operation ceiling for both exposure
+    probabilities; exceeding it refuses the request without reducing the Monte Carlo draw
+    count. ``antecedent.analyze(data, graph=[], query=InterferenceQuery(...,
+    network=, realized_assignment=))`` is the compiled, study-retaining path for the
+    supported Bernoulli cell and the separately checked, unsupported cluster total-effect
+    construction, and the one to use for a claim.
     """
 
     if not isinstance(query, InterferenceQuery):
@@ -519,7 +586,9 @@ def estimate(
     to_cluster_count = (
         len({cluster_labels[i] for i in to_rows}) if cluster_labels is not None else None
     )
-    raw = _estimate_network_interference(
+    execution = Execution() if execution is None else execution
+    raw = execution._call(
+        _estimate_network_interference,
         columns[outcome_index],
         list(assignment),
         edge_values,
@@ -527,7 +596,8 @@ def estimate(
         from_level=(query.functional.from_.own, query.functional.from_.neighbors),
         to_level=(query.functional.to.own, query.functional.to.neighbors),
         probability_draws=query.probability_draws,
-        seed=seed,
+        work_limit=work_limit,
+        **native_controls(execution, seed="seed", cancel="cancel"),
         **_assignment_args(query.assignment),
     )
     return InterferenceEstimate(
@@ -569,7 +639,7 @@ def estimate_saturation_effects(
     Spillover compares low/high neighbor exposure among untreated units. Total
     compares untreated/low with treated/high. Exact cluster allocations and
     within-cluster Bernoulli assignments provide each unit's exposure
-    probabilities. This direct utility is not licensed on ``analyze``.
+    probabilities. This direct utility is not supported on ``analyze``.
     """
 
     if not isinstance(design, SaturationDesign):

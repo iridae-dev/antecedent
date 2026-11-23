@@ -4,9 +4,12 @@ import traceback
 from dataclasses import replace
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent._native import CancellationToken
 from antecedent.errors import CausalValueError
+from antecedent.execution import Execution
 from antecedent.execution_attempt import observe_native_attempts
+from antecedent.outcomes import require_success
 from antecedent.recalc import RecalcReceipt
 from antecedent.recalc_adjusted import AdjustedSession, GlmModel
 from antecedent.recalc_bayesian import BayesianSession
@@ -40,11 +43,13 @@ def test_six_original_native_families_actual_first_work_and_complete_reuse_zero(
     session_factory, request_factory
 ):
     session, request = session_factory(), request_factory()
-    first = observe_native_attempts(lambda: session.execute(request, seed=3))
+    first = observe_native_attempts(
+        lambda: require_success(session.execute(request, execution=Execution(seed=3)))
+    )
     original = first.unwrap()
     assert first.error is None and first.value is original
     # Independently consume the original scientific receipt; the observation creates none.
-    historical = RecalcReceipt.consume(original.receipt.export())
+    historical = require_success(RecalcReceipt.consume(bytes(original.receipt.export())))
     assert historical.totals == original.receipt.totals
     assert not first.report.is_empty and first.report.is_complete
     assert len(first.report.operations) == 18
@@ -52,7 +57,9 @@ def test_six_original_native_families_actual_first_work_and_complete_reuse_zero(
     assert any(row.completed > 0 for row in first.report.operations.values())
     if session_factory in (AdjustedSession, DrSession):
         assert first.report.operations["law_summary"].completed == 1
-    same = observe_native_attempts(lambda: session.execute(request, seed=3))
+    same = observe_native_attempts(
+        lambda: require_success(session.execute(request, execution=Execution(seed=3)))
+    )
     assert same.unwrap().receipt.totals.total == 0
     assert same.report.is_empty and same.report.is_complete
     assert all(row.attempted == 0 for row in same.report.operations.values())
@@ -62,14 +69,18 @@ def test_six_original_native_families_actual_first_work_and_complete_reuse_zero(
 
 def test_actual_glm_nonconvergence_reports_unsuccessful_work_and_preserves_original_state():
     session, request = AdjustedSession(), logistic_request()
-    original = session.execute(request, seed=3)
+    original = require_success(session.execute(request, execution=Execution(seed=3)))
     before = session.identities
     attempt = observe_native_attempts(
-        lambda: session.execute(replace(request, model=GlmModel(max_iter=1)), seed=3)
+        lambda: require_success(
+            session.execute(
+                replace(request, model=GlmModel(max_iter=1)), execution=Execution(seed=3)
+            )
+        )
     )
     assert attempt.value is None and attempt.error is not None
     assert attempt.error.reason_code == "route_not_supported"
-    assert attempt.error.detail == "recalc.adjusted_glm_not_converged"
+    assert attempt.error.detail == reason_details.recalc.ADJUSTED_GLM_NOT_CONVERGED
     assert "execute" in {frame.name for frame in traceback.extract_tb(attempt.error.__traceback__)}
     assert not attempt.report.is_empty and attempt.report.is_complete
     assert any(row.failed > 0 for row in attempt.report.operations.values())
@@ -78,28 +89,36 @@ def test_actual_glm_nonconvergence_reports_unsuccessful_work_and_preserves_origi
         attempt.unwrap()
     assert repeated.value is attempt.error
     assert session.identities == before and session.is_live
-    retry = observe_native_attempts(lambda: session.execute(request, seed=3))
+    retry = observe_native_attempts(
+        lambda: require_success(session.execute(request, execution=Execution(seed=3)))
+    )
     assert retry.report.is_empty and retry.unwrap().law == original.law
 
 
 def test_preflight_cancellation_has_zero_component_work_and_preserves_combined_state():
     _, session, request, providers, calls = composite_fixture(selected_providers=True)
-    original = session.execute(request, providers=providers)
+    original = require_success(session.execute(request, providers=providers))
     token = CancellationToken()
     token.cancel()
-    stop = observe_native_attempts(lambda: session.execute(request, providers={}, cancel=token))
+    stop = observe_native_attempts(
+        lambda: require_success(
+            session.execute(request, providers={}, execution=Execution(cancel=token))
+        )
+    )
     assert stop.error is not None and stop.value is None
     assert stop.error.reason_code == "cancelled_no_claim"
     assert stop.report.is_empty and stop.report.is_complete
     assert [len(x) for x in calls] == [1, 1]
-    same = observe_native_attempts(lambda: session.execute(request, providers={}))
+    same = observe_native_attempts(lambda: require_success(session.execute(request, providers={})))
     assert same.report.is_empty and same.unwrap().decision == original.decision
 
 
 def test_nested_native_observers_each_see_original_work_once_and_python_errors_are_unchanged():
     session, request = AdjustedSession(), linear_request()
     outer = observe_native_attempts(
-        lambda: observe_native_attempts(lambda: session.execute(request, seed=3))
+        lambda: observe_native_attempts(
+            lambda: require_success(session.execute(request, execution=Execution(seed=3)))
+        )
     )
     inner = outer.unwrap()
     assert inner.unwrap().receipt.totals.model_fits == 1
@@ -119,6 +138,8 @@ def test_nested_native_observers_each_see_original_work_once_and_python_errors_a
         attempt.unwrap()
     assert raised.value is error and calls == [1]
 
-    with pytest.raises(CausalValueError, match="native_attempt.invalid_callable") as invalid:
+    with pytest.raises(
+        CausalValueError, match=reason_details.native_attempt.INVALID_CALLABLE
+    ) as invalid:
         observe_native_attempts(5)
     assert invalid.value.reason_code == "invalid_argument"

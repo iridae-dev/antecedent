@@ -1,4 +1,4 @@
-//! A transported response as a licensed decision source.
+//! A transported response as a supported decision source.
 //!
 //! A response carried to a target population (a cohort contrast under a declared
 //! covariate shift, a policy value under a selection diagram, a synthesis that
@@ -20,9 +20,13 @@
 //! - **Law.** A transported law (aligned draws under a declared transport
 //!   model) answers every functional the shared engine answers. Its support
 //!   label is the receipt's, never the artifact's own mask alone.
-//! - **Interval.** Neither representation carries an interval: the transport
-//!   step and the support check have no measured coverage. An interval request
-//!   is refused with [`TransportedRefusal::IntervalNotLicensed`].
+//! - **Interval.** Neither representation carries a sampling or posterior
+//!   representation of the transport step: the carrier holds a value (or aligned
+//!   draws of a declared model), not the uncertainty of carrying it, so an interval
+//!   of the carried value is a scientific refusal
+//!   ([`TransportedRefusal::IntervalNotSupported`], `uncertainty_representation_insufficient`).
+//!   The transport route that produced the value reports its own interval with its
+//!   calibration status.
 //!
 //! # Acceptance
 //!
@@ -65,7 +69,7 @@
 //! copied from the producing result. A typed route's transport identities must
 //! be 32-byte digests; only the `declared` route carries free text.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 
@@ -105,32 +109,45 @@ const TAG_SHIFT: &str = "antecedent.transported_response.covariate_shift";
 const STAGE: &str = "transported_decision";
 
 /// Detail: the transport identity names no source, target or assumption.
-pub const DETAIL_IDENTITY_INCOMPLETE: &str = "transported_decision.transport_identity_incomplete";
+pub const DETAIL_IDENTITY_INCOMPLETE: &str =
+    antecedent_core::reason_details::transported_decision::TRANSPORT_IDENTITY_INCOMPLETE;
 /// Detail: a cohort or policy that was not carried anywhere was offered as transported.
-pub const DETAIL_NOT_TRANSPORTED: &str = "transported_decision.not_transported";
+pub const DETAIL_NOT_TRANSPORTED: &str =
+    antecedent_core::reason_details::transported_decision::NOT_TRANSPORTED;
 /// Detail: a coordinate is not stated in the target population.
-pub const DETAIL_NOT_IN_TARGET: &str = "transported_decision.coordinate_not_in_target";
+pub const DETAIL_NOT_IN_TARGET: &str =
+    antecedent_core::reason_details::transported_decision::COORDINATE_NOT_IN_TARGET;
 /// Detail: a transported value was labelled `Supported`.
-pub const DETAIL_SUPPORT_INFLATED: &str = "transported_decision.support_label_inflated";
+pub const DETAIL_SUPPORT_INFLATED: &str =
+    antecedent_core::reason_details::transported_decision::SUPPORT_LABEL_INFLATED;
 /// Detail: a transported law was labelled exact or measured.
-pub const DETAIL_CALIBRATION_INFLATED: &str = "transported_decision.calibration_label_inflated";
+pub const DETAIL_CALIBRATION_INFLATED: &str =
+    antecedent_core::reason_details::transported_decision::CALIBRATION_LABEL_INFLATED;
 /// Detail: a transported law was labelled native.
-pub const DETAIL_NATIVE_LABEL: &str = "transported_decision.native_label_on_transported_value";
+pub const DETAIL_NATIVE_LABEL: &str =
+    antecedent_core::reason_details::transported_decision::NATIVE_LABEL_ON_TRANSPORTED_VALUE;
 /// Detail: the value is malformed.
-pub const DETAIL_INVALID_VALUE: &str = "transported_decision.invalid_value";
+pub const DETAIL_INVALID_VALUE: &str =
+    antecedent_core::reason_details::transported_decision::INVALID_VALUE;
 /// Detail: the request needs a law and the transported value is a point.
-pub const DETAIL_LAW_NOT_SUPPLIED: &str = "transported_decision.law_not_supplied";
+pub const DETAIL_LAW_NOT_SUPPLIED: &str =
+    antecedent_core::reason_details::transported_decision::LAW_NOT_SUPPLIED;
 /// Detail: the request needs an interval.
-pub const DETAIL_INTERVAL_NOT_LICENSED: &str = "transported_decision.interval_not_licensed";
+pub const DETAIL_INTERVAL_NOT_SUPPORTED: &str =
+    antecedent_core::reason_details::transported_decision::INTERVAL_NOT_SUPPORTED;
 /// Detail: responses merged into one grid were not carried by one transport.
-pub const DETAIL_MIXED_TRANSPORTS: &str = "transported_decision.mixed_transports";
+pub const DETAIL_MIXED_TRANSPORTS: &str =
+    antecedent_core::reason_details::transported_decision::MIXED_TRANSPORTS;
 /// Detail: a transport identity of a typed route is not a 32-byte digest.
-pub const DETAIL_IDENTITY_NOT_DIGEST: &str = "transported_decision.transport_identity_not_digest";
+pub const DETAIL_IDENTITY_NOT_DIGEST: &str =
+    antecedent_core::reason_details::transported_decision::TRANSPORT_IDENTITY_NOT_DIGEST;
 /// Detail: a route that has a typed constructor was declared by hand.
-pub const DETAIL_ROUTE_NEEDS_TYPED_SOURCE: &str = "transported_decision.route_needs_typed_source";
+pub const DETAIL_ROUTE_NEEDS_TYPED_SOURCE: &str =
+    antecedent_core::reason_details::transported_decision::ROUTE_NEEDS_TYPED_SOURCE;
 /// Detail: the consumer's policy does not accept the transported support
 /// label (the decision-side form of `inverse_forward_source.transported_not_accepted`).
-pub const DETAIL_SUPPORT_BELOW_POLICY: &str = "transported_decision.transported_not_accepted";
+pub const DETAIL_SUPPORT_BELOW_POLICY: &str =
+    antecedent_core::reason_details::transported_decision::TRANSPORTED_NOT_ACCEPTED;
 
 /// The route a transported value was carried by.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -439,13 +456,10 @@ impl TransportedResponse {
         {
             return Err(TransportedRefusal::InvalidValue("one finite mean per coordinate"));
         }
-        for (position, coordinate) in coordinates.iter().enumerate() {
-            if coordinates[..position]
-                .iter()
-                .any(|earlier| earlier.require_same_coordinate(coordinate).is_ok())
-            {
-                return Err(TransportedRefusal::InvalidValue("coordinates are distinct"));
-            }
+        if antecedent_contract::quantity::deduped_coordinate_positions(&coordinates).len()
+            != coordinates.len()
+        {
+            return Err(TransportedRefusal::InvalidValue("coordinates are distinct"));
         }
         let receipt = finalize(declaration, TransportedRepresentation::PointOnly);
         receipt.validate()?;
@@ -458,6 +472,7 @@ impl TransportedResponse {
                 snapshot_id: declaration.snapshot_id.clone(),
                 causal_contract_id: declaration.causal_contract_id.clone(),
                 rng_id: "none:transported_point".to_owned(),
+                estimate: crate::decision_eval::MeanEstimate::Frequentist,
             }),
             receipt,
         })
@@ -474,7 +489,7 @@ impl TransportedResponse {
     ) -> Result<Self, TransportedRefusal> {
         require_declarable_route(declaration.route)?;
         let meta = law.metadata();
-        if meta.trust == DistributionTrust::NativeLicensed {
+        if meta.trust == DistributionTrust::NativeSupported {
             return Err(TransportedRefusal::NativeLabelOnTransported);
         }
         if matches!(
@@ -882,13 +897,10 @@ impl TransportedResponse {
         {
             return Err(TransportedRefusal::InvalidValue("one finite mean per coordinate"));
         }
-        for (position, coordinate) in mean.coordinates.iter().enumerate() {
-            if mean.coordinates[..position]
-                .iter()
-                .any(|earlier| earlier.require_same_coordinate(coordinate).is_ok())
-            {
-                return Err(TransportedRefusal::InvalidValue("coordinates are distinct"));
-            }
+        if antecedent_contract::quantity::deduped_coordinate_positions(&mean.coordinates).len()
+            != mean.coordinates.len()
+        {
+            return Err(TransportedRefusal::InvalidValue("coordinates are distinct"));
         }
         receipt.validate()?;
         check_in_target(&mean.coordinates, &receipt.target_population)?;
@@ -994,7 +1006,7 @@ pub enum TransportedRefusal {
         needed: &'static str,
     },
     /// The request needs an interval.
-    IntervalNotLicensed,
+    IntervalNotSupported,
     /// Responses merged into one grid were not carried by one transport.
     MixedTransports,
     /// The policy's weakest admitted support is stronger than the response's.
@@ -1028,14 +1040,13 @@ impl TransportedRefusal {
             | Self::NativeLabelOnTransported => {
                 antecedent_core::reason_code!("transport_not_certified")
             }
-            Self::LawNotSupplied { .. } => {
+            Self::LawNotSupplied { .. } | Self::SupportBelowPolicy { .. } => {
                 antecedent_core::reason_code!("decision_contract_unsatisfied")
             }
             Self::MixedTransports => antecedent_core::reason_code!("transport_not_certified"),
-            Self::IntervalNotLicensed => antecedent_core::reason_code!("cell_not_licensed"),
-            // The same code every consumer uses to say it does not accept a
-            // transported input (inverse queries, cohort forward claims).
-            Self::SupportBelowPolicy { .. } => antecedent_core::reason_code!("cell_not_licensed"),
+            Self::IntervalNotSupported => {
+                antecedent_core::reason_code!("uncertainty_representation_insufficient")
+            }
             Self::Boundary(error) => error.reason_code(),
         }
     }
@@ -1054,7 +1065,7 @@ impl TransportedRefusal {
             Self::NativeLabelOnTransported => DETAIL_NATIVE_LABEL.to_owned(),
             Self::InvalidValue(_) => DETAIL_INVALID_VALUE.to_owned(),
             Self::LawNotSupplied { .. } => DETAIL_LAW_NOT_SUPPLIED.to_owned(),
-            Self::IntervalNotLicensed => DETAIL_INTERVAL_NOT_LICENSED.to_owned(),
+            Self::IntervalNotSupported => DETAIL_INTERVAL_NOT_SUPPORTED.to_owned(),
             Self::MixedTransports => DETAIL_MIXED_TRANSPORTS.to_owned(),
             Self::SupportBelowPolicy { .. } => DETAIL_SUPPORT_BELOW_POLICY.to_owned(),
             Self::Boundary(error) => error.to_refusal().detail,
@@ -1098,7 +1109,7 @@ impl TransportedRefusal {
                 .remedy("a transported value is labelled extrapolative at best; transport never raises a support label")
                 .build(),
             Self::CalibrationLabelInflated => build(DETAIL_CALIBRATION_INFLATED)
-                .remedy("a transported law carries no measured calibration; relabel it point-only or unmeasured")
+                .remedy("a transported law carries no measured calibration; relabel it point-only or not_measured")
                 .build(),
             Self::NativeLabelOnTransported => build(DETAIL_NATIVE_LABEL)
                 .remedy("a transported law is an external or derived claim, never native target data")
@@ -1117,7 +1128,7 @@ impl TransportedRefusal {
             Self::MixedTransports => build(DETAIL_MIXED_TRANSPORTS)
                 .remedy("merge only values carried by one transport: the same populations, selection diagram, assumptions and support label")
                 .build(),
-            Self::IntervalNotLicensed => build(DETAIL_INTERVAL_NOT_LICENSED)
+            Self::IntervalNotSupported => build(DETAIL_INTERVAL_NOT_SUPPORTED)
                 .remedy(
                     "none available: the transport step and the support check have no \
                      measured coverage; the value is point-only under the declared premises",
@@ -1209,7 +1220,7 @@ pub struct TransportedDecision {
 /// differs is that the result carries the transport identity and labels.
 ///
 /// # Errors
-/// [`TransportedRefusal::IntervalNotLicensed`],
+/// [`TransportedRefusal::IntervalNotSupported`],
 /// [`TransportedRefusal::LawNotSupplied`],
 /// [`TransportedRefusal::SupportBelowPolicy`], and any refusal of the boundary
 /// (an invalid contract, a missing coordinate under `RequireAllActions`, a
@@ -1221,7 +1232,7 @@ pub fn evaluate_transported_decision(
     policy: &SupportPolicy,
 ) -> Result<TransportedDecision, TransportedRefusal> {
     if demand == TransportedDemand::Interval {
-        return Err(TransportedRefusal::IntervalNotLicensed);
+        return Err(TransportedRefusal::IntervalNotSupported);
     }
     let needed = match (demand, contract_needs_law(contract)) {
         (TransportedDemand::Law, _) => Some("law_request"),

@@ -6,6 +6,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent import interference
+from antecedent.outcomes import require_success
 
 
 def _network(clusters: int = 80) -> tuple[list[int], list[tuple[int, int]]]:
@@ -39,16 +40,25 @@ def test_cluster_total_interval_is_retained_and_sealed() -> None:
         realized_assignment=assignment,
         partial_interference=interference.PartialInterference(labels),
     )
-    result = ant.analyze({"y": outcome}, graph=[], query=query)
+    result = require_success(ant.analyze({"y": outcome}, graph=[], query=query))
     interval = result.interference.pointwise_interval
     assert interval is not None
     assert interval.level == 0.95
     assert interval.first_stage_arm_clusters == (40, 40)
     assert interval.lower < result.interference.contrast.horvitz_thompson < interval.upper
+    # The HT contrast of a completely randomized cluster design is the treated-minus-control
+    # cluster-mean difference, computed here from the outcomes: 2.3775.
+    treated = [value for value, flag in zip(outcome, assignment, strict=True) if flag]
+    control = [value for value, flag in zip(outcome, assignment, strict=True) if not flag]
+    assert result.interference.contrast.horvitz_thompson == pytest.approx(
+        np.mean(treated) - np.mean(control), abs=1e-9
+    )
+    # The population effect (mean of 2 + 0.1 (c % 7) over the 80 clusters) is 2.2925.
+    assert interval.lower < 2.2925 < interval.upper
     assert interval.standard_error > 0
     assert interval.degrees_of_freedom > 0
     assert "cluster" in result.interference.uncertainty_semantics.lower()
-    body = ant.load(result.export()).decoded_artifact.payload
+    body = require_success(ant.load(bytes(result.export()))).decoded_artifact.payload
     assert body["interference_inference"]["interval"]["lower"] == pytest.approx(interval.lower)
     assert body["interference_inference"]["interval"]["upper"] == pytest.approx(interval.upper)
 
@@ -93,22 +103,24 @@ def test_saturation_interval_and_support_round_trip(
         realized_assignment=assignment,
         partial_interference=interference.PartialInterference(labels),
     )
-    result = ant.analyze({"y": np.asarray(outcome)}, graph=[], query=query)
+    result = require_success(ant.analyze({"y": np.asarray(outcome)}, graph=[], query=query))
     interval = result.interference.pointwise_interval
     assert interval is not None
     assert interval.first_stage_arm_clusters == (cluster_count // 2, cluster_count // 2)
     assert interval.lower < truth < interval.upper, name
+    # The saturation HT estimate is design-random (observed errors <= 0.58 at these sizes).
+    assert abs(result.interference.contrast.horvitz_thompson - truth) < 0.75, name
     assert interval.lower < result.interference.contrast.horvitz_thompson < interval.upper
     assert result.interference.support.from_observed_clusters >= 8
     assert result.interference.support.to_observed_clusters >= 8
-    body = ant.load(result.export()).decoded_artifact.payload
+    body = require_success(ant.load(bytes(result.export()))).decoded_artifact.payload
     assert body["interference_inference"]["method"] == "saturation_cluster_neyman_welch"
     assert body["interference_inference"]["from_exposed_clusters"] >= 8
     assert body["interference_inference"]["interval"]["lower"] == pytest.approx(interval.lower)
-    tampered = bytearray(result.export())
+    tampered = bytearray(bytes(result.export()))
     tampered[len(tampered) // 2] ^= 0x40
     with pytest.raises(ant.CausalError, match="checksum mismatch"):
-        ant.load(bytes(tampered))
+        require_success(ant.load(bytes(tampered)))
 
 
 @pytest.mark.parametrize(
@@ -140,8 +152,10 @@ def test_saturation_thin_arms_remain_explicitly_point_only(
         realized_assignment=assignment,
         partial_interference=interference.PartialInterference(labels),
     )
-    result = ant.analyze({"y": np.arange(3 * cluster_count, dtype=float)}, graph=[], query=query)
+    result = require_success(
+        ant.analyze({"y": np.arange(3 * cluster_count, dtype=float)}, graph=[], query=query)
+    )
     assert result.interference.pointwise_interval is None
     assert "24 independent clusters" in result.interference.interval_unavailable_reason
-    body = ant.load(result.export()).decoded_artifact.payload
+    body = require_success(ant.load(bytes(result.export()))).decoded_artifact.payload
     assert body["interference_inference"]["interval"] is None

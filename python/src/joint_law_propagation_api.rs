@@ -16,17 +16,22 @@ use antecedent::analysis::joint_law_propagation::{
     propagate_linear_moments_spread, propagate_mixture, propagate_mixture_exceedance,
     propagate_spread, propagate_transported_spread_aligned,
 };
-use antecedent_contract::{
+use antecedent::contract::{
     InputAlignment, InputRole, PropagationDependence, PropagationInput, PropagationOperation,
-    PropagationRequest, RequestedReading,
+    PropagationRequest, check_propagation, check_propagation_with_ledger,
+    check_rows_pairable_across,
 };
-use antecedent_io::joint_law_propagation_artifact::{PropagationRequestWire, float_bits};
+use antecedent::io::joint_law_propagation_artifact::{PropagationRequestWire, float_bits};
+use antecedent::scientific::RequestedReading;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
+use serde::Deserialize;
 use serde_json::{Value as Json, json};
 
 use crate::PyCancellationToken;
+use crate::bridge::external_refusal_json;
 use crate::distribution_api::PyJointDistributionArtifact;
+use crate::evidence_ledger_api::EvidenceLedgerHandle;
 use crate::transport_common::execution_context;
 
 type Refused<T> = (Option<T>, Option<String>);
@@ -54,9 +59,9 @@ fn refusal_json(refusal: &JointLawPropagationRefusal) -> String {
 
 fn invalid_json(message: String) -> String {
     json!({
-        "code": antecedent_core::reason_code!("invalid_argument"),
+        "code": antecedent::reason::reason_code!("invalid_argument"),
         "stage": STAGE,
-        "detail": "joint_law_propagation.invalid_request",
+        "detail": antecedent::reason::reason_details::joint_law_propagation::INVALID_REQUEST,
         "message": message,
         "offending": Json::Null,
         "remedy": Json::Null,
@@ -78,7 +83,7 @@ fn claim_parts(py: Python<'_>, claim: &PropagationClaim) -> Refused<ClaimParts> 
         Ok(bytes) => bytes,
         Err(refusal) => return (None, Some(refusal_json(&refusal))),
     };
-    let values: Vec<Json> = claim.values().into_iter().map(|(n, v)| json!([n, v])).collect();
+    let values: Vec<Json> = claim.values().map(|(n, v)| json!([n, v])).collect();
     let summary = json!({
         "identity": claim.identity(),
         "operation": claim.operation(),
@@ -103,6 +108,26 @@ fn finish(
     }
 }
 
+/// A string member that may be absent; a present member of another type is refused.
+fn text_member(row: &Json, key: &str) -> Result<String, String> {
+    match row.get(key) {
+        None | Some(Json::Null) => Ok(String::new()),
+        Some(Json::String(value)) => Ok(value.clone()),
+        Some(_) => Err(invalid_json(format!("`{key}` must be a string"))),
+    }
+}
+
+/// A number that may be absent (read as not-a-number, which the rule refuses); a present
+/// member that is not a number is refused here.
+fn number_member(row: &Json, key: &str) -> Result<f64, String> {
+    match row.get(key) {
+        None | Some(Json::Null) => Ok(f64::NAN),
+        Some(value) => {
+            value.as_f64().ok_or_else(|| invalid_json(format!("`{key}` must be a number")))
+        }
+    }
+}
+
 macro_rules! tri {
     ($e:expr) => {
         match $e {
@@ -124,7 +149,7 @@ fn joint_law_column(
         Err(refusal) => return (None, Some(refusal_json(&refusal))),
     }
     let identity = artifact.inner().metadata().identity.clone();
-    let aligned = identity.alignment == antecedent_io::distribution_artifact::DrawAlignment::Joint;
+    let aligned = identity.alignment == antecedent::io::distribution_artifact::DrawAlignment::Joint;
     let alignment_id = if aligned { alignment_identity(artifact.inner()).ok() } else { None };
     (
         Some(
@@ -168,7 +193,7 @@ fn joint_law_aligned_functional(
         Err(r) => return (None, Some(refusal_json(&r))),
     };
     let ctx = execution_context(0, None, cancel);
-    finish(py, propagate_aligned_functional(op, &dx, &dy, functional, &ctx))
+    finish(py, py.detach(|| propagate_aligned_functional(op, &dx, &dy, functional, &ctx)))
 }
 
 /// Mean and variance of `a X + b Y` from two aligned artifact columns.
@@ -198,7 +223,7 @@ fn joint_law_aligned_linear(
         Err(r) => return (None, Some(refusal_json(&r))),
     };
     let ctx = execution_context(0, None, cancel);
-    finish(py, propagate_aligned_linear(op, (a, b), &dx, &dy, &ctx))
+    finish(py, py.detach(|| propagate_aligned_linear(op, (a, b), &dx, &dy, &ctx)))
 }
 
 /// Linear combination from means and a covariance. `dependence` is
@@ -272,26 +297,37 @@ fn linear_moments_call(
 ) -> Refused<ClaimParts> {
     let op = tri!(operation(operation_name));
     let rows: Vec<Json> =
-        tri!(serde_json::from_str(inputs_json).map_err(|e| invalid_json(format!("inputs: {e}"))));
+        tri!(parse_bounded(inputs_json).map_err(|e| invalid_json(format!("inputs: {e}"))));
     let mut inputs = Vec::with_capacity(rows.len());
     for row in &rows {
-        let text = |key: &str| row.get(key).and_then(Json::as_str).unwrap_or("").to_owned();
-        let role_name = row.get("role").and_then(Json::as_str).unwrap_or("estimate");
+        let role_name = match row.get("role") {
+            None | Some(Json::Null) => "estimate".to_owned(),
+            Some(_) => tri!(text_member(row, "role")),
+        };
         inputs.push(MomentInput {
-            id: text("id"),
-            evidence_id: text("evidence_id"),
-            role: tri!(role(role_name)),
-            mean: row.get("mean").and_then(Json::as_f64).unwrap_or(f64::NAN),
+            id: tri!(text_member(row, "id")),
+            evidence_id: tri!(text_member(row, "evidence_id")),
+            role: tri!(role(&role_name)),
+            mean: tri!(number_member(row, "mean")),
         });
     }
     let spread = reading == RequestedReading::Spread;
     let ctx = execution_context(0, None, cancel);
     let run = |linear: &LinearDependence| {
-        if spread {
-            propagate_linear_moments_spread(op, &inputs, &coefficients, &covariance, linear, &ctx)
-        } else {
-            propagate_linear_moments(op, &inputs, &coefficients, &covariance, linear, &ctx)
-        }
+        py.detach(|| {
+            if spread {
+                propagate_linear_moments_spread(
+                    op,
+                    &inputs,
+                    &coefficients,
+                    &covariance,
+                    linear,
+                    &ctx,
+                )
+            } else {
+                propagate_linear_moments(op, &inputs, &coefficients, &covariance, linear, &ctx)
+            }
+        })
     };
     let outcome = match dependence {
         "declared_independent" => run(&LinearDependence::DeclaredIndependent),
@@ -337,22 +373,20 @@ fn joint_law_mixture(
     components_json: &str,
     cancel: Option<PyCancellationToken>,
 ) -> Refused<ClaimParts> {
-    let rows: Vec<Json> = tri!(
-        serde_json::from_str(components_json).map_err(|e| invalid_json(format!("components: {e}")))
-    );
-    let number = |row: &Json, key: &str| row.get(key).and_then(Json::as_f64).unwrap_or(f64::NAN);
-    let components: Vec<MixtureComponent> = rows
-        .iter()
-        .map(|row| MixtureComponent {
-            id: row.get("id").and_then(Json::as_str).unwrap_or("").to_owned(),
-            evidence_id: row.get("evidence_id").and_then(Json::as_str).unwrap_or("").to_owned(),
-            weight: number(row, "weight"),
-            mean: number(row, "mean"),
-            variance: number(row, "variance"),
-        })
-        .collect();
+    let rows: Vec<Json> =
+        tri!(parse_bounded(components_json).map_err(|e| invalid_json(format!("components: {e}"))));
+    let mut components = Vec::with_capacity(rows.len());
+    for row in &rows {
+        components.push(MixtureComponent {
+            id: tri!(text_member(row, "id")),
+            evidence_id: tri!(text_member(row, "evidence_id")),
+            weight: tri!(number_member(row, "weight")),
+            mean: tri!(number_member(row, "mean")),
+            variance: tri!(number_member(row, "variance")),
+        });
+    }
     let ctx = execution_context(0, None, cancel);
-    finish(py, propagate_mixture(&components, &ctx))
+    finish(py, py.detach(|| propagate_mixture(&components, &ctx)))
 }
 
 /// A mixture whose weights are not declared: always refused by the rule (the bridge for
@@ -366,7 +400,7 @@ fn joint_law_mixture_undeclared(
     variances: Vec<f64>,
 ) -> Refused<ClaimParts> {
     let ids: Vec<String> =
-        tri!(serde_json::from_str(ids_json).map_err(|e| invalid_json(format!("ids: {e}"))));
+        tri!(parse_bounded(ids_json).map_err(|e| invalid_json(format!("ids: {e}"))));
     let declared = PropagationRequest {
         operation: PropagationOperation::Mixture,
         inputs: ids
@@ -397,8 +431,7 @@ fn joint_law_mixture_undeclared(
 }
 
 fn query(text: &str) -> Result<EnvelopeQueryWire, String> {
-    let value: Json =
-        serde_json::from_str(text).map_err(|e| invalid_json(format!("query: {e}")))?;
+    let value: Json = parse_bounded(text).map_err(|e| invalid_json(format!("query: {e}")))?;
     let number = |key: &str| {
         value
             .get(key)
@@ -416,13 +449,9 @@ fn query(text: &str) -> Result<EnvelopeQueryWire, String> {
         Some("linear_variance") => {
             Ok(EnvelopeQueryWire::LinearVariance { a: number("a")?, b: number("b")? })
         }
-        Some("functional") => Ok(EnvelopeQueryWire::Functional {
-            functional: value
-                .get("functional")
-                .and_then(Json::as_str)
-                .unwrap_or_default()
-                .to_owned(),
-        }),
+        Some("functional") => {
+            Ok(EnvelopeQueryWire::Functional { functional: text_member(&value, "functional")? })
+        }
         _ => Err(invalid_json("unknown envelope query kind".to_owned())),
     }
 }
@@ -448,7 +477,7 @@ fn joint_law_envelope(
     let x = PropagationDraws::independent_marginal(x_id, x_evidence, x_values);
     let y = PropagationDraws::independent_marginal(y_id, y_evidence, y_values);
     let ctx = execution_context(0, None, cancel);
-    finish(py, propagate_dependence_envelope(op, q, &x, &y, &ctx))
+    finish(py, py.detach(|| propagate_dependence_envelope(op, q, &x, &y, &ctx)))
 }
 
 /// Ranges over a declared correlation range.
@@ -476,15 +505,17 @@ fn joint_law_correlation_range(
     let ctx = execution_context(0, None, cancel);
     finish(
         py,
-        propagate_correlation_range(
-            op,
-            (x_id, x_evidence),
-            (y_id, y_evidence),
-            CorrelationRangeSummary { x_mean, x_sd, y_mean, y_sd, a, b },
-            rho_lo,
-            rho_hi,
-            &ctx,
-        ),
+        py.detach(|| {
+            propagate_correlation_range(
+                op,
+                (x_id, x_evidence),
+                (y_id, y_evidence),
+                CorrelationRangeSummary { x_mean, x_sd, y_mean, y_sd, a, b },
+                rho_lo,
+                rho_hi,
+                &ctx,
+            )
+        }),
     )
 }
 
@@ -492,29 +523,18 @@ fn joint_law_correlation_range(
 #[pyfunction]
 #[pyo3(signature = (artifact, expected_identity=None, cancel=None))]
 fn joint_law_consume(
+    py: Python<'_>,
     artifact: &[u8],
     expected_identity: Option<&str>,
     cancel: Option<PyCancellationToken>,
 ) -> Refused<String> {
     let ctx = execution_context(0, None, cancel);
-    match consume_joint_law_propagation_artifact(artifact, expected_identity, &ctx) {
+    match py.detach(|| consume_joint_law_propagation_artifact(artifact, expected_identity, &ctx)) {
         Ok(consumed) => {
-            let values: Vec<Json> = consumed
-                .result
-                .iter()
-                .filter(|(name, _)| name != "n_rows" && name != "verdict_code")
-                .map(|(name, bits)| json!([name, f64::from_bits(*bits)]))
-                .collect();
-            let n_rows = consumed.result.iter().find(|(n, _)| n == "n_rows").map(|(_, v)| *v);
-            let verdict =
-                consumed.result.iter().find(|(n, _)| n == "verdict_code").and_then(|(_, code)| {
-                    match code {
-                        0 => Some("act"),
-                        1 => Some("withhold"),
-                        2 => Some("unresolved"),
-                        _ => None,
-                    }
-                });
+            let values: Vec<Json> =
+                consumed.values().into_iter().map(|(name, value)| json!([name, value])).collect();
+            let n_rows = consumed.n_rows();
+            let verdict = consumed.verdict().map(antecedent::inference::DecisionVerdict::as_str);
             (
                 Some(
                     json!({
@@ -538,9 +558,9 @@ fn joint_law_consume(
 }
 
 /// The refusal of an interval or posterior reading of a composed quantity (always
-/// `cell_not_licensed`).
+/// `uncertainty_representation_insufficient`).
 #[pyfunction]
-fn joint_law_closed_reading(reading: &str) -> String {
+fn joint_law_unsupported_reading(reading: &str) -> String {
     let Some(parsed) = RequestedReading::from_name(reading) else {
         return invalid_json(format!("unknown reading `{reading}`"));
     };
@@ -556,9 +576,9 @@ fn joint_law_closed_reading(reading: &str) -> String {
         dependence: PropagationDependence::AlignedJointLaw,
         reading: parsed,
     };
-    match antecedent_contract::check_propagation(&request) {
+    match antecedent::contract::check_propagation(&request) {
         Err(refusal) => refusal_json(&JointLawPropagationRefusal { refusals: vec![refusal] }),
-        Ok(_) => invalid_json("the reading is not a closed reading".to_owned()),
+        Ok(_) => invalid_json("the reading is not a unsupported reading".to_owned()),
     }
 }
 
@@ -603,7 +623,7 @@ fn joint_law_spread(
     let functional = tri!(functional_by_name(functional));
     let (dx, dy) = tri!(two_columns(x_id, x, x_column, y_id, y, y_column));
     let ctx = execution_context(0, None, cancel);
-    finish(py, propagate_spread(op, &dx, &dy, functional, &ctx))
+    finish(py, py.detach(|| propagate_spread(op, &dx, &dy, functional, &ctx)))
 }
 
 /// The spread of `a X + b Y` from two aligned artifact columns.
@@ -626,7 +646,7 @@ fn joint_law_aligned_linear_spread(
     let op = tri!(operation(operation_name));
     let (dx, dy) = tri!(two_columns(x_id, x, x_column, y_id, y, y_column));
     let ctx = execution_context(0, None, cancel);
-    finish(py, propagate_aligned_linear_spread(op, (a, b), &dx, &dy, &ctx))
+    finish(py, py.detach(|| propagate_aligned_linear_spread(op, (a, b), &dx, &dy, &ctx)))
 }
 
 /// `P(g(X, Y) > threshold)` from aligned artifact columns, with its Monte Carlo band and verdict.
@@ -654,14 +674,16 @@ fn joint_law_composed_exceedance(
     let ctx = execution_context(0, None, cancel);
     finish(
         py,
-        propagate_composed_exceedance(
-            op,
-            &dx,
-            &dy,
-            functional,
-            ExceedanceQuery { threshold, cutoff, band_level },
-            &ctx,
-        ),
+        py.detach(|| {
+            propagate_composed_exceedance(
+                op,
+                &dx,
+                &dy,
+                functional,
+                ExceedanceQuery { threshold, cutoff, band_level },
+                &ctx,
+            )
+        }),
     )
 }
 
@@ -675,24 +697,46 @@ fn joint_law_mixture_exceedance(
     threshold: f64,
     cancel: Option<PyCancellationToken>,
 ) -> Refused<ClaimParts> {
-    let rows: Vec<Json> = tri!(
-        serde_json::from_str(components_json).map_err(|e| invalid_json(format!("components: {e}")))
-    );
-    let components: Vec<MixtureDraws> = rows
-        .iter()
-        .map(|row| MixtureDraws {
-            id: row.get("id").and_then(Json::as_str).unwrap_or("").to_owned(),
-            evidence_id: row.get("evidence_id").and_then(Json::as_str).unwrap_or("").to_owned(),
-            weight: row.get("weight").and_then(Json::as_f64).unwrap_or(f64::NAN),
-            draws: row
-                .get("draws")
-                .and_then(Json::as_array)
-                .map(|a| a.iter().map(|v| v.as_f64().unwrap_or(f64::NAN)).collect())
-                .unwrap_or_default(),
-        })
-        .collect();
+    let rows: Vec<Json> =
+        tri!(parse_bounded(components_json).map_err(|e| invalid_json(format!("components: {e}"))));
+    let mut components = Vec::with_capacity(rows.len());
+    for row in &rows {
+        let draws = match row.get("draws") {
+            None | Some(Json::Null) => Vec::new(),
+            Some(Json::Array(items)) => {
+                let mut draws = Vec::with_capacity(items.len());
+                for item in items {
+                    draws.push(match item.as_f64() {
+                        Some(value) => value,
+                        None => {
+                            return (None, Some(invalid_json("`draws` must hold numbers".into())));
+                        }
+                    });
+                }
+                draws
+            }
+            Some(_) => return (None, Some(invalid_json("`draws` must be a list".into()))),
+        };
+        components.push(MixtureDraws {
+            id: tri!(text_member(row, "id")),
+            evidence_id: tri!(text_member(row, "evidence_id")),
+            weight: tri!(number_member(row, "weight")),
+            draws,
+        });
+    }
     let ctx = execution_context(0, None, cancel);
-    finish(py, propagate_mixture_exceedance(&components, threshold, &ctx))
+    finish(py, py.detach(|| propagate_mixture_exceedance(&components, threshold, &ctx)))
+}
+
+/// Largest JSON text this module parses, in bytes (a `Value` tree is 10-30x its text).
+const MAX_JSON_BYTES: usize = 16 * 1024 * 1024;
+
+/// Parse JSON text after bounding its size; the error is its description.
+fn parse_bounded<T: serde::de::DeserializeOwned>(text: &str) -> Result<T, String> {
+    if text.len() > MAX_JSON_BYTES {
+        return Err(format!("the text is larger than the {MAX_JSON_BYTES}-byte limit"));
+    }
+    serde_json::from_str(text).map_err(|error| error.to_string())
 }
 
 /// The spread of a transported claim from the aligned draws of its three pieces (columns of
@@ -730,37 +774,44 @@ fn joint_law_transported_spread_aligned(
         Err(r) => return (None, Some(refusal_json(&r))),
     };
     let ctx = execution_context(0, None, cancel);
-    finish(py, propagate_transported_spread_aligned(&ds, &dt, &df, coefficients, &ctx))
+    finish(
+        py,
+        py.detach(|| propagate_transported_spread_aligned(&ds, &dt, &df, coefficients, &ctx)),
+    )
 }
 
 /// The interval reading of a sealed claim: the artifact is verified and replayed, then resolved
 /// against the shipped coverage records for its composed coordinate, construction and the
-/// declared evidence size. The caller supplies no record. Returns the licence JSON or the typed
+/// declared evidence size. The caller supplies no record. Returns the support JSON or the typed
 /// refusal.
 #[pyfunction]
 #[pyo3(signature = (artifact, construction, evidence_rows, cancel=None))]
 fn joint_law_check_composed_interval(
+    py: Python<'_>,
     artifact: &[u8],
     construction: &str,
     evidence_rows: u64,
     cancel: Option<PyCancellationToken>,
 ) -> Refused<String> {
     let ctx = execution_context(0, None, cancel);
-    let claim = match claim_from_artifact(artifact, None, &ctx) {
+    let claim = match py.detach(|| claim_from_artifact(artifact, None, &ctx)) {
         Ok(claim) => claim,
         Err(refusal) => return (None, Some(refusal_json(&refusal))),
     };
     match claim.check_composed_interval(construction, evidence_rows) {
-        Ok(licence) => (
+        Ok(support) => (
             Some(
                 json!({
-                    "coordinate_id": licence.coordinate_id(),
-                    "record_id": licence.record_id(),
-                    "construction": licence.construction(),
-                    "nominal_level": licence.nominal_level(),
-                    "label": licence.label(),
-                    "lower": licence.bounds().map(|b| b.0),
-                    "upper": licence.bounds().map(|b| b.1),
+                    "coordinate_id": support.coordinate_id(),
+                    "record_id": support.record_id(),
+                    "calibration": serde_json::to_value(support.calibration())
+                        .unwrap_or(serde_json::Value::Null),
+                    "construction": support.construction(),
+                    "nominal_level": support.nominal_level(),
+                    "label": support.label(),
+                    "declared_evidence_rows": support.declared_evidence_rows(),
+                    "lower": support.bounds().map(|b| b.0),
+                    "upper": support.bounds().map(|b| b.1),
                 })
                 .to_string(),
             ),
@@ -780,6 +831,143 @@ fn joint_law_coordinate_id(artifact: &[u8]) -> Refused<String> {
     }
 }
 
+/// One input of a composition to check, as the rule reads it.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CheckedInputIn {
+    id: String,
+    evidence_id: String,
+    role: String,
+    alignment: String,
+    #[serde(default)]
+    alignment_id: Option<String>,
+}
+
+fn checked_input(entry: &CheckedInputIn) -> Result<PropagationInput, String> {
+    let alignment = match entry.alignment.as_str() {
+        "joint" | "aligned" => InputAlignment::Aligned {
+            alignment_id: entry.alignment_id.clone().ok_or_else(|| {
+                invalid_json(format!(
+                    "input `{}` is aligned but names no alignment identity",
+                    entry.id
+                ))
+            })?,
+        },
+        "independent_marginals" => InputAlignment::IndependentMarginals,
+        "moments_only" => InputAlignment::MomentsOnly,
+        other => return Err(invalid_json(format!("unknown alignment `{other}`"))),
+    };
+    Ok(PropagationInput {
+        id: entry.id.clone(),
+        evidence_id: entry.evidence_id.clone(),
+        role: role(&entry.role)?,
+        alignment,
+    })
+}
+
+fn checked_inputs(text: &str) -> Result<Vec<PropagationInput>, String> {
+    let entries: Vec<CheckedInputIn> = parse_bounded(text).map_err(invalid_json)?;
+    entries.iter().map(checked_input).collect()
+}
+
+/// The dependence information a caller supplies for a check.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CheckedDependenceIn {
+    kind: String,
+    #[serde(default)]
+    id: Option<String>,
+    #[serde(default)]
+    rho_lo: Option<f64>,
+    #[serde(default)]
+    rho_hi: Option<f64>,
+}
+
+fn checked_dependence(text: &str) -> Result<PropagationDependence, String> {
+    let entry: CheckedDependenceIn = parse_bounded(text).map_err(invalid_json)?;
+    match entry.kind.as_str() {
+        "unknown" => Ok(PropagationDependence::Unknown),
+        "declared_independent" => Ok(PropagationDependence::DeclaredIndependent),
+        "aligned_joint_law" => Ok(PropagationDependence::AlignedJointLaw),
+        "known_weights" => Ok(PropagationDependence::KnownWeights),
+        "marginals_only" => Ok(PropagationDependence::MarginalsOnly),
+        "covariance" => Ok(PropagationDependence::Covariance {
+            id: entry.id.ok_or_else(|| {
+                invalid_json("a covariance dependence names its identity".to_owned())
+            })?,
+        }),
+        "correlation_range" => match (entry.rho_lo, entry.rho_hi) {
+            (Some(rho_lo), Some(rho_hi)) => {
+                Ok(PropagationDependence::CorrelationRange { rho_lo, rho_hi })
+            }
+            _ => Err(invalid_json("a correlation range names both bounds".to_owned())),
+        },
+        other => Err(invalid_json(format!("unknown dependence `{other}`"))),
+    }
+}
+
+/// Check a composition against the propagation rule before any number is formed. With a ledger,
+/// whether inputs share evidence is decided from the ledger's observation rows (each input's
+/// evidence identity read as a ledger source) rather than from the equality of identity strings;
+/// an overlap the ledger cannot compute is unknown, never independence.
+#[pyfunction]
+#[pyo3(signature = (operation_name, inputs_json, dependence_json, reading, ledger=None))]
+fn joint_law_check_propagation(
+    operation_name: &str,
+    inputs_json: &str,
+    dependence_json: &str,
+    reading: &str,
+    ledger: Option<PyRef<'_, EvidenceLedgerHandle>>,
+) -> Refused<String> {
+    let operation = tri!(operation(operation_name));
+    let inputs = tri!(checked_inputs(inputs_json));
+    let dependence = tri!(checked_dependence(dependence_json));
+    let reading = tri!(
+        RequestedReading::from_name(reading)
+            .ok_or_else(|| invalid_json(format!("unknown reading `{reading}`")))
+    );
+    let request = PropagationRequest { operation, inputs, dependence, reading };
+    let checked = match &ledger {
+        Some(ledger) => check_propagation_with_ledger(&request, ledger.ledger()),
+        None => check_propagation(&request),
+    };
+    match checked {
+        Ok(plan) => (
+            Some(
+                json!({
+                    "operation": plan.operation.as_str(),
+                    "route": plan.route.as_str(),
+                    "alignment_id": plan.alignment_id,
+                    "covariance_id": plan.covariance_id,
+                    "shared_evidence": plan.shared_evidence,
+                    "label": plan.label,
+                    "missing_transport_pieces": plan.missing_transport_pieces,
+                })
+                .to_string(),
+            ),
+            None,
+        ),
+        Err(refusal) => (None, Some(external_refusal_json(&refusal))),
+    }
+}
+
+/// Whether the rows of several inputs may be paired row by row: the inputs' own alignment
+/// identities decide, so draws of different joint laws or of independently produced marginals
+/// are never paired. Returns the refusal JSON or `None`.
+#[pyfunction]
+fn joint_law_check_rows_pairable(inputs_json: &str) -> Option<String> {
+    let inputs = match checked_inputs(inputs_json) {
+        Ok(inputs) => inputs,
+        Err(refusal) => return Some(refusal),
+    };
+    let pairs: Vec<(&str, &InputAlignment)> =
+        inputs.iter().map(|input| (input.id.as_str(), &input.alignment)).collect();
+    match check_rows_pairable_across(&pairs) {
+        Ok(()) => None,
+        Err(refusal) => Some(external_refusal_json(&refusal)),
+    }
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(joint_law_column, module)?)?;
     module.add_function(wrap_pyfunction!(joint_law_aligned_functional, module)?)?;
@@ -790,7 +978,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(joint_law_envelope, module)?)?;
     module.add_function(wrap_pyfunction!(joint_law_correlation_range, module)?)?;
     module.add_function(wrap_pyfunction!(joint_law_consume, module)?)?;
-    module.add_function(wrap_pyfunction!(joint_law_closed_reading, module)?)?;
+    module.add_function(wrap_pyfunction!(joint_law_unsupported_reading, module)?)?;
     module.add_function(wrap_pyfunction!(joint_law_linear_moments_spread, module)?)?;
     module.add_function(wrap_pyfunction!(joint_law_spread, module)?)?;
     module.add_function(wrap_pyfunction!(joint_law_aligned_linear_spread, module)?)?;
@@ -799,5 +987,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(joint_law_transported_spread_aligned, module)?)?;
     module.add_function(wrap_pyfunction!(joint_law_check_composed_interval, module)?)?;
     module.add_function(wrap_pyfunction!(joint_law_coordinate_id, module)?)?;
+    module.add_function(wrap_pyfunction!(joint_law_check_propagation, module)?)?;
+    module.add_function(wrap_pyfunction!(joint_law_check_rows_pairable, module)?)?;
     Ok(())
 }

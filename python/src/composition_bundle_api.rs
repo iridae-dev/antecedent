@@ -11,15 +11,15 @@ use std::collections::BTreeMap;
 
 use crate::bridge::{check_declared_size, external_refusal_json};
 use antecedent::analysis::composition::{
-    BundleBuilder, BundleError, BundleStage, ClaimLabel, CompositionBundle, ConsumedBundle,
-    ConsumedNode, EvidenceRelationship, NodeKind, NodeSource, NodeStatus, ProviderOrData,
-    SuppliedSources, consume, describe_artifact, detect_node_kind, export_bundle,
-    mean_decision_bytes,
+    BundleBuilder, BundleError, BundleLimits, BundleStage, ClaimLabel, CompositionBundle,
+    ConsumedBundle, ConsumedNode, EvidenceRelationship, NodeKind, NodeSource, NodeStatus,
+    ProviderOrData, SuppliedSources, consume, consume_with_limits, describe_artifact,
+    detect_node_kind, export_bundle, mean_decision_bytes,
 };
-use antecedent_contract::ExternalRefusal;
-use antecedent_core::reason_code;
-use antecedent_design::decision_artifact::contract_from_json_refusal;
-use antecedent_io::IoError;
+use antecedent::contract::ExternalRefusal;
+use antecedent::design::decision_artifact::contract_from_json_refusal;
+use antecedent::io::IoError;
+use antecedent::reason::reason_code;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Deserialize;
@@ -41,9 +41,15 @@ pub(crate) fn error_refusal(error: &BundleError) -> String {
                 IoError::UnsupportedVersion { .. } | IoError::UnsupportedFormat { .. }
             ) =>
         {
-            (reason_code!("schema_mismatch"), "composition_bundle.incompatible_version")
+            (
+                reason_code!("schema_mismatch"),
+                antecedent::reason::reason_details::composition_bundle::INCOMPATIBLE_VERSION,
+            )
         }
-        _ => (reason_code!("invalid_argument"), "composition_bundle.invalid_container"),
+        _ => (
+            reason_code!("invalid_argument"),
+            antecedent::reason::reason_details::composition_bundle::INVALID_CONTAINER,
+        ),
     };
     external_refusal_json(&ExternalRefusal {
         code,
@@ -97,13 +103,14 @@ fn status_json(status: &NodeStatus) -> Value {
     }
 }
 
-fn consumed_node_json(node: &ConsumedNode) -> Value {
+fn consumed_node_json(node: &ConsumedNode, replayed: bool) -> Value {
     json!({
         "id": node.id,
         "kind": node.kind.as_str(),
         "identity": node.identity,
         "chain_digest": node.chain_digest,
         "status": status_json(&node.status),
+        "replayed": replayed,
         "facts": node.facts,
         "values": numbers_json(&node.values),
         "inspected": numbers_json(&node.inspected),
@@ -115,7 +122,8 @@ pub(crate) fn consumed_json(consumed: &ConsumedBundle) -> String {
     json!({
         "identity": consumed.identity(),
         "all_verified": consumed.all_verified(),
-        "nodes": consumed.nodes().iter().map(consumed_node_json).collect::<Vec<_>>(),
+        "all_replayed": consumed.all_replayed(),
+        "nodes": consumed.nodes().iter().map(|node| consumed_node_json(node, consumed.node_replayed(&node.id))).collect::<Vec<_>>(),
         "edges": consumed
             .edges()
             .iter()
@@ -168,7 +176,7 @@ pub(crate) fn supplied_from(text: Option<&str>) -> PyResult<SuppliedSources> {
 /// dependency edges and evidence relationships.
 #[pyclass(name = "CompositionBundleBuilder", skip_from_py_object)]
 pub(crate) struct PyBundleBuilder {
-    inner: BundleBuilder,
+    pub(crate) inner: BundleBuilder,
 }
 
 #[pymethods]
@@ -214,39 +222,41 @@ impl PyBundleBuilder {
         facts_json: Option<&str>,
         inspected_json: Option<&str>,
     ) -> PyResult<Refusal> {
-        check_size(requires_json)?;
-        let Some(parsed) = NodeKind::from_name(kind) else {
-            return Ok(Some(kind_refusal(kind)));
-        };
-        let requires: ProviderOrData = serde_json::from_str(requires_json)
-            .map_err(|e| crate::value_err(format!("invalid requirement: {e}")))?;
-        let facts: BTreeMap<String, String> = match facts_json {
-            Some(text) => {
-                check_size(text)?;
-                serde_json::from_str(text)
-                    .map_err(|e| crate::value_err(format!("invalid facts: {e}")))?
-            }
-            None => BTreeMap::new(),
-        };
-        let inspected: Vec<(String, f64)> = match inspected_json {
-            Some(text) => {
-                check_size(text)?;
-                serde_json::from_str(text)
-                    .map_err(|e| crate::value_err(format!("invalid inspected values: {e}")))?
-            }
-            None => Vec::new(),
-        };
-        let apply = || -> Result<(), BundleError> {
-            self.inner.add_reference(node_id, parsed, identity, requires)?;
-            for (key, value) in &facts {
-                self.inner.declare_fact(node_id, key, value)?;
-            }
-            for (key, value) in &inspected {
-                self.inner.declare_inspected(node_id, key, *value)?;
-            }
-            Ok(())
-        };
-        Ok(apply().err().map(|error| error_refusal(&error)))
+        crate::catch_ffi(|| {
+            check_size(requires_json)?;
+            let Some(parsed) = NodeKind::from_name(kind) else {
+                return Ok(Some(kind_refusal(kind)));
+            };
+            let requires: ProviderOrData = serde_json::from_str(requires_json)
+                .map_err(|e| crate::value_err(format!("invalid requirement: {e}")))?;
+            let facts: BTreeMap<String, String> = match facts_json {
+                Some(text) => {
+                    check_size(text)?;
+                    serde_json::from_str(text)
+                        .map_err(|e| crate::value_err(format!("invalid facts: {e}")))?
+                }
+                None => BTreeMap::new(),
+            };
+            let inspected: Vec<(String, f64)> = match inspected_json {
+                Some(text) => {
+                    check_size(text)?;
+                    serde_json::from_str(text)
+                        .map_err(|e| crate::value_err(format!("invalid inspected values: {e}")))?
+                }
+                None => Vec::new(),
+            };
+            let apply = || -> Result<(), BundleError> {
+                self.inner.add_reference(node_id, parsed, identity, requires)?;
+                for (key, value) in &facts {
+                    self.inner.declare_fact(node_id, key, value)?;
+                }
+                for (key, value) in &inspected {
+                    self.inner.declare_inspected(node_id, key, *value)?;
+                }
+                Ok(())
+            };
+            Ok(apply().err().map(|error| error_refusal(&error)))
+        })
     }
 
     /// Declare that `dependent` was derived from `upstream`.
@@ -262,14 +272,16 @@ impl PyBundleBuilder {
         right: &str,
         relationship: &str,
     ) -> PyResult<(Option<String>, Refusal)> {
-        let Some(parsed) = EvidenceRelationship::from_name(relationship) else {
-            return Err(crate::value_err(format!(
-                "`{relationship}` is not an evidence relationship"
-            )));
-        };
-        Ok(match self.inner.relate(left, right, parsed) {
-            Ok(id) => (Some(id), None),
-            Err(error) => (None, Some(error_refusal(&error))),
+        crate::catch_ffi(|| {
+            let Some(parsed) = EvidenceRelationship::from_name(relationship) else {
+                return Err(crate::value_err(format!(
+                    "`{relationship}` is not an evidence relationship"
+                )));
+            };
+            Ok(match self.inner.relate(left, right, parsed) {
+                Ok(id) => (Some(id), None),
+                Err(error) => (None, Some(error_refusal(&error))),
+            })
         })
     }
 
@@ -285,7 +297,7 @@ impl PyBundleBuilder {
 /// A sealed composed result.
 #[pyclass(name = "CompositionBundle", skip_from_py_object)]
 pub(crate) struct PyCompositionBundle {
-    bundle: CompositionBundle,
+    pub(crate) bundle: CompositionBundle,
 }
 
 #[pymethods]
@@ -334,26 +346,52 @@ impl PyCompositionBundle {
         py: Python<'py>,
         artifact_id: &str,
     ) -> (Option<Bound<'py, PyBytes>>, Refusal) {
-        match export_bundle(&self.bundle, artifact_id) {
+        match py.detach(|| export_bundle(&self.bundle, artifact_id)) {
             Ok(bytes) => (Some(PyBytes::new(py, &bytes)), None),
             Err(error) => (None, Some(error_refusal(&error))),
         }
     }
 }
 
-/// Consume exported bytes under the identity the consumer retained independently.
-/// Returns `(consumed_json, refusal)`.
+/// Consume exported bytes under the identity the consumer retained independently and the
+/// consumer's own bounds (each omitted bound keeps its default). Returns
+/// `(consumed_json, refusal)`.
 #[pyfunction]
-#[pyo3(signature = (data, expected_identity, supplied_json=None))]
+#[pyo3(signature = (data, expected_identity, supplied_json=None, *, max_bundle_bytes=None, max_nodes=None, max_edges=None, max_embedded_bytes=None))]
 fn consume_composition_bundle(
+    py: Python<'_>,
     data: &[u8],
     expected_identity: &str,
     supplied_json: Option<&str>,
+    max_bundle_bytes: Option<usize>,
+    max_nodes: Option<usize>,
+    max_edges: Option<usize>,
+    max_embedded_bytes: Option<usize>,
 ) -> PyResult<(Option<String>, Refusal)> {
-    let supplied = supplied_from(supplied_json)?;
-    Ok(match consume(data, expected_identity, &supplied) {
-        Ok(consumed) => (Some(consumed_json(&consumed)), None),
-        Err(error) => (None, Some(error_refusal(&error))),
+    crate::catch_ffi(|| {
+        let supplied = supplied_from(supplied_json)?;
+        let consumed = py.detach(|| {
+            if max_bundle_bytes.is_none()
+                && max_nodes.is_none()
+                && max_edges.is_none()
+                && max_embedded_bytes.is_none()
+            {
+                consume(data, expected_identity, &supplied)
+            } else {
+                let defaults = BundleLimits::default();
+                let limits = BundleLimits {
+                    max_bundle_bytes: max_bundle_bytes.unwrap_or(defaults.max_bundle_bytes),
+                    max_nodes: max_nodes.unwrap_or(defaults.max_nodes),
+                    max_edges: max_edges.unwrap_or(defaults.max_edges),
+                    max_embedded_bytes: max_embedded_bytes.unwrap_or(defaults.max_embedded_bytes),
+                };
+                consume_with_limits(data, &limits, expected_identity, &supplied)
+            }
+        });
+        Ok(match consumed {
+            Ok(consumed) => (Some(consumed_json(&consumed)), None),
+            Err(error) => (None, Some(error_refusal(&error))),
+        })
     })
 }
 
@@ -361,12 +399,16 @@ fn consume_composition_bundle(
 /// JSON; `kind` is a node kind name or `auto`. Returns `(json, refusal)`.
 #[pyfunction]
 #[pyo3(signature = (kind, data))]
-fn composition_describe_artifact(kind: &str, data: &[u8]) -> (Option<String>, Refusal) {
+fn composition_describe_artifact(
+    py: Python<'_>,
+    kind: &str,
+    data: &[u8],
+) -> (Option<String>, Refusal) {
     let parsed = if kind == "auto" { detect_node_kind(data) } else { NodeKind::from_name(kind) };
     let Some(parsed) = parsed else {
         return (None, Some(kind_refusal(kind)));
     };
-    match describe_artifact(parsed, data) {
+    match py.detach(|| describe_artifact(parsed, data)) {
         Ok(described) => (
             Some(
                 json!({
@@ -400,21 +442,23 @@ fn composition_mean_decision<'py>(
     claim_data: &[u8],
     artifact_id: &str,
 ) -> PyResult<(Option<Bound<'py, PyBytes>>, Refusal)> {
-    check_size(contract_json)?;
-    let contract = match contract_from_json_refusal(contract_json) {
-        Ok(contract) => contract,
-        Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
-    };
-    Ok(match mean_decision_bytes(&contract, claim_data, artifact_id) {
-        Ok(bytes) => (Some(PyBytes::new(py, &bytes)), None),
-        Err(failure) => (
-            None,
-            Some(error_refusal(&BundleError::Refused {
-                stage: failure.stage,
-                reason: failure.reason,
-                offending: None,
-            })),
-        ),
+    crate::catch_ffi(|| {
+        check_size(contract_json)?;
+        let contract = match contract_from_json_refusal(contract_json) {
+            Ok(contract) => contract,
+            Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
+        };
+        Ok(match py.detach(|| mean_decision_bytes(&contract, claim_data, artifact_id)) {
+            Ok(bytes) => (Some(PyBytes::new(py, &bytes)), None),
+            Err(failure) => (
+                None,
+                Some(error_refusal(&BundleError::Refused {
+                    stage: failure.stage,
+                    reason: failure.reason,
+                    offending: None,
+                })),
+            ),
+        })
     })
 }
 

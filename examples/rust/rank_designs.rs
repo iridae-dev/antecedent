@@ -11,20 +11,37 @@
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
-//! Rank candidate experimental designs by identification probability.
+//! Rank candidate next studies by how much they raise the probability of identification.
 //!
-//! See ADR 0016: ranking is advisory — it does not auto-rerun analyses.
+//! Question: given uncertainty about the graph, which further measurement, environment,
+//! sampling change or intervention is most likely to make the effect identified?
+//!
+//! Inputs: three weighted graph samples (weights 0.5, 0.3, 0.2), of which only the first
+//! identifies the query, and four candidate designs: measure a further variable, observe a
+//! further environment, sample more often, and intervene on the treatment. A small confounded
+//! study (`z -> t`, `z -> y`, `t -> y`) supplies the prepared contract the ranking runs through.
+//!
+//! Asserted: every candidate is either ranked or reported as a violation; at least one is a
+//! violation; the ranking spent a positive Monte Carlo budget.
+//!
+//! What this establishes: ranking is advisory and runs no analysis. It goes through a prepared
+//! study's contract, which refuses an unsupported study, and a candidate the objective cannot
+//! score is reported instead of scored: more observational samples cannot identify a
+//! structurally unidentified effect. The graph weights and unlock sets are declared inputs, not
+//! estimates from data.
 //!
 //! Run: `cargo run -p antecedent --example rank_designs`
+//! Source: `examples/rust/rank_designs.rs`
 
 use std::sync::Arc;
 
 use antecedent::design::{
     CandidateDesign, DesignCost, DesignEvaluationContext, DesignObjective, DesignRankConfig,
-    DesignRanker, EnvironmentPlan, ExperimentPlan, MeasurementPlan, SamplingPlan, rank_designs,
+    DesignRanker, EnvironmentPlan, ExperimentPlan, MeasurementPlan, SamplingPlan,
 };
 use antecedent::prelude::*;
 use antecedent_core::{EnvironmentId, QueryId};
+use antecedent_data::TableView;
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 
 fn candidate_kind(c: &CandidateDesign) -> &'static str {
@@ -38,6 +55,8 @@ fn candidate_kind(c: &CandidateDesign) -> &'static str {
 
 /// Runs the example end to end; `main` calls it and the example test suite runs it.
 pub fn run() -> Result<(), CausalError> {
+    // Structural uncertainty: three candidate graphs with their weights, and whether each one
+    // identifies the query.
     let graphs = WeightedGraphSamples::new(
         vec![0.5, 0.3, 0.2],
         vec![
@@ -74,6 +93,8 @@ pub fn run() -> Result<(), CausalError> {
         }),
     ];
 
+    // What each design would buy: measuring variable 3 or observing environment 7 makes the
+    // query identifiable under graphs where it currently is not.
     let unlock_vars = [(q, Arc::from([VariableId::from_raw(3)]))];
     let unlock_envs = [(q, Arc::from([EnvironmentId::from_raw(7)]))];
     let ranker = DesignRanker::new().with_config(DesignRankConfig {
@@ -94,7 +115,25 @@ pub fn run() -> Result<(), CausalError> {
         graph_features: None,
     };
 
-    let ranking = rank_designs(
+    // A small confounded study (z -> t, z -> y, t -> y) supplies the prepared contract.
+    let n = 96_usize;
+    let z: Vec<f64> = (0..n).map(|i| ((i * 37) % n) as f64 / n as f64 - 0.5).collect();
+    let t: Vec<f64> = (0..n)
+        .map(|i| if (i as f64 * 0.618_033_988).fract() + 0.5 * z[i] > 0.5 { 1.0 } else { 0.0 })
+        .collect();
+    let y: Vec<f64> = (0..n).map(|i| 2.0 * t[i] + z[i] + 0.1 * (i as f64 * 1.7).sin()).collect();
+    let data = TabularData::from_f64_columns([("t", &t[..]), ("y", &y[..]), ("z", &z[..])])?;
+    let dag = Dag::from_named_edges(data.schema(), &[("z", "t"), ("z", "y"), ("t", "y")])?;
+    let (t_id, y_id) = (data.schema().id_of("t")?, data.schema().id_of("y")?);
+    let query = AverageEffectQuery::binary_ate(t_id, y_id);
+    let prepared = Study::tabular(data)
+        .graph(dag)
+        .query(query)
+        .bootstrap_replicates(0)
+        .build()?
+        .prepare(&ctx)?;
+
+    let ranking = prepared.rank_designs(
         &ranker,
         &DesignObjective::IncreaseIdentificationProbability { query: q },
         &candidates,
@@ -104,7 +143,14 @@ pub fn run() -> Result<(), CausalError> {
 
     let best = ranking.ranked.first().map_or(0, |r| r.candidate_index);
     println!("best_index={best} mc_samples={}", ranking.budget.samples);
-    assert_eq!(ranking.ranked.len(), candidates.len(), "every candidate is ranked");
+    // More observational units cannot identify a structurally unidentified effect, so that
+    // candidate is reported as a violation instead of being scored.
+    assert_eq!(
+        ranking.ranked.len() + ranking.violations.len(),
+        candidates.len(),
+        "every candidate is ranked or reported"
+    );
+    assert!(!ranking.violations.is_empty(), "the sampling-rate candidate is reported");
     assert!(best < candidates.len());
     assert!(ranking.budget.samples > 0);
     for row in ranking.ranked.iter() {

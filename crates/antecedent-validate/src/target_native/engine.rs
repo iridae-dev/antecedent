@@ -1,0 +1,542 @@
+//! Execution of a [`TargetRefutationPlan`] against a route's whole-procedure refit.
+//!
+//! The route supplies a [`TargetRefit`]: given a perturbation and a keyed random stream, it
+//! perturbs its own data, reruns its own complete procedure (identification reuse,
+//! nuisance fits, the estimator and the target functional) and returns the full target
+//! vector. The engine owns the replicate loop, the random streams, admission of the
+//! replicate buffer, cancellation and the joint statistic, so every route's refuters share
+//! one definition of what each check means.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::fmt;
+use std::sync::Arc;
+
+use antecedent_core::{
+    CausalRng, ChainId, ExecutionContext, FoldId, ReductionPolicy, ReplicateId, RngKey,
+    SemanticOperation,
+};
+
+use super::joint::{JointStatisticKind, joint_mahalanobis_with_bias};
+use super::reference::{
+    replicate_reference_tail, replicates_for_defined_reference, separation_tail, subset_separation,
+};
+use super::{
+    RefutationTarget, RefuterExpectation, TargetFamily, TargetRefutationPlan,
+    TargetRefutationReport, TargetRefuterKind,
+};
+use crate::ValidationError;
+use crate::common::{admit_cells, check_cancelled};
+
+/// One perturbation the route applies before rerunning its procedure.
+///
+/// `replicate` indexes the refit inside its refuter; the random stream handed to
+/// [`TargetRefit::refit`] is keyed by refuter and replicate, never by worker.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TargetPerturbation {
+    /// Permute the treatment (static) or circularly shift it by a random offset of at least
+    /// one dependence block (temporal).
+    PlaceboTreatment {
+        /// Replicate index.
+        replicate: u32,
+    },
+    /// Permute (static) or circularly shift (temporal) the outcome.
+    PlaceboOutcome {
+        /// Replicate index.
+        replicate: u32,
+    },
+    /// Add an independent standard-normal common cause to the adjustment.
+    RandomCommonCause {
+        /// Replicate index.
+        replicate: u32,
+    },
+    /// Keep a random `fraction` of the sampling units (a contiguous window on series).
+    Subset {
+        /// Replicate index.
+        replicate: u32,
+        /// Fraction of units kept, in `(0, 1)`.
+        fraction: f64,
+    },
+    /// Resample under the declared sampling design (whole units, blocks or clusters).
+    Bootstrap {
+        /// Replicate index.
+        replicate: u32,
+    },
+    /// Swap the exposure for the declared negative-control exposure, on a design-respecting
+    /// resample of the data (replicate `0` is the data itself).
+    NegativeControlExposure {
+        /// Replicate index.
+        replicate: u32,
+    },
+    /// Swap the outcome for the declared negative-control outcome, on a resample as above.
+    NegativeControlOutcome {
+        /// Replicate index.
+        replicate: u32,
+    },
+    /// Replace the treatment by its value `lead` periods later, on a block resample.
+    PreTrend {
+        /// Replicate index.
+        replicate: u32,
+        /// Lead in periods (at least one).
+        lead: u32,
+    },
+    /// Restrict the outcome to periods before treatment onset, on a block resample.
+    Anticipation {
+        /// Replicate index.
+        replicate: u32,
+    },
+}
+
+/// Why a route could not run one refuter.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TargetRefitError {
+    /// The route has no construction for this refuter (for example no declared negative
+    /// control); the refuter is recorded as refused with the next attempt.
+    Unsupported {
+        /// Why.
+        reason: Arc<str>,
+        /// What would make it runnable.
+        next_attempt: Arc<str>,
+    },
+    /// The refit failed.
+    Failed(ValidationError),
+}
+
+impl fmt::Display for TargetRefitError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Unsupported { reason, next_attempt } => {
+                write!(f, "{reason}; next attempt: {next_attempt}")
+            }
+            Self::Failed(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+impl From<ValidationError> for TargetRefitError {
+    fn from(error: ValidationError) -> Self {
+        Self::Failed(error)
+    }
+}
+
+/// A route's whole-procedure refit of its own target.
+pub trait TargetRefit {
+    /// The target the route reports.
+    fn target(&self) -> &RefutationTarget;
+
+    /// The reported target vector, in [`RefutationTarget::labels`] order.
+    fn original(&self) -> &[f64];
+
+    /// Perturb, rerun the whole procedure and return the full target vector.
+    ///
+    /// # Errors
+    ///
+    /// [`TargetRefitError::Unsupported`] when the route has no construction for this
+    /// perturbation; [`TargetRefitError::Failed`] when the refit fails.
+    fn refit(
+        &self,
+        perturbation: TargetPerturbation,
+        rng: &mut CausalRng,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<f64>, TargetRefitError>;
+
+    /// Number of independent units the route's resamples are built from: the rows of an iid row
+    /// resample, about `n / b` blocks of a circular block resample with blocks of `b` periods,
+    /// the units of a unit resample. The replicate covariance of a refuter is itself an
+    /// estimate whose resampling noise shrinks only with this count (see `replicate_reference_tail`).
+    /// `None` (the default) declares no such limit, so only the replicate count enters the
+    /// reference.
+    fn independent_resampling_units(&self) -> Option<usize> {
+        None
+    }
+
+    /// A refuter with a statistic of its own (mediation sensitivity, derivative diagnostics,
+    /// Bayesian prior sensitivity and posterior-predictive checks).
+    ///
+    /// # Errors
+    ///
+    /// [`TargetRefitError::Unsupported`] by default.
+    fn native_check(
+        &self,
+        kind: TargetRefuterKind,
+        ctx: &ExecutionContext,
+    ) -> Result<TargetRefutationReport, TargetRefitError> {
+        let _ = ctx;
+        Err(TargetRefitError::Unsupported {
+            reason: Arc::from(format!("this route has no `{}` check", kind.as_str())),
+            next_attempt: Arc::from(
+                "supply the route's native check through TargetRefit::native_check",
+            ),
+        })
+    }
+}
+
+/// Settings of [`run_target_plan`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TargetRefutationConfig {
+    /// Refits per replicate-based refuter.
+    pub replicates: u32,
+    /// Tolerance level: a replicate refuter passes when the finite-resampling Hotelling tail of
+    /// its joint discrepancy (see `replicate_reference_tail`) is at least this. For a resampling
+    /// refuter whose expectation is the data's own estimate it is the rejection rate under a
+    /// sound procedure, up to the accuracy of the resampling covariance; for placebo and
+    /// stability refuters it is a conservative yardstick (see [`super::joint`]).
+    pub alpha: f64,
+    /// Fraction of units each subset refit keeps.
+    pub subset_fraction: f64,
+    /// Lead of the pre-trend placebo, in periods.
+    pub pre_trend_lead: u32,
+}
+
+impl Default for TargetRefutationConfig {
+    fn default() -> Self {
+        Self { replicates: 30, alpha: 0.05, subset_fraction: 0.8, pre_trend_lead: 1 }
+    }
+}
+
+/// A refuter the route could not run.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TargetRefuterRefusal {
+    /// Refuter.
+    pub kind: TargetRefuterKind,
+    /// Why.
+    pub reason: Arc<str>,
+    /// What would make it runnable.
+    pub next_attempt: Arc<str>,
+}
+
+/// Reports and refusals of one plan.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TargetRefutationRun {
+    /// One report per refuter that ran.
+    pub reports: Vec<TargetRefutationReport>,
+    /// One refusal per refuter the route could not run.
+    pub refused: Vec<TargetRefuterRefusal>,
+}
+
+/// Stream tag of one refuter kind: a fixed word per kind, so adding a kind never moves the
+/// streams of another.
+const fn operation_tag(kind: TargetRefuterKind) -> u64 {
+    0x7A52_4700_0000_0000
+        | match kind {
+            TargetRefuterKind::PlaceboTreatment => 1,
+            TargetRefuterKind::PlaceboOutcome => 2,
+            TargetRefuterKind::RandomCommonCause => 3,
+            TargetRefuterKind::SubsetStability => 4,
+            TargetRefuterKind::BootstrapStability => 5,
+            TargetRefuterKind::NegativeControlExposure => 6,
+            TargetRefuterKind::NegativeControlOutcome => 7,
+            TargetRefuterKind::PreTrend => 8,
+            TargetRefuterKind::Anticipation => 9,
+            TargetRefuterKind::SequentialIgnorability => 10,
+            TargetRefuterKind::FiniteDifferenceConsistency => 11,
+            TargetRefuterKind::LocalLinearity => 12,
+            TargetRefuterKind::PriorSensitivity => 13,
+            TargetRefuterKind::PosteriorPredictive => 14,
+        }
+}
+
+/// The keyed stream of replicate `replicate` of `kind` under the context seed.
+#[must_use]
+pub fn target_refuter_stream(
+    kind: TargetRefuterKind,
+    replicate: u32,
+    ctx: &ExecutionContext,
+) -> CausalRng {
+    RngKey::new(
+        SemanticOperation::new(operation_tag(kind)),
+        FoldId::new(0),
+        ChainId::new(0),
+        ReplicateId::new(u64::from(replicate)),
+        ReductionPolicy::Strict,
+    )
+    .open(ctx.rng.master_seed())
+}
+
+fn perturbation(
+    kind: TargetRefuterKind,
+    replicate: u32,
+    config: &TargetRefutationConfig,
+) -> Option<TargetPerturbation> {
+    Some(match kind {
+        TargetRefuterKind::PlaceboTreatment => TargetPerturbation::PlaceboTreatment { replicate },
+        TargetRefuterKind::PlaceboOutcome => TargetPerturbation::PlaceboOutcome { replicate },
+        TargetRefuterKind::RandomCommonCause => TargetPerturbation::RandomCommonCause { replicate },
+        TargetRefuterKind::SubsetStability => {
+            TargetPerturbation::Subset { replicate, fraction: config.subset_fraction }
+        }
+        TargetRefuterKind::BootstrapStability => TargetPerturbation::Bootstrap { replicate },
+        TargetRefuterKind::NegativeControlExposure => {
+            TargetPerturbation::NegativeControlExposure { replicate }
+        }
+        TargetRefuterKind::NegativeControlOutcome => {
+            TargetPerturbation::NegativeControlOutcome { replicate }
+        }
+        TargetRefuterKind::PreTrend => {
+            TargetPerturbation::PreTrend { replicate, lead: config.pre_trend_lead }
+        }
+        TargetRefuterKind::Anticipation => TargetPerturbation::Anticipation { replicate },
+        TargetRefuterKind::SequentialIgnorability
+        | TargetRefuterKind::FiniteDifferenceConsistency
+        | TargetRefuterKind::LocalLinearity
+        | TargetRefuterKind::PriorSensitivity
+        | TargetRefuterKind::PosteriorPredictive => return None,
+    })
+}
+
+/// Run every refuter of `plan` on `refit`.
+///
+/// Replicate-based refuters lease their `replicates × dimension` buffer before the first
+/// refit, poll cancellation before each refit and key each refit's stream by refuter and
+/// replicate, so the result does not depend on the thread count. A refuter the route cannot
+/// construct is recorded in [`TargetRefutationRun::refused`] with its next attempt; any
+/// other failure aborts the run.
+///
+/// # Errors
+///
+/// The plan's target is not the refit's target, an invalid configuration, cancellation, an
+/// admission refusal, or a failed refit.
+pub fn run_target_plan(
+    plan: &TargetRefutationPlan,
+    refit: &dyn TargetRefit,
+    config: &TargetRefutationConfig,
+    ctx: &ExecutionContext,
+) -> Result<TargetRefutationRun, ValidationError> {
+    if plan.target().identity() != refit.target().identity() {
+        return Err(ValidationError::estimation_msg(format!(
+            "target refutation plan is for target {}, the refit reports target {}",
+            plan.target().identity_hex(),
+            refit.target().identity_hex()
+        )));
+    }
+    let k = refit.target().dimension();
+    if refit.original().len() != k {
+        return Err(ValidationError::NotApplicable {
+            message: "the refit's original vector does not match its target dimension",
+        });
+    }
+    if !(config.alpha > 0.0
+        && config.alpha < 1.0
+        && config.subset_fraction > 0.0
+        && config.subset_fraction < 1.0)
+        || config.pre_trend_lead == 0
+    {
+        return Err(ValidationError::NotApplicable {
+            message: "target refutation: alpha and the subset fraction must lie in (0, 1) and \
+                      the pre-trend lead must be at least one period",
+        });
+    }
+    let mut run = TargetRefutationRun { reports: Vec::new(), refused: Vec::new() };
+    for &kind in plan.refuters() {
+        check_cancelled(ctx)?;
+        let native = kind.expectation() == RefuterExpectation::Diagnostic
+            || matches!(
+                kind,
+                TargetRefuterKind::PriorSensitivity | TargetRefuterKind::PosteriorPredictive
+            );
+        let outcome = if native {
+            refit.native_check(kind, ctx)
+        } else {
+            replicate_check(kind, kind.expectation(), refit, config, ctx)
+        };
+        match outcome {
+            Ok(report) => {
+                if report.target.identity() != refit.target().identity() || report.kind != kind {
+                    return Err(ValidationError::estimation_msg(format!(
+                        "native check `{}` returned a report for another target or refuter",
+                        kind.as_str()
+                    )));
+                }
+                run.reports.push(report);
+            }
+            Err(TargetRefitError::Unsupported { reason, next_attempt }) => {
+                run.refused.push(TargetRefuterRefusal { kind, reason, next_attempt });
+            }
+            Err(TargetRefitError::Failed(error)) => return Err(error),
+        }
+    }
+    Ok(run)
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "the replicate loop, the joint statistic, its reference and the subset separation stay together"
+)]
+fn replicate_check(
+    kind: TargetRefuterKind,
+    expectation: RefuterExpectation,
+    refit: &dyn TargetRefit,
+    config: &TargetRefutationConfig,
+    ctx: &ExecutionContext,
+) -> Result<TargetRefutationReport, TargetRefitError> {
+    let target = refit.target();
+    let k = target.dimension();
+    // Enough replicates that the reference is defined: the replicate covariance of a `k`-vector
+    // from a resample with `g` independent units has effective degrees of freedom below `k`
+    // unless `R` is large enough (see `replicate_reference_tail`), so more are drawn rather
+    // than the check refused.
+    let replicates = replicates_for_defined_reference(
+        k,
+        config.replicates,
+        refit.independent_resampling_units(),
+    );
+    if (replicates as usize) < k + 2 {
+        return Err(TargetRefitError::Unsupported {
+            reason: Arc::from(format!(
+                "{replicates} replicates cannot estimate the covariance of a {k}-coordinate target"
+            )),
+            next_attempt: Arc::from(format!("raise the replicate count to at least {}", k + 2)),
+        });
+    }
+    let _lease = admit_cells(Some(ctx), replicates as usize, k)?;
+    let mut rows = Vec::with_capacity(replicates as usize * k);
+    for replicate in 0..replicates {
+        check_cancelled(ctx)?;
+        let Some(perturbation) = perturbation(kind, replicate, config) else {
+            return Err(TargetRefitError::Failed(ValidationError::NotApplicable {
+                message: "this refuter has no data perturbation",
+            }));
+        };
+        let mut rng = target_refuter_stream(kind, replicate, ctx);
+        let vector = refit.refit(perturbation, &mut rng, ctx)?;
+        if vector.len() != k {
+            return Err(TargetRefitError::Failed(ValidationError::estimation_msg(format!(
+                "refit for `{}` returned {} coordinates, the target has {k}",
+                kind.as_str(),
+                vector.len()
+            ))));
+        }
+        rows.extend_from_slice(&vector);
+    }
+    let (mut statistic, standardised_bias) = match joint_statistic(
+        expectation,
+        target,
+        refit.original(),
+        &rows,
+        k,
+    ) {
+        Ok(pair) => pair,
+        // No usable replicate law (a coordinate the perturbation never moves, too few
+        // replicates): the refuter cannot speak to this target; record it, do not abort.
+        Err(ValidationError::NotApplicable { message }) => {
+            return Err(TargetRefitError::Unsupported {
+                reason: Arc::from(message),
+                next_attempt: Arc::from(
+                    "raise the replicate count, or check that the perturbation moves the target",
+                ),
+            });
+        }
+        Err(error) => return Err(TargetRefitError::Failed(error)),
+    };
+    // The replicate covariance is estimated from `replicates` draws of a resample with a limited
+    // number of independent units, so the reference is the finite-resampling Hotelling tail,
+    // not the `χ²` tail of an exactly known covariance.
+    let Some(tail) = replicate_reference_tail(
+        statistic.value,
+        statistic.df,
+        replicates as usize,
+        refit.independent_resampling_units(),
+    ) else {
+        return Err(TargetRefitError::Unsupported {
+            reason: Arc::from(format!(
+                "`{}`: too few independent resampling units to estimate the covariance of a \
+                 {}-coordinate target",
+                kind.as_str(),
+                statistic.df
+            )),
+            next_attempt: Arc::from(
+                "supply more data (more independent blocks or rows), or a target with fewer \
+                 coordinates",
+            ),
+        });
+    };
+    statistic.kind = JointStatisticKind::MahalanobisHotelling;
+    let mut tail = tail;
+    // Subset stability also asks whether the refits split into groups around the original (a
+    // deciding unit kept or dropped), which no statistic of the replicate mean can see; see
+    // `reference::subset_separation`.
+    let mut separation = None;
+    if kind == TargetRefuterKind::SubsetStability {
+        let value = subset_separation(refit.original(), &rows, k);
+        statistic.kind = JointStatisticKind::MahalanobisHotellingWithSeparation;
+        tail = tail.min(separation_tail(value, config.alpha));
+        separation = Some(value);
+    }
+    statistic.p_value = Some(tail);
+    let mut refuted = vec![0.0; k];
+    for row in rows.chunks_exact(k) {
+        for (m, v) in refuted.iter_mut().zip(row) {
+            *m += v;
+        }
+    }
+    for m in &mut refuted {
+        *m /= f64::from(replicates);
+    }
+    let p = statistic.p_value.unwrap_or(0.0);
+    let passed = p >= config.alpha;
+    let failure = (!passed).then(|| {
+        Arc::from(format!(
+            "`{}`: the {} vector is further from the replicate centre than the tolerance \
+             (standardised discrepancy {:.4} on {} df, reference tail {p:.4} < {}{}); a resampling \
+             diagnostic, not a hypothesis test",
+            kind.as_str(),
+            match expectation {
+                RefuterExpectation::Null => "zero",
+                _ => "original target",
+            },
+            statistic.value,
+            statistic.df,
+            config.alpha,
+            separation.filter(|value| *value > super::reference::SEPARATION_THRESHOLD).map_or(
+                String::new(),
+                |value| format!(
+                    "; the refits split into groups around the original, {value:.1} within-group \
+                     spreads apart"
+                )
+            )
+        ))
+    });
+    Ok(TargetRefutationReport {
+        target: target.clone(),
+        kind,
+        original: refit.original().to_vec().into(),
+        refuted: refuted.into(),
+        standardised_bias_norm: Some(statistic.value.sqrt()),
+        standardised_bias: standardised_bias.into(),
+        statistic,
+        passed,
+        informative: true,
+        replicates,
+        failure,
+    })
+}
+
+/// The joint statistic of `rows` against the refuter's expectation.
+///
+/// World values are levels, not effects: a null refuter removes every contrast between
+/// worlds, so its joint test is on the `k − 1` contrasts with the first world.
+fn joint_statistic(
+    expectation: RefuterExpectation,
+    target: &RefutationTarget,
+    original: &[f64],
+    rows: &[f64],
+    k: usize,
+) -> Result<(super::JointStatistic, Vec<f64>), ValidationError> {
+    match expectation {
+        RefuterExpectation::Null if target.family() == TargetFamily::WorldValued => {
+            if k < 2 {
+                return Err(ValidationError::NotApplicable {
+                    message: "a single intervention world has no null contrast to test; declare \
+                              at least two worlds, or a contrast target",
+                });
+            }
+            let contrasts: Vec<f64> = rows
+                .chunks_exact(k)
+                .flat_map(|row| row[1..].iter().map(move |v| v - row[0]))
+                .collect();
+            joint_mahalanobis_with_bias(&vec![0.0; k - 1], &contrasts, k - 1)
+        }
+        RefuterExpectation::Null => joint_mahalanobis_with_bias(&vec![0.0; k], rows, k),
+        _ => joint_mahalanobis_with_bias(original, rows, k),
+    }
+}

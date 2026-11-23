@@ -1,0 +1,30 @@
+feature_id = "estimate.weighted_target_effect"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Extending inferences from a randomized trial to a new target population", doi = "10.1002/sim.8426", sections = ["Section 2 estimands over a target population; weighting a covariate-conditional effect to a target covariate distribution"] },
+ { title = "Double/debiased machine learning for treatment and structural parameters", doi = "10.1111/ectj.12097", sections = ["Neyman-orthogonal (AIPW) score with cross-fitting"] },
+ { title = "Survey Sampling", sections = ["effective sample size, (sum w)^2 / sum w^2"] },
+]
+
+implementation_deviations = [
+ "The target is a declared reweighting of the analysed rows (explicit per-row weights or a kernel over scaled covariate distance), not a separately sampled target population; Dahabreh et al. estimate the target mean from target-sample covariates.",
+ "The effect is the weighted mean of the cross-fitted AIPW score contrast, sum w phi / sum w, with the weighted influence-function variance; weights are fixed and declared, so the sampling variability of estimated weights is not propagated.",
+ "The weights must be a function of the certified adjustment covariates only (checked from the declared dependence); this is stronger than a general transport selection model and is enforced, not assumed.",
+ "Overlap is gated by the Kish effective sample size and fraction floors and a per-arm weighted overlap gate; the thresholds are repository defaults, not taken from a cited source.",
+ "No coverage claim is inherited from the cited papers; coverage under a far-from-rows target is checked only as refusal.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/tests/weighted_target_effect.rs (a_kernel_neighbourhood_effect_equals_the_closed_form_weighted_effect, the_report_holds_the_hand_computed_kish_quantities_and_the_declaration)",
+ "crates/antecedent/tests/weighted_target_trial_transport.rs (a_kernel_target_effect_equals_the_closed_form_weighted_effect)",
+ "crates/antecedent/tests/graph_posterior_weighted_target.rs (the_route_equals_the_hand_mixture_over_the_answered_mass)",
+ "crates/antecedent/tests/weighted_target_effect_calibration.rs (a_target_far_from_the_rows_is_refused_on_every_replicate)",
+ "python/tests/test_weighted_target_population.py (test_overlap_diagnostics_are_the_hand_computed_kish_quantities)",
+]

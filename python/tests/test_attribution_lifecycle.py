@@ -1,34 +1,47 @@
 """AnomalyAttribution and ChangeAttribution on the golden Python lifecycle.
 
-The two licensed GCM cells run on ``analyze`` and retain a study::
+The two supported GCM cells run on ``analyze`` and retain a study::
 
     result = ant.analyze(data, graph=Dag, query=query)
     study = result.study
-    updated = study.refresh(new_data)
+    updated = study.rebind(data=new_data).estimate()
     report = result.inspect().to_dict()
     loaded = ant.load(result.export())
 
-cheap/full, accepted, graph-posterior, and non-Dag stay refused.
+The supported anomaly cheap/full cells run the functional refuters. Change attribution
+cheap/full validation is refused; accepted DAG change attribution remains supported.
 """
 
 from __future__ import annotations
 
 import json
+import math
 import warnings
 
 import antecedent as ant
 import numpy as np
 import pytest
 from antecedent.errors import CausalUnsupportedError
-from antecedent.estimation import PreparedAnalysis
+from antecedent.outcomes import require_success
+from antecedent.prepared import PreparedAnalysis
 
+from _loaded_results import (
+    assert_answer_kept,
+    assert_loaded_outcome,
+    assert_refutation_replay_withheld,
+    carries_refutation_replay,
+)
 from _repo_text import REPO_ROOT, read_text
-from _sealed_loads import assert_answer_kept
 
 ROOT = REPO_ROOT
 PIN = json.loads(
     read_text(ROOT / "conformance" / "estimate" / "staged_attribution" / "expected.json")
 )
+
+
+EXACT_CHANGE_TOLERANCE = 1e-6
+
+_NOISE = np.sin(np.arange(200, dtype=np.float64) * 1.7) * 0.5
 
 
 def _outlier_chain(n: int = 20, outlier_at: int = -1) -> dict[str, np.ndarray]:
@@ -52,6 +65,14 @@ def _two_period_chain(n: int = 80, comparison_intercept: float = 6.0) -> dict[st
     return {"x": x, "y": y}
 
 
+def _it_scores(values: np.ndarray, center: float, scale: float) -> list[float]:
+    """Information-theoretic outlier score -log P(|Z| >= |z|), z = (y - center) / scale.
+
+    The two-sided Gaussian tail is erfc(|z| / sqrt(2)); written out here from the definition.
+    """
+    return [-math.log(math.erfc(abs(v - center) / scale / math.sqrt(2.0))) for v in values]
+
+
 def _dag() -> ant.Dag:
     return ant.Dag.from_edges(["x", "y"], [("x", "y")])
 
@@ -69,11 +90,11 @@ def _change_query() -> ant.ChangeAttribution:
 def _golden(data, graph, query, new_data):
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        result = ant.analyze(data, graph=graph, query=query)
+        result = require_success(ant.analyze(data, graph=graph, query=query))
         study = result.study
-        updated = study.refresh(new_data)
+        updated = require_success(study.rebind(data=new_data).estimate())
         report = result.inspect().to_dict()
-        loaded = ant.load(result.export())
+        loaded = require_success(ant.load(bytes(result.export())))
     return result, study, updated, report, loaded
 
 
@@ -82,30 +103,39 @@ def _assert_identities(result, study, updated, report, loaded, *, fresh, coordin
     assert updated.program_id == result.program_id
     assert updated.data_snapshot_id != result.data_snapshot_id
     assert updated.data_snapshot_id == fresh.data_snapshot_id
-    again = study.estimate()
-    assert again.answer == updated.answer
-    assert again.claim_id == updated.claim_id
+    again = require_success(study.estimate())
+    assert again.answer == result.answer
+    assert again.claim_id == result.claim_id
+    assert study.inspect().data_snapshot_id == result.data_snapshot_id
 
     assert report["identification"]["available"] is True
-    assert report["calibration"]["status"] in {"calibrated", "scope_not_assessed", "unavailable"}
+    assert report["calibration"]["status"] in {
+        "calibrated",
+        "outside_measured_scope",
+        "measured_below_nominal",
+        "not_measured",
+    }
     for identity in ("program_id", "claim_id", "data_snapshot_id", "identification_id"):
         assert report[identity], identity
     assert report["support"]["payload"]["matrix_coordinate"] == coordinate
 
-    assert_answer_kept(loaded)
+    # Refutation-bearing bodies (the anomaly cells run functional refuters) are recognized
+    # but withheld; the others keep the recorded answer.
+    assert_loaded_outcome(loaded)
     assert loaded.decoded_artifact.payload_kind == "analysis_result"
-    assert loaded.answer == result.answer
+    if not carries_refutation_replay(loaded):
+        assert loaded.answer == result.answer
     assert loaded.program_id == result.program_id
     assert loaded.claim_id == result.claim_id
     for name in ("status", "reason", "record_id", "observed_coverage"):
         assert getattr(loaded.calibration, name) == getattr(result.calibration, name), name
-    assert loaded.export() == result.export()
+    assert bytes(loaded.export()) == bytes(result.export())
 
 
 def test_route_anomaly_tabular_explicit():
     data, new_data = _outlier_chain(), _outlier_chain(outlier_at=0)
     result, study, updated, report, loaded = _golden(data, _dag(), _anomaly_query(), new_data)
-    fresh = ant.analyze(new_data, graph=_dag(), query=_anomaly_query())
+    fresh = require_success(ant.analyze(new_data, graph=_dag(), query=_anomaly_query()))
     _assert_identities(
         result,
         study,
@@ -113,7 +143,8 @@ def test_route_anomaly_tabular_explicit():
         report,
         loaded,
         fresh=fresh,
-        coordinate="AnomalyAttribution:Dag:explicit:Frequentist:none",
+        # The omitted suite maps to the full support axis; it is not an explicit Full suite.
+        coordinate="AnomalyAttribution:Dag:explicit:Frequentist:full",
     )
     assert result.answer.kind == "structured"
     scores = result.anomaly
@@ -122,6 +153,7 @@ def test_route_anomaly_tabular_explicit():
     assert scores[0].top_row == PIN["anomaly"]["top_row"]
     assert max(scores[0].scores) >= PIN["anomaly"]["score_min"]
     assert updated.anomaly[0].top_row == fresh.anomaly[0].top_row
+    assert updated.anomaly[0].top_row == 0, "the outlier moved to row 0 in the rebound data"
     assert result.identification.method.startswith("gcm.parametric")
     assert result.estimate.estimator_id == "gcm.fit"
 
@@ -129,7 +161,7 @@ def test_route_anomaly_tabular_explicit():
 def test_route_change_tabular_explicit():
     data, new_data = _two_period_chain(), _two_period_chain(comparison_intercept=10.0)
     result, study, updated, report, loaded = _golden(data, _dag(), _change_query(), new_data)
-    fresh = ant.analyze(new_data, graph=_dag(), query=_change_query())
+    fresh = require_success(ant.analyze(new_data, graph=_dag(), query=_change_query()))
     _assert_identities(
         result,
         study,
@@ -142,9 +174,13 @@ def test_route_change_tabular_explicit():
     assert result.answer.kind == "point"
     change = result.change_attribution
     assert change is not None
-    assert abs(change.total_change - PIN["change"]["total_change"]) <= PIN["change"]["tolerance"]
+    # Exact: the total change is the period mean difference (5 here, 10 - 1 = 9 after the
+    # rebind), observed to 2.4e-9 and 4.4e-9; the pin's 0.25 tolerance would admit a wrong
+    # attribution by several percent.
+    assert abs(change.total_change - PIN["change"]["total_change"]) <= EXACT_CHANGE_TOLERANCE
     assert change.total_change >= PIN["change"]["total_change_min"]
     assert result.estimate.ate == change.total_change
+    assert abs(updated.change_attribution.total_change - 9.0) <= EXACT_CHANGE_TOLERANCE
     assert updated.change_attribution.total_change == fresh.change_attribution.total_change
     assert updated.estimate.ate != result.estimate.ate
     assert result.identification.method.startswith("gcm.parametric")
@@ -152,74 +188,115 @@ def test_route_change_tabular_explicit():
 
 
 def test_anomaly_analyze_reproduces_the_conformance_pin():
-    result = ant.analyze(_outlier_chain(), graph=_dag(), query=_anomaly_query())
+    result = require_success(ant.analyze(_outlier_chain(), graph=_dag(), query=_anomaly_query()))
     scores = result.anomaly[0]
     assert scores.top_row == PIN["anomaly"]["top_row"]
     assert max(scores.scores) >= PIN["anomaly"]["score_min"]
+    # Every row's score is the Gaussian two-sided tail at the robust (median, 1.4826 MAD)
+    # reference of the observed outcome: the pin's row identity alone would pass a wrong score.
+    y = _outlier_chain()["y"]
+    median = float(np.median(y))
+    scale = 1.482602218505602 * float(np.median(np.abs(y - median)))
+    np.testing.assert_allclose(scores.scores, _it_scores(y, median, scale), rtol=0, atol=1e-9)
 
 
 def test_change_analyze_reproduces_the_conformance_pin():
-    result = ant.analyze(_two_period_chain(), graph=_dag(), query=_change_query())
+    result = require_success(ant.analyze(_two_period_chain(), graph=_dag(), query=_change_query()))
     change = result.change_attribution
-    assert abs(change.total_change - PIN["change"]["total_change"]) <= PIN["change"]["tolerance"]
+    assert abs(change.total_change - PIN["change"]["total_change"]) <= EXACT_CHANGE_TOLERANCE
     assert change.total_change >= PIN["change"]["total_change_min"]
+    assert abs(change.total_change - 5.0) <= EXACT_CHANGE_TOLERANCE
 
 
 def test_edge_list_graph_is_accepted():
-    result = ant.analyze(_outlier_chain(), graph=[("x", "y")], query=_anomaly_query())
+    result = require_success(
+        ant.analyze(_outlier_chain(), graph=[("x", "y")], query=_anomaly_query())
+    )
     assert result.anomaly[0].top_row == PIN["anomaly"]["top_row"]
 
 
 @pytest.mark.parametrize("query", [_anomaly_query(), _change_query()], ids=["anomaly", "change"])
 def test_second_click_refuter_suite_refuses(query):
     data = _outlier_chain() if isinstance(query, ant.AnomalyAttribution) else _two_period_chain()
-    result = ant.analyze(data, graph=_dag(), query=query)
+    result = require_success(ant.analyze(data, graph=_dag(), query=query))
     with pytest.raises(CausalUnsupportedError) as raised:
-        result.study.refute({"x": [0.0], "y": [0.0]}, suite="placebo")
+        require_success(result.study.refute(suite="placebo"))
     assert raised.value.reason_code == "option_not_applicable"
 
 
 @pytest.mark.parametrize("query", [_anomaly_query(), _change_query()], ids=["anomaly", "change"])
-def test_bootstrap_and_cheap_full_refuse(query):
+def test_bootstrap_and_validation_follow_each_attribution_cell(query):
     data = _outlier_chain() if isinstance(query, ant.AnomalyAttribution) else _two_period_chain()
-    with pytest.raises(CausalUnsupportedError) as raised:
-        ant.analyze(data, graph=_dag(), query=query, bootstrap=50)
-    assert raised.value.reason_code == "option_not_applicable"
-    with pytest.raises(CausalUnsupportedError) as raised:
-        ant.analyze(data, graph=_dag(), query=query, refute="full")
-    assert raised.value.reason_code == "option_not_applicable"
-    with pytest.raises(CausalUnsupportedError) as raised:
-        ant.analyze(data, graph=_dag(), query=query, refute="cheap")
-    assert raised.value.reason_code == "option_not_applicable"
+    # A Frequentist replicate count runs the mechanism-refit row bootstrap: it publishes
+    # a bootstrap standard error; calibration annotates it as not covered by a coverage record.
+    bootstrapped = require_success(
+        ant.analyze(data, graph=_dag(), query=query, inference=ant.Frequentist(bootstrap=50))
+    )
+    assert bootstrapped.evidence_status == "supported"
+    assert bootstrapped.calibration.status != "calibrated"
+    assert any("gcm.frequentist_bootstrap" in note for note in bootstrapped.diagnostics)
+    # Bayesian contribution uncertainty uses its own posterior declaration;
+    # a frequentist replicate budget is not a Bayesian configuration field.
+    with pytest.raises(TypeError, match="bootstrap"):
+        ant.Bayesian(bootstrap=50)
+    noisy = {name: values + _NOISE[: len(values)] for name, values in data.items()}
+    for suite in ("cheap", "full"):
+        if isinstance(query, ant.ChangeAttribution):
+            # The native known-truth test documents why this specific refuter is refused:
+            # tests/attribution_refuter_known_truth.rs::a_change_attribution_validation_is_refused_for_want_of_a_detectable_violation.
+            with pytest.raises(
+                CausalUnsupportedError,
+                match="Cheap and full validation of a change attribution is refused",
+            ):
+                require_success(ant.analyze(noisy, graph=_dag(), query=query, refute=suite))
+        else:
+            validated = require_success(ant.analyze(noisy, graph=_dag(), query=query, refute=suite))
+            assert validated.evidence_status == "supported"
+            reports = {report.refuter for report in validated.validation.reports}
+            assert "target.subset_stability" in reports
+            if suite == "full":
+                assert "target.bootstrap_stability" in reports
+            else:
+                assert "target.bootstrap_stability" not in reports
 
 
 def test_retarget_refuses():
-    result = ant.analyze(_outlier_chain(), graph=_dag(), query=_anomaly_query())
+    result = require_success(ant.analyze(_outlier_chain(), graph=_dag(), query=_anomaly_query()))
     with pytest.raises(CausalUnsupportedError) as raised:
-        result.study.retarget(np.ones(len(result.study._native.names)), [])
+        require_success(result.study.retarget(np.ones(len(_outlier_chain()["x"])), depends_on=[]))
     assert raised.value.reason_code == "population_not_estimable"
 
 
-def test_bayesian_anomaly_and_unlicensed_axes_on_analyze():
-    bayesian = ant.analyze(
-        _outlier_chain(),
-        graph=_dag(),
-        query=_anomaly_query(),
-        inference=ant.Bayesian(n_draws=32),
+def test_bayesian_anomaly_and_accepted_change_on_analyze():
+    bayesian = require_success(
+        ant.analyze(
+            _outlier_chain(),
+            graph=_dag(),
+            query=_anomaly_query(),
+            inference=ant.Bayesian(n_draws=32),
+        )
     )
     assert bayesian.posterior is not None
     assert bayesian.posterior.backend == "gcm.attribution.shared_dirichlet_row_weights"
-    with pytest.raises(CausalUnsupportedError, match="licensed only for an explicit Dag"):
+    accepted = require_success(
         ant.analyze(
             _two_period_chain(),
             graph=ant.AcceptedGraph(_dag()),
             query=_change_query(),
         )
+    )
+    assert accepted.evidence_status == "supported"
+    assert accepted.inspect().to_dict()["support"]["payload"]["matrix_coordinate"] == (
+        "ChangeAttribution:Dag:accepted:Frequentist:none"
+    )
+    assert abs(accepted.change_attribution.total_change - 5.0) <= EXACT_CHANGE_TOLERANCE
     with pytest.raises(ant.errors.CausalTypeError, match="requires graph=Dag"):
-        ant.analyze(
-            _outlier_chain(),
-            graph=ant.Admg.from_edges(["x", "y"], [("x", "y")]),
-            query=_anomaly_query(),
+        require_success(
+            ant.analyze(
+                _outlier_chain(),
+                graph=ant.Admg.from_edges(["x", "y"], [("x", "y")]),
+                query=_anomaly_query(),
+            )
         )
 
 
@@ -228,24 +305,44 @@ def test_fixed_anomaly_reference_runs_through_analyze_and_artifact():
     query = ant.AnomalyAttribution(
         ["y"], max_units=100, reference=ant.AnomalyReference(center=0.0, scale=10.0)
     )
-    result = ant.analyze(
-        data,
-        graph=_dag(),
-        query=query,
-        inference=ant.Bayesian(n_draws=32),
-        return_posterior_artifact=True,
+    result = require_success(
+        ant.analyze(
+            data,
+            graph=_dag(),
+            query=query,
+            inference=ant.Bayesian(n_draws=32),
+        )
     )
-    empirical = ant.analyze(
-        data, graph=_dag(), query=_anomaly_query(), inference=ant.Bayesian(n_draws=32)
+    empirical = require_success(
+        ant.analyze(data, graph=_dag(), query=_anomaly_query(), inference=ant.Bayesian(n_draws=32))
     )
     assert result.anomaly[0].scores != empirical.anomaly[0].scores
+    # The fixed reference replaces the sample median/MAD: scores are the tail at (0, 10).
+    np.testing.assert_allclose(
+        result.anomaly[0].scores, _it_scores(data["y"], 0.0, 10.0), rtol=0, atol=1e-9
+    )
     assert result.posterior is not None
-    posterior = ant.inference.decode_posterior_artifact(result.posterior.artifact)
-    assert posterior.quantity_names == ["mean_anomaly_score[1]"]
+    posterior = require_success(ant.load(result.export(quantity="posterior")))
+    assert posterior.quantity_names == ("mean_anomaly_score[1]",)
     assert posterior.q025[0] < posterior.q975[0]
-    loaded = ant.load(result.export())
-    assert loaded.answer == result.answer
-    assert loaded.export() == result.export()
+    loaded = require_success(ant.load(bytes(result.export())))
+    # The anomaly cell runs functional refuters: the load is recognized but withheld.
+    assert_refutation_replay_withheld(loaded)
+    assert bytes(loaded.export()) == bytes(result.export())
+    # Without refutation reports the same query keeps its recorded answer on load.
+    plain = require_success(
+        ant.analyze(
+            data,
+            graph=_dag(),
+            query=query,
+            inference=ant.Bayesian(n_draws=32),
+            refute="none",
+        )
+    )
+    plain_loaded = require_success(ant.load(bytes(plain.export())))
+    assert_answer_kept(plain_loaded)
+    assert plain_loaded.answer == plain.answer
+    assert bytes(plain_loaded.export()) == bytes(plain.export())
 
 
 @pytest.mark.parametrize("scale", [0.0, -1.0, float("nan")])
@@ -254,3 +351,12 @@ def test_fixed_anomaly_reference_rejects_invalid_scale(scale):
         ant.errors.CausalValueError, match="finite center and a finite positive scale"
     ):
         ant.AnomalyReference(center=0.0, scale=scale)
+
+
+def test_a_change_attribution_study_publishes_its_graph_and_identification_record():
+    result = require_success(ant.analyze(_two_period_chain(), graph=_dag(), query=_change_query()))
+    operation = result.study.plan_view().operation
+    assert operation["kind"] == "attribution"
+    assert operation["graph_edges"] == [[0, 1]], "x -> y by column position"
+    assert operation["identifier"] and operation["estimator"]
+    assert operation["identification_status"] and operation["query"]

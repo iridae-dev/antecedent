@@ -21,15 +21,11 @@ from antecedent.errors import (
     CausalTypeError,
     CausalValueError,
 )
+from antecedent.execution import Execution, ResourceLimits
 from antecedent.transport import advanced as transport
-from antecedent.transport._closed_pilots import _sampled_observation_recovery_candidate
+from antecedent.transport._advanced_producers import _sampled_observation_recovery_candidate
 
 from test_observation_recovery import catalog, graph, query
-
-pytestmark = pytest.mark.skipif(
-    not hasattr(_native, "consume_sampled_recovery_candidate"),
-    reason="private candidate hook requires calibration-internal; public measured route is available",
-)
 
 
 def rows():
@@ -122,7 +118,7 @@ def test_public_sampled_recovery_whole_method_matches_independent_oracle(tmp_pat
     result = produce(sample=sample)
     law, point = oracle(sample)
     evidence = result.inspect()
-    assert result.calibration == "unmeasured"
+    assert result.calibration == "not_measured"
     assert result.level == 0.95
     assert result.effect == pytest.approx(point, abs=1e-12)
     assert result.effect == pytest.approx(0.36, abs=0.01)
@@ -140,7 +136,7 @@ def test_public_sampled_recovery_whole_method_matches_independent_oracle(tmp_pat
         np.cov(np.array(replicate_laws).T, ddof=1).ravel(), abs=1e-12
     )
     artifact = tmp_path / "recovery.cbor"
-    artifact.write_bytes(result.export())
+    artifact.write_bytes(bytes(result.export()))
     identity = result.expected_identity
     script = """
 import json, pathlib, sys
@@ -170,7 +166,7 @@ def test_changed_seed_or_rows_cannot_replace_retained_artifact_identity():
     for changed in (produce(seed=8), produce(sample=sample)):
         with pytest.raises(CausalValueError, match="identity"):
             transport.SampledRecoveryCandidate.load(
-                changed.export(), expected=original.expected_identity
+                bytes(changed.export()), expected=original.expected_identity
             )
 
 
@@ -180,7 +176,7 @@ def test_query_and_fake_stage_do_not_gain_native_candidate_authority():
     )
     with pytest.raises(CausalValueError, match="query differs"):
         produce(declaration=changed)
-    with pytest.raises(CausalTypeError, match="use sampled_observation_recovery"):
+    with pytest.raises(CausalTypeError, match="use the internal candidate hook"):
         transport.SampledRecoveryCandidate()
 
 
@@ -193,7 +189,7 @@ def test_reordered_query_roles_and_bits_preserve_original_canonical_authority():
     declaration = query(partially=list(reversed(query().partially_observed)))
     reordered = produce(sample=swapped, declaration=declaration)
     assert reordered.expected_identity == original.expected_identity
-    assert reordered.export() == original.export()
+    assert bytes(reordered.export()) == bytes(original.export())
     assert reordered.inspect() == original.inspect()
 
 
@@ -267,39 +263,55 @@ def test_original_recovery_consumer_enforces_identity_bytes_and_work_budgets():
     expected = result.expected_identity
     with pytest.raises(CausalValueError, match="identity"):
         transport.SampledRecoveryCandidate.load(
-            result.export(),
+            bytes(result.export()),
             expected=transport.SampledRecoveryIdentity("0" * 64, "0" * 64),
         )
     with pytest.raises(CausalSerializationError):
         transport.SampledRecoveryCandidate.load(b"not-cbor", expected=expected)
-    for limits in ({"max_rows": 1999}, {"max_replicates": 499}):
-        with pytest.raises(CausalValueError, match="count") as caught:
-            transport.SampledRecoveryCandidate.load(result.export(), expected=expected, **limits)
+    # The replay work is replicates times rows (2000 x 2000 here): the row cap alone, or a
+    # replicate cap whose product with the row cap falls below the stored work, refuses.
+    for limits in ({"max_rows": 1999}, {"max_rows": 2000, "max_replicates": 1999}):
+        with pytest.raises(CausalValueError, match="consumer limit exceeded") as caught:
+            transport.SampledRecoveryCandidate.load(
+                bytes(result.export()), expected=expected, **limits
+            )
         assert caught.value.reason_code == "invalid_argument"
     with pytest.raises(CausalError, match="budget") as caught:
-        transport.SampledRecoveryCandidate.load(result.export(), expected=expected, memory_bytes=1)
+        transport.SampledRecoveryCandidate.load(
+            bytes(result.export()),
+            expected=expected,
+            execution=Execution(limits=ResourceLimits(memory_bytes=1)),
+        )
     assert caught.value.reason_code == "transport_budget_cancel"
     token = _native.CancellationToken()
     token.cancel()
     with pytest.raises(CausalError, match="budget") as caught:
-        transport.SampledRecoveryCandidate.load(result.export(), expected=expected, cancel=token)
+        transport.SampledRecoveryCandidate.load(
+            bytes(result.export()), expected=expected, execution=Execution(cancel=token)
+        )
     assert caught.value.reason_code == "transport_budget_cancel"
     for limits in (
         {"max_rows": True},
         {"max_rows": 100001},
-        {"max_replicates": 2001},
-        {"memory_bytes": True},
-        {"memory_bytes": 2**64},
+        {"max_replicates": 0},
+        {"max_replicates": True},
     ):
         with pytest.raises(CausalValueError):
-            transport.SampledRecoveryCandidate.load(result.export(), expected=expected, **limits)
+            transport.SampledRecoveryCandidate.load(
+                bytes(result.export()), expected=expected, **limits
+            )
+    # Physical controls are owned by Execution and validated when it is built.
+    with pytest.raises(CausalTypeError):
+        ResourceLimits(memory_bytes=True)
+    with pytest.raises(CausalValueError):
+        ResourceLimits(memory_bytes=2**64)
 
 
 def test_candidate_scalar_reads_reuse_immutable_original_report(monkeypatch):
     import antecedent.transport._sampled_candidate as candidate_module
 
     result = produce()
-    artifact = result.export()
+    artifact = bytes(result.export())
     expected = (
         result.effect,
         result.effect_standard_error,
@@ -316,17 +328,18 @@ def test_candidate_scalar_reads_reuse_immutable_original_report(monkeypatch):
     def no_reparse(*args, **kwargs):
         raise AssertionError("scalar reads must not reparse the full native report")
 
-    monkeypatch.setattr(candidate_module.json, "loads", no_reparse)
-    for _ in range(3):
-        assert (
-            result.effect,
-            result.effect_standard_error,
-            result.interval,
-            result.level,
-            result.expected_identity,
-        ) == expected
-        assert result.inspect()["result"]["effect"] == expected[0]
-    assert result.export() == artifact
+    with monkeypatch.context() as patched:
+        patched.setattr(candidate_module.json, "loads", no_reparse)
+        for _ in range(3):
+            assert (
+                result.effect,
+                result.effect_standard_error,
+                result.interval,
+                result.level,
+                result.expected_identity,
+            ) == expected
+            assert result.inspect()["result"]["effect"] == expected[0]
+    assert bytes(result.export()) == artifact
 
 
 def test_sampled_bca_candidate_independent_jackknife_and_normal_transform(tmp_path):
@@ -348,7 +361,7 @@ def test_sampled_bca_candidate_independent_jackknife_and_normal_transform(tmp_pa
         seed=7,
     )
     assert candidate.interval_method == "bootstrap_bca"
-    assert candidate.calibration == "unmeasured"
+    assert candidate.calibration == "not_measured"
     receipt = candidate.inspect()["receipt"]
     assert receipt["config"]["replicates"] == 2000
     assert receipt["config"]["max_failed_fraction"] == 0
@@ -378,7 +391,7 @@ def test_sampled_bca_candidate_independent_jackknife_and_normal_transform(tmp_pa
     assert bca["adjusted_probabilities"] == pytest.approx(adjusted, abs=1e-7)
     assert candidate.interval == pytest.approx(np.quantile(effects, adjusted), abs=1e-7)
     artifact = tmp_path / "bca.cbor"
-    artifact.write_bytes(candidate.export())
+    artifact.write_bytes(bytes(candidate.export()))
     identity = candidate.expected_identity
     replayed = subprocess.check_output(
         [
@@ -398,7 +411,14 @@ print(r.interval)
         text=True,
     )
     assert replayed.strip() == str(candidate.interval)
-    with pytest.raises(CausalValueError, match="exactly 2000"):
+    # No replicate count is fixed: 500 draws still form the BCa interval, and calibration only
+    # annotates it. Fewer than two draws cannot form it.
+    fewer = _sampled_observation_recovery_candidate(
+        stage=stage, query=query(), rows=sample, snapshot="snap-1", replicates=500
+    )
+    assert fewer.interval_method == "bootstrap_bca"
+    assert fewer.interval[0] < fewer.interval[1]
+    with pytest.raises(CausalValueError, match="at least 2"):
         _sampled_observation_recovery_candidate(
-            stage=stage, query=query(), rows=sample, snapshot="snap-1", replicates=500
+            stage=stage, query=query(), rows=sample, snapshot="snap-1", replicates=1
         )

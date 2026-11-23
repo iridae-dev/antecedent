@@ -2,6 +2,7 @@
 
 #![allow(clippy::float_cmp, reason = "plan pins compare exact literal constants")]
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, Study};
 use antecedent_contract::SlotAvailability;
 use antecedent_core::{
@@ -79,11 +80,11 @@ fn run(
 fn staged_ate_and_cate_keep_shared_draws_and_round_trip_posterior_artifact() {
     let (_study, prepared, result, data) = run(AverageEffectQuery::binary_ate(v(0), v(1)));
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.basis.gcomp"));
-    assert_eq!(result.support_status, Some(antecedent::CellStatus::Licensed));
+    assert_eq!(result.support_status(), Some(antecedent::CellStatus::Supported));
     assert!(
-        (result.estimate.as_effect().unwrap().ate - 0.5).abs() < 0.08,
+        (result.estimate().as_effect().unwrap().ate - 0.5).abs() < 0.01,
         "ATE={}",
-        result.estimate.as_effect().unwrap().ate
+        result.estimate().as_effect().unwrap().ate
     );
     let posterior = result.posterior.as_ref().expect("posterior");
     assert_eq!(posterior.draws.n_draws, 256);
@@ -112,10 +113,10 @@ fn staged_ate_and_cate_keep_shared_draws_and_round_trip_posterior_artifact() {
     let (_, _, cate, _) = run(cate_query);
     assert_eq!(cate.logical_plan.estimator.as_deref(), Some("bayesian.basis.gcomp"));
     let values =
-        cate.estimate.as_effect().unwrap().heterogeneity.cate.as_ref().expect("row CATE summary");
+        cate.estimate().as_effect().unwrap().heterogeneity.cate.as_ref().expect("row CATE summary");
     assert_eq!(values.len(), data.row_count());
-    assert!((values[0] - (0.5 - 0.75)).abs() < 0.12, "low-z CATE={}", values[0]);
-    assert!((values[1] - (0.5 + 0.75)).abs() < 0.12, "high-z CATE={}", values[1]);
+    assert!((values[0] - (0.5 - 0.75)).abs() < 0.01, "low-z CATE={}", values[0]);
+    assert!((values[1] - (0.5 + 0.75)).abs() < 0.01, "high-z CATE={}", values[1]);
     let cate_posterior = cate.posterior.as_ref().unwrap();
     for row in 0..values.len() {
         assert_eq!(cate_posterior.draws.column(row + 1).unwrap().len(), 256);
@@ -141,15 +142,15 @@ fn bayesian_basis_ate_executes_from_the_retained_plan_and_refreshes() {
     let mut prepared = builder.prepare(&context).unwrap();
     drop(builder);
 
-    let plan = prepared
-        .checked_bayesian_basis_ate_info()
-        .expect("basis ATE plan survives builder disposal");
+    let RetainedOperation::BayesianBasisAte(plan) = prepared.retained_operation() else {
+        panic!("basis ATE plan survives builder disposal")
+    };
     assert_eq!(plan.query, query);
     assert_eq!(plan.adjustment_set.as_ref(), &[v(2)]);
     assert_eq!(plan.posterior_draws, 192);
     assert_eq!(plan.prior_scale, 20.0);
     assert_eq!(prepared.plan().logical.record.estimator.as_deref(), Some("bayesian.basis.gcomp"));
-    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed));
+    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Supported));
     match &prepared.contract().unwrap().reasoning.support {
         SlotAvailability::Available(slot) => assert_eq!(
             slot.matrix_coordinate.as_deref(),
@@ -160,14 +161,14 @@ fn bayesian_basis_ate_executes_from_the_retained_plan_and_refreshes() {
 
     let result = prepared.estimate(&data, &context).unwrap();
     assert!(
-        (result.estimate.as_effect().unwrap().ate - 0.5).abs() < 0.08,
+        (result.estimate().as_effect().unwrap().ate - 0.5).abs() < 0.01,
         "ATE={}",
-        result.estimate.as_effect().unwrap().ate
+        result.estimate().as_effect().unwrap().ate
     );
     assert_eq!(result.posterior.as_ref().unwrap().draws.n_draws, 192);
     assert!(one_shot.diagnostics.iter().any(|item| item.code.as_ref() == "exec.identify.cached"));
     assert!(
-        (one_shot.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate)
+        (one_shot.estimate().as_effect().unwrap().ate - result.estimate().as_effect().unwrap().ate)
             .abs()
             < 1e-12
     );
@@ -182,20 +183,23 @@ fn bayesian_basis_ate_executes_from_the_retained_plan_and_refreshes() {
         ("z", refreshed_modifier.as_slice()),
     ])
     .unwrap();
-    let refreshed = prepared.refresh(shifted, &context).unwrap();
-    assert_eq!(prepared.checked_bayesian_basis_ate_info().unwrap(), plan);
-    assert!((refreshed.estimate.as_effect().unwrap().ate - 0.5).abs() < 0.08);
+    let refreshed = rebind_estimate(&mut prepared, shifted, &context).unwrap();
+    let RetainedOperation::BayesianBasisAte(rebound) = prepared.retained_operation() else {
+        panic!("basis ATE plan survives refresh")
+    };
+    assert_eq!(rebound, plan);
+    assert!((refreshed.estimate().as_effect().unwrap().ate - 0.5).abs() < 0.01);
 
     let bytes = prepared
         .encode_contracted_result(&refreshed, "checked-bayesian-basis-ate", &context)
         .unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
     assert!(
         consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_bayesian_basis_ate_operation"
         })
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 
     let reordered = TabularData::from_f64_columns([
         ("y", refreshed_outcome.as_slice()),
@@ -203,7 +207,7 @@ fn bayesian_basis_ate_executes_from_the_retained_plan_and_refreshes() {
         ("z", refreshed_modifier.as_slice()),
     ])
     .unwrap();
-    assert!(prepared.refresh(reordered, &context).is_err());
+    assert!(rebind_estimate(&mut prepared, reordered, &context).is_err());
 }
 
 #[test]
@@ -227,21 +231,21 @@ fn bayesian_basis_cate_executes_from_the_retained_plan_and_refreshes() {
     let one_shot = builder.run(&context).unwrap();
     let mut prepared = builder.prepare(&context).unwrap();
     drop(builder);
-    let retained_plan = prepared
-        .checked_bayesian_basis_cate_query()
-        .expect("checked CATE plan survives builder disposal");
+    let RetainedOperation::BayesianBasisCate(retained_plan) = prepared.retained_operation() else {
+        panic!("checked CATE plan survives builder disposal")
+    };
     assert_eq!(retained_plan, &query);
-    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed));
+    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Supported));
     let result = prepared.estimate(&data, &context).unwrap();
     assert!(
-        (one_shot.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate)
+        (one_shot.estimate().as_effect().unwrap().ate - result.estimate().as_effect().unwrap().ate)
             .abs()
             < 1e-12
     );
     let cate =
-        result.estimate.as_effect().unwrap().heterogeneity.cate.as_ref().expect("CATE summary");
-    assert!((cate[0] - (0.5 - 0.75)).abs() < 0.12);
-    assert!((cate[1] - (0.5 + 0.75)).abs() < 0.12);
+        result.estimate().as_effect().unwrap().heterogeneity.cate.as_ref().expect("CATE summary");
+    assert!((cate[0] - (0.5 - 0.75)).abs() < 0.01, "{}", cate[0]);
+    assert!((cate[1] - (0.5 + 0.75)).abs() < 0.01, "{}", cate[1]);
     let posterior = result.posterior.as_ref().expect("posterior");
     assert_eq!(posterior.draws.n_draws, 192);
     assert_eq!(posterior.draws.schema.quantities.len(), data.row_count() + 1);
@@ -250,13 +254,13 @@ fn bayesian_basis_cate_executes_from_the_retained_plan_and_refreshes() {
     }
 
     let bytes = prepared.encode_contracted_result(&result, "checked-basis-cate", &context).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
     assert!(
         consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_bayesian_basis_cate_operation"
         })
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 
     let t = data.float64_values(v(0)).unwrap();
     let y = data.float64_values(v(1)).unwrap();
@@ -267,11 +271,12 @@ fn bayesian_basis_cate_executes_from_the_retained_plan_and_refreshes() {
         ("z", z.as_slice()),
     ])
     .unwrap();
-    let refreshed = prepared.refresh(shifted, &context).unwrap();
+    let refreshed = rebind_estimate(&mut prepared, shifted, &context).unwrap();
     assert!(
-        (refreshed.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate)
+        (refreshed.estimate().as_effect().unwrap().ate
+            - result.estimate().as_effect().unwrap().ate)
             .abs()
-            < 0.08
+            < 0.01
     );
 
     let expanded = TabularData::from_f64_columns([
@@ -301,4 +306,17 @@ fn bayesian_basis_cate_executes_from_the_retained_plan_and_refreshes() {
         .unwrap()
         .prepare(&context);
     assert!(refused.is_err(), "modifier projection must be refused at preparation");
+}
+
+/// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
+/// A failure leaves the handle unchanged, as the immutable lifecycle does.
+fn rebind_estimate(
+    prepared: &mut antecedent::PreparedStudy,
+    data: antecedent_data::TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let branch = prepared.rebind_data(data, ctx)?.materialize(ctx)?;
+    let result = branch.estimate_retained(ctx)?;
+    *prepared = branch;
+    Ok(result)
 }

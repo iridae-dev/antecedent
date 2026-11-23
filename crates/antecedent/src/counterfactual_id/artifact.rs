@@ -2,7 +2,7 @@
 //! artifact export, and consumption by replay plus the direct-sum
 //! recomputation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::CausalError;
 use antecedent_core::{ExecutionContext, RegimeId, SearchLimits, Value, VariableId};
@@ -230,8 +230,7 @@ fn consume_inner(
         return Err(exceeded("search depth limit"));
     }
     let memory_cap = ctx
-        .memory
-        .hard_limit_bytes
+        .memory_limit_bytes()
         .map_or(limits.search_memory_bytes, |hard| hard.min(limits.search_memory_bytes));
     if wire.search.memory_limit_bytes > memory_cap {
         return Err(exceeded("search memory limit"));
@@ -436,12 +435,15 @@ impl WireCells {
         let Some((first, rest)) = summed.split_first() else {
             // A zero factor ends the product: a later factor on a null event is
             // not read (the compiled evaluation's convention).
+            // The short-circuit is keyed on the factor itself being a null event, never on
+            // the running product, which can also reach zero by underflow.
             let mut product = 1.0;
             for factor in factors {
-                product *= self.functional(factor, symbols)?;
-                if product == 0.0 {
-                    break;
+                let value = self.functional(factor, symbols)?;
+                if value == 0.0 {
+                    return Some(0.0);
                 }
+                product *= value;
             }
             return Some(product);
         };

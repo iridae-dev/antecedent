@@ -1,6 +1,6 @@
 //! Regime discovery sparse/stress benches .
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     missing_docs,
@@ -23,6 +23,9 @@ use antecedent_discovery::{
     two_regime_half_split,
 };
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
+
+#[path = "../../../benches/soft_budget.rs"]
+mod soft_budget;
 
 fn two_regime_series(n: usize) -> TimeSeriesData {
     let mut b = CausalSchemaBuilder::new();
@@ -114,10 +117,9 @@ fn bench_rpcmci(c: &mut Criterion) {
         let r = alg.run(&data, &vars, &assign, &mut ws, &ExecutionContext::for_tests(1)).unwrap();
         let elapsed = t0.elapsed();
         assert_eq!(r.graphs.graphs.len(), 2);
-        assert!(
-            elapsed < SPARSE_BUDGET,
-            "rpcmci_sparse_120 exceeded soft budget: {elapsed:?} >= {SPARSE_BUDGET:?}"
-        );
+        soft_budget::check(elapsed < SPARSE_BUDGET, || {
+            format!("rpcmci_sparse_120 exceeded soft budget: {elapsed:?} >= {SPARSE_BUDGET:?}")
+        });
     }
     {
         let data = two_regime_series(240);
@@ -127,10 +129,9 @@ fn bench_rpcmci(c: &mut Criterion) {
         let r = alg.run(&data, &vars, &assign, &mut ws, &ExecutionContext::for_tests(2)).unwrap();
         let elapsed = t0.elapsed();
         assert_eq!(r.graphs.graphs.len(), 2);
-        assert!(
-            elapsed < STRESS_BUDGET,
-            "rpcmci_stress_240 exceeded soft budget: {elapsed:?} >= {STRESS_BUDGET:?}"
-        );
+        soft_budget::check(elapsed < STRESS_BUDGET, || {
+            format!("rpcmci_stress_240 exceeded soft budget: {elapsed:?} >= {STRESS_BUDGET:?}")
+        });
     }
 }
 

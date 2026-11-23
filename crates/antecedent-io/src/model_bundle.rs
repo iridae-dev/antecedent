@@ -1,6 +1,6 @@
 //! Model bundle artifact encode/decode.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CausalSchema, VERSION};
 use antecedent_graph::Dag;
@@ -173,6 +173,11 @@ fn push_model_bundle_optional_sections(
         push_bundle_cbor_section("estimate", "estimate.v1", to_cbor(e)?, descs, sections);
     }
     if let Some(r) = input.refutations {
+        for report in r {
+            if let Some(scope) = &report.scope {
+                antecedent_io_core::analysis_wire::validate_refutation_scope(scope)?;
+            }
+        }
         push_bundle_cbor_section(
             "refutations",
             "refutations.v1",
@@ -357,21 +362,34 @@ pub fn decode_model_bundle(artifact: &EncodedArtifact) -> Result<ModelBundle, Io
     let analysis_trace = opt("analysis.trace").map(|s| from_cbor(&s.data)).transpose()?;
     let identification = opt("identification").map(|s| from_cbor(&s.data)).transpose()?;
     let estimate = opt("estimate").map(|s| from_cbor(&s.data)).transpose()?;
-    let refutations = opt("refutations").map(|s| from_cbor(&s.data)).transpose()?;
+    let refutations: Option<Vec<RefutationReportWire>> =
+        opt("refutations").map(|s| from_cbor(&s.data)).transpose()?;
+    if let Some(reports) = &refutations {
+        for report in reports {
+            if let Some(scope) = &report.scope {
+                antecedent_io_core::analysis_wire::validate_refutation_scope(scope)?;
+            }
+        }
+    }
     let logical_plan = opt("logical_plan").map(|s| from_cbor(&s.data)).transpose()?;
     let physical_plan = opt("physical_plan").map(|s| from_cbor(&s.data)).transpose()?;
     let performance = opt("performance").map(|s| from_cbor(&s.data)).transpose()?;
     let diagnostics = opt("diagnostics").map(|s| from_cbor(&s.data)).transpose()?;
     let provenance = opt("provenance").map(|s| from_cbor(&s.data)).transpose()?;
 
-    let (posterior_meta, posterior_draws) =
-        if let (Some(meta_sec), Some(draw_sec)) = (opt("posterior.meta"), opt("posterior.draws")) {
+    let (posterior_meta, posterior_draws) = match (opt("posterior.meta"), opt("posterior.draws")) {
+        (Some(meta_sec), Some(draw_sec)) => {
             let meta: CausalPosteriorWire = from_cbor(&meta_sec.data)?;
             let draws = decode_f64_le(draw_sec)?;
             (Some(meta), Some(draws))
-        } else {
-            (None, None)
-        };
+        }
+        (None, None) => (None, None),
+        _ => {
+            return Err(IoError::Convert(
+                "posterior metadata and draws must appear together".into(),
+            ));
+        }
+    };
 
     let discovery_header = opt("discovery.header").map(|s| from_cbor(&s.data)).transpose()?;
     let discovery_graph = opt("discovery.graph").map(|s| from_cbor(&s.data)).transpose()?;
@@ -402,7 +420,7 @@ pub fn decode_model_bundle(artifact: &EncodedArtifact) -> Result<ModelBundle, Io
 }
 
 fn decode_f64_le(sec: &SectionBytes) -> Result<Vec<f64>, IoError> {
-    if sec.data.len() % 8 != 0 {
+    if !sec.data.len().is_multiple_of(8) {
         return Err(IoError::Convert("draws not multiple of 8".into()));
     }
     Ok(crate::width::f64s_from_le_bytes(&sec.data))
@@ -568,6 +586,60 @@ mod tests {
         assert!(matches!(bundle.mechanisms.slots[1], MechanismSlot::LinearGaussian { .. }));
         assert!(bundle.query.is_some());
         let _ = VariableId::from_raw(0);
+    }
+
+    #[test]
+    fn posterior_sections_must_be_present_together() {
+        let (schema, dag, mechanisms) = two_variable_bundle_fixtures();
+        let meta = CausalPosteriorWire {
+            quantities: vec![crate::posterior::PosteriorQuantityWire::Effect {
+                name: "ate".into(),
+            }],
+            n_draws: 2,
+            mean: vec![1.0],
+            sd: vec![0.0],
+            q025: vec![1.0],
+            q975: vec![1.0],
+            identification: "NonparametricallyIdentified".into(),
+            unidentified_mass: 0.0,
+            subsampled_out_mass: 0.0,
+            backend_id: "test".into(),
+            converged: true,
+            hessian_condition: 1.0,
+            draws_encoding: "f64_le_colmajor".into(),
+            treatment_contrast: None,
+            preparation: None,
+        };
+        let draws = [1.0, 1.0];
+        let art = encode_model_bundle(&ModelBundleEncode {
+            header: ModelBundleHeaderWire { model_kind: ModelKindWire::Scm, label: None },
+            schema: &schema,
+            dag: &dag,
+            mechanisms: &mechanisms,
+            artifact_id: "posterior-pair",
+            contrast: None,
+            query: None,
+            analysis_trace: None,
+            identification: None,
+            estimate: None,
+            refutations: None,
+            logical_plan: None,
+            physical_plan: None,
+            performance: None,
+            diagnostics: None,
+            provenance: None,
+            posterior: Some((&meta, &draws)),
+            discovery: None,
+        })
+        .unwrap();
+        let decoded = decode_model_bundle(&art).unwrap();
+        assert_eq!(decoded.posterior_meta, Some(meta));
+        assert_eq!(decoded.posterior_draws, Some(draws.to_vec()));
+        for missing in ["posterior.meta", "posterior.draws"] {
+            let mut incomplete = art.clone();
+            incomplete.sections.retain(|section| section.id != missing);
+            assert!(decode_model_bundle(&incomplete).is_err());
+        }
     }
 
     #[test]

@@ -20,4 +20,40 @@ upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-discovery/src/dbn_posterior.rs unit tests",
+ "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs::dbn_exact_template_posterior_matches_brute_force_over_a_two_unit_panel (independent brute-force enumeration of all 768 templates of two variables at lag two over a two-unit panel, uniform and Bernoulli edge priors)",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The exact template path of the bounded-lag DBN posterior: construction of the stacked lag-window design per unit, the parent columns each template implies for every node, the Gaussian-BIC template score, the Bernoulli prior over contemporaneous and lag bits, normalisation, and the contemporaneous and lagged edge marginals. Verified against an independent brute-force enumeration of all 3 x 2^8 templates for two variables at lag two over a two-unit panel of unequal lengths. The finite template MCMC, constraint handling beyond the unconstrained prior, and the temporal-graph builders are not reviewed."
+assumptions = ["The template is stationary and every lag window is one exchangeable Gaussian regression row; initial-network terms and the cited paper's Bayesian parameter integration are not part of the target.", "Lag windows are built inside each unit, so no lagged value crosses a unit boundary; units are pooled as exchangeable.", "Gaussian BIC is score-based and not a calibrated posterior; the target is a pseudo-posterior as stated in the deviations."]
+historical_exposure = "Historical author exposure cannot be established from retained artifacts. This review consulted no upstream implementation or test source and did not re-read the cited DBN or BIC papers: the executed check is against the defined target, evaluated by a separately written least-squares solver (normal equations with pivoted elimination) in the test."
+redistribution = "The new test is repository-authored under MIT OR Apache-2.0; no third-party code, data or papers are redistributed."
+limitations = "One simulated two-variable data set, maximum lag two, two priors. Forbidden or required lagged edges, maximum-parent caps and temporal min-lag constraints are not covered by the independent reference. The MCMC path used above 16 lag bits (up to 48) is not independently enumerated. Agreement shows the implementation computes the stated BIC pseudo-posterior; it does not support structure-recovery or calibration claims. The signed-uniform score has its own dispatch path. The Gaussian BIC factors and normalization covered by this numerical review retain their definitions. Calibration of edge probabilities is assessed separately."
+sources = ["https://doi.org/10.48550/arXiv.1301.7374", "https://doi.org/10.1214/aos/1176344136", "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs"]
+findings_resolved = ["No defect found: lagged and contemporaneous edge marginals, template count and normalisation match the brute-force reference to 1e-9 under both priors, including the lag block offset and per-unit window construction.", "Replaced recovery-only unit tests (a strong edge has posterior above a threshold) with an exact numerical comparison of the whole template distribution."]
+record_sha256 = "13ec69e9557cee642e85f0e8198df32008682a1aead73fb93194182162b827ce"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/dbn_posterior.rs"
+items = ["const DBN_EXACT_MAX_TEMPLATES", "const LABELED_DAG_COUNTS", "fn accumulate_lagged_marginals", "fn build_lagged_score_data", "fn exact_fits_budget", "fn has_lag_edge", "fn initial_dbn_state", "fn lag_bit", "fn new", "fn run", "fn run_exact", "fn run_mcmc", "fn run_panel", "fn run_units", "fn score_cache", "fn score_dbn_template", "struct DbnPosterior", "struct DbnTarget", "struct DbnWalker"]
+sha256 = "f8021eda2f7ea48e2b064fe8416ab6910d2e7cff288bf31475ef6c0f7b05313d"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-state/src/graph_score.rs"
+items = ["enum GraphScoreFamily", "fn content_fingerprint", "fn fingerprint", "fn new"]
+sha256 = "cf0d28895866aba1cfd47a51b52d42b1796d8f2edce255a8a23664de88bfe776"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/graph_posterior.rs"
+items = ["enum GraphPosteriorAtomKind", "fn algorithm", "fn atom_kind", "fn atoms", "fn bernoulli_edges", "fn default", "fn diagnostics", "fn distinct_graph_keys", "fn edge_ess", "fn edge_marginals", "fn edge_mcse", "fn edge_rhat", "fn ess", "fn from_atoms", "fn graph_keys", "fn lag_bidirected_masks", "fn lag_masks", "fn lagged_edge_marginals", "fn lagged_edge_mcse", "fn mark_atoms", "fn max_lag", "fn n", "fn n_graphs", "fn n_vars", "fn new", "fn orientation_marginals", "fn rejected_invalid", "fn uniform", "fn weights", "struct GraphPrior", "struct SamplingSummary"]
+sha256 = "806c8774211b513e7a19b2206add174d40c765371c4988235eb22ac7b7568e5c"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs"
+items = ["fn dbn_exact_template_posterior_matches_brute_force_over_a_two_unit_panel", "fn naive_rss", "fn series_unit", "fn time_series"]
+sha256 = "157e038d2f543be3fa2175013d94b00344d334d32fbfd062e0a62064dacf7019"

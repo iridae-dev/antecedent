@@ -8,9 +8,9 @@
 //! to raise as its own exception type. A malformed declaration is an input error.
 
 use antecedent::analysis::sequential_evaluation as seq;
-use antecedent_core::reason_code;
-use antecedent_design::sequential_evaluation_artifact::StepWire;
-use antecedent_io::IoError;
+use antecedent::design::sequential_evaluation_artifact::StepWire;
+use antecedent::io::IoError;
+use antecedent::reason::reason_code;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Deserialize;
@@ -19,6 +19,16 @@ use serde_json::{Value as Json, json};
 use crate::bridge::{RefusalJson, check_declared_size, external_refusal_json, serialization};
 use crate::measurement_model_api::{model_json as channel_json, parse_model as parse_channel};
 use crate::transport_common::execution_context;
+
+/// The interval of an off-policy estimate with its calibration slot.
+fn interval_json(
+    level: f64,
+    lower: f64,
+    upper: f64,
+    calibration: &antecedent::io::contract_section::CalibrationSlotWire,
+) -> Json {
+    json!({"level": level, "lower": lower, "upper": upper, "calibration": calibration})
+}
 
 /// Largest declaration this bridge parses, in bytes of JSON text.
 const MAX_DECLARATION_BYTES: usize = 128 * 1024 * 1024;
@@ -95,7 +105,7 @@ struct DecisionIn {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct PolicyIn {
+pub(crate) struct PolicyIn {
     version: String,
     decisions: Vec<DecisionIn>,
 }
@@ -148,7 +158,7 @@ struct RolloutIn {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-enum SpecIn {
+pub(crate) enum SpecIn {
     Contingent { policy: PolicyIn },
     ReweightedStaticScores { scores: Vec<f64>, weights: Vec<f64> },
     LearnedFromEvaluationData { rule: String },
@@ -162,7 +172,7 @@ struct ComparisonIn {
     policy: SpecIn,
 }
 
-fn declaration<T: serde::de::DeserializeOwned>(text: &str, what: &str) -> PyResult<T> {
+pub(crate) fn declaration<T: serde::de::DeserializeOwned>(text: &str, what: &str) -> PyResult<T> {
     check_declared_size(text, MAX_DECLARATION_BYTES, what)?;
     serde_json::from_str(text)
         .map_err(|error| crate::value_err(format!("invalid {what} declaration: {error}")))
@@ -231,7 +241,9 @@ fn key_of(history: &[(usize, usize)]) -> seq::HistoryKey {
     )
 }
 
-fn policy_from(wire: PolicyIn) -> Result<seq::ContingentPolicy, seq::SequentialEvaluationError> {
+pub(crate) fn policy_from(
+    wire: PolicyIn,
+) -> Result<seq::ContingentPolicy, seq::SequentialEvaluationError> {
     let mut policy = seq::ContingentPolicy::new(wire.version);
     for decision in wire.decisions {
         policy = policy.decide_stochastic(key_of(&decision.history), decision.actions)?;
@@ -239,7 +251,21 @@ fn policy_from(wire: PolicyIn) -> Result<seq::ContingentPolicy, seq::SequentialE
     Ok(policy)
 }
 
-fn trajectories_of(text: &str) -> PyResult<Vec<seq::LoggedTrajectory>> {
+/// What a caller offers as a policy, as the evaluator's policy specification. A static score
+/// table or a learning rule passes through, for the evaluator to refuse by name.
+pub(crate) fn spec_from(spec: SpecIn) -> Result<seq::PolicySpec, seq::SequentialEvaluationError> {
+    Ok(match spec {
+        SpecIn::Contingent { policy } => seq::PolicySpec::Contingent(policy_from(policy)?),
+        SpecIn::ReweightedStaticScores { scores, weights } => {
+            seq::PolicySpec::ReweightedStaticScores { scores, weights }
+        }
+        SpecIn::LearnedFromEvaluationData { rule } => {
+            seq::PolicySpec::LearnedFromEvaluationData { rule }
+        }
+    })
+}
+
+pub(crate) fn trajectories_of(text: &str) -> PyResult<Vec<seq::LoggedTrajectory>> {
     let wire: Vec<TrajectoryIn> = declaration(text, "logged trajectories")?;
     Ok(wire
         .into_iter()
@@ -263,7 +289,7 @@ fn trajectories_of(text: &str) -> PyResult<Vec<seq::LoggedTrajectory>> {
 // Refusals and results
 // ---------------------------------------------------------------------------
 
-fn refusal(error: &seq::SequentialEvaluationError) -> String {
+pub(crate) fn refusal(error: &seq::SequentialEvaluationError) -> String {
     external_refusal_json(&error.to_refusal())
 }
 
@@ -275,7 +301,7 @@ fn io_refusal(error: &IoError) -> String {
         other => RefusalJson::new(
             reason_code!("invalid_argument"),
             "sequential_evaluation",
-            "sequential_evaluation.malformed",
+            antecedent::reason::reason_details::sequential_evaluation::MALFORMED,
             &other.to_string(),
         )
         .json(),
@@ -458,6 +484,7 @@ fn sequential_off_policy(
             "max_weight": e.max_weight,
             "trajectories": e.trajectories,
             "uncalibrated_standard_error": e.uncalibrated_standard_error,
+            "interval": e.interval.as_ref().map(|i| interval_json(i.level, i.lower, i.upper, &i.calibration)),
             "policy_version": e.policy_version,
             "policy_identity": e.policy_identity,
             "behaviour_version": e.behaviour_version,
@@ -588,17 +615,9 @@ fn sequential_compare(
     for item in wire {
         let kind = seq::ComparisonKind::from_name(&item.kind)
             .ok_or_else(|| crate::value_err(format!("unknown comparison kind `{}`", item.kind)))?;
-        let policy = match item.policy {
-            SpecIn::Contingent { policy } => match policy_from(policy) {
-                Ok(policy) => seq::PolicySpec::Contingent(policy),
-                Err(error) => return Ok(refused_pair(refusal(&error))),
-            },
-            SpecIn::ReweightedStaticScores { scores, weights } => {
-                seq::PolicySpec::ReweightedStaticScores { scores, weights }
-            }
-            SpecIn::LearnedFromEvaluationData { rule } => {
-                seq::PolicySpec::LearnedFromEvaluationData { rule }
-            }
+        let policy = match spec_from(item.policy) {
+            Ok(policy) => policy,
+            Err(error) => return Ok(refused_pair(refusal(&error))),
         };
         specs.push(seq::ComparisonSpec { label: item.label, kind, policy });
     }
@@ -651,17 +670,9 @@ fn sequential_check_request(model_json: &str, request_json: &str) -> PyResult<Op
 #[pyfunction]
 fn sequential_resolve_policy(spec_json: &str) -> PyResult<Pair> {
     let spec: SpecIn = declaration(spec_json, "policy")?;
-    let spec = match spec {
-        SpecIn::Contingent { policy } => match policy_from(policy) {
-            Ok(policy) => seq::PolicySpec::Contingent(policy),
-            Err(error) => return Ok(refused_pair(refusal(&error))),
-        },
-        SpecIn::ReweightedStaticScores { scores, weights } => {
-            seq::PolicySpec::ReweightedStaticScores { scores, weights }
-        }
-        SpecIn::LearnedFromEvaluationData { rule } => {
-            seq::PolicySpec::LearnedFromEvaluationData { rule }
-        }
+    let spec = match spec_from(spec) {
+        Ok(spec) => spec,
+        Err(error) => return Ok(refused_pair(refusal(&error))),
     };
     Ok(match spec.into_contingent() {
         Ok(policy) => ok_json(&policy_json(&policy)),
@@ -957,6 +968,12 @@ impl PyEvaluationArtifact {
                 "effective_sample_size": f64::from_bits(o.effective_sample_size_bits),
                 "max_weight": f64::from_bits(o.max_weight_bits),
                 "uncalibrated_standard_error": o.standard_error_bits.map(f64::from_bits),
+                "interval": o.interval.as_ref().map(|i| interval_json(
+                    f64::from_bits(i.level_bits),
+                    f64::from_bits(i.lower_bits),
+                    f64::from_bits(i.upper_bits),
+                    &seq::OffPolicyInterval::calibration_slot(),
+                )),
                 "trajectories": o.trajectories.len(),
                 "records_counted": o.records_counted,
                 "ledger_state": o.ledger_state,
@@ -981,7 +998,7 @@ impl PyEvaluationArtifact {
         for action in &model.actions {
             let channel = match &action.channel {
                 Some(wire) => {
-                    let parsed = antecedent_io::measurement_model_wire::model_from_wire(wire)
+                    let parsed = antecedent::io::measurement_model_wire::model_from_wire(wire)
                         .map_err(serialization)?;
                     channel_json(&parsed)
                 }

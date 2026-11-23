@@ -1,6 +1,6 @@
 //! Schema construction errors for `antecedent-core`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Errors raised while building or looking up schema elements.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]

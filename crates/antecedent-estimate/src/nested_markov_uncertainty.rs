@@ -1,6 +1,6 @@
 //! Expected-Fisher uncertainty for the selected binary nested-Markov likelihood.
 //!
-//! This is an internal implementation for later calibration, not a licensed
+//! This is an internal implementation for later calibration, not a supported
 //! interval. The IID multinomial likelihood has expected information
 //! `N sum_i (dp_i/dtheta)(dp_i/dtheta)'/p_i`. Its inverse propagates the full
 //! eleven-parameter covariance into both intervention means and their contrast.
@@ -9,7 +9,7 @@
 //! refuse. Correct model specification and IID sampling are declared assumptions;
 //! a table alone cannot verify them. Empirical constraint residuals stay visible.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod internal {
     use antecedent_core::ExecutionContext;
@@ -37,7 +37,7 @@ mod internal {
         pub effect_covariance: [[f64; 3]; 3],
         /// Requested nominal two-sided level; no measured coverage claim.
         pub nominal_level: f64,
-        /// Unmeasured normal delta-method interval candidates, in the same effect order.
+        /// Not measured normal delta-method interval candidates, in the same effect order.
         pub interval_candidates: [[f64; 2]; 3],
         /// Maximum absolute `I Cov - identity` residual; no regularization is applied.
         pub inverse_residual: f64,
@@ -96,13 +96,15 @@ mod internal {
                 None,
                 0.,
             )
+            .with_validation("not_applicable")
         }
     }
 
     fn refusal(detail: &str, message: &str) -> EstimationError {
-        EstimationError::refused(
+        EstimationError::refused_detail(
             antecedent_core::reason_code!("invalid_argument"),
-            format!("{detail}: {message}"),
+            detail,
+            message,
         )
     }
 
@@ -164,7 +166,10 @@ mod internal {
 
     fn invert(information: &[f64]) -> Result<(Vec<f64>, f64), EstimationError> {
         let chol = cholesky_spd(information, PARAMETER_COUNT).ok_or_else(|| {
-            refusal("nested_markov.fisher_singular_information", "expected information is not SPD")
+            refusal(
+                antecedent_core::reason_details::nested_markov::FISHER_SINGULAR_INFORMATION,
+                "expected information is not SPD",
+            )
         })?;
         let covariance = antecedent_kernels::chol_inverse(&chol, PARAMETER_COUNT);
         let mut residual = 0.0_f64;
@@ -180,7 +185,7 @@ mod internal {
         }
         if !residual.is_finite() || residual > 1e-8 {
             return Err(refusal(
-                "nested_markov.fisher_singular_information",
+                antecedent_core::reason_details::nested_markov::FISHER_SINGULAR_INFORMATION,
                 "inverse failed residual check",
             ));
         }
@@ -192,7 +197,7 @@ mod internal {
             || counts.counts().iter().any(|n| *n <= 0. || n.fract() != 0.)
         {
             return Err(refusal(
-                "nested_markov.fisher_sampling_design",
+                antecedent_core::reason_details::nested_markov::FISHER_SAMPLING_DESIGN,
                 "requires positive integer IID multinomial counts",
             ));
         }
@@ -200,7 +205,7 @@ mod internal {
     }
 
     /// Fit the selected graph and propagate the regular IID multinomial information.
-    /// This feature-gated candidate does not activate the closed public interval route.
+    /// This feature-gated candidate does not activate the unsupported public interval route.
     ///
     /// # Errors
     /// Invalid level/counts, unsupported graph/regime, failed or boundary likelihood fit,
@@ -215,7 +220,7 @@ mod internal {
             && nominal_level.to_bits() != 0.95_f64.to_bits()
         {
             return Err(refusal(
-                "nested_markov.fisher_invalid_level",
+                antecedent_core::reason_details::nested_markov::FISHER_INVALID_LEVEL,
                 "the frozen pilot accepts only nominal levels 0.90 and 0.95",
             ));
         }
@@ -248,7 +253,7 @@ mod internal {
             let variance = effect_covariance[i][i];
             if !variance.is_finite() || variance < 0. || !z.is_finite() {
                 return Err(refusal(
-                    "nested_markov.fisher_invalid_covariance",
+                    antecedent_core::reason_details::nested_markov::FISHER_INVALID_COVARIANCE,
                     "delta variance or quantile is invalid",
                 ));
             }

@@ -1,9 +1,43 @@
-# Evidence ledger: overlap, synthesis and revision
+# Bring in external evidence and synthesize studies
 
-Evidence that re-enters an analysis is not new evidence. The ledger records
-which observations, experiments, priors, fitted models and external claims
-contributed to each result, how they overlap, and what changed afterwards.
-Overlap that is not declared stays unknown; independence is never assumed.
+Use the evidence ledger when a result combines evidence from more than one place
+(studies to pool, a prior to borrow from, a claim transported from another
+population) and you need to know that nothing was counted twice and what a later
+revision invalidates. The ledger records which observations, experiments, priors,
+fitted models and external claims contributed to each result, how they overlap,
+and what changed afterwards. Evidence that re-enters an analysis is not new
+evidence, and overlap that is not declared stays unknown: independence is never
+assumed.
+
+## Minimal call
+
+Declare each source with its row-level observation identities, then combine. The
+ledger checks overlap before it computes any number:
+
+```python
+from antecedent import evidence_ledger as el
+
+ledger = el.EvidenceLedger()
+a = ledger.add_source(el.SourceDeclaration("study_1", "observation_set",
+                                           observations=el.rows("cohort", range(0, 40))))
+b = ledger.add_source(el.SourceDeclaration("study_2", "observation_set",
+                                           observations=el.rows("cohort", range(40, 90))))
+pooled = ledger.pool_summaries(
+    "pool", [el.StudySummary(a, 1.0, 1.0), el.StudySummary(b, 3.0, 4.0)]
+)
+synthesis = pooled.value                     # SynthesisOutcome; pooled.refusal is None
+synthesis.value.estimate                     # 1.4: inverse-variance weights 1/1 and 1/4
+synthesis.mass.distinct_observations         # 90: each observation counted once
+synthesis.claim_class                        # "point_only"
+ledger.pooled_interval(synthesis.result)     # 95% interval with its calibration slot
+```
+
+`StudySummary(source, estimate, variance)` binds a study's estimate and sampling
+variance to the source it came from. If the two sources had shared rows, or one
+had been declared without `observations`, `pooled.refusal` would carry
+`evidence_double_counted` or `evidence_overlap_unknown` instead of a value; the
+codes and their remedies are listed under
+[evidence ledger refusals](reference/refusal-codes.md#evidence-ledger).
 
 ## Boundary
 
@@ -15,7 +49,7 @@ Overlap that is not declared stays unknown; independence is never assumed.
 | Combinations | statistical pooling, Bayesian borrowing, causal transport, evidence reuse, repeated observation use (five distinct operations) | an operation does not imply another |
 | Transport | a transported claim carries its source populations, selection-diagram digest and assumptions | counting one source as native target data and as transported |
 | Revision | add, update, replace, withdraw, supersede, revalidate-downstream, each with an identity and a downstream classification | using a withdrawn or superseded source, citing a stale result |
-| Uncertainty | point values; an assumption range for unknown dependence; a pooled-mean interval for a measured construction | a posterior, or an interval without a currently attesting coverage record |
+| Uncertainty | point values; an assumption range for unknown dependence; a 95% pooled-mean interval reported with its calibration status | a posterior, or an interval for a result that has no interval construction (a borrowing posterior, a dependence range) |
 
 ## Mass accounting
 
@@ -27,7 +61,7 @@ accounted and is listed as unknown.
 
 ## Combinations
 
-| Operation | Needs | Licensed when |
+| Operation | Needs | Supported when |
 | --- | --- | --- |
 | Statistical pooling, independent | two or more sources | every pair is known and disjoint |
 | Statistical pooling, declared covariance | summaries and a full covariance | the covariance has cross terms (shared or unknown overlap), or the sources are known and disjoint |
@@ -57,7 +91,7 @@ the whole history.
 
 ## Summary-data numerics
 
-`antecedent_stats::synthesis` computes the numbers the ledger licenses:
+The synthesis numerics compute the numbers the ledger supports:
 
 - generalized least squares pooling with a full covariance, `1'S^-1 y / 1'S^-1 1`
   with variance `1 / 1'S^-1 1`; a non positive semidefinite covariance is
@@ -78,37 +112,36 @@ numbers computed over it. Each combination (`pool_summaries`,
 `random_effects`, `hierarchical_borrowing`, `dependence_range`,
 `transport_claim`, `reuse_result`, `repeat_observations`) is registered with
 the ledger first, on a staged copy, so shared or unknown overlap and a retired
-source are refused before any number; the numbers are then computed with
-`antecedent_stats::synthesis` and the staged ledger is committed only when
+source are refused before any number; the numbers are then computed and the staged ledger is committed only when
 both succeed. `revise_source` applies add, update, replace, supersede and
 withdraw and returns the downstream classification. `synthesis` refuses a
 result that is no longer valid, so stale numbers are never served, and
-`pooled_interval` reports a 95% interval only when a current attesting record
-covers its exact construction and scope. Fixed-effect Wald and legacy HKSJ
-intervals retain separate keys. Current HKSJ publication is restricted to the
-baseline-family measured counts 20, 25 and 30; a passing strong-heterogeneity
-five- or fifteen-study record cannot license an unknown study family.
-The legacy candidate calculations and artifacts remain replayable.
+`pooled_interval` reports a 95% interval with its calibration status, which is
+`calibrated` only when a current record covers its exact construction and scope.
+Fixed-effect Wald and HKSJ intervals have separate calibration keys. An HKSJ
+interval at a study count other than 20, 25 or 30 is annotated `not_measured`: a
+strong-heterogeneity five- or fifteen-study record cannot attest an unknown study family.
 
 For independent Gaussian study estimates sharing one marginal mean, use the
-improved explicit workflow: Rust `pool_gaussian_studies(...)`, followed by
+equal-study Gaussian workflow: Rust `pool_gaussian_studies(...)`, followed by
 `pooled_interval(result)`. In Python, select
 `random_effects(..., method="equal_study_gaussian")`, then
-`pooled_interval(outcome.result)`. Study variances may be unequal and unknown;
+`ledger.pooled_interval(outcome.value.result)`. Study variances may be unequal and unknown;
 independent Gaussian random effects satisfy the common marginal mean model.
 Unequal fixed means and dependent study sources do not. Equal study weights,
 empirical study-level variance and a Student reference form the distinct
-`independent_gaussian_study_t` construction. Its twelve records cover the
-original declared moderate-heterogeneity designs at 5/10/15/20/25/30 studies and
-homogeneous/strong designs at 5/15/30, at the recorded per-study sizes 75/100/200.
-They do not relabel HKSJ records or change the DL/REML numerical recipes.
+`independent_gaussian_study_t` construction. Its coverage design spans
+moderate-heterogeneity designs at 5/10/15/20/25/30 studies and
+homogeneous and strong-heterogeneity designs at 5/15/30, at per-study sizes 75/100/200.
+Its records are separate from the HKSJ records and do not touch the DL/REML numerical recipes.
 
-This explicitly earns the five-, ten- and fifteen-study moderate-heterogeneity
-Gaussian workflows. Calling DL/REML `random_effects` without the Gaussian option
-still selects the historical construction; there is no automatic fallback.
-Fewer than 5 or more than 30 studies, a result with no numbers, a borrowing posterior,
-an assumption range, or a construction without a current matching record
-refuses `cell_not_licensed`.
+Calling DL/REML `random_effects` without the Gaussian option selects the DL/REML
+construction; there is no automatic fallback between constructions.
+A result with no numbers refuses; a borrowing posterior or an assumption range has no
+interval construction and refuses `route_not_supported`
+(`evidence_ledger.interval_construction_unavailable`). Fewer than 5 or more than 30 studies,
+or a construction without a current matching record, still reports the interval, annotated
+`not_measured` or `outside_measured_scope`.
 
 
 `refresh` with added or retired evidence:
@@ -140,22 +173,39 @@ that does not replay, including a consistently resealed edit.
 `hierarchical_borrowing`, `dependence_range`, `transport_claim`,
 `reuse_result`, `repeat_observations`, `revise_source`, `synthesis`,
 `refresh` (returns a new session and leaves this one untouched) and `export`.
-A refused request raises `EvidenceLedgerRefusal` with its registered
-`reason_code` and `evidence_ledger.*` `detail`, and leaves the session as it
-was; `pooled_interval` returns the measured interval and its coverage record,
-or raises `cell_not_licensed` when no record governs the construction.
+A refused request leaves the session as it was. The combinations, `revise_source`
+and `refresh` return an `Outcome`: a refusal is `outcome.refusal`, with its
+registered code and `evidence_ledger.*` detail, and
+`antecedent.outcomes.require_success(outcome)` raises it as an
+`EvidenceLedgerRefusal` instead. `add_source`, `synthesis` and `pooled_interval`
+raise `EvidenceLedgerRefusal` directly. `pooled_interval` returns a mapping with
+`lower`, `upper`, `level` and the calibration slot under `calibration` (naming
+the coverage record when one attests), and raises for a result with no interval
+construction.
 `consume_evidence_ledger_artifact` replays the operations, recomputes the
 syntheses and refuses another retained identity.
 
 ### Python persistence and composition
 
-`ledger.export(...)` returns bytes. `ledger.artifact(...)` returns the same bytes
-and identity expectation with carried/not-carried export receipts in immutable
-`.metadata`; no summary is silently promoted to a replayable synthesis.
-`ant.load(envelope, expected=envelope.expectation)` uses the existing ledger replay
+`ledger.export(...)` returns a typed `ExportedArtifact`: `bytes(artifact)` are the container,
+`.expectation` the identity to retain, and carried/not-carried export receipts sit in immutable
+`.metadata`; no summary silently becomes a replayable synthesis.
+`ant.load(bytes(artifact), expected=artifact.expectation)` replays it through the ledger
 consumer. Retain the expectation separately from the container.
 
 A scalar `SynthesisOutcome` can use `outcome.as_mean_source(quantity=...)` for
 decision or inverse-query composition. Explicitly declare the pooled quantity's units,
 population and regime. Evidence and lineage remain attached; an assumption range without
-a point, or a pooled interval without a license, cannot become a mean or a law.
+a point, or a pooled interval without support, cannot become a mean or a law.
+
+The ledger records which evidence a result used, not which methods produced it. Each
+analysis result that enters the ledger carries the provenance of its own route
+(`outcome.method_provenance`: the published sources and the documented deviations from
+them), and `antecedent.citations.bibliography(*results)` lists the sources of a whole
+study once. See [cite the methods behind a study](guides/citing-a-study.md).
+
+## Where next
+
+- [From a new experiment to the next study](tutorials/experiment-to-next-study.md) registers a fitted model, an experiment and a mapping in a ledger and follows a withdrawal downstream.
+- [Scientific bridges](scientific-bridges.md) declares how one study's estimand maps onto another's before they are combined.
+- [Decision evidence](decision-evidence.md) carries a pooled point value into a decision.

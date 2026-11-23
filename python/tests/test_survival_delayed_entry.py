@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 from antecedent.errors import CausalUnsupportedError, CausalValueError
 from antecedent.observation import IndependentGiven
+from antecedent.outcomes import require_success
 
 
 def _survival_data() -> pd.DataFrame:
@@ -29,7 +30,7 @@ def test_delayed_entry_km_and_rmst_known_truth():
         delayed_entry="entry",
         observation_assumption=IndependentGiven(()),
     )
-    result = antecedent.analyze(_survival_data(), query=query).survival
+    result = require_success(antecedent.analyze(_survival_data(), query=query)).survival
 
     # Counting-process risk sets are (entry, duration], so the entry=2
     # control censor is excluded at t=2 and included by t=3.
@@ -40,7 +41,7 @@ def test_delayed_entry_km_and_rmst_known_truth():
     assert result.treated_survival == pytest.approx((1.0, 0.5, 0.5, 1 / 3, 1 / 3))
     assert "independent_delayed_entry_within_arm" in result.assumptions
     assert result.uncertainty == "point_only_no_interval"
-    assert result.support_status == "unlicensed_point_utility"
+    assert result.support_status == "unsupported_point_utility"
 
 
 def test_retained_delayed_entry_bootstrap_reports_pointwise_interval():
@@ -62,17 +63,26 @@ def test_retained_delayed_entry_bootstrap_reports_pointwise_interval():
         delayed_entry="entry",
         observation_assumption=IndependentGiven(()),
     )
-    prepared = antecedent.prepare(data, query=query, bootstrap=299, seed=279)
-    result = prepared.estimate()
+    prepared = antecedent.prepare(
+        data,
+        query=query,
+        inference=antecedent.Frequentist(bootstrap=299),
+        execution=antecedent.Execution(seed=279),
+    )
+    outcome = antecedent.estimate(prepared)
+    result = require_success(outcome)
     section = result.survival
     assert section is not None
     assert section.uncertainty == "subject_stratified_percentile_bootstrap_pointwise_95"
     assert section.rmst_difference_interval is not None
     assert section.survival_at_tau_difference_interval is not None
     assert section.bootstrap_replicates_ok == 299
-    assert section.support_status == "unlicensed_pointwise_interval"
-    loaded = antecedent.load(prepared.export(artifact_id="left-truncated-survival-bootstrap"))
-    assert loaded.answer.structured["rmst_difference_interval"] == list(
+    assert section.support_status == "unsupported_pointwise_interval"
+    loaded = require_success(
+        antecedent.load(bytes(outcome.export(artifact_id="left-truncated-survival-bootstrap")))
+    )
+    # The loaded answer is an immutable record: its sequences are tuples.
+    assert tuple(loaded.answer.structured["rmst_difference_interval"]) == tuple(
         section.rmst_difference_interval
     )
 
@@ -99,14 +109,14 @@ def test_delayed_entry_competing_risks_cif_known_truth():
         delayed_entry="entry",
         observation_assumption=IndependentGiven(()),
     )
-    result = antecedent.analyze(_competing_data(), query=query).survival
+    result = require_success(antecedent.analyze(_competing_data(), query=query)).survival
 
     assert result.control_incidence == pytest.approx((0.0, 0.0, 0.25, 0.25))
     assert result.treated_incidence == pytest.approx((0.0, 0.0, 1 / 6, 1 / 6))
     assert result.incidence_difference == pytest.approx(-1 / 12)
     assert "independent_delayed_entry_within_arm" in result.assumptions
     assert result.uncertainty == "point_only_no_interval"
-    assert result.support_status == "unlicensed_point_utility"
+    assert result.support_status == "unsupported_point_utility"
 
 
 @pytest.mark.parametrize("family", ["survival", "competing"])
@@ -122,7 +132,7 @@ def test_delayed_entry_requires_supported_observation_contract(family: str):
 
     with pytest.raises(CausalValueError, match="explicit IndependentGiven"):
         no_assumption = query_type(*args, randomized=True, delayed_entry="entry")
-        antecedent.analyze(data, query=no_assumption)
+        require_success(antecedent.analyze(data, query=no_assumption))
 
     with pytest.raises(CausalValueError, match="conditional delayed entry is unsupported"):
         conditional = query_type(
@@ -131,7 +141,7 @@ def test_delayed_entry_requires_supported_observation_contract(family: str):
             delayed_entry="entry",
             observation_assumption=IndependentGiven(("z",)),
         )
-        antecedent.analyze(data, query=conditional)
+        require_success(antecedent.analyze(data, query=conditional))
 
 
 def test_delayed_entry_refuses_invalid_intervals_and_unanchored_origin():
@@ -147,14 +157,14 @@ def test_delayed_entry_refuses_invalid_intervals_and_unanchored_origin():
     invalid = _survival_data()
     invalid.loc[0, "entry"] = invalid.loc[0, "duration"]
     with pytest.raises(CausalUnsupportedError, match="earlier than exit"):
-        antecedent.analyze(invalid, query=query)
+        require_success(antecedent.analyze(invalid, query=query))
 
     negative_entry = _survival_data()
     negative_entry.loc[0, "entry"] = -0.5
     with pytest.raises(CausalUnsupportedError, match="entry times must be finite, nonnegative"):
-        antecedent.analyze(negative_entry, query=query)
+        require_success(antecedent.analyze(negative_entry, query=query))
 
     unanchored = _survival_data()
     unanchored.loc[unanchored["treated"] == 0, "entry"] = 0.25
     with pytest.raises(CausalUnsupportedError, match="time-zero entrant in each arm"):
-        antecedent.analyze(unanchored, query=query)
+        require_success(antecedent.analyze(unanchored, query=query))

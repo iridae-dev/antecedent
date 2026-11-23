@@ -22,13 +22,13 @@
 //! and the clipped interval is one-sided; and a validation set whose Youden index is
 //! small is outside the measured scope and refused, so is not a coverage cell.
 //!
-//! The scored interval is `construct_bridged_claim_interval`, the unlicensed
+//! The scored interval is `construct_bridged_claim_interval`, the unsupported
 //! construction, and every replicate is bound under the key it builds, the key the public
 //! `bridged_claim_interval` resolves a record with.
 //!
-//! Ignored tests run via `scripts/gate_calibration.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::neg_cmp_op_on_partial_ord, reason = "a NaN rate must fail the range test")]
 #![allow(
@@ -160,6 +160,10 @@ fn surrogate_contract(trials: Vec<TrialEffectPair>) -> BridgeContract {
             evidence: Some("meta-analysis:fixture".into()),
         }],
         transport: None,
+
+        mapping_uncertainty: None,
+        source_dependence: None,
+        estimand_bridge: None,
     }
 }
 
@@ -234,6 +238,10 @@ fn correction_contract(
         assumptions: vec![BridgeAssumption::for_measurement_model("flag-model", &model)],
         mapping: BridgeMapping::MeasurementCorrection(Box::new(model)),
         transport: None,
+
+        mapping_uncertainty: None,
+        source_dependence: None,
+        estimand_bridge: None,
     }
 }
 
@@ -347,7 +355,7 @@ fn run(
     for outcome in scored {
         match outcome {
             Some(one) => {
-                tally.bind(&one.construction, one.scope);
+                tally.bind_validation(&one.construction, one.scope, "not_applicable");
                 tally.record(Some(one.interval), one.truth);
             }
             None => tally.skip(),

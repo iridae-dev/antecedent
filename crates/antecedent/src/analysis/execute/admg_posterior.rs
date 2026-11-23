@@ -3,7 +3,7 @@
 //! Atoms are single graphs, not MEC completions. Outer mix uses posterior
 //! weights and [`StructuralAggregationPolicy`]. Unidentified mass is retained.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::atom_mix::{
     AtomBoundRule, AtomEvalView, AtomMixInput, AtomRefuterBatch, ScalarRefuterMix,
@@ -16,7 +16,7 @@ use super::{
     IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
     IdentifiedKeyWeights, IdentifierId, Instant, PhysicalExecutionPlan, PosteriorMassSummary,
     RefuteSuite, Strategy, Study, StudyResult, TabularData, elapsed_ns, mass_fields,
-    overlap_diagnostic, provenance_ids, resolve_posterior_status,
+    overlap_diagnostic, overlap_limit_diagnostic, provenance_ids, resolve_posterior_status,
 };
 use crate::analysis::prepared::CachedGraphPosteriorIdentification;
 use crate::analysis::proof_support::graph_posterior_withheld_diagnostic;
@@ -75,11 +75,11 @@ impl super::Study {
         let started = Instant::now();
         if matches!(self.query, CausalQuery::ConditionalEffect(_)) {
             return Err(CausalError::Unsupported {
-                message: "ConditionalEffect graph-posterior mixing is licensed only for DAG atoms",
+                message: "ConditionalEffect graph-posterior mixing is supported only for DAG atoms",
             });
         }
         if !matches!(
-            gp.atom_kind,
+            gp.atom_kind(),
             antecedent_discovery::GraphPosteriorAtomKind::Admg
                 | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
         ) {
@@ -89,8 +89,12 @@ impl super::Study {
         }
         let (identified, identify_cached) = if let Some(cache) = checked {
             (Arc::clone(cache), true)
-        } else if let Some(cache) = self.graph_posterior_identification_cache.as_ref() {
+        } else if let Some(cache) = self.graph_posterior_cache() {
             (Arc::clone(cache), true)
+        } else if let Some(cache) =
+            crate::analysis::lowering::plan_retained_graph_posterior(self, physical)
+        {
+            (cache, false)
         } else {
             (
                 Arc::new(crate::analysis::prepared::build_graph_posterior_identification_cache(
@@ -201,12 +205,13 @@ impl super::Study {
                 refute_atoms,
             })
         })
+        .map_err(Into::into)
     }
 
     /// Withheld-posterior, class-envelope, aggregation-policy and overlap disclosures.
     fn admg_graph_posterior_diagnostics(&self, mixed: &MixedAdmgPosterior) -> Vec<Diagnostic> {
         let mut diagnostics = mixed.identification.diagnostics.clone();
-        if self.inference.is_bayesian() && mixed.posterior.is_none() {
+        if self.settings.inference.is_bayesian() && mixed.posterior.is_none() {
             diagnostics.push(graph_posterior_withheld_diagnostic());
         }
         diagnostics.push(Diagnostic::new(
@@ -236,6 +241,8 @@ impl super::Study {
             )),
         );
         diagnostics.push(overlap_diagnostic(mixed.estimate.provenance.overlap));
+        diagnostics
+            .extend(overlap_limit_diagnostic(mixed.estimate.diagnostics.overlap_report.as_ref()));
         diagnostics
     }
 }
@@ -339,7 +346,9 @@ fn refute_admg_graph_posterior(
     policy: StructuralAggregationPolicy,
     ctx: &ExecutionContext,
 ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
-    if matches!(study.refute, RefuteSuite::None) && study.custom_validators.is_empty() {
+    if matches!(study.settings.refute, RefuteSuite::None)
+        && study.declared.custom_validators.is_empty()
+    {
         return Ok((Vec::new(), Vec::new()));
     }
     let mix_scalar = matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean);
@@ -362,9 +371,9 @@ fn refute_admg_graph_posterior(
             let (reports, notes) = EnvelopeRefutation {
                 data,
                 query,
-                suite: study.refute,
+                suite: study.settings.refute,
                 estimator: EstimatorId::FunctionalEffect.as_str(),
-                custom: &study.custom_validators,
+                custom: &study.declared.custom_validators,
                 temporal: None,
             }
             .run(&eval.refute_atoms, &mut refute_ws, ctx)?;

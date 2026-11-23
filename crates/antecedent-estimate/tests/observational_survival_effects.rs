@@ -10,7 +10,7 @@
 //! detail, and that the reported standard error is the standard deviation of the retained
 //! scores.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,
@@ -176,7 +176,10 @@ fn missing_cells_are_dropped_and_counted() {
     let estimate = run(&data, CensoringAssumption::IndependentWithinArm, 6).unwrap();
     assert_eq!(estimate.rows_dropped_missing, 2);
     assert_eq!(estimate.n_obs, 1198);
-    assert!(!estimate.row_index.contains(&3) && !estimate.row_index.contains(&10));
+    assert!(
+        !estimate.row_index.contains(&antecedent_data::GlobalId::new(3))
+            && !estimate.row_index.contains(&antecedent_data::GlobalId::new(10))
+    );
 }
 
 #[test]
@@ -195,14 +198,22 @@ fn a_horizon_beyond_an_arms_follow_up_is_refused_with_its_own_detail() {
             &ExecutionContext::for_tests(1),
         )
         .unwrap_err();
-    assert!(detail_of(&error).contains("survival_effect.horizon_beyond_follow_up"), "{error}");
+    assert!(
+        detail_of(&error)
+            .contains(antecedent_core::reason_details::survival_effect::HORIZON_BEYOND_FOLLOW_UP),
+        "{error}"
+    );
 }
 
 #[test]
 fn near_deterministic_treatment_is_a_treatment_positivity_refusal() {
     let data = study(1500, 17, Censoring::Independent(0.1), 12.0);
     let error = run(&data, CensoringAssumption::IndependentWithinArm, 2).unwrap_err();
-    assert!(detail_of(&error).contains("survival_effect.treatment_positivity"), "{error}");
+    assert!(
+        detail_of(&error)
+            .contains(antecedent_core::reason_details::survival_effect::TREATMENT_POSITIVITY),
+        "{error}"
+    );
 }
 
 #[test]
@@ -212,8 +223,8 @@ fn heavy_censoring_before_the_horizon_is_a_censoring_support_refusal() {
     let error = run(&data, CensoringAssumption::IndependentWithinArm, 2).unwrap_err();
     let text = detail_of(&error);
     assert!(
-        text.contains("survival_effect.censoring_support")
-            || text.contains("survival_effect.horizon_beyond_follow_up"),
+        text.contains("positivity_violated: survival_effect.censoring_support")
+            && text.contains("below the declared floor 0.05"),
         "{text}"
     );
     // A shorter horizon that the censoring leaves support for is estimated.
@@ -236,12 +247,19 @@ fn undeclared_levels_invalid_events_and_missing_covariates_are_refused() {
     let mut data = study(600, 19, Censoring::Independent(0.1), 1.0);
     data.treatment[5] = 2.0;
     let error = run(&data, CensoringAssumption::IndependentWithinArm, 1).unwrap_err();
-    assert!(detail_of(&error).contains("survival_effect.undeclared_level"), "{error}");
+    assert!(
+        detail_of(&error)
+            .contains(antecedent_core::reason_details::survival_effect::UNDECLARED_LEVEL),
+        "{error}"
+    );
 
     let mut data = study(600, 19, Censoring::Independent(0.1), 1.0);
     data.event[5] = 2.0;
     let error = run(&data, CensoringAssumption::IndependentWithinArm, 1).unwrap_err();
-    assert!(detail_of(&error).contains("survival_effect.invalid_event"), "{error}");
+    assert!(
+        detail_of(&error).contains(antecedent_core::reason_details::survival_effect::INVALID_EVENT),
+        "{error}"
+    );
 
     let data = study(600, 19, Censoring::Independent(0.1), 1.0);
     let error =
@@ -256,7 +274,12 @@ fn undeclared_levels_invalid_events_and_missing_covariates_are_refused() {
                 &ExecutionContext::for_tests(1),
             )
             .unwrap_err();
-    assert!(detail_of(&error).contains("survival_effect.censoring_covariates_missing"), "{error}");
+    assert!(
+        detail_of(&error).contains(
+            antecedent_core::reason_details::survival_effect::CENSORING_COVARIATES_MISSING
+        ),
+        "{error}"
+    );
 
     let error =
         ObservationalSurvival::new(1.0, 1.0, HORIZON, CensoringAssumption::IndependentWithinArm)
@@ -270,7 +293,11 @@ fn undeclared_levels_invalid_events_and_missing_covariates_are_refused() {
                 &ExecutionContext::for_tests(1),
             )
             .unwrap_err();
-    assert!(detail_of(&error).contains("survival_effect.invalid_levels"), "{error}");
+    assert!(
+        detail_of(&error)
+            .contains(antecedent_core::reason_details::survival_effect::INVALID_LEVELS),
+        "{error}"
+    );
 }
 
 /// Repeated draws: the estimator is unbiased for the closed-form truth and its standard error

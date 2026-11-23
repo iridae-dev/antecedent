@@ -1,11 +1,20 @@
-"""Notebook exploration to independently consumed scientific bytes.
+"""How does an analysis explored in a notebook become bytes another process can rely on?
 
-Run with an installed Antecedent development wheel. No files are retained after
-this example; a real producer stores container bytes and expectations separately.
+The data are 240 simulated rows in which the treatment raises the outcome by 2 and a covariate
+``z`` also moves the outcome. The script asserts that adjusting for ``z`` is the retained
+identification, that a rebound branch moves the estimate by exactly 1, that a changed
+randomized assignment is refused, that a declared mixture mean of 2 reaches a decision contract
+unchanged, and that a fresh process loads the same answer from the bytes and the expectation
+alone. Loading checks integrity and identity; it recomputes nothing and does not test the
+declared graph.
+
+Run: ``python examples/python/notebook_to_system.py``. No files are kept after the run; a real
+producer stores the container bytes and the expectation separately.
 """
 
 from __future__ import annotations
 
+# %%
 import json
 import subprocess
 import sys
@@ -14,116 +23,171 @@ from tempfile import TemporaryDirectory
 
 import antecedent as ant
 import numpy as np
+from antecedent.outcomes import require_success
 
 
-def main() -> None:
-    rng = np.random.default_rng(24)
-    z = rng.normal(size=240)
-    treatment = rng.binomial(1, 0.5, len(z)).astype(float)
-    data = {
-        "z": z,
-        "treatment": treatment,
-        "outcome": 2 * treatment + z + rng.normal(scale=0.2, size=len(z)),
-    }
-    study = ant.prepare(
-        data,
-        graph=[("z", "treatment"), ("z", "outcome"), ("treatment", "outcome")],
-        query=ant.AverageEffect("treatment", "outcome"),
-        bootstrap=0,
-        refute=False,
-    )
-    assert study.last_result is None
-    assert study.identification.verdict == "identified"
-    print(study.inspect_plan())
-    result = study.estimate()
-    checked = result.refute(suite="cheap", seed=24)
-    assert checked.answer.value == result.answer.value
-    print(checked.inspect())
+def first_proof(view):
+    """The first retained proof node of a prepared identification."""
+    if view.kind == "proof":
+        return view
+    for child in view.children():
+        selected = first_proof(child)
+        if selected is not None:
+            return selected
+    return None
 
-    # Update observations while retaining the scientific question and design.
-    updated = study.refresh({**data, "outcome": data["outcome"] + treatment})
-    assert np.isclose(updated.answer.value, result.answer.value + 1)
-    assert result.refute(suite="cheap", seed=24).answer.value == result.answer.value
-    # Named experimental assignments and unit IDs are frozen design bindings.
-    from antecedent.interference import BernoulliAssignment
 
-    ids = np.array([f"unit-{i}" for i in range(len(z))])
-    experiment_data = {
-        "outcome": data["outcome"],
-        "arm": treatment.astype(bool),
-        "id": ids,
-    }
-    design_query = ant.experiment.RandomizedEffect(
-        "outcome",
-        ant.experiment.ExperimentDesign(BernoulliAssignment(0.5), "arm", "id", "id"),
-    )
-    experiment = ant.prepare(experiment_data, query=design_query, refute=False)
-    original = experiment.estimate()
-    changed_design = {**experiment_data, "arm": ~experiment_data["arm"]}
-    try:
-        experiment.refresh(changed_design)
-    except ant.CausalError as error:
-        assert "arm" in str(error) and "reprepare" in str(error)
-    else:
-        raise AssertionError("changing retained assignments must be refused")
-    assert experiment.last_result is original
-    assert experiment.refresh({"outcome": data["outcome"]}).answer.value == original.answer.value
-    # Repreparation returns a new study, resolves the names and repeats checks.
-    revised = experiment.reprepare(changed_design)
-    assert revised is not experiment and revised.last_result is None
-    assert np.isclose(revised.estimate().answer.value, -original.answer.value)
+# %% [markdown]
+# ## Prepare, inspect and estimate
+#
+# Preparation retains the scientific question and its identification, so both can be read
+# before anything is fitted. Each estimate returns its own outcome, and a refutation belongs to
+# the execution it was run on: refuting does not change the answer.
 
-    # A mean producer with incomplete coordinates requires a declaration.
-    from antecedent import decision, joint_distribution, joint_law_propagation
+# %%
+rng = np.random.default_rng(24)
+z = rng.normal(size=240)
+treatment = rng.binomial(1, 0.5, len(z)).astype(float)
+data = {
+    "z": z,
+    "treatment": treatment,
+    "outcome": 2 * treatment + z + rng.normal(scale=0.2, size=len(z)),
+}
+study = ant.prepare(
+    data,
+    graph=[("z", "treatment"), ("z", "outcome"), ("treatment", "outcome")],
+    query=ant.AverageEffect("treatment", "outcome"),
+    inference=ant.Frequentist(bootstrap=0),
+    refute=False,
+)
+assert study.inspect().stage == "prepared"
+proof = first_proof(study.identification)
+assert proof.status == "nonparametrically_identified"
+assert [item["name"] for item in proof.adjustment(estimand=0).items] == ["z"]
+print(study.inspect())
+result = require_success(ant.estimate(study))
+checked = result.refute(suite="cheap")
+assert checked.answer.value == result.answer.value
+print(checked.inspect())
 
-    producer = joint_law_propagation.mixture(
+# %% [markdown]
+# ## Rebind new observations
+#
+# Rebinding returns a new branch on new observations and keeps the question and its
+# identification. Adding the treatment to the outcome raises the effect by exactly one, and the
+# original result still reports its own answer.
+
+# %%
+updated = require_success(
+    ant.estimate(ant.rebind(study, data={**data, "outcome": data["outcome"] + treatment}))
+)
+assert np.isclose(updated.answer.value, result.answer.value + 1)
+assert result.refute(suite="cheap").answer.value == result.answer.value
+
+# %% [markdown]
+# ## Guard a frozen experimental design and prepare a new one
+#
+# Named experimental assignments and unit IDs are frozen design bindings. Rebinding the outcome
+# alone works; changing the assignment is refused, and a new preparation repeats the design checks.
+
+# %%
+from antecedent.interference import BernoulliAssignment
+
+ids = np.array([f"unit-{i}" for i in range(len(z))])
+experiment_data = {
+    "outcome": data["outcome"],
+    "arm": treatment.astype(bool),
+    "id": ids,
+}
+design_query = ant.experiment.RandomizedEffect(
+    "outcome",
+    ant.experiment.ExperimentDesign(BernoulliAssignment(0.5), "arm", "id", "id"),
+)
+experiment = ant.prepare(experiment_data, query=design_query, refute=False)
+original = ant.estimate(experiment)
+changed_design = {**experiment_data, "arm": ~experiment_data["arm"]}
+try:
+    ant.rebind(experiment, data=changed_design)
+except ant.CausalError as error:
+    assert "arm" in str(error) and "ant.prepare" in str(error)
+else:
+    raise AssertionError("changing retained assignments must be refused")
+unchanged = ant.rebind(experiment, data={"outcome": data["outcome"]})
+assert ant.estimate(unchanged).answer.value == original.answer.value
+revised = ant.prepare(changed_design, query=design_query, refute=False)
+assert revised is not experiment and revised.inspect().stage == "prepared"
+assert np.isclose(ant.estimate(revised).answer.value, -original.answer.value)
+
+# %% [markdown]
+# ## Compose a declared scientific mean
+#
+# A mixture declared by weight, mean and variance carries a number but not what the number
+# measures. Declaring the quantity (variable, units, population and regime) makes it a mean
+# source, and the decision contract evaluates against that declared source.
+
+# %%
+from antecedent import decision, joint_distribution, joint_law_propagation
+
+producer = require_success(
+    joint_law_propagation.mixture(
         [joint_law_propagation.MixtureComponent("model", "evidence", 1.0, 2.0, 3.0)]
     )
-    quantity = joint_distribution.ScientificQuantity.of(
-        "outcome",
-        "outcome",
-        units="score",
-        population="declared_target",
-        regime="model",
-    )
-    mean = producer.as_mean_source(quantity=quantity)
-    contract = decision.Contract(
-        actions=[
-            decision.Action("act", inputs=(quantity,), utility=decision.x(0)),
-            decision.Action("wait", inputs=(quantity,), utility=-decision.x(0)),
-        ],
-        utility_units="score",
-        target_population="declared_target",
-        criterion=decision.Criterion.expected_utility(),
-    )
-    assert contract.evaluate(mean).source.means == (2.0,)
+)
+quantity = joint_distribution.ScientificQuantity.of(
+    "outcome",
+    "outcome",
+    units="score",
+    population="declared_target",
+    regime="model",
+)
+mean = producer.as_mean_source(quantity=quantity)
+contract = decision.Contract(
+    actions=[
+        decision.Action("act", inputs=(quantity,), utility=decision.x(0)),
+        decision.Action("wait", inputs=(quantity,), utility=-decision.x(0)),
+    ],
+    utility_units="score",
+    target_population="declared_target",
+    criterion=decision.Criterion.expected_utility(),
+)
+assert require_success(contract.evaluate(mean)).source.means == (2.0,)
 
-    envelope = checked.artifact()
-    assert isinstance(checked.export(), bytes)
-    assert envelope.data == checked.export()
-    assert ant.artifacts.inspect(envelope).acceptance.status == "unavailable"
-    consumed = ant.load(envelope, expected=envelope.expectation)
-    assert consumed.answer.value == checked.answer.value
-    assert consumed.acceptance.identity_bound
-    with TemporaryDirectory() as directory:
-        artifact_path = Path(directory) / "analysis.bin"
-        expected_path = Path(directory) / "expected.json"
-        artifact_path.write_bytes(envelope.data)
-        expected_path.write_text(json.dumps(envelope.expectation.to_dict()["identity"]))
-        script = """import json,sys; from pathlib import Path; import antecedent as ant
+# %% [markdown]
+# ## Persist bytes and independently consume them
+#
+# A result carrying refutation reports loads intact and keeps its answer; replay cannot
+# recompute the reports and lists them as not replayable. The refutation-free result is then
+# loaded in a fresh process from its bytes and expectation alone.
+
+# %%
+checked_envelope = checked.export()
+withheld = require_success(ant.load(checked_envelope, expected=checked_envelope.expectation))
+assert withheld.acceptance.recognized
+audited = withheld.replay()
+assert not audited.acceptance.replayed
+assert "dependencies.refutation_replay" in audited.acceptance.not_replayable
+
+envelope = result.export()
+assert bytes(result.export()) == envelope.data
+assert ant.artifacts.inspect(envelope).acceptance.status == "unavailable"
+consumed = require_success(ant.load(envelope, expected=envelope.expectation))
+assert consumed.answer.value == result.answer.value
+assert consumed.acceptance.identity_bound
+with TemporaryDirectory() as directory:
+    artifact_path = Path(directory) / "analysis.bin"
+    expected_path = Path(directory) / "expected.json"
+    artifact_path.write_bytes(envelope.data)
+    expected_path.write_text(json.dumps(envelope.expectation.to_dict()["identity"]))
+    script = """import json,sys; from pathlib import Path; import antecedent as ant
 r=ant.load(Path(sys.argv[1]).read_bytes(), expected=json.loads(Path(sys.argv[2]).read_text()))
 assert r.acceptance.identity_bound
 print(json.dumps(r.answer.value))
 """
-        replay = subprocess.run(
-            [sys.executable, "-c", script, str(artifact_path), str(expected_path)],
-            check=True,
-            text=True,
-            capture_output=True,
-        )
-        assert json.loads(replay.stdout) == checked.answer.value
-    print("Fresh-process consumption preserved the answer and identity bindings.")
-
-
-if __name__ == "__main__":
-    main()
+    replay = subprocess.run(
+        [sys.executable, "-c", script, str(artifact_path), str(expected_path)],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    assert json.loads(replay.stdout) == result.answer.value
+print("Fresh-process consumption preserved the answer and identity bindings.")

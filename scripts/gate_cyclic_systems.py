@@ -1,0 +1,321 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT OR Apache-2.0
+"""Standalone cyclic implementation gate; calibration/attestation are separate.
+
+Run with an installed current release wheel:
+  python3 scripts/gate_cyclic_systems.py --python /path/to/venv/bin/python
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import math
+import os
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+from _repo import load_toml
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+#: Committed family fixtures: version-two records with contracts, and the version-one
+#: record that keeps replaying beside them.
+def valid_digest(value: object) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+
+
+def finite_at_most(value: object, limit: object) -> bool:
+    return (
+        type(value) in (int, float)
+        and type(limit) in (int, float)
+        and math.isfinite(value)
+        and math.isfinite(limit)
+        and 0 <= value <= limit
+    )
+
+
+FAMILY_FIXTURES = (
+    "specified-feedback-pair",
+    "overlapping-loops",
+    "recovered-asymptotic-normal",
+    "recovered-bootstrap",
+    "recovered-unresolved-direction",
+    "dynamic-inference-ou",
+    "previous-record-format",
+)
+FIXTURE_FILES = (
+    "request.json",
+    "report.json",
+    "family.ant",
+    "expected-identity.json",
+    "manifest.json",
+)
+#: Integration targets of the integrated families: independent CPU consumers of the
+#: committed fixtures, DAG regression, fixture-request currency and the prepared handle.
+RUST_INTEGRATION_TESTS = (
+    "cyclic_independent_consumer",
+    "cyclic_dag_regression",
+    "cyclic_family_fixtures",
+    "cross_surface_cyclic_feedback",
+)
+RUST_CHECKS = [
+    ("antecedent-model", None),
+    ("antecedent-graph", "sigma"),
+    ("antecedent-graph", "bipartite"),
+    ("antecedent-identify", "cyclic"),
+    ("antecedent-discovery", "cyclic_fci"),
+    ("antecedent-estimate", "cyclic"),
+    ("antecedent-estimate", "polynomial_scm"),
+    ("antecedent-estimate", "constraint_likelihood"),
+    ("antecedent-estimate", "ou_mechanisms"),
+    ("antecedent-estimate", "ou_trajectory"),
+    ("antecedent-estimate", "nonlinear_sde_fit"),
+    ("antecedent-prob", "metropolis"),
+    ("antecedent-io", "cyclic"),
+    ("antecedent", "cyclic"),
+]
+
+
+def run(command: list[str], **kwargs) -> None:
+    print("+ " + " ".join(command), flush=True)
+    subprocess.run(command, check=True, **kwargs)
+
+
+def validate_rust_listing(listing: dict, checks=RUST_CHECKS) -> None:
+    """Every declared package/substring must have a runnable selected lib test."""
+    suites = listing.get("rust-suites", {})
+    for crate, selector in checks:
+        cases = suites.get(crate, {}).get("testcases", {})
+        if not any(
+            (selector is None or selector in name)
+            and not case.get("ignored", False)
+            and case.get("filter-match", {}).get("status") == "matches"
+            for name, case in cases.items()
+        ):
+            raise ValueError(f"cyclic selector has no runnable selected test: {crate} / {selector}")
+
+
+def run_rust_checks() -> None:
+    packages = []
+    for crate in dict.fromkeys(crate for crate, _ in RUST_CHECKS):
+        packages.extend(["-p", crate])
+    selections = [
+        f"package({crate})" if test is None else f"(package({crate}) & test({test}))"
+        for crate, test in RUST_CHECKS
+    ]
+    selection = ["--lib", "-E", " | ".join(selections)]
+    # Match test.sh dev's profile defaults so discovery and execution use the
+    # same binary graph, while preserving caller-supplied profile overrides.
+    env = os.environ.copy()
+    env.setdefault("CARGO_PROFILE_TEST_OPT_LEVEL", "0")
+    env.setdefault("CARGO_PROFILE_TEST_DEBUG", "line-tables-only")
+    command = [
+        "cargo",
+        "nextest",
+        "list",
+        "--locked",
+        "--profile",
+        "ci",
+        *packages,
+        *selection,
+        "--message-format",
+        "json",
+    ]
+    print("+ " + " ".join(command), flush=True)
+    listing = subprocess.run(command, cwd=ROOT, env=env, check=True, capture_output=True, text=True)
+    validate_rust_listing(json.loads(listing.stdout), RUST_CHECKS)
+    run(["bash", "scripts/test.sh", "dev", *packages, *selection], cwd=ROOT)
+
+
+def inventory() -> None:
+    record = load_toml(ROOT / "parity/cyclic/acceptance.toml")
+    expected = (
+        {"Y18.1", "Y18.2"}
+        | {f"Y19.{i}" for i in range(1, 9)}
+        | {"integrated_families", "nonlinear_sde"}
+    )
+    if {row["id"] for row in record["capability"]} != expected:
+        raise ValueError("cyclic acceptance children differ from the release scope")
+    for row in record["capability"]:
+        for path in [*row["rust"], *row.get("fixtures", []), *row.get("tests", [])]:
+            if not (ROOT / path).exists():
+                raise ValueError(f"missing cyclic implementation {path}")
+    for name in FAMILY_FIXTURES:
+        directory = ROOT / "parity/cyclic" / name
+        for file in FIXTURE_FILES:
+            if not (directory / file).is_file():
+                raise ValueError(f"missing committed family fixture {name}/{file}")
+        manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+        identity = json.loads((directory / "expected-identity.json").read_text(encoding="utf-8"))
+        if (
+            not valid_digest(identity["identity"])
+            or not valid_digest(manifest["artifact_blake3"])
+            or not manifest["fresh_process_cpu_replay"]
+            or "cyclic_family_fixtures" not in manifest["generator"]
+        ):
+            raise ValueError(f"incomplete family fixture manifest {name}")
+    fixture = ROOT / "parity/cyclic/general-equilibrium"
+    manifest = json.loads((fixture / "manifest.json").read_text(encoding="utf-8"))
+    for key, path in [
+        ("artifact_sha256", fixture / "nonlinear.ant"),
+        ("generator_sha256", ROOT / manifest["generator"]),
+    ]:
+        if hashlib.sha256(path.read_bytes()).hexdigest() != manifest[key]:
+            raise ValueError(f"stale independent fixture {path}")
+    source = hashlib.sha256(
+        (ROOT / "examples/python/cyclic_paper_experiments.py").read_bytes()
+    ).hexdigest()
+    selected = {
+        (r["lane"], r["seed"]): r
+        for r in json.loads(
+            (ROOT / "parity/cyclic/paper-experiments/stopping-diagnostics.json").read_text(
+                encoding="utf-8"
+            )
+        )["selected_fits"]
+    }
+    if set(selected) != {
+        (lane, seed) for lane in ("nodags-linear", "nodags-relu") for seed in range(5)
+    }:
+        raise ValueError("incomplete selected-fit stopping diagnostics")
+    for lane in ("nodags-linear", "nodags-relu", "bicycle"):
+        path = ROOT / f"parity/cyclic/paper-experiments/{lane}.json"
+        result = json.loads(path.read_text(encoding="utf-8"))
+        if result["manifest"]["script_sha256"] != source or not result["manifest"]["full"]:
+            raise ValueError(f"stale or reduced paper protocol: {lane}")
+        if {trial["seed"] for trial in result["trials"]} != set(range(5)):
+            raise ValueError(f"incomplete independent trials: {lane}")
+        for trial in result["trials"]:
+            cases = trial["cases"] if lane == "bicycle" else [trial]
+            for case in cases:
+                artifact = case["artifact"]
+                if not artifact["fresh_process_cpu_replay"] or not valid_digest(
+                    artifact["identity"]
+                ):
+                    raise ValueError(f"missing independent artifact: {lane}")
+            if lane == "bicycle":
+                if trial["nodes"] != 10 or trial["samples_per_single_context"] != 250:
+                    raise ValueError("incorrect published OU experiment size")
+                if not cases[-1]["converged"]:
+                    raise ValueError(
+                        "full-intervention OU fit did not reach its declared tolerance"
+                    )
+                if any(
+                    not finite_at_most(c["independent_law_max_absolute_error"], 1e-7) for c in cases
+                ):
+                    raise ValueError("OU reference law disagreement")
+            elif selected[(lane, trial["seed"])]["identity"] != trial["artifact"]["identity"]:
+                raise ValueError("stopping diagnostics are not bound to the selected fit")
+            elif (
+                trial["nodes"],
+                trial["samples_per_single_intervention"],
+                trial["training_rows"],
+            ) != (20, 5000, 120000):
+                raise ValueError("incorrect published nonlinear experiment size")
+            elif not trial["fit_converged"]:
+                raise ValueError("nonlinear fit did not reach its declared stopping rule")
+    directory = ROOT / "parity/cyclic/paper-experiments"
+    bicycle = json.loads((directory / "bicycle.json").read_text(encoding="utf-8"))
+    expected = {
+        (t["seed"], f"single-contexts-{c['single_contexts']}")
+        for t in bicycle["trials"]
+        for c in t["cases"]
+        if not c["converged"]
+    }
+    continued = json.loads((directory / "ou-continuations.json").read_text(encoding="utf-8"))[
+        "cases"
+    ]
+    if {(r["seed"], r["case"]) for r in continued} != expected:
+        raise ValueError("a budget-limited OU experiment has no named continuation")
+    standardized = {
+        (r["seed"], r["case"]): r
+        for r in json.loads((directory / "ou-standardized.json").read_text(encoding="utf-8"))[
+            "cases"
+        ]
+    }
+    base_identities = {
+        (t["seed"], f"single-contexts-{c['single_contexts']}"): c["artifact"]["identity"]
+        for t in bicycle["trials"]
+        for c in t["cases"]
+    }
+    for row in continued:
+        if row["original_identity"] != base_identities[(row["seed"], row["case"])]:
+            raise ValueError("OU continuation is not bound to its original fit")
+        if (
+            not valid_digest(row["artifact"]["identity"])
+            or not row["artifact"]["fresh_process_cpu_replay"]
+        ):
+            raise ValueError("OU continuation was not independently replayed")
+        if not row["converged"]:
+            retry = standardized.get((row["seed"], row["case"]))
+            if (
+                retry is None
+                or retry["previous_identity"] != row["artifact"]["identity"]
+                or not retry["converged"]
+                or not finite_at_most(
+                    retry["original_score_upper_bound"], retry["original_score_tolerance"]
+                )
+                or not valid_digest(retry["artifact"]["identity"])
+                or not retry["artifact"]["fresh_process_cpu_replay"]
+            ):
+                raise ValueError(
+                    "OU coordinate-standardization continuation did not meet original score tolerance"
+                )
+    run([sys.executable, "scripts/check_test_registry.py"], cwd=ROOT)
+    run([sys.executable, "scripts/generate_example_catalog.py", "--check"], cwd=ROOT)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--python",
+        default=sys.executable,
+        help="Python with the current wheel, pytest, NumPy installed",
+    )
+    parser.add_argument(
+        "--inventory-only",
+        action="store_true",
+        help="Only check scope, fixture and research-result integrity",
+    )
+    args = parser.parse_args()
+    inventory()
+    if args.inventory_only:
+        return
+    run_rust_checks()
+    integration = ["bash", "scripts/test.sh", "dev", "-p", "antecedent"]
+    for target in RUST_INTEGRATION_TESTS:
+        integration.extend(["--test", target])
+    run(integration, cwd=ROOT)
+    with tempfile.TemporaryDirectory(prefix="antecedent-cyclic-gate-") as directory:
+        target = Path(directory) / "test_cyclic.py"
+        target.write_bytes((ROOT / "python/tests/test_cyclic.py").read_bytes())
+        env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+        # The copied tests replay the committed family fixtures in fresh processes.
+        env["ANTECEDENT_CYCLIC_FIXTURES"] = str(ROOT / "parity/cyclic")
+        run(
+            [args.python, "-m", "pytest", "--noconftest", "-q", str(target)],
+            cwd=directory,
+            env=env,
+        )
+        fixture = ROOT / "parity/cyclic/general-equilibrium"
+        code = (
+            "import json,pathlib;from antecedent.cyclic import consume_artifact;"
+            "from antecedent.outcomes import require_success;"
+            f"p=pathlib.Path({str(fixture)!r});"
+            "expected=json.loads((p/'expected-identity.json').read_text(encoding='utf-8'));"
+            "r=require_success(consume_artifact((p/'nonlinear.ant').read_bytes(),"
+            "expected_identity=expected['identity']));"
+            "\nif r.to_dict() != json.loads((p/'report.json').read_text(encoding='utf-8')):\n"
+            " raise SystemExit('cyclic fixture report mismatch')"
+        )
+        run([args.python, "-c", code], cwd=directory, env=env)
+    print("Cyclic implementation gate PASSED; calibration and attestation were not run.")
+
+
+if __name__ == "__main__":
+    main()

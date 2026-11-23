@@ -1,16 +1,17 @@
 //! End-to-end temporal-response facade conformance.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
 use antecedent::{RefuteSuite, Study};
 use antecedent_core::{
-    Assumption, CausalQuery, CausalSchemaBuilder, ContinuousDomain, ExecutionContext, GridSpec,
-    Intervention, InterventionSequence, Lag, MeasurementSpec, MechanismOverride, MemoryBudget,
-    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
-    RoleHint, SequencedIntervention, SmallRoleSet, SupportStatus, TargetPopulation,
-    TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, Value, ValueType, VariableId,
+    Assumption, CausalQuery, CausalSchemaBuilder, ContinuousDomain, ExecutionContext,
+    FeedbackDeclaration, GridSpec, InitialLaw, Intervention, InterventionSequence, Lag,
+    MeasurementSpec, MechanismOverride, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, ResponseValue, RoleHint, SequencedIntervention, SmallRoleSet,
+    SupportStatus, TargetPopulation, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec,
+    Value, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
@@ -317,10 +318,10 @@ fn temporal_surface_honors_execution_memory_budget() {
         .build()
         .unwrap();
     let mut ctx = ExecutionContext::for_tests(21);
-    ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(159) };
+    ctx.set_memory_limit(Some(159));
 
     let error = study.run(&ctx).unwrap_err();
-    assert!(error.to_string().contains("at least 160 output bytes"), "got {error}");
+    assert!(error.to_string().contains("exceeds memory limit 159"), "got {error}");
 }
 
 #[test]
@@ -371,9 +372,9 @@ fn pulse_and_single_step_sustained_match_surface_projection() {
         ("sustained prepared", &sustained_click),
     ] {
         assert!(
-            (result.estimate.as_effect().unwrap().ate - expected).abs() <= atol,
+            (result.estimate().as_effect().unwrap().ate - expected).abs() <= atol,
             "{label}: ate={}, expected={expected}",
-            result.estimate.as_effect().unwrap().ate
+            result.estimate().as_effect().unwrap().ate
         );
     }
     assert!(
@@ -388,6 +389,127 @@ fn pulse_and_single_step_sustained_match_surface_projection() {
         sustained_click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
         "prepared Sustained must reuse identification"
     );
+}
+
+fn declared_feedback() -> FeedbackDeclaration {
+    FeedbackDeclaration {
+        delay_ticks: 1,
+        level: 1.0,
+        autoregression: 0.5,
+        input_gain: 2.0,
+        innovation_variance: 1.0,
+        initial_law: InitialLaw::contemporaneous_observed(),
+        initial_state: 0.0,
+    }
+}
+
+fn feedback_response(
+    policy: TemporalPolicy,
+    feedback: Option<FeedbackDeclaration>,
+    ctx: &ExecutionContext,
+) -> Result<antecedent::result::StudyResult, antecedent::CausalError> {
+    let (series, graph) = temporal_fixture_series();
+    let mut spec = TemporalResponseSpec::new(vec![1], policy, None).unwrap();
+    if let Some(feedback) = feedback {
+        spec = spec.with_feedback(feedback).unwrap();
+    }
+    let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+        outcome: VariableId::from_raw(1),
+        treatment: ContinuousDomain::new(
+            VariableId::from_raw(0),
+            GridSpec::Values(Arc::from([0.0, 1.0])),
+        ),
+    })
+    .with_temporal(spec);
+    Study::series(series)
+        .graph(graph)
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .and_then(|study| study.run(ctx))
+}
+
+#[test]
+fn a_declared_feedback_mechanism_publishes_the_finite_horizon_rollout_for_pulse_and_sustained() {
+    let ctx = ExecutionContext::for_tests(23);
+    for policy in [TemporalPolicy::pulse(-1), TemporalPolicy::sustained(-1, -1)] {
+        let result = feedback_response(policy, Some(declared_feedback()), &ctx).unwrap();
+        let response = result.response().expect("temporal response payload");
+        assert_eq!(response.provenance_id.as_ref(), "model.delayed_feedback.finite_horizon");
+        // One delayed tick at the declared gain: the input arrives at the origin.
+        let ResponseIdentification::PointIdentified(ResponseValue::Scalar(level)) =
+            &response.estimate
+        else {
+            panic!("a single horizon publishes its scalar rollout");
+        };
+        assert_eq!(level.to_bits(), 2.0f64.to_bits());
+    }
+}
+
+#[test]
+fn without_a_feedback_declaration_the_fitted_surface_is_published() {
+    let ctx = ExecutionContext::for_tests(23);
+    let result = feedback_response(TemporalPolicy::pulse(-1), None, &ctx).unwrap();
+    let response = result.response().expect("temporal response payload");
+    assert_ne!(response.provenance_id.as_ref(), "model.delayed_feedback.finite_horizon");
+    assert!(matches!(
+        response.estimate,
+        ResponseIdentification::PointIdentified(ResponseValue::Surface { .. })
+    ));
+}
+
+#[test]
+fn an_unstable_declared_autoregression_publishes_the_finite_horizon() {
+    let ctx = ExecutionContext::for_tests(23);
+    let unstable = FeedbackDeclaration { autoregression: 1.5, ..declared_feedback() };
+    let result = feedback_response(TemporalPolicy::pulse(-1), Some(unstable), &ctx).unwrap();
+    let response = result.response().unwrap();
+    assert_eq!(response.provenance_id.as_ref(), "model.delayed_feedback.finite_horizon");
+    // One delayed tick: the unstable autoregression never acts, so the rollout is still the
+    // declared input gain 2.0 at the origin.
+    let ResponseIdentification::PointIdentified(ResponseValue::Scalar(level)) = &response.estimate
+    else {
+        panic!("a single horizon publishes its scalar rollout");
+    };
+    assert_eq!(level.to_bits(), 2.0f64.to_bits());
+}
+
+#[test]
+fn feedback_arriving_after_the_horizon_refuses_end_to_end() {
+    let ctx = ExecutionContext::for_tests(23);
+    let late = FeedbackDeclaration { delay_ticks: 3, ..declared_feedback() };
+    let error = feedback_response(TemporalPolicy::pulse(-1), Some(late), &ctx).unwrap_err();
+    // The declared delay of three ticks puts the first input at tick 2 of a one-step horizon.
+    assert!(
+        error
+            .to_string()
+            .contains("delayed feedback is not available: prospective tick 2 follows decision 0"),
+        "{error}"
+    );
+}
+
+#[test]
+fn a_dynamic_policy_and_an_invalid_declaration_are_refused_when_the_spec_is_built() {
+    let dynamic = TemporalPolicy::dynamic(antecedent_core::DynamicRuleId::from_raw(1), [0]);
+    assert_eq!(
+        format!("{:?}", TemporalResponseSpec::new(vec![1], dynamic, None).unwrap_err()),
+        "InvalidResponse(DynamicPolicyNotACell)"
+    );
+    let spec = TemporalResponseSpec::new(vec![1], TemporalPolicy::pulse(-1), None).unwrap();
+    for (invalid, fault) in [
+        (FeedbackDeclaration { delay_ticks: 0, ..declared_feedback() }, "FeedbackDelay"),
+        (
+            FeedbackDeclaration { innovation_variance: -1.0, ..declared_feedback() },
+            "FeedbackNegativeVariance",
+        ),
+        (FeedbackDeclaration { input_gain: f64::NAN, ..declared_feedback() }, "FeedbackNotFinite"),
+    ] {
+        assert_eq!(
+            format!("{:?}", spec.clone().with_feedback(invalid).unwrap_err()),
+            format!("InvalidResponse({fault})")
+        );
+    }
 }
 
 fn noisy_pulse_series(n: usize) -> (TimeSeriesData, TemporalDag) {
@@ -518,27 +640,35 @@ fn pulse_sustained_and_surface_share_study_bootstrap_ses() {
     let pulse_analytic = run_pulse(0);
     let pulse_boot = run_pulse(40);
     assert!(
-        pulse_analytic.estimate.as_effect().unwrap().se_analytic().is_nan(),
+        pulse_analytic.estimate().as_effect().unwrap().se_analytic().is_nan(),
         "iid OLS SE must not be published"
     );
-    assert!(pulse_analytic.estimate.as_effect().unwrap().se_bootstrap().is_none());
+    assert!(pulse_analytic.estimate().as_effect().unwrap().se_bootstrap().is_none());
     let se_pulse_b =
-        pulse_boot.estimate.as_effect().unwrap().se_bootstrap().expect("pulse bootstrap SE");
+        pulse_boot.estimate().as_effect().unwrap().se_bootstrap().expect("pulse bootstrap SE");
     assert!(se_pulse_b.is_finite() && se_pulse_b > 0.0, "bootstrap pulse se={se_pulse_b}");
-    assert!(pulse_boot.estimate.as_effect().unwrap().se_analytic().is_nan());
+    assert!(pulse_boot.estimate().as_effect().unwrap().se_analytic().is_nan());
 
     let se_sustained_b = run_sustained(40)
-        .estimate
+        .estimate()
         .as_effect()
         .unwrap()
         .se_bootstrap()
         .expect("sustained bootstrap SE");
     assert!(se_sustained_b.is_finite() && se_sustained_b > 0.0);
-    let pulse_sustained_ratio = se_pulse_b / se_sustained_b;
-    assert!(
-        (0.25..=4.0).contains(&pulse_sustained_ratio),
-        "Pulse and single-step Sustained SEs must be comparable (pulse={se_pulse_b}, sustained={se_sustained_b})"
-    );
+    // y = 0.8 t[-1] + 0.35 e with sd(t) = 0.4 and 199 aligned rows: the sampling SE of the lag
+    // coefficient is 0.35 / (0.4 sqrt(199)) = 0.062. A 40-replicate block bootstrap scatters by
+    // about a tenth of that, so a factor of 0.7..1.4 holds the SE to the truth, not just to
+    // "finite and positive".
+    let reference_se = 0.35 / (0.4 * 199.0_f64.sqrt());
+    for (label, se) in [("pulse", se_pulse_b), ("sustained", se_sustained_b)] {
+        assert!(
+            (0.7 * reference_se..=1.4 * reference_se).contains(&se),
+            "{label} bootstrap SE {se} vs sampling SE {reference_se}"
+        );
+    }
+    let pulse_ate = pulse_boot.estimate().as_effect().unwrap().ate;
+    assert!((pulse_ate - 0.8).abs() < 4.0 * reference_se, "pulse effect {pulse_ate} vs 0.8");
 
     // The surface follows the same rule: no replicates, no band.
     let surface_analytic = run_surface(0);
@@ -553,10 +683,9 @@ fn pulse_sustained_and_surface_share_study_bootstrap_ses() {
     assert!(hw_b.iter().all(|w| w.is_finite() && *w > 0.0), "bootstrap surface bands={hw_b:?}");
     let z = 1.959_963_984_540_054;
     let surface_se = hw_b.iter().copied().fold(0.0_f64, f64::max) / z;
-    let ratio = se_pulse_b / surface_se;
     assert!(
-        (0.25..=4.0).contains(&ratio),
-        "Pulse SE and dose×horizon surface SE must be comparable (pulse={se_pulse_b}, surface={surface_se})"
+        (0.7 * reference_se..=1.4 * reference_se).contains(&surface_se),
+        "dose×horizon surface SE {surface_se} vs sampling SE {reference_se}"
     );
 }
 
@@ -599,7 +728,7 @@ fn temporal_intervention_path_matches_fixture() {
         let fresh = study.run(&ctx).unwrap();
         let click = study.prepare(&ctx).unwrap().estimate_series(&series, &ctx).unwrap();
         for result in [&fresh, &click] {
-            assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+            assert_eq!(result.support_status().unwrap().as_str(), "supported");
             assert_surface(
                 result,
                 &expected,
@@ -843,7 +972,7 @@ fn nested_sequence_refuses_end_to_end() {
         .unwrap_err();
     let msg = err.to_string();
     assert!(
-        msg.contains("Sequence") && msg.contains("nested") && msg.contains("not licensed"),
+        msg.contains("Sequence") && msg.contains("nested") && msg.contains("not supported"),
         "unexpected error content: {msg}"
     );
 }
@@ -1095,9 +1224,9 @@ fn joint_sequence_refuses_when_a_coordinate_is_not_on_the_graph() {
         .unwrap_err();
     let msg = err.to_string();
     assert!(
-        msg.contains("not in temporal graph")
-            || msg.contains("UnknownVariable")
-            || msg.contains("unknown"),
+        msg.contains(
+            "query variables not in temporal graph (treatment present=false, outcome present=true)"
+        ),
         "unexpected error content: {msg}"
     );
 }
@@ -1194,7 +1323,7 @@ fn temporal_dose_horizon_point_and_block_bands_match_fixture() {
             .support
             .warnings
             .iter()
-            .any(|w| w.code.as_ref() == "estimate.temporal_response.band_withheld"),
+            .any(|w| w.code.as_ref() == "estimate.temporal_response.no_band_method"),
         "the withheld band must be diagnosed"
     );
 
@@ -1379,8 +1508,9 @@ fn bayesian_temporal_response_and_sustained_window_known_truth() {
                 .estimate_series(&series, &ctx)
                 .unwrap();
             assert!(
-                (result.estimate.as_effect().unwrap().ate - pin["window_effect"].as_f64().unwrap())
-                    .abs()
+                (result.estimate().as_effect().unwrap().ate
+                    - pin["window_effect"].as_f64().unwrap())
+                .abs()
                     < pin["window_tolerance"].as_f64().unwrap()
             );
             assert_eq!(result.posterior.is_some(), bayesian);
@@ -1467,6 +1597,16 @@ fn bayesian_sequence_band_matches_posterior_quantiles() {
     else {
         panic!("missing band")
     };
+    let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
+        &result.response().unwrap().estimate
+    else {
+        panic!("expected a point-identified surface");
+    };
+    // The structural truth at horizon 2 with both steps set to 1 is 4 (the noiseless period-4
+    // fixture); the credible band must bracket it and stay tight around it.
+    assert!((mean[0] - 4.0).abs() < 0.05, "posterior surface {mean:?}");
+    assert!(lower[0] < 4.0 && 4.0 < upper[0], "band [{}, {}] must bracket 4", lower[0], upper[0]);
+    assert!(upper[0] - lower[0] < 0.6, "band [{}, {}] too wide", lower[0], upper[0]);
     assert_eq!(lower[0].to_bits(), posterior.summaries.q025[0].to_bits());
     assert_eq!(upper[0].to_bits(), posterior.summaries.q975[0].to_bits());
 }

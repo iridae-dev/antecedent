@@ -1,11 +1,11 @@
 //! Acyclic directed mixed graphs (ADMGs): directed + bidirected edges.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::VariableId;
 
 use crate::algo::{closure_into, components_by, is_dag};
-use crate::directed::DirectedCore;
+use crate::directed::{DirectedCore, same_rows_as_sets, sorted_row_pairs};
 use crate::error::GraphError;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 use crate::workspace::{BitSet, GraphWorkspace};
@@ -36,7 +36,8 @@ pub struct Admg {
 
 impl PartialEq for Admg {
     fn eq(&self, other: &Self) -> bool {
-        self.directed.same_directed(&other.directed) && self.bidirected == other.bidirected
+        self.directed.same_directed(&other.directed)
+            && same_rows_as_sets(&self.bidirected, &other.bidirected)
     }
 }
 
@@ -205,7 +206,7 @@ impl Admg {
     ///
     /// # Errors
     ///
-    /// Non-static node or capacity overflow.
+    /// Non-static node, a `Static` label an earlier node carries, or capacity overflow.
     pub fn add_node(&mut self, node: NodeRef) -> Result<DenseNodeId, GraphError> {
         if !node.is_static_graph_node() {
             return Err(GraphError::InvalidEndpoints {
@@ -217,16 +218,8 @@ impl Admg {
         Ok(id)
     }
 
-    fn validate_node(&self, id: DenseNodeId) -> Result<(), GraphError> {
-        if id.as_usize() >= self.node_count() {
-            return Err(GraphError::UnknownNode { id: id.raw() });
-        }
-        Ok(())
-    }
-
-    /// Validate node for public APIs.
-    pub(crate) fn validate_node_pub(&self, id: DenseNodeId) -> Result<(), GraphError> {
-        self.validate_node(id)
+    pub(crate) fn validate_node(&self, id: DenseNodeId) -> Result<(), GraphError> {
+        crate::types::validate_node_index(self.node_count(), id)
     }
 
     /// Insert directed edge `from -> to` if it preserves directed acyclicity.
@@ -247,6 +240,22 @@ impl Admg {
             });
         }
         self.directed.try_insert(from, to)
+    }
+
+    pub(crate) fn insert_directed_temporal(
+        &mut self,
+        from: DenseNodeId,
+        to: DenseNodeId,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<(), GraphError> {
+        self.validate_node(from)?;
+        self.validate_node(to)?;
+        if from == to {
+            return Err(GraphError::InvalidEndpoints {
+                message: "Admg rejects directed self-loops",
+            });
+        }
+        self.directed.try_insert_temporal(from, to, ctx)
     }
 
     /// Insert bidirected edge `a ↔ b` (latent confounder).
@@ -404,13 +413,7 @@ impl Admg {
     /// Bidirected edges as raw `(lower, higher)` dense-id pairs in ascending order.
     #[must_use]
     pub fn bidirected_edge_pairs_sorted(&self) -> Vec<(u32, u32)> {
-        let mut pairs = Vec::new();
-        for (i, neighbors) in self.bidirected.iter().enumerate() {
-            let from = u32::try_from(i).expect("node fit");
-            pairs.extend(neighbors.iter().filter(|to| to.raw() > from).map(|to| (from, to.raw())));
-        }
-        pairs.sort_unstable();
-        pairs
+        sorted_row_pairs(&self.bidirected, |from, to| to > from)
     }
 
     /// The variable a static node stands for, or `None` for a non-static or unknown node.
@@ -465,8 +468,11 @@ impl Admg {
         let mut pending: Vec<usize> = self.directed.parent_adj().iter().map(Vec::len).collect();
         let mut ready: Vec<DenseNodeId> =
             self.node_ids().filter(|v| pending[v.as_usize()] == 0).collect();
+        // One scratch copy of the finished node's ancestors, reused for every node.
+        let mut done = BitSet::with_len(n);
         while let Some(v) = ready.pop() {
-            let done = ancestors[v.as_usize()].clone();
+            done.clear();
+            done.union_with(&ancestors[v.as_usize()]);
             for &c in self.children(v) {
                 let ci = c.as_usize();
                 ancestors[ci].union_with(&done);
@@ -565,12 +571,26 @@ impl Admg {
         next
     }
 
-    /// Topological order of the directed edges (Kahn, stack discipline).
+    /// Topological order of the directed edges: Kahn, the smallest label first among the ready
+    /// nodes, so the order depends on the labelled graph and not on insertion order.
     ///
     /// `None` only if a directed cycle slipped in; insertion refuses cycles.
     #[must_use]
     pub fn topological_order(&self) -> Option<Vec<DenseNodeId>> {
         self.directed.topological_order()
+    }
+
+    /// [`Self::topological_order`] calling `poll` at every node and edge it visits and stopping
+    /// at its first error, for callers that must stay cancellable on a large graph.
+    ///
+    /// # Errors
+    ///
+    /// The first error `poll` returns.
+    pub fn topological_order_polled<E>(
+        &self,
+        poll: impl FnMut() -> Result<(), E>,
+    ) -> Result<Option<Vec<DenseNodeId>>, E> {
+        self.directed.topological_order_polled(poll)
     }
 
     /// Districts (bidirected-connected components) of the subgraph induced by `nodes`.
@@ -639,6 +659,22 @@ impl Admg {
 mod tests {
     use super::*;
     use crate::types::{Endpoint, MiddleMark};
+
+    #[test]
+    fn admg_refuses_a_second_node_with_the_same_static_label() {
+        let label = |raw: u32| NodeRef::Static(antecedent_core::VariableId::from_raw(raw));
+        let mut g = Admg::empty();
+        let first = g.add_node(label(7)).unwrap();
+        assert!(matches!(g.add_node(label(7)), Err(GraphError::InvalidEndpoints { .. })));
+        assert_eq!(g.node_count(), 1, "a refused node leaves no trace");
+        let other = g.add_node(label(8)).unwrap();
+        assert_eq!((first.raw(), other.raw()), (0, 1));
+        // A copy claims independently of the graph it came from.
+        let mut copy = g.clone();
+        assert!(copy.add_node(label(7)).is_err());
+        copy.add_node(label(9)).unwrap();
+        g.add_node(label(9)).unwrap();
+    }
 
     #[test]
     fn districts_split_on_bidirected() {
@@ -812,6 +848,58 @@ mod tests {
         let pos = |v: u32| order.iter().position(|&d| d.raw() == v).unwrap();
         assert_eq!(order.len(), 4);
         assert!(pos(2) < pos(0) && pos(0) < pos(1) && pos(2) < pos(3));
+    }
+
+    #[test]
+    fn topological_order_is_a_function_of_the_labelled_graph() {
+        let edges = [(2, 0), (0, 1), (2, 3), (4, 3)];
+        let order_labels = |g: &Admg| -> Vec<u32> {
+            g.topological_order()
+                .unwrap()
+                .into_iter()
+                .map(|d| g.static_variable(d).unwrap().raw())
+                .collect()
+        };
+        let build = |nodes: &[u32], edges: &[(u32, u32)]| {
+            let mut g = Admg::empty();
+            for &v in nodes {
+                g.add_node(NodeRef::Static(VariableId::from_raw(v))).unwrap();
+            }
+            for &(a, b) in edges {
+                let from = g.dense_of_static(VariableId::from_raw(a)).unwrap();
+                let to = g.dense_of_static(VariableId::from_raw(b)).unwrap();
+                g.insert_directed(from, to).unwrap();
+            }
+            g
+        };
+        let forward = build(&[0, 1, 2, 3, 4], &edges);
+        let mut reversed_edges = edges;
+        reversed_edges.reverse();
+        let reversed = build(&[0, 1, 2, 3, 4], &reversed_edges);
+        // Nodes added in another order get other dense ids; the order is by label.
+        let renumbered = build(&[4, 3, 2, 1, 0], &edges);
+        // Smallest ready label first: 2 and 4 are sources, 0 follows 2, then 1, then 3.
+        let expected = vec![2, 0, 1, 4, 3];
+        assert_eq!(order_labels(&forward), expected);
+        assert_eq!(order_labels(&reversed), expected);
+        assert_eq!(order_labels(&renumbered), expected);
+    }
+
+    #[test]
+    fn a_polled_order_is_the_plain_order_and_stops_at_the_first_error() {
+        let mut g = Admg::with_variables(4);
+        for (a, b) in [(2, 0), (0, 1), (2, 3)] {
+            g.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let polled = g.topological_order_polled(|| Ok::<(), ()>(())).unwrap();
+        assert_eq!(polled, g.topological_order());
+        let mut polls = 0;
+        let stopped = g.topological_order_polled(|| {
+            polls += 1;
+            if polls == 3 { Err("stop") } else { Ok(()) }
+        });
+        assert_eq!(stopped, Err("stop"));
+        assert_eq!(polls, 3);
     }
 
     #[test]

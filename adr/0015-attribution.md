@@ -22,6 +22,6 @@ blocks, and graph-sensitive root-cause ranking with GCM parity.
 
 ## Consequences
 
-`scripts/gate_attribution.sh` gates inventory honesty, conformance pins, and
+`scripts/check_parity_inventories.py` gates inventory honesty, conformance pins, and
 Shapley criterion smokes. `parity/gcm.toml` Shapley / distribution-change rows
 are `done`.

@@ -1,9 +1,12 @@
 //! JSON view of a result's missing-data report, and parsing of the declared policy.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::data::{
+    ImputationDomain, ImputationModel, ImputationSpec, MissingDeclaration, MissingPolicy,
+    MissingnessAssumption, RowAccounting,
+};
 use antecedent::result::MissingDataReport;
-use antecedent_data::{MissingDeclaration, MissingPolicy, RowAccounting};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
@@ -50,9 +53,108 @@ pub(crate) fn report_json(report: Option<&MissingDataReport>) -> Option<String> 
             "assumption": report.assumption.as_ref(),
             "covariates": report.covariates.iter().map(AsRef::as_ref).collect::<Vec<_>>(),
             "accounting": accounting_json(&report.accounting),
+            "imputation": report.imputation.as_ref().map(imputation_json),
         })
         .to_string(),
     )
+}
+
+/// The impute-fit-pool record of a multiple-imputation result.
+pub(crate) fn add_imputation_domains(
+    payload: &mut serde_json::Value,
+    report: &antecedent::result::ImputationReport,
+) {
+    let Some(object) = payload.as_object_mut() else { return };
+    if !report.imputation_domains.is_empty() {
+        let domains: serde_json::Map<String, serde_json::Value> = report
+            .imputation_domains
+            .iter()
+            .map(|(name, domain)| (name.to_string(), serde_json::json!(domain.name())))
+            .collect();
+        object.insert("domains".to_owned(), serde_json::Value::Object(domains));
+    }
+    if !report.binary_boundary_variables.is_empty() {
+        let boundaries: serde_json::Map<String, serde_json::Value> = report
+            .binary_boundary_variables
+            .iter()
+            .map(|(name, class)| {
+                (
+                    name.to_string(),
+                    serde_json::json!({
+                        "class": class, "method": "binary_single_class_empirical_boundary_v1"
+                    }),
+                )
+            })
+            .collect();
+        object.insert("binary_boundaries".to_owned(), serde_json::Value::Object(boundaries));
+    }
+}
+
+fn imputation_json(report: &antecedent::result::ImputationReport) -> serde_json::Value {
+    let mut payload = serde_json::json!({
+        "model": report.spec.model.name(),
+        "imputations": report.spec.imputations,
+        "iterations": report.spec.iterations,
+        "seed": report.spec.seed,
+        "assumption": report.spec.assumption.name(),
+        "bootstrap_replicates": report.spec.bootstrap_replicates,
+        "unit": report.unit.as_ref(),
+        "units": report.units,
+        "imputed_cells": report
+            .imputed_cells
+            .iter()
+            .map(|(name, cells)| serde_json::json!({"variable": name.as_ref(), "cells": cells}))
+            .collect::<Vec<_>>(),
+        "estimator": report.estimator.as_ref(),
+        "pooling": report.pooling.as_ref(),
+        "points": report.points.as_ref(),
+        "within": report.within,
+        "between": report.between,
+        "total": report.total,
+        "df": report.df,
+        "df_complete": report.df_complete,
+        "fraction_missing_information": report.fraction_missing_information,
+        "relative_increase": report.relative_increase,
+        "assumptions_digest": report.assumptions_digest.as_ref(),
+        "lags": report.lags,
+        "vector": report.vector.as_ref().map(vector_json),
+    });
+    add_imputation_domains(&mut payload, report);
+    payload
+}
+
+/// The joint pooling of an answer with several coordinates. A non-finite number (an infinite
+/// denominator degrees of freedom) is `null`.
+fn vector_json(vector: &antecedent::result::ImputationVectorReport) -> serde_json::Value {
+    serde_json::json!({
+        "labels": vector.labels.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
+        "covariance_basis": vector.covariance_basis.as_ref(),
+        "points": vector.points.iter().map(AsRef::as_ref).collect::<Vec<&[f64]>>(),
+        "point": vector.point.as_ref(),
+        "within": vector.within.as_ref(),
+        "between": vector.between.as_ref(),
+        "total": vector.total.as_ref(),
+        "coordinate_df": vector.coordinate_df.as_ref(),
+        "coordinate_fraction_missing_information":
+            vector.coordinate_fraction_missing_information.as_ref(),
+        "average_relative_increase": vector.average_relative_increase,
+        "wald": vector.wald.as_ref().map(|wald| serde_json::json!({
+            "null": wald.null.as_ref(),
+            "statistic": wald.statistic,
+            "df_numerator": wald.df_numerator,
+            "df_denominator": wald.df_denominator,
+        })),
+        "extras": vector
+            .extras
+            .iter()
+            .map(|extra| serde_json::json!({
+                "label": extra.label.as_ref(),
+                "points": extra.points.as_ref(),
+                "point": extra.point,
+                "between": extra.between,
+            }))
+            .collect::<Vec<_>>(),
+    })
 }
 
 /// A policy by name; the refusal lists the names.
@@ -76,7 +178,76 @@ pub(crate) fn parse_declaration(value: &Bound<'_, PyAny>) -> PyResult<MissingDec
         Some(list) if !list.is_none() => list.extract()?,
         _ => Vec::new(),
     };
-    Ok(MissingDeclaration::new(parse_policy(&policy)?).with_covariates(
-        covariates.into_iter().map(antecedent_core::VariableId::from_raw).collect::<Vec<_>>(),
-    ))
+    let mut policy = parse_policy(&policy)?;
+    if let Some(spec) = dict.get_item("imputation")?.filter(|value| !value.is_none()) {
+        if policy.imputation().is_none() {
+            return Err(crate::value_err(
+                "an imputation specification is read only by policy 'multiple_imputation'",
+            ));
+        }
+        policy = MissingPolicy::MultipleImputation(parse_imputation(&spec)?);
+    }
+    let mut declaration = MissingDeclaration::new(policy).with_covariates(
+        covariates.into_iter().map(antecedent::prelude::VariableId::from_raw).collect::<Vec<_>>(),
+    );
+    if let Some(spec) = dict.get_item("imputation")?.filter(|value| !value.is_none()) {
+        let spec = spec.cast::<PyDict>()?;
+        let domains: Vec<(String, String)> =
+            spec.get_item("domains")?.map_or(Ok(Vec::new()), |v| v.extract())?;
+        let domains = domains
+            .into_iter()
+            .map(|(name, kind)| {
+                let domain = match kind.as_str() {
+                    "binary" => ImputationDomain::Binary,
+                    "continuous" => ImputationDomain::Continuous,
+                    _ => {
+                        return Err(crate::value_err(format!(
+                            "unknown imputation domain {kind:?}"
+                        )));
+                    }
+                };
+                Ok((std::sync::Arc::<str>::from(name), domain))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        declaration = declaration.with_imputation_domains(domains);
+    }
+    Ok(declaration)
+}
+
+/// The `imputation` member of the `missing` option:
+/// `{"model", "imputations", "iterations", "seed", "assumption"}`.
+fn parse_imputation(value: &Bound<'_, PyAny>) -> PyResult<ImputationSpec> {
+    let dict = value.cast::<PyDict>()?;
+    let mut spec = ImputationSpec::new();
+    if let Some(model) = dict.get_item("model")? {
+        let name = model.extract::<String>()?;
+        spec.model = ImputationModel::from_name(&name).ok_or_else(|| {
+            crate::value_err(format!(
+                "unknown imputation model {name:?}; use one of {:?}",
+                ImputationModel::ALL.map(ImputationModel::name)
+            ))
+        })?;
+    }
+    if let Some(imputations) = dict.get_item("imputations")? {
+        spec.imputations = imputations.extract()?;
+    }
+    if let Some(iterations) = dict.get_item("iterations")? {
+        spec.iterations = iterations.extract()?;
+    }
+    if let Some(seed) = dict.get_item("seed")? {
+        spec.seed = seed.extract()?;
+    }
+    if let Some(replicates) = dict.get_item("bootstrap_replicates")? {
+        spec.bootstrap_replicates = replicates.extract()?;
+    }
+    if let Some(assumption) = dict.get_item("assumption")? {
+        let name = assumption.extract::<String>()?;
+        spec.assumption = MissingnessAssumption::from_name(&name).ok_or_else(|| {
+            crate::value_err(format!(
+                "unknown missingness assumption {name:?}; use one of {:?}",
+                MissingnessAssumption::ALL.map(MissingnessAssumption::name)
+            ))
+        })?;
+    }
+    Ok(spec)
 }

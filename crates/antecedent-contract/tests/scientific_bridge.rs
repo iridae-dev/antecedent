@@ -1,4 +1,4 @@
-//! Typed bridges between scientific quantities: licensed bridges against hand
+//! Typed bridges between scientific quantities: supported bridges against hand
 //! computed truth, the named substitution refusals, population and regime
 //! binding, transportability, value-kind separation, identity and the derived
 //! claim's relation to its source.
@@ -17,7 +17,7 @@
 //!   `P(X=1|Z) = 0.2 + 0.6 Z`, `P(Y=1|X,Z) = 0.1 + 0.3 X + 0.4 Z`) whose
 //!   association is `0.54` and whose interventional effect is `0.30`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -132,6 +132,10 @@ fn contract(
         mapping,
         assumptions,
         transport: None,
+
+        mapping_uncertainty: None,
+        source_dependence: None,
+        estimand_bridge: None,
     }
 }
 
@@ -144,7 +148,7 @@ fn assert_refused<T: std::fmt::Debug>(
     assert_eq!(refusal.code, code, "{refusal:?}");
     assert_eq!(refusal.detail, detail, "{refusal:?}");
     assert_eq!(refusal.validate(), Ok(()), "{refusal:?}");
-    assert!(refusal.remedy.is_some(), "a refusal states what would license it: {refusal:?}");
+    assert!(refusal.remedy.is_some(), "a refusal states what would support it: {refusal:?}");
     refusal
 }
 
@@ -305,33 +309,33 @@ fn validation_minimums_and_the_validated_range_are_enforced() {
     let source = BridgeSource { claim: &source_claim, quantity: &source_quantity };
     assert_refused(
         derive_bridged_claim(&too_few, &source),
-        "bridge_mapping_not_licensed",
-        "scientific_bridge.validation_trials_too_few",
+        "bridge_mapping_not_supported",
+        antecedent_core::reason_details::scientific_bridge::VALIDATION_TRIALS_TOO_FEW,
     );
     let weak = surrogate_contract(4, 0.995);
     let refusal = assert_refused(
         derive_bridged_claim(&weak, &source),
-        "bridge_mapping_not_licensed",
-        "scientific_bridge.validation_r_squared_too_low",
+        "bridge_mapping_not_supported",
+        antecedent_core::reason_details::scientific_bridge::VALIDATION_R_SQUARED_TOO_LOW,
     );
     assert_eq!(refusal.expected.as_deref(), Some("0.995"));
 
     // The range of validated surrogate effects is [0, 1.5]; the ends are in,
     // anything beyond is an extrapolation and refused.
-    let licensed = surrogate_contract(4, 0.9);
+    let supported = surrogate_contract(4, 0.9);
     for (value, expected) in [(0.0, 0.06), (1.5, 1.44)] {
         let claim_at = at(value);
         let source = BridgeSource { claim: &claim_at, quantity: &source_quantity };
-        let bridged = derive_bridged_claim(&licensed, &source).unwrap();
+        let bridged = derive_bridged_claim(&supported, &source).unwrap();
         assert!(close(bridged.value, expected, 1e-12), "{value}: {}", bridged.value);
     }
     for value in [-0.01, 1.51, 3.0] {
         let claim_at = at(value);
         let source = BridgeSource { claim: &claim_at, quantity: &source_quantity };
         assert_refused(
-            derive_bridged_claim(&licensed, &source),
-            "bridge_mapping_not_licensed",
-            "scientific_bridge.outside_validated_range",
+            derive_bridged_claim(&supported, &source),
+            "bridge_mapping_not_supported",
+            antecedent_core::reason_details::scientific_bridge::OUTSIDE_VALIDATED_RANGE,
         );
     }
 
@@ -350,20 +354,20 @@ fn validation_minimums_and_the_validated_range_are_enforced() {
     let source = BridgeSource { claim: &claim_at, quantity: &source_quantity };
     assert_refused(
         derive_bridged_claim(&flat, &source),
-        "bridge_mapping_not_licensed",
-        "scientific_bridge.degenerate_validation",
+        "bridge_mapping_not_supported",
+        antecedent_core::reason_details::scientific_bridge::DEGENERATE_VALIDATION,
     );
     let mut two = surrogate_contract(2, 0.0);
     assert_refused(
         derive_bridged_claim(&two, &source),
         "scientific_bridge_invalid",
-        "scientific_bridge.malformed_mapping",
+        antecedent_core::reason_details::scientific_bridge::MALFORMED_MAPPING,
     );
     two = surrogate_contract(4, 1.5);
     assert_refused(
         derive_bridged_claim(&two, &source),
         "scientific_bridge_invalid",
-        "scientific_bridge.malformed_mapping",
+        antecedent_core::reason_details::scientific_bridge::MALFORMED_MAPPING,
     );
     let mut nan = surrogate_contract(4, 0.9);
     if let BridgeMapping::TrialLevelLinear(validation) = &mut nan.mapping {
@@ -372,7 +376,7 @@ fn validation_minimums_and_the_validated_range_are_enforced() {
     assert_refused(
         derive_bridged_claim(&nan, &source),
         "scientific_bridge_invalid",
-        "scientific_bridge.non_finite_value",
+        antecedent_core::reason_details::scientific_bridge::NON_FINITE_VALUE,
     );
 }
 
@@ -490,8 +494,8 @@ fn the_correction_refuses_what_the_declared_rates_cannot_produce() {
         let source = BridgeSource { claim: &source_claim, quantity: &measured };
         assert_refused(
             derive_bridged_claim(&measured_to_latent(model.clone()), &source),
-            "bridge_mapping_not_licensed",
-            "scientific_bridge.outside_attainable_range",
+            "bridge_mapping_not_supported",
+            antecedent_core::reason_details::scientific_bridge::OUTSIDE_ATTAINABLE_RANGE,
         );
     }
     // The ends of the attainable range map to 0 and 1.
@@ -509,7 +513,7 @@ fn the_correction_refuses_what_the_declared_rates_cannot_produce() {
     assert_refused(
         derive_bridged_claim(&measured_to_latent(weak), &source),
         "measurement_not_identified",
-        "scientific_bridge.youden_too_small",
+        antecedent_core::reason_details::scientific_bridge::YOUDEN_TOO_SMALL,
     );
 
     // A differential model has no single pair of rates for a claim without an arm.
@@ -531,7 +535,7 @@ fn the_correction_refuses_what_the_declared_rates_cannot_produce() {
     assert_refused(
         derive_bridged_claim(&measured_to_latent(differential), &source),
         "differential_error_not_pooled",
-        "scientific_bridge.differential_error",
+        antecedent_core::reason_details::scientific_bridge::DIFFERENTIAL_ERROR,
     );
 
     // A prevalence on another scale, or another functional, is not inverted.
@@ -542,8 +546,8 @@ fn the_correction_refuses_what_the_declared_rates_cannot_produce() {
     on_log.source.quantity = log_scale.clone();
     assert_refused(
         derive_bridged_claim(&on_log, &source),
-        "bridge_mapping_not_licensed",
-        "scientific_bridge.functional_not_supported",
+        "bridge_mapping_not_supported",
+        antecedent_core::reason_details::scientific_bridge::FUNCTIONAL_NOT_SUPPORTED,
     );
 }
 
@@ -560,7 +564,7 @@ fn the_measurement_model_binding_is_checked_against_the_bridge() {
     assert_refused(
         derive_bridged_claim(&other_identity, &source),
         "bridge_binding_mismatch",
-        "scientific_bridge.model_identity_mismatch",
+        antecedent_core::reason_details::scientific_bridge::MODEL_IDENTITY_MISMATCH,
     );
 
     // The model's indicator and construct are the bridge's two quantities.
@@ -569,7 +573,7 @@ fn the_measurement_model_binding_is_checked_against_the_bridge() {
     assert_refused(
         derive_bridged_claim(&measured_to_latent(wrong_construct), &source),
         "bridge_binding_mismatch",
-        "scientific_bridge.measurement_model_mismatch",
+        antecedent_core::reason_details::scientific_bridge::MEASUREMENT_MODEL_MISMATCH,
     );
 
     // The model was established for a population and regime; the bridge's
@@ -579,7 +583,7 @@ fn the_measurement_model_binding_is_checked_against_the_bridge() {
     assert_refused(
         derive_bridged_claim(&measured_to_latent(other_population), &source),
         "bridge_binding_mismatch",
-        "scientific_bridge.mapping_scope_mismatch",
+        antecedent_core::reason_details::scientific_bridge::MAPPING_SCOPE_MISMATCH,
     );
 }
 
@@ -595,7 +599,7 @@ fn a_proxy_is_never_the_construct_without_a_measurement_model() {
     let refusal = assert_refused(
         derive_bridged_claim(&undeclared, &source),
         "proxy_offered_as_construct",
-        "scientific_bridge.proxy_as_construct",
+        antecedent_core::reason_details::scientific_bridge::PROXY_AS_CONSTRUCT,
     );
     assert_eq!(refusal.supplied.as_deref(), Some("measured_outcome"));
     assert_eq!(refusal.expected.as_deref(), Some("latent_construct"));
@@ -607,7 +611,7 @@ fn a_proxy_is_never_the_construct_without_a_measurement_model() {
     assert_refused(
         derive_bridged_claim(&renamed, &source),
         "proxy_offered_as_construct",
-        "scientific_bridge.proxy_as_construct",
+        antecedent_core::reason_details::scientific_bridge::PROXY_AS_CONSTRUCT,
     );
 
     // A measurement-model assumption that names no model is not evidence.
@@ -616,7 +620,7 @@ fn a_proxy_is_never_the_construct_without_a_measurement_model() {
     assert_refused(
         derive_bridged_claim(&anonymous, &source),
         "bridge_assumption_missing",
-        "scientific_bridge.assumption_evidence_missing",
+        antecedent_core::reason_details::scientific_bridge::ASSUMPTION_EVIDENCE_MISSING,
     );
 }
 
@@ -696,14 +700,14 @@ fn an_association_is_a_causal_quantity_only_under_a_named_identification() {
     let refusal = assert_refused(
         derive_bridged_claim(&predictive_contract(Vec::new()), &source),
         "bridge_substitution_refused",
-        "scientific_bridge.association_as_intervention",
+        antecedent_core::reason_details::scientific_bridge::ASSOCIATION_AS_INTERVENTION,
     );
     assert_eq!(refusal.supplied.as_deref(), Some("predictive_quantity"));
     assert_eq!(refusal.expected.as_deref(), Some("causal_quantity"));
     assert!(close(association - effect, 0.24, 1e-12));
 
     // The back-door standardized contrast, with its identification named, is
-    // licensed and carries its value unchanged to the interventional regime.
+    // supported and carries its value unchanged to the interventional regime.
     let identified = vec![assumption(
         "backdoor",
         AssumptionKind::Identification,
@@ -722,7 +726,7 @@ fn an_association_is_a_causal_quantity_only_under_a_named_identification() {
     assert_refused(
         derive_bridged_claim(&predictive_contract(anonymous), &source),
         "bridge_assumption_missing",
-        "scientific_bridge.assumption_evidence_missing",
+        antecedent_core::reason_details::scientific_bridge::ASSUMPTION_EVIDENCE_MISSING,
     );
     // An affine rescaling is not the identification of the same quantity.
     let mut rescaled = predictive_contract(identified);
@@ -730,12 +734,97 @@ fn an_association_is_a_causal_quantity_only_under_a_named_identification() {
     assert_refused(
         derive_bridged_claim(&rescaled, &source),
         "scientific_bridge_invalid",
-        "scientific_bridge.mapping_not_allowed",
+        antecedent_core::reason_details::scientific_bridge::MAPPING_NOT_ALLOWED,
     );
 }
 
+fn associational_contract(assumptions: Vec<BridgeAssumption>) -> BridgeContract {
+    let mut associational = predictive_contract(assumptions);
+    associational.source.class = QuantityClass::AssociationalQuantity;
+    associational
+}
+
 #[test]
-fn predictive_importance_and_model_scores_are_closed_whatever_is_declared() {
+fn an_associational_quantity_is_refused_as_a_causal_quantity_until_identified() {
+    assert_eq!(QuantityClass::AssociationalQuantity.as_str(), "associational_quantity");
+    assert_eq!(
+        QuantityClass::from_name("associational_quantity"),
+        Some(QuantityClass::AssociationalQuantity)
+    );
+    let (association, effect) = confounded_model_truth();
+    let observational = quantity(
+        "cohort:y",
+        QuantityRole::Outcome,
+        "probability",
+        "contrast",
+        "registry",
+        "observational",
+    );
+
+    // The association offered where a causal quantity is required is the named substitution.
+    let unadjusted = claim(4, association, "probability");
+    let source = BridgeSource { claim: &unadjusted, quantity: &observational };
+    let refusal = assert_refused(
+        derive_bridged_claim(&associational_contract(Vec::new()), &source),
+        "bridge_substitution_refused",
+        antecedent_core::reason_details::scientific_bridge::ASSOCIATION_AS_INTERVENTION,
+    );
+    assert_eq!(refusal.supplied.as_deref(), Some("associational_quantity"));
+    assert_eq!(refusal.expected.as_deref(), Some("causal_quantity"));
+
+    // An assumption of another kind does not stand in for the identification.
+    let linkage = vec![assumption("linkage", AssumptionKind::BehavioralLinkage, Some("study"))];
+    assert_refused(
+        derive_bridged_claim(&associational_contract(linkage), &source),
+        "bridge_substitution_refused",
+        antecedent_core::reason_details::scientific_bridge::ASSOCIATION_AS_INTERVENTION,
+    );
+
+    // Only a named identification supports the same pair, and it carries the identified value.
+    let identified = vec![assumption(
+        "backdoor",
+        AssumptionKind::Identification,
+        Some("identification:backdoor-z"),
+    )];
+    let adjusted = claim(5, effect, "probability");
+    let source = BridgeSource { claim: &adjusted, quantity: &observational };
+    let bridged = derive_bridged_claim(&associational_contract(identified), &source).unwrap();
+    assert!(close(bridged.value, effect, 1e-12));
+}
+
+#[test]
+fn an_associational_claim_is_never_a_bridge_source() {
+    let observational = quantity(
+        "cohort:y",
+        QuantityRole::Outcome,
+        "probability",
+        "contrast",
+        "registry",
+        "observational",
+    );
+    let identified = vec![assumption(
+        "backdoor",
+        AssumptionKind::Identification,
+        Some("identification:backdoor-z"),
+    )];
+    let mut association = claim(6, 0.54, "probability");
+    association.kind = ClaimKind::Associational;
+    association.domains = ClaimDomains::new(
+        DomainStatus::NotClaimed,
+        DomainStatus::Supported,
+        DomainStatus::Evaluated,
+    );
+    let source = BridgeSource { claim: &association, quantity: &observational };
+    let refusal = assert_refused(
+        derive_bridged_claim(&associational_contract(identified), &source),
+        "bridge_mapping_not_supported",
+        antecedent_core::reason_details::scientific_bridge::SOURCE_NOT_POINT,
+    );
+    assert_eq!(refusal.supplied.as_deref(), Some("associational"));
+}
+
+#[test]
+fn predictive_importance_and_model_scores_are_not_supported_whatever_is_declared() {
     let everything = vec![
         assumption("backdoor", AssumptionKind::Identification, Some("identification:any")),
         assumption("linkage", AssumptionKind::BehavioralLinkage, Some("study")),
@@ -770,7 +859,7 @@ fn predictive_importance_and_model_scores_are_closed_whatever_is_declared() {
     let refusal = assert_refused(
         derive_bridged_claim(&importance, &source),
         "bridge_substitution_refused",
-        "scientific_bridge.predictive_importance_as_causal_effect",
+        antecedent_core::reason_details::scientific_bridge::PREDICTIVE_IMPORTANCE_AS_CAUSAL_EFFECT,
     );
     assert_eq!(refusal.supplied.as_deref(), Some("predictive_importance"));
 
@@ -797,7 +886,7 @@ fn predictive_importance_and_model_scores_are_closed_whatever_is_declared() {
     let refusal = assert_refused(
         derive_bridged_claim(&model_score, &source),
         "bridge_substitution_refused",
-        "scientific_bridge.model_score_as_probability",
+        antecedent_core::reason_details::scientific_bridge::MODEL_SCORE_AS_PROBABILITY,
     );
     assert_eq!(refusal.supplied.as_deref(), Some("model_score"));
     assert_eq!(refusal.expected.as_deref(), Some("predictive_quantity"));
@@ -839,7 +928,7 @@ fn a_stated_preference_is_realized_behavior_only_under_a_declared_linkage() {
     let refusal = assert_refused(
         derive_bridged_claim(&make(BridgeMapping::Identity, Vec::new()), &source),
         "bridge_substitution_refused",
-        "scientific_bridge.stated_preference_as_realized_behavior",
+        antecedent_core::reason_details::scientific_bridge::STATED_PREFERENCE_AS_REALIZED_BEHAVIOR,
     );
     assert_eq!(refusal.supplied.as_deref(), Some("stated_preference"));
     assert_eq!(refusal.expected.as_deref(), Some("realized_behavior"));
@@ -858,7 +947,7 @@ fn a_stated_preference_is_realized_behavior_only_under_a_declared_linkage() {
     .unwrap();
     assert!(close(calibrated.value, 0.3, 1e-12), "{}", calibrated.value);
     // The declared linkage with an unchanged value is the assertion that stated
-    // equals realized; it is licensed only because it is declared.
+    // equals realized; it is supported only because it is declared.
     let unchanged = derive_bridged_claim(&make(BridgeMapping::Identity, linkage), &source).unwrap();
     assert!(close(unchanged.value, 0.5, 0.0));
     assert_ne!(unchanged.claim.claim_id, calibrated.claim.claim_id);
@@ -897,7 +986,7 @@ fn a_model_parameter_is_an_intervention_response_only_through_its_declared_contr
     assert_refused(
         derive_bridged_claim(&make(Vec::new()), &source),
         "bridge_assumption_missing",
-        "scientific_bridge.assumption_missing",
+        antecedent_core::reason_details::scientific_bridge::ASSUMPTION_MISSING,
     );
     let interpreted = vec![assumption(
         "linear-structural-equation",
@@ -953,13 +1042,13 @@ fn a_scientific_endpoint_is_a_utility_only_through_a_declared_utility_function()
             &source,
         ),
         "bridge_substitution_refused",
-        "scientific_bridge.scientific_endpoint_as_utility",
+        antecedent_core::reason_details::scientific_bridge::SCIENTIFIC_ENDPOINT_AS_UTILITY,
     );
     assert_eq!(refusal.supplied.as_deref(), Some("scientific_endpoint"));
     assert_refused(
         derive_bridged_claim(&make(BridgeMapping::Identity, declared.clone()), &source),
         "bridge_substitution_refused",
-        "scientific_bridge.scientific_endpoint_as_utility",
+        antecedent_core::reason_details::scientific_bridge::SCIENTIFIC_ENDPOINT_AS_UTILITY,
     );
     let mut anonymous = declared.clone();
     anonymous[0].evidence = None;
@@ -969,7 +1058,7 @@ fn a_scientific_endpoint_is_a_utility_only_through_a_declared_utility_function()
             &source,
         ),
         "bridge_assumption_missing",
-        "scientific_bridge.assumption_evidence_missing",
+        antecedent_core::reason_details::scientific_bridge::ASSUMPTION_EVIDENCE_MISSING,
     );
 
     // A declared linear utility of 30,000 per QALY: 0.3 QALY is worth 9,000.
@@ -1002,15 +1091,15 @@ fn a_mean_a_law_a_posterior_a_set_and_a_joint_law_are_not_interchangeable() {
             } else if held == requested {
                 let refusal = assert_refused(
                     result,
-                    "cell_not_licensed",
-                    "scientific_bridge.value_kind_not_carried",
+                    "bridge_mapping_not_supported",
+                    antecedent_core::reason_details::scientific_bridge::VALUE_KIND_NOT_CARRIED,
                 );
                 assert_eq!(refusal.supplied.as_deref(), Some(held.as_str()));
             } else {
                 let refusal = assert_refused(
                     result,
                     "bridge_substitution_refused",
-                    "scientific_bridge.value_kind_substitution",
+                    antecedent_core::reason_details::scientific_bridge::VALUE_KIND_SUBSTITUTION,
                 );
                 assert_eq!(refusal.supplied.as_deref(), Some(held.as_str()));
                 assert_eq!(refusal.expected.as_deref(), Some(requested.as_str()));
@@ -1028,13 +1117,19 @@ fn a_mean_a_law_a_posterior_a_set_and_a_joint_law_are_not_interchangeable() {
         ValueKind::JointOutcomeLaw,
     ] {
         let refusal = bridged.require_value_kind(needed).unwrap_err();
-        assert_eq!(refusal.detail, "scientific_bridge.value_kind_substitution");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::scientific_bridge::VALUE_KIND_SUBSTITUTION
+        );
         assert_eq!(refusal.code, "bridge_substitution_refused");
     }
     // And no interval or posterior is reachable from it.
     let refusal = bridged.request_interval().unwrap_err();
-    assert_eq!(refusal.code, "cell_not_licensed");
-    assert_eq!(refusal.detail, "scientific_bridge.interval_not_licensed");
+    assert_eq!(refusal.code, "route_not_supported");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::scientific_bridge::INTERVAL_NOT_SUPPORTED
+    );
 }
 
 #[test]
@@ -1048,21 +1143,21 @@ fn population_regime_conditioning_and_the_claimed_quantity_must_agree() {
     assert_refused(
         derive_bridged_claim(&other_population, &source),
         "bridge_binding_mismatch",
-        "scientific_bridge.population_mismatch",
+        antecedent_core::reason_details::scientific_bridge::POPULATION_MISMATCH,
     );
     let mut other_regime = surrogate_contract(4, 0.9);
     other_regime.target.quantity.regime_id = "do(treatment=2)".into();
     assert_refused(
         derive_bridged_claim(&other_regime, &source),
         "bridge_binding_mismatch",
-        "scientific_bridge.regime_mismatch",
+        antecedent_core::reason_details::scientific_bridge::REGIME_MISMATCH,
     );
     let mut other_horizon = surrogate_contract(4, 0.9);
     other_horizon.target.quantity.horizon = 3;
     assert_refused(
         derive_bridged_claim(&other_horizon, &source),
         "bridge_binding_mismatch",
-        "scientific_bridge.horizon_mismatch",
+        antecedent_core::reason_details::scientific_bridge::HORIZON_MISMATCH,
     );
     let mut other_condition = surrogate_contract(4, 0.9);
     other_condition.target.quantity.conditioning = vec![antecedent_contract::QuantityCondition {
@@ -1072,11 +1167,11 @@ fn population_regime_conditioning_and_the_claimed_quantity_must_agree() {
     assert_refused(
         derive_bridged_claim(&other_condition, &source),
         "bridge_binding_mismatch",
-        "scientific_bridge.conditioning_mismatch",
+        antecedent_core::reason_details::scientific_bridge::CONDITIONING_MISMATCH,
     );
 
     // The claim must be about the contract's source quantity, in its units.
-    let licensed = surrogate_contract(4, 0.9);
+    let supported = surrogate_contract(4, 0.9);
     let wrong = quantity(
         "trial:other",
         QuantityRole::Outcome,
@@ -1087,17 +1182,17 @@ fn population_regime_conditioning_and_the_claimed_quantity_must_agree() {
     );
     let wrong_source = BridgeSource { claim: &source_claim, quantity: &wrong };
     let refusal = assert_refused(
-        derive_bridged_claim(&licensed, &wrong_source),
+        derive_bridged_claim(&supported, &wrong_source),
         "bridge_binding_mismatch",
-        "scientific_bridge.quantity_mismatch",
+        antecedent_core::reason_details::scientific_bridge::QUANTITY_MISMATCH,
     );
     assert_eq!(refusal.offending.as_deref(), Some("variable"));
     let in_other_units = claim(1, 0.8, "mg_per_dl");
     let source = BridgeSource { claim: &in_other_units, quantity: &source_quantity };
     assert_refused(
-        derive_bridged_claim(&licensed, &source),
+        derive_bridged_claim(&supported, &source),
         "bridge_binding_mismatch",
-        "scientific_bridge.units_mismatch",
+        antecedent_core::reason_details::scientific_bridge::UNITS_MISMATCH,
     );
 }
 
@@ -1115,7 +1210,7 @@ fn a_bridge_established_elsewhere_names_its_transportability_premise() {
     let refusal = assert_refused(
         derive_bridged_claim(&transported, &source),
         "bridge_assumption_missing",
-        "scientific_bridge.transport_premise_missing",
+        antecedent_core::reason_details::scientific_bridge::TRANSPORT_PREMISE_MISSING,
     );
     let named = refusal.expected.unwrap();
     assert!(named.contains("adults") && named.contains("children"), "{named}");
@@ -1135,15 +1230,15 @@ fn a_bridge_established_elsewhere_names_its_transportability_premise() {
     assert_refused(
         derive_bridged_claim(&wrong, &source),
         "bridge_binding_mismatch",
-        "scientific_bridge.transport_premise_mismatch",
+        antecedent_core::reason_details::scientific_bridge::TRANSPORT_PREMISE_MISMATCH,
     );
 
-    // The declared premise licenses the bridge, labelled transported, with
+    // The declared premise supports the bridge, labelled transported, with
     // the premise carried as an unresolved obligation.
-    let mut licensed = transported.clone();
-    licensed.transport =
+    let mut supported = transported.clone();
+    supported.transport =
         Some(premise(scope("adults", "do(treatment=1)"), scope("children", "do(treatment=1)")));
-    let bridged = derive_bridged_claim(&licensed, &source).unwrap();
+    let bridged = derive_bridged_claim(&supported, &source).unwrap();
     assert!(bridged.transported);
     assert!(close(bridged.value, 0.796, 1e-12));
     assert!(
@@ -1156,9 +1251,9 @@ fn a_bridge_established_elsewhere_names_its_transportability_premise() {
     let obligations = &bridged.claim.reasoning.assumptions.as_ref().unwrap().obligations;
     assert!(obligations.iter().any(|o| &*o.id == "bridge_transport:invariant-effect-modification"));
     // The premise is part of the bridge's identity.
-    let mut other_statement = licensed.clone();
+    let mut other_statement = supported.clone();
     other_statement.transport.as_mut().unwrap().statement = "a weaker premise".into();
-    assert_ne!(licensed.identity(), other_statement.identity());
+    assert_ne!(supported.identity(), other_statement.identity());
 
     // Where nothing is transported, a premise is refused rather than carried
     // as decoration.
@@ -1170,7 +1265,7 @@ fn a_bridge_established_elsewhere_names_its_transportability_premise() {
     assert_refused(
         derive_bridged_claim(&unused, &adult_source),
         "bridge_binding_mismatch",
-        "scientific_bridge.transport_premise_unused",
+        antecedent_core::reason_details::scientific_bridge::TRANSPORT_PREMISE_UNUSED,
     );
 }
 
@@ -1185,35 +1280,35 @@ fn malformed_declarations_and_unusable_sources_are_refused() {
     assert_refused(
         derive_bridged_claim(&duplicated, &source),
         "scientific_bridge_invalid",
-        "scientific_bridge.duplicate_assumption",
+        antecedent_core::reason_details::scientific_bridge::DUPLICATE_ASSUMPTION,
     );
     let mut blank = surrogate_contract(4, 0.9);
     blank.assumptions[0].statement = "  ".into();
     assert_refused(
         derive_bridged_claim(&blank, &source),
         "scientific_bridge_invalid",
-        "scientific_bridge.blank_field",
+        antecedent_core::reason_details::scientific_bridge::BLANK_FIELD,
     );
     let mut wrong_pair = surrogate_contract(4, 0.9);
     wrong_pair.target.class = QuantityClass::DecisionUtility;
     assert_refused(
         derive_bridged_claim(&wrong_pair, &source),
         "scientific_bridge_invalid",
-        "scientific_bridge.endpoint_classes",
+        antecedent_core::reason_details::scientific_bridge::ENDPOINT_CLASSES,
     );
     let mut wrong_mapping = surrogate_contract(4, 0.9);
     wrong_mapping.mapping = BridgeMapping::Identity;
     assert_refused(
         derive_bridged_claim(&wrong_mapping, &source),
         "scientific_bridge_invalid",
-        "scientific_bridge.mapping_not_allowed",
+        antecedent_core::reason_details::scientific_bridge::MAPPING_NOT_ALLOWED,
     );
     let mut missing = surrogate_contract(4, 0.9);
     missing.assumptions.clear();
     assert_refused(
         derive_bridged_claim(&missing, &source),
         "bridge_assumption_missing",
-        "scientific_bridge.assumption_missing",
+        antecedent_core::reason_details::scientific_bridge::ASSUMPTION_MISSING,
     );
 
     // A source claim that is not a finite point value.
@@ -1231,15 +1326,15 @@ fn malformed_declarations_and_unusable_sources_are_refused() {
     let source_bad = BridgeSource { claim: &incomplete, quantity: &source_quantity };
     assert_refused(
         derive_bridged_claim(&surrogate_contract(4, 0.9), &source_bad),
-        "cell_not_licensed",
-        "scientific_bridge.source_not_point",
+        "bridge_mapping_not_supported",
+        antecedent_core::reason_details::scientific_bridge::SOURCE_NOT_POINT,
     );
     let not_finite = claim(1, f64::NAN, "mmol_per_l");
     let source_nan = BridgeSource { claim: &not_finite, quantity: &source_quantity };
     assert_refused(
         derive_bridged_claim(&surrogate_contract(4, 0.9), &source_nan),
-        "cell_not_licensed",
-        "scientific_bridge.source_not_point",
+        "bridge_mapping_not_supported",
+        antecedent_core::reason_details::scientific_bridge::SOURCE_NOT_POINT,
     );
 }
 
@@ -1320,11 +1415,11 @@ fn a_bridged_claim_shares_its_sources_evidence_and_is_not_poolable_with_it() {
     let derived_ref = SharedEvidenceRef::from_claim(&bridged.claim);
     let source_ref = SharedEvidenceRef::from_claim(&source_claim);
     assert!(derived_ref.same_source(&source_ref));
-    // Pooling the source with its own bridge is refused as unlicensed
+    // Pooling the source with its own bridge is refused as unsupported
     // synthesis, with both parents intact.
     match compose_claims(&[&source_claim, &bridged.claim], ClaimOperation::Pool, None, None) {
         DerivedClaimOutcome::Refused { restriction, parents, .. } => {
-            assert_eq!(&*restriction, "unlicensed_synthesis");
+            assert_eq!(&*restriction, "unsupported_synthesis");
             assert_eq!(parents.as_ref(), [source_claim.claim_id, bridged.claim.claim_id]);
         }
         other => panic!("expected a refusal, got {other:?}"),
@@ -1343,6 +1438,12 @@ fn a_withdrawn_source_makes_the_bridged_claim_inapplicable() {
     let derived = bridged.freshness(&current);
     assert_eq!(derived.currently_applicable, Some(true));
     assert!(derived.historically_valid);
+
+    // History is the source's: a source that was never valid yields a bridged claim that
+    // was never valid.
+    let mut invalid_source = current.clone();
+    invalid_source.historically_valid = false;
+    assert!(!bridged.freshness(&invalid_source).historically_valid);
 
     let withdrawn = source_claim.freshness(Some(snapshot), Some(snapshot), None, true, true);
     let derived = bridged.freshness(&withdrawn);

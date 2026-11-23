@@ -12,6 +12,9 @@ use antecedent_core::{IntervalMethod, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::local_polynomial_ratio::fit_local_polynomial_ratio;
 
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
+
 fn fixture(kink: bool) -> (TabularData, LocalPolynomialRatioQuery) {
     let mut x = Vec::new();
     let mut treatment = Vec::new();
@@ -51,6 +54,7 @@ fn fixture(kink: bool) -> (TabularData, LocalPolynomialRatioQuery) {
         cutoff: 0.0,
         bandwidth: 1.0,
         kink,
+        options: None,
     };
     (data, query)
 }
@@ -62,6 +66,12 @@ fn retained_fuzzy_rd_recovers_truth_and_round_trips_calibrated_interval() {
     let prepared =
         Study::tabular(data.clone()).query(query.clone()).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "retained_fuzzy_rd_recovers_truth_and_rou",
+        &prepared,
+        &result,
+        &ctx,
+    );
     assert_eq!(
         prepared.estimate(&data, &ctx).unwrap().local_polynomial_ratio(),
         result.local_polynomial_ratio()
@@ -92,8 +102,8 @@ fn retained_fuzzy_rd_recovers_truth_and_round_trips_calibrated_interval() {
     assert_eq!(fit.first_stage_standard_error, direct.first_stage_standard_error);
     assert_eq!((fit.cutoff, fit.bandwidth, fit.kink), (query.cutoff, query.bandwidth, query.kink));
     assert_eq!(fit.uncertainty.as_ref(), "rbc_hc0_delta_normal_fixed_bandwidth");
-    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::AnalyticSe);
-    assert_eq!(result.estimate.as_effect().unwrap().se_analytic(), fit.standard_error);
+    assert_eq!(result.interval().as_ref().unwrap().method, IntervalMethod::AnalyticSe);
+    assert_eq!(result.estimate().as_effect().unwrap().se_analytic(), fit.standard_error);
     assert!(
         result.identification.required_assumptions.entries.iter().any(|record| format!(
             "{:?}",
@@ -113,39 +123,39 @@ fn retained_fuzzy_rd_recovers_truth_and_round_trips_calibrated_interval() {
     assert!(body.local_polynomial_ratio.as_ref().unwrap().ci_upper.unwrap() > fit.effect);
     assert_eq!(
         body.local_polynomial_ratio.as_ref().unwrap().graphless_support_status.as_deref(),
-        Some("licensed")
+        Some("supported")
     );
     let mut fabricated = body.clone();
     fabricated.local_polynomial_ratio.as_mut().unwrap().ci_lower = Some(2.0);
-    assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &fabricated,
-            header.variable_names.clone(),
-            "fabricated"
-        )
-        .is_err()
-    );
+    let refused = (antecedent_io::encode_analysis_result_artifact(
+        &fabricated,
+        header.variable_names.clone(),
+        "fabricated",
+    )
+    .unwrap_err())
+    .to_string();
+    assert!(refused.contains("invalid local ratio support or fabricated interval"), "{refused}");
     let mut mismatched = body.clone();
     mismatched.local_polynomial_ratio.as_mut().unwrap().bandwidth = 0.5;
-    assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &mismatched,
-            header.variable_names.clone(),
-            "mismatched"
-        )
-        .is_err()
-    );
-    let mut forged_license = body.clone();
-    forged_license.local_polynomial_ratio.as_mut().unwrap().graphless_support_status =
-        Some("allowed_unlicensed".into());
-    assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &forged_license,
-            header.variable_names,
-            "forged-license"
-        )
-        .is_err()
-    );
+    let refused = (antecedent_io::encode_analysis_result_artifact(
+        &mismatched,
+        header.variable_names.clone(),
+        "mismatched",
+    )
+    .unwrap_err())
+    .to_string();
+    assert!(refused.contains("invalid local ratio support or fabricated interval"), "{refused}");
+    let mut forged_support = body.clone();
+    forged_support.local_polynomial_ratio.as_mut().unwrap().graphless_support_status =
+        Some("not_supported".into());
+    let refused = (antecedent_io::encode_analysis_result_artifact(
+        &forged_support,
+        header.variable_names,
+        "forged-support",
+    )
+    .unwrap_err())
+    .to_string();
+    assert!(refused.contains("invalid local ratio support or fabricated interval"), "{refused}");
 }
 
 #[test]
@@ -155,6 +165,12 @@ fn retained_regression_kink_recovers_truth_and_round_trips_calibrated_interval()
     let prepared =
         Study::tabular(data.clone()).query(query.clone()).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "retained_regression_kink_recovers_truth_",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let fit = result.local_polynomial_ratio().unwrap();
     assert!((fit.effect - 3.0).abs() < 1e-7);
     assert!(fit.kink);
@@ -164,28 +180,28 @@ fn retained_regression_kink_recovers_truth_and_round_trips_calibrated_interval()
     let wire = body.local_polynomial_ratio.as_ref().unwrap();
     assert_eq!(wire.effect, fit.effect);
     assert!(wire.ci_lower.unwrap() < fit.effect && wire.ci_upper.unwrap() > fit.effect);
-    assert_eq!(wire.graphless_support_status.as_deref(), Some("licensed"));
-    let mut forged_license = body.clone();
-    forged_license.local_polynomial_ratio.as_mut().unwrap().graphless_support_status =
-        Some("licensed_but_wrong".into());
-    assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &forged_license,
-            header.variable_names.clone(),
-            "forged-kink-license"
-        )
-        .is_err()
-    );
+    assert_eq!(wire.graphless_support_status.as_deref(), Some("supported"));
+    let mut forged_support = body.clone();
+    forged_support.local_polynomial_ratio.as_mut().unwrap().graphless_support_status =
+        Some("supported_but_wrong".into());
+    let refused = (antecedent_io::encode_analysis_result_artifact(
+        &forged_support,
+        header.variable_names.clone(),
+        "forged-kink-support",
+    )
+    .unwrap_err())
+    .to_string();
+    assert!(refused.contains("invalid local ratio support or fabricated interval"), "{refused}");
     let mut fabricated = body.clone();
     fabricated.local_polynomial_ratio.as_mut().unwrap().ci_upper = Some(fit.effect + 50.0);
-    assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &fabricated,
-            header.variable_names,
-            "fabricated-kink"
-        )
-        .is_err()
-    );
+    let refused = (antecedent_io::encode_analysis_result_artifact(
+        &fabricated,
+        header.variable_names,
+        "fabricated-kink",
+    )
+    .unwrap_err())
+    .to_string();
+    assert!(refused.contains("invalid local ratio support or fabricated interval"), "{refused}");
     let (mut data, query) = fixture(false);
     let y = match data.column(VariableId::from_raw(2)).unwrap() {
         antecedent_data::ColumnView::Float64(column) => column.values.clone(),
@@ -202,5 +218,7 @@ fn retained_regression_kink_recovers_truth_and_round_trips_calibrated_interval()
         ("y", y.as_slice()),
     ])
     .unwrap();
-    assert!(Study::tabular(data).query(query).build().unwrap().run(&ctx).is_err());
+    let refused =
+        Study::tabular(data).query(query).build().unwrap().run(&ctx).unwrap_err().to_string();
+    assert!(refused.contains("local treatment discontinuity is too small"), "{refused}");
 }

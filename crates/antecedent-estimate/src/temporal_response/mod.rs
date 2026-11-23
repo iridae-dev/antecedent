@@ -3,7 +3,7 @@
 //! Reuses temporal-backdoor identification and linear g-computation on the
 //! unfolded design. No new identification algorithm.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
@@ -13,6 +13,17 @@
         reason = "test fixtures compare exact constants and index with small literals"
     )
 )]
+
+pub(crate) fn temporal_admission_error(
+    error: antecedent_core::execution::AdmissionError,
+) -> antecedent_core::TemporalMaterializationError {
+    match error {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            antecedent_core::TemporalMaterializationError::Cancelled
+        }
+        other => antecedent_core::TemporalMaterializationError::Admission(other),
+    }
+}
 
 use std::sync::Arc;
 
@@ -34,7 +45,10 @@ use crate::temporal_block::common_time_window;
 use crate::util::range;
 
 use self::assumptions::with_pointwise_homoskedastic_ols_assumption;
-use self::bootstrap::{bootstrap_surface, bootstrap_surface_gapped};
+use self::bootstrap::{
+    bayesian_bootstrap_surface, bayesian_bootstrap_surface_gapped, bootstrap_surface,
+    bootstrap_surface_gapped,
+};
 use self::support::{intervention_support, mean_curve_support};
 use self::surface::{
     CellEval, FittedHorizon, FittedSurface, SeProvenance, checked_surface_cells,
@@ -55,11 +69,11 @@ mod tests;
 
 pub use assumptions::TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC;
 #[cfg(test)]
-pub(crate) use band::SIMULTANEOUS_BAND_WITHHELD;
+pub(crate) use band::NO_SIMULTANEOUS_BAND_METHOD;
 pub(crate) use band::max_deviation_band_columns;
 pub use band::{
     MaxDeviationBand, SIMULTANEOUS_BAND_CRITICAL, SIMULTANEOUS_BAND_LOWER,
-    SIMULTANEOUS_BAND_MIN_REPLICATES, SIMULTANEOUS_BAND_UPPER, TEMPORAL_RESPONSE_BAND_WITHHELD,
+    SIMULTANEOUS_BAND_MIN_REPLICATES, SIMULTANEOUS_BAND_UPPER, TEMPORAL_RESPONSE_NO_BAND_METHOD,
     clear_simultaneous_band, max_deviation_band, publish_simultaneous_band,
 };
 #[cfg(test)]
@@ -70,8 +84,15 @@ pub use block::{
 };
 pub use bootstrap::circular_block_positions_into;
 pub(crate) use plan::plan_temporal_intervention;
-pub use plan::{TemporalInterventionPlan, plan_from_response_query};
-pub use surface::PreparedTemporalSurface;
+pub use plan::{
+    AdmittedIdentificationSchedule, AdmittedMechanismOverlays, TemporalInterventionKind,
+    TemporalInterventionPlan, plan_from_response_query, requires_temporal_overlays,
+    single_temporal_intervention, validate_temporal_response_within,
+};
+pub use surface::{
+    JOINT_HORIZON_DISPERSION, JOINT_HORIZON_INFLUENCE, JOINT_HORIZON_LAYOUT,
+    JOINT_HORIZON_REPLICATES, PreparedTemporalSurface,
+};
 
 /// Temporal response estimator: dose × horizon surfaces and temporal intervention responses.
 #[derive(Clone, Debug)]
@@ -81,6 +102,20 @@ pub struct TemporalResponseEstimator {
     /// Fit each horizon on its intact lag windows when the series has missing time points.
     /// The joint bootstrap then resamples blocks of the original window axis.
     pub allow_gaps: bool,
+    /// The declared premise that the outcome innovation is serially independent, with the
+    /// Ljung-Box gate that can refute it. Under it a single-horizon, one-step Bayesian curve is
+    /// the untempered full-likelihood posterior; without it, or at any other horizon, the
+    /// Bayesian curve is the long-run-tempered generalized posterior.
+    pub white_innovation: Option<crate::white_innovation_posterior::InnovationWhitenessGate>,
+    /// Draw the surface replicates as Dirichlet block-weight draws (the posterior over the
+    /// surface) instead of circular-block bootstrap counts; the band then reads as credible.
+    /// Needs bootstrap replicates; on a series with missing time points the weights fall on blocks
+    /// of the original time axis and only on the times observed in every horizon.
+    pub block_weight_posterior: bool,
+    /// Publish the joint replicates behind the band as the [`JOINT_HORIZON_REPLICATES`] and
+    /// [`JOINT_HORIZON_LAYOUT`] support diagnostics, so a consumer can compose horizons from
+    /// realizations coupled across them.
+    pub retain_joint_replicates: bool,
 }
 
 /// A temporal query's per-horizon identification and the aggregate identification status
@@ -118,9 +153,28 @@ impl TemporalResponseEstimator {
     #[must_use]
     pub fn new() -> Self {
         let mut inner = LinearAdjustmentAte::new();
-        inner.bootstrap_replicates = 0;
+        inner.inference.bootstrap_replicates = 0;
         inner.overlap = OverlapPolicy::ExplicitOverride;
-        Self { inner, allow_gaps: false }
+        Self {
+            inner,
+            allow_gaps: false,
+            white_innovation: None,
+            block_weight_posterior: false,
+            retain_joint_replicates: false,
+        }
+    }
+
+    /// Declare serially independent outcome innovations, refutable by `gate`, so a one-step
+    /// single-horizon Bayesian curve reports the untempered full-likelihood posterior instead
+    /// of the tempered generalized posterior. The declaration is never established here; a
+    /// rejecting residual test refuses the fit and names the tempered posterior.
+    #[must_use]
+    pub const fn with_white_innovation(
+        mut self,
+        gate: crate::white_innovation_posterior::InnovationWhitenessGate,
+    ) -> Self {
+        self.white_innovation = Some(gate);
+        self
     }
 
     /// Admit a series with missing time points: windows that read a gap are dropped.
@@ -154,10 +208,13 @@ impl TemporalResponseEstimator {
         // continuation from the planner. Enforce the complete ResponseQuery
         // contract here so callers cannot bypass treatment/outcome, observation,
         // or intervention validation and still receive a numerical response.
-        query.validate()?;
+        let mut temporal_budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        validate_temporal_response_within(query, &mut temporal_budget, ctx)?;
         if query.observation != ObservationSpec::Complete {
-            return Err(EstimationError::unsupported(
-                "TemporalResponseEstimator requires complete observations; apply a licensed observation correction first",
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "TemporalResponseEstimator requires complete observations; apply a supported observation correction first",
             ));
         }
         if !matches!(
@@ -170,7 +227,8 @@ impl TemporalResponseEstimator {
             });
         }
         let temporal = query.temporal.as_ref().ok_or_else(|| {
-            EstimationError::unsupported(
+            EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("required_option_missing"),
                 "TemporalResponseEstimator requires ResponseQuery.temporal (ADR 0021)",
             )
         })?;
@@ -199,37 +257,46 @@ impl TemporalResponseEstimator {
                 ctx,
             ),
             ResponseFunctional::InterventionResponse { outcome, interventions } => {
-                match plan_temporal_intervention(interventions, temporal)? {
-                    TemporalInterventionPlan::Single { treatment, level, shift } => self
+                match plan_temporal_intervention(
+                    interventions,
+                    temporal,
+                    &mut temporal_budget,
+                    ctx,
+                )?
+                .kind()
+                {
+                    TemporalInterventionKind::Single { treatment, level, shift } => self
                         .estimate_intervention_curve(
                             &SurfaceProblem {
                                 data,
                                 identifications,
                                 outcome: *outcome,
-                                treatment,
+                                treatment: *treatment,
                                 temporal,
                             },
-                            level,
-                            shift,
+                            *level,
+                            *shift,
                             identification_status,
                             assumptions,
                             ctx,
                         ),
-                    TemporalInterventionPlan::Sequential { .. }
-                    | TemporalInterventionPlan::Mechanisms { .. } => {
-                        Err(EstimationError::unsupported(
+                    TemporalInterventionKind::Sequential { .. }
+                    | TemporalInterventionKind::Mechanisms { .. } => {
+                        Err(EstimationError::unsupported_coded(
+                            antecedent_core::reason_code!("route_not_supported"),
                             "multi-step and joint Sequence overlays require the unfolded \
                              sequential estimator (Study temporal response path)",
                         ))
                     }
                 }
             }
-            _ => Err(EstimationError::unsupported(
-                "temporal response is licensed only for MeanCurve and InterventionResponse",
+            _ => Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "temporal response is supported only for MeanCurve and InterventionResponse",
             )),
         }?;
         // Preserve the exact query estimand. Reconstructing it in the numerical
-        // helpers changed Linspace into Values and erased a licensed single-step
+        // helpers changed Linspace into Values and erased a supported single-step
         // Sequence into a plain Set/Soft intervention.
         response.estimand = query.functional.clone();
         Ok(response)
@@ -258,8 +325,12 @@ impl TemporalResponseEstimator {
             .collect();
         let values = surface.cells(&cells);
         let mut support = mean_curve_support(doses, temporal, &surface.ranges);
-        let assumptions =
-            surface.finish(&mut support, &values, assumptions, self.inner.bootstrap_replicates);
+        let assumptions = surface.finish(
+            &mut support,
+            &values,
+            assumptions,
+            self.inner.inference.bootstrap_replicates,
+        );
         let uncertainty = values.published_band();
 
         Ok(CausalResponse {
@@ -314,8 +385,12 @@ impl TemporalResponseEstimator {
         let grid: Vec<f64> = temporal.horizons.iter().map(|h| f64::from(*h)).collect();
         let mut support =
             intervention_support(&eval_levels, level, shift, temporal, &surface.ranges);
-        let assumptions =
-            surface.finish(&mut support, &values, assumptions, self.inner.bootstrap_replicates);
+        let assumptions = surface.finish(
+            &mut support,
+            &values,
+            assumptions,
+            self.inner.inference.bootstrap_replicates,
+        );
         let uncertainty = values.published_band();
 
         Ok(CausalResponse {
@@ -370,7 +445,7 @@ impl TemporalResponseEstimator {
             horizons.push(fitted);
         }
 
-        let replicates = self.inner.bootstrap_replicates;
+        let replicates = self.inner.inference.bootstrap_replicates;
         let span = identifications
             .iter()
             .map(|(_, indexer)| indexer.history() as usize + indexer.horizon() as usize)
@@ -395,7 +470,18 @@ impl TemporalResponseEstimator {
         let scores = if replicates > 0 && !gapped { horizon_scores(&horizons) } else { Vec::new() };
         let score_refs: Vec<&[f64]> = scores.iter().map(Vec::as_slice).collect();
         let block = ResponseBlockLength::new(span, window, &score_refs);
-        let bootstrap = if gapped {
+        let weighted = self.block_weight_posterior;
+        let bootstrap = if weighted && gapped {
+            bayesian_bootstrap_surface_gapped(
+                &horizons,
+                &gapped_horizon_rows(&horizons, &rows),
+                block.length,
+                replicates,
+                ctx,
+            )
+        } else if weighted {
+            bayesian_bootstrap_surface(&horizons, &rows, block.length, replicates, ctx)
+        } else if gapped {
             bootstrap_surface_gapped(
                 &horizons,
                 &gapped_horizon_rows(&horizons, &rows),
@@ -410,7 +496,16 @@ impl TemporalResponseEstimator {
             fell_back: replicates > 0 && bootstrap.is_none(),
             cancelled: bootstrap.as_ref().is_some_and(|b| b.cancelled),
         };
-        Ok(FittedSurface { horizons, ranges, identification, bootstrap, se_provenance, block })
+        Ok(FittedSurface {
+            horizons,
+            ranges,
+            identification,
+            bootstrap,
+            se_provenance,
+            block,
+            weighted,
+            retain_joint: self.retain_joint_replicates,
+        })
     }
 
     fn fit_horizon(
@@ -436,7 +531,7 @@ impl TemporalResponseEstimator {
         };
         pulse_query.validate()?;
         // Multi-step Sustained/Dynamic: temporal linear adjustment currently refuses.
-        // For 0.7 licensed Pulse (and single-step Sustained) this passes; multi-step
+        // For 0.7 supported Pulse (and single-step Sustained) this passes; multi-step
         // policies fail closed here rather than estimating a one-node proxy.
         let adj = TemporalLinearAdjustment { inner: self.inner.clone() };
         if self.allow_gaps {
@@ -469,9 +564,12 @@ impl TemporalResponseEstimator {
         query: &ResponseQuery,
         ctx: &ExecutionContext,
     ) -> Result<PreparedTemporalSurface, EstimationError> {
-        query.validate()?;
+        let mut temporal_budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        validate_temporal_response_within(query, &mut temporal_budget, ctx)?;
         let temporal = query.temporal.as_ref().ok_or_else(|| {
-            EstimationError::unsupported(
+            EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("required_option_missing"),
                 "temporal surface replicates require ResponseQuery.temporal",
             )
         })?;
@@ -492,21 +590,30 @@ impl TemporalResponseEstimator {
                 (treatment.variable, *outcome, cells)
             }
             ResponseFunctional::InterventionResponse { outcome, interventions } => {
-                match plan_temporal_intervention(interventions, temporal)? {
-                    TemporalInterventionPlan::Single { treatment, level, shift } => {
-                        let eval = level.map_or(CellEval::Shift(shift), CellEval::Dose);
-                        (treatment, *outcome, (0..n_h).map(|h| (h, eval)).collect())
+                match plan_temporal_intervention(
+                    interventions,
+                    temporal,
+                    &mut temporal_budget,
+                    ctx,
+                )?
+                .kind()
+                {
+                    TemporalInterventionKind::Single { treatment, level, shift } => {
+                        let eval = level.map_or(CellEval::Shift(*shift), CellEval::Dose);
+                        (*treatment, *outcome, (0..n_h).map(|h| (h, eval)).collect())
                     }
                     _ => {
-                        return Err(EstimationError::unsupported(
+                        return Err(EstimationError::unsupported_coded(
+                            antecedent_core::reason_code!("route_not_supported"),
                             "Sequence overlays have no single-surface tuple replicate",
                         ));
                     }
                 }
             }
             _ => {
-                return Err(EstimationError::unsupported(
-                    "temporal response is licensed only for MeanCurve and InterventionResponse",
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
+                    "temporal response is supported only for MeanCurve and InterventionResponse",
                 ));
             }
         };
@@ -521,17 +628,46 @@ impl TemporalResponseEstimator {
             })
             .collect::<Result<Vec<_>, _>>()?;
         if horizons.iter().any(|fitted| fitted.selection.is_some()) {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
                 "the tuple-level replicate refits read consecutive lag-aligned rows; a series with gaps is fit by the joint surface bootstrap only",
             ));
         }
         Ok(PreparedTemporalSurface { horizons, cells, series_rows: data.row_count() })
     }
 
+    /// Draw the surface replicates as Dirichlet block-weight draws (see
+    /// [`Self::block_weight_posterior`]).
+    #[must_use]
+    pub const fn with_block_weight_posterior(mut self, on: bool) -> Self {
+        self.block_weight_posterior = on;
+        self
+    }
+
+    /// Publish the joint replicates behind the band (see [`Self::retain_joint_replicates`]).
+    #[must_use]
+    pub const fn with_joint_replicates(mut self, on: bool) -> Self {
+        self.retain_joint_replicates = on;
+        self
+    }
+
     /// Copy the `Study` bootstrap / replicate count onto the shared OLS machinery.
     #[must_use]
     pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
-        self.inner.bootstrap_replicates = replicates;
+        self.inner.inference.bootstrap_replicates = replicates;
         self
+    }
+}
+
+#[cfg(test)]
+mod admission_mapping_tests {
+    #[test]
+    fn preserves_cancelled_and_other_admission_errors() {
+        use antecedent_core::{TemporalMaterializationError as T, execution::AdmissionError};
+        assert!(matches!(super::temporal_admission_error(AdmissionError::Cancelled), T::Cancelled));
+        assert!(matches!(
+            super::temporal_admission_error(AdmissionError::Overflow),
+            T::Admission(AdmissionError::Overflow)
+        ));
     }
 }

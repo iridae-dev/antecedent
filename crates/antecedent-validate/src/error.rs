@@ -1,6 +1,6 @@
 //! Validation errors.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_data::DataError;
 use antecedent_discovery::DiscoveryError;
@@ -16,6 +16,12 @@ pub enum ValidationError {
     /// Execution was cancelled before a complete validation report was available.
     #[error("validation cancelled")]
     Cancelled,
+    /// Execution could not fund validation's required work.
+    #[error("validation resource refusal: {message}")]
+    Resource {
+        /// The refused resource demand.
+        message: String,
+    },
     /// Data transformation failed.
     #[error(transparent)]
     Data(#[from] DataError),
@@ -62,5 +68,39 @@ impl ValidationError {
     #[must_use]
     pub fn estimation_msg(message: impl Into<String>) -> Self {
         Self::Refused { message: message.into() }
+    }
+}
+
+impl<E> From<antecedent_core::execution::MapExecutionError<E>> for ValidationError
+where
+    Self: From<E>,
+{
+    fn from(error: antecedent_core::execution::MapExecutionError<E>) -> Self {
+        match error {
+            antecedent_core::execution::MapExecutionError::Admission(error) => {
+                if matches!(error, antecedent_core::execution::AdmissionError::Cancelled) {
+                    Self::Cancelled
+                } else {
+                    Self::Resource { message: error.to_string() }
+                }
+            }
+            antecedent_core::execution::MapExecutionError::Work(error) => Self::from(error),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ValidationError;
+    use antecedent_core::CallbackFailure;
+    use antecedent_stats::StatsError;
+
+    #[test]
+    fn a_callback_failure_survives_the_validation_error_wrapper() {
+        let failure = CallbackFailure::new(Some(4), "Python CI callback failed: boom", None);
+        let error = ValidationError::from(StatsError::CallbackFailed(failure.clone()));
+        assert_eq!(error.to_string(), "backend error: Python CI callback failed: boom");
+        assert_eq!(CallbackFailure::in_chain(&error), Some(&failure));
+        assert!(CallbackFailure::in_chain(&ValidationError::Cancelled).is_none());
     }
 }

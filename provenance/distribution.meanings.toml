@@ -16,3 +16,34 @@ test_sources = [
   "crates/antecedent-io-core/src/quantity_wire.rs",
   "crates/antecedent-io/tests/distribution_meanings.rs",
 ]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Semantic coordinates, axis-identity alignment and the portable aligned-draw container of a joint distribution. This record's slice: meanings."
+no_independent_algorithm = "Identity, shape and alignment checks and a draw-major container layout; the draws are supplied and nothing is estimated."
+record_sha256 = "09a8f7f9140d1d16e16f4aae6c520ac6d2e4b30a8345829a5a4ed34dd5f87727"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/quantity.rs"
+items = ["enum QuantityRole", "struct QuantityCondition", "struct ScientificQuantity"]
+sha256 = "36536de5e68ccc771aa454d1c83e4d75efba081d6363811283884dc6b69dc2e8"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/joint_alignment.rs"
+items = ["const PRODUCING_LAW_TAG", "enum JointAxisKind", "enum JointCovariance", "enum MassFate", "fn as_str", "fn axes", "fn code", "fn covariance", "fn failed", "fn id", "fn identity", "fn key", "fn kind", "fn message", "fn new", "fn unidentified", "struct JointAxis"]
+sha256 = "45d04c089b8ed5a949066848d4913d3a059ab5ffb38379678e8995d35e5aaa9d"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/distribution_artifact.rs"
+items = ["const ARTIFACT_KIND", "const DRAW_SECTION", "const MAX_DISTRIBUTION_ARTIFACT_BYTES", "const MAX_DISTRIBUTION_COORDINATES", "const MAX_DISTRIBUTION_DRAWS", "const META_SECTION", "enum DistributionCalibration", "enum DistributionTrust", "enum DrawAlignment", "fn covariance", "fn default", "fn draws", "fn from_bytes", "fn from_bytes_within", "fn joint_expectation", "fn mean", "fn metadata", "fn n_draws", "fn new", "fn new_within", "fn quantities", "fn require_coordinate", "fn require_joint", "fn semantic", "fn to_bytes", "fn to_bytes_within", "fn validate", "fn validate_metadata", "fn validate_within", "fn weights", "struct DistributionArtifact", "struct DistributionIdentity", "struct DistributionIntakeLimits", "struct DistributionMetadata", "struct DistributionProvenance", "struct LegacyPosteriorBinding"]
+sha256 = "5fd62dd35d22955c7b613bc7d6367a7156a6270fcba6ec5a5f13100dde45026c"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-io/tests/distribution_artifact.rs"
+items = ["const ENUMERATED_DRAWS", "const PATH_ENV", "fn enumerated_metadata", "fn expected_identity", "fn fresh_process_consumer_recomputes_enumerated_joint_truth", "fn independent_marginals_cannot_supply_covariance", "fn joint_moments_match_the_enumerated_law", "fn resealed_axes_alignment_and_meaning_changes_are_refused"]
+sha256 = "f8d4f2acd97f51f0433f08028aad975b2e9ea6201648c989564c687730977a02"

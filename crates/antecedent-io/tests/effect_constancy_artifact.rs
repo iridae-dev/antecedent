@@ -1,6 +1,6 @@
 //! `EffectConstancy` artifact: the frozen acceptance numbers through the container, a
 //! recomputing consumer, resealed-mutation refusals against a retained identity, unknown
-//! versions and the unmeasured calibration coordinate.
+//! versions and the `not_measured` calibration coordinate.
 
 use antecedent_io::effect_constancy_artifact::{
     DependenceWire, EFFECT_CONSTANCY_ARTIFACT_VERSION, EFFECT_CONSTANCY_CALIBRATION,
@@ -80,7 +80,7 @@ fn artifact_frozen_acceptance_zero_difference_has_zero_statistic() {
     assert_eq!(report.result.degrees_of_freedom, 1);
     assert_eq!(report.result.conclusion, "not_rejected");
     assert_eq!(report.calibration, EFFECT_CONSTANCY_CALIBRATION);
-    assert_eq!(report.calibration, "unmeasured");
+    assert_eq!(report.calibration, "not_measured");
     assert_eq!(report.inference_claim, "point_only");
     assert_eq!(report.version, EFFECT_CONSTANCY_ARTIFACT_VERSION);
     assert!(report.caveats[0].contains("does not prove"), "{:?}", report.caveats);
@@ -169,7 +169,7 @@ fn artifact_incompatible_partitions_refuse_with_the_core_detail() {
         EffectConstancyArtifact::seal(&request(vec![part("a", 1.0, 0.5), changed])).unwrap_err();
     let (code, detail, _) = error.refusal().expect("a typed refusal");
     assert_eq!(code, "route_not_supported");
-    assert_eq!(detail, "effect_constancy.incompatible_partitions");
+    assert_eq!(detail, antecedent_core::reason_details::effect_constancy::INCOMPATIBLE_PARTITIONS);
 
     let bad_covariance = EffectConstancyRequestWire {
         dependence: DependenceWire {
@@ -181,21 +181,21 @@ fn artifact_incompatible_partitions_refuse_with_the_core_detail() {
     let (code, detail, _) =
         EffectConstancyArtifact::seal(&bad_covariance).unwrap_err().refusal().unwrap();
     assert_eq!(code, "invalid_argument");
-    assert_eq!(detail, "effect_constancy.invalid_covariance");
+    assert_eq!(detail, antecedent_core::reason_details::effect_constancy::INVALID_COVARIANCE);
 
     let unknown = EffectConstancyRequestWire {
         family: FamilyWire { kind: "against_reference".into(), reference: Some("zzz".into()) },
         ..request(vec![part("a", 1.0, 0.5), part("b", 2.0, 0.5)])
     };
     let (_, detail, _) = EffectConstancyArtifact::seal(&unknown).unwrap_err().refusal().unwrap();
-    assert_eq!(detail, "effect_constancy.unknown_reference");
+    assert_eq!(detail, antecedent_core::reason_details::effect_constancy::UNKNOWN_REFERENCE);
 
     let tag = EffectConstancyRequestWire {
         dependence: DependenceWire { kind: "bogus".into(), covariance: vec![] },
         ..request(vec![part("a", 1.0, 0.5), part("b", 2.0, 0.5)])
     };
     let (_, detail, _) = EffectConstancyArtifact::seal(&tag).unwrap_err().refusal().unwrap();
-    assert_eq!(detail, "effect_constancy.invalid_request");
+    assert_eq!(detail, antecedent_core::reason_details::effect_constancy::INVALID_REQUEST);
 }
 
 #[test]
@@ -222,7 +222,7 @@ fn resealed_mutation_refuses(
     assert_eq!(error, EffectConstancyArtifactError::IdentityMismatch { field }, "{field}");
     let (code, detail, _) = error.refusal().unwrap();
     assert_eq!(code, "route_not_supported");
-    assert_eq!(detail, "effect_constancy.wrong_contract");
+    assert_eq!(detail, antecedent_core::reason_details::effect_constancy::WRONG_CONTRACT);
 }
 
 #[test]
@@ -311,7 +311,11 @@ fn artifact_unresealed_tampering_does_not_replay() {
     let last = changed.len() - 8;
     changed[last..].copy_from_slice(&0.5_f64.to_le_bytes());
     let reencoded = encode_parts(&meta, &changed, "forged").unwrap();
-    assert!(EffectConstancyArtifact::from_bytes(&reencoded, None).is_err());
+    assert!(matches!(
+        EffectConstancyArtifact::from_bytes(&reencoded, None),
+        Err(EffectConstancyArtifactError::Refused { code, detail, .. })
+            if code == "invalid_argument" && detail == antecedent_core::reason_details::effect_constancy::INVALID_COVARIANCE
+    ));
 
     // A changed stored multiplicity family.
     let mut forged = meta.clone();
@@ -377,7 +381,16 @@ fn artifact_corrupt_and_truncated_bytes_refuse() {
     let mut corrupt = bytes.clone();
     let middle = corrupt.len() / 2;
     corrupt[middle] ^= 0xff;
-    assert!(EffectConstancyArtifact::from_bytes(&corrupt, None).is_err());
-    assert!(EffectConstancyArtifact::from_bytes(&bytes[..bytes.len() - 5], None).is_err());
-    assert!(EffectConstancyArtifact::from_bytes(&[], None).is_err());
+    assert!(matches!(
+        EffectConstancyArtifact::from_bytes(&corrupt, None),
+        Err(EffectConstancyArtifactError::Container(antecedent_io_core::IoError::ChecksumMismatch { section })) if section == "effect_constancy_meta"
+    ));
+    assert!(matches!(
+        EffectConstancyArtifact::from_bytes(&bytes[..bytes.len() - 5], None),
+        Err(EffectConstancyArtifactError::Decode(m)) if m.contains("failed to fill whole buffer")
+    ));
+    assert!(matches!(
+        EffectConstancyArtifact::from_bytes(&[], None),
+        Err(EffectConstancyArtifactError::Decode(m)) if m.contains("failed to fill whole buffer")
+    ));
 }

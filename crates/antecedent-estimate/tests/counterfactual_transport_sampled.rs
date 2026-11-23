@@ -7,7 +7,7 @@
 //! distribution of the estimator is known and its truth is the enumerated
 //! probability. Seeds are fixed; tolerances are declared before the run.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::float_cmp, reason = "bit-for-bit determinism assertions")]
 
@@ -27,11 +27,12 @@ use antecedent_core::ExecutionContext;
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::counterfactual_transport_sampled::{
     DatasetOverlap, LABEL_ENVELOPE_ONLY, LABEL_EXACT_ON_ESTIMATED_TABLES, LABEL_IDENTIFIED,
-    LABEL_INFERENCE_WITHHELD, LABEL_PLUG_IN, LABEL_SMOOTHED_PLUG_IN, OverlapDeclaration,
-    SAMPLED_TRANSPORT_UNCERTAINTY_METHOD, STRUCTURAL_ENVELOPE_LABEL, SampledAxis,
-    SampledCounterfactualTransportEstimate, SampledRegimeCounts, SampledRegimeCountsParts,
-    SampledTransportLimits, SampledTransportRequest, SamplingDesign, UNCALIBRATED_STANDARD_ERROR,
-    UnseenCellRule, estimate_sampled_counterfactual_transport,
+    LABEL_INFERENCE_INTERVAL, LABEL_INFERENCE_NOT_COMPUTABLE, LABEL_PLUG_IN,
+    LABEL_SMOOTHED_PLUG_IN, OverlapDeclaration, SAMPLED_TRANSPORT_UNCERTAINTY_METHOD,
+    STRUCTURAL_ENVELOPE_LABEL, SampledAxis, SampledCounterfactualTransportEstimate,
+    SampledIntervalOutcome, SampledRegimeCounts, SampledRegimeCountsParts, SampledTransportLimits,
+    SampledTransportRequest, SamplingDesign, UNCALIBRATED_STANDARD_ERROR, UnseenCellRule,
+    estimate_sampled_counterfactual_transport,
 };
 use antecedent_expr::{ExactDiscreteLaw, ExactTransportData};
 use antecedent_identify::{
@@ -183,7 +184,7 @@ fn estimate(
 
 fn refusal(error: &EstimationError) -> (&'static str, String) {
     match error {
-        EstimationError::Refused { code, message } => (code, message.clone()),
+        EstimationError::Refused { code, message } => (code, message.to_string()),
         other => panic!("expected a registered refusal, got {other:?}"),
     }
 }
@@ -249,12 +250,10 @@ fn large_samples_converge_to_the_enumerated_truth_with_four_distinct_labels() {
             assert_eq!(result.labels.structural_identification, LABEL_IDENTIFIED);
             assert_eq!(result.labels.exact_finite_law_evaluation, LABEL_EXACT_ON_ESTIMATED_TABLES);
             assert_eq!(result.labels.point_estimate, LABEL_PLUG_IN);
-            assert_eq!(result.labels.statistical_inference, LABEL_INFERENCE_WITHHELD);
+            assert_eq!(result.labels.statistical_inference, LABEL_INFERENCE_INTERVAL);
             assert!(!result.point.as_ref().unwrap().smoothed);
-            // The interval route is closed; a standard error is labelled
-            // uncalibrated and is the only uncertainty number.
-            assert_eq!(result.inference.interval.code, "cell_not_licensed");
-            assert_eq!(result.inference.interval.reason, "estimator_grid_not_measured");
+            // The standard error is labelled uncalibrated and the interval exists.
+            assert_eq!(result.inference.interval, SampledIntervalOutcome::Reported);
             let se = result.inference.standard_error.as_ref().expect("a standard error");
             assert_eq!(se.label, UNCALIBRATED_STANDARD_ERROR);
             assert_eq!(se.method, SAMPLED_TRANSPORT_UNCERTAINTY_METHOD);
@@ -365,6 +364,57 @@ fn with_structural_zero(table: &SampledRegimeCounts, cell: usize) -> SampledRegi
     .unwrap()
 }
 
+/// The unseen-mass envelope is a labelled structural range with no interval, and a sparsity
+/// limit stricter than the table's unseen share refuses.
+fn envelope_is_labelled_and_sparsity_limit_refuses(
+    derivation: &CounterfactualTransportDerivation,
+    tables: Vec<SampledRegimeCounts>,
+) {
+    // Envelope: a labelled structural range over a finite family, no single
+    // standard error, so no interval: a scientific outcome.
+    let enveloped = estimate(
+        derivation,
+        tables.clone(),
+        UnseenCellRule::UnseenMassEnvelope { unseen_mass: 0.01 },
+    )
+    .unwrap();
+    let envelope = enveloped.envelope.as_ref().expect("an envelope");
+    assert_eq!(envelope.label, STRUCTURAL_ENVELOPE_LABEL);
+    assert_eq!(envelope.members, 2);
+    assert_eq!(envelope.defined_members + envelope.undefined_members, envelope.members);
+    assert!(envelope.lower <= envelope.upper);
+    assert!(envelope.upper - envelope.lower >= 0.0 && envelope.upper - envelope.lower < 0.1);
+    assert!(enveloped.inference.standard_error.is_none());
+    assert_eq!(
+        enveloped.inference.standard_error_withheld_reason,
+        Some("partial_identification_has_no_single_standard_error")
+    );
+    assert_eq!(
+        enveloped.inference.interval,
+        SampledIntervalOutcome::NotComputable {
+            code: "effect_not_identified",
+            detail: antecedent_core::reason_details::counterfactual_transport_sampled::INTERVAL_NOT_COMPUTABLE,
+            reason: "partial_identification_has_no_single_standard_error",
+        }
+    );
+    assert_eq!(enveloped.labels.statistical_inference, LABEL_INFERENCE_NOT_COMPUTABLE);
+    assert_ne!(enveloped.labels.point_estimate, LABEL_SMOOTHED_PLUG_IN);
+    let _ = LABEL_ENVELOPE_ONLY;
+
+    // A sparsity limit stricter than the table's unseen share refuses.
+    let mut strict = request(tables, UnseenCellRule::AdditiveSmoothing { pseudo_count: 0.5 });
+    strict.limits.max_unseen_fraction = 0.0;
+    let error = estimate_sampled_counterfactual_transport(
+        derivation,
+        &strict,
+        &ExecutionContext::for_tests(7),
+    )
+    .unwrap_err();
+    assert!(refusal(&error).1.contains(
+        antecedent_core::reason_details::counterfactual_transport_sampled::SPARSITY_ABOVE_LIMIT
+    ));
+}
+
 #[test]
 fn unseen_cells_are_refused_smoothed_or_enveloped_and_never_zero_filled() {
     let case = case_named("joint_counterfactual_two_source_regimes");
@@ -393,7 +443,12 @@ fn unseen_cells_are_refused_smoothed_or_enveloped_and_never_zero_filled() {
     let error = estimate(&derivation, tables.clone(), UnseenCellRule::Refuse).unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "transport_support_failure");
-    assert!(message.contains("counterfactual_transport_sampled.unseen_cell"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::counterfactual_transport_sampled::UNSEEN_CELL
+        ),
+        "{message}"
+    );
 
     // Declared structural zero: a different, labelled claim (the cell is
     // asserted impossible, which is false here, so the value is biased).
@@ -432,40 +487,28 @@ fn unseen_cells_are_refused_smoothed_or_enveloped_and_never_zero_filled() {
     let smoothed_value = point(&smoothed);
     assert!((0.0..=1.0).contains(&smoothed_value), "{smoothed_value} vs {truth}");
     assert_ne!(point(&smoothed).to_bits(), point(&structural).to_bits());
-    assert_eq!(smoothed.inference.interval.code, "cell_not_licensed");
-
-    // Envelope: a labelled structural range over a finite family, no single
-    // standard error, never an interval.
-    let enveloped = estimate(
+    // Independent limit: a vanishing pseudo-count adds no mass, so the smoothed reading of the
+    // counts tends to the structural-zero reading of the same counts (cell with zero mass).
+    let vanishing = estimate(
         &derivation,
         tables.clone(),
-        UnseenCellRule::UnseenMassEnvelope { unseen_mass: 0.01 },
+        UnseenCellRule::AdditiveSmoothing { pseudo_count: 1e-9 },
     )
     .unwrap();
-    let envelope = enveloped.envelope.as_ref().expect("an envelope");
-    assert_eq!(envelope.label, STRUCTURAL_ENVELOPE_LABEL);
-    assert_eq!(envelope.members, 2);
-    assert_eq!(envelope.defined_members + envelope.undefined_members, envelope.members);
-    assert!(envelope.lower <= envelope.upper);
-    assert!(envelope.upper - envelope.lower >= 0.0 && envelope.upper - envelope.lower < 0.1);
-    assert!(enveloped.inference.standard_error.is_none());
-    assert_eq!(
-        enveloped.inference.standard_error_withheld_reason,
-        Some("partial_identification_has_no_single_standard_error")
+    assert!(
+        (point(&vanishing) - point(&structural)).abs() <= 1e-6,
+        "{} vs structural {}",
+        point(&vanishing),
+        point(&structural)
     );
-    assert_ne!(enveloped.labels.point_estimate, LABEL_SMOOTHED_PLUG_IN);
-    let _ = LABEL_ENVELOPE_ONLY;
+    // The declared pseudo-count moves the value monotonically away from that limit.
+    assert!(
+        (point(&smoothed) - point(&structural)).abs()
+            > (point(&vanishing) - point(&structural)).abs()
+    );
+    assert_eq!(smoothed.inference.interval, SampledIntervalOutcome::Reported);
 
-    // A sparsity limit stricter than the table's unseen share refuses.
-    let mut strict = request(tables, UnseenCellRule::AdditiveSmoothing { pseudo_count: 0.5 });
-    strict.limits.max_unseen_fraction = 0.0;
-    let error = estimate_sampled_counterfactual_transport(
-        &derivation,
-        &strict,
-        &ExecutionContext::for_tests(7),
-    )
-    .unwrap_err();
-    assert!(refusal(&error).1.contains("counterfactual_transport_sampled.sparsity_above_limit"));
+    envelope_is_labelled_and_sparsity_limit_refuses(&derivation, tables);
 }
 
 #[test]
@@ -481,7 +524,12 @@ fn estimated_table_zero_support_is_a_typed_refusal_not_a_number() {
     let error = estimate(&derivation, cited, UnseenCellRule::Refuse).unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "transport_support_failure");
-    assert!(message.contains("counterfactual_transport.zero_conditioning_mass"), "{message}");
+    assert!(
+        message.contains(
+            antecedent_core::reason_details::counterfactual_transport::ZERO_CONDITIONING_MASS
+        ),
+        "{message}"
+    );
     // Undeclared, the same cell is an unseen cell and refuses as such: never
     // silently zero.
     let undeclared: Vec<SampledRegimeCounts> = data
@@ -491,7 +539,11 @@ fn estimated_table_zero_support_is_a_typed_refusal_not_a_number() {
         .collect();
     let undeclared = cited_only(&derivation, &undeclared);
     let error = estimate(&derivation, undeclared, UnseenCellRule::Refuse).unwrap_err();
-    assert!(refusal(&error).1.contains("counterfactual_transport_sampled.unseen_cell"));
+    assert!(
+        refusal(&error).1.contains(
+            antecedent_core::reason_details::counterfactual_transport_sampled::UNSEEN_CELL
+        )
+    );
     // The same query is defined in the source population.
     let mut in_source = case.clone();
     in_source.target_population = "source";
@@ -518,7 +570,9 @@ fn overlap_must_be_declared_and_unlinked_shared_units_are_refused() {
     // Nothing declared: unknown is never independent.
     let (code, message) = refusal(&run(OverlapDeclaration::undeclared()).unwrap_err());
     assert_eq!(code, "sampling_dependence_unknown");
-    assert!(message.contains("counterfactual_transport_sampled.overlap_unknown"));
+    assert!(message.contains(
+        antecedent_core::reason_details::counterfactual_transport_sampled::OVERLAP_UNKNOWN
+    ));
 
     // One pair unknown among otherwise independent tables is refused too.
     let unknown_pair = OverlapDeclaration::all_independent()
@@ -533,7 +587,9 @@ fn overlap_must_be_declared_and_unlinked_shared_units_are_refused() {
         .unwrap();
     let (code, message) = refusal(&run(unlinked).unwrap_err());
     assert_eq!(code, "route_not_supported");
-    assert!(message.contains("counterfactual_transport_sampled.shared_units_unlinked"));
+    assert!(message.contains(
+        antecedent_core::reason_details::counterfactual_transport_sampled::SHARED_UNITS_UNLINKED
+    ));
 
     // The declared-independent run is the reference value.
     let independent = run(OverlapDeclaration::all_independent()).unwrap();
@@ -558,7 +614,9 @@ fn uncited_missing_and_undersized_tables_are_refused_before_a_number() {
     let error = estimate(&derivation, thin, UnseenCellRule::Refuse).unwrap_err();
     let (code, message) = refusal(&error);
     assert_eq!(code, "transport_missing_provider");
-    assert!(message.contains("counterfactual_transport_sampled.missing_table"));
+    assert!(message.contains(
+        antecedent_core::reason_details::counterfactual_transport_sampled::MISSING_TABLE
+    ));
 
     // A table for a regime the derivation does not cite is not silently ignored.
     let mut extra = tables.clone();
@@ -578,7 +636,9 @@ fn uncited_missing_and_undersized_tables_are_refused_before_a_number() {
     );
     let error = estimate(&derivation, extra, UnseenCellRule::Refuse).unwrap_err();
     assert_eq!(refusal(&error).0, "invalid_argument");
-    assert!(refusal(&error).1.contains("counterfactual_transport_sampled.table_not_cited"));
+    assert!(refusal(&error).1.contains(
+        antecedent_core::reason_details::counterfactual_transport_sampled::TABLE_NOT_CITED
+    ));
 
     // A sample below the declared minimum.
     let mut tiny = request(tables, UnseenCellRule::Refuse);
@@ -589,7 +649,9 @@ fn uncited_missing_and_undersized_tables_are_refused_before_a_number() {
         &ExecutionContext::for_tests(7),
     )
     .unwrap_err();
-    assert!(refusal(&error).1.contains("counterfactual_transport_sampled.sample_size_below_limit"));
+    assert!(refusal(&error).1.contains(
+        antecedent_core::reason_details::counterfactual_transport_sampled::SAMPLE_SIZE_BELOW_LIMIT
+    ));
 }
 
 #[test]
@@ -611,10 +673,24 @@ fn malformed_count_tables_are_refused_at_construction() {
         structural_zeros: zeros,
     };
     // Shape, emptiness, a structural zero that has observations.
-    assert!(SampledRegimeCounts::try_new(parts(counts[1..].to_vec(), vec![])).is_err());
-    assert!(SampledRegimeCounts::try_new(parts(vec![0; counts.len()], vec![])).is_err());
+    let construction_error = |p: SampledRegimeCountsParts| match SampledRegimeCounts::try_new(p) {
+        Err(error) => refusal(&error).1,
+        Ok(_) => panic!("a malformed table was accepted"),
+    };
+    let message = construction_error(parts(counts[1..].to_vec(), vec![]));
+    assert!(
+        message.contains(&format!(
+            "the table has {} cells but {} counts",
+            counts.len(),
+            counts.len() - 1
+        )),
+        "{message}"
+    );
+    let message = construction_error(parts(vec![0; counts.len()], vec![]));
+    assert!(message.contains("no observations carries no evidence"), "{message}");
     let observed = counts.iter().position(|c| *c > 0).unwrap();
-    assert!(SampledRegimeCounts::try_new(parts(counts.clone(), vec![observed])).is_err());
+    let message = construction_error(parts(counts.clone(), vec![observed]));
+    assert!(message.contains("structural zero is out of range or has observations"), "{message}");
     // A changed observation changes the content identity even when labels and
     // shape match.
     let mut changed = counts.clone();
@@ -627,7 +703,11 @@ fn malformed_count_tables_are_refused_at_construction() {
     let mut bad = parts(good.counts().to_vec(), vec![]);
     bad.design =
         SamplingDesign::Stratified { variables: vec![antecedent_core::VariableId::from_raw(999)] };
-    assert!(SampledRegimeCounts::try_new(bad).is_err());
+    let message = construction_error(bad);
+    assert!(
+        message.contains("stratification variables are distinct measured variables"),
+        "{message}"
+    );
 }
 
 #[test]
@@ -682,19 +762,27 @@ fn estimates_are_deterministic_invariant_to_table_order_and_move_with_the_counts
 }
 
 #[test]
-fn an_interval_is_never_published_and_the_standard_error_is_labelled_uncalibrated() {
+fn the_interval_is_reported_and_the_standard_error_is_labelled_uncalibrated() {
     let case = case_named("effect_of_treatment_on_treated_with_selection");
     let data = laws_of(&case);
     let derivation = derive(&case, &case.targets[0]);
     let mut rng = Rng(61);
     let tables = cited_only(&derivation, &sample_laws(&data, 8_000, &mut rng));
     let result = estimate(&derivation, tables, UnseenCellRule::Refuse).unwrap();
-    let interval = &result.inference.interval;
-    assert_eq!(interval.code, "cell_not_licensed");
-    assert_eq!(interval.detail, "counterfactual_transport_sampled.interval_not_licensed");
-    assert_eq!(interval.reason, "estimator_grid_not_measured");
-    assert_eq!(result.labels.statistical_inference, LABEL_INFERENCE_WITHHELD);
+    assert_eq!(result.inference.interval, SampledIntervalOutcome::Reported);
+    assert_eq!(result.labels.statistical_inference, LABEL_INFERENCE_INTERVAL);
     let se = result.inference.standard_error.as_ref().unwrap();
+    // The interval is reported from the same standard error: estimate +/- z * se, clamped.
+    let reported =
+        antecedent_estimate::counterfactual_transport_sampled::sampled_transport_interval(
+            &derivation,
+            &result,
+            0.95,
+        )
+        .unwrap();
+    let z = 1.959_963_984_540_054;
+    assert!((reported.lower - (point(&result) - z * se.value).max(0.0)).abs() < 1e-9);
+    assert!((reported.upper - (point(&result) + z * se.value).min(1.0)).abs() < 1e-9);
     assert_eq!(se.label, UNCALIBRATED_STANDARD_ERROR);
     assert_eq!(se.method, SAMPLED_TRANSPORT_UNCERTAINTY_METHOD);
     assert_eq!(se.gradient_relative_step, 1e-5);
@@ -782,7 +870,13 @@ fn selection_obstruction_leaves_no_derivation_to_sample() {
     let mut rng = Rng(8);
     let tables = sample_laws(&data, 1_000, &mut rng);
     assert!(!tables.is_empty());
-    assert!(!matches!(identify(&case, target), CounterfactualTransportDecision::Identified(_)));
+    assert!(
+        matches!(
+            identify(&case, target),
+            CounterfactualTransportDecision::ProvenNonTransportable(_)
+        ),
+        "the obstruction is a verified non-transportability witness, not a missing formula"
+    );
 }
 
 #[cfg(feature = "calibration-internal")]
@@ -798,8 +892,7 @@ fn the_calibration_internal_interval_is_a_candidate_not_a_published_claim() {
     let interval = sampled_transport_wald_interval_internal(&result, 0.95).unwrap();
     assert!(interval.lower <= point(&result) && point(&result) <= interval.upper);
     assert_eq!(interval.reason, "estimator_grid_not_measured");
-    // The published result still carries no interval.
-    assert_eq!(result.inference.interval.code, "cell_not_licensed");
+    assert_eq!(result.inference.interval, SampledIntervalOutcome::Reported);
     assert!(sampled_transport_wald_interval_internal(&result, 1.5).is_err());
 }
 
@@ -959,7 +1052,7 @@ fn measure_sampled_transport_coverage(
                 assert!(estimate.point.is_some());
                 assert!(estimate.inference.standard_error.is_some());
                 assert_eq!(interval.method, "delta_wald_clamped");
-                tally.bind(
+                tally.bind_validation(
                     &construction,
                     ScopeFacts {
                         row_count: n,
@@ -967,13 +1060,17 @@ fn measure_sampled_transport_coverage(
                         posterior_draws: None,
                         unidentified_mass: 0.0,
                     },
+                    &interval.basis.validation,
                 );
                 tally.record(Some((interval.lower, interval.upper)), truth);
             }
             None => tally.skip(),
         }
     }
-    assert_eq!(tally.record_id().as_deref(), Some(expected_id));
+    assert_eq!(
+        tally.record_id().as_deref(),
+        Some(format!("{expected_id}.v2_validation_not_applicable").as_str())
+    );
     tally.assert();
 }
 
@@ -1016,6 +1113,38 @@ fn sampled_two_source_joint() {
     );
 }
 
+#[test]
+fn the_calibration_basis_names_the_sampling_design_of_the_evidence() {
+    use antecedent_estimate::counterfactual_transport_sampled::sampled_transport_interval;
+    let case = chain_case();
+    let data = laws_of(&case);
+    let derivation = derive(&case, &case.targets[0]);
+    let mut rng = Rng(77);
+    let tables = cited_only(&derivation, &sample_laws(&data, 20_000, &mut rng));
+    let dependence = |tables: Vec<SampledRegimeCounts>| {
+        let result = estimate(&derivation, tables, UnseenCellRule::Refuse).unwrap();
+        sampled_transport_interval(&derivation, &result, 0.95).unwrap().basis.dependence
+    };
+    assert_eq!(&*dependence(tables.clone()), "independent_units");
+    let stratified: Vec<SampledRegimeCounts> = tables
+        .iter()
+        .map(|t| {
+            SampledRegimeCounts::try_new(SampledRegimeCountsParts {
+                population: Arc::from(t.population()),
+                regime: t.regime(),
+                interventions: t.interventions().to_vec(),
+                axes: t.axes().to_vec(),
+                counts: t.counts().to_vec(),
+                snapshot_identity: Arc::from(t.snapshot_identity()),
+                design: SamplingDesign::Stratified { variables: vec![t.axes()[0].variable] },
+                structural_zeros: t.structural_zeros().to_vec(),
+            })
+            .unwrap()
+        })
+        .collect();
+    assert_eq!(&*dependence(stratified), "stratified_fixed_totals");
+}
+
 #[cfg(feature = "calibration-internal")]
 #[test]
 #[ignore = "calibration: final measurement only"]
@@ -1027,5 +1156,180 @@ fn sampled_latent_district() {
         "finite_scm_frontdoor_latent_district",
         0x71a2_0000,
         "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_latent_district",
+    );
+}
+
+// -- exact multiprecision delta-method reference ---------------------------------------------------
+// `oracle_data/sampled_transport_delta_reference.py` evaluates the chain functional
+// P(y = 1 | do(x = 1)) = sum_m P(m | x = 1) P(y = 1 | m) on given cell counts, differentiates its
+// homogeneous extension to 50 digits, forms the multinomial delta variance
+// (1/N) [sum p g^2 - (sum p g)^2] and the Wald interval clamped to [0, 1], and freezes the roundings.
+
+#[test]
+fn delta_standard_error_and_clamped_wald_interval_equal_the_multiprecision_reference() {
+    use antecedent_estimate::counterfactual_transport_sampled::sampled_transport_interval;
+    let cases: Vec<serde_json::Value> =
+        serde_json::from_str(include_str!("oracle_data/sampled_transport_delta_reference.json"))
+            .unwrap();
+    let case = chain_case();
+    let data = laws_of(&case);
+    let derivation = derive(&case, &case.targets[0]);
+    let mut clamped = (false, false);
+    for reference in &cases {
+        let name = reference["name"].as_str().unwrap();
+        let counts: Vec<u64> =
+            reference["counts"].as_array().unwrap().iter().map(|c| c.as_u64().unwrap()).collect();
+        let tables = cited_only(
+            &derivation,
+            &data.laws().iter().map(|law| table_of(law, counts.clone(), false)).collect::<Vec<_>>(),
+        );
+        let result = estimate(&derivation, tables, UnseenCellRule::Refuse).unwrap();
+        let want_point = reference["point"].as_f64().unwrap();
+        let want_se = reference["se"].as_f64().unwrap();
+        assert!(
+            (point(&result) - want_point).abs() <= 1e-12,
+            "{name} point {} vs {want_point}",
+            point(&result)
+        );
+        let se = result.inference.standard_error.as_ref().unwrap().value;
+        assert!((se - want_se).abs() <= 1e-6 * want_se, "{name} se {se} vs {want_se}");
+        let interval = sampled_transport_interval(&derivation, &result, 0.95).unwrap();
+        let (lower, upper) =
+            (reference["lower"].as_f64().unwrap(), reference["upper"].as_f64().unwrap());
+        assert!(
+            (interval.lower - lower).abs() <= 1e-6 * want_se.max(1e-3),
+            "{name} lower {} vs {lower}",
+            interval.lower
+        );
+        assert!(
+            (interval.upper - upper).abs() <= 1e-6 * want_se.max(1e-3),
+            "{name} upper {} vs {upper}",
+            interval.upper
+        );
+        assert!(interval.lower >= 0.0 && interval.upper <= 1.0);
+        clamped.0 |= reference["lower_clamped"].as_bool().unwrap() && interval.lower == 0.0;
+        clamped.1 |= reference["upper_clamped"].as_bool().unwrap() && interval.upper == 1.0;
+        // Another level is reported too: calibration annotates and never gates. The half-width
+        // is the standard normal 90% quantile times the reference standard error.
+        let wide = sampled_transport_interval(&derivation, &result, 0.9).unwrap();
+        let z90 = 1.644_853_626_951_472_2;
+        let want_lower = (want_point - z90 * want_se).max(0.0);
+        let want_upper = (want_point + z90 * want_se).min(1.0);
+        assert!((wide.lower - want_lower).abs() <= 1e-6 * want_se.max(1e-3), "{name} 90% lower");
+        assert!((wide.upper - want_upper).abs() <= 1e-6 * want_se.max(1e-3), "{name} 90% upper");
+    }
+    assert_eq!(clamped, (true, true), "both clamps are exercised");
+}
+
+#[test]
+fn sampled_point_and_gradient_share_the_declared_operation_budget() {
+    let case = chain_case();
+    let data = laws_of(&case);
+    let derivation = derive(&case, &case.targets[0]);
+    let mut rng = Rng(404);
+    let tables = cited_only(&derivation, &sample_laws(&data, 20_000, &mut rng));
+    let ctx = ExecutionContext::for_tests(7);
+    let mut req = request(tables, UnseenCellRule::Refuse);
+    let baseline = estimate_sampled_counterfactual_transport(&derivation, &req, &ctx).unwrap();
+    assert!(baseline.inference.standard_error.is_some());
+    req.limits.evaluation.operations = 20_000;
+    let error = estimate_sampled_counterfactual_transport(&derivation, &req, &ctx).unwrap_err();
+    let (code, detail) = refusal(&error);
+    assert_eq!(code, "transport_budget_cancel");
+    assert!(detail.contains(antecedent_core::reason_details::counterfactual_transport::BUDGET));
+
+    // Find the exact allowance required by the complete point and gradient.
+    // The boundary must be inclusive and the fitted value invariant there.
+    let mut low = 20_000usize;
+    let mut high = SampledTransportLimits::default().evaluation.operations;
+    while low + 1 < high {
+        let middle = low + (high - low) / 2;
+        req.limits.evaluation.operations = middle;
+        if estimate_sampled_counterfactual_transport(&derivation, &req, &ctx).is_ok() {
+            high = middle;
+        } else {
+            low = middle;
+        }
+    }
+    req.limits.evaluation.operations = high - 1;
+    assert_eq!(
+        refusal(&estimate_sampled_counterfactual_transport(&derivation, &req, &ctx).unwrap_err()).0,
+        "transport_budget_cancel"
+    );
+    req.limits.evaluation.operations = high;
+    let boundary = estimate_sampled_counterfactual_transport(&derivation, &req, &ctx).unwrap();
+    assert_eq!(point(&boundary).to_bits(), point(&baseline).to_bits());
+    assert_eq!(
+        boundary.inference.standard_error.unwrap().value.to_bits(),
+        baseline.inference.standard_error.unwrap().value.to_bits()
+    );
+}
+
+#[test]
+#[allow(
+    clippy::items_after_statements,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
+fn sampled_multitable_gradient_matches_independent_count_perturbations() {
+    let case = case_named("joint_counterfactual_two_source_regimes");
+    let data = laws_of(&case);
+    let derivation = derive(&case, &case.targets[0]);
+    let mut rng = Rng(5);
+    let mut tables = cited_only(&derivation, &sample_laws(&data, 20_000, &mut rng));
+    assert!(tables.len() >= 3);
+    let replace_counts = |table: &SampledRegimeCounts, counts: Vec<u64>| {
+        SampledRegimeCounts::try_new(SampledRegimeCountsParts {
+            population: Arc::from(table.population()),
+            regime: table.regime(),
+            interventions: table.interventions().to_vec(),
+            axes: table.axes().to_vec(),
+            counts,
+            snapshot_identity: Arc::from(table.snapshot_identity()),
+            design: table.design().clone(),
+            structural_zeros: table.structural_zeros().to_vec(),
+        })
+        .unwrap()
+    };
+    for table in &mut tables {
+        *table = replace_counts(table, table.counts().iter().map(|c| c * 1_000).collect());
+    }
+    let result = estimate(&derivation, tables.clone(), UnseenCellRule::Refuse).unwrap();
+    let expected_se = result.inference.standard_error.unwrap().value;
+    let mut variance = 0.0;
+    const STEP: u64 = 100;
+    for (index, table) in tables.iter().enumerate() {
+        let total = table.total() as f64;
+        let mut first = 0.0;
+        let mut second = 0.0;
+        for (cell, &count) in table.counts().iter().enumerate() {
+            if count == 0 {
+                continue;
+            }
+            assert!(count > STEP);
+            let mut values = [0.0; 2];
+            for (slot, increase) in [true, false].iter().enumerate() {
+                let mut perturbed = tables.clone();
+                let mut counts = table.counts().to_vec();
+                if *increase {
+                    counts[cell] += STEP;
+                } else {
+                    counts[cell] -= STEP;
+                }
+                perturbed[index] = replace_counts(table, counts);
+                values[slot] =
+                    point(&estimate(&derivation, perturbed, UnseenCellRule::Refuse).unwrap());
+            }
+            let gradient = (values[0] - values[1]) / (2.0 * STEP as f64 / total);
+            let probability = count as f64 / total;
+            first += probability * gradient;
+            second += probability * gradient * gradient;
+        }
+        variance += (second - first * first) / total;
+    }
+    let independently_differenced = variance.max(0.0).sqrt();
+    assert!(expected_se > 0.0);
+    assert!(
+        (expected_se - independently_differenced).abs() <= 1e-3 * expected_se,
+        "{expected_se} vs {independently_differenced}"
     );
 }

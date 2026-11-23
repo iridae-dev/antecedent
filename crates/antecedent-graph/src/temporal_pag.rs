@@ -1,6 +1,6 @@
 //! Temporal PAG over lagged nodes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -78,10 +78,7 @@ impl TemporalPag {
     }
 
     fn validate_node(&self, id: DenseNodeId) -> Result<(), GraphError> {
-        if id.as_usize() >= self.node_count() {
-            return Err(GraphError::UnknownNode { id: id.raw() });
-        }
-        Ok(())
+        crate::types::validate_node_index(self.node_count(), id)
     }
 
     /// Insert a marked edge with temporal constraints (no future→past directed).
@@ -189,6 +186,13 @@ impl TemporalPag {
     #[must_use]
     pub fn edges(&self) -> Vec<MarkedEdge> {
         marked_storage::all_marked_edges(&self.adj)
+    }
+
+    /// Each marked pair once, lazily and without allocating, in dense adjacency order.
+    ///
+    /// Covers the same pairs and marks as [`Self::edges`] (which sorts and collects them).
+    pub fn edges_lazy(&self) -> impl Iterator<Item = MarkedEdge> + Clone + '_ {
+        marked_storage::marked_edges_lazy(&self.adj)
     }
 
     /// Edge between nodes.
@@ -516,7 +520,7 @@ mod tests {
         g.set_marks(a, b, Endpoint::Tail, Endpoint::Arrow).unwrap();
         let dag = g.try_into_temporal_dag().unwrap();
         assert_eq!(dag.node_count(), 2);
-        assert!(dag.children(a).iter().any(|c| *c == b));
+        assert!(dag.children(a).contains(&b));
     }
 }
 

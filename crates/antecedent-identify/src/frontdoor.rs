@@ -14,7 +14,7 @@
 //! Enumeration is still bounded by `max_mediator_set_size` and `max_results`.
 //! A `NotIdentified` result means no candidate within those bounds qualifies.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
@@ -23,10 +23,10 @@ use antecedent_expr::CausalExprArena;
 use antecedent_graph::{DSeparationWorkspace, Dag, DenseNodeId};
 
 use crate::backdoor::{
-    PreparedIdentificationGraph, dense_to_var, remove_nodes, remove_outgoing, remove_outgoing_set,
-    var_to_dense,
+    PreparedIdentificationGraph, remove_nodes, remove_outgoing, remove_outgoing_set,
 };
 use crate::error::IdentificationError;
+use crate::identification_run::IdentificationRun;
 use crate::identifier::IdentificationWorkspace;
 use crate::result::{
     DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
@@ -134,81 +134,50 @@ impl FrontDoorIdentifier {
         query: CausalQuery,
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
-        let dag = prepared.dag();
-        let t = var_to_dense(ate.treatment, dag)?;
-        let y = var_to_dense(ate.outcome, dag)?;
+        crate::identification_run::require_marginal_target(ate)?;
+        let run = IdentificationRun::open(prepared, ate, "frontdoor")?;
+        let dag = run.dag();
+        let (t, y) = (run.t, run.y);
 
-        let mut candidates: Vec<Vec<DenseNodeId>> = Vec::new();
-        let mut seen = std::collections::BTreeSet::<Vec<u32>>::new();
-        let mut push_candidate = |m: Vec<DenseNodeId>, candidates: &mut Vec<Vec<DenseNodeId>>| {
-            let mut key: Vec<u32> = m.iter().map(|d| d.raw()).collect();
-            key.sort_unstable();
-            if seen.insert(key) {
-                candidates.push(m);
-            }
-        };
-
-        // Singletons excluding T,Y.
-        for i in 0..dag.node_count() {
-            let v = DenseNodeId::from_index(i);
-            if v == t || v == y {
-                continue;
-            }
-            push_candidate(vec![v], &mut candidates);
-        }
-
-        // Non-empty subsets of children(T)\{Y} up to max_mediator_set_size.
         let children_of_t: Vec<DenseNodeId> =
             dag.children(t).iter().copied().filter(|&c| c != y).collect();
-        let max_k = self.config.max_mediator_set_size.min(children_of_t.len());
-        for k in 1..=max_k {
-            for subset in combinations(&children_of_t, k) {
-                push_candidate(subset, &mut candidates);
-            }
-        }
-        // If the full child set exceeds the cardinality bound, still test it once.
-        let child_overflow = children_of_t.len() > max_k;
-        if child_overflow {
-            push_candidate(children_of_t, &mut candidates);
-        }
-
-        // Non-empty subsets of all intermediates V\{T,Y} (non-child + mixed sets).
         let intermediates: Vec<DenseNodeId> = (0..dag.node_count())
             .map(DenseNodeId::from_index)
             .filter(|&v| v != t && v != y)
             .collect();
-        // Cap pool to avoid combinatorial blow-ups (same spirit as backdoor's >20 guard).
+        let max_k = self.config.max_mediator_set_size.min(children_of_t.len());
+        let child_overflow = children_of_t.len() > max_k;
         let mut search_bounded = child_overflow
             || intermediates.len() > 12
             || intermediates.len() > self.config.max_mediator_set_size.max(1);
-        if intermediates.len() <= 12 {
-            let max_all = self.config.max_mediator_set_size.min(intermediates.len());
-            for k in 1..=max_all {
-                for subset in combinations(&intermediates, k) {
-                    push_candidate(subset, &mut candidates);
-                }
-            }
-        }
-
         let mut valid: Vec<Vec<DenseNodeId>> = Vec::new();
         let mut examined = 0u64;
-
-        for m in &candidates {
-            examined += 1;
-            if is_frontdoor_set(dag, t, y, m, &mut workspace.dsep)? {
-                valid.push(m.clone());
-                if valid.len() >= self.config.max_results {
-                    search_bounded = true;
-                    break;
+        let mut error = None;
+        let stopped = for_each_frontdoor_candidate(
+            &intermediates,
+            &children_of_t,
+            self.config.max_mediator_set_size,
+            |m| {
+                examined += 1;
+                match is_frontdoor_set(dag, t, y, m, &mut workspace.dsep) {
+                    Ok(true) => {
+                        valid.push(m.to_vec());
+                        valid.len() >= self.config.max_results
+                    }
+                    Ok(false) => false,
+                    Err(err) => {
+                        error = Some(err);
+                        true
+                    }
                 }
-            }
+            },
+        );
+        if let Some(err) = error {
+            return Err(err);
         }
+        search_bounded |= stopped;
 
-        let mut assumptions = AssumptionSet::new();
-        assumptions.push(crate::assumptions::causal_markov("frontdoor"));
-        for record in &prepared.declared_assumptions().entries {
-            assumptions.push(record.clone());
-        }
+        let assumptions = run.base_assumptions();
 
         let mut derivation = DerivationTrace::default();
         derivation.push(
@@ -236,19 +205,9 @@ impl FrontDoorIdentifier {
         let mut arena = CausalExprArena::new();
         let mut estimands = Vec::with_capacity(valid.len());
         for m in &valid {
-            let vars: Vec<VariableId> =
-                m.iter().map(|d| dense_to_var(*d, dag)).collect::<Result<_, _>>()?;
-            let (active, control) = match (&ate.active, &ate.control) {
-                (
-                    antecedent_core::Intervention::Set { value: active, .. },
-                    antecedent_core::Intervention::Set { value: control, .. },
-                ) => (active.clone(), control.clone()),
-                _ => {
-                    return Err(IdentificationError::UnsupportedQuery {
-                        message: "front-door ATE requires Set interventions",
-                    });
-                }
-            };
+            let vars: Vec<VariableId> = run.variables(m)?;
+            let (active, control) =
+                run.hard_set_levels("front-door ATE requires Set interventions")?;
             let functional =
                 arena.frontdoor_ate(ate.treatment, ate.outcome, &vars, active, control);
             estimands.push(IdentifiedEstimand::frontdoor("frontdoor", Arc::from(vars), functional));
@@ -275,6 +234,48 @@ impl FrontDoorIdentifier {
         }
         Ok(result)
     }
+}
+
+/// Check a supplied mediator set against the front-door criterion.
+///
+/// Evaluates the complete set (no candidate search, so no search budget). `Ok(false)` when
+/// the set is empty or any criterion fails; an error for variables outside the graph or
+/// roles that collide.
+///
+/// # Errors
+///
+/// [`IdentificationError::InvalidQuery`] for out-of-graph or colliding roles.
+pub fn check_frontdoor_set(
+    graph: &Dag,
+    treatment: VariableId,
+    outcome: VariableId,
+    mediators: &[VariableId],
+) -> Result<bool, IdentificationError> {
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::Identification,
+        || {
+            let valid = |id: VariableId| (id.raw() as usize) < graph.node_count();
+            let unique: std::collections::BTreeSet<_> = mediators.iter().copied().collect();
+            if !valid(treatment)
+                || !valid(outcome)
+                || treatment == outcome
+                || unique.len() != mediators.len()
+                || mediators.iter().any(|id| !valid(*id) || *id == treatment || *id == outcome)
+            {
+                return Err(IdentificationError::InvalidQuery {
+                    message: "invalid front-door roles".into(),
+                });
+            }
+            let m: Vec<_> = mediators.iter().map(|id| DenseNodeId::from_raw(id.raw())).collect();
+            is_frontdoor_set(
+                graph,
+                DenseNodeId::from_raw(treatment.raw()),
+                DenseNodeId::from_raw(outcome.raw()),
+                &m,
+                &mut DSeparationWorkspace::default(),
+            )
+        },
+    )
 }
 
 /// Whether `m` satisfies the front-door criterion relative to `t` and `y`.
@@ -319,32 +320,38 @@ fn is_frontdoor_set(
     Ok(true)
 }
 
-/// Lexicographic combinations of `items` choose `k`.
-fn combinations(items: &[DenseNodeId], k: usize) -> Vec<Vec<DenseNodeId>> {
-    let n = items.len();
-    let mut out = Vec::new();
-    if k == 0 || k > n {
-        return out;
+/// Visit the historical candidate order without materializing its combinatorial family.
+fn for_each_frontdoor_candidate(
+    intermediates: &[DenseNodeId],
+    children: &[DenseNodeId],
+    max_size: usize,
+    mut visit: impl FnMut(&[DenseNodeId]) -> bool,
+) -> bool {
+    for node in intermediates {
+        if visit(std::slice::from_ref(node)) {
+            return true;
+        }
     }
-    let mut idx: Vec<usize> = (0..k).collect();
-    loop {
-        out.push(idx.iter().map(|&i| items[i]).collect());
-        // Find rightmost index that can be incremented.
-        let mut i = k;
-        while i > 0 {
-            i -= 1;
-            if idx[i] < n - k + i {
-                idx[i] += 1;
-                for j in (i + 1)..k {
-                    idx[j] = idx[j - 1] + 1;
-                }
-                break;
-            }
-            if i == 0 {
-                return out;
+    let max_children = max_size.min(children.len());
+    for k in 2..=max_children {
+        if crate::enum_masks::for_each_mask_of_size(children, k, &mut visit) {
+            return true;
+        }
+    }
+    if children.len() > max_children && children.len() > 1 && visit(children) {
+        return true;
+    }
+    if intermediates.len() <= 12 {
+        let max_all = max_size.min(intermediates.len());
+        for k in 2..=max_all {
+            if crate::enum_masks::for_each_mask_of_size(intermediates, k, |set| {
+                if set.iter().all(|node| children.contains(node)) { false } else { visit(set) }
+            }) {
+                return true;
             }
         }
     }
+    false
 }
 
 #[cfg(test)]
@@ -352,6 +359,65 @@ mod tests {
     use super::*;
     use crate::result::IdentificationStatus;
     use antecedent_core::{AverageEffectQuery, DiagnosticKind};
+
+    #[test]
+    fn streamed_candidates_match_eager_order_and_stop_early() {
+        use std::collections::BTreeSet;
+        for n in 0..=7 {
+            let nodes: Vec<_> = (0..n).map(DenseNodeId::from_index).collect();
+            for mask in 0..(1usize << n) {
+                let children: Vec<_> = nodes
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, &v)| (mask & (1 << i) != 0).then_some(v))
+                    .rev()
+                    .collect();
+                for max_size in 0..=4 {
+                    let mut eager = Vec::new();
+                    let mut seen = BTreeSet::new();
+                    let mut push = |set: &[DenseNodeId]| {
+                        let mut key: Vec<_> = set.iter().map(|d| d.raw()).collect();
+                        key.sort_unstable();
+                        if seen.insert(key) {
+                            eager.push(set.to_vec());
+                        }
+                    };
+                    for node in &nodes {
+                        push(std::slice::from_ref(node));
+                    }
+                    let child_max = max_size.min(children.len());
+                    for size in 1..=child_max {
+                        crate::enum_masks::for_each_mask_of_size(&children, size, |set| {
+                            push(set);
+                            false
+                        });
+                    }
+                    if children.len() > child_max {
+                        push(&children);
+                    }
+                    for size in 1..=max_size.min(nodes.len()) {
+                        crate::enum_masks::for_each_mask_of_size(&nodes, size, |set| {
+                            push(set);
+                            false
+                        });
+                    }
+                    let mut actual = Vec::new();
+                    assert!(!for_each_frontdoor_candidate(&nodes, &children, max_size, |set| {
+                        actual.push(set.to_vec());
+                        false
+                    }));
+                    assert_eq!(actual, eager, "n={n}, mask={mask}, max_size={max_size}");
+                }
+            }
+        }
+        let nodes: Vec<_> = (0..200).map(DenseNodeId::from_index).collect();
+        let mut visited = 0;
+        assert!(for_each_frontdoor_candidate(&nodes, &nodes, 4, |_| {
+            visited += 1;
+            true
+        }));
+        assert_eq!(visited, 1);
+    }
 
     #[test]
     fn classic_frontdoor_with_unmeasured_confounder() {

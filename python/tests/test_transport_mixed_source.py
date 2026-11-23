@@ -10,9 +10,10 @@ theorem route, identifies ``P(y | do(x))``; the studies together do.
 
 import itertools
 import json
+import re
 
 import pytest
-from antecedent import Admg
+from antecedent import Admg, build_flavor
 from antecedent.errors import (
     CausalResourceError,
     CausalSerializationError,
@@ -20,6 +21,8 @@ from antecedent.errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from antecedent.execution import Execution
+from antecedent.outcomes import require_success
 from antecedent.transport import advanced as transport
 
 NAMES = ["x", "z", "y"]
@@ -160,7 +163,7 @@ def test_complementary_studies_identify_what_no_single_study_can():
     assert graph_lines[-1].endswith("<- target") and "P(y | do(x))" in graph_lines[-1]
     for x in (0, 1):
         prepared = stage.prepare_exact(laws(CHAIN, CHAIN_STUDIES), {"x": float(x)})
-        result = json.loads(prepared.estimate())
+        result = json.loads(require_success(prepared.estimate()))
         assert result["scope"] == "mixed_source_proof_search_sound_incomplete"
         assert risk(result) == pytest.approx(truth(CHAIN, x), abs=1e-12)
         assert result["interval"] == {"available": False, "status": "point_only"}
@@ -176,7 +179,7 @@ def test_a_surrogate_trial_corrects_the_confounded_observational_conditional():
     rules = {s["rule"] for s in stage.decision()["steps"]}
     assert {"rule3_insert", "rule2_to_observation", "rule2_to_do"} <= rules
     prepared = stage.prepare_exact(laws(FRONTDOOR, FRONTDOOR_STUDIES), [{"x": 0.0}, {"x": 1.0}])
-    result = json.loads(prepared.estimate())
+    result = json.loads(require_success(prepared.estimate()))
     assert [risk(r) for r in result["requests"]] == pytest.approx(
         [truth(FRONTDOOR, 0), truth(FRONTDOOR, 1)], abs=1e-12
     )
@@ -323,19 +326,26 @@ def test_a_value_restricted_trial_is_excluded_not_identified_for_every_level():
         restricted.prepare_exact((), {"x": 1.0})
 
 
-def test_counted_laws_are_not_licensed_on_the_mixed_source_route():
+def test_counted_laws_are_not_supported_on_the_mixed_source_route():
     stage = decide(chain_graph(), CHAIN_STUDIES)
-    with pytest.raises(CausalUnsupportedError, match="cell_not_licensed"):
+    if build_flavor() == "development":
+        # A development build runs the route and records would_refuse.
         stage.prepare_empirical(laws(CHAIN, CHAIN_STUDIES), {"x": 1.0})
+        return
+    with pytest.raises(
+        CausalUnsupportedError, match="mixed_source.counted_laws_unsupported"
+    ) as info:
+        stage.prepare_empirical(laws(CHAIN, CHAIN_STUDIES), {"x": 1.0})
+    assert info.value.reason_code == "not_supported"
 
 
 def test_exported_result_is_recomputed_by_an_independent_consumer():
     prepared = decide(frontdoor_graph(), FRONTDOOR_STUDIES).prepare_exact(
         laws(FRONTDOOR, FRONTDOOR_STUDIES), {"x": 1.0}
     )
-    live = json.loads(prepared.estimate())
-    artifact = prepared.export()
-    consumed = json.loads(transport.consume_mixed_source_artifact(artifact))
+    live = json.loads(require_success(prepared.estimate()))
+    artifact = bytes(prepared.export())
+    consumed = transport.consume_mixed_source_artifact(artifact).to_dict()
     assert consumed["probabilities"] == live["probabilities"]
     assert consumed["proof"]["rule_set"] == "mixed_source_proof_rules.v1"
     assert {s["study"] for s in consumed["cited_sources"]} == {"observational", "trial"}
@@ -348,9 +358,9 @@ def test_export_binds_names_limits_and_snapshots_into_the_verified_identity():
     builder = decide(frontdoor_graph(), FRONTDOOR_STUDIES)
     prepared = builder.prepare_exact(laws(FRONTDOOR, FRONTDOOR_STUDIES), {"x": 1.0})
     del builder
-    json.loads(prepared.estimate())
+    json.loads(require_success(prepared.estimate()))
     assert prepared.plan()["compiled_plans"] == 1
-    artifact = prepared.export()
+    artifact = bytes(prepared.export())
     # Relabelling coordinates in the frame (same byte length) is refused.
     swapped = artifact.replace(b"\x83axazay", b"\x83azaxay", 1)
     assert swapped != artifact
@@ -368,27 +378,35 @@ def test_export_binds_names_limits_and_snapshots_into_the_verified_identity():
     with pytest.raises(CausalSerializationError, match="digest mismatch"):
         transport.consume_mixed_source_artifact(renamed)
     # A consumer with smaller limits than the producer refuses.
-    with pytest.raises(CausalResourceError):
+    with pytest.raises(
+        CausalResourceError, match=re.escape("consumer limit exceeded: search operation limit")
+    ):
         transport.consume_mixed_source_artifact(artifact, max_search_operations=10)
 
 
-def test_refresh_rebinds_snapshots_and_re_executes_the_retained_plan():
+def test_rebinding_snapshots_re_executes_the_retained_plan_on_a_new_branch():
     builder = decide(chain_graph(), CHAIN_STUDIES)
     prepared = builder.prepare_exact(laws(CHAIN, CHAIN_STUDIES), {"x": 1.0})
     del builder
-    before = json.loads(prepared.estimate())
+    before = json.loads(require_success(prepared.estimate()))
     plan = prepared.plan()
     shifted = {**CHAIN, "z": lambda v, e: e[2] if v["x"] else e[1]}
-    prepared.refresh(laws(shifted, CHAIN_STUDIES))
-    assert prepared.plan() == plan
-    after = json.loads(prepared.estimate())
+    moved = prepared.bind_snapshot(laws(shifted, CHAIN_STUDIES))
+    assert moved is not prepared
+    assert moved.plan() == plan
+    after = json.loads(require_success(moved.estimate()))
     assert after["probabilities"] != before["probabilities"]
+    # The original branch is unchanged.
+    assert (
+        json.loads(require_success(prepared.estimate()))["probabilities"]
+        == (before["probabilities"])
+    )
     with pytest.raises(CausalUnsupportedError, match="snapshot does not match catalog binding"):
-        prepared.refresh(laws(CHAIN, CHAIN_STUDIES, snapshot_suffix="-new"))
-    # Refresh clears the last claim: nothing is exported until the plan runs again.
-    prepared.refresh(laws(CHAIN, CHAIN_STUDIES))
+        prepared.bind_snapshot(laws(CHAIN, CHAIN_STUDIES, snapshot_suffix="-new"))
+    # A rebound branch has no claim: nothing is exported until its plan runs.
+    unexecuted = prepared.bind_snapshot(laws(CHAIN, CHAIN_STUDIES))
     with pytest.raises(Exception, match="not_executed"):
-        prepared.export()
+        bytes(unexecuted.export())
 
 
 def test_prepare_exact_compiles_a_checked_plan_after_builder_disposal():
@@ -400,7 +418,7 @@ def test_prepare_exact_compiles_a_checked_plan_after_builder_disposal():
     assert (
         plan["cited_regimes"] == ["s1", "s2"] and plan["rule_set"] == "mixed_source_proof_rules.v1"
     )
-    result = json.loads(prepared.estimate())
+    result = json.loads(require_success(prepared.estimate()))
     assert [risk(r) for r in result["requests"]] == pytest.approx(
         [truth(CHAIN, 0), truth(CHAIN, 1)], abs=1e-12
     )
@@ -412,13 +430,20 @@ def test_prepare_exact_compiles_a_checked_plan_after_builder_disposal():
 def test_query_contract_is_validated_before_search():
     with pytest.raises(CausalValueError):
         transport.MixedSourceQuery(target="target", outcomes=["y"], treatments=["y"])
-    with pytest.raises(CausalValueError):
+    with pytest.raises(
+        CausalValueError, match=re.escape("target must be a non-empty population name")
+    ):
         transport.MixedSourceQuery(target="", outcomes=["y"], treatments=["x"])
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=re.escape("sources must be ZTransportSource values")):
         transport.MixedSourceQuery(target="target", outcomes=["y"], treatments=["x"], sources=[1])
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match=re.escape("catalog must be an EvidenceCatalog")):
         transport.identify_mixed_source_transport(graph=chain_graph(), query=query(), catalog={})
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(
+        CausalTypeError,
+        match=re.escape(
+            "an artifact is bytes or ExportedArtifact; read paths with Path.read_bytes()"
+        ),
+    ):
         transport.consume_mixed_source_artifact("not bytes")
 
 
@@ -431,30 +456,32 @@ def test_mixed_source_identification_executes_its_plan_after_query_disposal():
     del builder
     assert program["rule_set"] == "mixed_source_proof_rules.v1" and program["steps"]
     assert prepared.plan()["cited_regimes"] == program["cited_regimes"]
-    assert risk(json.loads(prepared.estimate())) == pytest.approx(truth(CHAIN, 1), abs=1e-12)
+    assert risk(json.loads(require_success(prepared.estimate()))) == pytest.approx(
+        truth(CHAIN, 1), abs=1e-12
+    )
 
 
 def test_estimate_executes_every_request_from_the_retained_plan():
     builder = decide(chain_graph(), CHAIN_STUDIES)
     prepared = builder.prepare_exact(laws(CHAIN, CHAIN_STUDIES), [{"x": 0.0}, {"x": 1.0}])
     del builder
-    result = json.loads(prepared.estimate())
+    result = json.loads(require_success(prepared.estimate()))
     assert result["probabilities"] == result["requests"][0]["probabilities"]
     assert [r["assignment"] for r in result["requests"]] == [{"x": 0.0}, {"x": 1.0}]
     plan = prepared.plan()
     assert plan["compiled_plans"] == len(result["requests"])
-    assert json.loads(prepared.estimate())["requests"] == result["requests"]
+    assert json.loads(require_success(prepared.estimate()))["requests"] == result["requests"]
 
 
 def test_consumer_recomputes_points_after_builder_disposal():
     builder = decide(chain_graph(), CHAIN_STUDIES)
     prepared = builder.prepare_exact(laws(CHAIN, CHAIN_STUDIES), [{"x": 0.0}, {"x": 1.0}])
     del builder
-    live = json.loads(prepared.estimate())
+    live = json.loads(require_success(prepared.estimate()))
     plan = prepared.plan()
-    artifact = prepared.export()
+    artifact = bytes(prepared.export())
     del prepared
-    consumed = json.loads(transport.consume_mixed_source_artifact(artifact))
+    consumed = transport.consume_mixed_source_artifact(artifact).to_dict()
     assert consumed["requests"] == live["requests"]
     assert [s["source"]["regime"] for s in plan["steps"] if s["source"]] == ["s1", "s2"]
     assert {c["study"] for c in consumed["cited_sources"]} == {"study-1", "study-2"}
@@ -465,7 +492,7 @@ def test_a_cancelled_search_stays_unresolved_with_a_receipt():
 
     token = CancellationToken()
     token.cancel()
-    stage = decide(chain_graph(), CHAIN_STUDIES, cancel=token)
+    stage = decide(chain_graph(), CHAIN_STUDIES, execution=Execution(cancel=token))
     assert stage.outcome == "exhausted"
     assert stage.identification_status == "budget_cancel"
     assert stage.decision()["limits_receipt"]["stop"] == "search.cancelled"
